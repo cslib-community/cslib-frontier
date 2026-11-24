@@ -224,7 +224,7 @@ theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
 theorem realize_isMax {V : Type*} (v : V → Fin B) (u : V) :
     (isMax r u).Realize v ↔ (v u : ℕ) = B - 1 := by
   fo_simp [isMax, hlt]
-  have hu := (v u).2
+  have hu := (v u).isLt
   constructor
   · intro h
     by_contra hne
@@ -239,8 +239,8 @@ successor of the value of `u`. -/
 theorem realize_succ {V : Type*} (v : V → Fin B) (u w : V) :
     (succ r u w).Realize v ↔ (v w : ℕ) = (v u : ℕ) + 1 := by
   fo_simp [succ, realize_lt hlt, hlt]
-  have hu := (v u).2
-  have hw := (v w).2
+  have hu := (v u).isLt
+  have hw := (v w).isLt
   constructor
   · rintro ⟨hlt', hmid⟩
     rw [Fin.lt_def] at hlt'

@@ -547,15 +547,15 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
       ((μ_g.map (pairBOf t₀ m ht₀)) p₁).toReal = ((μ_g.map (pairBOf t₀ m ht₀)) p₂).toReal := by
     intro p₁ p₂
     let K₁ : Finset (Fin U) := Dictionary.dom p₁.val
-    have hK₁ : K₁.card = n := p₁.2.1
+    have hK₁ : K₁.card = n := p₁.property.1
     let K₂ : Finset (Fin U) := Dictionary.dom p₂.val
-    have hK₂ : K₂.card = n := p₂.2.1
+    have hK₂ : K₂.card = n := p₂.property.1
     let f₁ (u : ↥K₁) : Fin V :=
-      let his : (p₁.val u.1).isSome := Dictionary.mem_dom_iff_isSome.mp u.2
-      ⟨(p₁.val u.1).get his, p₁.2.2 u.1 _ (Option.some_get his).symm⟩
+      let his : (p₁.val u.val).isSome := Dictionary.mem_dom_iff_isSome.mp u.property
+      ⟨(p₁.val u.val).get his, p₁.property.2 u.val _ (Option.some_get his).symm⟩
     let f₂ (u : ↥K₂) : Fin V :=
-      let his : (p₂.val u.1).isSome := Dictionary.mem_dom_iff_isSome.mp u.2
-      ⟨(p₂.val u.1).get his, p₂.2.2 u.1 _ (Option.some_get his).symm⟩
+      let his : (p₂.val u.val).isSome := Dictionary.mem_dom_iff_isSome.mp u.property
+      ⟨(p₂.val u.val).get his, p₂.property.2 u.val _ (Option.some_get his).symm⟩
     have hp₁ (u : Fin U) : p₁.val u = if hu : u ∈ K₁ then some (f₁ ⟨u, hu⟩).val else none := by
       by_cases hu : u ∈ K₁
       · rw [dite_eq_left hu]
@@ -890,7 +890,7 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
             rw [Equiv.apply_symm_apply]
             by_cases hu : u ∈ S_comp
             · rw [Equiv.Perm.ofSubtype_apply_of_mem _ hu,
-                Equiv.Perm.ofSubtype_apply_of_mem _ (γ.1.symm ⟨u, hu⟩).2]
+                Equiv.Perm.ofSubtype_apply_of_mem _ (γ.1.symm ⟨u, hu⟩).property]
               simp
             · rw [Equiv.Perm.ofSubtype_apply_of_not_mem _ hu,
                 Equiv.Perm.ofSubtype_apply_of_not_mem _ hu])
@@ -993,16 +993,16 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
               (stab K_rem).card = (stab K').card := by
             obtain ⟨hKr_sub, hKr_card⟩ := Finset.mem_powersetCard.mp hKr
             obtain ⟨hK'_sub, hK'_card⟩ := Finset.mem_powersetCard.mp hK'
-            let Kr_s : Finset ↥S_comp := Finset.univ.filter fun x => x.1 ∈ K_rem
-            let K'_s : Finset ↥S_comp := Finset.univ.filter fun x => x.1 ∈ K'
+            let Kr_s : Finset ↥S_comp := Finset.univ.filter fun x => x.val ∈ K_rem
+            let K'_s : Finset ↥S_comp := Finset.univ.filter fun x => x.val ∈ K'
             have hcard_Krs : Kr_s.card = n - m := by
               rw [← hKr_card]
-              refine Finset.card_bij (fun x _ => x.1) (fun x hx => (Finset.mem_filter.mp hx).2)
+              refine Finset.card_bij (fun x _ => x.val) (fun x hx => (Finset.mem_filter.mp hx).2)
                 (fun _ _ _ _ h => Subtype.ext h) fun y hy =>
                   ⟨⟨y, hKr_sub hy⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩, rfl⟩
             have hcard_K's : K'_s.card = n - m := by
               rw [← hK'_card]
-              refine Finset.card_bij (fun x _ => x.1) (fun x hx => (Finset.mem_filter.mp hx).2)
+              refine Finset.card_bij (fun x _ => x.val) (fun x hx => (Finset.mem_filter.mp hx).2)
                 (fun _ _ _ _ h => Subtype.ext h) fun y hy =>
                   ⟨⟨y, hK'_sub hy⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩, rfl⟩
             obtain ⟨σ_sub, hσ_sub_map⟩ :=
@@ -1025,8 +1025,8 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
                   Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩
                 rw [← hσ_sub_map] at hyK'
                 obtain ⟨x_sub, hxKr, hx_eq⟩ := Finset.mem_map.mp hyK'
-                refine ⟨x_sub.1, (Finset.mem_filter.mp hxKr).2, ?_⟩
-                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.2]
+                refine ⟨x_sub.val, (Finset.mem_filter.mp hxKr).2, ?_⟩
+                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.property]
                 exact congrArg Subtype.val hx_eq
             refine Finset.card_bij (fun π_sub _ => π_sub.trans σ_sub) (fun π_sub hπ => ?_)
               (fun _ _ _ _ h => Equiv.Perm.ext fun x => σ_sub.injective (Equiv.Perm.ext_iff.mp h x))
@@ -1038,7 +1038,7 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
                     (Equiv.Perm.ofSubtype σ_sub).toEmbedding := by
                 ext z
                 by_cases hz : z ∈ S_comp
-                · simp [Equiv.Perm.ofSubtype_apply_of_mem, hz, (π_sub ⟨z, hz⟩).2]
+                · simp [Equiv.Perm.ofSubtype_apply_of_mem, hz, (π_sub ⟨z, hz⟩).property]
                 · simp [Equiv.Perm.ofSubtype_apply_of_not_mem, hz]
               rw [hcomp, ← Finset.map_map, hπ.2, hσ_map]
             · rw [Finset.mem_filter] at hπ' ⊢
@@ -1082,7 +1082,7 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
             have hxS : x ∈ S_comp := hK₀_sub hx
             change Equiv.Perm.ofSubtype π_sub x ∈ S_comp
             rw [Equiv.Perm.ofSubtype_apply_of_mem π_sub hxS]
-            exact (π_sub ⟨x, hxS⟩).2
+            exact (π_sub ⟨x, hxS⟩).property
           rw [hemp, Finset.card_empty, zero_mul]
           exact Nat.zero_le _
       -- Value-shift bound for each fixed π_sub
@@ -1123,7 +1123,7 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
           rw [hK_c]; omega
         let F_δ := Finset.univ.filter fun δ : Fin U → Fin V =>
           (target8 t₀ m ht₀ (actG (π_sub, δ) (s, B))).2 = kv_opt
-        have hinj : Set.InjOn (fun (δ : Fin U → Fin V) (u : ↥(Finset.univ \ U_cov)) => δ u.1)
+        have hinj : Set.InjOn (fun (δ : Fin U → Fin V) (u : ↥(Finset.univ \ U_cov)) => δ u.val)
             (F_δ : Set (Fin U → Fin V)) := by
           intro δ₁ h₁ δ₂ h₂ hrest
           funext u
@@ -2275,13 +2275,13 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
     have hst2 := s₂.run_take_modeOps_fst withQueries (Nat.zero_le n)
     simp only [Nat.mul_zero, Nat.add_zero] at hst1 hst2
     have hdict_eq : (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) 0
-        (Nat.zero_le n)).1 =
-        (windowDict s₂.permKeyEmb (fun idx => s₂.kv (s₂.permKeyEmb idx)) 0 (Nat.zero_le n)).1 :=
+        (Nat.zero_le n)).val =
+        (windowDict s₂.permKeyEmb (fun idx => s₂.kv (s₂.permKeyEmb idx)) 0 (Nat.zero_le n)).val :=
       hst1.symm.trans (hdec1.symm.trans ((congrArg (decodeDict D_det n) hmem_n).trans
         (hdec2.trans hst2)))
     let u := s.keys ⟨i.val, by have := i.isLt; omega⟩
     have hu1 : (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) 0
-        (Nat.zero_le n)).1 u = some (s.kv u).val := by
+        (Nat.zero_le n)).val u = some (s.kv u).val := by
       rw [windowDict_coe]
       let k₀ : Fin n := s.delPerm.symm i
       have hk₀ : windowEmb s.permKeyEmb 0 (Nat.zero_le n) k₀ = u := by
@@ -2289,7 +2289,7 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
       rw [← hk₀, dictOfEmb_apply_self]
       simp [windowVals_apply, windowEmb_apply]
     have hu2 : (windowDict s₂.permKeyEmb (fun idx => s₂.kv (s₂.permKeyEmb idx)) 0
-        (Nat.zero_le n)).1 u = none := by
+        (Nat.zero_le n)).val u = none := by
       rw [windowDict_coe]
       refine dictOfEmb_apply_eq_none _ _ fun k heq => ?_
       dsimp only [s₂] at heq

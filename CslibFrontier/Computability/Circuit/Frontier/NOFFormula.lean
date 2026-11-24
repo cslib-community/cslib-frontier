@@ -592,16 +592,16 @@ private theorem chopAux_spec {n B : ℕ} (hB : 1 ≤ B) (fuel : ℕ) {m : ℕ} (
     refine ⟨hle, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
     simp [steps]
   | case3 fuel T hfan hfuel hle res ih => -- pluck a piece, recurse on the rest
-    obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.2
-    have hC_fuel : res.1.2.leafCount ≤ fuel := by omega
+    obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.property
+    have hC_fuel : res.val.2.leafCount ≤ fuel := by omega
     obtain ⟨hbd, hsteps, htot, hat, hev⟩ := ih
-    have hpos : 1 ≤ (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by
-      cases chopAux B hB fuel res.1.2 hC_fan hC_fuel <;> simp [steps]
+    have hpos : 1 ≤ (chopAux B hB fuel res.val.2 hC_fan hC_fuel).steps := by
+      cases chopAux B hB fuel res.val.2 hC_fan hC_fuel <;> simp [steps]
     refine ⟨⟨hK_le, hbd⟩, ?_, ?_, ?_, ?_⟩
     · dsimp only [steps]
       rw [Nat.add_sub_cancel]
-      have hstep1 : ((chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps - 1 + 1) =
-          (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by omega
+      have hstep1 : ((chopAux B hB fuel res.val.2 hC_fan hC_fuel).steps - 1 + 1) =
+          (chopAux B hB fuel res.val.2 hC_fan hC_fuel).steps := by omega
       rw [← hstep1, Nat.succ_mul]
       omega
     · dsimp only [totalLeaves]

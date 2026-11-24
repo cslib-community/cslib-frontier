@@ -102,10 +102,10 @@ the out-copies `n + 2, …, 2n + 1`. -/
 
 /-- The split node with a given index, inverse to `toFin`. -/
 @[expose] def ofFin {n : ℕ} (i : Fin (n + n + 2)) : SplitNode n :=
-  if h0 : i.1 = 0 then src
-  else if h1 : i.1 = 1 then snk
-  else if h : i.1 < n + 2 then inV ⟨i.1 - 2, by omega⟩
-  else outV ⟨i.1 - n - 2, by have := i.2; omega⟩
+  if h0 : i.val = 0 then src
+  else if h1 : i.val = 1 then snk
+  else if h : i.val < n + 2 then inV ⟨i.val - 2, by omega⟩
+  else outV ⟨i.val - n - 2, by have := i.isLt; omega⟩
 
 /-- Split nodes are indexed by `Fin (n + n + 2)`. -/
 @[expose] def equivFin (n : ℕ) : SplitNode n ≃ Fin (n + n + 2) where

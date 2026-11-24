@@ -773,10 +773,10 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
   let φ : Set.Icc (0 : ℝ) (2 * δ) → MetricGraph W := fun t => circleMap hs.1 (s₀ - δ + (t : ℝ))
   have hφ : Isometry φ := isometry_iff_dist_eq.mpr fun t₁ t₂ => by
     have hsub : (s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ)) = (t₁ : ℝ) - t₂ := by ring
-    have h11 := t₁.2.1
-    have h12 := t₁.2.2
-    have h21 := t₂.2.1
-    have h22 := t₂.2.2
+    have h11 := t₁.property.1
+    have h12 := t₁.property.2
+    have h21 := t₂.property.1
+    have h22 := t₂.property.2
     have hle : |(s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ))| ≤ walkLength W.weight c / 2 := by
       rw [hsub]
       have habs : |(t₁ : ℝ) - t₂| ≤ 2 * δ := abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
@@ -791,8 +791,8 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
       ext i; fin_cases i
       · exact h0.symm.trans (by dsimp only [φ]; congr 1; ring)
       · exact h1.symm.trans (by dsimp only [φ]; congr 1; ring)
-    obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.2.1], by linarith [t0.2.2]⟩
-      ((t1 : ℝ) - δ) ⟨by linarith [t1.2.1], by linarith [t1.2.2]⟩
+    obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.property.1], by linarith [t0.property.2]⟩
+      ((t1 : ℝ) - δ) ⟨by linarith [t1.property.1], by linarith [t1.property.2]⟩
     refine ⟨⟨r + δ, by linarith [hr.1], by linarith [hr.2]⟩, ?_⟩
     dsimp only [φ]
     rw [hx_eq, ← hreq]

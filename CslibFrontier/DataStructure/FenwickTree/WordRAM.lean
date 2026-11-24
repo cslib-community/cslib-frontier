@@ -164,7 +164,7 @@ private theorem sum_addAt_of_lt {s : List ℕ} {pos : ℕ} (δ : ℕ) (hpos : po
 
 /-- Extract the `n`-word region `[base, base + n)` of Word-RAM memory as a `FenwickTree ℕ`. -/
 def treeOfMem (base n : ℕ) (mem : ℕ → ℕ) : FenwickTree ℕ :=
-  ⟨Array.ofFn fun i : Fin n => mem (base + i.1)⟩
+  ⟨Array.ofFn fun i : Fin n => mem (base + i.val)⟩
 
 @[simp]
 theorem size_treeOfMem (base n : ℕ) (mem : ℕ → ℕ) :

@@ -258,8 +258,8 @@ theorem k3_equal_weight_two_distinct_msts_and_property1 :
       Fintype.card H.edgeSet = H.edgeFinset.card := fun H _ => by
     rw [← Fintype.card_coe H.edgeFinset]
     exact Fintype.card_congr
-      ⟨fun x => ⟨x.1, Finset.mem_coe.mpr (mem_edgeFinset.mpr x.2)⟩,
-       fun x => ⟨x.1, mem_edgeFinset.mp (Finset.mem_coe.mp x.2)⟩,
+      ⟨fun x => ⟨x.val, Finset.mem_coe.mpr (mem_edgeFinset.mpr x.property)⟩,
+       fun x => ⟨x.val, mem_edgeFinset.mp (Finset.mem_coe.mp x.property)⟩,
        fun _ => rfl, fun _ => rfl⟩
   have hTreeA : IsSpanningTree (⊤ : SimpleGraph (Fin 3)) k3TreeA := by
     refine ⟨le_top, ?_⟩

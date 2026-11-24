@@ -224,8 +224,8 @@ omit [L'.IsRelational] [Finite ι] in
 those of the extended sequence. -/
 private theorem sumElim_comp_snocVar {n : ℕ} (v : α → I.Model M) (xs : Fin n → I.Model M)
     (y : I.Model M) (p : (α ⊕ Fin (n + 1)) × ι) :
-    Sum.elim (fun p : (α ⊕ Fin n) × ι => (Sum.elim v xs p.1).1 p.2) y.1 (snocVar p) =
-      (Sum.elim v (Fin.snoc xs y) p.1).1 p.2 := by
+    Sum.elim (fun p : (α ⊕ Fin n) × ι => (Sum.elim v xs p.1).val p.2) y.val (snocVar p) =
+      (Sum.elim v (Fin.snoc xs y) p.1).val p.2 := by
   rcases p with ⟨a | j, i⟩
   · rfl
   · induction j using Fin.lastCases <;>
@@ -251,7 +251,7 @@ theorem realize_onBoundedFormula {n : ℕ} (φ : L'.BoundedFormula α n) (v : α
     rw [ihφ, ihψ]
   | all φ ih =>
     fo_simp [onBoundedFormula]
-    exact ⟨fun h y => (ih _).1 (by simpa only [sumElim_comp_snocVar] using h y.1 y.2),
+    exact ⟨fun h y => (ih _).1 (by simpa only [sumElim_comp_snocVar] using h y.val y.property),
       fun h y hy => by simpa only [sumElim_comp_snocVar v xs ⟨y, hy⟩] using (ih _).2 (h ⟨y, hy⟩)⟩
 
 variable (I) in

@@ -47,7 +47,7 @@ open CslibFrontierTests.Crypto.PrimeFieldGroups
 
 /-- Encoded field multiplication modulo `p` on binary residues. -/
 private def primePairEncoded : PrimeDesc × List Bool × List Bool → List Bool
-  | (p, x, y) => ((ofBits x * ofBits y) % p.1).bits
+  | (p, x, y) => ((ofBits x * ofBits y) % p.val).bits
 
 /-- The symmetric pairing `(α, β) ↦ α * β` on the additive groups `ZMod p` of prime order `p`,
 with generator `1` in `G₀`, `G₁` and `GT`, constructed from the plain multiplication function via
@@ -58,7 +58,7 @@ private abbrev primePairing : PairingGroupFamily :=
     (fun _ α β => by simp [primeFields, self])
     primePairEncoded
     (fun p u v => by
-      have : NeZero p.1 := ⟨p.2.ne_zero⟩
+      have : NeZero p.val := ⟨p.property.ne_zero⟩
       simp only [primePairEncoded, primeFields, self, ofBits_bits, ZMod.val_mul])
     (by
       have hp := ComputableInPolyTime.id' (encIn := encDescBitsPair encPrime)
@@ -156,8 +156,8 @@ example :
     ComputableInPolyTime
       (fun x : PrimeDesc × ℕ × ℕ =>
         primePairing.GT.encode x.1
-          (primePairing.pair x.1 ((x.2.1 : ZMod x.1.1) • (1 : ZMod x.1.1))
-            ((x.2.2 : ZMod x.1.1) • (1 : ZMod x.1.1) + 0) + (1 : ZMod x.1.1)))
+          (primePairing.pair x.1 ((x.2.1 : ZMod x.1.val) • (1 : ZMod x.1.val))
+            ((x.2.2 : ZMod x.1.val) • (1 : ZMod x.1.val) + 0) + (1 : ZMod x.1.val)))
       (encPair encPrime (encPair encNat encNat)) encBits :=
   computableInPolyTime_pairedLinearCombination primePairing
 

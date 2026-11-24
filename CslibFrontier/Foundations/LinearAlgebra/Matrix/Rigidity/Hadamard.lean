@@ -130,7 +130,7 @@ private theorem exists_card_eq_and_mul_sum_le {n : Type*} [Fintype n] (c : n →
   let Sc : Finset (Fin N) := univ.filter fun k : Fin N => a ≤ k.val
   have hS_card : #S = a := by
     have hmap : S = (range a).attach.map
-        ⟨fun x => ⟨x.1, (mem_range.mp x.2).trans_le ha⟩, fun x y h => by
+        ⟨fun x => ⟨x.val, (mem_range.mp x.property).trans_le ha⟩, fun x y h => by
           ext; exact Fin.mk.inj h⟩ := by
       ext k
       simp only [S, mem_filter, mem_univ, true_and, mem_map, mem_attach]

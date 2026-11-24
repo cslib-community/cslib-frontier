@@ -1020,7 +1020,7 @@ theorem realizesBounded_compResolveOvfStepGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hj_bc, hslot, hp⟩ := h
     have hb_ne : bucketBits N ≠ 0 := hb_pos.ne'
     have hK : 0 < slabSize N := slabSize_pos N
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b
@@ -1724,7 +1724,7 @@ private theorem realizesBounded_compRemoveTailReadGM :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, htail, hr_pos⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hr_le_nt := r_le_ntails_of_tailBijection htail hb
     have hr_del_lt : compGmAt metaBase U w N s.mem (gmRIdx b) - 1 <
         compGmAt metaBase U w N s.mem (gmRIdx b) := by omega
@@ -1778,7 +1778,7 @@ private theorem realizesBounded_compRemoveTailWriteGM :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨⟨r_del, t_del⟩, ⟨t_last, d_last⟩⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, ht_del_lt, hd_last_lt⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hr_idx_lt : gmRIdx b < globalMetaLen N := gmRIdx_lt hb_pos hb
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
     have hptr_last_lt := gmTailPtrFlatIdx_lt hb_pos hd_last_lt
@@ -2556,7 +2556,7 @@ private theorem realizesBounded_compGmUnlinkWrite :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨bel_del, q_b⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hq_pos⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have htop_idx_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
     simp only [StateTransitionSpec.clientState, runClient_state_writeCompGMGenProg] at *)
@@ -2684,7 +2684,7 @@ private theorem realizesBounded_compGmRelinkWrite :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, p_del⟩, ⟨⟨b_last, s_last⟩, q_last⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb_last, hs_le⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hq_lt := gmQIdx_lt hb_pos hb_last
     have htop_lt := gmSlabTopIdx_lt hb_pos hb_last
     simp only [cpDirSlabs_mk, cpGmSlabDirBase_mk, StateTransitionSpec.clientState] at *)
@@ -2878,7 +2878,7 @@ private theorem realizesBounded_compGmReadMovedMeta :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, p_last⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hp_last_cap⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hownB_last_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
     have hownS_last_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
       gmSlabOwnerSIdx_lt hb_pos hp_last_cap

@@ -1097,9 +1097,9 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
     (metaOp : Fin n → List (Dynamic.Op U)) (hc : ∀ k, (metaOp k).length = c) (j : Fin n) :
     ((initInsertSeq keys vals ++ (List.finRange n).flatMap metaOp).drop (n + c * j.val)).take c =
       metaOp j := by
-  have htake := take_hardSeq c (j.1 + 1) keys vals metaOp hc
-  have hidx : n + c * (j.1 + 1) = (n + c * j.1) + c := by ring
-  rw [hidx, List.take_succ_finRange j.2, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+  have htake := take_hardSeq c (j.val + 1) keys vals metaOp hc
+  have hidx : n + c * (j.val + 1) = (n + c * j.val) + c := by ring
+  rw [hidx, List.take_succ_finRange j.isLt, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
     List.append_nil, ← List.append_assoc] at htake
   refine drop_take_of_take_add htake ?_ (hc j)
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,

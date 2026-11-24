@@ -983,7 +983,7 @@ theorem realizesBounded_compInsertAppendNewGen :
     obtain ⟨U, V, N, m_cap, s_fix, rfl, hu_fit, hq_lt, hv_lt, henv, hcpl, hslot,
       hb, hm, htot, hm_cap, hold⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits
     have hcp_fit := fits_mkCompParams (U := U) (V := V) (w := w) (N := N)
       henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V hfit_meta
     have hq_eq : keyQuotient (bucketBits N) u = u >>> bucketBits N :=
@@ -1240,7 +1240,7 @@ private theorem realizesBounded_compDeletePrepBodyGen :
     obtain ⟨U, V, N, m_items, s_fix, L, rfl, henv, hcpl, hslot, hm_items,
       hb, hm_lt, hchain, hc_lt⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1)
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits)
   · exact ⟨U, V, N, m_items, s_fix, L, rfl, henv, hcpl, hslot, hm_items, hb, hm_lt, hchain, hc_lt⟩
   · exact fits_const_of_offCompItems hfit_meta (by decide)
   · have hst_b := (compSearchBucketGenProg_spec (q_target := q_target)

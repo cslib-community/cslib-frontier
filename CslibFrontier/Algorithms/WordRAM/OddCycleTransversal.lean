@@ -91,8 +91,8 @@ open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure c
 /-- Row-major `n * n`-word `0`/`1` adjacency matrix of `G : SimpleGraph (Fin n)`. -/
 @[expose] def encodeAdjMatrix {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] : List ℕ :=
   List.ofFn fun idx : Fin (n * n) =>
-    if G.Adj ⟨idx.1 / n, Nat.div_lt_of_lt_mul idx.2⟩
-        ⟨idx.1 % n, Nat.mod_lt _ (Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt idx.2))⟩ then 1 else 0
+    if G.Adj ⟨idx.val / n, Nat.div_lt_of_lt_mul idx.isLt⟩
+        ⟨idx.val % n, Nat.mod_lt _ (Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt idx.isLt))⟩ then 1 else 0
 
 /-- Word-RAM input word list `n :: k :: encodeAdjMatrix G`. -/
 @[expose] def encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
@@ -112,20 +112,20 @@ theorem length_encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.A
 
 theorem getElem_encodeAdjMatrix {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (u v : Fin n) :
-    (encodeAdjMatrix G)[u.1 * n + v.1]'(by
-      rw [length_encodeAdjMatrix]; nlinarith [u.2, v.2]) =
+    (encodeAdjMatrix G)[u.val * n + v.val]'(by
+      rw [length_encodeAdjMatrix]; nlinarith [u.isLt, v.isLt]) =
       if G.Adj u v then 1 else 0 := by
   simp only [encodeAdjMatrix, List.getElem_ofFn]
-  have hu : u.1 * n + v.1 = v.1 + n * u.1 := by ring
-  have hn_pos : 0 < n := Nat.zero_lt_of_lt u.2
-  have hdiv : (u.1 * n + v.1) / n = u.1 := by
+  have hu : u.val * n + v.val = v.val + n * u.val := by ring
+  have hn_pos : 0 < n := Nat.zero_lt_of_lt u.isLt
+  have hdiv : (u.val * n + v.val) / n = u.val := by
     rw [hu, Nat.add_mul_div_left _ _ hn_pos]
-    simp [Nat.div_eq_of_lt v.2]
-  have hmod : (u.1 * n + v.1) % n = v.1 := by
-    rw [hu, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt v.2]
-  have h1 : G.Adj ⟨(u.1 * n + v.1) / n,
-      Nat.div_lt_of_lt_mul (by nlinarith [u.2, v.2] : u.1 * n + v.1 < n * n)⟩
-      ⟨(u.1 * n + v.1) % n, Nat.mod_lt _ hn_pos⟩ ↔ G.Adj u v := by
+    simp [Nat.div_eq_of_lt v.isLt]
+  have hmod : (u.val * n + v.val) % n = v.val := by
+    rw [hu, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt v.isLt]
+  have h1 : G.Adj ⟨(u.val * n + v.val) / n,
+      Nat.div_lt_of_lt_mul (by nlinarith [u.isLt, v.isLt] : u.val * n + v.val < n * n)⟩
+      ⟨(u.val * n + v.val) % n, Nat.mod_lt _ hn_pos⟩ ↔ G.Adj u v := by
     refine Iff.of_eq ?_
     congr 1
     · exact Fin.ext hdiv
@@ -2676,28 +2676,28 @@ private theorem copyRange_spec {srcB dstB len : ℕ} (hdisj : srcB + len ≤ dst
 
 private def MatrixLoaded {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (s : Memory.State) : Prop :=
-  ∀ u v : Fin n, s.mem (3 + u.1 * n + v.1) = if G.Adj u v then 1 else 0
+  ∀ u v : Fin n, s.mem (3 + u.val * n + v.val) = if G.Adj u v then 1 else 0
 
 private theorem matrixLoaded_init {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
     MatrixLoaded G (Memory.State.init (encodeInput G k)) := by
   intro u v
-  have hne : 3 + u.1 * n + v.1 ≠ 0 := by omega
-  have hsub : 3 + u.1 * n + v.1 - 1 = (u.1 * n + v.1) + 2 := by omega
-  have hlt : u.1 * n + v.1 < (encodeAdjMatrix G).length := by
+  have hne : 3 + u.val * n + v.val ≠ 0 := by omega
+  have hsub : 3 + u.val * n + v.val - 1 = (u.val * n + v.val) + 2 := by omega
+  have hlt : u.val * n + v.val < (encodeAdjMatrix G).length := by
     rw [length_encodeAdjMatrix]
-    nlinarith [u.2, v.2]
-  change (if 3 + u.1 * n + v.1 = 0 then (encodeInput G k).length
-    else (encodeInput G k).getD (3 + u.1 * n + v.1 - 1) 0) = _
+    nlinarith [u.isLt, v.isLt]
+  change (if 3 + u.val * n + v.val = 0 then (encodeInput G k).length
+    else (encodeInput G k).getD (3 + u.val * n + v.val - 1) 0) = _
   rw [ite_eq_right hne, hsub]
-  change (encodeAdjMatrix G).getD (u.1 * n + v.1) 0 = _
+  change (encodeAdjMatrix G).getD (u.val * n + v.val) 0 = _
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some,
     getElem_encodeAdjMatrix]
 
 private def inIdx {n : ℕ} (v : Fin n) : Fin (splitCount n) :=
-  ⟨v.1 + 2, by dsimp only [splitCount]; omega⟩
+  ⟨v.val + 2, by dsimp only [splitCount]; omega⟩
 
 private def outIdx {n : ℕ} (v : Fin n) : Fin (splitCount n) :=
-  ⟨v.1 + n + 2, by dsimp only [splitCount]; omega⟩
+  ⟨v.val + n + 2, by dsimp only [splitCount]; omega⟩
 
 private theorem inIdx_injective (n : ℕ) : Function.Injective (inIdx (n := n)) := by
   intro u v h
@@ -2708,21 +2708,21 @@ private noncomputable def splitNet {n : ℕ} (G : SimpleGraph (Fin n)) [Decidabl
   s := ⟨0, by dsimp only [splitCount]; omega⟩
   t := ⟨1, by dsimp only [splitCount]; omega⟩
   cap x y :=
-    if x.1 = 0 then
-      if 2 ≤ y.1 ∧ y.1 < n + 2 then
-        if s.mem (keepBase n + (y.1 - 2)) = 1 then n + 1 else 0
+    if x.val = 0 then
+      if 2 ≤ y.val ∧ y.val < n + 2 then
+        if s.mem (keepBase n + (y.val - 2)) = 1 then n + 1 else 0
       else 0
-    else if y.1 = 1 then
-      if n + 2 ≤ x.1 ∧ x.1 < splitCount n then
-        if s.mem (flipBase n + (x.1 - (n + 2))) = 1 then n + 1 else 0
+    else if y.val = 1 then
+      if n + 2 ≤ x.val ∧ x.val < splitCount n then
+        if s.mem (flipBase n + (x.val - (n + 2))) = 1 then n + 1 else 0
       else 0
-    else if 2 ≤ x.1 ∧ x.1 < n + 2 then
-      if y.1 = x.1 + n then
-        if s.mem (wBase n + (x.1 - 2)) = 0 then 1 else 0
+    else if 2 ≤ x.val ∧ x.val < n + 2 then
+      if y.val = x.val + n then
+        if s.mem (wBase n + (x.val - 2)) = 0 then 1 else 0
       else 0
-    else if h : n + 2 ≤ x.1 ∧ x.1 < splitCount n ∧ 2 ≤ y.1 ∧ y.1 < n + 2 then
-      let u : Fin n := ⟨x.1 - (n + 2), by dsimp only [splitCount] at h; omega⟩
-      let v : Fin n := ⟨y.1 - 2, by omega⟩
+    else if h : n + 2 ≤ x.val ∧ x.val < splitCount n ∧ 2 ≤ y.val ∧ y.val < n + 2 then
+      let u : Fin n := ⟨x.val - (n + 2), by dsimp only [splitCount] at h; omega⟩
+      let v : Fin n := ⟨y.val - 2, by omega⟩
       if (prefixGraph G m).Adj u v then n + 1 else 0
     else 0
 
@@ -2733,26 +2733,26 @@ private theorem splitNet_congr {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel
   congr 1
   funext x y
   dsimp only
-  by_cases h1 : x.1 = 0
+  by_cases h1 : x.val = 0
   · rw [ite_eq_left h1, ite_eq_left h1]
-    by_cases h2 : 2 ≤ y.1 ∧ y.1 < n + 2
+    by_cases h2 : 2 ≤ y.val ∧ y.val < n + 2
     · rw [ite_eq_left h2, ite_eq_left h2,
-        h (keepBase n + (y.1 - 2)) (by dsimp only [keepBase, flowBase]; omega)]
+        h (keepBase n + (y.val - 2)) (by dsimp only [keepBase, flowBase]; omega)]
     · rw [ite_eq_right h2, ite_eq_right h2]
   · rw [ite_eq_right h1, ite_eq_right h1]
-    by_cases h2 : y.1 = 1
+    by_cases h2 : y.val = 1
     · rw [ite_eq_left h2, ite_eq_left h2]
-      by_cases h3 : n + 2 ≤ x.1 ∧ x.1 < splitCount n
+      by_cases h3 : n + 2 ≤ x.val ∧ x.val < splitCount n
       · rw [ite_eq_left h3, ite_eq_left h3,
-          h (flipBase n + (x.1 - (n + 2)))
+          h (flipBase n + (x.val - (n + 2)))
             (by dsimp only [flipBase, flowBase, splitCount] at h3 ⊢; omega)]
       · rw [ite_eq_right h3, ite_eq_right h3]
     · rw [ite_eq_right h2, ite_eq_right h2]
-      by_cases h3 : 2 ≤ x.1 ∧ x.1 < n + 2
+      by_cases h3 : 2 ≤ x.val ∧ x.val < n + 2
       · rw [ite_eq_left h3, ite_eq_left h3]
-        by_cases h4 : y.1 = x.1 + n
+        by_cases h4 : y.val = x.val + n
         · rw [ite_eq_left h4, ite_eq_left h4,
-            h (wBase n + (x.1 - 2)) (by dsimp only [wBase, flowBase]; omega)]
+            h (wBase n + (x.val - 2)) (by dsimp only [wBase, flowBase]; omega)]
         · rw [ite_eq_right h4, ite_eq_right h4]
       · rw [ite_eq_right h3, ite_eq_right h3]
 
@@ -2765,41 +2765,41 @@ private theorem cap_splitNet_le {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRe
 
 private theorem clientResult_readSplitCap {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {m : ℕ} {s : Memory.State} (hG : MatrixLoaded G s) (x y : Fin (splitCount n)) :
-    (Memory.spec 0).clientResult s (readSplitCap (((n, m), x.1), y.1)) =
+    (Memory.spec 0).clientResult s (readSplitCap (((n, m), x.val), y.val)) =
       (splitNet G m s).cap x y ∧
-    (Memory.spec 0).clientState s (readSplitCap (((n, m), x.1), y.1)) = s := by
+    (Memory.spec 0).clientState s (readSplitCap (((n, m), x.val), y.val)) = s := by
   refine ⟨?_, clientState_readSplitCap _ s⟩
   unfold readSplitCap splitNet
   dsimp only
   rw [clientResult_bind_read]
-  by_cases h1 : x.1 = 0
+  by_cases h1 : x.val = 0
   · rw [ite_eq_left h1, ite_eq_left h1]
-    by_cases h2 : 2 ≤ y.1 ∧ y.1 < n + 2
+    by_cases h2 : 2 ≤ y.val ∧ y.val < n + 2
     · rw [ite_eq_left h2, ite_eq_left h2, clientResult_bind_read]
       split_ifs <;> simp only [client_simps]
     · rw [ite_eq_right h2, ite_eq_right h2]; rfl
   · rw [ite_eq_right h1, ite_eq_right h1]
-    by_cases h2 : y.1 = 1
+    by_cases h2 : y.val = 1
     · rw [ite_eq_left h2, ite_eq_left h2]
-      by_cases h3 : n + 2 ≤ x.1 ∧ x.1 < splitCount n
+      by_cases h3 : n + 2 ≤ x.val ∧ x.val < splitCount n
       · rw [ite_eq_left h3, ite_eq_left h3, clientResult_bind_read]
         split_ifs <;> simp only [client_simps]
       · rw [ite_eq_right h3, ite_eq_right h3]; rfl
     · rw [ite_eq_right h2, ite_eq_right h2]
-      by_cases h3 : 2 ≤ x.1 ∧ x.1 < n + 2
+      by_cases h3 : 2 ≤ x.val ∧ x.val < n + 2
       · rw [ite_eq_left h3, ite_eq_left h3]
-        by_cases h4 : y.1 = x.1 + n
+        by_cases h4 : y.val = x.val + n
         · rw [ite_eq_left h4, ite_eq_left h4, clientResult_bind_read]
           split_ifs <;> simp only [client_simps]
         · rw [ite_eq_right h4, ite_eq_right h4]; rfl
       · rw [ite_eq_right h3, ite_eq_right h3]
-        by_cases h4 : n + 2 ≤ x.1 ∧ x.1 < splitCount n ∧ 2 ≤ y.1 ∧ y.1 < n + 2
+        by_cases h4 : n + 2 ≤ x.val ∧ x.val < splitCount n ∧ 2 ≤ y.val ∧ y.val < n + 2
         · rw [ite_eq_left h4, dite_eq_left h4]
-          let u : Fin n := ⟨x.1 - (n + 2), by dsimp only [splitCount] at h4; omega⟩
-          let v : Fin n := ⟨y.1 - 2, by omega⟩
+          let u : Fin n := ⟨x.val - (n + 2), by dsimp only [splitCount] at h4; omega⟩
+          let v : Fin n := ⟨y.val - 2, by omega⟩
           have hmem := hG u v
           dsimp only [u, v] at hmem
-          by_cases hm : x.1 - (n + 2) < m ∧ y.1 - 2 < m
+          by_cases hm : x.val - (n + 2) < m ∧ y.val - 2 < m
           · rw [ite_eq_left hm, clientResult_bind_read, hmem]
             by_cases hadj : G.Adj u v
             · have hp : (prefixGraph G m).Adj u v := ⟨hadj, hm.1, hm.2⟩
@@ -2821,16 +2821,16 @@ private theorem clientResult_readSplitCap {n : ℕ} {G : SimpleGraph (Fin n)} [D
 
 private def FlowStored {n : ℕ} {N : Network (Fin (splitCount n))}
     (f : N.Flow) (s : Memory.State) : Prop :=
-  ∀ x y : Fin (splitCount n), s.mem (flowBase n + x.1 * splitCount n + y.1) = f x y
+  ∀ x y : Fin (splitCount n), s.mem (flowBase n + x.val * splitCount n + y.val) = f x y
 
 private theorem clientResult_readResCap {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {m : ℕ} {s₀ s : Memory.State} (hG : MatrixLoaded G s₀)
     (hlow : ∀ a < flowBase n, s.mem a = s₀.mem a)
     {f : (splitNet G m s₀).Flow} (hf : FlowStored f s) (x y : Fin (splitCount n)) :
-    (Memory.spec 0).clientResult s (readResCap (((n, m), x.1), y.1)) = f.resCap x y ∧
-      (Memory.spec 0).clientState s (readResCap (((n, m), x.1), y.1)) = s := by
+    (Memory.spec 0).clientResult s (readResCap (((n, m), x.val), y.val)) = f.resCap x y ∧
+      (Memory.spec 0).clientState s (readResCap (((n, m), x.val), y.val)) = s := by
   have hG' : MatrixLoaded G s := fun u v => by
-    rw [hlow _ (by dsimp only [flowBase]; nlinarith [u.2, v.2]), hG u v]
+    rw [hlow _ (by dsimp only [flowBase]; nlinarith [u.isLt, v.isLt]), hG u v]
   obtain ⟨hcap_r, hcap_s⟩ := clientResult_readSplitCap (m := m) hG' x y
   rw [splitNet_congr G m hlow] at hcap_r
   unfold readResCap
@@ -2850,12 +2850,12 @@ private theorem clientResult_readResCap {n : ℕ} {G : SimpleGraph (Fin n)} [Dec
 private def BfsLayerInv {n : ℕ} {N : Network (Fin (splitCount n))}
     (f : N.Flow) (layer : ℕ) (t : Memory.State) : Prop :=
   (∀ x : Fin (splitCount n),
-    (f.resDist x ≤ layer → t.mem (distBase n + x.1) = f.resDist x) ∧
-    (layer < f.resDist x → t.mem (distBase n + x.1) = splitCount n)) ∧
+    (f.resDist x ≤ layer → t.mem (distBase n + x.val) = f.resDist x) ∧
+    (layer < f.resDist x → t.mem (distBase n + x.val) = splitCount n)) ∧
   (∀ x : Fin (splitCount n),
-    0 < t.mem (distBase n + x.1) → t.mem (distBase n + x.1) < splitCount n →
+    0 < t.mem (distBase n + x.val) → t.mem (distBase n + x.val) < splitCount n →
     ∃ u : Fin (splitCount n),
-      t.mem (parBase n + x.1) = u.1 ∧
+      t.mem (parBase n + x.val) = u.val ∧
       f.resDist u + 1 = f.resDist x ∧
       0 < f.resCap u x)
 
@@ -2877,15 +2877,15 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
     (fun urem (u : ℕ) t' =>
       u + urem = M ∧
       (∀ a < distBase n, t'.mem a = s.mem a) ∧
-      (∀ x : Fin M, f.resDist x ≤ layer → t'.mem (distBase n + x.1) = f.resDist x) ∧
-      (∀ x : Fin M, layer + 1 < f.resDist x → t'.mem (distBase n + x.1) = M) ∧
+      (∀ x : Fin M, f.resDist x ≤ layer → t'.mem (distBase n + x.val) = f.resDist x) ∧
+      (∀ x : Fin M, layer + 1 < f.resDist x → t'.mem (distBase n + x.val) = M) ∧
       (∀ x : Fin M, f.resDist x = layer + 1 →
-        t'.mem (distBase n + x.1) = layer + 1 ∨ t'.mem (distBase n + x.1) = M) ∧
+        t'.mem (distBase n + x.val) = layer + 1 ∨ t'.mem (distBase n + x.val) = M) ∧
       (∀ x : Fin M, f.resDist x = layer + 1 →
-        (∃ u' : Fin M, u'.1 < u ∧ f.resDist u' = layer ∧ 0 < f.resCap u' x) →
-        t'.mem (distBase n + x.1) = layer + 1) ∧
-      (∀ x : Fin M, 0 < t'.mem (distBase n + x.1) → t'.mem (distBase n + x.1) < M →
-        ∃ p : Fin M, t'.mem (parBase n + x.1) = p.1 ∧
+        (∃ u' : Fin M, u'.val < u ∧ f.resDist u' = layer ∧ 0 < f.resCap u' x) →
+        t'.mem (distBase n + x.val) = layer + 1) ∧
+      (∀ x : Fin M, 0 < t'.mem (distBase n + x.val) → t'.mem (distBase n + x.val) < M →
+        ∃ p : Fin M, t'.mem (parBase n + x.val) = p.val ∧
           f.resDist p + 1 = f.resDist x ∧ 0 < f.resCap p x))
     (fun urem u t' ⟨husum, ht_low, hd_le, hd_gt, hd_eq, hd_found, hpar⟩ => by
       have hu_lt : u < M := by omega
@@ -2911,23 +2911,23 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
           (fun vrem (v : ℕ) t'' =>
             v + vrem = M ∧
             (∀ a < distBase n, t''.mem a = s.mem a) ∧
-            (∀ x : Fin M, f.resDist x ≤ layer → t''.mem (distBase n + x.1) = f.resDist x) ∧
-            (∀ x : Fin M, layer + 1 < f.resDist x → t''.mem (distBase n + x.1) = M) ∧
+            (∀ x : Fin M, f.resDist x ≤ layer → t''.mem (distBase n + x.val) = f.resDist x) ∧
+            (∀ x : Fin M, layer + 1 < f.resDist x → t''.mem (distBase n + x.val) = M) ∧
             (∀ x : Fin M, f.resDist x = layer + 1 →
-              t''.mem (distBase n + x.1) = layer + 1 ∨ t''.mem (distBase n + x.1) = M) ∧
+              t''.mem (distBase n + x.val) = layer + 1 ∨ t''.mem (distBase n + x.val) = M) ∧
             (∀ x : Fin M, f.resDist x = layer + 1 →
-              (∃ u' : Fin M, u'.1 < u ∧ f.resDist u' = layer ∧ 0 < f.resCap u' x) →
-              t''.mem (distBase n + x.1) = layer + 1) ∧
-            (∀ x : Fin M, x.1 < v → 0 < f.resCap uFin x → f.resDist x = layer + 1 →
-              t''.mem (distBase n + x.1) = layer + 1) ∧
-            (∀ x : Fin M, 0 < t''.mem (distBase n + x.1) → t''.mem (distBase n + x.1) < M →
-              ∃ p : Fin M, t''.mem (parBase n + x.1) = p.1 ∧
+              (∃ u' : Fin M, u'.val < u ∧ f.resDist u' = layer ∧ 0 < f.resCap u' x) →
+              t''.mem (distBase n + x.val) = layer + 1) ∧
+            (∀ x : Fin M, x.val < v → 0 < f.resCap uFin x → f.resDist x = layer + 1 →
+              t''.mem (distBase n + x.val) = layer + 1) ∧
+            (∀ x : Fin M, 0 < t''.mem (distBase n + x.val) → t''.mem (distBase n + x.val) < M →
+              ∃ p : Fin M, t''.mem (parBase n + x.val) = p.val ∧
                 f.resDist p + 1 = f.resDist x ∧ 0 < f.resCap p x))
           (fun vrem v t'' ⟨hvsum, hi_low, hi_le, hi_gt, hi_eq, hi_found, hi_cur, hi_par⟩ => by
             have hv_lt : v < M := by omega
             let vFin : Fin M := ⟨v, hv_lt⟩
             have hf'' : FlowStored f t'' := fun x y => by
-              rw [hi_low _ (by dsimp only [distBase]; nlinarith [x.2, y.2]), hf x y]
+              rw [hi_low _ (by dsimp only [distBase]; nlinarith [x.isLt, y.isLt]), hf x y]
             have hlow'' : ∀ a < flowBase n, t''.mem a = s₀.mem a := fun a ha => by
               rw [hi_low _ (by dsimp only [distBase]; omega), hlow a ha]
             obtain ⟨hrc_r, hrc_s⟩ := clientResult_readResCap hG hlow'' hf'' uFin vFin
@@ -2957,32 +2957,32 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
               · rw [Function.update_of_ne (by dsimp only [parBase]; omega),
                   Function.update_of_ne (by omega)]
                 exact hi_low a ha
-              · have hxv : x.1 ≠ v := fun h => by
+              · have hxv : x.val ≠ v := fun h => by
                   have : x = vFin := Fin.ext h; subst this; omega
-                rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega),
+                rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega),
                   Function.update_of_ne (by omega)]
                 exact hi_le x hx
-              · have hxv : x.1 ≠ v := fun h => by
+              · have hxv : x.val ≠ v := fun h => by
                   have : x = vFin := Fin.ext h; subst this; omega
-                rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega),
+                rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega),
                   Function.update_of_ne (by omega)]
                 exact hi_gt x hx
-              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega)]
-                by_cases hxv : x.1 = v
+              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega)]
+                by_cases hxv : x.val = v
                 · left; rw [hxv, Function.update_self]
                 · rw [Function.update_of_ne (by omega)]; exact hi_eq x hx
-              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega)]
-                by_cases hxv : x.1 = v
+              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega)]
+                by_cases hxv : x.val = v
                 · rw [hxv, Function.update_self]
                 · rw [Function.update_of_ne (by omega)]; exact hi_found x hx hex
-              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega)]
-                by_cases hxv : x.1 = v
+              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega)]
+                by_cases hxv : x.val = v
                 · rw [hxv, Function.update_self]
                 · rw [Function.update_of_ne (by omega)]
                   exact hi_cur x (by omega) hpos hx1
-              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega)]
+              · rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega)]
                   at hpos hlt
-                by_cases hxv : x.1 = v
+                by_cases hxv : x.val = v
                 · have hxeq : x = vFin := Fin.ext hxv
                   subst hxeq
                   exact ⟨uFin, by dsimp only [vFin]; rw [Function.update_self],
@@ -2991,13 +2991,13 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
                   obtain ⟨p, hp1, hp2, hp3⟩ := hi_par x hpos hlt
                   exact ⟨p, by
                     rw [Function.update_of_ne (by omega),
-                      Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega)]
+                      Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega)]
                     exact hp1, hp2, hp3⟩
             · rw [ite_eq_right hcond]
               simp only [client_simps]
               refine ⟨by omega, hi_low, hi_le, hi_gt, hi_eq, hi_found,
                 fun x hx hpos hx1 => ?_, hi_par⟩
-              by_cases hxv : x.1 = v
+              by_cases hxv : x.val = v
               · have hxeq : x = vFin := Fin.ext hxv
                 subst hxeq
                 rcases hi_eq vFin hx1 with h1 | hM'
@@ -3012,16 +3012,16 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
             (iterate bfsInnerStep (((n, m), layer), u) M 0) = M := by omega
         rw [hv_end] at h6
         refine ⟨by omega, h1, h2, h3, h4, fun x hx ⟨u', hu', hru', hrc'⟩ => ?_, h7⟩
-        by_cases hu_eq : u'.1 = u
+        by_cases hu_eq : u'.val = u
         · have : u' = uFin := Fin.ext hu_eq
           subst this
-          exact h6 x x.2 hrc' hx
+          exact h6 x x.isLt hrc' hx
         · exact h5 x hx ⟨u', by omega, hru', hrc'⟩
       · rw [ite_eq_right hdu]
         simp only [client_simps]
         refine ⟨by omega, ht_low, hd_le, hd_gt, hd_eq,
           fun x hx ⟨u', hu', hru', hrc'⟩ => ?_, hpar⟩
-        by_cases hu_eq : u'.1 = u
+        by_cases hu_eq : u'.val = u
         · have : u' = uFin := Fin.ext hu_eq
           subst this
           have h1 : t'.mem (distBase n + u) = f.resDist uFin := hd_le uFin (le_of_eq hru')
@@ -3042,7 +3042,7 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
   · have hcard : layer + 1 < Fintype.card (Fin M) := by rw [Fintype.card_fin]; exact hlayer_lt
     obtain ⟨u', hru', hrc'⟩ := f.exists_pred_of_resDist_eq_succ hcard hx_eq
     rw [hx_eq]
-    exact hm_found x hx_eq ⟨u', u'.2, hru', hrc'⟩
+    exact hm_found x hx_eq ⟨u', u'.isLt, hru', hrc'⟩
   · exact hm_le x (by omega)
 
 private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
@@ -3051,10 +3051,10 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
     (f : (splitNet G m s₀).Flow) (hf : FlowStored f s) :
     let t := (Memory.spec 0).clientState s (bfsProg (n, m))
     (∀ a < distBase n, t.mem a = s.mem a) ∧
-      (∀ x : Fin (splitCount n), t.mem (distBase n + x.1) = f.resDist x) ∧
+      (∀ x : Fin (splitCount n), t.mem (distBase n + x.val) = f.resDist x) ∧
       (∀ x : Fin (splitCount n), 0 < f.resDist x → f.resDist x < splitCount n →
         ∃ u : Fin (splitCount n),
-          t.mem (parBase n + x.1) = u.1 ∧
+          t.mem (parBase n + x.val) = u.val ∧
           f.resDist u + 1 = f.resDist x ∧
           0 < f.resCap u x) := by
   intro t
@@ -3078,24 +3078,24 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
     refine ⟨fun x => ⟨fun hle => ?_, fun hgt => ?_⟩, fun x hpos hlt => ?_⟩
     · have hx0 : f.resDist x = 0 := Nat.eq_zero_of_le_zero hle
       have hxs : x = N.s := f.eq_source_of_resDist_eq_zero hx0
-      have hxval : x.1 = 0 := by rw [hxs]; rfl
+      have hxval : x.val = 0 := by rw [hxs]; rfl
       dsimp only [s2]
       rw [hxval, add_zero, Function.update_of_ne
         (by dsimp only [parBase, splitCount]; omega), Function.update_self, hx0]
     · have hxs : x ≠ N.s := fun h => by rw [h, f.resDist_source] at hgt; omega
-      have hxne : x.1 ≠ 0 := fun h => hxs (Fin.ext h)
+      have hxne : x.val ≠ 0 := fun h => hxs (Fin.ext h)
       dsimp only [s2]
-      rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega),
+      rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega),
         Function.update_of_ne (by omega)]
-      exact hs1.1 x.1 x.2
-    · by_cases hx0 : x.1 = 0
+      exact hs1.1 x.val x.isLt
+    · by_cases hx0 : x.val = 0
       · dsimp only [s2] at hpos
         rw [hx0, add_zero, Function.update_of_ne
           (by dsimp only [parBase, splitCount]; omega), Function.update_self] at hpos
         omega
       · dsimp only [s2] at hlt
-        rw [Function.update_of_ne (by dsimp only [parBase]; have := x.2; omega),
-          Function.update_of_ne (by omega), hs1.1 x.1 x.2] at hlt
+        rw [Function.update_of_ne (by dsimp only [parBase]; have := x.isLt; omega),
+          Function.update_of_ne (by omega), hs1.1 x.val x.isLt] at hlt
         omega
   have hlayers := iterate_invariant_of bfsLayerStep (n, m)
     (fun rem (layer : ℕ) st =>
@@ -3120,7 +3120,7 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
     rw [StateTransitionSpec.clientState_bind, clientState_bind_write, clientState_bind_write,
       cs_bind_pure]
   rw [ht_eq]
-  have hdist_all : ∀ x : Fin M, s3.mem (distBase n + x.1) = f.resDist x := by
+  have hdist_all : ∀ x : Fin M, s3.mem (distBase n + x.val) = f.resDist x := by
     intro x
     have hle_card : f.resDist x ≤ M := by simpa [Fintype.card_fin] using f.resDist_le_card x
     by_cases hx : f.resDist x ≤ M - 1
@@ -3196,21 +3196,21 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
     ∀ rem (cur : Fin (splitCount n)) (u_st : Memory.State),
       rem < splitCount n → f.resDist cur = rem →
       (∀ x : Fin (splitCount n), 0 < f.resDist x → f.resDist x < splitCount n →
-        u_st.mem (parBase n + x.1) = (parOf x).1) →
+        u_st.mem (parBase n + x.val) = (parOf x).val) →
       (∀ x y : Fin (splitCount n),
         ((x, y) ∈ pathArcs (buildPath parOf rem cur) ∨
           (y, x) ∈ pathArcs (buildPath parOf rem cur)) →
-        u_st.mem (flowBase n + x.1 * splitCount n + y.1) = f x y) →
-      let t_end := (Memory.spec 0).clientState u_st (iterate pushUnitStep n rem cur.1)
+        u_st.mem (flowBase n + x.val * splitCount n + y.val) = f x y) →
+      let t_end := (Memory.spec 0).clientState u_st (iterate pushUnitStep n rem cur.val)
       (∀ a < flowBase n, t_end.mem a = u_st.mem a) ∧
       (∀ x y : Fin (splitCount n),
-        t_end.mem (flowBase n + x.1 * splitCount n + y.1) =
+        t_end.mem (flowBase n + x.val * splitCount n + y.val) =
           if (x, y) ∈ pathArcs (buildPath parOf rem cur) then
             f x y + (1 - min 1 (f y x))
           else if (y, x) ∈ pathArcs (buildPath parOf rem cur) then
             f x y - min 1 (f x y)
           else
-            u_st.mem (flowBase n + x.1 * splitCount n + y.1))
+            u_st.mem (flowBase n + x.val * splitCount n + y.val))
   | 0, cur, u_st, _, _, _, _ => by
     refine ⟨fun _ _ => rfl, fun x y => ?_⟩
     simp only [iterate, buildPath, pathArcs_singleton, List.not_mem_nil, ↓reduceIte]
@@ -3220,7 +3220,7 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
     obtain ⟨hd_p, hrc_p⟩ := hpar cur (by omega) (by omega)
     have hp_rem : f.resDist (parOf cur) = rem := by omega
     have hne_pc : parOf cur ≠ cur := fun h => by rw [h] at hp_rem; omega
-    have hpar_val : u_st.mem (parBase n + cur.1) = (parOf cur).1 :=
+    have hpar_val : u_st.mem (parBase n + cur.val) = (parOf cur).val :=
       hp_mem cur (by omega) (by omega)
     have hne_path := buildPath_ne_nil parOf rem (parOf cur)
     have hlast_path := buildPath_getLast? parOf rem (parOf cur)
@@ -3228,32 +3228,32 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
         pathArcs (buildPath parOf rem (parOf cur)) ++ [(parOf cur, cur)] := by
       rw [buildPath]
       exact pathArcs_append_singleton hne_path hlast_path
-    have hf_rev : u_st.mem (flowBase n + cur.1 * M + (parOf cur).1) = f cur (parOf cur) :=
+    have hf_rev : u_st.mem (flowBase n + cur.val * M + (parOf cur).val) = f cur (parOf cur) :=
       hf_sub cur (parOf cur) (Or.inr (by rw [harcs_eq]; simp))
-    have hf_fwd : u_st.mem (flowBase n + (parOf cur).1 * M + cur.1) = f (parOf cur) cur :=
+    have hf_fwd : u_st.mem (flowBase n + (parOf cur).val * M + cur.val) = f (parOf cur) cur :=
       hf_sub (parOf cur) cur (Or.inl (by rw [harcs_eq]; simp))
     have hstep_res_state :
-        (Memory.spec 0).clientResult u_st (pushUnitStep (n, cur.1)) = (parOf cur).1 ∧
-        let u1 := (Memory.spec 0).clientState u_st (pushUnitStep (n, cur.1))
+        (Memory.spec 0).clientResult u_st (pushUnitStep (n, cur.val)) = (parOf cur).val ∧
+        let u1 := (Memory.spec 0).clientState u_st (pushUnitStep (n, cur.val))
         (∀ a < flowBase n, u1.mem a = u_st.mem a) ∧
-        (∀ x : Fin M, u1.mem (parBase n + x.1) = u_st.mem (parBase n + x.1)) ∧
+        (∀ x : Fin M, u1.mem (parBase n + x.val) = u_st.mem (parBase n + x.val)) ∧
         (∀ x y : Fin M,
-          u1.mem (flowBase n + x.1 * M + y.1) =
+          u1.mem (flowBase n + x.val * M + y.val) =
             if (x, y) = (parOf cur, cur) then f x y + (1 - min 1 (f y x))
             else if (y, x) = (parOf cur, cur) then f x y - min 1 (f x y)
-            else u_st.mem (flowBase n + x.1 * M + y.1)) := by
+            else u_st.mem (flowBase n + x.val * M + y.val)) := by
       have hlow1 : ∀ a < flowBase n,
-          ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.1))).mem a = u_st.mem a :=
+          ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.val))).mem a = u_st.mem a :=
         fun a ha => preservesAt_pushUnitStep (Or.inl ha) u_st
       have hpar1 : ∀ x : Fin M,
-          ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.1))).mem (parBase n + x.1) =
-            u_st.mem (parBase n + x.1) :=
+          ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.val))).mem (parBase n + x.val) =
+            u_st.mem (parBase n + x.val) :=
         fun x => preservesAt_pushUnitStep (Or.inr (by dsimp only [parBase]; omega)) u_st
       refine ⟨?_, hlow1, hpar1, ?_⟩
       · unfold pushUnitStep
         dsimp only
-        rw [clientResult_bind_read, ite_eq_left cur.2, clientResult_bind_read, hpar_val,
-          ite_eq_left (parOf cur).2,
+        rw [clientResult_bind_read, ite_eq_left cur.isLt, clientResult_bind_read, hpar_val,
+          ite_eq_left (parOf cur).isLt,
           clientResult_bind_read, hf_rev]
         by_cases hrev0 : 0 < f cur (parOf cur)
         · rw [ite_eq_left hrev0, clientResult_bind_write]; rfl
@@ -3263,23 +3263,23 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
             clientResult_bind_write]; rfl
       · intro x y
         dsimp only [M] at x y ⊢
-        change ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.1))).mem
-          (flowBase n + x.1 * M + y.1) = _
+        change ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.val))).mem
+          (flowBase n + x.val * M + y.val) = _
         unfold pushUnitStep
         dsimp only
-        rw [clientState_bind_read, ite_eq_left cur.2, clientState_bind_read, hpar_val,
-          ite_eq_left (parOf cur).2,
+        rw [clientState_bind_read, ite_eq_left cur.isLt, clientState_bind_read, hpar_val,
+          ite_eq_left (parOf cur).isLt,
           clientState_bind_read, hf_rev]
         by_cases hrev0 : 0 < f cur (parOf cur)
         · rw [ite_eq_left hrev0, clientState_bind_write]
-          change Function.update u_st.mem (flowBase n + cur.1 * M + (parOf cur).1)
-            (f cur (parOf cur) - 1) (flowBase n + x.1 * M + y.1) = _
+          change Function.update u_st.mem (flowBase n + cur.val * M + (parOf cur).val)
+            (f cur (parOf cur) - 1) (flowBase n + x.val * M + y.val) = _
           by_cases hxy : (x, y) = (parOf cur, cur)
           · injection hxy with hx hy
             rw [hx, hy]
             simp only [↓reduceIte]
-            have hne_addr : flowBase n + (parOf cur).1 * M + cur.1 ≠
-                flowBase n + cur.1 * M + (parOf cur).1 := by
+            have hne_addr : flowBase n + (parOf cur).val * M + cur.val ≠
+                flowBase n + cur.val * M + (parOf cur).val := by
               intro h
               have heq := finProdFinEquiv.injective
                 (a₁ := (parOf cur, cur)) (a₂ := (cur, parOf cur))
@@ -3296,8 +3296,8 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
               have hmin1 : min 1 (f cur (parOf cur)) = 1 := min_eq_left hrev0
               rw [Function.update_self, hmin1]
             · simp only [hyx, ↓reduceIte]
-              have hne_addr : flowBase n + x.1 * M + y.1 ≠
-                  flowBase n + cur.1 * M + (parOf cur).1 := by
+              have hne_addr : flowBase n + x.val * M + y.val ≠
+                  flowBase n + cur.val * M + (parOf cur).val := by
                 intro h
                 have heq := finProdFinEquiv.injective
                   (a₁ := (x, y)) (a₂ := (cur, parOf cur))
@@ -3312,8 +3312,8 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
             omega
           rw [ite_eq_right hrev0, clientState_bind_read, hf_fwd, ite_eq_left hf_lt_cap,
             clientState_bind_write]
-          change Function.update u_st.mem (flowBase n + (parOf cur).1 * M + cur.1)
-            (f (parOf cur) cur + 1) (flowBase n + x.1 * M + y.1) = _
+          change Function.update u_st.mem (flowBase n + (parOf cur).val * M + cur.val)
+            (f (parOf cur) cur + 1) (flowBase n + x.val * M + y.val) = _
           by_cases hxy : (x, y) = (parOf cur, cur)
           · injection hxy with hx hy
             rw [hx, hy]
@@ -3321,8 +3321,8 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
             simp only [↓reduceIte, hrev_eq, hmin0, Nat.sub_zero]
             rw [Function.update_self]
           · simp only [hxy, ↓reduceIte]
-            have hne_addr : flowBase n + x.1 * M + y.1 ≠
-                flowBase n + (parOf cur).1 * M + cur.1 := by
+            have hne_addr : flowBase n + x.val * M + y.val ≠
+                flowBase n + (parOf cur).val * M + cur.val := by
               intro h
               have heq := finProdFinEquiv.injective
                 (a₁ := (x, y)) (a₂ := (parOf cur, cur))
@@ -3335,7 +3335,7 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
               simp [hf_rev, hrev_eq]
             · simp only [hyx, ↓reduceIte]; rfl
     obtain ⟨hres1, hlow1, hpar1, hflow1⟩ := hstep_res_state
-    set u1 := (Memory.spec 0).clientState u_st (pushUnitStep (n, cur.1))
+    set u1 := (Memory.spec 0).clientState u_st (pushUnitStep (n, cur.val))
     obtain ⟨_, hle_rem, _, _⟩ := buildPath_props f parOf hpar rem (parOf cur) (by omega) hp_rem
     have hdisj : ∀ a b : Fin M, (a, b) ∈ pathArcs (buildPath parOf rem (parOf cur)) →
         a ≠ cur ∧ b ≠ cur := by
@@ -3346,7 +3346,7 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
     have hf_sub1 : ∀ x y : Fin M,
         ((x, y) ∈ pathArcs (buildPath parOf rem (parOf cur)) ∨
           (y, x) ∈ pathArcs (buildPath parOf rem (parOf cur))) →
-        u1.mem (flowBase n + x.1 * M + y.1) = f x y := by
+        u1.mem (flowBase n + x.val * M + y.val) = f x y := by
       intro x y hmem
       rw [hflow1 x y]
       rcases hmem with hxy | hyx
@@ -3385,7 +3385,7 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
             rw [ite_eq_right h3, ite_eq_right h2, ite_eq_right h4, ite_eq_right h34]
 
 private def midCut (n : ℕ) : Finset (Fin (splitCount n)) :=
-  Finset.univ.filter fun x => x.1 = 0 ∨ (2 ≤ x.1 ∧ x.1 < n + 2)
+  Finset.univ.filter fun x => x.val = 0 ∨ (2 ≤ x.val ∧ x.val < n + 2)
 
 private theorem isCut_midCut {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (m : ℕ) (s : Memory.State) :
@@ -3399,7 +3399,7 @@ private theorem cutCapacity_midCut_le {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
     (splitNet G m s).cutCapacity (midCut n) ≤ n := by
   let N := splitNet G m s
   have hinner : ∀ x ∈ midCut n,
-      (∑ y ∈ Finset.univ \ midCut n, N.cap x y) ≤ if x.1 = 0 then 0 else 1 := by
+      (∑ y ∈ Finset.univ \ midCut n, N.cap x y) ≤ if x.val = 0 then 0 else 1 := by
     intro x hx
     simp only [midCut, Finset.mem_filter, Finset.mem_univ, true_and] at hx
     rcases hx with hx0 | hx_in
@@ -3409,20 +3409,20 @@ private theorem cutCapacity_midCut_le {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
       unfold N splitNet
       dsimp only
       rw [ite_eq_left hx0, ite_eq_right (fun h => hy (Or.inr h))]
-    · have hxne : x.1 ≠ 0 := by omega
+    · have hxne : x.val ≠ 0 := by omega
       rw [ite_eq_right hxne]
-      let y0 : Fin (splitCount n) := ⟨x.1 + n, by dsimp only [splitCount]; omega⟩
+      let y0 : Fin (splitCount n) := ⟨x.val + n, by dsimp only [splitCount]; omega⟩
       have hsub : (∑ y ∈ Finset.univ \ midCut n, N.cap x y) ≤ N.cap x y0 := by
         have hzero : ∀ y ∈ Finset.univ \ midCut n, y ≠ y0 → N.cap x y = 0 := by
           intro y hy hne
           simp only [midCut, Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and] at hy
-          have hy1 : y.1 ≠ 1 → ¬ y.1 = x.1 + n → N.cap x y = 0 := by
+          have hy1 : y.val ≠ 1 → ¬ y.val = x.val + n → N.cap x y = 0 := by
             intro hy_not1 hy_not_add
             unfold N splitNet
             dsimp only
             rw [ite_eq_right hxne, ite_eq_right hy_not1, ite_eq_left hx_in,
               ite_eq_right hy_not_add]
-          by_cases hy_eq1 : y.1 = 1
+          by_cases hy_eq1 : y.val = 1
           · unfold N splitNet
             dsimp only
             rw [ite_eq_right hxne, ite_eq_left hy_eq1, ite_eq_right (by omega)]
@@ -3438,8 +3438,8 @@ private theorem cutCapacity_midCut_le {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
       rw [ite_eq_right hxne, ite_eq_right (by omega), ite_eq_left hx_in, ite_eq_left rfl]
       split_ifs <;> omega
   calc N.cutCapacity (midCut n)
-      ≤ ∑ x ∈ midCut n, (if x.1 = 0 then 0 else 1) := Finset.sum_le_sum hinner
-    _ = ((midCut n).filter fun x => x.1 ≠ 0).card := by simp [Finset.sum_ite]
+      ≤ ∑ x ∈ midCut n, (if x.val = 0 then 0 else 1) := Finset.sum_le_sum hinner
+    _ = ((midCut n).filter fun x => x.val ≠ 0).card := by simp [Finset.sum_ite]
     _ = (Finset.univ.image (inIdx (n := n))).card := by
         congr 1
         ext x
@@ -3447,7 +3447,7 @@ private theorem cutCapacity_midCut_le {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
         constructor
         · rintro ⟨hx0 | hxin, hne⟩
           · exact absurd hx0 hne
-          · exact ⟨⟨x.1 - 2, by omega⟩, Fin.ext (by dsimp only; omega)⟩
+          · exact ⟨⟨x.val - 2, by omega⟩, Fin.ext (by dsimp only; omega)⟩
         · rintro ⟨v, hv⟩
           subst hv
           dsimp only
@@ -3464,10 +3464,10 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
       ∃ C : Finset (Fin (splitCount n)),
         N.IsMinCut C ∧
         N.cutCapacity C ≤ n ∧
-        (∀ x : Fin (splitCount n), t.mem (distBase n + x.1) < splitCount n ↔ x ∈ C) ∧
-        (∀ v : Fin n, t.mem (sepOutBase n + v.1) =
-          if s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C then 1 else 0) ∧
-        res = (Finset.univ.filter fun v : Fin n => t.mem (sepOutBase n + v.1) = 1).card ∧
+        (∀ x : Fin (splitCount n), t.mem (distBase n + x.val) < splitCount n ↔ x ∈ C) ∧
+        (∀ v : Fin n, t.mem (sepOutBase n + v.val) =
+          if s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C then 1 else 0) ∧
+        res = (Finset.univ.filter fun v : Fin n => t.mem (sepOutBase n + v.val) = 1).card ∧
         res ≤ N.cutCapacity C := by
   intro res t N
   have hlow_all : ∀ a < flowBase n, t.mem a = s.mem a :=
@@ -3480,8 +3480,8 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
   have hs1 := fillRange_spec (flowBase n) 0 (M * M) s
   have hf0 : FlowStored (Network.Flow.zero N) s1 := by
     intro x y
-    have hxy := hs1.1 (x.1 * M + y.1) (by dsimp only [M]; nlinarith [x.2, y.2])
-    change s1.mem (flowBase n + (x.1 * M + y.1)) = 0 at hxy
+    have hxy := hs1.1 (x.val * M + y.val) (by dsimp only [M]; nlinarith [x.isLt, y.isLt])
+    change s1.mem (flowBase n + (x.val * M + y.val)) = 0 at hxy
     rw [← Nat.add_assoc] at hxy
     exact hxy
   have hs1_low : ∀ a < flowBase n, s1.mem a = s.mem a := fun a ha => hs1.2 a (Or.inl ha)
@@ -3504,14 +3504,14 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
           rwa [← hd1_eq]
         have hr_le : (r : ℤ) ≤ f.value := hval_or.resolve_left (not_not.mpr ht_reach)
         let parOf : Fin M → Fin M := fun x =>
-          if h : tb.mem (parBase n + x.1) < M then ⟨tb.mem (parBase n + x.1), h⟩
+          if h : tb.mem (parBase n + x.val) < M then ⟨tb.mem (parBase n + x.val), h⟩
           else ⟨0, by dsimp only [M, splitCount]; omega⟩
         have hparOf : ∀ x : Fin M, 0 < f.resDist x → f.resDist x < M →
-            tb.mem (parBase n + x.1) = (parOf x).1 ∧
+            tb.mem (parBase n + x.val) = (parOf x).val ∧
             f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x := by
           intro x hx1 hx2
           obtain ⟨u, hu1, hu2, hu3⟩ := htb_par x hx1 hx2
-          have hu_lt : tb.mem (parBase n + x.1) < M := by rw [hu1]; exact u.2
+          have hu_lt : tb.mem (parBase n + x.val) < M := by rw [hu1]; exact u.isLt
           have hp_eq : parOf x = u :=
             Fin.ext (by dsimp only [parOf]; rw [dite_eq_left hu_lt]; exact hu1)
           rw [hp_eq]
@@ -3523,7 +3523,7 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
         have hp_last := buildPath_getLast? parOf (f.resDist N.t) N.t
         let f' := f.augment (buildPath parOf (f.resDist N.t) N.t) hp_nd hp_head hp_last 1 hp_arcs
         have hf_tb : FlowStored f tb := fun x y => by
-          rw [htb_low _ (by dsimp only [distBase]; nlinarith [x.2, y.2]), hf_st x y]
+          rw [htb_low _ (by dsimp only [distBase]; nlinarith [x.isLt, y.isLt]), hf_st x y]
         have hpush := iterate_pushUnitStep_spec f parOf (fun x h1 h2 => (hparOf x h1 h2).2)
           (f.resDist N.t) N.t tb hd1_lt rfl (fun x h1 h2 => (hparOf x h1 h2).1)
           (fun x y _ => hf_tb x y)
@@ -3531,8 +3531,8 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
             ((Memory.spec 0).clientState tb (iterate pushUnitStep n (f.resDist N.t) 1)) := by
           intro x y
           change ((Memory.spec 0).clientState tb
-            (iterate pushUnitStep n (f.resDist N.t) N.t.1)).mem
-            (flowBase n + x.1 * splitCount n + y.1) = f' x y
+            (iterate pushUnitStep n (f.resDist N.t) N.t.val)).mem
+            (flowBase n + x.val * splitCount n + y.val) = f' x y
           rw [hpush.2 x y, hf_tb x y]
           rfl
         rw [hd1_eq]
@@ -3549,7 +3549,7 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
           rw [← f.resDist_lt_card_iff_resReachable, Fintype.card_fin, ← hd1_eq]
           exact hd1
         have hf_tb : FlowStored f tb := fun x y => by
-          rw [htb_low _ (by dsimp only [distBase]; nlinarith [x.2, y.2]), hf_st x y]
+          rw [htb_low _ (by dsimp only [distBase]; nlinarith [x.isLt, y.isLt]), hf_st x y]
         exact ⟨by omega, fun a ha =>
           (htb_low a (by dsimp only [distBase]; omega)).trans (hst_low a ha),
           f, hf_tb, Or.inl hno_reach⟩)
@@ -3579,7 +3579,7 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
   have hmin : N.IsMinCut C := f_end.isMinCut_of_value_eq_cutCapacity hcut hval_cut
   have hcapC_le : N.cutCapacity C ≤ n :=
     (hmin.2 (midCut n) (isCut_midCut G m s)).trans (cutCapacity_midCut_le G m s)
-  have hdist_iff : ∀ x : Fin M, s3.mem (distBase n + x.1) < M ↔ x ∈ C := by
+  have hdist_iff : ∀ x : Fin M, s3.mem (distBase n + x.val) < M ↔ x ∈ C := by
     intro x
     rw [hs3_dist x, f_end.mem_reachableCut_iff, ← f_end.resDist_lt_card_iff_resReachable,
       Fintype.card_fin]
@@ -3587,10 +3587,10 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
     (fun rem (vc : ℕ × ℕ) st =>
       vc.1 + rem = n ∧
       (∀ a < sepOutBase n, st.mem a = s3.mem a) ∧
-      (∀ v : Fin n, v.1 < vc.1 → st.mem (sepOutBase n + v.1) =
-        if s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C then 1 else 0) ∧
+      (∀ v : Fin n, v.val < vc.1 → st.mem (sepOutBase n + v.val) =
+        if s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C then 1 else 0) ∧
       vc.2 = ((Finset.univ : Finset (Fin n)).filter fun v =>
-        v.1 < vc.1 ∧ s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C).card)
+        v.val < vc.1 ∧ s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C).card)
     (fun rem vc st ⟨hvsum, hst_pre, hprev, hcnt⟩ => by
       have hv_lt : vc.1 < n := by omega
       let vFin : Fin n := ⟨vc.1, hv_lt⟩
@@ -3598,16 +3598,16 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
         rw [hst_pre _ (by dsimp only [sepOutBase, parBase, distBase, flowBase, wBase]; omega),
           hs3_low _ (by dsimp only [distBase, flowBase, wBase]; omega),
           hs2_low _ (by dsimp only [flowBase, wBase]; omega)]
-      have hdin_eq : st.mem (distBase n + (vc.1 + 2)) = s3.mem (distBase n + (inIdx vFin).1) :=
+      have hdin_eq : st.mem (distBase n + (vc.1 + 2)) = s3.mem (distBase n + (inIdx vFin).val) :=
         hst_pre _ (by dsimp only [sepOutBase, parBase, distBase, splitCount]; omega)
       have hdout_eq : st.mem (distBase n + (vc.1 + n + 2)) =
-          s3.mem (distBase n + (outIdx vFin).1) :=
+          s3.mem (distBase n + (outIdx vFin).val) :=
         hst_pre _ (by dsimp only [sepOutBase, parBase, distBase, splitCount]; omega)
-      have hout_le : s3.mem (distBase n + (outIdx vFin).1) ≤ M := by
+      have hout_le : s3.mem (distBase n + (outIdx vFin).val) ≤ M := by
         rw [hs3_dist]; simpa [Fintype.card_fin] using f_end.resDist_le_card (outIdx vFin)
       have hpred_iff : (s.mem (wBase n + vc.1) = 0 ∧
-          s3.mem (distBase n + (inIdx vFin).1) < M ∧
-          s3.mem (distBase n + (outIdx vFin).1) = M) ↔
+          s3.mem (distBase n + (inIdx vFin).val) < M ∧
+          s3.mem (distBase n + (outIdx vFin).val) = M) ↔
           (s.mem (wBase n + vc.1) = 0 ∧ inIdx vFin ∈ C ∧ outIdx vFin ∉ C) := by
         rw [← hdist_iff (inIdx vFin), ← hdist_iff (outIdx vFin)]
         exact ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩,
@@ -3618,29 +3618,29 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
         clientState_bind_read, clientResult_bind_read, clientState_bind_read,
         hw_eq, hdin_eq, hdout_eq]
       by_cases hp : s.mem (wBase n + vc.1) = 0 ∧
-          s3.mem (distBase n + (inIdx vFin).1) < M ∧
-          s3.mem (distBase n + (outIdx vFin).1) = M
+          s3.mem (distBase n + (inIdx vFin).val) < M ∧
+          s3.mem (distBase n + (outIdx vFin).val) = M
       · have hp' := hpred_iff.mp hp
         rw [ite_eq_left hp, clientResult_bind_write, clientState_bind_write, clientResult_pure,
           clientState_pure]
         dsimp only
         refine ⟨by omega, fun a ha => ?_, fun u hu => ?_, ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hst_pre a ha
-        · by_cases huv : u.1 = vc.1
+        · by_cases huv : u.val = vc.1
           · have hueq : u = vFin := Fin.ext huv
             subst hueq
             dsimp only [vFin]
             rw [Function.update_self, ite_eq_left hp']
           · rw [Function.update_of_ne (by omega)]; exact hprev u (by omega)
         · have hfilt : ((Finset.univ : Finset (Fin n)).filter fun v =>
-              v.1 < vc.1 + 1 ∧ s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C) =
+              v.val < vc.1 + 1 ∧ s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C) =
               insert vFin (((Finset.univ : Finset (Fin n)).filter fun v =>
-                v.1 < vc.1 ∧ s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C)) := by
+                v.val < vc.1 ∧ s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C)) := by
             ext v
             simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
             constructor
             · rintro ⟨hlt, hw, hin, hout⟩
-              by_cases hveq : v.1 = vc.1
+              by_cases hveq : v.val = vc.1
               · exact Or.inl (Fin.ext hveq)
               · exact Or.inr ⟨by omega, hw, hin, hout⟩
             · rintro (rfl | ⟨hlt, hw, hin, hout⟩)
@@ -3654,7 +3654,7 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
         dsimp only
         refine ⟨by omega, fun a ha => ?_, fun u hu => ?_, ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hst_pre a ha
-        · by_cases huv : u.1 = vc.1
+        · by_cases huv : u.val = vc.1
           · have hueq : u = vFin := Fin.ext huv
             subst hueq
             dsimp only [vFin]
@@ -3667,7 +3667,7 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
           simp only [Finset.mem_filter, Finset.mem_univ, true_and]
           constructor
           · rintro ⟨hlt, hw, hin, hout⟩
-            by_cases hveq : v.1 = vc.1
+            by_cases hveq : v.val = vc.1
             · have hv_eq : v = vFin := Fin.ext hveq
               subst hv_eq
               exact absurd ⟨hw, hin, hout⟩ hp'
@@ -3681,16 +3681,16 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
   set vc_end := (Memory.spec 0).clientResult s3 (iterate extractSepStep n n (0, 0))
   have hvc1 : vc_end.1 = n := by omega
   rw [hvc1] at hsep_end hcnt_end
-  have hsep_fin : ∀ v : Fin n, s4.mem (sepOutBase n + v.1) =
-      if s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C then 1 else 0 :=
-    fun v => hsep_end v v.2
+  have hsep_fin : ∀ v : Fin n, s4.mem (sepOutBase n + v.val) =
+      if s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C then 1 else 0 :=
+    fun v => hsep_end v v.isLt
   have hcnt_fin : vc_end.2 =
-      (Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.1) = 1).card := by
+      (Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.val) = 1).card := by
     rw [hcnt_end]
     congr 1
     ext v
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, v.2, hsep_fin v]
-    by_cases h : s.mem (wBase n + v.1) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C <;> simp [h]
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, v.isLt, hsep_fin v]
+    by_cases h : s.mem (wBase n + v.val) = 0 ∧ inIdx v ∈ C ∧ outIdx v ∉ C <;> simp [h]
   have ht_eq : t = s4 := by
     change (Memory.spec 0).clientState s (minSepProg (n, m)) = s4
     unfold minSepProg
@@ -3704,9 +3704,9 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
   rw [ht_eq, hres_eq]
   refine ⟨C, hmin, hcapC_le, ?_, hsep_fin, hcnt_fin, ?_⟩
   · intro x
-    rw [hpre_end _ (by dsimp only [sepOutBase, parBase, distBase]; have := x.2; omega)]
+    rw [hpre_end _ (by dsimp only [sepOutBase, parBase, distBase]; have := x.isLt; omega)]
     exact hdist_iff x
-  · let X := Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.1) = 1
+  · let X := Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.val) = 1
     have hX_sub : X.image (inIdx (n := n)) ⊆ C := by
       intro x hx
       obtain ⟨v, hv, rfl⟩ := Finset.mem_image.mp hx
@@ -3742,11 +3742,11 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
 
 private structure WListSpec {n : ℕ} (Wset : Finset (Fin n)) (L : ℕ) (s : Memory.State) : Prop where
   card_eq : L = Wset.card
-  w_mem : ∀ v : Fin n, s.mem (wBase n + v.1) = if v ∈ Wset then 1 else 0
+  w_mem : ∀ v : Fin n, s.mem (wBase n + v.val) = if v ∈ Wset then 1 else 0
   entry_lt : ∀ j < L, s.mem (wListBase n + j) < n
-  entry_mem : ∀ j : Fin L, ⟨s.mem (wListBase n + j.1), entry_lt j.1 j.2⟩ ∈ Wset
+  entry_mem : ∀ j : Fin L, ⟨s.mem (wListBase n + j.val), entry_lt j.val j.isLt⟩ ∈ Wset
   entry_strictMono : ∀ i j, i < j → j < L → s.mem (wListBase n + i) < s.mem (wListBase n + j)
-  mem_iff_exists : ∀ w : Fin n, w ∈ Wset ↔ ∃ j : Fin L, s.mem (wListBase n + j.1) = w.1
+  mem_iff_exists : ∀ w : Fin n, w ∈ Wset ↔ ∃ j : Fin L, s.mem (wListBase n + j.val) = w.val
 
 private theorem WListSpec.congr {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s₁ s₂ : Memory.State}
     (hW : WListSpec Wset L s₁)
@@ -3755,7 +3755,7 @@ private theorem WListSpec.congr {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s�
   have hL_le : L ≤ n := by
     rw [hW.card_eq]
     exact Wset.card_le_univ.trans (by simp)
-  have hw_eq : ∀ v : Fin n, s₂.mem (wBase n + v.1) = s₁.mem (wBase n + v.1) :=
+  have hw_eq : ∀ v : Fin n, s₂.mem (wBase n + v.val) = s₁.mem (wBase n + v.val) :=
     fun v => heq _ (by dsimp only [wBase]; omega) (by dsimp only [wBase, digitBase]; omega)
   have hwl_eq : ∀ j < L, s₂.mem (wListBase n + j) = s₁.mem (wListBase n + j) :=
     fun j hj => heq _ (by dsimp only [wBase, wListBase]; omega)
@@ -3768,12 +3768,12 @@ private theorem WListSpec.congr {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s�
       exact hW.entry_strictMono i j hij hj,
     fun w => ?_⟩
   · have hm := hW.entry_mem j
-    have he := hwl_eq j.1 j.2
+    have he := hwl_eq j.val j.isLt
     convert hm using 1
     exact Fin.ext he
   · rw [hW.mem_iff_exists]
-    exact ⟨fun ⟨j, hj⟩ => ⟨j, (hwl_eq j.1 j.2).trans hj⟩,
-      fun ⟨j, hj⟩ => ⟨j, (hwl_eq j.1 j.2).symm.trans hj⟩⟩
+    exact ⟨fun ⟨j, hj⟩ => ⟨j, (hwl_eq j.val j.isLt).trans hj⟩,
+      fun ⟨j, hj⟩ => ⟨j, (hwl_eq j.val j.isLt).symm.trans hj⟩⟩
 
 private theorem WListSpec.card_le_n {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s : Memory.State}
     (hW : WListSpec Wset L s) : L ≤ n := by
@@ -3782,11 +3782,11 @@ private theorem WListSpec.card_le_n {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} 
 
 private theorem WListSpec.entry_inj {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s : Memory.State}
     (hW : WListSpec Wset L s) {i j : Fin L}
-    (h : s.mem (wListBase n + i.1) = s.mem (wListBase n + j.1)) : i = j := by
-  rcases lt_trichotomy i.1 j.1 with hlt | heq | hgt
-  · exact absurd h (ne_of_lt (hW.entry_strictMono i.1 j.1 hlt j.2))
+    (h : s.mem (wListBase n + i.val) = s.mem (wListBase n + j.val)) : i = j := by
+  rcases lt_trichotomy i.val j.val with hlt | heq | hgt
+  · exact absurd h (ne_of_lt (hW.entry_strictMono i.val j.val hlt j.isLt))
   · exact Fin.ext heq
-  · exact absurd h.symm (ne_of_lt (hW.entry_strictMono j.1 i.1 hgt i.2))
+  · exact absurd h.symm (ne_of_lt (hW.entry_strictMono j.val i.val hgt i.isLt))
 
 private theorem preservesAt_buildWProg {a : ℕ} {d : ℕ × ℕ} (ha : a < wBase d.1) :
     PreservesAt a (buildWProg d) := by
@@ -3801,8 +3801,8 @@ private theorem preservesAt_buildWProg {a : ℕ} {d : ℕ × ℕ} (ha : a < wBas
     fun _ => preservesAt_pure _ _
 
 private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
-    (hsep01 : ∀ v : Fin n, s.mem (sepBase n + v.1) ≤ 1) :
-    let S : Finset (Fin n) := Finset.univ.filter fun v => s.mem (sepBase n + v.1) = 1
+    (hsep01 : ∀ v : Fin n, s.mem (sepBase n + v.val) ≤ 1) :
+    let S : Finset (Fin n) := Finset.univ.filter fun v => s.mem (sepBase n + v.val) = 1
     let Wset : Finset (Fin n) := insert ⟨m, hm⟩ S
     let L := (Memory.spec 0).clientResult s (buildWProg (n, m))
     let t := (Memory.spec 0).clientState s (buildWProg (n, m))
@@ -3813,32 +3813,32 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
   have hs1 := copyRange_spec (srcB := sepBase n) (dstB := wBase n) (len := n)
     (by dsimp only [sepBase, wBase]; omega) s
   set s2 : Memory.State := ⟨Function.update s1.mem (wBase n + m) 1, s1.frontier⟩
-  have hs2_w : ∀ v : Fin n, s2.mem (wBase n + v.1) = if v ∈ Wset then 1 else 0 := by
+  have hs2_w : ∀ v : Fin n, s2.mem (wBase n + v.val) = if v ∈ Wset then 1 else 0 := by
     intro v
     dsimp only [s2]
-    by_cases hvm : v.1 = m
+    by_cases hvm : v.val = m
     · have hvW : v ∈ Wset := by
         have hveq : v = ⟨m, hm⟩ := Fin.ext hvm
         subst hveq
         exact Finset.mem_insert_self _ _
       rw [hvm, Function.update_self, ite_eq_left hvW]
     · have hne_m : v ≠ ⟨m, hm⟩ := fun h => hvm (congrArg Fin.val h)
-      rw [Function.update_of_ne (by omega), hs1.1 v.1 v.2]
+      rw [Function.update_of_ne (by omega), hs1.1 v.val v.isLt]
       have hv01 := hsep01 v
-      have hmemW : v ∈ Wset ↔ s.mem (sepBase n + v.1) = 1 := by
+      have hmemW : v ∈ Wset ↔ s.mem (sepBase n + v.val) = 1 := by
         simp [Wset, S, hne_m]
-      by_cases h1 : s.mem (sepBase n + v.1) = 1
+      by_cases h1 : s.mem (sepBase n + v.val) = 1
       · rw [h1, ite_eq_left (hmemW.mpr h1)]
       · rw [ite_eq_right (fun h => h1 (hmemW.mp h))]; omega
   have hiter := iterate_invariant_of buildWListStep n
     (fun rem (vL : ℕ × ℕ) st =>
       vL.1 + rem = n ∧
       (∀ a < wListBase n, st.mem a = s2.mem a) ∧
-      vL.2 = (Wset.filter fun w => w.1 < vL.1).card ∧
+      vL.2 = (Wset.filter fun w => w.val < vL.1).card ∧
       (∀ j < vL.2, st.mem (wListBase n + j) < vL.1 ∧
-        ∃ w ∈ Wset, st.mem (wListBase n + j) = w.1) ∧
+        ∃ w ∈ Wset, st.mem (wListBase n + j) = w.val) ∧
       (∀ i j, i < j → j < vL.2 → st.mem (wListBase n + i) < st.mem (wListBase n + j)) ∧
-      (∀ w ∈ Wset, w.1 < vL.1 → ∃ j < vL.2, st.mem (wListBase n + j) = w.1))
+      (∀ w ∈ Wset, w.val < vL.1 → ∃ j < vL.2, st.mem (wListBase n + j) = w.val))
     (fun rem vL st ⟨hvsum, hlow, hcard, hlt_mem, hmono, hex⟩ => by
       have hv_lt : vL.1 < n := by omega
       let vFin : Fin n := ⟨vL.1, hv_lt⟩
@@ -3846,16 +3846,16 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
         (hlow _ (by dsimp only [wBase, wListBase]; omega)).trans (hs2_w vFin)
       have hL_le_v : vL.2 ≤ vL.1 := by
         rw [hcard]
-        calc (Wset.filter fun w => w.1 < vL.1).card
-            ≤ ((Finset.univ : Finset (Fin n)).filter fun w => w.1 < vL.1).card :=
+        calc (Wset.filter fun w => w.val < vL.1).card
+            ≤ ((Finset.univ : Finset (Fin n)).filter fun w => w.val < vL.1).card :=
               Finset.card_le_card (Finset.filter_subset_filter _ (Finset.subset_univ _))
           _ = ((Finset.range vL.1).attach.image
-                fun x => (⟨x.1, (Finset.mem_range.mp x.2).trans hv_lt⟩ : Fin n)).card := by
+                fun x => (⟨x.val, (Finset.mem_range.mp x.property).trans hv_lt⟩ : Fin n)).card := by
               congr 1
               ext w
               simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image,
                 Finset.mem_attach]
-              exact ⟨fun hw => ⟨⟨w.1, Finset.mem_range.mpr hw⟩, Fin.ext rfl⟩,
+              exact ⟨fun hw => ⟨⟨w.val, Finset.mem_range.mpr hw⟩, Fin.ext rfl⟩,
                 fun ⟨⟨x, hx⟩, hwx⟩ => by subst hwx; exact Finset.mem_range.mp hx⟩
           _ ≤ (Finset.range vL.1).attach.card := Finset.card_image_le
           _ = vL.1 := by simp
@@ -3870,13 +3870,13 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
         refine ⟨by omega, fun a ha => ?_, ?_, fun j hj => ?_,
           fun i j hij hj => ?_, fun w hw hlt => ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hlow a ha
-        · have hfilt : (Wset.filter fun w => w.1 < vL.1 + 1) =
-              insert vFin (Wset.filter fun w => w.1 < vL.1) := by
+        · have hfilt : (Wset.filter fun w => w.val < vL.1 + 1) =
+              insert vFin (Wset.filter fun w => w.val < vL.1) := by
             ext w
             simp only [Finset.mem_filter, Finset.mem_insert]
             constructor
             · rintro ⟨hw, hwlt⟩
-              by_cases hweq : w.1 = vL.1
+              by_cases hweq : w.val = vL.1
               · exact Or.inl (Fin.ext hweq)
               · exact Or.inr ⟨hw, by omega⟩
             · rintro (rfl | ⟨hw, hwlt⟩)
@@ -3897,7 +3897,7 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
             exact (hlt_mem i hij).1
           · rw [Function.update_of_ne (by omega)]
             exact hmono i j hij (by omega)
-        · by_cases hweq : w.1 = vL.1
+        · by_cases hweq : w.val = vL.1
           · exact ⟨vL.2, by omega, by rw [Function.update_self, hweq]⟩
           · obtain ⟨j, hj, hjw⟩ := hex w hw (by omega)
             exact ⟨j, by omega, (Function.update_of_ne (by omega) _ _).trans hjw⟩
@@ -3915,12 +3915,12 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
           constructor
           · rintro ⟨hw, hwlt⟩
             refine ⟨hw, ?_⟩
-            by_cases hweq : w.1 = vL.1
+            by_cases hweq : w.val = vL.1
             · have : w = vFin := Fin.ext hweq; subst this; exact absurd hw hvW
             · omega
           · rintro ⟨hw, hwlt⟩
             exact ⟨hw, by omega⟩
-        · by_cases hweq : w.1 = vL.1
+        · by_cases hweq : w.val = vL.1
           · have : w = vFin := Fin.ext hweq; subst this; exact absurd hw hvW
           · exact hex w hw (by omega))
     (n := n) (a := (0, 0)) (s := s2)
@@ -3943,8 +3943,8 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
     dsimp only
     rw [StateTransitionSpec.clientResult_bind, clientResult_bind_write, cr_bind_pure]
   rw [ht_eq, hL_eq]
-  have hfilt_univ : (Wset.filter fun w => w.1 < n) = Wset :=
-    Finset.filter_eq_self.mpr fun w _ => w.2
+  have hfilt_univ : (Wset.filter fun w => w.val < n) = Wset :=
+    Finset.filter_eq_self.mpr fun w _ => w.isLt
   rw [hfilt_univ] at hcard_end
   refine ⟨hcard_end,
     fun v => (hlow_end _ (by dsimp only [wBase, wListBase]; omega)).trans (hs2_w v),
@@ -3952,29 +3952,29 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
     fun j => ?_,
     hmono_end,
     fun w => ⟨fun hw => ?_, fun ⟨j, hj⟩ => ?_⟩⟩
-  · obtain ⟨w, hwW, hweq⟩ := (hlt_mem_end j.1 j.2).2
-    have hfin : (⟨s3.mem (wListBase n + j.1), (hlt_mem_end j.1 j.2).1⟩ : Fin n) = w :=
+  · obtain ⟨w, hwW, hweq⟩ := (hlt_mem_end j.val j.isLt).2
+    have hfin : (⟨s3.mem (wListBase n + j.val), (hlt_mem_end j.val j.isLt).1⟩ : Fin n) = w :=
       Fin.ext hweq
     rwa [hfin]
-  · obtain ⟨j, hj, hjw⟩ := hex_end w hw w.2
+  · obtain ⟨j, hj, hjw⟩ := hex_end w hw w.isLt
     exact ⟨⟨j, hj⟩, hjw⟩
-  · obtain ⟨w', hw'W, hw'eq⟩ := (hlt_mem_end j.1 j.2).2
+  · obtain ⟨w', hw'W, hw'eq⟩ := (hlt_mem_end j.val j.isLt).2
     have hweq : w = w' := Fin.ext (hj.symm.trans hw'eq)
     rwa [hweq]
 
 private def delSet {n : ℕ} (Wset : Finset (Fin n)) (s : Memory.State) : Finset (Fin n) :=
-  Wset.filter fun w => s.mem (guessBase n + w.1) = 0
+  Wset.filter fun w => s.mem (guessBase n + w.val) = 0
 
 private def guessCol (n : ℕ) (s : Memory.State) (w : Fin n) : Bool :=
-  s.mem (guessBase n + w.1) == 2
+  s.mem (guessBase n + w.val) == 2
 
 private theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.State}
     (hW : WListSpec Wset L s) (hdig : ∀ j < L, s.mem (digitBase n + j) ≤ 2) :
     let t := (Memory.spec 0).clientState s (unpackGuessProg (n, L))
     (∀ a < guessBase n, t.mem a = s.mem a) ∧
-      (∀ j : Fin L, t.mem (guessBase n + s.mem (wListBase n + j.1)) = s.mem (digitBase n + j.1)) ∧
-      (∀ v : Fin n, v ∉ Wset → t.mem (guessBase n + v.1) = 0) ∧
-      (∀ v : Fin n, t.mem (guessBase n + v.1) ≤ 2) := by
+      (∀ j : Fin L, t.mem (guessBase n + s.mem (wListBase n + j.val)) = s.mem (digitBase n + j.val)) ∧
+      (∀ v : Fin n, v ∉ Wset → t.mem (guessBase n + v.val) = 0) ∧
+      (∀ v : Fin n, t.mem (guessBase n + v.val) ≤ 2) := by
   intro t
   have hlow_all : ∀ a < guessBase n, t.mem a = s.mem a :=
     fun a ha => preservesAt_unpackGuessProg ha s
@@ -3985,11 +3985,11 @@ private theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Me
     (fun rem (j : ℕ) st =>
       j + rem = L ∧
       (∀ a < guessBase n, st.mem a = s.mem a) ∧
-      (∀ i : Fin L, i.1 < j →
-        st.mem (guessBase n + s.mem (wListBase n + i.1)) = s.mem (digitBase n + i.1)) ∧
-      (∀ v : Fin n, (∀ i : Fin L, i.1 < j → s.mem (wListBase n + i.1) ≠ v.1) →
-        st.mem (guessBase n + v.1) = 0) ∧
-      (∀ v : Fin n, st.mem (guessBase n + v.1) ≤ 2))
+      (∀ i : Fin L, i.val < j →
+        st.mem (guessBase n + s.mem (wListBase n + i.val)) = s.mem (digitBase n + i.val)) ∧
+      (∀ v : Fin n, (∀ i : Fin L, i.val < j → s.mem (wListBase n + i.val) ≠ v.val) →
+        st.mem (guessBase n + v.val) = 0) ∧
+      (∀ v : Fin n, st.mem (guessBase n + v.val) ≤ 2))
     (fun rem j st ⟨hjsum, hst_low, hset, hzero, hle2⟩ => by
       have hj_lt : j < L := by omega
       let jFin : Fin L := ⟨j, hj_lt⟩
@@ -4008,23 +4008,23 @@ private theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Me
       simp only [client_simps]
       refine ⟨by omega, fun a ha => ?_, fun i hi => ?_, fun v hv => ?_, fun v => ?_⟩
       · rw [Function.update_of_ne (by omega)]; exact hst_low a ha
-      · by_cases hij : i.1 = j
+      · by_cases hij : i.val = j
         · rw [hij, Function.update_self]
-        · have hne_w : s.mem (wListBase n + i.1) ≠ s.mem (wListBase n + j) :=
+        · have hne_w : s.mem (wListBase n + i.val) ≠ s.mem (wListBase n + j) :=
             fun h => hij (congrArg Fin.val (hW.entry_inj (j := jFin) h))
           rw [Function.update_of_ne (fun h => hne_w (by omega))]
           exact hset i (by omega)
-      · have hne_j : s.mem (wListBase n + j) ≠ v.1 := hv jFin (Nat.lt_succ_self j)
+      · have hne_j : s.mem (wListBase n + j) ≠ v.val := hv jFin (Nat.lt_succ_self j)
         rw [Function.update_of_ne (fun h => hne_j (by omega))]
         exact hzero v fun i hi => hv i (by omega)
-      · by_cases hv_eq : v.1 = s.mem (wListBase n + j)
+      · by_cases hv_eq : v.val = s.mem (wListBase n + j)
         · rw [hv_eq, Function.update_self]; exact hdg_le
         · rw [Function.update_of_ne (by omega)]; exact hle2 v)
     (n := L) (a := 0) (s := s1)
     ⟨Nat.zero_add _, fun a ha => hs1.2 a (Or.inl ha),
       fun _ h => absurd h (Nat.not_lt_zero _),
-      fun v _ => hs1.1 v.1 v.2,
-      fun v => by rw [hs1.1 v.1 v.2]; decide⟩
+      fun v _ => hs1.1 v.val v.isLt,
+      fun v => by rw [hs1.1 v.val v.isLt]; decide⟩
   obtain ⟨hjsum_end, _, hset_end, hzero_end, hle2_end⟩ := hiter
   set s2 := (Memory.spec 0).clientState s1 (iterate unpackStep n L 0)
   have hj_end : (Memory.spec 0).clientResult s1 (iterate unpackStep n L 0) = L := by omega
@@ -4035,31 +4035,31 @@ private theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Me
     dsimp only
     rw [StateTransitionSpec.clientState_bind, cs_bind_pure]
   rw [ht_eq]
-  refine ⟨fun j => hset_end j j.2, fun v hv => hzero_end v fun i _ h => hv ?_, hle2_end⟩
+  refine ⟨fun j => hset_end j j.isLt, fun v hv => hzero_end v fun i _ h => hv ?_, hle2_end⟩
   exact (hW.mem_iff_exists v).mpr ⟨i, h⟩
 
 private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {Wset : Finset (Fin n)} {s : Memory.State} (hG : MatrixLoaded G s)
     (hW : WListSpec Wset L s)
     (hg_eq : ∀ j : Fin L,
-      s.mem (guessBase n + s.mem (wListBase n + j.1)) = s.mem (digitBase n + j.1))
-    (hg_le : ∀ v : Fin n, s.mem (guessBase n + v.1) ≤ 2) :
+      s.mem (guessBase n + s.mem (wListBase n + j.val)) = s.mem (digitBase n + j.val))
+    (hg_le : ∀ v : Fin n, s.mem (guessBase n + v.val) ≤ 2) :
     (Memory.spec 0).clientResult s (checkProperProg ((n, m), L)) =
       if ∀ u ∈ Wset, ∀ v ∈ Wset, (prefixGraph G m).Adj u v →
           u ∉ delSet Wset s → v ∉ delSet Wset s → guessCol n s u ≠ guessCol n s v
       then 1 else 0 := by
   let BadPair (i j : Fin L) : Prop :=
-    let u : Fin n := ⟨s.mem (wListBase n + i.1), hW.entry_lt i.1 i.2⟩
-    let v : Fin n := ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩
-    0 < s.mem (digitBase n + i.1) ∧ 0 < s.mem (digitBase n + j.1) ∧
-      s.mem (digitBase n + i.1) = s.mem (digitBase n + j.1) ∧ (prefixGraph G m).Adj u v
+    let u : Fin n := ⟨s.mem (wListBase n + i.val), hW.entry_lt i.val i.isLt⟩
+    let v : Fin n := ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩
+    0 < s.mem (digitBase n + i.val) ∧ 0 < s.mem (digitBase n + j.val) ∧
+      s.mem (digitBase n + i.val) = s.mem (digitBase n + j.val) ∧ (prefixGraph G m).Adj u v
   unfold checkProperProg
   rw [clientResult_bind_read, cr_bind_pure]
   have hout := iterate_invariant_of properOuterStep ((n, m), L)
     (fun rem (iok : ℕ × ℕ) st =>
       iok.1 + rem = L ∧
       (∀ a, st.mem a = s.mem a) ∧
-      iok.2 = if ∀ i j : Fin L, i.1 < iok.1 → ¬ BadPair i j then 1 else 0)
+      iok.2 = if ∀ i j : Fin L, i.val < iok.1 → ¬ BadPair i j then 1 else 0)
     (fun rem iok st ⟨hisum, hmem_eq, hok_eq⟩ => by
       have hi_lt : iok.1 < L := by omega
       let iFin : Fin L := ⟨iok.1, hi_lt⟩
@@ -4069,14 +4069,14 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
         clientState_bind_read, hmem_eq, hmem_eq]
       by_cases hdu : 0 < s.mem (digitBase n + iok.1)
-      · rw [ite_eq_left ⟨uFin.2, hdu⟩, cr_bind_pure, cs_bind_pure]
+      · rw [ite_eq_left ⟨uFin.isLt, hdu⟩, cr_bind_pure, cs_bind_pure]
         have hinn := iterate_invariant_of properInnerStep
           (((n, m), s.mem (wListBase n + iok.1)), s.mem (digitBase n + iok.1))
           (fun jrem (jok : ℕ × ℕ) st' =>
             jok.1 + jrem = L ∧
             (∀ a, st'.mem a = s.mem a) ∧
-            jok.2 = if (∀ i j : Fin L, i.1 < iok.1 → ¬ BadPair i j) ∧
-              (∀ j : Fin L, j.1 < jok.1 → ¬ BadPair iFin j) then 1 else 0)
+            jok.2 = if (∀ i j : Fin L, i.val < iok.1 → ¬ BadPair i j) ∧
+              (∀ j : Fin L, j.val < jok.1 → ¬ BadPair iFin j) then 1 else 0)
           (fun jrem jok st' ⟨hjsum, hmem', hjok_eq⟩ => by
             have hj_lt : jok.1 < L := by omega
             let jFin : Fin L := ⟨jok.1, hj_lt⟩
@@ -4098,8 +4098,8 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
               by_cases hadj : G.Adj uFin vFin
               · have hbad : BadPair iFin jFin :=
                   ⟨hdu, hcond.2.2.2.2.1, hcond.2.2.2.2.2, hadj, hcond.2.2.1, hcond.2.2.2.1⟩
-                have hnot_all : ¬ ((∀ i j : Fin L, i.1 < iok.1 → ¬ BadPair i j) ∧
-                    (∀ j : Fin L, j.1 < jok.1 + 1 → ¬ BadPair iFin j)) :=
+                have hnot_all : ¬ ((∀ i j : Fin L, i.val < iok.1 → ¬ BadPair i j) ∧
+                    (∀ j : Fin L, j.val < jok.1 + 1 → ¬ BadPair iFin j)) :=
                   fun h => h.2 jFin (by dsimp only [jFin]; omega) hbad
                 rw [ite_eq_left hadj, ite_eq_left rfl]
                 simp only [client_simps]
@@ -4111,19 +4111,19 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
                 rw [hjok_eq]
                 congr 1
                 exact propext ⟨fun ⟨h1, h2⟩ => ⟨h1, fun j hj => by
-                    by_cases hjeq : j.1 = jok.1
+                    by_cases hjeq : j.val = jok.1
                     · have : j = jFin := Fin.ext hjeq; subst this; exact hnot_bad
                     · exact h2 j (by omega)⟩,
                   fun ⟨h1, h2⟩ => ⟨h1, fun j hj => h2 j (by omega)⟩⟩
             · rw [ite_eq_right hcond]
               have hnot_bad : ¬ BadPair iFin jFin := fun hb =>
-                hcond ⟨uFin.2, vFin.2, hb.2.2.2.2.1, hb.2.2.2.2.2, hb.2.1, hb.2.2.1⟩
+                hcond ⟨uFin.isLt, vFin.isLt, hb.2.2.2.2.1, hb.2.2.2.2.2, hb.2.1, hb.2.2.1⟩
               simp only [client_simps]
               refine ⟨by omega, hmem', ?_⟩
               rw [hjok_eq]
               congr 1
               exact propext ⟨fun ⟨h1, h2⟩ => ⟨h1, fun j hj => by
-                  by_cases hjeq : j.1 = jok.1
+                  by_cases hjeq : j.val = jok.1
                   · have : j = jFin := Fin.ext hjeq; subst this; exact hnot_bad
                   · exact h2 j (by omega)⟩,
                 fun ⟨h1, h2⟩ => ⟨h1, fun j hj => h2 j (by omega)⟩⟩)
@@ -4142,8 +4142,8 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
         rw [hjok_end]
         congr 1
         exact propext ⟨fun ⟨h1, h2⟩ i j hi => by
-            by_cases hieq : i.1 = iok.1
-            · have : i = iFin := Fin.ext hieq; subst this; exact h2 j j.2
+            by_cases hieq : i.val = iok.1
+            · have : i = iFin := Fin.ext hieq; subst this; exact h2 j j.isLt
             · exact h1 i j (by omega),
           fun h => ⟨fun i j hi => h i j (by omega),
             fun j _ => h iFin j (by dsimp only [iFin]; omega)⟩⟩
@@ -4155,7 +4155,7 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
         rw [hok_eq]
         congr 1
         exact propext ⟨fun h i j hi => by
-            by_cases hieq : i.1 = iok.1
+            by_cases hieq : i.val = iok.1
             · have : i = iFin := Fin.ext hieq; subst this; exact fun hb => hdu hb.1
             · exact h i j (by omega),
           fun h i j hi => h i j (by omega)⟩)
@@ -4172,33 +4172,33 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
   · intro hno u huW v hvW hadj huD hvD hcol_eq
     obtain ⟨i, hi⟩ := (hW.mem_iff_exists u).mp huW
     obtain ⟨j, hj⟩ := (hW.mem_iff_exists v).mp hvW
-    have hui : (⟨s.mem (wListBase n + i.1), hW.entry_lt i.1 i.2⟩ : Fin n) = u := Fin.ext hi
-    have hvj : (⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ : Fin n) = v := Fin.ext hj
-    have hgu : s.mem (digitBase n + i.1) = s.mem (guessBase n + u.1) := by
+    have hui : (⟨s.mem (wListBase n + i.val), hW.entry_lt i.val i.isLt⟩ : Fin n) = u := Fin.ext hi
+    have hvj : (⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ : Fin n) = v := Fin.ext hj
+    have hgu : s.mem (digitBase n + i.val) = s.mem (guessBase n + u.val) := by
       rw [← hg_eq i, hi]
-    have hgv : s.mem (digitBase n + j.1) = s.mem (guessBase n + v.1) := by
+    have hgv : s.mem (digitBase n + j.val) = s.mem (guessBase n + v.val) := by
       rw [← hg_eq j, hj]
-    have hdu0 : s.mem (guessBase n + u.1) ≠ 0 := fun h =>
+    have hdu0 : s.mem (guessBase n + u.val) ≠ 0 := fun h =>
       huD (Finset.mem_filter.mpr ⟨huW, h⟩)
-    have hdv0 : s.mem (guessBase n + v.1) ≠ 0 := fun h =>
+    have hdv0 : s.mem (guessBase n + v.val) ≠ 0 := fun h =>
       hvD (Finset.mem_filter.mpr ⟨hvW, h⟩)
     have hdu_le := hg_le u
     have hdv_le := hg_le v
-    have hdeq : s.mem (guessBase n + u.1) = s.mem (guessBase n + v.1) := by
+    have hdeq : s.mem (guessBase n + u.val) = s.mem (guessBase n + v.val) := by
       unfold guessCol at hcol_eq
-      rcases (by omega : s.mem (guessBase n + u.1) = 1 ∨ s.mem (guessBase n + u.1) = 2)
+      rcases (by omega : s.mem (guessBase n + u.val) = 1 ∨ s.mem (guessBase n + u.val) = 2)
           with h1 | h1 <;>
-        rcases (by omega : s.mem (guessBase n + v.1) = 1 ∨ s.mem (guessBase n + v.1) = 2)
+        rcases (by omega : s.mem (guessBase n + v.val) = 1 ∨ s.mem (guessBase n + v.val) = 2)
           with h2 | h2 <;>
         simp [h1, h2] at hcol_eq ⊢
-    exact hno i j i.2 ⟨by omega, by omega, by omega, by rwa [hui, hvj]⟩
+    exact hno i j i.isLt ⟨by omega, by omega, by omega, by rwa [hui, hvj]⟩
   · intro hprop i j _ ⟨hdi, hdj, hdeq, hadj⟩
-    let u : Fin n := ⟨s.mem (wListBase n + i.1), hW.entry_lt i.1 i.2⟩
-    let v : Fin n := ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩
+    let u : Fin n := ⟨s.mem (wListBase n + i.val), hW.entry_lt i.val i.isLt⟩
+    let v : Fin n := ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩
     have huW : u ∈ Wset := hW.entry_mem i
     have hvW : v ∈ Wset := hW.entry_mem j
-    have hgu : s.mem (guessBase n + u.1) = s.mem (digitBase n + i.1) := hg_eq i
-    have hgv : s.mem (guessBase n + v.1) = s.mem (digitBase n + j.1) := hg_eq j
+    have hgu : s.mem (guessBase n + u.val) = s.mem (digitBase n + i.val) := hg_eq i
+    have hgv : s.mem (guessBase n + v.val) = s.mem (digitBase n + j.val) := hg_eq j
     have huD : u ∉ delSet Wset s := fun h => by
       have := (Finset.mem_filter.mp h).2; omega
     have hvD : v ∉ delSet Wset s := fun h => by
@@ -4207,19 +4207,19 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
 
 private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {Wset : Finset (Fin n)} {s : Memory.State} (hG : MatrixLoaded G s)
-    (hW : WListSpec Wset L s) (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.1) ≤ 1)
+    (hW : WListSpec Wset L s) (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.val) ≤ 1)
     (hg_eq : ∀ j : Fin L,
-      s.mem (guessBase n + s.mem (wListBase n + j.1)) = s.mem (digitBase n + j.1))
-    (hg_le : ∀ v : Fin n, s.mem (guessBase n + v.1) ≤ 2) :
+      s.mem (guessBase n + s.mem (wListBase n + j.val)) = s.mem (digitBase n + j.val))
+    (hg_le : ∀ v : Fin n, s.mem (guessBase n + v.val) ≤ 2) :
     let t := (Memory.spec 0).clientState s (buildTerminalsProg ((n, m), L))
-    let c₀ : Fin n → Bool := fun v => s.mem (colBase n + v.1) == 1
+    let c₀ : Fin n → Bool := fun v => s.mem (colBase n + v.val) == 1
     (∀ a < keepBase n, t.mem a = s.mem a) ∧
-      (∀ v : Fin n, t.mem (keepBase n + v.1) ≤ 1 ∧
-        (t.mem (keepBase n + v.1) = 1 ↔
+      (∀ v : Fin n, t.mem (keepBase n + v.val) ≤ 1 ∧
+        (t.mem (keepBase n + v.val) = 1 ↔
           v ∈ keepTerminals (prefixGraph G m) (Wset : Set (Fin n))
             (delSet Wset s : Set (Fin n)) (guessCol n s) c₀)) ∧
-      (∀ v : Fin n, t.mem (flipBase n + v.1) ≤ 1 ∧
-        (t.mem (flipBase n + v.1) = 1 ↔
+      (∀ v : Fin n, t.mem (flipBase n + v.val) ≤ 1 ∧
+        (t.mem (flipBase n + v.val) = 1 ↔
           v ∈ flipTerminals (prefixGraph G m) (Wset : Set (Fin n))
             (delSet Wset s : Set (Fin n)) (guessCol n s) c₀)) := by
   intro t c₀
@@ -4233,9 +4233,9 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
   have hs2_low : ∀ a < keepBase n, s2.mem a = s.mem a := fun a ha =>
     (hs2.2 a (Or.inl (by dsimp only [keepBase, flipBase] at ha ⊢; omega))).trans
       (hs1.2 a (Or.inl ha))
-  have hs2_keep : ∀ v : Fin n, s2.mem (keepBase n + v.1) = 0 := fun v =>
-    (hs2.2 _ (Or.inl (by dsimp only [keepBase, flipBase]; omega))).trans (hs1.1 v.1 v.2)
-  have hs2_flip : ∀ v : Fin n, s2.mem (flipBase n + v.1) = 0 := fun v => hs2.1 v.1 v.2
+  have hs2_keep : ∀ v : Fin n, s2.mem (keepBase n + v.val) = 0 := fun v =>
+    (hs2.2 _ (Or.inl (by dsimp only [keepBase, flipBase]; omega))).trans (hs1.1 v.val v.isLt)
+  have hs2_flip : ∀ v : Fin n, s2.mem (flipBase n + v.val) = 0 := fun v => hs2.1 v.val v.isLt
   let KeepPred (v : Fin n) : Prop :=
     v ∈ keepTerminals (prefixGraph G m) (Wset : Set (Fin n))
       (delSet Wset s : Set (Fin n)) (guessCol n s) c₀
@@ -4246,11 +4246,11 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
     (fun rem (v : ℕ) st =>
       v + rem = n ∧
       (∀ a < keepBase n, st.mem a = s.mem a) ∧
-      (∀ x : Fin n, x.1 < v →
-        (st.mem (keepBase n + x.1) ≤ 1 ∧ (st.mem (keepBase n + x.1) = 1 ↔ KeepPred x)) ∧
-        (st.mem (flipBase n + x.1) ≤ 1 ∧ (st.mem (flipBase n + x.1) = 1 ↔ FlipPred x))) ∧
-      (∀ x : Fin n, v ≤ x.1 →
-        st.mem (keepBase n + x.1) = 0 ∧ st.mem (flipBase n + x.1) = 0))
+      (∀ x : Fin n, x.val < v →
+        (st.mem (keepBase n + x.val) ≤ 1 ∧ (st.mem (keepBase n + x.val) = 1 ↔ KeepPred x)) ∧
+        (st.mem (flipBase n + x.val) ≤ 1 ∧ (st.mem (flipBase n + x.val) = 1 ↔ FlipPred x))) ∧
+      (∀ x : Fin n, v ≤ x.val →
+        st.mem (keepBase n + x.val) = 0 ∧ st.mem (flipBase n + x.val) = 0))
     (fun rem v st ⟨hvsum, hst_low, hdone, hzero⟩ => by
       have hv_lt : v < n := by omega
       let vFin : Fin n := ⟨v, hv_lt⟩
@@ -4269,22 +4269,22 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
       · rw [ite_eq_left hcond, cr_bind_pure, cs_bind_pure]
         have hv_notW : vFin ∉ Wset := hzv_W.mp hcond.1
         let KeepBefore (j : ℕ) : Prop :=
-          ∃ idx : Fin L, idx.1 < j ∧
-            let u : Fin n := ⟨s.mem (wListBase n + idx.1), hW.entry_lt idx.1 idx.2⟩
-            0 < s.mem (digitBase n + idx.1) ∧ (prefixGraph G m).Adj u vFin ∧
+          ∃ idx : Fin L, idx.val < j ∧
+            let u : Fin n := ⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩
+            0 < s.mem (digitBase n + idx.val) ∧ (prefixGraph G m).Adj u vFin ∧
               guessCol n s u ≠ c₀ vFin
         let FlipBefore (j : ℕ) : Prop :=
-          ∃ idx : Fin L, idx.1 < j ∧
-            let u : Fin n := ⟨s.mem (wListBase n + idx.1), hW.entry_lt idx.1 idx.2⟩
-            0 < s.mem (digitBase n + idx.1) ∧ (prefixGraph G m).Adj u vFin ∧
+          ∃ idx : Fin L, idx.val < j ∧
+            let u : Fin n := ⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩
+            0 < s.mem (digitBase n + idx.val) ∧ (prefixGraph G m).Adj u vFin ∧
               guessCol n s u = c₀ vFin
         have hinn := iterate_invariant_of termInnerStep ((n, m), (v, s.mem (colBase n + v)))
           (fun jrem (j : ℕ) st' =>
             j + jrem = L ∧
             (∀ a < keepBase n, st'.mem a = s.mem a) ∧
             (∀ x : Fin n, x ≠ vFin →
-              st'.mem (keepBase n + x.1) = st.mem (keepBase n + x.1) ∧
-              st'.mem (flipBase n + x.1) = st.mem (flipBase n + x.1)) ∧
+              st'.mem (keepBase n + x.val) = st.mem (keepBase n + x.val) ∧
+              st'.mem (flipBase n + x.val) = st.mem (flipBase n + x.val)) ∧
             (st'.mem (keepBase n + v) ≤ 1 ∧ (st'.mem (keepBase n + v) = 1 ↔ KeepBefore j)) ∧
             (st'.mem (flipBase n + v) ≤ 1 ∧ (st'.mem (flipBase n + v) = 1 ↔ FlipBefore j)))
           (fun jrem j st' ⟨hjsum, hi_low, hi_other, hi_keep, hi_flip⟩ => by
@@ -4300,7 +4300,7 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
             by_cases hicond : s.mem (wListBase n + j) < n ∧ v < n ∧
                 s.mem (wListBase n + j) < m ∧ v < m ∧ 0 < s.mem (digitBase n + j)
             · rw [ite_eq_left hicond, clientResult_bind_read, clientState_bind_read,
-                hi_low _ (by dsimp only [keepBase]; nlinarith [uFin.2, vFin.2])]
+                hi_low _ (by dsimp only [keepBase]; nlinarith [uFin.isLt, vFin.isLt])]
               have hmat := hG uFin vFin
               dsimp only [uFin, vFin] at hmat
               rw [hmat]
@@ -4308,7 +4308,7 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
               · have hp_adj : (prefixGraph G m).Adj uFin vFin :=
                   ⟨hadj, hicond.2.2.1, hicond.2.2.2.1⟩
                 rw [ite_eq_left hadj, ite_eq_left rfl]
-                have hgu : s.mem (guessBase n + uFin.1) = s.mem (digitBase n + j) := hg_eq jFin
+                have hgu : s.mem (guessBase n + uFin.val) = s.mem (digitBase n + j) := hg_eq jFin
                 have hdu_le : s.mem (digitBase n + j) ≤ 2 := hgu ▸ hg_le uFin
                 have hcv_le : s.mem (colBase n + v) ≤ 1 := hcol01 vFin
                 have hcol_iff : s.mem (digitBase n + j) - 1 = s.mem (colBase n + v) ↔
@@ -4330,14 +4330,14 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
                     ⟨jFin, by dsimp only [jFin]; omega, hicond.2.2.2.2, hp_adj, hsame'⟩
                   have hkeep_iff : KeepBefore (j + 1) ↔ KeepBefore j :=
                     ⟨fun ⟨idx, hidx, h1, h2, h3⟩ => by
-                        by_cases heq : idx.1 = j
+                        by_cases heq : idx.val = j
                         · have : idx = jFin := Fin.ext heq; subst this; exact absurd hsame' h3
                         · exact ⟨idx, by omega, h1, h2, h3⟩,
                       fun ⟨idx, hidx, h1, h2, h3⟩ => ⟨idx, by omega, h1, h2, h3⟩⟩
                   refine ⟨by omega, fun a ha => ?_, fun x hx => ?_, ?_, ?_⟩
                   · rw [Function.update_of_ne (by dsimp only [keepBase, flipBase] at ha ⊢; omega)]
                     exact hi_low a ha
-                  · have hxv : x.1 ≠ v := fun h => hx (Fin.ext h)
+                  · have hxv : x.val ≠ v := fun h => hx (Fin.ext h)
                     exact ⟨(Function.update_of_ne
                         (by dsimp only [keepBase, flipBase]; omega) _ _).trans (hi_other x hx).1,
                       (Function.update_of_ne (by omega) _ _).trans (hi_other x hx).2⟩
@@ -4353,13 +4353,13 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
                     ⟨jFin, by dsimp only [jFin]; omega, hicond.2.2.2.2, hp_adj, hdiff⟩
                   have hflip_iff : FlipBefore (j + 1) ↔ FlipBefore j :=
                     ⟨fun ⟨idx, hidx, h1, h2, h3⟩ => by
-                        by_cases heq : idx.1 = j
+                        by_cases heq : idx.val = j
                         · have : idx = jFin := Fin.ext heq; subst this; exact absurd h3 hdiff
                         · exact ⟨idx, by omega, h1, h2, h3⟩,
                       fun ⟨idx, hidx, h1, h2, h3⟩ => ⟨idx, by omega, h1, h2, h3⟩⟩
                   refine ⟨by omega, fun a ha => ?_, fun x hx => ?_, ?_, ?_⟩
                   · rw [Function.update_of_ne (by omega)]; exact hi_low a ha
-                  · have hxv : x.1 ≠ v := fun h => hx (Fin.ext h)
+                  · have hxv : x.val ≠ v := fun h => hx (Fin.ext h)
                     exact ⟨(Function.update_of_ne (by omega) _ _).trans (hi_other x hx).1,
                       (Function.update_of_ne
                         (by dsimp only [keepBase, flipBase]; omega) _ _).trans (hi_other x hx).2⟩
@@ -4372,13 +4372,13 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
                 simp only [client_simps]
                 have hkeep_iff : KeepBefore (j + 1) ↔ KeepBefore j :=
                   ⟨fun ⟨idx, hidx, h1, h2, h3⟩ => by
-                      by_cases heq : idx.1 = j
+                      by_cases heq : idx.val = j
                       · have : idx = jFin := Fin.ext heq; subst this; exact absurd h2.1 hadj
                       · exact ⟨idx, by omega, h1, h2, h3⟩,
                     fun ⟨idx, hidx, h1, h2, h3⟩ => ⟨idx, by omega, h1, h2, h3⟩⟩
                 have hflip_iff : FlipBefore (j + 1) ↔ FlipBefore j :=
                   ⟨fun ⟨idx, hidx, h1, h2, h3⟩ => by
-                      by_cases heq : idx.1 = j
+                      by_cases heq : idx.val = j
                       · have : idx = jFin := Fin.ext heq; subst this; exact absurd h2.1 hadj
                       · exact ⟨idx, by omega, h1, h2, h3⟩,
                     fun ⟨idx, hidx, h1, h2, h3⟩ => ⟨idx, by omega, h1, h2, h3⟩⟩
@@ -4388,16 +4388,16 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
             · rw [ite_eq_right hicond]
               simp only [client_simps]
               have hno_j : ¬ (0 < s.mem (digitBase n + j) ∧ (prefixGraph G m).Adj uFin vFin) :=
-                fun ⟨hpos, hadj⟩ => hicond ⟨uFin.2, hv_lt, hadj.2.1, hadj.2.2, hpos⟩
+                fun ⟨hpos, hadj⟩ => hicond ⟨uFin.isLt, hv_lt, hadj.2.1, hadj.2.2, hpos⟩
               have hkeep_iff : KeepBefore (j + 1) ↔ KeepBefore j :=
                 ⟨fun ⟨idx, hidx, h1, h2, h3⟩ => by
-                    by_cases heq : idx.1 = j
+                    by_cases heq : idx.val = j
                     · have : idx = jFin := Fin.ext heq; subst this; exact absurd ⟨h1, h2⟩ hno_j
                     · exact ⟨idx, by omega, h1, h2, h3⟩,
                   fun ⟨idx, hidx, h1, h2, h3⟩ => ⟨idx, by omega, h1, h2, h3⟩⟩
               have hflip_iff : FlipBefore (j + 1) ↔ FlipBefore j :=
                 ⟨fun ⟨idx, hidx, h1, h2, h3⟩ => by
-                    by_cases heq : idx.1 = j
+                    by_cases heq : idx.val = j
                     · have : idx = jFin := Fin.ext heq; subst this; exact absurd ⟨h1, h2⟩ hno_j
                     · exact ⟨idx, by omega, h1, h2, h3⟩,
                   fun ⟨idx, hidx, h1, h2, h3⟩ => ⟨idx, by omega, h1, h2, h3⟩⟩
@@ -4423,51 +4423,51 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
           rw [mem_keepTerminals]
           constructor
           · rintro ⟨idx, _, hpos, hadj, hne⟩
-            let u : Fin n := ⟨s.mem (wListBase n + idx.1), hW.entry_lt idx.1 idx.2⟩
+            let u : Fin n := ⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩
             have huW : u ∈ Wset := hW.entry_mem idx
             have huD : u ∉ delSet Wset s := fun h => by
-              have h0 : s.mem (guessBase n + s.mem (wListBase n + idx.1)) = 0 :=
+              have h0 : s.mem (guessBase n + s.mem (wListBase n + idx.val)) = 0 :=
                 (Finset.mem_filter.mp h).2
               rw [hg_eq idx] at h0
               omega
             exact ⟨hv_notW, u, huW, huD, hadj, hne⟩
           · rintro ⟨_, u, huW, huD, hadj, hne⟩
             obtain ⟨idx, hidx⟩ := (hW.mem_iff_exists u).mp huW
-            have hui : (⟨s.mem (wListBase n + idx.1), hW.entry_lt idx.1 idx.2⟩ : Fin n) = u :=
+            have hui : (⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩ : Fin n) = u :=
               Fin.ext hidx
             have hgu := hg_eq idx
-            have hpos : 0 < s.mem (digitBase n + idx.1) := by
+            have hpos : 0 < s.mem (digitBase n + idx.val) := by
               rw [← hgu, hidx]
-              have : s.mem (guessBase n + u.1) ≠ 0 := fun h =>
+              have : s.mem (guessBase n + u.val) ≠ 0 := fun h =>
                 huD (Finset.mem_filter.mpr ⟨huW, h⟩)
               omega
-            exact ⟨idx, idx.2, hpos, by rwa [hui], by rwa [hui]⟩
+            exact ⟨idx, idx.isLt, hpos, by rwa [hui], by rwa [hui]⟩
         have hflip_eq : FlipBefore L ↔ FlipPred vFin := by
           dsimp only [FlipPred]
           rw [mem_flipTerminals]
           constructor
           · rintro ⟨idx, _, hpos, hadj, heq⟩
-            let u : Fin n := ⟨s.mem (wListBase n + idx.1), hW.entry_lt idx.1 idx.2⟩
+            let u : Fin n := ⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩
             have huW : u ∈ Wset := hW.entry_mem idx
             have huD : u ∉ delSet Wset s := fun h => by
-              have h0 : s.mem (guessBase n + s.mem (wListBase n + idx.1)) = 0 :=
+              have h0 : s.mem (guessBase n + s.mem (wListBase n + idx.val)) = 0 :=
                 (Finset.mem_filter.mp h).2
               rw [hg_eq idx] at h0
               omega
             exact ⟨hv_notW, u, huW, huD, hadj, heq⟩
           · rintro ⟨_, u, huW, huD, hadj, heq⟩
             obtain ⟨idx, hidx⟩ := (hW.mem_iff_exists u).mp huW
-            have hui : (⟨s.mem (wListBase n + idx.1), hW.entry_lt idx.1 idx.2⟩ : Fin n) = u :=
+            have hui : (⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩ : Fin n) = u :=
               Fin.ext hidx
             have hgu := hg_eq idx
-            have hpos : 0 < s.mem (digitBase n + idx.1) := by
+            have hpos : 0 < s.mem (digitBase n + idx.val) := by
               rw [← hgu, hidx]
-              have : s.mem (guessBase n + u.1) ≠ 0 := fun h =>
+              have : s.mem (guessBase n + u.val) ≠ 0 := fun h =>
                 huD (Finset.mem_filter.mpr ⟨huW, h⟩)
               omega
-            exact ⟨idx, idx.2, hpos, by rwa [hui], by rwa [hui]⟩
+            exact ⟨idx, idx.isLt, hpos, by rwa [hui], by rwa [hui]⟩
         refine ⟨by omega, hi_low_end, fun x hx => ?_, fun x hx => ?_⟩
-        · by_cases hxv : x.1 = v
+        · by_cases hxv : x.val = v
           · have hxeq : x = vFin := Fin.ext hxv
             subst hxeq
             exact ⟨⟨hi_keep_end.1, hi_keep_end.2.trans hkeep_eq⟩,
@@ -4489,7 +4489,7 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
           obtain ⟨hnW, u, _, _, hadj, _⟩ := mem_flipTerminals.mp h
           exact hcond ⟨hzv_W.mpr hnW, hadj.2.2⟩
         refine ⟨by omega, hst_low, fun x hx => ?_, fun x hx => hzero x (by omega)⟩
-        by_cases hxv : x.1 = v
+        by_cases hxv : x.val = v
         · have hxeq : x = vFin := Fin.ext hxv
           subst hxeq
           exact ⟨by
@@ -4513,12 +4513,12 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
     dsimp only
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind, cs_bind_pure]
   rw [ht_eq]
-  exact ⟨fun v => (hdone_end v v.2).1, fun v => (hdone_end v v.2).2⟩
+  exact ⟨fun v => (hdone_end v v.isLt).1, fun v => (hdone_end v v.isLt).2⟩
 
 private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.State}
     (hW : WListSpec Wset L s)
     (hg_eq : ∀ j : Fin L,
-      s.mem (guessBase n + s.mem (wListBase n + j.1)) = s.mem (digitBase n + j.1)) :
+      s.mem (guessBase n + s.mem (wListBase n + j.val)) = s.mem (digitBase n + j.val)) :
     (Memory.spec 0).clientResult s (countDelProg (n, L)) = (delSet Wset s).card := by
   unfold countDelProg
   rw [clientResult_bind_read, cr_bind_pure]
@@ -4527,7 +4527,7 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
       jc.1 + rem = L ∧
       (∀ a, st.mem a = s.mem a) ∧
       jc.2 = ((Finset.univ : Finset (Fin L)).filter fun j =>
-        j.1 < jc.1 ∧ s.mem (digitBase n + j.1) = 0).card)
+        j.val < jc.1 ∧ s.mem (digitBase n + j.val) = 0).card)
     (fun rem jc st ⟨hjsum, hmem_eq, hcnt⟩ => by
       have hj_lt : jc.1 < L := by omega
       let jFin : Fin L := ⟨jc.1, hj_lt⟩
@@ -4539,13 +4539,13 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
         dsimp only
         refine ⟨by omega, hmem_eq, ?_⟩
         have hfilt : ((Finset.univ : Finset (Fin L)).filter fun j =>
-            j.1 < jc.1 + 1 ∧ s.mem (digitBase n + j.1) = 0) =
+            j.val < jc.1 + 1 ∧ s.mem (digitBase n + j.val) = 0) =
             insert jFin (((Finset.univ : Finset (Fin L)).filter fun j =>
-              j.1 < jc.1 ∧ s.mem (digitBase n + j.1) = 0)) := by
+              j.val < jc.1 ∧ s.mem (digitBase n + j.val) = 0)) := by
           ext j
           simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
           exact ⟨fun ⟨hlt, hd⟩ => by
-              by_cases hjeq : j.1 = jc.1
+              by_cases hjeq : j.val = jc.1
               · exact Or.inl (Fin.ext hjeq)
               · exact Or.inr ⟨by omega, hd⟩,
             fun h => h.elim (fun h => by subst h; exact ⟨by dsimp only [jFin]; omega, h0⟩)
@@ -4560,7 +4560,7 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
         ext j
         simp only [Finset.mem_filter, Finset.mem_univ, true_and]
         exact ⟨fun ⟨hlt, hd⟩ => by
-            by_cases hjeq : j.1 = jc.1
+            by_cases hjeq : j.val = jc.1
             · exact absurd (hjeq ▸ hd) h0
             · exact ⟨by omega, hd⟩,
           fun ⟨hlt, hd⟩ => ⟨by omega, hd⟩⟩)
@@ -4571,10 +4571,10 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
   have hj1 : jc_end.1 = L := by omega
   rw [hj1] at hcnt_end
   rw [hcnt_end]
-  let fEmb : Fin L → Fin n := fun j => ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩
+  let fEmb : Fin L → Fin n := fun j => ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩
   have hf_inj : Function.Injective fEmb := fun i j h => hW.entry_inj (congrArg Fin.val h)
   have himg : ((Finset.univ : Finset (Fin L)).filter fun j =>
-      j.1 < L ∧ s.mem (digitBase n + j.1) = 0).image fEmb = delSet Wset s := by
+      j.val < L ∧ s.mem (digitBase n + j.val) = 0).image fEmb = delSet Wset s := by
     ext w
     simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and, delSet]
     constructor
@@ -4582,41 +4582,41 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
       exact ⟨hW.entry_mem j, (hg_eq j).trans hd0⟩
     · rintro ⟨hwW, hg0⟩
       obtain ⟨j, hj⟩ := (hW.mem_iff_exists w).mp hwW
-      exact ⟨j, ⟨j.2, (hg_eq j).symm.trans (hj.symm ▸ hg0)⟩, Fin.ext hj⟩
+      exact ⟨j, ⟨j.isLt, (hg_eq j).symm.trans (hj.symm ▸ hg0)⟩, Fin.ext hj⟩
   rw [← himg, Finset.card_image_of_injective _ hf_inj]
 
 private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.State}
     (hW : WListSpec Wset L s)
-    (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.1) ≤ 1) :
+    (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.val) ≤ 1) :
     let t := (Memory.spec 0).clientState s (commitLeafProg n)
-    let X : Finset (Fin n) := Finset.univ.filter fun v => s.mem (sepOutBase n + v.1) = 1
+    let X : Finset (Fin n) := Finset.univ.filter fun v => s.mem (sepOutBase n + v.val) = 1
     (∀ a, (a < sepBase n ∨ wBase n ≤ a) → t.mem a = s.mem a) ∧
-      (∀ v : Fin n, t.mem (sepBase n + v.1) = if v ∈ delSet Wset s ∪ X then 1 else 0) ∧
-      (∀ v : Fin n, t.mem (colBase n + v.1) ≤ 1) ∧
-      (∀ v ∈ Wset, (t.mem (colBase n + v.1) == 1) = guessCol n s v) ∧
+      (∀ v : Fin n, t.mem (sepBase n + v.val) = if v ∈ delSet Wset s ∪ X then 1 else 0) ∧
+      (∀ v : Fin n, t.mem (colBase n + v.val) ≤ 1) ∧
+      (∀ v ∈ Wset, (t.mem (colBase n + v.val) == 1) = guessCol n s v) ∧
       (∀ v : Fin n, v ∉ Wset →
-        (t.mem (colBase n + v.1) == 1) =
-          ((s.mem (colBase n + v.1) == 1) ==
-            decide (s.mem (distBase n + (outIdx v).1) < splitCount n))) := by
+        (t.mem (colBase n + v.val) == 1) =
+          ((s.mem (colBase n + v.val) == 1) ==
+            decide (s.mem (distBase n + (outIdx v).val) < splitCount n))) := by
   intro t X
   have hpres : ∀ a, (a < sepBase n ∨ wBase n ≤ a) → t.mem a = s.mem a :=
     fun a ha => preservesAt_commitLeafProg ha s
   refine ⟨hpres, ?_⟩
   let NewCol (v : Fin n) : ℕ :=
     if v ∈ Wset then
-      if s.mem (guessBase n + v.1) = 2 then 1 else 0
-    else if s.mem (distBase n + (outIdx v).1) < splitCount n then
-      if s.mem (colBase n + v.1) = 1 then 1 else 0
+      if s.mem (guessBase n + v.val) = 2 then 1 else 0
+    else if s.mem (distBase n + (outIdx v).val) < splitCount n then
+      if s.mem (colBase n + v.val) = 1 then 1 else 0
     else
-      if s.mem (colBase n + v.1) = 1 then 0 else 1
+      if s.mem (colBase n + v.val) = 1 then 0 else 1
   have hiter := iterate_invariant_of commitStep n
     (fun rem (v : ℕ) st =>
       v + rem = n ∧
       (∀ a, (a < sepBase n ∨ wBase n ≤ a) → st.mem a = s.mem a) ∧
-      (∀ u : Fin n, v ≤ u.1 → st.mem (colBase n + u.1) = s.mem (colBase n + u.1)) ∧
-      (∀ u : Fin n, u.1 < v →
-        st.mem (sepBase n + u.1) = (if u ∈ delSet Wset s ∪ X then 1 else 0) ∧
-        st.mem (colBase n + u.1) = NewCol u))
+      (∀ u : Fin n, v ≤ u.val → st.mem (colBase n + u.val) = s.mem (colBase n + u.val)) ∧
+      (∀ u : Fin n, u.val < v →
+        st.mem (sepBase n + u.val) = (if u ∈ delSet Wset s ∪ X then 1 else 0) ∧
+        st.mem (colBase n + u.val) = NewCol u))
     (fun rem v st ⟨hvsum, hst_out, hcol_ge, hdone⟩ => by
       have hv_lt : v < n := by omega
       let vFin : Fin n := ⟨v, hv_lt⟩
@@ -4627,7 +4627,7 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
       have hxv : st.mem (sepOutBase n + v) = s.mem (sepOutBase n + v) :=
         hst_out _ (Or.inr (by dsimp only [wBase, sepOutBase, parBase, distBase, flowBase]; omega))
       have hcv : st.mem (colBase n + v) = s.mem (colBase n + v) := hcol_ge vFin le_rfl
-      have hdout : st.mem (distBase n + (v + n + 2)) = s.mem (distBase n + (outIdx vFin).1) :=
+      have hdout : st.mem (distBase n + (v + n + 2)) = s.mem (distBase n + (outIdx vFin).val) :=
         hst_out _ (Or.inr (by dsimp only [wBase, distBase, flowBase]; omega))
       have hw_iff : s.mem (wBase n + v) = 1 ↔ vFin ∈ Wset := by
         rw [hW.w_mem vFin]; by_cases h : vFin ∈ Wset <;> simp [h]
@@ -4662,7 +4662,7 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
         · rw [ite_eq_left hux, ite_eq_left (hmem_UX.mp hux), clientState_bind_write,
           clientResult_bind_write,
             ite_eq_right hw1, ite_eq_right (fun h => hw1 (hw_iff.mpr h))]
-          by_cases hd : s.mem (distBase n + (outIdx vFin).1) < splitCount n <;>
+          by_cases hd : s.mem (distBase n + (outIdx vFin).val) < splitCount n <;>
             by_cases hc1 : s.mem (colBase n + v) = 1
           · rw [ite_eq_left hd, ite_eq_left hd, ite_eq_left hc1, ite_eq_left hc1,
               clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
@@ -4683,7 +4683,7 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
         · rw [ite_eq_right hux, ite_eq_right (fun h => hux (hmem_UX.mpr h)),
             clientState_bind_write, clientResult_bind_write, ite_eq_right hw1,
             ite_eq_right (fun h => hw1 (hw_iff.mpr h))]
-          by_cases hd : s.mem (distBase n + (outIdx vFin).1) < splitCount n <;>
+          by_cases hd : s.mem (distBase n + (outIdx vFin).val) < splitCount n <;>
             by_cases hc1 : s.mem (colBase n + v) = 1
           · rw [ite_eq_left hd, ite_eq_left hd, ite_eq_left hc1, ite_eq_left hc1,
               clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
@@ -4702,7 +4702,7 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
       · rw [Function.update_of_ne (by omega),
           Function.update_of_ne (by dsimp only [sepBase, colBase]; omega)]
         exact hcol_ge u (by omega)
-      · by_cases huv : u.1 = v
+      · by_cases huv : u.val = v
         · have hueq : u = vFin := Fin.ext huv
           subst hueq
           dsimp only [vFin]
@@ -4710,11 +4710,11 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
               Function.update_self],
             by rw [Function.update_self]⟩
         · refine ⟨?_, ?_⟩
-          · rw [Function.update_of_ne (by dsimp only [sepBase, colBase]; have := u.2; omega),
+          · rw [Function.update_of_ne (by dsimp only [sepBase, colBase]; have := u.isLt; omega),
               Function.update_of_ne (by omega)]
             exact (hdone u (by omega)).1
           · rw [Function.update_of_ne (by omega),
-              Function.update_of_ne (by dsimp only [sepBase, colBase]; have := u.2; omega)]
+              Function.update_of_ne (by dsimp only [sepBase, colBase]; have := u.isLt; omega)]
             exact (hdone u (by omega)).2)
     (n := n) (a := 0) (s := s)
     ⟨Nat.zero_add _, fun _ _ => rfl, fun _ _ => rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
@@ -4727,40 +4727,40 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
     unfold commitLeafProg
     rw [clientState_bind_read, cs_bind_pure]
   rw [ht_eq]
-  refine ⟨fun v => (hdone_end v v.2).1, fun v => ?_, fun v hvW => ?_, fun v hvW => ?_⟩
-  · rw [(hdone_end v v.2).2]
+  refine ⟨fun v => (hdone_end v v.isLt).1, fun v => ?_, fun v hvW => ?_, fun v hvW => ?_⟩
+  · rw [(hdone_end v v.isLt).2]
     dsimp only [NewCol]
     split_ifs <;> decide
-  · rw [(hdone_end v v.2).2]
+  · rw [(hdone_end v v.isLt).2]
     dsimp only [NewCol]
     rw [ite_eq_left hvW]
     unfold guessCol
-    by_cases h : s.mem (guessBase n + v.1) = 2 <;> simp [h]
-  · rw [(hdone_end v v.2).2]
+    by_cases h : s.mem (guessBase n + v.val) = 2 <;> simp [h]
+  · rw [(hdone_end v v.isLt).2]
     dsimp only [NewCol]
     rw [ite_eq_right hvW]
     have hc_le := hcol01 v
-    by_cases hd : s.mem (distBase n + (outIdx v).1) < splitCount n <;>
-      rcases (by omega : s.mem (colBase n + v.1) = 0 ∨ s.mem (colBase n + v.1) = 1) with hc | hc <;>
+    by_cases hd : s.mem (distBase n + (outIdx v).val) < splitCount n <;>
+      rcases (by omega : s.mem (colBase n + v.val) = 0 ∨ s.mem (colBase n + v.val) = 1) with hc | hc <;>
       simp [hd, hc]
 
 private def OctStateAt {n : ℕ} (G : SimpleGraph (Fin n)) (m k : ℕ) (t : Memory.State) : Prop :=
-  (∀ v : Fin n, t.mem (sepBase n + v.1) ≤ 1 ∧ t.mem (colBase n + v.1) ≤ 1) ∧
-    let S := Finset.univ.filter fun v : Fin n => t.mem (sepBase n + v.1) = 1
+  (∀ v : Fin n, t.mem (sepBase n + v.val) ≤ 1 ∧ t.mem (colBase n + v.val) ≤ 1) ∧
+    let S := Finset.univ.filter fun v : Fin n => t.mem (sepBase n + v.val) = 1
     S.card ≤ k ∧
       ∀ u v : Fin n, (prefixGraph G m).Adj u v → u ∉ S → v ∉ S →
-        (t.mem (colBase n + u.1) == 1) ≠ (t.mem (colBase n + v.1) == 1)
+        (t.mem (colBase n + u.val) == 1) ≠ (t.mem (colBase n + v.val) == 1)
 
 private theorem OctStateAt.congr {n : ℕ} {G : SimpleGraph (Fin n)} {m k : ℕ}
     {s₁ s₂ : Memory.State} (h : OctStateAt G m k s₁)
     (heq : ∀ a, sepBase n ≤ a → a < wBase n → s₂.mem a = s₁.mem a) :
     OctStateAt G m k s₂ := by
-  have hsep : ∀ v : Fin n, s₂.mem (sepBase n + v.1) = s₁.mem (sepBase n + v.1) :=
+  have hsep : ∀ v : Fin n, s₂.mem (sepBase n + v.val) = s₁.mem (sepBase n + v.val) :=
     fun v => heq _ (by omega) (by dsimp only [sepBase, wBase]; omega)
-  have hcol : ∀ v : Fin n, s₂.mem (colBase n + v.1) = s₁.mem (colBase n + v.1) :=
+  have hcol : ∀ v : Fin n, s₂.mem (colBase n + v.val) = s₁.mem (colBase n + v.val) :=
     fun v => heq _ (by dsimp only [sepBase, colBase]; omega) (by dsimp only [colBase, wBase]; omega)
-  have hS : (Finset.univ.filter fun v : Fin n => s₂.mem (sepBase n + v.1) = 1) =
-      (Finset.univ.filter fun v : Fin n => s₁.mem (sepBase n + v.1) = 1) := by
+  have hS : (Finset.univ.filter fun v : Fin n => s₂.mem (sepBase n + v.val) = 1) =
+      (Finset.univ.filter fun v : Fin n => s₁.mem (sepBase n + v.val) = 1) := by
     ext v; simp [hsep v]
   refine ⟨fun v => ⟨(hsep v).trans_le (h.1 v).1, (hcol v).trans_le (h.1 v).2⟩, ?_⟩
   dsimp only
@@ -4785,9 +4785,9 @@ private theorem cap_lt_succ_of_cutCapacity_le {n : ℕ} {N : Network (Fin (split
 private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {Wset : Finset (Fin n)} {s : Memory.State} (hG : MatrixLoaded G s)
     (hW : WListSpec Wset L s) (hdig : ∀ j < L, s.mem (digitBase n + j) ≤ 2)
-    (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.1) ≤ 1)
+    (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.val) ≤ 1)
     (hc₀_prop : ∀ u v : Fin n, (prefixGraph G m).Adj u v → u ∉ Wset → v ∉ Wset →
-      (s.mem (colBase n + u.1) == 1) ≠ (s.mem (colBase n + v.1) == 1)) :
+      (s.mem (colBase n + u.val) == 1) ≠ (s.mem (colBase n + v.val) == 1)) :
     let res := (Memory.spec 0).clientResult s (leafProg (((n, k), m), L))
     let t := (Memory.spec 0).clientState s (leafProg (((n, k), m), L))
     res ≤ 1 ∧
@@ -4800,17 +4800,17 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
   set s1 := (Memory.spec 0).clientState s (unpackGuessProg (n, L))
   obtain ⟨hs1_low, hg_eq, _, hg_le⟩ := unpackGuessProg_spec hW hdig
   have hG1 : MatrixLoaded G s1 := fun u v =>
-    (hs1_low _ (by dsimp only [guessBase]; nlinarith [u.2, v.2])).trans (hG u v)
+    (hs1_low _ (by dsimp only [guessBase]; nlinarith [u.isLt, v.isLt])).trans (hG u v)
   have hW1 : WListSpec Wset L s1 :=
     hW.congr fun a _ ha => hs1_low a (by dsimp only [digitBase, guessBase] at ha ⊢; omega)
   have hg_eq1 : ∀ j : Fin L,
-      s1.mem (guessBase n + s1.mem (wListBase n + j.1)) = s1.mem (digitBase n + j.1) := by
+      s1.mem (guessBase n + s1.mem (wListBase n + j.val)) = s1.mem (digitBase n + j.val) := by
     intro j
     have hL_le := hW.card_le_n
-    rw [hs1_low (wListBase n + j.1) (by dsimp only [wListBase, guessBase]; omega),
-      hs1_low (digitBase n + j.1) (by dsimp only [digitBase, guessBase]; omega)]
+    rw [hs1_low (wListBase n + j.val) (by dsimp only [wListBase, guessBase]; omega),
+      hs1_low (digitBase n + j.val) (by dsimp only [digitBase, guessBase]; omega)]
     exact hg_eq j
-  have hcol01_1 : ∀ v : Fin n, s1.mem (colBase n + v.1) ≤ 1 := fun v =>
+  have hcol01_1 : ∀ v : Fin n, s1.mem (colBase n + v.val) ≤ 1 := fun v =>
     (hs1_low _ (by dsimp only [colBase, guessBase]; omega)).trans_le (hcol01 v)
   have hchk := checkProperProg_spec (m := m) hG1 hW1 hg_eq1 hg_le
   set s2 := (Memory.spec 0).clientState s1 (checkProperProg ((n, m), L))
@@ -4821,25 +4821,25 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       rw [hchk, ite_eq_left hprop]
     have hG2 : MatrixLoaded G s2 := fun u v => (hs2_eq _).trans (hG1 u v)
     have hW2 : WListSpec Wset L s2 := hW1.congr fun a _ _ => hs2_eq a
-    have hcol01_2 : ∀ v : Fin n, s2.mem (colBase n + v.1) ≤ 1 :=
+    have hcol01_2 : ∀ v : Fin n, s2.mem (colBase n + v.val) ≤ 1 :=
       fun v => (hs2_eq _).trans_le (hcol01_1 v)
     have hg_eq2 : ∀ j : Fin L,
-        s2.mem (guessBase n + s2.mem (wListBase n + j.1)) = s2.mem (digitBase n + j.1) := by
+        s2.mem (guessBase n + s2.mem (wListBase n + j.val)) = s2.mem (digitBase n + j.val) := by
       intro j; simp only [hs2_eq]; exact hg_eq1 j
-    have hg_le2 : ∀ v : Fin n, s2.mem (guessBase n + v.1) ≤ 2 :=
+    have hg_le2 : ∀ v : Fin n, s2.mem (guessBase n + v.val) ≤ 2 :=
       fun v => (hs2_eq _).trans_le (hg_le v)
     set s3 := (Memory.spec 0).clientState s2 (buildTerminalsProg ((n, m), L))
     obtain ⟨hs3_low, hs3_keep, hs3_flip⟩ :=
       buildTerminalsProg_spec (m := m) hG2 hW2 hcol01_2 hg_eq2 hg_le2
     have hG3 : MatrixLoaded G s3 := fun u v =>
-      (hs3_low _ (by dsimp only [keepBase]; nlinarith [u.2, v.2])).trans (hG2 u v)
+      (hs3_low _ (by dsimp only [keepBase]; nlinarith [u.isLt, v.isLt])).trans (hG2 u v)
     set sepCnt := (Memory.spec 0).clientResult s3 (minSepProg (n, m))
     set s4 := (Memory.spec 0).clientState s3 (minSepProg (n, m))
     obtain ⟨hs4_low, C, hmin, hcapC_le, hdist_iff, hsepOut, hsepCnt_eq, _⟩ :=
       minSepProg_spec (m := m) hG3
-    change ∀ x : Fin (splitCount n), s4.mem (distBase n + x.1) < splitCount n ↔ x ∈ C at hdist_iff
-    change ∀ v : Fin n, s4.mem (sepOutBase n + v.1) = _ at hsepOut
-    change sepCnt = (Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.1) = 1).card
+    change ∀ x : Fin (splitCount n), s4.mem (distBase n + x.val) < splitCount n ↔ x ∈ C at hdist_iff
+    change ∀ v : Fin n, s4.mem (sepOutBase n + v.val) = _ at hsepOut
+    change sepCnt = (Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.val) = 1).card
       at hsepCnt_eq
     have hs4_s1 : ∀ a < keepBase n, s4.mem a = s1.mem a := fun a ha =>
       (hs4_low a (by dsimp only [keepBase, flowBase] at ha ⊢; omega)).trans
@@ -4847,13 +4847,13 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
     have hW4 : WListSpec Wset L s4 :=
       hW1.congr fun a _ ha => hs4_s1 a (by dsimp only [digitBase, keepBase] at ha ⊢; omega)
     have hg_eq4 : ∀ j : Fin L,
-        s4.mem (guessBase n + s4.mem (wListBase n + j.1)) = s4.mem (digitBase n + j.1) := by
+        s4.mem (guessBase n + s4.mem (wListBase n + j.val)) = s4.mem (digitBase n + j.val) := by
       intro j
       have hL_le := hW.card_le_n
-      rw [hs4_s1 (wListBase n + j.1) (by dsimp only [wListBase, keepBase]; omega),
-        hs4_s1 (digitBase n + j.1) (by dsimp only [digitBase, keepBase]; omega),
-        hs4_s1 (guessBase n + s1.mem (wListBase n + j.1))
-          (by dsimp only [guessBase, keepBase]; have := hW1.entry_lt j.1 j.2; omega)]
+      rw [hs4_s1 (wListBase n + j.val) (by dsimp only [wListBase, keepBase]; omega),
+        hs4_s1 (digitBase n + j.val) (by dsimp only [digitBase, keepBase]; omega),
+        hs4_s1 (guessBase n + s1.mem (wListBase n + j.val))
+          (by dsimp only [guessBase, keepBase]; have := hW1.entry_lt j.val j.isLt; omega)]
       exact hg_eq1 j
     have hdelCnt : (Memory.spec 0).clientResult s4 (countDelProg (n, L)) =
         (delSet Wset s4).card := countDelProg_spec hW4 hg_eq4
@@ -4884,33 +4884,33 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       refine ⟨by omega, hpres_base, fun h0 => absurd hres1 (by omega), fun _ => ?_⟩
       rw [ht_eq]
       have hW5 : WListSpec Wset L s5 := hW4.congr fun a _ _ => hs5_eq a
-      have hcol01_5 : ∀ v : Fin n, s5.mem (colBase n + v.1) ≤ 1 := fun v => by
+      have hcol01_5 : ∀ v : Fin n, s5.mem (colBase n + v.val) ≤ 1 := fun v => by
         rw [hs5_eq, hs4_s1 _ (by dsimp only [colBase, keepBase]; omega)]; exact hcol01_1 v
       obtain ⟨_, hsep_t, hcol01_t, hcW_t, hcW'_t⟩ :=
         commitLeafProg_spec hW5 hcol01_5
       set s6 := (Memory.spec 0).clientState s5 (commitLeafProg n)
-      let X : Finset (Fin n) := Finset.univ.filter fun v => s5.mem (sepOutBase n + v.1) = 1
-      change ∀ v : Fin n, s6.mem (sepBase n + v.1) =
+      let X : Finset (Fin n) := Finset.univ.filter fun v => s5.mem (sepOutBase n + v.val) = 1
+      change ∀ v : Fin n, s6.mem (sepBase n + v.val) =
         if v ∈ delSet Wset s5 ∪ X then 1 else 0 at hsep_t
       have hX_iff : ∀ v : Fin n, v ∈ X ↔ v ∉ Wset ∧ inIdx v ∈ C ∧ outIdx v ∉ C := by
         intro v
-        have hv_lt := v.2
+        have hv_lt := v.isLt
         rw [Finset.mem_filter]
         simp only [Finset.mem_univ, true_and]
         rw [hs5_eq, hsepOut v,
-          hs3_low (wBase n + v.1) (by dsimp only [wBase, keepBase]; omega), hs2_eq,
-          hs1_low (wBase n + v.1) (by dsimp only [wBase, guessBase]; omega), hW.w_mem v]
+          hs3_low (wBase n + v.val) (by dsimp only [wBase, keepBase]; omega), hs2_eq,
+          hs1_low (wBase n + v.val) (by dsimp only [wBase, guessBase]; omega), hW.w_mem v]
         by_cases hvW : v ∈ Wset <;> by_cases hC : inIdx v ∈ C ∧ outIdx v ∉ C <;> simp [hvW, hC]
       have hdel_eq : delSet Wset s5 = delSet Wset s1 := by
         ext w
         simp only [delSet, Finset.mem_filter, hs5_eq,
-          hs4_s1 (guessBase n + w.1) (by dsimp only [guessBase, keepBase]; have := w.2; omega)]
+          hs4_s1 (guessBase n + w.val) (by dsimp only [guessBase, keepBase]; have := w.isLt; omega)]
       have hgcol_eq : guessCol n s5 = guessCol n s1 := by
         funext w
         unfold guessCol
         rw [hs5_eq,
-          hs4_s1 (guessBase n + w.1) (by dsimp only [guessBase, keepBase]; have := w.2; omega)]
-      have hS6 : (Finset.univ.filter fun v : Fin n => s6.mem (sepBase n + v.1) = 1) =
+          hs4_s1 (guessBase n + w.val) (by dsimp only [guessBase, keepBase]; have := w.isLt; omega)]
+      have hS6 : (Finset.univ.filter fun v : Fin n => s6.mem (sepBase n + v.val) = 1) =
           delSet Wset s5 ∪ X := by
         ext v
         simp only [Finset.mem_filter, Finset.mem_univ, true_and, hsep_t v]
@@ -4926,10 +4926,10 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       dsimp only
       rw [hS6]
       refine ⟨(Finset.card_union_le _ _).trans (by omega), ?_⟩
-      let c₀ : Fin n → Bool := fun v => s.mem (colBase n + v.1) == 1
+      let c₀ : Fin n → Bool := fun v => s.mem (colBase n + v.val) == 1
       let side : Fin n → Bool := fun v => decide (outIdx v ∈ C)
-      let c' : Fin n → Bool := fun v => s6.mem (colBase n + v.1) == 1
-      have hc₀_s2 : (fun v : Fin n => s2.mem (colBase n + v.1) == 1) = c₀ := by
+      let c' : Fin n → Bool := fun v => s6.mem (colBase n + v.val) == 1
+      have hc₀_s2 : (fun v : Fin n => s2.mem (colBase n + v.val) == 1) = c₀ := by
         funext v
         dsimp only [c₀]
         rw [hs2_eq, hs1_low _ (by dsimp only [colBase, guessBase]; omega)]
@@ -4946,15 +4946,15 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
           have hcap_uv : (splitNet G m s3).cap (outIdx u) (inIdx v) = n + 1 := by
             unfold splitNet
             dsimp only [outIdx, inIdx]
-            have h4 : n + 2 ≤ v.1 + 2 + n ∧ v.1 + 2 + n < splitCount n ∧
-                2 ≤ v.1 + 2 ∧ v.1 + 2 < n + 2 := by dsimp only [splitCount]; omega
-            have h4' : n + 2 ≤ u.1 + n + 2 ∧ u.1 + n + 2 < splitCount n ∧
-                2 ≤ v.1 + 2 ∧ v.1 + 2 < n + 2 := by dsimp only [splitCount]; omega
+            have h4 : n + 2 ≤ v.val + 2 + n ∧ v.val + 2 + n < splitCount n ∧
+                2 ≤ v.val + 2 ∧ v.val + 2 < n + 2 := by dsimp only [splitCount]; omega
+            have h4' : n + 2 ≤ u.val + n + 2 ∧ u.val + n + 2 < splitCount n ∧
+                2 ≤ v.val + 2 ∧ v.val + 2 < n + 2 := by dsimp only [splitCount]; omega
             rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
               dite_eq_left h4']
-            have hu_eq : (⟨u.1 + n + 2 - (n + 2), by dsimp only [splitCount] at h4'; omega⟩ :
+            have hu_eq : (⟨u.val + n + 2 - (n + 2), by dsimp only [splitCount] at h4'; omega⟩ :
                 Fin n) = u := Fin.ext (by dsimp only; omega)
-            have hv_eq : (⟨v.1 + 2 - 2, by omega⟩ : Fin n) = v := Fin.ext (by dsimp only; omega)
+            have hv_eq : (⟨v.val + 2 - 2, by omega⟩ : Fin n) = v := Fin.ext (by dsimp only; omega)
             simp only [hu_eq, hv_eq, hadj, ↓reduceIte]
           have hin_v : inIdx v ∈ C := by
             by_contra hnin
@@ -4970,7 +4970,7 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
           v ∉ (X : Set (Fin n)) → side v = true := by
         intro v hv hvX
         have hvW : v ∉ Wset := (mem_keepTerminals.mp hv).1
-        have hkeep1 : s3.mem (keepBase n + v.1) = 1 := by
+        have hkeep1 : s3.mem (keepBase n + v.val) = 1 := by
           rw [(hs3_keep v).2, hdel_s2, hgcol_s2, hc₀_s2]
           exact hv
         have hcap_0v : (splitNet G m s3).cap (splitNet G m s3).s (inIdx v) = n + 1 := by
@@ -4990,7 +4990,7 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
           (delSet Wset s1 : Set (Fin n)) (guessCol n s1) c₀,
           v ∉ (X : Set (Fin n)) → side v = false := by
         intro v hv _
-        have hflip1 : s3.mem (flipBase n + v.1) = 1 := by
+        have hflip1 : s3.mem (flipBase n + v.val) = 1 := by
           rw [(hs3_flip v).2, hdel_s2, hgcol_s2, hc₀_s2]
           exact hv
         have hcap_v1 : (splitNet G m s3).cap (outIdx v) (splitNet G m s3).t = n + 1 := by
@@ -4998,7 +4998,7 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
           dsimp only [outIdx]
           rw [ite_eq_right (by omega), ite_eq_left rfl,
             ite_eq_left ⟨by omega, by dsimp only [splitCount]; omega⟩]
-          have hsub : v.1 + n + 2 - (n + 2) = v.1 := by omega
+          have hsub : v.val + n + 2 - (n + 2) = v.val := by omega
           rw [hsub, ite_eq_left hflip1]
         have hout_v : outIdx v ∉ C := fun hout => by
           have hlt := cap_lt_succ_of_cutCapacity_le hcapC_le hout hmin.1.2
@@ -5014,8 +5014,8 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
         dsimp only [c', c₀, side]
         rw [h]
         simp only [hs5_eq]
-        rw [hs4_s1 (colBase n + v.1) (by dsimp only [colBase, keepBase]; have := v.2; omega),
-          hs1_low (colBase n + v.1) (by dsimp only [colBase, guessBase]; have := v.2; omega)]
+        rw [hs4_s1 (colBase n + v.val) (by dsimp only [colBase, keepBase]; have := v.isLt; omega),
+          hs1_low (colBase n + v.val) (by dsimp only [colBase, guessBase]; have := v.isLt; omega)]
         congr 1
         exact decide_eq_decide.mpr (hdist_iff (outIdx v))
       have hproper := proper_of_side (G := prefixGraph G m)
@@ -5069,14 +5069,14 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
 private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {Wset T : Finset (Fin n)} {cT : Fin n → Bool} {s : Memory.State}
     (hG : MatrixLoaded G s) (hW : WListSpec Wset L s)
-    (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.1) ≤ 1)
+    (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.val) ≤ 1)
     (hc₀_prop : ∀ u v : Fin n, (prefixGraph G m).Adj u v → u ∉ Wset → v ∉ Wset →
-      (s.mem (colBase n + u.1) == 1) ≠ (s.mem (colBase n + v.1) == 1))
+      (s.mem (colBase n + u.val) == 1) ≠ (s.mem (colBase n + v.val) == 1))
     (hTk : T.card ≤ k)
     (hcT : ∀ u v : Fin n, (prefixGraph G m).Adj u v → u ∉ T → v ∉ T → cT u ≠ cT v)
-    (hdig_T : ∀ j : Fin L, s.mem (digitBase n + j.1) =
-      if (⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ : Fin n) ∈ T then 0
-      else if cT ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ then 2 else 1) :
+    (hdig_T : ∀ j : Fin L, s.mem (digitBase n + j.val) =
+      if (⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ : Fin n) ∈ T then 0
+      else if cT ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ then 2 else 1) :
     (Memory.spec 0).clientResult s (leafProg (((n, k), m), L)) = 1 := by
   have hdig : ∀ j < L, s.mem (digitBase n + j) ≤ 2 := by
     intro j hj
@@ -5085,23 +5085,23 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
   set s1 := (Memory.spec 0).clientState s (unpackGuessProg (n, L))
   obtain ⟨hs1_low, hg_eq, _, hg_le⟩ := unpackGuessProg_spec hW hdig
   have hG1 : MatrixLoaded G s1 := fun u v =>
-    (hs1_low _ (by dsimp only [guessBase]; nlinarith [u.2, v.2])).trans (hG u v)
+    (hs1_low _ (by dsimp only [guessBase]; nlinarith [u.isLt, v.isLt])).trans (hG u v)
   have hW1 : WListSpec Wset L s1 :=
     hW.congr fun a _ ha => hs1_low a (by dsimp only [digitBase, guessBase] at ha ⊢; omega)
   have hg_eq1 : ∀ j : Fin L,
-      s1.mem (guessBase n + s1.mem (wListBase n + j.1)) = s1.mem (digitBase n + j.1) := by
+      s1.mem (guessBase n + s1.mem (wListBase n + j.val)) = s1.mem (digitBase n + j.val) := by
     intro j
     have hL_le := hW.card_le_n
-    rw [hs1_low (wListBase n + j.1) (by dsimp only [wListBase, guessBase]; omega),
-      hs1_low (digitBase n + j.1) (by dsimp only [digitBase, guessBase]; omega)]
+    rw [hs1_low (wListBase n + j.val) (by dsimp only [wListBase, guessBase]; omega),
+      hs1_low (digitBase n + j.val) (by dsimp only [digitBase, guessBase]; omega)]
     exact hg_eq j
-  have hcol01_1 : ∀ v : Fin n, s1.mem (colBase n + v.1) ≤ 1 := fun v =>
+  have hcol01_1 : ∀ v : Fin n, s1.mem (colBase n + v.val) ≤ 1 := fun v =>
     (hs1_low _ (by dsimp only [colBase, guessBase]; omega)).trans_le (hcol01 v)
-  have hgw : ∀ w ∈ Wset, s1.mem (guessBase n + w.1) =
+  have hgw : ∀ w ∈ Wset, s1.mem (guessBase n + w.val) =
       if w ∈ T then 0 else if cT w then 2 else 1 := by
     intro w hwW
     obtain ⟨j, hj⟩ := (hW.mem_iff_exists w).mp hwW
-    have hjw : (⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ : Fin n) = w := Fin.ext hj
+    have hjw : (⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ : Fin n) = w := Fin.ext hj
     rw [← hj, hg_eq j, hdig_T j, hjw]
   have hdel_T : delSet Wset s1 = T ∩ Wset := by
     ext w
@@ -5132,23 +5132,23 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
   have hs2_eq : ∀ a, s2.mem a = s1.mem a := fun a => preservesAt_checkProperProg a _ s1
   have hG2 : MatrixLoaded G s2 := fun u v => (hs2_eq _).trans (hG1 u v)
   have hW2 : WListSpec Wset L s2 := hW1.congr fun a _ _ => hs2_eq a
-  have hcol01_2 : ∀ v : Fin n, s2.mem (colBase n + v.1) ≤ 1 :=
+  have hcol01_2 : ∀ v : Fin n, s2.mem (colBase n + v.val) ≤ 1 :=
     fun v => (hs2_eq _).trans_le (hcol01_1 v)
   have hg_eq2 : ∀ j : Fin L,
-      s2.mem (guessBase n + s2.mem (wListBase n + j.1)) = s2.mem (digitBase n + j.1) := by
+      s2.mem (guessBase n + s2.mem (wListBase n + j.val)) = s2.mem (digitBase n + j.val) := by
     intro j; simp only [hs2_eq]; exact hg_eq1 j
-  have hg_le2 : ∀ v : Fin n, s2.mem (guessBase n + v.1) ≤ 2 :=
+  have hg_le2 : ∀ v : Fin n, s2.mem (guessBase n + v.val) ≤ 2 :=
     fun v => (hs2_eq _).trans_le (hg_le v)
   set s3 := (Memory.spec 0).clientState s2 (buildTerminalsProg ((n, m), L))
   obtain ⟨hs3_low, hs3_keep, hs3_flip⟩ :=
     buildTerminalsProg_spec (m := m) hG2 hW2 hcol01_2 hg_eq2 hg_le2
   have hG3 : MatrixLoaded G s3 := fun u v =>
-    (hs3_low _ (by dsimp only [keepBase]; nlinarith [u.2, v.2])).trans (hG2 u v)
+    (hs3_low _ (by dsimp only [keepBase]; nlinarith [u.isLt, v.isLt])).trans (hG2 u v)
   set sepCnt := (Memory.spec 0).clientResult s3 (minSepProg (n, m))
   set s4 := (Memory.spec 0).clientState s3 (minSepProg (n, m))
   obtain ⟨hs4_low, C, hmin, _, _, _, hsepCnt_eq, hsepCnt_cap⟩ :=
     minSepProg_spec (m := m) hG3
-  change sepCnt = (Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.1) = 1).card
+  change sepCnt = (Finset.univ.filter fun v : Fin n => s4.mem (sepOutBase n + v.val) = 1).card
     at hsepCnt_eq
   change sepCnt ≤ (splitNet G m s3).cutCapacity C at hsepCnt_cap
   have hs4_s1 : ∀ a < keepBase n, s4.mem a = s1.mem a := fun a ha =>
@@ -5157,13 +5157,13 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
   have hW4 : WListSpec Wset L s4 :=
     hW1.congr fun a _ ha => hs4_s1 a (by dsimp only [digitBase, keepBase] at ha ⊢; omega)
   have hg_eq4 : ∀ j : Fin L,
-      s4.mem (guessBase n + s4.mem (wListBase n + j.1)) = s4.mem (digitBase n + j.1) := by
+      s4.mem (guessBase n + s4.mem (wListBase n + j.val)) = s4.mem (digitBase n + j.val) := by
     intro j
     have hL_le := hW.card_le_n
-    rw [hs4_s1 (wListBase n + j.1) (by dsimp only [wListBase, keepBase]; omega),
-      hs4_s1 (digitBase n + j.1) (by dsimp only [digitBase, keepBase]; omega),
-      hs4_s1 (guessBase n + s1.mem (wListBase n + j.1))
-        (by dsimp only [guessBase, keepBase]; have := hW1.entry_lt j.1 j.2; omega)]
+    rw [hs4_s1 (wListBase n + j.val) (by dsimp only [wListBase, keepBase]; omega),
+      hs4_s1 (digitBase n + j.val) (by dsimp only [digitBase, keepBase]; omega),
+      hs4_s1 (guessBase n + s1.mem (wListBase n + j.val))
+        (by dsimp only [guessBase, keepBase]; have := hW1.entry_lt j.val j.isLt; omega)]
     exact hg_eq1 j
   have hdelCnt : (Memory.spec 0).clientResult s4 (countDelProg (n, L)) =
       (delSet Wset s4).card := countDelProg_spec hW4 hg_eq4
@@ -5171,17 +5171,17 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
     rw [← hdel_T]
     ext w
     simp [delSet,
-      hs4_s1 (guessBase n + w.1) (by dsimp only [guessBase, keepBase]; have := w.2; omega)]
-  let c₀ : Fin n → Bool := fun v => s.mem (colBase n + v.1) == 1
-  have hc₀_s2 : (fun v : Fin n => s2.mem (colBase n + v.1) == 1) = c₀ := by
+      hs4_s1 (guessBase n + w.val) (by dsimp only [guessBase, keepBase]; have := w.isLt; omega)]
+  let c₀ : Fin n → Bool := fun v => s.mem (colBase n + v.val) == 1
+  have hc₀_s2 : (fun v : Fin n => s2.mem (colBase n + v.val) == 1) = c₀ := by
     funext v
     dsimp only [c₀]
-    rw [hs2_eq, hs1_low (colBase n + v.1) (by dsimp only [colBase, guessBase]; have := v.2; omega)]
+    rw [hs2_eq, hs1_low (colBase n + v.val) (by dsimp only [colBase, guessBase]; have := v.isLt; omega)]
   have hdel_s2 : delSet Wset s2 = delSet Wset s1 := by ext w; simp [delSet, hs2_eq]
   have hgcol_s2 : guessCol n s2 = guessCol n s1 := by funext w; unfold guessCol; rw [hs2_eq]
   let N := splitNet G m s3
   let K : Finset (Fin (splitCount n)) := Finset.univ.filter fun x =>
-    x.1 = 0 ∨
+    x.val = 0 ∨
       (∃ v : Fin n, x = inIdx v ∧ (v ∈ Wset ∨ v ∈ T ∨ cT v = c₀ v)) ∨
       (∃ v : Fin n, x = outIdx v ∧ v ∉ Wset ∧ v ∉ T ∧ cT v = c₀ v)
   have hK_cut : N.IsCut K := by
@@ -5203,17 +5203,17 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
     · rw [hcap0]; exact Nat.zero_le _
     · unfold N splitNet at hcap0 ⊢
       dsimp only at hcap0 ⊢
-      by_cases hx0 : x.1 = 0
+      by_cases hx0 : x.val = 0
       · rw [ite_eq_left hx0] at hcap0 ⊢
-        by_cases hy_in : 2 ≤ y.1 ∧ y.1 < n + 2
+        by_cases hy_in : 2 ≤ y.val ∧ y.val < n + 2
         · rw [ite_eq_left hy_in] at hcap0
-          by_cases hk1 : s3.mem (keepBase n + (y.1 - 2)) = 1
+          by_cases hk1 : s3.mem (keepBase n + (y.val - 2)) = 1
           · exfalso
-            let v : Fin n := ⟨y.1 - 2, by omega⟩
+            let v : Fin n := ⟨y.val - 2, by omega⟩
             have hy_eq : y = inIdx v := Fin.ext (by dsimp only [v, inIdx]; omega)
             have hkeep_v : v ∈ keepTerminals (prefixGraph G m) (Wset : Set (Fin n))
                 (delSet Wset s1 : Set (Fin n)) (guessCol n s1) c₀ := by
-              have hk1' : s3.mem (keepBase n + v.1) = 1 := hk1
+              have hk1' : s3.mem (keepBase n + v.val) = 1 := hk1
               rwa [(hs3_keep v).2, hdel_s2, hgcol_s2, hc₀_s2] at hk1'
             obtain ⟨hvW, w, hwW, hwD, hadj, hne⟩ := mem_keepTerminals.mp hkeep_v
             have hwT : w ∉ T := fun h =>
@@ -5229,12 +5229,12 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
           · rw [ite_eq_right hk1] at hcap0; exact absurd rfl hcap0
         · rw [ite_eq_right hy_in] at hcap0; exact absurd rfl hcap0
       · rw [ite_eq_right hx0] at hcap0 ⊢
-        by_cases hy1 : y.1 = 1
+        by_cases hy1 : y.val = 1
         · exfalso
           rw [ite_eq_left hy1] at hcap0
-          by_cases hx_out : n + 2 ≤ x.1 ∧ x.1 < splitCount n
+          by_cases hx_out : n + 2 ≤ x.val ∧ x.val < splitCount n
           · rw [ite_eq_left hx_out] at hcap0
-            let v : Fin n := ⟨x.1 - (n + 2), by dsimp only [splitCount] at hx_out; omega⟩
+            let v : Fin n := ⟨x.val - (n + 2), by dsimp only [splitCount] at hx_out; omega⟩
             have hx_eq : x = outIdx v := Fin.ext (by dsimp only [v, outIdx]; omega)
             have hxK : v ∉ Wset ∧ v ∉ T ∧ cT v = c₀ v := by
               rcases hx with h0 | ⟨u, hu, _⟩ | ⟨u, hu, hu_p⟩
@@ -5244,7 +5244,7 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
                   have := congrArg Fin.val (hx_eq.symm.trans hu)
                   dsimp only [outIdx] at this; omega)
                 rwa [← huv]
-            by_cases hf1 : s3.mem (flipBase n + v.1) = 1
+            by_cases hf1 : s3.mem (flipBase n + v.val) = 1
             · have hflip_v : v ∈ flipTerminals (prefixGraph G m) (Wset : Set (Fin n))
                   (delSet Wset s1 : Set (Fin n)) (guessCol n s1) c₀ := by
                 rwa [(hs3_flip v).2, hdel_s2, hgcol_s2, hc₀_s2] at hf1
@@ -5256,14 +5256,14 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
             · exact hcap0 (ite_eq_right hf1)
           · rw [ite_eq_right hx_out] at hcap0; exact absurd rfl hcap0
         · rw [ite_eq_right hy1] at hcap0 ⊢
-          by_cases hx_in : 2 ≤ x.1 ∧ x.1 < n + 2
+          by_cases hx_in : 2 ≤ x.val ∧ x.val < n + 2
           · rw [ite_eq_left hx_in] at hcap0 ⊢
-            by_cases hy_add : y.1 = x.1 + n
+            by_cases hy_add : y.val = x.val + n
             · rw [ite_eq_left hy_add] at hcap0 ⊢
-              let v : Fin n := ⟨x.1 - 2, by omega⟩
+              let v : Fin n := ⟨x.val - 2, by omega⟩
               have hx_eq : x = inIdx v := Fin.ext (by dsimp only [v, inIdx]; omega)
               have hy_eq : y = outIdx v := Fin.ext (by dsimp only [v, outIdx]; omega)
-              by_cases hw0 : s3.mem (wBase n + v.1) = 0
+              by_cases hw0 : s3.mem (wBase n + v.val) = 0
               · rw [ite_eq_left hw0]
                 have hvW : v ∉ Wset := by
                   rw [hs3_low _ (by dsimp only [wBase, keepBase]; omega), hs2_eq,
@@ -5288,10 +5288,10 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
             · rw [ite_eq_right hy_add] at hcap0; exact absurd rfl hcap0
           · exfalso
             rw [ite_eq_right hx_in] at hcap0
-            by_cases h4 : n + 2 ≤ x.1 ∧ x.1 < splitCount n ∧ 2 ≤ y.1 ∧ y.1 < n + 2
+            by_cases h4 : n + 2 ≤ x.val ∧ x.val < splitCount n ∧ 2 ≤ y.val ∧ y.val < n + 2
             · rw [dite_eq_left h4] at hcap0
-              let u : Fin n := ⟨x.1 - (n + 2), by dsimp only [splitCount] at h4; omega⟩
-              let v : Fin n := ⟨y.1 - 2, by omega⟩
+              let u : Fin n := ⟨x.val - (n + 2), by dsimp only [splitCount] at h4; omega⟩
+              let v : Fin n := ⟨y.val - 2, by omega⟩
               have hx_eq : x = outIdx u := Fin.ext (by dsimp only [u, outIdx]; omega)
               have hy_eq : y = inIdx v := Fin.ext (by dsimp only [v, inIdx]; omega)
               by_cases hadj : (prefixGraph G m).Adj u v
@@ -5455,9 +5455,9 @@ private theorem incOdomProg_digits_le (n L : ℕ) {s : Memory.State}
 
 private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {Wset : Finset (Fin n)} {s : Memory.State} (hG : MatrixLoaded G s)
-    (hW : WListSpec Wset L s) (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.1) ≤ 1)
+    (hW : WListSpec Wset L s) (hcol01 : ∀ v : Fin n, s.mem (colBase n + v.val) ≤ 1)
     (hc₀_prop : ∀ u v : Fin n, (prefixGraph G m).Adj u v → u ∉ Wset → v ∉ Wset →
-      (s.mem (colBase n + u.1) == 1) ≠ (s.mem (colBase n + v.1) == 1)) :
+      (s.mem (colBase n + u.val) == 1) ≠ (s.mem (colBase n + v.val) == 1)) :
     let res := (Memory.spec 0).clientResult s (compressProg (((n, k), m), L))
     let t := (Memory.spec 0).clientState s (compressProg (((n, k), m), L))
     (∀ a < sepBase n, t.mem a = s.mem a) ∧
@@ -5484,9 +5484,9 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
       let u_leaf := (Memory.spec 0).clientState u (leafProg (((n, k), m), L))
       let u_odom := (Memory.spec 0).clientState u_leaf (incOdomProg (n, L))
       MatrixLoaded G u ∧
-        (∀ v : Fin n, u.mem (colBase n + v.1) ≤ 1) ∧
+        (∀ v : Fin n, u.mem (colBase n + v.val) ≤ 1) ∧
         (∀ x y : Fin n, (prefixGraph G m).Adj x y → x ∉ Wset → y ∉ Wset →
-          (u.mem (colBase n + x.1) == 1) ≠ (u.mem (colBase n + y.1) == 1)) ∧
+          (u.mem (colBase n + x.val) == 1) ≠ (u.mem (colBase n + y.val) == 1)) ∧
         f' ≤ 1 ∧
         (∀ a < sepBase n, u_odom.mem a = s.mem a) ∧
         WListSpec Wset L u_odom ∧
@@ -5497,11 +5497,11 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
         (f' = 1 → OctStateAt G m k u_odom) := by
     intro u hlow huW hdig hzero
     have huG : MatrixLoaded G u := fun x y =>
-      (hlow _ (by dsimp only [sepBase]; nlinarith [x.2, y.2])).trans (hG x y)
-    have hu_col01 : ∀ v : Fin n, u.mem (colBase n + v.1) ≤ 1 := fun v =>
+      (hlow _ (by dsimp only [sepBase]; nlinarith [x.isLt, y.isLt])).trans (hG x y)
+    have hu_col01 : ∀ v : Fin n, u.mem (colBase n + v.val) ≤ 1 := fun v =>
       (hzero _ (by dsimp only [colBase, wBase]; omega)).trans_le (hcol01 v)
     have hu_c0 : ∀ x y : Fin n, (prefixGraph G m).Adj x y → x ∉ Wset → y ∉ Wset →
-        (u.mem (colBase n + x.1) == 1) ≠ (u.mem (colBase n + y.1) == 1) := by
+        (u.mem (colBase n + x.val) == 1) ≠ (u.mem (colBase n + y.val) == 1) := by
       intro x y hadj hx hy
       rw [hzero _ (by dsimp only [colBase, wBase]; omega),
         hzero _ (by dsimp only [colBase, wBase]; omega)]
@@ -5612,18 +5612,18 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
       let w : Fin n := ⟨s.mem (wListBase n + (a - digitBase n)), hW.entry_lt _ h.2⟩
       if w ∈ T then 0 else if cT w then 2 else 1
     else 0
-  have hdgTarget_at : ∀ j : Fin L, dgTarget (digitBase n + j.1) =
-      if (⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ : Fin n) ∈ T then 0
-      else if cT ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ then 2 else 1 := by
+  have hdgTarget_at : ∀ j : Fin L, dgTarget (digitBase n + j.val) =
+      if (⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ : Fin n) ∈ T then 0
+      else if cT ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ then 2 else 1 := by
     intro j
     dsimp only [dgTarget]
-    have hcond : digitBase n ≤ digitBase n + j.1 ∧ digitBase n + j.1 - digitBase n < L :=
-      ⟨by omega, by have := j.2; omega⟩
+    have hcond : digitBase n ≤ digitBase n + j.val ∧ digitBase n + j.val - digitBase n < L :=
+      ⟨by omega, by have := j.isLt; omega⟩
     rw [dite_eq_left hcond]
-    have hsub : digitBase n + j.1 - digitBase n = j.1 := Nat.add_sub_cancel_left _ _
-    have hw_eq : (⟨s.mem (wListBase n + (digitBase n + j.1 - digitBase n)),
+    have hsub : digitBase n + j.val - digitBase n = j.val := Nat.add_sub_cancel_left _ _
+    have hw_eq : (⟨s.mem (wListBase n + (digitBase n + j.val - digitBase n)),
         hW.entry_lt _ hcond.2⟩ : Fin n) =
-        ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ :=
+        ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ :=
       Fin.ext (by dsimp only; rw [hsub])
     rw [hw_eq]
   have hdgTarget_le : ∀ j < L, dgTarget (digitBase n + j) ≤ 2 := by
@@ -5689,16 +5689,16 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
             by_cases heq_tar : base3At u.mem (digitBase n) L = targetVal
             · exfalso
               have hdig_eq := eq_of_base3At_eq hdig hdgTarget_le heq_tar
-              have hdig_u : ∀ j : Fin L, u.mem (digitBase n + j.1) =
-                  if (⟨u.mem (wListBase n + j.1), huW.entry_lt j.1 j.2⟩ : Fin n) ∈ T then 0
-                  else if cT ⟨u.mem (wListBase n + j.1), huW.entry_lt j.1 j.2⟩ then 2 else 1 := by
+              have hdig_u : ∀ j : Fin L, u.mem (digitBase n + j.val) =
+                  if (⟨u.mem (wListBase n + j.val), huW.entry_lt j.val j.isLt⟩ : Fin n) ∈ T then 0
+                  else if cT ⟨u.mem (wListBase n + j.val), huW.entry_lt j.val j.isLt⟩ then 2 else 1 := by
                 intro j
                 have hL_le := hW.card_le_n
-                have hwl_u : u.mem (wListBase n + j.1) = s.mem (wListBase n + j.1) :=
+                have hwl_u : u.mem (wListBase n + j.val) = s.mem (wListBase n + j.val) :=
                   hzero_mem hst2_0 _ (by dsimp only [wListBase, digitBase]; omega)
-                have hfin_eq : (⟨u.mem (wListBase n + j.1), huW.entry_lt j.1 j.2⟩ : Fin n) =
-                    ⟨s.mem (wListBase n + j.1), hW.entry_lt j.1 j.2⟩ := Fin.ext hwl_u
-                rw [hdig_eq j.1 j.2, hdgTarget_at j, hfin_eq]
+                have hfin_eq : (⟨u.mem (wListBase n + j.val), huW.entry_lt j.val j.isLt⟩ : Fin n) =
+                    ⟨s.mem (wListBase n + j.val), hW.entry_lt j.val j.isLt⟩ := Fin.ext hwl_u
+                rw [hdig_eq j.val j.isLt, hdgTarget_at j, hfin_eq]
               have hf1' : f' = 1 :=
                 leafProg_complete_at (k := k) huG huW hu_col01 hu_c0 hTk hcT hdig_u
               omega
@@ -5831,17 +5831,17 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
   set s_col := (Memory.spec 0).clientState s_sep (fillRange ((colBase n, 0), n))
   have hs_col := fillRange_spec (colBase n) 0 n s_sep
   have hs_col_G : MatrixLoaded G s_col := fun u v => by
-    have ha1 : 3 + u.1 * n + v.1 < colBase n := by dsimp only [colBase]; nlinarith [u.2, v.2]
-    have ha2 : 3 + u.1 * n + v.1 < sepBase n := by dsimp only [sepBase]; nlinarith [u.2, v.2]
+    have ha1 : 3 + u.val * n + v.val < colBase n := by dsimp only [colBase]; nlinarith [u.isLt, v.isLt]
+    have ha2 : 3 + u.val * n + v.val < sepBase n := by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt]
     rw [hs_col.2 _ (Or.inl ha1), hs_sep.2 _ (Or.inl ha2), hs_al_pre _ ha2]
     exact hG₀ u v
   have hoct0 : OctStateAt G 0 k s_col := by
-    have hsep0 : ∀ v : Fin n, s_col.mem (sepBase n + v.1) = 0 := fun v =>
-      (hs_col.2 _ (Or.inl (by dsimp only [sepBase, colBase]; omega))).trans (hs_sep.1 v.1 v.2)
-    have hcol0 : ∀ v : Fin n, s_col.mem (colBase n + v.1) = 0 := fun v => hs_col.1 v.1 v.2
+    have hsep0 : ∀ v : Fin n, s_col.mem (sepBase n + v.val) = 0 := fun v =>
+      (hs_col.2 _ (Or.inl (by dsimp only [sepBase, colBase]; omega))).trans (hs_sep.1 v.val v.isLt)
+    have hcol0 : ∀ v : Fin n, s_col.mem (colBase n + v.val) = 0 := fun v => hs_col.1 v.val v.isLt
     refine ⟨fun v => ⟨by rw [hsep0]; decide, by rw [hcol0]; decide⟩, ?_⟩
     dsimp only
-    have hempty : (Finset.univ.filter fun v : Fin n => s_col.mem (sepBase n + v.1) = 1) = ∅ := by
+    have hempty : (Finset.univ.filter fun v : Fin n => s_col.mem (sepBase n + v.val) = 1) = ∅ := by
       ext v; simp [hsep0 v]
     rw [hempty]
     exact ⟨Nat.zero_le k, fun u _ hadj => absurd hadj.2.1 (Nat.not_lt_zero _)⟩
@@ -5862,7 +5862,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
     have hm_lt : m < n := by omega
     by_cases hal : alive = 1
     · obtain ⟨h01_st, hS_card, hS_prop⟩ := hal1 hal
-      set S : Finset (Fin n) := Finset.univ.filter fun v => st.mem (sepBase n + v.1) = 1
+      set S : Finset (Fin n) := Finset.univ.filter fun v => st.mem (sepBase n + v.val) = 1
       let Wset : Finset (Fin n) := insert ⟨m, hm_lt⟩ S
       obtain ⟨htW_low, hW⟩ := buildWProg_spec hm_lt fun v => (h01_st v).1
       set L := (Memory.spec 0).clientResult st (buildWProg (n, m))
@@ -5873,11 +5873,11 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
         exact (Finset.card_insert_le _ _).trans (Nat.add_le_add_right hS_card 1)
       have hcW_prop : ∀ u v : Fin n, (prefixGraph G (m + 1)).Adj u v →
           u ∉ Wset → v ∉ Wset →
-          (tW.mem (colBase n + u.1) == 1) ≠ (tW.mem (colBase n + v.1) == 1) := by
+          (tW.mem (colBase n + u.val) == 1) ≠ (tW.mem (colBase n + v.val) == 1) := by
         intro u v ⟨hadj, hum1, hvm1⟩ huW hvW
-        have hum : u.1 ≠ m :=
+        have hum : u.val ≠ m :=
           fun h => huW ((Fin.ext h : u = ⟨m, hm_lt⟩) ▸ Finset.mem_insert_self _ _)
-        have hvm : v.1 ≠ m :=
+        have hvm : v.val ≠ m :=
           fun h => hvW ((Fin.ext h : v = ⟨m, hm_lt⟩) ▸ Finset.mem_insert_self _ _)
         have huS : u ∉ S := fun h => huW (Finset.mem_insert_of_mem h)
         have hvS : v ∉ S := fun h => hvW (Finset.mem_insert_of_mem h)
@@ -5885,7 +5885,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
           htW_low _ (by dsimp only [colBase, wBase]; omega)]
         exact hS_prop u v ⟨hadj, by omega, by omega⟩ huS hvS
       have hG_tW : MatrixLoaded G tW := fun u v =>
-        (htW_low _ (by dsimp only [wBase]; nlinarith [u.2, v.2])).trans (hG_st u v)
+        (htW_low _ (by dsimp only [wBase]; nlinarith [u.isLt, v.isLt])).trans (hG_st u v)
       have hcost_step : memoryCost (octStep ((n, k), (m, alive))) st ≤
           655 * 3 ^ k * (n + 1) ^ 4 := by
         unfold octStep
@@ -5924,11 +5924,11 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
         dsimp only [LoopInv]
         refine ⟨by omega, fun u v => ?_, by decide, fun _ => ?_, fun h0 => absurd h0 (by decide)⟩
         · dsimp only
-          rw [Function.update_of_ne (by dsimp only [sepBase]; nlinarith [u.2, v.2])]
+          rw [Function.update_of_ne (by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt])]
           exact hG_tW u v
         · refine ⟨fun v => ⟨?_, ?_⟩, ?_⟩
           · dsimp only
-            by_cases hvm : v.1 = m
+            by_cases hvm : v.val = m
             · rw [hvm, Function.update_self]
             · rw [Function.update_of_ne (by omega),
                 htW_low _ (by dsimp only [sepBase, wBase]; omega)]
@@ -5939,10 +5939,10 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
             exact (h01_st v).2
           · dsimp only
             have hS_new : (Finset.univ.filter fun v : Fin n =>
-                Function.update tW.mem (sepBase n + m) 1 (sepBase n + v.1) = 1) = Wset := by
+                Function.update tW.mem (sepBase n + m) 1 (sepBase n + v.val) = 1) = Wset := by
               ext v
               simp only [Finset.mem_filter, Finset.mem_univ, true_and, Wset, Finset.mem_insert, S]
-              by_cases hvm : v.1 = m
+              by_cases hvm : v.val = m
               · have hveq : v = ⟨m, hm_lt⟩ := Fin.ext hvm
                 subst hveq
                 dsimp only
@@ -5958,7 +5958,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
               Function.update_of_ne (by dsimp only [sepBase, colBase]; omega)]
             exact hcW_prop u v hadj huW hvW
       · rw [ite_eq_right hLk, ite_eq_left hL_le_n, cr_bind_pure, cs_bind_pure]
-        have hcol01_tW : ∀ v : Fin n, tW.mem (colBase n + v.1) ≤ 1 := fun v =>
+        have hcol01_tW : ∀ v : Fin n, tW.mem (colBase n + v.val) ≤ 1 := fun v =>
           (htW_low _ (by dsimp only [colBase, wBase]; omega)).trans_le (h01_st v).2
         obtain ⟨hcp_low, hcp_le, hcp_sound, hcp_comp⟩ :=
           compressProg_spec (k := k) (m := m + 1) hG_tW hW hcol01_tW hcW_prop
@@ -5966,7 +5966,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
         set tC := (Memory.spec 0).clientState tW (compressProg (((n, k), m + 1), L))
         dsimp only [LoopInv]
         refine ⟨by omega,
-          fun u v => (hcp_low _ (by dsimp only [sepBase]; nlinarith [u.2, v.2])).trans (hG_tW u v),
+          fun u v => (hcp_low _ (by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt])).trans (hG_tW u v),
           hcp_le, hcp_sound, fun hok0 ⟨T, hToct, hTk⟩ => ?_⟩
         have h1 : ok = 1 := hcp_comp ⟨T, hToct.anti (prefixGraph_le G (m + 1)), hTk⟩
         omega
@@ -6045,8 +6045,8 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
   rw [hres_eq, ht_eq]
   refine ⟨htotal_cost, hal_end_le, ⟨fun h1 => ?_, fun hex => ?_⟩, hal_end_1⟩
   · obtain ⟨_, hcard, hprop⟩ := hal_end_1 h1
-    let S := Finset.univ.filter fun v : Fin n => s_end.mem (sepBase n + v.1) = 1
-    refine ⟨S, isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v => s_end.mem (colBase n + v.1) == 1,
+    let S := Finset.univ.filter fun v : Fin n => s_end.mem (sepBase n + v.val) = 1
+    refine ⟨S, isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v => s_end.mem (colBase n + v.val) == 1,
       fun u v hadj hu hv => ?_⟩, hcard⟩
     rw [← prefixGraph_of_le G (le_refl n)] at hadj
     exact hprop u v hadj hu hv
@@ -6073,11 +6073,11 @@ theorem exists_oct_program :
           (res = 1 ↔
             ∃ T : Finset (Fin n), G.IsOddCycleTransversal (T : Set (Fin n)) ∧ T.card ≤ k) ∧
           (res = 1 →
-            (∀ v : Fin n, y.mem (sepAddr n v.1) ≤ 1 ∧ y.mem (colAddr n v.1) ≤ 1) ∧
-            let S : Finset (Fin n) := Finset.univ.filter fun v => y.mem (sepAddr n v.1) = 1
+            (∀ v : Fin n, y.mem (sepAddr n v.val) ≤ 1 ∧ y.mem (colAddr n v.val) ≤ 1) ∧
+            let S : Finset (Fin n) := Finset.univ.filter fun v => y.mem (sepAddr n v.val) = 1
             G.IsOddCycleTransversal (S : Set (Fin n)) ∧ S.card ≤ k ∧
               ∀ u v : Fin n, G.Adj u v → u ∉ S → v ∉ S →
-                (y.mem (colAddr n u.1) == 1) ≠ (y.mem (colAddr n v.1) == 1)) := by
+                (y.mem (colAddr n u.val) == 1) ≠ (y.mem (colAddr n v.val) == 1)) := by
   obtain ⟨r, C₀, pc, prog, frontier, _, hprog⟩ :=
     octProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨r, 681 * C₀ + 2, pc, by omega, prog, ?_⟩
@@ -6129,34 +6129,34 @@ theorem exists_oct_program :
   refine ⟨y, steps, res, hruns, hhalt, hsteps_le, hres_le,
     hres_iff.trans oct_isSome_iff.symm, hres_iff, fun h1 => ?_⟩
   obtain ⟨h01, hcard, hprop⟩ := hres_oct h1
-  have hsep_addr : ∀ v : Fin n, y.mem (sepAddr n v.1) =
+  have hsep_addr : ∀ v : Fin n, y.mem (sepAddr n v.val) =
       ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-        (sepBase n + v.1) := fun v => by rw [hymem]; rfl
-  have hcol_addr : ∀ v : Fin n, y.mem (colAddr n v.1) =
+        (sepBase n + v.val) := fun v => by rw [hymem]; rfl
+  have hcol_addr : ∀ v : Fin n, y.mem (colAddr n v.val) =
       ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-        (colBase n + v.1) := fun v => by rw [hymem]; rfl
+        (colBase n + v.val) := fun v => by rw [hymem]; rfl
   refine ⟨fun v => ⟨(hsep_addr v).trans_le (h01 v).1, (hcol_addr v).trans_le (h01 v).2⟩, ?_⟩
   dsimp only
-  have hS_eq : (Finset.univ.filter fun v : Fin n => y.mem (sepAddr n v.1) = 1) =
+  have hS_eq : (Finset.univ.filter fun v : Fin n => y.mem (sepAddr n v.val) = 1) =
       (Finset.univ.filter fun v : Fin n =>
         ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-          (sepBase n + v.1) = 1) := by
+          (sepBase n + v.val) = 1) := by
     ext v; simp [hsep_addr v]
   rw [hS_eq]
   have hpropG : ∀ u v : Fin n, G.Adj u v →
       u ∉ (Finset.univ.filter fun v : Fin n =>
         ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-          (sepBase n + v.1) = 1) →
+          (sepBase n + v.val) = 1) →
       v ∉ (Finset.univ.filter fun v : Fin n =>
         ((Memory.spec 0).clientState (Memory.State.init words) (octProg ())).mem
-          (sepBase n + v.1) = 1) →
-      (y.mem (colAddr n u.1) == 1) ≠ (y.mem (colAddr n v.1) == 1) := by
+          (sepBase n + v.val) = 1) →
+      (y.mem (colAddr n u.val) == 1) ≠ (y.mem (colAddr n v.val) == 1) := by
     intro u v hadj hu hv
     rw [hcol_addr u, hcol_addr v]
     rw [← prefixGraph_of_le G (le_refl n)] at hadj
     exact hprop u v hadj hu hv
   exact ⟨isOddCycleTransversal_iff_exists_bool.mpr
-      ⟨fun v => y.mem (colAddr n v.1) == 1, fun u v hadj hu hv => hpropG u v hadj hu hv⟩,
+      ⟨fun v => y.mem (colAddr n v.val) == 1, fun u v hadj hu hv => hpropG u v hadj hu hv⟩,
     hcard, hpropG⟩
 
 /-! ### Packaged decision problem and `UniformDecidableInTime` certificates -/

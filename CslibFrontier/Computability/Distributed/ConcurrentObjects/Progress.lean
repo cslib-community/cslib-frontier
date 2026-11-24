@@ -455,11 +455,11 @@ theorem IsWaitFree.isLockFree [Finite P] {sys : ProgressSystem P} (hwf : sys.IsW
   have hp_unbdd : ∀ K, ∃ k ≥ K, procOf k = p := by
     intro K
     by_contra hbdd
-    have hlt_K : ∀ x : procOf ⁻¹' {p}, x.1 < K := by
+    have hlt_K : ∀ x : procOf ⁻¹' {p}, x.val < K := by
       intro x
       by_contra hge
-      exact hbdd ⟨x.1, by omega, x.2⟩
-    let toFin : procOf ⁻¹' {p} → Fin K := fun x => ⟨x.1, hlt_K x⟩
+      exact hbdd ⟨x.val, by omega, x.property⟩
+    let toFin : procOf ⁻¹' {p} → Fin K := fun x => ⟨x.val, hlt_K x⟩
     obtain ⟨x₁, x₂, hxne, hfeq⟩ := Finite.exists_ne_map_eq_of_infinite toFin
     exact hxne (Subtype.ext (Fin.mk.inj hfeq))
   obtain ⟨k₀, _, hk₀_p⟩ := hp_unbdd 0
@@ -665,7 +665,7 @@ theorem isLockFree_of_bounded_shared_changes [Finite P] {sys : ProgressSystem P}
     intro K
     by_contra hbdd
     let toFin : ((fun k : ℕ => (exec.labels (N₂ + k)).proc) ⁻¹' {p}) → Fin K :=
-      fun x => ⟨x.1, by by_contra hge; exact hbdd ⟨x.1, by omega, x.2⟩⟩
+      fun x => ⟨x.val, by by_contra hge; exact hbdd ⟨x.val, by omega, x.property⟩⟩
     obtain ⟨x₁, x₂, hxne, hfeq⟩ := Finite.exists_ne_map_eq_of_infinite toFin
     exact hxne (Subtype.ext (Fin.mk.inj hfeq))
   have hrank_mono : ∀ {a b}, N₂ ≤ a → a ≤ b →

@@ -262,7 +262,7 @@ private theorem realizesBounded_initTableClear :
   all_goals try omega
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
   all_goals try (rw [Nat.shiftLeft_eq]; wram_omega)
-  all_goals wram_omega [hmem.1]
+  all_goals wram_omega [hmem.frontier_fits]
 
 private theorem realizesBounded_initTableWrite :
     RealizesBounded .exact initTableWriteProg
@@ -331,11 +331,11 @@ private theorem realizesBounded_initTableWrite :
     have hge2 := Nat.zero_le (((idx >>> rChunk w₀ b b' <<< rChunk w₀ b b') +
       ((idx &&& (2 ^ rChunk w₀ b b' - 1)) >>> 1)) >>> rPack w w₀ b b'))
   all_goals try omega
-  all_goals try fits [hmem.1]
+  all_goals try fits [hmem.frontier_fits]
   all_goals try (
     rw [hlimb, clmul_eq_bit_mul_xor]
     wram_omega [xor_shiftLeft_lt_two_pow hclr_lt hval_lt])
-  all_goals wram_omega [hmem.1]
+  all_goals wram_omega [hmem.frontier_fits]
 
 private theorem realizesBounded_initTableStepGen :
     RealizesBounded .exact initTableStepGenProg
@@ -677,7 +677,7 @@ theorem realizesBounded_zeroWordsStep :
   realize
   all_goals (rcases d with ⟨baseAddr, i⟩; dsimp only [ZeroWordsStepPre] at h)
   all_goals try omega
-  all_goals fits [hmem.1]
+  all_goals fits [hmem.frontier_fits]
 
 theorem zeroWordsLoop_spec {w baseAddr n : ℕ} {s₀ : Memory.State}
     (hfr : baseAddr + n ≤ s₀.frontier) :

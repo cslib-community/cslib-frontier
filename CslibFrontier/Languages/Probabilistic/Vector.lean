@@ -93,16 +93,16 @@ def piRestrict : {m : ℕ} → {α : Fin m → Type v} → (I : Finset (Fin m)) 
   | 0, _, _, _ => pure (fun i => i.val.elim0)
   | m + 1, α, I, programs =>
     let I' : Finset (Fin m) := Finset.univ.filter (fun j : Fin m => j.succ ∈ I)
-    let restProg : (j : I') → OracleComp spec (α j.1.succ) :=
-      fun j => programs ⟨j.1.succ, (Finset.mem_filter.mp j.2).2⟩
+    let restProg : (j : I') → OracleComp spec (α j.val.succ) :=
+      fun j => programs ⟨j.val.succ, (Finset.mem_filter.mp j.property).2⟩
     if h0 : (0 : Fin (m + 1)) ∈ I then do
       let first ← programs ⟨0, h0⟩
-      (fun (rest : (j : I') → α j.1.succ) (i : I) =>
+      (fun (rest : (j : I') → α j.val.succ) (i : I) =>
         Fin.cases
           (motive := fun k => k ∈ I → α k)
           (fun _ => first)
           (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-          i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
+          i.val i.property) <$> piRestrict (α := fun k => α k.succ) I' restProg
     else
       (fun (rest : (j : I') → α j.val.succ) (i : I) =>
         Fin.cases

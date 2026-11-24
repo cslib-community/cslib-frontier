@@ -38,13 +38,13 @@ abbrev twoChambers : Tower 1 2 1 0 1 where
   dN := Empty.elim
   n_ne := fun ν => ν.elim
   nr _ i := {
-    toFun := fun e => absurd (Subsingleton.elim (α := Fin 1) _ i) e.2
+    toFun := fun e => absurd (Subsingleton.elim (α := Fin 1) _ i) e.property
     invFun := fun p => p.2.elim
-    left_inv := fun e => absurd (Subsingleton.elim (α := Fin 1) _ i) e.2
+    left_inv := fun e => absurd (Subsingleton.elim (α := Fin 1) _ i) e.property
     right_inv := fun p => p.2.elim }
-  nr_vx0 _ i e := absurd (Subsingleton.elim (α := Fin 1) _ i) e.2
-  nr_vx1 _ i e := absurd (Subsingleton.elim (α := Fin 1) _ i) e.2
-  nr_co _ i e := absurd (Subsingleton.elim (α := Fin 1) _ i) e.2
+  nr_vx0 _ i e := absurd (Subsingleton.elim (α := Fin 1) _ i) e.property
+  nr_vx1 _ i e := absurd (Subsingleton.elim (α := Fin 1) _ i) e.property
+  nr_co _ i e := absurd (Subsingleton.elim (α := Fin 1) _ i) e.property
   π c := c
   πE e := e
   πV v := v

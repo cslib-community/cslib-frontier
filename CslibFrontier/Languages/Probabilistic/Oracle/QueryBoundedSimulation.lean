@@ -101,7 +101,7 @@ theorem IsQueryBounded.run_interpret_bind_comm_of_invariant {σ₁ σ₂ γ : Ty
         (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (h₂ k))
         (cont y.1)).run y.2)
       fun x _ hx => ⟨(ih x.1 hx).1, fun b hb => (ih x.1 hx).2 b.1 b.2 hb⟩
-    exact ⟨h.1, fun res s' hm => h.2 (res, s') hm⟩
+    exact ⟨h.bind_eq, fun res s' hm => h.support_inv (res, s') hm⟩
 
 /-- A budget-indexed invariant holds after a query-bounded program when every external query from
 a state satisfying `inv (rem + 1)` leads to states satisfying `inv rem`. Private samples leave the

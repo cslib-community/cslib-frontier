@@ -108,7 +108,7 @@ theorem gen_eq_El (k : Fin h) : (gen h2 k : G h n) =
     by rfl
 
 /-- An elementary matrix `1 + E_{i,i+1}` on the superdiagonal is a generator. -/
-private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.1 + 1 = j.1) :
+private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.val + 1 = j.val) :
     WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) 1 := by
   have hj : j ≠ 0 := by
     intro e
@@ -127,13 +127,13 @@ private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.1 + 1 = j.1) :
   exact h3
 
 /-- Constant elementary matrices above the diagonal. -/
-theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j.1) :
+theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.val + (d + 1) = j.val) :
     WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) (4 ^ d) := by
   induction d generalizing j with
   | zero => exact (WL.el_succ hij (by omega)).mono (by simp)
   | succ d ih =>
-    let k : Fin h := ⟨j.1 - 1, by omega⟩
-    have hk : k.1 = j.1 - 1 := rfl
+    let k : Fin h := ⟨j.val - 1, by omega⟩
+    have hk : k.val = j.val - 1 := rfl
     have hik : i ≠ k := by
       intro e
       have := congrArg Fin.val e
@@ -154,8 +154,8 @@ theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j
 theorem WL.upper' (i j : Fin h)
     (hij : i < j) : WL h2 (SpecialLinearGroup.transvection hij.ne 1 : G h n) (4 ^ h) := by
   have hlt := Fin.lt_def.1 hij
-  refine (WL.upper (j.1 - i.1 - 1) i j hij.ne (by omega)).mono (Nat.pow_le_pow_right (by omega) ?_)
-  have := j.2
+  refine (WL.upper (j.val - i.val - 1) i j hij.ne (by omega)).mono (Nat.pow_le_pow_right (by omega) ?_)
+  have := j.isLt
   omega
 
 theorem zero_sub_one (h2 : 2 ≤ h) : (0 : Fin h) - 1 = last h := by
@@ -166,8 +166,8 @@ theorem zero_sub_one (h2 : 2 ≤ h) : (0 : Fin h) - 1 = last h := by
 
 theorem lt_last {i : Fin h} (hi : i ≠ last h) : i < last h := by
   rw [Fin.lt_def]
-  have h1 := i.2
-  have h3 : i.1 ≠ h - 1 := fun e => hi (Fin.ext e)
+  have h1 := i.isLt
+  have h3 : i.val ≠ h - 1 := fun e => hi (Fin.ext e)
   simp only [last]
   omega
 

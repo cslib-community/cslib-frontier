@@ -46,7 +46,7 @@ variable {h n : ℕ} [NeZero h]
 noncomputable def redG : G h (n + 1) →* G h n := Matrix.SpecialLinearGroup.map (red (n + 1))
 
 omit [NeZero h] in
-theorem redG_apply (g : G h (n + 1)) (a b : Fin h) : (redG g).1 a b = red (n + 1) (g.1 a b) := by
+theorem redG_apply (g : G h (n + 1)) (a b : Fin h) : (redG g).val a b = red (n + 1) (g.val a b) := by
     rfl
 
 theorem s_sq (n : ℕ) : (s (n + 2) ^ (n + 1)) ^ 2 = 0 := by
@@ -80,7 +80,7 @@ noncomputable def lay (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) :
   ⟨layMat n A, by rw [det_layMat, hA, map_zero, zero_mul, add_zero]⟩
 
 omit [NeZero h] in
-theorem lay_val (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) : (lay (n := n) A hA).1 =
+theorem lay_val (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) : (lay (n := n) A hA).val =
     layMat n A := by rfl
 
 omit [NeZero h] in
@@ -128,10 +128,10 @@ theorem redG_lay (A : Matrix (Fin h) (Fin h) (ZMod 2))
 omit [NeZero h] in
 /-- The kernel of the reduction is the layer. -/
 theorem exists_lay {g : G h (n + 1)} (hg : redG g = 1) : ∃ A hA, g = lay A hA := by
-  have h1 : ∀ a b, ∃ c : ZMod 2, g.1 a b = (1 : Matrix (Fin h) (Fin h) (R (n + 2))) a b +
+  have h1 : ∀ a b, ∃ c : ZMod 2, g.val a b = (1 : Matrix (Fin h) (Fin h) (R (n + 2))) a b +
       s (n + 2) ^ (n + 1) * cst (n + 2) c := by
     intro a b
-    have h2 : red (n + 1) (g.1 a b - (1 : Matrix (Fin h) (Fin h) (R (n + 2))) a b) = 0 := by
+    have h2 : red (n + 1) (g.val a b - (1 : Matrix (Fin h) (Fin h) (R (n + 2))) a b) = 0 := by
       rw [map_sub, ← redG_apply, hg]
       by_cases hab : a = b
       · subst hab
@@ -143,12 +143,12 @@ theorem exists_lay {g : G h (n + 1)} (hg : redG g = 1) : ∃ A hA, g = lay A hA 
     rw [mul_comm, ← hc]
     abel
   choose A hA using h1
-  have e : g.1 = layMat n (Matrix.of A) := by
+  have e : g.val = layMat n (Matrix.of A) := by
     ext a b
     rw [hA, layMat, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul]
     rfl
   have htr : (Matrix.of A).trace = 0 := by
-    have h2 := g.2
+    have h2 := g.property
     rw [e, det_layMat] at h2
     have h3 : cst (n + 2) (Matrix.of A).trace * s (n + 2) ^ (n + 1) = 0 := by
       have := congrArg (fun x => x - 1) h2
@@ -167,12 +167,12 @@ theorem exists_lay {g : G h (n + 1)} (hg : redG g = 1) : ∃ A hA, g = lay A hA 
 theorem redG_surjective : Function.Surjective (redG : G h (n + 1) →* G h n) := by
   intro g
   choose f hf using red_surjective (n + 1)
-  let A : Matrix (Fin h) (Fin h) (R (n + 2)) := g.1.map f
-  have hA : A.map (red (n + 1)) = g.1 := by
+  let A : Matrix (Fin h) (Fin h) (R (n + 2)) := g.val.map f
+  have hA : A.map (red (n + 1)) = g.val := by
     ext a b
     simp [A, hf]
   have hd : red (n + 1) A.det = 1 := by
-    rw [RingHom.map_det, RingHom.mapMatrix_apply, hA, g.2]
+    rw [RingHom.map_det, RingHom.mapMatrix_apply, hA, g.property]
   have hdd : A.det * A.det = 1 := by
     obtain ⟨c, hc⟩ := exists_of_red_eq_zero (m := n + 1) (x := A.det - 1)
         (by rw [map_sub, hd, map_one, sub_self])
@@ -189,7 +189,7 @@ theorem redG_surjective : Function.Surjective (redG : G h (n + 1) →* G h n) :=
   refine ⟨(⟨B, hB⟩ : G h (n + 1)), Subtype.ext ?_⟩
   ext a b
   refine (redG_apply (⟨B, hB⟩ : G h (n + 1)) a b).trans ?_
-  have h4 : red (n + 1) (A a b) = g.1 a b := congrFun (congrFun hA a) b
+  have h4 : red (n + 1) (A a b) = g.val a b := congrFun (congrFun hA a) b
   by_cases ha : a = i0
   · subst ha
     simp only [B, Matrix.updateRow_self, Pi.smul_apply, smul_eq_mul, map_mul, hd, one_mul, h4]
@@ -225,9 +225,9 @@ theorem card_ker_redG : Nat.card (redG : G h (n + 1) →* G h n).ker = 2 ^ (h ^ 
   rw [← card_tr0]
   symm
   refine Nat.card_congr
-      (Equiv.ofBijective (fun A : tr0 h => ⟨lay A.1 A.2, redG_lay A.1 A.2⟩) ⟨?_, ?_⟩)
+      (Equiv.ofBijective (fun A : tr0 h => ⟨lay A.val A.property, redG_lay A.val A.property⟩) ⟨?_, ?_⟩)
   · intro A B e
-    have := congrArg (fun g : (redG : G h (n + 1) →* G h n).ker => g.1.1) e
+    have := congrArg (fun g : (redG : G h (n + 1) →* G h n).ker => g.val.val) e
     exact Subtype.ext (layMat_injective this)
   · rintro ⟨g, hg⟩
     obtain ⟨A, hA, rfl⟩ := exists_lay hg
@@ -244,7 +244,7 @@ theorem evG_bijective_zero : Function.Bijective (evG : G h 0 →* SL2 h) := by
   · intro g g' e
     refine Subtype.ext ?_
     ext a b
-    rw [eq_cst_ev (g.1 a b), eq_cst_ev (g'.1 a b)]
+    rw [eq_cst_ev (g.val a b), eq_cst_ev (g'.val a b)]
     congr 1
     rw [← evG_apply, ← evG_apply, e]
   · intro A

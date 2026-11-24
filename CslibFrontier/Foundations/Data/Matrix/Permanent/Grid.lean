@@ -438,16 +438,16 @@ private theorem exists_perm_fibres [Finite N] (v : N → V) :
   choose f hf using h
   let e := Equiv.sigmaFiberEquiv v
   let σ : Equiv.Perm N := (e.symm.trans (Equiv.sigmaCongrRight f)).trans e
-  have hσ : ∀ n, σ n = (f (v n) ⟨n, rfl⟩).1 := fun n => rfl
+  have hσ : ∀ n, σ n = (f (v n) ⟨n, rfl⟩).val := fun n => rfl
   refine ⟨σ, fun n => ?_, fun s hs n m e => ?_⟩
   · rw [hσ]
-    exact (f (v n) ⟨n, rfl⟩).2
-  · have h1 : ∀ y, ∀ x : {n // v n = y}, s (f y x).1 = s x.1 := by
+    exact (f (v n) ⟨n, rfl⟩).property
+  · have h1 : ∀ y, ∀ x : {n // v n = y}, s (f y x).val = s x.val := by
       rintro y ⟨x, rfl⟩
       rw [← hσ]
       exact hs x
     obtain ⟨i, -, hi⟩ := (hf (v m)).exists_pow_eq (mem_univ ⟨n, e⟩) (mem_univ ⟨m, rfl⟩)
-    have h2 : ∀ i : ℕ, s ((f (v m) ^ i) ⟨n, e⟩).1 = s n := by
+    have h2 : ∀ i : ℕ, s ((f (v m) ^ i) ⟨n, e⟩).val = s n := by
       intro i
       induction i with
       | zero => rfl

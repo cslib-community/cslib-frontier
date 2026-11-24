@@ -302,7 +302,7 @@ example : ekBound 12 6 = 2611 := rfl
 /-- Dense Word-RAM Edmonds–Karp on `unitDiamondNet` (`B = 1`, width `7`): returns max flow `2`. -/
 example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
     ∃ (y : Data R) (steps : ℕ) (f : unitDiamondNet.Flow),
-      let C_cut : Finset (Fin 4) := Finset.univ.filter fun x => y.mem (ekCutAddr 4 x.1) < 4
+      let C_cut : Finset (Fin 4) := Finset.univ.filter fun x => y.mem (ekCutAddr 4 x.val) < 4
       Runs 7 prog (State.init (encodeFlowInput unitDiamondNet)) ⟨pc, y⟩ steps ∧
       step 7 prog ⟨pc, y⟩ = .halt 2 ∧
       steps + 1 ≤ C * 5 ^ 5 ∧
@@ -329,7 +329,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_edmondsKarp_program
   obtain ⟨y, steps, res, f, hruns, hhalt, htime, _, _, hmin, _, _, hres⟩ :=
     hprog edgelessNet 0 7 (by decide) (by decide) (by decide) (by decide)
-  have hzero : edgelessNet.cutCapacity (Finset.univ.filter fun x => y.mem (ekCutAddr 4 x.1) < 4) =
+  have hzero : edgelessNet.cutCapacity (Finset.univ.filter fun x => y.mem (ekCutAddr 4 x.val) < 4) =
       0 := by
     have hle := hmin.2 ({0} : Finset (Fin 4)) (by decide)
     have hc0 : edgelessNet.cutCapacity ({0} : Finset (Fin 4)) = 0 := by decide
@@ -398,34 +398,34 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
 unique minimum separator between `{0, 1}` and `{3, 4}`. -/
 def hourglassGraph : SimpleGraph (Fin 5) where
   Adj u v :=
-    (u.1 = 2 ∧ v.1 ≠ 2) ∨ (v.1 = 2 ∧ u.1 ≠ 2)
+    (u.val = 2 ∧ v.val ≠ 2) ∨ (v.val = 2 ∧ u.val ≠ 2)
   symm := ⟨fun _ _ h => h.symm⟩
   loopless := ⟨fun _ h => by omega⟩
 
 instance : DecidableRel hourglassGraph.Adj := fun u v =>
-  inferInstanceAs (Decidable ((u.1 = 2 ∧ v.1 ≠ 2) ∨ (v.1 = 2 ∧ u.1 ≠ 2)))
+  inferInstanceAs (Decidable ((u.val = 2 ∧ v.val ≠ 2) ∨ (v.val = 2 ∧ u.val ≠ 2)))
 
 /-- Word-RAM minimum vertex separator on `hourglassGraph` at width `12`: returns `1`, records
 `{2}` at `sepOutAddr`, and labels `{0, 1}` as `1` and `{3, 4}` as `0` at `sepSideAddr`. -/
 example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
     ∃ (y : Data R) (steps : ℕ),
       let Z : Vector Bool 5 := Vector.ofFn fun _ => false
-      let A : Vector Bool 5 := Vector.ofFn fun v => decide (v.1 < 2)
-      let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.1)
+      let A : Vector Bool 5 := Vector.ofFn fun v => decide (v.val < 2)
+      let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.val)
       Runs 12 prog (State.init (encodeSepInput hourglassGraph Z A B)) ⟨pc, y⟩ steps ∧
       step 12 prog ⟨pc, y⟩ = .halt 1 ∧
       steps + 1 ≤ C * 6 ^ 5 ∧
       y.mem (sepOutAddr 5 2) = 1 ∧ y.mem (sepOutAddr 5 0) = 0 ∧
       y.mem (sepSideAddr 5 0) = 1 ∧ y.mem (sepSideAddr 5 3) = 0 := by
   let Z : Vector Bool 5 := Vector.ofFn fun _ => false
-  let A : Vector Bool 5 := Vector.ofFn fun v => decide (v.1 < 2)
-  let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.1)
+  let A : Vector Bool 5 := Vector.ofFn fun v => decide (v.val < 2)
+  let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.val)
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_minSeparator_program
   obtain ⟨y, steps, res, out, hruns, hhalt, htime, _, _, hsep, hmin, _, hsideA, hsideB,
     hres, hout_mem, hside_mem⟩ := hprog (w := 12) hourglassGraph Z A B (by decide)
   have hY2 : hourglassGraph.IsSeparator {v | vget A v = true} {v | vget B v = true}
       ({v | vget Z v = true} ∪ ↑({(2 : Fin 5)} : Finset (Fin 5))) := by
-    refine SimpleGraph.isSeparator_of_forall_adj (fun v : Fin 5 => decide (v.1 < 2)) ?_ ?_ ?_
+    refine SimpleGraph.isSeparator_of_forall_adj (fun v : Fin 5 => decide (v.val < 2)) ?_ ?_ ?_
     · intro u v huv hu hv
       have hu2 : u ≠ 2 := fun h => hu (Or.inr (by simp [h]))
       have hv2 : v ≠ 2 := fun h => hv (Or.inr (by simp [h]))
@@ -433,12 +433,12 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       · exact absurd (Fin.ext h) hu2
       · exact absurd (Fin.ext h) hv2
     · intro a ha _; simpa [A, vget] using ha
-    · intro b hb _; have : 3 ≤ b.1 := by simpa [B, vget] using hb
-      simp [show ¬(b.1 < 2) by omega]
+    · intro b hb _; have : 3 ≤ b.val := by simpa [B, vget] using hb
+      simp [show ¬(b.val < 2) by omega]
   have hle1 : out.sep.length ≤ 1 := hmin {(2 : Fin 5)} hY2
   have h2mem : (2 : Fin 5) ∈ out.sep := by
     by_contra h2not
-    have hnot : ∀ a : Fin 5, a.1 < 2 → ∀ b : Fin 5, 3 ≤ b.1 →
+    have hnot : ∀ a : Fin 5, a.val < 2 → ∀ b : Fin 5, 3 ≤ b.val →
         a ∈ out.sep ∨ b ∈ out.sep := by
       intro a ha b hb
       have hpa : hourglassGraph.Adj a (2 : Fin 5) := Or.inr ⟨rfl, by omega⟩

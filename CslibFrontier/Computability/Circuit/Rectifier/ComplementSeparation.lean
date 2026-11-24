@@ -127,7 +127,7 @@ instance [Finite α] [Finite β] : Finite (ComplTwoRectVertex α β) := by
 private def inpEdges [Fintype β] [DecidableEq α] [DecidableEq β] :
     Finset (ComplTwoRectVertex α β × ComplTwoRectVertex α β) :=
   (univ : Finset {c : Finset β // #c = 2}).biUnion fun c =>
-    c.1.map ⟨fun j => (.inp c, .col j), fun _ _ h =>
+    c.val.map ⟨fun j => (.inp c, .col j), fun _ _ h =>
       ComplTwoRectVertex.col.inj (Prod.mk.inj h).2⟩
 
 private def midEdges [Fintype α] [Fintype β] (A : Matrix α β Bool) :
@@ -140,15 +140,15 @@ private def midEdges [Fintype α] [Fintype β] (A : Matrix α β Bool) :
 private def outEdges [Fintype α] [DecidableEq α] [DecidableEq β] :
     Finset (ComplTwoRectVertex α β × ComplTwoRectVertex α β) :=
   (univ : Finset {r : Finset α // #r = 2}).biUnion fun r =>
-    r.1.map ⟨fun i => (.row i, .out r), fun _ _ h =>
+    r.val.map ⟨fun i => (.row i, .out r), fun _ _ h =>
       ComplTwoRectVertex.row.inj (Prod.mk.inj h).1⟩
 
 private theorem card_inpEdges [Fintype β] [DecidableEq α] [DecidableEq β] :
     #(inpEdges (α := α) (β := β)) = 2 * (Fintype.card β).choose 2 := by
   rw [inpEdges, card_biUnion]
-  · calc ∑ c : {c : Finset β // #c = 2}, #(c.1.map _)
-        = ∑ c : {c : Finset β // #c = 2}, #c.1 := sum_congr rfl fun c _ => card_map _
-      _ = ∑ c : {c : Finset β // #c = 2}, 2 := sum_congr rfl fun c _ => c.2
+  · calc ∑ c : {c : Finset β // #c = 2}, #(c.val.map _)
+        = ∑ c : {c : Finset β // #c = 2}, #c.val := sum_congr rfl fun c _ => card_map _
+      _ = ∑ c : {c : Finset β // #c = 2}, 2 := sum_congr rfl fun c _ => c.property
       _ = 2 * (Fintype.card β).choose 2 := by
           rw [sum_const, card_univ, card_twoSubsets, smul_eq_mul, mul_comm]
   · intro c₁ _ c₂ _ hne
@@ -167,9 +167,9 @@ private theorem card_midEdges [Fintype α] [Fintype β] (A : Matrix α β Bool) 
 private theorem card_outEdges [Fintype α] [DecidableEq α] [DecidableEq β] :
     #(outEdges (α := α) (β := β)) = 2 * (Fintype.card α).choose 2 := by
   rw [outEdges, card_biUnion]
-  · calc ∑ r : {r : Finset α // #r = 2}, #(r.1.map _)
-        = ∑ r : {r : Finset α // #r = 2}, #r.1 := sum_congr rfl fun r _ => card_map _
-      _ = ∑ r : {r : Finset α // #r = 2}, 2 := sum_congr rfl fun r _ => r.2
+  · calc ∑ r : {r : Finset α // #r = 2}, #(r.val.map _)
+        = ∑ r : {r : Finset α // #r = 2}, #r.val := sum_congr rfl fun r _ => card_map _
+      _ = ∑ r : {r : Finset α // #r = 2}, 2 := sum_congr rfl fun r _ => r.property
       _ = 2 * (Fintype.card α).choose 2 := by
           rw [sum_const, card_univ, card_twoSubsets, smul_eq_mul, mul_comm]
   · intro r₁ _ r₂ _ hne
@@ -253,7 +253,7 @@ theorem hasDepthLE_three_complTwoRectCircuit (A : Matrix α β Bool) :
 
 private theorem step_from_inp {A : Matrix α β Bool} {c : {c : Finset β // #c = 2}}
     {v : ComplTwoRectVertex α β} (h : (.inp c, v) ∈ (complTwoRectCircuit A).edges) :
-    ∃ j ∈ c.1, v = .col j := by
+    ∃ j ∈ c.val, v = .col j := by
   simp only [complTwoRectCircuit, mem_union] at h
   rcases h with (h₁ | h₂) | h₃
   · obtain ⟨c', -, hj⟩ := mem_biUnion.mp h₁
@@ -291,7 +291,7 @@ private theorem step_from_col {A : Matrix α β Bool} {j : β} {v : ComplTwoRect
 
 private theorem step_from_row {A : Matrix α β Bool} {i : α} {v : ComplTwoRectVertex α β}
     (h : (.row i, v) ∈ (complTwoRectCircuit A).edges) :
-    ∃ r : {r : Finset α // #r = 2}, i ∈ r.1 ∧ v = .out r := by
+    ∃ r : {r : Finset α // #r = 2}, i ∈ r.val ∧ v = .out r := by
   simp only [complTwoRectCircuit, mem_union] at h
   rcases h with (h₁ | h₂) | h₃
   · obtain ⟨c, -, hj⟩ := mem_biUnion.mp h₁
@@ -332,7 +332,7 @@ theorem computes_complTwoRectCircuit (A : Matrix α β Bool) :
   refine ⟨fun hrc => ?_, fun ⟨p⟩ => ?_⟩
   · simp only [Matrix.map_apply, Bool.not_eq_true', Bool.eq_false_iff, ne_eq,
       twoRectMatrix_apply] at hrc
-    have hex : ∃ i ∈ r.1, ∃ j ∈ c.1, A i j = false := by
+    have hex : ∃ i ∈ r.val, ∃ j ∈ c.val, A i j = false := by
       by_contra hall
       apply hrc
       intro i hir j hjc

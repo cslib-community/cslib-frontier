@@ -2406,7 +2406,7 @@ private theorem realizesBounded_writeRootHdrSub :
     rcases d with ⟨⟨srcHdrBase, dstMetaBase⟩, ⟨N, ⟨n_cur, n_init_new⟩⟩⟩
     obtain ⟨hsrc, hdst, hm0, hm1, hm2, hm3, hm4, hN, hnc, hni, h7⟩ := h
     dsimp only at *)
-  all_goals exact hmem.1.of_le (by omega)
+  all_goals exact hmem.frontier_fits.of_le (by omega)
 
 private theorem writeRootHdrSubProg_spec
     {w U V N_old n_old n_init_old srcHdrBase dstMetaBase N n_cur n_init_new : ℕ}

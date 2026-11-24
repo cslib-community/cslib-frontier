@@ -1120,13 +1120,13 @@ theorem measureReal_straddlesOn_le_equicorr {V κ : Type*} [Fintype V] {s : Fins
       equicorrStraddle s.card ρ := by
   classical
   have hs_ne : s.Nonempty := Finset.card_pos.mp (by omega)
-  let uSub : s → EuclideanSpace ℝ V := fun i => u i.1
+  let uSub : s → EuclideanSpace ℝ V := fun i => u i.val
   let vSub : s → EuclideanSpace ℝ (Unit ⊕ s) := equicorrVec ρ
-  have huSub (i : s) : ‖uSub i‖ = 1 := hu i.1 i.2
+  have huSub (i : s) : ‖uSub i‖ = 1 := hu i.val i.property
   have hvSub (i : s) : ‖vSub i‖ = 1 := norm_equicorrVec hρ0 hρ1.le i
   have hpSub (i j : s) (hij : i ≠ j) : ⟪vSub i, vSub j⟫ ≤ ⟪uSub i, uSub j⟫ := by
     rw [inner_equicorrVec_of_ne hρ0 hij]
-    exact hpair i.1 i.2 j.1 j.2 (Subtype.coe_ne_coe.mpr hij)
+    exact hpair i.val i.property j.val j.property (Subtype.coe_ne_coe.mpr hij)
   have hlow := le_measureReal_forall_inner_le_of_le_inner huSub hvSub hpSub (fun _ => t)
   have hhigh := le_measureReal_forall_le_inner_of_le_inner huSub hvSub hpSub (fun _ => t)
   have hrewrite_low :

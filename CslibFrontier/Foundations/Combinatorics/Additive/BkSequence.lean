@@ -114,10 +114,10 @@ theorem IsBkSet.choose_le_card {M : Type*} [AddCommMonoid M] [Fintype M] {k : �
       apply hB
       · intro a ha
         obtain ⟨x, _, rfl⟩ := Multiset.mem_map.mp ha
-        exact x.2
+        exact x.property
       · intro b hb
         obtain ⟨x, _, rfl⟩ := Multiset.mem_map.mp hb
-        exact x.2
+        exact x.property
       · rw [Multiset.card_map, Sym.card_coe]
       · rw [Multiset.card_map, Sym.card_coe]
       · exact hsum
@@ -143,19 +143,19 @@ theorem IsBkSet.of_injOn_map {M N : Type*} [AddCommMonoid M] [AddCommMonoid N]
     · rw [← map_multiset_sum, ← map_multiset_sum, hsum]
   let s' : Multiset B := s.pmap Subtype.mk hs
   let t' : Multiset B := t.pmap Subtype.mk ht
-  have hu : Function.Injective (fun x : B => φ x.1) := fun x y hxy => Subtype.ext (hinj x.2 y.2 hxy)
+  have hu : Function.Injective (fun x : B => φ x.val) := fun x y hxy => Subtype.ext (hinj x.property y.property hxy)
   have hs' : s'.map Subtype.val = s := by
     simp only [s', Multiset.map_pmap, Multiset.pmap_eq_map, Multiset.map_id']
   have ht' : t'.map Subtype.val = t := by
     simp only [t', Multiset.map_pmap, Multiset.pmap_eq_map, Multiset.map_id']
   have hst' : s' = t' := by
     apply Multiset.map_injective hu
-    calc s'.map (fun x : B => φ x.1)
+    calc s'.map (fun x : B => φ x.val)
         = (s'.map Subtype.val).map φ := (Multiset.map_map φ Subtype.val s').symm
       _ = s.map φ := by rw [hs']
       _ = t.map φ := hmap
       _ = (t'.map Subtype.val).map φ := by rw [ht']
-      _ = t'.map (fun x : B => φ x.1) := Multiset.map_map φ Subtype.val t'
+      _ = t'.map (fun x : B => φ x.val) := Multiset.map_map φ Subtype.val t'
   rw [← hs', ← ht', hst']
 
 /-- If the homomorphic image `L.map φ` is a `B_k`-sequence, then `L` itself is a `B_k`-sequence
@@ -428,8 +428,8 @@ theorem existsUnique_neg_one_pow_mul_five_pow_eq {r x : ℕ} (hr : 3 ≤ r) (hx 
     have := ZMod.orderOf_five (r - 2)
     rwa [Nat.sub_add_cancel (by omega : 2 ≤ r)] at this
   have hh_eq : (h : ℕ) = (h₀ : ℕ) :=
-    pow_injOn_Iio_orderOf (x := (5 : ZMod (2 ^ r))) (by rw [Set.mem_Iio, hord]; exact h.2)
-      (by rw [Set.mem_Iio, hord]; exact h₀.2) hpow_eq
+    pow_injOn_Iio_orderOf (x := (5 : ZMod (2 ^ r))) (by rw [Set.mem_Iio, hord]; exact h.isLt)
+      (by rw [Set.mem_Iio, hord]; exact h₀.isLt) hpow_eq
   exact Prod.ext rfl (Fin.ext hh_eq)
 
 /-! ### Prime factor base -/
@@ -714,7 +714,7 @@ theorem isBkSequence_map_zmod_sergeevBkSequence (n : ℕ) {k : ℕ} (hk : 1 ≤ 
     · exact (Multiset.eq_of_mem_replicate hq_rep).symm
   · intro u v hu hv huc hvc hsum
     have hex_pre : ∀ z : {z : ZMod (2 ^ (r - 2)) // z ∈ (firstOddPrimes n).map f},
-        ∃ p ∈ firstOddPrimes n, f p = z.1 := fun z => List.mem_map.mp z.2
+        ∃ p ∈ firstOddPrimes n, f p = z.val := fun z => List.mem_map.mp z.property
     choose pre hpre_mem hpre_eq using hex_pre
     have hmap_pre : ∀ (w : Multiset (ZMod (2 ^ (r - 2))))
         (hw : ∀ z ∈ w, z ∈ (firstOddPrimes n).map f),

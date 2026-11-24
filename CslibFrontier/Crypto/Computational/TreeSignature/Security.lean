@@ -1081,13 +1081,13 @@ private theorem guardedTreeHandler_bind_comm {σ₁ σ₂ γ : Type} (depth : �
       · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_map, Function.comp_def]
         simpa only [pmf_norm] using congrArg (PMF.map fun (k, sig, inner') =>
           (k, sig, (inner', req.2 :: queried, leaf :: seen, false)))
-          (hgood hmsg hbf leaf hl hs).1
+          (hgood hmsg hbf leaf hl hs).bind_eq
       · simp only [↓reduceIte, PMF.pure_bind, PMF.map, Function.comp_def]
     · obtain ⟨leaf, hl, hm⟩ := (PMF.mem_support_bind_iff _ _ _).mp hm
       cases hs : seen.contains leaf
       · simp only [hs, Bool.false_eq_true, ↓reduceIte] at hm
         supp_cases hm with ⟨⟨sig, inner'⟩, hmem, rfl, rfl⟩
-        exact (hgood hmsg hbf leaf hl hs).2 (sig, inner') hmem
+        exact (hgood hmsg hbf leaf hl hs).support_inv (sig, inner') hmem
       · simp only [hs, ↓reduceIte] at hm
         supp_cases hm; exact hinv_pure true
   · exact PMF.HiddenCoupling.pure rfl (fun _ _ => rfl) (hinv_pure bad)
@@ -1110,7 +1110,7 @@ private theorem guardedTreeHandler_map {σ₁ σ₂ : Type} (depth : ℕ → ℕ
     (fun _ => PMF.pure ()) rep inv req s hinv_pure fun hm hb leaf hl hs => by
       obtain ⟨heq, hi⟩ := hgood hm hb leaf hl hs
       exact ⟨by rw [PMF.pure_bind, ← heq]; simp only [PMF.map, pmf_norm], hi⟩
-  exact ⟨by simpa only [PMF.map, pmf_norm] using congrArg (PMF.map Prod.snd) h.1, h.2⟩
+  exact ⟨by simpa only [PMF.map, pmf_norm] using congrArg (PMF.map Prod.snd) h.bind_eq, h.support_inv⟩
 
 private theorem guardedTreeHandler_support_inv {σ : Type} (depth : ℕ → ℕ) (n : ℕ)
     (body : TreeBody σ) (inv : TreeState σ → Prop)
@@ -1123,7 +1123,7 @@ private theorem guardedTreeHandler_support_inv {σ : Type} (depth : ℕ → ℕ)
     ∀ ans s', (ans, s') ∈ (guardedTreeHandler depth n body req s).support → inv s' :=
   fun ans s' hm => (guardedTreeHandler_map depth n (body₂ := body) id inv req s hinv_pure
     fun hm' hb leaf hl hs => ⟨PMF.map_id _, fun ⟨sig, inner'⟩ h =>
-      hgood hm' hb leaf hl hs sig inner' h⟩).2 (ans, s') hm
+      hgood hm' hb leaf hl hs sig inner' h⟩).support_inv (ans, s') hm
 
 private theorem identicalUntilBad_treeHandler {σ : Type} (depth : ℕ → ℕ) (n : ℕ)
     (body : TreeBody σ) :
@@ -1791,13 +1791,13 @@ private theorem eval_lazyTreeGame_eq_guarded (S : IndexedSignatureScheme) (T : S
   have hprojLazy := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
     (fun s => (s.1.2, s.2)) _
-    (fun q s hs a s' hm => (hstep q s hs).2 (a, s') hm)
-    (fun q s hs => (hstep q s hs).1) (adversary n pk) jInit hjInv
+    (fun q s hs a s' hm => (hstep q s hs).support_inv (a, s') hm)
+    (fun q s hs => (hstep q s hs).map_eq) (adversary n pk) jInit hjInv
   have hprojGuard := ProbOracleComp.run_interpret_map_state _
     (guardedTreeHandler depth n (coinSignBody S T depth M n)) (fun s => (s.1.1, s.2))
     (fun q s => (guardedTreeHandler_map depth n (body₂ := coinSignBody S T depth M n)
       Prod.fst (fun _ => True) q s (fun _ => trivial)
-      fun _ _ leaf _ _ => .of_eq (map_dropCaches_jointCoinBody S T depth M n leaf q.2 s.1)).1)
+      fun _ _ leaf _ _ => .of_eq (map_dropCaches_jointCoinBody S T depth M n leaf q.2 s.1)).map_eq)
     (adversary n pk) jInit
   have hwinL := congrArg (PMF.map fun (msig, (_, (queried, _, _))) =>
     (msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2)
@@ -2223,8 +2223,8 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
         fun ((a, b), c) => (a, b, c))
     (fun ((v, e, a), log) => (((v, e), log), signedLogOf front.length a)) _
     (fun q st hst ans st' hm =>
-      (localTreeHandler_planted_step S depth hcap q st hst).2 (ans, st') hm)
-    (fun q st hst => (localTreeHandler_planted_step S depth hcap q st hst).1)
+      (localTreeHandler_planted_step S depth hcap q st hst).support_inv (ans, st') hm)
+    (fun q st hst => (localTreeHandler_planted_step S depth hcap q st hst).map_eq)
     (adversary n pk) initPresampledState hinitInv
   have hpk0 : (keys'.getD 0 ([], [])).1 = (keys.getD 0 ([], [])).1 := fst_getD_splice front back x 0
   rw [hpk0]
@@ -2581,8 +2581,8 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
   have hproj := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
     (fun s => ((nodesOf s.1.1 s.1.2.1, s.1.2.2.1), s.2)) _
-    (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).2 (a, s') hm)
-    (fun q s hs => (jointKeysHandler_lazy_step S depth hsigCap q s hs).1)
+    (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s') hm)
+    (fun q s hs => (jointKeysHandler_lazy_step S depth hsigCap q s hs).map_eq)
     (adversary n pk) initJ hjInv
   have hexpRun := (ProbOracleComp.IsQueryBounded.run_interpret_bind_comm_of_invariant
     (jointKeysHandler S depth (sigCap n) n)
@@ -2610,7 +2610,7 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
     refine PMF.bind_congr_on_support _ _ _ fun ⟨msig, st'⟩ hm_run => ?_
     have hjInv' := ProbOracleComp.run_interpret_invariant
       (jointKeysHandler S depth (sigCap n) n) (fun s => jointKeysInv S n root s.1)
-      (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).2 (a, s') hm)
+      (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s') hm)
       (adversary n pk) initJ hjInv msig st' hm_run
     have hpos' : 0 < st'.1.1.length := hjInv'.1 ▸ hjInv'.2.2.2.2 ([], 0) (lookup_mem hjInv'.2.1)
     symm

@@ -874,7 +874,7 @@ private theorem realizesBounded_compPushBackReadWin :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, _hb_pos, hb_le⟩ := h
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     try simp only [cpSlabSize_mk, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg h0_lt] at *)
@@ -955,7 +955,7 @@ private theorem realizesBounded_compPushBackWriteRead :
     obtain ⟨U, V, N, m_cap, rfl, henv, hb_pos, hb, hd_cap⟩ := h
     have hr_idx_lt : gmRIdx b < globalMetaLen N := gmRIdx_lt hb_pos hb
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1)
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits)
   · exact ⟨m_cap, henv.compItemEnv, hd_cap⟩
   all_goals try {
     change Fits w _
@@ -1544,7 +1544,7 @@ private theorem realizesBounded_compRemoveTailReadGM2 :
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
     have hptr_lt : gmTailPtrBase N + (b * tailCapPerBucket N + (r_b - 1)) < globalMetaLen N :=
       gmTailPtrIdx_lt hb_pos hb (by omega)
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     try simp only [cpGmTailPtrBase_mk, cpTailCap_mk, cpSlabSize_mk,
       StateTransitionSpec.clientState, runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg h1_lt] at *)
@@ -2603,7 +2603,7 @@ private theorem realizesBounded_compPromoteReadCounts :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, htot, hnt_pos⟩ := h
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     try simp only [cpSlabSize_mk, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg h0_lt] at *
@@ -3852,7 +3852,7 @@ private theorem realizesBounded_compDemoteReadGM :
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits
     simp only [cpSlabSizeSubOne_mk, cpSlabSize_mk, htop_eq,
       StateTransitionSpec.clientState, runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg htop_lt] at *

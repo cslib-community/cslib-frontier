@@ -243,7 +243,7 @@ theorem k4Graph_eq_top : k4Graph = ⊤ := by
 `2 ^ u + 2 ^ v` gives distinct values for all unordered pairs `{u, v}` with `u ≠ v`
 (`{0,1} ↦ 3`, `{0,2} ↦ 5`, `{1,2} ↦ 6`, `{0,3} ↦ 9`, `{1,3} ↦ 10`, `{2,3} ↦ 12`). -/
 def k4Weight : Sym2 (Fin 4) → ℕ :=
-  Quot.lift (fun p : Fin 4 × Fin 4 => 2 ^ p.1.1 + 2 ^ p.2.1) fun a b h => by
+  Quot.lift (fun p : Fin 4 × Fin 4 => 2 ^ p.1.val + 2 ^ p.2.val) fun a b h => by
     cases h
     · rfl
     · exact Nat.add_comm _ _

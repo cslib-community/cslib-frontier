@@ -251,7 +251,7 @@ example :
         Runs 8 prog (State.init (encodeInput (cyc 5) 1)) ⟨pc, y₁⟩ s₁ ∧
         step 8 prog ⟨pc, y₁⟩ = .halt 1 ∧
         s₁ + 1 ≤ C * 3 * 6 ^ 5 ∧
-        let S : Finset (Fin 5) := Finset.univ.filter fun v => y₁.mem (sepAddr 5 v.1) = 1
+        let S : Finset (Fin 5) := Finset.univ.filter fun v => y₁.mem (sepAddr 5 v.val) = 1
         (cyc 5).IsOddCycleTransversal (S : Set (Fin 5)) ∧ S.card ≤ 1) := by
   obtain ⟨r, C, pc, hC, prog, hprog⟩ := exists_oct_program
   obtain ⟨y₀, s₀, r₀, hrun₀, hhalt₀, htime₀, hle₀, his₀, _, _⟩ :=

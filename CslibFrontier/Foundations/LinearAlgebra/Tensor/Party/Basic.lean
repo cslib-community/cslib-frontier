@@ -94,7 +94,7 @@ variable {K : Type} {I J : Type}
 get several legs, or none (then its index set has one element). -/
 def push [DecidableEq I] [Fintype J] [DecidableEq J] (π : J → I) (t : PartyTensor K J) :
     PartyTensor K I where
-  Index q := ∀ j : {j : J // π j = q}, t.Index j.1
+  Index q := ∀ j : {j : J // π j = q}, t.Index j.val
   entry x := t.entry (fun j => x (π j) ⟨j, rfl⟩)
 
 theorem push_entry [DecidableEq I] [Fintype J] [DecidableEq J] (π : J → I) (t : PartyTensor K J)
@@ -213,9 +213,9 @@ theorem localApply_prod {κ : Type} [Fintype κ] [DecidableEq κ] {α β : κ �
 
 /-- Local maps applied to an array whose legs are sorted by parties. -/
 theorem localApply_push (π : J → I) {α β : J → Type} [∀ j, Fintype (β j)]
-    (L : ∀ j, α j → β j → K) (f : (∀ j, β j) → K) (x : ∀ q, ∀ j : {j : J // π j = q}, α j.1) :
-    localApply (β := fun q => ∀ j : {j : J // π j = q}, β j.1)
-      (fun q a b => ∏ j : {j : J // π j = q}, L j.1 (a j) (b j))
+    (L : ∀ j, α j → β j → K) (f : (∀ j, β j) → K) (x : ∀ q, ∀ j : {j : J // π j = q}, α j.val) :
+    localApply (β := fun q => ∀ j : {j : J // π j = q}, β j.val)
+      (fun q a b => ∏ j : {j : J // π j = q}, L j.val (a j) (b j))
       (fun y => f (fun j => y (π j) ⟨j, rfl⟩)) x =
     localApply L f (fun j => x (π j) ⟨j, rfl⟩) := by
   simp only [localApply]
@@ -299,7 +299,7 @@ theorem prod_le_prod {κ : Type} [Fintype κ] [DecidableEq κ] {a b : κ → Par
 @[gcongr]
 theorem push_le_push (π : J → I) {s t : PartyTensor K J} (h : s ≤ t) : push π s ≤ push π t := by
   obtain ⟨L, hL⟩ := h
-  refine ⟨fun q a b => ∏ j : {j : J // π j = q}, L j.1 (a j) (b j), fun x => ?_⟩
+  refine ⟨fun q a b => ∏ j : {j : J // π j = q}, L j.val (a j) (b j), fun x => ?_⟩
   rw [push_entry, hL]
   exact (localApply_push π L t.entry x).symm
 
@@ -403,7 +403,7 @@ theorem CoveredBy.mul {s t : PartyTensor K I} {b : κ → PartyTensor K I} {c : 
 theorem CoveredBy.push (π : J → I) {s : PartyTensor K J} {b : κ → PartyTensor K J}
     (h : s.CoveredBy b) : (push π s).CoveredBy fun k => PartyTensor.push π (b k) := by
   obtain ⟨L, hL⟩ := h
-  refine ⟨fun k q x y => ∏ j : {j : J // π j = q}, L k j.1 (x j) (y j), fun x => ?_⟩
+  refine ⟨fun k q x y => ∏ j : {j : J // π j = q}, L k j.val (x j) (y j), fun x => ?_⟩
   rw [push_entry, hL]
   exact Finset.sum_congr rfl fun k _ => (localApply_push π (L k) (b k).entry x).symm
 

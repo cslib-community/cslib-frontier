@@ -499,8 +499,8 @@ theorem realizesBounded_readPackedCompGen :
     simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
-  all_goals try exact ⟨hw, rfl, hkw, lt_of_le_of_lt (by omega) hmem.1⟩
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
+  all_goals try exact ⟨hw, rfl, hkw, lt_of_le_of_lt (by omega) hmem.frontier_fits⟩
   exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
 /-- Write `writePacked (base + offset) k w s.mem idx val` in `Memory.Prog` with
@@ -558,8 +558,8 @@ theorem realizesBounded_writePackedCompGen :
     simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
-  all_goals try exact ⟨hw, rfl, hkw, lt_of_le_of_lt (by omega) hmem.1⟩
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
+  all_goals try exact ⟨hw, rfl, hkw, lt_of_le_of_lt (by omega) hmem.frontier_fits⟩
   exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
 /-! ## Section 3: Dense `(quotient, value)` Pair-Stream `Memory.Prog` Primitives -/
@@ -687,7 +687,7 @@ private theorem realizesBounded_compVOffset :
     have hbQ : bOffQ q_bits v_bits w idx < w := bOffQ_lt hw
     have hbsum : bOffQ q_bits v_bits w idx + q_bits < 2 ^ w :=
       lt_of_le_of_lt (by omega) (sub_one_add_self_lt_two_pow hw))
-  · unfold CompQOffsetPre; exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.1⟩
+  · unfold CompQOffsetPre; exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.frontier_fits⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
   refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega
@@ -751,7 +751,7 @@ theorem realizesBounded_readCompQuotGen :
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
-  all_goals try exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.1⟩
+  all_goals try exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.frontier_fits⟩
   exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
 
 /-- Write `q` into `compQuotAt` at dense index `d` in `Memory.Prog`. -/
@@ -802,7 +802,7 @@ theorem realizesBounded_writeCompQuotGen :
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
-  all_goals try exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.1⟩
+  all_goals try exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.frontier_fits⟩
   exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
 
 /-- Read `compValAt itemBase U V w N m_items s.mem d` in `Memory.Prog`. -/
@@ -963,7 +963,7 @@ theorem validHistory_writeBitSliceGen {w : ℕ} {d : ((ℕ × (ℕ × ℕ)) × (
         _ = 2 ^ (k₀ + bOff) := (Nat.pow_add 2 k₀ bOff).symm
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
     change base + wOff < s.frontier ∧ (base + wOff < s.frontier ∧ Fits w _) ∧ True
-    exact ⟨by omega, ⟨by omega, Nat.xor_lt_two_pow (hwf.2 _) hsh⟩, trivial⟩
+    exact ⟨by omega, ⟨by omega, Nat.xor_lt_two_pow (hwf.mem_fits _) hsh⟩, trivial⟩
   change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
     ((writeBitSliceLowProg (((base, wOff), (bOff, 2 ^ k₀ - 1)), val)).bind fun _ =>
       writeBitSliceHighProg (((base, wOff), (k₀, k - k₀)), val)))
@@ -981,7 +981,7 @@ theorem validHistory_writeBitSliceGen {w : ℕ} {d : ((ℕ × (ℕ × ℕ)) × (
     refine (Nat.xor_lt_two_pow ?_ ?_).trans_le (Nat.pow_le_pow_right two_pos hk1_lt.le) <;>
       (rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
   change base + wOff + 1 < s₁.frontier ∧ (base + wOff + 1 < s₁.frontier ∧ Fits w _) ∧ True
-  exact ⟨by omega, ⟨by omega, Nat.xor_lt_two_pow (hwf₁.2 _) hδ₁⟩, trivial⟩
+  exact ⟨by omega, ⟨by omega, Nat.xor_lt_two_pow (hwf₁.mem_fits _) hδ₁⟩, trivial⟩
 
 theorem validHistory_readPackedCompGen {w : ℕ} {d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ} {s : Memory.State}
     (h : ReadPackedCompPre w d s) :

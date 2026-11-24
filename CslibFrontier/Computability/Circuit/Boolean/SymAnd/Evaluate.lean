@@ -179,18 +179,18 @@ each input mask, and evaluate `out` at every cell. -/
 @[expose] def truthTable (gates : List (Finset (Fin n))) (out : ℕ → Bool) :
     Vector Bool (2 ^ n) :=
   let m := multiplicity gates
-  Vector.ofFn fun k => out (subsetZeta (fun T => m[(maskIndex T : ℕ)]) (maskSet n k.1))
+  Vector.ofFn fun k => out (subsetZeta (fun T => m[(maskIndex T : ℕ)]) (maskSet n k.val))
 
 /-- **Cell correctness of `truthTable`**: entry `k` agrees with `C.eval` at
 `(BitString.equivFin n).symm k`. -/
 theorem getElem_truthTable (C : SymAnd (Fin n)) (gates : List (Finset (Fin n)))
     (hgates : (gates : Multiset (Finset (Fin n))) = C.gates) (out : ℕ → Bool)
     (hout : ∀ j ≤ C.size, out j = C.out j) (k : Fin (2 ^ n)) :
-    (truthTable gates out)[k.1] = C.eval ((BitString.equivFin n).symm k) := by
+    (truthTable gates out)[k.val] = C.eval ((BitString.equivFin n).symm k) := by
   have hm : ∀ T : Finset (Fin n),
       (multiplicity gates)[(maskIndex T : ℕ)] = C.gateMultiplicity T := fun T => by
     rw [getElem_multiplicity, maskSet_maskIndex, gateMultiplicity, ← hgates, Multiset.coe_count]
-  have hg : subsetZeta (fun T => (multiplicity gates)[(maskIndex T : ℕ)]) (maskSet n k.1) =
+  have hg : subsetZeta (fun T => (multiplicity gates)[(maskIndex T : ℕ)]) (maskSet n k.val) =
       C.count ((BitString.equivFin n).symm k) := by
     rw [equivFin_symm_eq_decide_mem_maskSet, count_eq_subsetZeta]
     exact Finset.sum_congr rfl fun T _ => hm T
@@ -229,7 +229,7 @@ enc_structure encSymAndInstance : SymAndInstance where
 
 /-- The set of input positions `i : Fin n` read by a bit-vector gate mask `g`. -/
 @[expose] def gateSet (n : ℕ) (g : List Bool) : Finset (Fin n) :=
-  Finset.univ.filter fun i : Fin n => g.getD i.1 false = true
+  Finset.univ.filter fun i : Fin n => g.getD i.val false = true
 
 /-- The `SYM ∘ AND` circuit represented by `x : SymAndInstance` and symmetric gate `out`. -/
 @[expose] def SymAndInstance.toSymAnd (x : SymAndInstance) (out : ℕ → Bool) :
@@ -1163,7 +1163,7 @@ private def normGates (x : SymAndInstance) : List (List Bool) :=
 
 private theorem gateSet_normGate (n : ℕ) (g : List Bool) :
     Finset.univ.filter (fun i : Fin n =>
-      ((List.range n).map fun j => g.getD j false).getD i.1 false = true) =
+      ((List.range n).map fun j => g.getD j false).getD i.val false = true) =
       gateSet n g := by
   ext i
   simp [gateSet, List.getD_eq_getElem?_getD]
@@ -2253,10 +2253,10 @@ private theorem length_yatesStep_iter_two_pow {n i : ℕ} {L : List ℕ} (hL : L
     exact (length_yatesStep_two_mul ((ih (by omega)).trans hpow)).trans hpow.symm
 
 private def rotMaskSet (n i k : ℕ) : Finset (Fin n) :=
-  Finset.univ.filter fun j : Fin n => k.testBit ((j.1 + (n - i)) % n) = true
+  Finset.univ.filter fun j : Fin n => k.testBit ((j.val + (n - i)) % n) = true
 
 private def yatesPred (n i k : ℕ) (T : Finset (Fin n)) : Prop :=
-  ∀ j : Fin n, if j.1 < i then (j ∈ T → j ∈ rotMaskSet n i k)
+  ∀ j : Fin n, if j.val < i then (j ∈ T → j ∈ rotMaskSet n i k)
     else (j ∈ T ↔ j ∈ rotMaskSet n i k)
 
 private instance (n i k : ℕ) (T : Finset (Fin n)) : Decidable (yatesPred n i k T) :=
@@ -2305,24 +2305,24 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
     have hk₁_lt : k₁ < 2 ^ n := by dsimp [k₁, k₀]; omega
     have ih₀ := ih hi_le k₀ hk₀_lt
     have ih₁ := ih hi_le k₁ hk₁_lt
-    have hrot_other : ∀ j : Fin n, j.1 ≠ i →
+    have hrot_other : ∀ j : Fin n, j.val ≠ i →
         (j ∈ rotMaskSet n i k₀ ↔ j ∈ rotMaskSet n (i + 1) k) ∧
         (j ∈ rotMaskSet n i k₁ ↔ j ∈ rotMaskSet n (i + 1) k) := fun j hj => by
-      let r := (j.1 + (n - (i + 1))) % n
+      let r := (j.val + (n - (i + 1))) % n
       have hr_lt_n : r < n := Nat.mod_lt _ hn
       have hr_ne : r ≠ n - 1 := by
         intro heq
         dsimp only [r] at heq
-        have hsum_lt : j.1 + (n - (i + 1)) < 2 * n := by omega
-        by_cases hlt : j.1 + (n - (i + 1)) < n
+        have hsum_lt : j.val + (n - (i + 1)) < 2 * n := by omega
+        by_cases hlt : j.val + (n - (i + 1)) < n
         · rw [Nat.mod_eq_of_lt hlt] at heq; exact hj (by omega)
-        · have hmod : (j.1 + (n - (i + 1))) % n = j.1 + (n - (i + 1)) - n :=
+        · have hmod : (j.val + (n - (i + 1))) % n = j.val + (n - (i + 1)) - n :=
             Nat.mod_eq_sub_mod (by omega) |>.trans (Nat.mod_eq_of_lt (by omega))
           rw [hmod] at heq
           omega
       have hr_lt : r < n - 1 := by omega
-      have hidx : (j.1 + (n - i)) % n = r + 1 := by
-        have hsum : j.1 + (n - i) = (j.1 + (n - (i + 1))) + 1 := by omega
+      have hidx : (j.val + (n - i)) % n = r + 1 := by
+        have hsum : j.val + (n - i) = (j.val + (n - (i + 1))) + 1 := by omega
         rw [hsum, Nat.add_mod]
         change (r + 1 % n) % n = r + 1
         by_cases hn1 : 1 < n
@@ -2387,11 +2387,11 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
           have hi0 := h ⟨i, hi_lt⟩
           simp only [lt_irrefl, ↓reduceIte] at hi0
           refine ⟨fun j => ?_, fun hmem => hrot_i0 (hi0.1 hmem)⟩
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
             subst hjf
             simp [hrot_i_next, hbit, show i < i + 1 by omega]
-          · have hlt_eq : (j.1 < i + 1) ↔ (j.1 < i) := by omega
+          · have hlt_eq : (j.val < i + 1) ↔ (j.val < i) := by omega
             have hro := (hrot_other j hj).1
             have hj0 := h j
             split_ifs at hj0 ⊢ with h1 h2
@@ -2400,11 +2400,11 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
             · omega
             · exact hj0.trans hro
         · rintro ⟨h, hni⟩ j
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
             subst hjf
             simp [hrot_i0, hni]
-          · have hlt_eq : (j.1 < i + 1) ↔ (j.1 < i) := by omega
+          · have hlt_eq : (j.val < i + 1) ↔ (j.val < i) := by omega
             have hro := (hrot_other j hj).1
             have hj0 := h j
             split_ifs at hj0 ⊢ with h1 h2
@@ -2418,7 +2418,7 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
           have hi1 := h ⟨i, hi_lt⟩
           simp only [lt_irrefl, ↓reduceIte] at hi1
           refine ⟨fun j => ?_, hi1.2 hrot_i1⟩
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
             subst hjf
             simp [hrot_i_next, hbit, show i < i + 1 by omega]
@@ -2430,7 +2430,7 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
             · omega
             · exact hj1.trans hro
         · rintro ⟨h, hmem⟩ j
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
             subst hjf
             simp [hrot_i1, hmem]
@@ -2469,7 +2469,7 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
       have hiff : yatesPred n i k₀ T ↔ yatesPred n (i + 1) k T := by
         constructor
         · intro h j
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
             subst hjf
             have hj0 := h ⟨i, hi_lt⟩
@@ -2483,7 +2483,7 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
             · omega
             · exact hj0.trans hro
         · intro h j
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · have hjf : j = ⟨i, hi_lt⟩ := Fin.ext hj
             subst hjf
             have hj1 := h ⟨i, hi_lt⟩

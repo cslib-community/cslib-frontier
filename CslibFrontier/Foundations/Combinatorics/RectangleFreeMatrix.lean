@@ -186,13 +186,13 @@ and `β`, with entry `(r, c)` equal to `true` iff `r × c` is an all-`true` `2 �
 ([Sergeev2014ORComplement], p. 2). -/
 @[expose] def twoRectMatrix (A : Matrix α β Bool) :
     Matrix {r : Finset α // #r = 2} {c : Finset β // #c = 2} Bool :=
-  Matrix.of fun r c => @decide (∀ (i) (_ : i ∈ r.1) (j) (_ : j ∈ c.1), A i j = true)
+  Matrix.of fun r c => @decide (∀ (i) (_ : i ∈ r.val) (j) (_ : j ∈ c.val), A i j = true)
     (Finset.decidableDforallFinset (_hp := fun _ _ => Finset.decidableDforallFinset))
 
 /-- Entry characterization of `twoRectMatrix`. -/
 @[simp] theorem twoRectMatrix_apply (A : Matrix α β Bool)
     (r : {r : Finset α // #r = 2}) (c : {c : Finset β // #c = 2}) :
-    twoRectMatrix A r c = true ↔ ∀ i ∈ r.1, ∀ j ∈ c.1, A i j = true := by
+    twoRectMatrix A r c = true ↔ ∀ i ∈ r.val, ∀ j ∈ c.val, A i j = true := by
   simp only [twoRectMatrix, Matrix.of_apply, decide_eq_true_eq]
 
 private theorem two_mul_choose_two_add (d : ℕ) : 2 * d.choose 2 + d = d ^ 2 := by
@@ -203,12 +203,12 @@ private theorem two_mul_choose_two_add (d : ℕ) : 2 * d.choose 2 + d = d ^ 2 :=
     linarith [ih, show (d + 1) ^ 2 = d ^ 2 + 2 * d + 1 by ring]
 
 private theorem card_twoSubsets_subset [Fintype α] [DecidableEq α] (S : Finset α) :
-    #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ S) = (#S).choose 2 := by
+    #(univ.filter fun r : {r : Finset α // #r = 2} => r.val ⊆ S) = (#S).choose 2 := by
   rw [← card_powersetCard 2 S]
-  refine card_bij (fun r _ => r.1) ?_ ?_ ?_
+  refine card_bij (fun r _ => r.val) ?_ ?_ ?_
   · intro r hr
     rw [mem_filter] at hr
-    exact mem_powersetCard.mpr ⟨hr.2, r.2⟩
+    exact mem_powersetCard.mpr ⟨hr.2, r.property⟩
   · intro r₁ _ r₂ _ h
     exact Subtype.ext h
   · intro s hs
@@ -224,10 +224,10 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
   classical
   intro σ n
   set colCov : {c : Finset β // #c = 2} → Finset α :=
-    fun c => univ.filter fun i : α => ∀ j ∈ c.1, A i j = true with hcolCov
+    fun c => univ.filter fun i : α => ∀ j ∈ c.val, A i j = true with hcolCov
   -- Double count `(i, c)` with `c.1 ⊆ {j | A i j = true}`.
   have hsum_b : ∑ c : {c : Finset β // #c = 2}, #(colCov c) = σ := by
-    let P : α → {c : Finset β // #c = 2} → Prop := fun i c => ∀ j ∈ c.1, A i j = true
+    let P : α → {c : Finset β // #c = 2} → Prop := fun i c => ∀ j ∈ c.val, A i j = true
     calc ∑ c : {c : Finset β // #c = 2}, #(colCov c)
         = ∑ c : {c : Finset β // #c = 2}, ∑ i : α, if P i c then 1 else 0 := by
           refine sum_congr rfl fun c _ => ?_
@@ -250,7 +250,7 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
     have hsplit : #(univ.filter fun p : {r : Finset α // #r = 2} × {c : Finset β // #c = 2} =>
         twoRectMatrix A p.1 p.2 = true) =
         ∑ c : {c : Finset β // #c = 2},
-          #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ colCov c) := by
+          #(univ.filter fun r : {r : Finset α // #r = 2} => r.val ⊆ colCov c) := by
       rw [← card_sigma]
       refine card_bij (fun p _ => ⟨p.2, p.1⟩) ?_ ?_ ?_
       · rintro ⟨r, c⟩ hp
@@ -383,7 +383,7 @@ private theorem le_card_biUnion_of_card_twoSubsets [DecidableEq α]
     rw [← card_map ⟨Subtype.val, Subtype.val_injective⟩]
     refine card_le_card fun s hs => ?_
     obtain ⟨r, hr, rfl⟩ := mem_map.mp hs
-    exact mem_powersetCard.mpr ⟨subset_biUnion_of_mem Subtype.val hr, r.2⟩
+    exact mem_powersetCard.mpr ⟨subset_biUnion_of_mem Subtype.val hr, r.property⟩
   rw [card_powersetCard] at hinj
   have hch := hinj.trans (Nat.choose_le_choose 2 hle)
   omega

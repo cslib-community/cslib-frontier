@@ -1746,7 +1746,7 @@ private theorem sumDomainValues_result {args : SumDomainArgs} {outScope : List �
     (Memory.spec 0).clientResult s (sumDomainValues args) =
       ∑ a : Fin args.dom,
         (bucket.map fun f => f.evalAt args.dom fun v =>
-          if v = args.x then a.1
+          if v = args.x then a.val
           else assignScope outScope (lsbDecode args.dom outScope.length args.idx) v).prod := by
   unfold sumDomainValues
   rw [StateTransitionSpec.clientResult_bind,
@@ -2012,7 +2012,7 @@ private theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope :
     let entryFn : ℕ → ℕ := fun idx =>
       ∑ a : Fin args.dom,
         (bucket.map fun f => f.evalAt args.dom fun v =>
-          if v = args.x then a.1
+          if v = args.x then a.val
           else assignScope outScope (lsbDecode args.dom outScope.length idx) v).prod
     have hloop : ∀ (rem curIdx : ℕ) (t : Memory.State),
         curIdx + rem = numEntries →
@@ -3907,7 +3907,7 @@ private theorem capFactor_elimBucketTable (d x : ℕ) (bucket : List (FactorTabl
   simp only [elimBucketTable, Array.getElem_ofFn]
   have hsum : (∑ a : Fin d,
       (bucket.map fun f => f.evalAt d fun u =>
-        if u = x then a.1
+        if u = x then a.val
         else assignScope (bucketOutScope x bucket)
           (lsbDecode d (bucketOutScope x bucket).length i) u).prod) ≤
       ∑ _ : Fin d, (bucket.map capFactor).prod := by
