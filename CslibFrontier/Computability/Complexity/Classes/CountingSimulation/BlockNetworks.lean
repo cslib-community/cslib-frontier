@@ -93,13 +93,19 @@ instance (t : ℕ) : NeZero (blockLength t) := ⟨Nat.pos_iff_ne_zero.mp (one_le
 
 variable {k s : ℕ} {State : Type} (machine : MultiTapePTM k Bool State) (e : State ≃ Fin s)
 
+/-- Clock bound `p.2.1` in a block-network input triple `(x, t, σ)`. -/
+abbrev netClock (p : List Bool × ℕ × ℕ) : ℕ := p.2.1
+
+/-- Encoded schedule index `p.2.2` in a block-network input triple `(x, t, σ)`. -/
+abbrev netSchedule (p : List Bool × ℕ × ℕ) : ℕ := p.2.2
+
 /-- **The block-counting network** of the input `x`, the clock `t` and the schedule number `σ`:
 the explicit block-counting network with blocks of `blockLength t` steps, `numBlocks t`
 intervals and the schedule of `σ`, with its `numBlocks t * (3 * k + 2)` row vertices. -/
 @[expose] noncomputable def blockNetworkOf (p : List Bool × ℕ × ℕ) :
     ℕ × ExplicitTensorNetwork ℕ :=
-  (numBlocks p.2.1 * (3 * k + 2), machine.explicitBlockNetwork p.1 (blockLength p.2.1)
-    (MultiTapePTM.scheduleOfNat k (numBlocks p.2.1) p.2.2) e)
+  (numBlocks (netClock p) * (3 * k + 2), machine.explicitBlockNetwork p.1 (blockLength (netClock p))
+    (MultiTapePTM.scheduleOfNat k (numBlocks (netClock p)) (netSchedule p)) e)
 
 /-- An interval of a clock `t` has at most `2 (t + 2)` choice strings. -/
 theorem two_pow_blockLength_le (t : ℕ) : 2 ^ blockLength t ≤ 2 * (t + 2) := by
@@ -176,7 +182,7 @@ theorem explicitAdmissible_blockNetworkOf (x : List Bool) {t : ℕ} (σ : ℕ) (
   refine ⟨h1, h2, h3, ?_, fun v hv => machine.length_table_explicitBlockNetwork x _ _ e hv, ?_⟩
   · change (machine.explicitBlockNetwork x (blockLength t) _ e).vertices.length ≤ _
     rw [MultiTapePTM.length_vertices_explicitBlockNetwork, MultiTapePTM.letterBits]
-    dsimp only
+    dsimp only [blockNetworkOf, netClock]
     have hq : numBlocks t ≤ 2 * t := le_trans (Nat.le_mul_of_pos_right _ hb1) hqb
     have e1 : numBlocks t * (3 * k + 2) ≤ 2 * t * (3 * k + 2) := Nat.mul_le_mul_right _ hq
     have e2 : numBlocks t * (3 * k + 1) * ((s + k + 4) * blockLength t) =
@@ -194,7 +200,7 @@ theorem explicitAdmissible_blockNetworkOf (x : List Bool) {t : ℕ} (σ : ℕ) (
     omega
   · change t ≤ (machine.explicitBlockNetwork x (blockLength t) _ e).numEdges
     rw [MultiTapePTM.numEdges_explicitBlockNetwork, MultiTapePTM.letterBits]
-    dsimp only
+    dsimp only [blockNetworkOf, netClock]
     have : numBlocks t * blockLength t * 1 ≤
         numBlocks t * blockLength t * (2 * (3 * k + 1) * (s + k + 4)) :=
       Nat.mul_le_mul_left _ (by nlinarith)

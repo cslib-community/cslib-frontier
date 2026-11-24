@@ -38,44 +38,40 @@ private theorem computableInPolyTime_branches (q : ℕ) :
   intro symbols _
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_endpointRow (q : ℕ) :
     ComputableInPolyTime (fun p : ℕ × Branch q => endpointRow p.1 p.2)
       (encPair encUnary (encBranch q)) encUnary := by
   unfold endpointRow
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_endpointSymbol (q : ℕ) :
     ComputableInPolyTime (endpointSymbol (q := q)) (encBranch q) (encFinEnum (Fin q)) := by
   unfold endpointSymbol
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_branchName (q : ℕ) :
     ComputableInPolyTime (branchName (q := q)) (encBranch q) encUnary := by
   have ht : ComputableInPolyTime (fun b : Branch q =>
-      (PortGraph.tagEquiv q (.inr (.inr (b.first, b.second)))).val) (encBranch q) encUnary := by
-    have h := ComputableInPolyTime.of_finite (encIn := encPair
-      (encFinEnum (Fin q)) (encFinEnum (Fin q))) (encOut := encUnary)
-      (fun p : Fin q × Fin q => (PortGraph.tagEquiv q (.inr (.inr p))).val)
-    simpa only [Function.comp_def] using h.comp
-      ((encBranch_first_polyTime q ComputableInPolyTime.id').prod
-        (encBranch_second_polyTime q ComputableInPolyTime.id'))
+      (PortGraph.tagEquiv q (.inr (.inr (b.first, b.second)))).val) (encBranch q) encUnary :=
+    (ComputableInPolyTime.of_finite
+      (fun p : Fin q × Fin q => (PortGraph.tagEquiv q (.inr (.inr p))).val)).comp
+      (g := fun b : Branch q => (b.first, b.second)) (by fun_prop)
   unfold branchName name
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_incident (q : ℕ) (a : Fin q) :
     ComputableInPolyTime (fun p : ℕ × ℕ => incident p.1 p.2 a)
       (encPair encUnary encUnary) (encList (encBranch q)) := by
   unfold incident
   apply ComputableInPolyTime.filterWithInput
-    ((computableInPolyTime_branches q).comp (ComputableInPolyTime.fst _ _))
-  have hr : ComputableInPolyTime (fun p : (ℕ × ℕ) × Branch q => endpointRow p.1.1 p.2)
-      (encPair (encPair encUnary encUnary) (encBranch q)) encUnary := by
-    simpa only [Function.comp_def] using (computableInPolyTime_endpointRow q).comp
-      (show ComputableInPolyTime (fun p : (ℕ × ℕ) × Branch q => (p.1.1, p.2))
-        (encPair (encPair encUnary encUnary) (encBranch q))
-        (encPair encUnary (encBranch q)) from by fun_prop)
-  have hs := (computableInPolyTime_endpointSymbol q).comp
-    (ComputableInPolyTime.snd (encPair encUnary encUnary) (encBranch q))
+    ((computableInPolyTime_branches q).comp (by fun_prop))
+  have hr := (computableInPolyTime_endpointRow q).comp
+    (encIn := encPair (encPair encUnary encUnary) (encBranch q))
+    (g := fun p : (ℕ × ℕ) × Branch q => (p.1.1, p.2)) (by fun_prop)
   fun_prop
 
 variable {q : ℕ} (H : Digraph (Fin q)) [DecidableRel H.Adj] (hq : 0 < q)
@@ -167,6 +163,7 @@ abbrev encStateInput (q : ℕ) : (ℕ × List (Fin q)) ↪ List Bool := encPair 
 private abbrev encStatePosition (q : ℕ) : ((ℕ × List (Fin q)) × ℕ) ↪ List Bool :=
   encPair (encStateInput q) encUnary
 
+@[local fun_prop]
 private theorem computableInPolyTime_selectedAt (a : Fin q) :
     ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => selected hq p.1.2 p.2 a)
       (encStatePosition q) encBool := by
@@ -176,30 +173,23 @@ private theorem computableInPolyTime_selectedAt (a : Fin q) :
 private theorem computableInPolyTime_branchBit : ComputableInPolyTime
     (fun p : (ℕ × List (Fin q)) × Branch q => branchBit hq p.1.1 p.1.2 p.2)
       (encPair (encStateInput q) (encBranch q)) encBool := by
-  have hr : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × Branch q =>
-      endpointRow p.1.1 p.2) (encPair (encStateInput q) (encBranch q)) encUnary := by
-    simpa only [Function.comp_def] using (computableInPolyTime_endpointRow q).comp
-      (show ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × Branch q => (p.1.1, p.2))
-        (encPair (encStateInput q) (encBranch q)) (encPair encUnary (encBranch q)) from by fun_prop)
-  have hs := (computableInPolyTime_endpointSymbol q).comp
-    (ComputableInPolyTime.snd (encStateInput q) (encBranch q))
+  have hr := (computableInPolyTime_endpointRow q).comp
+    (encIn := encPair (encStateInput q) (encBranch q))
+    (g := fun p : (ℕ × List (Fin q)) × Branch q => (p.1.1, p.2)) (by fun_prop)
   unfold branchBit selected
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_fixedBranchBit (a b : Fin q) (side : Bool) :
     ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
-      branchBit hq p.1.1 p.1.2 ⟨p.2, a, b, side⟩) (encStatePosition q) encBool := by
-  have hp : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
-      (p.1, (⟨p.2, a, b, side⟩ : Branch q))) (encStatePosition q)
-      (encPair (encStateInput q) (encBranch q)) := by fun_prop
-  simpa only [Function.comp_def] using (computableInPolyTime_branchBit hq).comp hp
+      branchBit hq p.1.1 p.1.2 ⟨p.2, a, b, side⟩) (encStatePosition q) encBool :=
+  (computableInPolyTime_branchBit hq).comp
+    (g := fun p : (ℕ × List (Fin q)) × ℕ => (p.1, (⟨p.2, a, b, side⟩ : Branch q))) (by fun_prop)
 
 private theorem computableInPolyTime_relationBits (a b : Fin q) :
     ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
       [branchBit hq p.1.1 p.1.2 ⟨p.2, a, b, false⟩,
         branchBit hq p.1.1 p.1.2 ⟨p.2, a, b, true⟩]) (encStatePosition q) (encList encBool) := by
-  have hf := computableInPolyTime_fixedBranchBit hq a b false
-  have ht := computableInPolyTime_fixedBranchBit hq a b true
   fun_prop
 
 private theorem computableInPolyTime_boundaryBits (tag : Tag q) :
@@ -208,28 +198,20 @@ private theorem computableInPolyTime_boundaryBits (tag : Tag q) :
   rcases tag with _ | (a | ⟨a, b⟩)
   · have hm : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
         ((List.finRange q).filter (fun a => decide (a.val ≠ 0))).map (selected hq p.1.2 p.2))
-        (encStatePosition q) (encList encBool) := by
-      apply ComputableInPolyTime.mapConst
-      intro a _
-      exact computableInPolyTime_selectedAt hq a
-    have ha := computableInPolyTime_selectedAt hq ⟨0, hq⟩
+        (encStatePosition q) (encList encBool) :=
+      ComputableInPolyTime.mapConst _ (fun a _ => computableInPolyTime_selectedAt hq a)
     change ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
       _ ++ [!(selected hq p.1.2 p.2 ⟨0, hq⟩)]) _ _
     fun_prop
-  · have hi : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => incident p.1.1 p.2 a)
-        (encStatePosition q) (encList (encBranch q)) := by
-      simpa only [Function.comp_def] using (computableInPolyTime_incident q a).comp
-        (show ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => (p.1.1, p.2))
-          (encStatePosition q) (encPair encUnary encUnary) from by fun_prop)
-    have hm : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
+  · have hm : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
         (incident p.1.1 p.2 a).map (branchBit hq p.1.1 p.1.2))
-        (encStatePosition q) (encList encBool) := by
-      apply ComputableInPolyTime.mapWithInput hi
-      have hp : ComputableInPolyTime (fun p : ((ℕ × List (Fin q)) × ℕ) × Branch q =>
-          (p.1.1, p.2)) (encPair (encStatePosition q) (encBranch q))
-          (encPair (encStateInput q) (encBranch q)) := by fun_prop
-      simpa only [Function.comp_def] using (computableInPolyTime_branchBit hq).comp hp
-    have ha := computableInPolyTime_selectedAt hq a
+        (encStatePosition q) (encList encBool) :=
+      ComputableInPolyTime.mapWithInput
+        ((computableInPolyTime_incident q a).comp (encIn := encStatePosition q)
+          (g := fun p : (ℕ × List (Fin q)) × ℕ => (p.1.1, p.2)) (by fun_prop))
+        ((computableInPolyTime_branchBit hq).comp
+          (encIn := encPair (encStatePosition q) (encBranch q))
+          (g := fun p : ((ℕ × List (Fin q)) × ℕ) × Branch q => (p.1.1, p.2)) (by fun_prop))
     change ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ =>
       _ ++ [selected hq p.1.2 p.2 a]) _ _
     fun_prop
@@ -240,19 +222,15 @@ private theorem computableInPolyTime_ownedBits (tag : Tag q) :
       (encStatePosition q) (encList encBool) := by
   rcases tag with _ | (a | ⟨a, b⟩)
   · exact ComputableInPolyTime.const []
-  · have ha := computableInPolyTime_selectedAt hq a
-    change ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => [selected hq p.1.2 p.2 a]) _ _
+  · change ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => [selected hq p.1.2 p.2 a]) _ _
     fun_prop
   · exact computableInPolyTime_relationBits hq a b
 
 private theorem computableInPolyTime_stateBlock (tag : Tag q) :
     ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => stateBlock H hq p.1.1 p.1.2 p.2 tag)
       (encStatePosition q) (Program.encStateBlock (3 * q)) := by
-  have hs : ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => shape H hq p.1.1 p.2 tag)
-      (encStatePosition q) (Cell.encBounded (3 * q)) := by
-    simpa only [Function.comp_def] using (computableInPolyTime_shape H hq tag).comp
-      (show ComputableInPolyTime (fun p : (ℕ × List (Fin q)) × ℕ => (p.1.1, p.2))
-        (encStatePosition q) (encPair encUnary encUnary) from by fun_prop)
+  have hs := (computableInPolyTime_shape H hq tag).comp (encIn := encStatePosition q)
+    (g := fun p : (ℕ × List (Fin q)) × ℕ => (p.1.1, p.2)) (by fun_prop)
   unfold stateBlock
   exact Program.encStateBlock_mk_polyTime (3 * q) hs
     (computableInPolyTime_boundaryBits hq tag) (computableInPolyTime_ownedBits hq tag)
