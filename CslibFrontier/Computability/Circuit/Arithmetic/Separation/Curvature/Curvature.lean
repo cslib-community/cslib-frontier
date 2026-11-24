@@ -8,9 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Fan
-public import CslibFrontier.Foundations.Geometry.CAT0.Toolkit
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Fan
+public import CslibFrontier.Foundations.Geometry.CAT0.Basic
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
+import Mathlib.Topology.MetricSpace.Completion
 import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Algebra.Order.Star.Real
 import Mathlib.Tactic.FieldSimp

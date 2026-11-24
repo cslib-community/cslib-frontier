@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Means
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
-public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Means
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
 import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Algebra.Order.Star.Int
 import Mathlib.Algebra.Order.Star.Real
@@ -43,8 +44,6 @@ The two sheets are indexed by `Bool`; `x true` and `x false` are the paper's `x`
   Theorem C.1 of the paper; module `Paper.Fan` (`thm_cn`)
 -/
 
-@[expose] public section
-
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
 open Finset Filter Topology Cslib.PartyTensor Cslib.Circuits.Arithmetic.Separation
@@ -53,7 +52,7 @@ open Finset Filter Topology Cslib.PartyTensor Cslib.Circuits.Arithmetic.Separati
 variable {K : Type} [Field K] {Y : Type} {w : Y → Y → ℝ}
 
 /-- Points at distance 0 have the same distances from all points. -/
-private theorem dist_congr_of_zero (hw : IsPrice K w) {a b : Y} (h : w a b = 0) (c : Y) : w a c =
+theorem dist_congr_of_zero (hw : IsPrice K w) {a b : Y} (h : w a b = 0) (c : Y) : w a c =
     w b c :=
     by
   have h1 := hw.triangle a b c
@@ -62,7 +61,7 @@ private theorem dist_congr_of_zero (hw : IsPrice K w) {a b : Y} (h : w a b = 0) 
   linarith
 
 /-- Steps of length at most c add up. -/
-private theorem dist_chain_le (hw : IsPrice K w) (p : ℕ → Y)
+theorem dist_chain_le (hw : IsPrice K w) (p : ℕ → Y)
     {c : ℝ} {M : ℕ} (h : ∀ i < M, w (p i) (p (i + 1)) ≤ c)
     (i i' : ℕ) (hi : i ≤ M) (hi' : i' ≤ M) : w (p i) (p i') ≤ |(i : ℝ) - i'| * c := by
   have key : ∀ i l, i + l ≤ M → w (p i) (p (i + l)) ≤ l * c := by
@@ -94,7 +93,7 @@ private theorem dist_chain_le (hw : IsPrice K w) (p : ℕ → Y)
 /-- New points on segments, by Proposition A.8: for every q the point (q, j), 0 ≤ j ≤ M, is
 placed at b q with
 probability j/M and otherwise at a q, with one random number for all. -/
-private theorem thm_cn_segments (hw : IsPrice K w) {Q : Type} (a b : Q → Y) {M : ℕ} (hM : 0 < M) :
+theorem thm_cn_segments (hw : IsPrice K w) {Q : Type} (a b : Q → Y) {M : ℕ} (hM : 0 < M) :
     ∃ w' : Y ⊕ (Q × ℕ) → Y ⊕ (Q × ℕ) → ℝ, IsPrice K w' ∧
       (∀ y y', w' (Sum.inl y) (Sum.inl y') = w y y') ∧
       (∀ q q' j, j ≤ M → w' (Sum.inr (q, j)) (Sum.inr (q', j)) ≤
@@ -210,7 +209,7 @@ one random number for all.
 Then, by the same proposition, add points G(i,j), 0 ≤ j ≤ Tn², placed at z with probability j/(Tn²)
 and otherwise at γ_i,
 again with one random number. Then the four estimates hold. -/
-private theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
+theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     {D : ℝ} (hD : ∀ b, w (x b) m ≤ D)
     {T n : ℕ}
     (hT : 0 < T) (hn : 0 < n) : ∃ d : FanPts Y → FanPts Y → ℝ, IsFan K w x m z D T n d := by
@@ -317,7 +316,7 @@ def fanLen (d : FanPts Y → FanPts Y → ℝ) (z : Y) (n : ℕ) (b : Bool) (i :
 def fanPot (d : FanPts Y → FanPts Y → ℝ) (x : Bool → Y) (T n : ℕ) (b : Bool) (P : ℤ × ℤ) : ℝ :=
   d (FanPts.old (x b)) (fanPt T n (b, P))
 
-private theorem fanPt_mk (T n : ℕ) (b : Bool) (i k : ℤ) :
+theorem fanPt_mk (T n : ℕ) (b : Bool) (i k : ℤ) :
     (fanPt T n (b, (i, k)) : FanPts Y) = G b (clamp (n ^ 2) i) (clamp (n ^ 2 * T) (i + k + n)) :=
         rfl
 
@@ -325,7 +324,7 @@ namespace IsFan
 
 variable {x : Bool → Y} {m z : Y} {D : ℝ} {T n : ℕ} {d : FanPts Y → FanPts Y → ℝ}
 
-private theorem D_nonneg (F : IsFan K w x m z D T n d) (hn : 0 < n) : 0 ≤ D := by
+theorem D_nonneg (F : IsFan K w x m z D T n d) (hn : 0 < n) : 0 ≤ D := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   have h := (F.price.nonneg _ _).trans (F.γ_step true 0 (by positivity))
   have h2 := mul_nonneg h (sq_nonneg (n : ℝ))
@@ -339,7 +338,7 @@ theorem γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i i' : ℕ)
   refine (mul_le_mul_of_nonneg_left h (by positivity)).trans (le_of_eq ?_)
   field_simp
 
-private theorem G_i_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i i' j : ℕ)
+theorem G_i_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i i' j : ℕ)
     (hi : i ≤ n ^ 2)
     (hi' : i' ≤ n ^ 2)
     (hj : j ≤ n ^ 2 * T) :
@@ -350,7 +349,7 @@ private theorem G_i_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i 
   refine (mul_le_mul_of_nonneg_left h (by positivity)).trans (le_of_eq ?_)
   field_simp
 
-private theorem G_j_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i j j' : ℕ)
+theorem G_j_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i j j' : ℕ)
     (hj : j ≤ n ^ 2 * T)
     (hj' : j' ≤ n ^ 2 * T) :
     (n : ℝ) ^ 2 * d (G b i j) (G b i j') ≤ |(j : ℝ) - j'| / T * d (FanPts.old z) (γ b i) := by
@@ -359,17 +358,17 @@ private theorem G_j_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i 
   refine (mul_le_mul_of_nonneg_left h (by positivity)).trans (le_of_eq ?_)
   field_simp
 
-private theorem z_γ_last (F : IsFan K w x m z D T n d) (b : Bool) : d (FanPts.old z) (γ b (n ^ 2)) =
+theorem z_γ_last (F : IsFan K w x m z D T n d) (b : Bool) : d (FanPts.old z) (γ b (n ^ 2)) =
     w z m := by
   rw [F.price.symm, dist_congr_of_zero F.price (F.γ_last b), F.price.symm, F.old]
 
-private theorem z_γ_zero (F : IsFan K w x m z D T n d) (b : Bool) : d (FanPts.old z) (γ b 0) =
+theorem z_γ_zero (F : IsFan K w x m z D T n d) (b : Bool) : d (FanPts.old z) (γ b 0) =
     w z (x b) :=
     by
   rw [F.price.symm, dist_congr_of_zero F.price (F.γ_zero b), F.price.symm, F.old]
 
 /-- As L_i ≤ D + |zm| … -/
-private theorem z_γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℕ)
+theorem z_γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℕ)
     (hi : i ≤ n ^ 2) :
     d (FanPts.old z) (γ b i) ≤ D + w z m := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
@@ -386,11 +385,11 @@ private theorem z_γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i
   linarith
 
 /-- W_n is a price on the two sheets. -/
-private theorem fanDist_price (F : IsFan K w x m z D T n d) : IsPrice K (fanDist d T n) :=
+theorem fanDist_price (F : IsFan K w x m z D T n d) : IsPrice K (fanDist d T n) :=
   (F.price.comp (fanPt T n)).smul (by positivity)
 
 /-- … we may take Λ = 2D + |zm|. -/
-private theorem lipschitz (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : Bool)
+theorem lipschitz (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : Bool)
     (P h : ℤ × ℤ) :
     fanDist d T n (b, P) (b, P + h) ≤ (2 * D + w z m) * (|(h.1 : ℝ)| + |(h.2 : ℝ)|) := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
@@ -439,7 +438,7 @@ private theorem lipschitz (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n
   linarith
 
 /-- A step in the direction (1,−1) changes i only: it has length at most ρD. -/
-private theorem step_ii (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : Bool) (i k : ℤ)
+theorem step_ii (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : Bool) (i k : ℤ)
     (h0 : 0 ≤ i + k + n)
     (h1 : i + k + n ≤ n ^ 2 * T) :
     fanDist d T n (b, (i, k)) (b, (i + 1, k - 1)) ≤ (1 - (i + k + n) / (n ^ 2 * T)) * D := by
@@ -461,7 +460,7 @@ private theorem step_ii (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) 
     _ = D := one_mul D
 
 /-- The distance from z gives a lower bound for W_n: n²(ρL_i − ρ′L_i′) ≤ W_n(P(i,k), P(i′,k′)). -/
-private theorem from_z (F : IsFan K w x m z D T n d) (b : Bool) (i k i' k' : ℤ) (h0 : 0 ≤ i + k + n)
+theorem from_z (F : IsFan K w x m z D T n d) (b : Bool) (i k i' k' : ℤ) (h0 : 0 ≤ i + k + n)
     (h1 : i + k + n ≤ n ^ 2 * T) (h0' : 0 ≤ i' + k' + n) (h1' : i' + k' + n ≤ n ^ 2 * T) :
     (n : ℝ) ^ 2 * ((1 - (i + k + n) / (n ^ 2 * T)) * fanLen d z n b i
       - (1 - (i' + k' + n) / (n ^ 2 * T)) * fanLen d z n b i') ≤ fanDist d T n (b, (i, k))
@@ -477,7 +476,7 @@ private theorem from_z (F : IsFan K w x m z D T n d) (b : Bool) (i k i' k' : ℤ
   linarith
 
 /-- A step in the direction (0,1) has length at most θL_i. -/
-private theorem step_iii (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i k : ℤ)
+theorem step_iii (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i k : ℤ)
     (h0 : 0 ≤ i + k + n)
     (h1 : i + k + 1 + n ≤ n ^ 2 * T) :
     fanDist d T n (b, (i, k)) (b, (i, k + 1)) ≤ fanLen d z n b i / T := by
@@ -493,23 +492,23 @@ private theorem step_iii (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (
   rw [this, abs_neg, abs_one]
   ring
 
-private theorem fanLen_zero (F : IsFan K w x m z D T n d) (b : Bool) : fanLen d z n b 0 =
+theorem fanLen_zero (F : IsFan K w x m z D T n d) (b : Bool) : fanLen d z n b 0 =
     w z (x b) := by
   rw [fanLen, clamp_zero, F.z_γ_zero]
 
-private theorem fanLen_last (F : IsFan K w x m z D T n d) (b : Bool) : fanLen d z n b (n ^ 2) =
+theorem fanLen_last (F : IsFan K w x m z D T n d) (b : Bool) : fanLen d z n b (n ^ 2) =
     w z m := by
   rw [fanLen, clamp_sq, F.z_γ_last]
 
-private theorem fanLen_nonneg (F : IsFan K w x m z D T n d) (b : Bool) (i : ℤ) : 0 ≤
+theorem fanLen_nonneg (F : IsFan K w x m z D T n d) (b : Bool) (i : ℤ) : 0 ≤
     fanLen d z n b i :=
   F.price.nonneg _ _
 
-private theorem fanLen_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool)
+theorem fanLen_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool)
     (i : ℤ) : fanLen d z n b i ≤ D + w z m :=
   F.z_γ_le hn b _ (clamp_le _ _)
 
-private theorem fanLen_step (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℤ) :
+theorem fanLen_step (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℤ) :
     |(n : ℝ) ^ 2 * (fanLen d z n b (i + 1) - fanLen d z n b i)| ≤ D := by
   have h1 := F.γ_le hn b (clamp (n ^ 2) i) (clamp (n ^ 2) (i + 1)) (clamp_le _ _) (clamp_le _ _)
   have h2 : |((clamp (n ^ 2) i : ℕ) : ℝ) - (clamp (n ^ 2) (i + 1) : ℕ)| * D ≤ D := by
@@ -523,7 +522,7 @@ private theorem fanLen_step (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool
   rw [abs_le]
   constructor <;> nlinarith
 
-private theorem fanPot_sub_le (F : IsFan K w x m z D T n d) (b : Bool) (P P' : ℤ × ℤ) :
+theorem fanPot_sub_le (F : IsFan K w x m z D T n d) (b : Bool) (P P' : ℤ × ℤ) :
     (n : ℝ) ^ 2 * (fanPot d x T n b P - fanPot d x T n b P') ≤ fanDist d T n (b, P) (b, P') := by
   apply mul_le_mul_of_nonneg_left _ (by positivity)
   have := F.price.triangle (FanPts.old (x b)) (fanPt T n (b, P')) (fanPt T n (b, P))
@@ -534,7 +533,7 @@ private theorem fanPot_sub_le (F : IsFan K w x m z D T n d) (b : Bool) (P P' : �
 /-- Steps in the direction (1,0) lead to a common end: the two ends have distance 0, so their
 distances from x and v add
 up to at least |xv|. -/
-private theorem fanPot_last (F : IsFan K w x m z D T n d) (k : ℤ) :
+theorem fanPot_last (F : IsFan K w x m z D T n d) (k : ℤ) :
     w (x true) (x false) ≤ fanPot d x T n true (n ^ 2, k) + fanPot d x T n false (n ^ 2, k) := by
   rw [fanPot, fanPot, fanPt_mk, fanPt_mk, clamp_sq]
   have h10 := F.price.triangle (FanPts.old (x true))
@@ -545,7 +544,7 @@ private theorem fanPot_last (F : IsFan K w x m z D T n d) (k : ℤ) :
   exact h10
 
 /-- The steps in the direction (1,0) start from a point within O(1/n) of x, respectively v. -/
-private theorem fanPot_zero (F : IsFan K w x m z D T n d) (b : Bool) (k : ℤ) (h0 : 0 ≤ k + n)
+theorem fanPot_zero (F : IsFan K w x m z D T n d) (b : Bool) (k : ℤ) (h0 : 0 ≤ k + n)
     (h1 : k + n ≤ n ^ 2 * T) :
     fanPot d x T n b (0, k) ≤ (k + n) / (n ^ 2 * T) * w z (x b) := by
   have h6 := F.G_γ b 0 _ (clamp_le (n ^ 2 * T) (0 + k + n))
@@ -562,7 +561,7 @@ end IsFan
 The distance from z gives
 W(P, P + S(1,−1−A)) ≥ |n²ρ(L′ − L) + ASθL′|. Here P = P(i,k), j = i + k + n ≥ AS, ρ = 1 − jθ/n²
 and θ = 1/T. -/
-private theorem thm_cn_iv_step {x : Bool → Y} {m z : Y} {D : ℝ} {T n : ℕ}
+theorem thm_cn_iv_step {x : Bool → Y} {m z : Y} {D : ℝ} {T n : ℕ}
     {d : FanPts Y → FanPts Y → ℝ}
     (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : Bool) (i k : ℤ) (A S : ℕ)
     (h0 : ((A * S : ℕ) : ℤ) ≤ i + k + n) (h1 : i + k + n ≤ n ^ 2 * T) :
@@ -622,30 +621,30 @@ def fanP (d : ℕ → FanPts Y → FanPts Y → ℝ) (x : Bool → Y) (T n : ℕ
 noncomputable def fanΛ₂ (d : ℕ → FanPts Y → FanPts Y → ℝ) (z : Y) : ℝ :=
   mean ((fun n b i _ => fanL d z n b i : WindowFn) * (fun n b i _ => fanL d z n b i : WindowFn))
 
-private theorem fanW_price (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n))
+theorem fanW_price (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n))
     (n : ℕ) : IsPrice K (fanW d T n) :=
   (hd n).fanDist_price
 
 /-- As L_i ≤ D + |zm|, we may take Λ = 2D + |zm|. -/
-private theorem thm_cn_lipschitz (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 0 < T)
+theorem thm_cn_lipschitz (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 0 < T)
     (n : ℕ)
     (b : Bool)
     (P g : ℤ × ℤ) : fanW d T n (b, P) (b, P + g) ≤ (2 * D + w z m) * (|(g.1 : ℝ)| + |(g.2 : ℝ)|) :=
   (hd n).lipschitz hT ((by simp : 0 < max n 1)) b P g
 
-private theorem fanWs_lip (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 0 < T) :
+theorem fanWs_lip (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 0 < T) :
     CrossingMetrics (fanWs d T) (2 * D + w z m) :=
   crossingMetrics_sheetMetrics (fanW_price hd) (thm_cn_lipschitz hd hT)
 
-private theorem fan_w_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (a b : Y) : 0 ≤
+theorem fan_w_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (a b : Y) : 0 ≤
     w a b := by
   rw [← (hd 0).old]
   exact (hd 0).price.nonneg _ _
 
-private theorem fan_D_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : 0 ≤ D :=
+theorem fan_D_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : 0 ≤ D :=
     (hd 0).D_nonneg ((by simp : 0 < max 0 1))
 
-private theorem fanP_sub_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
+theorem fanP_sub_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
     (P P' : ℤ × ℤ) :
     (n : ℝ) ^ 2 * (fanP d x T n b P - fanP d x T n b P') ≤ fanWs d T n b P P' := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -655,7 +654,7 @@ private theorem fanP_sub_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n
       (hd n).fanPot_sub_le b P P'
     rwa [max_eq_left hn] at this
 
-private theorem fanL_step (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
+theorem fanL_step (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
     (i : ℤ) :
     |(n : ℝ) ^ 2 * (fanL d z n b (i + 1) - fanL d z n b i)| ≤ D := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -664,14 +663,14 @@ private theorem fanL_step (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n :
       (hd n).fanLen_step ((by simp : 0 < max n 1)) b i
     rwa [max_eq_left hn] at this
 
-private theorem fanL_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
+theorem fanL_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
     (i : ℤ) :
     0 ≤ fanL d z n b i := (hd n).fanLen_nonneg b i
 
-private theorem fanL_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool) (i : ℤ) :
+theorem fanL_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool) (i : ℤ) :
     fanL d z n b i ≤ D + w z m := (hd n).fanLen_le ((by simp : 0 < max n 1)) b i
 
-private theorem fanL_bd (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : WindowFn.Bounded fun
+theorem fanL_bd (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : WindowFn.Bounded fun
     n b i _ =>
     fanL d z n b i := by
   refine ⟨D + w z m, fun n b i k => ?_⟩
@@ -679,7 +678,7 @@ private theorem fanL_bd (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : Wind
   exact fanL_le hd n b i
 
 /-- … so Λ₂ ≤ (D + |zm|)². -/
-private theorem thm_cn_Λ₂_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : fanΛ₂ d z ≤
+theorem thm_cn_Λ₂_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) : fanΛ₂ d z ≤
     (D + w z m) ^
     2 := by
   have h1 := mean_le ((fanL_bd hd).mul (fanL_bd hd)) (WindowFn.Bounded.const ((D + w z m) ^ 2))
@@ -690,7 +689,7 @@ private theorem thm_cn_Λ₂_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)
   rwa [mean_const] at h1
 
 /-- **Claim (i)** of the proof of Theorem C.1: N(1,0) ≥ D. -/
-private theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
+theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
     (hxx : w (x true) (x false) = 2 * D) : D ≤ meanNorm (fanW d T) (1, 0) := by
   have hT0 : 0 < T := by omega
   have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
@@ -756,7 +755,7 @@ private theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT :
   exact (h7.trans (h4.symm.le.trans h5)).trans h6
 
 /-- **Claim (ii)** of the proof of Theorem C.1: N(1,−1)² ≤ D²(1 − θ + θ²). -/
-private theorem thm_cn_ii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) :
+theorem thm_cn_ii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) :
     meanNorm (fanW d T) (1, -1) ^ 2 ≤ D ^ 2 * (1 - 1 / T + (1 / T : ℝ) ^ 2) := by
   have hT0 : 0 < T := by omega
   have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
@@ -798,10 +797,7 @@ private theorem thm_cn_ii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT 
     refine g.trans ?_
     rw [mul_comm]
     apply mul_le_mul_of_nonneg_left _ hD0
-    have h3 : windowPlace n b i k = (i : ℝ) / n ^ 2 := by
-      rw [windowPlace, clamp_cast (Int.natCast_nonneg i) (by exact_mod_cast hi.le)]
-      push_cast
-      rfl
+    have h3 : windowPlace n b i k = (i : ℝ) / n ^ 2 := windowPlace_natCast hi.le b k
     have h4 : θ * ((i : ℝ) / n ^ 2) = i / (n ^ 2 * T) := by rw [hθ]; field_simp
     rw [h3, h4]
     have h5 : (i : ℝ) / (n ^ 2 * T) ≤ (i + k + n) / (n ^ 2 * T) := by
@@ -831,7 +827,7 @@ private theorem thm_cn_ii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT 
   exact (pow_le_pow_left₀ (meanNorm_nonneg _ _) h3 2).trans h2
 
 /-- **Claim (iii)** of the proof of Theorem C.1: N(0,1)² ≤ θ²Λ₂. -/
-private theorem thm_cn_iii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) :
+theorem thm_cn_iii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) :
     meanNorm (fanW d T) (0, 1) ^ 2 ≤ (1 / T : ℝ) ^ 2 * fanΛ₂ d z := by
   have hT0 : 0 < T := by omega
   have H := fanWs_lip hd hT0
@@ -870,7 +866,7 @@ private theorem thm_cn_iii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT
   exact pow_le_pow_left₀ (meanNorm_nonneg _ _) ((meanNorm_le_meanLength _ _).trans h1) 2
 
 /-- n²|L′² − L²| ≤ 2SD(D + |zm|), for L′ = L_{i+S} and L = L_i. -/
-private theorem thm_cn_iv_bound (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
+theorem thm_cn_iv_bound (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
     (i : ℤ)
     (S : ℕ) :
     |(n : ℝ) ^ 2 * (fanL d z n b (i + S) ^ 2 - fanL d z n b i ^ 2)| ≤ 2 * (D + w z m) * (S * D) :=
@@ -901,14 +897,14 @@ private theorem thm_cn_iv_bound (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)
   rw [abs_of_nonneg (add_nonneg (fanL_nonneg hd n b _) (fanL_nonneg hd n b _))]
   linarith [fanL_le hd n b (i + S), fanL_le hd n b i]
 
-private theorem fanL_sq_bd (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) :
+theorem fanL_sq_bd (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) :
     WindowFn.Bounded fun n b i _ => (n : ℝ) ^ 2 * (fanL d z n b (i + 1) ^ 2 - fanL d z n b i ^ 2) :=
   ⟨2 * (D + w z m) * ((1 : ℕ) * D), fun n b i _ => by simpa using thm_cn_iv_bound hd n b i 1⟩
 
 /-- n²(L′² − L²) telescopes along i to the mean SΓ, with Γ = |mz|² − ½|xz|² − ½|vz|²: here for S
 = 1, and only that the mean
 is at least Γ, which is what claim (iv) uses. (WindowFn.mean_steps passes from S = 1 to any S.) -/
-private theorem thm_cn_iv_telescope (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) :
+theorem thm_cn_iv_telescope (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) :
     w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2 ≤
       mean (fun n b i _ => (n : ℝ) ^ 2 * (fanL d z n b (i + 1) ^ 2 - fanL d z n b i ^ 2)) := by
   have h := le_mean_tele (F := fun n b i _ => fanL d z n b i ^ 2) (fanL_sq_bd hd)
@@ -931,7 +927,7 @@ private theorem thm_cn_iv_telescope (hd : ∀ n, IsFan K w x m z D T (max n 1) (
 ρ ≤ 2θ … and
 n²|L′² − L²| ≤ 2SD(D + |zm|). So for large n, at the points P = P(i,k) of the window,
 W(P, P + S(1,−1−A))² ≥ (ASθ)²L′² + ASθ·n²(L′² − L²) − 4Aθ²S²D(D + |zm|). -/
-private theorem thm_cn_iv_square (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
+theorem thm_cn_iv_square (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
     (A S : ℕ)
     {n : ℕ}
     (hnn : max n 1 = n ∧ (1 : ℝ) ≤ n ∧ A * S ≤ n ∧ n ^ 2 + 2 * n ≤ n ^ 2 * T ∧ n ^ 2 + 2 * n ≤ 2 *
@@ -984,7 +980,7 @@ private theorem thm_cn_iv_square (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n
 /-- The end of claim (iv), for ν: n²(L′² − L²) telescopes along i to the mean SΓ, while … the mean
 of L′² is Λ₂: so
 ν(S(1,−1−A))² ≥ S²(A²θ²Λ₂ + AθΓ − 4Aθ²D(D + |zm|)) for every S. -/
-private theorem thm_cn_iv_mean (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
+theorem thm_cn_iv_mean (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
     (A S : ℕ) :
     ((A : ℝ) ^ 2 * ((1 / T : ℝ) ^ 2 * fanΛ₂ d z)
       + A * (1 / T * (w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2)
@@ -1043,7 +1039,7 @@ private theorem thm_cn_iv_mean (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n))
 Γ = |mz|² − ½|xz|² − ½|vz|² and with 4D(D + |zm|) for the constant in O, which depends on neither A
 nor θ. (Divide by S²;
 for lower bounds it is enough to prove them for ν(Sg)/S for every S.) -/
-private theorem thm_cn_iv (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) (A : ℕ) :
+theorem thm_cn_iv (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T) (A : ℕ) :
     (A : ℝ) ^ 2 * ((1 / T : ℝ) ^ 2 * fanΛ₂ d z)
       + A * (1 / T * (w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2) - 4 * (1 / T : ℝ) ^
           2 * D * (D + w z m)) ≤
@@ -1066,7 +1062,7 @@ N(1,−1−l)² are 2N(0,1)², so
 by (iii) ψ(l) = N(1,−1−l)² − l²θ²Λ₂ is concave on l = −1, 0, 1, …, so ψ(A) ≤ ψ(0) + A(ψ(0) −
 ψ(−1)). Insert (i), (ii), (iv),
 divide by A and let A → ∞: θΓ − O(θ²) ≤ D²(−θ + θ²) + θ²Λ₂. -/
-private theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
+theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T)
     (hxx : w (x true) (x false) = 2 * D) :
     1 / T * (w z m ^ 2 - (w z (x true) ^ 2 + w z (x false) ^ 2) / 2) - 4 * (1 / T : ℝ) ^ 2 * D *
         (D + w z m) ≤
@@ -1125,6 +1121,8 @@ private theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT
 
 end Claims
 
+public section
+
 /-- **Paper: Theorem C.1.** Let `x, v, m, z` be points of a price `w` with `w(x, m), w(v, m) ≤ D`
 and `w(x, v) = 2D`. Then `w(z, m)² ≤ ½ w(z, x)² + ½ w(z, v)² - D²`. -/
 theorem isPrice_sq_le_of_mid {Y : Type} {w : Y → Y → ℝ} (hw : IsPrice K w) (x v m z : Y)
@@ -1157,5 +1155,7 @@ theorem isPrice_sq_le_of_mid {Y : Type} {w : Y → Y → ℝ} (hw : IsPrice K w)
     filter_upwards [eventually_ge_atTop 2] with T hT
     exact key T hT)
   linarith
+
+end
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

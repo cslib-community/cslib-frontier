@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Curvature
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Fan
 
 /-! Tests of Theorem C.1 and Proposition C.3 of [AnthropicVPVNP2026] under ordinary imports:
 
@@ -34,5 +35,24 @@ example {V : Type} {w : V → V → ℝ} (hw : IsPrice K w) (a b : V) :
       dist (f a) (CAT0.mid (f a) (f b)) = w a b / 2 := by
   obtain ⟨X, _, _, f, -, hf⟩ := exists_completeCAT0Space_of_isPrice hw
   exact ⟨X, inferInstance, inferInstance, f, by rw [CAT0.dist_mid_left, hf]⟩
+
+/-- Proposition C.3 for the zero price on `Bool`: the price space exists, its metric is a price,
+and the images of `true` and `false` coincide with their midpoint. -/
+example : ∃ (X : Type) (_ : MetricSpace X) (_ : CompleteCAT0Space X) (f : Bool → X),
+    IsPrice ℚ (fun a b : X => dist a b) ∧ dist (f true) (CAT0.mid (f true) (f false)) = 0 := by
+  obtain ⟨X, _, _, f, hX, hf⟩ :=
+    exists_completeCAT0Space_of_isPrice (isPrice_zero (K := ℚ) (Y := Bool))
+  exact ⟨X, inferInstance, inferInstance, f, hX, by rw [CAT0.dist_mid_left, hf]; simp⟩
+
+/-- Theorem C.1 with all hypotheses proved: in the price space of a price, the metric is a price
+and `CAT0.mid x v` is at distance `|xv| / 2` from both ends, so the CN inequality holds at it. -/
+example {V : Type} {w : V → V → ℝ} (hw : IsPrice ℚ w) :
+    ∃ (X : Type) (_ : MetricSpace X) (_ : CompleteCAT0Space X), ∀ x v z : X,
+      dist z (CAT0.mid x v) ^ 2 ≤
+        1 / 2 * dist z x ^ 2 + 1 / 2 * dist z v ^ 2 - (dist x v / 2) ^ 2 := by
+  obtain ⟨X, _, _, -, hX, -⟩ := exists_completeCAT0Space_of_isPrice hw
+  refine ⟨X, inferInstance, inferInstance, fun x v z => ?_⟩
+  exact isPrice_sq_le_of_mid hX x v (CAT0.mid x v) z (CAT0.dist_mid_left x v).le
+    (by rw [dist_comm, CAT0.dist_mid_right]) (by ring)
 
 end CslibFrontierTests.CurvatureSpace
