@@ -9119,6 +9119,7 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 public import CslibFrontier.Logics.Propositional.PseudoBoolean
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Chosen
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Core
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
@@ -9127,7 +9128,9 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Clique
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Lad
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.SubgraphIso
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.IntervalScheduling
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.LongestPath
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
