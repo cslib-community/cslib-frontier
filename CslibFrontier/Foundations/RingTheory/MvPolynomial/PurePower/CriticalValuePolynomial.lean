@@ -7,6 +7,7 @@ module
 -- upstream: candidate (Mathlib, critical equations in pure-power quotients)
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
 public import CslibFrontier.Foundations.Data.MvPolynomial.Substitution
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
@@ -122,6 +123,30 @@ theorem totalDegree_relativeSource_le (F : MvPolynomial (Fin n ⊕ κ) ℤ) :
     (relativeSource F).totalDegree ≤ F.totalDegree := by
   unfold relativeSource
   exact (totalDegree_map_le _ _).trans (totalDegree_sumRingEquiv_le F)
+
+/-- Each retained coefficient has parameter degree at most the source total degree. -/
+theorem totalDegree_coeff_relativeSource_le (F : MvPolynomial (Fin n ⊕ κ) ℤ)
+    (s : Fin n →₀ ℕ) : ((relativeSource F).coeff s).totalDegree ≤ F.totalDegree := by
+  rw [relativeSource, coeff_map]
+  exact (totalDegree_rename_le _ _).trans (totalDegree_coeff_sumRingEquiv_le F s)
+
+/-- Recombining the retained parameters and witness variables does not increase
+the integer coefficient norm of the source. -/
+theorem coeffNorm1_relativeSource_le (F : MvPolynomial (Fin n ⊕ κ) ℤ) :
+    ((sumRingEquiv ℤ (Fin n) (Option κ)).symm (relativeSource F)).coeffNorm1 ≤
+      F.coeffNorm1 := by
+  let relabel : Fin n ⊕ κ → Fin n ⊕ Option κ := Sum.map id some
+  have hf : (sumRingEquiv ℤ (Fin n) (Option κ)).toRingHom.comp (rename relabel).toRingHom =
+      (map (rename some).toRingHom).comp (sumRingEquiv ℤ (Fin n) κ).toRingHom := by
+    apply MvPolynomial.ringHom_ext
+    · intro z
+      simp
+    · intro i
+      cases i <;> simp [relabel]
+  have h := DFunLike.congr_fun hf F
+  change sumRingEquiv ℤ (Fin n) (Option κ) (rename relabel F) = relativeSource F at h
+  rw [← h, RingEquiv.symm_apply_apply]
+  exact coeffNorm1_rename_le relabel F
 
 /-- The relative critical-value polynomial with zero centers. Its coefficients retain
 the penalty variable at `none` and the original parameters at `some i`. -/

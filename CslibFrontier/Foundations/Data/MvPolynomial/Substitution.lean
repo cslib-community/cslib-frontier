@@ -90,6 +90,30 @@ theorem totalDegree_sumRingEquiv_le (P : MvPolynomial (σ ⊕ τ) R) :
   | inl i => exact totalDegree_X_le i
   | inr i => simp [g]
 
+/-- Taking a coefficient in each retained block recovers the original coefficient. -/
+theorem coeff_coeff_sumRingEquiv (P : MvPolynomial (σ ⊕ τ) R)
+    (s : σ →₀ ℕ) (t : τ →₀ ℕ) :
+    ((sumRingEquiv R σ τ P).coeff s).coeff t = P.coeff (s.sumElim t) := by
+  change (AddMonoidAlgebra.mapDomainRingEquiv R Finsupp.sumFinsuppAddEquivProdFinsupp P).coeff
+    (s, t) = _
+  rw [AddMonoidAlgebra.coeff_mapDomainRingEquiv, Finsupp.equivMapDomain_apply]
+  rfl
+
+/-- The degree of a retained coefficient is at most the original total degree. -/
+theorem totalDegree_coeff_sumRingEquiv_le (P : MvPolynomial (σ ⊕ τ) R) (s : σ →₀ ℕ) :
+    ((sumRingEquiv R σ τ P).coeff s).totalDegree ≤ P.totalDegree := by
+  classical
+  refine Finset.sup_le fun t ht => ?_
+  have ht' : s.sumElim t ∈ P.support := by
+    simpa only [mem_support_iff, coeff_coeff_sumRingEquiv] using ht
+  refine le_trans ?_ (le_totalDegree ht')
+  have hsplit : s.sumElim t =
+      s.embDomain Function.Embedding.inl + t.embDomain Function.Embedding.inr := by
+    ext j
+    cases j <;> simp
+  rw [hsplit, Finsupp.sum_add_index (fun _ _ => rfl) (fun _ _ _ _ => rfl)]
+  simp only [Finsupp.sum_embDomain, Nat.le_add_left]
+
 /-- Bound the degree of a univariate substitution by a weighted degree of each original
 monomial. The weight of a variable is any upper bound on the degree of its replacement. -/
 theorem natDegree_aeval_le_of_support {A : Type*} [CommSemiring A] [Algebra R A]

@@ -80,4 +80,16 @@ example (u x : ℤ) :
   intro F hF
   simpa [F] using relativeValuePolynomial_map (by decide : 1 ≤ 2) F hF u (fun _ => x)
 
+-- A parameter variable remains in the constant coefficient of the witness polynomial.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inr 0)
+    ((relativeSource F).coeff 0).totalDegree = 1 ∧
+      ((sumRingEquiv ℤ (Fin 1) (Option (Fin 1))).symm (relativeSource F)).coeffNorm1 ≤ 1 := by
+  intro F
+  refine ⟨?_, ?_⟩
+  · simp [F, relativeSource]
+  · simpa [F] using coeffNorm1_relativeSource_le F
+
 end CslibFrontierTests.RealAlgebraicCharacteristic
