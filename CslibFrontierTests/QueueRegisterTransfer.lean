@@ -47,7 +47,7 @@ theorem native_body {w : ℕ} {d : Input} {s : Memory.State}
   dsimp only [certificates, Certificate.ofRealizes] at hn hm hout
   have hcost := hi.2.2.2.2.1
   change memoryCost (transfer d) s = 2 * d 1 at hcost
-  have hresult : (Memory.spec w).clientResult s (transfer d) = (d 0 + d 1, 0) :=
+  have hresult : (Memory.spec w).clientResult s (transfer d) = ⟨d 0 + d 1, 0⟩ :=
     (clientResult_width w _ _).trans hi.2.2.1
   have h0 := hout (0 : Fin 2)
   have h1 := hout (1 : Fin 2)
@@ -56,6 +56,12 @@ theorem native_body {w : ℕ} {d : Input} {s : Memory.State}
   have hmem := congrArg Memory.State.mem hm
   rw [Backend.memoryState_data] at hmem
   exact ⟨y, n, he, hn, hmem, h0, h1⟩
+
+-- Migrating `ℕ × ℕ` to `Counts` leaves the encoded register words definitionally unchanged.
+example (front rear : ℕ) :
+    counts ⟨front, rear⟩ =
+      appendWords (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
+        (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding (front, rear) := rfl
 
 /-- Two iterations move a zero and the largest three-bit word through dirty physical arrays. -/
 def two : Input := ![0, 2, 1, 2, 7]
@@ -67,7 +73,7 @@ theorem dirty_bounded : Memory.WellFormed 3 dirty := by
   dsimp only [dirty]
   split <;> (try split) <;> decide
 
-example : (Memory.spec 3).clientResult dirty (transfer two) = (2, 0) := rfl
+example : (Memory.spec 3).clientResult dirty (transfer two) = ⟨2, 0⟩ := rfl
 example : memoryCost (transfer two) dirty = 4 := rfl
 example : let t := (Memory.spec 3).clientState dirty (transfer two)
     t.mem 1 = 0 ∧ t.mem 2 = 7 ∧ t.mem 3 = 7 ∧ t.mem 4 = 0 ∧ t.mem 6 = 5 :=
