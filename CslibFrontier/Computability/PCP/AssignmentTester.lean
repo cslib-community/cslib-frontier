@@ -280,6 +280,26 @@ theorem acceptProb_blrTest [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → 
   refine expect_congr rfl fun x _ ↦ expect_congr rfl fun y _ ↦ ?_
   congr
 
+/-- Second vector `z` in a tensor-test randomness tuple `(y, z, r, s, t)`. -/
+abbrev tensorSecond {ι : Type*}
+    (ω : (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι × ι → Bool)) : ι → Bool :=
+  ω.2.1
+
+/-- First self-correction mask `r` in a tensor-test randomness tuple `(y, z, r, s, t)`. -/
+abbrev tensorMaskFirst {ι : Type*}
+    (ω : (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι × ι → Bool)) : ι → Bool :=
+  ω.2.2.1
+
+/-- Second self-correction mask `s` in a tensor-test randomness tuple `(y, z, r, s, t)`. -/
+abbrev tensorMaskSecond {ι : Type*}
+    (ω : (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι × ι → Bool)) : ι → Bool :=
+  ω.2.2.2.1
+
+/-- Product-table self-correction mask `t` in a tensor-test randomness tuple `(y, z, r, s, t)`. -/
+abbrev tensorMaskProd {ι : Type*}
+    (ω : (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι × ι → Bool)) : ι × ι → Bool :=
+  ω.2.2.2.2
+
 variable (ι) in
 /-- The **tensor test**, as a local test on the pair of tables `Sum.elim f g`: on the random string
 `(y, z, r, s, t)`, it compares the self-corrected read of `g` at `tensor y z` with randomness `t`
@@ -287,8 +307,9 @@ with the product of the self-corrected reads of `f` at `y` and `z` with randomne
 -/
 def tensorTest : LocalTest ((ι → Bool) ⊕ (ι × ι → Bool))
     ((ι → Bool) × (ι → Bool) × (ι → Bool) × (ι → Bool) × (ι × ι → Bool)) (Fin 6) Bool where
-  query ω := ![.inr ω.2.2.2.2, .inr (tensor ω.1 ω.2.1 + ω.2.2.2.2), .inl ω.2.2.1,
-    .inl (ω.1 + ω.2.2.1), .inl ω.2.2.2.1, .inl (ω.2.1 + ω.2.2.2.1)]
+  query ω := ![.inr (tensorMaskProd ω), .inr (tensor ω.1 (tensorSecond ω) + tensorMaskProd ω),
+    .inl (tensorMaskFirst ω), .inl (ω.1 + tensorMaskFirst ω),
+    .inl (tensorMaskSecond ω), .inl (tensorSecond ω + tensorMaskSecond ω)]
   Accepts _ a := (a 0 ^^ a 1) = ((a 2 ^^ a 3) && (a 4 ^^ a 5))
 
 /-- The tensor test accepts with the probability `tensorTestAcceptance`. -/
@@ -319,13 +340,21 @@ theorem acceptProb_equationTest [Fintype ι] [DecidableEq ι] [Fintype κ] [Deci
   refine expect_congr rfl fun k _ ↦ expect_congr rfl fun t _ ↦ ?_
   congr
 
+/-- Point `r` in an input-test randomness tuple `(b, r, y)`. -/
+abbrev inputPoint {α : Type*} (ω : Fin 2 × (α → Bool) × (Fin 2 × α → Bool)) : α → Bool := ω.2.1
+
+/-- Self-correction mask `y` in an input-test randomness tuple `(b, r, y)`. -/
+abbrev inputMask {α : Type*} (ω : Fin 2 × (α → Bool) × (Fin 2 × α → Bool)) : Fin 2 × α → Bool :=
+  ω.2.2
+
 variable (α) in
 /-- The **input test**, as a local test on the tables of the two ends and the linear table,
 `Sum.elim (fun p ↦ T p.1 p.2) f`: on the random string `(b, r, y)`, it compares the bit of the table
 `T b` at `r` with the self-corrected read of `f` at `endEmbed b r` with randomness `y`. -/
 def inputTest : LocalTest ((Fin 2 × (α → Bool)) ⊕ (Fin 2 × α → Bool))
     (Fin 2 × (α → Bool) × (Fin 2 × α → Bool)) (Fin 3) Bool where
-  query ω := ![.inl (ω.1, ω.2.1), .inr ω.2.2, .inr (endEmbed ω.1 ω.2.1 + ω.2.2)]
+  query ω := ![.inl (ω.1, inputPoint ω), .inr (inputMask ω),
+    .inr (endEmbed ω.1 (inputPoint ω) + inputMask ω)]
   Accepts _ a := a 0 = (a 1 ^^ a 2)
 
 /-- The input test accepts when the bit of the table of a random end at a random point is the

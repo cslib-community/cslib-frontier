@@ -1,6 +1,7 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.CombinatorialAuction
 import CslibFrontierResults.Entries.Cooperative
 import CslibFrontierResults.Entries.DFSWordRAM
 import CslibFrontierResults.Entries.DeterminantalUniversality
@@ -8,6 +9,7 @@ import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.DominanceSymmetric
+import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
@@ -15,6 +17,7 @@ import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
+import CslibFrontierResults.Entries.MarketEquilibria
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.NCLBandwidth
