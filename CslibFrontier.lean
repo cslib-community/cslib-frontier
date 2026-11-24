@@ -389,6 +389,7 @@ public import CslibFrontier.Algorithms.WordRAM.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Algorithms.WordRAM.DFS
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Refutation
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Steps
