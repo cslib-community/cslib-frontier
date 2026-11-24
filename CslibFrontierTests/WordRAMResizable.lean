@@ -20,10 +20,9 @@ Concrete end-to-end checks for Milestone M1 of the word-granular **Resizable Wor
 (`Cslib.WordRAM.Resizable`, `Cslib.WordRAM.BoundedExec`, and
 `Cslib.DataStructure.Memory.Resizable`):
 
-1. `by realize` synthesizing `RealizesBounded` directly (without modifying
-   `CslibFrontier/Tactic/Realize.lean`) on both sequential read/write/arithmetic code (`addToNext`)
-   and `iterate` pointer chasing (`chaseProg`), while keeping existing `Realizes` goals intact, and
-   lifting directly to `RDemonicExec` and `ExecRProgramDist` via `RDemonicExec.of_realizesBounded`.
+1. `by realize` synthesizes `RealizesBounded` for sequential reads, writes, and arithmetic
+   (`addToNext`) and for pointer chasing with `iterate` (`chaseProg`). The `addToNext` certificate
+   lifts to `RDemonicExec` via `RDemonicExec.of_realizesBounded`, then to `ExecRProgramDist`.
 2. Single-word `.grow` / `.shrink` primitives (including boundary faults at `frontier = 0` and
    `¬Fits w (frontier + 1)`), derived `Θ(k + 1)` bulk resize subroutines `growDirtyCode`,
    `growZeroCode`, and `shrinkCode`, and adversarial `DemonicGrow` erased by `growZeroCode`,
@@ -61,8 +60,7 @@ def addToNext (d : ℕ × ℕ) : Memory.Prog ℕ := do
   Memory.write (d.1 + 1) (v + d.2)
   Memory.read (d.1 + 1)
 
-/-- `by realize` synthesizes `RealizesBounded` directly without touching
-`CslibFrontier/Tactic/Realize.lean`. -/
+/-- `by realize` certifies the read, write, and readback under the two arithmetic fit bounds. -/
 theorem addToNext_realizesBounded :
     RealizesBounded .exact addToNext pairWords singleWord
       (fun w d s => Fits w (d.1 + 1) ∧ Fits w (s.mem d.1 + d.2))
@@ -80,8 +78,7 @@ theorem chaseProg_realizesBounded :
       (fun _ _ _ => True) (fun _ _ => 0) := by
   realize
 
-/-- `by realize` synthesizes `RealizesBounded` when an `iterate` step captures outer runtime words
-(exercising the `Eq.mp (congrArg wrap safeEq)` proof-spine translation). -/
+/-- `by realize` certifies an `iterate` step that reads from a captured address. -/
 theorem capturedIterate_realizesBounded :
     RealizesBounded .exact
       (fun d : Fin 3 → ℕ => iterate (fun _ : Unit × ℕ => Memory.read (d 0)) () (d 1) (d 2))

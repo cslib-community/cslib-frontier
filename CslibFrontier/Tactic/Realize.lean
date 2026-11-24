@@ -987,11 +987,13 @@ private def normScalar (atoms : Array Expr) (e : Expr) : MetaM Expr := do
     let args := cur.getAppArgs
     if let .proj s idx sv := head then
       let svR ← whnfR sv
-      let sv' := (← unfoldDefinition? svR).map Expr.headBeta |>.getD svR
       if isStructure env s then
-        if let some field := ctorField? env (getStructureCtor env s).name idx sv' then
+        if let some field := ctorField? env (getStructureCtor env s).name idx svR then
           cur := (mkAppN field args).headBeta
           continue
+      if let some next ← unfoldDefinition? svR then
+        cur := mkAppN (.proj s idx next.headBeta) args
+        continue
       break
     if let some next ← unfoldDefinition? cur then
       cur := next.headBeta
@@ -1472,6 +1474,9 @@ private partial def realizeProg (ctx : Ctx) (env : Env) (prog : Expr) (output? :
           if let some out ← tryRealizeCall ctx env d atoms body output? (stageValue ctx) then
             return out
         let bodyR ← whnfR body
+        if bodyR != body && !isPrimitiveClientForm bodyR then
+          if let some out ← tryRealizeCall ctx env d atoms bodyR output? (stageValue ctx) then
+            return out
         if isClientForm bodyR then
           return ← realizeBody ctx env d atoms bodyR output?
         if let some next ← unfoldDefinition? bodyR then
@@ -1496,6 +1501,12 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
     let eq ← mkLambdaFVars #[d]
       (← mkExpectedTypeHint (← mkEqSymm eqStep) (← mkEq rhs body))
     return { out with proof := ← mkAppM ctx.comb.congr #[out.proof, eq] }
+  let distributeIte (choice f : Expr) : TermElabM Out := do
+    let eqStep ← mkAppOptM ``apply_ite #[choice.getArg! 0, mkApp m α, f,
+      choice.getArg! 1, choice.getArg! 2, choice.getArg! 3, choice.getArg! 4]
+    let some (_, _, rhs) := (← inferType eqStep).eq?
+      | throwError "realize: internal error lifting a linked conditional"
+    congrFrom rhs eqStep
   let splitLiftMBind (β x k : Expr) : TermElabM Out := do
     let eqStep ← mkAppOptM ``PFunctor.FreeM.liftM_bind #[P, m, none, interp, none, β, α, x, k]
     let contLift ← withLocalDeclD `u β fun u =>
@@ -1503,8 +1514,11 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
     let rhs ← mkAppOptM ``Bind.bind #[m, instBind, β, α, mkLift β x, contLift]
     congrFrom rhs eqStep
   let mut src := bArgs[6]!.headBeta
-  for _ in [0:64] do
+  for i in [0:64] do
     let srcR ← whnfR src
+    if (i != 0 || srcR != src) && !isPrimitiveClientForm srcR then
+      if let some out ← tryRealizeCall ctx env d atoms (mkLift α srcR) output? (stageValue ctx) then
+        return out
     if let some a := pureArg? srcR then
       let pureBody ← mkAppOptM ``Pure.pure #[m, instPure, α, a]
       return ← realizeBody ctx env d atoms pureBody output?
@@ -1523,17 +1537,24 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
     if srcR.isAppOfArity ``ite 5 then
       let srcTy := srcR.getArg! 0
       let liftFn ← withLocalDeclD `p srcTy fun p => mkLambdaFVars #[p] (mkLift α p)
-      let eqStep ← mkAppOptM ``apply_ite #[srcTy, mkApp m α, liftFn,
-        srcR.getArg! 1, srcR.getArg! 2, srcR.getArg! 3, srcR.getArg! 4]
-      let some (_, _, rhs) := (← inferType eqStep).eq?
-        | throwError "realize: internal error lifting a linked conditional"
-      return ← congrFrom rhs eqStep
+      return ← distributeIte srcR liftFn
     if let some (β, x, k) := bindArgs? srcR then
       if ← matchesLocalCert ctx (mkLift β x) then
         return ← splitLiftMBind β x k
       let xR ← whnfR x
+      if let some a := pureArg? xR then
+        src := (mkApp k a).headBeta
+        continue
       if xR.isAppOfArity ``PFunctor.FreeM.lift 2 then
         src := ← mkAppOptM ``PFunctor.FreeM.liftBind #[P, α, xR.appArg!, k]
+        continue
+      if xR.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
+        let cont := xR.getArg! 3
+        let domTy := (← whnf (← inferType cont)).bindingDomain!
+        let cont' ← withLocalDeclD `u domTy fun u => do
+          let bound ← mkAppOptM ``PFunctor.FreeM.bind #[P, β, α, (mkApp cont u).headBeta, k]
+          mkLambdaFVars #[u] bound
+        src := ← mkAppOptM ``PFunctor.FreeM.liftBind #[P, α, xR.getArg! 2, cont']
         continue
       if let some (_, y, h) := bindArgs? xR then
         let eqInner ← mkAppM ``bind_assoc #[y, h, k]
@@ -1604,12 +1625,12 @@ private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arra
       | some ``Memory.Op.alloc =>
         unless ctx.exact do
           throwError "realize: allocation is certified in the exact basis;\n\
-            realize there and transfer with `Realizes.mapSimulates`"
+            realize there and transfer with `{ctx.comb.label}.mapSimulates`"
         mkAppOptM ctx.comb.alloc #[env.ty, kE, input, idx[0]!]
       | some ``Memory.Op.allocDirty =>
         unless ctx.exact do
           throwError "realize: allocation is certified in the exact basis;\n\
-            realize there and transfer with `Realizes.mapSimulates`"
+            realize there and transfer with `{ctx.comb.label}.mapSimulates`"
         mkAppOptM ctx.comb.allocDirty #[env.ty, kE, input, idx[0]!]
       | _ => throwError "realize: unsupported memory operation{indentExpr op}"
     let output ← checkOutput ctx.comb proof output?
