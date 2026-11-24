@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntervalOrder
 import CslibFrontier.Foundations.GroupTheory.Perm.CycleSurgery
-import Mathlib.Data.List.GetD
 
 /-!
 # Cutting an interval out of a vertex rotation
@@ -26,33 +25,6 @@ the original vertex and which side of the interval each dart lies on.
 -/
 
 public section
-
-namespace Cslib.Complexity.Graph
-
-open Equiv
-
-/-- Redirect the selected indexed ends to one new label, keeping the vertex list and all edge
-positions. This construction depends only on the choice of ends. -/
-theorem exists_split_darts (G : Graph) (selected : Dart G → Prop) [DecidablePred selected]
-    (w : ℕ) : ∃ (H : Graph) (E : Fin G.edges.length ≃ Fin H.edges.length),
-      H.vertices = w :: G.vertices ∧
-      ∀ d : Dart G, Dart.vertex (G := H) (E d.1, d.2) = if selected d then w else d.vertex := by
-  let endpoint (d : Dart G) := if selected d then w else d.vertex
-  let H : Graph := ⟨w :: G.vertices,
-    List.ofFn fun i : Fin G.edges.length => (endpoint (i, false), endpoint (i, true))⟩
-  have hlen : H.edges.length = G.edges.length := List.length_ofFn
-  let E : Fin G.edges.length ≃ Fin H.edges.length := finCongr hlen.symm
-  refine ⟨H, E, rfl, ?_⟩
-  rintro ⟨i, b⟩
-  have hi : i.val < H.edges.length := hlen.symm ▸ i.isLt
-  change (if b then (H.edges.getD i.val (0, 0)).2 else (H.edges.getD i.val (0, 0)).1) = _
-  rw [List.getD_eq_getElem _ _ hi]
-  change (if b then ((List.ofFn fun j => (endpoint (j, false), endpoint (j, true)))[i.val]).2
-    else ((List.ofFn fun j => (endpoint (j, false), endpoint (j, true)))[i.val]).1) = _
-  rw [List.getElem_ofFn]
-  cases b <;> rfl
-
-end Cslib.Complexity.Graph
 
 namespace Cslib.Complexity.Graph.RotationSystem
 
