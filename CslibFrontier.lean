@@ -6456,6 +6456,7 @@ public import CslibFrontier.Crypto.Protocols.UC.AdaptiveToStatic
 public import CslibFrontier.Crypto.Protocols.UC.Commitment
 public import CslibFrontier.Crypto.Protocols.UC.Composition
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
+public import CslibFrontier.Crypto.Protocols.UC.DynamicMultiSession
 public import CslibFrontier.Crypto.Protocols.UC.Emulation
 public import CslibFrontier.Crypto.Protocols.UC.Execution
 public import CslibFrontier.Crypto.Protocols.UC.HybridFunctionality
