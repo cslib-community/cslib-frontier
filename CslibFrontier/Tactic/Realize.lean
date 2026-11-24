@@ -580,6 +580,24 @@ private structure Ctx where
   /-- Whether the basis is `.standard`. -/
   standard : Bool
 
+/-- Extract `a` from `pure a` in `Pure.pure`, `PFunctor.FreeM.pure`, or a projected `Pure` call. -/
+private def pureArg? (e : Expr) : Option Expr :=
+  if e.isAppOfArity ``Pure.pure 4 || e.isAppOfArity ``PFunctor.FreeM.pure 3 ||
+      (e.getAppFn matches .proj ``Pure 0 _ && e.getAppNumArgs == 2) then
+    some e.appArg!
+  else none
+
+/-- Extract `(β, x, k)` from `x >>= k` in `Bind.bind`, `PFunctor.FreeM.bind`, or a projected
+`Bind` call. -/
+private def bindArgs? (e : Expr) : Option (Expr × Expr × Expr) :=
+  if e.isAppOfArity ``Bind.bind 6 then
+    some (e.getArg! 2, e.getArg! 4, e.getArg! 5)
+  else if e.isAppOfArity ``PFunctor.FreeM.bind 5 then
+    some (e.getArg! 1, e.getArg! 3, e.getArg! 4)
+  else if e.getAppFn matches .proj ``Bind 0 _ && e.getAppNumArgs == 4 then
+    some (e.getArg! 0, e.getArg! 2, e.getArg! 3)
+  else none
+
 /-- `fun _ _ => 0`. -/
 private def zeroWork (δ : Expr) : MetaM Expr :=
   withLocalDeclD `d δ fun d => withLocalDeclD `s (mkConst ``Memory.State) fun s =>
@@ -1477,17 +1495,9 @@ monad `M`: over a bind by `PFunctor.FreeM.map_bind`, over `pure` by `PFunctor.Fr
 step serves a memory client and the source of a linked client. -/
 private def pushMap? (M lhs f mR : Expr) : MetaM (Option Expr) := do
   let mapOf (g x : Expr) : MetaM Expr := mkAppM ``PFunctor.FreeM.map #[g, x]
-  let bind? : Option (Expr × Expr) :=
-    if mR.isAppOfArity ``Bind.bind 6 then some (mR.getArg! 4, mR.getArg! 5)
-    else if mR.isAppOfArity ``PFunctor.FreeM.bind 5 then some (mR.getArg! 3, mR.getArg! 4)
-    else none
-  if let some (x, k) := bind? then
+  if let some (_, x, k) := bindArgs? mR then
     return some (← mkAppM ``PFunctor.FreeM.map_bind #[f, x, k])
-  let pure? : Option Expr :=
-    if mR.isAppOfArity ``Pure.pure 4 then some mR.appArg!
-    else if mR.isAppOfArity ``PFunctor.FreeM.pure 3 then some mR.appArg!
-    else none
-  if let some a := pure? then
+  if let some a := pureArg? mR then
     let value ← simpMappedValue (mkApp f a)
     let pureOf (v : Expr) : MetaM Expr := mkAppOptM ``Pure.pure #[M, none, none, v]
     let rhs ← pureOf value.expr
@@ -1576,13 +1586,7 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
       src := reduced
       continue
     -- `pure a`
-    let pure? : Option Expr :=
-      if srcR.isAppOfArity ``Pure.pure 4 then some srcR.appArg!
-      else if srcR.isAppOfArity ``PFunctor.FreeM.pure 3 then some srcR.appArg!
-      else if srcR.getAppFn matches .proj ``Pure 0 _ && srcR.getAppNumArgs == 2 then
-        some srcR.appArg!
-      else none
-    if let some a := pure? then
+    if let some a := pureArg? srcR then
       let pureBody ← mkAppOptM ``Pure.pure #[m, instPure, α, a]
       return ← realizeBody ctx env d atoms pureBody output?
     -- `FreeM.lift op`
@@ -1646,15 +1650,7 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
       let out ← realizeBind ctx env d mapped.appArg! bindForm.appArg! output?
       return { out with proof := ← mkAppM ``Realizes.congr #[out.proof, ← mkLambdaFVars #[d] eq] }
     -- `x >>= k` in `FreeM P`
-    let bind? : Option (Expr × Expr × Expr) :=
-      if srcR.isAppOfArity ``Bind.bind 6 then
-        some (srcR.getArg! 2, srcR.getArg! 4, srcR.getArg! 5)
-      else if srcR.isAppOfArity ``PFunctor.FreeM.bind 5 then
-        some (srcR.getArg! 1, srcR.getArg! 3, srcR.getArg! 4)
-      else if srcR.getAppFn matches .proj ``Bind 0 _ && srcR.getAppNumArgs == 4 then
-        some (srcR.getArg! 0, srcR.getArg! 2, srcR.getArg! 3)
-      else none
-    if let some (β, x, k) := bind? then
+    if let some (β, x, k) := bindArgs? srcR then
       if ← matchesLocalCert ctx (mkLift β x) then
         let eqStep ← mkAppOptM ``PFunctor.FreeM.liftM_bind #[P, m, none, interp, none, β, α, x, k]
         let contLift ← withLocalDeclD `u β fun u =>
@@ -1665,13 +1661,7 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
       if let some reducedX ← reduceStaticIte? d xR then
         src := ← mkAppOptM ``PFunctor.FreeM.bind #[P, β, α, reducedX, k]
         continue
-      let xPure? : Option Expr :=
-        if xR.isAppOfArity ``Pure.pure 4 then some xR.appArg!
-        else if xR.isAppOfArity ``PFunctor.FreeM.pure 3 then some xR.appArg!
-        else if xR.getAppFn matches .proj ``Pure 0 _ && xR.getAppNumArgs == 2 then
-          some xR.appArg!
-        else none
-      if let some a := xPure? then
+      if let some a := pureArg? xR then
         src := (mkApp k a).headBeta
         continue
       if xR.isAppOfArity ``PFunctor.FreeM.lift 2 then
@@ -1704,15 +1694,7 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
           mkLambdaFVars #[q] (mkLift α q)
         let eqStep ← mkAppM ``congrArg #[liftWrap, eqInner]
         return ← congrFrom (mkLift α innerRhs) eqStep
-      let xBind? : Option (Expr × Expr × Expr) :=
-        if xR.isAppOfArity ``Bind.bind 6 then
-          some (xR.getArg! 2, xR.getArg! 4, xR.getArg! 5)
-        else if xR.isAppOfArity ``PFunctor.FreeM.bind 5 then
-          some (xR.getArg! 1, xR.getArg! 3, xR.getArg! 4)
-        else if xR.getAppFn matches .proj ``Bind 0 _ && xR.getAppNumArgs == 4 then
-          some (xR.getArg! 0, xR.getArg! 2, xR.getArg! 3)
-        else none
-      if let some (_, y, h) := xBind? then
+      if let some (_, y, h) := bindArgs? xR then
         let eqInner ← mkAppM ``bind_assoc #[y, h, k]
         let some (_, _, innerRhs) := (← inferType eqInner).eq?
           | throwError "realize: internal error reassociating a linked bind"
@@ -1741,25 +1723,16 @@ private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arra
   -- linked free-monad source
   if body.isAppOfArity ``PFunctor.FreeM.liftM 7 then
     return ← realizeLiftM ctx env d atoms body output?
-  -- sequencing
-  let bind? : Option (Expr × Expr) :=
-    if body.isAppOfArity ``Bind.bind 6 then some (body.getArg! 4, body.getArg! 5)
-    else if body.isAppOfArity ``PFunctor.FreeM.bind 5 then some (body.getArg! 3, body.getArg! 4)
-    else none
-  if let some (m, f) := bind? then return ← realizeBind ctx env d m f output?
   if isClientMap body then return ← realizeMap ctx env d body output?
+  -- sequencing
+  if let some (_, m, f) := bindArgs? body then
+    return ← realizeBind ctx env d m f output?
   if body.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
     let m ← mkAppOptM ``PFunctor.FreeM.lift #[body.getArg! 0, body.getArg! 2]
     return ← realizeBind ctx env d m (body.getArg! 3) output?
   -- return
-  let pure? : Option Expr :=
-    if body.isAppOfArity ``Pure.pure 4 then some body.appArg!
-    else if body.isAppOfArity ``PFunctor.FreeM.pure 3 then some body.appArg!
-    else none
-  if let some a := pure? then
-    let out ← match output? with
-      | some o => pure o
-      | none => encodingOf (← resultType body)
+  if let some a := pureArg? body then
+    let out ← output?.getDM (encodingOf (← resultType body))
     let saved ← saveState
     try
       return ← realizePure ctx env d atoms a out
