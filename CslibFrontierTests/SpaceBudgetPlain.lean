@@ -78,7 +78,7 @@ example : ComputableInSpace (fun n : ℕ => (· + 1)^[n] 0) encNat encNat
   have hid : ComputableInSpace (id : ℕ → ℕ) encNat encNat
       (fun n => (encNat n).length) := of_inO (.of_eq fun _ => rfl)
   have hstep := natSucc.weaken linear_succ
-  apply budget_iterate hid (budget_const 0 (.refl _)) hstep
+  apply budget_iterate hid (budget_const 0) hstep
     (B := fun n => (encNat n).length) _ (.refl _)
   intro n k hk
   simpa only [id, ComputableInO.iterate_succ_eq, zero_add, length_encNat_eq_size] using

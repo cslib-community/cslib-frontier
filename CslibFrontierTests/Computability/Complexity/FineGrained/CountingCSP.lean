@@ -96,15 +96,21 @@ example :
    CSP.computableInPolyTime_toCNFBounded (encPair encBool encBits) encNat 3 taggedSem
      computableInPolyTime_taggedSem⟩
 
+-- Encoded words unchanged: a declared CSP instance keeps the former `(numVars, formula)` pair
+-- encoding, with `numVars` in unary and the CSP framed after it.
+example {Rel : Type} (encRel : Rel ↪ List Bool) (x : DeclaredCSP Rel) :
+    encDeclaredCSP encRel x = encPair encUnary (encCSP encRel encNat) (x.numVars, x.formula) :=
+  rfl
+
 -- Non-vacuity of declared-variable exact `#CSP` counter.
 example :
-    ∃ (count : ℕ × CSP SampleRel ℕ → ℕ) (T S : ℕ × CSP SampleRel ℕ → ℕ) (A c e a b : ℕ),
-      ComputableInO count (encPair encUnary (encCSP encSampleRel encNat)) encNat T S ∧
-      (∀ x, count x = if CSP.validDeclaredCSP 3 x.1 x.2 then
-        x.2.modelCountOn sampleSem (Finset.range x.1) else 0) ∧
-      (∀ x, (T x : ℝ) ≤ c * ((2 : ℝ) ^ ((A : ℝ) * interpolationScale x.1) *
-        (((encPair encUnary (encCSP encSampleRel encNat) x).length : ℝ) + 1) ^ e) + c) ∧
-      (∀ x, S x ≤ a * ((encPair encUnary (encCSP encSampleRel encNat) x).length + 1) ^ b) :=
+    ∃ (count : DeclaredCSP SampleRel → ℕ) (T S : DeclaredCSP SampleRel → ℕ) (A c e a b : ℕ),
+      ComputableInO count (encDeclaredCSP encSampleRel) encNat T S ∧
+      (∀ x, count x = if CSP.validDeclaredCSP 3 x.numVars x.formula then
+        x.formula.modelCountOn sampleSem (Finset.range x.numVars) else 0) ∧
+      (∀ x, (T x : ℝ) ≤ c * ((2 : ℝ) ^ ((A : ℝ) * interpolationScale x.numVars) *
+        (((encDeclaredCSP encSampleRel x).length : ℝ) + 1) ^ e) + c) ∧
+      (∀ x, S x ≤ a * ((encDeclaredCSP encSampleRel x).length + 1) ^ b) :=
   CSP.exists_declaredCounter_of_finite encSampleRel 3 sampleSem
 
 -- Non-vacuity of occurring-variable exact `#CSP` counter (general polynomial-time `sem`).
