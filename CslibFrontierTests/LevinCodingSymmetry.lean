@@ -179,30 +179,17 @@ example :
       ∑' y : ℕ, (2 : ℝ)⁻¹ ^ universalPrefix.complexity (Nat.pair x y) ≤
         (2 : ℝ) ^ c * universalPrefix.universalProb x := by
   let μ : ℕ → ℝ := fun x => ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y)
-  have hnonneg : ∀ x, 0 ≤ μ x := fun x => tsum_nonneg fun y => universalProb_nonneg _ _
-  let e : (Σ _ : ℕ, ℕ) ≃ ℕ :=
-    ⟨fun xy => Nat.pair xy.1 xy.2, fun z => ⟨z.unpair.1, z.unpair.2⟩,
-      fun ⟨_, _⟩ => by simp, Nat.pair_unpair⟩
-  have hs : Summable fun xy : Σ _ : ℕ, ℕ => universalPrefix.universalProb (Nat.pair xy.1 xy.2) :=
-    (Equiv.summable_iff e).mpr isPrefixFree_universalPrefix.summable_universalProb
-  have hsum : Summable μ := hs.sigma
-  have hle : ∑' x, μ x ≤ 1 := by
-    calc ∑' x, μ x
-        = ∑' xy : Σ _ : ℕ, ℕ, universalPrefix.universalProb (Nat.pair xy.1 xy.2) :=
-          (hs.tsum_sigma' fun _ => hs.sigma_factor _).symm
-      _ = ∑' z, universalPrefix.universalProb z := e.tsum_eq universalPrefix.universalProb
-      _ = universalPrefix.chaitinOmega :=
-          isPrefixFree_universalPrefix.tsum_universalProb_eq_chaitinOmega
-      _ ≤ 1 := isPrefixFree_universalPrefix.chaitinOmega_le_one
+  have hnonneg : ∀ x, 0 ≤ μ x := fun _ => tsum_nonneg fun _ => universalProb_nonneg _ _
   obtain ⟨c, hc⟩ := exists_mul_universalProb_universalPrefix_ge
-    hnonneg hsum hle isLowerSemicomputable_universalProb_marginal
+    hnonneg isPrefixFree_universalPrefix.summable_universalProb_marginal
+    isPrefixFree_universalPrefix.tsum_universalProb_pair_le_one
+    isLowerSemicomputable_universalProb_marginal
   refine ⟨c, fun x => ?_⟩
   have hprog : ∀ y : ℕ,
       (2 : ℝ)⁻¹ ^ universalPrefix.complexity (Nat.pair x y) ≤
         universalPrefix.universalProb (Nat.pair x y) :=
     fun y => two_inv_pow_complexity_universalPrefix_le (Nat.pair x y)
-  have hsum_y : Summable fun y : ℕ => universalPrefix.universalProb (Nat.pair x y) :=
-    hs.sigma_factor x
+  have hsum_y := isPrefixFree_universalPrefix.summable_universalProb_pair x
   have hsum_comp : Summable fun y : ℕ =>
       (2 : ℝ)⁻¹ ^ universalPrefix.complexity (Nat.pair x y) :=
     Summable.of_nonneg_of_le (fun _ => by positivity) hprog hsum_y

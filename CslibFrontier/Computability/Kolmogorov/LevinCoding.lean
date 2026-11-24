@@ -26,8 +26,8 @@ When `M` is prefix-free (`M.IsPrefixFree`), the fibers `{p // M.Produces p x}` p
 (`IsPrefixFree.tsum_universalProb_eq_chaitinOmega`).
 
 A nonnegative summable function `μ : α → ℝ` with `∑' x, μ x ≤ 1` is *lower semicomputable*
-(`IsLowerSemicomputable μ`) when its strict rational lower graph
-`{(x, a, b) | (a : ℝ) / (b + 1) < μ x}` is recursively enumerable (`REPred`).
+(`IsLowerSemicomputable μ`) when its strict nonnegative rational lower graph
+`{(x, a, b) | (a : ℝ) / (b + 1) < μ x}` (`a, b : ℕ`) is recursively enumerable (`REPred`).
 
 Using the online **Kraft–Chaitin theorem** (`CslibFrontier.Computability.Kolmogorov.KraftChaitin`),
 every lower-semicomputable discrete semimeasure satisfies `K(x) ≤ -log₂ μ(x) + O(1)`
@@ -58,8 +58,6 @@ among all lower-semicomputable discrete semimeasures.
   `Cslib.Kolmogorov.isLowerSemicomputable_universalProb_universalPrefixBits`,
   `Cslib.Kolmogorov.isLowerSemicomputable_universalProb_marginal`: lower semicomputability of
   algorithmic probability and its marginal.
-* `Cslib.Kolmogorov.natCast_sum_two_pow_sub_length`:
-  scaled integer Kraft sum identity.
 * `Cslib.Kolmogorov.exists_le_complexity_of_isLowerSemicomputable`,
   `MinorizesPrefixPartrec.exists_le_two_pow_mul_complexity_of_isLowerSemicomputable`,
   `Cslib.Kolmogorov.exists_le_two_pow_mul_universalPrefix_of_isLowerSemicomputable`,
@@ -162,6 +160,43 @@ theorem IsPrefixFree.tsum_universalProb_eq_chaitinOmega {α : Type*} {M : Descri
           (fun x => hM.summable_universalProb_program x)).symm
     _ = M.chaitinOmega := (haltingSigmaEquiv M).tsum_eq fun q => (2 : ℝ)⁻¹ ^ q.1.length
 
+private def natPairSigmaEquiv : (Σ _ : ℕ, ℕ) ≃ ℕ where
+  toFun xy := Nat.pair xy.1 xy.2
+  invFun z := ⟨z.unpair.1, z.unpair.2⟩
+  left_inv := fun ⟨_, _⟩ => by simp
+  right_inv := Nat.pair_unpair
+
+private theorem summable_universalProb_natPairSigma {M : DescriptionMethod ℕ}
+    (hM : M.IsPrefixFree) :
+    Summable fun xy : Σ _ : ℕ, ℕ => M.universalProb (Nat.pair xy.1 xy.2) :=
+  (Equiv.summable_iff natPairSigmaEquiv).mpr hM.summable_universalProb
+
+/-- Summability of `y ↦ M.universalProb (Nat.pair x y)` for a prefix-free method `M` on `ℕ`. -/
+theorem IsPrefixFree.summable_universalProb_pair {M : DescriptionMethod ℕ}
+    (hM : M.IsPrefixFree) (x : ℕ) :
+    Summable fun y : ℕ => M.universalProb (Nat.pair x y) :=
+  (summable_universalProb_natPairSigma hM).sigma_factor x
+
+/-- Summability of the first-coordinate marginal `x ↦ ∑' y, M.universalProb (Nat.pair x y)` for a
+prefix-free method `M` on `ℕ`. -/
+theorem IsPrefixFree.summable_universalProb_marginal {M : DescriptionMethod ℕ}
+    (hM : M.IsPrefixFree) :
+    Summable fun x : ℕ => ∑' y : ℕ, M.universalProb (Nat.pair x y) :=
+  (summable_universalProb_natPairSigma hM).sigma
+
+/-- The iterated pair sum `∑' x, ∑' y, M.universalProb (Nat.pair x y)` of a prefix-free method on
+`ℕ` is at most `1`. -/
+theorem IsPrefixFree.tsum_universalProb_pair_le_one {M : DescriptionMethod ℕ}
+    (hM : M.IsPrefixFree) :
+    (∑' x : ℕ, ∑' y : ℕ, M.universalProb (Nat.pair x y)) ≤ 1 := by
+  have hs := summable_universalProb_natPairSigma hM
+  calc ∑' x : ℕ, ∑' y : ℕ, M.universalProb (Nat.pair x y)
+      = ∑' xy : Σ _ : ℕ, ℕ, M.universalProb (Nat.pair xy.1 xy.2) :=
+        (hs.tsum_sigma' fun x => hM.summable_universalProb_pair x).symm
+    _ = ∑' z : ℕ, M.universalProb z := natPairSigmaEquiv.tsum_eq M.universalProb
+    _ = M.chaitinOmega := hM.tsum_universalProb_eq_chaitinOmega
+    _ ≤ 1 := hM.chaitinOmega_le_one
+
 /-- Shortest-program lower bound: `2⁻¹ ^ K_M(x) ≤ M.universalProb x` for every prefix-free
 method whenever `M.ecomplexity x ≠ ⊤`. -/
 theorem two_inv_pow_complexity_le_universalProb {α : Type*} {M : DescriptionMethod α}
@@ -197,8 +232,11 @@ open DescriptionMethod
 
 /-! ### Lower-semicomputable discrete semimeasures -/
 
-/-- A function `μ : α → ℝ` is *lower semicomputable* when its strict rational lower graph
-`{(x, a, b) | (a : ℝ) / (b + 1) < μ x}` is recursively enumerable (`REPred`). -/
+/-- A nonnegative function `μ : α → ℝ` is *lower semicomputable* when its strict nonnegative
+rational lower graph `{(x, a, b) | (a : ℝ) / (b + 1) < μ x}` (`a, b : ℕ`, testing `ℚ≥0`) is
+recursively enumerable (`REPred`). For nonnegative `μ`, every negative rational is trivially below
+`μ x`, so restricting numerators to `a : ℕ` characterizes lower semicomputability on `ℝ≥0`-valued
+functions. -/
 @[expose] def IsLowerSemicomputable {α : Type*} [Primcodable α] (μ : α → ℝ) : Prop :=
   REPred fun p : α × ℕ × ℕ =>
     match p with
@@ -318,13 +356,15 @@ private theorem primrec_list_filter_fst {β : Type*} [Primcodable β]
     · simp [h, ih]
     · simp [h, ih]
 
-private def codeMaxLen (L : List (List Bool)) : ℕ :=
+/-- Maximum length among a finite list of binary codewords. -/
+@[expose] def codeMaxLen (L : List (List Bool)) : ℕ :=
   (L.map List.length).foldl max 0
 
-private def codeScaledSum (L : List (List Bool)) : ℕ :=
+/-- Integer-scaled dyadic Kraft sum `∑ w ∈ L, 2 ^ (codeMaxLen L - |w|)`. -/
+@[expose] def codeScaledSum (L : List (List Bool)) : ℕ :=
   (L.map fun w => 2 ^ (codeMaxLen L - w.length)).sum
 
-private theorem primrec_codeMaxLen : Primrec codeMaxLen := by
+theorem primrec_codeMaxLen : Primrec codeMaxLen := by
   have hmap : Primrec fun L : List (List Bool) => L.map List.length :=
     Primrec.list_map Primrec.id (Primrec.list_length.comp Primrec.snd).to₂
   have hmax : Primrec₂ fun (_ : List (List Bool)) (mn : ℕ × ℕ) => max mn.1 mn.2 :=
@@ -332,7 +372,7 @@ private theorem primrec_codeMaxLen : Primrec codeMaxLen := by
       Primrec.nat_max.comp (Primrec.fst.comp Primrec.snd) (Primrec.snd.comp Primrec.snd)
   exact (Primrec.list_foldl hmap (Primrec.const 0) hmax).of_eq fun _ => rfl
 
-private theorem primrec_codeScaledSum : Primrec codeScaledSum := by
+theorem primrec_codeScaledSum : Primrec codeScaledSum := by
   have hel : Primrec₂ fun (L : List (List Bool)) (w : List Bool) =>
       2 ^ (codeMaxLen L - w.length) :=
     Primrec₂.mk <| primrec_two_pow.comp
@@ -340,9 +380,7 @@ private theorem primrec_codeScaledSum : Primrec codeScaledSum := by
         (Primrec.list_length.comp Primrec.snd))
   exact (Primrec.list_sum (Primrec.list_map Primrec.id hel)).of_eq fun _ => rfl
 
-/-- Scaled integer Kraft sum equality: if every word `w ∈ L` has `w.length ≤ m`, then casting
-`∑ w ∈ L, 2 ^ (m - w.length)` to `ℝ` equals `(∑ w ∈ L, (2 : ℝ)⁻¹ ^ w.length) * (2 : ℝ) ^ m`. -/
-theorem natCast_sum_two_pow_sub_length (m : ℕ) (L : List (List Bool))
+private theorem natCast_sum_two_pow_sub_length (m : ℕ) (L : List (List Bool))
     (hle : ∀ w ∈ L, w.length ≤ m) :
     ((L.map fun w : List Bool => (2 : ℕ) ^ (m - w.length)).sum : ℝ) =
       (L.map fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length).sum * (2 : ℝ) ^ m := by
@@ -362,13 +400,20 @@ theorem natCast_sum_two_pow_sub_length (m : ℕ) (L : List (List Bool))
     simp only [List.map_cons, List.sum_cons, add_mul]
     rw [Nat.cast_add, Nat.cast_pow, Nat.cast_ofNat, ha', hrest]
 
+/-- Casting `codeScaledSum L` to `ℝ` equals the dyadic Kraft sum of `L` scaled by
+`2 ^ codeMaxLen L`. -/
+theorem natCast_codeScaledSum (L : List (List Bool)) :
+    (codeScaledSum L : ℝ) =
+      (L.map fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length).sum * (2 : ℝ) ^ codeMaxLen L :=
+  natCast_sum_two_pow_sub_length (codeMaxLen L) L fun _ hw =>
+    List.mem_le_foldl_max (List.mem_map_of_mem hw)
+
 private theorem codeScaledSum_cast (L : List (List Bool)) :
     (codeScaledSum L : ℝ) / ((2 ^ codeMaxLen L : ℕ) : ℝ) =
       (L.map fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length).sum := by
   have hcast : ((2 ^ codeMaxLen L : ℕ) : ℝ) = (2 : ℝ) ^ codeMaxLen L := by push_cast; rfl
   rw [hcast, div_eq_iff (by positivity)]
-  exact natCast_sum_two_pow_sub_length (codeMaxLen L) L fun _ hw =>
-    List.mem_le_foldl_max (List.mem_map_of_mem hw)
+  exact natCast_codeScaledSum L
 
 private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β]
     {c : Code} (hpf : (ofCode c).IsPrefixFree)
@@ -574,6 +619,19 @@ private noncomputable def marginalSigmaEquiv (x : ℕ) :
     exact sigma_subtype_ext (P := fun y p => universalPrefix.Produces p (Nat.pair x y)) hy
   right_inv _ := rfl
 
+/-- Joint summability of `2⁻¹ ^ |p|` over pairs `(y, p)` where `universalPrefix` produces
+`Nat.pair x y`. -/
+theorem summable_universalPrefix_produces_pair (x : ℕ) :
+    Summable (fun ⟨_, p, _⟩ => (2 : ℝ)⁻¹ ^ p.length :
+      (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} → ℝ) := by
+  let emb : {p : List Bool // ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x} →
+      universalPrefix.haltingSet :=
+    fun p => ⟨p.1, p.2.choose, p.2.choose_spec.1⟩
+  have hemb : Function.Injective emb := fun _ _ h =>
+    Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.1) h)
+  exact (Equiv.summable_iff (marginalSigmaEquiv x)).mpr
+    (isPrefixFree_universalPrefix.summable_two_inv_pow_length.comp_injective hemb)
+
 /-- The marginal semimeasure `x ↦ ∑' y, universalPrefix.universalProb (Nat.pair x y)` is lower
 semicomputable. -/
 theorem isLowerSemicomputable_universalProb_marginal :
@@ -609,23 +667,11 @@ theorem isLowerSemicomputable_universalProb_marginal :
     have hs_prog : ∀ y : ℕ,
         Summable fun p : {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} =>
           (2 : ℝ)⁻¹ ^ p.1.length :=
-      fun y => isPrefixFree_universalPrefix.summable_universalProb_program _
-    let emb : {p : List Bool // ∃ z, (ofCode c).Produces p z ∧
-        decide (z.unpair.1 = x) = true} → universalPrefix.haltingSet :=
-      fun p => ⟨p.1, p.2.choose, (hc _ _).mpr p.2.choose_spec.1⟩
-    have hemb : Function.Injective emb := fun _ _ h =>
-      Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.1) h)
-    have hs_filt : Summable fun p : {p : List Bool // ∃ z, (ofCode c).Produces p z ∧
-        decide (z.unpair.1 = x) = true} => (2 : ℝ)⁻¹ ^ p.1.length :=
-      isPrefixFree_universalPrefix.summable_two_inv_pow_length.comp_injective hemb
-    have hs_sigma : Summable fun yp : (y : ℕ) ×
-        {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} =>
-        (2 : ℝ)⁻¹ ^ yp.2.1.length :=
-      (Equiv.summable_iff e).mpr hs_filt
+      fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
     calc ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y)
         = ∑' yp : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
             (2 : ℝ)⁻¹ ^ yp.2.1.length :=
-          (hs_sigma.tsum_sigma' hs_prog).symm
+          ((summable_universalPrefix_produces_pair x).tsum_sigma' hs_prog).symm
       _ = ∑' p : {p : List Bool // ∃ z, (ofCode c).Produces p z ∧
             decide (z.unpair.1 = x) = true}, (2 : ℝ)⁻¹ ^ p.1.length :=
           e.tsum_eq fun p => (2 : ℝ)⁻¹ ^ p.1.length

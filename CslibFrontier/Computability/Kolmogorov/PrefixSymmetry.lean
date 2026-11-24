@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Kolmogorov.ConditionalPartrec
 public import CslibFrontier.Computability.Kolmogorov.LevinCoding
-import CslibFrontier.Foundations.Data.List.FoldMax
 import CslibFrontier.Foundations.Data.List.Primrec
 import Mathlib.Computability.Primrec.List
 
@@ -49,8 +48,8 @@ Kolmogorov complexity (`CslibFrontier.Computability.Kolmogorov.SymmetryOfInforma
   `List Bool`.
 * `Cslib.Kolmogorov.DescriptionMethod.shortestPrefixProgram`: canonical shortest prefix-free
   program `x*` for `x : ℕ`.
-* `Cslib.Kolmogorov.DescriptionMethod.shortestPrefixProgramBits`: canonical shortest prefix-free
-  program `x*` for `x : List Bool`.
+* `Cslib.Kolmogorov.DescriptionMethod.shortestPrefixProgramBits`: canonical prefix-free program
+  `shortestPrefixProgram (encode x)` producing `x : List Bool` under `universalPrefixBits`.
 * `Cslib.Kolmogorov.prefixInformation`: prefix algorithmic mutual information
   `I_K(x : y) = K(y) - K(y | x*)`.
 
@@ -219,9 +218,7 @@ theorem IsCondPartrec.exists_ecomplexity_condUniversalPrefix_le
   rw [← hlen]
   exact hc y p x ((hN_eq y p x).mp hp)
 
-/-- Dropping a condition cannot decrease prefix-free complexity by more than a constant:
-`K(x | y) ≤ K(x) + O(1)`. -/
-theorem exists_ecomplexity_condUniversalPrefix_le :
+private theorem exists_ecomplexity_condUniversalPrefix_le :
     ∃ c : ℕ, ∀ y x, (condUniversalPrefix y).ecomplexity x ≤ universalPrefix.ecomplexity x + c := by
   obtain ⟨f, hf, hU⟩ := isPartrec_universalPrefix
   have hpf : ∀ _ : ℕ, InformationTheory.IsPrefixFree {p | (f p).Dom} := by
@@ -702,469 +699,6 @@ theorem exists_complexity_universalPrefix_pair_le_add_pair :
 
 /-! ### Uniform conditional Kraft–Chaitin theorem -/
 
-private def kcAllocState (av ac : List (List Bool)) :
-    List ℕ → Option (List (List Bool) × List (List Bool))
-  | [] => some (av, ac)
-  | ℓ :: rest =>
-    match kcStep av (some ℓ) with
-    | (_, Option.none) => Option.none
-    | (av', some w) => kcAllocState av' (w :: ac) rest
-
-private theorem kcAllocListAux_eq_kcAllocState (av ac : List (List Bool)) (L : List ℕ) :
-    kcAllocListAux av ac L = (kcAllocState av ac L).map fun p => p.2.reverse := by
-  induction L generalizing av ac with
-  | nil => rfl
-  | cons ℓ rest ih =>
-    simp only [kcAllocListAux, kcAllocState]
-    cases kcStep av (some ℓ) with
-    | mk av' opt =>
-      cases opt with
-      | none => rfl
-      | some w => exact ih av' (w :: ac)
-
-private theorem kcAllocState_append (av ac : List (List Bool)) (L₁ L₂ : List ℕ) :
-    kcAllocState av ac (L₁ ++ L₂) =
-      (kcAllocState av ac L₁).bind fun p => kcAllocState p.1 p.2 L₂ := by
-  induction L₁ generalizing av ac with
-  | nil => simp [kcAllocState]
-  | cons ℓ rest ih =>
-    simp only [List.cons_append, kcAllocState]
-    cases kcStep av (some ℓ) with
-    | mk av' opt =>
-      cases opt with
-      | none => rfl
-      | some w => exact ih av' (w :: ac)
-
-private def listReqs (reqs : ℕ → Option ℕ) : ℕ → List ℕ
-  | 0 => []
-  | n + 1 =>
-    match reqs n with
-    | Option.none => listReqs reqs n
-    | some ℓ => listReqs reqs n ++ [ℓ]
-
-private theorem sum_listReqs_eq (reqs : ℕ → Option ℕ) (n : ℕ) :
-    ((listReqs reqs n).map fun ℓ => (2 : ℚ)⁻¹ ^ ℓ).sum =
-      ∑ i ∈ Finset.range n,
-        (match reqs i with | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) := by
-  induction n with
-  | zero => simp [listReqs]
-  | succ n ih =>
-    rw [Finset.sum_range_succ, listReqs]
-    cases h : reqs n with
-    | none => simpa using ih
-    | some ℓ =>
-      simp only [List.map_append, List.map_singleton, List.sum_append, List.sum_singleton]
-      simpa [add_comm] using congrArg (· + (2 : ℚ)⁻¹ ^ ℓ) ih
-
-private def kcCollect (reqs : ℕ → Option ℕ) : ℕ → List (List Bool) × List (List Bool)
-  | 0 => ([[]], [])
-  | n + 1 =>
-    let res := kcCollect reqs n
-    match kcStep res.1 (reqs n) with
-    | (avail', Option.none) => (avail', res.2)
-    | (avail', some code) => (avail', res.2 ++ [code])
-
-private theorem kcCollect_fst_eq_kcTrace (reqs : ℕ → Option ℕ) (n : ℕ) :
-    (kcCollect reqs n).1 = (kcTrace reqs n).1 := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    simp only [kcCollect, kcTrace, ih]
-    cases kcStep (kcTrace reqs n).1 (reqs n) with
-    | mk av opt => cases opt <;> rfl
-
-private theorem kcCollect_spec (reqs : ℕ → Option ℕ)
-    (hbound : ∀ n : ℕ, ∑ i ∈ Finset.range n,
-      (match reqs i with | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) ≤ 1) (n : ℕ) :
-    kcAllocState [[]] [] (listReqs reqs n) =
-      some ((kcCollect reqs n).1, (kcCollect reqs n).2.reverse) ∧
-      (kcCollect reqs n).2.Pairwise PrefixDisjoint ∧
-      (kcCollect reqs n).2.map List.length = listReqs reqs n := by
-  induction n with
-  | zero =>
-    simp [listReqs, kcAllocState, kcCollect]
-  | succ n ih =>
-    obtain ⟨hstate, hpair, hlen⟩ := ih
-    cases hreq : reqs n with
-    | none =>
-      have hkc : kcStep (kcCollect reqs n).1 Option.none = ((kcCollect reqs n).1, Option.none) :=
-        rfl
-      simpa [listReqs, hreq, kcCollect, hkc] using ⟨hstate, hpair, hlen⟩
-    | some ℓ =>
-      have hsum : ((listReqs reqs (n + 1)).map fun k => (2 : ℚ)⁻¹ ^ k).sum ≤ 1 := by
-        rw [sum_listReqs_eq]
-        exact hbound (n + 1)
-      obtain ⟨codes, hcodes, hmap, hcodes_pair⟩ := kcAllocList_eq_some_of_sum_le_one hsum
-      have haux : kcAllocListAux [[]] [] (listReqs reqs n ++ [ℓ]) = some codes := by
-        simpa [kcAllocList, listReqs, hreq] using hcodes
-      rw [kcAllocListAux_eq_kcAllocState, Option.map_eq_some_iff] at haux
-      obtain ⟨⟨av', ac'⟩, hst', rfl⟩ := haux
-      rw [kcAllocState_append, hstate, Option.bind_some] at hst'
-      simp only [kcAllocState] at hst'
-      cases hstep : kcStep (kcCollect reqs n).1 (some ℓ) with
-      | mk av₁ opt =>
-        rw [hstep] at hst'
-        cases opt with
-        | none => cases hst'
-        | some w =>
-          simp only [Option.some.injEq, Prod.mk.injEq] at hst'
-          obtain ⟨rfl, rfl⟩ := hst'
-          have hcoll : kcCollect reqs (n + 1) = (av₁, (kcCollect reqs n).2 ++ [w]) := by
-            simp [kcCollect, hreq, hstep]
-          have hrev_eq :
-              ((kcCollect reqs n).2 ++ [w]).reverse = w :: (kcCollect reqs n).2.reverse := by
-            simp
-          refine ⟨?_, ?_, ?_⟩
-          · rw [listReqs, hreq, kcAllocState_append, hstate, Option.bind_some]
-            simp [kcAllocState, hstep, hcoll, hrev_eq]
-          · rw [hcoll]
-            simpa [List.reverse_cons] using hcodes_pair
-          · rw [hcoll]
-            simpa [listReqs, hreq] using hmap
-
-private theorem kcCollect_mono {reqs : ℕ → Option ℕ} {m n : ℕ} (hmn : m ≤ n) :
-    (kcCollect reqs m).2 <+: (kcCollect reqs n).2 := by
-  induction hmn with
-  | refl => exact List.prefix_rfl
-  | @step n h ih =>
-    refine ih.trans ?_
-    simp only [kcCollect]
-    cases kcStep (kcCollect reqs n).1 (reqs n) with
-    | mk av opt =>
-      cases opt with
-      | none => exact List.prefix_rfl
-      | some w => exact List.prefix_append _ _
-
-private theorem kcCode_of_sum_le_one {reqs : ℕ → Option ℕ}
-    (hbound : ∀ n : ℕ, ∑ i ∈ Finset.range n,
-      (match reqs i with | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) ≤ 1) :
-    (∀ i ℓ, reqs i = some ℓ →
-      ∃ w, kcCode reqs i = some w ∧ w.length = ℓ ∧
-        ((kcCollect reqs (i + 1)).2)[(listReqs reqs i).length]? = some w) ∧
-    (∀ {i j : ℕ} {p q : List Bool}, i ≠ j →
-      kcCode reqs i = some p → kcCode reqs j = some q → PrefixDisjoint p q) := by
-  have h1 : ∀ i ℓ, reqs i = some ℓ →
-      ∃ w, kcCode reqs i = some w ∧ w.length = ℓ ∧
-        ((kcCollect reqs (i + 1)).2)[(listReqs reqs i).length]? = some w := by
-    intro i ℓ hi
-    obtain ⟨hst_i, _, hlen_i⟩ := kcCollect_spec reqs hbound i
-    obtain ⟨hst_s, _, hlen_s⟩ := kcCollect_spec reqs hbound (i + 1)
-    rw [listReqs, hi, kcAllocState_append, hst_i, Option.bind_some] at hst_s
-    simp only [kcAllocState] at hst_s
-    cases hstep : kcStep (kcCollect reqs i).1 (some ℓ) with
-    | mk av₁ opt =>
-      rw [hstep] at hst_s
-      cases opt with
-      | none => cases hst_s
-      | some w =>
-        have hkc : kcCode reqs i = some w := by
-          rw [kcCode, kcTrace, ← kcCollect_fst_eq_kcTrace, hi, hstep]
-        have hcoll : kcCollect reqs (i + 1) = (av₁, (kcCollect reqs i).2 ++ [w]) := by
-          simp [kcCollect, hi, hstep]
-        have hidx : ((kcCollect reqs (i + 1)).2)[(listReqs reqs i).length]? = some w := by
-          have hlen_c : (kcCollect reqs i).2.length = (listReqs reqs i).length := by
-            have := congrArg List.length hlen_i
-            simpa using this
-          rw [hcoll, ← hlen_c, List.getElem?_append_right le_rfl]
-          simp
-        have hwlen : w.length = ℓ := by
-          have hlen_c : (kcCollect reqs i).2.length = (listReqs reqs i).length := by
-            simpa using congrArg List.length hlen_i
-          have := congrArg (fun L => L[(listReqs reqs i).length]?) hlen_s
-          rw [hcoll, List.map_append, List.map_singleton, listReqs, hi,
-            List.getElem?_append_right (by simp [hlen_c]), List.getElem?_append_right le_rfl]
-            at this
-          simpa [hlen_c] using this
-        exact ⟨w, hkc, hwlen, hidx⟩
-  refine ⟨h1, ?_⟩
-  intro i j p q hne hi hj
-  have hi_some : (reqs i).isSome := by
-    by_contra hn
-    have hnone : reqs i = Option.none := Option.not_isSome_iff_eq_none.mp hn
-    simp [kcCode, kcTrace, kcStep, hnone] at hi
-  have hj_some : (reqs j).isSome := by
-    by_contra hn
-    have hnone : reqs j = Option.none := Option.not_isSome_iff_eq_none.mp hn
-    simp [kcCode, kcTrace, kcStep, hnone] at hj
-  obtain ⟨ℓi, hℓi⟩ := Option.isSome_iff_exists.mp hi_some
-  obtain ⟨ℓj, hℓj⟩ := Option.isSome_iff_exists.mp hj_some
-  obtain ⟨wp, hwp, _, hidxp⟩ := h1 i ℓi hℓi
-  obtain ⟨wq, hwq, _, hidxq⟩ := h1 j ℓj hℓj
-  obtain rfl := Option.some.inj (hwp.symm.trans hi)
-  obtain rfl := Option.some.inj (hwq.symm.trans hj)
-  let N := max (i + 1) (j + 1)
-  have isPref_get : ∀ {L₁ L₂ : List (List Bool)} {k : ℕ} {x : List Bool},
-      L₁ <+: L₂ → L₁[k]? = some x → L₂[k]? = some x := by
-    rintro L₁ L₂ k x ⟨tail, rfl⟩ hk
-    rw [List.getElem?_append_left (List.getElem?_eq_some_iff.mp hk).1, hk]
-  have hp_N : ((kcCollect reqs N).2)[(listReqs reqs i).length]? = some wp :=
-    isPref_get (kcCollect_mono (le_max_left (i + 1) (j + 1))) hidxp
-  have hq_N : ((kcCollect reqs N).2)[(listReqs reqs j).length]? = some wq :=
-    isPref_get (kcCollect_mono (le_max_right (i + 1) (j + 1))) hidxq
-  have hlen_lt : (listReqs reqs i).length ≠ (listReqs reqs j).length := by
-    have hmono : ∀ a b, a < b → (reqs a).isSome →
-        (listReqs reqs a).length < (listReqs reqs b).length := by
-      intro a b hab ha
-      obtain ⟨ℓa, hℓa⟩ := Option.isSome_iff_exists.mp ha
-      have hsucc : (listReqs reqs a).length < (listReqs reqs (a + 1)).length := by
-        simp [listReqs, hℓa]
-      have hle_b : ∀ m n, m ≤ n → (listReqs reqs m).length ≤ (listReqs reqs n).length := by
-        intro m n hmn
-        induction hmn with
-        | refl => exact le_rfl
-        | @step k _ ihk =>
-          dsimp only [listReqs]
-          cases reqs k with
-          | none => exact ihk
-          | some _ => simp; omega
-      exact lt_of_lt_of_le hsucc (hle_b (a + 1) b hab)
-    rcases lt_or_gt_of_ne hne with hlt | hlt
-    · exact (hmono i j hlt hi_some).ne
-    · exact (hmono j i hlt hj_some).ne'
-  obtain ⟨_, hpair_N, _⟩ := kcCollect_spec reqs hbound N
-  rw [List.getElem?_eq_some_iff] at hp_N hq_N
-  obtain ⟨hi_lt, hpi⟩ := hp_N
-  obtain ⟨hj_lt, hqj⟩ := hq_N
-  rw [← hpi, ← hqj]
-  rcases lt_or_gt_of_ne hlen_lt with hlt | hlt
-  · exact List.pairwise_iff_getElem.mp hpair_N _ _ hi_lt hj_lt hlt
-  · exact (List.pairwise_iff_getElem.mp hpair_N _ _ hj_lt hi_lt hlt).symm
-
-private theorem primrec_list_replicate_bool_ps :
-    Primrec₂ (fun (n : ℕ) (b : Bool) => List.replicate n b) :=
-  Primrec₂.mk <| (Primrec.list_map (Primrec.list_range.comp Primrec.fst)
-    (Primrec.snd.comp Primrec.fst).to₂).of_eq fun ⟨n, b⟩ => by simp [List.map_const']
-
-private theorem false_cons_replicate_false (d : ℕ) :
-    false :: List.replicate d false = List.replicate d false ++ [false] := by
-  induction d with
-  | zero => rfl
-  | succ d ih =>
-    rw [List.replicate_succ]
-    simpa [List.cons_append] using congrArg (false :: ·) ih
-
-private theorem splitFrom_eq_ps (u : List Bool) (d : ℕ) :
-    splitFrom u d =
-      (u ++ List.replicate d false,
-        (List.range d).map fun k => u ++ List.replicate k false ++ [true]) := by
-  induction d generalizing u with
-  | zero => simp [splitFrom]
-  | succ d ih =>
-    rw [splitFrom, ih (u ++ [false])]
-    ext1
-    · simp only [List.append_assoc, List.singleton_append, false_cons_replicate_false,
-        List.replicate_succ']
-    · simp only [List.range_succ_eq_map, List.map_cons, List.map_map, Function.comp_def,
-        List.replicate_zero, List.append_nil, List.cons.injEq, true_and]
-      refine List.map_congr_left fun k _ => ?_
-      simp only [List.append_assoc, List.singleton_append, false_cons_replicate_false,
-        List.replicate_succ']
-
-private theorem primrec₂_splitFrom_ps : Primrec₂ splitFrom := by
-  have hfst : Primrec₂ fun (u : List Bool) (d : ℕ) => u ++ List.replicate d false :=
-    Primrec₂.mk <| Primrec.list_append.comp Primrec.fst
-      (primrec_list_replicate_bool_ps.comp Primrec.snd (Primrec.const false))
-  have hsnd : Primrec₂ fun (u : List Bool) (d : ℕ) =>
-      (List.range d).map fun k => u ++ List.replicate k false ++ [true] := by
-    have hel : Primrec₂ fun (ud : List Bool × ℕ) (k : ℕ) =>
-        ud.1 ++ List.replicate k false ++ [true] :=
-      Primrec₂.mk <| Primrec.list_append.comp
-        (Primrec.list_append.comp (Primrec.fst.comp Primrec.fst)
-          (primrec_list_replicate_bool_ps.comp Primrec.snd (Primrec.const false)))
-        (Primrec.const [true])
-    exact Primrec₂.mk <| Primrec.list_map (Primrec.list_range.comp Primrec.snd) hel
-  exact (Primrec.pair (hfst.comp Primrec.fst Primrec.snd)
-    (hsnd.comp Primrec.fst Primrec.snd)).to₂.of_eq fun u d => (splitFrom_eq_ps u d).symm
-
-private theorem primrec₂_bestLenLe_ps : Primrec₂ bestLenLe? := by
-  have hcons : Primrec₂ fun (arg : ℕ × List (List Bool))
-      (p : List Bool × List (List Bool) × Option ℕ) =>
-      if p.1.length ≤ arg.1 then
-        match p.2.2 with
-        | Option.none => some p.1.length
-        | some b => some (max p.1.length b)
-      else p.2.2 := by
-    have hp : PrimrecPred fun z : (ℕ × List (List Bool)) ×
-        (List Bool × List (List Bool) × Option ℕ) =>
-        z.2.1.length ≤ z.1.1 :=
-      Primrec.nat_le.comp (Primrec.list_length.comp (Primrec.fst.comp Primrec.snd))
-        (Primrec.fst.comp Primrec.fst)
-    have hmatch : Primrec fun z : (ℕ × List (List Bool)) ×
-        (List Bool × List (List Bool) × Option ℕ) =>
-        match z.2.2.2 with
-        | Option.none => some z.2.1.length
-        | some b => some (max z.2.1.length b) :=
-      (Primrec.option_casesOn (Primrec.snd.comp (Primrec.snd.comp Primrec.snd))
-        (Primrec.option_some.comp (Primrec.list_length.comp (Primrec.fst.comp Primrec.snd)))
-        (Primrec₂.mk <| Primrec.option_some.comp <| Primrec.nat_max.comp
-          (Primrec.list_length.comp (Primrec.fst.comp (Primrec.snd.comp Primrec.fst)))
-          Primrec.snd)).of_eq fun z => by cases z.2.2.2 <;> rfl
-    exact Primrec₂.mk <| Primrec.ite hp hmatch
-      (Primrec.snd.comp (Primrec.snd.comp Primrec.snd))
-  exact Primrec₂.mk <| (Primrec.list_rec Primrec.snd (Primrec.const Option.none) hcons).of_eq
-    fun arg => by
-      rcases arg with ⟨ℓ, av⟩
-      induction av with
-      | nil => rfl
-      | cons u rest ih =>
-        dsimp only
-        rw [bestLenLe?]
-        by_cases h : u.length ≤ ℓ
-        · simp only [h, ↓reduceIte, ih]
-          cases bestLenLe? ℓ rest <;> rfl
-        · simp [h, ih]
-
-private theorem primrec₂_splitAtLen_ps :
-    Primrec₂ fun (lb : ℕ × ℕ) (av : List (List Bool)) => splitAtLen lb.1 lb.2 av := by
-  have hcons : Primrec₂ fun (arg : (ℕ × ℕ) × List (List Bool))
-      (p : List Bool × List (List Bool) × (List (List Bool) × Option (List Bool))) =>
-      if p.1.length = arg.1.2 then
-        let res := splitFrom p.1 (arg.1.1 - p.1.length)
-        (p.2.1 ++ res.2, some res.1)
-      else (p.1 :: p.2.2.1, p.2.2.2) := by
-    have hsplit : Primrec fun z : ((ℕ × ℕ) × List (List Bool)) ×
-        (List Bool × List (List Bool) × (List (List Bool) × Option (List Bool))) =>
-        splitFrom z.2.1 (z.1.1.1 - z.2.1.length) :=
-      primrec₂_splitFrom_ps.comp (Primrec.fst.comp Primrec.snd)
-        (Primrec.nat_sub.comp (Primrec.fst.comp (Primrec.fst.comp Primrec.fst))
-          (Primrec.list_length.comp (Primrec.fst.comp Primrec.snd)))
-    have hp : PrimrecPred fun z : ((ℕ × ℕ) × List (List Bool)) ×
-        (List Bool × List (List Bool) × (List (List Bool) × Option (List Bool))) =>
-        z.2.1.length = z.1.1.2 :=
-      Primrec.eq.comp (Primrec.list_length.comp (Primrec.fst.comp Primrec.snd))
-        (Primrec.snd.comp (Primrec.fst.comp Primrec.fst))
-    have h1 : Primrec fun z : ((ℕ × ℕ) × List (List Bool)) ×
-        (List Bool × List (List Bool) × (List (List Bool) × Option (List Bool))) =>
-        (z.2.2.1 ++ (splitFrom z.2.1 (z.1.1.1 - z.2.1.length)).2,
-          some (splitFrom z.2.1 (z.1.1.1 - z.2.1.length)).1) :=
-      Primrec.pair
-        (Primrec.list_append.comp (Primrec.fst.comp (Primrec.snd.comp Primrec.snd))
-          (Primrec.snd.comp hsplit))
-        (Primrec.option_some.comp (Primrec.fst.comp hsplit))
-    have h2 : Primrec fun z : ((ℕ × ℕ) × List (List Bool)) ×
-        (List Bool × List (List Bool) × (List (List Bool) × Option (List Bool))) =>
-        (z.2.1 :: z.2.2.2.1, z.2.2.2.2) :=
-      Primrec.pair
-        (Primrec.list_cons.comp (Primrec.fst.comp Primrec.snd)
-          (Primrec.fst.comp (Primrec.snd.comp (Primrec.snd.comp Primrec.snd))))
-        (Primrec.snd.comp (Primrec.snd.comp (Primrec.snd.comp Primrec.snd)))
-    exact Primrec₂.mk <| Primrec.ite hp h1 h2
-  exact Primrec₂.mk <| (Primrec.list_rec Primrec.snd (Primrec.const ([], Option.none)) hcons).of_eq
-    fun arg => by
-      rcases arg with ⟨lb, av⟩
-      induction av with
-      | nil => rfl
-      | cons u rest ih =>
-        dsimp only
-        rw [splitAtLen]
-        by_cases h : u.length = lb.2
-        · simp [h]
-        · simp [h, ih]
-
-private theorem primrec₂_kcStep_ps : Primrec₂ kcStep := by
-  have hsome : Primrec₂ fun (av : List (List Bool)) (ℓ : ℕ) =>
-      match bestLenLe? ℓ av with
-      | Option.none => (av, Option.none)
-      | some b => splitAtLen ℓ b av := by
-    have hbest := primrec₂_bestLenLe_ps.comp Primrec.snd Primrec.fst
-    have hsplit : Primrec₂ fun (arg : List (List Bool) × ℕ) (b : ℕ) =>
-        splitAtLen arg.2 b arg.1 :=
-      Primrec₂.mk <| primrec₂_splitAtLen_ps.comp
-        (Primrec.pair (Primrec.snd.comp Primrec.fst) Primrec.snd)
-        (Primrec.fst.comp Primrec.fst)
-    exact Primrec₂.mk <| (Primrec.option_casesOn hbest
-      (Primrec.pair Primrec.fst (Primrec.const Option.none)) hsplit).of_eq fun arg => by
-        cases bestLenLe? arg.2 arg.1 <;> rfl
-  exact Primrec₂.mk <| (Primrec.option_casesOn Primrec.snd
-    (Primrec.pair Primrec.fst (Primrec.const Option.none))
-    (hsome.comp (Primrec.fst.comp Primrec.fst) Primrec.snd).to₂).of_eq fun arg => by
-      cases arg.2 <;> rfl
-
-private def condKcStreamEval (req : ℕ → ℕ → Option (ℕ × ℕ)) (y : ℕ) (p : List Bool) :
-    ℕ → Option ℕ
-  | 0 => Option.none
-  | t + 1 =>
-    match condKcStreamEval req y p t with
-    | some x => some x
-    | Option.none =>
-      if kcCode (fun i => (req y i).map Prod.fst) t = some p then (req y t).map Prod.snd
-      else Option.none
-
-private theorem condKcStreamEval_mono (req : ℕ → ℕ → Option (ℕ × ℕ)) (y : ℕ) (p : List Bool) :
-    ∀ {m n : ℕ} {x : ℕ}, m ≤ n →
-      condKcStreamEval req y p m = some x → condKcStreamEval req y p n = some x := by
-  intro m n x hmn hm
-  induction hmn with
-  | refl => exact hm
-  | step _ ih => simp only [condKcStreamEval, ih]
-
-private theorem bound_real_to_rat (req : ℕ → Option (ℕ × ℕ))
-    (hbound : ∀ n : ℕ, ∑ i ∈ Finset.range n,
-      (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) ≤ 1) :
-    ∀ n : ℕ, ∑ i ∈ Finset.range n,
-      (match (req i).map Prod.fst with | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) ≤
-      1 := by
-  intro n
-  have hb := hbound n
-  let f : ℕ → ℚ := fun i =>
-    match (req i).map Prod.fst with | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ
-  have hcast : ((∑ i ∈ Finset.range n, f i : ℚ) : ℝ) =
-      ∑ i ∈ Finset.range n,
-        (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) := by
-    rw [Rat.cast_sum]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    dsimp only [f]
-    cases req i <;> simp
-  exact_mod_cast (hcast ▸ hb)
-
-private theorem mem_condKcStreamEval_iff (req : ℕ → ℕ → Option (ℕ × ℕ))
-    (y : ℕ)
-    (hbound : ∀ n : ℕ, ∑ i ∈ Finset.range n,
-      (match req y i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) ≤ 1)
-    (p : List Bool) {t : ℕ} {x : ℕ} :
-    condKcStreamEval req y p t = some x ↔
-      ∃ i < t, kcCode (fun j => (req y j).map Prod.fst) i = some p ∧
-        (req y i).map Prod.snd = some x := by
-  obtain ⟨_, hdisj⟩ := kcCode_of_sum_le_one (bound_real_to_rat (req y) hbound)
-  induction t generalizing x with
-  | zero => simp [condKcStreamEval]
-  | succ t ih =>
-    simp only [condKcStreamEval]
-    cases h : condKcStreamEval req y p t with
-    | some z =>
-      rw [Option.some.injEq]
-      obtain ⟨i, hit, hcode, hval⟩ := (@ih z).mp h
-      constructor
-      · rintro rfl
-        exact ⟨i, hit.trans (Nat.lt_succ_self t), hcode, hval⟩
-      · rintro ⟨j, hjt, hjcode, hjval⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hjt with hjlt | rfl
-        · have hz := (@ih x).mpr ⟨j, hjlt, hjcode, hjval⟩
-          rw [h] at hz
-          exact Option.some.inj hz
-        · exact absurd (hdisj (i := i) (j := j) (by omega) hcode hjcode) (PrefixDisjoint.irrefl p)
-    | none =>
-      by_cases hkc : kcCode (fun i => (req y i).map Prod.fst) t = some p
-      · simp only [hkc, ↓reduceIte]
-        constructor
-        · intro hx
-          exact ⟨t, Nat.lt_succ_self t, hkc, hx⟩
-        · rintro ⟨i, hit, hcode, hval⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hit with hilt | rfl
-          · have : condKcStreamEval req y p t = some x := ih.mpr ⟨i, hilt, hcode, hval⟩
-            rw [h] at this
-            simp at this
-          · exact hval
-      · simp only [hkc, ↓reduceIte]
-        constructor
-        · simp
-        · rintro ⟨i, hit, hcode, hval⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hit with hilt | rfl
-          · have : condKcStreamEval req y p t = some x := ih.mpr ⟨i, hilt, hcode, hval⟩
-            rw [h] at this
-            simp at this
-          · exact absurd hcode hkc
-
 /-- **Uniform conditional Kraft–Chaitin theorem**: any jointly computable family of request
 streams `req : ℕ → ℕ → Option (ℕ × ℕ)` with Kraft sum at most `1` for every condition `y` yields
 one constant `c` with `K(z | y) ≤ ℓ + c` whenever `req y i = some (ℓ, z)`. -/
@@ -1172,98 +706,30 @@ theorem condKraftChaitin_of_sum_le_one {req : ℕ → ℕ → Option (ℕ × ℕ
     (hbound : ∀ y n : ℕ, ∑ i ∈ Finset.range n,
       (match req y i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) ≤ 1) :
     ∃ c : ℕ, ∀ y i ℓ z, req y i = some (ℓ, z) → (condUniversalPrefix y).ecomplexity z ≤ ℓ + c := by
-  let reqs : ℕ → ℕ → Option ℕ := fun y i => (req y i).map Prod.fst
-  have hreqs : Computable₂ reqs :=
-    Computable₂.mk <| (Computable.option_casesOn hreq (Computable.const Option.none)
-      (Computable.option_some.comp (Computable.fst.comp Computable.snd)).to₂).of_eq fun arg => by
-        dsimp only [reqs]
-        cases req arg.1 arg.2 <;> rfl
-  have htrace : Computable₂ fun y n => kcTrace (reqs y) n :=
-    Computable₂.mk <| (Computable.nat_rec Computable.snd (Computable.const ([[]], Option.none))
-      (primrec₂_kcStep_ps.to_comp.comp
-        (Computable.fst.comp (Computable.snd.comp Computable.snd))
-        (hreqs.comp (Computable.fst.comp Computable.fst)
-          (Computable.fst.comp Computable.snd))).to₂).of_eq fun yn => by
-      have hrec : ∀ m : ℕ, Nat.rec ([[]], Option.none)
-          (fun i IH => kcStep IH.1 (reqs yn.1 i)) m = kcTrace (reqs yn.1) m := by
-        intro m
-        induction m with
-        | zero => rfl
-        | succ m ih =>
-          change kcStep _ (reqs yn.1 m) = _
-          rw [ih]
-          rfl
-      exact hrec yn.2
-  have hkcCode : Computable₂ fun y i => kcCode (reqs y) i :=
-    Computable.snd.comp (htrace.comp Computable.fst (Computable.succ.comp Computable.snd)) |>.to₂
-  have hstream : Computable fun arg : (ℕ × List Bool) × ℕ =>
-      condKcStreamEval req arg.1.1 arg.1.2 arg.2 := by
-    have hval : Computable₂ fun y i => (req y i).map Prod.snd :=
-      Computable₂.mk <| (Computable.option_casesOn hreq (Computable.const Option.none)
-        (Computable.option_some.comp (Computable.snd.comp Computable.snd)).to₂).of_eq
-        fun arg => by dsimp only; cases req arg.1 arg.2 <;> rfl
-    have helse : Computable fun arg : (ℕ × List Bool) × (ℕ × Option ℕ) =>
-        bif decide (kcCode (reqs arg.1.1) arg.2.1 = some arg.1.2) then
-          (req arg.1.1 arg.2.1).map Prod.snd else Option.none :=
-      Computable.cond
-        (Primrec.eq.decide.to_comp.comp
-          (hkcCode.comp (Computable.fst.comp Computable.fst) (Computable.fst.comp Computable.snd))
-          (Computable.option_some.comp (Computable.snd.comp Computable.fst)))
-        (hval.comp (Computable.fst.comp Computable.fst) (Computable.fst.comp Computable.snd))
-        (Computable.const Option.none)
-    have hstep : Computable₂ fun (ypt : (ℕ × List Bool) × ℕ) (a : ℕ × Option ℕ) =>
-        match a.2 with
-        | some x => some x
-        | Option.none =>
-          bif decide (kcCode (reqs ypt.1.1) a.1 = some ypt.1.2) then (req ypt.1.1 a.1).map Prod.snd
-          else Option.none :=
-      (Computable.option_casesOn (Computable.snd.comp Computable.snd)
-        (helse.comp (Computable.pair (Computable.fst.comp Computable.fst) Computable.snd))
-        (Computable.option_some.comp Computable.snd).to₂).of_eq fun arg => by
-          rcases arg with ⟨⟨⟨_, _⟩, _⟩, ⟨_, _ | _⟩⟩ <;> rfl
-    exact (Computable.nat_rec Computable.snd (Computable.const Option.none) hstep).of_eq
-      fun ypt => by
-        have hrec : ∀ m : ℕ, Nat.rec Option.none
-            (fun i IH => match IH with
-              | some x => some x
-              | Option.none =>
-                bif decide (kcCode (reqs ypt.1.1) i = some ypt.1.2) then
-                  (req ypt.1.1 i).map Prod.snd else Option.none) m =
-            condKcStreamEval req ypt.1.1 ypt.1.2 m := by
-          intro m
-          induction m with
-          | zero => rfl
-          | succ m ih =>
-            dsimp only
-            rw [ih, condKcStreamEval]
-            cases condKcStreamEval req ypt.1.1 ypt.1.2 m with
-            | none => by_cases hkc : kcCode (reqs ypt.1.1) m = some ypt.1.2 <;> simp [reqs, hkc]
-            | some v => rfl
-        exact hrec ypt.2
-  let eval : ℕ → List Bool →. ℕ := fun y p => Nat.rfindOpt (condKcStreamEval req y p)
-  have heval : Partrec₂ eval := Partrec.rfindOpt hstream
   have hbound_rat : ∀ y n : ℕ, ∑ i ∈ Finset.range n,
-      (match reqs y i with | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) ≤ 1 :=
-    fun y => bound_real_to_rat (req y) (hbound y)
-  have hpf : ∀ y : ℕ, InformationTheory.IsPrefixFree {p | (eval y p).Dom} := by
-    intro y p₁ h₁ p₂ h₂ hpref
-    obtain ⟨z₁, hz₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨z₂, hz₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨t₁, ht₁⟩ := (Nat.rfindOpt_mono (fun hmn => condKcStreamEval_mono req y p₁ hmn)).mp hz₁
-    obtain ⟨t₂, ht₂⟩ := (Nat.rfindOpt_mono (fun hmn => condKcStreamEval_mono req y p₂ hmn)).mp hz₂
-    obtain ⟨i₁, -, hi₁, _⟩ := (mem_condKcStreamEval_iff req y (hbound y) p₁).mp ht₁
-    obtain ⟨i₂, -, hi₂, _⟩ := (mem_condKcStreamEval_iff req y (hbound y) p₂).mp ht₂
-    by_contra hne
-    have hine : i₁ ≠ i₂ := by
-      rintro rfl
-      exact hne (Option.some.inj (hi₁.symm.trans hi₂))
-    exact ((kcCode_of_sum_le_one (hbound_rat y)).2 hine hi₁ hi₂).1 hpref
+      (match (req y i).map Prod.fst with
+      | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) ≤ 1 := by
+    intro y n
+    have hcast :
+        (((∑ i ∈ Finset.range n,
+          (match (req y i).map Prod.fst with
+          | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ)) : ℚ) : ℝ) =
+          ∑ i ∈ Finset.range n,
+            (match req y i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) := by
+      rw [Rat.cast_sum]
+      exact Finset.sum_congr rfl fun i _ => by cases req y i <;> simp
+    exact_mod_cast (hcast ▸ hbound y n)
+  let eval : ℕ → List Bool →. ℕ := fun y p => Nat.rfindOpt (kcStreamEval (req y) p)
+  have heval : Partrec₂ eval := Partrec.rfindOpt (computable_kcStreamEval hreq)
+  have hpf : ∀ y : ℕ, InformationTheory.IsPrefixFree {p | (eval y p).Dom} :=
+    fun y => isPrefixFree_rfindOpt_kcStreamEval (req y) (hbound_rat y)
   obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ heval hpf
   refine ⟨c, fun y i ℓ z hiy => ?_⟩
-  obtain ⟨w, hw, hlen, _⟩ := (kcCode_of_sum_le_one (hbound_rat y)).1 i ℓ (by simp [reqs, hiy])
+  obtain ⟨w, hw, hlen⟩ :=
+    exists_kcCode_eq_some_of_sum_le_one (hbound_rat y) (i := i) (ℓ := ℓ) (by simp [hiy])
   have hw_eval : z ∈ eval y w := by
-    refine (Nat.rfindOpt_mono (fun hmn => condKcStreamEval_mono req y w hmn)).mpr ⟨i + 1, ?_⟩
-    exact (mem_condKcStreamEval_iff req y (hbound y) w).mpr
+    refine (Nat.rfindOpt_mono fun hmn => kcStreamEval_mono (req y) w hmn).mpr ⟨i + 1, ?_⟩
+    exact (mem_kcStreamEval_iff (req y) (hbound_rat y) w).mpr
       ⟨i, Nat.lt_succ_self i, hw, by simp [hiy]⟩
   simpa [hlen] using hc y w z hw_eval
 
@@ -1440,7 +906,11 @@ theorem exists_abs_complexity_condUniversalPrefix_pair_sub_shortestPrefixProgram
   rw [abs_le]
   constructor <;> omega
 
-/-- Binary-string shortest prefix-free program `x*` for `x : List Bool`. -/
+/-- Canonical prefix-free program `shortestPrefixProgram (encode x)` for `x : List Bool`.
+It produces `x` under `universalPrefixBits` with length `universalPrefix.complexity (encode x)`
+(minimizing `universalPrefix` program length on `encode x`; at `x = []` this need not achieve the
+minimum `universalPrefixBits` length because `decode (α := List Bool) n = none` defaults to `[]`
+in `universalPrefixBits`). -/
 noncomputable def shortestPrefixProgramBits (x : List Bool) : List Bool :=
   shortestPrefixProgram (encode x)
 
@@ -1514,54 +984,26 @@ private theorem exists_prefixTableNew_of_produces {p : List Bool} {z : ℕ}
   refine ⟨i, ?_⟩
   simp [prefixTableNew, htab, hcand]
 
-private noncomputable def universalMarginalSigmaEquiv : (Σ _ : ℕ, ℕ) ≃ ℕ where
-  toFun xy := Nat.pair xy.1 xy.2
-  invFun z := ⟨z.unpair.1, z.unpair.2⟩
-  left_inv xy := by
-    rcases xy with ⟨x, y⟩
-    simp
-  right_inv z := Nat.pair_unpair z
-
-private theorem summable_universalMarginal_sigma :
-    Summable fun xy : Σ _ : ℕ, ℕ => universalPrefix.universalProb (Nat.pair xy.1 xy.2) :=
-  (Equiv.summable_iff universalMarginalSigmaEquiv).mpr
-    isPrefixFree_universalPrefix.summable_universalProb
-
 private theorem exists_universalMarginal_le_two_pow :
     ∃ c₁ : ℕ, ∀ x : ℕ,
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) ≤
         (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x :=
   exists_le_two_pow_mul_universalPrefix_of_isLowerSemicomputable
     (fun _ => tsum_nonneg fun _ => universalProb_nonneg _ _)
-    summable_universalMarginal_sigma.sigma
-    (by
-      calc ∑' x : ℕ, ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y)
-          = ∑' xy : (Σ _ : ℕ, ℕ), universalPrefix.universalProb (Nat.pair xy.1 xy.2) :=
-            (summable_universalMarginal_sigma.tsum_sigma'
-              (fun _ => summable_universalMarginal_sigma.sigma_factor _)).symm
-        _ = ∑' z : ℕ, universalPrefix.universalProb z :=
-            universalMarginalSigmaEquiv.tsum_eq universalPrefix.universalProb
-        _ = universalPrefix.chaitinOmega :=
-            isPrefixFree_universalPrefix.tsum_universalProb_eq_chaitinOmega
-        _ ≤ 1 := isPrefixFree_universalPrefix.chaitinOmega_le_one)
+    isPrefixFree_universalPrefix.summable_universalProb_marginal
+    isPrefixFree_universalPrefix.tsum_universalProb_pair_le_one
     isLowerSemicomputable_universalProb_marginal
 
 private def symProgs (x n : ℕ) : List (List Bool) :=
   (universalPrefixTable n).flatMap fun pz => if pz.2.unpair.1 = x then [pz.1] else []
-
-private def symMaxLen (x n : ℕ) : ℕ :=
-  ((symProgs x n).map List.length).foldl max 0
-
-private def symScaled (x n : ℕ) : ℕ :=
-  ((symProgs x n).map fun w => 2 ^ (symMaxLen x n - w.length)).sum
 
 private def symReq (c₁ xk i : ℕ) : Option (ℕ × ℕ) :=
   match prefixTableNew i with
   | Option.none => Option.none
   | some (p, z) =>
     if z.unpair.1 = xk.unpair.1 ∧
-        symScaled xk.unpair.1 (i + 1) * 2 ^ xk.unpair.2 ≤
-          2 ^ (symMaxLen xk.unpair.1 (i + 1) + c₁) then
+        codeScaledSum (symProgs xk.unpair.1 (i + 1)) * 2 ^ xk.unpair.2 ≤
+          2 ^ (codeMaxLen (symProgs xk.unpair.1 (i + 1)) + c₁) then
       some (p.length + c₁ - xk.unpair.2, z.unpair.2)
     else Option.none
 
@@ -1576,31 +1018,11 @@ private theorem primrec₂_symProgs : Primrec₂ symProgs := by
   exact Primrec₂.mk <|
     (Primrec.list_flatMap (primrec_universalPrefixTable.comp Primrec.snd) hel).of_eq fun _ => rfl
 
-private theorem primrec₂_symMaxLen : Primrec₂ symMaxLen := by
-  have hmap : Primrec fun xn : ℕ × ℕ => (symProgs xn.1 xn.2).map List.length :=
-    Primrec.list_map (primrec₂_symProgs.comp Primrec.fst Primrec.snd)
-      (Primrec.list_length.comp Primrec.snd).to₂
-  have hmax : Primrec₂ fun (_ : ℕ × ℕ) (mn : ℕ × ℕ) => max mn.1 mn.2 :=
-    Primrec₂.mk <|
-      Primrec.nat_max.comp (Primrec.fst.comp Primrec.snd) (Primrec.snd.comp Primrec.snd)
-  exact Primrec₂.mk <| (Primrec.list_foldl hmap (Primrec.const 0) hmax).of_eq fun _ => rfl
-
-private theorem primrec₂_symScaled : Primrec₂ symScaled := by
-  have hel : Primrec₂ fun (xn : ℕ × ℕ) (w : List Bool) =>
-      (2 : ℕ) ^ (symMaxLen xn.1 xn.2 - w.length) :=
-    Primrec₂.mk <| primrec_two_pow.comp
-      (Primrec.nat_sub.comp
-        (primrec₂_symMaxLen.comp (Primrec.fst.comp Primrec.fst) (Primrec.snd.comp Primrec.fst))
-        (Primrec.list_length.comp Primrec.snd))
-  exact Primrec₂.mk <|
-    (Primrec.list_sum (Primrec.list_map (primrec₂_symProgs.comp Primrec.fst Primrec.snd) hel)).of_eq
-      fun _ => rfl
-
 private theorem primrec₂_symReq (c₁ : ℕ) : Primrec₂ (symReq c₁) := by
   have hbranch : Primrec₂ fun (xki : ℕ × ℕ) (pz : List Bool × ℕ) =>
       if pz.2.unpair.1 = xki.1.unpair.1 ∧
-          symScaled xki.1.unpair.1 (xki.2 + 1) * 2 ^ xki.1.unpair.2 ≤
-            2 ^ (symMaxLen xki.1.unpair.1 (xki.2 + 1) + c₁) then
+          codeScaledSum (symProgs xki.1.unpair.1 (xki.2 + 1)) * 2 ^ xki.1.unpair.2 ≤
+            2 ^ (codeMaxLen (symProgs xki.1.unpair.1 (xki.2 + 1)) + c₁) then
         some (pz.1.length + c₁ - xki.1.unpair.2, pz.2.unpair.2)
       else Option.none := by
     have hx : Primrec fun arg : (ℕ × ℕ) × (List Bool × ℕ) => arg.1.1.unpair.1 :=
@@ -1609,17 +1031,20 @@ private theorem primrec₂_symReq (c₁ : ℕ) : Primrec₂ (symReq c₁) := by
       Primrec.snd.comp (Primrec.unpair.comp (Primrec.fst.comp Primrec.fst))
     have hi1 : Primrec fun arg : (ℕ × ℕ) × (List Bool × ℕ) => arg.1.2 + 1 :=
       Primrec.succ.comp (Primrec.snd.comp Primrec.fst)
+    have hprogs : Primrec fun arg : (ℕ × ℕ) × (List Bool × ℕ) =>
+        symProgs arg.1.1.unpair.1 (arg.1.2 + 1) :=
+      primrec₂_symProgs.comp hx hi1
     have hp1 : PrimrecPred fun arg : (ℕ × ℕ) × (List Bool × ℕ) =>
         arg.2.2.unpair.1 = arg.1.1.unpair.1 :=
       Primrec.eq.comp
         (Primrec.fst.comp (Primrec.unpair.comp (Primrec.snd.comp Primrec.snd))) hx
     have hp2 : PrimrecPred fun arg : (ℕ × ℕ) × (List Bool × ℕ) =>
-        symScaled arg.1.1.unpair.1 (arg.1.2 + 1) * 2 ^ arg.1.1.unpair.2 ≤
-          2 ^ (symMaxLen arg.1.1.unpair.1 (arg.1.2 + 1) + c₁) :=
+        codeScaledSum (symProgs arg.1.1.unpair.1 (arg.1.2 + 1)) * 2 ^ arg.1.1.unpair.2 ≤
+          2 ^ (codeMaxLen (symProgs arg.1.1.unpair.1 (arg.1.2 + 1)) + c₁) :=
       Primrec.nat_le.comp
-        (Primrec.nat_mul.comp (primrec₂_symScaled.comp hx hi1) (primrec_two_pow.comp hk))
+        (Primrec.nat_mul.comp (primrec_codeScaledSum.comp hprogs) (primrec_two_pow.comp hk))
         (primrec_two_pow.comp
-          (Primrec.nat_add.comp (primrec₂_symMaxLen.comp hx hi1) (Primrec.const c₁)))
+          (Primrec.nat_add.comp (primrec_codeMaxLen.comp hprogs) (Primrec.const c₁)))
     have hsome : Primrec fun arg : (ℕ × ℕ) × (List Bool × ℕ) =>
         some (arg.2.1.length + c₁ - arg.1.1.unpair.2, arg.2.2.unpair.2) :=
       Primrec.option_some.comp <| Primrec.pair
@@ -1669,23 +1094,18 @@ private theorem nodup_symProgs (x n : ℕ) : (symProgs x n).Nodup := by
         exact ih hL.2
   exact aux (universalPrefixTable n) (nodup_map_fst_universalPrefixTable n)
 
-private theorem symScaled_cast (x n : ℕ) :
-    ((symScaled x n : ℕ) : ℝ) =
-      (∑ w ∈ (symProgs x n).toFinset, (2 : ℝ)⁻¹ ^ w.length) * (2 : ℝ) ^ symMaxLen x n := by
-  rw [List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n)]
-  exact natCast_sum_two_pow_sub_length (symMaxLen x n) (symProgs x n) fun _ hw =>
-    List.mem_le_foldl_max (List.mem_map_of_mem hw)
-
 private theorem sum_symProgs_le_of_scaled {c₁ x k n : ℕ}
-    (h : symScaled x n * 2 ^ k ≤ 2 ^ (symMaxLen x n + c₁)) :
+    (h : codeScaledSum (symProgs x n) * 2 ^ k ≤ 2 ^ (codeMaxLen (symProgs x n) + c₁)) :
     ∑ w ∈ (symProgs x n).toFinset, (2 : ℝ)⁻¹ ^ w.length ≤
       (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ k := by
-  have hreal : ((symScaled x n : ℕ) : ℝ) * (2 : ℝ) ^ k ≤
-      (2 : ℝ) ^ (symMaxLen x n + c₁) := by
+  have hreal : ((codeScaledSum (symProgs x n) : ℕ) : ℝ) * (2 : ℝ) ^ k ≤
+      (2 : ℝ) ^ (codeMaxLen (symProgs x n) + c₁) := by
     exact_mod_cast h
-  rw [symScaled_cast, pow_add] at hreal
+  rw [natCast_codeScaledSum,
+    ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n),
+    pow_add] at hreal
   set S := ∑ w ∈ (symProgs x n).toFinset, (2 : ℝ)⁻¹ ^ w.length
-  set M := (2 : ℝ) ^ symMaxLen x n
+  set M := (2 : ℝ) ^ codeMaxLen (symProgs x n)
   have hM : 0 < M := by positivity
   have hSk : S * (2 : ℝ) ^ k * M ≤ (2 : ℝ) ^ c₁ * M := by linarith
   have hle : S * (2 : ℝ) ^ k ≤ (2 : ℝ) ^ c₁ := le_of_mul_le_mul_right hSk hM
@@ -1695,7 +1115,8 @@ private theorem sum_symProgs_le_of_scaled {c₁ x k n : ℕ}
 private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
     (hmarg : ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) ≤
       (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x) :
-    symScaled x n * 2 ^ universalPrefix.complexity x ≤ 2 ^ (symMaxLen x n + c₁) := by
+    codeScaledSum (symProgs x n) * 2 ^ universalPrefix.complexity x ≤
+      2 ^ (codeMaxLen (symProgs x n) + c₁) := by
   classical
   let T := (symProgs x n).toFinset
   have hT : ∀ w ∈ T, ∃ z, universalPrefix.Produces w z ∧ z.unpair.1 = x := by
@@ -1722,48 +1143,11 @@ private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
       ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := by
     rw [Finset.sum_map]
     exact (Finset.sum_attach T fun w => (2 : ℝ)⁻¹ ^ w.length).symm
-  have hs_sigma : Summable fun q : (y : ℕ) ×
-      {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} =>
-      (2 : ℝ)⁻¹ ^ q.2.1.length := by
-    let e : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} ≃
-        {p : List Bool // ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x} :=
-      { toFun yp := ⟨yp.2.1, Nat.pair x yp.1, yp.2.2, by simp⟩
-        invFun p := ⟨p.2.choose.unpair.2, p.1, by
-          have hz := p.2.choose_spec
-          have heq : Nat.pair x p.2.choose.unpair.2 = p.2.choose :=
-            (congrArg (Nat.pair · _) hz.2.symm).trans (Nat.pair_unpair _)
-          rw [heq]
-          exact hz.1⟩
-        left_inv yp := by
-          rcases yp with ⟨y, ⟨p, hp⟩⟩
-          have hz : (⟨Nat.pair x y, hp, by simp⟩ :
-              ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x).choose = Nat.pair x y :=
-            (hp.unique
-              (⟨Nat.pair x y, hp, by simp⟩ :
-                ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x).choose_spec.1).symm
-          have hy : (⟨Nat.pair x y, hp, by simp⟩ :
-              ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x).choose.unpair.2 = y := by
-            rw [hz, Nat.unpair_pair]
-          have hsub : ∀ {y₁ y₂ : ℕ} (hy : y₁ = y₂) {h₁ h₂},
-              (⟨y₁, ⟨p, h₁⟩⟩ :
-                (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)}) =
-                ⟨y₂, ⟨p, h₂⟩⟩ := by
-            intro y₁ y₂ hy h₁ h₂
-            subst hy
-            rfl
-          exact hsub hy
-        right_inv _ := rfl }
-    let embHalting : {p : List Bool // ∃ z, universalPrefix.Produces p z ∧ z.unpair.1 = x} →
-        universalPrefix.haltingSet :=
-      fun p => ⟨p.1, p.2.choose, p.2.choose_spec.1⟩
-    have hembHalting : Function.Injective embHalting := fun _ _ h =>
-      Subtype.ext (congrArg (fun q : universalPrefix.haltingSet => q.1) h)
-    exact (Equiv.summable_iff e).mpr
-      (isPrefixFree_universalPrefix.summable_two_inv_pow_length.comp_injective hembHalting)
+  have hs_sigma := summable_universalPrefix_produces_pair x
   have htsum_eq : ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
       (2 : ℝ)⁻¹ ^ q.2.1.length =
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) :=
-    hs_sigma.tsum_sigma' fun y => isPrefixFree_universalPrefix.summable_universalProb_program _
+    hs_sigma.tsum_sigma' fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
   have hsum_le : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length ≤
       (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := by
     calc ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length
@@ -1773,20 +1157,22 @@ private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
           hs_sigma.sum_le_tsum F fun _ _ => by positivity
       _ = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) := htsum_eq
       _ ≤ (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := hmarg
-  have hreal : ((symScaled x n * 2 ^ universalPrefix.complexity x : ℕ) : ℝ) ≤
-      ((2 ^ (symMaxLen x n + c₁) : ℕ) : ℝ) := by
+  have hreal : ((codeScaledSum (symProgs x n) * 2 ^ universalPrefix.complexity x : ℕ) : ℝ) ≤
+      ((2 ^ (codeMaxLen (symProgs x n) + c₁) : ℕ) : ℝ) := by
     push_cast
-    rw [symScaled_cast, pow_add]
-    calc (∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length) * (2 : ℝ) ^ symMaxLen x n *
+    rw [natCast_codeScaledSum,
+      ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n),
+      pow_add]
+    calc (∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length) * (2 : ℝ) ^ codeMaxLen (symProgs x n) *
           (2 : ℝ) ^ universalPrefix.complexity x
         ≤ ((2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x) *
-            (2 : ℝ) ^ symMaxLen x n * (2 : ℝ) ^ universalPrefix.complexity x := by
+            (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ universalPrefix.complexity x := by
           gcongr
-      _ = (2 : ℝ) ^ symMaxLen x n * (2 : ℝ) ^ c₁ *
+      _ = (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ c₁ *
             (((2 : ℝ)⁻¹ * (2 : ℝ)) ^ universalPrefix.complexity x) := by
           rw [mul_pow]
           ring
-      _ = (2 : ℝ) ^ symMaxLen x n * (2 : ℝ) ^ c₁ := by
+      _ = (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ c₁ := by
           rw [inv_mul_cancel₀ (by norm_num), one_pow, mul_one]
   exact_mod_cast hreal
 
@@ -1814,7 +1200,8 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
     have hi₀_mem : i₀ ∈ I := Finset.max'_mem I hne
     have hi₀_some : (symReq c₁ xk i₀).isSome = true := (Finset.mem_filter.mp hi₀_mem).2
     obtain ⟨⟨ℓ₀, y₀⟩, hi₀_eq⟩ := Option.isSome_iff_exists.mp hi₀_some
-    have hi₀_guard : symScaled x (i₀ + 1) * 2 ^ k ≤ 2 ^ (symMaxLen x (i₀ + 1) + c₁) := by
+    have hi₀_guard : codeScaledSum (symProgs x (i₀ + 1)) * 2 ^ k ≤
+        2 ^ (codeMaxLen (symProgs x (i₀ + 1)) + c₁) := by
       dsimp only [symReq] at hi₀_eq
       cases hpt : prefixTableNew i₀ with
       | none => simp [hpt] at hi₀_eq
@@ -1824,7 +1211,8 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
         exact hg.2
     have hbudget := sum_symProgs_le_of_scaled hi₀_guard
     have hi_spec : ∀ i ∈ I, ∃ p z, prefixTableNew i = some (p, z) ∧ z.unpair.1 = x ∧
-        symScaled x (i + 1) * 2 ^ k ≤ 2 ^ (symMaxLen x (i + 1) + c₁) ∧
+        codeScaledSum (symProgs x (i + 1)) * 2 ^ k ≤
+          2 ^ (codeMaxLen (symProgs x (i + 1)) + c₁) ∧
         symReq c₁ xk i = some (p.length + c₁ - k, z.unpair.2) ∧
         k ≤ p.length + c₁ ∧ p ∈ (symProgs x (i₀ + 1)).toFinset := by
       intro i hi
@@ -1834,7 +1222,8 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
         simp [symReq, Option.not_isSome_iff_eq_none.mp hn] at hseq
       obtain ⟨⟨p, z⟩, hpt⟩ := Option.isSome_iff_exists.mp hpt_some
       have hg : z.unpair.1 = x ∧
-          symScaled x (i + 1) * 2 ^ k ≤ 2 ^ (symMaxLen x (i + 1) + c₁) := by
+          codeScaledSum (symProgs x (i + 1)) * 2 ^ k ≤
+            2 ^ (codeMaxLen (symProgs x (i + 1)) + c₁) := by
         dsimp only [symReq, x, k] at hseq ⊢
         rw [hpt] at hseq
         by_contra hn
@@ -2051,11 +1440,6 @@ private theorem primrec₂_bitsStep : Primrec₂ bitsStep := by
   exact Primrec₂.mk <| (Primrec.ite (Primrec.eq.comp Primrec.fst (Primrec.const 0))
     (Primrec.const (some ([] : List Bool))) hbind).of_eq fun _ => rfl
 
-private theorem primrec_list_replicate_true :
-    Primrec fun n : ℕ => List.replicate n true :=
-  (Primrec.list_map Primrec.list_range (Primrec.const true).to₂).of_eq fun n => by
-    simp [List.map_const']
-
 /-- **Exact symmetry of information** for binary strings (`universalPrefixBits`,
 `condUniversalPrefixBits`) with self-delimiting pair encoding `selfDelimitingCode x ++ y`,
 conditioned on `shortestPrefixProgramBits x`:
@@ -2120,7 +1504,8 @@ theorem exists_abs_complexity_universalPrefixBits_pair_sub_shortestProgram_le :
         encode ((List.replicate ℓ.length true ++ false :: (ℓ ++ zxy.1.2)) ++ zxy.2) :=
       Primrec₂.mk <| Primrec.encode.comp <| Primrec.list_append.comp
         (Primrec.list_append.comp
-          (primrec_list_replicate_true.comp (Primrec.list_length.comp Primrec.snd))
+          (primrec_list_replicate_bool.comp (Primrec.list_length.comp Primrec.snd)
+            (Primrec.const true))
           (Primrec.list_cons.comp (Primrec.const false)
             (Primrec.list_append.comp Primrec.snd
               (Primrec.snd.comp (Primrec.fst.comp Primrec.fst)))))
