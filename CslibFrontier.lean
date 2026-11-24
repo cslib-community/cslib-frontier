@@ -1055,6 +1055,16 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.ChildPass
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.IndepScan
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.MaskOps
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Model
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.NodeLayout
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.ParentPass
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.ProcessNodes
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.RootPass
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Runner
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.WeightScan
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
