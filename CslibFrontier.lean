@@ -401,6 +401,13 @@ public import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
 public import CslibFrontier.Algorithms.WordRAM.Dijkstra.LogLinear
 public import CslibFrontier.Algorithms.WordRAM.EditDistance
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.BfsSemantics
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformBipartite
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformFlow
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformVertexSeparator
 public import CslibFrontier.Algorithms.WordRAM.ElementDistinctness
 public import CslibFrontier.Algorithms.WordRAM.ElementDistinctnessRAM
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.BoxRecordWitness.Exec
