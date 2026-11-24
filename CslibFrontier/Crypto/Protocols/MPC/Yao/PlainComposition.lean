@@ -7,12 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.Hybrid
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
-# Yao's protocol over an oblivious-transfer subprotocol: first composition step
+# Yao's protocol over an oblivious-transfer subprotocol: concrete composition bounds
 
 This module is a step towards the plain-model statement of Theorem 7 of Lindell and Pinkas
 [LindellPinkas2009] (#6045, criterion 2), not that theorem. `Yao.oneSidedProtocol` and
@@ -46,25 +46,39 @@ plus the replacement gap (`Yao.semiHonestAdvantage_composedProtocol_evaluator_le
 `Yao.semiHonestAdvantage_composedOneSidedProtocol_evaluator_le`). No hypothesis bounds either
 term.
 
+The replacement gap is bounded by the hybrid argument over the oracle rounds
+(`semiHonestAdvantage_compose_le_replacementBound`). Yao's protocols call the transfer once, after
+the garbler's message, so the bound has one term for every coalition `I`: the expectation, over
+the parties' coins `r`, of the semi-honest advantage against `OT` on the query tuple
+`Yao.transferQueries n c x r` of the explicit distinguisher `Yao.transferDistinguisher`
+(`Yao.oneSidedTransferDistinguisher`), which finishes the protocol from the transfer's answers and
+runs the given distinguisher (`Yao.semiHonestAdvantage_composedProtocol_le_transfer`,
+`Yao.semiHonestAdvantage_composedOneSidedProtocol_le_transfer`). The query tuple depends on the
+garbler's coins, which is why the term is an expectation and not one advantage at a fixed input.
+For the two-output protocol this gives, for a corrupted garbler, the expected transfer advantage
+alone, and for a corrupted evaluator, the `prv.sim` advantage of the reduction plus the expected
+transfer advantage (`Yao.semiHonestAdvantage_composedProtocol_garbler_le_transfer`,
+`Yao.semiHonestAdvantage_composedProtocol_evaluator_le_transfer`).
+
 ## What is not proved
 
 These bounds are concrete and stated per instance (a fixed parameter, input tuple and
-distinguisher). They leave the replacement gap and, for a corrupted evaluator, the `prv.sim`
-advantage of the reduction as explicit terms. The following parts of Theorem 7 remain open (#6045):
+distinguisher). They leave the expected advantage against the transfer subprotocol and, for a
+corrupted evaluator, the `prv.sim` advantage of the reduction as explicit terms. The following
+parts of Theorem 7 remain open (#6045):
 
-* bounding the replacement gap by the semi-honest security of a concrete oblivious-transfer
-  protocol, such as the DDH protocol of
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTProbFamily_semiHonestSecure`, which transfers one
-  group element rather than a batch of token words. `advantage_replacement_eq_kernelRun`
-  expresses the gap through the ideal and the real joint distributions of the transfer
-  subprotocol, on the queries of the one transfer round, but the bound by the subprotocol's
-  `semiHonestAdvantage` against an explicit distinguisher is not derived;
+* a plain-model protocol for the batched transfer of token words with a proof of its semi-honest
+  security. The DDH protocol of
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTProbFamily_semiHonestSecure` transfers one group
+  element rather than a batch of token words, and no adapter is built here;
 * the asymptotic statement `ProtocolFamily.SemiHonestSecure` for the composed family, with strict
   PPT certificates for the composed simulators and for the reductions. In particular the
-  per-instance reductions `Yao.evaluatorDistinguisherToPrvSim` and
-  `Yao.oneSidedEvaluatorDistinguisherToPrvSim` come with no efficiency certificate here, and no
-  negligible bound on their `prv.sim` advantage is derived from an assumption on `G`; the uniform
-  reduction with a PPT certificate in the hybrid model is `Yao.evaluatorToPrvSim`.
+  per-instance reductions `Yao.evaluatorDistinguisherToPrvSim`,
+  `Yao.oneSidedEvaluatorDistinguisherToPrvSim`, `Yao.transferDistinguisher` and
+  `Yao.oneSidedTransferDistinguisher` come with no efficiency certificate here, the transfer
+  distinguishers depend on the garbler's coins, which an asymptotic reduction has to fix as
+  advice, and no negligible bound on the `prv.sim` advantage is derived from an assumption on `G`;
+  the uniform reduction with a PPT certificate in the hybrid model is `Yao.evaluatorToPrvSim`.
 
 The locators for [LindellPinkas2009] are those recorded in
 `CslibFrontier/Crypto/Protocols/MPC/Yao/Family.lean`; locator not re-verified against primary PDF.
@@ -77,6 +91,10 @@ The locators for [LindellPinkas2009] are those recorded in
 * `Cslib.Crypto.Protocols.MPC.Yao.oneSidedEvaluatorDistinguisherToPrvSim`,
   `Cslib.Crypto.Protocols.MPC.Yao.evaluatorDistinguisherToPrvSim`: the reductions from a
   distinguisher of a corrupted evaluator's view at a fixed instance to a `prv.sim` adversary.
+* `Cslib.Crypto.Protocols.MPC.Yao.transferQueries`: the query tuple of the one batched transfer.
+* `Cslib.Crypto.Protocols.MPC.Yao.oneSidedTransferDistinguisher`,
+  `Cslib.Crypto.Protocols.MPC.Yao.transferDistinguisher`: the reductions from a distinguisher of
+  the composed protocol to a distinguisher of the transfer subprotocol.
 
 ## Main results
 
@@ -91,6 +109,13 @@ The locators for [LindellPinkas2009] are those recorded in
   `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_evaluator_le`: against a
   corrupted evaluator, the advantage is at most the `prv.sim` advantage of the reduction plus the
   oblivious-transfer replacement gap.
+* `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedOneSidedProtocol_le_transfer`,
+  `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_le_transfer`: for every
+  coalition, the advantage is at most the advantage of `composeDistinguisher` against the hybrid
+  protocol plus the expected advantage of the transfer distinguisher against the subprotocol.
+* `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_garbler_le_transfer`,
+  `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_evaluator_le_transfer`: the
+  two-output protocol against a corrupted garbler and against a corrupted evaluator.
 
 ## References
 
@@ -133,6 +158,30 @@ noncomputable abbrev composedProtocol (n : ℕ) (c : Params G) {spec₂ : MultiO
 
 variable {G}
 
+/-- The hybrid garbler simulator of the one-sided protocol is exact: at every parameter `n ≥ 1`,
+when `G` is correct with a projective encoding, every distinguisher has semi-honest advantage zero
+against `Yao.oneSidedProtocol G n c` for the coalition `{0}` with `Yao.oneSidedGarblerSim`. -/
+private theorem semiHonestAdvantage_oneSidedProtocol_garbler_eq_zero
+    (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n)
+    (c : Params G) (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({0} : Finset (Fin 2))) → PartyView (Input c) Coins (oneSidedSchedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    semiHonestAdvantage (oneSidedProtocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
+      (oneSidedFunctionality G c) {0} (oneSidedGarblerSim G n c) x D = 0 :=
+  (semiHonestAdvantage_eq_zero_iff _ _ _ _ _ _).mpr
+    (idealJoint_oneSidedGarblerSim hproj hcorrect hn c x) D
+
+/-- The hybrid garbler simulator is exact: at every parameter `n ≥ 1`, when `G` is correct with a
+projective encoding, every distinguisher has semi-honest advantage zero against
+`Yao.protocol G n c` for the coalition `{0}` with `Yao.garblerSim`. -/
+private theorem semiHonestAdvantage_protocol_garbler_eq_zero (hproj : G.encode = projectiveEncode)
+    (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n) (c : Params G) (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({0} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    semiHonestAdvantage (protocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
+      (functionality G c) {0} (garblerSim G n c) x D = 0 :=
+  (semiHonestAdvantage_eq_zero_iff _ _ _ _ _ _).mpr (idealJoint_garblerSim hproj hcorrect hn c x) D
+
 /-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted garbler, not the cited result
 (#6045): a concrete bound that leaves the oblivious-transfer replacement gap as a term.
 
@@ -169,13 +218,7 @@ theorem semiHonestAdvantage_composedOneSidedProtocol_garbler_le
   have h := semiHonestAdvantage_compose_le (oneSidedProtocol G n c)
     (batchOTWorld c.evaluatorLen (List Bool)) W₂ (oneSidedFunctionality G c) S₁ (fun _ => OT) S₂
     {0} x D
-  have h0 : semiHonestAdvantage (oneSidedProtocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
-      (oneSidedFunctionality G c) {0} (S₁ {0}) x
-      (composeDistinguisher (oneSidedProtocol G n c) S₂ {0} x D) = 0 := by
-    rw [hS₁]
-    exact (semiHonestAdvantage_eq_zero_iff _ _ _ _ _ _).mpr
-      (idealJoint_oneSidedGarblerSim hproj hcorrect hn c x) _
-  rwa [h0, zero_add] at h
+  rwa [hS₁, semiHonestAdvantage_oneSidedProtocol_garbler_eq_zero hproj hcorrect hn, zero_add] at h
 
 /-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted garbler, not the cited result
 (#6045): a concrete bound that leaves the oblivious-transfer replacement gap as a term.
@@ -210,13 +253,7 @@ theorem semiHonestAdvantage_composedProtocol_garbler_le
         (((composedProtocol G n c OT).realJoint W₂ {0} x).bind fun r => ProbComp.eval (D r)) := by
   have h := semiHonestAdvantage_compose_le (protocol G n c)
     (batchOTWorld c.evaluatorLen (List Bool)) W₂ (functionality G c) S₁ (fun _ => OT) S₂ {0} x D
-  have h0 : semiHonestAdvantage (protocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
-      (functionality G c) {0} (S₁ {0}) x
-      (composeDistinguisher (protocol G n c) S₂ {0} x D) = 0 := by
-    rw [hS₁]
-    exact (semiHonestAdvantage_eq_zero_iff _ _ _ _ _ _).mpr
-      (idealJoint_garblerSim hproj hcorrect hn c x) _
-  rwa [h0, zero_add] at h
+  rwa [hS₁, semiHonestAdvantage_protocol_garbler_eq_zero hproj hcorrect hn, zero_add] at h
 
 /-! ### Corrupted evaluator: the hybrid term is simulation privacy of the garbling scheme -/
 
@@ -438,5 +475,299 @@ theorem semiHonestAdvantage_composedProtocol_evaluator_le
     rw [hS₁]
     exact semiHonestAdvantage_protocol_evaluator_eq hproj hcorrect hn c Φ S x _
   rwa [h1] at h
+
+/-! ### The replacement gap: one distinguisher against the transfer subprotocol -/
+
+section Transfer
+
+open scoped ENNReal
+
+variable {spec₂ : MultiOracleSpec} {sc₂ : Schedule 2 spec₂} {Coins₂ : Fin 2 → Type}
+
+/-- The query tuple of the one batched transfer of `Yao.protocol G n c` and
+`Yao.oneSidedProtocol G n c` on the inputs `x` with the coins `r`: the garbler offers both tokens
+of each of the evaluator's input bits, computed from its coins `r 0` (`Yao.garblerOffer`), and the
+evaluator chooses with its input bits `x 1`. -/
+@[expose] def transferQueries (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i)
+    (r : (i : Fin 2) → Coins i) (s : Fin 2) :
+    (batchOTSpec c.evaluatorLen (List Bool)).Query () s :=
+  transferQuery G n c s ((x s, r s),
+    Round.deliverMessage (spec := batchOTSpec c.evaluatorLen (List Bool)) (sender := 0)
+      (receiver := 1) (garblerMessage G n c (x 0) (r 0)) s)
+
+/-- **The reduction to the transfer subprotocol**, for `Yao.oneSidedProtocol G n c` on the inputs
+`x` with the coins `r`: from a distinguisher `D` of the coalition `I`'s views of the composed
+protocol and the outputs, the distinguisher of the views of the corrupted slots and the answers of
+the transfer subprotocol that computes the parties' outputs from the answers, puts the garbler's
+message and the given transfer views into the coalition's views and runs `D`. It is
+`Composition.roundDistinguisher` at the transfer round, after which the protocol ends. -/
+@[expose] noncomputable def oneSidedTransferDistinguisher (n : ℕ) (c : Params G)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Input c i) (r : (i : Fin 2) → Coins i)
+    (D : ((i : I) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (oneSidedSchedule c))
+        (Schedule.compose (fun _ => sc₂) (oneSidedSchedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    ((s : Composition.subCoalition (Function.Embedding.refl (Fin 2)) I) →
+        PartyView ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂ sc₂ s) ×
+      ((s : Fin 2) → (batchOTSpec c.evaluatorLen (List Bool)).Answer () s) → ProbComp Bool :=
+  Composition.roundDistinguisher (sc₂ := fun _ => sc₂) (Coins₂ := fun _ => Coins₂)
+    (batchOTWorld c.evaluatorLen (List Bool)) S₂ I
+    (State := fun i => (Input c i × Coins i) ×
+      (Round.message (spec := batchOTSpec c.evaluatorLen (List Bool)) 0 1 Message).Received i)
+    (op := ()) (parties := Function.Embedding.refl (Fin 2))
+    (.done (oneSidedFinalOutput G c))
+    (fun i => ((x i, r i),
+      Round.deliverMessage (spec := batchOTSpec c.evaluatorLen (List Bool)) (sender := 0)
+        (receiver := 1) (garblerMessage G n c (x 0) (r 0)) i))
+    (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1),
+      (Round.deliverMessage (spec := spec₂) (sender := 0) (receiver := 1)
+        (garblerMessage G n c (x 0) (r 0)) i.1, (res.1 i).2)⟩, res.2))
+
+/-- **The reduction to the transfer subprotocol**, for `Yao.protocol G n c` on the inputs `x` with
+the coins `r`: from a distinguisher `D` of the coalition `I`'s views of the composed protocol and
+the outputs, the distinguisher of the views of the corrupted slots and the answers of the transfer
+subprotocol that finishes the protocol from the answers (the evaluator's message to the garbler and
+the outputs), puts the garbler's message and the given transfer views into the coalition's views
+and runs `D`. It is `Composition.roundDistinguisher` at the transfer round, after which the
+protocol makes no oracle call. -/
+@[expose] noncomputable def transferDistinguisher (n : ℕ) (c : Params G)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Input c i) (r : (i : Fin 2) → Coins i)
+    (D : ((i : I) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (schedule c))
+        (Schedule.compose (fun _ => sc₂) (schedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    ((s : Composition.subCoalition (Function.Embedding.refl (Fin 2)) I) →
+        PartyView ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂ sc₂ s) ×
+      ((s : Fin 2) → (batchOTSpec c.evaluatorLen (List Bool)).Answer () s) → ProbComp Bool :=
+  Composition.roundDistinguisher (sc₂ := fun _ => sc₂) (Coins₂ := fun _ => Coins₂)
+    (batchOTWorld c.evaluatorLen (List Bool)) S₂ I
+    (State := fun i => (Input c i × Coins i) ×
+      (Round.message (spec := batchOTSpec c.evaluatorLen (List Bool)) 0 1 Message).Received i)
+    (op := ()) (parties := Function.Embedding.refl (Fin 2))
+    (.message (fun (((_, msg), ot) : AfterTransfer c 1) => evaluatorOutput G (msg rfl) (ot 1 rfl))
+      (.done (finalOutput G c)))
+    (fun i => ((x i, r i),
+      Round.deliverMessage (spec := batchOTSpec c.evaluatorLen (List Bool)) (sender := 0)
+        (receiver := 1) (garblerMessage G n c (x 0) (r 0)) i))
+    (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1),
+      (Round.deliverMessage (spec := spec₂) (sender := 0) (receiver := 1)
+        (garblerMessage G n c (x 0) (r 0)) i.1, (res.1 i).2)⟩, res.2))
+
+/-- On the steps of `Yao.oneSidedProtocol G n c`, the hybrid bound `Composition.replacementBound`
+has one term, for the one transfer round: the semi-honest advantage of
+`Yao.oneSidedTransferDistinguisher` against the transfer subprotocol `OT` on the query tuple
+`Yao.transferQueries n c x r`. -/
+private theorem replacementBound_oneSidedProtocol (n : ℕ) (c : Params G)
+    (OT : Protocol 2 spec₂ sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+      ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()))
+    (W₂ : MultiOracleWorld spec₂)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Input c i) (r : (i : Fin 2) → Coins i)
+    (D : ((i : I) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (oneSidedSchedule c))
+        (Schedule.compose (fun _ => sc₂) (oneSidedSchedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    Composition.replacementBound (batchOTWorld c.evaluatorLen (List Bool)) W₂ (fun _ => OT) S₂ I
+        (oneSidedProtocol G n c).steps (fun i => (x i, r i))
+        (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) =
+      (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
+        (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I)
+        (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I))
+        (transferQueries n c x r) (oneSidedTransferDistinguisher n c S₂ I x r D) : ℝ≥0∞) := by
+  simp only [oneSidedProtocol, Composition.replacementBound, mul_zero, tsum_zero, add_zero]
+  rfl
+
+/-- On the steps of `Yao.protocol G n c`, the hybrid bound `Composition.replacementBound` has one
+term, for the one transfer round: the semi-honest advantage of `Yao.transferDistinguisher` against
+the transfer subprotocol `OT` on the query tuple `Yao.transferQueries n c x r`. -/
+private theorem replacementBound_protocol (n : ℕ) (c : Params G)
+    (OT : Protocol 2 spec₂ sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+      ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()))
+    (W₂ : MultiOracleWorld spec₂)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Input c i) (r : (i : Fin 2) → Coins i)
+    (D : ((i : I) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (schedule c))
+        (Schedule.compose (fun _ => sc₂) (schedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    Composition.replacementBound (batchOTWorld c.evaluatorLen (List Bool)) W₂ (fun _ => OT) S₂ I
+        (protocol G n c).steps (fun i => (x i, r i))
+        (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) =
+      (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
+        (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I)
+        (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I))
+        (transferQueries n c x r) (transferDistinguisher n c S₂ I x r D) : ℝ≥0∞) := by
+  simp only [protocol, Composition.replacementBound, mul_zero, tsum_zero, add_zero]
+  rfl
+
+/-- Step towards [LindellPinkas2009], Theorem 7, not the cited result (#6045): a concrete bound at a
+fixed instance for the one-sided protocol, with the advantage against the transfer subprotocol and
+the advantage against the hybrid protocol left as terms.
+
+For every coalition `I`, the semi-honest advantage against `Yao.composedOneSidedProtocol G n c OT`
+with the simulator composed from any hybrid simulators `S₁` and any simulators `S₂` for `OT` is at
+most the advantage of `composeDistinguisher` against the hybrid protocol
+`Yao.oneSidedProtocol G n c` with `S₁ I`, plus the expectation, over the parties' coins `r`, of the
+semi-honest advantage of `Yao.oneSidedTransferDistinguisher` against `OT`, for the
+batched-transfer functionality with the simulator `S₂ ()`, on the query tuple
+`Yao.transferQueries n c x r`. Nothing is assumed about `G`, `OT`, the simulators or `D`. -/
+theorem semiHonestAdvantage_composedOneSidedProtocol_le_transfer (n : ℕ) (c : Params G)
+    (OT : Protocol 2 spec₂ sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+      ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()))
+    (W₂ : MultiOracleWorld spec₂)
+    (S₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (oneSidedSchedule c) (Input c) Coins (fun _ => List Bool) I)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Input c i)
+    (D : ((i : I) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (oneSidedSchedule c))
+        (Schedule.compose (fun _ => sc₂) (oneSidedSchedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    (semiHonestAdvantage (composedOneSidedProtocol G n c OT) W₂ (oneSidedFunctionality G c) I
+        (composeSim (oneSidedProtocol G n c) S₁ S₂ I) x D : ℝ≥0∞) ≤
+      semiHonestAdvantage (oneSidedProtocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
+          (oneSidedFunctionality G c) I (S₁ I) x
+          (composeDistinguisher (oneSidedProtocol G n c) S₂ I x D) +
+        ∑' r, ProbComp.eval (OracleComp.pi (oneSidedProtocol G n c).sampleCoins) r *
+          (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
+            (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I)
+            (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I))
+            (transferQueries n c x r) (oneSidedTransferDistinguisher n c S₂ I x r D) : ℝ≥0∞) :=
+  (semiHonestAdvantage_compose_le_replacementBound (oneSidedProtocol G n c)
+    (batchOTWorld c.evaluatorLen (List Bool)) W₂ (oneSidedFunctionality G c) S₁ (fun _ => OT) S₂
+    I x D).trans (add_le_add le_rfl (le_of_eq (tsum_congr fun r =>
+      congrArg (ProbComp.eval (OracleComp.pi (oneSidedProtocol G n c).sampleCoins) r * ·)
+        (replacementBound_oneSidedProtocol n c OT W₂ S₂ I x r D))))
+
+/-- Step towards [LindellPinkas2009], Theorem 7, not the cited result (#6045): a concrete bound at a
+fixed instance, with the advantage against the transfer subprotocol and the advantage against the
+hybrid protocol left as terms.
+
+For every coalition `I`, the semi-honest advantage against `Yao.composedProtocol G n c OT` with the
+simulator composed from any hybrid simulators `S₁` and any simulators `S₂` for `OT` is at most the
+advantage of `composeDistinguisher` against the hybrid protocol `Yao.protocol G n c` with `S₁ I`,
+plus the expectation, over the parties' coins `r`, of the semi-honest advantage of
+`Yao.transferDistinguisher` against `OT`, for the batched-transfer functionality with the simulator
+`S₂ ()`, on the query tuple `Yao.transferQueries n c x r`. Nothing is assumed about `G`, `OT`, the
+simulators or `D`. -/
+theorem semiHonestAdvantage_composedProtocol_le_transfer (n : ℕ) (c : Params G)
+    (OT : Protocol 2 spec₂ sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+      ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()))
+    (W₂ : MultiOracleWorld spec₂)
+    (S₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (schedule c) (Input c) Coins (fun _ => List Bool) I)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Input c i)
+    (D : ((i : I) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (schedule c))
+        (Schedule.compose (fun _ => sc₂) (schedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    (semiHonestAdvantage (composedProtocol G n c OT) W₂ (functionality G c) I
+        (composeSim (protocol G n c) S₁ S₂ I) x D : ℝ≥0∞) ≤
+      semiHonestAdvantage (protocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
+          (functionality G c) I (S₁ I) x (composeDistinguisher (protocol G n c) S₂ I x D) +
+        ∑' r, ProbComp.eval (OracleComp.pi (protocol G n c).sampleCoins) r *
+          (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
+            (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I)
+            (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I))
+            (transferQueries n c x r) (transferDistinguisher n c S₂ I x r D) : ℝ≥0∞) :=
+  (semiHonestAdvantage_compose_le_replacementBound (protocol G n c)
+    (batchOTWorld c.evaluatorLen (List Bool)) W₂ (functionality G c) S₁ (fun _ => OT) S₂
+    I x D).trans (add_le_add le_rfl (le_of_eq (tsum_congr fun r =>
+      congrArg (ProbComp.eval (OracleComp.pi (protocol G n c).sampleCoins) r * ·)
+        (replacementBound_protocol n c OT W₂ S₂ I x r D))))
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted garbler, not the cited result
+(#6045): a concrete bound at a fixed instance that leaves the advantage against the transfer
+subprotocol as a term.
+
+At every parameter `n ≥ 1`, when `G` is correct with a projective encoding, the semi-honest
+advantage against `Yao.composedProtocol G n c OT` for the coalition `{0}`, with the simulator
+composed from `Yao.garblerSim` and any simulators `S₂` for `OT`, is at most the expectation, over
+the parties' coins `r`, of the semi-honest advantage of `Yao.transferDistinguisher` against `OT` on
+the query tuple `Yao.transferQueries n c x r`. Nothing is assumed about `OT`, `S₂` or `D`. -/
+theorem semiHonestAdvantage_composedProtocol_garbler_le_transfer
+    (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n)
+    (c : Params G)
+    (OT : Protocol 2 spec₂ sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+      ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()))
+    (W₂ : MultiOracleWorld spec₂)
+    (S₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (schedule c) (Input c) Coins (fun _ => List Bool) I)
+    (hS₁ : S₁ {0} = garblerSim G n c)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({0} : Finset (Fin 2))) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (schedule c))
+        (Schedule.compose (fun _ => sc₂) (schedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    (semiHonestAdvantage (composedProtocol G n c OT) W₂ (functionality G c) {0}
+        (composeSim (protocol G n c) S₁ S₂ {0}) x D : ℝ≥0∞) ≤
+      ∑' r, ProbComp.eval (OracleComp.pi (protocol G n c).sampleCoins) r *
+        (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
+          (Composition.subCoalition (Function.Embedding.refl (Fin 2)) {0})
+          (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) {0}))
+          (transferQueries n c x r) (transferDistinguisher n c S₂ {0} x r D) : ℝ≥0∞) := by
+  have h := semiHonestAdvantage_composedProtocol_le_transfer n c OT W₂ S₁ S₂ {0} x D
+  rwa [hS₁, semiHonestAdvantage_protocol_garbler_eq_zero hproj hcorrect hn, ENNReal.coe_zero,
+    zero_add] at h
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
+(#6045): a concrete bound at a fixed instance that leaves the `prv.sim` advantage of the reduction
+and the advantage against the transfer subprotocol as terms.
+
+At every parameter `n ≥ 1`, when `G` is correct with a projective encoding, the semi-honest
+advantage against `Yao.composedProtocol G n c OT` for the coalition `{1}`, with the simulator
+composed from `Yao.evaluatorSim G Φ S` and any simulators `S₂` for `OT`, is at most the `prv.sim`
+advantage against the garbling simulator `S n` of the explicit reduction
+`Yao.evaluatorDistinguisherToPrvSim` applied to `composeDistinguisher`, plus the expectation, over
+the parties' coins `r`, of the semi-honest advantage of `Yao.transferDistinguisher` against `OT` on
+the query tuple `Yao.transferQueries n c x r`. Nothing is assumed about `S`, `S₂`, `OT` or `D`. -/
+theorem semiHonestAdvantage_composedProtocol_evaluator_le_transfer
+    (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n)
+    (c : Params G) (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ)
+    (OT : Protocol 2 spec₂ sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+      ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()))
+    (W₂ : MultiOracleWorld spec₂)
+    (S₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (schedule c) (Input c) Coins (fun _ => List Bool) I)
+    (hS₁ : S₁ {1} = evaluatorSim G Φ S n c)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator sc₂ ((batchOTSpec c.evaluatorLen (List Bool)).Query ()) Coins₂
+        ((batchOTSpec c.evaluatorLen (List Bool)).Answer ()) J)
+    (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({1} : Finset (Fin 2))) →
+      PartyView (Input c) (Schedule.ComposedCoins (fun _ => Coins₂) Coins (schedule c))
+        (Schedule.compose (fun _ => sc₂) (schedule c)) i) × ((i : Fin 2) → List Bool) →
+        ProbComp Bool) :
+    (semiHonestAdvantage (composedProtocol G n c OT) W₂ (functionality G c) {1}
+        (composeSim (protocol G n c) S₁ S₂ {1}) x D : ℝ≥0∞) ≤
+      prvSimAdvantage G Φ n (S n) (evaluatorDistinguisherToPrvSim c x
+          (composeDistinguisher (protocol G n c) S₂ {1} x D)) +
+        ∑' r, ProbComp.eval (OracleComp.pi (protocol G n c).sampleCoins) r *
+          (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
+            (Composition.subCoalition (Function.Embedding.refl (Fin 2)) {1})
+            (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) {1}))
+            (transferQueries n c x r) (transferDistinguisher n c S₂ {1} x r D) : ℝ≥0∞) := by
+  have h := semiHonestAdvantage_composedProtocol_le_transfer n c OT W₂ S₁ S₂ {1} x D
+  rwa [hS₁, semiHonestAdvantage_protocol_evaluator_eq hproj hcorrect hn c Φ S x] at h
+
+end Transfer
 
 end Cslib.Crypto.Protocols.MPC.Yao

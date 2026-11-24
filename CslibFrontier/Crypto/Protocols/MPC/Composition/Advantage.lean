@@ -39,10 +39,11 @@ coalition's views with the subprotocol simulators `S₂`.
 Everything here is original bookkeeping around Goldreich's composition theorem (Section 7.5.2.1,
 Theorem 7.5.7) rather than a cited statement: the quantities are concrete, for a fixed input tuple
 and distinguisher, with no security parameter and no efficiency claim about `composeDistinguisher`.
-Bounding the subprotocol-replacement gap by the semi-honest advantage against computationally
+The bound of the subprotocol-replacement gap by the semi-honest advantages against computationally
 private subprotocols (the hybrid argument over the oracle rounds of the kernel program, with an
-explicit distinguisher for each round), and the asymptotic statement with certified reductions, are
-not proved here (#6045).
+explicit distinguisher for each round) is in
+`CslibFrontier/Crypto/Protocols/MPC/Composition/Hybrid.lean`. The asymptotic statement with
+certified reductions is not proved (#6045).
 
 ## Main definitions
 

@@ -6127,6 +6127,7 @@ public import CslibFrontier.Crypto.Game.HiddenBit
 public import CslibFrontier.Crypto.Game.Hop
 public import CslibFrontier.Crypto.Game.Hybrid
 public import CslibFrontier.Crypto.Game.Inversion
+public import CslibFrontier.Crypto.Game.Mixture
 public import CslibFrontier.Crypto.Game.Order
 public import CslibFrontier.Crypto.Game.Quantum
 public import CslibFrontier.Crypto.Game.RepeatedInversion
@@ -6332,6 +6333,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Broadcast
 public import CslibFrontier.Crypto.Protocols.MPC.CircuitEval
 public import CslibFrontier.Crypto.Protocols.MPC.Composition
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.Hybrid
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
