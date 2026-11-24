@@ -12,6 +12,7 @@ import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
+import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
 import CslibFrontierResults.Entries.MatrixRigidity
