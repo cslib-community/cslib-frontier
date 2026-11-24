@@ -51,9 +51,10 @@ The constructor lemmas adapt `Nat.Partrec.Code.primrec₂_pair` and its neighbou
 `Code.encodeCode`, which differs from Mathlib's by the extra atomic code `oracle`. The embedding
 lemma `Code.primrec_ofPartrec` and the definition of `Code.curry` through the embedded constant
 code follow `Nat.Partrec.Code.primrec_toSingleOracleCode` and `TauCeti.Oracle.Single.Code.curry` in
-Tau Ceti's `TauCeti/Computability/SingleOracle/Code.lean` (Apache 2.0, by the Tau Ceti
-contributors, at commit `e1ec80368dcb61776aabcb2f7edd3858269d2d35`), restated for this library's
-oracle codes and its existing embedding `Code.ofPartrec`. `Code.curry` is the oracle analogue of
+Tau Ceti's
+[`SingleOracle/Code`](https://github.com/TauCetiProject/TauCeti/blob/e1ec80368dcb61776aabcb2f7edd3858269d2d35/TauCeti/Computability/SingleOracle/Code.lean)
+(Apache 2.0, by the Tau Ceti contributors), restated for this library's oracle codes and its
+existing embedding `Code.ofPartrec`. `Code.curry` is the oracle analogue of
 Mathlib's `Nat.Partrec.Code.curry`.
 
 ## References
