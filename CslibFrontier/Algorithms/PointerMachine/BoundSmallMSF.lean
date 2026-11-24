@@ -60,8 +60,8 @@ def compile (ends : Fin m → Sym2 (Fin n)) (before : List (Record (model W) lay
 /-- Compiling the topology once yields a reusable physical table. Old heap addresses retain
 their records, so data lists loaded in advance keep their representation. -/
 theorem compile_spec (ends : Fin m → Sym2 (Fin n)) (before : List (Record (model W) layout)) :
-    let result := compile ends before
-    Ready ends result.1 result.2.1 result.2.2 ∧ ∃ extra, result.1 = before ++ extra := by
+    let (heap, root, out) := compile ends before
+    Ready ends heap root out ∧ ∃ extra, heap = before ++ extra := by
   let p := optimalMSFProgram ends
   let entries := outputs before (leaves p)
   let tree := encode (W := W) Fin.val entries.2 p entries.1.length
