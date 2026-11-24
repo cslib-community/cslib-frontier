@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LowerBound
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.SupportTsum
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
@@ -192,7 +193,7 @@ def twoSlotDetCode (base : ℕ) (usePersBase : Bool) : SubroutineCode .standard 
   input i := if usePersBase then decide (1 ≤ i.val) else true
   output := 8
 
-/-- Coin-flipping (`Code.rand`) 2-slot `SubroutineCode` (`IsRandFree = false`): samples a uniform
+/-- Coin-flipping (`Code.rand`) 2-slot `SubroutineCode` (`¬Code.IsRandFree`): samples a uniform
 bit into `r8` via `Code.rand 8 4` before running `twoSlotBodyCode`. -/
 def twoSlotRandCode (base : ℕ) (usePersBase : Bool) : SubroutineCode .standard 9 0 :=
   { twoSlotDetCode base usePersBase with
@@ -223,9 +224,11 @@ def twoSlotEncode (U V base : ℕ) (o : Dynamic.Op U) (i : Fin 9) : ℕ :=
     match o with | .insert u v => if v < V then (u.1 + 1) * V + v else 0 | _ => 0
   else 0
 
+/-- Register-agreement predicate matching `r1`..`r6` against `twoSlotEncode`. -/
 def twoSlotArgMatch (U V base : ℕ) (o : Dynamic.Op U) (regs : Fin 9 → ℕ) : Prop :=
   ∀ i : Fin 9, 1 ≤ i.val ∧ i.val ≤ 6 → regs i = twoSlotEncode U V base o i
 
+/-- Decode the Word-RAM return register `r8` to the dictionary operation result. -/
 def twoSlotDecode {U : ℕ} : (o : Dynamic.Op U) → (Fin 9 → ℕ) → Option o.Result
   | .query _, regs => some (if regs 8 == 0 then none else some (regs 8 - 1))
   | .insert _ _, _ => some ()
@@ -288,6 +291,69 @@ private theorem twoSlot_arguments_fit {U V w base : ℕ} (usePersBase : Bool)
   · exact fits_zero w
   · exact fits_zero w
 
+private theorem exec_loadDiv {U V w : ℕ} (hV : 1 ≤ V) (hUV : (U + 1) * V ≤ 2 ^ w)
+    (d : Data 9) (hd : d.Bounded w) (valReg dstReg addrReg : Fin 9) (h5 : valReg ≠ 5)
+    (hV_reg : d.regs 5 = V) (e : Option (Fin U × Fin V))
+    (hmem : d.mem (d.regs addrReg) = encodeSlot e) :
+    let d₁ := d.set valReg (d.mem (d.regs addrReg))
+    let d₂ := d₁.set dstReg (BinOp.div.eval (d₁.regs valReg) (d₁.regs 5))
+    ExecWithin w (.seq (.op (.load valReg addrReg)) (.op (.bin .div dstReg valReg 5))) d d₂ 2 ∧
+      d₂.Bounded w ∧
+      d₂.regs dstReg = slotKeyTag e := by
+  have hfit_div : Fits w (BinOp.div.eval ((d.set valReg (d.mem (d.regs addrReg))).regs valReg)
+      ((d.set valReg (d.mem (d.regs addrReg))).regs 5)) := by
+    simp only [Data.set, Function.update_self, Function.update_of_ne h5.symm, hmem, hV_reg,
+      BinOp.eval]
+    exact lt_of_le_of_lt (Nat.div_le_self _ V) (encodeSlot_fits hUV e)
+  refine ⟨ExecWithin.load.seq (ExecWithin.bin hfit_div),
+    (hd.set (hd.2 _)).set hfit_div, ?_⟩
+  simp only [Data.set, Function.update_self, Function.update_of_ne h5.symm, hmem, hV_reg,
+    BinOp.eval, encodeSlot_div hV]
+
+private theorem exec_queryExtract {U V w : ℕ} (hU : 1 ≤ U) (hUV : (U + 1) * V ≤ 2 ^ w)
+    (d : Data 9) (hd : d.Bounded w) (u : Fin U) (v : Fin V)
+    (hr8 : d.regs 8 = encodeSlot (some (u, v))) (hr4 : d.regs 4 = 1) (hr5 : d.regs 5 = V) :
+    let d₁ := d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))
+    let d₂ := d₁.set 8 (BinOp.add.eval (d₁.regs 8) (d₁.regs 4))
+    ExecWithin w (.seq (.op (.bin .mod 8 8 5)) (.op (.bin .add 8 8 4))) d d₂ 2 ∧
+      d₂.Bounded w ∧ d₂.regs 8 = v.1 + 1 := by
+  have hmod_eq : BinOp.mod.eval (d.regs 8) (d.regs 5) = v.1 := by
+    simp [BinOp.eval, hr8, hr5, encodeSlot_mod]
+  have h2V : 2 * V ≤ 2 ^ w := (Nat.mul_le_mul_right V (by omega)).trans hUV
+  have hmod_fit : Fits w (BinOp.mod.eval (d.regs 8) (d.regs 5)) := by
+    rw [hmod_eq]; dsimp [Fits]; have := v.2; omega
+  have hadd_eq : BinOp.add.eval ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8)
+      ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4) = v.1 + 1 := by
+    have h1 : (d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8 = v.1 := by
+      simp [Data.set, hr8, hr5, encodeSlot_mod]
+    have h2 : (d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4 = 1 := by
+      simp [Data.set, hr4]
+    change _ + _ = _
+    rw [h1, h2]
+  have hadd_fit : Fits w (BinOp.add.eval ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 8)
+      ((d.set 8 (BinOp.mod.eval (d.regs 8) (d.regs 5))).regs 4)) := by
+    rw [hadd_eq]; dsimp [Fits]; have := v.2; omega
+  exact ⟨(ExecWithin.bin hmod_fit).seq (ExecWithin.bin hadd_fit),
+    (hd.set hmod_fit).set hadd_fit, by simpa [Data.set] using hadd_eq⟩
+
+private theorem slotsState_none_of_ne_tags {U V : ℕ} {e0 e1 : Option (Fin U × Fin V)} {u : Fin U}
+    (hk0 : slotKeyTag e0 ≠ u.1 + 1) (hk1 : slotKeyTag e1 ≠ u.1 + 1) :
+    slotsState e0 e1 u = none := by
+  cases e0 with
+  | none =>
+    cases e1 with
+    | none => rfl
+    | some uv1 =>
+      have hne1 : u ≠ uv1.1 := fun h => hk1 (by simp [h, slotKeyTag])
+      simp [slotsState, hne1]
+  | some uv0 =>
+    have hne0 : u ≠ uv0.1 := fun h => hk0 (by simp [h, slotKeyTag])
+    cases e1 with
+    | none => simp [slotsState, hne0]
+    | some uv1 =>
+      have hne1 : u ≠ uv1.1 := fun h => hk1 (by simp [h, slotKeyTag])
+      simp [slotsState, hne0, hne1]
+
 private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
     (hU : 1 ≤ U) (hV : 1 ≤ V) (hw : 2 ≤ w) (hUV : (U + 1) * V ≤ 2 ^ w)
     (hbase : Fits w (base + 2))
@@ -318,22 +384,30 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
   have hmod_write1 : ∀ val,
       Modifies (Block.mk base 2).footprint x.mem (Function.update x.mem (base + 1) val) :=
     fun val a ha => Function.update_of_ne (by rintro rfl; exact ha hfp1) val x.mem
-  have hdiv_fit : ∀ c, Fits w c → Fits w (c / V) := fun c hc =>
-    lt_of_le_of_lt (Nat.div_le_self c V) hc
   have hwrite_bdd : ∀ {z : Data 9}, z.Bounded w → ∀ addr val, Fits w val →
       (z.write addr val).Bounded w := fun hz addr val hfv =>
     ⟨hz.1, fun a => by by_cases ha : a = addr <;> simp [Data.write, ha, hfv, hz.2 a]⟩
+  -- Shared update slot-0 and slot-1 `load`+`div` prefixes reused by both `insert` and `delete`.
+  let xu₂ := x₁.set 8 (x₁.mem (x₁.regs 0))
+  let xu₃ := xu₂.set 8 (BinOp.div.eval (xu₂.regs 8) (xu₂.regs 5))
+  obtain ⟨he_pre, hxu₃_bdd, hxu₃_tag0⟩ :=
+    exec_loadDiv hV hUV x₁ hx₁_bdd 8 8 0 (by decide) (by simpa [x₁] using hr5) e0
+      (by simpa [x₁, hr0] using hm0)
+  let xu₄ := xu₃.set 1 (xu₃.mem (xu₃.regs 7))
+  let xu₅ := xu₄.set 1 (BinOp.div.eval (xu₄.regs 1) (xu₄.regs 5))
+  obtain ⟨he_l1, hxu₅_bdd, hxu₅_tag1⟩ :=
+    exec_loadDiv hV hUV xu₃ hxu₃_bdd 1 1 7 (by decide) (by simpa [xu₃, xu₂, x₁] using hr5) e1
+      (by simpa [xu₃, xu₂, x₁, BinOp.eval, hr0, hr4] using hm1)
   cases o with
   | query u =>
     have hr1 : x.regs 1 = 0 := by simpa [twoSlotEncode] using hmatch 1 (by decide)
     have hr2 : x.regs 2 = u.1 + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
     have hc_op : (Cond.eq (1 : Fin 9) 3).Holds x₁ := by simp [x₁, hr1, hr3]
     let x₂ := x₁.set 8 (x₁.mem (x₁.regs 0))
-    have hdiv0_fit : Fits w (BinOp.div.eval (x₂.regs 8) (x₂.regs 5)) := by
-      simpa [x₂, x₁, BinOp.eval, hr0, hr5, hm0] using hdiv_fit _ (encodeSlot_fits hUV e0)
     let x₃ := x₂.set 6 (BinOp.div.eval (x₂.regs 8) (x₂.regs 5))
-    have he_load0 : ExecWithin w (.seq (.op (.load 8 0)) (.op (.bin .div 6 8 5))) x₁ x₃ 2 :=
-      ExecWithin.load.seq (ExecWithin.bin hdiv0_fit)
+    obtain ⟨he_load0, hx₃_bdd, hx₃_tag0⟩ :=
+      exec_loadDiv hV hUV x₁ hx₁_bdd 8 6 0 (by decide) (by simpa [x₁] using hr5) e0
+        (by simpa [x₁, hr0] using hm0)
     by_cases hk0 : slotKeyTag e0 = u.1 + 1
     · cases e0 with
       | none => simp [slotKeyTag] at hk0
@@ -342,37 +416,30 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
         have hu_eq : u = u0 := Fin.ext (by simpa [slotKeyTag] using hk0.symm)
         subst hu_eq
         have hc0 : (Cond.eq (6 : Fin 9) 2).Holds x₃ := by
-          simp [x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr5, hm0, encodeSlot_div hV, slotKeyTag]
-        have hmod_fit : Fits w (BinOp.mod.eval (x₃.regs 8) (x₃.regs 5)) := by
-          have hv_lt : Fits w v0.1 :=
-            lt_of_lt_of_le (lt_of_lt_of_le v0.2 (by have := hU; nlinarith)) hUV
-          simpa [x₃, x₂, x₁, BinOp.eval, hr0, hr5, hm0, encodeSlot_mod] using hv_lt
+          change x₃.regs 6 = x₃.regs 2
+          rw [hx₃_tag0]; simp [x₃, x₂, x₁, hr2, slotKeyTag]
         let x₄ := x₃.set 8 (BinOp.mod.eval (x₃.regs 8) (x₃.regs 5))
-        have hadd1_fit : Fits w (BinOp.add.eval (x₄.regs 8) (x₄.regs 4)) := by
-          have hv1_lt : Fits w (v0.1 + 1) := by
-            have hv0 := v0.2
-            have : 2 * V ≤ 2 ^ w := (Nat.mul_le_mul_right V (by omega)).trans hUV
-            dsimp [Fits]; omega
-          simpa [x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm0, encodeSlot_mod] using hv1_lt
         let x₅ := x₄.set 8 (BinOp.add.eval (x₄.regs 8) (x₄.regs 4))
+        obtain ⟨he_ext, hx₅_bdd, hx₅_r8⟩ := exec_queryExtract hU hUV x₃ hx₃_bdd u v0
+          (by simpa [x₃, x₂, x₁, hr0] using hm0) (by simpa [x₃, x₂, x₁] using hr4)
+          (by simpa [x₃, x₂, x₁] using hr5)
         have he_q : ExecWithin w twoSlotQueryCode x₁ x₅ 5 :=
-          (he_load0.seq (ExecWithin.branch_pos hc0
-            ((ExecWithin.bin hmod_fit).seq (ExecWithin.bin hadd1_fit)))).mono (by omega)
+          (he_load0.seq (ExecWithin.branch_pos hc0 he_ext)).mono (by omega)
         refine ⟨x₅, (hs1.seq (ExecWithin.branch_pos hc_op he_q)).mono (by omega), ?_, ?_,
           Modifies.refl _ _⟩
-        · simp [twoSlotDecode, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm0,
-            encodeSlot_mod, hs_eq, slotsState, Dynamic.spec]
-        · exact ⟨(((hx₁_bdd.set (hbdd.2 _)).set hdiv0_fit).set hmod_fit).set hadd1_fit,
-            fun _ => hr0, some (u, v0), e1, hdisj, hm0, hm1, hs_eq⟩
+        · change some (if x₅.regs 8 == 0 then none else some (x₅.regs 8 - 1)) = _
+          rw [show x₅.regs 8 = v0.1 + 1 from hx₅_r8]
+          simp [hs_eq, slotsState, Dynamic.spec]
+        · exact ⟨hx₅_bdd, fun _ => by simpa [x₅, x₄, x₃, x₂, x₁] using hr0,
+            some (u, v0), e1, hdisj, hm0, hm1, hs_eq⟩
     · have hc0 : ¬(Cond.eq (6 : Fin 9) 2).Holds x₃ := by
-        simpa [x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr5, hm0, encodeSlot_div hV] using hk0
+        change x₃.regs 6 ≠ x₃.regs 2
+        rw [hx₃_tag0]; simpa [x₃, x₂, x₁, hr2] using hk0
       let x₄ := x₃.set 8 (x₃.mem (x₃.regs 7))
-      have hdiv1_fit : Fits w (BinOp.div.eval (x₄.regs 8) (x₄.regs 5)) := by
-        simpa [x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1] using
-          hdiv_fit _ (encodeSlot_fits hUV e1)
       let x₅ := x₄.set 6 (BinOp.div.eval (x₄.regs 8) (x₄.regs 5))
-      have he_load1 : ExecWithin w (.seq (.op (.load 8 7)) (.op (.bin .div 6 8 5))) x₃ x₅ 2 :=
-        ExecWithin.load.seq (ExecWithin.bin hdiv1_fit)
+      obtain ⟨he_load1, hx₅_bdd, hx₅_tag1⟩ :=
+        exec_loadDiv hV hUV x₃ hx₃_bdd 8 6 7 (by decide) (by simpa [x₃, x₂, x₁] using hr5) e1
+          (by simpa [x₃, x₂, x₁, BinOp.eval, hr0, hr4] using hm1)
       have hs_not0 : ∀ u0 v0, e0 = some (u0, v0) → u ≠ u0 := by
         rintro u0 v0 rfl h_eq; subst h_eq; exact hk0 rfl
       by_cases hk1 : slotKeyTag e1 = u.1 + 1
@@ -383,71 +450,41 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
           have hu_eq : u = u1 := Fin.ext (by simpa [slotKeyTag] using hk1.symm)
           subst hu_eq
           have hc1 : (Cond.eq (6 : Fin 9) 2).Holds x₅ := by
-            simp [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr4, hr5, hm1, encodeSlot_div hV,
-              slotKeyTag]
-          have hmod_fit : Fits w (BinOp.mod.eval (x₅.regs 8) (x₅.regs 5)) := by
-            have hv_lt : Fits w v1.1 :=
-              lt_of_lt_of_le (lt_of_lt_of_le v1.2 (by have := hU; nlinarith)) hUV
-            simpa [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1, encodeSlot_mod] using hv_lt
+            change x₅.regs 6 = x₅.regs 2
+            rw [hx₅_tag1]; simp [x₅, x₄, x₃, x₂, x₁, hr2, slotKeyTag]
           let x₆ := x₅.set 8 (BinOp.mod.eval (x₅.regs 8) (x₅.regs 5))
-          have hadd1_fit : Fits w (BinOp.add.eval (x₆.regs 8) (x₆.regs 4)) := by
-            have hv1_lt : Fits w (v1.1 + 1) := by
-              have hv1 := v1.2
-              have : 2 * V ≤ 2 ^ w := (Nat.mul_le_mul_right V (by omega)).trans hUV
-              dsimp [Fits]; omega
-            simpa [x₆, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1, encodeSlot_mod] using
-              hv1_lt
           let x₇ := x₆.set 8 (BinOp.add.eval (x₆.regs 8) (x₆.regs 4))
+          obtain ⟨he_ext, hx₇_bdd, hx₇_r8⟩ := exec_queryExtract hU hUV x₅ hx₅_bdd u v1
+            (by simpa [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4] using hm1)
+            (by simpa [x₅, x₄, x₃, x₂, x₁] using hr4)
+            (by simpa [x₅, x₄, x₃, x₂, x₁] using hr5)
           have he_q : ExecWithin w twoSlotQueryCode x₁ x₇ 9 :=
             (he_load0.seq (ExecWithin.branch_neg hc0
-              (he_load1.seq (ExecWithin.branch_pos hc1
-                ((ExecWithin.bin hmod_fit).seq (ExecWithin.bin hadd1_fit)))))).mono (by omega)
+              (he_load1.seq (ExecWithin.branch_pos hc1 he_ext)))).mono (by omega)
           refine ⟨x₇, (hs1.seq (ExecWithin.branch_pos hc_op he_q)).mono (by omega), ?_, ?_,
             Modifies.refl _ _⟩
-          · cases e0 with
-            | none =>
-              simp [twoSlotDecode, x₇, x₆, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1,
-                encodeSlot_mod, hs_eq, slotsState, Dynamic.spec]
+          · change some (if x₇.regs 8 == 0 then none else some (x₇.regs 8 - 1)) = _
+            rw [show x₇.regs 8 = v1.1 + 1 from hx₇_r8]
+            cases e0 with
+            | none => simp [hs_eq, slotsState, Dynamic.spec]
             | some uv0 =>
-              rcases uv0 with ⟨u0, v0⟩
-              have hne0 := hs_not0 u0 v0 rfl
-              simp [twoSlotDecode, x₇, x₆, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1,
-                encodeSlot_mod, hs_eq, slotsState, hne0, Dynamic.spec]
-          · exact ⟨(((((hx₁_bdd.set (hbdd.2 _)).set hdiv0_fit).set (hbdd.2 _)).set hdiv1_fit).set
-                hmod_fit).set hadd1_fit,
-              fun _ => hr0, e0, some (u, v1), hdisj, hm0, hm1, hs_eq⟩
+              simp [hs_eq, slotsState, hs_not0 uv0.1 uv0.2 rfl, Dynamic.spec]
+          · exact ⟨hx₇_bdd, fun _ => by simpa [x₇, x₆, x₅, x₄, x₃, x₂, x₁] using hr0,
+              e0, some (u, v1), hdisj, hm0, hm1, hs_eq⟩
       · have hc1 : ¬(Cond.eq (6 : Fin 9) 2).Holds x₅ := by
-          simpa [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr4, hr5, hm1, encodeSlot_div hV]
-            using hk1
+          change x₅.regs 6 ≠ x₅.regs 2
+          rw [hx₅_tag1]; simpa [x₅, x₄, x₃, x₂, x₁, hr2] using hk1
         let x₆ := x₅.set 8 (x₅.regs 3)
         have he_q : ExecWithin w twoSlotQueryCode x₁ x₆ 9 :=
           (he_load0.seq (ExecWithin.branch_neg hc0
             (he_load1.seq (ExecWithin.branch_neg hc1 ExecWithin.copy)))).mono (by omega)
         refine ⟨x₆, (hs1.seq (ExecWithin.branch_pos hc_op he_q)).mono (by omega), ?_, ?_,
           Modifies.refl _ _⟩
-        · have hs_u : s u = none := by
-            rw [hs_eq]
-            cases e0 with
-            | none =>
-              cases e1 with
-              | none => rfl
-              | some uv1 =>
-                rcases uv1 with ⟨u1, v1⟩
-                have hne1 : u ≠ u1 := fun h => hk1 (by simp [h, slotKeyTag])
-                simp [slotsState, hne1]
-            | some uv0 =>
-              rcases uv0 with ⟨u0, v0⟩
-              have hne0 := hs_not0 u0 v0 rfl
-              cases e1 with
-              | none => simp [slotsState, hne0]
-              | some uv1 =>
-                rcases uv1 with ⟨u1, v1⟩
-                have hne1 : u ≠ u1 := fun h => hk1 (by simp [h, slotKeyTag])
-                simp [slotsState, hne0, hne1]
+        · have hs_u : s u = none := hs_eq ▸ slotsState_none_of_ne_tags hk0 hk1
           simp [twoSlotDecode, x₆, x₅, x₄, x₃, x₂, x₁, hr3, hs_u, Dynamic.spec]
-        · have hbdd5 : x₅.Bounded w :=
-            (((hx₁_bdd.set (hbdd.2 _)).set hdiv0_fit).set (hbdd.2 _)).set hdiv1_fit
-          exact ⟨hbdd5.set (hbdd5.1 3), fun _ => hr0, e0, e1, hdisj, hm0, hm1, hs_eq⟩
+        · exact ⟨hx₅_bdd.set (hx₅_bdd.1 3),
+            fun _ => by simpa [x₆, x₅, x₄, x₃, x₂, x₁] using hr0,
+            e0, e1, hdisj, hm0, hm1, hs_eq⟩
   | insert u v =>
     have hv_lt : v < V := hval.2
     let v_fin : Fin V := ⟨v, hv_lt⟩
@@ -456,14 +493,7 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
     have hr6 : x.regs 6 = encodeSlot (some (u, v_fin)) := by
       simpa [twoSlotEncode, hv_lt, encodeSlot, v_fin] using hmatch 6 (by decide)
     have hc_not_q : ¬(Cond.eq (1 : Fin 9) 3).Holds x₁ := by simp [x₁, hr1, hr3]
-    let x₂ := x₁.set 8 (x₁.mem (x₁.regs 0))
-    have hdiv0_fit : Fits w (BinOp.div.eval (x₂.regs 8) (x₂.regs 5)) := by
-      simpa [x₂, x₁, BinOp.eval, hr0, hr5, hm0] using hdiv_fit _ (encodeSlot_fits hUV e0)
-    let x₃ := x₂.set 8 (BinOp.div.eval (x₂.regs 8) (x₂.regs 5))
-    have hc_ins : (Cond.eq (1 : Fin 9) 4).Holds x₃ := by simp [x₃, x₂, x₁, hr1, hr4]
-    have hx₃_bdd : x₃.Bounded w := (hx₁_bdd.set (hbdd.2 _)).set hdiv0_fit
-    have he_pre : ExecWithin w (.seq (.op (.load 8 0)) (.op (.bin .div 8 8 5))) x₁ x₃ 2 :=
-      ExecWithin.load.seq (ExecWithin.bin hdiv0_fit)
+    have hc_ins : (Cond.eq (1 : Fin 9) 4).Holds xu₃ := by simp [xu₃, xu₂, x₁, hr1, hr4]
     by_cases hk0 : slotKeyTag e0 = u.1 + 1
     · cases e0 with
       | none => simp [slotKeyTag] at hk0
@@ -471,35 +501,29 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
         rcases uv0 with ⟨u0, v0⟩
         have hu_eq : u = u0 := Fin.ext (by simpa [slotKeyTag] using hk0.symm)
         subst hu_eq
-        have hc0 : (Cond.eq (8 : Fin 9) 2).Holds x₃ := by
-          simp [x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr5, hm0, encodeSlot_div hV, slotKeyTag]
-        let y := x₃.write (x₃.regs 0) (x₃.regs 6)
-        have he_ins : ExecWithin w twoSlotInsertCode x₃ y 2 :=
+        have hc0 : (Cond.eq (8 : Fin 9) 2).Holds xu₃ := by
+          change xu₃.regs 8 = xu₃.regs 2
+          rw [hxu₃_tag0]; simp [xu₃, xu₂, x₁, hr2, slotKeyTag]
+        let y := xu₃.write (xu₃.regs 0) (xu₃.regs 6)
+        have he_ins : ExecWithin w twoSlotInsertCode xu₃ y 2 :=
           ExecWithin.branch_pos hc0 ExecWithin.store
         refine ⟨y,
           (hs1.seq (ExecWithin.branch_neg hc_not_q
             (he_pre.seq (ExecWithin.branch_pos hc_ins he_ins)))).mono (by omega),
           rfl, ?_, ?_⟩
-        · refine ⟨hwrite_bdd hx₃_bdd _ _ (hx₃_bdd.1 6), fun _ => hr0, some (u, v_fin), e1,
+        · refine ⟨hwrite_bdd hxu₃_bdd _ _ (hxu₃_bdd.1 6), fun _ => hr0, some (u, v_fin), e1,
             fun _ _ u1 v1 h0 h1 => ?_, ?_, ?_, ?_⟩
           · cases h0; exact hdisj u v0 u1 v1 rfl h1
-          · simp [y, x₃, x₂, x₁, hr0, hr6]
-          · simp [y, x₃, x₂, x₁, hr0, hm1]
+          · simp [y, xu₃, xu₂, x₁, hr0, hr6]
+          · simp [y, xu₃, xu₂, x₁, hr0, hm1]
           · ext u'
             rcases eq_or_ne u' u with rfl | hu'
             · simp [slotsState, v_fin]
             · simp [hs_eq, slotsState, hu']
-        · simpa [y, x₃, x₂, x₁, hr0] using hmod_write0 (x₃.regs 6)
-    · have hc0 : ¬(Cond.eq (8 : Fin 9) 2).Holds x₃ := by
-        simpa [x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr5, hm0, encodeSlot_div hV] using hk0
-      let x₄ := x₃.set 1 (x₃.mem (x₃.regs 7))
-      have hdiv1_fit : Fits w (BinOp.div.eval (x₄.regs 1) (x₄.regs 5)) := by
-        simpa [x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1] using
-          hdiv_fit _ (encodeSlot_fits hUV e1)
-      let x₅ := x₄.set 1 (BinOp.div.eval (x₄.regs 1) (x₄.regs 5))
-      have hx₅_bdd : x₅.Bounded w := (hx₃_bdd.set (hbdd.2 _)).set hdiv1_fit
-      have he_l1 : ExecWithin w (.seq (.op (.load 1 7)) (.op (.bin .div 1 1 5))) x₃ x₅ 2 :=
-        ExecWithin.load.seq (ExecWithin.bin hdiv1_fit)
+        · simpa [y, xu₃, xu₂, x₁, hr0] using hmod_write0 (xu₃.regs 6)
+    · have hc0 : ¬(Cond.eq (8 : Fin 9) 2).Holds xu₃ := by
+        change xu₃.regs 8 ≠ xu₃.regs 2
+        rw [hxu₃_tag0]; simpa [xu₃, xu₂, x₁, hr2] using hk0
       have hs_not0 : ∀ u0 v0, e0 = some (u0, v0) → u ≠ u0 := by
         rintro u0 v0 rfl h_eq; subst h_eq; exact hk0 rfl
       by_cases hk1 : slotKeyTag e1 = u.1 + 1
@@ -509,22 +533,22 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
           rcases uv1 with ⟨u1, v1⟩
           have hu_eq : u = u1 := Fin.ext (by simpa [slotKeyTag] using hk1.symm)
           subst hu_eq
-          have hc1 : (Cond.eq (1 : Fin 9) 2).Holds x₅ := by
-            simp [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr4, hr5, hm1, encodeSlot_div hV,
-              slotKeyTag]
-          let y := x₅.write (x₅.regs 7) (x₅.regs 6)
-          have he_ins : ExecWithin w twoSlotInsertCode x₃ y 6 :=
+          have hc1 : (Cond.eq (1 : Fin 9) 2).Holds xu₅ := by
+            change xu₅.regs 1 = xu₅.regs 2
+            rw [hxu₅_tag1]; simp [xu₅, xu₄, xu₃, xu₂, x₁, hr2, slotKeyTag]
+          let y := xu₅.write (xu₅.regs 7) (xu₅.regs 6)
+          have he_ins : ExecWithin w twoSlotInsertCode xu₃ y 6 :=
             (ExecWithin.branch_neg hc0
               (he_l1.seq (ExecWithin.branch_pos hc1 ExecWithin.store))).mono (by omega)
           refine ⟨y,
             (hs1.seq (ExecWithin.branch_neg hc_not_q
               (he_pre.seq (ExecWithin.branch_pos hc_ins he_ins)))).mono (by omega),
             rfl, ?_, ?_⟩
-          · refine ⟨hwrite_bdd hx₅_bdd _ _ (hx₅_bdd.1 6), fun _ => hr0, e0, some (u, v_fin),
+          · refine ⟨hwrite_bdd hxu₅_bdd _ _ (hxu₅_bdd.1 6), fun _ => hr0, e0, some (u, v_fin),
               fun u0 v0 _ _ h0 h1 => ?_, ?_, ?_, ?_⟩
             · cases h1; exact (hs_not0 u0 v0 h0).symm
-            · simp [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hm0]
-            · simp [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr6]
+            · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4, hm0]
+            · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4, hr6]
             · ext u'
               cases e0 with
               | none =>
@@ -537,85 +561,80 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
                 rcases eq_or_ne u' u with rfl | hu'
                 · simp [slotsState, hne0, v_fin]
                 · simp [hs_eq, slotsState, hu']
-          · simpa [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4] using hmod_write1 (x₅.regs 6)
-      · have hc1 : ¬(Cond.eq (1 : Fin 9) 2).Holds x₅ := by
-          simpa [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr4, hr5, hm1, encodeSlot_div hV]
-            using hk1
+          · simpa [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4] using hmod_write1 (xu₅.regs 6)
+      · have hc1 : ¬(Cond.eq (1 : Fin 9) 2).Holds xu₅ := by
+          change xu₅.regs 1 ≠ xu₅.regs 2
+          rw [hxu₅_tag1]; simpa [xu₅, xu₄, xu₃, xu₂, x₁, hr2] using hk1
         have hs_not1 : ∀ u1 v1, e1 = some (u1, v1) → u ≠ u1 := by
           rintro u1 v1 rfl h_eq; subst h_eq; exact hk1 rfl
         cases e0 with
         | none =>
-          have hc_z0 : (Cond.eq (8 : Fin 9) 3).Holds x₅ := by
-            simp [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr3, hr5, hm0, encodeSlot]
-          let y := x₅.write (x₅.regs 0) (x₅.regs 6)
-          have he_ins : ExecWithin w twoSlotInsertCode x₃ y 8 :=
+          have hc_z0 : (Cond.eq (8 : Fin 9) 3).Holds xu₅ := by
+            change xu₅.regs 8 = xu₅.regs 3
+            have hr8_eq : xu₅.regs 8 = xu₃.regs 8 := by simp [xu₅, xu₄]
+            rw [hr8_eq, show xu₃.regs 8 = slotKeyTag (none : Option (Fin U × Fin V)) from hxu₃_tag0]
+            simp [xu₅, xu₄, xu₃, xu₂, x₁, hr3, slotKeyTag]
+          let y := xu₅.write (xu₅.regs 0) (xu₅.regs 6)
+          have he_ins : ExecWithin w twoSlotInsertCode xu₃ y 8 :=
             (ExecWithin.branch_neg hc0 (he_l1.seq (ExecWithin.branch_neg hc1
               (ExecWithin.branch_pos hc_z0 ExecWithin.store)))).mono (by omega)
           refine ⟨y,
             (hs1.seq (ExecWithin.branch_neg hc_not_q
               (he_pre.seq (ExecWithin.branch_pos hc_ins he_ins)))).mono (by omega),
             rfl, ?_, ?_⟩
-          · refine ⟨hwrite_bdd hx₅_bdd _ _ (hx₅_bdd.1 6), fun _ => hr0, some (u, v_fin), e1,
+          · refine ⟨hwrite_bdd hxu₅_bdd _ _ (hxu₅_bdd.1 6), fun _ => hr0, some (u, v_fin), e1,
               fun _ _ u1 v1 h0 h1 => ?_, ?_, ?_, ?_⟩
             · cases h0; exact hs_not1 u1 v1 h1
-            · simp [y, x₅, x₄, x₃, x₂, x₁, hr0, hr6]
-            · simp [y, x₅, x₄, x₃, x₂, x₁, hr0, hm1]
+            · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, hr0, hr6]
+            · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, hr0, hm1]
             · ext u'
               rcases eq_or_ne u' u with rfl | hu'
               · simp [slotsState, v_fin]
               · simp [hs_eq, slotsState, hu']
-          · simpa [y, x₅, x₄, x₃, x₂, x₁, hr0] using hmod_write0 (x₅.regs 6)
+          · simpa [y, xu₅, xu₄, xu₃, xu₂, x₁, hr0] using hmod_write0 (xu₅.regs 6)
         | some uv0 =>
           rcases uv0 with ⟨u0, v0⟩
           cases e1 with
           | some uv1 =>
             rcases uv1 with ⟨u1, v1⟩
             exfalso
-            have hne01 : u0 ≠ u1 := hdisj u0 v0 u1 v1 rfl rfl
             have hcard2 : 2 ≤ (Dictionary.dom s).card :=
-              hs_eq ▸ two_le_card_dom_slotsState v0 v1 hne01
-            have hsu_none : s u = none := by
-              simp [hs_eq, slotsState, hs_not0 u0 v0 rfl, hs_not1 u1 v1 rfl]
+              hs_eq ▸ two_le_card_dom_slotsState v0 v1 (hdisj u0 v0 u1 v1 rfl rfl)
+            have hsu_none : s u = none := hs_eq ▸ slotsState_none_of_ne_tags hk0 hk1
             rcases hval.1 with hlt2 | hisSome
             · omega
             · simp [hsu_none] at hisSome
           | none =>
-            have hc_z0 : ¬(Cond.eq (8 : Fin 9) 3).Holds x₅ := by
-              simp [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr3, hr5, hm0, encodeSlot_div hV,
-                slotKeyTag]
-            let y := x₅.write (x₅.regs 7) (x₅.regs 6)
-            have he_ins : ExecWithin w twoSlotInsertCode x₃ y 9 :=
+            have hc_z0 : ¬(Cond.eq (8 : Fin 9) 3).Holds xu₅ := by
+              change xu₅.regs 8 ≠ xu₅.regs 3
+              have hr8_eq : xu₅.regs 8 = xu₃.regs 8 := by simp [xu₅, xu₄]
+              rw [hr8_eq, show xu₃.regs 8 = slotKeyTag (some (u0, v0)) from hxu₃_tag0]
+              simp [xu₅, xu₄, xu₃, xu₂, x₁, hr3, slotKeyTag]
+            let y := xu₅.write (xu₅.regs 7) (xu₅.regs 6)
+            have he_ins : ExecWithin w twoSlotInsertCode xu₃ y 9 :=
               (ExecWithin.branch_neg hc0 (he_l1.seq (ExecWithin.branch_neg hc1
                 (ExecWithin.branch_neg hc_z0 ExecWithin.store)))).mono (by omega)
             refine ⟨y,
               (hs1.seq (ExecWithin.branch_neg hc_not_q
                 (he_pre.seq (ExecWithin.branch_pos hc_ins he_ins)))).mono (by omega),
               rfl, ?_, ?_⟩
-            · refine ⟨hwrite_bdd hx₅_bdd _ _ (hx₅_bdd.1 6), fun _ => hr0, some (u0, v0),
-                some (u, v_fin),
-                fun _ _ _ _ h0 h1 => ?_, ?_, ?_, ?_⟩
+            · refine ⟨hwrite_bdd hxu₅_bdd _ _ (hxu₅_bdd.1 6), fun _ => hr0, some (u0, v0),
+                some (u, v_fin), fun _ _ _ _ h0 h1 => ?_, ?_, ?_, ?_⟩
               · cases h0; cases h1; exact (hs_not0 u0 v0 rfl).symm
-              · simp [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hm0]
-              · simp [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr6]
+              · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4, hm0]
+              · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4, hr6]
               · ext u'
                 have hne0 := hs_not0 u0 v0 rfl
                 rcases eq_or_ne u' u with rfl | hu'
                 · simp [slotsState, hne0, v_fin]
                 · simp [hs_eq, slotsState, hu']
-            · simpa [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4] using
-                hmod_write1 (x₅.regs 6)
+            · simpa [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4] using
+                hmod_write1 (xu₅.regs 6)
   | delete u =>
     have hr1 : x.regs 1 = 2 := by simpa [twoSlotEncode] using hmatch 1 (by decide)
     have hr2 : x.regs 2 = u.1 + 1 := by simpa [twoSlotEncode] using hmatch 2 (by decide)
     have hc_not_q : ¬(Cond.eq (1 : Fin 9) 3).Holds x₁ := by simp [x₁, hr1, hr3]
-    let x₂ := x₁.set 8 (x₁.mem (x₁.regs 0))
-    have hdiv0_fit : Fits w (BinOp.div.eval (x₂.regs 8) (x₂.regs 5)) := by
-      simpa [x₂, x₁, BinOp.eval, hr0, hr5, hm0] using hdiv_fit _ (encodeSlot_fits hUV e0)
-    let x₃ := x₂.set 8 (BinOp.div.eval (x₂.regs 8) (x₂.regs 5))
-    have hc_not_ins : ¬(Cond.eq (1 : Fin 9) 4).Holds x₃ := by simp [x₃, x₂, x₁, hr1, hr4]
-    have hx₃_bdd : x₃.Bounded w := (hx₁_bdd.set (hbdd.2 _)).set hdiv0_fit
-    have he_pre : ExecWithin w (.seq (.op (.load 8 0)) (.op (.bin .div 8 8 5))) x₁ x₃ 2 :=
-      ExecWithin.load.seq (ExecWithin.bin hdiv0_fit)
+    have hc_not_ins : ¬(Cond.eq (1 : Fin 9) 4).Holds xu₃ := by simp [xu₃, xu₂, x₁, hr1, hr4]
     by_cases hk0 : slotKeyTag e0 = u.1 + 1
     · cases e0 with
       | none => simp [slotKeyTag] at hk0
@@ -623,20 +642,21 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
         rcases uv0 with ⟨u0, v0⟩
         have hu_eq : u = u0 := Fin.ext (by simpa [slotKeyTag] using hk0.symm)
         subst hu_eq
-        have hc0 : (Cond.eq (8 : Fin 9) 2).Holds x₃ := by
-          simp [x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr5, hm0, encodeSlot_div hV, slotKeyTag]
-        let y := x₃.write (x₃.regs 0) (x₃.regs 3)
-        have he_del : ExecWithin w twoSlotDeleteCode x₃ y 2 :=
+        have hc0 : (Cond.eq (8 : Fin 9) 2).Holds xu₃ := by
+          change xu₃.regs 8 = xu₃.regs 2
+          rw [hxu₃_tag0]; simp [xu₃, xu₂, x₁, hr2, slotKeyTag]
+        let y := xu₃.write (xu₃.regs 0) (xu₃.regs 3)
+        have he_del : ExecWithin w twoSlotDeleteCode xu₃ y 2 :=
           ExecWithin.branch_pos hc0 ExecWithin.store
         refine ⟨y,
           (hs1.seq (ExecWithin.branch_neg hc_not_q
             (he_pre.seq (ExecWithin.branch_neg hc_not_ins he_del)))).mono (by omega),
           rfl, ?_, ?_⟩
-        · refine ⟨hwrite_bdd hx₃_bdd _ _ (hx₃_bdd.1 3), fun _ => hr0,
+        · refine ⟨hwrite_bdd hxu₃_bdd _ _ (hxu₃_bdd.1 3), fun _ => hr0,
             ⟨none, ⟨e1, ?_, ?_, ?_, ?_⟩⟩⟩
           · rintro _ _ _ _ ⟨⟩
-          · simp [y, x₃, x₂, x₁, hr0, hr3, encodeSlot]
-          · simp [y, x₃, x₂, x₁, hr0, hm1]
+          · simp [y, xu₃, xu₂, x₁, hr0, hr3, encodeSlot]
+          · simp [y, xu₃, xu₂, x₁, hr0, hm1]
           · ext u'
             cases e1 with
             | none =>
@@ -649,17 +669,10 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
               rcases eq_or_ne u' u with rfl | hu'
               · simp [slotsState, hne01]
               · simp [hs_eq, slotsState, hu']
-        · simpa [y, x₃, x₂, x₁, hr0] using hmod_write0 (x₃.regs 3)
-    · have hc0 : ¬(Cond.eq (8 : Fin 9) 2).Holds x₃ := by
-        simpa [x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr5, hm0, encodeSlot_div hV] using hk0
-      let x₄ := x₃.set 1 (x₃.mem (x₃.regs 7))
-      have hdiv1_fit : Fits w (BinOp.div.eval (x₄.regs 1) (x₄.regs 5)) := by
-        simpa [x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hr5, hm1] using
-          hdiv_fit _ (encodeSlot_fits hUV e1)
-      let x₅ := x₄.set 1 (BinOp.div.eval (x₄.regs 1) (x₄.regs 5))
-      have hx₅_bdd : x₅.Bounded w := (hx₃_bdd.set (hbdd.2 _)).set hdiv1_fit
-      have he_l1 : ExecWithin w (.seq (.op (.load 1 7)) (.op (.bin .div 1 1 5))) x₃ x₅ 2 :=
-        ExecWithin.load.seq (ExecWithin.bin hdiv1_fit)
+        · simpa [y, xu₃, xu₂, x₁, hr0] using hmod_write0 (xu₃.regs 3)
+    · have hc0 : ¬(Cond.eq (8 : Fin 9) 2).Holds xu₃ := by
+        change xu₃.regs 8 ≠ xu₃.regs 2
+        rw [hxu₃_tag0]; simpa [xu₃, xu₂, x₁, hr2] using hk0
       have hs_not0 : ∀ u0 v0, e0 = some (u0, v0) → u ≠ u0 := by
         rintro u0 v0 rfl h_eq; subst h_eq; exact hk0 rfl
       by_cases hk1 : slotKeyTag e1 = u.1 + 1
@@ -669,22 +682,22 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
           rcases uv1 with ⟨u1, v1⟩
           have hu_eq : u = u1 := Fin.ext (by simpa [slotKeyTag] using hk1.symm)
           subst hu_eq
-          have hc1 : (Cond.eq (1 : Fin 9) 2).Holds x₅ := by
-            simp [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr4, hr5, hm1, encodeSlot_div hV,
-              slotKeyTag]
-          let y := x₅.write (x₅.regs 7) (x₅.regs 3)
-          have he_del : ExecWithin w twoSlotDeleteCode x₃ y 6 :=
+          have hc1 : (Cond.eq (1 : Fin 9) 2).Holds xu₅ := by
+            change xu₅.regs 1 = xu₅.regs 2
+            rw [hxu₅_tag1]; simp [xu₅, xu₄, xu₃, xu₂, x₁, hr2, slotKeyTag]
+          let y := xu₅.write (xu₅.regs 7) (xu₅.regs 3)
+          have he_del : ExecWithin w twoSlotDeleteCode xu₃ y 6 :=
             (ExecWithin.branch_neg hc0
               (he_l1.seq (ExecWithin.branch_pos hc1 ExecWithin.store))).mono (by omega)
           refine ⟨y,
             (hs1.seq (ExecWithin.branch_neg hc_not_q
               (he_pre.seq (ExecWithin.branch_neg hc_not_ins he_del)))).mono (by omega),
             rfl, ?_, ?_⟩
-          · refine ⟨hwrite_bdd hx₅_bdd _ _ (hx₅_bdd.1 3), fun _ => hr0,
+          · refine ⟨hwrite_bdd hxu₅_bdd _ _ (hxu₅_bdd.1 3), fun _ => hr0,
               ⟨e0, ⟨none, ?_, ?_, ?_, ?_⟩⟩⟩
             · rintro _ _ _ _ _ ⟨⟩
-            · simp [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4, hm0]
-            · simp [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr3, hr4, encodeSlot]
+            · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4, hm0]
+            · simp [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr3, hr4, encodeSlot]
             · ext u'
               cases e0 with
               | none =>
@@ -697,41 +710,23 @@ private theorem twoSlotBody_exec {U V w base : ℕ} (usePersBase : Bool)
                 rcases eq_or_ne u' u with rfl | hu'
                 · simp [slotsState, hne0]
                 · simp [hs_eq, slotsState, hu']
-          · simpa [y, x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr4] using
-              hmod_write1 (x₅.regs 3)
-      · have hc1 : ¬(Cond.eq (1 : Fin 9) 2).Holds x₅ := by
-          simpa [x₅, x₄, x₃, x₂, x₁, BinOp.eval, hr0, hr2, hr4, hr5, hm1, encodeSlot_div hV]
-            using hk1
-        let y := x₅.set 8 (x₅.regs 3)
-        have he_del : ExecWithin w twoSlotDeleteCode x₃ y 7 :=
+          · simpa [y, xu₅, xu₄, xu₃, xu₂, x₁, BinOp.eval, hr0, hr4] using
+              hmod_write1 (xu₅.regs 3)
+      · have hc1 : ¬(Cond.eq (1 : Fin 9) 2).Holds xu₅ := by
+          change xu₅.regs 1 ≠ xu₅.regs 2
+          rw [hxu₅_tag1]; simpa [xu₅, xu₄, xu₃, xu₂, x₁, hr2] using hk1
+        let y := xu₅.set 8 (xu₅.regs 3)
+        have he_del : ExecWithin w twoSlotDeleteCode xu₃ y 7 :=
           (ExecWithin.branch_neg hc0
             (he_l1.seq (ExecWithin.branch_neg hc1 ExecWithin.copy))).mono (by omega)
         refine ⟨y,
           (hs1.seq (ExecWithin.branch_neg hc_not_q
             (he_pre.seq (ExecWithin.branch_neg hc_not_ins he_del)))).mono (by omega),
           rfl, ?_, Modifies.refl _ _⟩
-        refine ⟨hx₅_bdd.set (hx₅_bdd.1 3), fun _ => hr0, e0, e1, hdisj, hm0, hm1, ?_⟩
+        refine ⟨hxu₅_bdd.set (hxu₅_bdd.1 3), fun _ => hr0, e0, e1, hdisj, hm0, hm1, ?_⟩
         ext u'
         rcases eq_or_ne u' u with rfl | hu'
-        · have hs_u : s u' = none := by
-            rw [hs_eq]
-            cases e0 with
-            | none =>
-              cases e1 with
-              | none => rfl
-              | some uv1 =>
-                rcases uv1 with ⟨u1, v1⟩
-                have hne1 : u' ≠ u1 := fun h => hk1 (by simp [h, slotKeyTag])
-                simp [slotsState, hne1]
-            | some uv0 =>
-              rcases uv0 with ⟨u0, v0⟩
-              have hne0 := hs_not0 u0 v0 rfl
-              cases e1 with
-              | none => simp [slotsState, hne0]
-              | some uv1 =>
-                rcases uv1 with ⟨u1, v1⟩
-                have hne1 : u' ≠ u1 := fun h => hk1 (by simp [h, slotKeyTag])
-                simp [slotsState, hne0, hne1]
+        · have hs_u : s u' = none := hs_eq ▸ slotsState_none_of_ne_tags hk0 hk1
           simp [hs_u, ← hs_eq]
         · simp [hu', ← hs_eq]
 
@@ -813,7 +808,7 @@ def twoSlotDetImpl {U V w base : ℕ} (usePersBase : Bool)
         twoSlotBody_exec usePersBase hU hV hw hUV hbase o hrep hval hr0 hmatch
       exact ⟨y, steps, hex, hdec, hrep', hmod, by omega⟩)
 
-/-- Parametric coin-flipping (`Code.rand 8 4`, `IsRandFree = false`) zero-error
+/-- Parametric coin-flipping (`Code.rand 8 4`, `¬Code.IsRandFree`) zero-error
 `WordRAM.Randomized.StateTransitionImpl` for `Dynamic.spec U V 2` (`space = 2`, `charge = 17`,
 `initPotential = 0`). -/
 noncomputable def twoSlotRandImpl {U V w base : ℕ} (usePersBase : Bool)
@@ -954,6 +949,7 @@ noncomputable def twoSlotRandImpl {U V w base : ℕ} (usePersBase : Bool)
 
 /-! ### 1B. Sequential Execution & Probe-Free `[Instr.halt retReg]` Refutation Sanity Checks -/
 
+/-- Explicit 7-operation regression trace over `Dynamic.Op 4`. -/
 def sampleTwoSlotTrace : List (Dynamic.Op 4) :=
   [.insert 0 1, .insert 3 0, .query 0, .delete 0, .insert 2 1, .query 0, .query 2]
 
@@ -992,9 +988,9 @@ theorem twoSlot_trace_and_rand_sanity :
   exact ⟨by decide, ((sim0.2.1.runSeq_ofFn sampleTwoSlotTrace hv).1).trans hexp,
     ((sim1.2.1.runSeq_ofFn sampleTwoSlotTrace hv).1).trans hexp⟩
 
-/-- Sanity check via `expectedFlatTime_ge_of_indexedScheme`: a probe-free `[Instr.halt retReg]`
-flat program with `0`-step bound (`timeBound _ = 0`) cannot realize `ExecFlatProgramOps` on
-`validHistoriesUpTo 4 2 2 9`. -/
+/-- Sanity check via `expectedFlatTime_ge_of_indexedScheme` and
+`ExecFlatProgramOps.tighten_actualBodyTime`: a probe-free `[Instr.halt retReg]` flat program with
+`0`-step budget cannot realize `ExecFlatProgramOps` on `validHistoriesUpTo 4 2 2 9`. -/
 theorem not_execFlatProgramOps_halt_zero_time
     {B : Basis} {r w base space : ℕ} {input : Fin r → Bool} {Latent : Type}
     (retReg : Fin r)
@@ -1013,12 +1009,6 @@ theorem not_execFlatProgramOps_halt_zero_time
     (by decide) (by decide) (by decide) le_rfl
     ([Instr.halt retReg] : Program B r) encode decode ν₀ hsupp₀
     (fun ops hops => by obtain ⟨ν_f, h⟩ := hex ops hops; exact ⟨ν_f, 0, by simp, h⟩)
-    (fun _ => 0)
-    (fun ops hops => by
-      obtain ⟨hv, halph⟩ := validHistory_of_mem_support_insertQueryDeleteDist hops
-      have hlen := length_of_mem_support_insertQueryDeleteDist hops
-      obtain ⟨ν_f, h⟩ := hex ops ⟨hv, by omega⟩
-      exact ⟨ν_f, 0, le_rfl, by simp, h⟩)
     (LB := 1)
     fun {D_det} hcorr => by
       have hl := det_expectedSeqProbes_ge_linear true (U := 4) (V := 2) (n := 2)
@@ -1026,9 +1016,79 @@ theorem not_execFlatProgramOps_halt_zero_time
       rw [modeDist_true] at hl
       norm_num at hl
       exact hl
-  simp only [mul_zero, tsum_zero, nonpos_iff_eq_zero, ENNReal.ofReal_eq_zero] at htr
+  have hzero :
+      (∑' ops, insertQueryDeleteDist 4 2 2 (by decide) (by decide) ops *
+        flatExpectedBodyTime w ([Instr.halt retReg] : Program B r) input encode
+          (ν₀.map Prod.snd) ops) ≤ 0 := by
+    refine (Cslib.Probability.PMF.tsum_mul_le_of_support _ fun ops hops => ?_)
+    obtain ⟨hv, _⟩ := validHistory_of_mem_support_insertQueryDeleteDist hops
+    have hlen := length_of_mem_support_insertQueryDeleteDist hops
+    obtain ⟨ν_f, h⟩ := hex ops ⟨hv, by omega⟩
+    exact h.flatExpectedBodyTime_le
+  have hbot := htr.trans hzero
+  simp only [nonpos_iff_eq_zero, ENNReal.ofReal_eq_zero] at hbot
   have hpos : (0 : ℝ) < (1 : ℝ) / (2 * (persCount input : ℝ) + 1) := by positivity
   linarith
+
+/-- End-to-end check of the **actual-time tightening bridge**
+(`ExecFlatProgramOps.tighten_actualBodyTime` and `flatExpectedTime_eq_add_length`) on both
+`twoSlotDetImpl` and `twoSlotRandImpl` across `sampleTwoSlotTrace` (7 operations): verifies that
+an arbitrary certified `ExecFlatProgramOps` execution admits the exact intrinsic expected body
+count `flatExpectedBodyTime` (bounded by the certified `totalCost` budget, with
+`flatExpectedTime = flatExpectedBodyTime + 7`) while preserving the `Data 9` final marginal
+`flatStateDist`. -/
+theorem twoSlot_actualTime_bridge_sanity :
+    let C_det := (twoSlotDetImpl (U := 4) (V := 2) (w := 4) (base := 0) false
+      (by decide) (by decide) (by decide) (by decide) (by decide)).toRandomized
+    let C_rand := twoSlotRandImpl (U := 4) (V := 2) (w := 4) (base := 0) false
+      (by decide) (by decide) (by decide) (by decide) (by decide)
+    let p_det := (twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output
+    let p_rand := (twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output
+    (∃ ν₀ ν_final : PMF (C_det.Seed × Data 9),
+      let body := flatExpectedBodyTime 4 p_det (twoSlotDetCode 0 false).input C_det.encode
+        (ν₀.map Prod.snd) sampleTwoSlotTrace
+      let total := flatExpectedTime 4 p_det (twoSlotDetCode 0 false).input C_det.encode
+        (ν₀.map Prod.snd) sampleTwoSlotTrace
+      ExecFlatProgramOps (Dynamic.spec 4 2 2) C_det.Seed 4 0 2 p_det
+        (twoSlotDetCode 0 false).input C_det.encode (fun o _ regs => C_det.decode o regs)
+        (Dictionary.empty 4) sampleTwoSlotTrace ν₀ ν_final body ∧
+      body ≤ (C_det.initPotential : ℝ≥0∞) +
+        ((Dynamic.spec 4 2 2).totalCost C_det.charge (Dictionary.empty 4) sampleTwoSlotTrace :
+          ℝ≥0∞) ∧
+      total = body + 7 ∧
+      ν_final.map Prod.snd = flatStateDist 4 p_det (twoSlotDetCode 0 false).input C_det.encode
+        (ν₀.map Prod.snd) sampleTwoSlotTrace) ∧
+    (∃ ν₀ ν_final : PMF (C_rand.Seed × Data 9),
+      let body := flatExpectedBodyTime 4 p_rand (twoSlotRandCode 0 false).input C_rand.encode
+        (ν₀.map Prod.snd) sampleTwoSlotTrace
+      let total := flatExpectedTime 4 p_rand (twoSlotRandCode 0 false).input C_rand.encode
+        (ν₀.map Prod.snd) sampleTwoSlotTrace
+      ExecFlatProgramOps (Dynamic.spec 4 2 2) C_rand.Seed 4 0 2 p_rand
+        (twoSlotRandCode 0 false).input C_rand.encode (fun o _ regs => C_rand.decode o regs)
+        (Dictionary.empty 4) sampleTwoSlotTrace ν₀ ν_final body ∧
+      body ≤ (C_rand.initPotential : ℝ≥0∞) +
+        ((Dynamic.spec 4 2 2).totalCost C_rand.charge (Dictionary.empty 4) sampleTwoSlotTrace :
+          ℝ≥0∞) ∧
+      total = body + 7 ∧
+      ν_final.map Prod.snd = flatStateDist 4 p_rand (twoSlotRandCode 0 false).input C_rand.encode
+        (ν₀.map Prod.snd) sampleTwoSlotTrace) := by
+  intro C_det C_rand p_det p_rand
+  have hv : (Dynamic.spec 4 2 2).ValidHistory (Dictionary.empty 4) sampleTwoSlotTrace := by
+    dsimp [sampleTwoSlotTrace, Dynamic.spec, StateTransitionSpec.ValidHistory,
+      StateTransitionSpec.ofFn, Dynamic.valid, Dynamic.step, Dictionary.empty]
+    refine ⟨⟨Or.inl (by decide), by decide⟩, ⟨Or.inl (by decide), by decide⟩,
+      trivial, trivial, ⟨Or.inl (by decide), by decide⟩, trivial, trivial, trivial⟩
+  have hlen : (sampleTwoSlotTrace.length : ℝ≥0∞) = 7 := by simp [sampleTwoSlotTrace]
+  obtain ⟨ν_d, _, hsteps_d⟩ :=
+    exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 4) nofun nofun nofun
+  obtain ⟨hle_d, _, ν_fd, hex_d⟩ := hsteps_d sampleTwoSlotTrace hv
+  obtain ⟨ν_r, _, hsteps_r⟩ :=
+    exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 4) nofun nofun nofun
+  obtain ⟨hle_r, _, ν_fr, hex_r⟩ := hsteps_r sampleTwoSlotTrace hv
+  exact ⟨⟨ν_d, ν_fd, hex_d, hle_d,
+      by rw [flatExpectedTime_eq_add_length, hlen], hex_d.tighten_actualBodyTime.2.2⟩,
+    ⟨ν_r, ν_fr, hex_r, hle_r,
+      by rw [flatExpectedTime_eq_add_length, hlen], hex_r.tighten_actualBodyTime.2.2⟩⟩
 
 /-! ### 2. Concrete Client Instantiations of All 4 Generic Word-RAM Transfer Bridges -/
 
@@ -1069,20 +1129,28 @@ theorem all_four_transfer_bridges_concrete :
       (by decide) (by decide) (by decide) (by decide) (by decide)).toRandomized
     let C_rand := twoSlotRandImpl (U := 4) (V := 2) (w := 4) (base := 0) false
       (by decide) (by decide) (by decide) (by decide) (by decide)
-    (∃ (ν₀ : PMF (C_det0.Seed × Data 9)) (T : List (Dynamic.Op 4) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 4 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+    (∃ ν₀ : PMF (C_det0.Seed × Data 9),
+      let body := flatExpectedBodyTime 4
+        ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
+        (twoSlotDetCode 0 false).input C_det0.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 4 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 4 2 2) C_det0.Seed 4 0 2
           ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
           (twoSlotDetCode 0 false).input C_det0.encode (fun o _ regs => C_det0.decode o regs)
-          (Dictionary.empty 4) ops ν₀ ν_final (T ops)) ∧
-      (1 : ℝ≥0∞) ≤ ∑' ops, insertQueryDeleteDist 4 2 2 (by decide) (by decide) ops * T ops) ∧
-    (∃ (ν₀ : PMF (C_rand.Seed × Data 9)) (T : List (Dynamic.Op 4) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 4 2 2 7, T ops ≠ ⊤ ∧ ∃ ν_final,
+          (Dictionary.empty 4) ops ν₀ ν_final (body ops)) ∧
+      (1 : ℝ≥0∞) ≤
+        ∑' ops, insertQueryDeleteDist 4 2 2 (by decide) (by decide) ops * body ops) ∧
+    (∃ ν₀ : PMF (C_rand.Seed × Data 9),
+      let body := flatExpectedBodyTime 4
+        ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
+        (twoSlotRandCode 0 false).input C_rand.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 4 2 2 7, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 4 2 2) C_rand.Seed 4 0 2
           ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
           (twoSlotRandCode 0 false).input C_rand.encode (fun o _ regs => C_rand.decode o regs)
-          (Dictionary.empty 4) ops ν₀ ν_final (T ops)) ∧
-      (1 : ℝ≥0∞) ≤ ∑' ops, insertDeleteDist 4 2 2 (by decide) (by decide) ops * T ops) ∧
+          (Dictionary.empty 4) ops ν₀ ν_final (body ops)) ∧
+      (1 : ℝ≥0∞) ≤
+        ∑' ops, insertDeleteDist 4 2 2 (by decide) (by decide) ops * body ops) ∧
     ((1 : ℝ≥0∞) ≤ (C_det0.initPotential : ℝ≥0∞) +
       ∑' ops, insertQueryDeleteDist 4 2 2 (by decide) (by decide) ops *
         ((Dynamic.spec 4 2 2).totalCost C_det0.charge (Dictionary.empty 4) ops : ℝ≥0∞)) ∧
@@ -1103,23 +1171,18 @@ theorem all_four_transfer_bridges_concrete :
     rw [← persistentRegCount_eq_persCount, hp0]
   have hpcr : persCount (twoSlotRandCode 0 false).input = 0 := by
     rw [← persistentRegCount_eq_persCount, hpr]
-  obtain ⟨ν_d, T_d, hsupp_d, hsteps_d⟩ :=
+  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_det0 (fits_zero 4) nofun nofun nofun
-  obtain ⟨ν_r, T_r, hsupp_r, hsteps_r⟩ :=
+  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 4) nofun nofun nofun
-  refine ⟨⟨ν_d, T_d, fun ops hops => (hsteps_d ops hops.1).2, ?_⟩,
-    ⟨ν_r, T_r, fun ops hops => (hsteps_r ops hops.1).2, ?_⟩, ?_, ?_, ?_, ?_⟩
+  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2, ?_⟩,
+    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2, ?_⟩, ?_, ?_, ?_, ?_⟩
   · have h := expectedFlatTime_ge_of_indexedScheme (by decide) (by decide) (by decide) le_rfl
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det0.encode (fun o _ regs => C_det0.decode o regs) ν_d hsupp_d
       (fun ops hops => by
         obtain ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        exact ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d
-      (fun ops hops => by
-        obtain ⟨_, hfin, ν_f, hex⟩ :=
-          hsteps_d ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1
-        exact ⟨ν_f, T_d ops, le_rfl, hfin, hex⟩)
+        exact ⟨ν_f, _, hfin, hex⟩)
       linear_lb_iqd
     simpa [hpc0] using h
   · have h := expectedFlatTime_update_ge_of_indexedScheme (by decide) (by decide) (by decide) le_rfl
@@ -1127,12 +1190,7 @@ theorem all_four_transfer_bridges_concrete :
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
       (fun ops hops => by
         obtain ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        exact ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r
-      (fun ops hops => by
-        obtain ⟨_, hfin, ν_f, hex⟩ :=
-          hsteps_r ops (validHistory_of_mem_support_insertDeleteDist hops).1
-        exact ⟨ν_f, T_r ops, le_rfl, hfin, hex⟩)
+        exact ⟨ν_f, _, hfin, hex⟩)
       linear_lb_upd
     simpa [hpcr] using h
   · have h := expectedTotalCost_ge_of_indexedScheme (by decide) (by decide) C_det0
@@ -1189,30 +1247,39 @@ theorem wordram_theorem1_1_concrete_instantiations :
       (by decide) (by decide) (by decide) (by decide) (by decide)
     let C_rel := (twoSlotDetImpl (U := 31) (V := 2) (w := 6) (base := 2) true
       (by decide) (by decide) (by decide) (by decide) (by decide)).toRandomized
-    (∃ (ν₀ : PMF (C_det.Seed × Data 9)) (T : List (Dynamic.Op 31) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+    (∃ ν₀ : PMF (C_det.Seed × Data 9),
+      let body := flatExpectedBodyTime 6
+        ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
+        (twoSlotDetCode 0 false).input C_det.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 31 2 2) C_det.Seed 6 0 2
           ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
           (twoSlotDetCode 0 false).input C_det.encode (fun o _ regs => C_det.decode o regs)
-          (Dictionary.empty 31) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 31) ops ν₀ ν_final (body ops)) ∧
       ∃ c > 0, ENNReal.ofReal (c * 2) ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops) ∧
-    (∃ (ν₀ : PMF (C_rand.Seed × Data 9)) (T : List (Dynamic.Op 31) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops) ∧
+    (∃ ν₀ : PMF (C_rand.Seed × Data 9),
+      let body := flatExpectedBodyTime 6
+        ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
+        (twoSlotRandCode 0 false).input C_rand.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 31 2 2) C_rand.Seed 6 0 2
           ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
           (twoSlotRandCode 0 false).input C_rand.encode (fun o _ regs => C_rand.decode o regs)
-          (Dictionary.empty 31) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 31) ops ν₀ ν_final (body ops)) ∧
       ∃ c > 0, ENNReal.ofReal (c * 2 * (Nat.logStar 2 : ℝ)) ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops) ∧
-    (∃ (ν₀ : PMF (C_rel.Seed × Data 9)) (T : List (Dynamic.Op 31) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops) ∧
+    (∃ ν₀ : PMF (C_rel.Seed × Data 9),
+      let body := flatExpectedBodyTime 6
+        ((twoSlotDetCode 2 true).code.program (twoSlotDetCode 2 true).output)
+        (twoSlotDetCode 2 true).input C_rel.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 31 2 2) C_rel.Seed 6 2 2
           ((twoSlotDetCode 2 true).code.program (twoSlotDetCode 2 true).output)
           (twoSlotDetCode 2 true).input C_rel.encode (fun o _ regs => C_rel.decode o regs)
-          (Dictionary.empty 31) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 31) ops ν₀ ν_final (body ops)) ∧
       ∃ c > 0, ENNReal.ofReal (c * 2 * (Nat.logStar 2 : ℝ)) ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops) ∧
     (∃ c > 0, ENNReal.ofReal (c * 2) ≤ (C_det.initPotential : ℝ≥0∞) +
       ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops *
         ((Dynamic.spec 31 2 2).totalCost C_det.charge (Dictionary.empty 31) ops : ℝ≥0∞)) ∧
@@ -1245,11 +1312,11 @@ theorem wordram_theorem1_1_concrete_instantiations :
     rw [hmax]; push_cast; linarith [benchmarkBits_31_2_2_ge]
   have hsp_det : C_det.space = 2 := rfl
   have hsp_rand : C_rand.space = 2 := rfl
-  obtain ⟨ν_d, T_d, hsupp_d, hsteps_d⟩ :=
+  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_r, T_r, hsupp_r, hsteps_r⟩ :=
+  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_1, T_1, hsupp_1, hsteps_1⟩ :=
+  obtain ⟨ν_1, hsupp_1, hsteps_1⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_rel (by decide) nofun nofun nofun
   obtain ⟨c₁, hc₁, hf₁⟩ := expectedFlatTime_ge_of_iterLog_redundancy.{0}
     (α := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
@@ -1257,39 +1324,27 @@ theorem wordram_theorem1_1_concrete_instantiations :
     (α := 1) (c_R := 4) (c_w := 2) 1 (by norm_num) (by norm_num) (by norm_num)
   obtain ⟨c₃, hc₃, hb₁⟩ := expectedTotalCost_ge_of_iterLog_redundancy
     (α := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨⟨ν_d, T_d, fun ops hops => (hsteps_d ops hops.1).2, c₁, hc₁, ?_⟩,
-    ⟨ν_r, T_r, fun ops hops => (hsteps_r ops hops.1).2, c₁, hc₁, ?_⟩,
-    ⟨ν_1, T_1, fun ops hops => (hsteps_1 ops hops.1).2, c₂, hc₂, ?_⟩,
+  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2, c₁, hc₁, ?_⟩,
+    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2, c₁, hc₁, ?_⟩,
+    ⟨ν_1, fun ops hops => (hsteps_1 ops hops.1).2, c₂, hc₂, ?_⟩,
     ⟨c₃, hc₃, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩
   · have h := hf₁ (by decide) (by decide) hpoly (by decide) le_rfl hk_hi (by omega) hw_31_2
       (by rw [hpc0]; exact hsp_iter)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d fun ops hops =>
-        (hsteps_d ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
     push_cast at h; rwa [mul_one] at h
   · have h := hf₁ (k := Nat.logStar 2) (by decide) (by decide) hpoly (by decide) hk_hi le_rfl
       (by omega) hw_31_2 (by rw [hpcr]; exact hsp_star)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r fun ops hops =>
-        (hsteps_r ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
     push_cast at h; exact h
   · have h := hf₂ (k := Nat.logStar 2) (by decide) (by decide) hpoly (by decide) hk_hi le_rfl
       (by rw [hpc1]) hw_31_2 (by rw [hpc1]; exact hsp_rel)
       ((twoSlotDetCode 2 true).code.program (twoSlotDetCode 2 true).output)
       C_rel.encode (fun o _ regs => C_rel.decode o regs) ν_1 hsupp_1
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_1 ops hops.1
-        ⟨ν_f, T_1 ops, hfin, hex⟩)
-      T_1 fun ops hops =>
-        (hsteps_1 ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_1 ops hops.1; ⟨ν_f, _, hfin, hex⟩
     push_cast at h; exact h
   · have h := hb₁ (by decide) (by decide) hpoly (by decide) le_rfl hk_hi (by omega) hw_31_2 C_det
       (by rw [hsp_det, hp0]; exact hsp_iter) (fits_zero 6) nofun nofun nofun
@@ -1312,35 +1367,44 @@ theorem wordram_theorem1_2_concrete_instantiations :
       (by decide) (by decide) (by decide) (by decide) (by decide)
     let C_rel_rand := twoSlotRandImpl (U := 31) (V := 2) (w := 6) (base := 2) true
       (by decide) (by decide) (by decide) (by decide) (by decide)
-    (∃ (ν₀ : PMF (C_det.Seed × Data 9)) (T : List (Dynamic.Op 31) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+    (∃ ν₀ : PMF (C_det.Seed × Data 9),
+      let body := flatExpectedBodyTime 6
+        ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
+        (twoSlotDetCode 0 false).input C_det.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 31 2 2) C_det.Seed 6 0 2
           ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
           (twoSlotDetCode 0 false).input C_det.encode (fun o _ regs => C_det.decode o regs)
-          (Dictionary.empty 31) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 31) ops ν₀ ν_final (body ops)) ∧
       (∃ B > 0, ENNReal.ofReal B ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops) ∧
       (∃ c > 0, ENNReal.ofReal (c * 2 * (1 + Real.logb 2 (4 / 3))) ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops)) ∧
-    (∃ (ν₀ : PMF (C_rand.Seed × Data 9)) (T : List (Dynamic.Op 31) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops)) ∧
+    (∃ ν₀ : PMF (C_rand.Seed × Data 9),
+      let body := flatExpectedBodyTime 6
+        ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
+        (twoSlotRandCode 0 false).input C_rand.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 31 2 2) C_rand.Seed 6 0 2
           ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
           (twoSlotRandCode 0 false).input C_rand.encode (fun o _ regs => C_rand.decode o regs)
-          (Dictionary.empty 31) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 31) ops ν₀ ν_final (body ops)) ∧
       (∃ B > 0, ENNReal.ofReal B ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops) ∧
       (∃ c > 0, ENNReal.ofReal (c * 2 * (1 + Real.logb 2 (4 / 3))) ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops)) ∧
-    (∃ (ν₀ : PMF (C_rel_rand.Seed × Data 9)) (T : List (Dynamic.Op 31) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, T ops ≠ ⊤ ∧ ∃ ν_final,
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops)) ∧
+    (∃ ν₀ : PMF (C_rel_rand.Seed × Data 9),
+      let body := flatExpectedBodyTime 6
+        ((twoSlotRandCode 2 true).code.program (twoSlotRandCode 2 true).output)
+        (twoSlotRandCode 2 true).input C_rel_rand.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 31 2 2 9, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 31 2 2) C_rel_rand.Seed 6 2 2
           ((twoSlotRandCode 2 true).code.program (twoSlotRandCode 2 true).output)
           (twoSlotRandCode 2 true).input C_rel_rand.encode
           (fun o _ regs => C_rel_rand.decode o regs)
-          (Dictionary.empty 31) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 31) ops ν₀ ν_final (body ops)) ∧
       ∃ c > 0, ENNReal.ofReal (c * 2) ≤
-        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops * body ops) ∧
     (∃ B > 0, ENNReal.ofReal B ≤ (C_det.initPotential : ℝ≥0∞) +
       ∑' ops, insertQueryDeleteDist 31 2 2 (by decide) (by decide) ops *
         ((Dynamic.spec 31 2 2).totalCost C_det.charge (Dictionary.empty 31) ops : ℝ≥0∞)) ∧
@@ -1370,11 +1434,11 @@ theorem wordram_theorem1_2_concrete_instantiations :
     rw [max_eq_left (by norm_num : (1 : ℝ) ≤ 3 / 2), Nat.cast_ofNat]
     norm_num
   have hlpos : 0 < Real.logb 2 (4 / 3) := hlog_eq ▸ logb_four_thirds_pos
-  obtain ⟨ν_d, T_d, hsupp_d, hsteps_d⟩ :=
+  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_r, T_r, hsupp_r, hsteps_r⟩ :=
+  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_1, T_1, hsupp_1, hsteps_1⟩ :=
+  obtain ⟨ν_1, hsupp_1, hsteps_1⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_rel_rand (by decide) nofun nofun nofun
   obtain ⟨c₁, hc₁, hf₁⟩ := expectedFlatTime_ge_of_sublinear_redundancy.{0}
     (α := 1) (c_w := 2) 0 (by norm_num) (by norm_num)
@@ -1386,62 +1450,42 @@ theorem wordram_theorem1_2_concrete_instantiations :
     (α := 1) (c_w := 2) 0 (by norm_num) (by norm_num)
   obtain ⟨c₅, hc₅, hb₂⟩ := expectedTotalCost_ge_iterLogStar_add_log_div
     (α := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨⟨ν_d, T_d, fun ops hops => (hsteps_d ops hops.1).2,
+  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2,
       ⟨c₁ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₂, hc₂, ?_⟩⟩,
-    ⟨ν_r, T_r, fun ops hops => (hsteps_r ops hops.1).2,
+    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2,
       ⟨c₁ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₂, hc₂, ?_⟩⟩,
-    ⟨ν_1, T_1, fun ops hops => (hsteps_1 ops hops.1).2, c₃, hc₃, ?_⟩,
+    ⟨ν_1, fun ops hops => (hsteps_1 ops hops.1).2, c₃, hc₃, ?_⟩,
     ⟨c₄ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩,
     ⟨c₅, hc₅, ?_⟩⟩
   · have h := hf₁ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d fun ops hops =>
-        (hsteps_d ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d fun ops hops =>
-        (hsteps_d ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hf₁ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r fun ops hops =>
-        (hsteps_r ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r fun ops hops =>
-        (hsteps_r ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hf₃ (R := 8) (by decide) (by decide) hpoly (by decide) (by norm_num)
       (by rw [hpcr1]) hw_31_2 (by rw [hpcr1]; exact hsp_rel)
       ((twoSlotRandCode 2 true).code.program (twoSlotRandCode 2 true).output)
       C_rel_rand.encode (fun o _ regs => C_rel_rand.decode o regs) ν_1 hsupp_1
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_1 ops hops.1
-        ⟨ν_f, T_1 ops, hfin, hex⟩)
-      T_1 fun ops hops =>
-        (hsteps_1 ops (validHistory_of_mem_support_insertQueryDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_1 ops hops.1; ⟨ν_f, _, hfin, hex⟩
     refine (ENNReal.ofReal_le_ofReal ?_).trans h
     rw [hls2]; push_cast
     have hnn : 0 ≤ max (0 : ℝ) (Real.logb 2 (2 / max (8 : ℝ) 1)) := le_max_left _ _
@@ -1493,30 +1537,36 @@ theorem wordram_theorem1_3_concrete_instantiations :
       (by decide) (by decide) (by decide) (by decide) (by decide)).toRandomized
     let C_rand := twoSlotRandImpl (U := 15) (V := 1024) (w := 14) (base := 0) false
       (by decide) (by decide) (by decide) (by decide) (by decide)
-    (∃ (ν₀ : PMF (C_det.Seed × Data 9)) (T : List (Dynamic.Op 15) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 15 1024 2 7, T ops ≠ ⊤ ∧ ∃ ν_final,
+    (∃ ν₀ : PMF (C_det.Seed × Data 9),
+      let body := flatExpectedBodyTime 14
+        ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
+        (twoSlotDetCode 0 false).input C_det.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 15 1024 2 7, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 15 1024 2) C_det.Seed 14 0 2
           ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
           (twoSlotDetCode 0 false).input C_det.encode (fun o _ regs => C_det.decode o regs)
-          (Dictionary.empty 15) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 15) ops ν₀ ν_final (body ops)) ∧
       (∃ c > 0, ENNReal.ofReal (c * 2) ≤
-        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * body ops) ∧
       (∃ B > 0, ENNReal.ofReal B ≤
-        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * body ops) ∧
       (∃ c > 0, ENNReal.ofReal (c * 2 * (1 + Real.logb 2 (4 / 3))) ≤
-        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * T ops)) ∧
-    (∃ (ν₀ : PMF (C_rand.Seed × Data 9)) (T : List (Dynamic.Op 15) → ℝ≥0∞),
-      (∀ ops ∈ validHistoriesUpTo 15 1024 2 7, T ops ≠ ⊤ ∧ ∃ ν_final,
+        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * body ops)) ∧
+    (∃ ν₀ : PMF (C_rand.Seed × Data 9),
+      let body := flatExpectedBodyTime 14
+        ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
+        (twoSlotRandCode 0 false).input C_rand.encode (ν₀.map Prod.snd)
+      (∀ ops ∈ validHistoriesUpTo 15 1024 2 7, body ops ≠ ⊤ ∧ ∃ ν_final,
         ExecFlatProgramOps (Dynamic.spec 15 1024 2) C_rand.Seed 14 0 2
           ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
           (twoSlotRandCode 0 false).input C_rand.encode (fun o _ regs => C_rand.decode o regs)
-          (Dictionary.empty 15) ops ν₀ ν_final (T ops)) ∧
+          (Dictionary.empty 15) ops ν₀ ν_final (body ops)) ∧
       (∃ c > 0, ENNReal.ofReal (c * 2 * (Nat.logStar 2 : ℝ)) ≤
-        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * body ops) ∧
       (∃ B > 0, ENNReal.ofReal B ≤
-        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * T ops) ∧
+        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * body ops) ∧
       (∃ c > 0, ENNReal.ofReal (c * 2 * (1 + Real.logb 2 (4 / 3))) ≤
-        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * T ops)) ∧
+        ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops * body ops)) ∧
     (∃ c > 0, ENNReal.ofReal (c * 2) ≤ (C_det.initPotential : ℝ≥0∞) +
       ∑' ops, insertDeleteDist 15 1024 2 (by decide) (by decide) ops *
         ((Dynamic.spec 15 1024 2).totalCost C_det.charge (Dictionary.empty 15) ops : ℝ≥0∞)) ∧
@@ -1554,9 +1604,9 @@ theorem wordram_theorem1_3_concrete_instantiations :
     rw [max_eq_left (by norm_num : (1 : ℝ) ≤ 3 / 2), Nat.cast_ofNat]
     norm_num
   have hlpos : 0 < Real.logb 2 (4 / 3) := hlog_eq ▸ logb_four_thirds_pos
-  obtain ⟨ν_d, T_d, hsupp_d, hsteps_d⟩ :=
+  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 14) nofun nofun nofun
-  obtain ⟨ν_r, T_r, hsupp_r, hsteps_r⟩ :=
+  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
     exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 14) nofun nofun nofun
   obtain ⟨c₁, hc₁, hf₁⟩ := expectedFlatTime_update_ge_iterLog.{0}
     (α_V := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
@@ -1570,9 +1620,9 @@ theorem wordram_theorem1_3_concrete_instantiations :
     (α_V := 1) (c_w := 2) 0 (by norm_num) (by norm_num)
   obtain ⟨c₆, hc₆, hb₃⟩ := expectedTotalCost_update_ge_iterLogStar_add_log_div
     (α_V := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨⟨ν_d, T_d, fun ops hops => (hsteps_d ops hops.1).2,
+  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2,
       ⟨c₁, hc₁, ?_⟩, ⟨c₂ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩,
-    ⟨ν_r, T_r, fun ops hops => (hsteps_r ops hops.1).2,
+    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2,
       ⟨c₁, hc₁, ?_⟩, ⟨c₂ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩,
     ⟨c₄, hc₄, ?_⟩,
     ⟨c₅ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩,
@@ -1581,61 +1631,37 @@ theorem wordram_theorem1_3_concrete_instantiations :
       (by rw [hpc0]; exact hsp_iter)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d fun ops hops =>
-        (hsteps_d ops (validHistory_of_mem_support_insertDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
     push_cast at h; rwa [mul_one] at h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d fun ops hops =>
-        (hsteps_d ops (validHistory_of_mem_support_insertDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₃ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
       C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        ⟨ν_f, T_d ops, hfin, hex⟩)
-      T_d fun ops hops =>
-        (hsteps_d ops (validHistory_of_mem_support_insertDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hf₁ (k := Nat.logStar 2) (by decide) (by decide) (by decide) hV_lo hk_hi le_rfl
       (by omega) hw_15_1024 (by rw [hpcr]; exact hsp_star)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r fun ops hops =>
-        (hsteps_r ops (validHistory_of_mem_support_insertDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
     push_cast at h; exact h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r fun ops hops =>
-        (hsteps_r ops (validHistory_of_mem_support_insertDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₃ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
       C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        ⟨ν_f, T_r ops, hfin, hex⟩)
-      T_r fun ops hops =>
-        (hsteps_r ops (validHistory_of_mem_support_insertDeleteDist hops).1).2
+      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hb₁ (by decide) (by decide) (by decide) hV_lo le_rfl hk_hi (by omega) hw_15_1024
       C_det (by rw [hsp_det, hp0]; exact hsp_iter)

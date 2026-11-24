@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.CellProbe.OfWordRAM
 public import CslibFrontier.DataStructure.Dictionary.CellProbe.LowerBound
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.SupportTsum
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
@@ -84,16 +85,25 @@ Word-RAM model and boundary conventions:
   operation executes at least `1` body instruction in expectation, absorbing the register spill term
   into the multiplicative factor `1 / (2 * persCount input + 1)` (hence into the constant `c > 0`
   for any fixed register budget `persCount input ≤ r_max`, with zero loss at `r_max = 0`).
-* **Actual expected running time vs. certified resource budgets ([CLRS2009], Section 17.3):** in
-  `ExecFlatProgramOps`, each step's `ExecProgramDist w p_op x' μ (T_step + 1)` requires
-  `expectedTime w p_op ⟨0, x'⟩ ≤ T_step + 1`, which attains equality at the exact expected
-  non-`halt` body instruction count `T_step = expectedTime w p_op ⟨0, x'⟩ - 1` (and is strictly
-  smaller than total executed instructions `T_step + 1` including `halt`), so `expectedFlatTime_*`
-  directly lower-bounds actual expected Word-RAM running time (including deterministic programs via
-  `Latent := Unit`, `ν₀ := PMF.pure ((), x₀)`). The companion `expectedTotalCost_*` corollaries
-  lower-bound the certified potential-amortized budget `initPotential + E[totalCost charge]` of any
-  `WordRAM.Randomized.StateTransitionImpl` (and deterministic `WordRAM.StateTransitionImpl`s via
-  `StateTransitionImpl.toRandomized`).
+* **Actual expected running time vs. certified resource budgets ([CLRS2009], Section 17.3):**
+  `ExecFlatProgramOps.tighten_actualBodyTime` (in
+  `CslibFrontier.DataStructure.CellProbe.OfWordRAM`) proves that **every** certified
+  `ExecFlatProgramOps` execution with admissible budget `T_ops` also witnesses `ExecFlatProgramOps`
+  at the exact intrinsic expected non-`halt` body-instruction count
+  `flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops` (accumulating
+  `expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1` along the unique limiting halting
+  distribution `flatStateDist`), preserving the coupled distributions `(ν₀, ν_final)` and zero-error
+  correctness, with `flatExpectedBodyTime ... ops ≤ T_ops`. Total expected executed instructions
+  including each operation's terminal `halt` satisfy
+  `flatExpectedTime ... ops = flatExpectedBodyTime ... ops + ops.length`
+  (`flatExpectedTime_eq_add_length`). All six `expectedFlatTime_*` headlines (and both generic
+  `expectedFlatTime{,_update}_ge_of_indexedScheme` bridges) directly lower-bound
+  `∑' ops, dist ops * flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops` with no
+  caller-supplied budget `T` (including deterministic programs via `Latent := Unit`,
+  `ν₀ := PMF.pure ((), x₀)`). The companion `expectedTotalCost_*` corollaries follow via
+  `flatExpectedBodyTime_le` to lower-bound the certified potential-amortized budget
+  `C.initPotential + E[totalCost C.charge]` of any `WordRAM.Randomized.StateTransitionImpl` (and
+  deterministic `WordRAM.StateTransitionImpl`s via `StateTransitionImpl.toRandomized`).
 * **Zero-error oblivious randomization and `R = n` boundary:** bounds apply to zero-error (Las
   Vegas) Word-RAM programs on oblivious sequences (`insertQueryDeleteDist` and `insertDeleteDist`);
   bounded-error (Monte Carlo) implementations and adaptive sequence adversaries are out of scope. At
@@ -102,6 +112,9 @@ Word-RAM model and boundary conventions:
 
 ## Main results
 
+* `Cslib.DataStructure.Dictionary.WordRAM.exists_flat_exec_of_stateTransitionImpl`:
+  builds an initialized state distribution `ν₀` from a zero-error `StateTransitionImpl` together
+  with exact `flatExpectedBodyTime` realization bounds `≤ C.initPotential + totalCost C.charge`.
 * `Cslib.DataStructure.Dictionary.WordRAM.expectedFlatTime_ge_of_indexedScheme`,
   `Cslib.DataStructure.Dictionary.WordRAM.expectedFlatTime_update_ge_of_indexedScheme`,
   `Cslib.DataStructure.Dictionary.WordRAM.expectedTotalCost_ge_of_indexedScheme`,
@@ -149,19 +162,6 @@ open scoped BigOperators ENNReal
 universe z
 
 /-! ### 1. Positive body-instruction lower bounds, initial-data construction, and `ℝ≥0∞` helpers -/
-
-private theorem ofReal_le_tsum_seqProbes_of_toReal_le {Op : Type*} {Result : Op → Type}
-    {cells w : ℕ} (dist : PMF (List Op)) (D_det : IndexedScheme Op Result cells w) {B : ℝ}
-    (hB : B ≤ ∑' ops, (dist ops).toReal * (D_det.seqProbes ops : ℝ)) :
-    ENNReal.ofReal B ≤ ∑' ops, dist ops * (D_det.seqProbes ops : ℝ≥0∞) := by
-  set S : ℝ≥0∞ := ∑' ops, dist ops * (D_det.seqProbes ops : ℝ≥0∞)
-  by_cases htop : S = ⊤
-  · rw [htop]; exact le_top
-  · rw [← ENNReal.ofReal_toReal htop]
-    have htsum := ENNReal.tsum_toReal_eq (f := fun ops => dist ops * (D_det.seqProbes ops : ℝ≥0∞))
-      fun ops => ENNReal.mul_ne_top (PMF.apply_ne_top dist ops) (ENNReal.natCast_ne_top _)
-    simp only [ENNReal.toReal_mul, ENNReal.toReal_natCast] at htsum
-    exact ENNReal.ofReal_le_ofReal (hB.trans_eq htsum.symm)
 
 private theorem execProgramDist_halt0_eq_pure {B : Basis} {r w : ℕ} {p : Program B r}
     {retReg : Fin r} (hp0 : p[0]? = some (.halt retReg)) (x : Data r)
@@ -380,12 +380,11 @@ private theorem length_le_execFlatProgramOps
   | nil => simp
   | @cons _ _ ops_rem ν_cur _ _ T_step T_rest hstep _ ih =>
     have hstep_ge : (1 : ℝ≥0∞) ≤ ∑' p, ν_cur p * T_step p := by
-      rw [← ν_cur.tsum_coe]
-      refine tsum_le_tsum fun p => ?_
-      by_cases hp : p ∈ ν_cur.support
-      · exact (mul_one _).symm.trans_le
-          (mul_le_mul' le_rfl (one_le_of_execProgramDist_no_halt0 hno (hstep p hp).2.1))
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hp, zero_mul]
+      calc (1 : ℝ≥0∞)
+        _ = ∑' p, ν_cur p * (1 : ℝ≥0∞) := by simp [ν_cur.tsum_coe]
+        _ ≤ ∑' p, ν_cur p * T_step p :=
+            Cslib.Probability.PMF.tsum_mul_mono_support ν_cur fun p hp =>
+              one_le_of_execProgramDist_no_halt0 hno (hstep p hp).2.1
     simp only [List.length_cons, Nat.cast_add, Nat.cast_one]
     calc (ops_rem.length : ℝ≥0∞) + 1
       _ = 1 + (ops_rem.length : ℝ≥0∞) := add_comm _ _
@@ -451,9 +450,13 @@ private theorem exists_initData_of_fits {B : Basis} {r_ds k_init w base : ℕ}
     · exact hparams_agree (Classical.choose h₂) j (Classical.choose_spec h₂)
     · exact absurd ⟨j, rfl⟩ h₂
 
-/-- Extract an initialized latent-state distribution `ν₀` and finite expected `ExecFlatProgramOps`
-time bounds `T ops ≤ C.initPotential + totalCost C.charge` along all valid dictionary histories from
-any zero-error `WordRAM.Randomized.StateTransitionImpl`. -/
+/-- Extract an initialized latent-state distribution `ν₀` from any zero-error
+`WordRAM.Randomized.StateTransitionImpl`, witnessing `ExecFlatProgramOps` along every valid
+dictionary history at its exact intrinsic expected non-`halt` body-instruction count
+`flatExpectedBodyTime w (P.code.program P.output) P.input C.encode (ν₀.map Prod.snd) ops`
+bounded by `C.initPotential + totalCost C.charge`. Delegates initialization and amortization to
+`StateTransitionImpl.exists_init_and_flat_steps` and tightens to the exact count via
+`ExecFlatProgramOps.tighten_actualBodyTime`. -/
 theorem exists_flat_exec_of_stateTransitionImpl
     {B : Basis} {U V n r_ds k_init w base : ℕ}
     {P : SubroutineCode B r_ds k_init} {params : Fin k_init → ℕ}
@@ -463,64 +466,26 @@ theorem exists_flat_exec_of_stateTransitionImpl
     (hparams_fit : ∀ j, Fits w (params j))
     (hparams_fr : ∀ j, P.initParams j = P.frontierReg → params j = base)
     (hparams_agree : ∀ i j, P.initParams i = P.initParams j → params i = params j) :
-    ∃ (ν₀ : PMF (C.Seed × Data r_ds)) (T : List (Dynamic.Op U) → ℝ≥0∞),
+    ∃ ν₀ : PMF (C.Seed × Data r_ds),
       (∀ p ∈ ν₀.support,
         p.2.Bounded w ∧ ∀ a ∉ (Block.mk base C.space).footprint, p.2.mem a = 0) ∧
       ∀ ops, (Dynamic.spec U V n).ValidHistory (Dictionary.empty U) ops →
-        T ops ≤ (C.initPotential : ℝ≥0∞) +
+        let T_act := flatExpectedBodyTime w (P.code.program P.output) P.input C.encode
+          (ν₀.map Prod.snd) ops
+        T_act ≤ (C.initPotential : ℝ≥0∞) +
           ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) ∧
-        T ops ≠ ⊤ ∧
+        T_act ≠ ⊤ ∧
         ∃ ν_final,
           ExecFlatProgramOps (Dynamic.spec U V n) C.Seed w base C.space
             (P.code.program P.output) P.input C.encode (fun o _ regs => C.decode o regs)
-            (Dictionary.empty U) ops ν₀ ν_final (T ops) := by
-  classical
-  obtain ⟨d₀, hd₀, hfr, hpar, hmem₀⟩ :=
+            (Dictionary.empty U) ops ν₀ ν_final T_act := by
+  obtain ⟨d₀, hd₀, hfr, hpar, _⟩ :=
     exists_initData_of_fits P hbase hparams_fit hparams_fr hparams_agree
-  obtain ⟨ν₀, _, hseed₀, hsupp₀⟩ := C.initFresh_exec hd₀ hfr hpar fun a _ => hmem₀ a
-  have hrep₀ : ∀ p ∈ ν₀.support, C.rep p.1 (Dictionary.empty U) p.2 :=
-    fun p hp => (hsupp₀ p hp).2.1
-  have hpot₀ : (∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) := by
-    refine (tsum_le_tsum (g := fun p => ν₀ p * (C.initPotential : ℝ≥0∞)) fun p => ?_).trans ?_
-    · by_cases hp : p ∈ ν₀.support
-      · exact mul_le_mul' le_rfl (Nat.cast_le.mpr (hsupp₀ p hp).2.2.1)
-      · simp [(PMF.apply_eq_zero_iff _ _).mpr hp]
-    · rw [ENNReal.tsum_mul_right, ν₀.tsum_coe, one_mul]
-  have hsteps : ∀ ops, (Dynamic.spec U V n).ValidHistory (Dictionary.empty U) ops →
-      ∃ T_ops,
-        T_ops ≤ (C.initPotential : ℝ≥0∞) +
-          ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) ∧
-        T_ops ≠ ⊤ ∧
-        ∃ ν_final,
-          ExecFlatProgramOps (Dynamic.spec U V n) C.Seed w base C.space
-            (P.code.program P.output) P.input C.encode (fun o _ regs => C.decode o regs)
-            (Dictionary.empty U) ops ν₀ ν_final T_ops := fun ops hv => by
-    obtain ⟨ν_final, T_ops, hex, _, _, hamort⟩ :=
-      C.steps_expected_amortized_ofFn ops ν₀ hv hseed₀ hrep₀
-    have hT_le : T_ops ≤ (C.initPotential : ℝ≥0∞) +
-        ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-      calc T_ops
-        _ ≤ T_ops + ∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞) := le_self_add
-        _ ≤ ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) +
-              ∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞) := hamort
-        _ ≤ ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) +
-              (C.initPotential : ℝ≥0∞) := add_le_add le_rfl hpot₀
-        _ = (C.initPotential : ℝ≥0∞) +
-              ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) :=
-            add_comm _ _
-    have hT_fin : T_ops ≠ ⊤ :=
-      ne_top_of_le_ne_top
-        (ENNReal.add_ne_top.mpr ⟨ENNReal.natCast_ne_top _, ENNReal.natCast_ne_top _⟩) hT_le
-    exact ⟨T_ops, hT_le, hT_fin, ν_final, hex.toExecFlatProgramOps C hv⟩
-  let T : List (Dynamic.Op U) → ℝ≥0∞ := fun ops =>
-    if hv : (Dynamic.spec U V n).ValidHistory (Dictionary.empty U) ops then
-      Classical.choose (hsteps ops hv)
-    else 0
-  refine ⟨ν₀, T, fun p hp => ⟨C.bounded (hsupp₀ p hp).2.1,
-    fun a ha => ((hsupp₀ p hp).2.2.2 a ha).trans (hmem₀ a)⟩, fun ops hv => ?_⟩
-  have hT_eq : T ops = Classical.choose (hsteps ops hv) := dite_eq_left_of_eq_true (eq_true hv)
-  rw [hT_eq]
-  exact Classical.choose_spec (hsteps ops hv)
+  obtain ⟨ν₀, hsupp₀, hsteps⟩ := C.exists_init_and_flat_steps hd₀ hfr hpar
+  refine ⟨ν₀, hsupp₀, fun ops hv => ?_⟩
+  obtain ⟨ν_final, T_ops, hT_le, hT_fin, hex⟩ := hsteps ops hv
+  obtain ⟨hex_act, hact_le, _⟩ := hex.tighten_actualBodyTime
+  exact ⟨hact_le.trans hT_le, ne_top_of_le_ne_top hT_fin hact_le, ν_final, hex_act⟩
 
 private theorem le_initPotential_add_tsum_totalCost
     {U V n : ℕ} (dist : PMF (List (Dynamic.Op U)))
@@ -533,40 +498,33 @@ private theorem le_initPotential_add_tsum_totalCost
     LB ≤ (initPotential : ℝ≥0∞) +
       ∑' ops, dist ops *
         ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-  refine hlb.trans ((tsum_le_tsum (g := fun ops => dist ops * ((initPotential : ℝ≥0∞) +
-      ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞)))
-    fun ops => ?_).trans ?_)
-  · by_cases hops : ops ∈ dist.support
-    · exact mul_le_mul' le_rfl (hT ops hops)
-    · simp [(PMF.apply_eq_zero_iff _ _).mpr hops]
-  · simp_rw [mul_add, tsum_add, ENNReal.tsum_mul_right, dist.tsum_coe, one_mul]
-    exact le_rfl
+  have hmono := Cslib.Probability.PMF.tsum_mul_mono_support dist hT
+  have hadd := Cslib.Probability.PMF.tsum_mul_add_of_support dist
+    (g := fun _ => (initPotential : ℝ≥0∞))
+    (f := fun ops => ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞))
+    (fun _ _ => rfl)
+  exact hlb.trans (hmono.trans_eq hadd)
 
 private theorem tsum_mul_add_const_length {Op : Type*} (dist : PMF (List Op))
     (cost : List Op → ℝ≥0∞) (ov : ℝ≥0∞) {L : ℕ}
     (hlen : ∀ {ops}, ops ∈ dist.support → ops.length = L) :
     (∑' ops, dist ops * (cost ops + ov * (ops.length : ℝ≥0∞))) =
       (∑' ops, dist ops * cost ops) + ov * (L : ℝ≥0∞) := by
-  have hcongr :
-      (∑' ops, dist ops * (cost ops + ov * (ops.length : ℝ≥0∞))) =
-        ∑' ops, (dist ops * cost ops + dist ops * (ov * (L : ℝ≥0∞))) := by
-    refine tsum_congr fun ops => ?_
-    by_cases hops : ops ∈ dist.support
-    · rw [hlen hops, mul_add]
-    · simp [(PMF.apply_eq_zero_iff _ _).mpr hops]
-  rw [hcongr, tsum_add, ENNReal.tsum_mul_right, dist.tsum_coe, one_mul]
+  have hswap := Cslib.Probability.PMF.tsum_mul_congr_support dist
+    (f := fun ops => cost ops + ov * (ops.length : ℝ≥0∞))
+    (g := fun ops => ov * (ops.length : ℝ≥0∞) + cost ops)
+    (fun ops _ => add_comm _ _)
+  have hadd := Cslib.Probability.PMF.tsum_mul_add_of_support dist
+    (g := fun ops => ov * (ops.length : ℝ≥0∞)) (f := cost)
+    (c := ov * (L : ℝ≥0∞)) (fun ops hops => by rw [hlen hops])
+  exact hswap.trans (hadd.trans (add_comm _ _))
 
 private theorem const_le_tsum_of_support {Op : Type*} (dist : PMF (List Op))
     (cost : List Op → ℝ≥0∞) {L : ℝ≥0∞}
     (hle : ∀ {ops}, ops ∈ dist.support → L ≤ cost ops) :
-    L ≤ ∑' ops, dist ops * cost ops := by
-  calc L = (∑' ops, dist ops) * L := by rw [dist.tsum_coe, one_mul]
-    _ = ∑' ops, dist ops * L := ENNReal.tsum_mul_right.symm
-    _ ≤ ∑' ops, dist ops * cost ops := by
-      refine tsum_le_tsum fun ops => ?_
-      by_cases hops : ops ∈ dist.support
-      · exact mul_le_mul' le_rfl (hle hops)
-      · simp [(PMF.apply_eq_zero_iff _ _).mpr hops]
+    L ≤ ∑' ops, dist ops * cost ops :=
+  (show L = ∑' ops, dist ops * L by rw [ENNReal.tsum_mul_right, dist.tsum_coe, one_mul]).trans_le
+    (Cslib.Probability.PMF.tsum_mul_mono_support dist fun _ hops => hle hops)
 
 private theorem ofReal_div_pers_le_of_le_add_mul {B : ℝ} {p L : ℕ} {T : ℝ≥0∞}
     (hL : (L : ℝ≥0∞) ≤ T)
@@ -624,29 +582,25 @@ private theorem totalCost_ge_of_flat_fn
     (hparams_fr : ∀ j, P.initParams j = P.frontierReg → params j = base)
     (hparams_agree : ∀ i j, P.initParams i = P.initParams j → params i = params j)
     {LB : ℝ≥0∞}
-    (hflat : ∀ (ν₀ : PMF (C.Seed × Data r_ds)) (T : List (Dynamic.Op U) → ℝ≥0∞),
+    (hflat : ∀ (ν₀ : PMF (C.Seed × Data r_ds)),
       (∀ p ∈ ν₀.support,
         p.2.Bounded w ∧ ∀ a ∉ (Block.mk base C.space).footprint, p.2.mem a = 0) →
       (∀ ops ∈ validHistoriesUpTo U V n M, ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) C.Seed w base C.space (P.code.program P.output)
           P.input C.encode (fun o _ regs => C.decode o regs) (Dictionary.empty U) ops ν₀ ν_final
           T_ops) →
-      (∀ ops ∈ dist.support, T ops ≠ ⊤ ∧ ∃ ν_final,
-        ExecFlatProgramOps (Dynamic.spec U V n) C.Seed w base C.space (P.code.program P.output)
-          P.input C.encode (fun o _ regs => C.decode o regs) (Dictionary.empty U) ops ν₀ ν_final
-          (T ops)) →
-      LB ≤ ∑' ops, dist ops * T ops) :
+      LB ≤ ∑' ops, dist ops *
+        flatExpectedBodyTime w (P.code.program P.output) P.input C.encode
+          (ν₀.map Prod.snd) ops) :
     LB ≤ (C.initPotential : ℝ≥0∞) +
       ∑' ops, dist ops *
         ((Dynamic.spec U V n).totalCost C.charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-  obtain ⟨ν₀, T, hsupp₀, hsteps⟩ :=
+  obtain ⟨ν₀, hsupp₀, hsteps⟩ :=
     exists_flat_exec_of_stateTransitionImpl C hbase hparams_fit hparams_fr hparams_agree
   exact le_initPotential_add_tsum_totalCost dist C.initPotential C.charge
-    (hflat ν₀ T hsupp₀
-      (fun ops hops =>
-        let ⟨_, hfin, ν_f, hex⟩ := hsteps ops hops.1
-        ⟨ν_f, T ops, hfin, hex⟩)
-      fun ops hops => (hsteps ops (hdist ops hops)).2)
+    (hflat ν₀ hsupp₀ fun ops hops =>
+      let ⟨_, hfin, ν_f, hex⟩ := hsteps ops hops.1
+      ⟨ν_f, _, hfin, hex⟩)
     fun ops hops => (hsteps ops (hdist ops hops)).1
 
 private theorem le_expectedFlatTime_mode_of_no_halt (withQueries : Bool)
@@ -664,20 +618,27 @@ private theorem le_expectedFlatTime_mode_of_no_halt (withQueries : Bool)
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (timeBound : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (modeDist withQueries U V n hU hV).support, ∃ ν_final T_ops,
-      T_ops ≤ timeBound ops ∧ T_ops ≠ ⊤ ∧
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final T_ops)
     {LB : ℝ}
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result S_max w},
       (∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       LB ≤ ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (LB / (2 * (persCount input : ℝ) + 1)) ≤
-      ∑' ops, modeDist withQueries U V n hU hV ops * timeBound ops := by
+      ∑' ops, modeDist withQueries U V n hU hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   let dist := modeDist withQueries U V n hU hV
   let L := modeHorizon withQueries n
+  let bodyTime : List (Dynamic.Op U) → ℝ≥0∞ :=
+    flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd)
+  have hex_hard : ∀ ops ∈ dist.support, ∃ ν_final T_ops,
+      T_ops ≤ bodyTime ops ∧ T_ops ≠ ⊤ ∧
+        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
+          (Dictionary.empty U) ops ν₀ ν_final T_ops := fun ops hops => by
+    obtain ⟨hv, hlen, _⟩ := modeDist_support_spec withQueries hU hV hops
+    obtain ⟨ν_final, T_ops, hfin, hex⟩ :=
+      hex_corr ops ⟨hv, hlen.trans_le (Nat.le_succ L)⟩
+    obtain ⟨hex_act, hact_le, _⟩ := hex.tighten_actualBodyTime
+    exact ⟨ν_final, bodyTime ops, le_rfl, ne_top_of_le_ne_top hfin hact_le, hex_act⟩
   have hraw := flat_wordRAM_lower_bound_of_det_cellProbe (D := Dynamic.spec U V n)
     (Dictionary.empty U) hspace p_op encode
     decode ν₀ hsupp₀ (validOps U V) (L + 1) (validHistoriesUpTo U V n (L + 1))
@@ -685,12 +646,12 @@ private theorem le_expectedFlatTime_mode_of_no_halt (withQueries : Bool)
     (fun ops hops => by
       obtain ⟨hv, hlen, halph⟩ := modeDist_support_spec withQueries hU hV hops
       exact ⟨hv, hlen.trans_le (Nat.le_succ L), halph⟩)
-    timeBound hex_hard fun D_det hD =>
+    bodyTime hex_hard fun D_det hD =>
       ofReal_le_tsum_seqProbes_of_toReal_le dist D_det (hlb hD)
-  rw [tsum_mul_add_const_length dist timeBound _
+  rw [tsum_mul_add_const_length dist bodyTime _
     fun hops => (modeDist_support_spec withQueries hU hV hops).2.1] at hraw
-  have hL_le : (L : ℝ≥0∞) ≤ ∑' ops, dist ops * timeBound ops :=
-    const_le_tsum_of_support dist timeBound fun {ops} hops => by
+  have hL_le : (L : ℝ≥0∞) ≤ ∑' ops, dist ops * bodyTime ops :=
+    const_le_tsum_of_support dist bodyTime fun {ops} hops => by
       obtain ⟨_, T_ops, hT_le, _, hex⟩ := hex_hard ops hops
       have hlen_eq := (modeDist_support_spec withQueries hU hV hops).2.1
       exact (hlen_eq ▸ length_le_execFlatProgramOps hno hex).trans hT_le
@@ -710,24 +671,20 @@ private theorem le_expectedFlatTime_mode_of_det_indexedScheme (withQueries : Boo
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (timeBound : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (modeDist withQueries U V n hU hV).support, ∃ ν_final T_ops,
-      T_ops ≤ timeBound ops ∧ T_ops ≠ ⊤ ∧
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final T_ops)
     {LB : ℝ}
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result S_max w},
       (∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       LB ≤ ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (LB / (2 * (persCount input : ℝ) + 1)) ≤
-      ∑' ops, modeDist withQueries U V n hU hV ops * timeBound ops := by
+      ∑' ops, modeDist withQueries U V n hU hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have hM2 : 2 ≤ modeHorizon withQueries n + 1 := by
     cases withQueries <;> simp only [modeHorizon, modeStride, ↓reduceIte, Bool.false_eq_true] <;>
       omega
   exact le_expectedFlatTime_mode_of_no_halt withQueries hU hV hspace p_op
     (not_halt_zero_of_execFlatProgramOps hn (by omega) hV hM2 ν₀ hex_corr)
-    encode decode ν₀ hsupp₀ hex_corr timeBound hex_hard hlb
+    encode decode ν₀ hsupp₀ hex_corr hlb
 
 private theorem le_expectedTotalCost_mode_of_det_indexedScheme (withQueries : Bool)
     {B : Basis} {U V n r_ds k_init w base S_max : ℕ}
@@ -753,18 +710,16 @@ private theorem le_expectedTotalCost_mode_of_det_indexedScheme (withQueries : Bo
   exact totalCost_ge_of_flat_fn (M := modeHorizon withQueries n + 1)
     (modeDist withQueries U V n hU hV)
     (fun _ hops => (modeDist_support_spec withQueries hU hV hops).1)
-    C hbase hparams_fit hparams_fr hparams_agree fun ν₀ T hsupp₀ hex_corr hex_hard =>
+    C hbase hparams_fit hparams_fr hparams_agree fun ν₀ hsupp₀ hex_corr =>
       le_expectedFlatTime_mode_of_no_halt withQueries hU hV hspace (P.code.program P.output)
         (code_program_zero_ne_halt P.code P.output) C.encode (fun o _ regs => C.decode o regs)
-        ν₀ hsupp₀ hex_corr T
-        (fun ops hops =>
-          let ⟨hfin, ν_f, hex⟩ := hex_hard ops hops
-          ⟨ν_f, T ops, le_rfl, hfin, hex⟩)
-        hlb
+        ν₀ hsupp₀ hex_corr hlb
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over
-`insertQueryDeleteDist` directly to expected `ExecFlatProgramOps` running time (`E[timeBound ops]`).
--/
+`insertQueryDeleteDist` directly to the exact intrinsic expected non-`halt` body-instruction count
+`flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops` (hence also to total executed
+instructions `flatExpectedTime = flatExpectedBodyTime + ops.length` and to any admissible
+`ExecFlatProgramOps` budget `T_ops` via `ExecFlatProgramOps.flatExpectedBodyTime_le`). -/
 theorem expectedFlatTime_ge_of_indexedScheme
     {B : Basis} {U V n r w base space S_max : ℕ} {input : Fin r → Bool} {Latent : Type z}
     (hn : 1 ≤ n) (hU : 2 * n ≤ U) (hV : 1 ≤ V)
@@ -779,30 +734,27 @@ theorem expectedFlatTime_ge_of_indexedScheme
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (timeBound : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (insertQueryDeleteDist U V n hU hV).support, ∃ ν_final T_ops,
-      T_ops ≤ timeBound ops ∧ T_ops ≠ ⊤ ∧
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final T_ops)
     {LB : ℝ}
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result S_max w},
       (∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       LB ≤ ∑' ops, (insertQueryDeleteDist U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (LB / (2 * (persCount input : ℝ) + 1)) ≤
-      ∑' ops, insertQueryDeleteDist U V n hU hV ops * timeBound ops := by
+      ∑' ops, insertQueryDeleteDist U V n hU hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have h := le_expectedFlatTime_mode_of_det_indexedScheme true hn hU hV hspace p_op encode decode
     ν₀ hsupp₀
     (by simpa only [modeHorizon, modeStride, ↓reduceIte,
       show n + 3 * n = 4 * n by ring] using hex_corr)
-    timeBound (by rwa [modeDist_true]) (LB := LB) fun hcorr => by
+    (LB := LB) fun hcorr => by
       rw [modeDist_true]
       exact hlb (by simpa only [modeHorizon, modeStride, ↓reduceIte,
         show n + 3 * n = 4 * n by ring] using hcorr)
   rwa [modeDist_true] at h
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over `insertDeleteDist`
-directly to expected `ExecFlatProgramOps` running time (`E[timeBound ops]`). -/
+directly to the exact intrinsic expected non-`halt` body-instruction count
+`flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops`. -/
 theorem expectedFlatTime_update_ge_of_indexedScheme
     {B : Basis} {U V n r w base space S_max : ℕ} {input : Fin r → Bool} {Latent : Type z}
     (hn : 1 ≤ n) (hU : 2 * n ≤ U) (hV : 1 ≤ V)
@@ -817,23 +769,19 @@ theorem expectedFlatTime_update_ge_of_indexedScheme
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (timeBound : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (insertDeleteDist U V n hU hV).support, ∃ ν_final T_ops,
-      T_ops ≤ timeBound ops ∧ T_ops ≠ ⊤ ∧
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final T_ops)
     {LB : ℝ}
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result S_max w},
       (∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       LB ≤ ∑' ops, (insertDeleteDist U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (LB / (2 * (persCount input : ℝ) + 1)) ≤
-      ∑' ops, insertDeleteDist U V n hU hV ops * timeBound ops := by
+      ∑' ops, insertDeleteDist U V n hU hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have h := le_expectedFlatTime_mode_of_det_indexedScheme false hn hU hV hspace p_op encode decode
     ν₀ hsupp₀
     (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
       show n + 2 * n = 3 * n by ring] using hex_corr)
-    timeBound (by rwa [modeDist_false]) (LB := LB) fun hcorr => by
+    (LB := LB) fun hcorr => by
       rw [modeDist_false]
       exact hlb (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hcorr)
@@ -933,25 +881,17 @@ private theorem expectedFlatTime_scaled_of_mode (withQueries : Bool)
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (T : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (modeDist withQueries U V n hU hV).support,
-      T ops ≠ ⊤ ∧ ∃ ν_final,
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final (T ops))
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result (space + persCount input) w},
       (∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       c_cp * X ≤
         ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (c_cp / (2 * (r_max : ℝ) + 1) * X) ≤
-      ∑' ops, modeDist withQueries U V n hU hV ops * T ops :=
+      ∑' ops, modeDist withQueries U V n hU hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops :=
   (ENNReal.ofReal_le_ofReal (scale_div_pers_le hc_cp hX hpers)).trans
     (le_expectedFlatTime_mode_of_det_indexedScheme withQueries (Nat.le_of_succ_le hn) hU hV le_rfl
-      p_op encode decode ν₀ hsupp₀ hex_corr T
-      (fun ops hops =>
-        let ⟨hfin, ν_f, hex⟩ := hex_hard ops hops
-        ⟨ν_f, T ops, le_rfl, hfin, hex⟩)
-      hlb)
+      p_op encode decode ν₀ hsupp₀ hex_corr hlb)
 
 private theorem expectedFlatTime_scaled_iqd
     {B : Basis} {U V n r w base space r_max : ℕ} {input : Fin r → Bool} {Latent : Type z}
@@ -967,24 +907,20 @@ private theorem expectedFlatTime_scaled_iqd
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (T : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (insertQueryDeleteDist U V n hU2 hV).support,
-      T ops ≠ ⊤ ∧ ∃ ν_final,
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final (T ops))
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result (space + persCount input) w},
       (∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       c_cp * (n : ℝ) * Y ≤
         ∑' ops, (insertQueryDeleteDist U V n hU2 hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (c_cp / (2 * (r_max : ℝ) + 1) * (n : ℝ) * Y) ≤
-      ∑' ops, insertQueryDeleteDist U V n hU2 hV ops * T ops := by
+      ∑' ops, insertQueryDeleteDist U V n hU2 hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_true, mul_assoc] using
     expectedFlatTime_scaled_of_mode true hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
       p_op encode decode ν₀ hsupp₀
       (by simpa only [modeHorizon, modeStride, ↓reduceIte,
         show n + 3 * n = 4 * n by ring] using hex_corr)
-      T (by rwa [modeDist_true]) fun hcorr => by
+      fun hcorr => by
         rw [modeDist_true]
         simpa only [mul_assoc] using hlb
           (by simpa only [modeHorizon, modeStride, ↓reduceIte,
@@ -1004,24 +940,20 @@ private theorem expectedFlatTime_scaled_upd
       ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
         ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
           (Dictionary.empty U) ops ν₀ ν_final T_ops)
-    (T : List (Dynamic.Op U) → ℝ≥0∞)
-    (hex_hard : ∀ ops ∈ (insertDeleteDist U V n hU2 hV).support,
-      T ops ≠ ⊤ ∧ ∃ ν_final,
-        ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-          (Dictionary.empty U) ops ν₀ ν_final (T ops))
     (hlb : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result (space + persCount input) w},
       (∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
         (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
       c_cp * (n : ℝ) * Y ≤
         ∑' ops, (insertDeleteDist U V n hU2 hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal (c_cp / (2 * (r_max : ℝ) + 1) * (n : ℝ) * Y) ≤
-      ∑' ops, insertDeleteDist U V n hU2 hV ops * T ops := by
+      ∑' ops, insertDeleteDist U V n hU2 hV ops *
+        flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_false, mul_assoc] using
     expectedFlatTime_scaled_of_mode false hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
       p_op encode decode ν₀ hsupp₀
       (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hex_corr)
-      T (by rwa [modeDist_false]) fun hcorr => by
+      fun hcorr => by
         rw [modeDist_false]
         simpa only [mul_assoc] using hlb
           (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
@@ -1033,8 +965,10 @@ PDF p. 2, and Section 3, pp. 10–13 / PDF pp. 11–14; [Yao1977]): for any `α 
 (Las Vegas) or deterministic flat Word-RAM program `p_op : Program B r` realizing
 `Dynamic.spec U V n` from `ν₀` up to horizon `4 * n + 1` with `persCount input ≤ r_max` and
 persistent bit budget `(((space + persCount input) * w : ℕ) : ℝ) ≤ benchmarkBits U V n +
-c_R * n * max (log^{(k)} n) 1` (`1 ≤ k ≤ log* n`) incurs at least `ENNReal.ofReal (c * n * k)`
-expected Word-RAM body instructions (`ExecFlatProgramOps`) over oblivious `insertQueryDeleteDist`.
+c_R * n * max (log^{(k)} n) 1` (`1 ≤ k ≤ log* n`) has exact intrinsic expected non-`halt`
+body-instruction count `flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops` at least
+`ENNReal.ofReal (c * n * k)` over oblivious `insertQueryDeleteDist` (hence also `flatExpectedTime`
+and any admissible `ExecFlatProgramOps` budget `T_ops` via `flatExpectedBodyTime_le`).
 Specializing `k = Nat.logStar n` (`max (Nat.iterLog (Nat.logStar n) n) 1 = 1` for `2 ≤ n`) yields
 `Ω(n * log* n)` under `O(n)` bits of redundancy; Monte Carlo error and adaptive sequence
 adversaries are out of scope. -/
@@ -1058,21 +992,16 @@ theorem expectedFlatTime_ge_of_iterLog_redundancy {α c_R c_w : ℝ} (r_max : �
         (_hex_corr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
           ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
             ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final T_ops)
-        (T : List (Dynamic.Op U) → ℝ≥0∞)
-        (_hex_hard : ∀ ops ∈ (insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV).support,
-          T ops ≠ ⊤ ∧ ∃ ν_final,
-            ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final (T ops)),
+              (Dictionary.empty U) ops ν₀ ν_final T_ops),
         ENNReal.ofReal (c * (n : ℝ) * (k : ℝ)) ≤
           ∑' ops, insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops * T ops := by
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   obtain ⟨c_cp, hc_cp, hdet⟩ := det_expectedSeqProbes_ge_of_iterLog_redundancy hα hcR hcw
   refine ⟨c_cp / (2 * (r_max : ℝ) + 1), by positivity, fun hn hU hU_poly hV hk_lo hk_hi hpers hw
-    hspace p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard =>
+    hspace p_op encode decode ν₀ hsupp₀ hex_corr =>
     expectedFlatTime_scaled_iqd hc_cp (Nat.cast_nonneg _) hn _ hV hpers p_op encode decode ν₀
-      hsupp₀ hex_corr T hex_hard fun hcorr =>
+      hsupp₀ hex_corr fun hcorr =>
         hdet hn hU hU_poly hV hk_lo hk_hi hw hspace hcorr⟩
 
 /-- Word-RAM **Theorem 1.2 / Theorem 6.1** ([LiLiangYuZhou2023], Section 1, p. 1 footnote 1 and
@@ -1080,10 +1009,11 @@ p. 2 / PDF pp. 2–3, and Section 6, pp. 25–26 / PDF pp. 26–27; [Yao1977]): 
 `c_w ≥ 0`, and persistent-register bound `r_max`, there exists `c > 0` such that any zero-error
 (Las Vegas) or deterministic flat Word-RAM program `p_op : Program B r` realizing
 `Dynamic.spec U V n` up to horizon `4 * n + 1` with `persCount input ≤ r_max` and `R ≤ n` bits of
-redundancy (`(((space + persCount input) * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R`) incurs at least
-`ENNReal.ofReal (c * n * log₂(n / max R 1))` expected Word-RAM body instructions on oblivious
-`insertQueryDeleteDist` (vanishing at `R = n`; see `expectedFlatTime_ge_iterLogStar_add_log_div` for
-the combined bound across `R ≤ c_R * n`). -/
+redundancy (`(((space + persCount input) * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R`) has exact
+intrinsic expected non-`halt` body-instruction count `flatExpectedBodyTime` at least
+`ENNReal.ofReal (c * n * log₂(n / max R 1))` on oblivious `insertQueryDeleteDist` (vanishing at
+`R = n`; see `expectedFlatTime_ge_iterLogStar_add_log_div` for the combined bound across
+`R ≤ c_R * n`). -/
 theorem expectedFlatTime_ge_of_sublinear_redundancy {α c_w : ℝ} (r_max : ℕ)
     (hα : 0 < α) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -1103,28 +1033,23 @@ theorem expectedFlatTime_ge_of_sublinear_redundancy {α c_w : ℝ} (r_max : ℕ)
         (_hex_corr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
           ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
             ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final T_ops)
-        (T : List (Dynamic.Op U) → ℝ≥0∞)
-        (_hex_hard : ∀ ops ∈ (insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV).support,
-          T ops ≠ ⊤ ∧ ∃ ν_final,
-            ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final (T ops)),
+              (Dictionary.empty U) ops ν₀ ν_final T_ops),
         ENNReal.ofReal (c * (n : ℝ) * Real.logb 2 ((n : ℝ) / max R 1)) ≤
           ∑' ops, insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops * T ops := by
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   obtain ⟨c_cp, hc_cp, hdet⟩ := det_expectedSeqProbes_ge_of_sublinear_redundancy hα hcw
   refine ⟨c_cp / (2 * (r_max : ℝ) + 1), by positivity, fun hn hU hU_poly hV hR_hi hpers hw
-    hspace p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard =>
+    hspace p_op encode decode ν₀ hsupp₀ hex_corr =>
     expectedFlatTime_scaled_iqd hc_cp (logb_div_max_nonneg hn hR_hi) hn _ hV hpers p_op encode
-      decode ν₀ hsupp₀ hex_corr T hex_hard fun hcorr =>
+      decode ν₀ hsupp₀ hex_corr fun hcorr =>
         hdet hn hU hU_poly hV hR_hi hw hspace hcorr⟩
 
 /-- Combined Word-RAM **Theorems 1.1 & 1.2**
-(`Ω(n * (log* n + max 0 (log₂(n / max R 1))))` actual expected Word-RAM body instructions) across
-all `R ≤ c_R * n` in the zero-error (Las Vegas) or deterministic oblivious model
-([LiLiangYuZhou2023], Section 1, pp. 1–2 and footnote 1 / PDF pp. 2–3, and Section 7, pp. 26–27 /
-PDF pp. 27–28; [Yao1977]). -/
+(`Ω(n * (log* n + max 0 (log₂(n / max R 1))))` exact intrinsic expected non-`halt` body
+instructions `flatExpectedBodyTime`) across all `R ≤ c_R * n` in the zero-error (Las Vegas) or
+deterministic oblivious model ([LiLiangYuZhou2023], Section 1, pp. 1–2 and footnote 1 / PDF
+pp. 2–3, and Section 7, pp. 26–27 / PDF pp. 27–28; [Yao1977]). -/
 theorem expectedFlatTime_ge_iterLogStar_add_log_div {α c_R c_w : ℝ} (r_max : ℕ)
     (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -1144,30 +1069,26 @@ theorem expectedFlatTime_ge_iterLogStar_add_log_div {α c_R c_w : ℝ} (r_max : 
         (_hex_corr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
           ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
             ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final T_ops)
-        (T : List (Dynamic.Op U) → ℝ≥0∞)
-        (_hex_hard : ∀ ops ∈ (insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV).support,
-          T ops ≠ ⊤ ∧ ∃ ν_final,
-            ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final (T ops)),
+              (Dictionary.empty U) ops ν₀ ν_final T_ops),
         ENNReal.ofReal (c * (n : ℝ) *
           ((Nat.logStar n : ℝ) + max 0 (Real.logb 2 ((n : ℝ) / max R 1)))) ≤
           ∑' ops, insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops * T ops := by
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   obtain ⟨c_cp, hc_cp, hdet⟩ := det_expectedSeqProbes_ge_iterLogStar_add_log_div hα hcR hcw
   refine ⟨c_cp / (2 * (r_max : ℝ) + 1), by positivity, fun hn hU hU_poly hV hR_hi hpers hw
-    hspace p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard =>
+    hspace p_op encode decode ν₀ hsupp₀ hex_corr =>
     expectedFlatTime_scaled_iqd hc_cp (add_nonneg (Nat.cast_nonneg _) (_root_.le_max_left 0 _)) hn
-      _ hV hpers p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard fun hcorr =>
+      _ hV hpers p_op encode decode ν₀ hsupp₀ hex_corr fun hcorr =>
         hdet hn hU hU_poly hV hR_hi hw hspace hcorr⟩
 
 /-- Word-RAM **Theorem 1.3(1)** ([LiLiangYuZhou2023], Section 1, p. 1 footnote 1 and p. 2 /
 PDF pp. 2–3, and Section 8, pp. 27–30 / PDF pp. 28–31; [Yao1977]): update-only (`insertDeleteDist`)
-`Ω(n * k)` actual expected Word-RAM body-instruction lower bound for zero-error (Las Vegas) or
-deterministic flat Word-RAM programs when `3 * n ≤ U` and `U ^ (2 + α_V) ≤ V * n ^ 2` under
-redundancy `≤ c_R * n * max (log^{(k)} n) 1` (with horizon `3 * n + 1` for `decodeDict`, no
-query-time constraint, and `k = Nat.logStar n` yielding `Ω(n * log* n)` under `O(n)` redundancy). -/
+`Ω(n * k)` exact intrinsic expected non-`halt` body-instruction (`flatExpectedBodyTime`) lower
+bound for zero-error (Las Vegas) or deterministic flat Word-RAM programs when `3 * n ≤ U` and
+`U ^ (2 + α_V) ≤ V * n ^ 2` under redundancy `≤ c_R * n * max (log^{(k)} n) 1` (with horizon
+`3 * n + 1` for `decodeDict`, no query-time constraint, and `k = Nat.logStar n` yielding
+`Ω(n * log* n)` under `O(n)` redundancy). -/
 theorem expectedFlatTime_update_ge_iterLog {α_V c_R c_w : ℝ} (r_max : ℕ)
     (hα_V : 0 < α_V) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -1188,28 +1109,23 @@ theorem expectedFlatTime_update_ge_iterLog {α_V c_R c_w : ℝ} (r_max : ℕ)
         (_hex_corr : ∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
           ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
             ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final T_ops)
-        (T : List (Dynamic.Op U) → ℝ≥0∞)
-        (_hex_hard : ∀ ops ∈ (insertDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV).support,
-          T ops ≠ ⊤ ∧ ∃ ν_final,
-            ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final (T ops)),
+              (Dictionary.empty U) ops ν₀ ν_final T_ops),
         ENNReal.ofReal (c * (n : ℝ) * (k : ℝ)) ≤
           ∑' ops, insertDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops * T ops := by
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   obtain ⟨c_cp, hc_cp, hdet⟩ := det_expectedSeqProbes_update_ge_iterLog hα_V hcR hcw
   refine ⟨c_cp / (2 * (r_max : ℝ) + 1), by positivity, fun hn hU hV hV_lo hk_lo hk_hi hpers hw
-    hspace p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard =>
+    hspace p_op encode decode ν₀ hsupp₀ hex_corr =>
     expectedFlatTime_scaled_upd hc_cp (Nat.cast_nonneg _) hn _ hV hpers p_op encode decode ν₀
-      hsupp₀ hex_corr T hex_hard fun hcorr =>
+      hsupp₀ hex_corr fun hcorr =>
         hdet hn hU hV hV_lo hk_lo hk_hi hw hspace hcorr⟩
 
 /-- Word-RAM **Theorem 1.3(2)** ([LiLiangYuZhou2023], Section 1, p. 1 footnote 1 and p. 2 /
 PDF pp. 2–3, and Section 8, pp. 27–30 / PDF pp. 28–31; [Yao1977]): update-only (`insertDeleteDist`)
-`Ω(n * log₂(n / max R 1))` actual expected Word-RAM body-instruction lower bound for zero-error
-(Las Vegas) or deterministic flat Word-RAM programs when `3 * n ≤ U`,
-`U ^ (2 + α_V) ≤ V * n ^ 2`, and `R ≤ n` (vanishing at the `R = n` boundary). -/
+`Ω(n * log₂(n / max R 1))` exact intrinsic expected non-`halt` body-instruction
+(`flatExpectedBodyTime`) lower bound for zero-error (Las Vegas) or deterministic flat Word-RAM
+programs when `3 * n ≤ U`, `U ^ (2 + α_V) ≤ V * n ^ 2`, and `R ≤ n` (vanishing at `R = n`). -/
 theorem expectedFlatTime_update_ge_sublinear {α_V c_w : ℝ} (r_max : ℕ)
     (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -1229,28 +1145,23 @@ theorem expectedFlatTime_update_ge_sublinear {α_V c_w : ℝ} (r_max : ℕ)
         (_hex_corr : ∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
           ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
             ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final T_ops)
-        (T : List (Dynamic.Op U) → ℝ≥0∞)
-        (_hex_hard : ∀ ops ∈ (insertDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV).support,
-          T ops ≠ ⊤ ∧ ∃ ν_final,
-            ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final (T ops)),
+              (Dictionary.empty U) ops ν₀ ν_final T_ops),
         ENNReal.ofReal (c * (n : ℝ) * Real.logb 2 ((n : ℝ) / max R 1)) ≤
           ∑' ops, insertDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops * T ops := by
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   obtain ⟨c_cp, hc_cp, hdet⟩ := det_expectedSeqProbes_update_ge_sublinear hα_V hcw
   refine ⟨c_cp / (2 * (r_max : ℝ) + 1), by positivity, fun hn hU hV hV_lo hR_hi hpers hw
-    hspace p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard =>
+    hspace p_op encode decode ν₀ hsupp₀ hex_corr =>
     expectedFlatTime_scaled_upd hc_cp (logb_div_max_nonneg hn hR_hi) hn _ hV hpers p_op encode
-      decode ν₀ hsupp₀ hex_corr T hex_hard fun hcorr =>
+      decode ν₀ hsupp₀ hex_corr fun hcorr =>
         hdet hn hU hV hV_lo hR_hi hw hspace hcorr⟩
 
 /-- Combined Word-RAM **Theorem 1.3(1)–(2)**
-(`Ω(n * (log* n + max 0 (log₂(n / max R 1))))` actual expected Word-RAM body instructions) on
-`insertDeleteDist` across all `R ≤ c_R * n` in the zero-error (Las Vegas) or deterministic
-oblivious model ([LiLiangYuZhou2023], Section 1, p. 1 footnote 1 and p. 2 / PDF pp. 2–3, and
-Section 8, pp. 27–30 / PDF pp. 28–31; [Yao1977]). -/
+(`Ω(n * (log* n + max 0 (log₂(n / max R 1))))` exact intrinsic expected non-`halt` body
+instructions `flatExpectedBodyTime`) on `insertDeleteDist` across all `R ≤ c_R * n` in the
+zero-error (Las Vegas) or deterministic oblivious model ([LiLiangYuZhou2023], Section 1, pp. 1–2
+and footnote 1 / PDF pp. 2–3, and Section 8, pp. 27–30 / PDF pp. 28–31; [Yao1977]). -/
 theorem expectedFlatTime_update_ge_iterLogStar_add_log_div {α_V c_R c_w : ℝ} (r_max : ℕ)
     (hα_V : 0 < α_V) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -1270,22 +1181,17 @@ theorem expectedFlatTime_update_ge_iterLogStar_add_log_div {α_V c_R c_w : ℝ} 
         (_hex_corr : ∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
           ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
             ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final T_ops)
-        (T : List (Dynamic.Op U) → ℝ≥0∞)
-        (_hex_hard : ∀ ops ∈ (insertDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV).support,
-          T ops ≠ ⊤ ∧ ∃ ν_final,
-            ExecFlatProgramOps (Dynamic.spec U V n) Latent w base space p_op input encode decode
-              (Dictionary.empty U) ops ν₀ ν_final (T ops)),
+              (Dictionary.empty U) ops ν₀ ν_final T_ops),
         ENNReal.ofReal (c * (n : ℝ) *
           ((Nat.logStar n : ℝ) + max 0 (Real.logb 2 ((n : ℝ) / max R 1)))) ≤
           ∑' ops, insertDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops * T ops := by
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   obtain ⟨c_cp, hc_cp, hdet⟩ := det_expectedSeqProbes_update_ge_iterLogStar_add_log_div hα_V hcR hcw
   refine ⟨c_cp / (2 * (r_max : ℝ) + 1), by positivity, fun hn hU hV hV_lo hR_hi hpers hw
-    hspace p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard =>
+    hspace p_op encode decode ν₀ hsupp₀ hex_corr =>
     expectedFlatTime_scaled_upd hc_cp (add_nonneg (Nat.cast_nonneg _) (_root_.le_max_left 0 _)) hn
-      _ hV hpers p_op encode decode ν₀ hsupp₀ hex_corr T hex_hard fun hcorr =>
+      _ hV hpers p_op encode decode ν₀ hsupp₀ hex_corr fun hcorr =>
         hdet hn hU hV hV_lo hR_hi hw hspace hcorr⟩
 
 /-! ### 4. Certified-Budget Corollaries for `WordRAM.Randomized.StateTransitionImpl` -/
@@ -1323,9 +1229,9 @@ theorem expectedTotalCost_ge_of_iterLog_redundancy {α c_R c_w : ℝ} (r_max : �
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertQueryDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ T hsupp₀ hcorr hhard =>
+    fun ν₀ hsupp₀ hcorr =>
       hflat hn hU hU_poly hV hk_lo hk_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr T hhard
+        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
 
 /-- Certified-budget corollary of `expectedFlatTime_ge_of_sublinear_redundancy` ([CLRS2009],
 Section 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` for any zero-error
@@ -1358,9 +1264,9 @@ theorem expectedTotalCost_ge_of_sublinear_redundancy {α c_w : ℝ} (r_max : ℕ
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertQueryDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ T hsupp₀ hcorr hhard =>
+    fun ν₀ hsupp₀ hcorr =>
       hflat hn hU hU_poly hV hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr T hhard
+        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
 
 /-- Certified-budget corollary of `expectedFlatTime_ge_iterLogStar_add_log_div` ([CLRS2009],
 Section 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` across all `R ≤ c_R * n` on
@@ -1394,9 +1300,9 @@ theorem expectedTotalCost_ge_iterLogStar_add_log_div {α c_R c_w : ℝ} (r_max :
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertQueryDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ T hsupp₀ hcorr hhard =>
+    fun ν₀ hsupp₀ hcorr =>
       hflat hn hU hU_poly hV hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr T hhard
+        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
 
 /-- Certified-budget corollary of `expectedFlatTime_update_ge_iterLog` ([CLRS2009], Section 17.3):
 lower-bounds `C.initPotential + E[totalCost C.charge]` on update-only `insertDeleteDist` for any
@@ -1429,9 +1335,9 @@ theorem expectedTotalCost_update_ge_iterLog {α_V c_R c_w : ℝ} (r_max : ℕ)
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ T hsupp₀ hcorr hhard =>
+    fun ν₀ hsupp₀ hcorr =>
       hflat hn hU hV hV_lo hk_lo hk_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr T hhard
+        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
 
 /-- Certified-budget corollary of `expectedFlatTime_update_ge_sublinear` ([CLRS2009], Section
 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` on update-only `insertDeleteDist`
@@ -1464,9 +1370,9 @@ theorem expectedTotalCost_update_ge_sublinear {α_V c_w : ℝ} (r_max : ℕ)
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ T hsupp₀ hcorr hhard =>
+    fun ν₀ hsupp₀ hcorr =>
       hflat hn hU hV hV_lo hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr T hhard
+        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
 
 /-- Certified-budget corollary of `expectedFlatTime_update_ge_iterLogStar_add_log_div` ([CLRS2009],
 Section 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` on update-only
@@ -1500,8 +1406,8 @@ theorem expectedTotalCost_update_ge_iterLogStar_add_log_div {α_V c_R c_w : ℝ}
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ T hsupp₀ hcorr hhard =>
+    fun ν₀ hsupp₀ hcorr =>
       hflat hn hU hV hV_lo hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr T hhard
+        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
 
 end Cslib.DataStructure.Dictionary.WordRAM
