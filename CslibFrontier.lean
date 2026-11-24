@@ -2390,6 +2390,7 @@ public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Distrib
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Ensemble
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.MildHardness
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Reduction
+public import CslibFrontier.Computability.Complexity.Classes.AverageCase.SharpP
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.WorstCase
 public import CslibFrontier.Computability.Complexity.Classes.BPP
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Amplification
