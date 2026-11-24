@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Label
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -249,8 +250,6 @@ theorem cycle_labels_optimized (c : Circuit signature n n) :
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := cycle_label_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 60000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration

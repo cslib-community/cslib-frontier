@@ -18,9 +18,10 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 /-! Decided text clients of the VeriPB output and conclusion theorems: the acceptance of the
 `decision_output` and `optimization_output_opposing_lits_objective` fixtures of the VeriPB
 repository, of the PHP(3, 2) proof with symmetry breaking by `dom`, and of the optimality proof
-by `dom` under the order `notAux` with an auxiliary variable, and of a projected enumeration that
-changes the preserved set, is checked by `decide +kernel`, and the soundness theorems are applied
-to it. -/
+by `dom` under the order `notAux` with an auxiliary variable, of a projected enumeration that
+changes the preserved set, and of an `EQUIENUMERABLE` output after a change of the preserved set,
+is checked by `decide +kernel`, and the soundness theorems are applied to it; so is the rejection
+of an output whose preserved set the change has broken. -/
 
 set_option linter.privateModule false
 
@@ -101,5 +102,41 @@ theorem enumAfterRm_accepted :
 example : ∃ I P, parseOPB pres4Rm = some I ∧ I.preserved = some P ∧
     (1 : ℕ∞) ≤ (projections I.constraints P).encard :=
   le_encard_of_checkOPB_enumPartial enumAfterRm_accepted
+
+/-- The proof that removes `x5` from the preserved set, redefines it as `~x1` and adds it back is
+accepted with an `EQUIENUMERABLE` output and no bound. -/
+theorem flipX5_accepted : ∃ o : Output,
+    checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Flip = some (.noClaim, some o) ∧
+      o.guarantee = .equienumerable ∧ o.bound = none := by
+  have h : (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Flip).map
+      (fun r => (r.1, r.2.map fun o => (o.guarantee, o.bound))) =
+      some (.noClaim, some (.equienumerable, none)) := by
+    decide +kernel
+  rcases hc : checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Flip with
+    _ | ⟨c, _ | o⟩ <;>
+    simp only [hc, Option.map_some, Option.map_none, reduceCtorEq, Option.some.injEq,
+      Prod.mk.injEq, and_false] at h
+  obtain ⟨rfl, hg, hb⟩ := h
+  exact ⟨o, rfl, hg, hb⟩
+
+-- So, although the preserved set was changed, the projections of the solutions of `pres4Rm` to
+-- its preserved set are in bijection with those of the output formula, read from `pres4Flip` with
+-- well-formed names extending those of `pres4Rm`, to its own.
+example : ∃ I O P Q, parseOPB pres4Rm = some I ∧ I.preserved = some P ∧
+    O.preserved = some Q ∧
+    (∃ f, Set.BijOn f (projections I.constraints P) (projections O.constraints Q)) ∧
+    ∃ N : Names, N.WF ∧ N.Extends (opbNames pres4Rm) ∧ parseOPBWith N pres4Flip = some O := by
+  obtain ⟨o, h, hg, hb⟩ := flipX5_accepted
+  obtain ⟨I, hI, hsem, -, hN⟩ := semOutput_of_checkOPBOutput h
+  rw [hg, hb] at hsem
+  obtain ⟨P, Q, hP, hQ, -⟩ := id hsem
+  exact ⟨I, o.formula, P, Q, hI, hP, hQ, exists_bijOn_projections_of_semOutput hP hQ hsem,
+    hN pres4Flip rfl⟩
+
+/-- After removing `x5` and deleting its definition, an output that still preserves `x5`, which
+would double the count of projections, is rejected. -/
+theorem freeX5_rejected : checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5))
+    pres4FreeX5 = none := by
+  decide +kernel
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

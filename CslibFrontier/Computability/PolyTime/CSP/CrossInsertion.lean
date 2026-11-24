@@ -274,31 +274,23 @@ theorem length_evenName (x : ℕ) (hx : x ≠ 0) :
 ports and table entries. Only list lengths fund loops; no source invariant is used. -/
 theorem computableInPolyTime_insert (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (insert g w) (encState encRel) (encState encRel) := by
-  have hbody : ComputableInPolyTime (State.body (Rel := Rel)) (encState encRel)
-      (encCSP encRel encNat) := encState_body_polyTime encRel .id'
-  have hports : ComputableInPolyTime (State.ports (Rel := Rel)) (encState encRel)
-      (encList encNat) := encState_ports_polyTime encRel .id'
-  have hrot : ComputableInPolyTime (State.rotation (Rel := Rel)) (encState encRel)
-      Graph.encRotationCertificate := encState_rotation_polyTime encRel .id'
-  have htag : ComputableInPolyTime (fun x : ℕ => 2 * x) encNat encNat := by fun_prop
+  open scoped State in
   have hbodytag : ComputableInPolyTime (fun I : State Rel => I.body.relabel (2 * ·))
       (encState encRel) (encCSP encRel encNat) := by
     unfold CSP.relabel Constraint.relabel
     fun_prop
   have hM : ComputableInPolyTime (fun I : State Rel => I.body.occurrences.length)
       (encState encRel) encUnary := by
-    have h := (computableInPolyTime_length_vars encRel encNat).comp hbody
-    simpa only [Function.comp_def, CSP.vars_length_eq_occurrences] using h
-  have hP := (ComputableInPolyTime.length_list encNat).comp hports
-  have htable := computableInPolyTime_appendRawCertificate hM hP
-    (ComputableInPolyTime.const g.body.occurrences.length) (ComputableInPolyTime.const 4)
-    hrot (ComputableInPolyTime.const w.certificate)
-  apply encState_mk_polyTime encRel _ _ htable
-  · exact ComputableInPolyTime.listAppend' hbodytag
-      (ComputableInPolyTime.const (g.body.relabel oddName))
-  · have hmap : ComputableInPolyTime (fun I : State Rel => I.ports.map (2 * ·))
-        (encState encRel) (encList encNat) := by fun_prop
-    exact ComputableInPolyTime.listAppend' hmap (ComputableInPolyTime.const freePorts)
+    simpa only [Function.comp_def, CSP.vars_length_eq_occurrences] using
+      (computableInPolyTime_length_vars encRel encNat).comp (by fun_prop)
+  have htable := computableInPolyTime_appendRawCertificate
+    (leftBody := fun I : State Rel => I.body.occurrences.length)
+    (leftPorts := fun I : State Rel => I.ports.length)
+    (left := State.rotation (Rel := Rel))
+    hM (by fun_prop) (.const g.body.occurrences.length) (.const 4) (by fun_prop)
+    (.const w.certificate)
+  unfold insert
+  exact encState_mk_polyTime encRel (by fun_prop) (by fun_prop) htable
 
 /-- The common-complement/bad-original-relation premises internally yield a static actual
 CROSS insertion with its all-raw native runtime, full checker preservation and exact assignment

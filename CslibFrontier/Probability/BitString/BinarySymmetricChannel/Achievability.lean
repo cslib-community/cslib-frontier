@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.BitString.BinarySymmetricChannel
-public import Mathlib.Algebra.Order.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.BinaryEntropy
 public import Mathlib.Order.Filter.AtTopBot.Defs
 import CslibFrontier.Foundations.Combinatorics.BinomialTail
@@ -16,8 +15,6 @@ import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Foundations.Data.Nat.Choose.Entropy
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Analysis.SpecialFunctions.Exp
-import Mathlib.Data.Fintype.Pi
 import Mathlib.Order.Filter.AtTopBot.Archimedean
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
