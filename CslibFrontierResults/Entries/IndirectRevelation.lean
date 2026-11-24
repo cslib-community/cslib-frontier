@@ -181,11 +181,13 @@ register_result "revelation-principle-bayesian" where
   ]
   scope := "Finite player set [Fintype ι] [DecidableEq ι] with measurable type spaces T i and \
     independent probability priors [∀ i, IsProbabilityMeasure (M.prior i)]. Under integrable \
-    interim utilities and equilibrium interim payments (ImplementsInBayesNash), composing an \
-    indirect BayesianMechanism M with a Bayes–Nash equilibrium s yields a truthful direct \
+    interim utilities (ImplementsInBayesNash, Definition 9.42), composing an indirect \
+    BayesianMechanism M with an implementing Bayes–Nash equilibrium s yields a truthful direct \
     BayesianMechanism D = M.revelation s with probability priors, integrable truthful interim \
-    utilities and interim payments, identical implemented outcome f, and identical ex-post, \
-    interim, and (under ex-ante payment integrability, via revelation_integral_payment_eq) \
-    ex-ante expected equilibrium payments. Derived from the general measure-theoretic \
-    integral-preservation steps BayesianMechanism.revelation_isTruthful, \
-    BayesianMechanism.revelation_interimPayment_eq, and IndirectMechanism.toMechanism_isBICOn."
+    utilities, identical implemented outcome f, identical ex-post and interim payment integrals, \
+    and—whenever player i's equilibrium payment in M is product-measure integrable—integrable \
+    ex-ante payment in D with identical ex-ante expected payment (equal by Fubini to the prior \
+    expectation of interim payments via revelation_integral_payment_eq). All-types interim-payment \
+    slice integrability is given separately in exists_truthful_hasIntegrableInterimPayment; \
+    derived from the general measure-theoretic integral-preservation steps revelation_isTruthful, \
+    revelation_interimPayment_eq, and IndirectMechanism.toMechanism_isBICOn."
