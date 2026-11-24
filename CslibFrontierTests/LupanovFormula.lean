@@ -43,10 +43,10 @@ example : (Formula.openSphere center).eval interpretation
 example : (Formula.neighborSelector center {0, 2}).leafSize = 2 := by simp
 
 example : (Formula.neighborSelector center {0, 2}).eval interpretation
-    (BitString.flipOn {0} center) = true := by simp
+    (BitString.flipOn {0} center) = true := by simp [Formula.eval_neighborSelector_flip]
 
 example : (Formula.neighborSelector center {0, 2}).eval interpretation
-    (BitString.flipOn {1} center) = false := by simp
+    (BitString.flipOn {1} center) = false := by simp [Formula.eval_neighborSelector_flip]
 
 -- The r = 0 partition still has two centers and covers both one-bit assignments exactly once.
 example : ∃ C : Finset (BitString 1), C.card = 2 ∧

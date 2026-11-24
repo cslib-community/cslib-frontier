@@ -89,7 +89,7 @@ noncomputable def neighborSelector (c : BitString n) (S : Finset (Fin n)) : Form
   simp [neighborSelector, List.map_map, Function.comp_def]
 
 /-- On the sphere, the selector accepts exactly the neighbors named by `S`. -/
-@[simp] theorem eval_neighborSelector_flip (c : BitString n) (S : Finset (Fin n)) (i : Fin n) :
+theorem eval_neighborSelector_flip (c : BitString n) (S : Finset (Fin n)) (i : Fin n) :
     (neighborSelector c S).eval interpretation (BitString.flipOn {i} c) = decide (i ∈ S) := by
   classical
   have hbit (j : Fin n) : ((BitString.flipOn {i} c) j == !c j) = decide (j = i) := by
