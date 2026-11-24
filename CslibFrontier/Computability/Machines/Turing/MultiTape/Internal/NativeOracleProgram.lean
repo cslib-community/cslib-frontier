@@ -30,6 +30,14 @@ buffers, answer words and the external handler's private state are separate comm
 resources and are not hidden in finite control. Constructors that copy a reply prefix onto work
 storage must therefore charge that storage explicitly.
 
+Every constructor in this module proves `runsInSpace` from the clock bound
+`tapeCount * (time + 1)` (`clockedRunsInSpace_mul_time_add_one`), raising its workspace ledger to
+that value where needed. The certified workspace of a constructed witness is therefore never below
+its clock bound. The phase workspace entries are construction-assigned labels:
+`postWorkspace_le_postprocess`, `secondWorkspace_le_sequenceCaptured` and
+`bodyWorkspace_le_boundedIterationEncodedOn` say that a subartifact's labels stay below the
+composed peak, not that a phase is measured to use that much space.
+
 The online accounting is componentwise bookkeeping: input/output copying, word parsing,
 representation codecs, marshalling, operation tags, finite dispatch, table lookup, local steps,
 query issue, reply copying and the surrounding controller have separate time and workspace
