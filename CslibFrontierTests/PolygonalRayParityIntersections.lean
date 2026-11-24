@@ -834,4 +834,49 @@ example :
       rw [hi] at h <;> have him := congrArg Complex.im h <;>
       norm_num [AffineMap.lineMap_apply_module'] at him
 
+-- Each family repeats a nonhorizontal segment twice. The two supports cross at zero.
+open Classical in
+example :
+    let a : ℂ := Complex.I
+    let b : ℂ := ⟨1, 1⟩
+    let crosses := (openSegment ℝ (-a) a ∩ openSegment ℝ (-b) b).Nonempty
+    crosses ∧ (∑ _ : Bool, true * ∑ _ : Bool, true * decide crosses) = (0 : Bool) := by
+  intro a b crosses
+  have hm (z : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-z) z := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-z) z
+  refine ⟨⟨0, hm a, hm b⟩, ?_⟩
+  have vertical {z : ℂ} (hz : z ∈ segment ℝ (-a) a) : z.re = 0 := by
+    rw [segment_eq_image_lineMap] at hz
+    obtain ⟨s, _, rfl⟩ := hz
+    simp [a, AffineMap.lineMap_apply_module']
+  have diagonal {z : ℂ} (hz : z ∈ segment ℝ (-b) b) : z.re = z.im := by
+    rw [segment_eq_image_lineMap] at hz
+    obtain ⟨s, _, rfl⟩ := hz
+    simp [b, AffineMap.lineMap_apply_module']
+  apply sum_openIntersections_eq_zero_of_even
+    (fun _ : Bool => -a) (fun _ => a) (fun _ : Bool => -b) (fun _ => b)
+    (fun _ => true) (fun _ => true)
+  · intro i
+    norm_num [a]
+  · intro j
+    norm_num [b]
+  · intro i j _ _
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · intro h
+      have hh := diagonal h
+      norm_num [a] at hh
+    · intro h
+      have hh := diagonal h
+      norm_num [a] at hh
+    · intro h
+      have hh := vertical h
+      norm_num [b] at hh
+    · intro h
+      have hh := vertical h
+      norm_num [b] at hh
+  · intro p
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+  · intro p
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+
 end CslibFrontierTests.PolygonalRayParityIntersections
