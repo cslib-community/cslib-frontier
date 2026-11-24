@@ -16,6 +16,13 @@ import Mathlib.Data.Finset.Sort
 The component graph retains exactly the declared vertices and indexed edge occurrences of
 the chosen component. Its rotation follows the same successors on those ends, using the
 explicit bijection from the smaller graph's darts to the original component darts.
+
+## Main definitions and results
+
+* `componentGraph` and `componentDartEquiv` retain the original edge indices and end tags.
+* `RotationSystem.component` restricts the rotation. `componentDartEquiv_reverse`,
+  `RotationSystem.componentDartEquiv_rotate` and `RotationSystem.componentDartEquiv_faceNext`
+  relate reversal, vertex rotation and face traversal to their original coordinates.
 -/
 
 public section
@@ -102,31 +109,60 @@ theorem vertex_componentDartEquiv (G : Graph) (root : ℕ)
     (G.componentDartEquiv root hG d).val.vertex = d.vertex :=
   (G.vertex_componentEdgeEquiv root d.1 d.2).symm
 
+/-- The dart correspondence uses the selected edge occurrence and the original end tag. -/
+@[simp] theorem val_componentDartEquiv (G : Graph) (root : ℕ)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart (G.componentGraph root)) :
+    (G.componentDartEquiv root hG d).val = ((G.componentEdgeEquiv root d.1).val, d.2) := by
+  unfold componentDartEquiv
+  rfl
+
+/-- The correspondence sends opposite ends of a retained edge to opposite original ends. -/
+@[simp] theorem componentDartEquiv_reverse (G : Graph) (root : ℕ)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart (G.componentGraph root)) :
+    (G.componentDartEquiv root hG d.reverse).val =
+      (G.componentDartEquiv root hG d).val.reverse := by
+  simp only [val_componentDartEquiv, Dart.reverse]
+
 namespace RotationSystem
 
 /-- Restrict a rotation to a component, keeping its original successor at each retained dart. -/
 noncomputable def component {G : Graph} (r : RotationSystem G) (root : ℕ)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) : RotationSystem (G.componentGraph root) := by
-  let e := G.componentDartEquiv root hG
-  let f := r.rotate.subtypePerm (p := fun d => SameComponent G root d.vertex) (by
-    intro d
-    rw [r.vertex_rotate])
-  refine ⟨e.symm.permCongr f, fun a b => ?_⟩
-  have h := Perm.sameCycle_equiv_iff e.symm f (e.symm.permCongr f)
-    (fun d => by simp only [permCongr_apply, Equiv.symm_symm, e.apply_symm_apply]) (e a) (e b)
-  rw [e.symm_apply_apply, e.symm_apply_apply] at h
-  have hsub : f.SameCycle (e a) (e b) ↔ r.rotate.SameCycle (e a).val (e b).val :=
-    Perm.sameCycle_subtypePerm
-  rw [h, hsub, r.sameCycle_iff]
-  rw [G.vertex_componentDartEquiv root hG a, G.vertex_componentDartEquiv root hG b]
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) : RotationSystem (G.componentGraph root) where
+  rotate := (G.componentDartEquiv root hG).symm.permCongr
+    (r.rotate.subtypePerm (p := fun d => SameComponent G root d.vertex)
+      (fun d => by rw [r.vertex_rotate]))
+  sameCycle_iff a b := by
+    let e := G.componentDartEquiv root hG
+    let f := r.rotate.subtypePerm (p := fun d => SameComponent G root d.vertex)
+      (fun d => by rw [r.vertex_rotate])
+    change (e.symm.permCongr f).SameCycle a b ↔ _
+    have h := Perm.sameCycle_equiv_iff e.symm f (e.symm.permCongr f)
+      (fun d => by simp only [permCongr_apply, Equiv.symm_symm, e.apply_symm_apply]) (e a) (e b)
+    rw [e.symm_apply_apply, e.symm_apply_apply] at h
+    have hsub : f.SameCycle (e a) (e b) ↔ r.rotate.SameCycle (e a).val (e b).val :=
+      Perm.sameCycle_subtypePerm
+    rw [h, hsub, r.sameCycle_iff]
+    rw [G.vertex_componentDartEquiv root hG a, G.vertex_componentDartEquiv root hG b]
 
 /-- In the original indexed coordinates, the restricted successor is literally the old one. -/
 theorem componentDartEquiv_rotate {G : Graph} (r : RotationSystem G) (root : ℕ)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart (G.componentGraph root)) :
     (G.componentDartEquiv root hG ((r.component root hG).rotate d)).val =
       r.rotate (G.componentDartEquiv root hG d).val := by
-  simp only [component, permCongr_apply, Equiv.symm_symm, Equiv.apply_symm_apply]
+  dsimp only [component]
+  simp only [permCongr_apply, Equiv.symm_symm, Equiv.apply_symm_apply]
   rfl
+
+/-- The restricted face successor is the original face successor on the retained darts. -/
+theorem componentDartEquiv_faceNext {G : Graph} (r : RotationSystem G) (root : ℕ)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart (G.componentGraph root)) :
+    (G.componentDartEquiv root hG ((r.component root hG).faceNext d)).val =
+      r.faceNext (G.componentDartEquiv root hG d).val := by
+  change (G.componentDartEquiv root hG ((r.component root hG).rotate.symm d.reverse)).val =
+    r.rotate.symm (G.componentDartEquiv root hG d).val.reverse
+  apply r.rotate.injective
+  rw [r.rotate.apply_symm_apply, ← r.componentDartEquiv_rotate root hG,
+    (r.component root hG).rotate.apply_symm_apply, G.componentDartEquiv_reverse]
 
 end RotationSystem
 end Cslib.Complexity.Graph

@@ -31,12 +31,15 @@ private theorem other_component : ¬SameComponent G 0 2 := by
     (by decide +revert) (d := (0, false)) (e := (2, false)) h
   exact Bool.noConfusion he
 
--- The third edge is discarded. The two parallel occurrences keep their successor relation.
+-- The retained parallel occurrences keep their rotation, reversal and face traversal.
 example : (∀ v ∈ (G.componentGraph 0).incidenceVertices, v ∈ (G.componentGraph 0).vertices) ∧
     (∀ i : Fin (G.componentGraph 0).edges.length, (G.componentEdgeEquiv 0 i).val ≠ 2) ∧
     ∃ d : Dart (G.componentGraph 0), d.vertex = 0 ∧
       (G.componentDartEquiv 0 hG d).val = (0, false) ∧
-      (G.componentDartEquiv 0 hG ((r.component 0 hG).rotate d)).val = (1, false) := by
+      let s := r.component 0 hG
+      (G.componentDartEquiv 0 hG (s.rotate d)).val = (1, false) ∧
+      (G.componentDartEquiv 0 hG d.reverse).val = (0, true) ∧
+      (G.componentDartEquiv 0 hG (s.faceNext d)).val = (1, true) := by
   refine ⟨G.componentGraph_endpoints_declared 0 hG, ?_, ?_⟩
   · intro i he
     have hi : (2 : Fin G.edges.length) ∈ G.componentEdgeSet 0 :=
@@ -49,9 +52,16 @@ example : (∀ v ∈ (G.componentGraph 0).incidenceVertices, v ∈ (G.componentG
     let e := G.componentDartEquiv 0 hG
     let d := e.symm a
     have he : (e d).val = (0, false) := congrArg Subtype.val (e.apply_symm_apply a)
-    refine ⟨d, ?_, he, ?_⟩
+    refine ⟨d, ?_, he, ?_, ?_, ?_⟩
     · exact (G.vertex_componentDartEquiv 0 hG d).symm.trans (congrArg Dart.vertex he)
-    · rw [r.componentDartEquiv_rotate, he]
+    · change (e ((r.component 0 hG).rotate d)).val = (1, false)
+      rw [r.componentDartEquiv_rotate, he]
+      decide
+    · change (e d.reverse).val = (0, true)
+      rw [G.componentDartEquiv_reverse, he]
+      rfl
+    · change (e ((r.component 0 hG).faceNext d)).val = (1, true)
+      rw [r.componentDartEquiv_faceNext, he]
       decide
 
 end CslibFrontierTests.RotationComponentRestriction
