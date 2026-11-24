@@ -7,8 +7,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Data.Fin.Tuple.Basic
@@ -45,7 +45,7 @@ size of the auxiliary variable block. The common bounds need only hold for rows 
 noncomputable def Controlled.indexedFeasibility {α : Type} {n : α → ℕ}
     {enc : α ↪ List Bool} {a : ℕ} {P Q : (q : α × ℕ) → MvPolynomial (Fin (n q.1)) ℤ}
     (CP : Controlled P (encPair enc encNat) a) (CQ : Controlled Q (encPair enc encNat) a)
-    (E : Decoder enc) (hn : ComputableInPolyTime n enc encUnary) (e k D b cutoff : α → ℕ)
+    (E : Decoder enc) (e k D b cutoff : α → ℕ)
     (he : ComputableInPolyTime e enc encNat) (hk : ComputableInPolyTime k enc encUnary)
     (hD : ComputableInPolyTime D enc encNat) (hb : ComputableInPolyTime b enc encNat)
     (hcut : ComputableInPolyTime cutoff enc encNat)
@@ -57,6 +57,7 @@ noncomputable def Controlled.indexedFeasibility {α : Type} {n : α → ℕ}
     (hQcut : ∀ w j, j < k w → CQ.cutoff (w, j) ≤ cutoff w) :
     Controlled (fun w => indexedFeasibilityPolynomial (fun j => P (w, j)) (fun j => Q (w, j))
       (e w) (k w)) enc (a + 1) :=
+  let hn : ComputableInPolyTime n enc encUnary := CP.arity_computable.comp (id'.prod (.const 0))
   let hvars := unary_add' hn hk
   let Ppad := CP.appendVariables (fun q => k q.1) (hk.comp (fst enc encNat))
   let Qeq := CQ.positivityEquations k hk
@@ -81,6 +82,25 @@ noncomputable def Controlled.indexedFeasibility {α : Type} {n : α → ℕ}
 
 attribute [local irreducible] indexedFeasibilityPolynomial
 
+/-- Evaluate the squared equation rows on the original coordinates and the squared positivity
+rows using their respective auxiliary coordinates. -/
+theorem eval₂_indexedFeasibilityPolynomial {n : ℕ} {R : Type*} [CommRing R] (f : ℤ →+* R)
+    (P Q : ℕ → MvPolynomial (Fin n) ℤ) (e k : ℕ) (z : Fin (n + k) → R) :
+    MvPolynomial.eval₂ f z (indexedFeasibilityPolynomial P Q e k) =
+      (∑ j ∈ Finset.range e, MvPolynomial.eval₂ f (fun i => z (i.castAdd k)) (P j) ^ 2) +
+        ∑ i : Fin k,
+          (MvPolynomial.eval₂ f (fun j => z (j.castAdd k)) (Q i.val) *
+            z (i.natAdd n) ^ 2 - 1) ^ 2 := by
+  simp only [indexedFeasibilityPolynomial, MvPolynomial.eval₂_add, MvPolynomial.eval₂_sum,
+    MvPolynomial.eval₂_pow, MvPolynomial.eval₂_rename, Function.comp_def]
+  congr 1
+  rw [← Fin.sum_univ_eq_sum_range]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  have hpoint : Fin.addCases (fun j : Fin n => z (j.castAdd k))
+      (fun j : Fin k => z (j.natAdd n)) = z := funext (Fin.addCases_castAdd_natAdd z)
+  rw [← eval₂_positivityEquation f (Q i.val) (fun j => z (j.castAdd k))
+    (fun j => z (j.natAdd n)) i, hpoint]
+
 private theorem eval₂_indexedFeasibilityPolynomial_zero_iff {n : ℕ}
     (P Q : ℕ → MvPolynomial (Fin n) ℤ) (e k : ℕ) (x : Fin n → ℝ) (s : Fin k → ℝ) :
     MvPolynomial.eval₂ (Int.castRingHom ℝ) (Fin.addCases x s)
@@ -88,16 +108,12 @@ private theorem eval₂_indexedFeasibilityPolynomial_zero_iff {n : ℕ}
     (∀ j < e, MvPolynomial.eval₂ (Int.castRingHom ℝ) x (P j) = 0) ∧
       ∀ j < k, MvPolynomial.eval₂ (Int.castRingHom ℝ) (Fin.addCases x s)
         (positivityEquation (Q j) k j) = 0 := by
-  have hrename (j : ℕ) :
-      MvPolynomial.eval₂ (Int.castRingHom ℝ) (Fin.addCases x s)
-        (MvPolynomial.rename (Fin.castAdd k) (P j)) =
-      MvPolynomial.eval₂ (Int.castRingHom ℝ) x (P j) := by
-    simp only [MvPolynomial.eval₂_rename, Function.comp_def, Fin.addCases_left]
-  simp only [indexedFeasibilityPolynomial, MvPolynomial.eval₂_add, MvPolynomial.eval₂_sum,
-    MvPolynomial.eval₂_pow, hrename]
+  simp only [eval₂_indexedFeasibilityPolynomial, Fin.addCases_left, Fin.addCases_right]
+  simp_rw [← eval₂_positivityEquation (Int.castRingHom ℝ) _ x s]
   rw [add_eq_zero_iff_of_nonneg (Finset.sum_nonneg (fun _ _ => sq_nonneg _))
     (Finset.sum_nonneg (fun _ _ => sq_nonneg _))]
-  simp only [Finset.sum_sq_eq_zero_iff, Finset.mem_range]
+  simp only [Finset.sum_sq_eq_zero_iff, Finset.mem_range, Finset.mem_univ, true_implies,
+    Fin.forall_iff]
 
 /-- The combined polynomial has a real zero exactly when the original equations and strict
 inequalities are feasible. The auxiliary coordinates can be chosen independently. -/

@@ -556,25 +556,42 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   · rw [rows.evaluate_eq (w, 2) p z hp (hcut 2), positivityEquation_of_le _ (by decide : 1 ≤ 2)]
     simp [evaluation]
 
--- The system x = 0, 1 > 0 has a real zero and one-level modular evaluation.
-example :
+-- The system x = 0, 1 > 0 has a real zero and evaluates both rows modulo a prime.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let CP : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
         (encPair encNat encNat) 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
     let CQ : Controlled (fun _ : ℕ × ℕ => (1 : MvPolynomial (Fin 1) ℤ))
         (encPair encNat encNat) 0 :=
       Controlled.constant (.const 1) (fun _ => 1) (.const 1)
-    let system := CP.indexedFeasibility CQ Decoder.nat (.const 1) (fun _ => 1) (fun _ => 1)
-      (fun _ => 1) (fun _ => 0) (fun _ => 0) (.const 1) (.const 1) (.const 1) (.const 0)
-      (.const 0) (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp)
+    let system := CP.indexedFeasibility (n := fun _ : ℕ => 1) CQ Decoder.nat
+      (fun _ => 1) (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ => 0)
+      (.const 1) (.const 1) (.const 1) (.const 0) (.const 0)
+      (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp)
       (fun _ _ _ => by simp) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl)
     system.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      (system.cutoff w < p → system.evaluate (w, p, z) =
+        ((z.getD 0 0 : ZMod p) ^ 2 + ((z.getD 1 0 : ZMod p) ^ 2 - 1) ^ 2).val) ∧
       ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
         (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
           (fun _ => 1) 1 1) = 0 := by
   intro CP CQ system
-  refine ⟨system.evaluate_mem, ?_⟩
-  apply (exists_indexedFeasibilityPolynomial_zero_iff (n := 1) (fun _ => X 0) (fun _ => 1) 1 1).mpr
-  exact ⟨fun _ => 0, fun _ _ => by simp, fun _ _ => by simp⟩
+  refine ⟨system.evaluate_mem, fun hcut => ?_, ?_⟩
+  · rw [system.evaluate_eq w p z hp hcut, evaluation,
+      eval₂_indexedFeasibilityPolynomial (n := 1) _ (fun _ => X 0) (fun _ => 1) 1 1]
+    simp [List.getD_eq_getElem?_getD]
+  · apply (exists_indexedFeasibilityPolynomial_zero_iff (n := 1)
+      (fun _ => X 0) (fun _ => 1) 1 1).mpr
+    exact ⟨fun _ => 0, fun _ _ => by simp, fun _ _ => by simp⟩
+
+-- The system x = 0, x > 0 has no real zero even with an auxiliary coordinate.
+example :
+    ¬ ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+      (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (fun _ => X 0) 1 1) = 0 := by
+  intro h
+  obtain ⟨x, he, hq⟩ :=
+    (exists_indexedFeasibilityPolynomial_zero_iff (n := 1) (fun _ => X 0) (fun _ => X 0) 1 1).mp h
+  exact (ne_of_gt (hq 0 (by decide))) (he 0 (by decide))
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
