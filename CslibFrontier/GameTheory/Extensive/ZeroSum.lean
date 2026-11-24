@@ -45,12 +45,12 @@ mixed, and perfect-information form ([vonStengel1996], [vonStengel2007], Chapter
   certificate helper (`isBehaviorNash_of_saddle`) for concrete finite extensive games.
 * **Perfect-information zero-sum games and subgame-perfect equilibria**
   (`PerfectInfoTree.IsZeroSum`, `PerfectInfoTree.IsBehaviorSPE`, `isPureSPE_iff_isBehaviorSPE`,
-  `backwardInduction_isBehaviorSPE`, `backwardInduction_snd_eq_seq_minimax`,
+  `backwardInduction_isBehaviorSPE`, `backwardInduction_payoff_eq_seq_minimax`,
   `isBehaviorNash_evalBehavior_eq_backwardInduction`,
   `isBehaviorSPE_evalBehavior_eq_backwardInduction`): every zero-sum `PerfectInfoTree Bool` embeds
-  via `T.toExtensiveTree` with minimax value equal to `(T.backwardInduction).2 false`, and every
+  via `T.toExtensiveTree` with minimax value equal to `T.backwardInduction.payoff false`, and every
   behavioral/sequence-form/mixed Nash equilibrium—even in trees with continuation ties or non-SPE
-  off-path threats—attains the unique backward-induction payoff `(T.backwardInduction).2`.
+  off-path threats—attains the unique backward-induction payoff `T.backwardInduction.payoff`.
 
 ## References
 
@@ -284,10 +284,10 @@ theorem dotProduct_seqPayoffMat_mulVec_eq_sum_terminal [∀ i h, Fintype (Act i 
 theorem ExtensiveTree.HasNoChance.chanceWeight_eq_one {ι : Type u} {H : ι → Type v}
     {Act : ∀ i, H i → Type} :
     ∀ {T : ExtensiveTree ι H Act}, T.HasNoChance → ∀ z : Terminal T, z.chanceWeight = 1
-  | .leaf _, _, .leaf => rfl
+  | .leaf w, _, .leaf => Terminal.chanceWeight_leaf w
   | @ExtensiveTree.chance _ _ _ _ _ _ _ _, hnc, .chance _ _ => False.elim hnc
   | .decision _ _ _, hnc, .decision a sub =>
-      (hnc a).chanceWeight_eq_one sub
+      (Terminal.chanceWeight_decision a sub).trans ((hnc a).chanceWeight_eq_one sub)
 
 private theorem eq_of_hasNoChance_seq_eq {T : ExtensiveTree Bool H Act} (hnc : T.HasNoChance) :
     ∀ {z₁ z₂ : Terminal T},
@@ -1022,7 +1022,7 @@ theorem mixedToRealizationPlan_behaviorToMixed {ι : Type u} {H : ι → Type v}
   obtain ⟨z, _, hz⟩ := σ.2
   have hzn := hpr.noRepeatedInfoSet z
   rw [← hz, List.map_append] at hzn
-  rw [ExtensiveTree.mixedToRealizationPlan_def]
+  rw [ExtensiveTree.mixedToRealizationPlan_def, ExtensiveTree.behaviorToRealizationPlan_apply]
   exact realizationProbMixed_behaviorToMixed hβ (List.Nodup.of_append_left hzn)
 
 open Classical in
@@ -1151,16 +1151,17 @@ theorem ExtensiveTree.evalBehavior_pureToBehavior {ι : Type u} {H : ι → Type
     (s : ∀ i, PureStrategy H Act i) :
     ∀ (T : ExtensiveTree ι H Act),
       T.evalBehavior (fun i => pureToBehavior (s i)) = T.evalPure s
-  | .leaf _ => rfl
+  | .leaf _ => by simp
   | @ExtensiveTree.chance _ _ _ C instF prob _ next => by
     let _ := instF
     ext j
-    simp only [ExtensiveTree.evalBehavior, ExtensiveTree.evalPure]
+    simp only [ExtensiveTree.evalBehavior_chance, ExtensiveTree.evalPure_chance]
     refine sum_congr rfl fun c _ => ?_
     rw [evalBehavior_pureToBehavior s (next c)]
   | .decision i h next => by
     ext j
-    simp only [ExtensiveTree.evalBehavior, ExtensiveTree.evalPure, pureToBehavior]
+    simp only [ExtensiveTree.evalBehavior_decision, ExtensiveTree.evalPure_decision,
+      pureToBehavior_apply]
     rw [sum_eq_single (s i h)]
     · simp only [Pi.single_eq_same, one_mul]
       rw [evalBehavior_pureToBehavior s (next (s i h))]
@@ -1179,18 +1180,17 @@ every terminal leaf. -/
 theorem IsZeroSum.decision {p : Bool} {A : Type} [Fintype A] [Nonempty A]
     {next : A → PerfectInfoTree Bool} (hzs : (PerfectInfoTree.decision p next).IsZeroSum)
     (a : A) : (next a).IsZeroSum :=
-  fun z => hzs (.decision a z)
+  fun z => by simpa using hzs (.decision a z)
 
 theorem IsZeroSum.chance {C : Type} [Fintype C] {prob : C → ℝ} {hprob : IsMixedStrategy prob}
     {next : C → PerfectInfoTree Bool} (hzs : (PerfectInfoTree.chance prob hprob next).IsZeroSum)
     (c : C) : (next c).IsZeroSum :=
-  fun z => hzs (.chance c z)
+  fun z => by simpa using hzs (.chance c z)
 
 /-- A perfect-information tree is zero-sum iff its extensive-form embedding `T.toExtensiveTree`
 satisfies `ExtensiveTree.IsZeroSum`. -/
 theorem toExtensiveTree_isZeroSum_iff (T : PerfectInfoTree Bool) :
     T.toExtensiveTree.IsZeroSum ↔ T.IsZeroSum := by
-  rw [ExtensiveTree.isZeroSum_iff]
   constructor
   · intro h z
     simpa [leafPathEquivTerminal_payoff] using h (leafPathEquivTerminal T z)
@@ -1202,10 +1202,11 @@ theorem toExtensiveTree_isZeroSum_iff (T : PerfectInfoTree Bool) :
 theorem IsZeroSum.expectedPayoff_add_eq_zero :
     ∀ {T : PerfectInfoTree Bool}, T.IsZeroSum →
       ∀ (s : ∀ i, PureStrategy i T), T.expectedPayoff s false + T.expectedPayoff s true = 0
-  | .leaf _, hzs, _ => hzs .leaf
+  | .leaf _, hzs, _ => by simpa using hzs .leaf
   | @PerfectInfoTree.decision _ _ _ instF instN _, hzs, s => by
     let _ := instF
     let _ := instN
+    simp only [expectedPayoff_decision]
     exact (hzs.decision _).expectedPayoff_add_eq_zero _
   | @PerfectInfoTree.chance _ C instF prob _ next, hzs, s => by
     let _ := instF
@@ -1213,11 +1214,11 @@ theorem IsZeroSum.expectedPayoff_add_eq_zero :
     exact sum_eq_zero fun c _ => by
       rw [(hzs.chance c).expectedPayoff_add_eq_zero _, mul_zero]
 
-theorem IsZeroSum.backwardInduction_snd_add_eq_zero {T : PerfectInfoTree Bool}
+theorem IsZeroSum.backwardInduction_payoff_add_eq_zero {T : PerfectInfoTree Bool}
     (hzs : T.IsZeroSum) :
-    (T.backwardInduction).2 false + (T.backwardInduction).2 true = 0 := by
-  rw [backwardInduction_snd]
-  exact hzs.expectedPayoff_add_eq_zero (T.backwardInduction).1
+    T.backwardInduction.payoff false + T.backwardInduction.payoff true = 0 := by
+  rw [backwardInduction_payoff]
+  exact hzs.expectedPayoff_add_eq_zero T.backwardInduction.strategy
 
 open Classical in
 /-- View a pure strategy profile on `T : PerfectInfoTree ι` as a deterministic behavioral strategy
@@ -1230,7 +1231,8 @@ open Classical in
 theorem toExtensiveBehavior_apply {ι : Type u} (T : PerfectInfoTree ι)
     (s : ∀ i, PureStrategy i T) (i : ι) (h : T.InfoSet i) :
     T.toExtensiveBehavior s i h = Pi.single ((s i).toExtensive h) (1 : ℝ) := by
-  simp [toExtensiveBehavior, pureToBehavior]
+  ext a
+  simp [toExtensiveBehavior]
 
 open Classical in
 theorem isBehaviorStrategy_toExtensiveBehavior {ι : Type u} (T : PerfectInfoTree ι)
@@ -1280,7 +1282,7 @@ theorem toExtensiveTree_isBehaviorNash_pure_iff (T : PerfectInfoTree Bool)
           (Pi.single ((s i).toExtensive) (1 : ℝ)) := by
     intro i
     ext σ
-    rw [ExtensiveTree.behaviorToRealizationPlan, ExtensiveTree.mixedToRealizationPlan_def]
+    rw [ExtensiveTree.behaviorToRealizationPlan_apply, ExtensiveTree.mixedToRealizationPlan_def]
     exact (realizationProbBehavior_pureToBehavior_eq _ _).trans
       (realizationProbMixed_single_eq _ _).symm
   rw [isBehaviorNash_iff_isSeqNash T.toExtensiveTree_perfectRecall, hplan false, hplan true]
@@ -1318,7 +1320,9 @@ theorem IsBehaviorSPE.isBehaviorNash {T : PerfectInfoTree Bool}
     {β : ∀ i, ∀ h : T.InfoSet i, h.Act → ℝ} (hspe : T.IsBehaviorSPE β) :
     T.toExtensiveTree.IsBehaviorNash β := by
   cases T with
-  | leaf _ => exact ⟨(fun _ h => nomatch h), fun _ _ _ => le_rfl⟩
+  | leaf _ =>
+    refine ⟨(fun _ h => nomatch h), fun _ _ _ => ?_⟩
+    simp [toExtensiveTree_def]
   | decision _ _ => exact hspe.1
   | chance _ _ _ => exact hspe.1
 
@@ -1347,17 +1351,17 @@ open Classical in
 /-- Backward induction constructs an explicit behavioral subgame-perfect equilibrium of
 `T.toExtensiveTree`. -/
 theorem backwardInduction_isBehaviorSPE (T : PerfectInfoTree Bool) :
-    T.IsBehaviorSPE (T.toExtensiveBehavior (T.backwardInduction).1) :=
-  (isPureSPE_iff_isBehaviorSPE T (T.backwardInduction).1).1 (isPureSPE_backwardInduction T)
+    T.IsBehaviorSPE (T.toExtensiveBehavior T.backwardInduction.strategy) :=
+  (isPureSPE_iff_isBehaviorSPE T T.backwardInduction.strategy).1 (isPureSPE_backwardInduction T)
 
 open Classical in
 /-- Backward induction constructs a sequence-form Nash equilibrium of `T.toExtensiveTree`. -/
 theorem backwardInduction_isSeqNash (T : PerfectInfoTree Bool) :
     T.toExtensiveTree.IsSeqNash
       (T.toExtensiveTree.behaviorToRealizationPlan false
-        (T.toExtensiveBehavior (T.backwardInduction).1 false))
+        (T.toExtensiveBehavior T.backwardInduction.strategy false))
       (T.toExtensiveTree.behaviorToRealizationPlan true
-        (T.toExtensiveBehavior (T.backwardInduction).1 true)) :=
+        (T.toExtensiveBehavior T.backwardInduction.strategy true)) :=
   ((isBehaviorNash_iff_isSeqNash T.toExtensiveTree_perfectRecall _).1
     (backwardInduction_isBehaviorSPE T).isBehaviorNash).2
 
@@ -1366,47 +1370,50 @@ namespace IsZeroSum
 open Classical in
 /-- In a zero-sum perfect-information game, every behavioral Nash equilibrium `β` of
 `T.toExtensiveTree` (regardless of continuation ties or off-path threats) attains the unique
-backward-induction payoff vector `(T.backwardInduction).2`. -/
+backward-induction payoff vector `T.backwardInduction.payoff`. -/
 theorem isBehaviorNash_evalBehavior_eq_backwardInduction {T : PerfectInfoTree Bool}
     (hzs : T.IsZeroSum) {β : ∀ i, ∀ h : T.InfoSet i, h.Act → ℝ}
     (hβ : T.toExtensiveTree.IsBehaviorNash β) :
-    T.toExtensiveTree.evalBehavior β = (T.backwardInduction).2 := by
+    T.toExtensiveTree.evalBehavior β = T.backwardInduction.payoff := by
   have hzsE : T.toExtensiveTree.IsZeroSum := (toExtensiveTree_isZeroSum_iff T).2 hzs
-  have hbi : T.toExtensiveTree.IsBehaviorNash (T.toExtensiveBehavior (T.backwardInduction).1) :=
+  have hbi : T.toExtensiveTree.IsBehaviorNash
+      (T.toExtensiveBehavior T.backwardInduction.strategy) :=
     (backwardInduction_isBehaviorSPE T).isBehaviorNash
-  have h0_eq : T.toExtensiveTree.evalBehavior β false = (T.backwardInduction).2 false := by
+  have h0_eq : T.toExtensiveTree.evalBehavior β false = T.backwardInduction.payoff false := by
     have h1 := hβ.evalBehavior_eq T.toExtensiveTree_perfectRecall hzsE
     have h2 := hbi.evalBehavior_eq T.toExtensiveTree_perfectRecall hzsE
-    rw [h1.1, ← h2.1, toExtensiveBehavior_evalBehavior, ← backwardInduction_snd]
+    rw [h1.1, ← h2.1, toExtensiveBehavior_evalBehavior, ← backwardInduction_payoff]
   ext i
   cases i with
   | false => exact h0_eq
   | true =>
     rw [hzsE.evalBehavior_true, h0_eq]
-    linarith [hzs.backwardInduction_snd_add_eq_zero]
+    linarith [hzs.backwardInduction_payoff_add_eq_zero]
 
 open Classical in
 /-- The value of player `false`'s backward-induction solution equals both the sequence-form
 maximin/minimax values and the behavioral maximin value of `T.toExtensiveTree`. -/
-theorem backwardInduction_snd_eq_seq_minimax {T : PerfectInfoTree Bool} (hzs : T.IsZeroSum) :
-    (T.backwardInduction).2 false =
+theorem backwardInduction_payoff_eq_seq_minimax {T : PerfectInfoTree Bool} (hzs : T.IsZeroSum) :
+    T.backwardInduction.payoff false =
         (⨆ x : {x : SeqVar T.toExtensiveTree false → ℝ //
             T.toExtensiveTree.IsRealizationPlan false x},
           T.toExtensiveTree.seqLowerVal x.1) ∧
-      (T.backwardInduction).2 false =
+      T.backwardInduction.payoff false =
         (⨅ y : {y : SeqVar T.toExtensiveTree true → ℝ //
             T.toExtensiveTree.IsRealizationPlan true y},
           T.toExtensiveTree.seqUpperVal y.1) ∧
-      (T.backwardInduction).2 false =
+      T.backwardInduction.payoff false =
         (⨆ β₀ : {β₀ : ∀ h : T.InfoSet false, h.Act → ℝ // IsBehaviorStrategy β₀},
           T.toExtensiveTree.behaviorLowerVal β₀.1) := by
   have hzsE : T.toExtensiveTree.IsZeroSum := (toExtensiveTree_isZeroSum_iff T).2 hzs
-  have hbi : T.toExtensiveTree.IsBehaviorNash (T.toExtensiveBehavior (T.backwardInduction).1) :=
+  have hbi : T.toExtensiveTree.IsBehaviorNash
+      (T.toExtensiveBehavior T.backwardInduction.strategy) :=
     (backwardInduction_isBehaviorSPE T).isBehaviorNash
   have heq := hbi.evalBehavior_eq T.toExtensiveTree_perfectRecall hzsE
-  have hval : (T.backwardInduction).2 false =
-      T.toExtensiveTree.evalBehavior (T.toExtensiveBehavior (T.backwardInduction).1) false := by
-    rw [toExtensiveBehavior_evalBehavior, ← backwardInduction_snd]
+  have hval : T.backwardInduction.payoff false =
+      T.toExtensiveTree.evalBehavior
+        (T.toExtensiveBehavior T.backwardInduction.strategy) false := by
+    rw [toExtensiveBehavior_evalBehavior, ← backwardInduction_payoff]
   have hseq_eq :
       (⨆ x : {x : SeqVar T.toExtensiveTree false → ℝ //
           T.toExtensiveTree.IsRealizationPlan false x}, T.toExtensiveTree.seqLowerVal x.1) =
@@ -1417,42 +1424,42 @@ theorem backwardInduction_snd_eq_seq_minimax {T : PerfectInfoTree Bool} (hzs : T
 
 open Classical in
 /-- Every behavioral subgame-perfect equilibrium of a zero-sum perfect-information game attains
-the backward-induction payoff vector `(T.backwardInduction).2`. -/
+the backward-induction payoff vector `T.backwardInduction.payoff`. -/
 theorem isBehaviorSPE_evalBehavior_eq_backwardInduction {T : PerfectInfoTree Bool}
     (hzs : T.IsZeroSum) {β : ∀ i, ∀ h : T.InfoSet i, h.Act → ℝ} (hspe : T.IsBehaviorSPE β) :
-    T.toExtensiveTree.evalBehavior β = (T.backwardInduction).2 :=
+    T.toExtensiveTree.evalBehavior β = T.backwardInduction.payoff :=
   hzs.isBehaviorNash_evalBehavior_eq_backwardInduction hspe.isBehaviorNash
 
 open Classical in
 /-- Every pure Nash equilibrium (and hence every pure subgame-perfect equilibrium) of a zero-sum
-perfect-information game has expected payoff equal to `(T.backwardInduction).2`. -/
+perfect-information game has expected payoff equal to `T.backwardInduction.payoff`. -/
 theorem isPureNash_expectedPayoff_eq_backwardInduction {T : PerfectInfoTree Bool}
     (hzs : T.IsZeroSum) {s : ∀ i, PureStrategy i T} (hs : T.toCostGame.IsPureNash s) :
-    T.expectedPayoff s = (T.backwardInduction).2 := by
+    T.expectedPayoff s = T.backwardInduction.payoff := by
   have hβ := (toExtensiveTree_isBehaviorNash_pure_iff T s).2 hs
   have hev := hzs.isBehaviorNash_evalBehavior_eq_backwardInduction hβ
   rwa [toExtensiveBehavior_evalBehavior] at hev
 
 open Classical in
 /-- Every mixed Nash equilibrium of `T.toCostGame` in a zero-sum perfect-information game attains
-the unique backward-induction payoff vector `(T.backwardInduction).2`. -/
+the unique backward-induction payoff vector `T.backwardInduction.payoff`. -/
 theorem isMixedNash_expectedPayoff_eq_backwardInduction {T : PerfectInfoTree Bool}
     (hzs : T.IsZeroSum) {μ : ∀ i, PureStrategy i T → ℝ} (hμ : T.toCostGame.IsMixedNash μ) :
     T.toExtensiveTree.evalMixed (fun i sE => μ i (PureStrategy.ofExtensive T sE)) =
-      (T.backwardInduction).2 := by
+      T.backwardInduction.payoff := by
   have hzsE : T.toExtensiveTree.IsZeroSum := (toExtensiveTree_isZeroSum_iff T).2 hzs
   have hmixE := (toExtensiveTree_isMixedNash_iff T μ).2 hμ
   have h0_eq :
       T.toExtensiveTree.evalMixed (fun i sE => μ i (PureStrategy.ofExtensive T sE)) false =
-        (T.backwardInduction).2 false := by
+        T.backwardInduction.payoff false := by
     have hm := hzsE.isMixedNash_evalMixed_eq T.toExtensiveTree_perfectRecall hmixE
-    exact hm.2.trans (hzs.backwardInduction_snd_eq_seq_minimax).1.symm
+    exact hm.2.trans (hzs.backwardInduction_payoff_eq_seq_minimax).1.symm
   ext i
   cases i with
   | false => exact h0_eq
   | true =>
     rw [hzsE.evalMixed_true, h0_eq]
-    linarith [hzs.backwardInduction_snd_add_eq_zero]
+    linarith [hzs.backwardInduction_payoff_add_eq_zero]
 
 end IsZeroSum
 

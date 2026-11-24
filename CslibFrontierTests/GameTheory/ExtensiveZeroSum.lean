@@ -33,7 +33,7 @@ Non-vacuous checked examples exercising `CslibFrontier.GameTheory.Extensive.Zero
 * **Witness 2 — Zero-sum perfect-information tree with chance & off-path non-SPE Nash
   (`zeroPerfectTree`)**: verifies `PerfectInfoTree.IsZeroSum`, `isPureSPE_iff_isBehaviorSPE`,
   `backwardInduction_isBehaviorSPE`, `backwardInduction_isSeqNash`,
-  `backwardInduction_snd_eq_seq_minimax` (value `2`),
+  `backwardInduction_payoff_eq_seq_minimax` (value `2`),
   `isPureNash_expectedPayoff_eq_backwardInduction`,
   `isMixedNash_expectedPayoff_eq_backwardInduction`, and a non-credible off-path behavioral Nash
   equilibrium with the same minimax payoff `2` that fails `IsBehaviorSPE` and `IsPureSPE`.
@@ -117,7 +117,6 @@ theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ)) :=
     kuhnDealTree (kuhnCard₀ d) (kuhnCard₁ d)
 
 theorem kuhnGame_isZeroSum : kuhnGame.IsZeroSum := by
-  rw [ExtensiveTree.isZeroSum_iff]
   intro z
   cases z with
   | chance _ sub =>
@@ -128,13 +127,13 @@ theorem kuhnGame_isZeroSum : kuhnGame.IsZeroSum := by
         cases sub₁ with
         | decision a₁ sub₂ =>
           cases a₁ with
-          | false => cases sub₂; exact add_neg_cancel _
+          | false => cases sub₂; simp [kuhnShowdown, zsPayoff]
           | true =>
             cases sub₂ with
-            | decision a₂ sub₃ => cases a₂ <;> (cases sub₃; exact add_neg_cancel _)
+            | decision a₂ sub₃ => cases a₂ <;> (cases sub₃; simp [kuhnShowdown, zsPayoff])
       | true =>
         cases sub₁ with
-        | decision a₁ sub₂ => cases a₁ <;> (cases sub₂; exact add_neg_cancel _)
+        | decision a₁ sub₂ => cases a₁ <;> (cases sub₂; simp [kuhnShowdown, zsPayoff])
 
 private theorem kuhnDealTree_playerSeq_false (c₀ c₁ c : Fin 3) (b : Bool)
     {v : Node (kuhnDealTree c₀ c₁)} (hv : v.IsDecisionOf false (c, b)) :
@@ -279,7 +278,8 @@ theorem kuhnGame_card_support_le_30 :
 private theorem kuhnDealTree_evalBehavior_false (β : ∀ i, ∀ h : kuhnH i, kuhnAct i h → ℝ)
     (c₀ c₁ : Fin 3) :
     (kuhnDealTree c₀ c₁).evalBehavior β false = kuhnDealPayoff β c₀ c₁ := by
-  simp only [ExtensiveTree.evalBehavior, Fintype.sum_bool, kuhnShowdown, zsPayoff, kuhnDealPayoff]
+  simp only [kuhnDealTree, ExtensiveTree.evalBehavior_decision, ExtensiveTree.evalBehavior_leaf,
+    Fintype.sum_bool, kuhnShowdown, zsPayoff, kuhnDealPayoff]
   split_ifs <;> ring
 
 private theorem kuhnGame_evalBehavior_false (β : ∀ i, ∀ h : kuhnH i, kuhnAct i h → ℝ) :
@@ -288,9 +288,8 @@ private theorem kuhnGame_evalBehavior_false (β : ∀ i, ∀ h : kuhnH i, kuhnAc
         (kuhnDealPayoff β 0 1 + kuhnDealPayoff β 0 2 +
          kuhnDealPayoff β 1 0 + kuhnDealPayoff β 1 2 +
          kuhnDealPayoff β 2 0 + kuhnDealPayoff β 2 1) := by
-  dsimp only [kuhnGame]
-  rw [ExtensiveTree.evalBehavior]
-  simp only [Fin.sum_univ_six, kuhnCard₀, kuhnCard₁, kuhnDealTree_evalBehavior_false]
+  simp only [kuhnGame, ExtensiveTree.evalBehavior_chance, Fin.sum_univ_six, kuhnCard₀, kuhnCard₁,
+    kuhnDealTree_evalBehavior_false]
   ring
 
 /-- Player `false`'s parameterized family of minimax behavioral strategies (`0 ≤ α ≤ 1 / 3`) in
@@ -543,47 +542,62 @@ the exact same minimax value `2`. -/
 
 theorem zeroPerfectSPE_isPureSPE : zeroPerfectTree.IsPureSPE zeroPerfectSPE := by
   rw [PerfectInfoTree.isPureSPE_iff_oneShot]
+  have hsub : zeroPerfectSub.expectedPayoff
+      (fun i => ((zeroPerfectSPE i).childDecision true).childChance true) = zsPayoff 0 := by
+    rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := true)
+      (by simp [zeroPerfectSPE]), PerfectInfoTree.expectedPayoff_leaf]
   refine ⟨fun a => ?_, fun a => ?_⟩
-  · cases a <;> simp [zeroPerfectSPE, zsPayoff]
+  · rw [show (zeroPerfectSPE false).headChoice = false by simp [zeroPerfectSPE],
+      PerfectInfoTree.expectedPayoff_leaf]
+    cases a
+    · simp [zsPayoff]
+    · simp only [PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
+        PerfectInfoTree.expectedPayoff_leaf, hsub, zsPayoff]
+      norm_num
   · cases a
     · trivial
     · intro c
       cases c
       · trivial
       · refine ⟨fun b => ?_, fun b => ?_⟩
-        · cases b <;> simp [zeroPerfectSPE, zsPayoff]
+        · dsimp only
+          rw [show (((zeroPerfectSPE true).childDecision true).childChance true).headChoice = true
+            by simp [zeroPerfectSPE], PerfectInfoTree.expectedPayoff_leaf]
+          cases b <;> simp [zsPayoff]
         · cases b <;> trivial
 
 theorem zeroPerfectThreat_isPureNash : zeroPerfectTree.toCostGame.IsPureNash zeroPerfectThreat := by
+  have hroot : zeroPerfectTree.expectedPayoff zeroPerfectThreat = zsPayoff 2 := by
+    rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+      (by simp [zeroPerfectThreat]), PerfectInfoTree.expectedPayoff_leaf]
   intro i σ'
   cases i with
   | false =>
-    simp only [PerfectInfoTree.toCostGame, neg_le_neg_iff]
-    rw [PerfectInfoTree.expectedPayoff_decision, PerfectInfoTree.expectedPayoff_decision,
-      Function.update_self]
+    simp only [PerfectInfoTree.toCostGame_cost, neg_le_neg_iff, hroot]
     cases h : σ'.headChoice
-    · simp [zeroPerfectThreat]
-    · rw [PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
-        PerfectInfoTree.expectedPayoff_leaf, PerfectInfoTree.expectedPayoff_decision]
-      rw [Function.update_of_ne Bool.false_ne_true.symm]
-      simp only [zeroPerfectThreat, PerfectInfoTree.PureStrategy.headChoice_decision,
-        PerfectInfoTree.PureStrategy.childDecision_decision,
-        PerfectInfoTree.PureStrategy.childChance_chance,
-        PerfectInfoTree.expectedPayoff_leaf, zsPayoff]
+    · rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+        (by simp [h]), PerfectInfoTree.expectedPayoff_leaf]
+    · rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := true)
+        (by simp [h]), PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
+        PerfectInfoTree.expectedPayoff_leaf,
+        PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+          (by simp [zeroPerfectThreat]),
+        PerfectInfoTree.expectedPayoff_leaf]
+      simp only [zsPayoff]
       norm_num
   | true =>
-    simp only [PerfectInfoTree.toCostGame, neg_le_neg_iff]
-    rw [PerfectInfoTree.expectedPayoff_decision, Function.update_of_ne Bool.false_ne_true]
-    rfl
+    simp only [PerfectInfoTree.toCostGame_cost, neg_le_neg_iff, hroot]
+    rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+      (by simp [zeroPerfectThreat]), PerfectInfoTree.expectedPayoff_leaf]
 
 theorem zeroPerfectThreat_not_isPureSPE : ¬ zeroPerfectTree.IsPureSPE zeroPerfectThreat := by
   intro hspe
   rw [PerfectInfoTree.isPureSPE_iff_oneShot] at hspe
   have hsub := (hspe.2 true true).1 true
-  simp only [zeroPerfectThreat, PerfectInfoTree.PureStrategy.childDecision_decision,
-    PerfectInfoTree.PureStrategy.childChance_chance,
-    PerfectInfoTree.PureStrategy.headChoice_decision,
-    PerfectInfoTree.expectedPayoff_leaf, zsPayoff] at hsub
+  dsimp only at hsub
+  rw [show (((zeroPerfectThreat true).childDecision true).childChance true).headChoice = false
+    by simp [zeroPerfectThreat]] at hsub
+  simp only [PerfectInfoTree.expectedPayoff_leaf, zsPayoff] at hsub
   norm_num at hsub
 
 open Classical in
@@ -594,10 +608,10 @@ theorem zeroPerfectTree_spe_vs_threat :
     zeroPerfectTree.IsBehaviorSPE (zeroPerfectTree.toExtensiveBehavior zeroPerfectSPE) ∧
       zeroPerfectTree.toExtensiveTree.IsSeqNash
         (zeroPerfectTree.toExtensiveTree.behaviorToRealizationPlan false
-          (zeroPerfectTree.toExtensiveBehavior (zeroPerfectTree.backwardInduction).1 false))
+          (zeroPerfectTree.toExtensiveBehavior zeroPerfectTree.backwardInduction.strategy false))
         (zeroPerfectTree.toExtensiveTree.behaviorToRealizationPlan true
-          (zeroPerfectTree.toExtensiveBehavior (zeroPerfectTree.backwardInduction).1 true)) ∧
-      (zeroPerfectTree.backwardInduction).2 false = 2 ∧
+          (zeroPerfectTree.toExtensiveBehavior zeroPerfectTree.backwardInduction.strategy true)) ∧
+      zeroPerfectTree.backwardInduction.payoff false = 2 ∧
       (⨆ x : {x : SeqVar zeroPerfectTree.toExtensiveTree false → ℝ //
           zeroPerfectTree.toExtensiveTree.IsRealizationPlan false x},
         zeroPerfectTree.toExtensiveTree.seqLowerVal x.1) = 2 ∧
@@ -609,25 +623,24 @@ theorem zeroPerfectTree_spe_vs_threat :
       (¬ zeroPerfectTree.IsBehaviorSPE (zeroPerfectTree.toExtensiveBehavior zeroPerfectThreat)) ∧
       (zeroPerfectTree.toExtensiveTree.evalBehavior
         (zeroPerfectTree.toExtensiveBehavior zeroPerfectThreat) =
-          (zeroPerfectTree.backwardInduction).2) ∧
-      (zeroPerfectTree.expectedPayoff zeroPerfectSPE = (zeroPerfectTree.backwardInduction).2) ∧
+          zeroPerfectTree.backwardInduction.payoff) ∧
+      (zeroPerfectTree.expectedPayoff zeroPerfectSPE = zeroPerfectTree.backwardInduction.payoff) ∧
       (zeroPerfectTree.toExtensiveTree.evalMixed
         (fun i sE => (Pi.single (zeroPerfectSPE i) (1 : ℝ) :
             PerfectInfoTree.PureStrategy i zeroPerfectTree → ℝ)
           (PerfectInfoTree.PureStrategy.ofExtensive zeroPerfectTree sE)) =
-          (zeroPerfectTree.backwardInduction).2) := by
+          zeroPerfectTree.backwardInduction.payoff) := by
   have hspeB := (PerfectInfoTree.isPureSPE_iff_isBehaviorSPE zeroPerfectTree zeroPerfectSPE).1
     zeroPerfectSPE_isPureSPE
   have hbi_seq := PerfectInfoTree.backwardInduction_isSeqNash zeroPerfectTree
-  have hbi_eq : (zeroPerfectTree.backwardInduction).2 = zsPayoff 2 := by
+  have hbi_eq : zeroPerfectTree.backwardInduction.payoff = zsPayoff 2 := by
     have heq := zeroPerfectTree_isZeroSum.isPureNash_expectedPayoff_eq_backwardInduction
       zeroPerfectSPE_isPureSPE.isPureNash
-    rw [← heq]
-    ext i
-    cases i <;> simp [zeroPerfectSPE, zsPayoff]
-  have hbi0 : (zeroPerfectTree.backwardInduction).2 false = 2 := by
+    rw [← heq, PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+      (by simp [zeroPerfectSPE]), PerfectInfoTree.expectedPayoff_leaf]
+  have hbi0 : zeroPerfectTree.backwardInduction.payoff false = 2 := by
     rw [hbi_eq]
-  obtain ⟨hs_lo, hs_hi, _⟩ := zeroPerfectTree_isZeroSum.backwardInduction_snd_eq_seq_minimax
+  obtain ⟨hs_lo, hs_hi, _⟩ := zeroPerfectTree_isZeroSum.backwardInduction_payoff_eq_seq_minimax
   have hthreatB : zeroPerfectTree.toExtensiveTree.IsBehaviorNash
       (zeroPerfectTree.toExtensiveBehavior zeroPerfectThreat) :=
     (PerfectInfoTree.toExtensiveTree_isBehaviorNash_pure_iff zeroPerfectTree zeroPerfectThreat).2
@@ -638,10 +651,10 @@ theorem zeroPerfectTree_spe_vs_threat :
     exact zeroPerfectThreat_not_isPureSPE
   have hthreat_ev : zeroPerfectTree.toExtensiveTree.evalBehavior
       (zeroPerfectTree.toExtensiveBehavior zeroPerfectThreat) =
-        (zeroPerfectTree.backwardInduction).2 :=
+        zeroPerfectTree.backwardInduction.payoff :=
     zeroPerfectTree_isZeroSum.isBehaviorNash_evalBehavior_eq_backwardInduction hthreatB
   have hspe_ev : zeroPerfectTree.expectedPayoff zeroPerfectSPE =
-      (zeroPerfectTree.backwardInduction).2 :=
+      zeroPerfectTree.backwardInduction.payoff :=
     zeroPerfectTree_isZeroSum.isPureNash_expectedPayoff_eq_backwardInduction
       zeroPerfectSPE_isPureSPE.isPureNash
   have hmix_ev :=
@@ -692,17 +705,16 @@ theorem detSeqMP_hasNoChance : detSeqMP.HasNoChance := by
   · exact fun _ _ => trivial
 
 theorem detSeqMP_isZeroSum : detSeqMP.IsZeroSum := by
-  rw [ExtensiveTree.isZeroSum_iff]
   intro z
   cases z with
   | decision a₀ sub =>
     cases a₀ with
-    | false => cases sub; exact add_neg_cancel _
+    | false => cases sub; simp [zsPayoff]
     | true =>
       cases sub with
       | decision a₁ sub' =>
         cases sub' with
-        | decision a₂ sub'' => cases a₁ <;> cases a₂ <;> (cases sub''; exact add_neg_cancel _)
+        | decision a₂ sub'' => cases a₁ <;> cases a₂ <;> (cases sub''; simp [detPayoff, zsPayoff])
 
 private theorem detSeqMP_playerSeq_false (h : detH false) {v : Node detSeqMP}
     (hv : v.IsDecisionOf false h) :
@@ -774,7 +786,8 @@ private theorem detSeqMP_evalBehavior_false (β : ∀ i, ∀ h : detH i, detAct 
       β false false true *
         (β false true false * (β true () false * 1 + β true () true * (-1)) +
           β false true true * (β true () false * (-1) + β true () true * 3)) := by
-  simp only [ExtensiveTree.evalBehavior, Fintype.sum_bool, detPayoff, zsPayoff]
+  simp only [detSeqMP, ExtensiveTree.evalBehavior_decision, ExtensiveTree.evalBehavior_leaf,
+    Fintype.sum_bool, detPayoff, zsPayoff]
   ring
 
 private noncomputable def detTermEquiv : Fin 5 ≃ Terminal detSeqMP where
@@ -846,7 +859,7 @@ theorem detSeqMP_sparse_and_mixed_minimax :
       (detSeqMP.leafSeqPair (.decision true (.decision true (.decision true .leaf)))).1
       (detSeqMP.leafSeqPair (.decision true (.decision true (.decision true .leaf)))).2 = 3 := by
     rw [detSeqMP_hasNoChance.seqPayoffMat_leafSeqPair]
-    rfl
+    simp [detPayoff, zsPayoff]
   obtain ⟨_, _, hev, hbv, _⟩ :=
     detSeqMP_isZeroSum.isBehaviorNash_of_saddle detSeqMP_perfectRecall (1 / 3 : ℝ)
       detOptB_isBehavior
@@ -915,12 +928,11 @@ strictly dominating action `2` for both players. -/
   .decision false () fun a₀ => .decision true () fun a₁ => .leaf (biPayoff a₀ a₁)
 
 theorem biGame_isZeroSum : biGame.IsZeroSum := by
-  rw [ExtensiveTree.isZeroSum_iff]
   intro z
   cases z with
   | decision a₀ s =>
     cases s with
-    | decision a₁ s' => cases s'; exact add_neg_cancel _
+    | decision a₁ s' => cases s'; simp [biPayoff, zsPayoff]
 
 theorem biGame_perfectRecall (i : Bool) : biGame.PerfectRecall i := by
   intro h v₁ v₂ hv₁ hv₂
@@ -965,7 +977,8 @@ private theorem biGame_evalBehavior_false (β : ∀ i, ∀ h : biH i, biAct i h 
     biGame.evalBehavior β false =
       (β false () 0 + β false () 1) * ((β true () 0 + β true () 1) * 1 + β true () 2 * 3) +
         β false () 2 * ((β true () 0 + β true () 1) * (-1)) := by
-  simp only [ExtensiveTree.evalBehavior, Fin.sum_univ_three, biPayoff, zsPayoff]
+  simp only [biGame, ExtensiveTree.evalBehavior_decision, ExtensiveTree.evalBehavior_leaf,
+    Fin.sum_univ_three, biPayoff, zsPayoff]
   norm_num
   ring
 
