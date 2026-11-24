@@ -40,10 +40,9 @@ against values computed outside Lean.
 
 * [NIST, *Stateless Hash-Based Digital Signature Standard*, Section 4.1, Section 9,
   Table 2, Algorithm 19, and Sections 11.1--11.2.2][NISTFIPS205]
-* [A. Hülsing and M. Kudinov, *Recovering the Tight Security Proof of
-  SPHINCS+*][HulsingKudinov2022], cited for the security properties the SPHINCS+ proof requires of
-  these two calls. No declaration here states or proves them, and no locator in the paper has been
-  verified.
+* [A. Hülsing and M. Kudinov, *Recovering the Tight Security Proof of SPHINCS+*,
+  Theorem 3 and Equations (5)--(6)][HulsingKudinov2022], cited for the security properties the
+  SPHINCS+ proof requires of these two calls; no declaration here states or proves them.
 -/
 
 public section
