@@ -22,10 +22,10 @@ private def input : Data 11 :=
 /-- Clearing ignores the old contents, including nonzero words in the output block. -/
 example : (Code.eval 8 4 Histogram.program (input.write 10 77)).map
     (fun yn => (yn.1.mem 10, yn.1.mem 11, yn.1.mem 12, yn.1.regs Histogram.total, yn.2)) =
-      some (3, 1, 0, 6, 68) := by decide
+      some (3, 1, 0, 6, 66) := by decide +kernel
 
 /-- Read the same result through the generic charged theorem, checking both frames. -/
-example : ∃ y, ExecWithin 8 Histogram.program input y 68 ∧
+example : ∃ y, ExecWithin 8 Histogram.program input y 66 ∧
     y.mem 10 = 3 ∧ y.mem 11 = 1 ∧ y.regs Histogram.total = 6 ∧
     y.mem 0 = 4 ∧ y.mem 13 = 0 := by
   obtain ⟨y, hy, hm, ht, _⟩ := Histogram.exec (w := 8) input keys
@@ -50,7 +50,7 @@ example : ∃ y, ExecWithin 8 Histogram.program input y 68 ∧
 /-- Empty inputs and empty histograms pay only setup and two failed loop tests. -/
 example : (Code.eval 8 0 Histogram.program
     ((input.set Histogram.len 0).set Histogram.bins 0)).map
-      (fun yn => (yn.1.regs Histogram.total, yn.2)) = some (0, 9) := by decide
+      (fun yn => (yn.1.regs Histogram.total, yn.2)) = some (0, 10) := by decide +kernel
 
 /-- A singleton has no collision; two equal keys at different positions create two. -/
 example : Histogram.pairs (fun _ => 0) 0 = 0 ∧
@@ -68,7 +68,8 @@ private def signedInput : Data 16 :=
 
 /-- Negative dividends use Euclidean residues, and the outputs are decoded unsigned keys. -/
 example : (Code.eval 8 4 ThreeSum.ChanHe.Residues.program signedInput).map
-    (fun yn => (List.range 4).map fun i => yn.1.mem (10 + i)) = some [1, 1, 1, 1] := by decide
+    (fun yn => (List.range 4).map fun i => yn.1.mem (10 + i)) =
+      some [1, 1, 1, 1] := by decide +kernel
 
 /-- The signed-array contract has satisfiable hypotheses on the executed negative input. -/
 example : ∃ y, ExecWithin 8 ThreeSum.ChanHe.Residues.program signedInput y 96 ∧
@@ -97,13 +98,11 @@ private def countInput : Data 28 :=
     ThreeSum.ChanHe.Count.scratch 10).set ThreeSum.ChanHe.Count.len 4).set
     ThreeSum.ChanHe.Count.modulus (encode 3)).set ThreeSum.ChanHe.Count.dst 20
 
--- Evaluating the three renamed loops unfolds over 150 native instructions and their register maps.
-set_option maxRecDepth 4096 in
 /-- Execute the composed signed-input program and check its unsigned count and both arrays. -/
 example : (Code.eval 8 4 ThreeSum.ChanHe.Count.program countInput).map
     (fun yn => [yn.1.mem 1, yn.1.mem 10, yn.1.mem 13, yn.1.mem 20, yn.1.mem 21,
       yn.1.mem 22, yn.1.regs ThreeSum.ChanHe.Count.total]) =
-        some [encode (-5), 1, 1, 0, 4, 0, 12] := by decide
+        some [encode (-5), 1, 1, 0, 4, 0, 12] := by decide +kernel
 
 /-- The full composed contract is admissible for the same negative-input example. -/
 example : ∃ y, ExecWithin 8 ThreeSum.ChanHe.Count.program countInput y 169 ∧
@@ -128,8 +127,6 @@ example : ∃ y, ExecWithin 8 ThreeSum.ChanHe.Count.program countInput y 169 ∧
   · rw [hm]; decide
   · rw [hm]; decide
 
--- The three complete program evaluations unfold the renamed loops and register maps.
-set_option maxRecDepth 4096 in
 /-- The composed program handles lengths zero, one and two, including an unused modulus block. -/
 example : ((Code.eval 8 3 ThreeSum.ChanHe.Count.program
       (countInput.set ThreeSum.ChanHe.Count.len 0)).map
@@ -139,7 +136,7 @@ example : ((Code.eval 8 3 ThreeSum.ChanHe.Count.program
         (fun yn => yn.1.regs ThreeSum.ChanHe.Count.total)) = some 0 ∧
     ((Code.eval 8 3 ThreeSum.ChanHe.Count.program
       (countInput.set ThreeSum.ChanHe.Count.len 2)).map
-        (fun yn => yn.1.regs ThreeSum.ChanHe.Count.total)) = some 2 := by decide
+        (fun yn => yn.1.regs ThreeSum.ChanHe.Count.total)) = some 2 := by decide +kernel
 
 /-- Equal integer values violate the set-enumeration premise, even at different positions. -/
 example : ¬Set.InjOn (fun _ : ℕ => (-1 : ℤ)) (↑(Finset.range 2) : Set ℕ) := by

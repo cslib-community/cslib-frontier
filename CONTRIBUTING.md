@@ -211,7 +211,7 @@ experiments, advantages, ideal laws, encodings and the theorem's own variables n
 The scan is advisory. It points a reviewer at premises about a constructed object, and a hit is a
 prompt to open the statement, not a debt. On a pull request CI prints, without failing, the hits
 in the changed modules that `scripts/security_premises_baseline.json` does not record and the
-entries there that no longer match; merge groups and pushes print every difference. A baseline
+entries there that no longer match; pushes to `main` print every difference. A baseline
 entry is a note that a hit is known (an algebraic helper whose name and docstring say so, a
 premise that the rule allows but the scan cannot tell apart, or a misformalization tracked under
 #5293). It is not a clearance, and the number of entries does not measure progress.
@@ -437,7 +437,14 @@ enforces its baseline and the `local notation` rule only in the modules a pull r
 and merge groups only report,
 so `main` can drift above the baseline; the next change to a drifted module names the encoding
 or records it with `--update-baseline --allow-increase`. Its docstring gives the rule and the
-options. On pull requests CI also runs
+options. CI's source checks also run `python3 scripts/check_timem.py`, which unconditionally
+forbids all uses of the removed `TimeM` cost monad
+([policy/statements.md](policy/statements.md#running-time-claims),
+[#7636](https://github.com/cslib-community/cslib-frontier/issues/7636),
+[#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)): any occurrence in
+masked Lean syntax of `TimeM`, tick notation `✓`, `time_simps`, `time_spec`, or
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` fails the check (`Cslib.Algorithms.Lean.Query.*`
+remains allowed). On pull requests CI also runs
 `python3 scripts/parallel_defs.py`, an advisory notice (it never fails) that lists new or changed
 public definitions sharing a large anonymized subterm with an existing one, or merely renaming one.
 With `--theorems` it lists new or changed theorems, private ones included, whose statement another
@@ -637,8 +644,10 @@ not a decision.
   Algolean register models, and with the merged [#401](https://github.com/leanprover/cslib/pull/401).
 * **PAC learning.** `PACLearning/Realizable` is an unchanged copy of
   [#858](https://github.com/leanprover/cslib/pull/858).
-  [#966](https://github.com/leanprover/cslib/pull/966) would make `sampleComplexity` and `vcDim`
-  `ℕ∞`-valued; if it lands, restate the bounds in `FiniteClass`, `VCUpperBound`,
+  `PACLearning/VCDimension` uses the extended VC dimension `evcDim` from
+  [#966](https://github.com/leanprover/cslib/pull/966). When the pin adopts it, remove the local
+  definition and order lemmas, use the upstream finite-dimension bridge, and migrate the natural
+  sample-complexity and dimension arguments in `FiniteClass`, `VCUpperBound`,
   `AgnosticFiniteClass`, `AgnosticVC` and `GrowthFunction`. `PACLearning/SampleComplexityLower*`
   vendors the EHKV `Ω(d/ε)` lower bound from
   [`feat/pac-learning-ehkv-headline`](https://github.com/SamuelSchlesinger/cslib/tree/feat/pac-learning-ehkv-headline);

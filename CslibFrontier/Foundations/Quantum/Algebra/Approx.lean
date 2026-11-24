@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
+public import CslibFrontier.Foundations.Algebra.Star.Unitary
+public import CslibFrontier.Foundations.Analysis.Normed.Close
 public import CslibFrontier.Foundations.Algebra.Order.Star.Pi
 public import CslibFrontier.Probability.PMF
 
@@ -20,7 +22,8 @@ state-dependent norm `√(Re φ(a⋆a))`
 [Ji, Natarajan, Vidick, Wright and Yuen, §5.2, Definition 5.16][JNVWY2020]. The relation
 `a ≈[φ; δ] b` (`Cslib.Quantum.AlgState.Approx`) is that statement. Definition 5.16 bounds the
 squared distance, averaged over questions, by `O(δ)`; here the distance itself is bounded by `δ`,
-so `a ≈[φ; √δ] b` is the paper's `≈_δ` up to the constant. Its errors add along
+so `a ≈[φ; √δ] b` is the paper's `≈_δ` up to the constant. It is the generic closeness
+`Cslib.Close` through the GNS map, whose calculus it inherits. Its errors add along
 chains: there is a `Trans` instance, so
 
 ```
@@ -47,7 +50,8 @@ and the whole calculus applies to it unchanged.
 
 ## Main results
 
-* `Cslib.Quantum.AlgState.Approx.trans`: errors add along chains.
+* `Cslib.Quantum.AlgState.Approx.trans`, `Cslib.Quantum.AlgState.Approx.sum`: errors add along
+  chains and over sums (instances of the generic calculus of `Cslib.Close`).
 * `Cslib.Quantum.AlgState.Approx.mul_left`: left multiplication by a contraction preserves
   closeness.
 * `Cslib.Quantum.AlgState.Approx.norm_apply_sub_le`: close operators have close expectations.
@@ -73,9 +77,11 @@ section Approx
 variable {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] [Algebra ℂ A]
   [StarModule ℂ A] [SelfAdjointDecompose A]
 
-/-- `a` and `b` are `δ`-close in the state `φ`: `‖a - b‖_φ ≤ δ`. -/
+/-- `a` and `b` are `δ`-close in the state `φ`: `‖a - b‖_φ ≤ δ`. This is `Cslib.Close` through
+the GNS map, so the generic closeness calculus applies; it is a named relation so that it
+elaborates under binders. -/
 def Approx (φ : AlgState A) (δ : ℝ) (a b : A) : Prop :=
-  φ.norm (a - b) ≤ δ
+  a ≈[φ.toPreGNS.toLinearMap | δ] b
 
 @[inherit_doc] scoped[Cslib.Quantum] notation:50 a " ≈[" φ "; " δ "] " b:50 =>
   Cslib.Quantum.AlgState.Approx φ δ a b
@@ -85,50 +91,56 @@ variable {φ : AlgState A} {a b c a' b' : A} {δ δ' : ℝ}
 theorem approx_iff : (a ≈[φ; δ] b) ↔ φ.norm (a - b) ≤ δ :=
   Iff.rfl
 
-theorem approx_self (φ : AlgState A) (a : A) : a ≈[φ; 0] a := by
-  simp [Approx]
+theorem approx_self (φ : AlgState A) (a : A) : a ≈[φ; 0] a :=
+  close_self _ a
 
-theorem Approx.refl (hδ : 0 ≤ δ) (a : A) : a ≈[φ; δ] a := by
-  simpa [Approx] using hδ
+theorem Approx.refl (hδ : 0 ≤ δ) (a : A) : a ≈[φ; δ] a :=
+  Close.refl hδ a
 
 theorem Approx.nonneg (h : a ≈[φ; δ] b) : 0 ≤ δ :=
-  (φ.norm_nonneg _).trans h
+  Close.nonneg h
 
-theorem Approx.symm (h : a ≈[φ; δ] b) : b ≈[φ; δ] a := by
-  rwa [Approx, norm_sub_comm]
+theorem Approx.symm (h : a ≈[φ; δ] b) : b ≈[φ; δ] a :=
+  Close.symm h
 
 theorem approx_comm : (a ≈[φ; δ] b) ↔ (b ≈[φ; δ] a) :=
-  ⟨Approx.symm, Approx.symm⟩
+  close_comm
 
 theorem Approx.mono (h : a ≈[φ; δ] b) (hδ : δ ≤ δ') : a ≈[φ; δ'] b :=
-  h.trans hδ
+  Close.mono h hδ
 
 /-- Errors add along chains of approximations. -/
-theorem Approx.trans (h₁ : a ≈[φ; δ] b) (h₂ : b ≈[φ; δ'] c) : a ≈[φ; δ + δ'] c := by
-  have : a - c = (a - b) + (b - c) := by abel
-  rw [Approx, this]
-  exact (φ.norm_add_le _ _).trans (add_le_add h₁ h₂)
+theorem Approx.trans (h₁ : a ≈[φ; δ] b) (h₂ : b ≈[φ; δ'] c) : a ≈[φ; δ + δ'] c :=
+  Close.trans h₁ h₂
 
 instance : @Trans A A A (Approx φ δ) (Approx φ δ') (Approx φ (δ + δ')) :=
   ⟨Approx.trans⟩
 
 theorem approx_of_eq (h : a = b) (hδ : 0 ≤ δ) : a ≈[φ; δ] b :=
-  h ▸ Approx.refl hδ a
+  close_of_eq h hδ
 
-theorem Approx.add (h : a ≈[φ; δ] b) (h' : a' ≈[φ; δ'] b') : a + a' ≈[φ; δ + δ'] b + b' := by
-  have : a + a' - (b + b') = (a - b) + (a' - b') := by abel
-  rw [Approx, this]
-  exact (φ.norm_add_le _ _).trans (add_le_add h h')
+theorem Approx.add (h : a ≈[φ; δ] b) (h' : a' ≈[φ; δ'] b') : a + a' ≈[φ; δ + δ'] b + b' :=
+  Close.add h h'
 
-theorem Approx.neg (h : a ≈[φ; δ] b) : -a ≈[φ; δ] -b := by
-  rwa [Approx, neg_sub_neg, norm_sub_comm]
+theorem Approx.neg (h : a ≈[φ; δ] b) : -a ≈[φ; δ] -b :=
+  Close.neg h
 
-theorem Approx.sub (h : a ≈[φ; δ] b) (h' : a' ≈[φ; δ'] b') : a - a' ≈[φ; δ + δ'] b - b' := by
-  simpa only [sub_eq_add_neg] using h.add h'.neg
+theorem Approx.sub (h : a ≈[φ; δ] b) (h' : a' ≈[φ; δ'] b') : a - a' ≈[φ; δ + δ'] b - b' :=
+  Close.sub h h'
 
-theorem Approx.smul (h : a ≈[φ; δ] b) (z : ℂ) : z • a ≈[φ; ‖z‖ * δ] z • b := by
-  rw [Approx, ← smul_sub, norm_smul]
-  exact mul_le_mul_of_nonneg_left h (_root_.norm_nonneg z)
+theorem Approx.smul (h : a ≈[φ; δ] b) (z : ℂ) : z • a ≈[φ; ‖z‖ * δ] z • b :=
+  Close.smul h z
+
+/-- Errors add over finite sums. -/
+theorem Approx.sum {ι : Type*} (s : Finset ι) {f g : ι → A} {ε : ι → ℝ}
+    (h : ∀ i ∈ s, f i ≈[φ; ε i] g i) : ∑ i ∈ s, f i ≈[φ; ∑ i ∈ s, ε i] ∑ i ∈ s, g i :=
+  Close.sum s h
+
+/-- The squared state seminorm of a sum is at most twice the sum of the squares. -/
+theorem norm_add_sq_le (φ : AlgState A) (x y : A) :
+    φ.norm (x + y) ^ 2 ≤ 2 * (φ.norm x ^ 2 + φ.norm y ^ 2) :=
+  (pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_add_le x y) 2).trans (by
+    nlinarith [sq_nonneg (φ.norm x - φ.norm y)])
 
 /-- Left multiplication by a contraction does not increase the state norm. -/
 theorem norm_mul_le_of_star_mul_self_le_one (φ : AlgState A) {u : A} (hu : star u * u ≤ 1)
@@ -141,14 +153,24 @@ theorem norm_mul_le_of_star_mul_self_le_one (φ : AlgState A) {u : A} (hu : star
 /-- Left multiplication by a contraction preserves closeness. -/
 theorem Approx.mul_left (h : a ≈[φ; δ] b) {u : A} (hu : star u * u ≤ 1) :
     u * a ≈[φ; δ] u * b := by
-  rw [Approx, ← mul_sub]
+  rw [approx_iff, ← mul_sub]
   exact (φ.norm_mul_le_of_star_mul_self_le_one hu _).trans h
+
+/-- Every pair is close up to its own distance: `a ≈[φ; ‖a - b‖_φ] b`. Names a step of a
+closeness chain whose error is left symbolic. -/
+theorem approx_norm_sub (φ : AlgState A) (a b : A) : a ≈[φ; φ.norm (a - b)] b :=
+  approx_iff.mpr le_rfl
+
+/-- Left multiplication by a unitary preserves closeness. -/
+theorem Approx.mul_left_unitary (h : a ≈[φ; δ] b) {u : A} (hu : u ∈ unitary A) :
+    u * a ≈[φ; δ] u * b :=
+  h.mul_left (by rw [Unitary.star_mul_self_of_mem hu])
 
 /-- Left multiplication by an operator that stretches the state norm by at most `k` turns
 `δ`-closeness into `kδ`-closeness. -/
 theorem Approx.mul_left_of_norm_mul_le (h : a ≈[φ; δ] b) {u : A} {k : ℝ} (hk : 0 ≤ k)
     (hu : ∀ y, φ.norm (u * y) ≤ k * φ.norm y) : u * a ≈[φ; k * δ] u * b := by
-  rw [Approx, ← mul_sub]
+  rw [approx_iff, ← mul_sub]
   exact (hu _).trans (mul_le_mul_of_nonneg_left h hk)
 
 /-- The expectation of an operator is bounded by its state norm. -/
@@ -205,7 +227,7 @@ theorem norm_avg_sq (μ : PMF Q) (φ : Q → AlgState A) (f : Q → A) :
 /-- **Averaged closeness**: `f ≈[avg μ φ; δ] g` exactly when `E_q ‖f_q - g_q‖² ≤ δ²`. -/
 theorem approx_avg_iff {μ : PMF Q} {φ : Q → AlgState A} {f g : Q → A} {δ : ℝ} (hδ : 0 ≤ δ) :
     (f ≈[avg μ φ; δ] g) ↔ ∑ q, (μ q).toReal * (φ q).norm (f q - g q) ^ 2 ≤ δ ^ 2 := by
-  rw [Approx, ← norm_avg_sq, ← Pi.sub_def]
+  rw [approx_iff, ← norm_avg_sq, ← Pi.sub_def]
   exact (pow_le_pow_iff_left₀ (norm_nonneg _ _) hδ two_ne_zero).symm
 
 /-- Closeness for every question gives closeness on average. -/

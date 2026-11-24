@@ -11,7 +11,10 @@ public import CslibFrontier.Init
 public import Mathlib.Combinatorics.Digraph.Basic
 public import Mathlib.Data.Finset.Prod
 public import Mathlib.Data.List.Chain
+import CslibFrontier.Foundations.Combinatorics.Multidigraph.Connectivity
 import Mathlib.Data.Finset.Card
+import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Fintype.Prod
 
 /-!
 # Directed paths, cuts and separators in digraphs
@@ -24,7 +27,8 @@ Pure graph-theoretic notions for Menger's theorem in directed graphs `Digraph V`
   (`Digraph.IsVertexCut`), and `A`–`B` vertex separators (`Digraph.IsSeparator`).
 * Pairwise arc-disjointness (`Digraph.ArcDisjoint`) and internal vertex-disjointness
   (`Digraph.InternallyDisjoint`).
-* Weak duality and closed-set cut/separator certificates.
+* Weak duality and closed-set cut/separator certificates, derived from the general multidigraph
+  theorems (`Cslib.Multidigraph`) along `Cslib.Multidigraph.Arc G`.
 
 ## Main definitions
 
@@ -53,6 +57,8 @@ public section
 
 namespace Digraph
 
+open Cslib
+
 variable {V : Type*}
 
 /-- `p` is a simple directed `s`–`t` path in `G`: a duplicate-free vertex list starting at `s` and
@@ -72,6 +78,24 @@ theorem isChain_iff_forall_mem_zip_tail {r : V → V → Prop} :
   | x :: y :: rest => by
     rw [List.isChain_cons_cons, List.tail_cons, List.zip_cons_cons, List.forall_mem_cons,
       isChain_iff_forall_mem_zip_tail, List.tail_cons]
+
+/-- Lift a vertex dipath `p` in `G` to an arc dipath in `(Multidigraph.arcSrc G, arcTgt G)`. -/
+private def liftDipath {G : Digraph V} {s t : V} {p : List V} (hp : G.IsDipath s t p) :
+    {q : List (Multidigraph.Arc G) //
+      Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t q ∧
+      s :: q.map (Multidigraph.arcTgt G) = p ∧
+      q.map Subtype.val = p.zip p.tail} :=
+  ⟨(p.zip p.tail).pmap (fun e he => ⟨e, he⟩) (isChain_iff_forall_mem_zip_tail.mp hp.2.2.2),
+    Multidigraph.isDipath_pmap_zip_tail (Multidigraph.arcSrc G) (Multidigraph.arcTgt G)
+      (fun e he => ⟨e, he⟩) (fun _ _ => ⟨rfl, rfl⟩) hp.1 hp.2.1 hp.2.2.1
+      (isChain_iff_forall_mem_zip_tail.mp hp.2.2.2)⟩
+
+private theorem isDipath_of_multidigraph {G : Digraph V} {s t : V} {q : List (Multidigraph.Arc G)}
+    (hq : Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t q) :
+    G.IsDipath s t (s :: q.map (Multidigraph.arcTgt G)) := by
+  have hc := hq.isChain_toDigraph
+  rw [Multidigraph.toDigraph_arcSrc_arcTgt] at hc
+  exact ⟨hq.2.1, rfl, hq.getLast?_vertices, hc⟩
 
 /-- The vertex lists `P i` are pairwise arc-disjoint: no directed step `(u, v)` occurs as a
 consecutive pair in two distinct lists. -/
@@ -126,52 +150,15 @@ theorem mem_outArcs [Fintype V] [DecidableEq V] {G : Digraph V} [DecidableRel G.
   simp only [outArcs, Finset.mem_filter, Finset.mem_product, Finset.mem_sdiff, Finset.mem_univ,
     true_and, and_assoc]
 
-/-- Any `G.Adj`-chain starting inside `S` and ending outside `S` has a consecutive pair leaving
-`S`. -/
-private theorem exists_boundary_zip_tail {G : Digraph V} {S : V → Prop} :
-    ∀ {p : List V} {s t : V}, p.head? = some s → p.getLast? = some t →
-      p.IsChain G.Adj → S s → ¬ S t → ∃ e ∈ p.zip p.tail, S e.1 ∧ ¬ S e.2 ∧ G.Adj e.1 e.2
-  | [], _, _, hs, _, _, _, _ => by simp at hs
-  | [x], s, t, hs, ht, _, hSs, hSt => by
-    simp only [List.head?_cons, Option.some.injEq] at hs
-    simp only [List.getLast?_singleton, Option.some.injEq] at ht
-    subst hs ht
-    exact absurd hSs hSt
-  | x :: y :: rest, s, t, hs, ht, hchain, hSs, hSt => by
-    simp only [List.head?_cons, Option.some.injEq] at hs
-    subst hs
-    rw [List.isChain_cons_cons] at hchain
-    by_cases hy : S y
-    · obtain ⟨e, he, hbd⟩ := exists_boundary_zip_tail (p := y :: rest) rfl (by simpa using ht)
-        hchain.2 hy hSt
-      exact ⟨e, List.mem_cons_of_mem (x, y) he, hbd⟩
-    · exact ⟨(x, y), List.mem_cons_self, hSs, hy, hchain.1⟩
-
 /-- `G.outArcs S` is an `s`–`t` arc cut whenever `s ∈ S` and `t ∉ S`. -/
 theorem isArcCut_outArcs [Fintype V] [DecidableEq V] (G : Digraph V) [DecidableRel G.Adj]
     {s t : V} {S : Finset V} (hs : s ∈ S) (ht : t ∉ S) : G.IsArcCut s t (G.outArcs S) := by
-  rintro p ⟨_, hps, hpt, hchain⟩
-  obtain ⟨e, he, heS, heS', hadj⟩ := exists_boundary_zip_tail hps hpt hchain hs ht
-  exact ⟨e, he, mem_outArcs.mpr ⟨heS, heS', hadj⟩⟩
-
-/-- Every `Y`-avoiding chain starting in `S` whose arcs out of `S` enter `Y` remains inside `S`. -/
-private theorem prop_getLast_of_isChain {G : Digraph V} {S Y : V → Prop}
-    (hstep : ∀ ⦃u v⦄, G.Adj u v → S u → ¬ Y v → S v) :
-    ∀ {p : List V} {s t : V}, p.head? = some s → p.getLast? = some t →
-      p.IsChain G.Adj → S s → (∀ x ∈ p, ¬ Y x) → S t
-  | [], _, _, hs, _, _, _, _ => by simp at hs
-  | [x], s, t, hs, ht, _, hSs, _ => by
-    simp only [List.head?_cons, Option.some.injEq] at hs
-    simp only [List.getLast?_singleton, Option.some.injEq] at ht
-    subst hs ht
-    exact hSs
-  | x :: y :: rest, s, t, hs, ht, hchain, hSs, hY => by
-    simp only [List.head?_cons, Option.some.injEq] at hs
-    subst hs
-    rw [List.isChain_cons_cons] at hchain
-    have hSy := hstep hchain.1 hSs (hY y (List.mem_cons_of_mem x List.mem_cons_self))
-    exact prop_getLast_of_isChain hstep (p := y :: rest) rfl (by simpa using ht) hchain.2 hSy
-      fun z hz => hY z (List.mem_cons_of_mem x hz)
+  intro p hp
+  obtain ⟨q, hq, -, hzip⟩ := liftDipath hp
+  obtain ⟨e, he, he_out⟩ :=
+    Multidigraph.isArcCut_outArcs (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) hs ht q hq
+  rw [Multidigraph.mem_outArcs] at he_out
+  exact ⟨e.1, hzip ▸ List.mem_map_of_mem he, mem_outArcs.mpr ⟨he_out.1, he_out.2, e.2⟩⟩
 
 /-- **Closed-set certificate for directed separators.** If `S` holds on `A \ Y`, fails on `B \ Y`,
 and every arc leaving `S` enters `Y`, then `Y` separates `A` from `B`. -/
@@ -179,52 +166,67 @@ theorem isSeparator_of_forall_adj {G : Digraph V} {A B Y : Set V} (S : V → Pro
     (hstep : ∀ ⦃u v⦄, G.Adj u v → S u → v ∉ Y → S v)
     (hA : ∀ a ∈ A, a ∉ Y → S a) (hB : ∀ b ∈ B, b ∉ Y → ¬ S b) :
     G.IsSeparator A B Y := by
-  intro a ha b hb p ⟨_, hps, hpt, hchain⟩
-  by_contra hp
-  push Not at hp
-  have hSa := hA a ha (hp a (List.mem_of_head? hps))
-  have hSb := prop_getLast_of_isChain hstep hps hpt hchain hSa hp
-  exact hB b hb (hp b (List.mem_of_getLast? hpt)) hSb
+  intro a ha b hb p hp
+  obtain ⟨q, hq, hverts, -⟩ := liftDipath hp
+  rw [← hverts]
+  exact Multidigraph.isSeparator_of_forall_src_tgt (Multidigraph.arcSrc G) (Multidigraph.arcTgt G)
+    S (fun e => hstep e.2) hA hB ha hb q hq
 
 /-- Closed-set certificate for a vertex cut: if `s ∈ S`, `t ∉ S`, `T` avoids `s` and `t`, and
 every arc leaving `S` ends in `T`, then `T` is an `s`–`t` vertex cut. -/
 theorem isVertexCut_of_forall_adj {G : Digraph V} {s t : V} {S T : Finset V} (hs : s ∈ S)
     (ht : t ∉ S) (hsT : s ∉ T) (htT : t ∉ T) (hST : ∀ u ∈ S, ∀ v, G.Adj u v → v ∉ S → v ∈ T) :
     G.IsVertexCut s t T := by
-  refine isVertexCut_iff_isSeparator.mpr ⟨hsT, htT, isSeparator_of_forall_adj (· ∈ S) ?_ ?_ ?_⟩
-  · intro u v huv hu hv
-    by_contra hvS
-    exact hv (Finset.mem_coe.mpr (hST u hu v huv hvS))
-  · rintro _ rfl _; exact hs
-  · rintro _ rfl _; exact ht
+  refine ⟨hsT, htT, fun p hp => ?_⟩
+  obtain ⟨q, hq, hverts, -⟩ := liftDipath hp
+  rw [← hverts]
+  exact (Multidigraph.isVertexCut_of_forall_src_tgt (Multidigraph.arcSrc G) (Multidigraph.arcTgt G)
+    hs ht hsT htT fun e hu => hST e.1.1 hu e.1.2 e.2).2.2 q hq
 
 /-- **Weak duality for arc-disjoint paths**: `k` pairwise arc-disjoint directed `s`–`t` paths need
 at least `k` arcs in every `s`–`t` arc cut. -/
 theorem card_le_card_of_arcDisjoint_of_isArcCut {G : Digraph V} {s t : V} {k : ℕ}
     {P : Fin k → List V} (hP : ∀ i, G.IsDipath s t (P i)) (hdisj : ArcDisjoint P)
     {C : Finset (V × V)} (hC : G.IsArcCut s t C) : k ≤ C.card := by
-  choose e he heC using fun i => hC (P i) (hP i)
-  have hinj : Function.Injective fun i => (⟨e i, heC i⟩ : C) := by
-    intro i j hij
-    by_contra hne
-    have heq : e i = e j := congrArg Subtype.val hij
-    exact hdisj hne (e i) (he i) (heq ▸ he j)
-  simpa using Fintype.card_le_of_injective _ hinj
+  classical
+  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hP i)).1
+  have hQ : ∀ i, Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t (Q i) :=
+    fun i => (liftDipath (hP i)).2.1
+  have hQdisj : Pairwise fun i j => (Q i).Disjoint (Q j) := fun i j hij e hei hej =>
+    hdisj hij e.1 ((liftDipath (hP i)).2.2.2 ▸ List.mem_map_of_mem hei)
+      ((liftDipath (hP j)).2.2.2 ▸ List.mem_map_of_mem hej)
+  let C' : Finset (Multidigraph.Arc G) := C.subtype fun e => G.Adj e.1 e.2
+  have hC' : Multidigraph.IsArcCut (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t C' := by
+    intro q hq
+    obtain ⟨e, he, heC⟩ := hC _ (isDipath_of_multidigraph hq)
+    rw [hq.zip_tail_vertices, List.mem_map] at he
+    obtain ⟨a, ha, rfl⟩ := he
+    exact ⟨a, ha, Finset.mem_subtype.mpr heC⟩
+  have hle : C'.card ≤ C.card := by
+    rw [← Finset.card_map ⟨Subtype.val, Subtype.val_injective⟩]
+    refine Finset.card_le_card fun x hx => ?_
+    obtain ⟨y, hy, rfl⟩ := Finset.mem_map.mp hx
+    exact Finset.mem_subtype.mp hy
+  exact (Multidigraph.card_le_card_of_disjoint_of_isArcCut _ _ hQ hQdisj hC').trans hle
 
 /-- **Weak duality for internally disjoint paths**: `k` pairwise internally disjoint directed
 `s`–`t` paths need at least `k` vertices in every `s`–`t` vertex cut. -/
 theorem card_le_card_of_internallyDisjoint_of_isVertexCut {G : Digraph V} {s t : V} {k : ℕ}
     {P : Fin k → List V} (hP : ∀ i, G.IsDipath s t (P i)) (hdisj : InternallyDisjoint s t P)
     {T : Finset V} (hT : G.IsVertexCut s t T) : k ≤ T.card := by
-  choose v hv hvT using fun i => hT.2.2 (P i) (hP i)
-  have hinj : Function.Injective fun i => (⟨v i, hvT i⟩ : T) := by
-    intro i j hij
-    by_contra hne
-    have heq : v i = v j := congrArg Subtype.val hij
-    rcases hdisj hne (v i) (hv i) (heq ▸ hv j) with h | h
-    · exact hT.1 (h ▸ hvT i)
-    · exact hT.2.1 (h ▸ hvT i)
-  simpa using Fintype.card_le_of_injective _ hinj
+  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hP i)).1
+  have hQ : ∀ i, Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t (Q i) :=
+    fun i => (liftDipath (hP i)).2.1
+  have hverts : ∀ i, s :: (Q i).map (Multidigraph.arcTgt G) = P i :=
+    fun i => (liftDipath (hP i)).2.2.1
+  have hQdisj : Multidigraph.InternallyDisjoint (Multidigraph.arcTgt G) s t Q :=
+    fun i j hij v hvi hvj => by
+      rw [hverts i] at hvi
+      rw [hverts j] at hvj
+      exact hdisj hij v hvi hvj
+  have hT' : Multidigraph.IsVertexCut (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t T :=
+    ⟨hT.1, hT.2.1, fun q hq => hT.2.2 _ (isDipath_of_multidigraph hq)⟩
+  exact Multidigraph.card_le_card_of_internallyDisjoint_of_isVertexCut _ _ hQ hQdisj hT'
 
 /-- **Weak duality for vertex-disjoint `A`–`B` paths**: `k` pairwise vertex-disjoint directed
 `A`–`B` paths need at least `k` vertices in every `A`–`B` separator. -/
@@ -233,12 +235,18 @@ theorem card_le_card_of_disjoint_of_isSeparator {G : Digraph V} {A B : Set V} {k
     (hdisj : Pairwise fun i j => (P i).Disjoint (P j))
     {Y : Finset V} (hY : G.IsSeparator A B ↑Y) : k ≤ Y.card := by
   choose a ha b hb hPi using hP
-  choose v hv hvY using fun i => hY (ha i) (hb i) (P i) (hPi i)
-  have hinj : Function.Injective fun i => (⟨v i, hvY i⟩ : Y) := by
-    intro i j hij
-    by_contra hne
-    have heq : v i = v j := congrArg Subtype.val hij
-    exact hdisj hne (hv i) (heq ▸ hv j)
-  simpa using Fintype.card_le_of_injective _ hinj
+  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hPi i)).1
+  have hQ : ∀ i,
+      Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) (a i) (b i) (Q i) :=
+    fun i => (liftDipath (hPi i)).2.1
+  have hverts : ∀ i, a i :: (Q i).map (Multidigraph.arcTgt G) = P i :=
+    fun i => (liftDipath (hPi i)).2.2.1
+  have hQdisj : Pairwise fun i j =>
+      (a i :: (Q i).map (Multidigraph.arcTgt G)).Disjoint
+        (a j :: (Q j).map (Multidigraph.arcTgt G)) :=
+    fun i j hij => by dsimp only; rw [hverts i, hverts j]; exact hdisj hij
+  have hY' : Multidigraph.IsSeparator (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) A B ↑Y :=
+    fun _ hx _ hy _ hq => hY hx hy _ (isDipath_of_multidigraph hq)
+  exact Multidigraph.card_le_card_of_disjoint_of_isSeparator _ _ ha hb hQ hQdisj hY'
 
 end Digraph

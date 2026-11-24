@@ -17,14 +17,15 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.BitString.ZModTwo
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
-import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming polynomial-space exhaustive counting and finite-threshold fallback absorption
@@ -201,13 +202,7 @@ private theorem length_prefix_accumulator_le (pred : P → List Bool → Bool) (
   have hx_le : x.1 ≤ (encPair encUnary encP x).length := by enc_len
   have hz_le : (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2 ≤ 2 ^ x.1 :=
     (prefix_count_le_index pred x j).trans hj
-  have hlen_z :
-      (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤ x.1 + 1 := by
-    have hm : (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤
-        (encNat (2 ^ x.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hz_le
-    rw [BooleanFold.length_clock] at hm
-    exact hm
+  have hlen_z := length_encNat_le_of_le_two_pow hz_le
   enc_len [prefix_payload_eq]
 
 private theorem countPredicateCertificate_bounds {pred : P → List Bool → Bool}
@@ -682,9 +677,7 @@ theorem polyBounded_branch_space {ok : α → Bool} {f_fast f_exhaust : α → �
     (hex : PolyBounded (fun x => (ei x).length) c_exhaust.space) :
     PolyBounded (fun x => (ei x).length)
       (NativeCertificate.branch c_ok c_fast c_exhaust).space := by
-  refine (hok.add (hfast.add hex)).mono fun x => ?_
-  simp only [NativeCertificate.branch_space]
-  split_ifs <;> omega
+  growth_poly
 
 /-- **Finite-threshold fallback time absorption on `NativeCertificate.branch`** (§5.5 p. 39,
 §6.4 p. 44): if `ok x = false → μ x < N₀` for a constant threshold `N₀` and `c_exhaust.time x ≤
@@ -708,8 +701,8 @@ theorem exists_branch_time_le_of_finite_threshold {ok : α → Bool} {f_fast f_e
       (if ok x then c_fast.time x else 0) + C * ((ei x).length + 1) ^ d := by
   refine ⟨polyBounded_branch_space c_ok c_fast c_exhaust hok.2 hs_fast hs_ex, ?_⟩
   have hpoly : PolyBounded (fun x => (ei x).length)
-      (fun x => c_ok.time x + ((2 ^ N₀ + 1) * P_ex x + Q_ex x)) :=
-    hok.1.add (((PolyBounded.const (2 ^ N₀ + 1)).mul hP).add hQ)
+      (fun x => c_ok.time x + ((2 ^ N₀ + 1) * P_ex x + Q_ex x)) := by
+    growth_poly
   obtain ⟨C, d, hCd⟩ := hpoly.exists_le
   refine ⟨C, d, fun x => ?_⟩
   simp only [NativeCertificate.branch_time]

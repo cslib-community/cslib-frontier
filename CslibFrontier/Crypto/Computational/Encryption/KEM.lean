@@ -22,12 +22,13 @@ rejection, whose decapsulation always returns a key, is the instance with `decap
 
 In the indistinguishability game for a KEM, the challenger generates a key pair, encapsulates a
 key under the public key, and gives the adversary the public key, the challenge ciphertext and a
-challenge key: the encapsulated key or an independent random key, depending on the hidden bit
-([HofheinzHoevelmannsKiltz2017], Section 2.2, Definition 2.4). `KEM.Challenge PK CT K` is that
-input, with named fields in place of a triple `PK × CT × K`. `KEM.cpaExperiment` is the game of
-one fixed scheme against a distinguisher on the challenge; the random key is drawn from a sampler
-`sampleKey`, uniform on `K` in the paper. Asymptotic security over a family of schemes and the
-efficiency of the distinguisher are stated on top of this experiment.
+challenge key: the encapsulated key or an independent random key, depending on the hidden bit.
+This is the attack game of [CramerShoup2003], Section 7.1.2, restricted to adversaries that make
+no decryption queries. `KEM.Challenge PK CT K` is that input, with named fields in place of a
+triple `PK × CT × K`. `KEM.cpaExperiment` is the game of one fixed scheme against a distinguisher
+on the challenge; the random key is drawn from a sampler `sampleKey`, uniform on bit strings of
+the key length in the paper. Asymptotic security over a family of schemes and the efficiency of
+the distinguisher are stated on top of this experiment.
 
 ## Main definitions
 
@@ -41,15 +42,19 @@ efficiency of the distinguisher are stated on top of this experiment.
 
 * [D. Hofheinz, K. Hövelmanns, E. Kiltz, *A Modular Analysis of the Fujisaki–Okamoto
   Transformation*][HofheinzHoevelmannsKiltz2017] (IACR ePrint 2017/604, full version dated
-  2 November 2021), Section 2.2, Definition 2.4.
+  2 November 2021), Section 2.2 (syntax).
+* [R. Cramer, V. Shoup, *Design and Analysis of Practical Public-Key Encryption Schemes Secure
+  against Adaptive Chosen Ciphertext Attack*][CramerShoup2003], Section 7.1.2 (pp. 38–39 of the
+  authors' revised manuscript of August 14, 2003).
 -/
 
 @[expose] public section
 
 namespace Cslib.Crypto
 
-/-- The input of a KEM indistinguishability adversary ([HofheinzHoevelmannsKiltz2017],
-Section 2.2, Definition 2.4): the public key, the challenge ciphertext and the challenge key. -/
+/-- The input of a KEM indistinguishability adversary: the public key, the challenge ciphertext and
+the challenge key, which the attack game of [CramerShoup2003], Section 7.1.2, gives the adversary
+in Stages 1 and 3. -/
 structure KEM.Challenge (PK CT K : Type) where
   /-- The public key. -/
   pk : PK
@@ -81,10 +86,11 @@ def Correct (E : KEM PK SK CT K) : Prop :=
     ∀ ck ∈ (ProbComp.eval (E.encaps keys.1)).support, E.decaps keys.2 ck.1 = some ck.2
 
 /-- The chosen-plaintext indistinguishability experiment of the KEM `E` with random keys drawn
-from `sampleKey` ([HofheinzHoevelmannsKiltz2017], Section 2.2, Definition 2.4). Draw a key pair
-and encapsulate a key under the public key. On `b = false` the challenge key is the encapsulated
-key; on `b = true` it is an independent key drawn from `sampleKey`. The distinguisher receives the
-public key, the ciphertext and the challenge key, and its guess is the output. -/
+from `sampleKey`: the attack game of [CramerShoup2003], Section 7.1.2, restricted to adversaries
+that make no decryption queries, in its two-experiment form. Draw a key pair and encapsulate a key
+under the public key. On `b = false` the challenge key is the encapsulated key; on `b = true` it is
+an independent key drawn from `sampleKey`. The distinguisher receives the public key, the
+ciphertext and the challenge key, and its guess is the output. -/
 def cpaExperiment (E : KEM PK SK CT K) (sampleKey : ProbComp K)
     (D : Challenge PK CT K → ProbComp Bool) (b : Bool) : Experiment := do
   let keys ← E.keyGen

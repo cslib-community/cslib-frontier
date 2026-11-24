@@ -270,7 +270,8 @@ theorem corruptPre_static_eq_adaptive (κ : ℕ) (z : List Bool) :
       pure (match r with | .corrupt (some rep) => rep.current == none | _ => false, ()) := by
     dsimp only [corruptPreEnv]
     erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A)]
-    dsimp only [A, liftAdaptiveAdversary, corruptPreAdv, liftAdaptiveNet, StateT.run]
+    dsimp only [A, liftAdaptiveAdversary, Machine.liftRight, corruptPreAdv, liftAdaptiveNet,
+      Machine.liftRightProgram, StateT.run]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_pure, bind_assoc, pure_bind]
     exact bind_congr fun _ => by erw [Machine.runFrom_pure (M := A)]; rfl
   have hmem : (1 : Fin 2) ∈ ({1} : Finset (Fin 2)) := by decide
@@ -341,7 +342,8 @@ theorem static_embedding_check (κ : ℕ) (z : List Bool) :
     dsimp only [A, liftAdversary, staticPollOneAdv]; simp only [bind_assoc, pure_bind]
     exact bind_congr fun _ => by
       erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A)]
-      dsimp only [A, liftAdversary, staticPollOneAdv, liftNet, StateT.run]
+      dsimp only [A, liftAdversary, Machine.liftRight, staticPollOneAdv, liftNet,
+        Machine.liftRightProgram, StateT.run]
       simp only [OracleComp.interpret_bind, OracleComp.interpret_pure, bind_assoc, pure_bind]
       exact bind_congr fun _ => by erw [Machine.runFrom_pure (M := A)]; rfl
   change (Machine.closeProgram (ProbOracleComp.sample (A.comp M).init >>= fun s =>
@@ -472,7 +474,8 @@ theorem F_corrTrack_midRun_corrupt (κ : ℕ) (z : List Bool) :
           (.inr (.net ())) >>= fun res => pure (decide (res = .net {1}), ()) := by
     dsimp only [Z]
     erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A)]
-    dsimp only [A, liftAdaptiveAdversary, corrTrackAdv, liftAdaptiveNet, StateT.run]
+    dsimp only [A, liftAdaptiveAdversary, Machine.liftRight, corrTrackAdv, liftAdaptiveNet,
+      Machine.liftRightProgram, StateT.run]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_pure, bind_assoc, pure_bind]
     exact bind_congr fun _ => by
       erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A)]

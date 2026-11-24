@@ -22,6 +22,8 @@ closed, so they do not change its edge cuts.
 
 ## Main results
 
+* `Cslib.Circuits.Frontier.Multigraph.edgeCut_sdiff_eq_empty`: removing a closed vertex set `W`
+  from any set `S` whose edge cut lies in `G.touching W` leaves a closed vertex set `S \ W`.
 * `Cslib.Circuits.Frontier.LayoutBound.exists_layout_componentwise`: under the layout hypothesis,
   every loopless graph of maximum degree `d`, connected or not, has a layout whose frontiers at
   each step lie among the edges of the component of the vertex processed and are at most
@@ -33,6 +35,24 @@ public section
 namespace Cslib.Circuits.Frontier
 
 open Set
+
+/-- If `W` is closed (`G.edgeCut W = ∅`) and `G.edgeCut S ⊆ G.touching W`, then `S \ W` is closed.
+-/
+theorem Multigraph.edgeCut_sdiff_eq_empty {V E : Type*} {G : Multigraph V E} {S W : Set V}
+    (hW : G.edgeCut W = ∅) (hSW : G.edgeCut S ⊆ G.touching W) :
+    G.edgeCut (S \ W) = ∅ := by
+  rw [G.edgeCut_eq_empty_iff]
+  intro e
+  have hWe := G.edgeCut_eq_empty_iff.mp hW e
+  by_cases heW : G.src e ∈ W
+  · have htW : G.tgt e ∈ W := hWe.mp heW
+    simp only [Set.mem_sdiff, heW, htW, not_true_eq_false, and_false]
+  · have htW : G.tgt e ∉ W := mt hWe.mpr heW
+    have hnot_touch : e ∉ G.touching W := by
+      simp only [Multigraph.mem_touching, heW, htW, or_self, not_false_eq_true]
+    have hnot_cutS : e ∉ G.edgeCut S := fun h => hnot_touch (hSW h)
+    rw [Multigraph.mem_edgeCut, not_not] at hnot_cutS
+    simp only [Set.mem_sdiff, heW, htW, not_false_eq_true, and_true, hnot_cutS]
 
 /-- **Layouts of disconnected graphs.** Under the layout hypothesis for maximum degree `d`, every
 loopless graph of maximum degree `d`, connected or not, has a layout such that at every step `t`,

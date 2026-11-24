@@ -50,7 +50,8 @@ ones used by Algorithms 1 and 3 in `CslibFrontier.Algorithms.Lean.AhoCorasick.Se
 * `Cslib.Algorithms.Lean.AhoCorasick.failure_append_singleton`: the failure recurrence of
   Algorithm 3.
 * `Cslib.Algorithms.Lean.AhoCorasick.mem_occurrences_iff`, `nodup_occurrences`,
-  `pairwise_occurrences` and `occurrences_append_singleton`.
+  `pairwise_occurrences`, `occurrences_append_singleton`, `length_occurrences_le` and
+  `occurrences_prefix_append`.
 
 ## References
 
@@ -284,45 +285,40 @@ theorem output_cons (P : List (List α)) (b : α) (w : List α) :
 
 theorem mem_output_iff {P : List (List α)} {w v : List α} :
     v ∈ output P w ↔ v ≠ [] ∧ v ∈ P ∧ v <:+ w := by
-  induction w with
-  | nil =>
-    rw [output_nil, List.suffix_nil]
+  fun_induction output P w with
+  | case1 => -- []
+    rw [List.suffix_nil]
     simp only [List.not_mem_nil, false_iff, not_and]
     intro hv _ hv'
     exact hv hv'
-  | cons b w ih =>
-    rw [output, List.suffix_cons_iff]
-    split_ifs with h
-    · rw [List.mem_cons, ih]
-      constructor
-      · rintro (rfl | ⟨hv, hvP, hvw⟩)
-        · exact ⟨List.cons_ne_nil b w, h, Or.inl rfl⟩
-        · exact ⟨hv, hvP, Or.inr hvw⟩
-      · rintro ⟨hv, hvP, rfl | hvw⟩
-        · exact Or.inl rfl
-        · exact Or.inr ⟨hv, hvP, hvw⟩
-    · rw [ih]
-      constructor
-      · rintro ⟨hv, hvP, hvw⟩
-        exact ⟨hv, hvP, Or.inr hvw⟩
-      · rintro ⟨hv, hvP, rfl | hvw⟩
-        · exact absurd hvP h
-        · exact ⟨hv, hvP, hvw⟩
+  | case2 b w hmem ih => -- b :: w ∈ P
+    rw [List.suffix_cons_iff, List.mem_cons, ih]
+    constructor
+    · rintro (rfl | ⟨hv, hvP, hvw⟩)
+      · exact ⟨List.cons_ne_nil b w, hmem, Or.inl rfl⟩
+      · exact ⟨hv, hvP, Or.inr hvw⟩
+    · rintro ⟨hv, hvP, rfl | hvw⟩
+      · exact Or.inl rfl
+      · exact Or.inr ⟨hv, hvP, hvw⟩
+  | case3 b w hmem ih => -- b :: w ∉ P
+    rw [List.suffix_cons_iff, ih]
+    constructor
+    · rintro ⟨hv, hvP, hvw⟩
+      exact ⟨hv, hvP, Or.inr hvw⟩
+    · rintro ⟨hv, hvP, rfl | hvw⟩
+      · exact absurd hvP hmem
+      · exact ⟨hv, hvP, hvw⟩
 
 theorem pairwise_length_gt_output (P : List (List α)) (w : List α) :
     (output P w).Pairwise (fun x y => y.length < x.length) := by
-  induction w with
-  | nil =>
-    rw [output_nil]
-    exact List.Pairwise.nil
-  | cons b w ih =>
-    rw [output]
-    split_ifs
-    · refine List.Pairwise.cons (fun y hy => ?_) ih
-      have := (mem_output_iff.mp hy).2.2.length_le
-      rw [List.length_cons]
-      omega
-    · exact ih
+  fun_induction output P w with
+  | case1 => exact List.Pairwise.nil -- []
+  | case2 b w _ ih => -- b :: w ∈ P
+    refine List.Pairwise.cons (fun y hy => ?_) ih
+    have := (mem_output_iff.mp hy).2.2.length_le
+    rw [List.length_cons]
+    omega
+  | case3 _ _ _ ih => exact ih -- b :: w ∉ P
 
 theorem nodup_output (P : List (List α)) (w : List α) : (output P w).Nodup :=
   (pairwise_length_gt_output P w).imp fun h heq => by rw [heq] at h; omega
@@ -418,5 +414,45 @@ theorem pairwise_occurrences (P : List (List α)) (t : List α) :
   · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hx
     obtain ⟨_, _, rfl⟩ := List.mem_map.mp hy
     exact Or.inl hij
+
+/-- There are at most `t.length * P.length` keyword occurrences in `t`. -/
+theorem length_occurrences_le (P : List (List α)) (t : List α) :
+    (occurrences P t).length ≤ t.length * P.length := by
+  let grid := (List.range' 1 t.length).flatMap fun i => P.map fun y => (i, y)
+  have hgrid_len : grid.length = t.length * P.length := by
+    have : ∀ m s : ℕ, ((List.range' s m).flatMap fun i => P.map fun y => (i, y)).length =
+        m * P.length := by
+      intro m
+      induction m with
+      | zero => simp
+      | succ m ih =>
+        intro s
+        simp only [List.range'_succ, List.flatMap_cons, List.length_append, List.length_map,
+          ih (s + 1), Nat.add_mul, Nat.one_mul]
+        omega
+    exact this t.length 1
+  have hsub : (occurrences P t).Subperm grid := by
+    refine List.subperm_of_subset (nodup_occurrences P t) fun ⟨i, y⟩ hmem => ?_
+    obtain ⟨hi_le, hy_ne, hy_P, hsuf⟩ := mem_occurrences_iff.mp hmem
+    have hy_pos : 0 < y.length := List.length_pos_iff.mpr hy_ne
+    have htake_le : y.length ≤ (t.take i).length := hsuf.length_le
+    have hi_pos : 1 ≤ i := by
+      have := List.length_take_le i t
+      omega
+    exact List.mem_flatMap.mpr ⟨i, List.mem_range'.mpr ⟨i - 1, by omega, by omega⟩,
+      List.mem_map.mpr ⟨y, hy_P, rfl⟩⟩
+  exact hgrid_len ▸ hsub.length_le
+
+/-- Occurrences in a prefix `p` form a prefix of the occurrences in `p ++ ts`. -/
+theorem occurrences_prefix_append (P : List (List α)) (p : List α) :
+    ∀ ts : List α, occurrences P p <+: occurrences P (p ++ ts)
+  | [] => by simp only [List.append_nil]; exact List.prefix_rfl
+  | a :: ts => by
+    have ih := occurrences_prefix_append P (p ++ [a]) ts
+    rw [List.append_assoc, List.singleton_append] at ih
+    have h1 : occurrences P p <+: occurrences P (p ++ [a]) := by
+      rw [occurrences_append_singleton]
+      exact List.prefix_append _ _
+    exact h1.trans ih
 
 end Cslib.Algorithms.Lean.AhoCorasick

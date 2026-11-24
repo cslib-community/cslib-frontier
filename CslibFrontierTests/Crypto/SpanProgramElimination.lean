@@ -14,7 +14,8 @@ import Mathlib.Data.Fin.VecNotation
 /-!
 # The algorithm `Lin` and the program `P_L`: checked instances
 
-Checks of Theorem 22.14 ([BonehShoup2023], p. 981) over `ZMod 5`:
+Checks over `ZMod 5` of the identities and per-shape circuit bounds that the library proves
+toward Theorem 22.14 ([BonehShoup2023], p. 981); its efficiency claims are open (#5293):
 
 * parts (a) and (b) as a caller applies them to the two-out-of-three program of Example 22.2,
   with the book's hypothesis on the access structure as well as on acceptance;

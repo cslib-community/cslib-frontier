@@ -12,14 +12,15 @@ public import CslibFrontier.Crypto.Computational.LWE.DualRegev
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import Cslib.Probability.StatisticalDistance
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
 
@@ -511,7 +512,20 @@ theorem computableInPolyTime_syndromeEntry {inputs : α → SerializedKeyInputs}
     (hinputs : ComputableInPolyTime inputs input encSerializedKeyInputs)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => syndromeEntry (m a) (w a) (inputs a) (j a)) input encNat := by
-  fun_prop [syndromeEntry]
+  have hp := ComputableInPolyTime.id' (encIn := encPair input encUnary)
+  have hbits := encSerializedKeyInputs_bits_polyTime hinputs
+  have hmatrix := encSerializedKeyInputs_publicPart_polyTime hinputs
+  have hrow := ComputableInPolyTime.listGetDWithInput (hmatrix.comp hp.fst') hp.snd' []
+  have hentry := ComputableInPolyTime.listGetDWithInput hrow (hj.comp hp.fst') 0
+  have hbit := (hbits.comp hp.fst').bitsGetDWithInput hp.snd' false
+  have hvalues := ComputableInPolyTime.mapWithInput
+    (f := fun a i => if (inputs a).bits.getD i false then
+      ((inputs a).publicPart.getD i []).getD (j a) 0 else 0)
+    (ComputableInPolyTime.range.comp hm)
+    (hbit.ite hentry (ComputableInPolyTime.const 0))
+  simpa only [syndromeEntry, Function.comp_def] using
+    ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_sum.comp hvalues)
+      (ComputableInPolyTime.binary_two_pow.comp hw)
 
 /-- Construct the serialized dual-Regev public-key word `[u; A]` in polynomial time. -/
 @[fun_prop]
@@ -606,16 +620,12 @@ theorem computableInPolyTime_encryptEntry
   have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
   have hpad : ComputableInPolyTime
       (fun a => ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input encIntBin :=
-    (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 * p.2)
-      (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-        ((intBin_natCast.comp (unary_to_binary.comp (hboolUnary.comp hmessage))).prod
-          (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop))))
+    intBin_mul' (intBin_natCast_unary.comp (hboolUnary.comp hmessage))
+      (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop)))
   have hzero : ComputableInPolyTime
       (fun a => (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input
         encIntBin :=
-    (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
-      (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-        ((encSerializedEncCoins_scalarError_polyTime hcoins).prod hpad)
+    intBin_add' (encSerializedEncCoins_scalarError_polyTime hcoins) hpad
   have htail : ComputableInPolyTime
       (fun a => (coins a).error.getD (idx a - 1) 0) input encIntBin :=
     (listGetD (encA := encIntBin) 0).comp
@@ -624,9 +634,7 @@ theorem computableInPolyTime_encryptEntry
       (fun a => if idx a = 0 then (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)
         else (coins a).error.getD (idx a - 1) 0) input encIntBin := by
     simpa only [Function.comp_apply, beq_iff_eq] using (beq hidx (const 0)).ite' hzero htail
-  have hadd := (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
-    (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-      ((intBin_natCast.comp hsum).prod herr)
+  have hadd := intBin_add' (intBin_natCast.comp hsum) herr
   simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
     intBin_emodNat' hadd (binary_pow' (const 2) hw)
 
@@ -1114,12 +1122,7 @@ theorem indCPA_of_decisionLWE {n m w η : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lweDistinguisher n m w adversary)
     (isPPT_lweDistinguisher hn hm hw hadversary)
-  have herror := negligible_mul_sqrt_pow_two_div_pow_two
-    (count := fun _ => 1) (outputBits := fun k => w k * n k) (by fun_prop) hmargin
-  apply negligible_of_le
-    ((hsource.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)).add herror)
-  intro security
-  refine (advantage_game_le n m w η adversary security).trans (le_of_eq ?_)
-  simp [hidingError]
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
+  negligible [hidingError] using advantage_game_le n m w η adversary
 
 end Cslib.Crypto.DualRegev

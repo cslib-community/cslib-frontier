@@ -48,17 +48,12 @@ binary entries as data and uses only the table length as its iteration clock. -/
 theorem computableInPolyTime_cycleWord :
     ComputableInPolyTime (fun p : Graph.RotationCertificate × ℕ => cycleWord p.1 p.2)
       (encPair Graph.encRotationCertificate encNat) (encList encNat) := by
-  have hs := Graph.RotationCertificate.computableInPolyTime_successor
-  have hw := Graph.RotationCertificate.computableInPolyTime_walk
   have hf : ComputableInPolyTime (fun p : Graph.RotationCertificate × ℕ =>
       (List.range p.1.successor.length).map fun k =>
         Graph.RotationCertificate.walk p.1.successor (k + 1) p.2)
       (encPair Graph.encRotationCertificate encNat) (encList encNat) := by
     apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop)
-    exact hw.comp (g := fun p : (Graph.RotationCertificate × ℕ) × ℕ =>
-      ((p.1.1.successor, p.2 + 1), p.1.2)) (by
-        unfold Graph.RotationCertificate.encRotationWalk
-        fun_prop)
+    fun_prop
   unfold cycleWord
   fun_prop
 
@@ -91,19 +86,18 @@ theorem computableInPolyTime_shiftBlock :
 theorem computableInPolyTime_nextInCycles :
     ComputableInPolyTime (fun p : List (List ℕ) × ℕ => List.nextInCycles p.1 p.2)
       (encPair (encList (encList encUnary)) encUnary) encUnary := by
-  apply ComputableInPolyTime.of_tidy
-  have hf : ComputableTidilyInPolyTime (fun p : List (List ℕ) × ℕ =>
+  have hf : ComputableInPolyTime (fun p : List (List ℕ) × ℕ =>
       p.1.find? (fun word => decide (p.2 ∈ word)))
       (encPair (encList (encList encUnary)) encUnary) (encOption (encList encUnary)) := by
-    apply ComputableTidilyInPolyTime.findWithInput (encA := encList encUnary) (by fun_prop)
+    apply ComputableInPolyTime.findWithInput (encA := encList encUnary) (by fun_prop)
     fun_prop
-  have hw : ComputableTidilyInPolyTime (fun p : List (List ℕ) × ℕ =>
+  have hw : ComputableInPolyTime (fun p : List (List ℕ) × ℕ =>
       (p.1.find? (fun word => decide (p.2 ∈ word))).getD [])
       (encPair (encList (encList encUnary)) encUnary) (encList encUnary) :=
-    ComputableTidilyInPolyTime.optionGetDWithInput hf (by fun_prop)
+    ComputableInPolyTime.optionGetDWithInput hf (by fun_prop)
   unfold List.nextInCycles
-  apply ComputableTidilyInPolyTime.optionGetDWithInput
-  · apply ComputableTidilyInPolyTime.getElem? hw
+  apply ComputableInPolyTime.optionGetDWithInput
+  · apply ComputableInPolyTime.getElem? hw
     fun_prop
   · fun_prop
 
@@ -170,8 +164,8 @@ theorem computableInPolyTime_incidenceBlock [Finite Src]
   have hr : ComputableInPolyTime (fun p : CSP Src ℕ × ℕ =>
       p.1.occurrences.getD (p.2 / 2) (0, 0, 0))
       (encPair (encCSP encSrc encNat) encNat) (encOccurrenceRecord encNat) :=
-    .of_tidy (ComputableTidilyInPolyTime.listGetD_binary (0, 0, 0)
-      (ho.tidy.comp (by fun_prop)) (by fun_prop))
+    ComputableInPolyTime.listGetD_binary (0, 0, 0)
+      (ho.comp (by fun_prop)) (by fun_prop)
   exact (computableInPolyTime_blockAtRecord encSrc templates freeBlocks).comp
     (g := fun p : CSP Src ℕ × ℕ =>
       (p.1, ((p.1.occurrences.getD (p.2 / 2) (0, 0, 0)).1,
@@ -195,12 +189,11 @@ private theorem firstVariableDart_polyTime (encSrc : Src ↪ List Bool) :
       (ho.comp (ComputableInPolyTime.fst _ _))
     unfold encOccurrenceRecord
     fun_prop
-  apply ComputableInPolyTime.of_tidy
-  exact ComputableTidilyInPolyTime.unary_to_binary.comp
-    (ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod
-        (ComputableTidilyInPolyTime.idxOfWithInput hv.tidy
-          (ComputableTidilyInPolyTime.snd _ _))))
+  exact ComputableInPolyTime.unary_to_binary.comp
+    (ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 2).prod
+        (ComputableInPolyTime.idxOfWithInput hv
+          (ComputableInPolyTime.snd _ _))))
 
 private theorem sourceCycle_polyTime (encSrc : Src ↪ List Bool) :
     ComputableInPolyTime (fun p : (CSP Src ℕ × Graph.RotationCertificate) × ℕ =>
@@ -333,12 +326,11 @@ theorem computableInPolyTime_certificate (encRel : Rel ↪ List Bool) :
   have hbinary : ComputableInPolyTime (fun p : CSP Rel ℕ × List (List ℕ) =>
       (successorPairs p.1 p.2).flatMap fun q => [q.1, q.2])
       (encTargetCycles encRel) (encList encNat) := by
-    have h := ComputableInPolyTime.of_tidy
-      ((ComputableTidilyInPolyTime.map ComputableTidilyInPolyTime.unary_to_binary).comp
-        hflat.tidy)
+    have h := ComputableInPolyTime.mapWithInput (f := fun _ n => n) (encB := encNat) hflat
+      (ComputableInPolyTime.unary_to_binary.comp
+        (ComputableInPolyTime.snd (encTargetCycles encRel) encUnary))
     simpa only [Function.comp_def, List.map_id'] using h
-  have hmk := Graph.encRotationCertificate_mk_deg.computableInPolyTime
-  exact hmk.comp hbinary
+  exact Graph.encRotationCertificate_mk_polyTime hbinary
 
 /-- Full native computation of the explicit candidate target certificate from the original
 CSP and original binary source certificate. There is no valid-input premise on this bound. -/

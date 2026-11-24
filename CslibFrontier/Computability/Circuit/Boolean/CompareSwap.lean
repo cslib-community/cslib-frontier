@@ -173,10 +173,7 @@ theorem compareSwapCircuit.switch_involutive (r : ℕ) (b : Bool) (x y : BitStri
 /-- Switching charges two ANDs and one OR for each output bit. -/
 theorem compareSwapCircuit.cost_switch (r : ℕ) (cost : signature.Op → ℕ) :
     (switch r).program.cost cost = 2 * r * (2 * cost .and + cost .or) := by
-  simp only [switch, Circuit.cost_program_pi, Formula.cost_toCircuit, selectBit,
-    Formula.and, Formula.or, Formula.cost_gate, Formula.cost_input,
-    Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one, Finset.sum_const,
-    Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  simp only [circuit_simps, switch, selectBit]
   ring
 
 /-- The comparator and one shared negation are charged in addition to switching. -/
@@ -184,8 +181,7 @@ theorem compareSwapCircuit.cost_record {r : ℕ} (flag : Circuit signature (r + 
     (cost : signature.Op → ℕ) :
     (record flag).program.cost cost =
       flag.program.cost cost + cost .not + 2 * r * (2 * cost .and + cost .or) := by
-  simp only [circuit_simps, record, cost_switch, flagPair, Formula.cost_toCircuit, Formula.not,
-    Formula.cost_gate, Formula.cost_input, Fin.sum_univ_one, Matrix.cons_val_zero]
+  simp only [circuit_simps, record, cost_switch, flagPair]
   ring
 
 /-- Exposing the controls adds no gates to `exchange`. Unlike `compareSwapCircuit`, `exchange`

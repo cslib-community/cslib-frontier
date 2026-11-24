@@ -9,49 +9,46 @@ module
 
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT
-import CslibFrontier.Algorithms.Lean.TimeM.Loops
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 import CslibFrontier.Foundations.Data.List.Fold
 
 /-!
-# Linear-time 2-SAT via strongly connected components
+# 2-SAT via strongly connected components
 
-The linear-time 2-SAT decision and witness-construction algorithm of
-[Aspvall, Plass and Tarjan][AspvallPlassTarjan1979] in the `TimeM` model, built as a client of
-Kosaraju's strongly connected components (`CslibFrontier.Algorithms.Lean.DFS.SCC`) and connected to
-`Cslib.Complexity.TwoSAT` (`CslibFrontier.Computability.Complexity.Problems.TwoSAT`).
+The 2-SAT decision and witness-construction algorithm of
+[Aspvall, Plass and Tarjan][AspvallPlassTarjan1979], built as a client of Kosaraju's strongly
+connected components (`CslibFrontier.Algorithms.Lean.DFS.SCC`) and connected to
+`Cslib.Complexity.TwoSAT` (`CslibFrontier.Computability.Complexity.Problems.TwoSAT`). For the
+linear-time `O(n + |φ|)` word-RAM realization on `CNF (Fin n)`, see
+`CslibFrontier.Algorithms.WordRAM.TwoSAT`.
 
-Given a duplicate-free list `vs` covering a finite variable type `V` and a formula `φ : CNF V`:
-1. `checkClausesM φ` checks in `|φ|` steps that every clause has length `1` or `2`;
-2. `implicationAdjM φ` builds the adjacency lists of `φ`'s implication graph (`a ∨ b` contributes
-   `¬a → b` and `¬b → a`; a unit clause `a` contributes `¬a → a`) in `|φ|` steps with at most
-   `2 * |φ|` arcs;
-3. `DFS.sccsM` and `DFS.indexComponentsM` compute the topological component index `compIdx` of
-   every literal in `O(|vs| + |φ|)` steps;
-4. `extractAssignmentM` rejects if some variable shares a component with its negation, and
+Given a list `vs` covering a finite variable type `V` and a formula `φ : CNF V`:
+1. `checkClauses φ` checks that every clause has length `1` or `2`;
+2. `implicationAdj φ` builds the adjacency lists of `φ`'s implication graph (`a ∨ b` contributes
+   `¬a → b` and `¬b → a`; a unit clause `a` contributes `¬a → a`), with at most `2 * |φ|` arcs;
+3. `DFS.sccs` and `DFS.indexComponents` compute the topological component index `compIdx` of
+   every literal;
+4. `extractAssignment` rejects if some variable shares a component with its negation, and
    otherwise sets `σ v := decide (compIdx (v, false) < compIdx (v, true))`.
 
-For formulas `φ : CNF ℕ` with arbitrary binary variable labels, `solveNat` / `solveNatM` compact
-occurring variables into `Fin φ.vars.length`, deciding `φ ∈ Cslib.Complexity.TwoSAT` and producing
-a satisfying assignment `ℕ → Bool` in `O(|φ.vars| + |φ|)` `TimeM` steps.
+For formulas `φ : CNF ℕ` with arbitrary binary variable labels, `solveNat` compacts occurring
+variables into `Fin (φ.vars.length + 1)`, deciding `φ ∈ Cslib.Complexity.TwoSAT` and producing a
+satisfying assignment `ℕ → Bool`.
 
 ## Main definitions
 
-* `Cslib.Algorithms.Lean.TwoSAT.implicationAdj`, `Cslib.Algorithms.Lean.TwoSAT.implicationAdjM`:
-  implication-graph adjacency lists of a width-at-most-2 formula.
-* `Cslib.Algorithms.Lean.TwoSAT.solve`, `Cslib.Algorithms.Lean.TwoSAT.solveM`: linear-time 2-SAT
-  solver over a finite variable list `vs`.
-* `Cslib.Algorithms.Lean.TwoSAT.solveFin`, `Cslib.Algorithms.Lean.TwoSAT.solveFinM`: specialization
-  to `CNF (Fin n)`.
-* `Cslib.Algorithms.Lean.TwoSAT.solveNat`, `Cslib.Algorithms.Lean.TwoSAT.solveNatM`: solver on
-  `CNF ℕ` connected to `Cslib.Complexity.TwoSAT`.
+* `Cslib.Algorithms.Lean.TwoSAT.implicationAdj`: implication-graph adjacency lists of a
+  width-at-most-2 formula.
+* `Cslib.Algorithms.Lean.TwoSAT.solve`: 2-SAT solver over a finite variable list `vs`.
+* `Cslib.Algorithms.Lean.TwoSAT.solveFin`: specialization to `CNF (Fin n)`.
+* `Cslib.Algorithms.Lean.TwoSAT.solveNat`: solver on `CNF ℕ` connected to
+  `Cslib.Complexity.TwoSAT`.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.TwoSAT.solve_eq_some`, `Cslib.Algorithms.Lean.TwoSAT.isSome_solve_iff`:
   soundness and completeness of `solve`.
-* `Cslib.Algorithms.Lean.TwoSAT.time_solveM_le`, `Cslib.Algorithms.Lean.TwoSAT.time_solveFinM_le`:
-  linear `O(|V| + |φ|)` `TimeM` step bound (`≤ 12 * n + 8 * φ.length + 1`).
+* `Cslib.Algorithms.Lean.TwoSAT.solveFin_eq_some`,
+  `Cslib.Algorithms.Lean.TwoSAT.isSome_solveFin_iff`: soundness and completeness on `CNF (Fin n)`.
 * `Cslib.Algorithms.Lean.TwoSAT.isSome_solveNat_iff`,
   `Cslib.Algorithms.Lean.TwoSAT.solveNat_eq_some`: exact equivalence with
   `φ ∈ Cslib.Complexity.TwoSAT` and witness validity.
@@ -68,7 +65,7 @@ a satisfying assignment `ℕ → Bool` in `O(|φ.vars| + |φ|)` `TimeM` steps.
 
 namespace Cslib.Algorithms.Lean.TwoSAT
 
-open Cslib.Logic.PL Cslib.Algorithms.Lean.DFS TimeM
+open Cslib.Logic.PL Cslib.Algorithms.Lean.DFS
 
 variable {V : Type*}
 
@@ -81,10 +78,6 @@ def isValidTwoClause (c : Clause V) : Bool :=
 /-- Check that every clause of `φ` has length `1` or `2`. -/
 def checkClauses (φ : CNF V) : Bool :=
   φ.foldl (fun ok c => ok && isValidTwoClause c) true
-
-/-- `checkClauses` in `TimeM`, charging one unit per clause. -/
-def checkClausesM (φ : CNF V) : TimeM ℕ Bool :=
-  φ.foldlM (fun ok c => do ✓ return (ok && isValidTwoClause c)) true
 
 theorem checkClauses_eq_true_iff (φ : CNF V) :
     checkClauses φ = true ↔ (∀ c ∈ φ, c.length ≤ 2) ∧ [] ∉ φ := by
@@ -101,25 +94,10 @@ theorem checkClauses_eq_true_iff (φ : CNF V) :
     | nil => exact absurd hc hnil
     | cons _ _ => simp
 
-@[time_simps]
-theorem ret_checkClausesM (φ : CNF V) : (checkClausesM φ).ret = checkClauses φ := by
-  simp [checkClausesM, checkClauses, TimeM.ret_foldlM]
-
-theorem time_checkClausesM (φ : CNF V) : (checkClausesM φ).time = φ.length := by
-  time_spec checkClausesM
-
 /-- Enumerate both polarities `(v, false)` and `(v, true)` for each `v ∈ vs`. -/
 def literalList : List V → List (Literal V)
   | [] => []
   | v :: vs => (v, false) :: (v, true) :: literalList vs
-
-/-- `literalList` in `TimeM`, charging one unit per variable. -/
-def literalListM : List V → TimeM ℕ (List (Literal V))
-  | [] => return []
-  | v :: vs => do
-    ✓
-    let rest ← literalListM vs
-    return (v, false) :: (v, true) :: rest
 
 theorem length_literalList (vs : List V) : (literalList vs).length = 2 * vs.length := by
   induction vs with
@@ -150,14 +128,6 @@ theorem nodup_literalList {vs : List V} (hnd : vs.Nodup) : (literalList vs).Nodu
       and_false, false_or, mem_literalList_iff]
     exact ⟨hnd.1, hnd.1, ih hnd.2⟩
 
-@[time_simps]
-theorem ret_literalListM (vs : List V) : (literalListM vs).ret = literalList vs := by
-  time_spec literalListM [literalList]
-
-@[time_simps]
-theorem time_literalListM (vs : List V) : (literalListM vs).time = vs.length := by
-  time_spec literalListM
-
 /-! ### Implication-graph adjacency lists -/
 
 /-- Add the implication arcs of a single clause `c` of width `1` or `2`. -/
@@ -173,10 +143,6 @@ def addClauseEdges [DecidableEq V] (adj : Literal V → List (Literal V)) :
 /-- Build the implication-graph adjacency lists of `φ`. -/
 def implicationAdj [DecidableEq V] (φ : CNF V) : Literal V → List (Literal V) :=
   φ.foldl addClauseEdges (fun _ => [])
-
-/-- `implicationAdj` in `TimeM`, charging one unit per clause. -/
-def implicationAdjM [DecidableEq V] (φ : CNF V) : TimeM ℕ (Literal V → List (Literal V)) :=
-  φ.foldlM (fun adj c => do ✓ return addClauseEdges adj c) (fun _ => [])
 
 section ImplicationGraph
 
@@ -313,14 +279,6 @@ theorem sum_length_implicationAdj_le [Fintype V] (φ : CNF V) :
     (∑ w, (implicationAdj φ w).length) ≤ 2 * φ.length := by
   simpa [implicationAdj] using sum_foldl_addClauseEdges_le φ (fun _ => [])
 
-@[time_simps]
-theorem ret_implicationAdjM (φ : CNF V) : (implicationAdjM φ).ret = implicationAdj φ := by
-  simp [implicationAdjM, implicationAdj, TimeM.ret_foldlM]
-
-@[time_simps]
-theorem time_implicationAdjM (φ : CNF V) : (implicationAdjM φ).time = φ.length := by
-  time_spec implicationAdjM
-
 end ImplicationGraph
 
 /-! ### Extracting the truth assignment from SCC topological indices -/
@@ -333,26 +291,7 @@ def extractAssignment (vs : List V) (compIdx : Literal V → ℕ) : Option (V �
   else
     none
 
-/-- `extractAssignment` in `TimeM`, charging one unit per variable in `vs`. -/
-def extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) : TimeM ℕ (Option (V → Bool)) :=
-  TimeM.bind
-    (vs.foldlM
-      (fun ok v => do ✓ return (ok && decide (compIdx (v, true) ≠ compIdx (v, false)))) true)
-    fun ok =>
-      if ok then pure (some fun v => decide (compIdx (v, false) < compIdx (v, true)))
-      else pure none
-
-@[time_simps]
-theorem ret_extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) :
-    (extractAssignmentM vs compIdx).ret = extractAssignment vs compIdx := by
-  time_spec extractAssignmentM [extractAssignment, TimeM.bind]
-
-@[time_simps]
-theorem time_extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) :
-    (extractAssignmentM vs compIdx).time = vs.length := by
-  time_spec extractAssignmentM [TimeM.bind]
-
-/-! ### Linear-time 2-SAT solver -/
+/-! ### 2-SAT solver -/
 
 /-- **Aspvall–Plass–Tarjan 2-SAT solver**: returns `some σ` satisfying `φ` when every clause of `φ`
 has width at most `2` and `φ` is satisfiable, and `none` otherwise. -/
@@ -366,25 +305,9 @@ def solve [DecidableEq V] (vs : List V) (φ : CNF V) : Option (V → Bool) :=
   else
     none
 
-/-- `solve` in `TimeM`. -/
-def solveM [DecidableEq V] (vs : List V) (φ : CNF V) : TimeM ℕ (Option (V → Bool)) := do
-  ✓
-  TimeM.bind (checkClausesM φ) fun ok =>
-    if ok then do
-      let lits ← literalListM vs
-      let adj ← implicationAdjM φ
-      let comps ← sccsM adj lits
-      let compIdx ← indexComponentsM comps
-      extractAssignmentM vs compIdx
-    else
-      pure none
-
 section SolveCorrectness
 
 variable [DecidableEq V] {vs : List V} {φ : CNF V}
-
-theorem ret_solveM (vs : List V) (φ : CNF V) : (solveM vs φ).ret = solve vs φ := by
-  time_spec solveM [solve, TimeM.bind]
 
 omit [DecidableEq V] in
 private theorem literal_false_lt {compIdx : Literal V → ℕ}
@@ -499,56 +422,13 @@ theorem isSome_solve_iff (hvs : ∀ v, v ∈ vs) :
         ((reach_iff_implies hw hnil).1 h₁) ((reach_iff_implies hw hnil).1 h₂) hsat
     simp only [solve, hchk, ↓reduceIte, extractAssignment, hdist, Option.isSome_some]
 
-/-- **Linear `TimeM` step bound for `solveM`**: when `vs` lists every vertex of `V` without
-repetition, `solveM vs φ` takes at most `12 * |vs| + 8 * |φ| + 1` steps. -/
-theorem time_solveM_le (hvs : ∀ v, v ∈ vs) (hnd : vs.Nodup) (φ : CNF V) :
-    (solveM vs φ).time ≤ 12 * vs.length + 8 * φ.length + 1 := by
-  let _ : Fintype V := Fintype.ofList vs hvs
-  have hlits_mem : ∀ ℓ, ℓ ∈ literalList vs := mem_literalList hvs
-  have hlits_nd : (literalList vs).Nodup := nodup_literalList hnd
-  have hcond : IsSCCCondensation (implicationAdj φ) (sccs (implicationAdj φ) (literalList vs)) :=
-    isSCCCondensation_sccs hlits_mem
-  have hcard_V : Fintype.card V = vs.length := by
-    rw [← List.toFinset_card_of_nodup hnd]
-    have huniv : vs.toFinset = Finset.univ := by ext v; simp [hvs v]
-    rw [huniv, Finset.card_univ]
-  have hcard_lit : Fintype.card (Literal V) = 2 * vs.length := by
-    change Fintype.card (V × Bool) = 2 * vs.length
-    rw [Fintype.card_prod, hcard_V, Fintype.card_bool]
-    omega
-  have hsccs_time :
-      (sccsM (implicationAdj φ) (literalList vs)).time ≤ 6 * vs.length + 6 * φ.length := by
-    rw [time_sccsM_of_nodup hlits_mem hlits_nd, length_literalList]
-    have hsum := sum_length_implicationAdj_le φ
-    omega
-  have hidx_time :
-      (indexComponentsM (sccs (implicationAdj φ) (literalList vs))).time ≤ 4 * vs.length := by
-    rw [time_indexComponentsM, hcond.length_flatten_eq_card]
-    have hlen := hcond.length_le_card
-    omega
-  simp only [solveM, time_simps]
-  dsimp only [TimeM.bind]
-  rw [ret_checkClausesM, time_checkClausesM]
-  split_ifs with hok
-  · simp only [time_simps]
-    omega
-  · simp only [TimeM.time_pure]
-    omega
-
 end SolveCorrectness
 
 /-! ### Specialization to `CNF (Fin n)` and bridge to `Cslib.Complexity.TwoSAT` -/
 
-/-- Linear-time 2-SAT solver on `CNF (Fin n)`. -/
+/-- 2-SAT solver on `CNF (Fin n)`. -/
 def solveFin (n : ℕ) (φ : CNF (Fin n)) : Option (Fin n → Bool) :=
   solve (List.finRange n) φ
-
-/-- `solveFin` in `TimeM`. -/
-def solveFinM (n : ℕ) (φ : CNF (Fin n)) : TimeM ℕ (Option (Fin n → Bool)) :=
-  solveM (List.finRange n) φ
-
-theorem ret_solveFinM (n : ℕ) (φ : CNF (Fin n)) : (solveFinM n φ).ret = solveFin n φ :=
-  ret_solveM (List.finRange n) φ
 
 theorem solveFin_eq_some {n : ℕ} {φ : CNF (Fin n)} {σ : Fin n → Bool}
     (h : solveFin n φ = some σ) : (∀ c ∈ φ, c.length ≤ 2) ∧ φ.eval σ = true :=
@@ -558,10 +438,6 @@ theorem isSome_solveFin_iff (n : ℕ) (φ : CNF (Fin n)) :
     (solveFin n φ).isSome ↔ (∀ c ∈ φ, c.length ≤ 2) ∧ φ.Satisfiable :=
   isSome_solve_iff List.mem_finRange
 
-theorem time_solveFinM_le (n : ℕ) (φ : CNF (Fin n)) :
-    (solveFinM n φ).time ≤ 12 * n + 8 * φ.length + 1 := by
-  simpa [solveFinM] using time_solveM_le (V := Fin n) List.mem_finRange (List.nodup_finRange n) φ
-
 /-- Map a natural-number variable to its compact index in `Fin (φ.vars.length + 1)`. -/
 def toFinVar (φ : CNF ℕ) (v : ℕ) : Fin (φ.vars.length + 1) :=
   if h : φ.vars.idxOf v < φ.vars.length then ⟨φ.vars.idxOf v, Nat.lt_succ_of_lt h⟩ else 0
@@ -570,48 +446,10 @@ def toFinVar (φ : CNF ℕ) (v : ℕ) : Fin (φ.vars.length + 1) :=
 def toFinCNF (φ : CNF ℕ) : CNF (Fin (φ.vars.length + 1)) :=
   φ.relabel (toFinVar φ)
 
-/-- Relabel a single clause with `f` in `TimeM`, charging one unit per literal. -/
-def relabelClauseM {W : Type*} (f : ℕ → W) (c : Clause ℕ) : TimeM ℕ (Clause W) :=
-  c.mapM fun ℓ => do ✓ return (f ℓ.1, ℓ.2)
-
-/-- `toFinCNF` in `TimeM`, charging one unit per clause and one per literal occurrence. -/
-def toFinCNFM (φ : CNF ℕ) : TimeM ℕ (CNF (Fin (φ.vars.length + 1))) :=
-  let f := toFinVar φ
-  φ.mapM fun c => do
-    ✓
-    relabelClauseM f c
-
-@[time_simps]
-private theorem ret_relabelClauseM {W : Type*} (f : ℕ → W) (c : Clause ℕ) :
-    (relabelClauseM f c).ret = Clause.relabel f c := by
-  time_spec relabelClauseM
-
-@[time_simps]
-private theorem time_relabelClauseM {W : Type*} (f : ℕ → W) (c : Clause ℕ) :
-    (relabelClauseM f c).time = c.length := by
-  simp [relabelClauseM]
-
-@[time_simps]
-theorem ret_toFinCNFM (φ : CNF ℕ) : (toFinCNFM φ).ret = toFinCNF φ := by
-  time_spec toFinCNFM
-
-@[time_simps]
-theorem time_toFinCNFM (φ : CNF ℕ) : (toFinCNFM φ).time = φ.length + φ.vars.length := by
-  time_spec toFinCNFM [CNF.length_vars, List.sum_map_add]
-
 /-- Solve a `CNF ℕ` instance of `Cslib.Complexity.TwoSAT`, returning `some σ` when `φ ∈ TwoSAT` and
 `none` otherwise. -/
 def solveNat (φ : CNF ℕ) : Option (ℕ → Bool) :=
   (solveFin (φ.vars.length + 1) (toFinCNF φ)).map fun σ v => σ (toFinVar φ v)
-
-/-- `solveNat` in `TimeM`. -/
-def solveNatM (φ : CNF ℕ) : TimeM ℕ (Option (ℕ → Bool)) := do
-  let ψ ← toFinCNFM φ
-  let res ← solveFinM (φ.vars.length + 1) ψ
-  return res.map fun σ v => σ (toFinVar φ v)
-
-theorem ret_solveNatM (φ : CNF ℕ) : (solveNatM φ).ret = solveNat φ := by
-  simp [solveNatM, solveNat, ret_toFinCNFM, ret_solveFinM]
 
 private theorem width_toFinCNF_iff (φ : CNF ℕ) :
     (∀ c ∈ toFinCNF φ, c.length ≤ 2) ↔ ∀ c ∈ φ, c.length ≤ 2 := by
@@ -643,13 +481,5 @@ theorem isSome_solveNat_iff (φ : CNF ℕ) :
     (solveNat φ).isSome ↔ φ ∈ Cslib.Complexity.TwoSAT := by
   rw [solveNat, Option.isSome_map, isSome_solveFin_iff, width_toFinCNF_iff,
     satisfiable_toFinCNF_iff, Cslib.Complexity.mem_TwoSAT]
-
-/-- **Linear `TimeM` step bound for `solveNatM`** in variable occurrences and clauses. -/
-theorem time_solveNatM_le (φ : CNF ℕ) :
-    (solveNatM φ).time ≤ 13 * φ.vars.length + 9 * φ.length + 13 := by
-  have hfin := time_solveFinM_le (φ.vars.length + 1) (toFinCNF φ)
-  have hlen : (toFinCNF φ).length = φ.length := by simp [toFinCNF, CNF.relabel]
-  simp only [solveNatM, time_simps]
-  omega
 
 end Cslib.Algorithms.Lean.TwoSAT

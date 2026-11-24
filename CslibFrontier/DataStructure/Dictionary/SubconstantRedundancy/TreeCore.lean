@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.StorageNode
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRouting
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Multi-Level Dictionary Tree State, Section 5.6 Metadata, and Subtree Capacity Laws
@@ -714,7 +715,6 @@ def dfsSubtreeMeta (st : P.TreeState) (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ �
   else
     [head]
 termination_by P.depth - ℓ
-decreasing_by omega
 
 /-- **`dfsSubtreeMeta` covers every descendant in `InSubtree ℓ u` (`Section 5.6`)**: an item
 appears in `st.dfsSubtreeMeta ℓ h1 hℓ u` iff it is `st.nodeMeta j hj1 hjd v` for some node `(j, v)`
@@ -1145,8 +1145,7 @@ theorem rootKeyCount_le_rootValPoolCap
   have hhi : (P.paddedDom d).card ≤ P.cap := by
     have := hwf.goodSeeds.1.2
     simpa [nHigh] using this
-  dsimp only [rootValPoolCap]
-  omega
+  wram_omega
 
 end TreeState
 

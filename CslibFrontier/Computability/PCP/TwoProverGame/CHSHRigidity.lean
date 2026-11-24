@@ -69,12 +69,6 @@ namespace CommutingStrategy
 
 variable {X Y 𝒜 : Type*} [Ring 𝒜] [PartialOrder 𝒜] [Algebra ℂ 𝒜]
 
-/-- Alice's and Bob's observables commute. -/
-theorem commute_observable (S : CommutingStrategy X Y Bool Bool 𝒜) (x : X) (y : Y) :
-    Commute (S.alice x).observable (S.bob y).observable :=
-  ((S.commute x y false false).sub_right (S.commute x y false true)).sub_left
-    ((S.commute x y true false).sub_right (S.commute x y true true))
-
 /-- The CHSH expression of the observables is the CHSH combination of the correlations. -/
 theorem re_chshExpr (S : CommutingStrategy X Y Bool Bool 𝒜) (x₀ x₁ : X) (y₀ y₁ : Y) :
     (S.state (AlgState.chshExpr (S.alice x₀).observable (S.alice x₁).observable

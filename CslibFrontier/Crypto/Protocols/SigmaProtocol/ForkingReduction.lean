@@ -509,11 +509,12 @@ theorem toReal_le_add_sqrt_fork_of_le [DecidableEq C] {Coins : Type} (first : PM
     (hp : p ≤ first.bind (fun s =>
       ((interpret countingUniform (program σ (κ s) (A s) (samples s))).run 0).map
         fun ((_, outcome), _) => outcome.won) true + ε)
-    (hfork : (Forking.fork first (forkingAlgorithm (Classical.arbitrary C) (Qro + 1)
+    {fallback : C}
+    (hfork : (Forking.fork first (forkingAlgorithm fallback (Qro + 1)
       fun s => program σ (κ s) (A s) (samples s))).map Option.isSome true ≤ succ)
     (hsucc : succ ≠ ⊤) :
     p.toReal ≤ (Qro + 1 : ℕ) / Fintype.card C + √((Qro + 1 : ℕ) * succ.toReal) + ε.toReal :=
-  OracleComp.toReal_le_add_sqrt_fork_of_le first _ (Classical.arbitrary C)
+  OracleComp.toReal_le_add_sqrt_fork_of_le first _ fallback
     (fun s => isQueryBounded_program σ (κ s) (hA s) (samples s)) hε
     (hp.trans (add_le_add (Probability.PMF.bind_apply_mono_on_support _ _ fun s _ =>
       map_run_le_validIndex σ (κ s) (hκ s) (hA s) (samples s)) le_rfl)) hfork hsucc

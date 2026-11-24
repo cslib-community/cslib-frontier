@@ -98,7 +98,7 @@ def decode (bits : BitString (width n w)) : Record n w where
   padding := bits (Fin.castAdd (w + n + 1) 0)
   state i := bits (Fin.castAdd (w + n + 1) i.succ)
   checkpoint := bits (Fin.natAdd (n + 1) 0)
-  index := word fun i => bits (Fin.natAdd (n + 1) (Fin.castAdd n i).succ)
+  index := BitString.equivBitVec fun i => bits (Fin.natAdd (n + 1) (Fin.castAdd n i).succ)
   payload i := bits (Fin.natAdd (n + 1) (Fin.natAdd w i).succ)
 
 /-- Decoding the bit encoding of a record recovers the record. -/

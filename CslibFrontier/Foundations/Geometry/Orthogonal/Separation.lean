@@ -18,7 +18,7 @@ a singleton, or an overlapping segment. The Boolean checker accepts the first tw
 the singleton is an allowed contact point. Its soundness refers to the entire real segments.
 In fact, the sufficient bounding-box criterion is sound even for diagonal segments.
 
-The route checker includes a degenerate segment for every listed point, so its soundness also
+The route checker includes a degenerate segment for a singleton route, so its soundness also
 covers empty and singleton routes. In particular, checking against a singleton route certifies
 that an incidence route avoids a nonincident vertex.
 
@@ -131,32 +131,30 @@ theorem isSimple_of_segmentContactCheck {r : Route} (hnodup : r.Nodup)
     exact ⟨Or.inl hpq, Or.inr (hpq.trans (congrArg realPoint hba.symm))⟩
   · exact False.elim (List.not_mem_nil hq)
 
-/-- Segment pieces for a route, including degenerate pieces for isolated listed points. -/
+/-- Consecutive segments of a route, with one degenerate segment for a singleton. -/
 def segmentPieces (r : Route) : List (Point × Point) :=
-  r.map (fun p => (p, p)) ++ r.consecutivePairs
+  match r with
+  | [a] => [(a, a)]
+  | _ => r.consecutivePairs
 
 /-- Continuous route support is exactly the union of its finite segment pieces. -/
 theorem mem_support_iff_segmentPieces {r : Route} {p : ℝ × ℝ} :
     p ∈ support r ↔ ∃ e ∈ segmentPieces r, p ∈ segment e.1 e.2 := by
-  constructor
-  · rintro (⟨a, ha, rfl⟩ | ⟨e, he, hp⟩)
-    · exact ⟨(a, a), List.mem_append_left _ (List.mem_map_of_mem ha),
-        _root_.left_mem_segment ℝ (realPoint a) (realPoint a)⟩
-    · exact ⟨e, List.mem_append_right _ he, hp⟩
-  · rintro ⟨e, he, hp⟩
-    rcases List.mem_append.mp he with he | he
-    · obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
-      have hpa : p = realPoint a := by simpa only [segment, _root_.segment_same,
-        Set.mem_singleton_iff] using hp
-      exact Or.inl ⟨a, ha, hpa⟩
-    · exact Or.inr ⟨e, he, hp⟩
+  match r with
+  | [] => simp [support, segmentPieces, List.consecutivePairs]
+  | [a] => simp [support, segmentPieces, List.consecutivePairs, segment, eq_comm]
+  | a :: b :: rest =>
+    exact ⟨mem_support_segment (by simp), fun h => Or.inr h⟩
 
 private theorem mem_of_mem_segmentPieces {r : Route} {e : Point × Point}
     (he : e ∈ segmentPieces r) : e.1 ∈ r ∧ e.2 ∈ r := by
-  rcases List.mem_append.mp he with he | he
-  · obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
-    exact ⟨ha, ha⟩
-  · have h := List.of_mem_zip he
+  match r with
+  | [] => simp [segmentPieces, List.consecutivePairs] at he
+  | [a] =>
+    obtain rfl : e = (a, a) := List.mem_singleton.mp he
+    simp
+  | a :: b :: rest =>
+    have h := List.of_mem_zip (show e ∈ (a :: b :: rest).consecutivePairs from he)
     exact ⟨h.1, List.mem_of_mem_tail h.2⟩
 
 /-- Minimum of a coordinate projection along a nonempty route `p :: r`. -/
