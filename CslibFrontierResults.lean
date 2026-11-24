@@ -10,6 +10,7 @@ import CslibFrontierResults.Entries.DigitalGoods
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.DominanceSymmetric
+import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity

@@ -9001,6 +9001,7 @@ public import CslibFrontier.GameTheory.Cooperative.FacilityLocationCostSharing
 public import CslibFrontier.GameTheory.Cooperative.FacilityLocationLowerBound
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
+public import CslibFrontier.GameTheory.Evolutionary.Basic
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.GameTheory.Extensive.PerfectInfo
 public import CslibFrontier.GameTheory.Extensive.SequenceForm
