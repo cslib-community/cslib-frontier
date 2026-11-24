@@ -94,15 +94,15 @@ theorem criticalJacobianValue_mem (E : Decoder enc) {p n ell u : α → ℕ}
   simpa only [criticalJacobianValue, Function.comp_apply] using
     modularMatrixDeterminant_mem hp hn hentry
 
+/-- A Jacobian entry is independent of the centers because their contribution is constant. -/
 theorem criticalJacobianEntryValue_cast {p n : ℕ} [Fact p.Prime]
-    (F : MvPolynomial (Fin n) (ZMod p)) (ell u : ℕ) (i j : Fin n) (z : List ℕ)
-    (value : List ℕ → ℕ) (hF : F.totalDegree < p - 1) (hp : 3 < p)
+    (F : MvPolynomial (Fin n) (ZMod p)) (centers : Fin n → ZMod p) (ell u : ℕ)
+    (i j : Fin n) (z : List ℕ) (value : List ℕ → ℕ) (hF : F.totalDegree < p - 1) (hp : 3 < p)
     (hv : ∀ y, (value y : ZMod p) = eval
       (fun k : Fin n => ((y[k.val]?.getD 0 : ℕ) : ZMod p)) F) :
     (criticalJacobianEntryValue p n ell u i.val j.val z value : ZMod p) =
       eval (fun k : Fin n => ((z[k.val]?.getD 0 : ℕ) : ZMod p))
-        (pderiv j (X i ^ ell - criticalLower ell
-          (fun k : Fin n => ((separatedCenters ell k : ℕ) : ZMod p)) (u : ZMod p) F i)) := by
+        (pderiv j (X i ^ ell - criticalLower ell centers (u : ZMod p) F i)) := by
   rw [criticalJacobianEntryValue, ZMod.natCast_mod, Nat.cast_add, Nat.cast_mul,
     secondPartialResidue_cast F i j z value hF hp hv]
   by_cases hij : i = j
@@ -112,24 +112,21 @@ theorem criticalJacobianEntryValue_cast {p n : ℕ} [Fact p.Prime]
   · have hval : i.val ≠ j.val := fun h => hij (Fin.ext h)
     simp [criticalLower, pderiv_X, hij, hval]
 
+/-- The same modular determinant evaluates the Jacobian for any choice of centers. -/
 theorem criticalJacobianValue_cast {p n : ℕ} [Fact p.Prime]
-    (F : MvPolynomial (Fin n) (ZMod p)) (ell u : ℕ) (z : List ℕ)
+    (F : MvPolynomial (Fin n) (ZMod p)) (centers : Fin n → ZMod p) (ell u : ℕ) (z : List ℕ)
     (value : List ℕ → ℕ) (hF : F.totalDegree < p - 1) (hp : 3 < p)
     (hv : ∀ y, (value y : ZMod p) = eval
       (fun k : Fin n => ((y[k.val]?.getD 0 : ℕ) : ZMod p)) F) :
     (criticalJacobianValue p n ell u z value : ZMod p) =
       eval (fun k : Fin n => ((z[k.val]?.getD 0 : ℕ) : ZMod p))
-        (jacobian ell (criticalLower ell
-          (fun k : Fin n => ((separatedCenters ell k : ℕ) : ZMod p)) (u : ZMod p) F)) := by
+        (jacobian ell (criticalLower ell centers (u : ZMod p) F)) := by
   let point : Fin n → ZMod p := fun k => ((z[k.val]?.getD 0 : ℕ) : ZMod p)
   let A : Matrix (Fin n) (Fin n) (ZMod p) := fun i j => eval point
-    (pderiv j (X i ^ ell - criticalLower ell
-      (fun k : Fin n => ((separatedCenters ell k : ℕ) : ZMod p)) (u : ZMod p) F i))
-  have hJ : eval point (jacobian ell (criticalLower ell
-      (fun k : Fin n => ((separatedCenters ell k : ℕ) : ZMod p)) (u : ZMod p) F)) = A.det := by
+    (pderiv j (X i ^ ell - criticalLower ell centers (u : ZMod p) F i))
+  have hJ : eval point (jacobian ell (criticalLower ell centers (u : ZMod p) F)) = A.det := by
     exact RingHom.map_det (eval point) (Matrix.of fun i j =>
-      pderiv j (X i ^ ell - criticalLower ell
-        (fun k : Fin n => ((separatedCenters ell k : ℕ) : ZMod p)) (u : ZMod p) F i))
+      pderiv j (X i ^ ell - criticalLower ell centers (u : ZMod p) F i))
   rw [criticalJacobianValue, hJ]
   apply modularMatrixDeterminant_cast A
   intro i j
@@ -139,6 +136,6 @@ theorem criticalJacobianValue_cast {p n : ℕ} [Fact p.Prime]
   have hmod : (i.val * n + j.val) % n = j.val := by
     simp [Nat.add_mod, Nat.mod_eq_of_lt j.isLt]
   rw [hdiv, hmod]
-  exact criticalJacobianEntryValue_cast F ell u i j z value hF hp hv
+  exact criticalJacobianEntryValue_cast F centers ell u i j z value hF hp hv
 
 end Cslib.Complexity.RealAlgebraic

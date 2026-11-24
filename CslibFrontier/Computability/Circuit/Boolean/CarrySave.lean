@@ -182,7 +182,7 @@ def csaSumFormula (w : ℕ) (i : Fin w) : Formula signature (w + (w + w)) :=
 
 /-- `csaSumFormula w i` has size `15`. -/
 @[simp] theorem size_csaSumFormula (i : Fin w) : (csaSumFormula w i).size = 15 := by
-  simp [csaSumFormula, Formula.size_xor]
+  simp only [circuit_simps, csaSumFormula]
 
 /-- `csaSumFormula w i` has depth at most `6`. -/
 @[circuit_bound]
@@ -224,9 +224,9 @@ def csaCarryFormula (w : ℕ) (i : Fin w) : Formula signature (w + (w + w)) :=
   split_ifs with h <;> simp [fstBits, sndBits]
 
 /-- `csaCarryFormula w i` has size at most `5`. -/
+@[circuit_bound]
 theorem size_csaCarryFormula_le (i : Fin w) : (csaCarryFormula w i).size ≤ 5 := by
-  simp only [csaCarryFormula]
-  split_ifs <;> simp
+  circuit_bound [csaCarryFormula, maj3Formula]
 
 /-- `csaCarryFormula w i` has depth at most `3`. -/
 @[circuit_bound]
@@ -256,16 +256,7 @@ theorem pairVal_eval_csa3to2_mod (u : BitString (w + (w + w))) :
 /-- `csa3to2 w` has size at most `20 * w`. -/
 @[circuit_bound]
 theorem size_csa3to2_le (w : ℕ) : (csa3to2 w).size ≤ 20 * w := by
-  rw [csa3to2, Circuit.size_append, Circuit.size_pi, Circuit.size_pi]
-  have h1 : ∑ i : Fin w, (csaSumFormula w i).toCircuit.size = 15 * w := by
-    simp [Formula.size_toCircuit, mul_comm]
-  have h2 : ∑ i : Fin w, (csaCarryFormula w i).toCircuit.size ≤ 5 * w := by
-    simpa [Formula.size_toCircuit, mul_comm] using
-      sum_le_card_nsmul (univ : Finset (Fin w))
-        (fun i => (csaCarryFormula w i).toCircuit.size) 5 fun i _ => by
-          rw [Formula.size_toCircuit]
-          exact size_csaCarryFormula_le i
-  omega
+  circuit_bound [csa3to2, size_csaSumFormula]
 
 /-- `csa3to2 w` has depth at most `6`. -/
 @[circuit_bound]
@@ -433,8 +424,8 @@ def zeroPairCircuit (k w : ℕ) : Circuit signature k (w + w) :=
   rfl
 
 /-- `zeroPairCircuit k w` has depth at most `1`. -/
-theorem depth_zeroPairCircuit_le : (zeroPairCircuit k w).depth ≤ 1 :=
-  (Circuit.depth_comp_le _ _).trans (by simp)
+theorem depth_zeroPairCircuit_le : (zeroPairCircuit k w).depth ≤ 1 := by
+  circuit_bound [zeroPairCircuit]
 
 /-- Leaf circuit placing input bit `j : Fin k` into bit `0` of the first `w`-bit word, and `false`
 on all other wires of the `(w + w)`-bit carry-save pair, using one `const false` gate. -/

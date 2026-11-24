@@ -51,16 +51,19 @@ abbrev Adversary (d k n q : ℕ) (C Coins : Type) :=
 
 private abbrev Vec (k n : ℕ) := Fin (k + 1) → Fin n → ℤ
 
-private def product (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZMod q)) (y : Vec k n) :=
+/-- Ring product of the matrix and an integer witness reduced coefficientwise. -/
+@[expose] def product (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZMod q))
+    (y : Fin (k + 1) → Fin n → ℤ) :=
   moduleSISMap A (fun i j => (y i j : ZMod q))
 
-private def accepts (expand : C → Option (Fin n → ZMod q)) (radius : ℕ) (y : Vec k n)
-    (c : C) : Bool :=
+/-- A short witness with last coordinate equal to a successful expansion of the reply. -/
+@[expose] def accepts (expand : C → Option (Fin n → ZMod q)) (radius : ℕ)
+    (y : Fin (k + 1) → Fin n → ℤ) (c : C) : Bool :=
   decide ((∀ i j, |y i j| ≤ radius) ∧ expand c = some (fun j => (y (Fin.last k) j : ZMod q)))
 
 /-- Run the solver with a shared, lazy uniform random oracle and verify its candidate with
 the same oracle, including candidates whose point it did not query. -/
-noncomputable def game (expand : C → Option (Fin n → ZMod q)) (radius : ℕ)
+@[expose] noncomputable def game (expand : C → Option (Fin n → ZMod q)) (radius : ℕ)
     (coins : PMF Coins) (adv : Adversary d k n q C Coins)
     (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZMod q)) : PMF Bool := do
   let s ← coins

@@ -18,7 +18,9 @@ database whose witness repairs a solution violating the new constraint; a symmet
 step with the swap witness `x0 ↔ x1` and all its proof goals, accepted and used to refute a
 formula; the same step with a witness that does not repair, or with an unproved goal, rejected;
 and, with an objective, a `red` step whose witness raises the objective, accepted without the
-objective and rejected with it; an `EQUIENUMERABLE` output section, checked by `decide`, with
+objective and rejected with it; a checked deletion decided in the kernel, its number not reused,
+and the deletion of a constraint whose number another core constraint shares, accepted on a state
+that the invariant rules out; an `EQUIENUMERABLE` output section, checked by `decide`, with
 its soundness theorems applied; and orders and dominance: a lexicographic order on two bits whose
 transitivity and reflexivity proofs check, giving a preorder, and a relation whose transitivity
 proof fails or whose fresh variables are not fresh; and a symmetry-breaking `dom` step deriving
@@ -63,13 +65,13 @@ example : (∀ c ∈ G, c.Holds (Witness.apply σ₀ setX0)) ∧ D.Holds (Witnes
 -- constraint `2`, as in VeriPB.
 example : runTop G none (State.init G none none) [.red D setX0 none none] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, initDb G, true, false, none, none, [], [],
-      none, none⟩ := by
+      none, none, false⟩ := by
   decide
 
 -- With a subproof, even an empty one, `¬D` takes `2` and `D` takes `3`.
 example : runTop G none (State.init G none none) [.red D setX0 (some []) none] =
     some ⟨(3, D.normalize) :: initDb G, 4, none, none, initDb G, true, false, none, none, [], [],
-      none, none⟩ := by
+      none, none, false⟩ := by
   decide
 
 /-! ### Promoting to the core -/
@@ -83,11 +85,44 @@ example : runTop G none (State.init G none none) [.core [1], .core [1]] =
 -- A derived constraint is promoted once.
 example : runTop G none (State.init G none none) [.red D setX0 none none, .core [2, 2], .core [2]] =
     some ⟨(2, D.normalize) :: initDb G, 3, none, none, (2, D.normalize) :: initDb G, true,
-      false, none, none, [], [], none, none⟩ := by
+      false, none, none, [], [], none, none, false⟩ := by
   decide
 
 -- `core id` needs at least one ID.
 example : runTop G none (State.init G none none) [.core []] = none := by decide
+
+/-! ### Checked deletion and fresh numbers -/
+
+/-- The witness `x1 ↦ 1`. -/
+def setX1 : Witness := [(1, .one)]
+
+-- `delc 1 : x1 -> 1` with an empty subproof deletes the input constraint `1`, whose goal `#1` is
+-- `1 >= 1`; `¬C` takes `2`, and the next number is `3`. The checker no longer checks that every
+-- core constraint numbered `1` is that constraint: the invariant `Inv.ids` makes it so.
+example : runTop G none (State.init G none none) [.delcChecked 1 setX1 (some []) none] =
+    some ⟨[], 3, none, none, [], true, false, none, none, [], [], none, none, false⟩ := by
+  decide +kernel
+
+-- Its number is not reused, so a second deletion of `1` is rejected.
+example : runTop G none (State.init G none none)
+    [.delcChecked 1 setX1 (some []) none, .delcChecked 1 setX1 (some []) none] = none := by
+  decide +kernel
+
+/-- A state that the invariant rules out: two core constraints numbered `1`, `x1 >= 1` and
+`x0 >= 1`. -/
+def dupState : State :=
+  ⟨[(1, G[0]), (1, D)], 2, none, none, [(1, G[0]), (1, D)], true, false, none, none, [], [], none,
+    none, false⟩
+
+-- The run-time check that this deletion used to make rejected it: `lookup` finds `x1 >= 1`, but
+-- the core set holds `x0 >= 1` under the same number. The checker now accepts it, deleting both.
+example : stepTop G none dupState (.delcChecked 1 setX1 none none) =
+    some { dupState with db := [], core := [] } := by
+  decide +kernel
+
+-- No reachable state looks like this: its numbers are not distinct.
+example : ¬ IdOk dupState.db dupState.next := fun h => by
+  simpa [dupState] using h.nodup
 
 /-! ### Breaking a symmetry -/
 

@@ -55,7 +55,7 @@ def transientForestCost (n s d M E L : ℕ) : ℕ :=
 theorem synthesis_transient_forest_reachability
     (c : Circuit signature n n) (L : ℕ) (hL : 0 < L)
     (depth : Circuit signature n (n + 2))
-    (hd : ∀ x, word (depth.eval interpretation x) =
+    (hd : ∀ x, BitString.equivBitVec (depth.eval interpretation x) =
       BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x))
     (tables : ForestCircuitTables (c.eval interpretation) L) :
     ∃ out : Circuit signature (n + n) 1,

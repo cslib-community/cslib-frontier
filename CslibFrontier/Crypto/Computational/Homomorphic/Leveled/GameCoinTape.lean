@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.ModularCoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -169,28 +170,16 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
     rfl
   rw [hkey, PMF.bind_map]
   dsimp only [Function.comp_def]
-  change _ = (BitString.uniformList (keyCoins n + (choiceBudget +
-    (encCoins n + guessBudget)))).bind (fun tape => PMF.pure
-      (finish (evaluateKey n (tape.take (keyCoins n)))
-        (chooseReplay (evaluateKey n (tape.take (keyCoins n))).1
-          ((tape.drop (keyCoins n)).take choiceBudget))
-        (((tape.drop (keyCoins n)).drop choiceBudget).take (encCoins n))
-        (((tape.drop (keyCoins n)).drop choiceBudget).drop (encCoins n))))
-  rw [BitString.uniformList_bind_split (keyCoins n) (choiceBudget + (encCoins n + guessBudget))
-    (fun keys rest => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
-      ((rest.drop choiceBudget).take (encCoins n))
-      ((rest.drop choiceBudget).drop (encCoins n))))]
-  congr 1 with keys : 1
-  rw [BitString.uniformList_bind_split choiceBudget (encCoins n + guessBudget)
-    (fun chosen rest => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 chosen) (rest.take (encCoins n))
-      (rest.drop (encCoins n))))]
-  congr 1 with chosen : 1
-  rw [BitString.uniformList_bind_split (encCoins n) guessBudget
-    (fun encSeed guessSeed => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 chosen) encSeed guessSeed))]
-  rfl
+  trans (BitString.uniformList (keyCoins n)).bind fun keys =>
+    (BitString.uniformList (choiceBudget + (encCoins n + guessBudget))).map fun rest =>
+      finish (evaluateKey n keys) (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
+        ((rest.drop choiceBudget).take (encCoins n))
+        ((rest.drop choiceBudget).drop (encCoins n))
+  · congr 1 with keys : 1
+    exact (BitString.uniformList_map_split3 _ _ _ _).symm
+  · unfold modLeveledGameCoinBudget modLeveledGameCoins
+    dsimp only [choiceBudget, guessBudget, evaluateZero, chooseReplay, finish]
+    exact (BitString.uniformList_map_split _ _ _).symm
 
 /-- The complete replay is native polynomial time in the unary parameter and complete tape,
 for either fixed challenge world. This does not assert a multiplicative runtime ratio to the
@@ -203,11 +192,11 @@ adversary's running time. -/
     (hkey : ComputableInPolyTime (fun (n, tape) => evaluateKey n tape)
       (encPair encUnary encBits) (encPair encBits encBits))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     {coins depth capacity keyCoins encCoins chooseCoins guessCoins : ℕ → ℕ}
     (hcoins : ComputableInPolyTime coins encUnary encUnary)
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
@@ -223,7 +212,7 @@ adversary's running time. -/
     evaluateEncrypt evaluateChoose input.1 (depth input.1) (capacity input.1)
       (keyCoins input.1) (encCoins input.1) input.2 seed
   have hzero : ComputableInPolyTime (fun (input, seed) => evaluateZero input seed)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits) := by
+      encChooseCoinsInput (Encryption.encChoiceOut encBool) := by
     apply computableInPolyTime_zeroLinkChooseCoins hkey hencrypt hchoose <;> fun_prop
   let choiceBudget := fun n => modLeveledChooseCoinBudget (coins n) (depth n) (capacity n)
     (keyCoins n) (encCoins n) (chooseCoins n)
@@ -244,7 +233,7 @@ adversary's running time. -/
   have hrest := hremaining.bitsDropWithInput (hchoiceBudget.comp hn)
   -- Explicit replay arguments avoid unfolding the whole selector while inferring its inputs.
   have hchosen : ComputableInPolyTime chosen (encPair encUnary encBits)
-      (encPair (encPair encBool encBool) encBits) :=
+      (Encryption.encChoiceOut encBool) :=
     computableInPolyTime_modLeveledChooseCoins
       (evaluateKey := evaluateKey) (evaluateZero := evaluateZero)
       (n := fun p : ℕ × List Bool => p.1)

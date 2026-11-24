@@ -11,9 +11,10 @@ public import CslibFrontier.Probability.Product
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Exp
 import CslibFrontier.Probability.BoundedDifferences
+import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
-import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -255,10 +256,7 @@ theorem uniform_abs_sum_div_sub_expect_ge_le {m : ℕ} {α : Type*} [Fintype α]
       {ω | γ ≤ |(∑ j, s (ω j)) / m - 𝔼 a, s a|} ≤
         ENNReal.ofReal (2 * Real.exp (-(m * γ ^ 2) / 2)) := by
   have h := pi_abs_sum_div_sub_sum_mul_ge_le (m := m) (PMF.uniformOfFintype α) s hs hγ
-  have hmean : ∑ a, ((PMF.uniformOfFintype α) a).toReal * s a = 𝔼 a, s a := by
-    simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-      expect_eq_sum_div_card, card_univ, inv_mul_eq_div, ← sum_div]
-  rwa [pi_uniformOfFintype, hmean] at h
+  rwa [pi_uniformOfFintype, sum_uniformOfFintype_toReal_mul] at h
 
 end Average
 

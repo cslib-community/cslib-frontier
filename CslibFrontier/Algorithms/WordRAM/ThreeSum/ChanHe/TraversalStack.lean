@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Allocation
 public import CslibFrontier.Computability.WordRAM.Heap
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Data.List.OfFn
 import Mathlib.Tactic.FinCases
 
@@ -124,28 +125,23 @@ theorem exec_push {w base capacity : ℕ} (h2 : Fits w 2) (hcap : Fits w (base +
     ∃ y, Exec w program (prepare 0 v x) y 7 ∧
       Rep w base capacity (v :: vs) y ∧ Modifies (footprint base capacity) x.mem y.mem := by
   have h1 : Fits w 1 := h2.of_le (by decide)
-  have haddr : Fits w (base + vs.length) := hcap.of_le (by omega)
-  have hinc : Fits w (vs.length + 1) := hcap.of_le (by omega)
-  let y := (((((prepare 0 v x).set zero 0).set one 1).set
-    addr (base + vs.length)).write (base + vs.length) v |>.set len (vs.length + 1)).set out 0
-  have he : Exec w program (prepare 0 v x) y 7 := by
-    ram_eval [program, prepare, writeAt, y, hr.pointer, hr.length_eq, h1, haddr, hinc]
-  refine ⟨y, he, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_⟩
-  · exact he.bounded ((hr.bounded.set (fits_zero w)).set hw)
-  · simp +decide [y, Data.set, Data.write, prepare, hr.pointer]
-  · simp +decide [y, Data.set, Data.write, prepare]
-  · simpa using hv
-  · intro i
-    by_cases hi : i.val < vs.length
-    · have hne : base + i.val ≠ base + vs.length := by omega
-      simpa [y, Data.set, Data.write, prepare, List.reverse_cons, List.getElem_append, hi,
-        Function.update_of_ne hne] using hr.contents ⟨i.val, hi⟩
-    · have hi' : i.val = vs.length := by
-        have := i.isLt
-        simp only [List.length_cons] at this
-        omega
-      simp [y, Data.set, Data.write, prepare, List.reverse_cons, hi']
-  · exact Modifies.write_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hv _⟩ v
+  have hp : (prepare 0 v x).Bounded w := (hr.bounded.set (fits_zero w)).set hw
+  refine WP.Exact.exists_exec ?_
+  unfold program writeAt
+  wram_exec [prepare, hr.pointer, hr.length_eq]
+  refine ⟨⟨by wram_bounded <;> fits, by wram_simp [prepare, hr.pointer],
+    by wram_simp [List.length_cons], hv, ?_⟩,
+    Modifies.write_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hv _⟩ v⟩
+  intro i
+  by_cases hi : i.val < vs.length
+  · wram_simp [prepare, show base + i.val ≠ base + vs.length by omega]
+    simpa [List.reverse_cons, List.getElem_append, hi] using hr.contents ⟨i.val, hi⟩
+  · have hi' : i.val = vs.length := by
+      have := i.isLt
+      simp only [List.length_cons] at this
+      omega
+    wram_simp [hi']
+    simp [List.reverse_cons]
 
 /-- A pop from a nonempty stack returns its top in eleven instructions and leaves memory outside
 the reserved block unchanged. -/
@@ -155,29 +151,20 @@ theorem exec_pop {w base capacity : ℕ} (h2 : Fits w 2) (hcap : Fits w (base + 
       Rep w base capacity vs y ∧ Modifies (footprint base capacity) x.mem y.mem := by
   have h1 : Fits w 1 := h2.of_le (by decide)
   have hl : x.regs len = vs.length + 1 := hr.length_eq
-  have hsub : Fits w vs.length := hcap.of_le (by have := hr.capacity_le; simp_all; omega)
-  have ha : Fits w (base + vs.length) := hcap.of_le (by have := hr.capacity_le; simp_all; omega)
+  have hle : vs.length + 1 ≤ capacity := hr.capacity_le
   have hread : x.mem (base + vs.length) = v := by
-    have h := hr.contents ⟨vs.length, by simp⟩
-    simpa [List.reverse_cons] using h
-  let y := (((((prepare 1 0 x).set zero 0).set one 1).set
-    len vs.length).set addr (base + vs.length)).set out v |>.set present 1
-  have he : Exec w program (prepare 1 0 x) y 11 := by
-    ram_eval [program, prepare, readAt, y, hr.pointer, hl, h1, ha, hsub, Nat.add_sub_cancel,
-      Nat.add_eq_zero_iff, and_false, hread]
-  refine ⟨y, he, by simp +decide [y, Data.set], ⟨?_, ?_, ?_, ?_, ?_⟩, Modifies.refl _ _⟩
-  · exact he.bounded ((hr.bounded.set (h2.of_le (by decide))).set (fits_zero w))
-  · simp +decide [y, Data.set, prepare, hr.pointer]
-  · simp +decide [y, Data.set]
-  · have := hr.capacity_le
-    simp only [List.length_cons] at this
-    omega
-  · intro i
-    have hi : i.val < (v :: vs).length := by
-      simp only [List.length_cons]
-      omega
-    have h := hr.contents ⟨i.val, hi⟩
-    simpa [y, Data.set, prepare, List.reverse_cons, List.getElem_append, i.isLt] using h
+    simpa [List.reverse_cons] using hr.contents ⟨vs.length, by simp⟩
+  have hv : Fits w v := hread ▸ hr.bounded.2 (base + vs.length)
+  have hp : (prepare 1 0 x).Bounded w := (hr.bounded.set h1).set (fits_zero w)
+  refine WP.Exact.exists_exec ?_
+  unfold program readAt
+  wram_exec [prepare, hr.pointer, hl, hread]
+  refine ⟨by wram_simp, ⟨by wram_bounded <;> fits, by wram_simp [prepare, hr.pointer],
+    by wram_simp, by omega, ?_⟩, Modifies.refl _ _⟩
+  intro i
+  have hi : i.val < (v :: vs).length := by simp only [List.length_cons]; omega
+  wram_simp [prepare]
+  simpa [List.reverse_cons, List.getElem_append, i.isLt] using hr.contents ⟨i.val, hi⟩
 
 section Record
 
@@ -243,7 +230,8 @@ theorem pushRecord_exec (reg : Fin 9 → Fin r) (hi : Function.Injective reg)
     let q := (x.set (reg tag) 0).set (reg arg) (x.regs (src (Fin.last n)))
     have hp : Exec (B := .standard) w
         (.seq (.op (.const (reg tag) 0)) (.op (.copy (reg arg) (src (Fin.last n))))) x q 2 := by
-      ram_eval [q, hd (Fin.last n) tag]
+      dsimp only [q]
+      wram_exec [hd (Fin.last n) tag]
     have hq : q.comap reg = prepare 0 (x.regs (src (Fin.last n))) (x.comap reg) := by
       simp only [q, prepare, Data.comap_set hi]
     obtain ⟨b, hb, hrb, hfb⟩ := exec_push h2 hcap hr (by omega) (hw (Fin.last n))
@@ -292,7 +280,8 @@ theorem popRecord_exec (reg : Fin 9 → Fin r) (hi : Function.Injective reg)
     have h1 : Fits w 1 := h2.of_le (by decide)
     have hp : Exec (B := .standard) w
         (.seq (.op (.const (reg tag) 1)) (.op (.const (reg arg) 0))) x q 2 := by
-      ram_eval [q, h1]
+      dsimp only [q]
+      wram_exec
     have hq : q.comap reg = prepare 1 0 (x.comap reg) := by
       simp only [q, prepare, Data.comap_set hi]
     obtain ⟨b, hb, hout, hrb, hfb⟩ := exec_pop h2 hcap hr

@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.CoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -156,32 +157,10 @@ theorem eval_zeroLinkAdversary_choose_eq_map_coins (E : Scheme)
       (Nat.le_succ _), hlength, ← Nat.mul_assoc, ↓reduceIte] at hlinks
     rw [hlinks, PMF.bind_map]
     rfl
-  rw [ProbComp.eval_replicate_of_uniformList (depth n) keyCoins _ _ hkey, PMF.bind_map,
-    PMF.map]
+  rw [ProbComp.eval_replicate_of_uniformList (depth n) keyCoins _ _ hkey, PMF.bind_map]
   unfold zeroLinkChooseCoins
   dsimp only [Function.comp_def]
-  rw [BitString.uniformList_bind_split (depth n * keyCoins)
-    (depth n * capacity * encCoins + chooseCoins) (fun first rest => PMF.pure
-    (evaluateChoose (n, encPublicKey
-      (challengePk :: ((BitString.listRows (depth n) keyCoins first).map (evaluateKey n)).map
-        Prod.fst,
-      Scheme.encryptKeyLinksCoins evaluateEncrypt n encCoins capacity true
-        ((challengePk, (((BitString.listRows (depth n) keyCoins first).map
-          (evaluateKey n)).headD ([], [])).2) ::
-          (BitString.listRows (depth n) keyCoins first).map (evaluateKey n))
-        (rest.take (depth n * capacity * encCoins))))
-      (rest.drop (depth n * capacity * encCoins))))]
-  congr 1 with first : 1
-  rw [BitString.uniformList_bind_split (depth n * capacity * encCoins) chooseCoins
-    (fun second third => PMF.pure
-    (evaluateChoose (n, encPublicKey
-      (challengePk :: ((BitString.listRows (depth n) keyCoins first).map (evaluateKey n)).map
-        Prod.fst,
-      Scheme.encryptKeyLinksCoins evaluateEncrypt n encCoins capacity true
-        ((challengePk, (((BitString.listRows (depth n) keyCoins first).map
-          (evaluateKey n)).headD ([], [])).2) ::
-          (BitString.listRows (depth n) keyCoins first).map (evaluateKey n)) second)) third))]
-  rfl
+  exact (BitString.uniformList_map_split3 _ _ _ _).symm
 
 /-- The saved state of an actual zero-link choice is bounded by its bounded-artifact choice
 envelope. This is a support statement about the original choice, independent of its replay. -/
@@ -218,9 +197,9 @@ It retains the original head-default behavior on an empty generated key list. -/
     (hkey : ComputableInPolyTime (fun (n, tape) => evaluateKey n tape)
       (encPair encUnary encBits) (encPair encBits encBits))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     {α : Type} {input : α ↪ List Bool} {n depth capacity keyCoins encCoins : α → ℕ}
     {challengePk tape : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary)
@@ -232,7 +211,7 @@ It retains the original head-default behavior on an empty generated key list. -/
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => zeroLinkChooseCoins evaluateKey evaluateEncrypt evaluateChoose
       (n a) (depth a) (capacity a) (keyCoins a) (encCoins a) (challengePk a) (tape a))
-      input (encPair (encPair encBool encBool) encBits) := by
+      input (Encryption.encChoiceOut encBool) := by
   fun_prop [zeroLinkChooseCoins]
 
 end Cslib.Crypto.Homomorphic.Leveled

@@ -18,7 +18,7 @@ Combining `forest_transient_circuit` with `checkpoint_depth_circuit`, `cycle_lab
 `synthesis_navigation_given_flag` yields a Boolean circuit on pair inputs `z : BitString (n + n)`
 returning both the reachability bit and the `(n + 1)`-bit first hitting time
 `navigationBits f (inputLeft z) (inputRight z)` within `navigationBudget n c.size L` gates
-(`navigation_circuit`), and within `13500000 * optimizedBudget n c.size (2 ^ n)` gates at the
+(`navigation_circuit`), and within `9000000 * optimizedBudget n c.size (2 ^ n)` gates at the
 balanced checkpoint parameter (`reachability_hitting_time`).
 
 ## Main definitions
@@ -87,12 +87,12 @@ theorem reachability_hitting_time (c : Circuit signature n n) :
       (∀ z, out.eval interpretation z 0 = true ↔
         ∃ t, (c.eval interpretation)^[t] (inputLeft z) = inputRight z) ∧
       (∀ z, out.eval interpretation z 0 = true →
-        let t := (word fun i : Fin (n + 1) =>
+        let t := (BitString.equivBitVec fun i : Fin (n + 1) =>
           out.eval interpretation z (Fin.natAdd 1 i)).toNat
         (c.eval interpretation)^[t] (inputLeft z) = inputRight z ∧
           (∀ j < t, (c.eval interpretation)^[j] (inputLeft z) ≠ inputRight z) ∧
           t < 2 ^ n) ∧
-      (out.size : ℝ) ≤ 13500000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 9000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, ho⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := navigation_circuit c L hL hLN
   refine ⟨out, ?_, ?_, ?_⟩

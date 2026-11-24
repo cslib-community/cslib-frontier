@@ -25,7 +25,7 @@ For the transient depth, the query `transientDepth f x ≤ v` asks whether `f^[v
 one input-time iteration and one periodicity test. This gives transient depths in at most
 `depthBudget n s L` gates (`depth_circuit`), itself at most
 `200000 * (n + 1) ^ 2 * powerBudget n s (2 ^ n) L`, and
-`600000 * (n + 1) ^ 2 * optimizedBudget n s (2 ^ n)` balanced (`depth_circuit_optimized`). The
+`400000 * (n + 1) ^ 2 * optimizedBudget n s (2 ^ n)` balanced (`depth_circuit_optimized`). The
 dictionary construction of `Iteration.Depth` avoids the factor `(n + 1) ^ 2`.
 
 The circuits are native De Morgan circuits: every NOT, AND and OR gate and every constant is
@@ -195,7 +195,7 @@ def depthBudget (n s L : ℕ) : ℕ :=
 most `depthBudget n c.size L` computes the transient depth of every state in `n + 2` bits. -/
 theorem depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) :
     ∃ out : Circuit signature n (n + 2),
-      (∀ x, word (out.eval interpretation x) =
+      (∀ x, BitString.equivBitVec (out.eval interpretation x) =
         BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x)) ∧
       out.size ≤ depthBudget n c.size L := by
   let f := c.eval interpretation
@@ -213,7 +213,7 @@ theorem depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (hLN : 
       (fun j _ => fixed_power n c (2 ^ j) L hL hLN) src id (fun x i => (value x).getLsbD i.val)
       (fun _ h => hs (Or.inl (by obtain ⟨i, rfl⟩ := h; exact ⟨i, rfl⟩)))
       (by rintro _ ⟨i, rfl⟩; exact hv ⟨i, rfl⟩)
-    simp only [word_getLsbD, id] at hi
+    simp only [BitString.equivBitVec_getLsbD, id] at hi
     let current := fun x => f^[(value x).toNat] x
     have hq := Synthesis.circuit (I := interpretation) (s := src ∪ wires current) cyclic
       (fun i x => current x i) fun bit => Or.inr ⟨bit, rfl⟩
@@ -225,7 +225,7 @@ theorem depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (hLN : 
   have h := hconst.trans (synthesis_threshold s0 (transientDepth f) n C
     (fun x => by simpa using transientDepth_lt_card f x) hc query)
   obtain ⟨out, hout, hs⟩ := h.exists_circuit_outputs
-  refine ⟨out, fun x => by rw [hout x, word_getLsbD], hs.trans ?_⟩
+  refine ⟨out, fun x => by rw [hout x, BitString.equivBitVec_getLsbD], hs.trans ?_⟩
   have hC : C + 16 * (n + 3) ≤ (n + 2) * (40000 * powerBudget n c.size (2 ^ n) L + 4 * n) +
       (40000 * powerBudget n c.size (2 ^ n) L + (6 * n + 1)) + 16 * (n + 3) := by
     simp only [C]
@@ -252,13 +252,13 @@ private theorem depthBudget_le (n s L : ℕ) :
   nlinarith [Nat.zero_le ((n + 1) ^ 2 * B), Nat.zero_le (n * B)]
 
 /-- **Square-root transient depths by binary search.** Some circuit of size at most
-`600000 * (n + 1) ^ 2 * optimizedBudget n c.size (2 ^ n)` computes the transient depth of every
+`400000 * (n + 1) ^ 2 * optimizedBudget n c.size (2 ^ n)` computes the transient depth of every
 state in `n + 2` bits. -/
 theorem depth_circuit_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature n (n + 2),
-      (∀ x, word (out.eval interpretation x) =
+      (∀ x, BitString.equivBitVec (out.eval interpretation x) =
         BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x)) ∧
-      (out.size : ℝ) ≤ 600000 * (n + 1 : ℝ) ^ 2 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 400000 * (n + 1 : ℝ) ^ 2 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, ho⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := depth_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Actual cube-digit lookup step
@@ -34,9 +35,6 @@ instance (i : Fin registers) : Decidable (LookupLocal i) :=
     i = Reg.fixedSeen ∨ i = Reg.stars ∨ i = Reg.population ∨ i = Reg.temporary ∨
     i = Reg.completion ∨ i = Reg.power ∨ i = Reg.level))
 
-private theorem lookupDigit_preserves (i : Fin registers) :
-    ¬LookupLocal i → lookupDigit.Preserves i := by decide +revert
-
 /-- The real scan preserves a valid prefix and charges both failed branch instructions. -/
 theorem exec_lookupDigit {w L k C d s f c v : ℕ} (x : Data registers)
     (hk : k < L) (hd : d ≤ 10) (hs : s ≤ k) (hf : f ≤ k)
@@ -56,54 +54,27 @@ theorem exec_lookupDigit {w L k C d s f c v : ℕ} (x : Data registers)
       y.regs Reg.population = f + (if d = 9 ∨ d = 10 then 1 else 0) ∧
       y.regs Reg.fixedSeen = (if d = 9 then 1 else v) ∧ y.regs Reg.invalid = 0 ∧
       (∀ i, ¬LookupLocal i → y.regs i = x.regs i) := by
-  let digit := if d = 10 then 9 else d
-  have hdn : digit ≤ 9 := by dsimp only [digit]; split <;> omega
   have hpowle : 10 ^ (k + 1) ≤ 10 ^ L :=
     Nat.pow_le_pow_right (by decide) (Nat.succ_le_of_lt hk)
-  have hcnext : c + digit * 10 ^ k < 10 ^ (k + 1) := by
-    rw [pow_succ]
-    have := Nat.mul_le_mul_right (10 ^ k) hdn
-    omega
-  have hfa : Fits w (C + k) := hfit.of_le (by omega)
-  have hfl : Fits w (k + 1) := hfit.of_le (by omega)
-  have hfs : Fits w (s + 1) := hfit.of_le (by omega)
-  have hff : Fits w (f + 1) := hfit.of_le (by omega)
-  have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-  have hfm : Fits w (digit * 10 ^ k) := hfit.of_le (by omega)
-  have hfc : Fits w (c + digit * 10 ^ k) := hfit.of_le (by omega)
-  have hfp : Fits w (10 ^ k * 10) := by
-    rw [← pow_succ]
-    exact hfit.of_le (by omega)
-  let loaded := (x.set Reg.address (C + k)).set Reg.digit d
-  let checked := loaded.set Reg.temporary (x.regs Reg.temporary)
-  let starred := (((checked.set Reg.temporary (x.regs Reg.temporary)).set
-    Reg.stars (s + 1)).set Reg.population (f + 1)).set Reg.digit 9
-  let counted := if d = 10 then starred
-    else if d = 9 then (checked.set Reg.fixedSeen 1).set Reg.population (f + 1)
-    else checked.set Reg.temporary (x.regs Reg.temporary)
-  let y := (((counted.set Reg.temporary (digit * 10 ^ k)).set
-    Reg.completion (c + digit * 10 ^ k)).set Reg.power (10 ^ k * 10)).set Reg.level (k + 1)
-  have he : ExecWithin w lookupDigit x y 16 := by
-    by_cases hd10 : d = 10 <;> by_cases hd9 : d = 9
-    all_goals
-      try omega
-    all_goals
-      simp +decide only [digit, hd10, hd9, ite_true, ite_false] at hfm hfc
-      have hn10 : ¬10 < d := by omega
-      have hv0 : d = 10 → ¬0 < v := by intro h; rw [horder h]; omega
-      ram_eval [lookupDigit, y, counted, starred, checked, loaded, digit, hd10, hd9, hn10,
-        hv0, horder, hC, hread, hlevel, hstars, hpop, hcode, hseen, hinvalid, hpow,
-        h0, h1, h9, h10, hfa, hfl, hfs, hff, hf0, hfm, hfc, hfp,
-        Reg.address, Reg.digit, Reg.invalid, Reg.fixedSeen, Reg.stars, Reg.population,
-        Reg.temporary, Reg.completion, Reg.power, Reg.level, Reg.cube, Reg.nil,
-        Reg.one, Reg.nine, Reg.ten, Fin.mk.injEq]
-  refine ⟨y, he, by dsimp only [y, counted]; split <;> first | rfl | (split <;> rfl),
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    fun i hi => he.regs_eq (lookupDigit_preserves i hi)⟩
-  all_goals
-    by_cases hd10 : d = 10 <;> by_cases hd9 : d = 9
-    all_goals simp_all [y, counted, starred, checked, loaded, digit,
-      Reg.address, Reg.digit, Reg.invalid, Reg.fixedSeen, Reg.stars, Reg.population,
-      Reg.temporary, Reg.completion, Reg.power, Reg.level, pow_succ]
+  have hpow10 : 10 ^ k * 10 = 10 ^ (k + 1) := (pow_succ 10 k).symm
+  suffices ∃ y, ExecWithin w lookupDigit x y 16 ∧ y.mem = x.mem ∧
+      y.regs Reg.level = k + 1 ∧ y.regs Reg.power = 10 ^ (k + 1) ∧
+      y.regs Reg.completion = c + (if d = 10 then 9 else d) * 10 ^ k ∧
+      y.regs Reg.stars = s + (if d = 10 then 1 else 0) ∧
+      y.regs Reg.population = f + (if d = 9 ∨ d = 10 then 1 else 0) ∧
+      y.regs Reg.fixedSeen = (if d = 9 then 1 else v) ∧ y.regs Reg.invalid = 0 by
+    obtain ⟨y, he, hm, hl, hp, hcomp, hst, hpop', hfx, hinv⟩ := this
+    exact ⟨y, he, hm, hl, hp, hcomp, hst, hpop', hfx, hinv,
+      fun i hi => he.regs_eq (by unfold LookupLocal at hi; decide +revert)⟩
+  unfold lookupDigit
+  rcases Nat.eq_or_lt_of_le hd with rfl | hdlt
+  · have hv0 : v = 0 := horder rfl
+    wram_exec [*]
+    wram_simp [hpow10, hv0, or_true, *]
+  · have hdm : d * 10 ^ k ≤ 9 * 10 ^ k := Nat.mul_le_mul_right _ (by omega)
+    have hd10 : d ≠ 10 := by omega
+    wram_exec [*]
+    · wram_simp [hpow10, hc, true_or, *]
+    · wram_simp [hpow10, hd10, hc, or_self, *]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

@@ -22,12 +22,13 @@ block, and the list may be empty.
 The uniform-table analysis is a step in the proof of Theorem 7.6. For two distinct messages,
 there is a tagged block in exactly one of them. Translating that table entry translates the
 digest difference by any desired amount. The resulting difference is uniform, giving the
-optimal difference and collision bounds for the ideal table. The computational PRF reduction
-is tracked in #5790.
+optimal difference and collision bounds for the ideal table. The finite PRF reduction is in
+`Crypto.Primitives.UHF.XorHash.PRF`.
 
 ## Main definitions
 
 * `Cslib.Crypto.UHF.xorHash`: sum the table values at the position-tagged blocks.
+* `Cslib.Crypto.UHF.xorHashQueryAt`: the tagged query at a position in the input message.
 
 ## Main results
 
@@ -50,7 +51,8 @@ open scoped ENNReal symmDiff
 
 variable {X Y : Type} {ℓ : ℕ}
 
-private def blockAt (m : {xs : List X // xs.length ≤ ℓ}) :
+/-- The query at a position consists of its block and the same position in the full domain. -/
+@[expose] def xorHashQueryAt (m : {xs : List X // xs.length ≤ ℓ}) :
     Fin m.val.length ↪ X × Fin ℓ :=
   ⟨fun i => (m.val[i], i.castLE m.property), fun i j h =>
     Fin.ext (congrArg (fun block => block.2.val) h)⟩
@@ -60,10 +62,10 @@ For a fixed table `f`, the hash sums `f (mᵢ, i)` over the positions of the mes
 uses any additive commutative monoid, with bit-string addition giving the source's XOR. -/
 @[expose] def xorHash [AddCommMonoid Y] (f : X × Fin ℓ → Y)
     (m : {xs : List X // xs.length ≤ ℓ}) : Y :=
-  ∑ i : Fin m.val.length, f (m.val[i], i.castLE m.property)
+  ∑ i : Fin m.val.length, f (xorHashQueryAt m i)
 
 private def taggedBlocks (m : {xs : List X // xs.length ≤ ℓ}) : Finset (X × Fin ℓ) :=
-  Finset.univ.map (blockAt m)
+  Finset.univ.map (xorHashQueryAt m)
 
 private theorem taggedBlocks_injective :
     Function.Injective (taggedBlocks (X := X) (ℓ := ℓ)) := by
@@ -72,7 +74,7 @@ private theorem taggedBlocks_injective :
     simpa only [taggedBlocks, Finset.card_map, Finset.card_univ, Fintype.card_fin] using
       congrArg Finset.card h
   refine Subtype.ext (List.ext_getElem hlen fun i hi _ => ?_)
-  have hm : blockAt m ⟨i, hi⟩ ∈ taggedBlocks m :=
+  have hm : xorHashQueryAt m ⟨i, hi⟩ ∈ taggedBlocks m :=
     Finset.mem_map.mpr ⟨_, Finset.mem_univ _, rfl⟩
   rw [h] at hm
   obtain ⟨j, _, hj⟩ := Finset.mem_map.mp hm

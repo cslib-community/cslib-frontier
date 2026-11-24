@@ -56,6 +56,16 @@ theorem roundEntry_inSpace (size source : κ → ℕ) (encContext : κ ↪ List 
   budget_comp_linear (SourceRound.entry_inSpace encCallee)
     (roundContext_inSpace size source encContext hsize hsource)
 
+/-- Initialize the loop from a context and fuel produced under a shared space budget. -/
+theorem start_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    (encContext : κ ↪ List Bool) {context : α → κ} {fuel : α → ℕ}
+    (hcontext : ComputableInSpace context enc encContext S)
+    (hfuel : ComputableInSpace fuel enc encNat S) :
+    ComputableInSpace (fun a => start (context a) (fuel a)) enc (encRegisters encContext) S :=
+  encRegisters_mk_budget encContext hcontext hfuel
+    ((ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _)
+    ((ComputableInSpace.constZero (⟨1, 0⟩ : Tally)).mono_le fun _ => Nat.zero_le _)
+
 /-- Reachable scalar loop boundaries have the original context and polynomial count and sum. -/
 @[expose] def Admissible (context : κ) (size limit : ℕ) (r : Registers κ) : Prop :=
   r.context = context ∧ r.fuel + r.radius = limit ∧

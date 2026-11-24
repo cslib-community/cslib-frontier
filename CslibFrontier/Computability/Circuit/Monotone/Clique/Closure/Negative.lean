@@ -62,7 +62,12 @@ variable {n g r l : ℕ}
 theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n))} (h : Step r l F G)
     (hF : ∀ s ∈ F, s.card ≤ l) : (stepExceptions g F G).card ≤ pluckErrorCap n g r l := by
   classical
-  obtain ⟨W, -, ⟨-, ⟨V, hV, hVW⟩ | ⟨-, V, hV, hV1⟩⟩, rfl⟩ := h
+  obtain ⟨W, -, ⟨-, (⟨V₀, hV₀, hV₀W⟩ | ⟨-, V, hV, hVW⟩) | ⟨-, V, hV, hV1⟩⟩, rfl⟩ := h
+  · refine (card_eq_zero.2 (eq_empty_of_forall_notMem fun c hc => ?_)).trans_le (Nat.zero_le _)
+    obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
+    rcases mem_insert.1 ht with rfl | ht
+    · exact hF' ⟨V₀, hV₀, hct.mono hV₀W⟩
+    · exact hF' ⟨t, ht, hct⟩
   · have hexc (c) (hc : c ∈ stepExceptions g F (insert W F)) :
         Set.InjOn c W ∧ ∀ i, ¬Set.InjOn c (V i) := by
       obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
