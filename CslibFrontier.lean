@@ -173,6 +173,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.Menger
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Preflow
 public import CslibFrontier.Algorithms.Lean.MaxFlow.PushRelabel
 public import CslibFrontier.Algorithms.Lean.MaxFlow.RealFlow
+public import CslibFrontier.Algorithms.Lean.MaxFlow.RelabelToFront
 public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Algorithms.Lean.MaxFlow.WeightedMatching
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
