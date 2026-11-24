@@ -316,7 +316,7 @@ theorem support_lowerWith_liftParty {n : ℕ} {SubIn SubOut NQ NR α : Type}
     (WordInterface.PortMap.inl (WordInterface.net subParty)
       (WordInterface.net nq)).support_lowerWith_adapt (fun _ _ => rfl) limit program
 
-private theorem isOraclePPTOn_tagReply {Op α : Type} [Finite Op] [DecidableEq Op]
+private theorem isOraclePPTOn_tagReply {Op α : Type} [DecidableEq Op]
     {EIn : α ↪ List Bool}
     {prog : α → WordOracleComp Op (List Bool × List Bool)} (b : Bool)
     (h : IsOraclePPTOn (Operation := Op) EIn (encPair encBits encBits) prog) :
