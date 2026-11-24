@@ -379,9 +379,9 @@ theorem samplesOf_eval_generator (O : Language Bool) (n s ℓ R : ℕ) (f : Bool
     congr 1
     · unfold samplesOf
       refine List.ofFn_inj.2 (funext fun j => Prod.ext (funext fun b => ?_) ?_)
-      · exact Circuit.eval_accumulate_prefix hstep _ (Nat.le_succ r) _ (blockWire j b.castSucc).2
+      · exact Circuit.eval_accumulate_prefix hstep _ (Nat.le_succ r) _ (blockWire j b.castSucc).isLt
       · exact Circuit.eval_accumulate_prefix hstep _ (Nat.le_succ r) _
-          (blockWire j (Fin.last n)).2
+          (blockWire j (Fin.last n)).isLt
     · refine congrArg (fun p => [p]) (Prod.ext (funext fun b => ?_) ?_)
       · exact (hblock b.castSucc).trans (by rw [hsel, Fin.snoc_castSucc])
       · exact (hblock (Fin.last n)).trans (by rw [hsel, Fin.snoc_last])
