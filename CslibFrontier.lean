@@ -7683,6 +7683,15 @@ public import CslibFrontier.Foundations.Data.Code.ParityCheck
 public import CslibFrontier.Foundations.Data.Code.Plotkin
 public import CslibFrontier.Foundations.Data.Code.Plotkin.Asymptotic
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.AffineLift
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.AffineReduce
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.Dichotomy
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.Internal
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.JohnsonAffine
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.JohnsonCurve
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.JohnsonHelpers
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.UniqueAffine
+public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve.UniqueCurve
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Johnson
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
 public import CslibFrontier.Foundations.Data.Code.PuncturedBallFourier
