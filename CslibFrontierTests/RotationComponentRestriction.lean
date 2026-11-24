@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (rotation component restriction regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentRestriction
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentEuler
 
 set_option linter.privateModule false
 
@@ -63,5 +63,18 @@ example : (∀ v ∈ (G.componentGraph 0).incidenceVertices, v ∈ (G.componentG
     · change (e ((r.component 0 hG).faceNext d)).val = (1, true)
       rw [r.componentDartEquiv_faceNext, he]
       decide
+
+-- The two sides of the parallel-edge cycle give distinct faces in the restricted graph.
+example : ∃ p q : (r.component 0 hG).Face, p ≠ q := by
+  let e := r.componentFaceEquiv 0 hG
+  let p : r.ComponentFace 0 :=
+    ⟨Quotient.mk _ (0, false), (0, false), .refl (by decide), rfl⟩
+  let q : r.ComponentFace 0 :=
+    ⟨Quotient.mk _ (1, false), (1, false), .refl (by decide), rfl⟩
+  refine ⟨e.symm p, e.symm q, e.symm.injective.ne ?_⟩
+  intro h
+  have hcyc : r.faceNext.SameCycle (0, false) (1, false) :=
+    Quotient.exact (congrArg Subtype.val h)
+  exact (by decide : ¬r.faceNext.SameCycle (0, false) (1, false)) hcyc
 
 end CslibFrontierTests.RotationComponentRestriction
