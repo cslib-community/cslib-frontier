@@ -7,7 +7,7 @@ Authors: Anthropic, Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.FinOps
+public import CslibFrontier.Computability.Circuit.SlpStep
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fin.VecNotation
@@ -19,7 +19,7 @@ import Mathlib.Tactic.Ring
 # Costs of straight-line programs over all operations on a finite set
 
 `Cslib.Circuits.SlpN inp p H`: the functions of `H` are computed by a straight-line program with
-`p` gates over all operations on `Fin D` (`Cslib.Circuits.finOps`), from the inputs `inp`. Gates
+`p` gates over all operations on `Fin D` (`fullSignature 2 (Fin D)`), from the inputs `inp`. Gates
 are added one at a time (`Cslib.Circuits.SlpN.snoc`), and the inputs take one gate each
 (`Cslib.Circuits.SlpN.inputs`).
 
@@ -54,8 +54,8 @@ variable {Inp : Type} {D n : ℕ}
 /-- The functions of `H` (with values in `ℕ`) are computed by a straight-line program with `p`
 gates over all operations on `Fin D`, from the inputs `inp`. -/
 @[expose] def SlpN (inp : Fin n → Inp → Fin D) (p : ℕ) (H : Set (Inp → ℕ)) : Prop :=
-  ∃ P : Program (finOps D) n p,
-    ∀ h ∈ H, ∃ k : Fin p, ∀ x, ((P.eval (finOpsInterp D) (fun i => inp i x) k : Fin D) : ℕ) = h x
+  ∃ P : Program (fullSignature 2 (Fin D)) n p,
+    ∀ h ∈ H, ∃ k : Fin p, ∀ x, ((P.eval fullInterpretation (fun i => inp i x) k : Fin D) : ℕ) = h x
 
 variable {inp : Fin n → Inp → Fin D}
 
@@ -73,17 +73,18 @@ theorem SlpN.snoc {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) (f : Inp 
       ∀ (x : Inp) (a b : Fin D), (a : ℕ) = h1 x → (b : ℕ) = h2 x → f x = φ a b) :
     SlpN inp (p + 1) (insert (fun x => (f x : ℕ)) H) := by
   obtain ⟨P, hP⟩ := h
-  have step : ∃ line : Line (finOps D) n p, ∀ x,
-      line.eval (finOpsInterp D) (fun i => inp i x)
-        (P.eval (finOpsInterp D) (fun i => inp i x)) = f x := by
+  have step : ∃ line : Line (fullSignature 2 (Fin D)) n p, ∀ x,
+      line.eval fullInterpretation (fun i => inp i x)
+        (P.eval fullInterpretation (fun i => inp i x)) = f x := by
     rcases hf with ⟨i, rfl⟩ | ⟨c, rfl⟩ | ⟨h1, hh1, h2, hh2, φ, hφ⟩
-    · exact ⟨⟨.inr fun a _ => a, (![Wire.input i, Wire.input i] : Fin 2 → Wire n p)⟩, fun x => by
-        simp [Line.eval, finOpsInterp]⟩
-    · exact ⟨⟨.inl c, Fin.elim0⟩, fun x => by simp [Line.eval, finOpsInterp]⟩
+    · exact ⟨⟨.fn fun a => a 0, (![Wire.input i, Wire.input i] : Fin 2 → Wire n p)⟩,
+        fun x => rfl⟩
+    · exact ⟨⟨.con c, Fin.elim0⟩, fun x => by simp [Line.eval, fullInterpretation]⟩
     · obtain ⟨k1, hk1⟩ := hP h1 hh1
       obtain ⟨k2, hk2⟩ := hP h2 hh2
-      refine ⟨⟨.inr φ, (![Wire.gate k1, Wire.gate k2] : Fin 2 → Wire n p)⟩, fun x => ?_⟩
-      simp only [Line.eval, finOpsInterp]
+      refine ⟨⟨.fn fun a => φ (a 0) (a 1), (![Wire.gate k1, Wire.gate k2] : Fin 2 → Wire n p)⟩,
+        fun x => ?_⟩
+      simp only [Line.eval, fullInterpretation]
       exact (hφ x _ _ (hk1 x) (hk2 x)).symm
   obtain ⟨line, hline⟩ := step
   refine ⟨.gate P line, fun g hg => ?_⟩
