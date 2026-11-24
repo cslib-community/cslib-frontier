@@ -49,10 +49,16 @@ each isolated true input, and parity has only isolated inputs.
   along an equivalence.
 * `Cslib.BitString.eq_of_singleton_invariant`: a function invariant under all single-coordinate
   flips is constant.
+* `Cslib.BitString.exists_update_ne_of_nonconstant`: a nonconstant function has a pivotal
+  coordinate at some input.
+* `Cslib.BitString.apply_update_false_eq_apply_update_true_iff`: bit `i` is not pivotal at `x`
+  exactly when flipping it keeps the value.
 * `Cslib.BitString.update_not_injective`: flipping distinct coordinates gives distinct
   neighbors.
 * `Cslib.BitString.sum_update_not`, `Cslib.BitString.expect_update_not`: flipping one coordinate
   permutes the cube, so it preserves sums and averages over the cube.
+* `Cslib.BitString.sum_update_false_add_update_true`: summing the values at bit `i` equal to
+  `false` and to `true` counts every vector twice.
 
 ## References
 
@@ -201,6 +207,26 @@ theorem eq_of_singleton_invariant [Finite ι] (f : (ι → Bool) → Bool)
     | @insert i B hi ih => rw [flipOn_insert hi, h, ih]
   rw [← flipOn_filter_ne x y, hflip]
 
+/-- A nonconstant function has a *pivotal* coordinate at some input: flipping that bit there
+changes the value. Otherwise it would be invariant under all single-coordinate flips. -/
+theorem exists_update_ne_of_nonconstant [Finite ι] {f : (ι → Bool) → Bool}
+    (hc : ∃ x y, f x ≠ f y) : ∃ x i, f (Function.update x i (!x i)) ≠ f x := by
+  obtain ⟨x, y, hxy⟩ := hc
+  refine Classical.byContradiction fun h => hxy (eq_of_singleton_invariant f (fun z i => ?_) x y)
+  rw [flipOn_singleton]
+  exact Classical.byContradiction fun hz => h ⟨z, i, hz⟩
+
+/-- Bit `i` is not pivotal for `f` at `x`, in the sense that setting it to `false` and to `true`
+gives the same value, exactly when flipping it keeps the value of `f`. -/
+theorem apply_update_false_eq_apply_update_true_iff {α : Type*} (f : (ι → Bool) → α) (i : ι)
+    (x : ι → Bool) :
+    f (Function.update x i false) = f (Function.update x i true) ↔
+      f (Function.update x i !x i) = f x := by
+  cases h : x i
+  · rw [show Function.update x i false = x from Function.update_eq_self_iff.2 h.symm,
+      Bool.not_false, eq_comm]
+  · rw [show Function.update x i true = x from Function.update_eq_self_iff.2 h.symm, Bool.not_true]
+
 section Isolated
 
 variable [Fintype ι] {g : (ι → Bool) → Bool} {b : Bool}
@@ -250,6 +276,22 @@ theorem expect_update_not {M : Type*} [AddCommMonoid M] [Module ℚ≥0 M] (i : 
     (F : (ι → Bool) → M) : 𝔼 x, F (Function.update x i (!x i)) = 𝔼 x, F x :=
   Fintype.expect_equiv (flipOn_involutive {i}).toPerm _ _ fun x => by
     rw [Function.Involutive.coe_toPerm, flipOn_singleton]
+
+/-- **Pairing the vectors across coordinate `i`**: summing over the cube the values of `φ` at bit
+`i` equal to `false` and to `true` counts every vector twice, since the vectors with bit `i` set
+to `b` are the vectors `x` with that bit and the flips of the others. -/
+theorem sum_update_false_add_update_true {M : Type*} [AddCommMonoid M] (i : ι)
+    (φ : (ι → Bool) → M) :
+    ∑ x, (φ (Function.update x i false) + φ (Function.update x i true)) =
+      ∑ x, φ x + ∑ x, φ x := by
+  have hpt (x : ι → Bool) : φ (Function.update x i false) + φ (Function.update x i true) =
+      φ x + φ (Function.update x i (!x i)) := by
+    cases hx : x i
+    · rw [show Function.update x i false = x from Function.update_eq_self_iff.2 hx.symm,
+        Bool.not_false]
+    · rw [show Function.update x i true = x from Function.update_eq_self_iff.2 hx.symm,
+        Bool.not_true, add_comm]
+  rw [sum_congr rfl fun x _ => hpt x, sum_add_distrib, sum_update_not]
 
 end Cube
 
