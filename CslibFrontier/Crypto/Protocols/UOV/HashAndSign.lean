@@ -351,4 +351,1201 @@ theorem saltedScheme_correct [DecidableEq M] [DecidableEq Target] [Fintype Targe
 
 end Schemes
 
+/-! ### Shared Bellare–Rogaway guessing helper -/
+
+section GuessingHelper
+
+private theorem uniform_fin_guess_mul {N : ℕ} [NeZero N] (μ : PMF (Bool × Fin N)) :
+    (μ.map Prod.fst) true =
+      (N : ℝ≥0∞) *
+        ((PMF.uniformOfFintype (Fin N)).bind fun jStar =>
+          μ.map fun p => p.1 && decide (p.2 = jStar)) true := by
+  have hne0 : (N : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (NeZero.ne N)
+  have hnetop : (N : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top N
+  simp only [PMF.bind_apply, PMF.uniformOfFintype_apply, Fintype.card_fin, PMF.map_apply,
+    ENNReal.tsum_mul_left, ← mul_assoc, ENNReal.mul_inv_cancel hne0 hnetop, one_mul]
+  rw [tsum_comm]
+  refine tsum_congr fun ⟨b, j⟩ => ?_
+  rw [tsum_fintype]
+  cases b with
+  | false => simp
+  | true => simp
+
+end GuessingHelper
+
+/-! ### Classical ROM EUF-CMA for salted hash-and-sign -/
+
+section SaltedReduction
+
+variable {PK SK M Target Preimage : Type}
+
+/-- Stateful handler of `saltedPSDistinguisher`: signing draws a uniform salt, queries the `PS`
+oracle once for `(y, x)`, and overwrites `((m, r), y)` in the cache; hashing lazily draws uniform
+targets. -/
+@[expose] noncomputable def saltedPSHandler {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target] :
+    (q : M ⊕ (M × Salt)) →
+      StateT (List ((M × Salt) × Target) × List M)
+        (ProbOracleComp (fun _ : Unit => Target × Option Preimage))
+        (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target q)
+  | .inl m => fun (cache, signed) => do
+      let r ← ProbOracleComp.sample (ProbComp.uniform Salt)
+      let yx ← ProbOracleComp.query ()
+      return ((r, yx.2), (((m, r), yx.1) :: cache, m :: signed))
+  | .inr q => fun (cache, signed) =>
+      match cache.lookup q with
+      | some y => pure (y, (cache, signed))
+      | none => do
+          let y ← ProbOracleComp.sample (ProbComp.uniform Target)
+          return (y, ((q, y) :: cache, signed))
+
+/-- Explicit `q_S`-query preimage-simulatability (`PS`) distinguisher for `saltedScheme`: runs
+`forger` against `saltedPSHandler`, verifies the output against the resulting cache (drawing a
+fresh uniform target if unqueried), and accepts iff the forgery verifies on an unsigned message. -/
+@[expose] noncomputable def saltedPSDistinguisher [DecidableEq M]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (Salt : Type)
+    [Fintype Salt] [Nonempty Salt] [DecidableEq Salt]
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage))) :
+    PSDistinguisher PK Target Preimage := fun pk => do
+  let ((mStar, (rStar, sigStar)), (cache, signed)) ← (OracleComp.interpret
+    (OracleComp.sumHandler
+      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+      (saltedPSHandler (M := M) (Salt := Salt) (Target := Target) (Preimage := Preimage)))
+    (forger pk)).run ([], [])
+  let yStar ←
+    match cache.lookup (mStar, rStar) with
+    | some y => pure y
+    | none => ProbOracleComp.sample (ProbComp.uniform Target)
+  return sys.check pk yStar sigStar && !signed.contains mStar
+
+/-- `saltedPSDistinguisher` makes at most `q_S` queries to the `PS` oracle whenever `forger` makes
+at most `q_S` signing queries (independent of `q_H`). -/
+theorem saltedPSDistinguisher_queryBound {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [DecidableEq Target] [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage)))
+    {q_S q_H : ℕ} (hforger : ProbForgerCallBounded forger q_S q_H) (pk : PK) :
+    (saltedPSDistinguisher sys Salt forger pk).IsQueryBounded q_S := by
+  have hbody :
+      ((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          (saltedPSHandler (M := M) (Salt := Salt) (Target := Target) (Preimage := Preimage)))
+        (forger pk)).run ([], [])).IsQueryBounded q_S := by
+    refine OracleComp.IsCostBounded.run_interpret (fun r st => ?_) (hforger pk).1 ([], [])
+    rcases r with k | q
+    · simpa [OracleComp.sumHandler, StateT.run, StateT.lift] using
+        (ProbOracleComp.IsQueryBounded.sample
+          (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.unifFin k)).bind
+            fun a => OracleComp.IsCostBounded.pure (a, st) 0
+    · rcases q with m | hq
+      · simp only [OracleComp.sumHandler, Sum.elim_inr, ROMSignature.signingCost, StateT.run,
+          saltedPSHandler]
+        refine (ProbOracleComp.IsQueryBounded.sample
+          (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Salt)).bind fun r =>
+            (ProbOracleComp.IsQueryBounded.query
+              (spec := fun _ : Unit => Target × Option Preimage) ()).bind fun yx =>
+                OracleComp.IsCostBounded.pure _ 0
+      · simp only [OracleComp.sumHandler, Sum.elim_inr, ROMSignature.signingCost, StateT.run,
+          saltedPSHandler]
+        cases st.1.lookup hq with
+        | some y => exact OracleComp.IsCostBounded.pure _ 0
+        | none =>
+          exact (ProbOracleComp.IsQueryBounded.sample
+            (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target)).bind
+              fun y => OracleComp.IsCostBounded.pure _ 0
+  have hpost :
+      ∀ res : (M × Salt × Option Preimage) × List ((M × Salt) × Target) × List M,
+        ProbOracleComp.IsQueryBounded
+          (let ((mStar, rStar, sigStar), (cache, signed)) := res
+           do
+            let yStar ←
+              match cache.lookup (mStar, rStar) with
+              | some y => pure y
+              | none => (ProbOracleComp.sample
+                  (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target))
+            return sys.check pk yStar sigStar && !signed.contains mStar) 0 := by
+    rintro ⟨⟨mStar, rStar, sigStar⟩, cache, signed⟩
+    dsimp only
+    cases cache.lookup (mStar, rStar) with
+    | some y =>
+      simpa only [pure_bind] using
+        (OracleComp.IsCostBounded.pure (cost := Sum.elim (fun _ => 0) fun _ => 1)
+          (sys.check pk y sigStar && !signed.contains mStar) 0)
+    | none =>
+      exact (ProbOracleComp.IsQueryBounded.sample
+        (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target)).bind
+          fun y' => OracleComp.IsCostBounded.pure
+            (sys.check pk y' sigStar && !signed.contains mStar) 0
+  simpa only [saltedPSDistinguisher, add_zero] using hbody.bind hpost
+
+/-- Stateful handler of `saltedInverter`: signing simulates `(y, x) ← sampleSimPair pk` and
+overwrites the cache without advancing `hCount`; the `jStar`-th fresh direct hash query embeds
+the challenge target `yStar`. -/
+@[expose] noncomputable def saltedInvHandler {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK)
+    (jStar : ℕ) (yStar : Target) :
+    (q : M ⊕ (M × Salt)) →
+      StateT (List ((M × Salt) × Target) × ℕ) ProbComp
+        (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target q)
+  | .inl m => fun (cache, hCount) => do
+      let r ← ProbComp.uniform Salt
+      let yx ← sys.sampleSimPair pk
+      return ((r, yx.2), (((m, r), yx.1) :: cache, hCount))
+  | .inr q => fun (cache, hCount) =>
+      match cache.lookup q with
+      | some y => pure (y, (cache, hCount))
+      | none => do
+          let y ← if hCount = jStar then pure yStar else ProbComp.uniform Target
+          return (y, ((q, y) :: cache, hCount + 1))
+
+/-- Explicit preimage inverter (`INV` reduction) for `saltedScheme`: guesses the forgery's fresh
+direct-hash (or unqueried verification) index `jStar ← Fin (q_H + 1)`, embeds the challenge target
+`yStar` there, simulates all signing queries via `sampleSimPair pk`, and outputs the candidate
+preimage. -/
+@[expose] noncomputable def saltedInverter [DecidableEq M]
+    [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (Salt : Type)
+    [Fintype Salt] [Nonempty Salt] [DecidableEq Salt] (q_H : ℕ)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage)))
+    (pk : PK) (yStar : Target) : ProbComp (Option Preimage) := do
+  let jStar ← ProbComp.uniform (Fin (q_H + 1))
+  let ((_, (_, sigStar)), _) ←
+    ((forger pk).runState (saltedInvHandler sys pk jStar.val yStar)).run ([], 0)
+  return sigStar
+
+/-! #### Proof of classical ROM EUF-CMA for `saltedScheme` -/
+
+private noncomputable def saltedSamplePre {Salt : Type} [Fintype Target] [Finite Preimage]
+    [Fintype Salt] [Nonempty Salt]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (sk : SK) (_ : M) :
+    PMF (Salt × (Target → Option Preimage)) := do
+  let r ← PMF.uniformOfFintype Salt
+  let f ← PMF.pi fun y => ProbComp.eval (sys.invert sk y)
+  return (r, f)
+
+private theorem saltedSamplePre_minEnt {Salt : Type} [Fintype Target]
+    [Finite Preimage] [Fintype Salt] [Nonempty Salt]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (sk : SK) (m : M) (q : M × Salt) :
+    ((saltedSamplePre sys sk m).map (fun coins => (m, coins.1))) q ≤
+      (Fintype.card Salt : ℝ≥0∞)⁻¹ := by
+  have hmap : (saltedSamplePre sys sk m).map (fun coins => (m, coins.1)) =
+      (PMF.uniformOfFintype Salt).map (fun r => (m, r)) := by
+    simp only [saltedSamplePre, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      PMF.map_bind, PMF.pure_map]
+    refine congrArg ((PMF.uniformOfFintype Salt).bind ·) (funext fun r => ?_)
+    have := (PMF.pi fun y => ProbComp.eval (sys.invert sk y)).map_const (m, r)
+    simpa only [PMF.map, Function.comp_def, Function.const_apply] using this
+  rw [hmap]
+  have hinj : Function.Injective (fun r : Salt => (m, r)) := fun _ _ h => (Prod.mk.inj h).2
+  simpa only [Function.comp_id] using
+    RandomOracle.map_comp_apply_le_of_injective (g := id) hinj
+      (fun r => by simpa only [PMF.map_id] using le_of_eq (PMF.uniformOfFintype_apply r)) q
+
+/-- Exact game-0 representation of `ROMSignature.worldGame (saltedScheme sys Salt)` via
+`RandomOracle.lazyProgramHandler`. -/
+private theorem saltedWorldEufCma_eq_lazyProgram {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Fintype Salt] [Nonempty Salt]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage))) :
+    ROMSignature.worldGame (saltedScheme sys Salt) forger eufCmaAccept =
+      (ProbComp.eval sys.keyGen).bind fun keys =>
+        (ProbOracleComp.runWith
+          (RandomOracle.lazyProgramHandler
+            (PMF.uniformOfFintype Target) (fun _ : M => true)
+            (fun _ h => absurd h (by decide))
+            (saltedSamplePre sys keys.2) (fun m coins => (m, coins.1))
+            (fun m coins y log => ((coins.1, coins.2 y), m :: log)))
+          (forger keys.1) ([], [])).bind fun ((mStar, (rStar, sigStar)), (cache, signed)) =>
+            ((ROMSignature.oracle Target (mStar, rStar)).run cache).map fun (yStar, _) =>
+              sys.check keys.1 yStar sigStar && !signed.contains mStar := by
+  unfold ROMSignature.worldGame
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
+  rw [ROMSignature.eval_world_worldRealize]
+  have hstep :
+      (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl (saltedScheme sys Salt) sk)
+        (ROMSignature.runLoggedForger (forger pk)) []).map
+          (fun ⟨⟨msig, pairs⟩, cache⟩ => (msig, (cache, pairs.map Prod.fst))) =
+      ProbOracleComp.runWith
+        (RandomOracle.lazyProgramHandler
+          (PMF.uniformOfFintype Target) (fun _ : M => true)
+          (fun _ h => absurd h (by decide))
+          (saltedSamplePre sys sk) (fun m coins => (m, coins.1))
+          (fun m coins y log => ((coins.1, coins.2 y), m :: log)))
+        (forger pk) ([], []) := by
+    rw [ROMSignature.runLoggedForger, ProbOracleComp.runWith_run_interpret, PMF.map_comp]
+    refine ProbOracleComp.runWith_map_state _ _
+      (fun (st : List (M × (Salt × Option Preimage)) × List ((M × Salt) × Target)) =>
+        (st.2, st.1.map Prod.fst))
+      (fun q ⟨pairs, cache⟩ => ?_) (forger pk) ([], [])
+    cases q with
+    | inl m =>
+      simp only [ROMSignature.logSigning, ROMSignature.forgerWorldImpl, saltedScheme,
+        RandomOracle.lazyProgramHandler, saltedSamplePre, ProbOracleComp.runWith_bind,
+        ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, sumHandler, StateT.run,
+        interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_bind,
+        PMF.pure_bind, PMF.pure_map, ↓reduceDIte, ROMSignature.oracle]
+      congr 1 with r : 1
+      congr 1 with f : 1
+      change ((memoize (fun _ => PMF.uniformOfFintype Target) (m, r) cache).bind
+        fun x => PMF.pure ((r, f x.1), x.2)).bind
+          (fun a => PMF.pure (a.1, a.2, List.map Prod.fst ((m, a.1) :: pairs))) = _
+      rw [PMF.bind_bind]
+      simp only [PMF.pure_bind, List.map_cons]
+    | inr hq =>
+      simp only [ROMSignature.logSigning, ROMSignature.forgerWorldImpl,
+        RandomOracle.lazyProgramHandler, ProbOracleComp.runWith_bind,
+        ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, sumHandler, StateT.run,
+        PMF.monad_bind_eq_bind, PMF.map_bind, PMF.pure_map, ROMSignature.oracle]
+      rfl
+  rw [← hstep, PMF.bind_map]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨⟨mStar, rStar, sigStar⟩, pairs⟩, cache⟩ _ => ?_
+  simp only [saltedScheme, eufCmaAccept, interp_norm, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  rfl
+
+/-- Running an interpreted stateful `ProbOracleComp` against a memoryless `ProbComp` oracle `O`
+coincides with `ProbOracleComp.runWith` against the evaluated handler. -/
+private theorem eval_run_run_interpret {Q₁ Q₂ σ α : Type} {S₁ : Q₁ → Type} {S₂ : Q₂ → Type}
+    (inner : (q : Q₁) → StateT σ (ProbOracleComp S₂) (S₁ q))
+    (O : (q : Q₂) → ProbComp (S₂ q))
+    (prog : ProbOracleComp S₁ α) (init : σ) :
+    ProbComp.eval (((OracleComp.interpret
+      (OracleComp.sumHandler (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        inner) prog).run init).run O) =
+      ProbOracleComp.runWith (fun q s => ProbComp.eval ((inner q s).run O)) prog init := by
+  have hunit :
+      ∀ {β : Type} (p : ProbOracleComp S₂ β),
+        ProbComp.eval (p.run O) =
+          (ProbOracleComp.runWith (fun q (u : Unit) => (ProbComp.eval (O q)).map (·, u))
+            p ()).map Prod.fst := by
+    intro β p
+    have h := ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => ProbComp.eval (O q)) p ()
+    have hfst := congrArg (PMF.map Prod.fst) h
+    simp only [PMF.map_comp, Function.comp_def, PMF.map_id', OracleComp.evalWith_eq_interpret]
+      at hfst
+    rw [ProbOracleComp.eval_run]
+    exact hfst.symm
+  rw [hunit, ProbOracleComp.runWith_run_interpret, PMF.map_comp]
+  have hmap := ProbOracleComp.runWith_map_state
+    (fun q (st : σ × Unit) =>
+      (ProbOracleComp.runWith (fun q' (u : Unit) => (ProbComp.eval (O q')).map (·, u))
+        ((inner q).run st.1) st.2).map fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+    (fun q s => ProbComp.eval ((inner q s).run O))
+    Prod.fst
+    (fun q ⟨s, u⟩ => by
+      cases u
+      rw [PMF.map_comp, hunit (inner q s)]
+      rfl)
+    prog (init, ())
+  simpa only [Function.comp_def] using hmap
+
+/-- Game 1 (overwrite programming) coincides exactly with `psExperimentReal` on
+`saltedPSDistinguisher`. -/
+private theorem saltedOverwrite_eq_psExperimentReal {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Fintype Salt] [Nonempty Salt]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage))) :
+    (ProbComp.eval sys.keyGen).bind (fun keys =>
+      (ProbOracleComp.runWith
+        (RandomOracle.overwriteProgramHandler
+          (PMF.uniformOfFintype Target) (fun _ : M => true)
+          (fun _ h => absurd h (by decide))
+          (saltedSamplePre sys keys.2) (fun m coins => (m, coins.1))
+          (fun m coins y log => ((coins.1, coins.2 y), m :: log)))
+        (forger keys.1) ([], [])).bind fun ((mStar, (rStar, sigStar)), (cache, signed)) =>
+          ((ROMSignature.oracle Target (mStar, rStar)).run cache).map fun (yStar, _) =>
+            sys.check keys.1 yStar sigStar && !signed.contains mStar) =
+      ProbComp.eval (psExperimentReal sys (saltedPSDistinguisher sys Salt forger)) := by
+  simp only [psExperimentReal, saltedPSDistinguisher, ProbComp.eval_bind,
+    ProbOracleComp.run_bind]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
+  have hrun :
+      ProbOracleComp.runWith
+        (RandomOracle.overwriteProgramHandler
+          (PMF.uniformOfFintype Target) (fun _ : M => true)
+          (fun _ h => absurd h (by decide))
+          (saltedSamplePre sys sk) (fun m coins => (m, coins.1))
+          (fun m coins y log => ((coins.1, coins.2 y), m :: log)))
+        (forger pk) ([], []) =
+      ProbComp.eval (((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          (saltedPSHandler (M := M) (Salt := Salt) (Target := Target) (Preimage := Preimage)))
+        (forger pk)).run ([], [])).run fun _ => sys.sampleRealPair sk) := by
+    rw [eval_run_run_interpret]
+    congr 1
+    funext q st
+    obtain ⟨cache, signed⟩ := st
+    cases q with
+    | inl m =>
+      simp only [RandomOracle.overwriteProgramHandler, saltedSamplePre, saltedPSHandler,
+        TrapdoorPreimageSystem.sampleRealPair, ↓reduceDIte,
+        ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
+        ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+      congr 1 with r : 1
+      rw [PMF.bind_comm]
+      congr 1 with y : 1
+      have heval := PMF.pi_map_eval (fun t => ProbComp.eval (sys.invert sk t)) y
+      rw [← heval, PMF.bind_map]
+      rfl
+    | inr hq =>
+      simp only [RandomOracle.overwriteProgramHandler, saltedPSHandler, memoize]
+      cases hlu : cache.lookup hq with
+      | some y =>
+        simp [ProbOracleComp.run_pure, ProbComp.eval_pure, PMF.pure_map]
+      | none =>
+        simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
+          ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+          PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+  rw [hrun]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, rStar, sigStar⟩, cache, signed⟩ _ => ?_
+  cases hlu : cache.lookup (mStar, rStar) with
+  | some y =>
+    rw [ROMSignature.run_oracle_of_lookup_eq_some hlu]
+    simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
+  | none =>
+    rw [ROMSignature.run_oracle_of_lookup_eq_none hlu]
+    simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
+      ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
+
+/-- Tracked state for the Bellare–Rogaway guessing step in `saltedScheme`: cache stores each entry
+tagged with `some idx` for fresh direct-hash misses and `none` for signing overwrites, alongside
+`signed`, `hCount`, and `yAtJ` (the target sampled at step `jStar`, if reached). -/
+private structure SaltedTrackState (M Salt Target : Type) where
+  cache : List ((M × Salt) × (Target × Option ℕ))
+  signed : List M
+  hCount : ℕ
+  yAtJ : Option Target
+
+private noncomputable def saltedTrackHandler {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ) :
+    (q : M ⊕ (M × Salt)) →
+      StateT (SaltedTrackState M Salt Target) PMF
+        (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target q)
+  | .inl m => fun st => do
+      let r ← PMF.uniformOfFintype Salt
+      let yx ← ProbComp.eval (sys.sampleSimPair pk)
+      return ((r, yx.2),
+        { st with
+          cache := ((m, r), (yx.1, none)) :: st.cache
+          signed := m :: st.signed })
+  | .inr q => fun st =>
+      match st.cache.lookup q with
+      | some (y, _) => PMF.pure (y, st)
+      | none => do
+          let y ← PMF.uniformOfFintype Target
+          return (y,
+            { st with
+              cache := (q, (y, some st.hCount)) :: st.cache
+              hCount := st.hCount + 1
+              yAtJ := if st.hCount = jStar then some y else st.yAtJ })
+
+private noncomputable def saltedEmbedHandler {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ) :
+    (q : M ⊕ (M × Salt)) →
+      StateT (SaltedTrackState M Salt Target × Target) PMF
+        (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target q)
+  | .inl m => fun (st, yStar) => do
+      let r ← PMF.uniformOfFintype Salt
+      let yx ← ProbComp.eval (sys.sampleSimPair pk)
+      return ((r, yx.2),
+        ({ st with
+          cache := ((m, r), (yx.1, none)) :: st.cache
+          signed := m :: st.signed }, yStar))
+  | .inr q => fun (st, yStar) =>
+      match st.cache.lookup q with
+      | some (y, _) => PMF.pure (y, (st, yStar))
+      | none =>
+          if st.hCount = jStar then
+            PMF.pure (yStar,
+              ({ st with
+                cache := (q, (yStar, some st.hCount)) :: st.cache
+                hCount := st.hCount + 1
+                yAtJ := some yStar }, yStar))
+          else do
+            let y ← PMF.uniformOfFintype Target
+            return (y,
+              ({ st with
+                cache := (q, (y, some st.hCount)) :: st.cache
+                hCount := st.hCount + 1 }, yStar))
+
+/-- Invariant of `saltedTrackHandler`: `yAtJ` is `some _` iff `jStar < hCount`, every `none`-tagged
+cache entry has its message in `signed`, every `some k`-tagged cache entry has `k < hCount`, and
+any `some jStar`-tagged entry matches `yAtJ`. -/
+private def SaltedTrackInv {Salt : Type} (jStar : ℕ) (st : SaltedTrackState M Salt Target) : Prop :=
+  (st.hCount ≤ jStar → st.yAtJ = none) ∧
+  (∀ m r y, ((m, r), (y, none)) ∈ st.cache → m ∈ st.signed) ∧
+  (∀ q y k, (q, (y, some k)) ∈ st.cache → k < st.hCount) ∧
+  (∀ q y, (q, (y, some jStar)) ∈ st.cache → st.yAtJ = some y)
+
+private theorem saltedTrackInv_init {Salt : Type} (jStar : ℕ) :
+    SaltedTrackInv (M := M) (Salt := Salt) (Target := Target) jStar ⟨[], [], 0, none⟩ := by
+  refine ⟨fun _ => rfl, by simp, by simp, by simp⟩
+
+private theorem saltedTrackInv_step {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ)
+    (q : M ⊕ (M × Salt)) (st : SaltedTrackState M Salt Target) (hinv : SaltedTrackInv jStar st)
+    (a : ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target q)
+    (st' : SaltedTrackState M Salt Target)
+    (hstep : (a, st') ∈ (saltedTrackHandler sys pk jStar q st).support) :
+    SaltedTrackInv jStar st' := by
+  obtain ⟨hnone, hsign, hlt, hyj⟩ := hinv
+  cases q with
+  | inl m =>
+    simp only [saltedTrackHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+    obtain ⟨r, -, yx, -, -, rfl⟩ := hstep
+    refine ⟨hnone, ?_, ?_, ?_⟩
+    · intro m' r' y' hmem
+      rcases List.mem_cons.mp hmem with heq | hmem
+      · obtain ⟨hm, -⟩ := Prod.mk.inj (Prod.mk.inj heq).1
+        subst hm; exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (hsign m' r' y' hmem)
+    · intro q' y' k hmem
+      rcases List.mem_cons.mp hmem with heq | hmem
+      · simp at heq
+      · exact hlt q' y' k hmem
+    · intro q' y' hmem
+      rcases List.mem_cons.mp hmem with heq | hmem
+      · simp at heq
+      · exact hyj q' y' hmem
+  | inr hq =>
+    dsimp only [saltedTrackHandler] at hstep
+    cases hlu : st.cache.lookup hq with
+    | some yk =>
+      rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+      obtain ⟨-, rfl⟩ := hstep
+      exact ⟨hnone, hsign, hlt, hyj⟩
+    | none =>
+      rw [hlu] at hstep
+      simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+        PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+      obtain ⟨y, -, -, rfl⟩ := hstep
+      refine ⟨?_, ?_, ?_, ?_⟩
+      · intro hle
+        dsimp only at hle ⊢
+        have hne : st.hCount ≠ jStar := by omega
+        simp [hne, hnone (by omega)]
+      · intro m' r' y' hmem
+        rcases List.mem_cons.mp hmem with heq | hmem
+        · simp at heq
+        · exact hsign m' r' y' hmem
+      · intro q' y' k hmem
+        dsimp only at hmem ⊢
+        rcases List.mem_cons.mp hmem with heq | hmem
+        · have hk := Option.some.inj (Prod.mk.inj (Prod.mk.inj heq).2).2
+          subst hk; omega
+        · exact Nat.lt_succ_of_lt (hlt q' y' k hmem)
+      · intro q' y' hmem
+        dsimp only at hmem ⊢
+        rcases List.mem_cons.mp hmem with heq | hmem
+        · have hy := (Prod.mk.inj (Prod.mk.inj heq).2).1
+          have hk := Option.some.inj (Prod.mk.inj (Prod.mk.inj heq).2).2
+          subst hy hk
+          simp
+        · have hne : st.hCount ≠ jStar := by
+            have := hlt q' y' jStar hmem
+            omega
+          simp [hne, hyj q' y' hmem]
+
+/-- Coupling relation between `saltedTrackHandler` (no pre-sampled `yStar`) and
+`saltedEmbedHandler` (which embeds `yStar` at `hCount = jStar`). -/
+private noncomputable def saltedRelate {Salt : Type} [Fintype Target] [Nonempty Target]
+    (st : SaltedTrackState M Salt Target) : PMF (SaltedTrackState M Salt Target × Target) :=
+  match st.yAtJ with
+  | some y => PMF.pure (st, y)
+  | none => (PMF.uniformOfFintype Target).map (st, ·)
+
+private theorem saltedTrack_sim_saltedEmbed {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ)
+    (forger : ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage))) :
+    (ProbOracleComp.runWith (saltedTrackHandler sys pk jStar) forger ⟨[], [], 0, none⟩).bind
+        (fun ⟨out, st⟩ => (saltedRelate st).map (out, ·)) =
+      (PMF.uniformOfFintype Target).bind fun yStar =>
+        ProbOracleComp.runWith (saltedEmbedHandler sys pk jStar) forger
+          (⟨[], [], 0, none⟩, yStar) := by
+  have hsim := ProbOracleComp.runWith_simulation_of_invariant
+    (saltedTrackHandler sys pk jStar) (saltedEmbedHandler sys pk jStar)
+    saltedRelate (SaltedTrackInv jStar)
+    (saltedTrackInv_step sys pk jStar)
+    (fun q st hinv => ?_)
+    forger ⟨[], [], 0, none⟩ (saltedTrackInv_init jStar)
+  · convert hsim using 1
+    simp only [saltedRelate, PMF.bind_map]
+    rfl
+  · cases q with
+    | inl m =>
+      dsimp only [saltedTrackHandler, saltedEmbedHandler]
+      cases hyj : st.yAtJ with
+      | some y0 =>
+        simp only [saltedRelate, hyj, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+          PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
+      | none =>
+        simp only [saltedRelate, hyj, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+          PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+        have hswap : ∀ r : Salt,
+            ((ProbComp.eval (sys.sampleSimPair pk)).bind fun yx =>
+              (PMF.uniformOfFintype Target).bind fun yStar =>
+                PMF.pure ((r, yx.2),
+                  (SaltedTrackState.mk (((m, r), (yx.1, none)) :: st.cache)
+                    (m :: st.signed) st.hCount none, yStar))) =
+            ((PMF.uniformOfFintype Target).bind fun yStar =>
+              (ProbComp.eval (sys.sampleSimPair pk)).bind fun yx =>
+                PMF.pure ((r, yx.2),
+                  (SaltedTrackState.mk (((m, r), (yx.1, none)) :: st.cache)
+                    (m :: st.signed) st.hCount none, yStar))) :=
+          fun r => PMF.bind_comm _ _ _
+        simp_rw [hswap]
+        exact PMF.bind_comm _ _ _
+    | inr hq =>
+      dsimp only [saltedTrackHandler, saltedEmbedHandler]
+      cases hlu : st.cache.lookup hq with
+      | some yk =>
+        cases hyj : st.yAtJ with
+        | some y0 =>
+          simp only [hlu, saltedRelate, hyj, PMF.map, PMF.pure_bind, Function.comp_def]
+        | none =>
+          simp only [saltedRelate, hyj, PMF.map, PMF.bind_bind, PMF.pure_bind, hlu,
+            Function.comp_def]
+      | none =>
+        by_cases heq : st.hCount = jStar
+        · have hyj : st.yAtJ = none := hinv.1 (le_of_eq heq)
+          simp only [hlu, heq, ↓reduceIte, saltedRelate, hyj, PMF.monad_bind_eq_bind,
+            PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+        · cases hyj : st.yAtJ with
+          | some y0 =>
+            simp only [hlu, heq, ↓reduceIte, saltedRelate, hyj, PMF.monad_bind_eq_bind,
+              PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+          | none =>
+            simp only [hlu, heq, ↓reduceIte, saltedRelate, hyj, PMF.monad_bind_eq_bind,
+              PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+            exact PMF.bind_comm _ _ _
+
+private theorem lookup_map_fst {K A B : Type} [BEq K]
+    (l : List (K × A × B)) (q : K) :
+    (l.map fun (k, a, _) => (k, a)).lookup q = (l.lookup q).map Prod.fst := by
+  induction l with
+  | nil => rfl
+  | cons hd tl ih =>
+    rcases hd with ⟨k, a, b⟩
+    simp only [List.map_cons, List.lookup_cons]
+    cases (q == k) <;> simp [ih]
+
+private theorem mem_of_lookup_eq_some {K V : Type} [DecidableEq K]
+    {l : List (K × V)} {k : K} {v : V} (h : l.lookup k = some v) :
+    (k, v) ∈ l := by
+  induction l with
+  | nil => simp at h
+  | cons hd tl ih =>
+    rcases hd with ⟨k', v'⟩
+    simp only [List.lookup_cons] at h
+    by_cases heq : k = k'
+    · subst heq
+      simp only [beq_self_eq_true, Option.some.injEq] at h
+      subst h
+      exact List.mem_cons_self
+    · have hne : (k == k') = false := beq_false_of_ne heq
+      rw [hne] at h
+      exact List.mem_cons_of_mem _ (ih h)
+
+/-- Key-fixed `G2` (simulated `PS` signing) is bounded by `(q_H + 1)` times the success of
+`saltedInverter` on `Signature.targetExperiment`. -/
+private theorem saltedSim_le_mul_targetExperiment {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [DecidableEq Target] [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage)))
+    {q_S q_H : ℕ} (hforger : ProbForgerCallBounded forger q_S q_H) :
+    (ProbComp.eval (psExperimentSim sys (saltedPSDistinguisher sys Salt forger))) true ≤
+      ((q_H + 1 : ℕ) : ℝ≥0∞) *
+        (ProbComp.eval (Signature.targetExperiment sys.toRawScheme
+          (fun _ => ProbComp.uniform Target) (saltedInverter sys Salt q_H forger))) true := by
+  unfold psExperimentSim Signature.targetExperiment
+  dsimp only [TrapdoorPreimageSystem.toRawScheme]
+  rw [ProbComp.eval_bind, ProbComp.eval_bind, PMF.bind_apply, PMF.bind_apply,
+    ← ENNReal.tsum_mul_left]
+  refine tsum_le_tsum fun ⟨pk, sk⟩ => ?_
+  rw [← mul_assoc, mul_comm ((q_H + 1 : ℕ) : ℝ≥0∞), mul_assoc]
+  refine mul_le_mul_of_nonneg_left ?_ zero_le
+  -- Express `psExperimentSim` at `pk` via `saltedTrackHandler` (with arbitrary `jStar`, say 0)
+  let trackProj (jStar : Fin (q_H + 1)) :
+      PMF (Bool × Fin (q_H + 1)) :=
+    (ProbOracleComp.runWith (saltedTrackHandler sys pk jStar.val) (forger pk)
+      ⟨[], [], 0, none⟩).bind fun ⟨⟨mStar, rStar, sigStar⟩, st⟩ =>
+        match st.cache.lookup (mStar, rStar) with
+        | some (y, idxOpt) =>
+          PMF.pure (sys.check pk y sigStar && !st.signed.contains mStar,
+            Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount))
+        | none =>
+          (PMF.uniformOfFintype Target).map fun y =>
+            (sys.check pk y sigStar && !st.signed.contains mStar,
+              Fin.ofNat (q_H + 1) st.hCount)
+  -- Wait: `trackProj jStar` has `PMF` independent of `jStar`!
+  have htrack_indep (jStar : Fin (q_H + 1)) :
+      (ProbOracleComp.runWith (saltedTrackHandler sys pk jStar.val) (forger pk)
+        ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount))) =
+      (ProbOracleComp.runWith (saltedTrackHandler sys pk 0) (forger pk)
+        ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount))) := by
+    have hmap (j : ℕ) :
+        (ProbOracleComp.runWith (saltedTrackHandler sys pk j) (forger pk)
+          ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount))) =
+        ProbOracleComp.runWith
+          (fun q ((cache, signed, hCount) :
+              List ((M × Salt) × (Target × Option ℕ)) × List M × ℕ) =>
+            match q with
+            | .inl m => do
+                let r ← PMF.uniformOfFintype Salt
+                let yx ← ProbComp.eval (sys.sampleSimPair pk)
+                return ((r, yx.2), (((m, r), (yx.1, none)) :: cache, m :: signed, hCount))
+            | .inr hq =>
+                match cache.lookup hq with
+                | some (y, _) => PMF.pure (y, (cache, signed, hCount))
+                | none => do
+                    let y ← PMF.uniformOfFintype Target
+                    return (y, ((hq, (y, some hCount)) :: cache, signed, hCount + 1)))
+          (forger pk) ([], [], 0) := by
+      refine ProbOracleComp.runWith_map_state _ _
+        (fun (st : SaltedTrackState M Salt Target) => (st.cache, st.signed, st.hCount))
+        (fun q st => ?_) (forger pk) (⟨[], [], 0, none⟩ : SaltedTrackState M Salt Target)
+      cases q with
+      | inl m =>
+        simp [saltedTrackHandler, PMF.map_bind, PMF.pure_map]
+      | inr hq =>
+        dsimp only [saltedTrackHandler]
+        cases st.cache.lookup hq <;> simp [PMF.map_bind, PMF.pure_map]
+    rw [hmap jStar.val, hmap 0]
+  have htrack_eq (jStar : Fin (q_H + 1)) : trackProj jStar = trackProj 0 := by
+    dsimp only [trackProj]
+    have h1 (j : Fin (q_H + 1)) :
+        (ProbOracleComp.runWith (saltedTrackHandler sys pk j.val) (forger pk)
+          ⟨[], [], 0, none⟩).bind (fun ⟨⟨mStar, rStar, sigStar⟩, st⟩ =>
+            match st.cache.lookup (mStar, rStar) with
+            | some (y, idxOpt) =>
+              PMF.pure (sys.check pk y sigStar && !st.signed.contains mStar,
+                Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount))
+            | none =>
+              (PMF.uniformOfFintype Target).map fun y =>
+                (sys.check pk y sigStar && !st.signed.contains mStar,
+                  Fin.ofNat (q_H + 1) st.hCount)) =
+        ((ProbOracleComp.runWith (saltedTrackHandler sys pk j.val) (forger pk)
+          ⟨[], [], 0, none⟩).map (fun ⟨out, st⟩ => (out, (st.cache, st.signed, st.hCount)))).bind
+          fun ⟨⟨mStar, rStar, sigStar⟩, (cache, signed, hCount)⟩ =>
+            match cache.lookup (mStar, rStar) with
+            | some (y, idxOpt) =>
+              PMF.pure (sys.check pk y sigStar && !signed.contains mStar,
+                Fin.ofNat (q_H + 1) (idxOpt.getD hCount))
+            | none =>
+              (PMF.uniformOfFintype Target).map fun y =>
+                (sys.check pk y sigStar && !signed.contains mStar,
+                  Fin.ofNat (q_H + 1) hCount) := by
+      rw [PMF.bind_map]
+      rfl
+    rw [h1 jStar, h1 0, htrack_indep jStar]
+    rfl
+  -- Next, relate `psExperimentSim` at `pk` to `(trackProj 0).map Prod.fst`
+  have hps_eq :
+      (ProbComp.eval ((saltedPSDistinguisher sys Salt forger pk).run
+        fun _ => sys.sampleSimPair pk)) = (trackProj 0).map Prod.fst := by
+    have hproj :
+        (ProbOracleComp.runWith (saltedTrackHandler sys pk 0) (forger pk)
+          ⟨[], [], 0, none⟩).map
+            (fun ⟨out, st⟩ => (out, (st.cache.map fun (k, y, _) => (k, y), st.signed))) =
+        ProbComp.eval (((OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+            (saltedPSHandler (M := M) (Salt := Salt) (Target := Target) (Preimage := Preimage)))
+          (forger pk)).run ([], [])).run fun _ => sys.sampleSimPair pk) := by
+      rw [eval_run_run_interpret]
+      refine ProbOracleComp.runWith_map_state _ _
+        (fun (st : SaltedTrackState M Salt Target) =>
+          (st.cache.map fun (k, y, _) => (k, y), st.signed))
+        (fun q st => ?_) (forger pk) ⟨[], [], 0, none⟩
+      cases q with
+      | inl m =>
+        simp only [saltedTrackHandler, saltedPSHandler, ProbOracleComp.run_bind,
+          ProbOracleComp.run_sample, ProbOracleComp.run_query, ProbOracleComp.run_pure,
+          ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+          PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+        rfl
+      | inr hq =>
+        dsimp only [saltedTrackHandler, saltedPSHandler]
+        rw [lookup_map_fst]
+        cases st.cache.lookup hq with
+        | some yk => simp [ProbOracleComp.run_pure, ProbComp.eval_pure, PMF.pure_map]
+        | none =>
+          simp only [Option.map_none, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+            ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+            PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+          rfl
+    simp only [saltedPSDistinguisher, ProbOracleComp.run_bind, ProbComp.eval_bind, ← hproj,
+      PMF.bind_map, trackProj, PMF.map_bind]
+    refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨mStar, rStar, sigStar⟩, st⟩ _ => ?_
+    dsimp only [Function.comp_def]
+    rw [lookup_map_fst]
+    cases st.cache.lookup (mStar, rStar) with
+    | some yk =>
+      simp [ProbOracleComp.run_pure, ProbComp.eval_pure]
+    | none =>
+      simp only [Option.map_none, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+        ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+        PMF.map_comp, Function.comp_def]
+      exact (PMF.bind_pure_comp _ _).symm
+  rw [hps_eq, uniform_fin_guess_mul (trackProj 0)]
+  refine mul_le_mul_of_nonneg_left ?_ zero_le
+  -- Rewrite RHS to bind `jStar` on the outside and `yStar` inside
+  have hrhs_swap :
+      (ProbComp.eval (do
+        let y ← ProbComp.uniform Target
+        let s ← saltedInverter sys Salt q_H forger pk y
+        return sys.check pk y s)) =
+      (PMF.uniformOfFintype (Fin (q_H + 1))).bind fun jStar =>
+        (PMF.uniformOfFintype Target).bind fun yStar =>
+          (ProbComp.eval (((forger pk).runState
+            (saltedInvHandler sys pk jStar.val yStar)).run ([], 0))).bind
+              fun ⟨⟨_, _, sigStar⟩, _⟩ => PMF.pure (sys.check pk yStar sigStar) := by
+    simp only [saltedInverter, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+      PMF.bind_bind, PMF.pure_bind]
+    exact PMF.bind_comm _ _ _
+  rw [hrhs_swap, PMF.bind_apply, PMF.bind_apply]
+  refine tsum_le_tsum fun jStar => mul_le_mul_of_nonneg_left ?_ zero_le
+  rw [← htrack_eq jStar]
+  -- Use `saltedTrack_sim_saltedEmbed` to equate `trackProj jStar` with the embedded run
+  have hbound_hCount : ∀ out st,
+      (out, st) ∈ (ProbOracleComp.runWith (saltedTrackHandler sys pk jStar.val) (forger pk)
+        ⟨[], [], 0, none⟩).support → st.hCount ≤ q_H ∧ SaltedTrackInv jStar.val st := by
+    intro out st hmem
+    have h1 : st.hCount ≤ (⟨[], [], 0, none⟩ : SaltedTrackState M Salt Target).hCount + q_H := by
+      have hcost := (hforger pk).2
+      refine hcost.measure_le
+        (oracle := OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
+          (saltedTrackHandler sys pk jStar.val))
+        (size := fun s : SaltedTrackState M Salt Target => s.hCount)
+        (hstep := ?_)
+        (s := ⟨[], [], 0, none⟩) (result := out) (s' := st)
+        (hmem := by simpa [ProbOracleComp.runWith_eq_run_interpret] using hmem)
+      intro q s a s' hx
+      cases q with
+      | inl n =>
+        simp only [OracleComp.sumHandler, StateT.lift, PMF.monad_bind_eq_bind,
+          PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
+          Prod.mk.injEq] at hx
+        obtain ⟨_, -, -, rfl⟩ := hx
+        exact le_rfl
+      | inr oq =>
+        cases oq with
+        | inl m =>
+          simp only [OracleComp.sumHandler, saltedTrackHandler, PMF.monad_bind_eq_bind,
+            PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
+            Prod.mk.injEq] at hx
+          obtain ⟨_, -, _, -, -, rfl⟩ := hx
+          exact le_rfl
+        | inr hq =>
+          simp only [OracleComp.sumHandler, saltedTrackHandler] at hx
+          cases hlu : s.cache.lookup hq with
+          | some yk =>
+            rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hx
+            obtain ⟨-, rfl⟩ := hx
+            exact Nat.le_succ _
+          | none =>
+            rw [hlu] at hx
+            simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+              PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hx
+            obtain ⟨_, -, -, rfl⟩ := hx
+            exact le_rfl
+    have h2 := ProbOracleComp.runWith_invariant (saltedTrackHandler sys pk jStar.val)
+      (SaltedTrackInv jStar.val) (saltedTrackInv_step sys pk jStar.val)
+      (forger pk) ⟨[], [], 0, none⟩ (saltedTrackInv_init jStar.val) out st hmem
+    exact ⟨by simpa using h1, h2⟩
+  -- Relate `saltedEmbedHandler` to `saltedInvHandler` using invariant `st.2 = yStar`
+  have hembed_to_inv (yStar : Target) :
+      (ProbOracleComp.runWith (saltedEmbedHandler sys pk jStar.val) (forger pk)
+        (⟨[], [], 0, none⟩, yStar)).map (fun ⟨(_, _, sigStar), _⟩ => sigStar) =
+      (ProbComp.eval (((forger pk).runState
+        (saltedInvHandler sys pk jStar.val yStar)).run ([], 0))).map
+        (fun ⟨(_, _, sigStar), _⟩ => sigStar) := by
+    rw [ProbOracleComp.eval_runState]
+    have hproj := ProbOracleComp.runWith_map_state_of_invariant
+      (saltedEmbedHandler sys pk jStar.val)
+      (fun q s => ProbComp.eval (saltedInvHandler sys pk jStar.val yStar q s))
+      (fun (st : SaltedTrackState M Salt Target × Target) =>
+        (st.1.cache.map fun (k, y, _) => (k, y), st.1.hCount))
+      (fun st => st.2 = yStar)
+      (fun q ⟨st, yS⟩ hyS a ⟨st', yS'⟩ hstep => by
+        subst hyS
+        cases q with
+        | inl m =>
+          simp only [saltedEmbedHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+            PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+          obtain ⟨_, -, _, -, -, -, rfl⟩ := hstep
+          rfl
+        | inr hq =>
+          dsimp only [saltedEmbedHandler] at hstep
+          cases hlu : st.cache.lookup hq with
+          | some yk =>
+            rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+            obtain ⟨-, -, rfl⟩ := hstep; rfl
+          | none =>
+            rw [hlu] at hstep
+            split_ifs at hstep with heq
+            · rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+              obtain ⟨-, -, rfl⟩ := hstep; rfl
+            · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+                PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+              obtain ⟨_, -, -, -, rfl⟩ := hstep; rfl)
+      (fun q ⟨st, yS⟩ hyS => by
+        subst hyS
+        cases q with
+        | inl m =>
+          simp only [saltedEmbedHandler, saltedInvHandler, ProbComp.eval_bind,
+            ProbComp.eval_uniform, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+            PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+          rfl
+        | inr hq =>
+          dsimp only [saltedEmbedHandler, saltedInvHandler]
+          rw [lookup_map_fst]
+          cases st.cache.lookup hq with
+          | some yk => simp [ProbComp.eval_pure, PMF.pure_map]
+          | none =>
+            by_cases heq : st.hCount = jStar.val
+            · simp [Option.map_none, heq, ProbComp.eval_pure, PMF.pure_map]
+            · simp only [Option.map_none, heq, ↓reduceIte, ProbComp.eval_bind,
+                ProbComp.eval_uniform, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+                PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+              rfl)
+      (forger pk) (⟨[], [], 0, none⟩, yStar) rfl
+    have hcongr := congrArg (PMF.map fun ((_, _, sigStar), _) => sigStar) hproj
+    simpa only [PMF.map_comp, Function.comp_def, List.map_nil] using hcongr
+  -- Now compare `(trackProj jStar).map (fun p => p.1 && decide (p.2 = jStar)) true` with
+  -- `((PMF.uniformOfFintype Target).bind fun yStar => ... check pk yStar sigStar) true`
+  have hcheck_rhs :
+      ((PMF.uniformOfFintype Target).bind fun yStar =>
+        (ProbComp.eval (((forger pk).runState
+          (saltedInvHandler sys pk jStar.val yStar)).run ([], 0))).bind
+            fun ⟨⟨_, _, sigStar⟩, _⟩ => PMF.pure (sys.check pk yStar sigStar)) true =
+      ((PMF.uniformOfFintype Target).bind fun yStar =>
+        (ProbOracleComp.runWith (saltedEmbedHandler sys pk jStar.val) (forger pk)
+          (⟨[], [], 0, none⟩, yStar)).map fun ⟨⟨_, _, sigStar⟩, _⟩ =>
+            sys.check pk yStar sigStar) true := by
+    congr 1
+    refine congrArg ((PMF.uniformOfFintype Target).bind ·) (funext fun yStar => ?_)
+    have h1 := congrArg (PMF.map (sys.check pk yStar)) (hembed_to_inv yStar)
+    simpa only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def] using h1.symm
+  rw [hcheck_rhs]
+  have hsim_eq := congrArg
+    (PMF.map fun ⟨⟨_, _, sigStar⟩, _, yStar⟩ => sys.check pk yStar sigStar)
+    (saltedTrack_sim_saltedEmbed sys pk jStar.val (forger pk))
+  have hrhs_track :
+      ((PMF.uniformOfFintype Target).bind fun yStar =>
+        (ProbOracleComp.runWith (saltedEmbedHandler sys pk jStar.val) (forger pk)
+          (⟨[], [], 0, none⟩, yStar)).map fun ⟨⟨_, _, sigStar⟩, _⟩ =>
+            sys.check pk yStar sigStar) =
+      (ProbOracleComp.runWith (saltedTrackHandler sys pk jStar.val) (forger pk)
+        ⟨[], [], 0, none⟩).bind fun ⟨⟨_, _, sigStar⟩, st⟩ =>
+          (saltedRelate st).map fun ⟨_, yStar⟩ => sys.check pk yStar sigStar := by
+    have h1 :
+        ((PMF.uniformOfFintype Target).bind fun yStar =>
+          (ProbOracleComp.runWith (saltedEmbedHandler sys pk jStar.val) (forger pk)
+            (⟨[], [], 0, none⟩, yStar)).map fun ⟨⟨_, _, sigStar⟩, _⟩ =>
+              sys.check pk yStar sigStar) =
+        ((PMF.uniformOfFintype Target).bind fun yStar =>
+          ProbOracleComp.runWith (saltedEmbedHandler sys pk jStar.val) (forger pk)
+            (⟨[], [], 0, none⟩, yStar)).map
+              (fun ⟨⟨_, _, sigStar⟩, _, yS⟩ => sys.check pk yS sigStar) := by
+      rw [PMF.map_bind]
+      refine PMF.bind_congr_on_support _ _ _ fun yStar _ => ?_
+      simp only [PMF.map]
+      refine PMF.bind_congr_on_support _ _ _ fun ⟨out, st, yS⟩ hmem => ?_
+      have hyS : yS = yStar := ProbOracleComp.runWith_invariant
+        (saltedEmbedHandler sys pk jStar.val) (fun s => s.2 = yStar)
+        (fun q ⟨st, y'⟩ hy' a ⟨st', y''⟩ hstep => by
+          subst hy'
+          cases q with
+          | inl m =>
+            simp only [saltedEmbedHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+              PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+            obtain ⟨_, -, _, -, -, -, rfl⟩ := hstep; rfl
+          | inr hq =>
+            dsimp only [saltedEmbedHandler] at hstep
+            cases hlu : st.cache.lookup hq with
+            | some yk =>
+              rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+              obtain ⟨-, -, rfl⟩ := hstep; rfl
+            | none =>
+              rw [hlu] at hstep
+              split_ifs at hstep with heq
+              · rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+                obtain ⟨-, -, rfl⟩ := hstep; rfl
+              · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+                  PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+                obtain ⟨_, -, -, -, rfl⟩ := hstep; rfl)
+        (forger pk) (⟨[], [], 0, none⟩, yStar) rfl out (st, yS) hmem
+      simp [hyS]
+    rw [h1, ← hsim_eq, PMF.map_bind]
+    refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨_, _, sigStar⟩, st⟩ _ => ?_
+    simp [PMF.map_comp, Function.comp_def]
+  rw [hrhs_track]
+  dsimp only [trackProj]
+  rw [PMF.map_bind]
+  refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨mStar, rStar, sigStar⟩, st⟩ hmem => ?_
+  obtain ⟨hcount_le, hnone, hsign, hlt, hyj⟩ := hbound_hCount (mStar, (rStar, sigStar)) st hmem
+  cases hlu : st.cache.lookup (mStar, rStar) with
+  | some yk =>
+    obtain ⟨y, idxOpt⟩ := yk
+    have hpair_mem : ((mStar, rStar), (y, idxOpt)) ∈ st.cache :=
+      mem_of_lookup_eq_some hlu
+    simp only [PMF.pure_map]
+    by_cases hwin : (sys.check pk y sigStar && !st.signed.contains mStar) &&
+        decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar) = true
+    · simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
+        decide_eq_false_iff_not, decide_eq_true_eq] at hwin
+      obtain ⟨⟨hchk, hnot_signed⟩, hidx_eq⟩ := hwin
+      cases idxOpt with
+      | none => exact absurd (hsign mStar rStar y hpair_mem) hnot_signed
+      | some k =>
+        have hk_lt : k < q_H + 1 := Nat.lt_succ_of_le (Nat.le_of_lt_succ (Nat.lt_succ_of_lt
+          ((hlt (mStar, rStar) y k hpair_mem).trans_le hcount_le)))
+        have hk_eq : k = jStar.val := by
+          have := congrArg Fin.val hidx_eq
+          simpa [Fin.val_ofNat, Nat.mod_eq_of_lt hk_lt] using this
+        subst hk_eq
+        have hyj_eq : st.yAtJ = some y := hyj (mStar, rStar) y hpair_mem
+        simp [saltedRelate, hyj_eq, hchk, hnot_signed]
+    · have hfalse : ((sys.check pk y sigStar && !st.signed.contains mStar) &&
+          decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar)) = false :=
+        Bool.eq_false_iff.mpr hwin
+      rw [hfalse]
+      simp only [PMF.pure_apply, Bool.true_eq_false, ↓reduceIte]
+      exact zero_le
+  | none =>
+    simp only [PMF.map_comp, Function.comp_def]
+    by_cases hidx_eq : Fin.ofNat (q_H + 1) st.hCount = jStar
+    · have hcnt_eq : st.hCount = jStar.val := by
+        have := congrArg Fin.val hidx_eq
+        simpa [Fin.val_ofNat, Nat.mod_eq_of_lt (Nat.lt_succ_of_le hcount_le)] using this
+      have hyj_none : st.yAtJ = none := hnone (le_of_eq hcnt_eq)
+      simp only [saltedRelate, hyj_none, PMF.map_comp, Function.comp_def, hidx_eq, decide_true,
+        Bool.and_true]
+      refine PMF.map_true_mono _ fun y _ h => (Bool.and_eq_true_iff.mp h).1
+    · have hzero :
+          (PMF.map (fun y => (sys.check pk y sigStar && !st.signed.contains mStar) &&
+            decide (Fin.ofNat (q_H + 1) st.hCount = jStar))
+            (PMF.uniformOfFintype Target)) true = 0 := by
+        simp only [decide_eq_false hidx_eq, Bool.and_false, PMF.map_apply, Bool.true_eq_false,
+          ↓reduceIte, tsum_zero]
+      rw [hzero]
+      exact zero_le
+
+/-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ProbOracleComp` form)**
+(Kosuge–Xagawa, ePrint 2022/1359, Theorem 1): for any probabilistic ROM forger making at most
+`q_S` signing queries and `q_H` direct hash queries,
+`Pr[EUF-CMA] ≤ (q_H + 1) * Pr[INV(saltedInverter)] + Adv^PS(saltedPSDistinguisher) +`
+`(q_S * q_H + q_S.choose 2) / |Salt|`.
+Every reduction is an explicit finite program with query bounds (no runtime certificate claimed;
+tracked in #7068). -/
+theorem saltedWorldEufCma_succProbability_le {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [DecidableEq Target] [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    [Finite Preimage]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Salt) (Salt × Option Preimage) Target)
+      (M × (Salt × Option Preimage)))
+    {q_S q_H : ℕ} (hforger : ProbForgerCallBounded forger q_S q_H) :
+    Game.succProbability
+        (ROMSignature.worldGame (saltedScheme sys Salt) forger eufCmaAccept) ≤
+      (q_H + 1 : ℝ≥0) *
+        Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (saltedInverter sys Salt q_H forger)) +
+      Experiment.advantage
+        (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+        (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) +
+      ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0) * (Fintype.card Salt : ℝ≥0)⁻¹ := by
+  have h_enn :
+      (ROMSignature.worldGame (saltedScheme sys Salt) forger eufCmaAccept) true ≤
+        ((q_H + 1 : ℕ) : ℝ≥0∞) *
+          (ProbComp.eval (Signature.targetExperiment sys.toRawScheme
+            (fun _ => ProbComp.uniform Target) (saltedInverter sys Salt q_H forger))) true +
+        (Experiment.advantage
+          (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+          (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) : ℝ≥0∞) +
+        ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Salt : ℝ≥0∞)⁻¹ := by
+    -- Hop 0 → 1: lazy → overwrite via `Programming.lean`
+    have hclose01 :
+        CloseTo
+          (ROMSignature.worldGame (saltedScheme sys Salt) forger eufCmaAccept)
+          (ProbComp.eval (psExperimentReal sys (saltedPSDistinguisher sys Salt forger)))
+          ((q_S * q_H + q_S.choose 2 : ℕ) * (Fintype.card Salt : ℝ≥0∞)⁻¹) := by
+      rw [saltedWorldEufCma_eq_lazyProgram, ← saltedOverwrite_eq_psExperimentReal]
+      refine CloseTo.bind_right (ProbComp.eval sys.keyGen) fun ⟨pk, sk⟩ _ => ?_
+      have hprog :=
+        RandomOracle.closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
+        (PMF.uniformOfFintype Target) (fun _ : M => true)
+        (fun _ h => absurd h (by decide))
+        (saltedSamplePre sys sk) (fun m coins => (m, coins.1))
+        (fun m coins y log => ((coins.1, coins.2 y), m :: log))
+        (fun m _ q => saltedSamplePre_minEnt sys sk m q)
+        ((hforger pk).1.of_le fun q => by rcases q with _ | _ | _ <;> rfl)
+        ((hforger pk).2.of_le fun q => by rcases q with _ | _ | _ <;> rfl) [] []
+      simpa only [List.length_nil, mul_zero, zero_add] using hprog.bind_left _
+    have h01 :
+        (ROMSignature.worldGame (saltedScheme sys Salt) forger eufCmaAccept) true ≤
+          (ProbComp.eval (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))) true +
+            ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Salt : ℝ≥0∞)⁻¹ := by
+      simpa only [PMF.toOuterMeasure_apply_singleton] using hclose01 {true}
+    -- Hop 1 → 2: `psExperimentReal` → `psExperimentSim`
+    have h12 :
+        (ProbComp.eval (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))) true ≤
+          (ProbComp.eval (psExperimentSim sys (saltedPSDistinguisher sys Salt forger))) true +
+            (Experiment.advantage
+              (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+              (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) : ℝ≥0∞) := by
+      have hc := (Game.closeTo_iff_coe_advantage_le
+        (game1 := ProbComp.eval (psExperimentReal sys (saltedPSDistinguisher sys Salt forger)))
+        (game2 := ProbComp.eval (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)))).mpr
+        le_rfl
+      simpa only [PMF.toOuterMeasure_apply_singleton] using hc {true}
+    -- Hop 2 → 3: `psExperimentSim` → `(q_H + 1) * INV`
+    have h23 := saltedSim_le_mul_targetExperiment sys forger hforger
+    calc (ROMSignature.worldGame (saltedScheme sys Salt) forger eufCmaAccept) true
+        ≤ (ProbComp.eval (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))) true +
+            ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Salt : ℝ≥0∞)⁻¹ := h01
+      _ ≤ ((ProbComp.eval (psExperimentSim sys (saltedPSDistinguisher sys Salt forger))) true +
+            (Experiment.advantage
+              (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+              (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) : ℝ≥0∞)) +
+            ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Salt : ℝ≥0∞)⁻¹ :=
+          add_le_add h12 le_rfl
+      _ ≤ (((q_H + 1 : ℕ) : ℝ≥0∞) *
+            (ProbComp.eval (Signature.targetExperiment sys.toRawScheme
+              (fun _ => ProbComp.uniform Target) (saltedInverter sys Salt q_H forger))) true +
+            (Experiment.advantage
+              (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+              (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) : ℝ≥0∞)) +
+            ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Salt : ℝ≥0∞)⁻¹ :=
+          add_le_add (add_le_add h23 le_rfl) le_rfl
+  rw [← ENNReal.coe_le_coe]
+  have hcast :
+      (((q_H + 1 : ℝ≥0) *
+        Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (saltedInverter sys Salt q_H forger)) +
+        Experiment.advantage
+          (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+          (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) +
+        ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0) * (Fintype.card Salt : ℝ≥0)⁻¹ : ℝ≥0) : ℝ≥0∞) =
+      ((q_H + 1 : ℕ) : ℝ≥0∞) *
+        (ProbComp.eval (Signature.targetExperiment sys.toRawScheme
+          (fun _ => ProbComp.uniform Target) (saltedInverter sys Salt q_H forger))) true +
+        (Experiment.advantage
+          (psExperimentReal sys (saltedPSDistinguisher sys Salt forger))
+          (psExperimentSim sys (saltedPSDistinguisher sys Salt forger)) : ℝ≥0∞) +
+        ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Salt : ℝ≥0∞)⁻¹ := by
+    have hcard_ne : (Fintype.card Salt : ℝ≥0) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+    simp only [Experiment.succProbability, Game.coe_succProbability_ennreal, ENNReal.coe_add,
+      ENNReal.coe_mul, ENNReal.coe_natCast, ENNReal.coe_one, ENNReal.coe_inv hcard_ne]
+    simp only [Nat.cast_add, Nat.cast_one]
+  rw [Game.coe_succProbability_ennreal, hcast]
+  exact h_enn
+
+/-- Lift a `ROMSignature.Forger` whose coin distribution is realized by `coinSampler : ProbComp`
+into a `ProbOracleComp` forger. -/
+@[expose] def liftForger {PK M Sig Query Digest : Type}
+    (A : ROMSignature.Forger PK M Sig Query Digest) (coinSampler : ProbComp A.Coins)
+    (pk : PK) : ProbOracleComp (ROMSignature.ForgerSpec M Query Sig Digest) (M × Sig) := do
+  let coins ← ProbOracleComp.sample coinSampler
+  ROMSignature.liftOracleForger (A.forge pk coins)
+
+/-- `liftForger` preserves both signing and hash call budgets. -/
+theorem probForgerCallBounded_liftForger {PK M Sig Query Digest : Type}
+    {A : ROMSignature.Forger PK M Sig Query Digest} (coinSampler : ProbComp A.Coins)
+    {q_S q_H : ℕ} (hA : A.CallBounded q_S q_H) :
+    ProbForgerCallBounded (liftForger A coinSampler) q_S q_H := by
+  intro pk
+  refine ⟨?_, ?_⟩
+  · simpa only [liftForger, zero_add] using
+      (ProbOracleComp.isCostBounded_sample ROMSignature.signingCost coinSampler).bind
+        fun coins => (probForgerCallBounded_liftOracleForger hA coins pk).1
+  · simpa only [liftForger, zero_add] using
+      (ProbOracleComp.isCostBounded_sample ROMSignature.hashCost coinSampler).bind
+        fun coins => (probForgerCallBounded_liftOracleForger hA coins pk).2
+
+/-- When `A.coins = ProbComp.eval coinSampler`, `ROMSignature.eufCmaGame scheme A` equals
+`ROMSignature.worldGame scheme (liftForger A coinSampler) eufCmaAccept`. -/
+theorem eufCmaGame_eq_worldGame_liftForger {PK SK M Sig Query Digest : Type}
+    [DecidableEq M] [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    (scheme : ROMSignature.Scheme PK SK M Sig Query Digest)
+    (A : ROMSignature.Forger PK M Sig Query Digest) (coinSampler : ProbComp A.Coins)
+    (hcoins : A.coins = ProbComp.eval coinSampler) :
+    ROMSignature.eufCmaGame scheme A =
+      ROMSignature.worldGame scheme (liftForger A coinSampler) eufCmaAccept := by
+  rw [ROMSignature.eufCmaGame_eq_worldGame, hcoins]
+  unfold ROMSignature.worldGame
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
+  simp only [ROMSignature.eval_world_worldRealize, liftForger, ROMSignature.runLoggedForger,
+    eufCmaAccept, ProbOracleComp.runWith_bind, OracleComp.interpret_bind, StateT.run_bind]
+  have hsample :
+      ProbOracleComp.runWith (ROMSignature.forgerWorldImpl scheme sk)
+        ((OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun n => StateT.lift (ProbOracleComp.sample
+              (spec := ROMSignature.ForgerSpec M Query Sig Digest) (ProbComp.unifFin n)))
+            (ROMSignature.logSigning (M := M) (Sig := Sig) (Query := Query) (Digest := Digest)))
+          (ProbOracleComp.sample
+            (spec := ROMSignature.ForgerSpec M Query Sig Digest) coinSampler)).run []) [] =
+      (ProbComp.eval coinSampler).map fun c => ((c, ([] : List (M × Sig))), []) := by
+    rw [ProbOracleComp.runWith_run_interpret, ProbOracleComp.runWith_sample, PMF.map_comp]
+    rfl
+  rw [hsample, PMF.bind_map]
+  simp only [PMF.monad_bind_eq_bind, PMF.bind_bind]
+  rfl
+
+/-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ROMSignature.eufCmaGame` form)**
+(Kosuge–Xagawa, ePrint 2022/1359, Theorem 1). -/
+theorem eufCmaGame_saltedScheme_succProbability_le {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+    [DecidableEq Target] [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    [Finite Preimage]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMSignature.Forger PK M (Salt × Option Preimage) (M × Salt) Target)
+    (coinSampler : ProbComp A.Coins) (hcoins : A.coins = ProbComp.eval coinSampler)
+    {q_S q_H : ℕ} (hA : A.CallBounded q_S q_H) :
+    Game.succProbability (ROMSignature.eufCmaGame (saltedScheme sys Salt) A) ≤
+      (q_H + 1 : ℝ≥0) *
+        Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (saltedInverter sys Salt q_H (liftForger A coinSampler))) +
+      Experiment.advantage
+        (psExperimentReal sys (saltedPSDistinguisher sys Salt (liftForger A coinSampler)))
+        (psExperimentSim sys (saltedPSDistinguisher sys Salt (liftForger A coinSampler))) +
+      ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0) * (Fintype.card Salt : ℝ≥0)⁻¹ := by
+  rw [eufCmaGame_eq_worldGame_liftForger (saltedScheme sys Salt) A coinSampler hcoins]
+  exact saltedWorldEufCma_succProbability_le sys (liftForger A coinSampler)
+    (probForgerCallBounded_liftForger coinSampler hA)
+
+end SaltedReduction
+
 end Cslib.Crypto.UOV.HashAndSign
+
+
