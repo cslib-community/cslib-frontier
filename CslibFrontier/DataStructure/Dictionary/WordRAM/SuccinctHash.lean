@@ -1284,7 +1284,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
       (deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)))
   dsimp only at hprep_spec hfin_spec
   rw [hprep_val] at hprep_spec hfin_spec
-  dsimp only at hprep_spec hfin_spec
+  dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys, deletePrepHdr] at hprep_spec hfin_spec
   refine ⟨found, j_del, phys_del, q_last, ?_⟩
   intro prep h_q_last d_fin prog_fin s' gm₀ gm'
   have hfin_eq : prog_fin =
