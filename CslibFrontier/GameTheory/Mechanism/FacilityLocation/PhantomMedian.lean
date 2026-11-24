@@ -92,16 +92,16 @@ private lemma exists_perm_image_eq_of_card_eq {α : Type*} [Finite α] {S T : Fi
     (Equiv.sumCompl (· ∈ T)).symm.trans ((Equiv.sumCongr e1 e2).trans (Equiv.sumCompl (· ∈ S)))
   refine ⟨σ, fun i => ?_⟩
   by_cases hi : i ∈ T
-  · have hσ : σ i = (e1 ⟨i, hi⟩).1 := by
+  · have hσ : σ i = (e1 ⟨i, hi⟩).val := by
       simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi, Equiv.sumCongr_apply,
         Sum.map_inl, Equiv.sumCompl_apply_inl]
     rw [hσ]
-    exact iff_of_true (e1 ⟨i, hi⟩).2 hi
-  · have hσ : σ i = (e2 ⟨i, hi⟩).1 := by
+    exact iff_of_true (e1 ⟨i, hi⟩).property hi
+  · have hσ : σ i = (e2 ⟨i, hi⟩).val := by
       simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_neg hi, Equiv.sumCongr_apply,
         Sum.map_inr, Equiv.sumCompl_apply_inr]
     rw [hσ]
-    exact iff_of_false (e2 ⟨i, hi⟩).2 hi
+    exact iff_of_false (e2 ⟨i, hi⟩).property hi
 
 /-- An anonymous rule assigns the same outcome to any two two-valued profiles whose first-value
 coalitions `S` and `T` have equal cardinality. -/
@@ -187,7 +187,7 @@ theorem MoulinScheme.eval_extremeProfile [DecidableEq ι] {a b : ℝ} (E : Mouli
       rw [Finset.mem_compl] at hi
       refine Finset.mem_filter.mpr ⟨Finset.mem_univ i, ?_⟩
       simp only [x, hi, ↓reduceIte]
-      exact y.2.1
+      exact y.property.1
     exact hα.not_ge (E.antitone hsub)
   · by_contra hlt
     have hlt' : (E.eval x : ℝ) < y := lt_of_not_ge hlt
@@ -198,7 +198,7 @@ theorem MoulinScheme.eval_extremeProfile [DecidableEq ι] {a b : ℝ} (E : Mouli
       intro hiS
       have hxi := (Finset.mem_filter.mp hi).2
       simp only [x, hiS, ↓reduceIte] at hxi
-      exact hxi.not_ge y.2.2
+      exact hxi.not_ge y.property.2
     exact hα.not_ge (E.antitone hsub)
 
 /-- Explicit `MoulinScheme` realizing the anonymous `(n - 1)`-phantom-voter median rule for sorted
@@ -218,7 +218,7 @@ noncomputable def MoulinScheme.ofPhantoms (hab : a ≤ b)
     split_ifs
     · exact ⟨hab, le_rfl⟩
     · exact ⟨le_rfl, hab⟩
-    · exact (y _).2
+    · exact (y _).property
   antitone S T hST := by
     have hcard : S.card ≤ T.card := Finset.card_le_card hST
     have hTle : T.card ≤ Fintype.card ι := Finset.card_le_univ T
@@ -231,10 +231,10 @@ noncomputable def MoulinScheme.ofPhantoms (hab : a ≤ b)
         · simp only [hS0, ↓reduceDIte, hab]
         · by_cases hSn : S.card = Fintype.card ι
           · simp only [hSn, Fintype.card_ne_zero, ↓reduceDIte, le_rfl]
-          · simp only [hS0, hSn, ↓reduceDIte, (y _).2.1]
+          · simp only [hS0, hSn, ↓reduceDIte, (y _).property.1]
       · simp only [hT0, hTn, ↓reduceDIte]
         by_cases hS0 : S.card = 0
-        · simp only [hS0, ↓reduceDIte, (y _).2.2]
+        · simp only [hS0, ↓reduceDIte, (y _).property.2]
         · have hSn : S.card ≠ Fintype.card ι := by omega
           simp only [hS0, hSn, ↓reduceDIte]
           exact hy (show (⟨Fintype.card ι - 1 - T.card, _⟩ : Fin (Fintype.card ι - 1)) ≤
@@ -304,16 +304,16 @@ theorem MoulinScheme.ofPhantoms_eval_eq_phantomMedian (hab : a ≤ b)
     split_ifs with h0 hn
     · have hzb : (z : ℝ) < b := by
         by_contra hge
-        have hzb_eq : (z : ℝ) = b := le_antisymm z.2.2 (le_of_not_gt hge)
+        have hzb_eq : (z : ℝ) = b := le_antisymm z.property.2 (le_of_not_gt hge)
         obtain ⟨i₀⟩ := ‹Nonempty ι›
         have hi₀ : i₀ ∈ Sx := Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, by
-          rw [hzb_eq]; exact (x i₀).2.2⟩
+          rw [hzb_eq]; exact (x i₀).property.2⟩
         have hpos_x : 0 < Sx.card := Finset.card_pos.mpr ⟨i₀, hi₀⟩
         omega
       rw [h0, zero_add]
       exact iff_of_true hzb hSy_le
     · rw [hn]
-      exact iff_of_false (not_lt_of_ge z.2.1) (by omega)
+      exact iff_of_false (not_lt_of_ge z.property.1) (by omega)
     · have hSx_le : Sx.card ≤ Fintype.card ι := by
         simpa only [Finset.card_univ] using Finset.card_le_univ Sx
       set m : ℕ := Fintype.card ι - 1 - Sx.card

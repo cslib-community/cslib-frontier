@@ -198,7 +198,8 @@ theorem isSinglePeaked_iff_convex (R : WeakRanking (Set.Icc a b)) (p : Set.Icc a
      (∀ {x y : Set.Icc a b}, (x : ℝ) < y → (y : ℝ) ≤ p → R.Prefers y x)) ↔
     ∀ (x : Set.Icc a b), x ≠ p → ∀ (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t < 1),
       R.Prefers ⟨t * x + (1 - t) * p,
-        ⟨by nlinarith [x.2.1, p.2.1], by nlinarith [x.2.2, p.2.2]⟩⟩ x := by
+        ⟨by nlinarith [x.property.1, p.property.1],
+          by nlinarith [x.property.2, p.property.2]⟩⟩ x := by
   constructor
   · rintro ⟨hR, hL⟩ x hx t ht0 ht1
     rcases lt_or_gt_of_ne (fun h => hx (Subtype.ext h)) with hlt | hgt
@@ -221,7 +222,8 @@ theorem isSinglePeaked_iff_convex (R : WeakRanking (Set.Icc a b)) (p : Set.Icc a
             dsimp only [t]; rw [← neg_div_neg_eq]; congr 1 <;> ring]
           exact (div_lt_one (by linarith)).mpr (by linarith)
       have hEq : (⟨t * x + (1 - t) * p,
-          ⟨by nlinarith [x.2.1, p.2.1], by nlinarith [x.2.2, p.2.2]⟩⟩ : Set.Icc a b) = y := by
+          ⟨by nlinarith [x.property.1, p.property.1],
+            by nlinarith [x.property.2, p.property.2]⟩⟩ : Set.Icc a b) = y := by
         ext
         dsimp only [t]
         field_simp [hne]
@@ -373,7 +375,7 @@ def leftExtreme (hab : a ≤ b) : Preference a b where
       trans := fun _ _ _ h1 h2 => h1.trans h2 }
   peak := ⟨a, le_rfl, hab⟩
   prefers_of_between_right := fun _ hyx => not_le_of_gt hyx
-  prefers_of_between_left := fun {x y} hxy hyp => by linarith [x.2.1]
+  prefers_of_between_left := fun {x y} hxy hyp => by linarith [x.property.1]
 
 /-- The unique single-peaked preference with peak at the right endpoint `b`
 ([SchummerVohra2007], §10.2.1, p. 247, `⪰^1`). -/
@@ -383,7 +385,7 @@ def rightExtreme (hab : a ≤ b) : Preference a b where
       total := fun x y => le_total _ _
       trans := fun _ _ _ h1 h2 => h2.trans h1 }
   peak := ⟨b, hab, le_rfl⟩
-  prefers_of_between_right := fun {x y} hpy hyx => by linarith [x.2.2]
+  prefers_of_between_right := fun {x y} hpy hyx => by linarith [x.property.2]
   prefers_of_between_left := fun hxy _ => not_le_of_gt hxy
 
 @[simp] theorem leftExtreme_peak (hab : a ≤ b) :
@@ -411,10 +413,10 @@ theorem eq_leftExtreme_of_peak_eq {hab : a ≤ b} {R : Preference a b}
   · intro hxy
     by_contra hlt
     have hyx : (y : ℝ) < x := lt_of_not_ge hlt
-    have hpy : (R.peak : ℝ) ≤ y := by rw [hpeak]; exact y.2.1
+    have hpy : (R.peak : ℝ) ≤ y := by rw [hpeak]; exact y.property.1
     exact R.prefers_of_between_right hpy hyx hxy
   · intro hxy
-    have hpx : (R.peak : ℝ) ≤ x := by rw [hpeak]; exact x.2.1
+    have hpx : (R.peak : ℝ) ≤ x := by rw [hpeak]; exact x.property.1
     exact R.atLeast_of_between_right hpx hxy
 
 /-- There is a unique single-peaked preference with peak at the right endpoint `b`
@@ -426,10 +428,10 @@ theorem eq_rightExtreme_of_peak_eq {hab : a ≤ b} {R : Preference a b}
   · intro hxy
     by_contra hlt
     have hxy' : (x : ℝ) < y := lt_of_not_ge hlt
-    have hyp : (y : ℝ) ≤ R.peak := by rw [hpeak]; exact y.2.2
+    have hyp : (y : ℝ) ≤ R.peak := by rw [hpeak]; exact y.property.2
     exact R.prefers_of_between_left hxy' hyp hxy
   · intro hxy
-    have hxp : (x : ℝ) ≤ R.peak := by rw [hpeak]; exact x.2.2
+    have hxp : (x : ℝ) ≤ R.peak := by rw [hpeak]; exact x.property.2
     exact R.atLeast_of_between_left hxy hxp
 
 end Preference
@@ -702,7 +704,7 @@ theorem IsStrategyProof.isClosed_optionSet (hf : f.IsStrategyProof)
   rw [← closure_subset_iff_isClosed]
   intro z hz
   have hsub : Subtype.val '' f.optionSet P i ⊆ Set.Icc a b := by
-    rintro _ ⟨x, -, rfl⟩; exact x.2
+    rintro _ ⟨x, -, rfl⟩; exact x.property
   have hz_mem : z ∈ Set.Icc a b := isClosed_Icc.closure_subset_iff.mpr hsub hz
   let zPt : Set.Icc a b := ⟨z, hz_mem⟩
   have hsplit : Subtype.val '' f.optionSet P i =
@@ -952,7 +954,7 @@ theorem IsStrategyProof.isPeaksOnly_of_surjective [Finite ι]
   have hEq : f Q = f P := by
     refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
     intro R _ hR i hRi _
-    have hab : a ≤ b := (P i).peak.2.1.trans (P i).peak.2.2
+    have hab : a ≤ b := (P i).peak.property.1.trans (P i).peak.property.2
     have h1 := hf.apply_update_eq_clamp hsurj R i (Q i) hab
     have h2 := hf.apply_update_eq_clamp hsurj R i (P i) hab
     have hR_eq : Function.update R i (P i) = R := by rw [← hRi, Function.update_eq_self]
