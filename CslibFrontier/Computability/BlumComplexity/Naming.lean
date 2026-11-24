@@ -709,10 +709,16 @@ theorem partrec_name : Partrec₂ Φ.name := by
   exact hr.map (computable_val Φ (Computable.fst.comp Computable.fst)
     (Computable.snd.comp Computable.fst) Computable.snd).to₂
 
+/-- Input argument `q.2.1` in a graph-membership triple `(code, x, y)`. -/
+abbrev nameInput (q : Code × ℕ × ℕ) : ℕ := q.2.1
+
+/-- Output candidate `q.2.2` in a graph-membership triple `(code, x, y)`. -/
+abbrev nameValue (q : Code × ℕ × ℕ) : ℕ := q.2.2
+
 /-- The graph of each name is decidable, uniformly in the program: the set of names is
 *measured*. -/
 theorem computablePred_mem_name :
-    ComputablePred fun q : Code × ℕ × ℕ => q.2.2 ∈ Φ.name q.1 q.2.1 := by
+    ComputablePred fun q : Code × ℕ × ℕ => nameValue q ∈ Φ.name q.1 (nameInput q) := by
   have hp : ComputablePred fun p : (Code × ℕ × ℕ) × ℕ =>
       Defd Φ p.1.1 p.1.2.1 p.2 ∧ val Φ p.1.1 p.1.2.1 p.2 = p.1.2.2 :=
     (computablePred_defd Φ (Computable.fst.comp Computable.fst)
@@ -728,6 +734,7 @@ theorem computablePred_mem_name :
   · rintro ⟨z, -, hz⟩
     exact ⟨z, hz⟩
   · rintro ⟨z, hd, hv⟩
+    dsimp only [nameInput, nameValue] at hv
     have := le_val (Φ := Φ) q.1 q.2.1 z
     exact ⟨z, by omega, hd, hv⟩
 
@@ -1041,7 +1048,7 @@ So the measured set `{φ_{h i}}` contains a name for every complexity class `C_t
 `t`. -/
 theorem naming_theorem :
     ∃ h : Code → Code, Computable h ∧
-      ComputablePred (fun q : Code × ℕ × ℕ => q.2.2 ∈ (h q.1).eval q.2.1) ∧
+      ComputablePred (fun q : Code × ℕ × ℕ => nameValue q ∈ (h q.1).eval (nameInput q)) ∧
       ∀ i : Code, ∀ t : ℕ → ℕ, (∀ n, t n ∈ i.eval n) →
         ∃ t' : ℕ → ℕ, (∀ n, t' n ∈ (h i).eval n) ∧
           Φ.complexityClass t' = Φ.complexityClass t := by

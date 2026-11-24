@@ -24,6 +24,7 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.EncLen
@@ -392,8 +393,7 @@ theorem sufCmaVqGame_eq_vqForgeExperiment (M : MACScheme) (adversary : VqForger)
           ((Signer.ofSign M.sign).restrict (·.length == M.msgLen n))
           (fun () sk msg tag => (msg.length == M.msgLen n) && M.verify sk msg tag)
           (fun () => adversary.toTyped n [])) := by
-  simp only [sufCmaVqGame, vqForgeExperiment, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+  simp only [sufCmaVqGame, vqForgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun sk _ => ?_
   rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_runState]
   dsimp only [VqForger.toTyped]
@@ -532,8 +532,7 @@ theorem eval_sufCmaVqGame_sufToVqForger (M : MACScheme) {tagBound : ℕ → ℕ}
       dsimp only [sufToVqStep, sufCmaVqOracle, signingPairOracle, signingPairOracleOn, StateT.run]
       by_cases hmsg : msg.length = M.msgLen n
       · simp only [hmsg, beq_self_eq_true, Bool.false_eq_true, ↓reduceIte,
-          ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbComp.eval_bind,
-          ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, Prod.map]
+          ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, Prod.map, pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
         rw [List.take_of_length_le (htagBound sk hsk msg hmsg tag htag)]
         rfl
@@ -545,10 +544,9 @@ theorem eval_sufCmaVqGame_sufToVqForger (M : MACScheme) {tagBound : ℕ → ℕ}
         ((), (⟨pairs, false⟩ : VqOracleState (List Bool) (List Bool)))) [])).bind _).bind _) = _
   rw [← hsim, PMF.bind_map, PMF.bind_bind]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨msg, tag⟩, pairs⟩ _ => ?_
-  simp only [Function.comp_def, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-    ProbOracleComp.runWith_query, sufCmaVqOracle, ↓reduceIte, ProbComp.eval_pure, PMF.pure_map,
-    PMF.pure_bind, ProbOracleComp.runWith_pure, Bool.false_or, encPair_apply, encBits_apply,
-    unframe_frame_append, dropFrame_frame_append]
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
+    sufCmaVqOracle, ↓reduceIte, ProbOracleComp.runWith_pure, Bool.false_or, encPair_apply,
+    encBits_apply, unframe_frame_append, dropFrame_frame_append, pmf_norm]
   cases msg.length == M.msgLen n <;> cases !pairs.contains (msg, tag) <;>
     cases M.verify sk msg tag <;> rfl
 
@@ -758,8 +756,7 @@ theorem eval_sufCmaGame_vqToSufForger_eq_forgeExperiment (M : MACScheme)
           (vqToForgerOn (fun _ msg => msg.length == M.msgLen n)
             (ProbComp.sampleModIndex (width n) (Qv n))
             (fun () => adversary.toTyped n []))) := by
-  simp only [sufCmaGame, forgeExperiment, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+  simp only [sufCmaGame, forgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
   rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runLogWith,
     ProbOracleComp.eval_runState]
@@ -810,11 +807,9 @@ theorem eval_sufCmaGame_vqToSufForger_eq_forgeExperiment (M : MACScheme)
         · simp only [hcap, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_query]
           by_cases hmsg : raw.length = M.msgLen n
           · simp only [hmsg, beq_self_eq_true, ↓reduceIte, Functor.map_map,
-              ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-              ProbOracleComp.logOracle, Signer.restrict, Signer.ofSign,
-              signingPairOracle, signingPairOracleOn, ProbComp.eval_map,
-              ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp, PMF.map_bind,
-              PMF.pure_map, Function.comp_def, Prod.map]
+              ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.logOracle,
+              Signer.restrict, Signer.ofSign, signingPairOracle, signingPairOracleOn, Prod.map,
+              pmf_norm]
             rw [← PMF.bind_pure_comp]
             refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
             rw [List.take_of_length_le (htagBound sk hsk raw hmsg tag htag)]

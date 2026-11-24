@@ -80,8 +80,9 @@ theorem sampleRegHistory_overlapping_incomparable :
   refine ⟨?_, ?_⟩ <;>
     (rintro ⟨r, i, hr, hi, hlt⟩
      simp only [sampleRegHistory, History.respPos, History.invPos, History.nthProcPos,
-       Event.proc_inv, Event.proc_resp, Bool.true_eq_false, Bool.false_eq_true, ↓reduceIte,
-       Nat.mul_zero, Nat.zero_add, Option.map_some, Option.some.injEq] at hr hi
+       List.nthFilterPos, Event.proc_inv, Event.proc_resp, Bool.true_eq_false, decide_true,
+       decide_false, Bool.false_eq_true, ↓reduceIte, Nat.mul_zero, Nat.zero_add, Option.map_some,
+       Option.some.injEq] at hr hi
      omega)
 
 /-- Sequential operations in `sampleRegHistory`: operation `⟨false, 0⟩` (`resp` at index `2`)
