@@ -12,7 +12,7 @@ import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.St
 
 set_option linter.privateModule false
 
-/-! Trimming a spoke to its two ports leaves exactly one point in the central closed ball. -/
+/-! Uniform cut ports and exact contacts of cut stubs and trimmed spokes. -/
 
 namespace CslibFrontierTests.PolygonalUniformCut
 
@@ -22,23 +22,60 @@ open Cslib.Complexity.Graph.PolygonalDrawing Cslib.Complexity.Graph.RotationSyst
 private abbrev G := starGraph 2
 private abbrev D : PolygonalDrawing G := PolygonalDrawing.star 2
 private abbrev spoke : Fin G.edges.length := ⟨0, by decide⟩
+private abbrev other : Fin G.edges.length := ⟨1, by decide⟩
 
 example : ∃ ρ : ℝ, 0 < ρ ∧
     Disjoint (Metric.closedBall (D.vertex 0) ρ) (Metric.closedBall (D.vertex 2) ρ) ∧
+    let stub (d : Dart G) := segment ℝ (D.vertex d.vertex) (D.cutPort ρ d)
     let time (d : Dart G) := ρ / ‖D.germ d‖
     let p := (D.route spoke).cutEnds (time (spoke, false)) (time (spoke, true))
+    Function.Injective (D.cutPort ρ) ∧
+    stub (spoke, true) ∩ stub (other, true) = {D.vertex 2} ∧
+    stub (spoke, true) ∩ (D.route other).support = {D.vertex 2} ∧
     p.support ∩ Metric.closedBall (D.vertex 2) ρ = {D.cutPort ρ (spoke, true)} := by
   have hD := star_isEmbedding 2
+  have hdeclared := vertex_mem (starGraph_endpoints_declared 2)
   obtain ⟨ε, hε, hcut⟩ := D.exists_uniform_restriction hD.vertex_contacts hD.vertices_injective
-    (vertex_mem (starGraph_endpoints_declared 2)) hD.germ_ne_zero
+    hdeclared hD.germ_ne_zero
   let ρ := ε / 2
   have hρ : ρ ∈ Set.Ioo 0 ε := ⟨half_pos hε, half_lt_self hε⟩
-  obtain ⟨hdisjoint, _, _, hcontact⟩ := hcut ρ hρ
-  refine ⟨ρ, hρ.1, hdisjoint 0 (by decide) 2 (by decide) (by decide), ?_⟩
+  obtain ⟨hdisjoint, _, hlocal, hcontact⟩ := hcut ρ hρ
+  let stub (d : Dart G) := segment ℝ (D.vertex d.vertex) (D.cutPort ρ d)
+  have hc : Dart.vertex (G := G) (spoke, true) = 2 := by decide
+  have hc' : Dart.vertex (G := G) (other, true) = 2 := by decide
+  have hcenter (d : Dart G) (hd : d.vertex = 2) : D.vertex 2 ∈ stub d :=
+    (congrArg D.vertex hd) ▸ left_mem_segment ℝ (D.vertex d.vertex) (D.cutPort ρ d)
+  refine ⟨ρ, hρ.1, hdisjoint 0 (by decide) 2 (by decide) (by decide),
+    D.cutPort_injective_of_disjoint_balls hρ.1 hdeclared hD.germ_ne_zero
+      hD.directions_injective hdisjoint, ?_, ?_, ?_⟩
+  · change stub (spoke, true) ∩ stub (other, true) = {D.vertex 2}
+    ext z
+    constructor
+    · rintro ⟨ha, hb⟩
+      obtain ⟨_, hz⟩ := D.eq_vertex_of_mem_cutPort_segments hρ.1 hdeclared hD.germ_ne_zero
+        hD.directions_injective hdisjoint (by decide : (spoke, true) ≠ (other, true)) ha hb
+      exact Set.mem_singleton_iff.mpr (hz.trans (congrArg D.vertex hc))
+    · intro hz
+      obtain rfl := Set.mem_singleton_iff.mp hz
+      exact ⟨hcenter _ hc, hcenter _ hc'⟩
+  · change stub (spoke, true) ∩ (D.route other).support = {D.vertex 2}
+    ext z
+    constructor
+    · rintro ⟨ha, hb⟩
+      obtain ⟨_, _, hz⟩ := D.eq_vertex_of_mem_cutPort_segment_and_route hρ.1 (spoke, true)
+        (hD.germ_ne_zero _) hD.directions_injective other (by decide)
+        (hlocal _ (hdeclared _) other) ha hb
+      exact Set.mem_singleton_iff.mpr (hz.trans (congrArg D.vertex hc))
+    · intro hz
+      obtain rfl := Set.mem_singleton_iff.mp hz
+      have hpoint : (D.route other).eval 0 1 = (D.route other).endpoint true := by
+        change AffineMap.lineMap _ (0 : ℂ) (1 : ℝ) = 0
+        exact AffineMap.lineMap_apply_one _ _
+      rw [D.endpoint_eq, hc'] at hpoint
+      exact ⟨hcenter _ hc, hpoint ▸ (D.route other).at_mem_support 0 (by simp)⟩
   let time (d : Dart G) := ρ / ‖D.germ d‖
   let p := (D.route spoke).cutEnds (time (spoke, false)) (time (spoke, true))
   change p.support ∩ Metric.closedBall (D.vertex 2) ρ = {D.cutPort ρ (spoke, true)}
-  have hc : Dart.vertex (G := G) (spoke, true) = 2 := by decide
   ext z
   constructor
   · rintro ⟨hz, hball⟩

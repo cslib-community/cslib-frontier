@@ -23,8 +23,10 @@ segment. This includes both separate ends of a loop and imposes no shape on the 
 The cut ports are actual real affine points on those end segments, at a common distance
 from the vertex. A uniform radius works at all declared vertices when the coordinates
 are injective, the incident germs are nonzero, and all vertex contacts occur at the
-corresponding endpoints. Within an embedding, different darts at a vertex have distinct
-ports. This geometry is used in local replacement and subdivision.
+corresponding endpoints. Disjoint disks and distinct outgoing directions within each disk
+make all indexed ports distinct. A discarded stub stays in its own disk, and it can meet
+another stub or another original route only at a common original endpoint. These facts
+support local replacement and subdivision.
 -/
 
 public section
