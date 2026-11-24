@@ -218,7 +218,21 @@ example :
 
 /-! ### Self-realization, multi-session isolation, and plain-model impossibility -/
 
-example : Realizes (fot (Fin 4)).toProtocol (fot (Fin 4)) := realizes_fot_self (Fin 4)
+example : Realizes (fot (Fin 4)).toProtocol (fot (Fin 4)) := Emulates.refl _
+
+/-- Monotonicity check for `fot`: starting with `senderMsgs := some ⟨0, 1⟩`, any reachable
+post-execution state locks `senderMsgs` to `some ⟨0, 1⟩`. -/
+example (prog : ProbOracleComp
+      (protocolSpec 2 (OTInput (Fin 4)) (OTOutput (Fin 4))
+        (RoutedNetQ 2 (OTInput (Fin 4)) OTBackdoor)
+        (RoutedNetR (OTOutput (Fin 4)) OTBackdoorReply)) Unit)
+    {x : Unit × OTState (Fin 4)}
+    (hx : x ∈ (Machine.closeEval
+      ((corruptRouter ∅ ((fot (Fin 4)).toProtocol 0 ∅)).runFrom prog
+        { senderMsgs := some ⟨0, 1⟩ })).support) :
+    x.2.senderMsgs = some ⟨0, 1⟩ :=
+  (OTState.monotone_of_mem_support_runFrom 0 ∅ prog { senderMsgs := some ⟨0, 1⟩ }
+    hx).senderMsgs_lock ⟨0, 1⟩ rfl
 
 example : ((fot Bool).multiSession (Fin 2)).toProtocol.PolyBounded 0 :=
   fot_multiSession_polyBounded Bool (Fin 2)
@@ -377,5 +391,19 @@ theorem xor3_pre_allSubmitted_privacy_witness (κ : ℕ) :
      fun i => by fin_cases i <;> rfl,
      fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl, rfl⟩
     ⟨2, by decide, rfl⟩ _
+
+/-- Monotonicity check for `fsfe`: once party `0` submits `true`, any reachable post-execution state
+preserves `inputs 0 = some true`. -/
+example (prog : ProbOracleComp
+      (protocolSpec 3 (SFEInput Bool) (SFEOutput Bool)
+        (RoutedNetQ 3 (SFEInput Bool) (SFEBackdoor 3))
+        (RoutedNetR (SFEOutput Bool) (SFEBackdoorReply 3))) Unit)
+    {x : Unit × SFEState 3 Bool}
+    (hx : x ∈ (Machine.closeEval
+      ((corruptRouter ∅ ((fsfe xor3Fn).toProtocol 0 ∅)).runFrom prog
+        { inputs := ![some true, none, none] })).support) :
+    x.2.inputs 0 = some true :=
+  (SFEState.monotone_of_mem_support_runFrom xor3Fn 0 ∅ prog
+    { inputs := ![some true, none, none] } hx).inputs_lock 0 true rfl
 
 end CslibFrontierTests.Crypto.UCFunctionalities

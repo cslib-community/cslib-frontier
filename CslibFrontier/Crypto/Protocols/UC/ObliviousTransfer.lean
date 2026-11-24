@@ -68,7 +68,6 @@ pull-only port model (`UC.IdealFunctionality`).
 * `Cslib.Crypto.Protocols.UC.runFrom_fot_corruptSender`,
   `Cslib.Crypto.Protocols.UC.eval_runFrom_fot_corruptSender_flip`: **receiver privacy** for
   `C = {0}` (choice-bit invariance across all party-`0` and backdoor queries).
-* `Cslib.Crypto.Protocols.UC.realizes_fot_self`: self-realization under `UC.Realizes`.
 * `Cslib.Crypto.Protocols.UC.not_realizes_fot_of_plainSenderOT`: no one-message sender-to-receiver
   plain-model OT scheme with nontrivial completeness UC-realizes `fot Bool`.
 
@@ -174,12 +173,6 @@ structure OTState (M : Type) : Type where
   else
     none
 
-/-- Well-formedness invariant of `OTState`: delivery occurs only when both inputs are present and
-not aborted, and delivery and abort never hold together. -/
-@[expose] def OTState.Valid {M : Type} (s : OTState M) : Prop :=
-  (s.delivered → s.senderMsgs.isSome ∧ s.receiverChoice.isSome ∧ s.aborted = false) ∧
-    ¬ (s.delivered = true ∧ s.aborted = true)
-
 /-- Monotonicity relation between states `s` and `s'` across activations of `fot`: inputs are
 write-once immutable, and `delivered` and `aborted` are sticky. -/
 structure OTState.Monotone {M : Type} (s s' : OTState M) : Prop where
@@ -279,24 +272,31 @@ theorem fot_polyBounded (M : Type) : (fot M).toProtocol.PolyBounded 0 := fun κ 
   rw [Polynomial.eval_zero]
   exact fot_isBounded M κ C
 
-/-- Routing static corruptions around `fot` still makes zero oracle calls per activation. -/
-theorem corruptRouter_fot_isBounded (M : Type) (κ : ℕ) (C : Finset (Fin 2)) :
-    (corruptRouter C ((fot M).toProtocol κ C)).IsBounded 0 := by
-  refine ⟨OracleComp.IsCostBounded.pure _ 0, fun q s => ?_⟩
+/-- Routing static corruptions around any `b`-bounded protocol still makes at most `b` oracle
+calls per activation. -/
+theorem corruptRouter_isBounded {n : ℕ} {In Out NetQ NetR : Type}
+    (C : Finset (Fin n)) (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    {b : ℕ} (hP : P.IsBounded b) : (corruptRouter C P).IsBounded b := by
+  refine ⟨hP.1, fun q s => ?_⟩
   rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | bq⟩
   · by_cases hi : i ∈ C
     · simp only [corruptRouter, hi, ↓reduceIte]
-      exact OracleComp.IsCostBounded.pure _ 0
+      exact OracleComp.IsCostBounded.pure _ b
     · simp only [corruptRouter, hi, ↓reduceIte]
-      exact (fot_isBounded M κ C).2 (.inl (i, x)) s
+      exact hP.2 (.inl (i, x)) s
   · by_cases hi : i ∈ C
     · simp only [corruptRouter, hi, ↓reduceIte, StateT.run, Functor.map, StateT.map,
         bind_pure_comp]
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fot_isBounded M κ C).2 (.inl (i, x)) s)
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (hP.2 (.inl (i, x)) s)
     · simp only [corruptRouter, hi, ↓reduceIte]
-      exact OracleComp.IsCostBounded.pure _ 0
+      exact OracleComp.IsCostBounded.pure _ b
   · simp only [corruptRouter, StateT.run, Functor.map, StateT.map, bind_pure_comp]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fot_isBounded M κ C).2 (.inr bq) s)
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (hP.2 (.inr bq) s)
+
+/-- Routing static corruptions around `fot` still makes zero oracle calls per activation. -/
+theorem corruptRouter_fot_isBounded (M : Type) (κ : ℕ) (C : Finset (Fin 2)) :
+    (corruptRouter C ((fot M).toProtocol κ C)).IsBounded 0 :=
+  corruptRouter_isBounded C ((fot M).toProtocol κ C) (fot_isBounded M κ C)
 
 /-- Any `0`-bounded ideal functionality's lazy multi-session extension has polynomial call budget
 `0`. -/
@@ -352,15 +352,6 @@ theorem fot_multiSession_polyBounded (M SSID : Type) [DecidableEq SSID] :
       · split_ifs <;> exact OracleComp.IsCostBounded.pure _ 0)
     SSID
 
-/-- Self-realization: `(fot M).toProtocol` UC-realizes `fot M` with zero error. -/
-theorem realizesWithin_fot_self (M : Type) :
-    RealizesWithin (fot M).toProtocol (fot M) Polynomial.X (fun _ _ _ => 0) :=
-  EmulatesWithin.refl _
-
-/-- Self-realization: `(fot M).toProtocol` UC-realizes `fot M`. -/
-theorem realizes_fot_self (M : Type) : Realizes (fot M).toProtocol (fot M) :=
-  Emulates.refl _
-
 /-! ### State invariants and write-once immutability -/
 
 theorem OTState.Monotone.refl {M : Type} (s : OTState M) : OTState.Monotone s s :=
@@ -373,99 +364,110 @@ theorem OTState.Monotone.trans {M : Type} {a b c : OTState M}
   delivered_mono h := hbc.delivered_mono (hab.delivered_mono h)
   aborted_mono h := hbc.aborted_mono (hab.aborted_mono h)
 
-private theorem fot_step_monotone {M : Type} (κ : ℕ) (C : Finset (Fin 2))
-    (q : (Fin 2 × OTInput M) ⊕ RoutedNetQ 2 (OTInput M) OTBackdoor) (s : OTState M)
-    {y : protocolSpec 2 (OTInput M) (OTOutput M) (RoutedNetQ 2 (OTInput M) OTBackdoor)
-      (RoutedNetR (OTOutput M) OTBackdoorReply) q × OTState M}
-    (hy : y ∈ (Machine.closeEval
-      ((corruptRouter C ((fot M).toProtocol κ C)).handle q |>.run s)).support) :
-    OTState.Monotone s y.2 := by
-  have hsingle : ∀ (q₀ : (Fin 2 × OTInput M) ⊕ OTBackdoor)
-      (r : protocolSpec 2 (OTInput M) (OTOutput M) OTBackdoor OTBackdoorReply q₀ × OTState M),
-      r ∈ (Machine.closeEval (((fot M).toProtocol κ C).handle q₀ |>.run s)).support →
-      OTState.Monotone s r.2 := by
-    intro q₀ r hr
-    rcases q₀ with ⟨i, x⟩ | bq
-    · rcases i with ⟨_ | _ | i, hi⟩
-      · have h0 : (⟨0, hi⟩ : Fin 2) = 0 := rfl
-        dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
-        rw [ite_eq_left_of_eq_true _ _ (eq_true h0)] at hr
-        cases x
-        · split_ifs at hr with hs
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr
-            refine ⟨fun m hm => ?_, fun _ h => h, fun h => h, fun h => h⟩
-            rw [hm] at hs; simp at hs
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr; exact OTState.Monotone.refl s
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact OTState.Monotone.refl s
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact OTState.Monotone.refl s
-      · have h1 : (⟨1, hi⟩ : Fin 2) ≠ 0 := by simp
-        dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
-        rw [ite_eq_right_of_eq_false _ _ (eq_false h1)] at hr
-        cases x
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact OTState.Monotone.refl s
-        · split_ifs at hr with hb
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr
-            refine ⟨fun _ h => h, fun b' hb' => ?_, fun h => h, fun h => h⟩
-            rw [hb'] at hb; simp at hb
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr; exact OTState.Monotone.refl s
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact OTState.Monotone.refl s
-      · omega
-    · cases bq <;> dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
-      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact OTState.Monotone.refl s
-      · split_ifs at hr
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨fun _ h => h, fun _ h => h, fun _ => rfl, fun h => h⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact OTState.Monotone.refl s
-      · split_ifs at hr
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨fun _ h => h, fun _ h => h, fun h => h, fun _ => rfl⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact OTState.Monotone.refl s
-  rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | bq⟩
+/-- Lifts a reflexive, transitive per-activation relation `R` from single steps of `P` through
+`corruptRouter C P` and any multi-step execution `runFrom prog s`. -/
+theorem corruptRouter_invariant_of_mem_support_runFrom {n : ℕ} {In Out NetQ NetR α : Type}
+    (C : Finset (Fin n)) (P : Machine OracleSpec.empty (protocolSpec n In Out NetQ NetR))
+    (R : P.State → P.State → Prop) (hrefl : ∀ s, R s s)
+    (htrans : ∀ {a b c}, R a b → R b c → R a c)
+    (hsingle : ∀ q₀ s r,
+      r ∈ (Machine.closeEval ((P.handle q₀).run s)).support → R s r.2)
+    (prog : ProbOracleComp
+      (protocolSpec n In Out (RoutedNetQ n In NetQ) (RoutedNetR Out NetR)) α)
+    (s : P.State) {x : α × P.State}
+    (hx : x ∈ (Machine.closeEval ((corruptRouter C P).runFrom prog s)).support) :
+    R s x.2 := by
+  refine Machine.mem_support_closeEval_runFrom_invariant
+    (corruptRouter C P) (fun _ => True) R hrefl htrans prog
+    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _) s hx ?_
+  intro q s' y _ hy
+  rcases q with ⟨i, inp⟩ | ⟨⟨i, inp⟩ | bq⟩
   · by_cases hi : i ∈ C
     · dsimp only [corruptRouter, StateT.run] at hy
       split_ifs at hy
       erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact OTState.Monotone.refl s
+      subst hy; exact hrefl s'
     · dsimp only [corruptRouter] at hy
       split_ifs at hy
-      exact hsingle (.inl (i, x)) y hy
+      exact hsingle (.inl (i, inp)) s' y hy
   · by_cases hi : i ∈ C
     · simp only [corruptRouter, hi, ↓reduceIte, StateT.run, Functor.map, StateT.map,
         bind_pure_comp] at hy
       erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
       rcases hy with ⟨r, hr, rfl⟩
-      exact hsingle (.inl (i, x)) r hr
+      exact hsingle (.inl (i, inp)) s' r hr
     · dsimp only [corruptRouter, StateT.run] at hy
       split_ifs at hy
       erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact OTState.Monotone.refl s
+      subst hy; exact hrefl s'
   · simp only [corruptRouter, StateT.run, Functor.map, StateT.map, bind_pure_comp] at hy
     erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
     rcases hy with ⟨r, hr, rfl⟩
-    exact hsingle (.inr bq) r hr
+    exact hsingle (.inr bq) s' r hr
+
+private theorem fot_single_step_monotone {M : Type} (κ : ℕ) (C : Finset (Fin 2))
+    (q₀ : (Fin 2 × OTInput M) ⊕ OTBackdoor) (s : OTState M)
+    (r : protocolSpec 2 (OTInput M) (OTOutput M) OTBackdoor OTBackdoorReply q₀ × OTState M)
+    (hr : r ∈ (Machine.closeEval (((fot M).toProtocol κ C).handle q₀ |>.run s)).support) :
+    OTState.Monotone s r.2 := by
+  rcases q₀ with ⟨i, x⟩ | bq
+  · rcases i with ⟨_ | _ | i, hi⟩
+    · have h0 : (⟨0, hi⟩ : Fin 2) = 0 := rfl
+      dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
+      rw [ite_eq_left_of_eq_true _ _ (eq_true h0)] at hr
+      cases x
+      · split_ifs at hr with hs
+        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+            PMF.mem_support_pure_iff] at hr
+          subst hr
+          refine ⟨fun m hm => ?_, fun _ h => h, fun h => h, fun h => h⟩
+          rw [hm] at hs; simp at hs
+        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+            PMF.mem_support_pure_iff] at hr
+          subst hr; exact OTState.Monotone.refl s
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact OTState.Monotone.refl s
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact OTState.Monotone.refl s
+    · have h1 : (⟨1, hi⟩ : Fin 2) ≠ 0 := by simp
+      dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
+      rw [ite_eq_right_of_eq_false _ _ (eq_false h1)] at hr
+      cases x
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact OTState.Monotone.refl s
+      · split_ifs at hr with hb
+        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+            PMF.mem_support_pure_iff] at hr
+          subst hr
+          refine ⟨fun _ h => h, fun b' hb' => ?_, fun h => h, fun h => h⟩
+          rw [hb'] at hb; simp at hb
+        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+            PMF.mem_support_pure_iff] at hr
+          subst hr; exact OTState.Monotone.refl s
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact OTState.Monotone.refl s
+    · omega
+  · cases bq <;> dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
+    · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+      subst hr; exact OTState.Monotone.refl s
+    · split_ifs at hr
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact ⟨fun _ h => h, fun _ h => h, fun _ => rfl, fun h => h⟩
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact OTState.Monotone.refl s
+    · split_ifs at hr
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact ⟨fun _ h => h, fun _ h => h, fun h => h, fun _ => rfl⟩
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
+          PMF.mem_support_pure_iff] at hr
+        subst hr; exact OTState.Monotone.refl s
 
 /-- **Write-once input lock and delivery/abort monotonicity:** across any program run against
 `corruptRouter C ((fot M).toProtocol κ C)`, every reachable final state satisfies `OTState.Monotone`
@@ -478,118 +480,9 @@ theorem OTState.monotone_of_mem_support_runFrom {M α : Type} (κ : ℕ) (C : Fi
     (hx : x ∈ (Machine.closeEval
       ((corruptRouter C ((fot M).toProtocol κ C)).runFrom prog s)).support) :
     OTState.Monotone s x.2 :=
-  Machine.mem_support_closeEval_runFrom_invariant
-    (corruptRouter C ((fot M).toProtocol κ C)) (fun _ => True) OTState.Monotone
-    OTState.Monotone.refl (fun hab hbc => hab.trans hbc) prog
-    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    s hx fun q s' _ _ hy => fot_step_monotone κ C q s' hy
-
-/-- Validity (`OTState.Valid`) is preserved by every activation and therefore holds at every state
-reachable from `{}`. -/
-theorem OTState.valid_of_mem_support_runFrom {M α : Type} (κ : ℕ) (C : Finset (Fin 2))
-    (prog : ProbOracleComp
-      (protocolSpec 2 (OTInput M) (OTOutput M) (RoutedNetQ 2 (OTInput M) OTBackdoor)
-        (RoutedNetR (OTOutput M) OTBackdoorReply)) α)
-    {s : OTState M} (hs : s.Valid) {x : α × OTState M}
-    (hx : x ∈ (Machine.closeEval
-      ((corruptRouter C ((fot M).toProtocol κ C)).runFrom prog s)).support) :
-    x.2.Valid := by
-  refine Machine.mem_support_closeEval_runFrom_invariant
-    (corruptRouter C ((fot M).toProtocol κ C)) (fun _ => True)
-    (fun s₁ s₂ => s₁.Valid → s₂.Valid) (fun _ h => h) (fun h₁₂ h₂₃ h => h₂₃ (h₁₂ h))
-    prog (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    s hx ?_ hs
-  intro q s' y _ hy hs'
-  have hsingle : ∀ (q₀ : (Fin 2 × OTInput M) ⊕ OTBackdoor)
-      (r : protocolSpec 2 (OTInput M) (OTOutput M) OTBackdoor OTBackdoorReply q₀ × OTState M),
-      r ∈ (Machine.closeEval (((fot M).toProtocol κ C).handle q₀ |>.run s')).support →
-      r.2.Valid := by
-    intro q₀ r hr
-    rcases hs' with ⟨hdel, hdisj⟩
-    rcases q₀ with ⟨i, inp⟩ | bq
-    · rcases i with ⟨_ | _ | i, hi⟩
-      · have h0 : (⟨0, hi⟩ : Fin 2) = 0 := rfl
-        dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
-        rw [ite_eq_left_of_eq_true _ _ (eq_true h0)] at hr
-        cases inp
-        · split_ifs at hr with hn
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr
-            exact ⟨fun hd => ⟨rfl, (hdel hd).2.1, (hdel hd).2.2⟩, hdisj⟩
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr; exact ⟨hdel, hdisj⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨hdel, hdisj⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨hdel, hdisj⟩
-      · have h1 : (⟨1, hi⟩ : Fin 2) ≠ 0 := by simp
-        dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
-        rw [ite_eq_right_of_eq_false _ _ (eq_false h1)] at hr
-        cases inp
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨hdel, hdisj⟩
-        · split_ifs at hr with hn
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr
-            exact ⟨fun hd => ⟨(hdel hd).1, rfl, (hdel hd).2.2⟩, hdisj⟩
-          · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-              PMF.mem_support_pure_iff] at hr
-            subst hr; exact ⟨hdel, hdisj⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨hdel, hdisj⟩
-      · omega
-    · cases bq <;> dsimp only [IdealFunctionality.toProtocol, fot, StateT.run] at hr
-      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact ⟨hdel, hdisj⟩
-      · split_ifs at hr with hd
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr
-          simp only [Bool.and_eq_true, Bool.not_eq_true'] at hd
-          exact ⟨fun _ => ⟨hd.1.1, hd.1.2, hd.2⟩, fun ⟨_, ha⟩ => (by rw [hd.2] at ha; cases ha)⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨hdel, hdisj⟩
-      · split_ifs at hr with ha
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr
-          simp only [Bool.not_eq_true'] at ha
-          exact ⟨fun hd => (by rw [ha] at hd; cases hd),
-            fun ⟨hd, _⟩ => (by rw [ha] at hd; cases hd)⟩
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure,
-            PMF.mem_support_pure_iff] at hr
-          subst hr; exact ⟨hdel, hdisj⟩
-  rcases q with ⟨i, inp⟩ | ⟨⟨i, inp⟩ | bq⟩
-  · by_cases hi : i ∈ C
-    · dsimp only [corruptRouter, StateT.run] at hy
-      split_ifs at hy
-      erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hs'
-    · dsimp only [corruptRouter] at hy
-      split_ifs at hy
-      exact hsingle (.inl (i, inp)) _ hy
-  · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run, Functor.map, StateT.map,
-        bind_pure_comp] at hy
-      erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
-      rcases hy with ⟨r, hr, rfl⟩
-      exact hsingle (.inl (i, inp)) r hr
-    · dsimp only [corruptRouter, StateT.run] at hy
-      split_ifs at hy
-      erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hs'
-  · simp only [corruptRouter, StateT.run, Functor.map, StateT.map, bind_pure_comp] at hy
-    erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
-    rcases hy with ⟨r, hr, rfl⟩
-    exact hsingle (.inr bq) r hr
+  corruptRouter_invariant_of_mem_support_runFrom C ((fot M).toProtocol κ C)
+    OTState.Monotone OTState.Monotone.refl (fun hab hbc => hab.trans hbc)
+    (fot_single_step_monotone κ C) prog s hx
 
 /-! ### Honest delivery and abort correctness -/
 
@@ -1237,6 +1130,26 @@ private def otGuessMatch (m₀ m₁ : Bool) : Option (Bool × Bool) → Bool
   | some (g₀, g₁) => decide (g₀ = m₀ ∧ g₁ = m₁)
   | none => false
 
+private theorem succProb_coin_guess_le_half {α : Type} (view : Bool → PMF α)
+    (evalRes : α → ProbComp (Option (Bool × Bool)))
+    (matchFn : Bool → Bool → Option (Bool × Bool) → Bool)
+    (hbound : ∀ s res,
+      (∑' u : Bool, coinBoolPMF u * if true = matchFn s u res then 1 else 0) ≤ (1 / 2 : ℝ≥0∞)) :
+    Game.succProbability (do
+      let s ← coinBoolPMF
+      let a ← view s
+      let res ← (evalRes a).eval
+      let u ← coinBoolPMF
+      return matchFn s u res) ≤ (1 / 2 : ℝ≥0) := by
+  simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
+  refine succProbability_bind_le _ _ _ fun s => ?_
+  refine succProbability_bind_le _ _ _ fun a => ?_
+  refine succProbability_bind_le _ _ _ fun res => ?_
+  simp only [Game.succProbability, PMF.bind_apply, PMF.pure_apply]
+  convert ENNReal.toNNReal_mono (b := (1 / 2 : ℝ≥0∞)) (by norm_num) (hbound s res)
+  rw [← ENNReal.coe_inj, ENNReal.coe_toNNReal (by norm_num)]
+  norm_num
+
 private theorem succProb_post_selected {α : Type} (κ : ℕ) (b : Bool) (ab : Bool)
     (prog : ProbOracleComp
       (protocolSpec 2 (OTInput Bool) (OTOutput Bool) (RoutedNetQ 2 (OTInput Bool) OTBackdoor)
@@ -1253,110 +1166,80 @@ private theorem succProb_post_selected {α : Type} (κ : ℕ) (b : Bool) (ab : B
             delivered := false, aborted := ab })).eval
       let res ← (evalRes a).eval
       return otGuessMatch m₀ m₁ res) ≤ (1 / 2 : ℝ≥0) := by
+  let view : Bool → PMF α := fun s =>
+    (Prod.fst <$> Machine.closeProgram
+      ((fotSelectedView s).runFrom prog ⟨false, ab⟩)).eval
+  have hfactor : ∀ m₀ m₁ : Bool,
+      (Prod.fst <$> Machine.closeProgram
+        ((corruptRouter ({1} : Finset (Fin 2)) ((fot Bool).toProtocol κ {1})).runFrom prog
+          { senderMsgs := some ⟨m₀, m₁⟩, receiverChoice := some b,
+            delivered := false, aborted := ab })).eval =
+      view (if b then m₁ else m₀) := fun m₀ m₁ => by
+    rw [runFrom_fot_corruptReceiver κ ⟨m₀, m₁⟩ b prog ⟨false, ab⟩]
+    repeat erw [Machine.closeProgram_map]
+    repeat erw [Functor.map_map]
+    cases b <;> rfl
+  simp_rw [hfactor]
   cases b
-  · have hfactor : ∀ m₀ m₁ : Bool,
-        (Prod.fst <$> Machine.closeProgram
-          ((corruptRouter ({1} : Finset (Fin 2)) ((fot Bool).toProtocol κ {1})).runFrom prog
-            { senderMsgs := some ⟨m₀, m₁⟩, receiverChoice := some false,
-              delivered := false, aborted := ab })).eval =
-        (Prod.fst <$> Machine.closeProgram
-          ((fotSelectedView m₀).runFrom prog ⟨false, ab⟩)).eval := by
-      intro m₀ m₁
-      rw [runFrom_fot_corruptReceiver κ ⟨m₀, m₁⟩ false prog ⟨false, ab⟩]
-      repeat erw [Machine.closeProgram_map]
-      repeat erw [Functor.map_map]
-      rfl
-    simp_rw [hfactor]
-    have hcomm :
+  · have hcomm :
         ((ProbComp.unifFin 1).eval.bind fun r₀ =>
           (ProbComp.unifFin 1).eval.bind fun r₁ =>
-          (Prod.fst <$> Machine.closeProgram
-            ((fotSelectedView (decide (r₀.val = 1))).runFrom prog ⟨false, ab⟩)).eval.bind fun a =>
+          (view (decide (r₀.val = 1))).bind fun a =>
           (evalRes a).eval.bind fun res =>
           PMF.pure (otGuessMatch (decide (r₀.val = 1)) (decide (r₁.val = 1)) res)) =
-        ((ProbComp.unifFin 1).eval.bind fun r₀ =>
-          (Prod.fst <$> Machine.closeProgram
-            ((fotSelectedView (decide (r₀.val = 1))).runFrom prog ⟨false, ab⟩)).eval.bind fun a =>
+        (coinBoolPMF.bind fun s =>
+          (view s).bind fun a =>
           (evalRes a).eval.bind fun res =>
-          coinBoolPMF.bind fun m₁ =>
-          PMF.pure (otGuessMatch (decide (r₀.val = 1)) m₁ res)) := by
+          coinBoolPMF.bind fun u =>
+          PMF.pure (otGuessMatch s u res)) := by
+      dsimp only [coinBoolPMF, PMF.map]
+      rw [PMF.bind_bind]
       congr 1; funext r₀
+      simp only [Function.comp_def, PMF.pure_bind]
       rw [PMF.bind_comm (ProbComp.unifFin 1).eval]
       congr 1; funext a
       rw [PMF.bind_comm (ProbComp.unifFin 1).eval]
       congr 1; funext res
-      dsimp only [coinBoolPMF, PMF.map]
       rw [PMF.bind_bind]
-      simp only [Function.comp_def, PMF.pure_bind]
-    simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure] at hcomm ⊢
+      simp only [PMF.pure_bind]
+    simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
+      Bool.false_eq_true, ↓reduceIte] at hcomm ⊢
     rw [hcomm]
-    refine succProbability_bind_le _ _ _ fun r₀ => ?_
-    refine succProbability_bind_le _ _ _ fun a => ?_
-    refine succProbability_bind_le _ _ _ fun res => ?_
-    simp only [Game.succProbability, PMF.bind_apply, PMF.pure_apply]
-    have hsum : (∑' m₁ : Bool, coinBoolPMF m₁ *
-        if true = otGuessMatch (decide (r₀.val = 1)) m₁ res then 1 else 0) ≤
-        (1 / 2 : ℝ≥0∞) := by
-      rw [tsum_bool]
-      rcases res with _ | ⟨g₀, g₁⟩
-      · simp [otGuessMatch]
-      · cases h1 : decide (g₀ = decide (r₀.val = 1)) <;> cases g₁ <;>
-          simp [otGuessMatch, coinBoolPMF_apply, h1]
-    convert ENNReal.toNNReal_mono (b := (1 / 2 : ℝ≥0∞)) (by norm_num) hsum
-    rw [← ENNReal.coe_inj, ENNReal.coe_toNNReal (by norm_num)]
-    norm_num
-  · have hfactor : ∀ m₀ m₁ : Bool,
-        (Prod.fst <$> Machine.closeProgram
-          ((corruptRouter ({1} : Finset (Fin 2)) ((fot Bool).toProtocol κ {1})).runFrom prog
-            { senderMsgs := some ⟨m₀, m₁⟩, receiverChoice := some true,
-              delivered := false, aborted := ab })).eval =
-        (Prod.fst <$> Machine.closeProgram
-          ((fotSelectedView m₁).runFrom prog ⟨false, ab⟩)).eval := by
-      intro m₀ m₁
-      rw [runFrom_fot_corruptReceiver κ ⟨m₀, m₁⟩ true prog ⟨false, ab⟩]
-      repeat erw [Machine.closeProgram_map]
-      repeat erw [Functor.map_map]
-      rfl
-    simp_rw [hfactor]
-    have hcomm :
+    refine succProb_coin_guess_le_half view evalRes otGuessMatch fun s res => ?_
+    rw [tsum_bool]
+    rcases res with _ | ⟨g₀, g₁⟩
+    · simp [otGuessMatch]
+    · cases h1 : decide (g₀ = s) <;> cases g₁ <;> simp [otGuessMatch, coinBoolPMF_apply, h1]
+  · have hcomm :
         ((ProbComp.unifFin 1).eval.bind fun r₀ =>
           (ProbComp.unifFin 1).eval.bind fun r₁ =>
-          (Prod.fst <$> Machine.closeProgram
-            ((fotSelectedView (decide (r₁.val = 1))).runFrom prog ⟨false, ab⟩)).eval.bind fun a =>
+          (view (decide (r₁.val = 1))).bind fun a =>
           (evalRes a).eval.bind fun res =>
           PMF.pure (otGuessMatch (decide (r₀.val = 1)) (decide (r₁.val = 1)) res)) =
-        ((ProbComp.unifFin 1).eval.bind fun r₁ =>
-          (Prod.fst <$> Machine.closeProgram
-            ((fotSelectedView (decide (r₁.val = 1))).runFrom prog ⟨false, ab⟩)).eval.bind fun a =>
+        (coinBoolPMF.bind fun s =>
+          (view s).bind fun a =>
           (evalRes a).eval.bind fun res =>
-          coinBoolPMF.bind fun m₀ =>
-          PMF.pure (otGuessMatch m₀ (decide (r₁.val = 1)) res)) := by
+          coinBoolPMF.bind fun u =>
+          PMF.pure (otGuessMatch u s res)) := by
       rw [PMF.bind_comm (ProbComp.unifFin 1).eval]
+      dsimp only [coinBoolPMF, PMF.map]
+      rw [PMF.bind_bind]
       congr 1; funext r₁
+      simp only [Function.comp_def, PMF.pure_bind]
       rw [PMF.bind_comm (ProbComp.unifFin 1).eval]
       congr 1; funext a
       rw [PMF.bind_comm (ProbComp.unifFin 1).eval]
       congr 1; funext res
-      dsimp only [coinBoolPMF, PMF.map]
       rw [PMF.bind_bind]
-      simp only [Function.comp_def, PMF.pure_bind]
-    simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure] at hcomm ⊢
+      simp only [PMF.pure_bind]
+    simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
+      ↓reduceIte] at hcomm ⊢
     rw [hcomm]
-    refine succProbability_bind_le _ _ _ fun r₁ => ?_
-    refine succProbability_bind_le _ _ _ fun a => ?_
-    refine succProbability_bind_le _ _ _ fun res => ?_
-    simp only [Game.succProbability, PMF.bind_apply, PMF.pure_apply]
-    have hsum : (∑' m₀ : Bool, coinBoolPMF m₀ *
-        if true = otGuessMatch m₀ (decide (r₁.val = 1)) res then 1 else 0) ≤
-        (1 / 2 : ℝ≥0∞) := by
-      rw [tsum_bool]
-      rcases res with _ | ⟨g₀, g₁⟩
-      · simp [otGuessMatch]
-      · cases g₀ <;> cases h2 : decide (g₁ = decide (r₁.val = 1)) <;>
-          simp [otGuessMatch, coinBoolPMF_apply, h2]
-    convert ENNReal.toNNReal_mono (b := (1 / 2 : ℝ≥0∞)) (by norm_num) hsum
-    rw [← ENNReal.coe_inj, ENNReal.coe_toNNReal (by norm_num)]
-    norm_num
+    refine succProb_coin_guess_le_half view evalRes (fun s u => otGuessMatch u s) fun s res => ?_
+    rw [tsum_bool]
+    rcases res with _ | ⟨g₀, g₁⟩
+    · simp [otGuessMatch]
+    · cases g₀ <;> cases h2 : decide (g₁ = s) <;> simp [otGuessMatch, coinBoolPMF_apply, h2]
 
 private theorem succProb_preChoice {α : Type} (κ : ℕ) (ab : Bool)
     (prog : ProbOracleComp

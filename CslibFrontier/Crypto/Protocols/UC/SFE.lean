@@ -166,11 +166,6 @@ if a selective `abort` occurs later; undelivered parties observe `some .aborted`
   else
     none
 
-/-- Well-formedness invariant of `SFEState`: no party's output is marked delivered before all
-parties have submitted inputs. -/
-@[expose] def SFEState.Valid {n : ℕ} {In : Type} (s : SFEState n In) : Prop :=
-  ∀ i : Fin n, s.delivered i = true → s.allSubmitted = true
-
 /-- Monotonicity relation between states `s` and `s'` across activations of `fsfe`: every
 submitted input is write-once immutable, and `delivered` and `aborted` are sticky. -/
 structure SFEState.Monotone {n : ℕ} {In : Type} (s s' : SFEState n In) : Prop where
@@ -248,22 +243,8 @@ theorem fsfe_polyBounded {n : ℕ} {In Out : Type} (f : (Fin n → In) → (Fin 
 /-- Routing static corruptions around `fsfe f` still makes zero oracle calls per activation. -/
 theorem corruptRouter_fsfe_isBounded {n : ℕ} {In Out : Type} (f : (Fin n → In) → (Fin n → Out))
     (κ : ℕ) (C : Finset (Fin n)) :
-    (corruptRouter C ((fsfe f).toProtocol κ C)).IsBounded 0 := by
-  refine ⟨OracleComp.IsCostBounded.pure _ 0, fun q s => ?_⟩
-  rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | bq⟩
-  · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte]
-      exact OracleComp.IsCostBounded.pure _ 0
-    · simp only [corruptRouter, hi, ↓reduceIte]
-      exact (fsfe_isBounded f κ C).2 (.inl (i, x)) s
-  · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run, Functor.map, StateT.map,
-        bind_pure_comp]
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fsfe_isBounded f κ C).2 (.inl (i, x)) s)
-    · simp only [corruptRouter, hi, ↓reduceIte]
-      exact OracleComp.IsCostBounded.pure _ 0
-  · simp only [corruptRouter, StateT.run, Functor.map, StateT.map, bind_pure_comp]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fsfe_isBounded f κ C).2 (.inr bq) s)
+    (corruptRouter C ((fsfe f).toProtocol κ C)).IsBounded 0 :=
+  corruptRouter_isBounded C ((fsfe f).toProtocol κ C) (fsfe_isBounded f κ C)
 
 /-- The lazy multi-session extension `(fsfe f).multiSession SSID` has polynomial call budget `0`. -/
 theorem fsfe_multiSession_polyBounded {n : ℕ} {In Out : Type}
@@ -293,86 +274,55 @@ theorem SFEState.Monotone.trans {n : ℕ} {In : Type} {a b c : SFEState n In}
   delivered_mono i h := hbc.delivered_mono i (hab.delivered_mono i h)
   aborted_mono h := hbc.aborted_mono (hab.aborted_mono h)
 
-private theorem fsfe_step_monotone {n : ℕ} {In Out : Type}
+private theorem fsfe_single_step_monotone {n : ℕ} {In Out : Type}
     (f : (Fin n → In) → (Fin n → Out)) (κ : ℕ) (C : Finset (Fin n))
-    (q : (Fin n × SFEInput In) ⊕ RoutedNetQ n (SFEInput In) (SFEBackdoor n))
-    (s : SFEState n In)
-    {y : protocolSpec n (SFEInput In) (SFEOutput Out) (RoutedNetQ n (SFEInput In) (SFEBackdoor n))
-      (RoutedNetR (SFEOutput Out) (SFEBackdoorReply n)) q × SFEState n In}
-    (hy : y ∈ (Machine.closeEval
-      ((corruptRouter C ((fsfe f).toProtocol κ C)).handle q |>.run s)).support) :
-    SFEState.Monotone s y.2 := by
-  have hsingle : ∀ (q₀ : (Fin n × SFEInput In) ⊕ SFEBackdoor n)
-      (r : protocolSpec n (SFEInput In) (SFEOutput Out) (SFEBackdoor n)
-        (SFEBackdoorReply n) q₀ × SFEState n In),
-      r ∈ (Machine.closeEval (((fsfe f).toProtocol κ C).handle q₀ |>.run s)).support →
-      SFEState.Monotone s r.2 := by
-    intro q₀ r hr
-    rcases q₀ with ⟨i, x⟩ | bq
-    · cases x with
-      | input val =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        split_ifs at hr with hi
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr
-          refine ⟨fun j v hj => ?_, fun _ h => h, fun h => h⟩
-          by_cases hji : j = i
-          · subst hji
-            rw [hj] at hi
-            cases hi
-          · dsimp only
-            rw [Function.update_of_ne hji]
-            exact hj
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr; exact SFEState.Monotone.refl s
-      | query =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact SFEState.Monotone.refl s
-    · cases bq with
-      | query =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact SFEState.Monotone.refl s
-      | deliver i =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        split_ifs at hr with hd
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr
-          refine ⟨fun _ _ h => h, fun j hj => ?_, fun h => h⟩
-          by_cases hji : j = i
-          · subst hji; simp [Function.update_self]
-          · dsimp only; rw [Function.update_of_ne hji]; exact hj
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr; exact SFEState.Monotone.refl s
-      | abort =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+    (q₀ : (Fin n × SFEInput In) ⊕ SFEBackdoor n) (s : SFEState n In)
+    (r : protocolSpec n (SFEInput In) (SFEOutput Out) (SFEBackdoor n)
+      (SFEBackdoorReply n) q₀ × SFEState n In)
+    (hr : r ∈ (Machine.closeEval (((fsfe f).toProtocol κ C).handle q₀ |>.run s)).support) :
+    SFEState.Monotone s r.2 := by
+  rcases q₀ with ⟨i, x⟩ | bq
+  · cases x with
+    | input val =>
+      dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
+      split_ifs at hr with hi
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
         subst hr
-        exact ⟨fun _ _ h => h, fun _ h => h, fun _ => rfl⟩
-  rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | bq⟩
-  · by_cases hi : i ∈ C
-    · dsimp only [corruptRouter, StateT.run] at hy
-      split_ifs at hy
-      erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact SFEState.Monotone.refl s
-    · dsimp only [corruptRouter] at hy
-      split_ifs at hy
-      exact hsingle (.inl (i, x)) y hy
-  · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run, Functor.map, StateT.map,
-        bind_pure_comp] at hy
-      erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
-      rcases hy with ⟨r, hr, rfl⟩
-      exact hsingle (.inl (i, x)) r hr
-    · dsimp only [corruptRouter, StateT.run] at hy
-      split_ifs at hy
-      erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact SFEState.Monotone.refl s
-  · simp only [corruptRouter, StateT.run, Functor.map, StateT.map, bind_pure_comp] at hy
-    erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
-    rcases hy with ⟨r, hr, rfl⟩
-    exact hsingle (.inr bq) r hr
+        refine ⟨fun j v hj => ?_, fun _ h => h, fun h => h⟩
+        by_cases hji : j = i
+        · subst hji
+          rw [hj] at hi
+          cases hi
+        · dsimp only
+          rw [Function.update_of_ne hji]
+          exact hj
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+        subst hr; exact SFEState.Monotone.refl s
+    | query =>
+      dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
+      erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+      subst hr; exact SFEState.Monotone.refl s
+  · cases bq with
+    | query =>
+      dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
+      erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+      subst hr; exact SFEState.Monotone.refl s
+    | deliver i =>
+      dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
+      split_ifs at hr with hd
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+        subst hr
+        refine ⟨fun _ _ h => h, fun j hj => ?_, fun h => h⟩
+        by_cases hji : j = i
+        · subst hji; simp [Function.update_self]
+        · dsimp only; rw [Function.update_of_ne hji]; exact hj
+      · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+        subst hr; exact SFEState.Monotone.refl s
+    | abort =>
+      dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
+      erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
+      subst hr
+      exact ⟨fun _ _ h => h, fun _ h => h, fun _ => rfl⟩
 
 /-- **Write-once input lock and delivery/abort monotonicity:** across any program run against
 `corruptRouter C ((fsfe f).toProtocol κ C)`, every reachable final state satisfies
@@ -386,100 +336,9 @@ theorem SFEState.monotone_of_mem_support_runFrom {n : ℕ} {In Out α : Type}
     (hx : x ∈ (Machine.closeEval
       ((corruptRouter C ((fsfe f).toProtocol κ C)).runFrom prog s)).support) :
     SFEState.Monotone s x.2 :=
-  Machine.mem_support_closeEval_runFrom_invariant
-    (corruptRouter C ((fsfe f).toProtocol κ C)) (fun _ => True) SFEState.Monotone
-    SFEState.Monotone.refl (fun hab hbc => hab.trans hbc) prog
-    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    s hx fun q s' _ _ hy => fsfe_step_monotone f κ C q s' hy
-
-/-- Validity (`SFEState.Valid`) is preserved by every activation of `fsfe`. -/
-theorem SFEState.valid_of_mem_support_runFrom {n : ℕ} {In Out α : Type}
-    (f : (Fin n → In) → (Fin n → Out)) (κ : ℕ) (C : Finset (Fin n))
-    (prog : ProbOracleComp
-      (protocolSpec n (SFEInput In) (SFEOutput Out) (RoutedNetQ n (SFEInput In) (SFEBackdoor n))
-        (RoutedNetR (SFEOutput Out) (SFEBackdoorReply n))) α)
-    {s : SFEState n In} (hs : s.Valid) {x : α × SFEState n In}
-    (hx : x ∈ (Machine.closeEval
-      ((corruptRouter C ((fsfe f).toProtocol κ C)).runFrom prog s)).support) :
-    x.2.Valid := by
-  refine Machine.mem_support_closeEval_runFrom_invariant
-    (corruptRouter C ((fsfe f).toProtocol κ C)) (fun _ => True)
-    (fun s₁ s₂ => s₁.Valid → s₂.Valid) (fun _ h => h) (fun h₁₂ h₂₃ h => h₂₃ (h₁₂ h))
-    prog (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    s hx ?_ hs
-  intro q s' _ _ hy hs'
-  have hsingle : ∀ (q₀ : (Fin n × SFEInput In) ⊕ SFEBackdoor n)
-      (r : protocolSpec n (SFEInput In) (SFEOutput Out) (SFEBackdoor n)
-        (SFEBackdoorReply n) q₀ × SFEState n In),
-      r ∈ (Machine.closeEval (((fsfe f).toProtocol κ C).handle q₀ |>.run s')).support →
-      r.2.Valid := by
-    intro q₀ r hr
-    rcases q₀ with ⟨i, inp⟩ | bq
-    · cases inp with
-      | input val =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        split_ifs at hr with hi
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr
-          intro j hj
-          have hall := hs' j hj
-          simp only [SFEState.allSubmitted, decide_eq_true_eq] at hall ⊢
-          intro k
-          by_cases hki : k = i
-          · subst hki; simp [Function.update_self]
-          · rw [Function.update_of_ne hki]; exact hall k
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr; exact hs'
-      | query =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact hs'
-    · cases bq with
-      | query =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact hs'
-      | deliver i =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        split_ifs at hr with hd
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr
-          simp only [Bool.and_eq_true] at hd
-          intro j hj
-          by_cases hji : j = i
-          · exact hd.1
-          · dsimp only at hj
-            rw [Function.update_of_ne hji] at hj
-            exact hs' j hj
-        · erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-          subst hr; exact hs'
-      | abort =>
-        dsimp only [IdealFunctionality.toProtocol, fsfe, StateT.run] at hr
-        erw [ProbOracleComp.sample_pure, Machine.closeEval_pure, PMF.mem_support_pure_iff] at hr
-        subst hr; exact hs'
-  rcases q with ⟨i, inp⟩ | ⟨⟨i, inp⟩ | bq⟩
-  · by_cases hi : i ∈ C
-    · dsimp only [corruptRouter, StateT.run] at hy
-      split_ifs at hy
-      erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hs'
-    · dsimp only [corruptRouter] at hy
-      split_ifs at hy
-      exact hsingle (.inl (i, inp)) _ hy
-  · by_cases hi : i ∈ C
-    · simp only [corruptRouter, hi, ↓reduceIte, StateT.run, Functor.map, StateT.map,
-        bind_pure_comp] at hy
-      erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
-      rcases hy with ⟨r, hr, rfl⟩
-      exact hsingle (.inl (i, inp)) r hr
-    · dsimp only [corruptRouter, StateT.run] at hy
-      split_ifs at hy
-      erw [Machine.closeEval_pure, PMF.mem_support_pure_iff] at hy
-      subst hy; exact hs'
-  · simp only [corruptRouter, StateT.run, Functor.map, StateT.map, bind_pure_comp] at hy
-    erw [Machine.closeEval_map, PMF.mem_support_map_iff] at hy
-    rcases hy with ⟨r, hr, rfl⟩
-    exact hsingle (.inr bq) r hr
+  corruptRouter_invariant_of_mem_support_runFrom C ((fsfe f).toProtocol κ C)
+    SFEState.Monotone SFEState.Monotone.refl (fun hab hbc => hab.trans hbc)
+    (fsfe_single_step_monotone f κ C) prog s hx
 
 /-! ### Honest evaluation agreement and abort correctness -/
 
@@ -751,6 +610,57 @@ private theorem eval_runFrom_fsfe_corrupt_invariant {n : ℕ} {In Out α : Type}
   have hclose := congrArg (fun p => (Machine.closeProgram p).eval) (hfst hR)
   simpa only [Machine.closeProgram_map] using hclose
 
+private theorem sfeCorrupt_input_branch {n : ℕ} {In Out : Type} {C : Finset (Fin n)}
+    (f : (Fin n → In) → (Fin n → Out)) (κ : ℕ) {i : Fin n} (hi : i ∈ C) (val : In)
+    {s₁ s₂ : SFEState n In} (h_corrupt : ∀ j ∈ C, s₁.inputs j = s₂.inputs j)
+    (h_sub : ∀ j, (s₁.inputs j).isSome = (s₂.inputs j).isSome)
+    (P : SFEState n In → SFEState n In → Prop) (h_refl : P s₁ s₂)
+    (h_upd : (s₁.inputs i).isNone → (s₂.inputs i).isNone →
+      let s₁' : SFEState n In := { s₁ with inputs := Function.update s₁.inputs i (some val) }
+      let s₂' : SFEState n In := { s₂ with inputs := Function.update s₂.inputs i (some val) }
+      (∀ j ∈ C, s₁'.inputs j = s₂'.inputs j) →
+      (∀ j, (s₁'.inputs j).isSome = (s₂'.inputs j).isSome) →
+      P s₁' s₂') :
+    ∃ r : RoutedNetR (SFEOutput Out) (SFEBackdoorReply n),
+      ∃ s₁' s₂' : SFEState n In,
+        ((corruptRouter C ((fsfe f).toProtocol κ C)).handle
+          (.inr (.inl (i, .input val)))).run s₁ = pure (r, s₁') ∧
+        ((corruptRouter C ((fsfe f).toProtocol κ C)).handle
+          (.inr (.inl (i, .input val)))).run s₂ = pure (r, s₂') ∧
+        P s₁' s₂' := by
+  have hnone : (s₁.inputs i).isNone = (s₂.inputs i).isNone := by rw [h_corrupt i hi]
+  by_cases hn : (s₁.inputs i).isNone
+  · have hn₂ : (s₂.inputs i).isNone := hnone ▸ hn
+    refine ⟨.inl none, { s₁ with inputs := Function.update s₁.inputs i (some val) },
+      { s₂ with inputs := Function.update s₂.inputs i (some val) }, ?_, ?_, h_upd hn hn₂ ?_ ?_⟩
+    · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
+      simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn,
+        ProbOracleComp.sample_pure, pure_bind]
+    · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
+      simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn₂,
+        ProbOracleComp.sample_pure, pure_bind]
+    · intro j hj
+      by_cases hji : j = i
+      · subst hji; simp [Function.update_self]
+      · dsimp only
+        rw [Function.update_of_ne hji, Function.update_of_ne hji]
+        exact h_corrupt j hj
+    · intro j
+      by_cases hji : j = i
+      · subst hji; simp [Function.update_self]
+      · dsimp only
+        rw [Function.update_of_ne hji, Function.update_of_ne hji]
+        exact h_sub j
+  · have hn₂ : (s₂.inputs i).isNone = false := by
+      rw [← hnone]; exact Bool.eq_false_iff.mpr hn
+    refine ⟨.inl none, s₁, s₂, ?_, ?_, h_refl⟩
+    · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
+      simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn, Bool.false_eq_true,
+        ProbOracleComp.sample_pure, pure_bind]
+    · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
+      simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn₂, Bool.false_eq_true,
+        ProbOracleComp.sample_pure, pure_bind]
+
 private theorem sfeCorruptEquiv_step {n : ℕ} {In Out : Type}
     {C : Finset (Fin n)} (f : (Fin n → In) → (Fin n → Out)) (κ : ℕ)
     (q : RoutedNetQ n (SFEInput In) (SFEBackdoor n))
@@ -764,48 +674,18 @@ private theorem sfeCorruptEquiv_step {n : ℕ} {In Out : Type}
   · by_cases hi : i ∈ C
     · cases inp with
       | input val =>
-        have hnone : (s₁.inputs i).isNone = (s₂.inputs i).isNone := by
-          rw [h.inputs_corrupt i hi]
-        by_cases hn : (s₁.inputs i).isNone
-        · have hn₂ : (s₂.inputs i).isNone := hnone ▸ hn
-          refine ⟨.inl none, { s₁ with inputs := Function.update s₁.inputs i (some val) },
-            { s₂ with inputs := Function.update s₂.inputs i (some val) }, ?_, ?_, ?_⟩
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn,
-              ProbOracleComp.sample_pure, pure_bind]
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn₂,
-              ProbOracleComp.sample_pure, pure_bind]
-          · refine ⟨fun j hj => ?_, fun j => ?_, h.delivered_eq, h.aborted_eq, ?_⟩
-            · by_cases hji : j = i
-              · subst hji; simp [Function.update_self]
-              · dsimp only
-                rw [Function.update_of_ne hji, Function.update_of_ne hji]
-                exact h.inputs_corrupt j hj
-            · by_cases hji : j = i
-              · subst hji; simp [Function.update_self]
-              · dsimp only
-                rw [Function.update_of_ne hji, Function.update_of_ne hji]
-                exact h.submitted_eq j
-            · intro x₁ x₂ hx₁ hx₂ hxC
-              refine h.outputs_corrupt x₁ x₂ ?_ ?_ hxC
-              · intro j v hj
-                by_cases hji : j = i
-                · subst hji; rw [Option.isNone_iff_eq_none] at hn; rw [hn] at hj; cases hj
-                · exact hx₁ j v (by simpa [Function.update_of_ne hji] using hj)
-              · intro j v hj
-                by_cases hji : j = i
-                · subst hji; rw [Option.isNone_iff_eq_none] at hn₂; rw [hn₂] at hj; cases hj
-                · exact hx₂ j v (by simpa [Function.update_of_ne hji] using hj)
-        · have hn₂ : (s₂.inputs i).isNone = false := by
-            rw [← hnone]; exact Bool.eq_false_iff.mpr hn
-          refine ⟨.inl none, s₁, s₂, ?_, ?_, h⟩
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn, Bool.false_eq_true,
-              ProbOracleComp.sample_pure, pure_bind]
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn₂,
-              Bool.false_eq_true, ProbOracleComp.sample_pure, pure_bind]
+        refine sfeCorrupt_input_branch f κ hi val h.inputs_corrupt h.submitted_eq
+          (SFECorruptEquiv C f) h fun hn₁ hn₂ h_corrupt h_sub => ?_
+        refine ⟨h_corrupt, h_sub, h.delivered_eq, h.aborted_eq, fun x₁ x₂ hx₁ hx₂ hxC => ?_⟩
+        refine h.outputs_corrupt x₁ x₂ ?_ ?_ hxC
+        · intro j v hj
+          by_cases hji : j = i
+          · subst hji; rw [Option.isNone_iff_eq_none] at hn₁; rw [hn₁] at hj; cases hj
+          · exact hx₁ j v (by simpa [Function.update_of_ne hji] using hj)
+        · intro j v hj
+          by_cases hji : j = i
+          · subst hji; rw [Option.isNone_iff_eq_none] at hn₂; rw [hn₂] at hj; cases hj
+          · exact hx₂ j v (by simpa [Function.update_of_ne hji] using hj)
       | query =>
         refine ⟨.inl (s₁.partyOutput f i), s₁, s₂, ?_, ?_, h⟩
         · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
@@ -916,43 +796,14 @@ private theorem sfePreOutputEquiv_step {n : ℕ} {In Out : Type}
   · by_cases hi : i ∈ C
     · cases inp with
       | input val =>
-        have hnone : (s₁.inputs i).isNone = (s₂.inputs i).isNone := by
-          rw [h.inputs_corrupt i hi]
-        by_cases hn : (s₁.inputs i).isNone
-        · have hn₂ : (s₂.inputs i).isNone := hnone ▸ hn
-          refine ⟨.inl none, { s₁ with inputs := Function.update s₁.inputs i (some val) },
-            { s₂ with inputs := Function.update s₂.inputs i (some val) }, ?_, ?_, ?_,
-            fun j hj => by
-              have hji : j ≠ i := fun hjeq => hj (hjeq.symm ▸ hi)
-              dsimp only
-              rw [Function.update_of_ne hji]⟩
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn,
-              ProbOracleComp.sample_pure, pure_bind]
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn₂,
-              ProbOracleComp.sample_pure, pure_bind]
-          · refine ⟨fun j hj => ?_, fun j => ?_, h.corrupt_undelivered₁, h.corrupt_undelivered₂,
-              h.honest_delivered_eq, h.aborted_eq⟩
-            · by_cases hji : j = i
-              · subst hji; simp [Function.update_self]
-              · dsimp only
-                rw [Function.update_of_ne hji, Function.update_of_ne hji]
-                exact h.inputs_corrupt j hj
-            · by_cases hji : j = i
-              · subst hji; simp [Function.update_self]
-              · dsimp only
-                rw [Function.update_of_ne hji, Function.update_of_ne hji]
-                exact h.submitted_eq j
-        · have hn₂ : (s₂.inputs i).isNone = false := by
-            rw [← hnone]; exact Bool.eq_false_iff.mpr hn
-          refine ⟨.inl none, s₁, s₂, ?_, ?_, h, fun _ _ => rfl⟩
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn, Bool.false_eq_true,
-              ProbOracleComp.sample_pure, pure_bind]
-          · dsimp only [corruptRouter, IdealFunctionality.toProtocol, fsfe]
-            simp only [hi, ↓reduceIte, StateT.run, Functor.map, StateT.map, hn₂,
-              Bool.false_eq_true, ProbOracleComp.sample_pure, pure_bind]
+        refine sfeCorrupt_input_branch f κ hi val h.inputs_corrupt h.submitted_eq
+          (fun s₁' s₂' => SFEPreOutputEquiv C s₁' s₂' ∧ ∀ j ∉ C, s₁'.inputs j = s₁.inputs j)
+          ⟨h, fun _ _ => rfl⟩ fun _ _ h_corrupt h_sub => ?_
+        refine ⟨⟨h_corrupt, h_sub, h.corrupt_undelivered₁, h.corrupt_undelivered₂,
+          h.honest_delivered_eq, h.aborted_eq⟩, fun j hj => ?_⟩
+        have hji : j ≠ i := fun hjeq => hj (hjeq.symm ▸ hi)
+        dsimp only
+        rw [Function.update_of_ne hji]
       | query =>
         have hd₁ := h.corrupt_undelivered₁ i hi
         have hd₂ := h.corrupt_undelivered₂ i hi
