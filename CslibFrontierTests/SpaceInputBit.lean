@@ -57,7 +57,7 @@ theorem step_inSpace :
   have hbit := bit_inSpace
   have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
       ComputableInSpace (fun _ : (ℕ × ℕ) × List Bool => b) (encPair encReg encBits) encB budget :=
-    (ComputableInSpace.constZero b).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const b
   exact ComputableInSpace.budget_ite (ComputableInSpace.budget_optionIsSome hbit)
     (ComputableInSpace.budget_optionSome (ComputableInSpace.budget_prod
       (ComputableInSpace.budget_natSucc hreg.fst')
@@ -74,7 +74,7 @@ theorem count_inSpace : ComputableInSpace (fun w : List Bool => w.count true) en
     (init := fun _ => (0, 0)) (S := fun w => Nat.log2 (encBits w).length)
     (B := fun w => 4 * Nat.log2 w.length + 4)
     (fun w j => (j, (w.take j).count true)) (fun w => w.length)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_inSpace
+    (ComputableInSpace.budget_const _) step_inSpace
     (fun _ => rfl)
     (fun w j hj => by
       have htake := List.take_succ_eq_append_getElem hj

@@ -11,6 +11,7 @@ public import CslibFrontier.GameTheory.MixedStrategy
 public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Smooth
 public import Mathlib.Dynamics.FixedPoints.Defs
+public import Mathlib.Topology.Instances.Real.Lemmas
 import CslibFrontier.Foundations.Analysis.Brouwer.Simplex
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -33,8 +34,9 @@ equilibrium. Nash's proof applies Brouwer's fixed-point theorem to the map that 
 strategy towards the pure strategies that would lower the player's cost: with
 `nashGain G p i a = max 0 (expectedCost G p i - deviationCost G p i a)`,
 `nashMap G p i a = (p i a + nashGain G p i a) / (1 + ∑ b, nashGain G p i b)`.
-It maps the product of simplices continuously into itself, and its fixed points are exactly the
-mixed Nash equilibria (`isFixedPt_nashMap_iff`). Brouwer's theorem for products of simplices is
+It maps the product of simplices continuously into itself (`continuous_nashMap`,
+`isMixedStrategy_nashMap`), and its fixed points are exactly the mixed Nash equilibria
+(`isFixedPt_nashMap_iff`). Brouwer's theorem for products of simplices is
 `Cslib.Brouwer.exists_isFixedPt_pi_simplex`.
 
 Pure Nash equilibria are exactly the mixed Nash equilibria in which every player uses a point
@@ -131,6 +133,12 @@ pure strategies that would lower its cost, in proportion to the gain, and renorm
 noncomputable def nashMap (p : ∀ i, S i → ℝ) (i : ι) (a : S i) : ℝ :=
   (p i a + G.nashGain p i a) / (1 + ∑ b, G.nashGain p i b)
 
+/-- Nash's map in closed form; the bodies of `nashMap` and `nashGain` are not exposed. -/
+theorem nashMap_apply (p : ∀ i, S i → ℝ) (i : ι) (a : S i) :
+    G.nashMap p i a = (p i a + max 0 (G.expectedCost p i - G.deviationCost p i a)) /
+      (1 + ∑ b, max 0 (G.expectedCost p i - G.deviationCost p i b)) := by
+  simp only [nashMap, nashGain]
+
 private theorem nashGain_nonneg (p : ∀ i, S i → ℝ) (i : ι) (a : S i) : 0 ≤ G.nashGain p i a :=
   le_max_left _ _
 
@@ -152,14 +160,16 @@ private theorem continuous_nashGain (i : ι) (a : S i) :
     Continuous fun p : ∀ i, S i → ℝ => G.nashGain p i a :=
   continuous_const.max ((G.continuous_expectedCost i).sub (G.continuous_deviationCost i a))
 
-private theorem continuous_nashMap : Continuous G.nashMap := by
+/-- Nash's map is continuous. -/
+theorem continuous_nashMap : Continuous G.nashMap := by
   refine continuous_pi fun i => continuous_pi fun a => ?_
   unfold nashMap
   exact (((continuous_apply a).comp (continuous_apply i)).add (G.continuous_nashGain i a)).div₀
     (continuous_const.add (continuous_finsetSum _ fun b _ => G.continuous_nashGain i b))
     fun p => (G.nashDenom_pos p i).ne'
 
-private theorem isMixedStrategy_nashMap {p : ∀ i, S i → ℝ} (hp : ∀ i, IsMixedStrategy (p i))
+/-- Nash's map sends profiles of mixed strategies to profiles of mixed strategies. -/
+theorem isMixedStrategy_nashMap {p : ∀ i, S i → ℝ} (hp : ∀ i, IsMixedStrategy (p i))
     (i : ι) : IsMixedStrategy (G.nashMap p i) := by
   refine isMixedStrategy_iff.2 ⟨fun a => ?_, ?_⟩
   · exact div_nonneg (add_nonneg ((hp i).nonneg a) (G.nashGain_nonneg p i a))

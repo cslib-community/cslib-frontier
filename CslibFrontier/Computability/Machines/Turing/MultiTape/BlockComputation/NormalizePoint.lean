@@ -82,7 +82,7 @@ theorem normalize_inSpace :
   have hp := fst encNat (encList encNat)
   have hl := snd encNat (encList encNat)
   have hinit : ComputableInSpace (fun _ : Args => ([] : List ℕ)) encArgs (encList encNat)
-      (fun a => (encArgs a).length) := budget_const [] (.refl _)
+      (fun a => (encArgs a).length) := budget_const []
   have hstep : ComputableInSpace (fun a : (ℕ × List ℕ) × ℕ => a.1.2 ++ [a.2 % a.1.1])
       (encPair (encPair encNat (encList encNat)) encNat) (encList encNat)
       (fun a => (encPair (encPair encNat (encList encNat)) encNat a).length) := by
