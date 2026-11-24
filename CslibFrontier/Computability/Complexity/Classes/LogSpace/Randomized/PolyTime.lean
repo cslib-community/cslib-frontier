@@ -116,6 +116,7 @@ theorem acceptCoins_eq_viewAcceptCount {input : List Bool} {V : Finset (FiniteCf
 variable [Finite State]
 
 /-- **Coin steps of views are polynomial-time.** -/
+@[local fun_prop]
 theorem computableInPolyTime_viewCoinStep (machine : MultiTapePTM k Bool State) (bit : Bool) :
     ComputableInPolyTime (machine.viewCoinStep · bit) encFiniteCfg encFiniteCfg := by
   classical
@@ -196,8 +197,11 @@ private theorem countRound_iterate (M : MultiTapePTM k Bool State)
     simp only [Function.comp_apply, lookupCount_map (hclosed view hview false),
       lookupCount_map (hclosed view hview true), MultiTapePTM.viewAcceptCount]
 
+attribute [local fun_prop] computableInPolyTime_viewCoinStep
+
 open scoped Classical in
 /-- The table lookup is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_lookupCount [Finite State] :
     ComputableInPolyTime (fun p : List (FiniteCfg k Bool State × ℕ) × FiniteCfg k Bool State =>
       lookupCount p.1 p.2) (encPair (encList (encPair encFiniteCfg encNat)) encFiniteCfg)
@@ -208,19 +212,7 @@ private theorem computableInPolyTime_lookupCount [Finite State] :
 private theorem computableInPolyTime_countRound [Finite State] (M : MultiTapePTM k Bool State) :
     ComputableInPolyTime (countRound M) (encList (encPair encFiniteCfg encNat))
       (encList (encPair encFiniteCfg encNat)) := by
-  have hview : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State × ℕ) × (FiniteCfg k Bool State × ℕ) => p.2.1)
-      (encPair (encList (encPair encFiniteCfg encNat)) (encPair encFiniteCfg encNat))
-      encFiniteCfg := (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-  have hlookup (bit : Bool) : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State × ℕ) × (FiniteCfg k Bool State × ℕ) =>
-        lookupCount p.1 (M.viewCoinStep p.2.1 bit))
-      (encPair (encList (encPair encFiniteCfg encNat)) (encPair encFiniteCfg encNat)) encNat :=
-    computableInPolyTime_lookupCount.comp
-    ((ComputableInPolyTime.fst _ _).prod
-      ((M.computableInPolyTime_viewCoinStep bit).comp hview))
-  exact ComputableInPolyTime.mapWithInput ComputableInPolyTime.id'
-    (hview.prod (ComputableInPolyTime.binary_add.comp ((hlookup false).prod (hlookup true))))
+  fun_prop [countRound]
 
 open scoped Classical in
 /-- **Accepting coin strings are counted in polynomial time** under a logarithmic space bound:

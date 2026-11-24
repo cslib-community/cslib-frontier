@@ -132,4 +132,12 @@ example : (Set.univ : Set (List Bool)) ∈ SPP encBits :=
 example : (Set.univ : Set (List Bool)) ∈ SPP encBits :=
   FewP_subset_SPP univ_mem_FewP_two
 
+/-- `SortedSubsets.encState` preserves the right-nested 5-tuple encoding of
+`SortedSubsets.State`. -/
+example (ok parity ended started : Bool) (prev : List Bool) :
+    SortedSubsets.encState ⟨ok, parity, ended, started, prev⟩ =
+      encPair encBool (encPair encBool (encPair encBool (encPair encBool encBits)))
+        (ok, parity, ended, started, prev) :=
+  rfl
+
 end CslibFrontierTests.ClassCorollaries
