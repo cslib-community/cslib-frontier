@@ -75,6 +75,12 @@ theorem not_emulatesDummyWithin_bitFunc (pD : Polynomial ℕ) (ε : Polynomial �
   rw [advantage_dummy_bitFunc] at this
   exact absurd hε (not_lt.mpr this)
 
+/-- The black-box emulation notion is not vacuous. -/
+theorem not_emulatesBlackBoxWithin_bitFunc (pD : Polynomial ℕ)
+    (ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0) (hε : ε 1 1 0 < 1) :
+    ¬ EmulatesBlackBoxWithin (bitFunc true).toProtocol (bitFunc false).toProtocol pD ε :=
+  fun h => not_emulatesDummyWithin_bitFunc pD (fun pZ => ε 1 pZ) hε h.emulatesDummyWithin
+
 /-- The dummy adversary simulates itself with zero error. -/
 theorem emulatesDummyWithin_refl (b : Bool) :
     EmulatesDummyWithin (bitFunc b).toProtocol (bitFunc b).toProtocol 1 (fun _ _ => 0) :=

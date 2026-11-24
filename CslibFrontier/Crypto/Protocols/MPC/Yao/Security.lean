@@ -334,8 +334,7 @@ private theorem eval_prvSimExperiment_oneSidedEvaluatorToPrvSim (samp : ℕ → 
         (prvSimExperiment G Φ n (S n) (evaluatorToPrvSim samp (liftEvaluatorEnv Z) n) b) := by
   have hchoose : ProbComp.eval ((oneSidedEvaluatorToPrvSim samp Z n).choose ()) =
       ProbComp.eval ((evaluatorToPrvSim samp (liftEvaluatorEnv Z) n).choose ()) := by
-    simp only [oneSidedEvaluatorToPrvSim, evaluatorToPrvSim, liftEvaluatorEnv, ProbComp.eval_bind,
-      ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+    simp only [oneSidedEvaluatorToPrvSim, evaluatorToPrvSim, liftEvaluatorEnv, pmf_norm]
   have hguess : (oneSidedEvaluatorToPrvSim samp Z n).guess =
       (evaluatorToPrvSim samp (liftEvaluatorEnv Z) n).guess := rfl
   simp only [prvSimExperiment, ProbComp.eval_bind, hchoose, hguess]
@@ -346,13 +345,11 @@ theorem idealGame_evaluator_eq (samp : ℕ → ProbComp (Params G))
     (Z : Environment (family G) {1}) (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) (n : ℕ) :
     (family G).idealGame (fun n => ProbComp.eval (samp n)) {1} (evaluatorSim G Φ S) Z n =
       ProbComp.eval (prvSimExperiment G Φ n (S n) (evaluatorToPrvSim samp Z n) false) := by
-  simp only [ProtocolFamily.idealGame, prvSimExperiment, evaluatorToPrvSim, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind]
+  simp only [ProtocolFamily.idealGame, prvSimExperiment, evaluatorToPrvSim, pmf_norm]
   refine congrArg _ (funext fun c => congrArg _ (funext fun ch => ?_))
   simp only [length_circuitInput, ↓reduceIte, Bool.false_eq_true]
   simp only [idealJoint, functionality, Functionality.ofDeterministic, evaluatorSim,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, Option.getD_some,
-    BitString.ofList_ofFn (n := c.evaluatorLen) (ch.inputs 1)]
+    Option.getD_some, BitString.ofList_ofFn (n := c.evaluatorLen) (ch.inputs 1), pmf_norm]
   rfl
 
 /-- At every parameter `n ≥ 1`, the real game against a corrupted evaluator is the experiment
@@ -363,15 +360,13 @@ theorem realGame_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect : 
     (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) :
     (family G).realGame (fun n => ProbComp.eval (samp n)) {1} Z n =
       ProbComp.eval (prvSimExperiment G Φ n (S n) (evaluatorToPrvSim samp Z n) true) := by
-  simp only [ProtocolFamily.realGame, prvSimExperiment, evaluatorToPrvSim, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind]
+  simp only [ProtocolFamily.realGame, prvSimExperiment, evaluatorToPrvSim, pmf_norm]
   refine congrArg _ (funext fun c => congrArg _ (funext fun ch => ?_))
   simp only [length_circuitInput, ↓reduceIte]
-  simp only [realJoint_evaluator, Scheme.prvView, Scheme.garble, ProbComp.eval_bind,
-    ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_map, PMF.bind_bind, PMF.pure_bind,
-    Option.getD_some, BitString.ofList_ofFn (n := c.evaluatorLen) (ch.inputs 1)]
+  simp only [realJoint_evaluator, Scheme.prvView, Scheme.garble, BitString.eval_sampleList,
+    Option.getD_some, BitString.ofList_ofFn (n := c.evaluatorLen) (ch.inputs 1), pmf_norm]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun coins hcoins => ?_
-  simp only [Function.comp_apply, viewOfPrvView_gb hproj,
+  simp only [viewOfPrvView_gb hproj,
     runOutput_eq hproj hcorrect hn c ch.inputs (BitString.mem_support_uniformList_iff.mp hcoins)]
 
 /-- In `oneSidedFamily`, the ideal game with `oneSidedEvaluatorSim G Φ S` is the experiment
@@ -384,9 +379,7 @@ theorem idealGame_oneSidedEvaluator_eq (samp : ℕ → ProbComp (Params G))
       ProbComp.eval (prvSimExperiment G Φ n (S n) (oneSidedEvaluatorToPrvSim samp Z n) false) := by
   rw [eval_prvSimExperiment_oneSidedEvaluatorToPrvSim, ← idealGame_evaluator_eq]
   simp only [ProtocolFamily.idealGame, liftEvaluatorEnv, idealJoint, oneSidedFunctionality,
-    functionality, Functionality.ofDeterministic, oneSidedEvaluatorSim, evaluatorSim,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+    functionality, Functionality.ofDeterministic, oneSidedEvaluatorSim, evaluatorSim, pmf_norm]
   rfl
 
 /-- At every parameter `n ≥ 1` in `oneSidedFamily`, the real game against a corrupted evaluator is
@@ -399,8 +392,7 @@ theorem realGame_oneSidedEvaluator_eq (hproj : G.encode = projectiveEncode) (hco
       ProbComp.eval (prvSimExperiment G Φ n (S n) (oneSidedEvaluatorToPrvSim samp Z n) true) := by
   rw [eval_prvSimExperiment_oneSidedEvaluatorToPrvSim, ← realGame_evaluator_eq hproj hcorrect hn]
   simp only [ProtocolFamily.realGame, liftEvaluatorEnv, realJoint_oneSided_evaluator,
-    realJoint_evaluator, ProbComp.eval_map, PMF.monad_bind_eq_bind, PMF.bind_map,
-    Function.comp_def]
+    realJoint_evaluator, pmf_norm]
   rfl
 
 /-! ### Efficiency -/
@@ -509,8 +501,7 @@ theorem isPPT_evaluatorSim {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
     (hS.preprocess hprep).map_with hword
   refine isPPTOn_iff_encoded.mpr (hprog.congr fun x => ?_)
   obtain ⟨n, c, xs, ys⟩ := x
-  simp only [evaluatorSim, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-    ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  simp only [evaluatorSim, ← PMF.bind_pure_comp, pmf_norm]
   refine congrArg _ (funext fun V => congrArg PMF.pure ?_)
   refine Eq.trans ?_ ((encoding G encFn).view.encCoalition_singleton n c 1 _).symm
   exact congrArg (encPi encBits) (funext fun _ => congrArg encEvaluatorViewWords
@@ -533,8 +524,7 @@ theorem isPPT_oneSidedEvaluatorSim {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ Li
       (encSimInput (oneSidedEncoding G encFn)) (encSimInput (encoding G encFn)) :=
     .of_eq fun _ => rfl
   refine isPPTOn_iff_encoded.mpr ((htwo.preprocess hto).congr fun ⟨n, c, xs, ys⟩ => ?_)
-  simp only [evaluatorSim, oneSidedEvaluatorSim, ProbComp.eval_map, ProbComp.eval_bind,
-    ProbComp.eval_pure, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  simp only [evaluatorSim, oneSidedEvaluatorSim, ← PMF.bind_pure_comp, pmf_norm]
   refine congrArg _ (funext fun V => congrArg PMF.pure ?_)
   simp only [encDPi_apply]
   refine congrArg (encPi encBits) (funext fun ⟨j, hj⟩ => ?_)
@@ -598,8 +588,7 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
         (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod (.snd _ _))) ?_
       exact hout.isPPTOn
     refine hprog.congr fun x => ?_
-    simp only [evaluatorToPrvSim, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-      PMF.bind_map]
+    simp only [evaluatorToPrvSim, pmf_norm]
     rfl
   guess := by
     obtain ⟨W, hW, hWeq⟩ := hZ.guess.exists_bool_factor (encGuessInput_apply (encoding G encFn))
@@ -696,8 +685,7 @@ theorem isPPT_oneSidedEvaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ �
       (encReductionState (G := G) encFn) (oneSidedEvaluatorToPrvSim samp Z) := by
   have h := isPPT_evaluatorToPrvSim hinLen hev hsamp (isPPT_liftEvaluatorEnv hZ)
   refine ⟨h.choose.congr fun ⟨k, ()⟩ => ?_, h.guess⟩
-  simp only [evaluatorToPrvSim, oneSidedEvaluatorToPrvSim, liftEvaluatorEnv, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+  simp only [evaluatorToPrvSim, oneSidedEvaluatorToPrvSim, liftEvaluatorEnv, pmf_norm]
 
 /-! ### Empty and full coalitions of `oneSidedFamily` -/
 
@@ -799,8 +787,7 @@ private theorem isPPT_oneSidedFullSim {encFn : Fn ↪ List Bool}
     · exact hgarb
     · exact heval
   refine (IsPPTOn.of_seeded hcount hreps).congr fun ⟨n, c, xs, _⟩ => ?_
-  simp only [oneSidedFullSim, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-    ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  simp only [oneSidedFullSim, ← PMF.bind_pure_comp, pmf_norm]
   congr 1
   funext coins
   congr 1

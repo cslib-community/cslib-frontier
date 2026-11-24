@@ -176,7 +176,8 @@ theorem searchBucketProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     (hinv.hchains.1 b hb m hm_lt) (fun j hj => ((hinv.hchain_mem b hb m hm_lt j).mp hj).1) (d := d)
   refine ⟨hst, hcost, ?_⟩
   have hiff := searchBucket_exists_iff hinv hb hm_eq hm_lt
-  dsimp only [d, gm, prog] at hres hiff ⊢
+  dsimp only [d, gm, prog, ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound,
+    ovfSearchIdx] at hres hiff ⊢
   split_ifs with hex
   · rw [ite_eq_left (hiff.mpr hex)] at hres
     exact ⟨hres.1, hres.2.1, hres.2.2.2.1, hres.2.2.2.2⟩
@@ -201,7 +202,7 @@ theorem queryBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target m : 
   have ⟨hst, hcost, hres⟩ := queryBodyProg_spec henv hb hm_lt hinv.hslot
     (hinv.hchains.1 b hb m hm_lt) (fun j hj => ((hinv.hchain_mem b hb m hm_lt j).mp hj).1) (d := d)
   refine ⟨hst, hcost, ?_⟩
-  dsimp only [d, gm, prog] at hres ⊢
+  dsimp only [d, gm, prog, ovfQueryBase, ovfQueryBucket, ovfQueryQuot] at hres ⊢
   split_ifs at hres with hex
   · rcases hres with ⟨j, hj_lt, rfl, hres_eq⟩
     exact hres_eq.trans (hinv.hmap_some b hb j hj_lt).symm
@@ -405,7 +406,7 @@ theorem realizes_insertBodyGen :
   · obtain ⟨L, hchain, hc_lt⟩ := h.1.2.2.2.2
     have hspec := (searchBucketProg_spec (d := (d.1.1, d.2))
       h.1.1 h.1.2.1 h.1.2.2.1 h.1.2.2.2.1 hchain hc_lt).2.2
-    dsimp only at hspec
+    dsimp only [ovfSearchFound, ovfSearchIdx] at hspec
     split_ifs at hspec with hex
     · rw [hspec.2.2.2.2]
       exact (slotOf_lt_and_injective h.1.2.2.2.1).1 d.1.1.1.2 h.1.2.1 _ hspec.2.1
