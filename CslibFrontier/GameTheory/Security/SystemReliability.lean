@@ -24,14 +24,15 @@ import Mathlib.Tactic.Ring
 /-!
 # System reliability and free-riding games
 
-Varian [Varian2004], surveyed in [AndersonMooreNagarajaOzment2007], §25.2.1, models information
-security and system dependability as public-goods provision under three canonical Hirshleifer
-effort-aggregation technologies. Each agent `i : ι` chooses a nonnegative effort `x i : ℝ≥0` at
-marginal cost `unitCost i`, receives benefit `val i` when the system operates, and faces system
-reliability `prob (agg x)`. Equivalently, in `Cslib.GameTheory.CostGame` form, agent `i` minimizes
-expected failure loss plus effort expenditure `val i * (1 - prob (agg x)) + unitCost i * x i`,
-which differs from negated net payoff `-(val i * prob (agg x) - unitCost i * x i)` by the
-profile-independent constant `val i` and stays nonnegative whenever `prob (agg x) ≤ 1`.
+Varian [Varian2004] (surveyed in [AndersonMooreNagarajaOzment2007], §25.2.1, p. 635) models
+information security and system dependability as public-goods provision under three canonical
+Hirshleifer effort-aggregation technologies. Each agent `i : ι` chooses a nonnegative effort
+`x i : ℝ≥0` at marginal cost `unitCost i`, receives benefit `val i` when the system operates, and
+faces system reliability `prob (agg x)`. Equivalently, in `Cslib.GameTheory.CostGame` form, agent
+`i` minimizes expected failure loss plus effort expenditure
+`val i * (1 - prob (agg x)) + unitCost i * x i`, which differs from negated net payoff
+`-(val i * prob (agg x) - unitCost i * x i)` by the profile-independent constant `val i` and stays
+nonnegative whenever `prob (agg x) ≤ 1`.
 
 ## Main definitions
 
@@ -72,13 +73,13 @@ profile-independent constant `val i` and stays nonnegative whenever `prob (agg x
   ([Varian2004], §3.2, Fact 2): weakest-link pure Nash equilibria form the constant-effort
   continuum `[0, inf_i xBar i]` (for `|ι| ≥ 2`), Pareto-dominated by `inf_i xBar i`.
 * `Cslib.GameTheory.SystemReliabilitySpec.weakestLink_socialOpt_le_totalEffort_socialOpt`,
-  `Cslib.GameTheory.SystemReliabilitySpec.totalEffort_sup_mono_subset`,
-  `Cslib.GameTheory.SystemReliabilitySpec.weakestLink_inf_anti_subset`,
+  `Cslib.GameTheory.SystemReliabilitySpec.prob_totalEffort_le_of_subset_of_isPureNash`,
+  `Cslib.GameTheory.SystemReliabilitySpec.prob_weakestLink_le_of_subset_of_isPureNash`,
   `Cslib.GameTheory.SystemReliabilitySpec.identicalAgents_weakestLink_socialOpt_isPureNash`
   ([Varian2004], §4.3–§6, Facts 4, 5, and 7): socially optimal weakest-link effort never exceeds
-  socially optimal total effort, adding agents raises total-effort reliability while lowering
-  weakest-link reliability, and identical weakest-link agents achieve social optimality in Nash
-  equilibrium (Price of Stability `1`).
+  socially optimal total effort, adding agents (`S ⊆ T`) weakly raises equilibrium total-effort
+  reliability while weakly lowering equilibrium weakest-link reliability, and identical weakest-link
+  agents achieve social optimality in Nash equilibrium (Price of Stability `1`).
 * `Cslib.GameTheory.SystemReliabilitySpec.isPureNash_totalEffortLiabilityGame_single`,
   `Cslib.GameTheory.SystemReliabilitySpec.isPureNash_weakestLinkNegligenceGame_const`
   ([Varian2004], §7.1–§7.2, Facts 8 and 9): internalizing failure externalities via a Pigouvian
@@ -93,10 +94,10 @@ profile-independent constant `val i` and stays nonnegative whenever `prob (agg x
 * `Cslib.GameTheory.SystemReliabilitySpec.expected_socialCost_le_of_isCoarseCorrelatedEquilibrium`,
   `Cslib.GameTheory.SystemReliabilitySpec.socialCost_totalEffortGame_le_card_mul`,
   `Cslib.GameTheory.SystemReliabilitySpec.socialCost_bestShotGame_le_card_mul`,
-  `Cslib.GameTheory.exists_totalEffortGame_socialCost_gt_mul`: tight `(∑ i, c_i) / c_min` (equal
-  to `|ι|` for identical unit costs) robust Price of Anarchy over all coarse correlated equilibria
-  for both total-effort and best-shot reliability games, with matching `n / (1 + ε)` pure-Nash
-  tightness.
+  `Cslib.GameTheory.exists_totalEffortGame_socialCost_gt_mul` (original): tight
+  `(∑ i, c_i) / c_min` (equal to `|ι|` for identical unit costs) robust Price of Anarchy over all
+  coarse correlated equilibria for both total-effort and best-shot reliability games, with matching
+  `n / (1 + ε)` pure-Nash tightness.
 
 ## References
 
@@ -352,11 +353,11 @@ expected failure loss plus effort expenditure `val i * (1 - prob (agg x)) + unit
   cost i x := R.val i * (1 - R.prob (agg x)) + R.unitCost i * (x i : ℝ)
 
 /-- Varian's expected net payoff `v_i P(F(x)) - c_i x_i` ([Varian2004], §2, p. 2). -/
-@[expose] def payoff (agg : (ι → ℝ≥0) → ℝ≥0) (i : ι) (x : ι → ℝ≥0) : ℝ :=
+def payoff (agg : (ι → ℝ≥0) → ℝ≥0) (i : ι) (x : ι → ℝ≥0) : ℝ :=
   R.val i * R.prob (agg x) - R.unitCost i * (x i : ℝ)
 
 /-- Varian's expected social payoff `(∑ i, v_i) P(F(x)) - ∑ i, c_i x_i` ([Varian2004], §2, p. 2). -/
-@[expose] def socialPayoff [Fintype ι] (agg : (ι → ℝ≥0) → ℝ≥0) (x : ι → ℝ≥0) : ℝ :=
+def socialPayoff [Fintype ι] (agg : (ι → ℝ≥0) → ℝ≥0) (x : ι → ℝ≥0) : ℝ :=
   (∑ i, R.val i) * R.prob (agg x) - ∑ i, R.unitCost i * (x i : ℝ)
 
 @[simp] theorem cost_eq_val_sub_payoff (agg : (ι → ℝ≥0) → ℝ≥0) (i : ι) (x : ι → ℝ≥0) :
@@ -467,11 +468,10 @@ private theorem bestResponse_eq_iff_of_strictConcave {xBar : ι → ℝ≥0}
     conv_lhs => rw [hself]
     exact R.cost_totalEffortGame_bestResponse_le hConc hVal hOpt x i a
 
-/-- **Varian's Fact 1, complete characterization** ([Varian2004], §3.1, p. 3;
-[AndersonMooreNagarajaOzment2007], §25.2.1, p. 635): in the `ι`-agent total-effort game with
-strictly concave reliability, a profile `x` is a pure Nash equilibrium if and only if aggregate
-effort equals `sup_i xBar i` and every agent with `xBar i < sup_j xBar j` completely free-rides
-(`x i = 0`). -/
+/-- **Varian's Fact 1, complete characterization** ([Varian2004], §3.1, p. 3): in the `ι`-agent
+total-effort game with strictly concave reliability, a profile `x` is a pure Nash equilibrium if and
+only if aggregate effort equals `sup_i xBar i` and every agent with `xBar i < sup_j xBar j`
+completely free-rides (`x i = 0`). -/
 theorem isPureNash_totalEffortGame_iff {xBar : ι → ℝ≥0}
     (hConc : StrictConcaveOn ℝ (Set.Ici 0) R.prob) (hVal : ∀ i, 0 < R.val i)
     (hOpt : ∀ i, IsStandaloneOpt R.prob (R.val i) (R.unitCost i) (xBar i)) (x : ι → ℝ≥0) :
@@ -1017,20 +1017,90 @@ end WeakestLink
 
 /-! ### Group-size comparative statics (Varian's Fact 5) -/
 
-/-- **Varian's Fact 5, total-effort direction** ([Varian2004], §5, p. 7;
-[AndersonMooreNagarajaOzment2007], §25.2.1, p. 635): adding agents to a finite pool `S ⊆ T` weakly
-increases the champion standalone effort `S.sup xBar ≤ T.sup xBar`. -/
-theorem totalEffort_sup_mono_subset {ι : Type*} {S T : Finset ι} (hST : S ⊆ T) (xBar : ι → ℝ≥0) :
-    S.sup xBar ≤ T.sup xBar :=
-  Finset.sup_mono hST
+/-- Restriction of `R` to a finite sub-population `S : Finset ι`. -/
+abbrev restrict (S : Finset ι) : SystemReliabilitySpec S where
+  val i := R.val i
+  unitCost i := R.unitCost i
+  prob := R.prob
 
-/-- **Varian's Fact 5, weakest-link direction** ([Varian2004], §5, p. 7;
-[AndersonMooreNagarajaOzment2007], §25.2.1, p. 635): adding agents to a nonempty finite pool
-`S ⊆ T` weakly decreases the weakest-link equilibrium effort `T.inf' hT xBar ≤ S.inf' hS xBar`. -/
-theorem weakestLink_inf_anti_subset {ι : Type*} {S T : Finset ι} (hS : S.Nonempty)
-    (hT : T.Nonempty) (hST : S ⊆ T) (xBar : ι → ℝ≥0) :
-    T.inf' hT xBar ≤ S.inf' hS xBar :=
-  le_inf' hS xBar fun _ hi => inf'_le xBar (hST hi)
+/-- **Varian's Fact 5, total-effort direction** ([Varian2004], §5, p. 7): for finite agent pools
+`S ⊆ T`, the system reliability `R.prob (totalEffort xS)` at any pure Nash equilibrium `xS` of the
+total-effort game on `S` is at most `R.prob (totalEffort xT)` at any pure Nash equilibrium `xT` on
+`T`. -/
+theorem prob_totalEffort_le_of_subset_of_isPureNash [DecidableEq ι]
+    {S T : Finset ι} (hST : S ⊆ T) {xBar : ι → ℝ≥0}
+    (hConc : StrictConcaveOn ℝ (Set.Ici 0) R.prob)
+    (hMono : MonotoneOn R.prob (Set.Ici 0))
+    (hVal : ∀ i, 0 < R.val i)
+    (hOpt : ∀ i, IsStandaloneOpt R.prob (R.val i) (R.unitCost i) (xBar i))
+    {xS : S → ℝ≥0} (hxS : (R.restrict S).totalEffortGame.IsPureNash xS)
+    {xT : T → ℝ≥0} (hxT : (R.restrict T).totalEffortGame.IsPureNash xT) :
+    R.prob (totalEffort xS) ≤ R.prob (totalEffort xT) := by
+  have hS_eq := ((R.restrict S).isPureNash_totalEffortGame_iff hConc (fun i => hVal i)
+    (fun i => hOpt i) xS).mp hxS
+  have hT_eq := ((R.restrict T).isPureNash_totalEffortGame_iff hConc (fun i => hVal i)
+    (fun i => hOpt i) xT).mp hxT
+  have hle : totalEffort xS ≤ totalEffort xT := by
+    rw [hS_eq.1, hT_eq.1]
+    refine Finset.sup_le fun i _ => ?_
+    exact Finset.le_sup (f := fun j : T => xBar j.1) (mem_univ ⟨i.1, hST i.2⟩)
+  exact hMono (totalEffort xS).coe_nonneg (totalEffort xT).coe_nonneg (NNReal.coe_le_coe.mpr hle)
+
+private theorem weakestLink_le_inf_of_isPureNash [Fintype ι] [DecidableEq ι] [Nonempty ι]
+    {xBar : ι → ℝ≥0} (hConc : StrictConcaveOn ℝ (Set.Ici 0) R.prob)
+    (hVal : ∀ i, 0 < R.val i) (hCost : ∀ i, 0 ≤ R.unitCost i)
+    (hOpt : ∀ i, IsStandaloneOpt R.prob (R.val i) (R.unitCost i) (xBar i))
+    {x : ι → ℝ≥0} (hx : R.weakestLinkGame.IsPureNash x) :
+    weakestLink x ≤ univ.inf' univ_nonempty xBar := by
+  by_contra hlt
+  have hgt : univ.inf' univ_nonempty xBar < weakestLink x := lt_of_not_ge hlt
+  obtain ⟨i, _, hi⟩ := exists_mem_eq_inf' univ_nonempty xBar
+  have hxi_gt : xBar i < weakestLink x := hi ▸ hgt
+  have hw_upd : weakestLink (Function.update x i (xBar i)) = xBar i := by
+    refine le_antisymm ?_ (le_inf' univ_nonempty _ fun k _ => ?_)
+    · simpa only [weakestLink, Function.update_self] using
+        inf'_le (Function.update x i (xBar i)) (mem_univ i)
+    · by_cases hk : k = i
+      · subst hk; simp only [Function.update_self, le_rfl]
+      · simp only [Function.update_of_ne hk]
+        exact hxi_gt.le.trans (inf'_le x (mem_univ k))
+  have hdev := hx i (xBar i)
+  dsimp only [weakestLinkGame, toCostGame] at hdev
+  rw [hw_upd, Function.update_self] at hdev
+  have hstrict := (hOpt i).strict_lt_of_ne hConc (hVal i) hxi_gt.ne'
+  have hc_le : R.unitCost i * (weakestLink x : ℝ) ≤ R.unitCost i * (x i : ℝ) :=
+    mul_le_mul_of_nonneg_left (NNReal.coe_le_coe.mpr (inf'_le x (mem_univ i))) (hCost i)
+  linarith
+
+/-- **Varian's Fact 5, weakest-link direction** ([Varian2004], §5, p. 7): for nonempty finite agent
+pools `S ⊆ T`, the Pareto-dominant focal profile
+`fun _ : S => univ.inf' univ_nonempty (fun i : S => xBar i)` is a pure Nash equilibrium of the
+weakest-link game on `S`, and its system reliability `R.prob (weakestLink ...)` upper-bounds
+`R.prob (weakestLink xT)` at every pure Nash equilibrium `xT` on the larger pool `T`. -/
+theorem prob_weakestLink_le_of_subset_of_isPureNash [DecidableEq ι]
+    {S T : Finset ι} [Nonempty S] [Nonempty T] (hST : S ⊆ T) {xBar : ι → ℝ≥0}
+    (hConc : StrictConcaveOn ℝ (Set.Ici 0) R.prob)
+    (hMono : MonotoneOn R.prob (Set.Ici 0))
+    (hVal : ∀ i, 0 < R.val i) (hCost : ∀ i, 0 ≤ R.unitCost i)
+    (hOpt : ∀ i, IsStandaloneOpt R.prob (R.val i) (R.unitCost i) (xBar i))
+    {xT : T → ℝ≥0} (hxT : (R.restrict T).weakestLinkGame.IsPureNash xT) :
+    let xS : S → ℝ≥0 := fun _ => univ.inf' univ_nonempty (fun i : S => xBar i)
+    (R.restrict S).weakestLinkGame.IsPureNash xS ∧
+      R.prob (weakestLink xT) ≤ R.prob (weakestLink xS) := by
+  intro xS
+  refine ⟨(R.restrict S).isPureNash_weakestLinkGame_const_inf hConc (fun i => hVal i)
+    (fun i => hCost i) (fun i => hOpt i), ?_⟩
+  have hwT : weakestLink xT ≤ univ.inf' univ_nonempty (fun j : T => xBar j.1) :=
+    (R.restrict T).weakestLink_le_inf_of_isPureNash hConc (fun j => hVal j) (fun j => hCost j)
+      (fun j => hOpt j) hxT
+  have hinf_le : univ.inf' univ_nonempty (fun j : T => xBar j.1) ≤
+      univ.inf' univ_nonempty (fun i : S => xBar i.1) :=
+    le_inf' univ_nonempty _ fun i _ =>
+      inf'_le (fun j : T => xBar j.1) (mem_univ ⟨i.1, hST i.2⟩)
+  have hwS : weakestLink xS = univ.inf' univ_nonempty (fun i : S => xBar i.1) := by
+    simp only [xS, weakestLink, inf'_const]
+  exact hMono (weakestLink xT).coe_nonneg (weakestLink xS).coe_nonneg
+    (NNReal.coe_le_coe.mpr (hwT.trans (hinf_le.trans_eq hwS.symm)))
 
 /-! ### Best-shot Nash equilibria: champion and slacker equilibria -/
 
@@ -1175,8 +1245,8 @@ section PriceOfAnarchy
 
 variable [Fintype ι] [DecidableEq ι]
 
-/-- **Robust coarse-correlated Price of Anarchy** for monotone reliability games whose aggregator
-dominates individual efforts (`x i ≤ agg x`) and has least-cost bound
+/-- **Robust coarse-correlated Price of Anarchy** (original) for monotone reliability games whose
+aggregator dominates individual efforts (`x i ≤ agg x`) and has least-cost bound
 `cMin * agg x ≤ ∑ j, unitCost j * x j` (which holds simultaneously for `totalEffort` and
 `bestShot`): every coarse correlated equilibrium `σ` has expected social cost at most
 `((∑ i, unitCost i) / cMin) * socialCost x'` for every profile `x'`. -/
@@ -1247,9 +1317,9 @@ theorem expected_socialCost_le_of_isCoarseCorrelatedEquilibrium [Nonempty ι]
   rw [hsoc_x']
   nlinarith
 
-/-- **Pure-Nash `|ι|` Price of Anarchy for identical-cost total-effort games**: when every agent
-has `0 ≤ val i`, `unitCost i = c > 0`, and `prob` is nondecreasing with `prob ≤ 1`, every pure Nash
-equilibrium costs at most `(Fintype.card ι : ℝ)` times any profile `x'`. -/
+/-- **Pure-Nash `|ι|` Price of Anarchy for identical-cost total-effort games** (original): when
+every agent has `0 ≤ val i`, `unitCost i = c > 0`, and `prob` is nondecreasing with `prob ≤ 1`,
+every pure Nash equilibrium costs at most `(Fintype.card ι : ℝ)` times any profile `x'`. -/
 theorem socialCost_totalEffortGame_le_card_mul [Nonempty ι] {c : ℝ}
     (hVal : ∀ i, 0 ≤ R.val i) (hMono : MonotoneOn R.prob (Set.Ici 0))
     (hProb_le_one : ∀ z : ℝ≥0, R.prob z ≤ 1)
@@ -1266,9 +1336,9 @@ theorem socialCost_totalEffortGame_le_card_mul [Nonempty ι] {c : ℝ}
     hCost_eq, sum_const, card_univ, nsmul_eq_mul, mul_div_cancel_right₀ _ hc.ne'] at h
   exact h
 
-/-- **Pure-Nash `|ι|` Price of Anarchy for identical-cost best-shot games**: when every agent has
-`0 ≤ val i`, `unitCost i = c > 0`, and `prob` is nondecreasing with `prob ≤ 1`, every pure Nash
-equilibrium costs at most `(Fintype.card ι : ℝ)` times any profile `x'`. -/
+/-- **Pure-Nash `|ι|` Price of Anarchy for identical-cost best-shot games** (original): when every
+agent has `0 ≤ val i`, `unitCost i = c > 0`, and `prob` is nondecreasing with `prob ≤ 1`, every pure
+Nash equilibrium costs at most `(Fintype.card ι : ℝ)` times any profile `x'`. -/
 theorem socialCost_bestShotGame_le_card_mul [Nonempty ι] {c : ℝ}
     (hVal : ∀ i, 0 ≤ R.val i) (hMono : MonotoneOn R.prob (Set.Ici 0))
     (hProb_le_one : ∀ z : ℝ≥0, R.prob z ≤ 1)
@@ -1293,10 +1363,10 @@ end PriceOfAnarchy
 
 end SystemReliabilitySpec
 
-/-- **Asymptotic tightness of the `n` Price-of-Anarchy bound**: for every `n ≥ 1` and every ratio
-`β < n`, there exists an `n`-agent identical-valuation, identical-cost `SystemReliabilitySpec`
-with concave, monotone, `[0, 1]`-valued reliability whose unique pure Nash equilibrium `0`
-strictly exceeds `β` times the social cost of `Pi.single ⟨0, hn⟩ 1`. -/
+/-- **Asymptotic tightness of the `n` Price-of-Anarchy bound** (original): for every `n ≥ 1` and
+every ratio `β < n`, there exists an `n`-agent identical-valuation, identical-cost
+`SystemReliabilitySpec` with concave, monotone, `[0, 1]`-valued reliability whose unique pure Nash
+equilibrium `0` strictly exceeds `β` times the social cost of `Pi.single ⟨0, hn⟩ 1`. -/
 theorem exists_totalEffortGame_socialCost_gt_mul {n : ℕ} (hn : 0 < n) {β : ℝ} (hβ : β < n) :
     ∃ (R : SystemReliabilitySpec (Fin n)) (x x' : Fin n → ℝ≥0),
       (∀ i, 0 < R.val i) ∧ (∀ i, R.unitCost i = R.unitCost ⟨0, hn⟩) ∧ 0 < R.unitCost ⟨0, hn⟩ ∧

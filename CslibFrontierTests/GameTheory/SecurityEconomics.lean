@@ -294,6 +294,68 @@ example : ∃ (R : SystemReliabilitySpec (Fin 3)) (x x' : Fin 3 → ℝ≥0),
     exists_totalEffortGame_socialCost_gt_mul (n := 3) (by decide) (β := 5 / 2) (by norm_num)
   exact ⟨R, x, x', hN, hgt⟩
 
+/-- **Payoff-maximization vs. `CostGame`-minimization bridge** (`payoff`, `socialPayoff`,
+`isStandaloneOpt_iff_payoff_le`, `socialCost_eq_sum_val_sub_socialPayoff`): on `wrongAgentSpec`,
+player standalone maximization of `v_i P(z) - c_i z`, unilateral maximization of `payoff`, and
+social maximization of `socialPayoff` coincide with `IsStandaloneOpt`, `IsPureNash`, and
+`socialCost` minimization. -/
+theorem wrongAgentSpec_payoff_bridge_checked :
+    (∀ (i : Fin 2) (z : ℝ≥0),
+      wrongAgentSpec.val i * wrongAgentSpec.prob z - wrongAgentSpec.unitCost i * (z : ℝ) ≤
+        wrongAgentSpec.val i * wrongAgentSpec.prob (![(2 : ℝ≥0), 3] i) -
+          wrongAgentSpec.unitCost i * ((![(2 : ℝ≥0), 3] i : ℝ≥0) : ℝ)) ∧
+    (∀ (i : Fin 2) (a : ℝ≥0),
+      wrongAgentSpec.payoff totalEffort i (update (Pi.single 1 3) i a) ≤
+        wrongAgentSpec.payoff totalEffort i (Pi.single 1 3)) ∧
+    (∀ z : Fin 2 → ℝ≥0,
+      wrongAgentSpec.socialPayoff totalEffort z ≤
+        wrongAgentSpec.socialPayoff totalEffort (Pi.single 0 6)) := by
+  obtain ⟨hNash, _, hSoc, _, _, _⟩ := wrongAgentSpec_checked
+  refine ⟨fun i z => isStandaloneOpt_iff_payoff_le.mp (wrongAgentSpec_opt i) z,
+    fun i a => ?_, fun z => ?_⟩
+  · have h := hNash i a
+    simp only [SystemReliabilitySpec.totalEffortGame,
+      SystemReliabilitySpec.cost_eq_val_sub_payoff] at h
+    linarith
+  · have h := hSoc z
+    simp only [SystemReliabilitySpec.totalEffortGame,
+      SystemReliabilitySpec.socialCost_eq_sum_val_sub_socialPayoff] at h
+    linarith
+
+/-- **Varian's Fact 5 comparative-statics check** (`prob_totalEffort_le_of_subset_of_isPureNash` and
+`prob_weakestLink_le_of_subset_of_isPureNash`) across `{0} ⊆ {0, 1}` on `wrongAgentSpec`: adding
+agent `1` (`xBar = ![2, 3]`) raises equilibrium total-effort reliability while keeping weakest-link
+focal equilibrium reliability bounded by `{0}`'s focal reliability. -/
+theorem wrongAgentSpec_fact5_checked :
+    let S : Finset (Fin 2) := {0}
+    let T : Finset (Fin 2) := {0, 1}
+    letI : Nonempty S := ⟨⟨0, mem_singleton_self 0⟩⟩
+    letI : Nonempty T := ⟨⟨0, by decide⟩⟩
+    (∀ (xS : S → ℝ≥0) (xT : T → ℝ≥0),
+      (wrongAgentSpec.restrict S).totalEffortGame.IsPureNash xS →
+      (wrongAgentSpec.restrict T).totalEffortGame.IsPureNash xT →
+      wrongAgentSpec.prob (totalEffort xS) ≤ wrongAgentSpec.prob (totalEffort xT)) ∧
+    (∀ xT : T → ℝ≥0,
+      (wrongAgentSpec.restrict T).weakestLinkGame.IsPureNash xT →
+      wrongAgentSpec.prob (weakestLink xT) ≤
+        wrongAgentSpec.prob (weakestLink fun _ : S =>
+          univ.inf' univ_nonempty (fun i : S => ![(2 : ℝ≥0), 3] i.1))) := by
+  intro S T
+  have : Nonempty S := ⟨⟨0, mem_singleton_self 0⟩⟩
+  have : Nonempty T := ⟨⟨0, by decide⟩⟩
+  have hST : S ⊆ T := by decide
+  have hVal : ∀ i, 0 < wrongAgentSpec.val i := fun i => by
+    fin_cases i <;> norm_num [wrongAgentSpec]
+  have hCost : ∀ i, 0 ≤ wrongAgentSpec.unitCost i := fun i => by
+    fin_cases i <;> norm_num [wrongAgentSpec]
+  refine ⟨fun xS xT hxS hxT =>
+    wrongAgentSpec.prob_totalEffort_le_of_subset_of_isPureNash hST strictConcaveOn_reliabilityCurve
+      monotoneOn_reliabilityCurve hVal wrongAgentSpec_opt hxS hxT,
+    fun xT hxT =>
+      (wrongAgentSpec.prob_weakestLink_le_of_subset_of_isPureNash hST
+        strictConcaveOn_reliabilityCurve monotoneOn_reliabilityCurve hVal hCost wrongAgentSpec_opt
+        hxT).2⟩
+
 /-! ### 4. Kunreuther–Heal (2003) Table 2: pure, mixed, correlated, and taxed equilibria -/
 
 /-- Kunreuther–Heal (2003) Table 2 instance (`p = 1/10, q = 4/5, L = 1000, c = 95`). -/

@@ -14,16 +14,14 @@ import CslibFrontier.GameTheory.Security.SystemReliability
 -/
 
 register_result "varian-system-reliability-equilibria-and-welfare" where
-  title := "Equilibria, underprovision, wrong-agent allocation, and liability internalization in \
-    Varian's total-effort, weakest-link, and best-shot system reliability games"
+  title := "Equilibria, underprovision, wrong-agent allocation, group-size comparative statics, \
+    and liability internalization in Varian's total-effort, weakest-link, and best-shot system \
+    reliability games"
   topic := "game theory"
   sources := [
     { paper := Varian2004,
       theorem := "Facts 1, 2, 3, 4, 5, 7, 8, and 9, and §3.3 best-shot analysis",
-      locator := "§§3.1–7.2, pp. 3–11" },
-    { paper := AndersonMooreNagarajaOzment2007,
-      theorem := "Section 25.2.1 system-reliability summary",
-      locator := "§25.2.1, proof pp. 634–635 / printed pp. 636–637" }
+      locator := "§§3.1–7.2, pp. 3–11" }
   ]
   theorems := [
     Cslib.GameTheory.SystemReliabilitySpec.isPureNash_totalEffortGame_iff,
@@ -36,8 +34,8 @@ register_result "varian-system-reliability-equilibria-and-welfare" where
     Cslib.GameTheory.SystemReliabilitySpec.isPureNash_weakestLinkGame_iff,
     Cslib.GameTheory.SystemReliabilitySpec.cost_weakestLinkGame_const_inf_le_of_isPureNash,
     Cslib.GameTheory.SystemReliabilitySpec.weakestLink_socialOpt_le_totalEffort_socialOpt,
-    Cslib.GameTheory.SystemReliabilitySpec.totalEffort_sup_mono_subset,
-    Cslib.GameTheory.SystemReliabilitySpec.weakestLink_inf_anti_subset,
+    Cslib.GameTheory.SystemReliabilitySpec.prob_totalEffort_le_of_subset_of_isPureNash,
+    Cslib.GameTheory.SystemReliabilitySpec.prob_weakestLink_le_of_subset_of_isPureNash,
     Cslib.GameTheory.SystemReliabilitySpec.identicalAgents_weakestLink_socialOpt_isPureNash,
     Cslib.GameTheory.SystemReliabilitySpec.isPureNash_totalEffortLiabilityGame_single,
     Cslib.GameTheory.SystemReliabilitySpec.isPureNash_weakestLinkNegligenceGame_const,
@@ -48,15 +46,20 @@ register_result "varian-system-reliability-equilibria-and-welfare" where
   scope := "Finite player sets [Fintype ι] choosing nonnegative continuous efforts x : ι → ℝ≥0 in \
     CostGame minimization form val i * (1 - prob (agg x)) + unitCost i * x i (strategically \
     equivalent to maximizing Varian's expected net payoff val i * prob (agg x) - unitCost i * x i \
-    up to the profile-independent constant val i), allowing boundary corner standalone optima \
-    xBar i = 0 as well as interior first-order optima via isStandaloneOpt_of_hasDerivAt. \
-    isPureNash_weakestLinkGame_iff explicitly records [Nontrivial ι] (|ι| ≥ 2) for the [0, inf_i \
-    xBar i] continuum, since |ι| = 1 admits only xBar i₀. Sequential two-player moves (§8, \
-    Fact 10) and Bayesian incomplete information (§9, Facts 11–12) are not covered."
+    up to the profile-independent constant val i, surveyed qualitatively in \
+    Anderson–Moore–Nagaraja–Ozment 2007, Chapter 25, §25.2.1, printed p. 635), allowing boundary \
+    corner standalone optima xBar i = 0 as well as interior first-order optima via \
+    isStandaloneOpt_of_hasDerivAt. isPureNash_weakestLinkGame_iff explicitly records \
+    [Nontrivial ι] (|ι| ≥ 2) for the [0, inf_i xBar i] continuum, since |ι| = 1 admits only \
+    xBar i₀; Fact 5 is proved on equilibrium system reliability prob (totalEffort _) and \
+    prob (weakestLink _) across sub-populations S ⊆ T via SystemReliabilitySpec.restrict. \
+    Original robust ((∑ i, c_i) / c_min) / |ι| Price-of-Anarchy bounds are kept separate from \
+    this entry. Sequential two-player moves (§8, Fact 10) and Bayesian incomplete information \
+    (§9, Facts 11–12) are not covered."
 
 register_result "kunreuther-heal-interdependent-security-and-tipping" where
-  title := "Contagion limits, pure/mixed/correlated equilibria, tipping cascades, and smoothness \
-    Price of Anarchy in Kunreuther–Heal interdependent security games"
+  title := "Contagion limits, symmetric pure Nash equilibria, Pigouvian taxation, and tipping \
+    cascades in Kunreuther–Heal interdependent security games"
   topic := "game theory"
   sources := [
     { paper := KunreutherHeal2003,
@@ -65,10 +68,8 @@ register_result "kunreuther-heal-interdependent-security-and-tipping" where
       locator := "§§2–3, NBER PDF pp. 6–12 (J. Risk Uncertain. 26(2–3), 231–249)" },
     { paper := HealKunreuther2007,
       theorem := "Theorems 1, 2, and 3, Definition 2, and §5.2 multi-round tipping cascades",
-      locator := "§§3 and 5.2, and Appendix p. 20, Wharton PDF pp. 8–16, 20" },
-    { paper := AndersonMooreNagarajaOzment2007,
-      theorem := "Section 25.2.1 interdependent-security and tipping summary",
-      locator := "§25.2.1, proof p. 635 / printed p. 637" }
+      locator := "§§3 and 5.2, and Appendix p. 20, Wharton PDF pp. 8–16, 20 (Risk Analysis \
+        27(3), 621–634)" }
   ]
   theorems := [
     Cslib.GameTheory.InterdependentSecuritySpec.isPureNash_toCostGame_iff,
@@ -78,24 +79,23 @@ register_result "kunreuther-heal-interdependent-security-and-tipping" where
     Cslib.GameTheory.InterdependentSecuritySpec.IsCriticalCoalition.tipsAll,
     Cslib.GameTheory.InterdependentSecuritySpec.isPureNash_allTrue_of_tipsAll,
     Cslib.GameTheory.InterdependentSecuritySpec.isCriticalCoalition_of_higher_contagion,
-    Cslib.GameTheory.InterdependentSecuritySpec.isCorrelatedEquilibrium_publicSignal,
-    Cslib.GameTheory.InterdependentSecuritySpec.isSmooth_toCostGame,
-    Cslib.GameTheory.InterdependentSecuritySpec.expected_socialCost_le_of_isCCE,
     Cslib.GameTheory.symmetricIDSSpec_cost_allFalse_eq_geom_sum,
     Cslib.GameTheory.symmetricIDSSpec_criticalCost_eq_geom_sum,
     Cslib.GameTheory.tendsto_symmetricIDSSpec_cost_allFalse_atTop,
     Cslib.GameTheory.eventually_not_dominant_invest_symmetricIDSSpec,
     Cslib.GameTheory.eq_const_of_isPureNash_symmetricIDSSpec,
-    Cslib.GameTheory.isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique,
-    Cslib.GameTheory.symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement,
-    Cslib.GameTheory.symmetricIDSSpec_poa_eq_inv_one_sub,
-    Cslib.GameTheory.symmetricIDSSpec_prisonersDilemma_socialCost_le
+    Cslib.GameTheory.isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
   ]
   scope := "Finite Class 1 binary interdependent security games (CostGame ι (fun _ => Bool)) with \
-    non-additive direct and peer-contagion losses. For Heal–Kunreuther (2007) Theorem 3, \
-    isCriticalCoalition_of_higher_contagion adds normalized-reluctance alignment \
-    c_k / (p_k L_k) ≤ c_j / (p_j L_j) on replaced vs. replacing agents (automatic for homogeneous \
-    (p, L, c)), correcting an omitted k ∈ M' \\ M case in Appendix eq. (17) (p. 20) witnessed by \
-    checked Fin 3 and Fin 4 counterexamples in CslibFrontierTests.GameTheory.SecurityEconomics. \
-    Insurance, bankruptcy/limited liability, multi-period discounting, and Class 2 partial \
-    protection are not covered."
+    non-additive direct and peer-contagion losses (surveyed qualitatively in \
+    Anderson–Moore–Nagaraja–Ozment 2007, Chapter 25, §25.2.1, printed p. 635). For \
+    Heal–Kunreuther (2007) Theorem 3, isCriticalCoalition_of_higher_contagion adds \
+    normalized-reluctance alignment c_k / (p_k L_k) ≤ c_j / (p_j L_j) on replaced vs. replacing \
+    agents (automatic for homogeneous (p, L, c)), correcting an omitted k ∈ M' \\ M case in \
+    Appendix eq. (17) (p. 20) witnessed by checked Fin 3 and Fin 4 counterexamples in \
+    CslibFrontierTests.GameTheory.SecurityEconomics. Original extensions in the same module \
+    (public-signal correlated equilibria, the 2-agent mixed-vs-correlated strict cost gap, \
+    Roughgarden (1, μ)-smoothness CCE Price of Anarchy, and the 1 + n q Prisoner's Dilemma \
+    social-cost ratio) are omitted from this source-attributed entry. Insurance, \
+    bankruptcy/limited liability, multi-period discounting, and Class 2 partial protection are \
+    not covered."

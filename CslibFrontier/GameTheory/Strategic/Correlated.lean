@@ -46,6 +46,10 @@ theorem, every finite game has a correlated equilibrium.
   equilibrium is a coarse correlated equilibrium.
 * `Cslib.GameTheory.CostGame.IsPureNash.isCorrelatedEquilibrium`: a pure Nash equilibrium is a
   correlated equilibrium as a point mass.
+* `Cslib.GameTheory.CostGame.IsCorrelatedEquilibrium.convexCombPair`,
+  `Cslib.GameTheory.CostGame.IsPureNash.isCorrelatedEquilibrium_duple`: correlated equilibria are
+  closed under binary convex combinations (in particular, two-point public-signal mixtures of pure
+  Nash equilibria).
 * `Cslib.GameTheory.CostGame.IsMixedNash.isCorrelatedEquilibrium`: the product distribution of a
   mixed Nash equilibrium is a correlated equilibrium.
 * `Cslib.GameTheory.CostGame.exists_isCorrelatedEquilibrium`: every finite game has a correlated
@@ -191,6 +195,38 @@ theorem IsPureNash.isCorrelatedEquilibrium {s : ∀ i, S i} (hs : G.IsPureNash s
   intro i δ
   simp only [Convexity.StdSimplex.weights_single, Finsupp.sum_single_index, zero_mul, one_mul]
   exact hs i (δ (s i))
+
+/-- Correlated equilibria are closed under binary convex combinations. -/
+theorem IsCorrelatedEquilibrium.convexCombPair
+    {σ₁ σ₂ : Convexity.StdSimplex ℝ (∀ i, S i)}
+    (h₁ : G.IsCorrelatedEquilibrium σ₁) (h₂ : G.IsCorrelatedEquilibrium σ₂)
+    {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1) :
+    G.IsCorrelatedEquilibrium (Convexity.convexCombPair a b ha hb hab σ₁ σ₂) := by
+  have hsum : ∀ f : (∀ i, S i) → ℝ,
+      (Convexity.convexCombPair a b ha hb hab σ₁ σ₂).weights.sum (fun s w => w * f s) =
+        a * σ₁.weights.sum (fun s w => w * f s) +
+          b * σ₂.weights.sum (fun s w => w * f s) := fun f => by
+    rw [Convexity.StdSimplex.weights_convexCombPair,
+      Finsupp.sum_add_index' (fun s => zero_mul (f s)) (fun s _ _ => add_mul _ _ (f s)),
+      Finsupp.sum_smul_index' (fun s => zero_mul (f s)),
+      Finsupp.sum_smul_index' (fun s => zero_mul (f s))]
+    simp only [Finsupp.sum, smul_eq_mul, mul_assoc, ← mul_sum]
+  intro i δ
+  rw [hsum, hsum]
+  linarith [mul_le_mul_of_nonneg_left (h₁ i δ) ha, mul_le_mul_of_nonneg_left (h₂ i δ) hb]
+
+/-- A two-point convex combination (public-signal mixture) of two pure Nash equilibria is a
+correlated equilibrium. -/
+theorem IsPureNash.isCorrelatedEquilibrium_duple {s₁ s₂ : ∀ i, S i}
+    (h₁ : G.IsPureNash s₁) (h₂ : G.IsPureNash s₂)
+    {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1) :
+    G.IsCorrelatedEquilibrium (Convexity.StdSimplex.duple s₁ s₂ ha hb hab) := by
+  have heq : Convexity.StdSimplex.duple s₁ s₂ ha hb hab =
+      Convexity.convexCombPair a b ha hb hab (.single s₁) (.single s₂) := by
+    ext s
+    simp [Convexity.StdSimplex.weights_duple, Convexity.StdSimplex.weights_convexCombPair]
+  rw [heq]
+  exact h₁.isCorrelatedEquilibrium.convexCombPair h₂.isCorrelatedEquilibrium ha hb hab
 
 section Mixed
 

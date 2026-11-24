@@ -26,14 +26,14 @@ import Mathlib.Tactic.Ring
 /-!
 # Interdependent security games, tipping cascades, correlated equilibria, and Price of Anarchy
 
-Kunreuther and Heal [KunreutherHeal2003] and Heal and Kunreuther [HealKunreuther2007], surveyed in
-[AndersonMooreNagarajaOzment2007], §25.2.1, formalize **interdependent security (IDS)**: each agent
-`i : ι` chooses whether to invest in security (`true`) at cost `investCost i` or remain unprotected
-(`false`). Investment eliminates an agent's own direct disaster probability `directProb i`, but an
-investing agent still remains exposed to stochastic **contagion** (`contagion j i`) originating at
-each unprotected peer `j ≠ i`. Disasters are non-additive ("a house only burns once"), so an
-unprotected agent incurs contagion loss `loss i` only on the event `1 - directProb i` that no
-domestic disaster occurred.
+Kunreuther and Heal [KunreutherHeal2003] and Heal and Kunreuther [HealKunreuther2007] (surveyed in
+[AndersonMooreNagarajaOzment2007], §25.2.1, p. 635) formalize **interdependent security (IDS)**:
+each agent `i : ι` chooses whether to invest in security (`true`) at cost `investCost i` or remain
+unprotected (`false`). Investment eliminates an agent's own direct disaster probability
+`directProb i`, but an investing agent still remains exposed to stochastic **contagion**
+(`contagion j i`) originating at each unprotected peer `j ≠ i`. Disasters are non-additive ("a house
+only burns once"), so an unprotected agent incurs contagion loss `loss i` only on the event
+`1 - directProb i` that no domestic disaster occurred.
 
 ## Main definitions
 
@@ -82,17 +82,17 @@ domestic disaster occurred.
   the docstring and test suite why [HealKunreuther2007] Theorem 3's literal unaligned-cost
   statement omits checking `i ∈ M' \ M` in Appendix eq. (17)).
 * `Cslib.GameTheory.InterdependentSecuritySpec.isCorrelatedEquilibrium_publicSignal`,
-  `Cslib.GameTheory.symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement`: in the
-  multi-equilibrium regime, every public-signal mixture of `all true` and `all false` is a
+  `Cslib.GameTheory.symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement` (original): in
+  the multi-equilibrium regime, every public-signal mixture of `all true` and `all false` is a
   correlated equilibrium, and at the `2`-agent mixed-Nash marginal investment rate `θ`, public
   correlation strictly lowers every player's expected cost by `θ * (1 - θ) * p^2 * q * L > 0`.
 * `Cslib.GameTheory.InterdependentSecuritySpec.isSmooth_toCostGame`,
   `Cslib.GameTheory.InterdependentSecuritySpec.expected_socialCost_le_of_isCCE`,
   `Cslib.GameTheory.symmetricIDSSpec_poa_eq_inv_one_sub`,
-  `Cslib.GameTheory.symmetricIDSSpec_prisonersDilemma_socialCost_le`: `(1, μ)`-smoothness giving a
-  robust `1 / (1 - μ)` Price-of-Anarchy bound over all coarse correlated equilibria (tight with
-  equality `1 / (1 - q)` at `n = 2, p = 1`), alongside the `1 + (n - 1) * q` bound in the
-  Prisoner's Dilemma regime `p * L < c`.
+  `Cslib.GameTheory.symmetricIDSSpec_prisonersDilemma_socialCost_le` (original):
+  `(1, μ)`-smoothness giving a robust `1 / (1 - μ)` Price-of-Anarchy bound over all coarse
+  correlated equilibria (tight with equality `1 / (1 - q)` at `n = 2, p = 1`), alongside the
+  `1 + (n - 1) * q` bound in the Prisoner's Dilemma regime `p * L < c`.
 
 ## References
 
@@ -143,7 +143,7 @@ agent `i`. -/
   ∏ j ∈ (univ.erase i).filter (fun j => !s j), (1 - G.contagion j i)
 
 /-- Probability `1 - noContagionProb i s` that at least one unprotected peer contaminates `i`. -/
-@[expose] def contagionProb (i : ι) (s : ι → Bool) : ℝ :=
+def contagionProb (i : ι) (s : ι → Bool) : ℝ :=
   1 - G.noContagionProb i s
 
 /-- Critical protection cost `c_i(s_{-i}) = p_i L_i · noContagionProb i s` ([HealKunreuther2007],
@@ -172,10 +172,6 @@ loss `loss i * contagionProb i s`, whereas not investing incurs expected loss
 @[simp] theorem contagionProb_update_self (i : ι) (s : ι → Bool) (b : Bool) :
     G.contagionProb i (update s i b) = G.contagionProb i s := by
   simp only [contagionProb, noContagionProb_update_self]
-
-@[simp] theorem criticalCost_update_self (i : ι) (s : ι → Bool) (b : Bool) :
-    G.criticalCost i (update s i b) = G.criticalCost i s := by
-  simp only [criticalCost, noContagionProb_update_self]
 
 @[simp] theorem noContagionProb_allTrue (i : ι) :
     G.noContagionProb i (fun _ => true) = 1 := by
@@ -255,10 +251,6 @@ theorem isPureNash_allFalse_iff :
 
 /-! ### Supermodularity, constructive Nash existence, coexistence, and tipping cascades -/
 
-theorem noContagionProb_nonneg (hle : ∀ j i, G.contagion j i ≤ 1) (i : ι) (s : ι → Bool) :
-    0 ≤ G.noContagionProb i s :=
-  prod_nonneg fun j _ => sub_nonneg.mpr (hle j i)
-
 theorem noContagionProb_le_one (h0 : ∀ j i, 0 ≤ G.contagion j i)
     (h1 : ∀ j i, G.contagion j i ≤ 1) (i : ι) (s : ι → Bool) :
     G.noContagionProb i s ≤ 1 :=
@@ -292,7 +284,7 @@ theorem criticalCost_mono (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀ i, 0 ≤ 
 
 /-- Synchronous deterministic best-response map: player `i` invests iff
 `investCost i ≤ criticalCost i s`. -/
-@[expose] noncomputable def bestResponse (s : ι → Bool) : ι → Bool :=
+noncomputable def bestResponse (s : ι → Bool) : ι → Bool :=
   fun i => decide (G.investCost i ≤ G.criticalCost i s)
 
 theorem bestResponse_mono (hp : ∀ i, 0 ≤ G.directProb i) (hL : ∀ i, 0 ≤ G.loss i)
@@ -694,8 +686,8 @@ theorem isCriticalCoalition_of_higher_contagion {qExt : ι → ℝ}
 
 /-! ### Correlated equilibria and Roughgarden `(1, μ)`-smoothness / Price of Anarchy -/
 
-/-- **Public-signal correlated equilibrium** in the multi-equilibrium IDS regime: whenever both
-`fun _ => true` and `fun _ => false` are pure Nash equilibria, every convex mixture
+/-- **Public-signal correlated equilibrium** in the multi-equilibrium IDS regime (original):
+whenever both `fun _ => true` and `fun _ => false` are pure Nash equilibria, every convex mixture
 `α • δ_{all true} + (1 - α) • δ_{all false}` (`0 ≤ α ≤ 1`) is a correlated equilibrium of
 `G.toCostGame`. -/
 theorem isCorrelatedEquilibrium_publicSignal
@@ -704,21 +696,8 @@ theorem isCorrelatedEquilibrium_publicSignal
     {α : ℝ} (hα0 : 0 ≤ α) (hα1 : α ≤ 1) :
     G.toCostGame.IsCorrelatedEquilibrium
       (.duple (fun _ => true) (fun _ => false)
-        (s := α) (t := 1 - α) hα0 (by linarith) (by ring)) := by
-  set σ : Convexity.StdSimplex ℝ (ι → Bool) :=
-    .duple (fun _ => true) (fun _ => false) (s := α) (t := 1 - α) hα0 (by linarith) (by ring)
-  have hsum : ∀ f : (ι → Bool) → ℝ,
-      σ.weights.sum (fun s w => w * f s) =
-        α * f (fun _ => true) + (1 - α) * f (fun _ => false) := fun f => by
-    dsimp only [σ]
-    rw [Convexity.StdSimplex.weights_duple,
-      Finsupp.sum_add_index' (fun s => zero_mul (f s)) (fun s _ _ => add_mul _ _ (f s)),
-      Finsupp.sum_single_index (zero_mul _), Finsupp.sum_single_index (zero_mul _)]
-  intro i δ
-  rw [hsum, hsum]
-  have h1 := hTrue i (δ true)
-  have h2 := hFalse i (δ false)
-  nlinarith
+        (s := α) (t := 1 - α) hα0 (by linarith) (by ring)) :=
+  hTrue.isCorrelatedEquilibrium_duple hFalse hα0 (by linarith) (by ring)
 
 /-- Union bound on peer contagion: `contagionProb i s` is at most the sum of contagion rates from
 unprotected peers `j ≠ i`. -/
@@ -740,9 +719,9 @@ theorem contagionProb_le_sum (h0 : ∀ j i, 0 ≤ G.contagion j i)
       prod_le_one₀ (fun j _ => sub_nonneg.mpr (h1 j i)) fun j _ => sub_le_self 1 (h0 j i)
     nlinarith
 
-/-- **`(1, μ)`-smoothness of heterogeneous interdependent security games**: if the expected
-contagion damages `∑ i ≠ j, contagion j i * loss i` generated by each unprotected agent `j` are at
-most `μ` times `j`'s own expected direct loss `directProb j * loss j`, then `G.toCostGame` is
+/-- **`(1, μ)`-smoothness of heterogeneous interdependent security games** (original): if the
+expected contagion damages `∑ i ≠ j, contagion j i * loss i` generated by each unprotected agent `j`
+are at most `μ` times `j`'s own expected direct loss `directProb j * loss j`, then `G.toCostGame` is
 `(1, μ)`-smooth in Roughgarden's framework (`CostGame.IsSmooth 1 μ`). -/
 theorem isSmooth_toCostGame {μ : ℝ}
     (hp0 : ∀ i, 0 ≤ G.directProb i) (hp1 : ∀ i, G.directProb i ≤ 1)
@@ -834,9 +813,9 @@ theorem isSmooth_toCostGame {μ : ℝ}
   rw [one_mul]
   linarith [hsum1, hswap, hbound_j]
 
-/-- **Robust `1 / (1 - μ)` Price of Anarchy for coarse correlated equilibria** of interdependent
-security games: when `μ < 1` bounds each agent's outgoing contagion-to-direct-loss ratio, every
-coarse correlated equilibrium `σ` has expected social cost at most
+/-- **Robust `1 / (1 - μ)` Price of Anarchy for coarse correlated equilibria** (original) of
+interdependent security games: when `μ < 1` bounds each agent's outgoing contagion-to-direct-loss
+ratio, every coarse correlated equilibrium `σ` has expected social cost at most
 `1 / (1 - μ) * socialCost s'`. -/
 theorem expected_socialCost_le_of_isCCE {μ : ℝ}
     (hp0 : ∀ i, 0 ≤ G.directProb i) (hp1 : ∀ i, G.directProb i ≤ 1)
@@ -1117,8 +1096,9 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
     by_contra hne0
     exact hs (hsupp s (Finsupp.mem_support_iff.mpr hne0))
 
-/-- **Mixed Nash vs. public-signal correlated equilibrium in 2-agent Kunreuther–Heal IDS**: in the
-interior coordination regime `p L (1 - p q) < c < p L`, let `θ = 1 - (p L - c) / (p² q L) ∈ (0, 1)`.
+/-- **Mixed Nash vs. public-signal correlated equilibrium in 2-agent Kunreuther–Heal IDS**
+(original): in the interior coordination regime `p L (1 - p q) < c < p L`, let
+`θ = 1 - (p L - c) / (p² q L) ∈ (0, 1)`.
 1. Independent mixing at rate `θ` is an exact `CostGame.IsMixedNash` equilibrium of the `2`-agent
    IDS game with expected cost `c + (1 - θ) p q L` per player.
 2. Publicly correlating `(true, true)` with probability `θ` and `(false, false)` with probability
@@ -1259,10 +1239,10 @@ theorem symmetricIDSSpec_isMixedNash_and_correlated_strict_improvement
     rw [hexp_i, hσ_sum, hcost_TT i, hFF]
     nlinarith [h1_sub_θ]
 
-/-- **Exact tightness of the `1 / (1 - (n - 1) q)` smoothness Price-of-Anarchy bound**: at `n = 2`,
-`p = 1`, `0 < q < 1`, `0 < L`, and `c = L * (1 - q)`, both `(true, true)` and `(false, false)` are
-pure Nash equilibria, `(true, true)` is globally socially optimal, and `socialCost (false, false)`
-equals `1 / (1 - q) * socialCost (true, true)` with exact equality. -/
+/-- **Exact tightness of the `1 / (1 - (n - 1) q)` smoothness Price-of-Anarchy bound** (original):
+at `n = 2`, `p = 1`, `0 < q < 1`, `0 < L`, and `c = L * (1 - q)`, both `(true, true)` and
+`(false, false)` are pure Nash equilibria, `(true, true)` is globally socially optimal, and
+`socialCost (false, false)` equals `1 / (1 - q) * socialCost (true, true)` with exact equality. -/
 theorem symmetricIDSSpec_poa_eq_inv_one_sub {q L : ℝ} (hq0 : 0 < q) (hq1 : q < 1) (hL : 0 < L) :
     let G := symmetricIDSSpec (Fin 2) 1 q L (L * (1 - q))
     G.toCostGame.IsSmooth 1 q ∧
@@ -1351,11 +1331,11 @@ theorem symmetricIDSSpec_poa_eq_inv_one_sub {q L : ℝ} (hq0 : 0 < q) (hq1 : q <
     have hne : 1 - q ≠ 0 := by linarith
     field_simp [hne]
 
-/-- **Pure-Nash Price of Anarchy in the Prisoner's Dilemma IDS regime** ([KunreutherHeal2003], §2,
-p. 11): when `p * L < c` (with `0 < p ≤ 1`, `0 ≤ q ≤ 1`, `0 < L`), `(fun _ => false)` is the unique
-pure Nash equilibrium of the `(n + 1)`-agent symmetric IDS game and its social cost is at most
-`(1 + n * q)` times the social cost of every profile `s'` (at most `(n + 1)` times optimal since
-`q ≤ 1`). -/
+/-- **Pure-Nash Price of Anarchy in the Prisoner's Dilemma IDS regime** (original, motivated by the
+two-airline Prisoner's Dilemma example of [KunreutherHeal2003], §2, Table 3, p. 11): when
+`p * L < c` (with `0 < p ≤ 1`, `0 ≤ q ≤ 1`, `0 < L`), `(fun _ => false)` is the unique pure Nash
+equilibrium of the `(n + 1)`-agent symmetric IDS game and its social cost is at most `(1 + n * q)`
+times the social cost of every profile `s'` (at most `(n + 1)` times optimal since `q ≤ 1`). -/
 theorem symmetricIDSSpec_prisonersDilemma_socialCost_le (n : ℕ) {p q L c : ℝ}
     (hp0 : 0 < p) (hp1 : p ≤ 1) (hq0 : 0 ≤ q) (hq1 : q ≤ 1) (hL : 0 < L)
     (hPD : p * L < c) (s' : Fin (n + 1) → Bool) :
