@@ -10,10 +10,6 @@ module
 public import CslibFrontier.Init
 public import Mathlib.NumberTheory.DiophantineApproximation.ContinuedFractions
 import Mathlib.Algebra.ContinuedFractions.Computation.Approximations
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Strict best approximation by continued-fraction convergents

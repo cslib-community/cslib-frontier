@@ -14,9 +14,7 @@ public import Mathlib.NumberTheory.PrimeCounting
 import CslibFrontier.Foundations.NumberTheory.CentralBinomPrimes
 import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
-import Mathlib.Data.Nat.Prime.Factorial
 import Mathlib.NumberTheory.Bertrand
-import Mathlib.NumberTheory.Primorial
 import Mathlib.Analysis.Convex.SpecificFunctions.Deriv
 
 /-!
