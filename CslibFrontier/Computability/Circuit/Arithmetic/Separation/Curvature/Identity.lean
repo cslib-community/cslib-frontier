@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.States
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GlueDeterminant
 public import Mathlib.Algebra.Polynomial.Reverse
 import Mathlib.Algebra.Polynomial.Basic
 import Mathlib.LinearAlgebra.Matrix.SchurComplement
@@ -18,7 +20,6 @@ import Mathlib.RingTheory.Localization.FractionRing
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
-import Std.Tactic.BVDecide.Normalize.Prop
 
 /-!
 # The identity for two crossing wires
@@ -62,9 +63,35 @@ open PowerSeries
 
 
 
+/-- The paper's `E(T)`, for `T = (T₁, T₂)`. -/
+private def enT {K : ℕ} (T : Finset (Fin K ⊕ Fin K)) : ℕ :=
+  ∑ r ∈ T, Sum.elim (fun r : Fin K => 2 * (r : ℕ) + 1) (fun r : Fin K => 2 * (r : ℕ) + 1) r
+
+/-- The `T` with `|T₁| = |T₂|` and `E(T) ≤ N`: the terms that contribute to the coefficient of
+`x^N`. -/
+private def goodT (K N : ℕ) : Finset (Finset (Fin K ⊕ Fin K)) :=
+  univ.filter fun T => T.toLeft.card = T.toRight.card ∧ enT T ≤ N
+
 section Blocks
 
 variable {R : Type*} [CommRing R] {μ ν : ℕ}
+
+/-- The paper's `F`: the rows `([r = i])_{r<K}` for `i ∈ I_a` and `(B(r,i))_{r<K}` for `i ∈ I_d`. -/
+private def facA (K : ℕ) (x : R) (sa : Word μ) (sd : Word ν) : Matrix (Fin μ ⊕ Fin ν) (Fin K) R :=
+  of (Sum.elim (fun i r => if sa.row i = (r : ℕ) then 1 else 0) fun i r =>
+      meixnerB (x ^ 2) r (sd.row i))
+
+/-- The paper's `G`: the columns `([r = j])_{r<K}` for `j ∈ J_c` and `((y−1)B(r,j))_{r<K}` for `j ∈
+J_b`. -/
+private def facB (K : ℕ) (x : R) (sc : Word μ) (sb : Word ν) : Matrix (Fin K) (Fin μ ⊕ Fin ν) R :=
+  of fun r => Sum.elim (fun j => if (r : ℕ) = sc.col j then 1 else 0)
+    fun j => (x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.col j)
+
+private theorem sum_ite_val (K n : ℕ) (f : ℕ → R) :
+    ∑ r : Fin K, (if n = (r : ℕ) then f r else 0) = if n < K then f n else 0 := by
+  rw [Fin.sum_univ_eq_sum_range (fun r => if n = r then f r else 0) K, Finset.sum_ite_eq]
+  simp
+
 
 /-- Proof of Proposition B.2, the coefficients: the block of rows `a, d` and columns `c, b` is
 congruent modulo `X^(2K)` to `F D G`, with `F = facA`, `G = facB` and the block `blU`; its part at
@@ -83,52 +110,52 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
   rcases i with i | i <;> rcases j with j | j
   · simp only
       [facA, facB, blU, of_apply, Sum.elim_inl, fromBlocks_apply₁₁, ite_mul, one_mul, zero_mul]
-    rw [sum_ite_val K (sa.1 i) (fun r => x ^ (2 * r + 1) * if r = sc.2 j then 1 else 0)]
-    by_cases h1 : sa.1 i < K
+    rw [sum_ite_val K (sa.row i) (fun r => x ^ (2 * r + 1) * if r = sc.col j then 1 else 0)]
+    by_cases h1 : sa.row i < K
     · simp [h1]
-    · by_cases h2 : sa.1 i = sc.2 j
+    · by_cases h2 : sa.row i = sc.col j
       · rw [ite_eq_right h1, ite_eq_left h2, sub_zero]
         exact hdvd _ h1
       · simp [h1, h2]
   · simp only
       [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₁₂, ite_mul, one_mul,
       zero_mul]
-    rw [sum_ite_val K (sa.1 i)
-        (fun r => x ^ (2 * r + 1) * ((x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.2 j)))]
-    by_cases h1 : sa.1 i < K
+    rw [sum_ite_val K (sa.row i)
+        (fun r => x ^ (2 * r + 1) * ((x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.col j)))]
+    by_cases h1 : sa.row i < K
     · rw [ite_eq_left h1]
       exact ⟨0, by ring⟩
     · rw [ite_eq_right h1, sub_zero]
       exact Dvd.dvd.mul_left (Dvd.dvd.mul_right (hdvd _ h1) _) _
   · simp only [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₂₁]
-    have e : ∀ r : Fin K, meixnerB (x ^ 2) r (sd.1 i) * (x ^ (2 * (r : ℕ) + 1) *
-        if (r : ℕ) = sc.2 j then 1 else 0) =
-        if sc.2 j =
-            (r : ℕ) then (fun r => meixnerB (x ^ 2) r (sd.1 i) * x ^ (2 * r + 1)) r else 0 := by
+    have e : ∀ r : Fin K, meixnerB (x ^ 2) r (sd.row i) * (x ^ (2 * (r : ℕ) + 1) *
+        if (r : ℕ) = sc.col j then 1 else 0) =
+        if sc.col j =
+            (r : ℕ) then (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1)) r else 0 := by
       intro r
-      by_cases h : (r : ℕ) = sc.2 j
+      by_cases h : (r : ℕ) = sc.col j
       · simp [h]
       · simp [h, Ne.symm h]
     rw [Finset.sum_congr rfl fun r _ => e r,
-      sum_ite_val K (sc.2 j) (fun r => meixnerB (x ^ 2) r (sd.1 i) * x ^ (2 * r + 1))]
-    by_cases h1 : sc.2 j < K
+      sum_ite_val K (sc.col j) (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1))]
+    by_cases h1 : sc.col j < K
     · rw [ite_eq_left h1]
       exact ⟨0, by ring⟩
     · rw [ite_eq_right h1, sub_zero]
       exact Dvd.dvd.mul_right (hdvd _ h1) _
   · simp only [facA, facB, blU, of_apply, Sum.elim_inr, fromBlocks_apply₂₂]
-    obtain ⟨w, hw⟩ := pow_dvd_meixnerB_orthogonality (x ^ 2) K (sd.1 i) (sb.2 j)
+    obtain ⟨w, hw⟩ := pow_dvd_meixnerB_orthogonality (x ^ 2) K (sd.row i) (sb.col j)
     refine ⟨x * w, ?_⟩
-    have e : ∑ r : Fin K, meixnerB (x ^ 2) r (sd.1 i) * (x ^ (2 * (r : ℕ) + 1) *
-        ((x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.2 j))) =
-        -(x * ((1 - x ^ 2) * ∑ r ∈ Finset.range K, (x ^ 2) ^ r * (meixnerB (x ^ 2) r (sd.1 i) *
-          meixnerB (x ^ 2) r (sb.2 j)))) := by
+    have e : ∑ r : Fin K, meixnerB (x ^ 2) r (sd.row i) * (x ^ (2 * (r : ℕ) + 1) *
+        ((x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.col j))) =
+        -(x * ((1 - x ^ 2) * ∑ r ∈ Finset.range K, (x ^ 2) ^ r * (meixnerB (x ^ 2) r (sd.row i) *
+          meixnerB (x ^ 2) r (sb.col j)))) := by
       rw [Finset.sum_range, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_neg_distrib]
       refine Finset.sum_congr rfl fun r _ => ?_
       rw [← pow_mul, pow_succ]
       ring
-    have z : (if sd.1 i = sb.2 j then x ^ (2 * sd.1 i + 1) else 0) =
-        x * (if sd.1 i = sb.2 j then (x ^ 2) ^ sd.1 i else 0) := by
+    have z : (if sd.row i = sb.col j then x ^ (2 * sd.row i + 1) else 0) =
+        x * (if sd.row i = sb.col j then (x ^ 2) ^ sd.row i else 0) := by
       split_ifs
       · rw [← pow_mul, pow_succ, mul_comm]
       · simp
@@ -137,10 +164,10 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
 
 /-- Unfolds an entry of the matrices M and of the multipliers. -/
 local macro "entries" : tactic => `(tactic| simp only [matM, blX, blY, blU, multiplier,
+      Word.row_swap, Word.col_swap,
       multiplier', exchangeBD, Equiv.coe_fn_mk, submatrix_apply, Sum.elim_inl,
       Sum.elim_inr, fromBlocks_apply₁₁, fromBlocks_apply₁₂, fromBlocks_apply₂₁, fromBlocks_apply₂₂,
-      of_apply, Matrix.neg_apply, transpose_apply, Matrix.zero_apply, mul_zero, Prod.fst_swap,
-          Prod.snd_swap])
+      of_apply, Matrix.neg_apply, transpose_apply, Matrix.zero_apply, mul_zero])
 
 /-- Proof of Proposition B.2, reflection: substituting `1/X` for `X` and multiplying the rows and
 columns of `a, c` by `X^(2 i + 1)`, those of `d` by `(y - 1) y^i` and those of `b` by `y^(i + 1)`
@@ -151,8 +178,8 @@ private theorem prop_identity_exchange {x z : R} (h : x * z = 1) (sa : Word μ) 
     (sc : Word μ)
     (sd : Word ν)
     (i j : (Fin μ ⊕ Fin ν) ⊕ (Fin μ ⊕ Fin ν)) :
-    multiplier x sa.1 sb.1 sc.1 sd.1 i *
-        (multiplier x sa.2 sb.2 sc.2 sd.2 j * matM z sa sb sc sd i j) =
+    multiplier x sa.row sb.row sc.row sd.row i *
+        (multiplier x sa.col sb.col sc.col sd.col j * matM z sa sb sc sd i j) =
       multiplier' x i *
           (multiplier' x j * (matM x sa sd sc sb).submatrix (exchangeBD μ ν) (exchangeBD μ ν) i j)
               := by
@@ -167,58 +194,62 @@ private theorem prop_identity_exchange {x z : R} (h : x * z = 1) (sa : Word μ) 
   · rcases j with (j | j) | (j | j)
     · entries
     · entries
-      linear_combination (x ^ (2 * sa.1 i + 1) * (x ^ 2 - 1)) * hC (sa.1 i) (sd.2 j)
+      linear_combination (x ^ (2 * sa.row i + 1) * (x ^ 2 - 1)) * hC (sa.row i) (sd.col j)
     · entries
-      by_cases h1 : sa.1 i = sc.2 j
+      by_cases h1 : sa.row i = sc.col j
       · rw [ite_eq_left h1, ite_eq_left h1, ← h1]
-        linear_combination x ^ (2 * sa.1 i + 1) * hz (sa.1 i)
+        linear_combination x ^ (2 * sa.row i + 1) * hz (sa.row i)
       · simp [h1]
     · entries
       linear_combination
-          (x ^ 2 * (z ^ 2 - 1) * ((x ^ 2) ^ sb.2 j * meixnerB (z ^ 2) (sa.1 i) (sb.2 j))) *
-        hz (sa.1 i) + (x ^ 2 * (z ^ 2 - 1)) * hB (sa.1 i) (sb.2 j) + meixnerC (x ^ 2) (sa.1 i)
-            (sb.2 j) * h2
+          (x ^ 2 * (z ^ 2 - 1) * ((x ^ 2) ^ sb.col j * meixnerB (z ^ 2) (sa.row i) (sb.col j))) *
+        hz (sa.row i) + (x ^ 2 * (z ^ 2 - 1)) * hB (sa.row i) (sb.col j) + meixnerC (x ^ 2)
+            (sa.row i)
+            (sb.col j) * h2
   · rcases j with (j | j) | (j | j)
     · entries
-      linear_combination (-(x ^ (2 * sa.2 j + 1) * (x ^ 2 - 1))) * hC (sa.2 j) (sd.1 i)
+      linear_combination (-(x ^ (2 * sa.col j + 1) * (x ^ 2 - 1))) * hC (sa.col j) (sd.row i)
     · entries
     · entries
-      linear_combination ((x ^ 2 - 1) * ((x ^ 2) ^ sd.1 i * meixnerB (z ^ 2) (sc.2 j) (sd.1 i))) *
-          hz (sc.2 j) +
-        (x ^ 2 - 1) * hB (sc.2 j) (sd.1 i)
+      linear_combination
+          ((x ^ 2 - 1) * ((x ^ 2) ^ sd.row i * meixnerB (z ^ 2) (sc.col j) (sd.row i))) *
+          hz (sc.col j) +
+        (x ^ 2 - 1) * hB (sc.col j) (sd.row i)
     · entries
-      by_cases h1 : sd.1 i = sb.2 j
+      by_cases h1 : sd.row i = sb.col j
       · rw [ite_eq_left h1, ite_eq_left h1.symm, ← h1]
-        linear_combination (x ^ (2 * sd.1 i + 1) * (1 - x ^ 2)) * hz (sd.1 i)
+        linear_combination (x ^ (2 * sd.row i + 1) * (1 - x ^ 2)) * hz (sd.row i)
       · simp [h1, Ne.symm h1]
   · rcases j with (j | j) | (j | j)
     · entries
-      by_cases h1 : sa.2 j = sc.1 i
+      by_cases h1 : sa.col j = sc.row i
       · rw [ite_eq_left h1, ite_eq_left h1, ← h1]
-        linear_combination (-x ^ (2 * sa.2 j + 1)) * hz (sa.2 j)
+        linear_combination (-x ^ (2 * sa.col j + 1)) * hz (sa.col j)
       · simp [h1]
     · entries
-      linear_combination (-(x ^ 2 - 1) * ((x ^ 2) ^ sd.2 j * meixnerB (z ^ 2) (sc.1 i) (sd.2 j))) *
-          hz (sc.1 i) -
-        (x ^ 2 - 1) * hB (sc.1 i) (sd.2 j)
+      linear_combination
+          (-(x ^ 2 - 1) * ((x ^ 2) ^ sd.col j * meixnerB (z ^ 2) (sc.row i) (sd.col j))) *
+          hz (sc.row i) -
+        (x ^ 2 - 1) * hB (sc.row i) (sd.col j)
     · entries
     · entries
-      linear_combination (-(x ^ (2 * sc.1 i + 1) * (1 - x ^ 2))) * hC (sc.1 i) (sb.2 j) -
-        (x ^ (2 * sc.1 i + 1) * (x ^ 2) ^ sb.2 j * meixnerC (z ^ 2) (sc.1 i) (sb.2 j)) * h2
+      linear_combination (-(x ^ (2 * sc.row i + 1) * (1 - x ^ 2))) * hC (sc.row i) (sb.col j) -
+        (x ^ (2 * sc.row i + 1) * (x ^ 2) ^ sb.col j * meixnerC (z ^ 2) (sc.row i) (sb.col j)) * h2
   · rcases j with (j | j) | (j | j)
     · entries
       linear_combination
-          (-(x ^ 2 * (z ^ 2 - 1) * ((x ^ 2) ^ sb.1 i * meixnerB (z ^ 2) (sa.2 j) (sb.1 i)))) *
-        hz (sa.2 j) - (x ^ 2 * (z ^ 2 - 1)) * hB (sa.2 j) (sb.1 i) - meixnerC (x ^ 2) (sa.2 j)
-            (sb.1 i) * h2
+          (-(x ^ 2 * (z ^ 2 - 1) * ((x ^ 2) ^ sb.row i * meixnerB (z ^ 2) (sa.col j) (sb.row i)))) *
+        hz (sa.col j) - (x ^ 2 * (z ^ 2 - 1)) * hB (sa.col j) (sb.row i) - meixnerC (x ^ 2)
+            (sa.col j)
+            (sb.row i) * h2
     · entries
-      by_cases h1 : sd.2 j = sb.1 i
+      by_cases h1 : sd.col j = sb.row i
       · rw [ite_eq_left h1, ite_eq_left h1.symm, ← h1]
-        linear_combination (x ^ (2 * sd.2 j + 1) * (x ^ 2 - 1)) * hz (sd.2 j)
+        linear_combination (x ^ (2 * sd.col j + 1) * (x ^ 2 - 1)) * hz (sd.col j)
       · simp [h1, Ne.symm h1]
     · entries
-      linear_combination (x ^ (2 * sc.2 j + 1) * (1 - x ^ 2)) * hC (sc.2 j) (sb.1 i) +
-        (x ^ (2 * sc.2 j + 1) * (x ^ 2) ^ sb.1 i * meixnerC (z ^ 2) (sc.2 j) (sb.1 i)) * h2
+      linear_combination (x ^ (2 * sc.col j + 1) * (1 - x ^ 2)) * hC (sc.col j) (sb.row i) +
+        (x ^ (2 * sc.col j + 1) * (x ^ 2) ^ sb.row i * meixnerC (z ^ 2) (sc.col j) (sb.row i)) * h2
     · entries
 
 /-- Proof of Proposition B.2, reflection: rows and columns are permuted alike, so there is no sign,
@@ -226,14 +257,14 @@ and the product of all multipliers times `Ψ(1/X; s_a, s_b, s_c, s_d)` is
 `(1 - y)^(2ν) Ψ(X; s_a, s_d, s_c, s_b)`. -/
 private theorem prop_identity_exchange_det {x z : R} (h : x * z = 1) (sa : Word μ) (sb : Word ν)
     (sc : Word μ) (sd : Word ν) :
-    (∏ i, multiplier x sa.1 sb.1 sc.1 sd.1 i) *
-        ((∏ i, multiplier x sa.2 sb.2 sc.2 sd.2 i) * psi z sa sb sc sd) =
+    (∏ i, multiplier x sa.row sb.row sc.row sd.row i) *
+        ((∏ i, multiplier x sa.col sb.col sc.col sd.col i) * psi z sa sb sc sd) =
       (∏ i, (multiplier' x : (Fin μ ⊕ Fin ν) ⊕ (Fin μ ⊕ Fin ν) → R) i) *
       ((∏ i, (multiplier' x : (Fin μ ⊕ Fin ν) ⊕ (Fin μ ⊕ Fin ν) → R) i) * psi x sa sd sc sb) := by
   rw [psi, psi, ← det_submatrix_equiv_self (exchangeBD μ ν) (matM x sa sd sc sb),
-    ← det_mul_row (multiplier x sa.2 sb.2 sc.2 sd.2) (matM z sa sb sc sd),
-    ← det_mul_column (multiplier x sa.1 sb.1 sc.1 sd.1)
-        (of fun i j => multiplier x sa.2 sb.2 sc.2 sd.2 j *
+    ← det_mul_row (multiplier x sa.col sb.col sc.col sd.col) (matM z sa sb sc sd),
+    ← det_mul_column (multiplier x sa.row sb.row sc.row sd.row)
+        (of fun i j => multiplier x sa.col sb.col sc.col sd.col j *
       matM z sa sb sc sd i j),
     ← det_mul_row (multiplier' x)
         ((matM x sa sd sc sb).submatrix (exchangeBD μ ν) (exchangeBD μ ν)),
@@ -268,20 +299,20 @@ private theorem prop_identity_reflection [IsDomain R] {x z : R} (h : x * z = 1) 
   have hν2 : ∀ f : Fin ν → ℕ, ∑ i, (2 * f i + 2) = ∑ i, (2 * f i + 1) + ν := fun f => by
     simp [Finset.sum_add_distrib]
     ring
-  have hexp : (∑ i, (2 * sa.1 i + 1)) + (∑ i, (2 * sc.1 i + 1)) + (∑ i, 2 * sd.1 i) +
-      (∑ i, (2 * sb.1 i + 2)) +
-          ((∑ i, (2 * sa.2 i + 1)) + (∑ i, (2 * sc.2 i + 1)) + (∑ i, 2 * sd.2 i) +
-      ∑ i, (2 * sb.2 i + 2)) = 2 * (e₁ + e₂) := by
+  have hexp : (∑ i, (2 * sa.row i + 1)) + (∑ i, (2 * sc.row i + 1)) + (∑ i, 2 * sd.row i) +
+      (∑ i, (2 * sb.row i + 2)) +
+          ((∑ i, (2 * sa.col i + 1)) + (∑ i, (2 * sc.col i + 1)) + (∑ i, 2 * sd.col i) +
+      ∑ i, (2 * sb.col i + 2)) = 2 * (e₁ + e₂) := by
     unfold wordEnergy at ha hb hc hd
-    have := hν1 sd.1
-    have := hν1 sd.2
-    have := hν2 sb.1
-    have := hν2 sb.2
+    have := hν1 sd.row
+    have := hν1 sd.col
+    have := hν2 sb.row
+    have := hν2 sb.col
     omega
-  generalize (∑ i, (2 * sa.1 i + 1)) + (∑ i, (2 * sc.1 i + 1)) + (∑ i, 2 * sd.1 i) +
-    (∑ i, (2 * sb.1 i + 2)) = a at key hexp
-  generalize (∑ i, (2 * sa.2 i + 1)) + (∑ i, (2 * sc.2 i + 1)) + (∑ i, 2 * sd.2 i) +
-    (∑ i, (2 * sb.2 i + 2)) = b at key hexp
+  generalize (∑ i, (2 * sa.row i + 1)) + (∑ i, (2 * sc.row i + 1)) + (∑ i, 2 * sd.row i) +
+    (∑ i, (2 * sb.row i + 2)) = a at key hexp
+  generalize (∑ i, (2 * sa.col i + 1)) + (∑ i, (2 * sc.col i + 1)) + (∑ i, 2 * sd.col i) +
+    (∑ i, (2 * sb.col i + 2)) = b at key hexp
   rw [← hexp, pow_add]
   linear_combination key - (x ^ a * x ^ b * psi z sa sb sc sd) * hs
 
@@ -292,8 +323,8 @@ depending on `μ, ν` only, times the indicator that the second set at `c` is th
 first at `c` the second at `a`, and likewise for `b` and `d`. -/
 private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
     ∀ (sa : Word μ) (sb : Word ν) (sc : Word μ) (sd : Word ν),
-    StrictMono sa.1 → StrictMono sa.2 → StrictMono sb.1 → StrictMono sb.2 →
-    StrictMono sc.1 → StrictMono sc.2 → StrictMono sd.1 → StrictMono sd.2 →
+    StrictMono sa.row → StrictMono sa.col → StrictMono sb.row → StrictMono sb.col →
+    StrictMono sc.row → StrictMono sc.col → StrictMono sd.row → StrictMono sd.col →
     psi (1 : ℤ) sa sb sc sd = ε * if sa = sc.swap ∧ sb = sd.swap then 1 else 0 := by
   let e : Equiv.Perm ((Fin μ ⊕ Fin ν) ⊕ (Fin μ ⊕ Fin ν)) := Equiv.sumComm _ _
   refine ⟨Equiv.Perm.sign e * (-1) ^ (μ + ν), fun sa sb sc sd ha1 ha2 hb1 hb2 hc1 hc2 hd1 hd2 => ?_⟩
@@ -307,15 +338,15 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
     ext i j
     rcases i with i | i <;> rcases j with j | j <;> simp [blY]
   have hU : ∀ (sa : Word μ) (sd : Word ν) (sc : Word μ) (sb : Word ν),
-      StrictMono sa.1 → StrictMono sd.1 →
-      StrictMono sc.2 → StrictMono sb.2 →
-      (blU (1 : ℤ) sa sd sc sb).det = (-1) ^ ν * ((if sa.1 = sc.2 then 1 else 0) *
-        (if sd.1 = sb.2 then 1 else 0)) := by
+      StrictMono sa.row → StrictMono sd.row →
+      StrictMono sc.col → StrictMono sb.col →
+      (blU (1 : ℤ) sa sd sc sb).det = (-1) ^ ν * ((if sa.row = sc.col then 1 else 0) *
+        (if sd.row = sb.col then 1 else 0)) := by
     intro sa sd sc sb k1 k2 k3 k4
     have e1 : blU (1 : ℤ) sa sd sc sb =
-        fromBlocks (of fun i j => if sa.1 i = sc.2 j then 1 else 0) 0
-        (of fun i j => meixnerB 1 (sc.2 j) (sd.1 i))
-            (-(of fun i j => if sd.1 i = sb.2 j then 1 else 0)) := by
+        fromBlocks (of fun i j => if sa.row i = sc.col j then 1 else 0) 0
+        (of fun i j => meixnerB 1 (sc.col j) (sd.row i))
+            (-(of fun i j => if sd.row i = sb.col j then 1 else 0)) := by
       ext i j
       rcases i with i | i <;> rcases j with j | j <;> simp [blU]
     rw [e1, det_fromBlocks_zero₁₂, det_neg, Fintype.card_fin, det_coinc _ _ k1 k3,
@@ -323,31 +354,32 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
     ring
   rw [h2, hY, det_fromBlocks_zero₂₁, det_neg, det_transpose, hU _ _ _ _ ha1 hd1 hc2 hb2,
     hU _ _ _ _ ha2 hd2 hc1 hb1] at h1
-  simp only [Prod.fst_swap, Prod.snd_swap, Fintype.card_sum, Fintype.card_fin] at h1
+  simp only [Word.row_swap, Word.col_swap, Fintype.card_sum, Fintype.card_fin] at h1
   have hs : ((Equiv.Perm.sign e : ℤˣ) : ℤ) * ((Equiv.Perm.sign e : ℤˣ) : ℤ) = 1 :=
       Int.units_coe_mul_self _
   have hν : ((-1 : ℤ) ^ ν) * (-1) ^ ν = 1 := by rw [← mul_pow]; simp
   have hind : (if sa = sc.swap ∧ sb = sd.swap then (1 : ℤ) else 0) =
-      ((if sa.1 = sc.2 then 1 else 0) * (if sd.1 = sb.2 then 1 else 0)) *
-      ((if sa.2 = sc.1 then 1 else 0) * (if sd.2 = sb.1 then 1 else 0)) := by
+      ((if sa.row = sc.col then 1 else 0) * (if sd.row = sb.col then 1 else 0)) *
+      ((if sa.col = sc.row then 1 else 0) * (if sd.col = sb.row then 1 else 0)) := by
     have : (sa = sc.swap ∧ sb = sd.swap) ↔
-        ((sa.1 = sc.2 ∧ sd.1 = sb.2) ∧ (sa.2 = sc.1 ∧ sd.2 = sb.1)) := by
-      rw [Prod.ext_iff, Prod.ext_iff]
-      simp only [Prod.fst_swap, Prod.snd_swap]
+        ((sa.row = sc.col ∧ sd.row = sb.col) ∧ (sa.col = sc.row ∧ sd.col = sb.row)) := by
+      rw [Word.ext_iff, Word.ext_iff]
+      simp only [Word.row_swap, Word.col_swap]
       constructor
       · rintro ⟨⟨a, b⟩, c, d⟩
         exact ⟨⟨a, d.symm⟩, b, c.symm⟩
       · rintro ⟨⟨a, d⟩, b, c⟩
         exact ⟨⟨a, b⟩, c.symm, d.symm⟩
     simp only [this]
-    by_cases a : sa.1 = sc.2 <;> by_cases b : sd.1 = sb.2 <;> by_cases c : sa.2 = sc.1 <;>
-      by_cases d : sd.2 = sb.1 <;> simp [a, b, c, d]
+    by_cases a : sa.row = sc.col <;> by_cases b : sd.row = sb.col <;> by_cases c : sa.col =
+        sc.row <;>
+      by_cases d : sd.col = sb.row <;> simp [a, b, c, d]
   rw [psi, hind]
   push_cast
   linear_combination (-(matM (1 : ℤ) sa sb sc sd).det) * hs - ((Equiv.Perm.sign e : ℤˣ) : ℤ) * h1
     + ((Equiv.Perm.sign e : ℤˣ) : ℤ) * (-1) ^ (μ + ν) *
-        (((if sa.1 = sc.2 then 1 else 0) * (if sd.1 = sb.2 then 1 else 0)) *
-      ((if sa.2 = sc.1 then 1 else 0) * (if sd.2 = sb.1 then 1 else 0))) * hν
+        (((if sa.row = sc.col then 1 else 0) * (if sd.row = sb.col then 1 else 0)) *
+      ((if sa.col = sc.row then 1 else 0) * (if sd.col = sb.row then 1 else 0))) * hν
 
 /-- A sum of products over a finite index set is a sum of `r` products, if `r` is at least the size
 of the index set. -/
@@ -680,7 +712,7 @@ theorem exists_crossing_identity (μ ν e₁ e₂ : ℕ) :
       Polynomial.eval_X,
           hε _ _ _ _ (word_strictMono a).1 (word_strictMono a).2 (word_strictMono b).1
       (word_strictMono b).2 (word_strictMono c).2 (word_strictMono c).1 (word_strictMono d).2
-      (word_strictMono d).1, ← mul_assoc, hεε, one_mul, Prod.swap_swap, Prod.swap_swap]
+      (word_strictMono d).1, ← mul_assoc, hεε, one_mul, Word.swap_swap, Word.swap_swap]
     simp only [word_injective.eq_iff]
     rw [ite_and]
     split_ifs <;> simp only [mul_one, mul_zero]

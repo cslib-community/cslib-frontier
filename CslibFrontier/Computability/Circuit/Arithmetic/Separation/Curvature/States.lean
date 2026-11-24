@@ -229,7 +229,7 @@ theorem exists_log_stateCount_asymptotic : ∃ κ : ℝ,
       have : (E : ℝ) ≤ ((k + 1) * (k + 1) * E₁ : ℕ) := by exact_mod_cast hk2.le
       push_cast at this
       nlinarith
-    have h5 : k * logLowStates E₁ ≤ logLowStates E := (mul_lp_le k E₁).trans (lp_mono hk1)
+    have h5 : k * logLowStates E₁ ≤ logLowStates E := (mul_lp_le k E₁).trans (logLowStates_mono hk1)
     have h6 : (k : ℝ) * ((c - ε / 2) * Real.sqrt E₁) ≤ k * logLowStates E₁ :=
       mul_le_mul_of_nonneg_left hlt.le (Nat.cast_nonneg _)
     have h7 : (c - ε / 2) * Real.sqrt E ≤ (c - ε / 2) * ((k + 1) * Real.sqrt E₁) :=
