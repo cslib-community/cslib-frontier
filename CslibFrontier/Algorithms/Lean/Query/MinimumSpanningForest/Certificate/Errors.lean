@@ -65,11 +65,11 @@ schedule of Lemma 3.11, the estimator of §3.5, and the exact minimum spanning f
 
 variable [LinearOrder W]
 
-/-- **The errors of a call** ([KhannaPuttermanSong2026], §3.6, "Bounding the number of errors",
-p. 23). For the derandomized configuration with a correct exact minimum spanning forest
-subroutine, injective weights and a well-formed instance on `n` vertices and `m` edges at level
-`d`, with `t = γ d³`, at most `11 t² √(m n) + 4m / t` edges have an error in the call. A step in
-the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325). -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the errors of a call
+(§3.6, "Bounding the number of errors", p. 23). For the derandomized configuration with a correct
+exact minimum spanning forest subroutine, injective weights and a well-formed instance on `n`
+vertices and `m` edges at level `d`, with `t = γ d³`, at most `11 t² √(m n) + 4m / t` edges have an
+error in the call. -/
 theorem card_errors_le (γ : ℕ) (hγ : 0 < γ)
     (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) {w : E → W}
     (hw : Function.Injective w) (hmsf : (Config.derandomized γ hγ msfSub).ExactMsf w)

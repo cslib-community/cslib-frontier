@@ -77,6 +77,7 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 * `Cslib.Multigraph.isAcyclic_msf`, `Cslib.Multigraph.IsAcyclic.card_le`,
   `Cslib.Multigraph.card_msf_le`: `msf S` is acyclic, so it has at most `|X| - 1` edges when the
   ends of the edges of `S` lie in `X`.
+* `Cslib.Multigraph.sum_card_incident_le`: the degrees in `S` add up to at most `2 |S|`.
 * `Cslib.Multigraph.isSpanningForest_msf`, `Cslib.Multigraph.sum_msf_le`: `msf S` is a spanning
   forest of `S` of least total weight.
 
@@ -236,6 +237,24 @@ theorem mem_support {S : Finset E} {v : V} :
   simp only [support, mem_biUnion]
   refine exists_congr fun e => and_congr_right fun _ => ?_
   split_ifs with h <;> simp [h, Sym2.mem_toFinset]
+
+/-- **Degree sum**: every edge has at most two ends, so the numbers of edges of `S` at the
+vertices of any `X` add up to at most `2 |S|`. A self-loop counts once at its vertex. -/
+theorem sum_card_incident_le [DecidableEq V] (ends : E → Sym2 V) (S : Finset E) (X : Finset V) :
+    ∑ v ∈ X, #{e ∈ S | v ∈ ends e} ≤ 2 * #S := by
+  calc ∑ v ∈ X, #{e ∈ S | v ∈ ends e}
+      = ∑ e ∈ S, #{v ∈ X | v ∈ ends e} := by
+        simp only [card_filter]
+        exact sum_comm
+    _ ≤ ∑ _e ∈ S, 2 := sum_le_sum fun e _ => by
+        obtain ⟨a, b, hab⟩ := exists_ends_eq (ends := ends) e
+        calc #{v ∈ X | v ∈ ends e} ≤ #({a, b} : Finset V) := by
+              refine card_le_card fun v hv => ?_
+              have := (mem_filter.1 hv).2
+              rw [hab] at this
+              rcases Sym2.mem_iff.1 this with rfl | rfl <;> simp
+          _ ≤ 2 := card_le_two
+    _ = 2 * #S := by rw [sum_const, smul_eq_mul, mul_comm]
 
 /-! ### Contraction -/
 

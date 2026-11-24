@@ -17,7 +17,7 @@ The accounting of §3.6 of [Khanna, Putterman and Song][KhannaPuttermanSong2026]
 the program `Cslib.Query.Certificate.certificate`: the comparisons it makes outside its exact
 minimum spanning forest calls, and the total size of those calls. With the correctness results
 of `Cslib.Query.Certificate.card_unsupported_add_sum_absorbed_le` (Lemma 3.7), this proves their
-Lemma 3.1 (§3.1, p. 12) for any schedule and estimator satisfying two hypotheses, which M7b's
+Lemma 3.1 (§3.1, p. 13) for any schedule and estimator satisfying two hypotheses, which M7b's
 `Cslib.Query.Certificate.card_errors_le` and `Cslib.Query.Certificate.sum_countQueries_estimator_le`
 discharge for the paper's schedule (Lemma 3.11) and estimator (§3.5),
 `Cslib.Query.Certificate.Config.derandomized`:
@@ -107,7 +107,7 @@ No step of §3.6 needed repair.
 ## References
 
 * [S. Khanna, A. Putterman and J. Song, *A Deterministic Linear Time Algorithm for Minimum
-  Spanning Tree*][KhannaPuttermanSong2026], §3.1, p. 12, and §3.5–3.6, pp. 22–24.
+  Spanning Tree*][KhannaPuttermanSong2026], §3.1, p. 13, and §3.5–3.6, pp. 22–24.
 -/
 
 public section
@@ -173,9 +173,10 @@ theorem sum_card_child_edges_le (inst : Instance V E) :
   rw [← sum_card_finds_add_card_child_edges cfg o inst]
   exact sum_le_sum fun i _ => Nat.le_add_left _ _
 
-/-- **The mass `n + √(m n)` halves from a call to its children** (§3.6, p. 23): the children
-have at most `n / 4` vertices in total, at most `m` edges in total, and
-`∑ √(mᵢ nᵢ) ≤ √(∑ mᵢ · ∑ nᵢ)` by Cauchy–Schwarz. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the mass `n + √(m n)`
+halves from a call to its children (Claim 3.13, §3.6, p. 23). The children have at most `n / 4`
+vertices in total, at most `m` edges in total, and `∑ √(mᵢ nᵢ) ≤ √(∑ mᵢ · ∑ nᵢ)` by Cauchy–Schwarz.
+-/
 theorem sum_mass_child_le (inst : Instance V E) :
     ∑ i ∈ range (levelT cfg.γ inst.level ^ 2), ((#(child cfg o inst i).vertices : ℝ) +
       √(#(child cfg o inst i).edges * #(child cfg o inst i).vertices)) ≤
@@ -204,8 +205,10 @@ theorem sum_mass_child_le (inst : Instance V E) :
   rw [sum_add_distrib]
   linarith
 
-/-- **Sums over calls of the edges against a level weight**: if `q d + Φ (d + 1) ≤ Φ d` at every
-level, then `∑_c q(d_c) m_c ≤ Φ(d) m`, since each edge enters at most one child. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): sums over calls of the
+edges against a level weight (Claim 3.13 and "Bounding the number of errors", §3.6, p. 23). If
+`q d + Φ (d + 1) ≤ Φ d` at every level, then `∑_c q(d_c) m_c ≤ Φ(d) m`, since each edge enters at
+most one child. -/
 theorem sum_calls_mul_card_edges_le {q Φ : ℕ → ℝ} (hΦ : ∀ d, 0 ≤ Φ d)
     (hq : ∀ d, 1 ≤ d → q d + Φ (d + 1) ≤ Φ d) (inst : Instance V E) :
     ((calls cfg o inst).map fun c => q c.level * #c.edges).sum ≤ Φ inst.level * #inst.edges := by
@@ -218,9 +221,10 @@ theorem sum_calls_mul_card_edges_le {q Φ : ℕ → ℝ} (hΦ : ∀ d, 0 ≤ Φ 
   have := mul_le_mul_of_nonneg_left hm (hΦ (c.level + 1))
   linarith
 
-/-- **Sums over calls of the mass against a level weight**: if `p d + Φ (d + 1) / 2 ≤ Φ d` at
-every level, then `∑_c p(d_c) (n_c + √(m_c n_c)) ≤ Φ(d) (n + √(m n))`, since the mass halves
-from a call to its children (`Cslib.Query.Certificate.sum_mass_child_le`). -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): sums over calls of the
+mass against a level weight (Claim 3.13, §3.6, p. 23). If `p d + Φ (d + 1) / 2 ≤ Φ d` at every
+level, then `∑_c p(d_c) (n_c + √(m_c n_c)) ≤ Φ(d) (n + √(m n))`, since the mass halves from a call
+to its children (`Cslib.Query.Certificate.sum_mass_child_le`). -/
 theorem sum_calls_mul_mass_le {p Φ : ℕ → ℝ} (hΦ : ∀ d, 0 ≤ Φ d)
     (hp : ∀ d, 1 ≤ d → p d + Φ (d + 1) / 2 ≤ Φ d) (inst : Instance V E) :
     ((calls cfg o inst).map fun c =>
@@ -238,10 +242,10 @@ theorem sum_calls_mul_mass_le {p Φ : ℕ → ℝ} (hΦ : ∀ d, 0 ≤ Φ d)
     have := mul_le_mul_of_nonneg_right (hp c.level c.level.pos) (hμ c)
     linarith
 
-/-- **Claim 3.13** ([KhannaPuttermanSong2026], §3.6, p. 23), in potential form: a level weight
-`p d ≤ K (3/2)^d` (for instance a polynomial in `d`) summed against the mass
-`n_c + √(m_c n_c)` over all calls is at most `4 K (3/2)^d (n + √(m n))`, for a call at level `d`.
-A step in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325). -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the paper's Claim 3.13
+(§3.6, p. 23), in potential form. A level weight `p d ≤ K (3/2)^d` (for instance a polynomial in
+`d`) summed against the mass `n_c + √(m_c n_c)` over all calls is at most
+`4 K (3/2)^d (n + √(m n))`, for a call at level `d`. -/
 theorem sum_calls_mul_mass_le_of_le_three_halves_pow {p : ℕ → ℝ} {K : ℝ}
     (hp : ∀ d, 1 ≤ d → p d ≤ K * (3 / 2) ^ d) (hK : 0 ≤ K) (inst : Instance V E) :
     ((calls cfg o inst).map fun c =>
@@ -920,8 +924,9 @@ theorem subset_edges_of_mem_msfInputs (hw : Function.Injective w) (hmsf : cfg.Ex
 
 end Recursion
 
-/-- **Each edge enters at most one batch in the whole recursion** (§3.6, p. 24): the edges sent
-to batches, over all calls, number at most the edges of the root call. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): each edge enters at
+most one batch in the whole recursion ("Bounding the number of comparisons", §3.6, p. 24). The edges
+sent to batches, over all calls, number at most the edges of the root call. -/
 theorem sum_calls_sum_card_finds_le (cfg : Config V E) (o : {ι : Type} → LEQuery E ι → ι)
     (inst : Instance V E) :
     ((calls cfg o inst).map fun c =>
@@ -1109,11 +1114,11 @@ private theorem sum_card_msfInputs_add_card_errors_le (hw : Function.Injective w
   have e1 : 4 * m / t = 4 * d ^ 0 / t * m := by ring
   nlinarith
 
-/-- **Lemma 3.1** ([KhannaPuttermanSong2026], §3.1, p. 12, proved in §3.6, pp. 22–24), for the
-certificate procedure with any schedule and estimator satisfying hypotheses (i)
-(`Cslib.Query.Certificate.ErrorBound`) and (ii) (`Cslib.Query.Certificate.EstCostBound`). A step
-in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325); the paper's schedule and estimator
-are `Cslib.Query.Certificate.certificate_derandomized_accounting`.
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the paper's Lemma 3.1
+(§3.1, p. 13, proved in §3.6, pp. 22–24) for the certificate procedure with any schedule and
+estimator satisfying hypotheses (i) (`Cslib.Query.Certificate.ErrorBound`) and (ii)
+(`Cslib.Query.Certificate.EstCostBound`). The paper's schedule and estimator are
+`Cslib.Query.Certificate.certificate_derandomized_accounting`.
 
 For every `γ` and constants `A, B ≥ 0` there are `C, C'` such that on a root instance with `n`
 vertices, `m` edges and `n ≤ 2 m` (no isolated vertices), with injective weights and exact
@@ -1233,10 +1238,9 @@ theorem certificate_root_accounting (γ : ℕ) {A B : ℝ} (hA : 0 ≤ A) (hB : 
     have h2 := hmain.trans (add_le_add hper le_rfl)
     linarith
 
-/-- **The cost of the certificate procedure with a linear exact subroutine**, the form of
-Lemma 3.1 ([KhannaPuttermanSong2026], p. 12) used in the proof of Theorem 4.1 (§4, pp. 25–26),
-by strong induction on the number of edges. A step in the proof of [KhannaPuttermanSong2026]
-Theorem 4.1 (#8325).
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the cost of the
+certificate procedure with a linear exact subroutine, the form of the paper's Lemma 3.1 (§3.1, p.
+12) used in the proof of Theorem 4.1 (§4, pp. 25–26) by strong induction on the number of edges.
 
 Under the hypotheses of `Cslib.Query.Certificate.certificate_root_accounting`, every exact call
 works on root edges and has at most `8 m / γ + C √(m n)` of them; and if each exact call costs at
@@ -1313,19 +1317,18 @@ theorem estCostBound_derandomized (γ : ℕ) (hγ : 0 < γ)
   push_cast
   exact h.trans (by linarith)
 
-/-- **Lemma 3.1** ([KhannaPuttermanSong2026], §3.1, p. 12, proved in §3.6, pp. 22–24): the
-certificate procedure with the schedule of Lemma 3.11 and the estimator of §3.5
-(`Cslib.Query.Certificate.Config.derandomized`). For every `γ > 0` there are `C, C'` such that on
-a root instance with `n` vertices, `m` edges and `n ≤ 2 m` (no isolated vertices), with injective
-weights and exact minimum spanning forest calls,
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the paper's Lemma 3.1
+(§3.1, p. 13, proved in §3.6, pp. 22–24) for the certificate procedure with the schedule of Lemma
+3.11 and the estimator of §3.5 (`Cslib.Query.Certificate.Config.derandomized`). For every `γ > 0`
+there are `C, C'` such that on a root instance with `n` vertices, `m` edges and `n ≤ 2 m` (no
+isolated vertices), with injective weights and exact minimum spanning forest calls,
 
 * `|F| + |U(F)| + ∑ |E_i| ≤ 8 m / γ + C √(m n)` (the paper has `16 m / γ`; taking `γ ≥ 8 / ε`
   gives the paper's `ε m + C_ε √(m n)`),
 * the comparisons are at most `C' m` plus those of the exact calls,
 * every exact call works on root edges.
 
-A step in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325). The paper's lemma assumes
-no isolated vertices, which gives `n ≤ 2 m`; only `n ≤ 2 m` is used. -/
+The paper's lemma assumes no isolated vertices, which gives `n ≤ 2 m`; only `n ≤ 2 m` is used. -/
 theorem certificate_derandomized_accounting (γ : ℕ) (hγ : 0 < γ) :
     ∃ C C' : ℝ, ∀ {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
       (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) (w : E → W)
@@ -1357,12 +1360,12 @@ theorem certificate_derandomized_accounting (γ : ℕ) (hγ : 0 < γ) :
   exact h _ w X ends S rfl hw hmsf hS hn (errorBound_derandomized γ hγ msfSub hw hmsf hwf)
     (estCostBound_derandomized γ hγ msfSub hw hmsf hwf)
 
-/-- **The cost of the certificate procedure with a linear exact subroutine**, for the
-derandomized configuration: the form of Lemma 3.1 ([KhannaPuttermanSong2026], p. 12) used in the
-proof of Theorem 4.1 (§4, pp. 25–26) by strong induction on the number of edges. Every exact call
-works on at most `8 m / γ + C √(m n)` root edges, and if each costs at most `κ` comparisons per
-input edge, the procedure makes at most `C' m + κ (8 m / γ + C √(m n))` comparisons. A step in the
-proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325). -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the cost of the
+certificate procedure with a linear exact subroutine, for the derandomized configuration: the form
+of the paper's Lemma 3.1 (§3.1, p. 13) used in the proof of Theorem 4.1 (§4, pp. 25–26) by strong
+induction on the number of edges. Every exact call works on at most `8 m / γ + C √(m n)` root edges,
+and if each costs at most `κ` comparisons per input edge, the procedure makes at most
+`C' m + κ (8 m / γ + C √(m n))` comparisons. -/
 theorem countQueries_certificate_derandomized_le (γ : ℕ) (hγ : 0 < γ) :
     ∃ C C' : ℝ, ∀ {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
       (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) (w : E → W)
