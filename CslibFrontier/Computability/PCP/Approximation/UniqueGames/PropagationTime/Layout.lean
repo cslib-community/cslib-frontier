@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Model
 public import CslibFrontier.Computability.WordRAM.SymbolicExec
 import all CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
-import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.List.GetD
 
@@ -211,14 +210,6 @@ theorem exec_nop {w : ℕ} (r : Fin 34) (x : Data 34) :
   have h : x.set r (x.regs r) = x := by cases x; simp [Data.set]
   simpa only [h] using
     (Exec.copy : Exec (B := .standard) w (.op (.copy r r)) x (x.regs r |> x.set r) 1)
-
-/-- Lookup in `l.set i x` splits by `u = i` when `i < l.length`. -/
-theorem getD_set_ite {β : Type} (l : List β) {i : ℕ} (hi : i < l.length) (x d : β)
-    (u : ℕ) : (l.set i x).getD u d = if u = i then x else l.getD u d := by
-  split_ifs with h
-  · subst h
-    simp [List.getD_eq_getElem?_getD, hi]
-  · exact List.getD_set_ne (Ne.symm h)
 
 /-- Distinct slots `u ≠ w` occupy disjoint `L`-word rows in `tabBase g`. -/
 theorem not_in_tabRow {L u w a : ℕ} {g : Graph (Fin L → Fin L)}

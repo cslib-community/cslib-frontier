@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Layout
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 
 /-!
@@ -292,10 +293,9 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
         a ≠ headBase g + u),
       Function.update_of_ne (by omega : a ≠ top + 1),
       Function.update_of_ne (by omega : a ≠ top)]
-  rw [getD_set_ite bs (hlen ▸ hu)]
   by_cases hvu : v = u
   · subst hvu
-    simp only [↓reduceIte]
+    rw [List.getD_set_self (hlen ▸ hu)]
     have hhd : mem' (headBase g + v) = top := Function.update_self _ _ _
     have hp0 : mem' top = j := by
       simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
@@ -308,7 +308,7 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
     refine .cons hj htop_lo (le_refl _) hp0 ?_
     rw [hp1]
     exact (hbs v hv).frame (by omega) hfr
-  · simp only [hvu, ↓reduceIte]
+  · rw [List.getD_set_ne (Ne.symm hvu)]
     have hhd : mem' (headBase g + v) = mem (headBase g + v) := by
       simp only [mem', Function.update_of_ne (by omega : headBase g + v ≠ headBase g + u),
         Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
@@ -491,9 +491,8 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
           · have hdst_get :
                 ((bsAt k).set g.edges[j].src
                   (g.edges[j] :: (bsAt k).getD g.edges[j].src [])).getD g.edges[j].dst [] =
-                (bsAt k).getD g.edges[j].dst [] := by
-              rw [getD_set_ite _ (hlen_k ▸ hs_lt)]
-              simp only [Ne.symm hsd, ↓reduceIte]
+                (bsAt k).getD g.edges[j].dst [] :=
+              List.getD_set_ne hsd
             simp only [hbs_next, insertEdge, hsd, ↓reduceIte, hz3NF, hz3m, ← hdst_get]
             exact hz2Adj u hu)
       (by rw [hidx]; exact Nat.zero_le _)

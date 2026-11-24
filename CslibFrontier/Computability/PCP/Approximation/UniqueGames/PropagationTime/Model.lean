@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
 public import CslibFrontier.Computability.WordRAM.ListOutput
 import all CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
-import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 
 /-!
@@ -62,13 +61,6 @@ section Buckets
 
 variable {α : Type}
 
-private theorem getD_set_ite {β : Type} (l : List β) {i : ℕ} (hi : i < l.length) (x d : β)
-    (u : ℕ) : (l.set i x).getD u d = if u = i then x else l.getD u d := by
-  split_ifs with h
-  · subst h
-    simp [List.getD_eq_getElem?_getD, hi]
-  · exact List.getD_set_ne (Ne.symm h)
-
 /-- Insert an edge into the incidence lists of its endpoints (once for a loop). -/
 @[expose] def insertEdge (bs : List (List (Edge (α → α)))) (e : Edge (α → α)) :
     List (List (Edge (α → α))) :=
@@ -98,22 +90,34 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
     split_ifs with hsd
     · refine ⟨by rw [List.length_set, hlen], fun u => ?_⟩
       have hs : e.src < (buckets n l).length := by rw [hlen]; exact he.1
-      rw [getD_set_ite _ hs, List.filter_cons, hget, hget]
       by_cases hu : u = e.src
-      · subst hu; simp [incident]
-      · simp [incident, hu, Ne.symm hu, ← hsd]
+      · subst hu
+        rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hs, Option.getD_some,
+          hget, List.filter_cons]
+        simp [incident]
+      · rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
+          ← List.getD_eq_getElem?_getD, hget, List.filter_cons]
+        simp [incident, Ne.symm hu, ← hsd]
     · have hlen1 : ((buckets n l).set e.src (e :: (buckets n l).getD e.src [])).length = n := by
         rw [List.length_set, hlen]
       refine ⟨by rw [List.length_set, hlen1], fun u => ?_⟩
       have hs : e.src < (buckets n l).length := by rw [hlen]; exact he.1
       have hd : e.dst < ((buckets n l).set e.src (e :: (buckets n l).getD e.src [])).length := by
         rw [hlen1]; exact he.2
-      rw [getD_set_ite _ hd, getD_set_ite _ hs, List.filter_cons, hget, hget, hget]
       by_cases hu : u = e.dst
-      · subst hu; simp [incident]
+      · subst hu
+        rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hd, Option.getD_some,
+          hget, List.filter_cons]
+        simp [incident]
       · by_cases hu' : u = e.src
-        · subst hu'; simp [incident, hsd]
-        · simp [incident, hu, hu', Ne.symm hu, Ne.symm hu']
+        · subst hu'
+          rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
+            List.getElem?_set_self hs, Option.getD_some, hget, List.filter_cons]
+          simp [incident]
+        · rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
+            List.getElem?_set_ne (Ne.symm hu'), ← List.getD_eq_getElem?_getD,
+            hget, List.filter_cons]
+          simp [incident, Ne.symm hu, Ne.symm hu']
 
 /-- The incidence lists of a graph's slots are its `adj` lists. -/
 theorem buckets_getD (g : Graph (α → α)) (u : ℕ) :
