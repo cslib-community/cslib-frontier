@@ -1883,7 +1883,8 @@ bounded cache. Without a budget, use `run_interpret_simulation_of_invariant` or
 [Simulation.lean](../../CslibFrontier/Languages/Probabilistic/Simulation.lean). The open-round loops
 of [CCA/Interleaved.lean](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean)
 and the certification and key-expansion hops of
-[TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean)
+[TreeSignature/IdealToLazy.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/IdealToLazy.lean)
+and [TreeSignature/LazyToIndexed.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/LazyToIndexed.lean)
 are worked clients.
 
 ## Pass a query adapter through an eager/lazy game hop

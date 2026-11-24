@@ -8,12 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
-public import Mathlib.Algebra.Order.Floor.Semiring
 public import Mathlib.Algebra.Order.Archimedean.Real.Basic
 import Mathlib.Algebra.BigOperators.Ring.List
 import Mathlib.Algebra.Order.BigOperators.Group.List
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # The knapsack FPTAS
