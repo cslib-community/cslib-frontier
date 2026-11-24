@@ -21,7 +21,7 @@ import Mathlib.Tactic.Ring
 /-!
 # Means of prices on two sheets of `ℤ²`, and the parallelogram law
 
-Lemma C.2 (lem:means) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. For `n = 1, 2, …` let
+Lemma C.2 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. For `n = 1, 2, …` let
 `W n` be a price on two sheets of `ℤ²` with `W n (P, P + g) ≤ Λ |g|` on each sheet. The mean length
 `ν(g) = (E W(P, P + g)²)^(1/2)` (`meanLength`, built on `Separation.meanLength` of the sheet
 metrics) is a crossing length (`crossingLength_meanLength`), and `N(g) = inf ν(S g)/S`
@@ -46,7 +46,7 @@ inequality (Q) at well-chosen points, convexity along lines, a telescoping sum a
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Lemma C.2 of the paper; module `Paper.Means`
+  Lemma C.2 of the paper; module `Paper.Means` (`lem_means`)
 -/
 
 @[expose] public section
@@ -393,7 +393,7 @@ private theorem lem_means_parallelogram_le (hN : CrossingLength N) (hh : IsHomog
 
 end Parallelogram
 
-/-- **Paper: Lemma C.2 (lem:means).** For prices `W n` on two sheets of `ℤ²` with
+/-- **Paper: Lemma C.2.** For prices `W n` on two sheets of `ℤ²` with
 `W n (P, P + g) ≤ Λ |g|` for points of one sheet, and `N(g) = inf ν(S g)/S`, which is also the limit
 of `ν(S g)/S`, the parallelogram law `N(a + b)² + N(a - b)² = 2 N(a)² + 2 N(b)²` holds for all
 `a, b ∈ ℤ²`. -/

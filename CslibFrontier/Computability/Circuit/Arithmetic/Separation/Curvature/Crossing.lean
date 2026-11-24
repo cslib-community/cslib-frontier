@@ -23,7 +23,7 @@ import Mathlib.Tactic.Ring
 /-!
 # The crossing inequality
 
-Proposition B.3 (prop:crossing) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
+Proposition B.3 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
 `x, v, y, u, o, o', w, w'` be points of a price `d` and `p, q ≥ 0`. There are `r, l ≥ 0` with
 `r² + l² ≤ 2 (p² + q²)` such that `p d(x, v) + q d(y, u)` is at most each of
 `p d(x, o) + q d(y, o) + p d(v, o') + q d(u, o') + r d(o, o')` and
@@ -43,7 +43,7 @@ wire exponents, and the pairs `(r, l)` lie in a compact set (`Separation.Prices.
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Proposition B.3 of the paper; module `Paper.Crossing`
+  Proposition B.3 of the paper; module `Paper.Crossing` (`prop_crossing`, `eq_Q`)
 -/
 
 public section
@@ -519,7 +519,7 @@ private theorem prop_crossing_first {Y : Type} {d : Y → Y → ℝ} (hd : IsPri
       linarith
   exact ⟨z.1, z.2, h1, h2, h3, le_min_iff.1 h⟩
 
-/-- **Paper: Proposition B.3 (prop:crossing).** Let `x, v, y, u, o, o', w, w'` be points of a price
+/-- **Paper: Proposition B.3.** Let `x, v, y, u, o, o', w, w'` be points of a price
 `d` and `p, q ≥ 0`. There are `r, l ≥ 0` with `r² + l² ≤ 2 (p² + q²)` such that
 `p d(x, v) + q d(y, u)` is at most each of
 `p d(x, o) + q d(y, o) + p d(v, o') + q d(u, o') + r d(o, o')` and
@@ -548,7 +548,7 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d) (x 
   rw [add_div]
   nlinarith
 
-/-- **Paper: the inequality (Q) of Proposition B.3 (eq:Q).** For every `τ > 0`,
+/-- **Paper: the inequality (Q) of Proposition B.3.** For every `τ > 0`,
 `2 (p d(x, v) + q d(y, u)) ≤ p (d(x, o) + d(v, o') + d(x, w) + d(v, w')) +
 q (d(y, o) + d(u, o') + d(u, w) + d(y, w')) + τ (p² + q²) + (d(o, o')² + d(w, w')²)/(2τ)`. -/
 theorem isPrice_crossing_two_mul_le {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
