@@ -7,21 +7,25 @@
   data.prs.fields.forEach((f, i) => { F[f] = i; });
   const R = data.prs.rows.map((r) => Object.fromEntries(data.prs.fields.map((f, i) => [f, r[i]])));
   const KINDS = data.kinds;
-  const now = meta.time;
+  const now = R.reduce((m, r) => Math.max(m, r.merged || 0, r.created || 0), meta.time);
   const hours = (s) => s / 3600;
-  const dur = (s) => (s >= 86400 ? (s / 86400).toFixed(1) + " days" : s >= 3600 ? (s / 3600).toFixed(1) + " h" : Math.round(s / 60) + " min");
+  const dur = (s) => {
+    const v = Math.max(0, s);
+    return v >= 86400 ? (v / 86400).toFixed(1) + " days" : v >= 3600 ? (v / 3600).toFixed(1) + " h" : Math.round(v / 60) + " min";
+  };
 
   // ---- headline numbers ---------------------------------------------------------------------
   const merged = R.filter((r) => r.merged && r.merged <= now);
   const lat = merged.map((r) => r.merged - r.created).sort((a, b) => a - b);
-  const q = (p) => lat[Math.min(lat.length - 1, Math.floor(p * lat.length))];
+  const q = (p) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] : 0);
   const open = R.filter((r) => r.state === "OPEN" || (r.merged && r.merged > now));
   const week = merged.filter((r) => r.merged > now - 7 * 86400);
   const oldest = open.slice().sort((a, b) => a.created - b.created)[0];
+  const earliest = R.length ? R.reduce((m, r) => Math.min(m, r.created), R[0].created) : now;
   const tiles = [
-    [int(merged.length), "merged pull requests", `${int(R.length)} opened since ${new Date(Math.min(...R.map((r) => r.created)) * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`],
+    [int(merged.length), "merged pull requests", R.length ? `${int(R.length)} opened since ${new Date(earliest * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}` : "0 pull requests"],
     [int(week.length), "merged in the last 7 days", `${(week.length / 7).toFixed(0)} a day`],
-    [`${hours(q(0.5)).toFixed(1)} h`, "median time to merge", `90% within ${hours(q(0.9)).toFixed(0)} h`],
+    [lat.length ? `${hours(q(0.5)).toFixed(1)} h` : "—", "median time to merge", lat.length ? `90% within ${hours(q(0.9)).toFixed(0)} h` : ""],
     [int(open.length), "open now", oldest ? `oldest opened ${dur(now - oldest.created)} ago` : ""],
     [int(R.filter((r) => r.state === "CLOSED" && !r.merged).length), "closed without merging", ""],
   ];
@@ -51,7 +55,8 @@
   const c = document.getElementById("galaxy"), ctx = c.getContext("2d");
   const jit = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const tOf = (r) => r.merged || r.created;
-  const t0 = Math.min(...R.map((r) => r.created)), t1 = Math.max(...R.map(tOf));
+  const t0 = R.length ? R.reduce((m, r) => Math.min(m, r.created), R[0].created) : now - 86400;
+  const t1 = Math.max(t0 + 1, R.length ? R.reduce((m, r) => Math.max(m, tOf(r)), t0) : now);
   const bySize = R.slice().sort((a, b) => (b.add + b.del) - (a.add + a.del));
   let pts = [];
   function draw() {
@@ -137,5 +142,5 @@
   document.addEventListener("themechange", syncImages);
   syncImages();
   document.getElementById("data-note").textContent =
-    "Pull request data comes from the GitHub API (title, author, size, review and comment counts, times), read with the workflow's read-only token; prs.json beside this page holds it.";
+    "Pull request data comes from the GitHub API (title, author, size, review counts, times), read with the workflow's read-only token; prs.json beside this page holds it.";
 })();

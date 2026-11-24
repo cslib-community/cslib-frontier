@@ -83,6 +83,19 @@ private theorem mem_segment_height_iff {a b : ℂ} (hab : a.im < b.im) (z : ℂ)
   rw [heightMap_left, heightMap_right hab.ne] at himage
   rw [← himage, mem_heightMap_image_iff hab.ne, segment_eq_Icc hab.le]
 
+/-- A height in the half-open range of a segment has its intercept on the closed segment. -/
+theorem horizontalIntercept_mem_segment {a b : ℂ} {h : ℝ}
+    (hh : h ∈ Set.Ico (min a.im b.im) (max a.im b.im)) :
+    (⟨horizontalIntercept a b h, h⟩ : ℂ) ∈ segment ℝ a b := by
+  rcases lt_trichotomy a.im b.im with hab | hab | hab
+  · rw [Set.mem_Ico, min_eq_left hab.le, max_eq_right hab.le] at hh
+    exact (mem_segment_height_iff hab _).mpr ⟨⟨hh.1, hh.2.le⟩, rfl⟩
+  · simp only [hab, min_self, max_self, Set.mem_Ico] at hh
+    exact (not_lt_of_ge hh.1 hh.2).elim
+  · rw [Set.mem_Ico, min_eq_right hab.le, max_eq_left hab.le] at hh
+    rw [segment_symm, horizontalIntercept_reverse hab.ne]
+    exact (mem_segment_height_iff hab _).mpr ⟨⟨hh.1, hh.2.le⟩, rfl⟩
+
 private theorem mem_openSegment_height_iff {a b : ℂ} (hab : a.im < b.im) (z : ℂ) :
     z ∈ openSegment ℝ a b ↔
       z.im ∈ Set.Ioo a.im b.im ∧ z.re = horizontalIntercept a b z.im := by

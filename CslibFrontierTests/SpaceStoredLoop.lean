@@ -65,10 +65,10 @@ theorem step_inSpace :
   have hreg := reg_inSpace
   have hcount := count_inSpace
   have htwo : ComputableInSpace (fun _ : Pow × List Bool => 2) (encPair encPow encBits) encNat
-      budget := (ComputableInSpace.constZero 2).mono_le fun _ => Nat.zero_le _
+      budget := ComputableInSpace.budget_const 2
   have hnone : ComputableInSpace (fun _ : Pow × List Bool => (none : Option Pow))
       (encPair encPow encBits) (encOption encPow) budget :=
-    (ComputableInSpace.constZero none).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const none
   have hpow := encPow_pow_budget hreg
   have hsome := ComputableInSpace.budget_optionSome (encPow_mk_budget
     (ComputableInSpace.budget_natSucc (encPow_exp_budget hreg))
@@ -96,7 +96,7 @@ theorem size_count_inSpace :
     (init := fun _ => ⟨0, 1⟩) (S := fun w => Nat.log2 (encBits w).length)
     (B := fun w => 4 * Nat.log2 w.length + 7)
     (fun _ j => ⟨j, 2 ^ j⟩) (fun w => Nat.size (w.count true))
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_inSpace
+    (ComputableInSpace.budget_const _) step_inSpace
     (fun _ => rfl)
     (fun w j hj => by
       have h : ¬w.count true < 2 ^ j := Nat.not_lt.mpr (Nat.lt_size.mp hj)

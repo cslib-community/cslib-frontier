@@ -96,7 +96,7 @@ theorem computableInLogSpace_clockedVertexBound {k : ℕ} (D d : ℕ) :
   (comp_logSpace_of_length_log
     computableInLogSpace_bitsLength
     length_bitsLength_log
-    (clockedVertexBound_budget (k := k) D d (budget_id (.refl _)) (.refl _))).congr_fun fun _ => rfl
+    (clockedVertexBound_budget (k := k) D d (budget_id (.refl _)))).congr_fun fun _ => rfl
 
 /-- Computing the clock-zero compact start identifier `startID ntm (radix D w.length)` from `w` in
 logarithmic space. -/
@@ -106,11 +106,11 @@ theorem computableInLogSpace_startID {k : ℕ} {State : Type} [Fintype State]
       (fun w : List Bool => startID ntm (radix D w.length))
       encBits encNat := by
   have hn := budget_id (BigOLe.refl fun n => (encNat n).length)
-  have hB := radix_budget D hn (.refl _)
+  have hB := radix_budget D hn
   exact (comp_logSpace_of_length_log
     computableInLogSpace_bitsLength
     length_bitsLength_log
-    (startID_budget ntm hB (.refl _))).congr_fun fun _ => rfl
+    (startID_budget ntm hB)).congr_fun fun _ => rfl
 
 /-- Computing the terminal accepting-ID indicator `clockedAccept` on `(w, u)` in logarithmic
 space. -/
@@ -150,7 +150,7 @@ theorem computableInLogSpace_clockedAccept {k : ℕ} {State : Type} [Fintype Sta
       (fun p : ℕ × ℕ => decide (p.2 < E * (p.1 + 1) + 1))
       (encPair encNat encNat) encBool fun p => (encPair encNat encNat p).length :=
     budget_natLt (snd encNat encNat)
-      (budget_natSucc (budget_natMul (budget_const E (.refl _))
+      (budget_natSucc (budget_natMul (budget_const E)
         (budget_natSucc (fst encNat encNat))))
   have hguard : ComputableInLogSpace guard encWU encBool :=
     (comp_logSpace_of_length_log (ComputableInLogSpace.pair hln hlu) hpair_len
@@ -193,9 +193,9 @@ theorem computableInLogSpace_clockedAccept {k : ℕ} {State : Type} [Fintype Sta
       (encPair encNat encNat) encBool fun p => (encPair encNat encNat p).length := by
     have hn := fst encNat encNat
     have hu := snd encNat encNat
-    have hB := radix_budget D hn (.refl _)
-    have hT := polyClock_budget d hn (.refl _)
-    exact clockedAccept_budget (k := k) (State := State) hB hn hT hu (.refl _)
+    have hB := radix_budget D hn
+    have hT := polyClock_budget d hn
+    exact clockedAccept_budget (k := k) (State := State) hB hn hT hu
   let f (x : List Bool × ℕ) : Bool :=
     clockedAccept (k := k) (State := State)
       (radix D x.1.length) x.1.length (polyClock d x.1.length) x.2
@@ -343,8 +343,8 @@ private theorem computableInLogSpace_portGuard (k D d P : ℕ) :
       encNAP encBool fun z => (encNAP z).length := by
     refine (budget_boolAnd
       (budget_natLt hla_s
-        (budget_natSucc (budget_natMul (budget_const E (.refl _)) (budget_natSucc hln_s))))
-      (budget_natLt hlp_s (budget_const (Nat.size P + 1) (.refl _)))).of_enc_eq fun z => ?_
+        (budget_natSucc (budget_natMul (budget_const E) (budget_natSucc hln_s))))
+      (budget_natLt hlp_s (budget_const (Nat.size P + 1)))).of_enc_eq fun z => ?_
     simp
   exact (comp_logSpace_of_length_log hlengths hlen_bound htest).congr_fun fun ⟨w, a, p⟩ => rfl
 
@@ -452,8 +452,8 @@ private theorem computableInLogSpace_recipeSymbols (D : ℕ) {k' d P : ℕ}
         (encPair encNat encNat) encNat fun p => (encPair encNat encNat p).length := by
       have hn := fst encNat encNat
       have hv := snd encNat encNat
-      have hB := radix_budget D hn (.refl _)
-      exact queryIndex_budget (k := k') hB (evalPredRecipe_budget rec hB hv (.refl _))
+      have hB := radix_budget D hn
+      exact queryIndex_budget (k := k') hB (evalPredRecipe_budget rec hB hv)
     have hhead := computableInLogSpace_queryAt hnv_log hnv_len hidx_space
     have htail := computableInLogSpace_recipeSymbols D hv_log hv_len recs
     exact ComputableInLogSpace.listCons hhead htail
@@ -525,8 +525,8 @@ private theorem outQueryPack_log (k D d : ℕ) :
           (napId z % vertexBound (k := k) (radix D (napLen z))))
       encNAP encNat fun z => (encNAP z).length := by
     obtain ⟨hn, ha, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
+    have hB := radix_budget D hn
+    have hN := vertexBound_budget (k := k) hB
     exact queryIndex_budget (k := k) hB (budget_natMod ha hN)
   have hsymOut_log := computableInLogSpace_queryAt hnap_log hnap_len hidxOut_space
   exact ⟨ComputableInLogSpace.pair hnap_log hsymOut_log,
@@ -545,7 +545,7 @@ theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool Stat
       encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
-    exact clockedOutCountWithSymbol_budget machine D d hn ha hp hsym (.refl _)
+    exact clockedOutCountWithSymbol_budget machine D d hn ha hp hsym
   let f : Triple → ℕ := fun (w, a, p) => clockedOutCount machine D d w a p
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) (encGuardedSub k D d 2) encNat :=
     (comp_logSpace_of_length_log hpack_log hpack_len hcnt_space).congr_fun fun ⟨⟨w, a, p⟩, _⟩ => rfl
@@ -566,12 +566,10 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
       encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
+    have hB := radix_budget D hn
+    have hN := vertexBound_budget (k := k) hB
     have houtList := coinOutTargetsWithSymbol_budget machine hB hn (budget_natMod ha hN) hsym
-      (.refl _)
     exact getElem?_getD_zero_budget 2 (fun _ => length_coinOutTargetsWithSymbol_le ..) houtList hp
-      (.refl _)
   have hvVal_log := comp_logSpace_of_length_log hpack1_log hpack1_len hvVal_space
   have hvVal_len := length_log_of_inSpace hpack1_len hvVal_space
   have hinSyms_log := computableInLogSpace_recipeSymbols D hvVal_log hvVal_len
@@ -585,7 +583,7 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
   have hsymOut := budget_comp_linear (snd encNAP (encOption encBool)) hp1
   have hinSyms := snd encOutQueryPack (encList (encOption encBool))
   have hout_space := clockedOutPortWithSymbols_budget machine D d _
-    hn ha hp hsymOut (fun i => budget_listGetDOptionBool i.val hinSyms) (.refl _)
+    hn ha hp hsymOut (fun i => budget_listGetDOptionBool i.val hinSyms)
   let f : Triple → Option (ℕ × ℕ) := fun (w, a, p) => clockedOutPort machine D d w a p
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) (encGuardedSub k D d 2)
       (encOption (encPair encNat encNat)) := by
@@ -626,8 +624,8 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
       (fun z : NAP => napId z % vertexBound (k := k) (radix D (napLen z)))
       encNAP encNat fun z => (encNAP z).length := by
     obtain ⟨hn, hb, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := radix_budget D hn (.refl _)
-    exact budget_natMod hb (vertexBound_budget (k := k) hB (.refl _))
+    have hB := radix_budget D hn
+    exact budget_natMod hb (vertexBound_budget (k := k) hB)
   have hv_log := comp_logSpace_of_length_log hnap_log hnap_len hv_space
   have hv_len := length_log_of_inSpace hnap_len hv_space
   have hinSyms_log := computableInLogSpace_recipeSymbols D hv_log hv_len (predRecipes machine)
@@ -644,14 +642,14 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
       encPack1 encNat fun z => (encPack1 z).length := by
     obtain ⟨hn, hb, hq⟩ := nap_fields_inSpace (fst encNAP (encList (encOption encBool)))
     have hinSyms := snd encNAP (encList (encOption encBool))
-    have hB := radix_budget D hn (.refl _)
-    have hN := vertexBound_budget (k := k) hB (.refl _)
+    have hB := radix_budget D hn
+    have hN := vertexBound_budget (k := k) hB
     have hinList := coinInSourcesWithSymbols_ofFn_budget machine
       (fun i z => z.2.getD i.val none)
       hB hn (budget_natMod hb hN)
-      (fun i => budget_listGetDOptionBool i.val hinSyms) (.refl _)
+      (fun i => budget_listGetDOptionBool i.val hinSyms)
     have huVal := getElem?_getD_zero_budget P (fun _ => length_coinInSourcesWithSymbols_le ..)
-      hinList hq (.refl _)
+      hinList hq
     exact queryIndex_budget (k := k) hB huVal
   have hsymPred_log := computableInLogSpace_queryAt hpack1_log hpack1_len hidxPred_space
   have hpack2_log := ComputableInLogSpace.pair hpack1_log hsymPred_log
@@ -662,7 +660,7 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
   have hinSyms := budget_comp_linear (snd encNAP (encList (encOption encBool))) hp1
   have hsymPred := snd encPack1 (encOption encBool)
   have hin_space := clockedInPortWithSymbols_budget machine D d _
-    hn hb hq (fun i => budget_listGetDOptionBool i.val hinSyms) hsymPred (.refl _)
+    hn hb hq (fun i => budget_listGetDOptionBool i.val hinSyms) hsymPred
   let f : Triple → Option (ℕ × ℕ) := fun (w, b, q) => clockedInPort machine D d w b q
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) (encGuardedSub k D d P)
       (encOption (encPair encNat encNat)) := by

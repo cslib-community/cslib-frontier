@@ -525,7 +525,9 @@ theorem Protocol.IsPPT.corruptRouter {n : ℕ} {In Out NetQ NetR : Type}
 
 /-! ### Machine lifting (`liftRight` and `liftAdversary`) -/
 
-private theorem support_lowerWith_liftRightProgram {ιL ιR α : Type}
+/-- Library infrastructure (no cited result): lowering a right-lifted program through `iL.sum iR`
+has the same `OracleComp.support` as lowering the underlying program through `iR`. -/
+theorem support_lowerWith_liftRightProgram {ιL ιR α : Type}
     {L : ιL → Type} {R : ιR → Type}
     (iL : WordInterface L) (iR : WordInterface R) (limit : ℕ) (program : ProbOracleComp R α) :
     OracleComp.support
