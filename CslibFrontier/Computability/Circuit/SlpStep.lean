@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Cslib.Computability.Circuit.Program
 public import Cslib.Computability.Circuit.Signature
+public import CslibFrontier.Computability.Circuit.StraightLine
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 
@@ -59,30 +60,19 @@ theorem exists_program_of_isSlpStep (inp : Fin n → Inp → Fin D) (fn : ℕ �
     (h : ∀ k < p, IsSlpStep inp fn k) :
     ∃ P : Program (fullSignature 2 (Fin D)) n p,
       ∀ (k : Fin p) x, P.eval fullInterpretation (fun i => inp i x) k = fn k x := by
-  suffices key : ∀ q ≤ p, ∃ P : Program (fullSignature 2 (Fin D)) n q,
-      ∀ (k : Fin q) x, P.eval fullInterpretation (fun i => inp i x) k = fn k x from key p le_rfl
-  intro q hq
-  induction q with
-  | zero => exact ⟨.empty, fun k => k.elim0⟩
-  | succ q ih =>
-    obtain ⟨P, hP⟩ := ih (by omega)
-    have step : ∃ line : Line (fullSignature 2 (Fin D)) n q, ∀ x,
-        line.eval fullInterpretation (fun i => inp i x)
-          (P.eval fullInterpretation (fun i => inp i x)) = fn q x := by
-      rcases h q (by omega) with ⟨i, hi⟩ | ⟨c, hc⟩ | ⟨i, hi, j, hj, φ, hφ⟩
-      · exact ⟨⟨.fn fun a => a 0, (![Wire.input i, Wire.input i] : Fin 2 → Wire n q)⟩, fun x => by
-          rw [hi]
-          rfl⟩
-      · exact ⟨⟨.con c, Fin.elim0⟩, fun x => by simp [Line.eval, fullInterpretation, hc]⟩
-      · refine ⟨⟨.fn fun a => φ (a 0) (a 1),
-          (![Wire.gate ⟨i, hi⟩, Wire.gate ⟨j, hj⟩] : Fin 2 → Wire n q)⟩, fun x => ?_⟩
-        rw [hφ, ← hP ⟨i, hi⟩ x, ← hP ⟨j, hj⟩ x]
-        rfl
-    obtain ⟨line, hline⟩ := step
-    refine ⟨.gate P line, fun k x => ?_⟩
-    induction k using Fin.lastCases with
-    | last => simpa using hline x
-    | cast k => simpa using hP k x
+  have step : ∀ j : Fin p, ∃ line : Line (fullSignature 2 (Fin D)) n j, ∀ x,
+      fn j x = line.eval fullInterpretation (fun i => inp i x) fun t => fn t x := by
+    intro j
+    rcases h j j.isLt with ⟨i, hi⟩ | ⟨c, hc⟩ | ⟨i, hi, k, hk, φ, hφ⟩
+    · exact ⟨⟨.fn fun a => a 0, (![Wire.input i, Wire.input i] : Fin 2 → Wire n j)⟩,
+        fun x => by rw [hi]; rfl⟩
+    · exact ⟨⟨.con c, Fin.elim0⟩, fun x => by rw [hc]; rfl⟩
+    · exact ⟨⟨.fn fun a => φ (a 0) (a 1),
+        (![Wire.gate ⟨i, hi⟩, Wire.gate ⟨k, hk⟩] : Fin 2 → Wire n j)⟩, fun x => by rw [hφ]; rfl⟩
+  choose line hline using step
+  obtain ⟨P, hP, -⟩ := Program.exists_eval_eq_of_prefixLines fullInterpretation
+    (fun x i => inp i x) line (fun x j => fn j x) fun x j => hline j x
+  exact ⟨P, fun k x => congrFun (hP x) k⟩
 
 /-- A program with `p` gates on `n` inputs gives a list of `n + p` steps: first the inputs, then
 the gates. -/

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.SlpStep
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
+public import Mathlib.Algebra.Notation.Indicator
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.Linarith
@@ -227,21 +228,21 @@ lemma sum (hD : 0 < D) {κ : Type*} (s : Finset κ)
 
 end Cost
 
-/-- The indicator of a property. -/
-noncomputable def ind (P : Inp → Prop) : Inp → ℕ := by
-  classical exact fun x => if P x then 1 else 0
+private lemma indicator_eq_one {P : Inp → Prop} {x : Inp} (h : P x) :
+    ({x | P x}.indicator 1 : Inp → ℕ) x = 1 := Set.indicator_of_mem h 1
 
-lemma ind_true {P : Inp → Prop} {x : Inp} (h : P x) : ind P x = 1 := by unfold ind; simp [h]
+private lemma indicator_eq_zero {P : Inp → Prop} {x : Inp} (h : ¬ P x) :
+    ({x | P x}.indicator 1 : Inp → ℕ) x = 0 := Set.indicator_of_notMem h 1
 
-lemma ind_false {P : Inp → Prop} {x : Inp} (h : ¬ P x) : ind P x = 0 := by unfold ind; simp [h]
-
-lemma ind_le (P : Inp → Prop) (x : Inp) : ind P x ≤ 1 := by
+private lemma indicator_le_one (P : Inp → Prop) (x : Inp) :
+    ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := by
   by_cases h : P x
-  · rw [ind_true h]
-  · rw [ind_false h]; omega
+  · rw [indicator_eq_one h]
+  · rw [indicator_eq_zero h]; omega
 
 /-- A property is decided in at most `c` steps. -/
-def CostP (D : ℕ) (A : Set (Inp → ℕ)) (c : ℕ) (P : Inp → Prop) : Prop := Cost D A c (ind P)
+def CostP (D : ℕ) (A : Set (Inp → ℕ)) (c : ℕ) (P : Inp → Prop) : Prop :=
+  Cost D A c ({x | P x}.indicator 1)
 
 namespace CostP
 
@@ -261,8 +262,8 @@ lemma rel (hD : 1 < D) {p q : ℕ} {h1 h2 : Inp → ℕ} (r : ℕ → ℕ → Pr
   have := Cost.op (fun a b => if r a b then 1 else 0) c1 c2 (fun x => by split_ifs <;> omega)
   refine this.congr fun x => ?_
   by_cases h : r (h1 x) (h2 x)
-  · rw [ind_true (P := fun x => r (h1 x) (h2 x)) h, ite_eq_left h]
-  · rw [ind_false (P := fun x => r (h1 x) (h2 x)) h, ite_eq_right h]
+  · rw [indicator_eq_one (P := fun x => r (h1 x) (h2 x)) h, ite_eq_left h]
+  · rw [indicator_eq_zero (P := fun x => r (h1 x) (h2 x)) h, ite_eq_right h]
 
 /-- A property of a value. -/
 lemma rel1 (hD : 1 < D) {p : ℕ} {h : Inp → ℕ} (r : ℕ → Prop) (c1 : Cost D A p h) :
@@ -271,11 +272,11 @@ lemma rel1 (hD : 1 < D) {p : ℕ} {h : Inp → ℕ} (r : ℕ → Prop) (c1 : Cos
 
 lemma true' (hD : 1 < D) : CostP D A 1 fun _ => True := by
   refine (Cost.const 1 hD).congr fun x => ?_
-  rw [ind_true (P := fun _ => True) (x := x) trivial]
+  rw [indicator_eq_one (P := fun _ => True) (x := x) trivial]
 
 lemma false' (hD : 1 < D) : CostP D A 1 fun _ => False := by
   refine (Cost.const 0 (by omega)).congr fun x => ?_
-  rw [ind_false (P := fun _ => False) (x := x) (fun h => h)]
+  rw [indicator_eq_zero (P := fun _ => False) (x := x) (fun h => h)]
 
 /-- A constant property. -/
 lemma const (hD : 1 < D) (P : Prop) : CostP D A 1 fun _ => P := by
@@ -286,17 +287,17 @@ lemma const (hD : 1 < D) (P : Prop) : CostP D A 1 fun _ => P := by
 lemma and (hD : 1 < D) {p q : ℕ} {P Q : Inp → Prop} (c1 : CostP D A p P) (c2 : CostP D A q Q) :
     CostP D A (p + q + 1) fun x => P x ∧ Q x := by
   refine (rel hD (fun a b => a = 1 ∧ b = 1) c1 c2).congr fun x => ?_
-  by_cases h1 : P x <;> by_cases h2 : Q x <;> simp [ind, h1, h2]
+  by_cases h1 : P x <;> by_cases h2 : Q x <;> simp [Set.indicator, h1, h2]
 
 lemma or (hD : 1 < D) {p q : ℕ} {P Q : Inp → Prop} (c1 : CostP D A p P) (c2 : CostP D A q Q) :
     CostP D A (p + q + 1) fun x => P x ∨ Q x := by
   refine (rel hD (fun a b => a = 1 ∨ b = 1) c1 c2).congr fun x => ?_
-  by_cases h1 : P x <;> by_cases h2 : Q x <;> simp [ind, h1, h2]
+  by_cases h1 : P x <;> by_cases h2 : Q x <;> simp [Set.indicator, h1, h2]
 
 lemma not (hD : 1 < D) {p : ℕ} {P : Inp → Prop} (c1 : CostP D A p P) :
     CostP D A (p + 2) fun x => ¬ P x := by
   refine (rel1 hD (fun a => a = 0) c1).congr fun x => ?_
-  by_cases h1 : P x <;> simp [ind, h1]
+  by_cases h1 : P x <;> simp [Set.indicator, h1]
 
 lemma exists_mem (hD : 1 < D) {κ : Type*} (s : Finset κ) {c : ℕ} {P : κ → Inp → Prop}
     (hc : ∀ i ∈ s, CostP D A c (P i)) : CostP D A (s.card * (c + 1) + 1) fun x => ∃ i ∈ s,
@@ -332,24 +333,24 @@ lemma Cost.ite {c p q : ℕ} {P : Inp → Prop} [DecidablePred P] {h1 h2 : Inp �
         (b2 : ∀ x, h2 x < D) :
     Cost D A (2 * c + p + q + 3) fun x => if P x then h1 x else h2 x := by
   have a1 := Cost.op (fun a b => a * b) c0 c1 (fun x => by
-    have := ind_le P x
+    have := indicator_le_one P x
     have := b1 x
     nlinarith)
   have a2 := Cost.op (fun a b => (1 - a) * b) c0 c2 (fun x => by
-    have := ind_le P x
+    have := indicator_le_one P x
     have := b2 x
-    have : 1 - ind P x ≤ 1 := by omega
+    have : 1 - ({x | P x}.indicator 1 : Inp → ℕ) x ≤ 1 := by omega
     nlinarith)
   have a3 := Cost.op (fun a b => a + b) a1 a2 (fun x => by
     have := b1 x
     have := b2 x
     by_cases h : P x
-    · simp only [ind_true h]; omega
-    · simp only [ind_false h]; omega)
+    · simp only [indicator_eq_one h]; omega
+    · simp only [indicator_eq_zero h]; omega)
   refine (a3.congr fun x => ?_).mono (by ring_nf; omega)
   by_cases h : P x
-  · simp only [ind_true h, ite_eq_left h]; omega
-  · simp only [ind_false h, ite_eq_right h]; omega
+  · simp only [indicator_eq_one h, ite_eq_left h]; omega
+  · simp only [indicator_eq_zero h, ite_eq_right h]; omega
 
 
 end Cslib.Circuits
