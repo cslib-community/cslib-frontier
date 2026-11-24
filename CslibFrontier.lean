@@ -3585,6 +3585,7 @@ public import CslibFrontier.Computability.DecisionTree.SpectralNorm
 public import CslibFrontier.Computability.DecisionTree.Switching
 public import CslibFrontier.Computability.DecisionTree.SwitchingProbability
 public import CslibFrontier.Computability.DecisionTree.Symmetric
+public import CslibFrontier.Computability.DecisionTree.Truncate
 public import CslibFrontier.Computability.Distributed.ABD.Basic
 public import CslibFrontier.Computability.Distributed.ABD.Impossibility
 public import CslibFrontier.Computability.Distributed.ABD.Protocol
@@ -9207,6 +9208,7 @@ public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Circu
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.GGM
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Inversion
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.NaturalProperty
+public import CslibFrontier.MachineLearning.UniformLearning.DecisionTreeClass
 public import CslibFrontier.MachineLearning.UniformLearning.ExactLowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.KushilevitzMansour
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree

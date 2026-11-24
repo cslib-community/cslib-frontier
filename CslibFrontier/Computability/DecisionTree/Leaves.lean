@@ -41,6 +41,8 @@ of native weighted-threshold circuits.
 ## Main results
 
 * `Cslib.DecisionTree.eval_eq_of_path_eq`: a common path gives a common output.
+* `Cslib.DecisionTree.path_eq_of_forall_mem_queries`: inputs that agree on the queried coordinates
+  follow a common path.
 * `Cslib.DecisionTree.card_image_eval_le_leafCount`: a tree takes at most `leafCount` values.
 * `Cslib.DecisionTree.card_le_two_pow_depth_of_injOn`: a tree of depth `d` that recovers a function
   injective on `S` has `|S| ≤ 2 ^ d`.
@@ -110,6 +112,21 @@ theorem eval_eq_of_path_eq (t : DecisionTree ι β) {x y : ι → Bool}
       simpa only [h.1, hy, Bool.cond_false] using h.2
     · apply ihr
       simpa only [h.1, hy, Bool.cond_true] using h.2
+
+/-- Inputs that agree on the coordinates queried for `x` follow the same path. -/
+theorem path_eq_of_forall_mem_queries [DecidableEq ι] (t : DecisionTree ι β) {x y : ι → Bool}
+    (h : ∀ i ∈ t.queries x, y i = x i) : t.path y = t.path x := by
+  induction t with
+  | leaf => rfl
+  | node i t₀ t₁ ih₀ ih₁ =>
+    simp only [queries_node, Finset.mem_insert, forall_eq_or_imp] at h
+    obtain ⟨hi, h⟩ := h
+    simp only [path, hi]
+    cases hx : x i
+    · simp only [hx, Bool.cond_false] at h ⊢
+      rw [ih₀ h]
+    · simp only [hx, Bool.cond_true] at h ⊢
+      rw [ih₁ h]
 
 /-- A decision tree takes at most `leafCount` distinct values on any finite set of inputs. -/
 theorem card_image_eval_le_leafCount [DecidableEq β] (t : DecisionTree ι β)
