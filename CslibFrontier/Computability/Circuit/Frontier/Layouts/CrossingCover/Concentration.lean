@@ -41,14 +41,13 @@ bounded coordinate influence.
   `∫ x, (f x - ∫ y, f y ∂P) ^ 2 ∂P ≤ ∑ i, c i ^ 2`.
 * `Cslib.Circuits.Frontier.CrossingCover.measureReal_ge_mean_add_le_of_boundedDiff`:
   corresponding one-sided Chebyshev deviation bound.
-* `Cslib.Circuits.Frontier.CrossingCover.prefix_crossingCover_le_grid`:
-  deterministic sandwich relating every prefix of a score-sorted vertex ordering `vs` to either a
-  tail set (`< -T` or `≥ T`) or a single grid threshold plus the enclosing window, avoiding any
-  distinctness assumption on the scores.
 * `Cslib.Circuits.Frontier.CrossingCover.exists_width_le_of_expected_crossingCover`:
   generic Gaussian concentration + interpolation step turning a uniform threshold expectation bound
   `∫ g, crossingCover G (thresholdVec (row · ⬝ᵥ g) t) ≤ γ * |V|` into a layout of width at most
-  `(γ + ξ) * |V|`, for every sufficiently large cubic graph.
+  `(γ + ξ) * |V|`, for every sufficiently large cubic graph. Its proof uses a deterministic
+  sandwich relating every prefix of a score-sorted vertex ordering to either a tail set (`< -T` or
+  `≥ T`) or a single grid threshold plus the enclosing window, with no distinctness assumption on
+  the scores.
 -/
 
 public section
@@ -389,7 +388,7 @@ with step `δ = 2 * T / K` (`T > 0`, `K > 0`), *every* prefix bipartition
 * `crossingCover G b_i ≤ max (|left tail|, |right tail|, max_k (crossingCover G (s < t_k) + |W_k|))`
 
 even when vertices tie in score! -/
-theorem prefix_crossingCover_le_grid {V E : Type*} [Fintype V] [Finite E] [DecidableEq V]
+private theorem prefix_crossingCover_le_grid {V E : Type*} [Fintype V] [Finite E] [DecidableEq V]
     (G : Multigraph V E) (s : V → ℝ) (vs : List V) (hvs_mem : ∀ v : V, v ∈ vs)
     (hsort : vs.Pairwise fun u v => s u ≤ s v)
     {T : ℝ} (hT : 0 < T) {K : ℕ} (hK : 0 < K) (M : ℕ)

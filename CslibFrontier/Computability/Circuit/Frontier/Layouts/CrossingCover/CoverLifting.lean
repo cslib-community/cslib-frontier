@@ -116,25 +116,6 @@ section Basic
 
 variable {V' V : Type*} {H' : SimpleGraph V'} {H : SimpleGraph V} {m : ℕ}
 
-/-- Build a `SimpleGraphCover` using `Finset.card` of filtered fibers on a finite vertex type. -/
-@[expose] def ofFinsetCard [Fintype V'] [DecidableEq V]
-    (proj : V' → V) (hm : 0 < m)
-    (card_fiber : ∀ v : V, (Finset.univ.filter fun v' => proj v' = v).card = m)
-    (adj_proj : ∀ {u' v' : V'}, H'.Adj u' v' → H.Adj (proj u') (proj v'))
-    (lift_adj : ∀ (u' : V') (v : V), H.Adj (proj u') v →
-      ∃! v' : V', proj v' = v ∧ H'.Adj u' v') :
-    SimpleGraphCover H' H m where
-  proj := proj
-  hm := hm
-  card_fiber_set v := by
-    have hset : ({v' : V' | proj v' = v} : Set V') =
-        ↑(Finset.univ.filter fun v' : V' => proj v' = v) := by
-      ext v'; simp
-    rw [hset, Set.ncard_coe_finset]
-    exact card_fiber v
-  adj_proj := adj_proj
-  lift_adj := lift_adj
-
 variable (cov : SimpleGraphCover H' H m)
 
 /-- The fiber of `v : V` as a `Finset V'`. -/
@@ -174,13 +155,6 @@ theorem card_vert_eq [Fintype V'] [Fintype V] :
     _ = ∑ _v : V, m := Finset.sum_congr rfl fun v _ => cov.card_fiber v
     _ = Fintype.card V * m := by simp
     _ = m * Fintype.card V := Nat.mul_comm _ _
-
-include cov in
-theorem natCard_vert_eq [Finite V'] [Finite V] :
-    Nat.card V' = m * Nat.card V := by
-  have := Fintype.ofFinite V'
-  have := Fintype.ofFinite V
-  simpa only [Nat.card_eq_fintype_card] using cov.card_vert_eq
 
 theorem proj_surjective [Finite V'] : Function.Surjective cov.proj := by
   intro v
@@ -250,11 +224,6 @@ noncomputable def neighborEquiv (u' : V') :
   left_inv v' := Subtype.ext (cov.eq_liftNeighbor (cov.adj_proj v'.2) rfl v'.2).symm
   right_inv v := Subtype.ext (cov.proj_liftNeighbor u' v.2)
 
-theorem ncard_neighborSet_eq (u' : V') :
-    (H'.neighborSet u').ncard = (H.neighborSet (cov.proj u')).ncard := by
-  rw [← Nat.card_coe_set_eq, ← Nat.card_coe_set_eq]
-  exact Nat.card_congr (cov.neighborEquiv u')
-
 theorem degree_eq (u' : V') [Fintype (H'.neighborSet u')]
     [Fintype (H.neighborSet (cov.proj u'))] :
     H'.degree u' = H.degree (cov.proj u') := by
@@ -295,15 +264,6 @@ theorem card_edgeFinset_eq [Finite V'] [Finite V] [Fintype H'.edgeSet] [Fintype 
   have hmul : 2 * H'.edgeFinset.card = 2 * (m * H.edgeFinset.card) := by
     rw [← h1, hsum, h2, ← mul_assoc, mul_comm m 2, mul_assoc]
   exact Nat.eq_of_mul_eq_mul_left (by decide) hmul
-
-include cov in
-theorem ncard_edgeSet_eq [Finite V'] [Finite V] :
-    H'.edgeSet.ncard = m * H.edgeSet.ncard := by
-  classical
-  have : Fintype V' := Fintype.ofFinite V'
-  have : Fintype V := Fintype.ofFinite V
-  rw [← H'.coe_edgeFinset, ← H.coe_edgeFinset, Set.ncard_coe_finset, Set.ncard_coe_finset]
-  exact cov.card_edgeFinset_eq
 
 /-- Restriction of a covering map to the connected component `C` of a vertex `u₀' : V'` when the
 base graph `H` is connected. Produces a connected covering graph with positive sheet count

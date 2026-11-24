@@ -22,15 +22,12 @@ For a loopless cubic multigraph `G` and any vertex bipartition `b : V → Bool`,
 colorings `x ≤ y : E → Bool` are both clamped at `b`, with `y` minimizing `anchoredCost G b`.
 Then the differing edges `U = {e | x e = false ∧ y e = true}` can be flipped one at a time from
 `false` to `true` so that every intermediate coloring `z` satisfies
-
-`splitCost G z ≤ anchoredCost G b x + 2`
-
-(`exists_clamped_flip_chain`). The vertices incident to `U` partition into `A` (cost `0 → 1`),
-`B` (cost `1 → 0`), and `P` (cost `1 → 1`). Optimality of `y` verifies Hall's marriage condition
-from `A` to `B`. After flipping `P`/`B`-only edges (`+0`) and `A`-vertices with no fixed edge
-(`+1`), the remaining `A'`-vertices each touch at most two `B`-vertices, so a degree-sum peeling
-reduces the excess of started `A'`-blocks over finished `B`-vertices to at most `1` between blocks
-and at most `2` mid-block.
+`splitCost G z ≤ anchoredCost G b x + 2`. The vertices incident to `U` partition into `A`
+(cost `0 → 1`), `B` (cost `1 → 0`), and `P` (cost `1 → 1`). Optimality of `y` verifies Hall's
+marriage condition from `A` to `B`. After flipping `P`/`B`-only edges (`+0`) and `A`-vertices with
+no fixed edge (`+1`), the remaining `A'`-vertices each touch at most two `B`-vertices, so a
+degree-sum peeling reduces the excess of started `A'`-blocks over finished `B`-vertices to at most
+`1` between blocks and at most `2` mid-block.
 
 Concatenating these monotone transitions along a vertex layout `π` (between consecutive prefixes
 `b₀ ≤ b₁ ≤ … ≤ bₙ`) yields an edge permutation whose maximum split cost is at most `M + 3`, where
@@ -40,13 +37,9 @@ Concatenating these monotone transitions along a vertex layout `π` (between con
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.CrossingCover.exists_block_peeling_order`: peeling order on a bipartite
-  incidence family of left-degree at most two admitting a Hall injection into the right side.
-* `Cslib.Circuits.Frontier.CrossingCover.exists_clamped_flip_chain`: `splitCost ≤ anchoredCost + 2`
-  interpolation between clamped `x ≤ y` when `y` is optimal.
-* `Cslib.Circuits.Frontier.CrossingCover.exists_edge_order_splitCost_le`: concatenation across a
-  vertex ordering keeping `splitCost ≤ M + 3`.
 * `Cslib.Circuits.Frontier.CrossingCover.exists_width_le_max_crossingCover`: `cw(G) ≤ M + 6`.
+  The peeling order, the flip chain between two clamped colorings and the concatenation along a
+  vertex ordering described above are steps of its proof and private to this file.
 -/
 
 public section
@@ -62,7 +55,7 @@ section Peeling
 variable {α β : Type*} [DecidableEq α] [DecidableEq β]
 
 /-- The elements of `W` whose incident members of `R` all appear in the prefix `done`. -/
-@[expose] def finishedIn (nbr : α → Finset β) (R : Finset α) (W : Finset β)
+private def finishedIn (nbr : α → Finset β) (R : Finset α) (W : Finset β)
     (done : List α) : Finset β :=
   open Classical in W.filter fun w => ∀ r ∈ R, w ∈ nbr r → r ∈ done
 
@@ -406,7 +399,7 @@ private theorem eq_of_sum_eq_of_le {γ : Type*} {s : Finset γ} {f g : γ → �
 
 /-- **Peeling order for a Hall-matched bipartite incidence family of left-degree ≤ 2.**
 At every completed block prefix `ord.take k`, the deficit `k - |finished W|` is at most `1`. -/
-theorem exists_block_peeling_order (nbr : α → Finset β) :
+private theorem exists_block_peeling_order (nbr : α → Finset β) :
     ∀ m : ℕ, ∀ (R : Finset α) (W : Finset β) (matchB : α → β),
       R.card + W.card = m →
       (∀ r ∈ R, nbr r ⊆ W ∧ (nbr r).card ≤ 2) →
@@ -527,11 +520,8 @@ variable {V E : Type*} [Fintype V] [Finite E] [DecidableEq E]
   (G : Multigraph V E)
 
 /-- Set all edges in `l` to `true`, leaving every other edge at its value in `x`. -/
-@[expose] def flipPrefix {E : Type*} [DecidableEq E] (x : E → Bool) (l : List E) : E → Bool :=
+private def flipPrefix {E : Type*} [DecidableEq E] (x : E → Bool) (l : List E) : E → Bool :=
   fun e => x e || decide (e ∈ l)
-
-private def setDiffEdges {E : Type*} [Fintype E] (x y : E → Bool) : Finset E :=
-  univ.filter fun e => x e = false ∧ y e = true
 
 @[simp] private theorem flipPrefix_nil {E : Type*} [DecidableEq E] (x : E → Bool) :
     flipPrefix x [] = x := by
@@ -569,7 +559,7 @@ private theorem flatMap_take_prefix_decomp {γ δ : Type*} {f : γ → List δ} 
 `3`, `x` and `y` are both clamped at `b`, and `y` minimizes `anchoredCost G b`, then the
 differing edges `U = {e | x e = false ∧ y e = true}` admit an ordering `l` such that every
 intermediate prefix `z = x ∨ (· ∈ l.take k)` keeps `splitCost G z ≤ anchoredCost G b x + 2`. -/
-theorem exists_clamped_flip_chain (hd : G.MaxDegreeLE 3)
+private theorem exists_clamped_flip_chain (hd : G.MaxDegreeLE 3)
     {b : V → Bool} {x y : E → Bool}
     (hx : IsClamped G b x) (hy : IsClamped G b y)
     (hym : anchoredCost G b y = crossingCover G b) :
@@ -1204,7 +1194,7 @@ private theorem exists_step_flip_chain [DecidableEq V] (hd : G.MaxDegreeLE 3)
 `vs : List V` covering `V`, concatenating the canonical monotone flip chains yields a nodup list
 `es : List E` covering `E` such that every prefix has `splitCost` at most `M + 3`, where `M`
 bounds `crossingCover G` on every vertex prefix of `vs`. -/
-theorem exists_edge_order_splitCost_le [DecidableEq V] (hd : G.MaxDegreeLE 3)
+private theorem exists_edge_order_splitCost_le [DecidableEq V] (hd : G.MaxDegreeLE 3)
     (vs : List V) (hvs : ∀ v : V, v ∈ vs) (M : ℕ)
     (hM : ∀ i ≤ vs.length, crossingCover G (fun v => decide (v ∈ vs.take i)) ≤ M) :
     ∃ es : List E, es.Nodup ∧ (∀ e : E, e ∈ es) ∧

@@ -127,20 +127,16 @@ theorem crossingGraph_adj_iff (H : SimpleGraph V) (b : V → Bool) (u v : V) :
   Iff.rfl
 
 /-- Restrict `D` to edges with both endpoints inside a `Finset V`. -/
-def restrictEdges (D : SimpleGraph V) (S : Finset V) : SimpleGraph V where
+private def restrictEdges (D : SimpleGraph V) (S : Finset V) : SimpleGraph V where
   Adj u v := D.Adj u v ∧ u ∈ S ∧ v ∈ S
   symm := ⟨fun _ _ ⟨hadj, hu, hv⟩ => ⟨hadj.symm, hv, hu⟩⟩
   loopless := ⟨fun v h => D.loopless.irrefl v h.1⟩
 
 /-- A `Finset V` is a union of connected components of `D` if no edge crosses its boundary. -/
-def IsEdgeClosed (D : SimpleGraph V) (S : Finset V) : Prop :=
+private def IsEdgeClosed (D : SimpleGraph V) (S : Finset V) : Prop :=
   ∀ u v : V, D.Adj u v → u ∈ S → v ∈ S
 
-theorem isEdgeClosed_compl [Fintype V] [DecidableEq V] {D : SimpleGraph V} {S : Finset V}
-    (hS : IsEdgeClosed D S) : IsEdgeClosed D Sᶜ := fun u v huv hu =>
-  mem_compl.mpr fun hv => (mem_compl.mp hu) (hS v u huv.symm hv)
-
-private theorem isEdgeClosed_compl' {D : SimpleGraph V} {S : Finset V}
+private theorem isEdgeClosed_compl {D : SimpleGraph V} {S : Finset V}
     (hS : IsEdgeClosed D S) (u v : V) (huv : D.Adj u v) (hu : u ∉ S) : v ∉ S :=
   fun hv => hu (hS v u huv.symm hv)
 
@@ -191,7 +187,7 @@ private lemma path_alt_sum_aux (r : ℕ) :
 
 /-- Alternating sum of directed non-backtracking walk counts on a path of `r` vertices (`r ≥ 1`)
 always dominates `2 * (r / 2)` for every odd truncation `J`. -/
-theorem path_alt_sum_ge (r J : ℕ) (hJ : Odd J) :
+private theorem path_alt_sum_ge (r J : ℕ) (hJ : Odd J) :
     (2 * (r / 2) : ℤ) ≤
       ∑ j ∈ Icc 1 J, (-1 : ℤ) ^ (j + 1) * (2 * ((r - j : ℕ) : ℤ)) := by
   obtain ⟨m, rfl⟩ := hJ
@@ -269,7 +265,7 @@ private lemma simpleVertexCover_split {D : SimpleGraph V} {S : Finset V}
       rcases hC₁ u v ⟨huv, hu, hv⟩ with h | h
       · exact Or.inl (mem_union_left C₂ h)
       · exact Or.inr (mem_union_left C₂ h)
-    · have hv : v ∉ S := isEdgeClosed_compl' hS u v huv hu
+    · have hv : v ∉ S := isEdgeClosed_compl hS u v huv hu
       rcases hC₂ u v ⟨huv, mem_compl.mpr hu, mem_compl.mpr hv⟩ with h | h
       · exact Or.inl (mem_union_right C₁ h)
       · exact Or.inr (mem_union_right C₁ h)
@@ -300,7 +296,7 @@ private lemma dirNBCount_split {D : SimpleGraph V} {S : Finset V}
     · intro h0 i
       induction i using Fin.induction with
       | zero => exact h0
-      | succ k ih => exact isEdgeClosed_compl' hS _ _ (hw.1 k) ih
+      | succ k ih => exact isEdgeClosed_compl hS _ _ (hw.1 k) ih
   have hdisj : Disjoint W₁ W₂ := disjoint_left.mpr fun w h1 h2 => by
     have h1' : IsNBWalk (restrictEdges D S) j w := (mem_filter.mp h1).2
     have h2' : IsNBWalk (restrictEdges D Sᶜ) j w := (mem_filter.mp h2).2

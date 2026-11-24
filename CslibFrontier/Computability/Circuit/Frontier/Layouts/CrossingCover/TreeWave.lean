@@ -50,19 +50,11 @@ asymptotic upper bound on the expected minimum crossing vertex cover of `H`.
 
 * `Cslib.Circuits.Frontier.CrossingCover.nbCount`: number of non-backtracking walks of length `k`
   between two vertices.
-* `Cslib.Circuits.Frontier.CrossingCover.shellNorm`: normalizing factor `1 + 3 * R / 2` for radial
-  shells up to radius `R`.
-* `Cslib.Circuits.Frontier.CrossingCover.pushedProb`: normalized non-backtracking walk kernel on
-  `H` up to radius `R`.
+* `Cslib.Circuits.Frontier.CrossingCover.pushedProb`: non-backtracking walk kernel on `H` up to
+  radius `R`, normalized by `1 + 3 * R / 2`.
 * `Cslib.Circuits.Frontier.CrossingCover.waveRow`,
   `Cslib.Circuits.Frontier.CrossingCover.waveScore`: unit-norm row vectors and centered Gaussian
   wave field.
-* `Cslib.Circuits.Frontier.CrossingCover.treeCovLimit`,
-  `Cslib.Circuits.Frontier.CrossingCover.treeOverlap`: exact covariance formula on high-girth
-  cubic graphs and its `R → ∞` limit `(1 + d / 3) * 2 ^ (-d / 2)`.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2StepMap`,
-  `Cslib.Circuits.Frontier.CrossingCover.ar2AltProb`: stationary AR(2) Gaussian realization and
-  its alternating-sign orthant probability.
 
 ## Main results
 
@@ -72,18 +64,19 @@ asymptotic upper bound on the expected minimum crossing vertex cover of `H`.
   covering-lift fiber identities for non-backtracking walks.
 * `Cslib.Circuits.Frontier.CrossingCover.waveRow_cov_cover_le_base`: fiberwise Cauchy–Schwarz
   comparison showing covering lifts have pointwise smaller or equal covariance than base graphs.
-* `Cslib.Circuits.Frontier.CrossingCover.tendsto_treeOverlap`,
-  `Cslib.Circuits.Frontier.CrossingCover.waveRow_inner_eq_treeOverlap`: exact covariance calculation
-  on high-girth cubic graphs and its `R → ∞` limit.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2AltProb_eq_altPathProb`: the alternating-sign orthant
-  probability of the Gaussian AR(2) process is the density integral `altPathProb` of
-  `CrossingCover.AR2Density`.
-* `Cslib.Circuits.Frontier.CrossingCover.exists_degThree_star_bound`,
-  `Cslib.Circuits.Frontier.CrossingCover.exists_nbWalk_prob_close`: uniform convergence lemmas for
-  high-girth cubic graphs.
 * `Cslib.Circuits.Frontier.CrossingCover.exists_wave_params_expected_crossingCover_le`: combined
   expectation upper bound valid simultaneously for every finite cubic simple graph and every
   threshold.
+
+## Proof outline
+
+The steps of the last result are private to this file. On a cubic graph with no short closed
+non-backtracking walk, the covariance of two wave rows at distance `d` is computed exactly, and it
+tends to `(1 + d / 3) * 2 ^ (-d / 2)` as `R → ∞`. That limiting covariance is realized by a
+stationary Gaussian AR(2) process, whose alternating-sign orthant probability is the density
+integral `altPathProb` of `CrossingCover.AR2Density`. Two uniform convergence lemmas for high-girth
+cubic graphs then bound the expected crossing cover by `alternatingWaveSum J`, and the covering
+comparison above transfers the bound from a high-girth cover to every cubic graph.
 -/
 
 public section
@@ -590,17 +583,12 @@ theorem nbCount_lift_fiber_sum {V' : Type*} [Fintype V'] [Fintype V] [DecidableE
     exact (congrFun hproj (Fin.last k)).trans hlast
 
 /-- Radial normalization constant `1 + 3 * R / 2` for shells up to radius `R`. -/
-noncomputable def shellNorm (R : ℕ) : ℝ := 1 + 3 * (R : ℝ) / 2
+private noncomputable def shellNorm (R : ℕ) : ℝ := 1 + 3 * (R : ℝ) / 2
 
 /-- `shellNorm R` is strictly positive for every `R : ℕ`. -/
-theorem shellNorm_pos (R : ℕ) : 0 < shellNorm R := by
+private theorem shellNorm_pos (R : ℕ) : 0 < shellNorm R := by
   unfold shellNorm
   positivity
-
-/-- `shellNorm R` is at least `1` for every `R : ℕ`. -/
-theorem one_le_shellNorm (R : ℕ) : 1 ≤ shellNorm R := by
-  unfold shellNorm
-  linarith [show (0 : ℝ) ≤ 3 * (R : ℝ) / 2 by positivity]
 
 /-- Normalized pushed non-backtracking radial distribution up to radius `R`. -/
 noncomputable def pushedProb [Fintype V] (H : SimpleGraph V) (R : ℕ) (v x : V) : ℝ :=
@@ -836,15 +824,15 @@ section TreeOverlap
 
 /-- Limiting covariance of the radial Gaussian wave process at graph distance `d` on the infinite
 3-regular tree: `(1 + d / 3) * 2 ^ (-d / 2)`. -/
-noncomputable def treeCovLimit (d : ℕ) : ℝ :=
+private noncomputable def treeCovLimit (d : ℕ) : ℝ :=
   (1 + (d : ℝ) / 3) * (2 : ℝ) ^ (-(d : ℝ) / 2)
 
 /-- At distance `0`, `treeCovLimit 0 = 1`. -/
-theorem treeCovLimit_zero : treeCovLimit 0 = 1 := by
+private theorem treeCovLimit_zero : treeCovLimit 0 = 1 := by
   simp [treeCovLimit]
 
 /-- At distance `1`, `treeCovLimit 1 = 2 * √2 / 3`. -/
-theorem treeCovLimit_one : treeCovLimit 1 = 2 * Real.sqrt 2 / 3 := by
+private theorem treeCovLimit_one : treeCovLimit 1 = 2 * Real.sqrt 2 / 3 := by
   unfold treeCovLimit
   have hpow : (2 : ℝ) ^ (-(1 : ℝ) / 2) = (Real.sqrt 2)⁻¹ := by
     rw [neg_div, Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), ← Real.sqrt_eq_rpow]
@@ -855,7 +843,7 @@ theorem treeCovLimit_one : treeCovLimit 1 = 2 * Real.sqrt 2 / 3 := by
   nlinarith [hsq]
 
 /-- At distance `2`, `treeCovLimit 2 = 5 / 6`. -/
-theorem treeCovLimit_two : treeCovLimit 2 = 5 / 6 := by
+private theorem treeCovLimit_two : treeCovLimit 2 = 5 / 6 := by
   unfold treeCovLimit
   have hpow : (2 : ℝ) ^ (-(2 : ℝ) / 2) = 2⁻¹ := by
     rw [show -(2 : ℝ) / 2 = -1 by ring, Real.rpow_neg_one]
@@ -864,7 +852,7 @@ theorem treeCovLimit_two : treeCovLimit 2 = 5 / 6 := by
 
 /-- Second-order linear recurrence satisfied by `treeCovLimit`:
 `treeCovLimit (d + 2) = √2 * treeCovLimit (d + 1) - (1 / 2) * treeCovLimit d`. -/
-theorem treeCovLimit_rec (d : ℕ) :
+private theorem treeCovLimit_rec (d : ℕ) :
     treeCovLimit (d + 2) =
       Real.sqrt 2 * treeCovLimit (d + 1) - (1 / 2) * treeCovLimit d := by
   unfold treeCovLimit
@@ -893,7 +881,7 @@ theorem treeCovLimit_rec (d : ℕ) :
           (1 / 2) * ((1 + (d : ℝ) / 3) * r) := by ring
 
 /-- Exact radial wave overlap at distance `d` and radius `R` on a cubic tree (valid for `d ≤ R`). -/
-noncomputable def treeOverlap (R d : ℕ) : ℝ :=
+private noncomputable def treeOverlap (R d : ℕ) : ℝ :=
   if d = 0 then 1
   else if d ≤ R then
     (shellNorm R)⁻¹ * (2 : ℝ) ^ (-(d : ℝ) / 2) *
@@ -902,11 +890,11 @@ noncomputable def treeOverlap (R d : ℕ) : ℝ :=
   else 0
 
 /-- At distance `0`, `treeOverlap R 0 = 1`. -/
-theorem treeOverlap_zero (R : ℕ) : treeOverlap R 0 = 1 := by
+private theorem treeOverlap_zero (R : ℕ) : treeOverlap R 0 = 1 := by
   simp [treeOverlap]
 
 /-- As `R → ∞`, `treeOverlap R d` converges to `treeCovLimit d` for every `d : ℕ`. -/
-theorem tendsto_treeOverlap (d : ℕ) :
+private theorem tendsto_treeOverlap (d : ℕ) :
     Tendsto (fun R : ℕ => treeOverlap R d) atTop (nhds (treeCovLimit d)) := by
   rcases d with _ | d'
   · simp [treeOverlap, treeCovLimit_zero]
@@ -1435,7 +1423,7 @@ private theorem sum_sqrt_pushedProb_eq_treeOverlap_pos {V' : Type*} [Fintype V']
 /-- **Exact radial overlap on high-girth cubic graphs:** if `H'` is finite cubic with no closed
 non-backtracking walk of length `1 ≤ k ≤ 2 * R + d`, `d ≤ R`, and `w` is a non-backtracking walk
 of length `d`, then the overlap between `w a` and `w b` equals `treeOverlap R |a - b|`. -/
-theorem sum_sqrt_pushedProb_eq_treeOverlap {V' : Type*} [Fintype V']
+private theorem sum_sqrt_pushedProb_eq_treeOverlap {V' : Type*} [Fintype V']
     (H' : SimpleGraph V') (hreg : ∀ v : V', open Classical in H'.degree v = 3)
     {R d : ℕ} (hdR : d ≤ R)
     (hgirth : ∀ (k : ℕ), 1 ≤ k → k ≤ 2 * R + d →
@@ -1484,7 +1472,7 @@ theorem sum_sqrt_pushedProb_eq_treeOverlap {V' : Type*} [Fintype V']
 
 /-- Exact inner product of two wave row vectors along a non-backtracking walk in a high-girth
 cubic graph `H'`. -/
-theorem waveRow_inner_eq_treeOverlap {V' : Type*} [Fintype V']
+private theorem waveRow_inner_eq_treeOverlap {V' : Type*} [Fintype V']
     (H' : SimpleGraph V') (hreg : ∀ v : V', open Classical in H'.degree v = 3)
     {R d : ℕ} (hdR : d ≤ R) {ε : ℝ} (hε0 : 0 ≤ ε) (hε1 : ε ≤ 1)
     (hgirth : ∀ (k : ℕ), 1 ≤ k → k ≤ 2 * R + d →
@@ -1525,7 +1513,7 @@ section AR2Process
 
 /-- Lower-triangular coefficient sequence realizing the stationary Gaussian process with
 covariance `treeCovLimit |a - b|`. -/
-noncomputable def ar2Coeff : ℕ → ℕ → ℝ
+private noncomputable def ar2Coeff : ℕ → ℕ → ℝ
   | 0, k => if k = 0 then 1 else 0
   | 1, k => if k = 0 then 2 * Real.sqrt 2 / 3 else if k = 1 then 1 / 3 else 0
   | i + 2, k =>
@@ -1533,7 +1521,7 @@ noncomputable def ar2Coeff : ℕ → ℕ → ℝ
         if k = i + 2 then 1 / Real.sqrt 12 else 0
 
 /-- Lower-triangular support of `ar2Coeff`: `ar2Coeff i k = 0` whenever `i < k`. -/
-theorem ar2Coeff_eq_zero_of_lt {i k : ℕ} (h : i < k) : ar2Coeff i k = 0 := by
+private theorem ar2Coeff_eq_zero_of_lt {i k : ℕ} (h : i < k) : ar2Coeff i k = 0 := by
   induction i using Nat.strong_induction_on with
   | ind i ih =>
     match i with
@@ -1545,7 +1533,7 @@ theorem ar2Coeff_eq_zero_of_lt {i k : ℕ} (h : i < k) : ar2Coeff i k = 0 := by
       simp [show k ≠ i' + 2 by omega]
 
 /-- Diagonal entries of `ar2Coeff` are strictly positive (`1`, `1 / 3`, and `1 / √12`). -/
-theorem ar2Coeff_diag (i : ℕ) :
+private theorem ar2Coeff_diag (i : ℕ) :
     ar2Coeff i i = if i = 0 then 1 else if i = 1 then 1 / 3 else 1 / Real.sqrt 12 := by
   match i with
   | 0 => simp [ar2Coeff]
@@ -1557,7 +1545,7 @@ theorem ar2Coeff_diag (i : ℕ) :
     simp [show i' + 2 ≠ 1 by omega]
 
 /-- Positivity of diagonal entries `ar2Coeff i i`. -/
-theorem ar2Coeff_diag_pos (i : ℕ) : 0 < ar2Coeff i i := by
+private theorem ar2Coeff_diag_pos (i : ℕ) : 0 < ar2Coeff i i := by
   rw [ar2Coeff_diag]
   split_ifs <;> positivity
 
@@ -1690,11 +1678,11 @@ private theorem ar2Coeff_inner_range_le {a b n : ℕ} (ha : a ≤ n) (hb : b ≤
 
 /-- Stationary AR(2) linear map taking i.i.d. standard Gaussians `ξ : Fin (j + 1) → ℝ` to a
 centered Gaussian vector with covariance `treeCovLimit |a - b|`. -/
-noncomputable def ar2StepMap (j : ℕ) (ξ : Fin (j + 1) → ℝ) : Fin (j + 1) → ℝ :=
+private noncomputable def ar2StepMap (j : ℕ) (ξ : Fin (j + 1) → ℝ) : Fin (j + 1) → ℝ :=
   fun i => ∑ k : Fin (j + 1), ar2Coeff i.val k.val * ξ k
 
 /-- Coordinate `0` of `ar2StepMap j ξ` is `ξ 0`. -/
-theorem ar2StepMap_zero (j : ℕ) (ξ : Fin (j + 1) → ℝ) :
+private theorem ar2StepMap_zero (j : ℕ) (ξ : Fin (j + 1) → ℝ) :
     ar2StepMap j ξ 0 = ξ 0 := by
   unfold ar2StepMap
   rw [Finset.sum_eq_single 0]
@@ -1705,7 +1693,7 @@ theorem ar2StepMap_zero (j : ℕ) (ξ : Fin (j + 1) → ℝ) :
   · intro h0; exact absurd (Finset.mem_univ 0) h0
 
 /-- Coordinate `1` of `ar2StepMap j ξ` is `(2 * √2 / 3) * ξ 0 + (1 / 3) * ξ 1`. -/
-theorem ar2StepMap_one {j : ℕ} (hj : 1 ≤ j) (ξ : Fin (j + 1) → ℝ) :
+private theorem ar2StepMap_one {j : ℕ} (hj : 1 ≤ j) (ξ : Fin (j + 1) → ℝ) :
     ar2StepMap j ξ ⟨1, by omega⟩ =
       (2 * Real.sqrt 2 / 3) * ξ 0 + (1 / 3) * ξ ⟨1, by omega⟩ := by
   unfold ar2StepMap
@@ -1726,7 +1714,7 @@ theorem ar2StepMap_one {j : ℕ} (hj : 1 ≤ j) (ξ : Fin (j + 1) → ℝ) :
   simp [ar2Coeff]
 
 /-- AR(2) recurrence for `ar2StepMap j ξ` at index `i + 2 ≤ j`. -/
-theorem ar2StepMap_add_two {j i : ℕ} (hi : i + 2 ≤ j) (ξ : Fin (j + 1) → ℝ) :
+private theorem ar2StepMap_add_two {j i : ℕ} (hi : i + 2 ≤ j) (ξ : Fin (j + 1) → ℝ) :
     ar2StepMap j ξ ⟨i + 2, by omega⟩ =
       Real.sqrt 2 * ar2StepMap j ξ ⟨i + 1, by omega⟩ -
         (1 / 2) * ar2StepMap j ξ ⟨i, by omega⟩ +
@@ -1745,7 +1733,7 @@ theorem ar2StepMap_add_two {j i : ℕ} (hi : i + 2 ≤ j) (ξ : Fin (j + 1) → 
 
 /-- `ar2StepMap` is causal (lower-triangular): appending a last coordinate does not alter
 earlier outputs. -/
-theorem ar2StepMap_snoc_castSucc (j : ℕ) (ξ : Fin (j + 1) → ℝ) (u : ℝ) (i : Fin (j + 1)) :
+private theorem ar2StepMap_snoc_castSucc (j : ℕ) (ξ : Fin (j + 1) → ℝ) (u : ℝ) (i : Fin (j + 1)) :
     ar2StepMap (j + 1) (Fin.snoc (α := fun _ => ℝ) ξ u) i.castSucc = ar2StepMap j ξ i := by
   unfold ar2StepMap
   rw [Fin.sum_univ_castSucc]
@@ -1756,20 +1744,20 @@ theorem ar2StepMap_snoc_castSucc (j : ℕ) (ξ : Fin (j + 1) → ℝ) (u : ℝ) 
   refine Finset.sum_congr rfl fun k _ => by simp [Fin.snoc_castSucc]
 
 /-- Exact Gram matrix of `ar2StepMap j`: inner product of rows `a, b` is `treeCovLimit |a - b|`. -/
-theorem ar2Coeff_inner_eq (j : ℕ) (a b : Fin (j + 1)) :
+private theorem ar2Coeff_inner_eq (j : ℕ) (a b : Fin (j + 1)) :
     ∑ k : Fin (j + 1), ar2Coeff a.val k.val * ar2Coeff b.val k.val =
       treeCovLimit (Int.natAbs ((a : ℤ) - (b : ℤ))) := by
   rw [Fin.sum_univ_eq_sum_range (fun k => ar2Coeff a.val k * ar2Coeff b.val k) (j + 1)]
   exact ar2Coeff_inner_range_le (by omega) (by omega)
 
 /-- Each row of `ar2Coeff` has unit Euclidean norm. -/
-theorem ar2Coeff_sq_sum_eq_one (j : ℕ) (a : Fin (j + 1)) :
+private theorem ar2Coeff_sq_sum_eq_one (j : ℕ) (a : Fin (j + 1)) :
     ∑ k : Fin (j + 1), ar2Coeff a.val k.val ^ 2 = 1 := by
   simpa [sq, treeCovLimit_zero] using ar2Coeff_inner_eq j a a
 
 /-- Alternating-sign orthant probability `2 * P(∀ i, (-1)^i * X_i > 0)` of the stationary AR(2)
 Gaussian process of length `j`. -/
-noncomputable def ar2AltProb (j : ℕ) : ℝ :=
+private noncomputable def ar2AltProb (j : ℕ) : ℝ :=
   2 * (piGauss (Fin (j + 1))).real
     {ξ | ∀ i : Fin (j + 1), 0 < (-1 : ℝ) ^ i.val * ar2StepMap j ξ i}
 
@@ -2202,7 +2190,7 @@ private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ
 
 /-- The alternating-sign orthant probability `ar2AltProb j` of the Gaussian AR(2) process is
 `altPathProb j`, twice the positive-orthant Lebesgue integral of `ar2JointDensity j`. -/
-theorem ar2AltProb_eq_altPathProb (j : ℕ) : ar2AltProb j = altPathProb j := by
+private theorem ar2AltProb_eq_altPathProb (j : ℕ) : ar2AltProb j = altPathProb j := by
   let S : Set (Fin (j + 1) → ℝ) := Set.pi Set.univ (fun _ : Fin (j + 1) => Set.Ioi (0 : ℝ))
   have hS_meas : MeasurableSet S := MeasurableSet.univ_pi fun _ => measurableSet_Ioi
   let ind : (Fin (j + 1) → ℝ) → ℝ≥0∞ := S.indicator fun _ => 1
@@ -2317,7 +2305,7 @@ private theorem map_piGauss_eq_of_gram_eq {ι κ₁ κ₂ : Type*}
 that for all `R ≥ R₀` and `0 < ε ≤ ε₀`, on *every* finite cubic simple graph `H'` with no closed
 non-backtracking walk of length `1 ≤ k ≤ 2 * R + 6`, every vertex has degree `3` in the crossing
 graph with probability at most `η`. -/
-theorem exists_degThree_star_bound (η : ℝ) (hη : 0 < η) :
+private theorem exists_degThree_star_bound (η : ℝ) (hη : 0 < η) :
     ∃ (R₀ : ℕ) (ε₀ : ℝ), 0 < ε₀ ∧
       ∀ {V' : Type*} [Fintype V'] (H' : SimpleGraph V'),
         (∀ v : V', open Classical in H'.degree v = 3) →
@@ -2781,7 +2769,7 @@ private theorem chol_mul_transpose_eq {j : ℕ} (M : Fin (j + 1) → Fin (j + 1)
 graph `H'` with no closed non-backtracking walk of length `1 ≤ k ≤ 2 * R + j + 4`, the event that
 a given non-backtracking walk `w` of length `j` crosses every step of `crossingGraph H' b` has
 probability within `η` of `ar2AltProb j`. -/
-theorem exists_nbWalk_prob_close (j : ℕ) (hj : 1 ≤ j) (η : ℝ) (hη : 0 < η) :
+private theorem exists_nbWalk_prob_close (j : ℕ) (hj : 1 ≤ j) (η : ℝ) (hη : 0 < η) :
     ∃ (R₀ : ℕ) (ε₀ : ℝ), 0 < ε₀ ∧
       ∀ {V' : Type*} [Fintype V'] (H' : SimpleGraph V'),
         (∀ v : V', open Classical in H'.degree v = 3) →

@@ -3527,12 +3527,6 @@ private noncomputable def ar2QuadErr (N : ℕ) (L_end L_int : ℝ) (j : ℕ) : �
       (2 ^ N * (2 * N + 1 : ℝ) * ((2 * N).factorial : ℝ) ^ 2)) *
     (2 * (12 * L_end ^ 2) ^ N + ((j - 1 : ℕ) : ℝ) * (39 * L_int ^ 2) ^ N)
 
-/-- Nonnegativity of `ar2QuadErr`. -/
-private theorem ar2QuadErr_nonneg (N : ℕ) {L_end L_int : ℝ} (_hLe : 0 ≤ L_end) (hLi : 0 ≤ L_int)
-    (j : ℕ) : 0 ≤ ar2QuadErr N L_end L_int j := by
-  unfold ar2QuadErr
-  positivity
-
 /-- Tensor-product Gauss–Legendre quadrature sum for `ar2JointDensity j` over the anisotropic
 box `ar2Box L_end L_int j`. -/
 private noncomputable def ar2TensorQuad {N : ℕ} (L_end L_int : ℝ) (r : Fin N → ℝ) (j : ℕ) : ℝ :=
@@ -5202,42 +5196,6 @@ private theorem checkStepRowUp_spec {s k2 eb8 m : ℕ} {preCol : List ℕ}
         exact Nat.le_of_ble_eq_true hble
       · simp at hchk
 
-/-- Indexing lemma for `checkStepRowsDn`. -/
-private theorem checkStepRowsDn_get {s k2 : ℕ} {mIn eAB_ab eAB_bc eAC_cols : List (List ℕ)}
-    {eA_a eA_b wc eA_c : List ℕ} {outMat : List (List ℕ)} {start rem : ℕ}
-    (hchk : checkStepRowsDn s k2 mIn eAB_ab eAB_bc eAC_cols eA_a eA_b wc eA_c outMat
-      start rem = true) {b : ℕ} (hb1 : start ≤ b) (hb2 : b < start + rem) :
-    checkStepAtDn s k2 mIn eAB_ab eAB_bc eAC_cols eA_a eA_b wc eA_c (outMat.getD b []) b =
-      true := by
-  induction rem generalizing start with
-  | zero => omega
-  | succ rem ih =>
-      simp only [checkStepRowsDn] at hchk
-      split at hchk
-      · rename_i hcur
-        by_cases hbeq : b = start
-        · subst hbeq; exact hcur
-        · exact ih (start := start + 1) hchk (by omega) (by omega)
-      · simp at hchk
-
-/-- Indexing lemma for `checkStepRowsUp`. -/
-private theorem checkStepRowsUp_get {s k2 : ℕ} {mIn eAB_ab eAB_bc eAC_cols : List (List ℕ)}
-    {eA_a eA_b wc eA_c : List ℕ} {outMat : List (List ℕ)} {start rem : ℕ}
-    (hchk : checkStepRowsUp s k2 mIn eAB_ab eAB_bc eAC_cols eA_a eA_b wc eA_c outMat
-      start rem = true) {b : ℕ} (hb1 : start ≤ b) (hb2 : b < start + rem) :
-    checkStepAtUp s k2 mIn eAB_ab eAB_bc eAC_cols eA_a eA_b wc eA_c (outMat.getD b []) b =
-      true := by
-  induction rem generalizing start with
-  | zero => omega
-  | succ rem ih =>
-      simp only [checkStepRowsUp] at hchk
-      split at hchk
-      · rename_i hcur
-        by_cases hbeq : b = start
-        · subst hbeq; exact hcur
-        · exact ih (start := start + 1) hchk (by omega) (by omega)
-      · simp at hchk
-
 /-- Full real-number soundness of `checkStepAtDn` for `ar2StepMat`. -/
 private theorem checkStepAtDn_sound {n s k2 : ℕ} (hs : 0 < s)
     {xa xb xc wc_r : Fin n → ℝ} {M : Fin n → Fin n → ℝ}
@@ -6053,38 +6011,6 @@ private def checkExpPairRowsUp (s ratio m coeff den : ℕ) (xs ys : List ℕ)
       if checkExpPairRowUp s ratio m coeff den (vecAt xs a) (mat.getD a []) ys
       then checkExpPairRowsUp s ratio m coeff den xs ys mat (Nat.add a 1) rem
       else false
-
-private theorem checkExpPairRowsDn_get {s ratio m coeff den : ℕ} {xs ys : List ℕ}
-    {mat : List (List ℕ)} {start rem : ℕ}
-    (hchk : checkExpPairRowsDn s ratio m coeff den xs ys mat start rem = true)
-    {a : ℕ} (ha1 : start ≤ a) (ha2 : a < start + rem) :
-    checkExpPairRowDn s ratio m coeff den (vecAt xs a) (mat.getD a []) ys = true := by
-  induction rem generalizing start with
-  | zero => omega
-  | succ rem ih =>
-      simp only [checkExpPairRowsDn] at hchk
-      split at hchk
-      · rename_i hc
-        by_cases heq : a = start
-        · subst heq; exact hc
-        · exact ih (start := start + 1) hchk (by omega) (by omega)
-      · simp at hchk
-
-private theorem checkExpPairRowsUp_get {s ratio m coeff den : ℕ} {xs ys : List ℕ}
-    {mat : List (List ℕ)} {start rem : ℕ}
-    (hchk : checkExpPairRowsUp s ratio m coeff den xs ys mat start rem = true)
-    {a : ℕ} (ha1 : start ≤ a) (ha2 : a < start + rem) :
-    checkExpPairRowUp s ratio m coeff den (vecAt xs a) (mat.getD a []) ys = true := by
-  induction rem generalizing start with
-  | zero => omega
-  | succ rem ih =>
-      simp only [checkExpPairRowsUp] at hchk
-      split at hchk
-      · rename_i hc
-        by_cases heq : a = start
-        · subst heq; exact hc
-        · exact ih (start := start + 1) hchk (by omega) (by omega)
-      · simp at hchk
 
 /-- Check `sumListNat` of every row summed over a `List (List ℕ)` matrix. -/
 private def sumMatNatAux : List (List ℕ) → ℕ → ℕ
