@@ -324,9 +324,9 @@ theorem boruvkaStep_subset_msf (ends : E → Sym2 V) (S : Finset E) (w : E → W
 /-- **Halving**: contracting the edges selected by a Borůvka step leaves at most half as many
 non-isolated vertices, against every oracle. Every non-isolated vertex selects an edge, so each
 class of the contraction that meets a non-isolated vertex has at least two of them. -/
-theorem two_mul_card_support_boruvkaStep_le (ends : E → Sym2 V) (S : Finset E)
+theorem two_mul_card_support_boruvkaStep_le [DecidableEq E] (ends : E → Sym2 V) (S : Finset E)
     (oracle : {ι : Type} → LEQuery E ι → ι) {C : Finset E}
-    (hC : (boruvkaStep ends S).eval oracle = C) [DecidableEq E] :
+    (hC : (boruvkaStep ends S).eval oracle = C) :
     2 * #(support (Sym2.map (contract ends C) ∘ ends) (S \ C)) ≤ #(support ends S) := by
   set q := contract ends (C : Set E)
   set X := support ends S
@@ -410,19 +410,6 @@ omit [DecidableEq V] [DecidableEq E] in
 private theorem map_comp_map {f g : V → V} (ends : E → Sym2 V) :
     Sym2.map g ∘ (Sym2.map f ∘ ends) = Sym2.map (g ∘ f) ∘ ends :=
   funext fun _ => Sym2.map_map _
-
-omit [DecidableEq E] in
-private theorem support_filter_not_isDiag (ends : E → Sym2 V) (S : Finset E) :
-    support ends {e ∈ S | ¬(ends e).IsDiag} = support ends S := by
-  ext v
-  simp only [mem_support, mem_filter]
-  exact ⟨fun ⟨e, ⟨he, _⟩, h⟩ => ⟨e, he, h⟩, fun ⟨e, he, h⟩ => ⟨e, ⟨he, h.1⟩, h⟩⟩
-
-omit [DecidableEq E] in
-private theorem msf_filter_not_isDiag (ends : E → Sym2 V) (S : Finset E) (w : E → W) :
-    msf ends w {e ∈ S | ¬(ends e).IsDiag} = msf ends w S :=
-  msf_eq_of_subset w (fun _ he => mem_filter.2 ⟨msf_subset w he, fun h =>
-    notMem_msf_of_isDiag w h he⟩) (filter_subset _ _)
 
 /-- `k` Borůvka steps make at most `2 k |S|` comparisons, against every oracle. -/
 theorem countQueries_boruvka_le (ends : E → Sym2 V) (S : Finset E) (k : ℕ)
@@ -517,7 +504,7 @@ theorem msf_eq_union_boruvka (ends : E → Sym2 V) (S : Finset E) (k : ℕ) (w :
     set q := contract ends (C : Set E)
     have h := ih (Sym2.map q ∘ ends) {e ∈ S \ C | ¬(Sym2.map q (ends e)).IsDiag}
     rw [map_comp_map] at h
-    have hfilter := msf_filter_not_isDiag (Sym2.map q ∘ ends) (S \ C) w
+    have hfilter := msf_filter_not_isDiag w (Sym2.map q ∘ ends) (S \ C)
     simp only [Function.comp_apply] at hfilter
     rw [hfilter] at h
     rw [msf_eq_union_msf_map w hw (boruvkaStep_subset_msf ends S w)
