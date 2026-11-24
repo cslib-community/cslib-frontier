@@ -8230,7 +8230,9 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Degeneration
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Indicator
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Basic
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Classes
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Network
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Spectrum
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit

@@ -107,6 +107,10 @@ def ofIsUpperFunctional {q : Antisymmetrization (PartyTensor K I) (· ≤ ·) �
   map_mul_le s t := by rw [toAntisymmetrization_mul]; exact h.map_mul_le _ _
   le_sum s b hb := h.le_sum _ _ (tensorCovering_coveredBy.2 hb)
 
+@[simp] theorem ofIsUpperFunctional_apply {q : Antisymmetrization (PartyTensor K I) (· ≤ ·) → ℝ}
+    (h : IsUpperFunctional (tensorCovering K I) q) (t : PartyTensor K I) :
+    ofIsUpperFunctional h t = q (toAntisymmetrization (· ≤ ·) t) := by rfl
+
 /-- An inequality `P (t * x) ≤ c * P (t * y)` for all tensors `t` holds for all classes. -/
 theorem respects_lift {P : UpperFunctional K I} {x y : PartyTensor K I} {c : ℝ}
     (h : ∀ t, P (t * x) ≤ c * P (t * y)) :

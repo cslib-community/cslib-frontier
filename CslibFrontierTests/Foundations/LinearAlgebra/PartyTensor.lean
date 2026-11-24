@@ -7,6 +7,7 @@ Authors: Anthropic, PBC, Christian Reitwiessner
 module
 -- upstream: local-only (test driver)
 
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -68,5 +69,17 @@ example (F : SpectralPoint K I) (p q r : I) :
       F.wireExponent p r ≤ F.wireExponent p q + F.wireExponent q r :=
   ⟨F.wireExponent_nonneg p q, F.wireExponent_le_one p q, F.wireExponent_self p,
     F.wireExponent_comm p q, F.wireExponent_triangle p q r⟩
+
+/-- Below the upper functional of a spectral point there is a spectral point (Proposition A.3). -/
+example (F : SpectralPoint K I) : ∃ G : SpectralPoint K I, ∀ t, G t ≤ F t :=
+  (F.toUpperFunctional.exists_spectralPoint_le).imp fun _ h => h.1
+
+/-- Extending along the identity, with one map and weight `1` (Proposition A.4): some spectral
+point agrees with `F` at `C` and is at most `F` everywhere. -/
+example (F : SpectralPoint K I) (C : PartyTensor K I) :
+    ∃ F' : SpectralPoint K I, (∀ t, F' t ≤ ∏ _l : Unit, F (push id t) ^ (1 : ℝ)) ∧
+      F' (push id C) = F C :=
+  SpectralPoint.exists_extend id (fun _ : Unit => id) (fun _ _ => rfl) (fun _ => 1)
+    (fun _ => zero_le_one) (by simp) F C
 
 end Cslib.PartyTensorTests
