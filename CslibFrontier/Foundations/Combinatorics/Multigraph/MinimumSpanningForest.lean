@@ -66,8 +66,8 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
   `msf S = C ∪ msf (S \ C)` for `C ⊆ msf S`, the latter in the multigraph with `C` contracted.
 * `Cslib.Multigraph.joins_msf_of_joins`: threshold connectivity (the paper's Fact 2.5): `msf S`
   preserves connectivity by the edges of weight at most `k`, for every threshold `k`.
-* `Cslib.Multigraph.msf_filter_not_isDiag`, `Cslib.Multigraph.support_filter_not_isDiag`: dropping
-  the self-loops changes neither the minimum spanning forest nor the non-isolated vertices.
+* `Cslib.Multigraph.exists_bottleneck`: distinct vertices joined by `F` have a bottleneck edge
+  `g ∈ F`, whose threshold `w g` is the least at which the edges of `F` join them.
 * `Cslib.Multigraph.msf_eq_of_subset`, `Cslib.Multigraph.notMem_msf_of_supported`,
   `Cslib.Multigraph.msf_union_unsupported`: filtering. Any `S'` between `msf S` and `S` has the same
   minimum spanning forest; a supported edge outside `F ⊆ S` is not in `msf S`; and so
@@ -364,6 +364,43 @@ theorem joins_msf_lt_iff {k : W} {u v : V} :
       exact (joins_msf_of_mem w hf hab).mono (by
         rintro g ⟨hg, hgf⟩; exact ⟨hg, hgf.trans_lt hfk⟩))⟩
 
+omit [LinearOrder W] in
+/-- Distinct vertices are joined by a set of edges only if the set is nonempty. -/
+private theorem nonempty_of_joins {T : Finset E} {u v : V} (huv : u ≠ v)
+    (h : Joins ends (T : Set E) u v) : T.Nonempty := by
+  rcases Relation.ReflTransGen.cases_tail h with rfl | ⟨b, -, e, he, -⟩
+  · exact absurd rfl huv
+  · exact ⟨e, he⟩
+
+variable {w} in
+/-- **Bottleneck edges.** Distinct vertices joined by a finite set `F` of edges have a
+*bottleneck* edge `g ∈ F`: the edges of `F` of weight at most `w g` join them and those of weight
+less than `w g` do not. With distinct weights it is unique, and when `F` is acyclic it is the
+heaviest edge on the path of `F` between the two vertices. Any weights in a linear order will do. -/
+theorem exists_bottleneck {F : Finset E} {u v : V} (huv : u ≠ v)
+    (h : Joins ends (F : Set E) u v) :
+    ∃ g ∈ F, Joins ends {x | x ∈ F ∧ w x ≤ w g} u v ∧
+      ¬Joins ends {x | x ∈ F ∧ w x < w g} u v := by
+  classical
+  -- the lightest `g` whose threshold joins `u` and `v`; the heaviest edge of `F` is a candidate
+  set A := F.filter fun g => Joins ends {x | x ∈ F ∧ w x ≤ w g} u v
+  have hA : A.Nonempty := by
+    obtain ⟨g, hg, hmax⟩ := F.exists_max_image w (nonempty_of_joins huv h)
+    exact ⟨g, mem_filter.2 ⟨hg, h.mono (by intro x hx; exact ⟨hx, hmax x hx⟩)⟩⟩
+  obtain ⟨g, hgA, hmin⟩ := A.exists_min_image w hA
+  obtain ⟨hgF, hg⟩ := mem_filter.1 hgA
+  refine ⟨g, hgF, hg, fun hlt => ?_⟩
+  -- otherwise the heaviest edge below `w g` that is needed would be a lighter candidate
+  set T := F.filter fun x => w x < w g
+  have hT : Joins ends (T : Set E) u v :=
+    hlt.mono (by rintro x ⟨hx, hxg⟩; exact mem_coe.2 (mem_filter.2 ⟨hx, hxg⟩))
+  obtain ⟨g', hg'T, hg'max⟩ := T.exists_max_image w (nonempty_of_joins huv hT)
+  obtain ⟨hg'F, hg'g⟩ := mem_filter.1 hg'T
+  have : g' ∈ A := mem_filter.2 ⟨hg'F, hT.mono (by
+    intro x hx
+    exact ⟨(mem_filter.1 (mem_coe.1 hx)).1, hg'max x (mem_coe.1 hx)⟩)⟩
+  exact absurd (hmin g' this) (not_le.2 hg'g)
+
 /-- **Filtering**: any `S'` with `msf S ⊆ S' ⊆ S` has the same minimum spanning forest as
 `S`. -/
 theorem msf_eq_of_subset {S' : Finset E} (h₁ : msf ends w S ⊆ S') (h₂ : S' ⊆ S) :
@@ -560,6 +597,24 @@ def Supported (ends : E → Sym2 V) (w : E → W) (F : Set E) (e : E) : Prop :=
 theorem supported_iff {F : Set E} {e : E} {a b : V} (h : ends e = s(a, b)) :
     Supported ends w F e ↔ Joins ends {f | f ∈ F ∧ w f ≤ w e} a b :=
   forall_joins_iff h
+
+variable {w} in
+/-- An edge supported by `F` is supported by every superset of `F`. -/
+theorem Supported.mono {F G : Set E} (hFG : F ⊆ G) {e : E} (h : Supported ends w F e) :
+    Supported ends w G e := fun a b hab =>
+  (h a b hab).mono (by rintro f ⟨hf, hfe⟩; exact ⟨hFG hf, hfe⟩)
+
+/-- Every edge of `F` is supported by `F`. -/
+theorem supported_of_mem {F : Set E} {e : E} (he : e ∈ F) : Supported ends w F e :=
+  fun _ _ hab => Joins.of_mem (by exact ⟨he, le_rfl⟩) hab
+
+/-- An edge is supported by `msf S` exactly when it is supported by `S`, by Fact 2.5. -/
+theorem supported_msf_iff {e : E} :
+    Supported ends w ↑(msf ends w S) e ↔ Supported ends w ↑S e := by
+  obtain ⟨a, b, hab⟩ := exists_ends_eq (ends := ends) e
+  rw [supported_iff w hab, supported_iff w hab]
+  exact ⟨Joins.mono (by rintro f ⟨hf, hfe⟩; exact ⟨msf_subset w hf, hfe⟩),
+    joins_msf_of_joins w (X := ↑S) subset_rfl⟩
 
 open scoped Classical in
 /-- The edges of `S` not supported by `F`, the set `U(F)` of §3.1 (p. 13). -/
