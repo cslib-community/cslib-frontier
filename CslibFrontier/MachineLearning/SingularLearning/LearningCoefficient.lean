@@ -212,16 +212,22 @@ theorem volumeExponent_le_learningCoeff (K : E → ℝ) (w : E) {r : ℝ} (hr : 
     volumeExponent K w r ≤ learningCoeff K w :=
   le_iSup (fun r : {r : ℝ // 0 < r} => volumeExponent K w r) ⟨r, hr⟩
 
+/-- The local learning coefficient is at most `a` exactly when every volume exponent is. -/
+theorem learningCoeff_le_iff {K : E → ℝ} {w : E} {a : EReal} :
+    learningCoeff K w ≤ a ↔ ∀ r : ℝ, 0 < r → volumeExponent K w r ≤ a := by
+  rw [learningCoeff, iSup_le_iff]
+  exact ⟨fun h r hr => h ⟨r, hr⟩, fun h r => h r.1 r.2⟩
+
 /-- **Comparison.** If `K ≤ C K'` near `w` for a constant `C > 0`, then the local learning
 coefficient of `K` at `w` is at most that of `K'`: the smaller function has the larger sublevel
 sets. -/
 theorem learningCoeff_le_of_le {K K' : E → ℝ} {w : E} {C : ℝ} (hC : 0 < C)
     (h : ∀ᶠ x in 𝓝 w, K x ≤ C * K' x) : learningCoeff K w ≤ learningCoeff K' w := by
   obtain ⟨δ, hδ, hball⟩ := Metric.eventually_nhds_iff_ball.1 h
-  refine iSup_le fun r => ?_
+  refine learningCoeff_le_iff.2 fun r hr => ?_
   -- Shrink the ball to one on which the comparison holds.
-  have hmin : 0 < min r.1 δ := lt_min r.2 hδ
-  refine (volumeExponent_anti K w (min_le_left r.1 δ)).trans
+  have hmin : 0 < min r δ := lt_min hr hδ
+  refine (volumeExponent_anti K w (min_le_left r δ)).trans
     (le_trans ?_ (volumeExponent_le_learningCoeff K' w hmin))
   refine volumeExponent_le_of_subset hC (Eventually.of_forall fun ε x hx => ⟨hx.1, ?_⟩)
   exact (hball x (Metric.ball_subset_ball (min_le_right _ _) hx.1)).trans
