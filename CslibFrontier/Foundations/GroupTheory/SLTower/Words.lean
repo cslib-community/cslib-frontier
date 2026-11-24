@@ -16,7 +16,8 @@ import Mathlib.Tactic.NoncommRing
 # Words in the generators
 
 `Cslib.SLTower.WL h2 g N`: `g ∈ G h n` is a product of at most `N` generators. Elementary
-matrices `El i j y = 1 + y E_{ij}` are short words: first along the superdiagonal, then for all
+matrices `1 + y E_{ij}` (Mathlib's `Matrix.SpecialLinearGroup.transvection`) are short words: first
+along the superdiagonal, then for all
 `i ≠ j` (using `h ≥ 3`), and for every entry `y` of `F₂[s]/(s^(n+1))` built from `1`, `s` and `t`.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Words`.
@@ -24,7 +25,6 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Words`
 ## Main definitions
 
 * `Cslib.SLTower.WL`: being a word of length at most `N`.
-* `Cslib.SLTower.El i j hij y`: the elementary matrix `1 + y E_{ij}`.
 
 ## Main results
 
@@ -65,17 +65,12 @@ theorem WL.mul {g g' : G h n} {N M : ℕ} (hg : WL h2 g N) (hg' : WL h2 g' M) : 
   obtain ⟨l', h3, rfl⟩ := hg'
   exact ⟨l ++ l', by simp; omega, by simp⟩
 
-/-- Elementary matrices. -/
-@[expose] noncomputable def El (i j : Fin h) (hij : i ≠ j) (y : R (n + 1)) : G h n :=
-  ⟨transvection i j y, det_transvection_of_ne _ _ hij y⟩
-
 omit [NeZero h] in
-theorem El_val (i j : Fin h) (hij : i ≠ j) (y : R (n + 1)) : (El i j hij y).1 =
-    transvection i j y := by rfl
-
-omit [NeZero h] in
-theorem El_add (i j : Fin h) (hij : i ≠ j) (y y' : R (n + 1)) :
-    El i j hij y * El i j hij y' = El i j hij (y + y') :=
+/-- The addition law of transvections, `Matrix.transvection_mul_transvection_same` in the
+group. -/
+theorem transvection_mul_transvection (i j : Fin h) (hij : i ≠ j) (y y' : R (n + 1)) :
+    SpecialLinearGroup.transvection hij y * SpecialLinearGroup.transvection hij y' =
+      (SpecialLinearGroup.transvection hij (y + y') : G h n) :=
   Subtype.ext (transvection_mul_transvection_same _ _ hij y y')
 
 omit [NeZero h] in
@@ -85,10 +80,13 @@ theorem two_nsmul_mat (M : Matrix (Fin h) (Fin h) (R (n + 1))) : M + M = 0 := by
 
 omit [NeZero h] in
 /-- The commutator. -/
-theorem El_comm (i j k : Fin h) (hik : i ≠ k) (hkj : k ≠ j) (hij : i ≠ j) (y y' : R (n + 1)) :
-    El i k hik y * El k j hkj y' * (El i k hik y * El k j hkj y') = El i j hij (y * y') := by
+theorem transvection_comm (i j k : Fin h) (hik : i ≠ k) (hkj : k ≠ j) (hij : i ≠ j)
+    (y y' : R (n + 1)) :
+    SpecialLinearGroup.transvection hik y * SpecialLinearGroup.transvection hkj y' *
+        (SpecialLinearGroup.transvection hik y * SpecialLinearGroup.transvection hkj y') =
+            SpecialLinearGroup.transvection hij (y * y') := by
   refine Subtype.ext ?_
-  simp only [Matrix.SpecialLinearGroup.coe_mul, El_val, transvection]
+  simp only [Matrix.SpecialLinearGroup.coe_mul, SpecialLinearGroup.transvection_coe, ]
   set a := Matrix.single i k y with ha
   set b := Matrix.single k j y' with hb
   have haa : a * a = 0 := Matrix.single_mul_single_of_ne _ _ _ _ hik.symm _
@@ -106,17 +104,20 @@ theorem El_comm (i j k : Fin h) (hik : i ≠ k) (hkj : k ≠ j) (hij : i ≠ j) 
 
 theorem WL.comm {i j k : Fin h} {hik : i ≠ k} {hkj : k ≠ j} (hij : i ≠ j)
     {y y' : R (n + 1)} {N M : ℕ}
-    (h1 : WL h2 (El i k hik y) N) (h3 : WL h2 (El k j hkj y') M) : WL h2 (El i j hij (y * y'))
+    (h1 : WL h2 (SpecialLinearGroup.transvection hik y) N)
+        (h3 : WL h2 (SpecialLinearGroup.transvection hkj y') M) : WL h2
+            (SpecialLinearGroup.transvection hij (y * y'))
         (2 * (N + M)) := by
-  rw [← El_comm i j k hik hkj hij]
+  rw [← transvection_comm i j k hik hkj hij]
   exact ((h1.mul h3).mul (h1.mul h3)).mono (by omega)
 
-theorem gen_eq_El (k : Fin h) : (gen h2 k : G h n) = El (k - 1) k (sub_one_ne h2 k) (tt n k) :=
+theorem gen_eq_El (k : Fin h) : (gen h2 k : G h n) =
+    SpecialLinearGroup.transvection (sub_one_ne h2 k) (tt n k) :=
     by rfl
 
 /-- An elementary matrix `1 + E_{i,i+1}` on the superdiagonal is a generator. -/
 private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.1 + 1 = j.1) :
-    WL h2 (El i j hij 1 : G h n) 1 := by
+    WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) 1 := by
   have hj : j ≠ 0 := by
     intro e
     rw [e] at hd
@@ -135,7 +136,7 @@ private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.1 + 1 = j.1) :
 
 /-- Constant elementary matrices above the diagonal. -/
 theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j.1) :
-    WL h2 (El i j hij 1 : G h n) (4 ^ d) := by
+    WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) (4 ^ d) := by
   induction d generalizing j with
   | zero => exact (WL.el_succ hij (by omega)).mono (by simp)
   | succ d ih =>
@@ -150,7 +151,7 @@ theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j
       have := congrArg Fin.val e
       omega
     have h1 := ih k hik (by omega)
-    have h3 : WL h2 (El k j hkj 1 : G h n) 1 := WL.el_succ hkj (by omega)
+    have h3 : WL h2 (SpecialLinearGroup.transvection hkj 1 : G h n) 1 := WL.el_succ hkj (by omega)
     have h4 := h1.comm hij h3
     rw [one_mul] at h4
     refine h4.mono ?_
@@ -158,7 +159,8 @@ theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j
     rw [pow_succ]
     omega
 
-theorem WL.upper' (i j : Fin h) (hij : i < j) : WL h2 (El i j hij.ne 1 : G h n) (4 ^ h) := by
+theorem WL.upper' (i j : Fin h)
+    (hij : i < j) : WL h2 (SpecialLinearGroup.transvection hij.ne 1 : G h n) (4 ^ h) := by
   have hlt := Fin.lt_def.1 hij
   refine (WL.upper (j.1 - i.1 - 1) i j hij.ne (by omega)).mono (Nat.pow_le_pow_right (by omega) ?_)
   have := j.2
@@ -185,21 +187,22 @@ theorem zero_ne_last (h2 : 2 ≤ h) : last h ≠ 0 := by
 
 /-- All elementary matrices with entry t. -/
 theorem WL.el_t (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
-    WL h2 (El i j hij (t (n + 1)) : G h n) (4 ^ (h + 3)) := by
+    WL h2 (SpecialLinearGroup.transvection hij (t (n + 1)) : G h n) (4 ^ (h + 3)) := by
   have hp : 1 ≤ 4 ^ h := Nat.one_le_pow _ _ (by omega)
   have e1 : 4 ^ (h + 1) = 4 * 4 ^ h := by ring
   have e2 : 4 ^ (h + 2) = 16 * 4 ^ h := by ring
   have e3 : 4 ^ (h + 3) = 64 * 4 ^ h := by ring
   have hL0 := zero_ne_last (h := h) h2
-  have c1 : WL h2 (El (last h) 0 hL0 (t (n + 1)) : G h n) 1 := by
+  have c1 : WL h2 (SpecialLinearGroup.transvection hL0 (t (n + 1)) : G h n) 1 := by
     have h6 := WL.gen (n := n) (h2 := h2) 0
     rw [gen_eq_El, tt, ite_eq_left rfl] at h6
-    have h7 : (El (0 - 1) 0 (sub_one_ne h2 0) (t (n + 1)) : G h n) =
-        El (last h) 0 hL0 (t (n + 1)) := by
+    have h7 : (SpecialLinearGroup.transvection (sub_one_ne h2 0) (t (n + 1)) : G h n) =
+        SpecialLinearGroup.transvection hL0 (t (n + 1)) := by
       refine Subtype.ext ?_
-      rw [El_val, El_val, zero_sub_one h2]
+      rw [SpecialLinearGroup.transvection_coe, SpecialLinearGroup.transvection_coe, zero_sub_one h2]
     rwa [h7] at h6
-  have c2 : ∀ j (hj : last h ≠ j), WL h2 (El (last h) j hj (t (n + 1)) : G h n) (4 ^ (h + 1)) := by
+  have c2 : ∀ j (hj : last h ≠ j),
+      WL h2 (SpecialLinearGroup.transvection hj (t (n + 1)) : G h n) (4 ^ (h + 1)) := by
     intro j hj
     by_cases h0 : j = 0
     · subst h0
@@ -208,7 +211,8 @@ theorem WL.el_t (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
       rw [mul_one] at h4
       exact h4.mono (by omega)
   have c3 : ∀ i j (hij : i ≠ j),
-      i ≠ last h → j ≠ last h → WL h2 (El i j hij (t (n + 1)) : G h n) (4 ^ (h + 2)) := by
+      i ≠ last h → j ≠ last h → WL h2 (SpecialLinearGroup.transvection hij (t (n + 1)) : G h n)
+          (4 ^ (h + 2)) := by
     intro i j hij hi hj
     have h4 := (WL.upper' (n := n) (h2 := h2) i (last h) (lt_last hi)).comm hij (c2 j hj.symm)
     rw [one_mul] at h4
@@ -228,8 +232,10 @@ theorem WL.el_t (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
 
 /-- Powers of the entry. -/
 theorem WL.el_pow (h3 : 3 ≤ h)
-    {y : R (n + 1)} {B : ℕ} (hy : ∀ i j (hij : i ≠ j), WL h2 (El i j hij y : G h n) B)
-    (m : ℕ) (hm : 1 ≤ m) (i j : Fin h) (hij : i ≠ j) : WL h2 (El i j hij (y ^ m) : G h n)
+    {y : R (n + 1)} {B : ℕ}
+        (hy : ∀ i j (hij : i ≠ j), WL h2 (SpecialLinearGroup.transvection hij y : G h n) B)
+    (m : ℕ) (hm : 1 ≤ m) (i j : Fin h)
+        (hij : i ≠ j) : WL h2 (SpecialLinearGroup.transvection hij (y ^ m) : G h n)
         (B * m ^ 3) := by
   induction m using Nat.strong_induction_on generalizing i j with
   | _ m ih =>
@@ -266,7 +272,7 @@ theorem one_add_pow_two_pow (m : ℕ) (y : R m) (e : ℕ) : (1 + y) ^ 2 ^ e = 1 
 
 /-- All elementary matrices with entry 1. -/
 theorem WL.el_one (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
-    WL h2 (El i j hij 1 : G h n) (4 ^ (h + 3) * (2 * (n + 1)) ^ 3) := by
+    WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) (4 ^ (h + 3) * (2 * (n + 1)) ^ 3) := by
   obtain ⟨e, he1, he2⟩ : ∃ e, n + 1 ≤ 2 ^ e ∧ 2 ^ e ≤ 2 * (n + 1) := by
     refine ⟨Nat.clog 2 (n + 1), Nat.le_pow_clog (by omega) _, ?_⟩
     rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -287,9 +293,10 @@ theorem WL.el_one (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
 
 /-- All elementary matrices with entry s. -/
 theorem WL.el_s (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
-    WL h2 (El i j hij (s (n + 1)) : G h n) (4 ^ (h + 3) * (9 * (n + 1) ^ 3)) := by
+    WL h2 (SpecialLinearGroup.transvection hij (s (n + 1)) : G h n)
+        (4 ^ (h + 3) * (9 * (n + 1) ^ 3)) := by
   have h1 := (WL.el_one (n := n) (h2 := h2) h3 i j hij).mul (WL.el_t h3 i j hij)
-  rw [El_add, ← s_eq] at h1
+  rw [transvection_mul_transvection, ← s_eq] at h1
   refine h1.mono ?_
   have : 1 ≤ (n + 1) ^ 3 := Nat.one_le_pow _ _ (by omega)
   calc 4 ^ (h + 3) * (2 * (n + 1)) ^ 3 + 4 ^ (h + 3) = 4 ^ (h + 3) * (8 * (n + 1) ^ 3 + 1) :=

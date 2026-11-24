@@ -5,6 +5,7 @@ Authors: Anthropic, Christian Reitwiessner
 -/
 
 import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
+import CslibFrontier.Foundations.Combinatorics.CoveringTower.Path
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.FinCases
 
@@ -87,5 +88,26 @@ example : IsEmpty (Routes twoChambers 1 1) := by
   have := hcount _ h01
   have := hcount _ h10
   omega
+
+/-! ### The route API of `CoveringTower.Path` -/
+
+/-- Reversing a route gives a walk back. -/
+example : twoChambers.Walk (1 : Fin 2) (twoChambersRoutes.rt 0 1).reverse 0 :=
+  Tower.walk_reverse (twoChambersRoutes.walk 0 1)
+
+/-- The path from `0` back to `0` by way of `1` is a walk of length at most `2 m = 2`. -/
+example : twoChambers.Walk (0 : Fin 2) (twoChambersRoutes.path 0 0 1) 0 ∧
+    (twoChambersRoutes.path 0 0 1).length ≤ 2 :=
+  ⟨twoChambersRoutes.path_walk 0 0 1, twoChambersRoutes.length_path 0 0 1⟩
+
+/-- The path from `0` to `1` by way of `0` reaches `1` at its first visit `pl`, and every step
+before is the edge between successive chambers. -/
+example : twoChambersRoutes.pn 0 1 0 (twoChambersRoutes.pl 0 1 0) = 1 ∧
+    ∀ s < twoChambersRoutes.pl 0 1 0, ∃ e, (twoChambersRoutes.path 0 1 0)[s]? = some e ∧
+      s(twoChambers.e0 e, twoChambers.e1 e) =
+        s(twoChambersRoutes.pn 0 1 0 s, twoChambersRoutes.pn 0 1 0 (s + 1)) := by
+  refine ⟨twoChambersRoutes.pn_pl 0 1 0, fun s hs => ?_⟩
+  obtain ⟨e, h1, h2, -⟩ := twoChambersRoutes.exists_edge 0 1 0 hs
+  exact ⟨e, h1, h2⟩
 
 end CslibFrontierTests.CoveringTower

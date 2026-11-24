@@ -12,14 +12,17 @@ public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Data.Finset.Sym
 import Mathlib.Algebra.Order.Chebyshev
+import Mathlib.Analysis.InnerProductSpace.PiL2
 
 /-!
 # Loads in a tower: one stage
 
-A load is a number `n e` on every edge of a level. The loads on the edges of type `i` at a
-chamber (`Tower.be`) are redistributed to the next level through the hosts, and the `ℓ²` norm of
-the load of type `i` falls by the factor `ρ` in every stage, up to an error controlled by `C₁`
-(`Cslib.CoveringTower.Tower.load_step`).
+A load is a number `n e` on every edge of a level, and `Tower.kap` is its weighted `ℓ²` size. The
+loads on the edges of type `i` at a chamber (`Tower.be`) are redistributed to the next level
+through the hosts. `Cslib.CoveringTower.Tower.kap_le_of_stage` is a conditional one-stage bound:
+for caller-supplied loads `n`, `n'` satisfying its hypotheses, `κ(n') ≤ ρ κ(n)` up to an error
+controlled by `C₁`, where `ρ` may be at least `1`. Constructing loads with these properties is
+left to the next layer.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Load`.
 
@@ -30,7 +33,7 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Load`.
 
 ## Main results
 
-* `Cslib.CoveringTower.Tower.load_step`: one stage of the decrease of the norm.
+* `Cslib.CoveringTower.Tower.kap_le_of_stage`: the conditional one-stage bound.
 -/
 
 public section
@@ -73,7 +76,7 @@ theorem card_V {j : ℕ} (hj : j ≤ J) (i : Fin h) : Fintype.card (T.V j i) * b
   rw [Fintype.card_of_bijective (T.vx_co hj i), Fintype.card_prod, T.card_fl]
 
 /-- Cauchy–Schwarz for a sum over few elements. -/
-theorem sq_sum_le {κ : Type*} (s : Finset κ) (f : κ → ℝ) {k : ℕ} (hk : s.card ≤ k) :
+private theorem sq_sum_le {κ : Type*} (s : Finset κ) (f : κ → ℝ) {k : ℕ} (hk : s.card ≤ k) :
     (∑ x ∈ s, f x) ^ 2 ≤ k * ∑ x ∈ s, f x ^ 2 := by
   refine (sq_sum_le_card_mul_sum_sq (s := s) (f := f)).trans ?_
   refine mul_le_mul_of_nonneg_right (by exact_mod_cast hk)
@@ -218,33 +221,16 @@ theorem sum_end_sq (hj : j < J) :
 
 end Stage
 
-/-- Minkowski's inequality, one summand constant. -/
-theorem minkowski {κ : Type*} [Fintype κ] (f : κ → ℝ) {a : ℝ} (ha : 0 ≤ a) :
+/-- Minkowski's inequality for adding a constant: the triangle inequality in
+`EuclideanSpace ℝ κ`. -/
+private theorem minkowski {κ : Type*} [Fintype κ] (f : κ → ℝ) {a : ℝ} (ha : 0 ≤ a) :
     √(∑ x, (f x + a) ^ 2) ≤ √(∑ x, f x ^ 2) + √(Fintype.card κ) * a := by
-  have h1 : 0 ≤ ∑ x, f x ^ 2 := Finset.sum_nonneg fun x _ => sq_nonneg _
-  have hc : (0 : ℝ) ≤ Fintype.card κ := Nat.cast_nonneg _
-  have hcs : ∑ x, f x ≤ √(Fintype.card κ) * √(∑ x, f x ^ 2) := by
-    rw [← Real.sqrt_mul hc]
-    apply Real.le_sqrt_of_sq_le
-    have := sq_sum_le_card_mul_sum_sq (s := (univ : Finset κ)) (f := f)
-    rwa [card_univ] at this
-  apply Real.sqrt_le_iff.2
-  refine ⟨by positivity, ?_⟩
-  have e1 : ∑ x, (f x + a) ^ 2 = ∑ x, f x ^ 2 + 2 * a * ∑ x, f x + Fintype.card κ * a ^ 2 := by
-    simp only [add_sq, Finset.sum_add_distrib, Finset.mul_sum]
-    rw [Finset.sum_const, card_univ, nsmul_eq_mul]
-    congr 1
-    congr 1
-    exact Finset.sum_congr rfl fun x _ => by ring
-  have e2 : (√(∑ x, f x ^ 2) + √(Fintype.card κ) * a) ^ 2 =
-      ∑ x, f x ^ 2 + 2 * a * (√(Fintype.card κ) * √(∑ x, f x ^ 2)) + Fintype.card κ * a ^ 2 := by
-    rw [add_sq, mul_pow, Real.sq_sqrt h1, Real.sq_sqrt hc]
-    ring
-  rw [e1, e2]
-  have := mul_le_mul_of_nonneg_left hcs (by linarith : 0 ≤ 2 * a)
-  linarith
+  have h := norm_add_le (WithLp.toLp 2 f : EuclideanSpace ℝ κ) (WithLp.toLp 2 fun _ => a)
+  simp only [EuclideanSpace.norm_eq, ← WithLp.toLp_add, Pi.add_apply,
+    Real.norm_eq_abs, sq_abs, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at h
+  rwa [Real.sqrt_mul (Nat.cast_nonneg _), Real.sqrt_sq ha] at h
 
-theorem alg {C N y k : ℝ} (hC : 0 ≤ C) (hN : 0 ≤ N) (hy : 0 ≤ y)
+private theorem alg {C N y k : ℝ} (hC : 0 ≤ C) (hN : 0 ≤ N) (hy : 0 ≤ y)
     (hk : k ^ 2 ≤ N ^ 2 + C * (√8 * N + y) ^ 2) :
     k ≤ √(1 + 8 * C) * N + √C * y := by
   have hS0 : 0 ≤ √(1 + 8 * C) := Real.sqrt_nonneg _
@@ -403,8 +389,10 @@ theorem other_le {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2
         (Real.sq_sqrt (mul_nonneg hxb hs0)).symm
     _ ≤ _ := pow_le_pow_left₀ (Real.sqrt_nonneg _) h5 2
 
-/-- **One stage.** -/
-theorem load_step {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fin h}
+/-- A conditional one-stage bound: for loads `n` and `n'` satisfying the hypotheses `hi`, `hmid`,
+`hal` and `ht` (which the next layer supplies), `κ(n') ≤ ρ κ(n) + √C₁ a₁ |X_{j+1}| / b`. The
+factor `ρ` is any number with `1 + 8C₁ ≤ ρ² h`; it may be at least `1`. -/
+theorem kap_le_of_stage {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fin h}
     {n : T.Ed j → ℕ} {n' : T.Ed (j + 1) → ℕ} {C₁ a₁ ρ : ℝ} (hC : 0 ≤ C₁) (ha : 0 ≤ a₁) (hρ : 0 ≤ ρ)
     (hρ1 : 1 + 8 * C₁ ≤ ρ ^ 2 * h)
     (hi : (h : ℝ) * ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2 ≤ ∑ e, (n e : ℝ) ^ 2)
