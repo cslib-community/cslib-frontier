@@ -6716,6 +6716,14 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreePro
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.Frame
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.HeaderBkt
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.Internal
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.LocPoolArrays
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.Lookup
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.Overmars
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.SliceBuf
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.SlotArrays
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpHashProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpLayout
