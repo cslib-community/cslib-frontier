@@ -24,8 +24,17 @@ Cut the incident edge ends in disjoint vertex balls and join each paired set of 
 chord of its vertex circle. Endpoint incidences cancel because every supported dart
 occurs once. Crossings of the chords count local rotation alternation.
 
-`ClosedPassages.intersectionParity_eq_sum_route_intersectionParity` relates the literal
-rotation's alternation parity to the indexed crossings between the two edge supports.
+Regular contacts require distinct listed points on each route, including its two ends.
+The drawing therefore uses open routes and has no loop edges. Parallel edges with bends,
+multiple visits to a vertex by a passage system, and transverse open-segment crossings
+are allowed.
+
+## Main results
+
+* `ClosedPassages.intersectionParity_eq_sum_route_intersectionParity` identifies the parity of
+  alternating passage pairs with the indexed crossing parity between their edge supports.
+* `ClosedPassages.not_alternates_of_unique_shared_passages` rules out alternation when only one
+  pair of passages shares a vertex and all crossing counts across the supports are even.
 -/
 
 public section
@@ -266,17 +275,16 @@ theorem intersectionParity_eq_sum_route_intersectionParity {G : Graph}
         (mixedDisjoint f (R.dart i false) (R.dart i true) (R.vertex_eq i) (R.dart_ne i)
           (hsep _ _ (R.supported i false) hj) (hsep _ _ (R.supported i true) hj))
         hz (Route.point_mem_support _ k)
-    · refine Fin.lastCases ?_ (fun l => ?_) k
-      · exact portAvoidChord (R.dart i true) (S.dart j false) (S.dart j true)
+    · have hport (b : Bool) :
+          D.cutPort ρ (R.dart i b) ∉ (S.passageRoute D ρ (.inr j)).support :=
+        portAvoidChord (R.dart i b) (S.dart j false) (S.dart j true)
           (S.vertex_eq j) (S.dart_ne j)
-          (fun h => hsep _ _ (R.supported i true) (S.supported j false) (congrArg Prod.fst h))
-          (fun h => hsep _ _ (R.supported i true) (S.supported j true) (congrArg Prod.fst h))
-      · have hl : l = 0 := Subsingleton.elim (α := Fin 1) _ _
-        subst l
-        exact portAvoidChord (R.dart i false) (S.dart j false) (S.dart j true)
-          (S.vertex_eq j) (S.dart_ne j)
-          (fun h => hsep _ _ (R.supported i false) (S.supported j false) (congrArg Prod.fst h))
-          (fun h => hsep _ _ (R.supported i false) (S.supported j true) (congrArg Prod.fst h))
+          (fun h => hsep _ _ (R.supported i b) (S.supported j false) (congrArg Prod.fst h))
+          (fun h => hsep _ _ (R.supported i b) (S.supported j true) (congrArg Prod.fst h))
+      refine Fin.lastCases (hport true) (fun l => ?_) k
+      have hl : l = 0 := Subsingleton.elim (α := Fin 1) _ _
+      subst l
+      exact hport false
   have outsideParity (e f : E) (hne : e ≠ f) :
       (M e).intersectionParity (M f) = (D.route e).intersectionParity (D.route f) := by
     have outer (e f : E) (hne : e ≠ f) (b : Bool) {z : ℂ}
