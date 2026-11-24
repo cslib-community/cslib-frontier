@@ -109,14 +109,10 @@ theorem Realizes.cutPort_chords_inter_iff_alternates {G : Graph} {D : PolygonalD
   have hcenter := Metric.mem_ball_self (x := D.vertex c.vertex) hρ
   rw [Set.inter_comm, openSegment_symm ℝ (p d) (p c),
     hR.cutPort_clockwise c.vertex hρ hcenter c a d rfl hc hw.symm hac.symm had hcd,
-    hR.cutPort_clockwise c.vertex hρ hcenter c b d rfl hb hw.symm hbc.symm hbd hcd] at hcross
-  refine hcross.trans ?_
-  have hx (A B : Prop) : Xor A B ↔ (A ↔ ¬B) := by
-    by_cases ha : A <;> by_cases hb : B <;> simp [Xor, ha, hb]
-  constructor
-  · intro h
-    exact ⟨hab, hcd, hac, had, hbc, hbd, hv, hw, hc, (hx _ _).mp h⟩
-  · rintro ⟨_, _, _, _, _, _, _, _, _, h⟩
-    exact (hx _ _).mpr h
+    hR.cutPort_clockwise c.vertex hρ hcenter c b d rfl hb hw.symm hbc.symm hbd hcd,
+    xor_iff_iff_not] at hcross
+  exact hcross.trans
+    ⟨fun h => ⟨hab, hcd, hac, had, hbc, hbd, hv, hw, hc, h⟩,
+      fun ⟨_, _, _, _, _, _, _, _, _, h⟩ => h⟩
 
 end Cslib.Complexity.Graph.PolygonalDrawing
