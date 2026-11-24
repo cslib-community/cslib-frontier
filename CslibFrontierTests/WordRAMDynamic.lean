@@ -133,6 +133,19 @@ example {y : Data 3} {cost : ℕ}
     ∃ probes, (exchangeProgram 4).ExecOp 4 ⟨fun _ => 0, fun _ => 0⟩ 7 0 y ⟨cost, probes⟩ :=
   (exchangeCertificate 4).execOp_of_eval (exchange_initial 4) (by decide) he
 
+/--
+info: 'Cslib.WordRAM.DynamicCertificate.impl' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
+#print axioms DynamicCertificate.impl
+/--
+info: 'Cslib.WordRAM.TraceExec.exec' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
+#print axioms TraceExec.exec
+
 /-! ## Nondeterministic two-slot allocator `StateTransitionImpl` tests -/
 
 /-- Relational specification of a two-slot allocator: from state `(b₀, b₁) : Bool × Bool`, an

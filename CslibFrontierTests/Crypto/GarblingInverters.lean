@@ -160,6 +160,13 @@ example {σ : Type} (k : ℕ) (A : PrvIndAdversary ValidCircuit σ) :
   prvIndAdvantage_eq_two_mul_prv1Advantage plainCircuitScheme phiTopo
     (phiTopo_compatible plainCircuitScheme_isCircuitScheme) k samplePrv1Simulator A
 
+/--
+info: 'Cslib.Crypto.Garbling.phiTopo_isInverter' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
+#print axioms phiTopo_isInverter
+
 /-- info: 'Cslib.Crypto.Garbling.phiCirc_isInverter' does not depend on any axioms -/
 #guard_msgs in
 #print axioms phiCirc_isInverter

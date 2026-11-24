@@ -153,4 +153,11 @@ info: 'Cslib.Crypto.LWE.Trapdoor.natAbs_gadgetBasis_le_two' depends on axioms: [
 #guard_msgs in
 #print axioms Cslib.Crypto.LWE.Trapdoor.natAbs_gadgetBasis_le_two
 
+/--
+info: 'Cslib.Crypto.LWE.Trapdoor.natAbs_gadgetDecomp_le_one' depends on axioms:
+[propext, Classical.choice]
+-/
+#guard_msgs (whitespace := lax) in
+#print axioms Cslib.Crypto.LWE.Trapdoor.natAbs_gadgetDecomp_le_one
+
 end CslibFrontierTests.Crypto.Computational.LWE.Trapdoor
