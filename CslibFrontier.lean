@@ -8426,6 +8426,9 @@ public import CslibFrontier.GameTheory.Mechanism.Myerson
 public import CslibFrontier.GameTheory.Mechanism.OptimalAuction
 public import CslibFrontier.GameTheory.Mechanism.Revenue
 public import CslibFrontier.GameTheory.Mechanism.SingleParameter
+public import CslibFrontier.GameTheory.Mechanism.SponsoredSearch.EnvyFree
+public import CslibFrontier.GameTheory.Mechanism.SponsoredSearch.GSP
+public import CslibFrontier.GameTheory.Mechanism.SponsoredSearch.VCG
 public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
