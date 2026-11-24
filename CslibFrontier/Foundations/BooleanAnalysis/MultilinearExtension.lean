@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import Mathlib.Algebra.MvPolynomial.CommRing
 public import Mathlib.Algebra.MvPolynomial.Degrees
+import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 
 /-!
 # Multilinear extensions of functions on the cube
@@ -30,6 +31,11 @@ Its total degree is at most the dimension.
 * `Cslib.BitString.eval_multilinearExtension`: the extension agrees with the function on the cube.
 * `Cslib.BitString.eval_multilinearExtension_eq_sum`: the extension at any point, in the indicator
   basis.
+* `Cslib.BitString.eval_indicatorPoly_nonneg`, `Cslib.BitString.eval_indicatorPoly_le_one`: over an
+  ordered ring, the indicator polynomials take values in `[0, 1]` on the solid cube `[0, 1]^ι`, so
+  the extension there is a combination of the values of the function with weights in `[0, 1]`
+  (`Cslib.BitString.eval_multilinearExtension_nonpos`,
+  `Cslib.BitString.abs_eval_multilinearExtension_le`).
 * `Cslib.BitString.totalDegree_multilinearExtension_le`: its total degree is at most the
   dimension.
 * `Cslib.BitString.indicatorPoly_mem_restrictDegree`,
@@ -93,6 +99,45 @@ theorem eval_multilinearExtension [Fintype ι] [DecidableEq ι] (g : (ι → Boo
     (x : ι → Bool) : eval (fun i => bitVal R (x i)) (multilinearExtension g) = g x := by
   simp only [multilinearExtension, map_sum, map_mul, eval_C, eval_indicatorPoly, mul_ite,
     mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+
+/-- Over an ordered ring, an indicator polynomial is nonnegative on the solid cube `[0, 1]^ι`. -/
+theorem eval_indicatorPoly_nonneg [PartialOrder R] [IsOrderedRing R] [Fintype ι] {z : ι → R}
+    (hz0 : ∀ i, 0 ≤ z i) (hz1 : ∀ i, z i ≤ 1) (a : ι → Bool) :
+    0 ≤ eval z (indicatorPoly a) := by
+  rw [eval_indicatorPoly_apply]
+  exact Finset.prod_nonneg fun i _ => by
+    split_ifs
+    exacts [hz0 i, sub_nonneg.mpr (hz1 i)]
+
+/-- Over an ordered ring, an indicator polynomial is at most `1` on the solid cube `[0, 1]^ι`. -/
+theorem eval_indicatorPoly_le_one [PartialOrder R] [IsOrderedRing R] [Fintype ι] {z : ι → R}
+    (hz0 : ∀ i, 0 ≤ z i) (hz1 : ∀ i, z i ≤ 1) (a : ι → Bool) :
+    eval z (indicatorPoly a) ≤ 1 := by
+  rw [eval_indicatorPoly_apply]
+  refine Finset.prod_le_one₀ (fun i _ => ?_) fun i _ => ?_
+  · split_ifs
+    exacts [hz0 i, sub_nonneg.mpr (hz1 i)]
+  · split_ifs
+    exacts [hz1 i, sub_le_self 1 (hz0 i)]
+
+/-- The multilinear extension of a nonpositive function is nonpositive on the solid cube
+`[0, 1]^ι`. -/
+theorem eval_multilinearExtension_nonpos [PartialOrder R] [IsOrderedRing R] [Fintype ι]
+    [DecidableEq ι] {g : (ι → Bool) → R} (hg : ∀ a, g a ≤ 0) {z : ι → R}
+    (hz0 : ∀ i, 0 ≤ z i) (hz1 : ∀ i, z i ≤ 1) : eval z (multilinearExtension g) ≤ 0 := by
+  rw [eval_multilinearExtension_eq_sum]
+  exact Finset.sum_nonpos fun a _ =>
+    mul_nonpos_of_nonpos_of_nonneg (hg a) (eval_indicatorPoly_nonneg hz0 hz1 a)
+
+/-- On the solid cube `[0, 1]^ι`, the multilinear extension is bounded in absolute value by the sum
+of the absolute values of the function. -/
+theorem abs_eval_multilinearExtension_le [LinearOrder R] [IsOrderedRing R] [Fintype ι]
+    [DecidableEq ι] (g : (ι → Bool) → R) {z : ι → R} (hz0 : ∀ i, 0 ≤ z i) (hz1 : ∀ i, z i ≤ 1) :
+    |eval z (multilinearExtension g)| ≤ ∑ a, |g a| := by
+  rw [eval_multilinearExtension_eq_sum]
+  refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun a _ => ?_)
+  rw [abs_mul, abs_of_nonneg (eval_indicatorPoly_nonneg hz0 hz1 a)]
+  exact mul_le_of_le_one_right (abs_nonneg _) (eval_indicatorPoly_le_one hz0 hz1 a)
 
 /-- An indicator polynomial has total degree at most the dimension. -/
 theorem totalDegree_indicatorPoly_le [Fintype ι] (a : ι → Bool) :

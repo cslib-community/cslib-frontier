@@ -44,16 +44,14 @@ evaluated on a submodular function `f : (ι → Bool) → ℝ`:
 
 * `Cslib.Circuits.Frontier.CrossingCover.piGauss`: product of i.i.d. standard real Gaussians.
 * `Cslib.Circuits.Frontier.CrossingCover.thresholdVec`: coordinatewise `< t` thresholding.
-* `Cslib.Circuits.Frontier.CrossingCover.smoothStep`: Gaussian-smoothed step `1 - Φ(u / δ)`.
-* `Cslib.Circuits.Frontier.CrossingCover.smoothExt`: smoothed threshold extension, the value of
-  the multilinear extension `Cslib.BitString.multilinearExtension f` at smoothed threshold bits.
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.CrossingCover.integral_smoothExt_le_of_cov_le`: smooth comparison
-  via Gaussian interpolation.
 * `Cslib.Circuits.Frontier.CrossingCover.integral_threshold_le_of_cov_le`: Slepian/Kahane-type
-  comparison for submodular functions of Gaussian threshold vectors.
+  comparison for submodular functions of Gaussian threshold vectors. The proof interpolates
+  between the two Gaussian vectors on a smoothed threshold extension (the multilinear extension
+  `Cslib.BitString.multilinearExtension f` at Gaussian-smoothed threshold bits) and lets the
+  smoothing width tend to zero.
 * `Cslib.Circuits.Frontier.CrossingCover.integral_threshold_neg`: threshold symmetry.
 * `Cslib.Circuits.Frontier.CrossingCover.integral_threshold_antitone_on_nonneg`: monotonicity on
   `[0, ∞)`.
@@ -329,73 +327,6 @@ private theorem eval_multilinearExtension_eq_sum_prod [Fintype ι] [DecidableEq 
       ∑ b : ι → Bool, f b * ∏ i : ι, if b i then p i else 1 - p i := by
   simp only [BitString.eval_multilinearExtension_eq_sum, BitString.eval_indicatorPoly_apply]
 
-private theorem prod_ite_bool_nonneg [Fintype ι] {p : ι → ℝ}
-    (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) (b : ι → Bool) :
-    0 ≤ ∏ i : ι, if b i then p i else 1 - p i :=
-  Finset.prod_nonneg fun i _ => by
-    cases b i <;> simp only [Bool.false_eq_true, ↓reduceIte, sub_nonneg]
-    · exact hp1 i
-    · exact hp0 i
-
-theorem abs_eval_multilinearExtension_le [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
-    {p : ι → ℝ} (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) :
-    |MvPolynomial.eval p (multilinearExtension f)| ≤ ∑ b : ι → Bool, |f b| := by
-  rw [eval_multilinearExtension_eq_sum_prod]
-  calc |∑ b : ι → Bool, f b * ∏ i : ι, if b i then p i else 1 - p i|
-      ≤ ∑ b : ι → Bool, |f b * ∏ i : ι, if b i then p i else 1 - p i| :=
-          Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ b : ι → Bool, |f b| := by
-          refine Finset.sum_le_sum fun b _ => ?_
-          rw [abs_mul]
-          have hw_nn : 0 ≤ ∏ i : ι, if b i then p i else 1 - p i :=
-            prod_ite_bool_nonneg hp0 hp1 b
-          have hw_le : ∏ i : ι, (if b i then p i else 1 - p i) ≤ 1 := by
-            have hstep : ∀ s : Finset ι,
-                (0 ≤ ∏ i ∈ s, if b i then p i else 1 - p i) ∧
-                  ∏ i ∈ s, (if b i then p i else 1 - p i) ≤ 1 := fun s =>
-              Finset.prod_induction (fun i => if b i then p i else 1 - p i)
-                (fun x => 0 ≤ x ∧ x ≤ 1)
-                (fun _ _ ⟨ha0, ha1⟩ ⟨hb0, hb1⟩ =>
-                  ⟨mul_nonneg ha0 hb0,
-                    (mul_le_mul_of_nonneg_right ha1 hb0).trans (by simpa using hb1)⟩)
-                ⟨zero_le_one, le_rfl⟩
-                (fun i _ => by
-                  cases b i
-                  · simp only [Bool.false_eq_true, ↓reduceIte]
-                    exact ⟨sub_nonneg.mpr (hp1 i), by linarith [hp0 i]⟩
-                  · simp only [↓reduceIte]
-                    exact ⟨hp0 i, hp1 i⟩)
-            exact (hstep Finset.univ).2
-          rw [abs_of_nonneg hw_nn]
-          exact mul_le_of_le_one_right (abs_nonneg _) hw_le
-
-theorem eval_multilinearExtension_nonpos [Fintype ι] [DecidableEq ι] {f : (ι → Bool) → ℝ}
-    (hf : ∀ b, f b ≤ 0) {p : ι → ℝ} (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) :
-    MvPolynomial.eval p (multilinearExtension f) ≤ 0 := by
-  rw [eval_multilinearExtension_eq_sum_prod]
-  exact Finset.sum_nonpos fun b _ =>
-    mul_nonpos_of_nonpos_of_nonneg (hf b) (prod_ite_bool_nonneg hp0 hp1 b)
-
-/-- Product rule for `Finset.prod`. -/
-private theorem hasDerivAt_finset_prod {α : Type*} [DecidableEq α] (s : Finset α)
-    {g : α → ℝ → ℝ} {g' : α → ℝ} {t₀ : ℝ}
-    (hg : ∀ i ∈ s, HasDerivAt (g i) (g' i) t₀) :
-    HasDerivAt (fun t => ∏ i ∈ s, g i t)
-      (∑ i ∈ s, g' i * ∏ j ∈ s.erase i, g j t₀) t₀ := by
-  induction s using Finset.induction_on with
-  | empty => simpa using hasDerivAt_const t₀ (1 : ℝ)
-  | @insert a s ha ih =>
-    have hsub := ih fun i hi => hg i (Finset.mem_insert_of_mem hi)
-    have hprod := (hg a (Finset.mem_insert_self a s)).mul hsub
-    refine (hprod.congr_of_eventuallyEq (Eventually.of_forall fun t => by
-      simp [Finset.prod_insert ha])).congr_deriv ?_
-    rw [Finset.sum_insert ha, Finset.erase_insert ha, Finset.mul_sum]
-    congr 1
-    refine Finset.sum_congr rfl fun i hi => ?_
-    have hia : i ≠ a := fun h => ha (h ▸ hi)
-    rw [Finset.erase_insert_of_ne hia.symm, Finset.prod_insert (by simp [ha])]
-    ring
-
 /-- Bijective decomposition of sums over `ι → Bool` separating coordinate `i`. -/
 private theorem sum_bool_fun_split [Fintype ι] [DecidableEq ι] (i : ι)
     (g : (ι → Bool) → ℝ) :
@@ -481,8 +412,8 @@ private theorem sum_signed_weight_eq_eval_diffBool [Fintype ι] [DecidableEq ι]
   ring
 
 /-- Chain rule for `t ↦ MvPolynomial.eval (p t) (multilinearExtension f)`. -/
-theorem hasDerivAt_eval_multilinearExtension [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
-    {p : ℝ → ι → ℝ} {p' : ι → ℝ} {t₀ : ℝ}
+private theorem hasDerivAt_eval_multilinearExtension [Fintype ι] [DecidableEq ι]
+    (f : (ι → Bool) → ℝ) {p : ℝ → ι → ℝ} {p' : ι → ℝ} {t₀ : ℝ}
     (hp : ∀ i : ι, HasDerivAt (fun t => p t i) (p' i) t₀) :
     HasDerivAt (fun t => MvPolynomial.eval (p t) (multilinearExtension f))
       (∑ i : ι, p' i * MvPolynomial.eval (p t₀) (multilinearExtension (diffBool f i))) t₀ := by
@@ -491,14 +422,18 @@ theorem hasDerivAt_eval_multilinearExtension [Fintype ι] [DecidableEq ι] (f : 
         (f b * ∑ i : ι, (if b i then p' i else -p' i) *
           ∏ j ∈ Finset.univ.erase i, if b j then p t₀ j else 1 - p t₀ j) t₀ := by
     intro b
-    refine HasDerivAt.const_mul (f b) ?_
-    refine hasDerivAt_finset_prod Finset.univ fun i _ => ?_
-    cases b i
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      have h : HasDerivAt (fun t : ℝ => (1 : ℝ) - p t i) (0 - p' i) t₀ :=
-        (hasDerivAt_const t₀ (1 : ℝ)).fun_sub (hp i)
-      simpa only [zero_sub] using h
-    · simpa only [↓reduceIte] using hp i
+    have hfac : ∀ i ∈ (Finset.univ : Finset ι),
+        HasDerivAt (fun t => if b i then p t i else 1 - p t i)
+          (if b i then p' i else -p' i) t₀ := by
+      intro i _
+      cases b i
+      · simp only [Bool.false_eq_true, ↓reduceIte]
+        have h : HasDerivAt (fun t : ℝ => (1 : ℝ) - p t i) (0 - p' i) t₀ :=
+          (hasDerivAt_const t₀ (1 : ℝ)).fun_sub (hp i)
+        simpa only [zero_sub] using h
+      · simpa only [↓reduceIte] using hp i
+    refine ((HasDerivAt.fun_finsetProd hfac).const_mul (f b)).congr_deriv ?_
+    exact congrArg (f b * ·) (Finset.sum_congr rfl fun i _ => by rw [smul_eq_mul, mul_comm])
   rw [funext fun t => eval_multilinearExtension_eq_sum_prod f (p t)]
   refine (HasDerivAt.fun_sum fun b _ => hterm b).congr_deriv ?_
   calc ∑ b : ι → Bool, f b * ∑ i : ι, (if b i then p' i else -p' i) *
@@ -536,24 +471,24 @@ end MultilinearExt
 section SmoothExt
 
 /-- Smooth approximation `σ_δ(u) := P(Z ≤ -u / δ) = 1 - Φ(u / δ)` to the indicator `1_{u < 0}`. -/
-noncomputable def smoothStep (δ u : ℝ) : ℝ :=
+private noncomputable def smoothStep (δ u : ℝ) : ℝ :=
   (gaussianReal 0 1).real (Set.Iic (-u / δ))
 
 /-- Derivative of `smoothStep δ`: `σ'_δ(u) = -(1 / δ) * φ(-u / δ)`. -/
-noncomputable def smoothStepDeriv (δ u : ℝ) : ℝ :=
+private noncomputable def smoothStepDeriv (δ u : ℝ) : ℝ :=
   -(1 / δ) * gaussianPDFReal 0 1 (-u / δ)
 
 /-- Second derivative of `smoothStep δ`: `σ''_δ(u) = (u / δ ^ 3) * φ(-u / δ)`. -/
-noncomputable def smoothStepDeriv₂ (δ u : ℝ) : ℝ :=
+private noncomputable def smoothStepDeriv₂ (δ u : ℝ) : ℝ :=
   (u / δ ^ 3) * gaussianPDFReal 0 1 (-u / δ)
 
-theorem smoothStep_nonneg (δ u : ℝ) : 0 ≤ smoothStep δ u :=
+private theorem smoothStep_nonneg (δ u : ℝ) : 0 ≤ smoothStep δ u :=
   measureReal_nonneg
 
-theorem smoothStep_le_one (δ u : ℝ) : smoothStep δ u ≤ 1 :=
+private theorem smoothStep_le_one (δ u : ℝ) : smoothStep δ u ≤ 1 :=
   measureReal_le_one
 
-theorem hasDerivAt_smoothStep {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
+private theorem hasDerivAt_smoothStep {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     HasDerivAt (smoothStep δ) (smoothStepDeriv δ u) u := by
   have h1 : HasDerivAt (fun x : ℝ => -x / δ) (-(1 / δ)) u := by
     simpa [neg_div] using ((hasDerivAt_id u).neg.div_const δ)
@@ -566,7 +501,7 @@ theorem hasDerivAt_smoothStep {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
   simp only [smoothStepDeriv]
   ring
 
-theorem hasDerivAt_smoothStepDeriv {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
+private theorem hasDerivAt_smoothStepDeriv {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     HasDerivAt (smoothStepDeriv δ) (smoothStepDeriv₂ δ u) u := by
   have h1 : HasDerivAt (fun x : ℝ => -x / δ) (-(1 / δ)) u := by
     simpa [neg_div] using ((hasDerivAt_id u).neg.div_const δ)
@@ -576,25 +511,25 @@ theorem hasDerivAt_smoothStepDeriv {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
   have hδne : δ ≠ 0 := hδ.ne'
   field_simp
 
-theorem continuous_smoothStep {δ : ℝ} (hδ : 0 < δ) : Continuous (smoothStep δ) :=
+private theorem continuous_smoothStep {δ : ℝ} (hδ : 0 < δ) : Continuous (smoothStep δ) :=
   continuous_iff_continuousAt.mpr fun u => (hasDerivAt_smoothStep hδ u).continuousAt
 
-theorem continuous_smoothStepDeriv (δ : ℝ) : Continuous (smoothStepDeriv δ) := by
+private theorem continuous_smoothStepDeriv (δ : ℝ) : Continuous (smoothStepDeriv δ) := by
   unfold smoothStepDeriv
   exact continuous_const.mul ((continuous_gaussianPDFReal 0 1).comp (continuous_neg.div_const δ))
 
-theorem continuous_smoothStepDeriv₂ (δ : ℝ) : Continuous (smoothStepDeriv₂ δ) := by
+private theorem continuous_smoothStepDeriv₂ (δ : ℝ) : Continuous (smoothStepDeriv₂ δ) := by
   unfold smoothStepDeriv₂
   exact (continuous_id.div_const (δ ^ 3)).mul
     ((continuous_gaussianPDFReal 0 1).comp (continuous_neg.div_const δ))
 
-theorem smoothStepDeriv_nonpos {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
+private theorem smoothStepDeriv_nonpos {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     smoothStepDeriv δ u ≤ 0 := by
   unfold smoothStepDeriv
   have hpos : 0 ≤ 1 / δ := (one_div_pos.mpr hδ).le
   exact mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hpos) (gaussianPDFReal_nonneg 0 1 _)
 
-theorem abs_smoothStepDeriv_le {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
+private theorem abs_smoothStepDeriv_le {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     |smoothStepDeriv δ u| ≤ (δ * √(2 * π))⁻¹ := by
   rw [smoothStepDeriv, abs_mul, abs_neg, abs_of_pos (one_div_pos.mpr hδ),
     abs_of_nonneg (gaussianPDFReal_nonneg 0 1 _)]
@@ -618,7 +553,7 @@ private theorem abs_mul_exp_neg_sq_div_two_le_one (s : ℝ) :
           mul_le_mul_of_nonneg_right h2 (Real.exp_pos _).le
     _ = 1 := by rw [← Real.exp_add, add_neg_cancel, Real.exp_zero]
 
-theorem abs_smoothStepDeriv₂_le {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
+private theorem abs_smoothStepDeriv₂_le {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     |smoothStepDeriv₂ δ u| ≤ (δ ^ 2 * √(2 * π))⁻¹ := by
   unfold smoothStepDeriv₂
   rw [gaussianPDFReal_def]
@@ -634,7 +569,7 @@ theorem abs_smoothStepDeriv₂_le {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
   exact mul_le_of_le_one_right (by positivity) (abs_mul_exp_neg_sq_div_two_le_one s)
 
 /-- Explicit polynomial rate of convergence of `smoothStep δ u` to `1_{u < 0}` for `u ≠ 0`. -/
-theorem abs_smoothStep_sub_indicator_le {δ u : ℝ} (hδ : 0 < δ) (hu : u ≠ 0) :
+private theorem abs_smoothStep_sub_indicator_le {δ u : ℝ} (hδ : 0 < δ) (hu : u ≠ 0) :
     |smoothStep δ u - (if u < 0 then (1 : ℝ) else 0)| ≤ δ ^ 2 / u ^ 2 := by
   unfold smoothStep
   rcases lt_or_gt_of_ne hu with hlt | hgt
@@ -671,7 +606,7 @@ theorem abs_smoothStep_sub_indicator_le {δ u : ℝ} (hδ : 0 < δ) (hu : u ≠ 
           simp only [NNReal.coe_one]
           field_simp
 
-theorem tendsto_smoothStep_atTop (u : ℝ) (hu : u ≠ 0) :
+private theorem tendsto_smoothStep_atTop (u : ℝ) (hu : u ≠ 0) :
     Tendsto (fun n : ℕ => smoothStep (1 / ((n : ℝ) + 1)) u) atTop
       (nhds (if u < 0 then (1 : ℝ) else 0)) := by
   have ht : Tendsto (fun n : ℕ => (1 / ((n : ℝ) + 1)) ^ 2 / u ^ 2) atTop (nhds 0) := by
@@ -692,7 +627,7 @@ theorem tendsto_smoothStep_atTop (u : ℝ) (hu : u ≠ 0) :
 /-- Smoothed threshold extension: the multilinear extension
 `Cslib.BitString.multilinearExtension f` evaluated at the smoothed threshold bits
 `σ_δ(z_i - t)`. -/
-noncomputable def smoothExt {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
+private noncomputable def smoothExt {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     (δ t : ℝ) (z : ι → ℝ) : ℝ :=
   MvPolynomial.eval (fun i => smoothStep δ (z i - t)) (multilinearExtension f)
 
@@ -713,7 +648,7 @@ private noncomputable def smoothExtHess {ι : Type*} [Fintype ι] [DecidableEq �
       MvPolynomial.eval (fun k => smoothStep δ (z k - t))
         (multilinearExtension (diffBool (diffBool f i) j))
 
-theorem smoothExt_continuous {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
+private theorem smoothExt_continuous {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     {δ : ℝ} (hδ : 0 < δ) (t : ℝ) : Continuous (smoothExt f δ t) :=
   (MvPolynomial.continuous_eval (multilinearExtension f)).comp
     (continuous_pi fun i => (continuous_smoothStep hδ).comp
@@ -742,10 +677,10 @@ private theorem smoothExtHess_continuous {ι : Type*} [Fintype ι] [DecidableEq 
         (continuous_pi fun k => (continuous_smoothStep hδ).comp
           ((continuous_apply k).sub continuous_const)))
 
-theorem abs_smoothExt_le {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
+private theorem abs_smoothExt_le {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     (δ t : ℝ) (z : ι → ℝ) :
     |smoothExt f δ t z| ≤ ∑ b : ι → Bool, |f b| :=
-  abs_eval_multilinearExtension_le f (fun _ => smoothStep_nonneg _ _)
+  BitString.abs_eval_multilinearExtension_le f (fun _ => smoothStep_nonneg _ _)
     (fun _ => smoothStep_le_one _ _)
 
 private theorem abs_smoothExtDeriv_le {ι : Type*} [Fintype ι] [DecidableEq ι]
@@ -755,7 +690,7 @@ private theorem abs_smoothExtDeriv_le {ι : Type*} [Fintype ι] [DecidableEq ι]
   unfold smoothExtDeriv
   rw [abs_mul]
   exact mul_le_mul (abs_smoothStepDeriv_le hδ _)
-    (abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
+    (BitString.abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
       (fun _ => smoothStep_le_one _ _))
     (abs_nonneg _) (by positivity)
 
@@ -775,14 +710,14 @@ private theorem exists_bound_smoothExtHess {ι : Type*} [Fintype ι] [DecidableE
     · refine le_max_of_le_left ?_
       rw [abs_mul]
       exact mul_le_mul (abs_smoothStepDeriv₂_le hδ _)
-        (abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
+        (BitString.abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
           (fun _ => smoothStep_le_one _ _))
         (abs_nonneg _) (by positivity)
     · refine le_max_of_le_right ?_
       rw [abs_mul, abs_mul]
       refine mul_le_mul (mul_le_mul (abs_smoothStepDeriv_le hδ _) (abs_smoothStepDeriv_le hδ _)
         (abs_nonneg _) (by positivity))
-        (abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
+        (BitString.abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
           (fun _ => smoothStep_le_one _ _))
         (abs_nonneg _) (by positivity)
   exact hsingle.trans ((Finset.single_le_sum (fun j' _ => hbn i j') (Finset.mem_univ j)).trans
@@ -799,7 +734,7 @@ private theorem smoothExtHess_nonpos {ι : Type*} [Fintype ι] [DecidableEq ι]
     mul_nonneg_of_nonpos_of_nonpos (smoothStepDeriv_nonpos hδ _) (smoothStepDeriv_nonpos hδ _)
   have hml : MvPolynomial.eval (fun k => smoothStep δ (z k - t))
       (multilinearExtension (diffBool (diffBool f i) j)) ≤ 0 :=
-    eval_multilinearExtension_nonpos (fun b => hf.diffBool_diffBool_nonpos hij b)
+    BitString.eval_multilinearExtension_nonpos (fun b => hf.diffBool_diffBool_nonpos hij b)
       (fun _ => smoothStep_nonneg _ _) (fun _ => smoothStep_le_one _ _)
   exact mul_nonpos_of_nonneg_of_nonpos hprod hml
 
@@ -862,7 +797,7 @@ private theorem hasDerivAt_smoothExtDeriv_comp {ι : Type*} [Fintype ι] [Decida
           · refine Finset.sum_congr rfl fun j hj => ?_
             simp [smoothExtHess, Finset.ne_of_mem_erase hj]
 
-theorem tendsto_smoothExt_atTop {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
+private theorem tendsto_smoothExt_atTop {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     (t : ℝ) {z : ι → ℝ} (hz : ∀ i : ι, z i ≠ t) :
     Tendsto (fun n : ℕ => smoothExt f (1 / ((n : ℝ) + 1)) t z) atTop
       (nhds (f (thresholdVec z t))) := by
@@ -989,7 +924,7 @@ private theorem sum_stein_rearrange {ι κ : Type*} [Fintype ι] [Fintype κ]
 smoothing width `δ > 0`, threshold `t : ℝ`, and unit-norm row families `a, b` with
 `a i ⬝ᵥ a j ≤ b i ⬝ᵥ b j` for all `i ≠ j`, the smoothed expectation under `b` is at most that
 under `a`. -/
-theorem integral_smoothExt_le_of_cov_le {ι κ₁ κ₂ : Type*} [Fintype ι] [DecidableEq ι]
+private theorem integral_smoothExt_le_of_cov_le {ι κ₁ κ₂ : Type*} [Fintype ι] [DecidableEq ι]
     [Fintype κ₁] [Fintype κ₂]
     {f : (ι → Bool) → ℝ} (hf : IsSubmodularBool f)
     (a : ι → κ₁ → ℝ) (b : ι → κ₂ → ℝ)
