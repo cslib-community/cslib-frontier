@@ -85,55 +85,7 @@ public section
 
 open Finset Function Set
 
-/-! ### Tree boundary isolation and rooted upstream decomposition -/
-
-namespace SimpleGraph.IsTree
-
-variable {ι : Type*} {G : SimpleGraph ι} (hT : G.IsTree)
-
-/-- Path length in a tree is symmetric. -/
-theorem length_pathTo_comm (u v : ι) :
-    (hT.pathTo u v).length = (hT.pathTo v u).length := by
-  rw [← hT.eq_pathTo u (hT.isPath_pathTo v u).reverse, Walk.length_reverse]
-
-/-- An edge `G.Adj v p` separates `hT.treeSide v p` from its complement: the only edge of `G`
-crossing from `z ∈ hT.treeSide v p` to `y ∉ hT.treeSide v p` is `(z, y) = (v, p)`. -/
-theorem eq_of_mem_treeSide_of_adj_notMem {v p z y : ι} (hadj : G.Adj v p)
-    (hz : z ∈ hT.treeSide v p) (hy : y ∉ hT.treeSide v p) (hzy : G.Adj z y) :
-    z = v ∧ y = p := by
-  suffices h : ∀ n (v p : ι), G.Adj v p → (hT.pathTo z v).length = n →
-      z ∈ hT.treeSide v p → y ∉ hT.treeSide v p → z = v ∧ y = p from
-    h (hT.pathTo z v).length v p hadj rfl hz hy
-  intro n
-  induction n using Nat.strong_induction_on with
-  | ind n ih =>
-    intro v p hadj_vp hlen hz_vp hy_vp
-    by_cases hzv : z = v
-    · subst hzv
-      refine ⟨rfl, ?_⟩
-      by_contra hyp
-      have hy_sub : hT.treeSide y z ⊆ hT.treeSide z p := by
-        intro w hw
-        rw [hT.treeSide_eq_insert_biUnion hadj_vp]
-        exact Set.mem_insert_of_mem z (mem_iUnion₂.mpr ⟨y, ⟨hzy, hyp⟩, hw⟩)
-      exact hy_vp (hy_sub (hT.self_mem_treeSide_of_adj hzy.symm))
-    · exfalso
-      have hz_decomp : z ∈ insert v (⋃ c ∈ {c : ι | G.Adj v c ∧ c ≠ p}, hT.treeSide c v) := by
-        rwa [← hT.treeSide_eq_insert_biUnion hadj_vp]
-      rcases mem_insert_iff.mp hz_decomp with rfl | hz_union
-      · exact hzv rfl
-      · obtain ⟨c, ⟨hadj_vc, hcp⟩, hzc⟩ := mem_iUnion₂.mp hz_union
-        have hc_sub : hT.treeSide c v ⊆ hT.treeSide v p := by
-          intro w hw
-          rw [hT.treeSide_eq_insert_biUnion hadj_vp]
-          exact Set.mem_insert_of_mem v (mem_iUnion₂.mpr ⟨c, ⟨hadj_vc, hcp⟩, hw⟩)
-        have hlt : (hT.pathTo z c).length < n := by
-          rw [← hlen]
-          exact hzc
-        obtain ⟨_, rfl⟩ := ih _ hlt c v hadj_vc.symm rfl hzc (fun hyc => hy_vp (hc_sub hyc))
-        exact hy_vp (hT.self_mem_treeSide_of_adj hadj_vp)
-
-end SimpleGraph.IsTree
+/-! ### Rooted upstream decomposition -/
 
 namespace Cslib.GameTheory
 
@@ -723,11 +675,6 @@ theorem treePassUpstream_isApproxNash {M : GraphicalGame ι S} (hT : M.graph.IsT
   isTreePassOutput_iff_isApproxNash.mp (isTreePassOutput_treePassUpstream hT hroot)
 
 /-! ### Exact `TreeNash` on trees ([Kearns2007], Theorem 7.3, p. 166) -/
-
-/-- Exact downstream table `T(w, v)` of algorithm `TreeNash` ([Kearns2007], Figure 7.1, p. 165). -/
-@[expose] def treeNashTable (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι) (v : ι)
-    (xw : S (hT.parent r v) → ℝ) (xv : S v → ℝ) : Prop :=
-  treePassTable M hT r (fun i => {x : S i → ℝ | IsMixedStrategy x}) 0 v xw xv
 
 /-- Exact root table `T(z)` of algorithm `TreeNash` ([Kearns2007], §7.3, p. 166). -/
 @[expose] def treeNashRootTable (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
