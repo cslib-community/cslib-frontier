@@ -50,7 +50,7 @@ the surface-configuration / realizable-pair interface of Ruzzo and Venkateswaran
 ## Main definitions
 
 * `Turing.AuxPDA.OutputSummary`: three-value acceptance summary of the write-only binary output.
-* `Turing.AuxPDA.SurfaceCfg`, `Turing.AuxPDA.SurfacePair`: surface configurations and pairs.
+* `Turing.AuxPDA.SurfaceCfg`: surface configurations.
 * `Turing.AuxPDA.StayStep`, `Turing.AuxPDA.PushStep`, `Turing.AuxPDA.PopStep`: elementary surface
   transitions.
 * `Turing.AuxPDA.SameHeightRun`, `Turing.AuxPDA.Realizable`: concrete same-height non-dipping runs
@@ -288,15 +288,6 @@ def PopStep (M : AuxPDA k Bool StackSym State)
       act.stackOp = .pop ∧
       s₂ = applySurfaceTapes act.tape s₁ baseTop
 
-/-- An ordered pair of surface configurations representing endpoints of a same-height non-dipping
-subcomputation (the gate key for semi-unbounded circuit compilation in Work Package 4). -/
-@[ext]
-structure SurfacePair (k : ℕ) (StackSym State : Type*) (input : List Bool) where
-  /-- Starting surface configuration. -/
-  src : SurfaceCfg k StackSym State input
-  /-- Ending surface configuration at the same stack height. -/
-  dst : SurfaceCfg k StackSym State input
-
 /-- A concrete run path is a *same-height non-dipping run* when its final stack height equals its
 initial stack height and no intermediate configuration drops below that height. -/
 def SameHeightRun {M : AuxPDA k Bool StackSym State} (p : M.RunPath input) : Prop :=
@@ -324,11 +315,6 @@ inductive Realizable (M : AuxPDA k Bool StackSym State) (input : List Bool) :
       (h₁ : Realizable M input s₁ s_mid d₁)
       (h₂ : Realizable M input s_mid s₂ d₂) :
       Realizable M input s₁ s₂ (d₁ + d₂)
-
-/-- Realizability of a `SurfacePair` in `d` steps. -/
-abbrev SurfacePair.Realizable (M : AuxPDA k Bool StackSym State)
-    (pair : SurfacePair k StackSym State input) (d : ℕ) : Prop :=
-  AuxPDA.Realizable M input pair.src pair.dst d
 
 /-- A one-step run path from a single step `h : M.Step c₁ c₂`. -/
 private def runPathOfStep {Symbol : Type*} {input : List Symbol}
