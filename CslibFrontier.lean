@@ -8175,6 +8175,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityTransport
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
+public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 public import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
