@@ -42,21 +42,47 @@ theorem mem_componentGraph_vertices (G : Graph) (root v : ℕ) :
   change v ∈ (G.componentVertexSet root).sort (· ≤ ·) ↔ v ∈ G.componentVertexSet root
   exact Finset.mem_sort _
 
+/-- If two darts lie in different components, restricting to any component loses at least
+one indexed edge occurrence. -/
+theorem componentGraph_edges_length_lt {G : Graph}
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) {a b : Dart G}
+    (hsep : ¬SameComponent G a.vertex b.vertex) (root : ℕ) :
+    (G.componentGraph root).edges.length < G.edges.length := by
+  have hmiss : ∃ d : Dart G, ¬SameComponent G root d.vertex := by
+    by_cases ha : SameComponent G root a.vertex
+    · exact ⟨b, fun hb => hsep (ha.symm.trans hb)⟩
+    · exact ⟨a, ha⟩
+  obtain ⟨d, hd⟩ := hmiss
+  have hnot : d.1 ∉ G.componentEdgeSet root := fun h =>
+    hd ((G.mem_componentVertexSet_dart root hG d).mp
+      ((G.mem_componentEdgeSet_iff root hG d.1 d.2).mp h))
+  have hproper : G.componentEdgeSet root ⊂ Finset.univ :=
+    Finset.ssubset_univ_iff.mpr (fun h => hnot (h ▸ Finset.mem_univ d.1))
+  change (List.ofFn fun i : Fin (G.componentEdgeSet root).card =>
+    G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl i]).length < G.edges.length
+  simpa only [List.length_ofFn, Finset.card_univ, Fintype.card_fin] using
+    Finset.card_lt_card hproper
+
 /-- Each position in the component edge list is the corresponding original occurrence. -/
 @[expose] noncomputable def componentEdgeEquiv (G : Graph) (root : ℕ) :
     Fin (G.componentGraph root).edges.length ≃ ↥(G.componentEdgeSet root) :=
   ((G.componentEdgeSet root).orderIsoOfFin List.length_ofFn.symm).toEquiv
+
+/-- Each component edge keeps the two labels of its original listed occurrence. -/
+theorem edge_componentEdgeEquiv (G : Graph) (root : ℕ)
+    (i : Fin (G.componentGraph root).edges.length) :
+    (G.componentGraph root).edges[i] = G.edges[(G.componentEdgeEquiv root i).val] := by
+  change (List.ofFn fun j : Fin (G.componentEdgeSet root).card =>
+    G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl j])[i.val] = _
+  rw [List.getElem_ofFn]
+  rfl
 
 /-- Restricting a graph to a component preserves the endpoint at each indexed end. -/
 theorem vertex_componentEdgeEquiv (G : Graph) (root : ℕ)
     (i : Fin (G.componentGraph root).edges.length) (b : Bool) :
     Dart.vertex (G := G.componentGraph root) (i, b) =
       Dart.vertex (G := G) ((G.componentEdgeEquiv root i).val, b) := by
-  have he : (G.componentGraph root).edges[i] = G.edges[(G.componentEdgeEquiv root i).val] := by
-    change (List.ofFn fun j : Fin (G.componentEdgeSet root).card =>
-      G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl j])[i.val] = _
-    rw [List.getElem_ofFn]
-    rfl
+  have he := G.edge_componentEdgeEquiv root i
   rw [Dart.edge_eq_vertices, Dart.edge_eq_vertices] at he
   cases b
   · exact congrArg Prod.fst he

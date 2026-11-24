@@ -86,4 +86,42 @@ example : ¬SameComponent H 3 0 ∧ original.NumericalGenusZero := by
     3 (by decide) no_loop_at_center hclass E hEnds hrot (by decide) (by decide)
   exact ⟨h.1, h.2 hz⟩
 
+private abbrev alternatingGraph : Graph := ⟨[0, 1, 2], [(0, 1), (0, 2), (0, 1), (0, 2)]⟩
+private abbrev splitGraph : Graph := ⟨[3, 0, 1, 2], [(3, 1), (0, 2), (3, 1), (0, 2)]⟩
+private abbrev first : Dart alternatingGraph := (0, false)
+private abbrev second : Dart alternatingGraph := (1, false)
+
+private abbrev selected (d : Dart alternatingGraph) : Prop :=
+  d.vertex = 0 ∧ d.reverse.vertex = 1
+
+private def alternatingRotation : RotationSystem alternatingGraph where
+  rotate := Equiv.swap first (3, false) * Equiv.swap first (2, false) *
+    Equiv.swap first second * Equiv.swap (0, true) (2, true) * Equiv.swap (1, true) (3, true)
+  sameCycle_iff := by decide
+
+private theorem alternating_deleted_eq_bot :
+    (alternatingGraph.toSimpleGraph.induce {u | u ≠ first.vertex}) = ⊥ := by
+  ext u v
+  have hu : u.val ≠ 0 := u.property
+  have hv : v.val ≠ 0 := v.property
+  change alternatingGraph.toSimpleGraph.Adj u.val v.val ↔ False
+  simp [Graph.toSimpleGraph_adj, hu, hv]
+
+-- The selected and remaining ends alternate, yet the split separates the actual components.
+example : (∀ d : Dart alternatingGraph, d.vertex = 0 →
+      (selected (alternatingRotation.rotate d) ↔ ¬selected d)) ∧
+    ¬SameComponent splitGraph 3 0 ∧
+      ∀ root, (splitGraph.componentGraph root).edges.length < alternatingGraph.edges.length := by
+  refine ⟨by decide, ?_⟩
+  have hloop : ∀ d : Dart alternatingGraph, d.vertex = first.vertex →
+      d.reverse.vertex ≠ first.vertex := by decide
+  have hclass (d : Dart alternatingGraph) (hd : d.vertex = first.vertex) : selected d ↔
+      (alternatingGraph.toSimpleGraph.induce {u | u ≠ first.vertex}).Reachable
+        ⟨first.reverse.vertex, hloop first rfl⟩ ⟨d.reverse.vertex, hloop d hd⟩ := by
+    rw [alternating_deleted_eq_bot, SimpleGraph.reachable_bot]
+    exact ⟨fun h => Subtype.ext h.2.symm, fun h => ⟨hd, (congrArg Subtype.val h).symm⟩⟩
+  let E : Fin alternatingGraph.edges.length ≃ Fin splitGraph.edges.length := Equiv.refl _
+  exact split_component_separates first second rfl 3 (by decide) hloop selected (by decide)
+    (fun _ h => h.1) hclass E (by decide +revert) (by decide)
+
 end CslibFrontierTests.RotationCutIntervalGenus
