@@ -15,27 +15,29 @@ import Mathlib.Probability.ProbabilityMassFunction.Integrals
 /-!
 # Random pull-backs of prices, and hubs
 
-Proposition prop:random of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let `w` be a price on
-`Y`, let `Q` be a further set of parties, and let `σ` be a random map from `Q` to `Y` with finitely
-many values. Then some price on `Y ⊕ Q` extends `w` and is at most the expectation of `w` pulled
-back along `σ` (`Cslib.PartyTensor.IsPrice.exists_extend_random`). The case of finitely many values
-`σ l` with probabilities `θ l` is `Cslib.PartyTensor.IsPrice.exists_extend_of_weights`. The proof
-extends the spectral points with `Cslib.PartyTensor.SpectralPoint.exists_extend` and takes a limit
-in the compact set of prices below a bound.
+Proposition A.8 (prop:random) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let `w` be a
+price on `Y`, let `Q` be a further set of parties, and let `σ` be a random map from `Q` to `Y` with
+finitely many values. Then some price on `Y ⊕ Q` extends `w` and is at most the expectation of `w`
+pulled back along `σ` (`Cslib.PartyTensor.IsPrice.exists_extend_random`). The case of finitely many
+values `σ l` with probabilities `θ l` is `Cslib.PartyTensor.IsPrice.exists_extend_of_weights`. The
+proof extends the spectral points with `Cslib.PartyTensor.SpectralPoint.exists_extend` and takes a
+limit in the compact set of prices below a bound.
 
-Lemma lem:hubs: a tensor that is a sum of `r` products of a tensor on one part of its parties and a
-tensor on the other is a restriction of the product of wires to two hubs and one wire of dimension
-`r` between them (`Cslib.PartyTensor.push_le_prod_wire_hubs`,
+Lemma A.3 (lem:hubs): a tensor that is a sum of `r` products of a tensor on one part of its parties
+and a tensor on the other is a restriction of the product of wires to two hubs and one wire of
+dimension `r` between them (`Cslib.PartyTensor.push_le_prod_wire_hubs`,
 `Cslib.PartyTensor.push_inl_le_prod_wire_hubs`).
-
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Paper.Prices` (from `prop_random`
-on).
 
 ## Main results
 
 * `Cslib.PartyTensor.IsPrice.exists_extend_random`,
   `Cslib.PartyTensor.IsPrice.exists_extend_of_weights`.
 * `Cslib.PartyTensor.push_le_prod_wire_hubs`, `Cslib.PartyTensor.push_inl_le_prod_wire_hubs`.
+
+## References
+
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  Lemma A.3 and Proposition A.8 of the paper; module `Paper.Prices` (from `prop_random` on)
 -/
 
 public section
@@ -54,10 +56,10 @@ section Spectral
 
 variable {P Q : Type} [Fintype P] [DecidableEq P] [Fintype Q] [DecidableEq Q]
 
-/-- Proof of Proposition prop:random, the finite case for w = d_φ: "Let C be the product of all
-wires ⟨2⟩_uv with u, v ∈ Y, and apply Proposition prop:extend. For every pair e of Y ∪ Q we obtain
-d_φ′(e) ≤ ∑ θ_l d_φ(π_l e). On Y we have d_φ′ ≤ d_φ with equality for the sum over all pairs, hence
-equality for each." -/
+/-- Proof of Proposition A.8, the finite case for `w = d_φ`: apply Proposition A.7 to the product
+`C` of all wires `⟨2⟩_uv` with `u, v ∈ Y`. Every pair `e` of `Y ∪ Q` gets
+`d_φ'(e) ≤ ∑ θ_l d_φ(π_l e)`. On `Y`, `d_φ' ≤ d_φ` with equality for the sum over all pairs, hence
+equality for each. -/
 private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin m → ℝ)
     (hθ : ∀ l, 0 ≤ θ l)
     (hθ1 : ∑ l, θ l = 1) (σ : Fin m → Q → P) :
@@ -109,11 +111,11 @@ end Spectral
 
 section Random
 
-/-- Proof of Proposition prop:random, the reduction to finite sets: "It is enough to find, for all
-finite Y₀ ⊆ Y and Q₀ ⊆ Q such that σ maps Q₀ into Y₀, a price on Y₀ ∪ Q₀ with the two properties:
-these prices form compact sets, so then there is one that works for all of them at once." Here Z is
-Y ∪ Q, the two properties are bounds A ≤ |oo′| ≤ B, and the compact sets are those of
-isCompact_setOf_isPrice_le K. -/
+/-- Proof of Proposition A.8, the reduction to finite sets: it is enough to find, for all finite
+`Y₀ ⊆ Y` and `Q₀ ⊆ Q` such that `σ` maps `Q₀` into `Y₀`, a price on `Y₀ ∪ Q₀` with the two
+properties. These prices form compact sets, so one of them works for all at once. Here `Z` is
+`Y ∪ Q`, the two properties are bounds `A ≤ |oo'| ≤ B`, and the compact sets are those of
+`isCompact_setOf_isPrice_le K`. -/
 private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
     (h : ∀ S : Finset Z, ∃ d : S → S → ℝ, IsPrice K d ∧ ∀ a b : S, A a b ≤ d a b ∧ d a b ≤ B a b) :
     ∃ w' : Z → Z → ℝ, IsPrice K w' ∧ ∀ a b, A a b ≤ w' a b ∧ w' a b ≤ B a b := by
@@ -164,10 +166,10 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
     exact ((hAB T _ _).1.trans (hD hT ⟨a, ha _ _⟩ ⟨b, hb _ _⟩).ge :)
   · exact (hv {a, b}).2 ⟨a, ha _ _⟩ ⟨b, hb _ _⟩
 
-/-- Proof of Proposition prop:random, the finite case: "So let Y and Q be finite, and let σ take the
-values π_l with probabilities θ_l. By a limit we may assume w = s·d_φ, and then s = 1 by
-homogeneity." The prices that prop_random_spectral gives for approximations s·d_φ of w have a limit,
-since they lie in a compact set (isCompact_setOf_isPrice_le K). -/
+/-- Proof of Proposition A.8, the finite case: `Y` and `Q` are finite and `σ` takes the values `π_l`
+with probabilities `θ_l`. By a limit, `w = s · d_φ`, and then `s = 1` by homogeneity: the prices
+that `prop_random_spectral` gives for approximations `s · d_φ` of `w` have a limit, since they lie
+in a compact set (`isCompact_setOf_isPrice_le K`). -/
 private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → P → ℝ}
     (hw : IsPrice K w) {m : ℕ} (θ : Fin m → ℝ) (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1)
         (σ : Fin m → Q → P) :
@@ -227,10 +229,9 @@ private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → 
   · exact le_of_tendsto_of_tendsto (hlim' a b) ((hzero.const_add (B a b)).trans (by rw [add_zero]))
       (Eventually.of_forall fun n => hdB n a b)
 
-/-- Proof of Proposition prop:random: "let σ take the values π_l with probabilities θ_l". On a
-finite set T of new points a random map, each σ(o) having finitely many values, takes finitely many
-values π_l; with their probabilities θ_l, the expectation of any function of the map is a finite
-mean. -/
+/-- Proof of Proposition A.8, the values of `σ`: on a finite set `T` of new points, a random map
+with finitely many values at each `o` takes finitely many values `π_l`. With their probabilities
+`θ_l`, the expectation of any function of the map is a finite mean. -/
 private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (σ : Q → Ω → Y)
     (hfin : ∀ κ, (Set.range (σ κ)).Finite) (hmeas : ∀ κ y, MeasurableSet (σ κ ⁻¹' {y}))
@@ -280,9 +281,10 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
 
 end Random
 
-/-- **Paper: Proposition prop:random.** "Let w be a price on Y, let Q be a set disjoint from Y, and
-let σ be a random map Y ∪ Q → Y that is the identity on Y, each σ(o) having finitely many values.
-Then a price on Y ∪ Q extends w and satisfies |oo′| ≤ E |σ(o)σ(o′)| for all o, o′." -/
+/-- **Paper: Proposition A.8 (prop:random).** Let `w` be a price on `Y`, let `Q` be a set disjoint
+from `Y`, and let `σ` be a random map `Y ∪ Q → Y` that is the identity on `Y`, with finitely many
+values at each `o`. Then some price on `Y ∪ Q` extends `w` and satisfies `|oo'| ≤ E |σ(o)σ(o')|` for
+all `o, o'`. -/
 theorem IsPrice.exists_extend_random {Y Q : Type} {w : Y → Y → ℝ} (hw : IsPrice K w)
     {Ω : Type} [MeasurableSpace Ω] (μ : Measure Ω)
     [IsProbabilityMeasure μ] (σ : Q → Ω → Y) (hfin : ∀ κ, (Set.range (σ κ)).Finite)
@@ -334,8 +336,8 @@ theorem IsPrice.exists_extend_random {Y Q : Type} {w : Y → Y → ℝ} (hw : Is
     simp only [hg, hσ]
     exact (hmean fun f => w (place f a) (place f b)).symm
 
-/-- Proposition prop:random for a random map with finitely many values σ_l, taken with probabilities
-θ_l. -/
+/-- Proposition A.8 for a random map with finitely many values `σ_l`, taken with probabilities
+`θ_l`. -/
 theorem IsPrice.exists_extend_of_weights {Y Q : Type} {w : Y → Y → ℝ} (hw : IsPrice K w)
     {Λ : Type} [Fintype Λ] (θ : Λ → ℝ)
     (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1) (σ : Λ → Q → Y) :
@@ -354,10 +356,10 @@ theorem IsPrice.exists_extend_of_weights {Y Q : Type} {w : Y → Y → ℝ} (hw 
   refine Finset.sum_congr rfl fun l _ => ?_
   rw [PMF.ofFintype_apply, ENNReal.toReal_ofReal (hθ l), smul_eq_mul]
 
-/-- **Paper: Lemma lem:hubs.** "Let I = I₁ ⊔ I₂, let a tensor t on I be a sum of r products of a
-tensor on I₁ and one on I₂, and let n_p be its index sizes. For two further parties o₁, o₂ it is a
-restriction of ∏_{p ∈ I₁} ⟨n_p⟩_{p o₁} · ⟨r⟩_{o₁ o₂} · ∏_{p ∈ I₂} ⟨n_p⟩_{p o₂}, and this remains
-true when o₁, o₂ are identified with given parties." In Lean the paper's I is A, its part I₁ is
+/-- **Paper: Lemma A.3 (lem:hubs).** Let `I = I₁ ⊔ I₂`, and let a tensor `t` on `I` with index sizes
+`n_p` be a sum of `r` products of a tensor on `I₁` and one on `I₂`. For two further parties
+`o₁, o₂`, `t` is a restriction of `∏_{p ∈ I₁} ⟨n_p⟩_{p o₁} · ⟨r⟩_{o₁ o₂} · ∏_{p ∈ I₂} ⟨n_p⟩_{p o₂}`,
+also when `o₁, o₂` are identified with given parties. In Lean the paper's I is A, its part I₁ is
 given by the predicate S, and α j, β j are the factors of the j-th product, functions of the indices
 in I₁ and in I₂. The map π places the parties of A among those of a set I that also contains o₁ and
 o₂, in any way; `push_inl_le_prod_wire_hubs` is the case of two further parties. -/
@@ -434,8 +436,7 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
   · change wire K (Fintype.card (Fin r)) o₁ o₂ ≤ _
     rw [Fintype.card_fin]
 
-/-- Lemma lem:hubs as printed, "for two further parties o₁, o₂": the parties are I₁ ⊔ I₂ and the two
-hubs. -/
+/-- Lemma A.3 for two further parties `o₁, o₂`: the parties are `I₁ ⊔ I₂` and the two hubs. -/
 theorem push_inl_le_prod_wire_hubs {I₁ I₂ : Type} [Fintype I₁] [DecidableEq I₁] [Fintype I₂]
     [DecidableEq I₂]
     (t : PartyTensor K (I₁ ⊕ I₂)) {r : ℕ} (α : Fin r → (∀ p, t.Index (Sum.inl p)) → K)

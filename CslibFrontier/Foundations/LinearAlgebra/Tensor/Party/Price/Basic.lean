@@ -12,17 +12,14 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 /-!
 # Prices
 
-Definition def:price of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. A *price* on a finite set
-`V` is a limit of multiples `c • F.wireExponent`, `c ≥ 0`, of the wire exponents of spectral points
-`F` on `V` (`Cslib.PartyTensor.prices`, the closure of `Cslib.PartyTensor.priceCone`). A function on
-the pairs of any set `Y` is a price (`Cslib.PartyTensor.IsPrice`) if all its pull-backs to finite
-sets are prices.
+Definition A.4 (def:price) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. A *price* on a
+finite set `V` is a limit of multiples `c • F.wireExponent`, `c ≥ 0`, of the wire exponents of
+spectral points `F` on `V` (`Cslib.PartyTensor.prices`, the closure of
+`Cslib.PartyTensor.priceCone`). A function on the pairs of any set `Y` is a price
+(`Cslib.PartyTensor.IsPrice`) if all its pull-backs to finite sets are prices.
 
 Prices are pseudometrics. They are closed under pull-backs, multiples and pointwise limits, and the
 prices below a given function form a compact set.
-
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Price.Basic`, `Nc.Price.Network`
-and `Paper.Prices` (the definition and its properties).
 
 ## Main definitions
 
@@ -37,6 +34,12 @@ and `Paper.Prices` (the definition and its properties).
 * `Cslib.PartyTensor.IsPrice.comp`, `IsPrice.smul`, `Cslib.PartyTensor.isClosed_setOf_isPrice`,
   `Cslib.PartyTensor.isPrice_of_tendsto`, `Cslib.PartyTensor.isCompact_setOf_isPrice_le`.
 * `Cslib.PartyTensor.SpectralPoint.apply_wires`: a spectral point at a product of wires.
+
+## References
+
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  Definition A.4 of the paper; modules `Nc.Price.Basic`, `Nc.Price.Network` and
+  `Paper.Prices` (the definition and its properties)
 -/
 
 @[expose] public section
@@ -139,9 +142,9 @@ theorem IsPrice.exists_spectralPoint (h : IsPrice K w) {V : Type} [Fintype V] [D
 theorem isPrice_zero : IsPrice K fun _ _ : Y => 0 := fun n _ =>
   subset_closure ⟨SpectralPoint.support K (Fin n), 0, le_rfl, by simp⟩
 
-/-- **Paper: Definition def:price.** "A price on a finite set `V` is a limit of multiples `s·d_φ`,
-`s ≥ 0`, `φ` a spectral point on `V`. A function on the pairs of an arbitrary set `Y` is a price if
-all its pull-backs to finite sets are prices." -/
+/-- **Paper: Definition A.4 (def:price).** A price on a finite set `V` is a limit of multiples
+`s · d_φ`, `s ≥ 0`, with `φ` a spectral point on `V`; a function on the pairs of an arbitrary set
+`Y` is a price if all its pull-backs to finite sets are prices. -/
 theorem isPrice_iff_forall_exists {V : Type} [Fintype V] [DecidableEq V] (d : V → V → ℝ) :
     IsPrice K d ↔ ∀ δ : ℝ, 0 < δ → ∃ (F : SpectralPoint K V) (s : ℝ), 0 ≤ s ∧
       ∀ u v, |d u v - s * F.wireExponent u v| < δ := by
@@ -153,7 +156,7 @@ theorem isPrice_iff_forall_exists {V : Type} [Fintype V] [DecidableEq V] (d : V 
   rw [Real.dist_eq]
   exact hd u v
 
-/-- "Prices are pseudometrics." By Lemma A.2 the wire exponents are; the conditions are closed and
+/-- Prices are pseudometrics. By Lemma A.2 the wire exponents are, and the conditions are closed and
 kept by multiples. -/
 private theorem isPseudometric (h : IsPrice K w) :
     (∀ a b, 0 ≤ w a b) ∧ (∀ a, w a a = 0) ∧ (∀ a b, w a b = w b a) ∧
@@ -192,12 +195,12 @@ theorem IsPrice.symm (h : IsPrice K w) (a b : Y) : w a b = w b a := (isPseudomet
 theorem IsPrice.triangle (h : IsPrice K w) (a b c : Y) : w a c ≤ w a b + w b c :=
   (isPseudometric h).2.2.2 a b c
 
-/-- "Pull-backs … of prices are prices." -/
+/-- Pull-backs of prices are prices. -/
 theorem IsPrice.comp {Z : Type*} (h : IsPrice K w) (g : Z → Y) :
     IsPrice K fun a b => w (g a) (g b) :=
   fun n f => h n fun i => g (f i)
 
-/-- "Nonnegative multiples … of prices are prices." -/
+/-- Nonnegative multiples of prices are prices. -/
 theorem IsPrice.smul (h : IsPrice K w) {c : ℝ} (hc : 0 ≤ c) : IsPrice K fun a b => c * w a b :=
   fun n f => prices_smul (h n f) hc
 
@@ -212,7 +215,7 @@ theorem isClosed_setOf_isPrice : IsClosed {w : Y → Y → ℝ | IsPrice K w} :=
   exact isClosed_iInter fun n => isClosed_iInter fun f =>
     isClosed_closure.preimage (continuous_comp f)
 
-/-- "Pointwise limits of prices are prices." -/
+/-- Pointwise limits of prices are prices. -/
 theorem isPrice_of_tendsto {ι : Type*} {l : Filter ι} [l.NeBot] {d : ι → Y → Y → ℝ}
     (h : ∀ a b, Tendsto (fun i => d i a b) l (nhds (w a b))) (hd : ∀ᶠ i in l, IsPrice K (d i)) :
     IsPrice K w := by
@@ -223,7 +226,7 @@ theorem isPrice_of_tendsto {ι : Type*} {l : Filter ι} [l.NeBot] {d : ι → Y 
   exact h a
 
 variable (K) in
-/-- "The prices below a given function form a compact set, by Tychonoff's theorem." -/
+/-- The prices below a given function form a compact set, by Tychonoff's theorem. -/
 theorem isCompact_setOf_isPrice_le (C : Y → Y → ℝ) :
     IsCompact {w : Y → Y → ℝ | IsPrice K w ∧ ∀ a b, w a b ≤ C a b} := by
   have h1 : IsCompact {w : Y → Y → ℝ | ∀ a, w a ∈ {v : Y → ℝ | ∀ b, v b ∈ Set.Icc 0 (C a b)}} :=
