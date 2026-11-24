@@ -4,9 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Mechanism.Approximation.LaviSwamy
-import CslibFrontier.GameTheory.Mechanism.Approximation.RelatedScheduling
-import CslibFrontier.GameTheory.Mechanism.Approximation.UnrelatedScheduling
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.GameTheory.Mechanism.Approximation.LaviSwamy
+public import CslibFrontier.GameTheory.Mechanism.Approximation.RelatedScheduling
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 
@@ -15,19 +17,14 @@ import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 
 Concrete non-vacuous witnesses exercising:
 
-1. **Unrelated-machine scheduling** (`UnrelatedScheduling`):
-   * An asymmetric `2 × 3` matrix witnessing `minWorkMechanism` allocations, reverse-Vickrey
-     payments, individual rationality, and makespan.
-   * A `2 × 3` Nisan–Ronen witness profile with makespan `2` vs. optimal makespan `≤ 6/5`.
-   * Exact matching of the `m = 2` upper bound (`minWorkMechanism_isApprox`) and the
-     `nisanRonen_lower_bound` of `2` on `Fin 2 × Fin 3`.
-2. **Lavi–Swamy LP convex decomposition** (`LaviSwamy`):
+1. **Lavi–Swamy LP convex decomposition** (`LaviSwamy`):
    * The `3`-item pairwise-conflict (triangle) packing polytope `P` with fractional optimum
      `x* = (1/2, 1/2, 1/2)` and exact integrality gap `α = 3/2`.
    * Explicit convex decomposition of `(2/3) • x* = (1/3, 1/3, 1/3)` with exact expectation
-     identity `E[v(ω)] = (1 / α) * (v ⬝ᵥ x*)`.
+     identity `E[v(ω)] = (1 / α) * (v ⬝ᵥ x*)`, plus convex-hull membership via
+     `scaled_mem_convexHull_of_integralityGap`.
    * Non-vacuous instantiation of `exists_laviSwamyExPost_of_isCompact` on `P`.
-3. **Archer–Tardos & related-machine scheduling** (`RelatedScheduling`):
+2. **Archer–Tardos & related-machine scheduling** (`RelatedScheduling`):
    * Explicit threshold work rule `q(c) = if c ≤ 2 then 1 else 0` whose Archer–Tardos payment at
      `c = 1` equals the critical threshold `2`.
    * Concrete `2`-machine, `2`-job related-machine instance instantiating `lexOptMechanism_isDSIC`,
@@ -39,149 +36,12 @@ namespace CslibFrontierTests.MechanismApproximationNRTV
 open Finset Matrix
 open Cslib.GameTheory.Mechanism
 
-/-! ### 1. Unrelated-Machine Scheduling Witnesses -/
-
-section UnrelatedWitnesses
-
-open UnrelatedScheduling
-
-/-- Asymmetric `2 × 3` processing-time matrix exercising non-symmetric machine-job indexing:
-machine `0` has times `(1, 4, 2)` and machine `1` has times `(3, 2, 5)`. -/
-def asymMatrix : Fin 2 → Fin 3 → ℝ
-  | 0 => ![1, 4, 2]
-  | 1 => ![3, 2, 5]
-
 private theorem fin2_cases (i : Fin 2) : i = 0 ∨ i = 1 := by
   fin_cases i
   · exact Or.inl rfl
   · exact Or.inr rfl
 
-theorem asymMatrix_alloc :
-    minWorkAlloc asymMatrix 0 = 0 ∧ minWorkAlloc asymMatrix 1 = 1 ∧
-      minWorkAlloc asymMatrix 2 = 0 := by
-  refine ⟨?_, ?_, ?_⟩
-  · have hle := minWorkAlloc_le asymMatrix 0 0
-    rcases fin2_cases (minWorkAlloc asymMatrix 0) with h | h
-    · exact h
-    · rw [h] at hle; norm_num [asymMatrix] at hle
-  · have hle := minWorkAlloc_le asymMatrix 1 1
-    rcases fin2_cases (minWorkAlloc asymMatrix 1) with h | h
-    · rw [h] at hle; norm_num [asymMatrix] at hle
-    · exact h
-  · have hle := minWorkAlloc_le asymMatrix 2 0
-    rcases fin2_cases (minWorkAlloc asymMatrix 2) with h | h
-    · exact h
-    · rw [h] at hle; norm_num [asymMatrix] at hle
-
-/-- On `asymMatrix`, machine `0` gets jobs `{0, 2}` with load `3` and payment `3 + 5 = 8`,
-machine `1` gets job `{1}` with load `2` and payment `4`, and the makespan is `3`. -/
-theorem asymMatrix_payments_and_makespan :
-    minWorkPayment asymMatrix 0 = 8 ∧ minWorkPayment asymMatrix 1 = 4 ∧
-      makespan asymMatrix (minWorkAlloc asymMatrix) = 3 := by
-  obtain ⟨h0, h1, h2⟩ := asymMatrix_alloc
-  have hother0 : ∀ j : Fin 3, otherMinCost asymMatrix 0 j = asymMatrix 1 j := fun j => by
-    unfold otherMinCost
-    have he : (Finset.univ.erase (0 : Fin 2)) = {1} := by decide
-    simp only [he, Finset.inf'_singleton]
-  have hother1 : ∀ j : Fin 3, otherMinCost asymMatrix 1 j = asymMatrix 0 j := fun j => by
-    unfold otherMinCost
-    have he : (Finset.univ.erase (1 : Fin 2)) = {0} := by decide
-    simp only [he, Finset.inf'_singleton]
-  have hfilt0 : (Finset.univ.filter fun j : Fin 3 => minWorkAlloc asymMatrix j = 0) = {0, 2} := by
-    ext j; fin_cases j <;> simp [h0, h1, h2]
-  have hfilt1 : (Finset.univ.filter fun j : Fin 3 => minWorkAlloc asymMatrix j = 1) = {1} := by
-    ext j; fin_cases j <;> simp [h0, h1, h2]
-  have hp0 : minWorkPayment asymMatrix 0 = 8 := by
-    rw [minWorkPayment, hfilt0, Finset.sum_pair (by decide), hother0, hother0]
-    norm_num [asymMatrix]
-  have hp1 : minWorkPayment asymMatrix 1 = 4 := by
-    rw [minWorkPayment, hfilt1, Finset.sum_singleton, hother1]
-    norm_num [asymMatrix]
-  have hload0 : load (asymMatrix 0) (minWorkAlloc asymMatrix) 0 = 3 := by
-    rw [load, hfilt0, Finset.sum_pair (by decide)]
-    norm_num [asymMatrix]
-  have hload1 : load (asymMatrix 1) (minWorkAlloc asymMatrix) 1 = 2 := by
-    rw [load, hfilt1, Finset.sum_singleton]
-    norm_num [asymMatrix]
-  have hmk : makespan asymMatrix (minWorkAlloc asymMatrix) = 3 := by
-    apply le_antisymm
-    · rw [makespan_le_iff]
-      intro i
-      rcases fin2_cases i with rfl | rfl
-      · exact hload0.le
-      · linarith
-    · exact hload0.symm.le.trans (load_le_makespan asymMatrix (minWorkAlloc asymMatrix) 0)
-  exact ⟨hp0, hp1, hmk⟩
-
-/-- Concrete `2 × 3` Nisan–Ronen witness profile (`ε = 1/10`): machine `0` has `(1, 1, 1)` and
-machine `1` has `(11/10, 11/10, 1/10)`. `minWorkMechanism` has makespan `2`, whereas assigning job
-`0` to machine `0` and `{1, 2}` to machine `1` achieves makespan `6/5`. -/
-noncomputable def nrWitnessMatrix : Fin 2 → Fin 3 → ℝ
-  | 0 => ![1, 1, 1]
-  | 1 => ![11 / 10, 11 / 10, 1 / 10]
-
-theorem nrWitnessMatrix_gap :
-    makespan nrWitnessMatrix (minWorkAlloc nrWitnessMatrix) = 2 ∧
-      optMakespan nrWitnessMatrix ≤ 6 / 5 := by
-  have h0 : minWorkAlloc nrWitnessMatrix 0 = 0 := by
-    have hle := minWorkAlloc_le nrWitnessMatrix 0 0
-    rcases fin2_cases (minWorkAlloc nrWitnessMatrix 0) with h | h
-    · exact h
-    · rw [h] at hle; norm_num [nrWitnessMatrix] at hle
-  have h1 : minWorkAlloc nrWitnessMatrix 1 = 0 := by
-    have hle := minWorkAlloc_le nrWitnessMatrix 1 0
-    rcases fin2_cases (minWorkAlloc nrWitnessMatrix 1) with h | h
-    · exact h
-    · rw [h] at hle; norm_num [nrWitnessMatrix] at hle
-  have h2 : minWorkAlloc nrWitnessMatrix 2 = 1 := by
-    have hle := minWorkAlloc_le nrWitnessMatrix 2 1
-    rcases fin2_cases (minWorkAlloc nrWitnessMatrix 2) with h | h
-    · rw [h] at hle; norm_num [nrWitnessMatrix] at hle
-    · exact h
-  have hfilt0 : (Finset.univ.filter fun j : Fin 3 => minWorkAlloc nrWitnessMatrix j = 0) =
-      {0, 1} := by
-    ext j; fin_cases j <;> simp [h0, h1, h2]
-  have hfilt1 : (Finset.univ.filter fun j : Fin 3 => minWorkAlloc nrWitnessMatrix j = 1) =
-      {2} := by
-    ext j; fin_cases j <;> simp [h0, h1, h2]
-  have hload0 : load (nrWitnessMatrix 0) (minWorkAlloc nrWitnessMatrix) 0 = 2 := by
-    rw [load, hfilt0, Finset.sum_pair (by decide)]; norm_num [nrWitnessMatrix]
-  have hload1 : load (nrWitnessMatrix 1) (minWorkAlloc nrWitnessMatrix) 1 = 1 / 10 := by
-    rw [load, hfilt1, Finset.sum_singleton]; norm_num [nrWitnessMatrix]
-  have hmk : makespan nrWitnessMatrix (minWorkAlloc nrWitnessMatrix) = 2 := by
-    apply le_antisymm
-    · rw [makespan_le_iff]
-      intro i
-      rcases fin2_cases i with rfl | rfl
-      · exact hload0.le
-      · linarith
-    · exact hload0.symm.le.trans (load_le_makespan nrWitnessMatrix _ 0)
-  have hopt : optMakespan nrWitnessMatrix ≤ 6 / 5 := by
-    let aStar : Fin 3 → Fin 2 := ![0, 1, 1]
-    refine (optMakespan_le nrWitnessMatrix aStar).trans ((makespan_le_iff _ _).2 fun i => ?_)
-    rcases fin2_cases i with rfl | rfl
-    · have hf : (Finset.univ.filter fun j : Fin 3 => aStar j = 0) = {0} := by decide
-      rw [load, hf, Finset.sum_singleton]; norm_num [nrWitnessMatrix]
-    · have hf : (Finset.univ.filter fun j : Fin 3 => aStar j = 1) = {1, 2} := by decide
-      rw [load, hf, Finset.sum_pair (by decide)]; norm_num [nrWitnessMatrix]
-  exact ⟨hmk, hopt⟩
-
-/-- Exact tightness on `2` machines and `3` jobs: `minWorkMechanism` is DSIC on `posProfiles` and
-achieves approximation `2`, and `nisanRonen_lower_bound` proves no DSIC mechanism beats `2`. -/
-theorem unrelated_two_machines_exact :
-    (minWorkMechanism (M := Fin 2) (J := Fin 3)).IsDSICOn posProfiles ∧
-      (minWorkMechanism (M := Fin 2) (J := Fin 3)).IsApproxOn posProfiles 2 ∧
-      ∀ mech : UnrelatedMechanism (Fin 2) (Fin 3),
-        mech.IsDSICOn posProfiles → ∀ c : ℝ, mech.IsApproxOn posProfiles c → 2 ≤ c := by
-  refine ⟨minWorkMechanism_isDSIC.mono (Set.subset_univ _), ?_, fun mech hD c hA => ?_⟩
-  · have h := (minWorkMechanism_isApprox (M := Fin 2) (J := Fin 3))
-    intro t ht
-    simpa only [Fintype.card_fin, Nat.cast_ofNat] using h t (posProfiles_subset_nonnegProfiles ht)
-  · exact nisanRonen_lower_bound (M := Fin 2) (J := Fin 3) (by decide) (by decide) mech hD hA
-
-end UnrelatedWitnesses
-
-/-! ### 2. Lavi–Swamy Triangle Packing Polytope Witness (`α = 3/2`) -/
+/-! ### 1. Lavi–Swamy Triangle Packing Polytope Witness (`α = 3/2`) -/
 
 section LaviSwamyWitness
 
@@ -189,11 +49,11 @@ open LaviSwamy
 
 /-- The triangle pairwise-conflict packing polytope in `ℝ³`:
 `0 ≤ x`, `x₀ + x₁ ≤ 1`, `x₁ + x₂ ≤ 1`, `x₂ + x₀ ≤ 1`. -/
-def trianglePolytope : Set (Fin 3 → ℝ) :=
+@[expose] public def trianglePolytope : Set (Fin 3 → ℝ) :=
   {x | (∀ k, 0 ≤ x k) ∧ x 0 + x 1 ≤ 1 ∧ x 1 + x 2 ≤ 1 ∧ x 2 + x 0 ≤ 1}
 
 /-- The four integral packings in `trianglePolytope`: `none ↦ 0` and `some k ↦ e_k`. -/
-def triangleEmbed : Option (Fin 3) → Fin 3 → ℝ
+@[expose] public def triangleEmbed : Option (Fin 3) → Fin 3 → ℝ
   | none => 0
   | some k => Pi.single k 1
 
@@ -206,7 +66,7 @@ private theorem fin3_cases (i : Fin 3) : i = 0 ∨ i = 1 ∨ i = 2 := by
 /-- The fractional vertex `x* = (1/2, 1/2, 1/2)` belongs to `trianglePolytope`, and `(2/3) • x*`
 equals the uniform convex combination `(1/3, 1/3, 1/3)` of the three singleton packings, giving
 the exact expectation identity `E[v ⬝ᵥ embed ω] = (1 / (3/2)) * (v ⬝ᵥ x*)`. -/
-theorem triangle_explicit_decomposition (v : Fin 3 → ℝ) :
+public theorem triangle_explicit_decomposition (v : Fin 3 → ℝ) :
     let xStar : Fin 3 → ℝ := fun _ => 1 / 2
     xStar ∈ trianglePolytope ∧
       ∃ p : PMF (Option (Fin 3)),
@@ -235,7 +95,7 @@ theorem triangle_explicit_decomposition (v : Fin 3 → ℝ) :
 
 /-- The triangle polytope satisfies `VerifiesIntegralityGap trianglePolytope triangleEmbed (3/2)`
 and yields a non-vacuous instance of `exists_laviSwamyExPost_of_isCompact`. -/
-theorem triangle_laviSwamy_nonvacuous :
+public theorem triangle_laviSwamy_nonvacuous :
     VerifiesIntegralityGap trianglePolytope triangleEmbed (3 / 2) ∧
       ∃ M : RandomizedLinearMechanism (Fin 3) (Option (Fin 3)) (Fin 3),
         M.IsTruthfulInExpectationOn triangleEmbed nonnegValProfiles ∧
@@ -315,9 +175,19 @@ theorem triangle_laviSwamy_nonvacuous :
       ⟨0, hembed none⟩ (fun x hx => hx.1) hembed hgap
   exact ⟨hgap, M, hTIE, hIR, hNPT, hApprox⟩
 
+/-- Exercise `scaled_mem_convexHull_of_integralityGap` on the triangle packing vertex
+`x* = (1/2, 1/2, 1/2)` with integrality gap `α = 3/2`. -/
+public theorem triangle_scaled_mem_convexHull :
+    (1 / (3 / 2 : ℝ)) • (fun _ : Fin 3 => (1 / 2 : ℝ)) ∈
+      convexHull ℝ (Set.range triangleEmbed) := by
+  have hx : (fun _ : Fin 3 => (1 / 2 : ℝ)) ∈ trianglePolytope := by
+    refine ⟨fun _ => by norm_num, ?_, ?_, ?_⟩ <;> norm_num
+  exact scaled_mem_convexHull_of_integralityGap triangleEmbed
+    (fun w => triangle_laviSwamy_nonvacuous.1 w _ hx)
+
 end LaviSwamyWitness
 
-/-! ### 3. Archer–Tardos and Related-Machine Scheduling Witnesses -/
+/-! ### 2. Archer–Tardos and Related-Machine Scheduling Witnesses -/
 
 section RelatedWitnesses
 
@@ -325,10 +195,10 @@ open RelatedScheduling MeasureTheory
 
 /-- Threshold work rule on one agent: gets `1` unit of work iff reported unit cost is `≤ 2`.
 Its Archer–Tardos payment at cost `1` is `1 * 1 + ∫_{1}^{2} 1 = 2`, the critical threshold. -/
-noncomputable def thresholdWork : (Unit → ℝ) → Unit → ℝ :=
+@[expose] public noncomputable def thresholdWork : (Unit → ℝ) → Unit → ℝ :=
   fun c _ => if c () ≤ 2 then 1 else 0
 
-theorem thresholdWork_archerTardos_payment :
+public theorem thresholdWork_archerTardos_payment :
     archerTardosPayment thresholdWork (fun _ => 1) () = 2 := by
   have hint_eq : (∫ x in Set.Ioi (1 : ℝ), thresholdWork (Function.update (fun _ => 1) () x) ()) =
       1 := by
@@ -369,7 +239,7 @@ theorem thresholdWork_archerTardos_payment :
 
 /-- Non-vacuous `2`-machine, `2`-job related-machine witness (`w = ![1, 2]`, `c = ![1, 2]`):
 `lexOptMechanism` is DSIC and IR, and achieves exact `optRelatedMakespan = 2`. -/
-theorem related_two_machines_witness :
+public theorem related_two_machines_witness :
     letI : LinearOrder (Fin 2 → Fin 2) := LinearOrder.lift' (Fintype.equivFin (Fin 2 → Fin 2))
       (Fintype.equivFin (Fin 2 → Fin 2)).injective
     let w : Fin 2 → ℝ := ![1, 2]

@@ -13,7 +13,7 @@ public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.MeasureTheory.Integral.Bochner.Set
 public import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
-import Mathlib.Analysis.SpecificLimits.Basic
+import CslibFrontier.GameTheory.Mechanism.Myerson
 import Mathlib.MeasureTheory.Integral.IntegralEqImproper
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -253,56 +253,6 @@ theorem archerTardosPayment_nonneg [DecidableEq ι] {q : (ι → ℝ) → ι →
       hq0 _ (update_mem_posCosts hc i ((hc i).trans hx)) i
   linarith
 
-private theorem eq_of_abs_sub_le_mul_sub_anti {φ f : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b)
-    (h : ∀ z y, a ≤ z → z ≤ y → y ≤ b → |φ y - φ z| ≤ (y - z) * (f z - f y)) :
-    φ b = φ a := by
-  have key : ∀ N : ℕ, 0 < N → |φ b - φ a| ≤ (b - a) * (f a - f b) / N := by
-    intro N hN
-    have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
-    set d := (b - a) / N with hd
-    have hd0 : 0 ≤ d := div_nonneg (sub_nonneg.2 hab) hNpos.le
-    let t : ℕ → ℝ := fun k => a + k * d
-    have ht0 : t 0 = a := by simp only [t, Nat.cast_zero, zero_mul, add_zero]
-    have htN : t N = b := by simp only [t, d]; field_simp; ring
-    have hstep : ∀ k, t (k + 1) - t k = d := by intro k; simp only [t]; push_cast; ring
-    have hbounds : ∀ k, k < N → a ≤ t k ∧ t k ≤ t (k + 1) ∧ t (k + 1) ≤ b := by
-      intro k hk
-      refine ⟨?_, ?_, ?_⟩
-      · have : (0 : ℝ) ≤ k * d := mul_nonneg (Nat.cast_nonneg k) hd0
-        simp only [t]; linarith
-      · linarith [hstep k]
-      · have hk' : ((k + 1 : ℕ) : ℝ) ≤ N := by exact_mod_cast hk
-        have : ((k + 1 : ℕ) : ℝ) * d ≤ N * d := mul_le_mul_of_nonneg_right hk' hd0
-        rw [← htN]; simp only [t]; linarith
-    calc
-      |φ b - φ a| = |∑ k ∈ Finset.range N, (φ (t (k + 1)) - φ (t k))| := by
-        rw [Finset.sum_range_sub (fun k => φ (t k)), ht0, htN]
-      _ ≤ ∑ k ∈ Finset.range N, |φ (t (k + 1)) - φ (t k)| :=
-        Finset.abs_sum_le_sum_abs _ _
-      _ ≤ ∑ k ∈ Finset.range N, d * (f (t k) - f (t (k + 1))) := by
-        refine Finset.sum_le_sum fun k hk => ?_
-        obtain ⟨h1, h2, h3⟩ := hbounds k (Finset.mem_range.1 hk)
-        have := h _ _ h1 h2 h3
-        rwa [hstep k] at this
-      _ = d * (f a - f b) := by
-        rw [← Finset.mul_sum]
-        have htel : ∑ k ∈ Finset.range N, (f (t k) - f (t (k + 1))) = f a - f b := by
-          have := Finset.sum_range_sub (fun k => -f (t k)) N
-          simp only [ht0, htN, sub_neg_eq_add] at this
-          calc
-            ∑ k ∈ Finset.range N, (f (t k) - f (t (k + 1)))
-                = ∑ k ∈ Finset.range N, (-f (t (k + 1)) + f (t k)) :=
-                  Finset.sum_congr rfl fun _ _ => by ring
-            _ = -f b + f a := this
-            _ = f a - f b := by ring
-        rw [htel]
-      _ = (b - a) * (f a - f b) / N := by simp only [d]; ring
-  have hlim : Tendsto (fun N : ℕ => (b - a) * (f a - f b) / N) atTop (𝓝 0) :=
-    tendsto_const_div_atTop_nhds_zero_nat _
-  have hle : |φ b - φ a| ≤ 0 :=
-    ge_of_tendsto hlim (eventually_atTop.2 ⟨1, fun N hN => key N hN⟩)
-  linarith [abs_nonpos_iff.1 hle]
-
 /-- Finite-interval payment identity for any DSIC cost mechanism: on `0 < a ≤ b`,
 `(p(a) - a q(a)) - (p(b) - b q(b)) = ∫ x in Ioc a b, q(x)`. -/
 theorem CostMechanism.IsDSIC.utility_sub_utility_eq_integral [DecidableEq ι] {M : CostMechanism ι}
@@ -320,7 +270,8 @@ theorem CostMechanism.IsDSIC.utility_sub_utility_eq_integral [DecidableEq ι] {M
     exact (hmono.intervalIntegrable).1
   set φ : ℝ → ℝ := fun v => u v + ∫ x in Set.Ioc a v, f x
   have hconst : φ b = φ a := by
-    refine eq_of_abs_sub_le_mul_sub_anti (f := f) hab fun z y haz hzy hyb => ?_
+    refine Cslib.GameTheory.SingleParameter.eq_of_abs_sub_le_mul_sub (f := fun x => -f x) hab
+      fun z y haz hzy hyb => ?_
     have hz : 0 < z := ha.trans_le haz
     have hy : 0 < y := hz.trans_le hzy
     have h1 := hM (Function.update c i y) (update_mem_posCosts hc i hy) i z hz

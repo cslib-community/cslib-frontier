@@ -8498,7 +8498,6 @@ public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import CslibFrontier.GameTheory.Mechanism.Approximation.LaviSwamy
 public import CslibFrontier.GameTheory.Mechanism.Approximation.RelatedScheduling
-public import CslibFrontier.GameTheory.Mechanism.Approximation.UnrelatedScheduling
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic

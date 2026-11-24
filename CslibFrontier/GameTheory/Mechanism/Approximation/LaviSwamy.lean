@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas
 public import Mathlib.Analysis.Convex.Hull
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
 public import Mathlib.Topology.Compactness.Compact
+import CslibFrontier.Probability.PMF
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.FieldSimp
@@ -106,14 +107,8 @@ variable {Ω κ : Type*} [Fintype Ω]
 @[expose] noncomputable def expectedVal (p : PMF Ω) (g : Ω → ℝ) : ℝ :=
   ∑ ω : Ω, (p ω).toReal * g ω
 
-theorem pmf_sum_toReal (p : PMF Ω) : ∑ ω : Ω, (p ω).toReal = 1 := by
-  have htsum : ∑' ω : Ω, p ω = 1 := p.tsum_coe
-  rw [tsum_fintype] at htsum
-  have hne : ∀ ω ∈ (Finset.univ : Finset Ω), p ω ≠ ⊤ := fun ω _ => p.apply_ne_top ω
-  rw [← ENNReal.toReal_sum hne, htsum, ENNReal.toReal_one]
-
 theorem expectedVal_const (p : PMF Ω) (c : ℝ) : expectedVal p (fun _ => c) = c := by
-  simp only [expectedVal, ← Finset.sum_mul, pmf_sum_toReal, one_mul]
+  simp only [expectedVal, ← Finset.sum_mul, Cslib.Probability.PMF.sum_toReal, one_mul]
 
 theorem expectedVal_sub (p : PMF Ω) (g₁ g₂ : Ω → ℝ) :
     expectedVal p (fun ω => g₁ ω - g₂ ω) = expectedVal p g₁ - expectedVal p g₂ := by
@@ -228,10 +223,11 @@ theorem scaled_mem_convexHull_of_integralityGap [Finite Ω] (embed : Ω → κ �
   obtain ⟨p, hp⟩ := exists_convex_decomposition_of_integralityGap embed hgap
   have hcm : Finset.univ.centerMass (fun ω : Ω => (p ω).toReal) embed = (1 / α) • x := by
     rw [← hp]
-    simp only [Finset.centerMass, pmf_sum_toReal, inv_one, one_smul]
+    simp only [Finset.centerMass, Cslib.Probability.PMF.sum_toReal, inv_one, one_smul]
   rw [← hcm]
   exact Finset.centerMass_mem_convexHull (s := Set.range embed) (t := Finset.univ)
-    (fun ω _ => ENNReal.toReal_nonneg) (by rw [pmf_sum_toReal]; exact zero_lt_one)
+    (fun ω _ => ENNReal.toReal_nonneg)
+    (by rw [Cslib.Probability.PMF.sum_toReal]; exact zero_lt_one)
     (fun ω _ => Set.mem_range_self ω)
 
 omit [Fintype Ω] in
