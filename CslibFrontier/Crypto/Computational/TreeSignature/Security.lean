@@ -123,11 +123,10 @@ theorem succProbability_treeIdealGame_le (S : IndexedSignatureScheme) (T : S.See
     (hcap : 2 ≤ S.capacity n) (hdepth_pos : 1 ≤ depth n)
     (hwidth : 2 * depth n + 4 ≤ N n) (hkgBudget : T.keyGenBudget n ≤ N n)
     (hsgBudget : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
-      T.signBudget keys.2 u msg ≤ N n)
+      TreeMsg S n msg → T.signBudget keys.2 u msg ≤ N n)
     (hslot : Q * depth n ≤ slotBound n)
     (hsigCap : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
+      TreeMsg S n msg →
       ∀ σ ∈ (ProbComp.eval (S.sign keys.2 u msg)).support, σ.length ≤ sigCap n)
     (adversary : Forger)
     (hq : ∀ root ∈ (ProbComp.eval (S.keyGen n)).support,
@@ -163,11 +162,10 @@ theorem succProbability_eufCmaGame_scheme_le (S : IndexedSignatureScheme) (T : S
     (hinv : ∀ n, inv (N n) = n)
     {n Q : ℕ} (hwidth : 2 * depth n + 4 ≤ N n) (hkgBudget : T.keyGenBudget n ≤ N n)
     (hsgBudget : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
-      T.signBudget keys.2 u msg ≤ N n)
+      TreeMsg S n msg → T.signBudget keys.2 u msg ≤ N n)
     (hslot : Q * depth n ≤ slotBound n)
     (hsigCap : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
+      TreeMsg S n msg →
       ∀ σ ∈ (ProbComp.eval (S.sign keys.2 u msg)).support, σ.length ≤ sigCap n)
     (adversary : Forger)
     (hq : ∀ root ∈ (ProbComp.eval (S.keyGen n)).support,
@@ -212,8 +210,7 @@ theorem eufCMA_scheme_of_prf_of_inv (S : IndexedSignatureScheme) (hS : S.Indexed
     (hNge : ∀ n, n ≤ N n) (hinv : ∀ n, inv (N n) = n)
     (hwidth : ∀ n, 2 * depth n + 4 ≤ N n) (hkgBudget : ∀ n, T.keyGenBudget n ≤ N n)
     (hsgBudget : ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
-      T.signBudget keys.2 u msg ≤ N n)
+      TreeMsg S n msg → T.signBudget keys.2 u msg ≤ N n)
     (hdepthNeg : Negligible (fun n => (1 : ℝ≥0) / 2 ^ depth n)) :
     (scheme S T (prfCoins family) N depth
       (computableInPolyTime_prfCoins hF.polyTime) hN hdepth hcap hdepth_pos).EUFCMA := by
@@ -281,8 +278,7 @@ theorem eufCMA_scheme_of_prf (S : IndexedSignatureScheme) (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 2 ≤ S.capacity n) (hdepth_pos : ∀ n, 1 ≤ depth n)
     (hwidth : ∀ n, 2 * depth n + 4 ≤ budget n) (hkgBudget : ∀ n, T.keyGenBudget n ≤ budget n)
     (hsgBudget : ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
-      T.signBudget keys.2 u msg ≤ budget n)
+      TreeMsg S n msg → T.signBudget keys.2 u msg ≤ budget n)
     (hdepthNeg : Negligible (fun n => (1 : ℝ≥0) / 2 ^ depth n)) :
     (scheme S T (prfCoins family) (coinParam budget) depth
       (computableInPolyTime_prfCoins hF.polyTime)

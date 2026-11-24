@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.Crypto.Computational.TreeSignature.Security
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
@@ -35,6 +38,8 @@ the `n`-bit message-domain guard of `TreeSignature.sign`:
    `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`, and
    `OneWay.exists_eufCMA_of_hashFamily`.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.TreeSignatureSecurity
 
@@ -180,8 +185,9 @@ private theorem lazySignHandler_depth_one {msg r : List Bool} {s s' : LazyTreeSt
     (hmsg : msg.length = 2)
     (hs : (r, s') ∈
       (ProbComp.eval (lazySignHandler echo (fun _ => 1) 2 ([], []) ((), msg) s)).support) :
-    (r = [] ∧ s'.2.2.2 = true ∧ s'.2.2.1 = s.2.2.1) ∨
-      ∃ b : Bool, [b] ∉ s.2.2.1 ∧ s'.2.2.1 = [b] :: s.2.2.1 := by
+    (r = [] ∧ s'.2.bad = true ∧ s'.2.seenLeaves = s.2.seenLeaves) ∨
+      ∃ b : Bool, [b] ∉ s.2.seenLeaves ∧ s'.2.seenLeaves = [b] :: s.2.seenLeaves := by
+  rcases s with ⟨caches, ⟨queried, seenLeaves, bad⟩⟩
   unfold lazySignHandler at hs
   simp only [hmsg, ↓reduceIte] at hs
   split_ifs at hs with hb
@@ -202,7 +208,7 @@ private theorem lazySignHandler_depth_one {msg r : List Bool} {s s' : LazyTreeSt
       exact Or.inr ⟨b, fun hm => hseen (List.contains_iff_mem.mpr hm), rfl⟩
 
 -- At depth `1`, `threeQueryForger` has exact success probability `0` in `lazyTreeGame` because the
--- 3rd query always hits a leaf collision (`s₃.2.2.2 = true`) and returns `r₃ = []`.
+-- 3rd query always hits a leaf collision (`s₃.2.bad = true`) and returns `r₃ = []`.
 example :
     Game.succProbability (ProbComp.eval (lazyTreeGame echo (fun _ => 1) threeQueryForger 2)) =
       0 := by
@@ -228,7 +234,7 @@ example :
           · unfold lazySignHandler at hs₂
             simp only [List.length_cons, List.length_nil, hb₁, ↓reduceIte, ProbComp.eval_pure,
               PMF.mem_support_pure_iff] at hs₂
-            have hb₂ : s₂.2.2.2 = true := by
+            have hb₂ : s₂.2.bad = true := by
               obtain ⟨_, rfl⟩ := Prod.mk.inj hs₂.symm
               rfl
             unfold lazySignHandler at hs₃
@@ -356,5 +362,15 @@ example : IsOraclePPT (encPair encUnary (encPair encBits encBits))
     (indexedForger echo (fun _ => 1) (fun _ => 0) (fun m => m + 5) zeroQueryEchoForger) :=
   isOraclePPT_indexedForger echo (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 0)
     (by polytime) isOraclePPT_zeroQueryEchoForger
+
+-- `TreeLog` named fields on `initPlantedState` and `TreeMsg` definitional reducibility.
+example : initPlantedState.2.queried = [] ∧ initPlantedState.2.seenLeaves = [] ∧
+    initPlantedState.2.bad = false :=
+  ⟨rfl, rfl, rfl⟩
+
+example (n : ℕ) (msg : List Bool) :
+    TreeMsg echo n msg =
+      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (echo.keyGen n)).support, msg = keys'.1) :=
+  rfl
 
 end CslibFrontierTests.Crypto.TreeSignatureSecurity

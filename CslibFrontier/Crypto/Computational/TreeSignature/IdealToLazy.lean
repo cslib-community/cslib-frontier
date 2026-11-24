@@ -51,25 +51,25 @@ open scoped NNReal ENNReal
 
 namespace TreeSignature
 
-private def treeBad {σ : Type} (s : TreeState σ) : Prop := s.2.2.2 = true
+private def treeBad {σ : Type} (s : TreeState σ) : Prop := s.2.bad = true
 
 private noncomputable def unguardedTreeHandler {σ : Type} (depth : ℕ → ℕ) (n : ℕ)
     (body : TreeBody σ) (req : Unit × List Bool) : StateT (TreeState σ) PMF (List Bool) :=
-  fun (inner, queried, seenLeaves, bad) =>
+  fun (inner, ⟨queried, seenLeaves, bad⟩) =>
     if req.2.length = n then
       (BitString.uniformList (depth n)).bind fun leaf =>
         let bad' := bad || seenLeaves.contains leaf
         let seen' := if bad' then seenLeaves else leaf :: seenLeaves
         (body leaf req.2 inner).map fun (sig, inner') =>
-          (sig, (inner', req.2 :: queried, seen', bad'))
-    else PMF.pure ([], (inner, req.2 :: queried, seenLeaves, bad))
+          (sig, (inner', ⟨req.2 :: queried, seen', bad'⟩))
+    else PMF.pure ([], (inner, ⟨req.2 :: queried, seenLeaves, bad⟩))
 
 private theorem identicalUntilBad_treeHandler {σ : Type} (depth : ℕ → ℕ) (n : ℕ)
     (body : TreeBody σ) :
     ProbOracleComp.IdenticalUntilBad
       (unguardedTreeHandler depth n body) (guardedTreeHandler depth n body) treeBad := by
   refine OracleComp.IdenticalUntilBad.probOracleComp ⟨?_, ?_, ?_⟩
-  · rintro req ⟨inner, queried, seen, bad⟩ hs a ⟨inner', queried', seen', bad'⟩ hs'
+  · rintro req ⟨inner, ⟨queried, seen, bad⟩⟩ hs a ⟨inner', ⟨queried', seen', bad'⟩⟩ hs'
     obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
     obtain rfl : bad' = false := Bool.eq_false_iff.mpr hs'
     simp only [unguardedTreeHandler, guardedTreeHandler, Bool.false_or, Bool.false_eq_true,
@@ -84,11 +84,11 @@ private theorem identicalUntilBad_treeHandler {σ : Type} (depth : ℕ → ℕ) 
         exact ((PMF.apply_eq_zero_iff _ _).mpr fun hm => by supp_cases hm).trans
           ((PMF.apply_eq_zero_iff _ _).mpr fun hm => by supp_cases hm).symm
     · rfl
-  · rintro req ⟨inner, queried, seen, bad⟩ hbad x hx
+  · rintro req ⟨inner, ⟨queried, seen, bad⟩⟩ hbad x hx
     obtain rfl : bad = true := hbad
     simp only [unguardedTreeHandler, Bool.true_or, ↓reduceIte] at hx
     split_ifs at hx <;> (supp_cases hx; rfl)
-  · rintro req ⟨inner, queried, seen, bad⟩ hbad x hx
+  · rintro req ⟨inner, ⟨queried, seen, bad⟩⟩ hbad x hx
     obtain rfl : bad = true := hbad
     simp only [guardedTreeHandler, ↓reduceIte] at hx
     split_ifs at hx <;> (supp_cases hx; rfl)
@@ -98,13 +98,13 @@ private theorem toOuterMeasure_bad_guardedTreeHandler_le {α σ : Type} (depth :
     (queried : List (List Bool)) :
     ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (guardedTreeHandler depth n body)) prog).run (inner, queried, [], false)).toOuterMeasure
+        (guardedTreeHandler depth n body)) prog).run (inner, ⟨queried, [], false⟩)).toOuterMeasure
         {x | treeBad x.2} ≤
       (((Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1) : ℝ≥0) : ℝ≥0∞) := by
   have hstep : ∀ req (s : TreeState σ), ¬treeBad s →
       (guardedTreeHandler depth n body req s).toOuterMeasure {x | treeBad x.2} ≤
-        (s.2.2.1.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
-    rintro req ⟨inner₀, q₀, seen, bad⟩ hs
+        (s.2.seenLeaves.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
+    rintro req ⟨inner₀, ⟨q₀, seen, bad⟩⟩ hs
     obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
     simp only [guardedTreeHandler, Bool.false_eq_true, ↓reduceIte]
     split_ifs with hmsg
@@ -123,8 +123,8 @@ private theorem toOuterMeasure_bad_guardedTreeHandler_le {α σ : Type} (depth :
     · simp [PMF.toOuterMeasure_pure_apply, treeBad]
   have hgrow : ∀ req (s : TreeState σ), ¬treeBad s → ∀ x ∈
       (guardedTreeHandler depth n body req s).support, ¬treeBad x.2 →
-      x.2.2.2.1.length ≤ s.2.2.1.length + 1 := by
-    rintro req ⟨inner₀, q₀, seen, bad⟩ hs x hx hxbad
+      x.2.2.seenLeaves.length ≤ s.2.seenLeaves.length + 1 := by
+    rintro req ⟨inner₀, ⟨q₀, seen, bad⟩⟩ hs x hx hxbad
     obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
     simp only [guardedTreeHandler, Bool.false_eq_true, ↓reduceIte] at hx
     split_ifs at hx
@@ -133,8 +133,8 @@ private theorem toOuterMeasure_bad_guardedTreeHandler_le {α σ : Type} (depth :
     · supp_cases hx; exact Nat.le_succ _
   have hbad := ProbOracleComp.toOuterMeasure_bad_choose_two_le
     (handler := guardedTreeHandler depth n body) (bad := treeBad)
-    (fun s => s.2.2.1.length) ((1 : ℝ≥0∞) / 2 ^ depth n) hstep hgrow hq
-    (s := (inner, queried, [], false)) Bool.false_ne_true
+    (fun s => s.2.seenLeaves.length) ((1 : ℝ≥0∞) / 2 ^ depth n) hstep hgrow hq
+    (s := (inner, ⟨queried, [], false⟩)) Bool.false_ne_true
   rw [ProbOracleComp.runWith_eq_run_interpret] at hbad
   have htwo : (1 : ℝ≥0∞) / 2 ^ depth n = 2 * ((1 : ℝ≥0∞) / 2 ^ (depth n + 1)) := by
     simp only [one_div, pow_succ']
@@ -357,7 +357,7 @@ private structure JointLazyInv (S : IndexedSignatureScheme) (T : S.Seeded) (M d 
         (fun w => T.keyGenWith n (w.take (T.keyGenBudget n)))
   edges_mem : ∀ q v σ, ((q, v), σ) ∈ s.1.2.2 →
     q.length < d ∧ v ≤ 1 ∧
-      (q.length = d - 1 → ∃ l ∈ s.2.2.1, l.length = d ∧ q = l.take (d - 1) ∧
+      (q.length = d - 1 → ∃ l ∈ s.2.seenLeaves, l.length = d ∧ q = l.take (d - 1) ∧
         v = (l.getLastD false).toNat)
   edges_none_coin_none : ∀ p u, p.length < d → u ≤ 1 → s.1.2.2.lookup (p, u) = none →
     s.1.1.lookup (padRequest M (signInput p u)) = none
@@ -371,7 +371,7 @@ private theorem jointLazyInv_insert_sign (S : IndexedSignatureScheme) (T : S.See
     {M d n : ℕ} (hwidth : 2 * d + 4 ≤ M) {root : List Bool × List Bool}
     {cc : CoinCache} {ns : NodeKeyCache} {es : EdgeSigCache}
     {q₀ q₁ sl₀ sl₁ : List (List Bool)} {b₀ b₁ : Bool}
-    (hinv : JointLazyInv S T M d n root ((cc, ns, es), (q₀, sl₀, b₀)))
+    (hinv : JointLazyInv S T M d n root ((cc, ns, es), ⟨q₀, sl₀, b₀⟩))
     (hsub : ∀ l ∈ sl₀, l ∈ sl₁) {node : List Bool} {u : ℕ} (hnode_lt : node.length < d)
     (hu : u ≤ 1) (w σ : List Bool)
     (hleaf : node.length = d - 1 →
@@ -380,7 +380,8 @@ private theorem jointLazyInv_insert_sign (S : IndexedSignatureScheme) (T : S.See
       ∃ kp kc, ns.lookup node = some kp ∧ ns.lookup (node ++ [b]) = some kc ∧
         σ = T.signWith kp.2 b.toNat kc.1 (w.take (T.signBudget kp.2 b.toNat kc.1))) :
     JointLazyInv S T M d n root
-      (((padRequest M (signInput node u), w) :: cc, ns, ((node, u), σ) :: es), (q₁, sl₁, b₁)) := by
+      (((padRequest M (signInput node u), w) :: cc, ns, ((node, u), σ) :: es),
+        ⟨q₁, sl₁, b₁⟩) := by
   refine ⟨hinv.root_lookup, hinv.nodes_mem, fun p hp => ?_, fun q v σ' hmem => ?_,
     fun p u' hp hu' he => ?_, fun p b σ' hp he => ?_⟩
   · rw [List.lookup_cons_of_ne (padRequest_keyInput_ne_signInput hwidth hp hnode_lt hu)]
@@ -465,7 +466,7 @@ private theorem jointSignAt_none_spec (S : IndexedSignatureScheme) (T : S.Seeded
     {sk msg : List Bool} {u : ℕ} (hbud : T.signBudget sk u msg ≤ M)
     {root : List Bool × List Bool} {cc : CoinCache} {ns : NodeKeyCache} {es : EdgeSigCache}
     {q₀ q₁ sl₀ sl₁ : List (List Bool)} {b₀ b₁ : Bool}
-    (hinv : JointLazyInv S T M d n root ((cc, ns, es), (q₀, sl₀, b₀)))
+    (hinv : JointLazyInv S T M d n root ((cc, ns, es), ⟨q₀, sl₀, b₀⟩))
     (hsub : ∀ l ∈ sl₀, l ∈ sl₁) {node : List Bool} (hnode_lt : node.length < d)
     (hu : u ≤ 1) (hes : es.lookup (node, u) = none)
     (hleaf : node.length = d - 1 →
@@ -476,7 +477,8 @@ private theorem jointSignAt_none_spec (S : IndexedSignatureScheme) (T : S.Seeded
     PMF.RepInv (jointSignAt S T M node sk u msg (cc, es))
       (ProbComp.eval (memoize (fun _ => S.sign sk u msg) (node, u) es))
       (fun (σ, (_, es')) => (σ, es'))
-      (fun (_, (cc', es')) => JointLazyInv S T M d n root ((cc', ns, es'), (q₁, sl₁, b₁))) := by
+      (fun (_, (cc', es')) =>
+        JointLazyInv S T M d n root ((cc', ns, es'), ⟨q₁, sl₁, b₁⟩)) := by
   have hcc := hinv.edges_none_coin_none node u hnode_lt hu hes
   simp only [jointSignAt, lazyCoinRequest, memoize, hes, hcc, bind_pure_comp, pmf_norm]
   refine ⟨?_, fun _ hm => ?_⟩
@@ -577,7 +579,7 @@ private theorem jointCoinBody_step_lazy (S : IndexedSignatureScheme) (T : S.Seed
       (ProbComp.eval (lazySignHandler S depth n root req (s.1.2, s.2)))
       (fun (a, s') => (a, s'.1.2, s'.2))
       (fun (_, s') => JointLazyInv S T M (depth n) n root s') := by
-  obtain ⟨inner, queried, seen, bad⟩ := s
+  obtain ⟨inner, ⟨queried, seen, bad⟩⟩ := s
   rw [eval_lazySignHandler_eq]
   apply guardedTreeHandler_map depth n Prod.snd (JointLazyInv S T M (depth n) n root) req
     inner queried seen bad
@@ -618,11 +620,11 @@ private noncomputable def coinGameWith (S : IndexedSignatureScheme) (T : S.Seede
     PMF Bool :=
   let root := T.keyGenWith n (w₀.take (T.keyGenBudget n))
   let pk := encPair encUnary encBits (n, root.1)
-  let init : TreeState CoinCache := ([(padRequest M (keyInput []), w₀)], ([], [], false))
+  let init : TreeState CoinCache := ([(padRequest M (keyInput []), w₀)], ⟨[], [], false⟩)
   ((OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) h)
-    (adversary n pk)).run init).map fun (msig, (_, queried, _, _)) =>
-      (msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2
+    (adversary n pk)).run init).map fun (msig, (_, log)) =>
+      (msig.1.length == n) && !log.queried.contains msig.1 && verify S depth pk msig.1 msig.2
 
 private theorem eval_treeIdealGame_eq_unguarded (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth N : ℕ → ℕ) (adversary : Forger) (n : ℕ) :
@@ -648,12 +650,12 @@ private theorem eval_treeIdealGame_eq_unguarded (S : IndexedSignatureScheme) (T 
   set cc₀ : CoinCache := [(padRequest M (keyInput []), w₀)]
   have hstep : ∀ req (s : TreeState CoinCache),
       ((unguardedTreeHandler depth n (coinSignBody S T depth M n) req s).map
-        fun (a, s') => (a, (s'.2.1, s'.1))) =
+        fun (a, s') => (a, (s'.2.queried, s'.1))) =
       (((OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
           (lazyCoinHandler M))
-        (signHandler S T depth n req s.2.1)).run s.1).map fun ((a, b), c) => (a, b, c)) := by
-    rintro req ⟨cc, queried, seen, bad⟩
+        (signHandler S T depth n req s.2.queried)).run s.1).map fun ((a, b), c) => (a, b, c)) := by
+    rintro req ⟨cc, ⟨queried, seen, bad⟩⟩
     simp only [unguardedTreeHandler, signHandler, signO]
     split_ifs with hmsg
     · rw [bind_assoc, OracleComp.run_interpret_bind, ProbOracleComp.run_interpret_sample,
@@ -670,7 +672,8 @@ private theorem eval_treeIdealGame_eq_unguarded (S : IndexedSignatureScheme) (T 
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) (lazyCoinHandler M))
         (signHandler S T depth n q st.1)).run st.2).map fun ((a, b), c) => (a, b, c))
-    (fun s => (s.2.1, s.1)) hstep (adversary n pk) (cc₀, [], [], false)
+    (fun s : TreeState CoinCache => (s.2.queried, s.1)) hstep
+    (adversary n pk) (cc₀, TreeLog.mk [] [] false)
   have hcomb := congrArg (PMF.map fun ((msig, queried), _) =>
       (msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2)
     (hflat.trans (congrArg (PMF.map fun (a, b, c) => ((a, b), c)) hunguard.symm))
@@ -694,7 +697,7 @@ private theorem eval_lazyTreeGame_eq_guarded (S : IndexedSignatureScheme) (T : S
   set root := T.keyGenWith n (w₀.take (T.keyGenBudget n))
   set pk := encPair encUnary encBits (n, root.1)
   set jInit : TreeState JointInner :=
-    (([(padRequest M (keyInput []), w₀)], [([], root)], []), ([], [], false))
+    (([(padRequest M (keyInput []), w₀)], [([], root)], []), ⟨[], [], false⟩)
   have hrootLen : ([] : List Bool).length < depth n := by simp; omega
   have hjInv : JointLazyInv S T M (depth n) n root jInit := by
     refine ⟨by simp [jInit], ?_, ?_, ?_, ?_, ?_⟩
@@ -719,16 +722,16 @@ private theorem eval_lazyTreeGame_eq_guarded (S : IndexedSignatureScheme) (T : S
     (fun q s hs => (hstep q s hs).1) (adversary n pk) jInit hjInv
   have hprojGuard := ProbOracleComp.run_interpret_map_state _
     (guardedTreeHandler depth n (coinSignBody S T depth M n)) (fun s => (s.1.1, s.2))
-    (fun q ⟨inner, queried, seen, bad⟩ => (guardedTreeHandler_map depth n
+    (fun q ⟨inner, ⟨queried, seen, bad⟩⟩ => (guardedTreeHandler_map depth n
       (body₂ := coinSignBody S T depth M n) Prod.fst (fun _ => True) q inner queried seen bad
       (fun _ => trivial)
       fun _ _ leaf _ _ => .of_eq (map_dropCaches_jointCoinBody S T depth M n leaf q.2 inner)).1)
     (adversary n pk) jInit
-  have hwinL := congrArg (PMF.map fun (msig, (_, (queried, _, _))) =>
-    (msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2)
+  have hwinL := congrArg (PMF.map fun (msig, (_, log)) =>
+    (msig.1.length == n) && !log.queried.contains msig.1 && verify S depth pk msig.1 msig.2)
     hprojLazy.symm
-  have hwinG := congrArg (PMF.map fun (msig, (_, queried, _, _)) =>
-    (msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2)
+  have hwinG := congrArg (PMF.map fun (msig, (_, log)) =>
+    (msig.1.length == n) && !log.queried.contains msig.1 && verify S depth pk msig.1 msig.2)
     hprojGuard
   dsimp only [coinGameWith]
   simp only [pmf_norm] at hwinL hwinG ⊢
@@ -742,8 +745,7 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
     (depth N : ℕ → ℕ) {n Q : ℕ} (hdepth_pos : 1 ≤ depth n) (hwidth : 2 * depth n + 4 ≤ N n)
     (hkgBudget : T.keyGenBudget n ≤ N n)
     (hsgBudget : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
-      T.signBudget keys.2 u msg ≤ N n)
+      TreeMsg S n msg → T.signBudget keys.2 u msg ≤ N n)
     (adversary : Forger)
     (hq : ∀ root ∈ (ProbComp.eval (S.keyGen n)).support,
       (adversary n (encPair encUnary encBits (n, root.1))).IsQueryBounded Q) :
@@ -760,9 +762,10 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
     set pk := encPair encUnary encBits (n, root.1)
     have hiub := identicalUntilBad_treeHandler depth n (coinSignBody S T depth (N n) n)
     have hdiff := OracleComp.IdenticalUntilBad.bind_apply_le hiub (adversary n pk)
-      ([(padRequest (N n) (keyInput []), w₀)], [], [], false)
-      (fun (msig, (_, queried, _, _)) => PMF.pure
-        ((msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2)) true
+      ([(padRequest (N n) (keyInput []), w₀)], ⟨[], [], false⟩)
+      (fun (msig, (_, log)) => PMF.pure
+        ((msig.1.length == n) && !log.queried.contains msig.1 &&
+          verify S depth pk msig.1 msig.2)) true
     rw [OracleComp.IdenticalUntilBad.bad_eq hiub] at hdiff
     exact hdiff.trans (add_le_add le_rfl (toOuterMeasure_bad_guardedTreeHandler_le depth n Q _
       (hq root (T.keyGenWith_mem_support n _)) _ []))

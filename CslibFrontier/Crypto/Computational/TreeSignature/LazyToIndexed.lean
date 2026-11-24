@@ -61,7 +61,8 @@ private abbrev PresampledInner := NodeSlotCache × EdgeSigCache × AllSignedLog
 /-- State of the pre-sampled tree signing handler. -/
 private abbrev PresampledState := TreeState PresampledInner
 
-private def initPresampledState : PresampledState := (([([], 0)], [], []), ([], [], false))
+private def initPresampledState : PresampledState :=
+  (([([], 0)], [], []), ⟨[], [], false⟩)
 
 /-- Extract the indexed signing oracle log `(u, msg)` at slot `target` from `allSigned`. -/
 private def signedLogOf (target : ℕ) (allSigned : AllSignedLog) : List (ℕ × List Bool) :=
@@ -198,9 +199,9 @@ private def plantedWin (S : IndexedSignatureScheme) (depth : ℕ → ℕ) (n tar
 /-- Whether `adversary` wins `lazyTreeGame` on a pre-sampled outcome. -/
 private def treeWinOfPresampled (S : IndexedSignatureScheme) (depth : ℕ → ℕ) (n : ℕ)
     (out : List (List Bool × List Bool) × (List Bool × List Bool) × PresampledState) : Bool :=
-  let (keys, msig, (_, (queried, _, _))) := out
+  let (keys, msig, (_, log)) := out
   let pk := encPair encUnary encBits (n, (keys.getD 0 ([], [])).1)
-  (msig.1.length == n) && !queried.contains msig.1 && verify S depth pk msig.1 msig.2
+  (msig.1.length == n) && !log.queried.contains msig.1 && verify S depth pk msig.1 msig.2
 
 /-! ### Simulation of `plantedTreeHandler` + `indexedSigningOracle` by `localTreeHandler` -/
 
@@ -362,7 +363,7 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
         fun ((ans, ps'), sg') => (ans, ps', sg'))
       (fun (ans, (v, e, a), log) => (ans, ((v, e), log), signedLogOf front.length a))
       (fun (_, st') => SlotEdgeInv (front ++ x :: back).length st'.1) := by
-  obtain ⟨⟨visited, edges, allSigned⟩, queried, seen, bad⟩ := st
+  obtain ⟨⟨visited, edges, allSigned⟩, ⟨queried, seen, bad⟩⟩ := st
   simp only [localTreeHandler, guardedTreeHandler, plantedTreeHandler]
   split_ifs with hmsg hbad
   · simp only [OracleComp.run_interpret_pure, pmf_norm]; exact .pure rfl hinv
@@ -629,7 +630,7 @@ private theorem jointKeysHandler_lazy_step (S : IndexedSignatureScheme) (depth :
         ((nodesOf st.1.1 st.1.2.1, st.1.2.2.1), st.2)))
       (fun (ans, st') => (ans, (nodesOf st'.1.1 st'.1.2.1, st'.1.2.2.1), st'.2))
       (fun (_, st') => JointKeysInv S n root st'.1) := by
-  obtain ⟨inner, queried, seen, bad⟩ := st
+  obtain ⟨inner, ⟨queried, seen, bad⟩⟩ := st
   rw [eval_lazySignHandler_eq]
   refine guardedTreeHandler_map depth n (fun (uk, vis, edg, _) => (nodesOf uk vis, edg))
     (fun s => JointKeysInv S n root s.1) req inner queried seen bad (fun _ => hinv)
@@ -754,7 +755,7 @@ private theorem jointKeysHandler_expandKeys (S : IndexedSignatureScheme) (depth 
       (fun (_, st') => st'.1.1.length = st'.1.2.1.length ∧ 0 < st'.1.1.length ∧
         (∀ e ∈ st'.1.2.1, e.2 < st'.1.2.1.length) ∧
         st'.1.2.1.length ≤ st.1.2.1.length + (depth n - 1)) := by
-  obtain ⟨⟨uk, vis, edg, allSigned⟩, queried, seen, bad⟩ := st
+  obtain ⟨⟨uk, vis, edg, allSigned⟩, ⟨queried, seen, bad⟩⟩ := st
   apply guardedTreeHandler_bind_comm depth n (fun x => expandKeys S n K x.1) Prod.snd
     (fun s => s.1.1.length = s.1.2.1.length ∧ 0 < s.1.1.length ∧
       (∀ e ∈ s.1.2.1, e.2 < s.1.2.1.length) ∧ s.1.2.1.length ≤ vis.length + (depth n - 1))
@@ -827,7 +828,7 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
       by simpa [initJ, initPresampledState] using hslotLt.le⟩).1
   refine Eq.trans ?_
     ((congrArg (PMF.map (treeWinOfPresampled S depth n)) hexpRun).trans ?_)
-  · rw [show (([([], root)], []), ([], [], false)) =
+  · rw [show (([([], root)], []), ⟨[], [], false⟩) =
       ((nodesOf initJ.1.1 initJ.1.2.1, initJ.1.2.2.1), initJ.2) from rfl, ← hproj]
     simp only [pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun ⟨msig, st'⟩ hm_run => ?_
@@ -892,7 +893,7 @@ private structure PresampledBoundedInv (d : ℕ) (keys : List (List Bool × List
   cap_ok : st.1.1.length + rem * (d - 1) ≤ keys.length
   visited_ok : ∀ e ∈ st.1.1, e.1.length < d ∧ e.2 < st.1.1.length
   visited_unique : ∀ e₁ ∈ st.1.1, ∀ e₂ ∈ st.1.1, e₁.2 = e₂.2 → e₁ = e₂
-  allSigned_ok : allSignedInv d keys st.1.1 st.2.1 st.1.2.2
+  allSigned_ok : allSignedInv d keys st.1.1 st.2.queried st.1.2.2
 
 private theorem localCertify_bounded_inv (S : IndexedSignatureScheme) (depth : ℕ → ℕ)
     (keys : List (List Bool × List Bool)) (sigCap n : ℕ) (hd : 1 ≤ depth n)
@@ -953,7 +954,7 @@ private theorem localTreeHandler_bounded_inv (S : IndexedSignatureScheme) (depth
     (hinv : PresampledBoundedInv (depth n) keys (rem + 1) st) :
     ∀ ans st', (ans, st') ∈ (localTreeHandler S depth keys sigCap n req st).support →
       PresampledBoundedInv (depth n) keys rem st' := by
-  obtain ⟨⟨visited, edges, allSigned⟩, queried, seen, bad⟩ := st
+  obtain ⟨⟨visited, edges, allSigned⟩, ⟨queried, seen, bad⟩⟩ := st
   have hmul : (rem + 1) * (depth n - 1) = rem * (depth n - 1) + (depth n - 1) :=
     Nat.succ_mul rem (depth n - 1)
   have hbound : visited.length + (rem + 1) * (depth n - 1) ≤ keys.length := hinv.cap_ok
@@ -1018,7 +1019,7 @@ private theorem win_implies_any_plantedWin (S : IndexedSignatureScheme) (depth :
     (hwin : treeWinOfPresampled S depth n out = true) :
     ((List.range K).any fun j => plantedWin S depth n j out) = true := by
   classical
-  obtain ⟨keys, ⟨msgStar, sigStar⟩, ⟨visited, edges, allSigned⟩, queried, seen, bad⟩ := out
+  obtain ⟨keys, ⟨msgStar, sigStar⟩, ⟨visited, edges, allSigned⟩, ⟨queried, seen, bad⟩⟩ := out
   have hbound : visited.length ≤ keys.length := by simpa using hinv.cap_ok
   simp only [treeWinOfPresampled, Bool.and_eq_true, Bool.not_eq_true', Bool.eq_false_iff,
     ne_eq, List.contains_iff_mem, beq_iff_eq] at hwin
@@ -1108,7 +1109,7 @@ theorem succProbability_lazyTreeGame_le (S : IndexedSignatureScheme)
     (hcap : 2 ≤ S.capacity n) (hdepth_pos : 1 ≤ depth n)
     (hslot : Q * depth n ≤ slotBound n)
     (hsigCap : ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-      (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
+      TreeMsg S n msg →
       ∀ σ ∈ (ProbComp.eval (S.sign keys.2 u msg)).support, σ.length ≤ sigCap n)
     (adversary : Forger)
     (hq : ∀ root ∈ (ProbComp.eval (S.keyGen n)).support,

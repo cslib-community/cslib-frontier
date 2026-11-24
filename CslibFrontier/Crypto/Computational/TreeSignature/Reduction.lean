@@ -26,8 +26,12 @@ private imports.
 
 ## Main definitions
 
+* `Cslib.Crypto.TreeSignature.TreeMsg`: admissible messages signed inside the tree scheme (outer
+  `n`-bit user messages or supported node verification keys from `S.keyGen n`).
 * `Cslib.Crypto.TreeSignature.NodeSlotCache`, `Cslib.Crypto.TreeSignature.NodeKeyCache`,
   `Cslib.Crypto.TreeSignature.EdgeSigCache`: association-list caches keyed by tree paths and edges.
+* `Cslib.Crypto.TreeSignature.TreeLog`: named record pairing the queried-message list, sampled-leaf
+  list, and leaf-collision abort flag (`queried`, `seenLeaves`, `bad`).
 * `Cslib.Crypto.TreeSignature.LazyTreeState`, `Cslib.Crypto.TreeSignature.LazyCertState`,
   `Cslib.Crypto.TreeSignature.certifyStepLazy`, `Cslib.Crypto.TreeSignature.certifyLazy`,
   `Cslib.Crypto.TreeSignature.lazySignHandler`, `Cslib.Crypto.TreeSignature.lazyTreeGame`:
@@ -75,11 +79,16 @@ namespace TreeSignature
 
 section Requests
 
+/-- Admissible messages signed inside the tree scheme at security parameter `n`: either outer
+`n`-bit user messages or supported node verification keys from `S.keyGen n`. -/
+abbrev TreeMsg (S : IndexedSignatureScheme) (n : ℕ) (msg : List Bool) : Prop :=
+  msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1
+
 private theorem exists_signInput_length_bound (S : IndexedSignatureScheme) :
     ∃ pkB : ℕ → ℕ,
       ComputableInPolyTime pkB encUnary encUnary ∧
       ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-        (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
+        TreeMsg S n msg →
         (encPair encBits (encPair encUnary encBits) (keys.2, u, msg)).length + 1 ≤
           3 * pkB n + n + 5 := by
   obtain ⟨ck, dk, hkgLen⟩ := S.keyGen_ppt.length_le
@@ -144,7 +153,7 @@ theorem exists_treeCoinBudget (S : IndexedSignatureScheme) (T : S.Seeded) {depth
       (∀ n, 2 * depth n + 4 ≤ budget n) ∧
       (∀ n, T.keyGenBudget n ≤ budget n) ∧
       ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-        (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
+        TreeMsg S n msg →
         T.signBudget keys.2 u msg ≤ budget n := by
   obtain ⟨pkB, hpkB, hlenB⟩ := exists_signInput_length_bound S
   obtain ⟨cb, db, hkb⟩ := T.keyGenBudget_polyTime.polyBounded_length.exists_le
@@ -166,7 +175,7 @@ theorem exists_sigCap_polyTime (S : IndexedSignatureScheme) :
     ∃ sigCap : ℕ → ℕ,
       ComputableInPolyTime sigCap encUnary encUnary ∧
       ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ u ≤ 1, ∀ msg,
-        (msg.length = n ∨ ∃ keys' ∈ (ProbComp.eval (S.keyGen n)).support, msg = keys'.1) →
+        TreeMsg S n msg →
         ∀ σ ∈ (ProbComp.eval (S.sign keys.2 u msg)).support, σ.length ≤ sigCap n := by
   obtain ⟨pkB, hpkB, hlenB⟩ := exists_signInput_length_bound S
   obtain ⟨cs, ds, hsgLen⟩ := S.sign_ppt.length_le
@@ -188,10 +197,19 @@ abbrev NodeKeyCache := List (List Bool × (List Bool × List Bool))
 /-- Association-list cache memoizing signatures by `(path, u)`. -/
 abbrev EdgeSigCache := List ((List Bool × ℕ) × List Bool)
 
-/-- State of the lazy tree signing handler: node keys, edge signatures, queried messages,
+/-- Per-game signing query log shared by the lazy and planted tree handlers: queried messages,
 sampled leaves, and the leaf-collision abort flag. -/
-abbrev LazyTreeState :=
-  (NodeKeyCache × EdgeSigCache) × (List (List Bool) × List (List Bool) × Bool)
+structure TreeLog where
+  /-- Messages submitted to the signing oracle (most recent first). -/
+  queried : List (List Bool)
+  /-- Leaves sampled during non-aborting signing queries (most recent first). -/
+  seenLeaves : List (List Bool)
+  /-- Sticky abort flag set once a sampled leaf repeats a member of `seenLeaves`. -/
+  bad : Bool
+
+/-- State of the lazy tree signing handler: node keys, edge signatures, and signing log
+`TreeLog`. -/
+abbrev LazyTreeState := (NodeKeyCache × EdgeSigCache) × TreeLog
 
 /-- Chain state during `certifyLazy`. -/
 abbrev LazyCertState := CertState × (NodeKeyCache × EdgeSigCache)
@@ -220,14 +238,14 @@ and sign `msg`. -/
     (root : List Bool × List Bool) (request : Unit × List Bool) :
     StateT LazyTreeState ProbComp (List Bool) := fun state =>
   let msg := request.2
-  let ((nodes, edges), (queried, seenLeaves, bad)) := state
+  let ((nodes, edges), ⟨queried, seenLeaves, bad⟩) := state
   if msg.length = n then
     if bad then
-      pure ([], ((nodes, edges), (msg :: queried, seenLeaves, true)))
+      pure ([], ((nodes, edges), ⟨msg :: queried, seenLeaves, true⟩))
     else do
       let leaf ← BitString.sampleList (depth n)
       if seenLeaves.contains leaf then
-        pure ([], ((nodes, edges), (msg :: queried, seenLeaves, true)))
+        pure ([], ((nodes, edges), ⟨msg :: queried, seenLeaves, true⟩))
       else do
         let ((node, (_, sk), certs), (nodes', edges')) ←
           certifyLazy S depth n root leaf (nodes, edges)
@@ -235,9 +253,9 @@ and sign `msg`. -/
           memoize (fun _ => S.sign sk (leaf.getLastD false).toNat msg)
             (node, (leaf.getLastD false).toNat) edges'
         return (encodeSignature leaf certs σ,
-          ((nodes', edges''), (msg :: queried, leaf :: seenLeaves, false)))
+          ((nodes', edges''), ⟨msg :: queried, leaf :: seenLeaves, false⟩))
   else
-    pure ([], ((nodes, edges), (msg :: queried, seenLeaves, bad)))
+    pure ([], ((nodes, edges), ⟨msg :: queried, seenLeaves, bad⟩))
 
 /-- Intermediate tree forging game ([BonehShoup2023], proof of Theorem 14.6): node keys and
 internal/leaf signatures are sampled lazily from `S.keyGen` and `S.sign`, and signing returns `[]`
@@ -246,24 +264,22 @@ once any leaf is sampled twice. -/
     (adversary : Forger) (n : ℕ) : ProbComp Bool := do
   let root ← S.keyGen n
   let pk := encPair encUnary encBits (n, root.1)
-  let init : LazyTreeState := (([([], root)], []), ([], [], false))
+  let init : LazyTreeState := (([([], root)], []), ⟨[], [], false⟩)
   let (msig, state) ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
       (lazySignHandler S depth n root)) (adversary n pk)).run init
-  let (_, (queried, _, _)) := state
   let (msg, sig) := msig
-  return (msg.length == n) && !queried.contains msg && verify S depth pk msg sig
+  return (msg.length == n) && !state.2.queried.contains msg && verify S depth pk msg sig
 
 /-! ### The planted-node reduction (`indexedForger`) -/
 
-/-- State of `plantedTreeHandler`: visited node-to-slot cache, edge-signature cache, queried
-messages, sampled leaves, and the leaf-collision abort flag. -/
-abbrev PlantedState :=
-  (NodeSlotCache × EdgeSigCache) × (List (List Bool) × List (List Bool) × Bool)
+/-- State of `plantedTreeHandler`: visited node-to-slot cache, edge-signature cache, and signing
+log `TreeLog`. -/
+abbrev PlantedState := (NodeSlotCache × EdgeSigCache) × TreeLog
 
 /-- Initial state of `plantedTreeHandler`: the root `[]` occupies slot `0`. -/
 @[expose] def initPlantedState : PlantedState :=
-  (([([], 0)], []), ([], [], false))
+  (([([], 0)], []), ⟨[], [], false⟩)
 
 /-- Pre-sample `dyadicSize (slotBound n)` node key pairs, planting `(vk, [])` at `min target
 (dyadicSize (slotBound n) - 1)`. -/
@@ -328,23 +344,23 @@ indexed signing oracle. -/
     (keys : List (List Bool × List Bool)) (target sigCap n : ℕ) (request : Unit × List Bool) :
     StateT PlantedState (WordOracleComp Unit) (List Bool) := fun state =>
   let msg := request.2
-  let ((visited, edges), (queried, seenLeaves, bad)) := state
+  let ((visited, edges), ⟨queried, seenLeaves, bad⟩) := state
   if msg.length = n then
     if bad then
-      pure ([], ((visited, edges), (msg :: queried, seenLeaves, true)))
+      pure ([], ((visited, edges), ⟨msg :: queried, seenLeaves, true⟩))
     else do
       let leaf ← ProbOracleComp.sample (BitString.sampleList (depth n))
       if seenLeaves.contains leaf then
-        pure ([], ((visited, edges), (msg :: queried, seenLeaves, true)))
+        pure ([], ((visited, edges), ⟨msg :: queried, seenLeaves, true⟩))
       else do
         let ((node, idx, certs), (visited', edges')) ←
           certifyPlanted S depth keys target sigCap n leaf (visited, edges)
         let (σ, edges'') ←
           signEdgeM S keys target sigCap node idx (leaf.getLastD false).toNat msg edges'
         return (encodeSignature leaf certs σ,
-          ((visited', edges''), (msg :: queried, leaf :: seenLeaves, false)))
+          ((visited', edges''), ⟨msg :: queried, leaf :: seenLeaves, false⟩))
   else
-    pure ([], ((visited, edges), (msg :: queried, seenLeaves, bad)))
+    pure ([], ((visited, edges), ⟨msg :: queried, seenLeaves, bad⟩))
 
 /-- Extract a candidate indexed forgery `(u, m, σ)` for the key planted at `target` from a tree
 forgery `(msg, sig)` and the visited-node cache `visited`: look up the unique path assigned to

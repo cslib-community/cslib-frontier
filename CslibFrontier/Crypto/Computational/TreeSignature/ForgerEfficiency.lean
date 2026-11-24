@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.TreeSignature.Reduction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -94,12 +95,24 @@ each pair is its first word in binary, framed, followed by its second word in bi
 private abbrev encKeys : List (List Bool × List Bool) ↪ List Bool :=
   encList (encPair encBits encBits)
 
+/-- Multi-tape encoding of `TreeLog`: queried messages (framed), sampled leaves (framed), and the
+leaf-collision abort flag, each list holding its words in binary. Matches
+`encPair (encList encBits) (encPair (encList encBits) encBool)`. -/
+private enc_structure encTreeLog : TreeLog where
+  queried : (encList encBits),
+  seenLeaves : (encList encBits),
+  bad : encBool
+
+private example (l : TreeLog) :
+    encTreeLog l =
+      encPair (encList encBits) (encPair (encList encBits) encBool)
+        (l.queried, l.seenLeaves, l.bad) := rfl
+
 /-- The state of `plantedTreeHandler`, encoded as a nested pair: the visited node cache (framed)
-and the edge-signature cache, framed together, followed by the queried messages (framed), the
-sampled leaves (framed) and the abort flag. Each list holds its words in binary. -/
+and the edge-signature cache, framed together, followed by `encTreeLog` (the queried messages,
+sampled leaves, and abort flag). -/
 private abbrev encPlantedState : PlantedState ↪ List Bool :=
-  encPair (encPair encNodeCache encEdgeCache)
-    (encPair (encList encBits) (encPair (encList encBits) encBool))
+  encPair (encPair encNodeCache encEdgeCache) encTreeLog
 
 /-- The chain state of `certifyPlanted`, encoded as a nested pair: the node path in binary
 (framed), the slot in unary (framed) and the certificates (key/signature word pairs, `encKeys`),
@@ -425,10 +438,10 @@ private theorem plantedState_length_eq (state : PlantedState) :
     (encPlantedState state).length =
       4 * (encNodeCache state.1.1).length +
       2 * (encEdgeCache state.1.2).length +
-      2 * (encList encBits state.2.1).length +
-      2 * (encList encBits state.2.2.1).length + 6 := by
+      2 * (encList encBits state.2.queried).length +
+      2 * (encList encBits state.2.seenLeaves).length + 6 := by
   rcases state with ⟨⟨v, e⟩, ⟨q, sl, b⟩⟩
-  enc_len [List.length_singleton]
+  enc_len [encTreeLog_apply, List.length_singleton]
 
 private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth sigCap : ℕ → ℕ)
     (c : ForgerCaller) (request : Unit × List Bool) (state : PlantedState)
@@ -448,8 +461,8 @@ private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth 
     simp only [encList_cons, List.length_append, length_frame, encBits_apply]; omega
   have hpure (b' : Bool) :
       ((∀ e ∈ visited, e.2 ≤ c.2.length) ∧ (∀ e ∈ edges, e.2.length ≤ sigCap c.1.1.1)) ∧
-      (encPlantedState ((visited, edges), (request.2 :: queried, seenLeaves, b'))).length ≤
-        (encPlantedState ((visited, edges), (queried, seenLeaves, bad))).length +
+      (encPlantedState ((visited, edges), ⟨request.2 :: queried, seenLeaves, b'⟩)).length ≤
+        (encPlantedState ((visited, edges), ⟨queried, seenLeaves, bad⟩)).length +
           plantedStateGrowth depth sigCap c request.2 := by
     refine ⟨⟨hvis, hedg⟩, ?_⟩
     rw [plantedState_length_eq, plantedState_length_eq]
