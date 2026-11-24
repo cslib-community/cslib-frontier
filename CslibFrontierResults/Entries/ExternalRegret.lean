@@ -77,22 +77,33 @@ register_result "blum-mansour-rand-greedy-loss-bound" where
     L_RG^T ≤ ln N + (1 + ln N) * minCumLoss ℓ T."
 
 register_result "blum-mansour-rwm-loss-bound" where
-  title := "Randomized Weighted Majority external regret bound"
+  title := "Randomized Weighted Majority and Multiplicative Weights (Polynomial Weights) external \
+    regret bounds"
   topic := "online learning"
   sources := [
     { paper := BlumMansour2007AGT,
-      theorem := "Theorem 4.5",
-      locator := "Chapter 4, §4.3.2, pp. 85–86" }
+      theorem := "Theorems 4.5 and 4.6",
+      locator := "Chapter 4, §§4.3.2–4.3.3, pp. 85–87" },
+    { paper := AroraHazanKale2012,
+      theorem := "Theorem 2.1",
+      locator := "Section 2" }
   ]
   theorems := [
+    Cslib.MachineLearning.OnlineLearning.Experts.mw_regret_le_sq,
     Cslib.MachineLearning.OnlineLearning.Experts.mw_regret_le,
     Cslib.MachineLearning.OnlineLearning.Experts.mw_regret_le_sqrt_of_mem_Icc
   ]
-  scope := "On binary {0, 1} losses, Randomized Weighted Majority coincides with multiplicative \
-    weights prob (mwFactor η) and |ℓ t i| = ℓ t i. For 0 < η ≤ 1 / 2, mw_regret_le gives \
-    L_RWM^T ≤ (1 + η) L_i^T + ln N / η for every expert i (equivalently for L_min^T); for every \
-    horizon T : ℕ and [0, 1] losses, mw_regret_le_sqrt_of_mem_Icc with η = min √(ln N / T) (1 / 2) \
-    gives L_RWM^T ≤ L_i^T + 2 √(T ln N)."
+  scope := "Multiplicative weights prob (mwFactor η) with mwFactor η x = 1 - η * x is Blum and \
+    Mansour's Polynomial Weights algorithm (§4.3.3, p. 86) and Arora–Hazan–Kale's Multiplicative \
+    Weights (§2), coinciding with Randomized Weighted Majority (1 - η) ^ ℓ (§4.3.2, p. 85) on \
+    binary {0, 1} losses. For 0 < η and η * ℓ t i ≤ 1 / 2 (in particular 0 < η ≤ 1 / 2 on [0, 1] \
+    losses), mw_regret_le_sq gives the second-order bound L_PW^T ≤ L_i^T + η ∑ t < T, (ℓ t i)^2 \
+    + ln N / η for every expert i (Theorem 4.6 first display with Q_i^T, p. 87). For 0 < η ≤ \
+    1 / 2 and losses in [-1, 1], mw_regret_le gives L_MW^T ≤ L_i^T + η ∑ t < T, |ℓ t i| + ln N / η \
+    (Arora–Hazan–Kale Theorem 2.1, and Theorem 4.5 first display (1 + η) L_i^T + ln N / η on \
+    {0, 1} losses, p. 85). For [0, 1] losses and every horizon T : ℕ, mw_regret_le_sqrt_of_mem_Icc \
+    with η = min √(ln N / T) (1 / 2) gives L_PW^T ≤ L_i^T + 2 √(T ln N) (Theorems 4.5 and 4.6 \
+    second displays, pp. 85, 87)."
 
 register_result "blum-mansour-short-horizon-lower-bound" where
   title := "Short-horizon stochastic external-regret lower bound (2^T ≤ N)"
