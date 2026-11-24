@@ -9728,8 +9728,10 @@ public import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
 public import CslibFrontier.MachineLearning.OnlineLearning.Calibration
 public import CslibFrontier.MachineLearning.OnlineLearning.ConvexOnlineToBatch
 public import CslibFrontier.MachineLearning.OnlineLearning.FTRL
+public import CslibFrontier.MachineLearning.OnlineLearning.Greedy
 public import CslibFrontier.MachineLearning.OnlineLearning.Hedge
 public import CslibFrontier.MachineLearning.OnlineLearning.HighProbabilityOnlineToBatch
+public import CslibFrontier.MachineLearning.OnlineLearning.LowerBounds
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Agnostic
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Basic
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Halving
