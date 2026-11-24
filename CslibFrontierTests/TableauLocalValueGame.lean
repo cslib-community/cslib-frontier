@@ -78,4 +78,41 @@ example (x : List Bool) (T i : ℕ) (hi : i < x.length) :
   rw [← h₁, ← h₂, wins_position_iff x T i hw, wins_position_iff x T i hw, val_input tm hi]
   simp
 
+/-- From an ordinary `module` client, `localMachine` decides the run of `tm` on `x` without
+unfolding `localMachine`. -/
+example {x : List Bool} {T : ℕ} (hn : x.length < 2 * T) :
+    (localMachine tm ⟨x.length, T, outWire k State x.length T, true⟩).Accepts x ↔
+      OutView.ofList (tm.runFrom (tm.initCfg x) T).output = .one true :=
+  accepts_localMachine_iff (tm := tm) hn
+
+/-- From an ordinary `module` client, all five linear-space callback bounds, the branch halting
+clock, and the `O(log n + log T)` state-length bound hold directly on `localMachine tm lc₀`'s
+fields and `run` / `replay`. -/
+example (x : List Bool) (T w : ℕ) (v : Bool) (hw : w < x.length + numGates k State T) :
+    let lc₀ : LocalClaim := ⟨x.length, T, w, v⟩
+    let M := localMachine tm lc₀
+    ComputableInSpace M.query encLocalState encNat (fun s => (encLocalState s).length) ∧
+      ComputableInSpace M.halted encLocalState encBool (fun s => (encLocalState s).length) ∧
+      ComputableInSpace M.accept encLocalState encBool (fun s => (encLocalState s).length) ∧
+      ComputableInSpace M.universal encLocalState encBool (fun s => (encLocalState s).length) ∧
+      ComputableInSpace M.next
+        (encPair encLocalState (encPair (encOption encBool) encBool)) encLocalState
+        (fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length) ∧
+      (∀ choices : List Bool, w < choices.length → M.halted (M.run x choices) = true) ∧
+      (∃ c, ∀ choices : List Bool,
+        (encLocalState (M.run x choices)).length ≤
+          8 * Nat.size x.length + 12 * Nat.size T + c) := by
+  intro lc₀ M
+  refine ⟨localQuery_inSpace, localHalted_inSpace, localAccept_inSpace, localUniversal_inSpace,
+    localNext_inSpace, ?_, ?_⟩
+  · intro choices hlen
+    change M.halted (M.replay x choices M.init) = true
+    rw [localMachine_init]
+    exact halted_replay_localMachine (tm := tm) lc₀ hw choices hlen
+  · obtain ⟨c, hc⟩ := exists_length_le_of_replay_localMachine (tm := tm)
+    refine ⟨c, fun choices => ?_⟩
+    change (encLocalState (M.replay x choices M.init)).length ≤ _
+    rw [localMachine_init]
+    exact hc lc₀ x T w v choices hw
+
 end CslibFrontierTests.TableauLocalValueGame

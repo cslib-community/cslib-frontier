@@ -4463,6 +4463,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.AlternatingQueryMachine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BoundedSearch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
