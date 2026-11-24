@@ -84,9 +84,9 @@ actually composed into the executed machine.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.fairBit`: the named one-step sampler.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.queryTake`: the named fixed-operation
   bounded-prefix query artifact.
-* `Turing.MultiTapePTM.Internal.NativeOracleProgram.encodedOutput`, `.ofCompiler`, `.preprocess`,
-  `.postprocess`, `.finiteDispatch`, `.sequenceCaptured`, `.boundedIterationEncodedOn`: retained
-  construction combinators.
+* `Turing.MultiTapePTM.Internal.NativeOracleProgram.ofCompiler`, `.preprocess`, `.postprocess`,
+  `.finiteDispatch`, `.sequenceCaptured`, `.boundedIterationEncodedOn`: retained construction
+  combinators.
 
 ## Main results
 
@@ -96,6 +96,8 @@ actually composed into the executed machine.
   description simulates the retained Boolean machine.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.runWith_descriptionRun`: the generated
   description preserves the retained machine's exact law under every stateful oracle handler.
+* `Turing.MultiTapePTM.Internal.NativeOracleProgram.outputBits_le_time`: every emitted result fits
+  in the charged online clock.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.postWorkspace_le_postprocess`,
   `.secondWorkspace_le_sequenceCaptured`, `.bodyWorkspace_le_boundedIterationEncodedOn`:
   dynamic subartifact phase workspace remains visible in composed witnesses.
@@ -747,11 +749,6 @@ theorem totalTime_reindex (accounting : OnlineAccounting Alpha) (f : Gamma → A
     (accounting.reindex f).totalTime input = accounting.totalTime (f input) :=
   rfl
 
-theorem totalWorkspace_reindex (accounting : OnlineAccounting Alpha) (f : Gamma → Alpha)
-    (input : Gamma) :
-    (accounting.reindex f).totalWorkspace input = accounting.totalWorkspace (f input) :=
-  rfl
-
 /-- Add an explicit clock overhead to one phase. -/
 @[expose] def addTime (phase : OnlinePhase) (overhead : Alpha → ℕ)
     (accounting : OnlineAccounting Alpha) : OnlineAccounting Alpha where
@@ -951,11 +948,6 @@ variable {r : ℕ} {Alpha : Type u} {Beta : Type}
   {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Beta}
   {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
 
-/-- Exact length of the input presented to the named online artifact. -/
-@[expose] def inputBits (_witness : NativeOracleProgram r program encIn encOut)
-    (input : Alpha) : ℕ :=
-  (encIn input).length
-
 /-- Exact size of one emitted result. This is indexed by the actual probabilistic result rather
 than hidden in the input-indexed clock. -/
 @[expose] def outputBits (_witness : NativeOracleProgram r program encIn encOut)
@@ -970,25 +962,6 @@ than hidden in the input-indexed clock. -/
 @[expose] def workspace (witness : NativeOracleProgram r program encIn encOut)
     (input : Alpha) : ℕ :=
   witness.online.totalWorkspace input
-
-/-- Reinterpret the already encoded output of a named artifact as a raw word. This executes no
-additional phase: the machine, state encoding, componentwise accounting and installed control
-table are exactly those of `witness`. -/
-@[expose] noncomputable def encodedOutput
-    (witness : NativeOracleProgram r program encIn encOut) :
-    NativeOracleProgram r (fun input => encOut <$> program input) encIn encBits where
-  tapeCount := witness.tapeCount
-  State := witness.State
-  stateFintype := witness.stateFintype
-  machine := witness.machine
-  stateEncoding := witness.stateEncoding
-  online := witness.online
-  computes := fun input => by
-    rw [show (⇑encBits) = id by
-      funext word
-      exact encBits_apply word]
-    simpa only [id_map] using witness.computes input
-  runsInSpace := witness.runsInSpace
 
 /-- Lift a retained deterministic compiler to a named oracle artifact with pure semantics. The
 actual machine is `ofDeterministic classified.compiler.table.toTM`: it ignores private coins and all
@@ -1166,8 +1139,7 @@ theorem totalWorkspace_fairBitOnline (input : Alpha) :
     (fairBitOnline (Alpha := Alpha)).totalWorkspace input = 0 := by
   simp [OnlineAccounting.totalWorkspace, fairBitOnline]
 
-/-- A named one-step fair-bit artifact. The presented input is ignored by the actual machine; its
-size is still available separately through `inputBits`. -/
+/-- A named one-step fair-bit artifact. The presented input is ignored by the actual machine. -/
 @[expose] noncomputable def fairBit (encIn : Alpha ↪ List Bool) :
     NativeOracleProgram r
       (fun _ : Alpha => ProbOracleComp.sample (ProbComp.uniform Bool)) encIn encBool := by
@@ -2208,97 +2180,6 @@ theorem bodyWorkspace_le_boundedIterationEncodedOn
   exact (hworkspace initial n hn current hcurrent phase).trans
     (workspace_le_boundedIterationAccountingOn rounds lengthBound roundOnline
       (body.tapeCount + 1 + 2) phase initial)
-
-/-- Raw-word specialization of `boundedIterationEncodedOn`. -/
-noncomputable def boundedIterationOn
-    {step : List Bool → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) (List Bool)}
-    (body : NativeOracleProgram r step encBits encBits)
-    (rounds lengthBound : List Bool → ℕ)
-    (roundOnline : OnlineAccounting (List Bool))
-    (invariant : List Bool → ℕ → List Bool → Prop)
-    (hbase : ∀ initial, invariant initial 0 initial)
-    (hclock : ∀ initial n, n ≤ rounds initial → ∀ word, invariant initial n word →
-      ∀ phase, body.online.time phase word ≤ roundOnline.time phase initial)
-    (hworkspace : ∀ initial n, n ≤ rounds initial → ∀ word,
-      invariant initial n word →
-      ∀ phase, body.online.workspace phase word ≤ roundOnline.workspace phase initial)
-    (hpreserve : ∀ initial n, n < rounds initial → ∀ word, invariant initial n word →
-      ∀ (OracleState : Type)
-        (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
-        (state state' : OracleState) (word' : List Bool),
-        (word', state') ∈ (ProbOracleComp.runWith oracle (step word) state).support →
-        invariant initial (n + 1) word' ∧ word' ≠ [])
-    (hlast : ∀ initial word, invariant initial (rounds initial) word →
-      ∀ (OracleState : Type)
-        (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
-        (state : OracleState),
-        ProbOracleComp.runWith oracle (step word) state =
-          ProbOracleComp.runWith oracle (pure []) state)
-    (hlength : ∀ initial n, n ≤ rounds initial → ∀ word,
-      invariant initial n word → word.length ≤ lengthBound initial) :
-    NativeOracleProgram r
-      (fun input => OracleComp.iterate (rounds input) step input) encBits encBits := by
-  apply boundedIterationEncodedOn Turing.MultiTapeTM.Decoder.bits body rounds lengthBound
-    roundOnline invariant hbase hclock hworkspace
-  · intro initial n hn word hinvariant OracleState oracle state state' word' hword'
-    have hnext :=
-      hpreserve initial n hn word hinvariant OracleState oracle state state' word' hword'
-    exact ⟨hnext.1, by simpa only [encBits_apply] using hnext.2⟩
-  · intro initial word hinvariant OracleState oracle state
-    rw [show (⇑encBits) = id by
-      funext bits
-      exact encBits_apply bits]
-    simpa only [id_map] using hlast initial word hinvariant OracleState oracle state
-  · intro initial n hn word hinvariant
-    simpa only [encBits_apply] using hlength initial n hn word hinvariant
-
-/-- Exact clock of raw-word runtime-indexed iteration. -/
-theorem time_boundedIterationOn
-    {step : List Bool → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) (List Bool)}
-    (body : NativeOracleProgram r step encBits encBits)
-    (rounds lengthBound : List Bool → ℕ)
-    (roundOnline : OnlineAccounting (List Bool))
-    (invariant : List Bool → ℕ → List Bool → Prop)
-    (hbase hclock hworkspace hpreserve hlast hlength) (input : List Bool) :
-    (boundedIterationOn body rounds lengthBound roundOnline invariant hbase hclock hworkspace
-      hpreserve hlast hlength).time input =
-        (rounds input + 1) *
-            (roundOnline.totalTime input + 10 * lengthBound input + 23) +
-          8 * lengthBound input + 17 :=
-  totalTime_boundedIterationAccountingOn rounds lengthBound roundOnline
-    (body.tapeCount + 1 + 2) input
-
-/-- Fixed-round specialization of `boundedIterationOn`. -/
-noncomputable def boundedIteration
-    {step : List Bool → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) (List Bool)}
-    (body : NativeOracleProgram r step encBits encBits)
-    (rounds lengthBound : ℕ) (roundClock roundWorkspace : OnlinePhase → ℕ)
-    (invariant : List Bool → ℕ → List Bool → Prop)
-    (hbase : ∀ initial, invariant initial 0 initial)
-    (hclock : ∀ initial n, n ≤ rounds → ∀ word, invariant initial n word →
-      ∀ phase, body.online.time phase word ≤ roundClock phase)
-    (hworkspace : ∀ initial n, n ≤ rounds → ∀ word, invariant initial n word →
-      ∀ phase, body.online.workspace phase word ≤ roundWorkspace phase)
-    (hpreserve : ∀ initial n, n < rounds → ∀ word, invariant initial n word →
-      ∀ (OracleState : Type)
-        (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
-        (state state' : OracleState) (word' : List Bool),
-        (word', state') ∈ (ProbOracleComp.runWith oracle (step word) state).support →
-        invariant initial (n + 1) word' ∧ word' ≠ [])
-    (hlast : ∀ initial word, invariant initial rounds word →
-      ∀ (OracleState : Type)
-        (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
-        (state : OracleState),
-        ProbOracleComp.runWith oracle (step word) state =
-          ProbOracleComp.runWith oracle (pure []) state)
-    (hlength : ∀ initial n, n ≤ rounds → ∀ word,
-      invariant initial n word → word.length ≤ lengthBound) :
-    NativeOracleProgram r
-      (fun input => OracleComp.iterate rounds step input) encBits encBits :=
-  boundedIterationOn body (fun _ => rounds) (fun _ => lengthBound)
-    { time := fun phase _ => roundClock phase
-      workspace := fun phase _ => roundWorkspace phase }
-    invariant hbase hclock hworkspace hpreserve hlast hlength
 
 /-- Every supported emitted result fits in the charged online clock. This follows from the actual
 machine certificate; `outputBits` is not an uncharged semantic-size annotation. -/

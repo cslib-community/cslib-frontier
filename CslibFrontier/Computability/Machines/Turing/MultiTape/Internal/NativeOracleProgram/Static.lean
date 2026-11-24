@@ -24,9 +24,10 @@ count and the maximum encoded row length.
 
 The family-level theorem deliberately assumes that the exhaustive-row schedule is polynomially
 bounded. Polynomial state, tape and channel schedules do not imply this: the factor
-`3 ^ (k + r)` can be exponential. The fixed-channel corollary derives the row premise from a
-polynomial state-cardinality schedule. Growing-channel applications must instead supply an
-appropriate representation or prove the exhaustive-row premise separately.
+`3 ^ (k + r)` can be exponential. For fixed `k` and `r` the row count is a constant multiple of the
+state cardinality, so the premise follows from a polynomial state schedule. Growing-channel
+applications must instead supply an appropriate representation or prove the exhaustive-row premise
+separately.
 
 ## Main definitions
 
@@ -38,6 +39,8 @@ appropriate representation or prove the exhaustive-row premise separately.
 
 ## Main results
 
+* `Turing.MultiTapePTM.Internal.Description.table_length_ofMachine`: the generated table has
+  exactly `observationRowCount` rows.
 * `Turing.MultiTapePTM.Internal.Description.descLen_ofMachine_le`: the generated description fits
   the structural bound.
 * `Turing.MultiTapePTM.Internal.Description.scheduledBitsBound_polynomiallyBounded`: polynomial
@@ -177,31 +180,6 @@ theorem staticBits_polynomiallyBounded_of_le
     Cslib.PolynomiallyBounded staticBits :=
   (scheduledBitsBound_polynomiallyBounded htapes hstates hoperations hinitial hrows
     hmaxRow).mono_of_le hle
-
-/-- With fixed tape and channel counts, a polynomial state-cardinality schedule gives a polynomial
-exhaustive-row schedule. This does not extend to arbitrary growing polynomial channel counts. -/
-theorem observationRowCount_polynomiallyBounded_fixed
-    {stateCard : ℕ → ℕ} (hstates : Cslib.PolynomiallyBounded stateCard)
-    (tapeCount operationCount : ℕ) :
-    Cslib.PolynomiallyBounded (fun n =>
-      observationRowCount (stateCard n) tapeCount operationCount) := by
-  unfold observationRowCount
-  fun_prop
-
-/-- Fixed tape and channel counts discharge the exhaustive-row premise from a polynomial
-state-cardinality schedule. -/
-theorem scheduledBitsBound_polynomiallyBounded_fixed
-    {stateCard stateTagCount initialTag maxRowBits : ℕ → ℕ}
-    (tapeCount operationCount : ℕ)
-    (hcard : Cslib.PolynomiallyBounded stateCard)
-    (htags : Cslib.PolynomiallyBounded stateTagCount)
-    (hinitial : Cslib.PolynomiallyBounded initialTag)
-    (hmaxRow : Cslib.PolynomiallyBounded maxRowBits) :
-    Cslib.PolynomiallyBounded (scheduledBitsBound stateCard (fun _ => tapeCount)
-      stateTagCount (fun _ => operationCount) initialTag maxRowBits) :=
-  scheduledBitsBound_polynomiallyBounded (Cslib.PolynomiallyBounded.const tapeCount) htags
-    (Cslib.PolynomiallyBounded.const operationCount) hinitial
-    (observationRowCount_polynomiallyBounded_fixed hcard tapeCount operationCount) hmaxRow
 
 end Description
 
