@@ -9025,6 +9025,7 @@ public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.ThreeLeafTree
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Tree
 public import CslibFrontier.GameTheory.Mechanism.FirstPrice
 public import CslibFrontier.GameTheory.Mechanism.Indirect
+public import CslibFrontier.GameTheory.Mechanism.Ironing
 public import CslibFrontier.GameTheory.Mechanism.Knapsack
 public import CslibFrontier.GameTheory.Mechanism.LinearValuation
 public import CslibFrontier.GameTheory.Mechanism.MultiUnit
