@@ -34,18 +34,24 @@ of approximate equilibria; no running time is claimed.
   best-response column `j₀` to `i₀`, and a best-response row `i₁` to `j₀`. Then
   `((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is a `1/2`-approximate Nash equilibrium
   (`BimatrixGame.isApproxNash_half_dmp`). This is the construction of
-  [DaskalakisMehtaPapadimitriou2006]; [Papadimitriou2007], Section 2.6.6, p. 45, reports that
-  `1/2`-approximate equilibria are easy to compute and does not print the construction.
+  [DaskalakisMehtaPapadimitriou2006], Section 3, Theorem 1 (covering the game-theoretic output
+  guarantee for `[0, 1]` payoffs and two successive pure best responses, without machine runtime);
+  [Papadimitriou2007], Section 2.6.6, p. 45, reports that `1/2`-approximate equilibria are easy to
+  compute and does not print the construction.
 * **`ε`-approximate equilibria that are uniform on small multisets**
-  ([TardosVazirani2007], Exercise 1.6, p. 27, after [LiptonMarkakisMehta2003]). For every
-  `ε > 0` and every integer `k > 2 ln(2(|M| + |N|)) / ε²` there are multisets of `k` rows and of
-  `k` columns whose uniform distributions (`uniformMultiset`) form an `ε`-approximate Nash
-  equilibrium (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_lt`); the size
+  ([TardosVazirani2007], Exercise 1.6, p. 27; sampling argument after
+  [LiptonMarkakisMehta2003], Section 3). For every `ε > 0` and every integer
+  `k > 2 ln(2(|M| + |N|)) / ε²` on a nonempty rectangular game `M × N` with payoffs in `[0, 1]`,
+  there are multisets of `k` rows and of `k` columns whose uniform distributions
+  (`uniformMultiset`) form an `ε`-approximate Nash equilibrium
+  (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_lt`); the explicit size
   `BimatrixGame.lmmSampleSize M N ε = ⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1` works
-  (`BimatrixGame.exists_uniformMultiset_isApproxNash`). For payoffs in `[0, K]` the same
-  multiset size gives an `(ε * K)`-approximate equilibrium, which is the statement of
-  Exercise 1.6 (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_nonneg`). The proof samples
-  `k` times from an exact Nash equilibrium and applies Hoeffding's inequality with a union bound.
+  (`BimatrixGame.exists_uniformMultiset_isApproxNash`). For payoffs in `[0, K]` (`K ≥ 0`), scaling
+  at the same multiset size gives an `(ε * K)`-approximate equilibrium, matching Exercise 1.6's
+  payoff convention (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_nonneg`). The proof
+  samples `k` times from an exact Nash equilibrium and applies Hoeffding's inequality with a union
+  bound (following [LiptonMarkakisMehta2003], Section 3, whose Theorem 1 starts from each specified
+  exact Nash equilibrium and also approximates both of its payoffs).
 
 ## Main definitions
 
@@ -216,7 +222,7 @@ private theorem uniformMultiset_dotProduct_of_map_univ {α : Type*} [Fintype α]
 
 end UniformMultiset
 
-/-! ### Approximate Nash equilibria in bimatrix games, DMP `1/2`-Nash, and LMM `ε`-Nash -/
+/-! ### Approximate Nash equilibria in bimatrix games, DMP `1/2`-Nash, and small-support `ε`-Nash -/
 
 namespace BimatrixGame
 
@@ -357,12 +363,12 @@ theorem isApproxNash_iff_isApproxMixedNash :
 
 /-! #### Daskalakis–Mehta–Papadimitriou `1/2`-approximate Nash equilibrium -/
 
-/-- **Daskalakis–Mehta–Papadimitriou `(1/2)`-Nash theorem** ([DaskalakisMehtaPapadimitriou2006];
-cited in [Papadimitriou2007], Section 2.6.6, p. 45): in any bimatrix game with payoffs in `[0, 1]`,
-if `i₀` is any row, `j₀` maximizes `G.B i₀ ·` (best response of player 2 to `i₀`), and `i₁`
-maximizes `G.A · j₀` (best response of player 1 to `j₀`), then
-`((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is a `(1/2)`-approximate Nash equilibrium. This states the
-game-theoretic approximation guarantee without a machine running-time claim. -/
+/-- **Daskalakis–Mehta–Papadimitriou `(1/2)`-Nash theorem** ([DaskalakisMehtaPapadimitriou2006],
+Section 3, Theorem 1; cited in [Papadimitriou2007], Section 2.6.6, p. 45): in any bimatrix game
+with payoffs in `[0, 1]`, if `i₀` is any row, `j₀` maximizes `G.B i₀ ·` (pure best response of
+player 2 to `i₀`), and `i₁` maximizes `G.A · j₀` (pure best response of player 1 to `j₀`), then
+`((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is an additive `(1/2)`-approximate Nash equilibrium. This
+covers the game-theoretic output guarantee without a machine running-time claim. -/
 theorem isApproxNash_half_dmp [DecidableEq M] [DecidableEq N]
     (hA : ∀ i j, G.A i j ∈ Set.Icc 0 1) (hB : ∀ i j, G.B i j ∈ Set.Icc 0 1)
     (i₀ : M) {j₀ : N} (hj₀ : ∀ j, G.B i₀ j ≤ G.B i₀ j₀)
@@ -411,15 +417,16 @@ theorem exists_dmp_half_isApproxNash [DecidableEq M] [DecidableEq N] [Nonempty M
   exact ⟨i₀, i₁, j₀, G.isApproxNash_half_dmp hA hB i₀ (fun j => hj₀ j (mem_univ j))
     (fun i => hi₁ i (mem_univ i))⟩
 
-/-! #### Lipton–Markakis–Mehta uniform-multiset `ε`-approximate Nash existence -/
+/-! #### Uniform-multiset small-support `ε`-approximate Nash existence -/
 
 section LiptonMarkakisMehta
 
 open Cslib.Probability.PMF
 
 /-- Concrete multiset cardinality `k = ⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1 = O(ln(|M| + |N|) / ε²)`
-for the Lipton–Markakis–Mehta theorem ([TardosVazirani2007], Exercise 1.6, p. 27;
-[Papadimitriou2007], Section 2.6.6, p. 45; [LiptonMarkakisMehta2003]). -/
+for small-support `ε`-approximate Nash equilibrium existence ([TardosVazirani2007], Exercise 1.6,
+p. 27; empirical-sampling bound after [LiptonMarkakisMehta2003], Section 3; see also
+[Papadimitriou2007], Section 2.6.6, p. 45). -/
 noncomputable def lmmSampleSize (M N : Type*) [Fintype M] [Fintype N] (ε : ℝ) : ℕ :=
   ⌊2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2⌋₊ + 1
 
@@ -542,12 +549,15 @@ private theorem lmm_payoff_bound {α : Type*} [Fintype α] [DecidableEq α] {k :
   have habs := abs_le.1 (happrox a)
   linarith [hub a]
 
-/-- **Lipton–Markakis–Mehta uniform-multiset `ε`-Nash theorem** ([TardosVazirani2007], Exercise 1.6,
-p. 27; [Papadimitriou2007], Section 2.6.6, p. 45; [LiptonMarkakisMehta2003]): in any
-nonempty finite bimatrix game with payoffs in `[0, 1]` and `ε > 0`, for every `k : ℕ` satisfying
-`2 ln(2(|M| + |N|)) / ε² < k`, there exist multisets `m₁ : Multiset M` and `m₂ : Multiset N` of
-cardinality `k` whose uniform distributions form an `ε`-approximate Nash equilibrium. This states
-existence of a small-support approximate equilibrium without a machine running-time claim. -/
+/-- **Uniform-multiset small-support `ε`-approximate Nash existence (`[0, 1]`-normalized form of
+[TardosVazirani2007], Exercise 1.6, p. 27)**: in any nonempty finite rectangular bimatrix game with
+payoffs in `[0, 1]` and `ε > 0`, for every `k : ℕ` satisfying `2 ln(2(|M| + |N|)) / ε² < k`, there
+exist multisets `m₁ : Multiset M` and `m₂ : Multiset N` of cardinality `k` whose uniform
+distributions form an `ε`-approximate Nash equilibrium. The proof uses the empirical-sampling
+argument of [LiptonMarkakisMehta2003], Section 3 (whose Theorem 1 starts from each specified exact
+Nash equilibrium and also approximates both of its payoffs; see also [Papadimitriou2007],
+Section 2.6.6, p. 45). This states game-theoretic existence and support size without a machine
+running-time claim. -/
 theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N]
     [Nonempty M] [Nonempty N] (G : BimatrixGame M N)
     (hA : ∀ i j, G.A i j ∈ Set.Icc 0 1) (hB : ∀ i j, G.B i j ∈ Set.Icc 0 1)
@@ -629,12 +639,12 @@ theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N
     exact lmm_payoff_bound hk_real_pos ω₂ (xStar ᵥ* G.B) (uniformMultiset m₁ ᵥ* G.B) hB_hat
       (fun t => (hbr₂.payoff₂_eq_of_pos (hω₂_supp t)).symm) hbr₂.le_payoff₂ j
 
-/-- **Lipton–Markakis–Mehta theorem with explicit concrete sample size** ([TardosVazirani2007],
-Exercise 1.6, p. 27; [Papadimitriou2007], Section 2.6.6, p. 45; [LiptonMarkakisMehta2003]):
-in any nonempty finite bimatrix game with payoffs in `[0, 1]` and `ε > 0`, there exist multisets
-`m₁ : Multiset M` and `m₂ : Multiset N` of exact size
-`lmmSampleSize M N ε = ⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1` whose uniform empirical distributions form
-an `ε`-approximate Nash equilibrium. -/
+/-- **Uniform-multiset small-support `ε`-approximate Nash existence at explicit sample size**
+(`[0, 1]`-normalized form of [TardosVazirani2007], Exercise 1.6, p. 27, proved via the sampling
+argument of [LiptonMarkakisMehta2003], Section 3): in any nonempty finite rectangular bimatrix game
+with payoffs in `[0, 1]` and `ε > 0`, there exist multisets `m₁ : Multiset M` and `m₂ : Multiset N`
+of exact size `lmmSampleSize M N ε = ⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1` whose uniform empirical
+distributions form an `ε`-approximate Nash equilibrium. -/
 theorem exists_uniformMultiset_isApproxNash [DecidableEq M] [DecidableEq N]
     [Nonempty M] [Nonempty N] (G : BimatrixGame M N)
     (hA : ∀ i j, G.A i j ∈ Set.Icc 0 1) (hB : ∀ i j, G.B i j ∈ Set.Icc 0 1)
@@ -644,10 +654,12 @@ theorem exists_uniformMultiset_isApproxNash [DecidableEq M] [DecidableEq N]
         G.IsApproxNash ε (uniformMultiset m₁) (uniformMultiset m₂) :=
   G.exists_uniformMultiset_isApproxNash_of_lt hA hB hε (lt_lmmSampleSize M N ε)
 
-/-- **Unnormalized nonnegative-payoff form of Exercise 1.6** ([TardosVazirani2007], Exercise 1.6,
-p. 27): if all payoffs of `G` lie in `[0, K]` (`0 ≤ K`) and `ε > 0`, then there exist multisets
-`m₁ : Multiset M` and `m₂ : Multiset N` of exact cardinality `lmmSampleSize M N ε` whose uniform
-empirical distributions form an `(ε * K)`-approximate Nash equilibrium. -/
+/-- **Small-support approximate Nash existence for nonnegative payoffs** ([TardosVazirani2007],
+Exercise 1.6, p. 27, generalized to rectangular `M × N` games with explicit sample size via the
+sampling argument of [LiptonMarkakisMehta2003], Section 3): if all payoffs of `G` lie in `[0, K]`
+(`0 ≤ K`) and `ε > 0`, then there exist multisets `m₁ : Multiset M` and `m₂ : Multiset N` of exact
+cardinality `lmmSampleSize M N ε` whose uniform empirical distributions form an
+`(ε * K)`-approximate Nash equilibrium. -/
 theorem exists_uniformMultiset_isApproxNash_of_nonneg [DecidableEq M] [DecidableEq N]
     [Nonempty M] [Nonempty N] (G : BimatrixGame M N) {K : ℝ} (hK : 0 ≤ K)
     (hA : ∀ i j, G.A i j ∈ Set.Icc 0 K) (hB : ∀ i j, G.B i j ∈ Set.Icc 0 K)

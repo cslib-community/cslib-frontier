@@ -27,18 +27,21 @@ vanishing weight placed on `ε`-strictly dominated strategies under low swap reg
 * **Dominant strategies and dominant equilibria** ([TardosVazirani2007], Sections 1.3.1 and 1.3.3,
   pp. 10–12): `CostGame.IsDominantStrategy`, `CostGame.IsDominantEquilibrium` (with
   `IsDominantEquilibrium.isPureNash`), and strict counterparts `CostGame.IsStrictlyDominantStrategy`
-  and `CostGame.IsStrictlyDominantEquilibrium` (whose equilibrium is the unique pure and mixed Nash
-  equilibrium).
-* **Strict, `ε`-strict, and weak dominance** ([TardosVazirani2007], Section 1.3.1;
-  [BlumMansour2007AGT], Section 4.4.4, p. 91; [DodisRabin2007], Section 8.5.2, Definition 8.8,
-  p. 200): `CostGame.IsStrictlyDominated`, `CostGame.IsEpsStrictlyDominated`,
-  `CostGame.IsEpsStrictlyDominatedMixed` (domination by a mixed strategy), and
-  `CostGame.IsWeaklyDominated` (with explicit binary relations `*By`).
-* **Restriction and iterated deletion of strictly dominated strategies (`IDoSDS`)**: restricting a
-  `CostGame` to strategy subsets (`CostGame.restrict`) and eliminating strategies strictly dominated
-  by pure strategies preserves both pure and mixed Nash equilibria in both directions (no
-  equilibrium puts positive probability on a strictly dominated strategy, and equilibria of the
-  restricted game lift by zero extension to equilibria of `G`). Consequently, if `CostGame.IDoSDS`
+  and `CostGame.IsStrictlyDominantEquilibrium` (whose equilibrium is the unique pure Nash
+  equilibrium by [TardosVazirani2007], Section 1.3.3, p. 12, and by derived extension also the
+  unique mixed Nash equilibrium).
+* **Strict, `ε`-strict, and weak dominance** ([BlumMansour2007AGT], Section 4.4.4, p. 91;
+  [DodisRabin2007], Section 8.5.2, Definition 8.8, p. 200): `CostGame.IsStrictlyDominated`,
+  `CostGame.IsEpsStrictlyDominated`, `CostGame.IsEpsStrictlyDominatedMixed` (domination by a mixed
+  strategy), and `CostGame.IsWeaklyDominated` (with explicit binary relations `*By`).
+* **Restriction and iterated deletion of strictly dominated strategies (`IDoSDS`)** (derived
+  library development extending pure-strategy strict dominance; not stated in
+  [TardosVazirani2007], Sections 1.3.1–1.3.3, pp. 10–12): restricting a `CostGame` to strategy
+  subsets (`CostGame.restrict`) and eliminating strategies strictly dominated by surviving pure
+  strategies preserves both pure and mixed Nash equilibria in both directions (no mixed Nash
+  equilibrium puts positive probability on a strictly dominated strategy, equilibria of the
+  restricted game lift by zero extension to equilibria of `G`, and each `CostGame.IDoSDSStep`
+  requires a surviving pure dominator in the restricted game). Consequently, if `CostGame.IDoSDS`
   reduces the game to a singleton profile `s⋆`, then `s⋆` is the unique pure Nash equilibrium and
   its point-mass profile is the unique mixed Nash equilibrium
   (`IDoSDS.isPureNash_iff_eq_of_singleton`, `IDoSDS.isMixedNash_iff_eq_single_of_singleton`).
@@ -380,8 +383,9 @@ theorem IsMixedNash.eq_zero_of_isStrictlyDominated {p : ∀ i, S i → ℝ} (hp 
     have hlt := hab.deviationCost_lt hp.1
     linarith
 
-/-- A strictly dominant equilibrium is the unique mixed Nash equilibrium: every mixed Nash
-equilibrium puts weight `1` on each player's strictly dominant strategy. -/
+/-- Extending the pure-Nash uniqueness of [TardosVazirani2007], Section 1.3.3, p. 12 to mixed
+strategies: every mixed Nash equilibrium puts weight `1` on each player's strictly dominant
+strategy. -/
 theorem IsStrictlyDominantEquilibrium.eq_single_of_isMixedNash [∀ j, DecidableEq (S j)]
     {s : ∀ i, S i} (hs : G.IsStrictlyDominantEquilibrium s) {p : ∀ i, S i → ℝ}
     (hp : G.IsMixedNash p) : p = fun i => Pi.single (s i) 1 := by
@@ -898,8 +902,9 @@ private theorem IDoSDSStep.isPureNash_restrict_iff {A B : ∀ i, Set (S i)}
       exact h.trans hlt.le
 
 /-- **Iterated deletion of strictly dominated strategies preserves pure Nash equilibria**: if
-`G.IDoSDS (fun _ => Set.univ) A`, then the pure Nash equilibria of `G` are in bijection with those
-of `G.restrict A`. -/
+`G.IDoSDS (fun _ => Set.univ) A` (where each `IDoSDSStep` requires a surviving pure dominator in
+the restricted game), then the pure Nash equilibria of `G` are in bijection with those of
+`G.restrict A`. -/
 theorem IDoSDS.isPureNash_iff {A : ∀ i, Set (S i)}
     (h : G.IDoSDS (fun _ => Set.univ) A) (s : ∀ i, S i) :
     G.IsPureNash s ↔ ∃ hs : ∀ i, s i ∈ A i, (G.restrict A).IsPureNash fun i => ⟨s i, hs i⟩ := by
@@ -1007,8 +1012,9 @@ private theorem IDoSDSStep.supported_mixedNash_iff {A B : ∀ i, Set (S i)}
         (deviationCost_lt_of_restrict_strictlyDominatedBy hp hsuppA haA hbA hdom).le
 
 /-- **Iterated deletion of strictly dominated strategies preserves mixed Nash equilibria**: if
-`G.IDoSDS (fun _ => Set.univ) A`, then `p` is a mixed Nash equilibrium of `G` iff `p` vanishes
-outside `A` and its restriction is a mixed Nash equilibrium of `G.restrict A`. -/
+`G.IDoSDS (fun _ => Set.univ) A` (where each `IDoSDSStep` requires a surviving pure dominator in
+the restricted game), then `p` is a mixed Nash equilibrium of `G` iff `p` vanishes outside `A` and
+its restriction is a mixed Nash equilibrium of `G.restrict A`. -/
 theorem IDoSDS.isMixedNash_iff_restrict {A : ∀ i, Set (S i)} [∀ i, Fintype (A i)]
     (h : G.IDoSDS (fun _ => Set.univ) A) (p : ∀ i, S i → ℝ) :
     G.IsMixedNash p ↔

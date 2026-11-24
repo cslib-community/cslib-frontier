@@ -22,13 +22,13 @@ is **symmetric** (`CostGame.IsSymmetric`) if permuting the players permutes thei
 `fun _ => x` is a mixed Nash equilibrium.
 
 Every finite symmetric game with a nonempty strategy set has a symmetric mixed Nash equilibrium
-([Papadimitriou2007], Example 2.2, pp. 30–31, and Section 2.3.1, p. 34). This is the
-player-interchangeable specialization of [Nash1951], Theorem 2 (which establishes an equilibrium
-invariant under the full automorphism group of any finite game). Rather than building a separate
-fixed-point map, the proof restricts `CostGame.nashMap` from `Strategic.Nash` to the diagonal
-`(x, …, x)` — applying Brouwer's fixed-point theorem (`Cslib.Brouwer.exists_isFixedPt_pi_simplex`)
-on a single simplex `A → ℝ` — and uses symmetry (`IsSymmetric.nashMap_const_eq`) together with
-`CostGame.isFixedPt_nashMap_iff`.
+([Papadimitriou2007], Example 2.2, pp. 30–31, and Section 2.3.1, p. 34). This specializes the
+automorphism-invariance theorem of [Nash1951], Theorem 2, p. 289 (which establishes an equilibrium
+invariant under the full automorphism group of any finite game) to interchangeable players sharing
+a common nonempty action type `A`. Rather than building a separate fixed-point map, the proof
+restricts `CostGame.nashMap` from `Strategic.Nash` to the diagonal `(x, …, x)` — applying Brouwer's
+fixed-point theorem (`Cslib.Brouwer.exists_isFixedPt_pi_simplex`) on a single simplex `A → ℝ` — and
+uses symmetry (`IsSymmetric.nashMap_const_eq`) together with `CostGame.isFixedPt_nashMap_iff`.
 
 ## Main definitions
 
@@ -52,7 +52,7 @@ on a single simplex `A → ℝ` — and uses symmetry (`IsSymmetric.nashMap_cons
   single representative player `i₀` suffices for `IsSymmetricMixedNash`.
 * `Cslib.GameTheory.CostGame.IsSymmetric.exists_isSymmetricMixedNash`: symmetric mixed Nash
   equilibrium existence for player-symmetric games ([Papadimitriou2007], Example 2.2, pp. 30–31,
-  and Section 2.3.1, p. 34; player-interchangeable specialization of [Nash1951], Theorem 2).
+  and Section 2.3.1, p. 34; specialization of [Nash1951], Theorem 2, p. 289).
 
 ## References
 
@@ -207,9 +207,10 @@ section Existence
 variable {ι A : Type*} [Fintype ι] [DecidableEq ι] [Fintype A] {G : CostGame ι (fun _ => A)}
 
 /-- **Symmetric mixed Nash equilibrium existence** ([Papadimitriou2007], Example 2.2, pp. 30–31,
-and Section 2.3.1, p. 34; player-interchangeable specialization of [Nash1951], Theorem 2, which
-establishes invariance under the full game automorphism group): every finite player-symmetric
-strategic game with a nonempty strategy set admits a symmetric mixed Nash equilibrium. -/
+and Section 2.3.1, p. 34; specializes [Nash1951], Theorem 2, p. 289, which establishes invariance
+under the full game automorphism group, to interchangeable players on a common nonempty action
+type): every finite player-symmetric strategic game with a nonempty strategy set admits a symmetric
+mixed Nash equilibrium. -/
 theorem IsSymmetric.exists_isSymmetricMixedNash [Nonempty A] (hG : G.IsSymmetric) :
     ∃ x : A → ℝ, G.IsSymmetricMixedNash x := by
   by_cases hι : Nonempty ι
