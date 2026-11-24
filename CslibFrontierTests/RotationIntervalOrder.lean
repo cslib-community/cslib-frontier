@@ -4,12 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine, OpenAI
 -/
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntervalOrder
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CutInterval
 
 /-!
-The generic interval topic alone exposes the original first-hit and port-rank API,
-without the loop realization application. Concrete four-dart intervals check the new
-anchor and cyclic laws in both directions.
+The interval API retains the original first-hit and port ranks without the loop realization
+application. A four-dart rotation checks the cyclic laws and the effect of cutting an interval.
 -/
 
 namespace CslibFrontierTests.RotationIntervalOrder
@@ -58,6 +57,28 @@ example : r.rotationDistance a a = 0 := r.rotationDistance_self a
 
 example : r.portRank a ≠ r.portRank b :=
   fun h => (by decide : a ≠ b) (r.portRank_injective a b rfl h)
+
+-- Swapping the two outgoing corners closes the first two darts into a separate orbit.
+example :
+    let split := r.rotate * Equiv.swap b (r.rotate.symm a)
+    split.SameCycle a b ∧ ¬ split.SameCycle a c := by
+  dsimp only
+  have hproper : r.rotate b ≠ a := by decide
+  rw [r.sameCycle_swap_cutInterval_iff a b rfl hproper a b,
+    r.sameCycle_swap_cutInterval_iff a b rfl hproper a c,
+    r.rotationDistance_self, ab_rank, ac_rank]
+  decide
+
+-- The first loop moves intact to a new vertex, while the other retains its endpoint.
+example : ∃ (H : Graph) (E : Fin G.edges.length ≃ Fin H.edges.length),
+    H.vertices = [10, 9] ∧ Dart.vertex (E a.1, a.2) = 10 ∧
+      Dart.vertex (E b.1, b.2) = 10 ∧ Dart.vertex (E c.1, c.2) = 9 := by
+  obtain ⟨H, E, _, hV, hEnds, _⟩ := r.exists_split_cutInterval a b rfl (by decide) 10 (by decide)
+  refine ⟨H, E, hV, ?_, ?_, ?_⟩
+  · rw [hEnds a, r.rotationDistance_self, ab_rank, ite_eq_left (by decide)]
+  · rw [hEnds b, ite_eq_left ⟨rfl, le_rfl⟩]
+  · rw [hEnds c, ab_rank, ac_rank, ite_eq_right (by decide)]
+    rfl
 
 -- A singleton class and its three-dart complement cannot alternate.
 example :
