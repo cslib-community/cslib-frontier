@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Congestion.Basic
+public import CslibFrontier.GameTheory.Strategic.Smooth
 public import Mathlib.NumberTheory.Harmonic.Defs
 import CslibFrontier.Foundations.NumberTheory.Harmonic
 import CslibFrontier.GameTheory.Strategic.Stability
@@ -66,6 +67,13 @@ zero-cost edges from each source to the meeting point; they change no player's c
   `Cslib.GameTheory.CongestionGame.sum_div_card_le_cost_fairCostSharing`: the social cost is at
   least the cost of any player's resources, and each player pays at least a `1 / k` share of the
   cost of its resources.
+* `Cslib.GameTheory.CongestionGame.cost_fairCostSharing_update_le`: a player deviating to `a`
+  pays at most the standalone cost of `resources i a`.
+* `Cslib.GameTheory.CongestionGame.isSmooth_fairCostSharing`,
+  `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing_le_card_mul_of_isPureNash`,
+  `Cslib.GameTheory.CongestionGame.expected_socialCost_fairCostSharing_le_card_mul`
+  ([TardosWexler2007], Exercise 19.9; [Roughgarden2015], Theorem 3.2): fair cost-sharing games
+  are `(k, 0)`-smooth, so **the pure and coarse-correlated price of anarchy is at most `k`**.
 * `Cslib.GameTheory.CongestionGame.cost_fairCostSharing_const`,
   `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing_const`: when all players share one
   strategy set and resource map and play the same strategy `p`, each pays `c(R p) / k` and the
@@ -95,6 +103,7 @@ zero-cost edges from each source to the meeting point; they change no player's c
 
 * [AnshelevichDKTWR2008]
 * [Roughgarden2013CS364A]
+* [Roughgarden2015]
 * [RoughgardenTardos2007]
 * [TardosWexler2007]
 -/
@@ -218,6 +227,64 @@ theorem sum_div_card_le_cost_fairCostSharing (hc : ∀ e, 0 ≤ c e) (s : ∀ i,
       exact he⟩⟩
   refine div_le_div_of_nonneg_left (hc e) (by exact_mod_cast hpos) ?_
   exact_mod_cast (Finset.card_filter_le _ _).trans_eq Finset.card_univ
+
+/-- In a fair cost-sharing game with nonnegative costs, **a player deviating to `a` pays at most
+the standalone cost `∑ e ∈ resources i a, c e`** of its chosen resources: every resource in
+`resources i a` has load at least `1` after the deviation. -/
+theorem cost_fairCostSharing_update_le [DecidableEq ι] (hc : ∀ e, 0 ≤ c e) (s : ∀ i, S i)
+    (i : ι) (a : S i) :
+    (fairCostSharing resources c).toCostGame.cost i (Function.update s i a)
+      ≤ ∑ e ∈ resources i a, c e := by
+  rw [toCostGame_cost, fairCostSharing_resources, Function.update_self]
+  refine Finset.sum_le_sum fun e he => ?_
+  rw [fairCostSharing_latency]
+  have hpos : 1 ≤ (fairCostSharing resources c).load (Function.update s i a) e :=
+    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by
+      rw [fairCostSharing_resources, Function.update_self]
+      exact he⟩⟩
+  exact div_le_self (hc e) (by exact_mod_cast hpos)
+
+/-- **Fair cost-sharing games are `(k, 0)`-smooth** ([Roughgarden2015], Definition 2.1, applied to
+the deviation bound of [TardosWexler2007], Exercise 19.9; exercise locator not re-verified against
+primary PDF): with `k = Fintype.card ι` players and nonnegative resource costs, switching player `i`
+to `s' i` costs `i` at most the standalone cost of `resources i (s' i)`, which is at most
+`socialCost s'`. -/
+theorem isSmooth_fairCostSharing [DecidableEq ι] [Finite E] (hc : ∀ e, 0 ≤ c e) :
+    (fairCostSharing resources c).toCostGame.IsSmooth (Fintype.card ι) 0 := by
+  intro s s'
+  rw [zero_mul, add_zero]
+  calc ∑ i, (fairCostSharing resources c).toCostGame.cost i (Function.update s i (s' i))
+      ≤ ∑ i, ∑ e ∈ resources i (s' i), c e :=
+        Finset.sum_le_sum fun i _ => cost_fairCostSharing_update_le resources c hc s i (s' i)
+    _ ≤ ∑ _i : ι, (fairCostSharing resources c).toCostGame.socialCost s' :=
+        Finset.sum_le_sum fun i _ => sum_le_socialCost_fairCostSharing resources c hc s' i
+    _ = Fintype.card ι * (fairCostSharing resources c).toCostGame.socialCost s' := by
+        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+
+/-- **The price of anarchy of fair cost-sharing games is at most `k`** ([TardosWexler2007],
+Exercise 19.9; exercise locator not re-verified against primary PDF): in a fair cost-sharing game
+with `k = Fintype.card ι` players and nonnegative resource costs, every pure Nash equilibrium `s`
+satisfies `socialCost s ≤ k * socialCost s'` for every profile `s'`. -/
+theorem socialCost_fairCostSharing_le_card_mul_of_isPureNash [DecidableEq ι] [Finite E]
+    (hc : ∀ e, 0 ≤ c e) {s : ∀ i, S i}
+    (hs : (fairCostSharing resources c).toCostGame.IsPureNash s) (s' : ∀ i, S i) :
+    (fairCostSharing resources c).toCostGame.socialCost s
+      ≤ Fintype.card ι * (fairCostSharing resources c).toCostGame.socialCost s' := by
+  have h := (isSmooth_fairCostSharing resources c hc).socialCost_le_of_isPureNash zero_lt_one hs s'
+  rwa [sub_zero, div_one] at h
+
+/-- **The robust price of anarchy of fair cost-sharing games is at most `k`** ([Roughgarden2015],
+Theorem 3.2): in a fair cost-sharing game with `k = Fintype.card ι` players and nonnegative
+resource costs, the expected social cost of every coarse correlated equilibrium `σ` is at most
+`k * socialCost s'` for every profile `s'`. -/
+theorem expected_socialCost_fairCostSharing_le_card_mul [DecidableEq ι] [Finite E]
+    (hc : ∀ e, 0 ≤ c e) {σ : Convexity.StdSimplex ℝ (∀ i, S i)}
+    (hσ : (fairCostSharing resources c).toCostGame.IsCoarseCorrelatedEquilibrium σ)
+    (s' : ∀ i, S i) :
+    σ.weights.sum (fun s w => w * (fairCostSharing resources c).toCostGame.socialCost s)
+      ≤ Fintype.card ι * (fairCostSharing resources c).toCostGame.socialCost s' := by
+  have h := (isSmooth_fairCostSharing resources c hc).expected_socialCost_le zero_lt_one hσ s'
+  rwa [sub_zero, div_one] at h
 
 section Common
 
