@@ -6339,7 +6339,9 @@ public import CslibFrontier.Crypto.Protocols.MPC.Composition.Cost
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Hybrid
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridChallenge
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridGame
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridIndex
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridProg
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.ViewEncoding
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
@@ -6383,6 +6385,8 @@ public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.DrawnTransfer
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Encoding
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.GarblerSetup
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.LabelLength

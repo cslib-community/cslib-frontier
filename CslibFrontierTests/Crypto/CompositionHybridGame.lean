@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Protocols.MPC.BatchOT.Sequential
+import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridIndex
 import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
 import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
@@ -33,6 +34,8 @@ A client of `CslibFrontier.Crypto.Protocols.MPC.Composition.HybridGame` under mo
   vanishes because the batch is perfectly private with the ideal single transfer, and every
   summand is the advantage of one environment that draws the description and runs the earlier
   transfers.
+* `advantage_bind_compose_le_add_mul_roundGame` is applied in the same setting: one environment
+  that draws the transfer with fair coins, and the factor `2 ^ L` for `k ≤ 2 ^ L`.
 * `semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame` is applied to Yao's protocol
   `Yao.composedProtocol` with its batched transfer run by `seqBatchOT` over any single transfer of
   words: the advantage against the hybrid protocol `Yao.protocol` plus one environment per
@@ -189,6 +192,56 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (k n : ℕ)
     (fun d => seqBatchOTSim k (F.Carrier d)) (fun d _ => F.ddhOTProbProtocol n d)
     (fun d _ => S₂ d) (fun _ => I) x D k
     fun d => (oracleRounds_seqBatchOTSchedule k (F.Carrier d)).le
+  have h₀ (d : F.Desc) := perfectSemiHonestPrivate_seqBatchOT k (F.Carrier d) I (x d)
+  simpa only [PMF.bind_map, Function.comp_def, Sum.elim_inr, ← ProbComp.eval_bind, h₀,
+    Game.advantage_self, zero_add] using h
+
+/-- **The batched transfer under a sampled group description, with one environment that draws the
+transfer.** In the setting of the previous example and for `k ≤ 2 ^ L`
+(`advantage_bind_compose_le_add_mul_roundGame`), the advantage is at most `2 ^ L` times the
+advantage of the one environment that draws the transfer `j` below `2 ^ L` with `L` fair coins,
+draws `d` and runs the earlier transfers, between the ideal and the real game of the challenged
+transfer: one absolute value instead of one per transfer. The hypothesis holds for `k = 0` with
+any `L`, in particular with no coin. -/
+example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (k n : ℕ) (L : ℕ)
+    (hL : k ≤ 2 ^ L)
+    (S₂ : (d : F.Desc) → (J : Finset (Fin 2)) →
+      CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
+    (I : Finset (Fin 2))
+    (x : (d : F.Desc) → (i : Fin 2) → (batchOTSpec k (F.Carrier d)).Query () i)
+    (D : (d : F.Desc) → ((i : I) → PartyView ((batchOTSpec k (F.Carrier d)).Query ())
+        (Schedule.ComposedCoins (fun _ => DDHOTCoinsWith DDHOTSenderBitCoins (List Bool))
+          (fun _ => Unit) (seqBatchOTSchedule k (F.Carrier d)))
+        (Schedule.compose (fun _ => ddhOTSchedule (F.Carrier d))
+          (seqBatchOTSchedule k (F.Carrier d))) i) ×
+      ((i : Fin 2) → (batchOTSpec k (F.Carrier d)).Answer () i) → ProbComp Bool) :
+    Game.advantage
+        ((setup n).bind fun d => ProbComp.eval
+          (idealJoint (batchOTFunctionality k (F.Carrier d)) I
+            (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d))
+              (fun _ => S₂ d) I) (x d) >>= D d))
+        ((setup n).bind fun d =>
+          (((seqBatchOT k (F.Carrier d)).compose fun _ => F.ddhOTProbProtocol n d).realJoint
+            noOracleWorld I (x d)).bind fun r => ProbComp.eval (D d r)) ≤
+      2 ^ L *
+        Game.advantage
+          ((ProbComp.eval (ProbComp.sampleBinaryNat L)).bind fun j => (setup n).bind fun d =>
+            (composeRoundEnv (seqBatchOT k (F.Carrier d)) (otWorld (F.Carrier d)) noOracleWorld
+              (fun _ => F.ddhOTProbProtocol n d) (fun _ => S₂ d) I (x d) (D d) j).bind
+                (roundGame fun op J q =>
+                  ProbComp.eval (idealJoint (otWorld (F.Carrier d) op) J (S₂ d J) q)))
+          ((ProbComp.eval (ProbComp.sampleBinaryNat L)).bind fun j => (setup n).bind fun d =>
+            (composeRoundEnv (seqBatchOT k (F.Carrier d)) (otWorld (F.Carrier d)) noOracleWorld
+              (fun _ => F.ddhOTProbProtocol n d) (fun _ => S₂ d) I (x d) (D d) j).bind
+                (roundGame fun _ J q =>
+                  (F.ddhOTProbProtocol n d).realJoint noOracleWorld J q)) := by
+  have h := advantage_bind_compose_le_add_mul_roundGame ((setup n).map Sum.inr)
+    (fun d => seqBatchOT k (F.Carrier d)) (fun d => otWorld (F.Carrier d))
+    (fun _ => noOracleWorld) (fun d => batchOTFunctionality k (F.Carrier d))
+    (fun d => seqBatchOTSim k (F.Carrier d)) (fun d _ => F.ddhOTProbProtocol n d)
+    (fun d _ => S₂ d) (fun _ => I) x D k L
+    (fun d => (oracleRounds_seqBatchOTSchedule k (F.Carrier d)).le) hL
   have h₀ (d : F.Desc) := perfectSemiHonestPrivate_seqBatchOT k (F.Carrier d) I (x d)
   simpa only [PMF.bind_map, Function.comp_def, Sum.elim_inr, ← ProbComp.eval_bind, h₀,
     Game.advantage_self, zero_add] using h

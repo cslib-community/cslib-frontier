@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
+import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.DrawnTransfer
 import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
 import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.LabelLength
 
@@ -35,6 +36,10 @@ encapsulation.
   every hypothesis that is a proposition is proved. The group family, the setup program, the public
   parameters, the side information, the garbling simulator, the environment and the simulators at
   the coalitions other than `{1}` are arbitrary.
+* `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul` is applied in the same
+  setting with `Nat.clog 2 (c n).evaluatorLen` index coins: one key-derivation and one DDH
+  distinguisher and the factor `2 ^ Nat.clog 2 (c n).evaluatorLen`, which is `1` with no transfer
+  and below twice the number of transfers otherwise.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -236,5 +241,89 @@ example {Λ : Type} (family : List Bool → List Bool → List Bool) (F : PrimeO
     (Function.update_self ..) (fun _ => Function.update_self ..)
     (fun _ => Function.update_self ..) (fun _ _ => List.length_replicate)
     (hasTokenLength_pointPermute family n (c n).fn)
+
+/-- The number of fair coins that index the transfers at the parameter `n`: the least `L` with
+`(c n).evaluatorLen ≤ 2 ^ L`. -/
+abbrev clogLen {G : Scheme ValidCircuit} (c : ℕ → Yao.Params G) (n : ℕ) : ℕ :=
+  Nat.clog 2 (c n).evaluatorLen
+
+/-- With no transfer there is no index coin and the factor of the drawn-transfer bound is `1`. -/
+example : 2 ^ Nat.clog 2 0 = 1 := by simp
+
+/-- With `k ≥ 1` transfers the factor `2 ^ Nat.clog 2 k` of the drawn-transfer bound is below
+`2 * k`. -/
+example (k : ℕ) (hk : 0 < k) : 2 ^ Nat.clog 2 k < 2 * k := by
+  rcases Nat.lt_or_ge 1 k with h | h
+  · have hlt := Nat.pow_pred_clog_lt_self one_lt_two h
+    have hpos : 0 < Nat.clog 2 k := Nat.clog_pos one_lt_two h
+    obtain ⟨L, hL⟩ : ∃ L, Nat.clog 2 k = L + 1 := ⟨Nat.clog 2 k - 1, by omega⟩
+    rw [hL, Nat.pred_succ] at hlt
+    rw [hL, pow_succ]
+    omega
+  · obtain rfl : k = 1 := by omega
+    simp
+
+/-- **The drawn-transfer bound applies with its hypotheses proved together**
+(`Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul`), in the setting of the
+previous example, with `Nat.clog 2 (c n).evaluatorLen` index coins: the hypothesis
+`(c n).evaluatorLen ≤ 2 ^ L n` is `Nat.le_pow_clog`, which also covers a circuit with no evaluator
+input. The right-hand side has one key-derivation and one DDH distinguisher, built from
+`Yao.kdfDDHDrawnTransferEnv`, and no sum over the transfers. The group family, the setup program,
+the public parameters, the side information, the garbling simulator, the environment and the
+simulators at the other coalitions are arbitrary; none is constructed here. -/
+example {Λ : Type} (family : List Bool → List Bool → List Bool) (F : PrimeOrderGroupFamily)
+    (setup : ℕ → ProbComp F.Desc) (c : ℕ → Yao.Params (PointPermute.scheme family))
+    (Φ : SideInfo ValidCircuit Λ) (S : ℕ → PrvSimulator Λ)
+    (T₁ : (n : ℕ) → (I : Finset (Fin 2)) → CoalitionSimulator (Yao.schedule (c n))
+      (Yao.Input (c n)) Yao.Coins (fun _ => List Bool) I)
+    (Sm : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (S₂ : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) →
+      CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
+    {n : ℕ} (hn : 0 < n)
+    (Z : Environment (Yao.kdfDDHProbFamily (PointPermute.scheme family) F (constKey F (n + 2)) c)
+      {1}) :
+    Game.advantage
+        ((Yao.kdfDDHProbFamily (PointPermute.scheme family) F (constKey F (n + 2)) c).idealGame
+          (fun n => ProbComp.eval (setup n)) {1}
+          (Yao.kdfDDHProbSim F (constKey F (n + 2)) c (yaoSims family c Φ S T₁)
+            (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) {1}) Z n)
+        ((Yao.kdfDDHProbFamily (PointPermute.scheme family) F (constKey F (n + 2)) c).realGame
+          (fun n => ProbComp.eval (setup n)) {1} Z n) ≤
+      prvSimAdvantage (PointPermute.scheme family) Φ n (S n)
+          (Yao.kdfDDHProbEnvToPrvSim F setup (constKey F (n + 2)) c
+            (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z n) +
+        2 ^ Nat.clog 2 (c n).evaluatorLen *
+          (Game.advantage
+              (F.kdfIdealGame (fun n => ProbComp.eval (setup n)) (fun n => n + 2)
+                (F.roundEnvToKDFDistinguisher (constKey F (n + 2))
+                  (F.padHidingEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
+                    (Yao.kdfDDHDrawnTransferEnv F (constKey F (n + 2)) c
+                      (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z (clogLen c)))) n)
+              (F.kdfRealGame (fun n => ProbComp.eval (setup n)) (constKey F (n + 2))
+                (F.roundEnvToKDFDistinguisher (constKey F (n + 2))
+                  (F.padHidingEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
+                    (Yao.kdfDDHDrawnTransferEnv F (constKey F (n + 2)) c
+                      (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z (clogLen c)))) n) +
+            (Game.advantage
+                (F.ddhRealGame (fun n => ProbComp.eval (setup n))
+                  (F.roundEnvToDDHDistinguisher
+                    (F.padTransferEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
+                      (Yao.kdfDDHDrawnTransferEnv F (constKey F (n + 2)) c
+                        (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z (clogLen c)))) n)
+                (F.ddhRandomGame (fun n => ProbComp.eval (setup n))
+                  (F.roundEnvToDDHDistinguisher
+                    (F.padTransferEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
+                      (Yao.kdfDDHDrawnTransferEnv F (constKey F (n + 2)) c
+                        (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z (clogLen c)))) n) +
+              18 / 2 ^ n)) :=
+  Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul rfl
+    (PointPermute.scheme_isValid family).correct F setup (constKey F (n + 2)) (fun n => n + 2) c
+    Φ S (yaoSims family c Φ S T₁) (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z
+    (clogLen c) hn (Function.update_self ..) (fun _ => Function.update_self ..)
+    (fun _ => Function.update_self ..) (fun _ _ => List.length_replicate)
+    (hasTokenLength_pointPermute family n (c n).fn) (Nat.le_pow_clog one_lt_two _)
 
 end CslibFrontierTests.Crypto.YaoLabelLength
