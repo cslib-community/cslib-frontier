@@ -283,7 +283,7 @@ theorem eval_linearMsf (k : ℕ) {W : Type} [LinearOrder W] {w : E → W}
     · exact eval_boruvkaMsf ends'' S' hw
   have hexact : (Config.derandomized 32 (by norm_num) fun (ends'' : E → Sym2 V) (S' : Finset E) =>
       if _ : #S' < #S then linearMsf k ends'' S' else boruvkaMsf ends'' S').ExactMsf w :=
-    fun ends'' S' => hsub ends'' S'
+    (Config.exactMsf_iff _ _).2 hsub
   rw [linearMsf]
   simp only [FreeM.eval_bind]
   set r := (boruvka ends S k).eval (LEQuery.keyOracle w) with hr
@@ -367,7 +367,7 @@ theorem countQueries_linearMsf_le : ∃ D : ℝ, ∀ {V E W : Type} [DecidableEq
   subst hn
   have hexact : (Config.derandomized 32 (by norm_num) fun (ends'' : E → Sym2 V) (S' : Finset E) =>
       if _ : #S' < #S then linearMsf k ends'' S' else boruvkaMsf ends'' S').ExactMsf w := by
-    intro ends'' S'
+    refine (Config.exactMsf_iff _ _).2 fun ends'' S' => ?_
     simp only [Config.derandomized_msfSub]
     split
     · exact eval_linearMsf k hw _ _
@@ -490,8 +490,11 @@ How the statement maps to the source:
 * **The comparison model.** `p : FreeM (LEQuery E) (Finset E)` is a decision tree whose internal
   nodes compare two edges, `w a ≤ w b`, and whose leaves are labelled by edge sets; `p.eval`
   follows the path that the answers of the oracle `LEQuery.keyOracle w` select, and
-  `p.countQueries` counts the comparisons on that path. A bound on the path length for every
-  weight assignment is a bound on the depth of the tree, which is what `T*` measures (p. 5).
+  `p.countQueries` counts the comparisons on that path, which is at most `C · |S|` for every
+  assignment of distinct weights. Branches of `p` that no such assignment reaches may be deeper,
+  but they can be pruned (replaced by an arbitrary leaf) without changing the output on any
+  distinct-weight assignment, so the minimum depth of a correct comparison tree for the graph is
+  at most `C · |S|`, which is what `T*` measures (p. 5).
   Computation between comparisons is free, as in the decision-tree model: the program's
   exhaustive searches for a schedule (Lemma 3.11) and a separating set (Claim 3.12) cost nothing.
 * **Quantifiers and non-uniformity.** `C` comes first and is absolute. The program may depend on
@@ -503,15 +506,19 @@ How the statement maps to the source:
   allowed, and the bound depends only on `m = |S|`, so it covers every `n`. Isolated vertices
   play no role.
 * **Weights.** The weights are an injective `w : E → W` into any linear order: the paper assumes
-  distinct weights, with ties broken by edge index (§2, p. 11). The minimum spanning forest is
+  distinct weights, with ties broken by edge index (§2, p. 11). Taking `W : Type` (universe 0)
+  is no restriction: injective weights into a linear order in any universe induce, by
+  `LinearOrder.lift'`, a linear order on `E` whose comparison oracle gives the same answers, so
+  the same path of `p` and the same `msf`. Neither is injectivity on all of `E`, rather than on
+  `S`: `E` can be taken to be the graph's edge set. The minimum spanning forest is
   `Cslib.Multigraph.msf`, the edges whose ends the strictly lighter edges do not join; by
   `Cslib.Multigraph.isSpanningForest_msf` and `Cslib.Multigraph.sum_msf_le` it is a spanning
   forest of least total weight (`Cslib.Query.linearMsf_isSpanningForest_and_sum_le`).
 
 **Not proved: running time.** Theorem 1.1 and Corollary 4.2 of the paper (a deterministic
 `O(m + n)`-time algorithm) combine this theorem with Pettie and Ramachandran's optimal algorithm
-(JACM 2002, Theorem 5.8, the paper's Theorem 2.6), which is not formalized. Nothing here is a
-running-time claim.
+(JACM 2002, Theorem 5.8, the paper's Theorem 2.6), which is not formalized; it stays open in
+#8325. Nothing here is a running-time claim.
 
 The proof assembles Algorithm 2 (`Cslib.Query.linearMsf`): its correctness for every number of
 Borůvka steps (`Cslib.Query.eval_linearMsf`) and its comparison count by strong induction on the

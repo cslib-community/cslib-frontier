@@ -94,9 +94,15 @@ variable {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
 variable (cfg : Config V E) (w : E → W)
 
 /-- The exact minimum spanning forest subroutine of `cfg` is correct for the weights `w`. -/
-@[expose] def Config.ExactMsf : Prop :=
+def Config.ExactMsf : Prop :=
   ∀ (ends : E → Sym2 V) (S : Finset E),
     (cfg.msfSub ends S).eval (LEQuery.keyOracle w) = msf ends w S
+
+omit [DecidableEq V] [DecidableEq E] in
+/-- Unfolding `Cslib.Query.Certificate.Config.ExactMsf`. -/
+theorem Config.exactMsf_iff : cfg.ExactMsf w ↔ ∀ (ends : E → Sym2 V) (S : Finset E),
+    (cfg.msfSub ends S).eval (LEQuery.keyOracle w) = msf ends w S :=
+  Iff.rfl
 
 /-- The result of a call on `inst` is **sound**: its forest is an acyclic set of admissible edges
 of the call (Claim 3.5, p. 17), and its rejected edges are edges of the call, each with the index
