@@ -10,6 +10,7 @@ module
 public import CslibFrontier.GameTheory.Mechanism.LinearValuation
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import Mathlib.Data.Fintype.Option
+import Mathlib.Tactic.Linarith
 
 /-!
 # The Vickrey auction is VCG
@@ -24,13 +25,25 @@ outcome. Every welfare-maximizing rule that chooses it makes VCG, run on linear 
 allocate and charge as `SingleParameter.Vickrey.mechanism`
 (`vcg_toSingleParameter_eq_of_eq_winner`), and on nonnegative bids such a rule exists
 (`exists_vcg_toSingleParameter_eq`). This is the
-specialization of VCG to Vickrey ([Roughgarden2013CS364A], Lecture 7, §2).
+specialization of VCG to Vickrey ([Roughgarden2013CS364A], Lecture 7, §2; [Nisan2007], §9.3.5.1).
+
+The map `singleItem` identifies `Option ι` with the feasible subtype `singleItemFeasible`
+(`singleItemEquiv : Option ι ≃ singleItemFeasible`). Transporting the `Option ι` VCG construction
+along this equivalence gives `vcgOutcome` directly on `singleItemFeasible`, recovering
+`Vickrey.mechanism` without repeating the Clarke-pivot or second-price analysis
+(`clarkePivot_singleItemFeasible`, `vcg_singleItemFeasible_allocation`,
+`vcg_singleItemFeasible_payment`).
 
 ## Main definitions
 
 * `Cslib.GameTheory.SingleParameter.Vickrey.singleItem`: the allocation of a single-item outcome.
 * `Cslib.GameTheory.SingleParameter.Vickrey.winner`: the Vickrey winner as a single-item outcome
   (`winner_eq_some`, `winner_eq_none`).
+* `Cslib.GameTheory.SingleParameter.Vickrey.singleItemEquiv`: equivalence
+  `Option ι ≃ singleItemFeasible`.
+* `Cslib.GameTheory.SingleParameter.Vickrey.singleWinner`,
+  `Cslib.GameTheory.SingleParameter.Vickrey.vcgOutcome`: single-winner feasible allocations and
+  welfare-maximizing rule on `singleItemFeasible`.
 
 ## Main results
 
@@ -40,9 +53,14 @@ specialization of VCG to Vickrey ([Roughgarden2013CS364A], Lecture 7, §2).
   Vickrey's tie-breaking allocates and charges as the Vickrey auction.
 * `Cslib.GameTheory.SingleParameter.Vickrey.exists_vcg_toSingleParameter_eq`: the Vickrey auction
   is VCG on single-item outcomes.
+* `Cslib.GameTheory.SingleParameter.Vickrey.isWelfareMaximizing_vcgOutcome`,
+  `Cslib.GameTheory.SingleParameter.Vickrey.vcg_singleItemFeasible_allocation`,
+  `Cslib.GameTheory.SingleParameter.Vickrey.vcg_singleItemFeasible_payment`: VCG directly on
+  `singleItemFeasible` agrees with `Vickrey.mechanism` ([Nisan2007], §9.3.5.1).
 
 ## References
 
+* [N. Nisan, *Introduction to mechanism design (for computer scientists)*][Nisan2007]
 * [T. Roughgarden, *CS364A: Algorithmic Game Theory*, lecture notes][Roughgarden2013CS364A]
 * [W. Vickrey, *Counterspeculation, auctions, and competitive sealed tenders*][Vickrey1961]
 -/
@@ -239,5 +257,145 @@ theorem exists_vcg_toSingleParameter_eq :
   have hf := isWelfareMaximizing_vickreyRule hf₀
   exact ⟨vickreyRule f₀, hf, fun b hb =>
     vcg_toSingleParameter_eq_of_eq_winner hf (vickreyRule_linearProfile f₀ hb)⟩
+
+/-! ### VCG directly on `singleItemFeasible` via `Option ι ≃ singleItemFeasible` -/
+
+omit [Fintype ι] in
+private theorem singleItem_injective : Function.Injective (singleItem (ι := ι)) := by
+  intro ω₁ ω₂ h
+  cases ω₁ with
+  | none =>
+    cases ω₂ with
+    | none => rfl
+    | some k =>
+      have hk := congrFun h k
+      simp only [singleItem_none, singleItem_some, ↓reduceIte, zero_ne_one] at hk
+  | some k₁ =>
+    cases ω₂ with
+    | none =>
+      have hk := congrFun h k₁
+      simp only [singleItem_some, ↓reduceIte, singleItem_none, one_ne_zero] at hk
+    | some k₂ =>
+      have hk := congrFun h k₁
+      simp only [singleItem_some, ↓reduceIte] at hk
+      split_ifs at hk with h21
+      · exact congrArg some h21.symm
+      · exact absurd hk one_ne_zero
+
+private theorem exists_singleItem_eq_of_mem {y : ι → ℝ} (hy : y ∈ singleItemFeasible) :
+    ∃ ω : Option ι, singleItem ω = y := by
+  by_cases h : ∃ k, y k = 1
+  · obtain ⟨k, hk⟩ := h
+    refine ⟨some k, funext fun i => ?_⟩
+    rw [singleItem_some]
+    by_cases hki : k = i
+    · subst hki
+      rw [ite_eq_left rfl, hk]
+    · rw [ite_eq_right hki]
+      rcases hy.1 i with hi | hi
+      · exact hi.symm
+      · exfalso
+        have hy0 : ∀ j, 0 ≤ y j := fun j => by
+          rcases hy.1 j with h0 | h1
+          · rw [h0]
+          · rw [h1]; exact zero_le_one
+        have hle := Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ ({k, i} : Finset ι))
+          fun j _ _ => hy0 j
+        rw [Finset.sum_pair hki] at hle
+        linarith [hy.2]
+  · push Not at h
+    refine ⟨none, funext fun i => ?_⟩
+    rw [singleItem_none]
+    exact ((hy.1 i).resolve_right (h i)).symm
+
+/-- The canonical bijection between `Option ι` and `singleItemFeasible`: `none` is the zero
+allocation and `some i` gives the item to bidder `i`. -/
+noncomputable def singleItemEquiv : Option ι ≃ singleItemFeasible (ι := ι) :=
+  Equiv.ofBijective (fun ω => ⟨singleItem ω, singleItem_mem_singleItemFeasible ω⟩)
+    ⟨fun _ _ h => singleItem_injective (congrArg Subtype.val h),
+      fun ⟨_, hy⟩ => let ⟨ω, hω⟩ := exists_singleItem_eq_of_mem hy; ⟨ω, Subtype.ext hω⟩⟩
+
+@[simp]
+theorem singleItemEquiv_apply (ω : Option ι) : (singleItemEquiv ω : ι → ℝ) = singleItem ω := by
+  rfl
+
+noncomputable instance instFintypeSingleItemFeasible : Fintype (singleItemFeasible (ι := ι)) :=
+  Fintype.ofEquiv (Option ι) singleItemEquiv
+
+instance instNonemptySingleItemFeasible : Nonempty (singleItemFeasible (ι := ι)) :=
+  ⟨singleItemEquiv none⟩
+
+/-- The feasible single-item allocation in which bidder `i` alone gets the item. -/
+def singleWinner (i : ι) : singleItemFeasible (ι := ι) :=
+  ⟨singleItem (some i), singleItem_mem_singleItemFeasible (some i)⟩
+
+@[simp]
+theorem singleWinner_val (i : ι) : (singleWinner i : ι → ℝ) = singleItem (some i) := by
+  rfl
+
+@[simp]
+theorem singleWinner_apply_self (i : ι) : (singleWinner i : ι → ℝ) i = 1 := by
+  simp only [singleWinner_val, singleItem_some, ↓reduceIte]
+
+theorem singleWinner_apply_of_ne {i j : ι} (hj : j ≠ i) : (singleWinner i : ι → ℝ) j = 0 := by
+  simp only [singleWinner_val, singleItem_some, ite_eq_right hj.symm]
+
+/-- A globally welfare-maximizing outcome rule directly on `singleItemFeasible` obtained by
+transporting `vickreyRule` along `singleItemEquiv : Option ι ≃ singleItemFeasible`. -/
+noncomputable def vcgOutcome (u : ι → singleItemFeasible (ι := ι) → ℝ) :
+    singleItemFeasible (ι := ι) :=
+  singleItemEquiv (vickreyRule
+    (Classical.choose (GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι)))
+    fun j ω => u j (singleItemEquiv ω))
+
+/-- `vcgOutcome` maximizes reported welfare on every valuation profile. -/
+theorem isWelfareMaximizing_vcgOutcome :
+    GameTheory.Mechanism.IsWelfareMaximizing (vcgOutcome (ι := ι)) :=
+  GameTheory.Mechanism.isWelfareMaximizing_comp_equiv singleItemEquiv
+    (isWelfareMaximizing_vickreyRule
+      (Classical.choose_spec
+        (GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι))))
+
+/-- On any nonnegative linear valuation profile on `singleItemFeasible`, `vcgOutcome` chooses
+`Vickrey.allocation b`. -/
+theorem vcgOutcome_linearProfile {b : ι → ℝ} (hb : 0 ≤ b) :
+    vcgOutcome (linearProfile Subtype.val b) =
+      ⟨allocation b, allocation_mem_singleItemFeasible b⟩ := by
+  apply Subtype.ext
+  change singleItem (vickreyRule _ (linearProfile singleItem b)) = allocation b
+  rw [vickreyRule_linearProfile _ hb, singleItem_winner]
+
+/-- On any linear valuation profile over `singleItemFeasible`, the Clarke pivot of agent `i`
+equals `highestOtherBid b i`. -/
+theorem clarkePivot_singleItemFeasible (b : ι → ℝ) (i : ι) :
+    clarkePivot i
+      (linearProfile (Subtype.val : singleItemFeasible (ι := ι) → ι → ℝ) b) =
+        highestOtherBid b i := by
+  rw [← GameTheory.Mechanism.clarkePivot_comp_equiv singleItemEquiv]
+  exact clarkePivot_linearProfile_singleItem b i
+
+/-- **VCG on `singleItemFeasible` agrees with `Vickrey.mechanism` (allocation)** ([Nisan2007],
+§9.3.5.1). -/
+theorem vcg_singleItemFeasible_allocation {b : ι → ℝ} (hb : 0 ≤ b) :
+    ((vcg (vcgOutcome (ι := ι))).toSingleParameter Subtype.val).allocation b =
+      mechanism.allocation b := by
+  simp only [GameTheory.Mechanism.toSingleParameter, vcg, groves, vcgOutcome_linearProfile hb,
+    mechanism]
+
+/-- **VCG on `singleItemFeasible` agrees with `Vickrey.mechanism` (payment)** ([Nisan2007],
+§9.3.5.1). -/
+theorem vcg_singleItemFeasible_payment {b : ι → ℝ} (hb : 0 ≤ b) :
+    ((vcg (vcgOutcome (ι := ι))).toSingleParameter Subtype.val).payment b =
+      mechanism.payment b := by
+  let f₀ := Classical.choose
+    (GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι))
+  have hf := isWelfareMaximizing_vickreyRule (Classical.choose_spec
+    (GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι)))
+  funext i
+  change (vcg fun u => singleItemEquiv (vickreyRule f₀ fun j ω => u j (singleItemEquiv ω))).payment
+      (linearProfile Subtype.val b) i = mechanism.payment b i
+  rw [GameTheory.Mechanism.vcg_payment_comp_equiv singleItemEquiv]
+  exact congrFun (vcg_toSingleParameter_eq_of_eq_winner hf
+    (vickreyRule_linearProfile f₀ hb)).2 i
 
 end Cslib.GameTheory.SingleParameter.Vickrey

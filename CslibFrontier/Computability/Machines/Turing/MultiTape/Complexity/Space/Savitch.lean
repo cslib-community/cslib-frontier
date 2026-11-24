@@ -47,6 +47,8 @@ theorem. The quadratic bound `NSPACE(s) ⊆ DSPACE(s ^ 2)`, including sublinear 
 
 ## Main results
 
+* `Turing.MultiTapeNTM.accepts_iff_reach`: under any bound `w` on the encodings of the reachable
+  views, acceptance is the midpoint recursion on codes of `2 * w + 2` bits.
 * `Turing.MultiTapeNTM.savitchDecide_eq_true_iff`: the decider decides acceptance.
 * `Turing.MultiTapeNTM.computableInPolyTime_codeWidth`: the width of the codes is polynomial-time.
 * `Turing.MultiTapeNTM.computableInPolyTime_viewCodeWidth`: the bit-length of the codes of the views
@@ -90,30 +92,38 @@ noncomputable def savitchDecide (c d : ℕ) (input : List Bool) : Bool :=
 
 variable {ntm}
 
-/-- **Savitch's decider decides acceptance** of a machine whose computation paths on `input`
-visit at most `c * (input.length + 1) ^ d` work cells. -/
-theorem savitchDecide_eq_true_iff {c d s : ℕ} {input : List Bool} (hs : ntm.RunsInSpace input s)
-    (hsc : s ≤ c * (input.length + 1) ^ d) :
-    ntm.savitchDecide c d input = true ↔ ntm.Accepts input := by
-  set width := ntm.codeWidth c d input with hwidth_def
-  have hwidth : ∀ finite, Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite →
-      (encFiniteCfg finite).length ≤ width := fun finite h =>
-    ((length_encFiniteCfg_le hs h).trans (viewLengthBound_mono k State _ hsc)).trans
-      (Nat.le_add_left _ _)
-  have hsrc : (viewCode width (ntm.initView input)).length = 2 * width + 2 :=
-    length_viewCode (hwidth _ .refl)
-  have hdst : (acceptCode width).length = 2 * width + 2 := List.length_replicate ..
-  -- the reachable codes are words of `2 * width + 2` bits
-  have hcard : {code | Relation.ReflTransGen (ntm.CodeStep width)
-      (viewCode width (ntm.initView input)) code}.encard ≤ 2 ^ (2 * width + 2) + 1 := by
+/-- **Acceptance is Savitch's midpoint recursion on the codes of the views.** If every view
+reachable from the initial view of `ntm` on `input` has an encoding of at most `w` bits, `ntm`
+accepts `input` exactly when the accepting code is reachable from the code of the initial view by
+the midpoint recursion on words of `2 * w + 2` bits at depth `2 * w + 2`. -/
+theorem accepts_iff_reach {input : List Bool} {w : ℕ}
+    (hw : ∀ finite, Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite →
+      (encFiniteCfg finite).length ≤ w) :
+    ntm.Accepts input ↔ Cslib.Reachability.reach ntm.codeEdge (2 * w + 2) (2 * w + 2)
+      (viewCode w (ntm.initView input)) (acceptCode w) = true := by
+  have hsrc : (viewCode w (ntm.initView input)).length = 2 * w + 2 :=
+    length_viewCode (hw _ .refl)
+  have hdst : (acceptCode w).length = 2 * w + 2 := List.length_replicate ..
+  -- the reachable codes are words of `2 * w + 2` bits
+  have hcard : {code | Relation.ReflTransGen (ntm.CodeStep w)
+      (viewCode w (ntm.initView input)) code}.encard ≤ 2 ^ (2 * w + 2) + 1 := by
     refine (Set.encard_le_encard fun code hcode => ?_).trans
       ((Cslib.BitString.encard_setOf_length_eq _).le.trans le_self_add)
     induction hcode with
     | refl => exact hsrc
     | tail _ hstep _ => exact hstep.2.1
-  rw [savitchDecide, viewCodeWidth, ← hwidth_def, Cslib.Reachability.savitch_iff hsrc hdst,
-    accepts_iff_reflTransGen_codeStep hwidth]
-  exact (Relation.reflTransGen_iff_relatesWithinSteps_of_encard_le hcard).symm
+  rw [Cslib.Reachability.reach_iff hsrc hdst, accepts_iff_reflTransGen_codeStep hw]
+  exact Relation.reflTransGen_iff_relatesWithinSteps_of_encard_le hcard
+
+/-- **Savitch's decider decides acceptance** of a machine whose computation paths on `input`
+visit at most `c * (input.length + 1) ^ d` work cells. -/
+theorem savitchDecide_eq_true_iff {c d s : ℕ} {input : List Bool} (hs : ntm.RunsInSpace input s)
+    (hsc : s ≤ c * (input.length + 1) ^ d) :
+    ntm.savitchDecide c d input = true ↔ ntm.Accepts input := by
+  rw [savitchDecide, Cslib.Reachability.savitch_eq, viewCodeWidth]
+  exact (accepts_iff_reach fun finite h =>
+    ((length_encFiniteCfg_le hs h).trans (viewLengthBound_mono k State _ hsc)).trans
+      (Nat.le_add_left _ _)).symm
 
 /-- The width of the codes is polynomial-time, in unary. -/
 theorem computableInPolyTime_codeWidth {α : Type} {enc : α ↪ List Bool} (c d : ℕ) :

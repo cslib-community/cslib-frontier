@@ -14,6 +14,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Data.Fin.Tuple.Basic
 
 /-!
@@ -317,23 +318,6 @@ theorem pianoStepSetsEquiv_apply [DecidableEq Chunk] [DecidableEq Offset] (x : C
     pianoStepSetsEquiv x tb = pianoStepSets x tb :=
   rfl
 
-/-- Reparametrizing two independent uniform draws `(a, b)` by an equivalence `e : α × β ≃ γ × δ`
-yields two independent uniform draws `(c, d)`. -/
-private theorem uniformOfFintype_bind_bind_equiv {α β γ δ ε : Type*} [Fintype α] [Nonempty α]
-    [Fintype β] [Nonempty β] [Fintype γ] [Nonempty γ] [Fintype δ] [Nonempty δ]
-    (e : α × β ≃ γ × δ) (f : γ × δ → PMF ε) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind fun b =>
-      f (e (a, b))) =
-      (PMF.uniformOfFintype γ).bind fun c => (PMF.uniformOfFintype δ).bind fun d => f (c, d) := by
-  calc _ = (PMF.uniformOfFintype (α × β)).bind (fun ab => f (e ab)) := by
-        simp only [← PMF.uniformOfFintype_prod, pmf_norm]
-    _ = ((PMF.uniformOfFintype (α × β)).map e).bind f := by
-        simp only [pmf_norm]
-    _ = (PMF.uniformOfFintype (γ × δ)).bind f := by
-        rw [PMF.uniformOfFintype_map_equiv]
-    _ = _ := by
-        simp only [← PMF.uniformOfFintype_prod, pmf_norm]
-
 section IdealUniform
 
 variable [Fintype Chunk] [DecidableEq Chunk] [Fintype Offset] [DecidableEq Offset] [Nonempty Offset]
@@ -348,8 +332,8 @@ theorem uniformOfFintype_bind_bind_pianoStepSets {ε : Type*} (x : Chunk × Offs
       (PMF.uniformOfFintype (Chunk → Offset)).bind fun B =>
         f (pianoStepSets x (T, B))) =
       (PMF.uniformOfFintype (Fin M₁ → Chunk → Offset)).bind fun T' =>
-        (PMF.uniformOfFintype (Chunk → Offset)).bind fun Q => f (T', Q) :=
-  uniformOfFintype_bind_bind_equiv (pianoStepSetsEquiv x) f
+        (PMF.uniformOfFintype (Chunk → Offset)).bind fun Q => f (T', Q) := by
+  relabel_uniform (pianoStepSetsEquiv x)
 
 /-- The joint distribution of `(refreshedPrimarySets, serverQuery)` in one Piano step is the
 uniform product distribution on `(Fin M₁ → Chunk → Offset) × (Chunk → Offset)`,
@@ -438,16 +422,12 @@ theorem uniformOfFintype_map_compactedOffsets {m : ℕ} [Fintype Offset] [Nonemp
     (jStar : Fin (m + 1)) :
     (PMF.uniformOfFintype (Fin (m + 1) → Offset)).map (fun S => compactedOffsets S jStar) =
       PMF.uniformOfFintype (Fin m → Offset) := by
-  let e : (Fin (m + 1) → Offset) ≃ (Fin m → Offset) × Offset :=
-    (Fin.insertNthEquiv (fun _ : Fin (m + 1) => Offset) jStar).symm.trans (Equiv.prodComm _ _)
-  calc (PMF.uniformOfFintype (Fin (m + 1) → Offset)).map (fun S => compactedOffsets S jStar)
-      = ((PMF.uniformOfFintype (Fin (m + 1) → Offset)).map e).map Prod.fst := by
-          rw [PMF.map_comp]
-          rfl
-    _ = (PMF.uniformOfFintype ((Fin m → Offset) × Offset)).map Prod.fst := by
-          rw [PMF.uniformOfFintype_map_equiv e]
-    _ = PMF.uniformOfFintype (Fin m → Offset) :=
-          Cslib.Probability.PMF.uniformOfFintype_prod_map_fst
+  conv_rhs =>
+    rw [← Cslib.Probability.PMF.uniformOfFintype_prod_map_fst
+      (α := Fin m → Offset) (β := Offset)]
+  relabel_uniform
+    ((Fin.insertNthEquiv (fun _ : Fin (m + 1) => Offset) jStar).symm.trans
+      (Equiv.prodComm Offset (Fin m → Offset)))
 
 /-- **Compacted punctured query privacy** (the observation in
 [Zhou, Park, Zheng and Shi, Appendix A][ZhouParkZhengShi2024] that the compacted offset vector

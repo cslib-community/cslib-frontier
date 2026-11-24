@@ -41,11 +41,11 @@ theorem enqueue_contents {d : Input} (front back : List ℕ) (s : Memory.State)
     (hfront : Block.HoldsList (d 2) front.reverse s.mem)
     (hback : Block.HoldsList (d 2 + d 3) back.reverse s.mem) :
     let t := (Memory.spec 0).clientState s (enqueue d)
-    (Memory.spec 0).clientResult s (enqueue d) = (front.length, (d 4 :: back).length) ∧
+    (Memory.spec 0).clientResult s (enqueue d) = ⟨front.length, (d 4 :: back).length⟩ ∧
       Block.HoldsList (d 2) front.reverse t.mem ∧
       Block.HoldsList (d 2 + d 3) (d 4 :: back).reverse t.mem := by
   refine ⟨?_, ?_, ?_⟩
-  · change (d 0, d 1 + 1) = _
+  · change Counts.mk (d 0) (d 1 + 1) = _
     rw [hF, hB]
     rfl
   · change Block.HoldsList (d 2) front.reverse
@@ -66,7 +66,7 @@ theorem popFront_contents {d : Input} (front back : List ℕ) (s : Memory.State)
     (hfront : Block.HoldsList (d 2) front.reverse s.mem)
     (hback : Block.HoldsList (d 2 + d 3) back.reverse s.mem) :
     (Memory.spec 0).clientResult s (popFront d) =
-        ((front.tail.length, back.length), front.head?) ∧
+        (⟨front.tail.length, back.length⟩, front.head?) ∧
       Block.HoldsList (d 2) front.tail.reverse s.mem ∧
       Block.HoldsList (d 2 + d 3) back.reverse s.mem := by
   cases front with
@@ -97,18 +97,18 @@ theorem dequeue_contents {w : ℕ} {d : Input} (front back : List ℕ) (s : Memo
     (hc : front.length + back.length ≤ d 3) (hf : d 2 + 2 * d 3 ≤ s.frontier)
     (hfront : Block.HoldsList (d 2) front.reverse s.mem)
     (hback : Block.HoldsList (d 2 + d 3) back.reverse s.mem) :
-    let p := pairStep (front, back) .dequeue
+    let p := pairStep ⟨front, back⟩ .dequeue
     let t := (Memory.spec 0).clientState s (dequeue d)
-    (Memory.spec 0).clientResult s (dequeue d) = ((p.1.1.length, p.1.2.length), p.2) ∧
-      Block.HoldsList (d 2) p.1.1.reverse t.mem ∧
-      Block.HoldsList (d 2 + d 3) p.1.2.reverse t.mem := by
+    (Memory.spec 0).clientResult s (dequeue d) = (⟨p.1.front.length, p.1.rear.length⟩, p.2) ∧
+      Block.HoldsList (d 2) p.1.front.reverse t.mem ∧
+      Block.HoldsList (d 2 + d 3) p.1.rear.reverse t.mem := by
   cases front with
   | nil =>
     have hz : d 0 = 0 := hF
     have hdom : transferDomain w d s := by
       exact ⟨by rw [hF, hB]; exact hc, hf⟩
     have hi := transfer_invariant hw hdom
-    have hr : (Memory.spec 0).clientResult s (transfer d) = (back.length, 0) := by
+    have hr : (Memory.spec 0).clientResult s (transfer d) = ⟨back.length, 0⟩ := by
       simpa only [hF, hB, List.length_nil, Nat.zero_add] using hi.2.2.1
     let t := (Memory.spec 0).clientState s (transfer d)
     have ht : Block.HoldsList (d 2) back.reverse.reverse t.mem := by

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.Arg
 
 /-!
@@ -82,10 +83,9 @@ theorem position_near_end (b : Bool) (t : ℝ) :
 /-- A strictly internal outgoing time is strictly internal to the entire chain. -/
 theorem position_near_end_mem (b : Bool) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
     p.position (p.endSegment b) (endTime b t) ∈ Set.Ioo 0 (p.segments : ℝ) := by
-  have hn : (1 : ℝ) ≤ p.segments := by exact_mod_cast Nat.le_add_left 1 p.bends
   rw [position_near_end]
   cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
-    constructor <;> linarith [ht.1, ht.2]
+    constructor <;> cast_linarith [Nat.le_add_left 1 p.bends, ht.1, ht.2]
 
 /-- Strictly internal outgoing parameters are neither end of the entire route. -/
 theorem not_atEnd_near_end (b c : Bool) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
