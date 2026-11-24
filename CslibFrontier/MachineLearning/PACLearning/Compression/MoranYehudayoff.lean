@@ -30,7 +30,8 @@ Assouad's bound, `DualVCDimension.lean`).
 This module combines the three pieces already in the library to build the full compression scheme
 on an **arbitrary** domain type `α` (no countability or measurability assumptions):
 
-1. Weak learning & minimax (`Compression/VCDimension.lean`,
+1. Weak learning & minimax
+   (`CslibFrontier/MachineLearning/PACLearning/Compression/VCDimension.lean`,
    `IsConsistent.exists_pmf_subsample_toOuterMeasure_le`): given any nonempty sample `S` of `m`
    examples realized by `C` and any consistent learner `A` reading `s ≥ vcSampleSize d (1/3) (1/2)`
    examples, there exists a distribution `μ : PMF (Fin s → Fin m)` on index tuples such that at
@@ -48,14 +49,16 @@ on an **arbitrary** domain type `α` (no countability or measurability assumptio
 ## Relation to the published model
 
 In [MoranYehudayoff2016, Theorem 1.4] (locator unverified), a *labeled* compression scheme returns
-an unordered subset `U` of at most `k` examples plus side-information bits; representing the
-`t × s` index table over `U` costs `|U| ≤ t * s` distinct examples plus at most `(t * s) ^ (t * s)`
-table assignments (`O(d* d log (d* d))` bits of side information). In this library's
-`SampleCompressionScheme` type (`Compression/Basic.lean`), the compressor outputs an **ordered**
-`List (Fin m)` with repetitions allowed, so flattening `B : Fin t → Fin s → Fin m` requires exact
-length `t * s = O(d* d)` with no extra side bits. Both forms are provided:
-`exists_finset_compression_of_dualVCDim` (with explicit cardinality bound `U.card ^ (t * s) ≤
-(t * s) ^ (t * s)`) and `moranYehudayoffScheme` (ordered `SampleCompressionScheme`).
+an unordered subset `T : Finset (α × Bool)` of at most `k` examples plus side-information bits;
+indexing a `t × s` table into a canonical enumeration of `T` uses `|T| ≤ t * s` distinct examples
+and fixed side-information alphabet `Fin t → Fin s → Fin (t * s)` of cardinality `(t * s) ^ (t * s)`
+(`O(d* d log (d* d))` bits of side information). In this library's `SampleCompressionScheme` type
+(`CslibFrontier/MachineLearning/PACLearning/Compression/Basic.lean`), the compressor outputs an
+**ordered** `List (Fin m)` with repetitions allowed, so flattening `B : Fin t → Fin s → Fin m`
+requires exact length `t * s = O(d* d)` with no extra side bits. Both forms are provided:
+`exists_finset_compression_of_dualVCDim` (sample-independent decoder `ρ` from an unordered
+`Finset (α × Bool)` plus side info in `Fin t → Fin s → Fin (t * s)`) and `moranYehudayoffScheme`
+(ordered `SampleCompressionScheme`).
 
 Note that our `t` (`moranYehudayoffMajoritySize`) uses Vapnik–Chervonenkis uniform convergence at
 the *constant* accuracy `ε = 1/6`, so even the `log (1/ε)` factor of `EpsilonApproximation.lean`
@@ -69,8 +72,6 @@ is an absolute constant `log 60`, keeping `t = O(d*)` and `s = O(d)` strictly li
   `t = ⌈uniformConvergenceSampleSize dStar (1/6) (1/2)⌉₊ ≤ 5184 d* + 1440`.
 - `moranYehudayoffCompressionSize d dStar`: product `t * s = O(d* d)`.
 - `moranYehudayoffVCCompressionSize d`: specialization `d* = 2 ^ (d + 1) - 1`, giving `O(d · 2^d)`.
-- `majorityReconstruct A t s`: majority-vote reconstruction from `t` concatenated subsamples of
-  length `s`.
 - `moranYehudayoffScheme`: explicit `SampleCompressionScheme C (moranYehudayoffCompressionSize d
   dStar)`.
 - `moranYehudayoffSchemeOfVCDim`: explicit `SampleCompressionScheme C
@@ -80,9 +81,10 @@ is an absolute constant `log 60`, keeping `t = O(d*)` and `s = O(d)` strictly li
 
 - `exists_majority_subsamples_of_dualVCDim`: `t` subsamples of length `s` whose strict majority
   vote under a consistent learner `A` matches every label of `S`.
-- `exists_finset_compression_of_dualVCDim`: subset `U : Finset (Fin m)` of size at most `t * s`
-  plus pointer table `σ : Fin t → Fin s → U` recovering `S` by strict majority, with
-  `Fintype.card (Fin t → Fin s → U) ≤ (t * s) ^ (t * s)`.
+- `exists_finset_compression_of_dualVCDim`: sample-independent reconstruction map
+  `ρ : Finset (α × Bool) → (Fin t → Fin s → Fin (t * s)) → α → Bool` such that every realizable
+  sample `S` compresses to an unordered subset `T : Finset (α × Bool)` of size `≤ t * s` drawn from
+  `S` plus side information `info : Fin t → Fin s → Fin (t * s)` (`(t * s) ^ (t * s)` tables).
 - `exists_sampleCompressionScheme_iff_hasFiniteVCDim`: a binary concept class on **any** type `α`
   has a sample compression scheme of finite size iff it has finite VC dimension.
 - `tfae_hasFiniteVCDim_compression`: adds finite-size sample compression to the six-way fundamental
@@ -244,7 +246,7 @@ private theorem length_flattenSubsamples {m t s : ℕ} (B : Fin t → Fin s → 
 `xs` of `t * s` labeled examples, split `xs` into `t` consecutive subsamples of length `s`, apply
 `A` to each, and return `true` iff strictly more than half of the `t` hypotheses return `true`.
 When `xs.length ≠ t * s` it defaults to `false`. -/
-@[expose] def majorityReconstruct {s : ℕ} (A : Learner α Bool s) (t : ℕ)
+private def majorityReconstruct {s : ℕ} (A : Learner α Bool s) (t : ℕ)
     (xs : List (α × Bool)) (x : α) : Bool :=
   if h : xs.length = t * s then
     let sub : Fin t → LabeledSample α Bool s := fun j u =>
@@ -404,41 +406,94 @@ private theorem decide_majority_eq_label {t : ℕ} (f : Fin t → Bool) (y : Boo
     exact decide_eq_false (by omega)
   · exact decide_eq_true h
 
-/-- **Unordered-subset plus side-index form of Moran–Yehudayoff** [MoranYehudayoff2016,
-Theorem 1.4] (locator unverified). For any nonempty realizable sample `S`, there exists a
-**subset** `U : Finset (Fin m)` of at most `t * s` distinct indices and a pointer table
-`σ : Fin t → Fin s → U` such that the strict majority vote of `A` applied to `S ∘ Subtype.val ∘ σ j`
-recovers every label of `S`. The number of pointer tables on `U` is at most `(t * s) ^ (t * s)`,
-matching the `O(d* d log (d* d))` side-information bit bound. -/
+/-- Sample-independent decoder from an unordered `Finset (α × Bool)` and fixed side-information
+table `info : Fin t → Fin s → Fin (t * s)`. Enumerates `T` solely via `Fintype.equivFinOfCardEq`,
+decodes each pointer `info j u` modulo `T.card`, and takes the strict majority vote of `A`. -/
+private noncomputable def finsetSideReconstruct {s : ℕ} (A : Learner α Bool s) (t : ℕ)
+    (T : Finset (α × Bool)) (info : Fin t → Fin s → Fin (t * s)) (x : α) : Bool :=
+  if h : 0 < T.card then
+    let e : T ≃ Fin T.card := Fintype.equivFinOfCardEq (Fintype.card_coe T)
+    let sub : Fin t → LabeledSample α Bool s := fun j u =>
+      (e.symm ⟨(info j u).1 % T.card, Nat.mod_lt _ h⟩).1
+    decide (t < 2 * (Finset.univ.filter fun j : Fin t => A (sub j) x = true).card)
+  else
+    false
+
+/-- **Unordered-subset plus side-information form of Moran–Yehudayoff** [MoranYehudayoff2016,
+Theorem 1.4] (locator unverified). Fixes a **single, sample-independent** reconstruction map
+`ρ : Finset (α × Bool) → (Fin t → Fin s → Fin (t * s)) → α → Bool` using the fixed finite
+side-information alphabet `Fin t → Fin s → Fin (t * s)` of cardinality `(t * s) ^ (t * s)`
+(`O(d* d log (d* d))` bits). For every realizable sample `S : LabeledSample α Bool m` (any `m : ℕ`),
+there exist an **unordered subset** `T : Finset (α × Bool)` of examples drawn from `S` with
+`T.card ≤ t * s` and side information `info : Fin t → Fin s → Fin (t * s)` such that `ρ T info`
+correctly labels every example of `S`. -/
 theorem exists_finset_compression_of_dualVCDim {C : ConceptClass α Bool} {d dStar : ℕ}
     (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d)
     (hdual : ∀ F : Finset ↥C, SetShatters (dualClass C) ↑F → F.card ≤ dStar)
     {s t : ℕ} {A : Learner α Bool s} (hA : IsConsistent A C)
     (hs : vcSampleSize d (1 / 3) (1 / 2) ≤ s)
-    (ht : uniformConvergenceSampleSize dStar (1 / 6) (1 / 2) ≤ t)
-    {m : ℕ} (hm : 0 < m) {S : LabeledSample α Bool m} (hS : Realizable C S) :
-    ∃ (U : Finset (Fin m)) (σ : Fin t → Fin s → U),
-      U.card ≤ t * s ∧
-      Fintype.card (Fin t → Fin s → U) ≤ (t * s) ^ (t * s) ∧
-      ∀ i : Fin m,
-        t < 2 * (Finset.univ.filter fun j : Fin t =>
-          A (fun u => S (σ j u).1) (S i).1 = (S i).2).card := by
+    (ht : uniformConvergenceSampleSize dStar (1 / 6) (1 / 2) ≤ t) :
+    ∃ ρ : Finset (α × Bool) → (Fin t → Fin s → Fin (t * s)) → α → Bool,
+      ∀ {m : ℕ} (S : LabeledSample α Bool m), Realizable C S →
+        ∃ (T : Finset (α × Bool)) (info : Fin t → Fin s → Fin (t * s)),
+          (∀ z ∈ T, ∃ i : Fin m, S i = z) ∧
+          T.card ≤ t * s ∧
+          ∀ i : Fin m, ρ T info (S i).1 = (S i).2 := by
   classical
-  obtain ⟨B, hB⟩ := exists_majority_subsamples_of_dualVCDim hC hdual hA hs ht hm hS
-  let U : Finset (Fin m) := Finset.univ.biUnion fun j : Fin t => Finset.univ.image (B j)
-  have hmem (j : Fin t) (u : Fin s) : B j u ∈ U :=
-    Finset.mem_biUnion.2 ⟨j, Finset.mem_univ _, Finset.mem_image_of_mem _ (Finset.mem_univ u)⟩
-  have hUcard : U.card ≤ t * s :=
-    calc U.card ≤ ∑ j : Fin t, (Finset.univ.image (B j)).card := Finset.card_biUnion_le
-      _ ≤ ∑ _j : Fin t, (Finset.univ : Finset (Fin s)).card :=
-          Finset.sum_le_sum fun _ _ => Finset.card_image_le
-      _ = t * s := by
-          simp only [Finset.card_univ, Fintype.card_fin, Finset.sum_const, smul_eq_mul]
-  let σ : Fin t → Fin s → U := fun j u => ⟨B j u, hmem j u⟩
-  have hcard_tables : Fintype.card (Fin t → Fin s → U) ≤ (t * s) ^ (t * s) := by
-    simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_coe, ← pow_mul, mul_comm s t]
-    exact Nat.pow_le_pow_left hUcard (t * s)
-  exact ⟨U, σ, hUcard, hcard_tables, hB⟩
+  have hs_pos : 0 < s := by
+    have : (0 : ℝ) < s := lt_of_lt_of_le (vcSampleSize_one_third_half_pos d) hs
+    exact_mod_cast this
+  have ht_pos : 0 < t := by
+    have : (0 : ℝ) < t :=
+      lt_of_lt_of_le (uniformConvergenceSampleSize_one_sixth_half_pos dStar) ht
+    exact_mod_cast this
+  refine ⟨finsetSideReconstruct A t, fun {m} S hS => ?_⟩
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · exact ⟨∅, fun _ _ => ⟨0, Nat.mul_pos ht_pos hs_pos⟩,
+      fun _ hz => (Finset.notMem_empty _ hz).elim, Nat.zero_le _, fun i => i.elim0⟩
+  · obtain ⟨B, hB⟩ := exists_majority_subsamples_of_dualVCDim hC hdual hA hs ht hm hS
+    let T : Finset (α × Bool) :=
+      Finset.univ.biUnion fun j : Fin t => Finset.univ.image (S ∘ B j)
+    have hmem (j : Fin t) (u : Fin s) : S (B j u) ∈ T :=
+      Finset.mem_biUnion.2
+        ⟨j, Finset.mem_univ _, Finset.mem_image_of_mem _ (Finset.mem_univ u)⟩
+    have hT_sub : ∀ z ∈ T, ∃ i : Fin m, S i = z := by
+      intro z hz
+      obtain ⟨j, -, hu⟩ := Finset.mem_biUnion.1 hz
+      obtain ⟨u, -, rfl⟩ := Finset.mem_image.1 hu
+      exact ⟨B j u, rfl⟩
+    have hT_card : T.card ≤ t * s :=
+      calc T.card ≤ ∑ j : Fin t, (Finset.univ.image (S ∘ B j)).card := Finset.card_biUnion_le
+        _ ≤ ∑ _j : Fin t, (Finset.univ : Finset (Fin s)).card :=
+            Finset.sum_le_sum fun _ _ => Finset.card_image_le
+        _ = t * s := by
+            simp only [Finset.card_univ, Fintype.card_fin, Finset.sum_const, smul_eq_mul]
+    have hT_pos : 0 < T.card :=
+      Finset.card_pos.2 ⟨S (B ⟨0, ht_pos⟩ ⟨0, hs_pos⟩), hmem _ _⟩
+    let e : T ≃ Fin T.card := Fintype.equivFinOfCardEq (Fintype.card_coe T)
+    let info : Fin t → Fin s → Fin (t * s) := fun j u =>
+      ⟨(e ⟨S (B j u), hmem j u⟩).1, lt_of_lt_of_le (e ⟨S (B j u), hmem j u⟩).2 hT_card⟩
+    refine ⟨T, info, hT_sub, hT_card, fun i => ?_⟩
+    have hsub : ∀ j : Fin t,
+        (fun u : Fin s => (e.symm ⟨(info j u).1 % T.card, Nat.mod_lt _ hT_pos⟩).1) =
+          S ∘ B j := by
+      intro j
+      funext u
+      have hfin : (⟨(info j u).1 % T.card, Nat.mod_lt _ hT_pos⟩ : Fin T.card) =
+          e ⟨S (B j u), hmem j u⟩ := by
+        apply Fin.ext
+        exact Nat.mod_eq_of_lt (e ⟨S (B j u), hmem j u⟩).2
+      rw [hfin, Equiv.symm_apply_apply]
+      rfl
+    have heval : finsetSideReconstruct A t T info (S i).1 =
+        decide (t < 2 * (Finset.univ.filter fun j : Fin t =>
+          A (S ∘ B j) (S i).1 = true).card) := by
+      unfold finsetSideReconstruct
+      rw [dite_eq_left_of_eq_true (eq_true hT_pos)]
+      refine congrArg (fun n => decide (t < 2 * n)) (congrArg Finset.card ?_)
+      exact Finset.filter_congr fun j _ => by dsimp only; rw [hsub j]
+    rw [heval]
+    exact decide_majority_eq_label _ (S i).2 (hB i)
 
 /-! ### The Moran–Yehudayoff sample compression scheme -/
 

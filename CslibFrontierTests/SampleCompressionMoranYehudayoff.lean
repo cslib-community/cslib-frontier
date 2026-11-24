@@ -26,14 +26,14 @@ Ordinary-import client (no `import all`) exercising:
      or countability assumption),
    - an explicit **negative witness** showing `(Set.univ : ConceptClass ℕ Bool)` has **no** finite
      sample compression scheme (`¬ ∃ k, Nonempty (SampleCompressionScheme Set.univ k)`).
-3. Subset-plus-pointer-table output (`exists_finset_compression_of_dualVCDim`) and majority voting
-   (`exists_majority_subsamples_of_dualVCDim`).
+3. Unordered-subset plus side-information decoder (`exists_finset_compression_of_dualVCDim`) and
+   majority voting (`exists_majority_subsamples_of_dualVCDim`).
 4. Seven-way fundamental theorem TFAE (`tfae_hasFiniteVCDim_compression`) on `ℕ`.
 5. Agnostic (`GeneralCompressionScheme`) checks on a concrete non-realizable noisy distribution on
-   `Bool × Bool`, instantiating Hoeffding (`measure_pi_abs_sub_heldOutError_le`,
-   `measure_pi_hoeffding_gt_le`), Bernstein (`measure_pi_bernstein_tail_le`,
-   `measure_pi_bernstein_gt_le`), relaxed fast rate (`measure_pi_fastRate_gt_le`,
-   `measure_pi_fastRate_half_gt_le`), zero held-out error (`measure_pi_zero_heldOut_gt_le`),
+   `Bool × Bool`, instantiating `heldOutError_le_one`, `heldOutError_le_empiricalMiscount_div`,
+   Hoeffding (`measure_pi_abs_sub_heldOutError_le`, `measure_pi_hoeffding_gt_le`), Bernstein
+   (`measure_pi_bernstein_tail_le`, `measure_pi_bernstein_gt_le`), relaxed fast rate
+   (`measure_pi_fastRate_gt_le`), zero held-out error (`measure_pi_zero_heldOut_gt_le`),
    `SampleCompressionScheme.toGeneral`, and a numerical separation verifying that the fast rate
    beats Hoeffding near `q = 0`.
 -/
@@ -155,27 +155,32 @@ example : ¬ ∃ k : ℕ, Nonempty (SampleCompressionScheme (Set.univ : ConceptC
   simp only [Finset.card_range] at hle
   omega
 
-/-! ### Unordered subset + pointer-table witness on `realThresholds` -/
+/-! ### Unordered subset + fixed side-information decoder on `realThresholds` -/
 
-example (S : LabeledSample ℝ Bool 2) (hS : Realizable realThresholds S) :
+example :
     let s := moranYehudayoffSubsampleSize 1
     let t := moranYehudayoffMajoritySize (2 ^ 2 - 1)
-    ∃ (U : Finset (Fin 2)) (_σ : Fin t → Fin s → U),
-      U.card ≤ t * s ∧ Fintype.card (Fin t → Fin s → U) ≤ (t * s) ^ (t * s) := by
+    Fintype.card (Fin t → Fin s → Fin (t * s)) = (t * s) ^ (t * s) ∧
+    ∃ ρ : Finset (ℝ × Bool) → (Fin t → Fin s → Fin (t * s)) → ℝ → Bool,
+      ∀ {m : ℕ} (S : LabeledSample ℝ Bool m), Realizable realThresholds S →
+        ∃ (T : Finset (ℝ × Bool)) (info : Fin t → Fin s → Fin (t * s)),
+          (∀ z ∈ T, ∃ i : Fin m, S i = z) ∧ T.card ≤ t * s ∧
+          ∀ i : Fin m, ρ T info (S i).1 = (S i).2 := by
   intro s t
-  let A : Learner ℝ Bool s := fun T =>
-    letI := Classical.propDecidable
-    if h : Realizable realThresholds T then Classical.choose h else fun _ => false
-  have hA : IsConsistent A realThresholds := fun T hT => by
-    have : A T = Classical.choose hT := by
-      unfold A; split_ifs; rfl
-    rw [this]
-    exact ⟨(Classical.choose_spec hT).1, fun i => ((Classical.choose_spec hT).2 i).symm⟩
-  obtain ⟨U, σ, hcard, htab, _⟩ := exists_finset_compression_of_dualVCDim
-    realThresholds_shatters_le_one
-    (fun _ hF => card_le_of_setShatters_dualClass realThresholds_shatters_le_one hF)
-    hA (Nat.le_ceil _) (Nat.le_ceil _) (by norm_num) hS
-  exact ⟨U, σ, hcard, htab⟩
+  refine ⟨?_, ?_⟩
+  · simp only [Fintype.card_fun, Fintype.card_fin, ← pow_mul, mul_comm s t]
+  · let A : Learner ℝ Bool s := fun T =>
+      letI := Classical.propDecidable
+      if h : Realizable realThresholds T then Classical.choose h else fun _ => false
+    have hA : IsConsistent A realThresholds := fun T hT => by
+      have : A T = Classical.choose hT := by
+        unfold A; split_ifs; rfl
+      rw [this]
+      exact ⟨(Classical.choose_spec hT).1, fun i => ((Classical.choose_spec hT).2 i).symm⟩
+    exact exists_finset_compression_of_dualVCDim
+      realThresholds_shatters_le_one
+      (fun _ hF => card_le_of_setShatters_dualClass realThresholds_shatters_le_one hF)
+      hA (Nat.le_ceil _) (Nat.le_ceil _)
 
 /-! ### Seven-way Fundamental Theorem bridge on `ℕ` -/
 
@@ -231,6 +236,15 @@ example :
   rw [heldOutError, hmis, hcard]
   norm_num
 
+/-- Check `heldOutError_le_one` and `heldOutError_le_empiricalMiscount_div` on the 4-point
+sample (also linking `heldOutError` back to the full-sample `empiricalMiscount`). -/
+example (S : LabeledSample Bool Bool 4) :
+    heldOutError (firstLabelScheme.keptSet S) (firstLabelScheme.learner S) S ≤ 1 ∧
+      heldOutError (firstLabelScheme.keptSet S) (firstLabelScheme.learner S) S ≤
+        (empiricalMiscount (firstLabelScheme.learner S) S : ℝ) / (4 - 1 : ℕ) :=
+  ⟨heldOutError_le_one _ _ _,
+    heldOutError_le_empiricalMiscount_div (firstLabelScheme.card_keptSet_le S) (by omega) _ _⟩
+
 /-- Check `SampleCompressionScheme.toGeneral` preserves `learner` on realizable samples. -/
 example (S : LabeledSample ℕ Bool 3) (hS : Realizable thresholdClass S) :
     let κ := (lowerSetScheme (α := ℕ)).ofSubset thresholdClass_subset_lowerSetClass
@@ -263,20 +277,19 @@ example :
   firstLabelScheme.measure_pi_bernstein_gt_le (measurableReconstruction_of_countable _)
     noisyBoolMeasure (m := 10) (by omega) (δ := 1 / 10) (by norm_num)
 
-/-- Instantiate the relaxed fast-rate bound (`measure_pi_fastRate_gt_le`), the `m ≥ 2k`
-specialization (`measure_pi_fastRate_half_gt_le`), and zero held-out error corollary
-(`measure_pi_zero_heldOut_gt_le`). -/
+/-- Instantiate the relaxed fast-rate bound (`measure_pi_fastRate_gt_le`) and the zero
+held-out error corollary (`measure_pi_zero_heldOut_gt_le`). -/
 example :
-    let B := ((1 : ℕ) * Real.log ((10 : ℕ) + 1) + Real.log (1 / (1 / 10 : ℝ))) / (10 : ℕ)
+    let c := ((1 : ℕ) * Real.log ((10 : ℕ) + 1) + Real.log (1 / (1 / 10 : ℝ))) / (10 - 1 : ℕ)
     Measure.pi (fun _ : Fin 10 => noisyBoolMeasure)
         {S | heldOutError (firstLabelScheme.keptSet S) (firstLabelScheme.learner S) S +
-            2 * Real.sqrt
-              (heldOutError (firstLabelScheme.keptSet S) (firstLabelScheme.learner S) S * B) +
-            4 * B <
+            Real.sqrt
+              (2 * heldOutError (firstLabelScheme.keptSet S) (firstLabelScheme.learner S) S * c) +
+            2 * c <
           (error noisyBoolMeasure (firstLabelScheme.learner S)).toReal} ≤
       ENNReal.ofReal (1 / 10) :=
-  firstLabelScheme.measure_pi_fastRate_half_gt_le (measurableReconstruction_of_countable _)
-    noisyBoolMeasure (m := 10) (by omega) (by omega) (δ := 1 / 10) (by norm_num)
+  firstLabelScheme.measure_pi_fastRate_gt_le (measurableReconstruction_of_countable _)
+    noisyBoolMeasure (m := 10) (by omega) (δ := 1 / 10) (by norm_num)
 
 example :
     Measure.pi (fun _ : Fin 10 => noisyBoolMeasure)

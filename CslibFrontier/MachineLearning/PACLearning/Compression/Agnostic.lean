@@ -18,12 +18,12 @@ import CslibFrontier.Probability.Product.MapMeasure
 /-!
 # Agnostic sample compression generalization bounds
 
-`Compression/Basic.lean` proves the realizable sample compression bound `(m + 1) ^ k (1 - ε) ^
-(m - k)` for schemes that achieve zero empirical error on every realizable sample. Here we drop
-the realizability and zero-error requirements and treat *general* (agnostic) sample compression
-schemes (`GeneralCompressionScheme α β k`) of size `k` over an arbitrary distribution `D` on
-`α × β` [LittlestoneWarmuth1986; FloydWarmuth1995; ShalevShwartzBenDavid2014, Theorem 30.2]
-(locators unverified).
+`CslibFrontier/MachineLearning/PACLearning/Compression/Basic.lean` proves the realizable sample
+compression bound `(m + 1) ^ k (1 - ε) ^ (m - k)` for schemes that achieve zero empirical error on
+every realizable sample. Here we drop the realizability and zero-error requirements and treat
+*general* (agnostic) sample compression schemes (`GeneralCompressionScheme α β k`) of size `k` over
+an arbitrary distribution `D` on `α × β` [LittlestoneWarmuth1986; FloydWarmuth1995;
+ShalevShwartzBenDavid2014, Theorem 30.2] (locators unverified).
 
 For each sample `S : LabeledSample α β m`, let `I = κ.compress S` (`I.length ≤ k`), let
 `J = I.toFinset` be the set of distinct kept indices (`|J| ≤ k`), and let `h_S = κ.learner S` be
@@ -72,8 +72,8 @@ index lists `Fin j → Fin m` (`j ≤ k`):
   `q + c + √(c² + 2 q c)`.
 - `GeneralCompressionScheme.measure_pi_fastRate_gt_le`: relaxed additive form
   `q + √(2 q c) + 2 c` (`[ShalevShwartzBenDavid2014, Theorem 30.2]`).
-- `GeneralCompressionScheme.measure_pi_fastRate_half_gt_le`: `m ≥ 2 k` specialization replacing
-  `m - k` with `m / 2`.
+- `GeneralCompressionScheme.measure_pi_zero_heldOut_gt_le`: zero held-out error corollary
+  `2 c = 2 (k log (m + 1) + log (1 / δ)) / (m - k)` (`[ShalevShwartzBenDavid2014, Corollary 30.3]`).
 
 ## References
 
@@ -163,11 +163,11 @@ variable [DecidableEq β]
     (S : LabeledSample α β m) : ℝ :=
   (heldOutMiscount J h S : ℝ) / (Jᶜ.card : ℝ)
 
-theorem heldOutMiscount_le_card {m : ℕ} (J : Finset (Fin m)) (h : α → β)
+private theorem heldOutMiscount_le_card {m : ℕ} (J : Finset (Fin m)) (h : α → β)
     (S : LabeledSample α β m) : heldOutMiscount J h S ≤ Jᶜ.card :=
   Finset.card_filter_le _ _
 
-theorem heldOutMiscount_le_empiricalMiscount {m : ℕ} (J : Finset (Fin m)) (h : α → β)
+private theorem heldOutMiscount_le_empiricalMiscount {m : ℕ} (J : Finset (Fin m)) (h : α → β)
     (S : LabeledSample α β m) : heldOutMiscount J h S ≤ empiricalMiscount h S := by
   refine Finset.card_le_card ?_
   intro i hi
@@ -700,50 +700,6 @@ theorem measure_pi_fastRate_gt_le (κ : GeneralCompressionScheme α β k)
       Real.sqrt (c ^ 2 + 2 * heldOutError (κ.keptSet S) (κ.learner S) S * c) <
     (error D (κ.learner S)).toReal
   linarith [hS', hsqrt]
-
-/-- **Halving-denominator specialization (`m ≥ 2 k`)** [ShalevShwartzBenDavid2014, Theorem 30.2]
-(locator unverified): when `2 * k ≤ m` and `0 < m`, `m - k ≥ m / 2`, so writing
-`B = (k log (m + 1) + log (1 / δ)) / m`, `(error D (κ.learner S)).toReal ≤ q + 2 √(q B) + 4 B`
-with probability at least `1 - δ`. -/
-theorem measure_pi_fastRate_half_gt_le (κ : GeneralCompressionScheme α β k)
-    (hκ : MeasurableReconstruction κ.reconstruct) (D : Measure (α × β)) [IsProbabilityMeasure D]
-    {m : ℕ} (hm : 0 < m) (h2k : 2 * k ≤ m) {δ : ℝ} (hδ : 0 < δ) :
-    let B := (k * Real.log (m + 1) + Real.log (1 / δ)) / m
-    Measure.pi (fun _ : Fin m => D)
-        {S | heldOutError (κ.keptSet S) (κ.learner S) S +
-            2 * Real.sqrt (heldOutError (κ.keptSet S) (κ.learner S) S * B) + 4 * B <
-          (error D (κ.learner S)).toReal} ≤
-      ENNReal.ofReal δ := by
-  intro B
-  rcases le_or_gt 1 δ with hδ1 | hδ1
-  · exact prob_le_one.trans (ENNReal.one_le_ofReal.2 hδ1)
-  have hkm : k < m := by omega
-  have hmk_pos : (0 : ℝ) < (m - k : ℕ) := Nat.cast_pos.2 (by omega)
-  have hm_pos : (0 : ℝ) < m := Nat.cast_pos.2 hm
-  have hhalf : (m : ℝ) / 2 ≤ (m - k : ℕ) := by
-    have hnat : m ≤ 2 * (m - k) := by omega
-    have : (m : ℝ) ≤ 2 * ((m - k : ℕ) : ℝ) := by exact_mod_cast hnat
-    linarith
-  set num := k * Real.log (m + 1) + Real.log (1 / δ)
-  have hnum0 : 0 ≤ num := complexity_num_nonneg m k hδ hδ1.le
-  have hc_le : num / (m - k : ℕ) ≤ 2 * B := by
-    dsimp only [B]
-    have : 2 * (num / m) = num / (m / 2) := by field_simp
-    rw [this]
-    exact div_le_div_of_nonneg_left hnum0 (by positivity) hhalf
-  refine (measure_mono fun S hS => ?_).trans (κ.measure_pi_fastRate_gt_le hκ D hkm hδ)
-  set q := heldOutError (κ.keptSet S) (κ.learner S) S
-  have hS' : q + 2 * Real.sqrt (q * B) + 4 * B < (error D (κ.learner S)).toReal := hS
-  have hq0 : 0 ≤ q := heldOutError_nonneg _ _ _
-  have hsqrt_le : Real.sqrt (2 * q * (num / (m - k : ℕ))) ≤ 2 * Real.sqrt (q * B) := by
-    calc Real.sqrt (2 * q * (num / (m - k : ℕ)))
-        ≤ Real.sqrt (2 * q * (2 * B)) := by gcongr
-      _ = Real.sqrt (2 ^ 2 * (q * B)) := by ring_nf
-      _ = 2 * Real.sqrt (q * B) := by
-          rw [Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)]
-  change q + Real.sqrt (2 * q * (num / (m - k : ℕ))) + 2 * (num / (m - k : ℕ)) <
-    (error D (κ.learner S)).toReal
-  linarith [hS', hc_le, hsqrt_le]
 
 omit [DecidableEq β] in
 /-- **Zero held-out error corollary** [ShalevShwartzBenDavid2014, Corollary 30.3] (locator
