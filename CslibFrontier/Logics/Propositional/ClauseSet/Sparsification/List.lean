@@ -550,11 +550,6 @@ def rule {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) (k : ℕ) :
     simp only [hs]
     exact toClauseSet_next ψ.2 b
 
-private theorem rule_next_val {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ}
-    (ψ : {ψ : CNF V // Normalized k ψ}) (hs : isSparse θ k ψ.1 = false) (b : Bool) :
-    ((rule hθ k).next ψ b).1 = next θ k ψ.1 b := by
-  simp [rule, hs]
-
 /-! ### Normalization -/
 
 /-- Literal membership is preserved by `dedup`. -/

@@ -154,6 +154,10 @@ class RuleTests(unittest.TestCase):
                    + theorem("e", prefix="@[simp] public "))
         self.assertEqual(violations(theorem("a") + theorem("b") + outside),
                          {TERM: ["a", "b", "d", "e"]})
+        # `public meta section` enters a public scope via `proof_lengths.command_starts`.
+        meta_sec = ("module\n-- upstream: candidate\n\npublic meta section\n\n"
+                    + theorem("a") + theorem("b") + theorem("c") + "end\n")
+        self.assertEqual([d.name for d in c.public_declarations(meta_sec)], ["a", "b", "c"])
 
     def test_internal_namespaces_do_not_count(self) -> None:
         internal = "namespace Foo.Internal\n\n" + theorem("c") + "end Foo.Internal\n\n"
@@ -185,6 +189,21 @@ class RuleTests(unittest.TestCase):
         # The inner term is reported too when it is repeated on its own.
         both = "".join(theorem(n, outer) for n in "abc") + "".join(theorem(n) for n in "xyz")
         self.assertEqual(violations(both), {outer: ["a", "b", "c"], TERM: ["x", "y", "z"]})
+
+    def test_dependent_pairs_are_combinators(self) -> None:
+        def sigma(name: str, term: str) -> str:
+            return (f"theorem {name} (f : (Σ n, Fin n) → Bool) :\n"
+                    f"    ComputableInPolyTime f ({term}) encBool := sorry\n\n")
+        # A combinator as the index encoding, or `encSigma` inside one, makes it compound. The
+        # family's bound name is reported as `?1`.
+        index = "encSigma (encList encBool) (fun n => encFinEnum (Fin n))"
+        self.assertEqual(violations("".join(sigma(n, index) for n in "abc")),
+                         {index.replace(" n", " ?1"): ["a", "b", "c"]})
+        inner = "encList (encSigma encUnary (fun n => encFinEnum (Fin n)))"
+        self.assertEqual(violations("".join(sigma(n, inner) for n in "abc")),
+                         {inner.replace(" n", " ?1"): ["a", "b", "c"]})
+        flat = "encSigma encUnary (fun n => encFinEnum (Fin n))"
+        self.assertEqual(violations("".join(sigma(n, flat) for n in "abcde")), {})
 
     def test_combinators_are_defined(self) -> None:
         root = pathlib.Path(c.ROOT, "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings")

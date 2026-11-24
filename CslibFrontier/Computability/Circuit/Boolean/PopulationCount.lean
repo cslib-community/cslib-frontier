@@ -9,10 +9,12 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.CarryLookahead
 public import CslibFrontier.Computability.Circuit.Boolean.ThresholdNC1
+import CslibFrontier.Foundations.Data.BitString.Weight.ZeroExtend
 import CslibFrontier.Foundations.Data.Nat.Log
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Linear-size population counting and thresholds
@@ -85,7 +87,7 @@ theorem val_eval_tree (h : ℕ) (x : BitString (2 ^ h)) :
     rw [val_equivFin_eq_sum, weight_eq_sum_toNat]
     simp
   | succ h ih =>
-    simp only [tree, Circuit.eval_comp, Circuit.eval_append, Circuit.eval_wiring]
+    simp only [circuit_simps, tree]
     change (BitString.equivFin (h + 1 + 1)
       ((carryLookahead (h + 1)).eval interpretation
         (Fin.append
@@ -125,8 +127,7 @@ theorem size_tree_le (h : ℕ) : (tree h).size ≤ 231 * 2 ^ h := by
 @[simp] theorem eval_pad (n m : ℕ) (x : BitString n) :
     (pad n m).eval interpretation x = zeroExtend x := by
   funext i
-  simp only [pad, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_append,
-    Function.comp_apply, zeroExtend]
+  simp only [circuit_simps, pad, zeroExtend]
   split_ifs with hi
   · change Fin.append x (fun _ => false) (Fin.castAdd 1 ⟨i.val, hi⟩) = _
     exact Fin.append_left _ _ _
@@ -136,25 +137,6 @@ theorem size_tree_le (h : ℕ) : (tree h).size ≤ 231 * 2 ^ h := by
 /-- Zero padding charges exactly one gate. -/
 @[simp] theorem size_pad (n m : ℕ) : (pad n m).size = 1 := by
   simp [pad]
-
-private theorem weight_zeroExtend {n m : ℕ} (h : n ≤ m) (x : BitString n) :
-    weight (zeroExtend (d' := m) x) = weight x := by
-  rw [weight, weight]
-  have hlt (i : Fin m) (hi : i ∈ Finset.univ.filter (fun j => zeroExtend x j = true)) :
-      i.val < n := by
-    have ht := (Finset.mem_filter.mp hi).2
-    by_contra hn
-    simp [zeroExtend, hn] at ht
-  refine Finset.card_bij (fun i hi => (⟨i.val, hlt i hi⟩ : Fin n)) ?_ ?_ ?_
-  · intro i hi
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa only [zeroExtend, dite_eq_left (hlt i hi)] using (Finset.mem_filter.mp hi).2⟩
-  · intro i hi j hj hij
-    exact Fin.ext (congrArg (fun a : Fin n => a.val) hij)
-  · intro i hi
-    refine ⟨⟨i.val, i.isLt.trans_le h⟩, ?_, rfl⟩
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa [zeroExtend, i.isLt] using (Finset.mem_filter.mp hi).2⟩
 
 end PopulationCount
 
@@ -171,7 +153,7 @@ theorem val_eval_populationCountCircuit (n : ℕ) (x : BitString n) :
       ((populationCountCircuit n).eval interpretation x) : ℕ) = weight x := by
   rw [populationCountCircuit, Circuit.eval_comp, PopulationCount.val_eval_tree,
     PopulationCount.eval_pad]
-  exact PopulationCount.weight_zeroExtend
+  exact weight_zeroExtend
     ((Nat.le_succ n).trans (Nat.le_pow_clog Nat.one_lt_two _)) x
 
 /-- A uniform linear gate bound, with constants and padding included. -/
@@ -206,6 +188,7 @@ theorem size_populationCountCircuit_le (n : ℕ) :
   · simp only [Circuit.eval_oneGate, interpretation, threshold_eq_false_of_lt (not_le.mp hq)]
 
 /-- Linear population counting followed by comparison remains linear in the input count. -/
+@[circuit_bound]
 theorem size_linearThresholdCircuit_le (n q : ℕ) :
     (linearThresholdCircuit n q).size ≤ 476 * (n + 1) := by
   simp only [linearThresholdCircuit]

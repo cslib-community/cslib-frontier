@@ -20,6 +20,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.UniformPoint
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # CPA Security of Counter (CTR) Mode
@@ -504,14 +505,9 @@ theorem advantage_idealExperiment_ctrReduction_le
       exact PMF.map_id _
   rw [ctrReduction, ← hfresh]
   refine (advantage_idealExperiment_freshStep_le _).trans ?_
-  have hne : ((K * K : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.2 (pow_ne_zero _ two_ne_zero))
-  refine (ENNReal.toReal_mono hne (toOuterMeasure_bad_fresh_le counter ℓ b h hintra hiv)).trans
-    (le_of_eq ?_)
-  simp only [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofNat, Nat.cast_mul]
-  ring
+  have hbad := toOuterMeasure_bad_fresh_le counter ℓ b h hintra hiv
+  ennreal_to_real at hbad
+  exact hbad.trans_eq (by push_cast; ring)
 
 /-- **CTR mode with a uniform random function** ([KatzLindell2020], Section 3.6.3): when
 `adversary` asks at most `K` blocks in total and at most `ℓ` blocks per query, its left-or-right

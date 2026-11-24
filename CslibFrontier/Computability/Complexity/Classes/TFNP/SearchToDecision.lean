@@ -14,10 +14,12 @@ import CslibFrontier.Computability.Complexity.Classes.NP.SelfReduction
 import CslibFrontier.Computability.Complexity.Classes.P.Complement
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Tactic.PolyTime
 import Cslib.Foundations.Data.Polynomial.Monotone
 
 /-!
@@ -59,6 +61,8 @@ directly: the search problem `Cslib.Complexity.SAT.searchRel` of assignment cert
   its domain is in `NP`.
 * `Cslib.Complexity.rel_prefixSearchRun`: with a correct decision procedure for the prefix problem,
   the search through prefixes finds a solution of every instance that has one.
+* `Cslib.Complexity.mem_FPSearch_of_prefixSearch_mem_P`: a polynomial-time decider of the prefix
+  problem solves the search problem.
 * `Cslib.Complexity.FNP_subset_FPSearch_of_NP_subset_P`, `Cslib.Complexity.FNP_subset_FPSearch_iff`,
   `Cslib.Complexity.FNP_subset_FPSearch_iff_SAT_mem_P`.
 * `Cslib.Complexity.SAT.searchRel_mem_FNP`, `Cslib.Complexity.SAT.searchDomain_searchRel`,
@@ -191,16 +195,7 @@ private theorem computableInPolyTime_prefixSearchRun {V D : α × List Bool → 
   have hstep : ComputableInPolyTime
       (fun y : (α × List Bool) × Bool => prefixSearchStep V D y.1.1 y.1.2)
       (encPair (encPair enc encBits) encBool) encBits := by
-    have hu : ComputableInPolyTime (fun y : (α × List Bool) × Bool => y.1.2)
-        (encPair (encPair enc encBits) encBool) encBits := (fst _ _).snd'
-    have ha : ComputableInPolyTime (fun y : (α × List Bool) × Bool => y.1.1)
-        (encPair (encPair enc encBits) encBool) enc := (fst _ _).fst'
-    have happ (b : Bool) : ComputableInPolyTime
-        (fun y : (α × List Bool) × Bool => y.1.2 ++ [b])
-        (encPair (encPair enc encBits) encBool) encBits := bitsAppend hu (const [b])
-    unfold prefixSearchStep
-    exact ite' (encC := encBool) (hV.comp (ha.prod hu)) hu
-      (ite' (encC := encBool) (hD.comp (ha.prod (happ false))) (happ false) (happ true))
+    polytime [prefixSearchStep]
   unfold prefixSearchRun
   refine foldlWithInput_of_bounded_growth (const []) ⟨(bitsReplicate false).comp hn, hstep,
     inferInstance, inferInstance⟩ (growth := fun _ => 1) ⟨.const 1, fun a u _ _ => ?_⟩
@@ -209,34 +204,37 @@ private theorem computableInPolyTime_prefixSearchRun {V D : α × List Bool → 
 
 /-! ### `FPSearch = FNP` exactly when `P = NP` -/
 
-/-- **Search reduces to decision**: if the `NP` problems on pairs of instances and words are in
-`P`, every `FNP` relation is in `FPSearch`. The solver decides the prefix problem, searches through
-prefixes, and checks the result. -/
-theorem FNP_subset_FPSearch_of_NP_subset_P
-    (h : NP (encPair enc encBits) ⊆ P (encPair enc encBits)) : FNP enc ⊆ FPSearch enc := by
-  intro R hR
+/-- **Search from a prefix decider.** If the prefix problem of an `FNP` relation is decidable in
+polynomial time, the relation is in `FPSearch`: the solver searches through prefixes and checks
+the result. -/
+theorem mem_FPSearch_of_prefixSearch_mem_P (hR : R ∈ FNP enc)
+    (hP : searchDomain (prefixSearch R) ∈ P (encPair enc encBits)) : R ∈ FPSearch enc := by
   obtain ⟨⟨p, hp⟩, V, hV, hRV⟩ := mem_FNP.mp hR
-  obtain ⟨D, hD, hDR⟩ := mem_P.mp
-    (h (searchDomain_mem_NP (prefixSearch_mem_FNP (mem_FNP.mpr ⟨⟨p, hp⟩, V, hV, hRV⟩))))
+  obtain ⟨D, hD, hDR⟩ := mem_P.mp hP
   let n : α → ℕ := fun a => p.eval (enc a).length
   have hn : ComputableInPolyTime n enc encUnary := (unary_eval p).comp (encoding_length enc)
   have hrun := computableInPolyTime_prefixSearchRun hV hD hn
   refine mem_FPSearch.mpr
-    ⟨mem_FNP.mpr ⟨⟨p, hp⟩, V, hV, hRV⟩, fun a => if V (a, prefixSearchRun V D n a) then
-    some (prefixSearchRun V D n a) else none, ?_, fun a => ?_⟩
-  · exact 
-      (ite' (encC := encBool) (hV.comp (id'.prod hrun)) ((optionSome encBits).comp hrun)
-        (const none))
-  · have hcorrect := rel_prefixSearchRun hRV (fun a u => (hDR (a, u)).symm) hp (a := a)
-    constructor
-    · intro w hw
-      beta_reduce at hw
-      split_ifs at hw with hVa
-      exact Option.some_injective _ hw ▸ (hRV _ _).2 hVa
-    · intro hw ha
-      beta_reduce at hw
-      split_ifs at hw with hVa
-      exact hVa ((hRV _ _).1 (hcorrect ha))
+    ⟨hR, fun a => if V (a, prefixSearchRun V D n a) then
+    some (prefixSearchRun V D n a) else none, by fun_prop, fun a => ?_⟩
+  have hcorrect := rel_prefixSearchRun hRV (fun a u => (hDR (a, u)).symm) hp (a := a)
+  constructor
+  · intro w hw
+    beta_reduce at hw
+    split_ifs at hw with hVa
+    exact Option.some_injective _ hw ▸ (hRV _ _).2 hVa
+  · intro hw ha
+    beta_reduce at hw
+    split_ifs at hw with hVa
+    exact hVa ((hRV _ _).1 (hcorrect ha))
+
+/-- **Search reduces to decision**: if the `NP` problems on pairs of instances and words are in
+`P`, every `FNP` relation is in `FPSearch`. The solver decides the prefix problem, searches through
+prefixes, and checks the result. -/
+theorem FNP_subset_FPSearch_of_NP_subset_P
+    (h : NP (encPair enc encBits) ⊆ P (encPair enc encBits)) : FNP enc ⊆ FPSearch enc :=
+  fun _ hR =>
+    mem_FPSearch_of_prefixSearch_mem_P hR (h (searchDomain_mem_NP (prefixSearch_mem_FNP hR)))
 
 /-- **`FPSearch = FNP` exactly when `P = NP`**, both for every encoding of instances. -/
 theorem FNP_subset_FPSearch_iff :
@@ -282,8 +280,7 @@ theorem searchRel_mem_FPSearch_iff : searchRel ∈ FPSearch encCNF ↔ SAT ∈ P
       (id'))
   refine mem_FPSearch.mpr
     ⟨searchRel_mem_FNP, fun φ => if D φ then some (search D φ) else none,
-      (ite' (encC := encBool) hD ((optionSome encBits).comp hsearch) (const none)),
-      fun φ => ⟨fun w hw => ?_, ?_⟩⟩
+      by fun_prop, fun φ => ⟨fun w hw => ?_, ?_⟩⟩
   · beta_reduce at hw
     split_ifs at hw with hDφ
     cases Option.some_injective _ hw

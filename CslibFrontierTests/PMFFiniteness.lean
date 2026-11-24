@@ -55,6 +55,13 @@ example (x : ℝ≥0∞) (h : x < 1) (p : PMF α) (a : α) : x + p a ≠ ∞ := 
 -- Terms known finite from a quantified hypothesis.
 example (f : ι → ℝ≥0∞) (s : Finset ι) (h : ∀ i, f i ≠ ∞) : ∑ i ∈ s, f i ≠ ∞ := by finiteness
 
+-- A finite product of outcome masses.
+example (p : ι → PMF α) (x : ι → α) (s : Finset ι) : ∏ i ∈ s, p i (x i) ≠ ∞ := by finiteness
+
+-- A finite measure alongside an outcome mass.
+example [MeasurableSpace α] (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (s : Set α) (p : PMF α) (a : α) : μ s + p a ≠ ∞ := by finiteness
+
 -- Comparing success probabilities reduces to comparing the masses of `true`.
 example (g₁ g₂ : Cslib.Crypto.Game) (h : g₁ true ≤ g₂ true) :
     g₁.succProbability ≤ g₂.succProbability := by

@@ -15,6 +15,7 @@ import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -354,7 +355,7 @@ private theorem toReal_eval_smoothSlotCoins_some (P : Scheme ι S R Q A) [Fintyp
     PMF.pure_apply, reduceCtorEq, mul_zero, add_zero]
   change (_ * (((PMF.uniformOfFintype (Fin (smoothCopies P i₀ (s, q)))).map embed)
     (some j))).toReal = _
-  rw [ENNReal.toReal_mul]
+  ennreal_to_real
   rcases j with ⟨sq', idx'⟩
   by_cases hsq : sq' = (s, q)
   · subst hsq
@@ -367,7 +368,7 @@ private theorem toReal_eval_smoothSlotCoins_some (P : Scheme ι S R Q A) [Fintyp
       rw [PMF.apply_eq_zero_iff, PMF.support_map]
       rintro ⟨u, _, hu⟩
       exact hsq (congrArg Sigma.fst (Option.some.inj hu)).symm
-    rw [hz, ENNReal.toReal_zero, mul_zero]
+    simp [hz]
 
 private theorem eval_smoothSlotCoins_none (P : Scheme ι S R Q A) [Fintype S]
     [Fintype Q] [DecidableEq Q] (i₀ i : ι) (s : S) (q : Q) :
@@ -468,13 +469,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
   have hm_pos : (0 : ℝ) < Fintype.card (SmoothPos P i₀) := by
     have hne : Nonempty (SmoothPos P i₀) := ⟨⟨(s₀, q₀), idx₀⟩⟩
     exact_mod_cast Fintype.card_pos
-  have hsum_ne_top :
-      (∑ k : Fin (Fintype.card S),
-        ((ProbComp.eval (smoothCoins P i₀ i)).map (fun st => st.slots k))
-          (some ⟨(s₀, q₀), idx₀⟩)) ≠ ⊤ :=
-    ENNReal.sum_ne_top.mpr fun _ _ => PMF.apply_ne_top _ _
-  have hexp_real := ENNReal.toReal_mono hsum_ne_top hexp
-  rw [ENNReal.toReal_sum fun k _ => PMF.apply_ne_top _ _] at hexp_real
+  ennreal_to_real at hexp
   have hk_val (k : Fin (Fintype.card S)) :
       (((ProbComp.eval (smoothCoins P i₀ i)).map (fun st => st.slots k))
         (some ⟨(s₀, q₀), idx₀⟩)).toReal =
@@ -500,7 +495,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
         intro h
         exact hk ((Equiv.eq_symm_apply eS).mp (Prod.mk.inj h).1).symm
       simp [hne]
-  simp only [hk_val, Fintype.sum_ite_eq'] at hexp_real
+  simp only [hk_val, Fintype.sum_ite_eq'] at hexp
   set p₀ : ℝ := (ProbComp.eval (P.serverQuery s₀ i₀) q₀).toReal
   set pᵢ : ℝ := (ProbComp.eval (P.serverQuery s₀ i) q₀).toReal
   have hn₀_pos : (0 : ℝ) < smoothCopies P i₀ (s₀, q₀) := by
@@ -528,7 +523,7 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
   have hstep2 : (1 : ℝ) / l ≤ (Fintype.card S + 1 : ℝ) / Fintype.card (SmoothPos P i₀) := by
     rw [div_le_div_iff₀ hl_pos hm_pos, one_mul]
     exact hm_le
-  exact hexp_real.trans (hstep1.trans hstep2)
+  exact hexp.trans (hstep1.trans hstep2)
 
 private theorem decodeLaw_smoothDecoder_branch (P : Scheme ι S R Q A) [Fintype S]
     [Fintype Q] [DecidableEq Q] (i₀ : ι) (x : ι → Bool) (i : ι) (r : R) (g : Bool)
@@ -627,11 +622,7 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
         rw [hopt] at hk
         have hpos : (ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k)))
             (some (opt.get (hall k)))).toReal ≠ 0 := by
-          intro hz
-          have h0 : ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k)))
-              (some (opt.get (hall k))) = 0 := by
-            rw [← ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), hz, ENNReal.ofReal_zero]
-          exact (PMF.mem_support_iff _ _).mp hk h0
+          ennreal_to_real using (PMF.mem_support_iff _ _).mp hk
         rw [toReal_eval_smoothSlotCoins_some] at hpos
         rcases pos : opt.get (hall k) with ⟨⟨s', q'⟩, idx'⟩
         rw [pos] at hpos
@@ -777,29 +768,15 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
       rw [PMF.toReal_false_eq_one_sub, mul_sub, mul_one, mul_keepProb_eq_min]
       by_cases hle : ProbComp.eval (P.serverQuery s i₀) q ≤ ProbComp.eval (P.serverQuery s i) q
       · rw [ENNReal.toReal_sub_of_le hle (PMF.apply_ne_top _ _),
-          min_eq_left (ENNReal.toReal_mono (PMF.apply_ne_top _ _) hle)]
+          min_eq_left (by ennreal_to_real using hle)]
       · rw [tsub_eq_zero_of_le (le_of_not_ge hle), ENNReal.toReal_zero,
-          min_eq_right (ENNReal.toReal_mono (PMF.apply_ne_top _ _) (le_of_not_ge hle)), sub_self]
-    simp only [hterm_eq]
-    rw [← ENNReal.toReal_sum fun _ _ => ENNReal.sub_ne_top (PMF.apply_ne_top _ _),
-      ← tsum_fintype (L := SummationFilter.unconditional _)]
-    exact ENNReal.toReal_le_of_le_ofReal hδ (closeTo_iff_tsum_tsub_le.mp (hpriv s i))
+          min_eq_right (by ennreal_to_real using le_of_not_ge hle), sub_self]
+    have hclose := closeTo_iff_tsum_tsub_le.mp (hpriv s i)
+    rw [tsum_fintype] at hclose
+    ennreal_to_real at hclose
+    simpa only [hterm_eq] using hclose
   -- Convert `hpir_ennreal` to `ℝ`:
-  have hsum_ne_top :
-      (∑ k : Fin (Fintype.card S),
-        ((ProbComp.eval (P.serverQuery (eS.symm k) i)).bind
-          fun q => ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) q)) none) ≠ ⊤ :=
-    ENNReal.sum_ne_top.mpr fun _ _ => PMF.apply_ne_top _ _
-  have hrhs_ne_top :
-      decodeLaw (smoothDecoder P i₀ i) (smoothCode P i₀ x) (x i) +
-        (2 : ℝ≥0∞)⁻¹ * ∑ k : Fin (Fintype.card S),
-          ((ProbComp.eval (P.serverQuery (eS.symm k) i)).bind
-            fun q => ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) q)) none ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, ENNReal.mul_ne_top (by simp) hsum_ne_top⟩
-  have hreal := ENNReal.toReal_mono hrhs_ne_top hpir_ennreal
-  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (ENNReal.mul_ne_top (by simp) hsum_ne_top),
-    ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_ofNat,
-    ENNReal.toReal_sum fun _ _ => PMF.apply_ne_top _ _] at hreal
+  ennreal_to_real at hpir_ennreal
   have hsum_le :
       (∑ k : Fin (Fintype.card S),
         (((ProbComp.eval (P.serverQuery (eS.symm k) i)).bind

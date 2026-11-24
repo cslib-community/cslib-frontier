@@ -155,23 +155,15 @@ theorem length_eInUnary_specialize_le (controller program : Desc) (x : List Bool
 specialized request. This is an upper-bound formula, not a claim of exact elapsed CPU time. -/
 @[expose] def specializeUniversalTimeFormula (controller program : Desc)
     (x : List Bool) (t : ℕ) : ℕ :=
-  let clock := specializePrepareSteps program x + t
-  (clock + 1) *
-      (stepBound (descLen (specialize controller program))
-          (encList encUnary (x.map eBit)).length clock +
-        runBound (descLen (specialize controller program))
-          (encList encUnary (x.map eBit)).length clock +
-        ((encNat clock).length + 1) ^ 2) +
-    ((eIn (specialize controller program, x.map eBit, clock)).length + 1) ^ 2
+  universalImplementationTime
+    (specialize controller program, x.map eBit, specializePrepareSteps program x + t)
 
 /-- The space expression certified by the universal-machine implementation for interpreting the
 specialized request. -/
 @[expose] def specializeUniversalSpaceFormula (controller program : Desc)
     (x : List Bool) (t : ℕ) : ℕ :=
-  let clock := specializePrepareSteps program x + t
-  runBound (descLen (specialize controller program))
-      (encList encUnary (x.map eBit)).length clock +
-    (eIn (specialize controller program, x.map eBit, clock)).length
+  universalImplementationSpace
+    (specialize controller program, x.map eBit, specializePrepareSteps program x + t)
 
 /-- Concrete universal-machine resource bounds for the generated description. The request-size
 bound includes the generated program size; the clock includes all online preparation and

@@ -8,10 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCounter.Unary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Exact native step counters from binary input
@@ -38,7 +40,7 @@ namespace Turing.MultiTapeTM
 in time `O(n+1)`, including its preparation phase. -/
 theorem exists_stepCounter : Nonempty StepCounter := by
   classical
-  obtain ⟨c, ⟨k, Q, hfinite, conv, hconv⟩, _⟩ := ComputableInO.natToUnary.tidy
+  obtain ⟨c, ⟨k, Q, hfinite, conv, hconv⟩, _⟩ := Internal.NormalForm.inO ComputableInO.natToUnary
   let := hfinite
   let prep := conv.outputToWord
   let tail := StepCounter.countdown.extendTapes (tapeEmb (Fin.last k))
@@ -143,9 +145,6 @@ theorem exists_stepCounter : Nonempty StepCounter := by
         exact ⟨i.val, i.isLt, rfl⟩
     rw [hset, Set.ncard_range_of_injective]
     · simp
-    · intro i j hij
-      apply Fin.ext
-      change u + 2 * i.val + 1 = u + 2 * j.val + 1 at hij
-      omega
+    · fin_index
 
 end Turing.MultiTapeTM

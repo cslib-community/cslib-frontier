@@ -18,6 +18,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
+import Mathlib.Combinatorics.Enumerative.DoubleCounting
 import Mathlib.Logic.Embedding.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -185,6 +186,32 @@ theorem dist_permTupleKernel_composePermDist_le {T α : Type*}
     (fun i => isStationary_permTupleKernel (ρs i)) hδ x
 
 /-! ## Section 2: Without-replacement negative correlation, collisions, and product sets -/
+
+/-- The range of a uniform injection of a finite type contains each fixed target with
+probability equal to the domain size divided by the codomain size. -/
+theorem prob_uniformOfFintype_embedding_mem_range {ι α : Type*} [Fintype ι] [Fintype α]
+    [Nonempty (ι ↪ α)] (x : α) : ((PMF.uniformOfFintype (ι ↪ α)).toOuterMeasure
+      {e | x ∈ Set.range e}).toReal = Fintype.card ι / (Fintype.card α : ℝ) := by
+  classical
+  let r (e : ι ↪ α) (y : α) := y ∈ Set.range e
+  have above (e : ι ↪ α) : univ.bipartiteAbove r e = univ.map e := by
+    ext y
+    simp [r, Set.mem_range]
+  have below (y : α) : (univ.bipartiteBelow r y).card = (univ.bipartiteBelow r x).card := by
+    refine card_equiv ((Equiv.refl ι).embeddingCongr (Equiv.swap y x)) ?_
+    intro e
+    simp only [mem_bipartiteBelow, mem_univ, true_and, r, Set.mem_range]
+    change (∃ i, e i = y) ↔ ∃ i, (Equiv.swap y x) (e i) = x
+    simp only [← Equiv.eq_symm_apply, Equiv.symm_swap, Equiv.swap_apply_right]
+  have count := card_mul_eq_card_mul r (s := univ) (t := univ) (m := Fintype.card ι)
+    (fun e _ => by rw [above, card_map, card_univ]) (fun y _ => below y)
+  let _ : Nonempty α := ⟨x⟩
+  rw [PMF.toOuterMeasure_uniformOfFintype_toReal,
+    div_eq_div_iff (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
+      (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)]
+  change ((univ.bipartiteBelow r x).card : ℝ) * _ = _
+  exact_mod_cast (show (univ.bipartiteBelow r x).card * Fintype.card α =
+    Fintype.card ι * Fintype.card (ι ↪ α) by simpa only [card_univ, mul_comm] using count.symm)
 
 /-- **Without-replacement multiplicative upper bound**
 ([BenderFarachColtonKuszmaulKuszmaulLiu2022], `arXiv:2111.00602v2`, Section 5.3, PDF p. 36 /

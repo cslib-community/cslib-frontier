@@ -86,9 +86,7 @@ attribute [program_certificate] Seeded.keyGenWith_polyTime Seeded.keyGenBudget_p
 input. -/
 theorem computableInPolyTime_coinBudget {α : Type} (enc : α ↪ List Bool) (c d : ℕ) :
     ComputableInPolyTime (fun a => c * ((enc a).length + 1) ^ d) enc encUnary := by
-  have hlen : ComputableInPolyTime (fun a => (enc a).length) enc encUnary :=
-    ComputableInPolyTime.encoding_length enc
-  polytime
+  fun_prop
 
 /-- Every indexed scheme has seeded key generation with a polynomial-time budget. -/
 theorem exists_keyGenWith (S : IndexedSignatureScheme) :

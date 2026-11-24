@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.Karger.Contraction
 public import CslibFrontier.Algorithms.Karger.FastCut
 import CslibFrontier.Probability.PMF.TwoBranch
 import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Karger–Stein recursion as a client of the contraction specification
@@ -150,8 +151,7 @@ theorem isContractionOf_of_mem_support_contractLaw {n k target : ℕ}
     ∃ (W' : Fin target → Fin target → ℕ) (part' : Fin n → Fin target),
       G = ⟨target, W'⟩ ∧ IsContractionOf W₀ part' W' := by
   obtain ⟨s, rfl⟩ : ∃ s, k = target + s := ⟨k - target, by omega⟩
-  rw [contractLaw, Nat.add_sub_cancel_left, PMF.mem_support_map_iff] at hG
-  obtain ⟨x, hx, rfl⟩ := hG
+  supp_cases hG [contractLaw, Nat.add_sub_cancel_left] with ⟨x, hx, rfl⟩
   exact isContractionOf_of_mem_support_contractTimes ht s hC hx
 
 /-- Contracting a disconnected (`minCut W = 0`) multigraph down to `target ≥ 2` preserves
@@ -162,8 +162,7 @@ theorem minCut_eq_zero_of_mem_support_contractLaw {k target : ℕ}
     (hG : G ∈ (contractLaw (⟨k, W⟩, target)).support) :
     ∃ W' : Fin target → Fin target → ℕ, G = ⟨target, W'⟩ ∧ IsMultigraph W' ∧ minCut W' = 0 := by
   obtain ⟨s, rfl⟩ : ∃ s, k = target + s := ⟨k - target, by omega⟩
-  rw [contractLaw, Nat.add_sub_cancel_left, PMF.mem_support_map_iff] at hG
-  obtain ⟨x, hx, rfl⟩ := hG
+  supp_cases hG [contractLaw, Nat.add_sub_cancel_left] with ⟨x, hx, rfl⟩
   exact minCut_eq_zero_of_mem_support_contractTimes ht s hW hmin hx
 
 /-- Every recursive answer is the weight of a non-trivial cut of the original graph, including
@@ -181,14 +180,12 @@ theorem exists_cut_of_mem_support_fastCutLaw {n k : ℕ} (hk : 2 ≤ k)
     | ind k ih =>
       intro hk W part hC v hv
       by_cases hk7 : 7 ≤ k
-      · rw [fastCutLaw_node hk7, PMF.mem_support_bind_iff] at hv
-        obtain ⟨a, ha, hv⟩ := hv
-        obtain ⟨b, hb, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hv
-        have hbranch : ∀ v ∈ ((contractLaw (⟨k, W⟩, fastCutThreshold k)).bind
-            fun child => fastCutLaw (fastCutThreshold k) child).support,
+      · rw [fastCutLaw_node hk7] at hv
+        supp_cases hv with ⟨a, ⟨ca, hca, ha⟩, b, ⟨cb, hcb, hb⟩, rfl⟩
+        have hbranch : ∀ {child}, child ∈ (contractLaw (⟨k, W⟩, fastCutThreshold k)).support →
+            ∀ v ∈ (fastCutLaw (fastCutThreshold k) child).support,
             ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ v = cutWeight W₀ C := by
-          intro v hv
-          obtain ⟨child, hchild, hv⟩ := (PMF.mem_support_bind_iff _ _ _).mp hv
+          intro child hchild v hv
           obtain ⟨W', part', rfl, hC'⟩ := isContractionOf_of_mem_support_contractLaw
             (by have := fastCutThreshold_ge_two (by omega : 4 ≤ k); omega)
             (Nat.le_of_lt (fastCutThreshold_lt (by omega))) hC hchild
@@ -196,9 +193,9 @@ theorem exists_cut_of_mem_support_fastCutLaw {n k : ℕ} (hk : 2 ≤ k)
             (fastCutThreshold_ge_two (by omega)) W' part' hC' v hv
         rcases le_total a b with hab | hba
         · rw [min_eq_left hab]
-          exact hbranch a ha
+          exact hbranch hca a ha
         · rw [min_eq_right hba]
-          exact hbranch b hb
+          exact hbranch hcb b hb
       · rw [fastCutLaw_leaf (by omega)] at hv
         obtain ⟨B, hB, hv⟩ := exists_cut_of_mem_support_answerLaw hk hC.multigraph hv
         exact ⟨pullbackCut part B, isNonTrivialCut_pullbackCut hC.surj hB,
@@ -221,10 +218,8 @@ theorem eq_zero_of_mem_support_fastCutLaw {k : ℕ} (hk : 2 ≤ k)
   induction k using Nat.strong_induction_on generalizing v with
   | ind k ih =>
     by_cases hk7 : 7 ≤ k
-    · rw [fastCutLaw_node hk7, PMF.mem_support_bind_iff] at hv
-      obtain ⟨a, ha, hv⟩ := hv
-      obtain ⟨b, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hv
-      obtain ⟨child, hchild, ha⟩ := (PMF.mem_support_bind_iff _ _ _).mp ha
+    · rw [fastCutLaw_node hk7] at hv
+      supp_cases hv with ⟨a, ⟨child, hchild, ha⟩, b, -, rfl⟩
       obtain ⟨W', rfl, hW', hmin'⟩ := minCut_eq_zero_of_mem_support_contractLaw
         (fastCutThreshold_ge_two (by omega)) (Nat.le_of_lt (fastCutThreshold_lt (by omega)))
         hW hmin hchild
@@ -301,7 +296,7 @@ theorem fastCutLaw_hit_prob_ge {n : ℕ} {W₀ : Fin n → Fin n → ℕ}
               (hpb ▸ isNonTrivialCut_pullbackCut hC.surj hB)) (hpb ▸ hBmin)
       have hge : ∀ v ∈ branch.support, minCut W₀ ≤ v := by
         intro v hv
-        obtain ⟨G, hG, hv⟩ := (PMF.mem_support_bind_iff _ _ _).mp hv
+        supp_cases hv [branch] with ⟨G, hG, hv⟩
         obtain ⟨W', part', rfl, hC'⟩ :=
           isContractionOf_of_mem_support_contractLaw (by omega) htk hC hG
         exact minCut_le_of_mem_support_fastCutLaw ht hC' hv

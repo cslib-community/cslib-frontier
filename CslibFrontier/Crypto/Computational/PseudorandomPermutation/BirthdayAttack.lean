@@ -53,8 +53,9 @@ Formalizes the word-level collision distinguisher of Boneh–Shoup (§4.4.3, p. 
   `Cslib.Crypto.BlockCipher.not_pseudorandomFunctionOver_of_not_negligible`: when
   `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` is not negligible (for eventually nonzero `E.blockLen`), `E`
   cannot be a `PseudorandomFunctionOver` `E.blockLen` `E.blockLen`, showing that the
-  super-polynomial block-size hypothesis in `BlockCipher.prp_iff_pseudorandomFunctionOver` is
-  necessary.
+  super-polynomial block-size hypothesis in
+  `BlockCipher.prp_iff_indistinguishable_prpRealGame_prfIdealGame` and
+  `BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id` is necessary.
 
 The deterministic counter-mode birthday attack of §4.4.4.1 is not formalized here.
 
@@ -137,7 +138,7 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
         (List.take (blockLen p.1) <$>
           ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), BitString.lowBits (blockLen p.1) p.2.1.length))) :=
-    (IsOraclePPTOn.query_take' () hq (hblockLen.comp hn)).keep_input
+    (IsOraclePPTOn.query_take () hq (hblockLen.comp hn)).keep_input
   have hmap : ComputableInPolyTime
       (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
         (q.2 :: q.1.2.1, q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2)))
@@ -159,9 +160,9 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
           q.1.2.1.any fun prev => decide (prev = q.2))
         (encPair inp encBits) encBool := by
       refine ComputableInPolyTime.anyWithInput hqseen ?_
-      exact ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.decide_eq'
-        (ComputableTidilyInPolyTime.snd _ _)
-        (ComputableTidilyInPolyTime.snd _ _ |>.comp (ComputableTidilyInPolyTime.fst _ _)))
+      exact (ComputableInPolyTime.decide_eq'
+        (ComputableInPolyTime.snd _ _)
+        (ComputableInPolyTime.snd _ _ |>.comp (ComputableInPolyTime.fst _ _)))
     have hor : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
           q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2))
@@ -169,7 +170,7 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
       (ComputableInPolyTime.of_finite (encIn := encPair encBool encBool) (encOut := encBool)
         fun p : Bool × Bool => p.1 || p.2).comp (hqflag.prod hany)
     exact (hr.cons' hqseen).prod hor
-  convert hquery.map' hmap using 1
+  convert hquery.map hmap using 1
   funext pair
   simp [wordBirthdayStep, bind_pure_comp]
 
@@ -201,13 +202,13 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
   have hiter : IsOraclePPTOn encUnary (encPair (encList encBits) encBool)
       (fun n => OracleComp.iterate (min (Q n) (2 ^ blockLen n))
         (wordBirthdayStep blockLen n) ([], false)) :=
-    IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinit
+    IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinit
       (isOraclePPTOn_wordBirthdayStep hblockLen) hpoly hgrowth
   have hres : IsOraclePPTOn encUnary encBool
       (fun n => Prod.snd <$> OracleComp.iterate (min (Q n) (2 ^ blockLen n))
         (wordBirthdayStep blockLen n) ([], false)) :=
-    hiter.map' (by fun_prop)
-  exact (hres.preprocess' (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+    hiter.map (by fun_prop)
+  exact (hres.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
 
 end PolyTime
 
@@ -515,7 +516,8 @@ theorem BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame {E : BlockCip
   exact hfreq.mono fun n ⟨hpos, hQ⟩ =>
     half_le_advantage_wordBirthdayDistinguisher E Q hpos hQ
 
-/-- Necessity of super-polynomial block size in `BlockCipher.prp_iff_pseudorandomFunctionOver`:
+/-- Necessity of super-polynomial block size in
+`BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id`:
 when `E.keyLen = id`, `1 ≤ E.blockLen n` eventually, and `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` is not
 negligible, `E` cannot be a `PseudorandomFunctionOver` `E.blockLen` `E.blockLen`. -/
 theorem BlockCipher.not_pseudorandomFunctionOver_of_not_negligible {E : BlockCipher}

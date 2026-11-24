@@ -242,6 +242,15 @@ theorem query_rows (ρ : Type) (P : Scheme ι S R Q A β) (ji : ρ × ι) :
     (P.rows ρ).query ji = P.query ji.2 := by
   rfl
 
+theorem answer_rows (ρ : Type) (P : Scheme ι S R Q A β) (s : S) (x : ρ × ι → β) (q : Q) (j : ρ) :
+    (P.rows ρ).answer s x q j = P.answer s (fun i => x (j, i)) q := by
+  rfl
+
+theorem reconstruct_rows (ρ : Type) (P : Scheme ι S R Q A β) (ji : ρ × ι) (r : R)
+    (a : S → ρ → A) :
+    (P.rows ρ).reconstruct ji r a = P.reconstruct ji.2 r fun s => a s ji.1 := by
+  rfl
+
 theorem run_rows (ρ : Type) (P : Scheme ι S R Q A β) (x : ρ × ι → β) (j : ρ) (i : ι) :
     (P.rows ρ).run x (j, i) = P.run (fun i' => x (j, i')) i := by
   rfl

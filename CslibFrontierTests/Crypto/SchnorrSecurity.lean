@@ -5,17 +5,17 @@ Authors: Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 import CslibFrontier.Crypto.Computational.SchnorrSignature.Security
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Negligible.Dyadic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
+import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import Mathlib.NumberTheory.Bertrand
 import Mathlib.Tactic.NormNum.Prime
+import CslibFrontierTests.Crypto.PrimeFieldGroups
 
 /-!
 # Schnorr security clients
@@ -48,6 +48,7 @@ namespace CslibFrontierTests.Crypto.SchnorrSecurity
 
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily Cslib.Crypto.Protocols
 open Cslib.Crypto.Protocols.ROMSignature Turing.MultiTapeTM
+open CslibFrontierTests.Crypto.PrimeFieldGroups
 
 private def d23 : schnorrGroups.Desc :=
   ⟨(23, 11, 2), ⟨by norm_num, by norm_num, by norm_num, by norm_num, by norm_num⟩⟩
@@ -133,65 +134,6 @@ example (description : ℕ → schnorrGroups.Desc)
   (eufCma_schnorrGroups description hdescription hwq hDL).negligible nativeForger nativeForger_ppt
 
 /-! ### Unconditional parameters: additive groups of Bertrand primes -/
-
-/-- Primes, as public group parameters. -/
-private abbrev PrimeDesc : Type := {p : ℕ // p.Prime}
-
-/-- A prime is encoded by its binary digits. -/
-private def encPrime : PrimeDesc ↪ List Bool :=
-  (Function.Embedding.subtype _).trans encNat
-
-private theorem computableInPolyTime_val :
-    ComputableInPolyTime (Subtype.val : PrimeDesc → ℕ) encPrime encNat :=
-  ComputableInPolyTime.of_eq fun _ => rfl
-
-/-- Addition modulo `p` of binary residues. -/
-private def primeAdd : PrimeDesc × List Bool × List Bool → List Bool
-  | (p, x, y) => ((ofBits x + ofBits y) % p.1).bits
-
-/-- Multiplication modulo `p` of a binary residue by a natural number. -/
-private def primeSMul : PrimeDesc × ℕ × List Bool → List Bool
-  | (p, a, x) => (a * ofBits x % p.1).bits
-
-/-- The additive groups `ZMod p` of prime order `p`, with generator `1` and residues encoded in
-binary. -/
-private def primeFields : PrimeOrderGroupFamily where
-  Desc := PrimeDesc
-  encDesc := encPrime
-  order p := p.1
-  prime_order p := p.2
-  Carrier p := ZMod p.1
-  generator _ := 1
-  card_carrier p := Nat.card_zmod p.1
-  generator_ne_zero p := by
-    have := Fact.mk p.2
-    exact one_ne_zero
-  encode _ x := x.val.bits
-  encode_injective p x y h := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
-    exact ZMod.val_injective _ (encNat.injective h)
-  add := primeAdd
-  add_encode p x y := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
-    simp only [primeAdd, ofBits_bits, ZMod.val_add]
-  smul := primeSMul
-  smul_encode p a x := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
-    simp only [primeSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
-      Nat.mod_mul_mod]
-  computableInPolyTime_order := computableInPolyTime_val
-  computableInPolyTime_generator := by
-    have := computableInPolyTime_val
-    simp only [ZMod.val_one_eq_one_mod]
-    fun_prop
-  computableInPolyTime_add := by
-    have := computableInPolyTime_val
-    unfold primeAdd
-    fun_prop
-  computableInPolyTime_smul := by
-    have := computableInPolyTime_val
-    unfold primeSMul
-    fun_prop
 
 private theorem exists_bertrandPrime (n : ℕ) : ∃ p, p.Prime ∧ 2 ^ n < p ∧ p ≤ 2 * 2 ^ n :=
   Nat.exists_prime_lt_and_le_two_mul (2 ^ n) (pow_ne_zero n two_ne_zero)

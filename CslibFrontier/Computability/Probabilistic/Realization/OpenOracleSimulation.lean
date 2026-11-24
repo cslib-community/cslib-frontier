@@ -181,9 +181,6 @@ theorem isOraclePPTOn_run [Finite Operation] {input : α ↪ List Bool}
         (OracleComp.sumHandler
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
         (machine.runOracle (count a) (word a))).run (initial a)) := by
-  have hword := hword.tidy
-  have hcount := hcount.tidy
-  have hinitial := hinitial.tidy
   let _ := Fintype.ofFinite Operation
   obtain ⟨cr, dr, hresourceSize⟩ := polynomiallyBounded_iff_le.mp hresources
   obtain ⟨cf, hconfigurationSize⟩ :=
@@ -199,7 +196,7 @@ theorem isOraclePPTOn_run [Finite Operation] {input : α ↪ List Bool}
       resources ((input a).length + word.length) ≤ budget a :=
     (hresourceSize _).trans (Nat.mul_le_mul_left cr (Nat.pow_le_pow_left
       (by lia) dr))
-  have hstart : ComputableTidilyInPolyTime start input (encPair encFiniteConfig stateEncoding) := by
+  have hstart : ComputableInPolyTime start input (encPair encFiniteConfig stateEncoding) := by
     dsimp only [start]
     fun_prop
   have hloop := (IsOraclePPTOn.iterateWith_spec hcount hstart (isOraclePPTOn_step machine hhandler)
@@ -228,14 +225,14 @@ theorem isOraclePPTOn_run [Finite Operation] {input : α ↪ List Bool}
             nlinarith⟩)
     (size := fun a => 2 * cf * ((word a).length + count a + budget a + 1) +
       (stateEncoding (initial a)).length + count a * budget a + 1)
-    (ComputableTidilyInPolyTime.polyBounded (by dsimp only [budget]; fun_prop))
+    (ComputableInPolyTime.polyBounded (by dsimp only [budget]; fun_prop))
     (by
       rintro a i ⟨cfg, state⟩ hi ⟨hcfg, _, hstate⟩
       have hf := hconfigurationSize _ _ _ cfg hcfg
       simp only [length_encPair]
       dsimp only at hstate ⊢
       nlinarith)).1
-  have hproject : ComputableTidilyInPolyTime
+  have hproject : ComputableInPolyTime
       (fun pair : FiniteConfig k Bool Control Operation × State =>
         (pair.1.tapes.output, pair.2))
       (encPair encFiniteConfig stateEncoding) (encPair encBits stateEncoding) := by fun_prop

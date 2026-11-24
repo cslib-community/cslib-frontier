@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Structured
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Tactic.Fits
+public import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Symbolic execution of structured word-RAM code
@@ -25,12 +26,8 @@ and its rules have the same names and premises.
 
 The tactic `wram_exec` applies these rules along the syntax of the program. It is meant for the
 straight-line glue of correctness proofs, between loops and calls of subprograms with their own
-specifications: it executes data instructions and conditionals, and stops at a loop that may
-iterate, at a random sample and at an unlisted named program, leaving the goal `WP w c y Q`
-with the data `y` reached.
-Pass a named program among the hints to execute it: `wram_exec [program, h₁, h₂]`. Other named
-callees remain closed. A loop whose condition is provably false exits, charging both control
-instructions; a loop that may iterate still needs its invariant or specification.
+specifications: it executes data instructions and conditionals, and stops at a loop, at a random
+sample and at a program given by name, leaving the goal `WP w c y Q` with the data `y` reached.
 `Cslib.WordRAM.WP.of_execWithin` then continues from a specification of `c`, and `wram_exec`
 resumes on the remaining program; on a `WP.Exact` goal, `Cslib.WordRAM.WP.Exact.of_exec` continues
 from an exact specification. At a loop whose condition holds, `Cslib.WordRAM.WP.loop_iter` continues
@@ -88,8 +85,9 @@ a program.
   before the rest of a program.
 * `Cslib.WordRAM.WP.bounded`: the data reached from word-sized data is word-sized.
 * `Cslib.WordRAM.WP.name`: a name for the data reached, at a stop.
-* `Cslib.WordRAM.WP.loop_iter`, `Cslib.WordRAM.WP.Exact.loop_iter`: an iteration of a loop whose
-  condition holds, to continue into its body at a stop.
+* `Cslib.WordRAM.WP.loop_iter`, `Cslib.WordRAM.WP.Exact.loop_iter`, `Cslib.WordRAM.WP.loop_exit`,
+  `Cslib.WordRAM.WP.Exact.loop_exit`: continuing into the body of a loop whose condition holds, or
+  exiting when it fails, at a stop.
 * `Cslib.WordRAM.WP.Exact.exists_exec`, `Cslib.WordRAM.WP.Exact.exec`: back to `Exec`; the rules
   `Cslib.WordRAM.WP.Exact.seq`, `Cslib.WordRAM.WP.Exact.const`, … are those of `WP`, and
   `Cslib.WordRAM.WP.Exact.toWP` weakens an exact count to a bound.
@@ -228,7 +226,7 @@ theorem loop_iter {body : Code B r} (hc : cond.Holds x)
   let ⟨_, T₁, he₁, _, T₂, he₂, hz⟩ := h
   ⟨_, T₁ + T₂ + 2, ExecWithin.loop_iter hc he₁ he₂, Nat.add_comm T₁ T₂ ▸ hz⟩
 
-/-- Exit a loop whose condition is false, charging its two control instructions. -/
+/-- Exit a loop whose condition fails in two instructions. -/
 theorem loop_exit {body : Code B r} (hc : ¬cond.Holds x) (h : Q x 2) :
     WP w (.loop cond body) x Q :=
   of_execWithin (ExecWithin.loop_exit hc) h
@@ -399,7 +397,7 @@ theorem loop_iter {body : Code B r} (hc : cond.Holds x)
   let ⟨_, T₁, he₁, _, T₂, he₂, hz⟩ := h
   ⟨_, T₁ + T₂ + 2, .loop_iter hc he₁ he₂, Nat.add_comm T₁ T₂ ▸ hz⟩
 
-/-- Exit a loop whose condition is false in exactly two control instructions. -/
+/-- Exit a loop whose condition fails in exactly two instructions. -/
 theorem loop_exit {body : Code B r} (hc : ¬cond.Holds x) (h : Q x 2) :
     WP.Exact w (.loop cond body) x Q :=
   of_exec (Exec.loop_exit hc) h
@@ -543,7 +541,7 @@ private meta def outsideRange? (j i : Expr) : MetaM (Option Expr) := do
   mkAppM ``Ne.symm #[← mkAppM ``ne_of_mem_of_not_mem #[hmem, hj]]
 
 /-- A hypothesis `Function.Injective f`. -/
-private meta def injective? (f : Expr) : MetaM (Option Expr) := do
+meta def injective? (f : Expr) : MetaM (Option Expr) := do
   (← getLCtx).findDeclRevM? fun d => do
     if d.isImplementationDetail then return none
     let_expr Function.Injective _ _ f' := (← instantiateMVars d.type).cleanupAnnotations
@@ -578,12 +576,50 @@ private meta def forallNe? (j i : Expr) : MetaM (Option Expr) := do
         s.restore
       return none
 
+/-- A hypothesis `∀ j, f j ≠ i`, proving `i ∉ Set.range f` directly. -/
+meta def forallRangeNe? (f i : Expr) : MetaM (Option Expr) := do
+  (← getLCtx).findDeclRevM? fun d => do
+    if d.isImplementationDetail then return none
+    let ty := (← instantiateMVars d.type).cleanupAnnotations
+    let .forallE _ _ body _ := ty | return none
+    let some (a, b) := neSides? body | return none
+    let check (l r : Expr) : Bool :=
+      match l with
+      | .app f' (.bvar 0) => f' == f && r == i
+      | _ => false
+    if check a b then return some d.toExpr
+    if check b a then
+      return some (← withLocalDeclD `j (ty.bindingDomain!) fun j => do
+        mkLambdaFVars #[j] (← mkAppM ``Ne.symm #[mkApp d.toExpr j]))
+    return none
+
+/-- A proof of `j ≠ i` from a hypothesis `i ∉ s` when `j ∈ s` holds by evaluation or hypothesis. -/
+private meta def outsideSet? (j i : Expr) : MetaM (Option Expr) := do
+  (← getLCtx).findDeclRevM? fun d => do
+    if d.isImplementationDetail then return none
+    let some q := (← instantiateMVars d.type).cleanupAnnotations.not? | return none
+    let q := q.cleanupAnnotations
+    unless q.isAppOfArity ``Membership.mem 5 do return none
+    let args := q.getAppArgs
+    unless ← withReducible (isDefEq args[4]! i) do return none
+    let memJ := mkAppN q.getAppFn (args.set! 4 j)
+    let hj? ← match ← decideClosed? memJ with
+      | some (some h) => pure (some h)
+      | _ => assumption? memJ
+    let some hj := hj? | return none
+    withLocalDeclD `heq (← mkEq j i) fun heq => do
+      let motive ← withLocalDeclD `x (← inferType j) fun x =>
+        mkLambdaFVars #[x] (mkAppN q.getAppFn (args.set! 4 x))
+      let memI ← mkAppM ``Eq.mp #[← mkCongrArg motive heq, hj]
+      some <$> mkLambdaFVars #[heq] (mkApp d.toExpr memI)
+
 /-- A proof that the register names `j` and `i` differ, for names that need not evaluate to
 literals: by evaluation if they have no free variables; by a hypothesis `j ≠ i` or `i ≠ j`, also
 stated as `¬j = i` as `by_cases` gives it; by a hypothesis `j ∉ Set.range f` when `i` is `f a`, or
-symmetrically; by an instance of a hypothesis `∀ xs, a ≠ b` (`forallNe?`); by a hypothesis
-`Function.Injective f` when they are `f b` and `f a` with `b` and `a` different; and otherwise by
-the discharger on their values, when one of them unfolds to a constructor `⟨k, _⟩` (`finVal`). -/
+symmetrically; by a hypothesis `i ∉ s` with `j ∈ s`, or symmetrically; by an instance of a
+hypothesis `∀ xs, a ≠ b` (`forallNe?`); by a hypothesis `Function.Injective f` when they are `f b`
+and `f a` with `b` and `a` different; and otherwise by the discharger on their values, when one of
+them unfolds to a constructor `⟨k, _⟩` (`finVal`). -/
 private meta partial def regNe? (j i : Expr) : SimpM (Option Expr) := do
   let p ← mkAppM ``Ne #[j, i]
   if let some r ← decideClosed? p then return r
@@ -593,6 +629,8 @@ private meta partial def regNe? (j i : Expr) : SimpM (Option Expr) := do
     if let some h ← assumption? q then return some (← mkAppM ``Ne.symm #[h])
   if let some h ← outsideRange? j i then return some h
   if let some h ← outsideRange? i j then return some (← mkAppM ``Ne.symm #[h])
+  if let some h ← outsideSet? j i then return some h
+  if let some h ← outsideSet? i j then return some (← mkAppM ``Ne.symm #[h])
   if let some h ← forallNe? j i then return some h
   if let (.app f b, .app f' a) := (j, i) then
     if f == f' then
@@ -712,7 +750,6 @@ attribute [wram_simps] Data.set_regs_self Data.set_regs_of_ne Data.set_mem Data.
   BinOp.eval BinOp.evalExact fits_zero Nat.add_zero Nat.zero_add Nat.add_sub_cancel
   Nat.add_sub_cancel_left Nat.sub_zero Nat.sub_self Nat.lt_irrefl Nat.not_lt_zero Nat.zero_lt_succ
   Nat.add_one_ne_zero not_true_eq_false not_false_eq_true and_self and_true true_and
-  Cond.holds_lt Cond.holds_eq
 
 /-- `simp` procedure evaluating an operation `B.interp w f vals` of a basis given by a definition,
 such as `Basis.additive`, when it unfolds to a value `some v` (`WP.alu`). It is a pre-procedure
@@ -747,10 +784,28 @@ meta structure Config where
   steps : IO.Ref ℕ
   /-- Whether to split a conditional that is not decided, rather than stop at it. -/
   split : Bool
+  /-- Optional extra simplification pass run after `wram_simps` (used by `wram_exec *`). -/
+  extraSimp? : Option (Expr → MetaM Simp.Result) := none
+
+/-- Combine two sequential `Simp.Result` rewrites of `e`. -/
+private meta def chainSimpResult (r1 r2 : Simp.Result) : MetaM Simp.Result := do
+  match r1.proof?, r2.proof? with
+  | none, none => return { expr := r2.expr }
+  | some p1, none => return { expr := r2.expr, proof? := some p1 }
+  | none, some p2 => return { expr := r2.expr, proof? := some p2 }
+  | some p1, some p2 => return { expr := r2.expr, proof? := some (← mkEqTrans p1 p2) }
 
 /-- Simplify `e` with the simp set of the call. -/
-meta def simpExpr (cfg : Config) (e : Expr) : MetaM Simp.Result :=
-  return (← Lean.Meta.simp e cfg.ctx cfg.simprocs (some cfg.simpDischarge)).1
+meta def simpExpr (cfg : Config) (e : Expr) : MetaM Simp.Result := do
+  let r1 := (← Lean.Meta.simp e cfg.ctx cfg.simprocs (some cfg.simpDischarge)).1
+  match cfg.extraSimp? with
+  | none => return r1
+  | some hook =>
+    let r2 ← hook r1.expr
+    if r2.expr == r1.expr && r2.proof?.isNone then return r1
+    let r12 ← chainSimpResult r1 r2
+    let r3 := (← Lean.Meta.simp r12.expr cfg.ctx cfg.simprocs (some cfg.simpDischarge)).1
+    chainSimpResult r12 r3
 
 /-- Prove the proposition `p` by simplification to `True`, by evaluation if it has no free
 variables, by a hypothesis of its type, or by `prove`. Returns the proof, or the simplification of
@@ -820,7 +875,9 @@ meta def opRule? (o : Expr) : Option Name :=
   | some ``Op.bin => some ``WP.bin
   | some ``Op.width => some ``WP.width
   | some ``Op.exactWidth => some ``WP.exactWidth
-  | some ``Op.alu => some ``WP.alu
+  -- `Op.addAdditive` is defined in `WordRAM.Allocation`, which this module does not import, so its
+  -- name is not resolved here; `CslibFrontierTests/WordRAMSymbolicExec.lean` runs it.
+  | some ``Op.alu | some `Cslib.WordRAM.Op.addAdditive => some ``WP.alu
   | some ``Op.exactBin =>
     match (o.getArg! 1).constName? with
     | some ``BinOp.sub => some ``WP.exactSub
@@ -850,11 +907,7 @@ meta partial def walk (cfg : Config) (g : MVarId) : TacticM (Array MVarId) := g.
   match code.getAppFn.constName? with
   | some ``Code.seq => step cfg g (rule ``WP.seq)
   | some ``Code.op =>
-    let op := code.getArg! 2
-    let r? ← match opRule? op with
-      | some r => pure (some r)
-      | none => opRule? <$> whnf op
-    match r? with
+    match opRule? (code.getArg! 2) with
     | some r => step cfg g (rule r)
     | none => return #[g]
   | some ``Code.branch =>
@@ -862,21 +915,7 @@ meta partial def walk (cfg : Config) (g : MVarId) : TacticM (Array MVarId) := g.
     | some ``Cond.lt => branch cfg g (rule ``WP.branch_lt)
     | some ``Cond.eq => branch cfg g (rule ``WP.branch_eq)
     | _ => return #[g]
-  | some ``Code.loop =>
-    let holds ← mkAppM ``Cond.Holds #[code.getArg! 2, tgt.getArg! 4]
-    if (← tryProve cfg (closesWith cfg.disch) (mkNot holds)).1.isSome then
-      step cfg g (rule ``WP.loop_exit)
-    else
-      return #[g]
-  | _ =>
-    -- Only the caller's simp hints can open a named routine. In particular, unfolding a caller
-    -- does not unfold every callee it contains, so `wram_call` can still consume its contract.
-    let res ← simpExpr cfg code
-    if res.expr == code then return #[g]
-    let target := mkAppN tgt.getAppFn (tgt.getAppArgs.set! 3 res.expr)
-    let motive ← withLocalDeclD `code (← inferType code) fun c =>
-      mkLambdaFVars #[c] (mkAppN tgt.getAppFn (tgt.getAppArgs.set! 3 c))
-    walk cfg (← g.replaceTargetEq target (← mkCongrArg motive (← res.getProof)))
+  | _ => return #[g]
 
 /-- Apply the rule `rule` to `g`: evaluate the values it reads, prove or leave its side
 conditions, and continue with its continuation `h`. -/
@@ -1068,8 +1107,7 @@ meta def WP.Exec.withSimpContext {α : Type} (disch : TSyntax ``Lean.Parser.Tact
 the data instructions and conditionals of `c` in order, with the data in closed form, until the
 end of the program, where `t ≤ T ∧ P y` (respectively `t ≤ T ∧ y' = y`, or `Q y t`) remains for
 the data `y` and instruction count `t` reached; a leading bound `t ≤ T` is closed by `omega` when
-it can. It stops at a loop that may iterate, a random sample or an unlisted named program,
-leaving `WP w c' y Q'`:
+it can. It stops at a loop, a random sample or a program given by name, leaving `WP w c' y Q'`:
 continue with `refine WP.of_execWithin h ?_` from a specification `h` of `c'`, then `wram_exec`
 again. Unfold programs given by name to execute them instead.
 
@@ -1078,11 +1116,8 @@ On the exact-count goals `∃ y, Exec w c x y T ∧ P y`, `Exec w c x y T` and
 `t = T` is closed by `omega` when it can, and `refine WP.Exact.of_exec h ?_` continues from an
 exact specification `h` at a stop.
 
-* `wram_exec [program, h₁, h₂]` unfolds the supplied program definitions and adds simp lemmas for
-  the values read, typically the contents of the
+* `wram_exec [h₁, h₂]` adds simp lemmas for the values read, typically the contents of the
   registers of `x`, such as `x.regs zeroP = 0`, and the memory cells it reads.
-  Callees not listed remain closed for their contracts. Named data operations are reduced to
-  the existing instruction rules, including `Op.alu` for user-defined bases.
 * `wram_exec (disch := tac)` sets the discharger, by default `fits` on a word-size bound and
   `omega` on anything else. It proves side conditions
   (`Fits w v`, `b ≤ a` for an exact subtraction, a nonzero divisor), decides conditions of
@@ -1095,8 +1130,7 @@ A conditional neither `simp` nor the discharger decides splits into both alterna
 `pos` and `neg`, with the hypothesis `hc` on the compared values; `wram_exec -split` stops at it
 instead, leaving `WP w (.branch …) y Q'`, for instance to join the alternatives with `WP.cut`.
 Side conditions that remain are left as goals after the main ones, tagged by the premise they come
-from (`hfit`, `hle`, `hb`). A loop whose guard is false exits in two instructions; other loops
-remain as goals without attempting an iteration. -/
+from (`hfit`, `hle`, `hb`). -/
 syntax (name := wramExec) "wram_exec" Lean.Parser.Tactic.optConfig (Lean.Parser.Tactic.discharger)?
   (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
     Lean.Parser.Tactic.simpLemma),* "]")? : tactic
@@ -1121,19 +1155,27 @@ elab_rules : tactic
 
 open Lean in
 /-- The discharger of a `wram_exec` or `wram_simp` call: the given one, or by default `fits` on
-a word-size bound and `omega` on anything else. -/
-meta def WP.Exec.dischOf (d? : Option (TSyntax ``Lean.Parser.Tactic.discharger)) :
+a word-size bound, `omega` on plain arithmetic, and (when `wram.exec.autoWramOmega` is true)
+silent heartbeat-bounded `wram_omega`. -/
+meta def WP.Exec.dischOf (d? : Option (TSyntax ``Lean.Parser.Tactic.discharger))
+    (autoWramOmega : Bool := true) :
     MacroM (TSyntax ``Lean.Parser.Tactic.tacticSeq) :=
   match d? with
   | some d => pure ⟨d.raw[3]⟩
-  | none => `(Lean.Parser.Tactic.tacticSeq| first | fits | omega)
+  | none =>
+    if autoWramOmega then
+      `(Lean.Parser.Tactic.tacticSeq| first | fits | omega | wram_omega_silent)
+    else
+      `(Lean.Parser.Tactic.tacticSeq| first | fits | omega)
 
 open Lean Meta Elab Tactic in
 elab_rules : tactic
   | `(tactic| wram_simp $[$d?:discharger]? $[[$args,*]]? $[$loc?:location]?) => do
     let args := args.map (·.getElems.map (·.raw)) |>.getD #[]
-    WP.Exec.withSimpContext (← liftMacroM <| WP.Exec.dischOf d?) args fun ctx simprocs disch =>
-      discard <| simpLocation ctx simprocs disch (expandOptLocation (mkOptionalNode loc?))
+    let autoWram := wram.exec.autoWramOmega.get (← getOptions)
+    WP.Exec.withSimpContext (← liftMacroM <| WP.Exec.dischOf d? autoWram) args
+      fun ctx simprocs disch =>
+        discard <| simpLocation ctx simprocs disch (expandOptLocation (mkOptionalNode loc?))
 
 open Lean Meta Elab Tactic in
 elab_rules : tactic
@@ -1144,7 +1186,8 @@ elab_rules : tactic
       | `(Lean.Parser.Tactic.negConfigItem| -split) => split := false
       | `(Lean.Parser.Tactic.posConfigItem| +split) => split := true
       | _ => throwErrorAt item "wram_exec: unknown option; the only option is `-split`"
-    let userDisch ← liftMacroM <| WP.Exec.dischOf d?
+    let autoWram := wram.exec.autoWramOmega.get (← getOptions)
+    let userDisch ← liftMacroM <| WP.Exec.dischOf d? autoWram
     let disch ← `(tactic| ($userDisch))
     let args := args.map (·.getElems.map (·.raw)) |>.getD #[]
     WP.Exec.withSimpContext userDisch args fun ctx simprocs simpDischarge => do

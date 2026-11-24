@@ -15,8 +15,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Nat
 # Named native streaming first-match lookup
 
 This module retains a generic first-match table scan. The required input is a table paired with a
-key. A retained marshalling compiler copies it to the stream layout, then a concrete `streamTM`
-reads each framed entry once. The callback state keeps the search key and whether a prior entry
+key. A retained marshalling compiler copies it to the stream layout, then a concrete
+`MultiTapeMachine.stream` table reads each framed entry once. The callback state keeps the search
+key and whether a prior entry
 matched; only the first matching value is emitted.
 
 The peak callback workspace and encoded state/entry size are explicit finite suprema over the
@@ -102,7 +103,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
           simpa using ih false
 
 /-- Retained next-state callback for first-match scanning. -/
-@[expose] noncomputable def firstMatchNextCompiler (encKey : Key ↪ List Bool)
+@[expose] def firstMatchNextCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler firstMatchNext
       (encPair (encPair encKey encBool) (encPair encKey encValue))
@@ -123,7 +124,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     simp [firstMatchNext]
 
 /-- Retained emission callback for first-match scanning. -/
-@[expose] noncomputable def firstMatchEmitCompiler (encKey : Key ↪ List Bool)
+@[expose] def firstMatchEmitCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler firstMatchEmit
       (encPair (encPair encKey encBool) (encPair encKey encValue))
@@ -145,14 +146,14 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     simp [firstMatchEmit]
 
 /-- Finalization emits no additional match. -/
-@[expose] noncomputable def firstMatchFinishCompiler (encKey : Key ↪ List Bool)
+@[expose] def firstMatchFinishCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler (Function.const (FirstMatchState Key) (none : Option Value))
       (encPair encKey encBool) (encOption encValue) :=
   const (encPair encKey encBool) (encOption encValue) none
 
 /-- Explicit peak lifted-callback workspace over the actual scan rounds. -/
-@[expose] noncomputable def firstMatchSMax (encKey : Key ↪ List Bool)
+@[expose] def firstMatchSMax (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) (input : FirstMatchState Key × List (Key × Value)) : ℕ :=
   let nextCompiler := firstMatchNextCompiler encKey encValue
   let emitCompiler := firstMatchEmitCompiler encKey encValue
@@ -179,7 +180,7 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
       else 0)
 
 /-- The retained stream before input marshalling. -/
-@[expose] noncomputable def firstMatchStreamCompiler (encKey : Key ↪ List Bool)
+@[expose] def firstMatchStreamCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler
       (fun ((query, found), table) =>
@@ -195,51 +196,15 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     rw [streamEmit_firstMatch encValue query found table]
     cases found <;> simp
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 firstMatchNext input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [firstMatchSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        ((encPair encKey encBool) (streamState input.1 firstMatchNext input.2 j)).length
-        else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    have hbound :
-        ((encPair encKey encBool) (streamState input.1 firstMatchNext input.2 j)).length ≤
-          (Finset.range (input.2.length + 1)).sup fun j =>
-            if hj : j ≤ input.2.length then
-              ((encPair encKey encBool)
-                (streamState input.1 firstMatchNext input.2 j)).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_left _ _)
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        ((encPair encKey encValue) input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    have hbound :
-        ((encPair encKey encValue) input.2[j]).length ≤
-          (Finset.range input.2.length).sup fun j =>
-            if hj : j < input.2.length then
-              ((encPair encKey encValue) input.2[j]).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_right _ _)
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained marshalling from `(table, key)` to the stream's `((key, false), table)` layout. -/
-@[expose] noncomputable def firstMatchMarshalCompiler (encKey : Key ↪ List Bool)
+@[expose] def firstMatchMarshalCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler
       (fun input : List (Key × Value) × Key => ((input.2, false), input.1))
@@ -253,20 +218,13 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
   exact (key.pair isNew).pair table
 
 /-- Retained first-match lookup, including the charged table/key marshalling pass. -/
-@[expose] noncomputable def firstMatchCompiler (encKey : Key ↪ List Bool)
+@[expose] def firstMatchCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler firstMatch
       (encPair (encList (encPair encKey encValue)) encKey) (encOption encValue) :=
   ((firstMatchStreamCompiler encKey encValue).comp
     (firstMatchMarshalCompiler encKey encValue)).ofOutputEq fun input => by
       simp [firstMatch]
-
-/-- First-match retains the direct composition of streaming scan after input marshalling. -/
-theorem machine_firstMatchCompiler (encKey : Key ↪ List Bool) (encValue : Value ↪ List Bool) :
-    (firstMatchCompiler encKey encValue).machine =
-      (firstMatchStreamCompiler encKey encValue).machine.comp
-        (firstMatchMarshalCompiler encKey encValue).machine true :=
-  rfl
 
 /-- The first-match clock exposes marshalling, streaming, intermediate copying and composition
 overhead separately. -/

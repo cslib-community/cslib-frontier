@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.Branch
 public import CslibFrontier.Computability.WordRAM.Realization.Loop
 import CslibFrontier.DataStructure.Memory.Frame
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Measure-bounded memory-client while loops
@@ -235,10 +236,9 @@ private theorem whileBank_layout {n : ℕ} {frontier : Fin r} {src : Fin (k + l)
       (∀ j, tmp (whileBodySlot j) ≠ frontier) ∧
       ∀ i, Fin.append (fun i : Fin k => src (Fin.castAdd l i))
         (fun i => tmp (whileStateSlot i)) i ≠ frontier := by
-  have hsb (i : Fin l) (j : Fin (l + n + 1)) : whileStateSlot (n := n) i ≠ whileBodySlot j :=
-    Fin.ne_of_val_ne (by simp only [whileStateSlot, whileBodySlot]; omega)
-  have hbi : Function.Injective (whileBodySlot (l := l) (n := n)) := fun i j h =>
-    Fin.ext (by have := congrArg Fin.val h; dsimp only [whileBodySlot] at this; omega)
+  have hsb (i : Fin l) (j : Fin (l + n + 1)) : whileStateSlot (n := n) i ≠ whileBodySlot j := by
+    fin_index [whileStateSlot, whileBodySlot]
+  have hbi : Function.Injective (whileBodySlot (l := l) (n := n)) := by fin_index [whileBodySlot]
   exact ⟨fun i j h => Fin.ext (congrArg Fin.val (hi h) :), fun i j => hi.ne (hsb j _).symm,
     bodyBank_layout hi hbi hsb (fun _ _ => hd _ _) hf (fun _ => hs _)⟩
 

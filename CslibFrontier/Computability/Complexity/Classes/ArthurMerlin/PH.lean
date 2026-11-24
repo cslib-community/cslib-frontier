@@ -73,6 +73,8 @@ namespace Cslib.Complexity
 
 open Finset Turing.MultiTapeTM
 
+attribute [local irreducible] ComputableInPolyTime
+
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
 
 namespace ArthurMerlin
@@ -99,6 +101,8 @@ theorem computableInPolyTime_sigmaTwoVerifier {W : α × List Bool → Bool}
     (hW : ComputableInPolyTime W (encPair enc encBits) encBool) (q k p : Polynomial ℕ) :
     ComputableInPolyTime (sigmaTwoVerifier enc q k p W) (encPair enc encBits) encBool := by
   unfold sigmaTwoVerifier
+  refine ComputableInPolyTime.anyWithInput (encA := encUnary) (by fun_prop) ?_
+  refine hW.comp (((ComputableInPolyTime.fst _ _).fst').prod ?_)
   fun_prop
 
 /-- On a proof followed by the shifts and then a random string `r`, the `Σ₂` verifier accepts iff
@@ -190,6 +194,8 @@ theorem computableInPolyTime_piTwoVerifier {W : α × List Bool → Bool}
     (hW : ComputableInPolyTime W (encPair enc encBits) encBool) (k p q : Polynomial ℕ) :
     ComputableInPolyTime (piTwoVerifier enc k p q W) (encPair enc encBits) encBool := by
   unfold piTwoVerifier
+  refine ComputableInPolyTime.allWithInput (encA := encUnary) (by fun_prop) ?_
+  refine hW.comp (((ComputableInPolyTime.fst _ _).fst').prod ?_)
   fun_prop
 
 /-- On the shifts followed by any word `v`, the `Π₂` verifier accepts iff `W` accepts, for each

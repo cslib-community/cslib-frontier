@@ -16,13 +16,19 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction
 
 Example 20.2 of [BonehShoup2023] (pp. 825–826), in additive notation: for a public key `u` and two
 multiplicative-ElGamal ciphertexts `(v₀, e₀)` and `(v₁, e₁)`, the Chaum–Pedersen protocol on the
-triple `(u, v₀ - v₁, e₀ - e₁)` proves that both ciphertexts encrypt the same message. The witness
-is `β` with `β • g = v₀ - v₁` and `β • u = e₀ - e₁` ([BonehShoup2023], (20.2), p. 826); neither
-the message nor the two encryption exponents are needed.
+triple `(u, v₀ - v₁, e₀ - e₁)` proves the relation (20.2): there is a `β` with
+`β • g = v₀ - v₁` and `β • u = e₀ - e₁` ([BonehShoup2023], p. 826). When `g` generates the group,
+this says that both ciphertexts encrypt the same message (`exists_equalPlaintextsRelation_iff`).
+Neither the message nor the two encryption exponents are needed.
 
 The protocol is `SigmaProtocol.comap` of `chaumPedersen` along the statement map
 `equalPlaintextsTriple`, with the identity on witnesses, so completeness, special soundness and
-special HVZK are those of `chaumPedersen`.
+special HVZK are those of `chaumPedersen`. Special soundness and special HVZK here are the
+library's `SigmaProtocol.SpecialSoundness` and `SigmaProtocol.SpecialHVZK`: an extractor that
+returns a witness from two accepting transcripts, and a simulator whose transcript law equals the
+honest one at each fixed challenge. The efficiency of the extractor and simulator, which
+[BonehShoup2023], Definitions 19.4 and 19.5, also ask for, is a separate property
+(`EfficientSpecialSoundness`, `EfficientSpecialHVZK`) that is not proved here.
 
 ## Main definitions
 
@@ -34,9 +40,8 @@ special HVZK are those of `chaumPedersen`.
 
 * `Cslib.Crypto.Protocols.SigmaProtocol.exists_equalPlaintextsRelation_iff`: when `g` generates
   the group, a statement has a witness iff the two ciphertexts encrypt one message.
-* `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintextsRelation_reencrypt`: a re-encryption of a
-  ciphertext is a true statement, and the re-encryption exponent gives the witness (with opposite
-  sign).
+* `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintextsRelation_reencrypt`: a pair and its
+  re-encryption satisfy (20.2), with the re-encryption exponent (with opposite sign) as witness.
 * `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_complete`,
   `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_specialHVZK`: the protocol is complete
   and special HVZK for (20.2), with no primality or generator hypothesis.
@@ -102,9 +107,13 @@ theorem exists_equalPlaintextsRelation_iff {g : G}
   · rintro ⟨m, β₀, β₁, rfl, rfl⟩
     exact ⟨β₀ - β₁, equalPlaintextsRelation_sub g u m β₀ β₁⟩
 
-/-- Re-encryption ([BonehShoup2023], Example 20.2, p. 826): for any ciphertext `(v, e)` and exponent
-`β`, the ciphertext `(v + β • g, e + β • u)` encrypts the same message, with witness `-β`. The book
-writes `β` for both this exponent and the witness of (20.2); they differ by a sign. -/
+/-- Re-encryption ([BonehShoup2023], Example 20.2, p. 826): for any pair `(v, e)` and exponent
+`β`, the pair `(v, e)` and its re-encryption `(v + β • g, e + β • u)` satisfy (20.2), with witness
+`-β`. Both are encryptions of one message under `u` when `(v, e)` is an encryption
+`(β₀ • g, β₀ • u + m)`, or, for every pair, when `g` generates the group
+(`exists_equalPlaintextsRelation_iff`). Without either, the relation can hold for a pair that is
+no encryption: with `g = u = 0`, a pair whose first component is nonzero. The book writes `β` for
+both this exponent and the witness of (20.2); they differ by a sign. -/
 theorem equalPlaintextsRelation_reencrypt (g u : G) (ct : G × G) (β : ZMod q) :
     equalPlaintextsRelation g (-β) (u, ct, (ct.1 + β • g, ct.2 + β • u)) := by
   simp only [equalPlaintextsRelation, neg_smul, sub_add_cancel_left, and_self]
@@ -133,14 +142,19 @@ theorem equalPlaintexts_complete :
     (equalPlaintexts ι g).Complete (equalPlaintextsRelation g) :=
   chaumPedersen_complete.comap fun _ _ h => h
 
-/-- Special soundness: the Chaum–Pedersen extractor returns a witness of (20.2). -/
+/-- Special soundness as `SigmaProtocol.SpecialSoundness`: from two accepting conversations with a
+common commitment and distinct challenges, the Chaum–Pedersen extractor, run on the triple,
+returns a witness of (20.2). The extractor's efficiency is a separate property, not proved
+here. -/
 theorem equalPlaintexts_specialSoundness [Fact q.Prime] :
     (equalPlaintexts ι g).SpecialSoundness (equalPlaintextsRelation (q := q) g)
       fun y => linearExtract ι (equalPlaintextsTriple y) :=
   chaumPedersen_specialSoundness.comap _ _
 
-/-- Special honest-verifier zero knowledge, with the Chaum–Pedersen simulator run on the
-triple. -/
+/-- Special honest-verifier zero knowledge as `SigmaProtocol.SpecialHVZK`, with the Chaum–Pedersen
+simulator run on the triple: its conversations are accepting, and for a witness-statement pair its
+transcript law at each fixed challenge equals the honest prover's. The simulator's efficiency is a
+separate property, not proved here. -/
 theorem equalPlaintexts_specialHVZK :
     (equalPlaintexts ι g).SpecialHVZK (equalPlaintextsRelation g) fun y =>
       linearSimulate (fun s : G × G × G => (LinearMap.toSpanSingleton (ZMod q) G g).prod
