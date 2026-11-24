@@ -177,6 +177,11 @@ theorem coprime_unitOrOne (N r : ℕ) : (unitOrOne N r).Coprime N := by
   · exact h
   · exact Nat.coprime_one_left N
 
+/-- The residue of a unit modulo `N` is kept. -/
+theorem unitOrOne_val_coe_unit {N : ℕ} (u : (ZMod N)ˣ) :
+    unitOrOne N (u : ZMod N).val = (u : ZMod N).val :=
+  ite_eq_left (ZMod.val_coe_unit_coprime u)
+
 /-- `unitOrOne` is computable in polynomial time. -/
 theorem computableInPolyTime_unitOrOne {α : Type} {input : α ↪ List Bool} {N r : α → ℕ}
     (hN : ComputableInPolyTime N input encNat) (hr : ComputableInPolyTime r input encNat) :
