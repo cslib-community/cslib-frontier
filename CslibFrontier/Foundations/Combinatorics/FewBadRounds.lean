@@ -24,16 +24,18 @@ every `h` of a finite family `𝓗` (the histories) declare a set `bad h i` of a
 for each `i`. Some schedule `ρ` simultaneously keeps, for every `h ∈ 𝓗`, the number of `i ∈ I` with
 `ρ i ∈ bad h i` at most `(log #𝓗 + #I * B / T) / log 2`.
 
-This is the counting form of Lemma 3.11 of [KhannaPuttermanSong2026] (§3.4, p. 21), abstracted
-from the certificate procedure. The source's proof draws `ρ` uniformly and bounds `𝔼 2 ^ X_h(ρ)`.
-Here the expectation is a finite double count over all `T ^ #I` schedules:
-`∑_ρ 2 ^ X_h(ρ) = ∏_i (T + #(bad h i)) ≤ (T + B) ^ #I`, so some schedule has
-`T ^ #I * ∑_h 2 ^ X_h(ρ) ≤ #𝓗 * (T + B) ^ #I`. Taking logarithms and `log (1 + B / T) ≤ B / T`
-gives the bound. The source's case is `T = t²` and `B = 2t`, where `#I * B / T = 2 #I / t`.
+This is a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026], tracked in #8325: the
+counting form of the paper's Lemma 3.11 (§3.4, p. 21), abstracted from the certificate procedure.
+The source's proof draws `ρ` uniformly and bounds `𝔼 2 ^ X_h(ρ)`. Here the expectation is a finite
+double count over all `T ^ #I` schedules: `∑_ρ 2 ^ X_h(ρ) = ∏_i (T + #(bad h i)) ≤ (T + B) ^ #I`, so
+some schedule has `T ^ #I * ∑_h 2 ^ X_h(ρ) ≤ #𝓗 * (T + B) ^ #I`. Taking logarithms and
+`log (1 + B / T) ≤ B / T` gives the bound. The source's case is `T = t²` and `B = 2t`, where
+`#I * B / T = 2 #I / t`.
 
 ## Main results
 
-* `Cslib.exists_schedule_few_bad_rounds`: Lemma 3.11 of [KhannaPuttermanSong2026], abstracted.
+* `Cslib.exists_schedule_few_bad_rounds`: a schedule with few bad rounds for every history, a step
+  in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the paper's Lemma 3.11, abstracted).
 
 ## References
 
@@ -81,8 +83,9 @@ private theorem exists_schedule_pow_mul_le {κ : Type*} [Fintype κ] [Nonempty R
     exact Nat.mul_le_mul_left _ htotal
   exact (exists_le_of_sum_le univ_nonempty hle).imp fun _ h => h.2
 
-/-- **Lemma 3.11** of [KhannaPuttermanSong2026] (§3.4, p. 21), abstracted from the certificate
-procedure. Let `bad h i` be a set of at most `B` of the `T = Fintype.card R ≥ 1` rounds, for every
+/-- **A schedule with few bad rounds**, a step in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (the paper's Lemma 3.11, §3.4, p. 21, abstracted from the certificate
+procedure). Let `bad h i` be a set of at most `B` of the `T = Fintype.card R ≥ 1` rounds, for every
 history `h ∈ 𝓗` and element `i ∈ I`. Then one schedule `ρ : ι → R` puts, for every `h ∈ 𝓗` at once,
 at most `(log #𝓗 + #I * B / T) / log 2` elements of `I` into one of their bad rounds.
 

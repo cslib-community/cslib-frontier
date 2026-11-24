@@ -23,14 +23,14 @@ Let `A` be a finite family of vectors `κ → β`, compared on a finset `I` of `
 `t > 0`. Some set `S ⊆ I` of at most `⌈2 t log #A⌉` coordinates has the following property: any two
 vectors of `A` that agree on `S` differ in at most `M / t` coordinates of `I`.
 
-This is the counting form of Claim 3.12 of [KhannaPuttermanSong2026] (§3.5, p. 22), abstracted
-from the estimation of preferred actions. The source samples `k` coordinates independently and
-uniformly and takes a union bound over pairs. Here the sample is a sequence in `I ^ k`, and the
-union bound is a count. For a pair `(a, b)` differing in `D > M / t` coordinates of `I`, the
-sequences that miss every one of them number `(M - D) ^ k = M ^ k (1 - D / M) ^ k`, at most
-`M ^ k / #A ^ 2` once `k ≥ 2 t log #A`. Fewer than `#A ^ 2` ordered pairs (the diagonal never
-counts) therefore cover fewer than `M ^ k` sequences, and the coordinates of any sequence they miss
-form `S`.
+This is a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026], tracked in #8325: the
+counting form of the paper's Claim 3.12 (§3.5, p. 22), abstracted from the estimation of preferred
+actions. The source samples `k` coordinates independently and uniformly and takes a union bound over
+pairs. Here the sample is a sequence in `I ^ k`, and the union bound is a count. For a pair `(a, b)`
+differing in `D > M / t` coordinates of `I`, the sequences that miss every one of them number
+`(M - D) ^ k = M ^ k (1 - D / M) ^ k`, at most `M ^ k / #A ^ 2` once `k ≥ 2 t log #A`. Fewer than
+`#A ^ 2` ordered pairs (the diagonal never counts) therefore cover fewer than `M ^ k` sequences, and
+the coordinates of any sequence they miss form `S`.
 
 The source takes `k = 2t (log |A| + 1)`, so that `|A|² e^{-k/t} = e^{-2} < 1`. The count gives
 `k = ⌈2 t log #A⌉` directly, and `S = ∅` whenever `#A ≤ 1` or `M = 0`. Only `t > 0` is needed; for
@@ -38,7 +38,8 @@ The source takes `k = 2t (log |A| + 1)`, so that `|A|² e^{-k/t} = e^{-2} < 1`. 
 
 ## Main results
 
-* `Cslib.exists_separating_coordinates`: Claim 3.12 of [KhannaPuttermanSong2026], abstracted.
+* `Cslib.exists_separating_coordinates`: few coordinates separate a finite family, a step in the
+  proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the paper's Claim 3.12, abstracted).
 
 ## References
 
@@ -52,10 +53,10 @@ namespace Cslib
 
 open Finset
 
-/-- **Claim 3.12** of [KhannaPuttermanSong2026] (§3.5, p. 22), abstracted. For a finite family `A`
-of vectors `κ → β`, a finset `I` of coordinates and `t > 0`, some `S ⊆ I` with
-`#S ≤ ⌈2 t log #A⌉₊` is such that any `a, b ∈ A` agreeing on `S` differ in at most `#I / t`
-coordinates of `I`.
+/-- **Few separating coordinates**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
+(the paper's Claim 3.12, §3.5, p. 22, abstracted). For a finite family `A` of vectors `κ → β`, a
+finset `I` of coordinates and `t > 0`, some `S ⊆ I` with `#S ≤ ⌈2 t log #A⌉₊` is such that any
+`a, b ∈ A` agreeing on `S` differ in at most `#I / t` coordinates of `I`.
 
 The source states `|S| = O(t √(m n))` from `|A| = e^{O(√(m n))}`, through the sample size
 `k = 2t (log |A| + 1)`; the bound here is the sample size `⌈2 t log #A⌉₊`, which needs no `+ 1`. -/
