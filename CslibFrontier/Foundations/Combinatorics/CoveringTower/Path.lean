@@ -12,6 +12,23 @@ public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
 
 /-!
 # Walks in a tower
+
+Elementary facts about walks in a `Cslib.CoveringTower.Tower`: the chamber after each step,
+concatenation and reversal, and the edges along a route.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Path`.
+
+## Main definitions
+
+* `Cslib.CoveringTower.Tower.nodeAt`: the chamber after `s` steps.
+* `Cslib.CoveringTower.Routes.path`, `Routes.pn`, `Routes.pl`: a route through a middle chamber,
+  its chambers and its length.
+
+## Main results
+
+* `Cslib.CoveringTower.Tower.walk_append`, `Cslib.CoveringTower.Tower.walk_reverse`.
+* `Cslib.CoveringTower.Routes.exists_edge`: every step of a route is an edge between successive
+  chambers.
 -/
 
 public section
@@ -47,7 +64,8 @@ theorem step_mem (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) :
   · exact Or.inr h3
   · exact Or.inl h2
 
-theorem step_step (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : T.step e (T.step e c) = c := by
+theorem step_step (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : T.step e (T.step e c) =
+    c := by
   have h1 := step_ends e hc
   have h2 := step_ends e (step_mem e hc)
   rw [h1, Sym2.eq_iff] at h2
@@ -56,12 +74,14 @@ theorem step_step (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : T.
   · exact h3.symm
 
 /-- The chamber after `s` steps. -/
-def nodeAt (c : T.X j) (l : List (T.Ed j)) (s : ℕ) : T.X j := (l.take s).foldl (fun c e => T.step e c) c
+def nodeAt (c : T.X j) (l : List (T.Ed j)) (s : ℕ) : T.X j :=
+    (l.take s).foldl (fun c e => T.step e c) c
 
 theorem nodeAt_cons (c : T.X j) (e : T.Ed j) (l : List (T.Ed j)) (s : ℕ) :
     nodeAt c (e :: l) (s + 1) = nodeAt (T.step e c) l s := by rfl
 
-theorem walk_end {c c' : T.X j} {l : List (T.Ed j)} (hw : T.Walk c l c') : nodeAt c l l.length = c' := by
+theorem walk_end {c c' : T.X j} {l : List (T.Ed j)} (hw : T.Walk c l c') : nodeAt c l l.length =
+    c' := by
   induction l generalizing c with
   | nil => exact hw
   | cons e l ih =>
@@ -84,7 +104,8 @@ theorem walk_step {c c' : T.X j} {l : List (T.Ed j)} (hw : T.Walk c l c') {s : �
       rw [nodeAt_cons, nodeAt_cons]
       exact ih hw.2 he
 
-theorem walk_append {c c' c'' : T.X j} {l l' : List (T.Ed j)} (h1 : T.Walk c l c') (h2 : T.Walk c' l' c'') :
+theorem walk_append {c c' c'' : T.X j} {l l' : List (T.Ed j)} (h1 : T.Walk c l c')
+    (h2 : T.Walk c' l' c'') :
     T.Walk c (l ++ l') c'' := by
   induction l generalizing c with
   | nil =>
@@ -93,7 +114,8 @@ theorem walk_append {c c' c'' : T.X j} {l l' : List (T.Ed j)} (h1 : T.Walk c l c
     exact h2
   | cons e l ih => exact ⟨h1.1, ih h1.2⟩
 
-theorem walk_reverse {c c' : T.X j} {l : List (T.Ed j)} (h1 : T.Walk c l c') : T.Walk c' l.reverse c := by
+theorem walk_reverse {c c' : T.X j} {l : List (T.Ed j)} (h1 : T.Walk c l c') : T.Walk c' l.reverse
+    c := by
   induction l generalizing c with
   | nil => exact h1.symm
   | cons e l ih =>
@@ -128,7 +150,8 @@ def pl (c c' γ : T.X 0) : ℕ := Nat.find (R.exists_end c c' γ)
 /-- The chamber after `s` steps. -/
 def pn (c c' γ : T.X 0) (s : ℕ) : T.X 0 := Tower.nodeAt c (R.path c c' γ) s
 
-theorem pn_pl (c c' γ : T.X 0) : R.pn c c' γ (R.pl c c' γ) = c' := Nat.find_spec (R.exists_end c c' γ)
+theorem pn_pl (c c' γ : T.X 0) : R.pn c c' γ (R.pl c c' γ) = c' :=
+    Nat.find_spec (R.exists_end c c' γ)
 
 theorem pn_ne (c c' γ : T.X 0) {s : ℕ} (hs : s < R.pl c c' γ) : R.pn c c' γ s ≠ c' :=
   Nat.find_min (R.exists_end c c' γ) hs

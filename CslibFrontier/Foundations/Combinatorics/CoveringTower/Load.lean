@@ -16,7 +16,21 @@ import Mathlib.Algebra.Order.Chebyshev
 /-!
 # Loads in a tower: one stage
 
-The norm of the loads falls by the factor `ρ` in every stage, up to a small error.
+A load is a number `n e` on every edge of a level. The loads on the edges of type `i` at a
+chamber (`Tower.be`) are redistributed to the next level through the hosts, and the `ℓ²` norm of
+the load of type `i` falls by the factor `ρ` in every stage, up to an error controlled by `C₁`
+(`Cslib.CoveringTower.Tower.load_step`).
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Load`.
+
+## Main definitions
+
+* `Cslib.CoveringTower.Tower.be`, `Tower.nEnd`, `Tower.NN2`: units at a chamber, end segments on a
+  pair, and the squared norm of a load on pairs.
+
+## Main results
+
+* `Cslib.CoveringTower.Tower.load_step`: one stage of the decrease of the norm.
 -/
 
 public section
@@ -35,7 +49,8 @@ def be {j : ℕ} (i : Fin h) (n : T.Ed j → ℕ) (c : T.X j) : ℕ :=
 
 /-- The number of end segments on the pair `q` of the vertex `ω`. -/
 def nEnd {j : ℕ} (i : Fin h) (n : T.Ed j → ℕ) (ω : T.V (j + 1) i) (q : Sym2 T.Fl) : ℕ :=
-  ∑ c : T.X j, if T.πV (T.vx i c) = ω ∧ s(T.co i (T.host i (T.vx i c)), T.co i c) = q then T.be i n c else 0
+  ∑ c : T.X j,
+      if T.πV (T.vx i c) = ω ∧ s(T.co i (T.host i (T.vx i c)), T.co i c) = q then T.be i n c else 0
 
 /-- The square of the norm of a load on pairs. -/
 noncomputable def NN2 (n : Sym2 T.Fl → ℕ) : ℝ :=
@@ -53,14 +68,16 @@ theorem kap_sq {j : ℕ} (n : T.Ed j → ℕ) :
     T.kap n ^ 2 = (r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e, (n e : ℝ) ^ 2 :=
   Real.sq_sqrt (mul_nonneg (by positivity) (Finset.sum_nonneg fun e _ => sq_nonneg _))
 
-theorem card_V {j : ℕ} (hj : j ≤ J) (i : Fin h) : Fintype.card (T.V j i) * b = Fintype.card (T.X j) := by
+theorem card_V {j : ℕ} (hj : j ≤ J) (i : Fin h) : Fintype.card (T.V j i) * b =
+    Fintype.card (T.X j) := by
   rw [Fintype.card_of_bijective (T.vx_co hj i), Fintype.card_prod, T.card_fl]
 
 /-- Cauchy–Schwarz for a sum over few elements. -/
 theorem sq_sum_le {κ : Type*} (s : Finset κ) (f : κ → ℝ) {k : ℕ} (hk : s.card ≤ k) :
     (∑ x ∈ s, f x) ^ 2 ≤ k * ∑ x ∈ s, f x ^ 2 := by
   refine (sq_sum_le_card_mul_sum_sq (s := s) (f := f)).trans ?_
-  refine mul_le_mul_of_nonneg_right (by exact_mod_cast hk) (Finset.sum_nonneg fun x _ => sq_nonneg _)
+  refine mul_le_mul_of_nonneg_right (by exact_mod_cast hk)
+      (Finset.sum_nonneg fun x _ => sq_nonneg _)
 
 section Stage
 
@@ -75,14 +92,16 @@ theorem mid_le (hj : j < J) {n' : T.Ed (j + 1) → ℕ}
       D * ∑ e ∈ univ.filter (fun e => T.πE e = e'), (n e : ℝ) ^ 2 := by
     intro e' he'
     have h2 := hmid e' (mem_filter.1 he').2
-    have h3 : (n' e' : ℝ) ≤ ∑ e ∈ univ.filter (fun e => T.πE e = e'), (n e : ℝ) := by exact_mod_cast h2
+    have h3 : (n' e' : ℝ) ≤ ∑ e ∈ univ.filter (fun e => T.πE e = e'),
+        (n e : ℝ) := by exact_mod_cast h2
     refine (pow_le_pow_left₀ (Nat.cast_nonneg _) h3 2).trans ?_
     exact sq_sum_le _ _ (T.fibre hj e')
   refine (Finset.sum_le_sum h1).trans ?_
   rw [← Finset.mul_sum]
   refine mul_le_mul_of_nonneg_left (le_of_eq ?_) (Nat.cast_nonneg _)
   rw [← Finset.sum_fiberwise_of_maps_to (s := univ.filter fun e : T.Ed j => T.ty e = i)
-    (t := univ.filter fun e' : T.Ed (j + 1) => T.ty e' = i) (g := T.πE) (f := fun e => (n e : ℝ) ^ 2)]
+    (t := univ.filter fun e' : T.Ed (j + 1) => T.ty e' = i) (g := T.πE)
+        (f := fun e => (n e : ℝ) ^ 2)]
   · refine Finset.sum_congr rfl fun e' he' => Finset.sum_congr ?_ fun _ _ => rfl
     ext e
     simp only [mem_filter, mem_univ, true_and]
@@ -102,7 +121,8 @@ theorem sum_be_sq (hj : j ≤ J) : ∑ c, (T.be i n c : ℝ) ^ 2 ≤
   have h1 : ∀ c, (T.be i n c : ℝ) ^ 2 ≤
       r * ∑ e, if T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c) then (n e : ℝ) ^ 2 else 0 := by
     intro c
-    have e1 : (T.be i n c : ℝ) = ∑ e ∈ univ.filter (fun e => T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c)), (n e : ℝ) := by
+    have e1 : (T.be i n c : ℝ) =
+        ∑ e ∈ univ.filter (fun e => T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c)), (n e : ℝ) := by
       unfold be
       rw [Finset.sum_filter]
       push_cast
@@ -111,11 +131,12 @@ theorem sum_be_sq (hj : j ≤ J) : ∑ c, (T.be i n c : ℝ) ^ 2 ≤
     exact sq_sum_le _ _ (T.deg j hj c i)
   refine (Finset.sum_le_sum fun c _ => h1 c).trans ?_
   rw [← Finset.mul_sum, Finset.sum_comm]
-  have h2 : ∀ e : T.Ed j, (∑ c, if T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c) then (n e : ℝ) ^ 2 else 0) =
+  have h2 : ∀ e : T.Ed j,
+      (∑ c, if T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c) then (n e : ℝ) ^ 2 else 0) =
       if T.ty e = i then 2 * (n e : ℝ) ^ 2 else 0 := by
     intro e
     by_cases ht : T.ty e = i
-    · rw [if_pos ht]
+    · rw [ite_eq_left ht]
       have h3 : ∀ c, (if T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c) then (n e : ℝ) ^ 2 else 0) =
           (if T.e0 e = c then (n e : ℝ) ^ 2 else 0) + if T.e1 e = c then (n e : ℝ) ^ 2 else 0 := by
         intro c
@@ -127,8 +148,8 @@ theorem sum_be_sq (hj : j ≤ J) : ∑ c, (T.be i n c : ℝ) ^ 2 ≤
       rw [Finset.sum_congr rfl fun c _ => h3 c, Finset.sum_add_distrib]
       simp
       ring
-    · rw [if_neg ht]
-      exact Finset.sum_eq_zero fun c _ => if_neg fun hh => ht hh.1
+    · rw [ite_eq_right ht]
+      exact Finset.sum_eq_zero fun c _ => ite_eq_right fun hh => ht hh.1
   rw [Finset.sum_congr rfl fun e _ => h2 e, Finset.sum_filter, Finset.mul_sum, Finset.mul_sum]
   refine le_of_eq (Finset.sum_congr rfl fun e _ => ?_)
   split_ifs <;> ring
@@ -140,12 +161,14 @@ theorem card_two (hj : j < J) (ω : T.V (j + 1) i) (q : Sym2 T.Fl) :
   induction q using Sym2.inductionOn with
   | _ f f' =>
     have h1 : (univ.filter fun c : T.X j => T.πV (T.vx i c) = ω ∧
-        s(T.co i (T.host i (T.vx i c)), T.co i c) = s(f, f')).card ≤ ({(f, f'), (f', f)} : Finset (T.Fl × T.Fl)).card := by
+        s(T.co i (T.host i (T.vx i c)), T.co i c) = s(f, f')).card ≤
+            ({(f, f'), (f', f)} : Finset (T.Fl × T.Fl)).card := by
       refine card_le_card_of_injOn (fun c => (T.co i (T.host i (T.vx i c)), T.co i c)) ?_ ?_
       · intro c hc
         have := (mem_filter.1 (mem_coe.1 hc)).2.2
         rw [Sym2.eq_iff] at this
-        simp only [coe_insert, coe_singleton, Set.mem_insert_iff, Set.mem_singleton_iff, Prod.mk.injEq]
+        simp only
+            [coe_insert, coe_singleton, Set.mem_insert_iff, Set.mem_singleton_iff, Prod.mk.injEq]
         exact this
       · intro c hc c' hc' heq
         simp only [Prod.mk.injEq] at heq
@@ -196,7 +219,7 @@ theorem sum_end_sq (hj : j < J) :
 end Stage
 
 /-- Minkowski's inequality, one summand constant. -/
-theorem minkowski {κ : Type*} [Fintype κ] (f : κ → ℝ) (hf : ∀ x, 0 ≤ f x) {a : ℝ} (ha : 0 ≤ a) :
+theorem minkowski {κ : Type*} [Fintype κ] (f : κ → ℝ) {a : ℝ} (ha : 0 ≤ a) :
     √(∑ x, (f x + a) ^ 2) ≤ √(∑ x, f x ^ 2) + √(Fintype.card κ) * a := by
   have h1 : 0 ≤ ∑ x, f x ^ 2 := Finset.sum_nonneg fun x _ => sq_nonneg _
   have hc : (0 : ℝ) ≤ Fintype.card κ := Nat.cast_nonneg _
@@ -221,7 +244,8 @@ theorem minkowski {κ : Type*} [Fintype κ] (f : κ → ℝ) (hf : ∀ x, 0 ≤ 
   have := mul_le_mul_of_nonneg_left hcs (by linarith : 0 ≤ 2 * a)
   linarith
 
-theorem alg {C N y k : ℝ} (hC : 0 ≤ C) (hN : 0 ≤ N) (hy : 0 ≤ y) (hk : k ^ 2 ≤ N ^ 2 + C * (√8 * N + y) ^ 2) :
+theorem alg {C N y k : ℝ} (hC : 0 ≤ C) (hN : 0 ≤ N) (hy : 0 ≤ y)
+    (hk : k ^ 2 ≤ N ^ 2 + C * (√8 * N + y) ^ 2) :
     k ≤ √(1 + 8 * C) * N + √C * y := by
   have hS0 : 0 ≤ √(1 + 8 * C) := Real.sqrt_nonneg _
   have hS2 : √(1 + 8 * C) ^ 2 = 1 + 8 * C := Real.sq_sqrt (by linarith)
@@ -263,11 +287,13 @@ theorem NN2_nonneg (hb : 0 < b) (m : Sym2 T.Fl → ℕ) : 0 ≤ T.NN2 m := by
 /-- The norms of the loads of end segments. -/
 theorem end_norm {j : ℕ} (hj : j < J) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fin h} {n : T.Ed j → ℕ} :
     (Fintype.card (T.X (j + 1)) : ℝ) / b * ∑ ω, √(T.NN2 (T.nEnd i n ω)) ^ 2 ≤
-      8 * ((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2) := by
+      8 * ((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i),
+          (n e : ℝ) ^ 2) := by
   have hbR : (0 : ℝ) < b := by exact_mod_cast hb
   have hb1 : (1 : ℝ) ≤ b := by exact_mod_cast hb
   have hDb : (b : ℝ) ≤ 2 * D := by exact_mod_cast hbD
-  have hcX : (Fintype.card (T.X j) : ℝ) = D * Fintype.card (T.X (j + 1)) := by exact_mod_cast T.card_X j hj
+  have hcX : (Fintype.card (T.X j) : ℝ) = D * Fintype.card (T.X (j + 1)) :=
+      by exact_mod_cast T.card_X j hj
   rw [hcX]
   have h6 := sum_end_sq (T := T) (n := n) (i := i) hj
   have h7 := sum_be_sq (T := T) (n := n) (i := i) hj.le
@@ -275,7 +301,8 @@ theorem end_norm {j : ℕ} (hj : j < J) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fi
   have hP0 : 0 ≤ Pn := Finset.sum_nonneg fun e _ => sq_nonneg _
   set x : ℝ := (Fintype.card (T.X (j + 1)) : ℝ) with hx
   have hx0 : 0 ≤ x := Nat.cast_nonneg _
-  have h1 : ∀ ω, √(T.NN2 (T.nEnd i n ω)) ^ 2 ≤ (b : ℝ) ^ 2 / 2 * ∑ q : Sym2 T.Fl, (T.nEnd i n ω q : ℝ) ^ 2 := by
+  have h1 : ∀ ω, √(T.NN2 (T.nEnd i n ω)) ^ 2 ≤ (b : ℝ) ^ 2 / 2 * ∑ q : Sym2 T.Fl,
+      (T.nEnd i n ω q : ℝ) ^ 2 := by
     intro ω
     rw [Real.sq_sqrt (NN2_nonneg hb _)]
     unfold NN2
@@ -285,8 +312,9 @@ theorem end_norm {j : ℕ} (hj : j < J) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fi
       split_ifs
       · exact sq_nonneg _
       · exact le_rfl
-    have h3 : (0 : ℝ) ≤ ∑ q : Sym2 T.Fl, (T.nEnd i n ω q : ℝ) ^ 2 := Finset.sum_nonneg fun q _ => sq_nonneg _
-    have h4 : (b : ℝ) * (b - 1) / 2 ≤ (b : ℝ) ^ 2 / 2 := by nlinarith
+    have h3 : (0 : ℝ) ≤ ∑ q : Sym2 T.Fl,
+        (T.nEnd i n ω q : ℝ) ^ 2 := Finset.sum_nonneg fun q _ => sq_nonneg _
+    have h4 : (b : ℝ) * (b - 1) / 2 ≤ (b : ℝ) ^ 2 / 2 := by linarith
     have h5 : (0 : ℝ) ≤ (b : ℝ) * (b - 1) / 2 := by
       have : (0 : ℝ) ≤ b - 1 := by linarith
       positivity
@@ -309,12 +337,15 @@ theorem end_norm {j : ℕ} (hj : j < J) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fi
 /-- The new loads at the vertices. -/
 theorem other_le {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fin h}
     {n : T.Ed j → ℕ} {n' : T.Ed (j + 1) → ℕ} {C₁ a₁ N : ℝ} (hC : 0 ≤ C₁) (ha : 0 ≤ a₁) (hN0 : 0 ≤ N)
-    (hN2 : N ^ 2 = (r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2)
+    (hN2 : N ^ 2 = (r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i),
+        (n e : ℝ) ^ 2)
     (t : T.V (j + 1) i → ℕ)
-    (hal : ∀ ω, (r : ℝ) * b / 2 * ∑ ν, (n' ((T.nr (Nat.succ_le_of_lt hj) i).symm (ω, ν)).1 : ℝ) ^ 2 ≤
+    (hal : ∀ ω, (r : ℝ) * b / 2 * ∑ ν,
+        (n' ((T.nr (Nat.succ_le_of_lt hj) i).symm (ω, ν)).1 : ℝ) ^ 2 ≤
       C₁ * a₁ ^ 2 * (t ω : ℝ) ^ 2)
     (ht : ∀ ω, a₁ * t ω ≤ √(T.NN2 (T.nEnd i n ω)) + a₁) :
-    (r : ℝ) * Fintype.card (T.X (j + 1)) / 2 * ∑ e' ∈ univ.filter (fun e' => ¬ T.ty e' = i), (n' e' : ℝ) ^ 2 ≤
+    (r : ℝ) * Fintype.card (T.X (j + 1)) / 2 * ∑ e' ∈ univ.filter (fun e' => ¬ T.ty e' = i),
+        (n' e' : ℝ) ^ 2 ≤
       C₁ * (√8 * N + a₁ * (Fintype.card (T.X (j + 1)) / b)) ^ 2 := by
   have hj' := Nat.succ_le_of_lt hj
   have hrR : (0 : ℝ) < r := by exact_mod_cast hr
@@ -333,10 +364,12 @@ theorem other_le {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2
     rw [← Fintype.sum_prod_type' (f := fun ω ν => (n' ((T.nr hj' i).symm (ω, ν)).1 : ℝ) ^ 2)]
     rw [← Equiv.sum_comp (T.nr hj' i) (fun p => (n' ((T.nr hj' i).symm p).1 : ℝ) ^ 2)]
     simp only [Equiv.symm_apply_apply]
-    exact (Finset.sum_subtype (univ.filter fun e' : T.Ed (j + 1) => ¬ T.ty e' = i) (p := fun e' => T.ty e' ≠ i)
+    exact (Finset.sum_subtype (univ.filter fun e' : T.Ed (j + 1) => ¬ T.ty e' = i)
+        (p := fun e' => T.ty e' ≠ i)
       (by simp) fun e' => (n' e' : ℝ) ^ 2)
   rw [e1]
-  have h1 : ∀ ω, (r : ℝ) * b / 2 * ∑ ν, (n' ((T.nr hj' i).symm (ω, ν)).1 : ℝ) ^ 2 ≤ C₁ * (f ω + a₁) ^ 2 := by
+  have h1 : ∀ ω, (r : ℝ) * b / 2 * ∑ ν,
+      (n' ((T.nr hj' i).symm (ω, ν)).1 : ℝ) ^ 2 ≤ C₁ * (f ω + a₁) ^ 2 := by
     intro ω
     refine (hal ω).trans ?_
     have h2 : (a₁ * (t ω : ℝ)) ^ 2 ≤ (f ω + a₁) ^ 2 :=
@@ -357,7 +390,7 @@ theorem other_le {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2
   have hs0 : 0 ≤ ∑ ω, (f ω + a₁) ^ 2 := Finset.sum_nonneg fun ω _ => sq_nonneg _
   have h5 : √(x / b * ∑ ω, (f ω + a₁) ^ 2) ≤ √8 * N + a₁ * (x / b) := by
     rw [Real.sqrt_mul hxb]
-    have h6 := minkowski f hf0 ha
+    have h6 := minkowski f ha
     rw [hcV] at h6
     have h7 := mul_le_mul_of_nonneg_left h6 (Real.sqrt_nonneg (x / b))
     refine h7.trans ?_
@@ -377,17 +410,22 @@ theorem load_step {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 
     (hi : (h : ℝ) * ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2 ≤ ∑ e, (n e : ℝ) ^ 2)
     (hmid : ∀ e', T.ty e' = i → n' e' ≤ ∑ e ∈ univ.filter (fun e => T.πE e = e'), n e)
     (t : T.V (j + 1) i → ℕ)
-    (hal : ∀ ω, (r : ℝ) * b / 2 * ∑ ν, (n' ((T.nr (Nat.succ_le_of_lt hj) i).symm (ω, ν)).1 : ℝ) ^ 2 ≤
+    (hal : ∀ ω, (r : ℝ) * b / 2 * ∑ ν,
+        (n' ((T.nr (Nat.succ_le_of_lt hj) i).symm (ω, ν)).1 : ℝ) ^ 2 ≤
       C₁ * a₁ ^ 2 * (t ω : ℝ) ^ 2)
     (ht : ∀ ω, a₁ * t ω ≤ √(T.NN2 (T.nEnd i n ω)) + a₁) :
     T.kap n' ≤ ρ * T.kap n + √C₁ * a₁ / b * Fintype.card (T.X (j + 1)) := by
-  have hcX : (Fintype.card (T.X j) : ℝ) = D * Fintype.card (T.X (j + 1)) := by exact_mod_cast T.card_X j hj
-  have hP0 : 0 ≤ ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2 := Finset.sum_nonneg fun e _ => sq_nonneg _
+  have hcX : (Fintype.card (T.X j) : ℝ) = D * Fintype.card (T.X (j + 1)) :=
+      by exact_mod_cast T.card_X j hj
+  have hP0 : 0 ≤ ∑ e ∈ univ.filter (fun e => T.ty e = i),
+      (n e : ℝ) ^ 2 := Finset.sum_nonneg fun e _ => sq_nonneg _
   have hA : (0 : ℝ) ≤ (r : ℝ) * Fintype.card (T.X j) / 2 := by positivity
   have hN0 := Real.sqrt_nonneg ((r : ℝ) * Fintype.card (T.X j) / 2 *
     ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2)
   have hN2 := Real.sq_sqrt (mul_nonneg hA hP0)
-  set N : ℝ := √((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2) with hN
+  set N : ℝ :=
+      √((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i),
+          (n e : ℝ) ^ 2) with hN
   have hother := other_le hj hr hb hbD hC ha hN0 hN2 t hal ht
   have hm' : (r : ℝ) * Fintype.card (T.X (j + 1)) / 2 *
       ∑ e' ∈ univ.filter (fun e' => T.ty e' = i), (n' e' : ℝ) ^ 2 ≤ N ^ 2 := by
@@ -407,7 +445,9 @@ theorem load_step {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 
     have h0 : 0 ≤ ρ * T.kap n := mul_nonneg hρ (kap_nonneg n)
     refine (abs_le_of_sq_le_sq' ?_ h0).2
     rw [mul_pow, mul_pow, Real.sq_sqrt (by linarith : 0 ≤ 1 + 8 * C₁), hN2, kap_sq]
-    calc (1 + 8 * C₁) * ((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2)
+    calc (1 + 8 * C₁) *
+        ((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (fun e => T.ty e = i),
+            (n e : ℝ) ^ 2)
         ≤ (ρ ^ 2 * h) * ((r : ℝ) * Fintype.card (T.X j) / 2 *
           ∑ e ∈ univ.filter (fun e => T.ty e = i), (n e : ℝ) ^ 2) :=
           mul_le_mul_of_nonneg_right hρ1 (mul_nonneg hA hP0)
@@ -416,7 +456,8 @@ theorem load_step {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 
       _ ≤ ρ ^ 2 * ((r : ℝ) * Fintype.card (T.X j) / 2) * ∑ e, (n e : ℝ) ^ 2 :=
           mul_le_mul_of_nonneg_left hi (mul_nonneg (sq_nonneg _) hA)
       _ = _ := by ring
-  have e3 : √C₁ * (a₁ * (Fintype.card (T.X (j + 1)) / b)) = √C₁ * a₁ / b * Fintype.card (T.X (j + 1)) := by ring
+  have e3 : √C₁ * (a₁ * (Fintype.card (T.X (j + 1)) / b)) = √C₁ * a₁ / b *
+      Fintype.card (T.X (j + 1)) := by ring
   linarith
 
 end Tower

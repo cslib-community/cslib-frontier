@@ -12,7 +12,29 @@ public import CslibFrontier.Foundations.GroupTheory.SLTower.Coord
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
 
 /-!
-# The tower
+# The tower of coset spaces
+
+The chambers of level `j` are the cosets `XX h n j` of the `j`-th subgroup of the Sylow chain
+`Cslib.SLTower.Gam` in `G h n`; the vertices of type `i` are the orbits of the `i`-th
+unitriangular subgroup (`VV`); the edges of type `k` join `c` and `gen k • c` (`EE`); and the
+near pairs `NN` come from the simple root elements. The projections between levels are
+equivariant, the unitriangular subgroups act freely, and every vertex has `b = 2^e` chambers.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Inst` (the construction of
+Proposition H.1, §H.1).
+
+## Main definitions
+
+* `Cslib.SLTower.Gam`, `Cslib.SLTower.XX`, `Cslib.SLTower.VV`, `Cslib.SLTower.EE`,
+  `Cslib.SLTower.NN`: the chain, chambers, vertices, edges and near pairs.
+* `Cslib.SLTower.pr`, `Cslib.SLTower.prE`, `Cslib.SLTower.prV`: the maps to the next level.
+
+## Main results
+
+* `Cslib.SLTower.tower_equivariant`, `Cslib.SLTower.tower_free`, `Cslib.SLTower.tower_cosets`:
+  the projections are equivariant, the actions free, the vertices cosets.
+* `Cslib.SLTower.tower_fibre`, `Cslib.SLTower.card_XX`: the fibres and the numbers of chambers.
+* `Cslib.SLTower.exists_host`: injective hosts for the vertices.
 -/
 
 public section
@@ -63,7 +85,8 @@ theorem evX_smul {j : ℕ} (g : G h n) (c : XX h n j) : evX (g • c) = evG g * 
     rfl
 
 /-- The covering. -/
-@[expose] noncomputable def pr {j : ℕ} : XX h n j → XX h n (j + 1) := Subgroup.quotientMapOfLE (Gam_le h n j)
+@[expose] noncomputable def pr {j : ℕ} : XX h n j → XX h n (j + 1) :=
+    Subgroup.quotientMapOfLE (Gam_le h n j)
 
 /-- **Paper: Proposition prop:tower.** The projections are equivariant. -/
 theorem tower_equivariant {j : ℕ} (g : G h n) (c : XX h n j) : pr (g • c) = g • pr c := by
@@ -77,16 +100,19 @@ theorem evX_pr {j : ℕ} (c : XX h n j) : evX (pr c) = evX c := by
 /-- The coordinate at the vertex of type i. -/
 @[expose] noncomputable def cor {j : ℕ} (i : Fin h) (c : XX h n j) : U h := coQ i (evX c)
 
-theorem cor_th {j : ℕ} (i : Fin h) (u : U h) (c : XX h n j) : cor i ((th i u : G h n) • c) = u * cor i c := by
+theorem cor_th {j : ℕ} (i : Fin h) (u : U h) (c : XX h n j) : cor i ((th i u : G h n) • c) = u *
+    cor i c := by
   rw [cor, cor, evX_smul, evG_th, coQ_mul]
 
-theorem cor_pr {j : ℕ} (i : Fin h) (c : XX h n j) : cor i (pr c) = cor i c := by rw [cor, cor, evX_pr]
+theorem cor_pr {j : ℕ} (i : Fin h) (c : XX h n j) : cor i (pr c) = cor i c :=
+    by rw [cor, cor, evX_pr]
 
 variable (h n) in
 /-- The vertices of type i: the chambers with coordinate 1. -/
 abbrev VV (j : ℕ) (i : Fin h) : Type := {c : XX h n j // cor i c = 1}
 
-noncomputable instance instFintypeVV (j : ℕ) (i : Fin h) : Fintype (VV h n j i) := Fintype.ofFinite _
+noncomputable instance instFintypeVV (j : ℕ) (i : Fin h) : Fintype (VV h n j i) :=
+    Fintype.ofFinite _
 
 noncomputable instance instDecVV (j : ℕ) (i : Fin h) : DecidableEq (VV h n j i) := Classical.decEq _
 
@@ -94,20 +120,25 @@ noncomputable instance instDecVV (j : ℕ) (i : Fin h) : DecidableEq (VV h n j i
 @[expose] noncomputable def vert {j : ℕ} (i : Fin h) (c : XX h n j) : VV h n j i :=
   ⟨(th i (cor i c)⁻¹ : G h n) • c, by rw [cor_th, inv_mul_cancel]⟩
 
-theorem vert_val {j : ℕ} (i : Fin h) (c : XX h n j) : (vert i c).1 = (th i (cor i c)⁻¹ : G h n) • c := by rfl
+theorem vert_val {j : ℕ} (i : Fin h) (c : XX h n j) : (vert i c).1 = (th i (cor i c)⁻¹ : G h n) •
+    c := by rfl
 
-theorem th_vert {j : ℕ} (i : Fin h) (c : XX h n j) : (th i (cor i c) : G h n) • (vert i c).1 = c := by
+theorem th_vert {j : ℕ} (i : Fin h) (c : XX h n j) : (th i (cor i c) : G h n) • (vert i c).1 = c :=
+    by
   rw [vert_val, ← mul_smul, ← map_mul, mul_inv_cancel, map_one, one_smul]
 
-theorem vert_th {j : ℕ} (i : Fin h) (u : U h) (c : XX h n j) : vert i ((th i u : G h n) • c) = vert i c := by
+theorem vert_th {j : ℕ} (i : Fin h) (u : U h) (c : XX h n j) : vert i ((th i u : G h n) • c) =
+    vert i c := by
   refine Subtype.ext ?_
-  rw [vert_val, vert_val, cor_th, ← mul_smul, ← map_mul, mul_inv_rev, mul_assoc, inv_mul_cancel, mul_one]
+  rw [vert_val, vert_val, cor_th, ← mul_smul, ← map_mul, mul_inv_rev, mul_assoc, inv_mul_cancel,
+      mul_one]
 
 theorem vert_of {j : ℕ} (i : Fin h) (v : VV h n j i) : vert i v.1 = v := by
   refine Subtype.ext ?_
   rw [vert_val, v.2, inv_one, map_one, one_smul]
 
-theorem vert_cor_bijective (j : ℕ) (i : Fin h) : Function.Bijective fun c : XX h n j => (vert i c, cor i c) := by
+theorem vert_cor_bijective (j : ℕ)
+    (i : Fin h) : Function.Bijective fun c : XX h n j => (vert i c, cor i c) := by
   constructor
   · intro c c' e
     simp only [Prod.mk.injEq] at e
@@ -121,9 +152,17 @@ variable (h n) in
 /-- The edges: pairs of type k, represented by their first chambers. -/
 abbrev EE (h2 : 2 ≤ h) (j : ℕ) : Type := {p : Fin h × XX h n j // FQ h2 p.1 (evX p.2)}
 
-noncomputable instance instFintypeEE (h2 : 2 ≤ h) (j : ℕ) : Fintype (EE h n h2 j) := Fintype.ofFinite _
+/-- The type of an edge. -/
+abbrev EE.kind {h2 : 2 ≤ h} {j : ℕ} (e : EE h n h2 j) : Fin h := e.1.1
 
-noncomputable instance instDecEE (h2 : 2 ≤ h) (j : ℕ) : DecidableEq (EE h n h2 j) := Classical.decEq _
+/-- The chamber an edge starts at; it ends at `gen k • start`. -/
+abbrev EE.start {h2 : 2 ≤ h} {j : ℕ} (e : EE h n h2 j) : XX h n j := e.1.2
+
+noncomputable instance instFintypeEE (h2 : 2 ≤ h) (j : ℕ) : Fintype (EE h n h2 j) :=
+    Fintype.ofFinite _
+
+noncomputable instance instDecEE (h2 : 2 ≤ h) (j : ℕ) : DecidableEq (EE h n h2 j) :=
+    Classical.decEq _
 
 theorem FQ_gen {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) :
     FQ h2 k (evX ((gen h2 k : G h n) • c)) ↔ ¬ FQ h2 k (evX c) := by rw [evX_smul, FQ_iff]
@@ -148,11 +187,14 @@ theorem tower_cosets {j : ℕ} (h2 : 2 ≤ h) (i : Fin h) (c : XX h n j) (u : U 
   have h2' := congrArg (fun M : SL2 h => M.1 (i - 1) i) h1
   simp only [th, MonoidHom.comp_apply, evG_th0] at h2'
   rw [evG_apply, gen_val] at h2'
-  simp [Matrix.transvection, Matrix.one_apply_ne hi, tt] at h2'
-  rw [(u.2 _ _).1 (Fin.pos_iff_ne_zero.2 fun h0 => hi (by rw [neg_eq_zero.1 h0, sub_zero]))] at h2'
+  simp only [Subgroup.subtype_apply, sub_sub_cancel_left, sub_self, Matrix.transvection, tt,
+    Matrix.add_apply, Matrix.one_apply_ne hi, Matrix.single_apply_same, zero_add] at h2'
+  rw [((mem_U.mp u.property) _ _).1
+      (Fin.pos_iff_ne_zero.2 fun h0 => hi (by rw [neg_eq_zero.1 h0, sub_zero]))] at h2'
   split_ifs at h2' <;> simp [ev_t] at h2'
 
-theorem gen_smul_ne {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : (gen h2 k : G h n) • c ≠ c := fun e =>
+theorem gen_smul_ne {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : (gen h2 k : G h n) • c ≠ c :=
+    fun e =>
   tower_cosets h2 k c 1 (by rw [map_one, one_smul, e])
 
 /-- The edge of type k at a chamber. -/
@@ -160,22 +202,25 @@ theorem gen_smul_ne {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : (gen h
   open Classical in
   if hc : FQ h2 k (evX c) then ⟨(k, c), hc⟩ else ⟨(k, (gen h2 k : G h n) • c), (FQ_gen h2 k c).2 hc⟩
 
-theorem edge_type {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : (edge h2 k c).1.1 = k := by
+theorem edge_type {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) :
+    EE.kind (edge h2 k c) = k := by
   unfold edge
   split_ifs <;> rfl
 
 theorem edge_end {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) :
-    (edge h2 k c).1.2 = c ∨ (edge h2 k c).1.2 = (gen h2 k : G h n) • c := by
+    EE.start (edge h2 k c) = c ∨ EE.start (edge h2 k c) = (gen h2 k : G h n) • c := by
   unfold edge
   split_ifs
   · exact Or.inl rfl
   · exact Or.inr rfl
 
-theorem edge_self {j : ℕ} (h2 : 2 ≤ h) (e : EE h n h2 j) : edge h2 e.1.1 e.1.2 = e := by
+theorem edge_self {j : ℕ} (h2 : 2 ≤ h) (e : EE h n h2 j) : edge h2 (EE.kind e) (EE.start e) = e :=
+    by
   unfold edge
   rw [dite_eq_left e.2]
 
-theorem edge_gen {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : edge h2 k ((gen h2 k : G h n) • c) = edge h2 k c := by
+theorem edge_gen {j : ℕ} (h2 : 2 ≤ h) (k : Fin h)
+    (c : XX h n j) : edge h2 k ((gen h2 k : G h n) • c) = edge h2 k c := by
   unfold edge
   by_cases hc : FQ h2 k (evX c)
   · rw [dite_eq_left hc, dite_eq_right (fun e => (FQ_gen h2 k c).1 e hc)]
@@ -184,9 +229,10 @@ theorem edge_gen {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) : edge h2 k
 
 /-- The edges of one type are half of the chambers. -/
 theorem card_edges (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) :
-    2 * (univ.filter fun e : EE h n h2 j => e.1.1 = i).card = 1 * Fintype.card (XX h n j) := by
+    2 * (univ.filter fun e : EE h n h2 j => (EE.kind e) = i).card = 1 * Fintype.card (XX h n j) :=
+        by
   classical
-  have h1 : (univ.filter fun e : EE h n h2 j => e.1.1 = i).card =
+  have h1 : (univ.filter fun e : EE h n h2 j => (EE.kind e) = i).card =
       (univ.filter fun c : XX h n j => FQ h2 i (evX c)).card := by
     refine Finset.card_bij' (fun e _ => e.1.2) (fun c _ => edge h2 i c) ?_ ?_ ?_ ?_
     · intro e he
@@ -205,7 +251,8 @@ theorem card_edges (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) :
       rw [dite_eq_left hc.2]
   have h3 : (univ.filter fun c : XX h n j => FQ h2 i (evX c)).card =
       (univ.filter fun c : XX h n j => ¬ FQ h2 i (evX c)).card := by
-    refine Finset.card_bij' (fun c _ => (gen h2 i : G h n) • c) (fun c _ => (gen h2 i : G h n) • c) ?_ ?_ ?_ ?_
+    refine Finset.card_bij' (fun c _ => (gen h2 i : G h n) • c)
+        (fun c _ => (gen h2 i : G h n) • c) ?_ ?_ ?_ ?_
     · intro c hc
       rw [mem_filter] at hc ⊢
       exact ⟨mem_univ _, fun e => (FQ_gen h2 i c).1 e hc.2⟩
@@ -214,15 +261,18 @@ theorem card_edges (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) :
       exact ⟨mem_univ _, (FQ_gen h2 i c).2 hc.2⟩
     · intro c _; exact gen_gen h2 i c
     · intro c _; exact gen_gen h2 i c
-  have h4 := Finset.card_filter_add_card_filter_not (s := (univ : Finset (XX h n j))) (fun c => FQ h2 i (evX c))
+  have h4 := Finset.card_filter_add_card_filter_not (s := (univ : Finset (XX h n j)))
+      (fun c => FQ h2 i (evX c))
   rw [Finset.card_univ] at h4
   rw [h1, one_mul]
   omega
 
 theorem deg_edges (h2 : 2 ≤ h) (j : ℕ) (c : XX h n j) (i : Fin h) :
-    (univ.filter fun e : EE h n h2 j => e.1.1 = i ∧ (e.1.2 = c ∨ (gen h2 e.1.1 : G h n) • e.1.2 = c)).card ≤ 1 := by
+    (univ.filter fun e : EE h n h2 j => (EE.kind e) = i ∧
+        (EE.start e = c ∨ (gen h2 (EE.kind e) : G h n) • (EE.start e) = c)).card ≤ 1 := by
   rw [Finset.card_le_one]
-  have key : ∀ e ∈ univ.filter fun e : EE h n h2 j => e.1.1 = i ∧ (e.1.2 = c ∨ (gen h2 e.1.1 : G h n) • e.1.2 = c),
+  have key : ∀ e ∈ univ.filter fun e : EE h n h2 j => (EE.kind e) = i ∧
+      (EE.start e = c ∨ (gen h2 (EE.kind e) : G h n) • (EE.start e) = c),
       e = edge h2 i c := by
     intro e he
     rw [mem_filter] at he
@@ -235,6 +285,12 @@ theorem deg_edges (h2 : 2 ≤ h) (j : ℕ) (c : XX h n j) (i : Fin h) :
 /-- Near pairs of the unitriangular group. -/
 abbrev NN (h : ℕ) [NeZero h] : Type := {p : Fin (h - 1) × U h // FU p.1 p.2}
 
+/-- The index of the simple root element of a near pair. -/
+abbrev NN.idx (ν : NN h) : Fin (h - 1) := ν.1.1
+
+/-- The first element of a near pair; the second is `x h idx * elt`. -/
+abbrev NN.elt (ν : NN h) : U h := ν.1.2
+
 noncomputable instance instFintypeNN : Fintype (NN h) := Fintype.ofFinite _
 
 noncomputable instance instDecNN : DecidableEq (NN h) := Classical.decEq _
@@ -245,19 +301,20 @@ noncomputable instance instDecU : DecidableEq (U h) := Classical.decEq _
 @[expose] noncomputable def npair (l : Fin (h - 1)) (u : U h) : NN h :=
   open Classical in if hu : FU l u then ⟨(l, u), hu⟩ else ⟨(l, x h l * u), (FU_iff l u).2 hu⟩
 
-theorem npair_type (l : Fin (h - 1)) (u : U h) : (npair l u).1.1 = l := by
+theorem npair_type (l : Fin (h - 1)) (u : U h) : NN.idx (npair l u) = l := by
   unfold npair
   split_ifs <;> rfl
 
 theorem npair_sym (l : Fin (h - 1)) (u : U h) :
-    s(u, x h l * u) = s((npair l u).1.2, x h (npair l u).1.1 * (npair l u).1.2) := by
+    s(u, x h l * u) = s(NN.elt (npair l u), x h (NN.idx (npair l u)) * (NN.elt (npair l u))) := by
   unfold npair
   split_ifs
   · rfl
-  · simp only
+  · simp only [NN.elt, NN.idx]
     rw [← mul_assoc, x_mul_self, one_mul, Sym2.eq_swap]
 
-theorem npair_eq {l : Fin (h - 1)} {u u' : U h} (e : npair l u = npair l u') : u = u' ∨ u = x h l * u' := by
+theorem npair_eq {l : Fin (h - 1)} {u u' : U h} (e : npair l u = npair l u') : u = u' ∨ u = x h l *
+    u' := by
   unfold npair at e
   split_ifs at e with h1 h3 h3
   · exact Or.inl (congrArg (fun p => p.1.2) e)
@@ -269,7 +326,7 @@ theorem npair_eq {l : Fin (h - 1)} {u u' : U h} (e : npair l u = npair l u') : u
     have h4 : x h l * u = x h l * u' := congrArg (fun p => p.1.2) e
     exact mul_left_cancel h4
 
-theorem npair_self (ν : NN h) : npair ν.1.1 ν.1.2 = ν := by
+theorem npair_self (ν : NN h) : npair (NN.idx ν) (NN.elt ν) = ν := by
   unfold npair
   rw [dite_eq_left ν.2]
 
@@ -290,21 +347,25 @@ theorem sh_idx (i k : Fin h) (hk : k ≠ i) : sh i (idx i k hk) = k := (exists_s
 theorem idx_sh (i : Fin h) (l : Fin (h - 1)) : idx i (sh i l) (sh_ne i l) = l :=
   sh_injective i (sh_idx i _ _)
 
-theorem gen_idx (h2 : 2 ≤ h) (i k : Fin h) (hk : k ≠ i) : (gen h2 k : G h n) = th i (x h (idx i k hk)) := by
+theorem gen_idx (h2 : 2 ≤ h) (i k : Fin h) (hk : k ≠ i) : (gen h2 k : G h n) =
+    th i (x h (idx i k hk)) := by
   rw [th_x h2, sh_idx]
 
 /-- The edges of types other than i are the near pairs at the vertices of type i. -/
-@[expose] noncomputable def nearFun (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) (e : {e : EE h n h2 j // e.1.1 ≠ i}) : VV h n j i × NN h :=
-  (vert i e.1.1.2, npair (idx i e.1.1.1 e.2) (cor i e.1.1.2))
+@[expose] noncomputable def nearFun (h2 : 2 ≤ h) (j : ℕ) (i : Fin h)
+    (e : {e : EE h n h2 j // (EE.kind e) ≠ i}) : VV h n j i × NN h :=
+  (vert i (EE.start e.1), npair (idx i (EE.kind e.1) e.2) (cor i (EE.start e.1)))
 
-theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) : Function.Bijective (nearFun (n := n) h2 j i) := by
+theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ)
+    (i : Fin h) : Function.Bijective (nearFun (n := n) h2 j i) := by
   constructor
   · rintro ⟨⟨⟨k, c⟩, hc⟩, hk⟩ ⟨⟨⟨k', c'⟩, hc'⟩, hk'⟩ e
     simp only [nearFun, Prod.mk.injEq] at e
     obtain ⟨e1, e2⟩ := e
     have hl : idx i k hk = idx i k' hk' := by
-      have h6 : (npair (idx i k hk) (cor i c)).1.1 = (npair (idx i k' hk') (cor i c')).1.1 :=
-        congrArg (fun p : NN h => p.1.1) e2
+      have h6 : (NN.idx (npair (idx i k hk) (cor i c))) =
+          (NN.idx (npair (idx i k' hk') (cor i c'))) :=
+        congrArg (fun p : NN h => NN.idx p) e2
       rw [npair_type, npair_type] at h6
       exact h6
     have hkk : k = k' := by rw [← sh_idx i k hk, hl, sh_idx]
@@ -334,11 +395,12 @@ theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) : Function.Biject
       exact idx_sh i l
     have hg : (gen h2 (sh i l) : G h n) = th i (x h l) := (th_x h2 i l).symm
     refine Prod.ext ?_ ?_
-    · change vert i (edge h2 (sh i l) c).1.2 = v
+    · change vert i (EE.start (edge h2 (sh i l) c)) = v
       rcases edge_end h2 (sh i l) c with e | e
       · rw [e, vert_th, vert_of]
       · rw [e, hg, vert_th, vert_th, vert_of]
-    · change npair (idx i (edge h2 (sh i l) c).1.1 _) (cor i (edge h2 (sh i l) c).1.2) = ν
+    · change npair (idx i (EE.kind (edge h2 (sh i l) c)) _)
+        (cor i (EE.start (edge h2 (sh i l) c))) = ν
       rw [h5 _ _ (edge_type h2 (sh i l) c)]
       rcases edge_end h2 (sh i l) c with e | e
       · rw [e, cor_th, v.2, mul_one]
@@ -348,18 +410,21 @@ theorem nearFun_bijective (h2 : 2 ≤ h) (j : ℕ) (i : Fin h) : Function.Biject
 
 /-- The covering on edges. -/
 @[expose] noncomputable def prE {j : ℕ} (h2 : 2 ≤ h) (e : EE h n h2 j) : EE h n h2 (j + 1) :=
-  ⟨(e.1.1, pr e.1.2), by rw [evX_pr]; exact e.2⟩
+  ⟨(EE.kind e, pr (EE.start e)), by rw [evX_pr]; exact e.2⟩
 
 /-- The covering on vertices. -/
-@[expose] noncomputable def prV {j : ℕ} {i : Fin h} (v : VV h n j i) : VV h n (j + 1) i := ⟨pr v.1, by rw [cor_pr, v.2]⟩
+@[expose] noncomputable def prV {j : ℕ} {i : Fin h} (v : VV h n j i) : VV h n (j + 1) i :=
+    ⟨pr v.1, by rw [cor_pr, v.2]⟩
 
 theorem vert_pr {j : ℕ} (i : Fin h) (c : XX h n j) : vert i (pr c) = prV (vert i c) := by
   refine Subtype.ext ?_
   rw [vert_val, cor_pr, ← tower_equivariant]
   rfl
 
-theorem card_XX {j : ℕ} (hj : j ≤ JJ h n) : Fintype.card (XX h n j) * (2 ^ ee h) ^ j = Nat.card (G h n) := by
-  rw [Subgroup.card_eq_card_quotient_mul_card_subgroup (Gam h n j), card_Gam h n hj, Nat.card_eq_fintype_card]
+theorem card_XX {j : ℕ} (hj : j ≤ JJ h n) : Fintype.card (XX h n j) * (2 ^ ee h) ^ j =
+    Nat.card (G h n) := by
+  rw [Subgroup.card_eq_card_quotient_mul_card_subgroup (Gam h n j), card_Gam h n hj,
+      Nat.card_eq_fintype_card]
 
 theorem card_XX_succ {j : ℕ} (hj : j < JJ h n) :
     Fintype.card (XX h n j) = 2 ^ ee h * Fintype.card (XX h n (j + 1)) := by
@@ -391,10 +456,12 @@ theorem tower_fibre {j : ℕ} (hj : j < JJ h n) (d : XX h n (j + 1)) :
     intro d'
     obtain ⟨g, rfl⟩ := MulAction.exists_smul_eq (G h n) d' d
     exact h1 g d'
-  have h4 : Fintype.card (XX h n j) = ∑ d' : XX h n (j + 1), (univ.filter fun c : XX h n j => pr c = d').card := by
+  have h4 : Fintype.card (XX h n j) = ∑ d' : XX h n (j + 1),
+      (univ.filter fun c : XX h n j => pr c = d').card := by
     rw [← Finset.card_univ]
     exact Finset.card_eq_sum_card_fiberwise fun c _ => mem_univ _
-  rw [Finset.sum_congr rfl fun d' _ => h3 d', Finset.sum_const, Finset.card_univ, smul_eq_mul, card_XX_succ hj,
+  rw [Finset.sum_congr rfl fun d' _ => h3 d', Finset.sum_const, Finset.card_univ, smul_eq_mul,
+      card_XX_succ hj,
     mul_comm] at h4
   exact (Nat.eq_of_mul_eq_mul_left (Fintype.card_pos_iff.2 ⟨d⟩) h4).symm
 
@@ -413,17 +480,21 @@ theorem fibre_edges {j : ℕ} (h2 : 2 ≤ h) (hj : j < JJ h n) (d : EE h n h2 (j
       exact a1.trans a2.symm
     exact Subtype.ext (Prod.ext h1 hee)
 
-/-- **Paper: Proposition prop:tower(b).** "Exactly b of them onto each": b cosets over each, a coset being given by its
+/-- **Paper: Proposition prop:tower(b).** "Exactly b of them onto each": b cosets over each, a
+coset being given by its
 one element in VV (prop_tower_representatives). -/
 theorem tower_cosets_over {j : ℕ} {i : Fin h} (hj : j < JJ h n) (v : VV h n (j + 1) i) :
     (univ.filter fun w : VV h n j i => prV w = v).card = 2 ^ ee h := by
   rw [← tower_fibre hj v.1]
-  refine Finset.card_bij (fun w _ => w.1) (fun w hw => mem_filter.2 ⟨mem_univ _, congrArg Subtype.val (mem_filter.1 hw).2⟩)
-    (fun w _ w' _ e => Subtype.ext e) (fun c hc => ⟨⟨c, ?_⟩, mem_filter.2 ⟨mem_univ _, Subtype.ext (mem_filter.1 hc).2⟩, rfl⟩)
+  refine Finset.card_bij (fun w _ => w.1)
+      (fun w hw => mem_filter.2 ⟨mem_univ _, congrArg Subtype.val (mem_filter.1 hw).2⟩)
+    (fun w _ w' _ e => Subtype.ext e)
+        (fun c hc => ⟨⟨c, ?_⟩, mem_filter.2 ⟨mem_univ _, Subtype.ext (mem_filter.1 hc).2⟩, rfl⟩)
   rw [← cor_pr, (mem_filter.1 hc).2]
   exact v.2
 
-/-- **Paper: Proposition prop:tower(a).** "We call its orbits i-cosets": every i-coset has one element in VV. -/
+/-- **Paper: Proposition prop:tower(a).** "We call its orbits i-cosets": every i-coset has one
+element in VV. -/
 theorem tower_representatives {j : ℕ} (i : Fin h) (c : XX h n j) :
     ∃! v : VV h n j i, ∃ u : U h, (th i u : G h n) • v.1 = c := by
   refine ⟨vert i c, ⟨cor i c, th_vert i c⟩, ?_⟩
@@ -440,7 +511,8 @@ theorem exists_host (j : ℕ) (i : Fin h) : ∃ f : VV h n j i → XX h n (j + 1
       refine Function.Embedding.nonempty_of_card_le ?_
       rw [card_U, ← ee, ← tower_cosets_over hj d, Fintype.card_subtype]
     let φ : ∀ d : VV h n (j + 1) i, {v : VV h n j i // prV v = d} ↪ U h := fun d => (h1 d).some
-    have hφ : ∀ (v : VV h n j i) (d : VV h n (j + 1) i) (hv : prV v = d), φ (prV v) ⟨v, rfl⟩ = φ d ⟨v, hv⟩ := by
+    have hφ : ∀ (v : VV h n j i) (d : VV h n (j + 1) i) (hv : prV v = d),
+        φ (prV v) ⟨v, rfl⟩ = φ d ⟨v, hv⟩ := by
       rintro v _ rfl
       rfl
     refine ⟨fun v => (th i (φ (prV v) ⟨v, rfl⟩) : G h n) • (prV v).1, fun _ => ⟨?_, fun v => ?_⟩⟩
