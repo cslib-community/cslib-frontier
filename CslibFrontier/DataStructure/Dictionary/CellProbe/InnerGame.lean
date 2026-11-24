@@ -42,11 +42,15 @@ inflation in Eq. (11); (2) Step 3 uses `exists_prefixFree_separator_code` (`β =
 ## Main definitions
 
 * `IsSeedConsistent`: single-segment probe-capped consistency on `HardKeyValSeed`.
-* `section5Dist`, `section5LtHalfDist`, `segmentRestDist`, `segmentRestLtHalfDist`: conditional
-  `(seed, B)` distributions over `Finset.univ \ K` and over the remaining multi-round pool.
+* `innerPoolDist`, `section5Dist`, `section5LtHalfDist`, `segmentRestDist`,
+  `segmentRestLtHalfDist`: generic and specialized conditional `(seed, B)` candidate-pool
+  distributions.
 
 ## Main results
 
+* `toReal_innerPoolDist_apply`, `prob_innerPoolDist_eq`,
+  `prob_and_expect_innerPoolDist_lt_half_le`: generic density, event-probability, and `< m / 2`
+  intersection aggregation laws for `innerPoolDist`.
 * `prob_isCappedConsistent_section5_le`, `prob_isCappedConsistent_section5_lt_half_le`: Lemma 5.1
   and Lemma 4.4 over `Finset.univ \ K`.
 * `prob_isCappedConsistent_segmentRest_le`, `prob_isCappedConsistent_segmentRest_lt_half_le`,
@@ -651,7 +655,9 @@ private theorem pkeyActive_perm_eq {U n t₀ : ℕ} (ht : t₀ ≤ n) (γp : Equ
     rw [heq]; dsimp [j]; rw [Equiv.apply_symm_apply]
 
 open Classical in
-private noncomputable def innerPoolDist {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
+/-- Joint `(seed, B)` distribution drawing `s` uniformly from `HardKeyValSeed U V n` and `B`
+uniformly from a nonempty candidate pool `F s`. -/
+noncomputable def innerPoolDist {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
     (F : HardKeyValSeed U V n → Finset (Finset (Fin U))) (hne : ∀ s, (F s).Nonempty) :
     PMF (HardKeyValSeed U V n × Finset (Fin U)) :=
   letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
@@ -660,7 +666,8 @@ private noncomputable def innerPoolDist {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1
     (PMF.uniformOfFintype ↥(F s)).map fun B => (s, B.val)
 
 open Classical in
-private theorem prob_innerPoolDist_eq {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
+/-- Event probability under `innerPoolDist` when every pool `F s` has constant cardinality `C`. -/
+theorem prob_innerPoolDist_eq {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
     (F : HardKeyValSeed U V n → Finset (Finset (Fin U))) {C : ℕ}
     (hC : ∀ s, (F s).card = C) (hne : ∀ s, (F s).Nonempty)
     (ev : HardKeyValSeed U V n → Finset (Fin U) → Prop) :
@@ -687,7 +694,8 @@ private theorem prob_innerPoolDist_eq {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 �
   dsimp only [Function.comp_def]; rw [hinner]; ring
 
 open Classical in
-private theorem toReal_innerPoolDist_apply {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
+/-- Pointwise probability mass of `innerPoolDist` at `(s, B)`. -/
+theorem toReal_innerPoolDist_apply {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
     (F : HardKeyValSeed U V n → Finset (Finset (Fin U))) (hne : ∀ s, (F s).Nonempty)
     (s : HardKeyValSeed U V n) (B : Finset (Fin U)) :
     letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
@@ -1397,19 +1405,11 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
         orderSubset_congr hD hσ, orderSubset_congr hB hπ]
     have hSB_sim : SB_sim ω₁ = SB_sim ω₂ := by dsimp only [SB_sim]; rw [hcm, hopsB]
     obtain ⟨hm₆, hp7⟩ := prefix_append_of_length_eq (by simp [m₆, length_encodeRestr, hSB_sim]) hp6
-    have hI_AB : I_AB ω₁ = I_AB ω₂ := by
-      have hr := encodeRestr_inj hSB_sim hm₆
-      ext j; by_cases hj : j ∈ SB_sim ω₁
-      · exact decide_eq_decide.mp (hr j hj)
-      · exact iff_of_false (fun h => hj (Finset.inter_subset_right h))
-          (fun h => (hSB_sim ▸ hj) (Finset.inter_subset_right h))
+    have hI_AB : I_AB ω₁ = I_AB ω₂ :=
+      encodeRestr_subset_inj Finset.inter_subset_right Finset.inter_subset_right hSB_sim hm₆
     obtain ⟨hm₇, hp8⟩ := prefix_append_of_length_eq (by simp [m₇, length_encodeRestr, hI_AB]) hp7
-    have hΔ : Δ_set ω₁ = Δ_set ω₂ := by
-      have hr := encodeRestr_inj hI_AB hm₇
-      ext j; by_cases hj : j ∈ I_AB ω₁
-      · exact decide_eq_decide.mp (hr j hj)
-      · exact iff_of_false (fun h => hj (Finset.filter_subset _ _ h))
-          (fun h => (hI_AB ▸ hj) (Finset.filter_subset _ _ h))
+    have hΔ : Δ_set ω₁ = Δ_set ω₂ :=
+      encodeRestr_subset_inj (Finset.filter_subset _ _) (Finset.filter_subset _ _) hI_AB hm₇
     obtain ⟨hm₈, hp9⟩ := prefix_append_of_length_eq (by simp [m₈, length_encodeRestr, hΔ]) hp8
     have hm₉ : m₉ ω₁ = m₉ ω₂ := (prefix_append_of_length_eq (v₁ := []) (v₂ := [])
       (by simp [m₉, length_encodeMemFinset]) (by simpa using hp9)).1
@@ -1521,17 +1521,13 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
       dsimp only [m₅]; rw [length_encodeMemFinset]
       exact (clog_two_lt_logb_add_one (Nat.choose_pos (Nat.le_add_left m n))).le
     have hm6 : ((m₆ ω).length : ℝ) ≤ (m : ℝ) * t := by
-      dsimp only [m₆, SB_sim, C_mix]
-      rw [length_encodeRestr, Fintype.card_bool, Nat.clog_pow _ _ (by norm_num), hSB_eq]
-      exact hSB_cap
+      simpa only [m₆, SB_sim, C_mix, length_encodeRestr_bool, hSB_eq] using hSB_cap
     have hm7 : ((m₇ ω).length : ℝ) ≤ (m : ℝ) * t := by
-      dsimp only [m₇, I_AB, SB_sim, C_mix]
-      rw [length_encodeRestr, Fintype.card_bool, Nat.clog_pow _ _ (by norm_num), hSB_eq]
-      exact (Nat.cast_le.mpr (Finset.card_le_card Finset.inter_subset_right)).trans hSB_cap
+      simpa only [m₇, I_AB, SB_sim, C_mix, length_encodeRestr_bool, hSB_eq] using
+        (Nat.cast_le.mpr (Finset.card_le_card Finset.inter_subset_right)).trans hSB_cap
     have hm8 : ((m₈ ω).length : ℝ) ≤ γ * (m : ℝ) * (w : ℝ) := by
       dsimp only [m₈]
-      rw [length_encodeRestr, Fintype.card_fin, ← pow_mul, Nat.clog_pow _ _ (by norm_num),
-        Nat.cast_mul, mul_comm, hΔ_eq]
+      rw [length_encodeRestr_fin_two_pow, Nat.cast_mul, mul_comm, hΔ_eq]
       exact mul_le_mul_of_nonneg_right hΔ_le (Nat.cast_nonneg w)
     have hm9 : ((m₉ ω).length : ℝ) ≤ Real.logb 2 (n.choose m) + 1 := by
       dsimp only [m₉]; rw [length_encodeMemFinset]
@@ -1613,8 +1609,98 @@ private theorem nonempty_pool_lt {U n t₀ m P : ℕ} (ht₀ : t₀ + m ≤ n) (
     by rw [(Finset.mem_filter.mp hB).2]; omega⟩⟩
 
 open Classical in
+/-- Generic `< m / 2` intersection aggregation over `innerPoolDist`: if an event `ev` has
+probability at most `Bnd` on every fixed-intersection slice `|A ∩ B| = g` (`g < m / 2`) of
+`(pool s).powersetCard m` (`(pool s).card = P_size ≥ 2 * m`, `A ⊆ pool s`), then `ev` has
+probability at most `Bnd` on the `< m / 2` pool and expected count at most `C(P_size, m) * Bnd`. -/
+theorem prob_and_expect_innerPoolDist_lt_half_le {U V n t₀ m P_size : ℕ} {Bnd : ℝ}
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V) (ht₀ : t₀ + m ≤ n)
+    (hP_ge : 2 * m ≤ P_size) (hBnd_nn : 0 ≤ Bnd)
+    (pool : HardKeyValSeed U V n → Finset (Fin U))
+    (hcard_pool : ∀ s, (pool s).card = P_size)
+    (hA_pool : ∀ s, s.insertedSet t₀ m ht₀ ⊆ pool s)
+    (ev : HardKeyValSeed U V n → Finset (Fin U) → Prop)
+    (hprob_eq : ∀ g (_hg : g < m / 2)
+      (hne_g : ∀ s, (((pool s).powersetCard m).filter
+        fun B => (s.insertedSet t₀ m ht₀ ∩ B).card = g).Nonempty),
+      (((innerPoolDist hU hV
+        (fun s => ((pool s).powersetCard m).filter
+          fun B => (s.insertedSet t₀ m ht₀ ∩ B).card = g) hne_g).map
+          fun sb => decide (ev sb.1 sb.2)) true).toReal ≤ Bnd) :
+    let F_lt : HardKeyValSeed U V n → Finset (Finset (Fin U)) := fun s =>
+      ((pool s).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2
+    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
+    ∀ hne : ∀ s, (F_lt s).Nonempty,
+      (((innerPoolDist hU hV F_lt hne).map fun sb => decide (ev sb.1 sb.2)) true).toReal ≤ Bnd ∧
+      (∑ s : HardKeyValSeed U V n, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
+        (((F_lt s).filter (ev s)).card : ℝ)) ≤ (P_size.choose m : ℝ) * Bnd := by
+  dsimp only; intro hne
+  let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
+  set F_lt : HardKeyValSeed U V n → Finset (Finset (Fin U)) := fun s =>
+    ((pool s).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2
+  let Fg (g : ℕ) (s : HardKeyValSeed U V n) : Finset (Finset (Fin U)) :=
+    ((pool s).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card = g
+  let cg (g : ℕ) : ℕ := m.choose g * (P_size - m).choose (m - g)
+  have hFg_card (g : ℕ) (s : HardKeyValSeed U V n) : (Fg g s).card = cg g := by
+    dsimp only [Fg, cg]
+    rw [card_inter_filter_powersetCard (hA_pool s)
+      ((Finset.card_image_of_injective _
+        (segInsertedKeys s.keys t₀ m ht₀).injective).trans (by simp)), hcard_pool]
+  have hFlt_biUnion (s : HardKeyValSeed U V n) :
+      F_lt s = (Finset.range (m / 2)).biUnion fun g => Fg g s := by
+    dsimp only [F_lt, Fg]; ext B
+    simp only [Finset.mem_filter, Finset.mem_biUnion, Finset.mem_range]
+    exact ⟨fun ⟨hB, hlt⟩ => ⟨_, hlt, hB, rfl⟩, fun ⟨_, hg, hB, heq⟩ => ⟨hB, heq ▸ hg⟩⟩
+  have hdisj_g (s : HardKeyValSeed U V n) :
+      ((Finset.range (m / 2) : Set ℕ)).PairwiseDisjoint (fun g => Fg g s) :=
+    fun g₁ _ g₂ _ hne_g => Finset.disjoint_left.mpr fun B h₁ h₂ =>
+      hne_g ((Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2)
+  let clt : ℕ := ∑ g ∈ Finset.range (m / 2), cg g
+  have hcard_Flt (s : HardKeyValSeed U V n) : (F_lt s).card = clt := by
+    rw [hFlt_biUnion s, Finset.card_biUnion (hdisj_g s)]
+    exact Finset.sum_congr rfl fun g _ => hFg_card g s
+  have hclt_pos : (0 : ℝ) < (clt : ℝ) := by
+    obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
+    rw [← hcard_Flt s₀]; exact Nat.cast_pos.mpr (Finset.card_pos.mpr (hne s₀))
+  have hclt_le : (clt : ℝ) ≤ (P_size.choose m : ℝ) := by
+    obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
+    rw [← hcard_Flt s₀]
+    exact_mod_cast (Finset.card_le_card (Finset.filter_subset _ _)).trans_eq
+      (by rw [Finset.card_powersetCard, hcard_pool])
+  have hexp_g (g : ℕ) (hg : g ∈ Finset.range (m / 2)) :
+      (∑ s, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
+        (((Fg g s).filter (ev s)).card : ℝ)) ≤ (cg g : ℝ) * Bnd := by
+    have hg_lt : g < m / 2 := Finset.mem_range.mp hg
+    have hne_g : ∀ s, (Fg g s).Nonempty := fun s => by
+      rw [← Finset.card_pos, hFg_card g s]
+      exact mul_pos (Nat.choose_pos (by omega)) (Nat.choose_pos (by omega))
+    have hcg_pos : (0 : ℝ) < (cg g : ℝ) := by
+      obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
+      rw [← hFg_card g s₀]; exact Nat.cast_pos.mpr (Finset.card_pos.mpr (hne_g s₀))
+    have h1 := hprob_eq g hg_lt hne_g
+    rw [prob_innerPoolDist_eq hU hV (Fg g) (hFg_card g) hne_g] at h1
+    exact (inv_mul_le_iff₀ hcg_pos).mp h1
+  have hexp_lt :
+      (∑ s, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
+        (((F_lt s).filter (ev s)).card : ℝ)) ≤ (clt : ℝ) * Bnd := by
+    have hdecomp (s : HardKeyValSeed U V n) :
+        (((F_lt s).filter (ev s)).card : ℝ) =
+          ∑ g ∈ Finset.range (m / 2), (((Fg g s).filter (ev s)).card : ℝ) := by
+      rw [hFlt_biUnion s, Finset.filter_biUnion]
+      have hd : ((Finset.range (m / 2) : Set ℕ)).PairwiseDisjoint
+          (fun g => (Fg g s).filter (ev s)) :=
+        fun g₁ hg₁ g₂ hg₂ hne_g => Finset.disjoint_of_subset_left (Finset.filter_subset _ _)
+          (Finset.disjoint_of_subset_right (Finset.filter_subset _ _) (hdisj_g s hg₁ hg₂ hne_g))
+      exact_mod_cast Finset.card_biUnion hd
+    simp_rw [hdecomp, Finset.mul_sum]; rw [Finset.sum_comm]
+    exact (Finset.sum_le_sum hexp_g).trans_eq (by rw [← Finset.sum_mul]; simp [clt])
+  refine ⟨?_, hexp_lt.trans (mul_le_mul_of_nonneg_right hclt_le hBnd_nn)⟩
+  rw [prob_innerPoolDist_eq hU hV F_lt hcard_Flt hne]
+  exact (inv_mul_le_iff₀ hclt_pos).mpr hexp_lt
+
+open Classical in
 private theorem prob_and_expect_innerPool_lt_half_le {U V n t₀ m cells w : ℕ} {γ R t : ℝ}
-    (hU : 4 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n) (ht₀ : t₀ + m ≤ n)
+    (hU : 4 * n ≤ U) (hV : 1 ≤ V) (hm_n : 2 * m ≤ n) (ht₀ : t₀ + m ≤ n)
     (hγ : 0 < γ) (hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (m : ℝ))
     (hspace : ((cells * w : ℕ) : ℝ) ≤ Real.logb 2 (U.choose n) + (n : ℝ) * Real.logb 2 V + R)
     (hbudget : R + 11 * (m : ℝ) + 6 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
@@ -1640,79 +1726,14 @@ private theorem prob_and_expect_innerPool_lt_half_le {U V n t₀ m cells w : ℕ
           (U : ℝ) ^ (-γ * (m : ℝ)) ∧
         (∑ s : HardKeyValSeed U V n, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
           (((F_lt s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
-          (P.choose m : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
-  dsimp only; intro hne
-  set F_lt : HardKeyValSeed U V n → Finset (Finset (Fin U)) := fun s =>
-    ((poolPk s.permKeyEmb).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2
-  let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb (by omega), fun _ => ⟨0, hV⟩, 1⟩⟩
-  let Fg (g : ℕ) (s : HardKeyValSeed U V n) : Finset (Finset (Fin U)) :=
-    ((poolPk s.permKeyEmb).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card = g
-  let cg (g : ℕ) : ℕ := m.choose g * (P - m).choose (m - g)
-  have hFg_card (g : ℕ) (s : HardKeyValSeed U V n) : (Fg g s).card = cg g := by
-    dsimp only [Fg, cg]
-    rw [insertedSet_eq_pkeyInsEmb, card_inter_filter_powersetCard (hA_pool s.permKeyEmb)
-      (by simp [Finset.card_image_of_injective _ (pkeyInsEmb s.permKeyEmb t₀ m ht₀).injective]),
-      hcard_pool]
-  have hFlt_biUnion (s : HardKeyValSeed U V n) :
-      F_lt s = (Finset.range (m / 2)).biUnion (fun g => Fg g s) := by
-    dsimp only [F_lt, Fg]; ext B
-    simp only [Finset.mem_filter, Finset.mem_biUnion, Finset.mem_range]
-    constructor
-    · intro ⟨hB, hlt⟩
-      exact ⟨(s.insertedSet t₀ m ht₀ ∩ B).card, hlt, hB, rfl⟩
-    · rintro ⟨g, hg, hB, heq⟩
-      exact ⟨hB, heq ▸ hg⟩
-  have hdisj_g (s : HardKeyValSeed U V n) :
-      ((Finset.range (m / 2) : Set ℕ)).PairwiseDisjoint (fun g => Fg g s) :=
-    fun g₁ _ g₂ _ hne_g => Finset.disjoint_left.mpr fun B h₁ h₂ =>
-      hne_g ((Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2)
-  let clt : ℕ := ∑ g ∈ Finset.range (m / 2), cg g
-  have hcard_Flt (s : HardKeyValSeed U V n) : (F_lt s).card = clt := by
-    rw [hFlt_biUnion s, Finset.card_biUnion (hdisj_g s)]
-    exact Finset.sum_congr rfl fun g _ => hFg_card g s
-  have hclt_pos : (0 : ℝ) < (clt : ℝ) := by
-    obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
-    rw [← hcard_Flt s₀]; exact Nat.cast_pos.mpr (Finset.card_pos.mpr (hne s₀))
-  have hclt_le : (clt : ℝ) ≤ (P.choose m : ℝ) := by
-    obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
-    rw [← hcard_Flt s₀]
-    exact_mod_cast (Finset.card_le_card (Finset.filter_subset _ _)).trans_eq
-      (by rw [Finset.card_powersetCard, hcard_pool])
-  have hexp_g (g : ℕ) (hg : g ∈ Finset.range (m / 2)) :
-      (∑ s, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((Fg g s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
-        (cg g : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
-    have hg_lt : g < m / 2 := Finset.mem_range.mp hg
-    have hne_g : ∀ s, (Fg g s).Nonempty := fun s => by
-      simpa only [Fg, insertedSet_eq_pkeyInsEmb] using
-        nonempty_pool_eq ht₀ (by omega) (by omega) poolPk hcard_pool hA_pool s.permKeyEmb
-    have hcg_pos : (0 : ℝ) < (cg g : ℝ) := by
-      obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
-      rw [← hFg_card g s₀]; exact Nat.cast_pos.mpr (Finset.card_pos.mpr (hne_g s₀))
-    have h1 := prob_innerPool_eq_le hU hV hm_n hg_lt ht₀ hγ hm_lo hspace hbudget hcorr
-      poolPk hcard_pool hA_pool hdisj_pool hslot_pool huniv_pool (by omega) hne_g
-    rw [prob_innerPoolDist_eq (by omega) hV (Fg g) (hFg_card g) hne_g] at h1
-    exact (inv_mul_le_iff₀ hcg_pos).mp h1
-  have hexp_lt :
-      (∑ s, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((F_lt s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
-        (clt : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
-    have hdecomp (s : HardKeyValSeed U V n) :
-        (((F_lt s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)).card : ℝ) =
-          ∑ g ∈ Finset.range (m / 2),
-            (((Fg g s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)).card : ℝ) := by
-      rw [hFlt_biUnion s, Finset.filter_biUnion]
-      have hd : ((Finset.range (m / 2) : Set ℕ)).PairwiseDisjoint
-          (fun g => (Fg g s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)) :=
-        fun g₁ hg₁ g₂ hg₂ hne_g => Finset.disjoint_of_subset_left (Finset.filter_subset _ _)
-          (Finset.disjoint_of_subset_right (Finset.filter_subset _ _) (hdisj_g s hg₁ hg₂ hne_g))
-      exact_mod_cast Finset.card_biUnion hd
-    simp_rw [hdecomp, Finset.mul_sum]; rw [Finset.sum_comm]
-    exact (Finset.sum_le_sum hexp_g).trans_eq (by rw [← Finset.sum_mul]; simp [clt])
-  refine ⟨?_, hexp_lt.trans (mul_le_mul_of_nonneg_right hclt_le
-    (Real.rpow_nonneg (Nat.cast_nonneg U) _))⟩
-  rw [prob_innerPoolDist_eq (by omega) hV F_lt hcard_Flt hne]
-  exact (inv_mul_le_iff₀ hclt_pos).mpr hexp_lt
+          (P.choose m : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) :=
+  prob_and_expect_innerPoolDist_lt_half_le (by omega) hV ht₀ hP_ge
+    (Real.rpow_nonneg (Nat.cast_nonneg U) _)
+    (fun s => poolPk s.permKeyEmb) (fun s => hcard_pool s.permKeyEmb)
+    (fun s => by rw [insertedSet_eq_pkeyInsEmb]; exact hA_pool s.permKeyEmb)
+    (IsSeedConsistent D_det t₀ m ht₀ γ t)
+    (fun g hg hne_g => prob_innerPool_eq_le hU hV hm_n hg ht₀ hγ hm_lo hspace hbudget hcorr
+      poolPk hcard_pool hA_pool hdisj_pool hslot_pool huniv_pool (by omega) hne_g)
 
 private def sdiffPoolPk {U n : ℕ} (t₀ : ℕ) (ht : t₀ ≤ n) (pk : Fin (2 * n) ↪ Fin U) :
     Finset (Fin U) := Finset.univ \ pkeyActive pk t₀ ht
@@ -1993,7 +2014,7 @@ theorem prob_isCappedConsistent_section5_lt_half_le (hm : 2 ≤ m) (ht₀ : t₀
       nonempty_pool_lt ht₀ hm (by omega) _ hp.1 hp.2.1 s.permKeyEmb
   rw [section5LtHalfDist, toReal_map_innerPoolDist_congr (by omega) hV
     (funext fun s => by simp only [sdiffPoolPk, activeKeys_eq_pkeyActive]) _ hne]
-  exact (prob_and_expect_innerPool_lt_half_le hU hV hm hm_n ht₀ hγ hm_lo hspace hbudget hcorr
+  exact (prob_and_expect_innerPool_lt_half_le hU hV hm_n ht₀ hγ hm_lo hspace hbudget hcorr
     (sdiffPoolPk t₀ (by omega)) hp.1 hp.2.1 hp.2.2.1 hp.2.2.2.1 hp.2.2.2.2 (by omega) hne).1
 
 open Classical in
@@ -2036,7 +2057,7 @@ theorem prob_isCappedConsistent_segmentRest_lt_half_le {r_rest : ℕ} (hm : 2 �
       nonempty_pool_lt ht₀ hm hrest_ge _ hp.1 hp.2.1 s.permKeyEmb
   rw [segmentRestLtHalfDist, toReal_map_innerPoolDist_congr (by omega) hV
     (funext fun s => by simp only [segRestPoolPk, insertedSet_eq_pkeyInsEmb]) _ hne]
-  exact (prob_and_expect_innerPool_lt_half_le hU hV hm hm_n ht₀ hγ hm_lo hspace hbudget hcorr
+  exact (prob_and_expect_innerPool_lt_half_le hU hV hm_n ht₀ hγ hm_lo hspace hbudget hcorr
     (segRestPoolPk t₀ r_rest hrest) hp.1 hp.2.1 hp.2.2.1 hp.2.2.2.1 hp.2.2.2.2 hrest_ge hne).1
 
 open Classical in
@@ -2059,7 +2080,7 @@ theorem expected_card_cappedConsistent_segmentRest_lt_half_le {r_rest : ℕ} (hm
         (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2).Nonempty := fun s => by
     simpa only [insertedSet_eq_pkeyInsEmb] using
       nonempty_pool_lt ht₀ hm hrest_ge _ hp.1 hp.2.1 s.permKeyEmb
-  have h2 := (prob_and_expect_innerPool_lt_half_le hU hV hm hm_n ht₀ hγ hm_lo hspace hbudget
+  have h2 := (prob_and_expect_innerPool_lt_half_le hU hV hm_n ht₀ hγ hm_lo hspace hbudget
     hcorr (segRestPoolPk t₀ r_rest hrest) hp.1 hp.2.1 hp.2.2.1 hp.2.2.2.1 hp.2.2.2.2 hrest_ge hne).2
   simpa only [segRestPoolPk, insertedSet_eq_pkeyInsEmb] using h2
 

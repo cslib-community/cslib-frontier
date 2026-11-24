@@ -17,7 +17,7 @@ example : ComputableInSpace (fun p : Bool × List Bool => if p.1 then p.2 else [
       (fun p : Bool × List Bool => if choice then p.2 else [])
       (encPair encBool encBits) encBits (fun p => (encPair encBool encBits p).length) := by
     cases choice
-    · exact budget_const [] (.refl _)
+    · exact budget_const []
     · exact snd encBool encBits
   exact finite_cases (fst encBool encBits) hbranches
 

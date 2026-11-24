@@ -115,8 +115,8 @@ theorem lowBits_inSpace :
     .of_le fun _ => by dsimp only [B]; omega
   have hwidth := (fst encNat encNat).weaken hin
   have hvalue := (snd encNat encNat).weaken hin
-  have hinit := encLowBitsState_mk_budget hvalue (budget_const (encB := encNat) 0 hin)
-    (budget_const (encB := encList encBool) [] hin)
+  have hinit := encLowBitsState_mk_budget hvalue (budget_const (encB := encNat) 0)
+    (budget_const (encB := encList encBool) [])
   let : Inhabited LowBitsState := ⟨⟨0, 0, []⟩⟩
   have hstate (p : ℕ × ℕ) (i : ℕ) (hi : i ≤ p.1) :
       (encLowBitsState (lowBitsStep^[i] ⟨p.2, 0, []⟩)).length ≤ 8 * B p := by
