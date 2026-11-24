@@ -762,6 +762,29 @@ example :
     simp [g, sign_neg hx] at hsign
   exact ⟨hmatch.resolve_right (by linarith), hmiss.resolve_left (by linarith)⟩
 
+-- An integer label distinguishes neighboring fingerprints at a qualifying point.
+example :
+    let g : Fin 2 → Polynomial ℤ := Fin.cases 1 (fun _ => Polynomial.X)
+    let y (t : ℤ) :=
+      (Polynomial.fingerprintLabelPolynomial 1 2 g (fun _ => 2) t).eval₂
+        (Int.castRingHom ℝ) (-(3 / 4))
+    (1 : ℝ) / 2 ≤ y (-2) ∧ y (-1) ≤ -(1 : ℝ) / 2 := by
+  intro g y
+  let x : ℝ := -(3 / 4)
+  let v (i : Fin 2) := (g i).eval₂ (Int.castRingHom ℝ) x
+  have hx : x < 0 := by norm_num [x]
+  have hb (i : Fin 2) : v i = 0 ∨ (((2 : ℝ) ^ 1)⁻¹ ≤ |v i| ∧ |v i| ≤ (2 : ℝ) ^ 1) := by
+    refine Fin.cases ?_ (fun _ => ?_) i <;> norm_num [v, g, x]
+  have hfp : (∑ i : Fin 1, (2 : ℤ) * (SignType.sign (v i.succ) : ℤ)) = -2 := by
+    norm_num [Fin.sum_univ_one, v, g, sign_neg hx]
+  have hv : 0 < v 0 := by simp [v, g]
+  have h (t : ℤ) := Polynomial.eval₂_fingerprintLabelPolynomial_margin 1 2 g
+    (fun _ : Fin 1 => 2) t x (by simp) hb
+  have hyes : 0 < y (-2) := (h (-2)).2.mpr ⟨hfp, hv⟩
+  have hno : ¬ 0 < y (-1) := fun hp =>
+    (by decide : (-2 : ℤ) ≠ -1) (hfp.symm.trans ((h (-1)).2.mp hp).1)
+  exact ⟨(h (-2)).1.resolve_right (by linarith), (h (-1)).1.resolve_left (by linarith)⟩
+
 -- Applying the sign product to X² − 1 gives explicit degree and coefficient budgets.
 example :
     let g : Polynomial ℤ := Polynomial.X ^ 2 - 1

@@ -29,7 +29,7 @@ theorem width_inSpace (k s : ℕ) : ComputableInSpace (width k s) encNat encNat
   have hid : ComputableInSpace (fun b : ℕ => b) encNat encNat
       (fun b => (encNat b).length) := of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hconst (n : ℕ) : ComputableInSpace (fun _ : ℕ => n) encNat encNat
-      (fun b => (encNat b).length) := budget_const n (.refl _)
+      (fun b => (encNat b).length) := budget_const n
   have hsize := budget_comp_linear natSize hid
   have hwindow := budget_natMul (hconst k)
     (budget_natMul (hconst 3) (budget_natMul hid (hconst 2)))
