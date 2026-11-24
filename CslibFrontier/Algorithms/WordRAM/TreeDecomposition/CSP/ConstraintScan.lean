@@ -183,7 +183,7 @@ theorem checkLeafConstraintsProg_spec {w q : ℕ} (hq : 0 < q) (args : ℕ × �
       change ((Memory.spec 0).clientResult s
         (iterate checkLeafStep () rest.length _)).found = _
       rw [hr_rem]
-      refine ite_one_zero_congr ?_
+      refine if_congr ?_ rfl rfl
       rw [Bool.and_eq_true]
       have hct_pred :
           (!decide (ct.scope = []) || ct.eval (fun _ => 0)) =
@@ -546,7 +546,7 @@ theorem checkIntroConstraintsProg_spec {w : ℕ} (args : IntroConsArgs) (hq : 0 
     rw [hiter_eq]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step', hr_rem]
-      refine ite_one_zero_congr ?_
+      refine if_congr ?_ rfl rfl
       rw [Bool.and_eq_true]
       have heval_eq : ct.eval (ofRadix args.q LB args.m) = decide (ct.table[idx] = 1) := by
         refine Bool.eq_iff_iff.2 ?_

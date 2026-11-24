@@ -999,9 +999,6 @@ theorem stepBound_ofRooted_le {Rel V : Type*} [LinearOrder V] {q m n k : ℕ} (h
     (cspNiceStepBound_mono hq hs le_rfl le_rfl le_rfl)
 
 end TreeCSPInstance
-/-- Every `NiceTree` has at least one node. -/
-theorem niceTree_size_pos (T : NiceTree ℕ) : 0 < T.size := by
-  cases T <;> simp [NiceTree.size]
 
 /-- Monotonicity of `maxTreeVert` across `introduce`. -/
 theorem maxTreeVert_le_introduce (v : ℕ) (child : NiceTree ℕ) :

@@ -60,7 +60,7 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     _, hperSpace_le_total, hc_ge, hfit_tree_vert⟩ := subtree_setup inst hw
   have hfit_total' : Fits w (F_lo + inst.tree.size * perSpace) := hfit_total
   intro offset s hsz hexp hmv hwf hs_fr hfit_bud hvars htree hcons
-  have hsz_ch_pos := niceTree_size_pos child
+  have hsz_ch_pos := NiceTree.size_pos child
   have hsz_ch : offset + child.size ≤ inst.tree.size := by
     simp only [NiceTree.size_forget] at hsz; omega
   have hexp_ch : maxTableExp child ≤ E := (maxTableExp_le_forget v child).trans hexp
@@ -402,8 +402,8 @@ private theorem subtree_join_step {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
     (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3))
   obtain ⟨_, hfit_4, hfit_q, hfit_tree, hfit_total, _, _, _,
     _, hperSpace_le_total, hc_ge, _⟩ := subtree_setup inst hw
-  have hsz_l_pos := niceTree_size_pos left
-  have hsz_r_pos := niceTree_size_pos right
+  have hsz_l_pos := NiceTree.size_pos left
+  have hsz_r_pos := NiceTree.size_pos right
   have hr_root := hroot₂
   change HoldsIn (env.treePtr + 4 * cur) [3, 0, mid - 1, cur - 1] s₂ at hr_root
   rw [HoldsIn.cons_iff, HoldsIn.cons_iff, HoldsIn.cons_iff, HoldsIn.cons_iff] at hr_root
@@ -496,8 +496,8 @@ private theorem subtree_join {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w ins
     (E ^ 2 + E + 4 + 3 * inst.constraints.length + inst.totalArity * (2 * E + 3))
   obtain ⟨_, _, _, _, _, _, hvars_lt_desc, hcons_lt_desc, _, _, _, _⟩ := subtree_setup inst hw
   intro offset s hsz hexp hmv hwf hs_fr hfit_bud hvars htree hcons
-  have hsz_l_pos := niceTree_size_pos left
-  have hsz_r_pos := niceTree_size_pos right
+  have hsz_l_pos := NiceTree.size_pos left
+  have hsz_r_pos := NiceTree.size_pos right
   have hsz_l : offset + left.size ≤ inst.tree.size := by
     simp only [NiceTree.size_join] at hsz; omega
   have hsz_r : (offset + left.size) + right.size ≤ inst.tree.size := by
@@ -789,7 +789,7 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
     _, _, _, _⟩ := subtree_setup inst hw
   have hfit_total' : Fits w (F_lo + inst.tree.size * perSpace) := hfit_total
   intro offset s hsz hexp hmv hwf hs_fr hfit_bud hvars htree hcons
-  have hsz_ch_pos := niceTree_size_pos child
+  have hsz_ch_pos := NiceTree.size_pos child
   have hsz_ch : offset + child.size ≤ inst.tree.size := by
     simp only [NiceTree.size_introduce] at hsz; omega
   have hexp_ch : maxTableExp child ≤ E := (maxTableExp_le_introduce v child).trans hexp
@@ -1086,7 +1086,7 @@ theorem runTreeCSPProg_spec {w : ℕ} (inst : TreeCSPInstance)
   let s₀ := Memory.State.init inst.encode
   obtain ⟨hfr₀, hlen_enc, hm1, hm2, hm3, hm4, hm5, hvars₀, htree₀, hcons₀⟩ :=
     holdsIn_encode_decode inst
-  have hts_pos : 0 < inst.tree.size := niceTree_size_pos inst.tree
+  have hts_pos : 0 < inst.tree.size := NiceTree.size_pos inst.tree
   have hf_len : Fits w (inst.encode.length + 1) :=
     hw.of_le (by unfold TreeCSPInstance.wordBound; dsimp only; omega)
   have hwf₀ : Memory.WellFormed w s₀ :=
@@ -1224,7 +1224,7 @@ theorem runTreeCSPProg_realizes :
     obtain ⟨inst, rfl, hw⟩ := h
     obtain ⟨hfr₀, hlen_enc, hm1, hm2, hm3, hm4, hm5, hvars₀, htree₀, hcons₀⟩ :=
       holdsIn_encode_decode inst
-    have hts_pos : 0 < inst.tree.size := niceTree_size_pos inst.tree
+    have hts_pos : 0 < inst.tree.size := NiceTree.size_pos inst.tree
     have hf_len : Fits w (inst.encode.length + 1) :=
       hw.of_le (by unfold TreeCSPInstance.wordBound; dsimp only; omega)
     first

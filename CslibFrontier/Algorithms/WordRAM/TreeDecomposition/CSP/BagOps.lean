@@ -121,13 +121,6 @@ theorem subsetBagProg_state (args : SubsetBagArgs) (s : Memory.State) :
     (fun st m => (subsetBagStep_eval args.bagPtr args.bagLen st m).1)
     args.scopeLen ⟨args.scopePtr, 1⟩ s
 
-/-- Congruence rewriting `0`/`1` `if`-expressions along a `Prop` equivalence. -/
-theorem ite_one_zero_congr {P Q : Prop} [Decidable P] [Decidable Q] (h : P ↔ Q) :
-    (if P then 1 else 0) = (if Q then 1 else 0) := by
-  by_cases hp : P
-  · rw [ite_eq_left hp, ite_eq_left (h.1 hp)]
-  · rw [ite_eq_right hp, ite_eq_right (mt h.2 hp)]
-
 /-- Memory validity, functional correctness, and cost bound for `subsetBagProg`. -/
 theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
     {scopeL bagL : List ℕ} {s : Memory.State}
@@ -159,7 +152,7 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
       exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
     · unfold subsetBagProg
       rw [StateTransitionSpec.clientResult_bind, hrun.2.1]
-      exact ite_one_zero_congr (by simp [hsub_iff])
+      exact if_congr (by simp [hsub_iff]) rfl rfl
     · unfold subsetBagProg
       rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
       exact hrun.2.2
@@ -220,7 +213,7 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
     rw [hiter_eq]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step', hr_rem]
-      refine ite_one_zero_congr ?_
+      refine if_congr ?_ rfl rfl
       dsimp only [ok']
       rw [memBag_eq_decide]
       rcases hok with rfl | rfl

@@ -34,9 +34,8 @@ setup `subtree_setup`.
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.TreeDecomposition.nodeStep_realizes`,
-  `Cslib.Algorithms.WordRAM.TreeDecomposition.iterNodesProg_realizes`: exact-basis realization
-  certificates for the dispatcher loop.
+* `Cslib.Algorithms.WordRAM.TreeDecomposition.iterNodesProg_realizes`: exact-basis realization
+  certificate for the dispatcher loop.
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.subtree_setup`: common word-width and layout facts.
 -/
 
@@ -165,7 +164,7 @@ instance : WordEncoding NodeEnv := .ofEquiv NodeEnv.equiv
         Fits w (if counting then env.q ^ (NiceTree.join left right).size else 1)))
 
 /-- Exact-basis Word-RAM realization certificate for `nodeStep`. -/
-theorem nodeStep_realizes :
+private theorem nodeStep_realizes :
     Realizes .exact nodeStep WordEncoding.encode WordEncoding.encode
       nodeStepSafe (fun _ _ => 0) := by
   unfold nodeStep
@@ -461,7 +460,7 @@ theorem subtree_setup {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w inst.wordB
   have hcons_lt_desc : env.consRawPtr +
       (inst.constraints.flatMap ConstraintTable.encode).length ≤ env.descBase :=
     le_of_eq hcons_len_bound
-  have hts_pos : 0 < inst.tree.size := niceTree_size_pos inst.tree
+  have hts_pos : 0 < inst.tree.size := inst.tree.size_pos
   have hperSpace_le_total : perSpace ≤ inst.tree.size * perSpace :=
     Nat.le_mul_of_pos_left perSpace hts_pos
   have hc_ge : ∀ A : ℕ,
