@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
 public import CslibFrontier.Algorithms.Lean.DPLL.SearchTree
 public import CslibFrontier.Computability.WordRAM.OutputLowerBound
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
 
 /-!
@@ -248,11 +249,7 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
     cases hs : status φ π with
     | sat => cases fuel <;> simp [dfs, hs] at hd
     | conflict =>
-      have hany : φ.any (Falsifies π) = true := by
-        unfold status at hs
-        split at hs
-        · rename_i h; rwa [List.isSome_find?] at h
-        · split at hs <;> cases hs
+      have hany := any_falsifies_of_status_eq_conflict hs
       have hidx : φ.findIdx (Falsifies π) < φ.length := List.findIdx_lt_length_of_exists
         (by simpa using hany)
       have hp : preorder φ (logOut φ) fuel π = [clauseAddr φ (φ.findIdx (Falsifies π))] := by
@@ -265,15 +262,9 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
         clauseAt_clauseAddr]
       rfl
     | branch l =>
-      obtain ⟨hv, ha⟩ := assigned_of_status_eq_branch hs
-      have hmem : l.1 ∈ openVars φ π := mem_openVars.2 ⟨hv, ha⟩
-      obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 :=
-        ⟨fuel - 1, by have := List.length_pos_of_mem hmem; omega⟩
-      have hlen₁ : (openVars φ (l :: π)).length ≤ fuel := by
-        rw [openVars_cons, List.length_erase_of_mem hmem]; omega
-      have hlen₂ : (openVars φ (l.negate :: π)).length ≤ fuel := by
-        rw [openVars_cons, show (Std.Sat.Literal.negate l).1 = l.1 from rfl,
-          List.length_erase_of_mem hmem]; omega
+      obtain ⟨fuel, rfl, hlen⟩ := length_openVars_cons_le hs hf
+      have hlen₁ := hlen l rfl
+      have hlen₂ := hlen l.negate rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have hp : preorder φ (logOut φ) (fuel + 1) π =
           (2 + (φ.flatMap encodeClause).length + litCode l) ::
@@ -375,11 +366,7 @@ theorem logConflict_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
   obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := id hs
   obtain ⟨hlg, hlog⟩ := hl
   have hT := hmem.hT
-  have hany : φ.any (Falsifies (Trail.lits t)) = true := by
-    unfold status at hc
-    split at hc
-    · rename_i h; rwa [List.isSome_find?] at h
-    · split at hc <;> cases hc
+  have hany := any_falsifies_of_status_eq_conflict hc
   have hcl := hmem.clauses
   have hvars := hmem.vars
   have hlits := hmem.lits
@@ -448,13 +435,8 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
   have hl' : LogAt N T (x.havoc scan v x.mem) log := by wram_simp [*]
   unfold stepTimeLog stepTime
   by_cases hc : φ.any (Falsifies π) = true
-  · have hstat : status φ π = .conflict := by
-      unfold status; rw [List.isSome_find?, hc]; rfl
-    have hstep : Trail.step φ t = match Trail.backtrack t with
-        | none => .inl .unsat
-        | some t' => .inr t' := by
-      unfold Trail.step; rw [← hπdef, hstat]
-      rfl
+  · have hstat := status_eq_conflict hc
+    have hstep := Trail.step_of_status_eq_conflict hstat
     rw [hc, Bool.toNat_true] at hconf
     wram_exec [hconf, h1]
     wram_call (logConflict_spec (w := w) φ N T t log _ hs' hl' hstat hfit) framed with v₁ m₁ h₁
@@ -491,10 +473,7 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
   · rw [Bool.not_eq_true] at hc
     rw [hc, Bool.toNat_false] at hconf
     by_cases ha : (φ.all fun c => c.any (Holds π)) = true
-    · have hstat : status φ π = .sat := by
-        unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
-      have hstep : Trail.step φ t = .inl (.sat π) := by
-        unfold Trail.step; rw [← hπdef, hstat]
+    · have hstep := Trail.step_of_status_eq_sat (status_eq_sat hc ha)
       rw [ha, Bool.toNat_true] at halls
       wram_exec [hconf, halls, h1]
       wram_call (outSat_spec (w := w) φ N T t _ hs' hfit') framed with v₂ m₂ hz₂
@@ -502,17 +481,10 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
       exact ⟨by simp only; omega, hz₂⟩
     · rw [Bool.not_eq_true] at ha
       rw [ha, Bool.toNat_false] at halls
-      have hstat : status φ π = .branch (nextLiteral φ π) := by
-        unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
-      have hstep : Trail.step φ t = .inr (⟨nextLiteral φ π, false⟩ :: t) := by
-        unfold Trail.step; rw [← hπdef, hstat]
+      have hstat := status_eq_branch hc ha
+      have hstep := Trail.step_of_status_eq_branch hstat
       obtain ⟨hv, hun⟩ := assigned_of_status_eq_branch hstat
-      have hcode : (if v uf = 0 then v ov + v ov + 1 else v unit) = litCode (nextLiteral φ π) := by
-        rw [huf, hunit, hov]
-        unfold nextLiteral
-        cases hu : unitLiteral? φ π with
-        | some l => simp
-        | none => simp [litCode_true]
+      have hcode := branchCode_eq φ π huf hunit hov
       have hout : logOut φ (Trail.lits t) = [T + litCode (nextLiteral φ π)] := by
         simp [logOut, ← hπdef, hstat, ← hT]
       wram_exec [hconf, halls, h1]
@@ -624,23 +596,11 @@ theorem solverLog_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c,
   have hnodes := Trail.nodes_lt φ (depth φ) []
   have hfit' : Fits w (T + 5 * N + 3 + ([] : List ℕ).length + Trail.nodes φ (depth φ) []) :=
     hfit.of_le (by simp only [List.length_nil]; omega)
-  have hzeroT : ∀ a, T ≤ a → (Data.init input : Data 32).mem a = 0 := fun a ha => by
-    change (if a = 0 then input.length else input.getD (a - 1) 0) = 0
-    simp only [show ¬a = 0 by omega, ↓reduceIte]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
-    rfl
-  have hF : HoldsList 2 (φ.flatMap encodeClause) (Data.init input : Data 32).mem := fun i => by
-    change (Data.init input : Data 32).mem (2 + i.val) = (φ.flatMap encodeClause)[i.val]
-    rw [show 2 + i.val = (1 + i.val) + 1 by omega, Data.init_mem_succ]
-    simp only [hinputeq, Nat.add_comm 1 i.val, List.getD_cons_succ]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem i.isLt]
-    rfl
   have hm0 : (Data.init input : Data 32).mem 0 = L := by rw [Data.init_mem_zero, hL]
   have hm1 : (Data.init input : Data 32).mem 1 = N := by
     rw [Data.init_mem_succ]; simp [hinputeq]
-  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] :=
-    ⟨hF, by omega, hN, fun l hl => by rw [hzeroT _ (by omega)]; simp [Trail.lits],
-      holdsList_nil _ _, by simp [TrailOK]⟩
+  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] := by
+    rw [hT, hL]; exact memAt_init N φ hN
   obtain ⟨hrun, hwords⟩ := run_nodes N φ
   refine WP.exists_execWithin ?_
   unfold solverLog setup
@@ -718,14 +678,9 @@ theorem leafCount_searchTree_le_of_executes (N : ℕ) (φ : CNF ℕ)
   have hout : outputList y.mem (L + 1 + 4 * N) = 0 :: treeWords φ := by rw [← hyo, hyl, hw]
   obtain ⟨-, hcells⟩ := outputList_eq_iff.1 hout
   obtain ⟨-, htree⟩ := holdsList_cons_iff.1 hcells
-  have hzero : ∀ a, L < a → (Data.init (encode N φ) : Data 32).mem a = 0 := fun a ha => by
-    change (if a = 0 then (encode N φ).length else (encode N φ).getD (a - 1) 0) = 0
-    simp only [show ¬a = 0 by omega, ↓reduceIte]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
-    rfl
   have hb := hrun.block_lowerBound ⟨L + 1 + 4 * N + 1 + 1, (treeWords φ).length⟩ fun i => by
     simp only
-    rw [htree.get i i.isLt, hzero _ (by omega)]
+    rw [htree.get i i.isLt, Data.init_mem_of_length_lt (by omega)]
     have := two_le_of_mem_treeWords (List.getElem_mem i.isLt)
     omega
   have hleaf := leafCount_searchTree_le_length_preorder φ (logOut φ)

@@ -109,12 +109,8 @@ theorem eval_searchTree (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal �
       exact falsifiedClause_spec hs hσ
     | sat => cases fuel <;> simp [dfs, hs] at hd
     | branch l =>
-      obtain ⟨hv, ha⟩ := assigned_of_status_eq_branch hs
-      have hmem : l.1 ∈ openVars φ π := mem_openVars.2 ⟨hv, ha⟩
-      obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 :=
-        ⟨fuel - 1, by have := List.length_pos_of_mem hmem; omega⟩
-      have hlen : ∀ b : Bool, (openVars φ ((l.1, b) :: π)).length ≤ fuel := fun b => by
-        rw [openVars_cons, List.length_erase_of_mem hmem]; omega
+      obtain ⟨fuel, rfl, hlen'⟩ := length_openVars_cons_le hs hf
+      have hlen : ∀ b : Bool, (openVars φ ((l.1, b) :: π)).length ≤ fuel := fun b => hlen' _ rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have hd' : ∀ b : Bool, dfs φ fuel ((l.1, b) :: π) = none := by
         obtain ⟨v, c⟩ := l
@@ -183,12 +179,8 @@ theorem leafCount_searchTree_le_length_preorder (φ : CNF ℕ) (out : List (Lite
       have hne := List.length_pos_of_ne_nil (hout π (by simp [hs]))
       cases fuel <;> simp [searchTree, preorder, hs, DecisionTree.leafCount] <;> omega
     | branch l =>
-      obtain ⟨hv, ha⟩ := assigned_of_status_eq_branch hs
-      have hmem : l.1 ∈ openVars φ π := mem_openVars.2 ⟨hv, ha⟩
-      obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 :=
-        ⟨fuel - 1, by have := List.length_pos_of_mem hmem; omega⟩
-      have hlen : ∀ b : Bool, (openVars φ ((l.1, b) :: π)).length ≤ fuel := fun b => by
-        rw [openVars_cons, List.length_erase_of_mem hmem]; omega
+      obtain ⟨fuel, rfl, hlen'⟩ := length_openVars_cons_le hs hf
+      have hlen : ∀ b : Bool, (openVars φ ((l.1, b) :: π)).length ≤ fuel := fun b => hlen' _ rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have ih := fun b => leafCount_searchTree_le_length_preorder φ out hout fuel
         ((l.1, b) :: π) (hlen b)
@@ -268,15 +260,9 @@ theorem runLog_add_nodes (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ) 
       rw [hn, hp, runLog, step, hs]
       cases backtrack t <;> rfl
     | branch l =>
-      obtain ⟨hv, ha⟩ := assigned_of_status_eq_branch hs
-      have hmem : l.1 ∈ openVars φ (lits t) := mem_openVars.2 ⟨hv, ha⟩
-      obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 :=
-        ⟨fuel - 1, by have := List.length_pos_of_mem hmem; omega⟩
-      have hlen₁ : (openVars φ (l :: lits t)).length ≤ fuel := by
-        rw [openVars_cons, List.length_erase_of_mem hmem]; omega
-      have hlen₂ : (openVars φ (l.negate :: lits t)).length ≤ fuel := by
-        rw [openVars_cons, show (Std.Sat.Literal.negate l).1 = l.1 from rfl,
-          List.length_erase_of_mem hmem]; omega
+      obtain ⟨fuel, rfl, hlen⟩ := length_openVars_cons_le hs hf
+      have hlen₁ := hlen l rfl
+      have hlen₂ := hlen l.negate rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have ih₁ := runLog_add_nodes φ out fuel (⟨l, false⟩ :: t)
         (k + nodes φ fuel (l.negate :: lits t)) hlen₁ hd.1

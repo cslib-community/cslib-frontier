@@ -284,6 +284,19 @@ def answerList (N : ℕ) : Trail.Answer → List ℕ
   | .sat π => modelWords N π
   | .unsat => [0]
 
+/-- The code of the literal pushed by a branching, from the scan registers: that of the unit
+clause, or else the first open variable, true. -/
+theorem branchCode_eq (φ : CNF ℕ) (π : List (Literal ℕ)) {uf' unit' ov' : ℕ}
+    (huf : uf' = ((unitLiteral? φ π).map litCode).isSome.toNat)
+    (hunit : unit' = ((unitLiteral? φ π).map litCode).getD 0)
+    (hov : ov' = (φ.vars.find? fun x => !Assigned π x).getD 0) :
+    (if uf' = 0 then ov' + ov' + 1 else unit') = litCode (nextLiteral φ π) := by
+  rw [huf, hunit, hov]
+  unfold nextLiteral
+  cases hu : unitLiteral? φ π with
+  | some l => simp
+  | none => simp [litCode_true]
+
 /-- The instructions of one step: a pass over the clauses, then backtracking, branching, or
 writing the model. -/
 def stepTime (φ : CNF ℕ) (N : ℕ) (t : Trail) : ℕ :=
@@ -496,13 +509,7 @@ theorem stepBody_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs :
   have hs' : StateAt φ N T (x.havoc scan v x.mem) t := by wram_simp [*]
   unfold stepTime
   by_cases hc : φ.any (Falsifies π) = true
-  · have hstat : status φ π = .conflict := by
-      unfold status; rw [List.isSome_find?, hc]; rfl
-    have hstep : Trail.step φ t = match Trail.backtrack t with
-        | none => .inl .unsat
-        | some t' => .inr t' := by
-      unfold Trail.step; rw [← hπdef, hstat]
-      rfl
+  · have hstep := Trail.step_of_status_eq_conflict (status_eq_conflict hc)
     rw [hc, Bool.toNat_true] at hconf
     wram_exec [hconf, h1]
     wram_call (backtrack_spec (w := w) φ N T t _ hs' hfit) framed with v₂ m₂ hz₂
@@ -511,10 +518,7 @@ theorem stepBody_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs :
   · rw [Bool.not_eq_true] at hc
     rw [hc, Bool.toNat_false] at hconf
     by_cases ha : (φ.all fun c => c.any (Holds π)) = true
-    · have hstat : status φ π = .sat := by
-        unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
-      have hstep : Trail.step φ t = .inl (.sat π) := by
-        unfold Trail.step; rw [← hπdef, hstat]
+    · have hstep := Trail.step_of_status_eq_sat (status_eq_sat hc ha)
       rw [ha, Bool.toNat_true] at halls
       wram_exec [hconf, halls, h1]
       wram_call (outSat_spec (w := w) φ N T t _ hs' hfit) framed with v₂ m₂ hz₂
@@ -522,17 +526,10 @@ theorem stepBody_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs :
       exact ⟨by simp only; omega, hz₂⟩
     · rw [Bool.not_eq_true] at ha
       rw [ha, Bool.toNat_false] at halls
-      have hstat : status φ π = .branch (nextLiteral φ π) := by
-        unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
-      have hstep : Trail.step φ t = .inr (⟨nextLiteral φ π, false⟩ :: t) := by
-        unfold Trail.step; rw [← hπdef, hstat]
+      have hstat := status_eq_branch hc ha
+      have hstep := Trail.step_of_status_eq_branch hstat
       obtain ⟨hv, hun⟩ := assigned_of_status_eq_branch hstat
-      have hcode : (if v uf = 0 then v ov + v ov + 1 else v unit) = litCode (nextLiteral φ π) := by
-        rw [huf, hunit, hov]
-        unfold nextLiteral
-        cases hu : unitLiteral? φ π with
-        | some l => simp
-        | none => simp [litCode_true]
+      have hcode := branchCode_eq φ π huf hunit hov
       wram_exec [hconf, halls, h1]
       wram_call (push_spec (w := w) φ N T _ t _ hs' (by wram_simp; exact hcode) hv hun hfit) framed
         with v₂ m₂ hz₂
