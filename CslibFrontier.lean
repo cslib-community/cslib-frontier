@@ -8095,6 +8095,7 @@ public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Computability.RecursiveInJoin
 public import CslibFrontier.Foundations.Computability.RecursiveInSmn
 public import CslibFrontier.Foundations.Computability.RecursiveInUniform
+public import CslibFrontier.Foundations.Computability.RecursiveInUniversal
 public import CslibFrontier.Foundations.Computability.TuringJoin
 public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.Clock
@@ -9257,6 +9258,7 @@ public import CslibFrontier.GameTheory.UtilityGame.Basic
 public import CslibFrontier.GameTheory.UtilityGame.CompetitiveFacilityLocation
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.CombinatoryLogic.KleeneFirstModel
+public import CslibFrontier.Languages.CombinatoryLogic.KleeneFirstModelRelative
 public import CslibFrontier.Languages.CombinatoryLogic.PartialCombinatoryAlgebra
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString
