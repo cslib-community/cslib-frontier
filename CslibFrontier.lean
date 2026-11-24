@@ -6383,10 +6383,8 @@ public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
-public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.GarblerSetup
-public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.KDF
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.LabelLength
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Setup
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
