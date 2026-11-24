@@ -24,8 +24,9 @@ import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 The Jacobian norm follows from the norms of the lower relations. The finite residue formula
 then bounds the positive power traces, and Newton's identity bounds the characteristic
 polynomial of multiplication in the quotient. The Jacobian and trace estimates permit
-any subadditive, submultiplicative coefficient weight invariant under negation. The
-characteristic norm bounds below specialize these estimates to `ℤ[X]`.
+subadditive, submultiplicative coefficient weights invariant under negation. When the
+weight scales exactly under natural scalar multiplication, the same binary budget
+bounds the characteristic norm, including for multivariate polynomial parameters.
 
 Adapted from `LeanCanny.CountingHierarchy.QuotientMassBounds` and
 `LeanCanny.CountingHierarchy.MultivariateQuotientMass` at lean-canny commit
@@ -135,19 +136,20 @@ theorem multiplicationMatrix_trace_pow_weight_le {S : Type*} [CommRing S] {w : S
       rw [mul_pow]
       exact Nat.mul_le_mul_right _ (Nat.le_pow (by omega))
 
-/-- Bound the bivariate coefficient norm of the actual quotient characteristic polynomial.
-Here `D` is the quotient dimension, `B` bounds the residue numerator degrees through `D`,
-and `A` bounds the geometric growth of the positive power traces. -/
-theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le {n d Ω V R : ℕ} (hd : 1 ≤ d)
-    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
-    (hr : ∀ i, (r i).totalDegree ≤ d) (hR : ∀ i, ParameterCoeffNorm.norm (r i) ≤ R)
-    (hR1 : 1 ≤ R) (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hdeg : v.totalDegree ≤ Ω)
-    (hV : ParameterCoeffNorm.norm v ≤ V) (hV1 : 1 ≤ V) :
+private theorem sum_multiplicationMatrix_charpoly_le {S : Type*} [CommRing S] {w : S → ℕ}
+    (hzero : w 0 = 0) (hone : w 1 ≤ 1)
+    (hadd : ∀ a b, w (a + b) ≤ w a + w b) (hmul : ∀ a b, w (a * b) ≤ w a * w b)
+    (hneg : ∀ a, w (-a) = w a) (hnsmul : ∀ (j : ℕ) a, w (j • a) = j * w a)
+    {n d Ω V R : ℕ} (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) S)
+    (hr : ∀ i, (r i).totalDegree ≤ d) (hR : ∀ i, (r i).coeff.sum (fun _ a => w a) ≤ R)
+    (hR1 : 1 ≤ R) (v : MvPolynomial (Fin n) S) (hdeg : v.totalDegree ≤ Ω)
+    (hV : v.coeff.sum (fun _ a => w a) ≤ V) (hV1 : 1 ≤ V) :
     let D := (d + 1) ^ n
     let B := D * Ω + n * d
     let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + R)) ^ n) * R ^ B * V
     (multiplicationMatrix (by omega : 1 ≤ d + 1) r
-      (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.bivariateCoeffNorm1 ≤
+      (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.sum (fun _ a => w a) ≤
       (D + 1) * A ^ D := by
   classical
   dsimp only
@@ -167,12 +169,30 @@ theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le {n d Ω V R : ℕ} 
   rw [show (D + 1) * (C * V) ^ D =
     (Fintype.card (NormalIndex n (d + 1)) + 1) * (C * V) ^
       Fintype.card (NormalIndex n (d + 1)) by rw [hcard]]
-  refine Matrix.bivariateCoeffNorm1_charpoly_le_of_trace_pow _ (by simpa only [one_mul] using hA) ?_
+  refine Matrix.sum_charpoly_coeff_le_of_trace_pow hzero hone hadd hmul hneg hnsmul _
+    (by simpa only [one_mul] using hA) ?_
   intro k hk hkD
   rw [hcard] at hkD
-  exact multiplicationMatrix_trace_pow_weight_le
-    Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le Polynomial.coeffNorm1_add_le
-    Polynomial.coeffNorm1_mul_le Polynomial.coeffNorm1_neg hd r hr hR hR1 v hdeg hV k hk hkD
+  exact multiplicationMatrix_trace_pow_weight_le hzero hone hadd hmul hneg
+    hd r hr hR hR1 v hdeg hV k hk hkD
+
+/-- Bound the bivariate coefficient norm of the actual quotient characteristic polynomial.
+Here `D` is the quotient dimension, `B` bounds the residue numerator degrees through `D`,
+and `A` bounds the geometric growth of the positive power traces. -/
+theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le {n d Ω V R : ℕ} (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (hr : ∀ i, (r i).totalDegree ≤ d) (hR : ∀ i, ParameterCoeffNorm.norm (r i) ≤ R)
+    (hR1 : 1 ≤ R) (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hdeg : v.totalDegree ≤ Ω)
+    (hV : ParameterCoeffNorm.norm v ≤ V) (hV1 : 1 ≤ V) :
+    let D := (d + 1) ^ n
+    let B := D * Ω + n * d
+    let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + R)) ^ n) * R ^ B * V
+    (multiplicationMatrix (by omega : 1 ≤ d + 1) r
+      (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.bivariateCoeffNorm1 ≤
+      (D + 1) * A ^ D :=
+  sum_multiplicationMatrix_charpoly_le Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le
+    Polynomial.coeffNorm1_add_le Polynomial.coeffNorm1_mul_le Polynomial.coeffNorm1_neg
+    Polynomial.coeffNorm1_nsmul hd r hr hR hR1 v hdeg hV hV1
 
 /-- A binary norm budget for quotient characteristic polynomials, with multiplier degree
 at most `Ω`, multiplier norm at most `2 ^ bv` and relation norms at most `2 ^ br`. -/
@@ -181,22 +201,26 @@ at most `Ω`, multiplier norm at most `2 ^ bv` and relation norms at most `2 ^ b
   let B := D * Ω + n * (ell - 1)
   (D + 1).size + ((B + 1).size * n + (n.size + ell.size + (br + 1)) * n + br * B + bv) * D
 
-/-- Bound the bivariate norm of a quotient characteristic polynomial by a power of two
-using the binary budgets of the input norms. -/
-theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two
+/-- Bound the sum of the characteristic coefficient weights by a power of two using
+binary budgets for the relation and multiplier weights. The coefficient weight must
+scale exactly under natural scalar multiplication for Newton's identity. -/
+theorem sum_multiplicationMatrix_charpoly_le_pow_two {S : Type*} [CommRing S] {w : S → ℕ}
+    (hzero : w 0 = 0) (hone : w 1 ≤ 1)
+    (hadd : ∀ a b, w (a + b) ≤ w a + w b) (hmul : ∀ a b, w (a * b) ≤ w a * w b)
+    (hneg : ∀ a, w (-a) = w a) (hnsmul : ∀ (j : ℕ) a, w (j • a) = j * w a)
     {n ell Ω bv br : ℕ} (hell : 2 ≤ ell)
-    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
-    (hr : ∀ i, (r i).totalDegree < ell) (hR : ∀ i, ParameterCoeffNorm.norm (r i) ≤ 2 ^ br)
-    (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hdeg : v.totalDegree ≤ Ω)
-    (hV : ParameterCoeffNorm.norm v ≤ 2 ^ bv) :
-    (multiplicationMatrix (by omega : 1 ≤ ell) r hr v).charpoly.bivariateCoeffNorm1 ≤
+    (r : Fin n → MvPolynomial (Fin n) S)
+    (hr : ∀ i, (r i).totalDegree < ell) (hR : ∀ i, (r i).coeff.sum (fun _ a => w a) ≤ 2 ^ br)
+    (v : MvPolynomial (Fin n) S) (hdeg : v.totalDegree ≤ Ω)
+    (hV : v.coeff.sum (fun _ a => w a) ≤ 2 ^ bv) :
+    (multiplicationMatrix (by omega : 1 ≤ ell) r hr v).charpoly.sum (fun _ a => w a) ≤
       2 ^ multiplicationMatrixCharpolyCoeffNormExponent n ell Ω bv br := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : ell ≠ 0)
   let D := (d + 1) ^ n
   let B := D * Ω + n * d
   let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + 2 ^ br)) ^ n) * (2 ^ br) ^ B * 2 ^ bv
   have hq : _ ≤ (D + 1) * A ^ D :=
-    bivariateCoeffNorm1_multiplicationMatrix_charpoly_le (by omega) r
+    sum_multiplicationMatrix_charpoly_le hzero hone hadd hmul hneg hnsmul (by omega) r
       (fun i => Nat.le_of_lt_succ (hr i)) hR Nat.one_le_two_pow v hdeg hV Nat.one_le_two_pow
   have hscale : (d + 1) * (1 + 2 ^ br) ≤ 2 ^ ((d + 1).size + (br + 1)) := by
     rw [pow_add 2 (d + 1).size, pow_succ (2 : ℕ) br]
@@ -218,6 +242,21 @@ theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two
   rw [← pow_mul, ← pow_add]
   simp only [multiplicationMatrixCharpolyCoeffNormExponent, Nat.succ_sub_one]
   rfl
+
+/-- Bound the bivariate norm of a quotient characteristic polynomial by a power of two
+using the binary budgets of the input norms. -/
+theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two
+    {n ell Ω bv br : ℕ} (hell : 2 ≤ ell)
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (hr : ∀ i, (r i).totalDegree < ell) (hR : ∀ i, ParameterCoeffNorm.norm (r i) ≤ 2 ^ br)
+    (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hdeg : v.totalDegree ≤ Ω)
+    (hV : ParameterCoeffNorm.norm v ≤ 2 ^ bv) :
+    (multiplicationMatrix (by omega : 1 ≤ ell) r hr v).charpoly.bivariateCoeffNorm1 ≤
+      2 ^ multiplicationMatrixCharpolyCoeffNormExponent n ell Ω bv br :=
+  sum_multiplicationMatrix_charpoly_le_pow_two
+    Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le Polynomial.coeffNorm1_add_le
+    Polynomial.coeffNorm1_mul_le Polynomial.coeffNorm1_neg Polynomial.coeffNorm1_nsmul
+    hell r hr hR v hdeg hV
 
 /-- Bound the integer determinant of multiplication in a pure-power quotient by the
 characteristic polynomial norm budget. Embed the inputs as constant parameter polynomials
