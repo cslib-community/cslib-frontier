@@ -17,6 +17,7 @@ import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.LoadBalancing
+import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
 import CslibFrontierResults.Entries.MarketEquilibria
