@@ -4055,7 +4055,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.CopyWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.DivConq
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Foldl
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Id
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
