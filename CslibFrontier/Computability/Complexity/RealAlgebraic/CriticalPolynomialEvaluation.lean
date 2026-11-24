@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalNumericEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.PartialDerivativeEvaluation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 
 /-!
 # Native evaluators for the critical objective and lower relations
@@ -26,8 +25,11 @@ Ported from `LeanCanny.CountingHierarchy.CriticalPolynomialEvaluation` at lean-c
 controlled-family bounds and full feasibility endpoints remain
 [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 
-The zero-centered objective used in relative characteristic coefficients comes from
-`LeanCanny.CountingHierarchy.ZeroCenterEvaluation` and `ZeroCenterCorrectness` at the same commit.
+For relative characteristic coefficients, `zeroObjectiveValue` evaluates the zero-centered
+objective. `zeroObjectiveValue_mem` preserves the source evaluator's counting level with the
+`encInstancePoint` input encoding, and `zeroObjectiveValue_cast` proves agreement with the actual
+polynomial over a prime field. These come from `LeanCanny.CountingHierarchy.ZeroCenterEvaluation`
+and `ZeroCenterCorrectness` at the same commit.
 -/
 
 public section
@@ -47,11 +49,11 @@ open Turing.MultiTapeTM MvPolynomial MvPolynomial.CriticalSystem
     (value : List ℕ → ℕ) : ℕ :=
   (criticalPotentialResidue p n ell z + (ell + 1) * u * value z) % p
 
-private noncomputable def zeroPotentialResidue (p n ell : ℕ) (z : List ℕ) : ℕ :=
-  unaryModularSum n (max 1 p) (fun i => powMod p (z[i]?.getD 0) (ell + 1))
+private def zeroPotentialResidue (p n ell : ℕ) (z : List ℕ) : ℕ :=
+  unaryModularSum n p (fun i => powMod p (z[i]?.getD 0) (ell + 1))
 
 /-- Evaluate the zero-centered deformed objective using the input polynomial evaluator. -/
-noncomputable def zeroObjectiveValue (p n ell u : ℕ) (z : List ℕ) (value : List ℕ → ℕ) : ℕ :=
+def zeroObjectiveValue (p n ell u : ℕ) (z : List ℕ) (value : List ℕ → ℕ) : ℕ :=
   (zeroPotentialResidue p n ell z + (ell + 1) * u * value z) % p
 
 /-- A framed instance followed by the native list encoding of its binary coordinates. -/
@@ -123,7 +125,7 @@ theorem zeroObjectiveValue_mem {p n ell u : α → ℕ}
   have hpotential : ComputableInPolyTime (fun w => zeroPotentialResidue (p w) (n w) (ell w) (z w))
       enc encNat := by
     simpa only [zeroPotentialResidue, Function.comp_apply] using
-      unaryModularSum_polyTime hn (ComputableInPolyTime.binary_max' (.const 1) hp) ht
+      unaryModularSum_polyTime hn hp ht
   exact deformedValue_mem hp hell hu hz hpotential hv
 
 theorem criticalLowerValue_cast {p n : ℕ} [Fact p.Prime]
@@ -166,8 +168,7 @@ theorem zeroObjectiveValue_cast {p n : ℕ} [Fact p.Prime]
   rw [zeroObjectiveValue, ZMod.natCast_mod, Nat.cast_add, Nat.cast_mul, Nat.cast_mul,
     hv, deformedPolynomial, map_add, map_mul, eval_C]
   congr 1
-  rw [zeroPotentialResidue, max_eq_right (Fact.out : p.Prime).one_le, unaryModularSum_cast,
-    potentialPolynomial, map_sum]
+  rw [zeroPotentialResidue, unaryModularSum_cast, potentialPolynomial, map_sum]
   apply Finset.sum_congr rfl
   intro i _
   simp only [powMod_of_ne_zero (Fact.out : p.Prime).ne_zero, ZMod.natCast_mod, Nat.cast_pow,
