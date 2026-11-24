@@ -424,11 +424,6 @@ noncomputable def ofPMF (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) :
     (ofPMF G d).toIncompleteInfoGame = G := by
   rfl
 
-@[simp] theorem ofPMF_utility (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i))
-    (i : ι) (ti : T i) (x : ∀ j, X j) :
-    (ofPMF G d).utility i ti x = G.utility i ti x := by
-  rfl
-
 @[simp] theorem ofPMF_prior (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) (i : ι) :
     (ofPMF G d).prior i = (d i).toMeasure := by
   rfl
@@ -643,14 +638,6 @@ def revelation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
 @[simp] theorem revelation_toIndirectMechanism (M : BayesianMechanism ι T X Ω)
     (s : ∀ i, T i → X i) :
     (M.revelation s).toIndirectMechanism = M.toIndirectMechanism.revelation s := by
-  rfl
-
-@[simp] theorem revelation_outcome (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
-    (t : ∀ i, T i) : (M.revelation s).outcome t = M.outcome fun j => s j (t j) := by
-  rfl
-
-@[simp] theorem revelation_payment (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
-    (t : ∀ i, T i) : (M.revelation s).payment t = M.payment fun j => s j (t j) := by
   rfl
 
 @[simp] theorem revelation_prior (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
