@@ -4,6 +4,7 @@ import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.DFSWordRAM
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DictionaryLowerBound
+import CslibFrontierResults.Entries.DigitalGoods
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS

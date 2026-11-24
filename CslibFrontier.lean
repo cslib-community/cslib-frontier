@@ -8413,6 +8413,7 @@ public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
+public import CslibFrontier.GameTheory.Mechanism.DigitalGoods.ProfitExtraction
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Cycle
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Dictatorship
