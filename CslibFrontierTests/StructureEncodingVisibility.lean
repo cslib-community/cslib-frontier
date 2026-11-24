@@ -64,9 +64,9 @@ example : ComputableInPolyTime (TaggedTable.tag (n := 0)) encPrivateTable encBoo
 example (t : TaggedTable n) :
     encPrivateTable t = encPair encBool (encPi encNat) (t.tag, t.entries) := rfl
 
--- Logspace preserves a possibly long table on its output tape, without storing it in workspace.
-example : ComputableInLogSpace (fun t : TaggedTable n => TaggedTable.mk (!t.tag) t.entries)
-    encPrivateTable encPrivateTable := by
+-- A private logspace field rule reads a field of stored registers beside a second input.
+example : ComputableInLogSpace (fun p : TaggedTable n × List Bool => (p.1.tag, p.2))
+    (encPair encPrivateTable encBits) (encPair encBool encBits) := by
   fun_prop
 
 end
@@ -86,6 +86,11 @@ example (F : Family) :
       (encPrivateElement F) (encPrivateElement F) := by
   fun_prop
 
+-- The logspace rule of a dependent field reads its word.
+example (F : Family) : ComputableInLogSpace (fun x : Element F => F.encode x.desc x.elt)
+    (encPrivateElement F) encBits :=
+  encPrivateElement_elt_logSpace F
+
 /-- A private flattened encoding whose parent rule must remain local to this module. -/
 private enc_structure encPrivateElementPair (F : Family) : ElementPair F
     flattened toElement : (eElement F) logspace where
@@ -98,24 +103,14 @@ example (F : Family) {α : Type} {enc : α ↪ List Bool} {f : α → ElementPai
     ComputableInPolyTime (fun a => (f a).toElement) enc (eElement F) := by
   fun_prop
 
+-- With `logspace`, the fields of a flattened parent are read through it.
+example (F : Family) : ComputableInLogSpace (fun x : ElementPair F => x.size)
+    (encPrivateElementPair F) encUnary :=
+  encPrivateElementPair_size_logSpace F
+
 /-- One slot needs neither framing nor tuple projections; its word is unchanged. -/
 enc_structure encLogSingle : Single logspace where items : (encList encNat)
 
 example (s : Single) : encLogSingle s = eSingle s := rfl
-
-/-- The same dependent, flattened layout, with logspace rules as an explicit extra family. -/
-enc_structure encLogElementPair (F : Family) : ElementPair F
-    flattened toElement : (eElement F) logspace where
-  size : encUnary, desc : F.encDesc, elt : (F.encode desc) using (F.encode_injective desc),
-  other : (F.encode desc) using (F.encode_injective desc)
-
-example (F : Family) (x : ElementPair F) : encLogElementPair F x = eElementPair F x := rfl
-
--- Dependent constructor arguments use their encoded words, including the swapped field.
-example (F : Family) :
-    ComputableInLogSpace
-      (fun x : ElementPair F => (⟨⟨x.size, x.desc, x.other⟩, x.elt⟩ : ElementPair F))
-      (encPrivateElementPair F) (encPrivateElementPair F) := by
-  fun_prop
 
 end CslibFrontierTests.StructureEncodingVisibility

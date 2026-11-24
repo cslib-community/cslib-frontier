@@ -60,25 +60,19 @@ example (F : Family) {α : Type} {enc : α ↪ List Bool} {f : α → ElementPai
     ComputableInPolyTime (fun a => (f a).toElement) enc (eElement F) := by
   fun_prop
 
--- The logspace rules remain usable across an ordinary import, including at table size zero.
-example {n : ℕ} :
-    ComputableInLogSpace (fun t : TaggedTable n => TaggedTable.mk (!t.tag) t.entries)
-      encPublicTable encPublicTable := by
+-- The logspace field rules remain usable across an ordinary import, including at table size zero.
+example {n : ℕ} {α : Type} {enc : α ↪ List Bool} {f : α → TaggedTable n}
+    (hf : ComputableInLogSpace f enc encPublicTable) :
+    ComputableInLogSpace (fun a => (f a).entries) enc (encPi encNat) := by
   fun_prop
 
 example : ComputableInLogSpace (TaggedTable.tag (n := 0)) encPublicTable encBool := by
   fun_prop
 
--- One-field constructor/projection rules still compose with a caller's logspace routine.
+-- The one-field rule still composes with a caller's logspace routine.
 example {α : Type} {enc : α ↪ List Bool} {f : α → Single}
     (hf : ComputableInLogSpace f enc encLogSingle) :
-    ComputableInLogSpace (fun a => Single.mk ((f a).items ++ (f a).items)) enc encLogSingle := by
-  fun_prop
-
--- A flattened parent's certificate returns the source's exact dependent-word layout.
-example (F : Family) {α : Type} {enc : α ↪ List Bool} {f : α → ElementPair F}
-    (hf : ComputableInLogSpace f enc (encLogElementPair F)) :
-    ComputableInLogSpace (fun a => (f a).toElement) enc (eElement F) := by
+    ComputableInLogSpace (fun a => (f a).items) enc (encList encNat) := by
   fun_prop
 
 end
@@ -89,7 +83,7 @@ run_cmd do
   let suffixes := ["", "Fields", "_apply", "_fields_deg", "_mk_deg", "_mk_inO",
     "_mk_budget", "_mk_polyTime", "_tag_deg", "_tag_inO", "_tag_budget", "_tag_polyTime",
     "_entries_deg", "_entries_inO", "_entries_budget", "_entries_polyTime",
-    "_fields_logSpace", "_mk_logSpace", "_tag_logSpace", "_entries_logSpace"]
+    "_fields_logSpace", "_tag_logSpace", "_entries_logSpace"]
   for suffix in suffixes do
     let visible :=
       (`CslibFrontierTests.StructureEncodingVisibility.encPublicTable).appendAfter suffix
@@ -105,8 +99,7 @@ run_cmd do
   let env ← Lean.getEnv
   let suffixes := ["", "Fields", "_apply", "_fields_deg", "_mk_deg", "_mk_inO",
     "_mk_budget", "_mk_polyTime", "_toElement_deg", "_toElement_inO",
-    "_toElement_budget", "_toElement_polyTime", "_fields_logSpace", "_mk_logSpace",
-    "_toElement_logSpace"]
+    "_toElement_budget", "_toElement_polyTime", "_fields_logSpace"]
   let fieldSuffixes := ["_size", "_desc", "_elt", "_other"].flatMap fun f =>
     ["_deg", "_inO", "_budget", "_polyTime", "_logSpace"].map (f ++ ·)
   for suffix in suffixes ++ fieldSuffixes do
@@ -122,7 +115,7 @@ run_cmd do
   let fieldSuffixes := ["_size", "_desc", "_elt"].flatMap fun f =>
     ["_deg", "_inO", "_budget", "_polyTime", "_logSpace"].map (f ++ ·)
   let suffixes := ["", "Fields", "_apply", "_fields_deg", "_mk_deg", "_mk_inO", "_mk_budget",
-    "_mk_polyTime", "_fields_logSpace", "_mk_logSpace"] ++ fieldSuffixes
+    "_mk_polyTime", "_fields_logSpace"] ++ fieldSuffixes
   for suffix in suffixes do
     let hidden :=
       (`CslibFrontierTests.StructureEncodingVisibility.encPrivateElement).appendAfter suffix
