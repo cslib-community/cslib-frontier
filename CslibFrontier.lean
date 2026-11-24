@@ -179,6 +179,13 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Algorithms.Lean.MaxFlow.WeightedMatching
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.GrowingPartition
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Restrict
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Search
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.Partition
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.Precompute
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.RobustContraction
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Basic
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Knuth
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Yao
@@ -328,6 +335,7 @@ public import CslibFrontier.Algorithms.PlantedClique.Program
 public import CslibFrontier.Algorithms.PlantedClique.RandomGraph
 public import CslibFrontier.Algorithms.PlantedClique.Representation
 public import CslibFrontier.Algorithms.PlantedClique.Selection
+public import CslibFrontier.Algorithms.PointerMachine.ComparisonTree
 public import CslibFrontier.Algorithms.Quantum.PeriodFinding
 public import CslibFrontier.Algorithms.Reachability.BreadthFirst
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting
