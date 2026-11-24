@@ -26,16 +26,21 @@ This module formalizes Rahul Ilango's reduction from Bipartite Permutation Indep
 partial-function Minimum Circuit Size Problem (`MCSP*` / `PartialMCSP`), the reduction behind his
 lower bound [Ilango2020FOCS, Theorem I.3, pp. 424, 427–428; ECCC TR20-183, Section 1.2.2,
 Theorem 3, p. 6, and Section 3, Theorem 11 (p. 20) & Lemma 12 (p. 22), construction and proof
-pp. 21–26]. The source concludes, under the Exponential Time Hypothesis (`ETH`), that
-`PartialMCSP` on partial Boolean functions of arity $m$ (truth-table size $N = 2^m$) is not
-decidable in time $2^{o(m \log m)} = N^{o(\log \log N)}$.
-`Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes that hypothesis, so this module proves no
-lower bound. It states the transfer of upper bounds along the reduction instead: a
-$2^{o(m \log m)}$-time decider for `PartialMCSP`, `PartialMCSP.BinaryGate` or
-`PartialMCSP.MonotoneReadOnce` gives a $2^{o(n \log n)}$-time decider for
-`BipartitePermutationIndependentSet`
-(`Cslib.PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction`), and hence a
-$2^{o(|V|)}$-time decider for `ThreeColoring`
+pp. 21–26]. Ilango's model is `PartialMCSP.BinaryGate`, which counts binary AND/OR gates on a
+full partial truth table. The all-gate `PartialMCSP` and the monotone read-once
+`PartialMCSP.MonotoneReadOnce` are library variants to which the same reduction applies. The
+source concludes, under the Exponential Time Hypothesis (`ETH`), that the problem on partial
+Boolean functions of arity $m$ (truth-table size $N = 2^m$) is not decidable in time
+$2^{o(m \log m)} = N^{o(\log \log N)}$. `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes
+that hypothesis, so this module proves no lower bound.
+
+It states the transfer of upper bounds along the reduction instead, with the quantifiers of
+`DecidableInSubexpTime`. Suppose that for every $\delta > 0$ one of the three problems is decidable
+within time $2^{\delta m \log_2 m}$ times a polynomial in the length of the encoded instance, where
+the machine and the polynomial may depend on $\delta$. Then the same holds for
+`BipartitePermutationIndependentSet` with $n \log_2 n$ in place of $m \log_2 m$
+(`Cslib.PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction`), and hence for `ThreeColoring`
+with $|V|$
 (`Cslib.Complexity.DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet`).
 
 ## Overview of the reduction and faithfulness
@@ -106,9 +111,10 @@ $2^{o(|V|)}$-time decider for `ThreeColoring`
   `PartialMCSP.MonotoneReadOnce` [ECCC TR20-183, Section 3, Theorem 11, p. 20, proof pp. 21–24].
 * `Cslib.PartialMCSP.exists_computableInO_ilangoReduction`: `ilangoReduction` runs in time
   $2^{O(n)} \cdot \mathrm{poly}(|G|)$.
-* `Cslib.PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction`: a $2^{o(m \log m)}$-time
-  decider for any of the three `PartialMCSP` variants gives a $2^{o(n \log n)}$-time decider for
-  `BipartitePermutationIndependentSet`. It transfers an upper bound and proves no lower bound.
+* `Cslib.PartialMCSP.decidableInSubexpTime_bpis_of_ilangoReduction`: subexponential time in
+  $m \log_2 m$ for any of the three `PartialMCSP` variants gives subexponential time in
+  $n \log_2 n$ for `BipartitePermutationIndependentSet`, in the rate-by-rate sense of
+  `DecidableInSubexpTime`. It transfers an upper bound and proves no lower bound.
 
 ## References
 
@@ -1656,16 +1662,19 @@ private theorem arity_mul_log_ilangoReduction_le (G : BipartitePermutationGraph)
     exact (Nat.mul_le_mul_left _ hlog_le).trans (by ring_nf; omega)
 
 /-- **Subexponential-time transfer along Ilango's $2^{O(n)}$-time reduction** (unary threshold
-encoding `PartialMCSP.enc`): this transfers an upper bound and proves no lower bound. If a target
-problem `B` on `PartialMCSP.Instance` is decidable in time $2^{o(m \log m)}$ and `ilangoReduction`
-reduces `BipartitePermutationIndependentSet` to `B`, then `BipartitePermutationIndependentSet` is
-decidable in time $2^{o(n \log n)}$. The reduction is correct for `B = PartialMCSP`,
-`PartialMCSP.BinaryGate` and `PartialMCSP.MonotoneReadOnce`
+encoding `PartialMCSP.enc`): this transfers an upper bound and proves no lower bound. Let
+`ilangoReduction` reduce `BipartitePermutationIndependentSet` to a problem `B` on
+`PartialMCSP.Instance`. If for every $\delta > 0$ the problem `B` is decidable within time
+$2^{\delta m \log_2 m}$ times a polynomial in the encoding length, with machine and polynomial
+allowed to depend on $\delta$, then so is `BipartitePermutationIndependentSet` with $n \log_2 n$ in
+place of $m \log_2 m$. The reduction is correct for Ilango's `B = PartialMCSP.BinaryGate` and for
+the library variants `PartialMCSP` and `PartialMCSP.MonotoneReadOnce`
 (`mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem` and its `_binaryGate` and
-`_monotoneReadOnce` variants). Ilango's Theorem I.3 [Ilango2020FOCS, pp. 424, 427–428; ECCC
-TR20-183, Section 1.2.2, Theorem 3, p. 6, and Section 3, Theorem 11, pp. 20–21] is the
-contrapositive of this transfer, composed with the Lokshtanov–Marx–Saurabh lower bound, under the
-exponential time hypothesis, which `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes. -/
+`_monotoneReadOnce` variants). For `PartialMCSP.BinaryGate`, Ilango's Theorem I.3
+[Ilango2020FOCS, pp. 424, 427–428; ECCC TR20-183, Section 1.2.2, Theorem 3, p. 6, and Section 3,
+Theorem 11, pp. 20–21] is the contrapositive of this transfer, composed with the
+Lokshtanov–Marx–Saurabh lower bound, under the exponential time hypothesis, which
+`Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes. -/
 theorem decidableInSubexpTime_bpis_of_ilangoReduction
     {B : Set Instance}
     (hiff : ∀ G, G ∈ BipartitePermutationIndependentSet ↔ ilangoReduction G ∈ B)

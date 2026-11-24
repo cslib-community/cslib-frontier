@@ -20,8 +20,6 @@ Kernel-checked tests (with no `native_decide`) exercising `Cslib.Complexity.SAT.
    edges are produced (`edges = []`), so `groupClique 2 unsat2 ∉ Clique` and `unsat2 ∉ ThreeSAT`.
 3. Boundary inputs (`[]`, `[[]]`, a width-4 clause `non3CNF`, and `r = 0`), verifying
    `groupClique_snd`, `length_groupClique_vertices_le`, and `groupClique_mem_Clique_iff`.
-4. Non-vacuous type signatures of `exists_computableInO_groupClique` and
-   `DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`.
 -/
 
 public section
@@ -78,17 +76,5 @@ example : SAT.groupClique 2 non3CNF ∉ Clique := by
   exact absurd (h3 [(0, true), (1, true), (2, true), (3, true)] (by simp [non3CNF])) (by decide)
 
 example : SAT.groupClique 0 sat2 = ⟨⟨[], []⟩, 1⟩ := by decide
-
-/-- Typecheck of the transfer from `f(k) * |V| ^ o(k) * poly` algorithms. -/
-example
-    (hClique : DecidableInTimeO Clique encCliqueInstance
-      (fun x =>
-        let graph := x.graph
-        let verts := graph.vertices
-        ((verts.length : ℝ) + 1) ^ (0 : ℝ))) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length := by
-  refine DecidableInSubexpTime.threeSAT_of_clique_subexpVertex (fun _ => 1) (fun _ => 0) 0
-    (fun ε hε => ⟨0, fun k _ => by positivity⟩) ?_
-  simpa using hClique
 
 end Cslib.Complexity.Tests.CliqueGrouping

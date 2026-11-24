@@ -27,9 +27,12 @@ import Mathlib.Data.Nat.Bitwise
 This module defines the `$2n \times 2n$ Bipartite Permutation Independent Set` problem and
 formalizes the reduction from 3-coloring behind the Lokshtanov–Marx–Saurabh lower bound
 [LokshtanovMarxSaurabh2018, Theorem 2.11], as used in Ilango's reduction to partial-function MCSP
-[Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183, Section 3, Theorem 10, p. 20]: any
-$2^{o(n \log n)}$-time decider for `BipartitePermutationIndependentSet` decides `ThreeColoring` in
-time $2^{o(|V|)}$ (`DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet`).
+[Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183, Section 3, Theorem 10, p. 20]: if for every
+$\delta > 0$ `BipartitePermutationIndependentSet` is decidable within time $2^{\delta n \log_2 n}$
+times a polynomial, then for every $\delta > 0$ `ThreeColoring` is decidable within time
+$2^{\delta |V|}$ times a polynomial
+(`DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet`). As in
+`DecidableInSubexpTime`, the machine and the polynomial may depend on $\delta$.
 The source states the contrapositive under the exponential time hypothesis, which
 `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes; this module states only the transfer
 and proves no lower bound.
@@ -78,8 +81,10 @@ using a library proof based on monotone threshold enumeration (`Tuple.sort` and
   `Tuple.lt_card_le_iff_apply_le_of_monotone`, encoded in $B \cdot (\lfloor \log_2 n \rfloor + 1) =
   o(N)$ bits.
 * Branching over all $2^{B \cdot (\lfloor \log_2 n \rfloor + 1)} = 2^{o(N)}$ threshold encodings
-  and querying a $2^{o(n \log n)}$ decider for `BipartitePermutationIndependentSet` decides
-  `ThreeColoring` in time $2^{o(N)}$.
+  and querying a decider for `BipartitePermutationIndependentSet` within time
+  $2^{\delta n \log_2 n}$ times a polynomial decides `ThreeColoring` within time
+  $2^{(1 / M + 10 \delta) N}$ times a polynomial, for every $M \ge 1$
+  (`BipartitePermutationIndependentSet.decidableInExpTime_ThreeColoring_of_bpis`).
 
 ## Main definitions
 
@@ -1055,10 +1060,12 @@ end BipartitePermutationIndependentSet
 
 open BipartitePermutationIndependentSet in
 /-- **Subexponential-time transfer from `BipartitePermutationIndependentSet` to `ThreeColoring`**,
-along the block-sorting reduction behind [LokshtanovMarxSaurabh2018, Theorem 2.11]: if
-`BipartitePermutationIndependentSet` is decidable in time $2^{o(n \log n)}$, then `ThreeColoring`
-is decidable in time $2^{o(|V|)}$. This transfers an upper bound and proves no lower bound; the
-source's statement is the contrapositive under the exponential time hypothesis. -/
+along the block-sorting reduction behind [LokshtanovMarxSaurabh2018, Theorem 2.11]: if for every
+$\delta > 0$ `BipartitePermutationIndependentSet` is decidable within time $2^{\delta n \log_2 n}$
+times a polynomial, then for every $\delta > 0$ `ThreeColoring` is decidable within time
+$2^{\delta |V|}$ times a polynomial; the machine and the polynomial may depend on $\delta$. This
+transfers an upper bound and proves no lower bound; the source's statement is the contrapositive
+under the exponential time hypothesis. -/
 theorem DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet
     (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
       fun G => G.1 * Nat.log 2 G.1) :

@@ -47,10 +47,11 @@ pp. 43–47).
   produces a dense formula on `Finset.range φ.vars.length` (`numVars ≤ k * φ.length`) in which
   every variable occurs at most three times.
 * `Cslib.Complexity.DecidableInExpTime.threeSAT_length_of_threeSATThree_numVars`,
-  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_threeSATThree_numVars`,
-  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_threeSATThree_length`: fine-grained
-  exponential and subexponential reductions from `ThreeSAT` to `ThreeSATThree` in both `CNF.numVars`
-  and `List.length`.
+  `Cslib.Complexity.DecidableInExpTime.threeSAT_length_of_threeSATThree_length`: exponential-time
+  reductions from `ThreeSAT` in clauses to `ThreeSATThree` in variables and in clauses, at every
+  rate `δ ≥ 0`. Subexponential-time versions are not stated: `ThreeSAT` is already decidable in
+  subexponential time (`CountingNativeEndpoint.decidableInSubexpTime_KSAT`), so they would carry no
+  information.
 * `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter_of_promise`,
   `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter`,
   `Cslib.Complexity.CountingSparsify.exists_computableInO_search_threeOccurrence_of_promise`,
@@ -227,30 +228,6 @@ theorem DecidableInExpTime.threeSAT_length_of_threeSATThree_length {δ : ℝ} (h
   DecidableInExpTime.of_reduction computableInPolyTime_toThreeSATThree
     (fun φ => (mem_ThreeSATThree_toThreeSATThree_iff φ).symm)
     (c := 4) (fun φ => (length_toThreeSATThree_le_mul_length φ).trans (by omega)) hδ h
-
-/-- **Subexponential-time reduction from `ThreeSAT` (`KSAT 3`) to `ThreeSATThree` in variables.**
-If `ThreeSATThree` is decidable in subexponential time in `CNF.numVars`, then `ThreeSAT` is
-decidable in subexponential time in `CNF.numVars` (via the Sparsification Lemma). -/
-theorem DecidableInSubexpTime.threeSAT_of_threeSATThree_numVars
-    (h : DecidableInSubexpTime ThreeSATThree encCNF CNF.numVars) :
-    DecidableInSubexpTime ThreeSAT encCNF CNF.numVars := by
-  rw [← KSAT_three]
-  refine DecidableInSubexpTime.numVars_of_length ?_
-  rw [KSAT_three]
-  exact DecidableInSubexpTime.of_reduction computableInPolyTime_toThreeSATThree
-    (fun φ => (mem_ThreeSATThree_toThreeSATThree_iff φ).symm)
-    (c := 3) (fun φ => (numVars_toThreeSATThree_le_mul_length φ).trans (Nat.le_add_right _ 3)) h
-
-/-- **Subexponential-time reduction from `ThreeSAT` (`KSAT 3`) to `ThreeSATThree` in clauses.** -/
-theorem DecidableInSubexpTime.threeSAT_of_threeSATThree_length
-    (h : DecidableInSubexpTime ThreeSATThree encCNF List.length) :
-    DecidableInSubexpTime ThreeSAT encCNF CNF.numVars := by
-  rw [← KSAT_three]
-  refine DecidableInSubexpTime.numVars_of_length ?_
-  rw [KSAT_three]
-  exact DecidableInSubexpTime.of_reduction computableInPolyTime_toThreeSATThree
-    (fun φ => (mem_ThreeSATThree_toThreeSATThree_iff φ).symm)
-    (c := 4) (fun φ => (length_toThreeSATThree_le_mul_length φ).trans (by omega)) h
 
 /-! ### 3. Guarded leaf model-counter reduction for `CountingSparsify.search` -/
 
