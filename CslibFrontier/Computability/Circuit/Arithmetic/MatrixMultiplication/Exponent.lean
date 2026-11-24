@@ -13,6 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Computability.Circuit.Synthesis
 import CslibFrontier.Computability.Circuit.Arithmetic.Synthesis
 import CslibFrontier.Computability.Circuit.Inputization
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The exponent of matrix multiplication
@@ -628,8 +629,7 @@ theorem admissibleExponent_of_rank {v r : ℕ} (hv : 2 ≤ v) (hr : Rank r (mm v
         have := mul_le_mul_of_nonneg_left hCcR (pow_nonneg hR0.le j)
         rw [pow_succ]
         nlinarith
-      push_cast
-      nlinarith
+      cast_nlinarith
   -- the general `n`: pad to the next power of `v`
   refine ⟨Cc * (v : ℝ) ^ (τ + ε) + 1, by positivity, fun n hn => ?_⟩
   set j := Nat.log v n + 1 with hj

@@ -14,6 +14,7 @@ public import Mathlib.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Bounds
 import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Moduli
 import CslibFrontier.Foundations.Data.Nat.Power
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
 
 /-!
@@ -195,7 +196,6 @@ theorem Unbounded.exists_circuit_of_isSymmetric {d : ℕ} (hd : 2 ≤ d) :
   refine ⟨c, ?_, hdepthWith, hdepth, ?_⟩
   · rwa [show AltFormula.eval .or g = f from funext he] at hc
   · rw [hsize]
-    push_cast
-    linarith
+    cast_linarith
 
 end Cslib.Circuits.Boolean

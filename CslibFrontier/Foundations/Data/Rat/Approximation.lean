@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Data.Rat.Lemmas
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -134,8 +135,7 @@ theorem eq_of_coprime_of_abs_div_sub_lt {j₁ r₁ j₂ r₂ N : ℕ} (hr₁0 : 
   have hq : (j₁ : ℚ) / r₁ = (j₂ : ℚ) / r₂ := by
     by_contra hne
     have hsep := one_div_sq_le_abs_sub_of_den_le (hden₁.trans_le hr₁) (hden₂.trans_le hr₂) hne
-    push_cast at hsep
-    linarith
+    cast_linarith
   have hinj := div_int_inj (a := j₁) (b := r₁) (c := j₂) (d := r₂)
     (Int.natCast_pos.mpr hr₁0) (Int.natCast_pos.mpr hr₂0) hcop₁ hcop₂ (by simpa using hq)
   exact ⟨Int.ofNat.inj hinj.1, Int.ofNat.inj hinj.2⟩
