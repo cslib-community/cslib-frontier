@@ -76,6 +76,19 @@ example (a : ℕ) (h : 2 ≤ a) : (4 : ℝ) ≤ (a : ℝ) ^ 2 := by cast_nlinari
 example (a b : ℕ) (ha : 1 ≤ a) (hb : 3 ≤ b) (x : ℝ) (hx : x ≤ 3) : x ≤ (a : ℝ) * b := by
   cast_nlinarith
 
+/-! ### Attached `!` -/
+
+example (a b : ℕ) (h : a < b) : (a : ℝ) + 1 ≤ b := by cast_linarith! [h]
+
+example (a : ℕ) (h : 2 ≤ a) : (4 : ℝ) ≤ (a : ℝ) ^ 2 := by cast_nlinarith!
+
+/-! ### Preprocessor lists without `natToInt` -/
+
+-- The cast runs after `filterComparisons`, which turns `¬ b ≤ a` into `a < b`.
+example (a b : ℤ) (h : ¬ b ≤ a) : (a : ℚ) + 1 ≤ b := by
+  cast_linarith (config := { preprocessors :=
+    [Mathlib.Tactic.Linarith.filterComparisons, Mathlib.Tactic.Linarith.compWithZero] })
+
 /-! ### Failures and other types -/
 
 -- A nonlinear fact about the naturals is not derived.

@@ -183,12 +183,16 @@ def castToField : GlobalPreprocessor where
         if let some pf' ← castComparison simpCtx K pf then cast := cast.push pf'
     return l ++ cast.toList
 
-/-- Inserts `castToField` before `natToInt` in a list of preprocessors, or at its front when
-`natToInt` is absent. -/
+/-- Inserts `castToField` before `natToInt` in a list of preprocessors. When `natToInt` is absent,
+it goes after `filterComparisons`, which turns negated comparisons into comparisons, or at the
+front when that is absent too. -/
 private def addCastToField (pps : List GlobalBranchingPreprocessor) :
     List GlobalBranchingPreprocessor :=
   if pps.any (·.name == natToInt.name) then
     pps.flatMap fun pp => if pp.name == natToInt.name then [castToField.branching, pp] else [pp]
+  else if pps.any (·.name == filterComparisons.name) then
+    pps.flatMap fun pp =>
+      if pp.name == filterComparisons.name then [pp, castToField.branching] else [pp]
   else
     castToField.branching :: pps
 
@@ -218,6 +222,12 @@ syntax (name := castLinarith) "cast_linarith" "!"? linarithArgsRest : tactic
 /-- `cast_nlinarith` is `nlinarith` with the preprocessing of `cast_linarith`: comparisons between
 natural numbers and between integers are also cast into the ordered field of the goal. -/
 syntax (name := castNlinarith) "cast_nlinarith" "!"? linarithArgsRest : tactic
+
+@[tactic_alt castLinarith] macro "cast_linarith!" rest:linarithArgsRest : tactic =>
+  `(tactic| cast_linarith ! $rest:linarithArgsRest)
+
+@[tactic_alt castNlinarith] macro "cast_nlinarith!" rest:linarithArgsRest : tactic =>
+  `(tactic| cast_nlinarith ! $rest:linarithArgsRest)
 
 /-- Runs `linarith`, or `nlinarith` when `nonlinear`, with `castToField` among its
 preprocessors. The other arguments are those of the `linarith` syntax. -/

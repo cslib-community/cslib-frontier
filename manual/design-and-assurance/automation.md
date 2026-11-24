@@ -555,8 +555,8 @@ A local definition made with `set`, such as `x := (n : ℝ)`, is the same atom a
 names. Each cast fact costs a `push_cast` call, so a call with many natural-number hypotheses in
 context costs more than `linarith`; use `cast_linarith only [...]` there, or `linarith` where no
 cast is needed. The tactic derives no new facts about the naturals: products, truncated
-subtraction `a - b` and division stay atoms, so a fact such as `(a - b : ℕ) = a - b` still has to
-be supplied. The [checked clients](../../CslibFrontierTests/LinarithCast.lean) cover each case.
+subtraction `a - b` and division stay atoms, so a fact such as `((a - b : ℕ) : ℝ) = (a : ℝ) - b`,
+which needs `b ≤ a`, still has to be supplied. The [checked clients](../../CslibFrontierTests/LinarithCast.lean) cover each case.
 
 ## Close negligibility bounds
 
