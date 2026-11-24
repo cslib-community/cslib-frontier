@@ -19,7 +19,8 @@ import Mathlib.Algebra.BigOperators.Fin
 results as a function on `Fin n`; `Cslib.FreeM.tabulateMatrix` does the same for a matrix of
 programs in row-major order. Their value is the pointwise value and their cost is the sum of the
 costs. For monadic left folds, `Cslib.FreeM.eval_foldlM` and `Cslib.FreeM.cost_foldlM` compute the
-value and the cost when every step has a known value and a constant cost.
+value and the cost when every step has a known value and a constant cost, and
+`Cslib.FreeM.eval_mapM` and `Cslib.FreeM.cost_mapM` compute those of a monadic map.
 
 ## Main definitions
 
@@ -30,6 +31,7 @@ value and the cost when every step has a known value and a constant cost.
 * `Cslib.FreeM.eval_tabulate`, `Cslib.FreeM.cost_tabulate`, `Cslib.FreeM.eval_tabulateMatrix`,
   `Cslib.FreeM.cost_tabulateMatrix`: value and cost of a tabulation.
 * `Cslib.FreeM.eval_foldlM`, `Cslib.FreeM.cost_foldlM`: value and cost of a monadic left fold.
+* `Cslib.FreeM.eval_mapM`, `Cslib.FreeM.cost_mapM`: value and cost of a monadic map.
 -/
 
 public section
@@ -98,5 +100,20 @@ theorem cost_foldlM {β γ T : Type} [AddMonoid T] (oracle : {ι : Type} → Q �
   | c :: l, b => by
     simp only [List.foldlM_cons, cost_bind, hstep, cost_foldlM oracle weight step t hstep l,
       List.length_cons, succ_nsmul']
+
+/-- Evaluating `l.mapM f` evaluates each program `f b`. -/
+@[simp] theorem eval_mapM {β γ : Type} (oracle : {ι : Type} → Q ι → ι) (f : γ → FreeM Q β)
+    (l : List γ) : (l.mapM f).eval oracle = l.map fun c => (f c).eval oracle := by
+  induction l with
+  | nil => rfl
+  | cons c l ih => simp [List.mapM_cons, ih]
+
+/-- The cost of `l.mapM f` is the total cost of the programs `f b`. -/
+@[simp] theorem cost_mapM {β γ T : Type} [AddMonoid T] (oracle : {ι : Type} → Q ι → ι)
+    (weight : {ι : Type} → Q ι → T) (f : γ → FreeM Q β) (l : List γ) :
+    (l.mapM f).cost oracle weight = (l.map fun c => (f c).cost oracle weight).sum := by
+  induction l with
+  | nil => rfl
+  | cons c l ih => simp [List.mapM_cons, ih]
 
 end Cslib.FreeM

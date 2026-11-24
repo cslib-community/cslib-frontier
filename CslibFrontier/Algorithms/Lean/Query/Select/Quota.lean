@@ -14,6 +14,8 @@ public import Mathlib.Data.Nat.Log
 import CslibFrontier.Algorithms.Lean.Query.Select.Correctness
 import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 import CslibFrontier.Algorithms.Lean.Query.FreeM.LiftM
+import CslibFrontier.Algorithms.Lean.Query.FreeM.CostHom
+import CslibFrontier.Algorithms.Lean.Query.FreeM.Tabulate
 import Mathlib.Algebra.BigOperators.Ring.List
 import Mathlib.Data.Finset.Max
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -82,7 +84,11 @@ namespace Cslib.Query
 
 /-! ## Test queries -/
 
-/-- Test query: asks whether the item `a` passes a hidden test, returning a `Bool`. -/
+/-- Test query: asks whether the item `a` passes a hidden test, returning a `Bool`.
+
+It has the same shape as `Cslib.Query.ProbeQuery` (a Boolean probe at an index `m : ℕ`, so that
+`TestQuery ℕ` is `ProbeQuery`) and `Cslib.Query.IndepQuery` (a Boolean test of a finite set).
+Neither fits directly: the tested objects here are items of an arbitrary type `α`. -/
 inductive TestQuery (α : Type) : Type → Type where
   /-- Ask whether `a` passes the test. -/
   | test (a : α) : TestQuery α Bool
@@ -102,7 +108,8 @@ namespace CmpTestQuery
 
 variable {α W : Type}
 
-/-- The oracle answering a comparison `a ≤ b` by `w a ≤ w b` and a test of `a` by `adm a`. -/
+/-- The oracle answering a comparison `a ≤ b` by `w a ≤ w b` and a test of `a` by `adm a`. Its
+comparisons are answered as the comparison oracle `LEQuery.keyOracle w` of #8331 answers them. -/
 @[expose] def oracleOf [LinearOrder W] (w : α → W) (adm : α → Prop) [DecidablePred adm] :
     {ι : Type} → CmpTestQuery α ι → ι :=
   SumQuery.combine (LEQuery.oracleOf fun a b => decide (w a ≤ w b))
@@ -200,25 +207,6 @@ decreasing_by
     | (apply Nat.lt_of_le_of_lt (List.length_filter_le _ _); omega)
     | (apply Nat.lt_of_le_of_lt ((List.length_filter_le _ _).trans (List.length_filter_le _ _))
        omega)
-
-/-! ## Helpers -/
-
-omit [DecidableEq α] in
-private theorem eval_mapM {β δ : Type} (oracle : {ι : Type} → CmpTestQuery α ι → ι)
-    (f : β → FreeM (CmpTestQuery α) δ) (l : List β) :
-    (l.mapM f).eval oracle = l.map fun b => (f b).eval oracle := by
-  induction l with
-  | nil => rfl
-  | cons b l ih => simp [List.mapM_cons, ih]
-
-omit [DecidableEq α] in
-private theorem cost_mapM {β δ : Type} (oracle : {ι : Type} → CmpTestQuery α ι → ι)
-    (wt : {ι : Type} → CmpTestQuery α ι → ℕ) (f : β → FreeM (CmpTestQuery α) δ)
-    (l : List β) :
-    (l.mapM f).cost oracle wt = (l.map fun b => (f b).cost oracle wt).sum := by
-  induction l with
-  | nil => rfl
-  | cons b l ih => simp [List.mapM_cons, ih]
 
 /-! ## The scan -/
 
@@ -383,15 +371,6 @@ private theorem eval_medianSplit {W : Type} [LinearOrder W] (w : α → W)
 /-! ## Query bounds -/
 
 omit [DecidableEq α] in
-private theorem cost_zero {β : Type} (oracle : {ι : Type} → LEQuery α ι → ι)
-    (p : FreeM (LEQuery α) β) : p.cost oracle (fun _ => (0 : ℕ)) = 0 := by
-  induction p with
-  | pure a => rfl
-  | lift_bind op cont ih =>
-    change (FreeM.lift op >>= cont).cost oracle (fun _ => (0 : ℕ)) = 0
-    rw [FreeM.cost_liftBind, ih, add_zero]
-
-omit [DecidableEq α] in
 private theorem eval_liftInl {β : Type} (oracle : {ι : Type} → CmpTestQuery α ι → ι)
     (p : FreeM (LEQuery α) β) :
     (p.liftM (SumQuery.liftInl (G := TestQuery α))).eval oracle =
@@ -471,9 +450,9 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
         (fun q => (SumQuery.inl q : CmpTestQuery α _).weightInl) ≤ 39 * xs.length :=
       medianSplit_countQueries_le _ xs
     have hmsP : (medianSplit xs).cost (fun q => oracle (.inl q))
-        (fun q => CmpTestQuery.passWeight oracle (.inl q)) = 0 := cost_zero _ _
+        (fun q => CmpTestQuery.passWeight oracle (.inl q)) = 0 := FreeM.cost_zero _ _
     have hmsF : (medianSplit xs).cost (fun q => oracle (.inl q))
-        (fun q => CmpTestQuery.failWeight oracle (.inl q)) = 0 := cost_zero _ _
+        (fun q => CmpTestQuery.failWeight oracle (.inl q)) = 0 := FreeM.cost_zero _ _
     rw [hmsP, hmsF, zero_add, zero_add]
     rcases hms : (medianSplit xs).eval (fun q => oracle (.inl q)) with _ | ⟨L, H⟩
     · simp only [FreeM.cost_pure, FreeM.eval_pure, List.length_nil, add_zero]
@@ -505,7 +484,7 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
         · rw [Nat.mul_add, Nat.mul_one]
           omega
       · simp only [hkP, ite_false, FreeM.cost_bind, FreeM.eval_bind, FreeM.cost_pure,
-          FreeM.eval_pure, add_zero, zero_add, List.length_append, cost_mapM, eval_mapM]
+          FreeM.eval_pure, add_zero, zero_add, List.length_append, FreeM.cost_mapM, FreeM.eval_mapM]
         set H' := H.filter (g · ∉ P) with hH'
         have hH'len : H'.length ≤ xs.length - xs.length / 2 :=
           (List.length_filter_le _ _).trans hguard.2
@@ -584,7 +563,7 @@ private theorem eval_quotaSelect_of_two_le (oracle : {ι : Type} → CmpTestQuer
     · exact ⟨a, b, t, rfl⟩
   rw [quotaSelect]
   simp only [hk, ite_false, FreeM.eval_bind, eval_liftInl, hms, hguard, and_self, ite_true, hsc]
-  split_ifs <;> simp [eval_mapM]
+  split_ifs <;> simp [FreeM.eval_mapM]
 
 section Representatives
 
