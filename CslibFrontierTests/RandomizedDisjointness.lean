@@ -4,7 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+import CslibFrontier.Computability.Communication.Amplification
 import CslibFrontier.Computability.Communication.Disjointness
+import CslibFrontier.Probability.PMF
 
 /-!
 # Randomized disjointness
@@ -15,17 +19,28 @@ hypothesis `Fintype.card U = 2 m + 1` holds for `Fin 3` and `m = 1`, and `48 r �
 `2 ^ 20`-bit strings with error `1 / 3` takes at least `16` bits, with public or private coins.
 -/
 
+-- This module contains only checked clients.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.RandomizedDisjointness
 
 open Cslib Cslib.Communication Cslib.Communication.Disjointness Finset
 
 /-- Alice sends her bit. -/
-private def sendBit : Protocol Bool Bool Bool :=
+def sendBit : Protocol Bool Bool Bool :=
   .alice id (.output false) (.output true)
 
 /-- Bob sends his bit. -/
-private def bobBit : Protocol Bool Bool Bool :=
+def bobBit : Protocol Bool Bool Bool :=
   .bob id (.output false) (.output true)
+
+private theorem sixteen_le_of_le_mul_add {x : ℕ∞} (h : ((2 ^ 20 : ℕ) : ℕ∞) ≤ 2 ^ 16 * x + 2 ^ 12) :
+    (16 : ℕ∞) ≤ x := by
+  cases x using ENat.recTopCoe with
+  | top => exact le_top
+  | coe c =>
+    have hc : 2 ^ 20 ≤ 2 ^ 16 * c + 2 ^ 12 := by exact_mod_cast h
+    exact_mod_cast (show 16 ≤ c by omega)
 
 example (f : Bool → Bool → Bool) (μ : PMF ℕ) (v : Fin 2 → ℕ)
     (hv : v ∈ (Probability.PMF.iid μ 2).support) :
@@ -69,21 +84,7 @@ example (f : Bool → Bool → Bool) (μ : PMF ℕ) (v : Fin 2 → ℕ)
       Finset.card_univ, Fintype.card_fin]
     rw [← ENNReal.inv_pow]
     norm_num
-  · have h := PublicCoin.le_mul_ecomplexityFun_disjointness_add (2 ^ 20)
-    cases hc : PublicCoin.ecomplexityFun (1 / 3)
-        (disjointness : BitString (2 ^ 20) → BitString (2 ^ 20) → Bool) using ENat.recTopCoe with
-    | top => exact le_top
-    | coe c =>
-      rw [hc] at h
-      have : 2 ^ 20 ≤ 2 ^ 16 * c + 2 ^ 12 := by exact_mod_cast h
-      exact_mod_cast (show 16 ≤ c by omega)
-  · have h := PrivateCoin.le_mul_ecomplexityFun_disjointness_add (2 ^ 20)
-    cases hc : PrivateCoin.ecomplexityFun (1 / 3)
-        (disjointness : BitString (2 ^ 20) → BitString (2 ^ 20) → Bool) using ENat.recTopCoe with
-    | top => exact le_top
-    | coe c =>
-      rw [hc] at h
-      have : 2 ^ 20 ≤ 2 ^ 16 * c + 2 ^ 12 := by exact_mod_cast h
-      exact_mod_cast (show 16 ≤ c by omega)
+  · exact sixteen_le_of_le_mul_add (PublicCoin.le_mul_ecomplexityFun_disjointness_add (2 ^ 20))
+  · exact sixteen_le_of_le_mul_add (PrivateCoin.le_mul_ecomplexityFun_disjointness_add (2 ^ 20))
 
 end CslibFrontierTests.RandomizedDisjointness

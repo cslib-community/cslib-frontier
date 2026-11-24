@@ -34,8 +34,8 @@ uses its own counter as the index ([BonehShoup2023], Section 14.6.4).
 * `Cslib.Crypto.Signature.Scheme`: a signature scheme with typed keys, messages and signatures.
 * `Cslib.Crypto.Signature.Forger`: a forger with oracle access to a signer.
 * `Cslib.Crypto.Signature.Scheme.Correct`: every honest signature verifies.
-* `Cslib.Crypto.Signature.Scheme.restrict`: the scheme that accepts signatures only on admissible
-  messages.
+* `Cslib.Crypto.Signature.Scheme.restrict`: the scheme on a message space, which signs and accepts
+  signatures only on admissible messages.
 * `Cslib.Crypto.Signature.Scheme.eufCmaExperiment`, `sufCmaExperiment`,
   `oneTimeEufCmaExperiment`: the existential, strong and one-time forgery experiments.
 * `Cslib.Crypto.Signature.IndexedScheme`, with `eufCmaExperiment` and `counterEufCmaExperiment`: an
@@ -85,23 +85,25 @@ def Correct (S : Scheme PK SK M Sig) : Prop :=
   ∀ keys ∈ (ProbComp.eval S.keyGen).support, ∀ m,
     ∀ σ ∈ (ProbComp.eval (S.sign keys.2 m)).support, S.verify keys.1 m σ = true
 
-/-- The scheme `S` restricted to the messages accepted by `adm`: signing is unchanged and a
-signature verifies only on an admissible message. -/
+variable [Inhabited Sig]
+
+/-- The scheme `S` on the message space `adm`: signing an admissible message is unchanged, signing
+any other message returns `default`, and a signature verifies only on an admissible message. A
+signing query outside `adm` thus reveals nothing; in the many-query experiments it has the effect
+of a refused query (`Signer.restrict`). -/
 def restrict (S : Scheme PK SK M Sig) (adm : M → Bool) : Scheme PK SK M Sig where
   keyGen := S.keyGen
-  sign := S.sign
+  sign sk m := if adm m then S.sign sk m else pure default
   verify pk m σ := adm m && S.verify pk m σ
 
 @[simp] theorem restrict_keyGen (S : Scheme PK SK M Sig) (adm : M → Bool) :
     (S.restrict adm).keyGen = S.keyGen := rfl
 
-@[simp] theorem restrict_sign (S : Scheme PK SK M Sig) (adm : M → Bool) :
-    (S.restrict adm).sign = S.sign := rfl
+@[simp] theorem restrict_sign (S : Scheme PK SK M Sig) (adm : M → Bool) (sk : SK) (m : M) :
+    (S.restrict adm).sign sk m = if adm m then S.sign sk m else pure default := rfl
 
 @[simp] theorem restrict_verify (S : Scheme PK SK M Sig) (adm : M → Bool) (pk : PK) (m : M)
     (σ : Sig) : (S.restrict adm).verify pk m σ = (adm m && S.verify pk m σ) := rfl
-
-variable [Inhabited Sig]
 
 /-- The existential forgery experiment under adaptive chosen-message attack ([BonehShoup2023],
 Attack Game 13.1): draw a key pair, run the forger on the public key with a signing oracle for
@@ -162,20 +164,20 @@ variable {PK SK M Sig : Type} [Inhabited Sig] [DecidableEq M]
 
 /-- The indexed forgery experiment ([BonehShoup2023], Definition 14.6): the forger chooses the index
 of each signing query, a query at a used index or at an index `≥ capacity` is refused, and the
-forger wins with a valid signature on any pair `(u, m)` that was never signed. -/
+forger wins with a valid signature on a pair `(u, m)` with `u < capacity` that was never signed. -/
 abbrev eufCmaExperiment (S : IndexedScheme PK SK M Sig) (A : Forger PK (ℕ × M) Sig) :
     Experiment :=
-  forgeExperiment S.keyGen (.indexed S.capacity S.sign) (fun pk _ (u, m) => S.verify pk u m)
-    freshMessage A
+  forgeExperiment S.keyGen (.indexed S.capacity S.sign)
+    (fun pk _ (u, m) σ => decide (u < S.capacity) && S.verify pk u m σ) freshMessage A
 
 /-- The counter forgery experiment ([BonehShoup2023], Section 14.6.4): the signer keeps a counter,
 signs its `i`-th message at index `i` and publishes `i` with the signature; it refuses once the
-capacity is used up. The forger wins with a valid signature on any message that was never
-signed. -/
+capacity is used up. The forger wins with a valid signature, at an index `u < capacity`, on any
+message that was never signed. -/
 abbrev counterEufCmaExperiment (S : IndexedScheme PK SK M Sig) (A : Forger PK M (ℕ × Sig)) :
     Experiment :=
-  forgeExperiment S.keyGen (.counter S.capacity S.sign) (fun pk _ m (u, σ) => S.verify pk u m σ)
-    freshMessage A
+  forgeExperiment S.keyGen (.counter S.capacity S.sign)
+    (fun pk _ m (u, σ) => decide (u < S.capacity) && S.verify pk u m σ) freshMessage A
 
 end IndexedScheme
 

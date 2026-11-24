@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Oracle
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Sum.Lift
 
 /-!
@@ -321,10 +322,8 @@ theorem run_interpret_run_interpret {Query' : Type} {spec' : Query' → Type}
   | inl n =>
     change PMF.map _ ((OracleComp.interpret (m := StateT External PMF) _
       ((StateT.lift (sample (ProbComp.unifFin n))).run state.1)).run state.2) = _
-    simp only [StateT.run_lift, OracleComp.interpret_bind, OracleComp.interpret_pure,
-      StateT.run_bind, StateT.run_pure, interpret_sample, ProbComp.unifFin,
-      OracleComp.interpret_query]
-    simp [sumHandler, StateT.lift, PMF.map, Function.comp_def]
+    simp only [interp_norm, ProbComp.unifFin]
+    simp [StateT.lift, PMF.map, Function.comp_def]
   | inr q => rfl
 
 /-- A stateful handler that draws private coins and calls an external oracle, run against that

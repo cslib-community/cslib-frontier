@@ -118,8 +118,7 @@ theorem quadrangleIneq_optCost {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
       have h₂ := IH z i' i' j' (by omega) hzi' le_rfl hjj'.le
       rw [optCost_of_le w (le_refl i'), add_zero] at h₂
       calc optCost w i i' + optCost w i' j'
-          ≤ w i i' + (optCost w i (z - 1) + optCost w z i') + optCost w i' j' :=
-            add_le_add h₁ le_rfl
+          ≤ w i i' + (optCost w i (z - 1) + optCost w z i') + optCost w i' j' := by gcongr
         _ = w i i' + (optCost w i (z - 1) + (optCost w z i' + optCost w i' j')) := by abel
         _ ≤ w i j' + (optCost w i (z - 1) + optCost w z j') :=
             add_le_add (hmono le_rfl hii'.le hjj'.le) (add_le_add le_rfl h₂)
@@ -129,8 +128,7 @@ theorem quadrangleIneq_optCost {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
       have h₂ := IH i i' i' (z - 1) (by omega) hii'.le le_rfl (by omega)
       rw [optCost_of_le w (le_refl i'), add_zero] at h₂
       calc optCost w i i' + optCost w i' j'
-          ≤ optCost w i i' + (w i' j' + (optCost w i' (z - 1) + optCost w z j')) :=
-            add_le_add le_rfl h₁
+          ≤ optCost w i i' + (w i' j' + (optCost w i' (z - 1) + optCost w z j')) := by gcongr
         _ = w i' j' + ((optCost w i i' + optCost w i' (z - 1)) + optCost w z j') := by abel
         _ ≤ w i j' + (optCost w i (z - 1) + optCost w z j') :=
             add_le_add (hmono hii'.le (by omega) le_rfl) (add_le_add h₂ le_rfl)

@@ -14,7 +14,6 @@ import CslibFrontier.Probability.IID.Distinct
 import CslibFrontier.Probability.Minimax
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.Product.Resample
-import Mathlib.Tactic
 
 /-!
 # A large solvable rectangle from a one-out protocol

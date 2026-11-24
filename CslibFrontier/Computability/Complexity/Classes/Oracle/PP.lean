@@ -200,7 +200,6 @@ end BinarySearch
 /-! ### `P^#P ⊆ P^PP` -/
 
 open BinarySearch in
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- **`P^#P ⊆ P^PP`**: every request of a `P^#P` program for a bit of a `#P` value `f b` is
 answered by binary search with queries `k ≤ f b` to the `PP` problem `{(b, k) | k ≤ f b}`. -/
 theorem PWithSharpPOracle_subset_PWithPPOracle : PWithSharpPOracle enc ⊆ PWithPPOracle enc := by
@@ -224,11 +223,11 @@ theorem PWithSharpPOracle_subset_PWithPPOracle : PWithSharpPOracle enc ⊆ PWith
         OracleComp.interpret ProbOracleComp.query (bitQuery r ((), w))) := by
       simp only [bitQuery, OracleComp.interpret_map]
       exact (isOraclePPTOn_search (u := unframe) (N := fun w => r.eval w.length + 1)
-        (by fun_prop) (by fun_prop)).map_with' hlast
+        (by fun_prop) (by fun_prop)).map_with hlast
     have h := hcert.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
       (handler := fun _ q => OracleComp.interpret ProbOracleComp.query (bitQuery r q))
       (prepare := id) (resources := fun _ _ => 1) ComputableInPolyTime.id'
-      (hG.preprocess' (prepare := fun pair : α × (Unit × List Bool) => pair.2.2) (by fun_prop))
+      (hG.preprocess (prepare := fun pair : α × (Unit × List Bool) => pair.2.2) (by fun_prop))
       (ComputableInPolyTime.const 1) fun _ _ reply hreply => by
         rw [bitQuery, OracleComp.interpret_map] at hreply
         obtain ⟨lo, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply

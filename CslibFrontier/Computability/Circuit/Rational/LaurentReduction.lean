@@ -257,32 +257,27 @@ any Laurent-series subspace. The coordinate functionals guarantee saturation. -/
 theorem exists_integralFrame {ι : Type*} [Finite ι]
     (U : Submodule (F K) (ι → F K)) : Nonempty (IntegralFrame U) := by
   classical
-  suffices ∀ k, ∀ U : Submodule (F K) (ι → F K),
-      Module.finrank (F K) U = k → Nonempty (IntegralFrame U) from
-    this _ U rfl
-  intro k
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    intro U hdim
-    by_cases hU : U = ⊥
-    · subst U
-      exact ⟨{ length := 0
-               vector := Fin.elim0
-               coordinate := Fin.elim0
-               span_eq := by simp
-               vector_integral := fun j => Fin.elim0 j
-               coordinate_integral := fun j => Fin.elim0 j
-               pairing := fun i => Fin.elim0 i
-               reduced_independent := linearIndependent_empty_type }⟩
-    obtain ⟨v, hvU, hv⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hU
-    obtain ⟨c, u, _, hxint, hxc⟩ := normalize_vector v hv
-    let x : ι → F K := u • v
-    have hxU : x ∈ U := U.smul_mem u hvU
-    let W := U ⊓ LinearMap.ker (LinearMap.proj c)
-    have hWU : W < U := lt_of_le_of_ne inf_le_left fun he =>
-      one_ne_zero (hxc.symm.trans (he.symm ▸ hxU : x ∈ W).2)
-    obtain ⟨b⟩ := ih _ (hdim ▸ Submodule.finrank_lt_finrank_of_lt hWU) W rfl
-    exact nonempty_integralFrame_cons hxU hxint hxc b
+  by_cases hU : U = ⊥
+  · subst U
+    exact ⟨{ length := 0
+             vector := Fin.elim0
+             coordinate := Fin.elim0
+             span_eq := by simp
+             vector_integral := fun j => Fin.elim0 j
+             coordinate_integral := fun j => Fin.elim0 j
+             pairing := fun i => Fin.elim0 i
+             reduced_independent := linearIndependent_empty_type }⟩
+  obtain ⟨v, hvU, hv⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hU
+  obtain ⟨c, u, _, hxint, hxc⟩ := normalize_vector v hv
+  let x : ι → F K := u • v
+  have hxU : x ∈ U := U.smul_mem u hvU
+  let W := U ⊓ LinearMap.ker (LinearMap.proj c)
+  have hWU : W < U := lt_of_le_of_ne inf_le_left fun he =>
+    one_ne_zero (hxc.symm.trans (he.symm ▸ hxU : x ∈ W).2)
+  have := Submodule.finrank_lt_finrank_of_lt hWU
+  obtain ⟨b⟩ := exists_integralFrame W
+  exact nonempty_integralFrame_cons hxU hxint hxc b
+termination_by Module.finrank (F K) U
 
 namespace IntegralFrame
 

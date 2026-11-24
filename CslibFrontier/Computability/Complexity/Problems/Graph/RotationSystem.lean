@@ -43,6 +43,12 @@ namespace Dart
 /-- The endpoint of an indexed edge end; `false` selects the first endpoint. -/
 @[expose] def vertex {G : Graph} (d : Dart G) : ℕ := G.edgeEndpoint d.1 d.2
 
+/-- The stored endpoints of a listed edge occurrence are its two indexed dart vertices.
+This retains occurrence and end tags, including loops and parallel edge records. -/
+theorem edge_eq_vertices {G : Graph} (e : Fin G.edges.length) :
+    G.edges[e] = (Dart.vertex (G := G) (e, false), Dart.vertex (G := G) (e, true)) := by
+  simp [Dart.vertex, Graph.edgeEndpoint]
+
 /-- Reverse an edge while retaining its edge-list occurrence. -/
 @[expose] def reverse {G : Graph} (d : Dart G) : Dart G := (d.1, !d.2)
 

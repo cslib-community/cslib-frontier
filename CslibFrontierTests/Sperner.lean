@@ -12,7 +12,8 @@ concrete instances of circuit `2D-SPERNER`. -/
 
 namespace CslibFrontierTests.Sperner
 
-open Cslib Cslib.Sperner Cslib.Sperner.GridTriangle Cslib.Complexity Turing.MultiTapeTM
+open Cslib Cslib.Sperner Cslib.Sperner.GridTriangle Cslib.Circuits.Boolean Cslib.Complexity
+  Turing.MultiTapeTM
 
 /-! ### Sperner's lemma on a `3 × 3` grid -/
 
@@ -61,34 +62,38 @@ example : ((triangles 2 2).filter (Trichromatic stripes)).card = 0 := by decide
 /-- The circuit code copying its first input bit, the low bit of `x`. -/
 private def firstBit : CircuitCode := ([], [0])
 
+-- `encSperner2D` preserves the encoded words of `encPair encUnary encCode`.
+example (inst : Sperner2DInstance) :
+    encSperner2D inst = encPair encUnary encCode (inst.gridExp, inst.circuit) := rfl
+
 /-- On the `1 × 1` grid every point is a boundary point, and `start` is trichromatic. -/
-example : Sperner2D (0, firstBit) [false] := by decide
+example : Sperner2D { gridExp := 0, circuit := firstBit } [false] := by decide
 
 /-- On the `2 × 2` grid the circuit colours the centre `(1, 1)` with colour `1`, giving the
 colouring `c2`: the code `[false, true, false]` of `⟨false, 1, 0⟩` is a solution and `start` is
 not. -/
-example : Sperner2D (1, firstBit) [false, true, false] := by decide
+example : Sperner2D ⟨1, firstBit⟩ [false, true, false] := by decide
 
-example : ¬Sperner2D (1, firstBit) [false, false, false] := by decide
+example : ¬Sperner2D ⟨1, firstBit⟩ [false, false, false] := by decide
 
 -- The successor circuit follows the door path of `c2` on codes.
-example : Sperner2D.succ ((1, firstBit), [false, false, false]) = [true, false, false] ∧
-    Sperner2D.succ ((1, firstBit), [true, false, false]) = [false, true, false] := by decide
+example : Sperner2D.succ (⟨1, firstBit⟩, [false, false, false]) = [true, false, false] ∧
+    Sperner2D.succ (⟨1, firstBit⟩, [true, false, false]) = [false, true, false] := by decide
 
 /-- The circuit code with outputs `¬x₀, ¬x₀, x₀` (gate `2` negates input wire `0`). At the centre
 `(1, 1)` of the `2 × 2` grid its outputs are `false, false, true`, which is Case `2` of the case
 encoding `Δ₁⁺, Δ₁⁻, Δ₂⁺, Δ₂⁻` and decodes to colour `2`. -/
 private def caseTwo : CircuitCode := ([(.not, [0])], [2, 2, 0])
 
-example : Sperner2D.color (1, caseTwo) (1, 1) = 2 := by decide
+example : Sperner2D.color ⟨1, caseTwo⟩ (1, 1) = 2 := by decide
 
 -- The unique trichromatic triangle is then `⟨true, 0, 1⟩`, with code `[true, false, true]`.
-example : Sperner2D (1, caseTwo) [true, false, true] := by decide
+example : Sperner2D ⟨1, caseTwo⟩ [true, false, true] := by decide
 
-example : ¬Sperner2D (1, caseTwo) [false, true, false] := by decide
+example : ¬Sperner2D ⟨1, caseTwo⟩ [false, true, false] := by decide
 
 -- Words of the wrong length are not solutions.
-example : ¬Sperner2D (1, firstBit) [true, true] := by decide
+example : ¬Sperner2D ⟨1, firstBit⟩ [true, true] := by decide
 
 example : Sperner2D ∈ PPAD encSperner2D := Sperner2D_mem_PPAD
 

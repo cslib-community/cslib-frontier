@@ -22,6 +22,8 @@ import CslibFrontier.Probability.StatisticalDistance.Coupling
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Unbalanced Naor–Reingold Feistel blocks and Arbitman–Naor–Segev sharding
@@ -83,18 +85,17 @@ open scoped BigOperators ENNReal Cslib.Probability.PMF
 /-! ## Section 1: Single-block Naor–Reingold Feistel permutations -/
 
 /-- Low-half bit-width `⌊a' / 2⌋` of an unbalanced Naor–Reingold block on `Fin (2 ^ a')`. -/
-@[expose] def nrHalfLow (a' : ℕ) : ℕ := a' / 2
+@[expose, wram_arith] def nrHalfLow (a' : ℕ) : ℕ := a' / 2
 
 /-- High-half bit-width `a' - ⌊a' / 2⌋ = ⌈a' / 2⌉` of an unbalanced Naor–Reingold block. -/
-@[expose] def nrHalfHigh (a' : ℕ) : ℕ := a' - a' / 2
+@[expose, wram_arith] def nrHalfHigh (a' : ℕ) : ℕ := a' - a' / 2
 
 theorem nrHalfLow_le (a' : ℕ) : nrHalfLow a' ≤ a' := Nat.div_le_self a' 2
 
 theorem nrHalfLow_add_nrHalfHigh (a' : ℕ) : nrHalfLow a' + nrHalfHigh a' = a' :=
   Nat.add_sub_of_le (nrHalfLow_le a')
 
-theorem nrHalfLow_le_nrHalfHigh (a' : ℕ) : nrHalfLow a' ≤ nrHalfHigh a' := by
-  dsimp only [nrHalfLow, nrHalfHigh]; omega
+theorem nrHalfLow_le_nrHalfHigh (a' : ℕ) : nrHalfLow a' ≤ nrHalfHigh a' := by wram_omega
 
 /-- Split `Fin (2 ^ a') ≃ Fin (2 ^ ⌊a' / 2⌋) × Fin (2 ^ ⌈a' / 2⌉)` into low and high halves. -/
 @[expose] def nrSplitEquiv (a' : ℕ) :
@@ -525,12 +526,15 @@ theorem dist_permTupleKernel_nrComposed_le {ι₀ ι₁ ι₂ T : Type*}
   ring
 
 /-- Shard-index bit-width `⌊m / 2⌋` for Arbitman–Naor–Segev 1-round Feistel sharding in Case B. -/
+@[wram_arith]
 abbrev shardBits (m : ℕ) : ℕ := m / 2
 
 /-- Intra-shard local bucket bit-width `m - shardBits m = ⌈m / 2⌉` in Case B. -/
+@[wram_arith]
 abbrev localBucketBits (m : ℕ) : ℕ := m - shardBits m
 
 /-- Right-coordinate suffix bit-width `a' = a - ⌊m / 2⌋` permuted by Naor–Reingold in Case B. -/
+@[wram_arith]
 abbrev suffixBits (a m : ℕ) : ℕ := a - shardBits m
 
 theorem shardBits_le_bucketBits (m : ℕ) : shardBits m ≤ m := Nat.div_le_self m 2
@@ -539,12 +543,10 @@ theorem shardBits_le_of_le {a m : ℕ} (hma : m ≤ a) : shardBits m ≤ a :=
   (shardBits_le_bucketBits m).trans hma
 
 theorem localBucketBits_le_suffixBits {a m : ℕ} (hma : m ≤ a) :
-    localBucketBits m ≤ suffixBits a m := by
-  dsimp only [localBucketBits, suffixBits, shardBits]; omega
+    localBucketBits m ≤ suffixBits a m := by wram_omega
 
 theorem suffixBits_sub_localBucketBits {a m : ℕ} (hma : m ≤ a) :
-    suffixBits a m - localBucketBits m = a - m := by
-  dsimp only [suffixBits, localBucketBits, shardBits]; omega
+    suffixBits a m - localBucketBits m = a - m := by wram_omega
 
 /-- Round-function bundle for Case B: 1-round Feistel shard router `fShard` plus `t` composed
 3-round Feistel Naor–Reingold blocks on `Fin (2 ^ suffixBits a m)`. -/

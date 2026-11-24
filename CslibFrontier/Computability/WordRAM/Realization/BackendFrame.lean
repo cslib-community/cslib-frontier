@@ -39,9 +39,7 @@ on `h`. If the tag is handle-independent for each operation, that operation uses
 across layouts. The general guarantee is a fixed finite code family; uniform local-work bounds
 must also hold across handles.
 
-The frame is that of the memory-level refinement (`Memory.Framed.region`). The frame argument
-follows the block frame of #2273 (Codex), and allocation without clearing follows the queue
-allocation of #2271 (Codex).
+The frame is that of the memory-level refinement (`Memory.Framed.region`).
 
 ## Main definitions
 

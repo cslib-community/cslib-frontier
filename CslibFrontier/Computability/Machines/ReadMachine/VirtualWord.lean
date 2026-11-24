@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
 import Mathlib.Data.List.GetD
 
@@ -38,40 +39,63 @@ open MultiTapeTM
 @[expose] def word (x : List Bool) (cut : ℕ) (suffix : List Bool) : List Bool :=
   x.take cut ++ suffix
 
-/-- The only stored data: prefix length, suffix and requested address. -/
-abbrev Data := ℕ × List Bool × ℕ
+@[expose] section
+
+/-- The only stored data: prefix length, stored suffix, and requested address. -/
+@[ext]
+structure Data where
+  /-- Length of the prefix read from the original input word. -/
+  cut : ℕ
+  /-- Stored suffix bits following the prefix. -/
+  suffix : List Bool
+  /-- Requested virtual-word bit address. -/
+  address : ℕ
+  deriving DecidableEq
+
+/-- State of the single-bit accessor: stored request data and a halting flag. -/
+@[ext]
+structure State where
+  /-- Stored prefix cut, suffix, and target address. -/
+  data : Data
+  /-- Whether the single original-input read has already taken place. -/
+  halted : Bool
+  deriving DecidableEq
+
+end
 
 /-- Binary counters and the literal stored suffix. -/
-abbrev encData : Data ↪ List Bool := encPair encNat (encPair encBits encNat)
-
-/-- State consists of the stored data and a halting bit. -/
-abbrev State := Data × Bool
+enc_structure encData : Data where
+  cut : encNat,
+  suffix : encBits,
+  address : encNat
 
 /-- The state encoding charges the stored suffix, but never the original prefix. -/
-abbrev encState : State ↪ List Bool := encPair encData encBool
+enc_structure encState : State where
+  data : encData,
+  halted : encBool
 
 /-- Select the original input bit or a bit of the stored suffix, defaulting to false. -/
 @[expose] def answer (d : Data) (b : Bool) : Bool :=
-  if d.2.2 < d.1 then b else d.2.1.getD (d.2.2 - d.1) false
+  if d.address < d.cut then b else d.suffix.getD (d.address - d.cut) false
 
 /-- One native input read suffices. The read is ignored at suffix addresses. -/
 @[expose] def machine (d : Data) : QueryMachine State where
-  init := (d, false)
-  query s := s.1.2.2
-  next p := (p.1.1, true)
-  emit p := [answer p.1.1 (p.2.getD false)]
-  halted := Prod.snd
+  init := ⟨d, false⟩
+  query s := s.data.address
+  next := fun (s, _) => ⟨s.data, true⟩
+  emit := fun (s, b) => [answer s.data (b.getD false)]
+  halted := State.halted
   finish _ := []
 
 /-- Exact length, including an empty prefix or suffix. -/
 theorem length_word (x : List Bool) (cut : ℕ) (suffix : List Bool) (h : cut ≤ x.length) :
     (word x cut suffix).length = cut + suffix.length := by
-  simp [word, Nat.min_eq_left h]
+  simp only [word, List.length_append, List.length_take, Nat.min_eq_left h]
 
 /-- Prefix, boundary, suffix and past-the-end reads all agree with the specified word. -/
 theorem answer_eq_getD (x : List Bool) (cut : ℕ) (suffix : List Bool) (i : ℕ)
     (h : cut ≤ x.length) :
-    answer (cut, suffix, i) (x.getD i false) = (word x cut suffix).getD i false := by
+    answer ⟨cut, suffix, i⟩ (x.getD i false) = (word x cut suffix).getD i false := by
   simp only [answer, word, List.getD_eq_getElem?_getD, List.getElem?_append,
     List.length_take, Nat.min_eq_left h]
   split_ifs with hi
@@ -80,12 +104,12 @@ theorem answer_eq_getD (x : List Bool) (cut : ℕ) (suffix : List Bool) (i : ℕ
 
 /-- The actual native run emits exactly the requested bit and then halts. -/
 theorem output_one (d : Data) (x : List Bool) :
-    (machine d).output x 1 = [answer d (x.getD d.2.2 false)] := by
+    (machine d).output x 1 = [answer d (x.getD d.address false)] := by
   simp [QueryMachine.output, QueryMachine.run, QueryMachine.step, QueryMachine.read, machine,
     List.getD_eq_getElem?_getD]
 
 /-- Only the halting bit changes; the stored suffix is never enlarged. -/
-theorem run_one (d : Data) (x : List Bool) : (machine d).run x 1 = (d, true) := rfl
+theorem run_one (d : Data) (x : List Bool) : (machine d).run x 1 = ⟨d, true⟩ := rfl
 
 open ComputableInSpace
 
@@ -93,9 +117,9 @@ open ComputableInSpace
 theorem answer_inSpace : ComputableInSpace (fun p : Data × Bool => answer p.1 p.2)
     (encPair encData encBool) encBool (fun p => (encPair encData encBool p).length) := by
   have hd := fst encData encBool
-  have hc := hd.fst'
-  have hs := hd.snd'.fst'
-  have hi := hd.snd'.snd'
+  have hc := encData_cut_budget hd
+  have hs := encData_suffix_budget hd
+  have hi := encData_address_budget hd
   have hlt := budget_comp_lin natLt (linear_succ) (budget_prod hi hc)
   have hsub := budget_natSub hi hc
   refine (budget_ite hlt (snd _ _)
@@ -112,24 +136,27 @@ theorem components_inSpace (d : Data) :
       (fun p => (encPair encState (encOption encBool) p).length) ∧
     ComputableInSpace (machine d).halted encState encBool (fun s => (encState s).length) ∧
     ComputableInSpace (machine d).finish encState encBits (fun s => (encState s).length) := by
+  have hid := budget_id (enc := encState) (.refl _)
   have hstate := fst encState (encOption encBool)
-  have hdata := hstate.fst'
+  have hdata := encState_data_budget hstate
   have hb := budget_finite (encC := encBool) (fun b : Option Bool => b.getD false)
     (snd encState (encOption encBool))
   have ha := budget_comp_linear answer_inSpace (budget_prod hdata hb)
-  refine ⟨(fst encData encBool).snd'.snd',
-    budget_prod hdata (budget_const true (.refl _)), ?_, snd _ _, budget_const [] (.refl _)⟩
-  exact budget_finite (encC := encBits) (fun b => [b]) ha
+  exact ⟨encData_address_budget (encState_data_budget hid),
+    encState_mk_budget hdata (budget_const true),
+    budget_finite (encC := encBits) (fun b => [b]) ha,
+    encState_halted_budget hid, budget_const []⟩
 
 /-- Explicit storage bound: two binary counters, the suffix, and a halting bit. -/
 theorem length_encState (cut i : ℕ) (suffix : List Bool) (halt : Bool) :
-    (encState ((cut, suffix, i), halt)).length =
+    (encState ⟨⟨cut, suffix, i⟩, halt⟩).length =
       4 * (encNat cut).length + 4 * suffix.length + 2 * (encNat i).length + 6 := by
-  simp only [encState, encData, length_encPair, encBits_apply, encBool_apply, List.length_singleton]
+  simp only [encState_apply, encStateFields, encData_apply, encDataFields, length_encPair,
+    encBits_apply, encBool_apply, List.length_singleton]
   omega
 
-/-- For each fixed stored data `d`, the answer bit `answer d (x.getD d.2.2 false)` is computable
-from `x` within work space `c * ((encState (d, false)).length + Nat.log2 x.length + 1)`, where the
+/-- For each fixed stored data `d`, the answer bit `answer d (x.getD d.address false)` is computable
+from `x` within work space `c * ((encState ⟨d, false⟩).length + Nat.log2 x.length + 1)`, where the
 machine, the time bound and the constant `c` may all depend on `d`. The original input is not
 part of the charged workspace. This theorem supplies actual multi-tape machines, using the
 query-machine compiler, rather than assuming an access certificate. One machine and one constant
@@ -137,8 +164,8 @@ for all data, read from the input tape, are given by
 `Turing.VirtualWord.Runtime.access_inSpace`. -/
 theorem access_inSpace (d : Data) :
     ∃ t c, ComputableInTimeAndSpace
-      (fun x : List Bool => answer d (x.getD d.2.2 false)) encBits encBool t
-      (fun x => c * ((encState (d, false)).length + Nat.log2 x.length + 1)) := by
+      (fun x : List Bool => answer d (x.getD d.address false)) encBits encBool t
+      (fun x => c * ((encState ⟨d, false⟩).length + Nat.log2 x.length + 1)) := by
   obtain ⟨hq, hn, he, hh, hf⟩ := components_inSpace d
   refine (machine d).computableInSpace hq hn he hh hf (fun _ => 1)
     (fun _ => rfl) (fun x t ht => ?_) (fun x => ?_) _
@@ -159,7 +186,7 @@ theorem access_inSpace (d : Data) :
 logarithmic state bound, including lengths zero and one. -/
 theorem length_encState_le_log {n cut i : ℕ} {suffix : List Bool} (halt : Bool)
     (hc : cut ≤ n) (hi : i ≤ n) (hs : suffix.length ≤ Nat.clog 2 n) :
-    (encState ((cut, suffix, i), halt)).length ≤ 16 * (Nat.log2 n + 1) := by
+    (encState ⟨⟨cut, suffix, i⟩, halt⟩).length ≤ 16 * (Nat.log2 n + 1) := by
   have hcut := length_encNat_le_log2 hc
   have hindex := length_encNat_le_log2 hi
   have hclog : Nat.clog 2 n ≤ Nat.log2 n + 1 :=
@@ -170,10 +197,10 @@ theorem length_encState_le_log {n cut i : ℕ} {suffix : List Bool} (halt : Bool
 /-- A concrete logspace certificate on any input domain satisfying the stored-data bounds.
 The domain hypotheses restrict data sizes, not correctness or an assumed resource certificate. -/
 theorem access_inLogSpace (d : Data) (P : List Bool → Prop)
-    (hcut : ∀ x, P x → d.1 ≤ x.length)
-    (hindex : ∀ x, P x → d.2.2 ≤ x.length)
-    (hsuffix : ∀ x, P x → d.2.1.length ≤ Nat.clog 2 x.length) :
-    ComputableInLogSpace (fun x : {x // P x} => answer d (x.val.getD d.2.2 false))
+    (hcut : ∀ x, P x → d.cut ≤ x.length)
+    (hindex : ∀ x, P x → d.address ≤ x.length)
+    (hsuffix : ∀ x, P x → d.suffix.length ≤ Nat.clog 2 x.length) :
+    ComputableInLogSpace (fun x : {x // P x} => answer d (x.val.getD d.address false))
       ((Function.Embedding.subtype P).trans encBits) encBool := by
   obtain ⟨hq, hn, he, hh, hf⟩ := components_inSpace d
   refine (machine d).computableInLogSpace hq hn he hh hf (fun _ => 1)
@@ -182,8 +209,9 @@ theorem access_inLogSpace (d : Data) (P : List Bool → Prop)
   · have : t = 0 := by omega
     subst t
     rfl
-  · have hbound := length_encState_le_log (n := x.val.length)
-      (cut := d.1) (i := d.2.2) (suffix := d.2.1)
+  · obtain ⟨cut, suffix, i⟩ := d
+    have hbound := length_encState_le_log (n := x.val.length)
+      (cut := cut) (i := i) (suffix := suffix)
     rcases Nat.le_one_iff_eq_zero_or_eq_one.mp ht with rfl | rfl
     · exact hbound false (hcut x.val x.property) (hindex x.val x.property)
         (hsuffix x.val x.property)

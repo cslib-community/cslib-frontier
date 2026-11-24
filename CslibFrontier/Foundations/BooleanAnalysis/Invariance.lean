@@ -40,9 +40,11 @@ Corollary 11.67).
 ## Main results
 
 * `Cslib.BitString.hasInvarianceMoments_rademacher`: uniform signs satisfy Hypothesis 11.65.
-* `Cslib.BitString.integral_pi_rademacher`: the product of uniform signs is the uniform
-  distribution on the signs of the cube.
+* `Cslib.BitString.integral_pi_rademacher`, `Cslib.BitString.measureReal_pi_rademacher`: the
+  product of uniform signs is the uniform distribution on the signs of the cube.
 * `Cslib.BitString.multilinearEval_fourierCoeff_signVal`: the Fourier expansion evaluates `f`.
+* `Cslib.BitString.measureReal_pi_rademacher_multilinearEval_le`: so `Pr_x[f(x) ≤ u]` is a
+  probability under uniform random signs.
 * `Cslib.BitString.abs_expect_comp_sub_integral_comp_multilinearEval_le`: the Basic Invariance
   Principle for functions on the cube.
 * `Cslib.BitString.abs_expect_comp_sub_integral_comp_multilinearEval_le_of_influence_le`:
@@ -109,6 +111,15 @@ theorem integral_pi_rademacher (g : (ι → ℝ) → ℝ) :
   rw [← Set.univ_pi_singleton, Measure.real, Measure.pi_pi]
   simp [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _), div_eq_inv_mul]
 
+/-- **The probability of a set under independent uniform signs** is the density of the points of
+the cube whose signs lie in the set. -/
+theorem measureReal_pi_rademacher {s : Set (ι → ℝ)} (hs : MeasurableSet s)
+    [DecidablePred fun x : ι → Bool => (fun i => signVal (x i)) ∈ s] :
+    (Measure.pi fun _ : ι => rademacher).real s =
+      (dens {x : ι → Bool | (fun i => signVal (x i)) ∈ s} : ℝ) := by
+  rw [← integral_indicator_one hs, integral_pi_rademacher, ← Fintype.expect_boole]
+  simp only [Set.indicator_apply, Pi.one_apply]
+
 /-! ### Functions on the cube as multilinear polynomials -/
 
 /-- The Fourier expansion of `f`, evaluated at the signs of `x`, is `f x`. -/
@@ -121,6 +132,16 @@ theorem multilinearEval_fourierCoeff_signVal (f : (ι → Bool) → ℝ) (x : ι
 theorem multilinearInfluence_fourierCoeff (f : (ι → Bool) → ℝ) (i : ι) :
     multilinearInfluence (fourierCoeff f) i = influence i f := by
   rw [multilinearInfluence_def, influence_eq_sum_fourierCoeff_sq]
+
+/-- Under uniform random signs, the probability that the Fourier expansion of `f` is at most `u`
+is the density `Pr_x[f(x) ≤ u]` of `{x | f x ≤ u}`. -/
+theorem measureReal_pi_rademacher_multilinearEval_le (f : (ι → Bool) → ℝ) (u : ℝ) :
+    (Measure.pi fun _ : ι => rademacher).real {z | multilinearEval (fourierCoeff f) z ≤ u} =
+      (dens {x | f x ≤ u} : ℝ) := by
+  classical
+  rw [measureReal_pi_rademacher
+    (measurableSet_le (continuous_multilinearEval _).measurable measurable_const)]
+  simp only [Set.mem_ofPred_eq, multilinearEval_fourierCoeff_signVal]
 
 /-! ### The Basic Invariance Principle on the cube -/
 

@@ -36,7 +36,7 @@ example : oddOnes [true, false, true, true] = true ∧ oddOnes [true, true] = fa
 
 private theorem oddOnes_mem_DTIME : {w | oddOnes w = true} ∈ DTIME encBits id :=
   setOf_mem_DTIME_of_computableInO
-    (ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false).computableInO
+    (ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false)
     (fun _ => le_rfl)
 
 example : {w | oddOnes w = true} ∈

@@ -193,7 +193,8 @@ private theorem labels_polyTime :
   unfold labels encoding
   fun_prop
 
-private theorem sum_polyTime :
+/-- The sum of a list of bits in the Boolean ring, their parity, is polynomial-time. -/
+theorem computableInPolyTime_sum :
     ComputableInPolyTime (fun l : List Bool => l.sum) encBits encBool := by
   simpa only [List.sum_eq_foldl, Bool.add_eq_xor, Bool.zero_eq_false] using
     ComputableInPolyTime.bitsFoldlWithInput Bool.xor
@@ -207,7 +208,7 @@ private theorem sum_polyTime :
       (fun q : List ℕ × ℕ => q.1.map fun w => Decidable.decide (w = q.2))
       (encPair (encList encNat) encNat) encBits := by
     fun_prop
-  exact sum_polyTime.comp hbits
+  exact computableInPolyTime_sum.comp hbits
 
 section
 open scoped _root_.Cslib.Complexity.XORSAT.Dense

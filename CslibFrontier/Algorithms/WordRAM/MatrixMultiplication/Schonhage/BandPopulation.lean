@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.MaskTable
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged native binary-mask population scans
@@ -38,15 +39,11 @@ theorem exec_population {w : ℕ} (L a : ℕ) (x : Data 96)
       y.regs population = MaskTable.population L a ∧ y.mem = x.mem ∧
       (∀ i, i ≠ residue → i ≠ population → i ≠ counter → i ≠ digit →
         y.regs i = x.regs i) := by
-  have hzero : Fits w 0 := hfit.of_le (by omega)
-  let start := ((x.set residue a).set population 0).set counter 0
   let P (j : ℕ) (y : Data 96) : Prop :=
     y.mem = x.mem ∧ y.regs levels = L ∧ y.regs one = 1 ∧ y.regs two = 2 ∧
       y.regs residue ≤ a ∧
       y.regs population + MaskTable.population (L - j) (y.regs residue) =
         MaskTable.population L a
-  have hi : P (start.regs counter) start := by
-    simp [P, start, hl, ho, ht, counter, residue, population, levels, one, two]
   have hb (y : Data 96) (hy : P (y.regs counter) y) (hjL : y.regs counter < L) :
       ∃ z, ExecWithin w (ram[
           digit ← residue % two; population ← population + digit;
@@ -56,53 +53,22 @@ theorem exec_population {w : ℕ} (L a : ℕ) (x : Data 96)
     have hrec : MaskTable.population (L - y.regs counter) (y.regs residue) =
         y.regs residue % 2 +
           MaskTable.population (L - (y.regs counter + 1)) (y.regs residue / 2) := by
-      rw [show L - y.regs counter = (L - (y.regs counter + 1)) + 1 by omega,
-        population_succ]
+      rw [show L - y.regs counter = (L - (y.regs counter + 1)) + 1 by omega, population_succ]
     have hpop := population_le L a
-    have hfpop : Fits w (y.regs population + y.regs residue % 2) :=
-      hfit.of_le (by omega)
-    have hfmod : Fits w (y.regs residue % 2) := hfit.of_le (by omega)
-    have hfdiv : Fits w (y.regs residue / 2) :=
-      hfit.of_le ((Nat.div_le_self _ _).trans (by omega))
-    have hfnext : Fits w (y.regs counter + 1) := hfit.of_le (by omega)
-    let z := (((y.set digit (y.regs residue % 2)).set population
-      (y.regs population + y.regs residue % 2)).set residue (y.regs residue / 2)).set
-      counter (y.regs counter + 1)
-    have he : ExecWithin w (ram[
-        digit ← residue % two; population ← population + digit;
-        residue ← residue / two; counter ← counter + one ]) y z 4 := by
-      ram_eval [z, hfpop, hfmod, hfdiv, hfnext, h1, h2,
-        digit, residue, population, counter, one, two, Fin.mk.injEq]
-    refine ⟨z, he, ?_, by simp [z]⟩
-    · have hsum : (y.regs population + y.regs residue % 2) +
-          MaskTable.population (L - (y.regs counter + 1)) (y.regs residue / 2) =
-            MaskTable.population L a := by omega
-      simpa +decide [P, z, levels, one, two, residue, population, counter, digit,
-        Function.update_apply] using
-        (show y.mem = x.mem ∧ y.regs levels = L ∧ y.regs one = 1 ∧ y.regs two = 2 ∧
-          y.regs residue / 2 ≤ a ∧
-          (y.regs population + y.regs residue % 2) +
-            MaskTable.population (L - (y.regs counter + 1)) (y.regs residue / 2) =
-              MaskTable.population L a from
-          ⟨hm, hL, h1, h2, (Nat.div_le_self _ _).trans hr, hsum⟩)
-  obtain ⟨y, he, ⟨hymem, _, _, _, _, hypop⟩, _⟩ := ExecWithin.loop_count P
-    (fun y hy => hy.2.1) hb (by simp [start]) hi
-  have hwhole : ExecWithin w populationCode x y (6 * L + 5) := by
-    have hs : ExecWithin (B := .standard) w (.op (.copy residue mask))
-        x (x.set residue a) 1 := by
-      simpa only [ha] using (ExecWithin.copy (B := .standard) (w := w)
-        (x := x) (d := residue) (s := mask))
-    have hwhole := hs.seq ((ExecWithin.const (d := population) hzero).seq
-      ((ExecWithin.const (d := counter) hzero).seq he))
-    apply hwhole.mono
-    simp only [start, Data.set_regs, Function.update_self, Nat.sub_zero]
-    omega
-  refine ⟨y, hwhole, ?_, hymem, ?_⟩
-  · simpa only [Nat.sub_self, population_zero, Nat.add_zero] using hypop
-  · intro i hr hp hc hd
-    apply hwhole.regs_eq
-    have hframe : ∀ i : Fin 96, i ≠ residue → i ≠ population → i ≠ counter → i ≠ digit →
-        populationCode.Preserves i := by decide
-    exact hframe i hr hp hc hd
+    wram_exec *
+    dsimp only [P]
+    wram_simp *
+    exact ⟨hm, (Nat.div_le_self _ _).trans hr, by omega⟩
+  suffices ∃ y, ExecWithin w populationCode x y (6 * L + 5) ∧
+      y.regs population = MaskTable.population L a ∧ y.mem = x.mem by
+    obtain ⟨y, he, hp, hm⟩ := this
+    exact ⟨y, he, hp, hm, fun i hr hp' hc hd => he.regs_eq (by decide +revert)⟩
+  unfold populationCode
+  wram_exec *
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.2.1) hb (by wram_simp; exact Nat.zero_le L)
+    (by dsimp only [P]; wram_simp [hl, ho, ht]; exact le_rfl))
+    with y ⟨⟨hymem, _, _, _, _, hypop⟩, hcnt⟩
+  refine ⟨by wram_simp [hcnt]; omega, ?_, hymem⟩
+  simpa only [hcnt, Nat.sub_self, population_zero, Nat.add_zero] using hypop
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.DataStructure.FusionTree.XorCorrection
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Loading and selecting sketch neighbors
@@ -84,20 +87,18 @@ abbrev divergence : Fin 17 := 15
 abbrev index : Fin 17 := 16
 
 /-- Clamped predecessor position. -/
+@[wram_arith]
 def left (t : ℕ) : ℕ := t - 1
 /-- Clamped successor position, expressed using two saturating subtractions. -/
+@[wram_arith]
 def right (n t : ℕ) : ℕ := t - (t - (n - 1))
 
 private theorem indices_lt {n t : ℕ} (hn : 0 < n) (ht : t ≤ n) :
-    left t < n ∧ right n t < n := by
-  dsimp only [left, right]
-  omega
+    left t < n ∧ right n t < n := by wram_omega
 
 /-- Exactly one of the two optional sketch neighbors is repeated at an end cut. -/
 private theorem indices_neighbors {n t : ℕ} (hn : 0 < n) (ht : t ≤ n) :
-    (left t + 1 = t ∨ left t = t) ∧ (right n t + 1 = t ∨ right n t = t) := by
-  dsimp only [left, right]
-  omega
+    (left t + 1 = t ∨ left t = t) ∧ (right n t + 1 = t ∨ right n t = t) := by wram_omega
 
 /-- Index selected by the comparison in `code`. -/
 private def selectIndex (score : ℕ → ℕ) (n t : ℕ) : ℕ :=
@@ -112,9 +113,7 @@ private theorem selectIndex_spec (score : ℕ → ℕ) {n t : ℕ} (hn : 0 < n) 
   have hi := indices_lt hn ht
   have hneighbor := indices_neighbors hn ht
   have hcover (i : ℕ) (hi : i < n) (hc : i + 1 = t ∨ i = t) :
-      i = left t ∨ i = right n t := by
-    dsimp only [left, right]
-    omega
+      i = left t ∨ i = right n t := by wram_omega
   unfold selectIndex
   split
   · rename_i hs
@@ -222,36 +221,17 @@ theorem exec {w q n t a d : ℕ} (x : Data 17) (hn : 0 < n) (ht : t ≤ n)
     ExecWithin w code x (result x q n t a d) 18 ∧
       (result x q n t a d).mem = x.mem := by
   have hi := indices_lt hn ht
-  have h1 : Fits w 1 := hnfit.of_le hn
-  have hl : Fits w (left t) := hnfit.of_le hi.1.le
-  have hnm : Fits w (n - 1) := hnfit.of_le (Nat.sub_le _ _)
-  have he : Fits w (t - (n - 1)) := hnfit.of_le (by omega)
-  have hr : Fits w (right n t) := hnfit.of_le hi.2.le
   have hla : Fits w (a + left t * d) := ha.of_le (by
-    have hm := Nat.mul_le_mul_right d (show left t ≤ n - 1 by omega)
-    omega)
+    have := Nat.mul_le_mul_right d (show left t ≤ n - 1 by omega); omega)
   have hra : Fits w (a + right n t * d) := ha.of_le (by
-    have hm := Nat.mul_le_mul_right d (show right n t ≤ n - 1 by omega)
-    omega)
-  have hlm : Fits w (left t * d) := hla.of_le (Nat.le_add_left _ _)
-  have hrm : Fits w (right n t * d) := hra.of_le (Nat.le_add_left _ _)
-  have hlx : Fits w (x.mem (a + left t * d) ^^^ q) :=
-    Nat.xor_lt_two_pow (hkeys _ hi.1) hq
-  have hrx : Fits w (x.mem (a + right n t * d) ^^^ q) :=
-    Nat.xor_lt_two_pow (hkeys _ hi.2) hq
-  have hleft : Fits w (t - 1) := hl
-  have hright : Fits w (t - (t - (n - 1))) := hr
-  simp only [left, right] at hla hra hlm hrm hlx hrx
-  by_cases hc : x.mem (a + right n t * d) ^^^ q < x.mem (a + left t * d) ^^^ q
-  · simp only [left, right] at hc
-    refine ⟨⟨17, by omega, ?_⟩, ?_⟩
-    · ram_eval [code, result, loaded, hxq, hxt, hxn, hxa, hxd,
-        h1, hleft, hnm, he, hright, hlm, hrm, hla, hra, hlx, hrx, hc, left, right]
-    · simp [result, left, right, hc, loaded]
-  · simp only [left, right] at hc
-    refine ⟨⟨18, le_rfl, ?_⟩, ?_⟩
-    · ram_eval [code, result, loaded, hxq, hxt, hxn, hxa, hxd,
-        h1, hleft, hnm, he, hright, hlm, hrm, hla, hra, hlx, hrx, hc, left, right]
-    · simp [result, left, right, hc, loaded]
+    have := Nat.mul_le_mul_right d (show right n t ≤ n - 1 by omega); omega)
+  have hlx : Fits w (x.mem (a + left t * d) ^^^ q) := Nat.xor_lt_two_pow (hkeys _ hi.1) hq
+  have hrx : Fits w (x.mem (a + right n t * d) ^^^ q) := Nat.xor_lt_two_pow (hkeys _ hi.2) hq
+  simp only [left, right] at hla hra hlx hrx
+  refine ⟨?_, by unfold result; split <;> rfl⟩
+  unfold code result loaded
+  simp only [left, right]
+  wram_exec *
+  all_goals simp only [hc, ↓reduceIte]
 
 end Cslib.DataStructure.FusionTree.WordRAM.NeighborProgram

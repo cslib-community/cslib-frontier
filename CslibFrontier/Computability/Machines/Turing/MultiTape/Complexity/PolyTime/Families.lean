@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Polynomially bounded families under polynomial-time maps
@@ -38,11 +39,7 @@ theorem polynomiallyBounded_length_prod {α β : Type u} {γ : Type*} {encA : α
     {a : ℕ → α} {b : ℕ → β} (ha : PolynomiallyBounded fun n => (encA (a n)).length)
     (hb : PolynomiallyBounded fun n => (encB (b n)).length) :
     PolynomiallyBounded fun n => (encC (g (a n, b n))).length := by
-  have hin : PolyBounded id fun n => (encPair encA encB (a n, b n)).length := by
-    refine (((PolyBounded.const 2).mul (PolyBounded.of_polynomiallyBounded id ha)).add
-      (PolyBounded.const 1) |>.add (PolyBounded.of_polynomiallyBounded id hb)).mono fun n => ?_
-    simp only [length_encPair, id]
-    lia
+  have hin : PolyBounded id fun n => (encPair encA encB (a n, b n)).length := by growth_poly
   exact (hg.polyBounded_length.comp hin).polynomiallyBounded
 
 end Turing.MultiTapeTM.ComputableInPolyTime
