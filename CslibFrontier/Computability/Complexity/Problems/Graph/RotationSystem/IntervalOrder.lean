@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntersectionParity
+import Mathlib.Data.Finset.Max
 import Mathlib.Dynamics.PeriodicPts.Lemmas
 import CslibFrontier.Tactic.LRATTauto
 
@@ -195,6 +196,87 @@ theorem mem_rotationInterval_iff_portRank (a b c : Dart G)
   rw [r.portRank_at a a rfl, r.portRank_at a b hab, r.portRank_at a c (hab.trans hbc)]
   exact r.mem_rotationInterval_iff_ranks o a b c hoa (hoa.trans hab)
     (hoa.trans (hab.trans hbc)) hneab hnebc hneac
+
+/-- If no two distinct color classes alternate at a vertex, some nonempty class forms
+a consecutive interval in the linear ranks cut from its clockwise rotation.
+This is the order-theoretic step in Claim A of [FulekKynclPalvolgyi2017], §3. -/
+theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G → ι) {v : ℕ}
+    (hv : ∃ a : Dart G, a.vertex = v)
+    (hnonalt : ∀ a b c d : Dart G, a.vertex = v → color a = color b → color c = color d →
+      color a ≠ color c → ¬r.Alternates a b c d) :
+    ∃ a b : Dart G, a.vertex = v ∧ b.vertex = v ∧ color a = color b ∧
+      ∀ d : Dart G, d.vertex = v →
+        (color d = color a ↔ r.portRank a ≤ r.portRank d ∧ r.portRank d ≤ r.portRank b) := by
+  classical
+  let covers (a b : Dart G) : Prop :=
+    a.vertex = v ∧ b.vertex = v ∧ color a = color b ∧
+      ∀ d : Dart G, d.vertex = v → color d = color a →
+        r.portRank a ≤ r.portRank d ∧ r.portRank d ≤ r.portRank b
+  have classBounds (w : Dart G) (hw : w.vertex = v) :
+      ∃ a b, covers a b ∧ color a = color w := by
+    let S := Finset.univ.filter fun d : Dart G => d.vertex = v ∧ color d = color w
+    have hmem (d : Dart G) : d ∈ S ↔ d.vertex = v ∧ color d = color w := by simp [S]
+    have hne : S.Nonempty := ⟨w, (hmem w).mpr ⟨hw, rfl⟩⟩
+    obtain ⟨a, has, hmin⟩ := S.exists_min_image r.portRank hne
+    obtain ⟨b, hbs, hmax⟩ := S.exists_max_image r.portRank hne
+    obtain ⟨ha, hac⟩ := (hmem a).mp has
+    obtain ⟨hb, hbc⟩ := (hmem b).mp hbs
+    refine ⟨a, b, ⟨ha, hb, hac.trans hbc.symm, ?_⟩, hac⟩
+    intro d hd hc
+    have hds := (hmem d).mpr ⟨hd, hc.trans hac⟩
+    exact ⟨hmin d hds, hmax d hds⟩
+  have hex : ∃ n : ℕ, ∃ a b, covers a b ∧ r.portRank b - r.portRank a = n := by
+    obtain ⟨w, hw⟩ := hv
+    obtain ⟨a, b, hab, _⟩ := classBounds w hw
+    exact ⟨_, a, b, hab, rfl⟩
+  obtain ⟨a, b, hbounds, hwidth⟩ := Nat.find_spec hex
+  obtain ⟨ha, hb, hab, hcover⟩ := hbounds
+  refine ⟨a, b, ha, hb, hab, fun z hz => ⟨hcover z hz, ?_⟩⟩
+  intro hzspan
+  by_contra hza
+  have hnA (d : Dart G) (hd : d.vertex = v) (hc : color d ≠ color a) :
+      r.portRank d ≠ r.portRank a :=
+    fun h => hc (congrArg color (r.portRank_injective d a (hd.trans ha.symm) h))
+  have hnB (d : Dart G) (hd : d.vertex = v) (hc : color d ≠ color a) :
+      r.portRank d ≠ r.portRank b :=
+    fun h => hc ((congrArg color (r.portRank_injective d b (hd.trans hb.symm) h)).trans hab.symm)
+  have hzi : r.portRank a < r.portRank z ∧ r.portRank z < r.portRank b := by
+    have := hnA z hz hza
+    have := hnB z hz hza
+    omega
+  have inside (d : Dart G) (hd : d.vertex = v) (hc : color d = color z) :
+      r.portRank a < r.portRank d ∧ r.portRank d < r.portRank b := by
+    by_contra hn
+    have hda : color d ≠ color a := fun h => hza (hc.symm.trans h)
+    have hA := hnA d hd hda
+    have hB := hnB d hd hda
+    have hout : r.portRank d < r.portRank a ∨ r.portRank b < r.portRank d := by omega
+    have hzda : z ≠ d := by
+      intro he
+      subst d
+      omega
+    have hab' : a ≠ b := by
+      intro he
+      subst b
+      omega
+    have hza' : z ≠ a := fun h => hza (congrArg color h)
+    have hzb' : z ≠ b := fun h => hza ((congrArg color h).trans hab.symm)
+    have hda' : d ≠ a := fun h => hda (congrArg color h)
+    have hdb' : d ≠ b := fun h => hda ((congrArg color h).trans hab.symm)
+    have hzm := (r.mem_rotationInterval_iff_portRank a z b (ha.trans hz.symm)
+      (hz.trans hb.symm) hza'.symm hzb' hab').mpr (Or.inl hzi)
+    have hdm : d ∉ r.rotationInterval a b := by
+      rw [r.mem_rotationInterval_iff_portRank a d b (ha.trans hd.symm)
+        (hd.trans hb.symm) hda'.symm hdb' hab']
+      omega
+    exact hnonalt z d a b hz hc.symm hab hza
+      ⟨hzda, hab', hza', hzb', hda', hdb', hz.trans hd.symm, ha.trans hb.symm,
+        hz.trans ha.symm, iff_of_true hzm hdm⟩
+  obtain ⟨c, d, hcd, hcz⟩ := classBounds z hz
+  have hci := inside c hcd.1 hcz
+  have hdi := inside d hcd.2.1 (hcd.2.2.1.symm.trans hcz)
+  have hmin := Nat.find_min' hex ⟨c, d, hcd, rfl⟩
+  omega
 
 /-- A vertex cycle first reaches its starting dart at exponent zero. -/
 @[simp] theorem rotationDistance_self (a : Dart G) : r.rotationDistance a a = 0 := by

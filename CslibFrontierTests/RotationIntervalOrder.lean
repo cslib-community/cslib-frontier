@@ -59,4 +59,23 @@ example : r.rotationDistance a a = 0 := r.rotationDistance_self a
 example : r.portRank a ≠ r.portRank b :=
   fun h => (by decide : a ≠ b) (r.portRank_injective a b rfl h)
 
+-- A singleton class and its three-dart complement cannot alternate.
+example :
+    ∃ lo hi : Dart G, lo.vertex = 9 ∧ hi.vertex = 9 ∧
+      ((lo = a) ↔ (hi = a)) ∧
+      ∀ d : Dart G, d.vertex = 9 →
+        (((d = a) ↔ (lo = a)) ↔ r.portRank lo ≤ r.portRank d ∧ r.portRank d ≤ r.portRank hi) := by
+  let color (d : Dart G) := decide (d = a)
+  suffices h : ∃ lo hi : Dart G, lo.vertex = 9 ∧ hi.vertex = 9 ∧ color lo = color hi ∧
+      ∀ d : Dart G, d.vertex = 9 →
+        (color d = color lo ↔ r.portRank lo ≤ r.portRank d ∧ r.portRank d ≤ r.portRank hi) by
+    simpa only [color, decide_eq_decide] using h
+  apply r.exists_consecutive_class_of_no_alternates color ⟨a, rfl⟩
+  intro p q u v _ hpq huv hdiff hAlt
+  by_cases hp : color p = true
+  · exact hAlt.1 ((of_decide_eq_true hp).trans (of_decide_eq_true (hpq.symm.trans hp)).symm)
+  · have hp' := Bool.eq_false_iff.mpr hp
+    have hu := Bool.eq_true_of_not_eq_false (fun he => hdiff (hp'.trans he.symm))
+    exact hAlt.2.1 ((of_decide_eq_true hu).trans (of_decide_eq_true (huv.symm.trans hu)).symm)
+
 end CslibFrontierTests.RotationIntervalOrder
