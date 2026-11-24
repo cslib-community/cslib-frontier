@@ -97,6 +97,33 @@ section IdenticalPurePoA
 
 variable {ι M : Type*} [Fintype ι] [DecidableEq ι] [Fintype M] [DecidableEq M] [Nonempty M]
 
+private theorem IsIdentical.card_mul_load_sub_le_card_mul_optMakespan
+    {G : LoadBalancingGame ι M} (hId : G.IsIdentical) {A : ι → M}
+    (hA : G.toCostGame.IsPureNash A) {i₀ : ι} {jstar : M} (hAi₀ : A i₀ = jstar) :
+    (Fintype.card M : ℝ) * G.load A jstar - ((Fintype.card M : ℝ) - 1) * G.weight i₀ ≤
+      (Fintype.card M : ℝ) * G.optMakespan := by
+  have hsum_ge : (Fintype.card M : ℝ) * G.load A jstar -
+      ((Fintype.card M : ℝ) - 1) * G.weight i₀ ≤ ∑ k, G.load A k := by
+    rw [← add_sum_erase _ _ (mem_univ jstar)]
+    have hrest : ((Fintype.card M : ℝ) - 1) * (G.load A jstar - G.weight i₀) ≤
+        ∑ k ∈ univ.erase jstar, G.load A k := by
+      calc ((Fintype.card M : ℝ) - 1) * (G.load A jstar - G.weight i₀)
+          = ∑ _k ∈ univ.erase jstar, (G.load A jstar - G.weight i₀) := by
+            rw [sum_const, card_erase_of_mem (mem_univ jstar), card_univ, nsmul_eq_mul,
+              Nat.cast_sub Fintype.card_pos, Nat.cast_one]
+        _ ≤ ∑ k ∈ univ.erase jstar, G.load A k := by
+            refine sum_le_sum fun k hk => ?_
+            have hne : k ≠ A i₀ := by
+              rw [hAi₀]
+              exact ne_of_mem_erase hk
+            have hne_ineq := (G.isPureNash_iff A).mp hA i₀ k hne
+            rw [hAi₀, hId k, div_one] at hne_ineq
+            linarith
+    linarith
+  refine hsum_ge.trans ?_
+  rw [hId.sum_load A]
+  exact hId.sum_weight_le_card_mul_optMakespan
+
 /-- **Identical-machine pure price of anarchy** ([FinnHorowitz1979]; [Vocking2007], Theorem 20.5):
 every pure Nash equilibrium `A` on `m = |M| ≥ 1` identical machines satisfies
 `makespan A ≤ (2 * m / (m + 1)) * optMakespan` (equivalently `(2 - 2 / (m + 1)) * optMakespan`).
@@ -140,28 +167,7 @@ theorem IsIdentical.makespan_le_of_isPureNash {G : LoadBalancingGame ι M} (hId 
             nlinarith [G.weight_nonneg i₀]
         _ = ∑ _i ∈ S, G.weight i₀ := by simp
         _ ≤ ∑ i ∈ S, G.weight i := sum_le_sum fun i hi => hi₀min i hi
-    -- Pure NE for `i₀`: for `k ≠ jstar`, `load A jstar - weight i₀ ≤ load A k`.
-    have hsum_ge : (Fintype.card M : ℝ) * G.load A jstar -
-        ((Fintype.card M : ℝ) - 1) * G.weight i₀ ≤ ∑ k, G.load A k := by
-      rw [← add_sum_erase _ _ (mem_univ jstar)]
-      have hrest : ((Fintype.card M : ℝ) - 1) * (G.load A jstar - G.weight i₀) ≤
-          ∑ k ∈ univ.erase jstar, G.load A k := by
-        calc ((Fintype.card M : ℝ) - 1) * (G.load A jstar - G.weight i₀)
-            = ∑ _k ∈ univ.erase jstar, (G.load A jstar - G.weight i₀) := by
-              rw [sum_const, card_erase_of_mem (mem_univ jstar), card_univ, nsmul_eq_mul,
-                Nat.cast_sub Fintype.card_pos, Nat.cast_one]
-          _ ≤ ∑ k ∈ univ.erase jstar, G.load A k := by
-              refine sum_le_sum fun k hk => ?_
-              have hne : k ≠ A i₀ := by
-                rw [hAi₀]
-                exact ne_of_mem_erase hk
-              have hne_ineq := (G.isPureNash_iff A).mp hA i₀ k hne
-              rw [hAi₀, hId k, div_one] at hne_ineq
-              linarith
-      linarith
-    have hsum_le : ∑ k, G.load A k ≤ (Fintype.card M : ℝ) * G.optMakespan := by
-      rw [hId.sum_load A]
-      exact hId.sum_weight_le_card_mul_optMakespan
+    have hbound := hId.card_mul_load_sub_le_card_mul_optMakespan hA hAi₀
     rw [← hjstar, div_mul_eq_mul_div, le_div_iff₀ (by linarith)]
     nlinarith
 
@@ -479,27 +485,7 @@ theorem IsIdentical.makespan_le_optMakespan_add_of_weight_le {G : LoadBalancingG
   by_cases hSne : S.Nonempty
   · obtain ⟨i₀, hi₀⟩ := hSne
     have hAi₀ : A i₀ = jstar := (mem_filter.mp hi₀).2
-    have hsum_ge : (Fintype.card M : ℝ) * G.load A jstar -
-        ((Fintype.card M : ℝ) - 1) * G.weight i₀ ≤ ∑ k, G.load A k := by
-      rw [← add_sum_erase _ _ (mem_univ jstar)]
-      have hrest : ((Fintype.card M : ℝ) - 1) * (G.load A jstar - G.weight i₀) ≤
-          ∑ k ∈ univ.erase jstar, G.load A k := by
-        calc ((Fintype.card M : ℝ) - 1) * (G.load A jstar - G.weight i₀)
-            = ∑ _k ∈ univ.erase jstar, (G.load A jstar - G.weight i₀) := by
-              rw [sum_const, card_erase_of_mem (mem_univ jstar), card_univ, nsmul_eq_mul,
-                Nat.cast_sub Fintype.card_pos, Nat.cast_one]
-          _ ≤ ∑ k ∈ univ.erase jstar, G.load A k := by
-              refine sum_le_sum fun k hk => ?_
-              have hne : k ≠ A i₀ := by
-                rw [hAi₀]
-                exact ne_of_mem_erase hk
-              have hne_ineq := (G.isPureNash_iff A).mp hA i₀ k hne
-              rw [hAi₀, hId k, div_one] at hne_ineq
-              linarith
-      linarith
-    have hsum_le : ∑ k, G.load A k ≤ (Fintype.card M : ℝ) * G.optMakespan := by
-      rw [hId.sum_load A]
-      exact hId.sum_weight_le_card_mul_optMakespan
+    have hbound := hId.card_mul_load_sub_le_card_mul_optMakespan hA hAi₀
     have hmul : (Fintype.card M : ℝ) * G.makespan A ≤
         (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
       rw [← hjstar]
