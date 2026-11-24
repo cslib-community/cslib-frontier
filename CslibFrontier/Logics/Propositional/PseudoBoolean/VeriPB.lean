@@ -73,11 +73,19 @@ proofs.
 * `Cslib.Logic.PL.VeriPB.namesContra`: a constraint number names a contradiction.
 * `Cslib.Logic.PL.VeriPB.Step`, `Cslib.Logic.PL.VeriPB.Proof`: kernel proofs.
 * `Cslib.Logic.PL.VeriPB.check`: the checker.
+* `Cslib.Logic.PL.VeriPB.IdOk`: the numbers of a database are distinct and below a bound
+  (CakePB's `id_ok`).
+* `Cslib.Logic.PL.VeriPB.StepEffect`: the shape of a successful step: the constraint it adds and
+  its number, or the constraints it deletes.
 
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.not_satisfiable_of_check`,
   `Cslib.Logic.PL.VeriPB.not_satisfiable_cnf_of_check`: soundness for `UNSAT`.
+* `Cslib.Logic.PL.VeriPB.runStep_effect`: a successful step adds one constraint at a fresh
+  number, after any `pbc` subproof, or deletes some.
+* `Cslib.Logic.PL.VeriPB.IdOk.runStep`: a step numbers its new constraint from the next number
+  on.
 
 ## References
 
@@ -561,6 +569,181 @@ theorem allHold_initDb {σ : ℕ → Bool} {F : List PBConstr} (hF : ∀ c ∈ F
     rw [List.getElem_zipIdx] at hji
     simp only [Prod.mk.injEq] at hji
     exact ⟨j, by simpa using hj, hji.1⟩)))
+
+/-! ### Fresh numbers -/
+
+/-- **The numbers of the database `db` are fresh from `n` on**: every number is below `n`, and no
+two constraints share one. This is CakePB's `id_ok fml n`, with the distinctness that CakePB's
+finite maps have built in. -/
+structure IdOk (db : List (ℕ × PBConstr)) (n : ℕ) : Prop where
+  /-- Every number is below `n`. -/
+  lt : ∀ e ∈ db, e.1 < n
+  /-- No two constraints share a number. -/
+  nodup : (db.map (·.1)).Nodup
+
+namespace IdOk
+
+variable {db : List (ℕ × PBConstr)} {n : ℕ}
+
+/-- Two constraints with the same number are the same. -/
+theorem eq_of_mem (h : IdOk db n) {i : ℕ} {c c' : PBConstr} (hc : (i, c) ∈ db)
+    (hc' : (i, c') ∈ db) : c = c' :=
+  (Prod.ext_iff.1 (List.inj_on_of_nodup_map h.nodup hc hc' rfl)).2
+
+/-- The numbers stay fresh from a later number on. -/
+theorem mono (h : IdOk db n) {m : ℕ} (hm : n ≤ m) : IdOk db m :=
+  ⟨fun e he => (h.lt e he).trans_le hm, h.nodup⟩
+
+/-- A constraint numbered `m ≥ n` may join the database, and the numbers are fresh from `m + 1`
+on. -/
+theorem cons (h : IdOk db n) {m : ℕ} (hm : n ≤ m) (c : PBConstr) :
+    IdOk ((m, c) :: db) (m + 1) where
+  lt e he := by
+    rcases List.mem_cons.1 he with rfl | he
+    · exact Nat.lt_succ_self m
+    · exact (h.lt e he).trans_le (hm.trans (Nat.le_succ m))
+  nodup := List.nodup_cons.2 ⟨fun hm' => by
+    obtain ⟨e, he, hem⟩ := List.mem_map.1 hm'
+    have := h.lt e he
+    simp only at hem
+    omega, h.nodup⟩
+
+/-- Deleting constraints keeps the numbers fresh. -/
+theorem filter (h : IdOk db n) (p : ℕ × PBConstr → Bool) : IdOk (db.filter p) n :=
+  ⟨fun e he => h.lt e (List.mem_of_mem_filter he), h.nodup.sublist (List.filter_sublist.map _)⟩
+
+end IdOk
+
+/-- The input database is numbered from `1` to the number of its constraints. -/
+theorem idOk_initDb (F : List PBConstr) : IdOk (initDb F) (F.length + 1) := by
+  have hmap : (initDb F).map (·.1) = List.range' 1 F.length := by
+    simp only [initDb, List.map_map]
+    rw [show ((·.1) ∘ fun e : PBConstr × ℕ => (e.2 + 1, e.1.normalize)) =
+      (1 + ·) ∘ Prod.snd from funext fun _ => Nat.add_comm _ _, ← List.map_map,
+      List.zipIdx_map_snd, List.map_add_range']
+  refine ⟨fun e he => ?_, hmap ▸ List.nodup_range'⟩
+  have := List.mem_map_of_mem (f := (·.1)) he
+  rw [hmap, List.mem_range'_1] at this
+  omega
+
+/-- **The shape of a successful step on the database `db`, whose next number is `n`**: which
+constraint it adds, at which number, and what it deletes. Each addition puts its constraint in
+front and continues from the number after it: `pol`, `rup` and `rupSearch` at `n`, and `pbc` at
+some number `m > n`. `rup`, `rupSearch` and `pbc` add their stated constraint, normalized; for
+`pol` the relation records only that one constraint is added, not which. A deletion `del ids`
+drops the constraints numbered in `ids` and keeps the next number. The relation does not record
+that a step's check passed, nor, for `pbc`, which number its subproof stops at: any `m > n` is
+allowed. `Cslib.Logic.PL.VeriPB.runStep_effect` shows that a successful `runStep` has this
+shape, taking `m` from the counter at which the subproof of a `pbc` step stops, above `n` since
+the negated constraint takes `n`. -/
+inductive StepEffect (db : List (ℕ × PBConstr)) (n : ℕ) :
+    Step → List (ℕ × PBConstr) → ℕ → Prop where
+  /-- `pol ops` adds the constraint `c` that its derivation leaves, at `n`. -/
+  | pol {ops : List PolOp} (c : PBConstr) : StepEffect db n (.pol ops) ((n, c) :: db) (n + 1)
+  /-- `rup c hs` adds `c` at `n`. -/
+  | rup {c : PBConstr} {hs : List Hint} :
+      StepEffect db n (.rup c hs) ((n, c.normalize) :: db) (n + 1)
+  /-- `rupSearch c` adds `c` at `n`. -/
+  | rupSearch {c : PBConstr} :
+      StepEffect db n (.rupSearch c) ((n, c.normalize) :: db) (n + 1)
+  /-- `pbc c sub q` adds `c`, normalized, at some number `m > n`; `m` does not depend on
+  `sub`. -/
+  | pbc {c : PBConstr} {sub : List Step} {q m : ℕ} (hm : n < m) :
+      StepEffect db n (.pbc c sub q) ((m, c.normalize) :: db) (m + 1)
+  /-- `del ids` drops the constraints numbered in `ids`. -/
+  | del (ids : List ℕ) : StepEffect db n (.del ids) (db.filter fun e => !ids.contains e.1) n
+
+namespace StepEffect
+
+variable {db db' : List (ℕ × PBConstr)} {n n' : ℕ} {s : Step}
+
+/-- A step only advances the numbering. -/
+theorem le (h : StepEffect db n s db' n') : n ≤ n' := by
+  cases h with
+  | pol | rup | rupSearch => exact Nat.le_succ n
+  | pbc hm => exact hm.le.trans (Nat.le_succ _)
+  | del ids => exact le_rfl
+
+/-- A step keeps the numbers fresh. -/
+theorem idOk (h : StepEffect db n s db' n') (hid : IdOk db n) : IdOk db' n' := by
+  cases h with
+  | pol c => exact hid.cons le_rfl c
+  | rup | rupSearch => exact hid.cons le_rfl _
+  | pbc hm => exact hid.cons hm.le _
+  | del ids => exact hid.filter _
+
+/-- A step keeps every constraint whose number it does not delete. -/
+theorem mem (h : StepEffect db n s db' n') {e : ℕ × PBConstr} (he : e ∈ db)
+    (hd : ∀ ids, s = .del ids → ids.contains e.1 = false) : e ∈ db' := by
+  cases h with
+  | pol | rup | rupSearch | pbc => exact List.mem_cons_of_mem _ he
+  | del ids => exact List.mem_filter.2 ⟨he, by simpa using hd ids rfl⟩
+
+end StepEffect
+
+mutual
+
+/-- **The effect of a successful step** (`Cslib.Logic.PL.VeriPB.StepEffect`). For `pbc`, the
+number of the added constraint is the counter at which the successful subproof stops. -/
+theorem runStep_effect :
+    ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (s : Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
+      runStep db n s = some (db', n') → StepEffect db n s db' n'
+  | db, n, .pol ops, db', n', h => by
+    simp only [runStep] at h
+    split at h
+    · cases h; exact .pol _
+    · cases h
+  | db, n, .rup c hs, db', n', h => by
+    simp only [runStep] at h
+    split at h
+    · cases h; exact .rup
+    · cases h
+  | db, n, .rupSearch c, db', n', h => by
+    simp only [runStep] at h
+    split at h
+    · cases h; exact .rupSearch
+    · cases h
+  | db, n, .pbc c sub q, db', n', h => by
+    simp only [runStep, Option.map_eq_some_iff] at h
+    obtain ⟨n'', hq, h⟩ := h
+    cases h
+    unfold subproofRefutes at hq
+    split at hq
+    · rename_i db₁ n₁ hsub
+      simp only [Option.ite_none_right_eq_some, Option.some.injEq] at hq
+      exact .pbc (hq.2 ▸ Nat.lt_of_lt_of_le (Nat.lt_succ_self n) (runSteps_le _ _ sub _ _ hsub))
+    · cases hq
+  | db, n, .del ids, db', n', h => by
+    simp only [runStep] at h
+    split at h
+    · cases h; exact .del ids
+    · cases h
+
+/-- Steps only advance the numbering. -/
+theorem runSteps_le :
+    ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
+      runSteps db n ss = some (db', n') → n ≤ n'
+  | db, n, [], db', n', h => by
+    simp only [runSteps, Option.some.injEq, Prod.mk.injEq] at h
+    exact h.2 ▸ le_rfl
+  | db, n, s :: ss, db', n', h => by
+    simp only [runSteps] at h
+    split at h
+    · rename_i db₁ n₁ h₁
+      exact (runStep_effect db n s db₁ n₁ h₁).le.trans (runSteps_le db₁ n₁ ss db' n' h)
+    · cases h
+
+end
+
+/-- A step only advances the numbering. -/
+theorem runStep_le (db : List (ℕ × PBConstr)) (n : ℕ) (s : Step) (db' : List (ℕ × PBConstr))
+    (n' : ℕ) (h : runStep db n s = some (db', n')) : n ≤ n' :=
+  (runStep_effect db n s db' n' h).le
+
+/-- **A step keeps the numbers fresh**: a new constraint takes a number from `n` on. -/
+theorem IdOk.runStep {db db' : List (ℕ × PBConstr)} {n n' : ℕ} {s : Step} (h : IdOk db n)
+    (hs : runStep db n s = some (db', n')) : IdOk db' n' :=
+  (runStep_effect _ _ _ _ _ hs).idOk h
 
 /-- **Soundness of the checker**: a formula with a checked proof of `UNSAT` has no solution. -/
 theorem not_satisfiable_of_check {F : List PBConstr} {P : Proof} (h : check F P = true)

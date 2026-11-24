@@ -26,8 +26,9 @@ circuit combinators `Circuit.comp`, `Circuit.append`, `Circuit.pi`, `Circuit.wir
   the circuit `step` to those of its parts. The simp set unfolds no definition, so the definitions
   of the construction are named beside it.
 * `circuit_bound [step]` proves a bound `(step k).depth ≤ 2`. Composition only bounds the depth, so
-  the depth rules `Circuit.depth_comp_le`, `Circuit.depth_append_le` and `Circuit.depth_pi_le`, and
-  those of `depthWith`, are registered with `@[circuit_bound]` instead of being simp lemmas.
+  the depth rules `Circuit.depth_comp_le`, `Circuit.depth_append_le`, `Circuit.depth_pi_le` and
+  `Circuit.depth_iterate_le`, and those of `depthWith`, are registered with `@[circuit_bound]`
+  instead of being simp lemmas.
 
 A module that proves a bound of a named circuit tags it `@[circuit_bound]`, and later
 constructions that contain the circuit then use the bound without naming it.
@@ -71,8 +72,8 @@ attribute [circuit_simps]
   Circuit.eval_oneGate Formula.eval_toCircuit Formula.eval_input Formula.eval_gate
   -- sizes and formula costs
   Circuit.size_comp Circuit.size_append Circuit.size_pi Circuit.size_wiring Circuit.size_wiringOn
-  Circuit.size_oneGate Circuit.size_mapOp Formula.size_toCircuit Formula.size_input
-  Formula.size_gate Formula.cost_input Formula.cost_gate
+  Circuit.size_oneGate Circuit.size_mapOp Circuit.size_iterate Formula.size_toCircuit
+  Formula.size_input Formula.size_gate Formula.cost_input Formula.cost_gate
   -- exact depths
   Circuit.depth_wiring Circuit.depth_oneGate Circuit.depth_mapOp Circuit.depthWith_wiring
   Circuit.depthWith_oneGate Formula.depth_input Formula.depth_gate Formula.depthWith_input
@@ -111,9 +112,10 @@ simproc [circuit_simps] Circuit.costProgram (Program.cost _ _) := fun e => do
   return .continue
 
 attribute [circuit_bound]
-  Circuit.depth_comp_le Circuit.depth_append_le Circuit.depth_pi_le Circuit.depthWith_comp_le
-  Circuit.depthWith_append_le Circuit.depthWith_pi_le Formula.depth_toCircuit_le
-  Formula.depthWith_toCircuit_le Formula.depth_bind_le Formula.size_bind_le
+  Circuit.depth_comp_le Circuit.depth_append_le Circuit.depth_pi_le Circuit.depth_iterate_le
+  Circuit.depthWith_comp_le Circuit.depthWith_append_le Circuit.depthWith_pi_le
+  Circuit.depthWith_iterate_le Formula.depth_toCircuit_le Formula.depthWith_toCircuit_le
+  Formula.depth_bind_le Formula.size_bind_le
 
 end Cslib.Circuits
 
