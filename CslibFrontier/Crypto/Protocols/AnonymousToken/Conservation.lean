@@ -40,9 +40,12 @@ Here the commitment is any function `com : Nullifier → Context → ℕ → Ope
 tag is any `tag : Commitment → ℕ → Target`, and the certifier is any
 `S : Signature.Scheme PK SK Target Sig`. Targets use the two-stage encoder `Credit.target com tag`,
 and semantic notes reuse `Credit.Note`. The KP800 and MQ instantiations are the intended uses and
-are not formalized here. The issuer is more permissive than in the draft, which does not weaken
-the result: the range checks (V4, and `T ≥ 1` at issuance) are omitted, and the adversary chooses
-every amount, debit and refund, which models an arbitrary issuer policy.
+are not formalized here. The game is a permissive modeling choice. It omits the range checks (V4,
+and `T ≥ 1` at issuance), and every amount `T`, debit `d` and refund `x'` comes from the
+adversary's request. In the draft, `T` is agreed out of band and is the issuer's own input, and the
+issuer chooses `x'`. The bounds below hold for this game as stated. Transferring them to the
+draft's issuer would need a simulation of issuer-selected amounts, range rejections and their
+replies; that bridge is left open.
 
 In the extracted model, every request carries the witness that a knowledge extractor for its
 VOLEitH proof would output, next to its public statement, and the issuer checks the relation on
@@ -53,9 +56,10 @@ a reduction step toward credit conservation, not a credit-conservation theorem f
 unextracted protocol.
 
 Part I (`spentDebit_le_of_certified`) is the deterministic accounting core. Take any list of
-requests, in any order, in which every request passes its local check, spent `(ctx, nf)` pairs are
-pairwise distinct, and every spend's input note is the output note of some request in the list.
-Then `∑ d ≤ ∑ T + ∑ x'` in every context. Part I uses no commitment-binding premise.
+requests, in any order, in which every spend satisfies the balance equation `t + x = t' + d` (V3),
+spent `(ctx, nf)` pairs are pairwise distinct, and every spend's input note is the output note of
+some request in the list. Then `∑ d ≤ ∑ T + ∑ x'` in every context. Part I involves no
+commitment function, tag function or signature scheme, and no commitment-binding premise.
 
 Part II is the adaptive game. `extractedConservationExperiment` runs the adversary against an
 issuer oracle built on `ProbOracleComp.runLogWith`. The issuer signs `tag c 0` or `tag c' x'` from
@@ -91,16 +95,17 @@ Part I is a statement about an unordered transcript and does not depend on execu
   `runExtractedConservation`, `extractedConservationAccept`, `extractedConservationExperiment`:
   the extracted credit-conservation game.
 * `noteForgerHandler`, `noteForger`: explicit simulation reduction to `ExtractedForger`.
-* `noteBindingCollision`, `noteBindingCollisionOrTrivial`, `commitmentBindingReduction`: for
-  `tag = Prod.mk`, explicit reduction from target collisions to a double opening of `com`.
+* `commitmentBindingReduction`: for `tag = Prod.mk`, explicit reduction from target collisions to
+  a double opening of `com`.
 
 ## Main results
 
-* `acceptLocal_of_validTrace`, `nodup_spends_of_validTrace`: invariants of accepted traces.
+* `acceptLocal_of_validTrace`, `balance_of_validTrace`, `nodup_spends_of_validTrace`: invariants of
+  accepted traces.
 * `spentDebit_le_of_certified`: deterministic, order-independent accounting core
   (`∑ d ≤ ∑ T + ∑ x'`).
-* `noteForger_queryBound`, `targetForger_noteForger_queryBound`: the reductions query the signing
-  oracle at most once per request of the adversary.
+* `noteForger_queryBound`: `noteForger` queries the signing oracle at most once per request of the
+  adversary; with `targetForger_queryBound` the same holds for `targetForger` on `noteForger`.
 * `runExtractedConservation_log_length_le`: a `q`-query adversary logs at most `q` accepted
   requests.
 * `extractedConservationExperiment_succProbability_le_extractedExperiment`: the game is bounded by
@@ -120,13 +125,17 @@ Part I is a statement about an unordered transcript and does not depend on execu
   Considerations / Proof status (`#proof-status`).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.AnonymousToken.Conservation
 
 open Probability
 
 variable {Nullifier Context Opening Commitment Target PK SK Sig : Type}
+
+/- The requests, checks, totals, game and `noteForger` are exposed so that clients can evaluate
+them with `decide` and `simp`. The commitment-binding reduction at the end is not. -/
+@[expose] section
 
 /-! ### Requests, payloads, and acceptance checks -/
 
@@ -216,8 +225,8 @@ def Request.outputPayload :
 for issuance, `com nf ctx T r = c`; for spend, `(V1)` verification on
 `Credit.target com tag inputNote oldOpening`, `(V2)` change commitment opening
 `com nf' ctx t' r' = c'`, and `(V3)` natural-number balance conservation `t + x = t' + d` (no
-modular wraparound). The draft's `(V4)` range bounds are omitted: dropping them only makes the
-issuer accept more requests, so conservation proved here is no weaker. -/
+modular wraparound). The draft's `(V4)` range bounds are omitted, a permissive modeling choice
+described in the module docstring. -/
 def acceptLocal [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -292,9 +301,7 @@ def issuesIn [DecidableEq Context]
 def spendsIn [DecidableEq Context]
     (reqs : List (Request Nullifier Context Opening Commitment Sig)) (ctx : Context) :
     List (SpendRequest Nullifier Context Opening Commitment Sig) :=
-  reqs.filterMap fun
-    | .issue _ => none
-    | .spend req => if req.ctx = ctx then some req else none
+  (spends reqs).filter fun s => decide (s.ctx = ctx)
 
 /-- Total issued credit `∑ T` across accepted issuances in context `ctx`. -/
 def issuedAmount [DecidableEq Context]
@@ -353,8 +360,7 @@ private theorem spendsIn_cons_spend [DecidableEq Context]
     (rest : List (Request Nullifier Context Opening Commitment Sig)) (ctx : Context) :
     spendsIn (.spend sr :: rest) ctx =
       if sr.ctx = ctx then sr :: spendsIn rest ctx else spendsIn rest ctx := by
-  simp only [spendsIn, List.filterMap_cons]
-  split_ifs <;> rfl
+  simp only [spendsIn, spends_cons_spend, List.filter_cons, decide_eq_true_eq]
 
 private theorem validTraceFrom_append
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
@@ -494,29 +500,6 @@ theorem nodup_spends_of_validTrace
     ((spends reqs).map fun s => (s.ctx, s.nullifier)).Nodup :=
   nodup_spends_of_validTraceFrom h
 
-private theorem spendsIn_sublist_spends [DecidableEq Context]
-    (reqs : List (Request Nullifier Context Opening Commitment Sig)) (ctx : Context) :
-    (spendsIn reqs ctx).Sublist (spends reqs) := by
-  induction reqs with
-  | nil => simp [spendsIn, spends]
-  | cons r rest ih =>
-    cases r with
-    | issue ir =>
-      rw [spendsIn_cons_issue, spends_cons_issue]
-      exact ih
-    | spend sr =>
-      rw [spendsIn_cons_spend, spends_cons_spend]
-      split_ifs
-      · exact ih.cons_cons sr
-      · exact ih.cons sr
-
-private theorem mem_spends_of_mem_spendsIn [DecidableEq Context]
-    {reqs : List (Request Nullifier Context Opening Commitment Sig)} {ctx : Context}
-    {s : SpendRequest Nullifier Context Opening Commitment Sig}
-    (hs : s ∈ spendsIn reqs ctx) :
-    s ∈ spends reqs :=
-  (spendsIn_sublist_spends reqs ctx).mem hs
-
 private theorem mem_reqs_of_mem_spends
     {reqs : List (Request Nullifier Context Opening Commitment Sig)}
     {s : SpendRequest Nullifier Context Opening Commitment Sig}
@@ -529,6 +512,31 @@ private theorem mem_reqs_of_mem_spends
     cases hsome
     exact hr
 
+/-- The `(V3)` balance equation of every spend in a list whose requests pass `acceptLocal`. -/
+private theorem balance_of_acceptLocal [DecidableEq Commitment]
+    {com : Nullifier → Context → ℕ → Opening → Commitment}
+    {tag : Commitment → ℕ → Target}
+    {S : Signature.Scheme PK SK Target Sig} {pk : PK}
+    {reqs : List (Request Nullifier Context Opening Commitment Sig)}
+    (hlocal : ∀ r ∈ reqs, acceptLocal com tag S pk r = true) :
+    ∀ s ∈ spends reqs, s.oldCredit + s.oldRefund = s.newCredit + s.debit := by
+  intro s hs
+  have hr := hlocal (.spend s) (mem_reqs_of_mem_spends hs)
+  simp only [acceptLocal, Bool.and_eq_true, decide_eq_true_eq] at hr
+  exact hr.2
+
+/-- Every spend in a trace accepted by `validTrace` satisfies the `(V3)` balance equation, the
+first premise of `spentDebit_le_of_certified`. -/
+theorem balance_of_validTrace
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    {com : Nullifier → Context → ℕ → Opening → Commitment}
+    {tag : Commitment → ℕ → Target}
+    {S : Signature.Scheme PK SK Target Sig} {pk : PK}
+    {reqs : List (Request Nullifier Context Opening Commitment Sig)}
+    (h : validTrace com tag S pk reqs = true) :
+    ∀ s ∈ spends reqs, s.oldCredit + s.oldRefund = s.newCredit + s.debit :=
+  balance_of_acceptLocal (acceptLocal_of_validTrace h)
+
 private theorem sum_balance_outputPayload_filter [DecidableEq Context]
     (reqs : List (Request Nullifier Context Opening Commitment Sig)) (ctx : Context) :
     ((reqs.filter fun r => decide (r.ctx = ctx)).map
@@ -536,7 +544,7 @@ private theorem sum_balance_outputPayload_filter [DecidableEq Context]
       issuedAmount reqs ctx +
         (((spendsIn reqs ctx).map SpendRequest.newCredit).sum + grantedRefund reqs ctx) := by
   induction reqs with
-  | nil => simp [issuedAmount, issuesIn, spendsIn, grantedRefund]
+  | nil => simp [issuedAmount, issuesIn, spendsIn, spends, grantedRefund]
   | cons r rest ih =>
     cases r with
     | issue ir =>
@@ -573,22 +581,6 @@ private theorem sum_balance_inputNote_list
     simp only [List.map_cons, SpendRequest.inputNote, Credit.Note.balance, List.sum_cons] at ih' ⊢
     omega
 
-private theorem sum_balance_inputNote_spendsIn
-    [DecidableEq Context] [DecidableEq Commitment]
-    (com : Nullifier → Context → ℕ → Opening → Commitment)
-    (tag : Commitment → ℕ → Target)
-    (S : Signature.Scheme PK SK Target Sig) (pk : PK)
-    (reqs : List (Request Nullifier Context Opening Commitment Sig))
-    (hlocal : ∀ r ∈ reqs, acceptLocal com tag S pk r = true)
-    (ctx : Context) :
-    ((spendsIn reqs ctx).map fun s => s.inputNote.balance).sum =
-      ((spendsIn reqs ctx).map SpendRequest.newCredit).sum + spentDebit reqs ctx := by
-  refine sum_balance_inputNote_list (spendsIn reqs ctx) fun s hs => ?_
-  have hsp := mem_spends_of_mem_spendsIn hs
-  have hr := hlocal (.spend s) (mem_reqs_of_mem_spends hsp)
-  simp only [acceptLocal, Bool.and_eq_true, decide_eq_true_eq] at hr
-  exact hr.2
-
 private theorem sum_map_le_sum_map_of_nodup {α : Type*}
     (A B : List α) (w : α → ℕ) (hnd : A.Nodup) (hsub : ∀ x ∈ A, x ∈ B) :
     (A.map w).sum ≤ (B.map w).sum := by
@@ -608,18 +600,15 @@ private theorem outputPayload_context
   cases r <;> rfl
 
 /-- Extracted-model accounting step, original to this library: for any request list `reqs`
-(in any order) in which every request passes `acceptLocal`, spent `(ctx, nullifier)` pairs are
-pairwise distinct, and every spend's semantic input `Credit.Note` matches some request's output
-`Credit.Note`, total debited credit in every context `ctx` is at most total issued credit plus
-total granted refunds in `ctx`. This step is deterministic and needs no commitment-binding or
-signature premise. -/
-theorem spentDebit_le_of_certified
-    [DecidableEq Context] [DecidableEq Commitment]
-    (com : Nullifier → Context → ℕ → Opening → Commitment)
-    (tag : Commitment → ℕ → Target)
-    (S : Signature.Scheme PK SK Target Sig) (pk : PK)
+(in any order) in which every spend satisfies the balance equation `t + x = t' + d` (the `(V3)`
+check of `acceptLocal`), spent `(ctx, nullifier)` pairs are pairwise distinct, and every spend's
+semantic input `Credit.Note` matches some request's output `Credit.Note`, total debited credit in
+every context `ctx` is at most total issued credit plus total granted refunds in `ctx`. This step is
+deterministic. No commitment, tag, signature, or opening check enters it, so it needs no
+commitment-binding or signature premise. -/
+theorem spentDebit_le_of_certified [DecidableEq Context]
     (reqs : List (Request Nullifier Context Opening Commitment Sig))
-    (hlocal : ∀ r ∈ reqs, acceptLocal com tag S pk r = true)
+    (hbalance : ∀ s ∈ spends reqs, s.oldCredit + s.oldRefund = s.newCredit + s.debit)
     (hnodup : ((spends reqs).map fun s => (s.ctx, s.nullifier)).Nodup)
     (hcertified : ∀ s ∈ spends reqs,
       s.inputNote ∈ reqs.map (fun r => r.outputPayload.message))
@@ -629,12 +618,8 @@ theorem spentDebit_le_of_certified
   let reqsCtx := reqs.filter fun r => decide (r.ctx = ctx)
   let inList := spCtx.map SpendRequest.inputNote
   let outList := reqsCtx.map fun r => r.outputPayload.message
-  have hsublist_key :
-      (spCtx.map fun s => (s.ctx, s.nullifier)).Sublist
-        ((spends reqs).map fun s => (s.ctx, s.nullifier)) :=
-    (spendsIn_sublist_spends reqs ctx).map _
   have hnodup_key : (spCtx.map fun s => (s.ctx, s.nullifier)).Nodup :=
-    hnodup.sublist hsublist_key
+    hnodup.sublist (List.filter_sublist.map _)
   have hnodup_in : inList.Nodup := by
     have hcomp :
         (inList.map fun n => (n.context, n.nullifier)) =
@@ -644,30 +629,21 @@ theorem spentDebit_le_of_certified
   have hsub_in_out : ∀ n ∈ inList, n ∈ outList := by
     intro n hn
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hn
-    have hsp := mem_spends_of_mem_spendsIn hs
+    obtain ⟨hsp, hsctx⟩ := List.mem_filter.mp hs
     obtain ⟨r, hr, hreq⟩ := List.mem_map.mp (hcertified s hsp)
-    have hsctx : s.ctx = ctx := by
-      simp only [spCtx, spendsIn, List.mem_filterMap] at hs
-      obtain ⟨r', -, hr'⟩ := hs
-      cases r' with
-      | issue _ => simp at hr'
-      | spend sr =>
-        dsimp only at hr'
-        split_ifs at hr' with hctx
-        · cases hr'
-          exact hctx
     have hrctx : r.ctx = ctx := by
       have hctx_note := congrArg Credit.Note.context hreq
       rw [outputPayload_context] at hctx_note
-      exact hctx_note.trans hsctx
+      exact hctx_note.trans (of_decide_eq_true hsctx)
     refine List.mem_map.mpr ⟨r, List.mem_filter.mpr ⟨hr, decide_eq_true hrctx⟩, hreq⟩
   have hsum_le := sum_map_le_sum_map_of_nodup inList outList Credit.Note.balance hnodup_in
     hsub_in_out
   have hin :
       (inList.map Credit.Note.balance).sum =
         (spCtx.map SpendRequest.newCredit).sum + spentDebit reqs ctx := by
-    simpa only [inList, List.map_map, Function.comp_def] using
-      sum_balance_inputNote_spendsIn com tag S pk reqs hlocal ctx
+    simpa only [inList, spCtx, spentDebit, List.map_map, Function.comp_def] using
+      sum_balance_inputNote_list (spendsIn reqs ctx) fun s hs =>
+        hbalance s (List.mem_filter.mp hs).1
   have hout :
       (outList.map Credit.Note.balance).sum =
         issuedAmount reqs ctx + ((spCtx.map SpendRequest.newCredit).sum + grantedRefund reqs ctx) :=
@@ -1033,8 +1009,8 @@ private theorem extractedConservationAccept_imp_extractedAccept
   | none =>
     exfalso
     have hcert := (findNoteForgery_eq_none_iff reqs).mp hforg
-    have hle := spentDebit_le_of_certified com tag S run.publicKey reqs
-      (acceptLocal_of_validTrace hvalid) (nodup_spends_of_validTrace hvalid) hcert run.targetCtx
+    have hle := spentDebit_le_of_certified reqs (balance_of_validTrace hvalid)
+      (nodup_spends_of_validTrace hvalid) hcert run.targetCtx
     simp only [extractedConservationAccept, decide_eq_true_eq] at hwin
     exact (Nat.not_le.mpr hwin) hle
   | some tok =>
@@ -1132,9 +1108,11 @@ theorem checkBindingWitness_prod_mk_iff
     apply htri
     rw [hnote]
 
+end
+
 /-- Convert a binding witness for `Credit.target com Prod.mk` into a commitment binding
 collision over `(nullifier, context, credit)` triples. -/
-def noteBindingCollision
+private def noteBindingCollision
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (w : BindingWitness (Credit.Note Nullifier Context) Opening) :
     Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
@@ -1151,7 +1129,7 @@ def noteBindingCollision
 /-- A valid target binding witness for `Credit.target com Prod.mk` yields a valid commitment
 binding collision under any key of a keyless `Cslib.Crypto.Commitment.Scheme`, one whose verifier
 accepts exactly when `com nf ctx t o = c` under every key (`hverify`). -/
-theorem isBindingCollision_noteBindingCollision
+private theorem isBindingCollision_noteBindingCollision
     {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
@@ -1169,7 +1147,7 @@ theorem isBindingCollision_noteBindingCollision
 
 /-- `noteBindingCollision` on a found witness. With no witness it returns a trivial pair that
 opens `com default default 0 default` twice to the same message, which is never a collision. -/
-def noteBindingCollisionOrTrivial
+private def noteBindingCollisionOrTrivial
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
     (com : Nullifier → Context → ℕ → Opening → Commitment) :
     Option (BindingWitness (Credit.Note Nullifier Context) Opening) →
@@ -1183,8 +1161,11 @@ def noteBindingCollisionOrTrivial
       opening₁ := default }
 
 /-- Extracted-model reduction step, original to this library: runs `bindingReduction` for
-`Credit.target com Prod.mk` on `noteForger` (ignoring the commitment key) and maps the result
-through `noteBindingCollisionOrTrivial`. -/
+`Credit.target com Prod.mk` on `noteForger`, ignoring the commitment key. A witness with payloads
+`(⟨nf₀, ctx₀, t₀, _⟩, r₀)` and `(⟨nf₁, ctx₁, t₁, _⟩, r₁)` becomes the pair of openings of
+`com nf₀ ctx₀ t₀ r₀` to `(nf₀, ctx₀, t₀)` under `r₀` and to `(nf₁, ctx₁, t₁)` under `r₁`. With no
+witness, the output opens `com default default 0 default` twice to the same message, which is
+never a collision. -/
 def commitmentBindingReduction
     {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
@@ -1250,20 +1231,5 @@ theorem extractedConservationExperiment_succProbability_le_prod_mk
         Experiment.succProbability (CS.bindingExperiment (commitmentBindingReduction com S A)) :=
   (extractedConservationExperiment_succProbability_le com Prod.mk S A).trans
     (add_le_add le_rfl (bindingExperiment_prod_mk_le_commitment com CS hverify S A))
-
-/-- `targetForger (Credit.target com tag) (noteForger com tag S A)` makes at most `q` target
-signing queries whenever `A` makes at most `q` issuer requests. As for `noteForger_queryBound`, no
-runtime bound follows from this oracle-call bound alone. -/
-theorem targetForger_noteForger_queryBound
-    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
-    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
-    (com : Nullifier → Context → ℕ → Opening → Commitment)
-    (tag : Commitment → ℕ → Target)
-    (S : Signature.Scheme PK SK Target Sig)
-    (A : ExtractedAdversary Nullifier Context Opening Commitment PK Sig) (pk : PK) {q : ℕ}
-    (hA : (A pk).IsQueryBounded q) :
-    (targetForger (Credit.target com tag) (noteForger com tag S A) pk).IsQueryBounded q :=
-  targetForger_queryBound (Credit.target com tag) (noteForger com tag S A) pk
-    (noteForger_queryBound com tag S A pk hA)
 
 end Cslib.Crypto.AnonymousToken.Conservation

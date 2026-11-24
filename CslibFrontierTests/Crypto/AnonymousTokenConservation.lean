@@ -6,18 +6,19 @@ Authors: Samuel Schlesinger, Karn Seth
 
 module
 
-public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
+import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
 # Regressions and clients for extracted single-issuer VOLE-ACT credit conservation
 
-Exercises `Cslib.Crypto.AnonymousToken.Conservation` through ordinary module imports:
+Exercises `Cslib.Crypto.AnonymousToken.Conservation` through an ordinary module import:
 * an honest issuance-and-spend transcript satisfying conservation and rejecting double spends, plus
   per-context nullifier scoping;
-* Part I (`spentDebit_le_of_certified`) on an honest trace, an out-of-order trace where a spend
-  precedes the issuance of its input note, and a duplicate-issuance trace exercising deduplication;
+* Part I (`spentDebit_le_of_certified`) on an honest trace, with its balance premise from
+  `balance_of_validTrace`, an out-of-order trace where a spend precedes the issuance of its input
+  note, and a duplicate-issuance trace exercising deduplication;
 * the 64-bit modular wraparound and nullifier-reuse regressions, evaluating
   `extractedConservationAccept` on hand-built executions (`t = 0, x = 0, d = 1, t' = 2^64 - 1`
   under mod-`2^64` `(V3)`, and repeating `spendOne` without nullifier tracking);
@@ -25,14 +26,18 @@ Exercises `Cslib.Crypto.AnonymousToken.Conservation` through ordinary module imp
   including verifying that the second spend is answered `none` and not logged;
 * concrete forging and commitment-collision adversaries instantiating `noteForger`,
   `extractedExperiment`, `targetForger`, `bindingExperiment`, `commitmentBindingReduction`,
-  `noteForger_queryBound`, `targetForger_noteForger_queryBound`,
-  `checkBindingWitness_prod_mk_iff`, and `bindingExperiment_prod_mk_le_commitment`, showing that
-  each term of the `extractedConservationExperiment_succProbability_le` bound can be `1`;
-* public clients exercising `acceptLocal_of_validTrace`, `nodup_spends_of_validTrace`,
+  `noteForger_queryBound`, `targetForger_queryBound`, `checkBindingWitness_prod_mk_iff`, and
+  `bindingExperiment_prod_mk_le_commitment`, showing that each term of the
+  `extractedConservationExperiment_succProbability_le` bound can be `1`;
+* generic `example`s applying `acceptLocal_of_validTrace`,
+  `nodup_spends_of_validTrace`, `spentDebit_le_of_certified`,
   `extractedConservationExperiment_succProbability_le_extractedExperiment`,
-  `runExtractedConservation_log_length_le`, the `tag = Prod.mk` query bound, and
-  `extractedConservationExperiment_succProbability_le_prod_mk`.
+  `runExtractedConservation_log_length_le`, the composed query bound, and
+  `extractedConservationExperiment_succProbability_le_prod_mk` at the keyless scheme `comScheme`.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.AnonymousTokenConservation
 
@@ -94,14 +99,10 @@ example : issuedAmount honestTrace 1 = 10 := by decide
 example : grantedRefund honestTrace 1 = 2 := by decide
 example : extractedConservationAccept honestExecution = false := by decide
 
--- Concrete Part I client on `honestTrace` using `acceptLocal_of_validTrace` and
--- `nodup_spends_of_validTrace`.
+-- Concrete Part I client on `honestTrace`: both trace invariants feed Part I.
 example : spentDebit honestTrace 1 ≤ issuedAmount honestTrace 1 + grantedRefund honestTrace 1 :=
-  spentDebit_le_of_certified testCom Prod.mk testSig () honestTrace
-    (acceptLocal_of_validTrace
-      (by decide : validTrace testCom Prod.mk testSig () honestTrace = true))
-    (nodup_spends_of_validTrace
-      (by decide : validTrace testCom Prod.mk testSig () honestTrace = true))
+  have h : validTrace testCom Prod.mk testSig () honestTrace = true := by decide
+  spentDebit_le_of_certified honestTrace (balance_of_validTrace h) (nodup_spends_of_validTrace h)
     (by decide) 1
 
 -- Order-independence Part I client: `spend1` appears before `issue0` (the creator of its input
@@ -112,8 +113,7 @@ private def outOfOrderTrace : List (Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((�
 example :
     spentDebit outOfOrderTrace 1 ≤
       issuedAmount outOfOrderTrace 1 + grantedRefund outOfOrderTrace 1 :=
-  spentDebit_le_of_certified testCom Prod.mk testSig () outOfOrderTrace
-    (by decide) (by decide) (by decide) 1
+  spentDebit_le_of_certified outOfOrderTrace (by decide) (by decide) (by decide) 1
 
 -- Duplicate-issuance Part I client: issuing `issue0` twice creates duplicate output notes in
 -- `outList`, exercising deduplication (`List.dedup_sublist`) in `spentDebit_le_of_certified`.
@@ -125,8 +125,7 @@ example : issuedAmount dupIssueTrace 1 = 20 := by decide
 example : spentDebit dupIssueTrace 1 = 11 := by decide
 example :
     spentDebit dupIssueTrace 1 ≤ issuedAmount dupIssueTrace 1 + grantedRefund dupIssueTrace 1 :=
-  spentDebit_le_of_certified testCom Prod.mk testSig () dupIssueTrace
-    (by decide) (by decide) (by decide) 1
+  spentDebit_le_of_certified dupIssueTrace (by decide) (by decide) (by decide) 1
 
 -- Reusing nullifier `1` in the same context `1` is rejected by `acceptRequest`.
 private def doubleSpendSameCtx : SpendRequest ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
@@ -272,8 +271,8 @@ example :
   simp [extractedConservationExperiment, runExtractedConservation, ProbOracleComp.runLogWith,
     honestAdversary, extractedIssuerOracle, acceptRequest, acceptLocal, hasSpentNullifier,
     SpendRequest.inputNote, Credit.target, Request.signedMessage, issue0, spend1, spend2,
-    testCom, testSig, extractedConservationAccept, spentDebit, spendsIn, issuedAmount, issuesIn,
-    grantedRefund, Experiment.succProbability, Game.succProbability]
+    testCom, testSig, extractedConservationAccept, spentDebit, spendsIn, spends, issuedAmount,
+    issuesIn, grantedRefund, Experiment.succProbability, Game.succProbability]
 
 /-- Double-spending adversary attempting to spend `(1, 20)` twice after issuing `issueOne`. -/
 private def doubleSpendAdversary :
@@ -302,8 +301,8 @@ example :
   simp [extractedConservationExperiment, runExtractedConservation, ProbOracleComp.runLogWith,
     doubleSpendAdversary, extractedIssuerOracle, acceptRequest, acceptLocal, hasSpentNullifier,
     SpendRequest.inputNote, Credit.target, Request.signedMessage, issueOne, spendOne,
-    testCom, testSig, extractedConservationAccept, spentDebit, spendsIn, issuedAmount, issuesIn,
-    grantedRefund, Experiment.succProbability, Game.succProbability]
+    testCom, testSig, extractedConservationAccept, spentDebit, spendsIn, spends, issuedAmount,
+    issuesIn, grantedRefund, Experiment.succProbability, Game.succProbability]
 
 -- The second spend receives `none` and is omitted from the accepted log (only 2 entries logged).
 example :
@@ -398,8 +397,9 @@ example : (noteForger testCom Prod.mk testSig forgingAdversary ()).IsQueryBounde
 example :
     (targetForger (Credit.target testCom Prod.mk)
       (noteForger testCom Prod.mk testSig forgingAdversary) ()).IsQueryBounded 1 :=
-  targetForger_noteForger_queryBound testCom Prod.mk testSig forgingAdversary ()
-    (ProbOracleComp.IsQueryBounded.query_bind_pure _ _)
+  targetForger_queryBound _ _ ()
+    (noteForger_queryBound testCom Prod.mk testSig forgingAdversary ()
+      (ProbOracleComp.IsQueryBounded.query_bind_pure _ _))
 
 example :
     Experiment.succProbability
@@ -408,8 +408,8 @@ example :
   simp [extractedConservationExperiment, runExtractedConservation, ProbOracleComp.runLogWith,
     forgingAdversary, forgedSpend, extractedIssuerOracle, acceptRequest, acceptLocal,
     hasSpentNullifier, SpendRequest.inputNote, Credit.target, testCom, testSig,
-    extractedConservationAccept, spentDebit, spendsIn, issuedAmount, issuesIn, grantedRefund,
-    Experiment.succProbability, Game.succProbability]
+    extractedConservationAccept, spentDebit, spendsIn, spends, issuedAmount, issuesIn,
+    grantedRefund, Experiment.succProbability, Game.succProbability]
 
 example :
     Experiment.succProbability
@@ -459,7 +459,7 @@ private def constSig : Signature.Scheme Unit Unit (Unit × ℕ) (Unit × ℕ) wh
   verify _ msg sig := decide (msg = sig)
 
 /-- Keyless `Cslib.Crypto.Commitment.Scheme` induced by a deterministic `com` function. -/
-public def comScheme
+private def comScheme
     {Nullifier Context Opening Commitment : Type} [DecidableEq Commitment] [Inhabited Opening]
     (com : Nullifier → Context → ℕ → Opening → Commitment) :
     Crypto.Commitment.Scheme Unit (Nullifier × Context × ℕ) Commitment Opening where
@@ -486,8 +486,8 @@ example :
   simp [extractedConservationExperiment, runExtractedConservation, ProbOracleComp.runLogWith,
     collidingAdversary, extractedIssuerOracle, acceptRequest, acceptLocal, hasSpentNullifier,
     SpendRequest.inputNote, Request.signedMessage, Credit.target, constCom, constSig,
-    extractedConservationAccept, spentDebit, spendsIn, issuedAmount, issuesIn, grantedRefund,
-    Experiment.succProbability, Game.succProbability]
+    extractedConservationAccept, spentDebit, spendsIn, spends, issuedAmount, issuesIn,
+    grantedRefund, Experiment.succProbability, Game.succProbability]
 
 private theorem bindingExperiment_constCom_eq_one :
     Experiment.succProbability
@@ -543,37 +543,33 @@ example :
   intro w
   exact ⟨by decide, (checkBindingWitness_prod_mk_iff constCom w).mp (by decide)⟩
 
-/-! ### Top-down public clients -/
+/-! ### Generic clients through an ordinary import -/
 
-/-- Public client exercising `acceptLocal_of_validTrace`. -/
-public theorem validTrace_acceptLocal_client
-    {Nullifier Context Opening Commitment Target PK SK Sig : Type}
+-- `acceptLocal_of_validTrace` and `nodup_spends_of_validTrace` on an arbitrary accepted trace.
+example {Nullifier Context Opening Commitment Target PK SK Sig : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig) (pk : PK)
     (reqs : List (Request Nullifier Context Opening Commitment Sig))
     (h : validTrace com tag S pk reqs = true) :
-    ∀ r ∈ reqs, Conservation.acceptLocal com tag S pk r = true :=
-  acceptLocal_of_validTrace h
+    (∀ r ∈ reqs, Conservation.acceptLocal com tag S pk r = true) ∧
+      ((spends reqs).map fun s => (s.ctx, s.nullifier)).Nodup :=
+  ⟨acceptLocal_of_validTrace h, nodup_spends_of_validTrace h⟩
 
-/-- Public client exercising `nodup_spends_of_validTrace`. -/
-public theorem validTrace_spends_nodup_client
-    {Nullifier Context Opening Commitment Target PK SK Sig : Type}
-    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
-    (com : Nullifier → Context → ℕ → Opening → Commitment)
-    (tag : Commitment → ℕ → Target)
-    (S : Signature.Scheme PK SK Target Sig) (pk : PK)
+-- Part I needs only the balance equations, distinct spent pairs and certified inputs: no
+-- commitment, tag or certifier appears in its statement.
+example {Nullifier Context Opening Commitment Sig : Type} [DecidableEq Context]
     (reqs : List (Request Nullifier Context Opening Commitment Sig))
-    (h : validTrace com tag S pk reqs = true) :
-    ((spends reqs).map fun s => (s.ctx, s.nullifier)).Nodup :=
-  nodup_spends_of_validTrace h
+    (hbalance : ∀ s ∈ spends reqs, s.oldCredit + s.oldRefund = s.newCredit + s.debit)
+    (hnodup : ((spends reqs).map fun s => (s.ctx, s.nullifier)).Nodup)
+    (hcertified : ∀ s ∈ spends reqs, s.inputNote ∈ reqs.map (fun r => r.outputPayload.message))
+    (ctx : Context) :
+    spentDebit reqs ctx ≤ issuedAmount reqs ctx + grantedRefund reqs ctx :=
+  spentDebit_le_of_certified reqs hbalance hnodup hcertified ctx
 
-/--
-Public client for `extractedConservationExperiment_succProbability_le_extractedExperiment`.
--/
-public theorem extractedExperiment_coupling_client
-    {Nullifier Context Opening Commitment Target PK SK Sig : Type}
+-- The coupling `extractedConservationExperiment_succProbability_le_extractedExperiment`.
+example {Nullifier Context Opening Commitment Target PK SK Sig : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
@@ -585,9 +581,8 @@ public theorem extractedExperiment_coupling_client
         (extractedExperiment S (Credit.target com tag) (noteForger com tag S A)) :=
   extractedConservationExperiment_succProbability_le_extractedExperiment com tag S A
 
-/-- Public client exercising `runExtractedConservation_log_length_le`. -/
-public theorem conservation_log_length_client
-    {Nullifier Context Opening Commitment Target PK SK Sig : Type}
+-- `runExtractedConservation_log_length_le`: a `q`-query adversary logs at most `q` requests.
+example {Nullifier Context Opening Commitment Target PK SK Sig : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -599,10 +594,9 @@ public theorem conservation_log_length_client
     run.log.length ≤ q :=
   runExtractedConservation_log_length_le com tag S A hA hrun
 
-/-- Top-down client instantiating `extractedConservationExperiment_succProbability_le_prod_mk`
-with the concrete keyless commitment scheme `comScheme com`. -/
-public theorem prod_mk_conservation_client
-    {Nullifier Context Opening Commitment PK SK Sig : Type}
+-- `extractedConservationExperiment_succProbability_le_prod_mk` instantiated with the concrete
+-- keyless commitment scheme `comScheme com`.
+example {Nullifier Context Opening Commitment PK SK Sig : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
@@ -617,16 +611,17 @@ public theorem prod_mk_conservation_client
   extractedConservationExperiment_succProbability_le_prod_mk
     com (comScheme com) (fun _ _ _ _ _ _ => rfl) S A
 
-/-- Top-down query bound using `targetForger_noteForger_queryBound` under `tag := Prod.mk`. -/
-public theorem prod_mk_targetForger_queryBound
-    {Nullifier Context Opening Commitment PK SK Sig : Type}
+-- `targetForger` on `noteForger` makes at most `q` signing queries for a `q`-query adversary,
+-- composing `noteForger_queryBound` with `targetForger_queryBound`.
+example {Nullifier Context Opening Commitment Target PK SK Sig : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
-    (S : Signature.Scheme PK SK (Commitment × ℕ) Sig)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
     (A : ExtractedAdversary Nullifier Context Opening Commitment PK Sig) (pk : PK) {q : ℕ}
     (hA : (A pk).IsQueryBounded q) :
-    (targetForger (Credit.target com Prod.mk) (noteForger com Prod.mk S A) pk).IsQueryBounded q :=
-  targetForger_noteForger_queryBound com Prod.mk S A pk hA
+    (targetForger (Credit.target com tag) (noteForger com tag S A) pk).IsQueryBounded q :=
+  targetForger_queryBound _ _ pk (noteForger_queryBound com tag S A pk hA)
 
 end CslibFrontierTests.Crypto.AnonymousTokenConservation
