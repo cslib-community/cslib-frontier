@@ -8,10 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
+-- Reads private `runAtSetup`, `verified_programmedTrial`, `matrixTrial`, and `forgeryGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `Cell`, `address`, `cellAt_address`, and `Xofs.withMatrixPrefixes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
+-- Reads private `Table`, `RawWord`, `install`, and `independent_tables`, plus `uniformPrefixes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformExtend
 
 /-!

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.Code.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import CslibFrontier.Foundations.Data.Code.Plotkin
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The asymptotic Plotkin bound
@@ -189,8 +190,7 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
   have hqd' : (q : ℝ) / (q - 1) * δ * n - 2 ≤ (q : ℝ) * d / (q - 1) := by
     have h2q : (q : ℝ) / (q - 1) ≤ 2 := by
       rw [div_le_iff₀ hq1R]
-      have : (2 : ℝ) ≤ q := by exact_mod_cast hq
-      linarith
+      cast_linarith [hq]
     have : (q : ℝ) / (q - 1) * δ * n - (q : ℝ) * d / (q - 1) =
         (q : ℝ) / (q - 1) * (δ * n - d) := by
       ring

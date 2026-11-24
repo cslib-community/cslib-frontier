@@ -100,8 +100,8 @@ theorem initial_inSpace : ComputableInSpace (initial (k := k) (Q := Q))
       (fun q => (QueryGate.encParams encContext q).length) :=
     of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hcaller := budget_prod hid (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encNat) 0 (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encNat) 0))
   exact (budget_comp_linear
     (of_inO (ComputableInO.inl (QueryGate.encState encContext)
       (encPair (QueryGate.encState encContext) (SupplierChunk.encState (k := k) (Q := Q)))))

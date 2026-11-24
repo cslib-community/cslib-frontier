@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Nat.Choose.Bounds
@@ -222,8 +223,7 @@ theorem dens_filter_visitCount_half_lt (W : Finset V) (t : ℕ)
     have hk : 0 < k := by dsimp [k]; omega
     have hkr : ((t + 1 : ℕ) : ℝ) / 4 ≤ (k : ℝ) / 2 := by
       have hi : t + 1 ≤ 2 * k := by dsimp [k]; omega
-      have hi' : ((t + 1 : ℕ) : ℝ) ≤ 2 * (k : ℝ) := by exact_mod_cast hi
-      linarith
+      cast_linarith [hi]
     have hevent : (dens {p : V × (Fin t → D) |
         (t + 1) / 2 < G.visitCount W p} : ℝ) ≤
         dens ({p : V × (Fin t → D) | k ≤ G.visitCount W p} : Finset _) := by
