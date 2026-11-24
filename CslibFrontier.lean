@@ -8977,6 +8977,7 @@ public import CslibFrontier.GameTheory.Congestion.Hedge
 public import CslibFrontier.GameTheory.Congestion.Nonatomic
 public import CslibFrontier.GameTheory.Congestion.PLS
 public import CslibFrontier.GameTheory.Congestion.PigouBound
+public import CslibFrontier.GameTheory.Congestion.Polynomial
 public import CslibFrontier.GameTheory.Congestion.Pricing.Oligopoly
 public import CslibFrontier.GameTheory.Congestion.Pricing.ParallelSerial
 public import CslibFrontier.GameTheory.Congestion.Pricing.PricedWardrop
@@ -9039,6 +9040,7 @@ public import CslibFrontier.GameTheory.Mechanism.Randomized
 public import CslibFrontier.GameTheory.Mechanism.Revenue
 public import CslibFrontier.GameTheory.Mechanism.Scheduling.UnrelatedMachines
 public import CslibFrontier.GameTheory.Mechanism.SingleParameter
+public import CslibFrontier.GameTheory.Mechanism.SmoothAuction
 public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
@@ -9073,6 +9075,7 @@ public import CslibFrontier.GameTheory.Strategic.NoRegret
 public import CslibFrontier.GameTheory.Strategic.Potential
 public import CslibFrontier.GameTheory.Strategic.Semialgebraic
 public import CslibFrontier.GameTheory.Strategic.Smooth
+public import CslibFrontier.GameTheory.Strategic.SmoothHierarchy
 public import CslibFrontier.GameTheory.Strategic.Stability
 public import CslibFrontier.GameTheory.Strategic.StrongNash
 public import CslibFrontier.GameTheory.Strategic.SwapRegretDynamics
