@@ -22,10 +22,11 @@ The source's loop over a mutable address and a mutable node is written as two fu
 number of completed iterations: `authenticationAddress` is the address and `authenticationNode` is
 `node[0]`. The address does not depend on the node, so the two are not threaded as a pair.
 `authenticationAddress` performs the source's index updates literally, `i / 2` on the even branch
-and `(i - 1) / 2` on the odd branch, and `authenticationAddress_closed_form` proves that both give
-`⌊idx / 2^k⌋`. One step is moved: line 6 is applied to the input address instead of the address
-left by lines 1--5. The result is the same, because `setTypeAndClear` overwrites the address type
-and the three type-specific words, the only words that those lines can change.
+and `(i - 1) / 2` on the odd branch, and `authenticationAddress_eq_tree` proves that after `k`
+iterations the result is the `TREE` address with tree height `k` and tree index `⌊idx / 2^k⌋`. One
+step is moved: line 6 is applied to the input address instead of the address left by lines 1--5.
+The result is the same, because `setTypeAndClear` overwrites the address type and the three
+type-specific words, the only words that those lines can change.
 
 Algorithm 11 is called with the layer and tree address of the XMSS tree. As for the addressed
 calls it is built from, `xmssPkFromSig` accepts every `Address`.
@@ -47,8 +48,9 @@ hash-call counts or machine, program-size, gate, qubit or query costs.
 
 ## Main results
 
-* `Cslib.Crypto.SLHDSA.XMSS.authenticationAddress_closed_form`: after `k` iterations the address
-  has type `TREE`, tree height `k`, tree index `⌊idx / 2^k⌋`, and the input layer and tree.
+* `Cslib.Crypto.SLHDSA.XMSS.authenticationAddress_eq_tree`: after `k` iterations the address is
+  the `TREE` address of the input layer and tree with tree height `k` and tree index
+  `⌊idx / 2^k⌋`.
 
 ## References
 
@@ -74,15 +76,6 @@ structure Signature (p : SecurityBytes) (shape : ParameterShape) where
 abbrev LeafIndex (p : SecurityBytes) (shape : ParameterShape) :=
   Fin (2 ^ ParameterShape.xmssHeight p shape)
 
-/-- Every standardized XMSS leaf index fits in a 32-bit address word. -/
-theorem two_pow_xmssHeight_le (p : SecurityBytes) (shape : ParameterShape) :
-    2 ^ ParameterShape.xmssHeight p shape ≤ 2 ^ 32 := by
-  cases p <;> cases shape <;> decide
-
-private theorem xmssHeight_lt (p : SecurityBytes) (shape : ParameterShape) :
-    ParameterShape.xmssHeight p shape < 2 ^ 32 := by
-  cases p <;> cases shape <;> decide
-
 /-- One iteration of the Algorithm 11 address updates: `setTreeHeight` (line 9), then
 `setTreeIndex` with the current index `i` replaced by `i / 2` when `even` holds (line 11) and by
 `(i - 1) / 2` otherwise (line 14). -/
@@ -100,7 +93,7 @@ private def stepAddress (current : Address) (height : AddressWord) (even : Prop)
 Lines 6--7 give the address before the loop: `setTypeAndClear(TREE)`, then `setTreeIndex(idx)`.
 Iteration `k` performs `setTreeHeight(k + 1)` (line 9) and then `setTreeIndex`, replacing the
 current tree index `i` by `i / 2` when `⌊idx / 2^k⌋` is even (line 11) and by `(i - 1) / 2`
-otherwise (line 14). `authenticationAddress_closed_form` gives every field of the result.
+otherwise (line 14). `authenticationAddress_eq_tree` gives the result as a `TREE` address.
 
 Line 6 is applied to the input address instead of the address left by lines 1--5. The two agree
 after line 6, because `setTypeAndClear` overwrites the address type and the three type-specific
@@ -109,39 +102,41 @@ def authenticationAddress {p : SecurityBytes} {shape : ParameterShape} (address 
     (idx : LeafIndex p shape) :
     (levels : ℕ) → levels ≤ ParameterShape.xmssHeight p shape → Address
   | 0, _ =>
-      (address.setTypeAndClear .tree).setTreeIndex (idx.castLE (two_pow_xmssHeight_le p shape))
+      (address.setTypeAndClear .tree).setTreeIndex
+        (idx.castLE (ParameterShape.two_pow_xmssHeight_le p shape))
   | levels + 1, hlevels =>
       stepAddress (authenticationAddress address idx levels (Nat.le_of_succ_le hlevels))
-        ⟨levels + 1, Nat.lt_of_le_of_lt hlevels (xmssHeight_lt p shape)⟩
+        ⟨levels + 1, hlevels.trans_lt
+          (Nat.lt_two_pow_self.trans_le (ParameterShape.two_pow_xmssHeight_le p shape))⟩
         (idx.val / 2 ^ levels % 2 = 0)
 
-/-- After `levels` iterations the Algorithm 11 address has type `TREE`, zero padding word, tree
-height `levels`, tree index `⌊idx / 2^levels⌋`, and the layer and tree address of the input. In
+/-- After `levels` iterations the Algorithm 11 address is the `TREE` address (FIPS 205, Figure 5)
+of the input's layer and tree with tree height `levels` and tree index `⌊idx / 2^levels⌋`. In
 particular the source's two index updates, `i / 2` and `(i - 1) / 2`, both halve the index. -/
-theorem authenticationAddress_closed_form {p : SecurityBytes} {shape : ParameterShape}
+theorem authenticationAddress_eq_tree {p : SecurityBytes} {shape : ParameterShape}
     (address : Address) (idx : LeafIndex p shape) (levels : ℕ)
     (hlevels : levels ≤ ParameterShape.xmssHeight p shape) :
-    (authenticationAddress address idx levels hlevels).addressType = .tree ∧
-      (authenticationAddress address idx levels hlevels).word5 = 0 ∧
-      (authenticationAddress address idx levels hlevels).word6.val = levels ∧
-      (authenticationAddress address idx levels hlevels).word7.val = idx.val / 2 ^ levels ∧
-      (authenticationAddress address idx levels hlevels).layerAddress = address.layerAddress ∧
-      (authenticationAddress address idx levels hlevels).treeAddress = address.treeAddress := by
+    authenticationAddress address idx levels hlevels =
+      Address.tree address.layerAddress address.treeAddress
+        ⟨levels, hlevels.trans_lt
+          (Nat.lt_two_pow_self.trans_le (ParameterShape.two_pow_xmssHeight_le p shape))⟩
+        ⟨idx.val / 2 ^ levels, (Nat.div_le_self _ _).trans_lt
+          (idx.isLt.trans_le (ParameterShape.two_pow_xmssHeight_le p shape))⟩ := by
   induction levels with
   | zero =>
-      exact ⟨rfl, rfl, rfl, Eq.trans (b := idx.val) rfl (by rw [Nat.pow_zero, Nat.div_one]),
-        rfl, rfl⟩
+      exact Address.ext rfl rfl rfl rfl rfl (Fin.ext (Nat.div_one idx.val).symm)
   | succ levels ih =>
-      obtain ⟨htype, hpadding, -, hindex, hlayer, htree⟩ := ih (Nat.le_of_succ_le hlevels)
-      refine ⟨htype, hpadding, rfl, ?_, hlayer, htree⟩
       have hhalf : idx.val / 2 ^ (levels + 1) = idx.val / 2 ^ levels / 2 := by
         rw [Nat.pow_succ, Nat.div_div_eq_div_mul]
-      rw [hhalf, ← hindex]
+      change stepAddress (authenticationAddress address idx levels _) _ _ = _
+      rw [ih (Nat.le_of_succ_le hlevels)]
+      refine Address.ext rfl rfl rfl rfl rfl (Fin.ext ?_)
       by_cases heven : idx.val / 2 ^ levels % 2 = 0
-      · exact congrArg Fin.val (ite_eq_left heven)
+      · exact (congrArg Fin.val (ite_eq_left heven)).trans hhalf.symm
       · refine (congrArg Fin.val (ite_eq_right heven)).trans ?_
-        rw [← hindex] at heven
-        change ((authenticationAddress address idx levels _).word7.val - 1) / 2 = _
+        change (idx.val / 2 ^ levels - 1) / 2 = idx.val / 2 ^ (levels + 1)
+        rw [hhalf]
+        generalize idx.val / 2 ^ levels = i at heven ⊢
         omega
 
 /-- The node `node[0]` of FIPS 205 Algorithm 11 after `levels` iterations of its loop, starting
@@ -206,7 +201,7 @@ def xmssPkFromSig (family : HashFamily) {p : SecurityBytes} {shape : ParameterSh
   authenticationNode family idx sig.authentication publicSeed address
     (WOTS.wotsPkFromSig family sig.wots M publicSeed
       ((address.setTypeAndClear .wotsHash).setKeyPairAddress
-        (idx.castLE (two_pow_xmssHeight_le p shape))))
+        (idx.castLE (ParameterShape.two_pow_xmssHeight_le p shape))))
     (ParameterShape.xmssHeight p shape) (Nat.le_refl _)
 
 /-- Algorithm 11 is the full authentication loop started from the Algorithm 8 public key of leaf
@@ -218,7 +213,7 @@ theorem xmssPkFromSig_eq (family : HashFamily) {p : SecurityBytes} {shape : Para
       authenticationNode family idx sig.authentication publicSeed address
         (WOTS.wotsPkFromSig family sig.wots M publicSeed
           ((address.setTypeAndClear .wotsHash).setKeyPairAddress
-            (idx.castLE (two_pow_xmssHeight_le p shape))))
+            (idx.castLE (ParameterShape.two_pow_xmssHeight_le p shape))))
         (ParameterShape.xmssHeight p shape) (Nat.le_refl _) :=
   (rfl)
 

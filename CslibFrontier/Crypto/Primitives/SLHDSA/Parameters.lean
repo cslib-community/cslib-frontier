@@ -136,6 +136,12 @@ theorem totalHeight_eq_layers_mul_xmssHeight (p : SecurityBytes) (shape : Parame
     totalHeight p shape = layers p shape * xmssHeight p shape := by
   cases p <;> cases shape <;> decide
 
+/-- Every standardized XMSS tree has at most `2^32` leaves, so a leaf index fits in one 32-bit
+address word. -/
+theorem two_pow_xmssHeight_le (p : SecurityBytes) (shape : ParameterShape) :
+    2 ^ xmssHeight p shape ≤ 2 ^ 32 := by
+  cases p <;> cases shape <;> decide
+
 end ParameterShape
 
 end Cslib.Crypto.SLHDSA

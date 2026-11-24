@@ -31,15 +31,6 @@ namespace SLHDSAXMSSPublicKeyTests
 
 open Cslib.Crypto Cslib.Crypto.SLHDSA Cslib.Crypto.SLHDSA.XMSS
 
-/-! ### Standardized tree heights (FIPS 205, Table 2) -/
-
-example : ParameterShape.xmssHeight .bytes16 .small = 9 := rfl
-example : ParameterShape.xmssHeight .bytes16 .fast = 3 := rfl
-example : ParameterShape.xmssHeight .bytes24 .small = 9 := rfl
-example : ParameterShape.xmssHeight .bytes24 .fast = 3 := rfl
-example : ParameterShape.xmssHeight .bytes32 .small = 8 := rfl
-example : ParameterShape.xmssHeight .bytes32 .fast = 4 := rfl
-
 /-! ### The address after each iteration -/
 
 /-- An input address in layer 3 whose type and three type-specific words Algorithm 11 must
@@ -53,25 +44,15 @@ private def indexFive : LeafIndex .bytes16 .fast := ⟨5, by decide⟩
 private def treeAddress (height index : AddressWord) : Address :=
   Address.tree 3 0x0102030405060708 height index
 
-/-- A client turns the closed form into an equation between addresses. -/
-private theorem authenticationAddress_indexFive (levels : ℕ) (hlevels : levels ≤ 3)
-    (height index : AddressWord) (hheight : height.val = levels)
-    (hindex : index.val = 5 / 2 ^ levels) :
-    authenticationAddress inputAddress indexFive levels hlevels = treeAddress height index := by
-  obtain ⟨htype, hpadding, hheight', hindex', hlayer, htree⟩ :=
-    authenticationAddress_closed_form inputAddress indexFive levels hlevels
-  exact Address.ext hlayer htree htype hpadding (Fin.ext (hheight'.trans hheight.symm))
-    (Fin.ext (hindex'.trans hindex.symm))
-
 /-- Leaf index `5` climbs through tree indices `5`, `2`, `1` and `0`. -/
 example : authenticationAddress inputAddress indexFive 0 (by decide) = treeAddress 0 5 :=
-  authenticationAddress_indexFive 0 (by decide) 0 5 rfl rfl
+  authenticationAddress_eq_tree inputAddress indexFive 0 (by decide)
 example : authenticationAddress inputAddress indexFive 1 (by decide) = treeAddress 1 2 :=
-  authenticationAddress_indexFive 1 (by decide) 1 2 rfl rfl
+  authenticationAddress_eq_tree inputAddress indexFive 1 (by decide)
 example : authenticationAddress inputAddress indexFive 2 (by decide) = treeAddress 2 1 :=
-  authenticationAddress_indexFive 2 (by decide) 2 1 rfl rfl
+  authenticationAddress_eq_tree inputAddress indexFive 2 (by decide)
 example : authenticationAddress inputAddress indexFive 3 (by decide) = treeAddress 3 0 :=
-  authenticationAddress_indexFive 3 (by decide) 3 0 rfl rfl
+  authenticationAddress_eq_tree inputAddress indexFive 3 (by decide)
 
 /-! ### Algorithm 11 unrolled -/
 
@@ -95,9 +76,8 @@ example (family : HashFamily) (sig : Signature .bytes16 .fast) (M : WOTS.Message
   change authenticationNode family indexFive sig.authentication publicSeed inputAddress _ 3
     (by decide) = _
   rw [authenticationNode_succ, authenticationNode_succ, authenticationNode_succ,
-    authenticationNode_zero, authenticationAddress_indexFive 1 (by decide) 1 2 rfl rfl,
-    authenticationAddress_indexFive 2 (by decide) 2 1 rfl rfl,
-    authenticationAddress_indexFive 3 (by decide) 3 0 rfl rfl]
+    authenticationNode_zero, authenticationAddress_eq_tree, authenticationAddress_eq_tree,
+    authenticationAddress_eq_tree]
   rfl
 
 end SLHDSAXMSSPublicKeyTests
