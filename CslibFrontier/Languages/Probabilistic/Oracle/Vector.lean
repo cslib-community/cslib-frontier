@@ -186,19 +186,13 @@ theorem length_transcript_replicate {State : Type}
     transcript.length = k * q := by
   induction k generalizing s s' results transcript with
   | zero =>
-    simp only [OracleComp.replicate_zero, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
-      Prod.mk.injEq] at hmem
-    rcases hmem with ⟨-, -, rfl⟩
+    supp_cases hmem [OracleComp.replicate_zero, runWith_norm]
     simp
   | succ k ih =>
-    simp only [OracleComp.replicate_succ, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-      PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-    obtain ⟨⟨first, s₁, seen⟩, hfirst, ⟨rest, s₂, total⟩, hrest, heq⟩ := hmem
-    simp only [Prod.map, id_eq, Prod.mk.injEq] at heq
-    rcases heq with ⟨-, rfl, rfl⟩
-    rw [ProbOracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
-    obtain ⟨⟨rest', final, fresh⟩, hfresh, hrest_eq⟩ := hrest
-    cases hrest_eq
+    supp_cases hmem [OracleComp.replicate_succ, runWith_norm] with
+      ⟨⟨first, s₁, seen⟩, hfirst, ⟨rest, s₂, total⟩, hrest, -, rfl, rfl⟩
+    rw [ProbOracleComp.run_interpret_withTranscript_append] at hrest
+    supp_cases hrest with ⟨⟨rest', final, fresh⟩, hfresh, rfl, rfl, rfl⟩
     have h1 := hq hfirst
     have h2 := ih hfresh
     simp [h1, h2, Nat.succ_mul, Nat.add_comm]
