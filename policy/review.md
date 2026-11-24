@@ -19,8 +19,9 @@ and any representation bridge. Compilation alone does not check placement or dup
 Check new and changed statements against
 [Structures for domain objects and records](statements.md#structures-for-domain-objects-and-records),
 [Encodings in statements](statements.md#encodings-in-statements) and
-[Running-time claims](statements.md#running-time-claims); a PR that adds a `TimeM` import,
-declaration or `time_simps`/`time_spec` extension is blocked.
+[Running-time claims](statements.md#running-time-claims); a PR with any `TimeM` import or use,
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` import, tick/tactic extension (`✓`, `time_simps`,
+`time_spec`), or replacement hand-charged cost monad is blocked.
 Read new and changed proofs against the rest of their file and nearby modules, not only the diff:
 a new copy of an argument the library already makes is a finding when the
 [library quality standard](../CONTRIBUTING.md#library-quality-standard) says a shared lemma pays.
