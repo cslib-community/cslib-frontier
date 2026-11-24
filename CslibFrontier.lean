@@ -6724,6 +6724,14 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.M
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.Arena
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.CompParams
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.EpochParams
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.HashCore
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.HashParams
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.Primitives
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.Scales
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.TargetCap
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.StreamStep
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Params
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
