@@ -49,15 +49,15 @@ unary numbers, as well as bounded-count batch evaluation (`map_range_const`, `ma
 * `Turing.MultiTapeTM.ComputableInLogSpace.listSingleton`, `.listCons`, `.listAppend`,
   `.listHeadD`, `.listLength`: framed-list operations.
 * `Turing.MultiTapeTM.ComputableInLogSpace.bitsAppend`, `.bitsHeadD`, `.bitsMap`, `.bitsFoldl`,
-  `.bitsAll`, `.bitsAny`: bit-word operations.
+  `.bitsAll`, `.bitsAny`, `.bitsReplicate`: bit-word operations.
 * `Turing.MultiTapeTM.ComputableInLogSpace.unaryAdd`, `.unaryMulConst`, `.unaryLeConst`,
   `.unaryBoundedMap`: unary-number operations.
 * `Turing.MultiTapeTM.ComputableInLogSpace.map_range_const`, `.map_range_of_le`,
   `.mapToBits_range_const`, `.mapToBits_range_of_le`: bounded-count batch evaluation.
-* `Turing.MultiTapeTM.ComputableInLogSpace.fst'`, `.snd'`, `.bool_and`, `.bool_or`,
-  `.ite_decide`: projections of a computed pair, Boolean connectives and case distinctions on
-  decidable propositions, in the form used by `fun_prop`, with which the closure rules and word
-  operations above are registered.
+* `Turing.MultiTapeTM.ComputableInLogSpace.encoding_comp`, `.frame`, `.unframe`, `.fst'`, `.snd'`,
+  `.bool_and`, `.bool_or`, `.ite_decide`: raw encoding views, framing, projections of a computed
+  pair, Boolean connectives and case distinctions on decidable propositions, in the form used by
+  `fun_prop`, with which the closure rules and word operations above are registered.
 
 ## References
 
@@ -489,6 +489,33 @@ theorem mapToBits_range_of_le (k : ℕ) {r : α → ℕ} {f : α × ℕ → Bool
 The closure rules for pairing, projections and case distinctions, and the word operations, are
 registered with `fun_prop`. Projections are stated for a computed pair, so the pair certificate
 fixes the encodings of the components. -/
+
+/-- Return the encoded word of an already computed value. -/
+@[fun_prop]
+theorem encoding_comp {f : α → β} (hf : ComputableInLogSpace f encIn encOut) :
+    ComputableInLogSpace (fun a => encOut (f a)) encIn encBits :=
+  hf.congr fun _ => rfl
+
+/-- Frame a raw bit word in logarithmic space. -/
+@[fun_prop]
+theorem frame : ComputableInLogSpace Turing.MultiTapeTM.frame encBits encBits :=
+  of_frame fun _ => rfl
+
+/-- Read the first framed word of a raw bit word in logarithmic space. -/
+@[fun_prop]
+theorem unframe : ComputableInLogSpace Turing.MultiTapeTM.unframe encBits encBits :=
+  of_unframe fun _ => rfl
+
+/-- Repeat a computed bit a computed unary number of times in logarithmic space. -/
+@[fun_prop]
+theorem bitsReplicate {n : α → ℕ} {b : α → Bool}
+    (hn : ComputableInLogSpace n encIn encUnary) (hb : ComputableInLogSpace b encIn encBool) :
+    ComputableInLogSpace (fun a => List.replicate (n a) (b a)) encIn encBits := by
+  refine (ite hb ((of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl).comp hn)
+    (((bitsMap fun _ => false).comp
+      (of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl)).comp hn)).congr_fun
+    fun a => ?_
+  cases b a <;> simp [Function.comp_apply]
 
 /-- The first component of a computed pair, in the form used by `fun_prop`. -/
 @[fun_prop]

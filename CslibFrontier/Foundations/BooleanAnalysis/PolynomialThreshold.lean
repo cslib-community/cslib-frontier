@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Fourier
+public import CslibFrontier.Foundations.Data.BitString.Threshold
+import CslibFrontier.Foundations.BooleanAnalysis.Degree
+import CslibFrontier.Foundations.BooleanAnalysis.Symmetrization
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -36,6 +39,14 @@ determined, among all Boolean functions, by its Fourier coefficients on `T` (**C
 [O'Donnell, Theorems 5.1 and 5.8][ODonnell2014] (`BitString.IsPTF.eq_of_fourierCoeff_eq`); for a
 general family it is a generalization that uses the absence of zeros.
 
+The threshold function `Th^n_j`, and with it majority, AND, OR and the constants, is the sign of
+`j - 1 / 2 - weight x`, so it is a linear threshold function (`BitString.isPTF_one_threshold`);
+so is each literal `±χᵢ` (`BitString.isPTF_one_xor`) [O'Donnell, Exercise 2.2][ODonnell2014].
+Composing with `w ↦ z + w ∘ π`, which negates the inputs selected by `z` and identifies those
+with the same image under `π`, keeps every output bit of degree at most one, so it preserves
+polynomial threshold functions of degree at most `k` (`BitString.IsPTF.comp_add_comp`), in
+particular linear threshold functions [O'Donnell, Section 5.5][ODonnell2014].
+
 If `F p ≥ 0` everywhere for some nonzero `p` with Fourier coefficients vanishing outside `T`, then
 comparing `𝔼 |p| = ∑_{S ∈ T} F̂(S) p̂(S)` with `|p̂(S)| ≤ 𝔼 |p|` shows that the Fourier coefficients
 of `F` on `T` have absolute values summing to at least one
@@ -56,6 +67,11 @@ sets is `BitString.one_le_sum_abs_fourierCoeff_signVal`.
 * `Cslib.BitString.isPTFOn_of_fourierCoeff_eq_zero`, `Cslib.BitString.isPTF_card`: a Boolean
   function whose coefficients vanish outside `T` is a polynomial threshold function over `T`, so
   every Boolean function on `n` coordinates has degree at most `n`.
+* `Cslib.BitString.isPTF_one_threshold`, `Cslib.BitString.isPTF_one_xor`: threshold functions,
+  among them majority, AND, OR and the constants, and the literals `±χᵢ` are linear threshold
+  functions.
+* `Cslib.BitString.IsPTF.comp_add_comp`: negating and identifying input variables preserves
+  polynomial threshold functions of degree at most `k`.
 * `Cslib.BitString.IsPTFOn.eq_of_fourierCoeff_eq`, `Cslib.BitString.IsPTF.eq_of_fourierCoeff_eq`:
   Chow's theorem.
 * `Cslib.BitString.one_le_sum_abs_fourierCoeff_of_nonneg_mul`,
@@ -125,11 +141,63 @@ theorem IsPTFOn.not {T : Finset (Finset ι)} {f : (ι → Bool) → Bool} (hf : 
   · rw [signVal_not, neg_mul_neg]
     exact hp x
 
+/-- **Negating and identifying input variables preserves polynomial threshold functions**: if `f`
+is a polynomial threshold function of degree at most `k`, then so is `w ↦ f (z + w ∘ π)` for every
+string `z` of negations and every map `π` of the coordinates of `f` to those of `w`
+[O'Donnell, Section 5.5][ODonnell2014]. Its polynomial is `p` composed with the same map, each
+of whose output bits has degree at most one. -/
+theorem IsPTF.comp_add_comp {κ : Type*} [Fintype κ] [DecidableEq κ] {k : ℕ}
+    {f : (ι → Bool) → Bool} (hf : IsPTF k f) (z : ι → Bool) (π : ι → κ) :
+    IsPTF k fun w : κ → Bool => f (z + fun i => w (π i)) := by
+  obtain ⟨p, hpdeg, hp⟩ := isPTF_iff.1 hf
+  refine isPTF_iff.2 ⟨fun w => p (z + fun i => w (π i)), fun S hS => ?_, fun w => hp _⟩
+  refine fourierCoeff_eq_zero_of_mem_lowDegree (comp_mem_lowDegree (fun i => ?_) ?_) hS
+  · have h (w : κ → Bool) : (z + fun i => w (π i)) i = (z i ^^ w (π i)) := by
+      rw [Pi.add_apply, Bool.add_eq_xor]
+    simp only [h]
+    cases z i
+    · simpa only [Bool.false_xor] using bitVal_mem_lowDegree (R := ℝ) (π i)
+    · have h₁ : (fun w : κ → Bool => bitVal ℝ (true ^^ w (π i))) =
+          1 - fun w : κ → Bool => bitVal ℝ (w (π i)) := by
+        funext w
+        rw [Bool.true_xor, bitVal_not, Pi.sub_apply, Pi.one_apply]
+      rw [h₁]
+      exact one_sub_mem_lowDegree (bitVal_mem_lowDegree (π i))
+  · exact mem_lowDegree_iff_fourierCoeff_eq_zero.2 hpdeg
+
+/-- **Threshold functions are linear threshold functions**: `Th^n_j` holds exactly when
+`j - 1 / 2 - weight x` is negative, and the weight has degree one. This covers majority
+(`majority n = Th^n_⌈n/2⌉`), AND (`threshold n n`), OR (`threshold n 1`) and the constants
+(`threshold n 0` and `threshold n (n + 1)`) among the examples of
+[O'Donnell, Exercise 2.2][ODonnell2014]; the literals are `BitString.isPTF_one_xor`. -/
+theorem isPTF_one_threshold (n j : ℕ) : IsPTF 1 (threshold n j) := by
+  refine isPTF_iff.2 ⟨fun x => (j : ℝ) - 1 / 2 - weight x, fun S hS => ?_, fun x => ?_⟩
+  · exact fourierCoeff_eq_zero_of_mem_lowDegree
+      (sub_mem (const_mem_lowDegree 1 _) weight_mem_lowDegree) hS
+  · rw [threshold_apply]
+    by_cases h : j ≤ weight x
+    · have : (j : ℝ) ≤ weight x := by exact_mod_cast h
+      simp only [h, decide_true, signVal_true]
+      linarith
+    · have : (weight x : ℝ) + 1 ≤ j := by exact_mod_cast (by omega : weight x + 1 ≤ j)
+      simp only [h, decide_false, signVal_false]
+      linarith
+
 /-- A Boolean function whose Fourier coefficients, read as signs, vanish outside `T` is a
 polynomial threshold function over `T`: the sign of itself. -/
 theorem isPTFOn_of_fourierCoeff_eq_zero {T : Finset (Finset ι)} {f : (ι → Bool) → Bool}
     (h : ∀ S ∉ T, fourierCoeff (fun x => signVal (f x)) S = 0) : IsPTFOn T f :=
   ⟨_, h, fun x => by rw [signVal_mul_self]; exact one_pos⟩
+
+/-- **Literals are linear threshold functions**: `x ↦ b ⊕ x_i`, read as signs, is `±χ_i`, which
+has degree one, so it is the sign of itself. With `BitString.isPTF_one_threshold` this covers all
+the examples of [O'Donnell, Exercise 2.2][ODonnell2014]. -/
+theorem isPTF_one_xor (b : Bool) (i : ι) : IsPTF 1 fun x => b ^^ x i :=
+  isPTFOn_of_fourierCoeff_eq_zero fun S hS => by
+    rw [fourierCoeff_signVal_xor]
+    refine ite_eq_right_iff.2 fun h => absurd ?_ hS
+    subst h
+    exact mem_filter.2 ⟨mem_univ _, (card_singleton i).le⟩
 
 /-- Every Boolean function on `n` coordinates is a polynomial threshold function of degree at
 most `n` [O'Donnell, Section 5.1, after Example 5.5][ODonnell2014]. -/
@@ -192,8 +260,6 @@ theorem one_le_sum_abs_fourierCoeff_of_nonneg_mul {T : Finset (Finset ι)}
   obtain ⟨x₀, hx₀⟩ := Function.ne_iff.1 hp₀
   have hpos : 0 < 𝔼 x, |p x| :=
     expect_pos' (fun x _ => abs_nonneg _) ⟨x₀, mem_univ x₀, abs_pos.2 hx₀⟩
-  have hcoeff (S : Finset ι) : |fourierCoeff p S| ≤ 𝔼 x, |p x| :=
-    (abs_expect_le _ _).trans_eq (by simp only [abs_mul, abs_chi, mul_one])
   have key : 𝔼 x, |p x| ≤ (∑ S ∈ T, |fourierCoeff (fun x => signVal (f x)) S|) * 𝔼 x, |p x| :=
     calc 𝔼 x, |p x| = 𝔼 x, signVal (f x) * p x :=
           expect_congr rfl fun x _ => (signVal_mul_eq_abs hp x).symm
@@ -201,7 +267,7 @@ theorem one_le_sum_abs_fourierCoeff_of_nonneg_mul {T : Finset (Finset ι)}
           expect_mul_eq_sum_of_fourierCoeff_eq_zero hpT _
       _ ≤ ∑ S ∈ T, |fourierCoeff (fun x => signVal (f x)) S| * 𝔼 x, |p x| :=
           sum_le_sum fun S _ => (le_abs_self _).trans <| (abs_mul _ _).trans_le <|
-            mul_le_mul_of_nonneg_left (hcoeff S) (abs_nonneg _)
+            mul_le_mul_of_nonneg_left (abs_fourierCoeff_le_expect_abs p S) (abs_nonneg _)
       _ = (∑ S ∈ T, |fourierCoeff (fun x => signVal (f x)) S|) * 𝔼 x, |p x| := (sum_mul ..).symm
   exact le_of_mul_le_mul_right (by rwa [one_mul]) hpos
 

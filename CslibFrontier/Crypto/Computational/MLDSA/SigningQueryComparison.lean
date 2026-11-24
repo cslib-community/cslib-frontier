@@ -9,11 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
+-- Reads private `Address`, `addressLaw`, `actualAddress`, `addressRead`, and `differs`.
 import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Languages.Probabilistic.Presample
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.Hellinger
 import CslibFrontier.Foundations.Quantum.POVM.Mixture
 import CslibFrontier.Foundations.Quantum.Measurement.Classical

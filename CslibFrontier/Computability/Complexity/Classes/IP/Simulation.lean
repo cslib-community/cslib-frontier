@@ -90,11 +90,12 @@ def instruction (cfg : MultiTapeMachine.FiniteConfig k Bool Control Operation) (
 stop when the history is exhausted or sends another message. -/
 def answerFromHistory (t : ℕ) (op : Operation) (next : Control)
     (s : AliveState k Control Operation Entry) : AliveState k Control Operation Entry :=
-  if s.2.1.isEmpty then (s.1, s.2.1, false)
-  else if matchOp op (s.2.1.headD default) &&
-      (entryPair (s.2.1.headD default)).1 == (s.1.channels op).1 then
-    (s.1.receive op next ((entryPair (s.2.1.headD default)).2.take t), s.2.1.tail, true)
-  else (s.1, s.2.1, false)
+  let ⟨cfg, rest, _⟩ := s
+  if rest.isEmpty then (cfg, rest, false)
+  else if matchOp op (rest.headD default) &&
+      (entryPair (rest.headD default)).1 == (cfg.channels op).1 then
+    (cfg.receive op next ((entryPair (rest.headD default)).2.take t), rest.tail, true)
+  else (cfg, rest, false)
 
 /-- The live replay step by its liveness and instruction. -/
 def taggedStep (t : ℕ) :
@@ -102,13 +103,16 @@ def taggedStep (t : ℕ) :
       AliveState k Control Operation Entry → AliveState k Control Operation Entry
   | (false, _), s => s
   | (true, none), s => s
-  | (true, some (.step action symbol move)), s => (s.1.step action symbol move, s.2.1, true)
+  | (true, some (.step action symbol move)), s =>
+    let ⟨cfg, rest, _⟩ := s
+    (cfg.step action symbol move, rest, true)
   | (true, some (.query op next)), s => answerFromHistory matchOp entryPair t op next s
 
 /-- One instruction of a live replay: `taggedStep` dispatched by liveness and `instruction`. -/
 def aliveStep (t : ℕ) (s : AliveState k Control Operation Entry) (b : Bool) :
     AliveState k Control Operation Entry :=
-  taggedStep matchOp entryPair t (s.2.2, instruction M s.1 b) s
+  let ⟨cfg, _, live⟩ := s
+  taggedStep matchOp entryPair t (live, instruction M cfg b) s
 
 /-- The live replay of `M` on the input `x` with the coins `r` against the history `h`, its replies
 truncated to the number of coins. -/
@@ -119,8 +123,8 @@ def aliveRun (x r : List Bool) (h : List Entry) : AliveState k Control Operation
 /-- Whether the program of the coins `r` accepts after the history `h`: the replay is live, has
 consumed the whole history and has output `[true]`. -/
 def accepts (x r : List Bool) (h : List Entry) : Bool :=
-  (aliveRun matchOp entryPair M x r h).2.2 && (aliveRun matchOp entryPair M x r h).2.1.isEmpty &&
-    decide ((aliveRun matchOp entryPair M x r h).1.tapes.output = [true])
+  let ⟨cfg, rest, live⟩ := aliveRun matchOp entryPair M x r h
+  live && rest.isEmpty && decide (cfg.tapes.output = [true])
 
 theorem aliveStep_of_false (t : ℕ)
     (cfg : MultiTapeMachine.FiniteConfig k Bool Control Operation) (h : List Entry) (b : Bool) :
@@ -441,7 +445,9 @@ variable {α : Type} (MUnit : MultiTapePTM k Bool Control Unit) (enc : α ↪ Li
 coins one after another with a binary counter (`Cslib.Complexity.streamAcceptCount`). -/
 def countAccepts (q : α × History) : ℕ :=
   streamAcceptCount
-    (fun p : (α × History) × List Bool => accepts (fun _ _ => true) id MUnit (enc p.1.1) p.2 p.1.2)
+    (fun p : (α × History) × List Bool =>
+      let ⟨⟨a, h⟩, r⟩ := p
+      accepts (fun _ _ => true) id MUnit (enc a) r h)
     q (fuel q.1)
 
 /-- **The count of accepting coins**: `countAccepts` is the number of coin values of `fuel a` coins

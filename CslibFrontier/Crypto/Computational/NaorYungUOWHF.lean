@@ -21,11 +21,12 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
-import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
 import CslibFrontier.Probability.PMF.Finiteness
 import CslibFrontier.Crypto.Game.Order
@@ -625,36 +626,10 @@ theorem computableInPolyTime_naorYungCascadeInput
       (ComputableInPolyTime.bitsGetDWithInput htail hi false)
       (ComputableInPolyTime.const []))
 
-private theorem listRow_lt_take {width count j : ℕ} (hj : j < count) (word : List Bool) :
-    BitString.listRow width j (word.take (count * width)) = BitString.listRow width j word := by
-  apply List.ext_getElem (by simp)
-  intro col h₁ h₂
-  have hcol : col < width := by simpa only [BitString.length_listRow] using h₁
-  rw [BitString.getElem_listRow hcol, BitString.getElem_listRow hcol]
-  have hidx_lt : j * width + col < count * width := by
-    calc
-      j * width + col < j * width + width := by omega
-      _ = (j + 1) * width := by ring
-      _ ≤ count * width := Nat.mul_le_mul_right width (by omega)
-  by_cases hlt : j * width + col < word.length
-  · have hlt_take : j * width + col < (word.take (count * width)).length := by
-      rw [List.length_take]; omega
-    rw [List.getD_eq_getElem _ _ hlt_take, List.getD_eq_getElem _ _ hlt, List.getElem_take]
-  · have hge_w : word.length ≤ j * width + col := by omega
-    have hge_take : (word.take (count * width)).length ≤ j * width + col := by
-      rw [List.length_take]; omega
-    rw [List.getD_eq_default _ _ hge_take, List.getD_eq_default _ _ hge_w]
-
 theorem naorYungCascadeInput_take_eq (f : List Bool → List Bool) {n i : ℕ}
     (K x : List Bool) :
     naorYungCascadeInput f n i (K.take (i * (n + 2))) x = naorYungCascadeInput f n i K x := by
-  have hrows :
-      BitString.listRows i (n + 2) (K.take (i * (n + 2))) = BitString.listRows i (n + 2) K := by
-    unfold BitString.listRows
-    apply List.map_congr_left
-    intro j hj
-    exact listRow_lt_take (List.mem_range.mp hj) K
-  simp only [naorYungCascadeInput, hrows]
+  simp only [naorYungCascadeInput, BitString.listRows_take]
 
 private theorem eq_listRow_zero_append_one {M : ℕ} {x : List Bool} (hx : x.length = 2 * M) :
     BitString.listRow M 0 x ++ BitString.listRow M 1 x = x := by
@@ -1028,18 +1003,10 @@ theorem OneWayPermutation.targetCollisionResistant_naorYungCompression
     (naorYungCompression hf.oneWay.polyTime).TargetCollisionResistant := by
   apply TargetCollisionResistantOn.of_negligible
   intro adversary hadversary
-  have hstep_tcr := hf.targetCollisionResistantOn_naorYungStep
-  have hredPPT : (naorYungCascadeAdversary f adversary).IsPPT :=
-    isPPT_naorYungCascadeAdversary hf.oneWay.polyTime hadversary
-  have hloss_pb : PolynomiallyBounded (fun n => dyadicSize (n + 1)) :=
-    (ComputableInPolyTime.unary_dyadicSize.comp
-      (ComputableInPolyTime.unary_add.comp
-        (ComputableInPolyTime.id'.prod (.const 1)))).polynomiallyBounded
-  refine negligible_of_le
-    ((hstep_tcr.negligible (naorYungCascadeAdversary f adversary) hredPPT).polynomiallyBounded_mul
-      hloss_pb)
-    fun n => ?_
-  exact succProbability_targetCollisionGame_naorYungCompressionEval_le adversary n
+  have hneg := hf.targetCollisionResistantOn_naorYungStep.negligible
+    (naorYungCascadeAdversary f adversary)
+    (isPPT_naorYungCascadeAdversary hf.oneWay.polyTime hadversary)
+  negligible using succProbability_targetCollisionGame_naorYungCompressionEval_le adversary
 
 /-- **Naor–Yung unrestricted `KeyedHashFamily`** ([NaorYung1989], 1995 revision, Sections 2.3 and
 3): hashes arbitrary-length bit strings `List Bool` to `(n + 1)`-bit digests under

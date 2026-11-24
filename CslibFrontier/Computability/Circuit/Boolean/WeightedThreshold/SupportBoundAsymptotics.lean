@@ -138,12 +138,10 @@ private theorem eventually_lt_of_three_support_bounds {k : ℕ → ℕ}
       exact_mod_cast Nat.mul_log_le_add_sq Nat.one_lt_two m (n + q)
     have hDlog : D * (Nat.log 2 (n + q) : ℝ) ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) :=
       calc D * (Nat.log 2 (n + q) : ℝ)
-          ≤ ((ε / 4) * m) * (Nat.log 2 (n + q) : ℝ) :=
-            mul_le_mul_of_nonneg_right hDm (Nat.cast_nonneg _)
+          ≤ ((ε / 4) * m) * (Nat.log 2 (n + q) : ℝ) := by gcongr
         _ = (ε / 4) * ((m : ℝ) * Nat.log 2 (n + q)) := mul_assoc _ _ _
         _ ≤ (ε / 4) * ((n : ℝ) + q + (m * m : ℕ)) := by gcongr
-        _ ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) :=
-            mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+        _ ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) := by gcongr; linarith
     dsimp only [B] at hconstant
     linarith
   dsimp only [D] at hlog

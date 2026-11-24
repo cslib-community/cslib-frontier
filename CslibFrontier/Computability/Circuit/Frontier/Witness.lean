@@ -13,6 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Foundations.Data.BitString.Agree
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Order.Interval.Finset.Nat
@@ -400,8 +401,7 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
           refine mul_lt_of_lt_one_left (by positivity) ?_
           refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans_lt ?_
           rw [← exp_add, exp_lt_one_iff]
-          push_cast
-          linarith
+          cast_linarith
   by_contra! h
   have huniv : bad = Finset.univ := eq_univ_of_forall fun f => by simp [bad, h]
   rw [huniv, card_univ, Fintype.card_fun, Fintype.card_bool] at hcount
@@ -413,26 +413,20 @@ end RectangleBias
 /-! ### Families meeting the hypotheses of the frontier lower bounds -/
 
 /-- `log (n + c) = o(n)`. -/
-private theorem isLittleO_log_add (c : ℝ) :
+theorem isLittleO_log_add (c : ℝ) :
     (fun n : ℕ => Real.log ((n : ℝ) + c)) =o[atTop] fun n => (n : ℝ) := by
   have h : Tendsto (fun n : ℕ => (n : ℝ) + c) atTop atTop :=
     tendsto_atTop_add_const_right _ c tendsto_natCast_atTop_atTop
   exact (isLittleO_log_id_atTop.comp_tendsto h).trans_isBigO
     ((isBigO_refl _ _).add (isLittleO_const_id_atTop c).natCast_atTop.isBigO)
 
-/-- **The hypotheses of the worst-case frontier lower bounds can be met.** There is a family of
-sets `S_n ⊆ Bool^n` that are `(n + 2)`-rectangle-free, with `log (n + 2) = o(n)` and
-`n log 2 - log |S_n| = o(n)`: the three fields of `DenseRectangleFree`, the hypothesis of
-`CircuitLowerBound`, for the alphabet `Bool` and `K_n = n + 2`. Moreover `|S_n| ≥ 2 ^ (n - 1)`. -/
-theorem exists_rectangleFree_family :
-    ∃ S : ∀ n, Set (Fin n → Bool), (∀ᶠ n in atTop, RectangleFree (S n) (n + 2)) ∧
-      (fun n : ℕ => Real.log ((n + 2 : ℕ) : ℝ)) =o[atTop] (fun n => (n : ℝ)) ∧
-      (fun n => n * Real.log (Nat.card Bool) - Real.log (S n).ncard) =o[atTop]
-        (fun n => (n : ℝ)) ∧ ∀ n, 2 ^ (n - 1) ≤ (S n).ncard := by
-  choose S hfree hdense using fun n : ℕ => exists_rectangleFree_two_pow_le_ncard (ι := Fin n)
-  simp only [Fintype.card_fin] at hfree hdense
-  refine ⟨S, Eventually.of_forall hfree, ?_, ?_, hdense⟩
-  · simpa only [Nat.cast_add, Nat.cast_ofNat] using isLittleO_log_add 2
+/-- Any family `S : ∀ n, Set (Fin n → Bool)` covering at least half of the Boolean cube
+(`2 ^ (n - 1) ≤ (S n).ncard`) has sublinear logarithmic density deficit
+`n * log |Bool| - log |S_n| = o(n)`. -/
+theorem isLittleO_deficit_of_two_pow_le_ncard {S : ∀ n, Set (Fin n → Bool)}
+    (hdense : ∀ n, 2 ^ (n - 1) ≤ (S n).ncard) :
+    (fun n => n * Real.log (Nat.card Bool) - Real.log (S n).ncard) =o[atTop]
+      fun n => (n : ℝ) := by
   -- `n log 2 - log |S_n|` lies between `0` and `log 2`.
   refine (IsBigO.of_bound (Real.log 2) (Eventually.of_forall fun n => ?_)).trans_isLittleO
     (isLittleO_const_id_atTop (1 : ℝ)).natCast_atTop
@@ -456,6 +450,20 @@ theorem exists_rectangleFree_family :
   rw [Nat.card_eq_fintype_card, Fintype.card_bool, Nat.cast_ofNat, Real.norm_eq_abs, norm_one,
     mul_one, abs_le]
   constructor <;> linarith
+
+/-- **The hypotheses of the worst-case frontier lower bounds can be met.** There is a family of
+sets `S_n ⊆ Bool^n` that are `(n + 2)`-rectangle-free, with `log (n + 2) = o(n)` and
+`n log 2 - log |S_n| = o(n)`: the three fields of `DenseRectangleFree`, the hypothesis of
+`CircuitLowerBound`, for the alphabet `Bool` and `K_n = n + 2`. Moreover `|S_n| ≥ 2 ^ (n - 1)`. -/
+theorem exists_rectangleFree_family :
+    ∃ S : ∀ n, Set (Fin n → Bool), (∀ᶠ n in atTop, RectangleFree (S n) (n + 2)) ∧
+      (fun n : ℕ => Real.log ((n + 2 : ℕ) : ℝ)) =o[atTop] (fun n => (n : ℝ)) ∧
+      (fun n => n * Real.log (Nat.card Bool) - Real.log (S n).ncard) =o[atTop]
+        (fun n => (n : ℝ)) ∧ ∀ n, 2 ^ (n - 1) ≤ (S n).ncard := by
+  choose S hfree hdense using fun n : ℕ => exists_rectangleFree_two_pow_le_ncard (ι := Fin n)
+  simp only [Fintype.card_fin] at hfree hdense
+  refine ⟨S, Eventually.of_forall hfree, ?_, isLittleO_deficit_of_two_pow_le_ncard hdense, hdense⟩
+  simpa only [Nat.cast_add, Nat.cast_ofNat] using isLittleO_log_add 2
 
 /-- **The hypotheses of the average-case frontier lower bounds can be met with bias tending to
 zero.** There is a family of sets `S_n ⊆ Bool^n` with bias at most `b_n = 1 / (n + 1)` on every

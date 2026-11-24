@@ -240,8 +240,11 @@ theorem length_encState_le {q : State} (hq : Bounded q) :
 theorem initial_inSpace : ComputableInSpace initial encContext encState
     (fun ctx => (encContext ctx).length) := by
   have hid := of_inO (ComputableInDegree.id' (enc := encContext)).inO_one
-  have zero := budget_const (encIn := encContext) (encB := encNat) 0 (.refl _)
-  have no := budget_const (encIn := encContext) (encB := encBool) false (.refl _)
+  have zero :=
+    budget_const (Bs := fun a => (encContext a).length) (encIn := encContext) (encB := encNat) 0
+  have no :=
+    budget_const (Bs := fun a => (encContext a).length) (encIn := encContext) (encB := encBool)
+      false
   exact (encState_mk_budget hid zero zero no no).of_enc_eq fun _ => rfl
 
 /-- The scalar resume computation uses linear workspace in its binary caller/reply encoding. -/
@@ -253,7 +256,8 @@ theorem advance_inSpace : ComputableInSpace (fun p : State × Option Bool => adv
   have hc := encState_count_budget hid
   have hp := encState_memberPhase_budget hid
   have hr := encState_rejected_budget hid
-  have htrue := budget_const (encIn := encState) (encB := encBool) true (.refl _)
+  have htrue :=
+    budget_const (Bs := fun a => (encState a).length) (encIn := encState) (encB := encBool) true
   have hnone := encState_mk_budget hctx hi hc hp htrue
   have hs := fst encState encBool
   have hb := snd encState encBool
@@ -262,9 +266,15 @@ theorem advance_inSpace : ComputableInSpace (fun p : State × Option Bool => adv
   have hxC := encState_count_budget hs
   have hxP := encState_memberPhase_budget hs
   have hxR := encState_rejected_budget hs
-  have one := budget_const (encIn := encPair encState encBool) (encB := encNat) 1 (.refl _)
-  have yes := budget_const (encIn := encPair encState encBool) (encB := encBool) true (.refl _)
-  have no := budget_const (encIn := encPair encState encBool) (encB := encBool) false (.refl _)
+  have one :=
+    budget_const (Bs := fun a => (encPair encState encBool a).length)
+      (encIn := encPair encState encBool) (encB := encNat) 1
+  have yes :=
+    budget_const (Bs := fun a => (encPair encState encBool a).length)
+      (encIn := encPair encState encBool) (encB := encBool) true
+  have no :=
+    budget_const (Bs := fun a => (encPair encState encBool a).length)
+      (encIn := encPair encState encBool) (encB := encBool) false
   have pending := encState_mk_budget hx hxI hxC yes hxR
   have done := encState_mk_budget hx (budget_natAdd hxI one)
     (budget_ite hb (budget_natAdd hxC one) hxC) no hxR
@@ -290,7 +300,7 @@ private theorem request_inSpace {τ : Type} (encT : τ ↪ List Bool) (start : S
     (hs : ComputableInSpace start encState encT (fun q => (encState q).length)) :
     ComputableInSpace (request start) encState (encOption encT)
       (fun q => (encState q).length) := by
-  exact (budget_ite halted_inSpace (budget_const none (.refl _)) (budget_optionSome hs)).of_enc_eq
+  exact (budget_ite halted_inSpace (budget_const none) (budget_optionSome hs)).of_enc_eq
     fun _ => rfl
 
 private theorem resume_inSpace {τ : Type} (encT : τ ↪ List Bool) (answer : τ → Option Bool)
@@ -323,7 +333,7 @@ theorem machine_query_inSpace {τ : Type} (encT : τ ↪ List Bool)
     (hs : ComputableInSpace start encState encT (fun q => (encState q).length)) :
     ComputableInSpace (machine ctx N start answer).query (encMachineState encT) encNat
       (fun q => (encMachineState encT q).length) :=
-  QueryMachine.withCalls_query_inSpace _ _ _ _ _ _ (budget_const 0 (.refl _)) hq
+  QueryMachine.withCalls_query_inSpace _ _ _ _ _ _ (budget_const 0) hq
     (request_inSpace encT start hs)
 
 /-- The caller halt test charges the binary cursor comparison and rejection bit. -/
@@ -340,7 +350,7 @@ theorem machine_emit_inSpace {τ : Type} (encT : τ ↪ List Bool)
     ComputableInSpace (machine ctx N start answer).emit
       (QueryMachine.encStateRead (encMachineState encT)) encBits
       (fun p => (QueryMachine.encStateRead (encMachineState encT) p).length) :=
-  QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _ (budget_const [])
     (request_inSpace encT start hs)
 
 /-- The result remains in the caller state; there is no final output word to accumulate. -/
@@ -348,7 +358,7 @@ theorem machine_finish_inSpace {τ : Type} (encT : τ ↪ List Bool)
     (ctx : Context) (N : QueryMachine τ) (start : State → τ) (answer : τ → Option Bool) :
     ComputableInSpace (machine ctx N start answer).finish (encMachineState encT) encBits
       (fun q => (encMachineState encT q).length) :=
-  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [])
 
 /-- A same-input call runs the callee unchanged and resumes with its actual optional answer. -/
 theorem runFrom_call {τ : Type} (ctx : Context) (N : QueryMachine τ)

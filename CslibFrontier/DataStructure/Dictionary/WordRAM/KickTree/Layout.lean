@@ -316,8 +316,7 @@ theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
       _ = Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M := by ring
   have hdiv : (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
       occLen p * 1 + p.nMax * 1 + metaLen p * M + p.w - 1) / p.w ≤
-      (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w :=
-    Nat.div_le_div_right (by omega)
+      (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w := by gcongr
   unfold kickTreeWords valWords occWords elevWords metaWords
   have hM_def : max (Nat.iterLog (p.k + 1) p.nMax) 1 = M := rfl
   have hM_meta : metaBits p = M := rfl

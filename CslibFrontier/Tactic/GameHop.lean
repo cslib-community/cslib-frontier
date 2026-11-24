@@ -614,8 +614,10 @@ private meta def peelOneStageCore? (goal : MVarId) (reqName? : Option Name) :
       let u ← getDecLevel αL
       pure (mkAppN (mkConst ``Game.coe_advantage_bind_le_of_support [u])
         #[αL, μL, sL.cont, sR.cont, B])
-    | .pmfBind αL βL μL, .pmfBind _ _ _, .closeTo _ B =>
-      pure (mkAppN (mkConst ``CloseTo.bind_right []) #[αL, βL, μL, sL.cont, sR.cont, B])
+    | .pmfBind αL βL μL, .pmfBind _ _ _, .closeTo _ B => do
+      let u ← getDecLevel αL
+      let v ← getDecLevel βL
+      pure (mkAppN (mkConst ``CloseTo.bind_right [u, v]) #[αL, βL, μL, sL.cont, sR.cont, B])
     | .pmfBind αL βL μL, .pmfBind _ _ _, .eqPMF _ => do
       let u ← getDecLevel αL
       let v ← getDecLevel βL

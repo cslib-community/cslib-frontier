@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Scan
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.Projection
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -21,7 +22,7 @@ import Mathlib.Tactic.Linarith
 Let `c` be a circuit of size `s` computing `f` on `n`-bit states. Some circuit of size at most
 `50000 * powerBudget n s (2 ^ n) L` computes the transient depth of every state, in `n + 2` bits
 (`checkpoint_depth_circuit`), for every `0 < L ≤ 2 ^ n`; with the balanced parameter the size is
-at most `150000 * optimizedBudget n s (2 ^ n)` (`checkpoint_depth_optimized`).
+at most `100000 * optimizedBudget n s (2 ^ n)` (`checkpoint_depth_optimized`).
 
 The construction compares the first `2 L + 1` states of the orbit of `x` with those of its cycle
 projection `f^[(2 ^ n)!] x`, computed by a fixed-power circuit. The two orbits agree exactly from
@@ -251,18 +252,16 @@ theorem checkpoint_depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 <
   exact ⟨out, ho, hs.trans (depthCost_le _ _ _ _ hL hLN (by simpa using hM))⟩
 
 /-- **Square-root transient depths.** Some circuit of size at most
-`150000 * optimizedBudget n c.size (2 ^ n)` computes the transient depth of every state in
+`100000 * optimizedBudget n c.size (2 ^ n)` computes the transient depth of every state in
 `n + 2` bits. -/
 theorem checkpoint_depth_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature n (n + 2),
       (∀ x, BitString.equivBitVec (out.eval interpretation x) =
         BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x)) ∧
-      (out.size : ℝ) ≤ 150000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 100000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := checkpoint_depth_circuit c L hL hLN
   refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 50000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration

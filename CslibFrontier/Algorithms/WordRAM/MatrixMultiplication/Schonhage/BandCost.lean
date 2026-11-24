@@ -55,8 +55,7 @@ theorem thin_timeBound (m N : ℕ) (hN : D m ^ 18 ≤ N) :
           2 * numBands (19 * m) m N * 10 ^ (19 * m) : ℕ) : ℝ) := by
         simp only [timeBound, Nat.cast_mul, Nat.cast_ofNat]
     _ ≤ 4096 * ((19 * m + 1 : ℕ) : ℝ) *
-        (10 * (D m : ℝ) ^ (-(1 / 18 : ℝ)) * (N : ℝ) ^ 2) :=
-      mul_le_mul_of_nonneg_left hshape (by positivity)
+        (10 * (D m : ℝ) ^ (-(1 / 18 : ℝ)) * (N : ℝ) ^ 2) := by gcongr
     _ = _ := by ring
 
 /-- Equivalent division form of the thin-regime bound requested by the matrix algorithm. -/
