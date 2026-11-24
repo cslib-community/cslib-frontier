@@ -36,6 +36,8 @@ These are the forms of convexity and strong convexity assumed by online convex o
   `ConvexOn.add_le_of_hasFDerivAt` is the special case of a full derivative, and
   `StrictConvexOn.add_lt_of_hasFDerivWithinAt` / `StrictConvexOn.add_lt_of_hasFDerivAt` are the
   strict inequalities for strictly convex functions.
+  `ConcaveOn.le_add_mul_of_hasDerivWithinAt` gives the one-dimensional concave form
+  `f y ≤ f x + d * (y - x)`.
 * `ConvexOn.add_inner_le_of_hasGradientWithinAt`, `ConvexOn.add_inner_le_of_hasGradientAt`: the
   gradient form in a Hilbert space.
 * `StrongConvexOn.add_inner_add_le_of_hasGradientWithinAt`,
@@ -100,6 +102,15 @@ theorem ConvexOn.add_le_of_hasFDerivAt (hf : ConvexOn ℝ K f) {x y : F} {f' : F
     (hx : x ∈ K) (hy : y ∈ K) (hd : HasFDerivAt f f' x) :
     f x + f' (y - x) ≤ f y :=
   hf.add_le_of_hasFDerivWithinAt hx hy hd.hasFDerivWithinAt
+
+/-- A concave function on `ℝ` lies below its tangent line at any point where it is differentiable
+within its domain: `f y ≤ f x + d * (y - x)` for `x y ∈ K`. -/
+theorem ConcaveOn.le_add_mul_of_hasDerivWithinAt {K : Set ℝ} {f : ℝ → ℝ} {x y d : ℝ}
+    (hf : ConcaveOn ℝ K f) (hx : x ∈ K) (hy : y ∈ K) (hd : HasDerivWithinAt f d K x) :
+    f y ≤ f x + d * (y - x) := by
+  have h := hf.neg.add_le_of_hasFDerivWithinAt hx hy hd.neg.hasFDerivWithinAt
+  simp only [Pi.neg_apply, ContinuousLinearMap.toSpanSingleton_apply, smul_eq_mul] at h
+  linarith
 
 /-- Conversely, a function with a subgradient relative to `K` at every point of a convex set `K`
 is convex on `K`: if `f x + g x (y - x) ≤ f y` for all `x y ∈ K`, then `f` is convex on `K`. -/

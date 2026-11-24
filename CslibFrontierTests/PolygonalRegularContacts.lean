@@ -7,7 +7,8 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: local-only (ordinary-import regular-contact regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
+import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Polygonal
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import Mathlib.Tactic.FinCases
@@ -15,7 +16,7 @@ import Mathlib.Tactic.NormNum
 
 set_option linter.privateModule false
 
-/-! The two spokes of an embedded star give a regular contact at an actual shared endpoint. -/
+/-! Regular contacts of a two-spoke star and parity of two triangles sharing one vertex. -/
 
 namespace CslibFrontierTests.PolygonalRegularContacts
 
@@ -103,5 +104,71 @@ example : ∃ b c, (D.route leftSpoke.1).AtEnd leftSpoke.2 1 b ∧
   · obtain ⟨hs, _⟩ := h
     exact (lt_irrefl _ hs.2).elim
   · exact h
+
+private def emptyPassages : ClosedPassages (starGraph 2) (fun _ => false) := by
+  letI : IsEmpty {d : Dart (starGraph 2) // (false : Bool) = true} :=
+    ⟨fun d => Bool.noConfusion d.property⟩
+  exact ⟨0, Equiv.equivOfIsEmpty _ _, fun i => Fin.elim0 i⟩
+
+-- The result is usable with empty support even when the drawing itself has two incident edges.
+example : (star_isEmbedding 2).rotation.intersectionParity emptyPassages emptyPassages = false := by
+  let hD := star_isEmbedding 2
+  rw [emptyPassages.intersectionParity_eq_sum_route_intersectionParity emptyPassages
+    hD.realizes_rotation regular hD.simple hD.vertices_injective
+    (vertex_mem (starGraph_endpoints_declared 2)) (fun _ h _ => Bool.noConfusion h)]
+  simp [← Bool.zero_eq_false]
+
+private abbrev bowtie : Cslib.Complexity.Graph :=
+  ⟨[0, 1, 2, 3, 4], [(0, 1), (1, 2), (2, 0), (0, 3), (3, 4), (4, 0)]⟩
+
+private abbrev leftSupport (e : Fin bowtie.edges.length) : Bool := decide (e.val < 3)
+private abbrev rightSupport (e : Fin bowtie.edges.length) : Bool := decide (3 ≤ e.val)
+
+private def leftEdges : Fin 3 ≃ {e : Fin bowtie.edges.length // leftSupport e = true} where
+  toFun i := ⟨⟨i.val, i.isLt.trans (by decide)⟩, decide_eq_true i.isLt⟩
+  invFun e := ⟨e.val.val, of_decide_eq_true e.property⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+private def rightEdges : Fin 3 ≃ {e : Fin bowtie.edges.length // rightSupport e = true} where
+  toFun i := ⟨⟨i.val + 3, by have := i.isLt; change i.val + 3 < 6; omega⟩,
+    decide_eq_true (Nat.le_add_left 3 i.val)⟩
+  invFun e := ⟨e.val.val - 3, by have h : e.val.val < 6 := e.val.isLt; omega⟩
+  left_inv i := Fin.ext (Nat.add_sub_cancel i.val 3)
+  right_inv e := by
+    have h : 3 ≤ e.val.val := of_decide_eq_true e.property
+    exact Subtype.ext (Fin.ext (Nat.sub_add_cancel h))
+
+private def leftTriangle : ClosedPassages bowtie leftSupport :=
+  ClosedPassages.ofCyclicEdges leftEdges (fun _ => false) (by decide)
+
+private def rightTriangle : ClosedPassages bowtie rightSupport :=
+  ClosedPassages.ofCyclicEdges rightEdges (fun _ => false) (by decide)
+
+private abbrev leftShared : Fin leftTriangle.count := ⟨0, by decide⟩
+private abbrev rightShared : Fin rightTriangle.count := ⟨0, by decide⟩
+
+-- Each triangle gives a nonempty system. Their passages at vertex zero are their only meeting.
+example : 0 < leftTriangle.count ∧ 0 < rightTriangle.count ∧
+    (leftTriangle.dart leftShared false).vertex = (rightTriangle.dart rightShared false).vertex :=
+  by decide
+
+open scoped BigOperators in
+example {A : PolygonalDrawing bowtie} {r : RotationSystem bowtie}
+    (hr : A.Realizes r) (hregular : A.HasRegularContacts)
+    (hsimple : ∀ e, (A.route e).IsSimple)
+    (hvertices : Set.InjOn A.vertex {v | v ∈ bowtie.vertices})
+    (heven : ∀ e f, leftSupport e = true → rightSupport f = true →
+      (A.route e).intersectionParity (A.route f) = false) :
+    (r.intersectionParity leftTriangle rightTriangle =
+      ∑ f, rightSupport f * ∑ e, leftSupport e * (A.route e).intersectionParity (A.route f)) ∧
+    ¬r.Alternates (leftTriangle.dart leftShared false) (leftTriangle.dart leftShared true)
+      (rightTriangle.dart rightShared false) (rightTriangle.dart rightShared true) := by
+  have hdeclared : ∀ d : Dart bowtie, d.vertex ∈ bowtie.vertices := by decide
+  have hdisjoint : ∀ e, leftSupport e = true → rightSupport e = true → False := by decide
+  exact ⟨leftTriangle.intersectionParity_eq_sum_route_intersectionParity rightTriangle
+      hr hregular hsimple hvertices hdeclared hdisjoint,
+    leftTriangle.not_alternates_of_unique_shared_passages rightTriangle
+      hr hregular hsimple hvertices hdeclared hdisjoint heven leftShared rightShared (by decide)⟩
 
 end CslibFrontierTests.PolygonalRegularContacts
