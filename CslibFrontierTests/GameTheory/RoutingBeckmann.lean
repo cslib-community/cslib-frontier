@@ -12,7 +12,12 @@ import CslibFrontier.GameTheory.Congestion.MarginalCostPricing
 import CslibFrontier.GameTheory.Congestion.CapacityAugmentation
 import CslibFrontier.GameTheory.Congestion.WardropNoRegret
 import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Analysis.Calculus.Deriv.Comp
+import Mathlib.Analysis.Calculus.Deriv.Pow
+import Mathlib.Analysis.Calculus.TangentCone.Real
+import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import Mathlib.Analysis.SpecialFunctions.Pow.Deriv
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -27,9 +32,13 @@ Checked concrete instances exercising the nonatomic selfish routing developments
   `![1, 0]` is the unique Wardrop equilibrium (`PoS = 4/3`) and minimizes Beckmann's potential
   (`Φ(![1, 0]) = 1/2 < Φ(![1/2, 1/2]) = 5/8`), while `![1/2, 1/2]` minimizes total latency
   (`cost ![1/2, 1/2] = 3/4 < cost ![1, 0] = 1`).
-* **Pigouvian marginal-cost taxes**: taxing the congestible link by `f*_e c'_e(f*_e) = 1/2` and the
-  constant link by `0` makes the socially optimal split `![1/2, 1/2]` the *unique* Wardrop
-  equilibrium of the taxed Pigou network (and `[0, 1/2]` when the constant link is indexed `0`).
+* **Marginal-cost optimality characterization (including `√x` boundary at an unused edge) and
+  Pigouvian taxes**: `isOptimal_iff_isWardrop_of_hasDerivWithinAt_mul` certifies optimality on a
+  network whose unused path contains a `Real.sqrt` edge (`edgeFlow = 0`), where
+  `x * √x = x ^ (3/2)` is convex and differentiable on `[0, ∞)` with derivative `(3/2) * √x` while
+  `Real.sqrt` itself has no right-derivative at `0` (so `isOptimal_iff_isWardrop_withMarginalCost`
+  cannot apply); on differentiable `linearPigou`, `isOptimal_iff_isWardrop_withMarginalCost` and
+  Pigouvian taxes `![1/2, 0]` induce `![1/2, 1/2]` as the unique Wardrop equilibrium.
 * **Braess's four-node Wheatstone network and subnetwork bound**: adding the zero-cost cross edge
   raises the unique Wardrop cost from `3/2` (`![1/2, 1/2]`) to `2 = 4/3 * (3/2)` (`![0, 0, 1]`),
   matching the `4/3` upper bound of `HasAffineLatencies.cost_le_four_thirds_restrictPaths` along
@@ -206,6 +215,146 @@ example :
         hasDerivWithinAt_const (G.edgeFlow ![1 / 2, 1 / 2] 0) (Set.Ici 0) (1 : ℝ)
     · change HasDerivWithinAt (fun x : ℝ => x) 1 (Set.Ici 0) _
       exact (hasDerivAt_id _).hasDerivWithinAt
+
+/-- Differentiable-latency product-rule equivalence `isOptimal_iff_isWardrop_withMarginalCost` on
+`linearPigou`. -/
+example (f : Fin 2 → ℝ) :
+    linearPigou.IsOptimal f ↔ (linearPigou.withMarginalCost linearPigouDeriv).IsWardrop f := by
+  refine linearPigou.isOptimal_iff_isWardrop_withMarginalCost (fun e => ?_) (fun e x _ => ?_)
+  · fin_cases e
+    · change ConvexOn ℝ (Set.Ici 0) fun x => x * x
+      exact ⟨convex_Ici 0, fun x _ y _ a b ha hb hab => by
+        dsimp only [smul_eq_mul]
+        nlinarith [sq_nonneg (x - y), mul_nonneg ha hb]⟩
+    · change ConvexOn ℝ (Set.Ici 0) fun x => x * 1
+      exact ⟨convex_Ici 0, fun x _ y _ a b _ _ _ => by
+        dsimp only [smul_eq_mul]
+        linarith⟩
+  · fin_cases e
+    · change HasDerivWithinAt (fun y : ℝ => y) 1 (Set.Ici 0) x
+      exact hasDerivWithinAt_id x (Set.Ici 0)
+    · simpa [linearPigou, pigouNetwork, linearPigouDeriv] using
+        hasDerivWithinAt_const x (Set.Ici 0) (1 : ℝ)
+
+/-- Two-path, three-edge network exercising the `√x` boundary at an unused edge: path `0` traverses
+edge `0` (`c_0(x) = √x`) and edge `1` (`c_1(x) = 3`), while path `1` traverses edge `2`
+(`c_2(x) = x`). -/
+noncomputable def sqrtBoundaryGame : NonatomicCongestionGame Unit (Fin 2) (Fin 3) where
+  commodity _ := ()
+  resources p := if p = 0 then {0, 1} else {2}
+  rate _ := 1
+  latency
+    | 0 => Real.sqrt
+    | 1 => fun _ => 3
+    | 2 => fun x => x
+
+/-- Marginal edge costs `(x * c_e(x))'` for `sqrtBoundaryGame`: `(3 / 2) * √x`, `3`, and `2 * x`. -/
+noncomputable def sqrtBoundaryMC : Fin 3 → ℝ → ℝ
+  | 0 => fun x => (3 / 2) * √x
+  | 1 => fun _ => 3
+  | 2 => fun x => 2 * x
+
+private theorem mul_sqrt_eq_rpow {x : ℝ} (hx : 0 ≤ x) : x * √x = x ^ (3 / 2 : ℝ) := by
+  rcases hx.eq_or_lt with rfl | hx_pos
+  · norm_num
+  · have h32 : (3 / 2 : ℝ) = 1 + 1 / 2 := by norm_num
+    rw [h32, Real.rpow_add hx_pos, Real.rpow_one, Real.sqrt_eq_rpow]
+
+/-- Boundary witness for Proposition 18.9 / Corollary 18.10: at `f = ![0, 1]`, the `Real.sqrt` edge
+`0` is unused (`edgeFlow ![0, 1] 0 = 0`) and has no right-derivative within `[0, ∞)` at `0` (so
+neither `isOptimal_iff_isWardrop_withMarginalCost` nor `IsOptimal.isWardrop_withMarginalCost_within`
+applies), yet `x ↦ x * c_e(x)` is convex and differentiable on `[0, ∞)` for every edge and
+`isOptimal_iff_isWardrop_of_hasDerivWithinAt_mul` certifies `IsOptimal ![0, 1]`. -/
+example :
+    sqrtBoundaryGame.edgeFlow ![0, 1] 0 = 0 ∧
+      (∀ d, ¬ HasDerivWithinAt (sqrtBoundaryGame.latency 0) d (Set.Ici 0)
+        (sqrtBoundaryGame.edgeFlow ![0, 1] 0)) ∧
+      (sqrtBoundaryGame.withLatency sqrtBoundaryMC).IsWardrop ![0, 1] ∧
+      sqrtBoundaryGame.IsOptimal ![0, 1] ∧
+      ∀ f, sqrtBoundaryGame.IsOptimal f ↔
+        (sqrtBoundaryGame.withLatency sqrtBoundaryMC).IsWardrop f := by
+  have heflow0 : ∀ g : Fin 2 → ℝ, sqrtBoundaryGame.edgeFlow g 0 = g 0 := fun g => by
+    rw [edgeFlow, Finset.sum_filter, Fin.sum_univ_two]
+    simp [sqrtBoundaryGame]
+  have heflow2 : ∀ g : Fin 2 → ℝ, sqrtBoundaryGame.edgeFlow g 2 = g 1 := fun g => by
+    rw [edgeFlow, Finset.sum_filter, Fin.sum_univ_two]
+    simp [sqrtBoundaryGame]
+  have hef0 : sqrtBoundaryGame.edgeFlow ![0, 1] 0 = 0 := by simp [heflow0]
+  have hnot_deriv : ∀ d, ¬ HasDerivWithinAt (sqrtBoundaryGame.latency 0) d (Set.Ici 0)
+      (sqrtBoundaryGame.edgeFlow ![0, 1] 0) := by
+    intro d hd
+    rw [hef0] at hd
+    change HasDerivWithinAt Real.sqrt d (Set.Ici 0) 0 at hd
+    have hsq : HasDerivWithinAt (fun t : ℝ => t ^ 2) 0 (Set.Ici 0) 0 := by
+      simpa using (hasDerivAt_pow 2 (0 : ℝ)).hasDerivWithinAt
+    have hcomp : HasDerivWithinAt (Real.sqrt ∘ fun t : ℝ => t ^ 2) ((0 : ℝ) • d) (Set.Ici 0) 0 :=
+      HasDerivWithinAt.scomp_of_eq (0 : ℝ) hd hsq (fun t _ => sq_nonneg t) (by norm_num)
+    have hid : HasDerivWithinAt (id : ℝ → ℝ) 0 (Set.Ici 0) 0 := by
+      rw [zero_smul] at hcomp
+      exact hcomp.congr_of_mem (fun t ht => (Real.sqrt_sq ht).symm) Set.self_mem_Ici
+    have h10 : (1 : ℝ) = 0 :=
+      (uniqueDiffOn_Ici 0 0 Set.self_mem_Ici).eq_deriv _
+        (hasDerivWithinAt_id 0 (Set.Ici 0)) hid
+    norm_num at h10
+  have hconv : ∀ e, ConvexOn ℝ (Set.Ici 0) (fun x => x * sqrtBoundaryGame.latency e x) := by
+    intro e
+    fin_cases e
+    · exact (convexOn_rpow (p := 3 / 2) (by norm_num)).congr
+        fun x hx => (mul_sqrt_eq_rpow hx).symm
+    · exact ⟨convex_Ici 0, fun x _ y _ a b _ _ _ => by
+        simp only [sqrtBoundaryGame, smul_eq_mul]
+        ring_nf
+        exact le_rfl⟩
+    · exact ⟨convex_Ici 0, fun x _ y _ a b ha hb hab => by
+        simp only [sqrtBoundaryGame, smul_eq_mul]
+        nlinarith [sq_nonneg (x - y), mul_nonneg ha hb]⟩
+  have hderiv : ∀ e x, 0 ≤ x →
+      HasDerivWithinAt (fun y => y * sqrtBoundaryGame.latency e y)
+        (sqrtBoundaryMC e x) (Set.Ici 0) x := by
+    intro e x hx
+    fin_cases e
+    · have hd : HasDerivWithinAt (fun y : ℝ => y ^ (3 / 2 : ℝ)) ((3 / 2) * √x) (Set.Ici 0) x := by
+        have h := (Real.hasDerivAt_rpow_const (x := x) (p := 3 / 2)
+          (Or.inr (by norm_num))).hasDerivWithinAt (s := Set.Ici 0)
+        have hsub : (3 / 2 : ℝ) - 1 = 1 / 2 := by norm_num
+        rwa [hsub, ← Real.sqrt_eq_rpow] at h
+      exact hd.congr_of_mem (fun y hy => mul_sqrt_eq_rpow hy) hx
+    · simpa [sqrtBoundaryGame, sqrtBoundaryMC, marginalCost] using
+        hasDerivWithinAt_mul_marginalCost (c := fun _ => (3 : ℝ)) (c' := fun _ => 0)
+          (hasDerivWithinAt_const x (Set.Ici 0) (3 : ℝ))
+    · have h := hasDerivWithinAt_mul_marginalCost (c := id) (c' := fun _ => 1)
+        (hasDerivWithinAt_id x (Set.Ici 0))
+      simpa only [sqrtBoundaryGame, sqrtBoundaryMC, marginalCost, id_eq, mul_one, ← two_mul] using h
+  have hiff : ∀ f, sqrtBoundaryGame.IsOptimal f ↔
+      (sqrtBoundaryGame.withLatency sqrtBoundaryMC).IsWardrop f := fun _ =>
+    sqrtBoundaryGame.isOptimal_iff_isWardrop_of_hasDerivWithinAt_mul hconv hderiv
+  have hward : (sqrtBoundaryGame.withLatency sqrtBoundaryMC).IsWardrop ![0, 1] := by
+    refine ⟨⟨fun p => by fin_cases p <;> norm_num, fun _ => ?_⟩, fun p q _ hp => ?_⟩
+    · simp [sqrtBoundaryGame, Fin.sum_univ_two]
+    · have hp1 : p = 1 := by
+        fin_cases p
+        · norm_num at hp
+        · rfl
+      subst hp1
+      have hlat1 : (sqrtBoundaryGame.withLatency sqrtBoundaryMC).pathLatency ![0, 1] 1 = 2 := by
+        simp only [pathLatency, withLatency_resources, withLatency_latency, withLatency_edgeFlow]
+        change ∑ e ∈ ({2} : Finset (Fin 3)),
+          sqrtBoundaryMC e (sqrtBoundaryGame.edgeFlow ![0, 1] e) = 2
+        rw [Finset.sum_singleton, heflow2]
+        simp [sqrtBoundaryMC]
+      fin_cases q
+      · have hlat0 : (sqrtBoundaryGame.withLatency sqrtBoundaryMC).pathLatency ![0, 1] 0 = 3 := by
+          simp only [pathLatency, withLatency_resources, withLatency_latency, withLatency_edgeFlow]
+          change ∑ e ∈ ({0, 1} : Finset (Fin 3)),
+            sqrtBoundaryMC e (sqrtBoundaryGame.edgeFlow ![0, 1] e) = 3
+          rw [Finset.sum_pair (by decide), hef0]
+          simp [sqrtBoundaryMC]
+        change (sqrtBoundaryGame.withLatency sqrtBoundaryMC).pathLatency ![0, 1] 1 ≤
+          (sqrtBoundaryGame.withLatency sqrtBoundaryMC).pathLatency ![0, 1] 0
+        rw [hlat1, hlat0]
+        norm_num
+      · exact le_rfl
+  exact ⟨hef0, hnot_deriv, hward, (hiff ![0, 1]).2 hward, hiff⟩
 
 /-! ### 3. Braess's four-node Wheatstone calculation and subnetwork restriction -/
 
