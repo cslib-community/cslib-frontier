@@ -3703,6 +3703,8 @@ public import CslibFrontier.Computability.Interactive.Efficient
 public import CslibFrontier.Computability.Interactive.GKR.Layered
 public import CslibFrontier.Computability.Interactive.GKR.Protocol
 public import CslibFrontier.Computability.Interactive.GKR.Summand
+public import CslibFrontier.Computability.Interactive.GKR.Uniform
+public import CslibFrontier.Computability.Interactive.GKR.Verifier
 public import CslibFrontier.Computability.Interactive.Plain
 public import CslibFrontier.Computability.Interactive.RbrKnowledge
 public import CslibFrontier.Computability.Interactive.Security
