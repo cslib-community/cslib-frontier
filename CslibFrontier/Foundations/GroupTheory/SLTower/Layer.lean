@@ -9,9 +9,29 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Grp
+public import Mathlib.LinearAlgebra.Matrix.Trace
+import Mathlib.RingTheory.WittVector.IsPoly
 
 /-!
-# The layers 1 + s^{n+1} A
+# The layers `1 + s^(n+1) A`
+
+The kernel of the reduction `G h (n + 1) → G h n` consists of the matrices `1 + s^(n+1) A` with
+`A` of trace zero over `F₂` (`Cslib.SLTower.lay`); it has order `2^(h² − 1)`, and the reduction
+is onto. By induction, `|G h n| = |SL_h(F₂)| · 2^((h² − 1) n)`, and the kernel of the value at
+`s = 0` is a 2-group of order `2^((h² − 1) n)`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Layer`.
+
+## Main definitions
+
+* `Cslib.SLTower.redG`: the reduction of the groups.
+* `Cslib.SLTower.lay A hA`: the element `1 + s^(n+1) A` for `A` of trace zero.
+
+## Main results
+
+* `Cslib.SLTower.exists_lay`, `Cslib.SLTower.redG_surjective`: the kernel and the image of the
+  reduction.
+* `Cslib.SLTower.card_G`, `Cslib.SLTower.card_ker_evG`: the orders.
 -/
 
 public section
@@ -34,8 +54,8 @@ theorem s_sq (n : ℕ) : (s (n + 2) ^ (n + 1)) ^ 2 = 0 := by
   exact s_pow_ge (by omega)
 
 /-- The matrix 1 + s^{n+1} A. -/
-noncomputable def layMat (n : ℕ) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h) (Fin h) (R
-    (n + 2)) :=
+noncomputable def layMat (n : ℕ) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h) (Fin h)
+    (R (n + 2)) :=
   1 + s (n + 2) ^ (n + 1) • A.map (cst (n + 2))
 
 omit [NeZero h] in
@@ -46,8 +66,8 @@ theorem det_layMat (A : Matrix (Fin h) (Fin h) (ZMod 2)) :
   simp [Matrix.trace, map_sum]
 
 omit [NeZero h] in
-theorem layMat_mul (A B : Matrix (Fin h) (Fin h) (ZMod 2)) : layMat n A * layMat n B = layMat n (A
-    + B) := by
+theorem layMat_mul (A B : Matrix (Fin h) (Fin h) (ZMod 2)) : layMat n A * layMat n B =
+    layMat n (A + B) := by
   have h1 : s (n + 2) ^ (n + 1) * s (n + 2) ^ (n + 1) = 0 := by rw [← sq, s_sq]
   rw [layMat, layMat, layMat, add_mul, mul_add, mul_add, one_mul, one_mul, mul_one,
       smul_mul_smul_comm, h1,
@@ -91,8 +111,8 @@ theorem red_s_pow (n : ℕ) : red (n + 1) (s (n + 2) ^ (n + 1)) = 0 := by
   exact s_pow_self _
 
 omit [NeZero h] in
-theorem redG_lay (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) : redG (lay (n := n) A
-    hA) = 1 := by
+theorem redG_lay (A : Matrix (Fin h) (Fin h) (ZMod 2))
+    (hA : A.trace = 0) : redG (lay (n := n) A hA) = 1 := by
   refine Subtype.ext ?_
   ext a b
   rw [redG_apply, lay_val, layMat, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul, map_add,
@@ -153,8 +173,8 @@ theorem redG_surjective : Function.Surjective (redG : G h (n + 1) →* G h n) :=
   have hd : red (n + 1) A.det = 1 := by
     rw [RingHom.map_det, RingHom.mapMatrix_apply, hA, g.2]
   have hdd : A.det * A.det = 1 := by
-    obtain ⟨c, hc⟩ := exists_of_red_eq_zero (m := n + 1) (x := A.det - 1) (by rw [map_sub, hd,
-        map_one, sub_self])
+    obtain ⟨c, hc⟩ := exists_of_red_eq_zero (m := n + 1) (x := A.det - 1)
+        (by rw [map_sub, hd, map_one, sub_self])
     have h1 : A.det = 1 + cst (n + 2) c * s (n + 2) ^ (n + 1) := by rw [← hc]; ring
     have h2 := s_sq n
     have h3 := two_eq_zero (n + 2)
@@ -175,8 +195,8 @@ theorem redG_surjective : Function.Surjective (redG : G h (n + 1) →* G h n) :=
   · simp only [B, Matrix.updateRow_ne ha, h4]
 
 /-- The trace-zero matrices. -/
-def tr0 (h : ℕ) : AddSubgroup (Matrix (Fin h) (Fin h) (ZMod 2)) := (Matrix.traceAddMonoidHom (Fin
-    h) (ZMod 2)).ker
+def tr0 (h : ℕ) : AddSubgroup (Matrix (Fin h) (Fin h) (ZMod 2)) :=
+    (Matrix.traceAddMonoidHom (Fin h) (ZMod 2)).ker
 
 theorem card_tr0 : Nat.card (tr0 h) = 2 ^ (h ^ 2 - 1) := by
   have h1 := AddSubgroup.card_mul_index (tr0 h)
@@ -203,8 +223,8 @@ theorem card_tr0 : Nat.card (tr0 h) = 2 ^ (h ^ 2 - 1) := by
 theorem card_ker_redG : Nat.card (redG : G h (n + 1) →* G h n).ker = 2 ^ (h ^ 2 - 1) := by
   rw [← card_tr0]
   symm
-  refine Nat.card_congr (Equiv.ofBijective (fun A : tr0 h => ⟨lay A.1 A.2, redG_lay A.1 A.2⟩) ⟨?_,
-      ?_⟩)
+  refine Nat.card_congr
+      (Equiv.ofBijective (fun A : tr0 h => ⟨lay A.1 A.2, redG_lay A.1 A.2⟩) ⟨?_, ?_⟩)
   · intro A B e
     have := congrArg (fun g : (redG : G h (n + 1) →* G h n).ker => g.1.1) e
     exact Subtype.ext (layMat_injective this)
@@ -238,7 +258,8 @@ theorem evG_surjective : Function.Surjective (evG : G h n →* SL2 h) := by
   rw [evG_th0, sub_zero, sub_zero]
 
 /-- The order of the group. -/
-theorem card_G (h n : ℕ) [NeZero h] : Nat.card (G h n) = Nat.card (SL2 h) * 2 ^ ((h ^ 2 - 1) * n) := by
+theorem card_G (h n : ℕ) [NeZero h] : Nat.card (G h n) = Nat.card (SL2 h) * 2 ^
+    ((h ^ 2 - 1) * n) := by
   induction n with
   | zero =>
     rw [mul_zero, pow_zero, mul_one]

@@ -11,7 +11,25 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Chain
 
 /-!
-# Coordinates
+# Coordinates for the actions of the unitriangular subgroups
+
+Every element of `SL_h(F₂)` gets a coordinate in `U h` for the left action of the `i`-th
+unitriangular subgroup (`Cslib.SLTower.coQ`), and the free involutions given by the generators
+and by the simple root elements get a choice of one element in every pair
+(`Cslib.SLTower.FQ`, `Cslib.SLTower.FU`).
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Coord`.
+
+## Main definitions
+
+* `Cslib.SLTower.thQ i`: the `i`-th unitriangular subgroup inside `SL_h(F₂)`.
+* `Cslib.SLTower.coQ i`: the coordinate for its left action.
+* `Cslib.SLTower.FQ h2 k`, `Cslib.SLTower.FU l`: the first elements of the pairs.
+
+## Main results
+
+* `Cslib.SLTower.coQ_mul`: the coordinate is equivariant.
+* `Cslib.SLTower.FQ_iff`, `Cslib.SLTower.FU_iff`: exactly one element of every pair is first.
 -/
 
 public section
@@ -23,16 +41,17 @@ theorem exists_coord {P Q : Type*} [Group P] [Group Q] (φ : P →* Q) (hφ : Fu
     ∃ co : Q → P, ∀ p q, co (φ p * q) = p * co q := by
   let r : Setoid Q :=
     { r := fun q q' => ∃ p, q' = φ p * q
-      iseqv := ⟨fun q => ⟨1, by simp⟩, fun {q q'} ⟨p, hp⟩ => ⟨p⁻¹, by rw [hp, map_inv,
-          inv_mul_cancel_left]⟩,
+      iseqv :=
+          ⟨fun q => ⟨1, by simp⟩,
+              fun {q q'} ⟨p, hp⟩ => ⟨p⁻¹, by rw [hp, map_inv, inv_mul_cancel_left]⟩,
         fun {q q' q''} ⟨p, hp⟩ ⟨p', hp'⟩ => ⟨p' * p, by rw [hp', hp, map_mul, mul_assoc]⟩⟩ }
-  have h1 : ∀ q : Q, ∃ p, q = φ p * (Quotient.mk r q).out := fun q => Quotient.exact
-      (Quotient.out_eq (Quotient.mk r q))
+  have h1 : ∀ q : Q, ∃ p,
+      q = φ p * (Quotient.mk r q).out := fun q => Quotient.exact (Quotient.out_eq (Quotient.mk r q))
   choose co hco using h1
   refine ⟨co, fun p q => ?_⟩
   apply hφ
-  have h2 : Quotient.mk r (φ p * q) = Quotient.mk r q := (Quotient.sound (s := r) ⟨p, rfl⟩ :
-      Quotient.mk r q = _).symm
+  have h2 : Quotient.mk r (φ p * q) = Quotient.mk r q :=
+      (Quotient.sound (s := r) ⟨p, rfl⟩ : Quotient.mk r q = _).symm
   have h3 := hco (φ p * q)
   rw [h2] at h3
   have h4 := hco q
@@ -44,8 +63,8 @@ theorem exists_coord {P Q : Type*} [Group P] [Group Q] (φ : P →* Q) (hφ : Fu
   exact mul_right_cancel h5
 
 /-- One element of every pair of a free involution. -/
-theorem exists_first {Q : Type*} [Finite Q] (i : Q → Q) (hi : ∀ q, i (i q) = q) (hne : ∀ q, i q ≠
-    q) :
+theorem exists_first {Q : Type*} [Finite Q] (i : Q → Q) (hi : ∀ q, i (i q) = q)
+    (hne : ∀ q, i q ≠ q) :
     ∃ F : Q → Prop, ∀ q, F (i q) ↔ ¬ F q := by
   obtain ⟨N, ⟨φ⟩⟩ := Finite.exists_equiv_fin Q
   refine ⟨fun q => φ q < φ (i q), fun q => ?_⟩
@@ -122,8 +141,8 @@ theorem evG_gen (h2 : 2 ≤ h) (k : Fin h) : evG (gen h2 k : G h n) = evG (gen h
   obtain ⟨l, rfl⟩ := exists_sh hi
   rw [← th_x h2 i l, ← th_x h2 i l, evG_th, evG_th]
 
-theorem FQ_iff (h2 : 2 ≤ h) (k : Fin h) (q : SL2 h) : FQ h2 k (evG (gen h2 k : G h n) * q) ↔ ¬ FQ
-    h2 k q := by
+theorem FQ_iff (h2 : 2 ≤ h) (k : Fin h) (q : SL2 h) : FQ h2 k (evG (gen h2 k : G h n) * q) ↔
+    ¬ FQ h2 k q := by
   rw [evG_gen]
   exact (exists_firstQ h2 k).choose_spec q
 
@@ -137,7 +156,7 @@ theorem exists_firstU (l : Fin (h - 1)) : ∃ F : U h → Prop, ∀ u, F (x h l 
 def FU (l : Fin (h - 1)) : U h → Prop := (exists_firstU l).choose
 
 omit [NeZero h] in
-theorem FU_iff (l : Fin (h - 1)) (u : U h) : FU l (x h l * u) ↔ ¬ FU l u := (exists_firstU
-    l).choose_spec u
+theorem FU_iff (l : Fin (h - 1)) (u : U h) : FU l (x h l * u) ↔ ¬ FU l u :=
+    (exists_firstU l).choose_spec u
 
 end Cslib.SLTower

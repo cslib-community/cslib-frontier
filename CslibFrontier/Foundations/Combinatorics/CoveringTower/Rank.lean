@@ -8,10 +8,28 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Mathlib.Data.Finset.Card
+import Cslib.Tactic.Membership
+import Mathlib.Tactic.Bound
+import Mathlib.Tactic.Monotonicity.Lemmas
+import Mathlib.Topology.Sheaves.Presheaf
 
 /-!
-# Ranks
+# Ranks within key classes
+
+`Cslib.CoveringTower.rk idx key F u` counts the elements of `F` with the key of `u` and a
+smaller index: ranks within the classes of equal keys, used to number the elements of a class.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Rank`.
+
+## Main definitions
+
+* `Cslib.CoveringTower.rk`: the rank.
+
+## Main results
+
+* `Cslib.CoveringTower.rk_lt`, `Cslib.CoveringTower.rk_inj`: ranks are below the class size and
+  distinguish the elements of a class.
 -/
 
 public section
@@ -39,8 +57,8 @@ theorem rk_congr {F F' : Finset U} {u : U} (h : ∀ v, key v = key u → (v ∈ 
   · rintro ⟨h1, h2, h3⟩
     exact ⟨(h v h2).2 h1, h2, h3⟩
 
-theorem rk_lt {F : Finset U} {u : U} (hu : u ∈ F) : rk idx key F u < (F.filter fun v => key v = key
-    u).card := by
+theorem rk_lt {F : Finset U} {u : U} (hu : u ∈ F) : rk idx key F u <
+    (F.filter fun v => key v = key u).card := by
   refine card_lt_card ?_
   rw [ssubset_iff_of_subset]
   · exact ⟨u, mem_filter.mpr ⟨hu, rfl⟩, fun h => lt_irrefl _ (mem_filter.mp h).2.2⟩
@@ -85,8 +103,8 @@ theorem exists_rk (hidx : Function.Injective idx) (F : Finset U) (k : κ) {w : �
     have hu' := mem_filter.1 (mem_coe.1 hu)
     have hv' := mem_filter.1 (mem_coe.1 hv)
     exact rk_inj hidx hu'.1 hv'.1 (hu'.2.trans hv'.2.symm) h
-  have himg : (F.filter fun u => key u = k).image (rk idx key F) = range (F.filter fun u => key u =
-      k).card := by
+  have himg : (F.filter fun u => key u = k).image (rk idx key F) =
+      range (F.filter fun u => key u = k).card := by
     refine eq_of_subset_of_card_le ?_ ?_
     · intro ρ hρ
       obtain ⟨u, hu, rfl⟩ := mem_image.1 hρ

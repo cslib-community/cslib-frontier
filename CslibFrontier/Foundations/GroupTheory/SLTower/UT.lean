@@ -8,10 +8,28 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Mathlib.Algebra.Field.ZMod
+public import Mathlib.LinearAlgebra.Matrix.SpecialLinearGroup
+import Mathlib.RingTheory.WittVector.IsPoly
 
 /-!
-# The unitriangular group over F₂
+# The unitriangular group over `F₂`
+
+`Cslib.SLTower.SL2 h` is `SL_h(F₂)` (which equals `GL_h(F₂)`), and `Cslib.SLTower.U h` its
+subgroup of upper unitriangular matrices. The simple root elements `1 + E_{j,j+1}`
+(`Cslib.SLTower.x`) generate the towers of the source; `U h` has order `2^(h(h−1)/2)`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.UT`.
+
+## Main definitions
+
+* `Cslib.SLTower.U h`: the upper unitriangular matrices, as a subgroup of `SL_h(F₂)`.
+* `Cslib.SLTower.x h j`: the simple root element `1 + E_{j,j+1}`.
+* `Cslib.SLTower.equivU h`: `U h` is parametrized by its entries above the diagonal.
+
+## Main results
+
+* `Cslib.SLTower.card_U`: `|U h| = 2^(h(h−1)/2)`.
 -/
 
 public section
@@ -23,8 +41,8 @@ open Matrix Finset
 /-- The group SL_h(F₂) = GL_h(F₂). -/
 abbrev SL2 (h : ℕ) : Type := Matrix.SpecialLinearGroup (Fin h) (ZMod 2)
 
-theorem sl_pow_mem {G : Type*} [Group G] [Finite G] (S : Submonoid G) {a : G} (ha : a ∈ S) : a⁻¹ ∈
-    S := by
+theorem sl_pow_mem {G : Type*} [Group G] [Finite G] (S : Submonoid G)
+    {a : G} (ha : a ∈ S) : a⁻¹ ∈ S := by
   have h : a⁻¹ = a ^ (orderOf a - 1) := by
     refine inv_eq_of_mul_eq_one_left ?_
     rw [← pow_succ, Nat.sub_add_cancel (orderOf_pos a), pow_orderOf_eq_one]
@@ -107,9 +125,9 @@ theorem x_val (h : ℕ) (j : Fin (h - 1)) :
 
 /-- The entries above the diagonal are free. -/
 noncomputable def equivU (h : ℕ) : U h ≃ ({p : Fin h × Fin h // p.1 < p.2} → ZMod 2) where
-  toFun A p := A.1.1 p.1.1 p.1.2
-  invFun f := ⟨⟨Matrix.of fun i j => if hij : i < j then f ⟨(i, j), hij⟩ else if i = j then 1 else
-      0, by
+  toFun A | ⟨(i, j), _⟩ => ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) i j
+  invFun f :=
+      ⟨⟨Matrix.of fun i j => if hij : i < j then f ⟨(i, j), hij⟩ else if i = j then 1 else 0, by
       rw [Matrix.det_of_isUpperTriangular]
       · simp
       · intro i j hij

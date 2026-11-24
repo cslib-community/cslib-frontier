@@ -9,9 +9,28 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Layer
+public import Mathlib.GroupTheory.PGroup
+import Mathlib.GroupTheory.Sylow
 
 /-!
-# The chain of subgroups
+# A chain of subgroups in the kernel
+
+The kernel `Ker h n` of the value at `s = 0` is a 2-group of order `2^((h² − 1) n)`, so by
+Sylow's theorem it contains a chain `1 = Γ 0 ≤ Γ 1 ≤ ⋯` of subgroups of orders `(2^e)^j` for
+`j ≤ JJ h n = ⌊(h² − 1) n / e⌋`, where `e = h(h − 1)/2` (`b = 2^e` is the number of chambers at a
+vertex).
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Chain`.
+
+## Main definitions
+
+* `Cslib.SLTower.Ker h n`: the kernel of the value at `s = 0`.
+* `Cslib.SLTower.ee h`, `Cslib.SLTower.JJ h n`: the exponent `e` and the number of steps.
+
+## Main results
+
+* `Cslib.SLTower.isPGroup_ker`: the kernel is a 2-group of order `2^((h² − 1) n)`.
+* `Cslib.SLTower.exists_chain`: the chain of subgroups.
 -/
 
 public section
@@ -25,7 +44,8 @@ noncomputable def Ker (h n : ℕ) [NeZero h] : Subgroup (G h n) := (evG : G h n 
 
 theorem mem_Ker {g : G h n} : g ∈ Ker h n ↔ evG g = 1 := Iff.rfl
 
-/-- The kernel of the value at `s = 0` is a 2-group (paper, Section sec:tower: "Let K_n be the kernel of s ↦ 0; it is a 2-group of order 2^((h²−1)n)." -/
+/-- The kernel of the value at `s = 0` is a 2-group (paper, Section sec:tower: "Let K_n be the
+kernel of s ↦ 0; it is a 2-group of order 2^((h²−1)n)." -/
 theorem isPGroup_ker (h n : ℕ) [NeZero h] :
     IsPGroup 2 (Ker h n) ∧ Nat.card (Ker h n) = 2 ^ ((h ^ 2 - 1) * n) :=
   ⟨IsPGroup.of_card card_ker_evG, card_ker_evG⟩
@@ -36,8 +56,8 @@ def ee (h : ℕ) : ℕ := h * (h - 1) / 2
 /-- The number of steps of the tower. -/
 def JJ (h n : ℕ) : ℕ := (h ^ 2 - 1) * n / ee h
 
-theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n), Γ 0 = ⊥ ∧ (∀ j, Γ j ≤ Γ (j
-    + 1)) ∧
+theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
+    Γ 0 = ⊥ ∧ (∀ j, Γ j ≤ Γ (j + 1)) ∧
     (∀ j, Γ j ≤ Ker h n) ∧ ∀ j ≤ JJ h n, Nat.card (Γ j) = (2 ^ ee h) ^ j := by
   classical
   have step : ∀ j, ∀ H : Subgroup (Ker h n), Nat.card H = 2 ^ (ee h * j) → j < JJ h n →
@@ -54,7 +74,8 @@ theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
     exact ⟨K, hK, hHK⟩
   have h0 : Nat.card (⊥ : Subgroup (Ker h n)) = 2 ^ (ee h * min 0 (JJ h n)) := by simp
   have step' : ∀ j, ∀ H : {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min j (JJ h n))},
-      ∃ H' : {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min (j + 1) (JJ h n))}, H.1 ≤ H'.1 := by
+      ∃ H' : {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min (j + 1) (JJ h n))},
+          H.1 ≤ H'.1 := by
     intro j H
     by_cases hj : j < JJ h n
     · obtain ⟨H', h1, h2⟩ := step j H.1 (by rw [H.2, min_eq_left hj.le]) hj

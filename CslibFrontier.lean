@@ -7179,6 +7179,8 @@ public import CslibFrontier.Foundations.Combinatorics.CentralBinomial
 public import CslibFrontier.Foundations.Combinatorics.CompositionMoment
 public import CslibFrontier.Foundations.Combinatorics.CompositionMomentLinear
 public import CslibFrontier.Foundations.Combinatorics.CornerCutting
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Rank
 public import CslibFrontier.Foundations.Combinatorics.CubeSplitting
 public import CslibFrontier.Foundations.Combinatorics.DepthReduction
 public import CslibFrontier.Foundations.Combinatorics.Design.ReedSolomon
@@ -7989,6 +7991,12 @@ public import CslibFrontier.Foundations.GroupTheory.Perm.ReverseCycle
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbitJoin
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbits
 public import CslibFrontier.Foundations.GroupTheory.Perm.SumCycles
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Chain
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Coord
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Grp
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Layer
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Ring
+public import CslibFrontier.Foundations.GroupTheory.SLTower.UT
 public import CslibFrontier.Foundations.LinearAlgebra.AffineSolutionSampling
 public import CslibFrontier.Foundations.LinearAlgebra.CubeSum
 public import CslibFrontier.Foundations.LinearAlgebra.ExchangeReplacement

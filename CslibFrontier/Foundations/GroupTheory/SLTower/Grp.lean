@@ -10,9 +10,31 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Ring
 public import CslibFrontier.Foundations.GroupTheory.SLTower.UT
+import Mathlib.RingTheory.WittVector.IsPoly
 
 /-!
-# The groups SL_h(F₂[s]/(s^{n+1})) and their h unitriangular subgroups
+# The groups `SL_h(F₂[s]/(s^(n+1)))` and their `h` unitriangular subgroups
+
+`Cslib.SLTower.G h n = SL_h(F₂[s]/(s^(n+1)))`. Conjugating `SL_h(F₂)` by the powers of a shift
+weighted with `t = 1 + s` gives `h` embeddings `th0 i` (`i : Fin h`), and their restrictions
+`th i` to the unitriangular group. The generators `gen k` are transvections `1 + tt k · E_{k−1,k}`
+(with weight `t` for `k = 0`), involutions of type `k`; the simple root elements of the `i`-th
+unitriangular subgroup are the generators of types other than `i` (`Cslib.SLTower.th_x`).
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Grp`.
+
+## Main definitions
+
+* `Cslib.SLTower.G h n`: the group; `Cslib.SLTower.evG`: the value at `s = 0`, onto `SL_h(F₂)`.
+* `Cslib.SLTower.th0 i`, `Cslib.SLTower.th i`: the shifted embeddings of `SL_h(F₂)` and `U h`.
+* `Cslib.SLTower.gen h2 k`: the generator of type `k`.
+
+## Main results
+
+* `Cslib.SLTower.th_injective`, `Cslib.SLTower.evG_th_eq_one`: the embeddings are injective, even
+  after the value at `s = 0`.
+* `Cslib.SLTower.gen_mul_self`: the generators are involutions.
+* `Cslib.SLTower.th_x`: `th i (x l) = gen (i + 1 + l)`.
 -/
 
 public section
@@ -76,8 +98,8 @@ theorem det_shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) :
     (shMat i A : Matrix (Fin h) (Fin h) (R (n + 1))).det = cst (n + 1) A.det := by
   rw [shMat, Matrix.det_mul, Matrix.det_mul, Matrix.det_diagonal, Matrix.det_diagonal,
     Matrix.det_submatrix_equiv_self, ← RingHom.mapMatrix_apply, ← RingHom.map_det]
-  have : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) * ∏ a, (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n +
-      1)) = 1 := by
+  have : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) * ∏ a,
+      (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
     rw [← Finset.prod_mul_distrib]
     exact Finset.prod_eq_one fun a _ => Units.mul_inv _
   linear_combination (cst (n + 1) A.det) * this
@@ -116,7 +138,8 @@ theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) : (evG (th0 i A : G h n)).
     (b - i) := by
   rw [evG_apply, th0_val, shMat_apply, map_mul, map_mul, ev_wt, ev_wt_inv, ev_cst, one_mul, mul_one]
 
-theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h => evG (th0 i A : G h n) := by
+theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h =>
+    evG (th0 i A : G h n) := by
   intro A B e
   refine Subtype.ext ?_
   ext a b
@@ -156,11 +179,12 @@ theorem sub_one_ne (h2 : 2 ≤ h) (k : Fin h) : k - 1 ≠ k := by
 noncomputable def gen (h2 : 2 ≤ h) (k : Fin h) : G h n :=
   ⟨transvection (k - 1) k (tt n k), det_transvection_of_ne _ _ (sub_one_ne h2 k) _⟩
 
-theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).1 = transvection (k - 1) k (tt n k) := by rfl
+theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).1 = transvection (k - 1) k (tt n k)
+    := by rfl
 
 theorem gen_mul_self (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n) * gen h2 k = 1 := by
-  refine Subtype.ext ((transvection_mul_transvection_same _ _ (sub_one_ne h2 k) (tt n k) (tt n
-      k)).trans ?_)
+  refine Subtype.ext
+      ((transvection_mul_transvection_same _ _ (sub_one_ne h2 k) (tt n k) (tt n k)).trans ?_)
   rw [add_self, transvection_zero]
   rfl
 
@@ -237,7 +261,8 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
       simp
 
 /-- The simple root elements of the i-th unitriangular subgroup are generators. -/
-theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h n) = gen h2 (sh i l) := by
+theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h n) =
+    gen h2 (sh i l) := by
   refine Subtype.ext ?_
   have e1 : (th i (x h l) : G h n).1 = shMat i (1 + Matrix.single (lo l) (hi l) 1) := by
     rw [← x_val]; rfl

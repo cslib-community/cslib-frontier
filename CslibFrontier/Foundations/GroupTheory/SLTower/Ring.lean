@@ -8,10 +8,30 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Mathlib.Algebra.Field.ZMod
+public import Mathlib.Algebra.Polynomial.Eval.Defs
+public import Mathlib.RingTheory.Ideal.Quotient.Operations
+import Mathlib.RingTheory.AdjoinRoot
 
 /-!
-# The rings F₂[s]/(s^m)
+# The rings `F₂[s]/(s^m)`
+
+`Cslib.SLTower.R m = F₂[s]/(s^m)`, with the nilpotent class `s` of the variable, the unit
+`t = 1 + s`, the reductions `R (m + 1) → R m` and the value at `s = 0`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Ring`.
+
+## Main definitions
+
+* `Cslib.SLTower.R m`, `Cslib.SLTower.mkR`, `Cslib.SLTower.liftR`: the ring, the quotient map
+  and its universal property.
+* `Cslib.SLTower.s m`, `Cslib.SLTower.t m`: the class of the variable and the unit `1 + s`.
+* `Cslib.SLTower.red m`, `Cslib.SLTower.ev m`: reduction modulo `s^m`, and the value at `s = 0`.
+
+## Main results
+
+* `Cslib.SLTower.s_pow_ne`: `s^n ≠ 0` for `n < m`; `Cslib.SLTower.two_eq_zero`: characteristic 2.
+* `Cslib.SLTower.exists_of_red_eq_zero`: the kernel of the reduction is `F₂ · s^m`.
 -/
 
 public section
@@ -36,8 +56,8 @@ noncomputable instance (m : ℕ) : Fintype (R m) := Fintype.ofFinite _
 noncomputable instance (m : ℕ) : DecidableEq (R m) := Classical.decEq _
 
 /-- The class of a polynomial. -/
-noncomputable def mkR (m : ℕ) : (ZMod 2)[X] →+* R m := Ideal.Quotient.mk (Ideal.span {(X : (ZMod
-    2)[X]) ^ m})
+noncomputable def mkR (m : ℕ) : (ZMod 2)[X] →+* R m :=
+    Ideal.Quotient.mk (Ideal.span {(X : (ZMod 2)[X]) ^ m})
 
 theorem mkR_surjective (m : ℕ) : Function.Surjective (mkR m) := Ideal.Quotient.mk_surjective
 
@@ -46,16 +66,16 @@ theorem mkR_eq_zero {m : ℕ} {p : (ZMod 2)[X]} : mkR m p = 0 ↔ X ^ m ∣ p :=
   exact Ideal.Quotient.eq_zero_iff_mem
 
 /-- Homomorphisms from the ring. -/
-noncomputable def liftR {m : ℕ} {S : Type*} [CommRing S] (f : (ZMod 2)[X] →+* S) (hf : f (X ^ m) =
-    0) : R m →+* S :=
+noncomputable def liftR {m : ℕ} {S : Type*} [CommRing S] (f : (ZMod 2)[X] →+* S)
+    (hf : f (X ^ m) = 0) : R m →+* S :=
   Ideal.Quotient.lift (Ideal.span {(X : (ZMod 2)[X]) ^ m}) f (by
     intro p hp
     rw [Ideal.mem_span_singleton] at hp
     obtain ⟨q, rfl⟩ := hp
     rw [map_mul, hf, zero_mul])
 
-theorem liftR_mk {m : ℕ} {S : Type*} [CommRing S] (f : (ZMod 2)[X] →+* S) (hf : f (X ^ m) = 0) (p :
-    (ZMod 2)[X]) :
+theorem liftR_mk {m : ℕ} {S : Type*} [CommRing S] (f : (ZMod 2)[X] →+* S) (hf : f (X ^ m) = 0)
+    (p : (ZMod 2)[X]) :
     liftR f hf (mkR m p) = f p := Ideal.Quotient.lift_mk _ _ _
 
 /-- The constants. -/
@@ -112,8 +132,9 @@ theorem exists_of_red_eq_zero {m : ℕ} {x : R (m + 1)} (h : red m x = 0) :
     rw [add_comm, mul_comm, divX_mul_X_add]
   have h2 : mkR (m + 1) (X ^ (m + 1)) = 0 := mkR_eq_zero.2 dvd_rfl
   rw [s_pow, cst_apply]
-  conv_lhs => rw [h1, mul_add, ← mul_assoc, ← pow_succ, map_add, map_mul, map_mul _ (X ^ (m + 1)),
-      h2, zero_mul,
+  conv_lhs =>
+      rw [h1, mul_add, ← mul_assoc, ← pow_succ, map_add, map_mul, map_mul _ (X ^ (m + 1)), h2,
+          zero_mul,
     add_zero, mul_comm]
 
 /-- The value at s = 0. -/

@@ -8,14 +8,28 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
+public import Mathlib.Data.Fintype.Card
+public import Mathlib.Data.Sym.Sym2
+import Mathlib.Algebra.Group.End
 
 /-!
-# Towers, routes: interface
+# Towers of coverings and routes
 
-A tower: levels of chambers `X j`, typed edges `Ed j`, vertices `V j i` of type `i` (all with the
-local
-structure `Fl`, `Nr`), coverings `X j → X (j + 1)` of degree `D`, and hosts.
+A *tower* (`Cslib.CoveringTower.Tower h b D J r`) has levels `j ≤ J` of chambers `X j` with
+typed edges `Ed j` and vertices `V j i` of every type `i : Fin h`. Every chamber sits at one
+vertex of every type, at one of `b` places (`Fl`), and the edges of the other types are the near
+pairs (`Nr`) at the vertices of type `i`. Coverings `X j → X (j + 1)` of degree `D` and the
+hosts of the vertices connect the levels. *Routes* (`Cslib.CoveringTower.Routes`) are walks
+between all pairs of chambers of level `0`, of bounded length and bounded use of every edge.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Defs`.
+
+## Main definitions
+
+* `Cslib.CoveringTower.Tower`: the interface.
+* `Cslib.CoveringTower.Tower.Walk`: walks along edges.
+* `Cslib.CoveringTower.Routes`: routes of length at most `m` using every edge at most `Uu` times.
 -/
 
 public section
@@ -54,8 +68,8 @@ structure Tower (h b D J r : ℕ) where
   /-- the type of an edge -/
   ty : ∀ {j}, Ed j → Fin h
   card_ed : ∀ j ≤ J, ∀ i, 2 * (univ.filter fun e : Ed j => ty e = i).card = r * Fintype.card (X j)
-  deg : ∀ j ≤ J, ∀ (c : X j) i, (univ.filter fun e : Ed j => ty e = i ∧ (e0 e = c ∨ e1 e = c)).card
-      ≤ r
+  deg : ∀ j ≤ J, ∀ (c : X j) i,
+      (univ.filter fun e : Ed j => ty e = i ∧ (e0 e = c ∨ e1 e = c)).card ≤ r
   /-- the vertex of a chamber -/
   vx : ∀ {j} i, X j → V j i
   /-- the place of a chamber at its vertex -/
