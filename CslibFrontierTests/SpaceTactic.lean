@@ -17,8 +17,8 @@ example : ComputableInSpace (fun p : ℕ × Option ℕ => p.1 + p.2.getD 0)
     (encPair encNat (encOption encNat)) encNat
     (fun p => (encPair encNat (encOption encNat) p).length) := by space
 
-example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
-    (h : (fun a => (enc a).length) ≼ S) :
+-- A constant needs no allowance for the length of the input.
+example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} :
     ComputableInSpace (fun _ : α => 7) enc encNat S := by space
 
 example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {g : α → ℕ} {f : ℕ → ℕ}

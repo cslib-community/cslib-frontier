@@ -35,8 +35,8 @@ def g2 : Dir × Bool → Bool
 
 variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {a b : α → ℕ} {r : α → Dir}
   (ha : ComputableInSpace a enc encNat S) (hb : ComputableInSpace b enc encNat S)
-  (hr : ComputableInSpace r enc (encFinEnum Dir) S) (hin : (fun x => (enc x).length) ≼ S)
-include ha hb hin
+  (hr : ComputableInSpace r enc (encFinEnum Dir) S)
+include ha hb
 
 -- Comparisons combined by Boolean connectives.
 example : ComputableInSpace (fun x => decide (a x < b x) && !decide (a x = 0) || decide (b x = 1))
@@ -92,7 +92,7 @@ example : ComputableInSpace (fun x => g2 ((r x).opp, decide (a x = 0))) enc encB
   have := budget_finite (encC := encFinEnum Dir) Dir.opp hr
   space
 
-omit ha hb hin hr
+omit ha hb hr
 
 -- A component of a value encoded as one finite value. `space` keeps `encFinEnum` folded, so the
 -- pair rule fails at once instead of enumerating `Bool × Fin 64` to the recursion limit.
