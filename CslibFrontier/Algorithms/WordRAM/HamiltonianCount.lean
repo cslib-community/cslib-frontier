@@ -739,12 +739,8 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
           split_ifs <;> simp only [client_simps])
     ⟨0, 0⟩ s₀ ⟨by simp [finPrefSum_zero], rfl⟩
   have heq_s : (Memory.spec 0).clientState s₀ (stepInnerProg env) = s₀ := by
-    have hfr := hspec.2.2.2.1
-    have hmem := hspec.2.2.2.2.1
     rw [stepInnerProg, StateTransitionSpec.clientState_map]
-    ext a
-    · exact hmem a (by simp)
-    · exact hfr
+    exact hspec.2.2.2.2.2.2
   refine ⟨hspec.1, StateTransitionSpec.validHistory_map hspec.2.1, ?_, heq_s, ?_⟩
   · rw [stepInnerProg, memoryCost_map]
     exact hspec.2.2.1
@@ -1299,12 +1295,8 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
           simp [sumStep, client_simps])
     ⟨0, 0⟩ s₀ ⟨by simp [finPrefSum_zero], rfl⟩
   have heq_s : (Memory.spec 0).clientState s₀ (sumVecProg env) = s₀ := by
-    have hfr := hspec.2.2.2.1
-    have hmem' := hspec.2.2.2.2.1
     rw [sumVecProg, StateTransitionSpec.clientState_map]
-    ext a
-    · exact hmem' a (by simp)
-    · exact hfr
+    exact hspec.2.2.2.2.2.2
   refine ⟨hspec.1, StateTransitionSpec.validHistory_map hspec.2.1, ?_, heq_s, ?_⟩
   · rw [sumVecProg, memoryCost_map]
     simpa only [one_mul] using hspec.2.2.1
