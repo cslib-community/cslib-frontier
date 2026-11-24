@@ -150,7 +150,6 @@ theorem flatten_referenceRows {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool
   exact (Solver.materialize_labels G rs hlen hw).symm
 
 attribute [local fun_prop] EdgeAugmenting.poly_zipIdx EdgeAugmenting.poly_readWith
-  ComputableInPolyTime.binary_add'
 
 private theorem poly_rows : ComputableInPolyTime rows EdgeForest.encInput
     (encList (encList encBool)) := by
