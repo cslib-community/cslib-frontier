@@ -8,7 +8,6 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.GameTheory.ResourceAllocation.MarketClearing
-import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.FinCases
@@ -42,12 +41,6 @@ namespace CslibFrontierTests.GameTheory.KellyMarketClearing
 
 open Cslib.GameTheory Set
 
-private theorem isAdmissibleUtility_const_mul {a : ℝ} (ha : 0 < a) :
-    IsAdmissibleUtility (fun x => a * x) where
-  concaveOn := ⟨convex_Ici 0, fun _ _ _ _ _ _ _ _ _ => by simp only [smul_eq_mul]; linarith⟩
-  strictMonoOn _ _ _ _ hxy := mul_lt_mul_of_pos_left hxy ha
-  differentiableOn := differentiableOn_id.const_mul a
-
 /-! ### 1. Kelly proportional sharing (`c = 1`, `D(p, θ) = θ / p`, `ρ = 3 / 4`) -/
 
 section KellyMechanismInstance
@@ -74,7 +67,7 @@ example :
   intro D G
   have hD : IsRegularMarketClearing D := isRegularMarketClearing_powerElasticity le_rfl
   have hU : ∀ i : Fin 2, IsAdmissibleUtility (G.utility i) := fun _ => by
-    simpa only [G, one_mul] using isAdmissibleUtility_const_mul zero_lt_one
+    simpa only [G, one_mul] using KellyGame.isAdmissibleUtility_linear zero_lt_one
   have hρ : efficiencyRatio D = 3 / 4 := by
     dsimp only [D]
     rw [efficiencyRatio_powerElasticity le_rfl, elasticityEfficiencyBound_one]
@@ -139,8 +132,8 @@ example :
   have hU : ∀ r : Fin 7, IsAdmissibleUtility (G.utility r) := fun r => by
     dsimp only [G, cTwoWitnessGame]
     split_ifs
-    · exact isAdmissibleUtility_const_mul (by norm_num)
-    · exact isAdmissibleUtility_const_mul (by norm_num)
+    · exact KellyGame.isAdmissibleUtility_linear (by norm_num)
+    · exact KellyGame.isAdmissibleUtility_linear (by norm_num)
   have hopt_w : G.welfare opt = 7 / 3 := by
     rw [KellyGame.welfare, ← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin 7))]
     have hrest : ∑ r ∈ Finset.univ.erase (0 : Fin 7), G.utility r (opt r) = 0 :=
@@ -288,7 +281,7 @@ example :
       show (2 : ℝ) + -1 / (1 / 2) = 0 by norm_num, Real.rpow_zero, mul_one]
   refine ⟨hsmooth, hsurj, fun hreg => ?_⟩
   have hu : IsAdmissibleUtility (fun x => x) := by
-    simpa only [one_mul] using isAdmissibleUtility_const_mul zero_lt_one
+    simpa only [one_mul] using KellyGame.isAdmissibleUtility_linear zero_lt_one
   have hconc := hreg.concaveOn_payoff_pos 2 le_rfl 1 zero_lt_one (fun x => x) hu 0 ![0, 0]
     (fun s hs => by
       fin_cases s

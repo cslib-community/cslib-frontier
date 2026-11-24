@@ -415,18 +415,6 @@ theorem IsMarketCompetitiveEquilibrium.isSocialOptimum {ι : Type*} [Fintype ι]
 
 section FunctionalForm
 
-private theorem linear_admissible {k : ℝ} (hk : 0 < k) :
-    IsAdmissibleUtility (fun x => k * x) where
-  concaveOn := ⟨convex_Ici 0, fun _ _ _ _ _ _ _ _ _ => by simp only [smul_eq_mul]; linarith⟩
-  strictMonoOn := fun _ _ _ _ hxy => mul_lt_mul_of_pos_left hxy hk
-  differentiableOn := (differentiable_id.const_mul k).differentiableOn
-
-private theorem derivWithin_linear_Ici {a x : ℝ} (hx : 0 ≤ x) :
-    derivWithin (fun t : ℝ => a * t) (Ici 0) x = a := by
-  have hd : HasDerivWithinAt (fun t : ℝ => a * t) a (Ici 0) x := by
-    simpa only [mul_one] using ((hasDerivAt_id' x).const_mul a).hasDerivWithinAt
-  exact hd.derivWithin (uniqueDiffOn_Ici 0 x hx)
-
 private theorem concaveOn_of_tendsto {s : Set ℝ} (hs : Convex ℝ s) {F : ℕ → ℝ → ℝ} {f : ℝ → ℝ}
     (hconc : ∀ n, ConcaveOn ℝ s (F n)) (hlim : ∀ x ∈ s, Tendsto (fun n => F n x) atTop (𝓝 (f x))) :
     ConcaveOn ℝ s f := by
@@ -660,10 +648,11 @@ private theorem IsRegularMarketClearing.demand_eq_mul_unit {D : ℝ → ℝ → 
     (hD : IsRegularMarketClearing D) {p : ℝ} (hp : 0 < p) :
     0 < D p 1 ∧ ∀ θ, 0 ≤ θ → D p θ = θ * D p 1 := by
   have hconc1 : ConcaveOn ℝ (Ici 0) (D p) := by
-    have h := hD.concaveOn_priceTaking hp (linear_admissible (by linarith : 0 < p + 1))
+    have h :=
+      hD.concaveOn_priceTaking hp (KellyGame.isAdmissibleUtility_linear (by linarith : 0 < p + 1))
     simpa only [show ∀ t, (p + 1) * D p t - p * D p t = D p t from fun t => by ring] using h
   have hconv1 : ConvexOn ℝ (Ici 0) (D p) := by
-    have h := hD.concaveOn_priceTaking hp (linear_admissible (half_pos hp))
+    have h := hD.concaveOn_priceTaking hp (KellyGame.isAdmissibleUtility_linear (half_pos hp))
     have hneg : ConcaveOn ℝ (Ici 0) (fun t => -(p / 2) * D p t) := by
       simpa only [show ∀ t, p / 2 * D p t - p * D p t = -(p / 2) * D p t from fun t => by ring]
         using h
@@ -740,8 +729,8 @@ private theorem IsRegularMarketClearing.convexOn_payment_pos {D : ℝ → ℝ �
   convexOn_payment_of_payoff (convex_Ioi 0)
     (a := fun t => marketAllocation D C (Function.update θ r t) r) fun n =>
       (hD.concaveOn_payoff_pos R hR C hC _
-        (linear_admissible (by positivity : (0 : ℝ) < 1 / ((n : ℝ) + 1))) r θ hzero).congr
-        fun t _ => by simp only [marketPayoff_apply]
+        (KellyGame.isAdmissibleUtility_linear (by positivity : (0 : ℝ) < 1 / ((n : ℝ) + 1)))
+        r θ hzero).congr fun t _ => by simp only [marketPayoff_apply]
 
 private theorem IsRegularMarketClearing.convexOn_payment_nonneg {D : ℝ → ℝ → ℝ}
     (hD : IsRegularMarketClearing D) {R : ℕ} (hR : 2 ≤ R) {C : ℝ} (hC : 0 < C)
@@ -752,8 +741,8 @@ private theorem IsRegularMarketClearing.convexOn_payment_nonneg {D : ℝ → ℝ
   convexOn_payment_of_payoff (convex_Ici 0)
     (a := fun t => marketAllocation D C (Function.update θ r t) r) fun n =>
       (hD.concaveOn_payoff_nonneg R hR C hC _
-        (linear_admissible (by positivity : (0 : ℝ) < 1 / ((n : ℝ) + 1))) r θ hθ hnz).congr
-        fun t _ => by simp only [marketPayoff_apply]
+        (KellyGame.isAdmissibleUtility_linear (by positivity : (0 : ℝ) < 1 / ((n : ℝ) + 1)))
+        r θ hθ hnz).congr fun t _ => by simp only [marketPayoff_apply]
 
 /-- The inverse price scale `B(p) = (D p 1)⁻¹` and its inverse `Λ(μ) = clearingPrice D 1 ![μ, 0]`
 for `D ∈ 𝒟` (Step 5 of Theorem 21.10, [Johari2007], p. 556). -/
@@ -2085,7 +2074,8 @@ private theorem bddBelow_efficiencyRatioSet (D : ℝ → ℝ → ℝ) (hD : IsSm
 private theorem nonempty_efficiencyRatioSet {D : ℝ → ℝ → ℝ} (hD : IsRegularMarketClearing D) :
     (efficiencyRatioSet D).Nonempty := by
   set G : KellyGame (Fin 2) := ⟨1, fun _ x => 1 * x⟩
-  have hU : ∀ r : Fin 2, IsAdmissibleUtility (G.utility r) := fun _ => linear_admissible zero_lt_one
+  have hU : ∀ r : Fin 2, IsAdmissibleUtility (G.utility r) :=
+    fun _ => KellyGame.isAdmissibleUtility_linear zero_lt_one
   obtain ⟨d, hd⟩ := KellyGame.exists_isSocialOptimum (G := G) zero_le_one
     (fun r => (hU r).continuousOn.mono fun _ hz => hz.1)
   obtain ⟨θ, hne, _⟩ := hD.existsUnique_isMarketNashEquilibrium (G := G) (by decide) zero_lt_one hU
@@ -2155,8 +2145,8 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
   have hU_inst : ∀ r : Fin (n + 1), IsAdmissibleUtility (G_inst.utility r) := fun r => by
     dsimp only [G_inst]
     split_ifs
-    · exact linear_admissible hA_pos
-    · exact linear_admissible hα_pos
+    · exact KellyGame.isAdmissibleUtility_linear hA_pos
+    · exact KellyGame.isAdmissibleUtility_linear hα_pos
   have hU0_inst : ∀ r : Fin (n + 1), 0 ≤ G_inst.utility r 0 := fun r => by
     dsimp only [G_inst]; split_ifs <;> simp
   set θ_inst : Fin (n + 1) → ℝ := fun r => if r = 0 then μ * d₁ else μ * d
@@ -2204,13 +2194,13 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
       · subst hr
         rw [halloc0]
         have hu0 : G_inst.utility 0 = fun t => A * t := by funext t; simp [G_inst]
-        rw [hu0, derivWithin_linear_Ici (by positivity)]
+        rw [hu0, KellyGame.derivWithin_linear (by positivity)]
         simp only [G_inst, div_one, hμd_eq, A, d₁]
         field_simp [(by positivity : s + 1 ≠ 0)]
         ring
       · rw [halloc_ne r hr]
         have hur : G_inst.utility r = fun t => α * t := by funext t; simp [G_inst, hr]
-        rw [hur, derivWithin_linear_Ici hd_pos.le]
+        rw [hur, KellyGame.derivWithin_linear hd_pos.le]
         simp only [G_inst, div_one, α]
         exact div_mul_cancel₀ _ (by linarith)
     refine ⟨hθ0_inst, herase_inst, fun r => ?_, fun r _ => ?_⟩
