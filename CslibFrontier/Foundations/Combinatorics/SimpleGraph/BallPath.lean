@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
 public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 public import Mathlib.Combinatorics.SimpleGraph.Hasse
 public import Mathlib.Combinatorics.SimpleGraph.Sum
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.Order.Group.Unbundled.Int
 import Mathlib.Data.ZMod.Defs
 import Mathlib.Tactic.Ring
@@ -254,22 +255,18 @@ theorem exists_isBallPath_pathGraph {N r : ℕ} (j : Fin N) {lo hi : ℤ}
     (hlo : lo = -(min r j : ℕ)) (hhi : hi = (min r (N - 1 - j) : ℕ)) :
     ∃ φ : ℤ → Fin N, φ 0 = j ∧ IsBallPath (pathGraph N) r lo hi φ := by
   subst hlo hhi
-  have hj := j.2
-  have hv : ∀ s : ℤ, ((pathAt j s : Fin N) : ℕ) = min (j + s).toNat (N - 1) := fun _ => rfl
-  refine ⟨pathAt j, Fin.ext (by rw [hv]; omega), by omega, by omega, by omega, by omega,
+  refine ⟨pathAt j, by fin_index [pathAt], by omega, by omega, by omega, by omega,
     fun s hs t ht hst => ?_, fun s t hs ht => ?_, fun s hs h1 h2 y hy => ?_⟩
   · simp only [Set.mem_Icc] at hs ht
-    have := congrArg Fin.val hst
-    rw [hv, hv] at this
-    omega
+    fin_index [pathAt]
   · simp only [Set.mem_Icc] at hs ht
-    rw [pathGraph_adj, hv, hv]
+    simp only [pathGraph_adj, pathAt]
     omega
   · simp only [Set.mem_Icc] at hs
-    rw [pathGraph_adj, hv] at hy
+    simp only [pathGraph_adj, pathAt] at hy
     rcases hy with hy | hy
-    · exact ⟨s + 1, ⟨by omega, by omega⟩, Fin.ext (by rw [hv]; omega)⟩
-    · exact ⟨s - 1, ⟨by omega, by omega⟩, Fin.ext (by rw [hv]; omega)⟩
+    · exact ⟨s + 1, ⟨by omega, by omega⟩, by fin_index [pathAt]⟩
+    · exact ⟨s - 1, ⟨by omega, by omega⟩, by fin_index [pathAt]⟩
 
 /-- Every walk in `pathGraph N` is at least as long as the distance of the endpoint indices. -/
 private theorem pathGraph_length_walk {N : ℕ} {i j : Fin N} (p : (pathGraph N).Walk i j) :
@@ -302,10 +299,10 @@ theorem edist_pathGraph {N : ℕ} (i j : Fin N) :
   refine le_antisymm ?_ ?_
   · rcases le_total (i : ℕ) j with h | h
     · have := edist_pathGraph_add_le (j - i) i (by omega)
-      rw [show (⟨i + (j - i), by omega⟩ : Fin N) = j from Fin.ext (by simp only; omega)] at this
+      rw [show (⟨i + (j - i), by omega⟩ : Fin N) = j by fin_index] at this
       rwa [show (j : ℕ) - i + (i - j) = j - i by omega]
     · have := edist_pathGraph_add_le (i - j) j (by omega)
-      rw [show (⟨j + (i - j), by omega⟩ : Fin N) = i from Fin.ext (by simp only; omega),
+      rw [show (⟨j + (i - j), by omega⟩ : Fin N) = i by fin_index,
         edist_comm] at this
       rwa [show (j : ℕ) - i + (i - j) = i - j by omega]
   · have : NeZero N := ⟨by have := i.2; omega⟩

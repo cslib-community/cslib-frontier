@@ -5,7 +5,7 @@ Authors: Karn Seth
 -/
 module
 -- upstream: candidate
-public import CslibFrontier.Foundations.Data.BitString.Block
+public import CslibFrontier.Foundations.Data.BitString.List
 /-!
 # Fixed-width blocks of a padded bit list
 
@@ -28,6 +28,8 @@ The reading is exact (`padBlocks_getElem_apply` reads every bit of `x`) when `n 
   or `false` past its end.
 * `Cslib.BitString.flatMap_ofFn_padBlocks`: a list of whole blocks is the concatenation of its
   blocks.
+* `Cslib.BitString.listRows_eq_map_ofFn_padBlocks`: `listRows (L / n) n x` is the word view of
+  `padBlocks n L x`.
 -/
 @[expose] public section
 namespace Cslib.BitString
@@ -66,4 +68,12 @@ theorem flatMap_ofFn_padBlocks {n : ℕ} {x : List Bool} (hx : n ∣ x.length) :
     blocksEquiv_symm_block]
   refine List.ext_getElem (by simp [hlen]) fun p h₁ h₂ => ?_
   simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₂]
+/-- `listRows (L / n) n x` is the word view of `padBlocks n L x`. -/
+theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
+    listRows (L / n) n x = (padBlocks n L x).map List.ofFn := by
+  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
+  refine List.ext_getElem (by simp [listRows]) fun j hj₁ hj₂ => ?_
+  simp only [listRows, List.getElem_map, List.getElem_range]
+  rw [getElem_listRow (by simpa using hj₂), List.getElem_ofFn,
+    padBlocks_getElem_apply n L x i (by simpa using h₁) ⟨j, by simpa using hj₂⟩]
 end Cslib.BitString

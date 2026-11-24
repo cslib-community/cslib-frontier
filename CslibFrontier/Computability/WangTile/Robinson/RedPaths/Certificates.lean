@@ -251,18 +251,17 @@ private theorem Forest.sound {width : Nat} {grid : Nat → Nat → Index} {f : F
     (valid : f.Valid grid) (i : Nat) (hi : i < f.rows.length) :
     BoundedPath grid width width (decodePort width f.root) (decodePort width (f.row i).port)
       (f.row i).parity := by
-  induction i using Nat.strong_induction_on with
-  | ind i ih =>
-    obtain ⟨bounds, root | ⟨decreases, edge, first, second, parity⟩⟩ := valid.2 ⟨i, hi⟩
-    · rcases root with ⟨hp, hb⟩
-      rw [hp, hb]
-      exact BoundedPath.refl _ valid.1
-    · have predecessorBounds := (valid.2 ⟨(f.row i).predecessor, lt_trans decreases hi⟩).1
-      have step := BoundedPath.ofLink ((decodeMove width (f.row i).move).link edge)
-        (first.symm ▸ predecessorBounds) (second.symm ▸ bounds)
-      rw [first, second] at step
-      rw [parity]
-      exact BoundedPath.trans (ih _ decreases (lt_trans decreases hi)) step
+  obtain ⟨bounds, root | ⟨decreases, edge, first, second, parity⟩⟩ := valid.2 ⟨i, hi⟩
+  · rcases root with ⟨hp, hb⟩
+    rw [hp, hb]
+    exact BoundedPath.refl _ valid.1
+  · have predecessorBounds := (valid.2 ⟨(f.row i).predecessor, lt_trans decreases hi⟩).1
+    have step := BoundedPath.ofLink ((decodeMove width (f.row i).move).link edge)
+      (first.symm ▸ predecessorBounds) (second.symm ▸ bounds)
+    rw [first, second] at step
+    rw [parity]
+    exact BoundedPath.trans (Forest.sound valid _ (lt_trans decreases hi)) step
+termination_by i
 
 private theorem Forest.sound_mem {width : Nat} {grid : Nat → Nat → Index} {f : Forest width}
     (valid : f.Valid grid) {r : Row} (hr : r ∈ f.rows) :

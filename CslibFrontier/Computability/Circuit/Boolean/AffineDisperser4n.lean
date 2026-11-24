@@ -14,8 +14,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.OfCircuit
 # The `4n - 9d` circuit lower bound for affine dispersers
 
 This module proves a tightened `4n - 9d` binary-gate lower bound extending the `4n - 10d`
-zero-locus gate-elimination framework recorded in issue `#4322` (unverified against
-[Mishra and Santhanam][MishraSanthanam2027] because the submission PDF returned HTTP 1042): any
+zero-locus gate-elimination framework of [Mishra and Santhanam][MishraSanthanam2026Revision1],
+ECCC TR26-260 revision 1, Theorem 4.1 (p. 21), also recorded in issue `#4322`: any
 general Boolean circuit (`fullSignature 2 Bool`) computing a `d`-affine disperser `f` on `n` bits
 satisfies `4 * n ≤ C.program.cost binaryB2Cost + 9 * d`
 (`Cslib.Circuits.Boolean.AffineDisperser4n.four_mul_le_cost_add`), and hence
@@ -62,9 +62,9 @@ The potential of a state (`State.W`) is `s + 3 q + 5 · #{used unpaired paramete
 ## References
 
 * [O. S. Mishra and R. Santhanam, *An Explicit 4n - O(log n) Size Lower Bound against General
-  Boolean Circuits*][MishraSanthanam2027] (submission PDF inaccessible with HTTP 1042; `#4322`
-  records `4n - 10d` with `(6, 4, 10)`, whereas `(5, 3, 9)` and `binaryB2Cost` are refinements of
-  this formalization)
+  Boolean Circuits*][MishraSanthanam2026Revision1], ECCC TR26-260 revision 1, Theorem 4.1
+  (p. 21) and Remark 4.3 (p. 26): `4n - 10d` with weights `(6, 4, 10)`; `(5, 3, 9)` and
+  `binaryB2Cost` are refinements of this formalization.
 -/
 
 public section
@@ -165,8 +165,8 @@ theorem four_mul_le_cost_add {n : ℕ} {f : BooleanFunction n} {d : ℕ}
   omega
 
 /-- Size lower bound `4 * n ≤ C.size + 9 * d` for any `fullSignature 2 Bool` circuit computing a
-`d`-affine disperser on `n` bits (tightening the `4 * n ≤ C.size + 10 * d` bound of `#4322`,
-unverified against [MishraSanthanam2027]). -/
+`d`-affine disperser on `n` bits (tightening the `4 * n ≤ C.size + 10 * d` comparison bound in
+[MishraSanthanam2026Revision1], Theorem 4.1, p. 21). -/
 theorem four_mul_le_size_add {n : ℕ} {f : BooleanFunction n} {d : ℕ}
     (hf : IsAffineDisperser f d) (C : Circuit (fullSignature 2 Bool) n 1)
     (hC : C.Computes fullInterpretation (single f)) :
