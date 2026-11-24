@@ -85,7 +85,8 @@ private theorem push_le_push_of_contract {L : Type} [Fintype L] [DecidableEq L] 
   refine ⟨fun q a b => ∏ v : {v : V // ξ v = q}, T v.1 (ex q a) (ey q b), fun x => ?_⟩
   rw [push_entry, h, localApply]
   symm
-  refine Fintype.sum_equiv (pushEquiv (fun l => ξ (ρ l)) t.Index) _ _ fun y => ?_
+  refine Fintype.sum_equiv
+    (Equiv.piCongrFiberwise (f := fun l => ξ (ρ l)) fun _ => Equiv.refl _).symm _ _ fun y => ?_
   congr 1
   rw [← Fintype.prod_fiberwise ξ]
   refine Finset.prod_congr rfl fun q _ => Finset.prod_congr rfl fun v _ => ?_

@@ -23,9 +23,9 @@ product, several legs of a unit tensor at one party are as good as one, and a pu
 depends only on the set of parties holding a leg. Wires can be read in both directions, parallel
 wires multiply their dimensions, a wire at one party is a restriction of `1`, a wire is a
 restriction of a path of two wires (`PartyTensor.wire_le_mul_wire`), and legs can be moved
-along wires (`PartyTensor.push_le_mul_push`). A spectral point is between `1` and `n` at a
-unit tensor of size `n ≥ 1`; its *wire exponent* `log₂ F ⟨2⟩_pq` is the `d_φ(p, q)` of
-Lemma A.2 of [AnthropicVPVNP2026].
+along wires (`PartyTensor.push_le_mul_push`). An upper functional, in particular a spectral
+point, is between `1` and `n` at a unit tensor of size `n ≥ 1`. The *wire exponent*
+`log₂ F ⟨2⟩_pq` of a spectral point `F` is the `d_φ(p, q)` of Lemma A.2 of [AnthropicVPVNP2026].
 
 ## Main definitions
 
@@ -38,8 +38,8 @@ Lemma A.2 of [AnthropicVPVNP2026].
 * `Cslib.PartyTensor.antisymmRel_wire_comm`, `Cslib.PartyTensor.antisymmRel_wire_mul`,
   `Cslib.PartyTensor.wire_self_le_one`, `Cslib.PartyTensor.wire_le_mul_wire`,
   `Cslib.PartyTensor.push_le_mul_push`: wires.
-* `Cslib.PartyTensor.SpectralPoint.one_le_unit`, `Cslib.PartyTensor.SpectralPoint.unit_le`:
-  spectral points at unit tensors.
+* `Cslib.PartyTensor.UpperFunctional.one_le_unit`, `Cslib.PartyTensor.UpperFunctional.unit_le`:
+  upper-functional bounds at unit tensors, `1 ≤ P ⟨n⟩ ≤ n`.
 
 ## References
 

@@ -211,18 +211,6 @@ theorem localApply_prod {κ : Type} [Fintype κ] [DecidableEq κ] {α β : κ �
   rw [Finset.prod_mul_distrib, Finset.prod_comm]
   rfl
 
-/-- The index tuples of the legs sorted by their parties correspond to the index tuples of all
-legs. -/
-def pushEquiv (π : J → I) (β : J → Type) :
-    (∀ q, ∀ j : {j : J // π j = q}, β j.1) ≃ (∀ j, β j) where
-  toFun y j := y (π j) ⟨j, rfl⟩
-  invFun z _ j := z j.1
-  left_inv y := by
-    funext q ⟨j, hj⟩
-    subst hj
-    rfl
-  right_inv _ := rfl
-
 /-- Local maps applied to an array whose legs are sorted by parties. -/
 theorem localApply_push (π : J → I) {α β : J → Type} [∀ j, Fintype (β j)]
     (L : ∀ j, α j → β j → K) (f : (∀ j, β j) → K) (x : ∀ q, ∀ j : {j : J // π j = q}, α j.1) :
@@ -231,7 +219,8 @@ theorem localApply_push (π : J → I) {α β : J → Type} [∀ j, Fintype (β 
       (fun y => f (fun j => y (π j) ⟨j, rfl⟩)) x =
     localApply L f (fun j => x (π j) ⟨j, rfl⟩) := by
   simp only [localApply]
-  refine Fintype.sum_equiv (pushEquiv π β) _ _ fun y => ?_
+  refine Fintype.sum_equiv (Equiv.piCongrFiberwise (f := π) fun _ => Equiv.refl _).symm _ _
+    fun y => ?_
   congr 1
   rw [← Fintype.prod_fiberwise π]
   refine Finset.prod_congr rfl fun q _ => Finset.prod_congr rfl fun ⟨j, hj⟩ _ => ?_

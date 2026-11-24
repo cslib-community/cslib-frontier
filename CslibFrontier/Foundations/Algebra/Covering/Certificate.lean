@@ -25,8 +25,11 @@ Fix a commutative monoid `M` with a covering relation `D`, an element `C`, a fin
 `C ^ u * ∏ β, A β ^ v β` with `u + ∑ β, v β = k`, for which the numbers `η ^ (∑ β, v β)` add up to
 at most `W`. Certificates multiply (adding levels and multiplying weights), can be raised to a
 higher level, put together along covers, and multiplied by a member `A β` at the cost of a factor
-`η` and one level. The infimum of their weights is then an upper functional
-(`Cslib.Covering.isUpperFunctional_sInf`).
+`η` and one level. These constructions give the multiplication and cover premises of
+`Cslib.Covering.isUpperFunctional_sInf` for the sets of certificate weights. A client that takes
+the infimum of these weights as an upper functional must still establish the other premises of
+that theorem: every weight set is nonempty (every element has a certificate), and every
+certificate of `1` has weight at least `1` (`Certificate.one` gives only the weight `1` itself).
 
 ## Main definitions
 

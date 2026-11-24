@@ -168,6 +168,13 @@ theorem le_card [Nonempty I] (t : PartyTensor K I) : P t ≤ Fintype.card (∀ p
 theorem le_mul {s t u : PartyTensor K I} (h : s ≤ t * u) : P s ≤ P t * P u :=
   (P.monotone h).trans (P.map_mul_le t u)
 
+/-- An upper functional as a function on classes. -/
+@[expose] def lift (P : UpperFunctional K I) : Antisymmetrization (PartyTensor K I) (· ≤ ·) → ℝ :=
+  Quotient.lift P fun _ _ => P.congr
+
+@[simp] theorem lift_toAntisymmetrization (P : UpperFunctional K I) (t : PartyTensor K I) :
+    P.lift (toAntisymmetrization (· ≤ ·) t) = P t := rfl
+
 end UpperFunctional
 
 namespace SpectralPoint
@@ -176,23 +183,26 @@ instance : CoeFun (SpectralPoint K I) fun _ => PartyTensor K I → ℝ := ⟨fun
 
 variable (F : SpectralPoint K I)
 
-/-- A spectral point at the product of a family indexed by `0, …, n - 1`. -/
-private theorem map_prod_fin {n : ℕ} (b : Fin n → PartyTensor K I) :
-    F (prod b) = ∏ k, F (b k) := by
-  induction n with
-  | zero => simpa [F.map_one] using F.congr (antisymmRel_prod_of_isEmpty b)
-  | succ n ih =>
-    rw [F.congr (antisymmRel_prod_fin_succ b), F.map_mul, ih, Fin.prod_univ_succ]
+/-- A spectral point as a monoid homomorphism from the classes of tensors to `ℝ`. -/
+@[expose] def toMonoidHom : Antisymmetrization (PartyTensor K I) (· ≤ ·) →* ℝ where
+  toFun := F.lift
+  map_one' := F.map_one
+  map_mul' x y := by
+    induction x using Antisymmetrization.ind
+    induction y using Antisymmetrization.ind
+    exact F.map_mul _ _
+
+@[simp] theorem toMonoidHom_toAntisymmetrization (t : PartyTensor K I) :
+    F.toMonoidHom (toAntisymmetrization (· ≤ ·) t) = F t := rfl
 
 /-- A spectral point at the product of a family. -/
 theorem map_prod {κ : Type} [Fintype κ] [DecidableEq κ] (b : κ → PartyTensor K I) :
     F (prod b) = ∏ k, F (b k) := by
-  rw [F.congr (antisymmRel_prod_reindex b (Fintype.equivFin κ).symm), F.map_prod_fin]
-  exact Fintype.prod_equiv (Fintype.equivFin κ).symm _ _ fun _ => rfl
+  simp only [← toMonoidHom_toAntisymmetrization, toAntisymmetrization_prod, _root_.map_prod]
 
 /-- A spectral point at a power. -/
 theorem map_pow (t : PartyTensor K I) (k : ℕ) : F (t ^ k) = F t ^ k := by
-  rw [pow_eq_prod, F.map_prod, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  simp only [← toMonoidHom_toAntisymmetrization, toAntisymmetrization_pow, _root_.map_pow]
 
 /-- A restriction of the product of a family is at most the product of the values. -/
 theorem le_prod {κ : Type} [Fintype κ] [DecidableEq κ] {s : PartyTensor K I}
