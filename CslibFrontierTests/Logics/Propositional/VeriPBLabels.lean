@@ -280,4 +280,18 @@ def specGoal (goal body : String) : String :=
   some .noClaim
 #guard checkAugmented trivOPB ((specGoal "@u" "@u rup >= 1 : -1 -2 ;").replace "@y" "@u") == none
 
+/-- `specGoal goal body` with a first step `@s1` of the specification without a subproof: its
+negation takes a kernel number but no augmented one, so the augmented references of the
+specification are sent to kernel numbers. -/
+def specNoSub (goal body : String) : String :=
+  (specGoal goal body).replace "1 u1 >= 1 : $a1 -> 1 : subproof\nqed;" "1 u1 >= 1 : $a1 -> 1 ;"
+
+-- A labelled step referring to the first step by number or by label, and a `proofgoal` naming
+-- the first step by number or by label; `1 -1 +` is not a contradiction.
+#guard checkAugmented trivOPB (specNoSub "1" "@y pol 1 -2 + -1 2 * + ;") == some .noClaim
+#guard checkAugmented trivOPB (specNoSub "@s1" "@y pol @s1 -2 + -1 2 * + ;") == some .noClaim
+#guard checkAugmented trivOPB (specNoSub "1" "@y pol -2 -1 + ;") == some .noClaim
+#guard checkAugmented trivOPB (specNoSub "@s1" "@y pol -2 -1 + ;") == some .noClaim
+#guard checkAugmented trivOPB (specNoSub "1" "@y pol 1 -1 + ;") == none
+
 end CslibFrontierTests.Logics.Propositional.VeriPBLabels

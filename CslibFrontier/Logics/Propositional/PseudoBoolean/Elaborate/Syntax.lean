@@ -668,7 +668,12 @@ private partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → ASte
     | .ref r => .ref (remapRef map r)
     | h => h))
   | .pbc c sub q => .pbc c (sub.map (·.map (remap map a))) (q.map (remapRef map))
-  | .goal g sub q => .goal g (sub.map (remap map a)) (q.map (remapRef map))
+  | .goal g sub q =>
+    let g := match g with
+      | .ref r => AGoal.ref (remapRef map r)
+      | g => g
+    .goal g (sub.map (remap map a)) (q.map (remapRef map))
+  | .labeled l s => .labeled l (remap map a s)
   | s => s
 
 /-- The local number of a reference inside `def_order`, the next number being `next` and the
