@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Eval
-import Mathlib.Tactic.ReduceModChar
+import Mathlib.Tactic.Linarith
 
 /-!
 # The interpreter is right

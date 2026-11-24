@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Budget
-import Mathlib.Tactic.ReduceModChar
+import Mathlib.Tactic.Ring
 
 /-!
 # Formulas for counting the names of constants
