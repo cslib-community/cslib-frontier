@@ -188,20 +188,13 @@ theorem cbcMacWord_append_block (family : List Bool → List Bool → List Bool)
     (hblock : block.length = n) :
     cbcMacWord family n key (msg ++ block) =
       (family key (List.zipWith xor (cbcMacWord family n key msg) block)).take n := by
-  let rows := BitString.listRows (msg.length / n) n msg
-  have hrowsWidth : ∀ w ∈ rows ++ [block], w.length = n := by
-    intro w hw
-    rcases List.mem_append.mp hw with hw | hw
-    · exact BitString.length_of_mem_listRows hw
-    · exact (List.mem_singleton.mp hw) ▸ hblock
-  have hrows := BitString.listRows_flatten (rows ++ [block]) hrowsWidth
-  rw [List.flatten_append, List.flatten_singleton,
-    BitString.flatten_listRows_of_length (Nat.div_mul_cancel hmsg).symm,
-    List.length_append, BitString.length_listRows, List.length_singleton] at hrows
-  have hcount : (msg ++ block).length / n = msg.length / n + 1 := by
-    rw [List.length_append, hblock, Nat.add_div_right _ hn]
-  simp only [cbcMacWord, hcount, hrows, List.foldl_append, List.foldl_cons, List.foldl_nil]
-  rfl
+  have hdvd : n ∣ block.length := by simpa only [hblock] using (dvd_rfl : n ∣ n)
+  have hrow : BitString.listRows (block.length / n) n block = [block] := by
+    simpa only [List.length_singleton, List.flatten_singleton, hblock, Nat.div_self hn] using
+      BitString.listRows_flatten [block]
+        (fun _ hm => (List.mem_singleton.mp hm) ▸ hblock)
+  simp only [cbcMacWord, BitString.listRows_append_aligned hn hmsg hdvd, hrow,
+    List.foldl_append, List.foldl_cons, List.foldl_nil]
 
 /-- Keyed-family presentation of basic CBC-MAC at block width `key.length`. -/
 @[expose]

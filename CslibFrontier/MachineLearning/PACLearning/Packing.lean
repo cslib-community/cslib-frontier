@@ -10,6 +10,7 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.GrowthFunction
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.InformationTheory.Hamming
+import CslibFrontier.Foundations.Data.Code.HammingBound
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-! # Packing numbers of a binary class on a sample
@@ -28,7 +29,8 @@ land where they agree, which happens with probability at most `(1 - ε) ^ k ≤ 
 `k = ⌊2 log |P| / ε⌋ + 1` and the form `Π_C(k) ≤ exp (k / T) T ^ d` of Sauer's lemma with
 `T = 4 / ε` gives `|P| ≤ (8 / ε) ^ (2 d)` when every set shattered by `C` has at most `d` points.
 This is Dudley's bound, with a constant in the exponent; Haussler's sharper
-`e (d + 1) (2 e / ε) ^ d` needs a different argument and is not formalized here.
+`e (d + 1) (2 e / ε) ^ d` is proved in
+`CslibFrontier/MachineLearning/PACLearning/HausslerPacking.lean`.
 
 A maximal separated subset is also a net at the same scale
 (`Cslib.Code.exists_subset_pairwise_lt_hammingDist_forall_exists_le`), so the bound also limits the
@@ -44,6 +46,8 @@ They give the agnostic sample complexity `O((d + log (1 / δ)) / ε²)` stated i
   `ε`-separated set stay distinct, when `2 log |P| < ε k`.
 - `card_le_growthFunction_of_two_mul_log_card_lt`: an `ε`-separated set of labelings realized by
   `C` has at most `Π_C(k)` elements.
+- `card_le_div_pow_of_forall_two_mul_log_card_lt`: general subsampling-and-squaring step turning an
+  exponential-polynomial subsample bound `exp (r / T) (T K) ^ d` into `(8 K / ε) ^ (2 d)`.
 - `card_le_div_pow_of_le_hammingDist`: with Sauer's lemma, it has at most `(8 / ε) ^ (2 d)`.
 
 ## References
@@ -149,6 +153,82 @@ theorem card_le_growthFunction_of_two_mul_log_card_lt (C : ConceptClass α Bool)
         exact mem_restriction.2 ⟨c, hc, fun j => hcu (t j)⟩
     _ ≤ growthFunction C k := ncard_restriction_le_growthFunction C (x ∘ t)
 
+/-- **Subsampling-and-squaring packing step:** if any `r` satisfying `2 log |P| < ε r` (with
+`0 < m`) bounds `P.card` by `exp (r / T) · (T · K) ^ d` for every `T ≥ 1` (where `K ≥ 1` and
+`0 < ε ≤ 1`), then `P.card ≤ (8 K / ε) ^ (2 d)`. Choosing `K = 1` gives Dudley's binary VC bound;
+choosing `K = max 1 (|β| choose 2)` gives the multiclass Natarajan bound. -/
+theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
+    {P : Finset (Fin m → β)} {ε K : ℝ} (hK : 1 ≤ K) (hε : 0 < ε) (hε1 : ε ≤ 1)
+    (hsub : ∀ {r : ℕ} {T : ℝ}, 0 < m → 2 * Real.log P.card < ε * r → 1 ≤ T →
+      (P.card : ℝ) ≤ Real.exp (r / T) * (T * K) ^ d) :
+    (P.card : ℝ) ≤ (8 * K / ε) ^ (2 * d) := by
+  have hone : (1 : ℝ) ≤ (8 * K / ε) ^ (2 * d) :=
+    one_le_pow₀ (by rw [le_div_iff₀ hε]; linarith)
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · have hle1 : P.card ≤ 1 := card_le_one.mpr fun _ _ _ _ => funext fun i => i.elim0
+    exact (by exact_mod_cast hle1 : (P.card : ℝ) ≤ 1).trans hone
+  rcases P.eq_empty_or_nonempty with hP0 | hPne
+  · simpa only [hP0, card_empty, Nat.cast_zero] using zero_le_one.trans hone
+  have hN : (0 : ℝ) < P.card := by exact_mod_cast hPne.card_pos
+  set L := Real.log P.card with hL
+  have hL0 : 0 ≤ L := Real.log_nonneg (by exact_mod_cast hPne.card_pos)
+  set k := ⌊2 * L / ε⌋₊ + 1 with hk
+  have hkcast : (k : ℝ) = ⌊2 * L / ε⌋₊ + 1 := by rw [hk]; push_cast; rfl
+  have hk1 : 2 * L / ε < k := by rw [hkcast]; exact Nat.lt_floor_add_one _
+  have hk2 : (k : ℝ) ≤ 2 * L / ε + 1 := by
+    rw [hkcast]; linarith [Nat.floor_le (div_nonneg (mul_nonneg zero_le_two hL0) hε.le)]
+  have hlog : 2 * L < ε * k := by
+    have := (div_lt_iff₀ hε).1 hk1
+    linarith
+  set T := 4 / ε with hT
+  have hT1 : 1 ≤ T := by rw [hT, le_div_iff₀ hε]; linarith
+  have hsauer : (P.card : ℝ) ≤ Real.exp (k / T) * (T * K) ^ d := hsub hm hlog hT1
+  have hkT : (k : ℝ) / T ≤ L / 2 + ε / 4 := by
+    rw [hT, div_div_eq_mul_div, div_le_iff₀ (by norm_num : (0 : ℝ) < 4)]
+    have hmul := mul_le_mul_of_nonneg_left hk2 hε.le
+    rw [mul_add, mul_div_cancel₀ _ hε.ne', mul_one] at hmul
+    nlinarith
+  have hTK_nonneg : 0 ≤ T * K := by positivity
+  have hsq : (P.card : ℝ) ^ 2 ≤ P.card * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by
+    have h1 : (P.card : ℝ) ≤ Real.exp (L / 2 + ε / 4) * (T * K) ^ d :=
+      hsauer.trans (by gcongr)
+    calc (P.card : ℝ) ^ 2 ≤ (Real.exp (L / 2 + ε / 4) * (T * K) ^ d) ^ 2 := by gcongr
+      _ = Real.exp (L / 2 + ε / 4) ^ 2 * (T * K) ^ (2 * d) := by
+          rw [mul_pow, ← pow_mul, mul_comm d]
+      _ = Real.exp L * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by
+          rw [← Real.exp_nat_mul, ← mul_assoc, ← Real.exp_add]
+          push_cast
+          ring_nf
+      _ = P.card * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by rw [hL, Real.exp_log hN]
+  have hle : (P.card : ℝ) ≤ Real.exp (ε / 2) * (T * K) ^ (2 * d) :=
+    le_of_mul_le_mul_left (by rwa [← sq]) hN
+  have hexp2 : Real.exp (ε / 2) < 2 := by
+    have hsq2 : Real.exp (ε / 2) ^ 2 < 2 ^ 2 := by
+      rw [← Real.exp_nat_mul]
+      calc Real.exp ((2 : ℕ) * (ε / 2)) = Real.exp ε := by push_cast; ring_nf
+        _ ≤ Real.exp 1 := Real.exp_le_exp.2 hε1
+        _ < 2 ^ 2 := by have := Real.exp_one_lt_d9; norm_num at this ⊢; linarith
+    exact lt_of_pow_lt_pow_left₀ 2 zero_le_two hsq2
+  rcases Nat.eq_zero_or_pos d with rfl | hd
+  · have hlt2 : P.card < 2 := by
+      have : (P.card : ℝ) < 2 := by
+        calc (P.card : ℝ) ≤ Real.exp (ε / 2) * (T * K) ^ (2 * 0) := hle
+          _ = Real.exp (ε / 2) := by ring
+          _ < 2 := hexp2
+      exact_mod_cast this
+    have hle1 : P.card ≤ 1 := by omega
+    simpa using (by exact_mod_cast hle1 : (P.card : ℝ) ≤ 1)
+  · calc (P.card : ℝ) ≤ Real.exp (ε / 2) * (T * K) ^ (2 * d) := hle
+      _ ≤ 2 ^ (2 * d) * (T * K) ^ (2 * d) := by
+          gcongr
+          calc Real.exp (ε / 2) ≤ 2 := hexp2.le
+            _ = 2 ^ 1 := (pow_one 2).symm
+            _ ≤ 2 ^ (2 * d) := pow_le_pow_right₀ (by norm_num) (by omega)
+      _ = (8 * K / ε) ^ (2 * d) := by
+          rw [← mul_pow, hT]
+          congr 1
+          ring
+
 /-- **Packing bound for VC classes** [Vershynin2018, Theorem 8.3.18; Dudley1978]: if every set
 shattered by `C` has at most `d` points, a set of labelings realized by `C` on `m` points whose
 members pairwise differ on at least `ε m` points, `0 < ε ≤ 1`, has at most `(8 / ε) ^ (2 d)`
@@ -158,79 +238,29 @@ theorem card_le_div_pow_of_le_hammingDist {C : ConceptClass α Bool} {d : ℕ}
     {P : Finset (Fin m → Bool)} (hPC : ∀ u ∈ P, u ∈ restriction C x) {ε : ℝ} (hε : 0 < ε)
     (hε1 : ε ≤ 1) (hP : ∀ u ∈ P, ∀ v ∈ P, u ≠ v → ε * m ≤ hammingDist u v) :
     (P.card : ℝ) ≤ (8 / ε) ^ (2 * d) := by
-  have hone : (1 : ℝ) ≤ (8 / ε) ^ (2 * d) :=
-    one_le_pow₀ (by rw [le_div_iff₀ hε]; linarith)
-  rcases Nat.eq_zero_or_pos m with rfl | hm
-  · -- On no points there is a single labeling.
-    have : P.card ≤ 1 := (card_le_univ P).trans (by simp)
-    exact (by exact_mod_cast this : (P.card : ℝ) ≤ 1).trans hone
-  rcases P.eq_empty_or_nonempty with hP0 | hPne
-  · simpa [hP0] using hone.trans' zero_le_one
-  have hN : (0 : ℝ) < P.card := by exact_mod_cast hPne.card_pos
-  set L := Real.log P.card with hL
-  have hL0 : 0 ≤ L := Real.log_nonneg (by exact_mod_cast hPne.card_pos)
-  -- The subsample size `k = ⌊2 L / ε⌋ + 1`.
-  set k := ⌊2 * L / ε⌋₊ + 1 with hk
-  have hkcast : (k : ℝ) = ⌊2 * L / ε⌋₊ + 1 := by rw [hk]; push_cast; rfl
-  have hk1 : 2 * L / ε < k := by rw [hkcast]; exact Nat.lt_floor_add_one _
-  have hk2 : (k : ℝ) ≤ 2 * L / ε + 1 := by
-    rw [hkcast]; linarith [Nat.floor_le (div_nonneg (mul_nonneg zero_le_two hL0) hε.le)]
-  have hlog : 2 * L < ε * k := by
-    have := (div_lt_iff₀ hε).1 hk1
-    linarith
-  -- Sauer's lemma with `T = 4 / ε`.
-  set T := 4 / ε with hT
-  have hT1 : 1 ≤ T := by rw [hT, le_div_iff₀ hε]; linarith
-  have hgrowth : (P.card : ℝ) ≤ growthFunction C k := by
-    exact_mod_cast card_le_growthFunction_of_two_mul_log_card_lt C hm hPC hP hlog
-  have hsauer : (P.card : ℝ) ≤ Real.exp (k / T) * T ^ d :=
-    hgrowth.trans (growthFunction_le_exp_mul_pow hC k hT1)
-  have hkT : (k : ℝ) / T ≤ L / 2 + ε / 4 := by
-    rw [hT, div_div_eq_mul_div, div_le_iff₀ (by norm_num : (0 : ℝ) < 4)]
-    have := mul_le_mul_of_nonneg_left hk2 hε.le
-    rw [mul_add, mul_div_cancel₀ _ hε.ne', mul_one] at this
-    nlinarith
-  -- Squaring removes the square root of `|P| = exp L`.
-  have hsq : (P.card : ℝ) ^ 2 ≤ P.card * (Real.exp (ε / 2) * T ^ (2 * d)) := by
-    have h1 : (P.card : ℝ) ≤ Real.exp (L / 2 + ε / 4) * T ^ d :=
-      hsauer.trans (by gcongr)
-    calc (P.card : ℝ) ^ 2 ≤ (Real.exp (L / 2 + ε / 4) * T ^ d) ^ 2 := by gcongr
-      _ = Real.exp (L / 2 + ε / 4) ^ 2 * T ^ (2 * d) := by rw [mul_pow, ← pow_mul, mul_comm d]
-      _ = Real.exp L * (Real.exp (ε / 2) * T ^ (2 * d)) := by
-          rw [← Real.exp_nat_mul, ← mul_assoc, ← Real.exp_add]
-          push_cast
-          ring_nf
-      _ = P.card * (Real.exp (ε / 2) * T ^ (2 * d)) := by rw [hL, Real.exp_log hN]
-  have hle : (P.card : ℝ) ≤ Real.exp (ε / 2) * T ^ (2 * d) := by
-    have := hsq
-    rw [sq] at this
-    exact le_of_mul_le_mul_left this hN
-  -- `exp (ε / 2) < 2`, since `exp ε ≤ e < 4`.
-  have hexp2 : Real.exp (ε / 2) < 2 := by
-    have hsq2 : Real.exp (ε / 2) ^ 2 < 2 ^ 2 := by
-      rw [← Real.exp_nat_mul]
-      calc Real.exp ((2 : ℕ) * (ε / 2)) = Real.exp ε := by push_cast; ring_nf
-        _ ≤ Real.exp 1 := Real.exp_le_exp.2 hε1
-        _ < 2 ^ 2 := by have := Real.exp_one_lt_d9; norm_num at this ⊢; linarith
-    exact lt_of_pow_lt_pow_left₀ 2 zero_le_two hsq2
-  rcases Nat.eq_zero_or_pos d with rfl | hd
-  · -- With `d = 0`, `|P| < 2`.
-    have h2 : (P.card : ℝ) < 2 := by
-      have : (P.card : ℝ) ≤ Real.exp (ε / 2) := by simpa using hle
-      linarith
-    have : P.card ≤ 1 := by
-      have : P.card < 2 := by exact_mod_cast h2
-      omega
-    simpa using (by exact_mod_cast this : (P.card : ℝ) ≤ 1)
-  · calc (P.card : ℝ) ≤ Real.exp (ε / 2) * T ^ (2 * d) := hle
-      _ ≤ 2 ^ (2 * d) * T ^ (2 * d) := by
-          gcongr
-          calc Real.exp (ε / 2) ≤ 2 := hexp2.le
-            _ = 2 ^ 1 := (pow_one 2).symm
-            _ ≤ 2 ^ (2 * d) := pow_le_pow_right₀ (by norm_num) (by omega)
-      _ = (8 / ε) ^ (2 * d) := by
-          rw [← mul_pow, hT]
-          congr 1
-          ring
+  simpa only [mul_one] using
+    card_le_div_pow_of_forall_two_mul_log_card_lt (K := 1) le_rfl hε hε1
+      fun {r T} hm hlog hT1 => by
+        have hgrowth : (P.card : ℝ) ≤ growthFunction C r := by
+          exact_mod_cast card_le_growthFunction_of_two_mul_log_card_lt C hm hPC hP hlog
+        simpa only [mul_one] using hgrowth.trans (growthFunction_le_exp_mul_pow hC r hT1)
+
+/-- Every finite set `L : Finset (Fin m → β)` contains an `ε`-separated subset `N ⊆ L` (`0 ≤ ε`)
+whose `ε m`-Hamming balls cover `L`. -/
+theorem exists_subset_separated_and_covering {β : Type*} [DecidableEq β] {m : ℕ}
+    (L : Finset (Fin m → β)) {ε : ℝ} (hε : 0 ≤ ε) :
+    ∃ N ⊆ L, (∀ u ∈ N, ∀ v ∈ N, u ≠ v → ε * m ≤ hammingDist u v) ∧
+      ∀ u ∈ L, ∃ v ∈ N, (hammingDist v u : ℝ) ≤ ε * m := by
+  obtain ⟨N, hNL, hNsep, hcov⟩ :=
+    Cslib.Code.exists_subset_pairwise_lt_hammingDist_forall_exists_le L ⌊ε * m⌋₊
+  refine ⟨N, hNL, ?_, ?_⟩
+  · intro u hu v hv huv
+    have hlt : ⌊ε * m⌋₊ + 1 ≤ hammingDist u v := hNsep hu hv huv
+    calc ε * m ≤ (⌊ε * m⌋₊ : ℝ) + 1 := (Nat.lt_floor_add_one (ε * m)).le
+      _ ≤ hammingDist u v := by exact_mod_cast hlt
+  · intro u hu
+    obtain ⟨v, hvN, hvu⟩ := hcov u hu
+    exact ⟨v, hvN, (by exact_mod_cast hvu : (hammingDist v u : ℝ) ≤ ⌊ε * m⌋₊).trans
+      (Nat.floor_le (by positivity))⟩
 
 end Cslib.MachineLearning.PACLearning
