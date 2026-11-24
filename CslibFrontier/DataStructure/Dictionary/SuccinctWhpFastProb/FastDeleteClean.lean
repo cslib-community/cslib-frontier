@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Renfei Zhou. All rights reserved.
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Renfei Zhou
+Authors: Renfei Zhou, Samuel Schlesinger
 -/
 
 module
@@ -28,7 +28,7 @@ open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Finset
 
-theorem fastDeleteMoveSlices_rebSliceIdx (n_max b loc_del loc_last fp : ℕ)
+private theorem fastDeleteMoveSlices_rebSliceIdx (n_max b loc_del loc_last fp : ℕ)
     (s : FastState)
     (hroles : s.liveRole b < 3 ∧ s.overmarsRole b < 3 ∧ s.liveRole b ≠ s.overmarsRole b) :
     (fastDeleteMoveSlices n_max b loc_del loc_last fp s).1 (s.rebSliceIdx b) =
@@ -69,7 +69,7 @@ theorem fastDeleteMoveSlices_rebSliceIdx (n_max b loc_del loc_last fp : ℕ)
   · rw [ite_eq_left hc0, Function.update_of_ne hne1]
   · rw [ite_eq_right hc0]
 
-theorem fastDeleteRemove_rebSliceIdx (c U n_max : ℕ) (θ : SeedWhp c U n_max)
+private theorem fastDeleteRemove_rebSliceIdx (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (s : FastState) (u : Fin U) (b loc_del : ℕ)
     (hroles : s.liveRole b < 3 ∧ s.overmarsRole b < 3 ∧ s.liveRole b ≠ s.overmarsRole b) :
     (fastDeleteRemove c U n_max θ s u b loc_del).slices (s.rebSliceIdx b) =

@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Renfei Zhou. All rights reserved.
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Renfei Zhou
+Authors: Renfei Zhou, Samuel Schlesinger
 -/
 
 module
@@ -28,7 +28,7 @@ open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Finset
 
-theorem tickStage_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max) (fs : FastState) :
+private theorem tickStage_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max) (fs : FastState) :
     (epochTickStage c U n_max θ fs).epochClock = fs.epochClock := by
   dsimp only [epochTickStage]
   by_cases hs0 : fs.rebStage = 0
@@ -81,7 +81,7 @@ theorem tickStage_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max) (fs : Fa
   · rw [ite_eq_left hs4]; rfl
   rw [ite_eq_right hs4]
 
-theorem tickStage_rollover_itemAlloc_zero {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage_rollover_itemAlloc_zero {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U} (hc : CoreFastInv c U V n_max θ fs dict)
     (hs5 : (epochTickStage c U n_max θ fs).rebStage = 5) :
     let fs1 := epochTickStage c U n_max θ fs

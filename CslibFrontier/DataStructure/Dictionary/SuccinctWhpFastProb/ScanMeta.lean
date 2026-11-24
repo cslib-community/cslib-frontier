@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Renfei Zhou. All rights reserved.
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Renfei Zhou
+Authors: Renfei Zhou, Samuel Schlesinger
 -/
 
 module
@@ -243,7 +243,7 @@ theorem rebScanSteps_cursor_of_zero (c U n_max b : ℕ) (θ : SeedWhp c U n_max)
         have := h1 k { s with rebCollision := 1 } rfl; rw [hcz] at this; cases this
     · have h := ih _ hcz; dsimp only at h; omega
 
-theorem overmarsScanSteps_meta (c U n_max b : ℕ) (θ : SeedWhp c U n_max) :
+private theorem overmarsScanSteps_meta (c U n_max b : ℕ) (θ : SeedWhp c U n_max) :
     ∀ (k : ℕ) (s : FastState),
       (overmarsScanSteps c U n_max θ b k s).epochClock = s.epochClock ∧
       (overmarsScanSteps c U n_max θ b k s).curEp = s.curEp ∧

@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Renfei Zhou. All rights reserved.
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Renfei Zhou
+Authors: Renfei Zhou, Samuel Schlesinger
 -/
 
 module
@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.WorkPotential
-public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.ScanMeta
 import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.TickStages
 import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.FastDeleteClean
 import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.FastInsertClean
@@ -20,7 +19,7 @@ import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.EpochClock
 # Clean-Window Stepping and Burn-In Countdown for `SuccinctWhpFastProb`
 
 Internal closure (`CleanWindowFast.step`) and bounded burn-in convergence
-(`HasBurnInBudget.step`, `HasBurnInBudget.run`) along the trailing window `windowSuffix`,
+(`HasBurnInBudget.run`) along the trailing window `windowSuffix`,
 plus small-regime invariance `whpRunFrom_small` (not re-exported by `SuccinctWhpFastProb`).
 -/
 
@@ -126,7 +125,7 @@ theorem HasBurnInBudget.of_validWhpState {c U V n_max : ℕ}
   | fallback _ => trivial
   | fast fs => exact Nat.sub_le _ _
 
-theorem HasBurnInBudget.step {c U V n_max : ℕ} (hnU : n_max ≤ U)
+private theorem HasBurnInBudget.step {c U V n_max : ℕ} (hnU : n_max ≤ U)
     {θ : SeedWhp c U n_max} {W_keys W_ins BadIns : Finset (Fin U)}
     {st : WhpDictState} {dict : State U} {b : ℕ}
     (hbud : HasBurnInBudget c U V n_max θ W_keys BadIns st dict b)

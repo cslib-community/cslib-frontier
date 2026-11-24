@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Renfei Zhou. All rights reserved.
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Renfei Zhou
+Authors: Renfei Zhou, Samuel Schlesinger
 -/
 
 module
@@ -28,7 +28,7 @@ open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Finset
 
-theorem tickStage0_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage0_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict) (hs0 : fs.rebStage = 0) :
     let fs1 := epochTickStage0 fs
@@ -73,7 +73,7 @@ theorem tickStage0_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     simp only [hs0, show ¬(1 = 0) by decide, ↓reduceIte, Nat.min_zero]
     unfold stage1Max; omega
 
-theorem tickStage1Fin_props {c U n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage1Fin_props {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} (s : FastState) (sc₀ : ℕ)
     (hdc_le : s.dirtyCount ≤ 2 * sMaxWhp c n_max)
     (hd_lt : ∀ j < s.dirtyCount, s.dirtyBuckets j < numBucketsWhp n_max)
@@ -118,7 +118,7 @@ theorem tickStage1Fin_props {c U n_max : ℕ} {θ : SeedWhp c U n_max}
       obtain ⟨s_opt, hs_opt⟩ := hsalt_all ⟨s.dirtyBuckets 0, hd_lt 0 hdi⟩
       exact ⟨s_opt, hs_opt, Nat.zero_le _⟩
 
-theorem tickStage1_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage1_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict) (hs1 : fs.rebStage = 1)
     (hpre : ValidEpochStagePreTick c U n_max θ fs)
@@ -189,7 +189,7 @@ theorem tickStage1_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     exact tickStage1Fin_props fs fs.stageCursor (hdc_sc.trans (hsc_le.trans hia_le))
       (fun j hj => (hd_props j hj).1) hsalt_all
 
-theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict) (hs2 : fs.rebStage = 2)
     (hpre : ValidEpochStagePreTick c U n_max θ fs)
@@ -314,7 +314,7 @@ theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         omega
       · intro _ _; rw [hm_db, hm_di, hm_cs]; exact ⟨s_opt, hs_opt_inj, hc_le_s_opt⟩
 
-theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict) (hs3 : fs.rebStage = 3) :
     let fs1 := epochTickStage3 c U n_max θ fs
@@ -391,7 +391,7 @@ theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     change (fs.buf fs.oldEp).nodeAlloc < _
     unfold stage4Max; omega
 
-theorem tickStage4_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem tickStage4_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict) (hs4 : fs.rebStage = 4) :
     let fs1 := epochTickStage4 fs
