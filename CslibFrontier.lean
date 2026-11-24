@@ -8478,6 +8478,7 @@ public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients
 public import CslibFrontier.Foundations.RingTheory.Derivation.Determinant
 public import CslibFrontier.Foundations.RingTheory.Derivation.Wronskian
 public import CslibFrontier.Foundations.RingTheory.GaloisRing
+public import CslibFrontier.Foundations.RingTheory.LaurentPolynomial.OrderSpan
 public import CslibFrontier.Foundations.RingTheory.LaurentSeries
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.Line
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Basis

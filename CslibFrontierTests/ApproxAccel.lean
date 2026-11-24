@@ -23,8 +23,8 @@ open Cslib.Circuits.Arithmetic.Separation.Interpreter LaurentPolynomial
 
 /-- Constants have no terms below `ε ^ 0`, and products of such have none either. -/
 example (a b : ℤ) :
-    OrdGE 0 (algebraMap ℤ ℤ[T;T⁻¹] a * algebraMap ℤ ℤ[T;T⁻¹] b) := by
-  simpa using (OrdGE.of_algebraMap (E := ℤ) a).mul (OrdGE.of_algebraMap (E := ℤ) b)
+    OrderGE 0 (algebraMap ℤ ℤ[T;T⁻¹] a * algebraMap ℤ ℤ[T;T⁻¹] b) := by
+  simpa using (OrderGE.of_algebraMap (E := ℤ) a).mul (OrderGE.of_algebraMap (E := ℤ) b)
 
 /-- Every Laurent polynomial has exponents within some span. -/
 example (P : ℤ[T;T⁻¹]) : ∃ n, Span n P := exists_span P

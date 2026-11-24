@@ -39,75 +39,75 @@ open LaurentPolynomial
 variable {A : Type} [CommRing A] {E : Type} [CommRing E] [Algebra A E]
 
 /-- All coefficients are without terms below ε ^ r. -/
-def PolyOrdGE (r : ℤ) (P : Polynomial E[T;T⁻¹]) : Prop := ∀ i, OrdGE r (P.coeff i)
+def PolyOrderGE (r : ℤ) (P : Polynomial E[T;T⁻¹]) : Prop := ∀ i, OrderGE r (P.coeff i)
 
-theorem PolyOrdGE.mul {r s : ℤ} {P Q : Polynomial E[T;T⁻¹]} (hP : PolyOrdGE r P)
-    (hQ : PolyOrdGE s Q) :
-    PolyOrdGE (r + s) (P * Q) := by
+theorem PolyOrderGE.mul {r s : ℤ} {P Q : Polynomial E[T;T⁻¹]} (hP : PolyOrderGE r P)
+    (hQ : PolyOrderGE s Q) :
+    PolyOrderGE (r + s) (P * Q) := by
   intro i
   rw [Polynomial.coeff_mul, ← Finset.sum_map_toList]
-  refine OrdGE.list_sum fun x hx => ?_
+  refine OrderGE.list_sum fun x hx => ?_
   rw [List.mem_map] at hx
   obtain ⟨ab, -, rfl⟩ := hx
   exact (hP _).mul (hQ _)
 
-private theorem polyOrdGE_C {r : ℤ} {a : E[T;T⁻¹]} (h : OrdGE r a) : PolyOrdGE r
+private theorem polyOrdGE_C {r : ℤ} {a : E[T;T⁻¹]} (h : OrderGE r a) : PolyOrderGE r
     (Polynomial.C a) := by
   intro i
   rw [Polynomial.coeff_C]
   split_ifs
   · exact h
-  · exact OrdGE.zero r
+  · exact OrderGE.zero r
 
-private theorem ordGE_one : OrdGE 0 (1 : E[T;T⁻¹]) := by
-  simpa using OrdGE.of_algebraMap (E := E) (1 : E)
+private theorem orderGE_one : OrderGE 0 (1 : E[T;T⁻¹]) := by
+  simpa using OrderGE.of_algebraMap (E := E) (1 : E)
 
 /-- **The parts of a small error stay small** at points whose coordinates have no poles. -/
-private theorem ordGE_line_coeff {σ : Type} {u : σ → E[T;T⁻¹]} (hu : ∀ i, OrdGE 0 (u i))
-    {r : MvPolynomial σ E[T;T⁻¹]} (hr : ∀ d, OrdGE 1 (r.coeff d)) (i : ℕ) :
-    OrdGE 1 ((MvPolynomial.line u r).coeff i) := by
+private theorem orderGE_line_coeff {σ : Type} {u : σ → E[T;T⁻¹]} (hu : ∀ i, OrderGE 0 (u i))
+    {r : MvPolynomial σ E[T;T⁻¹]} (hr : ∀ d, OrderGE 1 (r.coeff d)) (i : ℕ) :
+    OrderGE 1 ((MvPolynomial.line u r).coeff i) := by
   classical
-  have hpow : ∀ (l : σ) (k : ℕ), PolyOrdGE 0 ((Polynomial.C (u l) * Polynomial.X) ^ k) := by
+  have hpow : ∀ (l : σ) (k : ℕ), PolyOrderGE 0 ((Polynomial.C (u l) * Polynomial.X) ^ k) := by
     intro l k
     induction k with
-    | zero => simpa using polyOrdGE_C (ordGE_one (E := E))
+    | zero => simpa using polyOrdGE_C (orderGE_one (E := E))
     | succ k ih =>
       rw [pow_succ]
       refine ih.mul (s := 0) fun j => ?_
       rw [Polynomial.coeff_C_mul_X]
       split_ifs
       · exact hu l
-      · exact OrdGE.zero 0
+      · exact OrderGE.zero 0
   have hprod : ∀ d : σ →₀ ℕ,
-      PolyOrdGE 0 (d.prod fun l k => (Polynomial.C (u l) * Polynomial.X) ^ k) := fun d =>
-    Finset.prod_induction _ (PolyOrdGE 0) (fun P Q hP hQ => hP.mul hQ)
-        (polyOrdGE_C ordGE_one) fun l _ => hpow l _
+      PolyOrderGE 0 (d.prod fun l k => (Polynomial.C (u l) * Polynomial.X) ^ k) := fun d =>
+    Finset.prod_induction _ (PolyOrderGE 0) (fun P Q hP hQ => hP.mul hQ)
+        (polyOrdGE_C orderGE_one) fun l _ => hpow l _
   rw [r.as_sum, map_sum, Polynomial.finsetSum_coeff, ← Finset.sum_map_toList]
-  refine OrdGE.list_sum fun x hx => ?_
+  refine OrderGE.list_sum fun x hx => ?_
   rw [List.mem_map] at hx
   obtain ⟨d, -, rfl⟩ := hx
   rw [MvPolynomial.line, MvPolynomial.aeval_monomial, Polynomial.algebraMap_eq]
   exact ((polyOrdGE_C (hr d)).mul (hprod d)) i
 
-private theorem ordGE_codeB (N : ℕ) (w : List Bool)
-    (q : Fin N × Option Bool) : OrdGE 0 (codeB E[T;T⁻¹] N w q) := by
+private theorem orderGE_codeB (N : ℕ) (w : List Bool)
+    (q : Fin N × Option Bool) : OrderGE 0 (codeB E[T;T⁻¹] N w q) := by
   unfold codeB
   split_ifs
-  · exact ordGE_one
-  · exact OrdGE.zero 0
+  · exact orderGE_one
+  · exact OrderGE.zero 0
 
 /-- **Paper: proof of Theorem N.5, the parts of an approximated polynomial approximate its value.**
 -/
-theorem ordGE_sum_coeff_sub {N d n : ℕ} {f : MvPolynomial (Fin N × Option Bool) E}
+theorem orderGE_sum_coeff_sub {N d n : ℕ} {f : MvPolynomial (Fin N × Option Bool) E}
     {p : MvPolynomial (Fin N × Option Bool) E[T;T⁻¹]}
     (hp : ∀ e (i : ℤ), i ≤ 0 → (p.coeff e).coeff i = if i = 0 then f.coeff e else 0)
     (hd : f.totalDegree ≤ d) (hn : d < n) (w : List Bool) (a : A)
     (hval : MvPolynomial.eval (codeB E N w) f = algebraMap A E a) :
-    OrdGE 1 (∑ i ∈ Finset.range n,
+    OrderGE 1 (∑ i ∈ Finset.range n,
         (MvPolynomial.line (codeB E[T;T⁻¹] N w) p).coeff i - algebraMap A E[T;T⁻¹] a) := by
   classical
   obtain ⟨φ, hφ⟩ : ∃ φ, φ = algebraMap E E[T;T⁻¹] := ⟨_, rfl⟩
-  have hdiff : ∀ e, OrdGE 1 ((p - MvPolynomial.map φ f).coeff e) := by
+  have hdiff : ∀ e, OrderGE 1 ((p - MvPolynomial.map φ f).coeff e) := by
     intro e i hi
     rw [MvPolynomial.coeff_sub, MvPolynomial.coeff_map, AddMonoidAlgebra.coeff_sub,
         Finsupp.sub_apply, hp e i (by omega),
@@ -127,11 +127,11 @@ theorem ordGE_sum_coeff_sub {N d n : ℕ} {f : MvPolynomial (Fin N × Option Boo
       (MvPolynomial.map_eval φ (codeB E N w) f).symm
     rw [h1, hval, hφ, ← IsScalarTower.algebraMap_apply]
   rw [← hf, ← Finset.sum_sub_distrib, ← Finset.sum_map_toList]
-  refine OrdGE.list_sum fun x hx => ?_
+  refine OrderGE.list_sum fun x hx => ?_
   rw [List.mem_map] at hx
   obtain ⟨i, -, rfl⟩ := hx
   rw [← Polynomial.coeff_sub, ← map_sub]
-  exact ordGE_line_coeff (ordGE_codeB N w) hdiff i
+  exact orderGE_line_coeff (orderGE_codeB N w) hdiff i
 
 end Values
 

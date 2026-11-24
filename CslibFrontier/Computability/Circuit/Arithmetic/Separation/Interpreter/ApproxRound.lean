@@ -45,7 +45,7 @@ section Programs
 variable {R : Type} [CommRing R] [Algebra A R] {κ : List Bool → R} {S : Set (List Bool)}
 
 omit [CommRing R] in
-private theorem gt_map {R' : Type} [CommRing R'] (f : R → R') (ν : ℕ → ℕ) (J B : ℕ) (K : KT R)
+private theorem gt_map {R' : Type} (f : R → R') (ν : ℕ → ℕ) (J B : ℕ) (K : KT R)
     (pre : List Bool) :
     gt ν J B (K.map f) pre = gt ν J B K pre := by
   induction K generalizing pre with
@@ -246,14 +246,14 @@ structure IsAccA (θ : List Bool → A) (H v t : ℕ) (K : KT E[T;T⁻¹]) (B : 
       r.cost ≤ t ∧
     ∀ p ∈ r.bill, K.InB B p
   val : ∀ z, z.size ≤ v ^ (H - 32) → Plain θ (v ^ H) z →
-    OrdGE 1 (val K.lk (evl θ (Fm.ofTree D) z) - algebraMap A E[T;T⁻¹] (pv θ z))
+    OrderGE 1 (val K.lk (evl θ (Fm.ofTree D) z) - algebraMap A E[T;T⁻¹] (pv θ z))
 
 /-- The same, where runs have to stop only if the sum is plain. -/
 structure IsPreA (θ : List Bool → A) (H v t : ℕ) (K : KT E[T;T⁻¹]) (B : ℕ) (D : Tree) : Prop where
   run : ∀ z, z.size ≤ v ^ (H - 32) → Plain θ (v ^ H) z → Hl θ (Fm.ofTree D) z ∧
     ∀ r ∈ evl θ (Fm.ofTree D) z, r.cost ≤ t ∧ ∀ p ∈ r.bill, K.InB B p
   val : ∀ z, z.size ≤ v ^ (H - 32) → Plain θ (v ^ H) z →
-    OrdGE 1 (val K.lk (evl θ (Fm.ofTree D) z) - algebraMap A E[T;T⁻¹] (pv θ z))
+    OrderGE 1 (val K.lk (evl θ (Fm.ofTree D) z) - algebraMap A E[T;T⁻¹] (pv θ z))
 
 theorem IsAccA.pre {H v t : ℕ} {K : KT E[T;T⁻¹]} {B : ℕ} {D : Tree} (h : IsAccA θ H v t K B D) :
     IsPreA θ H v t K B D :=
@@ -271,7 +271,7 @@ theorem UF_preA (θ : List Bool → A) (H v : ℕ) (B : ℕ) :
   have h := UF_pre (A := A) (R := E[T;T⁻¹]) θ H v KT.none B
   refine ⟨h.run, fun z hz hp => ?_⟩
   rw [h.val z hz hp, sub_self]
-  exact OrdGE.zero 1
+  exact OrderGE.zero 1
 
 /-- The program of a round: outer budgets with the names that begin with 0, inner ones with those
 that begin with 1. -/

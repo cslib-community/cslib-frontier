@@ -137,7 +137,7 @@ private theorem prop_approx_acc_round {H u v : ℕ} {K' : KT E[T;T⁻¹]} {B' : 
         (pv θ (zq p z q.1)) := ⟨_, rfl⟩
     rw [← hS2] at hval
     rw [← hS1]
-    have diff : ∀ q ∈ L, OrdGE 1 (S1 q - S2 q) := by
+    have diff : ∀ q ∈ L, OrderGE 1 (S1 q - S2 q) := by
       intro q hq
       rw [hL] at hq
       obtain ⟨q1, q2⟩ := hqs q hq
@@ -151,25 +151,25 @@ private theorem prop_approx_acc_round {H u v : ℕ} {K' : KT E[T;T⁻¹]} {B' : 
       rw [hS1, hS2]
       simp only
       rw [v2, ← mul_sub, map_list_sum, List.map_map, sumF]
-      refine ((hn q hq).ordGE.mul (s := ((n : ℤ) + 1)) ?_).mono (by omega)
+      refine ((hn q hq).orderGE.mul (s := ((n : ℤ) + 1)) ?_).mono (by omega)
       have e : ∀ (l : List (Run A)) (a b : Run A → E[T;T⁻¹]),
-          (∀ r ∈ l, OrdGE ((n : ℤ) + 1) (a r - b r)) → OrdGE ((n : ℤ) + 1)
+          (∀ r ∈ l, OrderGE ((n : ℤ) + 1) (a r - b r)) → OrderGE ((n : ℤ) + 1)
               ((l.map a).sum - (l.map b).sum) := by
         intro l a b hab
         induction l with
-        | nil => simpa using OrdGE.zero _
+        | nil => simpa using OrderGE.zero _
         | cons x l ih =>
           simp only [List.map_cons, List.sum_cons]
           rw [add_sub_add_comm]
           exact (hab x List.mem_cons_self).add (ih fun r hr' => hab r (List.mem_cons_of_mem _ hr'))
       refine e _ _ _ fun r hr' => ?_
       obtain ⟨a1, a2, a3, a4⟩ := (hG.list _ (hsz z hz q hq)).2 r hr'
-      have h1 := OrdGE.prod_sub (E := E) (r := 1) zero_le_one r.out.toList
+      have h1 := OrderGE.prod_sub (E := E) (r := 1) zero_le_one r.out.toList
         (fun y => val K'.lk (evl θ (Fm.ofTree D) y)) (pv θ) fun y hy => hD.val y (a4 y hy)
             (v1 r hr' y hy)
       have h2 := h1.rescale (A := A) (r := n + 1)
       rw [← hf, map_sub, AlgHom.commutes] at h2
-      have h3 := (OrdGE.of_algebraMap (E := E) r.th).mul h2
+      have h3 := (OrderGE.of_algebraMap (E := E) r.th).mul h2
       simp only
           [Function.comp_apply, map_mul, wt, a1, List.map_nil, List.prod_nil, mul_one, ← mul_sub]
       exact h3.mono (by omega)
@@ -184,7 +184,7 @@ private theorem prop_approx_acc_round {H u v : ℕ} {K' : KT E[T;T⁻¹]} {B' : 
       rw [this]
       ring
     rw [e]
-    refine (OrdGE.list_sum ?_).add hval
+    refine (OrderGE.list_sum ?_).add hval
     intro P hP
     rw [List.mem_map] at hP
     obtain ⟨q, hq, rfl⟩ := hP
