@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Karn Seth. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth
+Authors: Samuel Schlesinger, Karn Seth
 -/
 
 module
@@ -104,8 +104,8 @@ extracted-model single-issuer VOLE-ACT credit conservation
 
 * [W. Beullens et al., *UOV: Unbalanced Oil and Vinegar, Algorithm Specifications and Supporting
   Documentation*, v3.0, Appendix A, Definition 2, p. 49][UOV2026].
-* [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Tag (`#tag`) and Spending (`#spending`).
-* [Baum et al., *PoMFRIT*, USENIX prepublication, Theorem 1 and Definition 3.1][PoMFRIT2026].
+* [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Parameters / Tag and Spending.
+* [Baum et al., *PoMFRIT*, USENIX prepublication, Definition 3.1][PoMFRIT2026].
 * H. Kosuge, K. Xagawa, *Probabilistic Hash-and-Sign with Retry in the Quantum Random Oracle
   Model*, ePrint 2022/1359, Theorem 1 and Figure 4.
 -/

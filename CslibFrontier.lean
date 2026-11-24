@@ -6858,6 +6858,7 @@ public import CslibFrontier.Crypto.Protocols.UOV.Attacks
 public import CslibFrontier.Crypto.Protocols.UOV.BlockKey
 public import CslibFrontier.Crypto.Protocols.UOV.Field
 public import CslibFrontier.Crypto.Protocols.UOV.Games
+public import CslibFrontier.Crypto.Protocols.UOV.HashAndSign
 public import CslibFrontier.Crypto.Protocols.VOLE.AdaptiveMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Basic
 public import CslibFrontier.Crypto.Protocols.VOLE.BatchMulCheck
