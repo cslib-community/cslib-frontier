@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionCutEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.Segment
@@ -36,6 +37,48 @@ example : (0 : ℝ) ∈ openSegment ℝ (-1) 1 := by
 example : (0 : ℝ) ∉ openSegment ℝ 1 1 := by
   rw [Cslib.zero_mem_openSegment_iff_xor_pos (by norm_num) (by norm_num)]
   norm_num [Xor]
+
+-- Both cuts shorten the same segment, and the one strict crossing survives.
+open Classical in
+example :
+    ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).intersectionParity
+      (Route.line (-Complex.I) Complex.I) = true := by
+  have hab : (-1 : ℂ) ≠ 1 := by norm_num [Complex.ext_iff]
+  have hstart : ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).start = (-1 / 2 : ℂ) := by
+    rw [show ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).start =
+      (Route.line (-1) 1).eval 0 (1 / 4) from rfl, Route.eval_line]
+    norm_num [AffineMap.lineMap_apply_module', Complex.ext_iff, Complex.smul_re, Complex.smul_im]
+  have hfinish : ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).finish = (1 / 2 : ℂ) := by
+    rw [show ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).finish =
+      (Route.line (-1) 1).eval 0 (1 - 1 / 4) from rfl, Route.eval_line]
+    norm_num [AffineMap.lineMap_apply_module', Complex.ext_iff, Complex.smul_re, Complex.smul_im]
+  have hre {z : ℂ} (hz : z ∈ (Route.line (-Complex.I) Complex.I).support) : z.re = 0 := by
+    rw [Route.support_line, segment_eq_image_lineMap] at hz
+    obtain ⟨u, _, rfl⟩ := hz
+    simp [AffineMap.lineMap_apply_module']
+  rw [Route.intersectionParity_cutEnds_left (Route.isSimple_line hab)
+    (by norm_num) (by norm_num) (by norm_num)]
+  · unfold Route.intersectionParity
+    change (∑ i : Fin 1, ∑ j : Fin 1, _) = _
+    rw [Fin.sum_univ_one, Fin.sum_univ_one]
+    change decide ((openSegment ℝ (-1 : ℂ) 1 ∩
+      openSegment ℝ (-Complex.I) Complex.I).Nonempty) = true
+    apply decide_eq_true
+    have hmid (a : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-a) a := by
+      simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-a) a
+    exact ⟨0, hmid 1, hmid Complex.I⟩
+  · intro z hz hq
+    rw [Route.start_line, hstart, segment_eq_image_lineMap] at hz
+    obtain ⟨u, hu, rfl⟩ := hz
+    have h := hre hq
+    norm_num [AffineMap.lineMap_apply_module', Complex.smul_re] at h
+    linarith [hu.2]
+  · intro z hz hq
+    rw [Route.finish_line, hfinish, segment_eq_image_lineMap] at hz
+    obtain ⟨u, hu, rfl⟩ := hz
+    have h := hre hq
+    norm_num [AffineMap.lineMap_apply_module', Complex.smul_re] at h
+    linarith [hu.1]
 
 open Classical in
 /-- The ordinary vertical-segment example consumes the public intersection-parity law. -/
