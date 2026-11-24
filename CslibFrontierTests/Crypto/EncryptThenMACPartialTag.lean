@@ -117,7 +117,8 @@ example :
     ProbComp.eval
         (echoPrfPartialTag.ciOneTimeGame (partialTagCIAdversary (fun m => 5 * m + 1)) 0) =
       PMF.pure false := by
-  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, runWith_norm, pmf_norm]
+  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, SymmetricCipher.maulCIAdversary,
+    runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
   have hk' := hk
   simp only [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC,
@@ -150,7 +151,8 @@ example :
     ProbComp.eval
         (echoPrfPartialTag.ciOneTimeGame (partialTagCIAdversary (fun _ => 0)) 2) =
       PMF.pure false := by
-  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, runWith_norm, pmf_norm]
+  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, SymmetricCipher.maulCIAdversary,
+    runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun _ _ => ?_
   simp only [SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil,
     List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, pmf_norm]

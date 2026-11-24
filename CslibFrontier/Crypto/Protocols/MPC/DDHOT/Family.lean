@@ -17,7 +17,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
-import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -606,7 +605,7 @@ theorem advantage_ddhOTReceiverGame_le (setup : ℕ → PMF F.Desc)
 /-- The view words that `ddhOTReceiverToDDHDistinguisher` gives the environment, from the DDH
 input `x`, the words `m₀, m₁` of the messages, the choice bit `σ` and the raw bit strings
 `bBits, rBits, sBits`. `bBits` is recorded verbatim in `coinBits`, while scalar multiplications use
-`BitString.binaryValue` and `-b` is `F.order d - b % F.order d`. -/
+`BitString.binaryValue`. -/
 private def ddhOTReceiverViewWordsOf (x : F.DDHInput) (m₀ m₁ : List Bool) (σ : Bool)
     (bBits rBits sBits : List Bool) : DDHOTReceiverViewWords :=
   let d := x.groupParameters
@@ -616,7 +615,7 @@ private def ddhOTReceiverViewWordsOf (x : F.DDHInput) (m₀ m₁ : List Bool) (�
   let s := BitString.binaryValue sBits
   let e := (r : ZMod q) • F.generator d + (s : ZMod q) • x.leftPublic
   let chosen := F.encode d ((b : ZMod q) • e)
-  let other := F.encode d (x.candidateShared + ((q - b % q : ℕ) : ZMod q) • x.rightPublic)
+  let other := F.encode d (x.candidateShared - (b : ZMod q) • x.rightPublic)
   ⟨σ, bBits, F.encode d x.leftPublic, if σ then F.encode d x.rightPublic else F.encode d e,
     F.add (d, if σ then other else chosen, m₀),
     if σ then F.encode d e else F.encode d x.rightPublic,
@@ -670,30 +669,11 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher
   have hσ : ComputableInPolyTime (fun p : F.ReceiverReductionCtx => p.inputs 1) E encBool :=
     (ComputableInPolyTime.dpi_apply F.ddhOTEncoding.input.enc 1).comp hinputs
   have hd := F.encDDHInput_groupParameters_polyTime hddh
-  have hu := F.encDDHInput_leftPublic_polyTime hddh
-  have hv := F.encDDHInput_rightPublic_polyTime hddh
-  have hw := F.encDDHInput_candidateShared_polyTime hddh
-  have hbBits := encReceiverReductionCtx_bBits_polyTime F .id'
-  have hq := F.computableInPolyTime_order.comp hd
-  have hb := ComputableInPolyTime.bitsBinaryValue.comp hbBits
-  have hg := computableInPolyTime_encode_generator hd
-  have he := computableInPolyTime_encode_add hd
-    (computableInPolyTime_encode_natCast_smul hd
-      (ComputableInPolyTime.bitsBinaryValue.comp (encReceiverReductionCtx_rBits_polyTime F .id'))
-      hg)
-    (computableInPolyTime_encode_natCast_smul hd
-      (ComputableInPolyTime.bitsBinaryValue.comp (encReceiverReductionCtx_sBits_polyTime F .id'))
-      hu)
-  have hchosen := computableInPolyTime_encode_natCast_smul hd hb he
-  have hother := computableInPolyTime_encode_add hd hw
-    (computableInPolyTime_encode_natCast_smul hd (hq.binary_sub' (hb.binary_mod' hq)) hv)
   have hview : ComputableInPolyTime (fun p : F.ReceiverReductionCtx =>
       F.ddhOTReceiverViewWordsOf p.ddh (p.inputs 0).1 (p.inputs 0).2 (p.inputs 1)
-        p.bBits p.rBits p.sBits) E encDDHOTReceiverViewWords :=
-    encDDHOTReceiverViewWords_mk_polyTime hσ hbBits hu (hσ.ite' hv he)
-      (F.computableInPolyTime_add.comp (hd.prod ((hσ.ite' hother hchosen).prod hin₀.fst')))
-      (hσ.ite' he hv)
-      (F.computableInPolyTime_add.comp (hd.prod ((hσ.ite' hchosen hother).prod hin₀.snd')))
+        p.bBits p.rBits p.sBits) E encDDHOTReceiverViewWords := by
+    dsimp only [ddhOTReceiverViewWordsOf]
+    fun_prop
   have houtputs : ComputableInPolyTime (fun p : F.ReceiverReductionCtx =>
       ddhOTOutputWords (p.inputs 0).1 (p.inputs 0).2 (p.inputs 1)) E encBits :=
     (ComputableInPolyTime.pi fun i =>
@@ -748,15 +728,14 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher
           ((e, (b : ZMod q) • e + m₀),
             (x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₁)))
       simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
-        Bool.false_eq_true, ↓reduceIte, F.add_encode, ZMod.natCast_sub_mod_eq_neg, neg_smul,
-        ← sub_eq_add_neg]
+        Bool.false_eq_true, ↓reduceIte, F.add_encode]
       rfl
     · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) true bBits rBits sBits =
         F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverViewWith true bBits x.leftPublic
           ((x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₀),
             (e, (b : ZMod q) • e + m₁)))
       simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
-        ↓reduceIte, F.add_encode, ZMod.natCast_sub_mod_eq_neg, neg_smul, ← sub_eq_add_neg]
+        ↓reduceIte, F.add_encode]
       rfl
   · simp only [ddhOTReceiverGuessWords, ddhOTOutputWords, PartyEncoding.encAll,
       Function.Embedding.coeFn_mk, encDPi_apply]

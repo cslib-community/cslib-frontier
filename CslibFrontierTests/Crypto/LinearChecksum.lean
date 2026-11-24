@@ -98,7 +98,7 @@ example : ProbComp.eval ((prfChecksumCipher xorFamily xorFamily_polyTime xorFami
     PMF.pure false := by
   set E := prfChecksumCipher xorFamily xorFamily_polyTime xorFamily_length constChecksum
     (ComputableInPolyTime.const [false]) (fun _ => 1) (by fun_prop) (fun _ => rfl)
-  simp only [SymmetricCipher.ciOneTimeGame, prfChecksumCIAdversary,
+  simp only [SymmetricCipher.ciOneTimeGame, prfChecksumCIAdversary, SymmetricCipher.maulCIAdversary,
     SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil, List.length_replicate,
     beq_self_eq_true, Bool.and_self, ↓reduceIte, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
@@ -129,7 +129,7 @@ example : ProbComp.eval ((prfChecksumCipher xorFamily xorFamily_polyTime xorFami
       (prfChecksumCIAdversary (fun _ => 1) parity) 0) = PMF.pure false := by
   set E := prfChecksumCipher xorFamily xorFamily_polyTime xorFamily_length parity
     parity_polyTime (fun _ => 1) (by fun_prop) (fun _ => rfl)
-  simp only [SymmetricCipher.ciOneTimeGame, prfChecksumCIAdversary,
+  simp only [SymmetricCipher.ciOneTimeGame, prfChecksumCIAdversary, SymmetricCipher.maulCIAdversary,
     SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil, List.length_replicate,
     beq_self_eq_true, Bool.and_self, ↓reduceIte, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>

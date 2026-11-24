@@ -23,7 +23,7 @@ import CslibFrontier.Tactic.PPT
 
 A symmetric cipher fails ciphertext integrity, and chosen-ciphertext security, as soon as an
 adversary can transform (*maul*) an honest ciphertext into a different one that still decrypts
-([BonehShoup2023], Sections 9.1–9.2). This module packages the two attacks that the cipher
+([BonehShoup2023], Sections 9.1 and 9.2.1). This module packages the two attacks that the cipher
 counterexamples of the library share. Each result here is an attack theorem: it concludes that a
 cipher is *not* secure.
 
@@ -60,7 +60,7 @@ negligible probability.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 9.1–9.2 (pp. 358–364).
+  Version 0.6][BonehShoup2023], Sections 9.1 and 9.2.1.
 -/
 
 @[expose] public section
