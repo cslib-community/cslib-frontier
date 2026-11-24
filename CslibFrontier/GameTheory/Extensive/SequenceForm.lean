@@ -263,13 +263,13 @@ theorem SeqVar.infoSeqExt_val [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
     (SeqVar.infoSeqExt hpr hh a).1 = T.infoSeq i h ++ [⟨h, a⟩] := by
   rw [SeqVar.infoSeqExt]
 
-private theorem seqVar_infoSeqExt_ne_nil [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
+theorem seqVar_infoSeqExt_ne_nil [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
     {T : ExtensiveTree ι H Act} {i : ι} (hpr : T.PerfectRecall i) {h : H i}
     (hh : T.OccursInfoSet i h) (a : Act i h) :
     (SeqVar.infoSeqExt hpr hh a).1 ≠ [] := by
   simp [SeqVar.infoSeqExt]
 
-private theorem seqVar_infoSeqExt_inj [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
+theorem seqVar_infoSeqExt_inj [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
     {T : ExtensiveTree ι H Act} {i : ι} (hpr : T.PerfectRecall i)
     {h₁ h₂ : H i} {hh₁ : T.OccursInfoSet i h₁} {hh₂ : T.OccursInfoSet i h₂}
     {a₁ : Act i h₁} {a₂ : Act i h₂}
@@ -1016,7 +1016,8 @@ theorem convex_isRealizationPlan [DecidableEq ι] [∀ j h, Fintype (Act j h)]
   rw [Matrix.mulVec_add, Matrix.mulVec_smul, Matrix.mulVec_smul, hx_eq, hy_eq, ← add_smul, hab,
     one_smul]
 
-private theorem exists_mixed_of_isRealizationPlan [DecidableEq ι] [∀ j h, Fintype (Act j h)]
+/-- Every realization plan under perfect recall is induced by some mixed strategy. -/
+theorem exists_mixed_of_isRealizationPlan [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     [∀ j h, Nonempty (Act j h)] {T : ExtensiveTree ι H Act} {i : ι} [Fintype (H i)]
     [DecidableEq (H i)] (hpr : T.PerfectRecall i) {x : SeqVar T i → ℝ}
     (hx : T.IsRealizationPlan i x) :

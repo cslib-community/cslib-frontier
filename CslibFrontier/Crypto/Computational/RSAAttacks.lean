@@ -16,6 +16,7 @@ public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import Mathlib.Data.Nat.ChineseRemainder
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Algebra.Group.ZPowCoprime
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
 import Mathlib.Data.Nat.Sqrt
@@ -456,8 +457,7 @@ theorem totientGame_factorToTotient (gen : RSAGen) (F : ℕ → ℕ → ProbComp
     totientGame gen (factorToTotient F) n =
       modulusFactoringGame (fun k => (gen k).map RSADesc.modulus) F n := by
   unfold totientGame modulusFactoringGame factorToTotient
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  simp only [pmf_norm]
   congr 1
   funext desc
   congr 1
@@ -480,9 +480,7 @@ theorem succProbability_totientGame_le (gen : RSAGen) (T : ℕ → ℕ → ProbC
         (modulusFactoringGame (fun k => (gen k).map RSADesc.modulus) (totientToFactor T) n) := by
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   unfold totientGame modulusFactoringGame totientToFactor
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
-    PMF.bind_apply, PMF.pure_apply, eq_comm (a := true), decide_eq_true_eq]
+  simp only [PMF.bind_apply, PMF.pure_apply, eq_comm (a := true), decide_eq_true_eq, pmf_norm]
   refine tsum_le_tsum fun desc => mul_le_mul_of_nonneg_left ?_ zero_le
   refine tsum_le_tsum fun φ' => mul_le_mul_of_nonneg_left ?_ zero_le
   by_cases hφ : φ' = desc.totient
@@ -565,9 +563,7 @@ theorem succProbability_totientGame_le_rsaKeyRecoveryGame (gen : RSAGen)
       Game.succProbability (rsaKeyRecoveryGame gen (totientToKeyRecovery T) n) := by
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   unfold totientGame rsaKeyRecoveryGame totientToKeyRecovery
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.bind_apply, PMF.pure_apply,
-    eq_comm (a := true), decide_eq_true_eq]
+  simp only [PMF.bind_apply, PMF.pure_apply, eq_comm (a := true), decide_eq_true_eq, pmf_norm]
   refine tsum_le_tsum fun desc => mul_le_mul_of_nonneg_left ?_ zero_le
   refine tsum_le_tsum fun φ' => mul_le_mul_of_nonneg_left ?_ zero_le
   by_cases hφ : φ' = desc.totient
@@ -628,8 +624,7 @@ theorem succProbability_rsaKeyRecoveryGame_le (gen : RSAGen)
   rw [rsaInversionGame_eq]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   unfold rsaKeyRecoveryGame keyRecoveryToRSA
-  simp only [ProbComp.eval_map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map,
-    Function.comp_def, PMF.bind_apply, PMF.pure_apply, eq_comm (a := true), decide_eq_true_eq]
+  simp only [PMF.bind_apply, PMF.pure_apply, eq_comm (a := true), decide_eq_true_eq, pmf_norm]
   refine tsum_le_tsum fun desc => mul_le_mul_of_nonneg_left ?_ zero_le
   -- The key-recovery outcome does not depend on the uniform RSA challenge `x`.
   calc _ = ∑' x : Fin desc.modulus, (PMF.uniformOfFintype (Fin desc.modulus)) x *

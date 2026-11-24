@@ -149,7 +149,7 @@ example (w : List Bool) :
     rfl
   · intro i hi
     change (encEntry (supplier.runFrom w
-      ((sumState params _ j).2.1, false, 0) i)).length ≤ 7
+      ((sumState params _ j).counter, false, 0) i)).length ≤ 7
     rw [sumState_counter]
     exact supplier_peak w j i hj hi
 
