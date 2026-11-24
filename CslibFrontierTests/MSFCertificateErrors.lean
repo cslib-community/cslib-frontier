@@ -16,6 +16,11 @@ estimator of §3.5) and `msf` as the exact call, every hypothesis of the history
 checks: the actual history is in the family of Lemma 3.10, the family has `log |𝓗| ≤ 7 √(m n)`
 (here `t = 1`), the error bound of §3.6 applies, and the estimator's comparisons over the root
 call are bounded. The tagged order makes a spoke win the tie with the same edge as a forest edge.
+
+These are instantiation checks, not strong ones: with `t = 1` every round is bad for every edge,
+so the error bound already follows from `#errors ≤ m`. The exact call `pure (msf ends w S)` reads
+the weights, so it only shows that `ExactMsf` is satisfiable for each `w`; it is not a comparison
+program. An honest exact minimum spanning forest program is the knot that M8 ties by induction.
 -/
 
 namespace CslibFrontierTests.MSFCertificateErrors

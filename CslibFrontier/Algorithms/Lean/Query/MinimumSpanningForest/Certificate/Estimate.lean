@@ -91,7 +91,7 @@ theorem ends_eq_endsPair (st : State V E) (e : E) :
 
 /-- Whether some edge of the list weighs at least `f`, one comparison per edge, stopping at the
 first such edge. -/
-@[expose] def anyGe (f : E) : List E → FreeM (LEQuery E) Bool
+private def anyGe (f : E) : List E → FreeM (LEQuery E) Bool
   | [] => pure false
   | s :: l => do if ← LEQuery.ask f s then pure true else anyGe f l
 
@@ -139,7 +139,7 @@ section Correctness
 variable [LinearOrder W] {w : E → W}
 
 omit [DecidableEq V] [DecidableEq E] in
-theorem eval_anyGe (w : E → W) (f : E) (l : List E) :
+private theorem eval_anyGe (w : E → W) (f : E) (l : List E) :
     (anyGe f l).eval (LEQuery.keyOracle w) = decide (∃ s ∈ l, w f ≤ w s) := by
   induction l with
   | nil => simp [anyGe]
@@ -147,7 +147,7 @@ theorem eval_anyGe (w : E → W) (f : E) (l : List E) :
     by_cases h : w f ≤ w s <;> simp [anyGe, h, ih]
 
 omit [DecidableEq V] [DecidableEq E] [LinearOrder W] in
-theorem countQueries_anyGe_le (o : {ι : Type} → LEQuery E ι → ι) (f : E) (l : List E) :
+private theorem countQueries_anyGe_le (o : {ι : Type} → LEQuery E ι → ι) (f : E) (l : List E) :
     (anyGe f l).countQueries o ≤ l.length := by
   induction l with
   | nil => simp [anyGe]
@@ -233,7 +233,7 @@ theorem eval_queryPref (hw : Function.Injective w) {st : State V E}
 
 omit [LinearOrder W] in
 /-- At most two comparisons per queried edge. -/
-theorem countQueries_queryPref_le (o : {ι : Type} → LEQuery E ι → ι) (st : State V E)
+private theorem countQueries_queryPref_le (o : {ι : Type} → LEQuery E ι → ι) (st : State V E)
     (pm : V → V → Option E) (e : E) : (queryPref st pm e).countQueries o ≤ 2 := by
   classical
   unfold queryPref
@@ -258,14 +258,7 @@ theorem separatingSet_spec {t : ℕ} (ht : 0 < t) (I : Finset E) (A : Finset (E 
   simp only [ht, ↓reduceDIte]
   exact (exists_separating_coordinates I A (t := (t : ℝ)) (by exact_mod_cast ht)).choose_spec
 
-omit [DecidableEq V] [DecidableEq E] in
-theorem separatingSet_subset (t : ℕ) (I : Finset E) (A : Finset (E → Action)) :
-    separatingSet t I A ⊆ I := by
-  rcases Nat.eq_zero_or_pos t with rfl | ht
-  · simp [separatingSet]
-  · exact (separatingSet_spec ht I A).1
-
-theorem eval_estimator (o : {ι : Type} → LEQuery E ι → ι) (γ : ℕ) (inst : Instance V E)
+private theorem eval_estimator (o : {ι : Type} → LEQuery E ι → ι) (γ : ℕ) (inst : Instance V E)
     (st : State V E) (I : Finset E) :
     (estimator γ inst st I).eval o =
       consistentWith (prefFamily st I) (separatingSet (levelT γ inst.level) I (prefFamily st I))
@@ -276,9 +269,9 @@ theorem eval_estimator (o : {ι : Type} → LEQuery E ι → ι) (γ : ℕ) (ins
           else none := by
   simp [estimator, FreeM.eval_tabulateList]
 
-/-- **The estimation errors of a round** (Claim 3.12 and its use, p. 22): for injective weights,
-an acyclic forest and `t > 0`, the estimate differs from the true preferences in at most `|I| / t`
-edges of `I`. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the estimation errors
+of a round (§3.5, Claim 3.12 and its use, p. 22). For injective weights, an acyclic forest and
+`t > 0`, the estimate differs from the true preferences in at most `|I| / t` edges of `I`. -/
 theorem card_estimator_ne_pref_le (hw : Function.Injective w) {γ : ℕ} {inst : Instance V E}
     (ht : 0 < levelT γ inst.level) {st : State V E} (hF : IsAcyclic st.ends (st.forest : Set E))
     (I : Finset E) :

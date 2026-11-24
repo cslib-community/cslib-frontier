@@ -211,10 +211,10 @@ noncomputable def candidates (st : State V E) (e : E) : Finset (Bool × E) :=
 
 /-- The **ground set** of the edges `I` (p. 20): their spokes, tagged `true`, and the forest edges,
 tagged `false`. -/
-noncomputable def groundSet (st : State V E) (I : Finset E) : Finset (Bool × E) :=
+private noncomputable def groundSet (st : State V E) (I : Finset E) : Finset (Bool × E) :=
   (I.biUnion (spokes st)).image (Prod.mk true) ∪ st.forest.image (Prod.mk false)
 
-theorem candidates_subset_groundSet {st : State V E} {I : Finset E} {e : E} (he : e ∈ I) :
+private theorem candidates_subset_groundSet {st : State V E} {I : Finset E} {e : E} (he : e ∈ I) :
     candidates st e ⊆ groundSet st I :=
   union_subset_union (image_subset_image (subset_biUnion_of_mem _ he))
     (image_subset_image (pathEdges_subset st e))
@@ -238,13 +238,13 @@ theorem tagKey_injective {w : E → W} (hw : Function.Injective w) :
   rw [hw h.1, h.2]
 
 omit [DecidableEq E] in
-theorem tagKey_false_le_true {w : E → W} {f s : E} :
+private theorem tagKey_false_le_true {w : E → W} {f s : E} :
     tagKey w (false, f) ≤ tagKey w (true, s) ↔ w f ≤ w s := by
   simp only [tagKey, Prod.Lex.toLex_le_toLex, Bool.false_le, and_true]
   exact le_iff_lt_or_eq.symm
 
 omit [DecidableEq E] in
-theorem tagKey_true_le_false {w : E → W} {f s : E} :
+private theorem tagKey_true_le_false {w : E → W} {f s : E} :
     tagKey w (true, s) ≤ tagKey w (false, f) ↔ w s < w f := by
   simp [tagKey, Prod.Lex.toLex_le_toLex]
 
@@ -346,13 +346,13 @@ variable [LinearOrder W]
 
 /-- The vectors of maxima of the candidate sets of the contested edges of `I`, for all injective
 weights at once (Lemma 3.9 on the tagged ground set). -/
-noncomputable def maximaVectors (st : State V E) (I : Finset E) :
+private noncomputable def maximaVectors (st : State V E) (I : Finset E) :
     Finset (contested st I → Bool × E) :=
   (exists_maxima_vectors_card_le_choose.{0} (groundSet st I)
     (fun e : contested st I => candidates st e)
     (fun e => candidates_subset_groundSet (mem_contested.1 e.2).1) le_rfl).choose
 
-theorem card_maximaVectors_le (st : State V E) (I : Finset E) :
+private theorem card_maximaVectors_le (st : State V E) (I : Finset E) :
     #(maximaVectors st I) ≤
       (#(groundSet st I) + #(contested st I) - 1).choose #(contested st I) := by
   have := (exists_maxima_vectors_card_le_choose.{0} (groundSet st I)
@@ -360,7 +360,7 @@ theorem card_maximaVectors_le (st : State V E) (I : Finset E) :
     (fun e => candidates_subset_groundSet (mem_contested.1 e.2).1) le_rfl).choose_spec.1
   exact this.trans_eq (by rw [Fintype.card_coe])
 
-theorem mem_maximaVectors {st : State V E} {I : Finset E} {w : E → W}
+private theorem mem_maximaVectors {st : State V E} {I : Finset E} {w : E → W}
     (hw : Function.Injective w) {x : contested st I → Bool × E}
     (hx : ∀ e : contested st I,
       x e ∈ candidates st e ∧ ∀ y ∈ candidates st e, tagKey w y ≤ tagKey w (x e)) :
@@ -374,8 +374,8 @@ open scoped Classical in
 /-- The preference vector read off a vector of maxima: on a contested edge, *find* when its
 maximum is a spoke; on the other edges of `I`, *project* when projectable and *find* otherwise;
 *find* outside `I`. -/
-noncomputable def decodePrefs (st : State V E) (I : Finset E) (x : contested st I → Bool × E)
-    (e : E) : Action :=
+private noncomputable def decodePrefs (st : State V E) (I : Finset E)
+    (x : contested st I → Bool × E) (e : E) : Action :=
   if h : e ∈ contested st I then (if (x ⟨e, h⟩).1 then .find else .project)
   else if e ∈ I ∧ Projectable st e then .project else .find
 
@@ -561,7 +561,7 @@ theorem card_histories (γ : ℕ) (inst : Instance V E) :
   rw [Fintype.card_piFinset, prod_const, card_univ, Fintype.card_fin]
 
 omit [DecidableEq E] in
-theorem mem_spokeChoices {inst : Instance V E} {σ : V → Option E}
+private theorem mem_spokeChoices {inst : Instance V E} {σ : V → Option E}
     (hσ : ∀ v s, σ v = some s → v ∈ inst.vertices ∧ s ∈ inst.edges ∧ v ∈ inst.ends s) :
     σ ∈ spokeChoices inst := by
   classical
@@ -577,7 +577,7 @@ theorem mem_spokeChoices {inst : Instance V E} {σ : V → Option E}
       · exact absurd (hσ v s h).1 hv
 
 omit [DecidableEq E] in
-theorem spoke_mem_of_mem_spokeChoices {inst : Instance V E} {σ : V → Option E}
+private theorem spoke_mem_of_mem_spokeChoices {inst : Instance V E} {σ : V → Option E}
     (hσ : σ ∈ spokeChoices inst) {v : V} {s : E} (hs : σ v = some s) : v ∈ inst.vertices := by
   classical
   obtain ⟨f, -, rfl⟩ := mem_image.1 hσ
@@ -633,7 +633,7 @@ private theorem sum_range_choose_le_add_choose (m K : ℕ) :
     Nat.le_mul_of_pos_right _ (Nat.choose_pos (Nat.sub_le K k))
 
 omit [LinearOrder W] [DecidableEq V] [DecidableEq E] in
-theorem card_forestChoices_le (inst : Instance V E) :
+private theorem card_forestChoices_le (inst : Instance V E) :
     #(forestChoices inst) ≤ (#inst.edges + (#inst.vertices - 1)).choose (#inst.vertices - 1) := by
   classical
   set K := #inst.vertices - 1
@@ -647,7 +647,7 @@ theorem card_forestChoices_le (inst : Instance V E) :
   exact sum_range_choose_le_add_choose _ _
 
 omit [LinearOrder W] [DecidableEq E] in
-theorem card_spokeChoices_le (inst : Instance V E) :
+private theorem card_spokeChoices_le (inst : Instance V E) :
     #(spokeChoices inst) ≤ ∏ v ∈ inst.vertices, (#{e ∈ inst.edges | v ∈ inst.ends e} + 1) := by
   classical
   refine card_image_le.trans ?_
@@ -694,9 +694,9 @@ private theorem log_card_spokeChoices_le (inst : Instance V E) :
         · simp
     _ = √(2 * #inst.edges * #inst.vertices) := (Real.sqrt_mul (by positivity) _).symm
 
-/-- **Lemma 3.10** ([KhannaPuttermanSong2026], §3.4, p. 19). The family of histories of a call on
-`n` vertices and `m` edges at level `d`, with `t = γ d³`, has `log |𝓗| ≤ 7 t² √(m n)`. A step in the
-proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325).
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the history bound,
+Lemma 3.10 (§3.4, p. 19). The family of histories of a call on `n` vertices and `m` edges at level
+`d`, with `t = γ d³`, has `log |𝓗| ≤ 7 t² √(m n)`.
 
 The paper's three factors per round are `∏ (deg v + 1)` spokes (`√(2 m n)` after logarithms),
 `C(m + n - 1, n - 1)` forests (`2 √(m n)`) and `C(m + 2n - 1, m)` preference vectors
