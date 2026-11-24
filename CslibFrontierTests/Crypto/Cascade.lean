@@ -8,6 +8,8 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Eager
+import Mathlib.Data.Set.Finite.List
 
 /-!
 # Cascade evaluation and prefix hybrid tests
@@ -65,3 +67,17 @@ example :
       PMF.pure ([false, true], [([true], [true, false])]) := by
   simp [prefixHybridOracle, boundedWords, ProbComp.eval_pure, memoize, cascadeFamily,
     BitString.listRows, BitString.listRow, toggle]
+
+-- The eager table keeps the actual lengths of both the empty prefix and the two-bit prefix.
+noncomputable local instance : Fintype {word : List Bool // word.length ≤ 2} :=
+  (List.finite_length_le Bool 2).fintype
+
+example :
+    ProbComp.eval (cascadePrefixHybridGame boundedWords (fun _ => 1) toggle compareReplies 2 2) =
+      (PMF.uniformOfFintype ({word : List Bool // word.length ≤ 2} → BitString 2)).bind
+        fun table => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+          (fun request => PMF.pure (if boundedWords 2 request.2 then
+            cascadeFamily (fun _ => 1) toggle
+              (List.ofFn (table ⟨request.2.take 2, by simp⟩)) (request.2.drop 2)
+            else []))) (compareReplies 2 []) :=
+  eval_prefixHybridGame_eq_eager boundedWords (cascadeFamily (fun _ => 1) toggle) compareReplies 2 2

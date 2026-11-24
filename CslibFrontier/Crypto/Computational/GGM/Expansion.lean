@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Hybrid
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Eager
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Probabilistic.Memoize
@@ -244,40 +245,15 @@ private theorem prefix_eager (n depth width : ℕ) (hdepth : depth ≤ n)
               (request.2.take depth) cache).map
                 (fun (value, next) => (respond request.2 value, next))
           else PMF.pure ([], cache))) program).run []).map Prod.fst := by
-  let adapter := fun query : List Bool => if query.length = n then
-    (respond query) <$> (ProbOracleComp.query (BitString.ofList depth (query.take depth)) :
-      ProbOracleComp (fun _ : BitString depth => List Bool) (List Bool))
-    else pure []
-  have h := RandomOracle.interpret_prob_eq_memoize_map
-    (encBitString depth) List.ofFn
-    (fun _ => PMF.uniformOfFintype (BitString width)) (fun _ => BitString.uniformList width)
-    (fun _ => rfl)
-    (ProbOracleComp.simulate (fun request : Unit × List Bool => adapter request.2) program)
-  have hstep (query : List Bool) : OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (fun key => memoize (fun _ : List Bool => BitString.uniformList width) (List.ofFn key)))
-          (adapter query) = fun cache => if query.length = n then
-        (memoize (fun _ : List Bool => BitString.uniformList width) (query.take depth) cache).map
-          (fun (value, next) => (respond query value, next)) else PMF.pure ([], cache) := by
-    funext cache
-    by_cases hquery : query.length = n
-    · have hprefix : List.ofFn (BitString.ofList depth (query.take depth)) = query.take depth :=
-        BitString.ofFn_ofList (by simp [List.length_take, hquery, Nat.min_eq_left hdepth])
-      simp only [adapter, hquery, ↓reduceIte, OracleComp.interpret_map,
-        ProbOracleComp.interpret_query, hprefix]
-      rfl
-    · simp only [adapter, hquery, ↓reduceIte, OracleComp.interpret_pure]
-      rfl
-  have heval (table : BitString depth → BitString width) (query : List Bool) :
-      OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifOracle (fun key => PMF.pure (List.ofFn (table key))))
-          (adapter query) = PMF.pure (if query.length = n then
-        respond query (List.ofFn (table (BitString.ofList depth (query.take depth)))) else []) := by
-    by_cases hquery : query.length = n <;> simp [adapter, hquery, PMF.pure_map]
+  have hkey (query : List Bool) (hquery : (query.length == n) = true) :
+      encBitString depth (BitString.ofList depth (query.take depth)) = query.take depth := by
+    have hlength := beq_iff_eq.mp hquery
+    rw [encBitString_apply]
+    exact BitString.ofFn_ofList (by simp [List.length_take, hlength, Nat.min_eq_left hdepth])
   simpa only [prefixTableGame, ProbComp.eval_bind, ProbComp.eval_uniform,
-    ProbOracleComp.eval_interpret, ProbComp.eval_pure, PMF.pi_uniformOfFintype,
-    ProbOracleComp.interpret_simulate, encBitString_apply, hstep, heval,
-    PMF.monad_bind_eq_bind] using h
+    ProbOracleComp.eval_interpret, ProbComp.eval_pure, beq_iff_eq] using
+    (prefixLabelGame_eq_eager (encBitString depth) (fun q => BitString.ofList depth (q.take depth))
+      (·.length == n) depth width hkey respond program).symm
 
 private def childrenEquiv (n : ℕ) : BitString (2 * n) ≃ (Bool → BitString n) :=
   (BitString.blocksEquiv (m := 2) (k := n)).trans
