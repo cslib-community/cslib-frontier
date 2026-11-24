@@ -1601,6 +1601,16 @@ Jonathan Katz and Yehuda Lindell. *Introduction to Modern Cryptography*, 3rd edi
 
 Iordanis Kerenidis and Ronald de Wolf. "Exponential Lower Bound for 2-Query Locally Decodable Codes via a Quantum Argument." *Journal of Computer and System Sciences* 69(3), 395–420, 2004. https://doi.org/10.1016/j.jcss.2004.04.007 ; arXiv text https://arxiv.org/abs/quant-ph/0208062v2 . Checked on 2026-11-12 against `arXiv:quant-ph/0208062v2` (Appendix B Definition 3 and Theorem 9 on printed p. 14, and Appendix B Lemma 3 on printed p. 16); journal metadata from DOI record.
 
+<a id="kempekleinbergtardos03"></a>
+## kempekleinbergtardos03
+
+David Kempe, Jon Kleinberg and Éva Tardos. "Maximizing the Spread of Influence through a Social Network." *Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining*, 137–146, 2003. https://doi.org/10.1145/956750.956769 . Bibliographic metadata taken from [kleinberg07](#kleinberg07) (Bibliography, pp. 631–632) and the DOI record; the conference text was not inspected firsthand, so internal theorem and page locators are left unverified. Cited through [kleinberg07](#kleinberg07), Sections 24.3–24.4, for the Linear Threshold and Independent Cascade models, the time-layered DAG reduction for nonprogressive processes (pp. 621–622), the live-edge reachability proof of Independent Cascade influence submodularity (Theorem 24.5, pp. 625–626), and greedy `(1 - 1/e)` influence maximization.
+
+<a id="kempekleinbergtardos05"></a>
+## kempekleinbergtardos05
+
+David Kempe, Jon Kleinberg and Éva Tardos. "Influential Nodes in a Diffusion Model for Social Networks." *Automata, Languages and Programming (ICALP 2005)*, 1127–1138, 2005. https://doi.org/10.1007/11523468_91 . Bibliographic metadata taken from [kleinberg07](#kleinberg07) (Bibliography, p. 632) and the DOI record; the conference text was not inspected firsthand, so internal theorem and page locators are left unverified. Cited through [kleinberg07](#kleinberg07), Sections 24.3–24.4, for the equivalence of the General Threshold Model and the order-independent Cascade Model over final active-set distributions (pp. 620–621) and submodularity of influence for diminishing-returns cascade models (Theorem 24.4, pp. 624, 626).
+
 <a id="khot10"></a>
 ## khot10
 
@@ -1620,6 +1630,11 @@ Victor Klee and George J. Minty. "How Good Is the Simplex Algorithm?" In O. Shis
 ## kleenepost54
 
 Stephen C. Kleene and Emil L. Post. *The Upper Semi-Lattice of Degrees of Recursive Unsolvability*. Annals of Mathematics (2) 59(3), 379–407, 1954. https://doi.org/10.2307/1969708 . Bibliographic metadata checked on 2026-11-08; the article is paywalled and was not inspected. The manual attributes to it, following the customary attribution, the existence of two Turing-incomparable sets below `0′` by the finite extension method. No section or theorem locator is claimed.
+
+<a id="kleinberg07"></a>
+## kleinberg07
+
+Jon Kleinberg. "Cascading Behavior in Networks: Algorithmic and Economic Issues." Chapter 24 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 613–632. Read in the book PDF on 2026-11-24 for Sections 24.3–24.4 (printed pp. 618–627, PDF pp. 639–648): the incoming-neighbor convention (p. 619, Footnote 1), Linear Threshold and General Threshold models (`g_v(∅) = 0`, `θ_v ∼ Uniform[0, 1]`, pp. 619–620, 623), the order-independent Cascade and Independent Cascade models and bidirectional equivalence with General Threshold over final active-set distributions (pp. 620–621, citing [kempekleinbergtardos05](#kempekleinbergtardos05)), the `T`-step time-layered DAG reduction for nonprogressive processes (pp. 621–622), Theorem 24.3 (`1 - 1/e` greedy monotone submodular maximization, p. 624), Theorem 24.4 (diminishing-returns Cascade influence submodularity, p. 624, reduction to submodular local thresholds on p. 626), Theorem 24.5 (Independent Cascade influence submodularity and its live-edge reachability proof, pp. 625–626), and Theorem 24.6 (General Threshold influence submodularity for submodular local thresholds `g_v`, p. 626, citing [mosselroch07](#mosselroch07)). Cited by [InfluenceModels.lean](../CslibFrontier/GameTheory/Network/InfluenceModels.lean) and [InfluenceMaximization.lean](../CslibFrontier/GameTheory/Network/InfluenceMaximization.lean); the approximate-oracle `(1 - 1/e - ε)` discussion (p. 624) and Exercise 24.3 hardness/inapproximability (p. 632) remain open under [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
 
 <a id="kleinbergtardos06"></a>
 ## kleinbergtardos06
@@ -2000,6 +2015,11 @@ Dov Monderer and Lloyd S. Shapley. *Potential Games*. Games and Economic Behavio
 ## mosertardos10
 
 Robin A. Moser and Gábor Tardos. “A Constructive Proof of the General Lovász Local Lemma.” *Journal of the ACM* 57(2), Article 11, 2010. https://doi.org/10.1145/1667053.1667060 . Open version: arXiv:0903.0544v3, https://arxiv.org/abs/0903.0544 . Theorems 1.1–1.4, the Section 2 definitions of the log and witness trees, Lemma 2.1 and the Section 3 counting argument (Lemma 3.1) were checked against the arXiv v3 PDF (dated 20 May 2009) on 2026-11-08; Section 6 (lopsidependency, Lemma 6.2, Theorem 6.1, and the conflict-graph CNF application) was checked against the same arXiv v3 PDF on 2026-11-11. The JACM article numbering was not checked against the typeset journal version.
+
+<a id="mosselroch07"></a>
+## mosselroch07
+
+Elchanan Mossel and Sébastien Roch. "On the Submodularity of Influence in Social Networks." *Proceedings of the Thirty-Ninth Annual ACM Symposium on Theory of Computing (STOC 2007)*, 128–134, 2007. https://doi.org/10.1145/1250790.1250811 . Bibliographic metadata taken from [kleinberg07](#kleinberg07) (Bibliography, p. 632, cited as "to appear in STOC 2007") and the DOI record; the full text was not inspected firsthand, so internal theorem and page locators are left unverified. Cited through [kleinberg07](#kleinberg07), Section 24.4, Theorem 24.6 (p. 626), for global submodularity of expected influence in the General Threshold Model whenever all local threshold functions `g_v` are monotone, normalized (`g_v(∅) = 0`), and submodular; [InfluenceMaximization.lean](../CslibFrontier/GameTheory/Network/InfluenceMaximization.lean) (`GeneralThresholdModel.isSubmodular_integral_thresholdFinal`, `GeneralThresholdModel.isSubmodular_influence`) proves this via a measure-preserving conditional reflection coupling on `[0, 1]^V`.
 
 <a id="motzkinstraus1965"></a>
 ## motzkinstraus1965
