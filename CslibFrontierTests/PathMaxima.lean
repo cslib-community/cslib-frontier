@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Init
-import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
+public import CslibFrontier.Init
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
 import Mathlib.Tactic.FinCases
 
 /-!
