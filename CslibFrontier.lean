@@ -3747,6 +3747,8 @@ public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
 public import CslibFrontier.Computability.LocallyDecodable.Basic
 public import CslibFrontier.Computability.LocallyDecodable.Hadamard
+public import CslibFrontier.Computability.LocallyDecodable.LowerBound
+public import CslibFrontier.Computability.LocallyDecodable.Matching
 public import CslibFrontier.Computability.LocallyDecodable.OneQuery
 public import CslibFrontier.Computability.LocallyDecodable.Smoothing
 public import CslibFrontier.Computability.LogSpaceDerandomization.AtomCutoffs
