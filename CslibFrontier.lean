@@ -7862,6 +7862,7 @@ public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Computability.RecursiveInSmn
 public import CslibFrontier.Foundations.Computability.RecursiveInUniform
+public import CslibFrontier.Foundations.Computability.RecursiveInUniversal
 public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.Clock
 public import CslibFrontier.Foundations.Control.Monad.FilterM
@@ -8970,6 +8971,7 @@ public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
 public import CslibFrontier.GameTheory.Strategic.Universality.StableUniversality
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.CombinatoryLogic.KleeneFirstModel
+public import CslibFrontier.Languages.CombinatoryLogic.KleeneFirstModelRelative
 public import CslibFrontier.Languages.CombinatoryLogic.PartialCombinatoryAlgebra
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString
