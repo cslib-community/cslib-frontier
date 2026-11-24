@@ -204,6 +204,8 @@ public import CslibFrontier.Algorithms.Lean.Query.Matroid.Greedy
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.IndepQuery
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.Intersection
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.LowerBound
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Batch
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.State
 public import CslibFrontier.Algorithms.Lean.Query.Select.Correctness
 public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs
@@ -7699,6 +7701,7 @@ public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
+public import CslibFrontier.Foundations.Combinatorics.SetFamily.HittingSet
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
