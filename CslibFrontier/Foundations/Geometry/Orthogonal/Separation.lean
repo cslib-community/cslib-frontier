@@ -73,6 +73,14 @@ private theorem mem_segment_int_bounds {a b : Point} {p : ℝ × ℝ} (hp : p �
   simpa only [Int.cast_min, Int.cast_max] using
     And.intro h.1.1 (And.intro h.1.2 (And.intro h.2.1 h.2.2))
 
+private theorem coord_mem_box {a b c d : ℤ} {x : ℝ}
+    (ha : ((min a b : ℤ) : ℝ) ≤ x ∧ x ≤ ((max a b : ℤ) : ℝ))
+    (hc : ((min c d : ℤ) : ℝ) ≤ x ∧ x ≤ ((max c d : ℤ) : ℝ)) :
+    ((max (min a b) (min c d) : ℤ) : ℝ) ≤ x ∧
+      x ≤ ((min (max a b) (max c d) : ℤ) : ℝ) := by
+  simp only [Int.cast_max, Int.cast_min, max_le_iff, le_min_iff] at ha hc ⊢
+  exact ⟨⟨ha.1, hc.1⟩, ha.2, hc.2⟩
+
 /-- The finite checker controls every real intersection, not only lattice intersections. -/
 theorem segmentContactCheck_sound {allowed : List Point} {a b c d : Point}
     (h : segmentContactCheck allowed a b c d = true) {p : ℝ × ℝ}
@@ -84,22 +92,10 @@ theorem segmentContactCheck_sound {allowed : List Point} {a b c d : Point}
   let ux := min (max a.1 b.1) (max c.1 d.1)
   let ly := max (min a.2 b.2) (min c.2 d.2)
   let uy := min (max a.2 b.2) (max c.2 d.2)
-  have hx : (lx : ℝ) ≤ p.1 ∧ p.1 ≤ (ux : ℝ) := by
-    constructor
-    · change ((max (min a.1 b.1) (min c.1 d.1) : ℤ) : ℝ) ≤ p.1
-      rw [Int.cast_max, max_le_iff]
-      exact ⟨ha.1, hc.1⟩
-    · change p.1 ≤ ((min (max a.1 b.1) (max c.1 d.1) : ℤ) : ℝ)
-      rw [Int.cast_min, le_min_iff]
-      exact ⟨ha.2.1, hc.2.1⟩
-  have hy : (ly : ℝ) ≤ p.2 ∧ p.2 ≤ (uy : ℝ) := by
-    constructor
-    · change ((max (min a.2 b.2) (min c.2 d.2) : ℤ) : ℝ) ≤ p.2
-      rw [Int.cast_max, max_le_iff]
-      exact ⟨ha.2.2.1, hc.2.2.1⟩
-    · change p.2 ≤ ((min (max a.2 b.2) (max c.2 d.2) : ℤ) : ℝ)
-      rw [Int.cast_min, le_min_iff]
-      exact ⟨ha.2.2.2, hc.2.2.2⟩
+  have hx : (lx : ℝ) ≤ p.1 ∧ p.1 ≤ (ux : ℝ) :=
+    coord_mem_box ⟨ha.1, ha.2.1⟩ ⟨hc.1, hc.2.1⟩
+  have hy : (ly : ℝ) ≤ p.2 ∧ p.2 ≤ (uy : ℝ) :=
+    coord_mem_box ha.2.2 hc.2.2
   change decide (ux < lx ∨ uy < ly ∨ lx = ux ∧ ly = uy ∧ (lx, ly) ∈ allowed) = true at h
   rw [decide_eq_true_eq] at h
   rcases h with h | h | ⟨hxy, hyy, hmem⟩
