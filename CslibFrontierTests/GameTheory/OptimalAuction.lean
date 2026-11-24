@@ -244,28 +244,31 @@ theorem isReserveThreshold_rising : IsReserveThreshold risingVirtualValue (1 / R
 theorem reservePrice_rising : reservePrice risingVirtualValue = 1 / Real.sqrt 3 :=
   (isRegular_rising.isReserveThreshold hasValueDensity_rising).unique isReserveThreshold_rising
 
-/-- Boundary check at `v = 0`: Lean's `/ 0 = 0` makes `risingVirtualValue 0 = 0` while
-`risingVirtualValue (1/2) = -1/4 < 0`, yet `reserveAllocation` rejects zero bids and makes
-`myerson (reserveAllocation risingVirtualValue)` DSIC and individually rational. -/
+/-- Boundary check at `v = 0`: Lean's `/ 0 = 0` makes `risingVirtualValue 0 = 0` although
+`risingVirtualValue (1/2) = -1/4 < 0`. On the all-zero profile, bidder `0` wins the tie with
+virtual value `0`, so it passes the guard `Wins b i ∧ 0 ≤ φ (b i)` that omits the positive-bid
+condition. `reserveAllocation` rejects the zero bid, so neither bidder is served, and
+`myerson (reserveAllocation risingVirtualValue)` is DSIC and individually rational. -/
 example : risingVirtualValue 0 = 0 ∧ risingVirtualValue (1 / 2) = -1 / 4 ∧
-    reserveAllocation risingVirtualValue ![(0 : ℝ), 1 / 2] 0 = 0 ∧
-    reserveAllocation risingVirtualValue ![(0 : ℝ), 1 / 2] 1 = 0 ∧
+    (Wins ![(0 : ℝ), 0] 0 ∧ 0 ≤ risingVirtualValue (![(0 : ℝ), 0] 0)) ∧
+    reserveAllocation risingVirtualValue ![(0 : ℝ), 0] 0 = 0 ∧
+    reserveAllocation risingVirtualValue ![(0 : ℝ), 0] 1 = 0 ∧
     (myerson (reserveAllocation (ι := Fin 2) risingVirtualValue)).IsDSIC ∧
     (myerson (reserveAllocation (ι := Fin 2) risingVirtualValue)).IsIR := by
-  refine ⟨?_, ?_, reserveAllocation_eq_zero_iff.2 fun h => by norm_num at h,
-    reserveAllocation_eq_zero_iff.2 fun h => ?_,
+  have hφ0 : risingVirtualValue 0 = 0 := by
+    rw [risingVirtualValue, virtualValue, risingDensity]
+    norm_num
+  refine ⟨hφ0, ?_, ⟨fun j hj => ?_, by simp [hφ0]⟩,
+    reserveAllocation_eq_zero_iff.2 fun h => by norm_num at h,
+    reserveAllocation_eq_zero_iff.2 fun h => by norm_num at h,
     myerson_isDSIC (isMonotone_reserveAllocation
       (isRegular_rising.strictMonoOn_Ioi hasValueDensity_rising).monotoneOn),
     myerson_isIR fun _ _ => reserveAllocation_nonneg _ _⟩
-  · rw [risingVirtualValue, virtualValue, risingDensity]
-    norm_num
   · rw [virtualValue_rising (by norm_num) (by norm_num)]
     norm_num
-  · have hφ : risingVirtualValue (![(0 : ℝ), 1 / 2] 1) = -1 / 4 := by
-      change risingVirtualValue (1 / 2) = -1 / 4
-      rw [virtualValue_rising (by norm_num) (by norm_num)]
-      norm_num
-    linarith [h.2.2]
+  · fin_cases j
+    · exact absurd rfl hj
+    · norm_num
 
 /-- **Myerson's optimal auction for two i.i.d. bidders with `F(v) = v²`.** Every DSIC, IR
 single-item mechanism (here, plain Vickrey) has expected revenue at most that of the second-price
