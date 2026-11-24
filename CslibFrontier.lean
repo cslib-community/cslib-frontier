@@ -4825,9 +4825,11 @@ public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Restrict
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Universal
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Window
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0WindowEncoding
+public import CslibFrontier.Computability.Machines.Turing.TM2.Computable
 public import CslibFrontier.Computability.Machines.Turing.TM2.ConfigBound
 public import CslibFrontier.Computability.Machines.Turing.TM2.Degree
 public import CslibFrontier.Computability.Machines.Turing.TM2.Encoding
+public import CslibFrontier.Computability.Machines.Turing.TM2.PartrecToTM2
 public import CslibFrontier.Computability.Machines.Turing.TM2.PolySpace
 public import CslibFrontier.Computability.Machines.Turing.TM2.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.TM2.Recoding
