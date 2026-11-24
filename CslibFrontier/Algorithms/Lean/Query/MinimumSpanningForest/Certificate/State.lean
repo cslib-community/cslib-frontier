@@ -165,7 +165,7 @@ end State
 variable [LinearOrder W]
 
 omit [DecidableEq V] in
-/-- An edge is supported by `msf S` exactly when it is supported by `S` (Fact 2.5, p. 11). -/
+/-- An edge is supported by `msf S` exactly when it is supported by `S` (Fact 2.5, p. 12). -/
 theorem supported_msf_iff {ends : E → Sym2 V} (w : E → W) {S : Finset E} {e : E} :
     Supported ends w ↑(msf ends w S) e ↔ Supported ends w ↑S e := by
   obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
