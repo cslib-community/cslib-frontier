@@ -118,7 +118,10 @@ public import CslibFrontier.Algorithms.Lean.GomoryHu.Oracles
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Real
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Basic
+public import CslibFrontier.Algorithms.Lean.HousingMarket.Characterization
+public import CslibFrontier.Algorithms.Lean.HousingMarket.GroupIncentives
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Incentives
+public import CslibFrontier.Algorithms.Lean.HousingMarket.SequentialCycles
 public import CslibFrontier.Algorithms.Lean.HousingMarket.TopTradingCycles
 public import CslibFrontier.Algorithms.Lean.Huffman.Basic
 public import CslibFrontier.Algorithms.Lean.Huffman.Kraft

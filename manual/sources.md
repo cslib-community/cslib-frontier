@@ -357,6 +357,11 @@ Mihir Bellare, Viet Tung Hoang, Phillip Rogaway. "Foundations of Garbled Circuit
 
 Mihir Bellare, Viet Tung Hoang, Phillip Rogaway. "Adaptively Secure Garbling with Applications to One-Time Programs and Secure Outsourcing." *Advances in Cryptology – ASIACRYPT 2012*, LNCS 7658, 134–153, Springer, 2012. https://doi.org/10.1007/978-3-642-34961-4_10 . Full version: Cryptology ePrint Archive, Report 2012/564 (`BellareHoangRogaway2012b`). `Garbling/Adaptive.lean` formalizes the coarse-grained adaptive privacy game `Prv1` of Section 3.1, Figure 2, in which a two-stage adversary first receives `(F, d)` from `Garble(f)` and then adaptively queries `Input(x)` to receive `X` from a stateful two-stage simulator.
 
+<a id="bird84"></a>
+## bird84
+
+Charles G. Bird. *Group Incentive Compatibility in a Market with Indivisible Goods*. Economics Letters 14(4), 309–313, 1984. https://doi.org/10.1016/0165-1765(84)90003-X . Bibliographic metadata checked via search records on 2026-11-24 UTC; the publisher's text is paywalled and was not inspected, so no internal theorem or page locator is claimed. Cited as the standard primary reference originating group strategy-proofness of top trading cycles (`Bird1984`); strong group strategy-proofness and coalitional invariance are proved from first principles in `CslibFrontier/Algorithms/Lean/HousingMarket/GroupIncentives.lean`.
+
 <a id="birge83"></a>
 ## birge83
 
@@ -1885,6 +1890,11 @@ O. B. Lupanov. "On Rectifier and Switching-and-Rectifier Schemes" (in Russian). 
 
 Nancy A. Lynch and Alexander A. Shvartsman. "Robust Emulation of Shared Memory Using Dynamic Quorum-Acknowledged Broadcasts." In *Proceedings of the 27th Annual International Symposium on Fault-Tolerant Computing (FTCS '97)*, 272–281, IEEE, 1997. https://doi.org/10.1109/FTCS.1997.614100 . Locators refer to the authors' December 2, 1996 MIT Laboratory for Computer Science manuscript, https://groups.csail.mit.edu/tds/papers/Lynch/FTCS97.pdf , inspected on 2026-11-22 UTC for §4.1 (pp. 8–9, uniform two-phase fixed-quorum multi-writer multi-reader atomic register emulation using lexicographic `(seq, pid)` tags) and §4.2 with Appendix B (pp. 10–11, 22–23: Lemma 4.2 tag monotonicity, Lemmas 4.3–4.4 relating operation tags across real-time precedence, the `(tag, write-before-read)` partial order, and Theorem 4.5 atomicity; the IEEE conference text was not separately inspected). Cited by [ABD/Basic.lean](../CslibFrontier/Computability/Distributed/ABD/Basic.lean), [ABD/Protocol.lean](../CslibFrontier/Computability/Distributed/ABD/Protocol.lean) and [ABD/Impossibility.lean](../CslibFrontier/Computability/Distributed/ABD/Impossibility.lean) as an independent cardinality-quorum envelope specialization **after** §4.1–4.2 (rather than a direct formalization of Theorem 4.5): whereas §4.1–4.2 use separate fixed read and write quorum families, a quorum-acknowledged broadcast abstraction, and a per-processor client request queue (with Theorem 4.5 proving atomicity only), `abdProtocol` runs concrete point-to-point envelope transitions with `(n - t)`-cardinality quorums and idle-only client invocations, proving `Reachable s → Linearizable v₀ s.history` (`abd_linearizable`) alongside a separate fair-crash termination theorem (`abd_terminates`) and omitting §4.3 Theorem 4.6's conditional `4d` time / `8n` message bounds and §5's dynamic quorum reconfiguration.
 
+<a id="ma94"></a>
+## ma94
+
+Jinpeng Ma. *Strategy-Proofness and the Strict Core in a Market with Indivisibilities*. International Journal of Game Theory 23(1), 75–83, 1994. https://doi.org/10.1007/BF01242849 . Bibliographic metadata checked via search records on 2026-11-24 UTC; the publisher's text is paywalled and was not inspected, so no internal theorem or page locator is claimed. Cited as the standard primary reference characterizing Gale's top trading cycles mechanism as the unique individually rational, Pareto-efficient, and strategy-proof housing mechanism (`Ma1994`), proved from first principles in `CslibFrontier/Algorithms/Lean/HousingMarket/Characterization.lean`.
+
 <a id="mahler64"></a>
 ## mahler64
 
@@ -2191,6 +2201,11 @@ Ian Orzel, Srikanth Srinivasan, Sébastien Tavenas and Amir Yehudayoff. "The Alg
 ## papadimitriou94ppad
 
 Christos H. Papadimitriou. "On the Complexity of the Parity Argument and Other Inefficient Proofs of Existence." *Journal of Computer and System Sciences* 48(3), 498–532, 1994. https://doi.org/10.1016/S0022-0000(05)80063-7 . Bibliographic metadata checked against `references.bib` (`Papadimitriou1994PPAD`); the journal text was not inspected, so internal theorem numbers are not claimed. Cited for the complexity class `PPAD`, canonical `EndOfLine` completeness, and containment of two-player Nash equilibrium.
+
+<a id="papai00"></a>
+## papai00
+
+Szilvia Pápai. *Strategyproof Assignment by Hierarchical Exchange*. Econometrica 68(6), 1403–1433, 2000. https://doi.org/10.1111/1468-0262.00166 . Bibliographic metadata checked via search records on 2026-11-24 UTC; the publisher's text is paywalled and was not inspected, so no internal lemma or theorem locator is claimed. Cited as standard background (`Papai2000`) for the equivalence between strong group strategy-proofness and strategy-proofness plus non-bossiness on strict private-good preference domains (`HousingMechanism.isGroupStrategyProof_iff`).
 
 <a id="pedersen1991"></a>
 ## pedersen1991
@@ -2583,6 +2598,11 @@ Mechthild Stoer and Frank Wagner. "A Simple Min-Cut Algorithm." *Journal of the 
 ## sudantrevisanvadhan01
 
 Madhu Sudan, Luca Trevisan and Salil Vadhan. *Pseudorandom Generators without the XOR Lemma*. Journal of Computer and System Sciences 62(2), 236–266, 2001. DOI: [10.1006/jcss.2000.1730](https://doi.org/10.1006/jcss.2000.1730). Publisher metadata and abstract checked by the coordinated source pass on 2026-11-02; the proof-route attribution comes from the pinned Lean module.
+
+<a id="svensson99"></a>
+## svensson99
+
+Lars-Gunnar Svensson. *Strategy-Proof Allocation of Indivisible Goods*. Social Choice and Welfare 16(4), 557–567, 1999. https://doi.org/10.1007/s003550050160 . Bibliographic metadata checked via search records on 2026-11-24 UTC; the publisher's text is paywalled and was not inspected, so no internal theorem or page locator is claimed. Cited alongside [ma94](#ma94) and [papai00](#papai00) (`Svensson1999`) for non-bossiness, group strategy-proofness, and the axiomatic characterization of top trading cycles.
 
 <a id="tardosvazirani07"></a>
 ## tardosvazirani07
