@@ -479,21 +479,4 @@ theorem ar2JointDensity_integral_eq_one (j : ℕ) :
   rw [lintegral_ar2JointDensity_eq_one j] at h
   exact ENNReal.ofReal_eq_one.mp h
 
-/-- Integral of `ar2InitDensity x y` over `ℝ × ℝ` equals `1`. -/
-theorem ar2InitDensity_integral_eq_one :
-    ∫ p : ℝ × ℝ, ar2InitDensity p.1 p.2 = 1 := by
-  have h := ar2JointDensity_integral_eq_one 1
-  have hmp : MeasurePreserving (MeasurableEquiv.finTwoArrow (α := ℝ))
-      (Measure.pi fun _ : Fin 2 => volume) (volume.prod volume) :=
-    volume_preserving_finTwoArrow ℝ
-  have hcomp : ∫ x : Fin 2 → ℝ, ar2InitDensity (x 0) (x 1)
-      ∂(Measure.pi fun _ : Fin 2 => volume) =
-      ∫ p : ℝ × ℝ, ar2InitDensity p.1 p.2 ∂(volume.prod volume) :=
-    hmp.integral_comp (MeasurableEquiv.finTwoArrow (α := ℝ)).measurableEmbedding
-      (fun p : ℝ × ℝ => ar2InitDensity p.1 p.2)
-  change ∫ p : ℝ × ℝ, ar2InitDensity p.1 p.2 ∂(volume.prod volume) = 1
-  rw [← hcomp, ← h]
-  refine integral_congr_ae (ae_of_all _ fun x => ?_)
-  simp [ar2JointDensity]
-
 end Cslib.Circuits.Frontier.CrossingCover
