@@ -24,16 +24,28 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
 
 namespace VeriPBElab
 
-/-- The name of a variable. -/
-def varName (N : Elab.AuxNames) (v : ℕ) : String := N.name v
+/-- The variable names of a result, as an array for constant-time lookup. -/
+structure NameTable where
+  /-- `Cslib.Logic.PL.VeriPB.Text.Names.base`. -/
+  base : ℕ := 0
+  /-- `Cslib.Logic.PL.VeriPB.Text.Names.others`. -/
+  others : Array String := #[]
+  deriving Inhabited
 
-def litStr (N : Elab.AuxNames) (l : Literal ℕ) : String :=
+def NameTable.ofNames (N : Text.Names) : NameTable := ⟨N.base, N.others.toArray⟩
+
+/-- The name of a variable, as `Cslib.Logic.PL.VeriPB.Text.Names.name` gives it below
+`Cslib.Logic.PL.VeriPB.Text.Names.next` (the elaborator names every variable it uses). -/
+def varName (N : NameTable) (v : ℕ) : String :=
+  if v < N.base then s!"x{v + 1}" else (N.others[v - N.base]?).getD s!"x{v + 1}"
+
+def litStr (N : NameTable) (l : Literal ℕ) : String :=
   (if l.2 then "" else "~") ++ varName N l.1
 
-def constrStr (N : Elab.AuxNames) (c : PBConstr) : String :=
+def constrStr (N : NameTable) (c : PBConstr) : String :=
   String.join (c.terms.map fun t => s!"+{t.1} {litStr N t.2} ") ++ s!">= {c.degree}"
 
-def objStr (N : Elab.AuxNames) (f : Objective) : String :=
+def objStr (N : NameTable) (f : Objective) : String :=
   String.join (f.lin.map fun e => s!"{if e.2 ≥ 0 then "+" else ""}{e.2} {varName N e.1} ") ++
     s!"{if f.const ≥ 0 then "+" else ""}{f.const}"
 
@@ -41,7 +53,7 @@ def hintStr : Hint → String
   | .neg => "~"
   | .id n => toString n
 
-def polStr (N : Elab.AuxNames) : PolOp → String
+def polStr (N : NameTable) : PolOp → String
   | .id n => toString n
   | .lit l => litStr N l
   | .add => "+"
@@ -50,7 +62,7 @@ def polStr (N : Elab.AuxNames) : PolOp → String
   | .sat => "s"
   | .weaken v => s!"{varName N v} w"
 
-def witStr (N : Elab.AuxNames) (ω : Witness) : String :=
+def witStr (N : NameTable) (ω : Witness) : String :=
   " ".intercalate (ω.map fun (x, w) => s!"{varName N x} -> " ++ match w with
     | .zero => "0" | .one => "1" | .lit l => litStr N l)
 
@@ -60,7 +72,7 @@ def goalStr : GoalId → String
 
 mutual
 
-partial def stepStr (N : Elab.AuxNames) : Step → String
+partial def stepStr (N : NameTable) : Step → String
   | .pol ops => s!"pol {" ".intercalate (ops.map (polStr N))};\n"
   | .rup c hs => s!"rup {constrStr N c} : {" ".intercalate (hs.map hintStr)};\n"
   | .rupSearch c => s!"rup {constrStr N c};\n"
@@ -68,7 +80,7 @@ partial def stepStr (N : Elab.AuxNames) : Step → String
       String.join (sub.map (stepStr N)) ++ s!"qed : {q};\n"
   | .del ids => s!"del id {" ".intercalate (ids.map toString)};\n"
 
-partial def itemStr (N : Elab.AuxNames) : RedItem → String
+partial def itemStr (N : NameTable) : RedItem → String
   | .step s => stepStr N s
   | .goal g sub q => s!"proofgoal {goalStr g}\n" ++ String.join (sub.map (stepStr N)) ++
       s!"qed : {q};\n"
@@ -77,20 +89,20 @@ partial def itemStr (N : Elab.AuxNames) : RedItem → String
 
 end
 
-def subStr (N : Elab.AuxNames) (kw : String) (sub : Option (List RedItem)) (q : Option ℕ) :
+def subStr (N : NameTable) (kw : String) (sub : Option (List RedItem)) (q : Option ℕ) :
     String :=
   match sub with
   | none => ";\n"
   | some items => " : subproof\n" ++ String.join (items.map (itemStr N)) ++
       s!"qed {kw}" ++ (match q with | some q => s!" : {q}" | none => "") ++ ";\n"
 
-def orderProofStr (N : Elab.AuxNames) (p : OrderProof) : String :=
+def orderProofStr (N : NameTable) (p : OrderProof) : String :=
   "proof\n" ++ String.join (p.items.map (itemStr N)) ++
     "qed" ++ (match p.qed with | some q => s!" : {q}" | none => "") ++ ";\n"
 
-def varsStr (N : Elab.AuxNames) (vs : List ℕ) : String := " ".intercalate (vs.map (varName N))
+def varsStr (N : NameTable) (vs : List ℕ) : String := " ".intercalate (vs.map (varName N))
 
-def topStr (N : Elab.AuxNames) : TopStep → String
+def topStr (N : NameTable) : TopStep → String
   | .step s => stepStr N s
   | .red c ω sub q => s!"red {constrStr N c} : {witStr N ω}" ++ subStr N "red" sub q
   | .dom c ω sub q => s!"dom {constrStr N c} : {witStr N ω}" ++ subStr N "dom" sub q
@@ -136,11 +148,11 @@ def boundStr : Option ℤ → String
   | none => "INF"
   | some v => toString v
 
-def asgStr (N : Elab.AuxNames) : Option (List (Literal ℕ)) → String
+def asgStr (N : NameTable) : Option (List (Literal ℕ)) → String
   | none => ""
   | some ρ => " : " ++ " ".intercalate (ρ.map (litStr N))
 
-def conclStr (N : Elab.AuxNames) : Conclusion → String
+def conclStr (N : NameTable) : Conclusion → String
   | .unsat q => s!"UNSAT : {q}"
   | .sat asg => "SAT" ++ asgStr N asg
   | .bounds lb q ub asg => s!"BOUNDS {boundStr lb} : {q} {boundStr ub}" ++ asgStr N asg
@@ -157,11 +169,12 @@ def guaranteeStr : Guarantee → String
 /-- Write the kernel proof as text. -/
 def emit (h : IO.FS.Handle) (m : ℕ) (r : Elab.Result) : IO Unit := do
   h.putStr s!"pseudo-Boolean proof version 3.0\nf {m};\n"
-  for s in r.proof.steps do h.putStr (topStr r.names s)
+  let N := NameTable.ofNames r.names
+  for s in r.proof.steps do h.putStr (topStr N s)
   h.putStr (match r.output with
     | none => "output NONE;\n"
     | some (g, b) => s!"output {guaranteeStr g} {if b then "FILE" else "IMPLICIT"};\n")
-  h.putStr s!"conclusion {conclStr r.names r.proof.conclusion};\nend pseudo-Boolean proof;\n"
+  h.putStr s!"conclusion {conclStr N r.proof.conclusion};\nend pseudo-Boolean proof;\n"
 
 end VeriPBElab
 
@@ -186,13 +199,17 @@ def main (args : List String) : IO UInt32 := do
     match r with
     | some c => IO.println s!"s VERIFIED {conclStr default c}"; return 0
     | none => IO.println "s REJECTED kernel text check"; return 1
-  let inst : Option Instance := if cnf then
-      (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩
-    else Text.parseOPB fmlText
+  -- The names of an OPB text are scanned once, for parsing and elaboration alike.
+  let names : Option Text.Names := if cnf then none else some (Text.opbNames fmlText)
+  let inst : Option Instance := match names with
+    | none => (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩
+    | some N => Text.parseOPBWith N fmlText
   let some I := inst | IO.println "s REJECTED formula does not parse"; return 1
   let t₁ ← IO.monoMsNow
   IO.println s!"c read and parse formula {t₁ - t₀} ms ({I.constraints.length} constraints)"
-  let r := Elab.elaborate I.constraints I.objective I.preserved pbpText
+  let r := match names with
+    | none => Elab.elaborate I.constraints I.objective I.preserved pbpText
+    | some N => Elab.elaborate I.constraints I.objective I.preserved pbpText N
   match r with
   | .error e => IO.println s!"s REJECTED elaboration: {e}"; return 1
   | .ok res =>
@@ -209,7 +226,7 @@ def main (args : List String) : IO UInt32 := do
     | some c =>
       let t₄ ← IO.monoMsNow
       IO.println s!"c kernel check {t₄ - t₃} ms"
-      IO.println s!"s VERIFIED {conclStr res.names c}"
+      IO.println s!"s VERIFIED {conclStr (.ofNames res.names) c}"
       return 0
     | none =>
       let t₄ ← IO.monoMsNow
@@ -222,7 +239,8 @@ def main (args : List String) : IO UInt32 := do
         match stepTop I.constraints I.objective st t with
         | some st' => st := st'; i := i + 1
         | none =>
-          IO.println s!"c first rejected kernel step {i}: {(topStr res.names t).take 300}"
+          let ts := (topStr (.ofNames res.names) t).take 300
+          IO.println s!"c first rejected kernel step {i}: {ts}"
           failed := true
           break
       if !failed then IO.println "c all steps accepted; the conclusion or output is rejected"
