@@ -87,7 +87,7 @@ example :
     (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
   exact ⟨y, z, φ, hz, hlim, hcrit⟩
 
--- The finite coordinate root grid meets the real zero set of the integer polynomial X².
+-- A fixed-width word selects a point in the finite coordinate root grid of X².
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
     let hF : F.totalDegree ≤ 3 := (totalDegree_pow (X (R := ℤ) (0 : Fin 1)) 2).trans
@@ -97,7 +97,10 @@ example :
     let G := coordinateRootGrid (by decide : 1 ≤ 3) F hF
     let p := (Polynomial.Bivariate.swap
       (parametricCoordinatePolynomial (by decide) F hF 0)).leadingCoeff.map (Int.castRingHom ℝ)
-    G.Finite ∧ ∃ x ∈ G, eval x (F.map (Int.castRingHom ℝ)) = 0 ∧ p.IsRoot (x 0) := by
+    G.Finite ∧ ∃ x ∈ G, eval x (F.map (Int.castRingHom ℝ)) = 0 ∧ p.IsRoot (x 0) ∧
+      ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 3 1 ∧
+        0 < (wordCoordinateFingerprintLabel (d := 2) F hF 0 (by decide) word 0).eval₂
+          (Int.castRingHom ℝ) (x 0) := by
   intro F hF G p
   refine ⟨coordinateRootGrid_finite _ F hF, ?_⟩
   have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
@@ -105,7 +108,13 @@ example :
   have hzero : eval (fun _ => 0) (F.map (Int.castRingHom ℝ)) = 0 := by simp [F]
   obtain ⟨z, _, hz⟩ := exists_mem_coordinateRootGrid_of_isClopen (by decide) (by decide) F hF hFn
     Set.univ isClopen_univ ⟨⟨fun _ => 0, hzero⟩, Set.mem_univ _⟩
-  exact ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0⟩
+  have hmass : F.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [F, coeffNorm1_X, one_pow, pow_zero] using
+      coeffNorm1_pow_le (X (R := ℤ) (0 : Fin 1)) 2
+  obtain ⟨word, hlen, hselect⟩ :=
+    exists_coordinateSelectionWitness (d := 2) (mass := 0) F hF hmass (by decide) (by decide) hz
+  exact ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0, word, hlen,
+    ((hselect z.val).mpr rfl).2 0⟩
 
 -- Zero is a critical point of the deformation of X² at every parameter.
 example :
