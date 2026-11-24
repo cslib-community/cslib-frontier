@@ -6977,6 +6977,8 @@ public import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 public import CslibFrontier.Foundations.Algebra.BigOperators.Selection
 public import CslibFrontier.Foundations.Algebra.Covering.Basic
 public import CslibFrontier.Foundations.Algebra.Covering.Certificate
+public import CslibFrontier.Foundations.Algebra.Covering.Duality
+public import CslibFrontier.Foundations.Algebra.Covering.Gauge
 public import CslibFrontier.Foundations.Algebra.DFT
 public import CslibFrontier.Foundations.Algebra.FiniteMagnitude
 public import CslibFrontier.Foundations.Algebra.GeometricTail
@@ -8198,6 +8200,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Network
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Spectrum
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Polynomial
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Primal
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Round
