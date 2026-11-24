@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevSharpScore
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.DepthTwoInputs
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Andreev
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -383,10 +384,8 @@ theorem two_mul_andreevSharpW_le (x : BitString b → Bool) {S : Finset (Fin b)}
     simp only [oddForm, Pi.one_apply, sum_const, nsmul_eq_mul, mul_one] at hε
     simp only [cast_andreevSharpMult, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
       mul_assoc, ← mul_sum, h0, hε]
-  have h1' : (andreevSharpW b m x S : ℝ) ≤
-      ∑ c, (andreevSharpMult b m c : ℝ) * (parityOn S c).toNat := by exact_mod_cast h1
   exact_mod_cast
-    (by linarith : (2 * andreevSharpW b m x S : ℝ) ≤ 2 ^ b + 2 * andreevSharpAmp m * #S)
+    (by cast_linarith [h1] : (2 * andreevSharpW b m x S : ℝ) ≤ 2 ^ b + 2 * andreevSharpAmp m * #S)
 
 /-- The ridge family sums to `-∑_S r_S(2 W_S + t_S)`. -/
 theorem sum_topWeight_ridge (x : BitString b → Bool) (s : Fin b → ℕ) (hs : ∀ i, s i ≤ m) :

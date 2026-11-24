@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Erik Demaine. All rights reserved.
+Copyright (c) 2026 Erik Demaine, lean-canny contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Erik Demaine
+Authors: Erik Demaine, lean-canny contributors
 -/
 
 module
@@ -12,6 +12,10 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.G
 public import CslibFrontier.Foundations.NumberTheory.FiniteField.Enumeration
 import CslibFrontier.Foundations.FieldTheory.Finite.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Foundations.Data.BitString.MultiplicativeEnumeration
+import Mathlib.Algebra.BigOperators.Fin
 
 /-!
 # Short-index products in prime fields
@@ -25,16 +29,20 @@ and one, return zero. The modulus is binary and the index width is polynomial-ti
 
 * `Cslib.Complexity.generatorCount`: the number of accepted canonical generators.
 * `Cslib.Complexity.primeFieldProduct`: the total generator-average product evaluator.
+* `Cslib.Complexity.primeFieldRangeProduct`: a product with a binary factor count.
 
 ## Main results
 
 * `Cslib.Complexity.primeFieldProduct_spec`: agreement with the prime-field product.
+* `Cslib.Complexity.primeFieldRangeProduct_cast`: agreement over the genuine binary indices.
 * `Cslib.Complexity.CountingFunction.prod_primeField_bits`: the conservative F_(a+4) bound.
 
 ## References
 
 * [OpenAI2026CountingHierarchy], Section 2, Products in a finite field. Averaging replaces
   the source's generator selection; the existing algebraic average theorem supplies correctness.
+* The binary factor count adapts the `LeanCanny.CountingHierarchy.BinaryModularProduct` module
+  at lean-canny commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
 public section
@@ -162,6 +170,20 @@ theorem primeFieldProduct_restrict_spec {p : ℕ} [Fact p.Prime] (b : ℕ)
   rw [primeFieldProduct_spec, Finset.prod_filter]
   simp only [Nat.cast_ite, Nat.cast_one]
 
+/-- Evaluate the product of `n` addressed factors modulo `p` using binary addresses.
+Addresses at least `n` contribute one. On nonprime moduli the evaluator returns zero. -/
+@[expose] noncomputable def primeFieldRangeProduct (p n : ℕ) (value : ℕ → ℕ) : ℕ :=
+  primeFieldProduct p n.size (fun w =>
+    if BitString.binaryValue w < n then value (BitString.binaryValue w) else 1)
+
+/-- The prime-field result agrees with the product over precisely the genuine indices. -/
+theorem primeFieldRangeProduct_cast {p : ℕ} [Fact p.Prime] (n : ℕ) (value : ℕ → ℕ) :
+    (primeFieldRangeProduct p n value : ZMod p) = ∏ i : Fin n, (value i.val : ZMod p) := by
+  rw [primeFieldRangeProduct, primeFieldProduct_spec]
+  simp only [Nat.cast_ite, Nat.cast_one]
+  rw [BitString.prod_binaryValue_lt (Nat.lt_size_self n).le (fun i => (value i : ZMod p)),
+    Finset.prod_range]
+
 namespace CountingFunction
 
 variable {α : Type} {enc : α ↪ List Bool} {a : ℕ}
@@ -238,6 +260,21 @@ theorem primeFieldProduct_mem (D : Decoder enc) {p r : α → ℕ} {f : α × Li
   simpa only [primeFieldProduct, decide_eq_true_eq] using
     ite (mono (show a + 1 ≤ a + 3 by omega) hflag)
       (of_polyTime (ComputableInPolyTime.const 0)) hvalue
+
+/-- A binary factor count and a uniform factor evaluator add three counting function levels. -/
+theorem primeFieldRangeProduct_mem (D : Decoder enc) {p n : α → ℕ} {value : α × ℕ → ℕ}
+    (hp : ComputableInPolyTime p enc encNat) (hn : ComputableInPolyTime n enc encNat)
+    (hv : value ∈ CountingFunction a (encPair enc encNat) encNat) :
+    (fun x => primeFieldRangeProduct (p x) (n x) (fun i => value (x, i))) ∈
+      CountingFunction (a + 3) enc encNat := by
+  have hfst := ComputableInPolyTime.fst enc encBits
+  have hi : ComputableInPolyTime (fun q : α × List Bool => BitString.binaryValue q.2)
+      (encPair enc encBits) encNat := by fun_prop
+  have hvalue := preprocess hv (hfst.prod hi)
+  have htest := nat_lt (a := a) (of_polyTime hi) (of_polyTime (hn.comp hfst))
+  have hfactor := ite htest hvalue (of_polyTime (ComputableInPolyTime.const 1))
+  simpa only [primeFieldRangeProduct, decide_eq_true_eq, Function.comp_apply] using
+    primeFieldProduct_mem D hfactor hp (ComputableInPolyTime.binary_size.comp hn)
 
 /-- Short-index prime-field products of F_a factors lie in F_(a+4), with total zero default
 on every nonprime modulus. The modulus is polynomial-time binary, and width polynomial-time
