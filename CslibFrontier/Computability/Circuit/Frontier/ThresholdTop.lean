@@ -1546,7 +1546,7 @@ private theorem exists_mul_signRepresents_of_isHalfspaceComb_one {α β : Type*}
 
 /-- **Sign-rank of a two-party halfspace (`t = 1`).** Every `1`-halfspace combination over finite
 domains has sign-rank at most `2`. -/
-theorem signRank_le_two_of_isHalfspaceComb_one {α β : Type*} [Finite α] [Fintype β]
+theorem signRank_le_two_of_isHalfspaceComb_one {α β : Type*} [Finite α] [Finite β]
     {f : α → β → Bool} (hf : IsHalfspaceComb 1 f) :
     Communication.signRank f ≤ 2 := by
   obtain ⟨U_mat, V_mat, hrep⟩ := exists_mul_signRepresents_of_isHalfspaceComb_one hf

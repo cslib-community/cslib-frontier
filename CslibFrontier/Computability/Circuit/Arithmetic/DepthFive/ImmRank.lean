@@ -74,7 +74,7 @@ theorem rankMeasure_imm_ge (hp : p.Good)
     have hm : (p.m : ℝ) ≤ p.n := by exact_mod_cast (by have := p.hkm; omega : p.m ≤ p.n)
     calc (1 + p.β) ^ p.m ≤ Real.exp p.β ^ p.m :=
           pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp p.β]) _
-      _ = Real.exp (p.m * p.β) := (Real.exp_nat_mul _ _).symm
+      _ = Real.exp (p.m * p.β) := (Real.exp_natCast_mul _ _).symm
       _ ≤ Real.exp (2 * √(p.n : ℝ)) := by
           refine Real.exp_le_exp.2 ((mul_le_mul hm hp.β_le hβ.le (by positivity)).trans
             (le_of_eq ?_))
@@ -90,7 +90,7 @@ theorem rankMeasure_imm_ge (hp : p.Good)
           congr 1
           ring
       _ ≤ Real.exp (-(3 / 2) / √(p.n : ℝ)) ^ 2 := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           refine Real.exp_le_exp.2 ?_
           have : 1 / √(p.n : ℝ) ≤ √(p.n : ℝ) := by
             rw [div_le_iff₀ (by positivity)]

@@ -395,7 +395,7 @@ theorem isolateRootsTotal_sqSubTwo_spec :
         (Function.onFun Disjoint fun J => Set.Icc (J.lower : ℝ) (J.upper : ℝ)) ∧
       (∃ f : Fin (isolateRootsTotal [(-2 : ℚ), 0, 1]).length →
           {x : ℝ // Polynomial.aeval x (X ^ 2 - (2 : ℚ[X])) = 0},
-        Function.Bijective f ∧ StrictMono (fun i => (f i).1)) ∧
+        Function.Bijective f ∧ StrictMono (fun i => (f i).val)) ∧
       mignotteBisectionDepth [(-2 : ℚ), 0, 1] ≤ 5 ^ 2 * 4 := by
   have hB : HasCoeffBitBound 2 [(-2 : ℚ), 0, 1] := by
     have hcb : coeffBitBound [(-2 : ℚ), 0, 1] = 2 := by decide +kernel

@@ -290,7 +290,7 @@ private theorem preimage_blockOf_singleton (B : c.blocks) :
 theorem card_blocks_le [Finite V] : c.blocks.card ≤ Nat.card V := by
   calc c.blocks.card = Nat.card c.blocks := by simp
     _ ≤ Nat.card V := Nat.card_le_card_of_surjective c.blockOf fun B =>
-      let ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil B.1 B.2)
+      let ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil B.val B.property)
       ⟨v, c.mem_iff_blockOf_eq.mp hv⟩
 
 /-- Distinct blocks are disjoint. -/

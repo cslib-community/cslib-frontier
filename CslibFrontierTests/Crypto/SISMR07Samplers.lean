@@ -256,7 +256,7 @@ example :
 
 private theorem exp_neg_nat_mul_log_two (k : ℕ) :
     Real.exp (-((k : ℝ) * Real.log 2)) = ((2 : ℝ) ^ k)⁻¹ := by
-  rw [Real.exp_neg, Real.exp_nat_mul, Real.exp_log (by norm_num)]
+  rw [Real.exp_neg, Real.exp_natCast_mul, Real.exp_log (by norm_num)]
 
 private noncomputable abbrev D1 := LinearMap.BilinForm.dualSubmodule (innerₗ ℝ) intLatticeReal
 
@@ -287,7 +287,7 @@ private theorem concrete_grid_err_le_half :
     have hbase : 1 - 1 / (16 * (2 * (2 : ℕ) + 6 : ℝ)) ≤ Real.exp (-1 / 160) := by
       have := Real.add_one_le_exp (-1 / 160 : ℝ); push_cast; linarith
     have hpow := pow_le_pow_left₀ (by norm_num) hbase 340
-    rw [← Real.exp_nat_mul] at hpow
+    rw [← Real.exp_natCast_mul] at hpow
     have hlt := Real.exp_lt_exp.mpr
       (show (340 : ℕ) * (-1 / 160 : ℝ) < -((3 : ℕ) * Real.log 2) by
         push_cast; linarith [Real.log_two_lt_d9])

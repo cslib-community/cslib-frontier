@@ -91,8 +91,8 @@ private theorem card_fin_filter_subtype_eq {xs : List ℕ} {ys : List (ℕ × �
     (hp : ∀ e ∈ ys, p e ∈ xs) (v : {x // x ∈ xs}) :
     (Finset.univ.filter fun i : Fin ys.length =>
       (⟨p ys[i], hp _ (List.getElem_mem i.isLt)⟩ : {x // x ∈ xs}) = v).card =
-      ys.countP fun e => decide (p e = v.1) := by
-  rw [List.countP_eq_card_filter_getElem ys (fun e => decide (p e = v.1))]
+      ys.countP fun e => decide (p e = v.val) := by
+  rw [List.countP_eq_card_filter_getElem ys (fun e => decide (p e = v.val))]
   congr 1
   ext i
   simp [Subtype.ext_iff]
@@ -100,7 +100,7 @@ private theorem card_fin_filter_subtype_eq {xs : List ℕ} {ys : List (ℕ × �
 private theorem mem_activeVertices_of_validArc (G : Graph) (hbal : G.isBalancedBool = true)
     {e : ℕ × ℕ} (he : e ∈ G.validArcs) :
     e.1 ∈ G.activeVertices ∧ e.2 ∈ G.activeVertices := by
-  have hv : e.1 ∈ G.1 ∧ e.2 ∈ G.1 := (mem_validArcs.1 he).2
+  have hv : e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices := (mem_validArcs.1 he).2
   have h1 : 0 < G.outdeg e.1 := List.countP_pos_iff.2 ⟨e, he, decide_eq_true rfl⟩
   have h2_in : 0 < G.indeg e.2 := List.countP_pos_iff.2 ⟨e, he, decide_eq_true rfl⟩
   have h2_eq : G.outdeg e.2 = G.indeg e.2 := by
@@ -153,11 +153,11 @@ theorem eulerianCircuitCount_eq_natCard (G : Graph) (eIdx : ℕ) :
         rw [card_fin_filter_subtype_eq Prod.fst (fun e h => (harcs e h).1) v,
           card_fin_filter_subtype_eq Prod.snd (fun e h => (harcs e h).2) v]
         simp only [isBalancedBool, List.all_eq_true, decide_eq_true_eq] at hbalB
-        exact hbalB v.1 ((List.mem_filter.1 v.2).1)
+        exact hbalB v.val ((List.mem_filter.1 v.property).1)
       have hpos_act : ∀ v : {v // v ∈ G.activeVertices}, ∃ e, srcAct e = v := by
         intro v
-        have hpos : 0 < G.outdeg v.1 := by
-          have := (List.mem_filter.1 v.2).2
+        have hpos : 0 < G.outdeg v.val := by
+          have := (List.mem_filter.1 v.property).2
           simp only [decide_eq_true_eq] at this
           exact Nat.pos_of_ne_zero this
         obtain ⟨e, he_mem, he_fst⟩ := List.countP_pos_iff.1 hpos
@@ -187,7 +187,7 @@ theorem eulerianCircuitCount_eq_natCard (G : Graph) (eIdx : ℕ) :
                 ((Finset.univ.filter fun e => srcAct e = v).card - 1).factorial : ℕ) : ℤ) := by
           rw [← Fin.prod_univ_fun_getElem, Nat.cast_prod, ← Equiv.prod_comp eAct]
           refine Finset.prod_congr rfl fun i _ => ?_
-          have hi : (eAct i).1 = G.activeVertices[i] := rfl
+          have hi : (eAct i).val = G.activeVertices[i] := rfl
           rw [card_fin_filter_subtype_eq Prod.fst (fun e h => (harcs e h).1) (eAct i), hi]
           rfl
         rw [hnat, Int.toNat_natCast]
@@ -201,8 +201,8 @@ theorem eulerianCircuitCount_eq_natCard (G : Graph) (eIdx : ℕ) :
         simp only [isBalancedBool, List.all_eq_true, decide_eq_true_eq]
         intro v hv
         unfold outdeg indeg
-        let vSub : {x // x ∈ G.1} := ⟨v, Graph.mem_distinctVertices.1 hv⟩
-        rw [show v = vSub.1 from rfl,
+        let vSub : {x // x ∈ G.vertices} := ⟨v, Graph.mem_distinctVertices.1 hv⟩
+        rw [show v = vSub.val from rfl,
           ← card_fin_filter_subtype_eq Prod.fst (fun e h => (mem_validArcs.1 h).2.1) vSub,
           ← card_fin_filter_subtype_eq Prod.snd (fun e h => (mem_validArcs.1 h).2.2) vSub]
         exact hl.card_filter_src_eq vSub

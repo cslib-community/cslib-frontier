@@ -1005,7 +1005,7 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
   classical
   have := Fintype.ofFinite (Node c)
   let emb_in : {i : Fin n // Reach c (.input i)} ↪ ActiveSignal c :=
-    ⟨fun x => .input x.1 x.2, fun _ _ h => Subtype.ext (ActiveSignal.input.inj h)⟩
+    ⟨fun x => .input x.val x.property, fun _ _ h => Subtype.ext (ActiveSignal.input.inj h)⟩
   let emb_gt : InnerGate c ↪ ActiveSignal c :=
     ⟨ActiveSignal.gate, fun _ _ h => ActiveSignal.gate.inj h⟩
   let S_in (x : {i : Fin n // Reach c (.input i)}) : Finset (Node c) :=

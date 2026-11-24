@@ -123,12 +123,12 @@ def reindex (e : ι ≃ κ) : SubcubicLeafTree α κ where
   isTree := (SimpleGraph.Iso.comap e.symm D.tree).symm.isTree_iff.1 D.isTree
   degree_le_three k := (D.ncard_neighborSet_comap_symm e k).trans_le (D.degree_le_three _)
   leaf := D.leaf.trans
-    { toFun := fun t => ⟨e t.1, by
-        rw [D.ncard_neighborSet_comap_symm, e.symm_apply_apply]; exact t.2⟩
-      invFun := fun k => ⟨e.symm k.1, by
-        rw [← D.ncard_neighborSet_comap_symm]; exact k.2⟩
-      left_inv := fun t => Subtype.ext (e.symm_apply_apply t.1)
-      right_inv := fun k => Subtype.ext (e.apply_symm_apply k.1) }
+    { toFun := fun t => ⟨e t.val, by
+        rw [D.ncard_neighborSet_comap_symm, e.symm_apply_apply]; exact t.property⟩
+      invFun := fun k => ⟨e.symm k.val, by
+        rw [← D.ncard_neighborSet_comap_symm]; exact k.property⟩
+      left_inv := fun t => Subtype.ext (e.symm_apply_apply t.val)
+      right_inv := fun k => Subtype.ext (e.apply_symm_apply k.val) }
 
 private theorem pathTo_reindex_length (e : ι ≃ κ) (w u : ι) :
     ((D.reindex e).isTree.pathTo (e w) (e u)).length = (D.isTree.pathTo w u).length := by
@@ -812,7 +812,7 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
         have hcut_step {s : BinTree α} (emb : s.Node ↪ TopNode l r) {u : s.Node}
             (hu : emb u ≠ root) (hk_u : Fintype.card (TopNode l r) - depth (emb u) ≤ k + 1)
             (hch : ∀ w, (w ≠ root ∧ par w = emb u) ↔ w ∈ (s.nodeChildren u).map emb)
-            (hidx : (BinTree.node l r).leafLabel '' {j | (idxToNode j).1 = emb u} =
+            (hidx : (BinTree.node l r).leafLabel '' {j | (idxToNode j).val = emb u} =
               s.leafLabel '' {i : s.LeafIdx | s.leafToNode i = u})
             (hsub_emb : ∀ c, subSet (emb c) = s.subtreeLeafSet c) :
             D.cutSet (emb u) (par (emb u)) = s.subtreeLeafSet u := by
@@ -832,16 +832,16 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
               have h2 := hdepth_lt hcr
               rw [hcp, heq] at h2
               exact lt_asymm h1 h2
-          have hself : {a : α | (D.leaf a).1 = emb u} =
+          have hself : {a : α | (D.leaf a).val = emb u} =
               s.leafLabel '' {i : s.LeafIdx | s.leafToNode i = u} := by
-            rw [show {a : α | (D.leaf a).1 = emb u} =
-                {a : α | (D.leaf a).1 ∈ ({emb u} : Set (TopNode l r))} from rfl, hset_eq]
+            rw [show {a : α | (D.leaf a).val = emb u} =
+                {a : α | (D.leaf a).val ∈ ({emb u} : Set (TopNode l r))} from rfl, hset_eq]
             exact hidx
-          change {a : α | (D.leaf a).1 ∈ hT.treeSide (emb u) (par (emb u))} = s.subtreeLeafSet u
+          change {a : α | (D.leaf a).val ∈ hT.treeSide (emb u) (par (emb u))} = s.subtreeLeafSet u
           rw [hT.treeSide_eq_insert_biUnion hadju, hch_set]
-          calc {a : α | (D.leaf a).1 ∈ insert (emb u)
+          calc {a : α | (D.leaf a).val ∈ insert (emb u)
                   (⋃ c ∈ emb '' (s.nodeChildren u : Set s.Node), hT.treeSide c (emb u))}
-              = {a : α | (D.leaf a).1 = emb u} ∪
+              = {a : α | (D.leaf a).val = emb u} ∪
                   ⋃ c ∈ s.nodeChildren u, D.cutSet (emb c) (emb u) := by
                 ext a; simp [SubcubicLeafTree.cutSet]
             _ = (s.leafLabel '' {i : s.LeafIdx | s.leafToNode i = u}) ∪

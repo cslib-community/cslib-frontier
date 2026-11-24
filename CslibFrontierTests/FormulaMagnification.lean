@@ -44,7 +44,7 @@ example :
 
 private theorem eq_proj_of_mem_computableFunctions_zero {g : BooleanFunction 1}
     (hg : g ∈ computableFunctions 1 0) : g = fun x : BitString 1 => x 0 := by
-  rw [mem_computableFunctions] at hg
+  rw [Boolean.mem_computableFunctions] at hg
   obtain ⟨c, hc, hsize⟩ := hg
   have h0 : c.size = 0 := Nat.le_zero.mp hsize
   funext x

@@ -30,7 +30,7 @@ example (A : Matrix (Fin 3) (Fin 2) ℤ) (B : Matrix (Fin 2) (Fin 3) ℤ) : (A *
   rw [Matrix.det_mul_eq_sum_powersetCard]
   have : IsEmpty (Set.powersetCard (Fin 2) 3) := by
     rw [← not_nonempty_iff, Set.powersetCard.nonempty_iff]
-    simp
+    norm_num
   simp
 
 /-! ### Concrete spanning-tree counts -/

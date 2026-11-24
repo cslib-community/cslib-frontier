@@ -125,9 +125,9 @@ private theorem isPartitionCover_fin1Cover :
           rwa [Subsingleton.elim x 0] at hx
       · fin_cases j
         · rfl
-        · simp [fin1Cover] at hj
+        · simp [fin1Cover, eq_comm (a := ∅)] at hj
     · have ha0 : a = {0} := by
-        obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.2 ha
+        obtain ⟨x, hx⟩ := ne_empty_iff_nonempty.1 ha
         ext y
         rw [Subsingleton.elim y 0, Subsingleton.elim x 0] at *
         simp [hx]

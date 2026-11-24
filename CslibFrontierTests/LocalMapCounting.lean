@@ -57,12 +57,12 @@ def zeroMap : LocalMap :=
 example :
     map3to2.preimageCount [false, false] = 3 ∧
     (map3to2.toCSP [false, false]).modelCountOn LocalMap.cspSem (Finset.range 3) = 3 ∧
-    (LocalMap.toDeclaredCNF 2 (map3to2, [false, false])).2.modelCountOn (Finset.range 3) = 3 ∧
+    (LocalMap.toDeclaredCNF 2 (map3to2, [false, false])).formula.modelCountOn (Finset.range 3) = 3 ∧
     map3to2.preimageCount [false, true] = 1 ∧
     (map3to2.toCSP [false, true]).modelCountOn LocalMap.cspSem (Finset.range 3) = 1 ∧
-    (LocalMap.toDeclaredCNF 2 (map3to2, [false, true])).2.modelCountOn (Finset.range 3) = 1 ∧
+    (LocalMap.toDeclaredCNF 2 (map3to2, [false, true])).formula.modelCountOn (Finset.range 3) = 1 ∧
     map3to2.preimageCount [true] = 0 ∧
-    (LocalMap.toDeclaredCNF 2 (map3to2, [true])).2.modelCountOn (Finset.range 3) = 0 ∧
+    (LocalMap.toDeclaredCNF 2 (map3to2, [true])).formula.modelCountOn (Finset.range 3) = 0 ∧
     zeroMap.Valid 1 = true ∧
     zeroMap.preimageCount [true, true] = 0 ∧
     zeroMap.preimageCount [false, false] = 4 := by

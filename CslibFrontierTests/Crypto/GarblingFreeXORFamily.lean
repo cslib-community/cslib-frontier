@@ -176,7 +176,7 @@ example (k : ℕ) :
 /-- `validCircuit₁` has 4 gates, so `8 * q = 32 ≤ 2 ^ 5` at parameter `k = 5`. -/
 private theorem capacity_adversary {q : Query ValidCircuit} {state : Bool}
     (h : (q, state) ∈ (ProbComp.eval ((adversary 5).choose ())).support) :
-    8 * q.fn.1.q ≤ 2 ^ 5 := by
+    8 * q.fn.val.q ≤ 2 ^ 5 := by
   simp only [adversary, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
     Prod.mk.injEq] at h
   obtain ⟨rfl, -⟩ := h

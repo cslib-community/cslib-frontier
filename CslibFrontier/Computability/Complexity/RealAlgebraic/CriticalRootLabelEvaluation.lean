@@ -138,7 +138,9 @@ theorem criticalRootLabelResidue_cast {p n : ℕ} [Fact p.Prime]
     simp only [b₀, modularSub_cast hp.pos, powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod,
       Nat.cast_pow, Nat.cast_ofNat, Polynomial.eval₂_sub, Polynomial.eval₂_C, Polynomial.eval₂_X,
       Int.coe_castRingHom, Int.cast_pow, Int.cast_ofNat]
-  rw [criticalRootLabelResidue, rootLabelCodeOrders_eq (by positivity)]
+  rw [criticalRootLabelResidue]
+  dsimp only
+  rw [rootLabelCodeOrders_eq (by positivity)]
   exact sparseRootLabelResidue_cast q b₀ _ z _ _ _ L hq hdim hcoeff hbase
     (fun i => rootLabelCodeTarget_cast hp.pos (by positivity) data q b₀ i)
 

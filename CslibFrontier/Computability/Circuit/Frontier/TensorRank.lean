@@ -554,36 +554,36 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
   -- Also extract `a₀, a₁, a₂` back from `glueEdges`.
   have glue_on_cut0 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 0) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₀ e := by
-    have hc0 : e.1 ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} := e.2
-    have hmem := (mem_inter_edgeCut_iff 0 1 (by decide) e.1).mp hc0
-    simp only [glueEdges, show ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) by omega,
-      show ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) by omega,
-      show ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) by omega, hc0, ↓reduceDIte]
+      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.val = a₀ e := by
+    have hc0 : e.val ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} := e.property
+    have hmem := (mem_inter_edgeCut_iff 0 1 (by decide) e.val).mp hc0
+    simp only [glueEdges, show ¬(col (G.src e.val) = 0 ∧ col (G.tgt e.val) = 0) by omega,
+      show ¬(col (G.src e.val) = 1 ∧ col (G.tgt e.val) = 1) by omega,
+      show ¬(col (G.src e.val) = 2 ∧ col (G.tgt e.val) = 2) by omega, hc0, ↓reduceDIte]
     rfl
   have glue_on_cut1 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 1) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₁ e := by
-    have hc1 : e.1 ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} := e.2
-    have hmem := (mem_inter_edgeCut_iff 1 2 (by decide) e.1).mp hc1
-    have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
+      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.val = a₁ e := by
+    have hc1 : e.val ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} := e.property
+    have hmem := (mem_inter_edgeCut_iff 1 2 (by decide) e.val).mp hc1
+    have hnc0 : e.val ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
       rw [mem_inter_edgeCut_iff 0 1 (by decide)]; omega
-    simp only [glueEdges, show ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) by omega,
-      show ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) by omega,
-      show ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) by omega, hnc0, hc1, ↓reduceDIte]
+    simp only [glueEdges, show ¬(col (G.src e.val) = 0 ∧ col (G.tgt e.val) = 0) by omega,
+      show ¬(col (G.src e.val) = 1 ∧ col (G.tgt e.val) = 1) by omega,
+      show ¬(col (G.src e.val) = 2 ∧ col (G.tgt e.val) = 2) by omega, hnc0, hc1, ↓reduceDIte]
     rfl
   have glue_on_cut2 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 2) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₂ e := by
-    have hc2 : e.1 ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} := e.2
-    have hmem := (mem_inter_edgeCut_iff 2 0 (by decide) e.1).mp hc2
-    have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
+      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.val = a₂ e := by
+    have hc2 : e.val ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} := e.property
+    have hmem := (mem_inter_edgeCut_iff 2 0 (by decide) e.val).mp hc2
+    have hnc0 : e.val ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
       rw [mem_inter_edgeCut_iff 0 1 (by decide)]; omega
-    have hnc1 : e.1 ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
+    have hnc1 : e.val ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
       rw [mem_inter_edgeCut_iff 1 2 (by decide)]; omega
-    simp only [glueEdges, show ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) by omega,
-      show ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) by omega,
-      show ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) by omega, hnc0, hnc1, hc2, ↓reduceDIte]
+    simp only [glueEdges, show ¬(col (G.src e.val) = 0 ∧ col (G.tgt e.val) = 0) by omega,
+      show ¬(col (G.src e.val) = 1 ∧ col (G.tgt e.val) = 1) by omega,
+      show ¬(col (G.src e.val) = 2 ∧ col (G.tgt e.val) = 2) by omega, hnc0, hnc1, hc2, ↓reduceDIte]
     rfl
   -- Local validity predicates for parts `0, 1, 2`.
   let d0 : {i : Fin n // p i = 0} → U := fun _ => u₀

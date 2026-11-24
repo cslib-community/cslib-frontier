@@ -59,7 +59,7 @@ example :
   let Z := {x : Fin 1 → ℝ // eval x F = 0}
   let coord (z : Z) := z.val 0
   let C : Set Z := coord ⁻¹' Set.Ioi 0
-  have hcoord : Continuous coord := (continuous_apply 0).comp continuous_subtype_val
+  have hcoord : Continuous coord := (continuous_apply 0).comp continuous_subtypeVal
   have hne (z : Z) : coord z ≠ 0 := by
     intro hz
     have h := z.property

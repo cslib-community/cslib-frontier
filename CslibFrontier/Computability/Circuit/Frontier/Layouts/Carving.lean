@@ -789,7 +789,7 @@ private theorem le_half_add_of_abs_lt {a b t c : ℝ} (hb : b = t - a)
 private theorem ncard_edgeCut_sub_cast_eq {V E : Type*} [Finite E] {G : Multigraph V E}
     {Y Y₁ : Set V} (hY₁ : Y₁ ⊆ Y) :
     ((G.edgeCut Y₁).ncard : ℝ) =
-      (((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard : ℝ) +
+      (((G.induce Y).edgeCut {x : Y | x.val ∈ Y₁}).ncard : ℝ) +
         ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
   exact_mod_cast ncard_edgeCut_sub_eq (G := G) hY₁
 
@@ -1038,10 +1038,10 @@ private theorem saturated_block_count_bounds {V E : Type*} [Finite V] [Finite E]
     {X : Set V} [Fintype X] (hH_min : ∀ x : X, 2 ≤ ((G.induce X).incidenceSet x).ncard)
     (hH_hand : 2 * Nat.card {e : E // G.src e ∈ X ∧ G.tgt e ∈ X} + (G.edgeCut X).ncard =
       3 * Nat.card X)
-    (hH_cut_sum : ∑ x : X, (G.incidenceSet x.1 ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard)
+    (hH_cut_sum : ∑ x : X, (G.incidenceSet x.val ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard)
     {M : ℕ} (hM : 0 < M)
     {cmp : CappedCompression (G.induce X)
-      (fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) 3 M}
+      (fun x : X => 1 + (G.incidenceSet x.val ∩ G.edgeCut X).ncard) 3 M}
     (hsat : cmp.Saturated) :
     let Q := cmp.quotient
     let Lset := Finset.univ.filter fun B : cmp.blocks =>
@@ -1051,9 +1051,9 @@ private theorem saturated_block_count_bounds {V E : Type*} [Finite V] [Finite E]
       (Q3set.card : ℝ) + ((G.edgeCut X).ncard : ℝ) ≤ (X.ncard : ℝ) + (Lset.card : ℝ) := by
   classical
   have := Fintype.ofFinite E
-  have hH_loop : (G.induce X).Loopless := fun e he => hloop e.1 (congrArg Subtype.val he)
+  have hH_loop : (G.induce X).Loopless := fun e he => hloop e.val (congrArg Subtype.val he)
   have hcard_X : Nat.card X = X.ncard := Nat.card_coe_set_eq X
-  have hsum_w_le : ∑ x : X, (1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) ≤ 4 * Nat.card V := by
+  have hsum_w_le : ∑ x : X, (1 + (G.incidenceSet x.val ∩ G.edgeCut X).ncard) ≤ 4 * Nat.card V := by
     rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
       ← Nat.card_eq_fintype_card, hcard_X, hH_cut_sum]
     have hE := two_mul_card_edges_eq_cubic hloop h3
@@ -1092,25 +1092,25 @@ private noncomputable def blockCutWeight {V E : Type*} {G : Multigraph V E} {X :
     (B : cmp.blocks) : ℝ :=
   open Classical in
   ((∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
-    (G.incidenceSet x.1 ∩ G.edgeCut X).ncard : ℕ) : ℝ)
+    (G.incidenceSet x.val ∩ G.edgeCut X).ncard : ℕ) : ℝ)
 
 /-- Bounds and sum identity for `blockVertexWeight`. -/
 private theorem blockVertexWeight_spec {V E : Type*} {G : Multigraph V E} {X : Set V}
     [Fintype X] {M : ℕ}
     (cmp : CappedCompression (G.induce X)
-      (fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) 3 M) :
+      (fun x : X => 1 + (G.incidenceSet x.val ∩ G.edgeCut X).ncard) 3 M) :
     (∀ B : cmp.blocks, 0 ≤ blockVertexWeight cmp B ∧ blockVertexWeight cmp B ≤ M) ∧
       ∑ B : cmp.blocks, blockVertexWeight cmp B = (X.ncard : ℝ) := by
   classical
   have hcard_eq (B : cmp.blocks) :
-      (Finset.univ.filter fun x : X => cmp.blockOf x = B).card = ({x : X | x ∈ B.1}).ncard := by
+      (Finset.univ.filter fun x : X => cmp.blockOf x = B).card = ({x : X | x ∈ B.val}).ncard := by
     rw [← ncard_coe_finset]; congr 1; ext x; simp [cmp.mem_iff_blockOf_eq]
   refine ⟨fun B => ⟨Nat.cast_nonneg _, ?_⟩, ?_⟩
   · refine Nat.cast_le.mpr (le_trans ?_ (cmp.blockWeight_le B))
     rw [hcard_eq B, cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
-    exact (by simp : B.1.length = (B.1.map fun _ => 1).sum) ▸
-      List.sum_le_sum (l := B.1) (f := fun _ => 1)
-        (g := fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard)
+    exact (by simp : B.val.length = (B.val.map fun _ => 1).sum) ▸
+      List.sum_le_sum (l := B.val) (f := fun _ => 1)
+        (g := fun x : X => 1 + (G.incidenceSet x.val ∩ G.edgeCut X).ncard)
         fun _ _ => Nat.le_add_right _ _
   · simp only [blockVertexWeight]
     rw [← Nat.cast_sum, Finset.sum_card_fiberwise_eq_card_filter,
@@ -1121,17 +1121,17 @@ private theorem blockVertexWeight_spec {V E : Type*} {G : Multigraph V E} {X : S
 private theorem blockCutWeight_spec {V E : Type*} {G : Multigraph V E} {X : Set V}
     [Fintype X] {M : ℕ}
     (cmp : CappedCompression (G.induce X)
-      (fun x : X => 1 + (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) 3 M)
-    (hcut_sum : ∑ x : X, (G.incidenceSet x.1 ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard) :
+      (fun x : X => 1 + (G.incidenceSet x.val ∩ G.edgeCut X).ncard) 3 M)
+    (hcut_sum : ∑ x : X, (G.incidenceSet x.val ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard) :
     (∀ B : cmp.blocks, 0 ≤ blockCutWeight cmp B ∧ blockCutWeight cmp B ≤ M) ∧
       ∑ B : cmp.blocks, blockCutWeight cmp B = ((G.edgeCut X).ncard : ℝ) := by
   classical
   refine ⟨fun B => ⟨Nat.cast_nonneg _, ?_⟩, ?_⟩
-  · have hfin : B.1.toFinset = Finset.univ.filter (fun x : X => cmp.blockOf x = B) := by
+  · have hfin : B.val.toFinset = Finset.univ.filter (fun x : X => cmp.blockOf x = B) := by
       ext x; simp [cmp.mem_iff_blockOf_eq]
     have hle : (∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
-        (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) ≤ cmp.blockWeight B := by
-      rw [CappedCompression.blockWeight, ← List.sum_toFinset _ (cmp.nodup B.1 B.2), hfin]
+        (G.incidenceSet x.val ∩ G.edgeCut X).ncard) ≤ cmp.blockWeight B := by
+      rw [CappedCompression.blockWeight, ← List.sum_toFinset _ (cmp.nodup B.val B.property), hfin]
       exact Finset.sum_le_sum fun _ _ => Nat.le_add_left _ _
     exact Nat.cast_le.mpr (hle.trans (cmp.blockWeight_le B))
   · simp only [blockCutWeight]
@@ -1172,9 +1172,9 @@ private theorem ncard_endIn_lifted_eq_sum_cutWeight {V E Ω : Type*} [Finite E]
   set S : Set cmp.blocks := {B | ω ∈ A B}
   have hpart_cut : {e ∈ G.edgeCut X | endIn G X e ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)}.ncard =
       ∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x ∈ S),
-        (G.incidenceSet x.1 ∩ G.edgeCut X).ncard := by
-    have h1 (x : X) : (G.incidenceSet x.1 ∩ G.edgeCut X).ncard =
-        (Finset.univ.filter fun e : E => e ∈ G.incidenceSet x.1 ∧ e ∈ G.edgeCut X).card := by
+        (G.incidenceSet x.val ∩ G.edgeCut X).ncard := by
+    have h1 (x : X) : (G.incidenceSet x.val ∩ G.edgeCut X).ncard =
+        (Finset.univ.filter fun e : E => e ∈ G.incidenceSet x.val ∧ e ∈ G.edgeCut X).card := by
       rw [← ncard_coe_finset]; congr 1; ext e; simp
     simp_rw [h1]
     rw [← Finset.card_biUnion]
@@ -1190,13 +1190,13 @@ private theorem ncard_endIn_lifted_eq_sum_cutWeight {V E Ω : Type*} [Finite E]
         exact ⟨⟨endIn G X e, hm⟩, hxS, hinc, heCut⟩
       · rintro ⟨x, hxS, hinc, heCut⟩
         obtain ⟨_, _, hunq⟩ := endIn_mem heCut
-        exact ⟨heCut, x, hxS, hunq x.1 x.2 hinc⟩
+        exact ⟨heCut, x, hxS, hunq x.val x.property hinc⟩
     · intro x₁ _ x₂ _ hne
       refine Finset.disjoint_left.mpr fun e h1' h2' => hne ?_
       obtain ⟨hi1, hc1⟩ := (Finset.mem_filter.mp h1').2
       obtain ⟨hi2, _⟩ := (Finset.mem_filter.mp h2').2
       obtain ⟨_, _, hunq⟩ := endIn_mem hc1
-      exact Subtype.ext ((hunq x₁.1 x₁.2 hi1).trans (hunq x₂.1 x₂.2 hi2).symm)
+      exact Subtype.ext ((hunq x₁.val x₁.property hi1).trans (hunq x₂.val x₂.property hi2).symm)
   rw [hpart_cut]
   have hgrp : (Finset.univ.filter fun x : X => cmp.blockOf x ∈ S) =
       {x ∈ (Finset.univ : Finset X) | cmp.blockOf x ∈ Finset.univ.filter (· ∈ S)} := by
@@ -1213,9 +1213,9 @@ quotient edge cut `(cmp.quotient.edgeCut S).ncard`. -/
 private theorem ncard_edgeCut_lifted_eq {V E : Type*} {G : Multigraph V E}
     {X : Set V} {w : X → ℕ} {d M : ℕ}
     (cmp : CappedCompression (G.induce X) w d M) (S : Set cmp.blocks) :
-    ((G.induce X).edgeCut {x : X | x.1 ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)}).ncard =
+    ((G.induce X).edgeCut {x : X | x.val ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)}).ncard =
       (cmp.quotient.edgeCut S).ncard := by
-  have hset : {x : X | x.1 ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)} = cmp.blockOf ⁻¹' S := by
+  have hset : {x : X | x.val ∈ Subtype.val '' (cmp.blockOf ⁻¹' S)} = cmp.blockOf ⁻¹' S := by
     ext x
     exact ⟨by rintro ⟨x', hx', heq⟩; rwa [← Subtype.ext heq], fun hx => ⟨x, hx, rfl⟩⟩
   rw [hset, cmp.ncard_edgeCut_preimage]
@@ -1310,8 +1310,8 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   set S_Q : Set cmp.blocks := {B | ω ∈ blockSideEvent Q q R B}
   set X₁ : Set V := Subtype.val '' (cmp.blockOf ⁻¹' S_Q)
   set X₂ : Set V := Subtype.val '' (cmp.blockOf ⁻¹' S_Qᶜ)
-  have hX₁_sub : X₁ ⊆ X := by rintro _ ⟨x, -, rfl⟩; exact x.2
-  have hX₂_sub : X₂ ⊆ X := by rintro _ ⟨x, -, rfl⟩; exact x.2
+  have hX₁_sub : X₁ ⊆ X := by rintro _ ⟨x, -, rfl⟩; exact x.property
+  have hX₂_sub : X₂ ⊆ X := by rintro _ ⟨x, -, rfl⟩; exact x.property
   have hdisjX : Disjoint X₁ X₂ := disjoint_left.mpr fun _ ⟨x₁, hx₁, h1⟩ ⟨x₂, hx₂, h2⟩ =>
     hx₂ (Subtype.ext (h1.trans h2.symm) ▸ hx₁)
   have hunionX : X₁ ∪ X₂ = X := by
@@ -1365,7 +1365,7 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   have hlyap_comb := quotient_cut_add_slack_le_lyap hδ hh_pos (by positivity) hM_real hηδ hstrad
     (Nat.cast_nonneg _) (Nat.cast_nonneg _) hq3_le_h hL_le hQ3_le hqCut_le
   have cut_side {Z : Set V} (hZ : Z ⊆ X)
-      (hint : (H.edgeCut {x : X | x.1 ∈ Z}).ncard = (Q.edgeCut S_Q).ncard)
+      (hint : (H.edgeCut {x : X | x.val ∈ Z}).ncard = (Q.edgeCut S_Q).ncard)
       (hbd : ({e ∈ G.edgeCut X | endIn G X e ∈ Z}.ncard : ℝ) ≤
         1 / 2 * ((G.edgeCut X).ncard : ℝ) + η * h) :
       ((G.edgeCut Z).ncard : ℝ) ≤ lyap gaussianCoefficient G X + δ / 2 * h := by
@@ -1553,9 +1553,9 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
             rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card', mul_comm]
     rw [← hsum_eq] at hωS
     linarith only [(abs_lt.mp hωS).2, hmeanS]
-  have hint_cut_compl : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₂}).ncard =
-      ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard := by
-    have hcompl : {x : Y | x.1 ∈ Y₂} = {x : Y | x.1 ∈ Y₁}ᶜ := by ext x; simp [Y₁, Y₂]
+  have hint_cut_compl : ((G.induce Y).edgeCut {x : Y | x.val ∈ Y₂}).ncard =
+      ((G.induce Y).edgeCut {x : Y | x.val ∈ Y₁}).ncard := by
+    have hcompl : {x : Y | x.val ∈ Y₂} = {x : Y | x.val ∈ Y₁}ᶜ := by ext x; simp [Y₁, Y₂]
     rw [hcompl, (G.induce Y).edgeCut_compl]
   have hint_real : (((G.induce Y).edgeCut {x : Y | x.val ∈ Y₁}).ncard : ℝ) ≤
       straddleBound ρ₀ * (Y.ncard : ℝ) + c :=
@@ -1563,8 +1563,8 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
   obtain ⟨hY₁_le, hY₂_le⟩ := le_half_add_of_abs_lt hY₂_eq hv_abs
   obtain ⟨hE₁_le, hE₂_le⟩ := le_half_add_of_abs_lt hE₂_eq he_abs
   have cut_side {Z : Set V} (hZ : Z ⊆ Y)
-      (hint : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Z}).ncard =
-        ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard)
+      (hint : ((G.induce Y).edgeCut {x : Y | x.val ∈ Z}).ncard =
+        ((G.induce Y).edgeCut {x : Y | x.val ∈ Y₁}).ncard)
       (hbd : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Z}.ncard : ℝ) ≤
         1 / 2 * ((G.edgeCut Y).ncard : ℝ) + c) :
       ((G.edgeCut Z).ncard : ℝ) ≤

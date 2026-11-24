@@ -193,14 +193,14 @@ theorem encQuery_ofSamples_one_zero_notMem_antiCheckerOracle_iff {n s : ℕ}
     encQuery (Query.ofSamples n s 1 0 P) ∉ antiCheckerOracle ↔
       ∃ g ∈ computableFunctions n s, ∀ p ∈ P, g p.1 = p.2 := by
   rw [encQuery_ofSamples_mem_antiCheckerOracle_iff, hashOracle_eq_true, not_not,
-    isLarge_zero_iff, nonempty_iff_ne_empty, Ne,
-    BitString.blockPower_eq_empty_iff one_ne_zero, ← Ne, ← nonempty_iff_ne_empty]
+    isLarge_zero_iff, ← ne_empty_iff_nonempty, Ne,
+    BitString.blockPower_eq_empty_iff one_ne_zero, ← Ne, ne_empty_iff_nonempty]
   constructor
   · rintro ⟨w, hw⟩
     rw [mem_consistent] at hw
     exact ⟨_, certificateFunction_mem_computableFunctions hw.1, hw.2⟩
   · rintro ⟨g, hg, hP⟩
-    rw [← mem_coe, ← image_validCertificates] at hg
+    rw [← image_validCertificates] at hg
     obtain ⟨w, hw, rfl⟩ := hg
     exact ⟨w, mem_consistent.2 ⟨mem_coe.1 hw, hP⟩⟩
 
