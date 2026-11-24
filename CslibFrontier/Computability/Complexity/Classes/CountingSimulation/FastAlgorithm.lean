@@ -153,27 +153,26 @@ section GuardPolyTime
 
 open Turing.MultiTapeTM
 
-/-- The encoding of an explicit network with its number of rows. -/
-local notation "encG" => encPair encNat ExplicitTensorNetwork.encExplicitNetwork
-
 /-- **The guard is polynomial-time**: the rows-first test (`DescribedNetwork.rowsFirst_polyTime`),
 the lengths of the tables and the degrees of the vertices. -/
-theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encG encBool := by
+theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encExplicitRowNetwork encBool := by
   have hd := ComputableInPolyTime.snd encNat ExplicitTensorNetwork.encExplicitNetwork
-  have hm : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.numEdges) encG
-      encUnary := DescribedNetwork.numEdges_polyTime.comp hd
-  have hvs : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.vertices) encG
-      (encList (encPair (encList encNat) (encList encNat))) :=
+  have hm : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.numEdges)
+      encExplicitRowNetwork encUnary := DescribedNetwork.numEdges_polyTime.comp hd
+  have hvs : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ => G.2.vertices)
+      encExplicitRowNetwork (encList (encPair (encList encNat) (encList encNat))) :=
     DescribedNetwork.vertices_polyTime.comp hd
   -- Rows first.
   have hrows : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      decide (G.2.IsRowsFirstBipartite G.1)) encG encBool :=
+      decide (G.2.IsRowsFirstBipartite G.1)) encExplicitRowNetwork encBool :=
     DescribedNetwork.rowsFirst_polyTime
   -- Full tables.
   have htab : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      G.2.vertices.all (fun v => decide (v.2.length = 2 ^ v.1.length))) encG encBool := by
+      G.2.vertices.all (fun v => decide (v.2.length = 2 ^ v.1.length)))
+      encExplicitRowNetwork encBool := by
     refine ComputableInPolyTime.allWithInput hvs ?_
-    have hv := ComputableInPolyTime.snd encG (encPair (encList encNat) (encList encNat))
+    have hv := ComputableInPolyTime.snd encExplicitRowNetwork
+      (encPair (encList encNat) (encList encNat))
     exact ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
         ((ComputableInPolyTime.snd _ _).comp hv)))
@@ -181,8 +180,8 @@ theorem fastGuard_polyTime : ComputableInPolyTime fastGuard encG encBool := by
         ((ComputableInPolyTime.fst _ _).comp hv)))
   -- The degree bound.
   have hdeg : ComputableInPolyTime (fun G : ℕ × ExplicitTensorNetwork ℕ =>
-      G.2.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.2.numEdges))) encG
-      encBool := by
+      G.2.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.2.numEdges)))
+      encExplicitRowNetwork encBool := by
     refine ComputableInPolyTime.allWithInput hvs ?_
     exact ComputableInPolyTime.binary_le'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
@@ -496,8 +495,7 @@ noncomputable def contractionAlgorithmOfFast
     (hstep : StepCorrect tableEntry mk WF) (hwf : WFChildren mk WF)
     (hroot : ∀ P G, fastGuard G = true → WF (root (ExplicitTensorNetwork.capPrecision (P, G))))
     (hana : FastAnalysis mk) :
-    ContractionAlgorithm (encPair encNat ExplicitTensorNetwork.encExplicitNetwork)
-      (fun G => G.2.contraction) ExplicitAdmissible :=
+    ContractionAlgorithm encExplicitRowNetwork (fun G => G.2.contraction) ExplicitAdmissible :=
   ContractionAlgorithm.ofGuarded fastGuard_polyTime (fastCertificate hpoly)
     (fun P G hg => fastValue_eq mk hstep hwf (P, G) (hroot P G hg))
     (fun C D => fastCertificate_le hpoly hana C D) (fun _ _ _ hA => hA.2.1)
@@ -526,8 +524,7 @@ the resource analysis. The components of the scheme are polynomial-time
 children and the well-formed roots are proved (`FastContraction.stepCorrect_nativeMk`,
 `FastContraction.wfChildren_nativeMk`, `CountingSimulation.wf_root`). -/
 noncomputable def contractionAlgorithmOfNative (hana : FastAnalysis nativeMk) :
-    ContractionAlgorithm (encPair encNat ExplicitTensorNetwork.encExplicitNetwork)
-      (fun G => G.2.contraction) ExplicitAdmissible :=
+    ContractionAlgorithm encExplicitRowNetwork (fun G => G.2.contraction) ExplicitAdmissible :=
   contractionAlgorithmOfFast (scheme_nativeMk_polyTime tableEntry)
     (stepCorrect_nativeMk tableEntry) wfChildren_nativeMk
     (fun P _ hg => wf_root P hg) hana

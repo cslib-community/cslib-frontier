@@ -128,6 +128,7 @@ theorem varOfRaw_rawVar (v : α ⊕ Fin n) : varOfRaw n (rawVar v) = some v := b
     have h2 : 2 * (i : ℕ) / 2 = i := by omega
     simp [varOfRaw, h1, h2]
 
+/-- If `y` decodes to the variable `v` at depth `n`, then `rawVar v = y`. -/
 theorem rawVar_of_varOfRaw {y : ℕ} {v : α ⊕ Fin n} (h : varOfRaw n y = some v) :
     rawVar v = y := by
   unfold varOfRaw at h
@@ -139,6 +140,8 @@ theorem rawVar_of_varOfRaw {y : ℕ} {v : α ⊕ Fin n} (h : varOfRaw n y = some
     rw [rawVar_inl, decode₂_eq_some.1 ha]
     omega
 
+/-- `varOfRaw n y` is defined iff `y` is a valid variable name at depth `n` (`RawFormula.NameOk`)
+whose free names lie in the range of `encode`. -/
 theorem isSome_varOfRaw {y : ℕ} :
     (varOfRaw (α := α) n y).isSome ↔ RawFormula.NameOk (· ∈ Set.range (encode : α → ℕ)) n y := by
   unfold varOfRaw RawFormula.NameOk
@@ -299,6 +302,7 @@ theorem quantifierDepth_toRaw : ∀ {n} (φ : L.BoundedFormula α n),
     simp only [toRaw_all, RawFormula.quantifierDepth_all, quantifierRank_all,
       quantifierDepth_toRaw φ]
 
+/-- `fromRaw n` is a left inverse to `toRaw`. -/
 theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw = some φ
   | _, falsum => rfl
   | n, equal t₁ t₂ => by
@@ -328,6 +332,7 @@ theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw
     rw [toRaw_all, fromRaw, ite_eq_left rfl, fromRaw_toRaw φ]
     rfl
 
+/-- `toRaw` inverts `fromRaw n` wherever `fromRaw n` is defined. -/
 theorem toRaw_of_fromRaw :
     ∀ {n} {χ : RawFormula} {φ : L.BoundedFormula α n}, fromRaw n χ = some φ → φ.toRaw = χ
   | _, .falsum, _, h => by
@@ -421,6 +426,7 @@ end RawCoding
 
 open scoped RawCoding
 
+/-- Under `RawCoding`, the code of a bounded formula `φ` is the code of `φ.toRaw`. -/
 theorem encode_eq_encode_toRaw (φ : L.BoundedFormula α n) : encode φ = encode φ.toRaw := by
   rfl
 
@@ -431,27 +437,34 @@ theorem primrec_iff_primrec_toRaw {β : Type*} [Primcodable β] {f : β → L.Bo
     simp only [encode_eq_encode_toRaw]
     exact Primrec.encode_iff
 
+/-- The translation `toRaw` is primitive recursive under `RawCoding`. -/
 theorem primrec_toRaw : Primrec (toRaw : L.BoundedFormula α n → RawFormula) :=
   primrec_iff_primrec_toRaw.1 Primrec.id
 
+/-- The partial inverse `fromRaw n` is primitive recursive under `RawCoding`. -/
 theorem primrec_fromRaw : Primrec (fromRaw (L := L) (α := α) n) := by
   refine (Primrec.decode (α := L.BoundedFormula α n)).comp Primrec.encode |>.of_eq fun χ => ?_
   change (decode (encode χ) : Option RawFormula).bind (fromRaw n) = _
   rw [encodek, Option.bind_some]
 
+/-- Implication `BoundedFormula.imp` is primitive recursive under `RawCoding`. -/
 theorem primrec_imp : Primrec₂ (imp : L.BoundedFormula α n → _ → _) :=
   primrec_iff_primrec_toRaw.2 (RawFormula.primrec_imp (primrec_toRaw.comp Primrec.fst)
     (primrec_toRaw.comp Primrec.snd))
 
+/-- Universal quantification `BoundedFormula.all` is primitive recursive under `RawCoding`. -/
 theorem primrec_all : Primrec (all : L.BoundedFormula α (n + 1) → L.BoundedFormula α n) :=
   primrec_iff_primrec_toRaw.2 (RawFormula.primrec_all (Primrec.const _) primrec_toRaw)
 
+/-- Negation `BoundedFormula.not` is primitive recursive under `RawCoding`. -/
 theorem primrec_not : Primrec (BoundedFormula.not : L.BoundedFormula α n → _) :=
   primrec_iff_primrec_toRaw.2 (RawFormula.primrec_neg primrec_toRaw)
 
+/-- Existential quantification `BoundedFormula.ex` is primitive recursive under `RawCoding`. -/
 theorem primrec_ex : Primrec (BoundedFormula.ex : L.BoundedFormula α (n + 1) → _) :=
   primrec_not.comp (primrec_all.comp primrec_not)
 
+/-- Encoding a variable reference via `rawVar` is primitive recursive. -/
 theorem primrec_rawVar : Primrec (rawVar : α ⊕ Fin n → ℕ) :=
   (Primrec.sumCasesOn Primrec.id
     (Primrec.nat_double_succ.comp (Primrec.encode.comp Primrec.snd)).to₂
@@ -587,9 +600,11 @@ carrier is in `Type`. -/
 def FinValid (φ : L.Sentence) : Prop :=
   ∀ (M : Type) [L.Structure M] [Finite M] [Nonempty M], M ⊨ φ
 
+/-- `φ.not` is finitely valid iff `φ` is not finitely satisfiable. -/
 theorem finValid_not_iff (φ : L.Sentence) : FinValid φ.not ↔ ¬FinSat φ := by
   simp only [FinValid, FinSat, realize_not, not_exists]
 
+/-- `φ` is finitely valid iff `φ.not` is not finitely satisfiable. -/
 theorem finValid_iff_not_finSat_not (φ : L.Sentence) : FinValid φ ↔ ¬FinSat φ.not := by
   simp only [FinValid, FinSat, realize_not, not_exists, not_not]
 

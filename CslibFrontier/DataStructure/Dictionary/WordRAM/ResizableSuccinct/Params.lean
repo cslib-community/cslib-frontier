@@ -7,18 +7,16 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.Nat.Log
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Tactic.WramOmega
 
 /-!
-# Compacted Epoch Parameters, Dense Pair-Stream Packing, and `Memory.Prog` Bit-Slice Accessors
+# Compacted Epoch Parameters and Dense Pair-Stream Packing
 
 This module defines the 8-word persistent root header, the 225-word active epoch header, the
 metadata-first compacted epoch layout, and the dense `[0, n)` `(quotient, value)` pair-stream
@@ -28,8 +26,9 @@ W. Kuszmaul, SOSA 2024][BenderFarachColtonKuszmaulKuszmaul2024].
 ## Memory layout (`[metaBase, +offCompItems)` and `[itemBase, +compactedItemWords)`)
 
 1. **Persistent 8-word root header (`[metaBase, metaBase + 8)`):**
-   `[U, V, w, keyBits U, valBits V, N, n, n_init]`. When `n = 0` (`N = 0`), the resting dictionary
-   occupies only these `8` words (`compactedEpochWords U V w 0 0 = 8`).
+   `[U - 1, V - 1, w, keyBits U, valBits V, N, n, n_init]` (storing `U - 1` and `V - 1` so
+   `V = 2 ^ w` fits in a `w`-bit word). When `n = 0` (`N = 0`), the resting dictionary occupies
+   only these `8` words (`compactedEpochWords U V w 0 0 = 8`).
 2. **Active epoch parameter and hash-scratch header (`[metaBase + 8, metaBase + 225)`):**
    * `[metaBase + 8, metaBase + 27)`: 19 words of `RuntimeReducedKWise.HashParams`.
    * `[metaBase + 27, metaBase + 63)`: 36 words of `CompParams`.
@@ -49,8 +48,8 @@ W. Kuszmaul, SOSA 2024][BenderFarachColtonKuszmaulKuszmaul2024].
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.rootHdrWords`, `RootHeaderValid`,
   `EpochValid`, `targetCap`: root header and epoch capacity invariants.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.wOffQ`, `bOffQ`, `wOffV`, `bOffV`,
-  `compactedItemWords`, `readBitSlice`, `writeBitSlice`, `compQuotAt`, `compValAt`,
-  `writeCompQuot`, `writeCompVal`: overflow-free dense `[0, n)` pair-stream packing.
+  `compactedItemWords`, `compQuotAt`, `compValAt`, `writeCompQuot`, `writeCompVal`: overflow-free
+  dense `[0, n)` pair-stream packing.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.epochHdrWords`, `offCompLM`,
   `offCompLMSub`, `offCompGM`, `offTailToDense`, `offDenseToTail`, `offCompItems`,
   `compactedEpochWords`: compacted epoch word offsets and total footprint.
@@ -380,7 +379,7 @@ theorem compValAt_of_lt {itemBase U V w N n₁ n₂ d : ℕ} (mem : ℕ → ℕ)
 
 /-! ## Section 2: Persistent Root Header, Compacted Epoch Layout, and `1 · OPT` Space Bounds -/
 
-/-- The 8-word persistent root header `[U, V, w, keyBits U, valBits V, N, n, n_init]`. -/
+/-- The 8-word persistent root header `[U - 1, V - 1, w, keyBits U, valBits V, N, n, n_init]`. -/
 @[expose] def rootHdrWords : ℕ := 8
 /-- Word offset `8` of the 19-word `RuntimeReducedKWise.HashParams` vector. -/
 @[expose] def offHashParams : ℕ := 8

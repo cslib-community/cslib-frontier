@@ -94,7 +94,7 @@ theorem size_count_inSpace :
       fun w => Nat.log2 w.length := by
   have hloop := ComputableInSpace.loopWith (encA := encBits) (encR := encPow) (step := step)
     (init := fun _ => ⟨0, 1⟩) (S := fun w => Nat.log2 (encBits w).length)
-    (B := fun w => 3 * Nat.log2 w.length + 7)
+    (B := fun w => 4 * Nat.log2 w.length + 7)
     (fun _ j => ⟨j, 2 ^ j⟩) (fun w => Nat.size (w.count true))
     ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_inSpace
     (fun _ => rfl)
@@ -102,9 +102,12 @@ theorem size_count_inSpace :
       have h : ¬w.count true < 2 ^ j := Nat.not_lt.mpr (Nat.lt_size.mp hj)
       simp only [step, h, ↓reduceIte, pow_succ, Nat.mul_comm])
     (fun w => by simp only [step, Nat.lt_size_self, ↓reduceIte])
-    (fun w j hj => length_encPow_le (hj.trans (by
-      have := length_encNat_le_log2 (List.count_le_length (a := true) (l := w))
-      rwa [encNat_apply, Nat.size_eq_bits_len] at this)))
+    (fun w j hj => by
+      have := length_encPow_le (hj.trans (by
+        have := length_encNat_le_log2 (List.count_le_length (a := true) (l := w))
+        rwa [encNat_apply, Nat.size_eq_bits_len] at this))
+      simp only [budget, encBits_apply]
+      omega)
   exact (encPow_exp_budget hloop).weaken ⟨7, fun w => by simp only [encBits_apply]; omega⟩
 
 example : ComputableInLogSpace (fun w : List Bool => Nat.size (w.count true)) encBits encNat :=
