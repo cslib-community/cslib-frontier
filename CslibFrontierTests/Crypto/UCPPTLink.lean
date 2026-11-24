@@ -451,4 +451,481 @@ theorem tagLogAdv_enlarged_cap_prevents_truncation :
 
 end AbsorbAdversaryWitness
 
+/-! ### 3. Negative witness: `Machine.IsReplyBounded` cannot be dropped -/
+
+section NegativeCompWitness
+
+private def punitCodec : WordCodec PUnit where
+  enc := encUnit
+  decode := unitDecoder.decode
+  decode_enc := unitDecoder.decode_enc
+
+/-- Stateless machine doubling its incoming bitstring `w ↦ w ++ w`. Its replies satisfy `|w ++ w| ≤
+2 * |w|` (even bounded linearly in the request), yet it fails `Machine.IsReplyBounded`. -/
+private def doubleMachine :
+    ℕ → Finset (Fin 2) → Machine OracleSpec.empty (netSpec (List Bool) (List Bool)) :=
+  fun _ _ =>
+    { State := PUnit
+      init := pure PUnit.unit
+      handle := fun w _ => pure (w ++ w, PUnit.unit) }
+
+/-- `doubleMachine` is strict PPT (`Machine.IsPPTFamily`). -/
+theorem doubleMachine_isPPT :
+    Machine.IsPPTFamily doubleMachine WordInterface.empty (WordInterface.net msgPort) := by
+  refine ⟨{
+    codec := fun _ _ => punitCodec
+    init := (ComputableInPolyTime.const (encUnit ())).isPPTOn
+    handle := by
+      let EIn :=
+        encHandlerCall (encPPTParam 2) (encFinite (WordInterface.net msgPort).Channel) encBits
+      have hword : ComputableInPolyTime
+          (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool =>
+            x.2.1.2)
+          EIn encBits := by
+        unfold EIn encHandlerCall; fun_prop
+      have hdouble : ComputableInPolyTime
+          (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool =>
+            (x.2.1.2 ++ x.2.1.2, encUnit ()))
+          EIn (encPair encBits encBits) :=
+        (ComputableInPolyTime.bitsAppend hword hword).prod
+          (ComputableInPolyTime.const (encIn := EIn) (encOut := encBits) (encUnit ()))
+      refine (hdouble.isOraclePPTOn (Operation := WordInterface.empty.Channel)).congr
+        fun x State oracle s => ?_
+      rcases x with ⟨p, ⟨⟨⟩, w⟩, sw⟩
+      change ProbOracleComp.runWith oracle (pure (w ++ w, encUnit ())) s =
+        ProbOracleComp.runWith oracle
+          (wordHandle doubleMachine WordInterface.empty (WordInterface.net msgPort)
+            (fun _ _ => punitCodec) p ((), w) sw) s
+      rw [ProbOracleComp.runWith_pure]
+      change PMF.pure ((w ++ w, encUnit ()), s) = ProbOracleComp.runWith oracle
+        (ProbOracleComp.lowerWith WordInterface.empty p.replyBound
+          (pure (w ++ w, punitCodec.enc PUnit.unit))) s
+      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure, ProbOracleComp.runWith_pure]
+      rfl
+    normalize := ComputableInPolyTime.const (encUnit ())
+    growth := fun _ _ => 0
+    growth_poly := PolyBounded.const 0
+    preserve := fun p req s out hout => by
+      cases s
+      rcases req with ⟨⟨⟩, w⟩
+      change out ∈ OracleComp.support
+          (wordHandle doubleMachine WordInterface.empty (WordInterface.net msgPort)
+            (fun _ _ => punitCodec) p ((), w) (punitCodec.enc PUnit.unit)) at hout
+      simp only [wordHandle, doubleMachine, punitCodec, StateT.run, ProbOracleComp.lowerWith,
+        ProbOracleComp.simulate_pure, OracleComp.support] at hout
+      subst hout
+      simp only [punitCodec]
+      omega }⟩
+
+/-- `doubleMachine` is not `Machine.IsReplyBounded` (even though replies are at most `2 * |w|`). -/
+theorem doubleMachine_not_isReplyBounded :
+    ¬ Machine.IsReplyBounded doubleMachine WordInterface.empty (WordInterface.net msgPort) := by
+  rintro ⟨bound, _, hle⟩
+  let p : PPTParam 2 := ⟨0, 0, ∅⟩
+  let w : List Bool := List.replicate (bound p + 1) true
+  have hmem : (w ++ w, PUnit.unit) ∈ OracleComp.support
+      (ProbOracleComp.lowerWith WordInterface.empty p.replyBound
+        (((doubleMachine p.secParam p.corrupted).handle w).run PUnit.unit)) := by
+    simp only [doubleMachine, StateT.run, ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure,
+      OracleComp.support, OracleComp.supportWith_pure]
+    rfl
+  have hlen := hle p w PUnit.unit (w ++ w, PUnit.unit) hmem
+  change (msgPort.reply (w ++ w)).length ≤ bound p at hlen
+  simp only [msgPort, encBits_apply, List.length_append, w, List.length_replicate] at hlen
+  omega
+
+/-- Stateless outer machine making `κ` sequential queries, feeding each reply as the next
+request, and returning the final reply. -/
+private def iterQueryMachine :
+    ℕ → Finset (Fin 2) →
+      Machine (netSpec (List Bool) (List Bool)) (netSpec (List Bool) (List Bool)) :=
+  fun κ _ =>
+    { State := PUnit
+      init := pure PUnit.unit
+      handle := fun w _ =>
+        (·, PUnit.unit) <$>
+          OracleComp.iterate κ
+            (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x) w }
+
+private theorem lowerWith_iterate_net (limit k : ℕ) (w : List Bool) :
+    ProbOracleComp.lowerWith (WordInterface.net msgPort) limit
+        (OracleComp.iterate k
+          (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x) w) =
+      OracleComp.iterate k
+        (fun x => ProbOracleComp.lowerWith (WordInterface.net msgPort) limit
+          (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x)) w := by
+  rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
+    OracleComp.interpret_iterate]
+  rfl
+
+/-- `iterQueryMachine` is strict PPT (`Machine.IsPPTFamily`). -/
+theorem iterQueryMachine_isPPT :
+    Machine.IsPPTFamily iterQueryMachine
+      (WordInterface.net msgPort) (WordInterface.net msgPort) := by
+  let EIn :=
+    encHandlerCall (encPPTParam 2) (encFinite (WordInterface.net msgPort).Channel) encBits
+  have hcount : ComputableInPolyTime
+      (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool =>
+        x.1.secParam)
+      EIn encUnary := by
+    unfold EIn encHandlerCall; fun_prop
+  have hinit : ComputableInPolyTime
+      (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool =>
+        msgPort.queryDecoder.decode x.2.1.2)
+      EIn encBits := by
+    refine msgPort.queryDecoder.computableInPolyTime.comp ?_
+    unfold EIn encHandlerCall; fun_prop
+  have hrc : ComputableInPolyTime
+      (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool =>
+        x.1.replyBound)
+      EIn encUnary := by
+    unfold EIn encHandlerCall; fun_prop
+  have hstep : IsOraclePPTOn (encPair EIn encBits) encBits
+      (fun pair : (PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool) ×
+          List Bool =>
+        ProbOracleComp.lowerWith (WordInterface.net msgPort) pair.1.1.replyBound
+          (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) pair.2)) := by
+    have hq := (WordInterface.net msgPort).isOraclePPTOn_lowerWith_decodeQuery
+      (input := encPair EIn encBits)
+      (ch := fun _ => ())
+      (word := fun pair => pair.2)
+      (limit := fun pair => pair.1.1.replyBound)
+      (ComputableInPolyTime.const ())
+      (ComputableInPolyTime.snd EIn encBits)
+      (hrc.comp (ComputableInPolyTime.fst EIn encBits))
+    refine hq.congr fun pair State oracle s => ?_
+    rfl
+  have hrb : PolyBounded (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) ×
+      List Bool => (EIn x).length) (fun x => x.1.replyBound) := by
+    simpa only [encUnary_apply, List.length_replicate] using hrc.polyBounded_length
+  have hloop : IsOraclePPTOn EIn encBits
+      (fun x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool =>
+        OracleComp.iterate x.1.secParam
+          (fun state => ProbOracleComp.lowerWith (WordInterface.net msgPort) x.1.replyBound
+            (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) state))
+          (msgPort.queryDecoder.decode x.2.1.2)) := by
+    refine IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinit hstep hrb
+      fun x state next hnext => ?_
+    simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
+      WordInterface.net, msgPort, Decoder.bits, id_eq] at hnext
+    rcases OracleComp.mem_supportWith_map_iff.mp hnext with ⟨t, ht, rfl⟩
+    rcases OracleComp.mem_supportWith_map_iff.mp ht with ⟨w, _, rfl⟩
+    simp only [encBits_apply, id_eq, List.length_take]
+    omega
+  refine ⟨{
+    codec := fun _ _ => punitCodec
+    init := (ComputableInPolyTime.const (encUnit ())).isPPTOn
+    handle := by
+      have hid : ComputableInPolyTime (fun x : List Bool => x) encBits encBits := by fun_prop
+      have hpair := hloop.map
+        (hid.prod (ComputableInPolyTime.const (encIn := encBits) (encOut := encBits) (encUnit ())))
+      refine hpair.congr fun x State oracle s => ?_
+      rcases x with ⟨p, ⟨⟨⟩, w⟩, sw⟩
+      change ProbOracleComp.runWith oracle ((fun a => (a, encUnit ())) <$>
+          OracleComp.iterate p.secParam
+            (fun state => ProbOracleComp.lowerWith (WordInterface.net msgPort) p.replyBound
+              (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) state))
+            (msgPort.queryDecoder.decode w)) s =
+        ProbOracleComp.runWith oracle
+          (wordHandle iterQueryMachine (WordInterface.net msgPort) (WordInterface.net msgPort)
+            (fun _ _ => punitCodec) p ((), w) sw) s
+      have hwh : wordHandle iterQueryMachine (WordInterface.net msgPort) (WordInterface.net msgPort)
+          (fun _ _ => punitCodec) p ((), w) sw =
+          (fun a => (msgPort.reply a, punitCodec.enc PUnit.unit)) <$>
+            ProbOracleComp.lowerWith (WordInterface.net msgPort) p.replyBound
+              (OracleComp.iterate p.secParam
+                (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x)
+                (msgPort.queryDecoder.decode w)) := by
+        simp only [wordHandle, iterQueryMachine, StateT.run, ProbOracleComp.lowerWith,
+          ProbOracleComp.simulate_map, Functor.map_map]
+        rfl
+      rw [hwh, lowerWith_iterate_net]
+      rfl
+    normalize := ComputableInPolyTime.const (encUnit ())
+    growth := fun _ _ => 0
+    growth_poly := PolyBounded.const 0
+    preserve := fun p req s out hout => by
+      rcases req with ⟨⟨⟩, w⟩
+      cases s
+      change out ∈ OracleComp.support
+          (wordHandle iterQueryMachine (WordInterface.net msgPort) (WordInterface.net msgPort)
+            (fun _ _ => punitCodec) p ((), w) (punitCodec.enc PUnit.unit)) at hout
+      simp only [wordHandle, iterQueryMachine, punitCodec, StateT.run,
+        ProbOracleComp.lowerWith, ProbOracleComp.simulate_map, OracleComp.support,
+        OracleComp.supportWith_map, Set.mem_image] at hout
+      rcases hout with ⟨⟨_, w2⟩, _, rfl⟩
+      cases w2
+      simp only [punitCodec]
+      omega }⟩
+
+private theorem queriesSatisfy_iterate_net (limit k : ℕ) (B : ℕ) (w : List Bool)
+    (hw : w.length ≤ B) (hlim : limit ≤ B) :
+    OracleComp.QueriesSatisfy
+      (fun op => Sum.elim (fun _ => True)
+        (fun cw : (WordInterface.net msgPort).Channel × List Bool => cw.2.length ≤ B) op)
+      (OracleComp.iterate k
+        (fun x => ProbOracleComp.lowerWith (WordInterface.net msgPort) limit
+          (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x)) w) := by
+  induction k generalizing w with
+  | zero => exact OracleComp.QueriesSatisfy.pure w
+  | succ k ih =>
+    rw [OracleComp.iterate_succ_bind]
+    change OracleComp.QueriesSatisfy _
+      (ProbOracleComp.query (spec := fun _ : (WordInterface.net msgPort).Channel × List Bool =>
+          List Bool) ((), encBits w) >>= fun raw =>
+        OracleComp.iterate k
+          (fun x => ProbOracleComp.lowerWith (WordInterface.net msgPort) limit
+            (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x))
+          (Decoder.bits.decode (List.take limit raw)))
+    refine OracleComp.QueriesSatisfy.bind
+      (OracleComp.QueriesSatisfy.query (q := Sum.inr ((), encBits w)) ?_) fun raw => ?_
+    · change w.length ≤ B
+      exact hw
+    · exact ih (Decoder.bits.decode (List.take limit raw))
+        (le_trans (List.length_take_le _ _) hlim)
+
+/-- `iterQueryMachine` is `Machine.IsRequestBounded` with bound `pw.2.length + pw.1.replyBound`. -/
+theorem iterQueryMachine_isRequestBounded :
+    Machine.IsRequestBounded iterQueryMachine
+      (WordInterface.net msgPort) (WordInterface.net msgPort) := by
+  have hrb : PolyBounded
+      (fun pw : PPTParam 2 × List Bool => (encPair (encPPTParam 2) encBits pw).length)
+      (fun pw => pw.2.length + pw.1.replyBound) := by
+    have h1 : ComputableInPolyTime
+        (fun pw : PPTParam 2 × List Bool => pw.2.length + pw.1.replyBound)
+        (encPair (encPPTParam 2) encBits) encUnary := by
+      have hlen : ComputableInPolyTime (fun pw : PPTParam 2 × List Bool => pw.2.length)
+          (encPair (encPPTParam 2) encBits) encUnary := by
+        simpa only [encBits_apply, Function.comp_def] using
+          (ComputableInPolyTime.encoding_length encBits).comp
+            (ComputableInPolyTime.snd (encPPTParam 2) encBits)
+      have hr : ComputableInPolyTime (fun pw : PPTParam 2 × List Bool => pw.1.replyBound)
+          (encPair (encPPTParam 2) encBits) encUnary := by
+        fun_prop
+      exact ComputableInPolyTime.unary_add.comp (hlen.prod hr)
+    simpa only [encUnary_apply, List.length_replicate] using h1.polyBounded_length
+  refine ⟨fun pw => pw.2.length + pw.1.replyBound, hrb, fun p q s => ?_⟩
+  simp only [iterQueryMachine, StateT.run, ProbOracleComp.lowerWith,
+    ProbOracleComp.simulate_map, OracleComp.queriesSatisfy_map_iff]
+  rw [← ProbOracleComp.lowerWith, lowerWith_iterate_net]
+  exact queriesSatisfy_iterate_net p.replyBound p.secParam (q.length + p.replyBound) q
+    (Nat.le_add_right _ _) (Nat.le_add_left _ _)
+
+/-- `iterQueryMachine κ C` has per-activation call budget `κ + 1`. -/
+theorem iterQueryMachine_isBounded (κ : ℕ) (C : Finset (Fin 2)) :
+    (iterQueryMachine κ C).IsBounded (κ + 1) := by
+  refine ⟨(OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _), fun q s => ?_⟩
+  simp only [iterQueryMachine, StateT.run, OracleComp.isCostBounded_map_iff]
+  have hiter : ∀ k w, (OracleComp.iterate k
+      (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x)
+        w).IsQueryBounded k := by
+    intro k
+    induction k with
+    | zero => intro w; exact OracleComp.IsCostBounded.pure w 0
+    | succ k ih =>
+      intro w
+      rw [OracleComp.iterate_succ]
+      exact OracleComp.IsCostBounded.bind (ih w)
+        (fun a => OracleComp.IsCostBounded.query (q := Sum.inr a))
+  exact (hiter κ q).mono (Nat.le_succ κ)
+
+private theorem runFrom_double_iterate (κ k : ℕ) (x : List Bool) :
+    (doubleMachine κ ∅).runFrom
+        (OracleComp.iterate k
+          (fun w => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) w) x)
+        (PUnit.unit : (doubleMachine κ ∅).State) =
+      pure (Nat.iterate (fun w => w ++ w) k x, (PUnit.unit : (doubleMachine κ ∅).State)) := by
+  dsimp only [doubleMachine]
+  induction k generalizing x with
+  | zero => rfl
+  | succ k ih =>
+    rw [OracleComp.iterate_succ, Machine.runFrom_bind, ih x, pure_bind, Machine.runFrom_query]
+    simp only [StateT.run, Function.iterate_succ_apply']
+
+private theorem length_iterate_double (k : ℕ) (x : List Bool) :
+    (Nat.iterate (fun w => w ++ w) k x).length = 2 ^ k * x.length := by
+  induction k generalizing x with
+  | zero => simp
+  | succ k ih =>
+    rw [Function.iterate_succ_apply, ih (x ++ x), List.length_append, pow_succ]
+    ring
+
+private theorem exists_poly_lt_two_pow (c d : ℕ) : ∃ κ, c * (κ + 1) ^ d < 2 ^ κ := by
+  have hsq : ∀ m : ℕ, (m + 4) ^ 2 ≤ 2 ^ (m + 6) := by
+    intro m
+    induction m with
+    | zero => decide
+    | succ m ih =>
+      have h1 : 2 * m + 9 ≤ (m + 4) ^ 2 := by nlinarith
+      have h2 : 2 * m + 9 ≤ 2 ^ (m + 6) := h1.trans ih
+      calc
+        (m + 1 + 4) ^ 2 = (m + 4) ^ 2 + (2 * m + 9) := by ring
+        _ ≤ 2 ^ (m + 6) + 2 ^ (m + 6) := Nat.add_le_add ih h2
+        _ = 2 ^ (m + 1 + 6) := by rw [pow_succ]; ring
+  let k : ℕ := 2 * d + c + 6
+  refine ⟨2 ^ k, ?_⟩
+  have hc : c < 2 ^ c := Nat.lt_pow_self (by decide : 1 < 2)
+  have hbase : 2 ^ k + 1 ≤ 2 ^ (k + 1) := by
+    have hpos : 1 ≤ 2 ^ k := Nat.one_le_pow _ _ (by decide)
+    calc
+      2 ^ k + 1 ≤ 2 ^ k + 2 ^ k := Nat.add_le_add_left hpos _
+      _ = 2 ^ (k + 1) := by rw [pow_succ]; ring
+  have hexp : c + (k + 1) * d ≤ 2 ^ k := by
+    have hk : c + (k + 1) * d ≤ (2 * d + c + 4) ^ 2 := by
+      dsimp only [k]
+      nlinarith
+    exact hk.trans (hsq (2 * d + c))
+  calc
+    c * (2 ^ k + 1) ^ d < 2 ^ c * (2 ^ (k + 1)) ^ d :=
+      Nat.mul_lt_mul_of_lt_of_le hc (Nat.pow_le_pow_left hbase d)
+        (Nat.pow_pos (Nat.pow_pos (by decide : 0 < 2)))
+    _ = 2 ^ (c + (k + 1) * d) := by rw [← pow_mul, mul_comm (k + 1) d, ← pow_add]
+    _ ≤ 2 ^ (2 ^ k) := Nat.pow_le_pow_right (by decide) hexp
+
+/-- Negative witness: omitting `Machine.IsReplyBounded` makes sequential composition closure
+false (`¬ Machine.IsPPTFamily (fun κ C => (iterQueryMachine κ C).comp (doubleMachine κ C))`), even
+though `doubleMachine` is PPT (with replies bounded by `2 * |w|`), `iterQueryMachine` is PPT,
+request-bounded, and call-bounded (`κ + 1`). Contradiction uses both `cert.init.length_le` and
+`cert.handle.length_le`. -/
+theorem negative_comp_not_isPPT :
+    ¬ Machine.IsPPTFamily (fun κ C => (iterQueryMachine κ C).comp (doubleMachine κ C))
+      WordInterface.empty (WordInterface.net msgPort) := by
+  rintro ⟨cert⟩
+  obtain ⟨c0, d0, hinit⟩ := cert.init.length_le
+  obtain ⟨c1, d1, hhandle⟩ := cert.handle.length_le
+  have hp : ComputableInPolyTime (fun κ : ℕ => (⟨κ, 0, ∅⟩ : PPTParam 2))
+      encUnary (encPPTParam 2) := by
+    have hconst : ComputableInPolyTime (fun _ : ℕ => (∅ : Finset (Fin 2)))
+        encUnary (encFinite (Finset (Fin 2))) :=
+      ComputableInPolyTime.const ∅
+    fun_prop
+  obtain ⟨cp, dp, hcp⟩ := hp.polyBounded_length.exists_le
+  let D : ℕ := max dp (dp * d0)
+  let M0 : ℕ := cp + 1
+  let Minit : ℕ := c0 * M0 ^ d0
+  let Mchan : ℕ := Nat.card (WordInterface.net msgPort).Channel
+  let A : ℕ := 2 * M0 + 4 * (Mchan + 2) + Minit + 6
+  let Ctot : ℕ := c1 * (A + 1) ^ d1
+  obtain ⟨κ, hκ⟩ := exists_poly_lt_two_pow Ctot (D * d1)
+  let p : PPTParam 2 := ⟨κ, 0, ∅⟩
+  let s0 : ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).State := (PUnit.unit, PUnit.unit)
+  have hmemInit : (cert.codec κ ∅).enc s0 ∈
+      (ProbComp.eval ((cert.codec κ ∅).enc <$>
+        ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).init)).support := by
+    change (cert.codec κ ∅).enc s0 ∈ (ProbComp.eval ((cert.codec κ ∅).enc <$>
+      (pure s0 : ProbComp _))).support
+    rw [map_pure, ProbComp.eval_pure]
+    exact (PMF.mem_support_pure_iff _ _).mpr rfl
+  have hlenP : (encPPTParam 2 p).length ≤ cp * (κ + 1) ^ dp := by
+    simpa only [encUnary_apply, List.length_replicate] using hcp κ
+  have hlenP' : (encPPTParam 2 p).length + 1 ≤ M0 * (κ + 1) ^ D := by
+    have hpow : (κ + 1) ^ dp ≤ (κ + 1) ^ D :=
+      Nat.pow_le_pow_right (Nat.succ_pos κ) (le_max_left _ _)
+    have hpow1 : 1 ≤ (κ + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos κ)
+    calc
+      (encPPTParam 2 p).length + 1 ≤ cp * (κ + 1) ^ dp + 1 := Nat.add_le_add_right hlenP 1
+      _ ≤ cp * (κ + 1) ^ D + (κ + 1) ^ D :=
+        Nat.add_le_add (Nat.mul_le_mul_left cp hpow) hpow1
+      _ = M0 * (κ + 1) ^ D := by simp [M0, Nat.add_mul]
+  have hlenInit : ((cert.codec κ ∅).enc s0).length ≤ Minit * (κ + 1) ^ D := by
+    have hi := hinit p ((cert.codec κ ∅).enc s0) hmemInit
+    have hpow0 : ((encPPTParam 2 p).length + 1) ^ d0 ≤ (M0 * (κ + 1) ^ dp) ^ d0 := by
+      have h1 : (encPPTParam 2 p).length + 1 ≤ M0 * (κ + 1) ^ dp := by
+        have hpow1 : 1 ≤ (κ + 1) ^ dp := Nat.one_le_pow _ _ (Nat.succ_pos κ)
+        calc
+          (encPPTParam 2 p).length + 1 ≤ cp * (κ + 1) ^ dp + 1 := Nat.add_le_add_right hlenP 1
+          _ ≤ cp * (κ + 1) ^ dp + (κ + 1) ^ dp := Nat.add_le_add_left hpow1 _
+          _ = M0 * (κ + 1) ^ dp := by simp [M0, Nat.add_mul]
+      exact Nat.pow_le_pow_left h1 d0
+    have hpowD : (κ + 1) ^ (dp * d0) ≤ (κ + 1) ^ D :=
+      Nat.pow_le_pow_right (Nat.succ_pos κ) (le_max_right _ _)
+    calc
+      ((cert.codec κ ∅).enc s0).length
+        ≤ c0 * ((encPPTParam 2 p).length + 1) ^ d0 := hi
+      _ ≤ c0 * (M0 * (κ + 1) ^ dp) ^ d0 := Nat.mul_le_mul_left c0 hpow0
+      _ = Minit * (κ + 1) ^ (dp * d0) := by rw [mul_pow, ← pow_mul, mul_assoc]
+      _ ≤ Minit * (κ + 1) ^ D := Nat.mul_le_mul_left Minit hpowD
+  have hcompHandle :
+      ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).handle [true] s0 =
+        pure (Nat.iterate (fun w => w ++ w) κ [true], s0) := by
+    have hstep :
+        ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).handle [true] s0 =
+          Equiv.prodAssoc _ _ _ <$>
+            (doubleMachine κ ∅).runFrom
+              ((·, PUnit.unit) <$> OracleComp.iterate κ
+                (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x)
+                [true])
+              PUnit.unit := rfl
+    have hrun := runFrom_double_iterate κ κ [true]
+    dsimp only [doubleMachine] at hstep hrun ⊢
+    rw [hstep, Machine.runFrom_map, hrun]
+    simp only [map_pure]
+    rfl
+  let ch0 : (WordInterface.net msgPort).Channel := ()
+  let x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool :=
+    (p, (ch0, [true]), (cert.codec κ ∅).enc s0)
+  have hmemHandle : ((Nat.iterate (fun w => w ++ w) κ [true], (cert.codec κ ∅).enc s0), ()) ∈
+      (ProbOracleComp.runWith (emptyWordOracle :
+          WordInterface.empty.Channel × List Bool → StateT Unit PMF (List Bool))
+        (wordHandle (fun κ C => (iterQueryMachine κ C).comp (doubleMachine κ C))
+          WordInterface.empty (WordInterface.net msgPort) cert.codec x.1 x.2.1 x.2.2)
+        ()).support := by
+    change _ ∈ (ProbOracleComp.runWith emptyWordOracle
+      (wordHandle (fun κ C => (iterQueryMachine κ C).comp (doubleMachine κ C))
+        WordInterface.empty (WordInterface.net msgPort) cert.codec
+        p (ch0, [true]) ((cert.codec κ ∅).enc s0)) ()).support
+    dsimp only [wordHandle, WordInterface.net, WordInterface.decodeQuery, WordInterface.reply,
+      msgPort, Decoder.bits, id_eq, StateT.run, p]
+    rw [(cert.codec κ ∅).decode_enc, hcompHandle, ProbOracleComp.lowerWith,
+      ProbOracleComp.simulate_pure, map_pure, ProbOracleComp.runWith_pure]
+    exact (PMF.mem_support_pure_iff _ _).mpr rfl
+  have hbound := hhandle x Unit emptyWordOracle () ()
+    (Nat.iterate (fun w => w ++ w) κ [true], (cert.codec κ ∅).enc s0) hmemHandle
+  have h2pow : 2 ^ κ ≤
+      (encPair encBits encBits
+        (Nat.iterate (fun w => w ++ w) κ [true], (cert.codec κ ∅).enc s0)).length := by
+    have hlen2 : (Nat.iterate (fun w => w ++ w) κ [true]).length = 2 ^ κ := by
+      simpa using length_iterate_double κ [true]
+    simp only [length_encPair, encBits_apply, hlen2]
+    omega
+  have hxlen : (encHandlerCall (encPPTParam 2) (encFinite (WordInterface.net msgPort).Channel)
+      encBits x).length + 1 ≤ A * (κ + 1) ^ D := by
+    have hch : (encFinite (WordInterface.net msgPort).Channel ch0).length ≤ Mchan :=
+      (length_encFinite_lt _).le
+    have hpowD : 1 ≤ (κ + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos κ)
+    simp only [encHandlerCall, length_encPair, encBits_apply, x]
+    have h1 : ([true] : List Bool).length = 1 := rfl
+    have hsum : 2 * (encPPTParam 2 p).length + 1 +
+        (2 * (2 * (encFinite (WordInterface.net msgPort).Channel ch0).length + 1 +
+          ([true] : List Bool).length) + 1 + ((cert.codec κ ∅).enc s0).length) + 1 ≤
+        2 * (M0 * (κ + 1) ^ D) + (4 * (Mchan + 2) + Minit * (κ + 1) ^ D + 6) := by
+      omega
+    have hstep : 2 * (M0 * (κ + 1) ^ D) + (4 * (Mchan + 2) + Minit * (κ + 1) ^ D + 6) ≤
+        A * (κ + 1) ^ D := by
+      have hm : 4 * (Mchan + 2) + 6 ≤ (4 * (Mchan + 2) + 6) * (κ + 1) ^ D :=
+        Nat.le_mul_of_pos_right _ hpowD
+      calc
+        2 * (M0 * (κ + 1) ^ D) + (4 * (Mchan + 2) + Minit * (κ + 1) ^ D + 6)
+          ≤ 2 * M0 * (κ + 1) ^ D + (4 * (Mchan + 2) + Minit + 6) * (κ + 1) ^ D := by nlinarith
+        _ = A * (κ + 1) ^ D := by simp only [A]; ring
+    exact hsum.trans hstep
+  have hfinal : 2 ^ κ ≤ Ctot * (κ + 1) ^ (D * d1) := by
+    have hpowD1 : ((encHandlerCall (encPPTParam 2)
+        (encFinite (WordInterface.net msgPort).Channel)
+        encBits x).length + 1) ^ d1 ≤ (A * (κ + 1) ^ D) ^ d1 :=
+      Nat.pow_le_pow_left hxlen d1
+    have hA1 : A * (κ + 1) ^ D ≤ (A + 1) * (κ + 1) ^ D :=
+      Nat.mul_le_mul_right _ (Nat.le_succ A)
+    calc
+      2 ^ κ ≤ c1 * ((encHandlerCall (encPPTParam 2)
+          (encFinite (WordInterface.net msgPort).Channel) encBits x).length + 1) ^ d1 :=
+        h2pow.trans hbound
+      _ ≤ c1 * (A * (κ + 1) ^ D) ^ d1 := Nat.mul_le_mul_left c1 hpowD1
+      _ ≤ c1 * ((A + 1) * (κ + 1) ^ D) ^ d1 :=
+        Nat.mul_le_mul_left c1 (Nat.pow_le_pow_left hA1 d1)
+      _ = Ctot * (κ + 1) ^ (D * d1) := by rw [mul_pow, ← pow_mul, mul_assoc]
+  omega
+
+end NegativeCompWitness
+
 end CslibFrontierTests.Crypto.UCPPTLink
