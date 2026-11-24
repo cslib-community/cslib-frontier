@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
@@ -511,5 +512,24 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   rw [rows.evaluate_eq (w, 0) p z hp hcut, selectionEquation_zero]
   simp only [F, evaluation, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_zero]
+
+-- Squaring the two addressed rows and adding their values costs one counting level.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let C : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let squares := C.sumSquares Decoder.nat (.const 1) (fun _ => 2) (fun _ => 1)
+      (fun _ => 0) (fun _ => 0) (.const 2) (.const 1) (.const 0) (.const 0)
+      (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl)
+    squares.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      (squares.cutoff w < p →
+        squares.evaluate (w, p, z) = (z.getD 0 0 ^ 2 + z.getD 0 0 ^ 2) % p) := by
+  intro C squares
+  refine ⟨squares.evaluate_mem, fun hcut => ?_⟩
+  rw [squares.evaluate_eq w p z hp hcut]
+  simp only [evaluation, MvPolynomial.eval₂_sum, MvPolynomial.eval₂_pow, MvPolynomial.eval₂_X,
+    Fin.val_zero, List.getD_eq_getElem?_getD]
+  rw [Finset.sum_const, Finset.card_range, two_nsmul, ← Nat.cast_pow, ← Nat.cast_add,
+    ZMod.val_natCast]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

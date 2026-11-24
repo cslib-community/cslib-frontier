@@ -3283,6 +3283,7 @@ public import CslibFrontier.Computability.Complexity.ProofSystem.Exhaustive
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
