@@ -17,18 +17,22 @@ import Mathlib.Algebra.BigOperators.Fin
 
 `Cslib.FreeM.tabulate n f` runs the programs `f 0, …, f (n - 1)` in order and collects their
 results as a function on `Fin n`; `Cslib.FreeM.tabulateMatrix` does the same for a matrix of
-programs in row-major order. Their value is the pointwise value and their cost is the sum of the
-costs. For monadic left folds, `Cslib.FreeM.eval_foldlM` and `Cslib.FreeM.cost_foldlM` compute the
-value and the cost when every step has a known value and a constant cost.
+programs in row-major order, and `Cslib.FreeM.tabulateList f l` for the programs `f a` with `a` in
+a list `l`, as a function that is `none` off `l`. Their value is the pointwise value and their
+cost is the sum of the costs. For monadic left folds, `Cslib.FreeM.eval_foldlM` and
+`Cslib.FreeM.cost_foldlM` compute the value and the cost when every step has a known value and a
+constant cost.
 
 ## Main definitions
 
-* `Cslib.FreeM.tabulate`, `Cslib.FreeM.tabulateMatrix`: run a family of programs in order.
+* `Cslib.FreeM.tabulate`, `Cslib.FreeM.tabulateMatrix`, `Cslib.FreeM.tabulateList`: run a family
+  of programs in order.
 
 ## Main results
 
 * `Cslib.FreeM.eval_tabulate`, `Cslib.FreeM.cost_tabulate`, `Cslib.FreeM.eval_tabulateMatrix`,
-  `Cslib.FreeM.cost_tabulateMatrix`: value and cost of a tabulation.
+  `Cslib.FreeM.cost_tabulateMatrix`, `Cslib.FreeM.eval_tabulateList`,
+  `Cslib.FreeM.cost_tabulateList`: value and cost of a tabulation.
 * `Cslib.FreeM.eval_foldlM`, `Cslib.FreeM.cost_foldlM`: value and cost of a monadic left fold.
 -/
 
@@ -77,6 +81,34 @@ theorem cost_tabulateMatrix {T : Type} [AddCommMonoid T] (oracle : {ι : Type} �
     (weight : {ι : Type} → Q ι → T) (n : ℕ) (f : Fin n → Fin n → FreeM Q α) :
     (tabulateMatrix n f).cost oracle weight = ∑ i, ∑ j, (f i j).cost oracle weight := by
   simp only [tabulateMatrix, cost_map, cost_tabulate]
+
+/-- Run the programs `f a` for the elements `a` of `l` in order and collect their results, as a
+function that is `none` off `l`. -/
+@[expose] def tabulateList {β : Type} [DecidableEq α] (f : α → FreeM Q β) :
+    List α → FreeM Q (α → Option β)
+  | [] => pure fun _ => none
+  | a :: l => do
+    let b ← f a
+    let rest ← tabulateList f l
+    return fun x => if x = a then some b else rest x
+
+theorem eval_tabulateList {β : Type} [DecidableEq α] (oracle : {ι : Type} → Q ι → ι)
+    (f : α → FreeM Q β) : ∀ l : List α,
+      (tabulateList f l).eval oracle = fun x => if x ∈ l then some ((f x).eval oracle) else none
+  | [] => by simp [tabulateList]
+  | a :: l => by
+    simp only [tabulateList, eval_bind, eval_pure, eval_tabulateList oracle f l, List.mem_cons]
+    funext x
+    by_cases hx : x = a <;> simp [hx]
+
+theorem cost_tabulateList {β T : Type} [DecidableEq α] [AddCommMonoid T]
+    (oracle : {ι : Type} → Q ι → ι) (weight : {ι : Type} → Q ι → T) (f : α → FreeM Q β) :
+    ∀ l : List α,
+      (tabulateList f l).cost oracle weight = (l.map fun a => (f a).cost oracle weight).sum
+  | [] => by simp [tabulateList]
+  | a :: l => by
+    simp only [tabulateList, cost_bind, cost_pure, add_zero, cost_tabulateList oracle weight f l,
+      List.map_cons, List.sum_cons]
 
 /-- The value of a monadic left fold whose steps have known values. This is the pure-valued
 special case of `Cslib.IsMonadHom.map_listFoldlM` applied to `Cslib.FreeM.isMonadHom_pure_eval`,

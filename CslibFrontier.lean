@@ -203,6 +203,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Matroid.Greedy
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.IndepQuery
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.Intersection
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.LowerBound
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.ChainMaxima
 public import CslibFrontier.Algorithms.Lean.Query.Select.Correctness
 public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs
