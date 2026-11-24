@@ -30,10 +30,9 @@ This module completes the structural characterizations of Section 2 of Monderer 
    potential (hence the finite improvement property and pure Nash equilibrium existence on finite
    games), two `w`-potentials for nonzero weights differ by a constant, and a finite game with the
    FIP and no unilateral cost ties admits an ordinal potential.
-2. **Coordination–dummy decomposition** ([MondererShapley1996], Appendix B, equation (B.4),
-   p. 141): a strategic game admits an exact potential if and only if it decomposes additively into
-   a coordination (common-cost) game and a dummy game in which no player's choice affects its own
-   cost.
+2. **Coordination–dummy decomposition**: a strategic game admits an exact potential if and only if
+   it decomposes additively into a coordination (common-cost) game and a dummy game in which no
+   player's choice affects its own cost.
 3. **Path-integral and four-cycle characterizations** ([MondererShapley1996], Theorem 2.8 and
    Corollary 2.9, pp. 130–131, and Appendix A, pp. 138–139): for a game with finitely many players,
    admitting an exact potential is equivalent to the vanishing of the unilateral deviation path
@@ -108,8 +107,7 @@ an explicit hypothesis where needed.) -/
 @[expose] def IsCoordination : Prop :=
   ∃ Φ : (∀ i, S i) → ℝ, ∀ i s, G.cost i s = Φ s
 
-/-- `G` is a **dummy game** if no player's unilateral deviation changes its own cost
-([MondererShapley1996], equation (B.4), p. 141). -/
+/-- `G` is a **dummy game** if no player's unilateral deviation changes its own cost. -/
 @[expose] def IsDummy : Prop :=
   ∀ i s (a : S i), G.cost i (update s i a) = G.cost i s
 
@@ -199,9 +197,8 @@ theorem exists_isOrdinalPotential_of_hasFIP [Finite (∀ i, S i)] (hFIP : G.HasF
   exact ⟨Φ, hΦ.isOrdinalPotential_of_ne hne⟩
 
 variable (G) in
-/-- **Coordination–dummy decomposition of exact potential games** ([MondererShapley1996],
-Appendix B, equation (B.4), p. 141): `G` admits an exact potential if and only if `G` decomposes as
-the pointwise sum of a coordination game `C` and a dummy game `D`. -/
+/-- **Coordination–dummy decomposition of exact potential games**: `G` admits an exact potential if
+and only if `G` decomposes as the pointwise sum of a coordination game `C` and a dummy game `D`. -/
 theorem exists_isExactPotential_iff_coordination_add_dummy :
     (∃ Φ, G.IsExactPotential Φ) ↔
       ∃ C D : CostGame ι S, C.IsCoordination ∧ D.IsDummy ∧

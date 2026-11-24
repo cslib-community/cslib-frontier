@@ -66,7 +66,9 @@ register_result "monderer-shapley-mixed-extension-potential" where
     Cslib.GameTheory.CostGame.exists_isExactPotential_mixedExtension_iff
   ]
   scope := "For any finite strategic game G : CostGame ι S (Fintype ι, ∀ i, Fintype (S i)) and \
-    arbitrary weight vector w : ι → ℝ, G admits a w-potential Φ if and only if its mixed \
-    extension G.mixedExtension over product simplices { q : S i → ℝ // IsMixedStrategy q } \
-    admits a w-potential, witnessed in the forward direction by the multilinear extension \
-    mixedPotential Φ p = ∑ s, productWeight p s * Φ s."
+    arbitrary weight vector w : ι → ℝ, G admits a w-potential Φ (CostGame.IsWeightedPotential, \
+    which omits positivity 0 < w i relative to [MondererShapley1996] equation (2.2) so Lemma \
+    2.10 holds for arbitrary w : ι → ℝ) if and only if its mixed extension G.mixedExtension over \
+    product simplices { q : S i → ℝ // IsMixedStrategy q } admits a w-potential, witnessed in \
+    the forward direction by the multilinear extension mixedPotential Φ p = \
+    ∑ s, productWeight p s * Φ s."

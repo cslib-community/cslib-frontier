@@ -28,7 +28,7 @@ the pairwise cost incurred by `i` against `j`, and player `i`'s total cost at pr
 Under independent mixed strategies `p`, expectations factor into pairwise bilinear forms
 (`deviationCost_toCostGame`, `expectedCost_toCostGame`), characterizing mixed Nash equilibria of
 polymatrix games purely through pairwise matrix-vector inequalities (`isMixedNash_toCostGame_iff`,
-[Janovskaja1968]; [Howson1972], Section 1, pp. 312–313).
+[Janovskaja1968]; [Howson1972]).
 
 When pairwise interaction matrices are symmetric (`PolymatrixGame.IsSymmetric`:
 `edgeCost i j a b = edgeCost j i b a` for `i ≠ j`), half the social cost
@@ -65,8 +65,7 @@ normalization at a reference profile `z`, exact potentiality is equivalent to `I
 * `Cslib.GameTheory.PolymatrixGame.deviationCost_toCostGame`,
   `Cslib.GameTheory.PolymatrixGame.expectedCost_toCostGame`,
   `Cslib.GameTheory.PolymatrixGame.isMixedNash_toCostGame_iff`: pairwise bilinear mixed-cost
-  decomposition and mixed Nash equilibrium characterization ([Janovskaja1968]; [Howson1972],
-  Section 1, pp. 312–313).
+  decomposition and mixed Nash equilibrium characterization ([Janovskaja1968]; [Howson1972]).
 * `Cslib.GameTheory.PolymatrixGame.IsSymmetric.isExactPotential_edgePotential`,
   `Cslib.GameTheory.PolymatrixGame.IsSymmetric.exists_isPureNash_socialCost_le`: exact edge
   potential and **price of stability `1`** for symmetric polymatrix games.
@@ -151,7 +150,7 @@ variable {ι : Type*} {S : ι → Type*} [Fintype ι] [DecidableEq ι] [∀ i, F
 
 /-- In a polymatrix game, player `i`'s unilateral expected cost `deviationCost` against a product
 of probability vectors `p` decomposes into the sum of pairwise matrix-vector products over `j ≠ i`
-([Janovskaja1968]; [Howson1972], equation (1), p. 312). -/
+([Janovskaja1968]; [Howson1972]). -/
 theorem deviationCost_toCostGame (P : PolymatrixGame ι S) {p : ∀ i, S i → ℝ}
     (hp : ∀ k, ∑ c, p k c = 1) (i : ι) (a : S i) :
     P.toCostGame.deviationCost p i a =
@@ -178,7 +177,7 @@ theorem expectedCost_toCostGame (P : PolymatrixGame ι S) {p : ∀ i, S i → �
   exact sum_comm
 
 /-- Pairwise bilinear characterization of mixed Nash equilibria in a polymatrix game
-([Janovskaja1968]; [Howson1972], Section 1, pp. 312–313). -/
+([Janovskaja1968]; [Howson1972]). -/
 theorem isMixedNash_toCostGame_iff (P : PolymatrixGame ι S) {p : ∀ i, S i → ℝ} :
     P.toCostGame.IsMixedNash p ↔
       (∀ i, IsMixedStrategy (p i)) ∧
