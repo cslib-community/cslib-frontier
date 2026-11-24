@@ -168,11 +168,12 @@ const V = (() => {
   // ---- header: navigation and theme toggle ---------------------------------------------------
   function header(active) {
     const pages = [["index.html", "Briefing"], ["modules.html", "Modules"], ["results.html", "Results"],
-      ["textbooks.html", "Textbooks"], ["areas.html", "Areas"], ["index.html#charts", "Charts"]];
+      ["textbooks.html", "Textbooks"], ["areas.html", "Areas"], ["prs.html", "Pull requests"],
+      ["index.html#charts", "Charts"]];
     const h = document.createElement("header");
     h.className = "top";
     h.innerHTML = `<div class="bar"><a class="brand" href="index.html">cslib-frontier · views</a><nav>` +
-      pages.map(([href, label]) => `<a href="${href}"${label === active ? ' aria-current="page"' : ""}>${label}</a>`).join("") +
+      pages.filter(([, label]) => label !== "Pull requests" || meta.prs).map(([href, label]) => `<a href="${href}"${label === active ? ' aria-current="page"' : ""}>${label}</a>`).join("") +
       `</nav><button class="theme-toggle" type="button" aria-label="Switch light or dark theme">◐ Theme</button></div>`;
     document.body.prepend(h);
     const btn = h.querySelector(".theme-toggle");

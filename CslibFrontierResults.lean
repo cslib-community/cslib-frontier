@@ -14,6 +14,7 @@ import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.NCLBandwidth
+import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
