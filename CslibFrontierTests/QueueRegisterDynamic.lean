@@ -36,7 +36,7 @@ def cycle {w capacity : ℕ} (a b : ℕ) :
 
 theorem cycle_valid {w capacity a b : ℕ} (hc : 2 ≤ capacity)
     (ha : Fits w a) (hb : Fits w b) :
-    (spec w capacity).ValidHistory [] ((spec w capacity).runClient [] (cycle a b)).2.2 := by
+    (spec w capacity).ValidHistory [] ((spec w capacity).clientHistory [] (cycle a b)) := by
   exact ⟨⟨by simpa using (show 0 < capacity by omega), ha⟩,
     ⟨⟨by simpa using (show 1 < capacity by omega), hb⟩,
     trivial, ⟨by simpa using (show 1 < capacity by omega), ha⟩, trivial, trivial⟩⟩
@@ -77,6 +77,8 @@ example {x : Data registers} (hx : x.Bounded 1) : ∃ ready y traces,
       (none, [], [Queue.QueueOp.dequeue]) := rfl
   have h := run_initialized (w := 1) (base := 0) (capacity := 0)
     (by decide) (by decide) ((spec 1 0).call .dequeue) hx ⟨trivial, trivial⟩
+  simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
+    StateTransitionSpec.clientHistory] at h
   rw [hrun] at h
   simpa only [List.length_singleton, Nat.one_mul] using h
 

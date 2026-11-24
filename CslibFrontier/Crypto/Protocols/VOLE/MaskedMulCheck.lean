@@ -16,6 +16,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Full honest receiver views of masked VOLE multiplication checks
@@ -112,40 +113,6 @@ theorem maskedMulCheckReply_correct (left right output : ι → Fin n) (w : Fin 
     (fun i => c.v (output i).castSucc) c.delta h, hc (Fin.last n)]
   simp only [maskedMulCheckReply]
   ring
-
-private def maskedSetupEquiv (left right output : ι → Fin n) (w : Fin n → F)
-    (delta : F) (r : ι → F) :
-    ((Fin (n + 1) → F) × (Fin (n + 1) → F)) ≃
-      ((Fin (n + 1) → F) × (Fin n → F) × F) where
-  toFun uv := ((voleSample uv.1 uv.2 delta).w, voleCommitWitness w (Fin.init uv.1),
-    (maskedMulCheckReply left right output w uv.1 uv.2 r).1)
-  invFun qda :=
-    let uw := w - qda.2.1
-    let vw := fun j : Fin n => qda.1 j.castSucc - uw j * delta
-    let um := qda.2.2 - ∑ i, r i * voleMulCrossTerm (w (left i)) (vw (left i))
-      (w (right i)) (vw (right i)) (vw (output i))
-    let u := Fin.snoc uw um
-    (u, fun j => qda.1 j - u j * delta)
-  left_inv uv := by
-    rcases uv with ⟨u, v⟩
-    dsimp
-    simp only [voleCommitWitness, sub_sub_cancel, maskedMulCheckReply,
-      Fin.init, Pi.sub_apply]
-    simp only [add_sub_cancel_left]
-    rw [Fin.snoc_init_self]
-    congr 1 with j : 1
-    ring
-  right_inv qda := by
-    rcases qda with ⟨q, d, a⟩
-    apply Prod.ext
-    · funext j
-      dsimp [voleSample]
-      ring
-    · apply Prod.ext
-      · funext j
-        simp [voleCommitWitness]
-      · simp only [maskedMulCheckReply, Fin.snoc_castSucc, Fin.snoc_last]
-        simp
 
 variable [Fintype F] [DecidableEq F] [DecidableEq ι]
 
@@ -305,32 +272,37 @@ private theorem maskedView_fixed (left right output : ι → Fin n) (w : Fin n �
       let a ← PMF.uniformOfFintype F
       return ((delta, q), (d, (r,
         ((a, maskedMulCheckValue left right output delta q d r - a * delta), ()))))) := by
-  let finish := fun qda : (Fin (n + 1) → F) × (Fin n → F) × F =>
-    ((delta, qda.1), (qda.2.1, (r, ((qda.2.2,
-      maskedMulCheckValue left right output delta qda.1 qda.2.1 r - qda.2.2 * delta), ()))))
-  have hfinish (uv : (Fin (n + 1) → F) × (Fin (n + 1) → F)) :
-      finish (maskedSetupEquiv left right output w delta r uv) =
-        ((voleSample uv.1 uv.2 delta).receiverView,
-          (voleCommitWitness w (Fin.init uv.1),
-            (r, (maskedMulCheckReply left right output w uv.1 uv.2 r, ())))) := by
-    have hc := maskedMulCheckReply_correct left right output w
-      (voleSample uv.1 uv.2 delta) (valid_voleSample _ _ _) r h
-    change ((voleSample uv.1 uv.2 delta).receiverView,
-      (voleCommitWitness w (Fin.init uv.1), (r,
-        (((maskedMulCheckReply left right output w uv.1 uv.2 r).1,
-          maskedMulCheckValue left right output (voleSample uv.1 uv.2 delta).delta
-            (voleSample uv.1 uv.2 delta).w (voleCommitWitness w (Fin.init uv.1)) r -
-              (maskedMulCheckReply left right output w uv.1 uv.2 r).1 * delta), ())))) = _
-    change maskedMulCheckValue left right output (voleSample uv.1 uv.2 delta).delta
-      (voleSample uv.1 uv.2 delta).w (voleCommitWitness w (Fin.init uv.1)) r =
-        (maskedMulCheckReply left right output w uv.1 uv.2 r).1 * delta +
-          (maskedMulCheckReply left right output w uv.1 uv.2 r).2 at hc
-    rw [hc]
-    simp
-  have he := congrArg (fun p => p.map finish)
-    (PMF.uniformOfFintype_map_equiv (maskedSetupEquiv left right output w delta r))
-  simp only [PMF.map_comp, Function.comp_def, hfinish] at he
-  simpa only [pmf_norm, ← PMF.uniformOfFintype_prod, PMF.map, finish] using he
+  relabel_uniform (fun uv : (Fin (n + 1) → F) × (Fin (n + 1) → F) =>
+    ((voleSample uv.1 uv.2 delta).w, voleCommitWitness w (Fin.init uv.1),
+      (maskedMulCheckReply left right output w uv.1 uv.2 r).1)) with uv
+  · rintro ⟨u₁, v₁⟩ ⟨u₂, v₂⟩ h
+    simp only [Prod.mk.injEq] at h
+    rcases h with ⟨hq, hd, ha⟩
+    have hi : Fin.init u₁ = Fin.init u₂ := funext fun j => by
+      simpa [voleCommitWitness] using congrFun hd j
+    have hv : ∀ j : Fin n, v₁ j.castSucc = v₂ j.castSucc := fun j => by
+      have hqj := congrFun hq j.castSucc
+      have hij : u₁ j.castSucc = u₂ j.castSucc := congrFun hi j
+      dsimp only [voleSample] at hqj
+      rw [hij] at hqj
+      exact add_left_cancel hqj
+    have hm : u₁ (Fin.last n) = u₂ (Fin.last n) := by
+      dsimp only [maskedMulCheckReply] at ha
+      simp only [hv] at ha
+      exact add_left_cancel ha
+    have hu : u₁ = u₂ := funext fun j => by
+      cases j using Fin.lastCases with
+      | last => exact hm
+      | cast k => exact congrFun hi k
+    refine Prod.ext hu (funext fun j => ?_)
+    subst hu
+    dsimp only [voleSample] at hq
+    exact add_left_cancel (congrFun hq j)
+  · simp [Fintype.card_prod, pow_succ]
+  · have hc := maskedMulCheckReply_correct left right output w (voleSample uv.1 uv.2 delta)
+      (valid_voleSample _ _ _) r h
+    dsimp only [voleSample, VOLECorrelation.receiverView] at hc ⊢
+    rw [← eq_sub_of_add_eq' hc.symm]
 
 /-- Perfect simulation of the full honest receiver view in the cached ideal VOLE world.
 Every selected multiplication constraint must hold. Public parameters are the wire count, gate
