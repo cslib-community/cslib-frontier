@@ -62,6 +62,8 @@ no cited theorem is claimed. In particular:
 * `Cslib.Crypto.Protocols.MPC.seqOTSteps`: `k` sequential transfer rounds from a given state.
 * `Cslib.Crypto.Protocols.MPC.seqBatchOT`, `Cslib.Crypto.Protocols.MPC.seqBatchOTSim`: the batched
   transfer protocol in the single-transfer hybrid model and its simulators.
+* `Cslib.Crypto.Protocols.MPC.composeSeqBatchOTRoundEnv`: the environment of one transfer of one
+  call, for an outer protocol whose batched transfers are run by `seqBatchOT`.
 
 ## Main results
 
@@ -332,19 +334,44 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le_sum_roundGame (k : ℕ) (M : T
   rwa [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, zero_add,
     oracleRounds_seqBatchOTSchedule] at h
 
+/-- **The environment of transfer `j` of call `i`**, for an outer protocol `P` that calls the
+batched transfer `batchOTSpec k M`, with every call run by `seqBatchOT k M` over a protocol `Sub`
+for the single transfer. It samples the coins of `P`, runs `P` up to its call `i` with the earlier
+calls run by `seqBatchOT k M` over `Sub` (`composeRoundEnv` of `P`), then runs the transfers before
+`j` of call `i` with `Sub` and stops at transfer `j` (`composeRoundEnv` of `seqBatchOT k M` on the
+challenged call). The guessing stage simulates the later transfers with `S₂` and the later calls
+with `seqBatchOTSim k M` and `S₂`, and runs `D`. -/
+@[expose] noncomputable def composeSeqBatchOTRoundEnv {m : ℕ} (k : ℕ) (M : Type)
+    {sc₁ : Schedule m (batchOTSpec k M)} {In Coins₁ Out : Fin m → Type}
+    (P : Protocol m (batchOTSpec k M) sc₁ In Coins₁ Out)
+    (W₂ : MultiOracleWorld spec₂) (Sub : Protocol 2 spec₂ sc₂ (OTIn M) Coins₂ (OTOut M))
+    (S₂ : (J : Finset (Fin 2)) → CoalitionSimulator sc₂ (OTIn M) Coins₂ (OTOut M) J)
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (D : ((i : I) → PartyView In
+        (Schedule.ComposedCoins
+          (fun _ => Schedule.ComposedCoins (fun _ => Coins₂) (fun _ => Unit)
+            (seqBatchOTSchedule k M)) Coins₁ sc₁)
+        (Schedule.compose
+          (fun _ => Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) sc₁) i) ×
+      ((i : Fin m) → Out i) → ProbComp Bool) (i j : ℕ) :
+    PMF (Bool ⊕ RoundChallenge (spec₁ := otSpec M) (fun _ => sc₂) (fun _ => Coins₂)) :=
+  (composeRoundEnv P (batchOTWorld k M) W₂ (fun _ => (seqBatchOT k M).compose fun _ => Sub)
+    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D i).bind
+      (Sum.elim (fun b => PMF.pure (Sum.inl b)) fun c =>
+        composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂)
+          c.coalition c.query c.guess j)
+
 /-- **An outer protocol over the batched transfer run by sequential single transfers, with one
 environment per transfer.** Let `P` be any protocol that calls the batched transfer
 `batchOTSpec k M`, such as Yao's protocol, with every call run by `seqBatchOT k M` over a protocol
 `Sub` for the single transfer in a world `W₂`. The semi-honest advantage of `D` against the
 composed protocol, with the simulator composed from `S₁`, `seqBatchOTSim k M` and simulators `S₂`
 of `Sub`, is at most the advantage of `composeDistinguisher` against `P` with the ideal batched
-transfer, plus the sum over the calls `i` of `P` and the transfers `j < k` of the advantage of one
-environment between the ideal game of that transfer, for `otFunctionality M` with `S₂`, and its
-real game with `Sub`. This environment samples the coins of `P`, runs `P` up to call `i` with the
-earlier calls real, and runs the transfers before `j` of call `i` with `Sub`
-(`composeRoundEnv` of `P`, then `composeRoundEnv` of `seqBatchOT k M` on the challenged call); its
-guessing stage simulates the later transfers and calls. Every summand is the absolute difference
-of two acceptance probabilities of one environment.
+transfer, plus the sum over the calls `i` of `P` and the transfers `j < k` of the advantage of the
+environment `composeSeqBatchOTRoundEnv` of transfer `j` of call `i` between the ideal game of that
+transfer, for `otFunctionality M` with `S₂`, and its real game with `Sub`. Every summand is the
+absolute difference of two acceptance probabilities of one environment, which samples the coins of
+`P` and runs the earlier calls and transfers itself.
 
 Nothing is assumed about `P`, `Sub`, the simulators or `D`, and no efficiency of the environments
 is claimed. -/
@@ -371,21 +398,10 @@ theorem semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame {m : ℕ
             (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D) +
         ∑ i ∈ Finset.range sc₁.oracleRounds, ∑ j ∈ Finset.range k,
           Game.advantage
-            ((composeRoundEnv P (batchOTWorld k M) W₂
-                (fun _ => (seqBatchOT k M).compose fun _ => Sub)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J)
-                I x D i).bind (Sum.elim PMF.pure fun c =>
-              (composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂)
-                c.coalition c.query c.guess j).bind
-                  (roundGame fun op J q =>
-                    ProbComp.eval (idealJoint (otWorld M op) J (S₂ J) q))))
-            ((composeRoundEnv P (batchOTWorld k M) W₂
-                (fun _ => (seqBatchOT k M).compose fun _ => Sub)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J)
-                I x D i).bind (Sum.elim PMF.pure fun c =>
-              (composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂)
-                c.coalition c.query c.guess j).bind
-                  (roundGame fun _ J q => Sub.realJoint W₂ J q))) := by
+            ((composeSeqBatchOTRoundEnv k M P W₂ Sub S₂ I x D i j).bind
+              (roundGame fun op J q => ProbComp.eval (idealJoint (otWorld M op) J (S₂ J) q)))
+            ((composeSeqBatchOTRoundEnv k M P W₂ Sub S₂ I x D i j).bind
+              (roundGame fun _ J q => Sub.realJoint W₂ J q)) := by
   refine (semiHonestAdvantage_compose_le_sum_roundGame P (batchOTWorld k M) W₂
     (fun _ => (seqBatchOT k M).compose fun _ => Sub)
     (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D f
@@ -403,6 +419,7 @@ theorem semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame {m : ℕ
         (seqBatchOTSchedule k M))) :=
     perfectSemiHonestPrivate_seqBatchOT k M c.coalition c.query
   simp only [h₀, Game.advantage_self, zero_add] at h
+  simp only [composeSeqBatchOTRoundEnv, bind_elim_bind_roundGame]
   exact h
 
 /-- When every test has semi-honest advantage at most `ε` against `Sub` for the coalition `I`, the

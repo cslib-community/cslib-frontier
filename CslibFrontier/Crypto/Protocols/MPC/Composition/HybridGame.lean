@@ -66,6 +66,8 @@ stage. The asymptotic composition theorem is not proved here (#6045).
   `P.compose Sub` is at most the advantage of `composeDistinguisher` against `P` plus the sum over
   the oracle rounds of the advantage of one environment between the ideal and the real game of the
   challenged round.
+* `Cslib.Crypto.Protocols.MPC.Composition.bind_elim_bind_roundGame`: an outer stage followed by an
+  environment is one environment.
 * `Cslib.Crypto.Protocols.MPC.advantage_bind_compose_le_add_sum_roundGame`: the same bound when the
   protocols, inputs and distinguisher depend on the outcome of a common outer stage, such as a
   trusted setup or the environment of an enclosing composition, with every absolute value outside
@@ -127,6 +129,23 @@ games of `semiHonestAdvantage` for that subprotocol, on the input tuple `c.query
     Bool ⊕ RoundChallenge sc₂ Coins₂ → Game :=
   Sum.elim PMF.pure fun c =>
     (κ c.op c.coalition c.query).bind fun r => ProbComp.eval (c.guess r)
+
+/-- **Two stages as one environment.** An outer stage `e` that either decides a bit or produces an
+index `a`, followed by an environment `g a`, is one environment: its round game is the outer stage
+followed by the round game of `g a`. -/
+theorem bind_elim_bind_roundGame {β : Type}
+    (κ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      ((s : Fin (spec₁.arity op)) → spec₁.Query op s) →
+      PMF (((s : J) → PartyView (spec₁.Query op) (Coins₂ op) (sc₂ op) s) ×
+        ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
+    (e : PMF (Bool ⊕ β)) (g : β → PMF (Bool ⊕ RoundChallenge sc₂ Coins₂)) :
+    (e.bind (Sum.elim (fun b => PMF.pure (Sum.inl b)) g)).bind (roundGame κ) =
+      e.bind (Sum.elim PMF.pure fun a => (g a).bind (roundGame κ)) := by
+  rw [PMF.bind_bind]
+  refine congrArg _ (funext fun a => ?_)
+  cases a with
+  | inl b => simp only [Sum.elim_inl, PMF.pure_bind, roundGame]
+  | inr a => rfl
 
 /-- **The environment of the `j`-th hybrid hop of a kernel program.** It runs `steps` from the
 states `st`, drawing the first `j` oracle rounds from the kernel `ν`, and stops at the next oracle

@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Protocols.MPC.BatchOT.Sequential
 import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
+import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
 import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
 
 /-!
@@ -36,6 +37,10 @@ A client of `CslibFrontier.Crypto.Protocols.MPC.Composition.HybridGame` under mo
   `Yao.composedProtocol` with its batched transfer run by `seqBatchOT` over any single transfer of
   words: the advantage against the hybrid protocol `Yao.protocol` plus one environment per
   transfer.
+* `semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame` is applied to Yao's
+  protocol over `seqBatchOT` over `maskedOT` with the key-derivation mask `F.kdfMask` and the pads
+  `F.kdfPads`, over the fair-coin DDH transfer `ddhOTProbProtocol`, in the plain model: the
+  composed protocol and its composed simulator are an instance of the theorem.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -226,25 +231,45 @@ example {Fn : Type} (G : Garbling.Scheme Fn) (n : ℕ) (c : Yao.Params G)
         ∑ i ∈ Finset.range (Yao.schedule c).oracleRounds,
           ∑ j ∈ Finset.range c.evaluatorLen,
             Game.advantage
-              ((composeRoundEnv (Yao.protocol G n c) (batchOTWorld c.evaluatorLen (List Bool)) W₂
-                  (fun _ => (seqBatchOT c.evaluatorLen (List Bool)).compose fun _ => Sub)
-                  (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-                    (seqBatchOTSim c.evaluatorLen (List Bool)) (fun _ => S₂) J)
-                  I x D i).bind (Sum.elim PMF.pure fun ch =>
-                (composeRoundEnv (seqBatchOT c.evaluatorLen (List Bool)) (otWorld (List Bool)) W₂
-                  (fun _ => Sub) (fun _ => S₂) ch.coalition ch.query ch.guess j).bind
-                    (roundGame fun op J q =>
-                      ProbComp.eval (idealJoint (otWorld (List Bool) op) J (S₂ J) q))))
-              ((composeRoundEnv (Yao.protocol G n c) (batchOTWorld c.evaluatorLen (List Bool)) W₂
-                  (fun _ => (seqBatchOT c.evaluatorLen (List Bool)).compose fun _ => Sub)
-                  (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-                    (seqBatchOTSim c.evaluatorLen (List Bool)) (fun _ => S₂) J)
-                  I x D i).bind (Sum.elim PMF.pure fun ch =>
-                (composeRoundEnv (seqBatchOT c.evaluatorLen (List Bool)) (otWorld (List Bool)) W₂
-                  (fun _ => Sub) (fun _ => S₂) ch.coalition ch.query ch.guess j).bind
-                    (roundGame fun _ J q => Sub.realJoint W₂ J q))) :=
+              ((composeSeqBatchOTRoundEnv c.evaluatorLen (List Bool) (Yao.protocol G n c) W₂ Sub
+                S₂ I x D i j).bind (roundGame fun op J q =>
+                  ProbComp.eval (idealJoint (otWorld (List Bool) op) J (S₂ J) q)))
+              ((composeSeqBatchOTRoundEnv c.evaluatorLen (List Bool) (Yao.protocol G n c) W₂ Sub
+                S₂ I x D i j).bind (roundGame fun _ J q => Sub.realJoint W₂ J q)) :=
   semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame c.evaluatorLen (List Bool)
     (Yao.protocol G n c) W₂ Sub S₂ (Yao.functionality G c) S₁ I x D
+
+/-- **Yao's protocol over sequential masked transfers over the fair-coin DDH transfer.** At a fixed
+security parameter `n` and group description `d`, Yao's protocol with its batch run by `seqBatchOT`
+over `maskedOT` with the mask `F.kdfMask H d` and the pads `F.kdfPads d`, and the pad transfer run
+by `F.ddhOTProbProtocol n d`, is a plain-model protocol to which
+`semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame` applies, for any
+simulators: the right-hand side is the advantage against the hybrid protocol `Yao.protocol` plus,
+for every transfer, the two advantages of one environment that the theorem states. -/
+example {Fn : Type} (Gs : Garbling.Scheme Fn) (F : PrimeOrderGroupFamily)
+    (H : F.Desc × List Bool → List Bool) (n : ℕ) (d : F.Desc) (c : Yao.Params Gs)
+    (S₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (Yao.schedule c) (Yao.Input c) Yao.Coins (fun _ => List Bool) I)
+    (Sm : (J : Finset (Fin 2)) →
+      CoalitionSimulator (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+        (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (S₂ : (J : Finset (Fin 2)) → CoalitionSimulator (ddhOTSchedule (F.Carrier d))
+      (OTIn (F.Carrier d)) (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
+    (I : Finset (Fin 2)) (x : (i : Fin 2) → Yao.Input c i) (D : _) :=
+  (semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame c.evaluatorLen
+    (Yao.protocol Gs n c) (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d) noOracleWorld
+    (F.ddhOTProbProtocol n d) Sm S₂ (Yao.functionality Gs c) S₁ I x D :
+    semiHonestAdvantage
+        (Yao.composedProtocol Gs n c
+          ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
+            (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)).compose fun _ =>
+              F.ddhOTProbProtocol n d))
+        noOracleWorld (Yao.functionality Gs c) I
+        (composeSim (Yao.protocol Gs n c) S₁
+          (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
+            (seqBatchOTSim c.evaluatorLen (List Bool))
+            (fun _ J => composeSim (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)) Sm
+              (fun _ => S₂) J) J) I) x D ≤ _)
 
 /-- Yao's protocol calls the batched transfer once. -/
 example {Fn : Type} (G : Garbling.Scheme Fn) (c : Yao.Params G) :
