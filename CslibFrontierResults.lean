@@ -12,6 +12,7 @@ import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.ExtensiveGames
+import CslibFrontierResults.Entries.ExtensiveSequenceLP
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
@@ -40,9 +41,11 @@ import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PlantedClique
 import CslibFrontierResults.Entries.PolynomialHashing
+import CslibFrontierResults.Entries.PredictionMarket
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.RelabelToFront
+import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.SergeevMonotoneShift
