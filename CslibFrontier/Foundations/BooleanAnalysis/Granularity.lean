@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Foundations.BooleanAnalysis.CharacterProjection
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeGranularity
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.BigOperators.Pi
 
 /-!
 # Fourier denominators under Boolean composition
@@ -86,21 +85,7 @@ theorem exists_fourierCoeff_chi_append_eq_intCast_div_two_pow
             chi ℝ (symmDiff (projectSet args T) S.eraseNone) (v x) :=
       funext fun x => chi_append_eq_sum φ args S hnone (v x)
     refine ⟨∑ T, c T * d T, ?_⟩
-    rw [heq]
-    have hcoeff :
-        fourierCoeff
-            (fun x => ∑ T, fourierCoeff (fun y => signVal (φ y)) T *
-              chi ℝ (symmDiff (projectSet args T) S.eraseNone) (v x)) U =
-          ∑ T, fourierCoeff (fun y => signVal (φ y)) T *
-            fourierCoeff (fun x => chi ℝ (symmDiff (projectSet args T) S.eraseNone) (v x)) U := by
-      rw [show (fun x => ∑ T, fourierCoeff (fun y => signVal (φ y)) T *
-          chi ℝ (symmDiff (projectSet args T) S.eraseNone) (v x)) =
-          ∑ T, fourierCoeff (fun y => signVal (φ y)) T •
-            (fun x => chi ℝ (symmDiff (projectSet args T) S.eraseNone) (v x)) from
-        (Finset.sum_fn _ _).symm]
-      rw [← fourierCoeffₗ_apply, map_sum]
-      simp only [map_smul, fourierCoeffₗ_apply, smul_eq_mul]
-    rw [hcoeff, Int.cast_sum, sum_div]
+    rw [heq, fourierCoeff_sum_mul, Int.cast_sum, sum_div]
     refine sum_congr rfl fun T _ => ?_
     rw [hc T, hd T, Int.cast_mul, pow_add, div_mul_div_comm, mul_comm (2 ^ b : ℝ)]
   · simp only [chi_option_elim, hnone, ite_false, one_mul]

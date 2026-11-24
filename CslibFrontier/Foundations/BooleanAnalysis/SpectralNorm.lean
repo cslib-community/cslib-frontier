@@ -75,13 +75,7 @@ theorem sum_abs_fourierCoeff_sum_mul_le [Fintype α]
     (c : α → ℝ) (f : α → (ι → Bool) → ℝ) :
     ∑ S, |fourierCoeff (fun x => ∑ i, c i * f i x) S| ≤
       ∑ i, |c i| * ∑ S, |fourierCoeff (f i) S| := by
-  have hcoeff (S : Finset ι) :
-      fourierCoeff (fun x => ∑ i, c i * f i x) S =
-        ∑ i, c i * fourierCoeff (f i) S := by
-    simp only [fourierCoeff, sum_mul, mul_assoc]
-    rw [expect_sum_comm]
-    simp only [← mul_expect]
-  simp only [hcoeff]
+  simp only [fourierCoeff_sum_mul]
   calc
     ∑ S, |∑ i, c i * fourierCoeff (f i) S| ≤
         ∑ S, ∑ i, |c i| * |fourierCoeff (f i) S| := by
