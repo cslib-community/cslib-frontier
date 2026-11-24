@@ -34,7 +34,7 @@ procedure (§3.2) preserves and that the correctness argument of §3.3 uses:
   it. This is the property "whenever a spoke `s` is declared, going forward, it will always be the
   case that `F≤w(s)` connects its endpoints" of §3.3 (p. 17), used in Claim 3.6 and Lemma 3.7.
   It survives every later forest update `F ← MSF(G[F ∪ T])`, by Fact 2.5
-  (`Cslib.Query.Certificate.supported_msf_iff`).
+  (`Cslib.Multigraph.supported_msf_iff`).
 
 ## Main definitions
 
@@ -46,8 +46,6 @@ procedure (§3.2) preserves and that the correctness argument of §3.3 uses:
 
 ## Main results
 
-* `Cslib.Query.Certificate.supported_msf_iff`: an edge is supported by `msf S` iff it is supported
-  by `S` (Fact 2.5).
 * `Cslib.Query.Certificate.State.invariant_init`: the initial state satisfies the invariant.
 
 ## References
@@ -161,17 +159,5 @@ theorem card_forest_le (h : st.Invariant w adm) : #st.forest ≤ #st.vertices - 
 end Invariant
 
 end State
-
-variable [LinearOrder W]
-
-omit [DecidableEq V] in
-/-- An edge is supported by `msf S` exactly when it is supported by `S` (Fact 2.5, p. 12). -/
-theorem supported_msf_iff {ends : E → Sym2 V} (w : E → W) {S : Finset E} {e : E} :
-    Supported ends w ↑(msf ends w S) e ↔ Supported ends w ↑S e := by
-  obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
-  rw [supported_iff w hab.symm, supported_iff w hab.symm]
-  refine ⟨fun h => h.mono ?_, joins_msf_of_joins w (X := ↑S) subset_rfl⟩
-  rintro f ⟨hf, hfe⟩
-  exact ⟨msf_subset w hf, hfe⟩
 
 end Cslib.Query.Certificate
