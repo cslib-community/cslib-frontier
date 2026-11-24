@@ -1,5 +1,6 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.AlternatingTimeSpace
+import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.DFSWordRAM
 import CslibFrontierResults.Entries.DeterminantalUniversality
