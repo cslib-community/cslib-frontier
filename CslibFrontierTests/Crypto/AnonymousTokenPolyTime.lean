@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Karn Seth. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth
+Authors: Samuel Schlesinger, Karn Seth
 -/
 
 import CslibFrontier.Crypto.Protocols.AnonymousToken.PolyTime
