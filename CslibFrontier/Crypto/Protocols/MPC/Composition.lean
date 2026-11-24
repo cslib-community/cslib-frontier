@@ -96,6 +96,8 @@ Applications*:
 
 ## Main results
 
+* `Cslib.Crypto.Protocols.MPC.Protocol.realJoint_compose`: real joint distribution of a composed
+  protocol over perfectly private subprotocols, with no assumption on the outer protocol.
 * `Cslib.Crypto.Protocols.MPC.PerfectSemiHonestPrivate.compose`: Theorem 7.5.7 (print pp. 702–703;
   cf. Theorem 7.3.3, print pp. 637–638), multi-party composition theorem for perfect semi-honest
   privacy.
@@ -738,21 +740,20 @@ Theorem 7.3.3, pp. 637–638). -/
 
 /-- Composed coalition simulator for `P.compose Sub` (Goldreich Section 7.5.2.1, Theorem 7.5.7
 Proof Sketch, pp. 702–703; cf. Section 7.3.1, Theorem 7.3.3 Proof Sketch, pp. 637–638): runs the
-outer simulator `S₁ I xI yI` to obtain simulated outer views `v₁` and expands each oracle call in
-`P.steps` using the inner simulator `S₂ op (subCoalition parties I)`. -/
+outer simulator `S₁ xI yI` for coalition `I` to obtain simulated outer views `v₁` and expands each
+oracle call in `P.steps` using the inner simulator `S₂ op (subCoalition parties I)`. -/
 @[expose] noncomputable def composeSim {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
     {sc₁ : Schedule m spec₁} {sc₂ : (op : spec₁.Op) → Schedule (spec₁.arity op) spec₂}
     {In Coins₁ Out : Fin m → Type}
     {Coins₂ : (op : spec₁.Op) → Fin (spec₁.arity op) → Type}
-    (P : Protocol m spec₁ sc₁ In Coins₁ Out)
-    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
+    (P : Protocol m spec₁ sc₁ In Coins₁ Out) {I : Finset (Fin m)}
+    (S₁ : CoalitionSimulator sc₁ In Coins₁ Out I)
     (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
-      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
-    (I : Finset (Fin m)) :
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J) :
     CoalitionSimulator (Schedule.compose sc₂ sc₁) In
       (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) Out I :=
   fun xI yI => do
-    let v₁ ← S₁ I xI yI
+    let v₁ ← S₁ xI yI
     let sub ← expandSimSteps S₂ I P.steps
       (fun i => (xI i, (v₁ i).coins)) (fun i => (v₁ i).received)
     return fun i => ⟨xI i, ((v₁ i).coins, (sub i).1), (sub i).2⟩
@@ -878,7 +879,7 @@ theorem PerfectSemiHonestPrivate.compose {m : ℕ} {spec₁ spec₂ : MultiOracl
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J}
     (hP : PerfectSemiHonestPrivate P W₁ f S₁)
     (hSub : ∀ op, PerfectSemiHonestPrivate (Sub op) W₂ (W₁ op) (S₂ op)) :
-    PerfectSemiHonestPrivate (P.compose Sub) W₂ f (composeSim P S₁ S₂) := by
+    PerfectSemiHonestPrivate (P.compose Sub) W₂ f (fun I => composeSim P (S₁ I) S₂) := by
   intro I x
   rw [Protocol.realJoint_compose hSub I x, ← hP I x]
   simp [idealJoint, composeSim, PMF.bind_bind, PMF.bind_map, Function.comp_def]
@@ -1294,11 +1295,11 @@ with `multiPartyMulProtocol m` (`m * (m - 1) / 2` calls to `sharedMulSpec 2`) an
 
 /-- Composed coalition simulator for `gmwOT14Protocol m n k C`. -/
 @[expose] noncomputable def gmwOT14Sim (m n k : ℕ) [NeZero m]
-    (C : Cslib.Circuits.Circuit Boolean.signature (m * n) (m * k)) :=
+    (C : Cslib.Circuits.Circuit Boolean.signature (m * n) (m * k)) (I : Finset (Fin m)) :=
   composeSim
     ((gmwCircuitProtocol m n k C).compose (fun _ => multiPartyMulProtocol m))
     (composeSim (gmwCircuitProtocol m n k C)
-      (gmwCircuitSim m n k C)
+      (gmwCircuitSim m n k C I)
       (fun _ => multiPartyMulSim m))
     (fun _ => twoPartyMulSim)
 
