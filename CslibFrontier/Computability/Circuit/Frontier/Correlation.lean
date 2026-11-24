@@ -114,7 +114,7 @@ uniformity.
   `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt_crossingCover`,
   `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_2913`: the
   crossing-cover Gaussian-wave correlation threshold `380649 / 130649 ≈ 2.913524`
-  (`> 2913 / 1000`), original to this library (via `layoutBound_crossingCover`).
+  (`> 2913 / 1000`), via `layoutBound_crossingCover`.
 
 ## References
 

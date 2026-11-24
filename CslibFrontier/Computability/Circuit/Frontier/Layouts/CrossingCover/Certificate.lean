@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
@@ -79,9 +80,8 @@ no custom axioms, and no `maxHeartbeats` overrides).
 * Shifted Gauss–Legendre polynomial quadrature exactness, positivity of weights, and Hermite
   interpolation error theorem via Rolle's theorem.
 * Anisotropic box truncation tail bounds via exact 2- and 3-marginal reduction.
-* Certified upper bounds on `alternatingWaveSum J` for odd `J ≤ 13`, including
-  `alternatingWaveSum 5 < 5 / 38`, `alternatingWaveSum 7 < 1308 / 10000`, and
-  `alternatingWaveSum 13 < 2613 / 20000`.
+* `Cslib.Circuits.Frontier.CrossingCover.alternatingWaveSum_13_lt`: the certified upper bound
+  `alternatingWaveSum 13 < 130649 / 1000000`.
 -/
 
 @[expose] public section
@@ -11691,78 +11691,8 @@ private theorem term_bound_eq (j : ℕ) (hj : j ∈ Finset.Icc 1 13) :
   · have hp : Odd (13 : ℕ) := by decide
     simp only [hp, ↓reduceIte]; norm_num [certQHi, certQLo, certS]
 
-/-- Certified upper bound `alternatingWaveSum 1 < 1623 / 10000`. -/
-theorem alternatingWaveSum_1_lt : alternatingWaveSum 1 < (1623 / 10000 : ℝ) := by
-  have h := (wave_sum_le_rat 1 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 1 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 1 = {1} := by decide
-  rw [hset]; norm_num
-
-/-- Certified upper bound `alternatingWaveSum 3 < 17 / 125` (`0.136`, improving `0.1398`). -/
-theorem alternatingWaveSum_3_lt : alternatingWaveSum 3 < (17 / 125 : ℝ) := by
-  have h := (wave_sum_le_rat 3 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 3 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 3 = {1, 2, 3} := by decide
-  rw [hset]; norm_num
-
-/-- Certified upper bound `alternatingWaveSum 5 < 5 / 38` (yielding the `4.8 n` bound). -/
-theorem alternatingWaveSum_5_lt : alternatingWaveSum 5 < (5 / 38 : ℝ) := by
-  have h := (wave_sum_le_rat 5 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 5 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 5 = {1, 2, 3, 4, 5} := by decide
-  rw [hset]; norm_num
-
-/-- Certified upper bound `alternatingWaveSum 7 < 1308 / 10000` (yielding `4.8226 n`). -/
-theorem alternatingWaveSum_7_lt : alternatingWaveSum 7 < (1308 / 10000 : ℝ) := by
-  have h := (wave_sum_le_rat 7 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 7 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 7 = {1, 2, 3, 4, 5, 6, 7} := by decide
-  rw [hset]; norm_num
-
-/-- Certified upper bound `alternatingWaveSum 9 < 13067 / 100000`. -/
-theorem alternatingWaveSum_9_lt : alternatingWaveSum 9 < (13067 / 100000 : ℝ) := by
-  have h := (wave_sum_le_rat 9 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 9 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 9 = {1, 2, 3, 4, 5, 6, 7, 8, 9} := by decide
-  rw [hset]; norm_num
-
-/-- Certified upper bound `alternatingWaveSum 11 < 13066 / 100000`. -/
-theorem alternatingWaveSum_11_lt : alternatingWaveSum 11 < (13066 / 100000 : ℝ) := by
-  have h := (wave_sum_le_rat 11 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 11 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 11 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} := by decide
-  rw [hset]; norm_num
-
-/-- Certified upper bound `alternatingWaveSum 13 < 2613 / 20000` (`0.13065`). -/
-theorem alternatingWaveSum_13_lt : alternatingWaveSum 13 < (2613 / 20000 : ℝ) := by
-  have h := (wave_sum_le_rat 13 (by decide)).trans
-    (Finset.sum_le_sum fun j hj => term_bound_eq j
-      (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,
-        (Finset.mem_Icc.mp hj).2.trans (by decide : 13 ≤ 13)⟩))
-  refine h.trans_lt ?_
-  have hset : Finset.Icc 1 13 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13} := by decide
-  rw [hset]; norm_num
-
-/-- Tight certified upper bound `alternatingWaveSum 13 < 130649 / 1000000` (`0.130649`). -/
-theorem alternatingWaveSum_13_lt_tight : alternatingWaveSum 13 < (130649 / 1000000 : ℝ) := by
+/-- Certified upper bound `alternatingWaveSum 13 < 130649 / 1000000` (`0.130649`). -/
+theorem alternatingWaveSum_13_lt : alternatingWaveSum 13 < (130649 / 1000000 : ℝ) := by
   have h := (wave_sum_le_rat 13 (by decide)).trans
     (Finset.sum_le_sum fun j hj => term_bound_eq j
       (Finset.mem_Icc.mpr ⟨(Finset.mem_Icc.mp hj).1,

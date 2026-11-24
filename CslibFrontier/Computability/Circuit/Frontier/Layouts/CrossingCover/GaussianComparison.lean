@@ -297,7 +297,7 @@ private theorem ae_piGauss_dotProduct_ne {ι κ : Type*} [Finite ι] [Fintype κ
   simpa only [ne_eq, not_not] using piGauss_dotProduct_eq_zero (a i) (ha i) t
 
 /-- Under `piGauss κ`, negation preserves the measure. -/
-private theorem measurePreserving_neg_piGauss {κ : Type*} [Fintype κ] :
+theorem measurePreserving_neg_piGauss {κ : Type*} [Fintype κ] :
     MeasurePreserving (fun x : κ → ℝ => -x) (piGauss κ) (piGauss κ) := by
   refine ⟨measurable_neg, ?_⟩
   symm

@@ -327,8 +327,8 @@ theorem averageCaseBound_183_div_40 : AverageCaseBound.{u, v} (183 / 40) :=
 Under the hypotheses of `eventually_gaussian_sub_mul_lt_innerSize`, for every `ε > 0` and all
 large `n`, every circuit of fan-in at most two deciding `S_n`, over any basis and interpretation
 on `U`, has more than `(630649 / 130649 - ε) n` multiary gates (`arity = 2`; constant and unary
-gates are free); `630649 / 130649 ≈ 4.827048`. Original to this library (instantiating the
-frontier framework with `layoutBound_crossingCover`, `A = 130649 / 500000`). -/
+gates are free); `630649 / 130649 ≈ 4.827048`. This instantiates the frontier framework with
+`layoutBound_crossingCover` (`A = 130649 / 500000`). -/
 theorem eventually_crossingCover_sub_mul_lt_multiarySize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
@@ -363,8 +363,7 @@ theorem eventually_4827_div_1000_sub_mul_lt_innerSize
   exact mul_le_mul_of_nonneg_right (by norm_num) (Nat.cast_nonneg n)
 
 /-- **Circuits of fan-in two deciding dense rectangle-free sets need `(630649 / 130649 - ε) n`
-multiary gates**, by crossing-cover Gaussian-wave layouts (`layoutBound_crossingCover`). Original
-to this library. -/
+multiary gates**, by crossing-cover Gaussian-wave layouts (`layoutBound_crossingCover`). -/
 theorem multiaryLowerBound_crossingCover : MultiaryLowerBound.{u, v} (630649 / 130649) := by
   have h := multiaryLowerBound_of_layoutBound.{u, v} (by norm_num) layoutBound_crossingCover
   rwa [show (1 : ℝ) + 1 / (130649 / 500000) = 630649 / 130649 by norm_num] at h
@@ -380,8 +379,7 @@ theorem circuitLowerBound_4827_div_1000 : CircuitLowerBound.{u, v} (4827 / 1000)
   circuitLowerBound_crossingCover.mono (by norm_num)
 
 /-- **Circuits of fan-in two below `(630649 / 130649 - ε) n` multiary gates barely beat
-guessing** on sets of small bias on large rectangles, by `layoutBound_crossingCover`. Original to
-this library. -/
+guessing** on sets of small bias on large rectangles, by `layoutBound_crossingCover`. -/
 theorem multiaryAverageCaseBound_crossingCover :
     MultiaryAverageCaseBound.{u, v} (630649 / 130649) := by
   have h := multiaryAverageCaseBound_of_layoutBound.{u, v} (by norm_num) layoutBound_crossingCover

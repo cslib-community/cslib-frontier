@@ -71,8 +71,6 @@ fan-in two `s > (L - ε) n` with `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.
 
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
-* [J. Jeong, S. H. Sæther, J. A. Telle, *Maximum Matching Width: New Characterizations and a Fast
-  Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
 @[expose] public section
@@ -347,16 +345,5 @@ theorem eventually_crossingCover_sub_mul_lt_innerSize_of_nondeterministicDecides
   have h := eventually_lt_innerSize_of_nondeterministicDecides
     (by norm_num) layoutBound_crossingCover hSK hε
   rwa [show (1 : ℝ) + 1 / (130649 / 500000) = 630649 / 130649 by norm_num] at h
-
-/-- **The `(4.8 - ε) n` frontier lower bound for nondeterministic fan-in-two circuits (`J = 5`).**
-Uses `layoutBound_five_div_nineteen` (`A = 5 / 19`). -/
-theorem eventually_24_div_5_sub_mul_lt_innerSize_of_nondeterministicDecides
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
-        (24 / 5 - ε) * n < c.innerSize := by
-  have h := eventually_lt_innerSize_of_nondeterministicDecides
-    (by norm_num) layoutBound_five_div_nineteen hSK hε
-  rwa [show (1 : ℝ) + 1 / (5 / 19) = 24 / 5 by norm_num] at h
 
 end Cslib.Circuits.Frontier

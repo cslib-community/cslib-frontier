@@ -1357,7 +1357,7 @@ theorem exists_width_le_max_crossingCover [Finite V] [DecidableEq V]
       have hcast : ∀ e : E, ((es.idxOf e : ℝ) < i) ↔ (es.idxOf e < i) := fun e => by
         exact_mod_cast Iff.rfl
       constructor
-      · rintro ⟨e₁, he₁, hlt, e₂, he₂, hge⟩
+      · rintro ⟨⟨e₁, he₁, hlt⟩, e₂, he₂, hge⟩
         have h1 : e₁ ∈ es.take i := (hmem_take e₁).mpr ((hcast e₁).mp (by simpa [score] using hlt))
         have h2 : e₂ ∉ es.take i := fun h => by
           have : (es.idxOf e₂ : ℝ) < i := by exact_mod_cast (hmem_take e₂).mp h
@@ -1376,7 +1376,7 @@ theorem exists_width_le_max_crossingCover [Finite V] [DecidableEq V]
         obtain ⟨⟨e₁, he₁, h1t⟩, ⟨e₂, he₂, h2f⟩⟩ := hnot
         have hm1 : e₁ ∈ es.take i := by by_contra hm; exact h1t (by simp [hm])
         have hm2 : e₂ ∉ es.take i := fun hm => h2f (by simp [hm])
-        refine ⟨e₁, he₁, by simpa [score] using (hcast e₁).mpr ((hmem_take e₁).mp hm1),
+        refine ⟨⟨e₁, he₁, by simpa [score] using (hcast e₁).mpr ((hmem_take e₁).mp hm1)⟩,
           e₂, he₂, ?_⟩
         by_contra hlt2
         have hlt2' : (es.idxOf e₂ : ℝ) < i := by simpa [score] using lt_of_not_ge hlt2

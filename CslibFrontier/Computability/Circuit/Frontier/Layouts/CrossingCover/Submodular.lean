@@ -43,8 +43,10 @@ Each single-vertex penalty is complement-symmetric and jointly submodular on the
   element `leastClampedMinimizer G b`, which is monotone in `b`
   (`leastClampedMinimizer_mono`).
 
-These results connect the maximum matching-width / crossing-cover framework
-[JeongSaetherTelle2015] to the Gaussian vertex-ordering cutwidth proof.
+By Kőnig's theorem `crossingCover G b` is the size of a maximum matching among the crossing
+edges, the cut function `mm(S)` of maximum matching width ([JeongSaetherTelle2015], §2, stated
+there for graphs rather than multigraphs). Nothing here depends on that paper: the results are
+proved directly.
 
 ## Main definitions
 
@@ -73,6 +75,11 @@ These results connect the maximum matching-width / crossing-cover framework
   single coordinate.
 * `Cslib.Circuits.Frontier.CrossingCover.leastClampedMinimizer_mono`: monotonicity of the least
   clamped minimizer.
+
+## References
+
+* [J. Jeong, S. H. Sæther, J. A. Telle, *Maximum Matching Width: New Characterizations and a Fast
+  Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
 @[expose] public section
@@ -357,28 +364,6 @@ theorem anchoredCost_update_same_le [Fintype V] [DecidableEq E] (b : V → Bool)
     · subst hee
       rcases he' with rfl | rfl <;> simp [he]
     · rw [update_of_ne hee]; exact h2 e' he'
-  · rw [vertexPenalty_of_not_forall G h2]; exact vertexPenalty_le_one G _ _ _
-
-/-- Project `x` to the clamped cube at `b`. -/
-def clampEdge (b : V → Bool) (x : E → Bool) : E → Bool :=
-  fun e => (b (G.src e) && b (G.tgt e)) || (x e && (b (G.src e) || b (G.tgt e)))
-
-theorem isClamped_clampEdge (b : V → Bool) (x : E → Bool) :
-    IsClamped G b (clampEdge G b x) := by
-  rw [isClamped_iff_eq]
-  intro e heq
-  cases h : b (G.src e) <;> cases h' : b (G.tgt e) <;> simp_all [clampEdge]
-
-theorem anchoredCost_clampEdge_le [Fintype V] (b : V → Bool) (x : E → Bool) :
-    anchoredCost G b (clampEdge G b x) ≤ anchoredCost G b x := by
-  refine Finset.sum_le_sum fun v _ => ?_
-  by_cases h2 : ∀ e : E, e ∈ G.incidenceSet v → x e = b v
-  · rw [vertexPenalty_of_forall G h2, vertexPenalty_of_forall G]
-    intro e he
-    have hx := h2 e he
-    rcases he with rfl | rfl
-    · cases hs : b (G.src e) <;> cases ht : b (G.tgt e) <;> simp_all [clampEdge]
-    · cases hs : b (G.src e) <;> cases ht : b (G.tgt e) <;> simp_all [clampEdge]
   · rw [vertexPenalty_of_not_forall G h2]; exact vertexPenalty_le_one G _ _ _
 
 /-- A `Finset V` is a **crossing vertex cover** for bipartition `b` if it meets every edge whose

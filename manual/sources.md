@@ -1532,18 +1532,18 @@ Characterizations and a Fast Algorithm for Dominating Set." In *10th Internation
 Parameterized and Exact Computation (IPEC 2015)*, LIPIcs 43, 212–223, 2015,
 https://doi.org/10.4230/LIPIcs.IPEC.2015.212 ; arXiv:1507.02384. Extended journal version in
 *Discrete Applied Mathematics* 248, 114–124, 2018, https://doi.org/10.1016/j.dam.2017.09.019 .
-Bibliographic metadata verified via DOI/arXiv summaries on 2026-11-22; the full text was not
-inspected directly in this pass. Cited for the notion of maximum-matching / crossing-vertex-cover
-width across graph bipartitions; the deterministic cutwidth interpolation, finite high-girth cover
-lifting, Gaussian wave comparison, alternating non-backtracking walk bound, Efron–Stein
-concentration, and kernel-checked fixed-point Gauss–Legendre quadrature certification
-(`J = 5`: `< 5/38`, slope `24/5 = 4.8`; `J = 7`: `< 1308/10000`, slope `1577/327 ≈ 4.8226`;
-`J = 13`: `< 2613/20000`, slope `12613/2613 ≈ 4.82702`, and tight `< 130649/1000000`, slope
-`630649/130649 ≈ 4.82705 > 4.827`) under
-[CrossingCover](../CslibFrontier/Computability/Circuit/Frontier/Layouts/CrossingCover.lean)
-are authored cleanly from scratch in Lean 4, attributing the crossing-cover Gaussian-wave proof
-architecture to public contest submissions (PRs #843, #858, and #859 on
-`Layr-Labs/circuitbreaker-llm-verifier`).
+Bibliographic metadata checked against the DOI records on 2026-11-24. The takeover worker for
+#7411 read arXiv:1507.02384v1 directly on 2026-11-24: §1 (p. 2) describes maximum matching width
+as "defined by a branch decomposition over the vertex set of the graph G, using the symmetric
+submodular cut function obtained by taking the size of a maximum matching of the bipartite graph
+crossing the cut (by König's Theorem equivalent to minimum vertex cover)" and attributes the
+parameter to Vatshelle's 2012 thesis (its reference [18]); §2 (p. 4) defines `mm(S)` as the size
+of a maximum matching in `G[S, V(G) \ S]`. The LIPIcs and journal versions were not opened. Cited
+only as background for the cut function `crossingCover` of
+[CrossingCover](../CslibFrontier/Computability/Circuit/Frontier/Layouts/CrossingCover.lean) and
+[Submodular](../CslibFrontier/Computability/Circuit/Frontier/Layouts/CrossingCover/Submodular.lean),
+which is `mm(S)` in its minimum-vertex-cover form, stated for multigraphs. No theorem of the paper
+is formalized, and the layout bound there does not depend on it.
 
 <a id="jnvwy2020lowindividualdegree"></a>
 ## jnvwy2020lowindividualdegree

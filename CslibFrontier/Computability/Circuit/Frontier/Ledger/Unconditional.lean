@@ -59,8 +59,6 @@ fixed `m` cost nothing in the leading term.
 
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
-* [J. Jeong, S. H. Sæther, J. A. Telle, *Maximum Matching Width: New Characterizations and a Fast
-  Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
 public section

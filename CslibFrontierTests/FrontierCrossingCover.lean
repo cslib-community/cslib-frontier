@@ -16,23 +16,14 @@ open Cslib.Circuits Cslib.Circuits.Frontier Cslib.Circuits.Frontier.CrossingCove
 
 namespace CslibFrontierTests.FrontierCrossingCover
 
-/-! ### Certified alternating wave-sum ladder and numerical comparisons -/
+/-! ### Certified alternating wave sum and numerical comparisons -/
 
-example : alternatingWaveSum 1 < 1623 / 10000 := alternatingWaveSum_1_lt
-example : alternatingWaveSum 3 < 17 / 125 := alternatingWaveSum_3_lt
-example : alternatingWaveSum 5 < 5 / 38 := alternatingWaveSum_5_lt
-example : alternatingWaveSum 7 < 1308 / 10000 := alternatingWaveSum_7_lt
-example : alternatingWaveSum 9 < 13067 / 100000 := alternatingWaveSum_9_lt
-example : alternatingWaveSum 11 < 13066 / 100000 := alternatingWaveSum_11_lt
-example : alternatingWaveSum 13 < 2613 / 20000 := alternatingWaveSum_13_lt
-example : alternatingWaveSum 13 < 130649 / 1000000 := alternatingWaveSum_13_lt_tight
+example : alternatingWaveSum 13 < 130649 / 1000000 := alternatingWaveSum_13_lt
 
 example : 0 ≤ alternatingWaveSum 13 :=
   alternatingWaveSum_nonneg_of_odd (by decide)
 
 example : (4827 / 1000 : ℝ) < 630649 / 130649 := by norm_num
-example : (24 / 5 : ℝ) < 12613 / 2613 := by norm_num
-example : (12613 / 2613 : ℝ) < 630649 / 130649 := by norm_num
 example : (2913 / 1000 : ℝ) < 380649 / 130649 := by norm_num
 
 example : ar2AltWaveSum 13 = alternatingWaveSum 13 :=
@@ -82,18 +73,16 @@ example : ∃ lay : Layout Bool, (thetaGraph.width lay : ℝ) ≤ (1 : ℕ) + 6 
 
 /-! ### Top-level layout bounds and downstream frontier lower bounds -/
 
-example : LayoutBound 3 (5 / 19) := layoutBound_five_div_nineteen
-example : LayoutBound 3 (327 / 1250) := layoutBound_327_div_1250
-example : LayoutBound 3 (2613 / 10000) := layoutBound_2613_div_10000
 example : LayoutBound 3 (130649 / 500000) := layoutBound_crossingCover
 
+example : MultiaryLowerBound.{0, 0} (630649 / 130649) := multiaryLowerBound_crossingCover
 example : CircuitLowerBound.{0, 0} (630649 / 130649) := circuitLowerBound_crossingCover
 example : CircuitLowerBound.{0, 0} (4827 / 1000) := circuitLowerBound_4827_div_1000
-example : CircuitLowerBound.{0, 0} (24 / 5) := circuitLowerBound_24_div_5
 
+example : MultiaryAverageCaseBound.{0, 0} (630649 / 130649) :=
+  multiaryAverageCaseBound_crossingCover
 example : AverageCaseBound.{0, 0} (630649 / 130649) := averageCaseBound_crossingCover
 example : AverageCaseBound.{0, 0} (4827 / 1000) := averageCaseBound_4827_div_1000
-example : AverageCaseBound.{0, 0} (24 / 5) := averageCaseBound_24_div_5
 
 example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop,
     ∀ (σ : Signature.{0}) (I : Interpretation σ Bool) (Acc : Set Bool) (C : Circuit σ n 1),

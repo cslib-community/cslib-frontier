@@ -47,21 +47,28 @@ subcubic multigraphs (`LayoutBound 3 A`).
    expected crossing-cover bound into a vertex layout of width at most `(alternatingWaveSum J + ξ) *
    |V|` for all large cubic graphs (`cubicLayoutBound_crossingCover`).
 7. **Certified Gauss–Legendre quadrature** (`Layouts.CrossingCover.Certificate`): kernel-checked
-   fixed-point `Nat` interval arithmetic (no `native_decide`) certifies rational upper bounds on
-   `alternatingWaveSum J` for odd `J ≤ 13`, including:
-   * `J = 5`: `alternatingWaveSum 5 < 5 / 38` (`≈ 0.13158`, giving `1 + 1/(2c) = 24 / 5 = 4.8`);
-   * `J = 7`: `alternatingWaveSum 7 < 1308 / 10000` (`0.1308`, giving `1577 / 327 ≈ 4.8226`);
-   * `J = 13`: `alternatingWaveSum 13 < 2613 / 20000` (`0.13065`, giving `12613 / 2613 ≈ 4.82702`),
-     and tightly `alternatingWaveSum 13 < 130649 / 1000000` (`0.130649`, giving
-     `630649 / 130649 ≈ 4.827048 > 4.827`).
+   fixed-point `Nat` interval arithmetic (no `native_decide`) certifies
+   `alternatingWaveSum 13 < 130649 / 1000000`.
 
-## Provenance
+The resulting layout coefficient `A = 130649 / 500000` gives the slope
+`1 + 1/A = 630649 / 130649 ≈ 4.827048` in the frontier lower bound for fan-in two
+(`Cslib.Circuits.Frontier.eventually_crossingCover_sub_mul_lt_multiarySize`), which exceeds
+`4827 / 1000`. The bound is for the cutoff `J = 13` only: `cubicLayoutBound_crossingCover` holds
+for every odd `J`, but `alternatingWaveSum J` is certified numerically only at `J = 13`.
 
-The Lean 4 formalization and fixed-point quadrature certificate under `Layouts/CrossingCover/` are
-authored cleanly from scratch. The notion of maximum-matching / crossing-vertex-cover width is from
-[Jeong–Sæther–Telle][JeongSaetherTelle2015]. The crossing-cover Gaussian-wave proof architecture is
-based on the public `Layr-Labs/circuitbreaker-llm-verifier` contest submissions (PRs #843, #858,
-and #859 by `@galarnon42` and `@ArthurOstapenko`).
+## Sources
+
+No published theorem is formalized here. The crossing-cover Gaussian-wave proof architecture
+follows the public `Layr-Labs/circuitbreaker-llm-verifier` contest submissions (PRs #843, #858
+and #859 by `@galarnon42` and `@ArthurOstapenko`); the Lean development and the fixed-point
+quadrature certificate are new.
+
+The cut function `crossingCover G b` is the maximum-matching value `mm(S)` of maximum matching
+width in its minimum-vertex-cover form: [JeongSaetherTelle2015], §1 and §2, define `mm(S)` as the
+size of a maximum matching of the bipartite graph crossing the cut `(S, V ∖ S)`, note that by
+Kőnig's theorem this is the minimum vertex cover, and attribute the parameter to Vatshelle's 2012
+thesis. That paper states the definition for a graph; here `G` is a multigraph and the
+vertex-cover form is taken as the definition.
 
 ## Main results
 
@@ -72,12 +79,7 @@ and #859 by `@galarnon42` and `@ArthurOstapenko`).
   `CubicLayoutBound (alternatingWaveSum J)` for every odd `J`.
 * `Cslib.Circuits.Frontier.layoutBound_crossingCover_of_odd`:
   `LayoutBound 3 (2 * alternatingWaveSum J)` for every odd `J`.
-* `Cslib.Circuits.Frontier.layoutBound_five_div_nineteen`:
-  `LayoutBound 3 (5 / 19)` (`J = 5`, slope `24 / 5 = 4.8`).
-* `Cslib.Circuits.Frontier.layoutBound_2613_div_10000`:
-  `LayoutBound 3 (2613 / 10000)` (`J = 13`, slope `12613 / 2613 ≈ 4.82701875`).
-* `Cslib.Circuits.Frontier.layoutBound_crossingCover`:
-  `LayoutBound 3 (130649 / 500000)` (`J = 13` tight, slope `630649 / 130649 ≈ 4.82704804`).
+* `Cslib.Circuits.Frontier.layoutBound_crossingCover`: `LayoutBound 3 (130649 / 500000)`.
 
 ## References
 
@@ -374,28 +376,10 @@ theorem cubicLayoutBound_crossingCover (J : ℕ) (hJ : Odd J) :
   refine ⟨lay, hlay.trans_eq ?_⟩
   simp only [γ, ξ']; ring
 
-/-- Certified cubic layout bound for `J = 5`: `alternatingWaveSum 5 < 5 / 38`
-(implies fan-in-2 lower bound `24 / 5 = 4.8 n`). -/
-theorem cubicLayoutBound_five_div_thirtyEight : CubicLayoutBound (5 / 38) :=
-  cubicLayoutBound_mono alternatingWaveSum_5_lt.le
-    (cubicLayoutBound_crossingCover 5 (by decide))
-
-/-- Certified cubic layout bound for `J = 7`: `alternatingWaveSum 7 < 1308 / 10000`
-(`0.1308`, implies fan-in-2 lower bound `1577 / 327 ≈ 4.8226 n`). -/
-theorem cubicLayoutBound_1308_div_10000 : CubicLayoutBound (1308 / 10000) :=
-  cubicLayoutBound_mono alternatingWaveSum_7_lt.le
-    (cubicLayoutBound_crossingCover 7 (by decide))
-
-/-- Certified cubic layout bound for `J = 13`: `alternatingWaveSum 13 < 2613 / 20000`
-(`0.13065`, implies fan-in-2 lower bound `12613 / 2613 ≈ 4.82701875 n`). -/
-theorem cubicLayoutBound_2613_div_20000 : CubicLayoutBound (2613 / 20000) :=
-  cubicLayoutBound_mono alternatingWaveSum_13_lt.le
-    (cubicLayoutBound_crossingCover 13 (by decide))
-
-/-- Certified tight cubic layout bound for `J = 13`: `alternatingWaveSum 13 < 130649 / 1000000`
-(`0.130649`, implies fan-in-2 lower bound `630649 / 130649 ≈ 4.82704804 n > 4.827 n`). -/
+/-- Certified cubic layout bound at cutoff `J = 13`, from
+`alternatingWaveSum 13 < 130649 / 1000000`. -/
 theorem cubicLayoutBound_130649_div_1000000 : CubicLayoutBound (130649 / 1000000) :=
-  cubicLayoutBound_mono alternatingWaveSum_13_lt_tight.le
+  cubicLayoutBound_mono alternatingWaveSum_13_lt.le
     (cubicLayoutBound_crossingCover 13 (by decide))
 
 end CrossingCover
@@ -410,27 +394,11 @@ theorem layoutBound_crossingCover_of_odd {J : ℕ} (hJ : Odd J) :
   LayoutBound.of_cubic (CrossingCover.alternatingWaveSum_nonneg_of_odd hJ)
     (CrossingCover.cubicLayoutBound_crossingCover J hJ)
 
-/-- **The `5 / 19` subcubic layout bound (`J = 5`, fan-in-2 slope `24 / 5 = 4.8`).** Certified via
-`alternatingWaveSum 5 < 5 / 38`. -/
-theorem layoutBound_five_div_nineteen : LayoutBound 3 (5 / 19) := by
-  have h := LayoutBound.of_cubic (by norm_num) CrossingCover.cubicLayoutBound_five_div_thirtyEight
-  simpa only [show (2 : ℝ) * (5 / 38) = 5 / 19 by norm_num] using h
-
-/-- **The `327 / 1250` subcubic layout bound (`J = 7`, fan-in-2 slope `1577 / 327 ≈ 4.8226`).**
-Certified via `alternatingWaveSum 7 < 1308 / 10000`. -/
-theorem layoutBound_327_div_1250 : LayoutBound 3 (327 / 1250) := by
-  have h := LayoutBound.of_cubic (by norm_num) CrossingCover.cubicLayoutBound_1308_div_10000
-  simpa only [show (2 : ℝ) * (1308 / 10000) = 327 / 1250 by norm_num] using h
-
-/-- **The `2613 / 10000` subcubic layout bound (`J = 13`, fan-in-2 slope
-`12613 / 2613 ≈ 4.82701875`).** Certified via `alternatingWaveSum 13 < 2613 / 20000`. -/
-theorem layoutBound_2613_div_10000 : LayoutBound 3 (2613 / 10000) := by
-  have h := LayoutBound.of_cubic (by norm_num) CrossingCover.cubicLayoutBound_2613_div_20000
-  simpa only [show (2 : ℝ) * (2613 / 20000) = 2613 / 10000 by norm_num] using h
-
-/-- **The tight `130649 / 500000` subcubic layout bound (`J = 13`, fan-in-2 slope
-`630649 / 130649 ≈ 4.82704804 > 4.827`).** Certified via
-`alternatingWaveSum 13 < 130649 / 1000000`. -/
+/-- **The `130649 / 500000` subcubic layout bound.** The layout hypothesis for maximum degree
+three holds with coefficient `130649 / 500000`, from the crossing-cover Gaussian-wave method at
+cutoff `J = 13` and the certified bound `alternatingWaveSum 13 < 130649 / 1000000`. In the
+frontier lower bound for fan-in two this gives the slope `1 + 500000 / 130649 = 630649 / 130649`,
+which exceeds `4827 / 1000`. -/
 theorem layoutBound_crossingCover : LayoutBound 3 (130649 / 500000) := by
   have h := LayoutBound.of_cubic (by norm_num) CrossingCover.cubicLayoutBound_130649_div_1000000
   simpa only [show (2 : ℝ) * (130649 / 1000000) = 130649 / 500000 by norm_num] using h

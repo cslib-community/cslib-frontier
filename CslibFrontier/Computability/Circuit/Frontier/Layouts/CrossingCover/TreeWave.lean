@@ -2282,20 +2282,6 @@ end AR2Process
 
 section HighGirthConvergence
 
-/-- Invariance of `piGauss` under negation (sign-flip). -/
-private theorem measurePreserving_neg_piGauss' {κ : Type*} [Fintype κ] :
-    MeasurePreserving (fun x : κ → ℝ => -x) (piGauss κ) (piGauss κ) := by
-  refine ⟨measurable_neg, (Measure.pi_eq fun s hs => ?_).symm⟩
-  rw [Measure.map_apply measurable_neg (MeasurableSet.univ_pi hs)]
-  have hpre : (fun x : κ → ℝ => -x) ⁻¹' Set.pi Set.univ s =
-      Set.pi Set.univ fun k => (fun t : ℝ => -t) ⁻¹' s k := by
-    ext x; simp [Set.mem_pi]
-  rw [hpre, Measure.pi_pi]
-  refine Finset.prod_congr rfl fun k _ => ?_
-  have hneg : (gaussianReal 0 1).map (fun x : ℝ => -x) = gaussianReal 0 1 := by
-    rw [gaussianReal_map_neg, neg_zero]
-  rw [← Measure.map_apply measurable_neg (hs k), hneg]
-
 /-- Two linear projections of independent standard Gaussian vectors with identical Gram matrix
 have the exact same joint law. -/
 private theorem map_piGauss_eq_of_gram_eq {ι κ₁ κ₂ : Type*}
@@ -3112,7 +3098,7 @@ theorem exists_nbWalk_prob_close (j : ℕ) (hj : 1 ≤ j) (η : ℝ) (hη : 0 < 
   have hdisj : Disjoint Pplus Pminus := Set.disjoint_left.mpr fun g h1 h2 =>
     not_lt.mpr (h1 0).le (h2 0)
   have hsym_eq : (piGauss (V' ⊕ V')).real Pminus = (piGauss (V' ⊕ V')).real Pplus := by
-    have hmp := measurePreserving_neg_piGauss' (κ := V' ⊕ V')
+    have hmp := measurePreserving_neg_piGauss (κ := V' ⊕ V')
     have hpre : (fun g : V' ⊕ V' → ℝ => -g) ⁻¹' Pplus = Pminus := by
       ext g
       simp only [Set.mem_preimage, Pplus, Pminus, Set.mem_ofPred_eq]
