@@ -3877,4 +3877,1828 @@ theorem unextractedTokenExperiment_succProbability_le {d sdLen comLen rowLen : �
 
 end AnonymousTokenBridge
 
+/-! ### Bridge to `AnonymousToken.Conservation` -/
+
+section ConservationBridge
+
+/-- Public issuance statement proven by a client in the unextracted ROM conservation game. -/
+structure ROMIssueStatement (Context Commitment : Type) where
+  /-- Issuer context bound into the issued note commitment. -/
+  ctx : Context
+  /-- Issued credit amount. -/
+  amount : ℕ
+  /-- Commitment hiding `(nullifier, opening)` under `ctx` and `amount`. -/
+  commitment : Commitment
+  deriving DecidableEq
+
+/-- Public spend statement proven by a client in the unextracted ROM conservation game. -/
+structure ROMSpendStatement (Nullifier Context Commitment : Type) where
+  /-- Issuer context bound into both input note and change commitment. -/
+  ctx : Context
+  /-- Spent input nullifier revealed publicly to prevent double-spending. -/
+  nullifier : Nullifier
+  /-- Publicly debited credit amount. -/
+  debit : ℕ
+  /-- Public refund amount granted by the issuer on the change note. -/
+  refund : ℕ
+  /-- Commitment to the fresh change note `(newNullifier, ctx, newCredit, newOpening)`. -/
+  changeCommitment : Commitment
+  deriving DecidableEq
+
+/-- Public issue or spend query sent to the unextracted ROM issuer oracle (without secret note
+openings, old note balances, or the input signature). -/
+inductive ROMConservationQuery (Nullifier Context Commitment : Type) where
+  /-- Request to certify an issuance commitment for `(ctx, amount)`. -/
+  | issue (stmt : ROMIssueStatement Context Commitment)
+  /-- Request to spend `nullifier` for `debit` and certify `changeCommitment` with `refund`. -/
+  | spend (stmt : ROMSpendStatement Nullifier Context Commitment)
+  deriving DecidableEq
+
+/-- Context targeted by a public conservation query. -/
+@[expose] def ROMConservationQuery.ctx {Nullifier Context Commitment : Type} :
+    ROMConservationQuery Nullifier Context Commitment → Context
+  | .issue q => q.ctx
+  | .spend q => q.ctx
+
+/-- Signed output message produced when the issuer accepts a public conservation query. -/
+@[expose] def ROMConservationQuery.signedMessage {Nullifier Context Commitment Target : Type}
+    (tag : Commitment → ℕ → Target) :
+    ROMConservationQuery Nullifier Context Commitment → Target
+  | .issue q => tag q.commitment 0
+  | .spend q => tag q.changeCommitment q.refund
+
+/-- Public VOLEitH statement binding the issuer public key `publicKey` and public `query`. -/
+structure ROMConservationStmt (PK Nullifier Context Commitment : Type) where
+  /-- Issuer public verification key bound into the Fiat–Shamir query. -/
+  publicKey : PK
+  /-- Public issuance or spend statement proven in zero knowledge. -/
+  query : ROMConservationQuery Nullifier Context Commitment
+  deriving DecidableEq
+
+/-- Secret witness extracted from a valid issuance proof. -/
+structure ROMIssueWitness (Nullifier Opening : Type) where
+  /-- Hidden nullifier committed inside the issued note. -/
+  nullifier : Nullifier
+  /-- Commitment randomness opening the issued commitment. -/
+  opening : Opening
+  deriving DecidableEq
+
+/-- Secret witness extracted from a valid spend proof. -/
+structure ROMSpendWitness (Nullifier Opening Sig : Type) where
+  /-- Hidden credit balance on the spent input note. -/
+  oldCredit : ℕ
+  /-- Commitment opening for the spent input note. -/
+  oldOpening : Opening
+  /-- Hidden refund balance on the spent input note. -/
+  oldRefund : ℕ
+  /-- Issuer signature certifying the spent input note target. -/
+  signature : Sig
+  /-- Fresh nullifier hidden in the change commitment. -/
+  newNullifier : Nullifier
+  /-- Remaining credit balance committed in the change note. -/
+  newCredit : ℕ
+  /-- Commitment randomness for the change note. -/
+  newOpening : Opening
+  deriving DecidableEq
+
+/-- Extracted conservation witness matching `ROMConservationQuery`. -/
+inductive ROMConservationWitness (Nullifier Opening Sig : Type) where
+  /-- Witness for an issuance proof. -/
+  | issue (wit : ROMIssueWitness Nullifier Opening)
+  /-- Witness for a spend proof. -/
+  | spend (wit : ROMSpendWitness Nullifier Opening Sig)
+  deriving DecidableEq
+
+/-- Client request in the unextracted ROM conservation game, pairing a public query with its
+straight-line extractable VOLEitH proof. -/
+structure ROMConservationRequest (Nullifier Context Commitment : Type) (d comLen rowLen : ℕ)
+    (Seed IV PreMsg : Type) where
+  /-- Public issue or spend query visible to the issuer. -/
+  query : ROMConservationQuery Nullifier Context Commitment
+  /-- VOLEitH proof for `⟨pk, query⟩`. -/
+  proof : VOLEITHProof d comLen rowLen Seed IV PreMsg
+  deriving DecidableEq
+
+/-- Public VOLEitH relation checked in the ROM credit-conservation game: an issuance proof opens
+the issued commitment, and a spend proof proves a valid input signature, change commitment opening,
+and note balance conservation `oldCredit + oldRefund = newCredit + debit`. -/
+@[expose] def conservationRel {PK SK Nullifier Context Opening Commitment Target Sig : Type}
+    [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (stmt : ROMConservationStmt PK Nullifier Context Commitment) :
+    ROMConservationWitness Nullifier Opening Sig → Bool
+  | wit =>
+    match stmt.query, wit with
+    | .issue q, .issue w => decide (com w.nullifier q.ctx q.amount w.opening = q.commitment)
+    | .spend q, .spend w =>
+      S.verify stmt.publicKey
+          (Credit.target com tag ⟨q.nullifier, q.ctx, w.oldCredit, w.oldRefund⟩ w.oldOpening)
+          w.signature &&
+        decide (com w.newNullifier q.ctx w.newCredit w.newOpening = q.changeCommitment) &&
+        decide (w.oldCredit + w.oldRefund = w.newCredit + q.debit)
+    | _, _ => false
+
+/-- Assemble a full `Conservation.Request` from a public ROM request and an extracted witness,
+preserving all public fields unconditionally. -/
+@[expose] def toExtractedRequest {Nullifier Context Commitment Opening Sig : Type}
+    {d comLen rowLen : ℕ} {Seed IV PreMsg : Type}
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (req : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg)
+    (wit : ROMConservationWitness Nullifier Opening Sig) :
+    Conservation.Request Nullifier Context Opening Commitment Sig :=
+  match req.query with
+  | .issue q =>
+    match wit with
+    | .issue w => .issue ⟨q.ctx, q.amount, q.commitment, w.nullifier, w.opening⟩
+    | .spend _ => .issue ⟨q.ctx, q.amount, q.commitment, default, default⟩
+  | .spend q =>
+    match wit with
+    | .spend w =>
+      .spend ⟨q.ctx, q.nullifier, q.debit, q.refund, q.changeCommitment,
+        w.oldCredit, w.oldOpening, w.oldRefund, w.signature,
+        w.newNullifier, w.newCredit, w.newOpening⟩
+    | .issue _ =>
+      .spend ⟨q.ctx, q.nullifier, q.debit, q.refund, q.changeCommitment,
+        0, default, 0, default, default, 0, default⟩
+
+/-- Project a full `Conservation.Request` onto its public `ROMConservationQuery`. -/
+@[expose] def toPublicQuery {Nullifier Context Opening Commitment Sig : Type} :
+    Conservation.Request Nullifier Context Opening Commitment Sig →
+      ROMConservationQuery Nullifier Context Commitment
+  | .issue r => .issue ⟨r.ctx, r.amount, r.commitment⟩
+  | .spend r => .spend ⟨r.ctx, r.nullifier, r.debit, r.refund, r.changeCommitment⟩
+
+private theorem toPublicQuery_toExtractedRequest {Nullifier Context Commitment Opening Sig : Type}
+    {d comLen rowLen : ℕ} {Seed IV PreMsg : Type}
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (req : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg)
+    (wit : ROMConservationWitness Nullifier Opening Sig) :
+    toPublicQuery (toExtractedRequest req wit) = req.query := by
+  rcases req with ⟨q, proof⟩
+  cases q <;> cases wit <;> rfl
+
+private theorem signedMessage_toExtractedRequest
+    {Nullifier Context Commitment Opening Target Sig : Type}
+    {d comLen rowLen : ℕ} {Seed IV PreMsg : Type}
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (tag : Commitment → ℕ → Target)
+    (req : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg)
+    (wit : ROMConservationWitness Nullifier Opening Sig) :
+    (toExtractedRequest req wit).signedMessage tag = req.query.signedMessage tag := by
+  rcases req with ⟨q, proof⟩
+  cases q <;> cases wit <;> rfl
+
+private theorem acceptLocal_toExtractedRequest_of_rel
+    {PK SK Nullifier Context Opening Commitment Target Sig : Type}
+    {d comLen rowLen : ℕ} {Seed IV PreMsg : Type}
+    [DecidableEq Commitment] [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig) (pk : PK)
+    (req : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg)
+    (wit : ROMConservationWitness Nullifier Opening Sig)
+    (hrel : conservationRel com tag S ⟨pk, req.query⟩ wit = true) :
+    Conservation.acceptLocal com tag S pk (toExtractedRequest req wit) = true := by
+  rcases req with ⟨q, proof⟩
+  cases q <;> cases wit <;>
+    simp only [conservationRel, toExtractedRequest, Conservation.acceptLocal,
+      Conservation.SpendRequest.inputNote] at hrel ⊢
+  · exact hrel
+  · cases hrel
+  · cases hrel
+  · exact hrel
+
+/-- Nullifier spend check on public conservation queries. -/
+@[expose] def romHasSpentNullifier {Nullifier Context Commitment : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    (qs : List (ROMConservationQuery Nullifier Context Commitment))
+    (ctx : Context) (nf : Nullifier) : Bool :=
+  qs.any fun
+    | .issue _ => false
+    | .spend s => decide (s.ctx = ctx ∧ s.nullifier = nf)
+
+/-- Public nullifier-freshness check applied by the ROM issuer after proof verification. -/
+@[expose] def romAcceptQuery {Nullifier Context Commitment : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    (accepted : List (ROMConservationQuery Nullifier Context Commitment)) :
+    ROMConservationQuery Nullifier Context Commitment → Bool
+  | .issue _ => true
+  | .spend s => !romHasSpentNullifier accepted s.ctx s.nullifier
+
+/-- Total issued credit in `ctx` over public queries. -/
+@[expose] def romIssuedAmount {Nullifier Context Commitment : Type} [DecidableEq Context]
+    (qs : List (ROMConservationQuery Nullifier Context Commitment)) (ctx : Context) : ℕ :=
+  (qs.filterMap fun
+    | .issue q => if q.ctx = ctx then some q.amount else none
+    | .spend _ => none).sum
+
+/-- Total granted refunds in `ctx` over public queries. -/
+@[expose] def romGrantedRefund {Nullifier Context Commitment : Type} [DecidableEq Context]
+    (qs : List (ROMConservationQuery Nullifier Context Commitment)) (ctx : Context) : ℕ :=
+  (qs.filterMap fun
+    | .issue _ => none
+    | .spend q => if q.ctx = ctx then some q.refund else none).sum
+
+/-- Total spent debits in `ctx` over public queries. -/
+@[expose] def romSpentDebit {Nullifier Context Commitment : Type} [DecidableEq Context]
+    (qs : List (ROMConservationQuery Nullifier Context Commitment)) (ctx : Context) : ℕ :=
+  (qs.filterMap fun
+    | .issue _ => none
+    | .spend q => if q.ctx = ctx then some q.debit else none).sum
+
+private theorem romHasSpentNullifier_map {Nullifier Context Opening Commitment Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    (reqs : List (Conservation.Request Nullifier Context Opening Commitment Sig))
+    (ctx : Context) (nf : Nullifier) :
+    romHasSpentNullifier (reqs.map toPublicQuery) ctx nf =
+      Conservation.hasSpentNullifier reqs ctx nf := by
+  simp only [romHasSpentNullifier, Conservation.hasSpentNullifier, List.any_map]
+  congr 1
+  funext x
+  cases x <;> rfl
+
+private theorem romIssuedAmount_map {Nullifier Context Opening Commitment Sig : Type}
+    [DecidableEq Context]
+    (reqs : List (Conservation.Request Nullifier Context Opening Commitment Sig))
+    (ctx : Context) :
+    romIssuedAmount (reqs.map toPublicQuery) ctx = Conservation.issuedAmount reqs ctx := by
+  induction reqs with
+  | nil => rfl
+  | cons r rs ih =>
+    cases r with
+    | issue ir =>
+      simp only [List.map_cons, toPublicQuery, romIssuedAmount, Conservation.issuedAmount,
+        Conservation.issuesIn, List.filterMap_cons]
+      by_cases hctx : ir.ctx = ctx
+      · simp only [hctx, ↓reduceIte, List.map_cons, List.sum_cons]
+        exact congrArg (ir.amount + ·) ih
+      · simp only [hctx, ↓reduceIte]
+        exact ih
+    | spend sr =>
+      change romIssuedAmount (rs.map toPublicQuery) ctx = Conservation.issuedAmount rs ctx
+      exact ih
+
+private theorem romGrantedRefund_map {Nullifier Context Opening Commitment Sig : Type}
+    [DecidableEq Context]
+    (reqs : List (Conservation.Request Nullifier Context Opening Commitment Sig))
+    (ctx : Context) :
+    romGrantedRefund (reqs.map toPublicQuery) ctx = Conservation.grantedRefund reqs ctx := by
+  induction reqs with
+  | nil => rfl
+  | cons r rs ih =>
+    cases r with
+    | issue ir =>
+      change romGrantedRefund (rs.map toPublicQuery) ctx = Conservation.grantedRefund rs ctx
+      exact ih
+    | spend sr =>
+      simp only [List.map_cons, toPublicQuery, romGrantedRefund, List.filterMap_cons,
+        Conservation.grantedRefund, Conservation.spendsIn, Conservation.spends,
+        List.filter_cons, decide_eq_true_eq]
+      by_cases hctx : sr.ctx = ctx
+      · simp only [hctx, ↓reduceIte, List.map_cons, List.sum_cons]
+        exact congrArg (sr.refund + ·) ih
+      · simp only [hctx, ↓reduceIte]
+        exact ih
+
+private theorem romSpentDebit_map {Nullifier Context Opening Commitment Sig : Type}
+    [DecidableEq Context]
+    (reqs : List (Conservation.Request Nullifier Context Opening Commitment Sig))
+    (ctx : Context) :
+    romSpentDebit (reqs.map toPublicQuery) ctx = Conservation.spentDebit reqs ctx := by
+  induction reqs with
+  | nil => rfl
+  | cons r rs ih =>
+    cases r with
+    | issue ir =>
+      change romSpentDebit (rs.map toPublicQuery) ctx = Conservation.spentDebit rs ctx
+      exact ih
+    | spend sr =>
+      simp only [List.map_cons, toPublicQuery, romSpentDebit, List.filterMap_cons,
+        Conservation.spentDebit, Conservation.spendsIn, Conservation.spends,
+        List.filter_cons, decide_eq_true_eq]
+      by_cases hctx : sr.ctx = ctx
+      · simp only [hctx, ↓reduceIte, List.map_cons, List.sum_cons]
+        exact congrArg (sr.debit + ·) ih
+      · simp only [hctx, ↓reduceIte]
+        exact ih
+
+/-- Signing oracle specification returning `some sig` on accepted ROM conservation requests and
+`none` otherwise. -/
+abbrev ROMConservationIssuerSpec (Nullifier Context Commitment : Type) (d comLen rowLen : ℕ)
+    (Seed IV PreMsg Sig : Type) :
+    OracleSpec
+      (ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg) :=
+  fun _ => Option Sig
+
+/-- Combined oracle specification exposed to an unextracted ROM conservation adversary. -/
+abbrev ROMConservationSpec (Nullifier Context Commitment : Type) (d sdLen comLen rowLen : ℕ)
+    (PK Seed IV PreMsg Chal Sig : Type) :=
+  ROMConservationIssuerSpec Nullifier Context Commitment d comLen rowLen Seed IV PreMsg Sig ⊕ₒ
+    VOLEITHROSpec d sdLen comLen rowLen
+      (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal
+
+/-- Transcript of an unextracted ROM credit-conservation adversary execution. -/
+structure ROMConservationExecution (PK Nullifier Context Commitment : Type) where
+  /-- Issuer public verification key. -/
+  publicKey : PK
+  /-- Target context output by the adversary. -/
+  targetCtx : Context
+  /-- Public queries accepted by the ROM issuer in order. -/
+  acceptedQueries : List (ROMConservationQuery Nullifier Context Commitment)
+
+/-- Winning condition for the unextracted ROM conservation adversary: overspending `run.targetCtx`
+against `issuedAmount + grantedRefund`. -/
+@[expose] def romConservationAccept {PK Nullifier Context Commitment : Type} [DecidableEq Context]
+    (run : ROMConservationExecution PK Nullifier Context Commitment) : Bool :=
+  decide (romIssuedAmount run.acceptedQueries run.targetCtx +
+    romGrantedRefund run.acceptedQueries run.targetCtx <
+      romSpentDebit run.acceptedQueries run.targetCtx)
+
+private noncomputable def romConservationHandlerProg {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) ProbComp
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, (roSt, accepted) => do
+    let (ok, roSt') ← ((ProbOracleComp.runState
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof)
+      voleithMemoizeProg).run roSt)
+    if ok then
+      if romAcceptQuery accepted req.query then
+        let sig ← S.sign keys.2 (req.query.signedMessage tag)
+        pure (some sig, (roSt', accepted ++ [req.query]))
+      else
+        pure (none, (roSt', accepted))
+    else
+      pure (none, (roSt', accepted))
+  | .inr qRO, (roSt, accepted) => do
+    let (ans, roSt') ← (voleithMemoizeProg qRO).run roSt
+    pure (ans, (roSt', accepted))
+
+/-- Execute an unextracted ROM credit-conservation adversary against the VOLEitH-checked issuer
+oracle and lazy two-channel ROM. -/
+noncomputable def runROMUnextractedConservation {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig)
+    (A : PK → ProbOracleComp (ROMConservationSpec Nullifier Context Commitment
+      d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context) :
+    ProbComp (ROMConservationExecution PK Nullifier Context Commitment) := do
+  let keys ← S.keyGen
+  let res ← ((A keys.1).runState
+    (romConservationHandlerProg expand chalToIdx tag checkRel S keys)).run (([], []), [])
+  pure { publicKey := keys.1, targetCtx := res.1, acceptedQueries := res.2.2 }
+
+/-- Unextracted ROM credit-conservation experiment, original to this library: wins if the accepted
+ROM query transcript overspends `run.targetCtx`. -/
+noncomputable def romUnextractedConservationExperiment {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig)
+    (A : PK → ProbOracleComp (ROMConservationSpec Nullifier Context Commitment
+      d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context) : Experiment :=
+  romConservationAccept <$>
+    runROMUnextractedConservation expand chalToIdx tag checkRel S A
+
+private noncomputable def consToExtractedInner {d sdLen comLen rowLen : ℕ}
+    {PK Nullifier Context Opening Commitment Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (pk : PK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal)
+        (ProbOracleComp (fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
+          Option Sig))
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, roSt => do
+    let (ok, roSt') ← ProbOracleComp.sample ((ProbOracleComp.runState
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨pk, req.query⟩ req.proof)
+      voleithMemoizeProg).run roSt)
+    if ok then
+      let wit := extractWitnessFromTrace expand decWit roSt.1 req.proof
+      let sig ← ProbOracleComp.query (toExtractedRequest req wit)
+      pure (sig, roSt')
+    else
+      pure (none, roSt')
+  | .inr qRO, roSt => do
+    let (ans, roSt') ← ProbOracleComp.sample ((voleithMemoizeProg qRO).run roSt)
+    pure (ans, roSt')
+
+/-- Straight-line extracted-model `Conservation.ExtractedAdversary` constructed from an
+unextracted ROM conservation adversary `A`: simulates `VOLEITHROSpec` locally, checks
+`voleithVerifyROM`, and whenever a request verifies, extracts the witness without rewinding and
+forwards `toExtractedRequest req wit` to the extracted issuer oracle. -/
+noncomputable def extractedAdversaryOfROM {d sdLen comLen rowLen : ℕ}
+    {PK Nullifier Context Opening Commitment Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (A : PK → ProbOracleComp (ROMConservationSpec Nullifier Context Commitment
+      d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context) :
+    Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig := fun pk =>
+  Prod.fst <$> (OracleComp.interpret
+    (OracleComp.sumHandler
+      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+      (consToExtractedInner expand decWit chalToIdx checkRel pk))
+    (A pk)).run ([], [])
+
+/-- `extractedAdversaryOfROM` preserves issuer-query budgets: every `VOLEITHROSpec` call costs `0`
+extracted issuer queries and every ROM request calls the extracted issuer at most once. -/
+theorem extractedAdversaryOfROM_isQueryBounded {d sdLen comLen rowLen : ℕ}
+    {PK Nullifier Context Opening Commitment Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (A : PK → ProbOracleComp (ROMConservationSpec Nullifier Context Commitment
+      d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context)
+    {m : ℕ}
+    (hm : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) (A pk) m) :
+    ∀ pk, (extractedAdversaryOfROM expand decWit chalToIdx checkRel A pk).IsQueryBounded m := by
+  intro pk
+  unfold extractedAdversaryOfROM
+  rw [ProbOracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
+  refine OracleComp.IsCostBounded.run_interpret
+    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+    (cost' := Sum.elim (fun _ => 0) (fun _ => 1)) ?_ (hm pk) ([], [])
+  intro q roSt
+  rcases q with n | (req | qRO)
+  · simp only [StateT.run_lift, Sum.elim_inl]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, consToExtractedInner]
+    rw [show (1 : ℕ) = 0 + 1 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, roSt') => ?_
+    cases ok
+    · exact OracleComp.IsCostBounded.pure _ 1
+    · dsimp only
+      simp only [↓reduceIte]
+      rw [show (1 : ℕ) = 1 + 0 from rfl]
+      exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
+        fun _ => OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, consToExtractedInner]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+
+private noncomputable def romConsStickyHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT ((VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+          List (ROMConservationQuery Nullifier Context Commitment)) × Bool) PMF
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, ((roSt, accepted), b) =>
+    (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx
+        (conservationRel com tag S) checkRel)
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof)
+      (roSt, b)).bind fun (ok, (roSt', b')) =>
+      if ok then
+        if romAcceptQuery accepted req.query then
+          (ProbComp.eval (S.sign keys.2 (req.query.signedMessage tag))).map fun sig =>
+            (some sig, ((roSt', accepted ++ [req.query]), b'))
+        else
+          PMF.pure (none, ((roSt', accepted), b'))
+      else
+        PMF.pure (none, ((roSt', accepted), b'))
+  | .inr qRO, ((roSt, accepted), b) =>
+    (voleithStickyMemoize expand decWit chalToIdx (conservationRel com tag S) checkRel qRO
+      (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', accepted), b'))
+
+private noncomputable def extConsStickyHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT ((VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+          List (ROMConservationQuery Nullifier Context Commitment)) × Bool) PMF
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, ((roSt, accepted), b) =>
+    (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx
+        (conservationRel com tag S) checkRel)
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof)
+      (roSt, b)).bind fun (ok, (roSt', b')) =>
+      if ok then
+        let wit := extractWitnessFromTrace expand decWit roSt.1 req.proof
+        let extReq := toExtractedRequest req wit
+        if Conservation.acceptLocal com tag S keys.1 extReq &&
+            romAcceptQuery accepted req.query then
+          (ProbComp.eval (S.sign keys.2 (extReq.signedMessage tag))).map fun sig =>
+            (some sig, ((roSt', accepted ++ [req.query]), b'))
+        else
+          PMF.pure (none, ((roSt', accepted), b'))
+      else
+        PMF.pure (none, ((roSt', accepted), b'))
+  | .inr qRO, ((roSt, accepted), b) =>
+    (voleithStickyMemoize expand decWit chalToIdx (conservationRel com tag S) checkRel qRO
+      (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', accepted), b'))
+
+private def romConsBad {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (st : (VOLEITHTraceState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) × Bool) : Prop :=
+  st.2 = true ∨
+    ¬ VOLEITHGoodInv expand decWit chalToIdx (conservationRel com tag S) checkRel st.1.1
+
+private theorem consSticky_tail_zero {α β : Type} (μ : PMF (α × (β × Bool)))
+    (h : ∀ x ∈ μ.support, x.2.2 = true) (a : α) (st : β) :
+    μ (a, (st, false)) = 0 :=
+  (PMF.apply_eq_zero_iff _ _).mpr fun hm => by
+    have := h _ hm
+    simp at this
+
+private theorem consSticky_verifyTail_clean {α β Sig : Type} {p : ProbComp Sig} {q : β}
+    {st_res : α × Bool} {acc acc' : List β} {roSt' : α} {a : Option Sig}
+    (htail : (a, ((roSt', acc'), false)) ∈
+      ((ProbComp.eval p).map (fun sig : Sig => (some sig, ((st_res.1, acc ++ [q]), st_res.2)))
+        : PMF (Option Sig × ((α × List β) × Bool))).support) :
+    st_res.2 = false ∧ st_res.1 = roSt' := by
+  rw [PMF.mem_support_map_iff] at htail
+  obtain ⟨_, -, hst_eq⟩ := htail
+  simp only [Prod.mk.injEq] at hst_eq
+  exact ⟨hst_eq.2.2, hst_eq.2.1.1⟩
+
+private theorem consSticky_pure_tail_clean {α β Sig : Type} {st_res : α × Bool}
+    {acc acc' : List β} {roSt' : α} {a : Option Sig}
+    (htail : (a, ((roSt', acc'), false)) ∈
+      (PMF.pure (none, ((st_res.1, acc), st_res.2))
+        : PMF (Option Sig × ((α × List β) × Bool))).support) :
+    st_res.2 = false ∧ st_res.1 = roSt' := by
+  simp only [PMF.mem_support_pure_iff, Prod.mk.injEq] at htail
+  exact ⟨htail.2.2.symm, htail.2.1.1.symm⟩
+
+private theorem romConsSticky_identicalUntilBad {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen
+      (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    ProbOracleComp.IdenticalUntilBad
+      (romConsStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx com tag checkRel S keys)
+      (extConsStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx com tag checkRel S keys)
+      (romConsBad (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx com tag S checkRel) := by
+  refine OracleComp.IdenticalUntilBad.probOracleComp ⟨?_, ?_, ?_⟩
+  · intro q s hs a s' hs'
+    simp only [romConsBad, not_or] at hs hs'
+    have hs2 : s.2 = false := Bool.eq_false_iff.mpr hs.1
+    have hs'2 : s'.2 = false := Bool.eq_false_iff.mpr hs'.1
+    rcases s with ⟨⟨roSt, accepted⟩, bs⟩
+    rcases s' with ⟨⟨roSt', accepted'⟩, bs'⟩
+    dsimp only at hs2 hs'2 hs hs'
+    subst hs2 hs'2
+    rcases q with req | qRO
+    · simp only [romConsStickyHandler, extConsStickyHandler, PMF.bind_apply]
+      congr 1
+      funext ⟨ok, st_res⟩
+      by_cases hmem : (ok, st_res) ∈ (ProbOracleComp.runWith
+          (voleithStickyMemoize expand decWit chalToIdx (conservationRel com tag S) checkRel)
+          (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+            ⟨keys.1, req.query⟩ req.proof)
+          (roSt, false)).support
+      · congr 1
+        cases ok
+        · rfl
+        · rcases st_res with ⟨ro_end, b_end⟩
+          cases b_end
+          · have hrel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx
+              (conservationRel com tag S) checkRel ⟨keys.1, req.query⟩ req.proof
+              (roSt, false) (ro_end, false) rfl (not_not.mp hs.2) hmem rfl
+            have hloc := acceptLocal_toExtractedRequest_of_rel com tag S keys.1 req
+              (extractWitnessFromTrace expand decWit roSt.1 req.proof) hrel
+            have hmsg := signedMessage_toExtractedRequest tag req
+              (extractWitnessFromTrace expand decWit roSt.1 req.proof)
+            simp [hloc, hmsg]
+          · simp only [↓reduceIte]
+            set wit := extractWitnessFromTrace expand decWit roSt.1 req.proof
+            set extReq := toExtractedRequest req wit
+            by_cases hacc : romAcceptQuery accepted req.query
+            · have hloc_cases : Conservation.acceptLocal com tag S keys.1 extReq = true ∨
+                  Conservation.acceptLocal com tag S keys.1 extReq = false := by
+                cases Conservation.acceptLocal com tag S keys.1 extReq <;> simp
+              simp only [hacc, ↓reduceIte, Bool.and_true]
+              have h1 : ((ProbComp.eval (S.sign keys.2 (req.query.signedMessage tag))).map
+                  fun sig => (some sig, ((ro_end, accepted ++ [req.query]), true)))
+                  (a, ((roSt', accepted'), false)) = 0 :=
+                consSticky_tail_zero _ (fun x hx => by
+                  rw [PMF.mem_support_map_iff] at hx
+                  obtain ⟨_, -, rfl⟩ := hx
+                  rfl) _ _
+              rcases hloc_cases with hloc_t | hloc_f
+              · have h2 : ((ProbComp.eval (S.sign keys.2 (extReq.signedMessage tag))).map
+                    fun sig => (some sig, ((ro_end, accepted ++ [req.query]), true)))
+                    (a, ((roSt', accepted'), false)) = 0 :=
+                  consSticky_tail_zero _ (fun x hx => by
+                    rw [PMF.mem_support_map_iff] at hx
+                    obtain ⟨_, -, rfl⟩ := hx
+                    rfl) _ _
+                simp [hloc_t, h1, h2]
+              · have h2 : (PMF.pure (none, ((ro_end, accepted), true)) :
+                    PMF (Option Sig × ((_ × _) × Bool))) (a, ((roSt', accepted'), false)) = 0 :=
+                  consSticky_tail_zero _ (fun x hx => by
+                    rw [PMF.mem_support_pure_iff] at hx
+                    subst hx
+                    rfl) _ _
+                simp [hloc_f, h1, h2]
+            · simp [hacc]
+      · have hz := (PMF.apply_eq_zero_iff _ _).mpr hmem
+        simp [hz]
+    · rfl
+  · intro q s hs ⟨a, s'⟩ hmem
+    by_contra hnot
+    dsimp only at hnot
+    simp only [romConsBad, not_or, not_not] at hnot
+    have hs'2 : s'.2 = false := Bool.eq_false_iff.mpr hnot.1
+    rcases s with ⟨⟨roSt, accepted⟩, bs⟩
+    rcases s' with ⟨⟨roSt', accepted'⟩, bs'⟩
+    dsimp only at hs'2 hnot
+    subst bs'
+    rcases q with req | qRO
+    · simp only [romConsStickyHandler, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨⟨ok, st_res⟩, hst_mem, htail⟩ := hmem
+      dsimp only at htail
+      have hres : st_res.2 = false ∧ st_res.1 = roSt' := by
+        cases ok
+        · exact consSticky_pure_tail_clean htail
+        · by_cases hacc : romAcceptQuery accepted req.query
+          · simp only [↓reduceIte, hacc] at htail
+            exact consSticky_verifyTail_clean htail
+          · simp only [↓reduceIte, hacc] at htail
+            exact consSticky_pure_tail_clean htail
+      have hback := runWith_voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (conservationRel com tag S) checkRel
+        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+          ⟨keys.1, req.query⟩ req.proof)
+        (roSt, bs) st_res ok hst_mem hres.1 (hres.2 ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romConsBad, hback.1, hback.2])
+    · simp only [romConsStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨⟨ans, st_res⟩, hst_mem, _, ⟨hro_eq, _⟩, hres2⟩ := hmem
+      dsimp only at hro_eq hres2
+      have hback := voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (conservationRel com tag S) checkRel qRO (roSt, bs) st_res ans hst_mem hres2
+        (hro_eq ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romConsBad, hback.1, hback.2])
+  · intro q s hs ⟨a, s'⟩ hmem
+    by_contra hnot
+    dsimp only at hnot
+    simp only [romConsBad, not_or, not_not] at hnot
+    have hs'2 : s'.2 = false := Bool.eq_false_iff.mpr hnot.1
+    rcases s with ⟨⟨roSt, accepted⟩, bs⟩
+    rcases s' with ⟨⟨roSt', accepted'⟩, bs'⟩
+    dsimp only at hs'2 hnot
+    subst bs'
+    rcases q with req | qRO
+    · simp only [extConsStickyHandler, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨⟨ok, st_res⟩, hst_mem, htail⟩ := hmem
+      dsimp only at htail
+      have hres : st_res.2 = false ∧ st_res.1 = roSt' := by
+        cases ok
+        · exact consSticky_pure_tail_clean htail
+        · simp only [↓reduceIte] at htail
+          by_cases hacc :
+              Conservation.acceptLocal com tag S keys.1
+                (toExtractedRequest req (extractWitnessFromTrace expand decWit roSt.1 req.proof)) &&
+              romAcceptQuery accepted req.query
+          · simp only [hacc, ↓reduceIte] at htail
+            exact consSticky_verifyTail_clean htail
+          · simp only [hacc, Bool.false_eq_true, ↓reduceIte] at htail
+            exact consSticky_pure_tail_clean htail
+      have hback := runWith_voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (conservationRel com tag S) checkRel
+        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+          ⟨keys.1, req.query⟩ req.proof)
+        (roSt, bs) st_res ok hst_mem hres.1 (hres.2 ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romConsBad, hback.1, hback.2])
+    · simp only [extConsStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨⟨ans, st_res⟩, hst_mem, _, ⟨hro_eq, _⟩, hres2⟩ := hmem
+      dsimp only at hro_eq hres2
+      have hback := voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (conservationRel com tag S) checkRel qRO (roSt, bs) st_res ans hst_mem hres2
+        (hro_eq ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romConsBad, hback.1, hback.2])
+
+private noncomputable def consToMVInner {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT (List (ROMConservationQuery Nullifier Context Commitment))
+        (ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal))
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, accepted => do
+    let ok ← ProbOracleComp.query (Sum.inl (⟨keys.1, req.query⟩, req.proof))
+    if ok then
+      if romAcceptQuery accepted req.query then
+        let sig ← ProbOracleComp.sample (S.sign keys.2 (req.query.signedMessage tag))
+        pure (some sig, accepted ++ [req.query])
+      else
+        pure (none, accepted)
+    else
+      pure (none, accepted)
+  | .inr qRO, accepted => do
+    let ans ← ProbOracleComp.query (Sum.inr qRO)
+    pure (ans, accepted)
+
+private theorem consToMVInner_roCost {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig α : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (roCost : LeafQuery d Seed IV ⊕
+      FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg → ℕ)
+    (prog : ProbOracleComp (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+      PK Seed IV PreMsg Chal Sig) α)
+    {Q_ro : ℕ}
+    (hro : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost)) prog Q_ro) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost))
+      ((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          (consToMVInner tag S keys))
+        prog).run []) Q_ro := by
+  refine OracleComp.IsCostBounded.run_interpret
+    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost))
+    (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost)) ?_ hro []
+  intro q accepted
+  rcases q with n | (req | qRO)
+  · simp only [StateT.run_lift, Sum.elim_inl]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, consToMVInner]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+      (Sum.inr (Sum.inl _))).bind fun ok => ?_
+    cases ok
+    · exact OracleComp.IsCostBounded.pure _ 0
+    · simp only [↓reduceIte]
+      by_cases hacc : romAcceptQuery accepted req.query
+      · simp only [hacc, ↓reduceIte]
+        rw [show (0 : ℕ) = 0 + 0 from rfl]
+        refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+          OracleComp.IsCostBounded.pure _ 0
+      · simp only [hacc, Bool.false_eq_true, ↓reduceIte]
+        exact OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, consToMVInner]
+    rw [show roCost qRO = roCost qRO + 0 from rfl]
+    refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+      (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+
+private noncomputable def romConsRoOnlyStickyHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT (VOLEITHStickyState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+          List (ROMConservationQuery Nullifier Context Commitment)) PMF
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, (st, accepted) =>
+    (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx
+        (conservationRel com tag S) checkRel)
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof) st).bind
+      fun (ok, st') =>
+        if ok then
+          if romAcceptQuery accepted req.query then
+            (ProbComp.eval (S.sign keys.2 (req.query.signedMessage tag))).map fun sig =>
+              (some sig, (st', accepted ++ [req.query]))
+          else
+            PMF.pure (none, (st', accepted))
+        else
+          PMF.pure (none, (st', accepted))
+  | .inr qRO, (st, accepted) =>
+    (voleithStickyMemoize expand decWit chalToIdx (conservationRel com tag S) checkRel qRO st).map
+      fun (ans, st') => (ans, (st', accepted))
+
+private theorem romConsSticky_bad_le {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen
+      (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    {ε_rel : ℝ≥0}
+    (hSound : VOLEITHSoundnessError decWit chalToIdx (conservationRel com tag S) checkRel ε_rel)
+    (keys : PK × SK)
+    (prog : ProbOracleComp (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+      PK Seed IV PreMsg Chal Sig) Context)
+    {m Q_leaf Q_FS : ℕ}
+    (hm : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) prog m)
+    (hleaf : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithLeafCost)) prog Q_leaf)
+    (hfs : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithFSCost)) prog Q_FS) :
+    (ProbOracleComp.runWith
+        (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+        prog ((([], []), []), false)).toOuterMeasure
+        {x | romConsBad expand decWit chalToIdx com tag S checkRel x.2} ≤
+      (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+  have hinv_bad : ∀ (ctx : Context)
+      (st : (VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+          List (ROMConservationQuery Nullifier Context Commitment)) × Bool),
+      (ctx, st) ∈ (ProbOracleComp.runWith
+        (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+        prog ((([], []), []), false)).support →
+      st.2 = false →
+      VOLEITHGoodInv expand decWit chalToIdx (conservationRel com tag S) checkRel st.1.1 := by
+    intro ctx st hsupp hclean
+    refine ProbOracleComp.runWith_invariant _
+      (fun s => s.2 = false →
+        VOLEITHGoodInv expand decWit chalToIdx (conservationRel com tag S) checkRel s.1.1)
+      (fun q s hs a' s' hs' hclean' => ?_)
+      prog ((([], []), []), false) (fun _ => ⟨List.Pairwise.nil, by simp⟩) ctx st hsupp hclean
+    rcases s with ⟨⟨roSt, accepted⟩, bs⟩
+    rcases s' with ⟨⟨roSt', accepted'⟩, bs'⟩
+    dsimp only at hclean' hs
+    subst bs'
+    rcases q with req | qRO
+    · simp only [romConsStickyHandler, PMF.mem_support_bind_iff] at hs'
+      obtain ⟨⟨ok, st_res⟩, hst_mem, htail⟩ := hs'
+      dsimp only at htail
+      have hres : st_res.2 = false ∧ st_res.1 = roSt' := by
+        cases ok
+        · exact consSticky_pure_tail_clean htail
+        · by_cases hacc : romAcceptQuery accepted req.query
+          · simp only [↓reduceIte, hacc] at htail
+            exact consSticky_verifyTail_clean htail
+          · simp only [↓reduceIte, hacc] at htail
+            exact consSticky_pure_tail_clean htail
+      have hbs : bs = false := by
+        by_contra htrue
+        have hbad : OracleComp.FlagBad (roSt, bs) := by
+          cases h : bs <;> simp_all [OracleComp.FlagBad]
+        dsimp only [OracleComp.FlagBad] at hbad
+        subst hbad
+        have hbad' := ProbOracleComp.runWith_invariant _ (fun u => OracleComp.FlagBad u)
+          (fun q' u hu a0 u' hu' => by
+            rcases u with ⟨u1, u2⟩
+            dsimp only [OracleComp.FlagBad] at hu
+            subst hu
+            exact OracleComp.isFlagMonotone_withBadFlag
+              (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel)
+              q' u1 (a0, u') hu')
+          _ (roSt, true) rfl ok st_res hst_mem
+        dsimp only [OracleComp.FlagBad] at hbad'
+        exact Bool.false_ne_true (hres.1.symm.trans hbad')
+      have hin := ProbOracleComp.runWith_invariant _
+        (fun u => u.2 = false →
+          VOLEITHGoodInv expand decWit chalToIdx (conservationRel com tag S) checkRel u.1)
+        (fun q' u hu a0 u' hu' => voleithStickyMemoize_preserves_goodInv expand decWit chalToIdx
+          (conservationRel com tag S) checkRel q' u hu a0 u' hu')
+        _ (roSt, bs) (fun h => hs h) ok st_res hst_mem hres.1
+      exact hres.2 ▸ hin
+    · simp only [romConsStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hs'
+      obtain ⟨⟨ans, st_res⟩, hst_mem, _, ⟨hro_eq, _⟩, hres2⟩ := hs'
+      dsimp only at hro_eq hres2
+      have hbs : bs = false := by
+        by_contra htrue
+        have hbad : OracleComp.FlagBad (roSt, bs) := by
+          cases h : bs <;> simp_all [OracleComp.FlagBad]
+        dsimp only [OracleComp.FlagBad] at hbad
+        subst hbad
+        have hbad' := OracleComp.isFlagMonotone_withBadFlag
+          (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel)
+          qRO roSt (ans, st_res) hst_mem
+        dsimp only [OracleComp.FlagBad] at hbad'
+        exact Bool.false_ne_true (hres2.symm.trans hbad')
+      exact hro_eq ▸ voleithStickyMemoize_preserves_goodInv expand decWit chalToIdx
+        (conservationRel com tag S) checkRel qRO (roSt, bs) (fun h => hs h) ans st_res hst_mem
+        hres2
+  have hle_flag :
+      (ProbOracleComp.runWith
+          (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          prog ((([], []), []), false)).toOuterMeasure
+          {x | romConsBad expand decWit chalToIdx com tag S checkRel x.2} ≤
+        (ProbOracleComp.runWith
+          (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          prog ((([], []), []), false)).toOuterMeasure {x | x.2.2 = true} := by
+    simp only [PMF.toOuterMeasure_apply]
+    refine tsum_le_tsum fun ⟨ctx, st⟩ => ?_
+    by_cases hmem : (ctx, st) ∈ (ProbOracleComp.runWith
+        (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+        prog ((([], []), []), false)).support
+    · by_cases hst2 : st.2 = true
+      · simp [romConsBad, hst2]
+      · have hclean : st.2 = false := Bool.eq_false_iff.mpr hst2
+        have hg := hinv_bad ctx st hmem hclean
+        simp [romConsBad, hst2, hg]
+    · have hz := (PMF.apply_eq_zero_iff _ _).mpr hmem
+      simp [Set.indicator_apply, hz]
+  refine hle_flag.trans ?_
+  let mvProg : ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen
+      (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal)
+      (Context × List (ROMConservationQuery Nullifier Context Commitment)) :=
+    (OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        (consToMVInner tag S keys))
+      prog).run []
+  have hmv_m :
+      IsCostBounded (Sum.elim (fun _ => 0)
+        (Sum.elim (fun _ => 1) (fun _ => 0))) mvProg m := by
+    refine OracleComp.IsCostBounded.run_interpret
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) ?_ hm []
+    intro q accepted
+    rcases q with n | (req | qRO)
+    · simp only [StateT.run_lift, Sum.elim_inl]
+      rw [show (0 : ℕ) = 0 + 0 from rfl]
+      refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0
+    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, consToMVInner]
+      rw [show (1 : ℕ) = 1 + 0 from rfl]
+      refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+        (Sum.inr (Sum.inl _))).bind fun ok => ?_
+      cases ok
+      · exact OracleComp.IsCostBounded.pure _ 0
+      · simp only [↓reduceIte]
+        by_cases hacc : romAcceptQuery accepted req.query
+        · simp only [hacc, ↓reduceIte]
+          rw [show (0 : ℕ) = 0 + 0 from rfl]
+          refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+            OracleComp.IsCostBounded.pure _ 0
+        · simp only [hacc, Bool.false_eq_true, ↓reduceIte]
+          exact OracleComp.IsCostBounded.pure _ 0
+    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, consToMVInner]
+      rw [show (0 : ℕ) = 0 + 0 from rfl]
+      refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+        (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  have hmv_leaf := consToMVInner_roCost tag S keys voleithLeafCost prog hleaf
+  have hmv_fs := consToMVInner_roCost tag S keys voleithFSCost prog hfs
+  have hleaf_tot :
+      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) := by
+    refine (hmv_leaf.add (IsCostBounded.mul_of_le
+      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 2 ^ d - 1) (fun _ => 0)))
+      hmv_m fun q => ?_)).of_le fun q => ?_
+    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp
+    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvLeafCost]
+  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) := by
+    refine (hmv_fs.add hmv_m).of_le fun q => ?_
+    rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
+  have hmv_bad := toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx
+    (conservationRel com tag S) checkRel hSound mvProg hleaf_tot hfs_tot (([], []), false) false rfl
+  let dropAcc : (VOLEITHTraceState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) × Bool →
+      VOLEITHStickyState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment) :=
+    fun ((roSt, accepted), b) => ((roSt, b), accepted)
+  have hleft :
+      ((ProbOracleComp.runWith
+          (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          prog ((([], []), []), false)).map (Prod.map id dropAcc)) =
+        ProbOracleComp.runWith
+          (romConsRoOnlyStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          prog ((([], []), false), []) := by
+    refine ProbOracleComp.runWith_map_state _ _ dropAcc (fun q x => ?_)
+      prog ((([], []), []), false)
+    rcases x with ⟨⟨roSt, accepted⟩, b⟩
+    rcases q with req | qRO
+    · simp only [romConsStickyHandler, romConsRoOnlyStickyHandler, dropAcc, PMF.map_bind]
+      congr 1
+      funext ⟨ok, st'⟩
+      cases ok
+      · simp [PMF.map]
+      · dsimp only
+        simp only [↓reduceIte]
+        by_cases hacc : romAcceptQuery accepted req.query
+        · simp [hacc, PMF.map_comp, Function.comp_def]
+        · simp [hacc, PMF.map]
+    · simp only [romConsStickyHandler, romConsRoOnlyStickyHandler, dropAcc, PMF.map_comp,
+        Function.comp_def]
+  let dropMV : List (ROMConservationQuery Nullifier Context Commitment) ×
+      (VOLEITHStickyState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal × Bool) →
+      VOLEITHStickyState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment) :=
+    fun (accepted, st_mv) => (st_mv.1, accepted)
+  have hright :
+      ((ProbOracleComp.runWith
+          (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+            (conservationRel com tag S) checkRel)
+          mvProg ((([], []), false), false)).map
+        fun ((ctx, accepted), st_mv) => (ctx, (st_mv.1, accepted))) =
+        ProbOracleComp.runWith
+          (romConsRoOnlyStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          prog ((([], []), false), []) := by
+    have hrun := ProbOracleComp.runWith_run_interpret (consToMVInner tag S keys)
+      (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+        (conservationRel com tag S) checkRel)
+      prog [] ((([], []), false), false)
+    have hrun' :
+        ((ProbOracleComp.runWith
+            (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+              (conservationRel com tag S) checkRel)
+            mvProg ((([], []), false), false)).map
+          fun ((ctx, accepted), st_mv) => (ctx, (st_mv.1, accepted))) =
+        ((ProbOracleComp.runWith
+            (fun q state =>
+              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                (ProbOracleComp.runWith
+                  (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+                    (conservationRel com tag S) checkRel)
+                  ((consToMVInner tag S keys q).run state.1) state.2))
+            prog ([], ((([], []), false), false))).map
+          (Prod.map id dropMV)) := by
+      dsimp only [mvProg]
+      rw [hrun, PMF.map_comp]
+      rfl
+    rw [hrun']
+    refine ProbOracleComp.runWith_map_state _ _ dropMV (fun q x => ?_)
+      prog ([], ((([], []), false), false))
+    rcases x with ⟨accepted, ⟨s_mv, failed⟩⟩
+    rcases q with req | qRO
+    · simp only [consToMVInner, dropMV, romConsRoOnlyStickyHandler, StateT.run,
+        ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+        voleithMultiVerifyStickyHandler, PMF.bind_map, PMF.map_bind, Function.comp_def]
+      congr 1
+      funext ⟨ok, s'⟩
+      cases ok
+      · dsimp only
+        simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.map,
+          Function.comp_def, PMF.pure_bind]
+      · dsimp only
+        simp only [↓reduceIte]
+        by_cases hacc : romAcceptQuery accepted req.query
+        · simp only [hacc, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+            ProbOracleComp.runWith_pure, PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+        · simp only [hacc, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.map,
+            Function.comp_def, PMF.pure_bind]
+    · simp only [consToMVInner, dropMV, romConsRoOnlyStickyHandler, StateT.run,
+        ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+        voleithMultiVerifyStickyHandler, PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+  calc
+    (ProbOracleComp.runWith
+        (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+        prog ((([], []), []), false)).toOuterMeasure {x | x.2.2 = true}
+      = ((ProbOracleComp.runWith
+          (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          prog ((([], []), []), false)).map (Prod.map id dropAcc)).toOuterMeasure
+          {x | OracleComp.FlagBad x.2.1} := by
+        rw [PMF.toOuterMeasure_map_apply]
+        rfl
+    _ = ((ProbOracleComp.runWith
+          (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+            (conservationRel com tag S) checkRel)
+          mvProg ((([], []), false), false)).map
+            fun ((ctx, accepted), st_mv) => (ctx, (st_mv.1, accepted))).toOuterMeasure
+          {x | OracleComp.FlagBad x.2.1} := by rw [hleft, hright]
+    _ = (ProbOracleComp.runWith
+          (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+            (conservationRel com tag S) checkRel)
+          mvProg ((([], []), false), false)).toOuterMeasure
+          {x | OracleComp.FlagBad x.2.1} := by
+        rw [PMF.toOuterMeasure_map_apply]
+        rfl
+    _ ≤ (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+        simpa [ksBound_coe, voleithBudget] using hmv_bad
+
+private noncomputable def romConservationHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) PMF
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, (roSt, accepted) =>
+    (ProbOracleComp.runWith voleithMemoize
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof) roSt).bind fun (ok, roSt') =>
+      if ok then
+        if romAcceptQuery accepted req.query then
+          (ProbComp.eval (S.sign keys.2 (req.query.signedMessage tag))).map fun sig =>
+            (some sig, (roSt', accepted ++ [req.query]))
+        else
+          PMF.pure (none, (roSt', accepted))
+      else
+        PMF.pure (none, (roSt', accepted))
+  | .inr qRO, (roSt, accepted) =>
+    (voleithMemoize qRO roSt).map fun (ans, roSt') => (ans, (roSt', accepted))
+
+private noncomputable def extConservationHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) PMF
+        (ROMConservationSpec Nullifier Context Commitment d sdLen comLen rowLen
+          PK Seed IV PreMsg Chal Sig q)
+  | .inl req, (roSt, accepted) =>
+    (ProbOracleComp.runWith voleithMemoize
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof) roSt).bind fun (ok, roSt') =>
+      if ok then
+        let wit := extractWitnessFromTrace expand decWit roSt.1 req.proof
+        let extReq := toExtractedRequest req wit
+        if Conservation.acceptLocal com tag S keys.1 extReq &&
+            romAcceptQuery accepted req.query then
+          (ProbComp.eval (S.sign keys.2 (extReq.signedMessage tag))).map fun sig =>
+            (some sig, (roSt', accepted ++ [req.query]))
+        else
+          PMF.pure (none, (roSt', accepted))
+      else
+        PMF.pure (none, (roSt', accepted))
+  | .inr qRO, (roSt, accepted) =>
+    (voleithMemoize qRO roSt).map fun (ans, roSt') => (ans, (roSt', accepted))
+
+private theorem romConservationHandlerProg_eval {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg))
+    (st : VOLEITHTraceState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+      List (ROMConservationQuery Nullifier Context Commitment)) :
+    ProbComp.eval (romConservationHandlerProg (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand chalToIdx tag checkRel S keys q st) =
+      romConservationHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand chalToIdx tag checkRel S keys q st := by
+  rcases st with ⟨roSt, accepted⟩
+  rcases q with req | qRO
+  · simp only [romConservationHandlerProg, romConservationHandler, ProbComp.eval_bind,
+      ProbOracleComp.eval_runState]
+    have hev :
+        (fun q s => ProbComp.eval (voleithMemoizeProg q s)) =
+          (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+            (Stmt := ROMConservationStmt PK Nullifier Context Commitment)
+            (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal)) :=
+      funext fun q => funext fun s => eval_voleithMemoizeProg q s
+    rw [hev]
+    congr 1
+    funext ⟨ok, roSt'⟩
+    cases ok
+    · simp [ProbComp.eval_pure]
+    · dsimp only
+      simp only [↓reduceIte]
+      by_cases hacc : romAcceptQuery accepted req.query
+      · simp [hacc]
+      · simp [hacc, ProbComp.eval_pure]
+  · simp only [romConservationHandlerProg, romConservationHandler, ProbComp.eval_bind,
+      ProbComp.eval_pure, PMF.map]
+    change (((voleithMemoizeProg qRO roSt).eval).bind fun a =>
+        PMF.pure (a.1, (a.2, accepted))) = _
+    rw [eval_voleithMemoizeProg]
+    rfl
+
+private theorem romConsStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg))
+    (st : (VOLEITHTraceState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) × Bool) :
+    ((romConsStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+          expand decWit chalToIdx com tag checkRel S keys q st).map
+        (Prod.map id Prod.fst)) =
+      romConservationHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand chalToIdx tag checkRel S keys q st.1 := by
+  rcases st with ⟨⟨roSt, accepted⟩, b⟩
+  rcases q with req | qRO
+  · simp only [romConsStickyHandler, romConservationHandler, PMF.map_bind]
+    have hforget := voleithStickyMemoize_map_forget expand decWit chalToIdx
+      (conservationRel com tag S) checkRel
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof)
+      roSt b
+    rw [← hforget, PMF.bind_map]
+    congr 1
+    funext ⟨ok, st_res⟩
+    cases ok
+    · simp [PMF.map]
+    · dsimp only
+      simp only [↓reduceIte]
+      by_cases hacc : romAcceptQuery accepted req.query
+      · simp [hacc, PMF.map_comp, Function.comp_def]
+      · simp [hacc, PMF.map]
+  · simp only [romConsStickyHandler, romConservationHandler, voleithStickyMemoize]
+    have hstep := OracleComp.withBadFlag_map_fst
+      (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO roSt b
+    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (conservationRel com tag S)
+      checkRel qRO roSt
+    calc
+      ((OracleComp.withBadFlag
+          (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
+          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', accepted), b'))).map
+          (Prod.map id Prod.fst) =
+        ((OracleComp.withBadFlag
+            (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
+            (roSt, b)).map (Prod.map id Prod.fst)).map
+            fun (ans, roSt') => (ans, (roSt', accepted)) := by
+        rw [PMF.map_comp, PMF.map_comp]
+        rfl
+      _ = _ := by rw [hstep, hk]
+
+private theorem extConsStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [BEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (q : ROMConservationRequest Nullifier Context Commitment d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕
+        FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg))
+    (st : (VOLEITHTraceState d sdLen comLen rowLen
+        (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (ROMConservationQuery Nullifier Context Commitment)) × Bool) :
+    ((extConsStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+          expand decWit chalToIdx com tag checkRel S keys q st).map
+        (Prod.map id Prod.fst)) =
+      extConservationHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx com tag checkRel S keys q st.1 := by
+  rcases st with ⟨⟨roSt, accepted⟩, b⟩
+  rcases q with req | qRO
+  · simp only [extConsStickyHandler, extConservationHandler, PMF.map_bind]
+    have hforget := voleithStickyMemoize_map_forget expand decWit chalToIdx
+      (conservationRel com tag S) checkRel
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+        ⟨keys.1, req.query⟩ req.proof)
+      roSt b
+    rw [← hforget, PMF.bind_map]
+    congr 1
+    funext ⟨ok, st_res⟩
+    cases ok
+    · simp [PMF.map]
+    · dsimp only
+      simp only [↓reduceIte]
+      by_cases hacc :
+          Conservation.acceptLocal com tag S keys.1
+            (toExtractedRequest req (extractWitnessFromTrace expand decWit roSt.1 req.proof)) &&
+          romAcceptQuery accepted req.query
+      · simp [hacc, PMF.map_comp, Function.comp_def]
+      · simp [hacc, PMF.map]
+  · simp only [extConsStickyHandler, extConservationHandler, voleithStickyMemoize]
+    have hstep := OracleComp.withBadFlag_map_fst
+      (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO roSt b
+    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (conservationRel com tag S)
+      checkRel qRO roSt
+    calc
+      ((OracleComp.withBadFlag
+          (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
+          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', accepted), b'))).map
+          (Prod.map id Prod.fst) =
+        ((OracleComp.withBadFlag
+            (voleithStepKernel expand decWit chalToIdx (conservationRel com tag S) checkRel) qRO
+            (roSt, b)).map (Prod.map id Prod.fst)).map
+            fun (ans, roSt') => (ans, (roSt', accepted)) := by
+        rw [PMF.map_comp, PMF.map_comp]
+        rfl
+      _ = _ := by rw [hstep, hk]
+
+/-- Query-bounded reduction from the unextracted ROM credit-conservation game to
+`Conservation.extractedConservationExperiment`: an adversary making at most `m` signing queries,
+`Q_leaf` leaf RO queries, and `Q_FS` Fiat–Shamir queries loses at most
+`ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel` when lifted to the extracted
+conservation experiment via `extractedAdversaryOfROM`. -/
+theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen comLen rowLen : ℕ}
+    {PK SK Nullifier Context Opening Commitment Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Nullifier] [Inhabited Opening] [Inhabited Sig]
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen
+      (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    {ε_rel : ℝ≥0}
+    (hSound : VOLEITHSoundnessError decWit chalToIdx (conservationRel com tag S) checkRel ε_rel)
+    (A : PK → ProbOracleComp (ROMConservationSpec Nullifier Context Commitment
+      d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context)
+    {m Q_leaf Q_FS : ℕ}
+    (hm : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) (A pk) m)
+    (hleaf : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithLeafCost)) (A pk) Q_leaf)
+    (hfs : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithFSCost)) (A pk) Q_FS) :
+    (romUnextractedConservationExperiment expand chalToIdx tag checkRel S A).succProbability ≤
+      (Conservation.extractedConservationExperiment com tag S
+        (extractedAdversaryOfROM expand decWit chalToIdx checkRel A)).succProbability +
+        ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel := by
+  have hrom_eval :
+      ProbComp.eval (romUnextractedConservationExperiment expand chalToIdx tag checkRel S A) =
+        (ProbComp.eval S.keyGen).bind fun keys =>
+          (ProbOracleComp.runWith
+              (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+              (A keys.1) ((([], []), []), false)).map
+            fun (ctx, ((_, accepted), _)) =>
+              decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+                romSpentDebit accepted ctx) := by
+    simp only [romUnextractedConservationExperiment, runROMUnextractedConservation,
+      ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_runState,
+      PMF.map, PMF.bind_bind]
+    congr 1
+    funext keys
+    have hev :
+        (fun q st => ProbComp.eval
+            (romConservationHandlerProg expand chalToIdx tag checkRel S keys q st)) =
+          romConservationHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+            expand chalToIdx tag checkRel S keys :=
+      funext fun q => funext fun st =>
+        romConservationHandlerProg_eval expand chalToIdx tag checkRel S keys q st
+    have hforget := ProbOracleComp.runWith_map_state _ _ Prod.fst
+      (romConsStickyHandler_map_forget expand decWit chalToIdx com tag checkRel S keys)
+      (A keys.1) ((([], []), []), false)
+    rw [hev, ← hforget]
+    simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind, romConservationAccept]
+  have hext_eval :
+      ProbComp.eval (Conservation.extractedConservationExperiment com tag S
+        (extractedAdversaryOfROM expand decWit chalToIdx checkRel A)) =
+        (ProbComp.eval S.keyGen).bind fun keys =>
+          (ProbOracleComp.runWith
+              (extConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+              (A keys.1) ((([], []), []), false)).map
+            fun (ctx, ((_, accepted), _)) =>
+              decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+                romSpentDebit accepted ctx) := by
+    simp only [Conservation.extractedConservationExperiment,
+      Conservation.runExtractedConservation, extractedAdversaryOfROM, ProbComp.eval_map,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.map, PMF.bind_bind, Function.comp_def,
+      PMF.pure_bind]
+    congr 1
+    funext keys
+    let issuerH : Conservation.Request Nullifier Context Opening Commitment Sig →
+        StateT (List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig))
+          PMF (Option Sig) := fun q log =>
+      if Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) q then
+        (ProbComp.eval (S.sign keys.2 (q.signedMessage tag))).map fun sig =>
+          (some sig, log ++ [(q, some sig)])
+      else
+        PMF.pure (none, log)
+    have hlog_map :
+        ProbComp.eval ((Prod.fst <$> (OracleComp.interpret
+            (OracleComp.sumHandler
+              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+              (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
+            (A keys.1)).run ([], [])).runLogWith
+            (Conservation.extractedIssuerOracle com tag S keys)) =
+          (ProbOracleComp.runWith issuerH ((OracleComp.interpret
+              (OracleComp.sumHandler
+                (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+                (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
+              (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
+      simp only [ProbOracleComp.runLogWith, ProbOracleComp.runState_map, StateT.run_map,
+        ProbOracleComp.eval_runState, ProbComp.eval_map]
+      congr 2
+      funext q log
+      simp only [ProbOracleComp.logOracle, Conservation.extractedIssuerOracle, issuerH]
+      by_cases hacc : Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) q
+      · simp only [hacc, ↓reduceIte, ProbComp.eval_map, PMF.map_comp]
+        rfl
+      · simp only [hacc, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure]
+        rfl
+    change (ProbComp.eval (ProbOracleComp.runLogWith (Prod.fst <$>
+      (OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          (consToExtractedInner expand decWit chalToIdx checkRel keys.1))
+        (A keys.1)).run ([], []))
+        (Conservation.extractedIssuerOracle com tag S keys))).bind _ = _
+    rw [hlog_map]
+    have hrun := ProbOracleComp.runWith_run_interpret
+      (consToExtractedInner expand decWit chalToIdx checkRel keys.1) issuerH (A keys.1) ([], []) []
+    let repCons : VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+        List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig) →
+        VOLEITHTraceState d sdLen comLen rowLen
+          (ROMConservationStmt PK Nullifier Context Commitment) Seed IV PreMsg Chal ×
+          List (ROMConservationQuery Nullifier Context Commitment) :=
+      fun (roSt, log) => (roSt, log.map (toPublicQuery ∘ Prod.fst))
+    have hjoint_eq :
+        ((ProbOracleComp.runWith
+            (fun q state =>
+              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                (ProbOracleComp.runWith issuerH
+                  ((consToExtractedInner expand decWit chalToIdx checkRel keys.1 q).run state.1)
+                  state.2))
+            (A keys.1) (([], []), [])).map (Prod.map id repCons)) =
+          ProbOracleComp.runWith
+            (extConservationHandler expand decWit chalToIdx com tag checkRel S keys)
+            (A keys.1) (([], []), []) := by
+      refine ProbOracleComp.runWith_map_state _ _ repCons (fun q x => ?_)
+        (A keys.1) (([], []), [])
+      rcases x with ⟨roSt, log⟩
+      rcases q with req | qRO
+      · simp only [consToExtractedInner, StateT.run, ProbOracleComp.runWith_bind,
+          ProbOracleComp.runWith_sample, extConservationHandler]
+        have hmem :
+            ProbComp.eval ((ProbOracleComp.runState
+                (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+                  ⟨keys.1, req.query⟩ req.proof)
+                voleithMemoizeProg) roSt) =
+              ProbOracleComp.runWith voleithMemoize
+                (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+                  ⟨keys.1, req.query⟩ req.proof)
+                roSt := by
+          change ProbComp.eval (((ProbOracleComp.runState
+            (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel
+              ⟨keys.1, req.query⟩ req.proof)
+            voleithMemoizeProg).run roSt)) = _
+          rw [ProbOracleComp.eval_runState]
+          congr 2
+          exact funext fun q' => funext fun s' => eval_voleithMemoizeProg q' s'
+        rw [hmem]
+        simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+        congr 1
+        funext ⟨ok, roSt'⟩
+        cases ok
+        · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
+            repCons]
+        · dsimp only
+          simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+            ProbOracleComp.runWith_pure, issuerH, repCons, Function.comp_def]
+          set extReq := toExtractedRequest req
+            (extractWitnessFromTrace expand decWit roSt.1 req.proof)
+          have hacc_eq :
+              Conservation.acceptRequest com tag S keys.1 (log.map Prod.fst) extReq =
+                (Conservation.acceptLocal com tag S keys.1 extReq &&
+                  romAcceptQuery (log.map fun x => toPublicQuery x.1) req.query) := by
+            rcases req with ⟨q, proof⟩
+            cases q with
+            | issue iq =>
+              simp only [extReq, toExtractedRequest, Conservation.acceptRequest, romAcceptQuery,
+                Bool.and_true]
+              cases extractWitnessFromTrace expand decWit roSt.1 proof <;> rfl
+            | spend sq =>
+              simp only [extReq, toExtractedRequest]
+              cases hwt : extractWitnessFromTrace expand decWit roSt.1 proof <;>
+                simp [Conservation.acceptRequest, romAcceptQuery, ← romHasSpentNullifier_map,
+                  List.map_map, Function.comp_def]
+          rw [hacc_eq]
+          by_cases hacc :
+              Conservation.acceptLocal com tag S keys.1 extReq &&
+                romAcceptQuery (log.map fun x => toPublicQuery x.1) req.query
+          · simp only [hacc, ↓reduceIte, PMF.map, PMF.bind_bind, Function.comp_def,
+              PMF.pure_bind, List.map_append, List.map_cons, List.map_nil,
+              extReq, toPublicQuery_toExtractedRequest]
+          · simp only [hacc, Bool.false_eq_true, ↓reduceIte, PMF.pure_bind]
+      · simp only [consToExtractedInner, StateT.run, ProbOracleComp.runWith_bind,
+          ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, repCons,
+          extConservationHandler, PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind,
+          eval_voleithMemoizeProg]
+    have hforget := ProbOracleComp.runWith_map_state _ _ Prod.fst
+      (extConsStickyHandler_map_forget expand decWit chalToIdx com tag checkRel S keys)
+      (A keys.1) ((([], []), []), false)
+    rw [hrun]
+    have hleft :
+        ((PMF.map (Prod.map Prod.fst id)
+            (PMF.map (fun ⟨a, b, c⟩ => ((a, b), c))
+              (ProbOracleComp.runWith
+                (fun q state =>
+                  PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                    (ProbOracleComp.runWith issuerH
+                      ((consToExtractedInner expand decWit chalToIdx checkRel keys.1 q).run
+                        state.1)
+                      state.2))
+                (A keys.1) (([], []), [])))).bind
+          fun a => PMF.pure
+            (Conservation.extractedConservationAccept ⟨keys.1, a.1, a.2⟩)) =
+        ((ProbOracleComp.runWith
+            (fun q state =>
+              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                (ProbOracleComp.runWith issuerH
+                  ((consToExtractedInner expand decWit chalToIdx checkRel keys.1 q).run state.1)
+                  state.2))
+            (A keys.1) (([], []), [])).map (Prod.map id repCons)).bind
+          fun x => PMF.pure
+            (decide (romIssuedAmount x.2.2 x.1 + romGrantedRefund x.2.2 x.1 <
+              romSpentDebit x.2.2 x.1)) := by
+      simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind,
+        Conservation.extractedConservationAccept, repCons, Prod.map, id_eq]
+      congr 1
+      funext ⟨ctx, roSt, log⟩
+      rw [← romIssuedAmount_map, ← romGrantedRefund_map, ← romSpentDebit_map, List.map_map]
+      rfl
+    rw [hleft, hjoint_eq, ← hforget]
+    simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+  have hkey_le : ∀ keys : PK × SK,
+      ((ProbOracleComp.runWith
+          (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          (A keys.1) ((([], []), []), false)).map
+        fun (ctx, ((_, accepted), _)) =>
+          decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+            romSpentDebit accepted ctx)) true ≤
+      ((ProbOracleComp.runWith
+          (extConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+          (A keys.1) ((([], []), []), false)).map
+        fun (ctx, ((_, accepted), _)) =>
+          decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+            romSpentDebit accepted ctx)) true +
+        (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+    intro keys
+    have hiub := ProbOracleComp.IdenticalUntilBad.bind_apply_le
+      (romConsSticky_identicalUntilBad expand decWit chalToIdx com tag checkRel S keys)
+      (A keys.1) ((([], []), []), false)
+      (fun (ctx, ((_, accepted), _)) =>
+        PMF.pure (decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+          romSpentDebit accepted ctx)))
+      true
+    have hbad := romConsSticky_bad_le expand decWit chalToIdx com tag S checkRel hSound
+      keys (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
+    exact hiub.trans (add_le_add_right hbad _)
+  have hprob_le :
+      ProbComp.eval (romUnextractedConservationExperiment expand chalToIdx tag checkRel S A) true ≤
+        ProbComp.eval (Conservation.extractedConservationExperiment com tag S
+          (extractedAdversaryOfROM expand decWit chalToIdx checkRel A)) true +
+          (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+    rw [hrom_eval, hext_eval, PMF.bind_apply, PMF.bind_apply]
+    calc
+      (∑' keys, (ProbComp.eval S.keyGen) keys *
+          ((ProbOracleComp.runWith
+              (romConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+              (A keys.1) ((([], []), []), false)).map
+            fun (ctx, ((_, accepted), _)) =>
+              decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+                romSpentDebit accepted ctx)) true)
+        ≤ ∑' keys, (ProbComp.eval S.keyGen) keys *
+            (((ProbOracleComp.runWith
+                (extConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+                (A keys.1) ((([], []), []), false)).map
+              fun (ctx, ((_, accepted), _)) =>
+                decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+                  romSpentDebit accepted ctx)) true +
+              (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞)) := by
+          refine tsum_le_tsum fun keys => ?_
+          exact mul_le_mul_right (hkey_le keys) _
+      _ = (∑' keys, (ProbComp.eval S.keyGen) keys *
+            ((ProbOracleComp.runWith
+                (extConsStickyHandler expand decWit chalToIdx com tag checkRel S keys)
+                (A keys.1) ((([], []), []), false)).map
+              fun (ctx, ((_, accepted), _)) =>
+                decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <
+                  romSpentDebit accepted ctx)) true) +
+          ∑' keys, (ProbComp.eval S.keyGen) keys *
+            (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+          simp_rw [mul_add]
+          rw [tsum_add]
+      _ = _ := by
+          rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  have hnn := ENNReal.toNNReal_mono
+    (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, ENNReal.coe_ne_top⟩) hprob_le
+  rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe] at hnn
+  exact hnn
+
+/-- **End-to-end ROM reduction for `AnonymousToken.Conservation`**: composes straight-line leaf
+extraction with `Conservation.extractedConservationExperiment_succProbability_le_prod_mk` to bound
+an unextracted ROM conservation adversary's overspending probability by EUF-CMA against
+`noteForger`, commitment binding against `commitmentBindingReduction`, and `ksBound`. -/
+theorem unextractedConservationExperiment_succProbability_le_prod_mk
+    {d sdLen comLen rowLen : ℕ}
+    {K PK SK Nullifier Context Opening Commitment Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen
+      (ROMConservationStmt PK Nullifier Context Commitment) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (decWit : BitString rowLen → ROMConservationWitness Nullifier Opening Sig)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (hverify : ∀ k nf ctx t c o, CS.verify k (nf, ctx, t) c o = decide (com nf ctx t o = c))
+    (S : Signature.Scheme PK SK (Commitment × ℕ) Sig)
+    (checkRel : ROMConservationStmt PK Nullifier Context Commitment →
+      (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    {ε_rel : ℝ≥0}
+    (hSound : VOLEITHSoundnessError decWit chalToIdx (conservationRel com Prod.mk S) checkRel ε_rel)
+    (A : PK → ProbOracleComp (ROMConservationSpec Nullifier Context Commitment
+      d sdLen comLen rowLen PK Seed IV PreMsg Chal Sig) Context)
+    {m Q_leaf Q_FS : ℕ}
+    (hm : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) (A pk) m)
+    (hleaf : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithLeafCost)) (A pk) Q_leaf)
+    (hfs : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithFSCost)) (A pk) Q_FS) :
+    (romUnextractedConservationExperiment expand chalToIdx Prod.mk checkRel S A).succProbability ≤
+      (S.eufCmaExperiment (targetForger (Credit.target com Prod.mk)
+          (Conservation.noteForger com Prod.mk S
+            (extractedAdversaryOfROM expand decWit chalToIdx checkRel A)))).succProbability +
+        (CS.bindingExperiment (Conservation.commitmentBindingReduction com S
+          (extractedAdversaryOfROM expand decWit chalToIdx checkRel A))).succProbability +
+        ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel := by
+  refine (unextractedConservationExperiment_succProbability_le_extracted expand decWit chalToIdx
+    com Prod.mk S checkRel hSound A hm hleaf hfs).trans ?_
+  exact add_le_add_left
+    (Conservation.extractedConservationExperiment_succProbability_le_prod_mk
+      com CS hverify S _) _
+
+end ConservationBridge
+
 end Cslib.Crypto.Protocols.VOLE
