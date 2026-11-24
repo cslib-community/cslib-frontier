@@ -40,22 +40,26 @@ section Incl
 
 variable {α β γ : Type*} [DecidableEq β]
 
-/-- The inclusion matrix of an embedding `e : α ↪ β`: `1` at `(e x, x)`. -/
-@[expose] def incl (e : α ↪ β) : Matrix β α F2 := Matrix.of fun i x => if i = e x then 1 else 0
+/-- The inclusion matrix of an embedding `e : α ↪ β`: the columns `e x` of the identity. -/
+@[expose] def incl (e : α ↪ β) : Matrix β α F2 := (1 : Matrix β β F2).submatrix id e
+
+theorem incl_apply (e : α ↪ β) (i : β) (x : α) : incl e i x = if i = e x then 1 else 0 :=
+  Matrix.one_apply
+
+theorem incl_t_mul_incl [Fintype β] (e : α ↪ β) (e' : γ ↪ β) :
+    (incl e)ᵀ * incl e' = (1 : Matrix β β F2).submatrix e e' := by
+  rw [incl, incl, Matrix.transpose_submatrix, Matrix.transpose_one,
+    ← Matrix.submatrix_mul _ _ _ id _ Function.bijective_id]
+  simp
 
 theorem incl_t_mul [Fintype β] [DecidableEq α] (e : α ↪ β) : (incl e)ᵀ * incl e = 1 := by
-  ext x y
-  simp [Matrix.mul_apply, incl, Matrix.one_apply, Function.swap, e.injective.eq_iff, eq_comm]
+  rw [incl_t_mul_incl, Matrix.submatrix_one_embedding]
 
 /-- Embeddings with disjoint ranges have orthogonal inclusion matrices. -/
 theorem incl_t_mul_eq_zero [Fintype β] (e : α ↪ β) (e' : γ ↪ β) (h : ∀ x y, e x ≠ e' y) :
     (incl e)ᵀ * incl e' = 0 := by
   ext x y
-  simp only [Matrix.mul_apply, incl, Matrix.of_apply, Matrix.transpose_apply, Matrix.zero_apply]
-  refine sum_eq_zero fun k _ => ?_
-  by_cases h1 : k = e x
-  · simp [h1, h x y]
-  · simp [h1]
+  simp [incl_t_mul_incl, h x y]
 
 end Incl
 
@@ -73,7 +77,7 @@ theorem inc_mul_diag (e : μ × κ ↪ ι) (T : Finset (μ × κ)) :
     inc e * dg T * (inc e)ᵀ = dg (T.map e) := by
   ext i j
   simp only
-      [Matrix.mul_apply, inc, incl, Matrix.of_apply, dg, Matrix.transpose_apply,
+      [Matrix.mul_apply, inc, incl_apply, dg, Matrix.transpose_apply,
           Matrix.diagonal_apply,
     Finset.mem_map]
   simp only [mul_ite, mul_one, mul_zero]

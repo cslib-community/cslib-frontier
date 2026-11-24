@@ -53,7 +53,7 @@ def up (M : Matrix (Fin a) (Fin b) F2) : U (a + b) :=
       refine sum_eq_zero fun k _ => ?_
       rw [Matrix.mul_apply, sum_mul]
       refine sum_eq_zero fun l _ => ?_
-      simp only [incl, weEmb_apply, Matrix.of_apply, Matrix.transpose_apply]
+      simp only [incl_apply, weEmb_apply, Matrix.transpose_apply]
       by_cases h1 : i = we (hl (a := a) (b := b)) l
       · by_cases h2 : j = we (hr (a := a) (b := b)) k
         · exfalso
@@ -69,7 +69,7 @@ def up (M : Matrix (Fin a) (Fin b) F2) : U (a + b) :=
       intro k _
       rw [Matrix.mul_apply, sum_mul]
       refine sum_eq_zero fun l _ => ?_
-      simp only [incl, weEmb_apply, Matrix.of_apply, Matrix.transpose_apply]
+      simp only [incl_apply, weEmb_apply, Matrix.transpose_apply]
       by_cases h1 : i = we (hl (a := a) (b := b)) l
       · by_cases h2 : i = we (hr (a := a) (b := b)) k
         · exfalso

@@ -99,7 +99,7 @@ theorem wi_t_mul : (wi hp)ᵀ * wi hp = 1 := incl_t_mul _
 theorem wi_mul_apply (A : Matrix (Fin n) (Fin n) F2) (i j : Fin h) :
     (wi hp * A * (wi hp)ᵀ) i j =
       ∑ b, ∑ a, if i = we hp a ∧ j = we hp b then A a b else 0 := by
-  simp only [Matrix.mul_apply, wi, incl, weEmb_apply, Matrix.of_apply, Matrix.transpose_apply,
+  simp only [Matrix.mul_apply, wi, incl_apply, weEmb_apply, Matrix.transpose_apply,
     sum_mul]
   refine sum_congr rfl fun b _ => sum_congr rfl fun a _ => ?_
   by_cases h1 : i = we hp a <;> by_cases h2 : j = we hp b <;> simp [h1, h2]

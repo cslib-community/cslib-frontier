@@ -46,7 +46,7 @@ theorem win_win {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ n) (hpp 
   rw [mat_win, mat_win, mat_win]
   have e : wi hp * wi hp' = wi hpp := by
     ext i j
-    simp only [Matrix.mul_apply, wi, incl, weEmb_apply, Matrix.of_apply]
+    simp only [Matrix.mul_apply, wi, incl_apply, weEmb_apply]
     rw [sum_eq_single (we hp' j)]
     · have : we hp (we hp' j) = we hpp j := by
         simp only [we, Fin.ext_iff]
