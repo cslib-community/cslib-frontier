@@ -563,8 +563,11 @@ theorem msf_union_unsupported [DecidableEq E] (hw : Function.Injective w) {F : F
 /-- `F` is a **spanning forest** of the edges `S`: an acyclic subset of `S` that joins the ends of
 every edge of `S`. -/
 structure IsSpanningForest (ends : E → Sym2 V) (S F : Finset E) : Prop where
+  /-- The forest consists of edges of `S`. -/
   subset : F ⊆ S
+  /-- The forest is acyclic. -/
   isAcyclic : IsAcyclic ends F
+  /-- The forest joins the ends of every edge of `S`. -/
   joins : ∀ e ∈ S, ∀ a b, ends e = s(a, b) → Joins ends F a b
 
 /-- With distinct weights, `msf S` is a spanning forest of `S`. -/
