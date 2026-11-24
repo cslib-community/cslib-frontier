@@ -4787,6 +4787,7 @@ public import CslibFrontier.Computability.PCP.Encoded.Verifier
 public import CslibFrontier.Computability.PCP.Encoded.Verifier.Reduction
 public import CslibFrontier.Computability.PCP.Encoded.Verifier.Repetition
 public import CslibFrontier.Computability.PCP.Encoded.Verifier.Soundness
+public import CslibFrontier.Computability.PCP.Encoded.Witness
 public import CslibFrontier.Computability.PCP.GapTheorem
 public import CslibFrontier.Computability.PCP.GenericComposition
 public import CslibFrontier.Computability.PCP.LocalTest
