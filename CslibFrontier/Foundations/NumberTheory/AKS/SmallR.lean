@@ -13,9 +13,6 @@ public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.Data.Nat.Choose.Central
 import CslibFrontier.Tactic.LinarithCast
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import Mathlib.Data.Nat.Choose.Factorization
-import Mathlib.Data.Nat.Factorization.Basic
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -99,7 +96,7 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
   set X := n ^ K * N
   have hfac : ∀ i ∈ Icc 1 L, 1 ≤ n ^ i - 1 := by
     intro i hi
-    have : 2 ≤ n ^ i := le_trans hn (Nat.le_self_pow (by simp at hi; omega) n)
+    have : 2 ≤ n ^ i := le_trans hn (Nat.le_self_pow (by simp only [mem_Icc] at hi; omega) n)
     omega
   have hN : N ≠ 0 := prod_ne_zero_iff.mpr fun i hi => by have := hfac i hi; omega
   have hX : X ≠ 0 := mul_ne_zero (pow_ne_zero _ (by omega)) hN
@@ -123,7 +120,7 @@ theorem exists_lt_orderOf {n : ℕ} (hn : 2 ≤ n) :
       calc
         N ≤ ∏ _i ∈ Icc 1 L, n ^ L :=
           prod_le_prod fun i hi => (Nat.sub_le _ _).trans
-            (Nat.pow_le_pow_right (by omega) (by simp at hi; omega))
+            (Nat.pow_le_pow_right (by omega) (by simp only [mem_Icc] at hi; omega))
         _ = n ^ (c ^ 4) := by
           rw [prod_const, Nat.card_Icc, Nat.add_sub_cancel, ← pow_mul]
           congr 1

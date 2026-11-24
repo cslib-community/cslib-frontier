@@ -207,37 +207,28 @@ theorem spectralExpansion_tensor_le :
       gcongr
     _ = _ := by ring
 
-/-- `λ(G) ≤ λ(G ⊗ H)`: functions of the first coordinate see the walk on `G`. -/
-private theorem spectralExpansion_le_spectralExpansion_tensor_left [Nonempty V'] [Nonempty D'] :
-    G.spectralExpansion ≤ (G.tensor H).spectralExpansion := by
+/-- A rotation map whose walk and vertex expectation lift along `proj` has `λ(K) ≤ λ(G ⊗ H)`. -/
+private theorem spectralExpansion_le_of_proj {W E : Type*} [Fintype W] [Fintype E]
+    (K : RotationMap W E) (proj : V × V' → W)
+    (hproj : ∀ f : W → ℝ, 𝔼 p, f (proj p) = 𝔼 w, f w)
+    (hwalk : ∀ f : W → ℝ, (G.tensor H).walk (fun p ↦ f (proj p)) = fun p ↦ K.walk f (proj p)) :
+    K.spectralExpansion ≤ (G.tensor H).spectralExpansion := by
   refine spectralExpansion_le (spectralExpansion_nonneg _) fun f hf ↦ ?_
-  have hW : (G.tensor H).walk (fun p ↦ f p.1) = fun p ↦ G.walk f p.1 :=
-    funext fun p ↦ by
-      rw [walk_tensor_apply, walk_apply]
-      simp only [Fintype.expect_const]
-  have h := (G.tensor H).expect_walk_sq_le_spectralExpansion_sq_mul (f := fun p ↦ f p.1)
-    (by rw [expect_comp_fst f, hf])
-  rwa [hW, expect_comp_fst (fun v ↦ G.walk f v ^ 2), expect_comp_fst (fun v ↦ f v ^ 2)] at h
-
-/-- `λ(H) ≤ λ(G ⊗ H)`: functions of the second coordinate see the walk on `H`. -/
-private theorem spectralExpansion_le_spectralExpansion_tensor_right [Nonempty V] [Nonempty D] :
-    H.spectralExpansion ≤ (G.tensor H).spectralExpansion := by
-  refine spectralExpansion_le (spectralExpansion_nonneg _) fun f hf ↦ ?_
-  have hW : (G.tensor H).walk (fun p ↦ f p.2) = fun p ↦ H.walk f p.2 :=
-    funext fun p ↦ by
-      rw [walk_tensor_apply, walk_apply]
-      simp only [Fintype.expect_const]
-  have h := (G.tensor H).expect_walk_sq_le_spectralExpansion_sq_mul (f := fun p ↦ f p.2)
-    (by rw [expect_comp_snd f, hf])
-  rwa [hW, expect_comp_snd (fun v ↦ H.walk f v ^ 2), expect_comp_snd (fun v ↦ f v ^ 2)] at h
+  have h := (G.tensor H).expect_walk_sq_le_spectralExpansion_sq_mul (f := fun p ↦ f (proj p))
+    (by rw [hproj f, hf])
+  rwa [hwalk f, hproj (fun v ↦ K.walk f v ^ 2), hproj (fun v ↦ f v ^ 2)] at h
 
 /-- The spectral expansion of `G ⊗ H` is the larger of those of `G` and `H`
 [Reingold, Vadhan and Wigderson, Proposition 2.4][ReingoldVadhanWigderson2002], when neither factor
 is empty or without edges. -/
 theorem spectralExpansion_tensor [Nonempty V] [Nonempty D] [Nonempty V'] [Nonempty D'] :
     (G.tensor H).spectralExpansion = max G.spectralExpansion H.spectralExpansion :=
-  (G.spectralExpansion_tensor_le H).antisymm
-    (max_le (G.spectralExpansion_le_spectralExpansion_tensor_left H)
-      (G.spectralExpansion_le_spectralExpansion_tensor_right H))
+  (G.spectralExpansion_tensor_le H).antisymm <| max_le
+    (G.spectralExpansion_le_of_proj H G Prod.fst expect_comp_fst fun f ↦ funext fun p ↦ by
+      rw [walk_tensor_apply, walk_apply]
+      simp only [Fintype.expect_const])
+    (G.spectralExpansion_le_of_proj H H Prod.snd expect_comp_snd fun f ↦ funext fun p ↦ by
+      rw [walk_tensor_apply, walk_apply]
+      simp only [Fintype.expect_const])
 
 end Cslib.RotationMap
