@@ -1,6 +1,7 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.AlternatingTimeSpace
+import CslibFrontierResults.Entries.BanditRegret
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.CombinatorialAuction
 import CslibFrontierResults.Entries.Cooperative
@@ -14,6 +15,7 @@ import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.ExtensiveSequenceLP
+import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.GraphicalGames
 import CslibFrontierResults.Entries.HadamardRigidity
@@ -21,6 +23,7 @@ import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.IndirectRevelation
+import CslibFrontierResults.Entries.InternalRegret
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.LocallyDecodable
