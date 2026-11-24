@@ -121,9 +121,9 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_sum_roundGame (p : PMF (Boo
     Game.advantage
         (p.bind (Sum.elim PMF.pure fun a =>
           (ProbComp.eval (idealJoint (f a) (I a)
-            (composeSim (P a) (S₁ a)
-              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J)
-              (I a)) (x a))).bind fun r => ProbComp.eval (D a r)))
+            (composeSim (P a) (S₁ a (I a))
+              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a)))
+            (x a))).bind fun r => ProbComp.eval (D a r)))
         (p.bind (Sum.elim PMF.pure fun a =>
           (((P a).compose fun _ => (seqBatchOT k M).compose fun _ => Sub a).realJoint (W₂ a)
             (I a) (x a)).bind fun r => ProbComp.eval (D a r))) ≤
@@ -131,12 +131,12 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_sum_roundGame (p : PMF (Boo
           (p.bind (Sum.elim PMF.pure fun a =>
             (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a))
                 (I a) (x a) (D a) r)))
           (p.bind (Sum.elim PMF.pure fun a =>
             ((P a).realJoint (batchOTWorld k M) (I a) (x a)).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a))
                 (I a) (x a) (D a) r))) +
         ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range k,
           Game.advantage
@@ -150,13 +150,13 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_sum_roundGame (p : PMF (Boo
                 (roundGame fun _ J q => (Sub a).realJoint (W₂ a) J q))) := by
   refine (advantage_bind_compose_le_add_sum_roundGame p P (fun _ => batchOTWorld k M) W₂ f S₁
     (fun a _ => (seqBatchOT k M).compose fun _ => Sub a)
-    (fun a _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J) I x D N
+    (fun a _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a)) I x D N
     hN).trans (add_le_add le_rfl (Finset.sum_le_sum fun i _ => ?_))
   have h := advantage_bind_compose_le_add_sum_roundGame
     (bindSigma p fun a =>
       composeRoundEnv (P a) (batchOTWorld k M) (W₂ a)
         (fun _ => (seqBatchOT k M).compose fun _ => Sub a)
-        (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J) (I a)
+        (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a)) (I a)
         (x a) (D a) i)
     (fun _ => seqBatchOT k M) (fun _ => otWorld M) (fun c => W₂ c.1)
     (fun _ => batchOTFunctionality k M) (fun _ => seqBatchOTSim k M) (fun c _ => Sub c.1)
@@ -226,11 +226,10 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame {G : α → 
     Game.advantage
         (p.bind (Sum.elim PMF.pure fun a =>
           (ProbComp.eval (idealJoint (f a) (I a)
-            (composeSim (P a) (S₁ a)
-              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-                (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                  (fun _ => S₂ a) J) J)
-              (I a)) (x a))).bind fun r => ProbComp.eval (D a r)))
+            (composeSim (P a) (S₁ a (I a))
+              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+                (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                  (fun _ => S₂ a)))) (x a))).bind fun r => ProbComp.eval (D a r)))
         (p.bind (Sum.elim PMF.pure fun a =>
           (((P a).compose fun _ => (seqBatchOT k M).compose fun _ =>
             (maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a).realJoint
@@ -239,24 +238,24 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame {G : α → 
           (p.bind (Sum.elim PMF.pure fun a =>
             (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a)))
                 (I a) (x a) (D a) r)))
           (p.bind (Sum.elim PMF.pure fun a =>
             ((P a).realJoint (batchOTWorld k M) (I a) (x a)).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a)))
                 (I a) (x a) (D a) r))) +
         ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range k,
           (Game.advantage
               (p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 (ProbComp.eval (idealJoint (otFunctionality M) c.coalition (Sm a c.coalition)
                   c.query)).bind fun r =>
@@ -266,8 +265,8 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame {G : α → 
               (p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 ((maskedOT (mask a) (unmask a) (samplePads a)).realJoint (otWorld (G a))
                   c.coalition c.query).bind fun r =>
@@ -278,8 +277,8 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame {G : α → 
               (p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT (mask a) (unmask a) (samplePads a)) (otWorld (G a))
                   (W₂ a) (fun _ => Sub a) (fun _ => S₂ a) c.coalition c.query c.guess 0).bind
@@ -288,24 +287,24 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame {G : α → 
               (p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT (mask a) (unmask a) (samplePads a)) (otWorld (G a))
                   (W₂ a) (fun _ => Sub a) (fun _ => S₂ a) c.coalition c.query c.guess 0).bind
                     (roundGame fun _ J q => (Sub a).realJoint (W₂ a) J q))))) := by
   refine (advantage_bind_compose_seqBatchOT_compose_le_sum_roundGame p k M P W₂
     (fun a => (maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-    (fun a J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-      (fun _ => S₂ a) J)
+    (fun a J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+      (fun _ => S₂ a))
     f S₁ I x D N hN).trans
     (add_le_add le_rfl (Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => ?_))
   have h := advantage_bind_compose_le_add_sum_roundGame
     (bindSigma p fun a =>
       composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
         ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-        (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-          (fun _ => S₂ a) J)
+        (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+          (fun _ => S₂ a))
         (I a) (x a) (D a) i j)
     (fun c => maskedOT (mask c.1) (unmask c.1) (samplePads c.1)) (fun c => otWorld (G c.1))
     (fun c => W₂ c.1) (fun _ => otFunctionality M) (fun c => Sm c.1) (fun c _ => Sub c.1)
@@ -355,9 +354,9 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_add_mul_roundGame (p : PMF 
     Game.advantage
         (p.bind (Sum.elim PMF.pure fun a =>
           (ProbComp.eval (idealJoint (f a) (I a)
-            (composeSim (P a) (S₁ a)
-              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J)
-              (I a)) (x a))).bind fun r => ProbComp.eval (D a r)))
+            (composeSim (P a) (S₁ a (I a))
+              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a)))
+            (x a))).bind fun r => ProbComp.eval (D a r)))
         (p.bind (Sum.elim PMF.pure fun a =>
           (((P a).compose fun _ => (seqBatchOT k M).compose fun _ => Sub a).realJoint (W₂ a)
             (I a) (x a)).bind fun r => ProbComp.eval (D a r))) ≤
@@ -365,12 +364,12 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_add_mul_roundGame (p : PMF 
           (p.bind (Sum.elim PMF.pure fun a =>
             (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a))
                 (I a) (x a) (D a) r)))
           (p.bind (Sum.elim PMF.pure fun a =>
             ((P a).realJoint (batchOTWorld k M) (I a) (x a)).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a))
                 (I a) (x a) (D a) r))) +
         ∑ i ∈ Finset.range N, 2 ^ L *
           Game.advantage
@@ -386,13 +385,13 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_add_mul_roundGame (p : PMF 
                 (roundGame fun _ J q => (Sub a).realJoint (W₂ a) J q))) := by
   refine (advantage_bind_compose_le_add_sum_roundGame p P (fun _ => batchOTWorld k M) W₂ f S₁
     (fun a _ => (seqBatchOT k M).compose fun _ => Sub a)
-    (fun a _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J) I x D N
+    (fun a _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a)) I x D N
     hN).trans (add_le_add le_rfl (Finset.sum_le_sum fun i _ => ?_))
   have h := advantage_bind_compose_le_add_mul_roundGame
     (bindSigma p fun a =>
       composeRoundEnv (P a) (batchOTWorld k M) (W₂ a)
         (fun _ => (seqBatchOT k M).compose fun _ => Sub a)
-        (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂ a) J) (I a)
+        (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂ a)) (I a)
         (x a) (D a) i)
     (fun _ => seqBatchOT k M) (fun _ => otWorld M) (fun c => W₂ c.1)
     (fun _ => batchOTFunctionality k M) (fun _ => seqBatchOTSim k M) (fun c _ => Sub c.1)
@@ -457,11 +456,10 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
     Game.advantage
         (p.bind (Sum.elim PMF.pure fun a =>
           (ProbComp.eval (idealJoint (f a) (I a)
-            (composeSim (P a) (S₁ a)
-              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-                (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                  (fun _ => S₂ a) J) J)
-              (I a)) (x a))).bind fun r => ProbComp.eval (D a r)))
+            (composeSim (P a) (S₁ a (I a))
+              (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+                (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                  (fun _ => S₂ a)))) (x a))).bind fun r => ProbComp.eval (D a r)))
         (p.bind (Sum.elim PMF.pure fun a =>
           (((P a).compose fun _ => (seqBatchOT k M).compose fun _ =>
             (maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a).realJoint
@@ -470,16 +468,16 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
           (p.bind (Sum.elim PMF.pure fun a =>
             (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a)))
                 (I a) (x a) (D a) r)))
           (p.bind (Sum.elim PMF.pure fun a =>
             ((P a).realJoint (batchOTWorld k M) (I a) (x a)).bind fun r =>
               ProbComp.eval (composeDistinguisher (P a)
-                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J) J)
+                (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+                  (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a)))
                 (I a) (x a) (D a) r))) +
         ∑ i ∈ Finset.range N, 2 ^ L *
           (Game.advantage
@@ -487,8 +485,8 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
                 p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 (ProbComp.eval (idealJoint (otFunctionality M) c.coalition (Sm a c.coalition)
                   c.query)).bind fun r =>
@@ -499,8 +497,8 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
                 p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 ((maskedOT (mask a) (unmask a) (samplePads a)).realJoint (otWorld (G a))
                   c.coalition c.query).bind fun r =>
@@ -512,8 +510,8 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
                 p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT (mask a) (unmask a) (samplePads a)) (otWorld (G a))
                   (W₂ a) (fun _ => Sub a) (fun _ => S₂ a) c.coalition c.query c.guess 0).bind
@@ -523,24 +521,24 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
                 p.bind (Sum.elim PMF.pure fun a =>
                 (composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   (I a) (x a) (D a) i j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT (mask a) (unmask a) (samplePads a)) (otWorld (G a))
                   (W₂ a) (fun _ => Sub a) (fun _ => S₂ a) c.coalition c.query c.guess 0).bind
                     (roundGame fun _ J q => (Sub a).realJoint (W₂ a) J q))))) := by
   refine (advantage_bind_compose_seqBatchOT_compose_le_add_mul_roundGame p k M P W₂
     (fun a => (maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-    (fun a J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-      (fun _ => S₂ a) J)
+    (fun a J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+      (fun _ => S₂ a))
     f S₁ I x D N hN L hL).trans
     (add_le_add le_rfl (Finset.sum_le_sum fun i _ => ?_))
   have h := advantage_bind_compose_le_add_sum_roundGame
     ((ProbComp.eval (ProbComp.sampleBinaryNat L)).bind fun j => bindSigma p fun a =>
       composeSeqBatchOTRoundEnv k M (P a) (W₂ a)
         ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-        (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-          (fun _ => S₂ a) J)
+        (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+          (fun _ => S₂ a))
         (I a) (x a) (D a) i j)
     (fun c => maskedOT (mask c.1) (unmask c.1) (samplePads c.1)) (fun c => otWorld (G c.1))
     (fun c => W₂ c.1) (fun _ => otFunctionality M) (fun c => Sm c.1) (fun c _ => Sub c.1)

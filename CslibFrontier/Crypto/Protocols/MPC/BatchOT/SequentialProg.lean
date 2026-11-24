@@ -72,7 +72,7 @@ the program `Sub.realJointProg W₂`. Its distribution is `composeSeqBatchOTRoun
     ProbComp (Bool ⊕ RoundChallenge (spec₁ := otSpec M) (fun _ => sc₂) (fun _ => Coins₂)) :=
   composeRoundEnvProg P (batchOTWorld k M)
     (fun _ J q => ((seqBatchOT k M).compose fun _ => Sub).realJointProg W₂ J q)
-    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D i >>=
+    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D i >>=
       Sum.elim (fun b => pure (Sum.inl b)) fun c =>
         composeRoundEnvProg (seqBatchOT k M) (otWorld M) (fun _ J q => Sub.realJointProg W₂ J q)
           (fun _ => S₂) c.coalition c.query c.guess j
@@ -99,7 +99,7 @@ theorem eval_composeSeqBatchOTRoundEnvProg {m : ℕ} (k : ℕ) (M : Type)
     (eval_composeRoundEnvProg P (batchOTWorld k M) W₂
       (fun _ => (seqBatchOT k M).compose fun _ => Sub)
       (fun _ J q => Protocol.eval_realJointProg _ W₂ J q)
-      (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D i)
+      (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D i)
     (funext fun r => ?_)
   cases r with
   | inl b => simp only [Sum.elim_inl, ProbComp.eval_pure]

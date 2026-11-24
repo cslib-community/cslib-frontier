@@ -111,7 +111,7 @@ example (k : ℕ)
       ((i : Fin 2) → (batchOTSpec k (ZMod 5)).Answer () i) → ProbComp Bool) :
     semiHonestAdvantage ((seqBatchOT k (ZMod 5)).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
       noOracleWorld (batchOTFunctionality k (ZMod 5)) {0}
-      (composeSim (seqBatchOT k (ZMod 5)) (seqBatchOTSim k (ZMod 5)) (fun _ => S₂) {0}) x D =
+      (composeSim (seqBatchOT k (ZMod 5)) (seqBatchOTSim k (ZMod 5) {0}) (fun _ => S₂)) x D =
       0 := by
   have h := semiHonestAdvantage_seqBatchOT_compose_le_mul k (ZMod 5) noOracleWorld
     (ddhOTProtocol (1 : ZMod 5) 5) S₂ {0} 0
@@ -137,7 +137,7 @@ example (F : PrimeOrderGroupFamily) (k n : ℕ) (d : F.Desc)
       ((i : Fin 2) → (batchOTSpec k (F.Carrier d)).Answer () i) → ProbComp Bool) :
     (semiHonestAdvantage ((seqBatchOT k (F.Carrier d)).compose fun _ => F.ddhOTProbProtocol n d)
         noOracleWorld (batchOTFunctionality k (F.Carrier d)) I
-        (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d)) (fun _ => S₂) I)
+        (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d) I) (fun _ => S₂))
         x D : ℝ≥0∞) ≤
       Composition.replacementBound (otWorld (F.Carrier d)) noOracleWorld
         (fun _ => F.ddhOTProbProtocol n d) (fun _ => S₂) I (seqBatchOT k (F.Carrier d)).steps

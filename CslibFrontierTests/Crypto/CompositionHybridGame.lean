@@ -132,7 +132,7 @@ example (F : PrimeOrderGroupFamily) (k n : ℕ) (d : F.Desc)
       ((i : Fin 2) → (batchOTSpec k (F.Carrier d)).Answer () i) → ProbComp Bool) :
     semiHonestAdvantage ((seqBatchOT k (F.Carrier d)).compose fun _ => F.ddhOTProbProtocol n d)
         noOracleWorld (batchOTFunctionality k (F.Carrier d)) I
-        (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d)) (fun _ => S₂) I)
+        (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d) I) (fun _ => S₂))
         x D ≤
       ∑ j ∈ Finset.range k,
         Game.advantage
@@ -169,8 +169,8 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (k n : ℕ)
     Game.advantage
         ((setup n).bind fun d => ProbComp.eval
           (idealJoint (batchOTFunctionality k (F.Carrier d)) I
-            (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d))
-              (fun _ => S₂ d) I) (x d) >>= D d))
+            (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d) I)
+              (fun _ => S₂ d)) (x d) >>= D d))
         ((setup n).bind fun d =>
           (((seqBatchOT k (F.Carrier d)).compose fun _ => F.ddhOTProbProtocol n d).realJoint
             noOracleWorld I (x d)).bind fun r => ProbComp.eval (D d r)) ≤
@@ -219,8 +219,8 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (k n : ℕ) (L 
     Game.advantage
         ((setup n).bind fun d => ProbComp.eval
           (idealJoint (batchOTFunctionality k (F.Carrier d)) I
-            (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d))
-              (fun _ => S₂ d) I) (x d) >>= D d))
+            (composeSim (seqBatchOT k (F.Carrier d)) (seqBatchOTSim k (F.Carrier d) I)
+              (fun _ => S₂ d)) (x d) >>= D d))
         ((setup n).bind fun d =>
           (((seqBatchOT k (F.Carrier d)).compose fun _ => F.ddhOTProbProtocol n d).realJoint
             noOracleWorld I (x d)).bind fun r => ProbComp.eval (D d r)) ≤
@@ -273,14 +273,14 @@ example {Fn : Type} (G : Garbling.Scheme Fn) (n : ℕ) (c : Yao.Params G)
         (Yao.composedProtocol G n c
           ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ => Sub))
         W₂ (Yao.functionality G c) I
-        (composeSim (Yao.protocol G n c) S₁
+        (composeSim (Yao.protocol G n c) (S₁ I)
           (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-            (seqBatchOTSim c.evaluatorLen (List Bool)) (fun _ => S₂) J) I) x D ≤
+            (seqBatchOTSim c.evaluatorLen (List Bool) J) (fun _ => S₂))) x D ≤
       semiHonestAdvantage (Yao.protocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
           (Yao.functionality G c) I (S₁ I) x
           (composeDistinguisher (Yao.protocol G n c)
             (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-              (seqBatchOTSim c.evaluatorLen (List Bool)) (fun _ => S₂) J) I x D) +
+              (seqBatchOTSim c.evaluatorLen (List Bool) J) (fun _ => S₂)) I x D) +
         ∑ i ∈ Finset.range (Yao.schedule c).oracleRounds,
           ∑ j ∈ Finset.range c.evaluatorLen,
             Game.advantage
@@ -318,11 +318,11 @@ example {Fn : Type} (Gs : Garbling.Scheme Fn) (F : PrimeOrderGroupFamily)
             (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)).compose fun _ =>
               F.ddhOTProbProtocol n d))
         noOracleWorld (Yao.functionality Gs c) I
-        (composeSim (Yao.protocol Gs n c) S₁
+        (composeSim (Yao.protocol Gs n c) (S₁ I)
           (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-            (seqBatchOTSim c.evaluatorLen (List Bool))
-            (fun _ J => composeSim (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)) Sm
-              (fun _ => S₂) J) J) I) x D ≤ _)
+            (seqBatchOTSim c.evaluatorLen (List Bool) J)
+            (fun _ J => composeSim (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)) (Sm J)
+              (fun _ => S₂)))) x D ≤ _)
 
 /-- Yao's protocol calls the batched transfer once. -/
 example {Fn : Type} (G : Garbling.Scheme Fn) (c : Yao.Params G) :

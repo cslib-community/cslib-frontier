@@ -136,7 +136,7 @@ example (x : (i : Fin 2) → OTIn (List Bool) i)
     (semiHonestAdvantage
         ((maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
         noOracleWorld (otFunctionality (List Bool)) {1}
-        (composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) {1}) x D : ℝ≥0∞) ≤
+        (composeSim (maskedOT mask unmask samplePads) (S₁ {1}) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       semiHonestAdvantage (maskedOT mask unmask samplePads) (otWorld (ZMod 5))
           (otFunctionality (List Bool)) {1} (S₁ {1}) x
           (composeDistinguisher (maskedOT mask unmask samplePads) (fun _ => S₂) {1} x D) +

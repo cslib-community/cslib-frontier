@@ -133,11 +133,11 @@ for it. -/
       CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
         (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
     (I : Finset (Fin 2)) : SimulatorFamily (kdfDDHProbFamily Gs F H c) I :=
-  fun n d => composeSim (protocol Gs n (c n)) (T₁ n)
+  fun n d => composeSim (protocol Gs n (c n)) (T₁ n I)
     (fun _ J => composeSim (seqBatchOT (c n).evaluatorLen (List Bool))
-      (seqBatchOTSim (c n).evaluatorLen (List Bool))
+      (seqBatchOTSim (c n).evaluatorLen (List Bool) J)
       (fun _ J => composeSim (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPadsProb n d))
-        (Sm n d) (fun _ => S₂ n d) J) J) I
+        (Sm n d J) (fun _ => S₂ n d)))
 
 /-- **The `prv.sim` adversary of an environment** against `Yao.kdfDDHProbFamily` with a corrupted
 evaluator, at the parameter `n`: `Yao.evaluatorEnvToPrvSim` whose first stage draws the group
@@ -162,10 +162,10 @@ batched transfer. No efficiency is claimed for it. -/
     (fun a => a.2.inputs) fun a =>
       composeDistinguisher (protocol Gs n (c n))
         (fun _ J => composeSim (seqBatchOT (c n).evaluatorLen (List Bool))
-          (seqBatchOTSim (c n).evaluatorLen (List Bool))
+          (seqBatchOTSim (c n).evaluatorLen (List Bool) J)
           (fun _ J => composeSim
-            (maskedOT (F.kdfMask H a.1) (F.kdfMask H a.1) (F.kdfPadsProb n a.1)) (Sm n a.1)
-            (fun _ => S₂ n a.1) J) J)
+            (maskedOT (F.kdfMask H a.1) (F.kdfMask H a.1) (F.kdfPadsProb n a.1)) (Sm n a.1 J)
+            (fun _ => S₂ n a.1)))
         {1} a.2.inputs (Z.guess n a.1 a.2.state)
 
 /-- **The environment program of transfer `j`** of `Yao.kdfDDHProbFamily` at the parameter `n` and
@@ -193,8 +193,8 @@ it. -/
   composeSeqBatchOTRoundEnvProg (c n).evaluatorLen (List Bool) (protocol Gs n (c n)) noOracleWorld
     ((maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPadsProb n d)).compose fun _ =>
       F.ddhOTProbProtocol n d)
-    (fun J => composeSim (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPadsProb n d)) (Sm n d)
-      (fun _ => S₂ n d) J)
+    (fun J => composeSim (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPadsProb n d)) (Sm n d J)
+      (fun _ => S₂ n d))
     {1} ch.inputs (Z.guess n d ch.state) 0 j
 
 /-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted garbler, not the cited result

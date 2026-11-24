@@ -340,7 +340,7 @@ theorem semiHonestAdvantage_maskedOT_ddhOTProb_receiver_le (n : ℕ) (d : F.Desc
     (semiHonestAdvantage
         ((maskedOT mask unmask samplePads).compose fun _ => F.ddhOTProbProtocol n d)
         noOracleWorld (otFunctionality M) {1}
-        (composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) {1}) x D : ℝ≥0∞) ≤
+        (composeSim (maskedOT mask unmask samplePads) (S₁ {1}) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       semiHonestAdvantage (maskedOT mask unmask samplePads) (otWorld (F.Carrier d))
           (otFunctionality M) {1} (S₁ {1}) x
           (composeDistinguisher (maskedOT mask unmask samplePads) (fun _ => S₂) {1} x D) +

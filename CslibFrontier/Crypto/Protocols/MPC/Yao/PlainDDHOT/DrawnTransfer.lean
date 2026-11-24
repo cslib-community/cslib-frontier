@@ -160,12 +160,11 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
     Game.advantage
         ((ProbComp.eval e).bind fun a =>
           (ProbComp.eval (idealJoint (functionality Gs c) {1}
-            (composeSim (protocol Gs n c) T₁
+            (composeSim (protocol Gs n c) (T₁ {1})
               (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-                (seqBatchOTSim c.evaluatorLen (List Bool))
-                (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                  (fun _ => S₂ a) J) J)
-              {1}) (x a))).bind fun r => ProbComp.eval (D a r))
+                (seqBatchOTSim c.evaluatorLen (List Bool) J)
+                (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                  (fun _ => S₂ a)))) (x a))).bind fun r => ProbComp.eval (D a r))
         ((ProbComp.eval e).bind fun a =>
           (((protocol Gs n c).compose fun _ =>
             (seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
@@ -174,9 +173,9 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
       prvSimAdvantage Gs Φ n (S n) (evaluatorEnvToPrvSim c e x fun a =>
           composeDistinguisher (protocol Gs n c)
             (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-              (seqBatchOTSim c.evaluatorLen (List Bool))
-              (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                (fun _ => S₂ a) J) J)
+              (seqBatchOTSim c.evaluatorLen (List Bool) J)
+              (fun _ J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                (fun _ => S₂ a)))
             {1} (x a) (D a)) +
         2 ^ L *
           (Game.advantage
@@ -184,8 +183,8 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
                 (ProbComp.eval e).bind fun a =>
                 (composeSeqBatchOTRoundEnv c.evaluatorLen (List Bool) (protocol Gs n c) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   {1} (x a) (D a) 0 j).bind (Sum.elim PMF.pure fun c =>
                 (ProbComp.eval (idealJoint (otFunctionality (List Bool)) c.coalition
                   (Sm a c.coalition) c.query)).bind fun r =>
@@ -196,8 +195,8 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
                 (ProbComp.eval e).bind fun a =>
                 (composeSeqBatchOTRoundEnv c.evaluatorLen (List Bool) (protocol Gs n c) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   {1} (x a) (D a) 0 j).bind (Sum.elim PMF.pure fun c =>
                 ((maskedOT (mask a) (unmask a) (samplePads a)).realJoint (otWorld (G a))
                   c.coalition c.query).bind fun r =>
@@ -209,8 +208,8 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
                 (ProbComp.eval e).bind fun a =>
                 (composeSeqBatchOTRoundEnv c.evaluatorLen (List Bool) (protocol Gs n c) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   {1} (x a) (D a) 0 j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT (mask a) (unmask a) (samplePads a)) (otWorld (G a))
                   (W₂ a) (fun _ => Sub a) (fun _ => S₂ a) c.coalition c.query c.guess 0).bind
@@ -220,8 +219,8 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
                 (ProbComp.eval e).bind fun a =>
                 (composeSeqBatchOTRoundEnv c.evaluatorLen (List Bool) (protocol Gs n c) (W₂ a)
                   ((maskedOT (mask a) (unmask a) (samplePads a)).compose fun _ => Sub a)
-                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a)
-                    (fun _ => S₂ a) J)
+                  (fun J => composeSim (maskedOT (mask a) (unmask a) (samplePads a)) (Sm a J)
+                    (fun _ => S₂ a))
                   {1} (x a) (D a) 0 j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT (mask a) (unmask a) (samplePads a)) (otWorld (G a))
                   (W₂ a) (fun _ => Sub a) (fun _ => S₂ a) c.coalition c.query c.guess 0).bind
@@ -231,6 +230,7 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
     samplePads W₂ Sub Sm S₂ (fun _ => functionality Gs c) (fun _ => T₁) (fun _ => {1}) x D 1
     (fun _ => le_rfl) L hL
   simp only [PMF.bind_map, Function.comp_def, Sum.elim_inr, Finset.sum_range_one, hT₁] at h
+  rw [hT₁]
   refine h.trans (add_le_add (le_of_eq ?_) le_rfl)
   exact congrArg₂ Game.advantage
     ((congrArg (PMF.bind _) (funext fun a => (ProbComp.eval_bind ..).symm)).trans

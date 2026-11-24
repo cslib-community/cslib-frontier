@@ -95,7 +95,7 @@ theorem advantage_bind_compose_le_add_mul_roundGame (p : PMF (Bool ⊕ α))
     (N L : ℕ) (hN : ∀ a, (sc₁ a).oracleRounds ≤ N) (hL : N ≤ 2 ^ L) :
     Game.advantage
         (p.bind (Sum.elim PMF.pure fun a =>
-          (ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a) (S₂ a) (I a))
+          (ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a (I a)) (S₂ a))
             (x a))).bind fun r => ProbComp.eval (D a r)))
         (p.bind (Sum.elim PMF.pure fun a =>
           (((P a).compose (Sub a)).realJoint (W₂ a) (I a) (x a)).bind fun r =>
@@ -117,7 +117,7 @@ theorem advantage_bind_compose_le_add_mul_roundGame (p : PMF (Bool ⊕ α))
               (composeRoundEnv (P a) (W₁ a) (W₂ a) (Sub a) (S₂ a) (I a) (x a) (D a) j).bind
                 (roundGame fun op J q => (Sub a op).realJoint (W₂ a) J q))) := by
   have hideal (a : α) :
-      ((ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a) (S₂ a) (I a))
+      ((ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a (I a)) (S₂ a))
         (x a))).bind fun r => ProbComp.eval (D a r)) =
       (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
         ProbComp.eval (composeDistinguisher (P a) (S₂ a) (I a) (x a) (D a) r) := by

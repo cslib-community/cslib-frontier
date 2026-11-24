@@ -128,7 +128,7 @@ theorem semiHonestAdvantage_maskedOT_compose_le_transfer (mask unmask : G → M 
       ((i : Fin 2) → OTOut M i) → ProbComp Bool) :
     (semiHonestAdvantage ((maskedOT mask unmask samplePads).compose fun _ => Sub) W₂
         (otFunctionality M) I
-        (composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) I) x D : ℝ≥0∞) ≤
+        (composeSim (maskedOT mask unmask samplePads) (S₁ I) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       semiHonestAdvantage (maskedOT mask unmask samplePads) (otWorld G) (otFunctionality M) I
           (S₁ I) x
           (composeDistinguisher (maskedOT mask unmask samplePads) (fun _ => S₂) I x D) +
@@ -139,7 +139,7 @@ theorem semiHonestAdvantage_maskedOT_compose_le_transfer (mask unmask : G → M 
             (fun s => maskedOTQuery s (x s, c s))
             (maskedOTTransferDistinguisher mask unmask S₂ I x c D) : ℝ≥0∞) := by
   refine (semiHonestAdvantage_compose_le_replacementBound (maskedOT mask unmask samplePads)
-    (otWorld G) W₂ (otFunctionality M) S₁ (fun _ => Sub) (fun _ => S₂) I x D).trans
+    (otWorld G) W₂ (otFunctionality M) I (S₁ I) (fun _ => Sub) (fun _ => S₂) x D).trans
     (add_le_add le_rfl (le_of_eq (tsum_congr fun c =>
       congrArg (ProbComp.eval (OracleComp.pi (maskedOT mask unmask samplePads).sampleCoins) c * ·)
         ?_)))
@@ -209,7 +209,7 @@ theorem semiHonestAdvantage_maskedOT_ddhOT_receiver_le (g : G) (q : ℕ) [NeZero
       ((i : Fin 2) → OTOut M i) → ProbComp Bool) :
     (semiHonestAdvantage ((maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol g q)
         noOracleWorld (otFunctionality M) {1}
-        (composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) {1}) x D : ℝ≥0∞) ≤
+        (composeSim (maskedOT mask unmask samplePads) (S₁ {1}) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       semiHonestAdvantage (maskedOT mask unmask samplePads) (otWorld G) (otFunctionality M) {1}
           (S₁ {1}) x
           (composeDistinguisher (maskedOT mask unmask samplePads) (fun _ => S₂) {1} x D) +

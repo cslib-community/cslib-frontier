@@ -370,7 +370,7 @@ the cited theorem: nothing is assumed about `P`, `Sub` or the simulators, and no
 environments is claimed. -/
 theorem semiHonestAdvantage_compose_le_sum_roundGame (f : Functionality m In Out)
     (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I) :
-    semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂ I) x D ≤
+    semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P (S₁ I) S₂) x D ≤
       semiHonestAdvantage P W₁ f I (S₁ I) x (composeDistinguisher P S₂ I x D) +
         ∑ j ∈ Finset.range sc₁.oracleRounds,
           Game.advantage
@@ -378,7 +378,7 @@ theorem semiHonestAdvantage_compose_le_sum_roundGame (f : Functionality m In Out
               (roundGame fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)))
             ((composeRoundEnv P W₁ W₂ Sub S₂ I x D j).bind
               (roundGame fun op J q => (Sub op).realJoint W₂ J q)) := by
-  refine (semiHonestAdvantage_compose_le P W₁ W₂ f S₁ Sub S₂ I x D).trans
+  refine (semiHonestAdvantage_compose_le P W₁ W₂ f I (S₁ I) Sub S₂ x D).trans
     (add_le_add le_rfl ?_)
   rw [← composeRoundEnv_zero_bind_roundGame P W₁ W₂ Sub S₂ I x D,
     ← composeRoundEnv_bind_roundGame_of_oracleRounds_le P W₁ W₂ Sub S₂ I x D
@@ -432,7 +432,7 @@ theorem advantage_bind_compose_le_add_sum_roundGame (p : PMF (Bool ⊕ α))
     (N : ℕ) (hN : ∀ a, (sc₁ a).oracleRounds ≤ N) :
     Game.advantage
         (p.bind (Sum.elim PMF.pure fun a =>
-          (ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a) (S₂ a) (I a))
+          (ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a (I a)) (S₂ a))
             (x a))).bind fun r => ProbComp.eval (D a r)))
         (p.bind (Sum.elim PMF.pure fun a =>
           (((P a).compose (Sub a)).realJoint (W₂ a) (I a) (x a)).bind fun r =>
@@ -453,7 +453,7 @@ theorem advantage_bind_compose_le_add_sum_roundGame (p : PMF (Bool ⊕ α))
               (composeRoundEnv (P a) (W₁ a) (W₂ a) (Sub a) (S₂ a) (I a) (x a) (D a) j).bind
                 (roundGame fun op J q => (Sub a op).realJoint (W₂ a) J q))) := by
   have hideal (a : α) :
-      ((ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a) (S₂ a) (I a))
+      ((ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a (I a)) (S₂ a))
         (x a))).bind fun r => ProbComp.eval (D a r)) =
       (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
         ProbComp.eval (composeDistinguisher (P a) (S₂ a) (I a) (x a) (D a) r) := by

@@ -284,12 +284,12 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le (k : ℕ) (M : Type)
         (Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) i) ×
       ((i : Fin 2) → (batchOTSpec k M).Answer () i) → ProbComp Bool) :
     (semiHonestAdvantage ((seqBatchOT k M).compose fun _ => Sub) W₂ (batchOTFunctionality k M) I
-        (composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) I) x D : ℝ≥0∞) ≤
+        (composeSim (seqBatchOT k M) (seqBatchOTSim k M I) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       replacementBound (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I (seqBatchOT k M).steps
         (fun i => (x i, ()))
         (fun res => D (fun i : I => ⟨x i.1, ((), (res.1 i).1), (res.1 i).2⟩, res.2)) := by
   refine (semiHonestAdvantage_compose_le_replacementBound (seqBatchOT k M) (otWorld M) W₂
-    (batchOTFunctionality k M) (seqBatchOTSim k M) (fun _ => Sub) (fun _ => S₂) I x D).trans ?_
+    (batchOTFunctionality k M) I (seqBatchOTSim k M I) (fun _ => Sub) (fun _ => S₂) x D).trans ?_
   rw [(perfectSemiHonestPrivate_seqBatchOT k M).semiHonestAdvantage_eq_zero, ENNReal.coe_zero,
     zero_add, tsum_eq_single (fun _ => ()) fun c hc => (hc rfl).elim]
   exact mul_le_of_le_one_left' (PMF.coe_le_one _ _)
@@ -322,7 +322,7 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le_sum_roundGame (k : ℕ) (M : T
         (Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) i) ×
       ((i : Fin 2) → (batchOTSpec k M).Answer () i) → ProbComp Bool) :
     semiHonestAdvantage ((seqBatchOT k M).compose fun _ => Sub) W₂ (batchOTFunctionality k M) I
-        (composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) I) x D ≤
+        (composeSim (seqBatchOT k M) (seqBatchOTSim k M I) (fun _ => S₂)) x D ≤
       ∑ j ∈ Finset.range k,
         Game.advantage
           ((composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I x D
@@ -356,7 +356,7 @@ with `seqBatchOTSim k M` and `S₂`, and runs `D`. -/
       ((i : Fin m) → Out i) → ProbComp Bool) (i j : ℕ) :
     PMF (Bool ⊕ RoundChallenge (spec₁ := otSpec M) (fun _ => sc₂) (fun _ => Coins₂)) :=
   (composeRoundEnv P (batchOTWorld k M) W₂ (fun _ => (seqBatchOT k M).compose fun _ => Sub)
-    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D i).bind
+    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D i).bind
       (Sum.elim (fun b => PMF.pure (Sum.inl b)) fun c =>
         composeRoundEnv (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂)
           c.coalition c.query c.guess j)
@@ -391,11 +391,11 @@ theorem semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame {m : ℕ
           (fun _ => Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) sc₁) i) ×
       ((i : Fin m) → Out i) → ProbComp Bool) :
     semiHonestAdvantage (P.compose fun _ => (seqBatchOT k M).compose fun _ => Sub) W₂ f I
-        (composeSim P S₁
-          (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I) x D ≤
+        (composeSim P (S₁ I)
+          (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂))) x D ≤
       semiHonestAdvantage P (batchOTWorld k M) f I (S₁ I) x
           (composeDistinguisher P
-            (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D) +
+            (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D) +
         ∑ i ∈ Finset.range sc₁.oracleRounds, ∑ j ∈ Finset.range k,
           Game.advantage
             ((composeSeqBatchOTRoundEnv k M P W₂ Sub S₂ I x D i j).bind
@@ -404,11 +404,11 @@ theorem semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame {m : ℕ
               (roundGame fun _ J q => Sub.realJoint W₂ J q)) := by
   refine (semiHonestAdvantage_compose_le_sum_roundGame P (batchOTWorld k M) W₂
     (fun _ => (seqBatchOT k M).compose fun _ => Sub)
-    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D f
+    (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D f
     S₁).trans (add_le_add le_rfl (Finset.sum_le_sum fun i _ => ?_))
   have h := advantage_bind_compose_le_add_sum_roundGame
     (composeRoundEnv P (batchOTWorld k M) W₂ (fun _ => (seqBatchOT k M).compose fun _ => Sub)
-      (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) J) I x D i)
+      (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D i)
     (fun _ => seqBatchOT k M) (fun _ => otWorld M) (fun _ => W₂)
     (fun _ => batchOTFunctionality k M) (fun _ => seqBatchOTSim k M) (fun _ _ => Sub)
     (fun _ _ => S₂) (fun c => c.coalition) (fun c => c.query) (fun c => c.guess) k
@@ -471,7 +471,7 @@ theorem semiHonestAdvantage_seqBatchOT_compose_le_mul (k : ℕ) (M : Type)
         (Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k M)) i) ×
       ((i : Fin 2) → (batchOTSpec k M).Answer () i) → ProbComp Bool) :
     (semiHonestAdvantage ((seqBatchOT k M).compose fun _ => Sub) W₂ (batchOTFunctionality k M) I
-        (composeSim (seqBatchOT k M) (seqBatchOTSim k M) (fun _ => S₂) I) x D : ℝ≥0∞) ≤ k * ε :=
+        (composeSim (seqBatchOT k M) (seqBatchOTSim k M I) (fun _ => S₂)) x D : ℝ≥0∞) ≤ k * ε :=
   (semiHonestAdvantage_seqBatchOT_compose_le k M W₂ Sub S₂ I x D).trans
     (replacementBound_seqOTSteps_le W₂ Sub S₂ I ε hε k _ _ _ _)
 

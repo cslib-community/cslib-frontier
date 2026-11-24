@@ -466,14 +466,14 @@ theorem semiHonestAdvantage_maskedOT_compose_le_add (mask unmask : G → M → M
       ((i : Fin 2) → OTOut M i) → ProbComp Bool) :
     (semiHonestAdvantage ((maskedOT mask unmask samplePads).compose fun _ => Sub) W₂
         (otFunctionality M) I
-        (composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) I) x D : ℝ≥0∞) ≤
+        (composeSim (maskedOT mask unmask samplePads) (S₁ I) (fun _ => S₂)) x D : ℝ≥0∞) ≤
       ε₁ + ε₂ := by
   have h₂' : ∀ J, J = I → ∀ q D',
       (semiHonestAdvantage Sub W₂ (otFunctionality G) J (S₂ J) q D' : ℝ≥0∞) ≤ ε₂ := by
     rintro J rfl
     exact h₂
   refine (semiHonestAdvantage_compose_le_replacementBound (maskedOT mask unmask samplePads)
-    (otWorld G) W₂ (otFunctionality M) S₁ (fun _ => Sub) (fun _ => S₂) I x D).trans
+    (otWorld G) W₂ (otFunctionality M) I (S₁ I) (fun _ => Sub) (fun _ => S₂) x D).trans
     (add_le_add (h₁ _) ?_)
   calc _ ≤ ∑' c₁, ProbComp.eval (OracleComp.pi (maskedOT mask unmask samplePads).sampleCoins) c₁ *
         ε₂ := by
@@ -526,20 +526,20 @@ theorem semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame {m : �
     semiHonestAdvantage
         (P.compose fun _ => (seqBatchOT k M).compose fun _ =>
           (maskedOT mask unmask samplePads).compose fun _ => Sub) W₂ f I
-        (composeSim P S₁
-          (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-            (fun _ J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) J) I)
+        (composeSim P (S₁ I)
+          (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+            (fun _ J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂))))
         x D ≤
       semiHonestAdvantage P (batchOTWorld k M) f I (S₁ I) x
           (composeDistinguisher P
-            (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
-              (fun _ J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) J)
+            (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J)
+              (fun _ J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂)))
             I x D) +
         ∑ i ∈ Finset.range sc₁.oracleRounds, ∑ j ∈ Finset.range k,
           (Game.advantage
               ((composeSeqBatchOTRoundEnv k M P W₂
                   ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂))
                   I x D i j).bind (Sum.elim PMF.pure fun c =>
                 (ProbComp.eval (idealJoint (otFunctionality M) c.coalition (Sm c.coalition)
                   c.query)).bind fun r =>
@@ -547,7 +547,7 @@ theorem semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame {m : �
                       (fun _ => S₂) c.coalition c.query c.guess r)))
               ((composeSeqBatchOTRoundEnv k M P W₂
                   ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂))
                   I x D i j).bind (Sum.elim PMF.pure fun c =>
                 ((maskedOT mask unmask samplePads).realJoint (otWorld G) c.coalition
                   c.query).bind fun r =>
@@ -556,7 +556,7 @@ theorem semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame {m : �
             Game.advantage
               ((composeSeqBatchOTRoundEnv k M P W₂
                   ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂))
                   I x D i j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT mask unmask samplePads) (otWorld G) W₂ (fun _ => Sub)
                   (fun _ => S₂) c.coalition c.query c.guess 0).bind
@@ -564,18 +564,18 @@ theorem semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame {m : �
                       ProbComp.eval (idealJoint (otWorld G op) J (S₂ J) q))))
               ((composeSeqBatchOTRoundEnv k M P W₂
                   ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂))
                   I x D i j).bind (Sum.elim PMF.pure fun c =>
                 (composeRoundEnv (maskedOT mask unmask samplePads) (otWorld G) W₂ (fun _ => Sub)
                   (fun _ => S₂) c.coalition c.query c.guess 0).bind
                     (roundGame fun _ J q => Sub.realJoint W₂ J q)))) := by
   refine (semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame k M P W₂
     ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-    (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) f S₁ I x D).trans
+    (fun J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂)) f S₁ I x D).trans
     (add_le_add le_rfl (Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => ?_))
   have h := advantage_bind_compose_le_add_sum_roundGame
     (composeSeqBatchOTRoundEnv k M P W₂ ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-      (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) I x D i j)
+      (fun J => composeSim (maskedOT mask unmask samplePads) (Sm J) (fun _ => S₂)) I x D i j)
     (fun _ => maskedOT mask unmask samplePads) (fun _ => otWorld G) (fun _ => W₂)
     (fun _ => otFunctionality M) (fun _ => Sm) (fun _ _ => Sub) (fun _ _ => S₂)
     (fun c => c.coalition) (fun c => c.query) (fun c => c.guess) 1 (fun _ => le_rfl)

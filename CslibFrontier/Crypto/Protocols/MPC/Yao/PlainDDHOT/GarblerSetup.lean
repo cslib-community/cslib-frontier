@@ -204,13 +204,12 @@ theorem advantage_setup_composedProtocol_maskedOT_ddhOTProb_garbler_le
     Game.advantage
         ((ProbComp.eval (setup n)).bind fun d =>
           (ProbComp.eval (idealJoint (functionality Gs (c n)) {0}
-            (composeSim (protocol Gs n (c n)) (T₁ n)
+            (composeSim (protocol Gs n (c n)) (T₁ n {0})
               (fun _ J => composeSim (seqBatchOT (c n).evaluatorLen (List Bool))
-                (seqBatchOTSim (c n).evaluatorLen (List Bool))
+                (seqBatchOTSim (c n).evaluatorLen (List Bool) J)
                 (fun _ J => composeSim
-                  (maskedOT (mask d) (unmask d) (samplePads d)) (Sm n d)
-                  (fun _ => S₂ n d) J) J)
-              {0}) (x d))).bind fun r => ProbComp.eval (D d r))
+                  (maskedOT (mask d) (unmask d) (samplePads d)) (Sm n d J)
+                  (fun _ => S₂ n d)))) (x d))).bind fun r => ProbComp.eval (D d r))
         ((ProbComp.eval (setup n)).bind fun d =>
           (((protocol Gs n (c n)).compose fun _ =>
             (seqBatchOT (c n).evaluatorLen (List Bool)).compose fun _ =>
@@ -225,13 +224,14 @@ theorem advantage_setup_composedProtocol_maskedOT_ddhOTProb_garbler_le
     (fun _ => {0}) x D 1 (fun _ => le_rfl)
   simp only [PMF.bind_map, Function.comp_def, Sum.elim_inr, Finset.sum_range_one, hT₁,
     idealJoint_garblerSim hproj hcorrect hn, Game.advantage_self, zero_add] at h
+  rw [hT₁]
   refine h.trans ((Finset.sum_le_sum fun j _ => ?_).trans_eq
     (by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]))
   have hE : ∀ d c', Sum.inr c' ∈ (composeSeqBatchOTRoundEnv (c n).evaluatorLen (List Bool)
       (protocol Gs n (c n)) noOracleWorld
       ((maskedOT (mask d) (unmask d) (samplePads d)).compose fun _ => F.ddhOTProbProtocol n d)
-      (fun J => composeSim (maskedOT (mask d) (unmask d) (samplePads d)) (Sm n d)
-        (fun _ => S₂ n d) J)
+      (fun J => composeSim (maskedOT (mask d) (unmask d) (samplePads d)) (Sm n d J)
+        (fun _ => S₂ n d))
       {0} (x d) (D d) 0 j).support →
         c'.coalition = ({0} : Finset (Fin 2)) ∧
           (otOutputs (M := List Bool) c'.query 1 : List Bool).length = L :=

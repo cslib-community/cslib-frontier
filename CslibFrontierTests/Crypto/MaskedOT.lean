@@ -175,7 +175,7 @@ theorem maskedOT_ddhOT_sender (q : (i : Fin 2) → OTIn (List Bool) i)
     (semiHonestAdvantage
       ((maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
       noOracleWorld (otFunctionality (List Bool)) {0}
-      (composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) {0}) q D : ℝ≥0∞) ≤ 0 := by
+      (composeSim (maskedOT mask unmask samplePads) (S₁ {0}) (fun _ => S₂)) q D : ℝ≥0∞) ≤ 0 := by
   have h := semiHonestAdvantage_maskedOT_compose_le_add mask unmask samplePads noOracleWorld
     (ddhOTProtocol (1 : ZMod 5) 5) S₁ S₂ {0} 0 0 q
     (fun D' => by
@@ -205,12 +205,12 @@ theorem seqBatchOT_maskedOT_ddhOT_sender (k : ℕ)
       ((seqBatchOT k (List Bool)).compose fun _ =>
         (maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
       noOracleWorld (batchOTFunctionality k (List Bool)) {0}
-      (composeSim (seqBatchOT k (List Bool)) (seqBatchOTSim k (List Bool))
-        (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J) {0}) x D :
+      (composeSim (seqBatchOT k (List Bool)) (seqBatchOTSim k (List Bool) {0})
+        (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))) x D :
       ℝ≥0∞) ≤ 0 := by
   have h := semiHonestAdvantage_seqBatchOT_compose_le_mul k (List Bool) noOracleWorld
     ((maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
-    (fun J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J) {0} 0
+    (fun J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂)) {0} 0
     (maskedOT_ddhOT_sender mask unmask hmask samplePads S₁ hS₁ S₂ hS₂) x D
   rwa [mul_zero] at h
 
@@ -222,33 +222,31 @@ has advantage zero against a corrupted garbler, at every parameter `n ≥ 1`, fo
 scheme with a projective encoding. -/
 example {Fn : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling.projectiveEncode)
     (hcorrect : Gs.Correct) {n : ℕ} (hn : 0 < n) (c : Yao.Params Gs)
-    (T₁ : (I : Finset (Fin 2)) →
-      CoalitionSimulator (Yao.schedule c) (Yao.Input c) Yao.Coins (fun _ => List Bool) I)
-    (hT₁ : T₁ {0} = Yao.garblerSim Gs n c) (x : (i : Fin 2) → Yao.Input c i) (D : _) :
+    (x : (i : Fin 2) → Yao.Input c i) (D : _) :
     semiHonestAdvantage
       (Yao.composedProtocol Gs n c ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
         (maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5))
       noOracleWorld (Yao.functionality Gs c) {0}
-      (composeSim (Yao.protocol Gs n c) T₁
-        (fun _ => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-          (seqBatchOTSim c.evaluatorLen (List Bool))
-          (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J)) {0})
+      (composeSim (Yao.protocol Gs n c) (Yao.garblerSim Gs n c)
+        (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
+          (seqBatchOTSim c.evaluatorLen (List Bool) J)
+          (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))))
       x D = 0 := by
   have h := Yao.semiHonestAdvantage_composedProtocol_garbler_le_transfer hproj hcorrect hn c
     ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
       (maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
-    noOracleWorld T₁ hT₁
-    (fun _ => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-      (seqBatchOTSim c.evaluatorLen (List Bool))
-      (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J)) x D
+    noOracleWorld
+    (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
+      (seqBatchOTSim c.evaluatorLen (List Bool) J)
+      (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))) x D
   have h0 : ∀ J, J = ({0} : Finset (Fin 2)) → ∀ q D',
       (semiHonestAdvantage
         ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
           (maskedOT mask unmask samplePads).compose fun _ => ddhOTProtocol (1 : ZMod 5) 5)
         noOracleWorld (batchOTFunctionality c.evaluatorLen (List Bool)) J
         (composeSim (seqBatchOT c.evaluatorLen (List Bool))
-          (seqBatchOTSim c.evaluatorLen (List Bool))
-          (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J) J) q D' :
+          (seqBatchOTSim c.evaluatorLen (List Bool) J)
+          (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))) q D' :
         ℝ≥0∞) = 0 := by
     rintro J rfl q D'
     exact nonpos_iff_eq_zero.mp (seqBatchOT_maskedOT_ddhOT_sender mask unmask hmask samplePads
@@ -285,9 +283,6 @@ example {Fn Λ G : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling
     (mask unmask : G → List Bool → List Bool) (samplePads : ProbComp (G × G))
     {spec₂ : MultiOracleSpec} {sc₂ : Schedule 2 spec₂} {Coins₂ : Fin 2 → Type}
     (W₂ : MultiOracleWorld spec₂) (Sub : Protocol 2 spec₂ sc₂ (OTIn G) Coins₂ (OTOut G))
-    (T₁ : (I : Finset (Fin 2)) →
-      CoalitionSimulator (Yao.schedule c) (Yao.Input c) Yao.Coins (fun _ => List Bool) I)
-    (hT₁ : T₁ {1} = Yao.evaluatorSim Gs Φ S n c)
     (S₁ : (J : Finset (Fin 2)) → CoalitionSimulator (maskedOTSchedule G (List Bool))
       (OTIn (List Bool)) (MaskedOTCoins G) (OTOut (List Bool)) J)
     (S₂ : (J : Finset (Fin 2)) → CoalitionSimulator sc₂ (OTIn G) Coins₂ (OTOut G) J)
@@ -300,24 +295,24 @@ example {Fn Λ G : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling
       (Yao.composedProtocol Gs n c ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
         (maskedOT mask unmask samplePads).compose fun _ => Sub))
       W₂ (Yao.functionality Gs c) {1}
-      (composeSim (Yao.protocol Gs n c) T₁
-        (fun _ => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-          (seqBatchOTSim c.evaluatorLen (List Bool))
-          (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J)) {1})
+      (composeSim (Yao.protocol Gs n c) (Yao.evaluatorSim Gs Φ S n c)
+        (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
+          (seqBatchOTSim c.evaluatorLen (List Bool) J)
+          (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))))
       x D : ℝ≥0∞) ≤
       Garbling.prvSimAdvantage Gs Φ n (S n) (Yao.evaluatorDistinguisherToPrvSim c x
         (composeDistinguisher (Yao.protocol Gs n c)
-          (fun _ => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-            (seqBatchOTSim c.evaluatorLen (List Bool))
-            (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J))
+          (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
+            (seqBatchOTSim c.evaluatorLen (List Bool) J)
+            (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂)))
           {1} x D)) +
         c.evaluatorLen * (ε₁ + ε₂) := by
   refine (Yao.semiHonestAdvantage_composedProtocol_evaluator_le_transfer hproj hcorrect hn c Φ S
     ((seqBatchOT c.evaluatorLen (List Bool)).compose fun _ =>
-      (maskedOT mask unmask samplePads).compose fun _ => Sub) W₂ T₁ hT₁
-    (fun _ => composeSim (seqBatchOT c.evaluatorLen (List Bool))
-      (seqBatchOTSim c.evaluatorLen (List Bool))
-      (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J)) x D).trans
+      (maskedOT mask unmask samplePads).compose fun _ => Sub) W₂
+    (fun _ J => composeSim (seqBatchOT c.evaluatorLen (List Bool))
+      (seqBatchOTSim c.evaluatorLen (List Bool) J)
+      (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))) x D).trans
     (add_le_add le_rfl ?_)
   have hOT : ∀ J, J = ({1} : Finset (Fin 2)) → ∀ q D',
       (semiHonestAdvantage
@@ -325,13 +320,13 @@ example {Fn Λ G : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling
           (maskedOT mask unmask samplePads).compose fun _ => Sub)
         W₂ (batchOTFunctionality c.evaluatorLen (List Bool)) J
         (composeSim (seqBatchOT c.evaluatorLen (List Bool))
-          (seqBatchOTSim c.evaluatorLen (List Bool))
-          (fun _ J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J) J) q D' :
+          (seqBatchOTSim c.evaluatorLen (List Bool) J)
+          (fun _ J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂))) q D' :
         ℝ≥0∞) ≤ c.evaluatorLen * (ε₁ + ε₂) := by
     rintro J rfl q D'
     exact semiHonestAdvantage_seqBatchOT_compose_le_mul c.evaluatorLen (List Bool) W₂
       ((maskedOT mask unmask samplePads).compose fun _ => Sub)
-      (fun J => composeSim (maskedOT mask unmask samplePads) S₁ (fun _ => S₂) J) {1} (ε₁ + ε₂)
+      (fun J => composeSim (maskedOT mask unmask samplePads) (S₁ J) (fun _ => S₂)) {1} (ε₁ + ε₂)
       (fun q' D'' => semiHonestAdvantage_maskedOT_compose_le_add mask unmask samplePads W₂ Sub
         S₁ S₂ {1} ε₁ ε₂ q' (h₁ q') h₂ D'') q D'
   calc _ ≤ ∑' r, ProbComp.eval (OracleComp.pi (Yao.protocol Gs n c).sampleCoins) r *
