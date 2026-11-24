@@ -9083,6 +9083,7 @@ public import CslibFrontier.GameTheory.Market.Core
 public import CslibFrontier.GameTheory.Market.EisenbergGale
 public import CslibFrontier.GameTheory.Market.Welfare
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
+public import CslibFrontier.GameTheory.Mechanism.BulowKlemperer
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.GrossSubstitutes
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Walrasian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
@@ -9098,11 +9099,13 @@ public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.PhantomMedian
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.ThreeLeafTree
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Tree
 public import CslibFrontier.GameTheory.Mechanism.FirstPrice
+public import CslibFrontier.GameTheory.Mechanism.Holmstrom
 public import CslibFrontier.GameTheory.Mechanism.Indirect
 public import CslibFrontier.GameTheory.Mechanism.Knapsack
 public import CslibFrontier.GameTheory.Mechanism.LinearValuation
 public import CslibFrontier.GameTheory.Mechanism.MultiUnit
 public import CslibFrontier.GameTheory.Mechanism.Myerson
+public import CslibFrontier.GameTheory.Mechanism.MyersonSatterthwaite
 public import CslibFrontier.GameTheory.Mechanism.Online.Basic
 public import CslibFrontier.GameTheory.Mechanism.Online.DynamicVCG
 public import CslibFrontier.GameTheory.Mechanism.Online.ExpiringItems
