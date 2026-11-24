@@ -309,20 +309,6 @@ private theorem chainWeight_cons (g : (Ω → ℝ) → Ω) (v₀ v : Ω → ℝ)
   rw [hlast]
   ring
 
-private theorem fin_castSucc_add_one {m : ℕ} (t : Fin m) :
-    t.castSucc + 1 = t.succ := by
-  ext
-  have hm0 : 0 < m := Fin.pos t
-  simp only [Fin.val_add, Fin.val_castSucc, Fin.val_succ, Fin.val_one']
-  rw [Nat.mod_eq_of_lt (by omega : 1 < m + 1), Nat.mod_eq_of_lt (by omega : t.val + 1 < m + 1)]
-
-private theorem fin_last_add_one (m : ℕ) : (Fin.last m : Fin (m + 1)) + 1 = 0 := by
-  ext
-  by_cases h : m = 0
-  · subst h; rfl
-  · simp only [Fin.val_add, Fin.val_last, Fin.val_zero, Fin.val_one']
-    rw [Nat.mod_eq_of_lt (by omega : 1 < m + 1), Nat.mod_self]
-
 private theorem cycleSum_snoc (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n : ℕ)
     (u : Fin (n + 1) → Ω → ℝ) :
     ∑ t : Fin (n + 2),
@@ -334,15 +320,15 @@ private theorem cycleSum_snoc (g : (Ω → ℝ) → Ω) (v₀ : Ω → ℝ) (n :
   have hlast_eq : snocSeq u v₀ (Fin.last (n + 1)) = v₀ := by
     simp only [snocSeq, Fin.val_last, lt_self_iff_false, ↓reduceDIte]
   have h0_eq : snocSeq u v₀ 0 = u 0 := hcast 0
-  rw [Fin.sum_univ_castSucc, fin_last_add_one, hlast_eq, h0_eq]
+  rw [Fin.sum_univ_castSucc, Fin.last_add_one, hlast_eq, h0_eq]
   congr 1
   rw [Fin.sum_univ_castSucc, chainWeight]
   congr 1
   · refine Finset.sum_congr rfl fun t _ => ?_
-    rw [fin_castSucc_add_one, hcast t.castSucc]
+    rw [Fin.coeSucc_eq_succ, hcast t.castSucc]
     have hs : t.castSucc.succ = t.succ.castSucc := rfl
     rw [hs, hcast t.succ]
-  · rw [fin_castSucc_add_one, hcast (Fin.last n), Fin.succ_last, hlast_eq]
+  · rw [Fin.coeSucc_eq_succ, hcast (Fin.last n), Fin.succ_last, hlast_eq]
 
 /-- **Cyclic monotonicity characterizes DSIC implementability** (the Rockafellar–Rochet
 characterization, attributed to Rochet 1987; proved here without finiteness or convexity
@@ -362,9 +348,9 @@ theorem isImplementableOn_iff_isCyclicallyMonotoneOn [DecidableEq ι]
       linarith
     have hsum := Finset.sum_le_sum fun t (_ : t ∈ Finset.univ) => hstep t
     have hshift : ∑ t : Fin (k + 1), p (g (v (t + 1))) = ∑ t : Fin (k + 1), p (g (v t)) := by
-      rw [Fin.sum_univ_castSucc, fin_last_add_one]
+      rw [Fin.sum_univ_castSucc, Fin.last_add_one]
       have hmid : ∑ t : Fin k, p (g (v (t.castSucc + 1))) = ∑ t : Fin k, p (g (v t.succ)) :=
-        Finset.sum_congr rfl fun t _ => by rw [fin_castSucc_add_one]
+        Finset.sum_congr rfl fun t _ => by rw [Fin.coeSucc_eq_succ]
       rw [hmid, add_comm]
       exact (Fin.sum_univ_succ fun t => p (g (v t))).symm
     have htel : ∑ t : Fin (k + 1), (p (g (v t)) - p (g (v (t + 1)))) = 0 := by
