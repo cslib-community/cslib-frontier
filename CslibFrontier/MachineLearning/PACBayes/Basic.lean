@@ -52,10 +52,13 @@ is Mathlib's `klDiv`, in nats as in the source.
 
 ## Main results
 
-* `measure_ofReal_div_le_lintegral_le`: Markov's inequality for an average over a prior that does
-  not depend on the sample, shared with the PAC-Bayes-kl bound
-  (`Cslib.MachineLearning.PACBayes.measure_pi_exists_binaryKL_integral_risk_gt`).
-* `measure_pi_exists_integral_risk_gt`: McAllester's bound with `log (√m / δ)`.
+* `measure_ofReal_div_le_lintegral_le_of_measurable`: Markov's inequality for an average over a
+  prior on an arbitrary measurable space, via Tonelli's theorem on a jointly measurable kernel.
+* `measure_ofReal_div_le_lintegral_le`: the countable-space specialization (shared with
+  `Cslib.MachineLearning.PACBayes.measure_pi_exists_binaryKL_integral_risk_gt`).
+* `measure_pi_exists_integral_risk_gt_of_measurable`: McAllester's bound with `log (√m / δ)` on
+  an arbitrary measurable hypothesis space (`Measurable (Function.uncurry ℓ)`).
+* `measure_pi_exists_integral_risk_gt`: the countable-space specialization (`log (√m / δ)`).
 * `measure_pi_exists_integral_risk_gt_log_div`: McAllester's bound with the source's
   `log (m / δ)`.
 * `measure_pi_exists_risk_gt`: the Occam bound for point-mass posteriors.
@@ -78,24 +81,25 @@ variable {ι Z : Type*} [MeasurableSpace Z]
 
 section ChangeOfMeasure
 
-variable [MeasurableSpace ι] [Countable ι] [MeasurableSingletonClass ι]
+variable [MeasurableSpace ι]
 
-/-- Change of measure for a squared deviation: for `g` bounded by `C` on a countable index,
+/-- Change of measure for a squared deviation: for a measurable function `g` bounded by `C`,
 `λ > 0` and `𝔼_P exp (λ g²) ≤ B`, `∫ g ∂Q ≤ √((KL(Q ‖ P) + log B) / λ)`
 [ShalevShwartzBenDavid2014, (31.2) and (31.6)]. -/
 private theorem integral_le_sqrt_klDiv_add_log {P Q : Measure ι} [IsProbabilityMeasure P]
-    [IsProbabilityMeasure Q] (hQP : klDiv Q P ≠ ⊤) {g : ι → ℝ} {C : ℝ} (hg : ∀ i, |g i| ≤ C)
-    {lam : ℝ} (hlam : 0 < lam) {B : ℝ}
+    [IsProbabilityMeasure Q] (hQP : klDiv Q P ≠ ⊤) {g : ι → ℝ} (hgM : Measurable g)
+    {C : ℝ} (hg : ∀ i, |g i| ≤ C) {lam : ℝ} (hlam : 0 < lam) {B : ℝ}
     (hB : ∫⁻ i, ENNReal.ofReal (Real.exp (lam * g i ^ 2)) ∂P ≤ ENNReal.ofReal B) :
     ∫ i, g i ∂Q ≤ Real.sqrt (((klDiv Q P).toReal + Real.log B) / lam) := by
   have hsq (i : ι) : lam * g i ^ 2 ≤ lam * C ^ 2 := by
     rw [← sq_abs]
     exact mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (abs_nonneg _) (hg i) 2) hlam.le
+  have hgm2 : Measurable fun i => lam * g i ^ 2 := measurable_const.mul (hgM.pow_const 2)
   have hfQ : Integrable (fun i => lam * g i ^ 2) Q :=
-    Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable (lam * C ^ 2)
+    Integrable.of_bound hgm2.aestronglyMeasurable (lam * C ^ 2)
       (ae_of_all _ fun i => by rw [Real.norm_of_nonneg (by positivity)]; exact hsq i)
   have hexpP : Integrable (fun i => Real.exp (lam * g i ^ 2)) P :=
-    Integrable.of_bound (measurable_of_countable _).aestronglyMeasurable (Real.exp (lam * C ^ 2))
+    Integrable.of_bound hgm2.exp.aestronglyMeasurable (Real.exp (lam * C ^ 2))
       (ae_of_all _ fun i => by
         rw [Real.norm_of_nonneg (Real.exp_pos _).le]; exact Real.exp_le_exp.2 (hsq i))
   -- Change of measure: `λ 𝔼_Q g² ≤ KL(Q ‖ P) + log 𝔼_P exp (λ g²) ≤ KL(Q ‖ P) + log B`.
@@ -107,7 +111,7 @@ private theorem integral_le_sqrt_klDiv_add_log {P Q : Measure ι} [IsProbability
   have hlog := Real.log_le_log hpos (hB.resolve_right (not_le.2 hpos))
   -- Jensen: `(𝔼_Q g)² ≤ 𝔼_Q g²`, since the variance is nonnegative.
   have hmem : MemLp g 2 Q :=
-    MemLp.of_bound (measurable_of_countable _).aestronglyMeasurable C
+    MemLp.of_bound hgM.aestronglyMeasurable C
       (ae_of_all _ fun i => by rw [Real.norm_eq_abs]; exact hg i)
   have hjensen : (∫ i, g i ∂Q) ^ 2 ≤ ∫ i, g i ^ 2 ∂Q := by
     have := variance_nonneg g Q
@@ -121,18 +125,18 @@ end ChangeOfMeasure
 
 section Markov
 
-variable {Ω : Type*} [MeasurableSpace Ω] [MeasurableSpace ι] [Countable ι]
-  [MeasurableSingletonClass ι]
+variable {Ω : Type*} [MeasurableSpace Ω] [MeasurableSpace ι]
 
-/-- **Markov's inequality over a prior** [ShalevShwartzBenDavid2014, (31.4)–(31.5)]: if every
-hypothesis `i` has `𝔼_ω F ω i ≤ B` and the prior `P` does not depend on `ω`, then
+/-- **Markov's inequality over a prior on an arbitrary measurable space**: if the nonnegative
+kernel `F : Ω → ι → ℝ≥0∞` is jointly measurable (`Measurable (Function.uncurry F)`), every
+hypothesis `i` has `𝔼_ω F ω i ≤ B`, and the prior `P` does not depend on `ω`, then
 `𝔼_ω 𝔼_{i∼P} F ω i ≤ B` by Tonelli's theorem, so the prior average reaches `B / δ` with
 probability at most `δ`. -/
-theorem measure_ofReal_div_le_lintegral_le (μ : Measure Ω) [SFinite μ] (P : Measure ι)
-    [IsProbabilityMeasure P] {F : Ω → ι → ℝ≥0∞} (hF : ∀ i, Measurable fun ω => F ω i) {B : ℝ}
+theorem measure_ofReal_div_le_lintegral_le_of_measurable (μ : Measure Ω) [SFinite μ]
+    (P : Measure ι) [IsProbabilityMeasure P] {F : Ω → ι → ℝ≥0∞}
+    (hFm : Measurable (Function.uncurry F)) {B : ℝ}
     (hB : ∀ i, ∫⁻ ω, F ω i ∂μ ≤ ENNReal.ofReal B) (hB0 : 0 < B) {δ : ℝ} (hδ : 0 < δ) :
     μ {ω | ENNReal.ofReal (B / δ) ≤ ∫⁻ i, F ω i ∂P} ≤ ENNReal.ofReal δ := by
-  have hFm : Measurable (Function.uncurry F) := measurable_from_prod_countable_left hF
   have hswap : ∫⁻ ω, ∫⁻ i, F ω i ∂P ∂μ ≤ ENNReal.ofReal B := by
     rw [lintegral_lintegral_swap hFm.aemeasurable]
     calc ∫⁻ i, ∫⁻ ω, F ω i ∂μ ∂P ≤ ∫⁻ _, ENNReal.ofReal B ∂P := lintegral_mono hB
@@ -147,7 +151,69 @@ theorem measure_ofReal_div_le_lintegral_le (μ : Measure Ω) [SFinite μ] (P : M
   congr 1
   field_simp
 
+/-- **Markov's inequality over a prior** [ShalevShwartzBenDavid2014, (31.4)–(31.5)] on a
+countable hypothesis space: specializes `measure_ofReal_div_le_lintegral_le_of_measurable` via
+`measurable_from_prod_countable_left`. -/
+theorem measure_ofReal_div_le_lintegral_le [Countable ι] [MeasurableSingletonClass ι]
+    (μ : Measure Ω) [SFinite μ] (P : Measure ι) [IsProbabilityMeasure P] {F : Ω → ι → ℝ≥0∞}
+    (hF : ∀ i, Measurable fun ω => F ω i) {B : ℝ}
+    (hB : ∀ i, ∫⁻ ω, F ω i ∂μ ≤ ENNReal.ofReal B) (hB0 : 0 < B) {δ : ℝ} (hδ : 0 < δ) :
+    μ {ω | ENNReal.ofReal (B / δ) ≤ ∫⁻ i, F ω i ∂P} ≤ ENNReal.ofReal δ :=
+  measure_ofReal_div_le_lintegral_le_of_measurable μ P
+    (measurable_from_prod_countable_left hF) hB hB0 hδ
+
 end Markov
+
+section JointMeasurability
+
+variable [MeasurableSpace ι]
+
+/-- Measurability of `i ↦ trueRisk ℓ D i` from joint measurability of a `[0, 1]`-bounded loss. -/
+theorem measurable_trueRisk_of_measurable {D : Measure Z} [IsProbabilityMeasure D]
+    {ℓ : ι → Z → ℝ} (hℓ : Measurable (Function.uncurry ℓ))
+    (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1) :
+    Measurable (trueRisk ℓ D) := by
+  have heq : trueRisk ℓ D = fun i => (∫⁻ z, ENNReal.ofReal (ℓ i z) ∂D).toReal := by
+    ext i
+    have hi : Measurable (ℓ i) := hℓ.comp (measurable_const.prodMk measurable_id)
+    have hint : Integrable (ℓ i) D :=
+      Integrable.of_mem_Icc 0 1 hi.aemeasurable (ae_of_all _ fun z => hℓ01 i z)
+    rw [trueRisk_def, integral_eq_lintegral_of_nonneg_ae
+      (ae_of_all _ fun z => (hℓ01 i z).1) hint.1]
+  rw [heq]
+  exact hℓ.ennreal_ofReal.lintegral_prod_right.ennreal_toReal
+
+/-- Joint measurability of `(S, i) ↦ empiricalRisk ℓ S i` from joint measurability of `ℓ`. -/
+theorem measurable_empiricalRisk_prod {ℓ : ι → Z → ℝ} (hℓ : Measurable (Function.uncurry ℓ))
+    (m : ℕ) :
+    Measurable fun p : (Fin m → Z) × ι => empiricalRisk ℓ p.1 p.2 := by
+  simp_rw [empiricalRisk_eq_sum_div]
+  refine (Finset.measurable_sum _ fun j _ => ?_).div_const _
+  exact hℓ.comp (measurable_snd.prodMk ((measurable_pi_apply j).comp measurable_fst))
+
+/-- Measurability of `i ↦ empiricalRisk ℓ S i` for a fixed sample `S`. -/
+theorem measurable_empiricalRisk_arg {ℓ : ι → Z → ℝ} (hℓ : Measurable (Function.uncurry ℓ))
+    {m : ℕ} (S : Fin m → Z) :
+    Measurable fun i => empiricalRisk ℓ S i :=
+  (measurable_empiricalRisk_prod hℓ m).comp (measurable_const.prodMk measurable_id)
+
+/-- Integrability of `trueRisk ℓ D` under any probability measure `Q` on `ι`. -/
+theorem integrable_trueRisk_of_measurable {D : Measure Z} [IsProbabilityMeasure D]
+    {ℓ : ι → Z → ℝ} (hℓ : Measurable (Function.uncurry ℓ))
+    (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1) (Q : Measure ι) [IsProbabilityMeasure Q] :
+    Integrable (trueRisk ℓ D) Q :=
+  Integrable.of_mem_Icc 0 1 (measurable_trueRisk_of_measurable hℓ hℓ01).aemeasurable
+    (ae_of_all _ fun i => trueRisk_mem_Icc ℓ D (hℓ01 i))
+
+/-- Integrability of `empiricalRisk ℓ S` under any probability measure `Q` on `ι`. -/
+theorem integrable_empiricalRisk_of_measurable {ℓ : ι → Z → ℝ}
+    (hℓ : Measurable (Function.uncurry ℓ)) (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1)
+    {m : ℕ} (S : Fin m → Z) (Q : Measure ι) [IsProbabilityMeasure Q] :
+    Integrable (empiricalRisk ℓ S) Q :=
+  Integrable.of_mem_Icc 0 1 (measurable_empiricalRisk_arg hℓ S).aemeasurable
+    (ae_of_all _ fun i => empiricalRisk_mem_Icc ℓ S (hℓ01 i))
+
+end JointMeasurability
 
 section ExponentialMoment
 
@@ -176,7 +242,51 @@ section Bounds
 
 variable {D : Measure Z} [IsProbabilityMeasure D] {ℓ : ι → Z → ℝ}
 
-variable [MeasurableSpace ι] [Countable ι] [MeasurableSingletonClass ι]
+variable [MeasurableSpace ι]
+
+/-- **McAllester's PAC-Bayes bound on an arbitrary measurable hypothesis space**
+[McAllester1999], with `log (√m / δ)`: for a prior `P` on any measurable index space `ι`,
+jointly measurable losses `ℓ i z ∈ [0, 1]`, `m ≥ 2` and `δ > 0`, the samples on which some
+posterior `Q` with `KL(Q ‖ P) < ∞` has
+`𝔼_Q L_S + √((KL(Q ‖ P) + log (√m / δ)) / (2 (m - 1))) < 𝔼_Q L_D` have probability at most `δ`.
+-/
+theorem measure_pi_exists_integral_risk_gt_of_measurable
+    (hℓ : Measurable (Function.uncurry ℓ))
+    (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1) {m : ℕ} (hm : 2 ≤ m) (P : Measure ι)
+    [IsProbabilityMeasure P] {δ : ℝ} (hδ : 0 < δ) :
+    Measure.pi (fun _ : Fin m => D) {S | ∃ Q : Measure ι, IsProbabilityMeasure Q ∧
+      klDiv Q P ≠ ⊤ ∧ ∫ i, empiricalRisk ℓ S i ∂Q +
+        Real.sqrt (((klDiv Q P).toReal + Real.log (Real.sqrt m / δ)) / (2 * (m - 1))) <
+      ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
+  have hℓi (i : ι) : Measurable (ℓ i) := hℓ.comp (measurable_const.prodMk measurable_id)
+  have htr_meas : Measurable (trueRisk ℓ D) := measurable_trueRisk_of_measurable hℓ hℓ01
+  have hFm : Measurable (Function.uncurry fun (S : Fin m → Z) (i : ι) =>
+      ENNReal.ofReal (Real.exp (2 * (m - 1) * (trueRisk ℓ D i - empiricalRisk ℓ S i) ^ 2))) :=
+    ((measurable_const.mul (((htr_meas.comp measurable_snd).sub
+      (measurable_empiricalRisk_prod hℓ m)).pow_const 2))).exp.ennreal_ofReal
+  refine (measure_mono fun S hS => ?_).trans
+    (measure_ofReal_div_le_lintegral_le_of_measurable _ P hFm
+      (lintegral_exp_sq_risk_sub_le D hℓi hℓ01 (by omega))
+      (Real.sqrt_pos.2 (by positivity)) hδ)
+  obtain ⟨Q, hQ, hQP, hlt⟩ := hS
+  by_contra hB
+  rw [Set.mem_ofPred_eq, not_le] at hB
+  have hlam : (0 : ℝ) < 2 * (m - 1) := by
+    have : (2 : ℝ) ≤ m := by exact_mod_cast hm
+    linarith
+  have hg (i : ι) : |trueRisk ℓ D i - empiricalRisk ℓ S i| ≤ 1 := by
+    have h1 := trueRisk_mem_Icc ℓ D (hℓ01 i)
+    have h2 := empiricalRisk_mem_Icc ℓ S (hℓ01 i)
+    rw [abs_le]
+    constructor <;> linarith [h1.1, h1.2, h2.1, h2.2]
+  have hgM : Measurable fun i => trueRisk ℓ D i - empiricalRisk ℓ S i :=
+    htr_meas.sub (measurable_empiricalRisk_arg hℓ S)
+  have hbound := integral_le_sqrt_klDiv_add_log hQP hgM hg hlam hB.le
+  rw [integral_sub (integrable_trueRisk_of_measurable hℓ hℓ01 Q)
+    (integrable_empiricalRisk_of_measurable hℓ hℓ01 S Q)] at hbound
+  linarith
+
+variable [Countable ι] [MeasurableSingletonClass ι]
 
 /-- **McAllester's PAC-Bayes bound** [McAllester1999], with `log (√m / δ)`: for a prior `P`
 on a countable index, losses `ℓ i z ∈ [0, 1]`, `m ≥ 2` and `δ > 0`, the samples on which some
@@ -189,31 +299,9 @@ theorem measure_pi_exists_integral_risk_gt (hℓ : ∀ i, Measurable (ℓ i))
     Measure.pi (fun _ : Fin m => D) {S | ∃ Q : Measure ι, IsProbabilityMeasure Q ∧
       klDiv Q P ≠ ⊤ ∧ ∫ i, empiricalRisk ℓ S i ∂Q +
         Real.sqrt (((klDiv Q P).toReal + Real.log (Real.sqrt m / δ)) / (2 * (m - 1))) <
-      ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
-  refine (measure_mono fun S hS => ?_).trans
-    (measure_ofReal_div_le_lintegral_le _ P (fun i => by
-      have := measurable_empiricalRisk (ℓ := ℓ) m (hℓ i); fun_prop)
-      (lintegral_exp_sq_risk_sub_le D hℓ hℓ01 (by omega)) (Real.sqrt_pos.2 (by positivity)) hδ)
-  obtain ⟨Q, hQ, hQP, hlt⟩ := hS
-  by_contra hB
-  rw [Set.mem_ofPred_eq, not_le] at hB
-  have hlam : (0 : ℝ) < 2 * (m - 1) := by
-    have : (2 : ℝ) ≤ m := by exact_mod_cast hm
-    linarith
-  have hg (i : ι) : |trueRisk ℓ D i - empiricalRisk ℓ S i| ≤ 1 := by
-    have h1 := trueRisk_mem_Icc ℓ D (hℓ01 i)
-    have h2 := empiricalRisk_mem_Icc ℓ S (hℓ01 i)
-    rw [abs_le]
-    constructor <;> linarith [h1.1, h1.2, h2.1, h2.2]
-  have hbound := integral_le_sqrt_klDiv_add_log hQP hg hlam hB.le
-  have hintR : Integrable (fun i => trueRisk ℓ D i) Q :=
-    Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
-      (ae_of_all _ fun i => trueRisk_mem_Icc ℓ D (hℓ01 i))
-  have hintE : Integrable (fun i => empiricalRisk ℓ S i) Q :=
-    Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
-      (ae_of_all _ fun i => empiricalRisk_mem_Icc ℓ S (hℓ01 i))
-  rw [integral_sub hintR hintE] at hbound
-  linarith
+      ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ :=
+  measure_pi_exists_integral_risk_gt_of_measurable
+    (measurable_from_prod_countable_right hℓ) hℓ01 hm P hδ
 
 /-- **McAllester's PAC-Bayes bound** with the constants of [ShalevShwartzBenDavid2014,
 Theorem 31.1]: `log (m / δ)`. -/

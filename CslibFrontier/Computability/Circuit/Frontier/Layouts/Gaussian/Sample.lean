@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Straddle
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # One sample controls every frontier of the median layout
@@ -88,8 +89,7 @@ theorem card_edges_eq [Fintype E] (hloop : G.Loopless)
   simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
   have : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
   rw [← Nat.card_eq_fintype_card (α := E)]
-  push_cast at this
-  linarith
+  cast_linarith
 
 /-- **Concentration.** For a large loopless multigraph whose vertices have three edges, some
 sample keeps the four families of counts of the median layout within `ε |V|` of their means. -/

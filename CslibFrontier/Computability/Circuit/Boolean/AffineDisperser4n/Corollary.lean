@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
 public import CslibFrontier.Computability.Complexity.AffineDisperser
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.PolyTime
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Explicit `4N - o(N)` circuit lower bounds in `P` and stratified Farkas optimality
@@ -692,23 +693,18 @@ private theorem eventually_four_mul_sub_le_cost_of_computes_explicitDisperser :
       4 * (N : ℝ) - 54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) - 9 ≤
         (C.program.cost binaryB2Cost : ℝ) := by
   filter_upwards [eventually_four_mul_le_cost_add_explicitDisperser] with N hN C hC
-  have hlb : (4 * N : ℝ) ≤
-      (C.program.cost binaryB2Cost : ℝ) + ((54 * N / (Nat.log 2 N + 1) : ℕ) : ℝ) + 9 := by
-    exact_mod_cast hN C hC
   have hdiv : ((54 * N / (Nat.log 2 N + 1) : ℕ) : ℝ) ≤
       54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) := by
     simpa [Nat.cast_add, Nat.cast_mul] using
       (Nat.cast_div_le (α := ℝ) (m := 54 * N) (n := Nat.log 2 N + 1))
-  linarith
+  cast_linarith [hN C hC]
 
 private theorem eventually_four_mul_sub_le_size_of_computes_explicitDisperser :
     ∀ᶠ N in atTop, ∀ (C : Circuit (fullSignature 2 Bool) N 1),
       C.Computes fullInterpretation (single (explicitDisperser N)) →
       4 * (N : ℝ) - 54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) - 9 ≤ (C.size : ℝ) := by
   filter_upwards [eventually_four_mul_sub_le_cost_of_computes_explicitDisperser] with N hN C hC
-  have hle : (C.program.cost binaryB2Cost : ℝ) ≤ (C.size : ℝ) := by
-    exact_mod_cast cost_binaryB2Cost_le_size C
-  linarith [hN C hC]
+  cast_linarith [cost_binaryB2Cost_le_size C, hN C hC]
 
 /-- There exists an explicit language in `P` (`explicitDisperserLanguage`) whose `N`-bit slices
 require at least `4 * N - 54 * N / (Nat.log 2 N + 1) - 9` genuinely binary `B₂` gates. -/
@@ -758,9 +754,7 @@ private theorem eventually_four_mul_sub_le_size_of_computes_primeDisperser :
       C.Computes fullInterpretation (single (Li.primeDisperser N)) →
       4 * (N : ℝ) - 19332 * (N : ℝ) ^ ((4 : ℝ) / 5) ≤ (C.size : ℝ) := by
   filter_upwards [eventually_four_mul_sub_le_cost_of_computes_primeDisperser] with N hN C hC
-  have hle : (C.program.cost binaryB2Cost : ℝ) ≤ (C.size : ℝ) := by
-    exact_mod_cast cost_binaryB2Cost_le_size C
-  linarith [hN C hC]
+  cast_linarith [cost_binaryB2Cost_le_size C, hN C hC]
 
 /-- Unconditional explicit language in `P` (`Li.primeDisperserLanguage`) whose `N`-bit slices
 eventually require at least `4 * N - 19332 * N ^ (4 / 5)` genuinely binary `B₂` gates

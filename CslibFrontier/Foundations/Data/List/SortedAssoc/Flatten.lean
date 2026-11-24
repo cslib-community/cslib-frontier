@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.List.SortedAssoc
-public import Mathlib.Data.List.TakeWhile
+import Mathlib.Data.List.TakeWhile
 
 /-!
 # Range restriction of a concatenation of sorted association lists
@@ -57,39 +57,43 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
   generalize hpre : L.takeWhile P = pre at hL
   generalize hrun : R.takeWhile (fun l => !P l) = run at hL
   generalize hpost : R.dropWhile (fun l => !P l) = post at hL
-  have hpre' : ∀ l ∈ pre, range lo hi l = [] := fun l hl => by
-    have := List.mem_takeWhile_imp (hpre ▸ hl)
-    simpa [P] using this
-  have hrun' : ∀ l ∈ run, range lo hi l ≠ [] := fun l hl => by
-    have := List.mem_takeWhile_imp (hrun ▸ hl)
-    simpa [P] using this
+  have hpre' : ∀ l ∈ pre, range lo hi l = [] := fun l hl =>
+    List.isEmpty_iff.1 (List.mem_takeWhile_imp (p := P) (hpre ▸ hl))
+  have hrun' : ∀ l ∈ run, range lo hi l ≠ [] := fun l hl =>
+    List.isEmpty_eq_false_iff.1
+      ((Bool.not_eq_true' _).mp (List.mem_takeWhile_imp (p := fun l => !P l) (hrun ▸ hl)))
   rw [hL, List.pairwise_append, List.pairwise_append] at hp
   obtain ⟨-, ⟨hpr, hpp, hrp⟩, -⟩ := hp
   have hpost' : ∀ l ∈ post, range lo hi l = [] := by
     cases hpo : post with
-    | nil => simp
+    | nil => exact fun _ h => absurd h List.not_mem_nil
     | cons p₀ ps =>
       have hp₀ : range lo hi p₀ = [] := by
-        have hne' : R.dropWhile (fun l => !P l) ≠ [] := by rw [hpost, hpo]; simp
-        have := List.head_dropWhile_not (fun l => !P l) hne'
-        simp only [hpost, hpo, List.head_cons] at this
-        simpa [P] using this
+        have hne' : R.dropWhile (fun l => !P l) ≠ [] := hpost ▸ hpo ▸ List.cons_ne_nil p₀ ps
+        have hhead := List.head_dropWhile_not (fun l => !P l) hne'
+        simp only [hpost, hpo, List.head_cons] at hhead
+        exact List.isEmpty_iff.1 ((Bool.not_eq_false' _).mp hhead)
       obtain ⟨r, hr⟩ : ∃ r, r ∈ run := by
         cases hR : R with
-        | nil => simp [hR, hpo] at hpost
+        | nil =>
+          rw [hR, List.dropWhile_nil] at hpost
+          exact absurd (hpo.symm.trans hpost.symm) (List.cons_ne_nil p₀ ps)
         | cons r₀ R' =>
-          have hR' : L.dropWhile P ≠ [] := by
-            change R ≠ []
-            rw [hR]
-            simp
-          have h₀ := List.head_dropWhile_not P hR'
-          change P (R.head _) = false at h₀
-          simp only [hR, List.head_cons] at h₀
-          exact ⟨r₀, by rw [← hrun, hR, List.takeWhile_cons]; simp [h₀]⟩
+          have hR' : L.dropWhile P ≠ [] := show R ≠ [] from hR ▸ List.cons_ne_nil r₀ R'
+          have h₀ : P r₀ = false := by
+            have hhead := List.head_dropWhile_not P hR'
+            change P (R.head _) = false at hhead
+            simpa only [hR, List.head_cons] using hhead
+          exact ⟨r₀, by
+            rw [← hrun, hR, List.takeWhile_cons, h₀, Bool.not_false]
+            simp only [↓reduceIte]
+            exact List.mem_cons_self⟩
       obtain ⟨x, hx, hlo, -⟩ := exists_mem_of_range_ne_nil (hrun' r hr)
       obtain ⟨y, hy⟩ := List.exists_mem_of_ne_nil p₀
-        (hne p₀ (by rw [hL, hpo]; simp))
-      have hxy : x.1 < y.1 := hrp r hr p₀ (by simp [hpo]) x hx y hy
+        (hne p₀ (by
+          rw [hL, hpo]
+          exact List.mem_append_right _ (List.mem_append_right _ List.mem_cons_self)))
+      have hxy : x.1 < y.1 := hrp r hr p₀ (hpo ▸ List.mem_cons_self) x hx y hy
       have hhi : hi < y.1 := by
         rcases range_eq_nil_iff.1 hp₀ y hy with h | h
         · exact absurd (hlo.trans_lt hxy) (not_lt_of_gt h)
@@ -102,23 +106,26 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
           Or.inr (hhi.trans ((List.pairwise_cons.1 hpp).1 l hl y hy q hq))
   refine ⟨pre, run, post, by rw [hL, List.append_assoc], ?_, hrun', ?_⟩
   · have h₁ : (pre.map (range lo hi)).flatten = [] :=
-      List.flatten_eq_nil_iff.2 (by simpa using hpre')
+      List.flatten_eq_nil_iff.2 fun l hl => by
+        obtain ⟨a, ha, rfl⟩ := List.mem_map.1 hl
+        exact hpre' a ha
     have h₂ : (post.map (range lo hi)).flatten = [] :=
-      List.flatten_eq_nil_iff.2 (by simpa using hpost')
+      List.flatten_eq_nil_iff.2 fun l hl => by
+        obtain ⟨a, ha, rfl⟩ := List.mem_map.1 hl
+        exact hpost' a ha
     have hf : range lo hi (pre ++ (run ++ post)).flatten =
         ((pre ++ (run ++ post)).map (range lo hi)).flatten := List.filter_flatten ..
     rw [hL, hf, List.map_append, List.map_append, List.flatten_append, List.flatten_append,
-      h₁, h₂]
-    simp
+      h₁, h₂, List.nil_append, List.append_nil]
   · intro l hl
     cases hT : run with
-    | nil => simp [hT] at hl
+    | nil => rw [hT, List.drop_nil, List.dropLast_nil] at hl; exact absurd hl List.not_mem_nil
     | cons a T =>
       rw [hT] at hl hpr hrun'
       simp only [List.drop_one, List.tail_cons] at hl
-      have hTne : T ≠ [] := by
-        rintro rfl
-        simp at hl
+      have hTne : T ≠ [] := fun hTe => by
+        rw [hTe, List.dropLast_nil] at hl
+        exact absurd hl List.not_mem_nil
       have hlT : l ∈ T := List.mem_of_mem_dropLast hl
       obtain ⟨x, hx, hlo, -⟩ := exists_mem_of_range_ne_nil (hrun' a List.mem_cons_self)
       obtain ⟨z, hz, -, hhi⟩ := exists_mem_of_range_ne_nil
@@ -129,6 +136,6 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
       intro q hq
       have h₁ : x.1 < q.1 := (List.pairwise_cons.1 hpr).1 l hlT x hx q hq
       have h₂ : q.1 < z.1 := hTp.2.2 l hl _ (List.mem_singleton_self _) q hq z hz
-      simpa using ⟨hlo.trans h₁.le, h₂.le.trans hhi⟩
+      exact decide_eq_true ⟨hlo.trans h₁.le, h₂.le.trans hhi⟩
 
 end Cslib.SortedAssoc
