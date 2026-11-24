@@ -2425,6 +2425,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.BPP
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ClockedTable
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.CoinReplay
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.CompactMatrix
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.CompactTimeLayer
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ConfigurationMatrix
