@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Phillipp Schoppmann. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Phillipp Schoppmann
+Authors: Samuel Schlesinger, Phillipp Schoppmann
 -/
 
 import CslibFrontier.Crypto.Primitives.Garbling.FoundationsAsymptotic
