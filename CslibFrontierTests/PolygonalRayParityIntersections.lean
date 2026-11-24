@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
@@ -769,5 +770,68 @@ example :
     · exact hm
     · simpa [bend] using hε
   exact hmove (bend m).point rfl rfl hdist w hw
+
+private def retracedSegment (a b : ℂ) : Route where
+  bends := 1
+  point i := if i.val = 1 then b else a
+
+private theorem support_retracedSegment (a b : ℂ) :
+    (retracedSegment a b).support = segment ℝ a b := by
+  ext z
+  rw [Route.support, Set.mem_iUnion]
+  constructor
+  · rintro ⟨i, hi⟩
+    change Fin 2 at i
+    fin_cases i
+    · exact hi
+    · rw [segment_symm]
+      exact hi
+  · exact fun hz => ⟨0, hz⟩
+
+private theorem retracedSegment_point_eq (a b : ℂ) (i : Fin 3) :
+    (retracedSegment a b).point i = a ∨ (retracedSegment a b).point i = b := by
+  change (if i.val = 1 then b else a) = a ∨ (if i.val = 1 then b else a) = b
+  by_cases h : i.val = 1 <;> simp [h]
+
+-- A horizontal and a vertical closed route both retrace their segment through zero.
+open Classical in
+example :
+    let p := retracedSegment (-1) 1
+    let q := retracedSegment (-Complex.I) Complex.I
+    (0 : ℂ) ∈ openSegment ℝ (p.point (0 : Fin p.segments).castSucc)
+      (p.point (0 : Fin p.segments).succ) ∧
+    (0 : ℂ) ∈ openSegment ℝ (q.point (0 : Fin q.segments).castSucc)
+      (q.point (0 : Fin q.segments).succ) ∧
+    p.intersectionParity q = false := by
+  have hmid (a : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-a) a := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-a) a
+  refine ⟨hmid 1, hmid Complex.I, ?_⟩
+  apply Route.intersectionParity_eq_false_of_closed rfl rfl
+  · intro i
+    change Fin 2 at i
+    fin_cases i
+    · change (-1 : ℂ) ≠ 1
+      norm_num [Complex.ext_iff]
+    · change (1 : ℂ) ≠ -1
+      norm_num [Complex.ext_iff]
+  · intro i
+    change Fin 2 at i
+    fin_cases i
+    · change -Complex.I ≠ Complex.I
+      norm_num [Complex.ext_iff]
+    · change Complex.I ≠ -Complex.I
+      norm_num [Complex.ext_iff]
+  · intro i
+    rw [support_retracedSegment, segment_eq_image_lineMap]
+    rintro ⟨t, _, h⟩
+    rcases retracedSegment_point_eq (-1) 1 i with hi | hi <;>
+      rw [hi] at h <;> have hre := congrArg Complex.re h <;>
+      norm_num [AffineMap.lineMap_apply_module'] at hre
+  · intro i
+    rw [support_retracedSegment, segment_eq_image_lineMap]
+    rintro ⟨t, _, h⟩
+    rcases retracedSegment_point_eq (-Complex.I) Complex.I i with hi | hi <;>
+      rw [hi] at h <;> have him := congrArg Complex.im h <;>
+      norm_num [AffineMap.lineMap_apply_module'] at him
 
 end CslibFrontierTests.PolygonalRayParityIntersections
