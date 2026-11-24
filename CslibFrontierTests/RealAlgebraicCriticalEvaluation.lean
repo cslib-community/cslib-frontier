@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
@@ -491,8 +492,24 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   intro F hF C equations Q
   refine ⟨equations.evaluate_mem, fun hcut => ?_⟩
   rw [equations.evaluate_eq (w, 3) p z hp hcut]
-  simp only [evaluation, MvPolynomial.eval₂_rename, MvPolynomial.eval₂_uniqueAlgEquiv_symm]
+  simp only [evaluation, eval₂_indexedCoordinateEquation]
   rw [List.getD_eq_getElem?_getD]
   rfl
+
+-- Row zero reads the source even though the family also contains its coordinate equations.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let rows := C.selectionEquations (d := fun _ => 1) Decoder.nat
+      (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+      (.const 1)
+    rows.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
+      (rows.cutoff (w, 0) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
+  intro F C rows
+  refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
+  rw [rows.evaluate_eq (w, 0) p z hp hcut, selectionEquation_zero]
+  simp only [F, evaluation, MvPolynomial.eval₂_X, ZMod.val_natCast,
+    List.getD_eq_getElem?_getD, Fin.val_zero]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

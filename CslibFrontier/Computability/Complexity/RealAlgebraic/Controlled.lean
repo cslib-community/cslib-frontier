@@ -107,6 +107,36 @@ arity, bounds and modular evaluator at the same counting level. -/
 @[expose] def mono (C : Controlled P enc a) (hab : a ≤ b) : Controlled P enc b :=
   { C with evaluate_mem := CountingFunction.mono hab C.evaluate_mem }
 
+/-- A polynomial-time guard selects one of two controlled families at their common counting
+level. The degree, norm exponent and prime cutoff are the maxima of the two branch bounds. -/
+noncomputable def ite (CP : Controlled P enc a) (CQ : Controlled Q enc a) (guard : α → Bool)
+    (hguard : ComputableInPolyTime guard enc encBool) :
+    Controlled (fun w => if guard w then P w else Q w) enc a where
+  arity_computable := CP.arity_computable
+  degreeBound w := max (CP.degreeBound w) (CQ.degreeBound w)
+  degree_computable := ComputableInPolyTime.binary_max' CP.degree_computable CQ.degree_computable
+  degree_le w := by
+    split
+    · exact (CP.degree_le w).trans (le_max_left _ _)
+    · exact (CQ.degree_le w).trans (le_max_right _ _)
+  massExponent w := max (CP.massExponent w) (CQ.massExponent w)
+  mass_computable := ComputableInPolyTime.binary_max' CP.mass_computable CQ.mass_computable
+  mass_le w := by
+    split
+    · exact (CP.mass_le w).trans (Nat.pow_le_pow_right (by decide) (le_max_left _ _))
+    · exact (CQ.mass_le w).trans (Nat.pow_le_pow_right (by decide) (le_max_right _ _))
+  cutoff w := max (CP.cutoff w) (CQ.cutoff w)
+  cutoff_computable := ComputableInPolyTime.binary_max' CP.cutoff_computable CQ.cutoff_computable
+  evaluate q := if guard q.1 then CP.evaluate q else CQ.evaluate q
+  evaluate_mem := CountingFunction.ite
+    (CountingFunction.of_polyTime (hguard.comp (ComputableInPolyTime.fst _ _)))
+    CP.evaluate_mem CQ.evaluate_mem
+  evaluate_eq w p z hp hcut := by
+    cases h : guard w
+    · simpa only [h, Bool.false_eq_true, ite_false] using
+        CQ.evaluate_eq w p z hp ((le_max_right _ _).trans_lt hcut)
+    · simpa only [h, ite_true] using CP.evaluate_eq w p z hp ((le_max_left _ _).trans_lt hcut)
+
 /-- A polynomial-time integer family gives a controlled constant polynomial. -/
 @[expose] noncomputable def constant (hn : ComputableInPolyTime n enc encUnary)
     (c : α → ℤ) (hc : ComputableInPolyTime c enc encIntBin) :
