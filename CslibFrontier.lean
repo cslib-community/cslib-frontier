@@ -4196,12 +4196,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPrime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NisanGenerator
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.QueryLoop
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredBind
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredLoop
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ToeplitzHash
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Wozencraft
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
