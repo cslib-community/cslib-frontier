@@ -326,13 +326,16 @@ functions on `n` inputs have circuits with at most `s` gates, then on some set o
 theorem exists_lt_complexityOn {m b : ℕ} (hm : 0 < m) (hnm : n ≤ m) {f : BooleanFunction n}
     (hf : m * s + complexity interpretation (single (strictMajority m)) <
       complexity interpretation (single f))
-    (hb : #(computableFunctions n s) < 2 ^ b) :
+    (hb : (computableFunctions n s).ncard < 2 ^ b) :
     ∃ S : Finset (BitString n), #S ≤ 16 * b ∧ s < complexityOn interpretation S (single f) := by
   have hα : Fintype.card (BitString n) ≤ 2 ^ m := by
     rw [BitString.card]
     exact Nat.pow_le_pow_right two_pos hnm
-  obtain ⟨S, hS, hanti⟩ :=
-    exists_isAntiChecker hm hα _ (strictMajority_ne_of_lt_complexity hf) hb
+  have hfin := (computableFunctions n s).toFinite
+  obtain ⟨S, hS, hanti⟩ := exists_isAntiChecker hm hα hfin.toFinset
+    (fun g hg => strictMajority_ne_of_lt_complexity hf g fun i => hfin.mem_toFinset.mp (hg i))
+    (by rwa [← Set.ncard_eq_toFinset_card _ hfin])
+  rw [hfin.coe_toFinset] at hanti
   exact ⟨S, hS, isAntiChecker_computableFunctions_iff.mp hanti⟩
 
 /-- **Small anti-checkers against circuits**, as Succinct MCSP: under the hypotheses of
@@ -341,7 +344,7 @@ of Succinct MCSP at threshold `s`. -/
 theorem exists_ofFunction_notMem {m b : ℕ} (hm : 0 < m) (hnm : n ≤ m) {f : BooleanFunction n}
     (hf : m * s + complexity interpretation (single (strictMajority m)) <
       complexity interpretation (single f))
-    (hb : #(computableFunctions n s) < 2 ^ b) :
+    (hb : (computableFunctions n s).ncard < 2 ^ b) :
     ∃ S : Finset (BitString n), #S ≤ 16 * b ∧
       SuccinctMCSP.Instance.ofFunction f S s ∉ SuccinctMCSP := by
   obtain ⟨S, hS, hlt⟩ := exists_lt_complexityOn hm hnm hf hb
