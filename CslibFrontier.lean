@@ -9042,6 +9042,7 @@ public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
 public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
+public import CslibFrontier.GameTheory.Network.Contagion
 public import CslibFrontier.GameTheory.P2P.Generosity
 public import CslibFrontier.GameTheory.PerfectInformation
 public import CslibFrontier.GameTheory.RandomAssignment.Basic
