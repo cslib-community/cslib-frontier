@@ -196,7 +196,8 @@ private theorem get_eval_toFinCNF_eq {N : ℕ} (hN : 1 ≤ N) {ψ : CNF ℕ}
     ((toFinCNF N hN ψ).get e).eval σ =
       (ψ.get ⟨e.val, by simpa only [toFinCNF, CNF.relabel, List.length_map] using e.isLt⟩).eval
         (extendFinAssign σ) := by
-  have he_lt : e.val < ψ.length := by simpa only [toFinCNF, CNF.relabel, List.length_map] using e.isLt
+  have he_lt : e.val < ψ.length := by
+    simpa only [toFinCNF, CNF.relabel, List.length_map] using e.isLt
   change ((ψ.map (Clause.relabel fun v => ⟨v % N, Nat.mod_lt v hN⟩))[e.val]).eval σ =
     ψ[e.val].eval (extendFinAssign σ)
   rw [List.getElem_map, Clause.eval_relabel]; apply Bool.eq_iff_iff.mpr

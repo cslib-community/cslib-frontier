@@ -134,7 +134,8 @@ theorem card_filter_sum_eq_zero_mul_factorial_le {V : Type*} [AddCommMonoid V] [
             ext x
             simp only [img, mem_image, mem_univ, true_and]
             exact ⟨fun ⟨i, hi⟩ => hi ▸ (e i).property, fun hx => ⟨e.symm ⟨x, hx⟩, by simp⟩⟩
-          refine mem_filter.2 ⟨mem_filter.2 ⟨Fintype.mem_piFinset.2 fun i => hSB (e i).property, ?_⟩,
+          refine mem_filter.2 ⟨mem_filter.2
+              ⟨Fintype.mem_piFinset.2 fun i => hSB (e i).property, ?_⟩,
             himg⟩
           rw [Equiv.sum_comp e (fun x : S => (x : V))]
           exact (sum_coe_sort S fun x : V => x).trans hsum

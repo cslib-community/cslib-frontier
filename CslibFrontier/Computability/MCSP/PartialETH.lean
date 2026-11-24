@@ -334,7 +334,8 @@ zeros at $k$ and $n + k'$ and ones elsewhere. -/
 
 @[simp] private theorem zeros2n_apply (i : Fin (2 * n)) : zeros2n i = false := rfl
 @[simp] private theorem ones2n_apply (i : Fin (2 * n)) : ones2n i = true := rfl
-@[simp] private theorem leftHalfOnes_apply (i : Fin (2 * n)) : leftHalfOnes i = decide (i.val < n) :=
+@[simp] private theorem leftHalfOnes_apply (i : Fin (2 * n)) :
+    leftHalfOnes i = decide (i.val < n) :=
   rfl
 @[simp] private theorem rightHalfOnes_apply (i : Fin (2 * n)) :
     rightHalfOnes i = decide (n ≤ i.val) := rfl
@@ -1429,7 +1430,8 @@ private theorem ilangoEntry_edge_eq_decide (G : BipartitePermutationGraph) (m : 
       simp [hx i, antiUnitPair, Bool.decide_or, beq_eq_decide]
   have hzEq (j j' : Fin G.1) :
       ((List.range (2 * G.1)).all fun i =>
-        m.testBit (4 * G.1 + i) == (i == j.val || i == G.1 + j'.val)) = decide (z = unitPair j j') :=
+        m.testBit (4 * G.1 + i) == (i == j.val || i == G.1 + j'.val)) =
+      decide (z = unitPair j j') :=
     range_all_eq_decide _ z (unitPair j j') fun i => by
       simp [hz i, unitPair, Bool.decide_or, beq_eq_decide]
   rw [← Bool.decide_coe (G.2.any _), decide_eq_decide, List.any_eq_true]
@@ -1451,8 +1453,10 @@ private theorem ilangoEntry_eq_table (G : BipartitePermutationGraph) (k : Fin (2
   set w := (BitString.equivFin (6 * G.1)).symm k
   set x := unpackX w; set y := unpackY w; set z := unpackZ w
   have hx (i : Fin (2 * G.1)) : k.val.testBit i.val = x i := by simp [x, w, unpackX, xVar]
-  have hy (i : Fin (2 * G.1)) : k.val.testBit (2 * G.1 + i.val) = y i := by simp [y, w, unpackY, yVar]
-  have hz (i : Fin (2 * G.1)) : k.val.testBit (4 * G.1 + i.val) = z i := by simp [z, w, unpackZ, zVar]
+  have hy (i : Fin (2 * G.1)) : k.val.testBit (2 * G.1 + i.val) = y i := by
+    simp [y, w, unpackY, yVar]
+  have hz (i : Fin (2 * G.1)) : k.val.testBit (4 * G.1 + i.val) = z i := by
+    simp [z, w, unpackZ, zVar]
   dsimp [ilangoEntry, ilangoInstance, ilangoGamma]
   change (if ((List.range (2 * G.1)).all fun i => !k.val.testBit i) = true then _ else _) =
     if x = zeros2n then _ else _

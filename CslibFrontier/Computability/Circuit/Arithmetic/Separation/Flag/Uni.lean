@@ -50,7 +50,8 @@ theorem mat_x {h : ℕ} (j : Fin (h - 1)) : mat (x h j) = 1 + Matrix.single (lo 
 theorem mat_lt {h : ℕ} (A : U h) {i j : Fin h} (hij : j < i) : mat A i j = 0 :=
     (Cslib.SLTower.mem_U.mp A.property i j).1 hij
 
-theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 := (Cslib.SLTower.mem_U.mp A.property i i).2
+theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 :=
+  (Cslib.SLTower.mem_U.mp A.property i i).2
 
 /-- An element from its matrix. -/
 @[expose] def mk {h : ℕ} (M : Matrix (Fin h) (Fin h) F2) (h0 : ∀ i j, j < i → M i j = 0)

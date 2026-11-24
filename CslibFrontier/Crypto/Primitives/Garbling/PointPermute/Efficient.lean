@@ -367,15 +367,18 @@ private theorem q_polyTime :
   exact (ComputableInPolyTime.length_list _).comp hg
 
 private theorem q'_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.q) encGbInput encUnary :=
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.q)
+      encGbInput encUnary :=
   by simpa only [ConventionalCircuit.length_gateList] using q_polyTime
 
 private theorem n_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.n) encGbInput encUnary :=
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.n)
+      encGbInput encUnary :=
   data_polyTime.fst'
 
 private theorem m_polyTime :
-    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.m) encGbInput encUnary :=
+    ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.val.m)
+      encGbInput encUnary :=
   data_polyTime.snd'.fst'
 
 include hf in

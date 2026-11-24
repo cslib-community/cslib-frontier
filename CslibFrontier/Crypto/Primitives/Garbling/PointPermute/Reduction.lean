@@ -389,7 +389,8 @@ noncomputable def prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary Valid
       let j ← ProbOracleComp.sample (ProbComp.sampleDyadicIndex (P k))
       let kc ← ProbOracleComp.sample
         (BitString.sampleList ((query.fn.val.n + query.fn.val.q) * (2 * (k + 1) + 1)))
-      let sc ← ProbOracleComp.sample (BitString.sampleList (simCoinLen k query.fn.val.n query.fn.val.q))
+      let sc ← ProbOracleComp.sample
+        (BitString.sampleList (simCoinLen k query.fn.val.n query.fn.val.q))
       let rs ← OracleComp.iterate (8 * query.fn.val.q) (replyStep k) []
       ProbOracleComp.sample ((B k).guess state
         (some (hybViewWord family k query.fn.val query.input j kc sc rs)))
@@ -464,8 +465,9 @@ theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidC
   have hfill : (BitString.uniformList (simCoinLen k f.val.n (toCircuit f).size)).map
       (simFillerRows k (toCircuit f).topology) =
         PMF.uniformOfFintype (Row (toCircuit f).topology → BitString (k + 1) × Bool) := by
-    rw [← Cslib.Probability.PMF.uniformOfFintype_prod_map_snd (α := Wire f.val.n (toCircuit f).size →
-      BitString (k + 1) × Bool), ← uniformList_map_simCoins k _ (arity_topology_toCircuit f),
+    rw [← Cslib.Probability.PMF.uniformOfFintype_prod_map_snd
+        (α := Wire f.val.n (toCircuit f).size → BitString (k + 1) × Bool),
+      ← uniformList_map_simCoins k _ (arity_topology_toCircuit f),
       PMF.map_comp]
     rfl
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, run_iterate_replyStep,
@@ -473,8 +475,10 @@ theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidC
     BitString.eval_sampleList, PMF.bind_map, Function.comp_def,
     hybViewWord_eq family k f hx _ _ _ hrs hlen, eval_run_reduction]
   refine congrArg _ (funext fun j => ?_)
-  rw [show simCoinLen k f.val.n f.val.q = simCoinLen k f.val.n (toCircuit f).size by rw [size_toCircuit],
-    show (f.val.n + f.val.q) * (2 * (k + 1) + 1) = (f.val.n + (toCircuit f).size) * (2 * (k + 1) + 1) by
+  rw [show simCoinLen k f.val.n f.val.q =
+      simCoinLen k f.val.n (toCircuit f).size by rw [size_toCircuit],
+    show (f.val.n + f.val.q) * (2 * (k + 1) + 1) =
+        (f.val.n + (toCircuit f).size) * (2 * (k + 1) + 1) by
       rw [size_toCircuit]]
   have hreply : (replyOracle k ((List.range (8 * f.val.q)).map fun idx =>
       labelBits (T (BitString.ofList k (BitString.lowBits k idx)))) :
@@ -692,8 +696,9 @@ private theorem hybViewWord_eq_data (k : ℕ) (f : ValidCircuit) (x : List Bool)
           labelOf k (f.val.n + f.val.gateList.length) kc i (permOf x i ^^ permOf kc i)).flatten,
         decInfoWord f.val kc⟩ := by
   have hws : (f.val.wires x f.val.q).length = f.val.n + f.val.q := f.val.length_wires x le_rfl
-  have hgate (g : Fin f.val.q) : f.val.gateList.getD g (0, 0, []) = (f.val.A g, f.val.B g,
-      [f.val.G g false false, f.val.G g false true, f.val.G g true false, f.val.G g true true]) := by
+  have hgate (g : Fin f.val.q) : f.val.gateList.getD g (0, 0, []) =
+      (f.val.A g, f.val.B g, [f.val.G g false false, f.val.G g false true,
+        f.val.G g true false, f.val.G g true true]) := by
     simp [ConventionalCircuit.gateList, List.getD_eq_getElem?_getD]
   have hrow (g : Fin f.val.q) (i : Fin 4) :
       hybRowData (family := family) k f.val.n f.val.q j (f.val.wires x f.val.q) kc sc rs
@@ -855,8 +860,8 @@ private theorem hybViewWord_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     (cap := fun p => ((f p).val.wires (x p) (f p).val.q).length + 1)
     (A := fun p g => ((f p).val.gateList.getD g (0, 0, [])).1)
     (B := fun p g => ((f p).val.gateList.getD g (0, 0, [])).2.1)
-    (row := fun p g a b i => hybRowData (family := family) (k p) (f p).val.n (f p).val.gateList.length
-      (j p) ((f p).val.wires (x p) (f p).val.q) (kc p) (sc p) (rs p) a b
+    (row := fun p g a b i => hybRowData (family := family) (k p) (f p).val.n
+      (f p).val.gateList.length (j p) ((f p).val.wires (x p) (f p).val.q) (kc p) (sc p) (rs p) a b
       ((f p).val.gateList.getD g (0, 0, [])).2.2 g i)
     hn hq hcap hgate.fst' hgate.snd'.fst' hrow
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => encFn z) encFn
@@ -959,7 +964,8 @@ theorem isOraclePPT_prvSimReduction {P : ℕ → ℕ}
       let j ← ProbOracleComp.sample (ProbComp.sampleDyadicIndex (P k))
       let kc ← ProbOracleComp.sample
         (BitString.sampleList ((query.fn.val.n + query.fn.val.q) * (2 * (k + 1) + 1)))
-      let sc ← ProbOracleComp.sample (BitString.sampleList (simCoinLen k query.fn.val.n query.fn.val.q))
+      let sc ← ProbOracleComp.sample
+        (BitString.sampleList (simCoinLen k query.fn.val.n query.fn.val.q))
       let rs ← OracleComp.iterate (8 * query.fn.val.q) (replyStep k) []
       ProbOracleComp.sample ((B k).guess state
         (some (hybViewWord family k query.fn.val query.input j kc sc rs))))

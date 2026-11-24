@@ -127,7 +127,8 @@ theorem structProb_bernoulliStructure_forall_not_isExtensionWitness
     ext y
     simp only [Set.mem_preimage, Set.mem_ofPred_eq, isExtensionWitness_atomStructure_iff,
       not_exists, Set.mem_compl_iff, Set.mem_singleton_iff, g, e]
-    exact ⟨fun h z hz => h z z.property fun a => congrFun hz a, fun h z hz ha => h ⟨z, hz⟩ (funext ha)⟩
+    exact ⟨fun h z hz => h z z.property fun a => congrFun hz a,
+      fun h z hz ha => h ⟨z, hz⟩ (funext ha)⟩
   -- These families are independent, one for each fresh element.
   have hg : (PMF.pi fun a : Atom L n => PMF.coin (p a.1)).map g =
       PMF.pi fun _ : O => PMF.pi fun a : NewAtom L k => PMF.coin (p a.symbol) := by

@@ -448,7 +448,8 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
   have hr_le : r ≤ 1 / 4 := by
     have hexpA : Real.exp (-(2 * A)) * (M : ℝ) ^ 2 = Real.exp (-(2 * ((b : ℝ) + 2))) := by
       have hlog2 : Real.exp (2 * Real.log M) = (M : ℝ) ^ 2 := by
-        rw [show (2 : ℝ) * Real.log M = ((2 : ℕ) : ℝ) * Real.log M by norm_num, Real.exp_natCast_mul,
+        rw [show (2 : ℝ) * Real.log M =
+            ((2 : ℕ) : ℝ) * Real.log M by norm_num, Real.exp_natCast_mul,
           Real.exp_log (by linarith only [hM1])]
       rw [← hlog2, ← Real.exp_add, hA]; congr 1; ring
     have hx1' : x + 1 ≤ 2 * x := by linarith only [hx1]

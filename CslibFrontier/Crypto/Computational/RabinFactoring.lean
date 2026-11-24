@@ -709,7 +709,8 @@ private theorem rabin_fiber_card_le {p q L x' : ℕ} (hp : p.Prime) (hq : q.Prim
         (fun x => x' ^ 2 % (p * q) = x.val ^ 2 % (p * q))).card ≤
       3 * (((Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val (p * q) = 1)).filter
         (fun x => x' ^ 2 % (p * q) = x.val ^ 2 % (p * q))).filter
-          (fun x => 1 < Nat.gcd (x.val + x') (p * q) ∧ Nat.gcd (x.val + x') (p * q) < p * q)).card := by
+          (fun x => 1 < Nat.gcd (x.val + x') (p * q) ∧
+              Nat.gcd (x.val + x') (p * q) < p * q)).card := by
   set N := p * q
   set S := (Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1)).filter
     (fun x => x' ^ 2 % N = x.val ^ 2 % N)
@@ -773,7 +774,8 @@ private theorem sum_rabin_success_le {p q N L : ℕ} (hp : p.Prime) (hq : q.Prim
   subst hN
   set N := p * q
   set U := Finset.univ.filter (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1)
-  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1),
+  rw [← Finset.sum_filter_add_sum_filter_not Finset.univ
+      (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1),
     ← Finset.sum_filter_add_sum_filter_not Finset.univ (fun x : Fin (2 ^ L) => Nat.gcd x.val N = 1),
     mul_add]
   refine add_le_add ?_ ?_
