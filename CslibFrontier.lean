@@ -207,9 +207,16 @@ public import CslibFrontier.Algorithms.Lean.Query.Matroid.LowerBound
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Accounting
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Batch
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Correctness
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Errors
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Estimate
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.History
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Instance
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Procedure
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Schedule
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.State
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.Boruvka
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.ChainMaxima
 public import CslibFrontier.Algorithms.Lean.Query.Select.Correctness
 public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs
@@ -7636,6 +7643,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 public import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 public import CslibFrontier.Foundations.Combinatorics.Expander.Walk
 public import CslibFrontier.Foundations.Combinatorics.Expander.Zigzag
+public import CslibFrontier.Foundations.Combinatorics.FewBadRounds
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover.Basic
 public import CslibFrontier.Foundations.Combinatorics.FunctionPlaces
@@ -7685,6 +7693,7 @@ public import CslibFrontier.Foundations.Combinatorics.LovaszSteinCover
 public import CslibFrontier.Foundations.Combinatorics.MajorityTree
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote.Weighted
+public import CslibFrontier.Foundations.Combinatorics.MaximaVectors
 public import CslibFrontier.Foundations.Combinatorics.MinIsolation.BaseSix
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.BEST
@@ -7704,6 +7713,7 @@ public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
 public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
+public import CslibFrontier.Foundations.Combinatorics.SeparatingCoordinates
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.HittingSet
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
