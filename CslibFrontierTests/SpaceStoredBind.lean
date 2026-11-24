@@ -43,7 +43,7 @@ theorem compare_inSpace : ComputableInSpace compare (encPair encNat encBits) enc
         simp only [encBits_apply] at this ⊢
         omega⟩
   have htwo : ComputableInSpace (fun _ : ℕ × List Bool => 2) (encPair encNat encBits) encNat
-      budget := (ComputableInSpace.constZero 2).mono_le fun _ => Nat.zero_le _
+      budget := ComputableInSpace.budget_const 2
   exact (ComputableInSpace.budget_natLt hlen (ComputableInSpace.budget_natMul htwo hc)).of_enc_eq
     fun _ => rfl
 

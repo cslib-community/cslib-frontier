@@ -31,7 +31,6 @@ from any later asymptotic security family indexed by a growing parameter.
 
 * `Cslib.Crypto.SLHDSA.SecurityBytes.count_pos`: every standardized length is positive.
 * `Cslib.Crypto.SLHDSA.SecurityBytes.count_le_32`: every standardized length is at most 32.
-* `Cslib.Crypto.SLHDSA.ParameterShape.digestBytes_eq`: the Section 9 digest-length formula.
 
 ## References
 

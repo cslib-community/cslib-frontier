@@ -43,7 +43,7 @@ theorem modSum_inSpace :
     exact ComputableInSpace.budget_natMod
       (ComputableInSpace.budget_natAdd (ComputableInSpace.snd' hma) hx)
       (ComputableInSpace.budget_natAdd (ComputableInSpace.fst' hma)
-        (ComputableInSpace.budget_const 1 hin))
+        (ComputableInSpace.budget_const 1))
   have hlen (p : ℕ × List ℕ) (i : ℕ) :
       (encNat ((p.2.take i).foldl (fun acc x => (acc + x) % (p.1 + 1)) 0)).length ≤
         (encNat p.1).length := by
