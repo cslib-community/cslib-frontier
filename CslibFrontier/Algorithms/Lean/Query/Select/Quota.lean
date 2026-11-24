@@ -109,8 +109,7 @@ namespace CmpTestQuery
 
 variable {α W : Type}
 
-/-- The oracle answering a comparison `a ≤ b` by `w a ≤ w b` and a test of `a` by `adm a`. Its
-comparisons are answered as the comparison oracle `LEQuery.keyOracle w` of #8331 answers them. -/
+/-- The oracle answering a comparison `a ≤ b` by `w a ≤ w b` and a test of `a` by `adm a`. -/
 @[expose] def oracleOf [LinearOrder W] (w : α → W) (adm : α → Prop) [DecidablePred adm] :
     {ι : Type} → CmpTestQuery α ι → ι :=
   SumQuery.combine (LEQuery.oracleOf fun a b => decide (w a ≤ w b))
