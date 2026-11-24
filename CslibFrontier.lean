@@ -5940,6 +5940,9 @@ public import CslibFrontier.Crypto.Computational.Paillier.Finite
 public import CslibFrontier.Crypto.Computational.Paillier.Malleability
 public import CslibFrontier.Crypto.Computational.Paillier.Security
 public import CslibFrontier.Crypto.Computational.Pairing
+public import CslibFrontier.Crypto.Computational.Pairing.Assumptions
+public import CslibFrontier.Crypto.Computational.Pairing.BLS
+public import CslibFrontier.Crypto.Computational.Pairing.BLSSecurity
 public import CslibFrontier.Crypto.Computational.PedersenCommitment
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.PublicOperations
