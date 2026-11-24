@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.TreeSignature.Security
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -330,5 +331,30 @@ example {f : List Bool → List Bool} (hf : OneWay f)
     ∃ M : SignatureScheme, M.EUFCMA ∧ M.OneTimeEUFCMA := by
   obtain ⟨M, hM⟩ := hf.exists_eufCMA_of_hashFamily hH
   exact ⟨M, hM, hM.oneTimeEUFCMA⟩
+
+/-! ### 5. Ordinary-import surface checks across split `TreeSignature` modules -/
+
+-- Disjointness of padded node-key and edge-signature requests on a concrete depth-`2` instance.
+example : padRequest 8 (keyInput [true]) ≠ padRequest 8 (signInput [true] 0) :=
+  padRequest_keyInput_ne_signInput (M := 8) (d := 2) (by decide) (by decide) (by decide) (by decide)
+
+-- The public signature-length bound `exists_sigCap_polyTime` yields a concrete polynomial-time cap
+-- on `echo` that bounds the signature of `[true, false]` at `n = 2`, index `1`.
+example : ∃ cap : ℕ → ℕ,
+    ComputableInPolyTime cap encUnary encUnary ∧
+    (encPair encUnary encBits (1, [true, false])).length ≤ cap 2 := by
+  obtain ⟨cap, hpoly, hbound⟩ := exists_sigCap_polyTime echo
+  have hk : (([], []) : List Bool × List Bool) ∈ (ProbComp.eval (echo.keyGen 2)).support := by
+    simp [echo]
+  have hs : encPair encUnary encBits (1, [true, false]) ∈
+      (ProbComp.eval (echo.sign [] 1 [true, false])).support := by
+    simp [echo]
+  exact ⟨cap, hpoly, hbound 2 ([], []) hk 1 (by decide) [true, false] (Or.inl rfl) _ hs⟩
+
+-- Strict oracle-PPT preservation of `indexedForger` on the concrete `zeroQueryEchoForger`.
+example : IsOraclePPT (encPair encUnary (encPair encBits encBits))
+    (indexedForger echo (fun _ => 1) (fun _ => 0) (fun m => m + 5) zeroQueryEchoForger) :=
+  isOraclePPT_indexedForger echo (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 0)
+    (by polytime) isOraclePPT_zeroQueryEchoForger
 
 end CslibFrontierTests.Crypto.TreeSignatureSecurity

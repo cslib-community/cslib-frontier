@@ -6091,6 +6091,11 @@ public import CslibFrontier.Crypto.Computational.TrapdoorFunction
 public import CslibFrontier.Crypto.Computational.TrapdoorFunction.RSA
 public import CslibFrontier.Crypto.Computational.TreeSignature
 public import CslibFrontier.Crypto.Computational.TreeSignature.CoinHybrid
+public import CslibFrontier.Crypto.Computational.TreeSignature.ForgerEfficiency
+public import CslibFrontier.Crypto.Computational.TreeSignature.Handlers
+public import CslibFrontier.Crypto.Computational.TreeSignature.IdealToLazy
+public import CslibFrontier.Crypto.Computational.TreeSignature.LazyToIndexed
+public import CslibFrontier.Crypto.Computational.TreeSignature.Reduction
 public import CslibFrontier.Crypto.Computational.TreeSignature.Security
 public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Crypto.Computational.UniformChoice
