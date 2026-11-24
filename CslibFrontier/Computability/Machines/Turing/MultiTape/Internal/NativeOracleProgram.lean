@@ -544,11 +544,11 @@ theorem totalTime_seq (first second : OnlineAccounting Alpha) (input : Alpha) :
   simp [totalTime, seq, Finset.sum_add_distrib]
 
 /-- Select one complete accounting record without evaluating the unselected branch. -/
-@[expose] def select (condition : Alpha → Prop) [DecidablePred condition]
+private def select (condition : Alpha → Prop) [DecidablePred condition]
     (yes no : OnlineAccounting Alpha) : OnlineAccounting Alpha where
   time := fun phase input => if condition input then yes.time phase input else no.time phase input
 
-theorem totalTime_select (condition : Alpha → Prop) [DecidablePred condition]
+private theorem totalTime_select (condition : Alpha → Prop) [DecidablePred condition]
     (yes no : OnlineAccounting Alpha) (input : Alpha) :
     (select condition yes no).totalTime input =
       if condition input then yes.totalTime input else no.totalTime input := by
@@ -1063,7 +1063,7 @@ theorem time_postprocess {Alpha : Type u} {Middle Beta : Type}
 
 /-- Construction-assigned accounting for a retained binary dispatch node. The test compiler and
 selected branch are charged phasewise; the fixed `itePTM` scaffolding is charged to dispatch. -/
-@[expose] def dispatchAccounting {Alpha : Type u} {Beta : Type}
+private def dispatchAccounting {Alpha : Type u} {Beta : Type}
     {test : Alpha → List Bool}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (condition : ClassifiedCompiler test encIn encBits)
@@ -1075,7 +1075,7 @@ selected branch are charged phasewise; the fixed `itePTM` scaffolding is charged
     (OnlineAccounting.select (fun input => test input ≠ []) yes.online no.online)).addTime
       .dispatch fun input => 4 * (test input).length + 6
 
-theorem totalTime_dispatchAccounting {Alpha : Type u} {Beta : Type}
+private theorem totalTime_dispatchAccounting {Alpha : Type u} {Beta : Type}
     {test : Alpha → List Bool}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (condition : ClassifiedCompiler test encIn encBits)
@@ -1202,7 +1202,7 @@ the controls of every test and every branch. -/
 
 /-- Construction-assigned accounting for capturing the input by a framing compiler, appending the
 first native result, and running the continuation. -/
-@[expose] noncomputable def capturedAccounting {Alpha Middle : Type}
+private noncomputable def capturedAccounting {Alpha Middle : Type}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     {firstProgram : Alpha →
       ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Middle}
@@ -1212,7 +1212,7 @@ first native result, and running the continuation. -/
     5 * (Turing.MultiTapeTM.Internal.NativeCompiler.encodeFrame encIn).time input +
       4 * first.time input + 9
 
-theorem totalTime_capturedAccounting {Alpha Middle : Type}
+private theorem totalTime_capturedAccounting {Alpha Middle : Type}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     {firstProgram : Alpha →
       ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Middle}
