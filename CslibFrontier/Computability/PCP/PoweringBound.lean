@@ -530,7 +530,7 @@ private theorem expect_numHits_ne_zero_le (A : V → WalkLabels D T → α) (σ 
   · rw [ite_eq_left h]
     split_ifs <;> norm_num
   · obtain ⟨i, hi⟩ : ({i ∈ range T | R.Hit T q A σ p i} : Finset ℕ).Nonempty := by
-      rw [nonempty_iff_ne_empty]
+      rw [← ne_empty_iff_nonempty]
       intro h'
       exact h (by simp [numHits, h'])
     rw [ite_eq_right h, ite_eq_left (ConstraintGraph.mem_unsatEdges.2

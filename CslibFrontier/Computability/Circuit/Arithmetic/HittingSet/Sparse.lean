@@ -93,7 +93,7 @@ theorem isHittingSet_powerHittingSet [IsDomain F] {x : σ → F}
         exact Equiv.sum_comp e.symm fun m : f.support =>
           f.coeff (m : σ →₀ ℕ) * ((m : σ →₀ ℕ).prod fun i k => x i ^ k) ^ (i : ℕ)
   obtain ⟨m, hm⟩ : f.support.Nonempty := by
-    rwa [nonempty_iff_ne_empty, Ne, support_eq_empty]
+    rwa [← ne_empty_iff_nonempty, Ne, support_eq_empty]
   have h := congrFun hv (e ⟨m, hm⟩)
   rw [Equiv.symm_apply_apply] at h
   exact mem_support_iff.1 hm h

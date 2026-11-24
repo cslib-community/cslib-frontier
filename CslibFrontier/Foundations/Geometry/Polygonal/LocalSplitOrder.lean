@@ -82,7 +82,7 @@ theorem eventually_sbtw_angle_iff {X : Type*} [TopologicalSpace X] {x : X}
       rw [Real.Angle.toReal_coe_eq_self_iff.mpr
         ⟨hcut, hθ.1.le.trans (Real.Angle.toReal_le_pi θ)⟩] at hre
       exact (ne_of_gt hθ.1) hre
-    exact continuousAt_subtype_val.comp (AddCircle.continuousAt_equivIco _ _ hθcut)
+    exact continuousAt_subtypeVal.comp (AddCircle.continuousAt_equivIco _ _ hθcut)
   have hF := (hcont (f x) hfa).comp hf
   have hG := (hcont (g x) hga).comp hg
   have hH := (hcont (h x) hha).comp hh
@@ -135,7 +135,7 @@ theorem sbtw_arg_sub_iff_of_mem_ball {z a b p q r : ℂ} {ρ : ℝ}
       have hmem : p ∈ Metric.ball z ρ := (sub_eq_zero.mp heq).symm ▸ x.property
       exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hp hmem
     have hsub : ContinuousAt (fun y : X => p - y.val) x :=
-      continuousAt_const.sub continuousAt_subtype_val
+      continuousAt_const.sub continuousAt_subtypeVal
     have hangle := (Complex.continuousAt_arg_coe_angle hpx).comp (x := x) hsub
     exact hangle
   let order (x : X) : Prop := sbtw (direction p x) (direction q x) (direction r x)

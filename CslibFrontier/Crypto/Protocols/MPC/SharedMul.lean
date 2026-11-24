@@ -885,7 +885,7 @@ def pivotParty {m : ℕ} [NeZero m] (I : Finset (Fin m)) : Fin m :=
 theorem pivotParty_not_mem {m : ℕ} [NeZero m] {I : Finset (Fin m)} (hI : I ≠ Finset.univ) :
     pivotParty I ∉ I := by
   have hne : (Finset.univ \ I).Nonempty := by
-    rw [Finset.nonempty_iff_ne_empty, ne_eq, Finset.sdiff_eq_empty_iff_subset]
+    rw [← Finset.ne_empty_iff_nonempty, ne_eq, Finset.sdiff_eq_empty_iff_subset]
     intro hsub
     exact hI (Finset.Subset.antisymm (Finset.subset_univ I) hsub)
   dsimp [pivotParty]

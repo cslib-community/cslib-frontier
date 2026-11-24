@@ -502,7 +502,8 @@ example :
     let d := ThresholdDesignOn.toTwoTwo (Fin 3) (t' := 2) (by decide) (by decide)
     StatisticallyPrivate (AccessStructure.threshold (Fin 2) 2)
       (shamirAccessScheme params3).sources
-      (fun k secret (i : Fin 2) (j : d.assign i) => (shamirAccessScheme params3).share k secret j.val)
+      (fun k secret (i : Fin 2) (j : d.assign i) => (shamirAccessScheme params3).share k secret
+          j.val)
       (1 / 4 : NNReal) :=
   StatisticallyPrivate.composeDesign
     (ThresholdDesignOn.toTwoTwo (Fin 3) (t' := 2) (by decide) (by decide))

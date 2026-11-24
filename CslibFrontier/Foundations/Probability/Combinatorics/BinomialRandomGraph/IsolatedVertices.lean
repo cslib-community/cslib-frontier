@@ -319,7 +319,7 @@ private theorem one_div_mul_one_sub_pow_le {n : ℕ} (hn : 0 < n) {p : ℝ} (hp0
     have hcast : ((n - 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast Nat.sub_le n 1
     calc Real.exp (-(n * (p / (1 - p)))) ≤ Real.exp (-((n - 1 : ℕ) * (p / (1 - p)))) :=
           Real.exp_le_exp.2 (by nlinarith)
-      _ = Real.exp (-(p / (1 - p))) ^ (n - 1) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ = Real.exp (-(p / (1 - p))) ^ (n - 1) := by rw [← Real.exp_natCast_mul]; ring_nf
       _ ≤ (1 - p) ^ (n - 1) := pow_le_pow_left₀ (Real.exp_pos _).le h1' _
   have h5 : Real.exp (-(n * p + 2 * (Real.log n ^ 2 / n))) ≤ (1 - p) ^ (n - 1) := by
     refine le_trans (Real.exp_le_exp.2 ?_) h4
@@ -361,7 +361,7 @@ theorem tendsto_binomialRandom_real_exists_isIsolated_atTop {p : ℕ → I}
   have h1 : (1 - p n : ℝ) ^ (n - 1) ≤ Real.exp (-(p n * ((n : ℝ) - 1))) := by
     calc (1 - p n : ℝ) ^ (n - 1) ≤ Real.exp (-(p n : ℝ)) ^ (n - 1) :=
           pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg _) _
-      _ = _ := by rw [← Real.exp_nat_mul, Nat.cast_sub hn, Nat.cast_one]; congr 1; ring
+      _ = _ := by rw [← Real.exp_natCast_mul, Nat.cast_sub hn, Nat.cast_one]; congr 1; ring
   have h2 : Real.exp (-(p n * ((n : ℝ) - 1))) ≤ Real.exp 1 * Real.exp (-(n * p n)) := by
     rw [← Real.exp_add]
     exact Real.exp_le_exp.2 (by nlinarith)

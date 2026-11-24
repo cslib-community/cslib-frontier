@@ -116,13 +116,14 @@ instance (d : Desc) : NeZero (d.modulus ^ 2) := ⟨pow_ne_zero 2 (NeZero.ne _)�
 /-- The computed totient `(p - 1) * (q - 1)` is Euler's totient of `N = p * q`. -/
 theorem Desc.totient_eq (d : Desc) : d.totient = d.modulus.totient := by
   rw [Desc.totient, Desc.modulus,
-    Nat.totient_mul ((Nat.coprime_primes d.property.prime_fst d.property.prime_snd).mpr d.property.fst_ne_snd),
+    Nat.totient_mul ((Nat.coprime_primes d.property.prime_fst d.property.prime_snd).mpr
+        d.property.fst_ne_snd),
     Nat.totient_prime d.property.prime_fst, Nat.totient_prime d.property.prime_snd]
 
 /-- **Claim 15.7** ([KatzLindell2020]) for a valid description: `gcd(N, φ(N)) = 1`. -/
 theorem Desc.coprime_totient (d : Desc) : d.modulus.Coprime d.modulus.totient :=
-  Paillier.coprime_totient d.property.prime_fst d.property.prime_snd d.property.fst_ne_snd d.property.two_lt_fst
-    d.property.two_lt_snd d.property.size_eq
+  Paillier.coprime_totient d.property.prime_fst d.property.prime_snd d.property.fst_ne_snd
+    d.property.two_lt_fst d.property.two_lt_snd d.property.size_eq
 
 /-- Descriptions are encoded as the binary pair `(p, q)`. -/
 def encDesc : Desc ↪ List Bool :=

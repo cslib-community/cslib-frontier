@@ -355,7 +355,8 @@ private theorem unpackPair_eq {U' n' X m : ℕ} (hm : m ≤ n')
       (ha' : a ∈ dec.1.val),
       (lookupDecoded h dec a).map (fun kb => (kb.1, e.slots kb.2)) =
         some (dec.2 ((dec.1.val.orderIsoOfFin dec.1.property).symm ⟨a, ha'⟩),
-          e.slots (DynamicMatching.matching h dec.1.val (dec.1.property.le.trans hm) ⟨a, ha'⟩)) := by
+          e.slots (DynamicMatching.matching h dec.1.val (dec.1.property.le.trans hm)
+              ⟨a, ha'⟩)) := by
     rintro ⟨⟨S, hS⟩, sv⟩ ha'
     have hmatch := DynamicMatching.matching_apply h S (hS.le.trans hm) ⟨a, ha'⟩
     simp [lookupDecoded, ha', hmatch]

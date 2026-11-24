@@ -158,7 +158,7 @@ private theorem exists_weights [Fintype α] [DecidableEq α] (K n : ℕ) (f : α
     rw [sum_ite_eq']
     rcases hint a with h | h <;> simp [h]
   · -- Split `f` along two distinct fractional coordinates.
-    obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.mpr hempty
+    obtain ⟨x, hx⟩ := ne_empty_iff_nonempty.mp hempty
     obtain ⟨y, hy, hyx⟩ : ∃ y ∈ fractional f, y ≠ x := by
       by_contra! hsingle
       have hrest : ∑ a ∈ univ.erase x, f a = ((univ.erase x).filter fun a => f a = 1).card :=

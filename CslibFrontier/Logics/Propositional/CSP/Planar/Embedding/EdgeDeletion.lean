@@ -32,7 +32,8 @@ open Graph Graph.RotationSystem Equiv
 two actual edge ends. A retained dart needs at most three list-funded successor steps. -/
 theorem getD_restrictPrefix_deleteLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (d : Dart G) :
-    (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)).successor.getD d.index 0 =
+    (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)).successor.getD d.index
+        0 =
       (r.deleteLastEdge.rotate d).index := by
   let c := RotationCertificate.ofRotation r
   let e := lastEdgeDartEquiv G u v
@@ -105,7 +106,8 @@ theorem restrictPrefix_ofRotation_deleteLastEdge {G : Graph} {u v : ℕ}
       RotationCertificate.ofRotation r.deleteLastEdge := by
   apply congrArg RotationCertificate.mk
   refine List.ext_getElem (by
-    change (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)).successor.length =
+    change (restrictPrefix (2 * G.edges.length)
+        (RotationCertificate.ofRotation r)).successor.length =
       (RotationCertificate.ofRotation r.deleteLastEdge).successor.length
     rw [length_restrictPrefix, RotationCertificate.length_ofRotation]) ?_
   intro i hi hj

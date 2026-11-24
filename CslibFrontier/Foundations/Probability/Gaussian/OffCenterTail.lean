@@ -98,7 +98,7 @@ theorem banaszczykConstant_lt_one {c : ℝ} (hc : 1 / Real.sqrt (2 * Real.pi) < 
     linarith
   have hsq_lt :
       (c * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * c ^ 2)) ^ 2 < 1 ^ 2 := by
-    rw [one_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+    rw [one_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
     have hmul :
         Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * c ^ 2)) =
           Real.exp (1 - 2 * Real.pi * c ^ 2) := by
@@ -130,7 +130,7 @@ private theorem banaszczykConstant_one_lt_quarter :
   have he_gt : (2.7 : ℝ) < Real.exp 1 := lt_trans (by norm_num) Real.exp_one_gt_d9
   have he5 : (2.7 : ℝ) ^ 5 < Real.exp 5 := by
     have hp := pow_lt_pow_left₀ he_gt (by norm_num : (0 : ℝ) ≤ 2.7) (by decide : 5 ≠ 0)
-    rwa [← Real.exp_nat_mul, show ((5 : ℕ) : ℝ) * 1 = 5 by norm_num] at hp
+    rwa [← Real.exp_natCast_mul, show ((5 : ℕ) : ℝ) * 1 = 5 by norm_num] at hp
   have he_exp : 32 * Real.pi < Real.exp (2 * Real.pi - 1) := by
     have h5 : Real.exp 5 < Real.exp (2 * Real.pi - 1) := Real.exp_lt_exp.mpr (by linarith)
     have hnum : (32 : ℝ) * 3.15 < (2.7 : ℝ) ^ 5 := by norm_num
@@ -138,7 +138,7 @@ private theorem banaszczykConstant_one_lt_quarter :
   have hsq :
       (1 * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * 1 ^ 2)) ^ 2 <
         (1 / 4 : ℝ) ^ 2 := by
-    rw [one_mul, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+    rw [one_mul, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
     have hcomb :
         2 * Real.pi * Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * 1 ^ 2)) =
           2 * Real.pi / Real.exp (2 * Real.pi - 1) := by
@@ -285,9 +285,9 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
         ring
       have hsqrt_e : Real.exp (1 / 2) = Real.sqrt (Real.exp 1) := by
         symm
-        rw [Real.sqrt_eq_iff_eq_sq (Real.exp_pos _).le (Real.exp_pos _).le, ← Real.exp_nat_mul]
+        rw [Real.sqrt_eq_iff_eq_sq (Real.exp_pos _).le (Real.exp_pos _).le, ← Real.exp_natCast_mul]
         norm_num
-      rw [hts, hexp_arg, Real.exp_nat_mul, ← mul_pow]
+      rw [hts, hexp_arg, Real.exp_natCast_mul, ← mul_pow]
       congr 1
       rw [sub_eq_add_neg, Real.exp_add, hsqrt_e, Real.sqrt_mul h2pi.le, neg_mul]
       ring
@@ -523,7 +523,7 @@ theorem hasSubgaussianMGF_inner_discreteGaussian_zero
         (discreteGaussian L s hs 0).toMeasure := by
     have hcont : Continuous (fun z : L ↦ Real.exp (t * ⟪(z : E), u⟫)) :=
       Real.continuous_exp.comp
-        (continuous_const.mul (continuous_subtype_val.inner continuous_const))
+        (continuous_const.mul (continuous_subtypeVal.inner continuous_const))
     refine ⟨hcont.measurable.aestronglyMeasurable, ?_⟩
     rw [hasFiniteIntegral_iff_ofReal (Filter.Eventually.of_forall (fun z ↦ (Real.exp_pos _).le)),
       lintegral_countable']

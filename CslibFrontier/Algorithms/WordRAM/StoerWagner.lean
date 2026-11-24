@@ -1124,7 +1124,8 @@ private theorem maOrderProg_spec {w : ℕ} (a : MAOrderArgs)
         dsimp only [s2]
         rw [Function.update_of_ne (by omega), hframe _ (by omega)]
         exact hmat i j
-      have hs2_key : ∀ y : Fin a.m, used' y = false → s2.mem (a.kb + y.val) = attachWeight W A y := by
+      have hs2_key : ∀ y : Fin a.m, used' y = false →
+          s2.mem (a.kb + y.val) = attachWeight W A y := by
         intro y hy
         dsimp only [s2, used'] at hy ⊢
         have hyv : y ≠ v := fun h => by subst h; simp at hy
@@ -1491,14 +1492,16 @@ private theorem mergeRowColProg_spec {w : ℕ} (a : MergeArgs)
                   rintro ⟨rfl | rfl, hi⟩
                   · exact hjs ⟨Fin.ext hi, rfl⟩
                   · exact hjt ⟨Fin.ext hi, rfl⟩
-                have hiff1 : ((i = sv ∨ i = tv) ∧ j.val < k + 1) ↔ ((i = sv ∨ i = tv) ∧ j.val < k) := by
+                have hiff1 : ((i = sv ∨ i = tv) ∧ j.val < k + 1) ↔
+                    ((i = sv ∨ i = tv) ∧ j.val < k) := by
                   constructor
                   · rintro ⟨ho, hlt⟩
                     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt' | heq
                     · exact ⟨ho, hlt'⟩
                     · exact absurd ⟨ho, heq⟩ h1
                   · rintro ⟨ho, hlt⟩; exact ⟨ho, Nat.lt_succ_of_lt hlt⟩
-                have hiff2 : ((j = sv ∨ j = tv) ∧ i.val < k + 1) ↔ ((j = sv ∨ j = tv) ∧ i.val < k) := by
+                have hiff2 : ((j = sv ∨ j = tv) ∧ i.val < k + 1) ↔
+                    ((j = sv ∨ j = tv) ∧ i.val < k) := by
                   constructor
                   · rintro ⟨ho, hlt⟩
                     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt' | heq
@@ -1670,11 +1673,13 @@ private theorem compactRowColProg_spec {w : ℕ} (a : CompactArgs)
               · dsimp only [embedCompact, kFin]
                 simp [hj_t, htk, hM.1]
             · rw [Function.update_of_ne (fun h => hjt (by
-                  have := hinj i.val j.val k tv.val (Nat.lt_succ_of_lt i.isLt) (Nat.lt_succ_of_lt j.isLt)
+                  have := hinj i.val j.val k tv.val (Nat.lt_succ_of_lt i.isLt) (Nat.lt_succ_of_lt
+                      j.isLt)
                     (Nat.lt_succ_of_lt hk) (Nat.lt_succ_of_lt ht_lt) (by rw [← ht]; exact h)
                   exact this)),
                 Function.update_of_ne (fun h => hit (by
-                  have := hinj i.val j.val tv.val k (Nat.lt_succ_of_lt i.isLt) (Nat.lt_succ_of_lt j.isLt)
+                  have := hinj i.val j.val tv.val k (Nat.lt_succ_of_lt i.isLt) (Nat.lt_succ_of_lt
+                      j.isLt)
                     (Nat.lt_succ_of_lt ht_lt) (Nat.lt_succ_of_lt hk) (by rw [← ht]; exact h)
                   exact this)),
                 hcur i j]
@@ -2881,7 +2886,8 @@ private theorem stoerWagnerProg_spec {w : ℕ} (I : StoerWagnerInput)
       dsimp only [s1]
       rw [Function.update_of_ne (by dsimp only [ob, outBase] at hws_eq ⊢; rw [hws_eq]; omega)]
       have hmem := Karger.holdsMatrix_init_single (r := 0) W i j
-      change (Data.init (r := 0) (n :: Karger.flattenMatrix W)).mem (2 + (i.val * n + j.val)) = W i j
+      change (Data.init (r := 0) (n :: Karger.flattenMatrix W)).mem (2 + (i.val * n + j.val)) =
+          W i j
       simpa [add_assoc] using hmem
     have hph := phasesLoop_spec hge2 hW s3 (by rw [hs3_fr]) hfit_top hfit4 htot
       hs3_outl hs3_mat hip.2.2.2.2.2

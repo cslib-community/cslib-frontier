@@ -139,7 +139,8 @@ example (x : Fin 2 → M) :
 /-- The relations of a composite are those of the iterated interpretation. -/
 example (x y : (complementEdges.comp complementSize).Model M) :
     RelMap sizedGraph.adj ![x, y] ↔
-      ¬ RelMap sizedGraph.adj ![x.val ((), ()), y.val ((), ())] ∧ x.val ((), ()) ≠ y.val ((), ()) := by
+      ¬ RelMap sizedGraph.adj ![x.val ((), ()), y.val ((), ())] ∧
+          x.val ((), ()) ≠ y.val ((), ()) := by
   fo_simp
 
 /-- The domain and relation formulas of a composite interpretation simplify directly. -/
@@ -167,7 +168,8 @@ example (x : Unit × Unit → M) :
 
 example (x y : (complementEdges.comp restrictToSize).Model M) :
     RelMap sizedGraph.adj ![x, y] ↔
-      ¬ RelMap sizedGraph.adj ![x.val ((), ()), y.val ((), ())] ∧ x.val ((), ()) ≠ y.val ((), ()) := by
+      ¬ RelMap sizedGraph.adj ![x.val ((), ()), y.val ((), ())] ∧
+          x.val ((), ()) ≠ y.val ((), ()) := by
   fo_simp
 
 /-- Higher-dimensional interpretations simplify on the full tuple domain. -/

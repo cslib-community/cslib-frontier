@@ -66,7 +66,8 @@ theorem route_restoration_last {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
     (ρ : ℝ) (a b : ℂ) :
     (D.restoration huv ρ a b).route (lastEdgeDart G u v false).1 = Route.line a b := by
-  change (if h : G.edges.length < G.edges.length then D.restoredRoute ρ a b ⟨G.edges.length, h⟩ else _) = _
+  change (if h : G.edges.length <
+      G.edges.length then D.restoredRoute ρ a b ⟨G.edges.length, h⟩ else _) = _
   rw [dite_eq_right (Nat.lt_irrefl _)]
 
 /-- The restored actual drawing is an embedding. Every continuous contact condition is

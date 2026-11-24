@@ -102,7 +102,8 @@ theorem exists_faceEven_extension_contractLastEdge {G : Graph} {u v : ℕ}
     · rw [show A (some (some a)) = some (some a) from
         swap_apply_of_ne_of_ne (by simp) (by simp), hnext, hold, hyOld]
       exact hp a
-  · change (if h : G.edges.length < (contractLastEdgeGraph G u v).edges.length then _ else false) = false
+  · change (if h : G.edges.length < (contractLastEdgeGraph G u v).edges.length then _ else false) =
+      false
     rw [dite_eq_right (by simp [contractLastEdgeGraph, Graph.relabel])]
 
 /-- All retained endpoints remain declared after contracting an actual nonloop edge. -/

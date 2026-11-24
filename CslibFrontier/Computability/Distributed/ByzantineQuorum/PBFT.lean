@@ -1068,7 +1068,7 @@ theorem committedLocal_preserves_higher_prepared_idealAuth {P V : Type*} [Fintyp
         -- Unpack `computeSlotVal certs s = some o_s` to find a max-view certificate `c_max`.
         let sc := certs.filter fun c => c.slot = s
         have hc_k_sc : c_k ∈ sc := Finset.mem_filter.mpr ⟨hc_k_certs, hc_k_s⟩
-        have hsc_ne_empty : sc ≠ ∅ := Finset.nonempty_iff_ne_empty.mp ⟨c_k, hc_k_sc⟩
+        have hsc_ne_empty : sc ≠ ∅ := Finset.ne_empty_iff_nonempty.mpr ⟨c_k, hc_k_sc⟩
         unfold computeSlotVal at ho_s
         dsimp only at ho_s
         split_ifs at ho_s with hsc_eq hcard1

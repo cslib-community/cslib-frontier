@@ -371,7 +371,8 @@ theorem shortestAugmentingSeq_length_le [DecidableEq V] (hst : N.s ≠ N.t) {T :
     T ≤ N.symArcs.card * (Fintype.card V / 2) := by
   let isCrit (e : V × V) : Finset (Fin T) :=
     Finset.univ.filter fun t =>
-      e ∈ pathArcs (paths t.val) ∧ (flows t.val).resCap e.1 e.2 = (flows t.val).bottleneck (paths t.val)
+      e ∈ pathArcs (paths t.val) ∧
+          (flows t.val).resCap e.1 e.2 = (flows t.val).bottleneck (paths t.val)
   have hcrit_card : ∀ e ∈ N.symArcs, (isCrit e).card ≤ Fintype.card V / 2 := by
     rintro ⟨u, v⟩ _
     have hmaps : ∀ t ∈ isCrit (u, v),

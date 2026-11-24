@@ -688,7 +688,8 @@ private theorem induce_degree_and_handshake {V E : Type*} [Finite E]
             exact Or.inl ⟨⟨e, hs, hcut.mp hs⟩, Or.inl (Subtype.ext heq), rfl⟩
           · have ht : G.tgt e ∈ X := heq ▸ x.property
             exact Or.inl ⟨⟨e, hcut.mpr ht, ht⟩, Or.inr (Subtype.ext heq), rfl⟩
-    rw [← ncard_image_of_injective _ Subtype.val_injective, ← ncard_union_eq hdisj, hunion, h3 x.val]
+    rw [← ncard_image_of_injective _ Subtype.val_injective, ← ncard_union_eq hdisj, hunion,
+        h3 x.val]
   have hsum_cut : ∑ x : X, (G.incidenceSet x.val ∩ G.edgeCut X).ncard = (G.edgeCut X).ncard := by
     have h1 (x : X) : (G.incidenceSet x.val ∩ G.edgeCut X).ncard =
         (Finset.univ.filter fun e : E => e ∈ G.incidenceSet x.val ∧ e ∈ G.edgeCut X).card := by
@@ -1283,10 +1284,12 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   set H := G.induce X
   obtain ⟨hH_deg_eq, hH_hand, hH_cut_sum⟩ := induce_degree_and_handshake hloop h3 X
   have hH_max : H.MaxDegreeLE 3 := fun x => by
-    have h1 : (H.incidenceSet x).ncard + (G.incidenceSet x.val ∩ G.edgeCut X).ncard = 3 := hH_deg_eq x
+    have h1 : (H.incidenceSet x).ncard + (G.incidenceSet x.val ∩ G.edgeCut X).ncard = 3 :=
+        hH_deg_eq x
     omega
   have hH_min : ∀ x : X, 2 ≤ (H.incidenceSet x).ncard := fun x => by
-    have h1 : (H.incidenceSet x).ncard + (G.incidenceSet x.val ∩ G.edgeCut X).ncard = 3 := hH_deg_eq x
+    have h1 : (H.incidenceSet x).ncard + (G.incidenceSet x.val ∩ G.edgeCut X).ncard = 3 :=
+        hH_deg_eq x
     have h2 := hminX x.val x.property
     omega
   let w : X → ℕ := fun x => 1 + (G.incidenceSet x.val ∩ G.edgeCut X).ncard

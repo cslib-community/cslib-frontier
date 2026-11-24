@@ -56,7 +56,7 @@ theorem exp_neg_one_le_one_sub_inv_pow {a : ℝ} {d : ℕ} (ha : (d : ℝ) + 1 �
           field_simp
           ring
   calc exp (-1) ≤ exp (-(1 / (a - 1))) ^ d := by
-        rw [← exp_nat_mul, exp_le_exp]
+        rw [← exp_natCast_mul, exp_le_exp]
         have hd : (d : ℝ) / (a - 1) ≤ 1 := by
           rw [div_le_one ha0]
           linarith

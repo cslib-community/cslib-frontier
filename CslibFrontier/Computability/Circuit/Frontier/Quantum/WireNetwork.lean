@@ -175,7 +175,8 @@ private noncomputable def placeAct {W : Type} [Fintype W] [DecidableEq W]
         (Equiv.prodCongr
           (Equiv.arrowCongr (Equiv.ofInjective g.2.2 g.2.2.injective).symm (Equiv.refl _))
           (Equiv.refl _))),
-    Matrix.submatrix_equiv_mem_unitary.mpr (Matrix.kronecker_mem_unitary g.2.1.property (one_mem _))⟩
+    Matrix.submatrix_equiv_mem_unitary.mpr (Matrix.kronecker_mem_unitary g.2.1.property
+        (one_mem _))⟩
 
 private theorem placeAct_apply {W : Type} [Fintype W] [DecidableEq W]
     (g : ActiveGate W) (y x : W → Bool) :

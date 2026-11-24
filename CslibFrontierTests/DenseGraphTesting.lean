@@ -76,7 +76,7 @@ example : IsOneSidedTester (triangleTester 3 5) (fun G => G.CliqueFree 3) (1 / 1
   reject G hG := by
     classical
     have hne : (G.cliqueFinset 3).Nonempty := by
-      rw [nonempty_iff_ne_empty, Ne, cliqueFinset_eq_empty_iff]
+      rw [← ne_empty_iff_nonempty, Ne, cliqueFinset_eq_empty_iff]
       exact fun h => not_isFar_of_property h (by norm_num) hG
     have hle : #(G.cliqueFinset 3) ≤ 1 := card_cliqueFinset_le.trans (by simp)
     rw [acceptProb_triangleTester, le_antisymm hle hne.card_pos]

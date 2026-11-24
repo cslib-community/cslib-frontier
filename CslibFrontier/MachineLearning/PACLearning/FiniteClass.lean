@@ -145,7 +145,7 @@ private theorem one_sub_ofReal_pow_le (ε : ℝ) (hε : 0 ≤ ε) (m : ℕ) :
     exact ENNReal.ofReal_le_ofReal (Real.one_sub_le_exp_neg ε)
   calc (1 - ENNReal.ofReal ε) ^ m ≤ ENNReal.ofReal (Real.exp (-ε)) ^ m := by gcongr
     _ = ENNReal.ofReal (Real.exp (-(ε * m))) := by
-        rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_nat_mul]
+        rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_natCast_mul]
         congr 2
         ring
 

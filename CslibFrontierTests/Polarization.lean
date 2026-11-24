@@ -64,7 +64,7 @@ example : 7 / 8 ≤ dist (iid U 32) (iid (PMF.pure true) 32) := by
   rw [dist_U_pure] at h
   have he : Real.exp (-1) ≤ 1 / 2 := Real.exp_neg_one_lt_half.le
   have h4 : Real.exp (-((32 : ℕ) * (1 / 2 : ℝ) ^ 2) / 2) = Real.exp (-1) ^ 4 := by
-    rw [← Real.exp_nat_mul]
+    rw [← Real.exp_natCast_mul]
     norm_num
   rw [h4] at h
   have : Real.exp (-1) ^ 4 ≤ (1 / 2) ^ 4 := pow_le_pow_left₀ (Real.exp_pos _).le he 4

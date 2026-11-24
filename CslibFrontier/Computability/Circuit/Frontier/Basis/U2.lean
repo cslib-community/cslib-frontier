@@ -112,7 +112,8 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have h2 := cycleRank_add_ncard_read_le I (fun _ => Acc) hfan (connected c)
     omega
   have hblk_le_V : Nat.card Q.blocks ≤ Nat.card (Vertex c) := by
-    refine Nat.card_le_card_of_injective (fun B : Q.blocks => B.val.head (Q.ne_nil B.val B.property))
+    refine Nat.card_le_card_of_injective (fun B : Q.blocks => B.val.head
+        (Q.ne_nil B.val B.property))
       fun B₁ B₂ h => Subtype.ext ?_
     dsimp only at h
     have hm : B₁.val.head (Q.ne_nil B₁.val B₁.property) ∈ B₂.val := h ▸ List.head_mem _
@@ -160,7 +161,8 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have hM_clean : Q.quotient.IsMatching M_clean := fun _ h₁ _ h₂ => hM_full h₁.1 h₂.1
     have hclean_pair : ∀ e ∈ M_clean, CleanBlock3 I {v | v ∈ (Q.quotient.src e).val} ∧
         CleanBlock3 I {v | v ∈ (Q.quotient.tgt e).val} :=
-      fun e he => ⟨hclean3 _ (Q.quotient.src e).property he.2.1, hclean3 _ (Q.quotient.tgt e).property he.2.2⟩
+      fun e he => ⟨hclean3 _ (Q.quotient.src e).property he.2.1,
+          hclean3 _ (Q.quotient.tgt e).property he.2.2⟩
     have hdrop_le : M_full.ncard ≤ M_clean.ncard + dirty.card := by
       have := Fintype.ofFinite (Edge c)
       let M_drop : Set Q.external := M_full \ M_clean

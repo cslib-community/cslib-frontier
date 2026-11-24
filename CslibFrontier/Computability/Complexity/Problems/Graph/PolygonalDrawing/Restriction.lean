@@ -130,7 +130,7 @@ theorem IsEmbedding.arg_cutPort_sub {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) {ρ : ℝ} (hρ : 0 < ρ) (d : Dart G) :
     (D.cutPort ρ d - D.vertex d.vertex).arg = (D.germ d).arg := by
   have hn : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
-  rw [cutPort, add_sub_cancel_left, Complex.real_smul, Complex.arg_real_mul _ (div_pos hρ hn)]
+  rw [cutPort, add_sub_cancel_left, Complex.real_smul, Complex.arg_ofReal_mul (div_pos hρ hn) _]
 
 /-- Distinct actual darts at one vertex yield distinct common-radius boundary ports.
 The two ends of the same loop are included. -/

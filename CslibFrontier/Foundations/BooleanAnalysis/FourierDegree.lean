@@ -251,19 +251,19 @@ theorem totalInfluence_eq_expect_sub_expect_sq_iff_fourierCoeff_eq_zero (g : (ι
       (if S ≠ ∅ then fourierCoeff g S ^ 2 else 0) ≤ (#S : ℝ) * fourierCoeff g S ^ 2 := by
     split_ifs with hS
     · exact le_mul_of_one_le_left (sq_nonneg _)
-        (Nat.one_le_cast.2 (card_pos.2 (nonempty_iff_ne_empty.2 hS)))
+        (Nat.one_le_cast.2 (card_pos.2 (ne_empty_iff_nonempty.1 hS)))
     · exact mul_nonneg (Nat.cast_nonneg _) (sq_nonneg _)
   rw [eq_comm, expect_sub_expect_sq_eq_sum_fourierCoeff_sq,
     totalInfluence_eq_sum_card_mul_fourierCoeff_sq, sum_filter, sum_eq_sum_iff_of_le hle]
   refine ⟨fun h S hS => ?_, fun hdeg S _ => ?_⟩
-  · have hne : S ≠ ∅ := nonempty_iff_ne_empty.1 (card_pos.1 (by omega))
+  · have hne : S ≠ ∅ := ne_empty_iff_nonempty.2 (card_pos.1 (by omega))
     have h1 : (1 : ℝ) < #S := Nat.one_lt_cast.2 hS
     have hS' := h S (mem_univ S)
     rw [ite_eq_left hne] at hS'
     exact sq_eq_zero_iff.1 (by nlinarith)
   · split_ifs with hS
     · rcases le_or_gt #S 1 with hle1 | hgt1
-      · have hcard : #S = 1 := le_antisymm hle1 (card_pos.2 (nonempty_iff_ne_empty.2 hS))
+      · have hcard : #S = 1 := le_antisymm hle1 (card_pos.2 (ne_empty_iff_nonempty.1 hS))
         simp [hcard]
       · rw [hdeg S hgt1]
         simp
@@ -356,7 +356,7 @@ theorem fourierCoeff_signVal_eq_zero_iff_eq_const_or_exists_eq_xor (f : (ι → 
         · intro S _ hS
           rcases le_or_gt #S 1 with hle1 | hgt1
           · obtain ⟨i, rfl⟩ := card_eq_one.1 (le_antisymm hle1
-              (card_pos.2 (nonempty_iff_ne_empty.2 hS)))
+              (card_pos.2 (ne_empty_iff_nonempty.1 hS)))
             rw [hall i, zero_mul]
           · rw [hdeg S hgt1, zero_mul]
         · simp
@@ -372,7 +372,7 @@ theorem fourierCoeff_signVal_eq_zero_iff_eq_const_or_exists_eq_xor (f : (ι → 
         mul_left_cancel₀ (abs_ne_zero.2 hi) (by rw [← sq, sq_abs, hsq, mul_one])
       rw [hsq, habs]
   · rintro (⟨b, rfl⟩ | ⟨i, b, rfl⟩) S hS
-    · have hne : S ≠ ∅ := nonempty_iff_ne_empty.1 (card_pos.1 (by omega))
+    · have hne : S ≠ ∅ := ne_empty_iff_nonempty.2 (card_pos.1 (by omega))
       exact (fourierCoeff_const (signVal b) S).trans (ite_eq_right hne)
     · have hne : {i} ≠ S := fun h => by
         have := congrArg card h

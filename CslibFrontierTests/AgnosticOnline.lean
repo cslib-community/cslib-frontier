@@ -48,7 +48,7 @@ example : ({0, 2} : Finset ℕ) ∉ flipSets 3 1 := fun h => by
 theorem two_mul_sqrt_lt : 2 * √((100 : ℕ) * (1 : ℕ) * Real.log ((100 : ℕ) + 1)) < 45 := by
   have hlog : Real.log 101 < 5 := by
     rw [Real.log_lt_iff_lt_exp (by norm_num)]
-    have h5 : Real.exp 5 = Real.exp 1 ^ 5 := by rw [← Real.exp_nat_mul]; norm_num
+    have h5 : Real.exp 5 = Real.exp 1 ^ 5 := by rw [← Real.exp_natCast_mul]; norm_num
     have : (2.7 : ℝ) ^ 5 < Real.exp 1 ^ 5 := by
       gcongr
       linarith [Real.exp_one_gt_d9]

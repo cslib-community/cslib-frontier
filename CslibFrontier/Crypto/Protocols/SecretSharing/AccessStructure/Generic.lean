@@ -175,7 +175,7 @@ theorem genericReconstruct_genericShare (A : AccessStructure Party) [DecidablePr
     {s : Finset Party} (hs : A.authorized s) :
     genericReconstruct A s (fun j => genericShare A r secret j.val) = secret := by
   have hne : s.Nonempty := by
-    rw [Finset.nonempty_iff_ne_empty]
+    rw [← Finset.ne_empty_iff_nonempty]
     rintro rfl
     exact hempty hs
   have : NeZero s.card := ⟨Nat.ne_of_gt (Finset.card_pos.mpr hne)⟩

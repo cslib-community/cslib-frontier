@@ -59,7 +59,7 @@ theorem card_mul_log_sub_le_of_card_fiber_le {X : Type*} [Fintype X] (s : X → 
         = ∑ j ∈ range (G + 1), (#{x : X | s x = j} : ℝ) * (B ^ j)⁻¹ := by
           refine sum_congr rfl fun j _ => ?_
           rw [sum_congr rfl fun x hx => by rw [(mem_filter.mp hx).2], sum_const, nsmul_eq_mul,
-            exp_neg, exp_nat_mul, hLdef, exp_log (by linarith)]
+            exp_neg, exp_natCast_mul, hLdef, exp_log (by linarith)]
       _ ≤ ∑ _j ∈ range (G + 1), A := by
           refine sum_le_sum fun j hj => ?_
           have hBj : 0 < B ^ j := by positivity

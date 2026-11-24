@@ -429,7 +429,7 @@ theorem IsMST.eq_of_injOn {V W : Type*} [Finite V]
   classical
   by_contra hne
   have hdiff_ne : (symmDiff T₁.edgeFinset T₂.edgeFinset).Nonempty := by
-    rw [Finset.nonempty_iff_ne_empty]
+    rw [← Finset.ne_empty_iff_nonempty]
     intro heq
     apply hne
     have hfin_eq : T₁.edgeFinset = T₂.edgeFinset := by

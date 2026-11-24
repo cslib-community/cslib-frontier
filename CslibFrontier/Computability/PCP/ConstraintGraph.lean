@@ -241,7 +241,7 @@ least one edge. -/
 theorem inv_card_le_unsatVal (h : ¬ G.Satisfiable) : (Fintype.card E : ℝ)⁻¹ ≤ G.unsatVal := by
   refine G.le_unsatVal_iff.2 fun σ ↦ ?_
   have hne : (G.unsatEdges σ).Nonempty := by
-    rw [nonempty_iff_ne_empty, Ne, unsatEdges_eq_empty_iff]
+    rw [← ne_empty_iff_nonempty, Ne, unsatEdges_eq_empty_iff]
     exact fun hσ ↦ h ⟨σ, hσ⟩
   rw [unsatFrac, inv_eq_one_div]
   gcongr
@@ -253,7 +253,7 @@ theorem one_le_card_mul_unsatVal (h : ¬ G.Satisfiable) :
   obtain ⟨σ, hσ⟩ := G.exists_unsatFrac_eq_unsatVal
   rw [← hσ, G.card_mul_unsatFrac]
   have hne : (G.unsatEdges σ).Nonempty :=
-    nonempty_iff_ne_empty.2 fun he ↦ h ⟨σ, G.unsatEdges_eq_empty_iff.1 he⟩
+    ne_empty_iff_nonempty.1 fun he ↦ h ⟨σ, G.unsatEdges_eq_empty_iff.1 he⟩
   exact_mod_cast one_le_card.2 hne
 
 end Value

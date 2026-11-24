@@ -182,7 +182,7 @@ theorem noiseStability_signVal_le_of_expect_eq_zero {ρ : ℝ} (h₀ : 0 ≤ ρ)
   by_cases hS : S = ∅
   · rw [hS, fourierCoeff_empty, hf, sq, mul_zero, mul_zero]
   · exact mul_nonneg (sub_nonneg.2 (pow_le_of_le_one h₀ h₁ (card_ne_zero.2
-      (nonempty_iff_ne_empty.2 hS)))) (sq_nonneg _)
+      (ne_empty_iff_nonempty.1 hS)))) (sq_nonneg _)
 
 /-- **The unbiased functions of largest noise stability are the literals**: for `0 < ρ < 1`, an
 unbiased Boolean function read as signs has `Stab_ρ[F] = ρ` exactly when `f x = b ⊕ x_i` for some
@@ -201,7 +201,7 @@ theorem noiseStability_signVal_eq_iff_of_expect_eq_zero {ρ : ℝ} (h₀ : 0 < �
     rw [h0, fourierCoeff_empty, hf]
   · right
     have hS1 : 1 < #S := by
-      have := card_pos.2 (nonempty_iff_ne_empty.2 h0)
+      have := card_pos.2 (ne_empty_iff_nonempty.1 h0)
       omega
     rw [one_mul, sub_pos]
     exact pow_lt_self_of_lt_one₀ h₀ h₁ hS1

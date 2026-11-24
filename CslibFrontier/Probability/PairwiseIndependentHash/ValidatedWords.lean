@@ -165,7 +165,8 @@ wraps `{-3, …, 3} ^ H`, a box independent of `P`, `L`, `y` and `t`. -/
 theorem walk_pow_sliceGraph_lazy_affineMove_eq [NeZero H] [NeZero L] (hL : L ≤ P) {y : ZMod P}
     (f : FrameChannel P H r → ℝ) (t : ℕ) (A : RetentionSlice P H r L y) :
     ((sliceGraph L hL y (ofPerms (affineMove P H L r)).lazy).walk ^ t) (fun B ↦ f B.val) A =
-      (validatedStep L (affineGenerator H) (Fintype.piFinset fun _ ↦ Icc (-3) 3) y)^[t] f A.val := by
+      (validatedStep L (affineGenerator H) (Fintype.piFinset fun _ ↦ Icc (-3) 3) y)^[t] f
+          A.val := by
   have : Nonempty ({p : Fin H × Fin H // p.1 ≠ p.2} ⊕ Fin H) := ⟨.inr 0⟩
   exact walk_pow_sliceGraph_lazy_ofPerms_eq hL (affineGenerator H)
     (fun k b _ hw ↦ wrap_affineGenerator_mem k b hw) f t A

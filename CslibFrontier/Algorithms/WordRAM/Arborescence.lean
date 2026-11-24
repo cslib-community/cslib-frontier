@@ -1648,7 +1648,8 @@ private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
       (∀ u col : Fin n, s1.mem (curCostBase ws n + u.val * n + col.val) =
         Signed.encode c[u.val][col.val]) ∧
       (∀ col : Fin n,
-        s1.mem (candPredBase ws n + col.val) = (if a[vFin.val][col.val] && col != vFin then 1 else 0) ∧
+        s1.mem (candPredBase ws n + col.val) =
+            (if a[vFin.val][col.val] && col != vFin then 1 else 0) ∧
         s1.mem (candCostBase ws n + col.val) = Signed.encode c[vFin.val][col.val]) := by
   let rowArgs : SelectRowArgs :=
     ⟨n, vFin.val, curAdjBase ws n, curCostBase ws n, candPredBase ws n, candCostBase ws n⟩
@@ -2200,7 +2201,8 @@ private theorem cycleMaskProg_spec {w n parentBase maskBase : ℕ} (f : ParentTa
           exact hpar_s v
         · intro y
           by_cases hcy : y.val = cur
-          · have hy_eq : (fun i : Fin n => f[i.val])^[m] x0 = y := Fin.ext (hcur.symm.trans hcy.symm)
+          · have hy_eq : (fun i : Fin n => f[i.val])^[m] x0 = y :=
+              Fin.ext (hcur.symm.trans hcy.symm)
             have hex : ∃ j < m + 1, (fun i : Fin n => f[i.val])^[j] x0 = y :=
               ⟨m, Nat.lt_succ_self m, hy_eq⟩
             rw [hcy, Function.update_self, ite_eq_left hex]
@@ -2358,7 +2360,8 @@ private theorem selectParents_feasible_spec {n : ℕ} (a : AdjTable n) (c : Cost
     f[r.val] = r ∧
       ∀ v : Fin n, v ≠ r →
         a[v.val][(f[v.val]).val] = true ∧ f[v.val] ≠ v ∧
-          ∀ w : Fin n, a[v.val][w.val] = true → w ≠ v → c[v.val][(f[v.val]).val] ≤ c[v.val][w.val] := by
+          ∀ w : Fin n, a[v.val][w.val] = true → w ≠ v →
+              c[v.val][(f[v.val]).val] ≤ c[v.val][w.val] := by
   unfold selectParents at hfeas ⊢
   dsimp only at hfeas ⊢
   rw [foldl_and_eq_true] at hfeas
@@ -2366,7 +2369,8 @@ private theorem selectParents_feasible_spec {n : ℕ} (a : AdjTable n) (c : Cost
   have hsome := hfeas.2 v (List.mem_finRange v)
   simp only [Vector.getElem_ofFn, Fin.eta, hvr, ↓reduceIte] at hsome ⊢
   obtain ⟨fv, harg⟩ := Option.isSome_iff_exists.mp hsome
-  have hfv : (argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])).getD v = fv := by
+  have hfv : (argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])).getD v =
+      fv := by
     rw [harg]; rfl
   obtain ⟨hpred, hmin⟩ := argMinFin_spec _ _ harg
   simp only [Bool.and_eq_true, bne_iff_ne] at hpred
@@ -2438,11 +2442,13 @@ private theorem not_inCycle_root {n : ℕ} (r : Fin n) (f : ParentTable n) {x0 :
 /-- Row-potential equivalence between an unreduced cost table `cUnred` and a reduced cost table
 `cRed` on active arcs of `a`. -/
 private def RowPotEq {n : ℕ} (a : AdjTable n) (cUnred cRed : CostTable ℤ n) : Prop :=
-  ∃ φ : Fin n → ℤ, ∀ u w : Fin n, a[u.val][w.val] = true → cUnred[u.val][w.val] = cRed[u.val][w.val] + φ u
+  ∃ φ : Fin n → ℤ, ∀ u w : Fin n, a[u.val][w.val] = true →
+      cUnred[u.val][w.val] = cRed[u.val][w.val] + φ u
 
 private def cycleSum {n : ℕ} (c : CostTable ℤ n) (f : ParentTable n)
     (inCycle : Vector Bool n) : ℤ :=
-  (List.finRange n).foldl (fun acc y => if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) 0
+  (List.finRange n).foldl
+      (fun acc y => if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) 0
 
 private def reducedBestExitTable {n : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (f : ParentTable n) (inCycle : Vector Bool n) : Vector (Option (Fin n)) n :=
@@ -2511,8 +2517,10 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       · rw [add_assoc, ih]
       · exact ih a b
   have hnotmem : ∀ (l : List (Fin n)) (init : ℤ), x ∉ l →
-      l.foldl (fun acc y => if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc) init =
-        l.foldl (fun acc y => if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) init := by
+      l.foldl (fun acc y => if inCycle[y.val] && y != x then acc +
+          c[y.val][f[y.val].val] else acc) init =
+        l.foldl (fun acc y => if inCycle[y.val] then acc +
+            c[y.val][f[y.val].val] else acc) init := by
     intro l
     induction l with
     | nil => intro _ _; rfl
@@ -2524,9 +2532,11 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       exact ih _ hmem.2
   have hmem : ∀ (l : List (Fin n)) (init : ℤ), l.Nodup → x ∈ l →
       c[x.val][f[x.val].val] +
-        l.foldl (fun acc y => if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc)
+        l.foldl (fun acc y => if inCycle[y.val] && y != x then acc +
+            c[y.val][f[y.val].val] else acc)
           init =
-        l.foldl (fun acc y => if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) init := by
+        l.foldl (fun acc y => if inCycle[y.val] then acc +
+            c[y.val][f[y.val].val] else acc) init := by
     intro l
     induction l with
     | nil => intro _ _ hm; cases hm
@@ -2625,7 +2635,8 @@ private theorem rowPotEq_contractReduced {n : ℕ} {a : AdjTable n}
       (contractCostTable cUnred inCycle other bEntry bExit x0)
       (contractReducedCostTable a cRed f inCycle bEntry bExit x0) := by
   obtain ⟨φ, hφ⟩ := hpot
-  refine ⟨fun u => if inCycle[u.val] then (if u = x0 then cycleSum cUnred f inCycle else 0) else φ u,
+  refine ⟨fun u => if inCycle[u.val] then (if u = x0 then cycleSum cUnred f inCycle else 0) else φ
+      u,
     fun u w ha' => ?_⟩
   rw [getElem_contractAdjTable] at ha'
   rw [getElem_contractCostTable, getElem_contractReducedCostTable]
@@ -2680,7 +2691,8 @@ private theorem contractReducedCostTable_bounds {n k M₀ : ℕ} {a : AdjTable n
   dsimp only
   rw [getElem_contractReducedCostTable]
   have hzero : -(M₀ : ℤ) ≤ 0 ∧ (0 : ℤ) ≤ (k + 2 : ℤ) * M₀ := ⟨by omega, by positivity⟩
-  have hle_step : ∀ x y : Fin n, -(M₀ : ℤ) ≤ c[x.val][y.val] ∧ c[x.val][y.val] ≤ (k + 2 : ℤ) * M₀ := by
+  have hle_step : ∀ x y : Fin n, -(M₀ : ℤ) ≤ c[x.val][y.val] ∧
+      c[x.val][y.val] ≤ (k + 2 : ℤ) * M₀ := by
     intro x y
     obtain ⟨hlo, hhi⟩ := hbnd x y
     exact ⟨hlo, by nlinarith only [hhi]⟩
@@ -2738,7 +2750,8 @@ private theorem fillBestEntryRowProg_spec {w n ws k : ℕ} (uFin : Fin n)
         Signed.encode c[u.val][col.val]) ∧
       (∀ z : Fin n, s1.mem (frameMaskBase ws n k + z.val) = if inCycle[z.val] then 1 else 0) ∧
       (∀ z : Fin n,
-        s1.mem (candPredBase ws n + z.val) = (if inCycle[z.val] && a[uFin.val][z.val] then 1 else 0) ∧
+        s1.mem (candPredBase ws n + z.val) =
+            (if inCycle[z.val] && a[uFin.val][z.val] then 1 else 0) ∧
         s1.mem (candCostBase ws n + z.val) = Signed.encode c[uFin.val][z.val]) := by
   let rowArgs : BestEntryRowArgs :=
     ⟨n, uFin.val, curAdjBase ws n, curCostBase ws n, frameMaskBase ws n k,
@@ -2754,7 +2767,8 @@ private theorem fillBestEntryRowProg_spec {w n ws k : ℕ} (uFin : Fin n)
         Signed.encode c[u.val][col.val]) ∧
       (∀ z : Fin n, sr.mem (frameMaskBase ws n k + z.val) = if inCycle[z.val] then 1 else 0) ∧
       (∀ z : Fin n, z.val < y →
-        sr.mem (candPredBase ws n + z.val) = (if inCycle[z.val] && a[uFin.val][z.val] then 1 else 0) ∧
+        sr.mem (candPredBase ws n + z.val) =
+            (if inCycle[z.val] && a[uFin.val][z.val] then 1 else 0) ∧
         sr.mem (candCostBase ws n + z.val) = Signed.encode c[uFin.val][z.val]))
     (fun addr => candPredBase ws n ≤ addr ∧ addr < candCostBase ws n + n)
     (fun y hy idxR sr ⟨hidxR, hfr_r, ha_r, hc_r, hm_r, hdone_r⟩ => by
@@ -2996,7 +3010,8 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
       ⟨n, colFin.val, curAdjBase ws n, curCostBase ws n, frameMaskBase ws n k,
         frameParentBase ws n k, candPredBase ws n, candCostBase ws n⟩
     let exitVal : Fin n → ℤ := fun x =>
-      if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] - c[x.val][f[x.val].val] else 0
+      if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] -
+          c[x.val][f[x.val].val] else 0
     let s1 := (Memory.spec 0).clientState s (fillBestExitRowProg rowArgs)
     iterationSafe bestExitRowStep BestExitRowStepSafe w rowArgs n 0 s ∧
       (Memory.spec w).ValidHistory s
@@ -3012,13 +3027,15 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
       (∀ y : Fin n, s1.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0) ∧
       (∀ z : Fin n, s1.mem (frameParentBase ws n k + z.val) = (f[z.val]).val) ∧
       (∀ z : Fin n,
-        s1.mem (candPredBase ws n + z.val) = (if inCycle[z.val] && a[z.val][colFin.val] then 1 else 0) ∧
+        s1.mem (candPredBase ws n + z.val) =
+            (if inCycle[z.val] && a[z.val][colFin.val] then 1 else 0) ∧
         s1.mem (candCostBase ws n + z.val) = Signed.encode (exitVal z)) := by
   let rowArgs : BestExitRowArgs :=
     ⟨n, colFin.val, curAdjBase ws n, curCostBase ws n, frameMaskBase ws n k,
       frameParentBase ws n k, candPredBase ws n, candCostBase ws n⟩
   let exitVal : Fin n → ℤ := fun x =>
-    if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] - c[x.val][f[x.val].val] else 0
+    if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] -
+        c[x.val][f[x.val].val] else 0
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have h2 : Fits w 2 := hws.of_le (by dsimp only [wsSize]; omega)
   have hcol_lt := colFin.isLt
@@ -3032,7 +3049,8 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
       (∀ y : Fin n, sr.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0) ∧
       (∀ z : Fin n, sr.mem (frameParentBase ws n k + z.val) = (f[z.val]).val) ∧
       (∀ z : Fin n, z.val < x →
-        sr.mem (candPredBase ws n + z.val) = (if inCycle[z.val] && a[z.val][colFin.val] then 1 else 0) ∧
+        sr.mem (candPredBase ws n + z.val) =
+            (if inCycle[z.val] && a[z.val][colFin.val] then 1 else 0) ∧
         sr.mem (candCostBase ws n + z.val) = Signed.encode (exitVal z)))
     (fun addr => candPredBase ws n ≤ addr ∧ addr < candCostBase ws n + n)
     (fun x hx idxR sr ⟨hidxR, hfr_r, ha_r, hc_r, hm_r, hf_r, hdone_r⟩ => by
@@ -3041,9 +3059,11 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
       have hcell_xc := List.mul_add_lt_sq hx hcol_lt
       have hcell_xf := List.mul_add_lt_sq hx (f[x]).isLt
       have hm_x : sr.mem (frameMaskBase ws n k + x) = if inCycle[x] then 1 else 0 := hm_r xFin
-      have ha_xm : sr.mem (curAdjBase ws n + x * n + colFin.val) = if a[x][colFin.val] then 1 else 0 :=
+      have ha_xm : sr.mem (curAdjBase ws n + x * n + colFin.val) =
+          if a[x][colFin.val] then 1 else 0 :=
         ha_r xFin colFin
-      have hc_xm : sr.mem (curCostBase ws n + x * n + colFin.val) = Signed.encode c[x][colFin.val] :=
+      have hc_xm : sr.mem (curCostBase ws n + x * n + colFin.val) =
+          Signed.encode c[x][colFin.val] :=
         hc_r xFin colFin
       have hf_x : sr.mem (frameParentBase ws n k + x) = (f[x]).val := hf_r xFin
       have hc_xf : sr.mem (curCostBase ws n + x * n + (f[x]).val) = Signed.encode c[x][f[x].val] :=
@@ -3405,7 +3425,8 @@ private theorem bestExitProg_spec {w n ws k B_k : ℕ} (hpos : 0 < n)
 private theorem contractReducedCostTable_natAbs_le {n B_k : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (f : ParentTable n) (inCycle : Vector Bool n) (bEntry bExit : Vector (Option (Fin n)) n)
     (x0 : Fin n) (hB : ∀ u col : Fin n, (c[u.val][col.val]).natAbs ≤ B_k) (u col : Fin n) :
-    ((contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][col.val]).natAbs ≤ 2 * B_k := by
+    ((contractReducedCostTable a c f inCycle bEntry bExit x0)[u.val][col.val]).natAbs ≤
+        2 * B_k := by
   rw [getElem_contractReducedCostTable]
   split_ifs
   · cases bExit[col.val] with
@@ -3427,7 +3448,8 @@ private theorem contractCostCellProg_eval {w n ws k B_k : ℕ} (r x0 u col : Fin
     (hfit_diff : Fits w (4 * B_k + 2))
     (ha : ∀ x y : Fin n,
       s.mem (curAdjBase ws n + x.val * n + y.val) = if a[x.val][y.val] then 1 else 0)
-    (hc : ∀ x y : Fin n, s.mem (curCostBase ws n + x.val * n + y.val) = Signed.encode c[x.val][y.val])
+    (hc : ∀ x y : Fin n, s.mem (curCostBase ws n + x.val * n + y.val) =
+        Signed.encode c[x.val][y.val])
     (hm : ∀ y : Fin n, s.mem (frameMaskBase ws n k + y.val) = if inCycle[y.val] then 1 else 0)
     (hfp : ∀ x : Fin n, s.mem (frameParentBase ws n k + x.val) = (f[x.val]).val)
     (hbe : ∀ x : Fin n, s.mem (frameBEntryBase ws n k + x.val) = optFinIdx bEntry[x.val])
@@ -3677,7 +3699,8 @@ private theorem contractAdjCellProg_eval {w n ws k : ℕ} (r x0 u col : Fin n)
     dsimp only [q]
     simp only [client_simps, hm_u, hm_c, ha_uc, hbe_u, hbx_c, getElem_contractAdjTable]
     apply congrArg (fun v =>
-      (⟨Function.update s.mem (nextAdjBase ws n + u.val * n + col.val) v, s.frontier⟩ : Memory.State))
+      (⟨Function.update s.mem (nextAdjBase ws n + u.val * n + col.val) v,
+          s.frontier⟩ : Memory.State))
     cases hu_b : inCycle[u.val] <;> cases hc_b : inCycle[col.val]
     · cases a[u.val][col.val] <;> simp
     · by_cases hcx : col = x0
@@ -3725,7 +3748,8 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillContractRowProg ra)) ∧
       memoryCost (fillContractRowProg ra) s ≤ 16 * n ∧
       sr'.frontier = s.frontier ∧
-      (∀ addr, ¬(nextAdjBase ws n + uFin.val * n ≤ addr ∧ addr < nextAdjBase ws n + uFin.val * n + n ∨
+      (∀ addr, ¬(nextAdjBase ws n + uFin.val * n ≤ addr ∧
+          addr < nextAdjBase ws n + uFin.val * n + n ∨
         nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n) →
         sr'.mem addr = s.mem addr) ∧
       (∀ col : Fin n,
@@ -3752,7 +3776,8 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
           sr.mem (nextCostBase ws n + uFin.val * n + c0.val) =
             Signed.encode
               (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.val][c0.val]))
-    (fun addr => nextAdjBase ws n + uFin.val * n ≤ addr ∧ addr < nextAdjBase ws n + uFin.val * n + n ∨
+    (fun addr => nextAdjBase ws n + uFin.val * n ≤ addr ∧
+        addr < nextAdjBase ws n + uFin.val * n + n ∨
       nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n)
     (fun col hcol idxR sr ⟨hidxR, hfr_r, ha_r, hc_r, hm_r, hfp_r, hbe_r, hbx_r, hcur⟩ => by
       subst idxR
@@ -4245,7 +4270,8 @@ private theorem expandLevelProg_spec {w n ws k : ℕ} (x0 : Fin n)
       (∀ v : Fin n, s'.mem (curParentBase ws n + v.val) = (p'[v.val]).val) := by
   let la : LevelArgs := ⟨n, ws, k⟩
   have hqx0 : s₀.mem (curParentBase ws n + x0.val) = (q[x0.val]).val := hcur x0
-  have hbx_qx0 : s₀.mem (frameBExitBase ws n k + (q[x0.val]).val) = optFinIdx bExit[(q[x0.val]).val] :=
+  have hbx_qx0 : s₀.mem (frameBExitBase ws n k + (q[x0.val]).val) =
+      optFinIdx bExit[(q[x0.val]).val] :=
     hbx q[x0.val]
   let ra : ExpandRowArgs := ⟨n, x0.val, (q[x0.val]).val, optFinIdx bExit[(q[x0.val]).val], ws, k⟩
   have hrow := fillExpandRowProg_spec x0 f q inCycle bEntry bExit s₀ hk hws hf hcur hfp hm hbe
@@ -4686,7 +4712,8 @@ private theorem backwardProg_spec {w n ws depth : ℕ} (hpos : 0 < n)
       idx = j ∧ s.frontier = s₀.frontier ∧
         (∀ k (hk : k < frs.length), FrameStored ws n k frs[k] s) ∧
         (∀ v : Fin n,
-          s.mem (curParentBase ws n + v.val) = ((expandFrames (frs.drop (depth - j)) q₀)[v.val]).val))
+          s.mem (curParentBase ws n + v.val) =
+              ((expandFrames (frs.drop (depth - j)) q₀)[v.val]).val))
     (fun addr => curParentBase ws n ≤ addr ∧ addr < nextParentBase ws n + n)
     (fun j hj idx s ⟨hidx, hfr, hfrs_s, hcur_s⟩ => by
       subst idx
@@ -4743,7 +4770,8 @@ private theorem backwardProg_spec {w n ws depth : ℕ} (hpos : 0 < n)
               dsimp only [curParentBase, nextParentBase, frameBase] at hlo ⊢; omega)
         · intro v
           change ((Memory.spec 0).clientState s (expandLevelProg ⟨n, ws, depth - (j + 1)⟩)).mem
-            (curParentBase ws n + v.val) = ((expandFrames (frs.drop (depth - (j + 1))) q₀)[v.val]).val
+            (curParentBase ws n + v.val) =
+                ((expandFrames (frs.drop (depth - (j + 1))) q₀)[v.val]).val
           rw [show depth - (j + 1) = k from rfl, hdrop_eq]
           exact hexp_val v)
     0 s₀ ⟨rfl, rfl, hfrs, fun v => by
@@ -4787,7 +4815,8 @@ private theorem forwardStep_contract_math {n k M₀ : ℕ} {r x0 : Fin n}
   have hact : ∀ x : Fin n, inCycle[x.val] = true → a_k[x.val][f_k[x.val].val] = true :=
     fun x hx => (hfeas_v x (hnot_r x hx)).1
   have hopt : ∀ x : Fin n, inCycle[x.val] = true →
-      ∀ w : Fin n, a_k[x.val][w.val] = true → w ≠ x → cRed[x.val][f_k[x.val].val] ≤ cRed[x.val][w.val] :=
+      ∀ w : Fin n, a_k[x.val][w.val] = true → w ≠ x →
+          cRed[x.val][f_k[x.val].val] ≤ cRed[x.val][w.val] :=
     fun x hx => (hfeas_v x (hnot_r x hx)).2.2
   have hbe_eq : bestEntryTable a_k cRed inCycle = bestEntryTable a_k cUnred inCycle :=
     bestEntryTable_of_rowPotEq inCycle hpot
@@ -4856,9 +4885,11 @@ private theorem forwardProg_spec {w n ws M₀ : ℕ} (r : Fin n)
               edmondsTableAux r n a₀ c₀ =
                 (edmondsTableAux r (n - k) a_k cUnred).map (expandFrames frs) ∧
               (∀ u col : Fin n,
-                s.mem (curAdjBase ws n + u.val * n + col.val) = if a_k[u.val][col.val] then 1 else 0) ∧
+                s.mem (curAdjBase ws n + u.val * n + col.val) =
+                    if a_k[u.val][col.val] then 1 else 0) ∧
               (∀ u col : Fin n,
-                s.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode cRed[u.val][col.val]) ∧
+                s.mem (curCostBase ws n + u.val * n + col.val) =
+                    Signed.encode cRed[u.val][col.val]) ∧
               (∀ u col : Fin n,
                 -(M₀ : ℤ) ≤ cRed[u.val][col.val] ∧ cRed[u.val][col.val] ≤ (k + 1 : ℤ) * M₀) ∧
               (∀ j (hj : j < frs.length), FrameStored ws n j frs[j] s)) ∨
@@ -4907,7 +4938,8 @@ private theorem forwardProg_spec {w n ws M₀ : ℕ} (r : Fin n)
         have hsSel_fr : sSel.frontier = s₀.frontier := hsel.2.2.2.1.trans hfr
         have hf_sSel : ws + wsSize n ≤ sSel.frontier := by rw [hsSel_fr]; exact hf
         have ha_sel : ∀ u col : Fin n,
-            sSel.mem (curAdjBase ws n + u.val * n + col.val) = if a_k[u.val][col.val] then 1 else 0 := by
+            sSel.mem (curAdjBase ws n + u.val * n + col.val) =
+                if a_k[u.val][col.val] then 1 else 0 := by
           intro u col
           have := List.mul_add_lt_sq u.isLt col.isLt
           rw [hsel.2.2.2.2.1 _ (by
@@ -4915,7 +4947,8 @@ private theorem forwardProg_spec {w n ws M₀ : ℕ} (r : Fin n)
             omega)]
           exact ha_k u col
         have hc_sel : ∀ u col : Fin n,
-            sSel.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode cRed[u.val][col.val] := by
+            sSel.mem (curCostBase ws n + u.val * n + col.val) =
+                Signed.encode cRed[u.val][col.val] := by
           intro u col
           have := List.mul_add_lt_sq u.isLt col.isLt
           rw [hsel.2.2.2.2.1 _ (by
@@ -6907,7 +6940,8 @@ private theorem superRootProg_spec {w n ws : ℕ}
     (G : Digraph (Fin n)) [DecidableRel G.Adj] (wt : Fin n → Fin n → ℤ) (s₀ : Memory.State)
     (hws : WsFits w ws (n + 1)) (hin_fit : Fits w (2 + 2 * (n * n)))
     (hws_lo : 2 + 2 * (n * n) ≤ ws) (hf : ws + wsSize (n + 1) ≤ s₀.frontier)
-    (hadj_in : ∀ u v : Fin n, s₀.mem (2 + (u.val * n + v.val)) = if decide (G.Adj u v) then 1 else 0)
+    (hadj_in : ∀ u v : Fin n, s₀.mem (2 + (u.val * n + v.val)) =
+        if decide (G.Adj u v) then 1 else 0)
     (hwt_in : ∀ u v : Fin n, s₀.mem (2 + n * n + (u.val * n + v.val)) = Signed.encode (wt u v))
     (hfit_wt1 : ∀ u v : Fin n, Fits w (Signed.encode (wt u v) + 1)) :
     let m := n + 1

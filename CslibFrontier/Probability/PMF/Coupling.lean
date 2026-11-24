@@ -84,7 +84,8 @@ theorem HiddenCoupling.bind {d₁ : PMF α₁} {exp₀ : PMF γ} {exp₁ : α₁
       HiddenCoupling (f₁ a) (exp₁ a) exp rep (fun k => f₂ k (rep₁ a)) inv) :
     HiddenCoupling (d₁.bind f₁) exp₀ exp rep (fun k => (d₂ k).bind (f₂ k)) inv := by
   refine ⟨?_, fun b hb => ?_⟩
-  · rw [PMF.bind_bind, bind_congr_on_support _ _ _ fun a ha => (hf a ha (hd.support_inv a ha)).bind_eq]
+  · rw [PMF.bind_bind,
+      bind_congr_on_support _ _ _ fun a ha => (hf a ha (hd.support_inv a ha)).bind_eq]
     have h2 := congrArg (fun d => d.bind fun (k, b₁) => (f₂ k b₁).map (k, ·)) hd.bind_eq
     simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at h2 ⊢
     exact h2.trans (bind_congr_on_support _ _ _ fun _ _ => by simp only [PMF.map_bind])

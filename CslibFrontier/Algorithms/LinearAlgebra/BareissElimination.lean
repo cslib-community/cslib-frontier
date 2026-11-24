@@ -589,7 +589,7 @@ private theorem span_row_rowScaled {m n : ℕ} {d : Fin m → ℚ} (hd : ∀ i, 
 private theorem rank_rowScaled {m n : ℕ} {d : Fin m → ℚ} (hd : ∀ i, d i ≠ 0)
     (A : Matrix (Fin m) (Fin n) ℚ) :
     (rowScaled d A).rank = A.rank := by
-  rw [rank_eq_finrank_span_row, rank_eq_finrank_span_row]
+  rw [← finrank_span_range_row, ← finrank_span_range_row]
   change Module.finrank ℚ (Submodule.span ℚ (Set.range (rowScaled d A))) =
     Module.finrank ℚ (Submodule.span ℚ (Set.range A))
   rw [span_row_rowScaled hd A]

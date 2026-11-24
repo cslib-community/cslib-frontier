@@ -171,7 +171,8 @@ private noncomputable def isCompl_prodEquiv {ι : Type*}
       have hv : u₁.val + k₁.val = u₂.val + k₂.val := congrArg Subtype.val h
       have h0 : u₁.val - u₂.val = k₂.val - k₁.val := by
         rw [sub_eq_sub_iff_add_eq_add, add_comm k₂.val u₂.val, hv]
-      have hu : u₁.val - u₂.val ∈ U ⊓ K := ⟨U.sub_mem u₁.property u₂.property, h0 ▸ K.sub_mem k₂.property k₁.property⟩
+      have hu : u₁.val - u₂.val ∈ U ⊓ K :=
+          ⟨U.sub_mem u₁.property u₂.property, h0 ▸ K.sub_mem k₂.property k₁.property⟩
       rw [hcompl.1, Submodule.mem_bot] at hu
       exact Prod.ext (Subtype.ext (sub_eq_zero.mp hu))
         (Subtype.ext (sub_eq_zero.mp (hu ▸ h0.symm)).symm),
@@ -193,7 +194,8 @@ private theorem uniformAffine_eq_bind_add_of_isCompl {n : ℕ}
   classical
   let e := isCompl_prodEquiv hU hK hcompl
   rw [uniformAffine_eq_map_direction A hx₀, ← uniformOfFintype_map_equiv e, PMF.map_comp,
-    show (fun v : A.direction => x₀ + v.val) ∘ e = fun p : U × K => x₀ + (e (p.1, p.2)).val from rfl,
+    show (fun v : A.direction => x₀ + v.val) ∘ e = fun p : U × K => x₀ +
+        (e (p.1, p.2)).val from rfl,
     ← uniformOfFintype_bind_map (fun u k => x₀ + (e (u, k)).val),
     uniformAffine_mk'_eq_map x₀ U, PMF.bind_map]
   refine congrArg (PMF.bind _) (funext fun u => ?_)
@@ -217,7 +219,8 @@ theorem uniformAffine_map_of_isAffine {n m : ℕ} (A : AffineSubspace Bool (BitS
   let K : Submodule Bool (BitString n) := A.direction ⊓ LinearMap.ker hL.linearMap
   obtain ⟨U, hU_le, hinf, hsup⟩ := exists_isCompl_submodule_bool (K := K) inf_le_left
   let eUA' : U ≃ A'.direction := Equiv.ofBijective
-    (fun u => ⟨hL.linearMap u.val, hdir'.symm ▸ Submodule.mem_map.mpr ⟨u.val, hU_le u.property, rfl⟩⟩)
+    (fun u =>
+        ⟨hL.linearMap u.val, hdir'.symm ▸ Submodule.mem_map.mpr ⟨u.val, hU_le u.property, rfl⟩⟩)
     ⟨fun u₁ u₂ h => Subtype.ext <| sub_eq_zero.mp <| by
       have hd : u₁.val - u₂.val ∈ U ⊓ K := ⟨U.sub_mem u₁.property u₂.property, A.direction.sub_mem
         (hU_le u₁.property) (hU_le u₂.property), LinearMap.mem_ker.mpr <| by
@@ -536,7 +539,7 @@ theorem isAffineDisperser_of_isAffineExtractor {n m k : ℕ} {ε : ℝ}
       have : x = 0 := by simpa [AffineSubspace.mem_mk', vsub_eq_sub] using hx
       subst this; rfl⟩
   refine isAffineDisperser_of_forall_exists_ne fun A hdim => by
-    have hA : (A : Set (BitString n)).Nonempty := Set.nonempty_iff_ne_empty.mpr fun he => by
+    have hA : (A : Set (BitString n)).Nonempty := Set.ne_empty_iff_nonempty.mp fun he => by
       have hbot : A = ⊥ := SetLike.coe_injective he
       rw [hbot, AffineSubspace.direction_bot, finrank_bot] at hdim; omega
     by_contra hconst; push Not at hconst

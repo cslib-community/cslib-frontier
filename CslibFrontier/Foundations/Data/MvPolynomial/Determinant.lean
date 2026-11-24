@@ -75,7 +75,7 @@ private theorem product_difference_degree_lt (s : Finset κ) (hs : s.Nonempty)
     by_cases hs0 : s = ∅
     · subst s
       simpa using hda
-    · have hsub := ih (Finset.nonempty_iff_ne_empty.mpr hs0) hf' hg' hd'
+    · have hsub := ih (Finset.ne_empty_iff_nonempty.mp hs0) hf' hg' hd'
       rw [Finset.prod_insert ha, Finset.prod_insert ha, Finset.card_insert_of_notMem ha,
         Nat.add_mul, one_mul]
       have heq : f a * (∏ i ∈ s, f i) - g a * (∏ i ∈ s, g i) =
@@ -119,6 +119,6 @@ theorem coeff_det_eq_of_totalDegree_sub_lt {n : ℕ}
       simp only [Finset.card_univ, Fintype.card_fin] at hb
       omega
     have hz := coeff_eq_zero_of_totalDegree_lt (hdeg.trans_le he)
-    simpa only [MvPolynomial.coeff_sub, sub_eq_zero] using hz
+    simpa only [AddMonoidAlgebra.coeff_sub_apply, sub_eq_zero] using hz
 
 end MvPolynomial

@@ -215,7 +215,8 @@ theorem frontierValues_eq_of_eqOn_cutWires_sdiff {c : Circuit σ n m} {I : Inter
     (hD : D ⊆ c.program.forwardDetermined (cutWires c (π.initial t))) {x y : Fin n → U}
     (heq : EqOn (c.program.trace I x) (c.program.trace I y) (cutWires c (π.initial t) \ D)) :
     (Compiler.network c I Acc).frontierValues π t (fun e => c.program.trace I x e.signal.val) =
-      (Compiler.network c I Acc).frontierValues π t (fun e => c.program.trace I y e.signal.val) := by
+      (Compiler.network c I Acc).frontierValues π t
+          (fun e => c.program.trace I y e.signal.val) := by
   have hall := c.program.eqOn_of_eqOn_sdiff_forwardDetermined hD heq
   exact ((Compiler.network c I Acc).frontierValues_eq_iff π).mpr fun e he => hall ⟨e, he, rfl⟩
 

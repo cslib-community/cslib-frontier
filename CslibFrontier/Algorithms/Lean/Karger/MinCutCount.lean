@@ -62,7 +62,7 @@ theorem card_minCuts_le_choose_two {n : ℕ} {W₀ : Fin n → Fin n → ℕ} (h
   have hnt : ∀ C ∈ F, IsNonTrivialCut C := by
     intro C hC
     obtain ⟨-, hx₀, hcw⟩ := Finset.mem_filter.mp hC
-    refine ⟨Finset.nonempty_iff_ne_empty.mpr fun h => ?_, fun h => hx₀ (h ▸ Finset.mem_univ x₀)⟩
+    refine ⟨Finset.ne_empty_iff_nonempty.mp fun h => ?_, fun h => hx₀ (h ▸ Finset.mem_univ x₀)⟩
     have h0 : cutWeight W₀ ∅ = 0 := by simp [cutWeight]
     rw [h, h0] at hcw
     omega

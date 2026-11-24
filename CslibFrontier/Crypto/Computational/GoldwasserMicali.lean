@@ -683,7 +683,8 @@ theorem advantage_publicKeyGame_qrPublicKeyLaw_le {setup : ℕ → PMF ModulusDe
   let idealGame (bit : Bool) : Game := do
     let d ← setup n
     let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-    let choice ← ProbComp.eval (adversary.choose n (encPair encNat encNat (d.p * d.q, y.val.val.val)))
+    let choice ← ProbComp.eval (adversary.choose n
+        (encPair encNat encNat (d.p * d.q, y.val.val.val)))
     let ct ← idealEncrypt (d.p * d.q) y.val
       (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)
     ProbComp.eval (adversary.guess n (ChoiceOut.state choice) ct)

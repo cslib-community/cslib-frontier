@@ -51,6 +51,6 @@ theorem arg_germ_cutEnds (p : Route) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t)
     (hst : s + t < 1) (side : Bool) :
     ((p.cutEnds s t).germ side).arg = (p.germ side).arg := by
   rw [germ_cutEnds, Complex.real_smul,
-    Complex.arg_real_mul _ (sub_pos.mpr (p.cut_bounds hs ht hst _).2.1)]
+    Complex.arg_ofReal_mul (sub_pos.mpr (p.cut_bounds hs ht hst _).2.1) _]
 
 end Cslib.Polygonal.Route

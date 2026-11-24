@@ -416,7 +416,8 @@ theorem mem_recover_successor_lt {I : FixedRotationInput} {c : RotationCertifica
 the original edge count. No trace or query system is included in the output. -/
 theorem length_enc_recover_le {I : FixedRotationInput} {c : RotationCertificate}
     (h : recover I = some c) :
-    (encRotationCertificate c).length ≤ 2 * I.graph.edges.length * (4 * I.graph.edges.length + 1) := by
+    (encRotationCertificate c).length ≤
+        2 * I.graph.edges.length * (4 * I.graph.edges.length + 1) := by
   have hbits : ∀ d ∈ c.successor, (encNat d).length ≤ 2 * I.graph.edges.length := by
     intro d hd
     rw [encNat_apply, Nat.size_eq_bits_len]

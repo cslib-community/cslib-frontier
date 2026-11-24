@@ -758,7 +758,8 @@ private theorem exists_isHalfspaceComb_on_cut {σ : Signature.{v}} {U : Type u}
   obtain ⟨hby_cut, hby_dom⟩ := Classical.choose_spec hb
   set x₀ := Classical.choose ha
   set y₀ := Classical.choose hb
-  have hcut_xy : EqOn (fun e => p.trace I x₀ e.signal.val) (fun e => p.trace I y₀ e.signal.val) Ecut :=
+  have hcut_xy : EqOn (fun e => p.trace I x₀ e.signal.val) (fun e => p.trace I y₀
+      e.signal.val) Ecut :=
     fun e he => by
       have h1 := congrFun hax_cut e
       have h2 := congrFun hby_cut e
@@ -981,7 +982,8 @@ private theorem ncard_realizedEdge_le_min {σ : Signature.{v}} {U : Type u} [Fin
       exact ⟨lay.symm ⟨s, hs⟩, (liveNetwork p (fun _ => False) U).mem_component_self _, hi'⟩
     have hpath_eq (x : Fin n → U) (hx : x ∈ B₀.accepted) (hr : ℕ)
         (hhr : hr ≤ Nat.card (Compiler.Vertex (liveCircuit p (fun _ => False)))) :
-        B₀.path x hr = (L.network ()).frontierValues lay hr (fun e => p.trace I x e.signal.val) := by
+        B₀.path x hr =
+            (L.network ()).frontierValues lay hr (fun e => p.trace I x e.signal.val) := by
       obtain ⟨α, hα, hfv⟩ := (L.network ()).exists_satisfies_of_isAcceptingPath lay
         (B₀.isAcceptingPath_path hx)
       rw [hfv hr (Nat.le_succ_of_le hhr), Network.frontierValues_eq_iff]
@@ -1182,7 +1184,8 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
         simp only [Network.revealedBy, hsV', ↓reduceIte]
         rfl
       have hpath_eq (y : Fin n → U) :
-          B₀.path y s = (L.network ()).frontierValues lay s (fun e => p.trace I y e.signal.val) := by
+          B₀.path y s =
+              (L.network ()).frontierValues lay s (fun e => p.trace I y e.signal.val) := by
         have hy : y ∈ B₀.accepted := hB₀_acc.symm ▸ mem_univ y
         obtain ⟨α, hα, hfv⟩ := (L.network ()).exists_satisfies_of_isAcceptingPath lay
           (B₀.isAcceptingPath_path hy)

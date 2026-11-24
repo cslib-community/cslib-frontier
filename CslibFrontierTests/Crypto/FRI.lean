@@ -472,7 +472,7 @@ theorem uniqueLineGap_params257 : UniqueLineGapHypothesis params257 2 := by
         have hmem : j ∈ badSet := Finset.mem_filter.mpr ⟨Finset.mem_univ j, hne⟩
         rw [hemp] at hmem
         exact Finset.notMem_empty j hmem
-      · obtain ⟨j₀, hj₀⟩ := Finset.nonempty_iff_ne_empty.mpr hemp
+      · obtain ⟨j₀, hj₀⟩ := Finset.ne_empty_iff_nonempty.mp hemp
         refine ⟨j₀, v, hv_rs, fun j hj_ne => ?_⟩
         by_contra hne
         have hj_mem : j ∈ badSet := Finset.mem_filter.mpr ⟨Finset.mem_univ j, hne⟩

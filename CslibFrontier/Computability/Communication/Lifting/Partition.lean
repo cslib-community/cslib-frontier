@@ -192,7 +192,7 @@ theorem agreeOn_nonempty_of_card_le {W : Finset (Fin n → Fin m)} {I : Finset (
     {α : Fin n → Fin m} (hWne : W.Nonempty) (hW : (#W : ℝ) ≤ #(agreeOn W I α) * τ ^ #I) :
     (agreeOn W I α).Nonempty := by
   have hWpos : (0 : ℝ) < #W := by exact_mod_cast card_pos.mpr hWne
-  rw [nonempty_iff_ne_empty]
+  rw [← ne_empty_iff_nonempty]
   intro h
   rw [h, card_empty, Nat.cast_zero, zero_mul] at hW
   linarith
@@ -322,7 +322,7 @@ private theorem card_allowing_le_of_lt {X : Finset (Fin n → Fin m)}
     (#(allowing Y q.I q.α β) : ℝ) ≤ #Y * #q.P / (2 * #X) := by
   have hXpos : (0 : ℝ) < #X := by exact_mod_cast card_pos.mpr hX
   have hIne : q.I.Nonempty := by
-    rw [nonempty_iff_ne_empty]
+    rw [← ne_empty_iff_nonempty]
     intro h
     rw [h] at h1
     simp [allowing] at h1

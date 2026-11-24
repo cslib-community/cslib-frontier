@@ -383,7 +383,8 @@ theorem vec_mem_toDiameter₂ {j : ℕ} (hj : j < p.2.length) :
 
 /-- Two vertices joined by an edge, or equal, are at distance at most one. -/
 private theorem edist_le_one_of {u v : {v // v ∈ (toDiameter p).vertices}}
-    (h : u.val = v.val ∨ (u.val, v.val) ∈ (toDiameter p).edges ∨ (v.val, u.val) ∈ (toDiameter p).edges) :
+    (h : u.val = v.val ∨ (u.val, v.val) ∈ (toDiameter p).edges ∨
+        (v.val, u.val) ∈ (toDiameter p).edges) :
     (toDiameter p).induced.edist u v ≤ 1 := by
   rw [SimpleGraph.edist_le_one_iff_adj_or_eq]
   by_cases huv : u.val = v.val

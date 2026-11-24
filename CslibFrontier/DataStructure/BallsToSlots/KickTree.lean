@@ -688,7 +688,8 @@ theorem dens_binLoad_ge_le_pow {ι α : Type*} [Fintype ι] {m k_indep : ℕ} (h
         ({θ : {θ : ι // h θ x = v₀} |
           a ≤ |∑ z ∈ R, (g z (h θ.val z.val) - 𝔼 hx', g z hx')|} : Finset _) := by
       intro θ hθ; rw [Finset.mem_filter] at hθ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-      have hload : (P.binLoad (h θ.val) S (h θ.val x) i.succ : ℝ) = ∑ z ∈ R, g z (h θ.val z.val) := by
+      have hload : (P.binLoad (h θ.val) S (h θ.val x) i.succ : ℝ) = ∑ z ∈
+          R, g z (h θ.val z.val) := by
         refine (by rw [Finset.sum_boole, θ.property, binLoad] :
           (P.binLoad (h θ.val) S (h θ.val x) i.succ : ℝ) = _).trans
           ((Finset.sum_attach S fun y => if P.InBin (h θ.val y) i.succ (P.preferredSlot v₀) ∧

@@ -50,7 +50,7 @@ theorem apply_eq_fourierCoeff_empty_of_maximal {f : (ι → Bool) → ℝ}
   rw [← sum_fourierCoeff_mul_chi f x, sum_eq_single (∅ : Finset ι)]
   · rw [chi_empty, mul_one]
   · intro T _ hT0
-    rw [hT T (empty_ssubset.2 (nonempty_iff_ne_empty.2 hT0)), zero_mul]
+    rw [hT T (empty_ssubset.2 (ne_empty_iff_nonempty.1 hT0)), zero_mul]
   · exact fun h => absurd (mem_univ _) h
 
 /-- A maximal nonzero Fourier coefficient forces a nonzero value on every face obtained by

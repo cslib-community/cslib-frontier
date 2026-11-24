@@ -278,7 +278,8 @@ theorem changesAtMost_trueMenuTable (p : Program signature n g) (dir : Fin g →
         decide ((p.lines gate.val).op.threshold ≤ scale gate.val * t + β.val))
         (biasMenu p gate.val).card := by
     have hpi := ChangesAtMost.pi (ι := biasMenu p gate.val) (T := fun _ => 1)
-      (fun β => changesAtMost_linear_threshold (p.lines gate.val).op.threshold (scale gate.val) β.val)
+      (fun β => changesAtMost_linear_threshold (p.lines gate.val).op.threshold (scale gate.val)
+          β.val)
     simpa [Fintype.card_coe] using hpi
   have hall := ChangesAtMost.pi (ι := directionGates p dir a)
     (T := fun gate => (biasMenu p gate.val).card) hgate

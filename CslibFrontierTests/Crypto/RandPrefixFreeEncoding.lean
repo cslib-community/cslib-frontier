@@ -41,7 +41,8 @@ example (X : Type*) [Fintype X] [Nonempty X] [AddGroup X] (ℓ : ℕ) :
       (fun k (m : {m : List X // m ≠ [] ∧ m.length ≤ ℓ}) => m.val.modifyLast (· + k))
       (Fintype.card X : ℝ≥0∞)⁻¹ :=
   (isRandPrefixFreeEncoding_modifyLast_add X).comp_injective
-    (e := fun m => ⟨m.val, m.property.1⟩) fun _ _ h => Subtype.ext (by simpa using congrArg Subtype.val h)
+    (e := fun m => ⟨m.val, m.property.1⟩) fun _ _ h => Subtype.ext
+        (by simpa using congrArg Subtype.val h)
 
 /-- CMAC's encoding restricted to the book's domain `{0,1}^{≤nℓ}`, with at most `ℓ` blocks. -/
 example {n ℓ : ℕ} (hn : 0 < n) (hℓ : 1 ≤ ℓ) :

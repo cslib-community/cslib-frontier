@@ -214,7 +214,7 @@ theorem exp_neg_lt_of_ceil_le {ε : ℝ} (hε : 0 < ε)
     nlinarith
   have hpow_exp : (3 : ℝ) ^ (Fintype.card ι + 1) ≤ exp (ε ^ 2 * d / 2) := by
     refine (pow_le_pow_left₀ (by norm_num) he2 (Fintype.card ι + 1)).trans ?_
-    rw [← Real.exp_nat_mul]
+    rw [← Real.exp_natCast_mul]
     refine Real.exp_le_exp.mpr ?_
     push_cast
     linarith

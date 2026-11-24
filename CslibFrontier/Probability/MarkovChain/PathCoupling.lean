@@ -378,7 +378,7 @@ theorem IsStationary.mixingTime_le_of_pathCoupling {π : PMF S} (hπ : P.IsStati
   calc κ ^ t * D ≤ Real.exp (-α) ^ t * D :=
         mul_le_mul_of_nonneg_right (pow_le_pow_left₀ hκ hκα t) hD0.le
     _ = Real.exp (-(α * t) + Real.log D) := by
-        rw [← Real.exp_nat_mul, Real.exp_add, Real.exp_log hD0]; ring_nf
+        rw [← Real.exp_natCast_mul, Real.exp_add, Real.exp_log hD0]; ring_nf
     _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.mpr (by linarith)
     _ = ε := Real.exp_log hε
 

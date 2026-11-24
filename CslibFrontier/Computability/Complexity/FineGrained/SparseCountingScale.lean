@@ -337,7 +337,7 @@ theorem div_numGroups_le_interpolationScale_of_clog_ge {n : ℕ} (h : 640000 ≤
     have hlog_pow : ((200 : ℕ) : ℝ) * Real.log 2 < X := by
       simpa only [Real.log_pow] using Real.log_lt_log (by positivity) hpow200
     have hexp4 : Real.exp 4 < 81 := by
-      rw [show (4 : ℝ) = ((4 : ℕ) : ℝ) * 1 by norm_num, Real.exp_nat_mul]
+      rw [show (4 : ℝ) = ((4 : ℕ) : ℝ) * 1 by norm_num, Real.exp_natCast_mul]
       exact (pow_lt_pow_left₀ Real.exp_one_lt_three (Real.exp_pos 1).le (by decide)).trans_eq
         (by norm_num)
     rw [← Real.log_exp 4]
@@ -346,7 +346,7 @@ theorem div_numGroups_le_interpolationScale_of_clog_ge {n : ℕ} (h : 640000 ≤
     rw [← Real.log_exp 2]
     refine Real.log_lt_log (by norm_num) ?_
     have he2 : Real.exp 2 = Real.exp 1 ^ 2 := by
-      rw [show (2 : ℝ) = ((2 : ℕ) : ℝ) * 1 by norm_num, Real.exp_nat_mul]
+      rw [show (2 : ℝ) = ((2 : ℕ) : ℝ) * 1 by norm_num, Real.exp_natCast_mul]
     have hsq : (2 : ℝ) ^ 2 < Real.exp 1 ^ 2 :=
       pow_lt_pow_left₀ (by linarith [Real.add_one_lt_exp (one_ne_zero : (1 : ℝ) ≠ 0)])
         (by norm_num) (by decide)

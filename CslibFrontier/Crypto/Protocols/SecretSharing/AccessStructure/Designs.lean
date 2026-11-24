@@ -444,7 +444,7 @@ theorem no_thresholdDesign_two_two {t n : ℕ} (ht : 2 ≤ t) (htn : t ≤ n) (h
       by_contra hne
       have hpair : 2 ≤ (({i, j} : Finset (Fin n)).biUnion d.assign).card :=
         d.le_card_of_card_eq (Finset.card_pair hne)
-      rw [Finset.biUnion_insert, Finset.singleton_biUnion, hij, Finset.union_idempotent, heq1 j]
+      rw [Finset.biUnion_insert, Finset.singleton_biUnion, hij, Finset.union_self, heq1 j]
         at hpair
       omega
     have hex : ∀ i : Fin n, ∃ x : Fin 2, d.assign i = {x} := fun i =>

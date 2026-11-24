@@ -444,7 +444,8 @@ private theorem realizesBounded_reduceAddStepGen :
   all_goals try omega
   all_goals try wram_omega [hmem.frontier_fits]
   all_goals try exact Nat.xor_lt_two_pow (hmem.mem_fits _) (hmem.mem_fits _)
-  all_goals exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.mem_fits _) (hmem.mem_fits _)) (hmem.mem_fits _)
+  all_goals exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.mem_fits _)
+      (hmem.mem_fits _)) (hmem.mem_fits _)
 
 private theorem reduceAddLoop_spec {w w₀ b b' k hashBase scratchBase PVal : ℕ}
     {θ : ReducedPolySeed w₀ b b' k} {coeffIdx : Fin k} {s₀ : Memory.State}

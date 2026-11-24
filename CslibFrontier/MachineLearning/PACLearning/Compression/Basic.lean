@@ -335,7 +335,7 @@ theorem isPACLearnerFor_of_log_le (κ : SampleCompressionScheme C k)
   rw [Real.log_inv] at hm
   calc ((m : ℝ) + 1) ^ k * (1 - (ε.val : ℝ)) ^ (m - k)
       ≤ Real.exp (k * Real.log (m + 1)) * Real.exp (-(ε.val * (m - k : ℕ))) := by
-        rw [Real.exp_nat_mul, Real.exp_log (by positivity)]
+        rw [Real.exp_natCast_mul, Real.exp_log (by positivity)]
         gcongr
         exact Real.one_sub_pow_le_exp (by exact_mod_cast ε.property.2.le) (by rw [mul_comm])
     _ ≤ δ.val := by

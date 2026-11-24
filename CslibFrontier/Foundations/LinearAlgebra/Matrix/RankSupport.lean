@@ -58,7 +58,7 @@ theorem card_nonzero_columns_le_rank_mul (M : Matrix m n K) (d : ℕ)
   have : Finite κ := Finite.of_injective a ha
   have := Fintype.ofFinite κ
   have hrank : M.rank = Fintype.card κ := by
-    rw [rank_eq_finrank_span_row, ← hspan, finrank_span_eq_card hli]
+    rw [← finrank_span_range_row, ← hspan, finrank_span_eq_card hli]
   have hcover : ({j | ∃ i, M i j ≠ 0} : Finset n) ⊆
       univ.biUnion (fun k : κ ↦ {j | M (a k) j ≠ 0}) := by
     intro j hj

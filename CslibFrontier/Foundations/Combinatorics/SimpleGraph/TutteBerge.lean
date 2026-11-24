@@ -179,7 +179,8 @@ private def deleteVertsAddUniversalVertsIso {d : ℕ} (U' : Set (V ⊕ Fin d))
     · exact absurd (hU' ⟨i, rfl⟩) hx.2
   map_rel_iff' {v w} := by
     change (_ ∧ _ ∧ G.Adj _ _) ↔ (_ ∧ _ ∧ G.Adj _ _)
-    exact ⟨fun h => ⟨v.property, w.property, h.2.2⟩, fun h => ⟨⟨trivial, v.property.2⟩, ⟨trivial, w.property.2⟩, h.2.2⟩⟩
+    exact ⟨fun h => ⟨v.property, w.property, h.2.2⟩, fun h =>
+        ⟨⟨trivial, v.property.2⟩, ⟨trivial, w.property.2⟩, h.2.2⟩⟩
 
 /-- If `U'` contains all the new vertices of `G.addUniversalVerts d`, then deleting it leaves as
 many odd components as deleting its trace `Sum.inl ⁻¹' U'` from `G`, and `U'` has `d` more

@@ -188,7 +188,8 @@ private theorem step_map (g : CNF ℕ → ℕ) (n : ℕ)
     (stk : List {ψ : CNF ℕ // CountingNormalized K ψ}) (acc : ℕ) :
     step M K g (n, (stk.map Subtype.val, acc)) =
       (n, Prod.map (List.map Subtype.val) id
-        ((rule hM hK).tree.searchStep (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val)))
+        ((rule hM hK).tree.searchStep
+            (fun acc t => min (2 ^ n) (acc + leafWeight n t.val (g t.val)))
           (stk, acc))) := by
   cases stk with
   | nil => rfl
@@ -299,7 +300,8 @@ theorem length_walk_le (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
     ((rule hM hK).tree.walk (rootState hkK φ) w).val.length ≤ φ.length + 1 + K * h := by
   have hcard : (((rule hM hK).tree.walk (rootState hkK φ) w).val.toClauseSet).card ≤
       (rootState hkK φ).val.toClauseSet.card + K * w.length :=
-    CountingBranchingRule.card_walk_le (one_le_countingThreshold hM) (rootState hkK φ).property.card_le hw
+    CountingBranchingRule.card_walk_le (one_le_countingThreshold hM) (rootState hkK
+        φ).property.card_le hw
   rw [((rule hM hK).tree.walk (rootState hkK φ) w).property.card_toClauseSet,
     (rootState hkK φ).property.card_toClauseSet] at hcard
   exact hcard.trans (Nat.add_le_add (length_root_le k φ) (Nat.mul_le_mul_left K hwlen))
@@ -307,7 +309,8 @@ theorem length_walk_le (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
 /-- **Sparse leaves are small.** The sparse states of the counting-sparsification tree have at most
 `occBound K M * φ.numVars + 1` clauses. -/
 theorem length_walk_le_of_isSparse
-    (hs : isSparse (countingThreshold M) K ((rule hM hK).tree.walk (rootState hkK φ) w).val = true) :
+    (hs : isSparse (countingThreshold M) K ((rule hM hK).tree.walk (rootState hkK φ) w).val =
+        true) :
     ((rule hM hK).tree.walk (rootState hkK φ) w).val.length ≤ occBound K M * φ.numVars + 1 := by
   set ψ := (rule hM hK).tree.walk (rootState hkK φ) w
   have hsparse := (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.property.toNormalized).mp hs
@@ -455,7 +458,8 @@ theorem search_eq_ite_modelCount_of_normalized (hM2 : 2 ≤ M) {k B L_coeff : �
         (R.tree.walk s₀ w).val.modelCountOn φ.vars.toFinset := by
     set ψ := R.tree.walk s₀ w
     have hsparse : isSparse (countingThreshold M) K ψ.val = true :=
-      (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.property.toNormalized).mpr hw.isLeaf_walk
+      (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.property.toNormalized).mpr
+          hw.isLeaf_walk
     have hwidth : ∀ c ∈ ψ.val, c.length ≤ k :=
       fun c hc => length_le_of_mem_walk hM hK hkK hw.isNodeWord hc
     have hsub : ψ.val.vars.toFinset ⊆ φ.vars.toFinset :=

@@ -47,9 +47,8 @@ variable {σ τ R : Type*} [CommSemiring R]
 /-- Evaluating a substitution at `x` evaluates the substituted polynomial at the values of the
 substituted polynomials. -/
 theorem eval_aeval (x : σ → R) (L : τ → MvPolynomial σ R) (q : MvPolynomial τ R) :
-    eval x (aeval L q) = eval (fun k => eval x (L k)) q := by
-  rw [aeval_eq_bind₁]
-  exact eval₂Hom_bind₁ _ _ _ _
+    eval x (aeval L q) = eval (fun k => eval x (L k)) q :=
+  comp_aeval_apply L (aeval x) q
 
 /-- **Chain rule for Hessians**: at `x`, the Hessian of `p ∘ L` is `Jᵀ · Hess p (L x) · J` plus
 the Hessians of the `L k` weighted by the gradient of `p` at `L x`, where `J` is the Jacobian of

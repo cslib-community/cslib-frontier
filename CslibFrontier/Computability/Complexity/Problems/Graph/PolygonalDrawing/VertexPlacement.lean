@@ -131,7 +131,7 @@ theorem IsEmbedding.exists_vertex_placement {G : Graph} {D : PolygonalDrawing G}
     simpa only [hv', ite_true] using hepos v hv
   · intro a
     obtain ⟨c, hc, he⟩ := hg a
-    simp only [direction, he, Complex.real_smul, Complex.arg_real_mul _ hc]
+    simp only [direction, he, Complex.real_smul, Complex.arg_ofReal_mul hc _]
   · intro e
     calc
       _ ≤ 25 ^ s.card * (F.route e).segments := hecount e

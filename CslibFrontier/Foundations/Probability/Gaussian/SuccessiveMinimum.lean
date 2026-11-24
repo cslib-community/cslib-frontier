@@ -81,7 +81,7 @@ private theorem exp_neg_pi_mul_sq_add_one_le (t : ℝ) (m : ℕ) :
       Real.exp (-Real.pi * t ^ 2) * Real.exp (-Real.pi * t ^ 2) ^ m := by
   have hpow : Real.exp (-Real.pi * t ^ 2) * Real.exp (-Real.pi * t ^ 2) ^ m =
       Real.exp (-Real.pi * t ^ 2 * ((m : ℝ) + 1)) := by
-    rw [← Real.exp_nat_mul, ← Real.exp_add]
+    rw [← Real.exp_natCast_mul, ← Real.exp_add]
     congr 1
     ring
   rw [hpow]

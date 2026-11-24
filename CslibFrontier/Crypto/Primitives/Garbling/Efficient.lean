@@ -178,7 +178,8 @@ theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
 
 /-- The data of a valid circuit is read from its word in polynomial time. -/
 theorem circuitData_polyTime :
-    ComputableInPolyTime (fun f : ValidCircuit => (f.val.n, f.val.m, f.val.gateList)) encValidCircuit
+    ComputableInPolyTime (fun f : ValidCircuit =>
+        (f.val.n, f.val.m, f.val.gateList)) encValidCircuit
       encCircuitData :=
   .of_eq fun _ => rfl
 

@@ -1226,7 +1226,7 @@ private theorem stateAt_balls_eq_empty_of_roundsOn_le {U' n' : ℕ} (h : Scheme 
       (t := (Finset.range U').filter fun j => (stateAt h A B j).1.Nonempty) fun j hj =>
       have hjle := Nat.lt_succ_iff.mp (mem_range.mp hj)
       mem_filter.mpr ⟨mem_range.mpr (hjle.trans_lt hiU),
-        (nonempty_iff_ne_empty.mpr hne).mono (stateAt_balls_mono h A B hjle)⟩
+        (ne_empty_iff_nonempty.mp hne).mono (stateAt_balls_mono h A B hjle)⟩
     rw [card_range] at hcard; dsimp only [roundsOn] at hi; omega
   · exact stateAt_balls_eq_empty h hle
       ((show A.card ≤ U' by simpa using A.card_le_univ).trans (Nat.le_of_not_lt hiU))

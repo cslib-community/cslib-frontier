@@ -136,7 +136,7 @@ theorem sum_mul_eq_expect_of_mem_lowDegree (hX : IsKWiseIndependent k X)
   · rw [bias_empty, mul_one]
   · intro S _ hS
     by_cases hk : #S ≤ k
-    · rw [abs_nonpos_iff.1 (hX S (nonempty_iff_ne_empty.2 hS) hk), mul_zero]
+    · rw [abs_nonpos_iff.1 (hX S (ne_empty_iff_nonempty.1 hS) hk), mul_zero]
     · rw [fourierCoeff_eq_zero_of_mem_lowDegree hP (not_le.1 hk), zero_mul]
   · exact fun h => absurd (mem_univ _) h
 

@@ -169,7 +169,7 @@ theorem exists_cover_card_le_of_mul_le_card_hit {S β : Type*} [Fintype S] [None
             < (Real.exp (-p)) ^ k :=
               pow_lt_pow_left₀ hexp (by linarith) (by omega)
           _ = Real.exp (-(k : ℝ) * p) := by
-              rw [← Real.exp_nat_mul]
+              rw [← Real.exp_natCast_mul]
               ring_nf
       have hkp : Real.log W.card ≤ (k : ℝ) * p :=
         (div_le_iff₀ hp).1 (Nat.le_ceil _)

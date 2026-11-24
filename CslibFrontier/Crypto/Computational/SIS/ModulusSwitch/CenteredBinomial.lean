@@ -226,7 +226,7 @@ theorem negligible_moduleLWECBD_switch_failure (m : (l : ℕ) → Fin (l + 1) �
     (by positivity)).mp h
   refine hr.trans_eq ?_
   push_cast
-  rw [← Real.exp_nat_mul]
+  rw [← Real.exp_natCast_mul]
   congr 1
   congr 1
   push_cast

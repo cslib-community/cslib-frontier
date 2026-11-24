@@ -184,8 +184,8 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
     invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.property⟩, z.property⟩
     left_inv := fun _ ↦ rfl
     right_inv := fun _ ↦ rfl
-    continuous_toFun := (continuous_subtype_val.comp continuous_subtype_val).subtype_mk _
-    continuous_invFun := (continuous_subtype_val.subtype_mk _).subtype_mk _
+    continuous_toFun := (continuous_subtypeVal.comp continuous_subtypeVal).subtype_mk _
+    continuous_invFun := (continuous_subtypeVal.subtype_mk _).subtype_mk _
   }
   have hLV_disc : DiscreteTopology LV := e.discreteTopology_iff.mpr inferInstance
   have hLV_lat : IsZLattice ℝ LV := ⟨by

@@ -322,7 +322,7 @@ theorem expect_sub_expect_sq_le_totalInfluence (f : (ι → Bool) → ℝ) :
   refine sum_le_sum fun S _ => ?_
   split_ifs with hS
   · exact le_mul_of_one_le_left (sq_nonneg _)
-      (Nat.one_le_cast.2 (card_pos.2 (nonempty_iff_ne_empty.2 hS)))
+      (Nat.one_le_cast.2 (card_pos.2 (ne_empty_iff_nonempty.1 hS)))
   · exact mul_nonneg (Nat.cast_nonneg _) (sq_nonneg _)
 
 /-- The total influence is at most the number of coordinates times the mean square. -/

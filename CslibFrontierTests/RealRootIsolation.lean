@@ -280,7 +280,8 @@ example :
 -- `x^2 - 2`.
 example :
     ∃! i : Fin (isolateRoots [(-2 : ℚ), 0, 1]).length,
-      (isolatedRoot (PerfectField.separable_iff_squarefree.mpr squarefree_sqSubTwo) i).val = √2 := by
+      (isolatedRoot (PerfectField.separable_iff_squarefree.mpr squarefree_sqSubTwo) i).val =
+          √2 := by
   have hbij₁ := isolateRoots_bijective
     (PerfectField.separable_iff_squarefree.mpr squarefree_sqSubTwo)
   have hbij₂ := isolateRoots_bijective_of_squarefree squarefree_sqSubTwo

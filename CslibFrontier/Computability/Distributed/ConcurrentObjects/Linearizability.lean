@@ -2663,7 +2663,8 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
   let procs := (H'.map Event.proc).dedup
   have hprocs_nd : procs.Nodup := List.nodup_dedup _
   let elems : List α := procs.flatMap fun p =>
-    (List.finRange (pCalls p).length).map fun k => ⟨⟨p, k.val⟩, (hcomp_op_iff ⟨p, k.val⟩).mpr k.isLt⟩
+    (List.finRange (pCalls p).length).map fun k =>
+        ⟨⟨p, k.val⟩, (hcomp_op_iff ⟨p, k.val⟩).mpr k.isLt⟩
   have helems_mem : ∀ a : α, a ∈ elems := by
     intro a
     obtain ⟨r, hr⟩ := Option.isSome_iff_exists.mp a.property
@@ -2731,7 +2732,8 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
       · exact hlt
       · exfalso
         have hrt_ji : rt ord_p[j] ord_p[i] :=
-          History.prec_of_same_proc_lt (hp_j.trans hp_i.symm) hgt ord_p[j].property ord_p[i].property
+          History.prec_of_same_proc_lt (hp_j.trans
+              hp_i.symm) hgt ord_p[j].property ord_p[i].property
         have hval_i := hfval ⟨i, hi⟩
         have hval_j := hfval ⟨j, hj⟩
         have hrel : TransGen (loc ⊔ rt) order[(fidx ⟨j, hj⟩).val] order[(fidx ⟨i, hi⟩).val] := by

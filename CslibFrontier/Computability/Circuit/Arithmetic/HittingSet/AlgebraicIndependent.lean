@@ -139,7 +139,7 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
   have hcoeff (m : Fin n →₀ ℕ) : (MvPolynomial.C α * logDeriv F n g -
       MvPolynomial.C (logDenom F n * derivative α) * g).coeff m =
       α * (logDeriv F n g).coeff m - logDenom F n * derivative α * g.coeff m := by
-    rw [MvPolynomial.coeff_sub, MvPolynomial.coeff_C_mul, MvPolynomial.coeff_C_mul]
+    rw [AddMonoidAlgebra.coeff_sub_apply, MvPolynomial.coeff_C_mul, MvPolynomial.coeff_C_mul]
   -- By minimality, `α * D g = Q * α' * g`.
   have hmin : MvPolynomial.C α * logDeriv F n g -
       MvPolynomial.C (logDenom F n * derivative α) * g = 0 := by

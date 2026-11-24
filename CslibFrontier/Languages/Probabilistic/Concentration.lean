@@ -100,7 +100,7 @@ theorem countTrue_average_deviation_pow (confidence inverseTolerance : ℕ)
   have hexp : Real.exp (-2) ≤ (1 : ℝ) / 2 := by
     rw [Real.exp_neg, inv_eq_one_div, div_le_iff₀ (Real.exp_pos 2)]
     linarith [Real.add_one_le_exp 2]
-  rw [mul_comm (-2), ← Nat.cast_add_one, Real.exp_nat_mul]
+  rw [mul_comm (-2), ← Nat.cast_add_one, Real.exp_natCast_mul]
   calc
     _ ≤ 2 * (1 / 2 : ℝ) ^ (confidence + 1) := by gcongr
     _ = _ := by rw [pow_succ]; ring

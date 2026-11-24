@@ -79,7 +79,8 @@ theorem exists_isMatching_mul_eight_ge {V : Type*} [Finite V] (H : SimpleGraph V
     rw [ConnectedComponent.mem_supp_iff] at hx ⊢
     rw [← hx]
     exact (ConnectedComponent.connectedComponentMk_eq_of_adj
-      (Subgraph.Adj.coe (Subgraph.deleteVerts_adj.mpr ⟨trivial, x.property.2, trivial, hw, hadj⟩))).symm
+      (Subgraph.Adj.coe
+          (Subgraph.deleteVerts_adj.mpr ⟨trivial, x.property.2, trivial, hw, hadj⟩))).symm
   let intPairs (c : OddC) : Finset (V × V) :=
     (S c ×ˢ S c).filter fun p => H.Adj p.1 p.2
   let cutPairs (c : OddC) : Finset (V × V) :=

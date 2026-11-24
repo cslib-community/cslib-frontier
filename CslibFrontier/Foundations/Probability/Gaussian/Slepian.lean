@@ -1877,7 +1877,7 @@ private theorem le_two_mul_integral_Ioi_cdf_sub_half_pow {d m_in m_out S_out : �
         calc rEvalEven (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) z ^ S_out
             ≤ exp (-z ^ 2 / (2 * (S_out : ℝ))) ^ S_out := pow_le_pow_left₀ hbase_nn hbase_le S_out
           _ = exp (-z ^ 2 / 2) := by
-              rw [← exp_nat_mul]
+              rw [← exp_natCast_mul]
               congr 1
               have hSne : (S_out : ℝ) ≠ 0 := by positivity
               field_simp [hSne]
@@ -1954,7 +1954,7 @@ private theorem le_two_mul_integral_Ioi_cdf_sub_half_pow {d m_in m_out S_out : �
             ≤ exp (-(B : ℝ) ^ 2 / (2 * (S_out : ℝ))) ^ S_out :=
               pow_le_pow_left₀ (Rat.cast_nonneg.mpr hout_pos) hbase_le S_out
           _ = exp (-(B : ℝ) ^ 2 / 2) := by
-              rw [← exp_nat_mul]
+              rw [← exp_natCast_mul]
               congr 1
               have hSne : (S_out : ℝ) ≠ 0 := by positivity
               field_simp [hSne]

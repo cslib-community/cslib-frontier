@@ -75,7 +75,7 @@ theorem contraction_toTensorNetwork [CommSemiring R] [Fintype U] [Fintype V] [Fi
 theorem mem_accepted_iff_contraction_ne_zero [Fintype U] [Fintype V] [Fintype E] [DecidableEq E]
     (x : ι → U) : x ∈ N.accepted ↔ (N.toTensorNetwork ℕ x).contraction ≠ 0 := by
   rw [contraction_toTensorNetwork, Nat.cast_id, Ne, Set.ncard_eq_zero (Set.toFinite _),
-    ← Ne, ← Set.nonempty_iff_ne_empty]
+    ← Ne, Set.ne_empty_iff_nonempty]
   rfl
 
 end Cslib.Circuits.Frontier.Network

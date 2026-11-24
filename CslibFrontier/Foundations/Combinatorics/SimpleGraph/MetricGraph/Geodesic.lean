@@ -108,7 +108,7 @@ noncomputable def toPath (h : IsGeodesic x y γ) : _root_.Path x y where
         (⟨(t : ℝ) * dist x y,
           mul_nonneg t.property.1 dist_nonneg,
           mul_le_of_le_one_left dist_nonneg t.property.2⟩ : Set.Icc 0 (dist x y))) :=
-      Continuous.subtype_mk (continuous_subtype_val.mul continuous_const) _
+      Continuous.subtype_mk (continuous_subtypeVal.mul continuous_const) _
     exact h.isometry.continuous.comp hcont
   source' := by simp [h.map_zero]
   target' := by simp [h.map_dist]

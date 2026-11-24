@@ -823,7 +823,7 @@ private lemma top_weight_not_lt {C : PolytopalComplex E} {A₁ A₂ : Finset (Se
   intro hlt
   have hw₂_le : w₂ P ≤ 1 := hsum₂ ▸ Finset.single_le_sum (fun Q hQ => (hw₂ Q hQ).le) hP₂
   have h1c_pos : 0 < 1 - w₁ P := by linarith
-  have hA₁'ne : (A₁.erase P).Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by
+  have hA₁'ne : (A₁.erase P).Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt => by
     linarith [eq_one_of_erase_eq_empty hP₁ hsum₁ hmt]
   obtain ⟨P', hP'A₁', hmaxP'⟩ := isCellChain_exists_top (isCellChain_erase hA₁ hA₁'ne)
   have hPC := hA₁.1 hP₁
@@ -890,9 +890,9 @@ private lemma mem_convexHull_inter_of_chains (C : PolytopalComplex E) :
         linarith [Finset.add_sum_erase A₁ w₁ hP₁A₁,
           Finset.sum_pos (fun Q hQ => hw₁ Q (Finset.erase_subset P₁ A₁ hQ)) ⟨R, hR⟩]
       simpa [eq_singleton_of_erase_empty hP₁A₁ hmt, h1] using subset_convexHull ℝ _ hP₁_inter
-    · have hA₁'ne : (A₁.erase P₁).Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+    · have hA₁'ne : (A₁.erase P₁).Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt =>
         h1 (eq_one_of_erase_eq_empty hP₁A₁ hsum₁ hmt)
-      have hA₂'ne : (A₂.erase P₁).Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+      have hA₂'ne : (A₂.erase P₁).Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt =>
         (hw_eq ▸ h1) (eq_one_of_erase_eq_empty hQ₂A₂ hsum₂ hmt)
       obtain ⟨h1t_pos, _, hsum₁', _, hx_split⟩ := isCellChain_erase_decomp hA₁ hP₁A₁ hA₁'ne
         (hA₁.1 hP₁A₁) (fun Q hQ => hmax₁ Q (Finset.erase_subset P₁ A₁ hQ)) hw₁ hsum₁
@@ -929,7 +929,7 @@ private lemma convexHull_chain_support_decomp {C : PolytopalComplex E} {𝒞 : F
       (hu0 _ (Finset.mem_image_of_mem _ hP))
   have hsumA : ∑ P ∈ A, u (vertexCentroid P) = 1 :=
     (Finset.sum_subset hAsub hzero).trans ((Finset.sum_image hinj).symm.trans hu1)
-  have hAne : A.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by
+  have hAne : A.Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt => by
     simp [hmt] at hsumA
   have hcombA : x = ∑ P ∈ A, u (vertexCentroid P) • vertexCentroid P :=
     hux.symm.trans ((Finset.sum_image (f := fun v => u v • v) hinj).trans

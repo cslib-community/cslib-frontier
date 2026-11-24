@@ -97,7 +97,7 @@ private theorem sum_prod_image_eq_card_le [DecidableEq X] (S : Finset X) (v : X 
   · rw [hT_emp, Finset.sum_empty]
     have hsum_nonneg : 0 ≤ ∑ x ∈ S, v x := sum_nonneg hv
     positivity
-  · obtain ⟨t₀, ht₀⟩ := nonempty_iff_ne_empty.mpr hT_emp
+  · obtain ⟨t₀, ht₀⟩ := ne_empty_iff_nonempty.mp hT_emp
     have hS_ne : S.Nonempty := by
       have ht₀_pi := (mem_filter.mp ht₀).1
       rw [mem_piFinset] at ht₀_pi

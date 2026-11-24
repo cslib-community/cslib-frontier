@@ -1826,7 +1826,8 @@ private theorem zeroFaultTotalOrderAlg_eventually_delivers_slot
   have hfair_q := bcastProcFair_of_admissibleZero hadm q
   rcases hadm with ⟨hs0, he, _, _⟩
   have hex_recv : ∀ i : Fin (m + 1),
-      ∃ j, xs j = some ⟨q, Sum.inr (.ordered i.val ((seqRunLog leader xs K)[i.val]'(by omega)))⟩ := by
+      ∃ j, xs j =
+          some ⟨q, Sum.inr (.ordered i.val ((seqRunLog leader xs K)[i.val]'(by omega)))⟩ := by
     intro i
     obtain ⟨t, _, hmsg⟩ := seqRunLog_ordered_sent hs0 he q K i.val (by omega)
     obtain ⟨j, _, hxj⟩ := hfair_q _ rfl (t + 1) hmsg

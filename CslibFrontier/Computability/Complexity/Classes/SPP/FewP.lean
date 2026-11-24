@@ -264,7 +264,7 @@ theorem signedSum_eq (k : ℕ) (s : State)
               ite_eq_left_of_eq_true _ _ (eq_true ⟨hmem, hmax⟩)]
             cases par <;> rfl
           · have hne : (above acc len (true, !par, false, true, List.ofFn c)).Nonempty :=
-              Finset.nonempty_iff_ne_empty.2 fun h => hmax (hiff.1 h)
+              Finset.ne_empty_iff_nonempty.1 fun h => hmax (hiff.1 h)
             rw [ite_eq_left_of_eq_true _ _ (eq_true ⟨rfl, hne⟩),
               ite_eq_right_of_eq_false _ _ (eq_false fun h => hmax h.2)]
         · have hcond : (acc (List.ofFn c) &&

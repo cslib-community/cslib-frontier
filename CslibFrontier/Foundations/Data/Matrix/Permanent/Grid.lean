@@ -176,7 +176,7 @@ private theorem coeff_ones_congr {p q : MvPolynomial γ R}
     (h : Ideal.Quotient.mk (sqIdeal R γ) p = Ideal.Quotient.mk (sqIdeal R γ) q) :
     p.coeff (ones γ) = q.coeff (ones γ) := by
   have := coeff_ones_of_mem (Ideal.Quotient.eq.1 h)
-  rwa [MvPolynomial.coeff_sub, sub_eq_zero] at this
+  rwa [AddMonoidAlgebra.coeff_sub_apply, sub_eq_zero] at this
 
 omit [Fintype γ] in
 private theorem mk_X_sq (c : γ) : Ideal.Quotient.mk (sqIdeal R γ) (X c) ^ 2 = 0 := by

@@ -1099,7 +1099,8 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
       metaOp j := by
   have htake := take_hardSeq c (j.val + 1) keys vals metaOp hc
   have hidx : n + c * (j.val + 1) = (n + c * j.val) + c := by ring
-  rw [hidx, List.take_succ_finRange j.isLt, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+  rw [hidx, List.take_succ_finRange j.isLt, List.flatMap_append, List.flatMap_cons,
+      List.flatMap_nil,
     List.append_nil, ← List.append_assoc] at htake
   refine drop_take_of_take_add htake ?_ (hc j)
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,
@@ -1546,7 +1547,8 @@ private noncomputable def embValsEquiv (U V n : ℕ) :
             (hmem : K.val.orderEmbOfFin K.property (σ i) ∈ D),
             (D.orderIsoOfFin hc).symm ⟨K.val.orderEmbOfFin K.property (σ i), hmem⟩ = σ i := by
           rintro _ rfl hc hmem
-          have hsub : (⟨K.val.orderEmbOfFin K.property (σ i), hmem⟩ : K.val) = K.val.orderIsoOfFin hc (σ i) :=
+          have hsub : (⟨K.val.orderEmbOfFin K.property (σ i), hmem⟩ : K.val) =
+              K.val.orderIsoOfFin hc (σ i) :=
             Subtype.ext rfl
           rw [hsub]
           exact (K.val.orderIsoOfFin hc).symm_apply_apply (σ i)

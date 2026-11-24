@@ -324,7 +324,8 @@ theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.val ↔ c.blockOf v 
     fun h => h ▸ c.mem_blockOf v⟩
 
 /-- The vertices of a block are those it contains. -/
-private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} = {v | v ∈ B.val} := by
+private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} =
+    {v | v ∈ B.val} := by
   ext v
   simp [c.mem_iff_blockOf_eq]
 

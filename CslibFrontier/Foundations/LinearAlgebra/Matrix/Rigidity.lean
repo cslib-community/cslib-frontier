@@ -217,7 +217,7 @@ private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : �
   have : Finite κ := Finite.of_injective a ha
   have := Fintype.ofFinite κ
   have hκ : r ≤ Fintype.card κ := by
-    rwa [← finrank_span_eq_card hli, hspan, ← A.rank_eq_finrank_span_row]
+    rwa [← finrank_span_eq_card hli, hspan, A.finrank_span_range_row]
   let e₁ : Fin r → κ := (Fintype.equivFin κ).symm ∘ Fin.castLE hκ
   have he₁ : Function.Injective e₁ := (Equiv.injective _).comp (Fin.castLE_injective hκ)
   let f : Fin r → m := a ∘ e₁

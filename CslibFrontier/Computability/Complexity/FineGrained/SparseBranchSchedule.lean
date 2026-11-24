@@ -267,7 +267,8 @@ theorem card_branchAugmentedScope_le [Fintype ι] [DecidableEq ι] (S : Finset �
   cases f with
   | inl i =>
     rw [branchAugmentedScope_inl]
-    exact ((card_branchEquationScope_le S e P b i.val).trans (hw i.val i.property)).trans (le_max_left w 1)
+    exact ((card_branchEquationScope_le S e P b i.val).trans
+        (hw i.val i.property)).trans (le_max_left w 1)
   | inr v =>
     rw [branchAugmentedScope_inr, card_singleton]
     exact le_max_right w 1

@@ -65,7 +65,7 @@ private theorem subsetMobius_or_univ [DecidableEq ι] [Nonempty ι] :
     intro T
     rcases T.eq_empty_or_nonempty with rfl | ⟨i, hi⟩
     · simp [monomial]
-    · have hT : T ≠ ∅ := Finset.nonempty_iff_ne_empty.1 ⟨i, hi⟩
+    · have hT : T ≠ ∅ := Finset.ne_empty_iff_nonempty.2 ⟨i, hi⟩
       have hex : ∃ j, j ∈ T := ⟨i, hi⟩
       simp [monomial, hT, hex]
   simp only [subsetMobius] at hconst ⊢

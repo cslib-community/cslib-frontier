@@ -237,7 +237,8 @@ private theorem length_walk_le_of_isSparse (hw : (rule hK hα).tree.IsNodeWord (
   set ψ := (rule hK hα).tree.walk (rootState hkK φ) w
   have hsparse := (isSparse_eq_true_iff (one_le_threshold hK hα) ψ.property).mp hs
   rw [← Normalized.card_toClauseSet ψ.property]
-  refine ClauseSet.Sparsification.card_le_of_sparse (one_le_threshold hK hα) hsparse ψ.property.card_le
+  refine ClauseSet.Sparsification.card_le_of_sparse (one_le_threshold hK
+      hα) hsparse ψ.property.card_le
     φ.vars.toFinset fun C' hC' l hl => ?_
   obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_walk hK hα hkK hw hC
@@ -249,7 +250,8 @@ private theorem length_le_of_mem_walk (hφ : ∀ c ∈ φ, c.length ≤ k)
     (hw : (rule hK hα).tree.IsNodeWord (rootState hkK φ) w) {C : Clause ℕ}
     (hC : C ∈ ((rule hK hα).tree.walk (rootState hkK φ) w).val) : C.length ≤ k := by
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_walk hK hα hkK hw hC
-  rw [← List.toFinset_card_of_nodup (((rule hK hα).tree.walk (rootState hkK φ) w).property.nodup C hC)]
+  rw [← List.toFinset_card_of_nodup
+      (((rule hK hα).tree.walk (rootState hkK φ) w).property.nodup C hC)]
   exact (Finset.card_le_card hCD).trans ((List.toFinset_card_le D).trans (hφ D hD))
 
 end Tree

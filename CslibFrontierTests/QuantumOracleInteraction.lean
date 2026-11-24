@@ -312,7 +312,8 @@ theorem query_baseWord (H : QuantumOracleDecapsulation.Hash) (key memory : Bool)
     (xorQuery H (Fin.castLEEmb (by decide : 2 ≤ 8))).eval (ket (baseWord key memory)) =
       ket (queriedWord H key memory) := by
   have hs : (queryRegisters (a := 1) (b := 1) (Fin.castLEEmb (by decide : 2 ≤ 8))).symm
-      (fun _ => false, fun _ => false, fun j => baseWord key memory j.val) = baseWord key memory := by
+      (fun _ => false, fun _ => false, fun j => baseWord key memory j.val) =
+          baseWord key memory := by
     apply (queryRegisters (a := 1) (b := 1) (Fin.castLEEmb (by decide : 2 ≤ 8))).injective
     simp only [Equiv.apply_symm_apply, queryRegisters_apply]
     apply Prod.ext (by funext i; fin_cases i; rfl)

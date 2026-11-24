@@ -177,7 +177,8 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
     unfold spin
     rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)),
       List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem))]
-  have hσ (i : Fin (polygonGraph F).edges.length) : σ i.val = (polygonGraph F).edgeGradient spin i := by
+  have hσ (i : Fin (polygonGraph F).edges.length) : σ i.val =
+      (polygonGraph F).edgeGradient spin i := by
     unfold σ
     rw [List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using i.isLt)]
     simp only [List.getElem_ofFn]

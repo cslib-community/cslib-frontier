@@ -1280,7 +1280,8 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
       rw [hread_eq]
       refine Nat.card_congr
         { toFun := fun v => ⟨v.property.choose, (Compiler.site_eq_some v.property.choose_spec).1⟩
-          invFun := fun i => ⟨.signal ⟨.input i.val, i.property⟩, i.val, Compiler.site_of_reach i.property⟩
+          invFun := fun i => ⟨.signal ⟨.input i.val, i.property⟩, i.val,
+              Compiler.site_of_reach i.property⟩
           left_inv := fun v => by
             obtain ⟨_, hv_eq⟩ := Compiler.site_eq_some v.property.choose_spec
             ext; exact hv_eq.symm

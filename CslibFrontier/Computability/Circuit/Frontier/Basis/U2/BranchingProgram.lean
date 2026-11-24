@@ -197,11 +197,14 @@ private theorem edgeCut_src_inter_tgt (e : D.eqPairs) :
 private theorem edgeCut_pairVerts (e : D.eqPairs) :
     (graph c).edgeCut (D.pairVerts e) =
       {(D.pinA e).val, (D.pinB e).val, (D.pinC e).val, (D.pinD e).val} := by
-  have hd : Disjoint {v | v ∈ (D.Q.quotient.src e.val).val} {v | v ∈ (D.Q.quotient.tgt e.val).val} :=
+  have hd : Disjoint {v | v ∈ (D.Q.quotient.src e.val).val} {v | v ∈
+      (D.Q.quotient.tgt e.val).val} :=
     D.Q.disjoint_of_ne (D.Q.quotient_loopless e.val)
   obtain ⟨hc_u, _⟩ := edgeCut_union_of_inter_singleton hd (D.edgeCut_src_inter_tgt e)
-  have hs₁ := (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.src e.val) e.val (Or.inl rfl)).2
-  have hs₂ := (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.tgt e.val) e.val (Or.inr rfl)).2
+  have hs₁ :=
+      (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.src e.val) e.val (Or.inl rfl)).2
+  have hs₂ :=
+      (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.tgt e.val) e.val (Or.inr rfl)).2
   dsimp only [pairVerts, pinA, pinB, pinC, pinD]
   rw [hc_u, hs₁, hs₂]
   ext g
@@ -586,7 +589,8 @@ private theorem ncard_singleCut_add_actPairs (t : ℕ) :
 
 private theorem pinAC_notMem_masked (t : ℕ) {e : D.eqPairs} (he : e ∈ D.actPairs t) :
     (D.pinA e).val ∉ (⋃ e' ∈ D.actPairs t, ({(D.pinB e').val, (D.pinD e').val} : Set (Edge c))) ∧
-      (D.pinC e).val ∉ (⋃ e' ∈ D.actPairs t, ({(D.pinB e').val, (D.pinD e').val} : Set (Edge c))) := by
+      (D.pinC e).val ∉
+          (⋃ e' ∈ D.actPairs t, ({(D.pinB e').val, (D.pinD e').val} : Set (Edge c))) := by
   have check (g : D.Q.external) (hg_end : g ∈ D.Q.quotient.incidenceSet (D.Q.quotient.src e.val) \
       {e.val} ∪ D.Q.quotient.incidenceSet (D.Q.quotient.tgt e.val) \ {e.val})
       (hg_ne_B : g.val ≠ (D.pinB e).val) (hg_ne_D : g.val ≠ (D.pinD e).val) :
@@ -606,8 +610,10 @@ private theorem pinAC_notMem_masked (t : ℕ) {e : D.eqPairs} (he : e ∈ D.actP
       have hend₁ : src g.val ∈ D.pairVerts e ∨ tgt g.val ∈ D.pairVerts e := by
         rcases hg_end with hg₁ | hg₂
         · have hs₁ :=
-            (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.src e.val) e.val (Or.inl rfl)).2
-          have hm : g.val ∈ (graph c).edgeCut {v | v ∈ (D.Q.quotient.src e.val).val} \ {e.val.val} := by
+            (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.src e.val) e.val
+                (Or.inl rfl)).2
+          have hm : g.val ∈
+              (graph c).edgeCut {v | v ∈ (D.Q.quotient.src e.val).val} \ {e.val.val} := by
             have := Fintype.ofFinite (Edge c)
             have hspec := (Multigraph.outerLow_outerHigh_spec (D.h3 ⟨e.val, e.property.1⟩) D.score
               (v := D.Q.quotient.src e.val) (Or.inl rfl)).2.1
@@ -619,8 +625,10 @@ private theorem pinAC_notMem_masked (t : ℕ) {e : D.eqPairs} (he : e ∈ D.actP
           · exact D.pinA_end e
           · exact D.pinB_end e
         · have hs₂ :=
-            (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.tgt e.val) e.val (Or.inr rfl)).2
-          have hm : g.val ∈ (graph c).edgeCut {v | v ∈ (D.Q.quotient.tgt e.val).val} \ {e.val.val} := by
+            (D.block_edgeCut_sdiff ⟨e.val, e.property.1⟩ (D.Q.quotient.tgt e.val) e.val
+                (Or.inr rfl)).2
+          have hm : g.val ∈
+              (graph c).edgeCut {v | v ∈ (D.Q.quotient.tgt e.val).val} \ {e.val.val} := by
             have := Fintype.ofFinite (Edge c)
             have hspec := (Multigraph.outerLow_outerHigh_spec (D.h3 ⟨e.val, e.property.1⟩) D.score
               (v := D.Q.quotient.tgt e.val) (Or.inr rfl)).2.1
@@ -917,12 +925,14 @@ private theorem effective_cut_le {lam B_sup : ℝ} (hlam0 : 0 ≤ lam) (hlam1 : 
           rcases hg_pair x₁ with h | h <;> rw [h] <;> exact Subtype.prop _
         let gx : D.Q.external := ⟨g_of x₁, hg_ext⟩
         have hm₁ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₁.val) x₁.val,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₁.val) x₁.val} : Set D.Q.external) := by
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt
+                x₁.val) x₁.val} : Set D.Q.external) := by
           rcases hg_pair x₁ with h | h
           · exact Or.inl (Subtype.ext h)
           · exact Or.inr (Subtype.ext h)
         have hm₂ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₂.val) x₂.val,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₂.val) x₂.val} : Set D.Q.external) := by
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt
+                x₂.val) x₂.val} : Set D.Q.external) := by
           rcases hg_pair x₂ with h | h
           · exact Or.inl (Subtype.ext (hg_eq.trans h))
           · exact Or.inr (Subtype.ext (hg_eq.trans h))
@@ -1454,7 +1464,8 @@ private theorem ncard_newly_le [Finite ι] (hm : ∀ v, (N.readAt v).ncard ≤ 1
     · exact (hi₂ ⟨v, hv_old, hsite⟩).elim
   refine (ncard_le_ncard hsub).trans ?_
   rcases D.stepLayout.symm ⟨t, ht⟩ with u | e
-  · have hread_eq : N.readIn {u.val} = N.readAt u.val := by ext i; simp [Network.readIn, Network.readAt]
+  · have hread_eq : N.readIn {u.val} =
+      N.readAt u.val := by ext i; simp [Network.readIn, Network.readAt]
     dsimp only [nodeVerts]
     rw [hread_eq]
     exact hm u.val
@@ -1584,7 +1595,8 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       have hd_t : (graph c).tgt g ∈ D.nodeVerts x → (graph c).tgt g ∉ D.pastVerts t :=
         fun h => disjoint_left.mp hdisj h
       tauto
-    have hwit : ∀ e ∈ A_lost, ∃ g ∈ E_touch, g ∈ ({(D.pinB e).val, (D.pinD e).val} : Set (Edge c)) := by
+    have hwit : ∀ e ∈ A_lost, ∃ g ∈ E_touch, g ∈
+        ({(D.pinB e).val, (D.pinD e).val} : Set (Edge c)) := by
       rintro e ⟨he_t, he_not⟩
       have hinr_1 : .inr e ∈ D.stepLayout.initial (t + 1) :=
         lt_of_lt_of_le he_t.1 (Nat.le_succ t)

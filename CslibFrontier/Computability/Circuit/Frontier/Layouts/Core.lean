@@ -84,7 +84,8 @@ theorem Saturated.add_three_le_ncard_incidenceSet_quotient (hc : c.Saturated) (e
   have hYC' := hc _ Y.property _ C.property (fun h => by grind [Subtype.ext h]) hYC
   have hfin : (G.edgeCut {v | v ∈ B.val} ∪ G.edgeCut {v | v ∈ B'.val}).Finite := by
     refine ((finite_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ B.val} ∪ {v | v ∈ B'.val}))
-      (by omega)).union (finite_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ Y.val} ∪ {v | v ∈ C.val}))
+      (by omega)).union (finite_of_ncard_ne_zero (s :=
+          G.edgeCut ({v | v ∈ Y.val} ∪ {v | v ∈ C.val}))
       (by omega))).subset fun g hg => ?_
     simp only [mem_edgeCut, mem_union, mem_ofPred_eq, c.mem_iff_blockOf_eq] at hg ⊢
     rcases hY with rfl | rfl <;> grind

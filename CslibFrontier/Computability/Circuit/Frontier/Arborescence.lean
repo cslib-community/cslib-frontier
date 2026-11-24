@@ -427,7 +427,8 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
             refine Finset.sum_bij (fun u _ => (⟨u.val, u.property.1⟩ : W))
               (fun u _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, u.property.2⟩)
               (fun _ _ _ _ h => Subtype.ext (Subtype.mk.inj h))
-              (fun u hu => ⟨⟨u.val, u.property, (Finset.mem_filter.mp hu).2⟩, Finset.mem_univ _, rfl⟩)
+              (fun u hu =>
+                  ⟨⟨u.val, u.property, (Finset.mem_filter.mp hu).2⟩, Finset.mem_univ _, rfl⟩)
               (fun _ _ => rfl)
           rw [hsub_sum]
           exact Finset.sum_le_sum_of_subset (Finset.subset_univ Rfin)

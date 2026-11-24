@@ -86,7 +86,7 @@ theorem blockSensitivityAt_eq_queryComplexity_blockSensitivityAt (f : BooleanFun
     · exfalso
       apply h
       refine ⟨fun A hA B hB hAB => hdisj hA hB hAB, fun B hB => ⟨?_, ?_⟩⟩
-      · rw [Finset.nonempty_iff_ne_empty]
+      · rw [← Finset.ne_empty_iff_nonempty]
         rintro rfl
         exact hsens _ hB (by rw [BitString.flipBlock_empty])
       · rw [BitString.flipOn_eq_flipBlock]

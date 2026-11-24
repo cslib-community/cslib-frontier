@@ -56,7 +56,7 @@ example : ∃ (i : Fin 3) (b : Bool), (fun x : Fin 3 → Bool => x 0) = fun x =>
 /-- The sign of a coordinate has mean `0` and variance `1`. -/
 theorem expect_sub_expect_sq_signVal_apply :
     𝔼 x : Fin 2 → Bool, (signVal (x 0) - 𝔼 y : Fin 2 → Bool, signVal (y 0)) ^ 2 = 1 := by
-  simp only [← chi_singleton, expect_chi, singleton_ne_empty, ite_false, sub_zero, sq,
+  simp only [← chi_singleton, expect_chi, (singleton_nonempty _).ne_empty, ite_false, sub_zero, sq,
     chi_mul_chi, symmDiff_self, bot_eq_empty, ite_true]
 
 -- Theorem 9.7 applies, nonvacuously, to the degree-one function `x ↦ x_0`.

@@ -178,7 +178,7 @@ theorem exists_nine_div_sq_mul_one_ninth_rpow_le_influence (f : (ι → Bool) �
           refine sum_le_sum fun S _ => ?_
           split_ifs with h
           · exact le_mul_of_one_le_left (by positivity)
-              (Nat.one_le_cast.2 (card_pos.2 (nonempty_iff_ne_empty.2 h)))
+              (Nat.one_le_cast.2 (card_pos.2 (ne_empty_iff_nonempty.1 h)))
           · positivity
       _ = ∑ j, ∑ S with j ∈ S, (1 / 3 : ℝ) ^ #S * fourierCoeff F S ^ 2 := by
           simp only [sum_filter]
@@ -287,7 +287,7 @@ private theorem sum_sum_filter_mem_fourierCoeff_sq_div_card (f : (ι → Bool) �
   refine sum_congr rfl fun S _ => ?_
   rw [sum_ite_mem, univ_inter, sum_const, nsmul_eq_mul]
   split_ifs with hS
-  · rw [mul_div_cancel₀ _ (Nat.cast_ne_zero.2 (card_ne_zero.2 (nonempty_iff_ne_empty.2 hS)))]
+  · rw [mul_div_cancel₀ _ (Nat.cast_ne_zero.2 (card_ne_zero.2 (ne_empty_iff_nonempty.1 hS)))]
   · simp [not_not.1 hS]
 
 /-- The weight `∑_{S ∋ i} f̂(S) ^ 2 / |S|` is at most the influence of `i`. -/

@@ -170,7 +170,8 @@ theorem zeroSumMatrix_eq_zero_of_mem_lowDegree {a D : ℕ} {h : (ι → Bool) �
   ext I J
   rw [zeroSumMatrix_apply_eq_subsetMobius, Matrix.zero_apply]
   refine subsetMobius_eq_zero_of_mem_lowDegree hh ?_
-  have hIJ : #(I.val ∪ J.val) ≤ 2 * a := (card_union_le _ _).trans (by rw [I.property, J.property, two_mul])
+  have hIJ : #(I.val ∪ J.val) ≤ 2 * a :=
+      (card_union_le _ _).trans (by rw [I.property, J.property, two_mul])
   rw [card_compl]
   omega
 

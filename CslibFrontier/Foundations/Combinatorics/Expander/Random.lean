@@ -151,7 +151,7 @@ end Count
 /-- For any natural number `s`, `s ^ s / s! ≤ 3 ^ s`. -/
 private theorem pow_div_factorial_le_three_pow (s : ℕ) : (s : ℝ) ^ s / s ! ≤ 3 ^ s :=
   (Real.pow_div_factorial_le_exp _ (Nat.cast_nonneg s) s).trans <| by
-    rw [← mul_one (s : ℝ), Real.exp_nat_mul]
+    rw [← mul_one (s : ℝ), Real.exp_natCast_mul]
     exact pow_le_pow_left₀ (Real.exp_pos 1).le (Real.exp_one_lt_d9.le.trans (by norm_num)) s
 
 /-- The arithmetic of the union bound: for `1 ≤ s`, `2 s ≤ n` and `9 s ≤ 10 k`, the `C(n, s)`

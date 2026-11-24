@@ -46,7 +46,8 @@ variable {h n : ℕ} [NeZero h]
 noncomputable def redG : G h (n + 1) →* G h n := Matrix.SpecialLinearGroup.map (red (n + 1))
 
 omit [NeZero h] in
-theorem redG_apply (g : G h (n + 1)) (a b : Fin h) : (redG g).val a b = red (n + 1) (g.val a b) := by
+theorem redG_apply (g : G h (n + 1)) (a b : Fin h) : (redG g).val a b =
+    red (n + 1) (g.val a b) := by
     rfl
 
 theorem s_sq (n : ℕ) : (s (n + 2) ^ (n + 1)) ^ 2 = 0 := by
@@ -225,7 +226,8 @@ theorem card_ker_redG : Nat.card (redG : G h (n + 1) →* G h n).ker = 2 ^ (h ^ 
   rw [← card_tr0]
   symm
   refine Nat.card_congr
-      (Equiv.ofBijective (fun A : tr0 h => ⟨lay A.val A.property, redG_lay A.val A.property⟩) ⟨?_, ?_⟩)
+      (Equiv.ofBijective (fun A : tr0 h => ⟨lay A.val A.property, redG_lay A.val A.property⟩)
+          ⟨?_, ?_⟩)
   · intro A B e
     have := congrArg (fun g : (redG : G h (n + 1) →* G h n).ker => g.val.val) e
     exact Subtype.ext (layMat_injective this)

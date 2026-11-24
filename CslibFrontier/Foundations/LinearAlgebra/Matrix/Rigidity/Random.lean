@@ -235,7 +235,8 @@ private theorem card_submodule_finrank_eq_lt {r : ℕ} (hr : r ≤ Fintype.card 
             · rw [Submodule.span_le]
               rintro _ ⟨i, rfl⟩
               exact (s'.val i).property
-            · rw [finrank_span_eq_card (s'.property.map' W.subtype W.ker_subtype), Fintype.card_fin, hWr]⟩
+            · rw [finrank_span_eq_card (s'.property.map' W.subtype W.ker_subtype), Fintype.card_fin,
+                hWr]⟩
         invFun := fun s =>
           ⟨fun i => ⟨s.val.val i, s.property.le (Submodule.subset_span ⟨i, rfl⟩)⟩,
             LinearIndependent.of_comp W.subtype s.val.property⟩
@@ -310,7 +311,7 @@ theorem card_rank_le_mul_lt (r : ℕ) :
         S.biUnion fun W => {B : Matrix m n K | ∀ i, B.row i ∈ W} := by
       intro B hB
       have hBr : B.rank ≤ r := (mem_filter.mp hB).2
-      rw [B.rank_eq_finrank_span_row] at hBr
+      rw [← B.finrank_span_range_row] at hBr
       obtain ⟨W, hUW, hW⟩ := exists_submodule_le_finrank_eq
         (Submodule.span K (Set.range B.row)) hBr (by rwa [Module.finrank_fintype_fun_eq_card])
       refine mem_biUnion.mpr ⟨W, mem_filter.mpr ⟨mem_univ _, hW⟩, mem_filter.mpr ⟨mem_univ _, ?_⟩⟩

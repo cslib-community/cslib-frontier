@@ -138,7 +138,7 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
     · obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq v hv
       exact congrFun hg u
     · exact apply_eq_zero_of_mem_nisanRowSpace hf g.property (by omega)
-  rw [Matrix.rank_eq_finrank_span_row, hrow, Submodule.span_image,
+  rw [← Matrix.finrank_span_range_row, hrow, Submodule.span_image,
     ← LinearMap.finrank_range_of_inj hinj, LinearMap.range_comp, Submodule.range_subtype]
   rfl
 

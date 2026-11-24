@@ -192,7 +192,7 @@ theorem eval_const [Nonempty ι] (y : Set.Icc a b) : E.eval (fun _ => y) = y := 
   · refine le_finMin y.property.2 fun S _ => ?_
     rcases eq_or_ne S ∅ with rfl | hS
     · rw [E.boundary_empty]; exact le_max_of_le_left y.property.2
-    · obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr hS
+    · obtain ⟨i₀, hi₀⟩ := Finset.ne_empty_iff_nonempty.mp hS
       exact le_max_of_le_right (mem_le_finMax a (fun _ => (y : ℝ)) hi₀)
 
 theorem eval_surjective [Nonempty ι] : Function.Surjective E.eval :=

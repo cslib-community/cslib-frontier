@@ -143,7 +143,8 @@ private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Boo
         T ⟨((2 + 2 * i.val) - 2) / 2, by have := i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).2
     else
       ((appendLinearEquiv m m).symm x).2 +
-        T ⟨((2 + 2 * i.val) - 2) / 2, by have := i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).1) =
+        T ⟨((2 + 2 * i.val) - 2) / 2, by have :=
+            i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).1) =
     projLeft m x + T i (projRight m x)
   rw [dite_eq_right (by omega), dite_eq_right (by omega), ite_eq_left (by omega)]
   exact congrArg (fun k => projLeft m x + T k (projRight m x)) (by fin_index)
@@ -155,10 +156,12 @@ private theorem basicCond_odd {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool
     else if h1 : (2 + 2 * i.val + 1) = 1 then ((appendLinearEquiv m m).symm x).2
     else if ((2 + 2 * i.val + 1) - 2) % 2 = 0 then
       ((appendLinearEquiv m m).symm x).1 +
-        T ⟨((2 + 2 * i.val + 1) - 2) / 2, by have := i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).2
+        T ⟨((2 + 2 * i.val + 1) - 2) / 2, by have :=
+            i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).2
     else
       ((appendLinearEquiv m m).symm x).2 +
-        T ⟨((2 + 2 * i.val + 1) - 2) / 2, by have := i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).1) =
+        T ⟨((2 + 2 * i.val + 1) - 2) / 2, by have :=
+            i.isLt; omega⟩ ((appendLinearEquiv m m).symm x).1) =
     projRight m x + T i (projLeft m x)
   rw [dite_eq_right (by omega), dite_eq_right (by omega), ite_eq_right (by omega)]
   exact congrArg (fun k => projRight m x + T k (projLeft m x)) (by fin_index)

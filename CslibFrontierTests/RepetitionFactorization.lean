@@ -66,7 +66,8 @@ example [Nonempty A] [Nonempty B] (ha : (Fin 1 → X) → Fin 1 → A)
   have hC : ∃ q ∈ G.winsOn ha hb ∅, q ∈ (G.pow 1).questions.support := ⟨q, by simp, hq⟩
   let j : {i // i ∉ (∅ : Finset (Fin 1))} := ⟨0, Finset.notMem_empty 0⟩
   -- `S` has no questions, halves or answers.
-  let s₀ : Shared X Y A B (∅ : Finset (Fin 1)) j := ⟨fun i => absurd i.property (Finset.notMem_empty _),
+  let s₀ : Shared X Y A B (∅ : Finset (Fin 1)) j :=
+      ⟨fun i => absurd i.property (Finset.notMem_empty _),
     fun i => absurd (Subtype.ext (Subsingleton.elim _ _)) i.property,
     fun i => absurd i.property (Finset.notMem_empty _)⟩
   have hS : ∀ ω, shared ha hb j ω = s₀ := by

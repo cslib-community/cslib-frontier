@@ -949,7 +949,7 @@ theorem exists_isPolytopeFace_ssubset_of_ne_vertexCentroid {P : Set E} (hP : IsP
         linarith [hP.apply_vertexCentroid_lt ⟨x, hx⟩ (fun w hw => (hPL ▸ hw) ℓ hℓ) hx
           (((hPL ▸ hx) ℓ hℓ).lt_of_ne hne0)]
       rw [hb0, h0x, sub_zero, mul_zero, add_zero]
-  have hLinc_ne : Linc.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt =>
+  have hLinc_ne : Linc.Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt =>
     ray_not_bounded hbnd hxne fun t ht => hline (by linarith) (by simp [hmt])
   obtain ⟨ℓ₀, hℓ₀, hmin⟩ := Linc.exists_min_image (fun ℓ => (-ℓ b) / (ℓ x - ℓ b)) hLinc_ne
   obtain ⟨hℓ₀L, hℓ₀_lt, hℓ₀_inc⟩ := by

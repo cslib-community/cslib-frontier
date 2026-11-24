@@ -567,7 +567,8 @@ theorem mem_pairNodeVerts_of_notMem {G : Multigraph V E} {M M_clean : Set E} {sc
     (hv : v ∉ G.matchedVertices (G.equalKeyPairs M M_clean score)) :
     v ∈ G.pairNodeVerts M M_clean score S ↔ .inl ⟨v, hv⟩ ∈ S := by
   simp only [pairNodeVerts, mem_ofPred_eq]
-  exact ⟨fun h => h.elim (fun ⟨_, hm⟩ => hm) (fun ⟨e, hev, _⟩ => (hv ⟨e.val, e.property, hev⟩).elim),
+  exact ⟨fun h => h.elim (fun ⟨_, hm⟩ => hm)
+      (fun ⟨e, hev, _⟩ => (hv ⟨e.val, e.property, hev⟩).elim),
     fun hm => Or.inl ⟨hv, hm⟩⟩
 
 theorem mem_pairNodeVerts_of_mem {G : Multigraph V E} {M M_clean : Set E}

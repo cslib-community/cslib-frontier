@@ -182,7 +182,7 @@ theorem exp_neg_two_mul_le_of_sq_expect_abs_le {k : ℕ} {f : (ι → Bool) → 
   have h22 := lpNorm_two_le_exp_mul_lpNorm_one hf
   rw [lpNorm_two, lpNorm_one] at h22
   have hsq := pow_le_pow_left₀ (Real.sqrt_nonneg _) h22 2
-  rw [Real.sq_sqrt hm.le, mul_pow, ← Real.exp_nat_mul, Nat.cast_ofNat] at hsq
+  rw [Real.sq_sqrt hm.le, mul_pow, ← Real.exp_natCast_mul, Nat.cast_ofNat] at hsq
   -- `𝔼 f ^ 2 ≤ e ^ (2 k) (𝔼 |f|) ^ 2 ≤ e ^ (2 k) C 𝔼 f ^ 2`, so `1 ≤ e ^ (2 k) C`
   have h1 : 1 * 𝔼 x, f x ^ 2 ≤ (Real.exp (2 * k) * C) * 𝔼 x, f x ^ 2 := by
     calc 1 * 𝔼 x, f x ^ 2 ≤ Real.exp (2 * k) * (𝔼 x, |f x|) ^ 2 := by rwa [one_mul]

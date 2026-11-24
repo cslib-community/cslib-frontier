@@ -268,7 +268,8 @@ theorem second_trace_le_sum_local :
   calc ∑ M', ((pathMatrix p)ᵀ * pathMatrix p) M M' * ((pathMatrix p)ᵀ * pathMatrix p) M' M
       ≤ ∑ M' : Slice p (p.a, p.b), ∑ W : Quad p.n,
           (if Link W.1 M.val M'.val then √(W.1.1.coeff p M.val) * √(W.1.2.coeff p M'.val) else 0) *
-            if Link W.2 M.val M'.val then √(W.2.1.coeff p M.val) * √(W.2.2.coeff p M'.val) else 0 := by
+            if Link W.2 M.val M'.val then √(W.2.1.coeff p M.val) *
+                √(W.2.2.coeff p M'.val) else 0 := by
         refine Finset.sum_le_sum fun M' _ => ?_
         rw [hsymm M M']
         refine (mul_le_mul (gram_le M M') (gram_le M M') (gram_nonneg M M')

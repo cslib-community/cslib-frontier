@@ -576,7 +576,7 @@ theorem dist_glauberColoringOn_frozen_le_of_le (hq : 2 * G.maxDegree < q) {U : F
       ≤ Real.exp (-(c / U.card)) ^ t * U.card := by
         gcongr; linarith [Real.add_one_le_exp (-(c / U.card))]
     _ = Real.exp (-(c * t / U.card)) * U.card := by
-        rw [← Real.exp_nat_mul]
+        rw [← Real.exp_natCast_mul]
         ring_nf
     _ ≤ Real.exp (-(c * t / n)) * n := by
         refine mul_le_mul (Real.exp_le_exp.2 ?_) hkn hk.le (Real.exp_pos _).le

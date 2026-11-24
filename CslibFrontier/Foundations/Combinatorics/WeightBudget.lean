@@ -95,7 +95,7 @@ theorem sum_neg_log_one_sub_exp_le {θ : ℝ} (hθ : 0 < θ) (s : Finset ℕ) (h
   have hq0 : 0 ≤ q := (exp_pos _).le
   have hq1 : q < 1 := exp_lt_one_iff.2 (neg_lt_zero.2 hy0)
   have hpow : ∀ j : ℕ, exp (-(θ * j)) ^ (h + 1) = q ^ j := fun j => by
-    rw [hq, ← exp_nat_mul, ← exp_nat_mul, hy]
+    rw [hq, ← exp_natCast_mul, ← exp_natCast_mul, hy]
     push_cast
     ring_nf
   have hgeo : ∑ j ∈ s, q ^ j ≤ (1 - q)⁻¹ - 1 := by
@@ -160,7 +160,7 @@ theorem card_le_exp_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ} (hw
   -- Group the coordinates by weight.
   have h4 : ∑ i, -log (1 - x ^ w i) ≤ m * (π ^ 2 / (6 * θ)) := by
     have hxj : ∀ j : ℕ, x ^ j = exp (-(θ * j)) := fun j => by
-      rw [hx, ← exp_nat_mul]
+      rw [hx, ← exp_natCast_mul]
       ring_nf
     have hnn : ∀ j ∈ univ.image w, 0 ≤ -log (1 - x ^ j) := by
       intro j hj
@@ -181,7 +181,7 @@ theorem card_le_exp_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ} (hw
       _ ≤ m * (π ^ 2 / (6 * θ)) :=
           mul_le_mul_of_nonneg_left (sum_neg_log_one_sub_exp_le hθ _ h0) (Nat.cast_nonneg m)
   have hxp : x ^ p * exp (θ * p) = 1 := by
-    rw [hx, ← exp_nat_mul, ← exp_add]
+    rw [hx, ← exp_natCast_mul, ← exp_add]
     ring_nf
     exact exp_zero
   calc (#S : ℝ) = #S * x ^ p * exp (θ * p) := by rw [mul_assoc, hxp, mul_one]
@@ -239,7 +239,7 @@ theorem card_le_two_pow_of_sum_mul_lt {ι : Type*} [Fintype ι] {w : ι → ℕ}
           calc a * b * (1 + π ^ 2 / 6) ≤ (n + 1) * (4 * log 2) :=
                 mul_le_mul hab one_add_pi_sq_div_six_le h1 (by positivity)
             _ = ((4 * n + 4 : ℕ) : ℝ) * log 2 := by push_cast; ring
-      _ = 2 ^ (4 * n + 4) := by rw [exp_nat_mul, exp_log two_pos]
+      _ = 2 ^ (4 * n + 4) := by rw [exp_natCast_mul, exp_log two_pos]
   exact_mod_cast hreal
 
 end Cslib

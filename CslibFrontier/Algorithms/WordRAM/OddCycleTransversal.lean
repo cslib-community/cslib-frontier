@@ -92,7 +92,8 @@ open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure c
 @[expose] def encodeAdjMatrix {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] : List ℕ :=
   List.ofFn fun idx : Fin (n * n) =>
     if G.Adj ⟨idx.val / n, Nat.div_lt_of_lt_mul idx.isLt⟩
-        ⟨idx.val % n, Nat.mod_lt _ (Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt idx.isLt))⟩ then 1 else 0
+        ⟨idx.val % n,
+            Nat.mod_lt _ (Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt idx.isLt))⟩ then 1 else 0
 
 /-- Word-RAM input word list `n :: k :: encodeAdjMatrix G`. -/
 @[expose] def encodeInput {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
@@ -3972,7 +3973,8 @@ private theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Me
     (hW : WListSpec Wset L s) (hdig : ∀ j < L, s.mem (digitBase n + j) ≤ 2) :
     let t := (Memory.spec 0).clientState s (unpackGuessProg (n, L))
     (∀ a < guessBase n, t.mem a = s.mem a) ∧
-      (∀ j : Fin L, t.mem (guessBase n + s.mem (wListBase n + j.val)) = s.mem (digitBase n + j.val)) ∧
+      (∀ j : Fin L, t.mem (guessBase n + s.mem (wListBase n + j.val)) =
+          s.mem (digitBase n + j.val)) ∧
       (∀ v : Fin n, v ∉ Wset → t.mem (guessBase n + v.val) = 0) ∧
       (∀ v : Fin n, t.mem (guessBase n + v.val) ≤ 2) := by
   intro t
@@ -4433,7 +4435,8 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
             exact ⟨hv_notW, u, huW, huD, hadj, hne⟩
           · rintro ⟨_, u, huW, huD, hadj, hne⟩
             obtain ⟨idx, hidx⟩ := (hW.mem_iff_exists u).mp huW
-            have hui : (⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩ : Fin n) = u :=
+            have hui : (⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩ : Fin n) =
+                u :=
               Fin.ext hidx
             have hgu := hg_eq idx
             have hpos : 0 < s.mem (digitBase n + idx.val) := by
@@ -4457,7 +4460,8 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
             exact ⟨hv_notW, u, huW, huD, hadj, heq⟩
           · rintro ⟨_, u, huW, huD, hadj, heq⟩
             obtain ⟨idx, hidx⟩ := (hW.mem_iff_exists u).mp huW
-            have hui : (⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩ : Fin n) = u :=
+            have hui : (⟨s.mem (wListBase n + idx.val), hW.entry_lt idx.val idx.isLt⟩ : Fin n) =
+                u :=
               Fin.ext hidx
             have hgu := hg_eq idx
             have hpos : 0 < s.mem (digitBase n + idx.val) := by
@@ -4741,7 +4745,8 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
     rw [ite_eq_right hvW]
     have hc_le := hcol01 v
     by_cases hd : s.mem (distBase n + (outIdx v).val) < splitCount n <;>
-      rcases (by omega : s.mem (colBase n + v.val) = 0 ∨ s.mem (colBase n + v.val) = 1) with hc | hc <;>
+      rcases (by omega : s.mem (colBase n + v.val) = 0 ∨
+          s.mem (colBase n + v.val) = 1) with hc | hc <;>
       simp [hd, hc]
 
 private def OctStateAt {n : ℕ} (G : SimpleGraph (Fin n)) (m k : ℕ) (t : Memory.State) : Prop :=
@@ -5176,7 +5181,8 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
   have hc₀_s2 : (fun v : Fin n => s2.mem (colBase n + v.val) == 1) = c₀ := by
     funext v
     dsimp only [c₀]
-    rw [hs2_eq, hs1_low (colBase n + v.val) (by dsimp only [colBase, guessBase]; have := v.isLt; omega)]
+    rw [hs2_eq,
+        hs1_low (colBase n + v.val) (by dsimp only [colBase, guessBase]; have := v.isLt; omega)]
   have hdel_s2 : delSet Wset s2 = delSet Wset s1 := by ext w; simp [delSet, hs2_eq]
   have hgcol_s2 : guessCol n s2 = guessCol n s1 := by funext w; unfold guessCol; rw [hs2_eq]
   let N := splitNet G m s3
@@ -5691,7 +5697,8 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
               have hdig_eq := eq_of_base3At_eq hdig hdgTarget_le heq_tar
               have hdig_u : ∀ j : Fin L, u.mem (digitBase n + j.val) =
                   if (⟨u.mem (wListBase n + j.val), huW.entry_lt j.val j.isLt⟩ : Fin n) ∈ T then 0
-                  else if cT ⟨u.mem (wListBase n + j.val), huW.entry_lt j.val j.isLt⟩ then 2 else 1 := by
+                  else if cT ⟨u.mem (wListBase n + j.val),
+                      huW.entry_lt j.val j.isLt⟩ then 2 else 1 := by
                 intro j
                 have hL_le := hW.card_le_n
                 have hwl_u : u.mem (wListBase n + j.val) = s.mem (wListBase n + j.val) :=
@@ -5831,8 +5838,10 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
   set s_col := (Memory.spec 0).clientState s_sep (fillRange ((colBase n, 0), n))
   have hs_col := fillRange_spec (colBase n) 0 n s_sep
   have hs_col_G : MatrixLoaded G s_col := fun u v => by
-    have ha1 : 3 + u.val * n + v.val < colBase n := by dsimp only [colBase]; nlinarith [u.isLt, v.isLt]
-    have ha2 : 3 + u.val * n + v.val < sepBase n := by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt]
+    have ha1 : 3 + u.val * n + v.val <
+        colBase n := by dsimp only [colBase]; nlinarith [u.isLt, v.isLt]
+    have ha2 : 3 + u.val * n + v.val <
+        sepBase n := by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt]
     rw [hs_col.2 _ (Or.inl ha1), hs_sep.2 _ (Or.inl ha2), hs_al_pre _ ha2]
     exact hG₀ u v
   have hoct0 : OctStateAt G 0 k s_col := by
@@ -5966,7 +5975,8 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
         set tC := (Memory.spec 0).clientState tW (compressProg (((n, k), m + 1), L))
         dsimp only [LoopInv]
         refine ⟨by omega,
-          fun u v => (hcp_low _ (by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt])).trans (hG_tW u v),
+          fun u v => (hcp_low _ (by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt])).trans (hG_tW
+              u v),
           hcp_le, hcp_sound, fun hok0 ⟨T, hToct, hTk⟩ => ?_⟩
         have h1 : ok = 1 := hcp_comp ⟨T, hToct.anti (prefixGraph_le G (m + 1)), hTk⟩
         omega
@@ -6046,7 +6056,8 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
   refine ⟨htotal_cost, hal_end_le, ⟨fun h1 => ?_, fun hex => ?_⟩, hal_end_1⟩
   · obtain ⟨_, hcard, hprop⟩ := hal_end_1 h1
     let S := Finset.univ.filter fun v : Fin n => s_end.mem (sepBase n + v.val) = 1
-    refine ⟨S, isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v => s_end.mem (colBase n + v.val) == 1,
+    refine ⟨S,
+        isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v => s_end.mem (colBase n + v.val) == 1,
       fun u v hadj hu hv => ?_⟩, hcard⟩
     rw [← prefixGraph_of_le G (le_refl n)] at hadj
     exact hprop u v hadj hu hv

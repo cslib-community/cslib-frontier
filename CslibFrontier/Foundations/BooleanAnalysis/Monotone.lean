@@ -198,7 +198,7 @@ theorem sum_fourierCoeff_singleton_sq_le (g : (ι → Bool) → ℝ) :
     _ ≤ ∑ S with S ≠ ∅, fourierCoeff g S ^ 2 := by
         refine sum_le_sum_of_subset_of_nonneg (fun S hS => ?_) fun _ _ _ => sq_nonneg _
         obtain ⟨i, -, rfl⟩ := mem_image.1 hS
-        exact mem_filter.2 ⟨mem_univ _, singleton_ne_empty i⟩
+        exact mem_filter.2 ⟨mem_univ _, (singleton_nonempty i).ne_empty⟩
 
 /-- **The degree-one coefficients sum to at most `√(n σ²)` in absolute value**, in squared form:
 `(∑ i, |ĝ({i})|) ^ 2 ≤ n σ²`, by Cauchy–Schwarz, since the degree-one weight is at most the variance

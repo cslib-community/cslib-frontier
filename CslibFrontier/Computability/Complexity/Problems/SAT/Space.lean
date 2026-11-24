@@ -93,7 +93,8 @@ theorem acceptCount_distinctVerifier (φ : CNF ℕ) :
     have hlt : i.val < vs.length := by rw [hlen]; exact i.isLt
     dsimp only
     rw [hnd.idxOf_getElem i.val hlt]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn, i.isLt, ↓reduceDIte, Option.getD_some]
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn, i.isLt, ↓reduceDIte,
+        Option.getD_some]
   · rintro ⟨σ, hσ, rfl⟩
     refine (CNF.eval_congr fun v hv => ?_).trans hσ
     have hmem : v ∈ vs := CNF.mem_distinctVars.2 hv

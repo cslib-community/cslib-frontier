@@ -326,7 +326,8 @@ private theorem sum_footprint_eq_zero {m : ℕ} (A : Set (Fin m → Bool))
   have hsupp_ne : supp.Nonempty := by
     obtain ⟨I, hI⟩ := hex
     exact ⟨I, mem_filter.mpr ⟨Finset.mem_univ I, hI⟩⟩
-  obtain ⟨I₀, hI₀, hmax⟩ := exists_max_image supp (fun I : footprint A => monomialCode I.val) hsupp_ne
+  obtain ⟨I₀, hI₀, hmax⟩ :=
+      exists_max_image supp (fun I : footprint A => monomialCode I.val) hsupp_ne
   have hsum_supp : ∑ I ∈ supp, g I • monomialCol A I.val = 0 := by
     rw [← hsum]
     exact Finset.sum_subset (subset_univ supp) fun I _ hIn => by
@@ -768,7 +769,8 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
     have hmul : BitString.monomial (ZMod 2) (μ (j₁, j₂)).val (z (i, k)) =
         BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁) (z (i, k)) *
           BitString.monomial (ZMod 2) ((J₂ j₂).val.map emb₂) (z (i, k)) := by
-      change (BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁ ∪ (J₂ j₂).val.map emb₂)) (z (i, k)) = _
+      change (BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁ ∪ (J₂ j₂).val.map emb₂)) (z
+          (i, k)) = _
       rw [← BitString.monomial_mul]
       rfl
     have hzX : ∀ x : X, z (i, k) x.val = a i x := fun x => by
@@ -819,7 +821,8 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
     · refine Finset.sum_congr rfl fun S _ => ?_
       have h1 : eIdx (Sum.inr S) = S.val := rfl
       have h2 : eCoeff (C, cr) S.val = cr S := by
-        change (if h : S.val ∈ Set.range μ then C (eRange.symm ⟨S.val, h⟩) else cr ⟨S.val, h⟩) = cr S
+        change (if h : S.val ∈ Set.range μ then C (eRange.symm ⟨S.val, h⟩) else cr ⟨S.val, h⟩) =
+            cr S
         simp only [S.property, ↓reduceDIte]
         exact congrArg cr (Subtype.ext rfl)
       rw [h1, h2]
@@ -862,7 +865,8 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
           P (fun q => evalPoly (eCoeff p0) (z q))} := by
       rw [← Fintype.card_subtype, ← Fintype.card_subtype]
       exact Fintype.card_congr
-        { toFun := fun c => ⟨eCoeff.symm c.val, by simpa only [Equiv.apply_symm_apply] using c.property⟩
+        { toFun := fun c =>
+            ⟨eCoeff.symm c.val, by simpa only [Equiv.apply_symm_apply] using c.property⟩
           invFun := fun p0 => ⟨eCoeff p0.val, p0.property⟩
           left_inv := fun c => Subtype.ext (eCoeff.apply_symm_apply c.val)
           right_inv := fun p0 => Subtype.ext (eCoeff.symm_apply_apply p0.val) }

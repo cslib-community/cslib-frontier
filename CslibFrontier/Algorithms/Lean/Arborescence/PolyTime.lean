@@ -1557,7 +1557,8 @@ private theorem selectParentsList_eq {n : ℕ} [FinEnum (Fin n)]
     simp only [List.all_eq_true, List.mem_map, List.mem_range, forall_exists_index, and_imp,
       forall_apply_eq_imp_iff₂]
     refine ⟨fun h v hvr hnil => ?_, fun h k hk => ?_⟩
-    · have := h v.val v.isLt; rw [hfopt v, ite_eq_right (fun e => hvr e), hnil] at this; simp at this
+    · have :=
+        h v.val v.isLt; rw [hfopt v, ite_eq_right (fun e => hvr e), hnil] at this; simp at this
     · rw [hfopt ⟨k, hk⟩]; by_cases hvr : (⟨k, hk⟩ : Fin n) = r
       · simp [hvr]
       · obtain ⟨m, hm⟩ := List.exists_argmin_eq_some (f := tableCost c ⟨k, hk⟩) (h ⟨k, hk⟩ hvr)
@@ -1601,7 +1602,8 @@ private theorem finset_erase_eq_of_dec {α : Type*} (d₁ d₂ : DecidableEq α)
 
 private theorem cycleMaskList_eq {n : ℕ} [FinEnum (Fin n)]
     (hcard : FinEnum.card (Fin n) = n)
-    (f : List ℕ) (fV : Fin n → Fin n) (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val) (x0 y : Fin n) :
+    (f : List ℕ) (fV : Fin n → Fin n) (hf : ∀ v : Fin n, f.getD v.val 0 = (fV v).val)
+        (x0 y : Fin n) :
     (cycleMaskList n f x0.val).getD y.val false = true ↔ y ∈ cycleOf fV x0 := by
   unfold cycleMaskList
   rw [List.getD_map_range _ _ y.isLt, List.any_eq_true, mem_cycleOf]

@@ -1620,7 +1620,8 @@ private theorem validHistory_writeBit {w : ℕ} {d : ClusterInput} {s : Memory.S
       let oldWord ← Memory.read addr
       Memory.write addr (oldWord ^^^ (((oldWord >>> sh) &&& 1 ^^^ val) <<< sh)))) :=
   have hlt := masked_addr_lt (idx := slot) harr
-  ⟨hlt, ⟨hlt, fits_writeBit_newWord (hwf.mem_fits _) (Nat.and_le_right.trans_lt hcs.pBitMask_lt) hbit⟩,
+  ⟨hlt, ⟨hlt,
+      fits_writeBit_newWord (hwf.mem_fits _) (Nat.and_le_right.trans_lt hcs.pBitMask_lt) hbit⟩,
     trivial⟩
 
 @[local valid_prog]

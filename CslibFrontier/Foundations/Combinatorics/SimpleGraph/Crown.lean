@@ -356,7 +356,7 @@ theorem exists_isCrown_of_card_lt (hI : G.IsIndepSet I)
     hYmax Y' (Finset.mem_powerset.2 hY')
   have hpos := hYmax I le_rfl
   have hYne : Y.Nonempty := by
-    rw [Finset.nonempty_iff_ne_empty]
+    rw [← Finset.ne_empty_iff_nonempty]
     rintro rfl
     simp only [Finset.card_empty, Finset.biUnion_empty, Nat.cast_zero, sub_zero] at hpos
     omega
@@ -477,7 +477,7 @@ theorem exists_isCrown_forall_isCrown_eq_empty [Finite V] :
   have hCH : G.IsCrown C H := (Finset.mem_filter.1 hCH).2
   refine ⟨C, H, hCH, fun C' H' h' => ?_⟩
   by_contra hne
-  obtain ⟨c, hc⟩ := Finset.nonempty_iff_ne_empty.2 hne
+  obtain ⟨c, hc⟩ := Finset.ne_empty_iff_nonempty.1 hne
   have h'' := hCH.union_map h'
   have hle := hmax (C ∪ C'.map (Function.Embedding.subtype _),
     H ∪ H'.map (Function.Embedding.subtype _)) (Finset.mem_filter.2 ⟨Finset.mem_univ _, h''⟩)

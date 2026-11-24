@@ -227,7 +227,7 @@ theorem distToStationary_lazyRandomWalk_le_exp (t : ℕ) :
         refine pow_le_pow_left₀ (by linarith [inv_le_one_of_one_le₀ hn]) ?_ t
         linarith [Real.add_one_le_exp (-(Fintype.card ι : ℝ)⁻¹)]
     _ = Real.exp (-(t / Fintype.card ι)) := by
-        rw [← Real.exp_nat_mul]
+        rw [← Real.exp_natCast_mul]
         congr 1
         ring
 

@@ -642,10 +642,12 @@ private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
     polyOfBits_false_cons, map_mul, aeval_X, hfold, hfold, map_add, map_sum, map_mul,
     map_sum, add_mul, Finset.sum_mul, Finset.mul_sum, Finset.sum_mul]
   have hsub : ∀ i : Fin q,
-      T i.val (k - i).val = if i.val ≤ k.val then T i.val (k.val - i.val) else T i.val (q + k.val - i.val) := by
+      T i.val (k - i).val = if i.val ≤
+          k.val then T i.val (k.val - i.val) else T i.val (q + k.val - i.val) := by
     intro i; split_ifs with hik
     · rw [Fin.sub_val_of_le hik]
-    · rw [show (k - i).val = q + k.val - i.val by rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
+    · rw [show (k - i).val =
+        q + k.val - i.val by rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
   simp_rw [e, Equiv.coe_fn_mk, hsub]
   rw [Fin.sum_univ_eq_sum_range (fun i =>
     if i ≤ k.val then T i (k.val - i) else T i (q + k.val - i)) q]
@@ -659,7 +661,8 @@ private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
       have ht' := Finset.mem_range.mp ht
       rw [ite_eq_right (by omega : ¬ k.val + 1 + t ≤ k.val)]
       dsimp only [T]
-      rw [show k.val + 1 + t + (q + k.val - (k.val + 1 + t)) = q + k.val by omega, pow_add, hy]; ring)
+      rw [show k.val + 1 + t + (q + k.val - (k.val + 1 + t)) =
+          q + k.val by omega, pow_add, hy]; ring)
 
 private theorem evalL_shoupLFrobQ {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] {ζ : K} {y : L} {q : ℕ} (hq0 : 0 < q)
@@ -800,7 +803,8 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
   have heq : (∑ c : Fin (q + 1), v c • βL ^ c.val) =
       ∑ i : Fin q, (∑ j : Fin m, d i j • bK j) • bL i := by
     have hterm : ∀ c : Fin (q + 1), v c • βL ^ c.val = ∑ i : Fin q,
-        (∑ j : Fin m, (v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j.val false)) •
+        (∑ j : Fin m,
+            (v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j.val false)) •
           bK j) • bL i := fun c => by
       rw [← hpows_eval c.val c.isLt, evalL, Finset.smul_sum]
       refine Finset.sum_congr rfl fun i _ => ?_
@@ -828,14 +832,16 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
           ⟨idx.val % m, Nat.mod_lt _ hm0⟩ := fun idx => by
     simp only [Matrix.mulVec, dotProduct, rowsToZModMatrix, bitsToZModVec]
     exact Finset.sum_congr rfl fun c _ => by
-      rw [shoupMinPolyMatrix_getD_getD q m pows idx.isLt (by rw [hpows_len]; exact c.isLt), mul_comm]
+      rw [shoupMinPolyMatrix_getD_getD q m pows idx.isLt (by rw [hpows_len]; exact c.isLt),
+          mul_comm]
   rw [heq]
   constructor
   · intro h0
     refine Finset.sum_eq_zero fun i _ => by
       rw [Finset.sum_eq_zero fun j _ => ?_, zero_smul]
       have hidx : i.val * m + j.val < q * m := by nlinarith [i.isLt, j.isLt]
-      have hrow := (hmul ⟨i.val * m + j.val, hidx⟩).symm.trans (congrFun h0 ⟨i.val * m + j.val, hidx⟩)
+      have hrow :=
+          (hmul ⟨i.val * m + j.val, hidx⟩).symm.trans (congrFun h0 ⟨i.val * m + j.val, hidx⟩)
       dsimp only at hrow
       have hdiv : (⟨(i.val * m + j.val) / m,
           Nat.div_lt_of_lt_mul (mul_comm q m ▸ hidx)⟩ : Fin q) = i := Fin.ext (by

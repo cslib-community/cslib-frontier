@@ -410,7 +410,7 @@ theorem cutoffCorrectionFix_sub_iter_le (hf : 0 < f) (hθ : 0 < θ) (hL : 0 ≤ 
   have hexp : (1 + f) ^ m ≤ Real.exp (1 / θ) := by
     calc (1 + f) ^ m ≤ Real.exp f ^ m := by
           gcongr; linarith [Real.add_one_le_exp f]
-      _ = Real.exp (m * f) := by rw [← Real.exp_nat_mul]
+      _ = Real.exp (m * f) := by rw [← Real.exp_natCast_mul]
       _ ≤ Real.exp (1 / θ) := Real.exp_le_exp.mpr hm
   have hchoose : ((#(S.filter (· < y))).choose k : ℝ) ≤ (m : ℝ) ^ k / k.factorial :=
     (Nat.choose_le_pow_div k _).trans (by gcongr)

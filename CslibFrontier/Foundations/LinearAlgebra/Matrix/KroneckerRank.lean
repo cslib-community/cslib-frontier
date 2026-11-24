@@ -88,7 +88,7 @@ theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finty
   have : Finite μ := Finite.of_injective r hr
   let _ : Fintype μ := Fintype.ofFinite μ
   have hcard_r : Fintype.card μ = Fintype.card κ := by
-    rw [← hrank_sub, rank_eq_finrank_span_row, ← hspan_r, finrank_span_eq_card hli_r]
+    rw [← hrank_sub, ← finrank_span_range_row, ← hspan_r, finrank_span_eq_card hli_r]
   let ec : Fin A.rank ≃ κ := (Fintype.equivFinOfCardEq hcard_c).symm
   let er : Fin A.rank ≃ μ := (Fintype.equivFinOfCardEq (hcard_r.trans hcard_c)).symm
   refine ⟨r ∘ er, c ∘ ec, hr.comp er.injective, hc.comp ec.injective, ?_⟩

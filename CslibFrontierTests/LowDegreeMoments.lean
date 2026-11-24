@@ -38,7 +38,7 @@ theorem signVal_apply_mem_lowDegree :
 /-- The coordinate sign has mean `0` and variance `1`. -/
 theorem expect_sub_expect_sq_signVal_apply :
     𝔼 x : Fin 2 → Bool, (signVal (x 0) - 𝔼 y : Fin 2 → Bool, signVal (y 0)) ^ 2 = 1 := by
-  simp only [← chi_singleton, expect_chi, singleton_ne_empty, ite_false, sub_zero, sq,
+  simp only [← chi_singleton, expect_chi, (singleton_nonempty _).ne_empty, ite_false, sub_zero, sq,
     chi_mul_chi, symmDiff_self, bot_eq_empty, ite_true]
 
 /-- The coordinate sign has `L^2` norm `1`. -/

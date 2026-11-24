@@ -535,7 +535,7 @@ private theorem setup_exec_subroutineCode
     · simp only [subroutineCode, x₂,
         Data.extend_regs_of_notMem _ _ frontierReg_notMem_range_coreReg]
       exact hfr
-    · simpa only [Data.comap, Finset.union_idempotent] using hy_mod.trans hp_mod
+    · simpa only [Data.comap, Finset.union_self] using hy_mod.trans hp_mod
 
 private theorem prep_zero_subroutineCode
     (H : Impl B r_core k_init w base U m params)

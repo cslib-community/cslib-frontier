@@ -567,7 +567,7 @@ theorem span_row_rrefOfBareiss {A : Matrix (Fin m) (Fin n) K}
 theorem rank_rrefOfBareiss {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (hΔ : pivotDet A S C ≠ 0) :
     (rrefOfBareiss A S C).rank = A.rank := by
-  rw [rank_eq_finrank_span_row, rank_eq_finrank_span_row]
+  rw [← finrank_span_range_row, ← finrank_span_range_row]
   change Module.finrank K (Submodule.span K (Set.range (rrefOfBareiss A S C))) =
     Module.finrank K (Submodule.span K (Set.range A))
   rw [span_row_rrefOfBareiss hΔ]
@@ -620,7 +620,7 @@ theorem rank_eq_of_bareiss_terminal {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (hΔ : pivotDet A S C ≠ 0)
     (hterm : ∀ i : Fin m, (∀ a : Fin k, S a ≠ i) → ∀ j : Fin n, bareissMatrix A S C i j = 0) :
     A.rank = k := by
-  rw [rank_eq_finrank_span_row]
+  rw [← finrank_span_range_row]
   change Module.finrank K (Submodule.span K (Set.range A)) = k
   rw [← span_rowBasis_eq_of_bareiss_terminal hΔ hterm,
     finrank_span_eq_card (linearIndependent_row_of_pivotDet_ne_zero hΔ), Fintype.card_fin]

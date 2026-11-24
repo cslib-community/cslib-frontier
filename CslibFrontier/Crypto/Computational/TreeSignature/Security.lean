@@ -1110,7 +1110,8 @@ private theorem guardedTreeHandler_map {σ₁ σ₂ : Type} (depth : ℕ → ℕ
     (fun _ => PMF.pure ()) rep inv req s hinv_pure fun hm hb leaf hl hs => by
       obtain ⟨heq, hi⟩ := hgood hm hb leaf hl hs
       exact ⟨by rw [PMF.pure_bind, ← heq]; simp only [PMF.map, pmf_norm], hi⟩
-  exact ⟨by simpa only [PMF.map, pmf_norm] using congrArg (PMF.map Prod.snd) h.bind_eq, h.support_inv⟩
+  exact ⟨by simpa only [PMF.map, pmf_norm] using congrArg (PMF.map Prod.snd) h.bind_eq,
+      h.support_inv⟩
 
 private theorem guardedTreeHandler_support_inv {σ : Type} (depth : ℕ → ℕ) (n : ℕ)
     (body : TreeBody σ) (inv : TreeState σ → Prop)
@@ -1175,7 +1176,7 @@ private theorem toOuterMeasure_bad_guardedTreeHandler_le {α σ : Type} (depth :
         fun leaf _ hnot => ?_).trans ?_
       · have hmem : seen.contains leaf = false := Bool.eq_false_iff.mpr fun hc =>
           hnot (Finset.mem_coe.mpr (List.mem_toFinset.mpr (List.contains_iff_mem.mp hc)))
-        simp only [hmem, Bool.false_eq_true, ↓reduceIte, le_zero_iff,
+        simp only [hmem, Bool.false_eq_true, ↓reduceIte, nonpos_iff_eq_zero,
           PMF.toOuterMeasure_apply_eq_zero_iff]
         exact Set.disjoint_left.mpr fun x hx hbad => by supp_cases hx; cases hbad
       · rw [add_zero]
@@ -2581,7 +2582,8 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
   have hproj := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
     (fun s => ((nodesOf s.1.1 s.1.2.1, s.1.2.2.1), s.2)) _
-    (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s') hm)
+    (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s')
+        hm)
     (fun q s hs => (jointKeysHandler_lazy_step S depth hsigCap q s hs).map_eq)
     (adversary n pk) initJ hjInv
   have hexpRun := (ProbOracleComp.IsQueryBounded.run_interpret_bind_comm_of_invariant
@@ -2610,7 +2612,8 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
     refine PMF.bind_congr_on_support _ _ _ fun ⟨msig, st'⟩ hm_run => ?_
     have hjInv' := ProbOracleComp.run_interpret_invariant
       (jointKeysHandler S depth (sigCap n) n) (fun s => jointKeysInv S n root s.1)
-      (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s') hm)
+      (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s')
+          hm)
       (adversary n pk) initJ hjInv msig st' hm_run
     have hpos' : 0 < st'.1.1.length := hjInv'.1 ▸ hjInv'.2.2.2.2 ([], 0) (lookup_mem hjInv'.2.1)
     symm

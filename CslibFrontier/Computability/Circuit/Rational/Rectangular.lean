@@ -150,7 +150,7 @@ private lemma rank_coefficientMatrix {q k : ℕ} (f : Fin q → P)
     rw [Submodule.map_span, ← Set.range_comp, Submodule.map_top,
       LinearMap.range_eq_top.mpr b.equivFun.surjective] at hh
     exact hh
-  rw [Matrix.rank_eq_finrank_span_row]
+  rw [← Matrix.finrank_span_range_row]
   change finrank F (Submodule.span F (Set.range (coefficientMatrix f b))) = k
   rw [hs]
   simp
@@ -200,7 +200,7 @@ private lemma rank_concat_lt {w q k : ℕ}
     rintro _ ⟨α, rfl⟩
     exact concat_row_relation A T f b hker α
   have hr := Submodule.finrank_mono hle
-  rw [← Matrix.rank_eq_finrank_span_row] at hr
+  rw [Matrix.finrank_span_range_row] at hr
   have hd := H.finrank_range_add_finrank_ker
   simp only [Module.finrank_pi, Fintype.card_prod, Fintype.card_fin] at hd
   have hw' : (w - 1) * k + k = w * k := by

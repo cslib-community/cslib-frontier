@@ -708,7 +708,8 @@ private def oneSidedEmptySim : SimulatorFamily (oneSidedFamily G) ∅ :=
 
 private theorem isPPT_oneSidedEmptySim {encFn : Fn ↪ List Bool} :
     (oneSidedEmptySim (G := G)).IsPPT (oneSidedEncoding G encFn) :=
-  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.property).isPPTOn.congr fun _ => rfl
+  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch
+      i.property).isPPTOn.congr fun _ => rfl
 
 private theorem idealJoint_oneSidedEmptySim (hproj : G.encode = projectiveEncode)
     (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n) (c : Params G) (x : (i : Fin 2) → Input c i) :

@@ -445,7 +445,7 @@ theorem initClear_exec (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
   refine ⟨ν₀, he_clear, hinv, fun t ht => ?_⟩
   obtain ⟨hbdd_t, hfr_t, hmod_t⟩ := hsupp t ht
   have hmod : Modifies (Block.mk base C.space).footprint x.mem t.data.mem := by
-    simpa only [Finset.union_idempotent] using hmod₂.trans hmod_t
+    simpa only [Finset.union_self] using hmod₂.trans hmod_t
   exact ⟨hbdd_t, hfr_t, hmod⟩
 
 /-- **End-to-end expected-time and distributional correctness theorem from fresh initialization

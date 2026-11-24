@@ -255,8 +255,8 @@ private theorem advantage_encrypt_dcrReal_le (d : Desc) (n : ℕ)
     simp only [Function.comp_apply, K]
     rw [powMod_mul_val_pow_eq_ciphertext]
   rw [hreal]
-  exact Game.advantage_sampleModNat_units_le d.property.prime_fst d.property.prime_snd d.property.fst_ne_snd
-    hsize.1 hsize.2 K
+  exact Game.advantage_sampleModNat_units_le d.property.prime_fst d.property.prime_snd
+    d.property.fst_ne_snd hsize.1 hsize.2 K
 
 /-- Ingredient of the proof of [KatzLindell2020], Theorem 15.13 (the case `y = r ^ N`): the
 IND-CPA experiment for challenge bit `b` is within `5 / 2 ^ n` of the DCR real game of

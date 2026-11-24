@@ -417,7 +417,7 @@ theorem continuousOn_R (hk : 3 ≤ k) : ContinuousOn (R k) (Icc 0 1) := by
       exact ⟨⟨S k t, hS.1, hS.2.le.trans hc1.le⟩, Subtype.ext (R_S hk ⟨ht.1, ht1⟩)⟩
     · exact ⟨⟨1, zero_le_one, le_rfl⟩, Subtype.ext (R_eq_one hk hc1.le le_rfl)⟩
   rw [continuousOn_iff_continuous_domRestrict]
-  exact continuous_subtype_val.comp hf
+  exact continuous_subtypeVal.comp hf
 
 /-! ### The integral of the limit -/
 

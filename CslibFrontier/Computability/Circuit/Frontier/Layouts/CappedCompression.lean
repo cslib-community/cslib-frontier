@@ -281,7 +281,8 @@ theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.val ↔ c.blockOf v 
   ⟨fun h => Subtype.ext (c.eq_of_mem _ (c.blockOf v).property _ B.property v (c.mem_blockOf v) h),
     fun h => h ▸ c.mem_blockOf v⟩
 
-private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} = {v | v ∈ B.val} := by
+private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} =
+    {v | v ∈ B.val} := by
   ext v
   simp [c.mem_iff_blockOf_eq]
 
@@ -594,7 +595,9 @@ private theorem sum_internal_edges_ge [Finite V] [Finite E] (hloop : G.Loopless)
         (if (c.quotient.incidenceSet B).ncard = 0 ∧
             ∃ v ∈ B.val, (G.incidenceSet v).ncard < 2 then 1 else 0) := by
     have hconn_le : {v | v ∈ B.val}.ncard ≤ (intEdges B).card + 1 := by
-      have hcB := (G.induce {v | v ∈ B.val}).card_le_card_add_one_of_connected (c.connected B.val B.property)
+      have hcB :=
+          (G.induce {v | v ∈ B.val}).card_le_card_add_one_of_connected (c.connected B.val
+          B.property)
       rw [Nat.card_coe_set_eq] at hcB
       have he_eq : Nat.card {e // G.src e ∈ {v | v ∈ B.val} ∧ G.tgt e ∈ {v | v ∈ B.val}} =
           (intEdges B).card := by

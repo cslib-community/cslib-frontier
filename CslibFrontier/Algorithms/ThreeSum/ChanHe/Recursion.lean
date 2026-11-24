@@ -247,7 +247,7 @@ theorem heavy (h : Replaced n U j T) (hn : 1 ≤ n) {M : ℕ}
 /-- After `height n` replacements a set is empty. -/
 theorem eq_empty (h : Replaced n U j T) (hj : height n ≤ j) : T = ∅ := by
   by_contra hne
-  have hcard : 1 ≤ #T := card_pos.mpr (nonempty_iff_ne_empty.mpr hne)
+  have hcard : 1 ≤ #T := card_pos.mpr (ne_empty_iff_nonempty.mp hne)
   -- `n < d_{height n} ≤ d_j ≤ |T| d_j ≤ n`
   have := lt_dSeq_height n
   have := dSeq_mono hj

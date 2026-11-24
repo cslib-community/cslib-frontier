@@ -86,7 +86,8 @@ theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
     · obtain ⟨H', h1, h2⟩ := step j H.val (by rw [H.property, min_eq_left hj.le]) hj
       exact ⟨⟨H', by rw [h1, min_eq_left (Nat.succ_le_of_lt hj)]⟩, h2⟩
     · refine ⟨⟨H.val, ?_⟩, le_rfl⟩
-      rw [H.property, min_eq_right (not_lt.1 hj), min_eq_right ((not_lt.1 hj).trans (Nat.le_succ j))]
+      rw [H.property, min_eq_right (not_lt.1 hj),
+          min_eq_right ((not_lt.1 hj).trans (Nat.le_succ j))]
   choose nxt hnxt using step'
   let f : (j : ℕ) → {H : Subgroup (Ker h n) // Nat.card H = 2 ^ (ee h * min j (JJ h n))} := fun j =>
     Nat.rec ⟨⊥, h0⟩ nxt j
@@ -98,7 +99,8 @@ theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
     obtain ⟨k, -, rfl⟩ := hg
     exact k.property
   · intro j hj
-    rw [Nat.card_congr ((f j).val.equivMapOfInjective _ (Subgroup.subtype_injective _)).toEquiv.symm,
+    rw [Nat.card_congr
+        ((f j).val.equivMapOfInjective _ (Subgroup.subtype_injective _)).toEquiv.symm,
         (f j).property,
       min_eq_left hj, pow_mul]
 

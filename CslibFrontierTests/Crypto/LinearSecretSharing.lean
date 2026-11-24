@@ -149,7 +149,8 @@ example (k₁ k₂ : LinearKey example22_3) (secret₁ secret₂ c : ZMod 5) :
     example22_3Scheme.reconstruct {0, 1, 2}
         (example22_3Scheme.view {0, 1, 2} k₁ secret₁) = secret₁ ∧
       linearReconstruct example22_3 {0, 2, 3}
-        (fun i => linearShare example22_3 k₁ secret₁ i.val + linearShare example22_3 k₂ secret₂ i.val) =
+        (fun i => linearShare example22_3 k₁ secret₁ i.val +
+            linearShare example22_3 k₂ secret₂ i.val) =
         secret₁ + secret₂ ∧
       linearShare example22_3 (c • k₁) (c * secret₁) 0 =
         c • linearShare example22_3 k₁ secret₁ 0 :=

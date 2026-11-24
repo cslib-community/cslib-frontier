@@ -140,7 +140,7 @@ private theorem threePorts_norm {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 3
 
 private theorem threePorts_angle {r : ℝ} (hr : 0 < r) (shift : Bool) (i : Fin 3) :
     ((threePorts r shift i - 0).arg : Real.Angle) = threeAngles shift i := by
-  rw [sub_zero, threePorts, Complex.arg_real_mul _ hr, Real.Angle.arg_toCircle]
+  rw [sub_zero, threePorts, Complex.arg_ofReal_mul hr _, Real.Angle.arg_toCircle]
 
 -- The inner rays and the shifted outer ports form one embedded three-spoke fan.
 example : ∃ T : Fin 3 → Route,

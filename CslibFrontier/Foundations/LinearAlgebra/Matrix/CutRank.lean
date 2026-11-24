@@ -84,7 +84,7 @@ variable (M : Matrix m n K)
 /-- Block ranks are ranks of submatrices. -/
 theorem blockRank_eq_rank [Finite m] (S : Set m) (T : Set n) [Fintype T] :
     M.blockRank S T = (M.submatrix ((↑) : S → m) ((↑) : T → n)).rank :=
-  (rank_eq_finrank_span_row _).symm
+  finrank_span_range_row _
 
 /-- Restricting the columns of a block maps its row space onto the row space of the smaller
 block. -/

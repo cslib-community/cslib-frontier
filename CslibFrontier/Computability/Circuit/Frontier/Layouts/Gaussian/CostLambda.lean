@@ -692,7 +692,8 @@ private theorem ncard_matchedVertices_eq_two_mul {V E : Type*}
     (G.matchedVertices M).ncard = 2 * M.ncard := by
   classical
   let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
-    if b then ⟨G.src e.val, e.val, e.property, Or.inl rfl⟩ else ⟨G.tgt e.val, e.val, e.property, Or.inr rfl⟩
+    if b then ⟨G.src e.val, e.val, e.property, Or.inl rfl⟩ else ⟨G.tgt e.val, e.val, e.property,
+        Or.inr rfl⟩
   have hbij : Function.Bijective f := by
     refine ⟨?_, ?_⟩
     · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq

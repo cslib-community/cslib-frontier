@@ -1487,7 +1487,7 @@ private theorem integral_norm_sum_smul_sq_discreteGaussian_le
   have hind : iIndepFun (fun i Y => (Y i : EuclideanSpace ℝ (Fin n)) - centers i)
       (Cslib.Probability.PMF.piFin p).toMeasure := hμ ▸
     ProbabilityTheory.iIndepFun_pi (fun i =>
-      (continuous_subtype_val.sub continuous_const).measurable.aemeasurable)
+      (continuous_subtypeVal.sub continuous_const).measurable.aemeasurable)
   have hcomp {F : Type} [NormedAddCommGroup F] [NormedSpace ℝ F] [MeasurableSpace F]
       [BorelSpace F] [SecondCountableTopology F] (i : Fin m) (f : intLattice B → F)
       (hf : Continuous f) :
@@ -1498,14 +1498,14 @@ private theorem integral_norm_sum_smul_sq_discreteGaussian_le
       ∂(Cslib.Probability.PMF.piFin p).toMeasure ≤
       (1 / (2 * Real.pi) + ε / (1 - ε)) * s ^ 2 * n := by
     rw [hcomp i (fun x : intLattice B => ‖(x : EuclideanSpace ℝ (Fin n)) - centers i‖ ^ 2)
-        ((continuous_subtype_val.sub continuous_const).norm.pow 2),
+        ((continuous_subtypeVal.sub continuous_const).norm.pow 2),
       ZLattice.integral_norm_sub_sq_discreteGaussian_eq_tsum]
     simpa [finrank_euclideanSpace_fin] using
       ZLattice.tsum_discreteGaussian_mul_norm_sub_sq_le (intLattice B) s hs (centers i) ε hε1 hdual
   have hmean (i : Fin m) : ‖∫ Y, (Y i : EuclideanSpace ℝ (Fin n)) - centers i
       ∂(Cslib.Probability.PMF.piFin p).toMeasure‖ ^ 2 ≤ (ε / (1 - ε)) ^ 2 * s ^ 2 * n := by
     rw [hcomp i (fun x : intLattice B => (x : EuclideanSpace ℝ (Fin n)) - centers i)
-        (continuous_subtype_val.sub continuous_const),
+        (continuous_subtypeVal.sub continuous_const),
       ZLattice.integral_sub_discreteGaussian_eq_tsum]
     simpa [finrank_euclideanSpace_fin] using
       ZLattice.norm_tsum_discreteGaussian_smul_sub_sq_le (intLattice B) s hs (centers i) ε hε1 hdual

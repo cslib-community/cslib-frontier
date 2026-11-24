@@ -643,7 +643,8 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
     (hcaseB_emb : ¬ (m + caseAGap c n ≤ a) →
       ∀ hinj : Set.InjOn (keySuffix hma) (T : Set (Fin (2 ^ a))),
         haveI : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) :=
-          ⟨⟨fun u => keySuffix hma u.val, fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property h)⟩⟩
+          ⟨⟨fun u => keySuffix hma u.val, fun u₁ u₂ h => Subtype.ext
+              (hinj u₁.property u₂.property h)⟩⟩
         ((1 : ℝ) / (2 ^ shardBits m : ℝ)) ^ Fintype.card T *
           ((PMF.uniformOfFintype (T ↪ Fin (2 ^ suffixBits a m))).toOuterMeasure
             {e | ∀ i : T, e i ∈ intraShardSuffixSet hma (B i.val)}).toReal *

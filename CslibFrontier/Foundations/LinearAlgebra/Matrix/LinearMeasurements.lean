@@ -120,7 +120,7 @@ noncomputable def selectRowBasis {m col K : Type*} [Field K] [Finite m] [Fintype
   have : Finite κ := Finite.of_injective a ha
   letI : Fintype κ := Fintype.ofFinite κ
   have hcard : Fintype.card κ = M.rank := by
-    rw [rank_eq_finrank_span_row, ← hspan, finrank_span_eq_card hli]
+    rw [← finrank_span_range_row, ← hspan, finrank_span_eq_card hli]
   let e : Fin M.rank ≃ κ := (Fintype.equivFinOfCardEq hcard).symm
   let idx : Fin M.rank → m := a ∘ e
   have hli_idx : LinearIndependent K (fun k => M.row (idx k)) :=

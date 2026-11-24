@@ -40,7 +40,8 @@ open SimpleGraph Cslib.Algorithms.Lean.IterativeCompression Cslib.Algorithms.Lea
 open Cslib.Algorithms.WordRAM.OddCycleTransversal Cslib.WordRAM
 
 /-- The cycle on `Fin n`: `v` is adjacent to `v + 1 mod n`. -/
-private def cyc (n : ℕ) : SimpleGraph (Fin n) := SimpleGraph.fromRel fun u v => (u.val + 1) % n = v.val
+private def cyc (n : ℕ) : SimpleGraph (Fin n) :=
+    SimpleGraph.fromRel fun u v => (u.val + 1) % n = v.val
 
 private instance (n : ℕ) : DecidableRel (cyc n).Adj := fun u v =>
   inferInstanceAs (Decidable (u ≠ v ∧ ((u.val + 1) % n = v.val ∨ (v.val + 1) % n = u.val)))

@@ -66,7 +66,8 @@ theorem valid_ofCSP {Rel V : Type} [DecidableEq V] (F : Cslib.Logic.PL.CSP Rel V
 theorem edgeEndpoint_split_old (I : FixedRotationInput) (v : ℕ) (block : List ℕ)
     (i : ℕ) (hi : i < I.graph.edges.length) (side : Bool) :
     (split I v block).graph.edgeEndpoint i side =
-      redirectEnd I.graph.vertices.length block (2 * i + side.toNat) (I.graph.edgeEndpoint i side) := by
+      redirectEnd I.graph.vertices.length block (2 * i +
+          side.toNat) (I.graph.edgeEndpoint i side) := by
   unfold Graph.edgeEndpoint
   have hi' : i < (split I v block).graph.edges.length := by simp; omega
   rw [List.getD_eq_getElem _ _ hi', List.getD_eq_getElem _ _ hi]
@@ -116,7 +117,8 @@ theorem endpoint_split_connector (I : FixedRotationInput) (v : ℕ) (block : Lis
   exact edgeEndpoint_split_connector I v block side
 
 private theorem endpoint_lt {I : FixedRotationInput} (hI : Valid I) {d : ℕ}
-    (hd : d < 2 * I.graph.edges.length) : I.graph.incidenceVertices.getD d 0 < I.graph.vertices.length := by
+    (hd : d < 2 * I.graph.edges.length) : I.graph.incidenceVertices.getD d 0 <
+        I.graph.vertices.length := by
   have hd' : d < I.graph.incidenceVertices.length := by
     simpa only [incidenceVertices_length] using hd
   rw [List.getD_eq_getElem _ _ hd']
@@ -225,7 +227,8 @@ theorem valid_split {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
   · intro u word hw
     by_cases hu : u < I.graph.vertices.length
     · have hul : u < I.orders.length := by omega
-      change (I.orders ++ [some (block ++ [2 * I.graph.edges.length])]).getD u none = some word at hw
+      change (I.orders ++ [some (block ++ [2 * I.graph.edges.length])]).getD u none =
+          some word at hw
       rw [List.getD_eq_getElem _ _ (by simp; omega)] at hw
       simp only [List.getElem_append, hul, ↓reduceDIte] at hw
       have hread : I.orders.getD u none = some word := by
@@ -241,7 +244,8 @@ theorem valid_split {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
         simp only [split, List.length_append, List.length_singleton, hwidth] at hult
         omega
       subst u
-      change (I.orders ++ [some (block ++ [2 * I.graph.edges.length])]).getD I.graph.vertices.length none =
+      change (I.orders ++
+          [some (block ++ [2 * I.graph.edges.length])]).getD I.graph.vertices.length none =
         some word at hw
       rw [← hwidth] at hw
       rw [List.getD_eq_getElem _ _ (by simp)] at hw

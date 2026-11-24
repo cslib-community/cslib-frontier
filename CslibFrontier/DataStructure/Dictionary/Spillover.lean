@@ -337,7 +337,7 @@ theorem pow_spillUniv_mul_two_pow_le_three_mul {X n : ℕ} (hn : 1 ≤ n) :
       _ ≤ (Real.exp (1 / (n : ℝ))) ^ n :=
           pow_le_pow_left₀ (by positivity) (Real.add_one_le_exp (1 / (n : ℝ))) n
       _ = Real.exp 1 := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           congr 1
           field_simp
       _ ≤ 3 := by linarith [Real.exp_one_lt_d9]

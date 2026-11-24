@@ -185,7 +185,8 @@ private theorem init_mem_n (I : Instance) : (Memory.State.init I.encode).mem 1 =
 private theorem init_mem_adj (I : Instance) (u v : Fin I.n) :
     (Memory.State.init I.encode).mem (2 + u.val * I.n + v.val) = if I.adj u v then 1 else 0 := by
   change (Data.init (r := 0) I.encode).mem (2 + u.val * I.n + v.val) = _
-  rw [show (2 : ℕ) + u.val * I.n + v.val = [I.n].length + 1 + (u.val * I.n + v.val) by simp [Nat.add_assoc],
+  rw [show (2 : ℕ) + u.val * I.n + v.val =
+      [I.n].length + 1 + (u.val * I.n + v.val) by simp [Nat.add_assoc],
     Instance.encode, ← List.singleton_append]
   simp only [List.ofFn_eq_map]
   exact Data.init_mem_flatMap_finRange [I.n] (fun u' v' => if I.adj u' v' then 1 else 0) u v
@@ -1997,7 +1998,8 @@ private theorem maskStep_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
       (by omega) hcur_fit hs2_cur (htw_eq ▸ hwalks_fit)
     let s3 := (Memory.spec 0).clientState s2 (sumVecProg ⟨curB, I.n⟩)
     have hs3_eq : s3 = s2 := hsum.2.2.2.1
-    have hs3_in : ∀ u : Fin I.n, s3.mem (inB + u.val) = if k.testBit u.val then 1 else 0 := fun u => by
+    have hs3_in : ∀ u : Fin I.n, s3.mem (inB + u.val) =
+        if k.testBit u.val then 1 else 0 := fun u => by
       rw [hs3_eq]
       dsimp [s2]
       rw [hrounds.2.2.2.2.1 (inB + u.val) (by

@@ -75,7 +75,8 @@ theorem countingTreeBound_one {M : ℕ} (hM : 1 ≤ M) (B L_coeff : ℕ) :
   have hsparse : ClauseSet.Sparsification.Sparse (countingThreshold M) ψ.val.toClauseSet := by
     intro c H hH
     obtain ⟨D, hD⟩ := hH.flower_nonempty (one_le_countingThreshold hM)
-    have hDcard : D.card ≤ 1 := ψ.property.card_le D (ClauseSet.Sparsification.flower_subset _ _ _ hD)
+    have hDcard : D.card ≤ 1 :=
+        ψ.property.card_le D (ClauseSet.Sparsification.flower_subset _ _ _ hD)
     have hDc : D.card = c := (ClauseSet.Sparsification.mem_flower.mp hD).2.1
     have := hH.1
     have := hH.2.1

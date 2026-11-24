@@ -178,7 +178,7 @@ theorem isVertexConnected_iff_forall_isVertexSeparator {G : SimpleGraph V} {k : 
         simpa [← Set.encard_coe_eq_coe_finsetCard, hTX] using hX
       exact_mod_cast this
     have hne : Xᶜ.Nonempty := by
-      rw [Set.nonempty_iff_ne_empty, ne_eq, Set.compl_empty_iff]
+      rw [← Set.ne_empty_iff_nonempty, ne_eq, Set.compl_empty_iff]
       intro huniv
       have := huniv ▸ hX
       rw [Set.encard_univ] at this

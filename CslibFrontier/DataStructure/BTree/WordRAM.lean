@@ -263,7 +263,7 @@ theorem initCode_spec {w base capNodes t : ℕ} {x : Data 20}
     · change allocCount base y ≤ capNodes; rw [hcnt0]; omega
   refine ⟨y, hexec, hrep, hcnt0, ?_⟩
   rw [hymem]
-  simpa only [Finset.union_idempotent] using
+  simpa only [Finset.union_self] using
     (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
       ⟨le_rfl, by simp only [arenaWords]; omega⟩ 0).trans
       (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
@@ -1678,7 +1678,7 @@ private theorem splitRootCode_spec {w base capNodes t oldRoot cnt : ℕ} {x : Da
   have hfull : ExecWithin w splitRootCode x y (21 * t + 88) :=
     (he1.seq he2).mono (by omega)
   exact ⟨y, hfull, hfull.bounded hbdd, hymem,
-    by simpa only [Finset.union_idempotent] using hmod₁.trans hmod₂,
+    by simpa only [Finset.union_self] using hmod₁.trans hmod₂,
     hz_y, ho_y, hb_y, hd_y, hst_y, hk_y, hv_y, hcur_y, hcnt_y⟩
 
 private def splitChildPre1 : Code .standard 20 := ram[
@@ -2661,7 +2661,7 @@ private theorem insertDescendOrLeaf_int_spec
       refine WP.of_execWithin hsc_exec ?_
       exact WP.of_execWithin hdas ⟨by omega, rfl⟩
     have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem := by
-      simpa only [Finset.union_idempotent] using hmod_sc.trans hmod_das
+      simpa only [Finset.union_self] using hmod_sc.trans hmod_das
     rw [hmem_z₂] at hbr_das
     rw [hact_z₂.trans hactz] at hbr_das
     simp only [Nat.add_sub_cancel] at hbr_das
@@ -3140,7 +3140,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
                 (by rwa [hc_s1])
             refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
               by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
+              by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
               by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
             · intro w_id hnot o ho_lt
               have hnot_rec : w_id ∉ readNodeSet l base t mem₁ c ∪ Finset.Ico (cnt + 1) cnt' := by
@@ -3210,7 +3210,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
                 (by rwa [hc_s11])
             refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
               by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
+              by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
               by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
             · intro w_id hnot o ho_lt
               have hnot_rec : w_id ∉ readNodeSet l base t mem₁ cnt ∪ Finset.Ico (cnt + 1) cnt' := by
@@ -3256,7 +3256,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
             (hc_def.symm ▸ hnk_c_ge) (hc_def.symm ▸ hsub_c') (hc_def.symm ▸ htr_c')
         refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
           hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg,
-          by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_,
+          by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_,
           hv_u', hs_u', by rw [hnk_u'], hsub_u', htr_u'⟩
         intro w_id hnot o ho_lt
         apply hfr_rec w_id _ o ho_lt
@@ -3485,7 +3485,7 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
         · rw [hy_b0, hmb1]; exact hrange_y
       simp only [x₃, Data.set_mem] at hmod_loop
       refine ⟨y, readTree (l + 1) base t y.mem (cnt + 1), he, hrep, ?_, ?_,
-        by simpa only [Finset.union_idempotent] using hmod_sr.trans hmod_loop⟩
+        by simpa only [Finset.union_self] using hmod_sr.trans hmod_loop⟩
       · rw [htr_y]
         have htr_x₃ : readTree (l + 1) base t x₃.mem (cnt + 1) =
             readTree (l + 1) base t (memSplitRoot base t oldRoot cnt x.mem) (cnt + 1) := by

@@ -791,7 +791,8 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
       ext i; fin_cases i
       · exact h0.symm.trans (by dsimp only [φ]; congr 1; ring)
       · exact h1.symm.trans (by dsimp only [φ]; congr 1; ring)
-    obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.property.1], by linarith [t0.property.2]⟩
+    obtain ⟨r, hr, hreq⟩ :=
+        hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.property.1], by linarith [t0.property.2]⟩
       ((t1 : ℝ) - δ) ⟨by linarith [t1.property.1], by linarith [t1.property.2]⟩
     refine ⟨⟨r + δ, by linarith [hr.1], by linarith [hr.2]⟩, ?_⟩
     dsimp only [φ]
@@ -1649,7 +1650,7 @@ private theorem exists_singleton_isDecisive {V : Type*} (W : WeightedGraph V) [F
   obtain ⟨S₀, hS₀_mem, hS₀_min⟩ := F.exists_min_image Finset.card
     ⟨Finset.univ, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hU_univ⟩⟩
   have hS₀ : IsDecisive hs f S₀ := (Finset.mem_filter.mp hS₀_mem).2
-  have hS₀_ne : S₀.Nonempty := Finset.nonempty_iff_ne_empty.mpr fun h => hU_empty (h ▸ hS₀)
+  have hS₀_ne : S₀.Nonempty := Finset.ne_empty_iff_nonempty.mp fun h => hU_empty (h ▸ hS₀)
   obtain ⟨i₀, hi₀⟩ := hS₀_ne
   refine ⟨i₀, (isDecisive_or_compl W hs hf_sp hf_unam {i₀}).resolve_right fun hic => ?_⟩
   have hF_in : S₀ ∩ ({i₀} : Finset ι)ᶜ ∈ F := Finset.mem_filter.mpr

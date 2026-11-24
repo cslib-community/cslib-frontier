@@ -86,7 +86,7 @@ theorem prod_layerWeight_le (hp : p.Good) (i : ℕ) {j : ℕ} (hj : j ≤ p.n) :
       rw [mul_div_assoc', div_le_iff₀ hb]; linarith
     have hhalf : (2 : ℝ)⁻¹ ≤ Real.exp (-(1 / 2)) := by
       have := Real.add_one_le_exp (-(1 / 2) : ℝ); linarith
-    rw [← Real.exp_nat_mul]
+    rw [← Real.exp_natCast_mul]
     refine (Real.exp_le_exp.2 hle).trans ?_
     rw [← inv_inv (Real.exp (1 / 2)), ← Real.exp_neg]
     exact inv_le_of_inv_le₀ two_pos hhalf

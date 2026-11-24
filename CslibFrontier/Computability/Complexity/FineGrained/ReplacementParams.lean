@@ -428,7 +428,7 @@ theorem binomTail_lt_tailBudget {β n b : ℕ} (hβ : 1 ≤ β) (hr : 2 ≤ numG
     calc 2 * (2 : ℝ) ^ m = (2 : ℝ) ^ (m + 1) := by rw [pow_succ']
       _ ≤ Real.exp 1 ^ (m + 1) :=
           pow_le_pow_left₀ zero_le_two (by linarith [Real.add_one_le_exp (1 : ℝ)]) (m + 1)
-      _ = Real.exp ((m + 1 : ℕ) : ℝ) := by rw [← Real.exp_nat_mul, mul_one]
+      _ = Real.exp ((m + 1 : ℕ) : ℝ) := by rw [← Real.exp_natCast_mul, mul_one]
       _ < Real.exp (16 * ((β : ℝ) + 3) ^ 2 * nu) := Real.exp_lt_exp.mpr harg_lt
   have hexp_lt_pow : 2 * Real.exp (-(16 * ((β : ℝ) + 3) ^ 2 * nu)) < 1 / (2 : ℝ) ^ m := by
     rw [Real.exp_neg, ← div_eq_mul_inv, div_lt_div_iff₀ (Real.exp_pos _) (by positivity), one_mul]

@@ -570,7 +570,8 @@ private structure BipartiteCoverModel {β γ : Type} (g : Graph (β → γ)) (G 
           (left.item k).1 = g.edges[e].src ∧ (left.item k).2.1 = r₁ ∧
           G.mem x (g.edges[e].constraint (left.item k).2.2) = false) ∧
         (∀ k : Fin right.n,
-          mem z ⟨left.n + k.val, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ →
+          mem z ⟨left.n +
+              k.val, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ →
           (right.item k).1 = g.edges[e].dst ∧ (right.item k).2.1 = r₂ ∧
           G.mem x (right.item k).2.2 = true)
 
@@ -1011,7 +1012,8 @@ theorem setSystemOf_ground_length_ge {bs : List β} {gs : List γ} {fallback : �
         rw [Finset.card_image_of_injective _ hinj, Finset.card_univ, Fintype.card_fin]
     _ ≤ (setSystemOf bs gs fallback G g).ground.toFinset.card := Finset.card_le_card fun z hz => by
         obtain ⟨x, -, rfl⟩ := Finset.mem_image.1 hz
-        refine List.mem_toFinset.2 (mem_unweightedGround.2 ⟨0, hm, x.val, x.isLt, 0, ?_, 0, ?_, rfl⟩)
+        refine List.mem_toFinset.2 (mem_unweightedGround.2
+            ⟨0, hm, x.val, x.isLt, 0, ?_, 0, ?_, rfl⟩)
         · rwa [List.getD_eq_getElem _ _ hm]
         · rwa [List.getD_eq_getElem _ _ hm]
     _ ≤ (setSystemOf bs gs fallback G g).ground.length := List.toFinset_card_le _

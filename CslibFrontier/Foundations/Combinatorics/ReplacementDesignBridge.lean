@@ -447,7 +447,7 @@ theorem subsetPairCount_le_exp_mul_log_ratio {R Q n q : ℕ} {c : ℝ}
     calc (1 + 2 * ((R : ℝ) / Q)) ^ n
         ≤ Real.exp (2 * ((R : ℝ) / Q)) ^ n := pow_le_pow_left₀ (by positivity) h1 n
       _ = Real.exp ((n : ℝ) * (2 * ((R : ℝ) / Q))) := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
       _ ≤ Real.exp (4 * (n : ℝ) * ((R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R))) := by
           refine Real.exp_le_exp.mpr ?_
           have hmul := mul_le_mul_of_nonneg_left hlog_one

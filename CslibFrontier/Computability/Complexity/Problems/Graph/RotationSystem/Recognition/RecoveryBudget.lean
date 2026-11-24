@@ -156,7 +156,8 @@ theorem sum_fiber_lengths_le (G : Graph) (vertices : List ℕ) (hn : vertices.No
 /-- The initial query plus all charged extension scans is at most `1+2m²` on general all-free
 graphs, and hence also on any mixture of complete fixed/free vertices. -/
 theorem recoveryWork_le (I : FixedRotationInput) :
-    1 + recoveryWork (List.range I.graph.vertices.length) (some I) ≤ 1 + 2 * I.graph.edges.length ^ 2 := by
+    1 + recoveryWork (List.range I.graph.vertices.length) (some I) ≤
+        1 + 2 * I.graph.edges.length ^ 2 := by
   let vertices := List.range I.graph.vertices.length
   let degree (v : ℕ) := (fiber I.graph v).length
   have hn : vertices.Nodup := List.nodup_range

@@ -140,7 +140,8 @@ check feasibility, and materialize the parent vector `f`. -/
 private theorem selectParents_eq (a : AdjTable n) (c : CostTable β n) (r : Fin n) :
     let optFn : Fin n → Option (Fin n) := fun v =>
       if v = r then some r
-      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin (fun w => c[v.val][w.val])
+      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin (fun w =>
+          c[v.val][w.val])
     selectParents a c r =
       { feasible := (List.finRange n).all (fun v => (optFn v).isSome)
       , parents := Vector.ofFn fun v => (optFn v).getD v } := by
@@ -273,7 +274,8 @@ private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
         ({ current := x0, mask := init } : CycleMaskState n)
       res.current = (fun i : Fin n => f[i.val])^[m] x0 ∧
         ∀ j : Fin n,
-          (res.mask[j.val] = true ↔ init[j.val] = true ∨ ∃ k < m, (fun i : Fin n => f[i.val])^[k] x0 = j)
+          (res.mask[j.val] = true ↔
+              init[j.val] = true ∨ ∃ k < m, (fun i : Fin n => f[i.val])^[k] x0 = j)
   | 0, _ => by simp
   | m + 1, init => by
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]

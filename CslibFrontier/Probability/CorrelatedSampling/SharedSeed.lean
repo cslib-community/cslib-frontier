@@ -272,7 +272,7 @@ noncomputable def seedSample (P : PMF S) (ω : ℕ → S × I) : S :=
 
 omit [Fintype S] [Nonempty S] in
 theorem measurableSet_underGraph [Finite S] (t : S → ℝ) : MeasurableSet (underGraph t) :=
-  measurableSet_lt (measurable_subtype_coe.comp measurable_snd)
+  measurableSet_lt (measurable_subtypeVal.comp measurable_snd)
     ((measurable_of_countable t).comp measurable_fst)
 
 omit [Fintype S] [Nonempty S] [MeasurableSpace S] [MeasurableSingletonClass S] in

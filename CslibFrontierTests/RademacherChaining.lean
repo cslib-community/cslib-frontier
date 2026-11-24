@@ -53,7 +53,7 @@ example (D : PMF (Bool × Bool)) {A : Learner Bool Bool (2 ^ 20)} (hA : IsERM A 
       have he := Real.exp_one_gt_d9
       calc (2 / (1 / 20) : ℝ) ≤ (27 / 10) ^ 4 := by norm_num
         _ ≤ Real.exp 1 ^ 4 := by gcongr; linarith
-        _ = Real.exp 4 := by rw [← Real.exp_nat_mul]; norm_num
+        _ = Real.exp 4 := by rw [← Real.exp_natCast_mul]; norm_num
     refine (Real.sqrt_le_left (by norm_num)).2 ?_
     push_cast
     linarith
