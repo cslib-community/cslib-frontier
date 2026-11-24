@@ -154,6 +154,7 @@ public import CslibFrontier.Algorithms.Lean.Matroid.Intersection
 public import CslibFrontier.Algorithms.Lean.Matroid.Intersection.Konig
 public import CslibFrontier.Algorithms.Lean.Matroid.Intersection.Solver
 public import CslibFrontier.Algorithms.Lean.Matroid.PSystem
+public import CslibFrontier.Algorithms.Lean.Matroid.Union
 public import CslibFrontier.Algorithms.Lean.MaxCut.Derandomized
 public import CslibFrontier.Algorithms.Lean.MaxCut.GoemansWilliamson
 public import CslibFrontier.Algorithms.Lean.MaxCut.GoemansWilliamsonCutWeight
