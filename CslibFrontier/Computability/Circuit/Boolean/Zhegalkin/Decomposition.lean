@@ -22,17 +22,17 @@ import Mathlib.Tactic.Linarith
 # Internal affine decomposition of `{⊕, ∧, 1}`-programs
 
 Internal constant synthesis (`constOne`, `constZero`, `synth_consts`) and causal affine program
-decomposition (`linForm`, `ProgDecomp`, `PaddedDecomp`, `exists_paddedDecomp`) consumed privately
-by `Complexity`, `StageParts`, `StageStep`, and `UpperBound`; never re-exported through `Zhegalkin`.
+decomposition (`linForm`, `PaddedDecomp`, `exists_paddedDecomp`) consumed privately by
+`Complexity`, `StageParts`, `StageStep`, and `UpperBound`; never re-exported through `Zhegalkin`.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.Zhegalkin.constOne`, `constZero`, `linForm`, `ProgDecomp`,
-  `PaddedDecomp`, `padBool`, `padFn`: constant functions and padded causal affine decompositions.
+* `Cslib.Circuits.Boolean.Zhegalkin.constOne`, `constZero`, `linForm`, `PaddedDecomp`, `padBool`,
+  `padFn`: constant functions and padded causal affine decompositions.
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.Zhegalkin.synth_consts`, `exists_progDecomp`, `exists_paddedDecomp`:
+* `Cslib.Circuits.Boolean.Zhegalkin.synth_consts`, `exists_paddedDecomp`:
   constant synthesis and existence of padded causal decompositions.
 -/
 
@@ -75,11 +75,11 @@ section Decomposition
     (∑ j : Fin n, if cX j then x j else 0) +
     (∑ ℓ : Fin k, if cG ℓ then gFn ℓ x else 0)
 
-theorem bool_ite_add (a b z : Bool) :
+private theorem bool_ite_add (a b z : Bool) :
     (if a + b then z else (0 : Bool)) = (if a then z else 0) + (if b then z else 0) := by
   cases a <;> cases b <;> cases z <;> rfl
 
-theorem linForm_add {n k : ℕ} (c₀ d₀ : Bool) (cX dX : Fin n → Bool)
+private theorem linForm_add {n k : ℕ} (c₀ d₀ : Bool) (cX dX : Fin n → Bool)
     (cG dG : Fin k → Bool) (gFn : Fin k → BooleanFunction n) (x : Fin n → Bool) :
     linForm (c₀ + d₀) (fun j => cX j + dX j) (fun ℓ => cG ℓ + dG ℓ) gFn x =
       linForm c₀ cX cG gFn x + linForm d₀ dX dG gFn x := by
@@ -87,7 +87,7 @@ theorem linForm_add {n k : ℕ} (c₀ d₀ : Bool) (cX dX : Fin n → Bool)
   simp only [bool_ite_add, sum_add_distrib]
   abel
 
-theorem linForm_snoc_false {n k : ℕ} (c₀ : Bool) (cX : Fin n → Bool) (cG : Fin k → Bool)
+private theorem linForm_snoc_false {n k : ℕ} (c₀ : Bool) (cX : Fin n → Bool) (cG : Fin k → Bool)
     (gFn : Fin k → BooleanFunction n) (gLast : BooleanFunction n) (x : Fin n → Bool) :
     linForm c₀ cX (Fin.snoc cG false) (Fin.snoc gFn gLast) x = linForm c₀ cX cG gFn x := by
   unfold linForm
@@ -95,7 +95,7 @@ theorem linForm_snoc_false {n k : ℕ} (c₀ : Bool) (cX : Fin n → Bool) (cG :
   simp only [Fin.snoc_castSucc, Fin.snoc_last, Bool.false_eq_true, ↓reduceIte, add_zero]
 
 /-- Causal affine decomposition of wires in a `{⊕, ∧, 1}`-program with `k` `∧`-gates. -/
-structure ProgDecomp {n g : ℕ} (p : Program signature n g) (k : ℕ) where
+private structure ProgDecomp {n g : ℕ} (p : Program signature n g) (k : ℕ) where
   /-- Boolean function computed by each conjunction gate wire. -/
   gFn : Fin k → BooleanFunction n
   /-- Constant bits of the linear forms fed into the `2 * k` conjunction inputs. -/
@@ -120,7 +120,7 @@ structure ProgDecomp {n g : ℕ} (p : Program signature n g) (k : ℕ) where
   trace_eq : ∀ (w : Wire n g) (x : Fin n → Bool),
     p.trace interpretation x w = linForm (cW w) (wX w) (wG w) gFn x
 
-theorem progDecomp_empty (n : ℕ) :
+private theorem progDecomp_empty (n : ℕ) :
     Nonempty (ProgDecomp (Program.empty : Program signature n 0) 0) := by
   refine ⟨{
     gFn := Fin.elim0
@@ -142,7 +142,7 @@ theorem progDecomp_empty (n : ℕ) :
     rw [sum_ite_eq', Fintype.sum_empty, add_zero]
     simp
 
-theorem progDecomp_one {n g k : ℕ} {q : Program signature n g}
+private theorem progDecomp_one {n g k : ℕ} {q : Program signature n g}
     (ih : ProgDecomp q k) (wires : Fin (signature.Arity Op.one) → Wire n g) :
     Nonempty (ProgDecomp (q.gate ⟨Op.one, wires⟩) k) := by
   refine ⟨{
@@ -164,7 +164,7 @@ theorem progDecomp_one {n g k : ℕ} {q : Program signature n g}
   · rw [Program.trace_gate_castSucc, ih.trace_eq w₀ x]
     cases w₀ <;> simp [Wire.lastCases]
 
-theorem progDecomp_xor {n g k : ℕ} {q : Program signature n g}
+private theorem progDecomp_xor {n g k : ℕ} {q : Program signature n g}
     (ih : ProgDecomp q k) (wires : Fin (signature.Arity Op.xor) → Wire n g) :
     Nonempty (ProgDecomp (q.gate ⟨Op.xor, wires⟩) k) := by
   let u₀ := wires 0
@@ -189,7 +189,7 @@ theorem progDecomp_xor {n g k : ℕ} {q : Program signature n g}
   · rw [Program.trace_gate_castSucc, ih.trace_eq w₀ x]
     cases w₀ <;> simp [Wire.lastCases]
 
-theorem progDecomp_and {n g k : ℕ} {q : Program signature n g}
+private theorem progDecomp_and {n g k : ℕ} {q : Program signature n g}
     (ih : ProgDecomp q k) (wires : Fin (signature.Arity Op.and) → Wire n g) :
     Nonempty (ProgDecomp (q.gate ⟨Op.and, wires⟩) (k + 1)) := by
   let u₀ := wires 0
@@ -267,7 +267,7 @@ theorem progDecomp_and {n g k : ℕ} {q : Program signature n g}
         cases w₀ <;> simp [Wire.lastCases]
       rw [hw.1, hw.2.1, hw.2.2, linForm_snoc_false]
 
-theorem exists_progDecomp {n g : ℕ} (p : Program signature n g) :
+private theorem exists_progDecomp {n g : ℕ} (p : Program signature n g) :
     Nonempty (ProgDecomp p (p.cost andCost)) := by
   induction p with
   | empty => exact progDecomp_empty n

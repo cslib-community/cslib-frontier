@@ -37,7 +37,7 @@ namespace Cslib.Circuits
 
 section ParameterBounds
 
-theorem ceilDiv_div_sq_add_one_le (k : ℕ) {L : ℕ} (hL : 0 < L) :
+private theorem ceilDiv_div_sq_add_one_le (k : ℕ) {L : ℕ} (hL : 0 < L) :
     k ⌈/⌉ (k / L ^ 2 + 1) ≤ L ^ 2 := by
   have hp : 0 < k / L ^ 2 + 1 := Nat.succ_pos _
   rw [ceilDiv_le_iff_le_smul hp, smul_eq_mul]
@@ -46,7 +46,7 @@ theorem ceilDiv_div_sq_add_one_le (k : ℕ) {L : ℕ} (hL : 0 < L) :
   have hexp : (k / L ^ 2 + 1) * L ^ 2 = L ^ 2 * (k / L ^ 2) + L ^ 2 := by ring
   linarith
 
-theorem mul_ceilDiv_le_add (N : ℕ) {s : ℕ} (hs : 0 < s) :
+private theorem mul_ceilDiv_le_add (N : ℕ) {s : ℕ} (hs : 0 < s) :
     s * (N ⌈/⌉ s) ≤ N + s := by
   have hceil : N ⌈/⌉ s ≤ N / s + 1 := by
     rw [ceilDiv_le_iff_le_smul hs, smul_eq_mul]
@@ -114,12 +114,12 @@ theorem log_param_props {M : ℕ} (hL8 : 8 ≤ Nat.log 2 M)
       _ ≤ 8 * M := Nat.mul_le_mul_left 8 hpowM
   exact ⟨hs_pos, hs_le, hL_2s, hlogL1, hL2M, hL3⟩
 
-theorem natLog_le_logb {m : ℕ} (hm : 1 ≤ m) :
+private theorem natLog_le_logb {m : ℕ} (hm : 1 ≤ m) :
     (Nat.log 2 m : ℝ) ≤ Real.logb 2 m := by
   rw [Real.le_logb_iff_rpow_le (by norm_num) (by positivity), Real.rpow_natCast]
   exact_mod_cast Nat.pow_log_le_self 2 (by omega)
 
-theorem logb_le_natLog_add_one {m : ℕ} (hm : 1 ≤ m) :
+private theorem logb_le_natLog_add_one {m : ℕ} (hm : 1 ≤ m) :
     Real.logb 2 m ≤ (Nat.log 2 m : ℝ) + 1 := by
   have h := Nat.lt_pow_succ_log_self one_lt_two m
   rw [Real.logb_le_iff_le_rpow (by norm_num) (by positivity)]

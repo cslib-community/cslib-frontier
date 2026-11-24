@@ -26,19 +26,18 @@ import Mathlib.Tactic.Ring
 /-!
 # Internal stage-step synthesis for `{⊕, ∧, 1}` circuits
 
-Internal stage sets (`xGroupSet`, `zhegPairIdx`, `zhegOddIdx`, `stageSet`, `midSet`, `intraSet`,
-`stageGates`) and inductive stage synthesis (`synth_row_in_stage`, `synth_intra_loop`,
-`synth_stage_step`) consumed privately by `UpperBound`; never re-exported through `Zhegalkin`.
+Internal stage sets (`xGroupSet`, `zhegPairIdx`, `zhegOddIdx`, `stageSet`) and inductive stage
+synthesis (`synth_stage_step`) consumed privately by `UpperBound`; never re-exported through
+`Zhegalkin`.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.Zhegalkin.xGroupSet`, `zhegPairIdx`, `zhegOddIdx`, `stageSet`,
-  `midSet`, `intraSet`, `stageGates`: stage wire invariants and active index sets.
+* `Cslib.Circuits.Boolean.Zhegalkin.xGroupSet`, `zhegPairIdx`, `zhegOddIdx`, `stageSet`:
+  stage wire invariants and active index sets.
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.Zhegalkin.synth_row_in_stage`, `synth_intra_loop`,
-  `synth_stage_step`: per-row, intra-stage, and full-stage `CostSynthesis` steps.
+* `Cslib.Circuits.Boolean.Zhegalkin.synth_stage_step`: full-stage `CostSynthesis` step.
 -/
 
 public section
@@ -74,7 +73,7 @@ variable {n M k : ℕ} {f : BooleanFunction n}
     {g | ∃ up ∈ zhegPairIdx d s p, (up.row₁.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up}
 
 /-- Stage wires augmented with stage-`q₀` paired and odd shared sums. -/
-@[expose] def midSet (d : PaddedDecomp f M k) (s p q₀ : ℕ) : Set (BooleanFunction n) :=
+private def midSet (d : PaddedDecomp f M k) (s p q₀ : ℕ) : Set (BooleanFunction n) :=
   stageSet d s p q₀ ∪
     (⋃ up ∈ (zhegPairIdx d s p).filter (fun up => (up.row₁.1 / 2) / s = q₀),
       {zhegPairVal d s p up}) ∪
@@ -82,14 +81,14 @@ variable {n M k : ℕ} {f : BooleanFunction n}
       {zhegOddVal d s p r})
 
 /-- First `b` conjunction wires already synthesized within stage `q₀`. -/
-@[expose] def intraSet (d : PaddedDecomp f M k) (s q₀ b : ℕ) : Set (BooleanFunction n) :=
+private def intraSet (d : PaddedDecomp f M k) (s q₀ b : ℕ) : Set (BooleanFunction n) :=
   {g | ∃ i : Fin M, i.1 / s = q₀ ∧ i.1 % s < b ∧ g = d.gFn i}
 
 /-- Indices of the first `b` gates within stage `q₀`. -/
-@[expose] def stageGates (M s q₀ b : ℕ) : Finset (Fin M) :=
+private def stageGates (M s q₀ b : ℕ) : Finset (Fin M) :=
   univ.filter fun i : Fin M => i.1 / s = q₀ ∧ i.1 % s < b
 
-theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
+private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
     (q₀ b : ℕ) (r : Fin (2 * M)) (hr_stage : (r.1 / 2) / s = q₀) (hr_mod : (r.1 / 2) % s = b) :
     CostSynthesis interpretation andCost (midSet d s p q₀ ∪ intraSet d s q₀ b)
       {hFn d r} (p + s) 0 := by
@@ -171,7 +170,7 @@ theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp
   have hcard := card_zhegRowParts_le d hs hp r
   exact hsum.mono Set.Subset.rfl Set.Subset.rfl (by omega) le_rfl
 
-theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
+private theorem synth_intra_loop (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
     (q₀ b : ℕ) :
     CostSynthesis interpretation andCost (midSet d s p q₀) (intraSet d s q₀ b)
       (∑ _ ∈ stageGates M s q₀ b, (2 * (p + s) + 1))

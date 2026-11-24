@@ -218,14 +218,6 @@ theorem sum_of_mem_of_zero {ι : Type*} (hArity : σ.Arity addOp = 2)
 
 /-! #### Nonempty subset sums of a block of `b` wires -/
 
-theorem add_one_le_two_pow (b : ℕ) : b + 1 ≤ 2 ^ b := by
-  induction b with
-  | zero => decide
-  | succ b ih =>
-    have := Nat.one_le_two_pow (n := b)
-    rw [pow_succ]
-    omega
-
 theorem mul_sub_two_pow_le {b s : ℕ} (hbs : b ≤ s) :
     s * (2 ^ b - b - 1) ≤ b * 2 ^ s := by
   rcases b.eq_zero_or_pos with rfl | hb
@@ -279,7 +271,7 @@ theorem block_nonempty_subSums (hArity : σ.Arity addOp = 2)
         Fintype.card_fin]
     have hbudget : 0 + ((2 ^ b - b - 1) + ∑ _ ∈ nonempB, 1) ≤ 2 ^ (b + 1) - (b + 1) - 1 := by
       rw [sum_const, smul_eq_mul, mul_one, hcard_nonempB, pow_succ]
-      have := add_one_le_two_pow b
+      have := b.lt_two_pow_self
       omega
     refine htot.mono Set.Subset.rfl ?_ hbudget (by simp)
     rintro _ ⟨T, hT, rfl⟩

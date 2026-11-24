@@ -173,7 +173,7 @@ theorem mul_sum_hasZhegCol_le (d : PaddedDecomp f M k) (s : ℕ) :
 @[expose] def intraGSet (d : PaddedDecomp f M k) (s : ℕ) (r : Fin (2 * M)) : Finset (Fin M) :=
   univ.filter fun ℓ : Fin M => ℓ.1 / s = (r.1 / 2) / s ∧ ℓ.1 < r.1 / 2 ∧ d.aG r ℓ = true
 
-theorem card_intraGSet_le (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 < s)
+private theorem card_intraGSet_le (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 < s)
     (r : Fin (2 * M)) : #(intraGSet d s r) ≤ s - 1 := by
   let mod0 : Fin s := ⟨(r.1 / 2) % s, Nat.mod_lt _ hs⟩
   have hmaps : ∀ ℓ ∈ intraGSet d s r,
