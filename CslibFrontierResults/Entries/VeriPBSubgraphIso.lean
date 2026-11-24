@@ -75,5 +75,6 @@ register_result "cakepb-subgraph-iso-of-check" where
     Lean checker to CakePB's; acceptance of the same proofs by cake_pb_iso was checked only on \
     the test fixtures: five written by hand, two of which have trivial empty at-most-one rows \
     (degree 0 here, -1 in CakePB), the empty-target one's UNSAT proof using its empty \
-    at-least-one row 0 ≥ 1, of degree 1 in both; and two proofs of the Glasgow Subgraph Solver. Outside-fleet source check: \
+    at-least-one row 0 ≥ 1, of degree 1 in both; and two proofs of the Glasgow Subgraph \
+    Solver. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/7944#pullrequestreview-6024571013"
