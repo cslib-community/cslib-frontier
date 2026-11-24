@@ -1218,10 +1218,8 @@ theorem logb_indepSetCount_fromRel_le_capped [Finite V] {B : Digraph V} (hB : B.
     · exact Or.inr (harc'_imp h2)
   have hindep_le : (SimpleGraph.fromRel B.Adj).indepSetCount ≤
       (SimpleGraph.fromRel arc').indepSetCount := indepSetCount_anti hG_le
-  have hpos_G : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) := by
-    have hne : ({s : Set V | (SimpleGraph.fromRel B.Adj).IsIndepSet s}).Nonempty :=
-      ⟨∅, by simp⟩
-    exact Nat.cast_pos.mpr ((ncard_pos (toFinite _)).mpr hne)
+  have hpos_G : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) :=
+    Nat.cast_pos.mpr (SimpleGraph.fromRel B.Adj).indepSetCount_pos
   have hlog_mono : Real.logb 2 ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) ≤
       Real.logb 2 ((SimpleGraph.fromRel arc').indepSetCount : ℝ) :=
     Real.logb_le_logb_of_le (by norm_num) hpos_G (by exact_mod_cast hindep_le)
@@ -1262,10 +1260,8 @@ theorem indepSetCount_fromRel_le_rpow [Finite V] {B : Digraph V} (hB : B.IsBranc
       (2 : ℝ) ^ ((Nat.card V : ℝ) -
         (53 / 200 : ℝ) * ((SimpleGraph.fromRel B.Adj).edgeSet.ncard : ℝ) -
         (33 / 1000 : ℝ) * ((arborescenceActiveRoots B).ncard : ℝ)) := by
-  have hpos : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) := by
-    have hne : ({s : Set V | (SimpleGraph.fromRel B.Adj).IsIndepSet s}).Nonempty :=
-      ⟨∅, by simp⟩
-    exact Nat.cast_pos.mpr ((ncard_pos (toFinite _)).mpr hne)
+  have hpos : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) :=
+    Nat.cast_pos.mpr (SimpleGraph.fromRel B.Adj).indepSetCount_pos
   rw [← Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num : (2 : ℝ) ≠ 1) hpos]
   exact Real.rpow_le_rpow_of_exponent_le (by norm_num)
     (logb_indepSetCount_fromRel_le hB hout_int hout_root)

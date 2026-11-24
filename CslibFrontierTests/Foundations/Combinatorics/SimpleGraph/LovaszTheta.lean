@@ -81,6 +81,33 @@ example (n : ℕ) : (⊥ : SimpleGraph (Fin n)).shannonCapacity = n ∧
   rw [hα] at h₁
   exact ⟨le_antisymm (h₂.trans hϑ) h₁, le_antisymm hϑ (h₁.trans h₂)⟩
 
+/-- `Θ(Kₙ) = 1` for `n ≥ 1`, bounding strong powers directly via `shannonCapacity_le`. -/
+example (n : ℕ) : (⊤ : SimpleGraph (Fin (n + 1))).shannonCapacity = 1 := by
+  refine le_antisymm (shannonCapacity_le fun k => ?_) ?_
+  · have htop : (⊤ : SimpleGraph (Fin (n + 1))).strongPow (k + 1) = ⊤ := by
+      ext x y
+      simp only [strongPow_adj, top_adj, ne_eq, and_iff_left_iff_imp]
+      intro _ i
+      exact em (x i = y i)
+    rw [htop, ← cliqueNum_compl, compl_top, cliqueNum_bot, Nat.cast_one, one_pow]
+  · have h := indepNum_le_shannonCapacity (G := (⊤ : SimpleGraph (Fin (n + 1))))
+    rwa [← cliqueNum_compl, compl_top, cliqueNum_bot, Nat.cast_one] at h
+
+/-- Embedding two nonadjacent vertices `{0, 2}` into `C₅` witnesses `2 = ϑ(K̄₂) ≤ ϑ(C₅)` via
+`Embedding.lovaszTheta_le`. -/
+example : (2 : ℝ) ≤ (cycleGraph 5).lovaszTheta := by
+  let f : (⊥ : SimpleGraph (Fin 2)) ↪g cycleGraph 5 :=
+    { toFun := ![0, 2]
+      inj' := by decide
+      map_rel_iff' := @fun i j => by revert i j; decide }
+  have h2 : (⊥ : SimpleGraph (Fin 2)).lovaszTheta = 2 := by
+    have hα : ((⊥ : SimpleGraph (Fin 2)).indepNum : ℝ) = 2 := by
+      rw [← cliqueNum_compl, compl_bot, cliqueNum_top, Nat.card_eq_fintype_card, Fintype.card_fin]
+      norm_num
+    exact le_antisymm (by simpa using lovaszTheta_le_natCard (G := (⊥ : SimpleGraph (Fin 2))))
+      (hα ▸ indepNum_le_lovaszTheta)
+  exact h2 ▸ f.lovaszTheta_le
+
 /-! ### An independent restatement of `Θ(C₅) = √5`
 
 The definitions below restate the problem `shannon_capacity_pentagon` of the lean-eval benchmark

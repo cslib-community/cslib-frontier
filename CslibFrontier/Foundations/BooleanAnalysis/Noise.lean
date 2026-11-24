@@ -247,7 +247,7 @@ to a positive function: every point is reached with positive probability. -/
 theorem noiseOp_pos_of_nonneg {ρ : ℝ} (hρ : -1 < ρ) (hρ' : ρ < 1) {g : (ι → Bool) → ℝ}
     (hg : ∀ x, 0 ≤ g x) {y : ι → Bool} (hy : 0 < g y) (x : ι → Bool) : 0 < noiseOp ρ g x := by
   have hw (P : ι → Bool) : 0 < bernoulliWeight ((1 - ρ) / 2) P :=
-    prod_pos fun i _ => by split_ifs <;> linarith
+    bernoulliWeight_pos (by linarith) (by linarith) P
   refine sum_pos' (fun P _ => mul_nonneg (hw P).le (hg _)) ⟨x + y, mem_univ _, mul_pos (hw _) ?_⟩
   have hxy : x + (x + y) = y := funext fun i => by
     change x i + (x i + y i) = y i
