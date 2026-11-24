@@ -247,7 +247,7 @@ private theorem halt_inSpace :
   have hin : (fun s => (encNat3 s).length) ≼ wBudget := .of_le fun _ => by
     simp only [wBudget]; omega
   have hph := (ComputableInSpace.fst encNat (encPair encNat encNat)).weaken hin
-  exact budget_natEq hph (budget_const (encB := encNat) 3 hin)
+  exact budget_natEq hph (budget_const (encB := encNat) 3)
 
 variable {S}
 

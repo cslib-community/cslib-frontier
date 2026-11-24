@@ -97,10 +97,10 @@ theorem classify_inSpace (e : Q ≃ Fin s) :
     (fun pair : Bool × Bool => pair.1 || !pair.2)
     (budget_prod (budget_natIsZero hb) (budget_natEq hlength hwidth))
   have htag := budget_comp_linear (bitsGetD false)
-    (budget_prod hw (budget_const (encB := encNat) 0 (.refl _)))
+    (budget_prod hw (budget_const (encB := encNat) 0))
   have hrank := budget_comp_linear Encoding.NativeDecode.readNat_inSpace
-    (budget_prod hw (budget_prod (budget_const (encB := encNat) 1 (.refl _))
-      (budget_const (encB := encNat) (s + 1).size (.refl _))))
+    (budget_prod hw (budget_prod (budget_const (encB := encNat) 1)
+      (budget_const (encB := encNat) (s + 1).size)))
   have hcontrol := budget_comp_linear (Encoding.NativeDecode.state_inSpace e) hrank
   have hhalt := budget_finite (encC := encBool) (Option.isNone : Option Q → Bool) hcontrol
   have hoffset := Encoding.NativeDecode.trackOffset_inSpace (k := k) (s := s)
@@ -111,7 +111,9 @@ theorem classify_inSpace (e : Q ≃ Fin s) :
     (fun pair : Bool × Bool => pair.1 && !pair.2) (budget_prod hfirst hsecond)
   have hsome := budget_comp_linear (encC := encOption encBool)
     (of_inO (ComputableInDegree.optionSome (enc₁ := encBool)).inO_one) haccept
-  have hnone := budget_const (encIn := encArgs) (encB := encOption encBool) none (.refl _)
+  have hnone :=
+    budget_const (Bs := fun a => (encArgs a).length) (encIn := encArgs) (encB := encOption encBool)
+      none
   refine (budget_ite hshape hnone
     (budget_ite htag (budget_ite hhalt hsome hnone) hnone)).of_enc_eq ?_
   rintro ⟨b, word⟩

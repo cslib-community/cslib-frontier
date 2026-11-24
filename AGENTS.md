@@ -467,9 +467,9 @@ more than repaired proofs: adapt to each in the bump, or defer it as the cleanup
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
-- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is deprecated (#7636):
-  its ticks are unchecked annotations. Add no new uses; port existing bounds
-  ([Running-time claims](policy/statements.md#running-time-claims)).
+- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is permanently
+  removed and forbidden (#7636, #6301; enforced by `scripts/check_timem.py`): its ticks are
+  unchecked annotations ([Running-time claims](policy/statements.md#running-time-claims)).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.
