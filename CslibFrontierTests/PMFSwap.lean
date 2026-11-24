@@ -264,6 +264,16 @@ example (p : PMF α) (q : PMF β) (f : α → β → PMF Bool) (x : ENNReal)
   pmf_hoist q at h
   exact h
 
+-- Only the path to a moved sample is normalized. A chain whose sample is already in front keeps
+-- its map, so a rewrite with the caller's lemma still applies after hoisting.
+example (p : PMF α) (q : PMF β) (m : α → PMF (γ × δ)) (f : β → α → γ)
+    (h : ∀ a, (m a).map Prod.fst = q.bind fun b => PMF.pure (f b a)) :
+    (p.bind fun a => (m a).map Prod.fst) = q.bind fun b => p.bind fun a => PMF.pure (f b a) := by
+  pmf_hoist p
+  guard_target =ₐ ((p.bind fun a => (m a).map Prod.fst) =
+    p.bind fun a => q.bind fun b => PMF.pure (f b a))
+  simp_rw [h]
+
 -- A sample already at the front does not move.
 /--
 error: pmf_hoist: no sample of

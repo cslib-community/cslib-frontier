@@ -14,8 +14,9 @@ public meta import Lean.Elab.Tactic
 # Shared normalization and reordering of probabilistic bind chains
 
 The proof-producing core of `pmf_swap`, `pmf_hoist`, and `peel_binds`. It normalizes monadic
-notation and nested binds without unfolding named programs, matches independent samples by their
-distributions, and constructs the equality moving a selected sample to the front. Custom samplers
+notation and nested binds at the heads it visits, without unfolding named programs or rewriting the
+rest of a chain, matches independent samples by their distributions, and constructs the equality
+moving a selected sample to the front. Custom samplers
 supply their commutation lemmas; relation-specific peeling and support witnesses stay in the
 calling tactic.
 -/
@@ -443,20 +444,6 @@ partial def hoistAt (ctx : Context) (q : Pat) (e : Expr) (k : Nat) :
     | some h => mkEqTrans h hMove
     | none => pure hMove
   return (result, ← castEqProof e result proof)
-
-/-- Normalize a complete visible sampling chain, preserving binder names and returning its
-equality proof. Named program bodies and expressions inside terminal results stay opaque. -/
-partial def normalize (ctx : Context) (e : Expr) : MetaM (Expr × Option Expr) := do
-  let (head, hHead?) ← normalizeBindHead e
-  let some s ← parseSample? ctx head | return (head, hHead?)
-  let cont? : Option (Expr × Expr) ← withBody s.cont fun x body => do
-    let (body', h?) ← normalize ctx body
-    let some h := h? | return none
-    return some (← mkLambdaFVars #[x] body', ← mkFunExt (← mkLambdaFVars #[x] h))
-  let some (cont, hCont) := cont? | return (head, hHead?)
-  let result ← s.toPat.front cont
-  let hStep ← castEqProof head result (← stepCongr s.toPat s.cont hCont)
-  return (result, ← chainEqOpt e result hHead? (some hStep))
 
 end Cslib.Tactic.BindChain
 

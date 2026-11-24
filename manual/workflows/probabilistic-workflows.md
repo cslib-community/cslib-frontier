@@ -1601,8 +1601,9 @@ substituted and maps pushed into the continuations: the shape that `PMF.bind_con
 normal form; it does not unfold support membership or probability masses. The checked examples in
 [PMFNorm.lean](../../CslibFrontierTests/PMFNorm.lean) show the normal form of each kind of term.
 To prove that two sampling chains differ only in the order of independent samples, use `pmf_swap`.
-It normalizes visible monadic notation, nested binds, maps, and `ProbComp.eval` itself; named
-programs still need to be unfolded explicitly. `peel_binds` uses the same normalization and can
+It normalizes visible monadic notation, nested binds, maps, and `ProbComp.eval` itself, along the
+path to each sample it strips, and leaves the rest of each chain as written; named programs still
+need to be unfolded explicitly. `peel_binds` uses the same normalization and can
 align an independent draw from anywhere in the opposite chain, keeping its support witness for
 the remaining equality or game bound. Matching leading draws keep their original order.
 To select a different coupling explicitly, use `pmf_hoist q`, or

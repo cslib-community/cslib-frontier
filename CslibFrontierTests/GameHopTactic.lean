@@ -199,6 +199,14 @@ example (μ : PMF ℕ) (ν : PMF Bool) (ξ : PMF (Fin 2))
   peel_binds x b c
   exact h x x_mem b b_mem c c_mem
 
+/-- Aligning a draw that is exposed by rewriting a map keeps that rewrite in the proof, which the
+kernel checks. -/
+example (μ : PMF ℕ) (ν : PMF Bool) (h : Bool → Fin 2) (f : Bool → ℕ → PMF ℕ)
+    (g : ℕ → Fin 2 → PMF ℕ) (hfg : ∀ b x, f b x = g x (h b)) :
+    (ν.bind fun b => μ.bind fun x => f b x) = μ.bind fun x => (ν.map h).bind fun c => g x c := by
+  peel_binds b x
+  exact hfg b x
+
 /-- Deep alignment leaves an unmatched monadic tail in its original form for a supplied bound. -/
 example (μ : PMF ℕ) (ν : PMF Bool) (ξ : PMF (Fin 2))
     (m₁ : ProbComp ℕ) (m₂ : ProbComp Bool)

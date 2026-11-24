@@ -313,8 +313,8 @@ front of its chain or there are fewer than `n` independent samples of `q`.
 
 `pmf_hoist [h] F` also moves a custom sampler `F`, such as `Game.runStatelessOracle o prog`,
 given a commutation rule of the form accepted by `pmf_swap [h]`. The same rule lets a distribution
-move past `F`; two custom samplers do not move past each other. Visible monadic chains are
-normalized before selecting the sample. -/
+move past `F`; two custom samplers do not move past each other. Visible monadic notation is
+normalized along the path to the moved sample; the rest of each chain keeps its form. -/
 syntax (name := pmfHoist) "pmf_hoist " ("[" term,* "]" ppSpace)? (pmfHoistOcc ppSpace)? term
   (Lean.Parser.Tactic.location)? : tactic
 
@@ -335,13 +335,12 @@ elab_rules : tactic
     let methods : Simp.Methods := {
       pre := fun e => do
         if occ?.isSome && (← hoisted.get) then return .done { expr := e }
-        let (normalized, hNorm?) ← normalize ctx e
-        let some k ← firstDepth? ctx q normalized | return .continue
+        let some k ← firstDepth? ctx q e | return .continue
         let q := { q with head := ← instantiateMVars q.head }
         let mut k := k
         if let some n := occ? then
           -- Count the samples of the whole chain here, and do not visit its subchains again.
-          let ks ← findDepths ctx q normalized
+          let ks ← findDepths ctx q e
           if ks.isEmpty then return .continue
           let before ← seen.get
           seen.set (before + ks.size)
@@ -350,12 +349,10 @@ elab_rules : tactic
           if k == 0 then
             throwError "pmf_hoist: sample {n} of{indentExpr q.head}\nis already at the front \
               of its chain"
-        if k == 0 then
-          return if hNorm?.isSome then .visit { expr := normalized, proof? := hNorm? }
-            else .continue
-        let (e', pf) ← hoistAt ctx q normalized k
+        if k == 0 then return .continue
+        let (e', pf) ← hoistAt ctx q e k
         hoisted.set true
-        let r : Simp.Result := { expr := e', proof? := ← chainEqOpt e e' hNorm? (some pf) }
+        let r : Simp.Result := { expr := e', proof? := some pf }
         return if occ?.isSome then .done r else .visit r }
     -- With `occ`, equal subterms are distinct occurrences, so simp must not memoize.
     let simpc ← Simp.mkContext
