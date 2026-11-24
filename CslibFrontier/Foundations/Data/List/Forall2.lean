@@ -26,6 +26,7 @@ hole triples and runs of a search, split them all around the element that change
   cutting one side cuts the other.
 * `List.Forall₂.split_of_length_eq`: two appends aligned with parts of equal lengths.
 * `List.Forall₂.exists_mem_of_mem`: each element has an aligned partner.
+* `List.Forall₂.flatMap`: aligned lists with aligned images have aligned `flatMap`s.
 -/
 
 public section
@@ -89,5 +90,17 @@ theorem split_of_length_eq {a a' : List α} {b b' : List β} (hlen : a.length = 
   rw [take_left, hlen, take_left] at h₁
   rw [drop_left, hlen, drop_left] at h₂
   exact ⟨h₁, h₂⟩
+
+/-- Aligned lists whose aligned elements have aligned images have aligned `flatMap`s. -/
+theorem flatMap {γ δ : Type*} {S : γ → δ → Prop} {l : List α} {l' : List β} {f : α → List γ}
+    {g : β → List δ} (h : Forall₂ R l l')
+    (hf : ∀ a ∈ l, ∀ b ∈ l', R a b → Forall₂ S (f a) (g b)) :
+    Forall₂ S (l.flatMap f) (l'.flatMap g) := by
+  induction h with
+  | nil => simp
+  | cons hab _ ih =>
+    rw [List.flatMap_cons, List.flatMap_cons]
+    exact List.rel_append (hf _ List.mem_cons_self _ List.mem_cons_self hab) (ih fun a ha b hb =>
+      hf a (List.mem_cons_of_mem _ ha) b (List.mem_cons_of_mem _ hb))
 
 end List.Forall₂

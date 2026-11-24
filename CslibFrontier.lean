@@ -1240,7 +1240,15 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Wor
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccProg
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccSize
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Accel
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxAccel
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxAdd
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxBack
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxExtract
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxMain
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxOrder
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxRound
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxScale
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Approximate
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.BaseChange
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Budget
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Comp
