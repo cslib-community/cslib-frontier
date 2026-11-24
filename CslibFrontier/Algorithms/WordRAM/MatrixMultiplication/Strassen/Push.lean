@@ -51,8 +51,7 @@ theorem exec_locateChild {w : ℕ} (x : Data 64) (h1 : x.regs Reg.one = 1)
       ∀ i, i ≠ Reg.quarter → i ≠ Reg.formA → i ≠ Reg.formB → i ≠ Reg.product →
         i ≠ Reg.childScratch → i ≠ Reg.childDepth → y.regs i = x.regs i := by
   refine WP.exists_execWithin_preserves locateChild_preserves ?_
-  unfold locateChild
-  wram_exec [h1, h4]
+  wram_exec [locateChild, h1, h4]
   intro hregs
   wram_simp
   refine ⟨by omega, by omega, fun i h1' h2' h3' h4' h5' h6' => hregs i ?_⟩

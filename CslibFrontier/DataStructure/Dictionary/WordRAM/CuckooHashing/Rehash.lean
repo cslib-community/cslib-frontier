@@ -430,8 +430,7 @@ private theorem syncRehashCondCode_exec {w base c_exp n_max act : ℕ} {x : Data
       y.regs 18 = 0 ∧
       y.mem = x.mem := by
   have hle_sp := le_space c_exp n_max
-  unfold syncRehashCondCode loadHeaderCode
-  wram_exec [h0, hm16]
+  wram_exec [syncRehashCondCode, loadHeaderCode, h0, hm16]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, rfl⟩
 
 private def rehashAttemptCode (c_exp n_max : ℕ) : Code .exact 19 :=
@@ -886,8 +885,7 @@ private theorem insertOverwriteBranchCode_exec {w base c_exp n_max idx v : ℕ} 
       (∀ a, a ≠ valsBase base c_exp n_max + idx → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
-  unfold insertOverwriteBranchCode loadHeaderCode
-  wram_exec [h0, hm10, hm14, hm18]
+  wram_exec [insertOverwriteBranchCode, loadHeaderCode, h0, hm10, hm14, hm18]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, by mem_frame⟩
 
 private def insertNewKeySetupCode : Code .exact 19 :=

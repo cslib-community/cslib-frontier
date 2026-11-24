@@ -635,8 +635,7 @@ theorem offsetSetupCode_execWithin {base offset N k w idx : ℕ} {x : Data 10}
   have hbOff_lt := bitOffset_lt (k := k) (idx := idx) hw
   have hwo : (idx / w) * k + ((idx % w) * k) / w = wordOffset k w idx := rfl
   have hbo : ((idx % w) * k) % w = bitOffset k w idx := rfl
-  unfold offsetSetupCode
-  wram_exec [hbase, hr1, hr8, hr9, hwo, hbo]
+  wram_exec [offsetSetupCode, hbase, hr1, hr8, hr9, hwo, hbo]
   wram_simp [hbase, hr1, hr8, hr9]
 
 /-- `addrSetupCode` executes deterministically in at most `25` instructions. -/

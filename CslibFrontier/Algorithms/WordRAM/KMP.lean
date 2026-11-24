@@ -262,8 +262,7 @@ private theorem while_fallback_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
     · subst hk0
       let x₁ := x.set go 0
       have hb : ExecWithin w fallbackBody x x₁ 3 := by
-        unfold fallbackBody
-        wram_exec [hz, hk]
+        wram_exec [fallbackBody, hz, hk]
       have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
       have hx₁_k : x₁.regs regk = 0 := by simp +decide [x₁, hk]
       have hx₁_ch : x₁.regs regch = x.regs regch := by simp +decide [x₁]
@@ -283,8 +282,7 @@ private theorem while_fallback_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
       by_cases hmatch : pat[k] = x.regs regch
       · let x₁ := ((x.set t0 (x.regs patBase + k)).set t0 pat[k]).set go 0
         have hb : ExecWithin w fallbackBody x x₁ 5 := by
-          unfold fallbackBody
-          wram_exec [hz, hk, hk_pos, hread_pat, hmatch, hf_pk]
+          wram_exec [fallbackBody, hz, hk, hk_pos, hread_pat, hmatch, hf_pk]
           rw [← hmatch]
         have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
         have hx₁_k : x₁.regs regk = k := by simp +decide [x₁, hk]
@@ -729,8 +727,7 @@ private theorem emptyPatCode_spec {w : ℕ} (txt : List ℕ) (hw : Fits w (2 * t
     have hf_addr : Fits w (3 + txt.length + 1 + j) := hw.of_le (by omega)
     have hf_j1 : Fits w (j + 1) := hw.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold emptyPatBody
-    wram_exec [so, sout, hf_o1, hf_addr, hf_j1]
+    wram_exec [emptyPatBody, so, sout, hf_o1, hf_addr, hf_j1]
     refine ⟨⟨by wram_simp [so], by wram_simp [sout], by wram_simp [st1], ?_, ?_, ?_⟩,
       by wram_simp⟩
     · wram_simp [shdr]
@@ -822,8 +819,7 @@ private theorem searchPostBranch_full_step {w : ℕ} (I : SearchInput) (hp : 0 <
   have hf_pibm : Fits w (3 + I.pat.length + I.txt.length + (I.pat.length - 1)) :=
     hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold searchPostBranch
-  wram_exec [hr₂.one_eq, hr₂.pm_eq, hr₂.pib_eq, hr₂.out_eq, hfull, hread_pi_last,
+  wram_exec [searchPostBranch, hr₂.one_eq, hr₂.pm_eq, hr₂.pib_eq, hr₂.out_eq, hfull, hread_pi_last,
     hf_i1, hf_shift, hf_oc1, hf_out_oc, hf_mm1, hf_pibm]
   refine ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, ?_⟩
   wram_simp
@@ -843,8 +839,7 @@ private theorem searchPostBranch_nonfull_step {w : ℕ} (I : SearchInput)
       z.mem = s₂.mem := by
   have hf_i1 : Fits w (s₂.regs regidx + 1) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold searchPostBranch
-  wram_exec [hr₂.one_eq, hr₂.pm_eq, hkne, hf_i1]
+  wram_exec [searchPostBranch, hr₂.one_eq, hr₂.pm_eq, hkne, hf_i1]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 private theorem searchBody_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.length)
@@ -1146,8 +1141,7 @@ theorem searchCode_exec {w : ℕ} (I : SearchInput)
   have hsetup_spec : ∃ x₁, ExecWithin w searchSetup x x₁ 9 ∧
       SearchRegs I x₁ ∧ x₁.mem = x.mem := by
     refine WP.exists_execWithin ?_
-    unfold searchSetup
-    wram_exec [x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_tb, hf_pib, hf_out]
+    wram_exec [searchSetup, x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_tb, hf_pib, hf_out]
     exact ⟨⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp; omega⟩, rfl⟩
   obtain ⟨x₁, hsetup, hrx₁, hmem₁⟩ := hsetup_spec

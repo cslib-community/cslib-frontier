@@ -98,8 +98,7 @@ theorem exec {w : ℕ} (A : Args) (x : Data 28)
       rw [hm, A.input_filled x.mem _ hbelow (by omega) (by omega) hi]; exact hmem i hi
     have hinc : Fits (w + 2) (y.regs Cell.cell + 1) := hacfit.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold body
-    wram_exec
+    wram_exec [body]
     wram_call (Cell.exec_step y rfl
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       (by regs_frame) (by regs_frame) (by regs_frame)
@@ -120,8 +119,7 @@ theorem exec {w : ℕ} (A : Args) (x : Data 28)
       simpa only [Args.valueAB, Args.valueBC, Args.valueAC] using hzmem
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec [ht]
+  wram_exec [program, ht]
   wram_call (ExecWithin.loop_count Inv (fun _ hy => hy.2.2.1) hbody (by wram_simp; omega)
     ⟨fun i hi => by
       have hne : i ≠ area ∧ i ≠ one ∧ i ≠ Cell.cell := by

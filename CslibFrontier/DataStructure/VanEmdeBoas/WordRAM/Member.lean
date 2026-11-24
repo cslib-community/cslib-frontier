@@ -99,8 +99,7 @@ theorem memberLoop_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32}
       cases tree <;> simp_all [Tree.bounds, Tree.member]
     apply memberLoop_finish ⟨hz, ho, htwo, hthree, hfour, hfive, hp, hx, hout0, hrun⟩
     apply WP.exists_execWithin
-    unfold memberBody
-    wram_exec [hp, hz, he]
+    wram_exec [memberBody, hp, hz, he]
     exact ⟨by wram_simp [hz], by wram_simp,
       by wram_simp [hout0, hmem_f, Bool.false_eq_true, ↓reduceIte], by wram_simp⟩
   obtain ⟨he_raw, ⟨hm, hM⟩, hq, hspan⟩ := hheader

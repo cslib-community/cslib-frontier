@@ -67,8 +67,7 @@ theorem exec_less {w : ℕ} (h2 : Fits w 2) (x : Data (r + 9)) {a b : ℤ}
   have : Fits w (if b < 0 then 1 else 0) := by split_ifs <;> fits
   have hrun : ∃ y, ExecWithin w less x y 11 ∧
       y.regs result = (if a < b then 1 else 0) ∧ y.mem = x.mem := by
-    unfold less
-    wram_exec [hxa, hxb, encode_mod_two] <;> wram_simp <;>
+    wram_exec [less, hxa, hxb, encode_mod_two] <;> wram_simp <;>
       split_ifs at * <;> first | rfl | omega
   obtain ⟨y, he, hyr, hym⟩ := hrun
   refine ⟨y, he, hyr, hym, fun i hi => he.regs_eq ?_⟩

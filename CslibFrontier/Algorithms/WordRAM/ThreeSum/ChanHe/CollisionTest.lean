@@ -65,8 +65,7 @@ private theorem exec_compare {w : ℕ} (j : Fin 3) (x : Data 64)
   have hcut : (x.set scaled (x.regs (CountCall.result j) * x.regs card)).regs (threshold j) =
       x.regs (threshold j) := by fin_cases j <;> rfl
   refine WP.exists_execWithin ?_
-  unfold compare
-  wram_exec [hz, hcut] <;>
+  wram_exec [compare, hz, hcut] <;>
     exact ⟨by wram_simp; split_ifs <;> omega, by wram_simp,
       fun i hs hg => by wram_simp [Function.update_of_ne hs, Function.update_of_ne hg]⟩
 

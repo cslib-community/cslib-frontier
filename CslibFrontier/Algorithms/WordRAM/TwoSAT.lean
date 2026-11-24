@@ -810,8 +810,7 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
             (by dsimp only [st_v]; wram_simp; exact hxor_a)
             (by dsimp only [st_v, st_pre]; exact hdeg)
         have hlen_1 : x.mem p = 1 := by simpa using hlen_p
-        unfold implDegBody
-        wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_p1, hf_na]
+        wram_exec [implDegBody, hc1, hpR, hi, hlen_1, hmem_a, hf_p1, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         have hy₁_1 : y₁.regs cOne = 1 :=
           (hy₁_fr cOne (by decide) (by decide)).trans
@@ -912,8 +911,7 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
             (by dsimp only [st_v2]; wram_simp; exact hxor_b)
             (by dsimp only [st_v2]; exact hy₁_deg')
         have hlen_2 : x.mem p = 2 := by simpa using hlen_p
-        unfold implDegBody
-        wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
+        wram_exec [implDegBody, hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         wram_exec [hy₁_1, hy₁_b, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_
@@ -1064,8 +1062,7 @@ private theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.word
             (by dsimp only [st_v, litEquiv]; wram_simp; rfl)
             (by dsimp only [st_v]; exact hpcsr)
         have hlen_1 : x.mem p = 1 := by simpa using hlen_p
-        unfold implFillBody
-        wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_p1, hf_na]
+        wram_exec [implFillBody, hc1, hpR, hi, hlen_1, hmem_a, hf_p1, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         have hy₁_1 : y₁.regs cOne = 1 :=
           (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hc1)
@@ -1164,8 +1161,7 @@ private theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.word
             (by dsimp only [st_v2]; wram_simp; exact hxor_b)
             (by dsimp only [st_v2, litEquiv]; wram_simp; rfl)
             (by dsimp only [st_v2]; exact hy₁_p')
-        unfold implFillBody
-        wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
+        wram_exec [implFillBody, hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         wram_exec [hy₁_1, hy₁_a, hy₁_b, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_
@@ -1435,8 +1431,7 @@ private theorem extractVarLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wo
         x₁.regs iReg = idx + 1 ∧
         x₁.regs compIdxReg = (ok && decide (compIdx (v, true) ≠ compIdx (v, false))).toNat
     have hstep : ∃ x₁, ExecWithin w extractVarBody x x₁ 14 ∧ VarPost x₁ := by
-      unfold extractVarBody
-      wram_exec [hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t,
+      wram_exec [extractVarBody, hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t,
         hf_2i, hf_cf, hf_ct, hf_ob2, hf_ob2i, hf_i1]
       · -- equal components: compIdx (v, false) = compIdx (v, true)
         dsimp only [VarPost]
@@ -1558,8 +1553,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
         s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length
     change ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧ Setup0Post s₀
-    unfold headerSetupCode
-    wram_exec [Data.init_regs, hm0, hm1, hm2, hf1, hf2, hf3, hf_ob]
+    wram_exec [headerSetupCode, Data.init_regs, hm0, hm1, hm2, hf1, hf2, hf3, hf_ob]
     dsimp only [Setup0Post]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp; rfl, by wram_simp, by wram_simp⟩
@@ -1737,8 +1731,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
             s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc
         change ∃ s₃, ExecWithin w setupWorkRegsCode s₂ s₃ 19 ∧ SetupPost s₃
-        unfold setupWorkRegsCode
-        wram_exec [hs₂_0, hs₂_1, hs₂_2, hs₂_3, hs₂_ob, hs₂_nv, hs₂_mc]
+        wram_exec [setupWorkRegsCode, hs₂_0, hs₂_1, hs₂_2, hs₂_3, hs₂_ob, hs₂_nv, hs₂_mc]
         · dsimp only [SetupPost]
           refine ⟨rfl, by wram_simp; exact hs₂_0, by wram_simp; exact hs₂_1,
             by wram_simp; exact hs₂_2, by wram_simp; exact hs₂_3,

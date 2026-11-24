@@ -260,8 +260,7 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
     have hc : (Cond.lt zero go).Holds x := by simp only [Cond.holds_lt, hz, hgo]; omega
     let x₁ := x.set go 0
     have hb : ExecWithin w extBody x x₁ 3 := by
-      unfold extBody
-      wram_exec [hz, hl₀]
+      wram_exec [extBody, hz, hl₀]
     have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
     exact ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by simp only [extend]; omega),
       by simp +decide [x₁, extend], by simp +decide [x₁, extend], rfl⟩
@@ -284,8 +283,7 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
       · let x₁ := (((((x.set t0 (x.regs regr + 1)).set t1 xs[l]).set t0 xs[x.regs regr]).set
             regl l).set regr (x.regs regr + 1)).set ext (x.regs ext + 1)
         have hb : ExecWithin w extBody x x₁ 9 := by
-          unfold extBody
-          wram_exec [hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1, hf_l, hf_ext1]
+          wram_exec [extBody, hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1, hf_l, hf_ext1]
           dsimp only [x₁]; rw [hEq]
         have hext_eq : extend xs.toArray (l + 1) (x.regs regr) =
             extend xs.toArray l (x.regs regr + 1) + 1 := by
@@ -308,8 +306,7 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
           by rw [hext_eq]; omega, by rw [hext_eq]; omega, hy_mem⟩
       · let x₁ := (((x.set t0 (x.regs regr + 1)).set t1 xs[l]).set t0 xs[x.regs regr]).set go 0
         have hb : ExecWithin w extBody x x₁ 8 := by
-          unfold extBody
-          wram_exec [hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1]
+          wram_exec [extBody, hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1]
         have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
         have hext_eq : extend xs.toArray (l + 1) (x.regs regr) = 0 := by
           simp only [extend, hsz, hr, hl_lt, and_self, ↓reduceDIte, harrL, harrR, hEq, ↓reduceIte]
@@ -317,8 +314,7 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
           by simp +decide [x₁, hext_eq], by simp +decide [x₁, hext_eq], rfl⟩
     · let x₁ := x.set go 0
       have hb : ExecWithin w extBody x x₁ 4 := by
-        unfold extBody
-        wram_exec [hz, hlen, hl₀, hr]
+        wram_exec [extBody, hz, hlen, hl₀, hr]
       have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
       have hext_eq : extend xs.toArray (l + 1) (x.regs regr) = 0 := by
         have hnot : ¬(x.regs regr < xs.toArray.size ∧ l < xs.toArray.size) := by rw [hsz]; omega
@@ -385,8 +381,7 @@ private theorem radiiSetup_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs.l
   have hn1 : Fits w (xs.length + 1) := hw.of_le (by omega)
   have hn2 : Fits w (xs.length + 2) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold radiiSetup
-  wram_exec [x, Data.init_regs, Data.init_mem_zero, h1, h2, h2n, h2n1, hn1, hn2]
+  wram_exec [radiiSetup, x, Data.init_regs, Data.init_mem_zero, h1, h2, h2n, h2n1, hn1, hn2]
   refine ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, by wram_simp, ?_, ?_, ?_, ?_⟩
   · wram_simp

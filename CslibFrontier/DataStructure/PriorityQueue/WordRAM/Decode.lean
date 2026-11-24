@@ -116,8 +116,7 @@ theorem nativeResultCode_spec (P : PQCode .standard r) (zero : Fin r)
       ∀ i, i ≠ P.outFlag → i ≠ P.outV → y.regs i = x.regs i := by
   cases o <;> simp only [nativeResultReady] at hready
   all_goals
-    unfold nativeResultCode
-    wram_exec [hzero, hready, hfv, hfk, hvz] <;>
+    wram_exec [nativeResultCode, hzero, hready, hfv, hfk, hvz] <;>
     simp_all only [ne_eq, ne_comm, StateTransitionSpec.ofFn_result, IndexedMinPQ.Op.Result,
       decode, not_true_eq_false, decide_false, decide_true, Option.some.injEq, Bool.false_eq,
       Bool.true_eq, nativeResultType, ResultType.Value, Data.set, Function.update_eq_self,

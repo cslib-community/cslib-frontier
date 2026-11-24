@@ -224,8 +224,7 @@ private theorem exec_body {w q : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ)
     ∃ y, ExecWithin w (body side) x y 18 ∧ y.regs idx = q + 1 ∧
       y.mem = Function.update x.mem (A.dst + q) (entry side A R q) := by
   refine WP.exists_execWithin ?_
-  unfold body
-  wram_exec
+  wram_exec [body]
   wram_call (exec_indices side A x hx hq (hdst.of_le (by omega))) with
     b ⟨hba, hbi, hbl, hbv, hbb, hbo, hbz, hbm⟩
   by_cases hv : (if side then q / A.n else q % A.D) / A.p < A.length
@@ -286,8 +285,7 @@ theorem exec {w : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ) (x : Data 17)
       · update_simp; exact hym j (by omega)
     · intro a ha; rw [hzm]; update_simp; exact hyout a (by omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec [hx.size, hx.dimension]
+  wram_exec [program, hx.size, hx.dimension]
   have hx₀ : I (((x.set zero 0).set one 1).set idx 0 |>.set area (A.n * A.D)) :=
     ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp; exact Nat.zero_le _, fun _ hj => by wram_simp at hj, fun _ _ => rfl⟩

@@ -99,8 +99,7 @@ private theorem exec_body {w : ℕ} (x : Data 12) (R : ℕ → ℕ)
             (x.regs idx % x.regs size) else x.mem) := by
   have hdiv : x.regs idx / x.regs size ≤ x.regs idx := Nat.div_le_self ..
   have hmod : x.regs idx % x.regs size ≤ x.regs idx := Nat.mod_le ..
-  unfold body
-  wram_exec [hinput, ho]
+  wram_exec [body, hinput, ho]
   · refine ⟨by wram_simp, by wram_simp [hc], ?_⟩
     simp only [hc, ↓reduceIte, Data.set_mem, Data.write_mem]
     congr 2 <;> omega
@@ -177,8 +176,7 @@ theorem exec {w : ℕ} (x : Data 12) (R : ℕ → ℕ) (h1 : Fits w 1)
           simp only [hzi, hsucc, h, ↓reduceIte, Nat.add_zero]
         simp only [h, ↓reduceIte]; exact hyout a (by omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   have hx₀ : I ((((x.set one 1).set idx 0).set count 0).set area (n * n)) :=
     ⟨fun i hi => by
       have hne : i ≠ one ∧ i ≠ idx ∧ i ≠ count ∧ i ≠ area := by revert i hi; decide

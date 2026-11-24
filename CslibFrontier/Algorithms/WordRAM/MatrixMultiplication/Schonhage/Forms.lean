@@ -143,8 +143,7 @@ theorem exec_form {w : ℕ} (hw : 0 < w) (side : Bool) (t : Fin 10)
     ∃ y, ExecWithin (w + 2) (form side t) x y 163 ∧
       y.regs accumulator = encode (∑ s, coefficients side t s * v s) ∧ FormFrame x y := by
   refine WP.exists_execWithin ?_
-  unfold form
-  wram_exec
+  wram_exec [form]
   wram_call (exec_sumCode hw (List.ofFn fun s => (s, coefficients side t s)) _ 0 B base n v
     (by intro sc hsc; obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hsc; exact coefficients_values side t s)
     (by wram_simp; rfl) (by wram_simp [hbase]) (by wram_simp [hn]) hmem

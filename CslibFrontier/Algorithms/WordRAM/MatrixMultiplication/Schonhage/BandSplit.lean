@@ -148,8 +148,7 @@ theorem exec_split {w : ℕ} (L a : ℕ) (x : Data 96) (hx : SplitParameters L x
       ∃ z, ExecWithin w splitBody y z 11 ∧ I z ∧ L - z.regs level < L - y.regs level := by
     obtain ⟨z, he, hz, hm, ht⟩ := exec_splitBody L a y hy.1 hc hfit
     exact ⟨z, he, ⟨hz, hm.trans hy.2⟩, ht⟩
-  unfold splitCode splitHead
-  wram_exec *
+  wram_exec * [splitCode, splitHead]
   wram_call (ExecWithin.loop_invariant I (fun y => L - y.regs level) hb ?_)
     with y ⟨⟨hy, hym⟩, hc⟩
   · have hlevel : y.regs level = L := by

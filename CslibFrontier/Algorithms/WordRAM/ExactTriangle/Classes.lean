@@ -160,8 +160,7 @@ theorem exec {w : ℕ} (x : Data 20) (R : ℕ → ℕ) (h1 : Fits w 1)
         (∀ i, (i = src ∨ i = size ∨ i = counts ∨ i = queries ∨ i = modulus ∨
           i = one ∨ i = stride) → z.regs i = y.regs i) := by
       refine WP.exists_execWithin_preserves (fun i hi => body_preserves i hi) ?_
-      unfold body scan
-      wram_exec [hys, hyd]
+      wram_exec [body, scan, hys, hyd]
       have hread : ∀ q < n * n, y.mem (x.regs src + q) = R q := fun q hq => by
         rw [hyframe _ (by dsimp [b, n] at *; omega) (by dsimp [d, b, n] at *; omega)]
         exact hinput q hq
@@ -229,8 +228,7 @@ theorem exec {w : ℕ} (x : Data 20) (R : ℕ → ℕ) (h1 : Fits w 1)
         have := Nat.mul_le_mul_left s (show y.regs cursor ≤ y.regs cursor + 1 by omega)
         omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (ExecWithin.loop_invariant I (fun y => p - y.regs cursor) hbody
     ⟨fun i hi => by rcases hi with rfl | rfl | rfl | rfl | rfl <;> wram_simp,
      by wram_simp, by wram_simp [s, n]; omega, by wram_simp; exact Nat.zero_le _,

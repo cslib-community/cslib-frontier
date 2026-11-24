@@ -40,8 +40,7 @@ theorem exec_morton {w k : ℕ} (x : Data 128) (h2 : x.regs Reg.two = 2)
   have hreadc := htable _ hc
   have hi := Nat.Morton.index_lt hr hc
   unfold Nat.Morton.index at hi
-  unfold morton
-  wram_exec [h2, hreadr, hreadc]
+  wram_exec [morton, h2, hreadr, hreadc]
   exact ⟨rfl, by wram_simp [Nat.Morton.index, Nat.mul_comm],
     fun i ha hr hc hp => by wram_simp [ha, hr, hc, hp]⟩
 

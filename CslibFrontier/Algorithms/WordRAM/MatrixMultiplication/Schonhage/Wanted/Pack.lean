@@ -103,8 +103,7 @@ theorem exec_packBody {w L M R C : ℕ} (x : Data 16) (hx : PackProgress L M R C
     have := hx.code_lt; omega)
   dsimp only [d] at hdf hmul0 hadd0
   refine WP.exists_execWithin ?_
-  unfold packBody
-  wram_exec [hx.fixed.one, hx.fixed.two, hx.fixed.three, hx.fixed.nine, hx.fixed.ten,
+  wram_exec [packBody, hx.fixed.one, hx.fixed.two, hx.fixed.three, hx.fixed.nine, hx.fixed.ten,
     hmfit, hbit, hpfit, hjfit, hrd, hr3, hcd, hdf, hrq, hcq, hmul0, hadd0,
     h9, hmul9, hadd9]
   · have hb : x.regs mask % 2 = 0 := Nat.lt_one_iff.mp hc

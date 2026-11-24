@@ -454,8 +454,7 @@ private theorem exec_trieInit {w d free : ℕ} (x : Data numRegs)
   have hrun : ∃ y, ExecWithin w trieInit x y 5 ∧
       y.regs rTrieRoot = free ∧ y.regs rFree = free + 2 ∧
       y.mem = Function.update (Function.update x.mem free 0) (free + 1) 0 := by
-    unfold trieInit
-    wram_exec [hz, ho, hf]
+    wram_exec [trieInit, hz, ho, hf]
     wram_simp
   obtain ⟨y, he, hroot, hfree, hmem⟩ := hrun
   refine ⟨y, he, hroot, hfree, ?_, ?_, fun i hi => he.regs_eq (trieInit_preserves i hi)⟩
@@ -524,8 +523,7 @@ private theorem exec_trieGet {w bound d root key : ℕ} {fn : ℕ → ℕ} (x : 
             z.regs rZero = 0 ∧ z.regs rOne = 1 ∧ z.regs rDim = d ∧ z.mem = s.mem ∧
             z.regs rTrieCur = 0 ∧ z.regs rTrieRem = s.regs rTrieRem ∧
             z.regs rTrieBit = s.regs rTrieBit + 1 := by
-          unfold trieGetStep
-          wram_exec [hsz, hso, hcur0]
+          wram_exec [trieGetStep, hsz, hso, hcur0]
           wram_simp [hsz, hso, hsd, hcur0]
         obtain ⟨z, hz, hzz, hzo, hzd, hzm, hzc, hzr, hzb⟩ := hstep
         refine ⟨z, hz, ⟨hzz, hzo, hzd, hzm.trans hsm, hzr ▸ hfrem,
@@ -545,8 +543,7 @@ private theorem exec_trieGet {w bound d root key : ℕ} {fn : ℕ → ℕ} (x : 
             z.regs rTrieCur = s.mem (s.regs rTrieCur + (s.regs rTrieRem &&& 1)) ∧
             z.regs rTrieRem = s.regs rTrieRem >>> 1 ∧
             z.regs rTrieBit = s.regs rTrieBit + 1 := by
-          unfold trieGetStep
-          wram_exec [hsz, hso, hcur0]
+          wram_exec [trieGetStep, hsz, hso, hcur0]
           wram_simp [hsz, hso, hsd]
         obtain ⟨z, hz, hzz, hzo, hzd, hzm, hzc, hzr, hzb⟩ := hstep
         rw [hsm, Nat.and_one_is_mod] at hzc
@@ -713,8 +710,7 @@ private theorem exec_trieSetLoop :
            u.regs rFree = free ∧ u.mem = s.mem)) := by
       by_cases hslot0 : s.mem slot = 0
       · have hload : s.mem (cur + (rem &&& 1)) = 0 := by rwa [hbit_eq]
-        unfold trieSetStep
-        wram_exec [hz, ho, hcur, hrem, hfree, hload]
+        wram_exec [trieSetStep, hz, ho, hcur, hrem, hfree, hload]
         refine ⟨hz, ho, hd, ?_, ?_, hval, Or.inl ⟨hslot0, ?_, ?_, ?_⟩⟩
         · wram_simp [hb]
         · wram_simp; rw [Nat.shiftRight_eq_div_pow, pow_one]
@@ -722,8 +718,7 @@ private theorem exec_trieSetLoop :
         · wram_simp
         · wram_simp [hbit_eq]; rfl
       · have hload : s.mem (cur + (rem &&& 1)) ≠ 0 := by rwa [hbit_eq]
-        unfold trieSetStep
-        wram_exec [hz, ho, hcur, hrem, hfree, hload]
+        wram_exec [trieSetStep, hz, ho, hcur, hrem, hfree, hload]
         refine ⟨hz, ho, hd, ?_, ?_, hval, Or.inr ⟨hslot0, ?_, ?_, ?_⟩⟩
         · wram_simp [hb]
         · wram_simp; rw [Nat.shiftRight_eq_div_pow, pow_one]
@@ -1458,8 +1453,7 @@ private theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List
               q'.regs rGenOldLen = prev.length ∧ q'.regs rGenBitMask = (1 <<< c.val) ∧
               q'.regs rGenIdx = idx ∧ q'.regs rDomLen = acc.length ∧
               q'.regs rGenPos = p + 1 ∧ q'.mem = q.mem := by
-            unfold genInnerStep
-            wram_exec [hqo, hqk, hqdp, hqdl, hp_eq, hread_sz, hcard_lt]
+            wram_exec [genInnerStep, hqo, hqk, hqdp, hqdl, hp_eq, hread_sz, hcard_lt]
             wram_simp [hqz, hqo, hqcp, hqcl, hqk, hqdp, hqol, hqbm, hqidx, hqdl, hp_eq]
           obtain ⟨q', hq'_ex, hq'z, hq'o, hq'cp, hq'cl, hq'k, hq'dp, hq'ol, hq'bm,
             hq'idx, hq'dl, hq'pos, hq'mem⟩ := hstep
@@ -1621,8 +1615,7 @@ private theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x
             z.regs rCoordsPtr = coordsPtr ∧ z.regs rCoordsLen = cur.length + 1 ∧
             z.regs rTrieRem = setMask C / 2 ^ (b + 1) ∧ z.regs rGenIdx = b + 1 ∧
             z.mem = Function.update s.mem (coordsPtr + cur.length) b := by
-          unfold extractStep
-          wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
+          wram_exec [extractStep, hsz, hso, hscp, hscl, hb_eq, hbit1]
           wram_simp [hsz, hso, hsd, hscp, hscl, hb_eq, hshr_eq]
         obtain ⟨z, hz_ex, hzz, hzo, hzd, hzcp, hzcl, hzrem, hzidx, hzmem⟩ := hstep
         refine ⟨z, hz_ex, ?_, hzidx⟩
@@ -1651,8 +1644,7 @@ private theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x
             z.regs rCoordsPtr = coordsPtr ∧ z.regs rCoordsLen = cur.length ∧
             z.regs rTrieRem = setMask C / 2 ^ (b + 1) ∧ z.regs rGenIdx = b + 1 ∧
             z.mem = s.mem := by
-          unfold extractStep
-          wram_exec [hsz, hso, hscl, hb_eq, hbit0]
+          wram_exec [extractStep, hsz, hso, hscl, hb_eq, hbit0]
           wram_simp [hsz, hso, hsd, hscp, hscl, hb_eq, hshr_eq]
         obtain ⟨z, hz_ex, hzz, hzo, hzd, hzcp, hzcl, hzrem, hzidx, hzmem⟩ := hstep
         refine ⟨z, hz_ex, ?_, hzidx⟩
@@ -1751,8 +1743,7 @@ private theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
           z.mem = Function.update
             (Function.update s.mem (domPtr + 2 * p) (setMask (C \ ys[p])))
             (domPtr + 2 * p + 1) #(C \ ys[p]) := by
-        unfold flipStep
-        wram_exec [hso, hsk, hscl, hsdp, hp_eq, hrmk, hrsz]
+        wram_exec [flipStep, hso, hsk, hscl, hsdp, hp_eq, hrmk, hrsz]
         refine ⟨hso, hsk, hscl, hsdp, hsdl, ?_, ?_⟩
         · wram_simp [hp_eq]
         · wram_simp [h2p_eq, hrmk, hrsz, setMask_sdiff hsub_p, Finset.card_sdiff_of_subset hsub_p]
@@ -2927,8 +2918,7 @@ private theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
       have hst : ∃ z, ExecWithin w initCoordsStep s z 3 ∧
           z.regs rOne = 1 ∧ z.regs rDim = d ∧ z.regs rCoordsPtr = coordsPtr ∧
           z.regs rGenIdx = b + 1 ∧ z.mem = Function.update s.mem (coordsPtr + b) b := by
-        unfold initCoordsStep
-        wram_exec [hso, hscp, hb_eq]
+        wram_exec [initCoordsStep, hso, hscp, hb_eq]
         wram_simp [hso, hsd, hscp, hb_eq]
       obtain ⟨z, hez, hzo, hzd, hzcp, hzb, hzm⟩ := hst
       refine ⟨z, hez, ⟨hzo, hzd, hzcp, ?_, ?_⟩, hzb⟩
@@ -3778,8 +3768,7 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
   have hst3 : ∃ w₃, ExecWithin w qHighPrepCode w₂ w₃ 5 ∧
       w₃.regs rCurDomPtr = highDomBase ∧ w₃.regs rCurDomLen = highDom.length ∧
       w₃.regs rFree = qTrStart ∧ w₃.regs rStageCutoff = s ∧ w₃.mem = w₂.mem := by
-    unfold qHighPrepCode
-    wram_exec [hw₂_dp, hw₂_dl, hw₂_s]
+    wram_exec [qHighPrepCode, hw₂_dp, hw₂_dl, hw₂_s]
     refine ⟨rfl, hhigh_len.symm, ?_, rfl, rfl⟩
     wram_simp [qTrStart]; omega
   obtain ⟨w₃, he_w3, hw₃_cdp, hw₃_cdl, hw₃_fr, hw₃_cut, hw₃_mem⟩ := hst3
@@ -3884,8 +3873,7 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
   have hst5 : ∃ w₅, ExecWithin w qHighReadCode w₄ w₅ 4 ∧
       w₅.regs rTrieKey = setMask C ∧ w₅.regs rTrieRoot = w₄.mem (qHs + d) ∧
       w₅.mem = w₄.mem := by
-    unfold qHighReadCode
-    wram_exec [hw₄_qp, hw₄_qi, hw₄_ro, hw₄_d, hw₄_read_q]
+    wram_exec [qHighReadCode, hw₄_qp, hw₄_qi, hw₄_ro, hw₄_d, hw₄_read_q]
     wram_simp [hw₄_read_q]
   obtain ⟨w₅, he_w5, hw₅_key, hw₅_root, hw₅_mem⟩ := hst5
   have hw₅_regs : ∀ i, i ≠ rGenTmp ∧ i ≠ rTrieKey ∧ i ≠ rTrieRoot →
@@ -3979,8 +3967,7 @@ private theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs pr
   have hq0_st : ∃ u₀, ExecWithin w qLoadCode st u₀ 5 ∧
       u₀.regs rTrieKey = setMask C ∧ u₀.regs rCoordsPtr = qWorkStart ∧
       u₀.regs rFree = qWorkStart + d ∧ u₀.mem = st.mem := by
-    unfold qLoadCode
-    wram_exec [hspf, hsqp, hq_eq, hsd, hread_q]
+    wram_exec [qLoadCode, hspf, hsqp, hq_eq, hsd, hread_q]
     wram_simp [hread_q, qWorkStart]
   obtain ⟨u₀, he_q0, hu₀_key, hu₀_cp, hu₀_fr, hu₀_mem⟩ := hq0_st
   have hu₀_regs : ∀ i, i ≠ rFree ∧ i ≠ rGenTmp ∧ i ≠ rTrieKey ∧ i ≠ rCoordsPtr →
@@ -4029,8 +4016,7 @@ private theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs pr
         u₁_below_ob _ hpHs_lt
       have hst0 : ∃ v₀, ExecWithin w qShortLoadCode u₁ v₀ 2 ∧
           v₀.regs rTrieRoot = preMem (preHs + d) ∧ v₀.mem = u₁.mem := by
-        unfold qShortLoadCode
-        wram_exec [hu₁_pHs, hu₁_d, hread_phs]
+        wram_exec [qShortLoadCode, hu₁_pHs, hu₁_d, hread_phs]
         wram_simp [hread_phs]
       obtain ⟨v₀, he_ld, hv₀_root, hv₀_mem⟩ := hst0
       have hv₀_regs : ∀ i, i ≠ rGenTmp ∧ i ≠ rTrieRoot → v₀.regs i = u₁.regs i :=
@@ -4089,8 +4075,7 @@ private theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs pr
       z.regs rQueryIdx = q + 1 ∧
       z.mem = Function.update u_ans.mem (outBase + (q + 1))
         (Signed.encode (coveringProduct f g C)) := by
-    unfold qWriteCode
-    wram_exec [hu_qi, hu_one, hu_out, hu_val]
+    wram_exec [qWriteCode, hu_qi, hu_one, hu_out, hu_val]
     wram_simp
   obtain ⟨z, he_wr, hz_qi, hz_mem⟩ := hst_w
   have hpt_pos := queryStep_base_le (d := d) hH_pos1
@@ -4249,8 +4234,7 @@ theorem exec_solveFromTries {w d s baseFree rootF rootG qPtr W : ℕ}
   have hp4_st : ∃ s₄, ExecWithin w solvePreStageCode s₃ s₄ 5 ∧
       s₄.regs rCurDomPtr = lowDomBase ∧ s₄.regs rCurDomLen = lowDom.length ∧
       s₄.regs rFree = preStart ∧ s₄.regs rStageCutoff = 0 ∧ s₄.mem = s₃.mem := by
-    unfold solvePreStageCode
-    wram_exec [hs₃_dp, hdl_eq]
+    wram_exec [solvePreStageCode, hs₃_dp, hdl_eq]
     refine ⟨rfl, hlow_len.symm, ?_, rfl, rfl⟩
     wram_simp [preStart]; omega
   obtain ⟨s₄, he_p4, hs₄_cdp, hs₄_cdl, hs₄_fr, hs₄_cut, hs₄_mem⟩ := hp4_st
@@ -4319,8 +4303,7 @@ theorem exec_solveFromTries {w d s baseFree rootF rootG qPtr W : ℕ}
       s₆.regs rPreHsBase = preHs ∧ s₆.regs rOutPtr = outBase ∧
       s₆.regs rPreFree = qWorkStart ∧ s₆.regs rQueryIdx = 0 ∧
       s₆.mem = Function.update s₅.mem outBase Cs.length := by
-    unfold preSaveCode
-    wram_exec [hs₅_qFs, hs₅_qGs, hs₅_ro, hs₅_fr, hs₅_o, hs₅_qc]
+    wram_exec [preSaveCode, hs₅_qFs, hs₅_qGs, hs₅_ro, hs₅_fr, hs₅_o, hs₅_qc]
     wram_simp [qWorkStart]
   obtain ⟨s₆, he_p5, hs₆_pFs, hs₆_pGs, hs₆_pHs, hs₆_out, hs₆_pf, hs₆_qi, hs₆_mem⟩ := hp5_st
   have hs₆_regs : ∀ i, i ≠ rPreFsBase ∧ i ≠ rPreGsBase ∧ i ≠ rPreHsBase ∧
@@ -4743,8 +4726,7 @@ theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
         u₀.regs rTrieKey = setMask es[p].1 ∧
         u₀.regs (Signed.right (r := 47)) = Signed.encode es[p].2 ∧
         u₀.regs rTrieRoot = free ∧ u₀.mem = s.mem := by
-      unfold buildInputLoadCode
-      wram_exec [hso, hsep, hp_eq, hssav, hrmk, hrv]
+      wram_exec [buildInputLoadCode, hso, hsep, hp_eq, hssav, hrmk, hrv]
       wram_simp [hrmk, hrv]
     obtain ⟨u₀, he_ld, hu₀_key, hu₀_right, hu₀_root, hu₀_mem⟩ := hst
     have hu₀_regs : ∀ i,
@@ -5097,8 +5079,7 @@ private theorem exec_inputCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth 
   have hp_R_st : ∃ u₂, ExecWithin w inputPrepRightCode u₁ u₂ 5 ∧
       u₂.regs rTrieF = initFree ∧ u₂.regs rCurDomPtr = 6 + 2 * nL ∧
       u₂.regs rCurDomLen = inst.rightEntries.length ∧ u₂.mem = u₁.mem := by
-    unfold inputPrepRightCode
-    wram_exec [hu₁_sav, hu₁_cdl, hu₁_cdp, hu₁_m4]
+    wram_exec [inputPrepRightCode, hu₁_sav, hu₁_cdl, hu₁_cdp, hu₁_m4]
     refine ⟨rfl, ?_, ?_, rfl⟩
     · wram_simp; omega
     · wram_simp [hu₁_m4]; exact hnR_def.symm
@@ -5136,8 +5117,7 @@ private theorem exec_inputCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth 
   have hp_S_st : ∃ u₄, ExecWithin w inputPrepSolveCode u₃ u₄ 3 ∧
       u₄.regs rTrieG = free₁ ∧ u₄.regs rQueryPtr = 6 + 2 * (nL + nR) ∧
       u₄.mem = u₃.mem := by
-    unfold inputPrepSolveCode
-    wram_exec [hu₃_sav, hu₃_cdl, hu₃_cdp]
+    wram_exec [inputPrepSolveCode, hu₃_sav, hu₃_cdl, hu₃_cdp]
     refine ⟨rfl, ?_, rfl⟩
     wram_simp; omega
   obtain ⟨u₄, he_pS, hu₄_tG, hu₄_qp, hu₄_mem⟩ := hp_S_st

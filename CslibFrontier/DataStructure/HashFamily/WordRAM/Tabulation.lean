@@ -711,9 +711,8 @@ theorem setupFromBCode_exec {w base b d M : ℕ} {x : Data 9}
     (hfit_space : Fits w (base + spaceFromB b d))
     (hfit_powB : Fits w (2 ^ b)) (hfit_powM : Fits w (2 ^ M)) (hfit_d : Fits w d) :
     Exec w (setupFromBCode d) x (setupFromBData base b d M x) 16 := by
-  unfold setupFromBCode
   wram_exec (disch := first | fits | omega | wram_omega)
-    [hbase, hb, hM, Nat.shiftLeft_eq, Nat.one_mul]
+    [setupFromBCode, hbase, hb, hM, Nat.shiftLeft_eq, Nat.one_mul]
   ext i : 2
   · fin_cases i <;> rfl
   · rfl
@@ -957,9 +956,8 @@ theorem tabLoop_exec {w base b d M : ℕ} {T : Fin (d * 2 ^ b) → Fin (2 ^ M)} 
     have hfit_shr : Fits w (u >>> b) := hfit_u.of_le (Nat.shiftRight_le u b)
     refine WP.Exact.exists_exec
       (WP.Exact.loop_iter (by simp only [Cond.Holds, hptr, hend]; omega) ?_)
-    unfold tabBody
     wram_exec (disch := first | fits | omega | wram_omega)
-      [hkey, hmaskB, hptr, hout, hb, hpowB, ← hch, hentry_mem,
+      [tabBody, hkey, hmaskB, hptr, hout, hb, hpowB, ← hch, hentry_mem,
         show acc.val ^^^ (T ⟨idx, hidx_lt⟩).val = newAcc.val from rfl]
     wram_call (ih (j + 1) (u >>> b) newAcc _ (by omega) hmem (by wram_simp [hbase])
       (by wram_simp [hnext_eq]) (by wram_simp [hend]) (by wram_simp [hb]) (by wram_simp [hpowB])
@@ -1013,9 +1011,8 @@ theorem evalCode_execWithin {w base b d M u : ℕ} {T : Fin (d * 2 ^ b) → Fin 
   set tab := simpleTab b d M T u
   have hfit_and : Fits w ((tab.val + tab.val + 1) &&& (2 ^ M - 1)) :=
     (by fits : Fits w (tab.val + tab.val + 1)).of_le Nat.and_le_left
-  unfold evalFinishCode
   wram_exec (disch := first | fits | omega | wram_omega)
-    [hy_base, hy_out, hy_mem, hrep.2.2.2.1]
+    [evalFinishCode, hy_base, hy_out, hy_mem, hrep.2.2.2.1]
   exact ⟨by wram_simp [tabulatedOddStride, oddStride, tab, Nat.two_mul],
     by wram_simp [hy_base], hy_mem⟩
 

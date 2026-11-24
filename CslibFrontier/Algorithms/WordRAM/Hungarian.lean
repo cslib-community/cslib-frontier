@@ -1704,8 +1704,7 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
           (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
           z.regs idx2 = j'.val := by
         refine WP.exists_execWithin ?_
-        unfold augBody
-        wram_exec [hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate,
+        wram_exec [augBody, hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate,
           hbest_j, hrow_u, hf1, hf2, hf3]
         exact ⟨by wram_simp [dC, hj_eq], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
       obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
@@ -1728,8 +1727,7 @@ private theorem exec_augCode {w n bC M : ℕ} {c : Fin n × Fin n → ℤ} {W : 
           (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
           z.regs idx2 = n := by
         refine WP.exists_execWithin ?_
-        unfold augBody
-        wram_exec [hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate,
+        wram_exec [augBody, hby.hbaseBestRow, hby.hbaseRowMate, hby.hbaseColMate,
           hbest_j, hrow_u, hf1, hf2, hf3]
         exact ⟨by wram_simp [dC, hj_eq], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
       obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
@@ -2359,8 +2357,7 @@ private theorem exec_setupCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wor
       inst.n + inst.n + inst.n + inst.n + 1) :=
     hw.of_le (by unfold Instance.wordBound; nlinarith)
   refine WP.exists_execWithin ?_
-  unfold setupCode
-  wram_exec [hmem1, hf1, hf2, hf_nn, hf_bC, hf_bY, hf_bNZ, hf_bCM, hf_bU, hf_bT, hf_bM,
+  wram_exec [setupCode, hmem1, hf1, hf2, hf_nn, hf_bC, hf_bY, hf_bNZ, hf_bCM, hf_bU, hf_bT, hf_bM,
     hf_bB, hf_out, hf_bRM]
   refine ⟨?_, rfl⟩
   exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
@@ -2610,8 +2607,7 @@ private theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst
         nlinarith)
     have hf6 : Fits w (y.regs idx + 1) := hfit_core.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold sumCostBody
-    wram_exec [hby.hbaseRowMate, hby.hrn, hby.hbaseC, hby.hone,
+    wram_exec [sumCostBody, hby.hbaseRowMate, hby.hrn, hby.hbaseC, hby.hone,
       hrm_u, hC_uv, hf1, hf2, hf3, hf4, hf5, hf6]
     refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_, ?_⟩, by wram_simp⟩
     · wram_simp

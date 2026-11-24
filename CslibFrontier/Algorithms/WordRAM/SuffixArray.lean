@@ -756,8 +756,7 @@ private theorem kasaiExt_spec (I : KasaiInput) {w : ℕ}
         have hu₂_go : u₂.regs go = 1 :=
           ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans hgo
         refine WP.exists_execWithin ?_
-        unfold kasaiExtLoads
-        wram_exec [hru₂.tb_eq, hu₂_i, hu₂_h, hu₂_j, hread_j, hread_i,
+        wram_exec [kasaiExtLoads, hru₂.tb_eq, hu₂_i, hu₂_h, hu₂_j, hread_j, hread_i,
           hf_jh, hf_3jh, hf_ih, hf_3ih]
         exact ⟨⟨by wram_simp [hru₂.zero_eq], by wram_simp [hru₂.one_eq],
           by wram_simp [hru₂.tb_eq], by wram_simp [hru₂.tl_eq],
@@ -1604,8 +1603,7 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
           have hu₁_mid : u₁.regs midReg = x.regs midReg := Data.set_regs_of_ne (by decide) _
           have hu₁_sv : u₁.regs savedLo = x.regs savedLo := Data.set_regs_of_ne (by decide) _
           refine WP.exists_execWithin ?_
-          unfold cmpLoads
-          wram_exec [hru₁.pb_eq, hru₁.tb_eq, hu₁_k, hu₁_pos, hread_p, hread_t,
+          wram_exec [cmpLoads, hru₁.pb_eq, hru₁.tb_eq, hu₁_k, hu₁_pos, hread_p, hread_t,
             hf_pa, hf_pk, hf_ta]
           exact ⟨⟨by wram_simp [hru₁.zero_eq], by wram_simp [hru₁.one_eq],
             by wram_simp [hru₁.two_eq], by wram_simp [hru₁.tb_eq],
@@ -1762,8 +1760,7 @@ private theorem cmpSuffixCode_spec (I : SearchInput) {w : ℕ}
       u.regs loReg = s.regs loReg ∧ u.regs hiReg = s.regs hiReg ∧
       u.regs midReg = s.regs midReg ∧ u.regs savedLo = s.regs savedLo := by
     refine WP.exists_execWithin ?_
-    unfold cmpPrep
-    wram_exec [hs.sb_eq, hs.zero_eq, hs.one_eq, hmem_sa, hf_sa_m]
+    wram_exec [cmpPrep, hs.sb_eq, hs.zero_eq, hs.one_eq, hmem_sa, hf_sa_m]
     exact ⟨⟨by wram_simp [hs.zero_eq], by wram_simp [hs.one_eq],
       by wram_simp [hs.two_eq], by wram_simp [hs.tb_eq],
       by wram_simp [hs.tl_eq], by wram_simp [hs.sb_eq],
@@ -2089,8 +2086,7 @@ theorem occurrencesCode_exec (I : SearchInput) {w : ℕ}
             s'.mem out₀ = hi - lo ∧
             s'.mem = Function.update s.mem (out₀ + 1 + k) I.sa[lo + k] := by
           refine WP.exists_execWithin ?_
-          unfold occCopyBody
-          wram_exec [hs.sv_eq, hs.regs.sb_eq, hs.regs.out_eq, hs.regs.one_eq, hread_sa,
+          wram_exec [occCopyBody, hs.sv_eq, hs.regs.sb_eq, hs.regs.out_eq, hs.regs.one_eq, hread_sa,
             hf_lk, hf_sa_lk, hf_o1, hf_o1k, hf_k1]
           refine ⟨⟨by wram_simp [hs.regs.zero_eq], by wram_simp [hs.regs.one_eq],
             by wram_simp [hs.regs.two_eq], by wram_simp [hs.regs.tb_eq],

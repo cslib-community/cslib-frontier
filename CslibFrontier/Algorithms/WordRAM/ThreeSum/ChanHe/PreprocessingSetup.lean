@@ -101,8 +101,7 @@ private theorem primes_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
       y.mem = PrimeTable.memory x.mem base (m + 1) ∧
       y.regs (primeRegisters PrimeTable.count) = (Nat.primesLE m).card := by
     refine WP.exists_execWithin ?_
-    unfold preparePrimes
-    wram_exec [hs.limit, hs.endpoint]
+    wram_exec [preparePrimes, hs.limit, hs.endpoint]
     wram_call (PrimeTable.exec _
       (by wram_simp [primeRegisters]; exact hfit.of_le (by change m + 3 ≤ base + m + 4; omega))
       (by
@@ -153,8 +152,7 @@ private theorem setupTraversal_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ
   have hc' := hc
   dsimp only [primeRegisters, PrimeTable.count] at hc'
   refine WP.Exact.exists_exec ?_
-  unfold setupTraversal
-  wram_exec [hs.limit, hs.digits, hs.magnitude, hs.length, hs.endpoint, hs.fuel,
+  wram_exec [setupTraversal, hs.limit, hs.digits, hs.magnitude, hs.length, hs.endpoint, hs.fuel,
     hs.one, hs.four, hc', hdiv]
   refine ⟨?_, ?_, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
   · constructor <;> wram_simp [hs.base, hs.count, hs.fuel, hs.magnitude, hs.limit,
@@ -200,8 +198,7 @@ private theorem finish_exec {κ n w : ℕ} (x : Data 128) (hs : Saved κ n x)
       y.regs outputCapacity = (arena κ n x.mem).outputCapacity ∧
       y.regs heapFloor = (arena κ n x.mem).floor ∧ y.mem = p.mem := by
     refine WP.Exact.exists_exec ?_
-    unfold finishLayout
-    wram_exec [ps.count, hpower, hout, hfl_eq]
+    wram_exec [finishLayout, ps.count, hpower, hout, hfl_eq]
     exact ⟨by wram_simp [pcount], by wram_simp, by wram_simp [arena], by wram_simp, by wram_simp⟩
   have ys : Saved κ n y := ps.congr (fun i hi hj => hz.within.regs_eq (by
     have hh : ∀ i : Fin 128, 109 ≤ i.val → (i.val ≤ 120 ∨ i.val = 126) →

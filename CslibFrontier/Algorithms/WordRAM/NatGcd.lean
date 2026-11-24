@@ -55,16 +55,14 @@ stays below `max a b`, so no fit hypothesis beyond the arguments is needed. -/
 theorem exec {w : ℕ} (x : Data 4) (ha : Fits w (x.regs a)) (hb : Fits w (x.regs b)) :
     ∃ y, ExecWithin w program x y (5 * x.regs b + 3) ∧
       y.regs a = Nat.gcd (x.regs a) (x.regs b) ∧ y.mem = x.mem := by
-  unfold program
-  wram_exec
+  wram_exec [program]
   let I (y : Data 4) : Prop := y.regs zero = 0 ∧
     Nat.gcd (y.regs a) (y.regs b) = Nat.gcd (x.regs a) (x.regs b) ∧
     Fits w (y.regs a) ∧ Fits w (y.regs b) ∧ y.mem = x.mem
   refine WP.of_spec (ExecWithin.loop_invariant (T := 3) I (fun y => y.regs b) ?_ ?_) ?_
   · rintro y ⟨hz, hg, hfa, hfb, hm⟩ hc
     have hpos : 0 < y.regs b := by simpa only [Cond.holds_lt, hz] using hc
-    unfold body
-    wram_exec
+    wram_exec [body]
     dsimp only [I]
     wram_simp [hz, hfb, hm]
     refine ⟨⟨?_, by fits⟩, Nat.mod_lt _ hpos⟩

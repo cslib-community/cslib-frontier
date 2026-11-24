@@ -63,8 +63,7 @@ theorem exec_population {w : ℕ} (L a : ℕ) (x : Data 96)
       y.regs population = MaskTable.population L a ∧ y.mem = x.mem by
     obtain ⟨y, he, hp, hm⟩ := this
     exact ⟨y, he, hp, hm, fun i hr hp' hc hd => he.regs_eq (by decide +revert)⟩
-  unfold populationCode
-  wram_exec *
+  wram_exec * [populationCode]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.2.1) hb (by wram_simp; exact Nat.zero_le L)
     (by dsimp only [P]; wram_simp [hl, ho, ht]; exact le_rfl))
     with y ⟨⟨hymem, _, _, _, _, hypop⟩, hcnt⟩

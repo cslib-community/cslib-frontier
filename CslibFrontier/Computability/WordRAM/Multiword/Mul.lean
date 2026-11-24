@@ -84,8 +84,7 @@ private theorem exec_cell {w : ℕ} (x : Data (r + 4)) (a b d : Fin (r + 4))
   have hs := limb_update_fits ha hb hx hc
   have hβ : 0 < radix w := Nat.two_pow_pos _
   refine WP.Exact.exists_exec ?_
-  unfold cell
-  wram_exec [hbase, hs]
+  wram_exec [cell, hbase, hs]
   refine ⟨?_, ?_, ?_, rfl, fun i hi _ _ => by simp only [List.mem_singleton] at hi; wram_simp⟩
   · wram_simp; exact Nat.mod_lt _ hβ
   · wram_simp

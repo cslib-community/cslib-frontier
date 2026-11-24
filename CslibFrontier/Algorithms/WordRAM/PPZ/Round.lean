@@ -240,8 +240,7 @@ theorem initLoop_spec {φ : CNF (Fin n)} {C Tb w : ℕ} {M : ℕ → ℕ} (hw : 
     have : Fits w (i + 1) := hw.of_le (by omega)
     refine WP.exists_execWithin
       (WP.loop_iter (by simp [Cond.holds_lt, hx.nReg_eq, ← hi]; omega) ?_)
-    unfold initBody
-    wram_exec [hx.tBase_eq, hx.pBase_eq, hx.two_eq, hx.one_eq, ← hi]
+    wram_exec [initBody, hx.tBase_eq, hx.pBase_eq, hx.two_eq, hx.one_eq, ← hi]
     wram_call (initLoop_spec hw d _ (by struct_frame hx) (by wram_simp; omega)
       (fun v hv' => by
         wram_simp at hv'
@@ -443,8 +442,7 @@ theorem roundBodyWith_law {φ : CNF (Fin n)} {C Tb w T : ℕ} {M : ℕ → ℕ}
     have hstore : ∀ b : Bool, ∃ Y, ExecWithin w storeCode (z.set res b.toNat) Y 3 ∧
         StepPost φ C Tb M i τ g Y ∧ F Y = F (z.set res b.toNat) := fun b => by
       refine WP.exists_execWithin ?_
-      unfold storeCode
-      wram_exec [hfz.tBase_eq, hxz, hiz, hfz.one_eq]
+      wram_exec [storeCode, hfz.tBase_eq, hxz, hiz, hfz.one_eq]
       refine ⟨⟨k, b, by wram_simp [hjz]; omega, by wram_simp, ?_⟩, by wram_simp [F]⟩
       refine ⟨by struct_frame hfz, by wram_simp, ?_, ?_, cover_succ hx.cover k b⟩
       · intro v

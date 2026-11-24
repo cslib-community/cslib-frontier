@@ -90,8 +90,7 @@ theorem exec {w : ℕ} (x : Data 4) (h2 : Fits w 2) (hn : Fits w (x.regs arg))
     (fun a ha => Nat.log_eq_zero_iff.mpr (.inl (by omega))) x h2 ?_
   intro y hgt harg ho ht hsum hm
   have hpos : 0 < Nat.log 2 (y.regs arg) := Nat.log_pos (by decide) hgt
-  unfold body
-  wram_exec [ho, ht]
+  wram_exec [body, ho, ht]
   wram_simp [ho, ht, hm]
   exact ⟨(Nat.div_le_self _ _).trans harg, by rw [Nat.log_div_base]; omega⟩
 

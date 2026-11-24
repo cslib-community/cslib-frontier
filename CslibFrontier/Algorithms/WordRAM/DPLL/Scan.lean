@@ -374,8 +374,7 @@ theorem clauseLoop_spec (π : List (Literal ℕ)) (ψ : CNF ℕ) (s : ScanRegs) 
     simp only [length_encodeClauseBy] at hpψ
     have hNc := hN' c (by simp)
     refine ⟨by omega, ?_⟩
-    unfold clauseBody
-    wram_exec [hlen, hone, hzero]
+    wram_exec [clauseBody, hlen, hone, hzero]
     wram_call (litLoop_spec (w := w) π c ⟨0, 0, false, s'.opened⟩ _ N ..) framed
       with v₂ m₂ ⟨rfl, hr₂, hp₂⟩
     set r := c.foldl (litStep π) ⟨0, 0, false, s'.opened⟩ with hr

@@ -132,12 +132,10 @@ private theorem powers_exec {w : ℕ} (x : Data 13) {N L₀ R : ℕ} (hn : x.reg
         rcases Nat.lt_or_ge j (y.regs k + 1) with hlt' | hge
         · exact h j hj (by omega)
         · rw [show j = y.regs k + 1 by omega]; exact hK1
-    unfold powBody
-    wram_exec [hyp, hynr, hyr, hy1, hmod] <;>
+    wram_exec [powBody, hyp, hynr, hyr, hy1, hmod] <;>
       { wram_simp [J, hyL, hyr, hy1, hynr, hyok, hyiff, hiff]; simp [hc] }
   have hNR_le : N % R ≤ N := Nat.mod_le N R
-  unfold powers
-  wram_exec [hn, hr, h1]
+  wram_exec [powers, hn, hr, h1]
   wram_call (ExecWithin.loop_count J (fun _ hy => hy.1) hstep)
     with y ⟨⟨_, _, _, _, _, hyok, hyiff⟩, _⟩
   · wram_simp; exact ⟨by omega, hyok, hyiff⟩
@@ -194,8 +192,7 @@ theorem exec {w : ℕ} (x : Data 13) {N L₀ r₀ : ℕ} (hn : x.regs n = N) (hL
       wram_exec [hg, hg1, hy₃1, hy₃r]
       wram_simp [I, hy₃n, hy₃L, hy₃1, hy₃r, hy₃f, hR, hf0]
       exact ⟨⟨by omega, by omega, nofun⟩, by omega⟩
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (ExecWithin.loop_invariant I
     (fun y => 2 * (r₀ - y.regs r) + (1 - y.regs found)) hstep)
     with y ⟨⟨hyn, hyL, hy1, hr2, hrr₀, _, hgoody⟩, hc⟩

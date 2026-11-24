@@ -60,8 +60,7 @@ theorem exec_prepareHost {r w : ℕ} (x : Data (registerCount r)) :
       controllerRegisters r i ≠ hostRegisters r (Host.hostRegisters j) :=
     controller_ne_host i _
   refine WP.exists_execWithin ?_
-  unfold prepareHost
-  wram_exec
+  wram_exec [prepareHost]
   simp +decide [Data.comap_regs, Data.set_regs, Data.set_mem, hh, hph, hmh]
 
 /-- Boolean OR costs at most three native instructions and changes no other register or cell. -/

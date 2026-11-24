@@ -46,8 +46,7 @@ public theorem exec_copyCall {w : ℕ} (x : Data 160) (h1 : Fits w 1)
           (x.regs Reg.length) ∧
       (∀ i, 7 ≤ i.val → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold copyCall
-  wram_exec
+  wram_exec [copyCall]
   wram_call @ArrayCopy.exec_of_separated_or_eq renamed [h1, hs, hd, hsep]
     with y ⟨⟨hm, _⟩, hframe⟩
   wram_simp at hm ⊢

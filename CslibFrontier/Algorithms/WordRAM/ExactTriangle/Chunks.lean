@@ -99,8 +99,7 @@ private theorem exec_body {w : ℕ} (x : Data 14) (ho : x.regs one = 1)
             (x.regs dst + 3 * x.regs count + 2)
               (min (x.regs capacity) (x.regs total - x.regs pos)) := by
   have haddr' : x.regs count * 3 + x.regs dst = x.regs dst + 3 * x.regs count := by omega
-  unfold body
-  wram_exec [ho, hthree, hptr]
+  wram_exec [body, ho, hthree, hptr]
   · have hmin : min (x.regs capacity) (x.regs total - x.regs pos) = x.regs capacity :=
       min_eq_left hc.le
     refine ⟨by wram_simp [hmin], by wram_simp, by wram_simp [hmin]; omega, ?_⟩
@@ -177,8 +176,7 @@ theorem exec {w : ℕ} (x : Data 14) (hcap : 0 < x.regs capacity)
         exact ⟨by update_simp; exact h0, by update_simp; exact h1, by update_simp; exact h2⟩
     · intro a ha; rw [hzmem]; update_simp; exact hyframe a (by omega)
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   have hx₀ : I (((((x.set one 1).set three 3).set pos 0).set count 0).set ptr b) :=
     ⟨fun i hi => by
       have hne : i ≠ one ∧ i ≠ three ∧ i ≠ pos ∧ i ≠ count ∧ i ≠ ptr := by revert i hi; decide

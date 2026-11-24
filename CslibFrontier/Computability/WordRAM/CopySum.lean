@@ -91,8 +91,7 @@ theorem exec {w : ℕ} (x : Data 8) (h1 : Fits w 1)
     (ht : Fits w (x.regs total + wordSum x.mem (x.regs src) (x.regs len)))
     (hsep : x.regs src + x.regs len ≤ x.regs dst) :
     ∃ y, ExecWithin w program x y (8 * x.regs len + 4) ∧ Post id x y := by
-  unfold program
-  wram_exec
+  wram_exec [program]
   let P (j : ℕ) (y : Data 8) : Prop :=
     y.regs src = x.regs src ∧ y.regs dst = x.regs dst ∧ y.regs len = x.regs len ∧
     y.regs one = 1 ∧ y.mem = ArrayCopy.copyPrefix x.mem (x.regs src) (x.regs dst) j ∧
@@ -110,8 +109,7 @@ theorem exec {w : ℕ} (x : Data 8) (h1 : Fits w 1)
           fun _ _ _ => Nat.zero_le _
       rw [wordSum, Finset.sum_range_succ, ← wordSum] at hle
       fits [hle]
-    unfold body
-    wram_exec [hys, hyd, hyo, hyt, hread]
+    wram_exec [body, hys, hyd, hyo, hyt, hread]
     dsimp only [P]
     wram_simp [hys, hyd, hyl, hyo, hym, ← ArrayCopy.copyPrefix_succ, wordSum,
       Finset.sum_range_succ, Nat.add_assoc]

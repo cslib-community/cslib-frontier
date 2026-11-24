@@ -338,8 +338,7 @@ private theorem exec_scanRankAndCount {w : ℕ} (x : Data 16) (L : List ℕ)
     have hf_cnt1 : Fits w ((L.take (y.regs idx)).count L[y.regs idx] + 1) := hs.of_le (by omega)
     have hf_idx1 : Fits w (y.regs idx + 1) := hs.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold rankCountBody
-    wram_exec [hoy, hread_L, hread_C, hf_src, hf_cb, hf_pb, hf_cnt1, hf_idx1]
+    wram_exec [rankCountBody, hoy, hread_L, hread_C, hf_src, hf_cb, hf_pb, hf_cnt1, hf_idx1]
     refine ⟨⟨fun i hi => by
       have hri := hr i hi
       fin_cases i <;> norm_num at hi <;> wram_simp [hri],
@@ -347,8 +346,7 @@ private theorem exec_scanRankAndCount {w : ℕ} (x : Data 16) (L : List ℕ)
     wram_simp
     rw [hm, hcb, hpb, rankCountMem_succ _ _ _ _ _ _ hdisj_cp hj hsym_lt]
   refine WP.exists_execWithin ?_
-  unfold scanRankAndCount
-  wram_exec
+  wram_exec [scanRankAndCount]
   wram_call (ExecWithin.loop_count P (fun y hy => hy.1 len (by decide)) hbody
     (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
       by wram_simp [hz], by wram_simp [ho], by
@@ -413,8 +411,7 @@ private theorem exec_prefixSumC {w : ℕ} (x : Data 16) (L : List ℕ)
       hn.of_le (by omega)
     have hf_idx1 : Fits w (y.regs idx + 1) := hc.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold prefixSumBody
-    wram_exec [hoy, hacc, hread, hf_cb, hf_sum, hf_idx1]
+    wram_exec [prefixSumBody, hoy, hacc, hread, hf_cb, hf_sum, hf_idx1]
     refine ⟨⟨fun i hi => by
       have hri := hr i hi
       fin_cases i <;> norm_num at hi <;> wram_simp [hri],
@@ -423,8 +420,7 @@ private theorem exec_prefixSumC {w : ℕ} (x : Data 16) (L : List ℕ)
     wram_simp
     rw [hm, hcb, cTableMem_succ]
   refine WP.exists_execWithin ?_
-  unfold prefixSumC
-  wram_exec
+  wram_exec [prefixSumC]
   wram_call (ExecWithin.loop_count P (fun y hy => hy.1 sigma (by decide)) hbody
     (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
       by wram_simp [hz], by wram_simp [ho],

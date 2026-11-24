@@ -481,8 +481,7 @@ theorem dispatch_spec {d w base stackBase₀ : ℕ} {s : Finset ℕ} {x : Data 3
     have hprep_tag : ((dynamicProgram d w).prepare (.insert k) x).regs tag = 0 := rfl
     wram_call (insert_dispatch_spec (key := k) hvalid hprep_rep ho ha hprep_root rfl hprep_tag)
       framed with v m ⟨hy_rep, -, hy_frame⟩
-    unfold nativeResultCode
-    wram_exec [hprep_tag] <;>
+    wram_exec [nativeResultCode, hprep_tag] <;>
       exact fun hy_b => ⟨by omega, rfl,
         ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
           t.insert k, Tree.valid_insert hvalid ho, Tree.elements_insert hvalid ho,
@@ -511,8 +510,7 @@ theorem dispatch_spec {d w base stackBase₀ : ℕ} {s : Finset ℕ} {x : Data 3
     have hprep_tag : ((dynamicProgram d w).prepare (.successor q) x).regs tag = 2 := rfl
     wram_call (successor_dispatch_spec (query := q) hvalid hprep_rep hstk_lo hstk_fit
       hprep_root hprep_stk rfl hprep_tag) framed with v m ⟨hy_ans, hy_rep, -, hy_frame⟩
-    unfold nativeResultCode
-    wram_exec [hprep_tag] <;>
+    wram_exec [nativeResultCode, hprep_tag] <;>
     · intro hy_b
       refine ⟨by omega, ?_, ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
         t, hvalid, rfl, by wram_simp; exact hy_rep⟩,

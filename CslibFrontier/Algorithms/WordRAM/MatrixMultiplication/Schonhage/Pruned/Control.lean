@@ -68,8 +68,7 @@ theorem exec_storeTerm {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
   have hadd : Fits w (x.regs frame + 3) := hf.of_le (by omega)
   have hsub : x.regs frame + 4 - 1 = x.regs frame + 3 := by omega
   refine WP.exists_execWithin ?_
-  unfold storeTerm
-  wram_exec [h1, h4, hf, hmode, hadd, hsub]
+  wram_exec [storeTerm, h1, h4, hf, hmode, hadd, hsub]
   exact ⟨by wram_simp, by wram_simp, fun i ha hm => by wram_simp⟩
 
 /-- The term increment, frame-word address computation, store and phase assignment take five
@@ -101,8 +100,7 @@ theorem exec_clearValuesFinish {w : ℕ} (x : Data registers) (h1 : x.regs one =
       y.mem = Function.update x.mem (x.regs frame + 3) 0 ∧
       (∀ i, ¬AdvanceLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold clearValuesFinish
-  wram_exec
+  wram_exec [clearValuesFinish]
   wram_call (exec_storeTerm _ (by wram_simp [h1]) (by wram_simp [h4]) (by wram_simp; exact hf))
     with y ⟨hmode, hmem, hregs⟩
   wram_simp at hmem

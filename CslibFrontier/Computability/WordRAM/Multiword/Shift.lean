@@ -80,8 +80,7 @@ private theorem exec_cell {w : ℕ} (x : Data (r + 4))
     exact hf.of_le (Nat.div_le_self _ _)
   have hr := hf.of_le (Nat.mod_le (x.regs carry * radix w + x.regs a) (2 ^ x.regs total))
   refine WP.Exact.exists_exec ?_
-  unfold cell
-  wram_exec [hb, hz, hf, hq, hr]
+  wram_exec [cell, hb, hz, hf, hq, hr]
   refine ⟨?_, ?_, ?_, by wram_simp, ⟨rfl, fun i hi _ hic => by
     simp only [List.mem_singleton] at hi; wram_simp⟩⟩
   · wram_simp [Nat.shiftRight_eq_div_pow]
@@ -195,8 +194,7 @@ private theorem exec_finish {w : ℕ} (hw : 2 ≤ w)
   have hshift : 1 <<< x.regs total = 2 ^ x.regs total := by
     rw [Nat.shiftLeft_eq, one_mul]
   refine WP.Exact.exists_exec ?_
-  unfold finish
-  wram_exec [h1, hpow, hshift]
+  wram_exec [finish, h1, hpow, hshift]
   refine WP.Exact.name fun z hzx => ?_
   have hzf : Frame x z [zero] := by
     rw [hzx, Data.set_set]
@@ -317,8 +315,7 @@ theorem exec {w : ℕ} (hw : 2 ≤ w)
   have hhalf := (fits_self w).of_le (Nat.div_le_self w 2)
   have hβ := radix_fits hw
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec [hhalf, hβ]
+  wram_exec [program, hhalf, hβ]
   refine WP.name fun z hzx => ?_
   have hzi (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
     obtain ⟨ht, _, hb, hz⟩ := digit_ne hi

@@ -148,8 +148,7 @@ theorem exec_fill_at {w N U src workspace s : ℕ} (μ : ℕ → ℤ) (x : Data 
   have henc : encode (2 * (U : ℤ) + 1) = 4 * U + 2 := by
     simp only [encode, show ¬(2 * (U : ℤ) + 1 < 0) from by omega, ↓reduceIte]; omega
   refine WP.exists_execWithin ?_
-  unfold fill fillSetup
-  wram_exec [hp.len, hp.base, hp.encodedFiller, hp.side, hs, hp.ab, hp.bc, hp.ac]
+  wram_exec [fill, fillSetup, hp.len, hp.base, hp.encodedFiller, hp.side, hs, hp.ab, hp.bc, hp.ac]
   wram_call (Fill.exec (instanceArgsAt N U src workspace s μ) _
     (by wram_simp [fillRegisters, instanceArgsAt])
     (by wram_simp [fillRegisters, instanceArgsAt])
@@ -213,8 +212,7 @@ private theorem exec_solverSetup {w r : ℕ} (x : Data (64 + (r + 7))) :
       y.regs (callRegisters 4) = x.regs (hostRegisters matAC) ∧
       y.regs (callRegisters 5) = x.regs (hostRegisters free) := by
   refine WP.exists_execWithin ?_
-  unfold solverSetup
-  wram_exec
+  wram_exec [solverSetup]
   simp +decide [Data.set_regs, callRegisters_eq_iff, host_ne_call]
 
 private theorem exec_finish {w r s : ℕ} (x : Data (64 + (r + 7)))
@@ -227,8 +225,7 @@ private theorem exec_finish {w r s : ℕ} (x : Data (64 + (r + 7)))
       (∀ i : Fin 64, i ≠ inst → i ≠ found →
         y.regs (hostRegisters i) = x.regs (hostRegisters i)) ∧ y.mem = x.mem := by
   refine WP.exists_execWithin ?_
-  unfold finish
-  wram_exec [Function.update_apply, hostRegisters_eq_iff, ho, hi] <;>
+  wram_exec [finish, Function.update_apply, hostRegisters_eq_iff, ho, hi] <;>
     exact ⟨by wram_simp [Function.update_apply, hostRegisters_eq_iff],
       by wram_simp [Function.update_apply, hostRegisters_eq_iff, hc],
       fun i hni hnf => by wram_simp [Function.update_apply, hostRegisters_eq_iff, hni, hnf],

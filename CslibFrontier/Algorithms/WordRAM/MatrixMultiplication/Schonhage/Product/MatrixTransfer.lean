@@ -69,8 +69,7 @@ public theorem exec_prepareBits {w L m N Q A : ℕ} (x : Data 160)
       dsimp only [S]
       omega)
     refine WP.exists_execWithin ?_
-    unfold bitCopyStep
-    wram_exec * [hload, hsrc, hdst, hnext, hvalue]
+    wram_exec * [bitCopyStep, hload, hsrc, hdst, hnext, hvalue]
     refine ⟨⟨by regs_frame, by wram_simp [hzs], ?_, ?_⟩, by wram_simp⟩
     · intro j hj
       by_cases h : j = z.regs Reg.index

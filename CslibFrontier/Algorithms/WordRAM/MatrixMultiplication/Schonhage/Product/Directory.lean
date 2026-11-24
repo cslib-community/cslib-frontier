@@ -70,8 +70,7 @@ public theorem exec_initializeDirectory {w L m N Q : ℕ} (x : Data 160)
       wram_simp [hne]
       exact hza a ha'
   refine WP.exists_execWithin ?_
-  unfold initializeDirectory
-  wram_exec
+  wram_exec [initializeDirectory]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.leaves) hbody
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩) with y ⟨⟨hyp, hyj, hya⟩, _⟩

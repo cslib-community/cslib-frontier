@@ -421,8 +421,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
       st.mem = dpInitMem x₀.mem dpBase D y t
   have hsetup : ∃ x₁, ExecWithin w (gridSetup D.nilNil) x₀ x₁ 4 ∧
       x₁.regs regT = 0 ∧ Pinit 0 x₁ := by
-    unfold gridSetup
-    wram_exec * [hfit1, hfitNil]
+    wram_exec * [gridSetup, hfit1, hfitNil]
     refine ⟨by wram_simp *, by regs_frame, by wram_simp *, ?_, ?_⟩
     · wram_simp *
       rw [List.drop_length, D.value_nil_nil]
@@ -441,8 +440,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
         stA.mem = st.mem ∧ GridFixedRegs x₀ stA ∧ stA.regs regOne = 1 ∧
         stA.regs regT = t ∧ stA.regs regB = encSym y[y.length - 1 - t] ∧
         stA.regs regCur = D.value [] (y.drop (y.length - t)) := by
-      unfold gridInitPre
-      wram_exec * [hy_len]
+      wram_exec * [gridInitPre, hy_len]
       refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, ?_, by wram_simp *⟩
       wram_simp * [hy_len, hreadB_mem]
     obtain ⟨stA, hpre_ex, hstA_mem, hstA_fix, hstA_one, hstA_t, hstA_b, hstA_cur⟩ := hpre
@@ -456,8 +454,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
       rw [drop_sub_succ_eq_cons y ht, D.value_nil_cons]
     have hpost : ∃ stC, ExecWithin w gridInitPost stB stC 3 ∧
         Pinit (t + 1) stC ∧ stC.regs regT = t + 1 := by
-      unfold gridInitPost
-      wram_exec *
+      wram_exec * [gridInitPost]
       refine ⟨⟨by regs_frame, by wram_simp *, ?_, ?_⟩, by wram_simp *⟩
       · wram_simp *; exact hval_next
       · rw [Data.write_mem, Data.set_mem, Data.set_mem, hstB_mem, hstA_mem, hmem, hval_next]
@@ -494,8 +491,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
         st1.mem = st.mem ∧ GridFixedRegs x₀ st1 ∧ st1.regs regOne = 1 ∧ st1.regs regS = s ∧
         st1.regs regA = encSym x[x.length - 1 - s] ∧
         st1.regs regDiag = D.value (x.drop (x.length - s)) [] := by
-      unfold gridOuterPre
-      wram_exec * [hx_len]
+      wram_exec * [gridOuterPre, hx_len]
       refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, ?_, ?_⟩
       · wram_simp * [hx_len, hreadA_mem]
       · wram_simp * [hreadDiag_mem]
@@ -521,8 +517,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
         q.mem = dpMidMem x₀.mem dpBase D x y s t
     have hmid : ∃ st3, ExecWithin w gridOuterMid st2 st3 2 ∧
         st3.regs regT = 0 ∧ Pinner 0 st3 := by
-      unfold gridOuterMid
-      wram_exec *
+      wram_exec * [gridOuterMid]
       refine ⟨by wram_simp *, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
         hRowInv_frame _ st2 _ (by wram_simp) (by wram_simp) hst2_inv, ?_, ?_, ?_⟩
       · wram_simp *; rw [List.drop_length]
@@ -549,8 +544,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
           q1.regs regDiag = D.value (x.drop (x.length - s)) (y.drop (y.length - t)) ∧
           q1.regs regUp = D.value (x.drop (x.length - s)) (y.drop (y.length - (t + 1))) ∧
           q1.regs regCur = D.value (x.drop (x.length - (s + 1))) (y.drop (y.length - t)) := by
-        unfold gridInnerPre
-        wram_exec * [hy_len]
+        wram_exec * [gridInnerPre, hy_len]
         refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
           by wram_simp *, ?_,
           hRowInv_frame _ q _ (by wram_simp) (by wram_simp) hq_inv,
@@ -577,8 +571,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
         rw [drop_sub_succ_eq_cons x hs, drop_sub_succ_eq_cons y ht, D.value_cons_cons]
       have hpostIn : ∃ q3, ExecWithin w gridInnerPost q2 q3 6 ∧
           Pinner (t + 1) q3 ∧ q3.regs regT = t + 1 := by
-        unfold gridInnerPost
-        wram_exec *
+        wram_exec * [gridInnerPost]
         refine ⟨⟨by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
           hRowInv_frame _ q2 _ (by wram_simp) (by wram_simp) hq2_inv,
           by wram_simp *, ?_, ?_⟩, by wram_simp *⟩
@@ -611,8 +604,7 @@ private theorem exec_gridCode {α : Type*} {w : ℕ} (Ti Tb Tc : ℕ)
   rw [hx₃_s0, Nat.sub_zero] at houterLoop
   have hy_len : x₀.regs regN = y.length := hn
   have hfin : ∃ xf, ExecWithin w gridFinalLoad x₄ xf 2 ∧ xf.regs regCur = D.value x y := by
-    unfold gridFinalLoad
-    wram_exec * [hy_len]
+    wram_exec * [gridFinalLoad, hy_len]
     wram_simp * [hy_len, hx₄_mem]
     rw [dpRowMem_read x₀.mem dpBase D x y x.length y.length le_rfl]
     simp
@@ -638,8 +630,7 @@ private theorem exec_min3Tail {w : ℕ} (st : Data 22) :
       st'.mem = st.mem ∧
       (∀ i : Fin 22, i.val < 19 → st'.regs i = st.regs i) ∧
       st'.regs regNext = min (st.regs regNext) (min (st.regs regTmp0) (st.regs regTmp1)) := by
-  unfold min3Tail
-  wram_exec
+  wram_exec [min3Tail]
   all_goals refine ⟨rfl, fun i hi => ?_, by wram_simp; omega⟩
   all_goals
     rw [Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)),
@@ -697,8 +688,7 @@ private theorem exec_seqPairSetup {w : ℕ} (I : WordSeqPair) (hw : I.FitsWidth 
       x₀.regs regDPBase = 3 + I.src.length + I.tgt.length := by
   have hm1 : (Data.init I.encode : Data 22).mem 1 = I.src.length := by simp [WordSeqPair.encode]
   have hm2 : (Data.init I.encode : Data 22).mem 2 = I.tgt.length := by simp [WordSeqPair.encode]
-  unfold seqPairSetup
-  wram_exec *
+  wram_exec * [seqPairSetup]
   · exact ⟨rfl, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *⟩
   all_goals exact hw.of_le (by omega)
 
@@ -826,8 +816,7 @@ private theorem exec_lcsLengthCode {w : ℕ} (I : WordSeqPair) (hw : I.FitsWidth
           (I.tgt.drop (I.tgt.length - t)) ≤ s := by
         have := lcsLength_le_left (I.src.drop (I.src.length - s)) (I.tgt.drop (I.tgt.length - t))
         simp only [List.length_drop] at this; omega
-      unfold lcsInnerCell
-      wram_exec *
+      wram_exec * [lcsInnerCell]
       · refine ⟨rfl,
           fun i hi => Data.set_regs_of_ne (fun h => by subst h; exact absurd hi (by decide)) _, ?_⟩
         wram_simp *
@@ -1293,8 +1282,7 @@ private theorem exec_weightedSetup {w : ℕ} (I : WeightedInstance)
     simp [WeightedInstance.encode]
   have hm3 : (Data.init I.encode : Data 22).mem 3 = I.tgt.length := by
     simp [WeightedInstance.encode]
-  unfold weightedSetup
-  wram_exec *
+  wram_exec * [weightedSetup]
   refine ⟨rfl, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *,
     by wram_simp *, by wram_simp *, by wram_simp *, ?_⟩
   wram_simp *; omega
@@ -1335,8 +1323,7 @@ private theorem exec_weightedInitCell {w : ℕ} (I : WeightedInstance) (x₀ : D
   have h1 := ins_le_maxOpCost I I.tgt[I.tgt.length - 1 - t]
   have h2 := weighted_entry_le I I.src.length (I.tgt.length - t)
   rw [List.drop_length] at h2
-  unfold weightedInitCell
-  wram_exec * [hinsb, hread_ins]
+  wram_exec * [weightedInitCell, hinsb, hread_ins]
   refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, ?_⟩
   wram_simp * [hinsb, hread_ins]
   rfl
@@ -1375,8 +1362,7 @@ private theorem exec_weightedBorderCell {w : ℕ} (I : WeightedInstance) (x₀ :
   have h1 := del_le_maxOpCost I I.src[I.src.length - 1 - s]
   have h2 := weighted_entry_le I (I.src.length - s) I.tgt.length
   rw [List.drop_length] at h2
-  unfold weightedBorderCell
-  wram_exec * [hdelb, hsig, hsubb, hread_del]
+  wram_exec * [weightedBorderCell, hdelb, hsig, hsubb, hread_del]
   refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
     by wram_simp *, ⟨?_, ?_⟩, ?_⟩
   · wram_simp * [hdelb, hread_del]

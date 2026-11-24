@@ -75,8 +75,7 @@ theorem exec_geometrySetup {w L m t D : ℕ} (x : Data registers)
       y.regs Reg.slot = 0 ∧ y.regs Reg.count = 0 ∧ y.mem = x.mem := by
   have h1le : m - t + 1 ≤ (m - t + 1) * 10 ^ L :=
     Nat.le_mul_of_pos_right _ (Nat.pow_pos (by decide))
-  unfold geometrySetup
-  wram_exec *
+  wram_exec * [geometrySetup]
   exact ⟨by constructor <;> wram_simp [*], by wram_simp, by wram_simp, by wram_simp⟩
 
 /-- Actual shared setup, including all digit scans and descriptor writes. -/

@@ -67,8 +67,7 @@ theorem exec_countDigit {w L c e k : ℕ} (x : Data registers) (hk : k < L)
     obtain ⟨y, hy, hl', hq', hp', hpow', hs', hm'⟩ := this
     exact ⟨y, hy, hl', hq', hp', hpow', hs', hm',
       fun i hi => hy.regs_eq (by unfold DigitLocal at hi; decide +revert)⟩
-  unfold countDigit
-  wram_exec [*]
+  wram_exec [countDigit, *]
   · rename_i hd
     wram_simp [population_succ, starStride, digitAt, hd, hc, hpowq, hpow10]
   · rename_i hd

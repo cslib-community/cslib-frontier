@@ -87,8 +87,7 @@ public theorem exec_reconstruct {w L m N : ℕ}
       omega)
     have fn : Fits w (z.regs Reg.index + 1) := allocated_fits hfit (by omega)
     refine WP.exists_execWithin ?_
-    unfold reconstructStep
-    wram_exec * [hreadIndex, hreadValue, fo, fg, fy, fn]
+    wram_exec * [reconstructStep, hreadIndex, hreadValue, fo, fg, fy, fn]
     refine ⟨⟨by regs_frame, ?_, ?_⟩, by wram_simp⟩
     · intro j hj
       by_cases hij : j = i

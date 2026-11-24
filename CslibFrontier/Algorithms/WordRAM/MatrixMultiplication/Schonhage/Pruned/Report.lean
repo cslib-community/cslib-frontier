@@ -81,8 +81,7 @@ theorem exec_report {w N capacity : ℕ} (x : Data registers) (codes : ℕ → �
         x.regs values + q ≠ x.regs output + y.regs index := by
       rcases hvals with h | h <;> omega
     refine WP.exists_execWithin ?_
-    unfold reportStep
-    wram_exec * [hread', hval', hqa, hva, hoa, hki]
+    wram_exec * [reportStep, hread', hval', hqa, hva, hoa, hki]
     refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, by wram_simp⟩
     · intro i hi
       by_cases he : i = y.regs index

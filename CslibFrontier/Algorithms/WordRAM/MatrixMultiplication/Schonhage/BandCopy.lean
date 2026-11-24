@@ -68,8 +68,7 @@ theorem exec_saveInput {w L m N : ℕ} (x : Data 96) (hx : HeaderPost L m N x)
   have hb : Fits w (inputEnd m N) := (memory_fits hfit).of_le (input_le_memoryEnd L m N)
   have hi : Fits w (snapshotBase L m N + inputEnd m N) :=
     (memory_fits hfit).of_le (inverse_le_memoryEnd L m N)
-  unfold saveInput
-  wram_exec *
+  wram_exec * [saveInput]
   wram_call (exec_copyKernel _ (small_fits hfit (by decide)) (by wram_simp; exact hb)
     (by wram_simp; exact hi) (Or.inl (by wram_simp; exact input_le_snapshot L m N)))
     with y ⟨hm, hf⟩
@@ -91,8 +90,7 @@ theorem exec_restoreInput {w L m N : ℕ} (x : Data 96) (hx : HeaderPost L m N x
   have hb : Fits w (inputEnd m N) := (memory_fits hfit).of_le (input_le_memoryEnd L m N)
   have hi : Fits w (snapshotBase L m N + inputEnd m N) :=
     (memory_fits hfit).of_le (inverse_le_memoryEnd L m N)
-  unfold restoreInput
-  wram_exec *
+  wram_exec * [restoreInput]
   wram_call (exec_copyKernel _ (small_fits hfit (by decide)) (by wram_simp; exact hi)
     (by wram_simp; exact hb) (Or.inr (Or.inl (by wram_simp; exact input_le_snapshot L m N))))
     with y ⟨hm, hf⟩

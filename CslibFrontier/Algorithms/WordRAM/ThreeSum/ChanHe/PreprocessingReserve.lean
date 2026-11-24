@@ -57,8 +57,7 @@ theorem reserve_exec {w F : ℕ} (x : Data 128)
       have hp : F + 1 < 3 ^ (F + 1) := Nat.lt_pow_self (by decide)
       omega)
     refine WP.exists_execWithin ?_
-    unfold powerBody
-    wram_exec [hone, hmul, hsub]
+    wram_exec [powerBody, hone, hmul, hsub]
     refine ⟨⟨by wram_simp; omega, ?_, by wram_simp [hzero], by wram_simp [hone],
       by wram_simp [hscalar], by wram_simp [hmem]⟩, by wram_simp; omega⟩
     wram_simp

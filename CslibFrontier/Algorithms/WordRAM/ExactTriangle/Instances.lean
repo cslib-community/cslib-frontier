@@ -272,8 +272,7 @@ private theorem exec_setup {w : ℕ} (x : Data 64) (n D p B H K desc out : ℕ)
       y.regs total = K * H ∧ y.regs heap = out ∧ y.regs stride = 6 + 2 * (n * D) ∧
       y.regs one = 1 ∧ y.regs three = 3 ∧
       y.regs srcLeft = 5 + 5 * (n * n) ∧ y.regs srcRight = 5 + 4 * (n * n) := by
-  unfold setup
-  wram_exec [hn, hp, hB, hH, hK, hd, hout, hD]
+  wram_exec [setup, hn, hp, hB, hH, hK, hd, hout, hD]
   wram_simp
   refine ⟨by omega, by omega, by omega⟩
 
@@ -353,8 +352,7 @@ private theorem exec_select {w : ℕ} (x : Data 64)
   have hj : x.regs produced % x.regs pieces < x.regs pieces := Nat.mod_lt _ hH
   have hfirst : x.regs produced % x.regs pieces * x.regs pieceLength ≤
       x.regs pieces * x.regs pieceLength := Nat.mul_le_mul_right _ hj.le
-  unfold select
-  wram_exec [ho, ht]
+  wram_exec [select, ho, ht]
   · wram_simp
     omega
   · wram_simp
@@ -397,9 +395,8 @@ theorem exec_visit {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
     ha.regs_eq (select_preserves i hi)
   refine (?_ : ∃ y, ExecWithin w (.seq deliver (.seq pair advance)) a y (40 * M + 52) ∧ _).imp
     fun y ⟨hy, hres⟩ => ⟨(ha.seq hy).mono (by omega), hres⟩
-  unfold deliver pair
   wram_exec (disch := first | fits | decide | omega)
-    [hameta, harho, haq, hacount, hafirst, halen, haj]
+    [deliver, pair, hameta, harho, haq, hacount, hafirst, halen, haj]
   wram_call (InstancePair.exec _ L R
     (by wram_simp [InstancePair.rho, InstancePair.modulus]; exact hrho)
     (by wram_simp [InstancePair.first, InstancePair.length, InstancePair.size]
@@ -420,8 +417,7 @@ theorem exec_visit {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
           InstancePair.srcLeft, InstancePair.srcRight, InstancePair.modulus]
         exact hfit.of_le (by rw [hstride]; omega)))
     canonical pairBank_injective with v ⟨hrecord, hmatL, hmatR, hframe⟩
-  unfold advance
-  wram_exec (disch := first | fits | decide | omega) [hameta, ho]
+  wram_exec (disch := first | fits | decide | omega) [advance, hameta, ho]
   wram_simp [InstancePair.size, InstancePair.dimension]
   wram_simp [pairBank, InstancePair.recordWords, InstancePair.rightArgs, InstancePair.leftArgs,
     InstancePair.base, InstancePair.srcLeft, InstancePair.srcRight, InstancePair.size,

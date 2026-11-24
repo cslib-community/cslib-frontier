@@ -221,8 +221,7 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))
       y.mem = x.mem ∧ ∀ i ∈ bs, y.regs i = x.regs i := by
   have hβ := one_lt_radix hw
   refine WP.Exact.exists_exec ?_
-  unfold program
-  wram_exec [radix_fits hw]
+  wram_exec [program, radix_fits hw]
   refine WP.Exact.name fun z hzx => ?_
   have hz (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
     obtain ⟨_, hc, hb, ho⟩ := digit_ne hi

@@ -131,9 +131,8 @@ theorem labels_exec {w : ℕ} (x : Data 48)
       y.regs bitA = (Math.label (x.regs magnitude) (x.regs key) >>> x.regs beta) % 2 ∧
       y.regs bitB = (Math.label (x.regs magnitude) (x.regs key) >>> x.regs beta') % 2 ∧
       y.mem = x.mem := by
-  unfold labels
   wram_exec (disch := first | fits | exact Fits.of_le (by fits) (Nat.shiftRight_le _ _) | omega)
-    [hz, h2] <;>
+    [labels, hz, h2] <;>
   · wram_simp
     simp [Math.label, *, two_mul]
 
@@ -147,8 +146,7 @@ theorem choose_exec {w : ℕ} (x : Data 48)
       y.regs take = (Math.flag (x.regs bitA) (x.regs bitB) (x.regs digit)
         (x.regs mode) (x.regs key, x.regs count)).toNat ∧
       y.regs key = Math.value (x.regs mode) (x.regs key) ∧ y.mem = x.mem := by
-  unfold choose skip
-  wram_exec [hz, h1, h2, h3, h4, h5, hs] <;>
+  wram_exec [choose, skip, hz, h1, h2, h3, h4, h5, hs] <;>
   · wram_simp
     simp [Math.flag, Math.value, Math.twice, two_mul, Bool.toNat, *]
 
@@ -164,8 +162,7 @@ theorem exec {w : ℕ} (x : Data 48)
         (x.regs digit) (x.regs mode) (x.regs key, x.regs count)).toNat ∧
       y.regs key = Math.value (x.regs mode) (x.regs key) ∧ y.mem = x.mem := by
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (labels_exec x hz h2 hkey habs hfit) framed with v m ⟨hus, _, hua, hub, hum⟩
   wram_call (choose_exec _ ..) framed [hz, h1, h2, h3, h4, h5, hus] with v₁ m₁ ⟨hyt, hyk, hym⟩
   exact ⟨by simpa only [Math.keep, hua, hub] using hyt, hyk, hym.trans hum⟩

@@ -99,8 +99,7 @@ theorem exec_tableWrite {w : ℕ} (L m inv tab t : ℕ) (x : Data 96)
     revert i ha htmp hm_ne hr_ne
     simp only [tableWrite, Code.Preserves, Op.dest, Op.bin]
     decide
-  unfold tableWrite
-  wram_exec *
+  wram_exec * [tableWrite]
   · rename_i hp
     wram_simp [tableStep, lookup, ht, hp, hc, prefixCount_succ, Function.update_idem]
   · rename_i hp

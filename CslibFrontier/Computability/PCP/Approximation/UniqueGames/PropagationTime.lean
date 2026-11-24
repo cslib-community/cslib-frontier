@@ -905,8 +905,7 @@ private theorem initSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
   have : Fits w 2 := hfit_hb.of_le (by simp only [headBase]; omega)
   have : Fits w 1 := hfit_hb.of_le (by simp only [headBase]; omega)
   have : Fits w (L + 2) := hfit_hb.of_le (by simp only [headBase]; omega)
-  unfold initSetupCode
-  wram_exec [Data.init_regs, hinp.mem1, hinp.mem2, hinp.mem3]
+  wram_exec [initSetupCode, Data.init_regs, hinp.mem1, hinp.mem2, hinp.mem3]
   wram_simp
 
 private theorem layoutSetupA_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Data 34)
@@ -933,8 +932,7 @@ private theorem layoutSetupA_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x :
     hfit_tb.of_le (by simp only [tabBase, visBase, nodeBase, headBase]; omega)
   have : Fits w (3 + g.edges.length * (L + 2) + 1 + slots g + 4 * g.edges.length + slots g) :=
     hfit_tb.of_le (by simp only [tabBase, visBase, nodeBase, headBase]; omega)
-  unfold layoutSetupA
-  wram_exec [hz0, hz1, hzN, hzE, hm0]
+  wram_exec [layoutSetupA, hz0, hz1, hzN, hzE, hm0]
   refine ⟨by wram_simp [hz0], by wram_simp [hz1], by wram_simp [hz2], by wram_simp [hzL],
     by wram_simp [hzSt], by wram_simp [hzN], by wram_simp [hzE], by wram_simp [hzEB],
     by wram_simp; simp only [headBase]; omega,
@@ -966,8 +964,7 @@ private theorem layoutSetupB_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x :
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
   have : Fits w (tabBase g + slots g * L + L + L + slots g + slots g) := hfit_out.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
-  unfold layoutSetupB
-  wram_exec [hz0, hzL, hzN, hzNB, hzTB]
+  wram_exec [layoutSetupB, hz0, hzL, hzN, hzNB, hzTB]
   refine ⟨?_, by wram_simp, by wram_simp, by wram_simp⟩
   apply ConstRegs.mk <;>
     wram_simp [hz0, hz1, hz2, hzL, hzSt, hzN, hzE, hzEB, hzHB, hzNB, hzVB, hzTB]
@@ -1008,8 +1005,7 @@ private theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
         have : Fits w (g.edges[k].src + 1) := hw.of_le (by omega)
         have : Fits w (g.edges[k].dst + 1) := hw.of_le (by omega)
         have : Fits w (k + 1) := hw.of_le (by omega)
-        unfold slotsBody
-        wram_exec [h0, h1, h2, hL, hSt, hN, hE, hEB, hk_reg, hsrc_mem, hdst_mem]
+        wram_exec [slotsBody, h0, h1, h2, hL, hSt, hN, hE, hEB, hk_reg, hsrc_mem, hdst_mem]
         all_goals
           refine ⟨⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2], by wram_simp [hL],
             by wram_simp [hSt], ?_, by wram_simp [hE], by wram_simp [hEB],
@@ -1148,8 +1144,7 @@ private theorem prependToSlot_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (sl
         Function.update_of_ne (by omega : a ≠ x.regs rNodeFree)]
       exact hzero a ha
   rcases hsr with rfl | rfl <;>
-  · unfold prependToSlot
-    wram_exec [hc.one, hc.two, hc.headB, hslot, hj_reg]
+  · wram_exec [prependToSlot, hc.one, hc.two, hc.headB, hslot, hj_reg]
     refine ⟨by wram_simp [hc], by wram_simp; exact hinp.frame hfr_inp,
       by wram_simp, by wram_simp, by wram_simp [hj_reg], by wram_simp, by wram_simp,
       ?_, ?_⟩
@@ -1457,8 +1452,7 @@ private theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : St
       x1.regs rLabIdx = 0 ∧ x1.regs rOuterIdx = x.regs rOuterIdx ∧ x1.mem = x.mem := by
     have : Fits w (tabBase g + s * L) := hfit_top.of_le (by
       simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-    unfold startPre
-    wram_exec [hT.consts.zero, hT.consts.regL, hT.consts.tabB, hs_reg]
+    wram_exec [startPre, hT.consts.zero, hT.consts.regL, hT.consts.tabB, hs_reg]
     exact ⟨by wram_simp [hT.consts], by wram_simp [hs_reg], by wram_simp, by wram_simp,
       by wram_simp, by wram_simp⟩
   obtain ⟨x1, hx1, hc1, hs1, htmp1, hlab1, hidx1, hm1⟩ := hpre
@@ -1483,8 +1477,7 @@ private theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : St
           simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
         have : Fits w (k + 1) := hfit_top.of_le (by
           simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
-        unfold startBody
-        wram_exec [hzC.one, hzC.candB, hzT2, hk_reg]
+        wram_exec [startBody, hzC.one, hzC.candB, hzT2, hk_reg]
         refine ⟨⟨by wram_simp [hzC], by wram_simp [hzS], by wram_simp [hzT2],
           by wram_simp [hzIdx], ?_, ?_, ?_⟩, by wram_simp⟩
         · simp only [Data.write_mem, Data.set_mem]
@@ -1516,8 +1509,7 @@ private theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : St
       y.mem = Function.update (Function.update x2.mem (visBase g + s) 1) (stackBase g) s := by
     have : Fits w (visBase g + s) := hfit_top.of_le (by
       simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-    unfold startPost
-    wram_exec [hc2.zero, hc2.one, hc2.visB, hc2.stackB, hs2]
+    wram_exec [startPost, hc2.zero, hc2.one, hc2.visB, hc2.stackB, hs2]
     exact ⟨by wram_simp [hc2], by wram_simp, by wram_simp, by wram_simp [hidx2], by wram_simp⟩
   obtain ⟨y, hx3, hc3, hstk3, hcmp3, hidx3, hym⟩ := hpost
   have hfr_low : ∀ a < visBase g, y.mem a = x.mem a := fun a ha => by
@@ -1653,8 +1645,7 @@ private theorem extendFwdLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x 
         have heVal_k : (g.edges[j].constraint (f ⟨k, hk⟩)).val = eVal k := by simp [eVal, hk]
         have hpws := prefix_write_step hzRow hzFr
           (rfl : Function.update z.mem (tabBase g + g.edges[j].dst * L + k) (eVal k) = _)
-        unfold extendFwdBody
-        wram_exec [hzC.one, hzC.two, hzT2, hzT3, hzE, hk_reg, hfa, hcfa]
+        wram_exec [extendFwdBody, hzC.one, hzC.two, hzT2, hzT3, hzE, hk_reg, hfa, hcfa]
         refine ⟨⟨by wram_simp [hzC], by wram_simp [hzT2], by wram_simp [hzT3],
           by wram_simp [hzE], by wram_simp [hzS], by wram_simp [hzD], by wram_simp [hzSL],
           by wram_simp [hzCL], by wram_simp [hzCN], by wram_simp [hzRem], by wram_simp [hzIdx],
@@ -1718,8 +1709,7 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
           simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
         have hpws := prefix_write_step (e := fun _ => L) hzInv hzFr
           (rfl : Function.update z.mem (invBase g + k) L = _)
-        unfold invInitBody
-        wram_exec [hzC.one, hzC.regL, hzC.invB, hk_reg]
+        wram_exec [invInitBody, hzC.one, hzC.regL, hzC.invB, hk_reg]
         refine ⟨⟨by wram_simp [hzC], by wram_simp [hzE], by wram_simp [hzS], by wram_simp [hzD],
           by wram_simp [hzSL], by wram_simp [hzCL], by wram_simp [hzCN], by wram_simp [hzRem],
           by wram_simp [hzIdx], ?_, ?_⟩, by wram_simp⟩
@@ -1962,8 +1952,7 @@ private theorem edgeVisLoad_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : 
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
   have : Fits w (visBase g + g.edges[j].dst) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  unfold edgeVisLoad
-  wram_exec [hS.consts.visB, hsrc_reg, hdst_reg]
+  wram_exec [edgeVisLoad, hS.consts.visB, hsrc_reg, hdst_reg]
   exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp, by wram_simp [heptr],
     by wram_simp [hsrc_reg], by wram_simp [hdst_reg], by wram_simp [hS.stack_len],
     by wram_simp [hS.comp_len], by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
@@ -1995,8 +1984,7 @@ private theorem extendPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (fromR
   have : Fits w (tabBase g + v * L) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
   rcases hregs with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
-  · unfold extendPrep
-    wram_exec [hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
+  · wram_exec [extendPrep, hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
     exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp⟩
@@ -2023,8 +2011,7 @@ private theorem extendPush_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (slotR
   have : Fits w (stkLen + 1) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase] at *; omega)
   rcases hsr with rfl | rfl <;>
-  · unfold extendPush
-    wram_exec [hc.one, hc.visB, hc.stackB, hslot, hsl]
+  · wram_exec [extendPush, hc.one, hc.visB, hc.stackB, hslot, hsl]
     exact ⟨by wram_simp [hc], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
@@ -2316,8 +2303,7 @@ private theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : St
             cases hck : S.cand ⟨k, hk⟩ with
             | false =>
               have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := by simp [hck]
-              unfold pruneBody
-              wram_exec [hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
+              wram_exec [pruneBody, hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
               refine ⟨⟨by wram_simp [hzC], by wram_simp [hzT2], by wram_simp [hzT3],
                 by wram_simp [hzE], by wram_simp [hzSL], by wram_simp [hzCL],
                 by wram_simp [hzCN], by wram_simp [hzRem], by wram_simp [hzIdx],
@@ -2465,8 +2451,7 @@ private theorem visitListLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       have : Fits w (j * (L + 2)) := hw.of_le (by omega)
       have : Fits w (4 + j * (L + 2)) := hw.of_le (by omega)
       have : Fits w (4 + j * (L + 2) + 1) := hw.of_le (by omega)
-      unfold visitListHead
-      wram_exec [hS.consts.one, hS.consts.stride, hS.consts.edgeB, hp_reg, hp0,
+      wram_exec [visitListHead, hS.consts.one, hS.consts.stride, hS.consts.edgeB, hp_reg, hp0,
         hS.inp.edge_src j hj, hS.inp.edge_dst j hj]
       exact ⟨hS.of_eq (by wram_simp [hS.consts]) (by wram_simp [hS.stack_len])
           (by wram_simp [hS.comp_len]) (by wram_simp),
@@ -2543,8 +2528,7 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
         x.mem (headBase g + u) :=
       Function.update_of_ne (by
         simp only [compBase, stackBase, invBase, candBase, tabBase, visBase, nodeBase]; omega) _ _
-    unfold scanPop
-    wram_exec [hS.consts.one, hS.consts.headB, hS.consts.stackB, hS.consts.compB,
+    wram_exec [scanPop, hS.consts.one, hS.consts.headB, hS.consts.stackB, hS.consts.compB,
       hlen_u, Nat.add_sub_cancel rest.length 1, hstk_split.2, hS.comp_len, hfr_hb]
     exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp, by wram_simp [hfr_hb],
       by wram_simp, by wram_simp, by wram_simp⟩
@@ -2701,8 +2685,7 @@ private theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
       ConstRegs g x1 ∧ x1.regs rChosen = 0 ∧ x1.regs rTmp3 = 0 ∧ x1.regs rLabIdx = 0 ∧
       x1.regs rCompLen = S.comp.length ∧ x1.regs rOuterIdx = x.regs rOuterIdx ∧
       x1.mem = x.mem := by
-    unfold settlePickInit
-    wram_exec [hS.consts.zero]
+    wram_exec [settlePickInit, hS.consts.zero]
     exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [hS.comp_len], by wram_simp, by wram_simp⟩
   obtain ⟨x1, hx1, hc1, hch1, ht3_1, hlab1, hcl1, hidx1, hm1⟩ := hpick_init
@@ -2735,8 +2718,7 @@ private theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
           have hnext : optAt (k + 1) = some c := by
             simp [optAt, htake_succ, List.find?_append,
               show ((List.finRange L).take k).find? S.cand = some c from hok]
-          unfold pickChosenBody
-          wram_exec [hzC.zero, hzC.one, hk_reg, hzOpt.1]
+          wram_exec [pickChosenBody, hzC.zero, hzC.one, hk_reg, hzOpt.1]
           refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
             by wram_simp [hzMem], ?_⟩, by wram_simp⟩
           rw [hnext]
@@ -2751,8 +2733,7 @@ private theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
             have hnext : optAt (k + 1) = some ⟨k, hk⟩ := by
               simp [optAt, htake_succ, List.find?_append,
                 show ((List.finRange L).take k).find? S.cand = none from hok, hck]
-            unfold pickChosenBody
-            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck1]
+            wram_exec [pickChosenBody, hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck1]
             refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
               by wram_simp [hzMem], ?_⟩, by wram_simp⟩
             rw [hnext]
@@ -2762,8 +2743,7 @@ private theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
             have hnext : optAt (k + 1) = none := by
               simp [optAt, htake_succ, List.find?_append,
                 show ((List.finRange L).take k).find? S.cand = none from hok, hck]
-            unfold pickChosenBody
-            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck0]
+            wram_exec [pickChosenBody, hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck0]
             refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
               by wram_simp [hzMem], ?_⟩, by wram_simp⟩
             rw [hnext]
@@ -2889,8 +2869,7 @@ private theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
               z2.mem = z.mem := by
             have hfc_mem : z1.mem (tabBase g + v * L + chosen.val) = (fn chosen).val := by
               rw [hz1m]; simpa only [Fin.eta] using htab_fn chosen.val chosen.isLt
-            unfold freezePrep
-            wram_exec [hz1C.zero, hz1C.regL, hz1C.tabB, hz1S, hz1Ch, hfc_mem]
+            wram_exec [freezePrep, hz1C.zero, hz1C.regL, hz1C.tabB, hz1S, hz1Ch, hfc_mem]
             exact ⟨by wram_simp [hz1C], by wram_simp, by wram_simp, by wram_simp,
               by wram_simp [hz1Ch], by wram_simp [hz1Rem], by wram_simp [hz1CL],
               by wram_simp [hz1Idx], by wram_simp [hz1m]⟩
@@ -2918,8 +2897,7 @@ private theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
                   simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
                 have hpws := prefix_write_step (e := fun _ => (fn chosen).val) hwRow hwFr
                   (rfl : Function.update w0.mem (tabBase g + v * L + a) (fn chosen).val = _)
-                unfold freezeSlotBody
-                wram_exec [hwC.one, hwT2, hwT3, ha_reg]
+                wram_exec [freezeSlotBody, hwC.one, hwT2, hwT3, ha_reg]
                 refine ⟨⟨by wram_simp [hwC], by wram_simp [hwT2], by wram_simp [hwT3],
                   by wram_simp [hwCh], by wram_simp [hwRem], by wram_simp [hwCL],
                   by wram_simp [hwIdx], ?_, ?_⟩, by wram_simp⟩
@@ -3049,8 +3027,7 @@ private theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin 
     have hhead : ∃ z1, ExecWithin w stepHead z z1 5 ∧
         TableStateAt g S z1 ∧ z1.regs rSrc = e.src ∧ z1.regs rTmp1 = z.mem (visBase g + e.src) ∧
         z1.regs rOuterIdx = j := by
-      unfold stepHead
-      wram_exec [hzT.consts.stride, hzT.consts.edgeB, hzT.consts.visB, hzIdx,
+      wram_exec [stepHead, hzT.consts.stride, hzT.consts.edgeB, hzT.consts.visB, hzIdx,
         hzT.inp.edge_src j hj]
       exact ⟨hzT.of_eq (by wram_simp [hzT.consts]) (by wram_simp),
         by wram_simp; rfl, by wram_simp; rfl, by wram_simp [hzIdx]⟩
@@ -3211,8 +3188,7 @@ private theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fi
           have hpws := prefix_write_step hzOut hzFr
             (show Function.update z.mem (outBaseAddr g + 2 + v) 0 =
               Function.update z.mem (outBaseAddr g + 2 + v) (labVal v) by rw [hlv0])
-          unfold extractBody
-          wram_exec [hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
+          wram_exec [extractBody, hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
           refine ⟨⟨by wram_simp [hzC], ?_, ?_⟩, by wram_simp⟩
           · simp only [Data.write_mem, Data.set_mem]; exact hpws.1
           · simp only [Data.write_mem, Data.set_mem]; exact hpws.2
@@ -3268,8 +3244,7 @@ private theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin 
   have hfit_top : Fits w (outBaseAddr g + 2 + slots g) := hw.of_le (by omega)
   have hset : ∃ x0, ExecWithin w checkInit x x0 2 ∧
       ConstRegs g x0 ∧ x0.regs ok = 1 ∧ x0.regs rOuterIdx = 0 ∧ x0.mem = x.mem := by
-    unfold checkInit
-    wram_exec [hc.zero, hc.one]
+    wram_exec [checkInit, hc.zero, hc.one]
     exact ⟨by wram_simp [hc], by wram_simp, by wram_simp, by wram_simp⟩
   obtain ⟨x0, hx0, hc0, hok0, hidx0, hm0⟩ := hset
   set σ := labelling (List.finRange L) g
@@ -3322,16 +3297,14 @@ private theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin 
             Bool.and_true]
         by_cases heq_v : (e.constraint (σ e.src)).val = (σ e.dst).val
         · have heq_f : e.constraint (σ e.src) = σ e.dst := Fin.ext heq_v
-          unfold checkBody
-          wram_exec [hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
+          wram_exec [checkBody, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
             hsrc_mem, hdst_mem, hlv, hlw, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp [hzOk]
           rw [hall_next, decide_eq_true heq_f, Bool.and_true]
         · have hne_f : e.constraint (σ e.src) ≠ σ e.dst :=
             fun heq => heq_v (congrArg Fin.val heq)
-          unfold checkBody
-          wram_exec [hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
+          wram_exec [checkBody, hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
             hsrc_mem, hdst_mem, hlv, hlw, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp
@@ -3362,8 +3335,7 @@ private theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
     have hok1 : x.regs ok = 1 := by simp [hok, hchk]
     have hsolve : solve (List.finRange L) g = some (labelling (List.finRange L) g) := by
       simp [solve, hchk]
-    unfold finishCode
-    wram_exec [hc.one, hc.regN, hc.outB, hok1]
+    wram_exec [finishCode, hc.one, hc.regN, hc.outB, hok1]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
     · wram_simp [hok1]; rw [hsolve]; rfl
     · wram_simp [hc.outB]
@@ -3379,8 +3351,7 @@ private theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
   | false =>
     have hok0 : x.regs ok = 0 := by simp [hok, hchk]
     have hsolve : solve (List.finRange L) g = none := by simp [solve, hchk]
-    unfold finishCode
-    wram_exec [hc.zero, hc.one, hc.outB, hok0]
+    wram_exec [finishCode, hc.zero, hc.one, hc.outB, hok0]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
     · wram_simp [hok0]; rw [hsolve]; rfl
     · wram_simp [hc.outB]
@@ -3408,8 +3379,7 @@ theorem solveCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     bucketsLoop_spec (w := w) g hc1 hinp1 hnf1 hidx1 hzero1 hw
   have hclr : ∃ x3, ExecWithin w resetStateCode x2 x3 3 ∧
       TableStateAt g (init g) x3 ∧ x3.regs rOuterIdx = 0 := by
-    unfold resetStateCode
-    wram_exec [hc2.zero]
+    wram_exec [resetStateCode, hc2.zero]
     refine ⟨?_, by wram_simp⟩
     exact ⟨by wram_simp [hc2],
       by simp only [Data.set_mem]; exact hinp2,

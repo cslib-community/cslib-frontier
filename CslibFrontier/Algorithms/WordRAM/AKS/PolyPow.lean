@@ -134,8 +134,7 @@ private theorem mulInto_exec {w : ℕ} (X : Data 21) {x y d : Fin 21} (hx : x.va
   have hya : y ≠ pa := fun h => by subst h; simp at hy
   have hda : d ≠ pa := fun h => by subst h; simp at hd
   have h1 : Fits w 1 := hfn.of_le (by nlinarith)
-  unfold mulInto
-  wram_exec [ha, hb, ht, hxa, hya]
+  wram_exec [mulInto, ha, hb, ht, hxa, hya]
   refine WP.name fun X₁ hX₁ => ?_
   have hX₁j (j : Fin 21) (hj : j.val < 9) : X₁.regs j = X.regs j := by
     have h9 : j ≠ pa ∧ j ≠ pb ∧ j ≠ pt := ⟨fun h => by subst h; simp at hj,
@@ -218,8 +217,7 @@ private theorem body_step {w a b t r n e₀ : ℕ} (H : Hyp w a b t r n e₀)
   have hfE : Fits w E := H.hfe.of_le hye
   have hmod2 : E % 2 < 2 := Nat.mod_lt E (by norm_num)
   have hdiv2 : E / 2 ≤ E := Nat.div_le_self E 2
-  unfold body
-  wram_exec -split [hE, hy2]
+  wram_exec -split [body, hE, hy2]
   refine WP.cut (fun y₂ T₂ => T₂ ≤ mulTime r + 2 ∧
       (∀ j : Fin 21, j.val < 9 → j ≠ par → y₂.regs j = y.regs j) ∧
       toQuot n r (fun i => y₂.mem (a + i)) =
@@ -295,8 +293,7 @@ theorem exec {w : ℕ} (x : Data 21) {a b t r n : ℕ} (ha : x.regs R = a) (hb :
       y.regs rr = r ∧ y.regs nn = n := by
   have H : Hyp w a b t r n (x.regs e) := ⟨hn0, hab, hta, htb, hfa, hfb, hft, hf2, hfn, hfe⟩
   have h2 : Fits w 2 := hfn.of_le (by nlinarith)
-  unfold program
-  wram_exec
+  wram_exec [program]
   refine WP.name fun x₀ hx₀ => ?_
   have hx₀e : x₀.regs e = x.regs e := by subst hx₀; wram_simp
   have hI : Inv a b t r n (x.regs e) (toQuot n r (fun i => x.mem (a + i)) *

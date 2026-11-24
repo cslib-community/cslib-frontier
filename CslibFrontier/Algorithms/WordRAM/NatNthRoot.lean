@@ -79,8 +79,7 @@ theorem exec {w : ℕ} (x : Data 6) (hm : 1 ≤ x.regs m) (h1 : Fits w 1)
   set b := x.regs m
   set e := x.regs k
   set N := x.regs n
-  unfold program
-  wram_exec
+  wram_exec [program]
   let I (y : Data 6) : Prop := y.regs m = b ∧ y.regs k = e ∧ y.regs n = N ∧ y.regs one = 1 ∧
     y.regs i ≤ e ∧ (y.regs p = b ^ y.regs i ∨ (N < y.regs p ∧ N < b ^ e)) ∧ y.mem = x.mem
   refine WP.of_spec (ExecWithin.loop_invariant (T := 4) I (fun y => e - y.regs i) ?_ ?_) ?_
@@ -171,8 +170,7 @@ theorem exec {w : ℕ} (x : Data 10) (hk : 1 ≤ x.regs k) (hkfit : Fits w (x.re
   have he0 : e ≠ 0 := by omega
   have h1 : Fits w 1 := by fits
   have hn1 : Fits w (N + 1) := by fits [show N + 1 ≤ N * N + 2 * N + 2 by nlinarith]
-  unfold program
-  wram_exec
+  wram_exec [program]
   let I (y : Data 10) : Prop := y.regs n = N ∧ y.regs k = e ∧ y.regs one = 1 ∧ y.regs two = 2 ∧
     y.regs t = y.regs lo + 1 ∧ y.regs lo < y.regs hi ∧ y.regs hi ≤ N + 1 ∧
     y.regs lo ^ e ≤ N ∧ N < y.regs hi ^ e ∧ y.mem = x.mem

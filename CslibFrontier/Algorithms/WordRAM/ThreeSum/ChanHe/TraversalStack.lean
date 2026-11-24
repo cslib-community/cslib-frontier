@@ -127,8 +127,7 @@ theorem exec_push {w base capacity : ℕ} (h2 : Fits w 2) (hcap : Fits w (base +
   have h1 : Fits w 1 := h2.of_le (by decide)
   have hp : (prepare 0 v x).Bounded w := (hr.bounded.set (fits_zero w)).set hw
   refine WP.Exact.exists_exec ?_
-  unfold program writeAt
-  wram_exec [prepare, hr.pointer, hr.length_eq]
+  wram_exec [program, writeAt, prepare, hr.pointer, hr.length_eq]
   refine ⟨⟨by wram_bounded <;> fits, by wram_simp [prepare, hr.pointer],
     by wram_simp [List.length_cons], hv, ?_⟩,
     Modifies.write_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hv _⟩ v⟩

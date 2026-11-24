@@ -522,8 +522,7 @@ theorem lowerBoundCode_exec (I : LowerBoundInput) {w : ℕ} (hw : Fits w (I.arr.
   have hsetup : ∃ x₁, ExecWithin w lowerBoundSetup x x₁ 8 ∧
       ArraySearchInv I x₁ ∧ x₁.regs loReg = 0 ∧ x₁.regs hiReg = I.arr.length := by
     refine WP.exists_execWithin ?_
-    unfold lowerBoundSetup
-    wram_exec [x, Data.init_regs, hm0, hm1, hf_1, hf_2, hf_n, hf_out]
+    wram_exec [lowerBoundSetup, x, Data.init_regs, hm0, hm1, hf_1, hf_2, hf_n, hf_out]
     exact ⟨⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, harr⟩, by wram_simp, by wram_simp⟩
   obtain ⟨x₁, es, hx₁_inv, hx₁_lo, hx₁_hi⟩ := hsetup

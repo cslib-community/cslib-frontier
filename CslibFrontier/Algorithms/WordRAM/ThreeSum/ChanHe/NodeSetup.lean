@@ -89,8 +89,7 @@ theorem exec_layout {w : ℕ} (x : Data 64) (hfit : Fits w (layout x).budget) :
         y.regs histogram = (layout x).hist ∧ y.regs one = 1 ∧ y.regs four = 4 ∧
         y.regs temporary = 3 := by
     refine WP.exists_execWithin ?_
-    unfold layoutCode
-    wram_exec
+    wram_exec [layoutCode]
     refine ⟨by wram_simp, ?_, ?_, ?_, by wram_simp, by wram_simp, by wram_simp⟩
     · wram_simp; dsimp only [layout, Layout.packed, Layout.total]; omega
     · wram_simp; dsimp only [layout, Layout.scratch, Layout.packed, Layout.total]; omega
@@ -115,8 +114,7 @@ theorem exec_constants {w : ℕ} (L : Layout) (x : Data 64)
       ∃ y, ExecWithin w constantsCode x y 16 ∧ y.mem = x.mem ∧
         Prepared L y ∧ PaddingReady L y := by
     refine WP.exists_execWithin ?_
-    unfold constantsCode
-    wram_exec [hU, hN, hp, h1, h4, h3]
+    wram_exec [constantsCode, hU, hN, hp, h1, h4, h3]
     refine ⟨by wram_simp,
       ⟨by wram_simp [hk], by wram_simp [hh], by wram_simp [hp],
         by wram_simp [Layout.gap]; omega, by wram_simp; omega,

@@ -2041,8 +2041,7 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
     have hf5 : Fits w (augPairs.length + y.regs idx + 1) := hfit.of_le (by omega)
     have hf6 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold copyAugBody
-    wram_exec [hby.hbStackU, hby.hbAugU, hby.hbStackV, hby.hbAugV, hby.hone, hal_y,
+    wram_exec [copyAugBody, hby.hbStackU, hby.hbAugU, hby.hbStackV, hby.hbAugV, hby.hone, hal_y,
       hsu, hsv, hf1, hf2, hf3, hf4, hf5, hf6]
     have htake_eq : augPairs ++ stackPairs.take (y.regs idx + 1) =
         (augPairs ++ stackPairs.take (y.regs idx)) ++ [stackPairs[y.regs idx]'hlt_st] := by
@@ -2431,8 +2430,7 @@ private theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}
           a < bOff + inst.m + 1 + inst.numEdges + 4 * inst.r + 6 * inst.m + 6) →
         z.mem a = x.mem a) := by
     refine WP.exists_execWithin ?_
-    unfold dfsStepBody
-    wram_exec [hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges,
+    wram_exec [dfsStepBody, hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges,
       hfr.hb.hbVis, hfr.hb.hbColMate, hfr.hb.hbStackV, hfr.hb.hrm, hfr.hb.hone, hfr.hb.hzero,
       hfr.hrd, hfr.hrk, hfr.hsu, hoff_u1, hfr.hsp, hlt_lim, hedge_v, hvis_v, hmate_v, henc_m,
       hf_su, hf_ou, hf_ou1, hf_sp, hf_cur1, hf_ed, hf_vis, hf_cm, hf_sv]
@@ -3174,8 +3172,7 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
             (bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 5 * inst.m + 4)
             (inst.offset u.val) := by
         refine WP.exists_execWithin ?_
-        unfold dfsRootSetup
-        wram_exec [hb_chk.hbStackU, hb_chk.hbOff, hb_chk.hbStackPos, hb_chk.hone,
+        wram_exec [dfsRootSetup, hb_chk.hbStackU, hb_chk.hbOff, hb_chk.hbStackPos, hb_chk.hone,
           hqh_chk, hoff_u, hf_ou]
         refine ⟨fun i hi => by dsimp only [x_chk]; wram_simp, by wram_simp,
           by wram_simp [hal_chk], by wram_simp, ?_⟩
@@ -3806,8 +3803,7 @@ private theorem exec_initBaseRegsFromCSR {w bOff : ℕ} (inst : SparseInstance) 
       inst.m) + inst.r) + inst.m) + 2) + inst.m) + 2) + inst.m) + 2) + inst.r) + inst.r) :=
     hfit.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold initBaseRegsFromCSR
-  wram_exec [h1, h2, hrm, hrr, hrE, hbOff,
+  wram_exec [initBaseRegsFromCSR, h1, h2, hrm, hrr, hrE, hbOff,
     hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11, hf12, hf13, hf14, hf15, hf16]
   refine ⟨?_, rfl⟩
   exact

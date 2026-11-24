@@ -56,8 +56,7 @@ theorem exec_indexedSetup {w c u e p : ℕ} (d : Fin 9) (x : Data registers)
       y.regs Reg.childStars = e ∧ y.mem = x.mem by
     obtain ⟨y, hy, hcc, hcu, hcs, hm⟩ := this
     exact ⟨y, hy, hcc, hcu, hcs, hm, fun i hi => hy.regs_eq (indexedSetup_preserves d i hi)⟩
-  unfold indexedSetup
-  wram_exec *
+  wram_exec * [indexedSetup]
   wram_simp
 
 /-- P0 extends the initial star count precisely before any indexed inner term was chosen. -/
@@ -75,8 +74,7 @@ theorem exec_p0Setup {w c u e p : ℕ} (x : Data registers)
     obtain ⟨y, hy, hcc, hcu, hcs, hm⟩ := this
     exact ⟨y, hy, hcc, hcu, hcs, hm, fun i hi => hy.regs_eq (p0Setup_preserves i hi)⟩
   have hcode := hc
-  unfold p0Setup
-  wram_exec [*]
+  wram_exec [p0Setup, *]
   · wram_simp [hcode, hc, *]
   · wram_simp [hcode, hc, *]
 
@@ -93,8 +91,7 @@ theorem exec_privateSetup {w c u e p d : ℕ} (x : Data registers) (hd : d ≤ 9
       y.regs Reg.childUsed = u ∧ y.regs Reg.childStars = e ∧ y.mem = x.mem by
     obtain ⟨y, hy, hcc, hcu, hcs, hm⟩ := this
     exact ⟨y, hy, hcc, hcu, hcs, hm, fun i hi => hy.regs_eq (privateSetup_preserves i hi)⟩
-  unfold privateSetup
-  wram_exec *
+  wram_exec * [privateSetup]
   wram_simp
 
 /-- Registers modified by actual output-digit decoding and child-depth/power setup. -/
@@ -120,8 +117,7 @@ theorem exec_expandSetup {w q k p : ℕ} (x : Data registers)
     obtain ⟨y, hy, hd, hdp, hcp, hm⟩ := this
     exact ⟨y, hy, hd, hdp, hcp, hm,
       fun i hi => hy.regs_eq (by unfold ExpandSetupLocal at hi; decide +revert)⟩
-  unfold expandSetup
-  wram_exec *
+  wram_exec * [expandSetup]
   wram_simp
 
 /-- Registers changed by descriptor computation and actual indexed-child stores. -/

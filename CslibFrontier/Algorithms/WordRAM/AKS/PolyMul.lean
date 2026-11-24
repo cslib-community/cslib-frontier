@@ -236,8 +236,7 @@ private theorem outer_step {w a b t r n : ℕ} {m : ℕ → ℕ} (H : Hyp w a b 
     Regs a b t r n z ∧ z.regs i = I ∧ z.regs u = m (a + I) ∧
       z.mem = view m t r
         (fun k' => partSum (fun i' => m (a + i')) (fun j' => m (b + j')) r I k k' % n)
-  unfold outerBody
-  wram_exec [hya, hI, hPI]
+  wram_exec [outerBody, hya, hI, hPI]
   refine WP.name fun y₁ hy₁ => ?_
   have hj₁ : y₁.regs j = 0 := by subst hy₁; wram_simp
   have hP₁ : P (y₁.regs j) y₁ := by
@@ -273,8 +272,7 @@ theorem exec {w : ℕ} (x : Data 14) {a b t r n : ℕ} (ha : x.regs pa = a) (hb 
   let Product (k : ℕ) (z : Data 14) := Regs a b t r n z ∧ z.mem =
     view x.mem t r (fun k' =>
       partSum (fun i' => x.mem (a + i')) (fun j' => x.mem (b + j')) r k 0 k' % n)
-  unfold program
-  wram_exec
+  wram_exec [program]
   refine WP.name fun x₀ hx₀ => ?_
   have hi₀ : x₀.regs i = 0 := by subst hx₀; wram_simp
   have hx₀' : Clear (x₀.regs i) x₀ := by

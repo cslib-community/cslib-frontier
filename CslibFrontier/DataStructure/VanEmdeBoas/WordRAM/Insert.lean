@@ -178,8 +178,7 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
       cases tree <;> simp_all [Tree.bounds, Tree.insert, Tree.withBounds]
     apply insertLoop_finish hs
     apply WP.exists_execWithin
-    unfold insertBody writeAt
-    wram_exec [hp, hx, hz, ho, htwo, hempty]
+    wram_exec [insertBody, writeAt, hp, hx, hz, ho, htwo, hempty]
     refine ⟨by wram_simp [hz], by wram_simp, ?_, ?_⟩
     · rw [hins]
       simpa only [writeBounds, Data.write_mem, Data.set_mem] using

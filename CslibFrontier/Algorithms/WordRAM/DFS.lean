@@ -363,8 +363,7 @@ theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
       (∀ a, ¬ (curBase ≤ a ∧ a < curBase + N) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r)
   change ∃ y, ExecWithin w incCurCode x y 4 ∧ IncPost y
-  unfold incCurCode
-  wram_exec [hc1, hcur, hsrc, hm_src, hf_addr, hf_val]
+  wram_exec [incCurCode, hc1, hcur, hsrc, hm_src, hf_addr, hf_val]
   dsimp only [IncPost]
   refine ⟨fun u => ?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd
@@ -458,8 +457,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
     let BodyPost (z : Data 28) : Prop :=
       P (y.regs iReg + 1) z ∧ z.regs iReg = y.regs iReg + 1
     change ∃ z, ExecWithin w prefixSumBody y z 7 ∧ BodyPost z
-    unfold prefixSumBody
-    wram_exec [hy1, hyD, hyO, hy_p, hdeg_k, hf_daddr, hf_psum, hf_k1, hf_oaddr]
+    wram_exec [prefixSumBody, hy1, hyD, hyO, hy_p, hdeg_k, hf_daddr, hf_psum, hf_k1, hf_oaddr]
     dsimp only [BodyPost, P]
     refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by wram_simp⟩
     · regs_lt; exact hy_fr r hr
@@ -664,8 +662,7 @@ theorem backfillStepCode_spec {N w : ℕ}
           (edgeBase ≤ a ∧ a < edgeBase + csrOffset targetAdj N)) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r)
   change ∃ y, ExecWithin w backfillStepCode x y 6 ∧ BfPost y
-  unfold backfillStepCode
-  wram_exec [hc1, hcurB, hedgeB, hsrc, hdst, hf_caddr, hf_eaddr]
+  wram_exec [backfillStepCode, hc1, hcurB, hedgeB, hsrc, hdst, hf_caddr, hf_eaddr]
   dsimp only [BfPost]
   refine ⟨?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd; exact hstep.1
@@ -1460,8 +1457,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
   · have hvis_1 : x.mem (visAddr + r.val) = 1 := by simpa [hmem] using hvis_r
     have hs_eq : visit adj N r ⟨vis, []⟩ = ⟨vis, []⟩ :=
       (congrArg (fun fuel => visit adj fuel r ⟨vis, []⟩) hkN).trans (visit_of_mem hmem)
-    unfold visitRootCode
-    wram_exec [hregs.czero, hregs.hvis, hu, hvis_1, hf_vr]
+    wram_exec [visitRootCode, hregs.czero, hregs.hvis, hu, hvis_1, hf_vr]
     dsimp only [RootPost]
     rw [hs_eq]
     refine ⟨?_, ?_, ?_, ?_, fun _ hq => by simp at hq, fun _ _ => rfl, fun reg hreg => ?_⟩
@@ -1500,8 +1496,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
           x₁.regs reg = x.regs reg)
     have hpush : ∃ x₁, ExecWithin w dfsPushRoot
         ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 11 ∧ PushRootPost x₁ := by
-      unfold dfsPushRoot
-      wram_exec [hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1,
+      wram_exec [dfsPushRoot, hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1,
         hf_or0, hf_or1, hf_s1, hf_s2]
       dsimp only [PushRootPost]
       refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc,
@@ -1575,8 +1570,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
       simp only [dfsFrameTime, List.length_cons, outDegreeSum, List.map_cons,
         List.sum_cons] at ht_loop ⊢
       omega
-    unfold visitRootCode
-    wram_exec [hregs.czero, hregs.hvis, hu, hvis_0, hf_vr]
+    wram_exec [visitRootCode, hregs.czero, hregs.hvis, hu, hvis_0, hf_vr]
     refine WP.of_execWithin hx₁_ex ?_
     refine WP.of_execWithin ⟨t_loop, le_rfl, he_loop⟩ ?_
     exact ⟨by omega, hRz⟩
@@ -2452,8 +2446,7 @@ private theorem writeCompLoop_spec {N w : ℕ} (finAddr compAddr : ℕ) (hdisj :
         x₁.regs pReg = F₀ + (k + 1) ∧
         (∀ r : Fin 28, r ≠ addr → r ≠ vReg → r ≠ pReg → x₁.regs r = x.regs r)
     have hstep : ∃ x₁, ExecWithin w writeCompBody x x₁ 5 ∧ StepPost x₁ := by
-      unfold writeCompBody
-      wram_exec [hc1, hfb, hcb, hcIdx, hp, hm_v, hf_fa, hf_ca, hf_p1]
+      wram_exec [writeCompBody, hc1, hfb, hcb, hcIdx, hp, hm_v, hf_fa, hf_ca, hf_p1]
       dsimp only [StepPost]
       refine ⟨fun u => ?_, fun a ha => ?_, by wram_simp; omega, fun r h1 h2 h3 => ?_⟩
       · mem_upd
@@ -3091,8 +3084,7 @@ private theorem setupCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound)
       s.regs revEdgeB = kRevEdgeAddr 3 G.n G.m ∧ s.regs ordB = kOrdAddr 3 G.n G.m ∧
       s.regs compB = kCompAddr 3 G.n G.m
   change ∃ s, ExecWithin w setupCode (Data.init G.encodeCSR) s 23 ∧ Post s
-  unfold setupCode
-  wram_exec [Data.init_regs, hm1, hm2]
+  wram_exec [setupCode, Data.init_regs, hm1, hm2]
   · dsimp only [Post]
     refine ⟨rfl, by wram_simp; exact Data.init_regs _ _, ?_,
       ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
@@ -3139,8 +3131,7 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
         x₁.regs iReg = k + 1 ∧
         (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r)
     have hstep : ∃ x₁, ExecWithin w revCopyBody x x₁ 8 ∧ StepPost x₁ := by
-      unfold revCopyBody
-      wram_exec [hc1, hNv, hO, hP, hi, hm, hf1, hf2, hf3, hf4, hf5, hf6]
+      wram_exec [revCopyBody, hc1, hNv, hO, hP, hi, hm, hf1, hf2, hf3, hf4, hf5, hf6]
       dsimp only [StepPost]
       refine ⟨fun q hq => ?_, fun q hq => ?_, fun a ha => ?_, by wram_simp, fun r hr => ?_⟩
       · mem_upd

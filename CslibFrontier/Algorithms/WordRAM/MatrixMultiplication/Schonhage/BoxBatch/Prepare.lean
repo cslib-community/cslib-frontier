@@ -111,8 +111,7 @@ theorem exec_prepare {w L m t N A B : ℕ} (hmL : m ≤ L) (x : Data registers)
     with z ⟨zL, zm, zt, zH, zT, zD, zR, zV, zK, zA, zB, zdir, zvalues, zframe⟩
   have zN : z.regs BoxQuery.Reg.query = N := by regs_frame
   have zV' : z.regs BoxTable.Reg.values = valueBase L m t N := zV
-  unfold initializeCursors
-  wram_exec [zB, zT, zN, zL, zV', zK]
+  wram_exec [initializeCursors, zB, zT, zN, zL, zV', zK]
   refine ⟨by unfold preparationTime BoxQuery.preparationTime; omega,
     by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     by regs_frame, by regs_frame, by regs_frame, by regs_frame, ?_, ?_, ?_, ?_, ?_⟩

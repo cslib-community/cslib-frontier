@@ -2125,8 +2125,7 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
       x₁.regs totPat = totalPatternLen inp.patterns ∧ x₁.regs textLen = inp.text.length ∧
       x₁.regs maxS = inp.maxS ∧ x₁.regs patBase = 5 ∧ x₁.mem = d₀.mem := by
     refine WP.exists_execWithin ?_
-    unfold setupHeaderCode
-    wram_exec [hf1, hf2, hf3, hf4, hf5, hm1, hm2, hm3, hm4, hf_maxS']
+    wram_exec [setupHeaderCode, hf1, hf2, hf3, hf4, hf5, hm1, hm2, hm3, hm4, hf_maxS']
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [hmaxS_eq], by wram_simp, by wram_simp⟩
   obtain ⟨x₁, he₁, hz1, ho1, hsig1, hnp1, htp1, htl1, hms1, hpb1, hmem1⟩ := h1
@@ -3128,8 +3127,7 @@ private theorem exec_bfsInnerLink (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
       x_m.regs r3 = x_s.regs r3 ∧ x_m.regs r4 = x_s.regs r4 ∧ x_m.regs r5 = x_s.regs r5 ∧
       x_m.mem = Function.update x_s.mem (inp.outNextBase + s) ohdf := by
     refine WP.exists_execWithin ?_
-    unfold bfsInnerLinkCode
-    wram_exec [hL_s.h_outHeadBase, hL_s.h_outNextBase, hL_s.h_termBase,
+    wram_exec [bfsInnerLinkCode, hL_s.h_outHeadBase, hL_s.h_outNextBase, hL_s.h_termBase,
       hxs_r6, hxs_r7, hf_ohdf, hf_ons, hf_tms, hoh_xs, htm_xs, hne_tm_on]
     exact ⟨by wram_simp, by wram_simp [hxs_r6], by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
@@ -3858,8 +3856,7 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
             (Function.update x.mem (inp.outBase + 1 + acc.length) (x.regs r3))
             (inp.outBase + 1 + acc.length + 1) (inp.trie.depth (x.regs r4)) := by
         refine WP.exists_execWithin ?_
-        unfold emitStepCode
-        wram_exec [hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2, hd_read, hon_read,
+        wram_exec [emitStepCode, hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2, hd_read, hon_read,
           hf_dp, hf_p1, hf_p2, hf_on]
         exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
           by wram_simp⟩

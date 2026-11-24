@@ -231,8 +231,7 @@ theorem evalData_mem (w₀ M : ℕ) (d : Data 5) :
 theorem evalCode_exec {w₀ M w : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w)
     {d : Data 5} (hb : d.regs regB < 2 ^ (w₀ - 1)) (hx : d.regs regX < 2 ^ w₀) :
     Exec w (evalCode w₀ M) d (evalData w₀ M d) 9 := by
-  unfold evalCode
-  wram_exec
+  wram_exec [evalCode]
   ext i : 2
   · fin_cases i <;> rfl
   · rfl

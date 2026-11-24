@@ -50,8 +50,7 @@ theorem exec_rootFinish {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
   have hf1 : Fits w (x.regs frames + 1) := hw.of_le (by omega)
   have hf2 : Fits w (x.regs frames + 2) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold rootFinish
-  wram_exec [h0, h1, hw, hf1, hf2]
+  wram_exec [rootFinish, h0, h1, hw, hf1, hf2]
   refine ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, ?_, fun i hi => ?_⟩
   · intro a ha
     have hnot : ¬(x.regs frames ≤ a ∧ a < x.regs frames + 4) := by
@@ -99,8 +98,7 @@ theorem exec_rootList {w N capacity : ℕ} (x : Data registers) (input : ℕ →
         ¬(Block.mk (x.regs frames) 4).Owns a → y.mem a = x.mem a) ∧
       (∀ i, ¬RootLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold rootList rootScanSetup
-  wram_exec [hN]
+  wram_exec [rootList, rootScanSetup, hN]
   wram_call (exec_scan (N := N) (capacity := capacity) false _ input
     (by wram_simp) (by wram_simp; exact hinput)
     (by simpa only [shortened, Bool.false_eq_true, ↓reduceIte] using hcodes)

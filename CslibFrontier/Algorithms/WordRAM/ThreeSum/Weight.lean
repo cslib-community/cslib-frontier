@@ -91,8 +91,7 @@ private theorem exec_select {w N b : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (x :
   have hmag : Fits (w + 2) z.natAbs :=
     ((encode_fits hz).mono (by omega)).of_le (by unfold encode; split_ifs <;> omega)
   refine WP.exists_execWithin ?_
-  unfold select
-  wram_exec [hindex, hlen, hbase, hfiller, encode_div_two, encode_mod_two]
+  wram_exec [select, hindex, hlen, hbase, hfiller, encode_div_two, encode_mod_two]
   · have hnn : 0 ≤ z := by
       by_contra h
       rw [not_le] at h
@@ -132,8 +131,7 @@ theorem exec_store {w N b d : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (negate : B
       y.mem = Function.update x.mem d
         (encode (if negate then -pick N μ fill z else pick N μ fill z)) := by
     refine WP.exists_execWithin ?_
-    unfold store
-    wram_exec
+    wram_exec [store]
     wram_call (exec_select x hindex hlen hbase hfiller hmem hz haddr) framed
       with v m ⟨hvr, hvm⟩
     cases negate <;> simp only [Bool.false_eq_true, ↓reduceIte]
