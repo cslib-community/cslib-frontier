@@ -147,7 +147,7 @@ private theorem integral_multilinearEval_pow_four_le_aux {C : ℝ} (hC : 9 ≤ C
   | empty =>
     intro k c hc _
     simp only [multilinearEval_of_forall_nonempty fun S hS => hc S (by
-      simpa [subset_empty, nonempty_iff_ne_empty] using hS), integral_const, probReal_univ,
+      simpa [subset_empty] using hS), integral_const, probReal_univ,
       smul_eq_mul, one_mul]
     have : (1 : ℝ) ≤ C ^ k := one_le_pow₀ (by linarith)
     nlinarith [sq_nonneg (c ∅ ^ 2)]

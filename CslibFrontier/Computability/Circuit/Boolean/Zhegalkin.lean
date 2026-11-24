@@ -388,7 +388,7 @@ private theorem block_nonempty_subSums (hArity : σ.Arity addOp = 2)
     have hstep (T' : Finset (Fin b)) (hT' : T' ∈ nonempB) :
         CostSynthesis I w (s ∪ prevSet)
           {fun x => v (Fin.last b) x + ∑ j ∈ T', v' j x} 1 0 := by
-      have hne : T'.Nonempty := nonempty_iff_ne_empty.mpr (mem_erase.mp hT').1
+      have hne : T'.Nonempty := ne_empty_iff_nonempty.mp (mem_erase.mp hT').1
       exact add_two_of_mem hArity hEval hZeroW
         (Or.inl (hv (Fin.last b))) (Or.inr ⟨T', hne, rfl⟩)
     have hall := CostSynthesis.biUnion nonempB
@@ -896,7 +896,7 @@ private theorem card_nonempty_finset_fin (s : ℕ) :
     Fintype.card {T : Finset (Fin s) // T.Nonempty} = 2 ^ s - 1 := by
   have heq : univ.filter (fun T : Finset (Fin s) => T.Nonempty) = univ.erase ∅ := by
     ext T
-    simp [nonempty_iff_ne_empty]
+    simp
   rw [Fintype.card_subtype, heq, card_erase_of_mem (mem_univ ∅), card_univ,
     Fintype.card_finset, Fintype.card_fin]
 

@@ -269,7 +269,7 @@ theorem WL.el_one (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
     refine ⟨Nat.clog 2 (n + 1), Nat.le_pow_clog (by omega) _, ?_⟩
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · simp
-    · have := Nat.pow_pred_clog_lt_self (b := 2) (by omega) (show 1 < n + 1 by omega)
+    · have := Nat.pow_pred_clog_lt_self 2 (show 1 < n + 1 by omega)
       have hc : 0 < Nat.clog 2 (n + 1) := Nat.clog_pos (by omega) (by omega)
       obtain ⟨c, hc'⟩ := Nat.exists_eq_add_of_lt hc
       rw [hc'] at this ⊢

@@ -149,7 +149,8 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
   | 0, M, hr => by
     classical
     have hr0 : M.rank = 0 := Nat.eq_zero_of_le_zero hr
-    have hbot : LinearMap.range M.mulVecLin = ⊥ := Submodule.finrank_eq_zero.mp hr0
+    have hbot : LinearMap.range M.mulVecLin = ⊥ :=
+      Submodule.finrank_eq_zero.mp (M.finrank_range_mulVecLin.trans hr0)
     have hM0 : ∀ p q, M p q = 0 := by
       intro p q
       have hmem : M.mulVecLin (Pi.single q 1) ∈ (⊥ : Submodule ℝ ((α → ZMod 2) → ℝ)) :=
@@ -227,7 +228,8 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
         have hvv : v ⬝ᵥ v = s := by
           simp [dotProduct, s, sq]
         linarith
-      have hrank_lt : N.rank < M.rank := Submodule.finrank_lt_finrank_of_lt hN_lt
+      have hrank_lt : N.rank < M.rank := by
+        simpa only [finrank_range_mulVecLin] using Submodule.finrank_lt_finrank_of_lt hN_lt
       have hNrank : N.rank ≤ r := by omega
       set S₁ := ∑ p, ∑ q, v p * c q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val
       set S₂ := ∑ p, ∑ q, N p q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val

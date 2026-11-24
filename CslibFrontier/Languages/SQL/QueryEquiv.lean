@@ -224,7 +224,7 @@ theorem Rel.mapM_evalRow {rs rs' : List (Row n)} (h : ℓ.Rel rs rs') {es es' : 
   split_ifs with hall hall' hall'
   · rw [Option.rel_some_some]
     convert h.filterMap (fun r => (Expr.evalRow es r).toOption) using 1
-    exact List.filterMap_congr fun r hr => (hes' r hr).symm
+    exact List.filterMap_congr rfl fun r hr => (hes' r hr).symm
   · exact absurd (hc.mp hall) hall'
   · exact absurd (hc.mpr hall') hall
   · exact .none

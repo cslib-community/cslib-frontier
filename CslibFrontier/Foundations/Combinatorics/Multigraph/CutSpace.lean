@@ -283,7 +283,7 @@ theorem finrank_cutSpace_add_one {V E : Type*} [Fintype V] [Finite E] [Decidable
     · simp [hval a, hval b, hS]
   have hrank := Matrix.rank_endpointIncidence_add_one u v root hconn
   rw [← incidenceMatrix_eq_endpointIncidence ends hends, ← rank_transpose] at hrank
-  exact hrank
+  rwa [cutSpace, Matrix.finrank_range_mulVecLin]
 
 /-- The orthogonal complement of `cutSpace ends` under `dotProduct` is the cycle (even-degree)
 space `LinearMap.ker (incidenceMatrix ends).mulVecLin`. -/

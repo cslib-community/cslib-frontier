@@ -93,7 +93,7 @@ theorem mem_inputGates_iff_inputSupport_nonempty (p : Program signature n g) (ga
 /-- A gate's aggregated input support is nonempty iff it belongs to `inputGates p`. -/
 theorem inputSupport_ne_empty_iff (p : Program signature n g) (gate : Fin g) :
     inputSupport p gate ≠ ∅ ↔ gate ∈ inputGates p := by
-  rw [← nonempty_iff_ne_empty, mem_inputGates_iff_inputSupport_nonempty]
+  rw [ne_empty_iff_nonempty, mem_inputGates_iff_inputSupport_nonempty]
 
 /-! ### Gluing across a coordinate split -/
 
@@ -443,8 +443,8 @@ theorem exists_rectangle_of_cut (p : Program signature n g)
     exists_rectangle_of_cut_with_fixed p U ∅ ∅
   refine ⟨P, Q, readout v, fun x hx y hy => ?_, ?_, ?_⟩
   · rw [← hreadout, hv x hx y hy]
-  · simpa [subset_empty, nonempty_iff_ne_empty] using hP
-  · simpa [subset_empty, nonempty_iff_ne_empty] using hQ
+  · simpa [subset_empty] using hP
+  · simpa [subset_empty] using hQ
 
 /-- **Coordinate-split rectangle extraction.** When every gate's input support is contained in
 `U` or in `Uᶜ`, for any sets `A` and `B` of coordinates there is a monochromatic rectangle

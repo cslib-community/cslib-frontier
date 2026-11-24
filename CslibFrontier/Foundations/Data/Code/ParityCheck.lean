@@ -161,8 +161,7 @@ variable {κ ι F : Type*} [Fintype ι] [Field F]
 theorem finrank_parityCheckCode_add_rank (H : Matrix κ ι F) :
     Matrix.rank H + Module.finrank F (parityCheckCode H) = Fintype.card ι := by
   have h := LinearMap.finrank_range_add_finrank_ker H.mulVecLin
-  rw [Module.finrank_fintype_fun_eq_card] at h
-  exact h
+  rwa [Module.finrank_fintype_fun_eq_card, Matrix.finrank_range_mulVecLin] at h
 
 /-- Over a field `F` with finitely many checks `κ`,
 `|ι| ≤ dim F (parityCheckCode H) + |κ|`. -/
