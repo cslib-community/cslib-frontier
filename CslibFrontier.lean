@@ -8608,6 +8608,7 @@ public import CslibFrontier.Foundations.RingTheory.Trace.Reproducing
 public import CslibFrontier.Foundations.Syntax.PrefixParser
 public import CslibFrontier.GameTheory.Bimatrix.Basic
 public import CslibFrontier.GameTheory.Bimatrix.BestResponsePolytope
+public import CslibFrontier.GameTheory.Bimatrix.CorrelatedPolytope
 public import CslibFrontier.GameTheory.Bimatrix.CostGame
 public import CslibFrontier.GameTheory.Bimatrix.Existence
 public import CslibFrontier.GameTheory.Bimatrix.FNP
@@ -8616,6 +8617,7 @@ public import CslibFrontier.GameTheory.Bimatrix.PPAD
 public import CslibFrontier.GameTheory.Bimatrix.RationalVertex
 public import CslibFrontier.GameTheory.Bimatrix.ShapleyOrientation
 public import CslibFrontier.GameTheory.Bimatrix.Symmetric
+public import CslibFrontier.GameTheory.Bimatrix.ZeroSum
 public import CslibFrontier.GameTheory.Congestion.Affine
 public import CslibFrontier.GameTheory.Congestion.Basic
 public import CslibFrontier.GameTheory.Congestion.CostSharing
