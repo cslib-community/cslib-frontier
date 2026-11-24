@@ -39,6 +39,7 @@ obligations they cannot prove as goals; their references say which.
 | `enc_inductive eT : T where …` (command) | `Computability.Machines.Turing.MultiTape.Encodings.Inductive` | declares the encoding of an inductive type and its rules | [Choose a model](../workflows/choosing-models.md#write-the-contract-before-the-proof) |
 | `enc_len`, `enc_len [l] at h ⊢` | `Tactic.EncLen` | a linear bound on encoded lengths | [Close encoded-length arithmetic](#close-encoded-length-arithmetic) |
 | `fits`, `fits [h]` | `Tactic.Fits` | `Fits w v` or `v < 2 ^ w` | [Close word-size bounds](#close-word-size-bounds) |
+| `cast_linarith`, `cast_nlinarith`, with the arguments of `linarith` | `Tactic.LinarithCast` | a linear (or, for `cast_nlinarith`, polynomial) bound in an ordered field that uses facts about natural numbers or integers | [Use counting facts in a real bound](#use-counting-facts-in-a-real-bound) |
 
 **Word-RAM and counter programs**
 
@@ -523,6 +524,40 @@ If nothing expands, the diagnostic recommends plain `omega`. If the expanded goa
 inspect its bounds, supply missing arithmetic facts or name a local encoding lemma. An unknown
 lemma reports the underlying name-resolution error; check its spelling, namespace and import.
 The tactic neither invents a growth bound nor searches for an encoding definition to unfold.
+
+## Use counting facts in a real bound
+
+A bound in `ℝ` often rests on facts proved in `ℕ`, such as `hk : k < n` or a cardinality estimate.
+`linarith` casts those facts to `ℤ` only, so before it can use them in `ℝ` each is restated by
+hand, as in `have hk' : (k : ℝ) + 1 ≤ n := by exact_mod_cast hk`. Import
+`CslibFrontier.Tactic.LinarithCast` and call `cast_linarith` instead: it is `linarith` with a
+preprocessing step that also casts each comparison of natural numbers or integers among the
+hypotheses and supplied terms into the ordered field of the problem, and pushes the casts to the
+leaves with `push_cast`. It strengthens a strict comparison `a < b` to `(a : ℝ) + 1 ≤ b` first, a
+fact the field does not know, and `linarith` adds `0 ≤ (x : ℝ)` for each cast natural number `x`.
+`cast_nlinarith` puts the same step in front of `nlinarith`.
+
+```lean
+-- before:
+--   have hs' : (out.size : ℝ) ≤ 100000 * (batchBudget n c.size S.card r L : ℝ) := by
+--     exact_mod_cast hs
+--   linarith only [hopt, hs']
+cast_linarith only [hopt, hs]
+```
+
+Here `hs` bounds a circuit size in `ℕ` and `hopt` is a real bound, as in the
+[batched fixed powers](../../CslibFrontier/Computability/Circuit/Boolean/Iteration/Batch.lean).
+
+Both take the arguments of `linarith`, including `only [...]`, which also limits the cast facts
+to those listed. Name the natural-number facts the call relies on, as above, even when they are in
+context: the call then shows what it uses, and the unused-variable linter sees the hypothesis used.
+A local definition made with `set`, such as `x := (n : ℝ)`, is the same atom as the cast it
+names. Each cast fact costs a `push_cast` call, so a call with many natural-number hypotheses in
+context costs more than `linarith`; use `cast_linarith only [...]` there, or `linarith` where no
+cast is needed. The tactic derives no new facts about the naturals: products, truncated
+subtraction `a - b` and division stay atoms, so a fact such as `((a - b : ℕ) : ℝ) = (a : ℝ) - b`,
+which needs `b ≤ a`, still has to be supplied. The
+[checked clients](../../CslibFrontierTests/LinarithCast.lean) cover each case.
 
 ## Close negligibility bounds
 

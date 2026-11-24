@@ -100,13 +100,19 @@ theorem IsEmbedding.exists_restriction_radius {G : Graph} {D : PolygonalDrawing 
     (ρ : ℝ) (d : Dart G) : ℂ :=
   D.vertex d.vertex + (ρ / ‖D.germ d‖) • D.germ d
 
+/-- For a nonzero outgoing germ the port lies at the cut radius from its vertex. -/
+theorem dist_cutPort {G : Graph} (D : PolygonalDrawing G)
+    {ρ : ℝ} (hρ : 0 ≤ ρ) (d : Dart G) (hd : D.germ d ≠ 0) :
+    dist (D.cutPort ρ d) (D.vertex d.vertex) = ρ := by
+  have hn : 0 < ‖D.germ d‖ := norm_pos_iff.mpr hd
+  rw [cutPort, dist_eq_norm, add_sub_cancel_left, norm_smul,
+    Real.norm_of_nonneg (div_nonneg hρ hn.le), div_mul_cancel₀ _ (ne_of_gt hn)]
+
 /-- The common-radius cut port lies at precisely that distance from its own vertex. -/
 theorem IsEmbedding.dist_cutPort {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) {ρ : ℝ} (hρ : 0 ≤ ρ) (d : Dart G) :
-    dist (D.cutPort ρ d) (D.vertex d.vertex) = ρ := by
-  have hn : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
-  rw [cutPort, dist_eq_norm, add_sub_cancel_left, norm_smul,
-    Real.norm_of_nonneg (div_nonneg hρ hn.le), div_mul_cancel₀ _ (ne_of_gt hn)]
+    dist (D.cutPort ρ d) (D.vertex d.vertex) = ρ :=
+  D.dist_cutPort hρ d (hD.germ_ne_zero d)
 
 /-- Cutting before the end of the first outgoing segment is an actual segment parameter,
 including the reversed final segment at the second end of an edge or loop. -/
@@ -125,24 +131,31 @@ theorem IsEmbedding.cutPort_mem_support {G : Graph} {D : PolygonalDrawing G}
   apply Route.at_mem_support
   exact Route.endTime_mem _ ⟨div_nonneg hρ hn.le, (div_le_one hn).mpr hd⟩
 
-/-- The cut operation preserves the actual outgoing ray in the fixed plane. -/
-theorem IsEmbedding.arg_cutPort_sub {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) {ρ : ℝ} (hρ : 0 < ρ) (d : Dart G) :
+/-- The cut operation preserves the outgoing ray of a nondegenerate end segment. -/
+theorem arg_cutPort_sub {G : Graph} (D : PolygonalDrawing G)
+    {ρ : ℝ} (hρ : 0 < ρ) (d : Dart G) (hd : D.germ d ≠ 0) :
     (D.cutPort ρ d - D.vertex d.vertex).arg = (D.germ d).arg := by
-  have hn : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
+  have hn : 0 < ‖D.germ d‖ := norm_pos_iff.mpr hd
   rw [cutPort, add_sub_cancel_left, Complex.real_smul, Complex.arg_real_mul _ (div_pos hρ hn)]
+
+/-- At one vertex, coincident ports of nonzero germs have the same outgoing direction. -/
+theorem direction_eq_of_cutPort_eq {G : Graph} (D : PolygonalDrawing G)
+    {ρ : ℝ} (hρ : 0 < ρ) (a b : Dart G) (ha : D.germ a ≠ 0) (hb : D.germ b ≠ 0)
+    (hv : a.vertex = b.vertex) (heq : D.cutPort ρ a = D.cutPort ρ b) :
+    D.direction a = D.direction b := by
+  have heq' : D.cutPort ρ a - D.vertex a.vertex =
+      D.cutPort ρ b - D.vertex b.vertex := by rw [heq, hv]
+  have harg := congrArg Complex.arg heq'
+  rw [D.arg_cutPort_sub hρ a ha, D.arg_cutPort_sub hρ b hb] at harg
+  exact congrArg (fun x : ℝ => (x : Real.Angle)) harg
 
 /-- Distinct actual darts at one vertex yield distinct common-radius boundary ports.
 The two ends of the same loop are included. -/
 theorem IsEmbedding.cutPort_injective {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) {ρ : ℝ} (hρ : 0 < ρ) (a b : Dart G)
-    (hv : a.vertex = b.vertex) (heq : D.cutPort ρ a = D.cutPort ρ b) : a = b := by
-  apply hD.directions_injective a b hv
-  have heq' : D.cutPort ρ a - D.vertex a.vertex =
-      D.cutPort ρ b - D.vertex b.vertex := by rw [heq, hv]
-  have harg := congrArg Complex.arg heq'
-  rw [hD.arg_cutPort_sub hρ, hD.arg_cutPort_sub hρ] at harg
-  exact congrArg (fun x : ℝ => (x : Real.Angle)) harg
+    (hv : a.vertex = b.vertex) (heq : D.cutPort ρ a = D.cutPort ρ b) : a = b :=
+  hD.directions_injective a b hv
+    (D.direction_eq_of_cutPort_eq hρ a b (hD.germ_ne_zero a) (hD.germ_ne_zero b) hv heq)
 
 /-- Cut an end precisely when it belongs to the vertex being replaced. The other end
 of an edge stays unchanged; the two ends of a loop are cut separately. -/
