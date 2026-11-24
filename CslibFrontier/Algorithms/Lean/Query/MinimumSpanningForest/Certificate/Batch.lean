@@ -50,7 +50,9 @@ Lemma 3.2 (§3.2, p. 15), for a batch `B` on an instance with `n` vertices:
 
 * `D ⊆ B`, `|D| ≤ k n`, and every declared edge is admissible:
   `Cslib.Query.Certificate.declared_subset_batch`, `Cslib.Query.Certificate.card_declared_batch_le`,
-  `Cslib.Query.Certificate.adm_of_mem_declared_batch`.
+  `Cslib.Query.Certificate.adm_of_mem_declared_batch`. A declared edge is among the `k` lightest
+  representatives at one of its ends (the selection rule, pp. 14–15):
+  `Cslib.Query.Certificate.exists_end_card_lt_of_mem_declared_batch`.
 * `|P'| ≤ 2n / r`, as `|P'| r ≤ 2 n`, for every oracle:
   `Cslib.Query.Certificate.card_newPortals_batch_mul_le`; and `P' ⊆ X`
   (`Cslib.Query.Certificate.newPortals_subset_batch`).
@@ -774,6 +776,52 @@ theorem not_adm_of_mem_rejected_batch (hw : Function.Injective w)
   obtain ⟨v, -, hv⟩ := mem_biUnion.1 he
   exact ((hf v).failed e (List.mem_toFinset.1 hv)).2
 
+/-- **A declared edge is among the `k` lightest representatives at one of its ends** (§3.2,
+pp. 14–15). If `c` is declared, then at one end `v` of `c`, fewer than `k = r²` admissible edges of
+`B` at `v` that are lighter than `c` go to pairwise distinct neighbours. -/
+theorem exists_end_card_lt_of_mem_declared_batch (hw : Function.Injective w)
+    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {c : E}
+    (hc : c ∈ ((batch test msfSub r st B).eval (LEQuery.keyOracle w)).declared) :
+    ∃ v ∈ st.ends c, ∀ T ⊆ B,
+      (∀ f ∈ T, adm f ∧ v ∈ st.ends f ∧ ¬(st.ends f).IsDiag ∧ w f < w c) →
+      Set.InjOn (fun f => otherEnd v (st.ends f)) ↑T → #T < r ^ 2 := by
+  obtain ⟨hf, -, hq, -⟩ := sel_spec hw htest r st B
+  simp only [eval_batch, declOf] at hc
+  obtain ⟨v, hvA, hcv⟩ := mem_biUnion.1 hc
+  have hcv := List.mem_toFinset.1 hcv
+  refine ⟨v, (mem_incident.1 ((hf v).selected c hcv).1).2.1, fun T hTB hT hinj => ?_⟩
+  obtain ⟨Rv, hRv, hsel⟩ := hq v hvA
+  rw [hsel] at hcv
+  obtain ⟨-, hcount⟩ := (mem_selected_quotaSelect (fun e => otherEnd v (st.ends e)) hw
+    (nodup_toList _) c).1 hcv
+  -- the edges of `Rv` failed a test, so they are inadmissible
+  have hRvadm : ∀ x ∈ Rv, ¬adm x := fun x hx => by
+    obtain ⟨u, -, hxu⟩ := mem_biUnion.1 (hRv hx)
+    exact ((hf u).failed x (List.mem_toFinset.1 hxu)).2
+  set xs := (incident st.ends B v \ Rv).toList
+  have hxs : ∀ f ∈ T, f ∈ xs := fun f hfT => mem_toList.2 (mem_sdiff.2
+    ⟨mem_incident.2 ⟨hTB hfT, (hT f hfT).2.1, (hT f hfT).2.2.1⟩,
+      fun h => hRvadm f h (hT f hfT).1⟩)
+  -- the representative of the group of each `f ∈ T` is no heavier than `f`
+  have hrep : ∀ f ∈ T, ∃ y, IsGroupRepresentative (fun e => otherEnd v (st.ends e)) w adm xs y ∧
+      otherEnd v (st.ends y) = otherEnd v (st.ends f) ∧ w y ≤ w f := by
+    intro f hfT
+    obtain ⟨y, hy, hmin⟩ := (xs.toFinset.filter fun y =>
+      adm y ∧ otherEnd v (st.ends y) = otherEnd v (st.ends f)).exists_min_image w
+      ⟨f, mem_filter.2 ⟨List.mem_toFinset.2 (hxs f hfT), (hT f hfT).1, rfl⟩⟩
+    obtain ⟨hyxs, hyadm, hyg⟩ := mem_filter.1 hy
+    refine ⟨y, ⟨List.mem_toFinset.1 hyxs, hyadm, fun z hz hza hzg => hmin z ?_⟩, hyg,
+      hmin f (mem_filter.2 ⟨List.mem_toFinset.2 (hxs f hfT), (hT f hfT).1, rfl⟩)⟩
+    exact mem_filter.2 ⟨List.mem_toFinset.2 hz, hza, hzg.trans hyg⟩
+  choose! ρ hρ using hrep
+  refine lt_of_le_of_lt (card_le_card_of_injOn ρ (fun f hfT => ?_) fun f hf' f' hf'' h => ?_)
+    hcount
+  · exact mem_filter.2 ⟨List.mem_toFinset.2 (hρ f hfT).1.1, (hρ f hfT).1,
+      (hρ f hfT).2.2.trans_lt (hT f hfT).2.2.2⟩
+  · refine hinj hf' hf'' ?_
+    simp only
+    rw [← (hρ f hf').2.1, ← (hρ f' hf'').2.1, h]
+
 private theorem candidate_some {ends : E → Sym2 V} {P' : Finset V} {sel : V → QuotaSelection E}
     {v : V} {c : E} (h : candidate ends r P' sel v = some c) :
     c ∈ (sel v).selected ∧ otherEnd v (ends c) ∈ P' := by
@@ -930,22 +978,6 @@ theorem supported_or_spokes_batch (hw : Function.Injective w)
   · exact Or.inl (hsupp c hc (hcvu.trans Sym2.eq_swap) hce)
   · exact Or.inr ⟨su, sv, hsu, hsv, max_le hsue hsve⟩
 
-omit [DecidableEq V] [DecidableEq E] in
-private theorem supported_mono {ends : E → Sym2 V} {S T : Set E} (hST : S ⊆ T) {e : E}
-    (h : Supported ends w S e) : Supported ends w T e := by
-  obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
-  rw [supported_iff w hab.symm] at h ⊢
-  refine h.mono ?_
-  rintro f ⟨hf, hfe⟩
-  exact ⟨hST hf, hfe⟩
-
-omit [DecidableEq V] [DecidableEq E] in
-private theorem supported_of_mem {ends : E → Sym2 V} {S : Set E} {e : E} (he : e ∈ S) :
-    Supported ends w S e := by
-  obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
-  rw [supported_iff w hab.symm]
-  exact Joins.of_mem ⟨he, le_rfl⟩ hab.symm
-
 /-- **The batch preserves the invariant of the state** (§3.3, pp. 17–18). The new forest
 `MSF(F ∪ D)` is an acyclic set of admissible edges, since declared edges passed their tests; the
 new portals are vertices; a new spoke is a declared edge from its vertex to a new portal; and
@@ -993,11 +1025,11 @@ theorem State.Invariant.batch (h : st.Invariant w adm) (hw : Function.Injective 
       exact mem_union_left _ this
     · exact mem_union_right _ (candidate_some hc).2
   · simp only [hmsf]
-    rw [supported_msf_iff]
+    rw [supported_msf_iff w]
     rcases spokesOf_cases hs with h' | ⟨-, hc⟩
-    · exact supported_mono (fun f hf' => mem_union_left _ hf') (h.spoke_supported v s h')
+    · exact (h.spoke_supported v s h').mono fun f hf' => mem_union_left _ hf'
     · obtain ⟨-, hne, -⟩ := sel_spec hw htest r st B
-      exact supported_of_mem (mem_union_right _ (mem_declOf (candidate_some hc).1 hne))
+      exact supported_of_mem w (mem_union_right _ (mem_declOf (candidate_some hc).1 hne))
 
 /-- **Comparisons of the batch**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
 (the accounting after the paper's Lemma 3.3, §3.2, p. 16). Let each test cost at most `cs`
