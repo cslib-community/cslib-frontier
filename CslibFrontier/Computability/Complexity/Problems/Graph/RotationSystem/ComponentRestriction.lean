@@ -47,16 +47,21 @@ theorem mem_componentGraph_vertices (G : Graph) (root v : ℕ) :
     Fin (G.componentGraph root).edges.length ≃ ↥(G.componentEdgeSet root) :=
   ((G.componentEdgeSet root).orderIsoOfFin List.length_ofFn.symm).toEquiv
 
+/-- Each component edge keeps the two labels of its original listed occurrence. -/
+theorem edge_componentEdgeEquiv (G : Graph) (root : ℕ)
+    (i : Fin (G.componentGraph root).edges.length) :
+    (G.componentGraph root).edges[i] = G.edges[(G.componentEdgeEquiv root i).val] := by
+  change (List.ofFn fun j : Fin (G.componentEdgeSet root).card =>
+    G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl j])[i.val] = _
+  rw [List.getElem_ofFn]
+  rfl
+
 /-- Restricting a graph to a component preserves the endpoint at each indexed end. -/
 theorem vertex_componentEdgeEquiv (G : Graph) (root : ℕ)
     (i : Fin (G.componentGraph root).edges.length) (b : Bool) :
     Dart.vertex (G := G.componentGraph root) (i, b) =
       Dart.vertex (G := G) ((G.componentEdgeEquiv root i).val, b) := by
-  have he : (G.componentGraph root).edges[i] = G.edges[(G.componentEdgeEquiv root i).val] := by
-    change (List.ofFn fun j : Fin (G.componentEdgeSet root).card =>
-      G.edges[(G.componentEdgeSet root).orderEmbOfFin rfl j])[i.val] = _
-    rw [List.getElem_ofFn]
-    rfl
+  have he := G.edge_componentEdgeEquiv root i
   rw [Dart.edge_eq_vertices, Dart.edge_eq_vertices] at he
   cases b
   · exact congrArg Prod.fst he

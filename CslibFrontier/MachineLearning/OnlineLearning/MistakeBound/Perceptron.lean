@@ -17,7 +17,7 @@ The **perceptron** [Novikoff1962] [Block1962] [ShalevShwartzBenDavid2014, §21.4
 learner on a real inner product space `E`. It keeps a weight vector `w`, starting at `0`, predicts
 `true` on `x` iff `0 < ⟪w, x⟫`, and on a mistake on the example `(x, y)` updates
 `w ← w + s(y) • x`, where `s(y) = ±1` is the signed label (`signedLabel`). The weight vector is a
-function of the history (`perceptronWeight`), so the perceptron is an `OnlineLearner E`.
+function of the history (`perceptronWeight`), so the perceptron is an `OnlineLearner E Bool`.
 
 **Novikoff's theorem.** Suppose that some `u : E` separates the sequence with margin `γ ≥ 0`, that
 is, `γ ≤ s(y) ⟪u, x⟫` for every example, and that every instance has norm at most `R`. Then the
@@ -87,7 +87,7 @@ theorem signedLabel_sq (y : Bool) : signedLabel y ^ 2 = 1 := by cases y <;> norm
 
 /-- The perceptron [Novikoff1962] [ShalevShwartzBenDavid2014, §21.4]: predict `true` on `x` iff
 `0 < ⟪w, x⟫` for the current weight vector `w`. -/
-@[expose] noncomputable def perceptron : OnlineLearner E := fun h x =>
+@[expose] noncomputable def perceptron : OnlineLearner E Bool := fun h x =>
   decide (0 < ⟪perceptronWeight h, x⟫)
 
 @[simp] theorem perceptronWeight_nil : perceptronWeight ([] : List (E × Bool)) = 0 := rfl

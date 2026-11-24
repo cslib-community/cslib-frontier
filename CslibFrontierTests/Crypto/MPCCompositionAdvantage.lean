@@ -11,16 +11,21 @@ import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
 
 /-!
-# Tests for concrete semi-honest advantage under protocol composition
+# Tests for concrete semi-honest advantage and kernel factorization under protocol composition
 
-A client of `CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage` under module encapsulation.
+A client of `CslibFrontier.Crypto.Protocols.MPC.Composition` and
+`CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage` under module encapsulation.
 
 * `semiHonestAdvantage_compose` is applied to the GMW circuit protocol composed with the pairwise
   multiplication protocol, whose subprotocols are perfectly private: the composed advantage equals
   that of the outer protocol and so vanishes.
 * `semiHonestAdvantage_compose_le` is applied directly to `Yao.protocol` with its single-coalition
-  garbler simulator `Yao.garblerSim` (which is defined for `{0}` without needing dummy simulators on
-  other coalitions) composed with a plain-model `clearTransfer` subprotocol on one AND gate.
+  garbler simulator `Yao.garblerSim` (defined for `{0}` without dummy simulators on other
+  coalitions) composed with a plain-model `clearTransfer` subprotocol on one AND gate.
+* `Composition.kernelRun` on `(Yao.protocol _ n andParams).steps` depends on the kernel family only
+  through the single batched-transfer call at the corrupted slots, and
+  `advantage_replacement_eq_kernelRun` rewrites the replacement gap of a concrete composed transfer
+  protocol into one kernel-program advantage.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -107,5 +112,55 @@ example {n : ℕ} (hn : 0 < n) (a b : Bool)
       (Yao.idealJoint_garblerSim rfl (PointPermute.scheme_isValid xorFamily).correct hn andParams
         (inputs a b)) _
   rwa [h0, zero_add] at h
+
+/-- **The kernel program of Yao's protocol draws from the transfer kernel once.** On the steps of
+`Yao.protocol`, `Composition.kernelRun` depends on the kernel family only through the joint
+distribution of the one batched transfer at the corrupted slots: two families that agree there give
+the same program, whatever the transfer subprotocol's schedule and coins. -/
+example {n : ℕ} {spec₂ : MultiOracleSpec} {sc₂ : Schedule 2 spec₂} {Coins₂ : Fin 2 → Type}
+    (I : Finset (Fin 2))
+    (μ ν : (_ : Unit) → (J : Finset (Fin 2)) →
+      ((s : Fin 2) → (batchOTSpec andParams.evaluatorLen (List Bool)).Query () s) →
+      PMF (((s : J) →
+          PartyView ((batchOTSpec andParams.evaluatorLen (List Bool)).Query ()) Coins₂ sc₂ s) ×
+        ((s : Fin 2) → (batchOTSpec andParams.evaluatorLen (List Bool)).Answer () s)))
+    (h : ∀ q, μ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I) q =
+      ν () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I) q)
+    (st) :
+    Composition.kernelRun (sc₂ := fun _ => sc₂) (Coins₂ := fun _ => Coins₂) μ I
+        (Yao.protocol (PointPermute.scheme xorFamily) n andParams).steps st =
+      Composition.kernelRun (sc₂ := fun _ => sc₂) (Coins₂ := fun _ => Coins₂) ν I
+        (Yao.protocol (PointPermute.scheme xorFamily) n andParams).steps st := by
+  simp only [Yao.protocol, Composition.kernelRun, h]
+
+/-- **Kernel factorization of the replacement gap (`advantage_replacement_eq_kernelRun`).** On
+`multiPartyMulProtocol 3` composed with `twoPartyMulProtocol`, the subprotocol-replacement gap
+equals the advantage between the ideal-kernel and real-kernel runs of `Composition.kernelRun`. -/
+example (I : Finset (Fin 3))
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator twoPartyMulSchedule
+        ((sharedMulSpec 2).Query ()) (fun i => Fin.cases Bool (fun _ => Unit) i)
+        ((sharedMulSpec 2).Answer ()) J)
+    (x : Fin 3 → Bool × Bool) (D) :
+    Game.advantage
+        (((multiPartyMulProtocol 3).realJoint (sharedMulWorld 2) I x).bind fun r =>
+          ProbComp.eval (composeDistinguisher (multiPartyMulProtocol 3) S₂ I x D r))
+        ((((multiPartyMulProtocol 3).compose fun _ => twoPartyMulProtocol).realJoint ot14World I
+          x).bind fun r => ProbComp.eval (D r)) =
+      Game.advantage
+        ((ProbComp.eval (OracleComp.pi (multiPartyMulProtocol 3).sampleCoins)).bind fun c₁ =>
+          (Composition.kernelRun
+            (fun op J q => ProbComp.eval (idealJoint (sharedMulWorld 2 op) J (S₂ op J) q))
+            I (multiPartyMulProtocol 3).steps (fun i => (x i, c₁ i))).bind fun res =>
+              ProbComp.eval
+                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)))
+        ((ProbComp.eval (OracleComp.pi (multiPartyMulProtocol 3).sampleCoins)).bind fun c₁ =>
+          (Composition.kernelRun
+            (fun _ J q => twoPartyMulProtocol.realJoint ot14World J q)
+            I (multiPartyMulProtocol 3).steps (fun i => (x i, c₁ i))).bind fun res =>
+              ProbComp.eval
+                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2))) :=
+  advantage_replacement_eq_kernelRun (multiPartyMulProtocol 3) (sharedMulWorld 2) ot14World
+    (fun _ => twoPartyMulProtocol) S₂ I x D
 
 end CslibFrontierTests.Crypto.MPCCompositionAdvantage
