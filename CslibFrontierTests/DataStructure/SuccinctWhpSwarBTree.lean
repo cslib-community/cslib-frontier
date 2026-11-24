@@ -69,6 +69,7 @@ example (c n_max : ℕ) :
       largeSpaceWhp c (whpThreshold c) 16 64 (whpThreshold c) := by
   refine ⟨rfl, rfl, ?_, ?_⟩
   · have hlt : 16 < whpThreshold c := by
+      rw [whpThreshold_eq]
       have hbm := le_bMinWhp c
       calc 16 < 2 ^ 5 := by decide
         _ ≤ 2 ^ bMinWhp c := Nat.pow_le_pow_right (by decide) (by omega)

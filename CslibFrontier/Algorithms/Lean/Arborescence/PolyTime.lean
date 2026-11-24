@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Arborescence.Branching
-public import CslibFrontier.Algorithms.Lean.Arborescence.Table
 public import CslibFrontier.Computability.Complexity.Classes.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option

@@ -176,21 +176,19 @@ variable {k : ℕ} {State : Type} [Fintype State] [DecidableEq State]
 section Components
 
 variable {α : Type} {encIn : α ↪ List Bool} {Bs : α → ℕ}
-  (hin : (fun x => (encIn x).length) ≼ Bs)
-include hin
 
 /-- Evaluating the fixed polynomial tableau time bound preserves a space budget. -/
 theorem timeBound_inSpace {n : α → ℕ} (hn : ComputableInSpace n encIn encNat Bs) :
     ComputableInSpace (fun x => timeBound C d (n x)) encIn encNat Bs :=
-  budget_natAdd (budget_natAdd (budget_natMul (budget_const C hin)
-    (budget_natPow (budget_natAdd hn (budget_const 1 hin)) hin d)) hn) (budget_const 1 hin)
+  budget_natAdd (budget_natAdd (budget_natMul (budget_const C)
+    (budget_natPow (budget_natAdd hn (budget_const 1)) d)) hn) (budget_const 1)
 
 omit [DecidableEq State] in
 /-- Computing the tableau gate count preserves a space budget. -/
 theorem numGates_inSpace {T : α → ℕ} (hT : ComputableInSpace T encIn encNat Bs) :
     ComputableInSpace (fun x => numGates k State (T x)) encIn encNat Bs :=
-  budget_natAdd (budget_const 2 hin) (budget_natMul (budget_natAdd hT (budget_const 1 hin))
-    (blockSize_inSpace (k := k) (State := State) hT hin))
+  budget_natAdd (budget_const 2) (budget_natMul (budget_natAdd hT (budget_const 1))
+    (blockSize_inSpace (k := k) (State := State) hT))
 
 /-- The end of a gate list, a framed wire number and a fixed suffix preserve a space budget: the
 shape of the trailer emitted by the tableau writers after their gates. -/
@@ -200,10 +198,10 @@ theorem trailerWire_inSpace (suffix : List Bool) {w : α → ℕ}
       doubled (Turing.MultiTapeTM.frame (encNat (w x))) ++ suffix) encIn encBits Bs := by
   have hmid := budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
     (budget_comp_linear (ComputableInSpace.frame encNat) hw)
-  have h₁ := (budget_const (encB := encBits) [true, false] hin).append hmid
+  have h₁ := (budget_const (Bs := Bs) (encB := encBits) [true, false]).append hmid
     (g := fun x => [true, false] ++ doubled (Turing.MultiTapeTM.frame (encNat (w x))))
     (encD := encBits) fun _ => rfl
-  exact ((h₁.weaken (.add (.refl _) (.refl _))).append (budget_const (encB := encBits) suffix hin)
+  exact ((h₁.weaken (.add (.refl _) (.refl _))).append (budget_const (encB := encBits) suffix)
     (g := fun x => [true, false] ++ doubled (Turing.MultiTapeTM.frame (encNat (w x))) ++ suffix)
     (encD := encBits) fun _ => rfl).weaken (.add (.refl _) (.refl _))
 
@@ -213,13 +211,13 @@ private theorem gateChunk_inSpace {n i : α → ℕ} (hn : ComputableInSpace n e
   (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
     (budget_comp_linear Turing.MultiTapeTM.doubled_inSpace
       (budget_comp_linear (ComputableInSpace.frame encGate)
-        (gateCode_inSpace tm hn (timeBound_inSpace C d hin hn) hin hi)))).of_enc_eq fun _ => rfl
+        (gateCode_inSpace tm hn (timeBound_inSpace C d hn) hi)))).of_enc_eq fun _ => rfl
 
 omit [DecidableEq State] in
 private theorem trailer_inSpace {n : α → ℕ} (hn : ComputableInSpace n encIn encNat Bs) :
     ComputableInSpace (fun x => trailer k State C d (n x)) encIn encBits Bs :=
-  trailerWire_inSpace hin [false]
-    (outWire_inSpace (k := k) (State := State) (timeBound_inSpace C d hin hn) hin hn)
+  trailerWire_inSpace [false]
+    (outWire_inSpace (k := k) (State := State) (timeBound_inSpace C d hn) hn)
 
 end Components
 
@@ -241,9 +239,9 @@ theorem computableInLogSpace_tableauInstance :
   have hn := fst' (snd' hs)
   have hi := snd' (snd' hs)
   exact (tableauSpec tm C d).computableInLogSpace (tableauSpec_output tm C d)
-    (numGates_inSpace (k := k) (State := State) hin (timeBound_inSpace C d hin hn))
-    (gateChunk_inSpace tm C d hin hn hi)
-    (trailer_inSpace (k := k) (State := State) C d hin hn)
+    (numGates_inSpace (k := k) (State := State) (timeBound_inSpace C d hn))
+    (gateChunk_inSpace tm C d hn hi)
+    (trailer_inSpace (k := k) (State := State) C d hn)
     (polynomiallyBounded_numGates_timeBound C d)
 
 end Space
