@@ -42,11 +42,12 @@ one fixed Word-RAM program computes `mwisValue R wt` in
 `O((n + 1) · 2 ^ (k + 1) · (k + 1) ^ 2)` instructions.
 
 The implementation is factored under
-`CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet` into `Model` (pure DP
-specification, flat encoding, and `mwisFPT` / `mwisValue` bridge; publicly re-exported here),
-parallel scan modules `IndepScan`, `MaskOps`, and `WeightScan`, parallel DP passes `ChildPass`,
-`ParentPass`, `RootPass`, and `NodeLayout`, bottom-up loop `ProcessNodes`, and `Runner` (imported
-privately so the top-level interface stays minimal).
+`CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet` into `Instance` (flat
+encoding and width-`k` complexity bounds), `InstDP` (private `ℕ`-indexed DP helpers), `Model`
+(`MWISInstance.result` and `mwisFPT` / `mwisValue` bridge; publicly re-exported alongside
+`Instance`), parallel scan modules `IndepScan`, `MaskOps`, and `WeightScan`, parallel DP passes
+`ChildPass`, `ParentPass`, `RootPass`, and `NodeLayout`, bottom-up loop `ProcessNodes`, and `Runner`
+(imported privately so the top-level interface stays minimal).
 
 ## Main definitions
 

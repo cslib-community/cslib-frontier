@@ -607,7 +607,7 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
       (by simp) hlay₁
       (by rw [prefixMaxSum_replicate_zero]; simp)
       (fun i s hs => by
-        simp [tablesInst, List.getD_eq_getElem?_getD,
+        simp [tablesInst_zero, List.getD_eq_getElem?_getD,
           Array.getD_eq_getD_getElem?, hs])
     obtain ⟨hv_l, ⟨hfr_l, hfin_l⟩, hc_l⟩ := hrun
     unfold processNodesProg
@@ -656,8 +656,8 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
         rw [Fin.val_ofNat]
         have h1 : n - (n - (k + 1)) = k + 1 := by omega
         rw [h1, Nat.mod_eq_of_lt (by omega)]
-      rw [hsub_t]
-      simp only [tablesInst, hj_ofNat, processInstNode]
+      rw [hsub_t, tablesInst_succ]
+      simp only [hj_ofNat]
       by_cases hip : i = pFin
       · subst hip
         dsimp only [tblList']

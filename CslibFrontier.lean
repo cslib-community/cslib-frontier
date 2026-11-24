@@ -1057,6 +1057,8 @@ public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.ChildPass
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.IndepScan
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.InstDP
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Instance
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.MaskOps
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Model
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.NodeLayout

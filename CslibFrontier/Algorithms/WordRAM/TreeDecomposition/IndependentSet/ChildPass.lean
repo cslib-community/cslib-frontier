@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Model
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.InstDP
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.IndepScan
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.MaskOps

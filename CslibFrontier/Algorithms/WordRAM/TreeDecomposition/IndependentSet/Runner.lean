@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Model
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
+import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.InstDP
+-- `import all` only to unfold unexposed `MWISInstance.result` into `tablesInst` / `rootPassInst`.
+import all CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Model
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.NodeLayout
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.ProcessNodes
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.RootPass

@@ -7,17 +7,17 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT
-import CslibFrontier.Foundations.Data.List.FoldMax
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.Instance
+import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet.InstDP
 import Mathlib.Data.List.OfFn
 
 /-!
-# Serialized MWIS instance model, `ℕ`-table dynamic program, and rooted-decomposition bridge
+# Serialized MWIS instance result and rooted-decomposition bridge
 
-This module defines the pure serialized instance bundle `MWISInstance`, flat word encoding,
-`ℕ`-indexed dynamic-programming passes (`noAdjInst`, `indepInst`, `childPassInst`, `rootPassInst`,
-`tablesInst`), FPT step/word bounds, and equivalence bridge to `mwisFPT` and `mwisValue` shared by
-the Word-RAM maximum-weight independent set modules.
+This module defines `MWISInstance.result` (unexposed) over the private `ℕ`-indexed dynamic
+program in `InstDP`, proves its equivalence with `mwisFPT` and `mwisValue`
+(`MWISInstance.result_ofRooted_eq_mwisFPT`, `MWISInstance.result_ofRooted`), and publicly
+re-exports `IndependentSet.Instance`.
 
 ## Main definitions
 
@@ -47,214 +47,11 @@ namespace Cslib.Algorithms.WordRAM.TreeDecomposition
 open SimpleGraph
 open Cslib.Algorithms.Lean.TreeDecomposition
 
-/-! ### Instance bundle, flat encoding, and `ℕ`-indexed DP passes -/
-
-/-- Length-prefixed word serialization `[B.length] ++ B` of an ordered bag `B`. -/
-@[expose] def encodeBag (B : List ℕ) : List ℕ :=
-  B.length :: B
-
-/-- Word-encoded instance of maximum-weight independent set over a rooted tree decomposition on
-`numNodes + 1` nodes (`0` is the root) and `numVerts` graph vertices `0, …, numVerts - 1`. -/
-structure MWISInstance where
-  /-- Number of graph vertices `m`. -/
-  numVerts : ℕ
-  /-- Parameter `n` such that the decomposition has `n + 1` nodes `0, …, n`. -/
-  numNodes : ℕ
-  /-- Vertex weights `weights[0 .. m - 1]`. -/
-  weights : List ℕ
-  /-- Flattened row-major `m × m` adjacency indicators (`0` non-adjacent, nonzero adjacent). -/
-  adjMatrix : List ℕ
-  /-- Parent node indices `parents[0 .. n]`. -/
-  parents : List ℕ
-  /-- Ordered vertex lists `bags[0 .. n]`. -/
-  bags : List (List ℕ)
-  /-- `weights` has length `numVerts`. -/
-  weights_len : weights.length = numVerts
-  /-- `adjMatrix` has length `numVerts * numVerts`. -/
-  adjMatrix_len : adjMatrix.length = numVerts * numVerts
-  /-- `parents` has length `numNodes + 1`. -/
-  parents_len : parents.length = numNodes + 1
-  /-- `bags` has length `numNodes + 1`. -/
-  bags_len : bags.length = numNodes + 1
-  /-- Every nonroot node `1 ≤ i ≤ numNodes` has parent strictly preceding `i`. -/
-  parents_lt : ∀ i : Fin parents.length, 1 ≤ i.val → parents[i] < i.val
-  /-- Every vertex in every bag is `< numVerts`. -/
-  bags_lt : ∀ B ∈ bags, ∀ v ∈ B, v < numVerts
-
-/-- Test whether `x` is non-adjacent under `adj` to every selected vertex of `L` under mask `m`. -/
-@[expose] def noAdjInst (adj : ℕ → ℕ → Bool) (x : ℕ) : List ℕ → ℕ → Bool
-  | [], _ => true
-  | u :: L, m => noAdjInst adj x L (m / 2) && !(decide (m % 2 = 1) && adj x u)
-
-/-- Test whether the vertices of `L` selected by mask `m` are pairwise non-adjacent under `adj`. -/
-@[expose] def indepInst (adj : ℕ → ℕ → Bool) : List ℕ → ℕ → Bool
-  | [], _ => true
-  | u :: L, m => indepInst adj L (m / 2) && (!decide (m % 2 = 1) || noAdjInst adj u L (m / 2))
-
-/-- Child-to-parent projection pass over `ℕ` vertex indices and Boolean relation `adj`. -/
-@[expose] def childPassInst (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ) (LB LP : List ℕ)
-    (f init : Array ℕ) : ℕ → Array ℕ
-  | 0 => init
-  | c + 1 =>
-    let best := childPassInst adj wt LB LP f init c
-    if indepInst adj LB c then
-      let key := keyMask LB LP c
-      best.setIfInBounds key (max (best.getD key 0) (forgetWeight wt LP LB c + f.getD c 0))
-    else
-      best
-
-/-- `childPassInst` preserves the size of `init`. -/
-theorem size_childPassInst (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
-    (LB LP : List ℕ) (f init : Array ℕ) (c : ℕ) :
-    (childPassInst adj wt LB LP f init c).size = init.size := by
-  induction c with
-  | zero => rfl
-  | succ c ih =>
-    dsimp only [childPassInst]
-    split_ifs
-    · rw [Array.size_setIfInBounds, ih]
-    · exact ih
-
-/-- Final maximization pass at the root bag over `ℕ` vertex indices and Boolean relation `adj`. -/
-@[expose] def rootPassInst (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ) (L : List ℕ) (tbl : Array ℕ) :
-    ℕ → ℕ
-  | 0 => 0
-  | c + 1 =>
-    let best := rootPassInst adj wt L tbl c
-    if indepInst adj L c then max best (forgetWeight wt [] L c + tbl.getD c 0) else best
-
-/-- Single bottom-up node transition updating `par j`'s DP table from child node `j`. -/
-@[expose] def processInstNode (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ) (n : ℕ)
-    (par : Fin (n + 1) → Fin (n + 1)) (bags : Fin (n + 1) → List ℕ)
-    (st : Vector (Array ℕ) (n + 1)) (j : Fin (n + 1)) : Vector (Array ℕ) (n + 1) :=
-  let p := par j
-  let init := Array.replicate (2 ^ (bags p).length) 0
-  let best := childPassInst adj wt (bags j) (bags p) st[j] init (2 ^ (bags j).length)
-  let tp := parentPass (bags j) (bags p) st[p] best (2 ^ (bags p).length)
-  st.set p tp p.isLt
-
-/-- Bottom-up node table state after processing `t` nonroot nodes `n, n - 1, …, n + 1 - t`. -/
-@[expose] def tablesInst (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ) (n : ℕ)
-    (par : Fin (n + 1) → Fin (n + 1)) (bags : Fin (n + 1) → List ℕ) :
-    ℕ → Vector (Array ℕ) (n + 1)
-  | 0 => Vector.replicate (n + 1) #[]
-  | t + 1 =>
-    processInstNode adj wt n par bags (tablesInst adj wt n par bags t)
-      (Fin.ofNat (n + 1) (n - t))
-
-namespace MWISInstance
-
-/-- Weight lookup `weights.getD u 0` of vertex `u`. -/
-@[expose] def wt (inst : MWISInstance) (u : ℕ) : ℕ :=
-  inst.weights.getD u 0
-
-/-- Adjacency indicator `adjMatrix[u * numVerts + v] ≠ 0`. -/
-@[expose] def adj (inst : MWISInstance) (u v : ℕ) : Bool :=
-  decide (inst.adjMatrix.getD (u * inst.numVerts + v) 0 ≠ 0)
-
-/-- Bounded parent node index of `i` (`0` at the root `i = 0`). -/
-@[expose] def parFin (inst : MWISInstance) (i : Fin (inst.numNodes + 1)) :
-    Fin (inst.numNodes + 1) :=
-  if hi : 1 ≤ i.val then
-    let idx : Fin inst.parents.length := ⟨i.val, by rw [inst.parents_len]; exact i.isLt⟩
-    ⟨inst.parents[idx], (inst.parents_lt idx hi).trans i.isLt⟩
-  else
-    ⟨0, Nat.succ_pos _⟩
-
-/-- Ordered vertex list of node `i`. -/
-@[expose] def bagAt (inst : MWISInstance) (i : Fin (inst.numNodes + 1)) : List ℕ :=
-  inst.bags[i.val]'(by rw [inst.bags_len]; exact i.isLt)
-
 /-- Pure dynamic-programming value computed on `inst`. -/
-@[expose] def result (inst : MWISInstance) : ℕ :=
+def MWISInstance.result (inst : MWISInstance) : ℕ :=
   let st := tablesInst inst.adj inst.wt inst.numNodes inst.parFin inst.bagAt inst.numNodes
   rootPassInst inst.adj inst.wt (inst.bagAt 0) st[(0 : Fin (inst.numNodes + 1))]
     (2 ^ (inst.bagAt 0).length)
-
-/-- Flat word-list encoding `[numVerts, numNodes] ++ weights ++ adjMatrix ++ parents ++
-bags.flatMap encodeBag`. -/
-@[expose] def encode (inst : MWISInstance) : List ℕ :=
-  [inst.numVerts, inst.numNodes] ++
-    inst.weights ++ inst.adjMatrix ++ inst.parents ++ inst.bags.flatMap encodeBag
-
-/-- Maximum bag length across `inst.bags` (`≤ k + 1` when `R.width ≤ k`). -/
-@[expose] def maxBagLen (inst : MWISInstance) : ℕ :=
-  (inst.bags.map List.length).foldl max 0
-
-/-- Maximum vertex weight across `inst.weights` (`0` if `numVerts = 0`). -/
-@[expose] def maxWeight (inst : MWISInstance) : ℕ :=
-  inst.weights.foldl max 0
-
-/-- Every node's bag length is at most `inst.maxBagLen`. -/
-theorem bagAt_length_le (inst : MWISInstance)
-    (i : Fin (inst.numNodes + 1)) : (inst.bagAt i).length ≤ inst.maxBagLen := by
-  have hmem : inst.bagAt i ∈ inst.bags := List.getElem_mem _
-  exact List.mem_le_foldl_max (List.mem_map_of_mem hmem)
-
-/-- Every vertex in `inst.bagAt i` is `< inst.numVerts`. -/
-theorem bagAt_mem_lt (inst : MWISInstance)
-    (i : Fin (inst.numNodes + 1)) : ∀ u ∈ inst.bagAt i, u < inst.numVerts :=
-  inst.bags_lt (inst.bagAt i) (List.getElem_mem _)
-
-/-- Word-value upper bound covering literal constants, peak memory frontier across initial table
-allocation and all `numNodes` scratch `best` allocations, `2 ^ maxBagLen`, and maximum DP table
-value `(numNodes + 1) * maxBagLen * maxWeight`. -/
-@[expose] def wordBound (inst : MWISInstance) : ℕ :=
-  let n := inst.numNodes
-  let M := inst.maxBagLen
-  8 +
-    (inst.encode.length + 1 + 4 * (n + 1) + (2 * n + 1) * 2 ^ M) +
-    (n + 1) * M * inst.maxWeight
-
-/-- Upper bound on the oracle memory cost (`memoryCost`) of the Word-RAM MWIS program on `inst`. -/
-@[expose] def stepBound (inst : MWISInstance) : ℕ :=
-  let n := inst.numNodes
-  let M := inst.maxBagLen
-  6 + (n + 1) * (2 ^ M * (5 * M ^ 2 + 6 * M + 32))
-
-/-- Compile a graph `G : SimpleGraph V` (`e : V ≃ Fin m`), rooted tree decomposition
-`R : G.RootedTreeDecomposition n`, vertex weights `w : V → ℕ`, and bag lists
-`L : Fin (n + 1) → List V` into a flat `MWISInstance`. -/
-@[expose] def ofRooted {V : Type*} {G : SimpleGraph V} [DecidableRel G.Adj]
-    {m n : ℕ} (e : V ≃ Fin m) (R : G.RootedTreeDecomposition n) (w : V → ℕ)
-    (L : Fin (n + 1) → List V) : MWISInstance where
-  numVerts := m
-  numNodes := n
-  weights := List.ofFn fun u : Fin m => w (e.symm u)
-  adjMatrix := List.ofFn fun idx : Fin (m * m) =>
-    have hm : 0 < m := Nat.pos_of_ne_zero fun h0 => by subst h0; exact Fin.elim0 idx
-    if G.Adj (e.symm ⟨idx.val / m, Nat.div_lt_of_lt_mul idx.isLt⟩)
-        (e.symm ⟨idx.val % m, Nat.mod_lt _ hm⟩) then 1 else 0
-  parents := List.ofFn fun i : Fin (n + 1) => (R.parent i).val
-  bags := List.ofFn fun i : Fin (n + 1) => (L i).map fun v => (e v).val
-  weights_len := List.length_ofFn
-  adjMatrix_len := List.length_ofFn
-  parents_len := List.length_ofFn
-  bags_len := List.length_ofFn
-  parents_lt := fun idx h1 => by
-    have hi : idx.val < n + 1 := by simpa only [List.length_ofFn] using idx.isLt
-    have hne : (⟨idx.val, hi⟩ : Fin (n + 1)) ≠ 0 := fun h => by
-      have := congrArg Fin.val h
-      simp only [Fin.val_zero] at this
-      omega
-    have hget : (List.ofFn fun i : Fin (n + 1) => (R.parent i).val)[idx] =
-        (R.parent ⟨idx.val, hi⟩).val := by
-      simp only [Fin.getElem_fin, List.getElem_ofFn]
-    rw [hget]
-    exact R.parent_lt ⟨idx.val, hi⟩ hne
-  bags_lt := fun B hB v hv => by
-    rw [List.mem_ofFn] at hB
-    obtain ⟨i, rfl⟩ := hB
-    rw [List.mem_map] at hv
-    obtain ⟨x, _, rfl⟩ := hv
-    exact (e x).isLt
-
-end MWISInstance
-
-/-- Closed-form FPT step bound `6 + (n + 1) * (2 ^ (k + 1) * (5 * (k + 1) ^ 2 + 6 * (k + 1) + 32))`
-for rooted tree decompositions on `n + 1` nodes of width at most `k`. -/
-@[expose] def mwisFPTBound (n k : ℕ) : ℕ :=
-  6 + (n + 1) * (2 ^ (k + 1) * (5 * (k + 1) ^ 2 + 6 * (k + 1) + 32))
 
 /-! ### Bridge between `MWISInstance.ofRooted` and `mwisFPT` / `mwisValue` -/
 
@@ -391,12 +188,13 @@ theorem MWISInstance.result_ofRooted_eq_mwisFPT {V : Type*} {G : SimpleGraph V}
       tablesInst inst.adj inst.wt n inst.parFin inst.bagAt t = tablesFPT R w L t := by
     intro t
     induction t with
-    | zero => rfl
+    | zero => exact tablesInst_zero inst.adj inst.wt n inst.parFin inst.bagAt
     | succ t ih =>
-      simp only [tablesInst, tablesFPT, ih]
-      dsimp only [processInstNode, processNode]
-      simp only [hpar_eq, hbag, List.length_map, childPassInst_map hf hadj hw,
-        parentPass_map_inj hf]
+      refine (tablesInst_succ inst.adj inst.wt n inst.parFin inst.bagAt t).trans ?_
+      dsimp only
+      rw [ih]
+      simp only [tablesFPT, processNode, hpar_eq, hbag, List.length_map,
+        childPassInst_map hf hadj hw, parentPass_map_inj hf]
   change rootPassInst inst.adj inst.wt (inst.bagAt (0 : Fin (n + 1)))
       (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[(0 : Fin (n + 1))]
       (2 ^ (inst.bagAt (0 : Fin (n + 1))).length) = mwisFPT R w L
@@ -410,43 +208,6 @@ theorem MWISInstance.result_ofRooted {V : Type*} {G : SimpleGraph V}
     (hL : IsBagOrder R L) :
     (MWISInstance.ofRooted e R w L).result = mwisValue R w :=
   (MWISInstance.result_ofRooted_eq_mwisFPT e R w L).trans (mwisFPT_eq_mwisValue R w hL)
-
-/-- Under `IsBagOrder R L` and `R.width ≤ k`, every bag has length at most `k + 1`. -/
-theorem MWISInstance.maxBagLen_ofRooted_le {V : Type*} {G : SimpleGraph V}
-    [DecidableEq V] [DecidableRel G.Adj] {m n : ℕ} (e : V ≃ Fin m)
-    (R : G.RootedTreeDecomposition n) (w : V → ℕ) {L : Fin (n + 1) → List V}
-    (hL : IsBagOrder R L) {k : ℕ} (hk : R.width ≤ k) :
-    (MWISInstance.ofRooted e R w L).maxBagLen ≤ k + 1 := by
-  refine List.foldl_max_le (Nat.zero_le _) fun len hlen => ?_
-  rw [List.mem_map] at hlen
-  obtain ⟨B, hB, rfl⟩ := hlen
-  dsimp only [MWISInstance.ofRooted] at hB
-  rw [List.mem_ofFn] at hB
-  obtain ⟨i, rfl⟩ := hB
-  rw [List.length_map, ← List.toFinset_card_of_nodup (hL i).1, (hL i).2]
-  exact R.width_le_iff.1 hk i
-
-/-- Under `IsBagOrder R L` and `R.width ≤ k`, `stepBound` is bounded by `mwisFPTBound n k`. -/
-theorem MWISInstance.stepBound_ofRooted_le {V : Type*} {G : SimpleGraph V}
-    [DecidableEq V] [DecidableRel G.Adj] {m n : ℕ} (e : V ≃ Fin m)
-    (R : G.RootedTreeDecomposition n) (w : V → ℕ) {L : Fin (n + 1) → List V}
-    (hL : IsBagOrder R L) {k : ℕ} (hk : R.width ≤ k) :
-    (MWISInstance.ofRooted e R w L).stepBound ≤ mwisFPTBound n k := by
-  have hM := MWISInstance.maxBagLen_ofRooted_le e R w hL hk
-  have hn : (MWISInstance.ofRooted e R w L).numNodes = n := rfl
-  unfold MWISInstance.stepBound mwisFPTBound
-  rw [hn]
-  dsimp only
-  have hpow : 2 ^ (MWISInstance.ofRooted e R w L).maxBagLen ≤ 2 ^ (k + 1) :=
-    Nat.pow_le_pow_right (by decide) hM
-  have hpoly :
-      5 * (MWISInstance.ofRooted e R w L).maxBagLen ^ 2 +
-          6 * (MWISInstance.ofRooted e R w L).maxBagLen + 32 ≤
-        5 * (k + 1) ^ 2 + 6 * (k + 1) + 32 :=
-    Nat.add_le_add_right
-      (Nat.add_le_add (Nat.mul_le_mul_left 5 (Nat.pow_le_pow_left hM 2))
-        (Nat.mul_le_mul_left 6 hM)) 32
-  exact Nat.add_le_add_left (Nat.mul_le_mul_left (n + 1) (Nat.mul_le_mul hpow hpoly)) 6
 
 end RootedBridge
 
