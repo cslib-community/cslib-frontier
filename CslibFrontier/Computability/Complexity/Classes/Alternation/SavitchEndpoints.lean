@@ -34,10 +34,10 @@ times, not once per level: re-reading the remaining moves at every level would t
 `w * i ^ 2` steps. The word this endpoint machine computes is `Cslib.Reachability.endpointWord`.
 
 This is a step toward `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and
-Stockmeyer][ChandraKozenStockmeyer1981]; that simulation is not proved here. A verifier of the
-midpoint game within time `O((n + s n) ^ 2)` still needs the codes of the initial and accepting
-views, and the edge test `Cslib.Reachability.reach ntm.codeEdge _ 0` of the final endpoints within
-that time.
+Stockmeyer][ChandraKozenStockmeyer1981], which
+`Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible` assembles for a time-constructible
+`s` (#4086) with the codes of the initial and accepting views and the edge test
+`Cslib.Reachability.reach ntm.codeEdge _ 0` of the final endpoints.
 
 ## Main definitions
 
