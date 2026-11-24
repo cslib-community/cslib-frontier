@@ -30,10 +30,9 @@ underlying nondeterministic query machine
 This model is the abstract side of the inclusion `DTIME(2 ^ O(s)) ⊆ ASPACE(s)` of
 [Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981]: the circuit-value game on
 the tableau of a machine is an alternating query machine with states of `O(log n + log T)` bits
-(`Cslib.Circuits.Boolean.Tableau.ValueGame.localMachine`). Compiling an alternating query machine
-into an alternating Turing machine that keeps the state on its work tapes (the alternating
-counterpart of `Turing.NondeterministicQueryMachine.exists_routines` and its compiler) is not done
-here.
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.localMachine`). An alternating query machine is compiled
+into an alternating Turing machine that keeps the state on its work tapes by
+`Turing.AlternatingQueryMachine.exists_decidesInSpace`.
 
 ## Main definitions
 

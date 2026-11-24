@@ -68,11 +68,9 @@ This is a step towards the inclusion `DTIME(2 ^ O(s)) ⊆ ASPACE(s)` of
 [Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981]
 [Sipser, Section 10.3][Sipser2013], and not that inclusion: for a machine within time
 `T = 2 ^ O(s n)` and `log₂ n ≤ s n`, the states of the local machine have `O(s n)` bits and its
-steps read one input bit each. What remains for the inclusion (#4086) is a compiler of alternating
-query machines into alternating Turing machines that keep the state on work tapes and read the
-input in place (an alternating counterpart of `Turing.NondeterministicQueryMachine.exists_routines`
-and its compiler), and a preparation that writes the step count `T`, which needs a
-constructibility hypothesis on `s`.
+steps read one input bit each. The compiler `Turing.AlternatingQueryMachine.exists_decidesInSpace`
+turns it into an alternating Turing machine that keeps the state on work tapes and reads the input
+in place; with a polynomial step count this gives `P ⊆ AL` (`Cslib.Complexity.P_subset_AL`).
 
 ## Main definitions
 
@@ -537,8 +535,9 @@ machine started on the local claim that the output wire of the tableau of `T` st
 `O(log x.length + log T)` bits, and its callbacks are computed within linear space in the state
 (`Cslib.Circuits.Boolean.Tableau.ValueGame.localNext_inSpace` and its neighbours). This is a step
 towards `DTIME(2 ^ O(s)) ⊆ ASPACE(s)`
-[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981], not that inclusion: no
-alternating Turing machine runs this query machine yet. -/
+[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981], not that inclusion; the
+compiler `Turing.AlternatingQueryMachine.exists_decidesInSpace` runs this query machine on an
+alternating Turing machine. -/
 theorem accepts_localMachine_iff {x : List Bool} {T : ℕ} (hn : x.length < 2 * T) :
     (localMachine tm ⟨x.length, T, outWire k State x.length T, true⟩).Accepts x ↔
       OutView.ofList (tm.runFrom (tm.initCfg x) T).output = .one true :=
