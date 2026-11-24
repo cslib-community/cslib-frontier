@@ -112,7 +112,9 @@ theorem size_enc (t : Bt) : t.enc.size ≤ 4 * t.nds := by
     simp only [enc, Tree.size, nds]
     omega
 
-theorem ht_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.ht = t.ht := by
+/-- Decrementing keeps the shape of the trie: its height and its number of nodes. -/
+private theorem ht_nds_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') :
+    t'.ht = t.ht ∧ t'.nds = t.nds := by
   induction t generalizing p t' with
   | none => simp [dec] at h
   | leaf w =>
@@ -120,7 +122,7 @@ theorem ht_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.ht = t.h
     | nil =>
       simp only [dec, Option.map_eq_some_iff] at h
       obtain ⟨v, hv, rfl⟩ := h
-      simp [ht, length_decw hv]
+      simp [ht, nds, length_decw hv]
     | cons b p => simp [dec] at h
   | node l r ihl ihr =>
     cases p with
@@ -130,35 +132,17 @@ theorem ht_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.ht = t.h
       | true =>
         simp only [dec, Option.map_eq_some_iff] at h
         obtain ⟨v, hv, rfl⟩ := h
-        simp [ht, ihr hv]
+        simp [ht, nds, (ihr hv).1, (ihr hv).2]
       | false =>
         simp only [dec, Option.map_eq_some_iff] at h
         obtain ⟨v, hv, rfl⟩ := h
-        simp [ht, ihl hv]
+        simp [ht, nds, (ihl hv).1, (ihl hv).2]
 
-theorem nds_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.nds = t.nds := by
-  induction t generalizing p t' with
-  | none => simp [dec] at h
-  | leaf w =>
-    cases p with
-    | nil =>
-      simp only [dec, Option.map_eq_some_iff] at h
-      obtain ⟨v, hv, rfl⟩ := h
-      simp [nds, length_decw hv]
-    | cons b p => simp [dec] at h
-  | node l r ihl ihr =>
-    cases p with
-    | nil => simp [dec] at h
-    | cons b p =>
-      cases b with
-      | true =>
-        simp only [dec, Option.map_eq_some_iff] at h
-        obtain ⟨v, hv, rfl⟩ := h
-        simp [nds, ihr hv]
-      | false =>
-        simp only [dec, Option.map_eq_some_iff] at h
-        obtain ⟨v, hv, rfl⟩ := h
-        simp [nds, ihl hv]
+theorem ht_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.ht = t.ht :=
+  (ht_nds_dec h).1
+
+theorem nds_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.nds = t.nds :=
+  (ht_nds_dec h).2
 
 theorem decAll_append (b b' : List (List Bool)) (t : Bt) : decAll (b ++ b') t =
     (decAll b t).bind (decAll b') := by
