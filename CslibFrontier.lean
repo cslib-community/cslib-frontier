@@ -7627,6 +7627,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 public import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 public import CslibFrontier.Foundations.Combinatorics.Expander.Walk
 public import CslibFrontier.Foundations.Combinatorics.Expander.Zigzag
+public import CslibFrontier.Foundations.Combinatorics.FewBadRounds
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover.Basic
 public import CslibFrontier.Foundations.Combinatorics.FunctionPlaces
@@ -7694,6 +7695,7 @@ public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
 public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
+public import CslibFrontier.Foundations.Combinatorics.SeparatingCoordinates
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
