@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.GenericRAM.Native.Combinators
 public import CslibFrontier.Computability.GenericRAM.Native.ExpTimePolySpace.Iteration
 import Mathlib.Data.List.Range
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -114,11 +115,8 @@ def roundCertificate {body : ℕ × β → β}
 in its length. -/
 theorem roundCertificate_isPolynomial {body : ℕ × β → β}
     (cb : NativeCertificate body (encPair encNat encB) encB) (hcb : cb.IsPolynomial) :
-    (roundCertificate cb).IsPolynomial := by
-  have hidx : PolyBounded (fun p : ℕ × β => (encPair encNat encB p).length)
-      (fun p => (encNat p.1).length + 1) :=
-    (PolyBounded.self.mono fun p => by simp only [length_encPair]; omega).add (.const 1)
-  exact ⟨(PolyBounded.self.add (hidx.pow 2)).add hcb.1, (PolyBounded.self.add hidx).add hcb.2⟩
+    (roundCertificate cb).IsPolynomial :=
+  ⟨by growth_poly, by growth_poly⟩
 
 /-- One fixed native machine streams a runtime binary number of indices. Its bound is the
 existing iterator's trajectory-max bound; neither a finite state type nor a machine is selected
@@ -206,11 +204,9 @@ private theorem roundCertificate_factorTimePolySpace {body : ℕ × β → β}
     (hcb : cb.FactorTimePolySpace Kbody) :
     (roundCertificate cb).FactorTimePolySpace (fun p => Kbody p + 1) := by
   obtain ⟨T, hT, ht⟩ := hcb.exists_time_polyBounded
-  have hidx : PolyBounded (fun p : ℕ × β => (encPair encNat encB p).length)
-      (fun p => (encNat p.1).length + 1) :=
-    (PolyBounded.self.mono fun p => by simp only [length_encPair]; omega).add (.const 1)
-  refine .of_polyBounded ((PolyBounded.self.add (hidx.pow 2)).add hT)
-    ((PolyBounded.self.add hidx).add hcb.space_polyBounded) fun p => ?_
+  refine .of_polyBounded
+    (T := fun p => (encPair encNat encB p).length + ((encNat p.1).length + 1) ^ 2 + T p)
+    (by growth_poly) (by growth_poly [hcb.space_polyBounded]) fun p => ?_
   change (encPair encNat encB p).length + ((encNat p.1).length + 1) ^ 2 + cb.time p ≤ _
   have := ht p; nlinarith
 
@@ -229,11 +225,8 @@ theorem certificate_factorTimePolySpace {encIn : α ↪ List Bool}
     (hKbody : ∀ a j, j ≤ count a → Kbody (run body j (initial a)) ≤ K a)
     (hb : ∀ a j, j ≤ count a → (encB (run body j (initial a)).2).length ≤ B a) :
     (certificate cn ci cb).FactorTimePolySpace (fun a => (count a + 1) * K a) := by
-  have hclock : PolyBounded (fun a => (encIn a).length)
-      (fun a => (encNat (count a)).length) := (cn.polyTime hcn).polyBounded_length
   let Bfull a := 2 * (encNat (count a)).length + 1 + B a
-  have hBfull : PolyBounded (fun a => (encIn a).length) Bfull :=
-    (((PolyBounded.const 2).mul hclock).add (.const 1)).add hB
+  have hBfull : PolyBounded (fun a => (encIn a).length) Bfull := by growth_poly
   have hci' := NativeCertificate.prod_isPolynomial
     (NativeCertificate.const (em := encNat) 0) ci (NativeCertificate.const_isPolynomial 0) hci
   refine (NativeCertificate.FactorTimePolySpace.iterate cn _ (roundCertificate cb) hcn hci'

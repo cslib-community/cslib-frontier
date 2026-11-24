@@ -13,6 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Bounds
 import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Moduli
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.NthRoot
 import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
@@ -109,13 +110,6 @@ theorem exists_symmetric_altFormula (d : ℕ) :
     · exact sum_sq_moduli_bound hk m hle
     · exact le_rfl
 
-private theorem nthRoot_le_rpow (r n : ℕ) (hr : r ≠ 0) :
-    (Nat.nthRoot r n : ℝ) ≤ (n : ℝ) ^ ((r : ℝ)⁻¹) := by
-  have h : (Nat.nthRoot r n : ℝ) ^ r ≤ (n : ℝ) := by
-    exact_mod_cast Nat.pow_nthRoot_le (n := r) (a := n) (Or.inl hr)
-  have h' := Real.rpow_le_rpow (by positivity) h (show 0 ≤ (r : ℝ)⁻¹ by positivity)
-  rwa [Real.pow_rpow_inv_natCast (by positivity) hr] at h'
-
 end ShallowSymmetric
 
 namespace AltFormula
@@ -149,7 +143,7 @@ theorem exists_of_isSymmetric {d : ℕ} (hd : 2 ≤ d) :
   refine ⟨2 * C + 1, by positivity, fun n hn f hf op => ?_⟩
   obtain ⟨g, hs, he⟩ := hC n f hf op
   refine ⟨g, ?_, he⟩
-  have hroot := nthRoot_le_rpow (d - 1) n (by omega)
+  have hroot := Nat.cast_nthRoot_le_rpow (d - 1) n (by omega)
   have hone : 1 ≤ (n : ℝ) ^ ((d - 1 : ℕ) : ℝ)⁻¹ :=
     Real.one_le_rpow (by exact_mod_cast hn) (by positivity)
   calc (size g : ℝ) ≤ (2 : ℝ) ^ (C * (Nat.nthRoot (d - 1) n + 1)) := by exact_mod_cast hs
