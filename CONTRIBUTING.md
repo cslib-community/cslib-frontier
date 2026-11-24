@@ -437,13 +437,14 @@ enforces its baseline and the `local notation` rule only in the modules a pull r
 and merge groups only report,
 so `main` can drift above the baseline; the next change to a drifted module names the encoding
 or records it with `--update-baseline --allow-increase`. Its docstring gives the rule and the
-options. CI's source checks also run `python3 scripts/check_timem.py`, which rejects new uses of
-the deprecated `TimeM` cost monad ([policy/statements.md](policy/statements.md#running-time-claims),
+options. CI's source checks also run `python3 scripts/check_timem.py`, which unconditionally
+forbids all uses of the removed `TimeM` cost monad
+([policy/statements.md](policy/statements.md#running-time-claims),
 [#7636](https://github.com/cslib-community/cslib-frontier/issues/7636),
-[#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)): a Lean file may not use
-`TimeM` or its tick notation more often than `scripts/timem_baseline.json` records for it, and an
-unlisted file may not use them at all. Removing uses needs no baseline edit; `--update` lowers the
-recorded counts and never raises one. On pull requests CI also runs
+[#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)): any occurrence in
+masked Lean syntax of `TimeM`, tick notation `✓`, `time_simps`, `time_spec`, or
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` fails the check (`Cslib.Algorithms.Lean.Query.*`
+remains allowed). On pull requests CI also runs
 `python3 scripts/parallel_defs.py`, an advisory notice (it never fails) that lists new or changed
 public definitions sharing a large anonymized subterm with an existing one, or merely renaming one.
 With `--theorems` it lists new or changed theorems, private ones included, whose statement another
