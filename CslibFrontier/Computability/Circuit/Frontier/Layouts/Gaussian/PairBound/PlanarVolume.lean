@@ -1347,7 +1347,7 @@ private theorem volume_planarRectSet_le_out_neg {u1 u2 rb vx vy x1 x2 P detM A B
     unfold pairCxm; ring
   rw [hsum_m, hcAB_eq]
 
-theorem volume_planarRectSet_le_out_signed {b1 b2 rb vx vy : ℝ}
+private theorem volume_planarRectSet_le_out_signed {b1 b2 rb vx vy : ℝ}
     (hrb : 0 < rb) (hvx : 0 ≤ vx) (hvy : 0 ≤ vy)
     (hx1 : |b1| * rb < 1) (hx2 : |b2| * rb < 1)
     (hvxy : vx * vy ≤ 2 * rb ^ 2)

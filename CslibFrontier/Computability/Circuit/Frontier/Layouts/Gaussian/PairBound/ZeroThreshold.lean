@@ -29,7 +29,7 @@ The proof avoids derivatives and singular covariance limits:
    `twoVertexCost` as a function `maskCost : Finset (Fin 4) → ℕ` of the below-threshold coordinate
    set `{k | ⟪u k, x⟫ < t}`, complementation preserves `maskCost` and enlarging the background set
    `T ⊆ Fin 4 \ B` can only decrease every block jump `maskCost (T ∪ B) - maskCost T`.
-2. **Reflection `t ↦ -t` (`pairCost_neg`).** Negating `x ↦ -x` sends `{k | ⟪u k, -x⟫ < -t}` to
+2. **Reflection `t ↦ -t`.** Negating `x ↦ -x` sends `{k | ⟪u k, -x⟫ < -t}` to
    `Finset.univ \ {k | ⟪u k, x⟫ < t}` outside the null hyperplane union `⋃ k, {x | ⟪u k, x⟫ = t}`,
    so `pairCost u (-t) = pairCost u t`.
 3. **Finite step-jump telescoping and Gaussian disintegration (`pairCost_le_zero_of_nonneg`).** For
@@ -51,7 +51,6 @@ The proof avoids derivatives and singular covariance limits:
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Gaussian.PairBound.pairCost_neg`: `pairCost u (-t) = pairCost u t`.
 * `Cslib.Circuits.Frontier.Gaussian.PairBound.pairCost_le_zero`: `pairCost u t ≤ pairCost u 0`
   whenever `∀ i, ‖u i‖ = 1`.
 -/
@@ -340,7 +339,7 @@ private theorem stdGaussian_inner_ne_const_ae {v : E} (hv : v ≠ 0) (c : ℝ) :
   simpa only [Real.volume_singleton, mul_zero, nonpos_iff_eq_zero] using hle
 
 /-- **Reflection symmetry `t ↦ -t`.** For nonzero vectors `u`, `pairCost u (-t) = pairCost u t`. -/
-theorem pairCost_neg {u : Fin 4 → E} (hu : ∀ i, u i ≠ 0) (t : ℝ) :
+private theorem pairCost_neg {u : Fin 4 → E} (hu : ∀ i, u i ≠ 0) (t : ℝ) :
     pairCost u (-t) = pairCost u t := by
   rw [pairCost_eq_integral_maskCost, pairCost_eq_integral_maskCost]
   let f : E ≃ₗᵢ[ℝ] E := LinearIsometryEquiv.neg ℝ

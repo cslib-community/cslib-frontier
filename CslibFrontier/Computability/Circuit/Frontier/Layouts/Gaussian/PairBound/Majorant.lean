@@ -1871,8 +1871,18 @@ private theorem checkCexOk_sound {st : Cert.PlanarStep} {absK01 kk : Cert.Ival}
     exact mul_le_mul_of_nonneg_right hmax_le (sqrt_nonneg _)
   | n + 3 => rw [hc] at hok; cases hok
 
-private structure PlanarS1Valid (u : Fin 4 → E) (st : Cert.PlanarStep) (s1 : Cert.PlanarS1) :
-    Prop where
+private theorem starQI_rmin_nonneg {ia : Nat} {q : Cert.QuadI} (hq : Cert.starQI ia = some q) :
+    0 ≤ q.rmin := by
+  match ia with
+  | 0 | 1 | 2 | 3 | 4 | 5 | 6 => injection hq with hq'; subst hq'; decide
+  | n + 7 => cases hq
+
+private structure PlanarS1Valid (u : Fin 4 → E) (b : Cert.BoxI) (st : Cert.PlanarStep)
+    (s1 : Cert.PlanarS1) : Prop where
+  ho10 : 0 ≤ b.o10
+  ho20 : 0 ≤ b.o20
+  ha0 : 0 ≤ b.a0
+  hb0 : 0 ≤ b.b0
   hlam : 0 ≤ valI st.lam
   hlamM : 0 ≤ valI st.lamM
   hrxy : 0 < valI st.rxy
@@ -1929,7 +1939,7 @@ private theorem planarStage1_sound {b : Cert.BoxI} {st : Cert.PlanarStep} {s1 : 
     (hs1 : Cert.planarStage1 b st = some s1)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b) :
-    PlanarS1Valid u st s1 := by
+    PlanarS1Valid u b st s1 := by
   unfold Cert.planarStage1 at hs1
   cases hs1a : Cert.planarStage1a b st with
   | none => rw [hs1a] at hs1; cases hs1
@@ -2029,7 +2039,9 @@ private theorem planarStage1_sound {b : Cert.BoxI} {st : Cert.PlanarStep} {s1 : 
         (memI_divPos (memI_mul (memI_mul h_o1 h_o2) hr) hd_m g5.1.1.1))
       have hkk_m := memI_mul hk00_m hk11_m
       have hcex_nn : 0 ≤ valI st.cex := valI_nonneg g2.2
-      refine ⟨valI_nonneg g2.1.1.1.1.1.1, valI_nonneg g2.1.1.1.1.1.2,
+      refine ⟨g1.1.1.1.1.1, g1.1.1.1.1.2, (starQI_rmin_nonneg hqa).trans g3.1.1.1.1.1,
+        (starQI_rmin_nonneg hqb).trans g3.1.1.1.1.2,
+        valI_nonneg g2.1.1.1.1.1.1, valI_nonneg g2.1.1.1.1.1.2,
         valI_pos g2.1.1.1.1.2, g2.1.1.1.1.2, hslo_pos, g2.1.1.1.2, hshi_pos, valI_pos g2.1.2,
         hcex_nn, by linarith [hrb.2.2.2.2.1], hvxy, g5.1.1.1, hD_pos, hvx_m, hvy_m, hd_m,
         hslo_sq, hslo_sD, hshi_sD, h35,
@@ -2212,7 +2224,7 @@ private theorem planarStage2_sound {b : Cert.BoxI} {st : Cert.PlanarStep} {s1 : 
     {s2 : Cert.PlanarS2} (hs2 : Cert.planarStage2 b s1 = some s2)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b)
-    (hv1 : PlanarS1Valid u st s1) :
+    (hv1 : PlanarS1Valid u b st s1) :
     PlanarS2Valid u s2 := by
   unfold Cert.planarStage2 at hs2
   cases hs2a : Cert.planarStage2a b s1 with
@@ -2381,7 +2393,7 @@ private structure PlanarS3Valid (u : Fin 4 → E) (b : Cert.BoxI) (s3 : Cert.Pla
 omit [BorelSpace E] in
 private theorem planarStage3_sound {b : Cert.BoxI} {st : Cert.PlanarStep} {s1 : Cert.PlanarS1}
     {s3 : Cert.PlanarS3} (hs3 : Cert.planarStage3 b st s1 = some s3)
-    {u : Fin 4 → E} (hm : MemBox u b) (hv1 : PlanarS1Valid u st s1) :
+    {u : Fin 4 → E} (hm : MemBox u b) (hv1 : PlanarS1Valid u b st s1) :
     PlanarS3Valid u b s3 := by
   unfold Cert.planarStage3 at hs3
   cases hpm : Cert.planarMid b with
@@ -2491,46 +2503,6 @@ private theorem planarStage3_sound {b : Cert.BoxI} {st : Cert.PlanarStep} {s1 : 
         ⟨valI cInvI, invM_r, gM_r, gSl_r, hcInv_nn, memI_const cInvI, hinvM_m,
           hgM_nn, hgM_m, hgSl_m, hsec_ineq, hdLMax_le, htan_ineq, hgVar_le⟩⟩
 
-private theorem starQI_rmin_nonneg {ia : Nat} {q : Cert.QuadI} (hq : Cert.starQI ia = some q) :
-    0 ≤ q.rmin := by
-  match ia with
-  | 0 | 1 | 2 | 3 | 4 | 5 | 6 => injection hq with hq'; subst hq'; decide
-  | n + 7 => cases hq
-
-private theorem planarStage1_o_nonneg {b : Cert.BoxI} {st : Cert.PlanarStep} {s1 : Cert.PlanarS1}
-    (hs1 : Cert.planarStage1 b st = some s1) :
-    0 ≤ b.o10 ∧ 0 ≤ b.o20 ∧ 0 ≤ b.a0 ∧ 0 ≤ b.b0 := by
-  unfold Cert.planarStage1 at hs1
-  cases hs1a : Cert.planarStage1a b st with
-  | none => rw [hs1a] at hs1; cases hs1
-  | some _ =>
-    unfold Cert.planarStage1a at hs1a
-    split_ifs at hs1a with g1 g2
-    cases hqa : Cert.starQI st.ia with
-    | none => rw [hqa] at hs1a; cases hs1a
-    | some qa =>
-    cases hqb : Cert.starQI st.ib with
-    | none => rw [hqa, hqb] at hs1a; cases hs1a
-    | some qb =>
-    cases hqc0 : Cert.crossQI st.ic0 with
-    | none => rw [hqa, hqb, hqc0] at hs1a; cases hs1a
-    | some qc0 =>
-    cases hqc1 : Cert.crossQI st.ic1 with
-    | none => rw [hqa, hqb, hqc0, hqc1] at hs1a; cases hs1a
-    | some qc1 =>
-    cases hqc2 : Cert.crossQI st.ic2 with
-    | none => rw [hqa, hqb, hqc0, hqc1, hqc2] at hs1a; cases hs1a
-    | some qc2 =>
-    cases hqc3 : Cert.crossQI st.ic3 with
-    | none => rw [hqa, hqb, hqc0, hqc1, hqc2, hqc3] at hs1a; cases hs1a
-    | some qc3 =>
-      rw [hqa, hqb, hqc0, hqc1, hqc2, hqc3] at hs1a
-      simp only [bindInt_eq] at hs1a
-      split_ifs at hs1a with g3
-      simp only [Bool.or_eq_true, not_or, Bool.not_eq_true, iblt_false_iff] at g1 g3
-      exact ⟨g1.1.1.1.1.1, g1.1.1.1.1.2, (starQI_rmin_nonneg hqa).trans g3.1.1.1.1.1,
-        (starQI_rmin_nonneg hqb).trans g3.1.1.1.1.2⟩
-
 private theorem ival_mid_rad {x : ℝ} {v : Cert.Ival} (h : MemI x v) :
     |x - valI ((v.lo + v.hi) / 2)| ≤ valI (Cert.cdiv (v.hi - v.lo) 2) ∧
     0 ≤ Cert.cdiv (v.hi - v.lo) 2 := by
@@ -2592,8 +2564,7 @@ private theorem planarModelOut_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     (hmd : Cert.planarModelOut b st s1 s2 s3 = some md)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b)
-    (ho_box : 0 ≤ b.o10 ∧ 0 ≤ b.o20)
-    (hv1 : PlanarS1Valid u st s1) (hv2 : PlanarS2Valid u s2) (hv3 : PlanarS3Valid u b s3) :
+    (hv1 : PlanarS1Valid u b st s1) (hv2 : PlanarS2Valid u s2) (hv3 : PlanarS3Valid u b s3) :
     PlanarModelValid u b st md := by
   unfold Cert.planarModelOut at hmd
   cases hm1 : Cert.planarModelOut1 st s1 s2 s3 with
@@ -2617,12 +2588,12 @@ private theorem planarModelOut_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
       have hcoords := box_nonempty_coords hm
       have ho1M_nn : 0 ≤ boxMid b.o10 b.o11 := by
         unfold boxMid valI; push_cast
-        have : 0 ≤ b.o10 + b.o11 := by linarith [ho_box.1, hcoords.2.2.2.1]
+        have : 0 ≤ b.o10 + b.o11 := by linarith [hv1.ho10, hcoords.2.2.2.1]
         have hr : (0 : ℝ) ≤ (b.o10 : ℝ) + b.o11 := by exact_mod_cast this
         linarith
       have ho2M_nn : 0 ≤ boxMid b.o20 b.o21 := by
         unfold boxMid valI; push_cast
-        have : 0 ≤ b.o20 + b.o21 := by linarith [ho_box.2, hcoords.2.2.2.2.1]
+        have : 0 ≤ b.o20 + b.o21 := by linarith [hv1.ho20, hcoords.2.2.2.2.1]
         have hr : (0 : ℝ) ≤ (b.o20 : ℝ) + b.o21 := by exact_mod_cast this
         linarith
       set vx := (1 + pairSab u) / 2
@@ -2909,7 +2880,7 @@ private theorem planarModelIn1_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     {s1 : Cert.PlanarS1} {s2 : Cert.PlanarS2} {mi1 : Cert.ModelIn1}
     (hmi1 : Cert.planarModelIn1 b st s1 s2 = some mi1)
     {u : Fin 4 → E} (ho1 : 0 ≤ pairO1 u) (hm : MemBox u b)
-    (hv1 : PlanarS1Valid u st s1) (hv2 : PlanarS2Valid u s2) :
+    (hv1 : PlanarS1Valid u b st s1) (hv2 : PlanarS2Valid u s2) :
     ModelIn1Valid u st mi1 := by
   unfold Cert.planarModelIn1 at hmi1
   simp only [bindIval_eq, bindInt_eq] at hmi1
@@ -3075,7 +3046,7 @@ private theorem planarModelIn_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     (hmd : Cert.planarModelIn b st s1 s2 = some md)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b)
-    (hv1 : PlanarS1Valid u st s1) (hv2 : PlanarS2Valid u s2) :
+    (hv1 : PlanarS1Valid u b st s1) (hv2 : PlanarS2Valid u s2) :
     PlanarModelValid u b st md := by
   unfold Cert.planarModelIn at hmd
   cases hmi1 : Cert.planarModelIn1 b st s1 s2 with
@@ -3286,16 +3257,14 @@ private theorem planarModelIn_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
 
 private theorem planarStageModel_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     {s1 : Cert.PlanarS1} {s2 : Cert.PlanarS2} {s3 : Cert.PlanarS3} {md : Cert.PlanarModel}
-    (hs1 : Cert.planarStage1 b st = some s1)
     (hmd : Cert.planarStageModel b st s1 s2 s3 = some md)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b)
-    (hv1 : PlanarS1Valid u st s1) (hv2 : PlanarS2Valid u s2) (hv3 : PlanarS3Valid u b s3) :
+    (hv1 : PlanarS1Valid u b st s1) (hv2 : PlanarS2Valid u s2) (hv3 : PlanarS3Valid u b s3) :
     PlanarModelValid u b st md := by
   unfold Cert.planarStageModel at hmd
   split_ifs at hmd with h_out
-  · obtain ⟨ho10, ho20, _, _⟩ := planarStage1_o_nonneg hs1
-    exact planarModelOut_sound hmd hadm ho1 ho12 hm ⟨ho10, ho20⟩ hv1 hv2 hv3
+  · exact planarModelOut_sound hmd hadm ho1 ho12 hm hv1 hv2 hv3
   · exact planarModelIn_sound hmd hadm ho1 ho12 hm hv1 hv2
 
 private structure PlanarS4Valid (u : Fin 4 → E) (b : Cert.BoxI)
@@ -3326,14 +3295,36 @@ private structure PlanarS4Valid (u : Fin 4 → E) (b : Cert.BoxI)
       cEx_curv * cSKK_r *
         ((pairO1 u - boxMid b.o10 b.o11) ^ 2 + (pairO2 u - boxMid b.o20 b.o21) ^ 2)
 
+/-- One endpoint's second-order remainder in `planarStage4_sound`, bounded term by term. -/
+private theorem remainder_le {δ c e P f g gM Q q dHi dL fVar gVar qVar : ℝ}
+    (hδ : |δ| ≤ dHi) (he : |c * e| ≤ dL) (hP : |P - f| ≤ fVar) (hg : |g - gM| ≤ gVar)
+    (hQ : |Q - q| ≤ qVar) (hgM : 0 ≤ gM) :
+    (-δ / 2) * (-c * e) + -(P - f) * (g - gM) + -(Q - q) * (δ / 2) * gM ≤
+      dHi / 2 * dL + (fVar * gVar + (dHi / 2 * qVar) * gM) := by
+  have hδ2 : |δ| / 2 ≤ dHi / 2 := div_le_div_of_nonneg_right hδ zero_le_two
+  have hd2 : 0 ≤ dHi / 2 := (div_nonneg (abs_nonneg δ) zero_le_two).trans hδ2
+  have t1 : (-δ / 2) * (-c * e) ≤ dHi / 2 * dL := by
+    calc (-δ / 2) * (-c * e) ≤ |δ / 2 * (c * e)| := by
+          rw [show (-δ / 2) * (-c * e) = δ / 2 * (c * e) by ring]; exact le_abs_self _
+      _ = |δ| / 2 * |c * e| := by rw [abs_mul, abs_div, abs_two]
+      _ ≤ dHi / 2 * dL := mul_le_mul hδ2 he (abs_nonneg _) hd2
+  have t2 : -(P - f) * (g - gM) ≤ fVar * gVar := by
+    calc -(P - f) * (g - gM) ≤ |-(P - f) * (g - gM)| := le_abs_self _
+      _ = |P - f| * |g - gM| := by rw [abs_mul, abs_neg]
+      _ ≤ fVar * gVar := mul_le_mul hP hg (abs_nonneg _) ((abs_nonneg _).trans hP)
+  have t3 : -(Q - q) * (δ / 2) ≤ dHi / 2 * qVar := by
+    calc -(Q - q) * (δ / 2) ≤ |-(Q - q) * (δ / 2)| := le_abs_self _
+      _ = |δ| / 2 * |Q - q| := by rw [abs_mul, abs_neg, abs_div, abs_two, mul_comm]
+      _ ≤ dHi / 2 * qVar := mul_le_mul hδ2 hQ (abs_nonneg _) hd2
+  linarith only [t1, t2, mul_le_mul_of_nonneg_right t3 hgM]
+
 omit [BorelSpace E] in
 private theorem planarStage4_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     {s1 : Cert.PlanarS1} {s3 : Cert.PlanarS3} {md : Cert.PlanarModel} {s4 : Cert.PlanarS4}
-    (hs1 : Cert.planarStage1 b st = some s1)
     (hs4 : Cert.planarStage4 b st s1 s3 md = some s4)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b)
-    (hv1 : PlanarS1Valid u st s1) (hv3 : PlanarS3Valid u b s3)
+    (hv1 : PlanarS1Valid u b st s1) (hv3 : PlanarS3Valid u b s3)
     (hvmd : PlanarModelValid u b st md) :
     PlanarS4Valid u b s3 md s4 := by
   unfold Cert.planarStage4 at hs4
@@ -3515,13 +3506,13 @@ private theorem planarStage4_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     have hcD_m := memI_divPos
       (memI_sub (memI_mul hfM_m hgSl_m) (memI_mul hnM_m hcInv_m)) h4pi_m h4pi_pos
     have hvxM_nn : 0 ≤ vx_m := by
-      obtain ⟨_, _, ha0_nn, _⟩ := planarStage1_o_nonneg hs1
+      have ha0_nn := hv1.ha0
       have hcoords := box_nonempty_coords ⟨ha, hcd, hr, h_o1, h_o2, ht⟩
       dsimp only [vx_m, a_m]; unfold boxMid valI; push_cast
       have hsum : (0 : ℝ) ≤ (b.a0 : ℝ) + b.a1 := by exact_mod_cast (by omega : 0 ≤ b.a0 + b.a1)
       linarith only [hsum]
     have hvyM_nn : 0 ≤ vy_m := by
-      obtain ⟨_, _, _, hb0_nn⟩ := planarStage1_o_nonneg hs1
+      have hb0_nn := hv1.hb0
       have hcoords := box_nonempty_coords ⟨ha, hcd, hr, h_o1, h_o2, ht⟩
       dsimp only [vy_m, b_m]; unfold boxMid valI; push_cast
       have hsum : (0 : ℝ) ≤ (b.b0 : ℝ) + b.b1 := by exact_mod_cast (by omega : 0 ≤ b.b0 + b.b1)
@@ -3572,78 +3563,10 @@ private theorem planarStage4_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
       (memI_add (memI_mul (memI_const f2Var_i) (memI_const s3.gVarMax))
         (memI_mul (memI_mul (memI_divTwo (memI_const s3.dbHi)) (memI_const o2SqVar_i))
           hgM_m))
-    have hrem0_real : (-δ_a / 2) * (-cInv_r * (D - D_m)) +
-        -(pairO1 u ^ 2 * vx - f1_m) * (1 / (D * √D) - gM_r) +
-        -(pairO1 u ^ 2 - o1_m ^ 2) * (δ_a / 2) * gM_r ≤
-        valI s3.daHi / 2 * valI s3.dLMax +
-          (valI f1Var_i * valI s3.gVarMax +
-            (valI s3.daHi / 2 * valI o1SqVar_i) * gM_r) := by
-      have t1 : (-δ_a / 2) * (-cInv_r * (D - D_m)) ≤ valI s3.daHi / 2 * valI s3.dLMax := by
-        calc (-δ_a / 2) * (-cInv_r * (D - D_m))
-            ≤ |(-δ_a / 2) * (-cInv_r * (D - D_m))| := le_abs_self _
-          _ = |δ_a| / 2 * |cInv_r * (D - D_m)| := by
-              rw [show (-δ_a / 2) * (-cInv_r * (D - D_m)) = δ_a / 2 * (cInv_r * (D - D_m)) by ring,
-                abs_mul, abs_div, abs_of_pos (zero_lt_two : (0 : ℝ) < 2)]
-          _ ≤ valI s3.daHi / 2 * valI s3.dLMax :=
-              mul_le_mul (div_le_div_of_nonneg_right hv3.hda.1 zero_le_two) hdLMax_le
-                (abs_nonneg _) (div_nonneg ((abs_nonneg _).trans hv3.hda.1) zero_le_two)
-      have t2 : -(pairO1 u ^ 2 * vx - f1_m) * (1 / (D * √D) - gM_r) ≤
-          valI f1Var_i * valI s3.gVarMax := by
-        calc -(pairO1 u ^ 2 * vx - f1_m) * (1 / (D * √D) - gM_r)
-            ≤ |-(pairO1 u ^ 2 * vx - f1_m) * (1 / (D * √D) - gM_r)| := le_abs_self _
-          _ = |pairO1 u ^ 2 * vx - f1_m| * |1 / (D * √D) - gM_r| := by rw [abs_mul, abs_neg]
-          _ ≤ valI f1Var_i * valI s3.gVarMax :=
-              mul_le_mul hf1Var_le hgVar_le (abs_nonneg _)
-                ((abs_nonneg _).trans hf1Var_le)
-      have t3 : -(pairO1 u ^ 2 - o1_m ^ 2) * (δ_a / 2) * gM_r ≤
-          (valI s3.daHi / 2 * valI o1SqVar_i) * gM_r := by
-        have habs : -(pairO1 u ^ 2 - o1_m ^ 2) * (δ_a / 2) ≤
-            valI s3.daHi / 2 * valI o1SqVar_i := by
-          calc -(pairO1 u ^ 2 - o1_m ^ 2) * (δ_a / 2)
-              ≤ |-(pairO1 u ^ 2 - o1_m ^ 2) * (δ_a / 2)| := le_abs_self _
-            _ = |δ_a| / 2 * |pairO1 u ^ 2 - o1_m ^ 2| := by
-                rw [abs_mul, abs_neg, abs_div, abs_of_pos (zero_lt_two : (0 : ℝ) < 2), mul_comm]
-            _ ≤ valI s3.daHi / 2 * valI o1SqVar_i :=
-                mul_le_mul (div_le_div_of_nonneg_right hv3.hda.1 zero_le_two) ho1SqVar_le
-                  (abs_nonneg _) (div_nonneg ((abs_nonneg _).trans hv3.hda.1) zero_le_two)
-        exact mul_le_mul_of_nonneg_right habs hgM_nn
-      linarith only [t1, t2, t3]
-    have hrem1_real : (-δ_b / 2) * (-cInv_r * (D - D_m)) +
-        -(pairO2 u ^ 2 * vy - f2_m) * (1 / (D * √D) - gM_r) +
-        -(pairO2 u ^ 2 - o2_m ^ 2) * (δ_b / 2) * gM_r ≤
-        valI s3.dbHi / 2 * valI s3.dLMax +
-          (valI f2Var_i * valI s3.gVarMax +
-            (valI s3.dbHi / 2 * valI o2SqVar_i) * gM_r) := by
-      have t1 : (-δ_b / 2) * (-cInv_r * (D - D_m)) ≤ valI s3.dbHi / 2 * valI s3.dLMax := by
-        calc (-δ_b / 2) * (-cInv_r * (D - D_m))
-            ≤ |(-δ_b / 2) * (-cInv_r * (D - D_m))| := le_abs_self _
-          _ = |δ_b| / 2 * |cInv_r * (D - D_m)| := by
-              rw [show (-δ_b / 2) * (-cInv_r * (D - D_m)) = δ_b / 2 * (cInv_r * (D - D_m)) by ring,
-                abs_mul, abs_div, abs_of_pos (zero_lt_two : (0 : ℝ) < 2)]
-          _ ≤ valI s3.dbHi / 2 * valI s3.dLMax :=
-              mul_le_mul (div_le_div_of_nonneg_right hv3.hdb.1 zero_le_two) hdLMax_le
-                (abs_nonneg _) (div_nonneg ((abs_nonneg _).trans hv3.hdb.1) zero_le_two)
-      have t2 : -(pairO2 u ^ 2 * vy - f2_m) * (1 / (D * √D) - gM_r) ≤
-          valI f2Var_i * valI s3.gVarMax := by
-        calc -(pairO2 u ^ 2 * vy - f2_m) * (1 / (D * √D) - gM_r)
-            ≤ |-(pairO2 u ^ 2 * vy - f2_m) * (1 / (D * √D) - gM_r)| := le_abs_self _
-          _ = |pairO2 u ^ 2 * vy - f2_m| * |1 / (D * √D) - gM_r| := by rw [abs_mul, abs_neg]
-          _ ≤ valI f2Var_i * valI s3.gVarMax :=
-              mul_le_mul hf2Var_le hgVar_le (abs_nonneg _)
-                ((abs_nonneg _).trans hf2Var_le)
-      have t3 : -(pairO2 u ^ 2 - o2_m ^ 2) * (δ_b / 2) * gM_r ≤
-          (valI s3.dbHi / 2 * valI o2SqVar_i) * gM_r := by
-        have habs : -(pairO2 u ^ 2 - o2_m ^ 2) * (δ_b / 2) ≤
-            valI s3.dbHi / 2 * valI o2SqVar_i := by
-          calc -(pairO2 u ^ 2 - o2_m ^ 2) * (δ_b / 2)
-              ≤ |-(pairO2 u ^ 2 - o2_m ^ 2) * (δ_b / 2)| := le_abs_self _
-            _ = |δ_b| / 2 * |pairO2 u ^ 2 - o2_m ^ 2| := by
-                rw [abs_mul, abs_neg, abs_div, abs_of_pos (zero_lt_two : (0 : ℝ) < 2), mul_comm]
-            _ ≤ valI s3.dbHi / 2 * valI o2SqVar_i :=
-                mul_le_mul (div_le_div_of_nonneg_right hv3.hdb.1 zero_le_two) ho2SqVar_le
-                  (abs_nonneg _) (div_nonneg ((abs_nonneg _).trans hv3.hdb.1) zero_le_two)
-        exact mul_le_mul_of_nonneg_right habs hgM_nn
-      linarith only [t1, t2, t3]
+    have hrem0_real := remainder_le (δ := δ_a) hv3.hda.1 hdLMax_le hf1Var_le hgVar_le
+      ho1SqVar_le hgM_nn
+    have hrem1_real := remainder_le (δ := δ_b) hv3.hdb.1 hdLMax_le hf2Var_le hgVar_le
+      ho2SqVar_le hgM_nn
     have hbilin_m := memI_mul (memI_abs hcD_m)
       (memI_divNat (n := 4) (by norm_num)
         (memI_mul (memI_const s3.daHi) (memI_const s3.dbHi)))
@@ -3797,7 +3720,7 @@ private theorem planarStage5_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     (hs5 : Cert.planarStage5 b st s1 s3 md s4 = true)
     {u : Fin 4 → E} (hadm : IsAdmissiblePair u)
     (ho1 : 0 ≤ pairO1 u) (ho12 : pairO1 u ≤ pairO2 u) (hm : MemBox u b)
-    (hv1 : PlanarS1Valid u st s1) (hv3 : PlanarS3Valid u b s3)
+    (hv1 : PlanarS1Valid u b st s1) (hv3 : PlanarS3Valid u b s3)
     (hv4 : PlanarS4Valid u b s3 md s4) :
     pairCost u 0 ≤ 27735 / 100000 := by
   unfold Cert.planarStage5 at hs5
@@ -4214,8 +4137,8 @@ private theorem chkPlanar_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
     have hv1 := planarStage1_sound hs1 hadm ho1 ho12 hm
     have hv2 := planarStage2_sound hs2 hadm ho1 ho12 hm hv1
     have hv3 := planarStage3_sound hs3 hm hv1
-    have hvmd := planarStageModel_sound hs1 hmd hadm ho1 ho12 hm hv1 hv2 hv3
-    have hv4 := planarStage4_sound hs1 hs4 hadm ho1 ho12 hm hv1 hv3 hvmd
+    have hvmd := planarStageModel_sound hmd hadm ho1 ho12 hm hv1 hv2 hv3
+    have hv4 := planarStage4_sound hs4 hadm ho1 ho12 hm hv1 hv3 hvmd
     exact planarStage5_sound hok hadm ho1 ho12 hm hv1 hv3 hv4
 
 /-! ### Part 4: Stack-machine soundness (`stepOne`, `runProg`, `checkBox`) and `pairCost_le` -/

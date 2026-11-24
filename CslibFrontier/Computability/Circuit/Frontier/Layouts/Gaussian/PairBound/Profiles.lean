@@ -98,7 +98,7 @@ private theorem rawSum_nonneg {q : ℝ} (hq : 0 ≤ q) (R : ℕ) (e : E) (z : V)
     0 ≤ rawSum G q R e z :=
   add_nonneg (kernelRow_nonneg hq R _ z) (kernelRow_nonneg hq R _ z)
 
-theorem one_le_norm_rawSum {q : ℝ} (hq : 0 ≤ q) (R : ℕ) (e : E) :
+private theorem one_le_norm_rawSum {q : ℝ} (hq : 0 ≤ q) (R : ℕ) (e : E) :
     1 ≤ ‖rawSum G q R e‖ := by
   have h1 : 1 ≤ rawSum G q R e (G.src e) := by
     rw [rawSum_apply, kernelRow_self]
@@ -702,6 +702,54 @@ private theorem inner_rawEdgeVector_le_one (R : ℕ) (e1 e2 : E) :
   simpa [norm_rawEdgeVector rawRatio_nonneg R] using
     real_inner_le_norm (rawEdgeVector G rawRatio R e1) (rawEdgeVector G rawRatio R e2)
 
+omit [Fintype V] in
+private theorem pair_scale {k sc a b : ℝ} (hsc : 0 < sc)
+    (h : k * ((sc * a) ^ 2 + (sc * b) ^ 2) ≤ 2000000 * ((sc * a) * (sc * b))) :
+    k / 1000000 * (a ^ 2 + b ^ 2) ≤ 2 * (a * b) := by
+  have hid : sc ^ 2 * (k / 1000000 * (a ^ 2 + b ^ 2) - 2 * (a * b)) =
+      1 / 1000000 * (k * ((sc * a) ^ 2 + (sc * b) ^ 2) - 2000000 * ((sc * a) * (sc * b))) := by
+    ring
+  nlinarith [sq_pos_of_pos hsc]
+
+private theorem le_inner_rawEdgeVector_of_intBall [Finite E] (hloop : G.Loopless)
+    (hdeg : G.MaxDegreeLE 3) {R : ℕ} (hR : 3 ≤ R)
+    (hsmall : (2 * rawRatio ^ 2) ^ (R - 3) ≤ (1 : ℝ) / 10 ^ 9)
+    {w u v : V} {e1 e2 : E} (hu : G.toSimpleGraph.edist w u ≤ 1) (he1 : e1 ∈ G.incidenceSet u)
+    (hv : G.toSimpleGraph.edist w v ≤ 1) (he2 : e2 ∈ G.incidenceSet v)
+    {c : ℝ} (hc : 0 ≤ c) (hc1 : c ≤ 1) (hint_z : ∀ z ∈ intBall G R w,
+      c * (rawSum G rawRatio R e1 z ^ 2 + rawSum G rawRatio R e2 z ^ 2) ≤
+        2 * (rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z)) :
+    c - 36 / 10 ^ 8 ≤ ⟪rawEdgeVector G rawRatio R e1, rawEdgeVector G rawRatio R e2⟫ := by
+  have hsum_int := sum_le_sum hint_z
+  rw [← mul_sum, sum_add_distrib, ← mul_sum] at hsum_int
+  have herr : 360 * (2 * rawRatio ^ 2) ^ (R - 3) ≤ 36 / 10 ^ 8 := by linarith
+  have hext (e : E) {v : V} (hv : G.toSimpleGraph.edist w v ≤ 1) (he : e ∈ G.incidenceSet v) :
+      ∑ z ∈ extBall G R w, rawSum G rawRatio R e z ^ 2 ≤ 36 / 10 ^ 8 := by
+    classical exact (sum_ext_rawSum_sq_le hloop hdeg hR w hv he).trans herr
+  have hext_nn : 0 ≤ ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z :=
+    sum_nonneg fun z _ => mul_nonneg (rawSum_nonneg rawRatio_nonneg R e1 z)
+      (rawSum_nonneg rawRatio_nonneg R e2 z)
+  have hn1 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e1
+  have hn2 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e2
+  have hnorm (e : E) : ‖rawSum G rawRatio R e‖ ^ 2 =
+      ∑ z ∈ intBall G R w, rawSum G rawRatio R e z ^ 2 +
+        ∑ z ∈ extBall G R w, rawSum G rawRatio R e z ^ 2 := by
+    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R w]
+  have htot12 : ⟪rawEdgeVector G rawRatio R e1, rawEdgeVector G rawRatio R e2⟫ *
+        (‖rawSum G rawRatio R e1‖ * ‖rawSum G rawRatio R e2‖) =
+      ∑ z ∈ intBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z +
+        ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z := by
+    rw [inner_rawEdgeVector_mul_norms, sum_intBall_add_extBall R w]
+  have hamgm : 2 * (‖rawSum G rawRatio R e1‖ * ‖rawSum G rawRatio R e2‖) ≤
+      ‖rawSum G rawRatio R e1‖ ^ 2 + ‖rawSum G rawRatio R e2‖ ^ 2 := by
+    nlinarith [sq_nonneg (‖rawSum G rawRatio R e1‖ - ‖rawSum G rawRatio R e2‖)]
+  have hscaled := mul_le_mul_of_nonneg_left hamgm hc
+  rw [hnorm e1, hnorm e2] at hscaled
+  have htail := mul_le_mul_of_nonneg_left (add_le_add (hext e1 hu he1) (hext e2 hv he2)) hc
+  have hp := one_le_mul_of_one_le_of_one_le hn1 hn2
+  refine le_of_mul_le_mul_right ?_ (zero_lt_one.trans_le hp)
+  linarith only [hscaled, htail, hc1, hsum_int, hext_nn, htot12, hp]
+
 private theorem le_inner_rawEdgeVector_same [Finite E] (hloop : G.Loopless)
     (hdeg : G.MaxDegreeLE 3) {R : ℕ} (hR : 3 ≤ R)
     (hsmall : (2 * rawRatio ^ 2) ^ (R - 3) ≤ (1 : ℝ) / 10 ^ 9)
@@ -741,50 +789,9 @@ private theorem le_inner_rawEdgeVector_same [Finite E] (hloop : G.Loopless)
     have hsc : 0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist w z := by
       have : 0 < rawRatio := by norm_num [rawRatio]
       positivity
-    set sc := (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist w z
-    have hid : sc ^ 2 * ((942806 / 1000000 : ℝ) *
-        (rawSum G rawRatio R e1 z ^ 2 + rawSum G rawRatio R e2 z ^ 2) -
-        2 * (rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z)) =
-        (1 / 1000000 : ℝ) * (942806 * ((sc * rawSum G rawRatio R e1 z) ^ 2 +
-          (sc * rawSum G rawRatio R e2 z) ^ 2) -
-          2000000 * ((sc * rawSum G rawRatio R e1 z) * (sc * rawSum G rawRatio R e2 z))) := by ring
-    have hdiv : sc ^ 2 * ((942806 / 1000000 : ℝ) *
-        (rawSum G rawRatio R e1 z ^ 2 + rawSum G rawRatio R e2 z ^ 2) -
-        2 * (rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z)) ≤ 0 := by linarith
-    nlinarith [sq_pos_of_pos hsc]
-  have hsum_int := sum_le_sum hint_z
-  rw [← mul_sum, sum_add_distrib, ← mul_sum] at hsum_int
-  have hext1 : ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR w hw_self he1
-  have hext2 : ∑ z ∈ extBall G R w, rawSum G rawRatio R e2 z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR w hw_self he2
-  have hext_nn : 0 ≤ ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z :=
-    sum_nonneg fun z _ => mul_nonneg (rawSum_nonneg rawRatio_nonneg R e1 z)
-      (rawSum_nonneg rawRatio_nonneg R e2 z)
-  have hn1 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e1
-  have hn2 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e2
-  have htot1 : ‖rawSum G rawRatio R e1‖ ^ 2 =
-      ∑ z ∈ intBall G R w, rawSum G rawRatio R e1 z ^ 2 +
-        ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R w]
-  have htot2 : ‖rawSum G rawRatio R e2‖ ^ 2 =
-      ∑ z ∈ intBall G R w, rawSum G rawRatio R e2 z ^ 2 +
-        ∑ z ∈ extBall G R w, rawSum G rawRatio R e2 z ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R w]
-  have htot12 : ⟪rawEdgeVector G rawRatio R e1, rawEdgeVector G rawRatio R e2⟫ *
-        (‖rawSum G rawRatio R e1‖ * ‖rawSum G rawRatio R e2‖) =
-      ∑ z ∈ intBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z +
-        ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z := by
-    rw [inner_rawEdgeVector_mul_norms, sum_intBall_add_extBall R w]
-  have hamgm : 2 * (‖rawSum G rawRatio R e1‖ * ‖rawSum G rawRatio R e2‖) ≤
-      ‖rawSum G rawRatio R e1‖ ^ 2 + ‖rawSum G rawRatio R e2‖ ^ 2 := by
-    nlinarith [sq_nonneg (‖rawSum G rawRatio R e1‖ - ‖rawSum G rawRatio R e2‖)]
-  have h1N : 2 ≤ ‖rawSum G rawRatio R e1‖ ^ 2 + ‖rawSum G rawRatio R e2‖ ^ 2 := by nlinarith
-  have herr : 360 * (2 * rawRatio ^ 2) ^ (R - 3) ≤ 36 / 10 ^ 8 := by linarith
-  nlinarith [mul_pos (by linarith : 0 < ‖rawSum G rawRatio R e1‖)
-    (by linarith : 0 < ‖rawSum G rawRatio R e2‖)]
+    exact pair_scale hsc hi
+  exact le_trans (by norm_num) (le_inner_rawEdgeVector_of_intBall hloop hdeg hR hsmall
+    hw_self he1 hw_self he2 (c := 942806 / 1000000) (by norm_num) (by norm_num) hint_z)
 
 private theorem isAdmissibleStar_rawEdgeVector [Finite E] (hloop : G.Loopless)
     (hdeg : G.MaxDegreeLE 3) {R : ℕ} (hR : 3 ≤ R)
@@ -924,7 +931,6 @@ private theorem le_inner_rawEdgeVector_adj [Finite E] (hloop : G.Loopless)
     {u v : V} (huv : G.toSimpleGraph.Adj u v)
     {eu ev : E} (heu : eu ∈ G.incidenceSet u) (hev : ev ∈ G.incidenceSet v) :
     (79998 / 100000 : ℝ) ≤ ⟪rawEdgeVector G rawRatio R eu, rawEdgeVector G rawRatio R ev⟫ := by
-  have hq0 := rawRatio_nonneg
   have hu_self : G.toSimpleGraph.edist u u ≤ 1 := by simp
   have huv_ed : G.toSimpleGraph.edist u v ≤ 1 :=
     SimpleGraph.edist_le_one_iff_adj_or_eq.mpr (.inl huv)
@@ -968,49 +974,9 @@ private theorem le_inner_rawEdgeVector_adj [Finite E] (hloop : G.Loopless)
     have hsc : 0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist u z := by
       have : 0 < rawRatio := by norm_num [rawRatio]
       positivity
-    set sc := (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist u z
-    have hid : sc ^ 2 * ((799990 / 1000000 : ℝ) *
-        (rawSum G rawRatio R eu z ^ 2 + rawSum G rawRatio R ev z ^ 2) -
-        2 * (rawSum G rawRatio R eu z * rawSum G rawRatio R ev z)) =
-        (1 / 1000000 : ℝ) * (799990 * ((sc * rawSum G rawRatio R eu z) ^ 2 +
-          (sc * rawSum G rawRatio R ev z) ^ 2) -
-        2000000 * ((sc * rawSum G rawRatio R eu z) * (sc * rawSum G rawRatio R ev z))) := by ring
-    have hdiv : sc ^ 2 * ((799990 / 1000000 : ℝ) *
-        (rawSum G rawRatio R eu z ^ 2 + rawSum G rawRatio R ev z ^ 2) -
-        2 * (rawSum G rawRatio R eu z * rawSum G rawRatio R ev z)) ≤ 0 := by linarith
-    nlinarith [sq_pos_of_pos hsc]
-  have hsum_int := sum_le_sum hint_z
-  rw [← mul_sum, sum_add_distrib, ← mul_sum] at hsum_int
-  have hext1 : ∑ z ∈ extBall G R u, rawSum G rawRatio R eu z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR u hu_self heu
-  have hext2 : ∑ z ∈ extBall G R u, rawSum G rawRatio R ev z ^ 2 ≤
-      360 * (2 * rawRatio ^ 2) ^ (R - 3) := by
-    classical exact sum_ext_rawSum_sq_le hloop hdeg hR u huv_ed hev
-  have hext_nn : 0 ≤ ∑ z ∈ extBall G R u, rawSum G rawRatio R eu z * rawSum G rawRatio R ev z :=
-    sum_nonneg fun z _ => mul_nonneg (rawSum_nonneg hq0 R _ z) (rawSum_nonneg hq0 R _ z)
-  have hn1 := one_le_norm_rawSum (G := G) hq0 R eu
-  have hn2 := one_le_norm_rawSum (G := G) hq0 R ev
-  have ht1 : ‖rawSum G rawRatio R eu‖ ^ 2 =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R eu z ^ 2 +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R eu z ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R u]
-  have ht2 : ‖rawSum G rawRatio R ev‖ ^ 2 =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R ev z ^ 2 +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R ev z ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq, sum_intBall_add_extBall R u]
-  have ht12 : ⟪rawEdgeVector G rawRatio R eu, rawEdgeVector G rawRatio R ev⟫ *
-        (‖rawSum G rawRatio R eu‖ * ‖rawSum G rawRatio R ev‖) =
-      ∑ z ∈ intBall G R u, rawSum G rawRatio R eu z * rawSum G rawRatio R ev z +
-        ∑ z ∈ extBall G R u, rawSum G rawRatio R eu z * rawSum G rawRatio R ev z := by
-    rw [inner_rawEdgeVector_mul_norms, sum_intBall_add_extBall R u]
-  have hamgm : 2 * (‖rawSum G rawRatio R eu‖ * ‖rawSum G rawRatio R ev‖) ≤
-      ‖rawSum G rawRatio R eu‖ ^ 2 + ‖rawSum G rawRatio R ev‖ ^ 2 := by
-    nlinarith [sq_nonneg (‖rawSum G rawRatio R eu‖ - ‖rawSum G rawRatio R ev‖)]
-  have h1N : 2 ≤ ‖rawSum G rawRatio R eu‖ ^ 2 + ‖rawSum G rawRatio R ev‖ ^ 2 := by nlinarith
-  have herr : 360 * (2 * rawRatio ^ 2) ^ (R - 3) ≤ 36 / 10 ^ 8 := by linarith
-  nlinarith [mul_pos (by linarith : 0 < ‖rawSum G rawRatio R eu‖)
-    (by linarith : 0 < ‖rawSum G rawRatio R ev‖)]
+    exact pair_scale hsc hi
+  exact le_trans (by norm_num) (le_inner_rawEdgeVector_of_intBall hloop hdeg hR hsmall
+    hu_self heu huv_ed hev (c := 799990 / 1000000) (by norm_num) (by norm_num) hint_z)
 
 omit [Fintype V] in
 private theorem h243_scale {sc fa fb fc fd σ : ℝ} (hsc : 0 < sc) (hσ : σ = 1 ∨ σ = -1)

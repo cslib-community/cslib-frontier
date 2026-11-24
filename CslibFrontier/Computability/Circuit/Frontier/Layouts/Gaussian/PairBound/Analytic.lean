@@ -1169,7 +1169,7 @@ private theorem integral_sixLinear {u : Fin 4 → E} (hu : ∀ i, ‖u i‖ = 1)
     integral_bDiff_zero (hu 0) (hu 2), integral_bDiff_zero (hu 1) (hu 3),
     integral_bDiff_zero (hu 0) (hu 3), integral_bDiff_zero (hu 1) (hu 2)]
 
-theorem pairCost_zero_eq_ch_add_half_rect {u : Fin 4 → E} (hu : ∀ i, ‖u i‖ = 1) :
+private theorem pairCost_zero_eq_ch_add_half_rect {u : Fin 4 → E} (hu : ∀ i, ‖u i‖ = 1) :
     pairCost u 0 =
       (arccos ⟪u 0, u 1⟫ + arccos ⟪u 2, u 3⟫) / (2 * π) +
       (arccos ⟪u 0, u 2⟫ + arccos ⟪u 1, u 3⟫ + arccos ⟪u 0, u 3⟫ + arccos ⟪u 1, u 2⟫) / (4 * π) +
@@ -1640,14 +1640,14 @@ private theorem integrable_abs_mul_abs_inner (w₁ w₂ : E) :
   change |⟪w₁, x⟫| * |⟪w₂, x⟫| ≤ (⟪w₁, x⟫ ^ 2 + ⟪w₂, x⟫ ^ 2) / 2
   nlinarith [sq_nonneg (|⟪w₁, x⟫| - |⟪w₂, x⟫|), sq_abs ⟪w₁, x⟫, sq_abs ⟪w₂, x⟫]
 
-theorem integral_sq_inner_stdGaussian (w : E) :
+private theorem integral_sq_inner_stdGaussian (w : E) :
     ∫ x, ⟪w, x⟫ ^ 2 ∂stdGaussian E = ‖w‖ ^ 2 := by
   have h := integral_map (μ := stdGaussian E) (φ := fun x : E => ⟪w, x⟫)
     (by fun_prop) (f := fun z : ℝ => z ^ 2) (by fun_prop)
   rw [stdGaussian_map_inner, integral_sq_gaussianReal, NNReal.coe_pow, coe_nnNorm] at h
   exact h.symm
 
-theorem integral_abs_mul_abs_le_half_sum (w₁ w₂ : E) :
+private theorem integral_abs_mul_abs_le_half_sum (w₁ w₂ : E) :
     ∫ x, |⟪w₁, x⟫| * |⟪w₂, x⟫| ∂stdGaussian E ≤ (‖w₁‖ ^ 2 + ‖w₂‖ ^ 2) / 2 := by
   have hm1 : Integrable (fun x : E => ⟪w₁, x⟫ ^ 2) (stdGaussian E) :=
     ((stdGaussian_map_inner (E := E) w₁) ▸
@@ -2034,7 +2034,7 @@ theorem integral_abs_mul_abs_le_cubic_corr {w₁ w₂ : E} {r0 r1 : ℝ}
     ((integral_abs_mul_abs_unit_le_hCub he1 he2 hρ0).trans (hCub_le_max hr0_le hr1_ge hr1))
     (sqrt_nonneg _)
 
-theorem integral_sq_indicator_abs_lt_le {w₁ w₂ : E} {k : ℝ} (hk : 0 ≤ k)
+private theorem integral_sq_indicator_abs_lt_le {w₁ w₂ : E} {k : ℝ} (hk : 0 ≤ k)
     (hdet : 0 < ‖w₁‖ ^ 2 * ‖w₂‖ ^ 2 - ⟪w₁, w₂⟫ ^ 2) :
     ∫ x, ({x : E | |⟪w₂, x⟫| < k * |⟪w₁, x⟫|}).indicator
         (fun x => ⟪w₁, x⟫ ^ 2) x ∂stdGaussian E ≤
