@@ -1194,6 +1194,11 @@ Sariel Har-Peled, Piotr Indyk, Rajeev Motwani. “Approximate Nearest Neighbor: 
 
 Jason D. Hartline. *Mechanism Design and Approximation*, book manuscript; chapters 1–7 revised 20 September 2021. http://jasonhartline.com/MDnA/ . The author-hosted Chapter 2, "Equilibrium", was consulted on 2026-11-08 for Definitions 2.3.2 and 2.4.1, §2.3, §2.4, Proposition 2.4.1, Theorem 2.5.1, §2.7 (Corollaries 2.7.1 and 2.7.2, Example 2.7.1), §2.8 (Example 2.8.1) and §2.9; locators follow that version.
 
+<a id="hartlinekarlin07"></a>
+## hartlinekarlin07
+
+Jason D. Hartline and Anna R. Karlin. "Profit Maximization in Mechanism Design." Chapter 13 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 331–361 (bibliography key `HartlineKarlin2007`, ISBN `978-0-521-87282-9`; page 362 is a blank verso before Chapter 14 on page 363). A PDF of the book (SHA-256 `83084d9996024ca92f313c5ae55fec7b3b379f06172a4c24b62229da9c558543`) was consulted on 2026-11-24 for §13.1 (pp. 331–334: seller production cost `c(x)`, Example 13.1 single-item auction, Example 13.2 digital goods auctions, Definition 13.5 truthful in expectation, Theorem 13.6, Observation 13.1.1), §13.2 (pp. 335–338: Definition 13.7 `VA_r`, Definition 13.8 virtual valuation, Definition 13.9 virtual surplus, Theorem 13.10 expected profit equals expected virtual surplus, Lemma 13.11, §13.2.2 Lemma 13.12 truthfulness of virtual-surplus maximization and remark on the technical ironing extension for nonmonotone virtual valuations, Definition 13.13, Example 13.14, Theorem 13.15, Example 13.16, Definition 13.17 optimal sale price `opt(F)`, Theorem 13.18 optimal Bayesian digital goods auction), §13.3.1 (pp. 339–340: Definition 13.19 empirical distribution `F_b`, Definition 13.20 empirical Myerson `EM`, Definition 13.21 deterministic optimal price `DOP`, Example 13.23 `10` bids at `$10` and `90` bids at `$1`), and Exercises (p. 360: Exercise 13.1 seller reservation value `v_0 > 0`, Exercise 13.3 discrete virtual valuations, Exercise 13.4 single-item `EM` equals Vickrey). Cited by [Mechanism/Ironing.lean](../CslibFrontier/GameTheory/Mechanism/Ironing.lean).
+
 <a id="hartmanis1968"></a>
 ## hartmanis1968
 
@@ -2049,6 +2054,11 @@ Cody D. Murray and R. Ryan Williams. *On the (Non) NP-Hardness of Computing Circ
 ## murtykabadi1987
 
 Katta G. Murty and Santosh N. Kabadi. "Some NP-Complete Problems in Quadratic and Nonlinear Programming." *Mathematical Programming* 39(2), 117–129, 1987. https://doi.org/10.1007/BF02592948 . Bibliographic metadata checked via DOI and secondary search summaries on 2026-11-10; the published text is uninspected. The manual cites it for the `coNP`-completeness of testing matrix copositivity (and `NP`-completeness of non-copositivity), noting that secondary summaries describe [Murty–Kabadi] as reducing from subset sum whereas this library proves completeness via `Clique` and Motzkin–Straus; no internal theorem or section numbers are cited.
+
+<a id="myerson81"></a>
+## myerson81
+
+Roger B. Myerson. "Optimal Auction Design." *Mathematics of Operations Research* 6(1), 58–73, 1981. https://doi.org/10.1287/moor.6.1.58 (bibliography key `Myerson1981`). Bibliographic metadata from `references.bib`; the journal text was not directly inspected in this pass, so no internal section or theorem numbers are claimed. Cited bibliographically via [Hartline and Karlin](#hartlinekarlin07), §13.2, and [Roughgarden](#roughgarden13cs364a) for Myerson's Lemma, virtual valuations, optimal single-parameter auctions, and convex-hull ironing of irregular distributions.
 
 <a id="nagamochiibaraki92"></a>
 ## nagamochiibaraki92
