@@ -9216,7 +9216,6 @@ public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Winnow
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeUpdate
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeWeights
 public import CslibFrontier.MachineLearning.OnlineLearning.OnlineGradientDescent
-public import CslibFrontier.MachineLearning.OnlineLearning.RegretMatching
 public import CslibFrontier.MachineLearning.OnlineLearning.SwapRegret
 public import CslibFrontier.MachineLearning.OnlineLearning.WeightedMajority
 public import CslibFrontier.MachineLearning.OnlineLearning.ZeroSum

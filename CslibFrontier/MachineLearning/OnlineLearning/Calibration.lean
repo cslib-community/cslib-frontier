@@ -742,7 +742,7 @@ theorem fosterVohra_prob_calError_ge_le {K : ℕ} (hK : 0 < K)
 
 /-- **Existence of `(ε, δ)`-calibrated randomized forecasters** [FosterVohra1998]:
 for every `ε > 0` and `δ > 0`, there exist an explicit grid resolution `K ≥ 1` and horizon
-`T₀ ≥ 1` (`K = ⌈1 / ε⌉₊`, `T₀ = O(K / (δ * ε ^ 2))`) such that `fosterVohraRule K` achieves
+`T₀ ≥ 1` (`K = ⌈2 / ε⌉₊`, `T₀ = O(K / (δ * ε ^ 2))`) such that `fosterVohraRule K` achieves
 both `𝔼[empiricalCalError K adv h] ≤ ε` and `Pr[empiricalCalError K adv h ≥ ε] ≤ δ` for *all*
 `T ≥ T₀` and *every* adaptive binary adversary `adv`. -/
 theorem exists_calibrated_forecaster {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ) :

@@ -5,11 +5,10 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: local-only (test driver)
 
 import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
 import CslibFrontier.MachineLearning.OnlineLearning.Calibration
-import CslibFrontier.MachineLearning.OnlineLearning.RegretMatching
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -17,10 +16,10 @@ import Mathlib.Tactic.Ring
 set_option linter.privateModule false
 
 /-!
-# Checked tests for Blackwell approachability, regret matching, and calibration
+# Checked tests for Blackwell approachability and calibrated forecasting
 
-Ordinary-import client checks (no `import all`) exercising all three modules with non-vacuous
-positive witnesses and negative / non-approachability counterexamples:
+Ordinary-import client checks (no `import all`) exercising both modules with non-vacuous positive
+witnesses and negative / non-approachability counterexamples:
 
 1. **Blackwell approachability (`Blackwell`)**:
    * A concrete 2×2 matching-pennies scalar/vector payoff game targeting `{0}` that *satisfies*
@@ -29,16 +28,8 @@ positive witnesses and negative / non-approachability counterexamples:
    * A concrete 2×2 shifted game whose payoffs are always `≥ 1` along column `true`, so it *fails*
      `SatisfiesResponseCondition` and triggers the converse `exists_nonapproachable_dist_ge`
      (separating every sequence of strategies away from `Set.Iic 0` uniformly across `T ≥ 1`).
-2. **Regret matching (`RegretMatching`)**:
-   * Closed-form projection check on `nonposOrthant (Fin 2)` at `(3, -2) ↦ (0, -2)`.
-   * Exact first-round positive-part weights `extRegretWeights` and orthogonality identity
-     `extRegretWeights_inner_eq_zero`.
-   * Explicit `regretMarkov` row-stochasticity and Hart–Mas-Colell balance on `Fin 2`.
-   * Non-vacuous `extRegretMatching_regret_le`, `swapRegretMatching_internal_regret_le`, and
-     `swapRegretMatching_swap_regret_le` instantiations on `[0, 1]` losses.
-3. **Calibrated forecasting (`Calibration`)**:
-   * Deterministic impossibility instances (`const 0` and `const (1 / 2)` both fail calibration with
-     `detCalError ≥ 1 / 2`).
+2. **Calibrated forecasting (`Calibration`)**:
+   * Deterministic impossibility instances (`const 0` fails calibration with `detCalError ≥ 1 / 2`).
    * Explicit 3-point grid `K = 2` (`{0, 1 / 2, 1}`) checking `calPayoff_response` and concrete
      2-point `fosterVohraDist` support/weights when `w = (1, -1, -2)` (splits `(1/2, 1/2, 0)` on
      `{0, 1/2}`).
@@ -114,42 +105,6 @@ example :
             (vecAvg (fun t => bilinearPayoff unapproachablePayoff (p t) q) T) :=
   exists_nonapproachable_dist_ge ⟨0, le_rfl⟩ isClosed_Iic.isComplete (convex_Iic 0)
     unapproachablePayoff_not_response
-
-/-! ### Regret matching (`RegretMatching`) -/
-
-/-- Closed-form projection onto `nonposOrthant (Fin 2)` clamps positive entries to `0`. -/
-example :
-    metricProjection (nonposOrthant (Fin 2)) (WithLp.toLp 2 ![3, -2]) =
-      WithLp.toLp 2 ![0, -2] := by
-  rw [metricProjection_nonposOrthant]
-  ext i
-  fin_cases i <;> norm_num
-
-/-- `extRegretWeights` normalizes positive parts `(2, 0)` to `(1, 0)`. -/
-example : extRegretWeights ![2, -5] (0 : Fin 2) = 1 := by
-  simp [extRegretWeights, Fin.sum_univ_two]
-
-/-- External regret matching instance for losses in `[0, 1]` over `Fin 3` (`B = 1`). -/
-example (ℓ : ℕ → Fin 3 → ℝ) (hℓ : ∀ t i, ℓ t i ∈ Set.Icc (0 : ℝ) 1) (k : Fin 3) (T : ℕ) :
-    ∑ t ∈ range T, (∑ i : Fin 3, extRegretMatchingProb ℓ t i * ℓ t i - ℓ t k) ≤
-      1 * Real.sqrt (3 * (T : ℝ)) := by
-  have hspread : ∀ t i j, |ℓ t i - ℓ t j| ≤ 1 := fun t i j => by
-    rw [abs_le]
-    constructor <;> linarith [(hℓ t i).1, (hℓ t i).2, (hℓ t j).1, (hℓ t j).2]
-  simpa using extRegretMatching_regret_le ℓ zero_le_one hspread k T
-
-/-- Hart–Mas-Colell internal and swap regret matching instances on `Fin 3` (`B = 1`). -/
-example (ℓ : ℕ → Fin 3 → ℝ) (hℓ : ∀ t i, ℓ t i ∈ Set.Icc (0 : ℝ) 1)
-    (a b : Fin 3) (φ : Fin 3 → Fin 3) (T : ℕ) :
-    (∑ t ∈ range T, swapRegretMatchingProb ℓ t a * (ℓ t a - ℓ t b) ≤
-      1 * Real.sqrt (3 * (T : ℝ))) ∧
-    (∑ t ∈ range T, ∑ i : Fin 3, swapRegretMatchingProb ℓ t i * (ℓ t i - ℓ t (φ i)) ≤
-      1 * 3 * Real.sqrt T) := by
-  have hspread : ∀ t i j, |ℓ t i - ℓ t j| ≤ 1 := fun t i j => by
-    rw [abs_le]
-    constructor <;> linarith [(hℓ t i).1, (hℓ t i).2, (hℓ t j).1, (hℓ t j).2]
-  exact ⟨by simpa using swapRegretMatching_internal_regret_le ℓ zero_le_one hspread a b T,
-    by simpa using swapRegretMatching_swap_regret_le ℓ zero_le_one hspread φ T⟩
 
 /-! ### Calibrated forecasting (`Calibration`) -/
 
