@@ -213,6 +213,7 @@ public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlusViaNegTri
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleFinding
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleSubcubic
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Fooling
+public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.KeyOracle
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.QueriedPairs
 public import CslibFrontier.Algorithms.Lean.Query.Sort.Merge.CountBound
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.Greedy
@@ -7683,6 +7684,7 @@ public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Basic
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Connectivity
 public import CslibFrontier.Foundations.Combinatorics.Multigraph
 public import CslibFrontier.Foundations.Combinatorics.Multigraph.CutSpace
+public import CslibFrontier.Foundations.Combinatorics.Multigraph.MinimumSpanningForest
 public import CslibFrontier.Foundations.Combinatorics.PacketPacking
 public import CslibFrontier.Foundations.Combinatorics.PartialLabelScores
 public import CslibFrontier.Foundations.Combinatorics.PerfectHashFamily.Basic
