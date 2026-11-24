@@ -6,9 +6,8 @@ Authors: Samuel Schlesinger, Erik Demaine
 
 module
 
-import CslibFrontier.Crypto.Computational.CBCMAC
 import CslibFrontier.Crypto.Negligible.Dyadic
-import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
+import CslibFrontier.Crypto.Primitives.UHF.CBCMAC
 
 /-!
 # Tests for the prefix-free collision wrapper
@@ -178,17 +177,47 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
     (computableInPolyTime_cbcBlockValid hcap) (fun _ _ => aligned_of_cbcBlockValid)
     cbcBlockValid_append (cbcMacFamily_extend family) negligible_inv_two_pow
 
-/-- The two-block CBC domain meets the asymptotic hypotheses, including the eventual probe. -/
+/-- The CBC-MAC application allows empty messages in the hash domain. -/
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
-    IsMultiQueryUHF encUnary encBits pure (fun _ d => cbcBlockValid (fun _ => 2) d)
+    IsMultiQueryUHF encUnary encBits pure (fun _ d => lpBlockValid (fun _ => 2) d)
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
-  have hPRF := hF.prefixFreePRF_cbcMac (ComputableInPolyTime.const 3)
-  refine isMultiQueryUHF_of_extendable_prefixFreePRF (maxBlocks := fun _ => 2)
-    hPRF ComputableInPolyTime.id' (computableInPolyTime_cbcBlockValid (.const 2))
-    (fun _ _ => aligned_of_cbcBlockValid) ?_ (.const 2) cbcBlockValid_append ?_
-    (cbcMacFamily_extend family) negligible_inv_two_pow negligible_inv_two_pow
-  · exact fun _ _ => blockCount_le_of_cbcBlockValid
-  · filter_upwards [Filter.eventually_ge_atTop (1 : ℕ)] with n hn
-    have hPos : 0 < n := hn
-    have hCap : n ≤ 3 * n := by omega
-    simp [cbcBlockValid, hPos, hCap]
+  exact hF.isMultiQueryUHF_cbcMac (.const 2)
+
+private def emptyWordBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
+  fun _ => pure [[], [false, false, false]]
+
+example : IsOraclePPT encBool
+    (cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2) emptyWordBatch) :=
+  isOraclePPT_cbcMacMultiQueryReduction (.const 4) (.const 2)
+    (ComputableInPolyTime.const [[], [false, false, false]]).isPPTOn
+
+/-- The concrete CBC bound applies at zero and at an exhausted alphabet budget (width three). -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) (n : ℕ) :
+    let reduction := cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2) emptyWordBatch
+    Game.succProbability (multiQueryGame pure (fun _ d => lpBlockValid (fun _ => 4) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) emptyWordBatch n) ≤
+    Game.advantage (ProbComp.eval (prfRealGame id family reduction n))
+      (ProbComp.eval (prfIdealGame id id reduction n)) +
+      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / 2 ^ n + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ n := by
+  dsimp only
+  refine succProbability_multiQueryGame_cbcMac_le hF.length_eq (fun _ => 4) (fun _ => 2)
+    emptyWordBatch ?_
+  intro guesses hGuesses
+  simp only [emptyWordBatch, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hGuesses
+  subst guesses
+  decide
+
+example : lpBlockValid (fun _ => 2) 3 [] = true ∧
+    (prefixFreeBatchQueries 3 2 (lpBlockValid (fun _ => 2) 3) [[], [false, false, false]]).length =
+      2 := by
+  constructor
+  · decide
+  · have hFresh : PRF.freshBatchWordBlock 3 [[], [false, false, false]] =
+        some [true, false, false] := by
+      rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
+      decide
+    change (if (PRF.freshBatchWordBlock 3 [[], [false, false, false]]).isSome then
+      [[], [false, false, false]].map (fun w => w ++
+        (PRF.freshBatchWordBlock 3 [[], [false, false, false]]).getD []) else []).length = 2
+    rw [hFresh]
+    rfl
