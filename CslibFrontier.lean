@@ -119,6 +119,7 @@ public import CslibFrontier.Algorithms.Lean.GomoryHu.Oracles
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Real
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Basic
+public import CslibFrontier.Algorithms.Lean.HousingMarket.EndowmentManipulation
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Incentives
 public import CslibFrontier.Algorithms.Lean.HousingMarket.TopTradingCycles
 public import CslibFrontier.Algorithms.Lean.Huffman.Basic
@@ -239,6 +240,7 @@ public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Basic
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Correctness
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Trace
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.ZeroOne
+public import CslibFrontier.Algorithms.Lean.StableMatching.Adachi
 public import CslibFrontier.Algorithms.Lean.StableMatching.Basic
 public import CslibFrontier.Algorithms.Lean.StableMatching.Blocking
 public import CslibFrontier.Algorithms.Lean.StableMatching.DeferredAcceptance
@@ -248,6 +250,8 @@ public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Complete
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.DeferredAcceptance
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.RuralHospitals
 public import CslibFrontier.Algorithms.Lean.StableMatching.Lattice
+public import CslibFrontier.Algorithms.Lean.StableMatching.ManyToOne
+public import CslibFrontier.Algorithms.Lean.StableMatching.Polytope
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Graph
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Metric
 public import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
