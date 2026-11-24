@@ -379,7 +379,7 @@ end IndirectMechanism
   outcome := M.outcome
   payment := M.payment
 
-/-! ### Multi-parameter Bayesian games and Bayesian Revelation Principle (§9.6, Defs 9.40–9.44) -/
+/-! ### Bayesian games and the Bayesian revelation principle (§9.6.1, Defs 9.40–9.43, Prop 9.44) -/
 
 /-- A game with independent private values and **Bayesian incomplete information** ([Nisan2007],
 Definition 9.40; [Harsanyi1967]): extends `IncompleteInfoGame ι T X` with an independent prior

@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
-import CslibFrontier.GameTheory.Mechanism.Knapsack
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
