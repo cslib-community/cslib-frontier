@@ -33,7 +33,7 @@ incident to `v` agrees with the anchor bit `b v`, and `1` otherwise.
 Each single-vertex penalty is complement-symmetric and jointly submodular on the Boolean lattice
 `(b, x) ↦ Bool`. Consequently:
 
-* `crossingCover G` is symmetric (`crossingCover_notVec`) and submodular
+* `crossingCover G` is symmetric (`crossingCover_compl`) and submodular
   (`crossingCover_submodular`, in both `ℕ` and `ℝ`).
 * Flipping a single vertex bit changes `crossingCover G b` by at most `1`
   (`crossingCover_update_le`).
@@ -69,7 +69,7 @@ proved directly.
   `Cslib.Circuits.Frontier.CrossingCover.exists_clamped_minimizer`: exact identity
   `τ(D_b) = min_x Q_b(x)` with clamped minimizers.
 * `Cslib.Circuits.Frontier.CrossingCover.crossingCover_submodular`,
-  `Cslib.Circuits.Frontier.CrossingCover.crossingCover_notVec`: symmetric submodularity of
+  `Cslib.Circuits.Frontier.CrossingCover.crossingCover_compl`: symmetric submodularity of
   `τ(D_b)`.
 * `Cslib.Circuits.Frontier.CrossingCover.crossingCover_update_le`: `1`-Lipschitz change on a
   single coordinate.
@@ -94,31 +94,19 @@ section BoolCube
 
 variable {ι : Type*}
 
-/-- Complement of a Boolean assignment. -/
-@[expose] def notVec (a : ι → Bool) : ι → Bool := fun i => !a i
-
-@[simp] theorem notVec_apply (a : ι → Bool) (i : ι) : notVec a i = !a i := rfl
-
-@[simp] theorem notVec_notVec (a : ι → Bool) : notVec (notVec a) = a := by
-  ext i; simp [notVec]
-
-@[simp] theorem notVec_update [DecidableEq ι] (a : ι → Bool) (i : ι) (b : Bool) :
-    notVec (update a i b) = update (notVec a) i (!b) := by
-  ext j
-  by_cases h : j = i
-  · subst h; simp
-  · simp [h]
-
 /-- A real-valued function on the Boolean cube `{0,1}^ι` is **submodular** when
 `f (a ⊓ b) + f (a ⊔ b) ≤ f a + f b` for all `a, b`. -/
 def IsSubmodularBool (f : (ι → Bool) → ℝ) : Prop :=
   ∀ a b : ι → Bool, f (a ⊓ b) + f (a ⊔ b) ≤ f a + f b
 
-/-- A function on the Boolean cube is **complement-symmetric** when `f (!a) = f a`. -/
+/-- A function on the Boolean cube is **complement-symmetric** when `f aᶜ = f a`, where `aᶜ` is
+the coordinatewise complement. -/
 @[expose] def IsSymmetricBool {α : Type*} (f : (ι → Bool) → α) : Prop :=
-  ∀ a : ι → Bool, f (notVec a) = f a
+  ∀ a : ι → Bool, f aᶜ = f a
 
-/-- The discrete marginal difference in coordinate `i`: `f (a^{i↦1}) - f (a^{i↦0})`. -/
+/-- The discrete marginal difference in coordinate `i`: `f (a^{i↦1}) - f (a^{i↦0})`, in the `0/1`
+convention of the multilinear extension. It equals `-2 * Cslib.BitString.derivative i f a`: that
+derivative uses the `±1` convention, with `false` of sign `1`, and halves the difference. -/
 @[expose] def diffBool [DecidableEq ι] (f : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) : ℝ :=
   f (update a i true) - f (update a i false)
 
@@ -158,14 +146,14 @@ theorem IsSubmodularBool.mixedDiff_nonpos [DecidableEq ι] {f : (ι → Bool) �
   linarith
 
 /-- Complement symmetry reverses the sign of the discrete derivative. -/
-theorem IsSymmetricBool.diffBool_notVec [DecidableEq ι] {f : (ι → Bool) → ℝ}
+theorem IsSymmetricBool.diffBool_compl [DecidableEq ι] {f : (ι → Bool) → ℝ}
     (hsym : IsSymmetricBool f) (i : ι) (a : ι → Bool) :
-    diffBool f i (notVec a) = -diffBool f i a := by
+    diffBool f i aᶜ = -diffBool f i a := by
   simp only [diffBool]
-  have h1 : f (update (notVec a) i true) = f (update a i false) := by
-    rw [← hsym (update a i false), notVec_update]; simp
-  have h2 : f (update (notVec a) i false) = f (update a i true) := by
-    rw [← hsym (update a i true), notVec_update]; simp
+  have h1 : f (update aᶜ i true) = f (update a i false) :=
+    (congrArg f (comp_update not a i false).symm).trans (hsym (update a i false))
+  have h2 : f (update aᶜ i false) = f (update a i true) :=
+    (congrArg f (comp_update not a i true).symm).trans (hsym (update a i true))
   linarith
 
 end BoolCube
@@ -234,19 +222,19 @@ theorem vertexPenalty_le_one (b : V → Bool) (x : E → Bool) (v : V) :
 theorem edgeSplit_le_one (x : E → Bool) (v : V) : edgeSplit G x v ≤ 1 := by
   simp only [edgeSplit]; split_ifs <;> omega
 
-theorem vertexPenalty_notVec (b : V → Bool) (x : E → Bool) (v : V) :
-    vertexPenalty G (notVec b) (notVec x) v = vertexPenalty G b x v := by
-  have hiff : (∀ e : E, e ∈ G.incidenceSet v → notVec x e = notVec b v) ↔
+theorem vertexPenalty_compl (b : V → Bool) (x : E → Bool) (v : V) :
+    vertexPenalty G bᶜ xᶜ v = vertexPenalty G b x v := by
+  have hiff : (∀ e : E, e ∈ G.incidenceSet v → xᶜ e = bᶜ v) ↔
       (∀ e : E, e ∈ G.incidenceSet v → x e = b v) :=
     forall₂_congr fun e _ => by
-      simp only [notVec_apply]; cases x e <;> cases b v <;> decide
+      simp only [Pi.compl_apply, compl_inj_iff]
   by_cases h : ∀ e : E, e ∈ G.incidenceSet v → x e = b v
   · rw [vertexPenalty_of_forall G (hiff.mpr h), vertexPenalty_of_forall G h]
   · rw [vertexPenalty_of_not_forall G (fun h' => h (hiff.mp h')), vertexPenalty_of_not_forall G h]
 
-theorem anchoredCost_notVec [Fintype V] (b : V → Bool) (x : E → Bool) :
-    anchoredCost G (notVec b) (notVec x) = anchoredCost G b x :=
-  Finset.sum_congr rfl fun v _ => vertexPenalty_notVec G b x v
+theorem anchoredCost_compl [Fintype V] (b : V → Bool) (x : E → Bool) :
+    anchoredCost G bᶜ xᶜ = anchoredCost G b x :=
+  Finset.sum_congr rfl fun v _ => vertexPenalty_compl G b x v
 
 /-- Single-vertex joint submodularity of `vertexPenalty`. -/
 theorem vertexPenalty_submodular (b c : V → Bool) (x y : E → Bool) (v : V) :
@@ -325,13 +313,13 @@ theorem isClamped_iff_eq (b : V → Bool) (x : E → Bool) :
       cases hs : b (G.src e) <;> cases ht : b (G.tgt e) <;> cases hx' : x e <;> simp_all
     · cases hs : b (G.src e) <;> cases ht : b (G.tgt e) <;> cases hx' : x e <;> simp_all
 
-theorem isClamped_notVec {b : V → Bool} {x : E → Bool} (hx : IsClamped G b x) :
-    IsClamped G (notVec b) (notVec x) := by
+theorem isClamped_compl {b : V → Bool} {x : E → Bool} (hx : IsClamped G b x) :
+    IsClamped G bᶜ xᶜ := by
   rw [isClamped_iff_eq] at hx ⊢
   intro e heq
   have heq' : b (G.src e) = b (G.tgt e) := by
-    cases h1 : b (G.src e) <;> cases h2 : b (G.tgt e) <;> simp_all [notVec]
-  simp [notVec, hx e heq']
+    cases h1 : b (G.src e) <;> cases h2 : b (G.tgt e) <;> simp_all
+  simp [hx e heq']
 
 theorem isClamped_inf_of_le {b c : V → Bool} (hbc : b ≤ c) {x y : E → Bool}
     (hx : IsClamped G b x) (hy : IsClamped G c y) : IsClamped G b (x ⊓ y) := by
@@ -453,23 +441,23 @@ theorem exists_clamped_minimizer [Fintype V] (b : V → Bool) :
   obtain ⟨x, hx, hle⟩ := exists_clamped_of_crossingCover G hC
   exact ⟨x, hx, le_antisymm (hle.trans_eq hcard) (crossingCover_le_anchoredCost G b x)⟩
 
-theorem crossingCover_notVec [Finite V] (b : V → Bool) :
-    crossingCover G (notVec b) = crossingCover G b := by
+theorem crossingCover_compl [Finite V] (b : V → Bool) :
+    crossingCover G bᶜ = crossingCover G b := by
   have := Fintype.ofFinite V
   apply le_antisymm
   · obtain ⟨x, _, hx⟩ := exists_clamped_minimizer G b
-    calc crossingCover G (notVec b) ≤ anchoredCost G (notVec b) (notVec x) :=
+    calc crossingCover G bᶜ ≤ anchoredCost G bᶜ xᶜ :=
           crossingCover_le_anchoredCost G _ _
-      _ = anchoredCost G b x := anchoredCost_notVec G b x
+      _ = anchoredCost G b x := anchoredCost_compl G b x
       _ = crossingCover G b := hx
-  · obtain ⟨x, _, hx⟩ := exists_clamped_minimizer G (notVec b)
-    calc crossingCover G b ≤ anchoredCost G b (notVec x) :=
+  · obtain ⟨x, _, hx⟩ := exists_clamped_minimizer G bᶜ
+    calc crossingCover G b ≤ anchoredCost G b xᶜ :=
           crossingCover_le_anchoredCost G _ _
-      _ = anchoredCost G (notVec b) x := by
-          have := anchoredCost_notVec G (notVec b) x
-          rw [notVec_notVec] at this
+      _ = anchoredCost G bᶜ x := by
+          have := anchoredCost_compl G bᶜ x
+          rw [compl_compl] at this
           exact this
-      _ = crossingCover G (notVec b) := hx
+      _ = crossingCover G bᶜ := hx
 
 /-- `crossingCover G` is submodular on `V → Bool`. -/
 theorem crossingCover_submodular [Finite V] (b c : V → Bool) :
@@ -493,7 +481,7 @@ theorem isSubmodularBool_crossingCover [Finite V] :
 
 theorem isSymmetricBool_crossingCover [Finite V] :
     IsSymmetricBool (fun b : V → Bool => (crossingCover G b : ℝ)) := fun b =>
-  congrArg Nat.cast (crossingCover_notVec G b)
+  congrArg Nat.cast (crossingCover_compl G b)
 
 theorem crossingCover_const (t : Bool) : crossingCover G (fun _ => t) = 0 := by
   have hcov : IsCrossingCover G (fun _ => t) ∅ := fun _ hne => (hne rfl).elim

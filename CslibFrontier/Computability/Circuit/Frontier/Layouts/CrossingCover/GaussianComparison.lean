@@ -8,18 +8,19 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Submodular
+public import CslibFrontier.Foundations.BooleanAnalysis.MultilinearExtension
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Foundations.Probability.Gaussian.Real
+import CslibFrontier.Foundations.Probability.Gaussian.Quantile
+import CslibFrontier.Foundations.Probability.Gaussian.Stein
 import Mathlib.Analysis.Calculus.Deriv.Comp
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Calculus.Deriv.Pow
 import Mathlib.Analysis.Calculus.ParametricIntegral
-import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
 import Mathlib.Analysis.SpecialFunctions.Sqrt
 import Mathlib.MeasureTheory.Integral.DominatedConvergence
-import Mathlib.MeasureTheory.Integral.IntegralEqImproper
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.MeasureTheory.Integral.Prod
+import Mathlib.Topology.Algebra.MvPolynomial
 
 /-!
 # Gaussian comparison inequalities for submodular Boolean functions
@@ -43,14 +44,12 @@ evaluated on a submodular function `f : (ι → Bool) → ℝ`:
 
 * `Cslib.Circuits.Frontier.CrossingCover.piGauss`: product of i.i.d. standard real Gaussians.
 * `Cslib.Circuits.Frontier.CrossingCover.thresholdVec`: coordinatewise `< t` thresholding.
-* `Cslib.Circuits.Frontier.CrossingCover.multilinearExt`: multilinear extension on `ℝ^ι`.
 * `Cslib.Circuits.Frontier.CrossingCover.smoothStep`: Gaussian-smoothed step `1 - Φ(u / δ)`.
-* `Cslib.Circuits.Frontier.CrossingCover.smoothExt`: smoothed threshold extension.
+* `Cslib.Circuits.Frontier.CrossingCover.smoothExt`: smoothed threshold extension, the value of
+  the multilinear extension `Cslib.BitString.multilinearExtension f` at smoothed threshold bits.
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.CrossingCover.integral_mul_gaussianReal`: 1D Stein's lemma for the
-  standard real Gaussian.
 * `Cslib.Circuits.Frontier.CrossingCover.integral_smoothExt_le_of_cov_le`: smooth comparison
   via Gaussian interpolation.
 * `Cslib.Circuits.Frontier.CrossingCover.integral_threshold_le_of_cov_le`: Slepian/Kahane-type
@@ -67,6 +66,7 @@ public section
 namespace Cslib.Circuits.Frontier.CrossingCover
 
 open MeasureTheory ProbabilityTheory Real Function Filter
+open BitString (multilinearExtension)
 open scoped NNReal ENNReal RealInnerProductSpace Topology
 
 /-! ### Standard Gaussian product measure and Stein's lemma -/
@@ -77,53 +77,9 @@ section GaussianPi
 noncomputable abbrev piGauss (κ : Type*) [Fintype κ] : Measure (κ → ℝ) :=
   Measure.pi fun _ : κ => gaussianReal 0 1
 
-private theorem continuous_stdGaussianPDF : Continuous (gaussianPDFReal 0 1) := by
-  rw [gaussianPDFReal_def]
-  fun_prop
-
-private theorem integrable_gaussianReal_iff_mul_pdf {g : ℝ → ℝ} :
-    Integrable g (gaussianReal 0 1) ↔
-      Integrable (fun x => gaussianPDFReal 0 1 x * g x) := by
-  rw [gaussianReal_of_var_ne_zero 0 one_ne_zero,
-    integrable_withDensity_iff_integrable_smul'
-      (measurable_gaussianPDF 0 1) (ae_of_all _ fun _ => gaussianPDF_lt_top)]
-  simp only [gaussianPDF, ENNReal.toReal_ofReal (gaussianPDFReal_nonneg 0 1 _), smul_eq_mul]
-
-private theorem hasDerivAt_gaussianPDFReal_std (x : ℝ) :
-    HasDerivAt (gaussianPDFReal 0 1) (-x * gaussianPDFReal 0 1 x) x := by
-  rw [gaussianPDFReal_def]
-  refine (((((hasDerivAt_id x).sub_const 0).pow 2).neg.div_const (2 * (1 : ℝ))).exp.const_mul
-    (√(2 * π * (1 : ℝ≥0)))⁻¹).congr_deriv ?_
-  simp only [id, sub_zero, Pi.neg_apply, Pi.pow_apply, NNReal.coe_one, mul_one]
-  ring
-
-/-- **Stein's lemma** (Gaussian integration by parts) for the standard real Gaussian `N(0, 1)`. -/
-theorem integral_mul_gaussianReal {h h' : ℝ → ℝ}
-    (hh : ∀ x, HasDerivAt h (h' x) x)
-    (hhi : Integrable h (gaussianReal 0 1))
-    (hxhi : Integrable (fun x => x * h x) (gaussianReal 0 1))
-    (hh'i : Integrable h' (gaussianReal 0 1)) :
-    ∫ x, x * h x ∂(gaussianReal 0 1) = ∫ x, h' x ∂(gaussianReal 0 1) := by
-  have h1 : Integrable (fun x => -(gaussianPDFReal 0 1 x * (x * h x))) volume :=
-    (integrable_gaussianReal_iff_mul_pdf.mp hxhi).neg
-  have h2 : Integrable (fun x => gaussianPDFReal 0 1 x * h' x) volume :=
-    integrable_gaussianReal_iff_mul_pdf.mp hh'i
-  have heq : ∀ x : ℝ, -x * gaussianPDFReal 0 1 x * h x + gaussianPDFReal 0 1 x * h' x =
-      -(gaussianPDFReal 0 1 x * (x * h x)) + gaussianPDFReal 0 1 x * h' x := fun x => by ring
-  have h0 := integral_eq_zero_of_hasDerivAt_of_integrable
-    (fun x => (hasDerivAt_gaussianPDFReal_std x).mul (hh x))
-    ((h1.add h2).congr (ae_of_all _ fun x => (heq x).symm))
-    (integrable_gaussianReal_iff_mul_pdf.mp hhi)
-  rw [integral_congr_ae (ae_of_all _ heq)] at h0
-  change ∫ x, (fun x => -(gaussianPDFReal 0 1 x * (x * h x))) x +
-    (fun x => gaussianPDFReal 0 1 x * h' x) x = 0 at h0
-  rw [integral_add h1 h2, integral_neg, neg_add_eq_zero] at h0
-  rw [integral_gaussianReal_eq_integral_smul one_ne_zero,
-    integral_gaussianReal_eq_integral_smul one_ne_zero]
-  simpa only [smul_eq_mul] using h0
-
-/-- Bounded version of 1D Stein's lemma for `N(0, 1)`. -/
-theorem integral_mul_gaussianReal_of_bounded {h h' : ℝ → ℝ}
+/-- Stein's lemma `ProbabilityTheory.integral_sub_mul_gaussianReal` for `N(0, 1)`, with its three
+integrability hypotheses discharged from a common bound on `h` and `h'`. -/
+private theorem integral_mul_gaussianReal_of_bounded {h h' : ℝ → ℝ}
     (hh : ∀ x, HasDerivAt h (h' x) x)
     (hh'_meas : AEStronglyMeasurable h' (gaussianReal 0 1))
     {C : ℝ} (hbd : ∀ x, |h x| ≤ C ∧ |h' x| ≤ C) :
@@ -139,7 +95,9 @@ theorem integral_mul_gaussianReal_of_bounded {h h' : ℝ → ℝ}
     exact mul_le_mul_of_nonneg_left (hbd x).1 (abs_nonneg x)
   have hh'i : Integrable h' (gaussianReal 0 1) :=
     Integrable.of_bound hh'_meas C (ae_of_all _ fun x => (hbd x).2)
-  exact integral_mul_gaussianReal hh hhi hxhi hh'i
+  simpa only [sub_zero, NNReal.coe_one, one_mul] using
+    integral_sub_mul_gaussianReal (μ := 0) (v := 1) hh hhi
+      (by simpa only [sub_zero] using hxhi) hh'i
 
 /-- Replacing coordinate `k` of `piGauss κ` with an independent `N(0, 1)` preserves `piGauss κ`. -/
 private theorem measurePreserving_update_piGauss {κ : Type*} [Fintype κ] [DecidableEq κ] (k : κ) :
@@ -336,15 +294,15 @@ theorem thresholdVec_apply_eq_false (x : ι → ℝ) (t : ℝ) (i : ι) :
   classical simp [thresholdVec, not_lt]
 
 theorem thresholdVec_neg {x : ι → ℝ} {t : ℝ} (hne : ∀ i, x i ≠ t) :
-    thresholdVec (-x) (-t) = notVec (thresholdVec x t) := by
+    thresholdVec (-x) (-t) = (thresholdVec x t)ᶜ := by
   ext i
   cases h : thresholdVec x t i
   · have hge : t ≤ x i := (thresholdVec_apply_eq_false x t i).mp h
     have hgt : t < x i := lt_of_le_of_ne hge (hne i).symm
-    rw [notVec_apply, h, Bool.not_false]
+    rw [Pi.compl_apply, h, Bool.compl_eq_bnot, Bool.not_false]
     exact (thresholdVec_apply_eq_true (-x) (-t) i).mpr (by simp [hgt])
   · have hlt : x i < t := (thresholdVec_apply_eq_true x t i).mp h
-    rw [notVec_apply, h, Bool.not_true]
+    rw [Pi.compl_apply, h, Bool.compl_eq_bnot, Bool.not_true]
     exact (thresholdVec_apply_eq_false (-x) (-t) i).mpr (by simp [hlt.le])
 
 /-- Thresholding a measurable family of real-valued vectors produces a measurable Boolean vector. -/
@@ -363,39 +321,15 @@ theorem measurable_thresholdVec {α : Type*} [MeasurableSpace α]
   rw [heq]
   exact Measurable.ite hset measurable_const measurable_const
 
-/-- The multilinear extension of `f : (ι → Bool) → ℝ` to `ℝ^ι`. -/
-def multilinearExt [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ) (p : ι → ℝ) : ℝ :=
-  ∑ b : ι → Bool, f b * ∏ i : ι, if b i then p i else 1 - p i
+/-- The value at `p` of the multilinear extension `Cslib.BitString.multilinearExtension f`, as an
+explicit sum over the cube. -/
+private theorem eval_multilinearExtension_eq_sum_prod [Fintype ι] [DecidableEq ι]
+    (f : (ι → Bool) → ℝ) (p : ι → ℝ) :
+    MvPolynomial.eval p (multilinearExtension f) =
+      ∑ b : ι → Bool, f b * ∏ i : ι, if b i then p i else 1 - p i := by
+  simp only [BitString.eval_multilinearExtension_eq_sum, BitString.eval_indicatorPoly_apply]
 
-theorem multilinearExt_continuous [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ) :
-    Continuous (multilinearExt f) := by
-  unfold multilinearExt
-  refine continuous_finsetSum _ fun b _ => continuous_const.mul ?_
-  refine continuous_finsetProd _ fun i _ => ?_
-  cases b i
-  · exact continuous_const.sub (continuous_apply i)
-  · exact continuous_apply i
-
-theorem multilinearExt_eq_of_bool [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
-    (c : ι → Bool) :
-    multilinearExt f (fun i => if c i then (1 : ℝ) else 0) = f c := by
-  unfold multilinearExt
-  rw [Finset.sum_eq_single c]
-  · have hprod : ∏ i : ι, (if c i then if c i then (1 : ℝ) else 0
-        else 1 - if c i then (1 : ℝ) else 0) = 1 :=
-      Finset.prod_eq_one fun i _ => by cases c i <;> simp
-    rw [hprod, mul_one]
-  · intro b _ hbc
-    obtain ⟨i, hi⟩ : ∃ i, b i ≠ c i := by
-      by_contra h; push Not at h; exact hbc (funext h)
-    have hzero : (∏ j : ι, if b j then (if c j then (1 : ℝ) else 0)
-        else 1 - (if c j then (1 : ℝ) else 0)) = 0 :=
-      Finset.prod_eq_zero (Finset.mem_univ i) (by
-        cases hb : b i <;> cases hc : c i <;> simp_all)
-    rw [hzero, mul_zero]
-  · intro hc; exact absurd (Finset.mem_univ c) hc
-
-theorem multilinearExt_weight_nonneg [Fintype ι] {p : ι → ℝ}
+private theorem prod_ite_bool_nonneg [Fintype ι] {p : ι → ℝ}
     (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) (b : ι → Bool) :
     0 ≤ ∏ i : ι, if b i then p i else 1 - p i :=
   Finset.prod_nonneg fun i _ => by
@@ -403,17 +337,18 @@ theorem multilinearExt_weight_nonneg [Fintype ι] {p : ι → ℝ}
     · exact hp1 i
     · exact hp0 i
 
-theorem abs_multilinearExt_le [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ) {p : ι → ℝ}
-    (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) :
-    |multilinearExt f p| ≤ ∑ b : ι → Bool, |f b| := by
-  calc |multilinearExt f p|
+theorem abs_eval_multilinearExtension_le [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
+    {p : ι → ℝ} (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) :
+    |MvPolynomial.eval p (multilinearExtension f)| ≤ ∑ b : ι → Bool, |f b| := by
+  rw [eval_multilinearExtension_eq_sum_prod]
+  calc |∑ b : ι → Bool, f b * ∏ i : ι, if b i then p i else 1 - p i|
       ≤ ∑ b : ι → Bool, |f b * ∏ i : ι, if b i then p i else 1 - p i| :=
           Finset.abs_sum_le_sum_abs _ _
     _ ≤ ∑ b : ι → Bool, |f b| := by
           refine Finset.sum_le_sum fun b _ => ?_
           rw [abs_mul]
           have hw_nn : 0 ≤ ∏ i : ι, if b i then p i else 1 - p i :=
-            multilinearExt_weight_nonneg hp0 hp1 b
+            prod_ite_bool_nonneg hp0 hp1 b
           have hw_le : ∏ i : ι, (if b i then p i else 1 - p i) ≤ 1 := by
             have hstep : ∀ s : Finset ι,
                 (0 ≤ ∏ i ∈ s, if b i then p i else 1 - p i) ∧
@@ -434,11 +369,12 @@ theorem abs_multilinearExt_le [Fintype ι] [DecidableEq ι] (f : (ι → Bool) �
           rw [abs_of_nonneg hw_nn]
           exact mul_le_of_le_one_right (abs_nonneg _) hw_le
 
-theorem multilinearExt_nonpos [Fintype ι] [DecidableEq ι] {f : (ι → Bool) → ℝ}
+theorem eval_multilinearExtension_nonpos [Fintype ι] [DecidableEq ι] {f : (ι → Bool) → ℝ}
     (hf : ∀ b, f b ≤ 0) {p : ι → ℝ} (hp0 : ∀ i, 0 ≤ p i) (hp1 : ∀ i, p i ≤ 1) :
-    multilinearExt f p ≤ 0 :=
-  Finset.sum_nonpos fun b _ =>
-    mul_nonpos_of_nonpos_of_nonneg (hf b) (multilinearExt_weight_nonneg hp0 hp1 b)
+    MvPolynomial.eval p (multilinearExtension f) ≤ 0 := by
+  rw [eval_multilinearExtension_eq_sum_prod]
+  exact Finset.sum_nonpos fun b _ =>
+    mul_nonpos_of_nonpos_of_nonneg (hf b) (prod_ite_bool_nonneg hp0 hp1 b)
 
 /-- Product rule for `Finset.prod`. -/
 private theorem hasDerivAt_finset_prod {α : Type*} [DecidableEq α] (s : Finset α)
@@ -494,16 +430,15 @@ private theorem sum_bool_fun_split [Fintype ι] [DecidableEq ι] (i : ι)
     have hbi : b i = false := (Finset.mem_filter.mp hb).2
     rw [show update b i false = b by ext j; by_cases hj : j = i <;> simp [hj, hbi]]
 
-/-- For a function `h` independent of coordinate `i`, `multilinearExt h p` collapses coordinate `i`
-from the product. -/
-private theorem multilinearExt_indep_coord [Fintype ι] [DecidableEq ι] (i : ι)
+/-- For a function `h` independent of coordinate `i`, the value at `p` of its multilinear extension
+collapses coordinate `i` from the product. -/
+private theorem eval_multilinearExtension_indep_coord [Fintype ι] [DecidableEq ι] (i : ι)
     (h : (ι → Bool) → ℝ) (hh : ∀ b, h (update b i true) = h (update b i false))
     (p : ι → ℝ) :
-    multilinearExt h p =
+    MvPolynomial.eval p (multilinearExtension h) =
       ∑ b ∈ Finset.univ.filter (fun b : ι → Bool => b i = false),
         h b * ∏ j ∈ Finset.univ.erase i, (if b j then p j else 1 - p j) := by
-  unfold multilinearExt
-  rw [sum_bool_fun_split i]
+  rw [eval_multilinearExtension_eq_sum_prod, sum_bool_fun_split i]
   refine Finset.sum_congr rfl fun b hb => ?_
   have hbi : b i = false := (Finset.mem_filter.mp hb).2
   have hbf : update b i false = b := by
@@ -527,12 +462,13 @@ private theorem diffBool_indep_coord [DecidableEq ι] (f : (ι → Bool) → ℝ
     diffBool f i (update b i true) = diffBool f i (update b i false) := by
   simp [diffBool]
 
-private theorem sum_signed_weight_eq_multilinearExt_diffBool [Fintype ι] [DecidableEq ι]
+private theorem sum_signed_weight_eq_eval_diffBool [Fintype ι] [DecidableEq ι]
     (f : (ι → Bool) → ℝ) (i : ι) (p : ι → ℝ) :
     ∑ b : ι → Bool, f b * (if b i then (1 : ℝ) else -1) *
         ∏ j ∈ Finset.univ.erase i, (if b j then p j else 1 - p j) =
-      multilinearExt (diffBool f i) p := by
-  rw [sum_bool_fun_split i, multilinearExt_indep_coord i _ (diffBool_indep_coord f i)]
+      MvPolynomial.eval p (multilinearExtension (diffBool f i)) := by
+  rw [sum_bool_fun_split i,
+    eval_multilinearExtension_indep_coord i _ (diffBool_indep_coord f i)]
   refine Finset.sum_congr rfl fun b _ => ?_
   have hpt : ∏ j ∈ Finset.univ.erase i, (if update b i true j then p j else 1 - p j) =
       ∏ j ∈ Finset.univ.erase i, (if b j then p j else 1 - p j) :=
@@ -544,12 +480,12 @@ private theorem sum_signed_weight_eq_multilinearExt_diffBool [Fintype ι] [Decid
   simp only [↓reduceIte, Bool.false_eq_true, diffBool]
   ring
 
-/-- Chain rule for `t ↦ multilinearExt f (p t)`. -/
-theorem hasDerivAt_multilinearExt [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
+/-- Chain rule for `t ↦ MvPolynomial.eval (p t) (multilinearExtension f)`. -/
+theorem hasDerivAt_eval_multilinearExtension [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     {p : ℝ → ι → ℝ} {p' : ι → ℝ} {t₀ : ℝ}
     (hp : ∀ i : ι, HasDerivAt (fun t => p t i) (p' i) t₀) :
-    HasDerivAt (fun t => multilinearExt f (p t))
-      (∑ i : ι, p' i * multilinearExt (diffBool f i) (p t₀)) t₀ := by
+    HasDerivAt (fun t => MvPolynomial.eval (p t) (multilinearExtension f))
+      (∑ i : ι, p' i * MvPolynomial.eval (p t₀) (multilinearExtension (diffBool f i))) t₀ := by
   have hterm : ∀ b : ι → Bool,
       HasDerivAt (fun t => f b * ∏ i : ι, if b i then p t i else 1 - p t i)
         (f b * ∑ i : ι, (if b i then p' i else -p' i) *
@@ -563,6 +499,7 @@ theorem hasDerivAt_multilinearExt [Fintype ι] [DecidableEq ι] (f : (ι → Boo
         (hasDerivAt_const t₀ (1 : ℝ)).fun_sub (hp i)
       simpa only [zero_sub] using h
     · simpa only [↓reduceIte] using hp i
+  rw [funext fun t => eval_multilinearExtension_eq_sum_prod f (p t)]
   refine (HasDerivAt.fun_sum fun b _ => hterm b).congr_deriv ?_
   calc ∑ b : ι → Bool, f b * ∑ i : ι, (if b i then p' i else -p' i) *
         ∏ j ∈ Finset.univ.erase i, (if b j then p t₀ j else 1 - p t₀ j)
@@ -577,9 +514,9 @@ theorem hasDerivAt_multilinearExt [Fintype ι] [DecidableEq ι] (f : (ι → Boo
             ∏ j ∈ Finset.univ.erase i, (if b j then p t₀ j else 1 - p t₀ j) := by
           rw [Finset.sum_comm]
           refine Finset.sum_congr rfl fun i _ => (Finset.mul_sum _ _ _).symm
-    _ = ∑ i : ι, p' i * multilinearExt (diffBool f i) (p t₀) := by
+    _ = ∑ i : ι, p' i * MvPolynomial.eval (p t₀) (multilinearExtension (diffBool f i)) := by
           refine Finset.sum_congr rfl fun i _ => ?_
-          rw [sum_signed_weight_eq_multilinearExt_diffBool]
+          rw [sum_signed_weight_eq_eval_diffBool]
 
 private theorem diffBool_self [DecidableEq ι] (f : (ι → Bool) → ℝ) (i : ι) (b : ι → Bool) :
     diffBool (diffBool f i) i b = 0 := by
@@ -616,45 +553,15 @@ theorem smoothStep_nonneg (δ u : ℝ) : 0 ≤ smoothStep δ u :=
 theorem smoothStep_le_one (δ u : ℝ) : smoothStep δ u ≤ 1 :=
   measureReal_le_one
 
-private theorem hasDerivAt_gaussianCDF (y : ℝ) :
-    HasDerivAt (fun z : ℝ => (gaussianReal 0 1).real (Set.Iic z))
-      (gaussianPDFReal 0 1 y) y := by
-  have hint : Integrable (gaussianPDFReal 0 1) volume := by
-    have := (integrable_gaussianReal_iff_mul_pdf (g := fun _ => (1 : ℝ))).mp (integrable_const 1)
-    simpa only [mul_one] using this
-  have hdiff : ∀ z : ℝ, (gaussianReal 0 1).real (Set.Iic z) =
-      (gaussianReal 0 1).real (Set.Iic 0) + ∫ x in (0 : ℝ)..z, gaussianPDFReal 0 1 x := by
-    intro z
-    have hval : ∀ w : ℝ, (gaussianReal 0 1).real (Set.Iic w) =
-        ∫ x in Set.Iic w, gaussianPDFReal 0 1 x := fun w => by
-      rw [measureReal_def, gaussianReal_apply_eq_integral 0 one_ne_zero,
-        ENNReal.toReal_ofReal (setIntegral_nonneg measurableSet_Iic
-          fun _ _ => gaussianPDFReal_nonneg 0 1 _)]
-    rw [hval z, hval 0]
-    rcases le_total 0 z with hz | hz
-    · rw [intervalIntegral.integral_of_le hz,
-        ← setIntegral_union (Set.Iic_disjoint_Ioc le_rfl) measurableSet_Ioc
-          hint.integrableOn hint.integrableOn,
-        Set.Iic_union_Ioc_eq_Iic hz]
-    · rw [intervalIntegral.integral_symm, intervalIntegral.integral_of_le hz]
-      have hu := setIntegral_union (Set.Iic_disjoint_Ioc (le_refl z)) measurableSet_Ioc
-        (hint.integrableOn (s := Set.Iic z)) (hint.integrableOn (s := Set.Ioc z 0))
-      rw [Set.Iic_union_Ioc_eq_Iic hz] at hu
-      linarith
-  have hd : HasDerivAt (fun z => (gaussianReal 0 1).real (Set.Iic 0) +
-      ∫ x in (0 : ℝ)..z, gaussianPDFReal 0 1 x) (gaussianPDFReal 0 1 y) y := by
-    have h1 := intervalIntegral.integral_hasDerivAt_right
-      (continuous_stdGaussianPDF.intervalIntegrable 0 y)
-      (continuous_stdGaussianPDF.stronglyMeasurableAtFilter volume (𝓝 y))
-      continuous_stdGaussianPDF.continuousAt
-    exact (h1.const_add ((gaussianReal 0 1).real (Set.Iic 0)))
-  exact hd.congr_of_eventuallyEq (Eventually.of_forall hdiff)
-
 theorem hasDerivAt_smoothStep {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     HasDerivAt (smoothStep δ) (smoothStepDeriv δ u) u := by
   have h1 : HasDerivAt (fun x : ℝ => -x / δ) (-(1 / δ)) u := by
     simpa [neg_div] using ((hasDerivAt_id u).neg.div_const δ)
-  refine ((hasDerivAt_gaussianCDF (-u / δ)).comp u h1).congr_deriv ?_
+  have hcdf : HasDerivAt (fun z : ℝ => (gaussianReal 0 1).real (Set.Iic z))
+      (gaussianPDFReal 0 1 (-u / δ)) (-u / δ) :=
+    (hasDerivAt_cdf_gaussianReal 0 one_ne_zero (-u / δ)).congr_of_eventuallyEq
+      (Eventually.of_forall fun z => (cdf_eq_real (gaussianReal 0 1) z).symm)
+  refine (hcdf.comp u h1).congr_deriv ?_
   have _ := hδ
   simp only [smoothStepDeriv]
   ring
@@ -663,9 +570,9 @@ theorem hasDerivAt_smoothStepDeriv {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     HasDerivAt (smoothStepDeriv δ) (smoothStepDeriv₂ δ u) u := by
   have h1 : HasDerivAt (fun x : ℝ => -x / δ) (-(1 / δ)) u := by
     simpa [neg_div] using ((hasDerivAt_id u).neg.div_const δ)
-  have h2 := ((hasDerivAt_gaussianPDFReal_std (-u / δ)).comp u h1).const_mul (-(1 / δ))
+  have h2 := ((hasDerivAt_gaussianPDFReal 0 1 (-u / δ)).comp u h1).const_mul (-(1 / δ))
   refine h2.congr_deriv ?_
-  simp only [smoothStepDeriv₂]
+  simp only [smoothStepDeriv₂, sub_zero, NNReal.coe_one, div_one]
   have hδne : δ ≠ 0 := hδ.ne'
   field_simp
 
@@ -674,12 +581,12 @@ theorem continuous_smoothStep {δ : ℝ} (hδ : 0 < δ) : Continuous (smoothStep
 
 theorem continuous_smoothStepDeriv (δ : ℝ) : Continuous (smoothStepDeriv δ) := by
   unfold smoothStepDeriv
-  exact continuous_const.mul (continuous_stdGaussianPDF.comp (continuous_neg.div_const δ))
+  exact continuous_const.mul ((continuous_gaussianPDFReal 0 1).comp (continuous_neg.div_const δ))
 
 theorem continuous_smoothStepDeriv₂ (δ : ℝ) : Continuous (smoothStepDeriv₂ δ) := by
   unfold smoothStepDeriv₂
   exact (continuous_id.div_const (δ ^ 3)).mul
-    (continuous_stdGaussianPDF.comp (continuous_neg.div_const δ))
+    ((continuous_gaussianPDFReal 0 1).comp (continuous_neg.div_const δ))
 
 theorem smoothStepDeriv_nonpos {δ : ℝ} (hδ : 0 < δ) (u : ℝ) :
     smoothStepDeriv δ u ≤ 0 := by
@@ -782,30 +689,33 @@ theorem tendsto_smoothStep_atTop (u : ℝ) (hu : u ≠ 0) :
   rw [Real.dist_eq, sub_zero, abs_of_nonneg (by positivity)] at htn
   exact hb.trans_lt htn
 
-/-- Smoothed multilinear extension `smoothExt f δ t z := multilinearExt f (σ_δ(z_i - t))`. -/
+/-- Smoothed threshold extension: the multilinear extension
+`Cslib.BitString.multilinearExtension f` evaluated at the smoothed threshold bits
+`σ_δ(z_i - t)`. -/
 noncomputable def smoothExt {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     (δ t : ℝ) (z : ι → ℝ) : ℝ :=
-  multilinearExt f (fun i => smoothStep δ (z i - t))
+  MvPolynomial.eval (fun i => smoothStep δ (z i - t)) (multilinearExtension f)
 
 /-- First partial derivative of `smoothExt f δ t` in coordinate `i`. -/
 private noncomputable def smoothExtDeriv {ι : Type*} [Fintype ι] [DecidableEq ι]
     (f : (ι → Bool) → ℝ) (δ t : ℝ) (i : ι) (z : ι → ℝ) : ℝ :=
   smoothStepDeriv δ (z i - t) *
-    multilinearExt (diffBool f i) (fun j => smoothStep δ (z j - t))
+    MvPolynomial.eval (fun j => smoothStep δ (z j - t)) (multilinearExtension (diffBool f i))
 
 /-- Second partial derivative `∂_j ∂_i (smoothExt f δ t)` at `z`. -/
 private noncomputable def smoothExtHess {ι : Type*} [Fintype ι] [DecidableEq ι]
     (f : (ι → Bool) → ℝ) (δ t : ℝ) (i j : ι) (z : ι → ℝ) : ℝ :=
   if j = i then
     smoothStepDeriv₂ δ (z i - t) *
-      multilinearExt (diffBool f i) (fun k => smoothStep δ (z k - t))
+      MvPolynomial.eval (fun k => smoothStep δ (z k - t)) (multilinearExtension (diffBool f i))
   else
     smoothStepDeriv δ (z i - t) * smoothStepDeriv δ (z j - t) *
-      multilinearExt (diffBool (diffBool f i) j) (fun k => smoothStep δ (z k - t))
+      MvPolynomial.eval (fun k => smoothStep δ (z k - t))
+        (multilinearExtension (diffBool (diffBool f i) j))
 
 theorem smoothExt_continuous {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     {δ : ℝ} (hδ : 0 < δ) (t : ℝ) : Continuous (smoothExt f δ t) :=
-  (multilinearExt_continuous f).comp
+  (MvPolynomial.continuous_eval (multilinearExtension f)).comp
     (continuous_pi fun i => (continuous_smoothStep hδ).comp
       ((continuous_apply i).sub continuous_const))
 
@@ -813,7 +723,7 @@ private theorem smoothExtDeriv_continuous {ι : Type*} [Fintype ι] [DecidableEq
     (f : (ι → Bool) → ℝ) {δ : ℝ} (hδ : 0 < δ) (t : ℝ) (i : ι) :
     Continuous (smoothExtDeriv f δ t i) :=
   ((continuous_smoothStepDeriv δ).comp ((continuous_apply i).sub continuous_const)).mul
-    ((multilinearExt_continuous _).comp
+    ((MvPolynomial.continuous_eval _).comp
       (continuous_pi fun j => (continuous_smoothStep hδ).comp
         ((continuous_apply j).sub continuous_const)))
 
@@ -823,19 +733,20 @@ private theorem smoothExtHess_continuous {ι : Type*} [Fintype ι] [DecidableEq 
   unfold smoothExtHess
   split_ifs
   · exact ((continuous_smoothStepDeriv₂ δ).comp ((continuous_apply i).sub continuous_const)).mul
-      ((multilinearExt_continuous _).comp
+      ((MvPolynomial.continuous_eval _).comp
         (continuous_pi fun k => (continuous_smoothStep hδ).comp
           ((continuous_apply k).sub continuous_const)))
   · exact (((continuous_smoothStepDeriv δ).comp ((continuous_apply i).sub continuous_const)).mul
       ((continuous_smoothStepDeriv δ).comp ((continuous_apply j).sub continuous_const))).mul
-      ((multilinearExt_continuous _).comp
+      ((MvPolynomial.continuous_eval _).comp
         (continuous_pi fun k => (continuous_smoothStep hδ).comp
           ((continuous_apply k).sub continuous_const)))
 
 theorem abs_smoothExt_le {ι : Type*} [Fintype ι] [DecidableEq ι] (f : (ι → Bool) → ℝ)
     (δ t : ℝ) (z : ι → ℝ) :
     |smoothExt f δ t z| ≤ ∑ b : ι → Bool, |f b| :=
-  abs_multilinearExt_le f (fun _ => smoothStep_nonneg _ _) (fun _ => smoothStep_le_one _ _)
+  abs_eval_multilinearExtension_le f (fun _ => smoothStep_nonneg _ _)
+    (fun _ => smoothStep_le_one _ _)
 
 private theorem abs_smoothExtDeriv_le {ι : Type*} [Fintype ι] [DecidableEq ι]
     (f : (ι → Bool) → ℝ) {δ : ℝ} (hδ : 0 < δ) (t : ℝ) (i : ι) (z : ι → ℝ) :
@@ -844,7 +755,8 @@ private theorem abs_smoothExtDeriv_le {ι : Type*} [Fintype ι] [DecidableEq ι]
   unfold smoothExtDeriv
   rw [abs_mul]
   exact mul_le_mul (abs_smoothStepDeriv_le hδ _)
-    (abs_multilinearExt_le _ (fun _ => smoothStep_nonneg _ _) (fun _ => smoothStep_le_one _ _))
+    (abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
+      (fun _ => smoothStep_le_one _ _))
     (abs_nonneg _) (by positivity)
 
 private theorem exists_bound_smoothExtHess {ι : Type*} [Fintype ι] [DecidableEq ι]
@@ -863,14 +775,14 @@ private theorem exists_bound_smoothExtHess {ι : Type*} [Fintype ι] [DecidableE
     · refine le_max_of_le_left ?_
       rw [abs_mul]
       exact mul_le_mul (abs_smoothStepDeriv₂_le hδ _)
-        (abs_multilinearExt_le _ (fun _ => smoothStep_nonneg _ _)
+        (abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
           (fun _ => smoothStep_le_one _ _))
         (abs_nonneg _) (by positivity)
     · refine le_max_of_le_right ?_
       rw [abs_mul, abs_mul]
       refine mul_le_mul (mul_le_mul (abs_smoothStepDeriv_le hδ _) (abs_smoothStepDeriv_le hδ _)
         (abs_nonneg _) (by positivity))
-        (abs_multilinearExt_le _ (fun _ => smoothStep_nonneg _ _)
+        (abs_eval_multilinearExtension_le _ (fun _ => smoothStep_nonneg _ _)
           (fun _ => smoothStep_le_one _ _))
         (abs_nonneg _) (by positivity)
   exact hsingle.trans ((Finset.single_le_sum (fun j' _ => hbn i j') (Finset.mem_univ j)).trans
@@ -885,9 +797,9 @@ private theorem smoothExtHess_nonpos {ι : Type*} [Fintype ι] [DecidableEq ι]
   simp only [hij.symm, ↓reduceIte]
   have hprod : 0 ≤ smoothStepDeriv δ (z i - t) * smoothStepDeriv δ (z j - t) :=
     mul_nonneg_of_nonpos_of_nonpos (smoothStepDeriv_nonpos hδ _) (smoothStepDeriv_nonpos hδ _)
-  have hml : multilinearExt (diffBool (diffBool f i) j)
-      (fun k => smoothStep δ (z k - t)) ≤ 0 :=
-    multilinearExt_nonpos (fun b => hf.diffBool_diffBool_nonpos hij b)
+  have hml : MvPolynomial.eval (fun k => smoothStep δ (z k - t))
+      (multilinearExtension (diffBool (diffBool f i) j)) ≤ 0 :=
+    eval_multilinearExtension_nonpos (fun b => hf.diffBool_diffBool_nonpos hij b)
       (fun _ => smoothStep_nonneg _ _) (fun _ => smoothStep_le_one _ _)
   exact mul_nonpos_of_nonneg_of_nonpos hprod hml
 
@@ -901,7 +813,7 @@ private theorem hasDerivAt_smoothExt_comp {ι : Type*} [Fintype ι] [DecidableEq
       (smoothStepDeriv δ (z r₀ i - t) * z' i) r₀ := fun i => by
     change HasDerivAt (smoothStep δ ∘ fun r => z r i - t) _ r₀
     exact (hasDerivAt_smoothStep hδ (z r₀ i - t)).comp r₀ ((hz i).sub_const t)
-  refine (hasDerivAt_multilinearExt f hp).congr_deriv ?_
+  refine (hasDerivAt_eval_multilinearExtension f hp).congr_deriv ?_
   refine Finset.sum_congr rfl fun i _ => ?_
   simp only [smoothExtDeriv]; ring
 
@@ -919,23 +831,25 @@ private theorem hasDerivAt_smoothExtDeriv_comp {ι : Type*} [Fintype ι] [Decida
       (smoothStepDeriv δ (z r₀ j - t) * z' j) r₀ := fun j => by
     change HasDerivAt (smoothStep δ ∘ fun r => z r j - t) _ r₀
     exact (hasDerivAt_smoothStep hδ (z r₀ j - t)).comp r₀ ((hz j).sub_const t)
-  have h2 := hasDerivAt_multilinearExt (diffBool f i) hp
+  have h2 := hasDerivAt_eval_multilinearExtension (diffBool f i) hp
   refine (h1.mul h2).congr_deriv ?_
-  have hself : multilinearExt (diffBool (diffBool f i) i)
-      (fun k => smoothStep δ (z r₀ k - t)) = 0 := by
-    simp [multilinearExt, diffBool_self]
+  have hself : MvPolynomial.eval (fun k => smoothStep δ (z r₀ k - t))
+      (multilinearExtension (diffBool (diffBool f i) i)) = 0 := by
+    simp [eval_multilinearExtension_eq_sum_prod, diffBool_self]
   calc smoothStepDeriv₂ δ (z r₀ i - t) * z' i *
-        multilinearExt (diffBool f i) (fun k => smoothStep δ (z r₀ k - t)) +
+        MvPolynomial.eval (fun k => smoothStep δ (z r₀ k - t))
+          (multilinearExtension (diffBool f i)) +
         smoothStepDeriv δ (z r₀ i - t) *
           ∑ j : ι, smoothStepDeriv δ (z r₀ j - t) * z' j *
-            multilinearExt (diffBool (diffBool f i) j)
-              (fun k => smoothStep δ (z r₀ k - t))
+            MvPolynomial.eval (fun k => smoothStep δ (z r₀ k - t))
+              (multilinearExtension (diffBool (diffBool f i) j))
       = z' i * (smoothStepDeriv₂ δ (z r₀ i - t) *
-          multilinearExt (diffBool f i) (fun k => smoothStep δ (z r₀ k - t))) +
+          MvPolynomial.eval (fun k => smoothStep δ (z r₀ k - t))
+            (multilinearExtension (diffBool f i))) +
         ∑ j ∈ Finset.univ.erase i,
           z' j * (smoothStepDeriv δ (z r₀ i - t) * smoothStepDeriv δ (z r₀ j - t) *
-            multilinearExt (diffBool (diffBool f i) j)
-              (fun k => smoothStep δ (z r₀ k - t))) := by
+            MvPolynomial.eval (fun k => smoothStep δ (z r₀ k - t))
+              (multilinearExtension (diffBool (diffBool f i) j))) := by
           rw [Finset.mul_sum, ← Finset.add_sum_erase _ _ (Finset.mem_univ i), hself]
           simp only [mul_zero, zero_add]
           congr 1
@@ -956,7 +870,7 @@ theorem tendsto_smoothExt_atTop {ι : Type*} [Fintype ι] [DecidableEq ι] (f : 
       atTop (nhds (fun i : ι => if z i - t < 0 then (1 : ℝ) else 0)) :=
     tendsto_pi_nhds.mpr fun i => tendsto_smoothStep_atTop (z i - t) (sub_ne_zero.mpr (hz i))
   have hval : (fun i : ι => if z i - t < 0 then (1 : ℝ) else 0) =
-      fun i : ι => if thresholdVec z t i then (1 : ℝ) else 0 := by
+      fun i : ι => BitString.bitVal ℝ (thresholdVec z t i) := by
     ext i
     by_cases h : z i < t
     · have ht : thresholdVec z t i = true := (thresholdVec_apply_eq_true z t i).mpr h
@@ -965,8 +879,8 @@ theorem tendsto_smoothExt_atTop {ι : Type*} [Fintype ι] [DecidableEq ι] (f : 
         (thresholdVec_apply_eq_false z t i).mpr (not_lt.mp h)
       have hsub : ¬ z i - t < 0 := fun hlt => h (sub_lt_zero.mp hlt)
       simp [hsub, hf]
-  rw [← multilinearExt_eq_of_bool f (thresholdVec z t), ← hval]
-  exact ((multilinearExt_continuous f).tendsto _).comp hp
+  rw [← BitString.eval_multilinearExtension f (thresholdVec z t), ← hval]
+  exact ((MvPolynomial.continuous_eval (multilinearExtension f)).tendsto _).comp hp
 
 end SmoothExt
 
@@ -1540,11 +1454,11 @@ private theorem diffBool_add_lineReflection_nonpos {ι E : Type*} [DecidableEq �
   rw [hs']
   set b := thresholdVec (fun j => ⟪u j, x⟫) s
   set b' := thresholdVec (fun j => ⟪u j, x'⟫) s
-  have hle : update (notVec b) i false ≤ update b' i false := by
+  have hle : update bᶜ i false ≤ update b' i false := by
     intro j
     by_cases hji : j = i
     · subst hji; simp
-    · simp only [update_of_ne hji, notVec_apply]
+    · simp only [update_of_ne hji, Pi.compl_apply, Bool.compl_eq_bnot]
       cases hbj : b j
       · have hge : s ≤ ⟪u j, x⟫ := (thresholdVec_apply_eq_false _ s j).mp hbj
         have hlt_c : ⟪u i, u j⟫ < 1 := hcorr i j (Ne.symm hji)
@@ -1557,9 +1471,9 @@ private theorem diffBool_add_lineReflection_nonpos {ι E : Type*} [DecidableEq �
   have hmono := hf.diffBool_antitone i hle
   have h1 : diffBool f i (update b' i false) = diffBool f i b' := by
     simp [diffBool]
-  have h2 : diffBool f i (update (notVec b) i false) = diffBool f i (notVec b) := by
+  have h2 : diffBool f i (update bᶜ i false) = diffBool f i bᶜ := by
     simp [diffBool]
-  rw [h1, h2, hsym.diffBool_notVec i b] at hmono
+  rw [h1, h2, hsym.diffBool_compl i b] at hmono
   linarith
 
 /-- The integrated conditional derivative on `(a, b)` for `0 ≤ a ≤ b` is nonpositive. -/
