@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.OddForm
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -406,12 +407,11 @@ theorem andreevSharpScore_margin (x : BitString b → Bool) (s : Fin b → ℕ)
   have hN : (0 : ℝ) < 2 ^ b := by positivity
   by_cases hp0 : p = 0
   · have hw := andreevSharpLoad_le x s hs
-    have hw' : (andreevSharpLoad b m x s : ℝ) ≤ andreevSharpRange b m := by exact_mod_cast hw
     have hw0 : (0 : ℝ) ≤ andreevSharpLoad b m x s := Nat.cast_nonneg _
     simp only [hp0, ↓reduceIte, onSingles_zero, andreevSharpMult, mul_one, sub_self, mul_zero,
       Nat.cast_zero, sub_zero, add_zero]
     constructor <;> intro hx <;> simp only [tableVal, hx, Bool.toNat_false, Bool.toNat_true,
-      Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero] <;> nlinarith
+      Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero] <;> cast_nlinarith [hw]
   · simp only [hp0, ↓reduceIte, mul_zero, sub_zero, add_zero]
     by_cases hu : IsSingle p
     · obtain ⟨i, hi⟩ := hu

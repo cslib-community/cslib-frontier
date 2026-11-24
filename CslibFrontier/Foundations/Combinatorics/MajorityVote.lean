@@ -13,6 +13,7 @@ public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Combinatorics.FiniteCover.Basic
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Ring.Pow
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.GCongr
@@ -155,9 +156,8 @@ theorem five_mul_card_filter_card_filter_le_sq_le [Nonempty Ω] (G : Finset Ω) 
     rw [div_le_one (by positivity)]
     exact pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast (by omega : D ≤ N)) 2
   have hrx : (4 : ℝ) ≤ ((q ^ 2 : ℕ) : ℝ) * ((D : ℝ) ^ 2 / (N : ℝ) ^ 2) := by
-    have hqD : (2 * N : ℝ) ≤ q * D := by exact_mod_cast hG
     rw [Nat.cast_pow, ← mul_div_assoc, le_div_iff₀ (by positivity), ← mul_pow]
-    nlinarith
+    cast_nlinarith [hG]
   have hB := one_sub_pow_mul_one_add_mul_le_one hx₀ hx₁ (q ^ 2)
   have key : (5 : ℝ) * ((4 * g * (N - g) : ℕ) : ℝ) ^ q ^ 2 ≤ (N : ℝ) ^ (2 * q ^ 2) := by
     rw [h4, mul_pow, ← pow_mul, mul_comm 2]
