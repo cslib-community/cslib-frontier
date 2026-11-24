@@ -275,10 +275,10 @@ private theorem computableInPolyTime_decide_eq_getD {γ : Type} {encγ : γ ↪ 
     ComputableInPolyTime
       (fun r : γ × Bool => decide (r.2 = (wordOf r.1).getD (idxOf r.1) false))
       (encPair encγ encBool) encBool :=
-  .of_tidy ((ComputableTidilyInPolyTime.snd encγ encBool).decide_eq'
+  (ComputableInPolyTime.snd encγ encBool).decide_eq'
     (ComputableInPolyTime.bitsGetDWithInput
       (hword.comp (ComputableInPolyTime.fst encγ encBool))
-      (hidx.comp (ComputableInPolyTime.fst encγ encBool)) false).tidy)
+      (hidx.comp (ComputableInPolyTime.fst encγ encBool)) false)
 
 /-! ### Section 1: Random-Index Next-Bit Prediction -/
 
@@ -374,7 +374,7 @@ theorem isPPT_wordNextBitPredictor {length : ℕ → ℕ} {adversary : Distingui
     isPPTOn_uniform_bool _
   change IsPPTOn (encPair encUnary encBits) encBool
     (fun p => wordNextBitPredictor length adversary p.1 p.2)
-  simpa only [wordNextBitPredictor, bind_pure_comp] using IsPPTOn.ite hcond.tidy hthen helse
+  simpa only [wordNextBitPredictor, bind_pure_comp] using IsPPTOn.ite hcond hthen helse
 
 private theorem eval_wordNextBitPredictor_ofFn {length : ℕ → ℕ}
     (adversary : Distinguisher) {n : ℕ} (i : Fin (length n)) (x : Fin i → Bool) :
@@ -551,7 +551,7 @@ theorem isPPT_nextBitDistinguisher {length : ℕ → ℕ} {predictor : Distingui
         (fun guess => decide (guess = q.1.2.getD q.2 false)) <$>
           predictor q.1.1 (q.1.2.take q.2)
       else ProbComp.uniform Bool) :=
-    IsPPTOn.ite hcond.tidy (hpred.map_with hret) (isPPTOn_uniform_bool _)
+    IsPPTOn.ite hcond (hpred.map_with hret) (isPPTOn_uniform_bool _)
   have hthen : IsPPTOn (encPair encUnary encBits) encBool (fun p => do
       let i ← ProbComp.sampleDyadicIndex (length p.1 - 1)
       if i < length p.1 then
@@ -561,7 +561,7 @@ theorem isPPT_nextBitDistinguisher {length : ℕ → ℕ} {predictor : Distingui
   change IsPPTOn (encPair encUnary encBits) encBool
     (fun p => nextBitDistinguisher length predictor p.1 p.2)
   simpa only [nextBitDistinguisher, bind_pure_comp] using
-    IsPPTOn.ite hpos.tidy hthen (isPPTOn_uniform_bool _)
+    IsPPTOn.ite hpos hthen (isPPTOn_uniform_bool _)
 
 /-- On uniform ideal inputs, `nextBitDistinguisher length predictor` accepts with probability
 exactly `1 / 2`. -/
@@ -870,7 +870,7 @@ theorem isPPT_twoStageNextBitDistinguisher {σ : Type} {encσ : σ ↪ List Bool
         (fun guess => decide (guess = q.1.2.getD (min (length q.1.1) q.2.1) false)) <$>
           (adversary q.1.1).guess q.2.2 (q.1.2.take (min (length q.1.1) q.2.1))
       else ProbComp.uniform Bool) :=
-    IsPPTOn.ite hcond.tidy (hguess.map_with hret) (isPPTOn_uniform_bool _)
+    IsPPTOn.ite hcond (hguess.map_with hret) (isPPTOn_uniform_bool _)
   change IsPPTOn (encPair encUnary encBits) encBool
     (fun p => twoStageNextBitDistinguisher length adversary p.1 p.2)
   simpa only [twoStageNextBitDistinguisher, bind_pure_comp] using hchoose.bind_with hbranch
