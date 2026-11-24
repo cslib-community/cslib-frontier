@@ -166,7 +166,8 @@ private theorem frontierOracle_preserves_labels (generator : List Bool → List 
       (ProbComp.eval (frontierOracle generator n depth query cache)).support) :
     ∀ entry ∈ cache', entry.2.length = n := by
   by_cases hquery : query.length = n
-  · supp_cases hresult [frontierOracle, hquery] with ⟨⟨seed, _⟩, hseed, rfl, rfl⟩
+  · supp_cases hresult [frontierOracle, prefixHybridOracle, beq_iff_eq, hquery]
+      with ⟨⟨seed, _⟩, hseed, rfl, rfl⟩
     have hsample : (seed, cache') ∈
         (memoize (fun _ : List Bool => BitString.uniformList n)
           (query.take depth) cache).support := by
@@ -174,7 +175,7 @@ private theorem frontierOracle_preserves_labels (generator : List Bool → List 
     exact (RandomOracle.memoize_invariant (fun _ : List Bool => BitString.uniformList n)
       (fun _ seed => seed.length = n) (query.take depth) cache hcache
       (fun _ h => BitString.length_of_mem_support_uniformList h) (seed, cache') hsample).2
-  · supp_cases hresult [frontierOracle, hquery]
+  · supp_cases hresult [frontierOracle, prefixHybridOracle, beq_iff_eq, hquery]
     exact hcache
 
 private theorem expansionOracle_generated_step (generator : List Bool → List Bool) (n depth : ℕ)
@@ -191,8 +192,8 @@ private theorem expansionOracle_generated_step (generator : List Bool → List B
         (BitString.uniformList n).map (fun seed => (generator seed).take (2 * n)))
       (fun _ => rfl) (query.take depth) cache
     simp only [PMF.monad_map_eq_map, Function.Embedding.refl_apply] at hmap
-    simp only [pmf_norm, frontierOracle, expansionOracle, hquery, ite_true, ProbComp.eval_memoize,
-      BitString.eval_sampleList]
+    simp only [pmf_norm, frontierOracle, prefixHybridOracle, expansionOracle, beq_iff_eq, hquery,
+      ite_true, ProbComp.eval_memoize, BitString.eval_sampleList]
     rw [show expandCache generator n cache =
       cache.map (fun entry => (entry.1, (generator entry.2).take (2 * n))) from rfl, ← hmap]
     simp only [pmf_norm]
@@ -203,7 +204,7 @@ private theorem expansionOracle_generated_step (generator : List Bool → List B
       (fun _ h => BitString.length_of_mem_support_uniformList h) (seed, next) hseed).1
     simp only [selectChild_take, ← hlength,
       eval_drop_succ generator seed query depth (by lia), child, expandCache]
-  · simp [frontierOracle, expansionOracle, hquery, PMF.pure_map]
+  · simp [frontierOracle, prefixHybridOracle, expansionOracle, hquery, PMF.pure_map]
 
 /-- Sampling generator expansions reproduces the earlier prefix hybrid for every adaptive
 randomized adversary. No security or output-width assumption on the generator is needed. -/
@@ -220,8 +221,9 @@ theorem expansionGame_generated (generator : List Bool → List Bool)
     (fun request => expansionOracle_generated_step generator n depth hdepth request.2)
     (adversary n []) [] (by simp)
   have houtput := congrArg (PMF.map Prod.fst) h
-  simpa [expansionGame, hybridGame, ProbOracleComp.eval_run_interpret_eq_runWith,
-    expandCache, PMF.map_comp, Function.comp_def] using houtput.symm
+  simpa [expansionGame, hybridGame, prefixHybridGame, frontierOracle,
+    ProbOracleComp.eval_run_interpret_eq_runWith, expandCache, PMF.map_comp, Function.comp_def]
+    using houtput.symm
 
 /-- The eager proof game samples every prefix label before running the client. -/
 private noncomputable def prefixTableGame (n depth width : ℕ)
@@ -345,9 +347,10 @@ theorem expansionGame_uniform (generator : List Bool → List Bool) (adversary :
       simp only [fromParent, fromChild, Function.comp_def, ofFn_childTable]
     _ = _ := by
       rw [prefix_eager n (depth + 1) n (by lia)]
-      simp only [hybridGame, runWith_norm, pmf_norm]
+      simp only [hybridGame, prefixHybridGame, runWith_norm, pmf_norm]
       congr 4 with request cache : 2
       by_cases hquery : request.2.length = n <;>
-        simp [frontierOracle, hquery, fromChild, ProbComp.eval_memoize, PMF.map, Function.comp_def]
+        simp [prefixHybridOracle, hquery, fromChild, ProbComp.eval_memoize,
+          PMF.map, Function.comp_def]
 
 end Cslib.Crypto.GGM
