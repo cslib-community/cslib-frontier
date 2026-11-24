@@ -120,7 +120,8 @@ def queryDDHWord (u v : List Bool) : WordOracleComp Unit Bool :=
   Decoder.bool.decode <$> ProbOracleComp.query ((), encDDHOracleQuery ⟨u, v⟩)
 
 /-- `queryDDHWord` is uniform strict oracle-PPT whenever its two word arguments are computable in
-polynomial time: reading the first symbol of the reply requires only a 1-bit prefix (`query_take'`
+polynomial time: reading the first symbol of the reply requires only a 1-bit prefix
+(`IsOraclePPTOn.query_take`
 with limit `1`). -/
 @[fun_prop]
 theorem isOraclePPTOn_queryDDHWord {α : Type} {input : α ↪ List Bool} {u v : α → List Bool}
@@ -132,8 +133,9 @@ theorem isOraclePPTOn_queryDDHWord {α : Type} {input : α ↪ List Bool} {u v :
       List.take 1 <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
           ((), encDDHOracleQuery ⟨u a, v a⟩)) :=
-    IsOraclePPTOn.query_take' () hreq (ComputableInPolyTime.const 1)
-  refine (htake.map' Decoder.bool.computableInPolyTime).congr fun a State oracle s => ?_
+    IsOraclePPTOn.query_take () hreq (ComputableInPolyTime.const 1)
+  refine (IsOraclePPTOn.map htake Decoder.bool.computableInPolyTime).congr
+    fun a State oracle s => ?_
   have hhead : ∀ w : List Bool, Decoder.bool.decode (List.take 1 w) = Decoder.bool.decode w := by
     intro w; cases w <;> rfl
   simp only [queryDDHWord, Functor.map_map, hhead]
@@ -237,7 +239,7 @@ theorem GapCDH.wordCDH {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF
     (ComputableInPolyTime.id' (encIn := encGapCDHInput F.toPrimeOrderGroupFamily)).of_enc_eq
       fun x => (encGapCDHInput_apply F.toPrimeOrderGroupFamily x).symm
   have hlifted : IsOraclePPTOn (encGapCDHInput F.toPrimeOrderGroupFamily) encBits lifted :=
-    hA.isOraclePPTOn.preprocess' hprep
+    hA.isOraclePPTOn.preprocess hprep
   refine (h lifted hlifted).congr fun n => ?_
   simp only [gapCDHWordGame, PrimeOrderGroupFamily.cdhWordGame, lifted, ProbOracleComp.run_sample]
 

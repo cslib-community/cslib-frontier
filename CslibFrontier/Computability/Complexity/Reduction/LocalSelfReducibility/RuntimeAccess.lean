@@ -33,7 +33,7 @@ open Turing Turing.MultiTapeTM
 theorem LocalSelfReductionQuery.runtime_admissible {x y : List Bool}
     (h : LocalSelfReductionQuery x y) {i : ℕ} (hi : i ≤ x.length) :
     VirtualWord.Runtime.Admissible
-      (localQueryAccessData x.length (y.drop (x.length - Nat.clog 2 x.length)) i, x) :=
+      ⟨localQueryAccessData x.length (y.drop (x.length - Nat.clog 2 x.length)) i, x⟩ :=
   ⟨Nat.sub_le _ _, hi, h.suffix_length⟩
 
 /-- The one fixed runtime machine emits the exact reconstructed query bit at every address.
@@ -41,7 +41,7 @@ The address may be out of range; only the logarithmic specialization needs a siz
 theorem LocalSelfReductionQuery.runtime_output {x y : List Bool}
     (h : LocalSelfReductionQuery x y) (i : ℕ) :
     let d := localQueryAccessData x.length (y.drop (x.length - Nat.clog 2 x.length)) i
-    VirtualWord.Runtime.machine.output (VirtualWord.Runtime.encInput (d, x))
+    VirtualWord.Runtime.machine.output (VirtualWord.Runtime.encInput ⟨d, x⟩)
       (2 * (VirtualWord.encData d).length + 2) = [y.getD i false] := by
   dsimp only [localQueryAccessData]
   rw [VirtualWord.Runtime.output_word (x.length - Nat.clog 2 x.length) i

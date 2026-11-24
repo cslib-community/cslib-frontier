@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.ZeroOne
 import Cslib.Foundations.Data.Fin.Tuple
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Correctness of Batcher sorting
@@ -39,12 +40,12 @@ theorem IsBitonic.min_le_max_halves [LinearOrder κ] {n : ℕ} (first second : F
     min (first i) (second i) ≤ max (first j) (second j) := by
   rcases lt_trichotomy i j with hij | hij | hij
   · have h' := h (Fin.castAdd n i) (Fin.castAdd n j) (Fin.natAdd n i) (Fin.natAdd n j)
-      hij (by change j.val < n + i.val; lia) (by change n + i.val < n + j.val; lia)
+      hij (by fin_index) (by fin_index)
     simpa only [Fin.append_left, Fin.append_right] using h'.1
   · subst j
     exact (min_le_left _ _).trans (le_max_left _ _)
   · have h' := h (Fin.castAdd n j) (Fin.castAdd n i) (Fin.natAdd n j) (Fin.natAdd n i)
-      hij (by change i.val < n + j.val; lia) (by change n + j.val < n + i.val; lia)
+      hij (by fin_index) (by fin_index)
     simpa only [Fin.append_left, Fin.append_right] using h'.2
 
 private theorem append_left_value {n m : ℕ} (first : Fin n → κ) (second : Fin m → κ)
@@ -54,7 +55,7 @@ private theorem append_left_value {n m : ℕ} (first : Fin n → κ) (second : F
 private theorem append_right_value {n m : ℕ} (first : Fin n → κ) (second : Fin m → κ)
     (i : Fin (n + m)) (hi : ¬i.val < n) :
     Fin.append first second i = second ⟨i.val - n, by lia⟩ := by
-  have heq : i = Fin.natAdd n ⟨i.val - n, by lia⟩ := by apply Fin.ext; dsimp; lia
+  have heq : i = Fin.natAdd n ⟨i.val - n, by lia⟩ := by fin_index
   exact (congrArg (Fin.append first second) heq).trans (Fin.append_right _ _ _)
 
 /-- An increasing tuple followed by a decreasing tuple is bitonic. -/
@@ -86,9 +87,7 @@ private theorem monotone_append [Preorder κ] {n m : ℕ} {first : Fin n → κ}
   cases i using Fin.addCases <;> cases j using Fin.addCases <;> rename_i i j
   · simpa only [Fin.append_left] using hfirst hij
   · simpa only [Fin.append_left, Fin.append_right] using hcross _ _
-  · have := j.isLt
-    simp only [Fin.le_def, Fin.val_natAdd, Fin.val_castAdd] at hij
-    lia
+  · fin_index
   · simpa only [Fin.append_right] using hsecond (Nat.le_of_add_le_add_left hij)
 
 /-- Projected keys after one layer are the pointwise minima and maxima of the two halves. -/

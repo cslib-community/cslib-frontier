@@ -21,7 +21,11 @@ In Schnorr's random-oracle signature scheme ([BonehShoup2023], Section 19.2), si
 `m₀ ≠ m₁` under nonces `r` and `a * r + b` with known `a, b : ZMod q` exposes the signing key via
 `relatedNonceExtract` whenever `a * ι c₀ ≠ ι c₁` ([BonehShoup2023], Exercise 19.1). Under a lazily
 sampled uniform random oracle, a two-query attacker recovers the secret key with probability at
-least `1 - 1 / |C|` (`one_sub_inv_card_le_succProbability_relatedNonceGame`).
+least `1 - 1 / |C|` (`one_sub_inv_card_le_succProbability_relatedNonceGame`). This is a step
+toward Exercise 19.1, not the cited result: an attack is only meaningful for an efficient
+adversary, since an unbounded one can compute the key from the public key, and nothing here
+certifies `relatedNonceAttacker` as efficient. The word-level game for general `(a, b)` is open
+(#5293).
 
 **Differences from Boneh–Shoup.** The book fixes a cyclic group with generator `g`, hashes to a
 challenge set `C`, and states that the adversary recovers the secret key with high probability. Here
@@ -53,6 +57,9 @@ game and PPT adversary are in `CslibFrontier.Crypto.Computational.SchnorrLeakedN
   recovery without a group-generator hypothesis.
 * `Cslib.Crypto.Protocols.SigmaProtocol.relatedNonceAttacker_isQueryBounded`: `relatedNonceAttacker`
   makes at most two hash queries.
+
+## Step toward Exercise 19.1
+
 * `Cslib.Crypto.Protocols.SigmaProtocol.one_sub_inv_card_le_succProbability_relatedNonceGame`:
   success probability at least `1 - 1 / |C|` for `m₀ ≠ m₁`.
 
@@ -158,9 +165,14 @@ adversary sees both signatures and wins when it returns the signing key. -/
   let x ← (interpret (oracle C) (relatedNonceAttacker ι a b m₀ s₀.1 m₁ s₁.1)).run s₁.2
   return decide (x.1 = sk.1)
 
-/-- **Related-nonce key recovery** ([BonehShoup2023], Exercise 19.1): for two different messages
-signed with affine-related nonces `r` and `a * r + b`, `relatedNonceAttacker` recovers the signing
-key with probability at least `1 - 1 / |C|`. -/
+/-- Typed related-nonce key recovery, a step toward [BonehShoup2023], Exercise 19.1, not the cited
+result: for two different messages signed with affine-related nonces `r` and `a * r + b`,
+`relatedNonceAttacker` recovers the signing key with probability at least `1 - 1 / |C|`. An attack
+has content only for an efficient adversary; nothing here certifies `relatedNonceAttacker` as
+efficient, and the polynomial-time word extraction
+`PrimeOrderGroupFamily.computableInPolyTime_schnorrRelatedNonceExtractWord` is not yet joined to
+this game for general `(a, b)` (#5293). For `a = 0` the certified attack is
+`PrimeOrderGroupFamily.one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame`. -/
 theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q) (g : G)
     (a b : ZMod q) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
     1 - (Fintype.card C : ℝ≥0)⁻¹ ≤ Game.succProbability (relatedNonceGame ι g a b m₀ m₁) := by

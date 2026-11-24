@@ -72,7 +72,8 @@ from a block cipher `F` whose blocks have length `2 n` at security parameter `n`
 * Encryption of an `n`-bit message `msg` samples a uniform `n`-bit nonce `r` and returns the block
   `F.encrypt n k (r ++ msg)`.
 * Decryption of a word `ct` of length `F.blockLen n` applies `F.decrypt n k` and drops the first
-  `n` bits; words of any other length are rejected. -/
+  `n` bits; words of any other length are rejected.
+* The ciphertext space is the words of length `F.blockLen n`. -/
 @[expose]
 noncomputable def halfBlockCipher (F : BlockCipher) (hblock : ∀ n, F.blockLen n = 2 * n) :
     SymmetricCipher where
@@ -82,6 +83,8 @@ noncomputable def halfBlockCipher (F : BlockCipher) (hblock : ∀ n, F.blockLen 
     return F.encrypt n k (r ++ msg)
   decrypt n k ct :=
     if ct.length == F.blockLen n then some ((F.decrypt n k ct).drop n) else none
+  ctSpace n ct := ct.length == F.blockLen n
+  decrypt_eq_none_of_ctSpace_eq_false n k ct h := by simp_all
   keyGen_ppt := by exact ComputableInPolyTime.sampleList F.keyLen_polyTime
   encrypt_ppt := by
     let I := encPair encUnary (encPair encBits encBits)

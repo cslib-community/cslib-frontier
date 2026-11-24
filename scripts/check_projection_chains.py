@@ -60,8 +60,10 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -174,20 +176,38 @@ def module_paths(root: Path, prefix: str = "") -> list[str]:
             if path.relative_to(root).parts[:len(parts)] == parts]
 
 
-def scan(root: Path, paths: list[str]) -> dict[str, list[Chain]]:
+def _scan_one(args: tuple[Path, str]) -> tuple[str, list[Chain]]:
+    root, rel = args
+    path = root / rel
+    if not path.is_file():
+        return rel, []
+    text = path.read_text(encoding="utf-8")
+    if not CHAIN.search(text):  # masking only removes matches
+        return rel, []
+    try:
+        rows = module_chains(text)
+    except ValueError as error:
+        raise ValueError(f"{rel}: {error}") from error
+    return rel, rows
+
+
+def scan(root: Path, paths: list[str], *, jobs: int | None = None) -> dict[str, list[Chain]]:
     """The counted chains of each of `paths` that exists and has any."""
-    found = {}
-    for rel in paths:
-        path = root / rel
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
-        if not CHAIN.search(text):  # masking only removes matches
-            continue
+    found: dict[str, list[Chain]] = {}
+    worker_count = min(8, max(1, os.cpu_count() or 1)) if jobs is None else max(1, jobs)
+    if worker_count > 1 and len(paths) >= 256 and sys.platform.startswith("linux"):
+        import multiprocessing
         try:
-            rows = module_chains(text)
-        except ValueError as error:
-            raise ValueError(f"{rel}: {error}") from error
+            ctx = multiprocessing.get_context("fork")
+            with ProcessPoolExecutor(max_workers=min(worker_count, len(paths)), mp_context=ctx) as pool:
+                for rel, rows in pool.map(_scan_one, ((root, rel) for rel in paths), chunksize=64):
+                    if rows:
+                        found[rel] = rows
+            return found
+        except (OSError, PermissionError, RuntimeError):
+            found.clear()
+    for rel in paths:
+        _, rows = _scan_one((root, rel))
         if rows:
             found[rel] = rows
     return found

@@ -185,8 +185,7 @@ theorem DecidableInSubexpTime.KSAT_of_dense_modelCount_interpolationScale {k : �
     have hpow_le : (((encNat (count ψ)).length : ℝ) + 1) ^ dpos ≤
         ((2 * l + 1) ^ dpos * (2 * c + 2) ^ dpos) * (X₀ * P₀) ^ dpos := by
       calc (((encNat (count ψ)).length : ℝ) + 1) ^ dpos
-          ≤ ((2 * l + 1) * (2 * c + 2) * (X₀ * P₀)) ^ dpos :=
-            pow_le_pow_left₀ (by positivity) hlen_le dpos
+          ≤ ((2 * l + 1) * (2 * c + 2) * (X₀ * P₀)) ^ dpos := by gcongr
         _ = ((2 * l + 1) ^ dpos * (2 * c + 2) ^ dpos) * (X₀ * P₀) ^ dpos := by
             rw [mul_pow, mul_pow]
     have hXP_dpos : (X₀ * P₀) ^ dpos ≤ (X₀ * P₀) ^ (dpos + 1) :=

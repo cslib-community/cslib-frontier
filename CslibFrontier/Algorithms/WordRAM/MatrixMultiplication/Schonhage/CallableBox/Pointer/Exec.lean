@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Pointer.Core
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Pointer.Finish
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Exec
+import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Flat
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Exact physical pointer-input box products
@@ -33,11 +35,15 @@ open CallableProduct
 @[expose] def timeBound (m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) : ℕ :=
   coreTime m t qs + 2 + 7 * (QueriedProduct.inputEnd m N qs.length + 1) + 7 * qs.length + 14
 
--- The finite traversal checks the separate pointer bank against every compiled source instruction.
-set_option maxRecDepth 4096 in
 private theorem pointer_registers_preserved :
-    program.Preserves Reg.left ∧ program.Preserves Reg.right ∧ program.Preserves Reg.queries :=
-  by decide
+    program.Preserves Reg.left ∧ program.Preserves Reg.right ∧ program.Preserves Reg.queries := by
+  have hp : ∀ i : Fin 173, (i = Reg.left ∨ i = Reg.right ∨ i = Reg.queries) →
+      program.Preserves i := by
+    apply Code.preserves_of_preservesAllPred
+    simp (disch := decide +kernel) only [program, core, setupLayout, Code.preservesAll,
+      Code.preservesAll_rename_of_false]
+    rfl
+  exact ⟨hp _ (.inl rfl), hp _ (.inr (.inl rfl)), hp _ (.inr (.inr rfl))⟩
 
 /-- Execute fixed pointer code from actual external readback, without a solver certificate. -/
 theorem exec {W b m t N s r q : ℕ}
@@ -106,15 +112,25 @@ theorem timeBound_ledger (m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) :
 @[expose] def nativeCode : Program .standard 173 :=
   program.program (callableBank CallableProduct.Reg.result)
 
--- The finite traversal includes the compiled box-product source and the four native copies.
-set_option maxRecDepth 4096 in
 /-- Pointer gathering retains fixed code and does not inspect the physical word width. -/
 theorem nativeCode_fixed : nativeCode.length ≤ 131584 ∧ ¬nativeCode.ReadsWidth := by
-  constructor
-  · simp only [nativeCode, Code.program, List.length_append, Code.length_assemble,
-      List.length_singleton]
-    decide
-  · apply Code.not_readsWidth_program
-    decide
+  refine ⟨?_, Code.not_readsWidth_program (Code.not_readsWidth_of_readsWidthBool rfl) _⟩
+  have hsnap_size : (BoxProduct.programFromSnapshot true).size + 1 ≤ 32768 := by
+    refine le_trans ?_ (BoxProduct.program_size_le true)
+    simp only [BoxProduct.programFromSnapshot, BoxProduct.program,
+      BoxProduct.frontFromSnapshot, BoxProduct.front, QueriedProduct.prepareRouting,
+      QueriedProduct.routingFromSnapshot, Code.size]
+    omega
+  have hcs := MemoryWindow.size_compile (BoxProduct.programFromSnapshot true)
+  have hcp := MemoryWindow.size_compile PointerInput.setupLayout
+  have hs := CallableProduct.setup_size
+  have hps : PointerInput.setupLayout.size ≤ 512 := by decide +kernel
+  have hgs : gather.size ≤ 128 := by decide +kernel
+  have hts : (Code.seq CallableBoxProduct.includeThreshold
+      (.seq CallableProduct.restoreInput CallableProduct.returnOutput)).size ≤ 64 := by
+    decide +kernel
+  simp only [nativeCode, Code.program, List.length_append, Code.length_assemble,
+    List.length_singleton, program, core, setupLayout, Code.size, Code.size_rename] at hts ⊢
+  omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PointerBoxProduct

@@ -8,8 +8,8 @@ Usage: python3 scripts/check_encoding_readability.py
 
 This checks rules 1 and 3 of "Encodings in statements" in AGENTS.md. A *compound encoding* is an
 application of one of the generic combinators `encPair`, `encList`, `encOption`, `encSum`,
-`encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them as an
-argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
+`encSigma`, `encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them
+as an argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
 neither is `encPair encNat (encCSP (encOption e) encNat)`, whose inner combinator is an argument of
 another function. A compound encoding
 that the signatures of three or more public declarations of a module spell out is a violation
@@ -83,7 +83,9 @@ The check reads only the sources: it needs no build outputs.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 import json
+import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -100,8 +102,8 @@ BASELINE = ROOT / "scripts/encoding_readability_baseline.json"
 UPDATE = "python3 scripts/check_encoding_readability.py --update-baseline"
 # The generic encoding combinators (`CslibFrontier/Computability/Machines/Turing/MultiTape/
 # Encodings/`) and their explicit arities.
-COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encFramed": 1,
-               "encPi": 1, "encDPi": 1}
+COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encSigma": 2,
+               "encFramed": 1, "encPi": 1, "encDPi": 1}
 # A compound term is repeated when at least this many public declarations of a module spell it out.
 MIN_DECLARATIONS = 3
 
@@ -110,8 +112,6 @@ MODIFIER = r"(?:public|private|protected|noncomputable|unsafe|partial|nonrec|sco
 PREFIX = re.compile(r"(?:open|set_option|include|omit|variable|attribute|unseal|seal|#\w+)\b"
                     r"[^\n]*?(?<![\w'.!?])in(?![\w'!?])")
 HEADER = re.compile(rf"((?:{MODIFIER}\s+)*)(class\s+inductive|[a-z_]+)(?![\w'!?])")
-# `public meta section`, which `proof_lengths.COMMAND` does not recognize as a command.
-EXTRA_SCOPE = re.compile(rf"^(?:@\[[^\]\n]*\]\s*)*(?:{MODIFIER}\s+)+section\b", re.M)
 DECLARATIONS = {"theorem", "lemma", "def", "abbrev", "instance", "structure", "class",
                 "class inductive", "inductive", "opaque", "axiom"}
 TYPE_DECLARATIONS = {"structure", "class", "class inductive", "inductive"}
@@ -349,8 +349,7 @@ def commands(text: str) -> Iterator[Command]:
     namespace, default visibility and `variable`s in force. Comments and strings are masked."""
     _, syntax = masks(text)
     in_module = re.search(r"^module\b", syntax, re.M) is not None
-    starts = sorted(set(command_starts(syntax)) | {m.start() for m in EXTRA_SCOPE.finditer(syntax)})
-    starts.append(len(syntax))
+    starts = command_starts(syntax) + [len(syntax)]
     scopes = [_Scope("", (), not in_module)]
     for start, end in zip(starts, starts[1:]):
         command = syntax[start:end]
@@ -669,27 +668,59 @@ def checked_files(root: Path, prefix: str = "") -> list[Path]:
                   and path.relative_to(root).parts[:len(parts)] == parts)
 
 
-def scan(root: Path, prefix: str = "", notations: dict[str, list[Notation]] | None = None
-         ) -> dict[str, list[Violation]]:
+def _scan_one(args: tuple[Path, Path, bool]
+              ) -> tuple[str, list[Violation], list[Notation] | None]:
+    root, path, collect_notations = args
+    rel = path.relative_to(root).as_posix()
+    text = path.read_text(encoding="utf-8")
+    if "enc" not in text:  # every key in COMBINATORS starts with "enc"
+        return rel, [], None
+    mentions = len(COMBINATOR_NAME.findall(text))
+    # A violation mentions combinators at least this often, a compound encoding twice.
+    notes: list[Notation] | None = (
+        [] if collect_notations and mentions >= 2 and "notation" in text else None
+    )
+    if mentions < 2 * MIN_DECLARATIONS and notes is None:
+        return rel, [], None
+    try:
+        violations = module_violations(public_declarations(text, notes))
+    except ValueError as error:
+        raise ValueError(f"{rel}: {error}") from error
+    return rel, violations, (notes if notes else None)
+
+
+def scan(root: Path, prefix: str = "", notations: dict[str, list[Notation]] | None = None,
+         *, jobs: int | None = None) -> dict[str, list[Violation]]:
     """The violations of each module (under `prefix`) that has any, by source path. If
     `notations` is given, record in it the `local notation`s of each module that abbreviate a
     compound encoding."""
-    found = {}
-    for path in checked_files(root, prefix):
-        rel = path.relative_to(root).as_posix()
-        text = path.read_text(encoding="utf-8")
-        mentions = len(COMBINATOR_NAME.findall(text))
-        # A violation mentions combinators at least this often, a compound encoding twice.
-        notes = [] if notations is not None and mentions >= 2 and "notation" in text else None
-        if mentions < 2 * MIN_DECLARATIONS and notes is None:
-            continue
+    files = checked_files(root, prefix)
+    collect_notations = notations is not None
+    found: dict[str, list[Violation]] = {}
+    worker_count = min(8, max(1, os.cpu_count() or 1)) if jobs is None else max(1, jobs)
+    if worker_count > 1 and len(files) >= 256 and sys.platform.startswith("linux"):
+        import multiprocessing
         try:
-            violations = module_violations(public_declarations(text, notes))
-        except ValueError as error:
-            raise ValueError(f"{rel}: {error}") from error
+            ctx = multiprocessing.get_context("fork")
+            pool_found: dict[str, list[Violation]] = {}
+            pool_notes: dict[str, list[Notation]] = {}
+            with ProcessPoolExecutor(max_workers=min(worker_count, len(files)), mp_context=ctx) as pool:
+                tasks = ((root, path, collect_notations) for path in files)
+                for rel, violations, notes in pool.map(_scan_one, tasks, chunksize=64):
+                    if violations:
+                        pool_found[rel] = violations
+                    if notes and notations is not None:
+                        pool_notes[rel] = notes
+            if notations is not None:
+                notations.update(pool_notes)
+            return pool_found
+        except (OSError, PermissionError, RuntimeError):
+            pass
+    for path in files:
+        rel, violations, notes = _scan_one((root, path, collect_notations))
         if violations:
             found[rel] = violations
-        if notes:
+        if notes and notations is not None:
             notations[rel] = notes
     return found
 

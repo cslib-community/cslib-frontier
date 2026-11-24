@@ -95,84 +95,55 @@ variable {blk : Fin n → Fin d}
 `smPart blk S F` computes the part on `S` of the polynomial computed by `F`. -/
 theorem polynomial_smPart (S : Finset (Fin d)) (F : SPFormula K n) :
     (smPart blk S F).polynomial = smProj blk S F.polynomial := by
-  induction F generalizing S with
-  | input i =>
-    rw [smPart, polynomial_input, smProj_X]
-    split_ifs
-    · rfl
-    · exact polynomial_zero
-  | gate op args ih =>
-    cases op with
-    | add m c =>
-      rw [smPart, polynomial_add, polynomial_add, map_sum]
-      exact Finset.sum_congr rfl fun j _ => by rw [ih, smProj_C_mul]
-    | mul m =>
-      rw [smPart, polynomial_mul]
-      exact polynomial_mulGadget (fun j => rfl) fun j T => ih j T
-    | const a =>
-      have h : polynomial (Formula.gate (SigmaPiOp.const a) args : SPFormula K n) = C a := rfl
-      rw [smPart, h, smProj_C]
-      split_ifs
-      · rfl
-      · exact polynomial_zero
+  fun_induction smPart blk S F with
+  | case1 i => rw [polynomial_input, smProj_X, ite_eq_left rfl] -- input, S = {blk i}
+  -- input, S ≠ {blk i}
+  | case2 S i hS => rw [polynomial_input, smProj_X, ite_eq_right hS, polynomial_zero]
+  | case3 S m c args ih => -- add gate
+    rw [polynomial_add, polynomial_add, map_sum]
+    exact Finset.sum_congr rfl fun j _ => by rw [ih, smProj_C_mul]
+  | case4 S m args ih => -- mul gate
+    rw [polynomial_mul]
+    exact polynomial_mulGadget (fun j => rfl) ih
+  | case5 a args => -- const, S = ∅
+    rw [show polynomial (Formula.gate (SigmaPiOp.const a) args : SPFormula K n) = C a from rfl,
+      smProj_C, ite_eq_left rfl]
+    rfl
+  | case6 S a args hS => -- const, S ≠ ∅
+    rw [show polynomial (Formula.gate (SigmaPiOp.const a) args : SPFormula K n) = C a from rfl,
+      smProj_C, ite_eq_right hS, polynomial_zero]
 
 /-- **`smPart` is set-multilinear** (original on formulas): `smPart blk S F` is syntactically
 set-multilinear on `S`. -/
 theorem isSetMultilinear_smPart (S : Finset (Fin d)) (F : SPFormula K n) :
     (smPart blk S F).IsSetMultilinear blk S := by
-  induction F generalizing S with
-  | input i =>
-    rw [smPart]
-    split_ifs with h
-    · rw [h]
-      exact .input i
-    · exact isSetMultilinear_zero S
-  | gate op args ih =>
-    cases op with
-    | add m c =>
-      rw [smPart]
-      exact .add c _ S fun j => ih j S
-    | mul m =>
-      rw [smPart]
-      exact isSetMultilinear_mulGadget fun j T => ih j T
-    | const a =>
-      rw [smPart]
-      split_ifs with h
-      · rw [h]
-        exact .const a
-      · exact isSetMultilinear_zero S
+  fun_induction smPart blk S F with
+  | case1 i => exact .input i -- input, S = {blk i}
+  | case2 S i hS => exact isSetMultilinear_zero S -- input, S ≠ {blk i}
+  | case3 S m c args ih => exact .add c _ S ih -- add gate
+  | case4 S m args ih => exact isSetMultilinear_mulGadget ih -- mul gate
+  | case5 a args => exact .const a -- const, S = ∅
+  | case6 S a args hS => exact isSetMultilinear_zero S -- const, S ≠ ∅
 
 /-- **`smPart` at most doubles the product-depth** (original on formulas; [Forbes2024, Cor. 27]):
 sum gates keep it and the product gadget adds two. -/
 theorem productDepth_smPart_le (S : Finset (Fin d)) (F : SPFormula K n) :
     (smPart blk S F).productDepth ≤ 2 * F.productDepth := by
-  induction F generalizing S with
-  | input i =>
-    rw [smPart]
-    split_ifs
-    · exact Nat.zero_le _
-    · rw [productDepth_zero]
-      exact Nat.zero_le _
-  | gate op args ih =>
-    have hle (j : Fin _) (T : Finset (Fin d)) : (smPart blk T (args j)).productDepth ≤
-        2 * Finset.univ.sup fun j => productDepth (args j) :=
-      (ih j T).trans (Nat.mul_le_mul_left 2
-        (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)))
-    cases op with
-    | add m c =>
-      rw [smPart, productDepth_add, productDepth_add]
-      exact Finset.sup_le fun j _ => hle j S
-    | mul m =>
-      rw [smPart, productDepth_mul]
-      exact (productDepth_mulGadget_le fun j T => hle j T).trans_eq
-        (by rw [Nat.mul_add, Nat.mul_one])
-    | const a =>
-      rw [smPart]
-      split_ifs
-      · rw [productDepth_const]
-        exact Nat.zero_le _
-      · rw [productDepth_zero]
-        exact Nat.zero_le _
+  have hle {m : ℕ} (args : Fin m → SPFormula K n) (j : Fin m) :
+      2 * (args j).productDepth ≤ 2 * Finset.univ.sup fun j => productDepth (args j) :=
+    Nat.mul_le_mul_left 2 (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j))
+  fun_induction smPart blk S F with
+  | case1 i => exact Nat.zero_le _ -- input, S = {blk i}
+  | case3 S m c args ih => -- add gate
+    rw [productDepth_add, productDepth_add]
+    exact Finset.sup_le fun j _ => (ih j).trans (hle args j)
+  | case4 S m args ih => -- mul gate
+    rw [productDepth_mul]
+    exact (productDepth_mulGadget_le fun j T => (ih j T).trans (hle args j)).trans_eq
+      (by rw [Nat.mul_add, Nat.mul_one])
+  | case5 a args => exact (productDepth_const a).trans_le (Nat.zero_le _) -- const, S = ∅
+  -- input or const replaced by zero
+  | case2 S i hS | case6 S a args hS => exact productDepth_zero.trans_le (Nat.zero_le _)
 
 /-- **The size of `smPart`** (original; [Forbes2024, Cor. 27] bounds the size of the simulating
 circuit by `poly(s, Θ(d / ln d) ^ d)`): `smPart blk S F` has at most
@@ -182,47 +153,41 @@ theorem nodeCount_smPart_le (S : Finset (Fin d)) (F : SPFormula K n) :
   have hc := one_le_smCost d
   have hpos (G : SPFormula K n) : 1 ≤ smCost d ^ G.productDepth * G.nodeCount :=
     Nat.mul_pos (Nat.one_le_pow _ _ hc) (Formula.nodeCount_pos G)
-  induction F generalizing S with
-  | input i =>
-    rw [smPart, productDepth_input, pow_zero, one_mul, Formula.nodeCount_input]
-    split_ifs
-    · exact le_rfl
-    · exact le_of_eq nodeCount_zero
-  | gate op args ih =>
+  have hle {m : ℕ} (args : Fin m → SPFormula K n) (j : Fin m) :
+      smCost d ^ (args j).productDepth * (args j).nodeCount ≤
+        smCost d ^ (Finset.univ.sup fun j => productDepth (args j)) * (args j).nodeCount :=
+    Nat.mul_le_mul_right _ (Nat.pow_le_pow_right hc
+      (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)))
+  fun_induction smPart blk S F with
+  | case1 i | case5 a args => exact hpos _ -- input or const kept
+  -- input or const replaced by zero
+  | case2 S i hS | case6 S a args hS => exact nodeCount_zero.trans_le (hpos _)
+  | case3 S m c args ih => -- add gate
     set p := Finset.univ.sup fun j => productDepth (args j)
-    have hle (j : Fin _) (T : Finset (Fin d)) :
-        (smPart blk T (args j)).nodeCount ≤ smCost d ^ p * (args j).nodeCount :=
-      (ih j T).trans (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right hc
-        (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j))))
+    rw [productDepth_add, Formula.nodeCount_gate, Formula.nodeCount_gate]
+    calc ∑ j, (smPart blk S (args j)).nodeCount + 1
+        ≤ ∑ j, smCost d ^ p * (args j).nodeCount + smCost d ^ p :=
+          Nat.add_le_add (Finset.sum_le_sum fun j _ => (ih j).trans (hle args j))
+            (Nat.one_le_pow _ _ hc)
+      _ = smCost d ^ p * (∑ j, (args j).nodeCount + 1) := by
+          rw [← Finset.mul_sum]
+          ring
+  | case4 S m args ih => -- mul gate
+    set p := Finset.univ.sup fun j => productDepth (args j)
+    rw [productDepth_mul, Formula.nodeCount_gate]
+    set s := ∑ j, (args j).nodeCount
+    have hm : m ≤ s := by
+      calc m = ∑ _j : Fin m, 1 := by simp
+        _ ≤ s := Finset.sum_le_sum fun j _ => Formula.nodeCount_pos (args j)
+    refine (nodeCount_mulGadget_le (w := fun j => smCost d ^ p * (args j).nodeCount)
+      fun j T _ => (ih j T).trans (hle args j)).trans ?_
+    rw [← Finset.mul_sum, Fintype.card_fin, pow_succ]
     have hcp : 1 ≤ smCost d ^ p := Nat.one_le_pow _ _ hc
-    cases op with
-    | add m c =>
-      rw [smPart, productDepth_add, Formula.nodeCount_gate, Formula.nodeCount_gate]
-      calc ∑ j, (smPart blk S (args j)).nodeCount + 1
-          ≤ ∑ j, smCost d ^ p * (args j).nodeCount + smCost d ^ p :=
-            Nat.add_le_add (Finset.sum_le_sum fun j _ => hle j S) hcp
-        _ = smCost d ^ p * (∑ j, (args j).nodeCount + 1) := by
-            rw [← Finset.mul_sum]
-            ring
-    | mul m =>
-      rw [smPart, productDepth_mul, Formula.nodeCount_gate]
-      set s := ∑ j, (args j).nodeCount
-      have hm : m ≤ s := by
-        calc m = ∑ _j : Fin m, 1 := by simp
-          _ ≤ s := Finset.sum_le_sum fun j _ => Formula.nodeCount_pos (args j)
-      refine (nodeCount_mulGadget_le (w := fun j => smCost d ^ p * (args j).nodeCount)
-        fun j T _ => hle j T).trans ?_
-      rw [← Finset.mul_sum, Fintype.card_fin, pow_succ]
-      have h1 : 1 + m + smCost d ^ p * s ≤ 2 * (smCost d ^ p * (s + 1)) := by nlinarith
-      calc gadgetCost d * (1 + m + smCost d ^ p * s)
-          ≤ gadgetCost d * (2 * (smCost d ^ p * (s + 1))) := Nat.mul_le_mul_left _ h1
-        _ = smCost d ^ p * smCost d * (s + 1) := by
-            unfold smCost
-            ring
-    | const a =>
-      rw [smPart]
-      split_ifs
-      · exact hpos _
-      · exact nodeCount_zero.trans_le (hpos _)
+    have h1 : 1 + m + smCost d ^ p * s ≤ 2 * (smCost d ^ p * (s + 1)) := by nlinarith
+    calc gadgetCost d * (1 + m + smCost d ^ p * s)
+        ≤ gadgetCost d * (2 * (smCost d ^ p * (s + 1))) := Nat.mul_le_mul_left _ h1
+      _ = smCost d ^ p * smCost d * (s + 1) := by
+          unfold smCost
+          ring
 
 end Cslib.Circuits.Arithmetic.SPFormula

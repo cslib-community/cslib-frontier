@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Replays after halting
@@ -64,9 +65,7 @@ theorem acceptCount_acceptAll (input : List Bool) (n : ℕ) :
   · intro w _
     have hstep : (acceptAll.withCoin (w 0)).toTM.step (Cfg.init acceptAll.initial input) =
         ⟨none, 1, fun _ _ => none, fun _ => 0, [true]⟩ := by
-      rw [MultiTapeTM.step_of_state rfl, MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
-      exact Cfg.ext rfl (by simp [acceptAll, MultiTapeMachine.Action.emptyOracleEquiv,
-        withCoin]) (funext fun i => i.elim0) (funext fun i => i.elim0) rfl
+      tm_step [MultiTapeMachine.toTM]
     rw [List.ofFn_succ, runClosedCoins_eq_output_stepCoins, stepCoins_cons, hstep,
       stepCoins_of_halted _ rfl]
     simp

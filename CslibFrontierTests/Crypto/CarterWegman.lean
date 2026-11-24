@@ -7,6 +7,9 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Instantiations
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Nonce
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.RandomNonce
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Algebra.Field.ZMod
@@ -18,7 +21,8 @@ Checks concrete tag generation and verification for `xpolyHash` over `ZMod 7` an
 linear hashing over `BitString 2`, instantiates `OneTimeForger`, `CounterForger`, `NonceForger`,
 `RandomNonceForger`, `NonceMACForger`, and `Forger` on multi-query adaptive programs, and exercises
 the one-time, multi-query counter, nonce-based, randomized, and computational (`NonceMACScheme` and
-`MACScheme`) security bounds of `CslibFrontier.Crypto.Protocols.MAC.CarterWegman`.
+`MACScheme`) security bounds across `CslibFrontier.Crypto.Protocols.MAC.CarterWegman` and its
+`Nonce`, `RandomNonce`, and `Instantiations` submodules.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -311,15 +315,15 @@ theorem isOraclePPT_twoQueryNonceMACForger :
         List.take p.1 <$>
           ProbOracleComp.query
             ((), encPair encBits encBits (List.replicate p.1 false, List.replicate p.1 false))) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   have hq1 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take q.1.1 <$>
           ProbOracleComp.query
             ((), encPair encBits encBits
               (List.replicate q.1.1 true, true :: List.replicate (q.1.1 - 1) false))) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
-  have hstep1 := hq1.map_with'
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
+  have hstep1 := hq1.map_with
     (output := encPair (encPair encBits encBits) encBits)
     (f := fun (q : (ℕ × List Bool) × List Bool) t₁ =>
       ((List.replicate q.1.1 false, true :: List.replicate (q.1.1 - 1) false),
@@ -382,6 +386,13 @@ example (M : NonceMACScheme) (n : ℕ) (sk : List Bool) (request : Unit × List 
       pure ([], 2 ^ M.nonceLen n, issued) := by
   simp [NonceMACScheme.counterSigningOracle]
 
+-- A request of the wrong length is refused without using a counter value: the reply is the empty
+-- word and the state, counter included, is unchanged.
+example (M : NonceMACScheme) (n j : ℕ) (sk msg : List Bool) (hmsg : msg.length ≠ M.msgLen n)
+    (issued : List ((List Bool × List Bool) × List Bool)) :
+    M.counterSigningOracle n sk ((), msg) (j, issued) = pure ([], j, issued) := by
+  simp [NonceMACScheme.counterSigningOracle, hmsg]
+
 -- The counter game unfolds in a client: a forger that outputs a message of the wrong length
 -- without querying never wins.
 example (M : NonceMACScheme) (n : ℕ) (msg nonce tag : List Bool) (hmsg : msg.length ≠ M.msgLen n) :
@@ -435,13 +446,13 @@ theorem isOraclePPT_twoQueryRandomMACForger :
       (fun p : ℕ × List Bool =>
         List.take (2 * p.1 + 2) <$>
           ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
   have hq1 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun q : (ℕ × List Bool) × List Bool =>
         List.take (2 * q.1.1 + 2) <$>
           ProbOracleComp.query ((), List.replicate q.1.1 true)) :=
-    IsOraclePPTOn.query_take' () (by polytime) (by polytime)
-  have hstep1 := hq1.map_with'
+    IsOraclePPTOn.query_take () (by polytime) (by polytime)
+  have hstep1 := hq1.map_with
     (output := encPair encBits encBits)
     (f := fun (q : (ℕ × List Bool) × List Bool) raw₁ =>
       (List.replicate q.1.1 false, raw₁))

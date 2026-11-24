@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.OfTuring
 public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Word RAMs simulate space-bounded multi-tape Turing machines
@@ -78,14 +79,14 @@ theorem executes_simProgram_of_runsInSpace {tm : MultiTapeTM k Bool Q} {inp : Li
   have hsame : tm.runFrom (tm.initCfg inp) t = tm.runFrom (tm.initCfg inp) t₀ :=
     hhalts.runFrom_eq ht₀
   have hk : 2 * k ≤ 2 * k * (s + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by unfold simBound at hw; omega
+  have hbound : inp.length + 2 * k + m + 2 < 2 ^ w := by wram_omega [hw]
   have hfit : ∀ j ≤ t₀, ∀ i,
       Fits w (tapeAddr k inp.length i ((tm.runFrom (tm.initCfg inp) j).workTapePos i)) := by
     intro j _ i
     have h1 := tapeAddr_lt (n := inp.length) i
       (z := (tm.runFrom (tm.initCfg inp) j).workTapePos i) (d := s)
       (MultiTapeTM.natAbs_workTapePos_runFrom_le_of_runsInSpace hs j i)
-    unfold Fits; unfold simBound at hw; omega
+    wram_omega [hw]
   have hout' : ∀ j ≤ t₀, (tm.runFrom (tm.initCfg inp) j).output.length < w :=
     fun j hj => lt_of_le_of_lt (length_output_runFrom_mono _ (hj.trans ht₀)) hout
   obtain ⟨x, hx₁, hsx⟩ := setupCode_spec (e := e) (w := w) tm.q₀ inp hbound

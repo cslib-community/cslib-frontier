@@ -10,12 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Probability.PMF
-import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
 /-!
@@ -53,10 +49,10 @@ native scheme under `F.DiscreteLog`, for every oracle-PPT forger, is
 `DiscreteLog.eufCma_schnorrNativeROMScheme` in
 `CslibFrontier.Crypto.Computational.SchnorrSignature.Security`, through a certified native forking
 reduction; that proof uses `oneWayGame_schnorrKeyGen_eq`. The concrete typed bound for any group,
-challenge set and call-bounded forger is `schnorr_succProbability_eufCmaGame_le` in
+challenge set and call-bounded forger is `schnorr_succProbability_eufCmaGame_le_ideal` in
 `CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature`. Strict-PPT identification and
-eavesdropping security under `F.DiscreteLog` are provided by `SchnorrIdentification` and
-`SchnorrEavesdrop`.
+eavesdropping security under `F.DiscreteLog` are `negligible_schnorrDirectProbGame` and
+`schnorr_isProbEavesdropSecure_of_discreteLogHard` in `SchnorrEavesdrop`.
 
 ## Main definitions
 
@@ -119,26 +115,12 @@ def schnorrSignCoins
 
 /-- **Deterministic bit-level Schnorr signing `schnorrSignCoins` is computable in polynomial
 time**. -/
+@[fun_prop]
 theorem computableInPolyTime_schnorrSignCoins :
     ComputableInPolyTime F.schnorrSignCoins
       (encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits))))
       (encPair encBits encBits) := by
-  let encIn := encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits)))
-  have hd : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.1)
-      encIn F.encDesc := by fun_prop
-  have hsk : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.1)
-      encIn encBits := by fun_prop
-  have hr : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.1)
-      encIn encBits := by fun_prop
-  have hro : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.2)
-      encIn encBits := by fun_prop
-  have hcommit := F.computableInPolyTime_schnorrCommitBits.comp (hd.prod hr)
-  have hresp := F.computableInPolyTime_schnorrRespondBits.comp (hd.prod (hsk.prod (hr.prod hro)))
-  exact hcommit.prod hresp
+  fun_prop [PrimeOrderGroupFamily.schnorrSignCoins]
 
 /-- `schnorrSignCoins` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrSignCoins :
@@ -159,6 +141,7 @@ def schnorrSigVerifyBits
 
 /-- **Bit-level Schnorr signature verification `schnorrSigVerifyBits` is computable in polynomial
 time**. -/
+@[fun_prop]
 theorem computableInPolyTime_schnorrSigVerifyBits :
     ComputableInPolyTime F.schnorrSigVerifyBits
       (encPair F.encDesc

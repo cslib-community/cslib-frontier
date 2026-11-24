@@ -20,7 +20,7 @@ Adapt the client's contract to your types. A failed bridge usually means a missi
 
 ## Write the contract before the proof
 
-Record the input and output types; their encodings; the measured input size; the time, workspace, gate or query bound; and what is fixed before the input varies. Model domain objects, problem instances, certificates, configurations, and multi-field algorithm states or contexts as documented `structure`s with named fields rather than tuple `abbrev`s or bare product sets (`Set (A × B × C)`), keeping plain `Prod` (`×`) for generic binary combinators and uncurried multi-argument inputs such as `Instance × List Bool → Bool`. For native computation, an encoding has type `α ↪ List Bool`: injectivity is part of the data. Reuse `encBits`, `encBool`, binary `encNat`, unary `encUnary`, `encPair` and `encList` before defining another representation. A new embedding needs an injectivity proof and size lemmas suitable for the intended bound. [Encoding length lemmas](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Length.lean) and [pair lengths](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair.lean) show where framing overhead enters. To read a component back out of an `encPair` word in a proof, rewrite with `unframe_encPair` and `dropFrame_encPair`, or with their `encBits` forms `unframe_encPair_encBits` and `dropFrame_encPair_encBits` ([pair projections](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair/Projections.lean)), rather than proving the step inline.
+Record the input and output types; their encodings; the measured input size; the time, workspace, gate or query bound; and what is fixed before the input varies. Model domain objects, problem instances, certificates, configurations, and multi-field algorithm states or contexts as documented `structure`s with named fields rather than tuple `abbrev`s or bare product sets (`Set (A × B × C)`), keeping plain `Prod` (`×`) for generic binary combinators and uncurried multi-argument inputs such as `Instance × List Bool → Bool`. For native computation, an encoding has type `α ↪ List Bool`: injectivity is part of the data. Reuse `encBits`, `encBool`, binary `encNat`, unary `encUnary`, `encPair` and `encList` before defining another representation. Encode a dependent pair `Σ i, β i` with `encSigma encI enc`, the framed index followed by the second component under the encoding `enc i` that the index selects; when that family is uniform, `enc i = e ∘ code i`, `ComputableInPolyTime.sigmaView` reads the value as the plain pair `(i, code i b)` under `encPair encI e` ([dependent pairs](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Sigma.lean)). A new embedding needs an injectivity proof and size lemmas suitable for the intended bound. [Encoding length lemmas](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Length.lean) and [pair lengths](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair.lean) show where framing overhead enters. To read a component back out of an `encPair` word in a proof, rewrite with `unframe_encPair` and `dropFrame_encPair`, or with their `encBits` forms `unframe_encPair_encBits` and `dropFrame_encPair_encBits` ([pair projections](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Pair/Projections.lean)), rather than proving the step inline.
 
 For fixed finite tables, the plain `ComputableInPolyTime.ofFn`, `.pi`, `.pi_apply` and
 `.pi_update` certificates reuse the independent resource rules in
@@ -33,9 +33,9 @@ for empty index/value types and the required callback certificates. Import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePiPrimitives`
 for this plain API. Its computed-index rules use the captured-input dispatch theorem in
 [PolyTimeFinitePrimitives.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/PolyTimeFinitePrimitives.lean).
-The regression rejects imports of the higher tidy calculus; the tidy-facing
-`Complexity.PolyTime.Finite` module re-exports the same plain dispatch theorem and adds its tidy
-specialization. The plain `Complexity.Degree.Primitives` entry point registers
+The regression rejects imports of the higher tidy calculus;
+`Complexity.PolyTime.Finite` re-exports the same plain dispatch theorem. The plain
+`Complexity.Degree.Primitives` entry point registers
 `ComputableInDegree` for `fun_prop`; extracted list rules do not require `Quantitative`
 to enable automation.
 
@@ -108,7 +108,15 @@ charges both framing layers for the explicit cells without changing the runtime-
 
 The tactic does not infer loop invariants or a logarithmic bound in the original input, and it has two further limits. First, `fun_prop` does not see through a `match`, so a machine step defined by cases on its control state still needs a hand-written certificate, or a lemma that rewrites it as an `if`-chain. Second, `space` matches encodings without unfolding a primitive encoding such as `encPair`, `encList` or `encFinEnum`, so certificates must agree on encodings up to named aliases such as `encTuple := encPair …`. A component (`.1`, `.2`) of a value encoded as one finite value, such as `encFinEnum (A × B)`, therefore goes through `budget_finite` rather than the pair rule. A direct `fun_prop` call unfolds encodings and can stop at `maximum recursion depth` on the same goal.
 
-To encode an inductive type whose constructors take explicit, non-recursive fields, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive` and write `enc_inductive eT : T where | c₁ : e₁₁, e₁₂ | c₂ | …`, listing every constructor once in declaration order with the encodings of its fields; a constructor without fields has no `:`. The command checks the list before declaring anything. A type with parameters or a missing, repeated or misplaced constructor is reported at the type, with the expected constructor list; an implicit field or a wrong number of encodings is reported at the constructor, and an encoding of the wrong type at that encoding. A value is sent by `eT_toSum` to a right-nested sum with one summand per constructor, which `eTPayload` encodes with `encSum`. A summand is the framed tuple of the constructor's fields, as for `enc_structure`, the field encoding itself for one field, and `encUnit` for none. Constructor `i` of `n` is therefore tagged by `i` leading `true` bits, then a `false` bit unless it is the last, and `eT_apply` unfolds `eT x` to `eTPayload (eT_toSum x)`.
+For a loop that reads its input, import [InSpace.QueryLoop](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/QueryLoop.lean) and apply `ComputableInSpace.queryLoop` instead of declaring a `QueryMachine`. Give the state a `structure` with an `enc_structure` encoding; write the position to read as `query : σ → ℕ`, the round as `next : σ × Option Bool → σ` (the bit read is `none` past the end of the input) and the stopping test as `done : σ → Bool`, and certify each with `space` at the budget of its encoded argument. The remaining obligations are yours: the start state within the budget `S`, the number of rounds `n a` at which `done` first holds, and a bound `c * (S a + log₂ n + 1)` on the encoded states up to that round, which usually follows from a closed form of the iterate. The conclusion is the final state within the budget `S a + log₂ n`; project the answer with the generated `_budget` rule. `ComputableInSpace.computableInLogSpace` turns a budget `log₂ n` into `ComputableInLogSpace`, and `Cslib.Complexity.setOf_mem_DSPACE_of_computableInSpace` turns a Boolean function within the budget `s n` into membership in `DSPACE enc s`. The [SpaceQueryLoop client](../../CslibFrontierTests/SpaceQueryLoop.lean) counts the ones of a word and decides majority this way. `space` proves a constant under any budget, also a sublinear one, since `ComputableInSpace.budget_const` asks for no input-length allowance; the client relies on this for the factor `2`.
+
+When a round needs more than one bit of the input, for example a whole routine over it, import [InSpace.StoredLoop](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/StoredLoop.lean) and use `ComputableInSpace.loopWith`. Write the body as a function `step : ρ × α → Option ρ` of the stored registers and the input, registers first, returning the next registers or `none` to stop, and certify it on `encPair encR encA` within a budget `T` of the pair. The usual budget is the *context form* `fun p => (encR p.1).length + S p.2`, which charges the registers and not the input; any other budget is accepted, for example one that grows faster in a stored parameter than the registers do. Obtain the parts of the body that read the input from logspace certificates with `ComputableInLogSpace.inSpace_context`: `(ComputableInLogSpace.fst encR encA).inSpace_context` is the registers, and `(hg.comp' (ComputableInLogSpace.snd encR encA)).inSpace_context` is a logspace function `g` of the input alone whose value has logarithmic length. Combine them with the budget rules as usual. Then name the registers `r a j` of every round `j ≤ n a`, prove that the body maps each to the next and returns `none` at the last, and bound the budget of the body on them, `T (r a j, a) ≤ B a`. The budget is not used on registers that the loop does not hold, and the lengths of the registers need no separate bound, because the value of the body is charged to its budget. The conclusion is `fun a => r a (n a)` within the budget `S a + B a + log₂ n`, with a constant that does not depend on the number of rounds. The [SpaceStoredLoop client](../../CslibFrontierTests/SpaceStoredLoop.lean) computes the binary length of the number of ones of a word by calling the counting routine of the previous client in every round. To call a certified function on rearranged registers or a transformed input, compose it after the logspace map that produces them: `hg.comp_logSpace hf` gives the budget `Sg (f a) + log₂ n`, and `hg.comp_logSpace_context hf hS hlog` keeps a function of registers and input in context form, given that the budget of `g` at `f p` is within the new budget (`hS`) and that the budget of the input covers the logarithm of its length (`hlog`). The intermediate value is recomputed, never stored. The [SpaceContextSubstitution client](../../CslibFrontierTests/SpaceContextSubstitution.lean) reuses the previous body on the complemented word this way. To read the input where the registers point, use `ComputableInSpace.inputBit encA` from [InSpace.InputBit](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/InputBit.lean): it is `fun p : ℕ × α => (encA p.2)[p.1]?` in context form, within the binary length of the index plus `log₂ n`, and returns `none` past the end. It is the logspace lookup `computableInLogSpace_bitsGetElem?` of [LogSpace.BitsGetElem](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/LogSpace/BitsGetElem.lean) put in context form, and shows the pattern for any logspace accessor with a short value. Compose it after the logspace map `(r, a) ↦ (index r, a)` with `comp_logSpace_context`; the index must be a logspace function of the registers, such as a projection. The [SpaceInputBit client](../../CslibFrontierTests/SpaceInputBit.lean) counts the ones of a word with a body that looks up `w[pos]?`. To use an intermediate value more than once without recomputing it, import [InSpace.StoredBind](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/StoredBind.lean): `ComputableInSpace.bindWith hh hg` stores `h a` and gives `fun a => g (h a, a)` within `Sh a + Sg a + log₂ n`, where `hg` certifies `g` in context form with the stored value as registers. The [SpaceStoredBind client](../../CslibFrontierTests/SpaceStoredBind.lean) decides majority by storing the number of ones. To count, or decide majority or existence, over the indices `i < m a` of a predicate `p (i, a)` in context form, import [InSpace.StoredCount](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/StoredCount.lean) and use `hm.countWith hp`, `hm.majorityWith hp` or `hm.anyWith hp`, where `hm` certifies the bound `m` within `S` and `hp` the predicate within the length of the index plus `S`; the result is within `S a + log₂ n`. The [SpaceStoredCount client](../../CslibFrontierTests/SpaceStoredCount.lean) decides the majority of the bits of a word by enumerating positions with `inputBit`.
+
+When the registers of a loop are not known in closed form, use `ComputableInSpace.loopWith_of_invariant` from the same module: give an invariant `Inv a m r` of the registers indexed by a variant `m`, and prove that it holds at the start, that a round keeps it with a smaller variant, that it bounds the budget of the body by `B a`, and that it determines the registers where the body returns `none`.
+
+For a recursive procedure, import [InSpace.Recursion](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/Recursion.lean) and use `ComputableInSpace.recWith` instead of declaring a stack. Give the frames a `structure` with an `enc_structure` encoding, and write the body as a function `body : (φ × Option β) × α → (φ × φ) ⊕ β` of a frame, the value that a call has just returned to it (`none` when the frame starts) and the input: it answers `.inl (saved, child)` to call `child` and resume `saved` with the value of the call, or `.inr v` to return `v`. Certify it within a budget `T` as for `loopWith`, building the two answers with `budget_sumInl` and `budget_sumInr`. Then state four things about every input `a`: the frames that occur (`Reach a`, which holds of `(init a, none)`), the value `val a c` that a reachable frame returns, a `rank a` that decreases from a calling frame to its callee and to its resumption, and a potential `need a`. The potential is at least `T` on a reachable frame; for a calling frame it is at least the encoded length of `saved`, one more unit and the need of the callee, and at least the need of its resumption. With frames of at most `F` bits and a depth that decreases by one per call, `need a c = (depth c + 1) * F` works; when the frames shrink along a chain of calls, let `need` be the sum of the sizes still to come. The conclusion is `fun a => val a (init a, none)` within the budget `S a + B a + log₂ n`, where `B a` bounds the need of the first frame and the constant does not depend on the depth. The [SpaceRecursion client](../../CslibFrontierTests/SpaceRecursion.lean) evaluates the NAND tree over a word this way, in space `O(log² n)`.
+
+To encode an inductive type whose constructors take explicit, non-recursive fields, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive` and write `enc_inductive eT : T where | c₁ : e₁₁, e₁₂ | c₂ | …`, listing every constructor once in declaration order with the encodings of its fields; a constructor without fields has no `:`. The command checks the list before declaring anything. This original bare-type form rejects parameters; a missing, repeated or misplaced constructor is reported at the type, with the expected constructor list; an implicit field or a wrong number of encodings is reported at the constructor, and an encoding of the wrong type at that encoding. A value is sent by `eT_toSum` to a right-nested sum with one summand per constructor, which `eTPayload` encodes with `encSum`. A summand is the framed tuple of the constructor's fields, as for `enc_structure`, the field encoding itself for one field, and `encUnit` for none. Constructor `i` of `n` is therefore tagged by `i` leading `true` bits, then a `false` bit unless it is the last, and `eT_apply` unfolds `eT x` to `eTPayload (eT_toSum x)`.
 
 The command also generates the linear map `eT_toSum_deg`, a constructor rule `eT_c_inO` for each constructor `c`, which adds up the bounds of its arguments, its lifts `eT_c_inSpace` and `eT_c_polyTime`, and case analysis `eT_elim` on the payloads with its rules `eT_elim_inO`, `eT_elim_inSpace` and `eT_elim_polyTime`. The space lifts retain independent branch or field workspace bounds and existentially quantify time. The polynomial constructor lift recovers explicit degree clocks and applies the original constructor rule; it does not rebuild its machine. The case rule takes the input paired with the value, as `ComputableInO.sumElimSnd` does, and charges only the case taken plus `n` times the encoded pair. The `toSum` and constructor rules are `scoped` `fun_prop` rules, active as described above. A `match` on the type is not yet rewritten to `eT_elim`, and there is no degree-level case rule. Polynomial elimination recovers independent branch clocks and bounds them in the full input size before lifting the original arbitrary-resource case certificate. For each constructor `c`, `eT_c_matches` tests its tag, `eT_c_payload?` extracts its complete payload, and `eT_c_fieldJ?` extracts zero-based field `J`; projections return `none` on other constructors and need no default inhabitant. Each has `_deg`, `_inO`, `_inSpace` and `_polyTime` rules. All three predicate views reuse the canonical degree certificate. Matchers preserve output degree zero, while payload and field projections have output degree one. For unknown inputs, `eT_c_matches_iff` states that a tag matches exactly when the value is
 that constructor applied to some complete payload. `eT_c_payload?_eq_some_iff` identifies
@@ -118,6 +126,112 @@ payload existence to the matcher; `_isSome` remains available for every optional
 The [import-side client](../../CslibFrontierTests/InductiveEncodingVisibilityClient.lean)
 uses these public facts without unfolding matches and checks scoped automation and all three
 fields of a constructor after importing a separate ordinary module. The [InductiveEncoding client](../../CslibFrontierTests/InductiveEncoding.lean) checks the encoded words, injectivity, a constructor composition, the case rule, an enumeration and each of these errors.
+
+For directly recursive families, give uniform parameters before the colon and write `_` for each
+self-recursive field. All other fields name their chosen embeddings, including fields of a
+previously encoded family. The [recursive fixture](../../CslibFrontierTests/RecursiveInductiveEncoding.lean)
+gives the complete imports and declarations for arithmetic terms, formulas over those terms, and
+a polymorphic tree with three recursive children interspersed with scalar fields:
+
+```text
+enc_inductive encTerm (n : ℕ) : Term n where
+  | const : encIntBin
+  | var : (encFinEnum (Fin n))
+  | add : _, _
+  | mul : _, _
+
+enc_inductive encFormula (n : ℕ) : Formula n where
+  | false
+  | eqZero : (encTerm n)
+  | not : _
+  | and : _, _
+```
+
+A type parameter and its encoding are explicit, for example `(α : Type)` and
+`(eα : α ↪ List Bool)` before `: Tree α`. Parameters select the family and scalar encodings;
+they are not stored in the word. Resource certificates apply for each fixed choice of those
+parameters and codecs. Here “uniform” means that recursive occurrences keep the same parameter
+arguments. The encoded value type must currently lie in `Type`, following the native codec/loop
+APIs; a higher-universe phantom parameter is allowed when the value type remains small. Genuine
+indices, dependencies on earlier constructor fields, proof or implicit fields,
+mutual recursion, nested recursion, and altered recursive parameters are rejected before any
+encoding declarations are emitted. Constructor arity has no fixed limit.
+
+To omit the constructor list, import
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Derive` and declare
+`derive_encoding encTerm (n : ℕ) : Term n` inside a namespace. This declaration-time frontend
+selects scalar embeddings, then generates the same public encoding and native APIs as
+`enc_inductive`; the target inductive type must be public. The selected terms are fixed at the
+declaration, so later policy changes do not alter its encoded words.
+List every type, value and embedding parameter used by the target or selected encodings explicitly
+before the colon; ambient section parameters are rejected.
+The core import registers no defaults. A named policy must be imported and activated explicitly:
+
+```text
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Policy.BinaryIntUnaryFin
+
+namespace Arithmetic
+open scoped Turing.MultiTapeTM.EncodingPolicy.BinaryIntUnaryFin
+
+derive_encoding encTerm (n : ℕ) : Term n
+derive_encoding encFormula (n : ℕ) : Formula n
+end Arithmetic
+```
+
+This policy selects binary `encIntBin` for integers, unary `encFinEnum (Fin n)` for finite
+variable indices, `encBool` for Booleans and `encUnit` for unit. It makes no choice for natural
+numbers. A constructor field that is directly recursive uses the generated encoding. For every
+other field, a matching embedding supplied as a declaration parameter, such as
+`(eα : α ↪ List Bool)`, takes precedence over registered rules. Two matching local embeddings
+are an error. Otherwise exactly one active registered rule must apply: missing and ambiguous
+choices are errors, rather than a fallback to a different representation. A family's parameters
+are inferred from the field type, and any embedding arguments it needs are resolved recursively.
+Thus deriving `encTree (α : Type) (eα : α ↪ List Bool) : Tree α` lets a later family with a
+`Tree α` field reuse `encTree α eα`.
+
+Register an existing embedding or parameterized encoding with
+`attribute [scoped encoding_rule] encName` in the policy's namespace, and activate it with
+`open scoped PolicyNamespace`. Scoped rules are active within that namespace and when it is
+reopened; an importing client must reactivate them. Opening a parent namespace does not activate
+its children's rules. Use `[local encoding_rule]` for a section-local choice. Plain global
+`[encoding_rule]` registrations are rejected, so imports cannot silently add choices or ambiguity.
+A successful `derive_encoding` automatically
+registers its encoding as a scoped rule in its declaring namespace, so `encFormula` above reuses
+`encTerm` without repeating its parameters or scalar choices. Clients reactivate both with
+`open scoped Arithmetic`; importing the module alone does not activate those choices. Local
+registrations expire at the end of their scope and are not restored by reopening the namespace.
+Registered embeddings must be public; use local or scoped registration to limit their activation.
+The frontend rejects unsupported constructors before generating names and inherits the uniform
+parameter and recursion restrictions above. Use `enc_inductive` to spell out a particular
+constructor layout or resolve a deliberate choice explicitly. Neither command supplies scalar
+decoders. The [frontend fixture](../../CslibFrontierTests/DeriveEncoding.lean) compares the full
+arithmetic grammar and parameterized trees with explicit declarations; its
+[importing client](../../CslibFrontierTests/DeriveEncodingClient.lean) exercises scoped reuse,
+certified construction and projections, and strict decoding.
+
+The recursive representation is a preorder constructor stream. Each token contains its
+constructor tag and scalar fields in scalar-field order, followed by the child streams in
+recursive-field order. Tags use the same right-nested sum convention as above. Scalar tuples
+frame every field except the last, with `encUnit` for no scalar fields; `encList` then frames
+each token once. Whole recursive children are never framed again. `eT_c_apply` and `eT_c_length`
+state each constructor's words and size. `eT_length` is the exact sum of token frame lengths;
+`eT_length_le` gives `length ≤ (2 * (c + m) + 1) * nodes + 4 * leafSize`, where `c` is the
+number of constructors in the type, `m` the largest scalar-field count, and `leafSize` sums the chosen scalar word
+lengths. Depth does not multiply the size.
+
+Constructor assembly preserves independent bounds, adding the argument clocks or workspaces
+and twice the encoded input length. Matchers and scalar projections have linear native rules;
+recursive-field and complete-payload projections have native polynomial-time rules from a
+bounded-arity stream scan. Typed-token decoding needs no scalar decoder. Bit-word decoding uses
+`eT_decoder`, with an explicit `PartialDecoder` for each scalar field, in constructor/field order.
+Each witness proves strict decoding and native polynomial time, including the charged decoded
+output, for every bit word. `PartialDecoder.ofDecoder` can check an existing total decoder;
+`ofOptionDecoder` and `empty` also cover empty scalar types such as `Fin 0`. The generated bundle
+accepts exactly the encoding's image, so malformed frames, invalid payloads, missing children,
+and trailing input are rejected. An arbitrary embedding supplies no decoder or efficiency
+assumption. Encoding syntax does not certify evaluation or arbitrary recursive functions. The
+[importing client](../../CslibFrontierTests/RecursiveInductiveEncodingClient.lean) checks the
+generated constructor, recognition, projection, decoding, and axiom interfaces.
 
 The isolated [degree-transition experiment](../../CslibFrontierTests/DegreePolyTime.lean)
 compares named explicit lifts with a locally registered degree-to-polynomial `fun_prop`

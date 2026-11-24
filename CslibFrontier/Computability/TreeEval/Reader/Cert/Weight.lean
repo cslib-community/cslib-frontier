@@ -51,11 +51,6 @@ private theorem iterate_halfStep (p k o : ℕ) (x : List ℕ) (a : ℕ) (n : ℕ
     rw [Function.iterate_succ_apply', ih, List.range_succ, List.foldl_append]
     rfl
 
-private theorem weight_eq (p ℓ k : ℕ) (x y : List ℕ) :
-    weight p ℓ k x y = mulMod p (halfStep^[ℓ] (((p, k, 0), x), 0, 1 % p)).2.2
-      (halfStep^[ℓ] (((p, k, ℓ), y), 0, 1 % p)).2.2 := by
-  simp only [weight, iterate_halfStep, zero_add]
-
 private theorem length_chi_le (p : ℕ) (b : Bool) (x : ℕ) :
     (encNat (chi p b x)).length ≤ (encNat p).length + (encNat x).length + 1 := by
   rcases Nat.eq_zero_or_pos p with rfl | hp
@@ -160,8 +155,8 @@ private theorem half_inSpace :
   have hn := (snd (encPair encNat3 (encList encNat)) encNat).weaken hl
   have hp := fst' (fst' hpar)
   have hone := budget_comp_lin natMod (linear_mul _)
-    (budget_prod (budget_const (encB := encNat) 1 hl) hp)
-  have hinit := budget_prod hpar (budget_prod (budget_const (encB := encNat) 0 hl) hone)
+    (budget_prod (budget_const (encB := encNat) 1) hp)
+  have hinit := budget_prod hpar (budget_prod (budget_const (encB := encNat) 0) hone)
   have hlen (h : ((ℕ × ℕ × ℕ) × List ℕ) × ℕ) (j : ℕ) (hj : j ≤ h.2) :
       (encHalf (halfStep^[j] (h.1, 0, 1 % h.1.1.1))).length ≤
         4 * ((encHalfIn h).length + h.2 + 1) := by
@@ -197,14 +192,14 @@ theorem weight_inSpace :
   have hℓ := fst' (snd' hpkl)
   have hk := snd' (snd' hpkl)
   have hlo₀ := budget_prod (budget_prod (budget_prod hp
-    (budget_prod hk (budget_const (encB := encNat) 0 hl))) (fst' hxy)) hℓ
+    (budget_prod hk (budget_const (encB := encNat) 0))) (fst' hxy)) hℓ
   have hhi₀ := budget_prod (budget_prod (budget_prod hp (budget_prod hk hℓ)) (snd' hxy)) hℓ
   have hlo := budget_comp half_inSpace hlo₀
     (.const_mul 256 (((length_le hlo₀).add hℓle).add (.const 1 _)))
   have hhi := budget_comp half_inSpace hhi₀
     (.const_mul 256 (((length_le hhi₀).add hℓle).add (.const 1 _)))
   exact (budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod hlo hhi))).of_enc_eq
-    fun w => by rw [weight_eq]
+    fun w => by simp only [weight, iterate_halfStep, zero_add]
 
 end Reader
 

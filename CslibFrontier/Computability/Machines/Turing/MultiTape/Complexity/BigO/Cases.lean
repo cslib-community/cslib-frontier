@@ -9,7 +9,8 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearCodecPrimitives
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -29,7 +30,7 @@ inputs of their case only.
 
 public section
 
-namespace Turing.MultiTapeTM.ComputableTidilyInO
+namespace Turing.MultiTapeTM.ComputableInO
 
 variable {π α β ε : Type} {encP : π ↪ List Bool} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
   {encE : ε ↪ List Bool}
@@ -38,15 +39,15 @@ variable {π α β ε : Type} {encP : π ↪ List Bool} {encA : α ↪ List Bool
 and dropping `k` symbols after it, in linear time. -/
 private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → π × α} (k : ℕ)
     (hh : ∀ s, ∃ u, encS s = frame (encP (h s).1) ++ u ∧ encA (h s).2 = u.drop k) :
-    ComputableTidilyInO h encS (encPair encP encA) (fun s => (encS s).length)
+    ComputableInO h encS (encPair encP encA) (fun s => (encS s).length)
       (fun s => (encS s).length) := by
   have hlen : ∀ s, (encP (h s).1).length + (encA (h s).2).length ≤ (encS s).length := fun s => by
     obtain ⟨u, hs, hu⟩ := hh s
     rw [hs, hu, List.length_append, length_frame, List.length_drop]
     omega
-  have h₁ : ComputableTidilyInO (fun s => (h s).1) encS (encFramed encP)
+  have h₁ : ComputableInO (fun s => (h s).1) encS (encFramed encP)
       (fun s => (encS s).length) (fun s => (encS s).length) := by
-    have hu : ComputableTidilyInO (fun s => (h s).1) encS encP (fun s => (encS s).length)
+    have hu : ComputableInO (fun s => (h s).1) encS encP (fun s => (encS s).length)
         (fun s => (encS s).length) :=
       of_linear (.of_unframe fun s => by
         obtain ⟨u, hs, -⟩ := hh s
@@ -56,10 +57,10 @@ private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → �
     · have := hlen s
       omega
   -- the word after the frame, then `k` symbols dropped
-  have hd : ComputableTidilyInO (fun s => dropFrame (encS s)) encS encBits
+  have hd : ComputableInO (fun s => dropFrame (encS s)) encS encBits
       (fun s => (encS s).length) (fun s => (encS s).length) :=
     of_linear (.of_dropFrame fun s => rfl)
-  have hdrop : ∀ k : ℕ, ComputableTidilyInO (fun s => (dropFrame (encS s)).drop k) encS encBits
+  have hdrop : ∀ k : ℕ, ComputableInO (fun s => (dropFrame (encS s)).drop k) encS encBits
       (fun s => (encS s).length) (fun s => (encS s).length) := by
     intro k
     induction k with
@@ -74,7 +75,7 @@ private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → �
           omega
         simp only [encBits, Function.Embedding.refl_apply]
         omega
-  have h₂ : ComputableTidilyInO (fun s => (h s).2) encS encA (fun s => (encS s).length)
+  have h₂ : ComputableInO (fun s => (h s).2) encS encA (fun s => (encS s).length)
       (fun s => (encS s).length) :=
     (hdrop k).of_enc_eq fun s => by
       obtain ⟨u, hs, hu⟩ := hh s
@@ -85,11 +86,11 @@ private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → �
 /-- **Case analysis on a sum component.** If `f` is computable on the left case and `g` on the
 right case, so is the case analysis, within the bounds of the branch taken plus the length of the
 encoded input. -/
-private theorem sumElimSnd_tidy {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α → ℕ}
+theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α → ℕ}
     {Tg Sg : π × β → ℕ}
-    (hf : ComputableTidilyInO f (encPair encP encA) encE Tf Sf)
-    (hg : ComputableTidilyInO g (encPair encP encB) encE Tg Sg) :
-    ComputableTidilyInO
+    (hf : ComputableInO f (encPair encP encA) encE Tf Sf)
+    (hg : ComputableInO g (encPair encP encB) encE Tg Sg) :
+    ComputableInO
       (fun p : π × (α ⊕ β) => p.2.elim (fun a => f (p.1, a)) (fun b => g (p.1, b)))
       (encPair encP (encSum encA encB)) encE
       (fun p => (encPair encP (encSum encA encB) p).length +
@@ -99,9 +100,9 @@ private theorem sumElimSnd_tidy {f : π × α → ε} {g : π × β → ε} {Tf 
   set enc := encPair encP (encSum encA encB)
   set F := fun p : π × (α ⊕ β) => p.2.elim (fun a => f (p.1, a)) (fun b => g (p.1, b))
   -- the test
-  have htest : ComputableTidilyInO (fun p : π × (α ⊕ β) => p.2.isLeft) enc encBool
+  have htest : ComputableInO (fun p : π × (α ⊕ β) => p.2.isLeft) enc encBool
       (fun p => (enc p).length) (fun p => (enc p).length) := by
-    refine ((ComputableInO.isLeft_deg encA encB).inO_one.tidy.comp
+    refine ((ComputableInO.isLeft_deg encA encB).inO_one.comp
       (snd encP (encSum encA encB))).mono 2 (fun p => ?_) (fun p => ?_) <;>
     · enc_len [enc]
   -- the two branches, on their cases
@@ -121,15 +122,15 @@ private theorem sumElimSnd_tidy {f : π × α → ε} {g : π × β → ε} {Tf 
       cases s with
       | inl a => simp at hs
       | inr b => exact ⟨true :: encB b, by simp [enc, R], rfl⟩
-  obtain ⟨c₀, h₀, -⟩ := htest
-  obtain ⟨c₁, h₁, l₁⟩ := hf.comp hL
-  obtain ⟨c₂, h₂, l₂⟩ := hg.comp hR
-  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.1 = (f ∘ L) q := by
+  obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
+  obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hf.comp hL)
+  obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hg.comp hR)
+  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.1 = f (L q) := by
     rintro ⟨⟨x, s⟩, hs⟩
     cases s with
     | inl a => rfl
     | inr b => simp at hs
-  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.1 = (g ∘ R) q := by
+  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.1 = g (R q) := by
     rintro ⟨⟨x, s⟩, hs⟩
     cases s with
     | inl a => simp at hs
@@ -142,33 +143,30 @@ private theorem sumElimSnd_tidy {f : π × α → ε} {g : π × β → ε} {Tf 
       ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
   have hlenR : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false},
       ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
-  obtain ⟨k, h⟩ := ComputableTidilyInTimeAndSpace.ite h₀ (f := F) (g := F)
+  obtain ⟨k, K, Q, _, tm, h⟩ := Internal.conditional h₀ (f := F) (g := F)
     (tf := fun p => c₁ * ((enc p).length + Tl p + 1))
     (sf := fun p => c₁ * ((enc p).length + Sl p + 1))
     (tg := fun p => c₂ * ((enc p).length + Tr p + 1))
     (sg := fun p => c₂ * ((enc p).length + Sr p + 1))
-    ((h₁.of_enc_eq fun q => by rw [Function.comp_apply, hF₁ q]).mono
-      (fun ⟨⟨x, s⟩, hs⟩ => by
-        cases s with
-        | inl a => exact le_of_eq rfl
-        | inr b => simp at hs)
-      (fun ⟨⟨x, s⟩, hs⟩ => by
-        cases s with
-        | inl a => exact le_of_eq rfl
-        | inr b => simp at hs))
-    ((h₂.of_enc_eq fun q => by rw [Function.comp_apply, hF₂ q]).mono
-      (fun ⟨⟨x, s⟩, hs⟩ => by
-        cases s with
-        | inl a => simp at hs
-        | inr b => exact le_of_eq rfl)
-      (fun ⟨⟨x, s⟩, hs⟩ => by
-        cases s with
-        | inl a => simp at hs
-        | inr b => exact le_of_eq rfl))
-  have hFeq : (fun x => if x.2.isLeft then F x else F x) = F := funext fun _ => by
-    split_ifs <;> rfl
-  rw [hFeq] at h
-  refine of_bounds h (c₀ + c₁ + c₂ + k + 1) (fun p => ?_) (fun p => ?_) (fun p => ?_)
+    (fun q => by
+      have hq := h₁ q
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₁ q] at hq
+      rcases q with ⟨⟨x, s⟩, hs⟩
+      cases s with
+      | inl a => exact hq.mono le_rfl le_rfl
+      | inr b => simp at hs)
+    (fun q => by
+      have hq := h₂ q
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₂ q] at hq
+      rcases q with ⟨⟨x, s⟩, hs⟩
+      cases s with
+      | inr b => exact hq.mono le_rfl le_rfl
+      | inl a => simp at hs)
+  simp only [ite_self] at h
+  refine of_bounds ⟨K, Q, inferInstance, tm, fun p => (h p).computesInTimeAndSpace⟩
+    (c₀ + c₁ + c₂ + k + 1) (fun p => ?_) (fun p => ?_) (fun p => ?_)
   · obtain ⟨x, s⟩ := p
     cases s <;> simp only [Tl, Tr, Sum.isLeft_inl, Sum.isLeft_inr, Sum.elim_inl, Sum.elim_inr,
       ite_true, ite_false, Bool.false_eq_true] <;> nlinarith
@@ -191,10 +189,10 @@ private theorem sumElimSnd_tidy {f : π × α → ε} {g : π × β → ε} {Tf 
 /-- **Case analysis on an option component.** If `f` is computable on the first component in the
 `none` case and `g` on the pair in the `some` case, so is the case analysis, within the bounds of
 the branch taken plus the length of the encoded input. -/
-private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ} {Tg Sg : π × α → ℕ}
-    (hf : ComputableTidilyInO f encP encE Tf Sf)
-    (hg : ComputableTidilyInO g (encPair encP encA) encE Tg Sg) :
-    ComputableTidilyInO (fun p : π × Option α => p.2.elim (f p.1) (fun a => g (p.1, a)))
+theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ} {Tg Sg : π × α → ℕ}
+    (hf : ComputableInO f encP encE Tf Sf)
+    (hg : ComputableInO g (encPair encP encA) encE Tg Sg) :
+    ComputableInO (fun p : π × Option α => p.2.elim (f p.1) (fun a => g (p.1, a)))
       (encPair encP (encOption encA)) encE
       (fun p => (encPair encP (encOption encA) p).length +
         p.2.elim (Tf p.1) (fun a => Tg (p.1, a)))
@@ -203,11 +201,11 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
   set enc := encPair encP (encOption encA)
   set F := fun p : π × Option α => p.2.elim (f p.1) (fun a => g (p.1, a))
   -- the test
-  have htest : ComputableTidilyInO (fun p : π × Option α => p.2.isSome) enc encBool
+  have htest : ComputableInO (fun p : π × Option α => p.2.isSome) enc encBool
       (fun p => (enc p).length) (fun p => (enc p).length) := by
-    have he : ComputableTidilyInO (fun p : π × Option α => p.2.isNone) enc encBool
+    have he : ComputableInO (fun p : π × Option α => p.2.isNone) enc encBool
         (fun p => (enc p).length) (fun p => (enc p).length) := by
-      have hd : ComputableTidilyInO (fun p : π × Option α => dropFrame (enc p)) enc encBits
+      have hd : ComputableInO (fun p : π × Option α => dropFrame (enc p)) enc encBits
           (fun p => (enc p).length) (fun p => (enc p).length) :=
         of_linear (.of_dropFrame fun p => rfl)
       refine ((of_linear (.of_isEmpty (f := List.isEmpty) (encIn := encBits) fun _ => rfl)).comp
@@ -215,7 +213,7 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
       · obtain ⟨x, _ | a⟩ := p <;> simp [enc, dropFrame_frame_append]
       all_goals
         enc_len [enc, encPair_apply, dropFrame_frame_append, encBits, Function.Embedding.refl_apply]
-    refine ((ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
+    refine ((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
       Bool.not).inO_one.comp
       he).of_enc_eq (fun p => ?_) |>.mono 2 (fun p => ?_) (fun p => ?_)
     · obtain ⟨x, _ | a⟩ := p <;> rfl
@@ -224,7 +222,7 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
   let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.1.1
   let S : {p : π × Option α // p.2.isSome = true} → π × α :=
     fun p => (p.1.1, p.1.2.get p.2)
-  have hN : ComputableTidilyInO N ((Function.Embedding.subtype _).trans enc) encP
+  have hN : ComputableInO N ((Function.Embedding.subtype _).trans enc) encP
       (fun s => ((Function.Embedding.subtype _).trans enc s).length)
       (fun s => ((Function.Embedding.subtype _).trans enc s).length) :=
     of_linear (.of_unframe fun ⟨⟨x, o⟩, _⟩ => by simp [enc, N, unframe_frame_append])
@@ -234,15 +232,15 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
       cases o with
       | none => simp at ho
       | some a => exact ⟨true :: encA a, by simp [enc, S], rfl⟩
-  obtain ⟨c₀, h₀, -⟩ := htest
-  obtain ⟨c₁, h₁, l₁⟩ := hg.comp hS
-  obtain ⟨c₂, h₂, l₂⟩ := hf.comp hN
-  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.1 = (g ∘ S) q := by
+  obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
+  obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hg.comp hS)
+  obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hf.comp hN)
+  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.1 = g (S q) := by
     rintro ⟨⟨x, o⟩, ho⟩
     cases o with
     | none => simp at ho
     | some a => rfl
-  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.1 = (f ∘ N) q := by
+  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.1 = f (N q) := by
     rintro ⟨⟨x, o⟩, ho⟩
     cases o with
     | none => rfl
@@ -255,33 +253,30 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
       ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
   have hlenN : ∀ q : {p : π × Option α // p.2.isSome = false},
       ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
-  obtain ⟨k, h⟩ := ComputableTidilyInTimeAndSpace.ite h₀ (f := F) (g := F)
+  obtain ⟨k, K, Q, _, tm, h⟩ := Internal.conditional h₀ (f := F) (g := F)
     (tf := fun p => c₁ * ((enc p).length + Ts p + 1))
     (sf := fun p => c₁ * ((enc p).length + Ss p + 1))
     (tg := fun p => c₂ * ((enc p).length + Tn p + 1))
     (sg := fun p => c₂ * ((enc p).length + Sn p + 1))
-    ((h₁.of_enc_eq fun q => by rw [Function.comp_apply, hF₁ q]).mono
-      (fun ⟨⟨x, o⟩, ho⟩ => by
-        cases o with
-        | none => simp at ho
-        | some a => exact le_of_eq rfl)
-      (fun ⟨⟨x, o⟩, ho⟩ => by
-        cases o with
-        | none => simp at ho
-        | some a => exact le_of_eq rfl))
-    ((h₂.of_enc_eq fun q => by rw [Function.comp_apply, hF₂ q]).mono
-      (fun ⟨⟨x, o⟩, ho⟩ => by
-        cases o with
-        | none => exact le_of_eq rfl
-        | some a => simp at ho)
-      (fun ⟨⟨x, o⟩, ho⟩ => by
-        cases o with
-        | none => exact le_of_eq rfl
-        | some a => simp at ho))
-  have hFeq : (fun x => if x.2.isSome then F x else F x) = F := funext fun _ => by
-    split_ifs <;> rfl
-  rw [hFeq] at h
-  refine of_bounds h (c₀ + c₁ + c₂ + k + 1) (fun p => ?_) (fun p => ?_) (fun p => ?_)
+    (fun q => by
+      have hq := h₁ q
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₁ q] at hq
+      rcases q with ⟨⟨x, o⟩, ho⟩
+      cases o with
+      | some a => exact hq.mono le_rfl le_rfl
+      | none => simp at ho)
+    (fun q => by
+      have hq := h₂ q
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₂ q] at hq
+      rcases q with ⟨⟨x, o⟩, ho⟩
+      cases o with
+      | none => exact hq.mono le_rfl le_rfl
+      | some a => simp at ho)
+  simp only [ite_self] at h
+  refine of_bounds ⟨K, Q, inferInstance, tm, fun p => (h p).computesInTimeAndSpace⟩
+    (c₀ + c₁ + c₂ + k + 1) (fun p => ?_) (fun p => ?_) (fun p => ?_)
   · obtain ⟨x, o⟩ := p
     cases o <;> simp only [Ts, Tn, Option.isSome_none, Option.isSome_some, Option.elim_none,
       Option.elim_some, ite_true, ite_false, Bool.false_eq_true] <;> nlinarith
@@ -300,41 +295,5 @@ private theorem optionElimSnd_tidy {f : π → ε} {g : π × α → ε} {Tf Sf 
       simp only [Function.comp_apply, S, Option.get_some] at this
       simp only [F, Option.elim_some]
       nlinarith [hlenS ⟨(x, some a), rfl⟩]
-
-end Turing.MultiTapeTM.ComputableTidilyInO
-
-namespace Turing.MultiTapeTM.ComputableInO
-
-variable {π α β ε : Type} {encP : π ↪ List Bool} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
-  {encE : ε ↪ List Bool}
-
-/-- **Case analysis on a sum component.** If `f` is computable on the left case and `g` on the
-right case, so is the case analysis, within the bounds of the branch taken plus the length of the
-encoded input. -/
-theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α → ℕ} {Tg Sg : π × β → ℕ}
-    (hf : ComputableInO f (encPair encP encA) encE Tf Sf)
-    (hg : ComputableInO g (encPair encP encB) encE Tg Sg) :
-    ComputableInO
-      (fun p : π × (α ⊕ β) => p.2.elim (fun a => f (p.1, a)) (fun b => g (p.1, b)))
-      (encPair encP (encSum encA encB)) encE
-      (fun p => (encPair encP (encSum encA encB) p).length +
-        p.2.elim (fun a => Tf (p.1, a)) (fun b => Tg (p.1, b)))
-      (fun p => (encPair encP (encSum encA encB) p).length +
-        p.2.elim (fun a => Sf (p.1, a)) (fun b => Sg (p.1, b))) :=
-  (ComputableTidilyInO.sumElimSnd_tidy hf.tidy hg.tidy).computableInO
-
-/-- **Case analysis on an option component.** If `f` is computable on the first component in the
-`none` case and `g` on the pair in the `some` case, so is the case analysis, within the bounds of
-the branch taken plus the length of the encoded input. -/
-theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ} {Tg Sg : π × α → ℕ}
-    (hf : ComputableInO f encP encE Tf Sf)
-    (hg : ComputableInO g (encPair encP encA) encE Tg Sg) :
-    ComputableInO (fun p : π × Option α => p.2.elim (f p.1) (fun a => g (p.1, a)))
-      (encPair encP (encOption encA)) encE
-      (fun p => (encPair encP (encOption encA) p).length +
-        p.2.elim (Tf p.1) (fun a => Tg (p.1, a)))
-      (fun p => (encPair encP (encOption encA) p).length +
-        p.2.elim (Sf p.1) (fun a => Sg (p.1, a))) :=
-  (ComputableTidilyInO.optionElimSnd_tidy hf.tidy hg.tidy).computableInO
 
 end Turing.MultiTapeTM.ComputableInO

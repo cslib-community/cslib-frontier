@@ -35,6 +35,7 @@ an exhaustive search over codes finds the irreducible polynomial of least code
 * `Cslib.polyOfBits`: the binary polynomial with a given coefficient list.
 * `Cslib.mulXMod`, `Cslib.modBits`: reduction modulo a binary
   polynomial.
+* `Cslib.modMulBits`: table-free modular multiplication.
 * `Cslib.isIrreducibleCode`: the irreducibility test by trial division.
 * `Cslib.leastIrreducibleCode`: the exhaustive search for the least code.
 * `Cslib.powerTable`: the remainders of the powers of `X`.
@@ -121,6 +122,10 @@ theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ 
       rw [h, bitEquiv_symm_false]
       simp
 
+/-- If `true` appears in `l`, then `polyOfBits l` is nonzero. -/
+theorem polyOfBits_ne_zero_of_mem {l : List Bool} (h : true ∈ l) : polyOfBits l ≠ 0 :=
+  fun h0 => Bool.true_eq_false.mp (polyOfBits_eq_zero_iff.mp h0 true h)
+
 /-- The degree of `polyOfBits l` is strictly less than `l.length`. -/
 theorem degree_polyOfBits_lt (l : List Bool) : (polyOfBits l).degree < l.length := by
   induction l with
@@ -206,10 +211,10 @@ def mulXMod (g r : List Bool) : List Bool :=
   (if (false :: r).getD (g.length - 1) false then (false :: r).zipWith xor g
     else false :: r).take (g.length - 1)
 
-private theorem length_mulXMod (l r : List Bool) (h : r.length = l.length) :
-    (mulXMod (l ++ [true]) r).length = l.length := by
+private theorem length_mulXMod (g r : List Bool) (h : r.length = g.length - 1) :
+    (mulXMod g r).length = g.length - 1 := by
   unfold mulXMod
-  split_ifs <;> simp [h]
+  split_ifs <;> simp only [List.length_take, List.length_zipWith, List.length_cons, h] <;> omega
 
 private theorem mk_polyOfBits_mulXMod (l r : List Bool) (h : r.length = l.length) :
     AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits (mulXMod (l ++ [true]) r)) =
@@ -236,6 +241,12 @@ def modStep (g : List Bool) (state : List Bool × List Bool) (b : Bool) :
     List Bool × List Bool :=
   (mulXMod g state.1, if b then state.2.zipWith xor state.1 else state.2)
 
+private theorem length_modStep_acc (g p a : List Bool) (b : Bool)
+    (hp : p.length = g.length - 1) (ha : a.length = g.length - 1) :
+    (modStep g (p, a) b).2.length = g.length - 1 := by
+  unfold modStep
+  split <;> simp [hp, ha]
+
 /-- The remainder of the polynomial with coefficient list `f` modulo the one with coefficient list
 `g`, as a coefficient list of length `g.length - 1`: the sum of the remainders of the powers
 `X ^ j` with `f j = 1`, computed by repeated multiplication by `X` modulo `g`. -/
@@ -257,9 +268,11 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
   induction f generalizing p a with
   | nil => simp [hp, ha]
   | cons b f ih =>
-    have hp' := length_mulXMod l p hp
+    have hp' : (mulXMod (l ++ [true]) p).length = l.length := by
+      simpa using length_mulXMod (l ++ [true]) p (by simpa using hp)
     have ha' : (if b then a.zipWith xor p else a).length = l.length := by
-      split_ifs <;> simp [ha, hp]
+      simpa [modStep] using length_modStep_acc (l ++ [true]) p a b
+        (by simpa using hp) (by simpa using ha)
     obtain ⟨h1, h2, h3, h4⟩ := ih _ _ hp' ha'
     refine ⟨h1, h2, ?_, ?_⟩
     · rw [List.foldl_cons, modStep, h3, map_mul, mk_polyOfBits_mulXMod l p hp, map_mul,
@@ -284,6 +297,36 @@ private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).len
   rw [hlen]
   exact (modStep_foldl l f _ _ (by simp; omega) (by simp)).2.1
 
+/-- Multiply two coefficient words modulo `g` by scanning the bits of `b`. The two live
+words hold successive shifts of `a` modulo `g` and the partial product. For a monic modulus,
+`a` should have length one less than `g`. -/
+def modMulBits (g a b : List Bool) : List Bool :=
+  (b.foldl (modStep g) (a, List.replicate (g.length - 1) false)).2
+
+/-- Multiplication retains the modulus width for any supplied modulus if the first operand
+already has that width. -/
+theorem length_modMulBits (g a b : List Bool) (ha : a.length = g.length - 1) :
+    (modMulBits g a b).length = g.length - 1 := by
+  have h (bits shift acc : List Bool) (hs : shift.length = g.length - 1)
+      (ha : acc.length = g.length - 1) :
+      (bits.foldl (modStep g) (shift, acc)).2.length = g.length - 1 := by
+    induction bits generalizing shift acc with
+    | nil => exact ha
+    | cons bit bits ih =>
+      exact ih _ _ (length_mulXMod g shift hs) (length_modStep_acc g shift acc bit hs ha)
+  exact h b a _ ha (by simp)
+
+/-- With `a` padded to the degree of the modulus, any prefix of the multiplier leaves two
+degree-sized words and its modular product is the product in the quotient. -/
+theorem modMulBits_spec (l a b : List Bool) (ha : a.length = l.length) :
+    (b.foldl (modStep (l ++ [true])) (a, List.replicate l.length false)).1.length = l.length ∧
+    (modMulBits (l ++ [true]) a b).length = l.length ∧
+    AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits (modMulBits (l ++ [true]) a b)) =
+      AdjoinRoot.mk (polyOfBits (l ++ [true])) (polyOfBits a * polyOfBits b) := by
+  obtain ⟨hshift, hprod, _, hmul⟩ := modStep_foldl l b a (List.replicate l.length false) ha
+    List.length_replicate
+  simpa [modMulBits] using And.intro hshift (And.intro hprod hmul)
+
 private theorem mk_polyOfBits_one (l : List Bool) :
     AdjoinRoot.mk (polyOfBits (l ++ [true]))
       (polyOfBits ((true :: List.replicate ((l ++ [true]).length - 2) false).take l.length)) =
@@ -306,12 +349,6 @@ theorem mk_polyOfBits_modBits (l f : List Bool) :
   rw [(modStep_foldl l f _ _ (by simp; omega) (by simp)).2.2.2, map_add, map_mul, mk_polyOfBits_one]
   simp
 
-
-private theorem polyOfBits_append_true_ne_zero (l : List Bool) : polyOfBits (l ++ [true]) ≠ 0 := by
-  rw [Ne, polyOfBits_eq_zero_iff]
-  intro h
-  exact Bool.true_eq_false.mp (h true (by simp))
-
 /-- **The divisibility test**: the polynomial with coefficient list `l ++ [true]` divides the one
 with coefficient list `f` exactly when the remainder `modBits` vanishes. -/
 theorem modBits_all_false_iff (l f : List Bool) :
@@ -319,8 +356,8 @@ theorem modBits_all_false_iff (l f : List Bool) :
   rw [← polyOfBits_eq_zero_iff, ← AdjoinRoot.mk_eq_zero, ← mk_polyOfBits_modBits,
     AdjoinRoot.mk_eq_zero]
   refine ⟨fun h => h ▸ dvd_zero _, fun h => eq_zero_of_dvd_of_degree_lt h ?_⟩
-  rw [degree_eq_natDegree (polyOfBits_append_true_ne_zero l), natDegree_polyOfBits_append_true,
-    ← length_modBits l f]
+  rw [degree_eq_natDegree (polyOfBits_ne_zero_of_mem (by simp : true ∈ l ++ [true])),
+    natDegree_polyOfBits_append_true, ← length_modBits l f]
   exact degree_polyOfBits_lt _
 
 private theorem natDegree_polyOfCode_eq_log (m : ℕ) : (polyOfCode m).natDegree = Nat.log 2 m := by
@@ -343,18 +380,23 @@ theorem any_modBits_bits_iff {d : ℕ} (hd : d ≠ 0) (f : List Bool) :
     obtain ⟨b, hb, hb'⟩ := h
     exact ⟨b, hb, by simpa using hb'⟩
 
+/-- One trial divisor passes when its degree is outside the tested range or its remainder
+is nonzero. Both codes use their little-endian binary coefficient words. -/
+def divisorPasses (candidate divisor : ℕ) : Bool :=
+  decide (divisor < 2) || decide (Nat.log 2 candidate / 2 < Nat.log 2 divisor) ||
+    (modBits divisor.bits candidate.bits).any id
+
 /-- **Trial division**: whether the binary polynomial with code `m` is irreducible. It is when
 `m ≥ 2` and no polynomial of degree between `1` and half the degree of `m` (a code `d < m`)
 divides it. -/
 def isIrreducibleCode (m : ℕ) : Bool :=
-  decide (2 ≤ m) && (List.range m).all fun d =>
-    decide (d < 2) || decide (Nat.log 2 m / 2 < Nat.log 2 d) || (modBits d.bits m.bits).any id
+  decide (2 ≤ m) && (List.range m).all (divisorPasses m)
 
 /-- **Trial division decides irreducibility**: `isIrreducibleCode m` holds exactly when the binary
 polynomial with code `m` is irreducible. -/
 theorem isIrreducibleCode_iff (m : ℕ) :
     isIrreducibleCode m = true ↔ Irreducible (polyOfCode m) := by
-  unfold isIrreducibleCode
+  unfold isIrreducibleCode divisorPasses
   simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, List.mem_range,
     Bool.or_eq_true]
   rcases lt_or_ge m 2 with hm | hm

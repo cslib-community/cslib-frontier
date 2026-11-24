@@ -57,6 +57,7 @@ generators running in time exponential in the seed
 ## Main results
 
 * `Cslib.Complexity.seedDecider_eq_true_iff`: correctness from a gap below `1 / 6`.
+* `Cslib.Complexity.seedDecider_eq_of_boundedError`: the same for an expected Boolean answer.
 * `Cslib.Complexity.computableInPolyTime_seedDecider`: polynomial time for logarithmic seeds.
 * `Cslib.Complexity.exists_computableInO_seedDecider`: time `2 ^ O(k)` times a polynomial.
 
@@ -140,6 +141,22 @@ theorem seedDecider_eq_true_iff {A : Set α} {V : α × List Bool → Bool} {x :
     seedDecider V gen seed x = true ↔ x ∈ A := by
   rw [seedDecider, listStrictMajority_map_enumList, decide_eq_true_iff]
   exact (majority_iff_of_abs_sub_lt hgap ⟨hyes, hno⟩).symm
+
+/-- **Seed enumeration gives the expected answer.** If `V` answers `b` with bounded error on random
+strings of `m` bits at `x` (it accepts at least two thirds of them if `b = true`, at most one third
+if `b = false`), and the seeds are within `1 / 6` of the random strings as in
+`seedDecider_eq_true_iff`, then `seedDecider V gen seed x = b`. -/
+theorem seedDecider_eq_of_boundedError {V : α × List Bool → Bool} {x : α} {m : ℕ} {b : Bool}
+    (htrue : b = true → 2 * 2 ^ m ≤ 3 * acceptCount V x m)
+    (hfalse : b = false → 3 * acceptCount V x m ≤ 2 ^ m)
+    (gen : α → List Bool → List Bool) (seed : α → ℕ)
+    (hgap : |(#{z : Fin (seed x) → Bool | V (x, gen x (List.ofFn z)) = true} : ℝ) / 2 ^ seed x -
+      acceptCount V x m / 2 ^ m| < 1 / 6) :
+    seedDecider V gen seed x = b := by
+  have h := majority_iff_of_abs_sub_lt (P := b = true) hgap
+    ⟨htrue, fun hb => hfalse (Bool.eq_false_iff.2 hb)⟩
+  rw [seedDecider, listStrictMajority_map_enumList]
+  cases b <;> simp_all
 
 /-! ### Running time -/
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Sampling
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Sampling a certificate beside a framed word
@@ -97,12 +98,7 @@ private theorem step {input output : List Bool} {index : ℕ} (h : index < input
       { inputTape := 1, workTapes := Fin.elim0, output := o, state := s }
       Empty.elim Empty.elim =
       config input s (index + 1) (output ++ o.toList) h := by
-  refine Config.ext ?_ (funext fun oracle => oracle.elim)
-  refine Cfg.ext_zero_tapes rfl ?_ rfl
-  apply Fin.ext
-  change (moveInputPos _ .pos).val = index + 1 + 1
-  rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-  rfl
+  tm_step [Config.step, config]
 
 /-- One live transition at a remaining symbol: draw a coin and take the selected step. -/
 private theorem eval_run_succ {input output : List Bool} {index : ℕ} (h : index < input.length)
@@ -136,10 +132,7 @@ private theorem eval_run_boundary (input output : List Bool) (q : Phase) (fuel :
         state := next q none } Empty.elim Empty.elim =
       config input none input.length output le_rfl := by
     intro bit
-    refine Config.ext ?_ (funext fun oracle => oracle.elim)
-    refine Cfg.ext_zero_tapes ?_ (by simp [Config.step, config, Turing.Action.apply]) ?_
-    · cases q <;> rfl
-    · cases q <;> simp [Config.step, config, Turing.Action.apply, emit]
+    cases q <;> tm_step [Config.step, config, emit]
   simp only [hcfg]
   rcases fuel with _ | fuel
   · simp only [MultiTapeMachine.runConfigFrom, ProbComp.eval_bind, ProbComp.eval_pure,
@@ -241,8 +234,7 @@ private theorem eval_runClosedConfig_pairSampler (y r : List Bool) :
         PairSampler.config (frame y ++ r) none (frame y ++ r).length (frame y ++ w) le_rfl) := by
   have hcfg : pairSampler.initialConfig (frame y ++ r) =
       PairSampler.config (frame y ++ r) (some .tag) ([] : List Bool).length [] (by simp) := by
-    refine Config.ext ?_ rfl
-    exact Cfg.ext_zero_tapes rfl rfl rfl
+    tm_step
   rw [hcfg, show (frame y ++ r).length + 1 = (frame y).length + (r.length + 1) by simp; lia,
     eval_run_frame (frame y ++ r) r (r.length + 1) y [] [] (by simp)]
   simpa only [List.length_nil, zero_add, List.nil_append] using

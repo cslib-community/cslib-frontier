@@ -234,7 +234,8 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     omega)
   let z := y.set current (s.index + 1)
   have hz : Exec (B := .standard) (w + 2) (.op (.bin .add current current one)) y z 1 := by
-    ram_eval [z, yi, yo, hfit]
+    dsimp only [z]
+    wram_exec [yi, yo]
   have zreg (i : Fin 128) (hi : i ≠ current) : z.regs i = y.regs i := by
     simp only [z, Data.set_regs, Function.update_of_ne hi]
   have hheap := h.heapBudget

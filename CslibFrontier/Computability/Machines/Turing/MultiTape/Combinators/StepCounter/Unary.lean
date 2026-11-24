@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Cloc
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Exact signals from a prepared unary budget
@@ -120,17 +121,7 @@ private theorem step_stop (input : List Bool) (n : ℕ) (q : Option Unit) :
 private theorem clockCfg_zero (input : List Bool) (n : ℕ)
     (q : Option (Clock.Control Unit)) :
     clockCfg input n 0 q = wordsCfg input q (fun _ => List.replicate n true) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl
-  · funext i
-    have hi : i = Fin.last 0 := Subsingleton.elim _ _
-    subst i
-    simp only [clockCfg, Cfg.withState, AuxiliaryTape.config, sourceCfg, wordsCfg,
-      Fin.lastCases_last]
-  · funext i
-    have hi : i = Fin.last 0 := Subsingleton.elim _ _
-    subst i
-    simp only [clockCfg, Cfg.withState, AuxiliaryTape.config, sourceCfg, wordsCfg,
-      Fin.lastCases_last]
+  tm_step [clockCfg, AuxiliaryTape.config]
 
 private abbrev startCfg (input : List Bool) (n : ℕ) :=
   clockCfg input n 0 (some (false, some ()))

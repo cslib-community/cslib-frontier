@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
+public import CslibFrontier.Logics.Propositional.LineProof.SemanticDerivation
 public import CslibFrontier.Logics.Propositional.SemanticDerivation
 import CslibFrontier.Computability.Communication.BinarySearch
 import Mathlib.Algebra.BigOperators.Fin
@@ -101,61 +102,6 @@ namespace CuttingPlanes
 
 section Semantic
 
-variable {V : Type*}
-
-/-- Line `j` of a proof read from its first line is in `Γ`, holds everywhere, or follows
-semantically from two earlier lines. -/
-private def LineOK (Γ : Set (Ineq V)) (L : List (Ineq V)) (j : ℕ) (I : Ineq V) : Prop :=
-  I ∈ Γ ∨ (∀ σ, I.Holds σ) ∨ ∃ j₁ j₂ I₁ I₂, j₁ < j ∧ j₂ < j ∧ L[j₁]? = some I₁ ∧
-    L[j₂]? = some I₂ ∧ ∀ σ, I₁.Holds σ → I₂.Holds σ → I.Holds σ
-
-private theorem LineOK.append {Γ : Set (Ineq V)} {L : List (Ineq V)} {j : ℕ} {I : Ineq V}
-    (h : LineOK Γ L j I) (hj : j < L.length) (L' : List (Ineq V)) : LineOK Γ (L ++ L') j I := by
-  rcases h with h | h | ⟨j₁, j₂, I₁, I₂, h₁, h₂, e₁, e₂, h⟩
-  · exact Or.inl h
-  · exact Or.inr (Or.inl h)
-  · refine Or.inr (Or.inr ⟨j₁, j₂, I₁, I₂, h₁, h₂, ?_, ?_, h⟩)
-    · rw [List.getElem?_append_left (by omega), e₁]
-    · rw [List.getElem?_append_left (by omega), e₂]
-
-/-- An earlier line of a proof has a smaller index when the proof is read from its first line. -/
-private theorem exists_lt_of_mem {ls : List (Ineq V)} {I J : Ineq V} (hI : I ∈ ls) :
-    ∃ j < ls.length, (ls.reverse ++ [J])[j]? = some I := by
-  obtain ⟨j, hj, e⟩ := List.getElem_of_mem (List.mem_reverse.2 hI)
-  refine ⟨j, by simpa using hj, ?_⟩
-  rw [List.getElem?_append_left hj, List.getElem?_eq_getElem hj, e]
-
-private theorem lineOK_of_isProof {Γ : Set (Ineq V)} {ls : List (Ineq V)} (h : IsProof Γ ls)
-    {j : ℕ} {I : Ineq V} (hj : ls.reverse[j]? = some I) : LineOK Γ ls.reverse j I := by
-  induction h generalizing j I with
-  | @hyp ls J h hJ ih | @nonneg ls h v ih | @leOne ls h v ih | @add ls I₁ I₂ h hI₁ hI₂ ih
-  | @smul ls I₁ h c hc hI₁ ih | @div ls I₁ h c hc hdvd hI₁ ih =>
-    rw [List.reverse_cons] at hj ⊢
-    by_cases hjl : j < ls.length
-    · rw [List.getElem?_append_left (by simpa using hjl)] at hj
-      exact (ih hj).append (by simpa using hjl) _
-    · have hjl' : j = ls.length := by
-        have := (List.getElem?_eq_some_iff.1 hj).1
-        simp only [List.length_append, List.length_reverse, List.length_singleton] at this
-        omega
-      subst hjl'
-      rw [List.getElem?_append_right (by simp)] at hj
-      simp only [List.length_reverse, Nat.sub_self, List.getElem?_cons_zero,
-        Option.some.injEq] at hj
-      subst hj
-      first
-      | exact Or.inl hJ
-      | exact Or.inr (Or.inl fun σ => Ineq.holds_nonneg σ v)
-      | exact Or.inr (Or.inl fun σ => Ineq.holds_leOne σ v)
-      | obtain ⟨j₁, hj₁, e₁⟩ := exists_lt_of_mem (J := I₁ + I₂) hI₁
-        obtain ⟨j₂, hj₂, e₂⟩ := exists_lt_of_mem (J := I₁ + I₂) hI₂
-        exact Or.inr (Or.inr ⟨j₁, j₂, I₁, I₂, hj₁, hj₂, e₁, e₂, fun σ h₁ h₂ => h₁.add h₂⟩)
-      | obtain ⟨j₁, hj₁, e₁⟩ := exists_lt_of_mem (J := c • I₁) hI₁
-        exact Or.inr (Or.inr ⟨j₁, j₁, I₁, I₁, hj₁, hj₁, e₁, e₁, fun σ h₁ _ => h₁.nsmul c⟩)
-      | obtain ⟨j₁, hj₁, e₁⟩ := exists_lt_of_mem (J := I₁.div c) hI₁
-        exact Or.inr (Or.inr ⟨j₁, j₁, I₁, I₁, hj₁, hj₁, e₁, e₁, fun σ h₁ _ => h₁.div hdvd⟩)
-  | nil => simp at hj
-
 variable {X Y Z : Type*}
 
 /-- The solution set of an inequality over the shared variables and those of `Γ_A`, renamed into
@@ -185,25 +131,12 @@ theorem IsProof.isSemanticRefutation {ΓA : Set (Ineq (X ⊕ Y))} {ΓB : Set (In
     IsSemanticRefutation (initSets ((fun E => {σ | E.Holds σ}) '' ΓA)
       ((fun E => {σ | E.Holds σ}) '' ΓB)) fun j : Fin ls.reverse.length =>
         {σ | ls.reverse[j].Holds σ} := by
-  refine ⟨fun j => ?_, ?_⟩
-  · rcases lineOK_of_isProof h (List.getElem?_eq_getElem j.2) with
-      (⟨E, hE, he⟩ | ⟨E, hE, he⟩) | hu | ⟨j₁, j₂, I₁, I₂, h₁, h₂, e₁, e₂, himp⟩
-    · refine Or.inl (Or.inl ⟨_, ⟨E, hE, rfl⟩, ?_⟩)
-      rw [← setOf_holds_relabel_inl, he]
-      rfl
-    · refine Or.inl (Or.inr ⟨_, ⟨E, hE, rfl⟩, ?_⟩)
-      rw [← setOf_holds_relabel_inr, he]
-      rfl
-    · exact Or.inr (Or.inl (Set.eq_univ_of_forall hu))
-    · obtain ⟨hj₁, e₁⟩ := List.getElem?_eq_some_iff.1 e₁
-      obtain ⟨hj₂, e₂⟩ := List.getElem?_eq_some_iff.1 e₂
-      refine Or.inr (Or.inr ⟨⟨j₁, hj₁⟩, ⟨j₂, hj₂⟩, h₁, h₂, fun σ hσ => ?_⟩)
-      simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, Fin.getElem_fin, e₁, e₂] at hσ ⊢
-      exact himp σ hσ.1 hσ.2
-  · obtain ⟨j, hj, e⟩ := List.getElem_of_mem (List.mem_reverse.2 hc)
-    refine ⟨⟨j, hj⟩, Set.eq_empty_of_forall_notMem fun σ hσ => ?_⟩
-    simp only [Set.mem_ofPred_eq, Fin.getElem_fin, e] at hσ
-    exact Ineq.not_holds_contra σ hσ
+  refine (isProof_iff_lineProof.1 h).toSemanticRefutation (models := fun I => {σ | I.Holds σ})
+    (fun I hI => ?_) (fun _ hr => rules_premises_length_le hr)
+    (fun _ hr _ hp => rules_sound hr hp) hc Ineq.not_holds_contra
+  rcases hI with ⟨E, hE, rfl⟩ | ⟨E, hE, rfl⟩
+  · exact Or.inl ⟨_, ⟨E, hE, rfl⟩, (setOf_holds_relabel_inl E).symm⟩
+  · exact Or.inr ⟨_, ⟨E, hE, rfl⟩, (setOf_holds_relabel_inr E).symm⟩
 
 /-- The models of the solution sets of a system of inequalities are its 0/1 solutions. -/
 theorem mem_models_iff {Γ : Set (Ineq (X ⊕ Y))} {u : X → Bool} {q : Y → Bool} :

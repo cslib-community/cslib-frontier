@@ -23,10 +23,19 @@ namespace Cslib.Complexity.VirtualWordRuntimeTest
 
 open Turing Turing.MultiTapeTM VirtualWord.Runtime
 
+-- Structure encodings reproduce the exact former tuple encodings (`rfl`), including left-grouped
+-- `Runtime.State`.
+example (d : VirtualWord.Data) (x h : List Bool) (c : ℕ) (pl r : Bool) (b : Option Bool) :
+    encInput ⟨d, x⟩ = encPair VirtualWord.encData encBits (d, x) ∧
+    encState { header := h, cursor := c, payload := pl, ready := r, bit := b } =
+      encPair (encPair encBits encNat) (encPair encBool (encPair encBool (encOption encBool)))
+        ((h, c), pl, r, b) :=
+  ⟨rfl, rfl⟩
+
 /-- A nonconstant family: cut, suffix length, address and original word vary with `n`. -/
 def family (n : ℕ) : {p : Input // Admissible p} :=
-  ⟨((n - min n (Nat.clog 2 n), List.replicate (min n (Nat.clog 2 n)) false, n),
-      List.replicate n true), by
+  ⟨⟨⟨n - min n (Nat.clog 2 n), List.replicate (min n (Nat.clog 2 n)) false, n⟩,
+      List.replicate n true⟩, by
     constructor
     · simp only [List.length_replicate]
       omega
@@ -37,36 +46,36 @@ def family (n : ℕ) : {p : Input // Admissible p} :=
 
 -- The same code serves varying data; these include empty, length-one and non-power-of-two words.
 example : (List.range 6).map (fun n => machine.output (encInput (family n).val)
-    (2 * (VirtualWord.encData (family n).val.1).length + 2)) =
+    (2 * (VirtualWord.encData (family n).val.data).length + 2)) =
     [[false], [false], [false], [false], [false], [false]] := by decide
 
 -- Prefix, suffix boundary, last bit and default at length five.
 example : (List.range 6).map (fun i => machine.output
-    (encInput ((2, [false, true, false], i), [true, true, true, false, true]))
-    (2 * (VirtualWord.encData (2, [false, true, false], i)).length + 2)) =
+    (encInput ⟨⟨2, [false, true, false], i⟩, [true, true, true, false, true]⟩)
+    (2 * (VirtualWord.encData ⟨2, [false, true, false], i⟩).length + 2)) =
     [[true], [true], [false], [true], [false], [false]] := by decide
 
 -- Empty prefix and long suffix: correct total behavior without a logarithmic-size claim.
-example : machine.output (encInput ((0, [true, false, true], 2), []))
-    (2 * (VirtualWord.encData (0, [true, false, true], 2)).length + 2) = [true] := by decide
+example : machine.output (encInput ⟨⟨0, [true, false, true], 2⟩, []⟩)
+    (2 * (VirtualWord.encData ⟨0, [true, false, true], 2⟩).length + 2) = [true] := by decide
 
 -- Invalid cut: the declared cut is used literally, with false in the gap before the suffix.
-example : machine.output (encInput ((10, [true], 4), [true]))
-    (2 * (VirtualWord.encData (10, [true], 4)).length + 2) = [false] := by decide
-example : machine.output (encInput ((10, [true], 10), [true]))
-    (2 * (VirtualWord.encData (10, [true], 10)).length + 2) = [true] := by decide
+example : machine.output (encInput ⟨⟨10, [true], 4⟩, [true]⟩)
+    (2 * (VirtualWord.encData ⟨10, [true], 4⟩).length + 2) = [false] := by decide
+example : machine.output (encInput ⟨⟨10, [true], 10⟩, [true]⟩)
+    (2 * (VirtualWord.encData ⟨10, [true], 10⟩).length + 2) = [true] := by decide
 
 -- A huge binary address does not allocate a unary counter or word of that length.
-example : machine.output (encInput ((1, [true], 1000000), [true]))
-    (2 * (VirtualWord.encData (1, [true], 1000000)).length + 2) = [false] := by decide
-example : ¬ Admissible ((1, [true], 1000000), [true]) := by simp [Admissible]
-example : ¬ Admissible ((10, [true], 0), [true]) := by simp [Admissible]
-example : ¬ Admissible ((0, [true, true], 0), []) := by simp [Admissible]
+example : machine.output (encInput ⟨⟨1, [true], 1000000⟩, [true]⟩)
+    (2 * (VirtualWord.encData ⟨1, [true], 1000000⟩).length + 2) = [false] := by decide
+example : ¬ Admissible ⟨⟨1, [true], 1000000⟩, [true]⟩ := by simp [Admissible]
+example : ¬ Admissible ⟨⟨10, [true], 0⟩, [true]⟩ := by simp [Admissible]
+example : ¬ Admissible ⟨⟨0, [true, true], 0⟩, []⟩ := by simp [Admissible]
 
 /-- A local reconstruction is an actual consumer of the runtime initialization and read. -/
 theorem local_query_reads (i : ℕ) :
     let d := localQueryAccessData 3 [false, true] i
-    machine.output (encInput (d, [false, true, false]))
+    machine.output (encInput ⟨d, [false, true, false]⟩)
       (2 * (VirtualWord.encData d).length + 2) = [[false, false, true].getD i false] := by
   exact (show LocalSelfReductionQuery [false, true, false] [false, false, true] by decide)
     |>.runtime_output i
@@ -76,16 +85,16 @@ against the original-word length. It is not a separately compiled certificate fo
 theorem native_runtime : ∃ time c, ComputableInTimeAndSpace
     (fun p : {p : Input // Admissible p} => access p.val)
     ((Function.Embedding.subtype Admissible).trans encInput) encBool time
-    (fun p => c * (Nat.log2 p.val.2.length + 1)) := access_inOriginalLogSpace
+    (fun p => c * (Nat.log2 p.val.original.length + 1)) := access_inOriginalLogSpace
 
-example : (family 0).val.1 = (0, [], 0) := by decide
-example : (family 1).val.1 = (1, [], 1) := by decide
-example : (family 3).val.1 = (1, [false, false], 3) := by decide
-example : (family 5).val.1 = (2, [false, false, false], 5) := by decide
+example : (family 0).val.data = ⟨0, [], 0⟩ := by decide
+example : (family 1).val.data = ⟨1, [], 1⟩ := by decide
+example : (family 3).val.data = ⟨1, [false, false], 3⟩ := by decide
+example : (family 5).val.data = ⟨2, [false, false, false], 5⟩ := by decide
 
 -- Exact semantic query length and a checked local-reconstruction size-domain client.
 example : (VirtualWord.word [false, true, false] 1 [false, true]).length = 3 := by decide
-example : Admissible (localQueryAccessData 3 [false, true] 3, [false, true, false]) := by
+example : Admissible ⟨localQueryAccessData 3 [false, true] 3, [false, true, false]⟩ := by
   exact (show LocalSelfReductionQuery [false, true, false] [false, false, true] by decide)
     |>.runtime_admissible (by decide)
 

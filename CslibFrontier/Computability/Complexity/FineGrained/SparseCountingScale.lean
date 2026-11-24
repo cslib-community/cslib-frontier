@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingScale
 public import CslibFrontier.Computability.Complexity.FineGrained.ReplacementParams
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.Asymptotics
+import CslibFrontier.Foundations.Data.Nat.Clog
 import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
 import Mathlib.Analysis.Asymptotics.Lemmas
 import Mathlib.Analysis.Complex.ExponentialBounds
@@ -85,9 +86,6 @@ open ReplacementParams
 
 /-! ### Integer floor characterization of `numGroups` (`s_n = ⌊√λ_n / ν_n²⌋`) -/
 
-private theorem clog_two_le_self (n : ℕ) : Nat.clog 2 n ≤ n :=
-  (Nat.clog_le_iff_le_pow one_lt_two).mpr n.lt_two_pow_self.le
-
 private theorem one_le_clog_two_iff {n : ℕ} : 1 ≤ Nat.clog 2 n ↔ 2 ≤ n := by
   change 0 < Nat.clog 2 n ↔ 2 ≤ n
   rw [Nat.lt_clog_iff_pow_lt one_lt_two]
@@ -122,7 +120,7 @@ theorem numGroups_le_clog (n : ℕ) : numGroups n ≤ Nat.clog 2 n :=
 
 /-- `numGroups n ≤ n` for every natural number `n`. -/
 theorem numGroups_le_self (n : ℕ) : numGroups n ≤ n :=
-  (numGroups_le_clog n).trans (clog_two_le_self n)
+  (numGroups_le_clog n).trans (Nat.clog_le_self 2 n)
 
 /-- Combined floor characterization `s_n² ν_n⁴ ≤ λ_n < (s_n + 1)² ν_n⁴` for `1 ≤ ν_n`. -/
 theorem numGroups_floor_bounds {n : ℕ} (hnu : 1 ≤ Nat.clog 2 (Nat.clog 2 n)) :
@@ -324,7 +322,7 @@ theorem div_numGroups_le_interpolationScale_of_clog_ge {n : ℕ} (h : 640000 ≤
   let lam := Nat.clog 2 n
   let nu := Nat.clog 2 lam
   have hs2 : 2 ≤ numGroups n := two_le_numGroups_of_clog_ge h
-  have hn16 : 16 ≤ n := by have := clog_two_le_self n; omega
+  have hn16 : 16 ≤ n := by have := Nat.clog_le_self 2 n; omega
   have hdiv : (n : ℝ) / (numGroups n : ℝ) ≤ 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt (lam : ℝ)) :=
     div_numGroups_le_two_mul (by omega : 1 ≤ numGroups n)
   let X := Real.log ((n : ℝ) + 16)
@@ -516,8 +514,7 @@ theorem eventually_poly_mul_two_pow_div_numGroups_le (d : ℕ) :
   calc
     ((n : ℝ) + (numGroups n : ℝ) + 1) ^ d * (2 : ℝ) ^ ((n : ℝ) / (numGroups n : ℝ))
         ≤ (2 : ℝ) ^ interpolationScale n * (2 : ℝ) ^ (16 * interpolationScale n) :=
-      mul_le_mul hpoly_le (Real.rpow_le_rpow_of_exponent_le one_le_two hdiv)
-        (by positivity) (by positivity)
+      by gcongr; norm_num
     _ = (2 : ℝ) ^ (17 * interpolationScale n) := by rw [← Real.rpow_add two_pos]; ring_nf
 
 /-- For any polynomial degree `d`, there exists `A_tree > 0` such that eventually the full
@@ -744,7 +741,7 @@ private theorem leaf_poly_le_input_poly {n m m_leaf B_n C_B β : ℕ} (d_leaf : 
     calc
       m_leaf ≤ C_B * Nat.clog 2 n ^ β * n := hm.trans (Nat.mul_le_mul_right n hB)
       _ ≤ C_B * n ^ β * n := Nat.mul_le_mul_right n
-          (Nat.mul_le_mul_left C_B (Nat.pow_le_pow_left (clog_two_le_self n) β))
+          (Nat.mul_le_mul_left C_B (Nat.pow_le_pow_left (Nat.clog_le_self 2 n) β))
       _ = C_B * n ^ (β + 1) := by rw [pow_succ]; ring
       _ ≤ C_B * (n + m + 1) ^ (β + 1) :=
         Nat.mul_le_mul_left C_B (Nat.pow_le_pow_left (by omega) (β + 1))
@@ -757,8 +754,7 @@ private theorem leaf_poly_le_input_poly {n m m_leaf B_n C_B β : ℕ} (d_leaf : 
     exact_mod_cast hnat
   calc
     ((n : ℝ) + (m_leaf : ℝ) + 1) ^ d_leaf
-        ≤ (((C_B + 1 : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ (β + 1)) ^ d_leaf :=
-      pow_le_pow_left₀ (by positivity) hsum_real d_leaf
+        ≤ (((C_B + 1 : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ (β + 1)) ^ d_leaf := by gcongr
     _ = (((C_B + 1) ^ d_leaf : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ ((β + 1) * d_leaf) := by
       rw [mul_pow, ← pow_mul]; push_cast; rfl
 
@@ -768,8 +764,7 @@ private theorem rpow_two_mul_le_add_one {x A : ℝ} (n : ℕ)
       (2 : ℝ) ^ ((A + 1) * interpolationScale n) := by
   calc
     (2 : ℝ) ^ x * (2 : ℝ) ^ (A * interpolationScale n)
-        ≤ (2 : ℝ) ^ (1 * interpolationScale n) * (2 : ℝ) ^ (A * interpolationScale n) :=
-      mul_le_mul_of_nonneg_right hx (by positivity)
+        ≤ (2 : ℝ) ^ (1 * interpolationScale n) * (2 : ℝ) ^ (A * interpolationScale n) := by gcongr
     _ = (2 : ℝ) ^ ((A + 1) * interpolationScale n) := by rw [← Real.rpow_add two_pos]; ring_nf
 
 private theorem rpow_two_le_add_one {x A : ℝ} (n : ℕ) (hA : 0 ≤ A)

@@ -92,11 +92,9 @@ private def fitZip : ZipTransducer Unit where
 private theorem fitZip_step (x : Option Bool × Option Bool) :
     fitZip.step () x = ((), if x.1.isSome then [x.2.getD false] else []) := rfl
 
-private theorem fitZip_final : fitZip.final () = [] := rfl
-
 private theorem fitZip_run_nil (u : List Bool) : fitZip.run () [] u = [] := by
   induction u with
-  | nil => exact (fitZip.run_nil_nil ()).trans fitZip_final
+  | nil => exact fitZip.run_nil_nil ()
   | cons a u ih => simp only [ZipTransducer.run_nil_cons, fitZip_step, Option.isSome_none,
       Bool.false_eq_true, ↓reduceIte, List.nil_append, ih]
 
@@ -193,7 +191,7 @@ private theorem twoPow_inSpace :
 /-- **The binary counter**, in linear space. -/
 private theorem increment_inSpace :
     ComputableInSpace BitString.increment encBits encBits fun m => (encBits m).length :=
-  of_inO ComputableTidilyInDegree.increment.inO_one.computableInO
+  of_inO ComputableInDegree.increment.inO_one
 
 /-- The identity, in linear space. -/
 private theorem id_inSpace {α : Type} {enc : α ↪ List Bool} :
@@ -549,7 +547,7 @@ theorem computableInSpace_run {γ : Type} {encIn : γ ↪ List Bool}
     budget_prod (budget_prod (fst' hidA) (fst' (snd' hidA)))
       (budget_prod (fst' (snd' (snd' (snd' hidA))))
         (budget_cons (budget_prod (snd' (snd' (snd' (snd' hidA)))) (fst' (snd' (snd' hidA))))
-          (budget_const [] (.refl _))))
+          (budget_const [])))
   have hinit : ComputableInSpace (fun x => ((par x, width x), (src x, [(dst x, depth x)])))
       encIn (encRound encP) Sin := budget_comp_linear hinit₀ hin
   -- every state of the run has width `w` and at most `d + 1` targets
