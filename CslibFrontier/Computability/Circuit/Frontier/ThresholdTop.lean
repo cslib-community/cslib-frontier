@@ -527,8 +527,7 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
         calc 2 ^ n * ((2 ^ n) ^ k₁ * ((2 ^ n) ^ k₂ * (2 ^ 2 ^ t * ((k₁ + k₂) ^ (k₁ + k₂)) ^ t)))
             ≤ 2 ^ n * ((2 ^ (n + 1)) ^ k₁ * ((2 ^ (n + 1)) ^ k₂ *
                 (2 ^ 2 ^ t * ((2 ^ (n + 1)) ^ (k₁ + k₂)) ^ t))) :=
-              Nat.mul_le_mul_left _ (Nat.mul_le_mul hpow_n1
-                (Nat.mul_le_mul hpow_n2 (Nat.mul_le_mul_left _ hpow_rk)))
+              by gcongr
           _ = 2 ^ (2 ^ t + n) * 2 ^ ((t + 1) * (n + 1) * (k₁ + k₂)) := by
               simp only [← pow_mul, ← pow_add]
               congr 1
@@ -1047,8 +1046,7 @@ private theorem step_exponent_le {A ε₀ C : ℝ} (hA : 0 < A) (hε₀ : 0 < ε
       have := mul_le_mul_of_nonneg_left hsize hA.le
       have heq : A * ((1 + 1 / A - ε₀) * n) = (1 + A - A * ε₀) * n := by field_simp; ring
       linarith
-    have hdiv : A * se / (1 + A) ≤ (1 + A - A * ε₀) * n / (1 + A) :=
-      div_le_div_of_nonneg_right hse' (by positivity)
+    have hdiv : A * se / (1 + A) ≤ (1 + A - A * ε₀) * n / (1 + A) := by gcongr
     have hmu_eq : (1 + A - A * ε₀) * n / (1 + A) = (1 - 4 * μ) * n := by
       simp only [μ]; field_simp
     linarith [show A / (1 + A) * se = A * se / (1 + A) by ring]
@@ -1115,21 +1113,8 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   have hlogq : 0 < Real.log q := Real.log_pos (by linarith)
   have hlq2 : Real.log 2 ≤ Real.log q := Real.log_le_log two_pos hq2
   set K' : ℕ → ℕ := fun n => max (K n) 2
-  have hK'_log : (fun n => Real.log (K' n)) =o[atTop] fun n => (n : ℝ) := by
-    refine IsBigO.trans_isLittleO (g := fun n => ‖Real.log (K n)‖ + Real.log 2) ?_
-      (hK.norm_left.add (isLittleO_const_id_atTop _).natCast_atTop)
-    refine IsBigO.of_bound 1 (Eventually.of_forall fun n => ?_)
-    have hK2 : (2 : ℝ) ≤ (K' n : ℕ) := by exact_mod_cast le_max_right (K n) 2
-    rw [one_mul, Real.norm_of_nonneg (Real.log_nonneg (by linarith)),
-      Real.norm_of_nonneg (by positivity)]
-    rcases le_total (K n) 2 with h | h
-    · simp only [K', max_eq_right h, Nat.cast_ofNat]
-      linarith [norm_nonneg (Real.log (K n))]
-    · simp only [K', max_eq_left h]
-      linarith [Real.le_norm_self (Real.log (K n)), Real.log_nonneg one_le_two]
   have hlogbK : (fun n => Real.logb q (K' n)) =o[atTop] fun n => (n : ℝ) :=
-    (hK'_log.const_mul_left (1 / Real.log q)).congr_left fun n => by
-      rw [Real.logb]; ring
+    isLittleO_logb_max_two hK q
   set Bcoef : ℝ := (1 + 1 / A) + 10 * (2 + 1 / A)
   have hBcoef : 0 < Bcoef := by positivity
   set η : ℝ := A * ε₀ / (8 * Bcoef)
@@ -1155,15 +1140,8 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
     filter_upwards [((isLittleO_const_id_atTop (1 : ℝ)).natCast_atTop.add
       (hlogbK.const_mul_left 2)).bound (by norm_num : (0 : ℝ) < 1 / 2)] with n hn
     simp only [Real.norm_eq_abs, id, Nat.abs_cast] at hn
-    have hle : 1 + 2 * Real.logb q (K' n) ≤ (1 / 2 : ℝ) * n := by
-      linarith [le_abs_self (1 + 2 * Real.logb q (K' n))]
-    have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
-      exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
-    have hlb : Real.logb q (K' n) ≤ (n / 2 : ℕ) := by linarith
-    have hrp := (Real.logb_le_iff_le_rpow (by exact_mod_cast hq1)
-      (by exact_mod_cast (show 0 < K' n by positivity))).mp hlb
-    rw [Real.rpow_natCast] at hrp
-    exact_mod_cast hrp
+    exact le_pow_half_of_logb hq1 (by positivity)
+      (by linarith [le_abs_self (1 + 2 * Real.logb q (K' n))])
   filter_upwards [hbias, hsmall_err, hsmallK, eventually_ge_atTop 4] with n hbiasn herrn hKn hn4
   intro σ I g p T hfan hsize_orig
   have hsize : (p.innerGates.card : ℝ) ≤ (1 + 1 / A - ε₀) * n :=
@@ -1379,12 +1357,10 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   have hnum_le : (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) ≤ (q : ℝ) ^ ((1 - μ) * n) := by
     rw [Nat.cast_mul]
     calc (((K' n - 1) ^ 2 : ℕ) : ℝ) * (realizedSize B₀ : ℝ)
-        ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) * ((V + 1 : ℝ) * (q : ℝ) ^ M_exp) :=
-          mul_le_mul hK'_rpow hrealized (Nat.cast_nonneg _) (by positivity)
+        ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) * ((V + 1 : ℝ) * (q : ℝ) ^ M_exp) := by gcongr
       _ ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) * ((q : ℝ) ^ (κ * Real.log (V + 1)) *
             (q : ℝ) ^ M_exp) :=
-          mul_le_mul_of_nonneg_left
-            (mul_le_mul_of_nonneg_right hV1_rpow (by positivity)) (by positivity)
+          by gcongr
       _ = (q : ℝ) ^ (2 * Real.logb q (K' n) + (κ * Real.log (V + 1) + M_exp)) := by
           rw [← Real.rpow_add (by positivity), ← Real.rpow_add (by positivity)]
       _ ≤ (q : ℝ) ^ ((1 - μ) * n) := by

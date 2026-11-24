@@ -438,8 +438,7 @@ private theorem card_div_le_sum_one_div {ι : Type} [Fintype ι] {a b : ι → �
     three_div_sub_le_one_div_mul (ha i) (hb i) hg
   rw [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
     ← Finset.sum_div] at hle
-  have hdiv : (∑ i, (a i + b i)) / g ^ 3 ≤ g * (2 * Fintype.card ι) / g ^ 3 :=
-    div_le_div_of_nonneg_right hsum (by positivity)
+  have hdiv : (∑ i, (a i + b i)) / g ^ 3 ≤ g * (2 * Fintype.card ι) / g ^ 3 := by gcongr
   have hcalc : g * (2 * Fintype.card ι) / g ^ 3 = 2 * (Fintype.card ι / g ^ 2) := by
     field_simp
   have hcalc' : (Fintype.card ι : ℝ) * (3 / g ^ 2) = 3 * (Fintype.card ι / g ^ 2) := by ring

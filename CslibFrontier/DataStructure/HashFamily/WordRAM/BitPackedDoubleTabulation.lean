@@ -25,6 +25,7 @@ import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Width
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.WramOmega
@@ -856,15 +857,6 @@ theorem fits_mkHashParams {w base : ℕ} {hp : HashParams} (henv : HashEnv w hp 
   · exact (Nat.lt_succ_self c_tab).trans hc1
   · exact hd_lt
 
-/-- An iteration whose body leaves memory state unchanged also leaves it unchanged. -/
-private theorem clientState_iterate_const {δ σ : Type} {body : δ × σ → Memory.Prog σ} {d : δ}
-    (s : Memory.State) (h : ∀ a, (Memory.spec 0).clientState s (body (d, a)) = s) (n : ℕ) (a : σ) :
-    (Memory.spec 0).clientState s (iterate body d n a) = s := by
-  induction n generalizing a with
-  | zero => rfl
-  | succ n ih =>
-    rw [iterate, StateTransitionSpec.clientState_bind, h, ih]
-
 /-- An iteration whose state-preserving body has constant memory cost `k` costs `n * k`. -/
 private theorem memoryCost_iterate_const {δ σ : Type} {body : δ × σ → Memory.Prog σ} {d : δ}
     (s : Memory.State) (k : ℕ)
@@ -924,7 +916,7 @@ private theorem clientResult_innerStepGenProg (hp : HashParams) (base j i y r : 
 private theorem clientState_iterate_innerStep (ctx : HashParams × (ℕ × ℕ)) (n : ℕ)
     (st : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (iterate innerStepGenProg ctx n st) = s :=
-  clientState_iterate_const s (fun _ => rfl) n st
+  clientState_iterate_eq_of innerStepGenProg ctx (fun _ _ => rfl) n st s
 
 private theorem memoryCost_iterate_innerStep (ctx : HashParams × (ℕ × ℕ)) (n : ℕ)
     (st : (ℕ × ℕ) × ℕ) (s : Memory.State) :
@@ -954,8 +946,7 @@ private theorem realizes_innerStepGen :
       (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       InnerStepGenPre
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨hp, base, j⟩, ⟨i, y⟩, r⟩
     obtain ⟨⟨w₀, R, c_tab, d_par, b_char, M_out, hw, _, _, hb, _, htop_lt, _, hc1, _,
@@ -1106,9 +1097,7 @@ private theorem realizes_outerStepGen :
       (WordEncoding.encode (α := ℕ × ℕ))
       OuterStepGenPre
       (fun _ _ => 0) := by
-  have hil := realizes_innerLoopGen
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_innerLoopGen, realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨hp, base, s_val, rKey⟩, j, out⟩
     obtain ⟨henv, hs_lt, hj_lt, hout_lt⟩ := h
@@ -1166,7 +1155,8 @@ private theorem outerLoop_invariant {w : ℕ} {hp : HashParams} {base s_val rKey
     intro j out hjm hout
     have hpre : OuterStepGenPre w ((hp, (base, (s_val, rKey))), (j, out)) s :=
       ⟨henv, hs_lt, by omega, hout⟩
-    refine ⟨⟨hpre, ?_⟩, clientState_iterate_const s (fun _ => clientState_outerStepGenProg _ s) _ _⟩
+    refine ⟨⟨hpre, ?_⟩, clientState_iterate_eq_of outerStepGenProg _
+      (fun _ t => clientState_outerStepGenProg _ t) _ _ s⟩
     rw [clientResult_width, clientState_width, clientState_outerStepGenProg,
       clientResult_outerStepGenProg]
     exact (ih (j + 1) _ (by omega) (Nat.xor_lt_two_pow hout (readPacked_lt _ _ _ _ _))).1
@@ -1217,8 +1207,7 @@ theorem realizes_evalGen :
       (WordEncoding.encode (α := ℕ))
       EvalGenPre
       (fun _ _ => 0) := by
-  have hol := realizes_outerLoopGen
-  realize
+  realize [realizes_outerLoopGen]
   all_goals (
     rcases d with ⟨hp, ⟨base, s_val⟩, u_val⟩
     obtain ⟨henv, hα_le, hs_lt, hu_le⟩ := h
@@ -1383,7 +1372,8 @@ theorem evalProg_spec {U w w₀ R c_tab d b_char M_out s_max base : ℕ}
     rw [hrkey, hout]; rfl
   · rw [StateTransitionSpec.clientState_bind, hst,
       StateTransitionSpec.clientState_bind,
-      clientState_iterate_const s (fun _ => clientState_outerStepGenProg _ s) _ _]
+      clientState_iterate_eq_of outerStepGenProg _
+        (fun _ t => clientState_outerStepGenProg _ t) _ _ s]
     rfl
 
 /-- Exact `memoryCost` of `evalProg`: `1 + 2 * d * (c_tab + 2)` (`O(c_tab * d)`). -/

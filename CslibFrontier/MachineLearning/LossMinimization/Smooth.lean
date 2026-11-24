@@ -327,8 +327,7 @@ theorem IsRLM.integral_trueRisk_le_add_of_lipschitzWith_fderiv {ℓ : E → Z �
     calc r * ‖w‖ ^ 2 ≤ r * B ^ 2 := by gcongr
       _ = ε / 3 := by rw [hr]; field_simp
   have hcE : 5 * (β : ℝ) / (r * m) * ∫ S, empiricalRisk ℓ S (A S) ∂μ ≤ ε / 10 := by
-    calc 5 * (β : ℝ) / (r * m) * ∫ S, empiricalRisk ℓ S (A S) ∂μ ≤ ε / 10 * 1 :=
-          mul_le_mul hc hfit hfit0 (by positivity)
+    calc 5 * (β : ℝ) / (r * m) * ∫ S, empiricalRisk ℓ S (A S) ∂μ ≤ ε / 10 * 1 := by gcongr
       _ = ε / 10 := mul_one _
   linarith
 

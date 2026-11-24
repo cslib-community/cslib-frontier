@@ -801,10 +801,8 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
       simp only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at hemb
       calc _ ≤ ((1 : ℝ) / (2 ^ shardBits m : ℝ)) ^ Fintype.card T *
               (2 * ∏ u : T, ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ))) *
-              (∏ u : T, ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ))) :=
-            mul_le_mul_of_nonneg_right
-              (mul_le_mul_of_nonneg_left hemb (by positivity))
-              (Finset.prod_nonneg fun _ _ => by positivity)
+              (∏ u : T, ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) :=
+            by gcongr
         _ = 2 * (((∏ _u : T, ((1 : ℝ) / (2 ^ shardBits m : ℝ))) *
               (∏ u : T, ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ)))) *
               (∏ u : T, ((#(A u.val) : ℝ) / (2 ^ b_aux : ℝ)))) := by

@@ -174,11 +174,9 @@ theorem degBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) {u₁ u₂ : 
 theorem edgeOffset_add_le_totalDoubledWeight {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     edgeOffset W u v + W u v ≤ totalDoubledWeight W := by
   unfold edgeOffset
-  calc
-    degBefore W u + weightBefore W u v + W u v
-      = degBefore W u + (weightBefore W u v + W u v) := by omega
-    _ ≤ degBefore W u + rowDeg W u := Nat.add_le_add_left (weightBefore_add_le_rowDeg W u v) _
-    _ ≤ totalDoubledWeight W := degBefore_add_le_totalDoubledWeight W u
+  have := weightBefore_add_le_rowDeg W u v
+  have := degBefore_add_le_totalDoubledWeight W u
+  omega
 
 /-- `IsSampledPair W r u v` holds when sample `r` falls inside the half-open interval
 `[edgeOffset W u v, edgeOffset W u v + W u v)`. -/

@@ -323,8 +323,7 @@ theorem modGate_notMem_AC0Mod (hpq : p ≠ q) : Language.ofSlices (modGate p) �
     have := Nat.pow_le_pow_left (Nat.add_le_add_right this 1) 2
     omega)
   have : 5 * (p - 1) * 2 ^ (p - 1) * C.size ≤
-      5 * (p - 1) * 2 ^ (p - 1) * size (100 * (((q - 1) * ℓ) ^ d + 1) ^ 2 + (p - 1)) :=
-    Nat.mul_le_mul_left _ hCs
+      5 * (p - 1) * 2 ^ (p - 1) * size (100 * (((q - 1) * ℓ) ^ d + 1) ^ 2 + (p - 1)) := by gcongr
   omega
 
 /-- The complement `(Language.ofSlices (modGate p))ᶜ` (accepting counts divisible by `p`) is

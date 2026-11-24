@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.Problems.SizedGraph
 public import CslibFrontier.Logics.SecondOrder.Reduction
+import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
 # Independent set, clique and vertex cover are existential second-order definable
@@ -111,12 +112,7 @@ private theorem realize_independentSetMatrix (R : ∀ i, Set (Fin (independentSe
   have hbij (x : Fin 2 → M) : RelMap bijSym x ↔ x ∈ R 1 := Iff.rfl
   have hsize (x : Fin 1 → M) : RelMap sizeSym x ↔ RelMap sizedGraph.size x := Iff.rfl
   have hadj (x : Fin 2 → M) : RelMap adjSym x ↔ RelMap sizedGraph.adj x := Iff.rfl
-  simp only [independentSetMatrix, Language.Sentence.Realize, Formula.Realize,
-    BoundedFormula.realize_inf,
-    BoundedFormula.realize_all, BoundedFormula.realize_imp, BoundedFormula.realize_ex,
-    BoundedFormula.realize_not, BoundedFormula.realize_rel₁, BoundedFormula.realize_rel₂,
-    BoundedFormula.realize_bdEqual, hset, hbij, hsize, hadj]
-  simp [Fin.snoc, and_assoc, and_imp]
+  fo_simp [independentSetMatrix, hset, hbij, hsize, hadj, and_assoc, and_imp]
 
 /-- The independent-set sentence holds exactly in the structures with an independent set of the
 target size. -/

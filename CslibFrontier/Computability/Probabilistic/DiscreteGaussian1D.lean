@@ -124,24 +124,18 @@ private def sampleZRadius (inp : SampleZInput) : ℕ :=
 private theorem sampleZRadius_ge_two (inp : SampleZInput) : 2 ≤ sampleZRadius inp := by
   unfold sampleZRadius; omega
 
+section SampleZRadiusPolyTime
+attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
+
 private theorem computableInPolyTime_sampleZRadius :
     ComputableInPolyTime sampleZRadius SampleZInput.enc encNat := by
-  unfold sampleZRadius
-  have hsSq : ComputableInPolyTime SampleZInput.sSq SampleZInput.enc encRat := by fun_prop
-  have htail : ComputableInPolyTime SampleZInput.tail SampleZInput.enc encUnary := by fun_prop
-  have htailBin : ComputableInPolyTime SampleZInput.tail SampleZInput.enc encNat :=
-    unary_to_binary.comp htail
   have htailSq : ComputableInPolyTime (fun inp : SampleZInput => inp.tail ^ 2)
-      SampleZInput.enc encNat := by
-    have : (fun inp : SampleZInput => inp.tail ^ 2) = fun inp => inp.tail * inp.tail := by
-      funext inp; rw [sq]
-    rw [this]
-    exact binary_mul' htailBin htailBin
-  have hnum : ComputableInPolyTime (fun inp : SampleZInput => inp.sSq.num.natAbs)
-      SampleZInput.enc encNat := intBin_natAbs.comp (rat_num.comp hsSq)
-  have hden : ComputableInPolyTime (fun inp : SampleZInput => inp.sSq.den)
-      SampleZInput.enc encNat := rat_den.comp hsSq
-  exact binary_add' (binary_sqrt' (binary_div' (binary_mul' htailSq hnum) hden)) (const 2)
+      SampleZInput.enc encNat :=
+    unary_to_binary.comp (by fun_prop)
+  fun_prop [sampleZRadius]
+
+end SampleZRadiusPolyTime
+attribute [local fun_prop] computableInPolyTime_sampleZRadius
 
 private theorem rat_eq_natAbs_div_den {q : ℚ} (hq : 0 ≤ q) :
     (q : ℝ) = (q.num.natAbs : ℝ) / (q.den : ℝ) := by
@@ -254,24 +248,14 @@ private theorem computableInPolyTime_sampleZShift :
 private def sampleZRatArg (inp : SampleZInput) (x : ℤ) : ℚ :=
   ((x : ℚ) - inp.center) ^ 2 / inp.sSq
 
+section SampleZWeightPolyTime
+attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
+
+@[local fun_prop]
 private theorem computableInPolyTime_sampleZRatArg :
     ComputableInPolyTime (fun p : SampleZInput × ℤ => sampleZRatArg p.1 p.2)
       (encPair SampleZInput.enc encIntBin) encRat := by
-  let encIn := encPair SampleZInput.enc encIntBin
-  have hcenter : ComputableInPolyTime (fun p : SampleZInput × ℤ => p.1.center)
-      encIn encRat := by fun_prop
-  have hsSq : ComputableInPolyTime (fun p : SampleZInput × ℤ => p.1.sSq)
-      encIn encRat := by fun_prop
-  have hdiff : ComputableInPolyTime (fun p : SampleZInput × ℤ => (p.2 : ℚ) - p.1.center)
-      encIn encRat :=
-    rat_sub' (rat_intCast.comp (snd SampleZInput.enc encIntBin)) hcenter
-  have hsq : ComputableInPolyTime (fun p : SampleZInput × ℤ => ((p.2 : ℚ) - p.1.center) ^ 2)
-      encIn encRat := by
-    have : (fun p : SampleZInput × ℤ => ((p.2 : ℚ) - p.1.center) ^ 2) =
-        fun p => ((p.2 : ℚ) - p.1.center) * ((p.2 : ℚ) - p.1.center) := by funext p; rw [sq]
-    rw [this]
-    exact rat_mul' hdiff hdiff
-  exact rat_div' hsq hsSq
+  fun_prop [sampleZRatArg]
 
 /-- Fixed-point scaled exponent `zFp = ⌊piApprox qBits * r / K⌋` for `sampleZWeightNum`. -/
 private def sampleZZFp (inp : SampleZInput) (x : ℤ) : ℕ :=
@@ -280,42 +264,32 @@ private def sampleZZFp (inp : SampleZInput) (x : ℤ) : ℕ :=
   let r := sampleZRatArg inp x
   (piApprox qBits * r.num.natAbs) / (r.den * K)
 
+@[local fun_prop]
 private theorem computableInPolyTime_sampleZK :
     ComputableInPolyTime (fun inp : SampleZInput => 4 * (inp.tail + 3) ^ 2)
       SampleZInput.enc encUnary := by
-  have htail : ComputableInPolyTime SampleZInput.tail SampleZInput.enc encUnary := by fun_prop
-  have htp3 : ComputableInPolyTime (fun inp : SampleZInput => inp.tail + 3)
-      SampleZInput.enc encUnary := unary_add' htail (const 3)
-  have hsq : ComputableInPolyTime (fun inp : SampleZInput => (inp.tail + 3) ^ 2)
-      SampleZInput.enc encUnary := by
-    have : (fun inp : SampleZInput => (inp.tail + 3) ^ 2) =
-        fun inp => (inp.tail + 3) * (inp.tail + 3) := by funext inp; rw [sq]
-    rw [this]
-    exact unary_mul' htp3 htp3
-  exact unary_mul' (const 4) hsq
+  fun_prop
 
 private theorem computableInPolyTime_sampleZShiftOfInput :
     ComputableInPolyTime (fun inp : SampleZInput => sampleZShift inp.tail inp.prec)
-      SampleZInput.enc encUnary := by
-  have htail : ComputableInPolyTime SampleZInput.tail SampleZInput.enc encUnary := by fun_prop
-  have hprec : ComputableInPolyTime SampleZInput.prec SampleZInput.enc encUnary := by fun_prop
-  exact (htail.prod hprec).trans computableInPolyTime_sampleZShift
+      SampleZInput.enc encUnary :=
+  computableInPolyTime_sampleZShift.comp
+    (g := fun inp : SampleZInput => (inp.tail, inp.prec)) (by fun_prop)
 
 private theorem computableInPolyTime_sampleZQBits :
     ComputableInPolyTime (fun inp : SampleZInput => inp.prec + sampleZShift inp.tail inp.prec)
-      SampleZInput.enc encUnary := by
-  have hprec : ComputableInPolyTime SampleZInput.prec SampleZInput.enc encUnary := by fun_prop
-  exact unary_add' hprec computableInPolyTime_sampleZShiftOfInput
+      SampleZInput.enc encUnary :=
+  unary_add' (by fun_prop) computableInPolyTime_sampleZShiftOfInput
 
 private theorem computableInPolyTime_sampleZZFp :
     ComputableInPolyTime (fun p : SampleZInput × ℤ => sampleZZFp p.1 p.2)
       (encPair SampleZInput.enc encIntBin) encNat := by
-  have hfst := fst SampleZInput.enc encIntBin
-  have hpi := computableInPolyTime_piApprox.comp (computableInPolyTime_sampleZQBits.comp hfst)
+  have hpi := computableInPolyTime_piApprox.comp
+    (computableInPolyTime_sampleZQBits.comp (fst SampleZInput.enc encIntBin))
+  have hK := unary_to_binary.comp
+    (computableInPolyTime_sampleZK.comp (fst SampleZInput.enc encIntBin))
   have hr := computableInPolyTime_sampleZRatArg
-  have hK := unary_to_binary.comp (computableInPolyTime_sampleZK.comp hfst)
-  exact binary_div' (binary_mul' hpi (intBin_natAbs.comp (rat_num.comp hr)))
-    (binary_mul' (rat_den.comp hr) hK)
+  exact binary_div' (binary_mul' hpi (by fun_prop)) (binary_mul' (by fun_prop) hK)
 
 /-- Numerator `w ≤ 2 ^ inp.prec` approximating `2 ^ inp.prec * exp(-π (x - c)² / s²)` in
 polynomial time. Returns `0` if `inp.sSq ≤ 0`. -/
@@ -338,35 +312,21 @@ private theorem sampleZWeightNum_le (inp : SampleZInput) (x : ℤ) :
 private theorem computableInPolyTime_sampleZWeightNum :
     ComputableInPolyTime (fun p : SampleZInput × ℤ => sampleZWeightNum p.1 p.2)
       (encPair SampleZInput.enc encIntBin) encNat := by
-  let encIn := encPair SampleZInput.enc encIntBin
-  have hfst : ComputableInPolyTime (fun p : SampleZInput × ℤ => p.1)
-      encIn SampleZInput.enc := fst SampleZInput.enc encIntBin
-  have hsSq : ComputableInPolyTime (fun p : SampleZInput × ℤ => p.1.sSq)
-      encIn encRat := by fun_prop
-  have hprec : ComputableInPolyTime (fun p : SampleZInput × ℤ => p.1.prec)
-      encIn encUnary := by fun_prop
-  have hcond : ComputableInPolyTime (fun p : SampleZInput × ℤ => decide (p.1.sSq ≤ 0))
-      encIn encBool := rat_le' hsSq (const (0 : ℚ))
+  have hfst := fst SampleZInput.enc encIntBin
   have hshift := computableInPolyTime_sampleZShiftOfInput.comp hfst
   have hqBits := computableInPolyTime_sampleZQBits.comp hfst
   have hK := computableInPolyTime_sampleZK.comp hfst
-  have hraw :=
-    ((hqBits.prod computableInPolyTime_sampleZZFp).prod hK).trans computableInPolyTime_expNegPow
-  have hhalf := binary_two_pow.comp (unary_sub' hshift (const 1))
-  have hden := binary_two_pow.comp hshift
-  have hcap := binary_two_pow.comp hprec
-  have hmain := ite_decide hcond (const 0)
-    (binary_min' hcap (binary_div' (binary_add' hraw hhalf) hden))
-  have heq :
-      (fun p : SampleZInput × ℤ => sampleZWeightNum p.1 p.2) =
+  have hraw : ComputableInPolyTime
       (fun p : SampleZInput × ℤ =>
-        if p.1.sSq ≤ 0 then 0
-        else min (2 ^ p.1.prec)
-          ((expNegPow (p.1.prec + sampleZShift p.1.tail p.1.prec) (sampleZZFp p.1 p.2)
-              (4 * (p.1.tail + 3) ^ 2) + 2 ^ (sampleZShift p.1.tail p.1.prec - 1)) /
-            2 ^ sampleZShift p.1.tail p.1.prec)) := rfl
-  rw [heq]
-  exact hmain
+        expNegPow (p.1.prec + sampleZShift p.1.tail p.1.prec) (sampleZZFp p.1 p.2)
+          (4 * (p.1.tail + 3) ^ 2))
+      (encPair SampleZInput.enc encIntBin) encNat :=
+    ((hqBits.prod computableInPolyTime_sampleZZFp).prod hK).trans computableInPolyTime_expNegPow
+  exact ite_decide (condition := fun p : SampleZInput × ℤ => p.1.sSq ≤ 0) (by fun_prop) (const 0)
+    (binary_min' (by fun_prop) (binary_div' (binary_add' hraw (by fun_prop)) (by fun_prop)))
+
+end SampleZWeightPolyTime
+attribute [local fun_prop] computableInPolyTime_sampleZWeightNum
 
 /-- Map a finite index `i : Fin (2 * R + 1)` to `cFloor - R + i : ℤ`. -/
 private def finToInt (cFloor : ℤ) (R : ℕ) (i : Fin (2 * R + 1)) : ℤ :=
@@ -610,54 +570,40 @@ and [#1213](https://github.com/cslib-community/cslib-frontier/issues/1213)). -/
 noncomputable def sampleZ (inp : SampleZInput) : ProbComp ℤ :=
   sampleBlockCapped (sampleZIntSpec inp) (inp.center.floor) inp.maxTrials
 
+section SampleZAttemptPolyTime
+attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
+
+@[local fun_prop]
 private theorem computableInPolyTime_sampleZBitWidth :
     ComputableInPolyTime (fun inp : SampleZInput => Nat.clog 2 (2 * sampleZRadius inp + 1))
-      SampleZInput.enc encUnary :=
-  binary_clog_two.comp (binary_add' (binary_mul' (const 2) computableInPolyTime_sampleZRadius)
-    (const 1))
+      SampleZInput.enc encUnary := by
+  fun_prop
 
 private theorem computableInPolyTime_sampleZAttempt :
     ComputableInPolyTime
       (fun p : SampleZInput × List Bool => (sampleZIntSpec p.1).attempt p.2)
       (encPair SampleZInput.enc encBits) (encOption encIntBin) := by
-  let encIn := encPair SampleZInput.enc encBits
-  have hfst : ComputableInPolyTime (fun p : SampleZInput × List Bool => p.1)
-      encIn SampleZInput.enc := fst SampleZInput.enc encBits
-  have hsnd : ComputableInPolyTime (fun p : SampleZInput × List Bool => p.2)
-      encIn encBits := snd SampleZInput.enc encBits
-  have hcenter : ComputableInPolyTime SampleZInput.center SampleZInput.enc encRat := by fun_prop
-  have hfallback : ComputableInPolyTime (fun inp : SampleZInput => inp.center.floor)
-      SampleZInput.enc encIntBin := rat_floor.comp hcenter
-  have hR := computableInPolyTime_sampleZRadius
-  have h2R1 : ComputableInPolyTime (fun inp : SampleZInput => 2 * sampleZRadius inp + 1)
-      SampleZInput.enc encNat :=
-    binary_add' (binary_mul' (const 2) hR) (const 1)
-  have hk := computableInPolyTime_sampleZBitWidth
-  have htake := bitsTakeWithInput hsnd (hk.comp hfst)
-  have hdrop := bitsDropWithInput hsnd (hk.comp hfst)
-  have hidx := bitsBinaryValue.comp htake
-  have hcoin := bitsBinaryValue.comp hdrop
-  have hlt1 := binary_lt' hidx (h2R1.comp hfst)
-  have hx := intBin_add'
-    (intBin_sub' (hfallback.comp hfst) (intBin_natCast.comp (hR.comp hfst)))
-    (intBin_natCast.comp hidx)
+  have hfst := fst SampleZInput.enc encBits
+  have hsnd := snd SampleZInput.enc encBits
+  have hk := computableInPolyTime_sampleZBitWidth.comp hfst
+  have hidx := bitsBinaryValue.comp (bitsTakeWithInput hsnd hk)
+  have hcoin := bitsBinaryValue.comp (bitsDropWithInput hsnd hk)
+  have hx : ComputableInPolyTime
+      (fun p : SampleZInput × List Bool =>
+        p.1.center.floor - (sampleZRadius p.1 : ℤ) + (Cslib.BitString.binaryValue
+          (p.2.take (Nat.clog 2 (2 * sampleZRadius p.1 + 1))) : ℤ))
+      (encPair SampleZInput.enc encBits) encIntBin := by
+    fun_prop
   have hw := (hfst.prod hx).trans computableInPolyTime_sampleZWeightNum
-  have hlt2 := binary_lt' hcoin hw
-  have hinner := ite_decide hlt2 ((optionSome encIntBin).comp hx) (const none)
-  have houter := ite_decide hlt1 hinner (const none)
-  exact houter
+  exact ite_decide (by fun_prop) (ite_decide (by fun_prop) (by fun_prop) (const none))
+    (const none)
 
 /-- Strict-PPT certificate for the 1-D discrete Gaussian sampler `sampleZ`. -/
-theorem isPPTOn_sampleZ : IsPPTOn SampleZInput.enc encIntBin sampleZ := by
-  have htrials : ComputableInPolyTime SampleZInput.maxTrials SampleZInput.enc encUnary := by
-    fun_prop
-  have hprec : ComputableInPolyTime SampleZInput.prec SampleZInput.enc encUnary := by fun_prop
-  have hcenter : ComputableInPolyTime SampleZInput.center SampleZInput.enc encRat := by fun_prop
-  have hwidth : ComputableInPolyTime (fun inp : SampleZInput => (sampleZIntSpec inp).width)
-      SampleZInput.enc encUnary := unary_add' computableInPolyTime_sampleZBitWidth hprec
-  have hfallback : ComputableInPolyTime (fun inp : SampleZInput => inp.center.floor)
-      SampleZInput.enc encIntBin := rat_floor.comp hcenter
-  exact isPPTOn_sampleBlockCapped htrials hwidth computableInPolyTime_sampleZAttempt hfallback
+theorem isPPTOn_sampleZ : IsPPTOn SampleZInput.enc encIntBin sampleZ :=
+  isPPTOn_sampleBlockCapped (by fun_prop) (by fun_prop [sampleZIntSpec])
+    computableInPolyTime_sampleZAttempt (by fun_prop)
+
+end SampleZAttemptPolyTime
 
 
 /-! ### 2. Distribution analysis of `sampleZ` via `CloseTo` -/

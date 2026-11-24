@@ -8,18 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Combinatorics.Quiver.Path.Vertices
 public import Mathlib.Combinatorics.Quiver.Path.Weight
 public import Mathlib.Algebra.Order.Monoid.Unbundled.WithTop
 public import Mathlib.Algebra.Order.Monoid.WithTop
 public import Mathlib.Order.Bounds.Defs
-public import Mathlib.Data.Fintype.Card
-public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import CslibFrontier.Algorithms.Lean.TimeM.Loops
 import Mathlib.Data.List.Perm.Subperm
 import Mathlib.Data.List.Nodup
-import Mathlib.Tactic.Ring
 
 /-!
 # The Bellman–Ford algorithm
@@ -50,7 +45,6 @@ some edge can still be relaxed.
   `v`, and `⊤` when there is none.
 * `Cslib.Algorithms.Lean.BellmanFord.bellmanFord`: the algorithm, returning the estimates, or
   `none` when an edge can still be relaxed.
-* `Cslib.Algorithms.Lean.BellmanFord.bellmanFordM`: the algorithm in `TimeM`.
 
 ## Main results
 
@@ -66,16 +60,6 @@ some edge can still be relaxed.
   weight of a walk from the source.
 * `Cslib.Algorithms.Lean.BellmanFord.exists_nodup_walk_le`: with no negative cycle reachable from
   the source, every walk from it can be shortened to one without repeated vertices.
-* `Cslib.Algorithms.Lean.BellmanFord.time_bellmanFordM`,
-  `Cslib.Algorithms.Lean.BellmanFord.time_bellmanFordM_of_nodup`: the cost is exactly
-  `n + n (n + m)` for `n` listed vertices and `m` edges, that is `O(V E)` when `E ≥ V`.
-
-## Cost model
-
-`Cslib.Algorithms.Lean.BellmanFord.bellmanFordM` charges one unit per vertex to initialize, and in
-each of the `|vs| - 1` rounds and in the final check one unit per vertex scanned and one per edge
-relaxed or tested. Reading and updating an estimate and adding or comparing weights are counted
-as constant-time steps, as on a machine with an array of estimates and unit-cost arithmetic.
 
 ## References
 
@@ -486,157 +470,6 @@ theorem bellmanFord_eq_some (hvs : ∀ v, v ∈ vs) (hneg : ¬ NegCycleReachable
   rw [bellmanFord, ite_eq_left_iff.2 fun h => absurd (check_distances hvs hneg) h]
 
 end Proof
-
-/-! ### Cost -/
-
-section Cost
-
-open TimeM
-
-/-- `relax` in `TimeM`, charging one unit (a comparison and at most one update). -/
-def relaxM (d : V → WithTop W) (u v : V) (w : W) : TimeM ℕ (V → WithTop W) := do
-  ✓ return relax d u v w
-
-/-- Relax the out-edges of `u` in `TimeM`, charging one unit for `u` and one per edge. -/
-def scanM (adj : V → List (V × W)) (d : V → WithTop W) (u : V) : TimeM ℕ (V → WithTop W) := do
-  ✓ (adj u).foldlM (fun d e => relaxM d u e.1 e.2) d
-
-/-- `round` in `TimeM`. -/
-def roundM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
-    TimeM ℕ (V → WithTop W) :=
-  vs.foldlM (scanM adj) d
-
-/-- `k` rounds in `TimeM`. -/
-def roundsM (adj : V → List (V × W)) (vs : List V) : ℕ → (V → WithTop W) → TimeM ℕ (V → WithTop W)
-  | 0, d => pure d
-  | k + 1, d => do
-    let d ← roundsM adj vs k d
-    roundM adj vs d
-
-/-- Test one edge in `TimeM`, charging one unit: keep `o` if the edge from `u` to `e.1` cannot
-be relaxed, and give `none` otherwise. -/
-def testM (d : V → WithTop W) (u : V) (o : Option (V → WithTop W)) (e : V × W) :
-    TimeM ℕ (Option (V → WithTop W)) := do
-  ✓ return bif decide (d e.1 ≤ d u + e.2) then o else none
-
-/-- Test the out-edges of `u` in `TimeM`, charging one unit for `u` and one per edge. -/
-def checkScanM (adj : V → List (V × W)) (d : V → WithTop W) (o : Option (V → WithTop W))
-    (u : V) : TimeM ℕ (Option (V → WithTop W)) := do
-  ✓ (adj u).foldlM (testM d u) o
-
-/-- `check` in `TimeM`, charging one unit per vertex and one per edge (without short-circuiting):
-`some d` if no edge can be relaxed, and `none` otherwise. -/
-def checkM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
-    TimeM ℕ (Option (V → WithTop W)) :=
-  vs.foldlM (checkScanM adj d) (some d)
-
-/-- `init` in `TimeM`, charging one unit per vertex. -/
-def initM (vs : List V) (s : V) : TimeM ℕ (V → WithTop W) := do
-  ✓[vs.length] return init s
-
-/-- **The Bellman–Ford algorithm** in `TimeM`. -/
-def bellmanFordM (adj : V → List (V × W)) (vs : List V) (s : V) :
-    TimeM ℕ (Option (V → WithTop W)) := do
-  let d ← initM vs s
-  let d ← roundsM adj vs (vs.length - 1) d
-  checkM adj vs d
-
-@[time_simps]
-private theorem ret_scanM (adj : V → List (V × W)) (d : V → WithTop W) (u : V) :
-    (scanM adj d u).ret = (adj u).foldl (fun d e => relax d u e.1 e.2) d := by
-  time_spec scanM [relaxM]
-
-@[time_simps]
-private theorem time_scanM (adj : V → List (V × W)) (d : V → WithTop W) (u : V) :
-    (scanM adj d u).time = 1 + (adj u).length := by
-  time_spec scanM [relaxM]
-
-@[time_simps]
-theorem ret_roundM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
-    (roundM adj vs d).ret = round adj vs d := by
-  time_spec roundM [round]
-
-@[time_simps]
-theorem time_roundM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
-    (roundM adj vs d).time = vs.length + (vs.map fun u => (adj u).length).sum := by
-  time_spec roundM [List.sum_map_add]
-
-@[time_simps]
-theorem ret_roundsM (adj : V → List (V × W)) (vs : List V) (k : ℕ) (d : V → WithTop W) :
-    (roundsM adj vs k d).ret = (round adj vs)^[k] d := by
-  time_spec roundsM [Function.iterate_succ_apply']
-
-@[time_simps]
-theorem time_roundsM (adj : V → List (V × W)) (vs : List V) (k : ℕ) (d : V → WithTop W) :
-    (roundsM adj vs k d).time = k * (vs.length + (vs.map fun u => (adj u).length).sum) := by
-  time_spec roundsM [Nat.succ_mul]
-
-omit [DecidableEq V] [AddCommMonoid W] [LinearOrder W] in
-private theorem foldl_cond {α γ : Type*} (q : α → Bool) :
-    ∀ (l : List α) (o : Option γ),
-      l.foldl (fun o a => bif q a then o else none) o = bif l.all q then o else none
-  | [], o => rfl
-  | a :: l, o => by
-    rw [List.foldl_cons, foldl_cond q l, List.all_cons]
-    cases q a <;> cases l.all q <;> rfl
-
-omit [DecidableEq V] in
-@[time_simps]
-private theorem ret_checkScanM (adj : V → List (V × W)) (d : V → WithTop W)
-    (o : Option (V → WithTop W)) (u : V) :
-    (checkScanM adj d o u).ret =
-      (bif (adj u).all (fun e => decide (d e.1 ≤ d u + e.2)) then o else none) := by
-  time_spec checkScanM [testM, foldl_cond]
-
-omit [DecidableEq V] in
-@[time_simps]
-private theorem time_checkScanM (adj : V → List (V × W)) (d : V → WithTop W)
-    (o : Option (V → WithTop W)) (u : V) :
-    (checkScanM adj d o u).time = 1 + (adj u).length := by
-  time_spec checkScanM [testM]
-
-omit [DecidableEq V] in
-@[time_simps]
-theorem ret_checkM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
-    (checkM adj vs d).ret = if check adj vs d then some d else none := by
-  time_spec checkM [foldl_cond, check]
-
-omit [DecidableEq V] in
-@[time_simps]
-theorem time_checkM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
-    (checkM adj vs d).time = vs.length + (vs.map fun u => (adj u).length).sum := by
-  time_spec checkM [List.sum_map_add]
-
-/-- `bellmanFordM` computes `bellmanFord`. -/
-theorem ret_bellmanFordM (adj : V → List (V × W)) (vs : List V) (s : V) :
-    (bellmanFordM adj vs s).ret = bellmanFord adj vs s := by
-  time_spec bellmanFordM [initM, bellmanFord, distances]
-
-/-- **Cost of Bellman–Ford**: `n + n (n + m)` units for `n = |vs|` vertices and `m` adjacency-list
-entries, that is, `O(V E)` for a graph with at least as many edges as vertices. -/
-theorem time_bellmanFordM (adj : V → List (V × W)) (vs : List V) (s : V) :
-    (bellmanFordM adj vs s).time =
-      vs.length + vs.length * (vs.length + (vs.map fun u => (adj u).length).sum) := by
-  simp only [bellmanFordM, initM, time_simps]
-  cases vs with
-  | nil => simp
-  | cons a l =>
-    simp only [List.length_cons, Nat.add_sub_cancel]
-    ring
-
-/-- **Cost of Bellman–Ford on a finite graph**: from a duplicate-free list of all the vertices, the
-cost is `|V| + |V| (|V| + |E|)` with `|E| = ∑ v, |adj v|`. -/
-theorem time_bellmanFordM_of_nodup [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs) (hnd : vs.Nodup)
-    (adj : V → List (V × W)) (s : V) :
-    (bellmanFordM adj vs s).time =
-      Fintype.card V + Fintype.card V * (Fintype.card V + ∑ v, (adj v).length) := by
-  have huniv : vs.toFinset = Finset.univ :=
-    Finset.eq_univ_of_forall fun v => List.mem_toFinset.2 (hvs v)
-  have hcard : vs.length = Fintype.card V := by
-    rw [← List.toFinset_card_of_nodup hnd, huniv, Finset.card_univ]
-  rw [time_bellmanFordM, hcard, ← List.sum_toFinset _ hnd, huniv]
-
-end Cost
 
 end Algorithm
 

@@ -204,24 +204,22 @@ theorem evalFrom_eq_eval (p : Program signature n g) {fixed : Finset (Fin g)} {�
     (hfix : ∀ prior ≤ gate, prior ∈ fixed → η prior = p.eval interpretation x prior)
     (hz : ∀ prior ≤ gate, prior ∉ fixed → z prior = ∑ i, inputWeight p prior i * (x i).toNat) :
     evalFrom p fixed η z gate = p.eval interpretation x gate := by
-  induction gate using Fin.strong_induction_on with
-  | h gate ih =>
-    by_cases hgate : gate ∈ fixed
-    · rw [evalFrom_eq, ite_eq_left hgate]
-      exact hfix gate le_rfl hgate
-    · rw [evalFrom_eq, ite_eq_right hgate, eval_gate_eq, hz gate le_rfl hgate]
-      have hsum : (∑ prior : Fin g, if prior < gate then
-            gateWeight p gate prior * (evalFrom p fixed η z prior).toNat else 0) =
-          ∑ prior : Fin g, gateWeight p gate prior * (p.eval interpretation x prior).toNat := by
-        apply sum_congr rfl
-        intro prior _
-        by_cases hprior : prior < gate
-        · rw [ite_eq_left hprior, ih prior hprior
-            (fun k hk => hfix k (hk.trans hprior.le))
-            (fun k hk => hz k (hk.trans hprior.le))]
-        · rw [ite_eq_right hprior, gateWeight_eq_zero_of_le p gate prior (le_of_not_gt hprior),
-            zero_mul]
-      rw [hsum]
+  fun_induction evalFrom p fixed η z gate with
+  | case1 gate hgate => exact hfix gate le_rfl hgate -- gate ∈ fixed
+  | case2 gate hgate ih => -- gate ∉ fixed: threshold on weighted sum
+    rw [eval_gate_eq, hz gate le_rfl hgate]
+    have hsum : (∑ prior : Fin g, if _h : prior < gate then
+          gateWeight p gate prior * (evalFrom p fixed η z prior).toNat else 0) =
+        ∑ prior : Fin g, gateWeight p gate prior * (p.eval interpretation x prior).toNat := by
+      apply sum_congr rfl
+      intro prior _
+      by_cases hprior : prior < gate
+      · rw [dite_eq_left hprior, ih prior hprior
+          (fun k hk => hfix k (hk.trans hprior.le))
+          (fun k hk => hz k (hk.trans hprior.le))]
+      · rw [dite_eq_right hprior, gateWeight_eq_zero_of_le p gate prior (le_of_not_gt hprior),
+          zero_mul]
+    rw [hsum]
 
 /-- The values of the first `d` gates under `evalFrom`, as functions of the parameter `t`. -/
 private noncomputable def prefixValues (p : Program signature n g) (fixed : Finset (Fin g))

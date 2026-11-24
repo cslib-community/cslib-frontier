@@ -551,8 +551,7 @@ theorem dens_forall_salt_exists_collision_le {s_max : ℕ} {Q : Type*} [Decidabl
             fun h => hjk.ne' (congrArg Prod.fst h)⟩)
     _ = (#Tuples : ℝ) * ((Fintype.card Y : ℝ)⁻¹) ^ s_max := by
         rw [sum_const, nsmul_eq_mul]
-    _ ≤ ((#S_b : ℝ) ^ 2) ^ s_max * ((Fintype.card Y : ℝ)⁻¹) ^ s_max :=
-        mul_le_mul_of_nonneg_right hcard_Tuples (by positivity)
+    _ ≤ ((#S_b : ℝ) ^ 2) ^ s_max * ((Fintype.card Y : ℝ)⁻¹) ^ s_max := by gcongr
     _ = ((#S_b : ℝ) ^ 2 / Fintype.card Y) ^ s_max := by
         rw [← mul_pow, div_eq_mul_inv]
 
@@ -706,8 +705,7 @@ theorem dens_card_local_salt_colliding_ge_le {r s_max w_cap : ℕ} {Q : Type*} [
         exact (mem_erase.mp hv_er).1 (congrArg Prod.snd h).symm
     _ = (#Chains : ℝ) * ((Fintype.card Y : ℝ)⁻¹) ^ r := by
         rw [sum_const, nsmul_eq_mul]
-    _ ≤ ((#Q_set * w_cap * s_max : ℕ) : ℝ) ^ r * ((Fintype.card Y : ℝ)⁻¹) ^ r :=
-        mul_le_mul_of_nonneg_right hcard_Chains (by positivity)
+    _ ≤ ((#Q_set * w_cap * s_max : ℕ) : ℝ) ^ r * ((Fintype.card Y : ℝ)⁻¹) ^ r := by gcongr
     _ = (((#Q_set * w_cap * s_max : ℕ) : ℝ) / Fintype.card Y) ^ r := by
         rw [← mul_pow, div_eq_mul_inv]
 

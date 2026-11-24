@@ -1021,8 +1021,7 @@ theorem u2CubicPairBound_gaussian :
       have h2lam_le_one : 2 * lam - 1 ≤ 1 := by linarith only [hlam1]
       have h3 : (M_clean.ncard : ℝ) * ((2 * lam - 1) * (ξ / 4)) ≤
           (M_clean.ncard : ℝ) * (ξ / 4) := by
-        have htmp : (2 * lam - 1) * (ξ / 4) ≤ 1 * (ξ / 4) :=
-          mul_le_mul_of_nonneg_right h2lam_le_one (by positivity)
+        have htmp : (2 * lam - 1) * (ξ / 4) ≤ 1 * (ξ / 4) := by gcongr
         exact mul_le_mul_of_nonneg_left (by linarith only [htmp]) (Nat.cast_nonneg _)
       have hslack_cancel : (h - 2 * (M_clean.ncard : ℝ)) * (ξ / 8) +
           (M_clean.ncard : ℝ) * (ξ / 4) = (ξ / 8) * h := by ring

@@ -47,6 +47,8 @@ public section
 
 namespace Cslib.Circuits
 
+/-! ### `U₂` interpretations and standard bases -/
+
 /-- A Boolean circuit interpretation belongs to **`U₂`** (fan-in at most two without `XOR`/`XNOR`)
 when every operation has arity at most `2` and every binary operation is an `AND`-type gate up to
 input/output polarities (`AND`, `OR`, `NAND`, `NOR`, `IMP`, `NIMP`, etc.). Constants (arity `0`)
@@ -96,6 +98,8 @@ open Set Cslib.Circuits.Frontier.Basis
 section CleanCompression
 
 variable {σ : Signature} {m_in m_out : ℕ}
+
+/-! ### Clean vertices, gate satisfaction, and block predicates -/
 
 /-- Edges of `graph c` with both endpoints inside `S`. -/
 @[expose]
@@ -197,6 +201,8 @@ def CleanBlock3 {c : Circuit σ m_in m_out} (I : Interpretation σ Bool) (S : Se
       (∀ α, GateSatisfies I S α → rel (α p) (α q) (α e) = true) ∧
       (∀ α, rel (α p) (α q) (α e) = true →
         ∃ β, EqOn β α (internalEdges c S)ᶜ ∧ GateSatisfies I S β))
+
+/-! ### Gluing and wire-absorption merges -/
 
 /-- Edge-cut and internal-edge decomposition across two disjoint sets sharing one cut edge. -/
 theorem edgeCut_union_of_inter_singleton {V E : Type*} {G : Multigraph V E}
@@ -597,6 +603,8 @@ private theorem cleanWire_merge_block3 {c : Circuit σ m_in m_out} {I : Interpre
         have he_eq : β₁ e = α e := (hβ₁ he₂.1).trans (ite_eq_right he₂.2)
         rwa [hp_eq, hf_eq, he_eq]
 
+/-! ### Singleton block classification -/
+
 private theorem internalEdges_singleton_empty (c : Circuit σ m_in m_out) (v : Vertex c) :
     internalEdges c {v} = ∅ := by
   ext e
@@ -859,7 +867,16 @@ private theorem clean_binary_gate_singleton {c : Circuit σ m_in m_out} {I : Int
     rw [hx2, hand x2]
     change (α e_out = (((α e0 ^^ nx) && (α e1 ^^ ny)) ^^ nz)) ↔
       ((((α e0 ^^ nx) && (α e1 ^^ ny)) ^^ nz) == α e_out) = true
-    cases α e0 <;> cases α e1 <;> cases α e_out <;> cases nx <;> cases ny <;> cases nz <;> decide
+    rw [beq_iff_eq, eq_comm]
+  have mk {rel : Bool → Bool → Bool → Bool} {p' q' e' : Edge c}
+      (hrel : ∀ α : Edge c → Bool,
+        rel (α p') (α q') (α e') = andTypeRel nx ny nz 2 (α e0) (α e1) (α e_out)) :
+      (∀ α, GateSatisfies I {v} α → rel (α p') (α q') (α e') = true) ∧
+      (∀ α, rel (α p') (α q') (α e') = true →
+        ∃ β, EqOn β α (internalEdges c {v})ᶜ ∧ GateSatisfies I {v} β) :=
+    ⟨fun α h => by rw [hrel α]; exact (hsat_iff α).mp h,
+      fun α h => ⟨α, by rw [hint0]; exact eqOn_refl _ _,
+        (hsat_iff α).mpr (by rwa [← hrel α])⟩⟩
   refine ⟨hcl, hnc, fun p q e hpq hrem he => ?_⟩
   have hp_rem : p ∈ (graph c).edgeCut {v} \ {e} := by rw [hrem]; simp
   have hq_rem : q ∈ (graph c).edgeCut {v} \ {e} := by rw [hrem]; simp
@@ -882,18 +899,9 @@ private theorem clean_binary_gate_singleton {c : Circuit σ m_in m_out} {I : Int
     · rcases hp_mem with rfl | rfl | rfl <;> rcases hq_mem with rfl | rfl | rfl
       all_goals first
         | exact (hpq rfl).elim | exact (hp_ne_e rfl).elim | exact (hq_ne_e rfl).elim
-        | exact ⟨andTypeRel nx ny nz 2, .gate nx ny nz,
-            fun α h => (hsat_iff α).mp h,
-            fun α h => ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr h⟩⟩
-        | (refine ⟨andTypeRel ny nx nz 2, .gate ny nx nz, fun α h => ?_, fun α h => ?_⟩
-           · have := (hsat_iff α).mp h
-             revert this
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide
-           · refine ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ?_⟩
-             revert h
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide)
+        | exact ⟨andTypeRel nx ny nz 2, .gate nx ny nz, mk fun _ => rfl⟩
+        | exact ⟨andTypeRel ny nx nz 2, .gate ny nx nz,
+            mk fun α => by dsimp only [andTypeRel]; rw [Bool.and_comm]⟩
   · intro htgt_e
     rw [mem_singleton_iff] at htgt_e
     rcases he_mem with rfl | rfl | rfl
@@ -901,49 +909,19 @@ private theorem clean_binary_gate_singleton {c : Circuit σ m_in m_out} {I : Int
       rcases hp_mem with rfl | rfl | rfl <;> rcases hq_mem with rfl | rfl | rfl
       all_goals first
         | exact (hpq rfl).elim | exact (hp_ne_e rfl).elim | exact (hq_ne_e rfl).elim
-        | (refine ⟨fun c' d' e' => andTypeRel nx ny nz 0 d' c' e',
-              (U2InRel.gate nx ny nz 0).swap, fun α h => ?_, fun α h => ?_⟩
-           · have := (hsat_iff α).mp h
-             revert this
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide
-           · refine ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ?_⟩
-             revert h
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide)
-        | (refine ⟨andTypeRel nx ny nz 0, U2InRel.gate nx ny nz 0, fun α h => ?_, fun α h => ?_⟩
-           · have := (hsat_iff α).mp h
-             revert this
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide
-           · refine ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ?_⟩
-             revert h
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide)
+        | exact ⟨fun c' d' e' => andTypeRel nx ny nz 0 d' c' e',
+            (U2InRel.gate nx ny nz 0).swap, mk fun _ => rfl⟩
+        | exact ⟨andTypeRel nx ny nz 0, U2InRel.gate nx ny nz 0, mk fun _ => rfl⟩
     · -- `e = e1`: remaining pins are `{e0, e_out}`
       rcases hp_mem with rfl | rfl | rfl <;> rcases hq_mem with rfl | rfl | rfl
       all_goals first
         | exact (hpq rfl).elim | exact (hp_ne_e rfl).elim | exact (hq_ne_e rfl).elim
-        | (refine ⟨andTypeRel nx ny nz 1, U2InRel.gate nx ny nz 1, fun α h => ?_, fun α h => ?_⟩
-           · have := (hsat_iff α).mp h
-             revert this
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide
-           · refine ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ?_⟩
-             revert h
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide)
-        | (refine ⟨fun c' d' e' => andTypeRel nx ny nz 1 d' c' e',
-              (U2InRel.gate nx ny nz 1).swap, fun α h => ?_, fun α h => ?_⟩
-           · have := (hsat_iff α).mp h
-             revert this
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide
-           · refine ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ?_⟩
-             revert h
-             cases α e0 <;> cases α e1 <;> cases α e_out <;>
-               cases nx <;> cases ny <;> cases nz <;> decide)
+        | exact ⟨andTypeRel nx ny nz 1, U2InRel.gate nx ny nz 1, mk fun _ => rfl⟩
+        | exact ⟨fun c' d' e' => andTypeRel nx ny nz 1 d' c' e',
+            (U2InRel.gate nx ny nz 1).swap, mk fun _ => rfl⟩
     · exact (htgt_out htgt_e).elim
+
+/-! ### Dirty singletons and saturated compression -/
 
 private def IsDirtySingleton (c : Circuit σ m_in m_out) (I : Interpretation σ Bool) :
     Vertex c → Prop

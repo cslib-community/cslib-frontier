@@ -254,7 +254,7 @@ theorem logb_ncard_frontierValues_le_arborescence {c : Circuit σ n m} (hfan : c
   set R := W \ D
   have hindep := ncard_frontierValues_le_indepSetCount c I Acc π t hD X
   have hpos : 0 < (u2ClauseGraph c.program I R).indepSetCount :=
-    (ncard_pos (toFinite _)).mpr ⟨∅, by simp⟩
+    (u2ClauseGraph c.program I R).indepSetCount_pos
   have hlog := logb_ncard_le_logb_pos hindep hpos
   have harb := logb_indepSetCount_u2ClauseGraph_le_capped hfan I
     (W := W) (R := R) (fun _ hw => ⟨hw.1, fun hd => hw.2 (hD₀ hd)⟩)

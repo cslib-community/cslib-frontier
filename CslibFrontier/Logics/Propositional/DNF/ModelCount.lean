@@ -238,8 +238,7 @@ theorem DNF.card_filter_eval_eq_sum {α : Type*} (σ : α → V → Bool) (φ : 
             (fun a => DNF.eval (σ a) φ = true) := by
       ext a
       simp only [Finset.mem_filter, Finset.mem_union, DNF.eval_cons, Bool.or_eq_true]
-      cases Term.eval (σ a) t <;>
-        simp
+      grind
     have hdisj : Disjoint (S.filter (fun a => Term.eval (σ a) t = true))
         ((S.filter fun a => Term.eval (σ a) t = false).filter
           (fun a => DNF.eval (σ a) φ = true)) := by

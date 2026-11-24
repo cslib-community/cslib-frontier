@@ -488,7 +488,10 @@ theorem indepNum_assignmentGraph {φ : CNF ℕ} (h3 : ∀ c ∈ φ, c.length ≤
 
 /-! ### Polynomial time -/
 
-local notation "encLit" => encPair encNat encBool
+/-- Encoding of a literal `(x, b)` over `ℕ`: the variable index `x` in little-endian binary
+(`encNat`), framed, followed by the polarity bit `b` (`encBool`). -/
+private abbrev encLit : Literal ℕ ↪ List Bool :=
+  encPair encNat encBool
 
 private theorem computableInPolyTime_assignLits (bs : List Bool) :
     ComputableInPolyTime (fun c : Clause ℕ => assignLits c bs) (encList encLit)

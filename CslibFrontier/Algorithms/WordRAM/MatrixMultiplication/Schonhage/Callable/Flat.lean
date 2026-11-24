@@ -42,12 +42,13 @@ theorem entry_runs {W b out T : ℕ} {body : Code .standard 163} {inp : List ℕ
       y.Bounded W := by
   intro c
   let x : Data 163 := .init inp
-  let s := (x.set Reg.address 1).set Reg.base b
-  have hread' : x.mem 1 = b := hread
-  have hs : ExecWithin (B := .standard) W
-      (ram[ Reg.address ← #1; Reg.base ← *Reg.address ]) x s 2 := by
-    ram_eval [s, h1, hread', Reg.address, Reg.base, Fin.mk.injEq]
-  obtain ⟨n, hn, hruns, hexec, ybound⟩ := (hs.seq hy).to_program_init hi Reg.result
+  have hb : (x.set Reg.address 1).mem ((x.set Reg.address 1).regs Reg.address) = b :=
+    (congrArg x.mem (Function.update_self Reg.address 1 x.regs)).trans hread
+  have hload : ExecWithin (B := .standard) W (.op (.load Reg.base Reg.address))
+      (x.set Reg.address 1) ((x.set Reg.address 1).set Reg.base b) 1 := by
+    rw [← hb]; exact ExecWithin.load
+  obtain ⟨n, hn, hruns, hexec, ybound⟩ :=
+    (((ExecWithin.const (x := x) h1).seq hload).seq hy).to_program_init hi Reg.result
   exact ⟨n, by omega, hruns, hyr ▸ hexec, ybound⟩
 
 /-- Actual initialized execution with no computed-layout, bounded-scratch or execution premise.

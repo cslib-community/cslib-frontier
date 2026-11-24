@@ -595,8 +595,7 @@ private theorem pow_pred_mul_blockSize_one_le (n k c : ℕ) {ℓ : ℕ}
       have hident : Q * (P - 1) + (Q - P) = (Q - 1) * P := by
         zify [show 1 ≤ P by omega, show P ≤ Q by omega, show 1 ≤ Q by omega]; ring
       have hstep_xy : Q * (P - 1) * y ≤ (Q - 1) * P * (F * x) := Nat.le_of_add_le_add_right (calc
-        Q * (P - 1) * y + (Q - 1) * P * (2 * x) ≤ Q * (P - 1) * y + (Q - P) * y :=
-          Nat.add_le_add_left hQP _
+        Q * (P - 1) * y + (Q - 1) * P * (2 * x) ≤ Q * (P - 1) * y + (Q - P) * y := by gcongr
         _ ≤ (Q - 1) * P * (F * x + 2 * x) := by
           rw [← add_mul, hident]; exact Nat.mul_le_mul_left _ hy_le_Fx
         _ = (Q - 1) * P * (F * x) + (Q - 1) * P * (2 * x) := by ring)

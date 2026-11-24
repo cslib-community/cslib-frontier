@@ -400,8 +400,8 @@ private theorem relMap_trueSym (R : Unit → Set (Fin 1 → M)) (x : Fin 1 → M
 private theorem realize_satMatrix (R : Unit → Set (Fin 1 → M)) :
     (letI := ESO.varLanguage.structure (arity := fun _ : Unit => 1) R; M ⊨ satMatrix) ↔
       Satisfies fun x => ![x] ∈ R () := by
-  simp [satMatrix, Sentence.Realize, Formula.Realize, Fin.snoc, relMap_posSym, relMap_negSym,
-    relMap_trueSym, Satisfies, ClauseSatisfied]
+  let _ := ESO.varLanguage.structure (arity := fun _ : Unit => 1) R
+  fo_simp [satMatrix, relMap_posSym, relMap_negSym, relMap_trueSym, Satisfies, ClauseSatisfied]
 
 /-- The satisfiability sentence holds exactly in the satisfiable CNF structures. -/
 theorem realize_satSentence : satSentence.Realize M ↔ Satisfiable M := by
@@ -469,14 +469,14 @@ def nonemptyClausesSentence : cnf.Sentence :=
 /-- The sentence `nonemptyClausesSentence` holds exactly when no clause is empty. -/
 theorem realize_nonemptyClausesSentence :
     M ⊨ nonemptyClausesSentence ↔ ∀ c : M, (literals c).Nonempty := by
-  fo_simp [nonemptyClausesSentence, Sentence.Realize, Formula.Realize]
+  fo_simp [nonemptyClausesSentence]
   refine forall_congr' fun c => ⟨fun ⟨x, hx⟩ => ?_, fun ⟨⟨b, x⟩, hx⟩ => ⟨x, ?_⟩⟩
   · rcases hx with hx | hx
-    · exact ⟨(true, x), by simpa [mem_literals, Fin.snoc] using hx⟩
-    · exact ⟨(false, x), by simpa [mem_literals, Fin.snoc] using hx⟩
+    · exact ⟨(true, x), hx⟩
+    · exact ⟨(false, x), hx⟩
   · cases b
-    · exact .inr (by simpa [mem_literals, Fin.snoc] using hx)
-    · exact .inl (by simpa [mem_literals, Fin.snoc] using hx)
+    · exact .inr hx
+    · exact .inl hx
 
 /-- **3-CNF structures form a first-order definable class.** -/
 theorem definable_isThreeCNF :

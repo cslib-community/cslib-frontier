@@ -162,14 +162,6 @@ theorem matchPair_eq_none {i : Fin m} {j : Fin n} {v : Fin m × Fin n} :
   · push Not at h₂
     simp [h₂]
 
-private theorem matchPair_of_fst_eq_of_snd_ne {i : Fin m} {j j' : Fin n} (hj : j' ≠ j) :
-    matchPair i j (i, j') = some false := by
-  simp [matchPair, hj]
-
-private theorem matchPair_of_fst_ne_of_snd_eq {i i' : Fin m} {j : Fin n} (hi : i' ≠ i) :
-    matchPair i j (i', j) = some false := by
-  simp [matchPair, hi]
-
 /-- Restricting `pigeonholeOn P H` by matching `i₀` to `j₀ ∈ H` leaves clauses of
 `pigeonholeOn (P.erase i₀) (H.erase j₀)`. -/
 private theorem restrictBy_pigeonholeOn_subset {P : Finset (Fin m)} {H : Finset (Fin n)}
@@ -192,15 +184,14 @@ private theorem restrictBy_pigeonholeOn_subset {P : Finset (Fin m)} {H : Finset 
       rintro rfl
       by_cases hjj₀ : j = j₀
       · subst hjj₀
-        exact hsat ((i', j), false) (by simp [CNF.holeClause])
-          (matchPair_of_fst_ne_of_snd_eq hne.symm)
-      · exact hsat ((i, j), false) (by simp [CNF.holeClause]) (matchPair_of_fst_eq_of_snd_ne hjj₀)
+        exact hsat ((i', j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hne.symm])
+      · exact hsat ((i, j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hjj₀])
     have hjj₀ : j ≠ j₀ := by
       rintro rfl
-      exact hsat ((i, j), false) (by simp [CNF.holeClause]) (matchPair_of_fst_ne_of_snd_eq hii₀)
+      exact hsat ((i, j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hii₀])
     have hi'i₀ : i' ≠ i₀ := by
       rintro rfl
-      exact hsat ((i', j), false) (by simp [CNF.holeClause]) (matchPair_of_fst_eq_of_snd_ne hjj₀)
+      exact hsat ((i', j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hjj₀])
     refine mem_pigeonholeOn.2 (Or.inr ⟨i, mem_erase.2 ⟨hii₀, hi⟩, i', mem_erase.2 ⟨hi'i₀, hi'⟩,
       j, mem_erase.2 ⟨hjj₀, hj⟩, hii', ?_⟩)
     simp [CNF.holeClause, matchPair_eq_none, hii₀, hi'i₀, hjj₀]

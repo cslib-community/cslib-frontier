@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Nonce
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
 import CslibFrontier.Probability.HashFamily.Polynomial

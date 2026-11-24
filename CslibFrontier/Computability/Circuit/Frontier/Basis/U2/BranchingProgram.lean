@@ -1708,9 +1708,7 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
           Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
           Nat.card_eq_fintype_card (α := Fin 3), Fintype.card_fin]
     _ ≤ (2 ^ F.ncard * 3 ^ A.ncard) * (2 ^ 12 * (2 ^ 1 * 3 ^ 1)) := by
-        refine Nat.mul_le_mul_left _ (Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) hEextra_le)
-          (Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) hNw_le)
-            (Nat.pow_le_pow_right (by decide) hAgain_le)))
+        gcongr
     _ = 24576 * (2 ^ F.ncard * 3 ^ A.ncard) := by ring
 
 omit hG in
@@ -1818,8 +1816,7 @@ theorem mul_size_branchingProgram_le_rpow [Finite ι]
       24577 * (K : ℝ) ^ 3 * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V) := by
     rw [Nat.cast_mul]
     calc (((K - 1 : ℕ) ^ 2 : ℕ) : ℝ) * ((D.branchingProgram N).size : ℝ)
-        ≤ (K : ℝ) ^ 2 * (24577 * K * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V)) :=
-          mul_le_mul hKsq hsize' (Nat.cast_nonneg _) (by positivity)
+        ≤ (K : ℝ) ^ 2 * (24577 * K * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V)) := by gcongr
       _ = 24577 * (K : ℝ) ^ 3 * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V) := by ring
   have h15 : (24577 : ℝ) ≤ (2 : ℝ) ^ (15 : ℝ) := by norm_num
   have hK_rpow : (K : ℝ) ^ 3 = (2 : ℝ) ^ (3 * Real.logb 2 K) := by
@@ -1950,8 +1947,7 @@ theorem sq_correlation_quadForm_le {n : ℕ} {c : Circuit σ n 1}
           ≤ ((range msg).ncard : ℝ) := H
         _ ≤ 2 * ((2 ^ (D.singleCut t).ncard * 3 ^ (D.actPairs t).ncard : ℕ) : ℝ) := by
             exact_mod_cast hcount
-        _ ≤ 2 * (2 : ℝ) ^ (B_sup + 6 * Nat.log 2 (Nat.card (Vertex c))) :=
-            mul_le_mul_of_nonneg_left hstate_rpow (by norm_num)
+        _ ≤ 2 * (2 : ℝ) ^ (B_sup + 6 * Nat.log 2 (Nat.card (Vertex c))) := by gcongr
         _ = (2 : ℝ) ^ (1 + B_sup + 6 * Nat.log 2 (Nat.card (Vertex c))) := by
             symm
             rw [add_assoc 1 B_sup _, Real.rpow_add (by norm_num), Real.rpow_one]

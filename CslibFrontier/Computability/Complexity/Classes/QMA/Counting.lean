@@ -221,8 +221,7 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     have : (0 : ℝ) < G a := by
       rw [hGr, sub_pos]
       calc ((b a : ℝ) + 1) ^ J a * 2 ^ (h a * J a)
-          < c (enc a).length ^ J a * (e a : ℝ) ^ J a * 2 ^ (h a * J a) :=
-            mul_lt_mul_of_pos_right hlt hX
+          < c (enc a).length ^ J a * (e a : ℝ) ^ J a * 2 ^ (h a * J a) := by gcongr
         _ = (e a : ℝ) ^ J a * (c (enc a).length ^ J a * 2 ^ (h a * J a)) := by ring
         _ ≤ (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) := mul_le_mul_of_nonneg_left hT hDJ.le
         _ ≤ 2 * (e a : ℝ) ^ J a * V.traceGap (enc a) (J a) := by
@@ -239,8 +238,7 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     have : (G a : ℝ) ≤ 0 := by
       rw [hGr, sub_nonpos]
       calc 2 * (e a : ℝ) ^ J a * V.traceGap (enc a) (J a)
-          ≤ 2 * (e a : ℝ) ^ J a * (2 ^ m a * s (enc a).length ^ J a * 2 ^ (h a * J a)) :=
-            mul_le_mul_of_nonneg_left hT (by positivity)
+          ≤ 2 * (e a : ℝ) ^ J a * (2 ^ m a * s (enc a).length ^ J a * 2 ^ (h a * J a)) := by gcongr
         _ = 2 ^ (m a + 1) * (s (enc a).length * e a) ^ J a * 2 ^ (h a * J a) := by ring
         _ ≤ 2 ^ (m a + 1) * (b a : ℝ) ^ J a * 2 ^ (h a * J a) := by gcongr
         _ ≤ ((b a : ℝ) + 1) ^ J a * 2 ^ (h a * J a) := by gcongr

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Projection
 public import CslibFrontier.Logics.SecondOrder.Reduction
+import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
 # The power interpretation on `k`-tuples
@@ -163,7 +164,7 @@ private theorem realize_ltVarFormula {α : Type*} {M : Type} [L.Structure M] {n 
     (letI := ESO.varLanguage.structure (arity := fun _ : Unit => 2) (ESO.orderRelOfEquiv e);
       (ltVarFormula (L := L) p q).Realize val) ↔ e (val p) < e (val q) := by
   let _ := ESO.varLanguage.structure (arity := fun _ : Unit => 2) (ESO.orderRelOfEquiv e)
-  simp [ltVarFormula, Formula.Realize, relMap_ltRel]
+  fo_simp [ltVarFormula, Formula.Realize, relMap_ltRel]
 
 private theorem realize_isMinVarFormula {α : Type*} {M : Type} [L.Structure M] {n : ℕ}
     (e : M ≃ Fin n)
@@ -171,9 +172,7 @@ private theorem realize_isMinVarFormula {α : Type*} {M : Type} [L.Structure M] 
     (letI := ESO.varLanguage.structure (arity := fun _ : Unit => 2) (ESO.orderRelOfEquiv e);
       (isMinVarFormula (L := L) p).Realize val) ↔ (e (val p) : ℕ) = 0 := by
   let _ := ESO.varLanguage.structure (arity := fun _ : Unit => 2) (ESO.orderRelOfEquiv e)
-  have h1 : (isMinVarFormula (L := L) p).Realize val ↔ ∀ z : M, ¬ (e z < e (val p)) := by
-    simp [isMinVarFormula, Formula.Realize, relMap_ltRel, Fin.snoc]
-  rw [h1]
+  fo_simp [isMinVarFormula, relMap_ltRel]
   constructor
   · intro h
     by_contra hne

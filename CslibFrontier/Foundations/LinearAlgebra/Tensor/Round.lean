@@ -349,6 +349,10 @@ def roundLength (c : ℕ) : ℕ → ℕ
   | 0 => 1
   | j + 1 => nextLength c (roundLength c j)
 
+private theorem one_le_roundLength (c : ℕ) : ∀ j, 1 ≤ roundLength c j
+  | 0 => le_rfl
+  | j + 1 => (one_le_roundLength c j).trans (Nat.le_add_right _ _)
+
 /-- The shift of a round satisfies the primal packing's condition at both lengths. -/
 theorem nextLength_spec {c L : ℕ} (hc : 2 ≤ c) (hL : 1 ≤ L) :
     1 ≤ nextLength c L - L ∧ L + 2 * L - 1 ≤ c * (nextLength c L - L) ∧
@@ -385,10 +389,7 @@ theorem isDegen_mm_unit_of_rounds {c d w u H Λ : ℕ} (hw : 1 ≤ w)
       (mm (w ^ 2 * Λ ^ k) (w ^ 2 * Λ ^ k) (w ^ 2 * Λ ^ k) : Tensor K _ _ _)
       (unit (64 ^ k * w ^ 9 * (2 * roundLength c k - 1) ^ (6 * d))) := by
   classical
-  have hL : ∀ j, 1 ≤ roundLength c j := fun j => by
-    induction j with
-    | zero => exact le_rfl
-    | succ j ih => exact ih.trans (Nat.le_add_right _ _)
+  have hL : ∀ j, 1 ≤ roundLength c j := one_le_roundLength c
   -- `j` rounds from `L₀ = 1`
   have key : ∀ j x, ∃ H', IsDegen H'
       (dsum fun _ : Fin (w ^ 3) => tprod (Q d 1 1 : Tensor K _ _ _)
@@ -498,10 +499,7 @@ private theorem roundLength_le {c : ℕ} (hc : 2 ≤ c) (j : ℕ) :
   have hρ : rho c * ((c : ℝ) - 1) / 3 = ((c : ℝ) - 1) / 3 + 1 := by
     rw [rho]
     field_simp
-  have hL : ∀ j, 1 ≤ roundLength c j := fun j => by
-    induction j with
-    | zero => exact le_rfl
-    | succ j ih => exact ih.trans (Nat.le_add_right _ _)
+  have hL : ∀ j, 1 ≤ roundLength c j := one_le_roundLength c
   induction j with
   | zero =>
     rw [roundLength, pow_zero, mul_one]
@@ -696,10 +694,7 @@ theorem exists_rank_mm_lt_rpow {τ : ℝ} (hτ : 9 / 4 < τ) :
   rw [div_mul_eq_mul_div, div_lt_iff₀ (Real.rpow_pos_of_pos hw0 _)] at hk
   set V := w ^ 2 * Λ ^ k with hV
   set r' := 64 ^ k * w ^ 9 * (2 * roundLength c k - 1) ^ (6 * d) with hr'
-  have hL : ∀ j, 1 ≤ roundLength c j := fun j => by
-    induction j with
-    | zero => exact le_rfl
-    | succ j ih => exact ih.trans (Nat.le_add_right _ _)
+  have hL : ∀ j, 1 ≤ roundLength c j := one_le_roundLength c
   have hr'V : (r' : ℝ) < (V : ℝ) ^ τ := by
     have hLk : ((2 * roundLength c k - 1 : ℕ) : ℝ) ≤ 2 * ((c : ℝ) + 2) / 3 * rho c ^ k := by
       have h1 : ((2 * roundLength c k - 1 : ℕ) : ℝ) ≤ 2 * (roundLength c k : ℝ) := by

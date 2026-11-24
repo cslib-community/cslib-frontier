@@ -315,7 +315,6 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
         exact Finset.sum_le_sum fun j _ => (both_anchor_comparisons G α C S j hW).2
       _ ≤ _ := by
         rw [← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
-        exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_left hd (by norm_num)) he)
-          (by positivity)
+        gcongr
 
 end Cslib.PCP.AnchoredDependency

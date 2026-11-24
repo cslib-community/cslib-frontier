@@ -96,8 +96,7 @@ theorem computableFunctionsLogBound_le_poly (n s : ℕ) :
   have hclog : Nat.clog 2 (n + s + 1) ≤ n + s + 1 :=
     (Nat.clog_le_iff_le_pow (by decide)).mpr (Nat.lt_two_pow_self).le
   dsimp only [computableFunctionsLogBound]
-  exact Nat.mul_le_mul_left (s + 1)
-    (Nat.add_le_add_right (Nat.mul_le_mul_left 2 hclog) 3)
+  gcongr
 
 private theorem mul_sq_le_two_pow {n : ℕ} (hn : 16 ≤ n) : 64 * n ^ 2 ≤ 2 ^ n := by
   induction n, hn using Nat.le_induction with

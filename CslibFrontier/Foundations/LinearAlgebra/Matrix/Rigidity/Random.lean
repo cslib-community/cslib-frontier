@@ -166,8 +166,7 @@ private theorem pow_mul_le_four_mul_prod_sub {q : ℕ} (hq : 2 ≤ q) (r : ℕ) 
     rw [hcongr, prod_const, card_univ, Fintype.card_fin]
   rw [hlhs, hrhs]
   calc (∏ i : Fin r, q ^ i.val) * ∏ k ∈ range r, q ^ (k + 1)
-      ≤ (∏ i : Fin r, q ^ i.val) * (4 * ∏ k ∈ range r, (q ^ (k + 1) - 1)) :=
-        Nat.mul_le_mul_left _ hbase
+      ≤ (∏ i : Fin r, q ^ i.val) * (4 * ∏ k ∈ range r, (q ^ (k + 1) - 1)) := by gcongr
     _ = 4 * ((∏ i : Fin r, q ^ i.val) * ∏ k ∈ range r, (q ^ (k + 1) - 1)) := by ring
 
 /-- Every subspace of dimension at most `r ≤ finrank K V` is contained in an `r`-dimensional
@@ -426,8 +425,7 @@ private theorem card_rigidity_lt_mul_lt_of_pos {r s : ℕ} (hs : 1 ≤ s) :
   calc #{A : Matrix m n K | A.rigidity r < s} *
         Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r))
       ≤ #{B : Matrix m n K | B.rank ≤ r} * V *
-          Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r)) :=
-        Nat.mul_le_mul_right _ hcard
+          Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r)) := by gcongr
     _ = V * (#{B : Matrix m n K | B.rank ≤ r} *
           Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r))) := by ring
     _ < V * (4 * Fintype.card K ^ (Fintype.card m * Fintype.card n)) :=

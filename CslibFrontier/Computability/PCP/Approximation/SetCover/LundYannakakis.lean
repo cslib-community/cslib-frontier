@@ -269,8 +269,7 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       (1 - (g.toGraph projectionEval).unsatVal) * m := by
     calc (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m
         = (1 - 2 * ρ / t) * m * (4 / (t : ℝ) ^ 2) := by ring
-      _ ≤ (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) :=
-          mul_le_mul_of_nonneg_right hgood_card (by positivity)
+      _ ≤ (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) := by gcongr
       _ ≤ _ := hfrac
   exact le_of_mul_le_mul_right hmain hm0
 

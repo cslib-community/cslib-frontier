@@ -532,8 +532,7 @@ theorem rowCost_le {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 32 ≤ rowBound �
       refine Real.log_nonneg ((one_le_div (by positivity)).mpr ?_)
       exact_mod_cast (by omega : R ≤ 2 * Q)
     calc (R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R)
-        ≤ (512 * ((β : ℝ) + 3) * nu / Real.sqrt lam) * (2 * nu) :=
-          mul_le_mul hratio hlog_Q hlog_nonneg (by positivity)
+        ≤ (512 * ((β : ℝ) + 3) * nu / Real.sqrt lam) * (2 * nu) := by gcongr
       _ = 1024 * ((β : ℝ) + 3) * (nu : ℝ) ^ 2 / Real.sqrt lam := by ring
   calc (R : ℝ) / Q * Real.log (2 * (Q : ℝ) / R) + tau n * Real.log (2 * (D : ℝ) + 1) + 1 / r
       ≤ 1024 * ((β : ℝ) + 3) * (nu : ℝ) ^ 2 / Real.sqrt lam +

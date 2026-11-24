@@ -511,18 +511,11 @@ private theorem priority_eq (i : Fin g) :
 
 /-- Every gate priority is at least `1`. -/
 private theorem one_le_priority (i : Fin g) : 1 ≤ P.priority i := by
-  suffices ∀ k : ℕ, ∀ i : Fin g, g - 1 - i.val = k → 1 ≤ P.priority i from this _ i rfl
-  intro k
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    intro i hik
-    rw [P.priority_eq]
-    suffices 0 ≤ ∑ j : Fin g, if i < j then P.priority j * |P.gateWeight j i| else 0 by linarith
-    apply sum_nonneg
-    intro j _
+  fun_induction P.priority i with
+  | case1 i ih =>
+    refine le_add_of_nonneg_right (sum_nonneg fun j _ => ?_)
     split_ifs with hij
-    · have hj : 1 ≤ P.priority j := ih (g - 1 - j.val) (by have := j.isLt; omega) j rfl
-      exact mul_nonneg (by linarith) (abs_nonneg _)
+    · exact mul_nonneg (by linarith [ih j hij]) (abs_nonneg _)
     · exact le_rfl
 
 /-- Every gate priority is strictly positive. -/
@@ -558,12 +551,12 @@ private theorem one_add_mul_sum_geom (W : ℝ) (m : ℕ) :
 theorem priority_le_pow {W : ℝ} (hW0 : 0 ≤ W)
     (hW : ∀ j i : Fin g, i < j → |P.gateWeight j i| ≤ W) (i : Fin g) :
     P.priority i ≤ (W + 1) ^ (g - 1 - i.val) := by
-  suffices ∀ m : ℕ, ∀ i : Fin g, g - 1 - i.val = m → P.priority i ≤ (W + 1) ^ m from this _ i rfl
-  intro m
-  induction m using Nat.strong_induction_on with
-  | ind m ih =>
-    intro i him
-    rw [P.priority_eq, ← one_add_mul_sum_geom W m]
+  fun_induction P.priority i with
+  | case1 i ih =>
+    set m := g - 1 - i.val with him
+    simp only [dite_eq_ite]
+    rw [sum_attach univ fun j => if i < j then P.priority j * |P.gateWeight j i| else 0,
+      ← one_add_mul_sum_geom W m]
     have hsum : (∑ j : Fin g, if i < j then P.priority j * |P.gateWeight j i| else 0) ≤
         ∑ j ∈ univ.filter (fun j : Fin g => i < j), W * (W + 1) ^ (g - 1 - j.val) := by
       rw [← sum_filter]
@@ -571,7 +564,7 @@ theorem priority_le_pow {W : ℝ} (hW0 : 0 ≤ W)
       intro j hj
       have hij : i < j := (mem_filter.mp hj).2
       have hjp : P.priority j ≤ (W + 1) ^ (g - 1 - j.val) :=
-        ih (g - 1 - j.val) (by have := j.isLt; omega) j rfl
+        ih ⟨j, mem_univ j⟩ hij
       calc P.priority j * |P.gateWeight j i|
           ≤ (W + 1) ^ (g - 1 - j.val) * W :=
             mul_le_mul hjp (hW j i hij) (abs_nonneg _) (pow_nonneg (by linarith) _)
@@ -790,30 +783,26 @@ private theorem energy_faceStep_le {fixed : Finset (Fin g)} {val : Fin g → Boo
 theorem sweep_mem_fixed {fixed : Finset (Fin g)} {val : Fin g → Bool} {x : Fin n → Bool}
     {z : Fin g → Bool} (hfix : ∀ i ∈ fixed, z i = val i) (k : ℕ) {i : Fin g} (hi : i ∈ fixed) :
     P.sweep fixed val x z k i = val i := by
-  induction k with
-  | zero => exact hfix i hi
-  | succ k ih =>
-    rw [P.sweep_succ]
-    split_ifs with hk
-    · unfold faceStep
-      by_cases hik : i = ⟨k, hk⟩
-      · subst hik
-        simp [hi]
-      · rw [Function.update_of_ne hik, ih]
-    · exact ih
+  fun_induction P.sweep fixed val x z k with
+  | case1 => exact hfix i hi -- k = 0
+  | case2 k hk ih => -- k < g: face step at k
+    unfold faceStep
+    by_cases hik : i = ⟨k, hk⟩
+    · subst hik
+      simp [hi]
+    · rw [Function.update_of_ne hik, ih]
+  | case3 k _ ih => exact ih -- k ≥ g: skip
 
 /-- Starting from any assignment `z` on the face `(fixed, val)`, the energy `P.energy x` after any
 number `k` of steps of the topological coordinate sweep is at most the energy of `z`. -/
 theorem energy_sweep_le {fixed : Finset (Fin g)} {val : Fin g → Bool} {x : Fin n → Bool}
     {z : Fin g → Bool} (hfix : ∀ i ∈ fixed, z i = val i) (k : ℕ) :
     P.energy x (P.sweep fixed val x z k) ≤ P.energy x z := by
-  induction k with
-  | zero => exact le_rfl
-  | succ k ih =>
-    rw [P.sweep_succ]
-    split_ifs with hk
-    · exact (P.energy_faceStep_le fun hi => P.sweep_mem_fixed hfix k hi).trans ih
-    · exact ih
+  fun_induction P.sweep fixed val x z k with
+  | case1 => exact le_rfl -- k = 0
+  -- k < g: face step at k
+  | case2 k _ ih => exact (P.energy_faceStep_le fun hi => P.sweep_mem_fixed hfix k hi).trans ih
+  | case3 k _ ih => exact ih -- k ≥ g: skip
 
 end StrictMarginProgram
 

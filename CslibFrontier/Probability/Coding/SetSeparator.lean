@@ -407,8 +407,7 @@ private theorem expected_length_encOf_le {S : ℕ} {A B : Finset (Fin S)} (hdisj
             (2 + 2 * (k : ℝ) +
               2 * (∑ s ∈ Finset.range (L - k), fail (2 ^ (k + s)) θ) +
               (S + 1 : ℝ) * fail T θ) :=
-          Finset.sum_le_sum fun θ _ =>
-            mul_le_mul_of_nonneg_left (hpointwise θ) ENNReal.toReal_nonneg
+          by gcongr with θ; exact hpointwise θ
       _ = 2 + 2 * (k : ℝ) +
             2 * (∑ s ∈ Finset.range (L - k), ∑ θ, (cbPMF θ).toReal * fail (2 ^ (k + s)) θ) +
             (S + 1 : ℝ) * (∑ θ, (cbPMF θ).toReal * fail T θ) := by

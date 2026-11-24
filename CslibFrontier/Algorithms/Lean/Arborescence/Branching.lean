@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.Arborescence.Table
+public import CslibFrontier.Algorithms.Lean.Arborescence.ChuLiuEdmonds
 public import CslibFrontier.Foundations.Combinatorics.Digraph.Branching
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -19,16 +19,17 @@ out-arborescences (`Edmonds1967Branchings`, Section 1). Using the `Option V` sup
 correspondence from `CslibFrontier.Foundations.Combinatorics.Digraph.Branching`
 (`Digraph.superRootDigraph`, `Digraph.superRootExtend`, `Digraph.restrictOption`), this module
 reduces maximum-weight branching on `(G, w)` to minimum-cost spanning in-arborescence on
-`(G.superRootDigraph, superRootCost w, none)` (`optimumBranching`, `optimumBranchingM`).
+`(G.superRootDigraph, superRootCost w, none)` (`optimumBranching`).
 
 Because every vertex `some v` has an arc to the super-root `none` of cost `0` while real arcs
 `some v → some u` carry negated cost `-w u v`, the super-root reduction preserves exact weights up
-to negation (`arcCost_superRootExtend`), always succeeds without a separate shift constant, runs
-in `O(n³)` time (`time_optimumBranchingM_le`), and also yields minimum-weight branchings via `-w`
-(`minBranching`). We also formalize Edmonds' weight-shift reductions from
-[Edmonds1967Branchings, Section 2] (`edmonds_shift_weight_branching`,
+to negation (`arcCost_superRootExtend`), always succeeds without a separate shift constant, and
+also yields minimum-weight branchings via `-w` (`minBranching`). We also formalize Edmonds'
+weight-shift reductions from [Edmonds1967Branchings, Section 2] (`edmonds_shift_weight_branching`,
 `edmonds_rooted_outArborescence_of_shift`) characterizing maximum-cardinality branchings and
-rooted spanning out-arborescences under weight shift `h > ∑ |w_e|`.
+rooted spanning out-arborescences under weight shift `h > ∑ |w_e|`. Machine-level running-time
+certificates live in `CslibFrontier.Algorithms.WordRAM.Arborescence` (Word-RAM `O(n³)`) and
+`CslibFrontier.Algorithms.Lean.Arborescence.PolyTime` (multi-tape Turing-machine `P`).
 
 ## Main definitions
 
@@ -38,8 +39,6 @@ rooted spanning out-arborescences under weight shift `h > ∑ |w_e|`.
 * `Cslib.Algorithms.Lean.Arborescence.optimumBranchingParent`,
   `Cslib.Algorithms.Lean.Arborescence.optimumBranching`: exact maximum-weight branching solver
   via `edmonds`.
-* `Cslib.Algorithms.Lean.Arborescence.optimumBranchingM`: `O(n³)` materialized-table solver in
-  `TimeM ℕ`.
 * `Cslib.Algorithms.Lean.Arborescence.minBranching`: minimum-weight branching via negated weights.
 * `Cslib.Algorithms.Lean.Arborescence.rootedDigraph`: subgraph removing arcs entering a designated
   root `r₀`.
@@ -52,9 +51,6 @@ rooted spanning out-arborescences under weight shift `h > ∑ |w_e|`.
   `Cslib.Algorithms.Lean.Arborescence.optimumBranching_le`,
   `Cslib.Algorithms.Lean.Arborescence.optimumBranching_optimal`: correctness and global
   maximum-weight optimality over all branchings `B ≤ G`.
-* `Cslib.Algorithms.Lean.Arborescence.optimumBranchingM_ret_eq`,
-  `Cslib.Algorithms.Lean.Arborescence.time_optimumBranchingM_le`: equivalence with
-  `optimumBranchingParent` and `≤ 15 * (n + 1) ^ 3` (`O(n³)`) step bound.
 * `Cslib.Algorithms.Lean.Arborescence.minBranching_optimal`: global minimum-weight optimality.
 * `Cslib.Algorithms.Lean.Arborescence.edmonds_shift_weight_branching`,
   `Cslib.Algorithms.Lean.Arborescence.edmonds_rooted_outArborescence_of_shift`: Edmonds'
@@ -210,32 +206,6 @@ reduction to `edmonds`. -/
 instance {V : Type*} [FinEnum V] (G : Digraph V) [DecidableRel G.Adj] (w : V → V → β) :
     DecidableRel (optimumBranching G w).Adj :=
   inferInstanceAs (DecidableRel (Digraph.branchingDigraph (optimumBranchingParent G w)).Adj)
-
-/-- Materialized-table `TimeM ℕ` solver returning the optimum branching parent map in `O(n³)`
-charged steps. -/
-@[expose] def optimumBranchingM {V : Type*} [FinEnum V]
-    (G : Digraph V) [DecidableRel G.Adj] (w : V → V → β) : TimeM ℕ (V → V) :=
-  letI := optionFinEnum V
-  let res := edmondsTableM G.superRootDigraph (superRootCost w) none
-  ⟨match res.ret with | none => id | some p => restrictParent p, res.time⟩
-
-omit [IsOrderedAddMonoid β] in
-/-- `optimumBranchingM` computes the exact same parent map as `optimumBranchingParent`. -/
-theorem optimumBranchingM_ret_eq {V : Type*} [FinEnum V]
-    (G : Digraph V) [DecidableRel G.Adj] (w : V → V → β) :
-    (optimumBranchingM G w).ret = optimumBranchingParent G w := by
-  let _ := optionFinEnum V
-  dsimp only [optimumBranchingM, optimumBranchingParent]
-  rw [edmondsTableM_ret_eq_edmonds]
-
-omit [IsOrderedAddMonoid β] in
-/-- **`O(n³)` charged step bound for `optimumBranchingM`**: at most `15 * (n + 1) ^ 3` ticks on an
-`n`-vertex digraph. -/
-theorem time_optimumBranchingM_le {V : Type*} [FinEnum V]
-    (G : Digraph V) [DecidableRel G.Adj] (w : V → V → β) :
-    (optimumBranchingM G w).time ≤ 15 * (FinEnum.card V + 1) ^ 3 := by
-  let _ := optionFinEnum V
-  exact time_edmondsTableM_le G.superRootDigraph (superRootCost w) none
 
 /-- **Correctness and optimality of `optimumBranching`**: `optimumBranching G w` is a branching
 contained in `G`, and maximizes `arcCost B w` over all branchings `B ≤ G`. -/

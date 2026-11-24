@@ -419,7 +419,8 @@ For Lean, dependency or build changes, all of these and the other CI checks must
 final revision before integration. A successful hosted run for that revision supplies full
 validation; run `scripts/check.sh` locally only when asked or when hosted coverage is
 unavailable. During development, check affected modules and representative clients;
-`scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
+`scripts/check.sh --focused [--base REF]` (deferring unchanged global `Smoke`/`Axioms` leaves to
+CI) or `scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
 status 3 means "run focused checks and leave the full run to CI". Documentation-only changes need
 consistency and link checks, not a rebuild. `lake exe mk_all` regenerates `CslibFrontier.lean`
 after adding a file; new tests go in `CslibFrontierTests/`. Details and what each mode covers:
@@ -466,6 +467,9 @@ more than repaired proofs: adapt to each in the bump, or defer it as the cleanup
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
+- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is permanently
+  removed and forbidden (#7636, #6301; enforced by `scripts/check_timem.py`): its ticks are
+  unchecked annotations ([Running-time claims](policy/statements.md#running-time-claims)).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.

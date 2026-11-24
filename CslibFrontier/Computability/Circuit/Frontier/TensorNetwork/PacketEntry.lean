@@ -88,9 +88,6 @@ namespace Cslib.Circuits.Frontier
 
 open Finset
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 namespace TensorNetwork
 
 /-! ### The remaining fields of the Cauchy mode splitting -/

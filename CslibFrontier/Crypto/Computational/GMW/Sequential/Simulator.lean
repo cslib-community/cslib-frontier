@@ -27,6 +27,7 @@ import CslibFrontier.Languages.Probabilistic.Iteration.Chain
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Multi-session zero-knowledge simulator and PRG reduction for sequentially amplified GMW
@@ -436,7 +437,7 @@ theorem mem_support_simSessionStep {tapes : ℕ} {Control : Type}
   rcases firstSuccess_eq_or_mem st xs with h | h
   · exact Or.inl h
   · exact Or.inr (mem_support_gmwSimAttempt generator s m φ _
-      (mem_support_of_mem_replicate hxs h))
+      (((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).2 _ h))
 
 theorem isPPTOn_iterate_simSessionStep_finishSessionRun {α Param : Type}
     {enc : α ↪ List Bool} {input : Param ↪ List Bool}
@@ -1165,23 +1166,13 @@ theorem AdvicePRG.gmwSeqView_negligible {α : Type} {enc : α ↪ List Bool}
     simp only [length_encPair, encBits_apply]
     exact (((PolynomiallyBounded.const 2).mul hz).add (.const 1)).add hz'
   have hneg := hAdv.negligible_encoded hclock ha hw haux
-  have hcount : ComputableInPolyTime (fun a => totalLen (f a)) enc encUnary :=
-    (computableInPolyTime_totalLen hf)
-  have hsize : PolyBounded id (fun n => (enc (a n)).length) := ⟨_, ha, fun _ => le_rfl⟩
-  have hcount_poly := (hcount.polyBounded.comp hsize).polynomiallyBounded
-  have hk_poly : PolynomiallyBounded k := hk.polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (k n * ((n + 1) * totalLen (f (a n))))) :=
-    PolynomiallyBounded.comp ComputableInPolyTime.unary_dyadicSize.polynomiallyBounded
-      (hk_poly.mul ((PolynomiallyBounded.id.add (.const 1)).mul hcount_poly))
-  have hgeom := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  have herr := hgeom.polynomiallyBounded_mul hk_poly
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [ProbComp.eval_bind] using
+  dsimp only at hneg
+  have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
+    ((computableInPolyTime_totalLen hf).polyBounded.comp
+      ⟨_, ha, fun _ => le_rfl⟩).polynomiallyBounded
+  negligible using fun n =>
     gmwSeqView_advantage_le generator length f k hV
-      (fun m a _ view => adversary m a (z' n) view)
-      n (a n) (w n) (z n) (hw_sat n)
+      (fun m a _ view => adversary m a (z' n) view) n (a n) (w n) (z n) (hw_sat n)
 
 /-- **Zero-knowledge simulation of the sequentially amplified GMW protocol.** For any uniform strict
 oracle PPT malicious verifier `Vstar` and any deterministic polynomial-time families of instances
@@ -1223,20 +1214,12 @@ theorem gmwSeqView_indistinguishable_gmwSeqSimulator {α : Type} {enc : α ↪ L
       ((hn1.prod ((ha.comp hn1).prod ((hw_comp.comp hn1).prod (hz.comp hn1)))).prod
         (.snd encUnary encBits))
   have hneg := (hG.indistinguishable.shift 7) red hred
+  simp only [pmf_norm, distinguishingGame_eq_bind, generatorEnsemble, red] at hneg
   have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
     ((computableInPolyTime_totalLen hf).comp ha).polynomiallyBounded
-  have hk_poly : PolynomiallyBounded k := hk.polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (k n * ((n + 1) * totalLen (f (a n))))) :=
-    PolynomiallyBounded.comp ComputableInPolyTime.unary_dyadicSize.polynomiallyBounded
-      (hk_poly.mul ((PolynomiallyBounded.id.add (.const 1)).mul hcount_poly))
-  have hgeom := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  have herr := hgeom.polynomiallyBounded_mul hk_poly
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [pmf_norm, distinguishingGame_eq_bind, BitString.eval_sampleList, generatorEnsemble,
-    red] using
-    gmwSeqView_advantage_le generator length f k hV (fun n _ _ view => adversary n view)
-      n (a n) (w n) (z n) (hw_sat n)
+  negligible using fun n => by
+    simpa only [pmf_norm, BitString.eval_sampleList] using
+      gmwSeqView_advantage_le generator length f k hV (fun n _ _ view => adversary n view)
+        n (a n) (w n) (z n) (hw_sat n)
 
 end Cslib.Crypto.GMW

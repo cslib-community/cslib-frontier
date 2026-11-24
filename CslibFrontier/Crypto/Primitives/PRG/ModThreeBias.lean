@@ -293,8 +293,7 @@ theorem isSmallBias_modThreeGenerator (n : ℕ) :
     have h := abs_bias_modThreeGenerator_mul_le n hS
     have hb := abs_nonneg (bias (modThreeGenerator n).outputDist S)
     have hmul : |bias (modThreeGenerator n).outputDist S| * 2 ^ n ≤
-        |bias (modThreeGenerator n).outputDist S| * (2 * (2 ^ n - 2)) :=
-      mul_le_mul_of_nonneg_left (by linarith) hb
+        |bias (modThreeGenerator n).outputDist S| * (2 * (2 ^ n - 2)) := by gcongr; linarith
     rw [div_pow, mul_div_assoc', le_div_iff₀ (by positivity)]
     linarith
 

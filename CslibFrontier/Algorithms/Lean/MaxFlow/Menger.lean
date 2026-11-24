@@ -59,7 +59,7 @@ notions (`Digraph.IsDipath`, `Digraph.ArcDisjoint`, `Digraph.InternallyDisjoint`
 ## Scope
 
 Finite graphs, finite multidigraphs, and integral capacities only. Infinite graphs (Erdős–Menger)
-and `TimeM` connectivity solvers are not covered here.
+and executable connectivity solvers are not covered here.
 
 ## References
 

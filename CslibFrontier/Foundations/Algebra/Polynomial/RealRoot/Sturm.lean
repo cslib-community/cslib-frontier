@@ -9,55 +9,67 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.Polynomial.Derivative
+public import Mathlib.Algebra.Polynomial.Div
 public import Mathlib.Algebra.Polynomial.Roots
 public import Mathlib.Algebra.Polynomial.Sturm.Sequence
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Data.List.SignVariations
 public import Mathlib.FieldTheory.Separable
-import Mathlib.Analysis.Calculus.Deriv.MeanValue
-import Mathlib.Analysis.Calculus.Deriv.Polynomial
-import Mathlib.Analysis.Polynomial.SignRight
 import Mathlib.FieldTheory.Perfect
 import Mathlib.Topology.Algebra.Polynomial
+import Mathlib.Topology.Instances.Sign
 import Mathlib.Topology.LocallyConstant.Basic
+import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
 
 /-!
-# Sturm's theorem for separable real polynomials
+# Sturm's theorem for real polynomials
 
-This file proves Sturm's theorem over `ℝ[X]` on top of Mathlib's `Polynomial.sturmSeq`,
-`Polynomial.signRight`, and `List.signVariations` (see [BasuPollackRoy2006]).
+This file proves Sturm's theorem over `ℝ[X]` on top of Mathlib's `Polynomial.sturmSeq` and
+`List.signVariations` (see [BasuPollackRoy2006]).
 
-For any separable (equivalently squarefree) real polynomial `p`, `Polynomial.sturmVariations p x`
-counts the sign variations of the canonical Sturm sequence `sturmSeq p (derivative p)` evaluated
-at `x`. Across any point `x`, `sturmVariations p` is locally constant away from roots of `p`,
-constant on a right neighborhood `(x, x + δ)`, and increases by `1` on a left neighborhood
-`(x - δ, x)` precisely when `x` is a root of `p`. Consequently,
-`sturmVariations p x + #{r ∈ p.roots.toFinset | r ≤ x}` is locally constant on `ℝ`, hence
-constant, yielding the exact root-count identity on half-open intervals `(a, b]`.
+For any nonzero real polynomial `p` with `g = EuclideanDomain.gcd p (derivative p)`, dividing out
+`g` yields the coprime pair `(p / g, derivative p / g)`, whose Sturm sign-variation count
+`Polynomial.sturmReducedVariations p x` agrees with `Polynomial.sturmVariations p x` at every point
+where `g.eval x ≠ 0` (while `sturmVariations p x = 0` at roots of `g`). Across any point `x`,
+`sturmReducedVariations p` is locally constant away from roots of `p`, constant on a right
+neighborhood `(x, x + δ)`, and increases by `1` on a left neighborhood `(x - δ, x)` precisely when
+`x` is a root of `p` (of any multiplicity). Consequently,
+`sturmReducedVariations p x + #{r ∈ p.roots.toFinset | r ≤ x}` is locally constant on `ℝ`, hence
+constant, yielding Sturm's root-counting identity on `(a, b]` both for general nonzero polynomials
+(away from multiple-root endpoints) and unconditionally for separable (squarefree) polynomials.
 
 ## Main definitions
 
 * `Polynomial.sturmVariations`: sign variations of `sturmSeq p (derivative p)` evaluated at `x`.
+* `Polynomial.sturmReducedVariations`: sign variations of
+  `sturmSeq (p / gcd p p') (p' / gcd p p')` evaluated at `x`.
 
 ## Main results
 
-* `Polynomial.sturmSeq_map`: `Polynomial.sturmSeq` commutes with `Polynomial.map` along an
-  injective ring homomorphism between fields.
-* `Polynomial.sturmVariations_sub_eq_card_roots_Ioc`: Sturm's theorem on `(a, b]` for separable
-  `p : ℝ[X]`.
-* `Polynomial.sturmVariations_sub_eq_card_roots_Ioc_of_squarefree`: the squarefree form over `ℝ`.
-* `Polynomial.sturmVariations_sub_eq_card_roots_Ioo`: open-interval form when the right endpoint is
-  not a root.
-* `Polynomial.sturmVariations_sub_eq_card_roots_Icc`: closed-interval form when the left endpoint is
-  not a root.
-* `Polynomial.sturmVariations_antitone`: `sturmVariations p` is antitone for separable `p`.
+* `Polynomial.sturmSeq_map`: `Polynomial.sturmSeq` commutes with `Polynomial.map` along any ring
+  homomorphism between fields.
+* `Polynomial.sturmVariations_eq_sturmReducedVariations`,
+  `Polynomial.sturmVariations_eq_zero_of_gcd_eval_eq_zero`: relation between `sturmVariations` and
+  `sturmReducedVariations` on general nonzero polynomials.
+* `Polynomial.sturmReducedVariations_sub_eq_card_roots_Ioc`,
+  `Polynomial.sturmReducedVariations_antitone`,
+  `Polynomial.sturmVariations_sub_eq_card_roots_Ioc_of_gcd_eval_ne_zero`: general Sturm's theorem
+  counting distinct real roots in `(a, b]` without multiplicity.
+* `Polynomial.sturmVariations_sub_eq_card_roots_Ioc`,
+  `Polynomial.sturmVariations_sub_eq_card_roots_Ioc_of_squarefree`,
+  `Polynomial.sturmVariations_sub_eq_card_roots_Ioo`,
+  `Polynomial.sturmVariations_sub_eq_card_roots_Icc`,
+  `Polynomial.sturmVariations_antitone`: unconditional specializations for separable (squarefree)
+  polynomials.
 
 ## References
 
-* [S. Basu, R. Pollack, and M.-F. Roy, *Algorithms in Real Algebraic Geometry*][BasuPollackRoy2006]
-  (locator unverified; Sturm's theorem proved here on `(a, b]` over `ℝ` by local constancy of
-  `sturmVariations p x + #{r ≤ x}` on top of Mathlib's `Polynomial.sturmSeq`).
+* [S. Basu, R. Pollack, and M.-F. Roy, *Algorithms in Real Algebraic Geometry*][BasuPollackRoy2006],
+  Theorem 2.50, p. 52 (counts distinct roots in an open interval over a real closed field; the
+  reduced-variation theorem here uses finite real endpoints and counts roots in `(a, b]` over `ℝ`
+  via local constancy of `sturmReducedVariations p x + #{r ≤ x}` on top of Mathlib's
+  `Polynomial.sturmSeq`).
 -/
 
 public section
@@ -116,6 +128,104 @@ evaluated at `x : ℝ`. -/
 @[expose] noncomputable def sturmVariations (p : ℝ[X]) (x : ℝ) : ℕ :=
   open Classical in
   ((sturmSeq p (derivative p)).map (eval x)).signVariations
+
+/-- Sign variations of the reduced coprime Sturm sequence
+`sturmSeq (p / gcd p (derivative p)) (derivative p / gcd p (derivative p))` at `x : ℝ`. -/
+@[expose] noncomputable def sturmReducedVariations (p : ℝ[X]) (x : ℝ) : ℕ :=
+  open Classical in
+  let g := EuclideanDomain.gcd p (derivative p)
+  ((sturmSeq (p / g) (derivative p / g)).map (eval x)).signVariations
+
+private theorem signVariations_map_mul_of_ne_zero {c : ℝ} (hc : c ≠ 0) (xs : List ℝ) :
+    (xs.map (c * ·)).signVariations = xs.signVariations := by
+  rcases lt_or_gt_of_ne hc with hneg | hpos
+  · refine List.signVariations_map_of_sign_eq_neg (fun x => ?_) xs
+    change sign (c * x) = -sign x
+    rw [sign_mul, sign_neg hneg, neg_one_mul]
+  · refine List.signVariations_map (fun x => ?_) xs
+    change sign (c * x) = sign x
+    rw [sign_mul, sign_pos hpos, one_mul]
+
+private theorem signVariations_eq_zero_of_forall_zero :
+    ∀ {xs : List ℝ}, (∀ x ∈ xs, x = 0) → xs.signVariations = 0
+  | [], _ => rfl
+  | x :: xs, h => by
+    rw [h x List.mem_cons_self, List.signVariations_zero_cons]
+    exact signVariations_eq_zero_of_forall_zero fun y hy => h y (List.mem_cons_of_mem _ hy)
+
+private theorem gcd_deriv_ne_zero {p : ℝ[X]} (hp : p ≠ 0) :
+    open Classical in EuclideanDomain.gcd p (derivative p) ≠ 0 := by
+  classical
+  exact fun h0 => hp (EuclideanDomain.gcd_eq_zero_iff.mp h0).1
+
+private theorem mul_div_gcd_deriv {p : ℝ[X]} (hp : p ≠ 0) :
+    open Classical in
+    let g := EuclideanDomain.gcd p (derivative p)
+    g * (p / g) = p ∧ g * (derivative p / g) = derivative p ∧
+      IsCoprime (p / g) (derivative p / g) := by
+  classical
+  dsimp only
+  set g := EuclideanDomain.gcd p (derivative p)
+  have hg0 : g ≠ 0 := gcd_deriv_ne_zero hp
+  have hp_eq : g * (p / g) = p :=
+    EuclideanDomain.mul_div_cancel' hg0 (EuclideanDomain.gcd_dvd_left p (derivative p))
+  have hdp_eq : g * (derivative p / g) = derivative p :=
+    EuclideanDomain.mul_div_cancel' hg0 (EuclideanDomain.gcd_dvd_right p (derivative p))
+  refine ⟨hp_eq, hdp_eq, EuclideanDomain.gcdA p (derivative p),
+    EuclideanDomain.gcdB p (derivative p), ?_⟩
+  have hbez := EuclideanDomain.gcd_eq_gcd_ab p (derivative p)
+  apply mul_left_cancel₀ hg0
+  linear_combination -hbez + EuclideanDomain.gcdA p (derivative p) * hp_eq +
+    EuclideanDomain.gcdB p (derivative p) * hdp_eq
+
+/-- At any point `x` where `gcd p (derivative p)` vanishes, `sturmVariations p x = 0`. -/
+theorem sturmVariations_eq_zero_of_gcd_eval_eq_zero {p : ℝ[X]} {x : ℝ}
+    (hgx : (open Classical in EuclideanDomain.gcd p (derivative p)).eval x = 0) :
+    sturmVariations p x = 0 := by
+  classical
+  by_cases hp : p = 0
+  · simp [sturmVariations, hp]
+  · obtain ⟨hp_eq, hdp_eq, _⟩ := mul_div_gcd_deriv hp
+    set g := EuclideanDomain.gcd p (derivative p)
+    have hseq : sturmSeq p (derivative p) = (sturmSeq (p / g) (derivative p / g)).map (g * ·) := by
+      rw [← sturmSeq_mul_left (gcd_deriv_ne_zero hp), hp_eq, hdp_eq]
+    rw [sturmVariations, hseq, List.map_map]
+    refine signVariations_eq_zero_of_forall_zero ?_
+    intro v hv
+    obtain ⟨q, _, rfl⟩ := List.mem_map.mp hv
+    simp [Function.comp_apply, eval_mul, hgx]
+
+/-- Wherever `gcd p (derivative p)` does not vanish at `x`, `sturmVariations p x` equals
+`sturmReducedVariations p x`. -/
+theorem sturmVariations_eq_sturmReducedVariations {p : ℝ[X]} (hp : p ≠ 0) {x : ℝ}
+    (hgx : (open Classical in EuclideanDomain.gcd p (derivative p)).eval x ≠ 0) :
+    sturmVariations p x = sturmReducedVariations p x := by
+  classical
+  obtain ⟨hp_eq, hdp_eq, _⟩ := mul_div_gcd_deriv hp
+  set g := EuclideanDomain.gcd p (derivative p)
+  have hseq : sturmSeq p (derivative p) = (sturmSeq (p / g) (derivative p / g)).map (g * ·) := by
+    rw [← sturmSeq_mul_left (gcd_deriv_ne_zero hp), hp_eq, hdp_eq]
+  rw [sturmVariations, sturmReducedVariations, hseq]
+  have hmap : ((sturmSeq (p / g) (derivative p / g)).map (g * ·)).map (eval x) =
+      ((sturmSeq (p / g) (derivative p / g)).map (eval x)).map (g.eval x * ·) := by
+    rw [List.map_map, List.map_map]
+    exact List.map_congr_left fun q _ => eval_mul
+  rw [hmap, signVariations_map_mul_of_ne_zero hgx]
+
+/-- For separable `p`, `sturmVariations p x = sturmReducedVariations p x` everywhere. -/
+theorem sturmVariations_eq_sturmReducedVariations_of_separable {p : ℝ[X]} (hp : p.Separable)
+    (x : ℝ) : sturmVariations p x = sturmReducedVariations p x := by
+  classical
+  refine sturmVariations_eq_sturmReducedVariations hp.ne_zero fun hgx => ?_
+  have hp0 : p.eval x = 0 := by
+    obtain ⟨q, hq⟩ := EuclideanDomain.gcd_dvd_left p (derivative p)
+    rw [hq, eval_mul, hgx, zero_mul]
+  have hdp0 : (derivative p).eval x = 0 := by
+    obtain ⟨q, hq⟩ := EuclideanDomain.gcd_dvd_right p (derivative p)
+    rw [hq, eval_mul, hgx, zero_mul]
+  obtain ⟨a, b, hab⟩ := hp
+  have hev := congrArg (eval x) hab
+  simp only [eval_add, eval_mul, hp0, hdp0, mul_zero, add_zero, eval_one, zero_ne_one] at hev
 
 /-- Any `IsCoprime p q` is preserved under the signed remainder step `(p, q) ↦ (q, -p % q)`. -/
 private theorem isCoprime_neg_mod {K : Type*} [Field K] {p q : K[X]} (h : IsCoprime p q) :
@@ -182,12 +292,6 @@ private theorem isSturmChainAt_sturmSeq {p q : ℝ[X]} (hp : p ≠ 0) (hcop : Is
           rw [sturmSeq_cons hr_ne, ht'] at hsub
           exact (List.cons.inj hsub).1
         subst hrem
-        have hpx : p.eval x ≠ 0 := by
-          intro hpx0
-          obtain ⟨a, b, hab⟩ := hcop
-          have hev := congrArg (eval x) hab
-          simp only [eval_add, eval_mul, hpx0, hqx, mul_zero, add_zero, eval_one,
-            zero_ne_one] at hev
         rw [eval_mod_eq_self_of_root hqx, eval_neg, Left.sign_neg, neg_neg]
 
 /-- If `L` is a Sturm chain at `x` whose head does not vanish at `x`, and `y` preserves the sign
@@ -278,121 +382,273 @@ private theorem eventually_sign_eq_of_mem {x : ℝ} (L : List ℝ[X]) :
       exact hcont.mono fun y hy _ => hy
   exact hall.mono fun y hy f hf hfx => hy f (List.mem_toFinset.mpr hf) hfx
 
-/-- To the left of a simple root `x` of `p` (`p.eval x = 0` and `(derivative p).eval x ≠ 0`),
-`sign (p.eval y)` is opposite to `sign ((derivative p).eval x)`. -/
-private theorem eventually_sign_eval_nhdsLT_of_eval_eq_zero {x : ℝ} {p : ℝ[X]}
-    (hpx : p.eval x = 0) (hdp : (derivative p).eval x ≠ 0) :
-    ∀ᶠ y in 𝓝[<] x, sign (p.eval y) = -sign ((derivative p).eval x) := by
-  have hcont : ∀ᶠ c in 𝓝[<] x, sign ((derivative p).eval c) = sign ((derivative p).eval x) := by
-    have h := ((continuousAt_sign_of_ne_zero hdp).tendsto.comp
-      ((derivative p).continuous.tendsto x)).mono_left (nhdsWithin_le_nhds (s := Set.Iio x))
-    rw [nhds_discrete SignType, tendsto_pure] at h
-    exact h
-  obtain ⟨a, ha, ha_sub⟩ := mem_nhdsLT_iff_exists_Ioo_subset.mp hcont
-  refine mem_nhdsLT_iff_exists_Ioo_subset.mpr ⟨a, ha, fun y hy => ?_⟩
-  obtain ⟨c, ⟨hc1, hc2⟩, hc3⟩ :=
-    exists_deriv_eq_slope (fun z => p.eval z) hy.2 p.continuousOn p.differentiableOn
-  rw [Polynomial.deriv, hpx, zero_sub, eq_div_iff (sub_pos.mpr hy.2).ne'] at hc3
-  have hpy : p.eval y = (y - x) * (derivative p).eval c := by linarith
-  have hc_sign : sign ((derivative p).eval c) = sign ((derivative p).eval x) :=
-    ha_sub ⟨lt_trans hy.1 hc1, hc2⟩
-  change sign (p.eval y) = -sign ((derivative p).eval x)
-  rw [hpy, sign_mul, sign_neg (sub_neg.mpr hy.2), hc_sign, neg_one_mul]
+private theorem div_gcd_deriv_ne_zero {p : ℝ[X]} (hp : p ≠ 0) :
+    open Classical in p / EuclideanDomain.gcd p (derivative p) ≠ 0 := by
+  classical
+  obtain ⟨hp_eq, _, _⟩ := mul_div_gcd_deriv hp
+  intro h0
+  rw [h0, mul_zero] at hp_eq
+  exact hp hp_eq.symm
 
-/-- If `p` is separable and does not vanish at `x`, `sturmVariations p` is locally constant
-at `x`. -/
-private theorem eventually_sturmVariations_of_eval_ne_zero {p : ℝ[X]} (hp : p.Separable)
+private theorem isRoot_div_gcd_deriv_iff {p : ℝ[X]} (hp : p ≠ 0) (x : ℝ) :
+    open Classical in (p / EuclideanDomain.gcd p (derivative p)).IsRoot x ↔ p.IsRoot x := by
+  classical
+  set g := EuclideanDomain.gcd p (derivative p)
+  obtain ⟨hp_eq, hdp_eq, _⟩ := mul_div_gcd_deriv hp
+  constructor
+  · intro hA
+    rw [IsRoot.def] at hA ⊢
+    rw [← hp_eq, eval_mul, hA, mul_zero]
+  · intro hpx
+    by_contra hAx
+    rw [IsRoot.def] at hpx hAx
+    have hm_pos : 0 < p.rootMultiplicity x := (rootMultiplicity_pos hp).mpr hpx
+    obtain ⟨h, hp_fac, hh_ndvd⟩ := exists_eq_pow_rootMultiplicity_mul_and_not_dvd p hp x
+    have hhx : h.eval x ≠ 0 := mt dvd_iff_isRoot.mpr hh_ndvd
+    set m := p.rootMultiplicity x
+    have hcop_lin : IsCoprime (X - C x) (p / g) := by
+      refine ⟨-C ((p / g).eval x)⁻¹ * ((p / g) /ₘ (X - C x)), C ((p / g).eval x)⁻¹, ?_⟩
+      have hdiv := modByMonic_add_div (p / g) (X - C x)
+      rw [modByMonic_X_sub_C_eq_C_eval] at hdiv
+      have hinv : C ((p / g).eval x)⁻¹ * C ((p / g).eval x) = 1 := by
+        rw [← map_mul, inv_mul_cancel₀ hAx, map_one]
+      linear_combination -C ((p / g).eval x)⁻¹ * hdiv + hinv
+    have hpow_dvd_p : (X - C x) ^ m ∣ (p / g) * g := by
+      rw [mul_comm, hp_eq, hp_fac]
+      exact dvd_mul_right _ _
+    have hpow_dvd_g : (X - C x) ^ m ∣ g :=
+      (hcop_lin.pow_left).dvd_of_dvd_mul_left hpow_dvd_p
+    obtain ⟨w, hw⟩ := dvd_trans hpow_dvd_g (EuclideanDomain.gcd_dvd_right p (derivative p))
+    have hderiv_fac : derivative p =
+        (X - C x) ^ (m - 1) * (C (m : ℝ) * h + (X - C x) * derivative h) := by
+      conv_lhs => rw [hp_fac]
+      rw [derivative_mul, derivative_X_sub_C_pow]
+      have hm_eq : (X - C x) ^ m = (X - C x) ^ (m - 1) * (X - C x) := by
+        rw [← pow_succ, Nat.sub_add_cancel hm_pos]
+      conv_lhs => rw [hm_eq]
+      ring
+    have hpow_split : (X - C x) ^ m * w = (X - C x) ^ (m - 1) * ((X - C x) * w) := by
+      rw [← mul_assoc, ← pow_succ, Nat.sub_add_cancel hm_pos]
+    rw [hw, hpow_split] at hderiv_fac
+    have hcancel := mul_left_cancel₀ (pow_ne_zero (m - 1) (X_sub_C_ne_zero x)) hderiv_fac
+    have hev := congrArg (eval x) hcancel
+    simp only [eval_add, eval_mul, eval_C, eval_sub, eval_X, sub_self, zero_mul, add_zero] at hev
+    have hm_ne : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hm_pos.ne'
+    exact mul_ne_zero hm_ne hhx hev.symm
+
+private theorem eventually_sign_div_gcd_of_eval_eq_zero {p : ℝ[X]} (hp : p ≠ 0) {x : ℝ}
+    (hpx : p.eval x = 0) :
+    open Classical in
+    let g := EuclideanDomain.gcd p (derivative p)
+    let A := p / g
+    let B := derivative p / g
+    (∀ᶠ y in 𝓝[>] x, sign (A.eval y) = sign (B.eval x)) ∧
+    (∀ᶠ y in 𝓝[<] x, sign (A.eval y) = -sign (B.eval x)) := by
+  classical
+  dsimp only
+  set g := EuclideanDomain.gcd p (derivative p)
+  set A := p / g
+  set B := derivative p / g
+  obtain ⟨hp_eq, hdp_eq, hcop⟩ := mul_div_gcd_deriv hp
+  have hAx : A.eval x = 0 := (isRoot_div_gcd_deriv_iff hp x).mpr hpx
+  have hBx : B.eval x ≠ 0 := by
+    intro hB0
+    obtain ⟨u, v, huv⟩ : IsCoprime A B := hcop
+    have hev := congrArg (eval x) huv
+    simp only [eval_add, eval_mul, hAx, hB0, mul_zero, add_zero, eval_one, zero_ne_one] at hev
+  have hm_pos : 0 < p.rootMultiplicity x := (rootMultiplicity_pos hp).mpr hpx
+  obtain ⟨h, hp_fac, hh_ndvd⟩ := exists_eq_pow_rootMultiplicity_mul_and_not_dvd p hp x
+  have hhx : h.eval x ≠ 0 := mt dvd_iff_isRoot.mpr hh_ndvd
+  set m := p.rootMultiplicity x
+  set Q := C (m : ℝ) * h + (X - C x) * derivative h
+  have hderiv_fac : derivative p = (X - C x) ^ (m - 1) * Q := by
+    conv_lhs => rw [hp_fac]
+    rw [derivative_mul, derivative_X_sub_C_pow]
+    have hm_eq : (X - C x) ^ m = (X - C x) ^ (m - 1) * (X - C x) := by
+      rw [← pow_succ, Nat.sub_add_cancel hm_pos]
+    conv_lhs => rw [hm_eq]
+    dsimp only [Q]
+    ring
+  have hprod_x : 0 < (h * Q).eval x := by
+    simp only [Q, eval_mul, eval_add, eval_C, eval_sub, eval_X, sub_self, zero_mul, add_zero]
+    have hm_real : (0 : ℝ) < (m : ℝ) := Nat.cast_pos.mpr hm_pos
+    have hsq_pos : 0 < h.eval x * h.eval x := mul_self_pos.mpr hhx
+    nlinarith
+  have hprod_nhds : ∀ᶠ y in 𝓝 x, 0 < (h * Q).eval y :=
+    ((h * Q).continuous.tendsto x).eventually (lt_mem_nhds hprod_x)
+  have hB_sign_nhds : ∀ᶠ y in 𝓝 x, sign (B.eval y) = sign (B.eval x) := by
+    have ht := (continuousAt_sign_of_ne_zero hBx).tendsto.comp (B.continuous.tendsto x)
+    rwa [nhds_discrete SignType, tendsto_pure] at ht
+  have hg_no_root : ∀ᶠ y in 𝓝 x, y ≠ x → g.eval y ≠ 0 := by
+    have hg0 : g ≠ 0 := gcd_deriv_ne_zero hp
+    have hall : ∀ᶠ y in 𝓝 x, ∀ r ∈ g.roots.toFinset, r ≠ x → y ≠ r := by
+      refine (Filter.eventually_all_finset g.roots.toFinset).mpr fun r _ => ?_
+      by_cases hrx : r = x
+      · exact Eventually.of_forall fun _ h => absurd hrx h
+      · exact (eventually_ne_nhds (Ne.symm hrx)).mono fun _ hy _ => hy
+    refine hall.mono fun y hy hyx hgy => ?_
+    have hmem : y ∈ g.roots.toFinset := Multiset.mem_toFinset.mpr ((mem_roots hg0).mpr hgy)
+    exact hy y hmem hyx rfl
+  have hpdp_id : ∀ y : ℝ,
+      (g.eval y) ^ 2 * (A.eval y * B.eval y) =
+        (y - x) * ((y - x) ^ (m - 1)) ^ 2 * (h * Q).eval y := fun y => by
+    have h1 : p.eval y * (derivative p).eval y = (g.eval y) ^ 2 * (A.eval y * B.eval y) := by
+      have hp_ev : p.eval y = g.eval y * A.eval y := by rw [← hp_eq, eval_mul]
+      have hdp_ev : (derivative p).eval y = g.eval y * B.eval y := by rw [← hdp_eq, eval_mul]
+      rw [hp_ev, hdp_ev]
+      ring
+    have h2 : p.eval y * (derivative p).eval y =
+        (y - x) * ((y - x) ^ (m - 1)) ^ 2 * (h * Q).eval y := by
+      have hp_ev : p.eval y = ((X - C x) ^ m * h).eval y := congrArg (eval y) hp_fac
+      have hdp_ev : (derivative p).eval y = ((X - C x) ^ (m - 1) * Q).eval y :=
+        congrArg (eval y) hderiv_fac
+      rw [hp_ev, hdp_ev]
+      have hm_pow : (y - x) ^ m = (y - x) * (y - x) ^ (m - 1) := by
+        rw [← pow_succ', Nat.sub_add_cancel hm_pos]
+      simp only [eval_mul, eval_pow, eval_sub, eval_X, eval_C, hm_pow]
+      ring
+    exact h1.symm.trans h2
+  constructor
+  · refine ((hprod_nhds.filter_mono nhdsWithin_le_nhds).and
+      ((hB_sign_nhds.filter_mono nhdsWithin_le_nhds).and
+        ((hg_no_root.filter_mono nhdsWithin_le_nhds).and eventually_mem_nhdsWithin))).mono ?_
+    rintro y ⟨hpy_pos, hBy_sign, hgy_ne, hxy⟩
+    have hyx : y ≠ x := ne_of_gt hxy
+    have hg_sq : 0 < (g.eval y) ^ 2 := sq_pos_of_ne_zero (hgy_ne hyx)
+    have hy_sq : 0 < ((y - x) ^ (m - 1)) ^ 2 :=
+      sq_pos_of_ne_zero (pow_ne_zero _ (sub_ne_zero.mpr hyx))
+    have hrhs_pos : 0 < (y - x) * ((y - x) ^ (m - 1)) ^ 2 * (h * Q).eval y :=
+      mul_pos (mul_pos (sub_pos.mpr hxy) hy_sq) hpy_pos
+    have hab_pos : 0 < A.eval y * B.eval y := by
+      have hid := hpdp_id y
+      nlinarith
+    have hmul_sign : sign (A.eval y) * sign (B.eval y) = 1 := by
+      rw [← sign_mul, sign_pos hab_pos]
+    rw [← hBy_sign]
+    revert hmul_sign
+    cases sign (A.eval y) <;> cases sign (B.eval y) <;> decide
+  · refine ((hprod_nhds.filter_mono nhdsWithin_le_nhds).and
+      ((hB_sign_nhds.filter_mono nhdsWithin_le_nhds).and
+        ((hg_no_root.filter_mono nhdsWithin_le_nhds).and eventually_mem_nhdsWithin))).mono ?_
+    rintro y ⟨hpy_pos, hBy_sign, hgy_ne, hyx_lt⟩
+    have hyx : y ≠ x := ne_of_lt hyx_lt
+    have hg_sq : 0 < (g.eval y) ^ 2 := sq_pos_of_ne_zero (hgy_ne hyx)
+    have hy_sq : 0 < ((y - x) ^ (m - 1)) ^ 2 :=
+      sq_pos_of_ne_zero (pow_ne_zero _ (sub_ne_zero.mpr hyx))
+    have hrhs_neg : (y - x) * ((y - x) ^ (m - 1)) ^ 2 * (h * Q).eval y < 0 :=
+      mul_neg_of_neg_of_pos (mul_neg_of_neg_of_pos (sub_neg.mpr hyx_lt) hy_sq) hpy_pos
+    have hab_neg : A.eval y * B.eval y < 0 := by
+      have hid := hpdp_id y
+      nlinarith
+    have hmul_sign : sign (A.eval y) * sign (B.eval y) = -1 := by
+      rw [← sign_mul, sign_neg hab_neg]
+    rw [← hBy_sign]
+    revert hmul_sign
+    cases sign (A.eval y) <;> cases sign (B.eval y) <;> decide
+
+private theorem eventually_sturmReducedVariations_of_eval_ne_zero {p : ℝ[X]} (hp : p ≠ 0)
     {x : ℝ} (hpx : p.eval x ≠ 0) :
-    ∀ᶠ y in 𝓝 x, sturmVariations p y = sturmVariations p x := by
+    ∀ᶠ y in 𝓝 x, sturmReducedVariations p y = sturmReducedVariations p x := by
   classical
-  have hchain := isSturmChainAt_sturmSeq hp.ne_zero hp x
-  refine (eventually_sign_eq_of_mem (sturmSeq p (derivative p))).mono fun y hy => ?_
-  simp only [sturmVariations]
+  set g := EuclideanDomain.gcd p (derivative p)
+  set A := p / g
+  set B := derivative p / g
+  have hA0 : A ≠ 0 := div_gcd_deriv_ne_zero hp
+  have hAx : A.eval x ≠ 0 := fun h0 => hpx ((isRoot_div_gcd_deriv_iff hp x).mp h0)
+  obtain ⟨_, _, hcop⟩ := mul_div_gcd_deriv hp
+  have hchain := isSturmChainAt_sturmSeq hA0 hcop x
+  refine (eventually_sign_eq_of_mem (sturmSeq A B)).mono fun y hy => ?_
+  simp only [sturmReducedVariations]
   exact signVariations_eval_eq_of_isSturmChainAt hchain (fun f hf => by
-    rw [head?_sturmSeq hp.ne_zero] at hf
+    rw [head?_sturmSeq hA0] at hf
     cases hf
-    exact hpx) hy
+    exact hAx) hy
 
-/-- If `p` is separable and vanishes at `x`, then `sturmVariations p` is constant immediately to
-the right of `x` and increases by `1` immediately to the left of `x`. -/
-private theorem eventually_sturmVariations_of_eval_eq_zero {p : ℝ[X]} (hp : p.Separable)
+private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (hp : p ≠ 0)
     {x : ℝ} (hpx : p.eval x = 0) :
-    (∀ᶠ y in 𝓝[>] x, sturmVariations p y = sturmVariations p x) ∧
-    (∀ᶠ y in 𝓝[<] x, sturmVariations p y = sturmVariations p x + 1) := by
+    (∀ᶠ y in 𝓝[>] x, sturmReducedVariations p y = sturmReducedVariations p x) ∧
+    (∀ᶠ y in 𝓝[<] x, sturmReducedVariations p y = sturmReducedVariations p x + 1) := by
   classical
-  have hdne : (derivative p).eval x ≠ 0 := by
+  set g := EuclideanDomain.gcd p (derivative p)
+  set A := p / g
+  set B := derivative p / g
+  have hA0 : A ≠ 0 := div_gcd_deriv_ne_zero hp
+  have hAx : A.eval x = 0 := (isRoot_div_gcd_deriv_iff hp x).mpr hpx
+  obtain ⟨_, _, hcop⟩ := mul_div_gcd_deriv hp
+  have hdne : B.eval x ≠ 0 := by
     intro hd0
-    obtain ⟨a, b, hab⟩ := hp
+    obtain ⟨a, b, hab⟩ : IsCoprime A B := hcop
     have hev := congrArg (eval x) hab
-    simp only [eval_add, eval_mul, hpx, hd0, mul_zero, add_zero, eval_one, zero_ne_one] at hev
-  have hdp0 : derivative p ≠ 0 := fun h => hdne (by simp [h])
-  have hcop' : IsCoprime (derivative p) (-p % derivative p) :=
-    isCoprime_neg_mod hp
-  have htail_chain := isSturmChainAt_sturmSeq hdp0 hcop' x
-  set tail := sturmSeq (derivative p) (-p % derivative p) with htail_def
-  have hseq_eq : sturmSeq p (derivative p) = p :: tail := sturmSeq_cons hp.ne_zero
+    simp only [eval_add, eval_mul, hAx, hd0, mul_zero, add_zero, eval_one, zero_ne_one] at hev
+  have hB0 : B ≠ 0 := fun h => hdne (by simp [h])
+  have hcop' : IsCoprime B (-A % B) := isCoprime_neg_mod hcop
+  have htail_chain := isSturmChainAt_sturmSeq hB0 hcop' x
+  set tail := sturmSeq B (-A % B) with htail_def
+  have hseq_eq : sturmSeq A B = A :: tail := sturmSeq_cons hA0
   have htail_eq : ∀ᶠ y in 𝓝 x,
-      (tail.map (eval y)).signVariations = sturmVariations p x := by
+      (tail.map (eval y)).signVariations = sturmReducedVariations p x := by
     refine (eventually_sign_eq_of_mem tail).mono fun y hy => ?_
     have hvar : (tail.map (eval y)).signVariations = (tail.map (eval x)).signVariations :=
       signVariations_eval_eq_of_isSturmChainAt htail_chain (fun f hf => by
-        rw [htail_def, head?_sturmSeq hdp0] at hf
+        rw [htail_def, head?_sturmSeq hB0] at hf
         cases hf
         exact hdne) hy
-    rw [hvar, sturmVariations, hseq_eq, List.map_cons, hpx, List.signVariations_zero_cons]
-  have hhead_tail : ∃ rest, tail = derivative p :: rest := by
-    rw [htail_def, sturmSeq_cons hdp0]
+    rw [hvar, sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+      show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
+      hseq_eq, List.map_cons, hAx, List.signVariations_zero_cons]
+  have hhead_tail : ∃ rest, tail = B :: rest := by
+    rw [htail_def, sturmSeq_cons hB0]
     exact ⟨_, rfl⟩
   obtain ⟨rest, hrest⟩ := hhead_tail
-  have hdp_sign : ∀ᶠ y in 𝓝 x, sign ((derivative p).eval y) = sign ((derivative p).eval x) := by
-    have h := (continuousAt_sign_of_ne_zero hdne).tendsto.comp ((derivative p).continuous.tendsto x)
+  have hB_sign : ∀ᶠ y in 𝓝 x, sign (B.eval y) = sign (B.eval x) := by
+    have h := (continuousAt_sign_of_ne_zero hdne).tendsto.comp (B.continuous.tendsto x)
     rw [nhds_discrete SignType, tendsto_pure] at h
     exact h
+  obtain ⟨hright, hleft⟩ := eventually_sign_div_gcd_of_eval_eq_zero hp hpx
   constructor
-  · have hright : ∀ᶠ y in 𝓝[>] x, sign (p.eval y) = sign ((derivative p).eval x) := by
-      have h1 := eventually_sign_eq_signRight x p
-      rw [signRight_of_eval_eq_zero hpx, signRight_of_eval_ne_zero hdne] at h1
-      exact h1
-    refine ((htail_eq.filter_mono nhdsWithin_le_nhds).and
-      ((hdp_sign.filter_mono nhdsWithin_le_nhds).and hright)).mono ?_
-    rintro y ⟨htail_y, hdp_y, hp_y⟩
-    have hpy_ne : p.eval y ≠ 0 := by
-      rw [← sign_ne_zero, hp_y, sign_ne_zero]
+  · refine ((htail_eq.filter_mono nhdsWithin_le_nhds).and
+      ((hB_sign.filter_mono nhdsWithin_le_nhds).and hright)).mono ?_
+    rintro y ⟨htail_y, hB_y, hA_y⟩
+    have hAy_ne : A.eval y ≠ 0 := by
+      rw [← sign_ne_zero, hA_y, sign_ne_zero]
       exact hdne
-    have hdy_ne : (derivative p).eval y ≠ 0 := by
-      rw [← sign_ne_zero, hdp_y, sign_ne_zero]
+    have hBy_ne : B.eval y ≠ 0 := by
+      rw [← sign_ne_zero, hB_y, sign_ne_zero]
       exact hdne
-    have htail_y' : ((derivative p).eval y :: rest.map (eval y)).signVariations =
-        sturmVariations p x := by
+    have htail_y' : (B.eval y :: rest.map (eval y)).signVariations =
+        sturmReducedVariations p x := by
       simpa only [hrest, List.map_cons] using htail_y
     conv_lhs =>
-      rw [sturmVariations, hseq_eq, hrest, List.map_cons, List.map_cons,
-        List.signVariations_cons_cons_of_ne_zero _ hpy_ne hdy_ne, hp_y, hdp_y, ite_eq_left rfl,
+      rw [sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+        show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
+        hseq_eq, hrest, List.map_cons, List.map_cons,
+        List.signVariations_cons_cons_of_ne_zero _ hAy_ne hBy_ne, hA_y, hB_y, ite_eq_left rfl,
         add_zero, htail_y']
-  · have hleft := eventually_sign_eval_nhdsLT_of_eval_eq_zero hpx hdne
-    refine ((htail_eq.filter_mono nhdsWithin_le_nhds).and
-      ((hdp_sign.filter_mono nhdsWithin_le_nhds).and hleft)).mono ?_
-    rintro y ⟨htail_y, hdp_y, hp_y⟩
-    have hpy_ne : p.eval y ≠ 0 := fun h => by
-      rw [h, sign_zero] at hp_y
+  · refine ((htail_eq.filter_mono nhdsWithin_le_nhds).and
+      ((hB_sign.filter_mono nhdsWithin_le_nhds).and hleft)).mono ?_
+    rintro y ⟨htail_y, hB_y, hA_y⟩
+    have hAy_ne : A.eval y ≠ 0 := fun h => by
+      rw [h, sign_zero] at hA_y
       apply sign_ne_zero.mpr hdne
-      cases hs : sign ((derivative p).eval x)
+      cases hs : sign (B.eval x)
       · rfl
-      · rw [hs] at hp_y; contradiction
-      · rw [hs] at hp_y; contradiction
-    have hdy_ne : (derivative p).eval y ≠ 0 := by
-      rw [← sign_ne_zero, hdp_y, sign_ne_zero]
+      · rw [hs] at hA_y; contradiction
+      · rw [hs] at hA_y; contradiction
+    have hBy_ne : B.eval y ≠ 0 := by
+      rw [← sign_ne_zero, hB_y, sign_ne_zero]
       exact hdne
-    have hne_sign : sign (p.eval y) ≠ sign ((derivative p).eval y) := by
-      rw [hp_y, hdp_y]
-      have hs : sign ((derivative p).eval x) ≠ 0 := sign_ne_zero.mpr hdne
-      cases h : sign ((derivative p).eval x) <;> simp_all
-    have htail_y' : ((derivative p).eval y :: rest.map (eval y)).signVariations =
-        sturmVariations p x := by
+    have hne_sign : sign (A.eval y) ≠ sign (B.eval y) := by
+      rw [hA_y, hB_y]
+      have hs : sign (B.eval x) ≠ 0 := sign_ne_zero.mpr hdne
+      cases h : sign (B.eval x) <;> simp_all
+    have htail_y' : (B.eval y :: rest.map (eval y)).signVariations =
+        sturmReducedVariations p x := by
       simpa only [hrest, List.map_cons] using htail_y
     conv_lhs =>
-      rw [sturmVariations, hseq_eq, hrest, List.map_cons, List.map_cons,
-        List.signVariations_cons_cons_of_ne_zero _ hpy_ne hdy_ne, ite_eq_right hne_sign, htail_y']
+      rw [sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+        show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
+        hseq_eq, hrest, List.map_cons, List.map_cons,
+        List.signVariations_cons_cons_of_ne_zero _ hAy_ne hBy_ne, ite_eq_right hne_sign, htail_y']
 
 /-- Combining left-neighborhood, value-at-`x`, and right-neighborhood statements on `ℝ` into a
 full `𝓝 x` statement. -/
@@ -406,11 +662,11 @@ private theorem eventually_nhds_of_lt_of_gt {P : ℝ → Prop} {x : ℝ} (hx : P
   · exact hx
   · exact hb_sub ⟨hgt', hy.2⟩
 
-/-- The augmented function `sturmVariations p x + #{r ∈ p.roots.toFinset | r ≤ x}` is locally
-constant on `ℝ` for every separable `p : ℝ[X]`. -/
-private theorem isLocallyConstant_sturmVariations_add_card {p : ℝ[X]} (hp : p.Separable) :
+/-- The augmented function `sturmReducedVariations p x + #{r ∈ p.roots.toFinset | r ≤ x}` is locally
+constant on `ℝ` for every nonzero `p : ℝ[X]`. -/
+private theorem isLocallyConstant_sturmReducedVariations_add_card {p : ℝ[X]} (hp : p ≠ 0) :
     IsLocallyConstant (fun x : ℝ =>
-      sturmVariations p x + (p.roots.toFinset.filter (· ≤ x)).card) := by
+      sturmReducedVariations p x + (p.roots.toFinset.filter (· ≤ x)).card) := by
   refine (IsLocallyConstant.iff_eventually_eq _).2 fun x => ?_
   have hno_other : ∀ᶠ y in 𝓝 x,
       ∀ r ∈ p.roots.toFinset, r ≠ x → (r ≤ y ↔ r ≤ x) := by
@@ -441,7 +697,7 @@ private theorem isLocallyConstant_sturmVariations_add_card {p : ℝ[X]} (hp : p.
     rintro y ⟨hy, hyx⟩
     by_cases hpx : p.eval x = 0
     · have hxmem : x ∈ p.roots.toFinset :=
-        Multiset.mem_toFinset.mpr ((mem_roots hp.ne_zero).mpr hpx)
+        Multiset.mem_toFinset.mpr ((mem_roots hp).mpr hpx)
       have hxnot : x ∉ p.roots.toFinset.filter (· ≤ y) := by
         simp only [Finset.mem_filter, not_and, not_le]
         intro _
@@ -469,42 +725,42 @@ private theorem isLocallyConstant_sturmVariations_add_card {p : ℝ[X]} (hp : p.
       have hrx : r ≠ x := fun h => hpx (h ▸ isRoot_of_mem_roots (Multiset.mem_toFinset.mp hr))
       exact hy r hr hrx
   by_cases hpx : p.eval x = 0
-  · obtain ⟨hsv_gt, hsv_lt⟩ := eventually_sturmVariations_of_eval_eq_zero hp hpx
+  · obtain ⟨hsv_gt, hsv_lt⟩ := eventually_sturmReducedVariations_of_eval_eq_zero hp hpx
     have hgt : ∀ᶠ y in 𝓝[>] x,
-        sturmVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
-          sturmVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
+        sturmReducedVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
+          sturmReducedVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
       filter_upwards [hsv_gt, hgt_filter] with y hy1 hy2
       rw [hy1, hy2]
     have hlt : ∀ᶠ y in 𝓝[<] x,
-        sturmVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
-          sturmVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
+        sturmReducedVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
+          sturmReducedVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
       filter_upwards [hsv_lt, hlt_filter] with y hy1 hy2
       rw [ite_eq_left hpx] at hy2
       omega
     exact eventually_nhds_of_lt_of_gt rfl hlt hgt
-  · have hsv := eventually_sturmVariations_of_eval_ne_zero hp hpx
+  · have hsv := eventually_sturmReducedVariations_of_eval_ne_zero hp hpx
     have hgt : ∀ᶠ y in 𝓝[>] x,
-        sturmVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
-          sturmVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
+        sturmReducedVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
+          sturmReducedVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
       filter_upwards [hsv.filter_mono nhdsWithin_le_nhds, hgt_filter] with y hy1 hy2
       rw [hy1, hy2]
     have hlt : ∀ᶠ y in 𝓝[<] x,
-        sturmVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
-          sturmVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
+        sturmReducedVariations p y + (p.roots.toFinset.filter (· ≤ y)).card =
+          sturmReducedVariations p x + (p.roots.toFinset.filter (· ≤ x)).card := by
       filter_upwards [hsv.filter_mono nhdsWithin_le_nhds, hlt_filter] with y hy1 hy2
       rw [ite_eq_right hpx, add_zero] at hy2
       rw [hy1, hy2]
     exact eventually_nhds_of_lt_of_gt rfl hlt hgt
 
-/-- **Sturm's theorem** on half-open intervals `(a, b]` for separable `p : ℝ[X]`
-([BasuPollackRoy2006], locator unverified): the drop `sturmVariations p a - sturmVariations p b`
-equals the number of distinct real roots of `p` in `(a, b]`, with no nonvanishing assumption
-on the endpoints. -/
-theorem sturmVariations_sub_eq_card_roots_Ioc {p : ℝ[X]} (hp : p.Separable) {a b : ℝ}
+/-- **General Sturm's theorem** via reduced coprime Sturm variations: for any nonzero `p : ℝ[X]`
+and `a ≤ b`, `sturmReducedVariations p a - sturmReducedVariations p b` equals the number of
+distinct real roots of `p` in `(a, b]` (counted without multiplicity). -/
+theorem sturmReducedVariations_sub_eq_card_roots_Ioc {p : ℝ[X]} (hp : p ≠ 0) {a b : ℝ}
     (hab : a ≤ b) :
-    sturmVariations p a - sturmVariations p b =
+    sturmReducedVariations p a - sturmReducedVariations p b =
       (p.roots.toFinset.filter (fun r => a < r ∧ r ≤ b)).card := by
-  have hconst := (isLocallyConstant_sturmVariations_add_card hp).apply_eq_of_preconnectedSpace a b
+  have hconst :=
+    (isLocallyConstant_sturmReducedVariations_add_card hp).apply_eq_of_preconnectedSpace a b
   have hsplit : p.roots.toFinset.filter (· ≤ b) =
       p.roots.toFinset.filter (· ≤ a) ∪ p.roots.toFinset.filter (fun r => a < r ∧ r ≤ b) := by
     ext r
@@ -526,17 +782,51 @@ theorem sturmVariations_sub_eq_card_roots_Ioc {p : ℝ[X]} (hp : p.Separable) {a
   rw [hsplit, Finset.card_union_of_disjoint hdisj] at hconst
   omega
 
-/-- `sturmVariations p` is antitone on `ℝ` for separable `p : ℝ[X]`. -/
-theorem sturmVariations_antitone {p : ℝ[X]} (hp : p.Separable) :
-    Antitone (sturmVariations p) := by
+/-- `sturmReducedVariations p` is antitone on `ℝ` for every nonzero `p : ℝ[X]`. -/
+theorem sturmReducedVariations_antitone {p : ℝ[X]} (hp : p ≠ 0) :
+    Antitone (sturmReducedVariations p) := by
   intro a b hab
-  have hconst := (isLocallyConstant_sturmVariations_add_card hp).apply_eq_of_preconnectedSpace a b
+  have hconst :=
+    (isLocallyConstant_sturmReducedVariations_add_card hp).apply_eq_of_preconnectedSpace a b
   have hsub : p.roots.toFinset.filter (· ≤ a) ⊆ p.roots.toFinset.filter (· ≤ b) := by
     intro r hr
     simp only [Finset.mem_filter] at hr ⊢
     exact ⟨hr.1, hr.2.trans hab⟩
   have hcard := Finset.card_le_card hsub
   omega
+
+/-- **General Sturm's theorem** on `(a, b]` for any nonzero `p : ℝ[X]` whose multiple-root divisor
+`gcd p (derivative p)` does not vanish at `a` or `b` (after [BasuPollackRoy2006], Theorem 2.50,
+p. 52, adapted to finite real endpoints on `(a, b]`). -/
+theorem sturmVariations_sub_eq_card_roots_Ioc_of_gcd_eval_ne_zero {p : ℝ[X]} (hp : p ≠ 0)
+    {a b : ℝ} (hab : a ≤ b)
+    (ha : (open Classical in EuclideanDomain.gcd p (derivative p)).eval a ≠ 0)
+    (hb : (open Classical in EuclideanDomain.gcd p (derivative p)).eval b ≠ 0) :
+    sturmVariations p a - sturmVariations p b =
+      (p.roots.toFinset.filter (fun r => a < r ∧ r ≤ b)).card := by
+  rw [sturmVariations_eq_sturmReducedVariations hp ha,
+    sturmVariations_eq_sturmReducedVariations hp hb]
+  exact sturmReducedVariations_sub_eq_card_roots_Ioc hp hab
+
+/-- **Sturm's theorem** on half-open intervals `(a, b]` for separable `p : ℝ[X]`
+(after [BasuPollackRoy2006], Theorem 2.50, p. 52, adapted to finite real endpoints on `(a, b]`):
+the drop `sturmVariations p a - sturmVariations p b` equals the number of distinct real roots of
+`p` in `(a, b]`, with no nonvanishing assumption on the endpoints. -/
+theorem sturmVariations_sub_eq_card_roots_Ioc {p : ℝ[X]} (hp : p.Separable) {a b : ℝ}
+    (hab : a ≤ b) :
+    sturmVariations p a - sturmVariations p b =
+      (p.roots.toFinset.filter (fun r => a < r ∧ r ≤ b)).card := by
+  rw [sturmVariations_eq_sturmReducedVariations_of_separable hp a,
+    sturmVariations_eq_sturmReducedVariations_of_separable hp b]
+  exact sturmReducedVariations_sub_eq_card_roots_Ioc hp.ne_zero hab
+
+/-- `sturmVariations p` is antitone on `ℝ` for separable `p : ℝ[X]`. -/
+theorem sturmVariations_antitone {p : ℝ[X]} (hp : p.Separable) :
+    Antitone (sturmVariations p) := by
+  intro a b hab
+  rw [sturmVariations_eq_sturmReducedVariations_of_separable hp a,
+    sturmVariations_eq_sturmReducedVariations_of_separable hp b]
+  exact sturmReducedVariations_antitone hp.ne_zero hab
 
 /-- Squarefree version of Sturm's theorem on `(a, b]` over `ℝ[X]`. -/
 theorem sturmVariations_sub_eq_card_roots_Ioc_of_squarefree {p : ℝ[X]} (hp : Squarefree p)

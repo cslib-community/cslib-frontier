@@ -482,8 +482,7 @@ theorem abs_signedCount_accepted_le_size (hP : P.DisjointUnions) {S : Set (ι �
   have hsize : (K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products + (K - 1) ≤
       (K - 1) ^ 3 * P.size + (K - 1) := by
     rw [size, mul_add]
-    exact Nat.add_le_add_right
-      (Nat.add_le_add_right (Nat.mul_le_mul_right _ hpow) _) _
+    gcongr
   have hsizeR : (((K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products + (K - 1) : ℕ) : ℝ) ≤
       (((K - 1) ^ 3 * P.size + (K - 1) : ℕ) : ℝ) := by exact_mod_cast hsize
   linarith [P.abs_signedCount_accepted_le hP hb hS]

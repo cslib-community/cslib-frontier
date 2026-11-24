@@ -142,8 +142,7 @@ theorem queryTableSize_le {U' n' X : ℕ} (hn1 : 1 ≤ n') :
     U' * headerUniv U' n' X n' ≤ U' * U'.choose n' * (2 * n') ^ n' := by
   dsimp only [headerUniv]
   rw [Nat.mul_assoc]
-  exact Nat.mul_le_mul_left U'
-    (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Spillover.spillUniv_le_two_mul hn1) n'))
+  gcongr; exact Spillover.spillUniv_le_two_mul hn1
 
 /-- Minimap state with `m` active keys in `Fin U'`, `n'` memory slots, and payload bound `X`. -/
 structure Encoded (U' n' X m : ℕ) where

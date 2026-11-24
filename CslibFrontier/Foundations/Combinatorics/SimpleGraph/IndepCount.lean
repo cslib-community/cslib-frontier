@@ -46,15 +46,23 @@ namespace SimpleGraph
 
 variable {V : Type*}
 
-/-- The number `i(G)` of independent sets of a simple graph `G`. -/
-@[expose] noncomputable def indepSetCount (G : SimpleGraph V) : ℕ :=
+/-- The number `i(G)` of independent sets of a finite simple graph `G`. The finite vertex type
+ensures that `Set.ncard` counts independent sets rather than returning `0` on an infinite family
+(such as `∅` and all singletons). -/
+-- Finiteness restricts the public domain; `ncard` itself does not require it.
+@[expose, nolint unusedArguments]
+noncomputable def indepSetCount [Finite V] (G : SimpleGraph V) : ℕ :=
   {s : Set V | G.IsIndepSet s}.ncard
+
+/-- Every finite simple graph has at least one independent set (`∅`), so `0 < G.indepSetCount`. -/
+theorem indepSetCount_pos [Finite V] (G : SimpleGraph V) : 0 < G.indepSetCount :=
+  (ncard_pos (toFinite _)).mpr ⟨∅, by simp⟩
 
 /-- Boolean indicators of independent sets: assignments with no adjacent `true` pair. -/
 private def IsIndepVec (G : SimpleGraph V) (x : V → Bool) : Prop :=
   ∀ u w, G.Adj u w → ¬(x u = true ∧ x w = true)
 
-private theorem ncard_isIndepVec (G : SimpleGraph V) :
+private theorem ncard_isIndepVec [Finite V] (G : SimpleGraph V) :
     {x : V → Bool | IsIndepVec G x}.ncard = G.indepSetCount := by
   classical
   have hinj : Function.Injective (fun x : V → Bool => {v | x v = true}) := by
