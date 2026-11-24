@@ -503,10 +503,13 @@ private abbrev AddressedOpening := ℕ × MerkleOpening Bool
 /-- The encoding of an opening together with its address. -/
 private abbrev encAddressed : AddressedOpening ↪ List Bool := encPair encNat encKilianOpening
 
-private theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
+/-- Polynomial-time opening-extraction helper `kilianOpenings` for any poly-time PCP verifier
+`V`. -/
+theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
     ComputableInPolyTime
       (fun p : α × List (List Bool) × KilianResponse => kilianOpenings V p.1 p.2.1 p.2.2)
-      (encPair enc (encPair (encList encBits) encKilianResponse)) (encList encAddressed) := by
+      (encPair enc (encPair (encList encBits) encKilianResponse))
+      (encList (encPair encNat encKilianOpening)) := by
   have hx := ComputableInPolyTime.fst enc (encPair (encList encBits) encKilianResponse)
   have hrest := ComputableInPolyTime.snd enc (encPair (encList encBits) encKilianResponse)
   have hρs := (ComputableInPolyTime.fst (encList encBits) encKilianResponse).comp hrest

@@ -24,8 +24,8 @@ Non-vacuous checked clients for:
 * `isPPT_kilianTableExtractor`, `isPPT_kilianExtractorBindingAdversary`: uniform strict PPT
   efficiency on an explicit prover and verifier;
 * `succProbability_kilianAcceptGame_le_extracted`, `HashFamily.kilianTableExtraction`,
-  `kilianExtract_mem_of_isPCP`, and `HashFamily.kilianExtraction_npRelation`: non-vacuous
-  finite-parameter, asymptotic, and NP-relation extraction clients.
+  `kilianExtract_mem_of_isPCP`, and `HashFamily.kilianTableExtraction_npRelation`: non-vacuous
+  finite-parameter, asymptotic, and NP-relation compact-table extraction clients.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -202,7 +202,7 @@ example :
     (by norm_num) (by norm_num) (by norm_num) fun _ _ _ _ => by simp [toyVerifier]
   exact_mod_cast h
 
--- Asymptotic weak knowledge extraction on `toyVerifier` and `constantProver` for `1 / 2` coins.
+-- Asymptotic compact PCP-table extraction on `toyVerifier` and `constantProver` for `1 / 2` coins.
 example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
     ∃ T : ℕ → ℕ,
       ComputableInPolyTime T encUnary encUnary ∧
@@ -217,7 +217,7 @@ example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
   hH.kilianTableExtraction polyTime_toyVerifier (c := 1) (fun _ => by simp [toyVerifier])
     isPPT_constantProver id ComputableInPolyTime.id' (num := 1) (den := 2) (by norm_num)
 
--- Non-vacuous `HashFamily.kilianExtraction_npRelation` client on `headTrueRel`.
+-- Non-vacuous `HashFamily.kilianTableExtraction_npRelation` client on `headTrueRel`.
 example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
     ∃ (V : PCPVerifier (List Bool)) (compile : List Bool × List Bool → List Bool),
       ComputableInPolyTime compile (encPair encBits encBits) encBits ∧
@@ -237,7 +237,7 @@ example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
                 Game.succProbability (ProbComp.eval (kilianExtractionFracGame H V P T 1 2 n)) +
                   ((n + 1 : ℕ) : ℝ≥0)⁻¹ + ν n := by
   obtain ⟨V, compile, _, _, -, -, hcompile, -, hwit, hext⟩ :=
-    hH.kilianExtraction_npRelation encBits headTrueRel
+    hH.kilianTableExtraction_npRelation encBits headTrueRel
   exact ⟨V, compile, hcompile, hwit, fun P hP => hext P hP id ComputableInPolyTime.id'⟩
 
 end CslibFrontierTests.Crypto.KilianExtraction

@@ -30,7 +30,7 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Data.List.GetD
 
 /-!
-# Rewinding Merkle-table extraction and weak knowledge soundness for Kilian's protocol
+# Rewinding compact PCP-table extraction for Kilian's protocol
 
 This module constructs an explicit, uniform strict probabilistic polynomial-time rewinding
 extractor `kilianTableExtractor` for Kilian's succinct interactive argument over any
@@ -50,10 +50,12 @@ Given security parameter `n`, key `k`, and prover `P : KilianProver α`:
 
 ## Honest scope ([BarakGoldreich2001], Construction 3.4 and Lemma 3.5)
 
-* **Standard-model compact-table counterpart:** Barak and Goldreich prove weak proof of knowledge
-  against non-uniform provers with an implicit reverse-sampling oracle for superpolynomial PCPs.
-  Here adversaries and extractors are uniform strict PPT (`KilianProver.IsPPT`, `IsPPT`), and the
-  extracted object is an explicit compact PCP table `table` for the `O(log |enc x|)`-coin verifier.
+* **Compact PCP-table extraction (a step toward Barak–Goldreich weak proof of knowledge):**
+  Barak and Goldreich prove weak proof of knowledge against non-uniform provers with an implicit
+  reverse-sampling oracle for superpolynomial PCPs. Here adversaries and extractors are uniform
+  strict PPT (`KilianProver.IsPPT`, `IsPPT`), and the extracted object is an explicit compact PCP
+  table `table` for the `O(log |enc x|)`-coin verifier. **No NP witness `w` is extracted** by
+  `kilianTableExtractor`.
 * **Rational coin-acceptance fractions `< 1` vs. exact 100% `V.tableVerifier`:** for any rational
   fraction `num / den < 1` and any noticeable inverse-polynomial slack `1 / (p n + 1)`,
   `HashFamily.kilianTableExtraction` shows that `kilianTableExtractor` runs in strict PPT and
@@ -63,10 +65,11 @@ Given security parameter `n`, key `k`, and prover `P : KilianProver α`:
   with acceptance probability `1 - o(1)` can silently abort whenever a single designated rare coin
   `ρ₀` appears in its `n` challenges (`Pr[abort] ≤ n / 2^r = o(1)`), hiding `ρ₀`'s witness bit
   from any black-box rewinder.
-* **Membership corollary (`kilianExtract_mem_of_isPCP`, `HashFamily.kilianExtraction_npRelation`):**
-  at threshold `1 / 2`, every extracted table accepted on `> (2 ^ V.coins x) / 2` coins certifies
-  `ext.stmt ∈ L` (and hence `∃ w, R.IsWitness ext.stmt w` for any `NPRelation`) when `V` is a PCP
-  verifier with soundness error `≤ 1 / 2`.
+* **Membership corollary (`kilianExtract_mem_of_isPCP`,
+  `HashFamily.kilianTableExtraction_npRelation`):** at threshold `1 / 2`, every extracted table
+  accepted on `> (2 ^ V.coins x) / 2` coins certifies `ext.stmt ∈ L` when `V` is a PCP verifier
+  with soundness error `≤ 1 / 2`; for an `NPRelation`, `∃ w, R.IsWitness ext.stmt w` follows
+  existentially from `ext.stmt ∈ R.language` without extracting an explicit NP witness `w`.
 
 Locators in [BarakGoldreich2001] are not re-verified against the primary PDF in this checkout
 (`locator not re-verified against primary PDF`).
@@ -98,8 +101,9 @@ Locators in [BarakGoldreich2001] are not re-verified against the primary PDF in 
   extraction bound for any threshold `num / den` and per-coin attempt count `T n`.
 * `Cslib.Crypto.HashFamily.kilianTableExtraction`,
   `Cslib.Crypto.kilianExtract_mem_of_isPCP`,
-  `Cslib.Crypto.HashFamily.kilianExtraction_npRelation`: asymptotic weak knowledge-extraction
-  bounds under `HashFamily` and `NP`-relation witness-existence consequences.
+  `Cslib.Crypto.HashFamily.kilianTableExtraction_npRelation`: rewinding compact PCP-table
+  extraction bounds under `HashFamily` and existential `NP` membership consequences (without
+  extracting an explicit NP witness `w`).
 
 ## References
 
@@ -362,29 +366,6 @@ private theorem computableInPolyTime_listSet {β Γ : Type} {encB : β ↪ List 
       (hi.comp (ComputableInPolyTime.fst _ _))
   exact ComputableInPolyTime.ite htest (hv.comp (ComputableInPolyTime.fst _ _)) (by fun_prop)
 
-private theorem computableInPolyTime_kilianRunOpenings {enc : α ↪ List Bool} {V : PCPVerifier α}
-    (hV : V.PolyTime enc) :
-    ComputableInPolyTime
-      (fun p : α × KilianChallengeRun => kilianOpenings V p.1 p.2.challenges p.2.response)
-      (encPair enc encKilianChallengeRun) (encList (encPair encNat encKilianOpening)) := by
-  have hx := ComputableInPolyTime.fst enc encKilianChallengeRun
-  have hrun := ComputableInPolyTime.snd enc encKilianChallengeRun
-  have hρs := encKilianChallengeRun_challenges_polyTime hrun
-  have hresp := encKilianChallengeRun_response_polyTime hrun
-  have hpf := ComputableInPolyTime.fst (encPair enc encKilianChallengeRun)
-    (encPair encBits (encList encKilianOpening))
-  have hps := ComputableInPolyTime.snd (encPair enc encKilianChallengeRun)
-    (encPair encBits (encList encKilianOpening))
-  have hρ := (ComputableInPolyTime.fst encBits (encList encKilianOpening)).comp hps
-  have hanswers := (ComputableInPolyTime.snd encBits (encList encKilianOpening)).comp hps
-  have hqueries := hV.queries.comp ((hx.comp hpf).prod hρ)
-  unfold kilianOpenings
-  exact ComputableInPolyTime.flatMapWithInput
-    (f := fun (p : α × KilianChallengeRun) (q : List Bool × List (MerkleOpening Bool)) =>
-      (V.queries (p.1, q.1)).zip q.2)
-    ((ComputableInPolyTime.zip encBits (encList encKilianOpening)).comp (hρs.prod hresp))
-    ((ComputableInPolyTime.zip encNat encKilianOpening).comp (hqueries.prod hanswers))
-
 private theorem computableInPolyTime_kilianRunsToOpenings {H : List Bool → List Bool → List Bool}
     {V : PCPVerifier α} {enc : α ↪ List Bool} {c : ℕ} {γ : Type} {encIn : γ ↪ List Bool}
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
@@ -429,7 +410,14 @@ private theorem computableInPolyTime_kilianRunsToOpenings {H : List Bool → Lis
       (encPair encIn encKilianChallengeRun) (encList encMerkleIndexedOpening) := by
     have ha := ComputableInPolyTime.fst encIn encKilianChallengeRun
     have hb := ComputableInPolyTime.snd encIn encKilianChallengeRun
-    have hko := (computableInPolyTime_kilianRunOpenings hV).comp ((hx.comp ha).prod hb)
+    have hko : ComputableInPolyTime
+        (fun p : γ × KilianChallengeRun =>
+          kilianOpenings V (x p.1) p.2.challenges p.2.response)
+        (encPair encIn encKilianChallengeRun)
+        (encList (encPair encNat encKilianOpening)) :=
+      (computableInPolyTime_kilianOpenings hV).comp
+        ((hx.comp ha).prod ((encKilianChallengeRun_challenges_polyTime hb).prod
+          (encKilianChallengeRun_response_polyTime hb)))
     refine ComputableInPolyTime.mapWithInput hko ?_
     have hq₁ := ComputableInPolyTime.fst (encPair encIn encKilianChallengeRun)
       (encPair encNat encKilianOpening)
@@ -1393,14 +1381,15 @@ private theorem exists_coinsBound_of_isPPT {enc : α ↪ List Bool} {V : PCPVeri
           exact Nat.mul_le_mul_left 2 ((Nat.pow_log_le_self 2 hm).trans (Nat.le_succ _))
     _ ≤ (2 * (c₁ * (3 * n + 2) ^ d₁ + 1)) ^ c := by gcongr
 
-/-- **Asymptotic weak knowledge-extraction theorem** for Kilian's protocol under any collision-
-resistant `HashFamily` and `O(log |enc x|)`-coin PCP verifier `V`
-([BarakGoldreich2001], Construction 3.4 and Lemma 3.5, uniform strict-PPT compact-table
-counterpart): for any prover `P : KilianProver α`, any strict rational acceptance threshold
-`num / den < 1`, and any polynomial inverse slack `(p n + 1)⁻¹`, there exists a polynomial-time
-attempt budget `T` such that `kilianTableExtractor H V P T` runs in uniform strict PPT and
-succeeds in extracting a compact table passing `> (num / den) * 2 ^ V.coins ext.stmt` coins
-with probability at least `Pr[P accepts] - 1 / (p n + 1) - ν n` for negligible `ν`. -/
+/-- **Rewinding compact PCP-table extraction theorem** for Kilian's protocol under any
+collision-resistant `HashFamily` and `O(log |enc x|)`-coin PCP verifier `V` (a step toward
+[BarakGoldreich2001], Construction 3.4 and Lemma 3.5, uniform strict-PPT compact-table counterpart;
+locator not re-verified against primary PDF): for any prover `P : KilianProver α`, any strict
+rational acceptance threshold `num / den < 1`, and any polynomial inverse slack `(p n + 1)⁻¹`, there
+exists a polynomial-time attempt budget `T` such that `kilianTableExtractor H V P T` runs in uniform
+strict PPT and succeeds in extracting a compact PCP table passing
+`> (num / den) * 2 ^ V.coins ext.stmt` coins with probability at least
+`Pr[P accepts] - 1 / (p n + 1) - ν n` for negligible `ν`. No NP witness `w` is extracted. -/
 theorem HashFamily.kilianTableExtraction {H : List Bool → List Bool → List Bool}
     {V : PCPVerifier α} {enc : α ↪ List Bool} {c : ℕ} {P : KilianProver α}
     (hH : HashFamily H) (hV : V.PolyTime enc)
@@ -1489,14 +1478,15 @@ theorem kilianExtract_mem_of_isPCP {enc : α ↪ List Bool} {r q : ℕ → ℕ} 
   have hsound := hpcp.sound ext.stmt hx (V.proofOfTable ext.stmt ext.table)
   omega
 
-/-- **Kilian weak knowledge extraction for arbitrary NP relations**: under a collision-resistant
-`HashFamily`, every `R : NPRelation enc` admits a polynomial-time `O(log n)`-coin PCP verifier `V`
-and witness compiler `compile` (from the PCP completeness bridge) such that every extracted compact
-table passing strictly more than half of the PCP coins on `ext.stmt` certifies an actual witness
-`∃ w, R.IsWitness ext.stmt w`, and every uniform strict PPT prover's acceptance probability is
-upper-bounded by this `1 / 2`-extraction probability up to arbitrary inverse-polynomial slack and
-negligible cryptographic error. -/
-theorem HashFamily.kilianExtraction_npRelation {H : List Bool → List Bool → List Bool}
+/-- **Rewinding compact PCP-table extraction for arbitrary NP relations**: under a collision-
+resistant `HashFamily`, every `R : NPRelation enc` admits a polynomial-time `O(log n)`-coin PCP
+verifier `V` and witness compiler `compile` (from the PCP completeness bridge) such that every
+uniform strict PPT prover's acceptance probability is upper-bounded by the `1 / 2`-coin table
+extraction probability up to arbitrary inverse-polynomial slack and negligible cryptographic error.
+No NP witness `w` is extracted constructively by `kilianTableExtractor`; the existential guarantee
+`∃ w, R.IsWitness ext.stmt w` is a non-constructive PCP-soundness consequence of
+`ext.stmt ∈ R.language` via `kilianExtract_mem_of_isPCP`. -/
+theorem HashFamily.kilianTableExtraction_npRelation {H : List Bool → List Bool → List Bool}
     (hH : HashFamily H) (enc : α ↪ List Bool) (R : NPRelation enc) :
     ∃ (V : PCPVerifier α) (compile : α × List Bool → List Bool) (c d : ℕ),
       V.PolyTime enc ∧
