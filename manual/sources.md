@@ -1416,6 +1416,11 @@ These are crash-stop steps, not the persistent-storage crash-recovery or Multi-P
 those remain tracked in [#7207](https://github.com/cslib-community/cslib-frontier/issues/7207).
 The static families do not implement §7's dynamic quorum announcements.
 
+<a id="howson1972"></a>
+## howson1972
+
+Joseph T. Howson, Jr. "Equilibria of Polymatrix Games." *Management Science* 18(5), 312–318, 1972. https://doi.org/10.1287/mnsc.18.5.312 . Bibliographic metadata checked from `references.bib` (`Howson1972`) and DOI records; the *Management Science* journal full text was not inspected firsthand, and no internal theorem, equation, or page locators are cited. Cited alongside [Janovskaja 1968](#janovskaja1968) by [Polymatrix/Basic.lean](../CslibFrontier/GameTheory/Polymatrix/Basic.lean) for the multiplayer polymatrix game model and its pairwise bilinear mixed-strategy equilibrium characterization.
+
 <a id="hoyerleespalek07"></a>
 ## hoyerleespalek07
 
@@ -1510,6 +1515,11 @@ Sandy Irani. "Two Results on the List Update Problem." *Information Processing L
 ## jainmahdian07
 
 Kamal Jain and Mohammad Mahdian. "Cost Sharing." Chapter 15 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 385–410. https://doi.org/10.1017/CBO9780511800481.017 . Checked firsthand on 2026-11-23 against the chapter text (pp. 385–410): Section 15.1 (pp. 385–386: TU cost-sharing games with `c(∅) = 0`, Definition 15.1 cooperative facility location game, and Example 15.2), Section 15.2 (pp. 386–391: Definition 15.3 core, Example 15.4, LPs `(15.1)`–`(15.2)`, Definition 15.5 balanced weights, Theorem 15.6 Bondareva–Shapley theorem, Definition 15.7 `γ`-core with `γ · c(A) ≤ ∑ α_j ≤ c(A)`, Theorem 15.8 `γ`-Bondareva–Shapley theorem, Corollary 15.9 LP integrality gap, and Proposition 15.10 dual facility-location LP `(15.4)`), Section 15.3 (pp. 391–394: NPT, VP, CS, `γ`-budget balance, group-strategyproofness, Definition 15.12 cost-sharing scheme, Definition 15.13 cross-monotonicity, Proposition 15.14, Figure 15.2 Moulin's mechanism `M_ξ`, Proposition 15.15 largest willing coalition and pruning-order independence, and Theorem 15.16 Moulin 1999), Section 15.4.1 (pp. 396–397: Definition 15.17 submodular cost-sharing game, Lemma 15.18 tight-set uncrossing, Corollary 15.19 maximal tight set, Figure 15.3 `SubmodularCostShare`, and Theorem 15.20), Section 15.6 (pp. 402–405: Section 15.6.1 Shapley value formula, Example 15.24 `(23/6, 11/6, 7/3)` outside the core of Example 15.2, Definition 15.25 Anonymity/Dummy/Additivity where Efficiency is implicit and Dummy prints `S ⊂ A \ {i}` for `S ⊆ A \ {i}`, Theorem 15.26 Shapley's uniqueness theorem, Section 15.6.3 2-player bargaining, Definition 15.27 weak Pareto optimality / symmetry / scale independence / IIA combined with translation normalization to `d = (0, 0)`, and Theorem 15.28 Nash's bargaining theorem), and Section 15.8 (p. 410: Exercises 15.1 and 15.2). Cited by `CslibFrontier/GameTheory/Cooperative/{Basic,Core,MoulinCostSharing,ShapleyValue}.lean`.
+
+<a id="janovskaja1968"></a>
+## janovskaja1968
+
+Elena B. Janovskaja. "Equilibrium Points in Polymatrix Games." *Litovskii Matematicheskii Sbornik* 8(2), 381–384, 1968. https://doi.org/10.15388/LMJ.1968.20224 . Bibliographic metadata checked from `references.bib` (`Janovskaja1968`) and DOI records; the published journal full text was not inspected firsthand, and no internal theorem, equation, or page locators are cited. Cited alongside [Howson 1972](#howson1972) by [Polymatrix/Basic.lean](../CslibFrontier/GameTheory/Polymatrix/Basic.lean) for the multiplayer polymatrix game model and its pairwise bilinear mixed-strategy equilibrium characterization.
 
 <a id="jansonluczakrucinski2000"></a>
 ## jansonluczakrucinski2000
@@ -2108,7 +2118,7 @@ Mark Moir and Nir Shavit. "Concurrent Data Structures." Chapter 47 of Dinesh P. 
 <a id="monderershapley96"></a>
 ## monderershapley96
 
-Dov Monderer and Lloyd S. Shapley. *Potential Games*. Games and Economic Behavior 14(1), 124–143, 1996. https://doi.org/10.1006/game.1996.0044 . The published text was consulted on 2026-11-07 for the definitions (2.1)–(2.3), Lemmas 2.1, 2.3, 2.5 and 2.7, Corollary 2.2, Theorem 3.1 and footnote 12.
+Dov Monderer and Lloyd S. Shapley. *Potential Games*. Games and Economic Behavior 14(1), 124–143, 1996. https://doi.org/10.1006/game.1996.0044 . The published text was consulted on 2026-11-07 for the definitions (2.1)–(2.3), Lemmas 2.1, 2.3, 2.5 and 2.7, Corollary 2.2, Theorem 3.1 and footnote 12, and checked again against the *Games and Economic Behavior* PDF on 2026-11-24 ([PR #8098](https://github.com/cslib-community/cslib-frontier/pull/8098#issuecomment-7139462024)) for Section 2 (Prisoner's Dilemma on p. 128, counterexample `G₁` on p. 129, Corollary 2.6 on p. 130, Theorem 2.8 and Corollary 2.9 on pp. 130–131, and Lemma 2.10 with equation (2.4) on pp. 131–132) and Appendix A (pp. 138–139, proof of Theorem 2.8). In [Strategic/PotentialCharacterization.lean](../CslibFrontier/GameTheory/Strategic/PotentialCharacterization.lean), all game definitions are stated in cost-minimization form (with reversed inequalities relative to payoffs), `CostGame.IsWeightedPotential` omits positivity `0 < w i` relative to equation (2.2) (supplying `0 < w i` explicitly where needed and generalizing Lemma 2.10 to arbitrary `w : ι → ℝ`), and the coordination–dummy decomposition (`CostGame.IsCoordination`, `CostGame.IsDummy`, `CostGame.exists_isExactPotential_iff_coordination_add_dummy`) is proved algebraically without citing Appendix B.
 
 <a id="mosertardos10"></a>
 ## mosertardos10

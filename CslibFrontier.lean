@@ -9042,6 +9042,7 @@ public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
 public import CslibFrontier.GameTheory.P2P.Generosity
 public import CslibFrontier.GameTheory.PerfectInformation
+public import CslibFrontier.GameTheory.Polymatrix.Basic
 public import CslibFrontier.GameTheory.RandomAssignment.Basic
 public import CslibFrontier.GameTheory.RandomAssignment.Impossibility
 public import CslibFrontier.GameTheory.RandomAssignment.ProbabilisticSerial
@@ -9066,6 +9067,7 @@ public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Nash
 public import CslibFrontier.GameTheory.Strategic.NoRegret
 public import CslibFrontier.GameTheory.Strategic.Potential
+public import CslibFrontier.GameTheory.Strategic.PotentialCharacterization
 public import CslibFrontier.GameTheory.Strategic.Semialgebraic
 public import CslibFrontier.GameTheory.Strategic.Smooth
 public import CslibFrontier.GameTheory.Strategic.Stability
