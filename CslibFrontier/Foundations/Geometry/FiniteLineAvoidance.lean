@@ -24,12 +24,12 @@ import Mathlib.Tactic.Ring
 # Choosing points away from finitely many proper lines
 
 `Cslib.exists_mem_ball_avoiding_lines` chooses an actual point in any positive open ball.
-Each forbidden line is given by two distinct endpoints and all real affine parameters.
-Successive choices give arbitrarily small perturbations of a finite configuration.
-Every triple involving a perturbed point and two other distinct final points is noncollinear.
-No new line representation or coordinate-complexity statement is introduced. This original
-finite-coordinate lemma is intended for auxiliary comparison routes in positioned-embedding
-necessity; it does not construct an embedding or a motion.
+`Cslib.exists_injective_perturbation_avoiding_spans_and_crossings` perturbs finitely many
+points by an arbitrarily small distance while fixing the remaining points. Every triple
+of distinct final points containing a moved point is noncollinear.
+`Cslib.NoTripleLineContact` says that three distinct supporting lines can meet only at
+one of their defining points when at least one line has a moved endpoint. The perturbation
+also ensures this property for the final configuration.
 -/
 
 public section
@@ -305,18 +305,5 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
     fun i => hfixed i (Finset.mem_univ i), ?_, ?_⟩
   · simpa only [Finset.coe_univ, Set.image_univ] using fun i => hspans i (Finset.mem_univ i)
   · simpa only [Finset.coe_univ, Set.image_univ] using htriple
-
-/-- Perturb finitely many moving points within the given radius while keeping a finite set
-fixed. Moving points are distinct and avoid the fixed points and the lines through any two
-other distinct points in the final configuration. -/
-theorem exists_injective_perturbation_avoiding_spans {ι : Type*} [Finite ι]
-    (center : ι → ℂ) (fixed : Finset ℂ) {ρ : ℝ} (hρ : 0 < ρ) :
-    ∃ q : ι → ℂ, (∀ i, dist (q i) (center i) < ρ) ∧ Function.Injective q ∧
-      (∀ i, q i ∉ fixed) ∧ ∀ i a b,
-        a ∈ (↑fixed : Set ℂ) ∪ Set.range q → b ∈ (↑fixed : Set ℂ) ∪ Set.range q →
-        a ≠ b → q i ≠ a → q i ≠ b → q i ∉ affineSpan ℝ ({a, b} : Set ℂ) := by
-  obtain ⟨q, hnear, hinj, hfixed, hspans, _⟩ :=
-    exists_injective_perturbation_avoiding_spans_and_crossings center fixed hρ
-  exact ⟨q, hnear, hinj, hfixed, hspans⟩
 
 end Cslib

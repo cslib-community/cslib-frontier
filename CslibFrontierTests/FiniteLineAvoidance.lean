@@ -16,8 +16,9 @@ example {ρ : ℝ} (hρ : 0 < ρ) :
     ∃ x y : ℂ, dist x 0 < ρ ∧ dist y 0 < ρ ∧ x ≠ y ∧
       x ∉ affineSpan ℝ ({0, 1} : Set ℂ) ∧ y ∉ affineSpan ℝ ({x, 0} : Set ℂ) := by
   let fixed : Finset ℂ := {0, 1, 2}
-  obtain ⟨q, hnear, hinj, hfixed, hspans⟩ :=
-    Cslib.exists_injective_perturbation_avoiding_spans (fun _ : Bool => 0) fixed hρ
+  obtain ⟨q, hnear, hinj, hfixed, hspans, _⟩ :=
+    Cslib.exists_injective_perturbation_avoiding_spans_and_crossings
+      (fun _ : Bool => 0) fixed hρ
   have h0 : (0 : ℂ) ∈ fixed := by simp [fixed]
   have h1 : (1 : ℂ) ∈ fixed := by simp [fixed]
   have hne0 (i : Bool) : q i ≠ 0 := fun he => hfixed i (he.symm ▸ h0)
@@ -34,8 +35,8 @@ example {ρ : ℝ} (hρ : 0 < ρ) :
     ∃ w, dist w (⟨-1, -1⟩ : ℂ) < ρ ∧
       (0 : ℂ) ∉ affineSpan ℝ ({⟨1, 1⟩, w} : Set ℂ) := by
   let anchor : ℂ := ⟨1, 1⟩
-  let fixed : Finset ℂ := {-1, 1, -Complex.I, Complex.I, anchor, 0}
-  obtain ⟨q, hnear, _, hfixed, _, htriple⟩ :=
+  let fixed : Finset ℂ := {-1, 1, -Complex.I, Complex.I, anchor}
+  obtain ⟨q, hnear, _, hfixed, hspans, htriple⟩ :=
     Cslib.exists_injective_perturbation_avoiding_spans_and_crossings
       (fun _ : Unit => ⟨-1, -1⟩) fixed hρ
   let w := q ()
@@ -50,7 +51,6 @@ example {ρ : ℝ} (hρ : 0 < ρ) :
     change w ∈ fixed
     exact h ▸ hx
   have hanchor := hneFixed anchor (by simp [fixed])
-  have hzero := hneFixed 0 (by simp [fixed])
   have him {x : ℂ} (hx : x ∈ L 0) : x.im = 0 := by
     obtain ⟨t, ht⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hx
     simpa [a, b, AffineMap.lineMap_apply_module', Complex.real_smul] using
@@ -104,5 +104,13 @@ example {ρ : ℝ} (hρ : 0 < ρ) :
       refine ⟨1 / 2, ?_⟩
       apply Complex.ext <;> norm_num [a, b, AffineMap.lineMap_apply_module', Complex.real_smul]
     · exact hw
+  have hzero : (0 : ℂ) ≠ w := by
+    intro he
+    apply hspans () (-1) 1 (Or.inl (by simp [fixed])) (Or.inl (by simp [fixed]))
+      (by norm_num [Complex.ext_iff])
+      (hneFixed (-1) (by simp [fixed])).symm (hneFixed 1 (by simp [fixed])).symm
+    have hz : (0 : ℂ) ∈ affineSpan ℝ ({-1, 1} : Set ℂ) := hhit 0
+    change w ∈ affineSpan ℝ ({-1, 1} : Set ℂ)
+    rwa [← he]
   obtain ⟨i, hi⟩ := htriple a b 0 hpoints ⟨2, Or.inr ⟨(), rfl⟩⟩ hL hhit
   fin_cases i <;> rcases hi with h | h <;> simp [a, b, anchor, hzero, Complex.ext_iff] at h
