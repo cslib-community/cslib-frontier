@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.ValueGame
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.AlternatingQueryMachine
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitList
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
@@ -48,14 +49,30 @@ input bit it reads, and the next state given that bit. `Turing.MultiTapeTM.Compu
 not charge the read-only input, so the read itself costs `O(log n)` work space
 (`Turing.MultiTapeTM.ComputableInSpace.inputBit`).
 
+The whole game is therefore an alternating query machine (`Turing.AlternatingQueryMachine`), the
+local machine (`Cslib.Circuits.Boolean.Tableau.ValueGame.localMachine`). Its state is a local claim
+and, once decided, its value; a live state queries the input at the wire of its claim, records the
+outcome of the claim if it has one, and otherwise lets the player of the claim choose the next
+claim. From the local data of a claim, it accepts exactly when the existential player wins the game
+from the claim (`Cslib.Circuits.Boolean.Tableau.ValueGame.acceptsFrom_localMachine_iff`), so from
+the output claim it decides the run of the machine
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.accepts_localMachine_iff`). Its callbacks are computed
+within linear space in the state, in the shape that
+`Turing.NondeterministicQueryMachine.exists_routines` compiles
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.localNext_inSpace` and its neighbours), its reachable
+states have `O(log n + log T)` bits
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.exists_length_le_of_replay_localMachine`), and every
+branch halts (`Cslib.Circuits.Boolean.Tableau.ValueGame.halted_replay_localMachine`).
+
 This is a step towards the inclusion `DTIME(2 ^ O(s)) ⊆ ASPACE(s)` of
-[Chandra, Kozen and Stockmeyer, Section 3][ChandraKozenStockmeyer1981]
+[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981]
 [Sipser, Section 10.3][Sipser2013], and not that inclusion: for a machine within time
-`T = 2 ^ O(s n)` and `log₂ n ≤ s n`, the claims of this game have `O(s n)` bits and its rounds read
-one input bit each. What remains for the inclusion (#4086) is an alternating machine that plays a
-game with such rounds within space `O(s n)`, keeping the state on a work tape and reading the input
-in place (an alternating counterpart of `Turing.NondeterministicQueryMachine.exists_routines`), and
-a preparation that writes the step count `T`, which needs a constructibility hypothesis on `s`.
+`T = 2 ^ O(s n)` and `log₂ n ≤ s n`, the states of the local machine have `O(s n)` bits and its
+steps read one input bit each. What remains for the inclusion (#4086) is a compiler of alternating
+query machines into alternating Turing machines that keep the state on work tapes and read the
+input in place (an alternating counterpart of `Turing.NondeterministicQueryMachine.exists_routines`
+and its compiler), and a preparation that writes the step count `T`, which needs a
+constructibility hypothesis on `s`.
 
 ## Main definitions
 
@@ -63,6 +80,8 @@ a preparation that writes the step count `T`, which needs a constructibility hyp
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.encLocal`: the encoding of claims relative to an input.
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.localPosition`: the position of a local claim, given
   the input bit at its wire.
+* `Cslib.Circuits.Boolean.Tableau.ValueGame.localMachine`: the local game as an alternating query
+  machine.
 
 ## Main results
 
@@ -76,6 +95,15 @@ a preparation that writes the step count `T`, which needs a constructibility hyp
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.LocalClaim.next_inSpace`,
   `Cslib.Circuits.Boolean.Tableau.ValueGame.localPosition_inSpace`: the rest of a round within
   linear space in the local data.
+* `Cslib.Circuits.Boolean.Tableau.ValueGame.acceptsFrom_localMachine_iff`,
+  `Cslib.Circuits.Boolean.Tableau.ValueGame.accepts_localMachine_iff`: the local machine accepts
+  exactly the claims won in the game, and from the output claim decides the run.
+* `Cslib.Circuits.Boolean.Tableau.ValueGame.localNext_inSpace` (with `localQuery_inSpace`,
+  `localHalted_inSpace`, `localAccept_inSpace` and `localUniversal_inSpace`): its callbacks within
+  linear space in the state.
+* `Cslib.Circuits.Boolean.Tableau.ValueGame.exists_length_le_of_replay_localMachine`,
+  `Cslib.Circuits.Boolean.Tableau.ValueGame.halted_replay_localMachine`: its reachable states have
+  `O(log n + log T)` bits, and its branches halt.
 
 ## References
 
@@ -360,6 +388,301 @@ theorem localPosition_inSpace :
     simp only [localPosition]
 
 end Round
+
+/-! ### The local game as an alternating query machine -/
+
+section QueryMachine
+
+open ComputableInSpace
+
+/-- The encoding of the states of the local machine: the framed local claim (`encLocalClaim`),
+then its decided value, if any, as a framed option bit. -/
+abbrev encLocalState := encPair encLocalClaim (encOption encBool)
+
+variable (tm) in
+/-- The outcome of a local claim given the read `r` of the input at its wire
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.Claim.outcome`): its truth when its wire is an input wire
+or a constant gate, and `none` otherwise. -/
+noncomputable def LocalClaim.outcome (lc : LocalClaim) (r : Option Bool) : Option Bool :=
+  outcomeOf (decide (lc.wire < lc.length), r.getD false, (lc.gate tm).1, lc.value)
+
+variable (tm) in
+/-- One step of the local machine, from a state, the read of the input at the wire of its claim
+and a move: record the outcome of the claim if it has one, and otherwise take the move. -/
+noncomputable def localNext : (LocalClaim × Option Bool) × Option Bool × Bool →
+    LocalClaim × Option Bool
+  | ((lc, _), r, b) =>
+    match lc.outcome tm r with
+    | some v => (lc, some v)
+    | none => (lc.next tm b, none)
+
+variable (tm) in
+/-- The player of the claim of a state of the local machine
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.Claim.player`). -/
+noncomputable def localUniversal (s : LocalClaim × Option Bool) : Bool :=
+  playerOf ((s.1.gate tm).1, s.1.value)
+
+variable (tm) in
+/-- **The local circuit-value game as an alternating query machine.** A state is a local claim
+and, once decided, its value. A live state queries the input at the wire of its claim. If the claim
+has an outcome given the read bit (its wire is an input wire or a constant gate), the step records
+it, and the state halts, accepting exactly when the claim is true. Otherwise the player of the claim
+chooses a move, which gives the next local claim. The machine starts on the local claim `lc₀`. -/
+noncomputable def localMachine (lc₀ : LocalClaim) :
+    AlternatingQueryMachine (LocalClaim × Option Bool) where
+  init := (lc₀, none)
+  query s := s.1.wire
+  next := localNext tm
+  halted s := s.2.isSome
+  accept s := s.2.getD false
+  universal := localUniversal tm
+
+private theorem localMachine_halted (lc₀ : LocalClaim) (s : LocalClaim × Option Bool) :
+    (localMachine tm lc₀).halted s = s.2.isSome := rfl
+
+private theorem localMachine_accept (lc₀ : LocalClaim) (s : LocalClaim × Option Bool) :
+    (localMachine tm lc₀).accept s = s.2.getD false := rfl
+
+private theorem localMachine_universal (lc₀ : LocalClaim) (s : LocalClaim × Option Bool) :
+    (localMachine tm lc₀).universal s = localUniversal tm s := rfl
+
+private theorem localMachine_step_none (lc₀ lc : LocalClaim) (x : List Bool) (b : Bool) :
+    (localMachine tm lc₀).step x (lc, none) b = localNext tm ((lc, none), x[lc.wire]?, b) := by
+  simp [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, localMachine]
+
+/-- The outcome of the local data of a claim about `x`, given the input bit at its wire, is the
+outcome of the claim. -/
+private theorem outcome_toLocal {x : List Bool} {c : Claim} (h : c.input = x) :
+    c.toLocal.outcome tm x[c.wire]? = Claim.outcome tm c := by
+  rw [outcome_eq_outcomeOf, h, headD_drop]
+  simp only [LocalClaim.outcome, Claim.toLocal, LocalClaim.gate, Claim.gate_eq, h]
+
+/-- The player of the local data of a claim is the player of the claim. -/
+private theorem localUniversal_toLocal (c : Claim) (o : Option Bool) :
+    localUniversal tm (c.toLocal, o) = Claim.player tm c := by
+  rw [player_eq_playerOf]
+  simp only [localUniversal, Claim.toLocal, LocalClaim.gate, Claim.gate_eq]
+
+/-- **The local machine plays the circuit-value game.** On an input `x`, from the local data of a
+claim about a wire of the tableau of `T` steps, the local machine accepts exactly when the
+existential player wins the circuit-value game from the claim, with claims encoded relative to `x`
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.encLocal`). -/
+theorem acceptsFrom_localMachine_iff (lc₀ : LocalClaim) (x : List Bool) (T : ℕ) :
+    ∀ w, w < x.length + numGates k State T → ∀ v,
+      ((localMachine tm lc₀).AcceptsFrom x (⟨x.length, T, w, v⟩, none) ↔
+        Wins (update tm (encLocal x)) (position tm (encLocal x) ⟨x, T, w, v⟩)) := by
+  intro w
+  induction w using Nat.strong_induction_on with
+  | _ w ih =>
+  intro hw v
+  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
+    outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
+  rw [AlternatingQueryMachine.acceptsFrom_iff, localMachine_halted, localMachine_universal]
+  simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, localMachine_step_none]
+  cases ho : Claim.outcome tm ⟨x, T, w, v⟩ with
+  | some r =>
+    rw [wins_position_terminal ho]
+    have hdone (b : Bool) : localNext tm ((⟨x.length, T, w, v⟩, none), x[w]?, b) =
+        (⟨x.length, T, w, v⟩, some r) := by
+      simp only [localNext, hout, ho]
+    have hfin : (localMachine tm lc₀).AcceptsFrom x (⟨x.length, T, w, v⟩, some r) ↔ r = true := by
+      rw [AlternatingQueryMachine.acceptsFrom_iff, localMachine_halted, localMachine_accept]
+      simp
+    simp only [hdone, hfin]
+    cases localUniversal tm (⟨x.length, T, w, v⟩, none) <;> simp
+  | none =>
+    rw [wins_position_nonterminal ho]
+    have hstep (b : Bool) : (localMachine tm lc₀).AcceptsFrom x
+        (localNext tm ((⟨x.length, T, w, v⟩, none), x[w]?, b)) ↔
+          Wins (update tm (encLocal x))
+            (position tm (encLocal x) (Claim.next tm ⟨x, T, w, v⟩ b)) := by
+      have hlt : (Claim.next tm ⟨x, T, w, v⟩ b).wire < w := next_lt ho hw b
+      have hloc : (Claim.next tm ⟨x, T, w, v⟩ b).toLocal =
+          LocalClaim.next tm ⟨x.length, T, w, v⟩ b :=
+        toLocal_next (tm := tm) ⟨x, T, w, v⟩ b
+      have h1 : (Claim.next tm ⟨x, T, w, v⟩ b).input = x := by rw [Claim.next_eq]
+      have h2 : (Claim.next tm ⟨x, T, w, v⟩ b).steps = T := by rw [Claim.next_eq]
+      simp only [localNext, hout, ho]
+      rw [← hloc]
+      generalize Claim.next tm ⟨x, T, w, v⟩ b = cn at hlt h1 h2 ⊢
+      obtain ⟨xi, Ti, wi, vi⟩ := cn
+      simp only at h1 h2 hlt
+      subst h1 h2
+      exact ih wi hlt (by omega) vi
+    have huniv : localUniversal tm (⟨x.length, T, w, v⟩, none) = Claim.player tm ⟨x, T, w, v⟩ :=
+      localUniversal_toLocal (tm := tm) ⟨x, T, w, v⟩ none
+    simp only [hstep, huniv]
+
+/-- **The local machine decides the run**: on an input `x` with `x.length < 2 * T`, the local
+machine started on the local claim that the output wire of the tableau of `T` steps is true accepts
+`x` exactly when `tm`, started on `x`, has written exactly `[true]` after `T` steps. Its states have
+`O(log x.length + log T)` bits, and its callbacks are computed within linear space in the state
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.localNext_inSpace` and its neighbours). This is a step
+towards `DTIME(2 ^ O(s)) ⊆ ASPACE(s)`
+[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981], not that inclusion: no
+alternating Turing machine runs this query machine yet. -/
+theorem accepts_localMachine_iff {x : List Bool} {T : ℕ} (hn : x.length < 2 * T) :
+    (localMachine tm ⟨x.length, T, outWire k State x.length T, true⟩).Accepts x ↔
+      OutView.ofList (tm.runFrom (tm.initCfg x) T).output = .one true :=
+  (acceptsFrom_localMachine_iff _ x T _ (outWire_lt _ _) true).trans
+    (wins_position_outWire_iff (encLocal x) hn)
+
+/-- One step of the local machine from a live state on a wire of the tableau either decides the
+claim or moves to an earlier wire. -/
+private theorem step_localMachine_live (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ} {v : Bool}
+    (hw : w < x.length + numGates k State T) (b : Bool) :
+    (∃ r, (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b =
+        (⟨x.length, T, w, v⟩, some r)) ∨
+      ∃ w' v', w' < w ∧ (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b =
+        (⟨x.length, T, w', v'⟩, none) := by
+  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
+    outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
+  rw [localMachine_step_none]
+  cases ho : Claim.outcome tm ⟨x, T, w, v⟩ with
+  | some r => exact .inl ⟨r, by simp only [localNext, hout, ho]⟩
+  | none =>
+    refine .inr ⟨(Claim.next tm ⟨x, T, w, v⟩ b).wire, (Claim.next tm ⟨x, T, w, v⟩ b).value,
+      next_lt ho hw b, ?_⟩
+    have hloc : (Claim.next tm ⟨x, T, w, v⟩ b).toLocal =
+        LocalClaim.next tm ⟨x.length, T, w, v⟩ b :=
+      toLocal_next (tm := tm) ⟨x, T, w, v⟩ b
+    have h1 : (Claim.next tm ⟨x, T, w, v⟩ b).input = x := by rw [Claim.next_eq]
+    have h2 : (Claim.next tm ⟨x, T, w, v⟩ b).steps = T := by rw [Claim.next_eq]
+    simp only [localNext, hout, ho, ← hloc, Claim.toLocal, h1, h2]
+
+/-- **The states reached by the local machine.** From the local data of a claim about a wire of the
+tableau, every replay of choices reaches the local data of a claim about a wire of the tableau,
+possibly decided; while it is live, each choice has moved to an earlier wire. -/
+theorem replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T : ℕ} :
+    ∀ (choices : List Bool) (w : ℕ) (v : Bool) (o : Option Bool),
+      w < x.length + numGates k State T → ∃ w' v' o', w' < x.length + numGates k State T ∧
+        (localMachine tm lc₀).replay x choices (⟨x.length, T, w, v⟩, o) =
+          (⟨x.length, T, w', v'⟩, o') ∧ (o' = none → choices.length + w' ≤ w) := by
+  intro choices
+  induction choices with
+  | nil => exact fun w v o hw => ⟨w, v, o, hw, rfl, fun _ => by simp⟩
+  | cons b choices ih =>
+    intro w v o hw
+    have hcons : (localMachine tm lc₀).replay x (b :: choices) (⟨x.length, T, w, v⟩, o) =
+        (localMachine tm lc₀).replay x choices
+          ((localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, o) b) := rfl
+    have hhalted (r : Bool) : (localMachine tm lc₀).halted (⟨x.length, T, w, v⟩, some r) = true :=
+      rfl
+    cases o with
+    | some r =>
+      refine ⟨w, v, some r, hw, ?_, fun h => by simp at h⟩
+      rw [(localMachine tm lc₀).replay_of_halted x (hhalted r)]
+    | none =>
+      rcases step_localMachine_live (tm := tm) lc₀ (v := v) hw b with ⟨r, hr⟩ | ⟨w₁, v₁, hlt, h₁⟩
+      · refine ⟨w, v, some r, hw, ?_, fun h => by simp at h⟩
+        rw [hcons, hr, (localMachine tm lc₀).replay_of_halted x (hhalted r)]
+      · obtain ⟨w', v', o', hw', heq, hle⟩ := ih w₁ v₁ none (by omega)
+        refine ⟨w', v', o', hw', by rw [hcons, h₁, heq], fun h => ?_⟩
+        have := hle h
+        simp only [List.length_cons]
+        omega
+
+/-- **Every branch of the local machine halts** within one more step than the starting wire. -/
+theorem halted_replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ} {v : Bool}
+    (hw : w < x.length + numGates k State T) (choices : List Bool)
+    (hlen : w < choices.length) :
+    (localMachine tm lc₀).halted
+      ((localMachine tm lc₀).replay x choices (⟨x.length, T, w, v⟩, none)) = true := by
+  obtain ⟨w', v', o', -, heq, hle⟩ := replay_localMachine (tm := tm) lc₀ choices w v none hw
+  rw [heq, localMachine_halted]
+  cases o' with
+  | some r => rfl
+  | none => have := hle rfl; omega
+
+/-- **States of logarithmic length.** On an input `x` of length `n`, every state reached by the
+local machine from the local data of a claim about a wire of the tableau of `T` steps has an
+encoding of at most `8 * Nat.size n + 12 * Nat.size T + c` bits; the constant `c` depends only on
+the number of tapes and states of the machine. -/
+theorem exists_length_le_of_replay_localMachine :
+    ∃ c, ∀ (lc₀ : LocalClaim) (x : List Bool) (T w : ℕ) (v : Bool) (choices : List Bool),
+      w < x.length + numGates k State T →
+      (encLocalState ((localMachine tm lc₀).replay x choices (⟨x.length, T, w, v⟩, none))).length ≤
+        8 * Nat.size x.length + 12 * Nat.size T + c := by
+  obtain ⟨c, hc⟩ := exists_size_add_numGates_le (k := k) (State := State)
+  refine ⟨4 * c + 30, fun lc₀ x T w v choices hw => ?_⟩
+  obtain ⟨w', v', o', hw', heq, -⟩ := replay_localMachine (tm := tm) lc₀ choices w v none hw
+  rw [heq]
+  have hs : Nat.size w' ≤ Nat.size (x.length + numGates k State T) := Nat.size_le_size hw'.le
+  have := hc x.length T
+  have hn : (encNat x.length).length = Nat.size x.length := by
+    simp [encNat_apply, Nat.size_eq_bits_len]
+  have hT : (encNat T).length = Nat.size T := by simp [encNat_apply, Nat.size_eq_bits_len]
+  have hw'' : (encNat w').length = Nat.size w' := by simp [encNat_apply, Nat.size_eq_bits_len]
+  have ho : (encOption encBool o').length ≤ 2 := by
+    cases o' <;> simp [encOption_none, encOption_some, encBool_apply]
+  enc_len [hn, hT, hw'', encLocalClaim_apply, List.length_singleton]
+
+/-! #### The callbacks within linear space -/
+
+/-- The query of the local machine, the wire of the claim, within linear space in the state. -/
+theorem localQuery_inSpace :
+    ComputableInSpace (fun s : LocalClaim × Option Bool => s.1.wire) encLocalState encNat
+      fun s => (encLocalState s).length :=
+  encLocalClaim_wire_budget (fst encLocalClaim (encOption encBool))
+
+/-- Whether a state of the local machine has halted, within linear space in the state. -/
+theorem localHalted_inSpace :
+    ComputableInSpace (fun s : LocalClaim × Option Bool => s.2.isSome) encLocalState encBool
+      fun s => (encLocalState s).length :=
+  budget_optionIsSome (snd encLocalClaim (encOption encBool))
+
+/-- Whether a state of the local machine accepts, within linear space in the state. -/
+theorem localAccept_inSpace :
+    ComputableInSpace (fun s : LocalClaim × Option Bool => s.2.getD false) encLocalState encBool
+      fun s => (encLocalState s).length :=
+  budget_optionGetD false (snd encLocalClaim (encOption encBool))
+
+/-- The player at a state of the local machine, within linear space in the state. -/
+theorem localUniversal_inSpace :
+    ComputableInSpace (localUniversal tm) encLocalState encBool
+      fun s => (encLocalState s).length := by
+  have hlc := fst encLocalClaim (encOption encBool)
+  have hop := fst' (gate_budget (tm := tm) hlc)
+  have hv := encLocalClaim_value_budget hlc
+  exact budget_finite (fun q : Op × Bool => playerOf q) (budget_prod hop hv)
+
+/-- The step of the local machine, from a state, a read and a move, within linear space in the
+encoded state, read and move. The read and move are encoded as in
+`Turing.NondeterministicQueryMachine.encReadChoice`. -/
+theorem localNext_inSpace :
+    ComputableInSpace (localNext tm) (encPair encLocalState (encPair (encOption encBool) encBool))
+      encLocalState
+      fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length := by
+  have hs := fst encLocalState (encPair (encOption encBool) encBool)
+  have hrc := snd encLocalState (encPair (encOption encBool) encBool)
+  have hlc := fst' hs
+  have hr := fst' hrc
+  have hb := snd' hrc
+  have hop := fst' (gate_budget (tm := tm) hlc)
+  have hw := encLocalClaim_wire_budget hlc
+  have hn := encLocalClaim_length_budget hlc
+  have hv := encLocalClaim_value_budget hlc
+  have hq := budget_prod (budget_natLt hw hn)
+    (budget_prod (budget_optionGetD false hr) (budget_prod hop hv))
+  have hout : ComputableInSpace
+      (fun p : (LocalClaim × Option Bool) × Option Bool × Bool => p.1.1.outcome tm p.2.1)
+      (encPair encLocalState (encPair (encOption encBool) encBool)) (encOption encBool)
+      fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length :=
+    (budget_finite (encC := encOption encBool) outcomeOf hq).of_enc_eq fun _ => rfl
+  have hnext : ComputableInSpace
+      (fun p : (LocalClaim × Option Bool) × Option Bool × Bool => p.1.1.next tm p.2.2)
+      (encPair encLocalState (encPair (encOption encBool) encBool)) encLocalClaim
+      fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length :=
+    (budget_ite hb (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) true) hlc)
+      (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) false) hlc)).of_enc_eq fun p => by
+        obtain ⟨_, _, b⟩ := p
+        cases b <;> rfl
+  exact (budget_ite (budget_optionIsSome hout) (budget_prod hlc hout)
+    (budget_prod hnext (budget_const (encB := encOption encBool) none))).of_enc_eq fun p => by
+      obtain ⟨⟨lc, _⟩, r, b⟩ := p
+      cases h : lc.outcome tm r <;> simp [localNext, h]
+
+end QueryMachine
 
 end ValueGame
 
