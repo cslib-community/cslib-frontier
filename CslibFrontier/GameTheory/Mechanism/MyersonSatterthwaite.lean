@@ -72,7 +72,7 @@ Conversely, when the supports do not overlap (`b_s ≤ c ≤ a_b`), the posted-p
   `BilateralTrade.Mechanism.budget_surplus_uniform_le_neg_one_sixth`,
   `BilateralTrade.Mechanism.not_isExAnteBudgetBalanced_uniform`: explicit `Uniform[0, 1]` deficit
   `−1/6`.
-* `BilateralTrade.fixedPrice_isBIC`, `BilateralTrade.fixedPrice_isInterimIR`,
+* `BilateralTrade.fixedPrice_isBIC_and_isInterimIR`,
   `BilateralTrade.fixedPrice_isExPostEfficient`, `BilateralTrade.fixedPrice_isExAnteBudgetBalanced`:
   feasibility on non-overlapping supports `b_s ≤ c ≤ a_b`.
 

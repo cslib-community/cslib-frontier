@@ -48,7 +48,6 @@ against the zero-pivot Groves mechanism `groves M.outcome (fun _ _ => 0)` yields
 
 ## Main definitions
 
-* `Mechanism.IsWelfareMaximizingOn`: welfare maximization restricted to valuation domains `V`.
 * `Mechanism.IsSmoothlyConnected`: Holmström's smoothly connected domain condition.
 * `Mechanism.disconnectedDomains`, `Mechanism.disconnectedNonGroves`: two-agent counterexample on a
   disconnected two-point domain.
@@ -80,12 +79,6 @@ public section
 namespace Cslib.GameTheory.Mechanism
 
 variable {ι Ω : Type*}
-
-/-- An outcome rule maximizes welfare on the valuation domains `V` if, for every reported profile
-`b` with `b j ∈ V j` for all `j`, `f b` maximizes `welfare b`. -/
-@[expose] def IsWelfareMaximizingOn [Fintype ι] (f : (ι → Ω → ℝ) → Ω)
-    (V : ι → Set (Ω → ℝ)) : Prop :=
-  ∀ b, (∀ j, b j ∈ V j) → ∀ ω, welfare b ω ≤ welfare b (f b)
 
 /-- A valuation domain `S ⊆ (Ω → ℝ)` is **smoothly connected** ([Holmstrom1979]; locator not
 re-verified against primary PDF) if any two valuations `v₀, v₁ ∈ S` are joined by a curve
@@ -255,56 +248,27 @@ theorem payment_sub_eq_of_convex [DecidableEq ι] {M₁ M₂ : Mechanism ι Ω}
     hV hv₀ hv₁ (sub_nonneg.2 ht.2) ht.1 (by ring)
   let X : ℝ → ℝ := fun t =>
     v₁ (M₁.outcome (Function.update b i (γ t))) - v₀ (M₁.outcome (Function.update b i (γ t)))
-  let Q₁ : ℝ → ℝ := fun t =>
-    M₁.payment (Function.update b i (γ t)) i - v₀ (M₁.outcome (Function.update b i (γ t)))
-  let Q₂ : ℝ → ℝ := fun t =>
-    M₂.payment (Function.update b i (γ t)) i - v₀ (M₁.outcome (Function.update b i (γ t)))
-  have hT₁ : SingleParameter.IsTruthfulOn X Q₁ (Icc 0 1) := by
+  have hT (M : Mechanism ι Ω) (houtM : M.outcome = M₁.outcome) (hM : M.IsDSICOn V) :
+      SingleParameter.IsTruthfulOn X
+        (fun t => M.payment (Function.update b i (γ t)) i -
+          v₀ (M₁.outcome (Function.update b i (γ t))))
+        (Icc 0 1) := by
     intro t ht s hs
     have hbs : ∀ j, Function.update b i (γ s) j ∈ V j := fun j => by
       rcases eq_or_ne j i with rfl | hj
       · rw [Function.update_self]; exact hγV s hs
       · rw [Function.update_of_ne hj]; exact hb j
-    have h := hM₁ i (Function.update b i (γ s)) (γ t) hbs (hγV t ht)
-    simp only [utility, Function.update_idem, γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul] at h
-    simp only [X, Q₁]
-    linarith
-  have hT₂ : SingleParameter.IsTruthfulOn X Q₂ (Icc 0 1) := by
-    intro t ht s hs
-    have hbs : ∀ j, Function.update b i (γ s) j ∈ V j := fun j => by
-      rcases eq_or_ne j i with rfl | hj
-      · rw [Function.update_self]; exact hγV s hs
-      · rw [Function.update_of_ne hj]; exact hb j
-    have h := hM₂ i (Function.update b i (γ s)) (γ t) hbs (hγV t ht)
+    have h := hM i (Function.update b i (γ s)) (γ t) hbs (hγV t ht)
     simp only [utility, Function.update_idem, γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
-      ← hout] at h
-    simp only [X, Q₂]
+      houtM] at h
+    simp only [X]
     linarith
-  have hP₁ := hT₁.payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
-  have hP₂ := hT₂.payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
-  simp only [Q₁, Q₂, hγ0, hγ1] at hP₁ hP₂
+  have hP₁ := (hT M₁ rfl hM₁).payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
+  have hP₂ := (hT M₂ hout.symm hM₂).payment_eq (v := 1) ⟨zero_le_one, le_rfl⟩
+  simp only [hγ0, hγ1] at hP₁ hP₂
   linarith
 
 /-! ### Uniqueness of Groves mechanisms -/
-
-private theorem groves_isDSICOn [Fintype ι] [DecidableEq ι] {f : (ι → Ω → ℝ) → Ω}
-    {V : ι → Set (Ω → ℝ)} (hf : IsWelfareMaximizingOn f V)
-    {h : ι → (ι → Ω → ℝ) → ℝ} (hh : ∀ i b v, h i (Function.update b i v) = h i b) :
-    (groves f h).IsDSICOn V := by
-  intro i b v hb hv
-  have hsum : ∀ ω, ∑ j ∈ Finset.univ.erase i, Function.update b i v j ω =
-      ∑ j ∈ Finset.univ.erase i, b j ω := fun ω =>
-    Finset.sum_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  have hbv : ∀ j, Function.update b i v j ∈ V j := fun j => by
-    rcases eq_or_ne j i with rfl | hj
-    · rw [Function.update_self]; exact hv
-    · rw [Function.update_of_ne hj]; exact hb j
-  have key := hf (Function.update b i v) hbv (f b)
-  simp only [welfare] at key
-  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i),
-    ← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self, hsum, hsum] at key
-  simp only [utility, groves, hh, hsum]
-  linarith
 
 private theorem exists_groves_of_payment_sub_const [Fintype ι] [DecidableEq ι]
     {M : Mechanism ι Ω} {V : ι → Set (Ω → ℝ)}
@@ -352,7 +316,7 @@ theorem exists_groves_of_isSmoothlyConnected [Fintype ι] [DecidableEq ι] {M : 
       ∀ b, (∀ j, b j ∈ V j) → ∀ i, M.payment b i = (groves M.outcome h).payment b i :=
   exists_groves_of_payment_sub_const fun i _ hb _ hv₀ _ hv₁ =>
     payment_sub_eq_of_isSmoothlyConnected (M₁ := M) (M₂ := groves M.outcome (fun _ _ => 0)) rfl hM
-      (groves_isDSICOn hf fun _ _ _ => rfl) (hV i) hb hv₀ hv₁
+      (groves_isDSICOn hf fun _ _ _ _ _ => rfl) (hV i) hb hv₀ hv₁
 
 /-- **Holmström's theorem on convex domains** ([Holmstrom1979]; [Nisan2007], §9.5.5, Theorem 9.37;
 locators not re-verified against primary PDF): if every agent's valuation domain `V i` is convex,
@@ -366,7 +330,7 @@ theorem exists_groves_of_convex [Fintype ι] [DecidableEq ι] {M : Mechanism ι 
       ∀ b, (∀ j, b j ∈ V j) → ∀ i, M.payment b i = (groves M.outcome h).payment b i :=
   exists_groves_of_payment_sub_const fun i _ hb _ hv₀ _ hv₁ =>
     payment_sub_eq_of_convex (M₁ := M) (M₂ := groves M.outcome (fun _ _ => 0)) rfl hM
-      (groves_isDSICOn hf fun _ _ _ => rfl) (hV i) hb hv₀ hv₁
+      (groves_isDSICOn hf fun _ _ _ _ _ => rfl) (hV i) hb hv₀ hv₁
 
 /-- **Green–Laffont theorem** ([GreenLaffont1977]; [Nisan2007], §9.5.5; locators not re-verified
 against primary PDF): on the unrestricted valuation domain `Ω → ℝ`, every DSIC, welfare-maximizing

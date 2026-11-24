@@ -46,12 +46,13 @@ that VCG on single-item outcomes is the Vickrey auction.
 
 * `Mechanism`: an outcome rule and a payment rule on reported valuation profiles.
 * `Mechanism.utility`, `Mechanism.IsDSIC`, `Mechanism.IsDSICOn`, `Mechanism.IsIR`.
-* `Mechanism.welfare`, `Mechanism.IsWelfareMaximizing`.
+* `Mechanism.welfare`, `Mechanism.IsWelfareMaximizing`, `Mechanism.IsWelfareMaximizingOn`.
 * `Mechanism.groves`, `Mechanism.clarkePivot`, `Mechanism.vcg`.
 
 ## Main results
 
-* `Mechanism.groves_isDSIC`: Groves mechanisms with a welfare-maximizing outcome rule are DSIC.
+* `Mechanism.groves_isDSICOn`, `Mechanism.groves_isDSIC`: Groves mechanisms with a
+  welfare-maximizing outcome rule are DSIC on restricted domains and on all real valuations.
 * `Mechanism.vcg_isDSIC`, `Mechanism.vcg_payment_nonneg`, `Mechanism.vcg_isIR`.
 * `Mechanism.exists_isDSIC_isWelfareMaximizing`: in every general mechanism design environment
   with finitely many outcomes there is a DSIC welfare-maximizing mechanism
@@ -60,6 +61,7 @@ that VCG on single-item outcomes is the Vickrey auction.
 
 ## References
 
+* [N. Nisan, *Introduction to Mechanism Design (for Computer Scientists)*][Nisan2007]
 * [T. Roughgarden, *CS364A: Algorithmic Game Theory*, lecture notes][Roughgarden2013CS364A]
 * [T. Roughgarden, *Twenty Lectures on Algorithmic Game Theory*][Roughgarden2016]
 * [E. H. Clarke, *Multipart pricing of public goods*][Clarke1971]
@@ -128,6 +130,10 @@ welfare ([Roughgarden2013CS364A], Lecture 7, (1)). -/
 @[expose] def IsWelfareMaximizing (f : (ι → Ω → ℝ) → Ω) : Prop :=
   ∀ b ω, welfare b ω ≤ welfare b (f b)
 
+/-- An outcome rule maximizes reported welfare on every profile in `V`. -/
+@[expose] def IsWelfareMaximizingOn (f : (ι → Ω → ℝ) → Ω) (V : ι → Set (Ω → ℝ)) : Prop :=
+  ∀ b, (∀ j, b j ∈ V j) → ∀ ω, welfare b ω ≤ welfare b (f b)
+
 private theorem welfare_eq_add [DecidableEq ι] (b : ι → Ω → ℝ) (i : ι) (ω : Ω) :
     welfare b ω = b i ω + ∑ j ∈ Finset.univ.erase i, b j ω :=
   (Finset.add_sum_erase _ _ (Finset.mem_univ i)).symm
@@ -144,18 +150,28 @@ private theorem sum_erase_update (b : ι → Ω → ℝ) (i : ι) (v : Ω → �
     ∑ j ∈ Finset.univ.erase i, Function.update b i v j ω = ∑ j ∈ Finset.univ.erase i, b j ω :=
   Finset.sum_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
 
+/-- **Groves mechanisms are DSIC on restricted domains** ([Nisan2007], Theorem 9.17; [Groves1973]):
+if `f` maximizes reported welfare on `V` and each pivot `h i` is independent of `i`'s report on `V`,
+then `groves f h` is incentive compatible on `V`. -/
+theorem groves_isDSICOn {f : (ι → Ω → ℝ) → Ω} {V : ι → Set (Ω → ℝ)}
+    (hf : IsWelfareMaximizingOn f V) {h : ι → (ι → Ω → ℝ) → ℝ}
+    (hh : ∀ i b v, (∀ j, b j ∈ V j) → v ∈ V i → h i (Function.update b i v) = h i b) :
+    (groves f h).IsDSICOn V := by
+  intro i b v hb hv
+  simp only [utility, groves, hh i b v hb hv, sum_erase_update]
+  have key := hf (Function.update b i v)
+    ((Function.forall_update_iff b fun j u => u ∈ V j).2 ⟨hv, fun j _ => hb j⟩) (f b)
+  rw [welfare_eq_add _ i, welfare_eq_add _ i, Function.update_self, sum_erase_update,
+    sum_erase_update] at key
+  linarith
+
 /-- **Groves mechanisms are DSIC** [Groves1973]: if the outcome rule maximizes reported welfare
 and the pivot `hᵢ` does not depend on `i`'s report, then `i`'s utility under truthful reporting is
 `∑ⱼ bⱼ(ω*) − hᵢ(b₋ᵢ)` with `bᵢ = vᵢ`, which the mechanism maximizes. -/
 theorem groves_isDSIC {f : (ι → Ω → ℝ) → Ω} (hf : IsWelfareMaximizing f)
     {h : ι → (ι → Ω → ℝ) → ℝ} (hh : ∀ i b v, h i (Function.update b i v) = h i b) :
-    (groves f h).IsDSIC := by
-  intro i b v
-  simp only [utility, groves, hh, sum_erase_update]
-  have key := hf (Function.update b i v) (f b)
-  rw [welfare_eq_add _ i, welfare_eq_add _ i, Function.update_self, sum_erase_update,
-    sum_erase_update] at key
-  linarith
+    (groves f h).IsDSIC :=
+  isDSICOn_univ_iff.1 <| groves_isDSICOn (fun b _ ω => hf b ω) fun i b v _ _ => hh i b v
 
 variable [Fintype Ω] [Nonempty Ω]
 

@@ -4,10 +4,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Mechanism.BulowKlemperer
-import CslibFrontier.GameTheory.Mechanism.FirstPrice
-import CslibFrontier.GameTheory.Mechanism.Holmstrom
-import CslibFrontier.GameTheory.Mechanism.MyersonSatterthwaite
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Init
+public import CslibFrontier.GameTheory.Mechanism.BulowKlemperer
+public import CslibFrontier.GameTheory.Mechanism.FirstPrice
+public import CslibFrontier.GameTheory.Mechanism.Holmstrom
+public import CslibFrontier.GameTheory.Mechanism.MyersonSatterthwaite
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 
 /-!
@@ -26,6 +30,8 @@ Non-vacuous client tests exercising:
   with reserve `1/2` earns `1/4 ≤ 1/3`, the `2`-bidder Vickrey revenue; general `n` application of
   both the DSIC and Bayes–Nash forms).
 -/
+
+public section
 
 namespace CslibFrontierTests.MechanismGrovesMS
 
