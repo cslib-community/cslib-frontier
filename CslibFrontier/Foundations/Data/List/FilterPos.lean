@@ -12,35 +12,33 @@ public import CslibFrontier.Init
 /-!
 # Filtered list positions and order-preserving index helpers
 
-Internal list-indexing infrastructure supporting concurrent history projections and locality proofs
-in `Cslib.Distributed.ConcurrentObjects`:
+Generic list-indexing helpers for positions of elements matching a Boolean predicate `pred`:
 
-* `nthFilterPos`: position in `l` of the `n`-th element satisfying a Boolean predicate `pred`, with
-  bounds, strict monotonicity, injectivity, and append equations.
-* `filter_getElem_count_take`: the `((cs.take k).filter pred).length`-th element of `cs.filter pred`
-  is `cs[k]` whenever `pred cs[k] = true`.
-* `filter_strictMono_indices` and `map_eq_of_strictMono_surj`: strictly monotone index embeddings
-  for filtered sublists and equality criteria via surjective strictly monotone position maps.
+* `List.nthFilterPos`: position in `l` of the `n`-th element satisfying `pred`, with bounds,
+  strict monotonicity, injectivity, and append equations.
+* `List.filter_getElem_count_take`: the `((cs.take k).filter pred).length`-th element of
+  `cs.filter pred` is `cs[k]` whenever `pred cs[k] = true`.
+* `List.filter_strictMono_indices` and `List.map_eq_of_strictMono_surj`: strictly monotone index
+  embeddings for filtered sublists and equality criteria via surjective strictly monotone
+  position maps.
 
 ## Main definitions
 
-* `Cslib.Distributed.ConcurrentObjects.nthFilterPos`: index of the `n`-th element of a list
-  satisfying a Boolean predicate.
+* `List.nthFilterPos`: index of the `n`-th element of a list satisfying a Boolean predicate.
 
 ## Main results
 
-* `Cslib.Distributed.ConcurrentObjects.nthFilterPos_strictMono`,
-  `Cslib.Distributed.ConcurrentObjects.nthFilterPos_inj`: `nthFilterPos` is strictly monotone and
+* `List.nthFilterPos_strictMono`, `List.nthFilterPos_inj`: `nthFilterPos` is strictly monotone and
   injective in the filtered rank `n`.
-* `Cslib.Distributed.ConcurrentObjects.filter_getElem_count_take`: lookup in `cs.filter pred` at
-  the prefix count `(cs.take k).filter pred`.
-* `Cslib.Distributed.ConcurrentObjects.map_eq_of_strictMono_surj`: a list whose positions are
-  strictly monotone, bounded, and surjective onto `0 ..< dst.length` maps onto `dst`.
+* `List.filter_getElem_count_take`: lookup in `cs.filter pred` at the prefix count
+  `(cs.take k).filter pred`.
+* `List.map_eq_of_strictMono_surj`: a list whose positions are strictly monotone, bounded, and
+  surjective onto `0 ..< dst.length` maps onto `dst`.
 -/
 
 public section
 
-namespace Cslib.Distributed.ConcurrentObjects
+namespace List
 
 /-- Position in `l` of the `n`-th element satisfying `pred` (`none` if at most `n` elements in `l`
 satisfy `pred`). -/
@@ -123,14 +121,6 @@ theorem nthFilterPos_lt_length {α : Type*} {pred : α → Bool} {l : List α} {
         exact ⟨by simp only [List.length_cons]; omega,
           by simp only [List.getElem?_cons_succ, List.filter, hpa, hget],
           by simp only [List.getElem?_cons_succ, hpr]⟩
-
-/-- Extract `o.map f = some v` from `o.map (fun a => decide (f a = v)) = some true`. -/
-theorem map_eq_some_of_map_decide {α β : Type*} [DecidableEq β] {o : Option α}
-    {f : α → β} {v : β} (h : o.map (fun a => decide (f a = v)) = some true) :
-    o.map f = some v := by
-  cases o with
-  | none => simp only [Option.map_none, reduceCtorEq] at h
-  | some a => simpa only [Option.map_some, Option.some.injEq, decide_eq_true_eq] using h
 
 /-- `nthFilterPos` is strictly monotone in the filtered rank `m < n`. -/
 theorem nthFilterPos_strictMono {α : Type*} {pred : α → Bool} {l : List α}
@@ -368,4 +358,4 @@ theorem filter_strictMono_indices {α : Type*} (l : List α) (pred : α → Bool
       · intro i; simp only [List.getElem_cons_succ, hval' i]
       · intro i j hij; have := hmono' i j hij; dsimp only; omega
 
-end Cslib.Distributed.ConcurrentObjects
+end List

@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Basic
 import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.CallIndex
-import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.FilterPos
 import Mathlib.Data.List.Dedup
 import Mathlib.Data.List.Nodup
 import Mathlib.Data.List.Perm.Basic
@@ -217,7 +216,7 @@ variable {P Obj : Type*} {Op Resp : Obj → Type*}
 
 /-- Position in `L` of the `n`-th event whose object is `x`. -/
 private def nthObjPos [DecidableEq Obj] (x : Obj) (L : History P Op Resp) (n : ℕ) : Option ℕ :=
-  nthFilterPos (fun e => decide (e.obj = x)) L n
+  List.nthFilterPos (fun e => decide (e.obj = x)) L n
 
 private theorem nthObjPos_nil [DecidableEq Obj] (x : Obj) (n : ℕ) :
     nthObjPos x ([] : History P Op Resp) n = none :=
@@ -230,10 +229,10 @@ private theorem nthObjPos_cons_zero [DecidableEq Obj] (x : Obj) (e : Event P Op 
   dsimp only [nthObjPos]
   by_cases h : e.obj = x
   · simp only [h, ↓reduceIte]
-    exact nthFilterPos_cons_zero_of_true (pred := fun a => decide (a.obj = x)) (a := e) rest
+    exact List.nthFilterPos_cons_zero_of_true (pred := fun a => decide (a.obj = x)) (a := e) rest
       (decide_eq_true h)
   · simp only [h, ↓reduceIte]
-    exact nthFilterPos_cons_of_false (pred := fun a => decide (a.obj = x)) (a := e) rest 0
+    exact List.nthFilterPos_cons_of_false (pred := fun a => decide (a.obj = x)) (a := e) rest 0
       (decide_eq_false h)
 
 private theorem nthObjPos_cons_succ [DecidableEq Obj] (x : Obj) (e : Event P Op Resp)
@@ -244,11 +243,11 @@ private theorem nthObjPos_cons_succ [DecidableEq Obj] (x : Obj) (e : Event P Op 
   dsimp only [nthObjPos]
   by_cases h : e.obj = x
   · simp only [h, ↓reduceIte]
-    exact nthFilterPos_cons_succ_of_true (pred := fun a => decide (a.obj = x)) (a := e) rest n
+    exact List.nthFilterPos_cons_succ_of_true (pred := fun a => decide (a.obj = x)) (a := e) rest n
       (decide_eq_true h)
   · simp only [h, ↓reduceIte]
-    exact nthFilterPos_cons_of_false (pred := fun a => decide (a.obj = x)) (a := e) rest (n + 1)
-      (decide_eq_false h)
+    exact List.nthFilterPos_cons_of_false (pred := fun a => decide (a.obj = x)) (a := e) rest
+      (n + 1) (decide_eq_false h)
 
 private theorem nthObjPos_cons_ne [DecidableEq Obj] (x : Obj) (e : Event P Op Resp)
     (rest : History P Op Resp) (n : ℕ) (h : e.obj ≠ x) :
@@ -283,12 +282,19 @@ private theorem objProjPos_lt_iff [DecidableEq Obj] (x : Obj) :
 
 private theorem nthObjPos_isSome_iff [DecidableEq Obj] (x : Obj) (L : History P Op Resp) (n : ℕ) :
     (nthObjPos x L n).isSome = true ↔ n < (History.objSubhistory L x).length :=
-  nthFilterPos_isSome_iff (fun e : Event P Op Resp => decide (e.obj = x)) L n
+  List.nthFilterPos_isSome_iff (fun e : Event P Op Resp => decide (e.obj = x)) L n
 
 private theorem nthObjPos_lt_length [DecidableEq Obj] {x : Obj} {L : History P Op Resp}
     {n m : ℕ} (h : nthObjPos x L n = some m) : m < L.length ∧ L[m]?.map Event.obj = some x := by
-  obtain ⟨hlt, _, hpr⟩ := nthFilterPos_lt_length h
-  exact ⟨hlt, map_eq_some_of_map_decide hpr⟩
+  obtain ⟨hlt, _, hpr⟩ := List.nthFilterPos_lt_length h
+  refine ⟨hlt, ?_⟩
+  cases hget : L[m]? with
+  | none =>
+    rw [hget] at hpr
+    simp only [Option.map_none, reduceCtorEq] at hpr
+  | some a =>
+    rw [hget] at hpr
+    simpa only [Option.map_some, Option.some.injEq, decide_eq_true_eq] using hpr
 
 private theorem nthObjPos_pair_of_isSequential [DecidableEq Obj] {x : Obj}
     {L : History P Op Resp} (hseq : History.IsSequential L) {k_x m : ℕ}
@@ -417,8 +423,8 @@ private theorem nthObjPos_eq_complete_of_odd [DecidableEq P] [DecidableEq Obj] {
 
 private theorem nthProcPos_cons_of_ne [DecidableEq P] {p : P} {e : Event P Op Resp}
     (rest : History P Op Resp) (n : ℕ) (h : e.proc ≠ p) :
-    History.nthProcPos p (e :: rest) n = (History.nthProcPos p rest n).map (· + 1) := by
-  cases n <;> simp only [History.nthProcPos, h, ↓reduceIte]
+    History.nthProcPos p (e :: rest) n = (History.nthProcPos p rest n).map (· + 1) :=
+  List.nthFilterPos_cons_of_false rest n (decide_eq_false h)
 
 private theorem nthProcPos_objSubhistory_eq [DecidableEq P] [DecidableEq Obj]
     {p : P} {x : Obj} :
@@ -437,23 +443,28 @@ private theorem nthProcPos_objSubhistory_eq [DecidableEq P] [DecidableEq Obj]
         | zero =>
           simp only [nthObjPos_cons_zero, hex, ↓reduceIte, Option.some.injEq] at hobj
           subst hobj
-          simp only [History.nthProcPos, hep, ↓reduceIte, Option.some.injEq] at hproc
+          simp only [History.nthProcPos, List.nthFilterPos, hep, decide_true, ↓reduceIte,
+            Option.some.injEq] at hproc
           subst hproc
           dsimp only [objProjPos]
           simp only [List.getElem?_cons_zero, Option.map_some, hex, History.objSubhistory_cons,
-            ↓reduceIte, History.nthProcPos, hep, and_self]
+            ↓reduceIte, History.nthProcPos, List.nthFilterPos, hep, decide_true, and_self]
         | succ n_x' =>
           simp only [nthObjPos_cons_succ, hex, ↓reduceIte, Option.map_eq_some_iff] at hobj
           obtain ⟨n', hn', rfl⟩ := hobj
-          simp only [History.nthProcPos, hep, ↓reduceIte, Option.map_eq_some_iff] at hproc
+          simp only [History.nthProcPos, List.nthFilterPos, hep, decide_true, ↓reduceIte,
+            Option.map_eq_some_iff] at hproc
           obtain ⟨pos', hpos', rfl⟩ := hproc
           obtain ⟨hm_obj, hm_pos⟩ := nthProcPos_objSubhistory_eq hn' hpos'
+          rw [History.nthProcPos] at hm_pos
           dsimp only [objProjPos]
           simp only [List.getElem?_cons_succ, hm_obj, History.objSubhistory_cons, hex, ↓reduceIte,
-            History.nthProcPos, hep, hm_pos, Option.map_some, and_self]
+            History.nthProcPos, List.nthFilterPos, hep, decide_true, hm_pos, Option.map_some,
+            and_self]
       · rw [nthObjPos_cons_ne x e _ n_x hex, Option.map_eq_some_iff] at hobj
         obtain ⟨n', hn', rfl⟩ := hobj
-        simp only [History.nthProcPos, hep, ↓reduceIte, Option.map_eq_some_iff] at hproc
+        simp only [History.nthProcPos, List.nthFilterPos, hep, decide_true, ↓reduceIte,
+          Option.map_eq_some_iff] at hproc
         obtain ⟨pos', hpos', rfl⟩ := hproc
         obtain ⟨hm_obj, hm_pos⟩ := nthProcPos_objSubhistory_eq hn' hpos'
         dsimp only [objProjPos]
@@ -539,10 +550,9 @@ private theorem liftOp_inj_of_isCompletedOp [DecidableEq P] [DecidableEq Obj]
   rw [heq, hi₂] at hi₁
   injection hi₁ with hi_eq
   subst hi_eq
-  dsimp only [History.invPos] at hproj₁ hproj₂
-  rw [hp_eq, History.nthProcPos_eq_nthFilterPos] at hproj₁
-  rw [History.nthProcPos_eq_nthFilterPos] at hproj₂
-  have h2eq := nthFilterPos_inj hproj₁ hproj₂
+  dsimp only [History.invPos, History.nthProcPos] at hproj₁ hproj₂
+  rw [hp_eq] at hproj₁
+  have h2eq := List.nthFilterPos_inj hproj₁ hproj₂
   ext
   · exact hp_eq
   · omega
@@ -973,8 +983,8 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
     intro p
     let ord_p := order.filter fun a => decide (a.1.proc = p)
     obtain ⟨fidx, hfval, hfmono⟩ :=
-      filter_strictMono_indices order (fun a => decide (a.1.proc = p))
-    refine map_eq_of_strictMono_surj (src := ord_p) (dst := pCalls p)
+      List.filter_strictMono_indices order (fun a => decide (a.1.proc = p))
+    refine List.map_eq_of_strictMono_surj (src := ord_p) (dst := pCalls p)
       (fun a => a.1.idx) callOf ?_ ?_ ?_
     · intro a ha
       have hap : a.1.proc = p := of_decide_eq_true (List.mem_filter.mp ha).2
@@ -1026,7 +1036,7 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
         exact congrArg (fun f => (List.filter f (order.take j)).length)
           (funext fun a => by simp only [Function.comp_apply, predP, hcallOf_proc a])
       rw [hcnt_eq]
-      obtain ⟨hlt_f, hget_f⟩ := filter_getElem_count_take predP order j hj (decide_eq_true rfl)
+      obtain ⟨hlt_f, hget_f⟩ := List.filter_getElem_count_take predP order j hj (decide_eq_true rfl)
       have hlen_ordp : (order.filter predP).length = (pCalls p).length := by
         have := congrArg List.length (hord_proc p).1
         simpa only [List.length_map, List.length_range] using this
@@ -1045,7 +1055,7 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
     rw [hfil_obj]
     let ord_x := order.filter fun a => decide ((callOf a).obj = x)
     obtain ⟨fidx, hfval, hfmono⟩ :=
-      filter_strictMono_indices order (fun a => decide ((callOf a).obj = x))
+      List.filter_strictMono_indices order (fun a => decide ((callOf a).obj = x))
     have hlocal_in_callsX : ∀ a : α, (callOf a).obj = x →
         (localOp a).idx < countProcCalls (localOp a).proc (callsX x) := by
       intro a hax
@@ -1067,7 +1077,7 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
       exact (exists_opIdAt_of_lt_countProcCalls (callsX x) (localOp a)
         (hlocal_in_callsX a hax)).choose_spec
     have hord_x_eq : ord_x.map callOf = callsX x := by
-      refine (map_eq_of_strictMono_surj (src := ord_x) (dst := callsX x)
+      refine (List.map_eq_of_strictMono_surj (src := ord_x) (dst := callsX x)
         posInSx callOf ?_ ?_ ?_).2
       · intro a ha
         have hax : (callOf a).obj = x := of_decide_eq_true (List.mem_filter.mp ha).2
@@ -1078,11 +1088,11 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
         have hcnt_j : countProcCalls p ((callsX x).take (posInSx a)) = (localOp a).idx := by
           have := congrArg OpId.idx hop_eq
           simpa only [opIdAt, localOp, hproc_j] using this
-        obtain ⟨hlt_cx, hget_cx⟩ := filter_getElem_count_take
+        obtain ⟨hlt_cx, hget_cx⟩ := List.filter_getElem_count_take
           (fun c : OpCall P Op Resp => decide (c.proc = p)) (callsX x) (posInSx a) hj
           (decide_eq_true hproc_j)
         have hk_p : a.1.idx < (pCalls p).length := (hcomp_op_iff a.1).mp a.2
-        obtain ⟨hlt_pc, hget_pc⟩ := filter_getElem_count_take
+        obtain ⟨hlt_pc, hget_pc⟩ := List.filter_getElem_count_take
           (fun c : OpCall P Op Resp => decide (c.obj = x)) (pCalls p) a.1.idx hk_p
           (decide_eq_true hax)
         have hlists_eq :

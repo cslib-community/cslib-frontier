@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.List.FilterPos
 public import Cslib.Foundations.Relation.Basic
-import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.FilterPos
 
 /-!
 # Concurrent histories, real-time precedence, and linearizability definitions
@@ -612,13 +612,8 @@ theorem IsExtension.refl [DecidableEq P] {H : History P Op Resp} (hwf : WellForm
 /-- Position in `H` of the `n`-th event belonging to process `p` (`none` if `p` has at most `n`
 events in `H`). -/
 @[expose]
-def nthProcPos [DecidableEq P] (p : P) : History P Op Resp → ℕ → Option ℕ
-  | [], _ => none
-  | e :: rest, 0 =>
-    if e.proc = p then some 0 else (nthProcPos p rest 0).map (· + 1)
-  | e :: rest, n + 1 =>
-    if e.proc = p then (nthProcPos p rest n).map (· + 1)
-    else (nthProcPos p rest (n + 1)).map (· + 1)
+def nthProcPos [DecidableEq P] (p : P) (H : History P Op Resp) (n : ℕ) : Option ℕ :=
+  List.nthFilterPos (fun e => decide (e.proc = p)) H n
 
 /-- Position in `H` of the invocation event of operation `e = (proc, idx)`. -/
 @[expose]
@@ -642,27 +637,11 @@ strictly precedes the invocation of `e₁` in `H`. -/
 def prec [DecidableEq P] (H : History P Op Resp) (e₀ e₁ : OpId P) : Prop :=
   ∃ r i, respPos H e₀ = some r ∧ invPos H e₁ = some i ∧ r < i
 
-private theorem nthProcPos_eq [DecidableEq P] (p : P) :
-    ∀ (H : History P Op Resp) (n : ℕ),
-      nthProcPos p H n = nthFilterPos (fun e => decide (e.proc = p)) H n
-  | [], _ => rfl
-  | e :: rest, 0 => by
-    dsimp only [nthProcPos, nthFilterPos]
-    by_cases hep : e.proc = p <;>
-      simp only [hep, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte,
-        nthProcPos_eq p rest 0]
-  | e :: rest, n + 1 => by
-    dsimp only [nthProcPos, nthFilterPos]
-    by_cases hep : e.proc = p
-    · simp only [hep, decide_true, ↓reduceIte, nthProcPos_eq p rest n]
-    · simp only [hep, decide_false, Bool.false_eq_true, ↓reduceIte, nthProcPos_eq p rest (n + 1)]
-
 /-- `e` is completed in `H` iff `2 * e.idx + 1 < (H | e.proc).length`. -/
 theorem isCompletedOp_iff_lt_length [DecidableEq P] (H : History P Op Resp) (e : OpId P) :
     IsCompletedOp H e ↔ 2 * e.idx + 1 < (procSubhistory H e.proc).length := by
-  dsimp only [IsCompletedOp, respPos, procSubhistory]
-  rw [nthProcPos_eq]
-  exact nthFilterPos_isSome_iff _ H _
+  dsimp only [IsCompletedOp, respPos, nthProcPos, procSubhistory]
+  exact List.nthFilterPos_isSome_iff _ H _
 
 /-- Equivalent histories have the same set of completed operations. -/
 theorem Equivalent.isCompletedOp_iff [DecidableEq P] {H₁ H₂ : History P Op Resp}
@@ -673,22 +652,20 @@ theorem Equivalent.isCompletedOp_iff [DecidableEq P] {H₁ H₂ : History P Op R
 /-- Every operation with a response at index `r` has an earlier invocation at some index `i < r`. -/
 theorem invPos_of_respPos [DecidableEq P] {H : History P Op Resp} {e : OpId P} {r : ℕ}
     (hr : respPos H e = some r) : ∃ i, invPos H e = some i ∧ i < r := by
-  have hr_flt : nthFilterPos (fun ev => decide (ev.proc = e.proc)) H (2 * e.idx + 1) = some r := by
-    rwa [← nthProcPos_eq]
+  have hr_flt :
+      List.nthFilterPos (fun ev => decide (ev.proc = e.proc)) H (2 * e.idx + 1) = some r :=
+    hr
   have hlen : 2 * e.idx + 1 < (H.filter fun ev => decide (ev.proc = e.proc)).length :=
-    (nthFilterPos_isSome_iff _ H _).mp (by rw [hr_flt]; rfl)
+    (List.nthFilterPos_isSome_iff _ H _).mp (by rw [hr_flt]; rfl)
   obtain ⟨i, hi_flt⟩ := Option.isSome_iff_exists.mp
-    ((nthFilterPos_isSome_iff (fun ev => decide (ev.proc = e.proc)) H (2 * e.idx)).mpr (by omega))
-  refine ⟨i, ?_, nthFilterPos_strictMono (by omega) hi_flt hr_flt⟩
-  dsimp only [invPos]
-  rwa [nthProcPos_eq]
+    ((List.nthFilterPos_isSome_iff (fun ev => decide (ev.proc = e.proc)) H (2 * e.idx)).mpr
+      (by omega))
+  exact ⟨i, hi_flt, List.nthFilterPos_strictMono (by omega) hi_flt hr_flt⟩
 
 /-- Real-time precedence `<_H` is irreflexive ([HerlihyWing1990], §2.2, p. 468). -/
 theorem prec_irrefl [DecidableEq P] (H : History P Op Resp) (e : OpId P) : ¬ prec H e e := by
   rintro ⟨r, i, hr, hi, hlt⟩
-  dsimp only [respPos, invPos] at hr hi
-  rw [nthProcPos_eq] at hr hi
-  have hir := nthFilterPos_strictMono (by omega : 2 * e.idx < 2 * e.idx + 1) hi hr
+  have hir := List.nthFilterPos_strictMono (by omega : 2 * e.idx < 2 * e.idx + 1) hi hr
   omega
 
 /-- Real-time precedence `<_H` is transitive ([HerlihyWing1990], §2.2, p. 468). -/
@@ -696,10 +673,8 @@ theorem prec_trans [DecidableEq P] {H : History P Op Resp} {e₀ e₁ e₂ : OpI
     (h₀₁ : prec H e₀ e₁) (h₁₂ : prec H e₁ e₂) : prec H e₀ e₂ := by
   obtain ⟨r₀, i₁, hr₀, hi₁, hlt₀⟩ := h₀₁
   obtain ⟨r₁, i₂, hr₁, hi₂, hlt₁⟩ := h₁₂
-  have hir₁ : i₁ < r₁ := by
-    dsimp only [invPos, respPos] at hi₁ hr₁
-    rw [nthProcPos_eq] at hi₁ hr₁
-    exact nthFilterPos_strictMono (by omega : 2 * e₁.idx < 2 * e₁.idx + 1) hi₁ hr₁
+  have hir₁ : i₁ < r₁ :=
+    List.nthFilterPos_strictMono (by omega : 2 * e₁.idx < 2 * e₁.idx + 1) hi₁ hr₁
   exact ⟨r₀, i₂, hr₀, hi₂, by omega⟩
 
 /-- On the subtype of completed operations of `H`, real-time precedence `<_H` forms a
@@ -722,10 +697,9 @@ theorem prec_of_same_proc_lt [DecidableEq P] {H : History P Op Resp} {e₀ e₁ 
   obtain ⟨r₁, hr₁⟩ := Option.isSome_iff_exists.mp hc₁
   obtain ⟨i₁, hi₁, _⟩ := invPos_of_respPos hr₁
   refine ⟨r₀, i₁, hr₀, hi₁, ?_⟩
-  dsimp only [respPos, invPos] at hr₀ hi₁
+  dsimp only [respPos, invPos, nthProcPos] at hr₀ hi₁
   rw [← hp] at hi₁
-  rw [nthProcPos_eq] at hr₀ hi₁
-  exact nthFilterPos_strictMono (by omega : 2 * e₀.idx + 1 < 2 * e₁.idx) hr₀ hi₁
+  exact List.nthFilterPos_strictMono (by omega : 2 * e₀.idx + 1 < 2 * e₁.idx) hr₀ hi₁
 
 end History
 

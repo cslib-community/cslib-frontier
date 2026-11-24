@@ -232,7 +232,8 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
     have hiS' : History.invPos S' e₁ = some S.length := by
       simp only [S', History.invPos, he₁_p, he₁_idx]
       rw [History.nthProcPos_append_right S _ (by rw [hSp_len]), hSp_len, Nat.sub_self]
-      simp only [History.nthProcPos, Event.proc_inv, ↓reduceIte, Option.map_some, Nat.zero_add]
+      simp only [History.nthProcPos, List.nthFilterPos, Event.proc_inv, decide_true, ↓reduceIte,
+        Option.map_some, Nat.zero_add]
     obtain ⟨hrS₀_lt, _⟩ := History.nthProcPos_lt_length hrS₀
     exact ⟨rS₀, S.length, hrS₀_S', hiS', hrS₀_lt⟩
 

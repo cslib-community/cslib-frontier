@@ -242,8 +242,9 @@ theorem exists_sequentiallyConsistent_not_linearizable :
         · obtain ⟨r, i, hr, hi, hlt⟩ := hpr_S
           simp only [History.respPos, History.invPos, List.flatMap_cons, List.flatMap_nil,
             OpCall.toEvents, List.cons_append, List.nil_append, History.nthProcPos,
-            Event.proc_inv, Event.proc_resp, hp₀, hp₁, Nat.mul_zero, Nat.zero_add,
-            Bool.true_eq_false, ↓reduceIte, Option.map_some, Option.some.injEq] at hr hi
+            List.nthFilterPos, Event.proc_inv, Event.proc_resp, hp₀, hp₁, Nat.mul_zero,
+            Nat.zero_add, decide_true, decide_false, Bool.true_eq_false, ↓reduceIte,
+            Option.map_some, Option.some.injEq] at hr hi
           omega
         · have hf := heqS false
           simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
@@ -338,7 +339,7 @@ theorem exists_obj_sequentiallyConsistent_not_global :
       have hidx : countProcCalls b (cs.take j) = idx := by
         have := congrArg OpId.idx hop
         simpa only [opIdAt, hpb] using this
-      obtain ⟨hlt, hget⟩ := filter_getElem_count_take (fun c => decide (c.proc = b)) cs j hj
+      obtain ⟨hlt, hget⟩ := List.filter_getElem_count_take (fun c => decide (c.proc = b)) cs j hj
         (decide_eq_true hpb)
       dsimp only [countProcCalls] at hidx
       subst hidx

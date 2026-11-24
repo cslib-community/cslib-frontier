@@ -3626,7 +3626,6 @@ public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Basic
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.CallIndex
-public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.FilterPos
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Locality
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Nonblocking
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Register
@@ -7664,6 +7663,7 @@ public import CslibFrontier.Foundations.Data.List.EraseDupsBy
 public import CslibFrontier.Foundations.Data.List.Extract
 public import CslibFrontier.Foundations.Data.List.Filter
 public import CslibFrontier.Foundations.Data.List.FilterMap
+public import CslibFrontier.Foundations.Data.List.FilterPos
 public import CslibFrontier.Foundations.Data.List.FlatMapPositions
 public import CslibFrontier.Foundations.Data.List.FlatMapRange
 public import CslibFrontier.Foundations.Data.List.Flatten

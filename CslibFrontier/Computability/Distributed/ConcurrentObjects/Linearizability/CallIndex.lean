@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Basic
-public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.FilterPos
 
 /-!
 # Sequential call indexing and completion helpers
@@ -168,69 +167,52 @@ theorem isRespList_le_one_of_isSequential {L R : History P Op Resp}
             exact Bool.noConfusion (hresp _ (List.mem_cons_of_mem _ List.mem_cons_self))
           | resp _ _ _ => cases rs' <;> exact False.elim hrs
 
-/-- `nthProcPos p H n` agrees with `nthFilterPos (fun e => decide (e.proc = p)) H n`. -/
-theorem nthProcPos_eq_nthFilterPos [DecidableEq P] (p : P) :
-    ∀ (H : History P Op Resp) (n : ℕ),
-      nthProcPos p H n = nthFilterPos (fun e => decide (e.proc = p)) H n
-  | [], _ => rfl
-  | e :: rest, 0 => by
-    dsimp only [nthProcPos, nthFilterPos]
-    by_cases hep : e.proc = p <;>
-      simp only [hep, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte,
-        nthProcPos_eq_nthFilterPos p rest 0]
-  | e :: rest, n + 1 => by
-    dsimp only [nthProcPos, nthFilterPos]
-    by_cases hep : e.proc = p
-    · simp only [hep, decide_true, ↓reduceIte, nthProcPos_eq_nthFilterPos p rest n]
-    · simp only [hep, decide_false, Bool.false_eq_true, ↓reduceIte,
-        nthProcPos_eq_nthFilterPos p rest (n + 1)]
-
 /-- `nthProcPos p H n` is `some` iff `n < (H | p).length`. -/
 theorem nthProcPos_isSome_iff [DecidableEq P] (p : P) (H : History P Op Resp) (n : ℕ) :
-    (nthProcPos p H n).isSome = true ↔ n < (procSubhistory H p).length := by
-  rw [nthProcPos_eq_nthFilterPos]
-  exact nthFilterPos_isSome_iff (fun e => decide (e.proc = p)) H n
+    (nthProcPos p H n).isSome = true ↔ n < (procSubhistory H p).length :=
+  List.nthFilterPos_isSome_iff (fun e : Event P Op Resp => decide (e.proc = p)) H n
 
 /-- Bounds and process projection at `nthProcPos p H n = some pos`. -/
 theorem nthProcPos_lt_length [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
     (h : nthProcPos p H n = some pos) : pos < H.length ∧ H[pos]?.map Event.proc = some p := by
-  rw [nthProcPos_eq_nthFilterPos] at h
-  obtain ⟨hlt, _, hpr⟩ := nthFilterPos_lt_length h
-  exact ⟨hlt, map_eq_some_of_map_decide hpr⟩
+  obtain ⟨hlt, _, hpr⟩ := List.nthFilterPos_lt_length h
+  refine ⟨hlt, ?_⟩
+  cases hget : H[pos]? with
+  | none =>
+    rw [hget] at hpr
+    simp only [Option.map_none, reduceCtorEq] at hpr
+  | some a =>
+    rw [hget] at hpr
+    simpa only [Option.map_some, Option.some.injEq, decide_eq_true_eq] using hpr
 
 /-- Lookup at `nthProcPos p H n = some pos` agrees with `(H | p)[n]?`. -/
 theorem nthProcPos_getElem? [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
-    (h : nthProcPos p H n = some pos) : H[pos]? = (procSubhistory H p)[n]? := by
-  rw [nthProcPos_eq_nthFilterPos] at h
-  exact (nthFilterPos_lt_length h).2.1
+    (h : nthProcPos p H n = some pos) : H[pos]? = (procSubhistory H p)[n]? :=
+  (List.nthFilterPos_lt_length h).2.1
 
 /-- `nthProcPos p H` is strictly monotone in the rank `m < n`. -/
 theorem nthProcPos_strictMono [DecidableEq P] {p : P} {H : History P Op Resp} {m n i j : ℕ}
-    (hmn : m < n) (hm : nthProcPos p H m = some i) (hn : nthProcPos p H n = some j) : i < j := by
-  rw [nthProcPos_eq_nthFilterPos] at hm hn
-  exact nthFilterPos_strictMono hmn hm hn
+    (hmn : m < n) (hm : nthProcPos p H m = some i) (hn : nthProcPos p H n = some j) : i < j :=
+  List.nthFilterPos_strictMono hmn hm hn
 
 /-- `nthProcPos` on `H₁ ++ H₂` for ranks within `H₁ | p`. -/
 theorem nthProcPos_append_left [DecidableEq P] {p : P} {H₁ : History P Op Resp}
     (H₂ : History P Op Resp) {n : ℕ} (hn : n < (procSubhistory H₁ p).length) :
-    nthProcPos p (H₁ ++ H₂) n = nthProcPos p H₁ n := by
-  rw [nthProcPos_eq_nthFilterPos, nthProcPos_eq_nthFilterPos]
-  exact nthFilterPos_append_left H₂ hn
+    nthProcPos p (H₁ ++ H₂) n = nthProcPos p H₁ n :=
+  List.nthFilterPos_append_left H₂ hn
 
 /-- `nthProcPos` on `H₁ ++ H₂` for ranks at or beyond `(H₁ | p).length`. -/
 theorem nthProcPos_append_right [DecidableEq P] {p : P} (H₁ H₂ : History P Op Resp) {n : ℕ}
     (hn : (procSubhistory H₁ p).length ≤ n) :
     nthProcPos p (H₁ ++ H₂) n =
-      (nthProcPos p H₂ (n - (procSubhistory H₁ p).length)).map (· + H₁.length) := by
-  rw [nthProcPos_eq_nthFilterPos, nthProcPos_eq_nthFilterPos]
-  exact nthFilterPos_append_right H₁ H₂ hn
+      (nthProcPos p H₂ (n - (procSubhistory H₁ p).length)).map (· + H₁.length) :=
+  List.nthFilterPos_append_right H₁ H₂ hn
 
 /-- Any `nthProcPos` match in `H₁ ++ H₂` landing before `H₁.length` comes from `H₁`. -/
 theorem nthProcPos_of_append_lt [DecidableEq P] {p : P} {H₁ H₂ : History P Op Resp}
     {n pos : ℕ} (h : nthProcPos p (H₁ ++ H₂) n = some pos) (hlt : pos < H₁.length) :
-    nthProcPos p H₁ n = some pos := by
-  rw [nthProcPos_eq_nthFilterPos] at h ⊢
-  exact nthFilterPos_of_append_lt h hlt
+    nthProcPos p H₁ n = some pos :=
+  List.nthFilterPos_of_append_lt h hlt
 
 end History
 
@@ -332,9 +314,9 @@ theorem nthFilterPos_flatMap_toEvents (pred : OpCall P Op Resp → Bool)
     (hresp_p : ∀ c : OpCall P Op Resp, evPred (.resp c.proc c.obj c.res) = pred c)
     (calls : List (OpCall P Op Resp)) (k : ℕ) (hk : k < calls.length)
     (hpk : pred calls[k] = true) :
-    nthFilterPos evPred (calls.flatMap OpCall.toEvents)
+    List.nthFilterPos evPred (calls.flatMap OpCall.toEvents)
         (2 * ((calls.take k).filter pred).length) = some (2 * k) ∧
-      nthFilterPos evPred (calls.flatMap OpCall.toEvents)
+      List.nthFilterPos evPred (calls.flatMap OpCall.toEvents)
         (2 * ((calls.take k).filter pred).length + 1) = some (2 * k + 1) := by
   induction calls generalizing k with
   | nil => simp only [List.length_nil] at hk; omega
@@ -344,9 +326,9 @@ theorem nthFilterPos_flatMap_toEvents (pred : OpCall P Op Resp → Bool)
       simp only [List.getElem_cons_zero] at hpk
       simp only [List.take_zero, List.filter_nil, List.length_nil, Nat.mul_zero, Nat.zero_add,
         List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
-        nthFilterPos_cons_zero_of_true _ ((hinv_p c).trans hpk),
-        nthFilterPos_cons_succ_of_true _ 0 ((hinv_p c).trans hpk),
-        nthFilterPos_cons_zero_of_true _ ((hresp_p c).trans hpk), Option.map_some, and_self]
+        List.nthFilterPos_cons_zero_of_true _ ((hinv_p c).trans hpk),
+        List.nthFilterPos_cons_succ_of_true _ 0 ((hinv_p c).trans hpk),
+        List.nthFilterPos_cons_zero_of_true _ ((hresp_p c).trans hpk), Option.map_some, and_self]
     | succ k' =>
       have hk' : k' < rest.length := by simp only [List.length_cons] at hk; omega
       simp only [List.getElem_cons_succ] at hpk
@@ -356,15 +338,16 @@ theorem nthFilterPos_flatMap_toEvents (pred : OpCall P Op Resp → Bool)
       cases hpc : pred c
       · have hpc_ne : ¬ pred c = true := by simp only [hpc, Bool.false_eq_true, not_false_eq_true]
         simp only [List.filter_cons_of_neg hpc_ne,
-          nthFilterPos_cons_of_false _ _ ((hinv_p c).trans hpc),
-          nthFilterPos_cons_of_false _ _ ((hresp_p c).trans hpc), hinv, hresp, Option.map_some]
+          List.nthFilterPos_cons_of_false _ _ ((hinv_p c).trans hpc),
+          List.nthFilterPos_cons_of_false _ _ ((hresp_p c).trans hpc), hinv, hresp, Option.map_some]
         exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
       · simp only [List.filter_cons_of_pos hpc, List.length_cons]
         have heq₁ : 2 * (((rest.take k').filter pred).length + 1) =
             2 * ((rest.take k').filter pred).length + 1 + 1 := by omega
         rw [heq₁]
-        simp only [nthFilterPos_cons_succ_of_true _ _ ((hinv_p c).trans hpc),
-          nthFilterPos_cons_succ_of_true _ _ ((hresp_p c).trans hpc), hinv, hresp, Option.map_some]
+        simp only [List.nthFilterPos_cons_succ_of_true _ _ ((hinv_p c).trans hpc),
+          List.nthFilterPos_cons_succ_of_true _ _ ((hresp_p c).trans hpc), hinv, hresp,
+          Option.map_some]
         exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
 
 /-- Invocation and response positions of `opIdAt calls j hj` in `calls.flatMap OpCall.toEvents` are
@@ -373,8 +356,7 @@ theorem invPos_respPos_opIdAt [DecidableEq P] (calls : List (OpCall P Op Resp))
     (j : ℕ) (hj : j < calls.length) :
     History.invPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j) ∧
       History.respPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j + 1) := by
-  dsimp only [History.invPos, History.respPos, opIdAt, countProcCalls]
-  rw [History.nthProcPos_eq_nthFilterPos, History.nthProcPos_eq_nthFilterPos]
+  dsimp only [History.invPos, History.respPos, History.nthProcPos, opIdAt, countProcCalls]
   exact nthFilterPos_flatMap_toEvents
     (fun c => decide (c.proc = calls[j].proc))
     (fun e => decide (e.proc = calls[j].proc))
