@@ -62,7 +62,7 @@ structure CrossingLength (N : ℤ × ℤ → ℝ) : Prop where
       + τ * (N (X - V) ^ 2 + N (Y - U) ^ 2) + (N (n - n') ^ 2 + N (k - k') ^ 2) / (2 * τ)
 
 /-- `N` is homogeneous along the natural numbers. -/
-def IsHomogeneous (N : ℤ × ℤ → ℝ) : Prop := ∀ (m : ℕ) h, N (m • h) = m * N h
+@[expose] def IsHomogeneous (N : ℤ × ℤ → ℝ) : Prop := ∀ (m : ℕ) h, N (m • h) = m * N h
 
 namespace CrossingLength
 

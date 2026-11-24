@@ -1277,10 +1277,12 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Rigidity
 public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Crossing
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Means
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Psi
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
