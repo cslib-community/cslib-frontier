@@ -217,8 +217,6 @@ theorem exists_truncSum_certificate {Adm : ℕ → ℕ → ℕ × DescribedNetwo
   set L : C → ℕ := fun c => (encC c).length with hL
   set lm : C → ℕ := fun c => (encNat (modulus c)).length with hlm
   set lk : C → ℕ := fun c => (encNat (count c)).length with hlk
-  have hlmp : PolyBounded L lm := hmodulus.polyBounded_length
-  have hlkp : PolyBounded L lk := hcount.polyBounded_length
   -- The input of a term, the network, the contraction and its coefficient sum.
   let Lq : C → ℕ := fun c => 2 * L c + 1 + lk c
   let Lb : C → ℕ := fun c => pBL (Lq c)
@@ -226,12 +224,6 @@ theorem exists_truncSum_certificate {Adm : ℕ → ℕ → ℕ × DescribedNetwo
   let Lo : C → ℕ := fun c => cO * (Sp c + 1)
   let Lp : C → ℕ := fun c => 2 * pSL (Lo c) + 1 + lm c
   let U : C → ℕ := fun c => pB (Lq c) + pS (Lo c) + pF (Lq c) + pM (Lp c) + Sp c
-  have hLq : PolyBounded L Lq := by growth_poly
-  have hLb : PolyBounded L Lb := (PolyBounded.of_polynomiallyBounded id hpBL).comp hLq
-  have hSp : PolyBounded L Sp := by growth_poly
-  have hLo : PolyBounded L Lo := (PolyBounded.const cO).mul (hSp.add (PolyBounded.const 1))
-  have hLp : PolyBounded L Lp := by growth_poly
-  have hU : PolyBounded L U := by growth_poly
   let W : C → ℕ := fun c => a * (L c + 1) ^ d + U c
   have hW : PolyBounded L W := by growth_poly
   obtain ⟨a', d', hWad⟩ := hW.exists_le
