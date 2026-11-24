@@ -1589,6 +1589,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Decoder.Circui
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Decoder.Fields
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Decoder.Shape
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Layout
+public import CslibFrontier.Computability.Circuit.Boolean.Tableau.LocalValueGame
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Space
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Succinct
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.ValueGame
