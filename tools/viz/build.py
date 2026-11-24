@@ -7,7 +7,7 @@
 Usage:
   python3 tools/viz/build.py [--out DIR] [--only NAME ...] [--no-video] [--ref REF]
 
-Writes every chart (PNG and SVG, a dark PNG and a CSV of its data), the evolution video, and the
+Writes every chart (PNG and SVG, a dark PNG and a CSV of its data), the two videos, and the
 interactive pages (briefing, module and result explorers, textbook map, areas) into `--out`
 (default `tools/viz/_site`). See tools/viz/README.md.
 """
@@ -33,6 +33,10 @@ import lean_census  # noqa: E402
 import plots_lean  # noqa: E402
 import plots_results  # noqa: E402
 import pages  # noqa: E402
+import atlas  # noqa: E402
+import streams  # noqa: E402
+import prs  # noqa: E402
+import github_prs  # noqa: E402
 import style  # noqa: E402
 
 
@@ -45,11 +49,20 @@ class Chart:
     reading: str
     render: Callable
     lean: bool = False  # needs the census of a build (`--lean-lib`)
+    prs: bool = False  # needs pull request metadata (`--fetch-prs` or `--prs-json`)
     themed: bool = True  # rendered in light and dark; the video and poster are dark only
     wide: bool = False  # spans the gallery
 
 
 CHARTS = [
+    Chart("atlas", "Growth", "An atlas of the library, growing",
+          "How did the library take shape, and how did its parts come to depend on each other?",
+          "A map in which areas are countries and sub-areas are provinces: every point belongs to "
+          "the sub-area of the nearest module. Modules keep their places for the whole video and "
+          "glow when a commit changes them; when a commit adds imports between two provinces, "
+          "comets fly from the importing one to the one it imports. Commits touching more than 150 "
+          "library files, such as the module-root rename, are left dark.", atlas.video,
+          themed=False, wide=True),
     Chart("evolution", "Growth", "The import graph, growing",
           "How did the library take shape, day by day?",
           "Each dot is a module, coloured by area and sized by its code. Lines are imports. Modules "
@@ -57,6 +70,11 @@ CHARTS = [
           "the module-root rename, are left dark. Every module keeps one position for the whole "
           "video, so new work appears where it belongs and the camera pulls back as the graph "
           "grows.", evolution.video, themed=False, wide=True),
+    Chart("lifetime-streams", "Growth", "The library's lifetime, sub-area by sub-area",
+          "Which parts of the library grew when?",
+          "Lines of code in each sub-area every six hours, as a river centred on zero; streams "
+          "keep their area's colour in different shades. Small sub-areas are folded into their "
+          "area's \"other\".", streams.streamgraph, wide=True),
     Chart("growth-by-area", "Growth", "Code by area", "Which areas drove the growth?",
           "Stacked lines of code, excluding comments and blank lines, in each top-level area of "
           "CslibFrontier/ at the end of every UTC day. Areas past the seventh largest share the "
@@ -126,12 +144,26 @@ CHARTS = [
           "The longest import chain over time, and how deep each module sits today. However many "
           "cores a build has, it cannot finish faster than this chain elaborates one module after "
           "another.", plots_growth.import_depth),
+    Chart("pr-growth-vs-cleanup", "Pull requests", "Growth and cleanup",
+          "Does the project pause to consolidate?",
+          "Lines changed by merged pull requests every six hours: new results (feat) above the "
+          "axis, refactoring and performance below, and the share of that work that was cleanup.",
+          prs.growth_vs_cleanup, prs=True, wide=True),
+    Chart("pr-waterfall", "Pull requests", "Every pull request, from opened to merged",
+          "How long does work wait, and how much is in flight?",
+          "Each pull request is a line from opening to merge, close or now, in order of opening, "
+          "coloured by kind. Below, how many were open at each moment and how many merged each "
+          "hour.", prs.waterfall, prs=True, wide=True),
+    Chart("atlas-poster", "Dependencies", "The atlas today",
+          "What does the library look like as a map?",
+          "The final frame of the atlas at 4K: countries are areas, provinces sub-areas, each "
+          "laid out by its own imports.", atlas.poster, themed=False, wide=True),
     Chart("cadence", "Activity", "When work lands", "When do commits reach main?",
           "Commits that change Lean files, by UTC day and hour, with the daily total below.",
           plots_structure.cadence),
 ]
 BY_NAME = {c.name: c for c in CHARTS}
-SECTIONS = ["Growth", "Structure", "Dependencies", "Activity"]
+SECTIONS = ["Growth", "Structure", "Dependencies", "Pull requests", "Activity"]
 
 
 def _files(name: str, paths: list[Path]) -> dict[str, str]:
@@ -148,7 +180,14 @@ def main() -> int:
     ap.add_argument("--repo", type=Path, default=HERE)
     ap.add_argument("--ref", default="HEAD")
     ap.add_argument("--only", nargs="*", choices=sorted(BY_NAME), default=None)
-    ap.add_argument("--no-video", action="store_true", help="skip the evolution video")
+    ap.add_argument("--no-video", action="store_true", help="skip the two videos")
+    ap.add_argument("--fetch-prs", action="store_true",
+                    help="fetch pull request metadata from GitHub (GITHUB_TOKEN or GH_TOKEN)")
+    ap.add_argument("--prs-json", type=Path, default=None,
+                    help="reuse pull request metadata saved by an earlier run (prs.json)")
+    ap.add_argument("--prs-previous", default=None,
+                    help="with --fetch-prs: URL or file of the previously published prs.json; "
+                         "only pull requests updated since are fetched")
     ap.add_argument("--lean-lib", type=Path, default=None,
                     help="build outputs (.lake/build/lib/lean) of the commit being visualized; "
                          "enables the Lean census views")
@@ -181,7 +220,26 @@ def main() -> int:
                                      require_registry=args.require_registry)
         print(f"lean census: {len(census[0]['modules'])} modules, series of {len(census[1])} "
               f"({time.time() - t:.1f}s)", flush=True)
-    names = args.only or [c.name for c in CHARTS if not (args.no_video and c.name == "evolution")]
+    raw_prs = None
+    if args.prs_json:
+        raw_prs = json.loads(args.prs_json.read_text())
+    elif args.fetch_prs:
+        if github_prs.token():
+            t = time.time()
+            prev = github_prs.load_previous(args.prs_previous) if args.prs_previous else []
+            raw_prs = github_prs.update(prev) if prev else github_prs.fetch()
+            how = f"updated from {len(prev)} published" if prev else "fetched"
+            print(f"pull requests: {len(raw_prs)} {how} ({time.time() - t:.1f}s)", flush=True)
+        else:
+            print("warning: no GITHUB_TOKEN or GH_TOKEN; pull request views are skipped",
+                  file=sys.stderr, flush=True)
+    pr_recs = None
+    if raw_prs is not None:
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "prs.json").write_text(json.dumps(raw_prs, separators=(",", ":")))
+        pr_recs = prs.records(H, raw_prs)
+    videos = {"atlas", "evolution"}
+    names = args.only or [c.name for c in CHARTS if not (args.no_video and c.name in videos)]
     built: dict[str, list[Path]] = {}
     for c in CHARTS:
         if c.name not in names:
@@ -189,18 +247,22 @@ def main() -> int:
         if c.lean and census is None:
             print(f"{c.name}: skipped (needs --lean-lib)", flush=True)
             continue
+        if c.prs and pr_recs is None:
+            print(f"{c.name}: skipped (needs --fetch-prs or --prs-json)", flush=True)
+            continue
         t = time.time()
         paths: list[Path] = []
         for theme in ((style.LIGHT, style.DARK) if c.themed else (style.LIGHT,)):
             style.setup(theme)
-            got = c.render(H, args.out, census) if c.lean else c.render(H, args.out)
+            got = (c.render(H, args.out, census) if c.lean else
+                   c.render(H, args.out, pr_recs) if c.prs else c.render(H, args.out))
             paths += [p for p in got if p not in paths]
         style.setup(style.LIGHT)
         built[c.name] = paths
         print(f"{c.name}: {', '.join(p.name for p in paths)} ({time.time() - t:.1f}s)", flush=True)
     # A partial rebuild (`--only`) keeps the views already in the output directory.
     for c in CHARTS:
-        if c.name not in built and not (c.lean and census is None):
+        if c.name not in built and not (c.lean and census is None) and not (c.prs and pr_recs is None):
             kept = [args.out / f for f in (f"{c.name}.mp4", f"{c.name}.png", f"{c.name}-dark.png",
                                           f"{c.name}.svg", f"{c.name}.csv")
                     if (args.out / f).exists()]
@@ -210,7 +272,7 @@ def main() -> int:
                "reading": c.reading, "files": _files(c.name, built[c.name]), "wide": c.wide}
               for c in CHARTS if c.name in built]
     t = time.time()
-    written = pages.build(args.out, H, census, charts, SECTIONS, args.repo_url)
+    written = pages.build(args.out, H, census, charts, SECTIONS, args.repo_url, pr_recs)
     print(f"pages: {', '.join(p.name for p in written)} ({time.time() - t:.1f}s)", flush=True)
     return 0
 

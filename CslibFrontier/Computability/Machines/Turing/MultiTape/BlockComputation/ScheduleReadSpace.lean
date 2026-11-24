@@ -35,14 +35,14 @@ theorem step_inSpace (k c δ : ℕ) :
     ComputableInSpace (step k c δ) encState encState (fun a => (encState a).length) := by
   have hs := fst encNat encNat
   have hn := snd encNat encNat
-  have hnext := budget_natDiv hs (budget_const (encB := encNat) (3 ^ (k + 1)) (.refl _))
+  have hnext := budget_natDiv hs (budget_const (encB := encNat) (3 ^ (k + 1)))
   have hdigit := budget_natMod
-    (budget_natDiv hs (budget_const (encB := encNat) (3 ^ c) (.refl _)))
-    (budget_const (encB := encNat) 3 (.refl _))
-  have htest := budget_natEq hdigit (budget_const (encB := encNat) δ (.refl _))
+    (budget_natDiv hs (budget_const (encB := encNat) (3 ^ c)))
+    (budget_const (encB := encNat) 3)
+  have htest := budget_natEq hdigit (budget_const (encB := encNat) δ)
   have hinc := budget_ite htest
-    (budget_const (encB := encNat) 1 (.refl _))
-    (budget_const (encB := encNat) 0 (.refl _))
+    (budget_const (encB := encNat) 1)
+    (budget_const (encB := encNat) 0)
   exact (budget_prod hnext (budget_natAdd hn hinc)).of_enc_eq fun a => by
     simp only [step, encState, decide_eq_true_eq]
 
@@ -51,7 +51,7 @@ count, including when the schedule is zero and the interval count is very large.
 theorem read_inSpace (k c δ : ℕ) :
     ComputableInSpace (read k c δ) encState encNat (fun a => (encState a).length) := by
   have hinit := budget_prod (fst encNat encNat)
-    (budget_const (encB := encNat) 0 (.refl _))
+    (budget_const (encB := encNat) 0)
   have hstates (a : ℕ × ℕ) (j : ℕ) (hj : j ≤ a.2) :
       (encState ((step k c δ)^[j] (a.1, 0))).length ≤ (encState a).length := by
     have hs := length_encNat_mono (iterate_fst_le k c δ a.1 j)

@@ -86,7 +86,7 @@ private theorem path_inSpace :
       (fun st => (encList encFrame st).length) := of_inO ComputableInDegree.id'.inO_one
   have hinit : ComputableInSpace (fun _ : List Frame => ([] : List ℕ))
       (encList encFrame) (encList encNat) (fun st => (encList encFrame st).length) :=
-    budget_const [] (.refl _)
+    budget_const []
   have hstep : ComputableInSpace (fun q : List ℕ × Frame => q.2.2.1 :: q.1)
       (encPair (encList encNat) encFrame) (encList encNat)
       (fun q => (encPair (encList encNat) encFrame q).length) := by
@@ -123,7 +123,8 @@ theorem validBank_inSpace :
   have hpad := budget_comp_linear bankPadding_inSpace (budget_prod hp hbank)
   have hlength := budget_length hbank
   have hshape := budget_natEq hlength (budget_natMul (budget_natSucc hd) hr)
-  have htwo := budget_const (encIn := encFullState) (encB := encNat) 2 (.refl _)
+  have htwo :=
+    budget_const (Bs := fun a => (encFullState a).length) (encIn := encFullState) (encB := encNat) 2
   have hpok := budget_finite (encC := encBool) Bool.not (budget_natLt hp htwo)
   have hand := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 && q.2)
     (budget_prod hpok hshape)
@@ -156,12 +157,15 @@ private theorem needCore_inSpace :
   have hparent := budget_comp_linear path_inSpace htail
   have hpoint := budget_comp_linear point_inSpace
     (budget_prod (budget_prod hd (budget_prod hr htarget)) hbank)
-  have hz := budget_const (encIn := encFullState) (encB := encNat) 0 (.refl _)
+  have hz :=
+    budget_const (Bs := fun a => (encFullState a).length) (encIn := encFullState) (encB := encNat) 0
   have hnode := budget_optionSome (budget_prod hz (budget_prod hpath
-    (budget_prod (budget_const (encB := encList encNat) [] (.refl _)) hz)))
+    (budget_prod (budget_const (encB := encList encNat) []) hz)))
   have hgate := budget_optionSome (budget_prod
-    (budget_const (encB := encNat) 1 (.refl _)) (budget_prod hparent (budget_prod hpoint hz)))
-  have hnone := budget_const (encIn := encFullState) (encB := encOption encNeed) none (.refl _)
+    (budget_const (encB := encNat) 1) (budget_prod hparent (budget_prod hpoint hz)))
+  have hnone :=
+    budget_const (Bs := fun a => (encFullState a).length) (encIn := encFullState)
+      (encB := encOption encNeed) none
   have hskip := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 || q.2)
     (budget_prod hundo (budget_natLt (budget_natSucc hchild) hd))
   refine (budget_ite (budget_optionIsSome hmode) hnode
@@ -179,7 +183,7 @@ theorem need_inSpace :
     ComputableInSpace (fun q : Params × State => need q.1.1 q.1.2.1 q.1.2.2 q.2)
       encFullState (encOption encNeed) (fun q => (encFullState q).length) :=
   (budget_ite validBank_inSpace needCore_inSpace
-    (budget_const none (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const none)).of_enc_eq fun _ => rfl
 
 private theorem reg_budget {α : Type} {encIn : α ↪ List Bool} {S : α → ℕ}
     {d t j : α → ℕ} (hd : ComputableInSpace d encIn encNat S)
@@ -248,15 +252,14 @@ private theorem beginRound_budget {α : Type} {encIn : α ↪ List Bool} {S : α
     (hr : ComputableInSpace r encIn encNat S) (hi : ComputableInSpace round encIn encNat S)
     (hc : ComputableInSpace c encIn encNat S) (ht : ComputableInSpace t encIn encNat S)
     (hb : ComputableInSpace bank encIn (encList encNat) S)
-    (hs : ComputableInSpace stack encIn (encList encFrame) S)
-    (hlen : (fun a => (encIn a).length) ≼ S) :
+    (hs : ComputableInSpace stack encIn (encList encFrame) S) :
     ComputableInSpace (fun a => checkedBeginRound (p a) (d a) (r a) (round a) (c a) (t a)
       (bank a) (stack a)) encIn encState S := by
-  have hz := budget_const (encB := encNat) 0 hlen
-  have hone := budget_const (encB := encNat) 1 hlen
+  have hz := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 0
+  have hone := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 1
   have hreg := reg_budget hd ht hz
   exact (state_budget (scale_budget hp hr hreg (budget_natSucc hi) hb)
-    (budget_cons (frame_budget hi hz (budget_const false hlen) hc ht) hs)
+    (budget_cons (frame_budget hi hz (budget_const false) hc ht) hs)
     (budget_optionSome (budget_prod hone hreg))).of_enc_eq fun _ => rfl
 
 private def checkedCall (p d r : ℕ) (reply : Reply) (bank : List ℕ) (stack : List Frame)
@@ -273,17 +276,17 @@ private theorem call_budget {α : Type} {encIn : α ↪ List Bool} {S : α → �
     (ht : ComputableInSpace t encIn encNat S) (htag : ComputableInSpace tag encIn encNat S)
     (hb : ComputableInSpace bank encIn (encList encNat) S)
     (hv : ComputableInSpace values encIn (encList encNat) S)
-    (hs : ComputableInSpace stack encIn (encList encFrame) S)
-    (hlen : (fun a => (encIn a).length) ≼ S) :
+    (hs : ComputableInSpace stack encIn (encList encFrame) S) :
     ComputableInSpace (fun a => checkedCall (p a) (d a) (r a) (tag a, values a)
       (bank a) (stack a) (c a, t a)) encIn encState S := by
-  have hz := budget_const (encB := encNat) 0 hlen
-  have hone := budget_const (encB := encNat) 1 hlen
-  have htwo := budget_const (encB := encNat) 2 hlen
-  have hnone := budget_const (encB := encOption (encPair encNat encNat)) none hlen
+  have hz := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 0
+  have hone := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 1
+  have htwo := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 2
+  have hnone :=
+    budget_const (encIn := encIn) (Bs := S) (encB := encOption (encPair encNat encNat)) none
   have hreturn := state_budget hb hs hnone
   have hleaf := state_budget (add_budget hp hr ht hc hv hb) hs hnone
-  have hbegin := beginRound_budget hp hd hr hz hc ht hb hs hlen
+  have hbegin := beginRound_budget hp hd hr hz hc ht hb hs
   refine (budget_ite (budget_natEq htag hone) hleaf
     (budget_ite (budget_natEq htag htwo)
       (budget_ite (budget_natIsZero (budget_natPred hp)) hreturn hbegin) hreturn)).of_enc_eq ?_
@@ -324,8 +327,7 @@ private theorem return_budget {α : Type} {encIn : α ↪ List Bool} {S : α →
     (hb : ComputableInSpace bank encIn (encList encNat) S)
     (hv : ComputableInSpace values encIn (encList encNat) S)
     (hf : ComputableInSpace fr encIn encFrame S)
-    (hs : ComputableInSpace st encIn (encList encFrame) S)
-    (hlen : (fun a => (encIn a).length) ≼ S) :
+    (hs : ComputableInSpace st encIn (encList encFrame) S) :
     ComputableInSpace (fun a => checkedReturn (p a) (d a) (r a) (0, values a)
       (bank a) (fr a) (st a)) encIn encState S := by
   have hround := fst' hf
@@ -336,11 +338,12 @@ private theorem return_budget {α : Type} {encIn : α ↪ List Bool} {S : α →
   have hct := snd' htail
   have hc := fst' hct
   have ht := snd' hct
-  have hz := budget_const (encB := encNat) 0 hlen
-  have hone := budget_const (encB := encNat) 1 hlen
-  have htrue := budget_const (encB := encBool) true hlen
-  have hfalse := budget_const (encB := encBool) false hlen
-  have hnone := budget_const (encB := encOption (encPair encNat encNat)) none hlen
+  have hz := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 0
+  have hone := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 1
+  have htrue := budget_const (encIn := encIn) (Bs := S) (encB := encBool) true
+  have hfalse := budget_const (encIn := encIn) (Bs := S) (encB := encBool) false
+  have hnone :=
+    budget_const (encIn := encIn) (Bs := S) (encB := encOption (encPair encNat encNat)) none
   have hnext := budget_natSucc hchild
   have hreg := reg_budget hd ht hchild
   have hregNext := reg_budget hd ht hnext
@@ -351,7 +354,7 @@ private theorem return_budget {α : Type} {encIn : α ↪ List Bool} {S : α →
   have hundoNext := state_budget hscaled
     (budget_cons (frame_budget hround hnext htrue hc ht) hs)
     (budget_optionSome (budget_prod hneg hregNext))
-  have hnextRound := beginRound_budget hp hd hr (budget_natSucc hround) hc ht hscaled hs hlen
+  have hnextRound := beginRound_budget hp hd hr (budget_natSucc hround) hc ht hscaled hs
   have hpop := state_budget hscaled hs hnone
   have hundoResult := budget_ite (budget_natLt hnext hd) hundoNext
     (budget_ite (budget_natLt (budget_natSucc hround) hneg) hnextRound hpop)
@@ -391,7 +394,7 @@ private theorem checkedStepCore_inSpace :
   have hreply := snd encFullState encReply
   have hvalues := snd' hreply
   have hret := return_budget hp hd hr hbank hvalues
-    (budget_headD (0, 0, false, 0, 0) hstack) (budget_tail hstack) (.refl _)
+    (budget_headD (0, 0, false, 0, 0) hstack) (budget_tail hstack)
   have hstop := budget_ite (budget_isEmpty hstack) hq hret
   have hctx := fst encStepArgs (encPair encNat encNat)
   have hctxFull := budget_comp_linear hfull hctx
@@ -401,7 +404,7 @@ private theorem checkedStepCore_inSpace :
   have hct := snd encStepArgs (encPair encNat encNat)
   have hcall := call_budget (fst' hctxPar) (fst' (snd' hctxPar)) (snd' (snd' hctxPar))
     (fst' hct) (snd' hct) (fst' hctxReply)
-    (fst' hctxState) (snd' hctxReply) (fst' (snd' hctxState)) (.refl _)
+    (fst' hctxState) (snd' hctxReply) (fst' (snd' hctxState))
   have hid : ComputableInSpace (fun a : (Params × State) × Reply => a) encStepArgs encStepArgs
       (fun a => (encStepArgs a).length) := of_inO ComputableInDegree.id'.inO_one
   refine (budget_comp_linear (optionElimSnd hstop hcall) (budget_prod hid hmode)).of_enc_eq ?_

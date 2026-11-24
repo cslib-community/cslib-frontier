@@ -17,13 +17,13 @@ import CslibFrontier.Foundations.Data.Set.SymmDiff
 /-!
 # Graphs with an even number of edges
 
-`SimpleGraph.EvenEdges G` says that `G` has an even number of edges, counted with `Set.ncard`.
-Toggling one potential edge, that is, taking the symmetric difference with `SimpleGraph.edge u v`
-for distinct `u` and `v`, flips this parity on finitely many vertices.
+`SimpleGraph.EvenEdges G` says that a finite graph `G` has an even number of edges, counted with
+`Set.ncard`. Toggling one potential edge, that is, taking the symmetric difference with
+`SimpleGraph.edge u v` for distinct `u` and `v`, flips this parity.
 
 ## Main definitions
 
-* `SimpleGraph.EvenEdges`: a graph with an even number of edges.
+* `SimpleGraph.EvenEdges`: a finite graph with an even number of edges.
 
 ## Main results
 
@@ -35,9 +35,11 @@ public section
 
 namespace SimpleGraph
 
-/-- A graph has an even number of edges. -/
-@[expose]
-def EvenEdges {V : Type*} (G : SimpleGraph V) : Prop :=
+/-- A graph on finitely many vertices has an even number of edges. The finite vertex type ensures
+that `Set.ncard` counts the edges rather than returning `0` on an infinite edge set. -/
+-- Finiteness restricts the public domain; `ncard` itself does not require it.
+@[expose, nolint unusedArguments]
+def EvenEdges {V : Type*} [Finite V] (G : SimpleGraph V) : Prop :=
   Even G.edgeSet.ncard
 
 /-- Toggling one potential edge `uv` of a graph on finitely many vertices changes the parity of
