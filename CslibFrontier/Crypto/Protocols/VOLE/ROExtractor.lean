@@ -23,6 +23,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
 import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
 import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
@@ -2546,6 +2547,1334 @@ theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
     toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx Rel checkRel hSound A
       hleaf_tot hfs_tot (([], []), false) false rfl
 
+private theorem voleithStickyMemoize_goodInv_backwards {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Wit)
+    (chalToIdx : Chal → Fin (2 ^ d)) (Rel : Stmt → Wit → Bool)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (q : LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen Stmt IV PreMsg)
+    (s s' : VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
+    (a : VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal q)
+    (hs' : (a, s') ∈
+      (voleithStickyMemoize expand decWit chalToIdx Rel checkRel q s).support)
+    (hclean' : s'.2 = false)
+    (hinv' : VOLEITHGoodInv expand decWit chalToIdx Rel checkRel s'.1) :
+    s.2 = false ∧ VOLEITHGoodInv expand decWit chalToIdx Rel checkRel s.1 := by
+  have hclean : s.2 = false := by
+    by_contra htrue
+    have hbad : OracleComp.FlagBad s := by
+      cases hs2 : s.2 <;> simp_all [OracleComp.FlagBad]
+    rcases s with ⟨tr, b⟩
+    dsimp only [OracleComp.FlagBad] at hbad
+    subst hbad
+    have hbad' := OracleComp.isFlagMonotone_withBadFlag
+      (voleithStepKernel expand decWit chalToIdx Rel checkRel) q tr (a, s') hs'
+    simp [OracleComp.FlagBad, hclean'] at hbad'
+  refine ⟨hclean, ?_⟩
+  rcases s with ⟨⟨tr₁, tr₂⟩, b⟩
+  dsimp only at hclean
+  subst hclean
+  simp only [voleithStickyMemoize, OracleComp.withBadFlag_false] at hs'
+  rcases q with ql | qf
+  · dsimp only [voleithStepKernel] at hs'
+    cases hlook : tr₁.lookup ql with
+    | some out =>
+      simp only [hlook, PMF.mem_support_pure_iff, Prod.mk.injEq] at hs'
+      obtain ⟨_, rfl⟩ := hs'
+      exact hinv'
+    | none =>
+      simp only [hlook, PMF.mem_support_map_iff, Prod.mk.injEq] at hs'
+      obtain ⟨out, -, _, rfl⟩ := hs'
+      simp only at hclean'
+      have hnot : out.com ∉ seenComList (tr₁, tr₂) := by
+        simpa only [decide_eq_false_iff_not] using hclean'
+      refine ⟨(List.pairwise_cons.mp hinv'.1).2, fun e he => ?_⟩
+      have hsub : ∀ idx : Fin (2 ^ d),
+          extractLeafFromTrace ((ql, out) :: tr₁) e.1.iv e.1.coms idx =
+            extractLeafFromTrace tr₁ e.1.iv e.1.coms idx := by
+        intro idx
+        apply extractLeafFromTrace_cons_of_ne
+        intro hcom_eq
+        apply hnot
+        simp only [seenComList, List.mem_append, List.mem_flatMap, List.mem_ofFn]
+        right
+        exact ⟨e, he, ⟨idx, hcom_eq.symm⟩⟩
+      have hrows : extractRowsFromTrace expand ((ql, out) :: tr₁) e.1.iv e.1.coms =
+          extractRowsFromTrace expand tr₁ e.1.iv e.1.coms := by
+        funext idx
+        simp only [extractRowsFromTrace, hsub idx]
+      have he' := hinv'.2 e he
+      dsimp only at he' ⊢
+      rwa [hrows] at he'
+  · dsimp only [voleithStepKernel] at hs'
+    cases hlook : tr₂.lookup qf with
+    | some delta =>
+      simp only [hlook, PMF.mem_support_pure_iff, Prod.mk.injEq] at hs'
+      obtain ⟨_, rfl⟩ := hs'
+      exact hinv'
+    | none =>
+      simp only [hlook, PMF.mem_support_map_iff, Prod.mk.injEq] at hs'
+      obtain ⟨delta, -, _, rfl⟩ := hs'
+      exact ⟨hinv'.1, fun e he => hinv'.2 e (List.mem_cons_of_mem _ he)⟩
+
+private theorem runWith_voleithStickyMemoize_goodInv_backwards {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit α : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Wit)
+    (chalToIdx : Chal → Fin (2 ^ d)) (Rel : Stmt → Wit → Bool)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (prog : ProbOracleComp (VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) α)
+    (s s' : VOLEITHStickyState d sdLen comLen rowLen Stmt Seed IV PreMsg Chal)
+    (a : α)
+    (hs' : (a, s') ∈ (ProbOracleComp.runWith
+      (voleithStickyMemoize expand decWit chalToIdx Rel checkRel) prog s).support)
+    (hclean' : s'.2 = false)
+    (hinv' : VOLEITHGoodInv expand decWit chalToIdx Rel checkRel s'.1) :
+    s.2 = false ∧ VOLEITHGoodInv expand decWit chalToIdx Rel checkRel s.1 := by
+  induction prog using ProbOracleComp.induction generalizing s with
+  | pure r =>
+    simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hs'
+    obtain ⟨_, rfl⟩ := hs'
+    exact ⟨hclean', hinv'⟩
+  | sample_bind n cont ih =>
+    rw [ProbOracleComp.runWith_bind, PMF.mem_support_bind_iff] at hs'
+    obtain ⟨⟨r, sm⟩, hsm, hrest⟩ := hs'
+    rw [ProbOracleComp.runWith_sample, PMF.mem_support_map_iff] at hsm
+    obtain ⟨w, -, heq⟩ := hsm
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
+    exact ih w s hrest
+  | query_bind q cont ih =>
+    rw [ProbOracleComp.runWith_bind, PMF.mem_support_bind_iff] at hs'
+    obtain ⟨⟨r, sm⟩, hsm, hrest⟩ := hs'
+    rw [ProbOracleComp.runWith_query] at hsm
+    obtain ⟨hcm, him⟩ := ih r sm hrest
+    exact voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx Rel checkRel
+      q s sm r hsm hcm him
+
 end StickySoundness
+
+/-! ### Bridge to `AnonymousToken.Basic` -/
+
+section AnonymousTokenBridge
+
+/-- Client signing request in the unextracted `leaf_hash::shake` ROM anonymous-token game: the
+client asks the signer to certify a public `target` while proving knowledge of an opening via a
+VOLEitH proof `proof`. -/
+structure ROMTokenRequest (Message Target : Type) (d comLen rowLen : ℕ)
+    (Seed IV PreMsg : Type) where
+  /-- Semantic message bound into the token payload. -/
+  message : Message
+  /-- Blinded / committed target submitted to the signer. -/
+  target : Target
+  /-- Straight-line extractable VOLEitH proof for `(message, target)`. -/
+  proof : VOLEITHProof d comLen rowLen Seed IV PreMsg
+  deriving DecidableEq
+
+/-- Public VOLEitH statement `(req.message, req.target)` proven by `ROMTokenRequest`. -/
+@[expose] def ROMTokenRequest.stmt {Message Target : Type} {d comLen rowLen : ℕ}
+    {Seed IV PreMsg : Type} (req : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg) :
+    Message × Target :=
+  (req.message, req.target)
+
+/-- Relation verified in the ROM anonymous-token signing request: `targetFn msg open_ = target`. -/
+@[expose] def romTokenRel {Message Opening Target : Type} [DecidableEq Target]
+    (targetFn : Message → Opening → Target)
+    (stmt : Message × Target) (open_ : Opening) : Bool :=
+  decide (targetFn stmt.1 open_ = stmt.2)
+
+/-- Signing oracle specification returning `some sig` on proof acceptance and `none` otherwise. -/
+abbrev ROMTokenSignSpec (Message Target : Type) (d comLen rowLen : ℕ)
+    (Seed IV PreMsg Sig : Type) :
+    OracleSpec (ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg) :=
+  fun _ => Option Sig
+
+/-- Combined oracle specification exposed to an unextracted ROM token adversary. -/
+abbrev ROMTokenSpec (Message Target : Type) (d sdLen comLen rowLen : ℕ)
+    (Seed IV PreMsg Chal Sig : Type) :=
+  ROMTokenSignSpec Message Target d comLen rowLen Seed IV PreMsg Sig ⊕ₒ
+    VOLEITHROSpec d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal
+
+/-- Transcript of an unextracted ROM anonymous-token adversary execution. -/
+structure ROMTokenExecution (PK Message Opening Sig : Type) where
+  /-- Signer public verification key. -/
+  publicKey : PK
+  /-- Final forged token emitted by the adversary. -/
+  output : Token Message Opening Sig
+  /-- Messages signed after VOLEitH proof verification succeeded. -/
+  signedMessages : List Message
+
+/-- Winning condition for the unextracted ROM token adversary: valid token on a fresh message. -/
+@[expose] def romTokenAccept {PK SK Message Opening Target Sig : Type} [DecidableEq Message]
+    (S : Signature.Scheme PK SK Target Sig) (targetFn : Message → Opening → Target)
+    (run : ROMTokenExecution PK Message Opening Sig) : Bool :=
+  Token.valid S targetFn run.publicKey run.output &&
+    decide (run.output.payload.message ∉ run.signedMessages)
+
+private noncomputable def romTokenHandlerProg {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List Message) ProbComp
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, (roSt, msgs) => do
+    let (ok, roSt') ← ((ProbOracleComp.runState
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      voleithMemoizeProg).run roSt)
+    if ok then
+      let sig ← S.sign keys.2 req.target
+      pure (some sig, (roSt', msgs ++ [req.message]))
+    else
+      pure (none, (roSt', msgs))
+  | .inr qRO, (roSt, msgs) => do
+    let (ans, roSt') ← (voleithMemoizeProg qRO).run roSt
+    pure (ans, (roSt', msgs))
+
+/-- Execute an unextracted ROM token adversary against the verifier-checked signing oracle and lazy
+two-channel ROM. -/
+noncomputable def runROMUnextractedToken {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig)
+    (A : PK → ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig)) :
+    ProbComp (ROMTokenExecution PK Message Opening Sig) := do
+  let keys ← S.keyGen
+  let res ← ((A keys.1).runState (romTokenHandlerProg expand chalToIdx checkRel S keys)).run
+    (([], []), [])
+  pure { publicKey := keys.1, output := res.1, signedMessages := res.2.2 }
+
+/-- Unextracted ROM anonymous-token unforgeability game. -/
+noncomputable def romUnextractedTokenExperiment {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Message]
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (targetFn : Message → Opening → Target)
+    (A : PK → ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig)) : Experiment :=
+  romTokenAccept S targetFn <$>
+    runROMUnextractedToken expand chalToIdx checkRel S A
+
+private noncomputable def romToExtractedInner {d sdLen comLen rowLen : ℕ}
+    {Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal)
+        (ProbOracleComp (fun _ : Payload Message Opening => Sig))
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, roSt => do
+    let (ok, roSt') ← ProbOracleComp.sample ((ProbOracleComp.runState
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      voleithMemoizeProg).run roSt)
+    if ok then
+      let openStar := extractWitnessFromTrace expand decWit roSt.1 req.proof
+      let sig ← ProbOracleComp.query ⟨req.message, openStar⟩
+      pure (some sig, roSt')
+    else
+      pure (none, roSt')
+  | .inr qRO, roSt => do
+    let (ans, roSt') ← ProbOracleComp.sample ((voleithMemoizeProg qRO).run roSt)
+    pure (ans, roSt')
+
+/-- Straight-line extracted-model `ExtractedForger` constructed from an unextracted ROM adversary
+`A`: simulates `VOLEITHROSpec` locally, checks `voleithVerifyROM`, and whenever a request
+verifies, extracts `open* = extractWitnessFromTrace tr_leaf prf` without rewinding and forwards
+`⟨req.message, open*⟩` to the `ExtractedForger` signing oracle. -/
+noncomputable def extractedForgerOfROM {d sdLen comLen rowLen : ℕ}
+    {PK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (A : PK → ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig)) :
+    ExtractedForger PK Message Opening Sig := fun pk =>
+  Prod.fst <$> (OracleComp.interpret
+    (OracleComp.sumHandler
+      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+      (romToExtractedInner expand decWit chalToIdx checkRel))
+    (A pk)).run ([], [])
+
+/-- `extractedForgerOfROM` preserves signing-query budgets: every `VOLEITHROSpec` call costs `0`
+signing queries and every signing request calls the extracted signing oracle at most once. -/
+theorem extractedForgerOfROM_isQueryBounded {d sdLen comLen rowLen : ℕ}
+    {PK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (A : PK → ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig))
+    {m : ℕ}
+    (hm : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) (A pk) m) :
+    ∀ pk, (extractedForgerOfROM expand decWit chalToIdx checkRel A pk).IsQueryBounded m := by
+  intro pk
+  unfold extractedForgerOfROM
+  rw [ProbOracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
+  refine OracleComp.IsCostBounded.run_interpret
+    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+    (cost' := Sum.elim (fun _ => 0) (fun _ => 1)) ?_ (hm pk) ([], [])
+  intro q roSt
+  rcases q with n | (req | qRO)
+  · simp only [StateT.run_lift, Sum.elim_inl]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, romToExtractedInner]
+    rw [show (1 : ℕ) = 0 + 1 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun (ok, roSt') => ?_
+    cases ok
+    · exact OracleComp.IsCostBounded.pure _ 1
+    · dsimp only
+      simp only [↓reduceIte]
+      rw [show (1 : ℕ) = 1 + 0 from rfl]
+      exact (OracleComp.IsCostBounded.query (spec := probOracleSpec _) (Sum.inr _)).bind
+        fun _ => OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, romToExtractedInner]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+
+private noncomputable def romTokenStickyHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT ((VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List Message) × Bool) PMF
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, ((roSt, msgs), b) =>
+    (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel)
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      (roSt, b)).bind fun (ok, (roSt', b')) =>
+      if ok then
+        (ProbComp.eval (S.sign keys.2 req.target)).map fun sig =>
+          (some sig, ((roSt', msgs ++ [req.message]), b'))
+      else
+        PMF.pure (none, ((roSt', msgs), b'))
+  | .inr qRO, ((roSt, msgs), b) =>
+    (voleithStickyMemoize expand decWit chalToIdx (romTokenRel targetFn) checkRel qRO
+      (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', msgs), b'))
+
+private noncomputable def extTokenStickyHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT ((VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List Message) × Bool) PMF
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, ((roSt, msgs), b) =>
+    (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel)
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      (roSt, b)).bind fun (ok, (roSt', b')) =>
+      if ok then
+        let openStar := extractWitnessFromTrace expand decWit roSt.1 req.proof
+        (ProbComp.eval (S.sign keys.2 (targetFn req.message openStar))).map fun sig =>
+          (some sig, ((roSt', msgs ++ [req.message]), b'))
+      else
+        PMF.pure (none, ((roSt', msgs), b'))
+  | .inr qRO, ((roSt, msgs), b) =>
+    (voleithStickyMemoize expand decWit chalToIdx (romTokenRel targetFn) checkRel qRO
+      (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', msgs), b'))
+
+private def romTokenBad {d sdLen comLen rowLen : ℕ}
+    {Message Opening Target Seed IV PreMsg Chal : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (st : (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+      List Message) × Bool) : Prop :=
+  st.2 = true ∨
+    ¬ VOLEITHGoodInv expand decWit chalToIdx (romTokenRel targetFn) checkRel st.1.1
+
+private theorem tokenSticky_verifyTail_clean {d sdLen comLen rowLen : ℕ}
+    {Message Target Seed IV PreMsg Chal Sig : Type}
+    {msg : Message} {ok : Bool}
+    {st_res : VOLEITHStickyState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal}
+    {msgs msgs' : List Message}
+    {roSt' : VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal}
+    {a' : Option Sig} {dist : PMF Sig}
+    (htail : (a', (roSt', msgs'), false) ∈
+      (if ok then dist.map fun sig => (some sig, (st_res.1, msgs ++ [msg]), st_res.2)
+       else PMF.pure (none, (st_res.1, msgs), st_res.2)).support) :
+    st_res.2 = false ∧ st_res.1 = roSt' := by
+  cases ok
+  · simp only [Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff, Prod.mk.injEq] at htail
+    obtain ⟨_, ⟨hro, _⟩, hst2⟩ := htail
+    exact ⟨hst2.symm, hro.symm⟩
+  · simp only [↓reduceIte, PMF.mem_support_map_iff, Prod.mk.injEq] at htail
+    obtain ⟨_, -, _, ⟨hro, _⟩, hst2⟩ := htail
+    exact ⟨hst2, hro⟩
+
+private theorem romTokenSticky_identicalUntilBad {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    ProbOracleComp.IdenticalUntilBad
+      (romTokenStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx targetFn checkRel S keys)
+      (extTokenStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx targetFn checkRel S keys)
+      (romTokenBad (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx targetFn checkRel) := by
+  refine OracleComp.IdenticalUntilBad.probOracleComp ⟨?_, ?_, ?_⟩
+  · intro q s hs a s' hs'
+    simp only [romTokenBad, not_or] at hs hs'
+    have hs2 : s.2 = false := Bool.eq_false_iff.mpr hs.1
+    have hs'2 : s'.2 = false := Bool.eq_false_iff.mpr hs'.1
+    rcases s with ⟨⟨roSt, msgs⟩, bs⟩
+    rcases s' with ⟨⟨roSt', msgs'⟩, bs'⟩
+    dsimp only at hs2 hs'2 hs hs'
+    subst hs2 bs'
+    rcases q with req | qRO
+    · simp only [romTokenStickyHandler, extTokenStickyHandler, PMF.bind_apply]
+      refine tsum_congr fun ⟨ok, st_res⟩ => ?_
+      by_cases hmem : (ok, st_res) ∈ (ProbOracleComp.runWith
+          (voleithStickyMemoize expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+          (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+          (roSt, false)).support
+      · cases ok
+        · simp
+        · rcases st_res with ⟨ro_end, b_end⟩
+          cases b_end
+          · have hrel := voleithVerifyROM_sound_of_clean expand decWit chalToIdx
+              (romTokenRel targetFn) checkRel req.stmt req.proof (roSt, false) (ro_end, false)
+              rfl (not_not.mp hs.2) hmem rfl
+            have htarget :
+                targetFn req.message (extractWitnessFromTrace expand decWit roSt.1 req.proof) =
+                  req.target := by
+              simp only [romTokenRel, ROMTokenRequest.stmt] at hrel
+              exact of_decide_eq_true hrel
+            simp [htarget]
+          · have hzero : ∀ (μ : PMF (Option Sig × ((VOLEITHTraceState d sdLen comLen rowLen
+                (Message × Target) Seed IV PreMsg Chal × List Message) × Bool))),
+                (∀ x ∈ μ.support, x.2.2 = true) → μ (a, ((roSt', msgs'), false)) = 0 := by
+              intro μ hμ
+              exact (PMF.apply_eq_zero_iff _ _).mpr fun hm => by
+                have := hμ _ hm
+                simp at this
+            have h1 : ((ProbComp.eval (S.sign keys.2 req.target)).map fun sig =>
+                (some sig, ((ro_end, msgs ++ [req.message]), true)))
+                (a, ((roSt', msgs'), false)) = 0 :=
+              hzero _ fun x hx => by
+                rw [PMF.mem_support_map_iff] at hx
+                obtain ⟨_, -, rfl⟩ := hx
+                rfl
+            have h2 : ((ProbComp.eval (S.sign keys.2 (targetFn req.message
+                (extractWitnessFromTrace expand decWit roSt.1 req.proof)))).map fun sig =>
+                (some sig, ((ro_end, msgs ++ [req.message]), true)))
+                (a, ((roSt', msgs'), false)) = 0 :=
+              hzero _ fun x hx => by
+                rw [PMF.mem_support_map_iff] at hx
+                obtain ⟨_, -, rfl⟩ := hx
+                rfl
+            simp [h1, h2]
+      · have hz := (PMF.apply_eq_zero_iff _ _).mpr hmem
+        simp [hz]
+    · rfl
+  · intro q s hs ⟨a, s'⟩ hmem
+    by_contra hnot
+    dsimp only at hnot
+    simp only [romTokenBad, not_or, not_not] at hnot
+    have hs'2 : s'.2 = false := Bool.eq_false_iff.mpr hnot.1
+    rcases s with ⟨⟨roSt, msgs⟩, bs⟩
+    rcases s' with ⟨⟨roSt', msgs'⟩, bs'⟩
+    dsimp only at hs'2 hnot
+    subst bs'
+    rcases q with req | qRO
+    · simp only [romTokenStickyHandler, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨⟨ok, st_res⟩, hst_mem, htail⟩ := hmem
+      dsimp only at htail
+      obtain ⟨hres2, hro_eq⟩ := tokenSticky_verifyTail_clean (msg := req.message) htail
+      have hback := runWith_voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel
+        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+        (roSt, bs) st_res ok hst_mem hres2 (hro_eq ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romTokenBad, hback.1, hback.2])
+    · simp only [romTokenStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨⟨ans, st_res⟩, hst_mem, _, ⟨hro_eq, _⟩, hres2⟩ := hmem
+      dsimp only at hro_eq hres2
+      have hback := voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel qRO (roSt, bs) st_res ans hst_mem hres2
+        (hro_eq ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romTokenBad, hback.1, hback.2])
+  · intro q s hs ⟨a, s'⟩ hmem
+    by_contra hnot
+    dsimp only at hnot
+    simp only [romTokenBad, not_or, not_not] at hnot
+    have hs'2 : s'.2 = false := Bool.eq_false_iff.mpr hnot.1
+    rcases s with ⟨⟨roSt, msgs⟩, bs⟩
+    rcases s' with ⟨⟨roSt', msgs'⟩, bs'⟩
+    dsimp only at hs'2 hnot
+    subst bs'
+    rcases q with req | qRO
+    · simp only [extTokenStickyHandler, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨⟨ok, st_res⟩, hst_mem, htail⟩ := hmem
+      dsimp only at htail
+      obtain ⟨hres2, hro_eq⟩ := tokenSticky_verifyTail_clean (msg := req.message) htail
+      have hback := runWith_voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel
+        (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+        (roSt, bs) st_res ok hst_mem hres2 (hro_eq ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romTokenBad, hback.1, hback.2])
+    · simp only [extTokenStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨⟨ans, st_res⟩, hst_mem, _, ⟨hro_eq, _⟩, hres2⟩ := hmem
+      dsimp only at hro_eq hres2
+      have hback := voleithStickyMemoize_goodInv_backwards expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel qRO (roSt, bs) st_res ans hst_mem hres2
+        (hro_eq ▸ hnot.2)
+      dsimp only at hback
+      exact absurd hs (by simp [romTokenBad, hback.1, hback.2])
+
+private noncomputable def tokenToMVInner {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Target Seed IV PreMsg Chal Sig : Type}
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT Unit (ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen
+        (Message × Target) Seed IV PreMsg Chal))
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, u => do
+    let ok ← ProbOracleComp.query (Sum.inl (req.stmt, req.proof))
+    if ok then
+      let sig ← ProbOracleComp.sample (S.sign keys.2 req.target)
+      pure (some sig, u)
+    else
+      pure (none, u)
+  | .inr qRO, u => do
+    let ans ← ProbOracleComp.query (Sum.inr qRO)
+    pure (ans, u)
+
+private theorem tokenToMVInner_roCost {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Target Seed IV PreMsg Chal Sig α : Type}
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (roCost : LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg → ℕ)
+    (prog : ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) α)
+    {Q_ro : ℕ}
+    (hro : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost)) prog Q_ro) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost))
+      ((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          (tokenToMVInner S keys))
+        prog).run ()) Q_ro := by
+  refine OracleComp.IsCostBounded.run_interpret
+    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost))
+    (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) roCost)) ?_ hro ()
+  intro q u
+  rcases q with n | (req | qRO)
+  · simp only [StateT.run_lift, Sum.elim_inl]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, tokenToMVInner]
+    rw [show (0 : ℕ) = 0 + 0 from rfl]
+    refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+      (Sum.inr (Sum.inl _))).bind fun ok => ?_
+    cases ok
+    · exact OracleComp.IsCostBounded.pure _ 0
+    · rw [show (0 : ℕ) = 0 + 0 from rfl]
+      refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0
+  · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, tokenToMVInner]
+    rw [show roCost qRO = roCost qRO + 0 from rfl]
+    refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+      (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+
+private noncomputable def romRoOnlyStickyHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT (VOLEITHStickyState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal) PMF
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, st =>
+    (ProbOracleComp.runWith (voleithStickyMemoize expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel)
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof) st).bind
+      fun (ok, st') =>
+        if ok then
+          (ProbComp.eval (S.sign keys.2 req.target)).map fun sig => (some sig, st')
+        else
+          PMF.pure (none, st')
+  | .inr qRO, st =>
+    voleithStickyMemoize expand decWit chalToIdx (romTokenRel targetFn) checkRel qRO st
+
+private theorem romTokenSticky_bad_le {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    {ε_rel : ℝ≥0}
+    (hSound : VOLEITHSoundnessError decWit chalToIdx (romTokenRel targetFn) checkRel ε_rel)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (prog : ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig))
+    {m Q_leaf Q_FS : ℕ}
+    (hm : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) prog m)
+    (hleaf : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithLeafCost)) prog Q_leaf)
+    (hfs : IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithFSCost)) prog Q_FS) :
+    (ProbOracleComp.runWith
+        (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+        prog ((([], []), []), false)).toOuterMeasure
+        {x | romTokenBad expand decWit chalToIdx targetFn checkRel x.2} ≤
+      (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+  have hinv_bad : ∀ (a : Token Message Opening Sig)
+      (st : (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List Message) × Bool),
+      (a, st) ∈ (ProbOracleComp.runWith
+        (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+        prog ((([], []), []), false)).support →
+      st.2 = false →
+      VOLEITHGoodInv expand decWit chalToIdx (romTokenRel targetFn) checkRel st.1.1 := by
+    intro a st hsupp hclean
+    refine ProbOracleComp.runWith_invariant _
+      (fun s => s.2 = false →
+        VOLEITHGoodInv expand decWit chalToIdx (romTokenRel targetFn) checkRel s.1.1)
+      (fun q s hs a' s' hs' hclean' => ?_)
+      prog ((([], []), []), false) (fun _ => ⟨List.Pairwise.nil, by simp⟩) a st hsupp hclean
+    rcases s with ⟨⟨roSt, msgs⟩, bs⟩
+    rcases s' with ⟨⟨roSt', msgs'⟩, bs'⟩
+    dsimp only at hclean' hs
+    subst bs'
+    rcases q with req | qRO
+    · simp only [romTokenStickyHandler, PMF.mem_support_bind_iff] at hs'
+      obtain ⟨p, hst_mem, htail⟩ := hs'
+      rcases p with ⟨ok, st_res⟩
+      dsimp only at htail
+      obtain ⟨hres2, hro_eq⟩ := tokenSticky_verifyTail_clean (msg := req.message) htail
+      have hbs : bs = false := by
+        by_contra htrue
+        have hbad : OracleComp.FlagBad (roSt, bs) := by
+          cases h : bs <;> simp_all [OracleComp.FlagBad]
+        dsimp only [OracleComp.FlagBad] at hbad
+        subst hbad
+        have hbad' := ProbOracleComp.runWith_invariant _ (fun u => OracleComp.FlagBad u)
+          (fun q' u hu a0 u' hu' => by
+            rcases u with ⟨u1, u2⟩
+            dsimp only [OracleComp.FlagBad] at hu
+            subst hu
+            exact OracleComp.isFlagMonotone_withBadFlag
+              (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+              q' u1 (a0, u') hu')
+          _ (roSt, true) rfl ok st_res hst_mem
+        dsimp only [OracleComp.FlagBad] at hbad'
+        exact Bool.false_ne_true (hres2.symm.trans hbad')
+      have hin := ProbOracleComp.runWith_invariant _
+        (fun u => u.2 = false →
+          VOLEITHGoodInv expand decWit chalToIdx (romTokenRel targetFn) checkRel u.1)
+        (fun q' u hu a0 u' hu' => voleithStickyMemoize_preserves_goodInv expand decWit chalToIdx
+          (romTokenRel targetFn) checkRel q' u hu a0 u' hu')
+        _ (roSt, bs) (fun h => hs h) ok st_res hst_mem hres2
+      exact hro_eq ▸ hin
+    · simp only [romTokenStickyHandler, PMF.mem_support_map_iff, Prod.mk.injEq] at hs'
+      obtain ⟨p, hst_mem, _, hst_eq⟩ := hs'
+      rcases p with ⟨ans, st_res⟩
+      obtain ⟨⟨hro_eq, _⟩, hres2⟩ := hst_eq
+      dsimp only at hro_eq hres2
+      have hbs : bs = false := by
+        by_contra htrue
+        have hbad : OracleComp.FlagBad (roSt, bs) := by
+          cases h : bs <;> simp_all [OracleComp.FlagBad]
+        dsimp only [OracleComp.FlagBad] at hbad
+        subst hbad
+        have hbad' := OracleComp.isFlagMonotone_withBadFlag
+          (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+          qRO roSt (ans, st_res) hst_mem
+        dsimp only [OracleComp.FlagBad] at hbad'
+        exact Bool.false_ne_true (hres2.symm.trans hbad')
+      exact hro_eq ▸ voleithStickyMemoize_preserves_goodInv expand decWit chalToIdx
+        (romTokenRel targetFn) checkRel qRO (roSt, bs) (fun h => hs h) ans st_res hst_mem
+        hres2
+  have hle_flag :
+      (ProbOracleComp.runWith
+          (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          prog ((([], []), []), false)).toOuterMeasure
+          {x | romTokenBad expand decWit chalToIdx targetFn checkRel x.2} ≤
+        (ProbOracleComp.runWith
+          (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          prog ((([], []), []), false)).toOuterMeasure {x | x.2.2 = true} := by
+    simp only [PMF.toOuterMeasure_apply]
+    refine tsum_le_tsum fun ⟨a, st⟩ => ?_
+    by_cases hmem : (a, st) ∈ (ProbOracleComp.runWith
+        (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+        prog ((([], []), []), false)).support
+    · by_cases hst2 : st.2 = true
+      · simp [romTokenBad, hst2]
+      · have hclean : st.2 = false := Bool.eq_false_iff.mpr hst2
+        have hg := hinv_bad a st hmem hclean
+        simp [romTokenBad, hst2, hg]
+    · have hz := (PMF.apply_eq_zero_iff _ _).mpr hmem
+      simp [Set.indicator_apply, hz]
+  refine hle_flag.trans ?_
+  let mvProg : ProbOracleComp (VOLEITHMultiVerifySpec d sdLen comLen rowLen
+      (Message × Target) Seed IV PreMsg Chal) (Token Message Opening Sig × Unit) :=
+    (OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+        (tokenToMVInner S keys))
+      prog).run ()
+  have hmv_m :
+      IsCostBounded (Sum.elim (fun _ => 0)
+        (Sum.elim (fun _ => 1) (fun _ => 0))) mvProg m := by
+    refine OracleComp.IsCostBounded.run_interpret
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) ?_ hm ()
+    intro q u
+    rcases q with n | (req | qRO)
+    · simp only [StateT.run_lift, Sum.elim_inl]
+      rw [show (0 : ℕ) = 0 + 0 from rfl]
+      refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0
+    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inl, tokenToMVInner]
+      rw [show (1 : ℕ) = 1 + 0 from rfl]
+      refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+        (Sum.inr (Sum.inl _))).bind fun ok => ?_
+      cases ok
+      · exact OracleComp.IsCostBounded.pure _ 0
+      · rw [show (0 : ℕ) = 0 + 0 from rfl]
+        refine (ProbOracleComp.isCostBounded_sample _ _).bind fun _ =>
+          OracleComp.IsCostBounded.pure _ 0
+    · simp only [StateT.run, Sum.elim_inr, Sum.elim_inr, tokenToMVInner]
+      rw [show (0 : ℕ) = 0 + 0 from rfl]
+      refine (OracleComp.IsCostBounded.query (spec := probOracleSpec _)
+        (Sum.inr (Sum.inr _))).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  have hmv_leaf := tokenToMVInner_roCost S keys voleithLeafCost prog hleaf
+  have hmv_fs := tokenToMVInner_roCost S keys voleithFSCost prog hfs
+  have hleaf_tot :
+      IsCostBounded (Sum.elim (fun _ => 0) mvLeafCost) mvProg (Q_leaf + m * (2 ^ d - 1)) := by
+    refine (hmv_leaf.add (IsCostBounded.mul_of_le
+      (cost' := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 2 ^ d - 1) (fun _ => 0)))
+      hmv_m fun q => ?_)).of_le fun q => ?_
+    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp
+    · rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvLeafCost]
+  have hfs_tot : IsCostBounded (Sum.elim (fun _ => 0) mvFSCost) mvProg (Q_FS + m) := by
+    refine (hmv_fs.add hmv_m).of_le fun q => ?_
+    rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
+  have hmv_bad := toOuterMeasure_run_mvSticky_bad_le expand decWit chalToIdx
+    (romTokenRel targetFn) checkRel hSound mvProg hleaf_tot hfs_tot (([], []), false) false rfl
+  let dropMsg : (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+      List Message) × Bool →
+      VOLEITHStickyState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal :=
+    fun ((roSt, _), b) => (roSt, b)
+  have hleft :
+      ((ProbOracleComp.runWith
+          (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          prog ((([], []), []), false)).map (Prod.map id dropMsg)) =
+        ProbOracleComp.runWith
+          (romRoOnlyStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          prog (([], []), false) := by
+    refine ProbOracleComp.runWith_map_state _ _ dropMsg (fun q x => ?_)
+      prog ((([], []), []), false)
+    rcases x with ⟨⟨roSt, msgs⟩, b⟩
+    rcases q with req | qRO
+    · simp only [romTokenStickyHandler, romRoOnlyStickyHandler, dropMsg, PMF.map_bind]
+      congr 1
+      funext ⟨ok, st'⟩
+      cases ok <;> simp [PMF.map_comp, Function.comp_def]
+    · simp only [romTokenStickyHandler, romRoOnlyStickyHandler, dropMsg, PMF.map_comp,
+        Function.comp_def]
+      have hid : (fun x : VOLEITHROSpec d sdLen comLen rowLen (Message × Target) Seed IV PreMsg
+          Chal qRO ×
+          VOLEITHStickyState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal =>
+          (x.1, (x.2.1, x.2.2))) = id := by
+        funext ⟨_, ⟨_, _⟩⟩
+        rfl
+      rw [hid, PMF.map_id]
+  let dropMV : Unit ×
+      (VOLEITHStickyState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal × Bool) →
+      VOLEITHStickyState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal :=
+    fun (_, st_mv) => st_mv.1
+  have hright :
+      ((ProbOracleComp.runWith
+          (voleithMultiVerifyStickyHandler expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+          mvProg ((([], []), false), false)).map
+        fun ((tok, _), st_mv) => (tok, st_mv.1)) =
+        ProbOracleComp.runWith
+          (romRoOnlyStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          prog (([], []), false) := by
+    have hrun := ProbOracleComp.runWith_run_interpret (tokenToMVInner S keys)
+      (voleithMultiVerifyStickyHandler expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+      prog () ((([], []), false), false)
+    have hrun' :
+        ((ProbOracleComp.runWith
+            (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+              (romTokenRel targetFn) checkRel)
+            mvProg ((([], []), false), false)).map
+          fun ((tok, _), st_mv) => (tok, st_mv.1)) =
+        ((ProbOracleComp.runWith
+            (fun q state =>
+              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                (ProbOracleComp.runWith
+                  (voleithMultiVerifyStickyHandler expand decWit chalToIdx
+                    (romTokenRel targetFn) checkRel)
+                  ((tokenToMVInner S keys q).run state.1) state.2))
+            prog ((), ((([], []), false), false))).map
+          (Prod.map id dropMV)) := by
+      dsimp only [mvProg]
+      rw [hrun, PMF.map_comp]
+      rfl
+    rw [hrun']
+    refine ProbOracleComp.runWith_map_state _ _ dropMV (fun q x => ?_)
+      prog ((), ((([], []), false), false))
+    rcases x with ⟨u, ⟨s_mv, failed⟩⟩
+    rcases q with req | qRO
+    · simp only [tokenToMVInner, dropMV, romRoOnlyStickyHandler, StateT.run,
+        ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+        voleithMultiVerifyStickyHandler, PMF.bind_map, PMF.map_bind, Function.comp_def]
+      congr 1
+      funext ⟨ok, s'⟩
+      cases ok
+      · dsimp only
+        simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.map,
+          Function.comp_def, PMF.pure_bind]
+      · dsimp only
+        simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+          ProbOracleComp.runWith_pure, PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+    · simp only [tokenToMVInner, dropMV, romRoOnlyStickyHandler, StateT.run,
+        ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+        voleithMultiVerifyStickyHandler, PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+      exact PMF.bind_pure _
+  calc
+    (ProbOracleComp.runWith
+        (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+        prog ((([], []), []), false)).toOuterMeasure {x | x.2.2 = true}
+      = ((ProbOracleComp.runWith
+          (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          prog ((([], []), []), false)).map (Prod.map id dropMsg)).toOuterMeasure
+          {x | OracleComp.FlagBad x.2} := by
+        rw [PMF.toOuterMeasure_map_apply]
+        rfl
+    _ = ((ProbOracleComp.runWith
+          (voleithMultiVerifyStickyHandler expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+          mvProg ((([], []), false), false)).map
+          fun ((tok, _), st_mv) => (tok, st_mv.1)).toOuterMeasure
+          {x | OracleComp.FlagBad x.2} := by
+        rw [hleft, hright]
+    _ = (ProbOracleComp.runWith
+          (voleithMultiVerifyStickyHandler expand decWit chalToIdx (romTokenRel targetFn) checkRel)
+          mvProg ((([], []), false), false)).toOuterMeasure
+          {x | OracleComp.FlagBad x.2.1} := by
+        rw [PMF.toOuterMeasure_map_apply]
+        rfl
+    _ ≤ (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+        simpa [ksBound_coe, voleithBudget] using hmv_bad
+
+private noncomputable def romTokenHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List Message) PMF
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, (roSt, msgs) =>
+    (ProbOracleComp.runWith voleithMemoize
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      roSt).bind fun (ok, roSt') =>
+      if ok then
+        (ProbComp.eval (S.sign keys.2 req.target)).map fun sig =>
+          (some sig, (roSt', msgs ++ [req.message]))
+      else
+        PMF.pure (none, (roSt', msgs))
+  | .inr qRO, (roSt, msgs) =>
+    (voleithMemoize qRO roSt).map fun (ans, roSt') => (ans, (roSt', msgs))
+
+private noncomputable def extTokenHandler {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg)) →
+      StateT (VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List Message) PMF
+        (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg Chal Sig q)
+  | .inl req, (roSt, msgs) =>
+    (ProbOracleComp.runWith voleithMemoize
+      (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      roSt).bind fun (ok, roSt') =>
+      if ok then
+        let openStar := extractWitnessFromTrace expand decWit roSt.1 req.proof
+        (ProbComp.eval (S.sign keys.2 (targetFn req.message openStar))).map fun sig =>
+          (some sig, (roSt', msgs ++ [req.message]))
+      else
+        PMF.pure (none, (roSt', msgs))
+  | .inr qRO, (roSt, msgs) =>
+    (voleithMemoize qRO roSt).map fun (ans, roSt') => (ans, (roSt', msgs))
+
+private theorem romTokenHandlerProg_eval {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK)
+    (q : ROMTokenRequest Message Target d comLen rowLen Seed IV PreMsg ⊕
+      (LeafQuery d Seed IV ⊕ FSQuery d comLen rowLen (Message × Target) IV PreMsg))
+    (st : VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+      List Message) :
+    ProbComp.eval (romTokenHandlerProg expand chalToIdx checkRel S keys q st) =
+      romTokenHandler expand chalToIdx checkRel S keys q st := by
+  rcases st with ⟨roSt, msgs⟩
+  rcases q with req | qRO
+  · simp only [romTokenHandlerProg, romTokenHandler, ProbComp.eval_bind,
+      ProbOracleComp.eval_runState]
+    have hmem :
+        (fun q s => ProbComp.eval (voleithMemoizeProg q s)) =
+          (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+            (Stmt := Message × Target) (Seed := Seed) (IV := IV) (PreMsg := PreMsg)
+            (Chal := Chal)) :=
+      funext fun q => funext fun s => eval_voleithMemoizeProg q s
+    rw [hmem]
+    congr 1
+    funext ⟨ok, roSt'⟩
+    cases ok <;> simp [ProbComp.eval_pure]
+  · simp only [romTokenHandlerProg, romTokenHandler, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.map]
+    change (((voleithMemoizeProg qRO roSt).eval).bind fun a =>
+        PMF.pure (a.1, (a.2, msgs))) = _
+    rw [eval_voleithMemoizeProg]
+    rfl
+
+private theorem romTokenStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    ∀ q st,
+      ((romTokenStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+          expand decWit chalToIdx targetFn checkRel S keys q st).map
+        (Prod.map id Prod.fst)) =
+      romTokenHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand chalToIdx checkRel S keys q st.1 := by
+  intro q ⟨⟨roSt, msgs⟩, b⟩
+  rcases q with req | qRO
+  · simp only [romTokenStickyHandler, romTokenHandler, PMF.map_bind]
+    have hforget := voleithStickyMemoize_map_forget expand decWit chalToIdx (romTokenRel targetFn)
+      checkRel (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      roSt b
+    rw [← hforget, PMF.bind_map]
+    congr 1
+    funext ⟨ok, s'⟩
+    cases ok <;> simp [PMF.map_comp, Function.comp_def]
+  · simp only [romTokenStickyHandler, romTokenHandler, voleithStickyMemoize]
+    have hstep := OracleComp.withBadFlag_map_fst
+      (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO roSt b
+    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (romTokenRel targetFn)
+      checkRel qRO roSt
+    calc
+      ((OracleComp.withBadFlag
+          (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
+          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', msgs), b'))).map
+          (Prod.map id Prod.fst) =
+        ((OracleComp.withBadFlag
+            (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
+            (roSt, b)).map (Prod.map id Prod.fst)).map
+            fun (ans, roSt') => (ans, (roSt', msgs)) := by
+        rw [PMF.map_comp, PMF.map_comp]
+        rfl
+      _ = _ := by rw [hstep, hk]
+
+private theorem extTokenStickyHandler_map_forget {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [DecidableEq Target] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    (S : Signature.Scheme PK SK Target Sig) (keys : PK × SK) :
+    ∀ q st,
+      ((extTokenStickyHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+          expand decWit chalToIdx targetFn checkRel S keys q st).map
+        (Prod.map id Prod.fst)) =
+      extTokenHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+        expand decWit chalToIdx targetFn checkRel S keys q st.1 := by
+  intro q ⟨⟨roSt, msgs⟩, b⟩
+  rcases q with req | qRO
+  · simp only [extTokenStickyHandler, extTokenHandler, PMF.map_bind]
+    have hforget := voleithStickyMemoize_map_forget expand decWit chalToIdx (romTokenRel targetFn)
+      checkRel (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+      roSt b
+    rw [← hforget, PMF.bind_map]
+    congr 1
+    funext ⟨ok, s'⟩
+    cases ok <;> simp [PMF.map_comp, Function.comp_def]
+  · simp only [extTokenStickyHandler, extTokenHandler, voleithStickyMemoize]
+    have hstep := OracleComp.withBadFlag_map_fst
+      (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO roSt b
+    have hk := voleithStepKernel_map_fst expand decWit chalToIdx (romTokenRel targetFn)
+      checkRel qRO roSt
+    calc
+      ((OracleComp.withBadFlag
+          (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
+          (roSt, b)).map fun (ans, (roSt', b')) => (ans, ((roSt', msgs), b'))).map
+          (Prod.map id Prod.fst) =
+        ((OracleComp.withBadFlag
+            (voleithStepKernel expand decWit chalToIdx (romTokenRel targetFn) checkRel) qRO
+            (roSt, b)).map (Prod.map id Prod.fst)).map
+            fun (ans, roSt') => (ans, (roSt', msgs)) := by
+        rw [PMF.map_comp, PMF.map_comp]
+        rfl
+      _ = _ := by rw [hstep, hk]
+
+/-- **ROM-to-Extracted reduction for `AnonymousToken.Basic`**: any query-bounded unextracted ROM
+adversary `A` reduces straight-line (no rewinding) to the extracted-model adversary
+`extractedForgerOfROM ... A` with additive loss `ksBound` in `Game.succProbability`. -/
+theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Message] [DecidableEq Target]
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (S : Signature.Scheme PK SK Target Sig)
+    (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    {ε_rel : ℝ≥0}
+    (hSound : VOLEITHSoundnessError decWit chalToIdx (romTokenRel targetFn) checkRel ε_rel)
+    (A : PK → ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig))
+    {m Q_leaf Q_FS : ℕ}
+    (hm : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) (A pk) m)
+    (hleaf : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithLeafCost)) (A pk) Q_leaf)
+    (hfs : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithFSCost)) (A pk) Q_FS) :
+    (romUnextractedTokenExperiment expand chalToIdx checkRel S targetFn A).succProbability ≤
+      (extractedExperiment S targetFn
+        (extractedForgerOfROM expand decWit chalToIdx checkRel A)).succProbability +
+        ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel := by
+  have hrom_eval :
+      ProbComp.eval (romUnextractedTokenExperiment expand chalToIdx checkRel S targetFn A) =
+        (ProbComp.eval S.keyGen).bind fun keys =>
+          (ProbOracleComp.runWith
+              (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+              (A keys.1) ((([], []), []), false)).map
+            fun (tok, ((_, msgs), _)) =>
+              Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs) := by
+    simp only [romUnextractedTokenExperiment, runROMUnextractedToken, ProbComp.eval_map,
+      ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_runState, PMF.map,
+      PMF.bind_bind]
+    congr 1
+    funext keys
+    have hev :
+        (fun q st => ProbComp.eval (romTokenHandlerProg expand chalToIdx checkRel S keys q st)) =
+          romTokenHandler (comLen := comLen) (Seed := Seed) (IV := IV)
+            expand chalToIdx checkRel S keys :=
+      funext fun q => funext fun st =>
+        romTokenHandlerProg_eval expand chalToIdx checkRel S keys q st
+    have hforget := ProbOracleComp.runWith_map_state _ _ Prod.fst
+      (romTokenStickyHandler_map_forget expand decWit chalToIdx targetFn checkRel S keys)
+      (A keys.1) ((([], []), []), false)
+    rw [hev, ← hforget]
+    simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind, romTokenAccept]
+  have hext_eval :
+      ProbComp.eval (extractedExperiment S targetFn
+        (extractedForgerOfROM expand decWit chalToIdx checkRel A)) =
+        (ProbComp.eval S.keyGen).bind fun keys =>
+          (ProbOracleComp.runWith
+              (extTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+              (A keys.1) ((([], []), []), false)).map
+            fun (tok, ((_, msgs), _)) =>
+              Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs) := by
+    simp only [extractedExperiment, runExtracted, extractedForgerOfROM, ProbComp.eval_map,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.map, PMF.bind_bind, Function.comp_def,
+      PMF.pure_bind]
+    congr 1
+    funext keys
+    let signO : Payload Message Opening → ProbComp Sig := fun p =>
+      S.sign keys.2 (targetFn p.message p.opening)
+    let signH : Payload Message Opening → StateT (List (Payload Message Opening × Sig)) PMF Sig :=
+      fun p log => (ProbComp.eval (signO p)).map fun sig => (sig, log ++ [(p, sig)])
+    have hlog_map :
+        ProbComp.eval ((Prod.fst <$> (OracleComp.interpret
+            (OracleComp.sumHandler
+              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+              (romToExtractedInner expand decWit chalToIdx checkRel))
+            (A keys.1)).run ([], [])).runLog signO) =
+          (ProbOracleComp.runWith signH ((OracleComp.interpret
+              (OracleComp.sumHandler
+                (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+                (romToExtractedInner expand decWit chalToIdx checkRel))
+              (A keys.1)).run ([], [])) []).map (Prod.map Prod.fst id) := by
+      simp only [ProbOracleComp.runLog, ProbOracleComp.runState_map, StateT.run_map,
+        ProbOracleComp.eval_runState, ProbComp.eval_map]
+      congr 2
+    change (ProbComp.eval (ProbOracleComp.runLog (Prod.fst <$>
+      (OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+          (romToExtractedInner expand decWit chalToIdx checkRel))
+        (A keys.1)).run ([], [])) signO)).bind _ = _
+    rw [hlog_map]
+    have hrun := ProbOracleComp.runWith_run_interpret
+      (romToExtractedInner expand decWit chalToIdx checkRel) signH (A keys.1) ([], []) []
+    let repMsg : VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+        List (Payload Message Opening × Sig) →
+        VOLEITHTraceState d sdLen comLen rowLen (Message × Target) Seed IV PreMsg Chal ×
+          List Message :=
+      fun (roSt, log) => (roSt, log.map fun e => e.1.message)
+    have hjoint_eq :
+        ((ProbOracleComp.runWith
+            (fun q state =>
+              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                (ProbOracleComp.runWith signH
+                  ((romToExtractedInner expand decWit chalToIdx checkRel q).run state.1)
+                  state.2))
+            (A keys.1) (([], []), [])).map (Prod.map id repMsg)) =
+          ProbOracleComp.runWith
+            (extTokenHandler expand decWit chalToIdx targetFn checkRel S keys)
+            (A keys.1) (([], []), []) := by
+      refine ProbOracleComp.runWith_map_state _ _ repMsg (fun q x => ?_)
+        (A keys.1) (([], []), [])
+      rcases x with ⟨roSt, log⟩
+      rcases q with req | qRO
+      · simp only [romToExtractedInner, StateT.run, ProbOracleComp.runWith_bind,
+          ProbOracleComp.runWith_sample, extTokenHandler]
+        have hmem :
+            ProbComp.eval ((ProbOracleComp.runState
+                (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+                voleithMemoizeProg) roSt) =
+              ProbOracleComp.runWith voleithMemoize
+                (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+                roSt := by
+          change ProbComp.eval (((ProbOracleComp.runState
+            (voleithVerifyROM (Chal := Chal) expand chalToIdx checkRel req.stmt req.proof)
+            voleithMemoizeProg).run roSt)) = _
+          rw [ProbOracleComp.eval_runState]
+          congr 2
+          exact funext fun q' => funext fun s' => eval_voleithMemoizeProg q' s'
+        rw [hmem]
+        simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+        congr 1
+        funext ⟨ok, roSt'⟩
+        cases ok
+        · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind,
+            repMsg]
+        · simp only [↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+            ProbOracleComp.runWith_pure, signH, signO, PMF.map, PMF.bind_bind, Function.comp_def,
+            PMF.pure_bind, repMsg, List.map_append, List.map_cons, List.map_nil]
+      · simp only [romToExtractedInner, StateT.run, ProbOracleComp.runWith_bind,
+          ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, repMsg, extTokenHandler,
+          PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind, eval_voleithMemoizeProg]
+    have hforget := ProbOracleComp.runWith_map_state _ _ Prod.fst
+      (extTokenStickyHandler_map_forget expand decWit chalToIdx targetFn checkRel S keys)
+      (A keys.1) ((([], []), []), false)
+    rw [hrun]
+    have hleft :
+        ((PMF.map (Prod.map Prod.fst id)
+            (PMF.map (fun ⟨a, b, c⟩ => ((a, b), c))
+              (ProbOracleComp.runWith
+                (fun q state =>
+                  PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                    (ProbOracleComp.runWith signH
+                      ((romToExtractedInner expand decWit chalToIdx checkRel q).run state.1)
+                      state.2))
+                (A keys.1) (([], []), [])))).bind
+          fun a => PMF.pure (extractedAccept S targetFn ⟨keys.1, a.1, a.2⟩)) =
+        ((ProbOracleComp.runWith
+            (fun q state =>
+              PMF.map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))
+                (ProbOracleComp.runWith signH
+                  ((romToExtractedInner expand decWit chalToIdx checkRel q).run state.1)
+                  state.2))
+            (A keys.1) (([], []), [])).map (Prod.map id repMsg)).bind
+          fun x => PMF.pure
+            (Token.valid S targetFn keys.1 x.1 && decide (x.1.payload.message ∉ x.2.2)) := by
+      simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind, extractedAccept,
+        repMsg, Prod.map]
+      rfl
+    rw [hleft, hjoint_eq, ← hforget]
+    simp only [PMF.map, PMF.bind_bind, Function.comp_def, PMF.pure_bind]
+  have hkey_le : ∀ keys : PK × SK,
+      ((ProbOracleComp.runWith
+          (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          (A keys.1) ((([], []), []), false)).map
+        fun (tok, ((_, msgs), _)) =>
+          Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true ≤
+      ((ProbOracleComp.runWith
+          (extTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+          (A keys.1) ((([], []), []), false)).map
+        fun (tok, ((_, msgs), _)) =>
+          Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true +
+        (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+    intro keys
+    have hiub := ProbOracleComp.IdenticalUntilBad.bind_apply_le
+      (romTokenSticky_identicalUntilBad expand decWit chalToIdx targetFn checkRel S keys)
+      (A keys.1) ((([], []), []), false)
+      (fun (tok, ((_, msgs), _)) =>
+        PMF.pure (Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)))
+      true
+    have hbad := romTokenSticky_bad_le expand decWit chalToIdx targetFn checkRel hSound S
+      keys (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
+    exact hiub.trans (add_le_add_right hbad _)
+  have hprob_le :
+      ProbComp.eval (romUnextractedTokenExperiment expand chalToIdx checkRel S targetFn A) true ≤
+        ProbComp.eval (extractedExperiment S targetFn
+          (extractedForgerOfROM expand decWit chalToIdx checkRel A)) true +
+          (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+    rw [hrom_eval, hext_eval, PMF.bind_apply, PMF.bind_apply]
+    calc
+      (∑' keys, (ProbComp.eval S.keyGen) keys *
+          ((ProbOracleComp.runWith
+              (romTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+              (A keys.1) ((([], []), []), false)).map
+            fun (tok, ((_, msgs), _)) =>
+              Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true)
+        ≤ ∑' keys, (ProbComp.eval S.keyGen) keys *
+            (((ProbOracleComp.runWith
+                (extTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+                (A keys.1) ((([], []), []), false)).map
+              fun (tok, ((_, msgs), _)) =>
+                Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true +
+              (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞)) := by
+          refine tsum_le_tsum fun keys => ?_
+          exact mul_le_mul_right (hkey_le keys) _
+      _ = (∑' keys, (ProbComp.eval S.keyGen) keys *
+            ((ProbOracleComp.runWith
+                (extTokenStickyHandler expand decWit chalToIdx targetFn checkRel S keys)
+                (A keys.1) ((([], []), []), false)).map
+              fun (tok, ((_, msgs), _)) =>
+                Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs)) true) +
+          ∑' keys, (ProbComp.eval S.keyGen) keys *
+            (ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0∞) := by
+          simp_rw [mul_add]
+          rw [tsum_add]
+      _ = _ := by
+          rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  have hnn := ENNReal.toNNReal_mono
+    (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, ENNReal.coe_ne_top⟩) hprob_le
+  rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe] at hnn
+  exact hnn
+
+/-- **End-to-end ROM reduction for `AnonymousToken.Basic`**: composes straight-line leaf
+extraction with `AnonymousToken.extracted_succProbability_le` to bound an unextracted ROM
+adversary's forgery probability by EUF-CMA + target binding + `ksBound`. -/
+theorem unextractedTokenExperiment_succProbability_le {d sdLen comLen rowLen : ℕ}
+    {PK SK Message Opening Target Seed IV PreMsg Chal Sig : Type}
+    [DecidableEq Message] [DecidableEq Target] [Inhabited Sig]
+    [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
+    [BEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen (Message × Target) IV PreMsg)]
+    [DecidableEq IV] [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen) (decWit : BitString rowLen → Opening)
+    (chalToIdx : Chal → Fin (2 ^ d)) (S : Signature.Scheme PK SK Target Sig)
+    (targetFn : Message → Opening → Target)
+    (checkRel : Message × Target → (Fin d → BitString rowLen) → BitString rowLen →
+      PreMsg → Chal → Bool)
+    {ε_rel : ℝ≥0}
+    (hSound : VOLEITHSoundnessError decWit chalToIdx (romTokenRel targetFn) checkRel ε_rel)
+    (A : PK → ProbOracleComp (ROMTokenSpec Message Target d sdLen comLen rowLen Seed IV PreMsg
+      Chal Sig) (Token Message Opening Sig))
+    {m Q_leaf Q_FS : ℕ}
+    (hm : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 1) (fun _ => 0))) (A pk) m)
+    (hleaf : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithLeafCost)) (A pk) Q_leaf)
+    (hfs : ∀ pk, IsCostBounded (Sum.elim (fun _ => 0)
+      (Sum.elim (fun _ => 0) voleithFSCost)) (A pk) Q_FS) :
+    (romUnextractedTokenExperiment expand chalToIdx checkRel S targetFn A).succProbability ≤
+      (S.eufCmaExperiment (targetForger targetFn
+          (extractedForgerOfROM expand decWit chalToIdx checkRel A))).succProbability +
+        (bindingExperiment S targetFn
+          (extractedForgerOfROM expand decWit chalToIdx checkRel A)).succProbability +
+        ksBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel := by
+  refine (unextractedTokenExperiment_succProbability_le_extracted expand decWit chalToIdx S
+    targetFn checkRel hSound A hm hleaf hfs).trans ?_
+  exact add_le_add_left (extracted_succProbability_le S targetFn _) _
+
+end AnonymousTokenBridge
 
 end Cslib.Crypto.Protocols.VOLE
