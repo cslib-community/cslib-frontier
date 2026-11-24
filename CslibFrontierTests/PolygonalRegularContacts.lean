@@ -7,7 +7,8 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: local-only (ordinary-import regular-contact regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
+import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Polygonal
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import Mathlib.Tactic.FinCases
@@ -15,7 +16,7 @@ import Mathlib.Tactic.NormNum
 
 set_option linter.privateModule false
 
-/-! The two spokes of an embedded star give a regular contact at an actual shared endpoint. -/
+/-! The two spokes of an embedded star give a regular contact and carry no closed passages. -/
 
 namespace CslibFrontierTests.PolygonalRegularContacts
 
@@ -103,5 +104,18 @@ example : ∃ b c, (D.route leftSpoke.1).AtEnd leftSpoke.2 1 b ∧
   · obtain ⟨hs, _⟩ := h
     exact (lt_irrefl _ hs.2).elim
   · exact h
+
+private def emptyPassages : ClosedPassages (starGraph 2) (fun _ => false) := by
+  letI : IsEmpty {d : Dart (starGraph 2) // (false : Bool) = true} :=
+    ⟨fun d => Bool.noConfusion d.property⟩
+  exact ⟨0, Equiv.equivOfIsEmpty _ _, fun i => Fin.elim0 i⟩
+
+-- The result is usable with empty support even when the drawing itself has two incident edges.
+example : (star_isEmbedding 2).rotation.intersectionParity emptyPassages emptyPassages = false := by
+  let hD := star_isEmbedding 2
+  rw [emptyPassages.intersectionParity_eq_sum_route_intersectionParity emptyPassages
+    hD.realizes_rotation regular hD.simple hD.vertices_injective
+    (vertex_mem (starGraph_endpoints_declared 2)) (fun _ h _ => Bool.noConfusion h)]
+  simp [← Bool.zero_eq_false]
 
 end CslibFrontierTests.PolygonalRegularContacts
