@@ -21,7 +21,7 @@ instances.
 
 The predicate is closed under the constructors of `Nat.RecursiveIn`, and contains every partial
 recursive function. `HasUniformCode.ite` adds a guarded call: it runs a partial computation only
-where a primitive recursive test asks for it, and otherwise returns its input.
+where a computable test asks for it, and otherwise returns its input.
 
 ## Main definitions
 
@@ -30,7 +30,7 @@ where a primitive recursive test asks for it, and otherwise returns its input.
 
 ## Main results
 
-* `Nat.RecursiveIn.Code.HasUniformCode.of_partrec`, `.oracle`, `.pair`, `.comp`, `.prec`,
+* `Nat.RecursiveIn.Code.HasUniformCode.of_partrec`, `.of_computable`, `.oracle`, `.pair`, `.comp`, `.prec`,
   `.rfind`: closure under the constructors of `Nat.RecursiveIn`.
 * `Nat.RecursiveIn.Code.HasUniformCode.ite`: a guarded call.
 * `Nat.RecursiveIn.Code.HasUniformCode.recursiveIn`: each member is recursive in its oracle.
@@ -89,22 +89,26 @@ theorem of_eq {F G : ι → ℕ →. ℕ} (hF : HasUniformCode o F) (h : ∀ i n
   obtain ⟨c, hc⟩ := hF
   exact ⟨c, fun i => (hc i).trans (funext (h i))⟩
 
-/-- A guarded call: where the primitive recursive test `b` is `0` the input is returned and `F` is
-not run, so its divergence there does not matter. -/
-theorem ite {b : ℕ → ℕ} (hb : Nat.Primrec b) {F : ι → ℕ →. ℕ} (hF : HasUniformCode o F) :
+/-- A total computable function, used by the same code for every oracle. -/
+theorem of_computable {f : ℕ → ℕ} (hf : Computable f) :
+    HasUniformCode o fun _ n => Part.some (f n) :=
+  of_partrec (Partrec.nat_iff.1 hf)
+
+/-- A guarded call: where the computable test `b` is `0` the input is returned and `F` is not
+run, so its divergence there does not matter. -/
+theorem ite {b : ℕ → ℕ} (hb : Computable b) {F : ι → ℕ →. ℕ} (hF : HasUniformCode o F) :
     HasUniformCode o fun i n => if b n = 0 then Part.some n else F i n := by
-  have hflag : Nat.Primrec fun n => Nat.pair n (if b n = 0 then 0 else 1) := by
-    refine Nat.Primrec.pair Nat.Primrec.id ?_
-    have : _root_.Primrec fun n => if b n = 0 then 0 else 1 :=
-      _root_.Primrec.ite (_root_.Primrec.eq.comp (_root_.Primrec.nat_iff.2 hb)
-        (_root_.Primrec.const 0)) (_root_.Primrec.const 0) (_root_.Primrec.const 1)
-    exact _root_.Primrec.nat_iff.1 this
+  have hflag : Computable fun n => Nat.pair n (min (b n) 1) :=
+    (Primrec₂.to_comp Primrec₂.natPair).comp Computable.id
+      ((Primrec₂.to_comp _root_.Primrec.nat_min).comp hb (Computable.const 1))
   refine ((HasUniformCode.prec (of_primrec Nat.Primrec.id)
-    (hF.comp (of_primrec Nat.Primrec.left))).comp (of_primrec hflag)).of_eq fun i n => ?_
-  by_cases h : b n = 0 <;>
-    simp only [h, ↓reduceIte, ← Part.pure_eq_some, pure_bind, Nat.unpaired, Nat.unpair_pair]
-  · rfl
-  · change (pure n >>= fun _ => pure n >>= F i) = F i n
+    (hF.comp (of_primrec Nat.Primrec.left))).comp (of_computable hflag)).of_eq fun i n => ?_
+  rcases Nat.eq_zero_or_pos (b n) with h | h
+  · simp only [h, ↓reduceIte, ← Part.pure_eq_some, pure_bind, Nat.unpaired, Nat.unpair_pair]
+    rfl
+  · simp only [h.ne', ↓reduceIte, Nat.min_eq_right h, ← Part.pure_eq_some, pure_bind,
+      Nat.unpaired, Nat.unpair_pair]
+    change (pure n >>= fun _ => pure n >>= F i) = F i n
     simp only [pure_bind]
     exact Part.bind_some _ _
 
