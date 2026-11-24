@@ -6740,6 +6740,13 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSeedChec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSmallCsrProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.BucketRebuild
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.HealRt
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.MetaFinalize
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.PoolLocSlices
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.PrefixBackPtr
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.SelfHeal
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.StepDispatch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.UniformProbing
 public import CslibFrontier.DataStructure.DisjointSet.Spec
 public import CslibFrontier.DataStructure.DisjointSet.UnionFind
