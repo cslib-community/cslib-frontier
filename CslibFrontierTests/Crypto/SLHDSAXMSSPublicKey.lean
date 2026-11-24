@@ -14,11 +14,15 @@ set_option linter.privateModule false
 /-!
 # Checked clients for FIPS 205 XMSS public-key reconstruction
 
-These checks cover all six standardized XMSS heights, executable composition with WOTS+
-Algorithm 8, and the source ledgers exposed for composition. The internal branch and mutable
-address invariants are proved privately in the implementation module. These tests are not a
-library caller and do not claim generated-signature correctness, verification, security or
-compiled resource bounds.
+These checks use only the public interface of the Algorithm 11 module. They fix leaf index
+`5 = 0b101` in a tree of height `h' = 3`, whose three loop iterations take the odd, the even and
+the odd branch, and an input address whose type-specific words are all nonzero. The last check
+unrolls Algorithm 11 completely for that leaf: it names the address and the block order of every
+`H` call and the address of the WOTS+ call. A definition with the two branches exchanged, another
+tree height or tree index, or a missing `setTypeAndClear` could not pass it.
+
+The checks do not evaluate a hash function, and they say nothing about generated signatures,
+verification or security.
 -/
 
 public section
@@ -27,21 +31,7 @@ namespace SLHDSAXMSSPublicKeyTests
 
 open Cslib.Crypto Cslib.Crypto.SLHDSA Cslib.Crypto.SLHDSA.XMSS
 
-private def zeroBytes (p : SecurityBytes) : NBytes p := fun _ => 0
-private def zeroMessage (p : SecurityBytes) : WOTS.Message p := fun _ => 0
-private def zeroWOTSSignature (p : SecurityBytes) : WOTS.Signature p := fun _ _ => 0
-
-private def zeroSignature (p : SecurityBytes) (shape : ParameterShape) : Signature p shape :=
-  { wots := zeroWOTSSignature p
-    authentication := fun _ _ => 0 }
-
-private def zeroIndex (p : SecurityBytes) (shape : ParameterShape) : LeafIndex p shape :=
-  ⟨0, by cases p <;> cases shape <;> decide⟩
-
-private def baseAddress : Address :=
-  Address.tree 3 0x0102030405060708 0 0
-
-/-! ### Exact signature and parameter shapes -/
+/-! ### Standardized tree heights (FIPS 205, Table 2) -/
 
 example : ParameterShape.xmssHeight .bytes16 .small = 9 := rfl
 example : ParameterShape.xmssHeight .bytes16 .fast = 3 := rfl
@@ -50,61 +40,64 @@ example : ParameterShape.xmssHeight .bytes24 .fast = 3 := rfl
 example : ParameterShape.xmssHeight .bytes32 .small = 8 := rfl
 example : ParameterShape.xmssHeight .bytes32 .fast = 4 := rfl
 
-example : signatureBlocks .bytes16 .small = 44 := rfl
-example : signatureBytes .bytes16 .small = 704 := rfl
-example : signatureBlocks .bytes32 .fast = 71 := rfl
-example : signatureBytes .bytes32 .fast = 2272 := rfl
+/-! ### The address after each iteration -/
+
+/-- An input address in layer 3 whose type and three type-specific words Algorithm 11 must
+overwrite. -/
+private def inputAddress : Address :=
+  Address.forsTree 0x0102030405060708 7 11 13 |>.setLayerAddress 3
 
 private def indexFive : LeafIndex .bytes16 .fast := ⟨5, by decide⟩
 
-/-! ### Complete executable clients -/
+/-- The `TREE` address (FIPS 205, Figure 5) in the layer and tree of `inputAddress`. -/
+private def treeAddress (height index : AddressWord) : Address :=
+  Address.tree 3 0x0102030405060708 height index
 
-example : NBytes .bytes16 :=
-  xmssPkFromSig .shake (zeroIndex .bytes16 .small) (zeroSignature .bytes16 .small)
-    (zeroMessage .bytes16) (zeroBytes .bytes16) baseAddress
-example : NBytes .bytes16 :=
-  xmssPkFromSig .sha2 (zeroIndex .bytes16 .fast) (zeroSignature .bytes16 .fast)
-    (zeroMessage .bytes16) (zeroBytes .bytes16) baseAddress
-example : NBytes .bytes24 :=
-  xmssPkFromSig .shake (zeroIndex .bytes24 .small) (zeroSignature .bytes24 .small)
-    (zeroMessage .bytes24) (zeroBytes .bytes24) baseAddress
-example : NBytes .bytes24 :=
-  xmssPkFromSig .sha2 (zeroIndex .bytes24 .fast) (zeroSignature .bytes24 .fast)
-    (zeroMessage .bytes24) (zeroBytes .bytes24) baseAddress
-example : NBytes .bytes32 :=
-  xmssPkFromSig .shake (zeroIndex .bytes32 .small) (zeroSignature .bytes32 .small)
-    (zeroMessage .bytes32) (zeroBytes .bytes32) baseAddress
-example : NBytes .bytes32 :=
-  xmssPkFromSig .sha2 (zeroIndex .bytes32 .fast) (zeroSignature .bytes32 .fast)
-    (zeroMessage .bytes32) (zeroBytes .bytes32) baseAddress
+/-- A client turns the closed form into an equation between addresses. -/
+private theorem authenticationAddress_indexFive (levels : ℕ) (hlevels : levels ≤ 3)
+    (height index : AddressWord) (hheight : height.val = levels)
+    (hindex : index.val = 5 / 2 ^ levels) :
+    authenticationAddress inputAddress indexFive levels hlevels = treeAddress height index := by
+  obtain ⟨htype, hpadding, hheight', hindex', hlayer, htree⟩ :=
+    authenticationAddress_closed_form inputAddress indexFive levels hlevels
+  exact Address.ext hlayer htree htype hpadding (Fin.ext (hheight'.trans hheight.symm))
+    (Fin.ext (hindex'.trans hindex.symm))
 
-example (family : HashFamily) :
-    (xmssPkFromSigWithLedger family indexFive (zeroSignature .bytes16 .fast)
-      (zeroMessage .bytes16) (zeroBytes .bytes16) baseAddress).output =
-      xmssPkFromSig family indexFive (zeroSignature .bytes16 .fast) (zeroMessage .bytes16)
-        (zeroBytes .bytes16) baseAddress :=
-  xmssPkFromSigWithLedger_output family indexFive (zeroSignature .bytes16 .fast)
-    (zeroMessage .bytes16) (zeroBytes .bytes16) baseAddress
+/-- Leaf index `5` climbs through tree indices `5`, `2`, `1` and `0`. -/
+example : authenticationAddress inputAddress indexFive 0 (by decide) = treeAddress 0 5 :=
+  authenticationAddress_indexFive 0 (by decide) 0 5 rfl rfl
+example : authenticationAddress inputAddress indexFive 1 (by decide) = treeAddress 1 2 :=
+  authenticationAddress_indexFive 1 (by decide) 1 2 rfl rfl
+example : authenticationAddress inputAddress indexFive 2 (by decide) = treeAddress 2 1 :=
+  authenticationAddress_indexFive 2 (by decide) 2 1 rfl rfl
+example : authenticationAddress inputAddress indexFive 3 (by decide) = treeAddress 3 0 :=
+  authenticationAddress_indexFive 3 (by decide) 3 0 rfl rfl
 
-example (family : HashFamily) :
-    (xmssPkFromSigWithLedger family indexFive (zeroSignature .bytes16 .fast)
-      (zeroMessage .bytes16) (zeroBytes .bytes16) baseAddress).ledger =
-      sourceLedger (zeroMessage .bytes16) indexFive :=
-  xmssPkFromSigWithLedger_ledger family indexFive (zeroSignature .bytes16 .fast)
-    (zeroMessage .bytes16) (zeroBytes .bytes16) baseAddress
+/-! ### Algorithm 11 unrolled -/
 
-/-! ### Exact source ledgers -/
-
-example : (operationLedger (zeroMessage .bytes16) indexFive).treeIndexWrites = 4 := rfl
-example : (authenticationCalls 5 3).hCalls = 3 :=
-  (authenticationCalls_fixed 5 3).2.2.1
-example :
-    (authenticationCalls 5 3).nodeFirstBranches +
-      (authenticationCalls 5 3).authenticationFirstBranches = 3 :=
-  authenticationCalls_branch_partition 5 3
-example :
-    (staticDescriptionLedger .bytes16 .fast).compiledDescriptionBytes = none := rfl
-example : (staticDescriptionLedger .bytes16 .fast).hInputBytes = 32 := rfl
-example : (staticDescriptionLedger .bytes16 .fast).outputBytes = 16 := rfl
+/-- Algorithm 11 for leaf `5` and `h' = 3`. The WOTS+ public key is computed under the `WOTS_HASH`
+address with key pair `5`. Iteration 0 (`5` is odd) hashes `AUTH[0] ∥ node`, iteration 1 (`2` is
+even) hashes `node ∥ AUTH[1]`, and iteration 2 (`1` is odd) hashes `AUTH[2] ∥ node`, under the
+`TREE` addresses with (height, index) equal to `(1, 2)`, `(2, 1)` and `(3, 0)`. -/
+example (family : HashFamily) (sig : Signature .bytes16 .fast) (M : WOTS.Message .bytes16)
+    (publicSeed : NBytes .bytes16) :
+    xmssPkFromSig family indexFive sig M publicSeed inputAddress =
+      h family publicSeed (treeAddress 3 0)
+        (FixedBytes.pairBlocks (sig.authentication ⟨2, by decide⟩)
+          (h family publicSeed (treeAddress 2 1)
+            (FixedBytes.pairBlocks
+              (h family publicSeed (treeAddress 1 2)
+                (FixedBytes.pairBlocks (sig.authentication ⟨0, by decide⟩)
+                  (WOTS.wotsPkFromSig family sig.wots M publicSeed
+                    (Address.wotsHash 3 0x0102030405060708 5 0 0))))
+              (sig.authentication ⟨1, by decide⟩)))) := by
+  rw [xmssPkFromSig_eq]
+  change authenticationNode family indexFive sig.authentication publicSeed inputAddress _ 3
+    (by decide) = _
+  rw [authenticationNode_succ, authenticationNode_succ, authenticationNode_succ,
+    authenticationNode_zero, authenticationAddress_indexFive 1 (by decide) 1 2 rfl rfl,
+    authenticationAddress_indexFive 2 (by decide) 2 1 rfl rfl,
+    authenticationAddress_indexFive 3 (by decide) 3 0 rfl rfl]
+  rfl
 
 end SLHDSAXMSSPublicKeyTests
