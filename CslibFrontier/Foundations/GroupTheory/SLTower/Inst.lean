@@ -168,9 +168,9 @@ chamber. -/
 def EE.equivSubtype (h2 : 2 ≤ h) (j : ℕ) :
     EE h n h2 j ≃ {p : Fin h × XX h n j // FQ h2 p.1 (evX p.2)} where
   toFun e := ⟨(e.kind, e.start), e.first⟩
-  invFun p := ⟨p.1.1, p.1.2, p.2⟩
+  invFun | ⟨(a, c), hc⟩ => ⟨a, c, hc⟩
   left_inv _ := rfl
-  right_inv _ := rfl
+  right_inv | ⟨(_, _), _⟩ => rfl
 
 noncomputable instance instFintypeEE (h2 : 2 ≤ h) (j : ℕ) : Fintype (EE h n h2 j) :=
   haveI : Finite (EE h n h2 j) := Finite.of_equiv _ (EE.equivSubtype h2 j).symm
@@ -312,9 +312,9 @@ theorem deg_edges (h2 : 2 ≤ h) (j : ℕ) (c : XX h n j) (i : Fin h) :
 /-- Near pairs as a subtype of pairs, for counting. -/
 def NN.equivSubtype (h : ℕ) : NN h ≃ {p : Fin (h - 1) × U h // FU p.1 p.2} where
   toFun ν := ⟨(ν.idx, ν.elt), ν.first⟩
-  invFun p := ⟨p.1.1, p.1.2, p.2⟩
+  invFun | ⟨(a, c), hc⟩ => ⟨a, c, hc⟩
   left_inv _ := rfl
-  right_inv _ := rfl
+  right_inv | ⟨(_, _), _⟩ => rfl
 
 noncomputable instance instFintypeNN : Fintype (NN h) :=
   haveI : Finite (NN h) := Finite.of_equiv _ (NN.equivSubtype h).symm
