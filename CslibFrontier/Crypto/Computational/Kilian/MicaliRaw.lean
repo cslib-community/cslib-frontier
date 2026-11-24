@@ -47,7 +47,9 @@ This module completes that verification-complexity and raw-proof layer cleanly o
   `micaliMaxProofCap`):** reuses `kilianProverMsgDecoder` and `kilianRawProverCap`. Before querying
   the Fiat–Shamir oracle, the verifier decodes `root` from only the leading `2 * σ + 1` bits and
   enforces `micaliHasRootPrefix σ rawProof`. Any accepted raw proof fits inside
-  `micaliMaxProofCap V σ m d x = O((σ + m + 1)^2 · (log₂ |enc x| + 1))`.
+  `micaliMaxProofCap V σ m d x` (`computableInPolyTime_micaliMaxProofCap`), while honest proof
+  payload bits satisfy the `O((σ + m + 1)^2 · (log₂ |enc x| + 1))` bound
+  `micaliProofBits_micaliProvePure_le_log`.
 * **Pure bounded-prefix verifier machine (`micaliVerifyRawBoundedPure`):** agrees unconditionally
   with `micaliVerifyPure` on every proof `prf : MicaliProof` with `prf.root.length ≤ σ`, depends
   only on `rawProof.take (micaliMaxProofCap V σ m d x + 1)`, and runs on one fixed binary
@@ -76,8 +78,8 @@ Locators in [Micali2000] and [ChiesaYogev2024] are carried from `Kilian.MicaliSo
   `Cslib.Crypto.micaliHasRootPrefix`, `Cslib.Crypto.micaliFSReplyCap`,
   `Cslib.Crypto.micaliMaxProofCap`, `Cslib.Crypto.kilianStructValid`.
 * `Cslib.Crypto.micaliVerifyRawBoundedPure`, `Cslib.Crypto.micaliVerifyRawBounded`.
-* `Cslib.Crypto.MicaliWordOp`, `Cslib.Crypto.encMicaliWordOp`,
-  `Cslib.Crypto.micaliWordCodec`, `Cslib.Crypto.micaliVerifyRawWord`.
+* `Cslib.Crypto.MicaliWordOp`, `Cslib.Crypto.micaliWordCodec`,
+  `Cslib.Crypto.micaliVerifyRawWord`.
 * `Cslib.Crypto.micaliRawSoundnessProg`, `Cslib.Crypto.micaliRawSoundnessGame`.
 
 ## Main results
@@ -151,14 +153,6 @@ def micaliProofDecoder : Decoder encMicaliProof :=
   kilianProverMsgDecoder.map (fun p => ⟨p.1, p.2⟩) (fun prf => (prf.root, prf.response))
     (fun _ => rfl) (fun prf => by simp [encMicaliProof_apply])
 
-/-- Decoding an encoded pair of bit strings under `micaliProofDecoder` recovers the root bit
-string and `kilianResponseDecoder.decode rawResp`. -/
-theorem micaliProofDecoder_encPair_bits (root rawResp : List Bool) :
-    micaliProofDecoder.decode (encPair encBits encBits (root, rawResp)) =
-      ⟨root, kilianResponseDecoder.decode rawResp⟩ := by
-  dsimp only [micaliProofDecoder, Decoder.map]
-  rw [kilianProverMsgDecoder_encPair_bits]
-
 /-- Predicate checking that `rawProof` begins with a complete framed bit string of at most `σ`
 bits within its first `2 * σ + 1` bits. -/
 def micaliHasRootPrefix (σ : ℕ) (rawProof : List Bool) : Bool :=
@@ -226,10 +220,6 @@ theorem length_encList_le_micaliFSReplyCap {α : Type} (enc : α ↪ List Bool) 
 over all challenge lists `ρs` of length `m` for a `d`-query PCP verifier `V`. -/
 def micaliMaxProofCap {α : Type} (V : PCPVerifier α) (σ m d : ℕ) (x : α) : ℕ :=
   (2 * σ + 1) + m * (2 * (d * (2 * kilianOpeningEncBound σ (kilianDepth V x) + 1)) + 1)
-
-theorem two_mul_add_one_le_micaliMaxProofCap {α : Type} (V : PCPVerifier α) (σ m d : ℕ) (x : α) :
-    2 * σ + 1 ≤ micaliMaxProofCap V σ m d x :=
-  Nat.le_add_right _ _
 
 theorem kilianRawProverCap_le_micaliMaxProofCap {α : Type} (V : PCPVerifier α) {σ m d : ℕ}
     {x : α} {ρs : List (List Bool)} (hm : ρs.length = m)
@@ -865,17 +855,6 @@ instance : Finite MicaliWordOp :=
       left_inv := fun b => by cases b <;> rfl
       right_inv := fun op => by cases op <;> rfl }
 
-/-- Framed injection from `MicaliWordOp` to bit strings. -/
-def encMicaliWordOp : MicaliWordOp ↪ List Bool where
-  toFun op := encBool (match op with | .merkle => false | .fs => true)
-  inj' a b h := by
-    cases a <;> cases b <;> simp_all [encBool_apply]
-
-@[fun_prop]
-theorem encMicaliWordOp_const (op : MicaliWordOp) {α : Type} (encIn : α ↪ List Bool) :
-    ComputableInPolyTime (fun _ : α => op) encIn encMicaliWordOp :=
-  ComputableInPolyTime.const op
-
 section WordPrograms
 
 variable {α : Type}
@@ -1355,7 +1334,7 @@ theorem runWith_wordOracle_micaliVerifyRawWord {State : Type}
     have htakeLen : (rawProof.take (maxCap + 1)).length = maxCap + 1 := by
       simp [List.length_take, hgt]
     have h2 : 2 * σ + 1 ≤ maxCap + 1 :=
-      (two_mul_add_one_le_micaliMaxProofCap V σ m d x).trans (Nat.le_succ maxCap)
+      (show 2 * σ + 1 ≤ maxCap from Nat.le_add_right _ _).trans (Nat.le_succ maxCap)
     have hpfxEq : (rawProof.take (maxCap + 1)).take (2 * σ + 1) = rawProof.take (2 * σ + 1) := by
       rw [List.take_take, Nat.min_eq_left h2]
     have hhasEq : micaliHasRootPrefix σ (rawProof.take (maxCap + 1)) =
@@ -2623,23 +2602,27 @@ theorem micaliRawSoundness_bound [DecidableEq α] (V : PCPVerifier α) (L : Set 
 
 /-- **Native raw-byte Micali CS Proofs for arbitrary NP relations** (compare [Micali2000];
 [ChiesaYogev2024], Construction 21.1.1 and Theorem 21.2.1; `locator not re-verified against primary
-PDF`): every NP relation `R : NPRelation enc` admits a PCP verifier `V` (`O(log |enc x|)` random
-coins, `≤ d` queries) and a polynomial-time witness compiler `compile : α × List Bool → List Bool`
-such that:
+PDF`): every NP relation `R : NPRelation enc` admits a PCP verifier `V` (`≤ c * (log₂ |enc x| + 1)`
+random coins, `≤ d` queries) and a polynomial-time witness compiler
+`compile : α × List Bool → List Bool` such that:
 1. `compile` compiles every `R`-witness into a compact table accepted by `V.tableVerifier`, and the
    raw bounded verifier `micaliVerifyRawBounded` accepts honest framed proofs with probability `1`
    (`micaliHonestRawGame_eq_pure_true`),
 2. there is one fixed halting oracle machine (`MultiTapePTM`) implementing `micaliVerifyRawWord`
-   (matching `micaliVerifyRawBounded` on every stateful handler via
-   `(micaliWordCodec enc).wordOracle`) whose worst-case runtime is bounded by a single polynomial
-   `tBound (σ + m + |enc x|)` uniformly over **all** arbitrary unbounded `rawProof : List Bool` and
-   **all** stateful word handlers, using at most `1 + m * d * (kilianDepth V x + 1)` queries,
-3. any fixed digest-width polynomial-time deterministic hash `hTree` and Fiat–Shamir oracle `hFS`
-   yield one fixed halting binary `MultiTapeTM` for `micaliVerifyRawBoundedPure` running in time and
-   space polynomial in `m + |enc x|` for **all** `rawProof : List Bool`,
-4. `micaliRawSoundness_bound` holds against arbitrary adaptive two-channel raw cheating provers, and
-5. honest framed proofs fit within `O((σ + m + 1)^2 · (log₂ |enc x| + 1))` payload and framed
-   bits. -/
+   whose worst-case runtime is bounded by a single polynomial `tWordBound (σ + m + |enc x|)`
+   uniformly over **all** arbitrary unbounded `rawProof : List Bool` and **all** stateful word
+   handlers, using at most `1 + m * d * (kilianDepth V x + 1)` queries,
+3. `micaliRawSoundnessGame` satisfies the `micaliRawSoundness_bound` inequality against arbitrary
+   adaptive two-channel raw cheating provers, and
+4. honest proof payload bits `micaliProofBits (micaliProvePure hTree hFS V x table)` fit within
+   `C * (σ + m + 1)^2 * (Nat.log 2 |enc x| + 1)`.
+
+As immediate corollaries of applying `runWith_wordOracle_micaliVerifyRawWord` and
+`computableInTimeAndSpace_micaliVerifyRawBoundedPure_of_params` to the returned `V`, `coins_le`,
+and `queries_le`, `micaliVerifyRawWord` bisimulates `micaliVerifyRawBounded` on every stateful
+handler via `(micaliWordCodec enc).wordOracle`, and any fixed digest-width polynomial-time `hTree`
+and `hFS` yield one fixed halting binary `MultiTapeTM` for `micaliVerifyRawBoundedPure` running in
+time and space polynomial in `m + |enc x|` for **all** `rawProof : List Bool`. -/
 theorem exists_micaliRawCSProof_of_npRelation [DecidableEq α] {enc : α ↪ List Bool}
     (R : NPRelation enc) :
     ∃ (V : PCPVerifier α) (compile : α × List Bool → List Bool) (c d : ℕ)
