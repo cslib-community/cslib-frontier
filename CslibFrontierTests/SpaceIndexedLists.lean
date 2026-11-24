@@ -6,7 +6,14 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Tactic.Space
 
-/-! # Indexed lists keep their input certificates and the caller's workspace budget -/
+/-!
+# Indexed lists keep their input certificates and the caller's workspace budget
+
+`space` reads and replaces an entry of a list of binary naturals when the list, the index and the
+replacement value each have a certificate at the goal's budget. Each negative control below is one
+of the positive goals with a certificate removed or the budget changed, and matches the part of
+the error that names the obligation `space` could not meet.
+-/
 
 namespace CslibFrontierTests.SpaceIndexedLists
 
@@ -34,27 +41,36 @@ example (hl : ComputableInSpace l encIn (encList encNat) S)
       encIn (encList encNat) S := by
   space
 
--- Runtime indices need a certificate; they are not arbitrary nonuniform advice.
+-- A runtime index needs a certificate; it is not arbitrary nonuniform advice.
+/--
+No theorems found for `i` in order to prove `ComputableInSpace (fun a => i a) encIn encNat S`
+-/
+#guard_msgs (whitespace := lax, substring := true) in
 example (hl : ComputableInSpace l encIn (encList encNat) S)
-    (hv : ComputableInSpace v encIn encNat S) (i : α → ℕ) : True := by
-  fail_if_success
-    have : ComputableInSpace (fun x => (l x).set (i x) (v x))
-        encIn (encList encNat) S := by space
-  trivial
+    (hv : ComputableInSpace v encIn encNat S) :
+    ComputableInSpace (fun x => (l x).set (i x) (v x)) encIn (encList encNat) S := by
+  space
 
 -- A certified index cannot stand in for a missing replacement-value certificate.
+/--
+No theorems found for `v` in order to prove `ComputableInSpace (fun a => v a) encIn encNat S`
+-/
+#guard_msgs (whitespace := lax, substring := true) in
 example (hl : ComputableInSpace l encIn (encList encNat) S)
-    (hi : ComputableInSpace i encIn encNat S) (v : α → ℕ) : True := by
-  fail_if_success
-    have : ComputableInSpace (fun x => (l x).set (i x) (v x))
-        encIn (encList encNat) S := by space
-  trivial
+    (hi : ComputableInSpace i encIn encNat S) :
+    ComputableInSpace (fun x => (l x).set (i x) (v x)) encIn (encList encNat) S := by
+  space
 
--- The original certificates do not justify a different, unrelated budget.
-example (hl : ComputableInSpace l encIn (encList encNat) S)
-    (hi : ComputableInSpace i encIn encNat S) (T : α → ℕ) : True := by
-  fail_if_success
-    have : ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat T := by space
-  trivial
+-- Certificates at the budget `S` do not justify an unrelated budget `T`. The report does not
+-- say which hypothesis failed to match, so this control pins the goal that could not be proved.
+/--
+error: `fun_prop` was unable to prove
+  `ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat T`
+-/
+#guard_msgs (whitespace := lax, substring := true) in
+example {T : α → ℕ} (hl : ComputableInSpace l encIn (encList encNat) S)
+    (hi : ComputableInSpace i encIn encNat S) :
+    ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat T := by
+  space
 
 end CslibFrontierTests.SpaceIndexedLists
