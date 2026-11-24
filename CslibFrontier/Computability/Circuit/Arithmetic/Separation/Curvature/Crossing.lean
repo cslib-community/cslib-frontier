@@ -8,11 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.Cross
-public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Hubs
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.Cross
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Hubs
 import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Algebra.Order.Star.Real
 import Mathlib.Tactic.FieldSimp
@@ -28,7 +28,8 @@ Proposition B.3 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
 `r² + l² ≤ 2 (p² + q²)` such that `p d(x, v) + q d(y, u)` is at most each of
 `p d(x, o) + q d(y, o) + p d(v, o') + q d(u, o') + r d(o, o')` and
 `p d(x, w) + q d(u, w) + q d(y, w') + p d(v, w') + l d(w, w')` (`isPrice_crossing`). Adding the two
-gives the inequality (Q) for every `τ > 0` (`isPrice_crossing_two_mul_le`).
+gives display (B.2) of the paper, the inequality (Q) of `CrossingLength`, for every `τ > 0`
+(`isPrice_crossing_two_mul_le`).
 
 The proof follows the paper. For a spectral point, the product of the two crossing wires is covered
 by the tensors `Ψ_N` of Proposition B.2 (`exists_crossing_identity`); routing `Ψ_N` through two
@@ -43,7 +44,8 @@ wire exponents, and the pairs `(r, l)` lie in a compact set (`Separation.Prices.
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Proposition B.3 of the paper; module `Paper.Crossing` (`prop_crossing`, `eq_Q`)
+  Proposition B.3 and display (B.2) of the paper (§B.4); module `Paper.Crossing` (`prop_crossing`,
+  `eq_Q`)
 -/
 
 public section
@@ -457,10 +459,16 @@ private theorem prop_crossing_spectral {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q)
     simp only
     nlinarith
 
-/-- Proposition B.3, the first statement: the price is pulled back to eight distinct points, which
-covers coincidences. Both inequalities are homogeneous in the distances, and the pairs `(r, l)`
-lie in a compact set, so they pass to limits. -/
-private theorem prop_crossing_first {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
+/-- **Paper: Proposition B.3.** Let `x, v, y, u, o, o', w, w'` be points of a price
+`d` and `p, q ≥ 0`. There are `r, l ≥ 0` with `r² + l² ≤ 2 (p² + q²)` such that
+`p d(x, v) + q d(y, u)` is at most each of
+`p d(x, o) + q d(y, o) + p d(v, o') + q d(u, o') + r d(o, o')` and
+`p d(x, w) + q d(u, w) + q d(y, w') + p d(v, w') + l d(w, w')`.
+
+The points need not be distinct: the proof pulls the price back to eight distinct points. Both
+inequalities are homogeneous in the distances, and the pairs `(r, l)` lie in a compact set, so
+they pass to limits. -/
+theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
     (x v y u o o' w w' : Y)
     {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q) :
     ∃ r l : ℝ, 0 ≤ r ∧ 0 ≤ l ∧ r ^ 2 + l ^ 2 ≤ 2 * (p ^ 2 + q ^ 2) ∧
@@ -519,22 +527,18 @@ private theorem prop_crossing_first {Y : Type} {d : Y → Y → ℝ} (hd : IsPri
       linarith
   exact ⟨z.1, z.2, h1, h2, h3, le_min_iff.1 h⟩
 
-/-- **Paper: Proposition B.3.** Let `x, v, y, u, o, o', w, w'` be points of a price
-`d` and `p, q ≥ 0`. There are `r, l ≥ 0` with `r² + l² ≤ 2 (p² + q²)` such that
-`p d(x, v) + q d(y, u)` is at most each of
-`p d(x, o) + q d(y, o) + p d(v, o') + q d(u, o') + r d(o, o')` and
-`p d(x, w) + q d(u, w) + q d(y, w') + p d(v, w') + l d(w, w')`. Adding the two and using
-`r λ ≤ (τ/2) r² + λ²/(2τ)` gives the inequality (Q) for every `τ > 0`. -/
-theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d) (x v y u o o' w w' : Y)
-    {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q) :
-    (∃ r l : ℝ, 0 ≤ r ∧ 0 ≤ l ∧ r ^ 2 + l ^ 2 ≤ 2 * (p ^ 2 + q ^ 2) ∧
-      p * d x v + q * d y u ≤ p * d x o + q * d y o + p * d v o' + q * d u o' + r * d o o' ∧
-      p * d x v + q * d y u ≤ p * d x w + q * d u w + q * d y w' + p * d v w' + l * d w w') ∧
-    ∀ τ : ℝ, 0 < τ → 2 * (p * d x v + q * d y u) ≤
+/-- **Paper: display (B.2) of Proposition B.3**, the inequality (Q) of `CrossingLength`. Adding the
+two inequalities of `isPrice_crossing` and using `r λ ≤ (τ/2) r² + λ²/(2τ)` gives, for every
+`τ > 0`,
+`2 (p d(x, v) + q d(y, u)) ≤ p (d(x, o) + d(v, o') + d(x, w) + d(v, w')) +
+q (d(y, o) + d(u, o') + d(u, w) + d(y, w')) + τ (p² + q²) + (d(o, o')² + d(w, w')²)/(2τ)`. -/
+theorem isPrice_crossing_two_mul_le {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
+    (x v y u o o' w w' : Y)
+    {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q) (τ : ℝ) (hτ : 0 < τ) :
+    2 * (p * d x v + q * d y u) ≤
       p * (d x o + d v o' + d x w + d v w') + q * (d y o + d u o' + d u w + d y w') +
         τ * (p ^ 2 + q ^ 2) + (d o o' ^ 2 + d w w' ^ 2) / (2 * τ) := by
-  refine ⟨prop_crossing_first hd x v y u o o' w w' hp hq, fun τ hτ => ?_⟩
-  obtain ⟨r, l, hr, hl, hrl, h1, h2⟩ := prop_crossing_first hd x v y u o o' w w' hp hq
+  obtain ⟨r, l, hr, hl, hrl, h1, h2⟩ := isPrice_crossing hd x v y u o o' w w' hp hq
   have am : ∀ a b : ℝ, a * b ≤ τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) := by
     intro a b
     have e : τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) - a * b = (τ * a - b) ^ 2 / (2 * τ) := by
@@ -547,16 +551,5 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d) (x 
     mul_le_mul_of_nonneg_left hrl (by positivity)
   rw [add_div]
   nlinarith
-
-/-- **Paper: the inequality (Q) of Proposition B.3.** For every `τ > 0`,
-`2 (p d(x, v) + q d(y, u)) ≤ p (d(x, o) + d(v, o') + d(x, w) + d(v, w')) +
-q (d(y, o) + d(u, o') + d(u, w) + d(y, w')) + τ (p² + q²) + (d(o, o')² + d(w, w')²)/(2τ)`. -/
-theorem isPrice_crossing_two_mul_le {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
-    (x v y u o o' w w' : Y)
-    {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q) (τ : ℝ) (hτ : 0 < τ) :
-    2 * (p * d x v + q * d y u) ≤
-      p * (d x o + d v o' + d x w + d v w') + q * (d y o + d u o' + d u w + d y w') +
-        τ * (p ^ 2 + q ^ 2) + (d o o' ^ 2 + d w w' ^ 2) / (2 * τ) :=
-  (isPrice_crossing hd x v y u o o' w w' hp hq).2 τ hτ
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

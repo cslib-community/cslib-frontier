@@ -7,12 +7,16 @@ Authors: Anthropic
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Crossing
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Means
 
 /-! Tests of Proposition B.3 and Lemma C.2 of [AnthropicVPVNP2026] under ordinary imports:
 
 * the crossing inequality (Q) for wire exponents of a spectral point;
-* the parallelogram law for the mean norm of prices on two sheets. -/
+* the mean norm of concrete prices on two sheets (wire exponents pulled back along a parity):
+  `N ≤ ν`, the limit of `ν(S g)/S`, and the parallelogram law. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.CurvatureCrossing
 
@@ -32,11 +36,51 @@ example {V : Type} [Fintype V] [DecidableEq V] (F : SpectralPoint K V) (x v y u 
   norm_num at h ⊢
   linarith
 
-/-- Lemma C.2: the mean norm of prices on two sheets satisfies the parallelogram law. -/
-example (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) (hW : ∀ n, IsPrice K (W n)) (Λ : ℝ)
-    (hΛ : ∀ n b (P g : ℤ × ℤ), W n (b, P) (b, P + g) ≤ Λ * (|(g.1 : ℝ)| + |(g.2 : ℝ)|))
-    (a b : ℤ × ℤ) :
-    meanNorm W (a + b) ^ 2 + meanNorm W (a - b) ^ 2 = 2 * meanNorm W a ^ 2 + 2 * meanNorm W b ^ 2 :=
-  meanNorm_parallelogram hW hΛ a b
+/-- The parity of the first coordinate of a point of the two sheets. -/
+def parity : Bool × ℤ × ℤ → Bool
+  | (_, i, _) => decide (i % 2 = 0)
+
+/-- Concrete prices on two sheets: the wire exponents of a spectral point on `Bool`, pulled back
+along `parity` (the same price for every `n`). -/
+noncomputable def parityPrice (F : SpectralPoint K Bool) : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ :=
+  fun _ a b => F.wireExponent (parity a) (parity b)
+
+theorem isPrice_parityPrice (F : SpectralPoint K Bool) (n : ℕ) : IsPrice K (parityPrice F n) :=
+  (isPrice_wireExponent F).comp parity
+
+/-- The prices `parityPrice F` are `1`-Lipschitz on each sheet: a step that keeps the parity costs
+nothing, and one that changes it moves the first coordinate by at least `1`, while wire exponents
+are at most `1`. -/
+theorem parityPrice_le (F : SpectralPoint K Bool) (n : ℕ) (b : Bool) (P g : ℤ × ℤ) :
+    parityPrice F n (b, P) (b, P + g) ≤ 1 * (|(g.1 : ℝ)| + |(g.2 : ℝ)|) := by
+  obtain ⟨i, j⟩ := P
+  obtain ⟨g₁, g₂⟩ := g
+  have h2 : (0 : ℝ) ≤ |(g₂ : ℝ)| := abs_nonneg _
+  by_cases hg : g₁ = 0
+  · subst hg
+    simp [parityPrice, parity, SpectralPoint.wireExponent_self, h2]
+  · have h1 : (1 : ℝ) ≤ |(g₁ : ℝ)| := by
+      rw [← Int.cast_abs]
+      exact_mod_cast Int.one_le_abs hg
+    have := F.wireExponent_le_one (parity (b, i, j)) (parity (b, (i, j) + (g₁, g₂)))
+    simp only [parityPrice, one_mul]
+    linarith
+
+/-- `N` is at most `ν` (no hypothesis on `W`). -/
+example (F : SpectralPoint K Bool) :
+    meanNorm (parityPrice F) (1, 0) ≤ meanLength (parityPrice F) (1, 0) :=
+  meanNorm_le_meanLength _ _
+
+/-- `ν(S g)/S` converges to `N(g)` for the concrete prices `parityPrice F`. -/
+example (F : SpectralPoint K Bool) :
+    Filter.Tendsto (fun S : ℕ => meanLength (parityPrice F) (S • ((1, 0) : ℤ × ℤ)) / S)
+      Filter.atTop (nhds (meanNorm (parityPrice F) (1, 0))) :=
+  tendsto_meanLength_div (isPrice_parityPrice F) (parityPrice_le F) (1, 0)
+
+/-- Lemma C.2 for the concrete prices `parityPrice F` and `a = (1, 0)`, `b = (0, 1)`. -/
+example (F : SpectralPoint K Bool) :
+    meanNorm (parityPrice F) (1, 1) ^ 2 + meanNorm (parityPrice F) (1, -1) ^ 2 =
+      2 * meanNorm (parityPrice F) (1, 0) ^ 2 + 2 * meanNorm (parityPrice F) (0, 1) ^ 2 :=
+  meanNorm_parallelogram (isPrice_parityPrice F) (parityPrice_le F) (1, 0) (0, 1)
 
 end CslibFrontierTests.CurvatureCrossing

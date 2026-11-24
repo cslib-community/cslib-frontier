@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Crossing
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Crossing
 import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Algebra.Order.Star.Int
 import Mathlib.Algebra.Order.Star.Real
@@ -21,17 +22,20 @@ import Mathlib.Tactic.Ring
 /-!
 # Means of prices on two sheets of `ℤ²`, and the parallelogram law
 
-Lemma C.2 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. For `n = 1, 2, …` let
-`W n` be a price on two sheets of `ℤ²` with `W n (P, P + g) ≤ Λ |g|` on each sheet. The mean length
+Lemma C.2 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. For `n = 1, 2, …` (in Lean
+`W : ℕ → …` is indexed from `n = 0`; the window means do not see finitely many terms) let `W n` be
+a price on two sheets of `ℤ²` with `W n (P, P + g) ≤ Λ |g|` on each sheet. The mean length
 `ν(g) = (E W(P, P + g)²)^(1/2)` (`meanLength`, built on `Separation.meanLength` of the sheet
 metrics) is a crossing length (`crossingLength_meanLength`), and `N(g) = inf ν(S g)/S`
 (`meanNorm`) is its homogenization (`meanNorm_eq_homogenization`), the limit of `ν(S g)/S`
 (`tendsto_meanLength_div`). The lemma is the parallelogram law for `N`
-(`meanNorm_parallelogram`).
+(`meanNorm_parallelogram`), which holds for every homogeneous crossing length
+(`Separation.CrossingLength.parallelogram`).
 
 The proof follows the paper. Of `N` it uses only that it is a homogeneous crossing length: the
-inequality (Q) at well-chosen points, convexity along lines, a telescoping sum and averaging give
-`N(a + b)² + N(a - b)² ≤ 2 N(a)² + 2 N(b)²`, and applying this to `a + b, a - b` gives equality.
+inequality (Q) (display (B.2)) at well-chosen points, convexity along lines, a telescoping sum and
+averaging give `N(a + b)² + N(a - b)² ≤ 2 N(a)² + 2 N(b)²`, and applying this to `a + b, a - b`
+gives equality.
 
 ## Main definitions
 
@@ -39,18 +43,19 @@ inequality (Q) at well-chosen points, convexity along lines, a telescoping sum a
 
 ## Main results
 
-* `meanNorm_le_meanLength`, `le_meanNorm`, `meanNorm_nonneg`: `N` as an infimum.
 * `crossingMetrics_sheetMetrics`, `crossingLength_meanLength`, `meanNorm_eq_homogenization`,
   `tendsto_meanLength_div`.
+* `Separation.CrossingLength.parallelogram`: the parallelogram law for a homogeneous crossing
+  length.
 * `meanNorm_parallelogram`: Lemma C.2.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Lemma C.2 of the paper; module `Paper.Means` (`lem_means`)
+  Lemma C.2 of the paper (§C.2); module `Paper.Means` (`lem_means`)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
@@ -59,11 +64,12 @@ open Finset Filter Topology Cslib.PartyTensor
 variable {K : Type} [Field K]
 
 /-- The prices `W n` on two sheets of `ℤ²` (the type `Bool × ℤ × ℤ`), as metrics on each sheet. -/
-def sheetMetrics (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) : ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ :=
+@[expose] def sheetMetrics (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) :
+    ℕ → Bool → ℤ × ℤ → ℤ × ℤ → ℝ :=
   fun n b P P' => W n (b, P) (b, P')
 
 /-- The paper's `ν(g) = (E W(P, P + g)²)^(1/2)`: the mean length of the sheet metrics. -/
-noncomputable def meanLength (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) (g : ℤ × ℤ) : ℝ :=
+@[expose] noncomputable def meanLength (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) (g : ℤ × ℤ) : ℝ :=
   Separation.meanLength (sheetMetrics W) g
 
 /-- The paper's `N(g) = inf ν(S g)/S` over the integers `S ≥ 1`. -/
@@ -105,7 +111,7 @@ end Norm
 variable {W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ} {Λ : ℝ}
 
 /-- What is used of the prices `W n`: they are pseudometrics, Lipschitz on each sheet, and satisfy
-the inequality (Q) of Proposition B.3. -/
+display (B.2) of Proposition B.3. -/
 theorem crossingMetrics_sheetMetrics (hW : ∀ n, IsPrice K (W n))
     (hΛ : ∀ n b (P g : ℤ × ℤ), W n (b, P) (b, P + g) ≤ Λ * (|(g.1 : ℝ)| + |(g.2 : ℝ)|)) :
     CrossingMetrics (sheetMetrics W) Λ where
@@ -130,15 +136,11 @@ theorem meanNorm_eq_homogenization (hW : ∀ n, IsPrice K (W n))
     meanNorm W = (crossingLength_meanLength hW hΛ).homogenization := by
   set hν := crossingLength_meanLength hW hΛ
   funext g
-  have hglb : IsGLB {r : ℝ | ∃ S : ℕ, 0 < S ∧ r = meanLength W (S • g) / S}
-      (hν.homogenization g) := by
-    refine ⟨?_, fun c hc => hν.le_homogenization fun S hS => ?_⟩
-    · rintro _ ⟨S, hS, rfl⟩
-      rw [le_div_iff₀ (by exact_mod_cast hS), mul_comm, ← hν.isHomogeneous_homogenization S g]
-      exact hν.homogenization_le _
-    · have := hc ⟨S, hS, rfl⟩
-      rwa [le_div_iff₀ (by exact_mod_cast hS)] at this
-  exact hglb.csInf_eq ⟨_, 1, one_pos, rfl⟩
+  refine le_antisymm (hν.le_homogenization fun S hS => ?_) (le_meanNorm W g fun S _ => ?_)
+  · rw [← le_div_iff₀ (by exact_mod_cast hS)]
+    exact meanNorm_le W g hS
+  · rw [mul_comm, ← hν.isHomogeneous_homogenization S g]
+    exact hν.homogenization_le _
 
 /-! ### The proof of Lemma C.2
 
@@ -255,8 +257,8 @@ private theorem lem_means_telescope (hN : CrossingLength N) (hh : IsHomogeneous 
     linarith [hN.sub_le (meansPt a b M 0 - a) a]
   linarith
 
-/-- N(p) = Mf + O(R) at the points p = Mc + ie and p = Mc + ie − a with i < R: the error is at most
-2Rκ if N(a), N(e) ≤ κ. -/
+/-- `N(p) = M f + O(R)` at the points `p = M c + i e` and `p = M c + i e - a` with `i < R`: the
+error is at most `2 R κ` if `N(a), N(e) ≤ κ`. -/
 private theorem lem_means_near (hN : CrossingLength N) (hh : IsHomogeneous N)
     {a c e : ℤ × ℤ} {κ : ℝ} (ha : N a ≤ κ) (he : N e ≤ κ)
     (M : ℕ) {R i : ℕ} (hi : i < R) :
@@ -426,6 +428,18 @@ private theorem lem_means_parallelogram_le (hN : CrossingLength N) (hh : IsHomog
 
 end Parallelogram
 
+/-- The parallelogram law `N(a + b)² + N(a - b)² = 2 N(a)² + 2 N(b)²` for a homogeneous crossing
+length: the inequality applied to `a + b, a - b` gives the converse. -/
+theorem _root_.Cslib.Circuits.Arithmetic.Separation.CrossingLength.parallelogram
+    {N : ℤ × ℤ → ℝ} (hN : CrossingLength N) (hh : IsHomogeneous N) (a b : ℤ × ℤ) :
+    N (a + b) ^ 2 + N (a - b) ^ 2 = 2 * N a ^ 2 + 2 * N b ^ 2 := by
+  refine le_antisymm (by linarith [lem_means_parallelogram_le hN hh a b]) ?_
+  have h := lem_means_parallelogram_le hN hh (a + b) (a - b)
+  rw [show a + b + (a - b) = (2 : ℕ) • a by rw [two_nsmul]; abel,
+    show a + b - (a - b) = (2 : ℕ) • b by rw [two_nsmul]; abel, hh, hh] at h
+  push_cast at h
+  linarith
+
 /-- **Paper: Lemma C.2.** For prices `W n` on two sheets of `ℤ²` with
 `W n (P, P + g) ≤ Λ |g|` for points of one sheet, and `N(g) = inf ν(S g)/S`, which is also the limit
 of `ν(S g)/S`, the parallelogram law `N(a + b)² + N(a - b)² = 2 N(a)² + 2 N(b)²` holds for all
@@ -437,15 +451,7 @@ theorem meanNorm_parallelogram (hW : ∀ n, IsPrice K (W n))
         2 := by
   rw [meanNorm_eq_homogenization hW hΛ]
   set hν := crossingLength_meanLength hW hΛ
-  have hom := hν.isHomogeneous_homogenization
-  have hN := hν.crossingLength_homogenization
-  refine le_antisymm (by linarith [lem_means_parallelogram_le hN hom a b]) ?_
-  -- applied to `a + b` and `a - b` it gives equality
-  have h := lem_means_parallelogram_le hN hom (a + b) (a - b)
-  rw [show a + b + (a - b) = (2 : ℕ) • a by rw [two_nsmul]; abel,
-    show a + b - (a - b) = (2 : ℕ) • b by rw [two_nsmul]; abel, hom, hom] at h
-  push_cast at h
-  linarith
+  exact hν.crossingLength_homogenization.parallelogram hν.isHomogeneous_homogenization a b
 
 /-- `ν(S g)/S` converges to `N(g)`. -/
 theorem tendsto_meanLength_div (hW : ∀ n, IsPrice K (W n))
