@@ -20,6 +20,10 @@ import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Foundations.Data.List.EraseDupsBy
 import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
+import CslibFrontier.Languages.Probabilistic.Oracle.Vector
+import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
+import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
@@ -66,6 +70,10 @@ from all its messages. The wrapper queries each retained distinct message once a
 * `Cslib.Crypto.UHF.isOraclePPT_prefixFreeBatchReduction`: strict oracle PPT for the batch wrapper.
 * `Cslib.Crypto.UHF.isPrefixFreeOraclePPT_prefixFreeBatchReduction`: the batch wrapper's traces
   are prefix-free when accepted guesses consist of complete positive-width blocks.
+* `Cslib.Crypto.UHF.succProbability_multiQueryGame_le_real_prefixFreeBatchReduction`:
+  a winning bounded batch makes the real wrapper accept.
+* `Cslib.Crypto.UHF.eval_prfIdealGameOn_prefixFreeBatchReduction_le`:
+  the ideal batch wrapper's acceptance probability has the birthday bound.
 -/
 
 public section
@@ -479,6 +487,17 @@ accept if two capped replies coincide. The reply cap bounds the reading time for
     List.take (outLen n) <$> ProbOracleComp.query ((), query)
   return !decide replies.Nodup
 
+private theorem length_prefixFreeBatchQueries_le (width count : ℕ) (valid : List Bool → Bool)
+    (guesses : List (List Bool)) : (prefixFreeBatchQueries width count valid guesses).length ≤
+      count := by
+  unfold prefixFreeBatchQueries
+  dsimp only
+  split
+  · rw [List.length_map]
+    exact ((List.eraseDupsBy_sublist _).length_le.trans (List.length_filter_le _ _)).trans
+      (List.length_take_le _ _)
+  · simp
+
 /-- The batch wrapper makes at most `Q n` external queries for every oracle and guess list. -/
 theorem isQueryBounded_prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
     (valid : ℕ → List Bool → Bool) (guessBatch : ℕ × ℕ → ProbComp (List (List Bool)))
@@ -494,14 +513,8 @@ theorem isQueryBounded_prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
     (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query _)
   have htraverse := OracleComp.IsCostBounded.mapM (inputs := queries) fun word _ => hquery word
   refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-  simp only [Nat.mul_one, Nat.add_zero]
-  unfold queries prefixFreeBatchQueries
-  dsimp only
-  split
-  · rw [List.length_map]
-    exact ((List.eraseDupsBy_sublist _).length_le.trans (List.length_filter_le _ _)).trans
-      (List.length_take_le _ _)
-  · simp
+  simpa only [Nat.mul_one, Nat.add_zero] using
+    length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_prefixFreeBatchQueries {α : Type}
@@ -575,5 +588,214 @@ theorem isPrefixFreeOraclePPT_prefixFreeBatchReduction {width outLen Q : ℕ →
   have hprefix := isPrefixFree_prefixFreeBatchQueries (count := Q n) guesses (haligned n)
   intro x hx _ y hy _ hne hpre
   exact hne (hprefix x hx y hy hpre)
+
+/-- The real-game step of [BonehShoup2023], v0.6, Theorem 7.4 (printed pp. 259–260).
+If the alphabet has more than `maxBlocks * Q n` blocks, a fresh block exists for every
+retained batch. Every collision between distinct valid guesses is then preserved by extension
+and detected by the real prefix-free PRF wrapper. -/
+theorem succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+    {width outLen Q : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    (family : List Bool → List Bool → List Bool)
+    (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) (n maxBlocks : ℕ)
+    (hBudget : ∀ guesses ∈ (ProbComp.eval (guessBatch (n, n))).support, guesses.length ≤ Q n)
+    (hBlocks : ∀ word, valid n word = true → word.length / width n ≤ maxBlocks)
+    (hAlphabet : maxBlocks * Q n < 2 ^ width n)
+    (hDomain : ∀ {word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true)
+    (hExtend : ∀ {key left right block}, key.length = n →
+      valid n left = true → valid n right = true → block.length = width n →
+      family key left = family key right →
+      family key (left ++ block) = family key (right ++ block)) :
+    Game.succProbability (multiQueryGame pure (fun _ d => valid d)
+      (fun _ d (key : BitString d) => family (List.ofFn key)) guessBatch n) ≤
+    Game.succProbability (ProbComp.eval (prfRealGameOn oracleValid family
+      (prefixFreeBatchReduction width outLen Q valid guessBatch) n)) := by
+  let reply (key word : List Bool) := (prfOracleOn (oracleValid n) family key word).take (outLen n)
+  let accept (key : List Bool) (guesses : List (List Bool)) :=
+    !decide ((prefixFreeBatchQueries (width n) (Q n) (valid n) guesses).map (reply key)).Nodup
+  have hrun (key : List Bool) :
+      (prefixFreeBatchReduction width outLen Q valid guessBatch n []).run
+        (fun req => pure (prfOracleOn (oracleValid n) family key req.2)) =
+      ((guessBatch (n, n)) >>= fun guesses => pure (accept key guesses)) := by
+    simp only [prefixFreeBatchReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+      ProbOracleComp.run_mapM, ProbOracleComp.run_map, ProbOracleComp.run_query, map_pure,
+      List.mapM_pure, pure_bind, ProbOracleComp.run_pure, accept, reply]
+  apply ENNReal.coe_le_coe.mp
+  simp only [Game.coe_succProbability_ennreal, multiQueryGame, Game.withSetup_pure,
+    prfRealGameOn, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, Function.comp_def, hrun]
+  rw [PMF.bind_comm (PMF.uniformOfFintype (BitString n)) (ProbComp.eval (guessBatch (n, n)))]
+  apply PMF.bind_apply_mono_on_support _ true
+  intro guesses hguesses
+  apply PMF.bind_apply_mono_on_support _ true
+  intro key _
+  by_cases hWin : ∃ u ∈ guesses, ∃ v ∈ guesses, u ≠ v ∧ valid n u = true ∧
+      valid n v = true ∧ family (List.ofFn key) u = family (List.ofFn key) v
+  · let messages := (guesses.filter (valid n)).eraseDupsBy fun a b => decide (a = b)
+    have hvalid (word : List Bool) (hm : word ∈ messages) : valid n word = true :=
+      (List.mem_filter.mp ((List.eraseDupsBy_sublist _).subset hm)).2
+    have hlen : messages.length ≤ Q n :=
+      ((List.eraseDupsBy_sublist _).length_le.trans (List.length_filter_le _ _)).trans
+        (hBudget guesses hguesses)
+    have hcount : (messages.map fun word => word.length / width n).sum ≤
+        messages.length * maxBlocks := by
+      simpa [nsmul_eq_mul] using
+        List.sum_le_length_nsmul (messages.map fun word => word.length / width n) maxBlocks
+          (fun k hk => by
+            obtain ⟨word, hm, rfl⟩ := List.mem_map.mp hk
+            exact hBlocks word (hvalid word hm))
+    have hsize := (hcount.trans (Nat.mul_le_mul_right _ hlen)).trans_lt
+      (by simpa only [Nat.mul_comm] using hAlphabet)
+    obtain ⟨block, hblock⟩ := Option.isSome_iff_exists.mp
+      (PRF.freshBatchWordBlock_isSome_of_sum_div_lt hsize)
+    have hwidth := PRF.length_freshBatchWordBlock_of_eq_some hblock
+    have hqueries : prefixFreeBatchQueries (width n) (Q n) (valid n) guesses =
+        messages.map (fun word => word ++ block) := by
+      simp only [prefixFreeBatchQueries, List.take_of_length_le (hBudget guesses hguesses)]
+      change (if (PRF.freshBatchWordBlock (width n) messages).isSome then
+        messages.map (fun word => word ++ (PRF.freshBatchWordBlock (width n) messages).getD [])
+        else []) = _
+      simp [hblock]
+    obtain ⟨u, hu, v, hv, hne, hvalidU, hvalidV, htag⟩ := hWin
+    have hmem (word : List Bool) (hm : word ∈ guesses) (hw : valid n word = true) :
+        word ++ block ∈ messages.map (fun w => w ++ block) :=
+      List.mem_map_of_mem (List.mem_eraseDupsBy_eq.mpr (List.mem_filter.mpr ⟨hm, hw⟩))
+    have htag' := hExtend List.length_ofFn hvalidU hvalidV hwidth htag
+    have heq : reply (List.ofFn key) (u ++ block) = reply (List.ofFn key) (v ++ block) := by
+      simp [reply, prfOracleOn, hDomain hvalidU hwidth, hDomain hvalidV hwidth, htag']
+    have hcollision : ¬ ((messages.map (fun word => word ++ block)).map
+        (reply (List.ofFn key))).Nodup := fun hnodup =>
+      hne (List.append_cancel_right
+        (List.inj_on_of_nodup_map hnodup (hmem u hu hvalidU) (hmem v hv hvalidV) heq))
+    have haccept : accept (List.ofFn key) guesses = true := by
+      simp only [accept, hqueries, decide_eq_false hcollision, Bool.not_false]
+    simp only [haccept, PMF.pure_apply]
+    split <;> simp
+  · simp [hWin]
+
+private theorem mem_support_batchReplies {outLen : ℕ}
+    {queries : List (List Bool)} (hDistinct : queries.Nodup)
+    {cache : List (List Bool × List Bool)}
+    (hFresh : ∀ query ∈ queries, query ∉ cache.map Prod.fst)
+    {result : List (List Bool) × List (List Bool × List Bool)}
+    (hResult : result ∈ (ProbOracleComp.runWith
+      (memoize (fun _ => BitString.uniformList outLen))
+      (queries.mapM fun query => List.take outLen <$> ProbOracleComp.query query)
+      cache).support) : result.1.reverse ++ cache.map Prod.snd = result.2.map Prod.snd := by
+  induction queries generalizing cache result with
+  | nil =>
+    simp only [List.mapM_nil, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff] at hResult
+    subst result
+    rfl
+  | cons query queries ih =>
+    have hMiss : cache.lookup query = none := List.lookup_eq_none_iff.mpr fun entry he =>
+      bne_iff_ne.mpr fun h => hFresh query List.mem_cons_self (List.mem_map.mpr ⟨entry, he, h.symm⟩)
+    simp only [List.mapM_cons, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, PMF.mem_support_bind_iff,
+      PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hResult
+    obtain ⟨_, ⟨⟨reply, next⟩, hStep, rfl⟩, tail, hTail, rfl⟩ := hResult
+    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hStep with
+      ⟨hHit, _⟩ | ⟨_, hReply, hNext⟩
+    · simp [hMiss] at hHit
+    change next = (query, reply) :: cache at hNext
+    subst next
+    have hRemaining (word : List Bool) (hw : word ∈ queries) :
+        word ∉ ((query, reply) :: cache).map Prod.fst := by
+      simp only [List.map_cons, List.mem_cons, not_or]
+      exact ⟨fun h => (List.nodup_cons.mp hDistinct).1 (h ▸ hw),
+        hFresh word (List.mem_cons_of_mem _ hw)⟩
+    have hTail' := ih hDistinct.of_cons hRemaining hTail
+    simpa only [Prod.map_apply, id_eq, List.take_of_length_le
+      (BitString.length_of_mem_support_uniformList hReply).le, List.reverse_cons,
+      List.append_assoc, List.singleton_append, List.map_cons] using hTail'
+
+/-- The ideal-game step of [BonehShoup2023], v0.6, Theorem 7.4 (printed p. 260).
+The wrapper's prepared queries are distinct and valid, so their ideal replies have a collision
+with probability at most the number of possible pairs divided by the reply alphabet size. -/
+theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
+    {width outLen Q : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) (n : ℕ)
+    (hDomain : ∀ {word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true) :
+    ProbComp.eval (prfIdealGameOn oracleValid outLen
+      (prefixFreeBatchReduction width outLen Q valid guessBatch) n) true ≤
+      (Q n).choose 2 / (2 : ℝ≥0∞) ^ outLen n := by
+  simp only [prfIdealGameOn, ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
+    cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
+    prefixFreeBatchReduction, ProbOracleComp.runWith_sample_bind, PMF.map_bind]
+  apply PMF.bind_apply_le_on_support
+  intro guesses _
+  let words := prefixFreeBatchQueries (width n) (Q n) (valid n) guesses
+  let dist := BitString.uniformList (outLen n)
+  let program : ProbOracleComp (fun _ : List Bool => List Bool) (List (List Bool)) :=
+    words.mapM fun word => List.take (outLen n) <$> ProbOracleComp.query word
+  let guarded := cachedDistOracle (oracleValid n) dist
+  let oracle := memoize (fun _ : List Bool => dist)
+  have hValid : ∀ word ∈ words, oracleValid n word = true := by
+    let messages := ((guesses.take (Q n)).filter (valid n)).eraseDupsBy fun a b => decide (a = b)
+    intro word hw
+    change word ∈ (if (PRF.freshBatchWordBlock (width n) messages).isSome then
+      messages.map (fun w => w ++ (PRF.freshBatchWordBlock (width n) messages).getD [])
+      else []) at hw
+    cases hBlock : PRF.freshBatchWordBlock (width n) messages with
+    | none => simp [hBlock] at hw
+    | some block =>
+      simp only [hBlock, Option.isSome_some, Option.getD_some, ↓reduceIte] at hw
+      obtain ⟨w, hm, rfl⟩ := List.mem_map.mp hw
+      exact hDomain (List.mem_filter.mp ((List.eraseDupsBy_sublist _).subset hm)).2
+        (PRF.length_freshBatchWordBlock_of_eq_some hBlock)
+  have hCalls : program.QueriesSatisfy (fun word => oracleValid n word = true) := by
+    apply OracleComp.QueriesSatisfy.mapM
+    intro word hw
+    rw [OracleComp.queriesSatisfy_map_iff]
+    exact OracleComp.QueriesSatisfy.query (q := Sum.inr word) (hValid word hw)
+  have hRun : ProbOracleComp.runWith guarded program [] =
+      ProbOracleComp.runWith oracle program [] := by
+    rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
+    congr 1
+    refine hCalls.interpret_congr fun req hreq => ?_
+    cases req with
+    | inl _ => rfl
+    | inr req => exact funext fun cache => ite_eq_left hreq
+  let send (word : List Bool) : WordOracleComp Unit (List Bool) := ProbOracleComp.query ((), word)
+  have hSim : ProbOracleComp.simulate send program =
+      words.mapM fun word => List.take (outLen n) <$> send word := by
+    simp only [program, ProbOracleComp.simulate_mapM, ProbOracleComp.simulate_map,
+      ProbOracleComp.simulate_query]
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure,
+    PMF.map_bind, PMF.pure_map]
+  change ((ProbOracleComp.runWith (fun req => guarded req.2)
+    (words.mapM fun word => List.take (outLen n) <$> send word) []).bind fun result =>
+    PMF.pure (!decide result.1.Nodup)) true ≤ _
+  have hHandler : (fun word => ProbOracleComp.runWith (fun req => guarded req.2) (send word)) =
+      guarded := by
+    funext word cache
+    exact ProbOracleComp.runWith_query (fun req => guarded req.2) ((), word) cache
+  rw [← hSim, ProbOracleComp.runWith_simulate, hHandler, hRun]
+  let run := ProbOracleComp.runWith oracle program []
+  have hBound : program.IsQueryBounded (Q n) := by
+    have ht : program.IsQueryBounded (words.length * 1) :=
+      OracleComp.IsCostBounded.mapM fun word _ =>
+        (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query word)
+    exact ht.mono (by simpa only [Nat.mul_one] using
+      length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses)
+  have hBirthday := RandomOracle.toOuterMeasure_not_nodup_snd_runWith_memoize_le dist
+    (fun y => by simpa only [one_div] using BitString.uniformList_apply_le (outLen n) y)
+    hBound (cache := []) List.nodup_nil
+  change (run.map (fun result => !decide result.1.Nodup)) true ≤ _
+  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
+    ← PMF.toOuterMeasure_apply_inter_support]
+  refine (run.toOuterMeasure.mono (s₂ := {result | ¬(result.2.map Prod.snd).Nodup}) ?_).trans ?_
+  · intro result ⟨hAccept, hResult⟩
+    change !decide result.1.Nodup = true at hAccept
+    have hCache := mem_support_batchReplies
+      (nodup_prefixFreeBatchQueries (width n) (Q n) (valid n) guesses) (by simp) hResult
+    change ¬(result.2.map Prod.snd).Nodup
+    rw [← hCache, List.map_nil, List.append_nil, List.nodup_reverse]
+    intro h
+    simp [h] at hAccept
+  · change (ProbOracleComp.runWith (memoize (fun _ => dist)) program []).toOuterMeasure
+      {result | ¬(result.2.map Prod.snd).Nodup} ≤ _
+    simpa only [List.length_nil, mul_zero, zero_add, div_eq_mul_inv] using hBirthday
 
 end Cslib.Crypto.UHF

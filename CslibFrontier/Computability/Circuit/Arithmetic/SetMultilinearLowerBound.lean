@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRankUpper
 public import CslibFrontier.Computability.Circuit.Arithmetic.WordPolynomial
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.ListProd
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Lower bound for set-multilinear formulas computing iterated matrix multiplication
@@ -281,8 +282,7 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   -- Combine the two bounds.
   have hsum : (2 : ℝ) ^ (-(k : ℝ) / 2) ≤ 2 ^ (-((∑ i, w i).natAbs : ℝ) / 2) := by
     refine Real.rpow_le_rpow_of_exponent_le one_le_two ?_
-    have : ((∑ i, w i).natAbs : ℝ) ≤ k := by exact_mod_cast natAbs_sum_sqrtTwoWord_le k d
-    linarith
+    cast_linarith [natAbs_sum_sqrtTwoWord_le k d]
   set D := (d : ℝ) ^ (1 / (2 ^ Δ - 1 : ℝ))
   have hsplit : (2 : ℝ) ^ ((k : ℝ) * (D / 20 - 1 / 2)) * 2 ^ (-(k * D / 20)) =
       2 ^ (-(k : ℝ) / 2) := by

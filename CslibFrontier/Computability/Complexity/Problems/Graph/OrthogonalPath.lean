@@ -571,8 +571,8 @@ theorem BridgeStemCrossing.neighbors {G : Graph}
   · rw [unitPath_eq_subdivide G hG hloop hi,
       getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
     apply subdivide_horizontal hri
-      (e := ((G.pathColumn i false, Layout.track G.vertices.length i),
-        (G.pathColumn i true, Layout.track G.vertices.length i)))
+      (a := (G.pathColumn i false, Layout.track G.vertices.length i))
+      (b := (G.pathColumn i true, Layout.track G.vertices.length i))
     · simp [Layout.route, List.consecutivePairs, pathColumn]
     · rfl
     · exact hpy
@@ -581,27 +581,22 @@ theorem BridgeStemCrossing.neighbors {G : Graph}
       getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj]
     cases side
     · apply subdivide_vertical hrj
-        (e := (Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-          (portAt G.canonicalPorts j false),
-          (G.pathColumn j false, Layout.track G.vertices.length j)))
+        (a := Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
+          (portAt G.canonicalPorts j false))
+        (b := (G.pathColumn j false, Layout.track G.vertices.length j))
       · simp [Layout.route, List.consecutivePairs, pathColumn]
       · rfl
       · exact hpx
-      · change min (Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-          (portAt G.canonicalPorts j false)).2 (Layout.track G.vertices.length j) < p.2 ∧
-          p.2 < max (Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-            (portAt G.canonicalPorts j false)).2 (Layout.track G.vertices.length j)
+      · dsimp only
         omega
     · apply subdivide_vertical hrj
-        (e := ((G.pathColumn j true, Layout.track G.vertices.length j),
-          Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j true)))
+        (a := (G.pathColumn j true, Layout.track G.vertices.length j))
+        (b := Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j true))
+          (portAt G.canonicalPorts j true))
       · simp [Layout.route, List.consecutivePairs, pathColumn]
       · rfl
       · exact hpx
-      · change min (Layout.track G.vertices.length j) (Layout.elbow
-          (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j true)).2 < p.2 ∧
-          p.2 < max (Layout.track G.vertices.length j) (Layout.elbow
-            (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j true)).2
+      · dsimp only
         omega
 
 /-- Every actual nonvertex contact has one horizontally straight path and one vertically
