@@ -23,12 +23,13 @@ Let `S₁, …, S_m` be subsets of a ground set `U` of size at most `n`. Every i
 `x` with `x i ∈ S i` and `w y ≤ w (x i)` for every `y ∈ S i`. As the order varies over all linear
 orders of the ground set, at most `C(n + m - 1, m)` distinct vectors of maxima arise.
 
-This is Lemma 3.9 of [KhannaPuttermanSong2026] (§3.4, p. 19), a result of Fredman that appears in
-[GrahamYaoYao1980]. `Cslib.exists_maxima_vectors_card_le_choose` exhibits a single finset of
-`C(n + m - 1, m)` vectors that contains every vector of maxima, for weights into every linear order
-`W` in a given universe at once. Clients can therefore bound any function of the maxima (such as
-the paper's preferred actions) by the image of this finset, whatever weights they use, for instance
-lexicographic pairs that break ties between two kinds of ground elements.
+This is a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026], tracked in #8325: the
+paper's Lemma 3.9 (§3.4, p. 19), which it attributes to Fredman, in [GrahamYaoYao1980].
+`Cslib.exists_maxima_vectors_card_le_choose` exhibits a single finset of `C(n + m - 1, m)` vectors
+that contains every vector of maxima, for weights into every linear order `W` in a given universe at
+once. Clients can therefore bound any function of the maxima (such as the paper's preferred actions)
+by the image of this finset, whatever weights they use, for instance lexicographic pairs that break
+ties between two kinds of ground elements.
 
 The weights need only be injective on `U`, and the sets need not be nonempty (an empty `S i` admits
 no vector of maxima). The source's ground set of size exactly `n` is the case `#U = n`.
@@ -42,7 +43,8 @@ one where `x` is heaviest; its value is also `y k` for some such coordinate `k`,
 
 ## Main results
 
-* `Cslib.exists_maxima_vectors_card_le_choose`: Lemma 3.9 of [KhannaPuttermanSong2026].
+* `Cslib.exists_maxima_vectors_card_le_choose`: few vectors of maxima, a step in the proof of
+  Theorem 4.1 of [KhannaPuttermanSong2026] (the paper's Lemma 3.9).
 
 ## References
 
@@ -100,8 +102,9 @@ private theorem card_sym_finset [DecidableEq α] (U : Finset α) (m : ℕ) :
   rw [sym_map, card_map, attach_eq_univ, sym_univ, card_univ, Sym.card_sym_eq_choose,
     Fintype.card_coe]
 
-/-- **Lemma 3.9** of [KhannaPuttermanSong2026] (§3.4, p. 19; Fredman, in [GrahamYaoYao1980]).
-Let `S i ⊆ U` for `i` in a type with `m` elements, where `#U ≤ n`. Then some finset of at most
+/-- **Few vectors of maxima**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the
+paper's Lemma 3.9, §3.4, p. 19, which it attributes to Fredman, in [GrahamYaoYao1980]). Let
+`S i ⊆ U` for `i` in a type with `m` elements, where `#U ≤ n`. Then some finset of at most
 `C(n + m - 1, m)` vectors contains every vector of maxima: every `x` such that, for an injective
 weight `w : α → W` into some linear order, each `x i` is the `w`-maximum of `S i`.
 

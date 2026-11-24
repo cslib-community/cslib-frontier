@@ -48,8 +48,9 @@ generating-function bound, motivated by the geometric thresholds in Appendix A.3
   `Cslib.logb_choose_sub_logb_choose_sub_le`,
   `Cslib.logb_choose_sub_logb_sub_three_mul_choose_sub_le`: power and base-2 logarithm bounds for
   individual binomial coefficients and binomial differences.
-* `Cslib.log_add_choose_le_two_mul_sqrt`: `log C(m + n, n) ≤ 2 √(m n)` in natural logarithms,
-  Fact 2.1 of [KhannaPuttermanSong2026] (§2, p. 11).
+* `Cslib.log_add_choose_le_two_mul_sqrt`: `log C(m + n, n) ≤ 2 √(m n)` in natural logarithms, a
+  step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026], tracked in #8325 (the paper's
+  Fact 2.1, §2, p. 11).
 * `Real.exists_one_le_and_mul_pow_le_pow`: a polynomial is eventually below an exponential with base
   `r > 1`.
 
@@ -307,11 +308,13 @@ theorem logb_add_choose_le {n m : ℕ} (hm₀ : 1 ≤ m) (hmn : m ≤ n) :
     Real.logb_mul (by positivity) (div_pos hn_pos hm_pos).ne', Real.logb_pow,
     Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)] at h2; nlinarith
 
-/-- **Fact 2.1** of [KhannaPuttermanSong2026] (§2, p. 11): `log C(m + n, n) ≤ 2 √(m n)`, with the
-natural logarithm. The source states it for positive `m, n`; it also holds when either is zero,
-where both sides vanish. The term `C(m + n, n) mᵐ nⁿ` of the binomial expansion of
-`(m + n) ^ (m + n)` gives `log C(m + n, n) ≤ m log (n / m + 1) + n log (m / n + 1)`, and
-`log (x + 1) ≤ √x` (`Real.log_add_one_le_sqrt`) bounds each term by `√(m n)`. -/
+/-- **The logarithm of a binomial coefficient is at most `2 √(m n)`**, a step in the proof of
+Theorem 4.1 of [KhannaPuttermanSong2026] (the paper's Fact 2.1, §2, p. 11):
+`log C(m + n, n) ≤ 2 √(m n)`, with the natural logarithm. The source states it for positive `m, n`;
+it also holds when either is zero, where both sides vanish. The term `C(m + n, n) mᵐ nⁿ` of the
+binomial expansion of `(m + n) ^ (m + n)` gives
+`log C(m + n, n) ≤ m log (n / m + 1) + n log (m / n + 1)`, and `log (x + 1) ≤ √x`
+(`Real.log_add_one_le_sqrt`) bounds each term by `√(m n)`. -/
 theorem log_add_choose_le_two_mul_sqrt (m n : ℕ) :
     Real.log ((m + n).choose n) ≤ 2 * √(m * n) := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
