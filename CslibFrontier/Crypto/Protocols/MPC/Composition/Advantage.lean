@@ -16,15 +16,15 @@ public import CslibFrontier.Crypto.Protocols.MPC.Composition
 `PerfectSemiHonestPrivate.compose` composes a perfectly private outer protocol with perfectly
 private subprotocols. This module gives the concrete, per-instance form of the composition argument
 for an outer protocol that is only computationally private: it bounds
-`semiHonestAdvantage (P.compose Sub)` with the composed simulator `composeSim P S₁ S₂` through the
-hybrid execution that runs the outer protocol `P` in its ideal oracle world `W₁` and expands the
-coalition's views with the subprotocol simulators `S₂`.
+`semiHonestAdvantage (P.compose Sub)` for a coalition `I` with the composed simulator
+`composeSim P S₁ S₂` through the hybrid execution that runs the outer protocol `P` in its ideal
+oracle world `W₁` and expands the coalition's views with the subprotocol simulators `S₂`.
 
 * **Ideal to hybrid** (`eval_idealJoint_composeSim_bind`). A distinguisher `D` of the composed
   protocol's views becomes the explicit distinguisher `composeDistinguisher P S₂ I x D` of the outer
   protocol's views, which expands the views with `S₂` and runs `D`. The ideal game of the composed
   protocol against `D` is the ideal game of the outer protocol against this reduction, for every
-  outer simulator and with no assumption on the subprotocols.
+  single-coalition outer simulator `S₁` and with no assumption on the subprotocols.
 * **Hybrid to real.** The remaining distance, between the outer protocol's real execution in `W₁`
   against the reduction and the composed protocol's real execution in `W₂` against `D`, is the
   subprotocol-replacement gap. `semiHonestAdvantage_compose_le` keeps it as an explicit term. It
@@ -84,18 +84,18 @@ simulators `S₂` (`expandSimSteps`) and runs `D` on the result. -/
   D (fun i => ⟨x i.1, ((r.1 i).coins, (sub i).1), (sub i).2⟩, r.2)
 
 /-- **Ideal to hybrid.** The ideal game of a composed protocol with the composed simulator
-`composeSim P S₁ S₂ I` against `D` is the ideal game of the outer protocol with `S₁ I` against the
+`composeSim P S₁ S₂` against `D` is the ideal game of the outer protocol with `S₁` against the
 reduction `composeDistinguisher P S₂ I x D`. No property of the simulators is used. -/
 theorem eval_idealJoint_composeSim_bind (P : Protocol m spec₁ sc₁ In Coins₁ Out)
-    (f : Functionality m In Out)
-    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
+    (f : Functionality m In Out) (I : Finset (Fin m))
+    (S₁ : CoalitionSimulator sc₁ In Coins₁ Out I)
     (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
-    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (x : (i : Fin m) → In i)
     (D : ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
       (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool) :
-    ProbComp.eval (idealJoint f I (composeSim P S₁ S₂ I) x >>= D) =
-      ProbComp.eval (idealJoint f I (S₁ I) x >>= composeDistinguisher P S₂ I x D) := by
+    ProbComp.eval (idealJoint f I (composeSim P S₁ S₂) x >>= D) =
+      ProbComp.eval (idealJoint f I S₁ x >>= composeDistinguisher P S₂ I x D) := by
   simp only [idealJoint, composeSim, composeDistinguisher, bind_assoc, pure_bind,
     Finset.restrict_def]
 
@@ -121,24 +121,24 @@ theorem Protocol.bind_realJoint_compose {P : Protocol m spec₁ sc₁ In Coins�
   simp only [composeDistinguisher, ProbComp.eval_bind, PMF.bind_map, Function.comp_def]
 
 /-- **Concrete composition bound.** For every outer protocol `P` in the oracle world `W₁`, outer
-simulators `S₁`, subprotocols `Sub` in `W₂` and subprotocol simulators `S₂`, the semi-honest
-advantage of `D` against `P.compose Sub` with the composed simulator is at most the advantage of the
-reduction `composeDistinguisher P S₂ I x D` against `P` with `S₁ I`, plus the
+simulator `S₁` for coalition `I`, subprotocols `Sub` in `W₂` and subprotocol simulators `S₂`, the
+semi-honest advantage of `D` against `P.compose Sub` with `composeSim P S₁ S₂` is at most the
+advantage of the reduction `composeDistinguisher P S₂ I x D` against `P` with `S₁`, plus the
 subprotocol-replacement gap: the distance between the real execution of `P` in `W₁` against the
 reduction and the real execution of `P.compose Sub` in `W₂` against `D`. Nothing is assumed about
 `P`, `Sub` or the simulators; the gap is the term that the privacy of the subprotocols bounds. -/
 theorem semiHonestAdvantage_compose_le (P : Protocol m spec₁ sc₁ In Coins₁ Out)
     (W₁ : MultiOracleWorld spec₁) (W₂ : MultiOracleWorld spec₂) (f : Functionality m In Out)
-    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
+    (I : Finset (Fin m)) (S₁ : CoalitionSimulator sc₁ In Coins₁ Out I)
     (Sub : (op : spec₁.Op) →
       Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op))
     (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
-    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (x : (i : Fin m) → In i)
     (D : ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
       (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool) :
-    semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂ I) x D ≤
-      semiHonestAdvantage P W₁ f I (S₁ I) x (composeDistinguisher P S₂ I x D) +
+    semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂) x D ≤
+      semiHonestAdvantage P W₁ f I S₁ x (composeDistinguisher P S₂ I x D) +
         Game.advantage
           ((P.realJoint W₁ I x).bind fun r =>
             ProbComp.eval (composeDistinguisher P S₂ I x D r))
@@ -149,8 +149,8 @@ theorem semiHonestAdvantage_compose_le (P : Protocol m spec₁ sc₁ In Coins₁
 
 /-- **Composition with perfectly private subprotocols preserves the advantage.** When every
 subprotocol `Sub op` is perfectly private in `W₂` for the functionality `W₁ op` with simulators
-`S₂ op`, the semi-honest advantage of `D` against `P.compose Sub` with the composed simulator equals
-the advantage of the reduction `composeDistinguisher P S₂ I x D` against `P` with `S₁ I`. The outer
+`S₂ op`, the semi-honest advantage of `D` against `P.compose Sub` with `composeSim P S₁ S₂` equals
+the advantage of the reduction `composeDistinguisher P S₂ I x D` against `P` with `S₁`. The outer
 protocol may be only computationally private; `PerfectSemiHonestPrivate.compose` is the case where
 the right-hand side vanishes for every distinguisher. -/
 theorem semiHonestAdvantage_compose {P : Protocol m spec₁ sc₁ In Coins₁ Out}
@@ -160,13 +160,12 @@ theorem semiHonestAdvantage_compose {P : Protocol m spec₁ sc₁ In Coins₁ Ou
     {S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J}
     (hSub : ∀ op, PerfectSemiHonestPrivate (Sub op) W₂ (W₁ op) (S₂ op))
-    (f : Functionality m In Out)
-    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
-    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (f : Functionality m In Out) (I : Finset (Fin m))
+    (S₁ : CoalitionSimulator sc₁ In Coins₁ Out I) (x : (i : Fin m) → In i)
     (D : ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
       (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool) :
-    semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂ I) x D =
-      semiHonestAdvantage P W₁ f I (S₁ I) x (composeDistinguisher P S₂ I x D) := by
+    semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂) x D =
+      semiHonestAdvantage P W₁ f I S₁ x (composeDistinguisher P S₂ I x D) := by
   unfold semiHonestAdvantage
   rw [eval_idealJoint_composeSim_bind, Protocol.bind_realJoint_compose hSub]
 
