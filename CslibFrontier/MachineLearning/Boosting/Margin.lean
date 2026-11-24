@@ -49,7 +49,7 @@ This module proves the margin-based generalization theory for voting methods and
    to zero for all `ρ < γ`.
 4. **End-to-end AdaBoost margin generalization bound.** Combining the uniform VC margin bound with
    the exponential training-margin decay bounds the true error of `adaBoost S A T` simultaneously
-   for all weak learners `A` valued in `B`, all `T > 0`, and all `ρ ∈ (0, 2 γ]`.
+   for all weak learners `A` valued in `B`, all `T > 0`, and all `ρ ∈ (0, γ]`.
 
 ## Sign convention note
 
@@ -72,26 +72,34 @@ combination `∑ t < T, (wₜ / Z) * signVal (hₜ x) ∈ convexHull ℝ (signCl
   `convexHull ℝ H` [MohriRostamizadehTalwalkar2018, Corollary 7.5].
 * `Cslib.MachineLearning.Boosting.convexHull_uniform_margin_bound`,
   `Cslib.MachineLearning.Boosting.convexHull_uniform_empirical_margin_bound`: uniform-in-`ρ`
-  margin bounds over `convexHull ℝ H` [MohriRostamizadehTalwalkar2018, Theorems 5.9 and Ch. 7].
+  margin bounds over `convexHull ℝ H`
+  [MohriRostamizadehTalwalkar2018, Theorem 5.9, Lemma 7.4, and Corollary 7.6].
 * `Cslib.MachineLearning.Boosting.convexHull_signClass_vc_uniform_margin_bound`: uniform margin
-  bound for `convexHull ℝ (signClass B)` in terms of the VC dimension `d` of `B`.
+  bound for `convexHull ℝ (signClass B)` in terms of the VC dimension `d` of `B`
+  [SchapireFreundBartlettLee1998, Theorem 2] [MohriRostamizadehTalwalkar2018, Corollary 7.6].
 * `Cslib.MachineLearning.Boosting.normalizedScore_mem_convexHull`: `normalizedScore S A T` lies in
   `convexHull ℝ (signClass B)`.
 * `Cslib.MachineLearning.Boosting.adaBoost_uniform_margin_bound_vc`: `T`-independent uniform
-  margin bound for the output classifier `adaBoost S A T`.
+  margin bound for the output classifier `adaBoost S A T`
+  [SchapireFreundBartlettLee1998, Theorem 2].
 * `Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_prod`,
   `Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_pow`,
   `Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_exp`: exponential decay of the
   empirical margin distribution of AdaBoost [SchapireFreundBartlettLee1998, Theorem 5].
 * `Cslib.MachineLearning.Boosting.adaBoost_generalization_bound_of_edge`: end-to-end true-error
-  bound for AdaBoost under an edge hypothesis `εₜ ≤ 1/2 - γ`.
+  bound for AdaBoost under an edge hypothesis `εₜ ≤ 1/2 - γ` (for `ρ ∈ (0, γ]`).
 
 ## References
 
+Exact theorem/corollary numbers and page locators below have not yet been verified against the
+primary PDFs (pending an outside-fleet source check).
+
 * [R. E. Schapire, Y. Freund, P. Bartlett, W. S. Lee, *Boosting the Margin: A New Explanation for
-  the Effectiveness of Voting Methods*][SchapireFreundBartlettLee1998], Theorem 5
+  the Effectiveness of Voting Methods*][SchapireFreundBartlettLee1998], Theorem 2 (uniform VC
+  margin bound) and Theorem 5 (empirical margin distribution bound)
 * [M. Mohri, A. Rostamizadeh, A. Talwalkar, *Foundations of Machine Learning*, 2nd
-  ed.][MohriRostamizadehTalwalkar2018], Section 5.4 and Chapter 7 (Lemma 7.4, Corollary 7.5)
+  ed.][MohriRostamizadehTalwalkar2018], Section 5.4 (Theorem 5.9) and Chapter 7 (Lemma 7.4,
+  Corollary 7.5 fixed-margin, Corollary 7.6 uniform-margin)
 * [V. Koltchinskii, D. Panchenko, *Empirical margin distributions and bounding the generalization
   error of combined classifiers*][KoltchinskiiPanchenko2002]
 -/
@@ -108,10 +116,11 @@ open Cslib.BitString Cslib.MachineLearning Cslib.MachineLearning.PACLearning
 /-! ### Convex-hull margin bounds (independent of ensemble size) -/
 
 /-- **Fixed-margin generalization bound for convex combinations**
-[MohriRostamizadehTalwalkar2018, Corollary 7.5]: for a uniformly bounded base class
-`H : Set (α → ℝ)` on a finite domain `α`, fixed margin `ρ > 0`, `m > 0` independent draws from
-`D : PMF (α × Bool)`, and `δ > 0`, with probability at least `1 - δ` every `f ∈ convexHull ℝ H`
-satisfies `Pr_D[signVal y * f x ≤ 0] ≤ R̂_{S, ρ}(f) + (2 / ρ) R_m(H) + √(log (1 / δ) / (2 m))`. -/
+[MohriRostamizadehTalwalkar2018, Corollary 7.5] (locator unverified against primary PDF): for a
+uniformly bounded base class `H : Set (α → ℝ)` on a finite domain `α`, fixed margin `ρ > 0`,
+`m > 0` independent draws from `D : PMF (α × Bool)`, and `δ > 0`, with probability at least
+`1 - δ` every `f ∈ convexHull ℝ H` satisfies
+`Pr_D[signVal y * f x ≤ 0] ≤ R̂_{S, ρ}(f) + (2 / ρ) R_m(H) + √(log (1 / δ) / (2 m))`. -/
 theorem convexHull_margin_bound {α : Type*} [Fintype α] (D : PMF (α × Bool)) {m : ℕ}
     (hm : 0 < m) {H : Set (α → ℝ)} {B : ℝ} (hH : ∀ h ∈ H, ∀ x, |h x| ≤ B)
     {ρ : ℝ} (hρ : 0 < ρ) {δ : ℝ} (hδ : 0 < δ) :
@@ -126,8 +135,9 @@ theorem convexHull_margin_bound {α : Type*} [Fintype α] (D : PMF (α × Bool))
     rademacherComplexity_margin_bound D hm hconv hρ hδ
 
 /-- **Uniform margin generalization bound for convex combinations**
-[MohriRostamizadehTalwalkar2018, Theorem 5.9 and Lemma 7.4]: with probability at least `1 - δ`,
-simultaneously for every `f ∈ convexHull ℝ H` and every `ρ ∈ (0, r]`,
+[MohriRostamizadehTalwalkar2018, Theorem 5.9, Lemma 7.4, and Corollary 7.6] (locator unverified
+against primary PDF): with probability at least `1 - δ`, simultaneously for every
+`f ∈ convexHull ℝ H` and every `ρ ∈ (0, r]`,
 ```
 Pr_D[signVal y * f x ≤ 0] ≤ R̂_{S, ρ}(f) + (4 / ρ) R_m(H)
   + √(log (log₂ (2 r / ρ)) / m) + √(log (2 / δ) / (2 m)).
@@ -147,8 +157,9 @@ theorem convexHull_uniform_margin_bound {α : Type*} [Fintype α] (D : PMF (α �
     uniform_rademacherComplexity_margin_bound D hm hconv hr hδ
 
 /-- **Data-dependent uniform margin generalization bound for convex combinations**
-[MohriRostamizadehTalwalkar2018, Theorem 5.9 and Lemma 7.4]: same guarantee with the empirical
-Rademacher complexity `R̂_{S_X}(H)` of the base class `H` on the unlabeled sample. -/
+[MohriRostamizadehTalwalkar2018, Theorem 5.9, Lemma 7.4, and Corollary 7.6] (locator unverified
+against primary PDF): same guarantee with the empirical Rademacher complexity `R̂_{S_X}(H)` of
+the base class `H` on the unlabeled sample. -/
 theorem convexHull_uniform_empirical_margin_bound {α : Type*} [Finite α] (D : PMF (α × Bool))
     {m : ℕ} (hm : 0 < m) {H : Set (α → ℝ)} {B : ℝ} (hH : ∀ h ∈ H, ∀ x, |h x| ≤ B)
     {r : ℝ} (hr : 0 < r) {δ : ℝ} (hδ : 0 < δ) :
@@ -167,7 +178,8 @@ theorem convexHull_uniform_empirical_margin_bound {α : Type*} [Finite α] (D : 
   rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]
 
 /-- **Uniform VC-dimension margin bound for convex combinations of binary classifiers**
-[MohriRostamizadehTalwalkar2018, Chapter 7]: if every finite set shattered by `C : ConceptClass α
+[MohriRostamizadehTalwalkar2018, Corollary 7.6] [SchapireFreundBartlettLee1998, Theorem 2]
+(locators unverified against primary PDFs): if every finite set shattered by `C : ConceptClass α
 Bool` has size at most `d ≤ m`, then on a finite domain `α`, with probability at least `1 - δ`
 over `S ~ D^m`, every `f ∈ convexHull ℝ (signClass C)` and every margin `ρ ∈ (0, 1]` satisfy
 ```
@@ -330,8 +342,9 @@ theorem signVal_mul_normalizedScore_nonpos_of_adaBoost_ne {S : Fin m → α × B
     exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hscore) hpos.le
 
 /-- **Uniform `T`-independent margin bound for AdaBoost**
-[MohriRostamizadehTalwalkar2018, Chapter 7] [SchapireFreundBartlettLee1998]: on a finite domain
-`α`, for a base class `C : ConceptClass α Bool` with every shattered finite set of size at most
+[MohriRostamizadehTalwalkar2018, Corollary 7.6] [SchapireFreundBartlettLee1998, Theorem 2]
+(locators unverified against primary PDFs): on a finite domain `α`, for a base class
+`C : ConceptClass α Bool` with every shattered finite set of size at most
 `d ≤ m`, with probability at least `1 - δ` over `S ~ D^m`, **every** weak learner `A` whose
 first `T > 0` rounds lie in `C` with weighted errors `< 1/2` and **every** margin `ρ ∈ (0, 1]`
 satisfy
@@ -764,12 +777,14 @@ theorem marginCount_normalizedScore_le_exp (S : Fin m → α × Bool)
         congr 1
         ring
 
-/-- **End-to-end margin generalization bound for AdaBoost under an edge assumption**: combines
-`adaBoost_uniform_margin_bound_vc` with `marginCount_normalizedScore_le_exp` (`R̂_{S, ρ} ≤
-#{i | margin ≤ ρ} / m ≤ exp (-2 γ (γ - ρ) T)`). On a finite domain `α`, for a base class `C` of
-VC dimension at most `d ≤ m`, with probability at least `1 - δ` over `S ~ D^m`, for every weak
-learner `A` returning hypotheses in `C` with round errors `≤ 1/2 - γ` (`0 < γ < 1/2`), every
-`T > 0`, and every margin `ρ ∈ (0, γ]`,
+/-- **End-to-end margin generalization bound for AdaBoost under an edge assumption**
+[SchapireFreundBartlettLee1998, Theorems 2 and 5] [MohriRostamizadehTalwalkar2018, Corollary 7.6]
+(locators unverified against primary PDFs): combines `adaBoost_uniform_margin_bound_vc` with
+`marginCount_normalizedScore_le_exp` (`R̂_{S, ρ} ≤ #{i | margin ≤ ρ} / m ≤
+exp (-2 γ (γ - ρ) T)`). On a finite domain `α`, for a base class `C` of VC dimension at most
+`d ≤ m`, with probability at least `1 - δ` over `S ~ D^m`, for every weak learner `A` returning
+hypotheses in `C` with round errors `≤ 1/2 - γ` (`0 < γ < 1/2`), every `T > 0`, and every margin
+`ρ ∈ (0, γ]`,
 ```
 Pr_D[adaBoost S A T x ≠ y] ≤ exp (-2 γ (γ - ρ) T)
   + (4 / ρ) √(2 d log (e m / d) / m) + √(log (log₂ (2 / ρ)) / m) + √(log (2 / δ) / (2 m)).

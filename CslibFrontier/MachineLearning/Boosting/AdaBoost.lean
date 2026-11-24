@@ -65,7 +65,10 @@ form on pp. 135–137; [MohriRostamizadehTalwalkar2018, Theorem 7.2] states both
 * The weak learner is deterministic, with the edge as a hypothesis on the rounds (or on all
   positive distributions in `IsWeakLearner`); SSBD's weak learner may fail with probability `δ`
   (Remark 10.2), which a union bound handles outside this statement.
-* Generalization of the output (SSBD Section 10.3, MRT Corollary 7.5) is not covered.
+* Margin-based generalization bounds for AdaBoost (independent of the number of rounds `T`) are
+  provided separately in `CslibFrontier.MachineLearning.Boosting.Margin`
+  (`convexHull_margin_bound`, `adaBoost_uniform_margin_bound_vc`, and
+  `adaBoost_generalization_bound_of_edge`).
 
 ## References
 

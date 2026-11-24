@@ -20,9 +20,9 @@ register_result "rademacher-convex-hull-invariance" where
   topic := "statistical learning"
   sources := [
     { paper := MohriRostamizadehTalwalkar2018, theorem := "Lemma 7.4",
-      locator := "Section 7.2" },
+      locator := unverified },
     { paper := ShalevShwartzBenDavid2014, theorem := "Lemma 26.7",
-      locator := "Chapter 26" }
+      locator := unverified }
   ]
   theorems := [
     Cslib.MachineLearning.rademacherAverage_convexHull,
@@ -39,7 +39,7 @@ register_result "uniform-rademacher-margin-bound" where
   topic := "statistical learning"
   sources := [
     { paper := MohriRostamizadehTalwalkar2018, theorem := "Theorem 5.9",
-      locator := "Section 5.4" },
+      locator := unverified },
     { paper := KoltchinskiiPanchenko2002, theorem := unverified, locator := unverified }
   ]
   theorems := [
@@ -52,30 +52,61 @@ register_result "uniform-rademacher-margin-bound" where
     telescoping failure budgets δₙ = δ / ((n+1)(n+2)). The data-dependent variant carries \
     log (4 / δ) from substituting δₙ into the fixed-ρ bound's log (2 / δₙ)."
 
-register_result "adaboost-margin-generalization" where
-  title := "Margin-based generalization and empirical margin decay for boosting and AdaBoost"
+register_result "convex-hull-margin-bound" where
+  title := "Fixed-margin Rademacher generalization bound for convex combinations"
   topic := "statistical learning"
   sources := [
     { paper := MohriRostamizadehTalwalkar2018, theorem := "Corollary 7.5",
-      locator := "Chapter 7" },
-    { paper := SchapireFreundBartlettLee1998, theorem := "Theorem 5",
       locator := unverified }
   ]
   theorems := [
-    Cslib.MachineLearning.Boosting.convexHull_margin_bound,
+    Cslib.MachineLearning.Boosting.convexHull_margin_bound
+  ]
+  scope := "Fixed-ρ margin generalization bound for convexHull ℝ H over a uniformly bounded base \
+    class H on a finite domain α with discrete labeled distribution D : PMF (α × Bool), \
+    independent of the number of combined hypotheses. Primary PDF locator not yet verified \
+    outside the authoring fleet."
+
+register_result "adaboost-uniform-margin-bound" where
+  title := "Uniform-in-margin generalization bounds for convex combinations and AdaBoost"
+  topic := "statistical learning"
+  sources := [
+    { paper := MohriRostamizadehTalwalkar2018, theorem := "Corollary 7.6",
+      locator := unverified },
+    { paper := SchapireFreundBartlettLee1998, theorem := "Theorem 2",
+      locator := unverified }
+  ]
+  theorems := [
     Cslib.MachineLearning.Boosting.convexHull_uniform_margin_bound,
     Cslib.MachineLearning.Boosting.convexHull_uniform_empirical_margin_bound,
     Cslib.MachineLearning.Boosting.convexHull_signClass_vc_uniform_margin_bound,
     Cslib.MachineLearning.Boosting.adaBoost_uniform_margin_bound_vc,
-    Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_prod,
-    Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_pow,
-    Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_exp,
     Cslib.MachineLearning.Boosting.adaBoost_generalization_bound_of_edge
   ]
-  scope := "Margin generalization bounds over convexHull ℝ H and AdaBoost's normalized voting \
-    classifier normalizedScore S A T on finite domains α with deterministic weak learners. The \
-    generalization bounds are independent of the number of boosting rounds T. The empirical \
-    margin decay holds for all ρ < 1 (product form), ρ ∈ [0, 2 γ] (edge form), and ρ ∈ [0, γ] \
-    (exponential form exp(-2 γ (γ - ρ) T), recovering exp(-2 γ² T) at ρ = 0), assuming round \
-    errors εₜ ≤ 1/2 - γ with 0 < γ < 1/2. Early stopping on εₜ = 0 yields margin +1 everywhere \
-    on S; vote ties predict false. Does not verify exact book page numbers from PDF."
+  scope := "Uniform-in-ρ (simultaneous over ρ ∈ (0, r] / (0, 1]) margin generalization bounds over \
+    convexHull ℝ H and AdaBoost's normalized voting classifier normalizedScore S A T on finite \
+    domains α with deterministic weak learners, independent of the number of boosting rounds T. \
+    The end-to-end bound adaBoost_generalization_bound_of_edge combines Theorem 2 / Corollary 7.6 \
+    with the empirical margin decay bound (Schapire–Freund–Bartlett–Lee 1998, Theorem 5) for \
+    margins ρ ∈ (0, γ] assuming round errors εₜ ≤ 1/2 - γ with 0 < γ < 1/2. Early stopping on \
+    εₜ = 0 yields margin +1 everywhere on S; vote ties predict false. Primary PDF locators not \
+    yet verified outside the authoring fleet."
+
+register_result "adaboost-empirical-margin-decay" where
+  title := "Exponential decay of AdaBoost's empirical margin distribution"
+  topic := "statistical learning"
+  sources := [
+    { paper := SchapireFreundBartlettLee1998, theorem := "Theorem 5",
+      locator := unverified }
+  ]
+  theorems := [
+    Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_prod,
+    Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_pow,
+    Cslib.MachineLearning.Boosting.marginCount_normalizedScore_le_exp
+  ]
+  scope := "Empirical margin distribution bounds for AdaBoost's normalizedScore S A T on finite \
+    labelled samples S : Fin m → α × Bool with deterministic weak learners: product form for all \
+    ρ < 1 assuming εₜ < 1/2, edge form for ρ ∈ [0, 2 γ], and exponential form \
+    exp(-2 γ (γ - ρ) T) for ρ ∈ [0, γ] (recovering exp(-2 γ² T) at ρ = 0), assuming round errors \
+    εₜ ≤ 1/2 - γ with 0 < γ < 1/2. Early stopping on εₜ = 0 yields margin +1 everywhere on S. \
+    Primary PDF locator not yet verified outside the authoring fleet."

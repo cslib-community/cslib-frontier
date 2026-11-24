@@ -4,8 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.MachineLearning.Boosting.Margin
-import CslibFrontier.MachineLearning.Rademacher.Linear
+module
+-- upstream: local-only (tests)
+
+public import CslibFrontier.MachineLearning.Boosting.Margin
+public import CslibFrontier.MachineLearning.Rademacher.Linear
 
 /-!
 # Checked clients for convex-hull Rademacher complexity, uniform margin bounds, and AdaBoost margins
@@ -26,6 +29,8 @@ Exercises:
   instantiates `adaBoost_uniform_margin_bound_vc` and `adaBoost_generalization_bound_of_edge` at
   `d = 1`, `m = 3`.
 -/
+
+public section
 
 namespace CslibFrontierTests.BoostingMargin
 
@@ -234,9 +239,9 @@ theorem stumps_adaBoost_uniform_bound (D : PMF (Fin 3 × Bool)) :
         (∀ t < T, (rounds S A t).error S < 1 / 2) ∧
         ∃ ρ ∈ Set.Ioc (0 : ℝ) 1,
           empiricalMarginLoss ρ (normalizedScore S A T) S +
-            4 / ρ * √(2 * ((1 : ℕ) * Real.log (Real.exp 1 * 3 / 1)) / 3) +
-            √(Real.log (Real.logb 2 (2 / ρ)) / 3) +
-            √(Real.log (2 / (1 / 10 : ℝ)) / (2 * 3)) <
+            4 / ρ * √(2 * ((1 : ℕ) * Real.log (Real.exp 1 * (3 : ℕ) / (1 : ℕ))) / (3 : ℕ)) +
+            √(Real.log (Real.logb 2 (2 / ρ)) / (3 : ℕ)) +
+            √(Real.log (2 / (1 / 10 : ℝ)) / (2 * (3 : ℕ))) <
           (D.toOuterMeasure {p | adaBoost S A T p.1 ≠ p.2}).toReal}).toReal ≤ (1 / 10 : ℝ) :=
   adaBoost_uniform_margin_bound_vc D (m := 3) (d := 1) (by norm_num)
     stumps_shattered_card_le_one (by norm_num) (by norm_num)
@@ -249,9 +254,9 @@ theorem stumps_adaBoost_edge_bound (D : PMF (Fin 3 × Bool)) :
         (∀ t < T, (rounds S A t).hyp ∈ stumps) ∧
         (∀ t < T, (rounds S A t).error S ≤ 1 / 2 - γ) ∧
           exp (-(2 * γ * (γ - ρ) * T)) +
-            4 / ρ * √(2 * ((1 : ℕ) * Real.log (Real.exp 1 * 3 / 1)) / 3) +
-            √(Real.log (Real.logb 2 (2 / ρ)) / 3) +
-            √(Real.log (2 / (1 / 10 : ℝ)) / (2 * 3)) <
+            4 / ρ * √(2 * ((1 : ℕ) * Real.log (Real.exp 1 * (3 : ℕ) / (1 : ℕ))) / (3 : ℕ)) +
+            √(Real.log (Real.logb 2 (2 / ρ)) / (3 : ℕ)) +
+            √(Real.log (2 / (1 / 10 : ℝ)) / (2 * (3 : ℕ))) <
           (D.toOuterMeasure {p | adaBoost S A T p.1 ≠ p.2}).toReal}).toReal ≤ (1 / 10 : ℝ) :=
   adaBoost_generalization_bound_of_edge D (m := 3) (d := 1) (by norm_num)
     stumps_shattered_card_le_one (by norm_num) (by norm_num)
