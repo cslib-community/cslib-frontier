@@ -403,23 +403,23 @@ variable (tm) in
 /-- The outcome of a local claim given the read `r` of the input at its wire
 (`Cslib.Circuits.Boolean.Tableau.ValueGame.Claim.outcome`): its truth when its wire is an input wire
 or a constant gate, and `none` otherwise. -/
-noncomputable def LocalClaim.outcome (lc : LocalClaim) (r : Option Bool) : Option Bool :=
+private noncomputable def LocalClaim.outcome (lc : LocalClaim) (r : Option Bool) : Option Bool :=
   outcomeOf (decide (lc.wire < lc.length), r.getD false, (lc.gate tm).1, lc.value)
 
 variable (tm) in
 /-- One step of the local machine, from a state, the read of the input at the wire of its claim
 and a move: record the outcome of the claim if it has one, and otherwise take the move. -/
-noncomputable def localNext : (LocalClaim × Option Bool) × Option Bool × Bool →
+private noncomputable def localNext : (LocalClaim × Option Bool) × Option Bool × Bool →
     LocalClaim × Option Bool
   | ((lc, _), r, b) =>
-    match lc.outcome tm r with
+    match LocalClaim.outcome tm lc r with
     | some v => (lc, some v)
     | none => (lc.next tm b, none)
 
 variable (tm) in
 /-- The player of the claim of a state of the local machine
 (`Cslib.Circuits.Boolean.Tableau.ValueGame.Claim.player`). -/
-noncomputable def localUniversal (s : LocalClaim × Option Bool) : Bool :=
+private noncomputable def localUniversal (s : LocalClaim × Option Bool) : Bool :=
   playerOf ((s.1.gate tm).1, s.1.value)
 
 variable (tm) in
@@ -437,6 +437,11 @@ noncomputable def localMachine (lc₀ : LocalClaim) :
   accept s := s.2.getD false
   universal := localUniversal tm
 
+/-- The initial state of `localMachine tm lc₀` is the undecided claim `(lc₀, none)`. -/
+@[simp]
+theorem localMachine_init (lc₀ : LocalClaim) : (localMachine tm lc₀).init = (lc₀, none) := by
+  rw [localMachine]
+
 private theorem localMachine_halted (lc₀ : LocalClaim) (s : LocalClaim × Option Bool) :
     (localMachine tm lc₀).halted s = s.2.isSome := rfl
 
@@ -453,7 +458,7 @@ private theorem localMachine_step_none (lc₀ lc : LocalClaim) (x : List Bool) (
 /-- The outcome of the local data of a claim about `x`, given the input bit at its wire, is the
 outcome of the claim. -/
 private theorem outcome_toLocal {x : List Bool} {c : Claim} (h : c.input = x) :
-    c.toLocal.outcome tm x[c.wire]? = Claim.outcome tm c := by
+    LocalClaim.outcome tm c.toLocal x[c.wire]? = Claim.outcome tm c := by
   rw [outcome_eq_outcomeOf, h, headD_drop]
   simp only [LocalClaim.outcome, Claim.toLocal, LocalClaim.gate, Claim.gate_eq, h]
 
@@ -462,6 +467,30 @@ private theorem localUniversal_toLocal (c : Claim) (o : Option Bool) :
     localUniversal tm (c.toLocal, o) = Claim.player tm c := by
   rw [player_eq_playerOf]
   simp only [localUniversal, Claim.toLocal, LocalClaim.gate, Claim.gate_eq]
+
+private theorem step_localMachine_of_outcome_some (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ}
+    {v r : Bool} (ho : Claim.outcome tm ⟨x, T, w, v⟩ = some r) (b : Bool) :
+    (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b = (⟨x.length, T, w, v⟩, some r) := by
+  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
+    outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
+  rw [localMachine_step_none]
+  simp only [localNext, hout, ho]
+
+private theorem step_localMachine_of_outcome_none (lc₀ : LocalClaim) {x : List Bool} {T w : ℕ}
+    {v : Bool} (ho : Claim.outcome tm ⟨x, T, w, v⟩ = none) (b : Bool) :
+    (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b =
+      (⟨x.length, T, (Claim.next tm ⟨x, T, w, v⟩ b).wire,
+        (Claim.next tm ⟨x, T, w, v⟩ b).value⟩, none) := by
+  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
+    outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
+  have hloc : LocalClaim.next tm ⟨x.length, T, w, v⟩ b =
+      (Claim.next tm ⟨x, T, w, v⟩ b).toLocal :=
+    (toLocal_next (tm := tm) ⟨x, T, w, v⟩ b).symm
+  have h1 : (Claim.next tm ⟨x, T, w, v⟩ b).input = x := by rw [Claim.next_eq]
+  have h2 : (Claim.next tm ⟨x, T, w, v⟩ b).steps = T := by rw [Claim.next_eq]
+  rw [localMachine_step_none]
+  simp only [localNext, hout, ho]
+  rw [hloc, Claim.toLocal, h1, h2]
 
 /-- **The local machine plays the circuit-value game.** On an input `x`, from the local data of a
 claim about a wire of the tableau of `T` steps, the local machine accepts exactly when the
@@ -475,40 +504,29 @@ theorem acceptsFrom_localMachine_iff (lc₀ : LocalClaim) (x : List Bool) (T : �
   induction w using Nat.strong_induction_on with
   | _ w ih =>
   intro hw v
-  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
-    outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
   rw [AlternatingQueryMachine.acceptsFrom_iff, localMachine_halted, localMachine_universal]
-  simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, localMachine_step_none]
+  simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
   cases ho : Claim.outcome tm ⟨x, T, w, v⟩ with
   | some r =>
     rw [wins_position_terminal ho]
-    have hdone (b : Bool) : localNext tm ((⟨x.length, T, w, v⟩, none), x[w]?, b) =
-        (⟨x.length, T, w, v⟩, some r) := by
-      simp only [localNext, hout, ho]
     have hfin : (localMachine tm lc₀).AcceptsFrom x (⟨x.length, T, w, v⟩, some r) ↔ r = true := by
       rw [AlternatingQueryMachine.acceptsFrom_iff, localMachine_halted, localMachine_accept]
       simp
-    simp only [hdone, hfin]
+    simp only [step_localMachine_of_outcome_some lc₀ ho, hfin]
     cases localUniversal tm (⟨x.length, T, w, v⟩, none) <;> simp
   | none =>
     rw [wins_position_nonterminal ho]
     have hstep (b : Bool) : (localMachine tm lc₀).AcceptsFrom x
-        (localNext tm ((⟨x.length, T, w, v⟩, none), x[w]?, b)) ↔
+        ((localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b) ↔
           Wins (update tm (encLocal x))
             (position tm (encLocal x) (Claim.next tm ⟨x, T, w, v⟩ b)) := by
       have hlt : (Claim.next tm ⟨x, T, w, v⟩ b).wire < w := next_lt ho hw b
-      have hloc : (Claim.next tm ⟨x, T, w, v⟩ b).toLocal =
-          LocalClaim.next tm ⟨x.length, T, w, v⟩ b :=
-        toLocal_next (tm := tm) ⟨x, T, w, v⟩ b
-      have h1 : (Claim.next tm ⟨x, T, w, v⟩ b).input = x := by rw [Claim.next_eq]
-      have h2 : (Claim.next tm ⟨x, T, w, v⟩ b).steps = T := by rw [Claim.next_eq]
-      simp only [localNext, hout, ho]
-      rw [← hloc]
-      generalize Claim.next tm ⟨x, T, w, v⟩ b = cn at hlt h1 h2 ⊢
-      obtain ⟨xi, Ti, wi, vi⟩ := cn
-      simp only at h1 h2 hlt
-      subst h1 h2
-      exact ih wi hlt (by omega) vi
+      have hcn : Claim.next tm ⟨x, T, w, v⟩ b =
+          ⟨x, T, (Claim.next tm ⟨x, T, w, v⟩ b).wire, (Claim.next tm ⟨x, T, w, v⟩ b).value⟩ :=
+        Claim.ext (by rw [Claim.next_eq]) (by rw [Claim.next_eq]) rfl rfl
+      rw [step_localMachine_of_outcome_none lc₀ ho b]
+      conv_rhs => rw [hcn]
+      exact ih _ hlt (by omega) _
     have huniv : localUniversal tm (⟨x.length, T, w, v⟩, none) = Claim.player tm ⟨x, T, w, v⟩ :=
       localUniversal_toLocal (tm := tm) ⟨x, T, w, v⟩ none
     simp only [hstep, huniv]
@@ -535,20 +553,11 @@ private theorem step_localMachine_live (lc₀ : LocalClaim) {x : List Bool} {T w
         (⟨x.length, T, w, v⟩, some r)) ∨
       ∃ w' v', w' < w ∧ (localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, none) b =
         (⟨x.length, T, w', v'⟩, none) := by
-  have hout : LocalClaim.outcome tm ⟨x.length, T, w, v⟩ x[w]? = Claim.outcome tm ⟨x, T, w, v⟩ :=
-    outcome_toLocal (c := ⟨x, T, w, v⟩) rfl
-  rw [localMachine_step_none]
   cases ho : Claim.outcome tm ⟨x, T, w, v⟩ with
-  | some r => exact .inl ⟨r, by simp only [localNext, hout, ho]⟩
+  | some r => exact .inl ⟨r, step_localMachine_of_outcome_some lc₀ ho b⟩
   | none =>
-    refine .inr ⟨(Claim.next tm ⟨x, T, w, v⟩ b).wire, (Claim.next tm ⟨x, T, w, v⟩ b).value,
-      next_lt ho hw b, ?_⟩
-    have hloc : (Claim.next tm ⟨x, T, w, v⟩ b).toLocal =
-        LocalClaim.next tm ⟨x.length, T, w, v⟩ b :=
-      toLocal_next (tm := tm) ⟨x, T, w, v⟩ b
-    have h1 : (Claim.next tm ⟨x, T, w, v⟩ b).input = x := by rw [Claim.next_eq]
-    have h2 : (Claim.next tm ⟨x, T, w, v⟩ b).steps = T := by rw [Claim.next_eq]
-    simp only [localNext, hout, ho, ← hloc, Claim.toLocal, h1, h2]
+    exact .inr ⟨(Claim.next tm ⟨x, T, w, v⟩ b).wire, (Claim.next tm ⟨x, T, w, v⟩ b).value,
+      next_lt ho hw b, step_localMachine_of_outcome_none lc₀ ho b⟩
 
 /-- **The states reached by the local machine.** From the local data of a claim about a wire of the
 tableau, every replay of choices reaches the local data of a claim about a wire of the tableau,
@@ -620,26 +629,26 @@ theorem exists_length_le_of_replay_localMachine :
 /-! #### The callbacks within linear space -/
 
 /-- The query of the local machine, the wire of the claim, within linear space in the state. -/
-theorem localQuery_inSpace :
-    ComputableInSpace (fun s : LocalClaim × Option Bool => s.1.wire) encLocalState encNat
-      fun s => (encLocalState s).length :=
-  encLocalClaim_wire_budget (fst encLocalClaim (encOption encBool))
+theorem localQuery_inSpace {lc₀ : LocalClaim} :
+    ComputableInSpace (localMachine tm lc₀).query encLocalState encNat
+      fun s => (encLocalState s).length := by
+  exact encLocalClaim_wire_budget (fst encLocalClaim (encOption encBool))
 
 /-- Whether a state of the local machine has halted, within linear space in the state. -/
-theorem localHalted_inSpace :
-    ComputableInSpace (fun s : LocalClaim × Option Bool => s.2.isSome) encLocalState encBool
-      fun s => (encLocalState s).length :=
-  budget_optionIsSome (snd encLocalClaim (encOption encBool))
+theorem localHalted_inSpace {lc₀ : LocalClaim} :
+    ComputableInSpace (localMachine tm lc₀).halted encLocalState encBool
+      fun s => (encLocalState s).length := by
+  exact budget_optionIsSome (snd encLocalClaim (encOption encBool))
 
 /-- Whether a state of the local machine accepts, within linear space in the state. -/
-theorem localAccept_inSpace :
-    ComputableInSpace (fun s : LocalClaim × Option Bool => s.2.getD false) encLocalState encBool
-      fun s => (encLocalState s).length :=
-  budget_optionGetD false (snd encLocalClaim (encOption encBool))
+theorem localAccept_inSpace {lc₀ : LocalClaim} :
+    ComputableInSpace (localMachine tm lc₀).accept encLocalState encBool
+      fun s => (encLocalState s).length := by
+  exact budget_optionGetD false (snd encLocalClaim (encOption encBool))
 
 /-- The player at a state of the local machine, within linear space in the state. -/
-theorem localUniversal_inSpace :
-    ComputableInSpace (localUniversal tm) encLocalState encBool
+theorem localUniversal_inSpace {lc₀ : LocalClaim} :
+    ComputableInSpace (localMachine tm lc₀).universal encLocalState encBool
       fun s => (encLocalState s).length := by
   have hlc := fst encLocalClaim (encOption encBool)
   have hop := fst' (gate_budget (tm := tm) hlc)
@@ -649,9 +658,9 @@ theorem localUniversal_inSpace :
 /-- The step of the local machine, from a state, a read and a move, within linear space in the
 encoded state, read and move. The read and move are encoded as in
 `Turing.NondeterministicQueryMachine.encReadChoice`. -/
-theorem localNext_inSpace :
-    ComputableInSpace (localNext tm) (encPair encLocalState (encPair (encOption encBool) encBool))
-      encLocalState
+theorem localNext_inSpace {lc₀ : LocalClaim} :
+    ComputableInSpace (localMachine tm lc₀).next
+      (encPair encLocalState (encPair (encOption encBool) encBool)) encLocalState
       fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length := by
   have hs := fst encLocalState (encPair (encOption encBool) encBool)
   have hrc := snd encLocalState (encPair (encOption encBool) encBool)
@@ -665,7 +674,8 @@ theorem localNext_inSpace :
   have hq := budget_prod (budget_natLt hw hn)
     (budget_prod (budget_optionGetD false hr) (budget_prod hop hv))
   have hout : ComputableInSpace
-      (fun p : (LocalClaim × Option Bool) × Option Bool × Bool => p.1.1.outcome tm p.2.1)
+      (fun p : (LocalClaim × Option Bool) × Option Bool × Bool =>
+        LocalClaim.outcome tm p.1.1 p.2.1)
       (encPair encLocalState (encPair (encOption encBool) encBool)) (encOption encBool)
       fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length :=
     (budget_finite (encC := encOption encBool) outcomeOf hq).of_enc_eq fun _ => rfl
@@ -680,7 +690,7 @@ theorem localNext_inSpace :
   exact (budget_ite (budget_optionIsSome hout) (budget_prod hlc hout)
     (budget_prod hnext (budget_const (encB := encOption encBool) none))).of_enc_eq fun p => by
       obtain ⟨⟨lc, _⟩, r, b⟩ := p
-      cases h : lc.outcome tm r <;> simp [localNext, h]
+      cases h : LocalClaim.outcome tm lc r <;> simp [localMachine, localNext, h]
 
 end QueryMachine
 

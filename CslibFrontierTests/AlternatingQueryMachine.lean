@@ -4,10 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.AlternatingQueryMachine
 
-/-! Tests for the acceptance of alternating query machines: the player of a state matters, and an
-infinite play never accepts. -/
+/-! Tests for the acceptance of alternating query machines: the player of a state matters, an
+infinite play never accepts, and a purely existential machine agrees with
+`Turing.NondeterministicQueryMachine.Accepts`. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.AlternatingQueryMachine
 
@@ -26,6 +31,11 @@ private def pick (u : Bool) : AlternatingQueryMachine (Fin 3) where
 /-- The existential player picks the accepting choice. -/
 example : (pick false).Accepts [] :=
   AcceptsFrom.existsChoice true rfl rfl (AcceptsFrom.halt rfl rfl)
+
+/-- With no universal state, acceptance coincides with `NondeterministicQueryMachine.Accepts`. -/
+example : (pick false).toNondeterministicQueryMachine.Accepts [] :=
+  ((pick false).accepts_iff_of_universal_eq_false [] fun _ => rfl).mp
+    (AcceptsFrom.existsChoice true rfl rfl (AcceptsFrom.halt rfl rfl))
 
 /-- The universal player may pick the rejecting choice. -/
 example : ¬ (pick true).Accepts [] := by
