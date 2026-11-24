@@ -34,40 +34,48 @@ import Mathlib.Algebra.Polynomial.Degree.Lemmas
 import Mathlib.Data.Nat.Choose.Basic
 
 /-!
-# `#2SAT` is `#P`-complete under counting Turing reductions
+# `#2SAT` on general `2-CNF` formulas is `#P`-complete under counting Turing reductions
 
-Valiant's theorem ([Valiant 1979][Valiant1979Enumeration], §4, problem 7 and Theorem 1, p. 414):
-counting the satisfying assignments of a `2-CNF` formula (`SharpTwoSAT`) belongs to `#P` and is
-`#P`-hard under polynomial-time counting Turing reductions
+Counting the satisfying assignments of a `2-CNF` formula whose literals may have either sign
+(`SharpTwoSAT`) belongs to `#P` and is `#P`-hard under polynomial-time counting Turing reductions
 (`CountingTuringComplete encCNF SharpTwoSAT`).
 
-The original source establishes `#P`-completeness for monotone `2-SAT` via bipartite matchings
-(reductions 6–7, p. 415) under a function-value oracle (§2, p. 411), which in turn implies
-hardness of general `2-SAT`. Our formalization proves `#P`-completeness directly for general
-`2-CNF` formulas over occurring variables under the library's bit-oracle convention
-(`AnswersBits`). The direct clause-indicator/chain gadget (`valiantTwoSAT`) and its
-division-free finite-difference interpolation proof below are an original adaptation for general
-`2-CNF`, replacing the bipartite matching reductions of the 1979 paper.
+This is not Valiant's theorem. [Valiant 1979][Valiant1979Enumeration] (§4, problem 7 and
+Theorem 1, p. 414, with reductions 6–7 on p. 415) proves that counting is `#P`-complete already for
+*monotone* `2-CNF` formulas, those in which no variable is negated (p. 413), for an oracle that
+returns the function value (§2, p. 411). Hardness for general `2-CNF` follows from the monotone
+case and not conversely. The reduction below queries formulas with literals of both signs
+(`clauseWeightVarTauts`, `clauseWeightGadget`), so it cannot call a monotone-only oracle. The
+monotone theorem is not proved in this library and remains open in
+[#3672](https://github.com/cslib-community/cslib-frontier/issues/3672).
+
+The construction and proof are original and do not follow the paper's route through matchings.
+For a CNF `φ` with `m` clauses, `clauseWeightTwoSAT φ r` is a `2-CNF` formula with
+`∑ σ, (r + 1) ^ φ.countUnsat σ` models, the sum being over assignments to the variables of `φ`.
+This is the value at `r + 1` of a polynomial of degree at most `m` whose value at `0` is the model
+count of `φ`, and a division-free finite difference recovers that value from the counts for
+`r = 0, …, m`. Oracle answers are read through the library's bit-graph convention (`AnswersBits`).
 
 ## Main definitions
 
 * `Cslib.Complexity.SharpTwoSAT`: the number of satisfying assignments on occurring variables when
   every clause has length at most `2`, and `0` otherwise.
-* `Cslib.Complexity.valiantTwoSAT`: The `2-CNF` clause-weight gadget formula.
+* `Cslib.Complexity.clauseWeightTwoSAT`: the `2-CNF` clause-weight formula.
 
 ## Main results
 
 * `Cslib.Complexity.SharpTwoSAT.mem_SharpP`: `SharpTwoSAT ∈ SharpP encCNF`.
-* `Cslib.Complexity.modelCount_valiantTwoSAT`: exact fibre-count formula
-  `∑ σ, (r + 1) ^ (φ.countUnsat ext(σ))`.
+* `Cslib.Complexity.modelCount_clauseWeightTwoSAT`: the model count
+  `∑ σ, (r + 1) ^ φ.countUnsat σ` of the clause-weight formula.
 * `Cslib.Complexity.countingTuringReducible_SharpSAT_SharpTwoSAT`: `#SAT ≤_T^#P #2SAT`.
-* `Cslib.Complexity.SharpTwoSAT_countingTuringComplete`: `#2SAT` is `#P`-complete under counting
-  Turing reductions.
+* `Cslib.Complexity.SharpTwoSAT_countingTuringComplete`: `#2SAT` on general `2-CNF` formulas is
+  `#P`-complete under counting Turing reductions.
 * `Cslib.Complexity.SharpTwoSAT_polyTime_implies_P_eq_NP`: if `SharpTwoSAT ∈ FP`, then `P = NP`.
 
 ## References
 
-* [L. G. Valiant, *The complexity of enumeration and reliability problems*][Valiant1979Enumeration].
+* [L. G. Valiant, *The complexity of enumeration and reliability problems*][Valiant1979Enumeration]
+  (the monotone theorem, not formalized here).
 * [L. G. Valiant, *The complexity of computing the permanent*][Valiant1979].
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09].
 -/
@@ -79,7 +87,8 @@ namespace Cslib.Complexity
 open Cslib.Logic.PL Turing.MultiTapeTM
 
 /-- Number of satisfying assignments of `φ` on its occurring variables when every clause has length
-at most `2`, and `0` otherwise (`#2SAT`). -/
+at most `2`, and `0` otherwise (`#2SAT`). Literals of both signs are allowed: this is not the
+monotone problem of [Valiant 1979][Valiant1979Enumeration]. -/
 @[expose] def SharpTwoSAT (φ : CNF ℕ) : ℕ :=
   if φ.all (fun c => decide (c.length ≤ 2)) then φ.modelCount else 0
 
@@ -88,7 +97,7 @@ theorem SharpTwoSAT.mem_SharpP : SharpTwoSAT ∈ SharpP encCNF :=
   (parsimoniousReducible_guard (computableInPolyTime_all_length_le 2)).mem_SharpP
     SharpSAT.mem_SharpP
 
-/-! ### 2-CNF clause-weight gadget construction (original adaptation) -/
+/-! ### The `2-CNF` clause-weight gadget (original construction) -/
 
 /-- Auxiliary clause-indicator variable index for clause `i` at weight parameter `r`. -/
 @[expose] def zVar (r i : ℕ) : ℕ :=
@@ -99,12 +108,12 @@ theorem SharpTwoSAT.mem_SharpP : SharpTwoSAT ∈ SharpP encCNF :=
   2 * (i * (r + 1) + j + 1) + 1
 
 /-- Width-`2` tautology clauses ensuring every occurring variable `v` of `φ` appears at `2 * v`. -/
-@[expose] def valiantVarTauts (φ : CNF ℕ) : CNF ℕ :=
+@[expose] def clauseWeightVarTauts (φ : CNF ℕ) : CNF ℕ :=
   φ.distinctVars.map fun v => [(2 * v, true), (2 * v, false)]
 
 /-- Weight gadget for clause `(c, i)` at parameter `r`: forces `zVar r i = false` if `c` holds,
 and otherwise permits `r + 1` extensions of `(zVar r i, uVar r i 0, …, uVar r i (r - 2))`. -/
-@[expose] def valiantClauseGadget (r : ℕ) (ci : Clause ℕ × ℕ) : CNF ℕ :=
+@[expose] def clauseWeightGadget (r : ℕ) (ci : Clause ℕ × ℕ) : CNF ℕ :=
   let c := ci.1
   let i := ci.2
   let litClauses : CNF ℕ := c.map fun l => [(zVar r i, false), (2 * l.1, !l.2)]
@@ -117,17 +126,17 @@ and otherwise permits `r + 1` extensions of `(zVar r i, uVar r i 0, …, uVar r 
   litClauses ++ auxClauses
 
 /-- The clause-weight `2-CNF` formula at interpolation parameter `r : ℕ`. -/
-@[expose] def valiantTwoSAT (φ : CNF ℕ) (r : ℕ) : CNF ℕ :=
-  valiantVarTauts φ ++ (φ.zipIdx.flatMap (valiantClauseGadget r))
+@[expose] def clauseWeightTwoSAT (φ : CNF ℕ) (r : ℕ) : CNF ℕ :=
+  clauseWeightVarTauts φ ++ (φ.zipIdx.flatMap (clauseWeightGadget r))
 
-/-- Every clause of `valiantTwoSAT φ r` has length at most `2`. -/
-theorem length_clause_valiantTwoSAT_le (φ : CNF ℕ) (r : ℕ) {c : Clause ℕ}
-    (hc : c ∈ valiantTwoSAT φ r) : c.length ≤ 2 := by
-  simp only [valiantTwoSAT, List.mem_append, List.mem_flatMap] at hc
+/-- Every clause of `clauseWeightTwoSAT φ r` has length at most `2`. -/
+theorem length_clause_clauseWeightTwoSAT_le (φ : CNF ℕ) (r : ℕ) {c : Clause ℕ}
+    (hc : c ∈ clauseWeightTwoSAT φ r) : c.length ≤ 2 := by
+  simp only [clauseWeightTwoSAT, List.mem_append, List.mem_flatMap] at hc
   rcases hc with hc | ⟨ci, _, hc⟩
   · obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc
     exact le_rfl
-  · simp only [valiantClauseGadget, List.mem_append] at hc
+  · simp only [clauseWeightGadget, List.mem_append] at hc
     rcases hc with hc | hc
     · obtain ⟨l, _, rfl⟩ := List.mem_map.mp hc
       exact le_rfl
@@ -142,14 +151,15 @@ theorem length_clause_valiantTwoSAT_le (φ : CNF ℕ) (r : ℕ) {c : Clause ℕ}
       · simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false, List.mem_map] at hc
         rcases hc with (rfl | rfl) | ⟨j, _, rfl⟩ <;> exact le_rfl
 
-/-- Hence `SharpTwoSAT (valiantTwoSAT φ r)` agrees with `(valiantTwoSAT φ r).modelCount`. -/
-theorem SharpTwoSAT_valiantTwoSAT (φ : CNF ℕ) (r : ℕ) :
-    SharpTwoSAT (valiantTwoSAT φ r) = (valiantTwoSAT φ r).modelCount := by
+/-- `SharpTwoSAT` agrees with `CNF.modelCount` on `clauseWeightTwoSAT φ r`, whose clauses all have
+length at most `2`. -/
+theorem SharpTwoSAT_clauseWeightTwoSAT (φ : CNF ℕ) (r : ℕ) :
+    SharpTwoSAT (clauseWeightTwoSAT φ r) = (clauseWeightTwoSAT φ r).modelCount := by
   rw [SharpTwoSAT]
   split_ifs with h
   · rfl
   · exact absurd (List.all_eq_true.mpr fun c hc =>
-      decide_eq_true (length_clause_valiantTwoSAT_le φ r hc)) h
+      decide_eq_true (length_clause_clauseWeightTwoSAT_le φ r hc)) h
 
 private theorem two_mul_ne_zVar (v r i : ℕ) : 2 * v ≠ zVar r i := by
   unfold zVar
@@ -189,13 +199,13 @@ private theorem uVar_inj {r i₁ i₂ j₁ j₂ : ℕ} (hj₁ : j₁ < r - 1) (h
     Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hmod
   exact ⟨hdiv, by omega⟩
 
-private theorem mem_vars_valiantTwoSAT (φ : CNF ℕ) (r w : ℕ) :
-    w ∈ (valiantTwoSAT φ r).vars ↔
+private theorem mem_vars_clauseWeightTwoSAT (φ : CNF ℕ) (r w : ℕ) :
+    w ∈ (clauseWeightTwoSAT φ r).vars ↔
       (∃ v ∈ φ.vars, w = 2 * v) ∨
         ∃ i < φ.length, w = zVar r i ∨ ∃ j < r - 1, w = uVar r i j := by
   constructor
   · intro hw
-    rw [valiantTwoSAT, CNF.vars, List.mem_map] at hw
+    rw [clauseWeightTwoSAT, CNF.vars, List.mem_map] at hw
     obtain ⟨l, hl, rfl⟩ := hw
     rw [List.mem_flatten] at hl
     obtain ⟨c, hc, hl⟩ := hl
@@ -209,7 +219,7 @@ private theorem mem_vars_valiantTwoSAT (φ : CNF ℕ) (r w : ℕ) :
       have hget := List.mem_zipIdx_iff_getElem?.mp hci
       have hi : i < φ.length := (List.getElem?_eq_some_iff.mp hget).1
       have hclMem : cl ∈ φ := List.mem_of_getElem? hget
-      simp only [valiantClauseGadget, List.mem_append] at hc
+      simp only [clauseWeightGadget, List.mem_append] at hc
       rcases hc with hc | hc
       · obtain ⟨lit, hlit, rfl⟩ := List.mem_map.mp hc
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
@@ -242,30 +252,30 @@ private theorem mem_vars_valiantTwoSAT (φ : CNF ℕ) (r w : ℕ) :
             · exact Or.inr ⟨i, hi, Or.inr ⟨j + 1, by omega, rfl⟩⟩
   · rintro (⟨v, hv, rfl⟩ | ⟨i, hi, hzi | ⟨j, hj, rfl⟩⟩)
     · have hv' : v ∈ φ.distinctVars := CNF.mem_distinctVars.mpr hv
-      rw [valiantTwoSAT, CNF.vars, List.mem_map]
+      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
       refine ⟨(2 * v, true), List.mem_flatten.mpr ⟨[(2 * v, true), (2 * v, false)], ?_,
         List.mem_cons_self ..⟩, rfl⟩
       exact List.mem_append_left _ (List.mem_map.mpr ⟨v, hv', rfl⟩)
     · subst hzi
       have hci : (φ[i], i) ∈ φ.zipIdx :=
         List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩)
-      rw [valiantTwoSAT, CNF.vars, List.mem_map]
+      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
       by_cases hr0 : r = 0
       · refine ⟨(zVar r i, false), List.mem_flatten.mpr ⟨[(zVar r i, false)],
           List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
           List.mem_cons_self ..⟩, rfl⟩
-        simp only [valiantClauseGadget, hr0, ↓reduceIte, List.mem_append, List.mem_singleton,
+        simp only [clauseWeightGadget, hr0, ↓reduceIte, List.mem_append, List.mem_singleton,
           or_true]
       · refine ⟨(zVar r i, false), List.mem_flatten.mpr
           ⟨[(zVar r i, true), (zVar r i, false)],
             List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
             List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp only [valiantClauseGadget, List.mem_append]
+        simp only [clauseWeightGadget, List.mem_append]
         right
         by_cases hr1 : r = 1 <;> simp [hr0, hr1]
     · have hci : (φ[i], i) ∈ φ.zipIdx :=
         List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨hi, rfl⟩)
-      rw [valiantTwoSAT, CNF.vars, List.mem_map]
+      rw [clauseWeightTwoSAT, CNF.vars, List.mem_map]
       have hr0 : r ≠ 0 := by omega
       have hr1 : r ≠ 1 := by omega
       cases j with
@@ -274,26 +284,26 @@ private theorem mem_vars_valiantTwoSAT (φ : CNF ℕ) (r w : ℕ) :
           ⟨[(zVar r i, true), (uVar r i 0, false)],
             List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
             List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp [valiantClauseGadget, hr0, hr1]
+        simp [clauseWeightGadget, hr0, hr1]
       | succ k =>
         refine ⟨(uVar r i (k + 1), false), List.mem_flatten.mpr
           ⟨[(uVar r i k, true), (uVar r i (k + 1), false)],
             List.mem_append_right _ (List.mem_flatMap.mpr ⟨(φ[i], i), hci, ?_⟩),
             List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl⟩
-        simp only [valiantClauseGadget, hr0, ↓reduceIte, hr1, List.mem_append, List.mem_cons,
+        simp only [clauseWeightGadget, hr0, ↓reduceIte, hr1, List.mem_append, List.mem_cons,
           List.not_mem_nil, or_false, List.mem_map, List.mem_range]
         exact Or.inr (Or.inr ⟨k, by omega, rfl⟩)
 
-/-- Number of occurring variables of `valiantTwoSAT φ r` is at most
+/-- Number of occurring variables of `clauseWeightTwoSAT φ r` is at most
 `φ.vars.length + φ.length * (r + 1)`. -/
-theorem numVars_valiantTwoSAT_le (φ : CNF ℕ) (r : ℕ) :
-    (valiantTwoSAT φ r).numVars ≤ φ.vars.length + φ.length * (r + 1) := by
-  have hsub : (valiantTwoSAT φ r).vars.toFinset ⊆
+theorem numVars_clauseWeightTwoSAT_le (φ : CNF ℕ) (r : ℕ) :
+    (clauseWeightTwoSAT φ r).numVars ≤ φ.vars.length + φ.length * (r + 1) := by
+  have hsub : (clauseWeightTwoSAT φ r).vars.toFinset ⊆
       φ.vars.toFinset.image (2 * ·) ∪
         ((Finset.range φ.length).biUnion fun i =>
           insert (zVar r i) ((Finset.range (r - 1)).image (uVar r i))) := by
     intro w hw
-    rw [List.mem_toFinset, mem_vars_valiantTwoSAT] at hw
+    rw [List.mem_toFinset, mem_vars_clauseWeightTwoSAT] at hw
     rw [Finset.mem_union]
     rcases hw with ⟨v, hv, rfl⟩ | ⟨i, hi, rfl | ⟨j, hj, rfl⟩⟩
     · exact Or.inl (Finset.mem_image.mpr ⟨v, List.mem_toFinset.mpr hv, rfl⟩)
@@ -316,7 +326,7 @@ theorem numVars_valiantTwoSAT_le (φ : CNF ℕ) (r : ℕ) :
     have h2 : ((Finset.range (r - 1)).image (uVar r i)).card ≤ r - 1 :=
       Finset.card_image_le.trans (by simp)
     omega
-  have hUnion : (valiantTwoSAT φ r).numVars ≤
+  have hUnion : (clauseWeightTwoSAT φ r).numVars ≤
       (φ.vars.toFinset.image (2 * ·)).card +
         ((Finset.range φ.length).biUnion fun i =>
           insert (zVar r i) ((Finset.range (r - 1)).image (uVar r i))).card :=
@@ -325,15 +335,15 @@ theorem numVars_valiantTwoSAT_le (φ : CNF ℕ) (r : ℕ) :
     simp [Finset.sum_const, Finset.card_range, smul_eq_mul]
   omega
 
-/-- Binary size bound for `SharpTwoSAT (valiantTwoSAT φ r)` whenever `r ≤ φ.length`. -/
-theorem size_SharpTwoSAT_valiantTwoSAT_le {φ : CNF ℕ} {r : ℕ} (hr : r ≤ φ.length) :
-    (SharpTwoSAT (valiantTwoSAT φ r)).size ≤
+/-- Binary size bound for `SharpTwoSAT (clauseWeightTwoSAT φ r)` whenever `r ≤ φ.length`. -/
+theorem size_SharpTwoSAT_clauseWeightTwoSAT_le {φ : CNF ℕ} {r : ℕ} (hr : r ≤ φ.length) :
+    (SharpTwoSAT (clauseWeightTwoSAT φ r)).size ≤
       φ.vars.length + φ.length * (φ.length + 1) + 1 := by
-  have hle : SharpTwoSAT (valiantTwoSAT φ r) ≤
+  have hle : SharpTwoSAT (clauseWeightTwoSAT φ r) ≤
       2 ^ (φ.vars.length + φ.length * (φ.length + 1)) := by
-    rw [SharpTwoSAT_valiantTwoSAT]
+    rw [SharpTwoSAT_clauseWeightTwoSAT]
     refine (CNF.modelCount_le_two_pow_numVars _).trans (Nat.pow_le_pow_right (by omega) ?_)
-    have hnum := numVars_valiantTwoSAT_le φ r
+    have hnum := numVars_clauseWeightTwoSAT_le φ r
     have hm : φ.length * (r + 1) ≤ φ.length * (φ.length + 1) :=
       Nat.mul_le_mul_left _ (Nat.succ_le_succ hr)
     omega
@@ -511,23 +521,23 @@ private theorem card_clauseAuxPred (r : ℕ) (sat : Bool) :
       rw [Fintype.card_congr e, Fintype.card_unit]
       rfl
 
-private def valiantVarEquiv (φ : CNF ℕ) (r : ℕ) :
-    ((valiantTwoSAT φ r).vars.toFinset → Bool) ≃
+private def clauseWeightVarEquiv (φ : CNF ℕ) (r : ℕ) :
+    ((clauseWeightTwoSAT φ r).vars.toFinset → Bool) ≃
       (φ.vars.toFinset → Bool) × (∀ _ : Fin φ.length, Bool × (Fin (r - 1) → Bool)) where
   toFun τ :=
     (fun v => τ ⟨2 * v.1, List.mem_toFinset.mpr
-        ((mem_vars_valiantTwoSAT φ r _).mpr (Or.inl ⟨v.1, List.mem_toFinset.mp v.2, rfl⟩))⟩,
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inl ⟨v.1, List.mem_toFinset.mp v.2, rfl⟩))⟩,
       fun i =>
         (τ ⟨zVar r i.1, List.mem_toFinset.mpr
-            ((mem_vars_valiantTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))⟩,
+            ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))⟩,
           fun j => τ ⟨uVar r i.1 j.1, List.mem_toFinset.mpr
-            ((mem_vars_valiantTwoSAT φ r _).mpr
+            ((mem_vars_clauseWeightTwoSAT φ r _).mpr
               (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))⟩))
   invFun p w :=
     if hev : w.1 % 2 = 0 then
       let v₀ := w.1 / 2
       have hv₀ : v₀ ∈ φ.vars.toFinset := by
-        have hw := (mem_vars_valiantTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+        have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
         rcases hw with ⟨v, hv, hwv⟩ | ⟨i, _, hwz | ⟨j, _, hwu⟩⟩
         · have : v₀ = v := by omega
           exact this ▸ List.mem_toFinset.mpr hv
@@ -539,7 +549,7 @@ private def valiantVarEquiv (φ : CNF ℕ) (r : ℕ) :
       let i := q / (r + 1)
       let k := q % (r + 1)
       have hi : i < φ.length := by
-        have hw := (mem_vars_valiantTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+        have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
         rcases hw with ⟨v, _, hwv⟩ | ⟨i', hi', hwz | ⟨j, hj, hwu⟩⟩
         · omega
         · have hq : q = i' * (r + 1) := by dsimp only [q]; rw [hwz]; unfold zVar; omega
@@ -559,7 +569,7 @@ private def valiantVarEquiv (φ : CNF ℕ) (r : ℕ) :
         (p.2 ⟨i, hi⟩).1
       else
         have hklt : k - 1 < r - 1 := by
-          have hw := (mem_vars_valiantTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+          have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
           rcases hw with ⟨v, _, hwv⟩ | ⟨i', _, hwz | ⟨j, hj, hwu⟩⟩
           · omega
           · have hq : q = i' * (r + 1) := by dsimp only [q]; rw [hwz]; unfold zVar; omega
@@ -576,7 +586,7 @@ private def valiantVarEquiv (φ : CNF ℕ) (r : ℕ) :
         (p.2 ⟨i, hi⟩).2 ⟨k - 1, hklt⟩
   left_inv τ := by
     ext w
-    have hw := (mem_vars_valiantTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
+    have hw := (mem_vars_clauseWeightTwoSAT φ r w.1).mp (List.mem_toFinset.mp w.2)
     rcases hw with ⟨v, hv, hwv⟩ | ⟨i, hi, hwz | ⟨j, hj, hwu⟩⟩
     · have hev : w.1 % 2 = 0 := by omega
       simp only [hev, ↓reduceDIte]
@@ -631,35 +641,36 @@ private def valiantVarEquiv (φ : CNF ℕ) (r : ℕ) :
       simp only [hodd, ↓reduceDIte, hmod, Nat.succ_ne_zero, Nat.add_sub_cancel]
       exact congr (congrArg (fun k => (aux k).2) (Fin.ext hdiv)) (Fin.ext rfl)
 
-private theorem eval_valiantTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
-    (τ : (valiantTwoSAT φ r).vars.toFinset → Bool) :
+private theorem eval_clauseWeightTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
+    (τ : (clauseWeightTwoSAT φ r).vars.toFinset → Bool) :
     let τExt (w : ℕ) : Bool :=
-      if hw : w ∈ (valiantTwoSAT φ r).vars.toFinset then τ ⟨w, hw⟩ else false
-    let p := valiantVarEquiv φ r τ
+      if hw : w ∈ (clauseWeightTwoSAT φ r).vars.toFinset then τ ⟨w, hw⟩ else false
+    let p := clauseWeightVarEquiv φ r τ
     let σExt (v : ℕ) : Bool := if hv : v ∈ φ.vars.toFinset then p.1 ⟨v, hv⟩ else false
-    (valiantTwoSAT φ r).eval τExt = true ↔
+    (clauseWeightTwoSAT φ r).eval τExt = true ↔
       ∀ i : Fin φ.length, clauseAuxPred r (φ[i].eval σExt) (p.2 i) := by
   intro τExt p σExt
   have hσEq : ∀ v ∈ φ.vars, τExt (2 * v) = σExt v := by
     intro v hv
     have hv' : v ∈ φ.vars.toFinset := List.mem_toFinset.mpr hv
-    have hw : 2 * v ∈ (valiantTwoSAT φ r).vars.toFinset :=
-      List.mem_toFinset.mpr ((mem_vars_valiantTwoSAT φ r _).mpr (Or.inl ⟨v, hv, rfl⟩))
-    simp only [τExt, σExt, hv', hw, ↓reduceDIte, p, valiantVarEquiv, Equiv.coe_fn_mk]
+    have hw : 2 * v ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
+      List.mem_toFinset.mpr ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inl ⟨v, hv, rfl⟩))
+    simp only [τExt, σExt, hv', hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
   have hzEq : ∀ i : Fin φ.length, τExt (zVar r i.1) = (p.2 i).1 := by
     intro i
-    have hw : zVar r i.1 ∈ (valiantTwoSAT φ r).vars.toFinset :=
-      List.mem_toFinset.mpr ((mem_vars_valiantTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))
-    simp only [τExt, hw, ↓reduceDIte, p, valiantVarEquiv, Equiv.coe_fn_mk]
+    have hw : zVar r i.1 ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
+      List.mem_toFinset.mpr
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inl rfl⟩))
+    simp only [τExt, hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
   have huEq : ∀ (i : Fin φ.length) (j : Fin (r - 1)), τExt (uVar r i.1 j.1) = (p.2 i).2 j := by
     intro i j
-    have hw : uVar r i.1 j.1 ∈ (valiantTwoSAT φ r).vars.toFinset :=
+    have hw : uVar r i.1 j.1 ∈ (clauseWeightTwoSAT φ r).vars.toFinset :=
       List.mem_toFinset.mpr
-        ((mem_vars_valiantTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))
-    simp only [τExt, hw, ↓reduceDIte, p, valiantVarEquiv, Equiv.coe_fn_mk]
-  rw [valiantTwoSAT, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff]
-  have htaut : (valiantVarTauts φ).eval τExt = true := by
-    rw [valiantVarTauts, CNF.eval_eq_true_iff]
+        ((mem_vars_clauseWeightTwoSAT φ r _).mpr (Or.inr ⟨i.1, i.isLt, Or.inr ⟨j.1, j.isLt, rfl⟩⟩))
+    simp only [τExt, hw, ↓reduceDIte, p, clauseWeightVarEquiv, Equiv.coe_fn_mk]
+  rw [clauseWeightTwoSAT, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff]
+  have htaut : (clauseWeightVarTauts φ).eval τExt = true := by
+    rw [clauseWeightVarTauts, CNF.eval_eq_true_iff]
     intro c hc
     obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc
     cases τExt (2 * v) <;> simp [Clause.eval, Literal.eval]
@@ -668,7 +679,7 @@ private theorem eval_valiantTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
   · intro h i
     have hci := h (φ[i], i.1)
       (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨i.isLt, rfl⟩))
-    rw [valiantClauseGadget, CNF.eval_append, Bool.and_eq_true] at hci
+    rw [clauseWeightGadget, CNF.eval_append, Bool.and_eq_true] at hci
     have hlit : (p.2 i).1 = true → φ[i].eval σExt = false := by
       intro hz
       by_contra hsat
@@ -709,7 +720,7 @@ private theorem eval_valiantTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
     have hc : c = φ[i] := (List.getElem?_eq_some_iff.mp hget).2.symm
     subst hc
     have hiPred := h ⟨i, hi⟩
-    rw [valiantClauseGadget, CNF.eval_append, Bool.and_eq_true]
+    rw [clauseWeightGadget, CNF.eval_append, Bool.and_eq_true]
     refine ⟨?_, ?_⟩
     · rw [CNF.eval_eq_true_iff]
       intro cl hcl
@@ -752,19 +763,19 @@ private theorem eval_valiantTwoSAT_iff (φ : CNF ℕ) (r : ℕ)
             exact Or.inr
               (by simpa [huEq ⟨i, hi⟩ ⟨j + 1, by omega⟩] using hiPred.2.2 j (by omega) hfj)
 
-/-- **Exact model count of The clause-weight `2-CNF` formula**:
-`SharpTwoSAT (valiantTwoSAT φ r) = ∑ σ : φ.vars.toFinset → Bool, (r + 1) ^ (φ.countUnsat ext(σ))`.
--/
-theorem modelCount_valiantTwoSAT (φ : CNF ℕ) (r : ℕ) :
-    (valiantTwoSAT φ r).modelCount =
+/-- **Exact model count of the clause-weight `2-CNF` formula**: `clauseWeightTwoSAT φ r` has
+`∑ σ : φ.vars.toFinset → Bool, (r + 1) ^ φ.countUnsat ext(σ)` models, where `ext(σ)` extends `σ` by
+`false` outside the variables of `φ`. -/
+theorem modelCount_clauseWeightTwoSAT (φ : CNF ℕ) (r : ℕ) :
+    (clauseWeightTwoSAT φ r).modelCount =
       ∑ σ : φ.vars.toFinset → Bool,
         (r + 1) ^ (φ.countUnsat
           fun v => if hv : v ∈ φ.vars.toFinset then σ ⟨v, hv⟩ else false) := by
   classical
   rw [← CNF.modelCountOn_vars, CNF.modelCountOn, ← Fintype.card_coe]
-  let e : {τ : (valiantTwoSAT φ r).vars.toFinset → Bool //
-        (valiantTwoSAT φ r).eval
-          (fun w => if hw : w ∈ (valiantTwoSAT φ r).vars.toFinset then τ ⟨w, hw⟩ else false) =
+  let e : {τ : (clauseWeightTwoSAT φ r).vars.toFinset → Bool //
+        (clauseWeightTwoSAT φ r).eval
+          (fun w => if hw : w ∈ (clauseWeightTwoSAT φ r).vars.toFinset then τ ⟨w, hw⟩ else false) =
             true} ≃
       Σ σ : φ.vars.toFinset → Bool,
         ∀ i : Fin φ.length,
@@ -772,21 +783,21 @@ theorem modelCount_valiantTwoSAT (φ : CNF ℕ) (r : ℕ) :
             clauseAuxPred r
               (φ[i].eval fun v => if hv : v ∈ φ.vars.toFinset then σ ⟨v, hv⟩ else false) p} :=
     { toFun := fun ⟨τ, hτ⟩ =>
-        ⟨(valiantVarEquiv φ r τ).1, fun i =>
-          ⟨(valiantVarEquiv φ r τ).2 i,
-            (eval_valiantTwoSAT_iff φ r τ).mp (by simpa using hτ) i⟩⟩
+        ⟨(clauseWeightVarEquiv φ r τ).1, fun i =>
+          ⟨(clauseWeightVarEquiv φ r τ).2 i,
+            (eval_clauseWeightTwoSAT_iff φ r τ).mp (by simpa using hτ) i⟩⟩
       invFun := fun ⟨σ, aux⟩ =>
-        ⟨(valiantVarEquiv φ r).symm (σ, fun i => (aux i).1), by
-          refine (eval_valiantTwoSAT_iff φ r _).mpr fun i => ?_
-          have hp := (valiantVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
+        ⟨(clauseWeightVarEquiv φ r).symm (σ, fun i => (aux i).1), by
+          refine (eval_clauseWeightTwoSAT_iff φ r _).mpr fun i => ?_
+          have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
           exact (congrArg (fun p : (φ.vars.toFinset → Bool) ×
               (∀ _ : Fin φ.length, Bool × (Fin (r - 1) → Bool)) =>
             clauseAuxPred r (φ[i].eval fun v =>
               if hv : v ∈ φ.vars.toFinset then p.1 ⟨v, hv⟩ else false) (p.2 i)) hp).mpr
               (aux i).2⟩
-      left_inv := fun ⟨τ, hτ⟩ => Subtype.ext ((valiantVarEquiv φ r).symm_apply_apply τ)
+      left_inv := fun ⟨τ, hτ⟩ => Subtype.ext ((clauseWeightVarEquiv φ r).symm_apply_apply τ)
       right_inv := fun ⟨σ, aux⟩ => by
-        have hp := (valiantVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
+        have hp := (clauseWeightVarEquiv φ r).apply_symm_apply (σ, fun i => (aux i).1)
         dsimp only
         refine Sigma.ext (congrArg Prod.fst hp) ?_
         refine Function.hfunext rfl fun i j hij => ?_
@@ -819,12 +830,12 @@ theorem modelCount_valiantTwoSAT (φ : CNF ℕ) (r : ℕ) :
 /-! ### Binomial finite-difference interpolation over `ℤ` and `ℕ` -/
 
 /-- Exact integer finite-difference identity recovering `SharpSAT φ` from the `2-CNF` counts
-`SharpTwoSAT (valiantTwoSAT φ r)` for `r = 0, …, φ.length`. -/
-theorem SharpSAT_eq_valiant_sum_int (φ : CNF ℕ) :
+`SharpTwoSAT (clauseWeightTwoSAT φ r)` for `r = 0, …, φ.length`. -/
+theorem SharpSAT_eq_clauseWeight_sum_int (φ : CNF ℕ) :
     (SharpSAT φ : ℤ) =
       ∑ r ∈ Finset.range (φ.length + 1),
         (-1 : ℤ) ^ r * ((φ.length + 1).choose (r + 1) : ℤ) *
-          (SharpTwoSAT (valiantTwoSAT φ r) : ℤ) := by
+          (SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ) := by
   classical
   let P : Polynomial ℤ :=
     ∑ σ : φ.vars.toFinset → Bool,
@@ -861,8 +872,8 @@ theorem SharpSAT_eq_valiant_sum_int (φ : CNF ℕ) :
         Bool.eq_false_iff.mpr fun h => h0 (CNF.countUnsat_eq_zero_iff.mpr h)
       rw [zero_pow h0, hnev]
       simp only [Bool.false_eq_true, ↓reduceIte]
-  have hPr (r : ℕ) : P.eval ((r : ℤ) + 1) = (SharpTwoSAT (valiantTwoSAT φ r) : ℤ) := by
-    rw [SharpTwoSAT_valiantTwoSAT, modelCount_valiantTwoSAT, hevalP ((r : ℤ) + 1)]
+  have hPr (r : ℕ) : P.eval ((r : ℤ) + 1) = (SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ) := by
+    rw [SharpTwoSAT_clauseWeightTwoSAT, modelCount_clauseWeightTwoSAT, hevalP ((r : ℤ) + 1)]
     simp only [Nat.cast_sum, Nat.cast_pow, Nat.cast_add, Nat.cast_one]
   have hid := Polynomial.eval_zero_eq_sum_neg_one_pow_choose_eval_succ hdeg
   rw [hP0] at hid
@@ -870,8 +881,8 @@ theorem SharpSAT_eq_valiant_sum_int (φ : CNF ℕ) :
   rw [hPr r]
 
 /-- Pure nonnegative combination recovering `SharpSAT φ` from the list of `r = 0..φ.length`
-answers `[SharpTwoSAT (valiantTwoSAT φ 0), …, SharpTwoSAT (valiantTwoSAT φ φ.length)]`. -/
-@[expose] def valiantCombine (p : CNF ℕ × List ℕ) : ℕ :=
+answers `[SharpTwoSAT (clauseWeightTwoSAT φ 0), …, SharpTwoSAT (clauseWeightTwoSAT φ φ.length)]`. -/
+@[expose] def clauseWeightCombine (p : CNF ℕ × List ℕ) : ℕ :=
   let m := p.1.length
   let posSum := ((p.2.zipIdx).map fun x =>
     if !x.2.testBit 0 then (m + 1).choose (x.2 + 1) * x.1 else 0).sum
@@ -879,12 +890,12 @@ answers `[SharpTwoSAT (valiantTwoSAT φ 0), …, SharpTwoSAT (valiantTwoSAT φ �
     if x.2.testBit 0 then (m + 1).choose (x.2 + 1) * x.1 else 0).sum
   posSum - negSum
 
-theorem valiantCombine_spec (φ : CNF ℕ) :
-    valiantCombine (φ, (List.range (φ.length + 1)).map fun r =>
-        SharpTwoSAT (valiantTwoSAT φ r)) = SharpSAT φ := by
-  let vals := (List.range (φ.length + 1)).map fun r => SharpTwoSAT (valiantTwoSAT φ r)
+theorem clauseWeightCombine_spec (φ : CNF ℕ) :
+    clauseWeightCombine (φ, (List.range (φ.length + 1)).map fun r =>
+        SharpTwoSAT (clauseWeightTwoSAT φ r)) = SharpSAT φ := by
+  let vals := (List.range (φ.length + 1)).map fun r => SharpTwoSAT (clauseWeightTwoSAT φ r)
   have hzip : vals.zipIdx =
-      (List.range (φ.length + 1)).map fun r => (SharpTwoSAT (valiantTwoSAT φ r), r) := by
+      (List.range (φ.length + 1)).map fun r => (SharpTwoSAT (clauseWeightTwoSAT φ r), r) := by
     apply List.ext_getElem (by simp [vals]) fun i hi _ => by
       simp only [List.length_zipIdx] at hi
       simp [vals]
@@ -894,7 +905,7 @@ theorem valiantCombine_spec (φ : CNF ℕ) :
           ℕ) : ℤ) =
         ∑ r ∈ Finset.range (φ.length + 1),
           if r % 2 = (if wantOdd then 1 else 0) then
-            ((φ.length + 1).choose (r + 1) * SharpTwoSAT (valiantTwoSAT φ r) : ℤ)
+            ((φ.length + 1).choose (r + 1) * SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ)
           else 0 := by
     rw [hzip, List.map_map, List.sum_map_range, Fin.sum_univ_eq_sum_range, Nat.cast_sum]
     refine Finset.sum_congr rfl fun r _ => ?_
@@ -908,27 +919,29 @@ theorem valiantCombine_spec (φ : CNF ℕ) :
   have hpos : ((((vals.zipIdx).map fun x =>
       if !x.2.testBit 0 then (φ.length + 1).choose (x.2 + 1) * x.1 else 0).sum : ℕ) : ℤ) =
       ∑ r ∈ Finset.range (φ.length + 1),
-        if r % 2 = 0 then ((φ.length + 1).choose (r + 1) * SharpTwoSAT (valiantTwoSAT φ r) : ℤ)
+        if r % 2 = 0 then ((φ.length + 1).choose (r + 1) * SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ)
         else 0 := by
     simpa only [Bool.not_eq_true', Bool.false_eq_true, ↓reduceIte] using hhalf false
   have hneg : ((((vals.zipIdx).map fun x =>
       if x.2.testBit 0 then (φ.length + 1).choose (x.2 + 1) * x.1 else 0).sum : ℕ) : ℤ) =
       ∑ r ∈ Finset.range (φ.length + 1),
-        if r % 2 = 1 then ((φ.length + 1).choose (r + 1) * SharpTwoSAT (valiantTwoSAT φ r) : ℤ)
+        if r % 2 = 1 then ((φ.length + 1).choose (r + 1) * SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ)
         else 0 :=
     hhalf true
-  have hdiff : ((valiantCombine (φ, vals) : ℤ)) =
+  have hdiff : ((clauseWeightCombine (φ, vals) : ℤ)) =
       ∑ r ∈ Finset.range (φ.length + 1),
         (-1 : ℤ) ^ r * ((φ.length + 1).choose (r + 1) : ℤ) *
-          (SharpTwoSAT (valiantTwoSAT φ r) : ℤ) := by
+          (SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ) := by
     have hsplit : (∑ r ∈ Finset.range (φ.length + 1),
         (-1 : ℤ) ^ r * ((φ.length + 1).choose (r + 1) : ℤ) *
-          (SharpTwoSAT (valiantTwoSAT φ r) : ℤ)) =
+          (SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ)) =
         (∑ r ∈ Finset.range (φ.length + 1),
-          if r % 2 = 0 then ((φ.length + 1).choose (r + 1) * SharpTwoSAT (valiantTwoSAT φ r) : ℤ)
+          if r % 2 = 0 then
+            ((φ.length + 1).choose (r + 1) * SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ)
           else 0) -
         ∑ r ∈ Finset.range (φ.length + 1),
-          if r % 2 = 1 then ((φ.length + 1).choose (r + 1) * SharpTwoSAT (valiantTwoSAT φ r) : ℤ)
+          if r % 2 = 1 then
+            ((φ.length + 1).choose (r + 1) * SharpTwoSAT (clauseWeightTwoSAT φ r) : ℤ)
           else 0 := by
       rw [← Finset.sum_sub_distrib]
       refine Finset.sum_congr rfl fun r _ => ?_
@@ -943,12 +956,12 @@ theorem valiantCombine_spec (φ : CNF ℕ) :
         ((vals.zipIdx).map fun x =>
           if !x.2.testBit 0 then (φ.length + 1).choose (x.2 + 1) * x.1 else 0).sum := by
       have hs0 : 0 ≤ (SharpSAT φ : ℤ) := Nat.cast_nonneg _
-      rw [SharpSAT_eq_valiant_sum_int, hsplit, ← hpos, ← hneg] at hs0
+      rw [SharpSAT_eq_clauseWeight_sum_int, hsplit, ← hpos, ← hneg] at hs0
       exact Int.ofNat_le.mp (Int.sub_nonneg.mp hs0)
-    unfold valiantCombine
+    unfold clauseWeightCombine
     dsimp only [vals]
     rw [Int.ofNat_sub hnatle, hpos, hneg, ← hsplit]
-  exact Int.ofNat.inj (hdiff.trans (SharpSAT_eq_valiant_sum_int φ).symm)
+  exact Int.ofNat.inj (hdiff.trans (SharpSAT_eq_clauseWeight_sum_int φ).symm)
 
 /-! ### Polynomial-time certificates and `#P`-completeness of `#2SAT` -/
 
@@ -964,9 +977,9 @@ private theorem computableInPolyTime_uVar :
   unfold uVar
   exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
 
-private theorem computableInPolyTime_valiantVarTauts :
-    ComputableInPolyTime valiantVarTauts encCNF encCNF := by
-  unfold valiantVarTauts
+private theorem computableInPolyTime_clauseWeightVarTauts :
+    ComputableInPolyTime clauseWeightVarTauts encCNF encCNF := by
+  unfold clauseWeightVarTauts
   have hd : ComputableInPolyTime (CNF.distinctVars (V := ℕ)) encCNF (encList encNat) :=
     SAT.computableInPolyTime_distinctVars
   have hmap : ComputableInPolyTime
@@ -981,10 +994,10 @@ private theorem computableInPolyTime_valiantVarTauts :
     fun_prop
   exact (ComputableInPolyTime.map hmap).comp hd
 
-private theorem computableInPolyTime_valiantClauseGadget :
-    ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => valiantClauseGadget p.1 p.2)
+private theorem computableInPolyTime_clauseWeightGadget :
+    ComputableInPolyTime (fun p : ℕ × (Clause ℕ × ℕ) => clauseWeightGadget p.1 p.2)
       (encPair encUnary (encPair (encClause encNat) encUnary)) encCNF := by
-  unfold valiantClauseGadget
+  unfold clauseWeightGadget
   have hz : ComputableInPolyTime
       (fun p : ℕ × (Clause ℕ × ℕ) => zVar p.1 p.2.2)
       (encPair encUnary (encPair (encClause encNat) encUnary)) encNat :=
@@ -1122,22 +1135,22 @@ private theorem computableInPolyTime_valiantClauseGadget :
       (ComputableInPolyTime.ite_decide hr1 hcl1 hbranch)
   exact (ComputableInPolyTime.listAppend (encClause encNat)).comp (hlit.prod haux)
 
-private theorem computableInPolyTime_valiantTwoSAT :
-    ComputableInPolyTime (fun p : CNF ℕ × ℕ => valiantTwoSAT p.1 p.2)
+private theorem computableInPolyTime_clauseWeightTwoSAT :
+    ComputableInPolyTime (fun p : CNF ℕ × ℕ => clauseWeightTwoSAT p.1 p.2)
       (encPair encCNF encUnary) encCNF := by
-  unfold valiantTwoSAT
-  have htaut : ComputableInPolyTime (fun p : CNF ℕ × ℕ => valiantVarTauts p.1)
+  unfold clauseWeightTwoSAT
+  have htaut : ComputableInPolyTime (fun p : CNF ℕ × ℕ => clauseWeightVarTauts p.1)
       (encPair encCNF encUnary) encCNF :=
-    computableInPolyTime_valiantVarTauts.comp (ComputableInPolyTime.fst _ _)
+    computableInPolyTime_clauseWeightVarTauts.comp (ComputableInPolyTime.fst _ _)
   have hflat : ComputableInPolyTime
-      (fun p : CNF ℕ × ℕ => p.1.zipIdx.flatMap (valiantClauseGadget p.2))
+      (fun p : CNF ℕ × ℕ => p.1.zipIdx.flatMap (clauseWeightGadget p.2))
       (encPair encCNF encUnary) encCNF := by
-    refine ComputableInPolyTime.flatMapWith computableInPolyTime_valiantClauseGadget
+    refine ComputableInPolyTime.flatMapWith computableInPolyTime_clauseWeightGadget
       (ComputableInPolyTime.snd _ _) ?_
     exact (ComputableInPolyTime.zipIdx (encClause encNat)).comp (ComputableInPolyTime.fst _ _)
   exact (ComputableInPolyTime.listAppend (encClause encNat)).comp (htaut.prod hflat)
 
-private theorem computableInPolyTime_valiantParitySum (wantOdd : Bool) :
+private theorem computableInPolyTime_clauseWeightParitySum (wantOdd : Bool) :
     ComputableInPolyTime
       (fun p : CNF ℕ × List ℕ =>
         ((p.2.zipIdx).map fun x =>
@@ -1191,9 +1204,9 @@ private theorem computableInPolyTime_valiantParitySum (wantOdd : Bool) :
   exact ComputableInPolyTime.binary_sum.comp
     (ComputableInPolyTime.mapWithInput hzip hterm)
 
-private theorem computableInPolyTime_valiantCombine :
-    ComputableInPolyTime valiantCombine (encPair encCNF (encList encNat)) encNat := by
-  unfold valiantCombine
+private theorem computableInPolyTime_clauseWeightCombine :
+    ComputableInPolyTime clauseWeightCombine (encPair encCNF (encList encNat)) encNat := by
+  unfold clauseWeightCombine
   have hpos : ComputableInPolyTime
       (fun p : CNF ℕ × List ℕ =>
         ((p.2.zipIdx).map fun x =>
@@ -1210,7 +1223,7 @@ private theorem computableInPolyTime_valiantCombine :
       funext fun p => congrArg List.sum (List.map_congr_left fun x _ => by
         cases x.2.testBit 0 <;> rfl)
     rw [heq]
-    exact computableInPolyTime_valiantParitySum false
+    exact computableInPolyTime_clauseWeightParitySum false
   have hneg : ComputableInPolyTime
       (fun p : CNF ℕ × List ℕ =>
         ((p.2.zipIdx).map fun x =>
@@ -1227,14 +1240,16 @@ private theorem computableInPolyTime_valiantCombine :
       funext fun p => congrArg List.sum (List.map_congr_left fun x _ => by
         cases x.2.testBit 0 <;> rfl)
     rw [heq]
-    exact computableInPolyTime_valiantParitySum true
+    exact computableInPolyTime_clauseWeightParitySum true
   exact ComputableInPolyTime.binary_sub' hpos hneg
 
-/-- **`#SAT` reduces in polynomial time to `#2SAT` via a counting Turing reduction.** -/
+/-- **`#SAT` reduces to `#2SAT` on general `2-CNF` formulas by a polynomial-time counting Turing
+reduction.** The reduction queries `clauseWeightTwoSAT φ r` for `r = 0, …, φ.length`; these
+formulas contain negated literals. -/
 theorem countingTuringReducible_SharpSAT_SharpTwoSAT :
     CountingTuringReducible encCNF encCNF SharpSAT SharpTwoSAT := by
   let queries (φ : CNF ℕ) : List (CNF ℕ) :=
-    (List.range (φ.length + 1)).map (valiantTwoSAT φ)
+    (List.range (φ.length + 1)).map (clauseWeightTwoSAT φ)
   let bound (φ : CNF ℕ) : ℕ :=
     φ.vars.length + φ.length * (φ.length + 1) + 1
   have hqueries : ComputableInPolyTime queries encCNF (encList encCNF) := by
@@ -1245,21 +1260,24 @@ theorem countingTuringReducible_SharpSAT_SharpTwoSAT :
           (SAT.computableInPolyTime_length ComputableInPolyTime.id')
           (ComputableInPolyTime.const 1)
       exact ComputableInPolyTime.range.comp hlen
-    exact ComputableInPolyTime.mapWithInput hlist computableInPolyTime_valiantTwoSAT
+    exact ComputableInPolyTime.mapWithInput hlist computableInPolyTime_clauseWeightTwoSAT
   have hbound : ComputableInPolyTime bound encCNF encUnary := by
     have hv := SAT.computableInPolyTime_vars_length ComputableInPolyTime.id'
     have hm := SAT.computableInPolyTime_length ComputableInPolyTime.id'
     fun_prop
-  refine PolyTimeOracleProgram.of_batchNatBits queries bound valiantCombine
-    hqueries hbound computableInPolyTime_valiantCombine ?_
-    (fun φ => by simpa only [queries, List.map_map, Function.comp_def] using valiantCombine_spec φ)
+  refine PolyTimeOracleProgram.of_batchNatBits queries bound clauseWeightCombine
+    hqueries hbound computableInPolyTime_clauseWeightCombine ?_
+    (fun φ => by
+      simpa only [queries, List.map_map, Function.comp_def] using clauseWeightCombine_spec φ)
   intro φ ψ hψ
   obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hψ
   rw [List.mem_range] at hr
-  exact size_SharpTwoSAT_valiantTwoSAT_le (by omega)
+  exact size_SharpTwoSAT_clauseWeightTwoSAT_le (by omega)
 
-/-- **`#2SAT` is `#P`-complete under polynomial-time counting Turing reductions**
-([Valiant 1979][Valiant1979Enumeration], [Valiant 1979][Valiant1979]). -/
+/-- **`#2SAT` on general `2-CNF` formulas is `#P`-complete under polynomial-time counting Turing
+reductions.** This is weaker than Theorem 1 of [Valiant 1979][Valiant1979Enumeration], which
+proves completeness for monotone `2-CNF` formulas: the hardness reduction used here queries
+formulas with negated literals. -/
 theorem SharpTwoSAT_countingTuringComplete :
     CountingTuringComplete encCNF SharpTwoSAT :=
   And.intro SharpTwoSAT.mem_SharpP

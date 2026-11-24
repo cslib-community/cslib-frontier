@@ -28,7 +28,7 @@ Kernel-checked strict-`module` examples (using no `native_decide` and no `import
    * Row 5: `SetSplittingInstance` with `k = 3` on `{0, 1, 2}` (`6` ordered splitting bipartitions,
      width `≤ 3`).
    * Row 6: `LocalMap.toDeclaredCNF` + `LocalMap.preimageDeclaredEquiv` on a 2-local map.
-3. Valiant's `valiantTwoSAT` width-`2` gadget reduction recovering `#SAT = 7` on a `3`-clause via
+3. The `clauseWeightTwoSAT` width-`2` gadget reduction recovering `#SAT = 7` on a `3`-clause via
    `2 * P(1) - P(2) = 2 * 8 - 9 = 7`, `SharpTwoSAT_countingTuringComplete`,
    `SharpTwoSAT_polyTime_implies_P_eq_NP`, and all six conditional runtime transfer endpoints.
 -/
@@ -194,26 +194,33 @@ noncomputable example :
           [false]} :=
   LocalMap.preimageDeclaredEquiv (k := 2) (q := (andLocalMap, [false])) (by decide)
 
-/-! ### 8. Valiant `#2SAT` `#P`-completeness and runtime transfer endpoints -/
+/-! ### 8. General `#2SAT` `#P`-completeness and runtime transfer endpoints -/
 
-/-- A concrete `3`-clause `(x₀ ∨ x₁ ∨ x₂)` compiles via `valiantTwoSAT` to pure width-`≤ 2`
-formulas with `P(1) = SharpTwoSAT (valiantTwoSAT φ 0) = 8` and
-`P(2) = SharpTwoSAT (valiantTwoSAT φ 1) = 9`, recovering `P(0) = 2 * 8 - 9 = 7 = φ.modelCount`. -/
+/-- A concrete `3`-clause `(x₀ ∨ x₁ ∨ x₂)` compiles via `clauseWeightTwoSAT` to pure width-`≤ 2`
+formulas with `P(1) = SharpTwoSAT (clauseWeightTwoSAT φ 0) = 8` and
+`P(2) = SharpTwoSAT (clauseWeightTwoSAT φ 1) = 9`, recovering
+`P(0) = 2 * 8 - 9 = 7 = φ.modelCount`. -/
 def single3Clause : CNF ℕ := [[(0, true), (1, true), (2, true)]]
 
-example : (valiantTwoSAT single3Clause 0).all (fun c => decide (c.length ≤ 2)) = true := by
+example : (clauseWeightTwoSAT single3Clause 0).all (fun c => decide (c.length ≤ 2)) = true := by
   decide
 
-example : (valiantTwoSAT single3Clause 1).all (fun c => decide (c.length ≤ 2)) = true := by
+example : (clauseWeightTwoSAT single3Clause 1).all (fun c => decide (c.length ≤ 2)) = true := by
   decide
 
-example : SharpTwoSAT (valiantTwoSAT single3Clause 0) = 8 := by decide
+-- The queried formulas are not monotone: they contain negated literals, so this reduction does
+-- not give hardness of monotone `#2SAT`.
+example :
+    (clauseWeightTwoSAT single3Clause 0).any (fun c => c.any fun l => !l.2) = true := by
+  decide
 
-example : SharpTwoSAT (valiantTwoSAT single3Clause 1) = 9 := by decide
+example : SharpTwoSAT (clauseWeightTwoSAT single3Clause 0) = 8 := by decide
+
+example : SharpTwoSAT (clauseWeightTwoSAT single3Clause 1) = 9 := by decide
 
 example :
-    2 * SharpTwoSAT (valiantTwoSAT single3Clause 0) -
-      SharpTwoSAT (valiantTwoSAT single3Clause 1) = single3Clause.modelCount := by
+    2 * SharpTwoSAT (clauseWeightTwoSAT single3Clause 0) -
+      SharpTwoSAT (clauseWeightTwoSAT single3Clause 1) = single3Clause.modelCount := by
   decide
 
 -- Strict `module`-boundary type checks of main completeness and runtime-transfer endpoints:
