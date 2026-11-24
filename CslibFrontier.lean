@@ -6614,6 +6614,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.ACTMQ
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
