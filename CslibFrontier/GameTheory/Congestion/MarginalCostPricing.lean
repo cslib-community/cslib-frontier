@@ -200,73 +200,15 @@ theorem withLatency_latency (c : E → ℝ → ℝ) :
   rfl
 
 omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withMarginalCost_commodity (c' : E → ℝ → ℝ) :
-    (G.withMarginalCost c').commodity = G.commodity := by
+/-- Expresses `G.withMarginalCost c'` in terms of `G.withLatency`. -/
+theorem withMarginalCost_eq_withLatency (c' : E → ℝ → ℝ) :
+    G.withMarginalCost c' = G.withLatency fun e => marginalCost (G.latency e) (c' e) := by
   rfl
 
 omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withMarginalCost_resources (c' : E → ℝ → ℝ) :
-    (G.withMarginalCost c').resources = G.resources := by
-  rfl
-
-omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withMarginalCost_rate (c' : E → ℝ → ℝ) :
-    (G.withMarginalCost c').rate = G.rate := by
-  rfl
-
-omit [DecidableEq E] in
-@[simp]
-theorem withMarginalCost_isFeasible [DecidableEq K] (c' : E → ℝ → ℝ) (f : P → ℝ) :
-    (G.withMarginalCost c').IsFeasible f ↔ G.IsFeasible f := by
-  rfl
-
-@[simp]
-theorem withMarginalCost_edgeFlow (c' : E → ℝ → ℝ) (f : P → ℝ) (e : E) :
-    (G.withMarginalCost c').edgeFlow f e = G.edgeFlow f e := by
-  rfl
-
-omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withMarginalCost_latency (c' : E → ℝ → ℝ) (e : E) :
-    (G.withMarginalCost c').latency e = marginalCost (G.latency e) (c' e) := by
-  rfl
-
-omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withTaxes_commodity (τ : E → ℝ) :
-    (G.withTaxes τ).commodity = G.commodity := by
-  rfl
-
-omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withTaxes_resources (τ : E → ℝ) :
-    (G.withTaxes τ).resources = G.resources := by
-  rfl
-
-omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withTaxes_rate (τ : E → ℝ) :
-    (G.withTaxes τ).rate = G.rate := by
-  rfl
-
-omit [DecidableEq E] in
-@[simp]
-theorem withTaxes_isFeasible [DecidableEq K] (τ : E → ℝ) (f : P → ℝ) :
-    (G.withTaxes τ).IsFeasible f ↔ G.IsFeasible f := by
-  rfl
-
-@[simp]
-theorem withTaxes_edgeFlow (τ : E → ℝ) (f : P → ℝ) (e : E) :
-    (G.withTaxes τ).edgeFlow f e = G.edgeFlow f e := by
-  rfl
-
-omit [Fintype P] [DecidableEq E] in
-@[simp]
-theorem withTaxes_latency (τ : E → ℝ) (e : E) (x : ℝ) :
-    (G.withTaxes τ).latency e x = G.latency e x + τ e := by
+/-- Expresses `G.withTaxes τ` in terms of `G.withLatency`. -/
+theorem withTaxes_eq_withLatency (τ : E → ℝ) :
+    G.withTaxes τ = G.withLatency fun e x => G.latency e x + τ e := by
   rfl
 
 /-- At the flow `f` that defines the Pigouvian taxes, the taxed network
@@ -486,21 +428,24 @@ theorem IsOptimal.cost_eq_of_isWardrop_withTaxes [DecidableEq K] [Finite E] {c' 
     G.cost g = G.cost f ∧ G.IsOptimal g := by
   have := Fintype.ofFinite E
   set τ := G.pigouvianTax c' f
-  have hm_tax : ∀ e, MonotoneOn ((G.withTaxes τ).latency e) (Ici 0) :=
-    fun e x hx y hy hxy => add_le_add_left (hm e hx hy hxy) (τ e)
+  have hm_tax : ∀ e, MonotoneOn ((G.withTaxes τ).latency e) (Ici 0) := by
+    intro e x hx y hy hxy
+    rw [withTaxes_eq_withLatency, withLatency_latency]
+    exact add_le_add_left (hm e hx hy hxy) (τ e)
   have hf_tax : (G.withTaxes τ).IsWardrop f := hf.isWardrop_withTaxes_pigouvianTax hderiv
   have htax_cost : ∀ h : P → ℝ, (G.withTaxes τ).cost h = G.cost h + ∑ e, G.edgeFlow h e * τ e := by
     intro h
     rw [(G.withTaxes τ).cost_eq_sum_edgeFlow, G.cost_eq_sum_edgeFlow, ← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun e _ => ?_
-    simp only [withTaxes_edgeFlow, withTaxes_latency]
+    simp only [withTaxes_eq_withLatency, withLatency_edgeFlow, withLatency_latency]
     ring
   have htax_eq : ∑ e, G.edgeFlow g e * τ e = ∑ e, G.edgeFlow f e * τ e := by
     refine Finset.sum_congr rfl fun e _ => ?_
     rcases eq_or_ne (G.edgeFlow g e) (G.edgeFlow f e) with heq | hne
     · rw [heq]
     · have hlat := isWardrop_latency_eq hm_tax hg hf_tax e
-      simp only [withTaxes_edgeFlow, withTaxes_latency, add_left_inj] at hlat
+      simp only [withTaxes_eq_withLatency, withLatency_edgeFlow, withLatency_latency,
+        add_left_inj] at hlat
       have hc'0 : c' e (G.edgeFlow f e) = 0 :=
         deriv_eq_zero_of_monotoneOn_eq (hm e) (G.edgeFlow_nonneg hf.1.1 e)
           (G.edgeFlow_nonneg hg.1.1 e) hne hlat (hderiv e)
@@ -508,7 +453,10 @@ theorem IsOptimal.cost_eq_of_isWardrop_withTaxes [DecidableEq K] [Finite E] {c' 
   have hcost_tax := isWardrop_cost_eq hm_tax hg hf_tax
   rw [htax_cost g, htax_cost f, htax_eq] at hcost_tax
   have hcost : G.cost g = G.cost f := add_right_cancel hcost_tax
-  exact ⟨hcost, hg.1, fun q hq => hcost ▸ hf.2 q hq⟩
+  have hg_feas : G.IsFeasible g := by
+    have h := hg.1
+    rwa [withTaxes_eq_withLatency, withLatency_isFeasible] at h
+  exact ⟨hcost, hg_feas, fun q hq => hcost ▸ hf.2 q hq⟩
 
 end FirstOrderConditions
 

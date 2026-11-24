@@ -142,34 +142,36 @@ example :
     · exact le_rfl
   refine ⟨htax, fun f hf => ?_, fun f => ⟨fun hf => ?_, fun hf => ?_⟩⟩
   · exact linearPigou_isOptimal_half.cost_eq_of_isWardrop_withTaxes hmono hderiv (htax ▸ hf)
-  · have hfeas : linearPigou.IsFeasible f := (linearPigou.withTaxes_isFeasible _ _).1 hf.1
+  · have hfeas : linearPigou.IsFeasible f := by
+      have h := hf.1
+      rwa [withTaxes_eq_withLatency, withLatency_isFeasible] at h
     have hsum : f 0 + f 1 = 1 := by
       have hs := hfeas.2 ()
       simpa [linearPigou, pigouNetwork, Fin.sum_univ_two] using hs
     have hp0 : (linearPigou.withTaxes ![1 / 2, 0]).pathLatency f 0 = f 0 + 1 / 2 := by
-      simp only [pathLatency, withTaxes_resources, withTaxes_latency, withTaxes_edgeFlow,
-        pigouNetwork_edgeFlow]
+      simp only [pathLatency, withTaxes_eq_withLatency, withLatency_resources, withLatency_latency,
+        withLatency_edgeFlow, pigouNetwork_edgeFlow]
       change ∑ e ∈ ({0} : Finset (Fin 2)), (linearPigou.latency e (f e) + ![1 / 2, 0] e) =
         f 0 + 1 / 2
       rw [Finset.sum_singleton]
       simp [linearPigou, pigouNetwork]
     have hp1 : (linearPigou.withTaxes ![1 / 2, 0]).pathLatency f 1 = 1 := by
       have h10 : (1 : Fin 2) ≠ 0 := by decide
-      simp only [pathLatency, withTaxes_resources, withTaxes_latency, withTaxes_edgeFlow,
-        pigouNetwork_edgeFlow]
+      simp only [pathLatency, withTaxes_eq_withLatency, withLatency_resources, withLatency_latency,
+        withLatency_edgeFlow, pigouNetwork_edgeFlow]
       change ∑ e ∈ ({1} : Finset (Fin 2)), (linearPigou.latency e (f e) + ![1 / 2, 0] e) = 1
       rw [Finset.sum_singleton]
       simp [linearPigou, pigouNetwork, h10]
     have hf0_le : f 0 ≤ 1 / 2 := by
       by_contra hgt
       push Not at hgt
-      have hle := hf.2 0 1 (by simp) (by linarith)
+      have hle := hf.2 0 1 (Subsingleton.elim _ _) (by linarith)
       rw [hp0, hp1] at hle
       linarith
     have hf1_le : f 1 ≤ 1 / 2 := by
       by_contra hgt
       push Not at hgt
-      have hle := hf.2 1 0 (by simp) (by linarith)
+      have hle := hf.2 1 0 (Subsingleton.elim _ _) (by linarith)
       rw [hp1, hp0] at hle
       linarith
     ext i
@@ -216,11 +218,20 @@ example :
     · change HasDerivWithinAt (fun x : ℝ => x) 1 (Set.Ici 0) _
       exact (hasDerivAt_id _).hasDerivWithinAt
 
-/-- Differentiable-latency product-rule equivalence `isOptimal_iff_isWardrop_withMarginalCost` on
-`linearPigou`. -/
+/-- Differentiable-latency product-rule equivalence `isOptimal_iff_isWardrop_withMarginalCost` and
+`withMarginalCost_eq_withLatency` projection reuse on `linearPigou`. -/
 example (f : Fin 2 → ℝ) :
-    linearPigou.IsOptimal f ↔ (linearPigou.withMarginalCost linearPigouDeriv).IsWardrop f := by
-  refine linearPigou.isOptimal_iff_isWardrop_withMarginalCost (fun e => ?_) (fun e x _ => ?_)
+    (linearPigou.withMarginalCost linearPigouDeriv).pathLatency f 0 = 2 * f 0 ∧
+      (linearPigou.IsOptimal f ↔
+        (linearPigou.withMarginalCost linearPigouDeriv).IsWardrop f) := by
+  refine ⟨?_, linearPigou.isOptimal_iff_isWardrop_withMarginalCost (fun e => ?_) (fun e x _ => ?_)⟩
+  · simp only [pathLatency, withMarginalCost_eq_withLatency, withLatency_resources,
+      withLatency_latency, withLatency_edgeFlow, pigouNetwork_edgeFlow]
+    change ∑ e ∈ ({0} : Finset (Fin 2)),
+      marginalCost (linearPigou.latency e) (linearPigouDeriv e) (f e) = 2 * f 0
+    rw [Finset.sum_singleton]
+    change f 0 + f 0 * 1 = 2 * f 0
+    ring
   · fin_cases e
     · change ConvexOn ℝ (Set.Ici 0) fun x => x * x
       exact ⟨convex_Ici 0, fun x _ y _ a b ha hb hab => by
