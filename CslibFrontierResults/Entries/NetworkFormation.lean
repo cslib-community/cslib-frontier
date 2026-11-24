@@ -16,7 +16,7 @@ import CslibFrontier.GameTheory.NetworkFormation.Witnesses
 
 register_result "fair-cost-sharing-smoothness-poa" where
   title := "Price of anarchy at most k and (k, 0)-smoothness for fair cost-sharing congestion games"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := Roughgarden2015,
       theorem := "Definition 2.1 and Theorem 3.2",
@@ -36,7 +36,7 @@ register_result "fair-cost-sharing-smoothness-poa" where
 
 register_result "fair-connection-potential" where
   title := "Rosenthal's exact harmonic potential and sandwich bounds for fair connection games"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := TardosWexler2007, theorem := "Lemmas 19.7 and 19.8", locator := "§19.3.1" },
     { paper := Rosenthal1973, theorem := unverified, locator := unverified }
@@ -58,7 +58,7 @@ register_result "fair-connection-potential" where
 register_result "fair-connection-fip-nash-existence" where
   title := "Finite improvement property and pure Nash equilibrium existence in fair connection \
     games"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := TardosWexler2007, theorem := unverified, locator := "§19.3.1" },
     { paper := Rosenthal1973, theorem := unverified, locator := unverified }
@@ -75,7 +75,7 @@ register_result "fair-connection-fip-nash-existence" where
 
 register_result "fair-connection-pos-harmonic" where
   title := "Price of stability at most H_k for directed and undirected fair connection games"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := AnshelevichDKTWR2008, theorem := unverified, locator := unverified },
     { paper := TardosWexler2007, theorem := "Theorem 19.10", locator := "§19.3.1" }
@@ -96,7 +96,7 @@ register_result "fair-connection-pos-harmonic" where
 
 register_result "fair-connection-poa-smoothness" where
   title := "Price of anarchy at most k and (k, 0)-smoothness for fair connection games"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := Roughgarden2015,
       theorem := "Definition 2.1 and Theorem 3.2",
@@ -115,7 +115,7 @@ register_result "fair-connection-poa-smoothness" where
 
 register_result "fair-connection-broadcast-pos-tight" where
   title := "Tightness of the H_k price-of-stability bound on directed single-sink networks"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := AnshelevichDKTWR2008, theorem := unverified, locator := unverified },
     { paper := RoughgardenTardos2007, theorem := "Example 17.3", locator := "Figure 17.3" },
@@ -135,7 +135,7 @@ register_result "fair-connection-broadcast-pos-tight" where
 
 register_result "undirected-broadcast-pos-one" where
   title := "Price of stability 1 in the undirected broadcast network counterpart"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := RoughgardenTardos2007, theorem := unverified, locator := unverified }
   ]
@@ -149,7 +149,7 @@ register_result "undirected-broadcast-pos-one" where
 
 register_result "fair-connection-parallel-poa-tight" where
   title := "Tightness of the price of anarchy k on two-node parallel links"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := RoughgardenTardos2007, theorem := unverified, locator := unverified },
     { paper := TardosWexler2007, theorem := unverified, locator := unverified }
@@ -165,7 +165,7 @@ register_result "fair-connection-parallel-poa-tight" where
 
 register_result "fair-connection-best-nash-not-min-potential" where
   title := "Socially optimal pure Nash equilibrium need not minimize Rosenthal's potential"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := TardosWexler2007, theorem := unverified, locator := unverified }
   ]
