@@ -25,8 +25,10 @@ the client syntax, unfolding definitions, with one rule per form:
   encoding (`WordEncoding`); `realize` keeps this layout itself.
 * `f <$> p` or `p.map f`: over a `bind`, `pure`, `if` or another map, the map is pushed into
   the client (`PFunctor.FreeM.map_bind`), so that only returned values are mapped and the answer
-  of `p` needs no word encoding. Over any other client (a certified method, a query, a loop) it is
-  certified as `do let a ← p; return f a`, reusing the certificate for `p`.
+  of `p` needs no word encoding. Over a linked client it moves into the source
+  (`PFunctor.FreeM.liftM_map`), where the same rules apply. Over any other client (a certified
+  method, a query, a loop) it is certified as `do let a ← p; return f a`, reusing the certificate
+  for `p`.
 * `pure`: `Realizes.pure₀`, with each result word certified by a `GlueComputable` proof assembled
   from the closure rules of `CslibFrontier.Computability.WordRAM.Glue`: projections, constants, and
   the exact- or standard-basis arithmetic and bitwise operations. Conditional values, natural
@@ -35,7 +37,10 @@ the client syntax, unfolding definitions, with one rule per form:
 * the four memory queries: `Realizes.read`, `write`, `alloc` and `allocDirty`.
 * `DataStructure.link` / `PFunctor.FreeM.liftM`: lowers linked free-monad source programs
   incrementally, matching local certificates on linked sub-calls before unfolding them, distributing
-  monadic binds and conditional branches, and reducing record layout addresses to word arithmetic.
+  monadic binds, result maps and conditional branches, and reducing record layout addresses to word
+  arithmetic. A map in the source is pushed into it like a map of a memory client; over a
+  certified sub-call, a source operation or an opaque source it moves out of the link
+  (`PFunctor.FreeM.liftM_map`) and is certified as a bind.
 * a method with a local `Realizes` certificate: `Realizes.reindex`, selecting its
   arguments from live words before unfolding its implementation (across tuples, data structures,
   and finite word vectors). Non-live scalar coordinates inside composite arguments are staged
@@ -1464,6 +1469,50 @@ private def simpMappedValue (e : Expr) : MetaM Simp.Result := do
   let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
   return (← Simp.main (← Core.betaReduce e) ctx (methods := Simp.mkDefaultMethodsCore #[])).1
 
+/-- Push the result map `lhs = f <$> m` one step into `m`, whose client form is `mR`, in the free
+monad `M`: over a bind by `PFunctor.FreeM.map_bind`, over `pure` by `PFunctor.FreeM.map_pure` (by
+`rfl`, then `simpMappedValue`), over an `if` by `apply_ite` and over another map by
+`PFunctor.FreeM.comp_map`. Returns a proof of `lhs = rhs`, or `none` for any other form. The same
+step serves a memory client and the source of a linked client. -/
+private def pushMap? (M lhs f mR : Expr) : MetaM (Option Expr) := do
+  let mapOf (g x : Expr) : MetaM Expr := mkAppM ``PFunctor.FreeM.map #[g, x]
+  let bind? : Option (Expr × Expr) :=
+    if mR.isAppOfArity ``Bind.bind 6 then some (mR.getArg! 4, mR.getArg! 5)
+    else if mR.isAppOfArity ``PFunctor.FreeM.bind 5 then some (mR.getArg! 3, mR.getArg! 4)
+    else none
+  if let some (x, k) := bind? then
+    return some (← mkAppM ``PFunctor.FreeM.map_bind #[f, x, k])
+  let pure? : Option Expr :=
+    if mR.isAppOfArity ``Pure.pure 4 then some mR.appArg!
+    else if mR.isAppOfArity ``PFunctor.FreeM.pure 3 then some mR.appArg!
+    else none
+  if let some a := pure? then
+    let value ← simpMappedValue (mkApp f a)
+    let pureOf (v : Expr) : MetaM Expr := mkAppOptM ``Pure.pure #[M, none, none, v]
+    let rhs ← pureOf value.expr
+    let eq ← match value.proof? with
+      | none => mkEqRefl rhs
+      | some pf => do
+        let pureFn ← withLocalDeclD `v (← inferType value.expr) fun v => do
+          mkLambdaFVars #[v] (← pureOf v)
+        mkCongrArg pureFn pf
+    return some (← mkExpectedTypeHint eq (← mkEq lhs rhs))
+  if mR.isAppOfArity ``ite 5 then
+    let mapFn ← withLocalDeclD `p (mR.getArg! 0) fun p => do
+      mkLambdaFVars #[p] (← mapOf f p)
+    return some (← mkAppOptM ``apply_ite
+      #[none, none, mapFn, mR.getArg! 1, mR.getArg! 2, mR.getArg! 3, mR.getArg! 4])
+  if isClientMap mR then
+    let g := mR.appFn!.appArg!
+    let x := mR.appArg!
+    let eq ← mkEqSymm (← mkAppM ``PFunctor.FreeM.comp_map #[f, g, x])
+    -- State the composite as a lambda, so that the mapped values beta-reduce.
+    let fg ← withLocalDeclD `a (← resultType x) fun a => do
+      mkLambdaFVars #[a] (mkApp f (mkApp g a).headBeta).headBeta
+    let some (_, lhs', _) := (← inferType eq).eq? | throwError "realize: internal error"
+    return some (← mkExpectedTypeHint eq (← mkEq lhs' (← mapOf fg x)))
+  return none
+
 mutual
 
 /-- Certify a client `prog : δ → Memory.Prog α` in the environment `env`. -/
@@ -1559,6 +1608,42 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
       let some (_, _, rhs) := (← inferType eqStep).eq?
         | throwError "realize: internal error lifting a linked conditional"
       return ← congrFrom rhs eqStep
+    -- `f <$> x` in `FreeM P`: push the map into `x`, or else out of the link
+    if isClientMap srcR then
+      let f := srcR.appFn!.appArg!
+      let x := srcR.appArg!
+      let β ← resultType x
+      let mut xR? : Option Expr := none
+      let mut cur := x.headBeta
+      for _ in [0:64] do
+        if !isPrimitiveClientForm cur && (← matchesLocalCert ctx (mkLift β cur)) then break
+        let curR ← whnfR cur
+        if isPrimitiveClientForm curR then
+          xR? := some curR
+          break
+        let some next ← unfoldDefinition? curR | break
+        cur := next.headBeta
+      if let some xR := xR? then
+        if let some eq ← pushMap? (← whnfR (← inferType srcR)).appFn! srcR f xR then
+          let some (_, _, rhs) := (← inferType eq).eq?
+            | throwError "realize: internal error pushing a map into a linked source"
+          let liftWrap ← withLocalDeclD `q (← inferType srcR) fun q =>
+            mkLambdaFVars #[q] (mkLift α q)
+          let eqStep ← mkAppM ``congrArg #[liftWrap, eq]
+          return ← congrFrom (mkLift α (← Core.betaReduce rhs)) eqStep
+      -- `liftM interp (f <$> x) = liftM interp x >>= pure ∘ f`, certified through `liftM interp x`
+      let eqOut ← mkAppOptM ``PFunctor.FreeM.liftM_map
+        #[P, m, none, none, none, none, f, interp, x]
+      let some (_, lhs, mapped) := (← inferType eqOut).eq?
+        | throwError "realize: internal error moving a map out of a linked source"
+      let eqBind ← mkAppM ``PFunctor.FreeM.bind_pure_comp #[f, mapped.appArg!]
+      let some (_, bindForm, _) := (← inferType eqBind).eq?
+        | throwError "realize: internal error moving a map out of a linked source"
+      unless ← isDefEq lhs body do
+        throwError "realize: internal error moving a map out of a linked source"
+      let eq ← mkExpectedTypeHint (← mkEqTrans eqBind (← mkEqSymm eqOut)) (← mkEq bindForm body)
+      let out ← realizeBind ctx env d mapped.appArg! bindForm.appArg! output?
+      return { out with proof := ← mkAppM ``Realizes.congr #[out.proof, ← mkLambdaFVars #[d] eq] }
     -- `x >>= k` in `FreeM P`
     let bind? : Option (Expr × Expr × Expr) :=
       if srcR.isAppOfArity ``Bind.bind 6 then
@@ -1808,8 +1893,10 @@ private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arra
 A map over a `bind`, `pure`, `if` or another map is pushed into the client
 (`PFunctor.FreeM.map_bind`, `PFunctor.FreeM.map_pure`, `apply_ite`, `PFunctor.FreeM.comp_map`), so
 only the returned values are mapped and the mapped-over answer needs no word encoding. A map over
-any other client (a certified method, a query, a loop or a linked source) is `p >>= pure ∘ f`
-(`PFunctor.FreeM.bind_pure_comp`) and reuses the certificate for `p`. -/
+a linked client `liftM interp src` moves into its source (`PFunctor.FreeM.liftM_map`), where
+`realizeLiftM` pushes it further. A map over any other client (a certified method, a query or a
+loop) is `p >>= pure ∘ f` (`PFunctor.FreeM.bind_pure_comp`) and reuses the certificate for
+`p`. -/
 private partial def realizeMap (ctx : Ctx) (env : Env) (d : Expr)
     (body : Expr) (output? : Option Expr) : TermElabM Out := do
   let f := body.appFn!.appArg!
@@ -1822,7 +1909,6 @@ private partial def realizeMap (ctx : Ctx) (env : Env) (d : Expr)
     let out ← realizeProg ctx env (← mkLambdaFVars #[d] rhs) output?
     let eq ← mkLambdaFVars #[d] (← mkExpectedTypeHint (← mkEqSymm eq) (← mkEq rhs body))
     return { out with proof := ← mkAppM ``Realizes.congr #[out.proof, eq] }
-  let mapOf (g x : Expr) : MetaM Expr := mkAppM ``PFunctor.FreeM.map #[g, x]
   -- The client form of `m`, unless `m` is a call that a local certificate covers.
   let mut mR? : Option Expr := none
   if isPrimitiveClientForm m || !(← matchesLocalCert ctx m) then
@@ -1836,43 +1922,15 @@ private partial def realizeMap (ctx : Ctx) (env : Env) (d : Expr)
       let some next ← unfoldDefinition? curR | break
       cur := next.headBeta
   if let some mR := mR? then
-    let bind? : Option (Expr × Expr) :=
-      if mR.isAppOfArity ``Bind.bind 6 then some (mR.getArg! 4, mR.getArg! 5)
-      else if mR.isAppOfArity ``PFunctor.FreeM.bind 5 then some (mR.getArg! 3, mR.getArg! 4)
-      else none
-    if let some (x, k) := bind? then
-      return ← congrFrom (← mkAppM ``PFunctor.FreeM.map_bind #[f, x, k])
-    let pure? : Option Expr :=
-      if mR.isAppOfArity ``Pure.pure 4 then some mR.appArg!
-      else if mR.isAppOfArity ``PFunctor.FreeM.pure 3 then some mR.appArg!
-      else none
-    if let some a := pure? then
-      -- `PFunctor.FreeM.map_pure` holds by `rfl`; then simplify the mapped value
-      let value ← simpMappedValue (mkApp f a)
-      let pureOf (v : Expr) : MetaM Expr :=
-        mkAppOptM ``Pure.pure #[mkConst ``Memory.Prog, none, none, v]
-      let rhs ← pureOf value.expr
-      let eq ← match value.proof? with
-        | none => mkEqRefl body
-        | some pf => do
-          let pureFn ← withLocalDeclD `v (← inferType value.expr) fun v => do
-            mkLambdaFVars #[v] (← pureOf v)
-          mkCongrArg pureFn pf
-      return ← congrFrom (← mkExpectedTypeHint eq (← mkEq body rhs))
-    if mR.isAppOfArity ``ite 5 then
-      let mapFn ← withLocalDeclD `p (mR.getArg! 0) fun p => do
-        mkLambdaFVars #[p] (← mapOf f p)
-      return ← congrFrom (← mkAppOptM ``apply_ite
-        #[none, none, mapFn, mR.getArg! 1, mR.getArg! 2, mR.getArg! 3, mR.getArg! 4])
-    if isClientMap mR then
-      let g := mR.appFn!.appArg!
-      let x := mR.appArg!
-      let eq ← mkEqSymm (← mkAppM ``PFunctor.FreeM.comp_map #[f, g, x])
-      -- State the composite as a lambda, so that the mapped values beta-reduce.
-      let fg ← withLocalDeclD `a (← resultType x) fun a => do
-        mkLambdaFVars #[a] (mkApp f (mkApp g a).headBeta).headBeta
+    if let some eq ← pushMap? (mkConst ``Memory.Prog) body f mR then
+      return ← congrFrom eq
+    -- A map over a linked client moves into its source (`PFunctor.FreeM.liftM_map`).
+    if mR.isAppOfArity ``PFunctor.FreeM.liftM 7 then
+      let eq ← mkEqSymm (← mkAppOptM ``PFunctor.FreeM.liftM_map
+        #[mR.getArg! 0, mR.getArg! 1, none, none, none, none, f, mR.getArg! 5, mR.getArg! 6])
       let some (_, lhs, _) := (← inferType eq).eq? | throwError "realize: internal error"
-      return ← congrFrom (← mkExpectedTypeHint eq (← mkEq lhs (← mapOf fg x)))
+      if ← isDefEq lhs body then
+        return ← congrFrom eq
   let eq ← mkAppM ``PFunctor.FreeM.bind_pure_comp #[f, m]
   let some (_, bind, _) := (← inferType eq).eq?
     | throwError "realize: internal error expanding a result map"

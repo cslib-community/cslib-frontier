@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontierTests.WordRAMRealizeGraded
+public import CslibFrontier.DataStructure.Memory.Record
 
 /-!
 # Supplying method certificates to `realize`
@@ -99,6 +100,44 @@ example : Realizes .exact
     (fun d : ℕ × ℕ => iterate (fun x : ℕ × ℕ => (fun v => v) <$> Memory.read x.2) d.1 d.2 d.1)
     pairWords word (fun _ _ _ => True) (fun _ _ => 0) := by
   realize
+
+-- Record cells at consecutive addresses from `b`, as a linked source for the map tests below.
+private def offsetLayout (b : ℕ) : Record.Layout (fun _ : ℕ => True) :=
+  ⟨fun i => b + i, fun _ _ _ _ h => by omega⟩
+
+-- A map inside a linked source is pushed into the source, so the source's intermediate answer,
+-- whose `Fin 3` component has no word encoding, is never stored.
+example : Realizes .exact
+    (fun b : ℕ => link ((offsetLayout b).methods 0) (Prod.snd <$> (do
+      let v ← Record.read 1
+      pure ((0 : Fin 3), v) : Record.Prog ℕ (Fin 3 × ℕ))))
+    word word (fun w b _ => Fits w (b + 1)) (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- A map of a linked client moves into the source and composes with the map there.
+example : Realizes .exact
+    (fun b : ℕ => (fun a => a) <$> link ((offsetLayout b).methods 0) (Prod.snd <$> (do
+      let v ← Record.read 1
+      pure ((0 : Fin 3), v) : Record.Prog ℕ (Fin 3 × ℕ))))
+    word word (fun w b _ => Fits w (b + 1)) (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- A map over a source operation moves out of the link and maps the operation's answer.
+example : Realizes .exact
+    (fun b : ℕ => link ((offsetLayout b).methods 0) ((fun v => v) <$> Record.read 1))
+    word word (fun w b _ => Fits w (b + 1)) (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- A map over a certified linked call moves out of the link and keeps the certificate.
+example (src : ℕ → Record.Prog ℕ ℕ)
+    (hm : Realizes .exact (fun b => link ((offsetLayout b).methods 0) (src b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun b => link ((offsetLayout b).methods 0) ((fun v => v) <$> src b))
+      word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hm]
 
 -- The client is restated before certification, here by unfolding a definition.
 private def readTwice (a : ℕ) : Memory.Prog ℕ := do
