@@ -24,8 +24,6 @@ declared universe size, while `formula` uses the framed binary-variable CSP enco
 * `Cslib.Complexity.DeclaredCSP`: structure pairing `numVars : ℕ` and `formula : CSP Rel ℕ`.
 * `Cslib.Complexity.encDeclaredCSP`: canonical bit encoding via `encUnary` and
   `encCSP encRel encNat`.
-* `Cslib.Complexity.DeclaredCSP.WellFormed`, `Cslib.Complexity.DeclaredCSP.wellFormed`:
-  propositional and executable checks that all occurring variables lie below `numVars`.
 -/
 
 public section
@@ -61,17 +59,4 @@ attribute [fun_prop]
   encDeclaredCSP_formula_polyTime
   encDeclaredCSP_mk_polyTime
 
-namespace DeclaredCSP
-
-variable {Rel : Type}
-
-/-- Every variable occurring in `x.formula` lies in `{0, …, x.numVars - 1}`. -/
-@[expose] def WellFormed (x : DeclaredCSP Rel) : Prop :=
-  ∀ v ∈ x.formula.vars, v < x.numVars
-
-/-- Executable Boolean check for `WellFormed`. -/
-@[expose] def wellFormed (x : DeclaredCSP Rel) : Bool :=
-  x.formula.vars.all fun v => decide (v < x.numVars)
-
-end DeclaredCSP
 end Cslib.Complexity

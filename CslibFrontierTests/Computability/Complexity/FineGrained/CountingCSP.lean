@@ -96,6 +96,12 @@ example :
    CSP.computableInPolyTime_toCNFBounded (encPair encBool encBits) encNat 3 taggedSem
      computableInPolyTime_taggedSem⟩
 
+-- Encoded words unchanged: a declared CSP instance keeps the former `(numVars, formula)` pair
+-- encoding, with `numVars` in unary and the CSP framed after it.
+example {Rel : Type} (encRel : Rel ↪ List Bool) (x : DeclaredCSP Rel) :
+    encDeclaredCSP encRel x = encPair encUnary (encCSP encRel encNat) (x.numVars, x.formula) :=
+  rfl
+
 -- Non-vacuity of declared-variable exact `#CSP` counter.
 example :
     ∃ (count : DeclaredCSP SampleRel → ℕ) (T S : DeclaredCSP SampleRel → ℕ) (A c e a b : ℕ),
