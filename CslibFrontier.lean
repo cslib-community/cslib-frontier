@@ -9044,11 +9044,14 @@ public import CslibFrontier.GameTheory.Reputation.PeerPrediction
 public import CslibFrontier.GameTheory.Reputation.RepeatedPD
 public import CslibFrontier.GameTheory.Reputation.Sybilproof
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
+public import CslibFrontier.GameTheory.SocialChoice.Condorcet
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction
+public import CslibFrontier.GameTheory.SocialChoice.May
 public import CslibFrontier.GameTheory.SocialChoice.Ranking
 public import CslibFrontier.GameTheory.SocialChoice.SinglePeaked.Basic
 public import CslibFrontier.GameTheory.SocialChoice.SinglePeaked.Ching
+public import CslibFrontier.GameTheory.SocialChoice.WeakOrder
 public import CslibFrontier.GameTheory.Strategic.ApproxNash
 public import CslibFrontier.GameTheory.Strategic.Basic
 public import CslibFrontier.GameTheory.Strategic.Correlated
