@@ -28,8 +28,9 @@ optional *parent edge* `sel l c : Option E` of each block `c` at level `l`. The 
 with weights learned by comparisons in `FreeM (LEQuery E)`.
 
 `Cslib.Query.chainMaxima` is Komlós's top-down procedure ([Komlos1985]; in the form used by
-[King1997] on a full branching tree). It processes the levels from the top. At level `i` it keeps, for every query
-`⟨x, j⟩` with `i < j`, the heaviest chain edge at the levels `i, …, j - 1`. Within a block `c` at
+[King1997] on a full branching tree). It processes the levels from the top. At level `i` it
+keeps, for every query `⟨x, j⟩` with `i < j`, the heaviest chain edge at the levels
+`i, …, j - 1`. Within a block `c` at
 level `i`, the queries still open above `i + 1`, sorted by `j`, have nondecreasing answers at
 level `i + 1`, so a single binary search against the parent edge `sel i c` finds which of them it
 overtakes. The block costs `⌊log₂ s⌋ + 1` comparisons for `s` such queries, whatever the oracle
