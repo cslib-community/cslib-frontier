@@ -299,7 +299,7 @@ theorem IsQF.branch {guard : N.Formula α} {yes no : ProjectionFormula N L α} (
 /-- A structure-independent choice between quantifier-free projection formulas stays
 quantifier-free. -/
 @[aesop safe apply (rule_sets := [FirstOrder])]
-theorem IsQF.ite (c : Prop) [Decidable c] {yes no : ProjectionFormula N L α}
+theorem IsQF.ite {c : Prop} [Decidable c] {yes no : ProjectionFormula N L α}
     (hyes : yes.IsQF) (hno : no.IsQF) : (if c then yes else no).IsQF := by
   split_ifs <;> assumption
 

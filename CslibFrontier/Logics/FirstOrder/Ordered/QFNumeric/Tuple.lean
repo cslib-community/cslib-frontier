@@ -155,11 +155,11 @@ private noncomputable def tupleSucc {α : Type*} {k : ℕ}
 
 private theorem isQF_tupleEq {α : Type*} {k : ℕ}
     (s t : Fin k → qfNumericLanguage.Term α) : (tupleEq s t).IsQF := by
-  unfold tupleEq; fo_qf
+  fo_qf [tupleEq]
 
 private theorem isQF_tupleLt {α : Type*} {k : ℕ}
     (s t : Fin k → qfNumericLanguage.Term α) : (tupleLt s t).IsQF := by
-  unfold tupleLt; fo_qf
+  fo_qf [tupleLt]
 
 private theorem isQF_tupleLe {α : Type*} {k : ℕ}
     (s t : Fin k → qfNumericLanguage.Term α) : (tupleLe s t).IsQF :=
@@ -167,7 +167,7 @@ private theorem isQF_tupleLe {α : Type*} {k : ℕ}
 
 private theorem isQF_tupleSucc {α : Type*} {k : ℕ}
     (s t : Fin k → qfNumericLanguage.Term α) : (tupleSucc s t).IsQF := by
-  unfold tupleSucc; fo_qf
+  fo_qf [tupleSucc]
 
 private theorem realize_tupleEq {α : Type*} {k n : ℕ} [Fact (2 ≤ n)]
     (s t : Fin k → qfNumericLanguage.Term α) (w : α → Fin n) :

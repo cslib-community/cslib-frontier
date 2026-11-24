@@ -188,7 +188,7 @@ noncomputable def tupleSuccOf {L : Language} (σ : (language L).Formula (Fin 2))
 @[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_tupleSuccOf {L : Language} {σ : (language L).Formula (Fin 2)}
     (hσ : σ.IsQF) (k : ℕ) : (tupleSuccOf σ k).IsQF := by
-  unfold tupleSuccOf; fo_qf
+  fo_qf [tupleSuccOf]
 
 variable {L : Language} {n k : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
 

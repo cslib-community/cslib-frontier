@@ -80,12 +80,12 @@ noncomputable def tupleLe (L : Language) (k : ℕ) : (language L).Formula (Fin 2
 /-- The lexicographic order formula on tuples is quantifier-free. -/
 @[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_tupleLt (L : Language) (k : ℕ) : (tupleLt L k).IsQF := by
-  unfold tupleLt; fo_qf
+  fo_qf [tupleLt]
 
 /-- The lexicographic weak order formula on tuples is quantifier-free. -/
 @[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_tupleLe (L : Language) (k : ℕ) : (tupleLe L k).IsQF := by
-  unfold tupleLe; fo_qf
+  fo_qf [tupleLe]
 
 variable {L : Language} {n k : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
 

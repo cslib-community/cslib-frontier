@@ -483,9 +483,6 @@ noncomputable def symmPairBinaryTag {L : Language} {T : Type*} {d m : ℕ}
       (.const false))
     (.const false)
 
--- A concrete output dimension may already have reduced `d + m` to a numeral. Index by the
--- certificate predicate so that arithmetic in the variable type does not hide this rule.
-@[aesop safe apply (rule_sets := [FirstOrder]) (index := [target ProjectionFormula.IsQF _])]
 theorem isQF_symmPairBinaryTag {L : Language} {T : Type*} {d m : ℕ}
     (code : T → Fin d → Bool) (tags : List T)
     {upper : T → T → Option (ProjectionFormula qfNumericLanguage L (Fin 2 × Fin (d + m)))}

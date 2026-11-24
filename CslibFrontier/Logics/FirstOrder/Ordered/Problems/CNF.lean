@@ -152,47 +152,9 @@ private noncomputable def isVarNegMax : qfNumericLanguage.Formula (Fin 2 × Fin 
   hasBinaryTag 2 (tagCode .bridge) 1 ⊓
     (QFNumeric.varEq (0, pay0) (1, pay0) ⊓ QFNumeric.isMax (1, pay1))
 
-private theorem isQF_isVarXZero : isVarXZero.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_isVarXSucc : isVarXSucc.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_varSucc _ _))
-
-private theorem isQF_isVarPosZero : isVarPosZero.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_isVarPosSame : isVarPosSame.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_varEq _ _))
-
-private theorem isQF_isVarPosSucc : isVarPosSucc.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_varSucc _ _))
-
-private theorem isQF_isVarPosMax : isVarPosMax.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_isMax _))
-
-private theorem isQF_isVarNegZero : isVarNegZero.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_isVarNegSame : isVarNegSame.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_varEq _ _))
-
-private theorem isQF_isVarNegSucc : isVarNegSucc.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_varSucc _ _))
-
-private theorem isQF_isVarNegMax : isVarNegMax.IsQF :=
-  (isQF_hasBinaryTag 2 _ 1).inf ((QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_isMax _))
-
 private noncomputable def tautHalf :
     ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin (3 + 2)) :=
   .guardAnd isVarXZero (.const true)
-
-private theorem isQF_tautHalf : tautHalf.IsQF :=
-  ProjectionFormula.IsQF.guardAnd isQF_isVarXZero (ProjectionFormula.isQF_const true)
-
-attribute [local aesop safe apply (rule_sets := [FirstOrder])]
-  isQF_isVarXZero isQF_isVarXSucc isQF_isVarPosZero isQF_isVarPosSame isQF_isVarPosSucc
-  isQF_isVarPosMax isQF_isVarNegZero isQF_isVarNegSame isQF_isVarNegSucc isQF_isVarNegMax
-  isQF_tautHalf
 
 private noncomputable def posBranch : ThreeSATTag →
     ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin (3 + 2))
@@ -259,8 +221,11 @@ noncomputable def satToThreeSATInterpretation : FullTupleInterpretation FO.cnf F
 theorem isQFProjection_satToThreeSATInterpretation :
     satToThreeSATInterpretation.IsQFProjection := by
   refine FullTupleInterpretation.isQFProjection_ofQFProjection satToThreeSATFormula fun R => ?_
-  cases R <;> refine isQF_dispatchBinaryTag _ _ _ (fun t _ => ?_) (by fo_qf)
-  all_goals cases t <;> fo_qf [posBranch, negBranch]
+  cases R <;> refine isQF_dispatchBinaryTag _ _ _ (fun t _ => ?_)
+    (by fo_qf [tautHalf, isVarXZero])
+  all_goals cases t <;> fo_qf [posBranch, negBranch, tautHalf, isVarXZero, isVarXSucc,
+    isVarPosZero, isVarPosSame, isVarPosSucc, isVarPosMax, isVarNegZero, isVarNegSame,
+    isVarNegSucc, isVarNegMax]
 
 /-! ### Tuple-level variable and clause semantics -/
 

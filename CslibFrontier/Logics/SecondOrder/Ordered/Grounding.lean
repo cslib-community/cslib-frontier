@@ -168,9 +168,6 @@ private noncomputable def selfEqGuard :
     qfNumericLanguage.Formula (Fin 2 × Fin Φ.groundDim) :=
   Formula.iInf fun idx : Fin Φ.groundDim => QFNumeric.varEq (0, idx) (1, idx)
 
-private theorem isQF_selfEqGuard : (selfEqGuard Φ).IsQF :=
-  Formula.isQF_iInf _ fun _ => QFNumeric.isQF_varEq _ _
-
 private theorem realize_selfEqGuard {n : ℕ} [Fact (2 ≤ n)]
     (u v : Fin Φ.groundDim → Fin n) :
     (selfEqGuard Φ).Realize (fun p => (![u, v] p.1) p.2) ↔ u = v := by
@@ -181,12 +178,6 @@ private theorem realize_selfEqGuard {n : ℕ} [Fact (2 ≤ n)]
 private noncomputable def selfTautology :
     ProjectionFormula qfNumericLanguage L (Fin 2 × Fin Φ.groundDim) :=
   .guardAnd (selfEqGuard Φ) (.const true)
-
-private theorem isQF_selfTautology : (selfTautology Φ).IsQF :=
-  ProjectionFormula.IsQF.guardAnd (isQF_selfEqGuard Φ) (ProjectionFormula.isQF_const true)
-
-attribute [local aesop safe apply (rule_sets := [FirstOrder])]
-  isQF_padZeroGuard isQF_selfEqGuard isQF_selfTautology
 
 private theorem realize_selfTautology {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)]
     (u v : Fin Φ.groundDim → Fin n) :
@@ -274,13 +265,8 @@ private noncomputable def uncondTemplatesFormula (t : Φ.GroundTag) (b : Bool) :
     ProjectionFormula qfNumericLanguage L (Fin 2 × Fin Φ.groundDim) :=
   .guardAnd (templateListGuard Φ t (Φ.groundTemplates t b)) (.const true)
 
-private theorem isQF_uncondTemplatesFormula (t : Φ.GroundTag) (b : Bool) :
-    (uncondTemplatesFormula Φ t b).IsQF :=
-  ProjectionFormula.IsQF.guardAnd (isQF_templateListGuard Φ t _)
-    (ProjectionFormula.isQF_const true)
-
 attribute [local aesop safe apply (rule_sets := [FirstOrder])]
-  isQF_targetCompatGuard isQF_templateListGuard isQF_uncondTemplatesFormula
+  isQF_padZeroGuard isQF_targetCompatGuard isQF_templateListGuard
 
 private noncomputable def clauseZeroFormula (s : Φ.Subformula) (b : Bool) :
     ProjectionFormula qfNumericLanguage L (Fin 2 × Fin Φ.groundDim) :=
@@ -325,8 +311,8 @@ private theorem isQF_clauseZeroFormula (s : Φ.Subformula) (b : Bool) :
   cases ψ with
   | rel R ts =>
     rcases R with (R_in | ⟨⟨⟩, hr⟩) | r_var
-    all_goals fo_qf [clauseZeroFormula]
-  | equal _ _ | falsum | imp _ _ | all _ => fo_qf [clauseZeroFormula]
+    all_goals fo_qf [clauseZeroFormula, uncondTemplatesFormula]
+  | equal _ _ | falsum | imp _ _ | all _ => fo_qf [clauseZeroFormula, uncondTemplatesFormula]
 
 attribute [local aesop safe apply (rule_sets := [FirstOrder])] isQF_clauseZeroFormula
 
@@ -341,7 +327,7 @@ private noncomputable def activeTagFormula (t : Φ.GroundTag) (b : Bool) :
 
 private theorem isQF_activeTagFormula (t : Φ.GroundTag) (b : Bool) :
     (activeTagFormula Φ t b).IsQF := by
-  cases t <;> fo_qf [activeTagFormula]
+  cases t <;> fo_qf [activeTagFormula, uncondTemplatesFormula]
 
 attribute [local aesop safe apply (rule_sets := [FirstOrder])] isQF_activeTagFormula
 
@@ -351,12 +337,6 @@ private noncomputable def tagBranch (t : Φ.GroundTag) (b : Bool) :
     .branch (padZeroGuard Φ t 0) (activeTagFormula Φ t b) (selfTautology Φ)
   else
     selfTautology Φ
-
-private theorem isQF_tagBranch (t : Φ.GroundTag) (b : Bool) :
-    (tagBranch Φ t b).IsQF := by
-  fo_qf [tagBranch]
-
-attribute [local aesop safe apply (rule_sets := [FirstOrder])] isQF_tagBranch
 
 /-- `BIT`-free quantifier-free projection formulas defining `FO.cnf.pos` and `FO.cnf.neg` for the
 ordered grounding of `Φ : ESO.Sentence (L.sum ESO.orderLanguage)`. -/
@@ -379,7 +359,7 @@ noncomputable def groundQFInterpretation :
 /-- **`Φ.groundQFInterpretation` is a `BIT`-free quantifier-free projection.** -/
 theorem isQFProjection_groundQFInterpretation :
     Φ.groundQFInterpretation.IsQFProjection := by
-  fo_qf [groundQFInterpretation, groundQFFormula]
+  fo_qf [groundQFInterpretation, groundQFFormula, tagBranch, selfTautology, selfEqGuard]
 
 /-! ### Active-tuple embedding and clause semantics -/
 

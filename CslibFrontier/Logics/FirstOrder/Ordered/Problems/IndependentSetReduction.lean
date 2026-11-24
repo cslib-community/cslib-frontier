@@ -88,20 +88,6 @@ private def sizeAnchorGuard : qfNumericLanguage.Formula (Fin 1 × Fin 4) :=
   QFNumeric.isMax (0, 0) ⊓
     (QFNumeric.isZero (0, 1) ⊓ (QFNumeric.isZero (0, 2) ⊓ QFNumeric.isZero (0, 3)))
 
-private theorem isQF_isAnchor0 : isAnchor0.IsQF :=
-  (QFNumeric.isQF_isMax _).inf
-    ((QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _)))
-
-private theorem isQF_conflictGuard : conflictGuard.IsQF :=
-  (QFNumeric.isQF_varEq _ _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isMax _))
-
-private theorem isQF_sizeClauseGuard : sizeClauseGuard.IsQF :=
-  (QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_sizeAnchorGuard : sizeAnchorGuard.IsQF :=
-  (QFNumeric.isQF_isMax _).inf
-    ((QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _)))
-
 private def anchorToClauseFormula :
     ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin 4) :=
   .branch (QFNumeric.isZero (1, 3))
@@ -109,15 +95,6 @@ private def anchorToClauseFormula :
     (.branch (QFNumeric.isMax (1, 3))
       (.negLit FO.cnf.neg ![(1, 1), (1, 2)])
       (.const true))
-
-private theorem isQF_anchorToClauseFormula : anchorToClauseFormula.IsQF :=
-  ⟨QFNumeric.isQF_isZero _, ProjectionFormula.isQF_negLit _ _,
-    ⟨QFNumeric.isQF_isMax _, ProjectionFormula.isQF_negLit _ _,
-      ProjectionFormula.isQF_const true⟩⟩
-
-attribute [local aesop safe apply (rule_sets := [FirstOrder])]
-  isQF_isAnchor0 isQF_conflictGuard isQF_sizeClauseGuard isQF_sizeAnchorGuard
-  isQF_anchorToClauseFormula
 
 /-- Quantifier-free projection formulas for the dimension-4 `SAT → IndependentSet` reduction. -/
 def satToIndependentSetFormula :
@@ -144,7 +121,8 @@ noncomputable def satToIndependentSetInterpretation :
 
 theorem isQFProjection_satToIndependentSetInterpretation :
     satToIndependentSetInterpretation.IsQFProjection := by
-  fo_qf [satToIndependentSetInterpretation, satToIndependentSetFormula]
+  fo_qf [satToIndependentSetInterpretation, satToIndependentSetFormula, isAnchor0,
+    conflictGuard, sizeClauseGuard, sizeAnchorGuard, anchorToClauseFormula]
 
 /-! ### Tuple-level structure and clique-partition proof -/
 

@@ -192,33 +192,6 @@ private def guardBridgeLink : qfNumericLanguage.Formula (Fin 2 × Fin (4 + 2)) :
   QFNumeric.varEq (0, cPay0) (1, cPay0) ⊓
     (QFNumeric.isMax (0, cPay1) ⊓ QFNumeric.isZero (1, cPay1))
 
-private theorem isQF_guardOrigin0 : guardOrigin0.IsQF :=
-  (QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _)
-
-private theorem isQF_guardOriginBoth : guardOriginBoth.IsQF :=
-  isQF_guardOrigin0.inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_guardOriginToVar : guardOriginToVar.IsQF :=
-  isQF_guardOrigin0.inf (QFNumeric.isQF_isZero _)
-
-private theorem isQF_guardOriginToZero1 : guardOriginToZero1.IsQF :=
-  isQF_guardOrigin0.inf (QFNumeric.isQF_isZero _)
-
-private theorem isQF_guardOriginToMax1 : guardOriginToMax1.IsQF :=
-  isQF_guardOrigin0.inf (QFNumeric.isQF_isMax _)
-
-private theorem isQF_guardSameVar0 : guardSameVar0.IsQF :=
-  (QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_varEq _ _))
-
-private theorem isQF_guardVarToAct : guardVarToAct.IsQF :=
-  (QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_varEq _ _)
-
-private theorem isQF_guardSameCell : guardSameCell.IsQF :=
-  (QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_varEq _ _)
-
-private theorem isQF_guardBridgeLink : guardBridgeLink.IsQF :=
-  (QFNumeric.isQF_varEq _ _).inf ((QFNumeric.isQF_isMax _).inf (QFNumeric.isQF_isZero _))
-
 /-- Combined intra-gate triangle edge `(c, x) ~ (c, x)` and successor step link
 `g0(c, x + 1) ~ out(c, x)`. -/
 private def gateG0OutFormula :
@@ -227,17 +200,6 @@ private def gateG0OutFormula :
     (.branch (QFNumeric.varEq (0, cPay1) (1, cPay1))
       (.const true)
       (.guardAnd (QFNumeric.varSucc (1, cPay1) (0, cPay1)) (.const true)))
-
-private theorem isQF_gateG0OutFormula : gateG0OutFormula.IsQF :=
-  ProjectionFormula.IsQF.guardAnd (QFNumeric.isQF_varEq _ _)
-    ⟨QFNumeric.isQF_varEq _ _, ProjectionFormula.isQF_const true,
-      ProjectionFormula.IsQF.guardAnd (QFNumeric.isQF_varSucc _ _)
-        (ProjectionFormula.isQF_const true)⟩
-
-attribute [local aesop safe apply (rule_sets := [FirstOrder])]
-  isQF_guardOrigin0 isQF_guardOriginBoth isQF_guardOriginToVar isQF_guardOriginToZero1
-  isQF_guardOriginToMax1 isQF_guardSameVar0 isQF_guardVarToAct isQF_guardSameCell
-  isQF_guardBridgeLink isQF_gateG0OutFormula
 
 /-- Strictly upper-triangular edge specification (`colorTagRank t₁ < colorTagRank t₂`). -/
 private def upperColorEdge : ColorTag → ColorTag →
@@ -289,9 +251,9 @@ private theorem isQF_upperColorEdge (t₁ t₂ : ColorTag)
     (h : upperColorEdge t₁ t₂ = some p) : p.IsQF := by
   cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h
   all_goals cases h
-  all_goals fo_qf
-
-attribute [local aesop unsafe 50% apply (rule_sets := [FirstOrder])] isQF_upperColorEdge
+  all_goals fo_qf [guardOrigin0, guardOriginBoth, guardOriginToVar, guardOriginToZero1,
+    guardOriginToMax1, guardSameVar0, guardVarToAct, guardSameCell, guardBridgeLink,
+    gateG0OutFormula]
 
 /-- Quantifier-free projection formulas for the dimension-6 `SAT → SimpleThreeColorable`
 reduction. -/
@@ -308,7 +270,9 @@ noncomputable def satToColoringInterpretation :
 
 theorem isQFProjection_satToColoringInterpretation :
     satToColoringInterpretation.IsQFProjection := by
-  fo_qf [satToColoringInterpretation, satToColoringFormula]
+  refine FullTupleInterpretation.isQFProjection_ofQFProjection satToColoringFormula fun R => ?_
+  cases R
+  exact isQF_symmPairBinaryTag (m := 2) colorCode allColorTags isQF_upperColorEdge
 
 /-! ### Simple-graph property and 3-coloring equivalence -/
 
