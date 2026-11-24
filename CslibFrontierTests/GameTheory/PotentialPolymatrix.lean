@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.GameTheory.Polymatrix.Basic
 public import CslibFrontier.GameTheory.Strategic.PotentialCharacterization
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -30,12 +32,15 @@ Concrete checked witnesses and counterexamples exercising the public API of
    **no** ordinal potential because of a single unilateral cost tie, demonstrating sharpness of
    `exists_isOrdinalPotential_of_hasFIP` (Corollary 2.6, p. 130).
 3. **Theorem 2.8 & Corollary 2.9**: explicit length-`4` simple closed unilateral path on Matching
-   Pennies with nonzero path integral `pathIntegral = 4 ≠ 0` (ruling out any exact potential),
-   plus explicit `potentialOfBase` and `IsCoordination` + `IsDummy` decomposition on Prisoner's
-   Dilemma ([MondererShapley1996], p. 128).
-4. **3-player polymatrix games**:
-   * symmetric 3-player coordination / cut game with exact `edgePotential` and social-cost-optimal
-     pure Nash equilibrium (`PoS = 1`);
+   Pennies with nonzero path integral `pathIntegral = 8 ≠ 0` (ruling out any exact potential),
+   plus explicit `potentialOfBase` (`potentialOfBase_self`) and `IsCoordination` + `IsDummy`
+   decomposition on Prisoner's Dilemma ([MondererShapley1996], p. 128).
+4. **3-player polymatrix games and `BimatrixGame` embedding**:
+   * symmetric 3-player coordination / cut game with exact `edgePotential`, `HasFIP`,
+     social-cost-optimal pure Nash equilibrium (`PoS = 1`), and uniform `(1/2, 1/2)` mixed Nash
+     equilibrium checked via `deviationCost_toCostGame`, `expectedCost_toCostGame`, and
+     `isMixedNash_toCostGame_iff`;
+   * `PolymatrixGame.ofBimatrixGame` compatibility with `BimatrixGame.toCostGame`;
    * **asymmetric** 3-player polymatrix game (`¬ IsSymmetric`) whose skew-symmetric part is
      separable (`IsSeparableSkew`), proving it still admits an exact potential;
    * baseline-zero-normalized asymmetric polymatrix game admitting **no** exact potential.
@@ -86,6 +91,17 @@ example : ∃ s, weightedOnlyGame.IsPureNash s :=
 example : ∃ Ψ, weightedOnlyGame.mixedExtension.IsWeightedPotential playerWeights Ψ :=
   CostGame.exists_isWeightedPotential_mixedExtension_iff.2
     ⟨mismatchPotential, weightedOnlyGame_isWeightedPotential⟩
+
+example :
+    weightedOnlyGame.mixedExtension.IsWeightedPotential playerWeights
+      (fun p => CostGame.mixedPotential mismatchPotential (fun j => (p j).1)) :=
+  weightedOnlyGame_isWeightedPotential.mixedExtension
+
+example {Ψ : (Bool → Bool) → ℝ}
+    (hΨ : weightedOnlyGame.IsWeightedPotential playerWeights Ψ) (s t : Bool → Bool) :
+    mismatchPotential s - Ψ s = mismatchPotential t - Ψ t :=
+  weightedOnlyGame_isWeightedPotential.sub_eq_sub
+    (fun b => (playerWeights_pos b).ne') hΨ s t
 
 /-- Despite having a `(1, 2)`-weighted potential, `weightedOnlyGame` violates `FourCycleZero` and
 therefore admits **no** exact potential (nor does its mixed extension, by Lemma 2.10). -/
@@ -283,6 +299,19 @@ theorem prisonersDilemmaMS_fourCycleZero : prisonersDilemmaMS.FourCycleZero := b
 example : prisonersDilemmaMS.IsExactPotential (prisonersDilemmaMS.potentialOfBase mpC) :=
   prisonersDilemmaMS_fourCycleZero.isExactPotential_potentialOfBase mpC
 
+example : prisonersDilemmaMS.potentialOfBase mpC mpC = 0 :=
+  prisonersDilemmaMS.potentialOfBase_self mpC
+
+example (γ : CostGame.UnilateralPath Bool (fun _ => Bool)) (hγ : γ.IsClosed) :
+    prisonersDilemmaMS.pathIntegral γ = 0 :=
+  (CostGame.exists_isExactPotential_iff_closedPath.1
+    ⟨_, prisonersDilemmaMS_fourCycleZero.isExactPotential_potentialOfBase mpC⟩) γ hγ
+
+example : ¬ ∀ γ : CostGame.UnilateralPath Bool (fun _ => Bool),
+    γ.IsSimpleClosed → matchingPenniesCost.pathIntegral γ = 0 := by
+  rw [← CostGame.exists_isExactPotential_iff_simpleClosedPath]
+  exact matchingPennies_not_exactPotential
+
 example :
     ∃ C D : CostGame Bool (fun _ => Bool),
       C.IsCoordination ∧ D.IsDummy ∧
@@ -310,10 +339,47 @@ theorem symPolymatrix3_isSymmetric : symPolymatrix3.IsSymmetric := by
 example : symPolymatrix3.toCostGame.IsExactPotential symPolymatrix3.edgePotential :=
   symPolymatrix3_isSymmetric.isExactPotential_edgePotential
 
+example : symPolymatrix3.toCostGame.HasFIP :=
+  symPolymatrix3_isSymmetric.hasFIP
+
 example :
     ∃ s, symPolymatrix3.toCostGame.IsPureNash s ∧
       ∀ s', symPolymatrix3.toCostGame.socialCost s ≤ symPolymatrix3.toCostGame.socialCost s' :=
   symPolymatrix3_isSymmetric.exists_isPureNash_socialCost_le
+
+example {M N : Type} (G : BimatrixGame M N) :
+    (PolymatrixGame.ofBimatrixGame G).toCostGame = G.toCostGame :=
+  PolymatrixGame.toCostGame_ofBimatrixGame G
+
+/-- Uniform `(1/2, 1/2)` mixed profile on `symPolymatrix3` exercises `deviationCost_toCostGame`,
+`expectedCost_toCostGame`, and `isMixedNash_toCostGame_iff`. -/
+noncomputable def uniformBinary3 : Fin 3 → Bool → ℝ :=
+  fun _ _ => 1 / 2
+
+theorem uniformBinary3_sum_one (k : Fin 3) : ∑ c : Bool, uniformBinary3 k c = 1 := by
+  simp only [uniformBinary3, Fintype.sum_bool]
+  norm_num
+
+example : symPolymatrix3.toCostGame.deviationCost uniformBinary3 1 true = 3 ∧
+    symPolymatrix3.toCostGame.expectedCost uniformBinary3 1 = 3 ∧
+    symPolymatrix3.toCostGame.IsMixedNash uniformBinary3 := by
+  refine ⟨?_, ?_, ?_⟩
+  · rw [symPolymatrix3.deviationCost_toCostGame uniformBinary3_sum_one]
+    simp only [Finset.sum_erase_eq_sub (Finset.mem_univ (1 : Fin 3)), Fin.sum_univ_three,
+      Fintype.sum_bool, uniformBinary3, symPolymatrix3]
+    norm_num
+  · rw [symPolymatrix3.expectedCost_toCostGame uniformBinary3_sum_one]
+    simp only [Finset.sum_erase_eq_sub (Finset.mem_univ (1 : Fin 3)), Fin.sum_univ_three,
+      Fintype.sum_bool, uniformBinary3, symPolymatrix3]
+    norm_num
+  · rw [symPolymatrix3.isMixedNash_toCostGame_iff]
+    refine ⟨fun i => isMixedStrategy_iff.2
+        ⟨fun b => by norm_num [uniformBinary3], uniformBinary3_sum_one i⟩,
+      fun i a' => ?_⟩
+    fin_cases i <;> cases a' <;>
+      simp only [Finset.sum_erase_eq_sub (Finset.mem_univ _), Fin.sum_univ_three,
+        Fintype.sum_bool, uniformBinary3, symPolymatrix3] <;>
+      norm_num
 
 /-- Three-player **asymmetric** polymatrix game obtained by adding a dummy opponent bonus
 `+ (if b then 5 else 0)` to edge `(0, 1)`: `¬ IsSymmetric`, yet `IsSeparableSkew` holds, so an

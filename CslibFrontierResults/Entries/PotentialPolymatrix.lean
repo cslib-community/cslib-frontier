@@ -6,11 +6,10 @@ Authors: Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.GameTheory.Polymatrix.Basic
 import CslibFrontier.GameTheory.Strategic.PotentialCharacterization
 
 /-!
-# Collected results: potential game characterizations and polymatrix games
+# Collected results: potential game characterizations
 -/
 
 register_result "monderer-shapley-tie-free-fip-ordinal-potential" where
@@ -71,24 +70,3 @@ register_result "monderer-shapley-mixed-extension-potential" where
     extension G.mixedExtension over product simplices { q : S i → ℝ // IsMixedStrategy q } \
     admits a w-potential, witnessed in the forward direction by the multilinear extension \
     mixedPotential Φ p = ∑ s, productWeight p s * Φ s."
-
-register_result "janovskaja-polymatrix-mixed-nash" where
-  title := "Every finite polymatrix game possesses a mixed Nash equilibrium characterized by \
-    pairwise bilinear inequalities"
-  topic := "game theory"
-  sources := [
-    { paper := Janovskaja1968,
-      theorem := "Theorem 1",
-      locator := "pp. 381–384" },
-    { paper := Howson1972,
-      theorem := "Theorem 1",
-      locator := "Section 1, pp. 312–313" }
-  ]
-  theorems := [
-    Cslib.GameTheory.PolymatrixGame.exists_isMixedNash,
-    Cslib.GameTheory.PolymatrixGame.isMixedNash_toCostGame_iff
-  ]
-  scope := "For any finite polymatrix game P : PolymatrixGame ι S with nonempty finite strategy \
-    sets S i, P.toCostGame admits a mixed Nash equilibrium p (exists_isMixedNash), and mixed \
-    Nash equilibria are characterized purely by the pairwise matrix-vector inequalities \
-    ∑_{j ≠ i} p_i^T A_{ij} p_j ≤ ∑_{j ≠ i} (A_{ij} p_j)_{a'} (isMixedNash_toCostGame_iff)."

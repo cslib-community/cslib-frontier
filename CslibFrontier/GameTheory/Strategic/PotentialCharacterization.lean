@@ -97,7 +97,10 @@ variable {ι : Type*} {S : ι → Type*} [DecidableEq ι] (G : CostGame ι S)
 
 /-- `Φ` is a **`w`-potential** (weighted potential) for `G` with player weights `w : ι → ℝ`
 ([MondererShapley1996], equation (2.2), p. 127, written for costs): every unilateral deviation by
-player `i` changes player `i`'s cost by `w i` times the change in `Φ`. -/
+player `i` changes player `i`'s cost by `w i` times the change in `Φ`. (Unlike equation (2.2),
+positivity `0 < w i` is omitted from this predicate so that
+`exists_isWeightedPotential_mixedExtension_iff` holds for arbitrary `w : ι → ℝ`, and is supplied as
+an explicit hypothesis where needed.) -/
 @[expose] def IsWeightedPotential (w : ι → ℝ) (Φ : (∀ i, S i) → ℝ) : Prop :=
   ∀ s i (a : S i), G.cost i (update s i a) - G.cost i s = w i * (Φ (update s i a) - Φ s)
 
@@ -116,11 +119,6 @@ variable {G}
 theorem isWeightedPotential_one_iff {Φ : (∀ i, S i) → ℝ} :
     G.IsWeightedPotential (fun _ => 1) Φ ↔ G.IsExactPotential Φ := by
   simp only [IsWeightedPotential, IsExactPotential, one_mul]
-
-/-- Every exact potential is a `w`-potential with unit weights `w i = 1`. -/
-theorem IsExactPotential.isWeightedPotential_one {Φ : (∀ i, S i) → ℝ}
-    (h : G.IsExactPotential Φ) : G.IsWeightedPotential (fun _ => 1) Φ :=
-  isWeightedPotential_one_iff.2 h
 
 /-- A `w`-potential with positive weights `0 < w i` is an ordinal potential
 ([MondererShapley1996], Section 2, pp. 127–128). -/
@@ -290,10 +288,6 @@ namespace UnilateralPath
 @[expose] def initialVertices (γ : UnilateralPath ι S) : List (∀ i, S i) :=
   stepInitialVertices γ.start γ.steps
 
-/-- Full visited profile sequence `[y₀, y₁, …, y_N]`. -/
-@[expose] def vertices (γ : UnilateralPath ι S) : List (∀ i, S i) :=
-  γ.start :: γ.steps.map PathStep.profile
-
 /-- `γ` is **closed** if its terminal profile equals its initial profile (`y_N = y₀`,
 [MondererShapley1996], p. 131). -/
 @[expose] def IsClosed (γ : UnilateralPath ι S) : Prop :=
@@ -306,29 +300,6 @@ namespace UnilateralPath
 
 theorem IsSimpleClosed.isClosed {γ : UnilateralPath ι S} (h : γ.IsSimpleClosed) : γ.IsClosed :=
   h.1
-
-private theorem steps_eq_of_profiles_eq :
-    ∀ {s : ∀ i, S i} {l₁ l₂ : List (PathStep ι S)},
-      IsStepChain s l₁ → IsStepChain s l₂ →
-      l₁.map PathStep.profile = l₂.map PathStep.profile → l₁ = l₂
-  | _, [], [], _, _, _ => rfl
-  | _, _ :: _, [], _, _, h => by simp only [List.map_cons, List.map_nil, reduceCtorEq] at h
-  | _, [], _ :: _, _, _, h => by simp only [List.map_nil, List.map_cons, reduceCtorEq] at h
-  | _, ⟨i₁, t₁⟩ :: r₁, ⟨i₂, t₂⟩ :: r₂, ⟨h₁, hr₁⟩, ⟨h₂, hr₂⟩, hmap => by
-      simp only [List.map_cons, List.cons.injEq] at hmap
-      obtain ⟨rfl, hrest⟩ := hmap
-      have hi : i₁ = i₂ := h₁.eq_of_isUnilateralStep h₂
-      rw [hi, steps_eq_of_profiles_eq hr₁ hr₂ hrest]
-
-/-- Because the deviating player at each step is unique, a `UnilateralPath` is uniquely determined
-by its profile sequence `[y₀, y₁, …, y_N]`. -/
-theorem ext_vertices {γ₁ γ₂ : UnilateralPath ι S} (h : γ₁.vertices = γ₂.vertices) : γ₁ = γ₂ := by
-  cases γ₁ with | mk s₁ l₁ v₁ =>
-  cases γ₂ with | mk s₂ l₂ v₂ =>
-  simp only [vertices, List.cons.injEq] at h
-  obtain ⟨rfl, hmap⟩ := h
-  congr
-  exact steps_eq_of_profiles_eq v₁ v₂ hmap
 
 end UnilateralPath
 
@@ -384,7 +355,7 @@ theorem IsExactPotential.pathIntegral_eq_zero_of_isClosed {G : CostGame ι S} {�
   rw [hΦ.pathIntegral_eq, hγ, sub_self]
 
 /-- Vanishing on all simple closed unilateral paths of length `4` implies `FourCycleZero`. -/
-theorem fourCycleZero_of_simpleClosed_four {G : CostGame ι S}
+private theorem fourCycleZero_of_simpleClosed_four {G : CostGame ι S}
     (h4 : ∀ γ : UnilateralPath ι S, γ.IsSimpleClosed → γ.length = 4 → G.pathIntegral γ = 0) :
     G.FourCycleZero := by
   intro i j hij s xᵢ yᵢ xⱼ yⱼ
@@ -449,12 +420,12 @@ theorem fourCycleZero_of_simpleClosed_four {G : CostGame ι S}
   linarith
 
 /-- Intermediate profile obtained by replacing coordinates in `L` of `cur` with `target`. -/
-@[expose] def sweepProfile : List ι → (∀ i, S i) → (∀ i, S i) → ∀ i, S i
+private def sweepProfile : List ι → (∀ i, S i) → (∀ i, S i) → ∀ i, S i
   | [], cur, _ => cur
   | i :: L, cur, target => sweepProfile L (update cur i (target i)) target
 
 /-- Unilateral cost sum accumulated when sweeping coordinates in `L` from `cur` to `target`. -/
-@[expose] def sweepCost (G : CostGame ι S) : List ι → (∀ i, S i) → (∀ i, S i) → ℝ
+private def sweepCost (G : CostGame ι S) : List ι → (∀ i, S i) → (∀ i, S i) → ℝ
   | [], _, _ => 0
   | i :: L, cur, target =>
       (G.cost i (update cur i (target i)) - G.cost i cur) +
@@ -556,15 +527,8 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
     simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,
       Finset.mem_erase, List.mem_singleton, and_true]
     exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
-  have hw_s : sweepProfile L_rem z s = update s i (z i) := by
-    funext k
-    rw [sweepProfile_apply]
-    by_cases hki : k = i
-    · subst hki
-      simp only [hi_notMem, ite_false, update_self]
-    · have hk : k ∈ L_rem := Finset.mem_toList.2 (Finset.mem_erase.2 ⟨hki, Finset.mem_univ k⟩)
-      simp only [hk, ite_true, update_of_ne hki]
-  have hw_upd : sweepProfile L_rem z (update s i a) = update s i (z i) := by
+  have hw_rem : ∀ t : ∀ k, S k, sweepProfile L_rem z t = update t i (z i) := by
+    intro t
     funext k
     rw [sweepProfile_apply]
     by_cases hki : k = i
@@ -576,7 +540,7 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
   rw [sweepCost_perm h hperm hnd_all z (update s i a),
     sweepCost_perm h hperm hnd_all z s,
     sweepCost_append, sweepCost_append,
-    sweepCost_congr_of_notMem G hi_notMem z s a, hw_s, hw_upd]
+    sweepCost_congr_of_notMem G hi_notMem z s a, hw_rem s, hw_rem (update s i a), update_idem]
   simp only [sweepCost, update_idem, update_self, update_eq_self]
   ring
 

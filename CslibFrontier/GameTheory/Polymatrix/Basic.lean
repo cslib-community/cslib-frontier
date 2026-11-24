@@ -26,9 +26,9 @@ the pairwise cost incurred by `i` against `j`, and player `i`'s total cost at pr
 `BimatrixGame`s are the `Bool`-indexed special case (`PolymatrixGame.ofBimatrixGame`).
 
 Under independent mixed strategies `p`, expectations factor into pairwise bilinear forms
-(`deviationCost_toCostGame`, `expectedCost_toCostGame`), yielding Janovskaja's existence theorem
-for mixed Nash equilibria of finite polymatrix games (`exists_isMixedNash`, [Janovskaja1968],
-p. 381; [Howson1972], Section 1, p. 312).
+(`deviationCost_toCostGame`, `expectedCost_toCostGame`), characterizing mixed Nash equilibria of
+polymatrix games purely through pairwise matrix-vector inequalities (`isMixedNash_toCostGame_iff`,
+[Janovskaja1968]; [Howson1972], Section 1, pp. 312–313).
 
 When pairwise interaction matrices are symmetric (`PolymatrixGame.IsSymmetric`:
 `edgeCost i j a b = edgeCost j i b a` for `i ≠ j`), half the social cost
@@ -64,8 +64,9 @@ normalization at a reference profile `z`, exact potentiality is equivalent to `I
 
 * `Cslib.GameTheory.PolymatrixGame.deviationCost_toCostGame`,
   `Cslib.GameTheory.PolymatrixGame.expectedCost_toCostGame`,
-  `Cslib.GameTheory.PolymatrixGame.exists_isMixedNash`: pairwise bilinear mixed-cost decomposition
-  and **Janovskaja's theorem** ([Janovskaja1968], p. 381; [Howson1972], p. 312).
+  `Cslib.GameTheory.PolymatrixGame.isMixedNash_toCostGame_iff`: pairwise bilinear mixed-cost
+  decomposition and mixed Nash equilibrium characterization ([Janovskaja1968]; [Howson1972],
+  Section 1, pp. 312–313).
 * `Cslib.GameTheory.PolymatrixGame.IsSymmetric.isExactPotential_edgePotential`,
   `Cslib.GameTheory.PolymatrixGame.IsSymmetric.exists_isPureNash_socialCost_le`: exact edge
   potential and **price of stability `1`** for symmetric polymatrix games.
@@ -142,7 +143,7 @@ theorem toCostGame_ofBimatrixGame {M : Type*} {N : Type*} (G : BimatrixGame M N)
 
 end Basic
 
-/-! ### Bilinear mixed-strategy expectations and Janovskaja's theorem -/
+/-! ### Bilinear mixed-strategy expectations and mixed Nash characterization -/
 
 section Mixed
 
@@ -177,7 +178,7 @@ theorem expectedCost_toCostGame (P : PolymatrixGame ι S) {p : ∀ i, S i → �
   exact sum_comm
 
 /-- Pairwise bilinear characterization of mixed Nash equilibria in a polymatrix game
-([Howson1972], Section 1, p. 312). -/
+([Janovskaja1968]; [Howson1972], Section 1, pp. 312–313). -/
 theorem isMixedNash_toCostGame_iff (P : PolymatrixGame ι S) {p : ∀ i, S i → ℝ} :
     P.toCostGame.IsMixedNash p ↔
       (∀ i, IsMixedStrategy (p i)) ∧
@@ -195,13 +196,6 @@ theorem isMixedNash_toCostGame_iff (P : PolymatrixGame ι S) {p : ∀ i, S i →
     refine ⟨hmix, fun i a' => ?_⟩
     rw [P.expectedCost_toCostGame hp1 i, P.deviationCost_toCostGame hp1 i a']
     exact hbr i a'
-
-/-- **Janovskaja's theorem** ([Janovskaja1968], Theorem 1, p. 381; [Howson1972], Theorem 1,
-p. 313): every finite polymatrix game with nonempty strategy sets possesses a mixed Nash
-equilibrium. -/
-theorem exists_isMixedNash (P : PolymatrixGame ι S) [∀ i, Nonempty (S i)] :
-    ∃ p, P.toCostGame.IsMixedNash p :=
-  P.toCostGame.exists_isMixedNash
 
 end Mixed
 
@@ -234,14 +228,8 @@ splits additively into a self-action term `u i j a` and a dummy opponent-action 
   ∃ (u : ∀ i, ι → S i → ℝ) (v : ι → ∀ j, S j → ℝ),
     ∀ ⦃i j : ι⦄, i ≠ j → ∀ (a : S i) (b : S j), P.skewEdge i j a b = u i j a + v i j b
 
-theorem IsSymmetric.isPairwisePotential {P : PolymatrixGame ι S} (h : P.IsSymmetric) :
-    P.IsPairwisePotential := by
-  intro i j hij xᵢ yᵢ xⱼ yⱼ
-  simp only [skewEdge, h hij, sub_self]
-  ring
-
-theorem IsSeparableSkew.isPairwisePotential {P : PolymatrixGame ι S} (h : P.IsSeparableSkew) :
-    P.IsPairwisePotential := by
+private theorem IsSeparableSkew.isPairwisePotential {P : PolymatrixGame ι S}
+    (h : P.IsSeparableSkew) : P.IsPairwisePotential := by
   obtain ⟨u, v, huv⟩ := h
   intro i j hij xᵢ yᵢ xⱼ yⱼ
   rw [huv hij yᵢ xⱼ, huv hij xᵢ xⱼ, huv hij xᵢ yⱼ, huv hij yᵢ yⱼ]
