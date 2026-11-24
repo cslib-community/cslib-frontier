@@ -57,12 +57,12 @@ only burns once"), so an unprotected agent incurs contagion loss `loss i` only o
   `Cslib.GameTheory.symmetricIDSSpec_criticalCost_eq_geom_sum`,
   `Cslib.GameTheory.tendsto_symmetricIDSSpec_cost_allFalse_atTop`,
   `Cslib.GameTheory.eventually_not_dominant_invest_symmetricIDSSpec` ([KunreutherHeal2003], §2,
-  Proposition 1 and Corollary 1, pp. 6–8): geometric-series contagion formulas, convergence of
+  Proposition 1 and Corollary 1, pp. 7–8): geometric-series contagion formulas, convergence of
   unprotected expected loss to `L` as `n → ∞`, and eventual failure of dominant-strategy investment
   for every `c > 0`.
 * `Cslib.GameTheory.eq_const_of_isPureNash_symmetricIDSSpec`,
   `Cslib.GameTheory.isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique`
-  ([KunreutherHeal2003], §2–§3, pp. 9–12): every pure Nash equilibrium of the `n`-agent
+  ([KunreutherHeal2003], §2–§3, pp. 9–13): every pure Nash equilibrium of the `n`-agent
   identical-agent IDS game with `c, p, q, L > 0` is symmetric (`all true` or `all false`), and any
   Pigouvian non-investment tax above `c - p L (1 - p q)^{n-1}` makes full investment the unique
   coarse correlated (and pure Nash) equilibrium.
@@ -110,7 +110,7 @@ open scoped Topology
 namespace Cslib.GameTheory
 
 /-- Parameters of a Class 1 **interdependent security (IDS) game** ([HealKunreuther2007], §3 & §5,
-pp. 7–14; [KunreutherHeal2003], §2, pp. 3–8): each agent `i : ι` chooses `Bool` (`true` = invest in
+pp. 6–16; [KunreutherHeal2003], §2, pp. 3–8): each agent `i : ι` chooses `Bool` (`true` = invest in
 protection at cost `investCost i`, `false` = remain unprotected with direct disaster probability
 `directProb i` and loss `loss i`), while each unprotected peer `j ≠ i` independently contaminates
 `i` with probability `contagion j i`. -/
@@ -1017,7 +1017,7 @@ theorem eq_const_of_isPureNash_symmetricIDSSpec {ι : Type*} [Fintype ι] [Decid
     exact mul_lt_of_lt_one_right hpow_prev_pos (by linarith)
   linarith [mul_lt_mul_of_pos_left hpow_lt hpL_pos]
 
-/-- **Pigouvian non-investment tax uniqueness** ([KunreutherHeal2003], §3, p. 12): levying a tax
+/-- **Pigouvian non-investment tax uniqueness** ([KunreutherHeal2003], §3, p. 13): levying a tax
 `t` on unprotected agents is strategically equivalent to lowering investment cost from `c` to
 `c - t` (up to an additive constant `t`), and whenever `c - p L (1 - p q)^{|ι|-1} < t`, universal
 investment `fun _ => true` is the **unique coarse correlated equilibrium** (and hence unique
@@ -1332,7 +1332,7 @@ theorem symmetricIDSSpec_poa_eq_inv_one_sub {q L : ℝ} (hq0 : 0 < q) (hq1 : q <
     field_simp [hne]
 
 /-- **Pure-Nash Price of Anarchy in the Prisoner's Dilemma IDS regime** (original, motivated by the
-two-airline Prisoner's Dilemma example of [KunreutherHeal2003], §2, Table 3, p. 11): when
+Prisoner's Dilemma regime `p * L < c` in [KunreutherHeal2003], §2, Table 3, p. 9): when
 `p * L < c` (with `0 < p ≤ 1`, `0 ≤ q ≤ 1`, `0 < L`), `(fun _ => false)` is the unique pure Nash
 equilibrium of the `(n + 1)`-agent symmetric IDS game and its social cost is at most `(1 + n * q)`
 times the social cost of every profile `s'` (at most `(n + 1)` times optimal since `q ≤ 1`). -/

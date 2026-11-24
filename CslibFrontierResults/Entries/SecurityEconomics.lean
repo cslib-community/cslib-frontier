@@ -54,8 +54,9 @@ register_result "varian-system-reliability-equilibria-and-welfare" where
     xBar i₀; Fact 5 is proved on equilibrium system reliability prob (totalEffort _) and \
     prob (weakestLink _) across sub-populations S ⊆ T via SystemReliabilitySpec.restrict. \
     Original robust ((∑ i, c_i) / c_min) / |ι| Price-of-Anarchy bounds are kept separate from \
-    this entry. Sequential two-player moves (§8, Fact 10) and Bayesian incomplete information \
-    (§9, Facts 11–12) are not covered."
+    this entry. Sequential two-player moves (§8, Facts 10–12, pp. 11–13), adversaries (§9, \
+    pp. 13–14), combined sum-of-efforts and weakest-link technologies (§10, pp. 14–15), and \
+    imperfect-information future work (§11, p. 15) are not covered."
 
 register_result "kunreuther-heal-interdependent-security-and-tipping" where
   title := "Contagion limits, symmetric pure Nash equilibria, Pigouvian taxation, and tipping \
@@ -65,10 +66,10 @@ register_result "kunreuther-heal-interdependent-security-and-tipping" where
     { paper := KunreutherHeal2003,
       theorem := "Proposition 1, Corollary 1, §2 symmetry of pure Nash equilibria, and §3 \
         Pigouvian non-investment tax",
-      locator := "§§2–3, NBER PDF pp. 6–12 (J. Risk Uncertain. 26(2–3), 231–249)" },
+      locator := "§§2–3, NBER PDF pp. 3–13 (J. Risk Uncertain. 26(2–3), 231–249)" },
     { paper := HealKunreuther2007,
       theorem := "Theorems 1, 2, and 3, Definition 2, and §5.2 multi-round tipping cascades",
-      locator := "§§3 and 5.2, and Appendix p. 20, Wharton PDF pp. 8–16, 20 (Risk Analysis \
+      locator := "§§3 and 5.2, and Appendix p. 20, Wharton PDF pp. 6–16, 20 (Risk Analysis \
         27(3), 621–634)" }
   ]
   theorems := [
@@ -86,10 +87,10 @@ register_result "kunreuther-heal-interdependent-security-and-tipping" where
     Cslib.GameTheory.eq_const_of_isPureNash_symmetricIDSSpec,
     Cslib.GameTheory.isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
   ]
-  scope := "Finite Class 1 binary interdependent security games (CostGame ι (fun _ => Bool)) with \
-    non-additive direct and peer-contagion losses (surveyed qualitatively in \
-    Anderson–Moore–Nagaraja–Ozment 2007, Chapter 25, §25.2.1, printed p. 635). For \
-    Heal–Kunreuther (2007) Theorem 3, isCriticalCoalition_of_higher_contagion adds \
+  scope := "Finite Class 1 (partial-protection) binary interdependent security games \
+    (CostGame ι (fun _ => Bool)) with non-additive direct and peer-contagion losses (surveyed \
+    qualitatively in Anderson–Moore–Nagaraja–Ozment 2007, Chapter 25, §25.2.1, printed p. 635). \
+    For Heal–Kunreuther (2007) Theorem 3, isCriticalCoalition_of_higher_contagion adds \
     normalized-reluctance alignment c_k / (p_k L_k) ≤ c_j / (p_j L_j) on replaced vs. replacing \
     agents (automatic for homogeneous (p, L, c)), correcting an omitted k ∈ M' \\ M case in \
     Appendix eq. (17) (p. 20) witnessed by checked Fin 3 and Fin 4 counterexamples in \
@@ -97,5 +98,5 @@ register_result "kunreuther-heal-interdependent-security-and-tipping" where
     (public-signal correlated equilibria, the 2-agent mixed-vs-correlated strict cost gap, \
     Roughgarden (1, μ)-smoothness CCE Price of Anarchy, and the 1 + n q Prisoner's Dilemma \
     social-cost ratio) are omitted from this source-attributed entry. Insurance, \
-    bankruptcy/limited liability, multi-period discounting, and Class 2 partial protection are \
-    not covered."
+    bankruptcy/limited liability, multi-period discounting, endogenous direct-loss risks (§4, \
+    pp. 11–12), and Class 2 complete protection (§6, pp. 17–19) are not covered."
