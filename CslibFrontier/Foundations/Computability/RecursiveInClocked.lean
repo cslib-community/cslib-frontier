@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Matthew Doty. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Matthew Doty. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Matthew Doty
+Authors: Christian Reitwiessner, Matthew Doty
 -/
 
 module
@@ -198,8 +198,8 @@ open Nat.RecursiveIn.Code (HasUniformCode)
 for input `n` run with fuel `k`, after it has received the answers `rs`. A family whose dialogue
 is computable is an oracle machine: its control is computable, and only the answers to its
 queries come from the oracle. -/
-def dialogue (P : ℕ → ClockedComp natOracleSpec ℕ) (x : (ℕ × ℕ) × List ℕ) : ℕ ⊕ Option ℕ :=
-  OracleComp.nextMove ((P x.1.1) x.1.2).run x.2
+def dialogue (P : ℕ → ClockedComp natOracleSpec ℕ) : (ℕ × ℕ) × List ℕ → ℕ ⊕ Option ℕ
+  | ((n, k), rs) => OracleComp.nextMove ((P n) k).run rs
 
 section Compile
 
