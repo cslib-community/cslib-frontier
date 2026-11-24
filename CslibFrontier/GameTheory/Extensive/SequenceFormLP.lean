@@ -31,18 +31,19 @@ extensive-form games with perfect recall ([vonStengel2007], Sections 3.10–3.11
   `isSeqBestResponseTrue_iff_dual`, `isSeqNash_iff_complementarity`): a realization plan is a
   sequence-form best response iff it satisfies dual feasibility and complementary slackness with an
   information-set multiplier vector, yielding the bilinear sequence-form complementarity / LCP
-  characterization of Nash equilibria ([vonStengel2007], Sections 3.10–3.11).
+  characterization of Nash equilibria ([vonStengel2007], Theorem 3.14, Section 3.11, p. 74).
 * **Equivalence with mixed and behavioral Nash equilibria** (`isMixedNash_toCostGame_iff_isSeqNash`,
   `isBehaviorNash_iff_isSeqNash`, `exists_isSeqNash`, `exists_isBehaviorNash`): under perfect
   recall for both players, mixed Nash equilibria of `T.toCostGame` and behavioral Nash equilibria
   (`IsBehaviorNash`) match bilinear sequence-form equilibria (`IsSeqNash`) without requiring
   positive chance probabilities.
 * **Two-player zero-sum sequence-form LP minimax theorem**
-  (`ExtensiveTree.IsZeroSum.exists_seq_lp_minimax`, [vonStengel2007], Theorem 3.13): in a
-  two-player zero-sum extensive-form game with perfect recall, applying linear-programming strong
-  duality directly to the sequence-form LP pair produces optimal realization plans `(x*, y*)`
-  forming a sequence-form Nash equilibrium / saddle point together with induced minimax behavioral
-  strategies via Kuhn's theorem (`ExtensiveTree.IsZeroSum.exists_behavior_minimax`).
+  (`ExtensiveTree.IsZeroSum.exists_seq_lp_minimax`, [vonStengel2007], Theorem 3.13, Section 3.11,
+  p. 73): in a two-player zero-sum extensive-form game with perfect recall, applying
+  linear-programming strong duality directly to the sequence-form LP pair produces optimal
+  realization plans `(x*, y*)` forming a sequence-form Nash equilibrium / saddle point together with
+  induced minimax behavioral strategies via Kuhn's theorem
+  (`ExtensiveTree.IsZeroSum.exists_behavior_minimax`).
 
 ## Main definitions
 
@@ -63,8 +64,9 @@ extensive-form games with perfect recall ([vonStengel2007], Sections 3.10–3.11
 * `Cslib.GameTheory.Extensive.isSeqBestResponseFalse_iff_dual`,
   `Cslib.GameTheory.Extensive.isSeqBestResponseTrue_iff_dual`: best-response KKT / complementarity
   characterization.
-* `Cslib.GameTheory.Extensive.isSeqNash_iff_complementarity`: sequence-form LCP / complementarity
-  characterization of two-player Nash equilibria.
+* `Cslib.GameTheory.Extensive.isSeqNash_iff_complementarity`: **Theorem 3.14**
+  ([vonStengel2007], Section 3.11, p. 74) — sequence-form LCP / complementarity characterization of
+  two-player Nash equilibria.
 * `Cslib.GameTheory.Extensive.isMixedNash_toCostGame_iff_isSeqNash`,
   `Cslib.GameTheory.Extensive.isBehaviorNash_iff_isSeqNash`,
   `Cslib.GameTheory.Extensive.exists_isSeqNash`,
@@ -72,13 +74,14 @@ extensive-form games with perfect recall ([vonStengel2007], Sections 3.10–3.11
   and behavioral Nash equilibria.
 * `Cslib.GameTheory.Extensive.ExtensiveTree.IsZeroSum.exists_seq_lp_minimax`,
   `Cslib.GameTheory.Extensive.ExtensiveTree.IsZeroSum.exists_behavior_minimax`: **Theorem 3.13**
-  ([vonStengel2007], Section 3.10) — zero-sum extensive-form minimax equilibrium directly from
-  sequence-form LP duality.
+  ([vonStengel2007], Section 3.11, p. 73) — zero-sum extensive-form minimax equilibrium directly
+  from sequence-form LP duality.
 
 ## References
 
 * [B. von Stengel, *Equilibrium Computation for Two-Player Games in Strategic and Extensive
-  Form*][vonStengel2007], Sections 3.10–3.11 and Theorem 3.13.
+  Form*][vonStengel2007], Sections 3.10–3.11 (pp. 72–74), Theorem 3.13 (p. 73), and
+  Theorem 3.14 (p. 74).
 -/
 
 public section
@@ -137,7 +140,7 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
   change b σ ≤ ((seqMat T i)ᵀ *ᵥ p) σ
   rw [hrow_eval σ]
   by_cases hnil : σ.1 = []
-  · have hσ_nil : σ = SeqVar.nil T i := Subtype.ext hnil
+  · have hσ_nil : σ = SeqVar.nil T i := Subtype.ext (by simp [hnil])
     subst hσ_nil
     have hnone : (seqMat T i *ᵥ Pi.single (SeqVar.nil T i) (1 : ℝ)) none = 1 := by
       rw [seqMat_mulVec_none, Pi.single_eq_same]
@@ -150,21 +153,20 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
         sum_eq_zero fun a _ => by
           have hne : SeqVar.infoSeqExt hpr h.2 a ≠ SeqVar.nil T i := by
             intro heq
-            exact seqVar_infoSeqExt_ne_nil hpr h.2 a (congrArg Subtype.val heq)
+            exact seqVar_infoSeqExt_ne_nil hpr h.2 a (by simpa using congrArg Subtype.val heq)
           exact Pi.single_eq_of_ne hne _
       rw [hsum0, add_zero]
       by_cases hi : T.infoSeq i h.1 = []
       · have heq : SeqVar.infoSeq hpr h.2 = SeqVar.nil T i := by
           apply Subtype.ext
           rw [SeqVar.infoSeq_val, hi]
-          rfl
+          simp
         simp [hi, heq]
       · have hne : SeqVar.infoSeq hpr h.2 ≠ SeqVar.nil T i := by
           intro heq
           apply hi
           have hv := congrArg Subtype.val heq
-          rw [SeqVar.infoSeq_val] at hv
-          exact hv
+          simpa [SeqVar.infoSeq_val] using hv
         simp [hi, hne]
     rw [hnone, mul_one]
     simp_rw [hsome]
@@ -208,7 +210,7 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
     have hnone : (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) none = 0 := by
       rw [seqMat_mulVec_none]
       have hne : SeqVar.nil T i ≠ σ₀ := fun heq =>
-        seqVar_infoSeqExt_ne_nil hpr h₀.2 a₀ (congrArg Subtype.val heq).symm
+        seqVar_infoSeqExt_ne_nil hpr h₀.2 a₀ (by simpa [σ₀] using (congrArg Subtype.val heq).symm)
       exact Pi.single_eq_of_ne hne _
     rw [hnone, mul_zero, zero_add]
     rw [← add_sum_erase univ _ (mem_univ h₀)]
@@ -306,7 +308,7 @@ theorem seqRhs_dotProduct (T : ExtensiveTree ι H Act) (i : ι)
     [Fintype {h : H i // T.OccursInfoSet i h}]
     (q : Option {h : H i // T.OccursInfoSet i h} → ℝ) :
     seqRhs T i ⬝ᵥ q = q none := by
-  simp [dotProduct, seqRhs]
+  simp [dotProduct]
 
 @[simp]
 theorem dotProduct_seqRhs (T : ExtensiveTree ι H Act) (i : ι)
@@ -319,8 +321,8 @@ private theorem max_sub_max_neg (a : ℝ) : max a 0 - max (-a) 0 = a := by
   rcases le_total a 0 with h | h <;> simp [h]
 
 open Classical in
-/-- **Sequence-form linear programming strong duality** ([vonStengel2007], Section 3.10): under
-perfect recall, maximizing `b ⬝ᵥ x` over `T.IsRealizationPlan i x` and minimizing
+/-- **Sequence-form linear programming strong duality** ([vonStengel2007], Section 3.11, p. 73):
+under perfect recall, maximizing `b ⬝ᵥ x` over `T.IsRealizationPlan i x` and minimizing
 `seqRhs T i ⬝ᵥ q` (= `q none`) over dual multipliers `b ≤ (seqMat T i)ᵀ *ᵥ q` attain equal
 optima. -/
 theorem exists_isGreatest_isLeast_seqLP [DecidableEq ι] [∀ j h, Fintype (Act j h)]
@@ -461,7 +463,7 @@ variable {H : Bool → Type v} {Act : ∀ i, H i → Type}
 open Classical in
 /-- `x` is a **sequence-form best response** for player `false` to player `true`'s strategy `y`.
 -/
-noncomputable def ExtensiveTree.IsSeqBestResponseFalse [∀ i h, Fintype (Act i h)]
+@[expose] noncomputable def ExtensiveTree.IsSeqBestResponseFalse [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (x : SeqVar T false → ℝ) (y : SeqVar T true → ℝ) : Prop :=
   T.IsRealizationPlan false x ∧
     ∀ x', T.IsRealizationPlan false x' →
@@ -470,7 +472,7 @@ noncomputable def ExtensiveTree.IsSeqBestResponseFalse [∀ i h, Fintype (Act i 
 open Classical in
 /-- `y` is a **sequence-form best response** for player `true` to player `false`'s strategy `x`.
 -/
-noncomputable def ExtensiveTree.IsSeqBestResponseTrue [∀ i h, Fintype (Act i h)]
+@[expose] noncomputable def ExtensiveTree.IsSeqBestResponseTrue [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (y : SeqVar T true → ℝ) (x : SeqVar T false → ℝ) : Prop :=
   T.IsRealizationPlan true y ∧
     ∀ y', T.IsRealizationPlan true y' →
@@ -480,7 +482,7 @@ open Classical in
 /-- A pair `(x, y)` of realization plans is a **sequence-form Nash equilibrium**
 ([vonStengel2007], Sections 3.10–3.11) if each plan maximizes its bilinear payoff against the
 other. -/
-noncomputable def ExtensiveTree.IsSeqNash [∀ i h, Fintype (Act i h)]
+@[expose] noncomputable def ExtensiveTree.IsSeqNash [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (x : SeqVar T false → ℝ) (y : SeqVar T true → ℝ) : Prop :=
   T.IsSeqBestResponseFalse x y ∧ T.IsSeqBestResponseTrue y x
 
@@ -494,29 +496,12 @@ increases expected payoff. -/
     ∀ i (β' : ∀ h : H i, Act i h → ℝ), IsBehaviorStrategy β' →
       T.evalBehavior (Function.update β i β') i ≤ T.evalBehavior β i
 
-private theorem exists_mixed_for_realizationPlan [∀ i, Fintype (H i)]
-    [∀ i, DecidableEq (H i)] [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
-    {T : ExtensiveTree Bool H Act} {i : Bool} (hpr : T.PerfectRecall i)
-    {x : SeqVar T i → ℝ} (hx : T.IsRealizationPlan i x) :
-    ∃ μ : PureStrategy H Act i → ℝ, IsMixedStrategy μ ∧ T.mixedToRealizationPlan i μ = x := by
-  let β := T.realizationPlanToBehavior i hpr x
-  have hβ : IsBehaviorStrategy β := isBehaviorStrategy_realizationPlanToBehavior hpr hx
-  refine ⟨behaviorToMixed β, isMixedStrategy_behaviorToMixed hβ, ?_⟩
-  ext σ
-  have hnodup : (σ.1.map Sigma.fst).Nodup := by
-    obtain ⟨z, τ, hz⟩ := σ.2
-    have hzn : ((z.seq i).map Sigma.fst).Nodup := hpr.noRepeatedInfoSet z
-    rw [← hz, List.map_append] at hzn
-    exact List.Nodup.of_append_left hzn
-  rw [ExtensiveTree.mixedToRealizationPlan_def, realizationProbMixed_behaviorToMixed hβ hnodup]
-  exact congrFun (behaviorToRealizationPlan_realizationPlanToBehavior hpr hx) σ
-
 open Classical in
 /-- **Complementarity / KKT characterization of sequence-form best response** for player `false`
-([vonStengel2007], Sections 3.10–3.11): under perfect recall, `x` is a sequence-form best response
-to `y` iff `x` is a valid realization plan and there exists an information-set multiplier vector `q`
-satisfying dual feasibility `T.seqPayoffMat false *ᵥ y ≤ (seqMat T false)ᵀ *ᵥ q` and complementary
-slackness. -/
+([vonStengel2007], Section 3.11, pp. 73–74): under perfect recall, `x` is a sequence-form best
+response to `y` iff `x` is a valid realization plan and there exists an information-set multiplier
+vector `q` satisfying dual feasibility `T.seqPayoffMat false *ᵥ y ≤ (seqMat T false)ᵀ *ᵥ q` and
+complementary slackness. -/
 theorem isSeqBestResponseFalse_iff_dual [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
     {T : ExtensiveTree Bool H Act} [Fintype (H false)] (hpr : T.PerfectRecall false)
     (x : SeqVar T false → ℝ) (y : SeqVar T true → ℝ) :
@@ -535,7 +520,7 @@ theorem isSeqBestResponseFalse_iff_dual [∀ i h, Fintype (Act i h)] [∀ i h, N
 
 open Classical in
 /-- **Complementarity / KKT characterization of sequence-form best response** for player `true`
-([vonStengel2007], Sections 3.10–3.11). -/
+([vonStengel2007], Section 3.11, p. 74). -/
 theorem isSeqBestResponseTrue_iff_dual [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
     {T : ExtensiveTree Bool H Act} [Fintype (H true)] (hpr : T.PerfectRecall true)
     (y : SeqVar T true → ℝ) (x : SeqVar T false → ℝ) :
@@ -557,9 +542,9 @@ theorem isSeqBestResponseTrue_iff_dual [∀ i h, Fintype (Act i h)] [∀ i h, No
 
 open Classical in
 /-- **Sequence-form complementarity / LCP characterization of two-player Nash equilibria**
-([vonStengel2007], Sections 3.10–3.11): `(x, y)` is a sequence-form Nash equilibrium iff `(x, y)`
-are valid realization plans paired with dual multipliers `(q, p)` satisfying dual feasibility and
-complementary slackness. -/
+([vonStengel2007], Theorem 3.14, Section 3.11, p. 74): `(x, y)` is a sequence-form Nash equilibrium
+iff `(x, y)` are valid realization plans paired with dual multipliers `(q, p)` satisfying dual
+feasibility and complementary slackness. -/
 theorem isSeqNash_iff_complementarity [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
     {T : ExtensiveTree Bool H Act} [Fintype (H false)] [Fintype (H true)]
     (hpr : ∀ i, T.PerfectRecall i) (x : SeqVar T false → ℝ) (y : SeqVar T true → ℝ) :
@@ -596,13 +581,13 @@ theorem isMixedNash_toCostGame_iff_isSeqNash [∀ i, Fintype (H i)] [∀ i, Deci
     have hnash := CostGame.IsMixedNash.expectedCost_le_update ⟨hmix, hopt⟩
     refine ⟨⟨isRealizationPlan_mixedToRealizationPlan (hpr false) (hmix false), fun x' hx' => ?_⟩,
         ⟨isRealizationPlan_mixedToRealizationPlan (hpr true) (hmix true), fun y' hy' => ?_⟩⟩
-    · obtain ⟨μ', hμ', hplan'⟩ := exists_mixed_for_realizationPlan (hpr false) hx'
+    · obtain ⟨μ', hμ', hplan'⟩ := exists_mixed_of_isRealizationPlan (hpr false) hx'
       have hdev := hnash false hμ'
       rw [T.toCostGame_expectedCost, T.toCostGame_expectedCost, neg_le_neg_iff] at hdev
       rw [evalMixed_eq_seqPayoffMat, evalMixed_eq_seqPayoffMat] at hdev
       simpa only [Function.update_self, Function.update_of_ne (by decide : (true : Bool) ≠ false),
         hplan'] using hdev
-    · obtain ⟨μ', hμ', hplan'⟩ := exists_mixed_for_realizationPlan (hpr true) hy'
+    · obtain ⟨μ', hμ', hplan'⟩ := exists_mixed_of_isRealizationPlan (hpr true) hy'
       have hdev := hnash true hμ'
       rw [T.toCostGame_expectedCost, T.toCostGame_expectedCost, neg_le_neg_iff] at hdev
       rw [evalMixed_eq_seqPayoffMat, evalMixed_eq_seqPayoffMat] at hdev
@@ -742,16 +727,46 @@ section ZeroSumLP
 
 variable {H : Bool → Type v} {Act : ∀ i, H i → Type}
 
-/-- A two-player extensive-form game is **zero-sum** ([vonStengel2007], Section 3.10) if the
+/-- A two-player extensive-form game is **zero-sum** ([vonStengel2007], Section 3.11, p. 73) if the
 players' payoffs sum to `0` at every terminal leaf. -/
-def ExtensiveTree.IsZeroSum (T : ExtensiveTree Bool H Act) : Prop :=
+@[expose] def ExtensiveTree.IsZeroSum (T : ExtensiveTree Bool H Act) : Prop :=
   ∀ z : Terminal T, z.payoff false + z.payoff true = 0
 
-theorem ExtensiveTree.isZeroSum_iff (T : ExtensiveTree Bool H Act) :
-    T.IsZeroSum ↔ ∀ z : Terminal T, z.payoff false + z.payoff true = 0 :=
-  Iff.rfl
-
 namespace ExtensiveTree.IsZeroSum
+
+open Classical in
+private theorem realizationProbBehavior_eq_one_of_forall {i : Bool}
+    (β : ∀ h : H i, Act i h → ℝ) :
+    ∀ {l : Seq H Act i}, (∀ p ∈ l, β p.1 p.2 = 1) → realizationProbBehavior β l = 1
+  | [], _ => by simp
+  | p :: l, hl => by
+      rw [realizationProbBehavior_cons, hl p List.mem_cons_self, one_mul]
+      exact realizationProbBehavior_eq_one_of_forall β fun q hq =>
+        hl q (List.mem_cons_of_mem _ hq)
+
+open Classical in
+private theorem realizationProbBehavior_eq_zero_of_exists {i : Bool}
+    (β : ∀ h : H i, Act i h → ℝ) :
+    ∀ {l : Seq H Act i} {q : Choice H Act i},
+      q ∈ l → β q.1 q.2 = 0 → realizationProbBehavior β l = 0
+  | [], _, hmem, _ => False.elim (List.not_mem_nil hmem)
+  | p :: l, q, hmem, hq0 => by
+      rw [realizationProbBehavior_cons]
+      rcases List.mem_cons.1 hmem with rfl | hmem'
+      · rw [hq0, zero_mul]
+      · rw [realizationProbBehavior_eq_zero_of_exists β hmem' hq0, mul_zero]
+
+open Classical in
+private theorem realizationProbBehavior_congr {i : Bool}
+    (β₁ β₀ : ∀ h : H i, Act i h → ℝ) :
+    ∀ {l : Seq H Act i},
+      (∀ p ∈ l, β₁ p.1 p.2 = β₀ p.1 p.2) →
+      realizationProbBehavior β₁ l = realizationProbBehavior β₀ l
+  | [], _ => by simp
+  | p :: l, h => by
+      rw [realizationProbBehavior_cons, realizationProbBehavior_cons,
+        h p List.mem_cons_self,
+        realizationProbBehavior_congr β₁ β₀ fun q hq => h q (List.mem_cons_of_mem _ hq)]
 
 open Classical in
 private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
@@ -763,8 +778,7 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
   by_cases hnil : σ.1 = []
   · refine .inl ⟨hnil, ?_⟩
     ext τ
-    simp only [ExtensiveTree.behaviorToRealizationPlan, realizationProbBehavior,
-      Pi.single_apply]
+    simp only [ExtensiveTree.behaviorToRealizationPlan_apply, Pi.single_apply]
     by_cases hτ : τ = σ
     · subst hτ
       simp [hnil]
@@ -781,27 +795,16 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
       if (⟨h, a⟩ : Choice H Act i) ∈ target ∧ (⟨h, a⟩ : Choice H Act i) ≠ ⟨h₀, a₀⟩ then 1 else 0
     refine ⟨β₁, β₀, ?_⟩
     ext τ
-    simp only [Pi.sub_apply, ExtensiveTree.behaviorToRealizationPlan, realizationProbBehavior,
-      Pi.single_apply]
+    simp only [Pi.sub_apply, ExtensiveTree.behaviorToRealizationPlan_apply, Pi.single_apply]
     by_cases hτ : τ = SeqVar.infoSeqExt hpr hh₀ a₀
     · rw [hτ]
       simp only [↓reduceIte, SeqVar.infoSeqExt_val]
-      have hprod1 : (target.map fun p => β₁ p.1 p.2).prod = 1 := by
-        have hlist : ∀ l : Seq H Act i, (∀ p ∈ l, p ∈ target) →
-            (l.map fun p => β₁ p.1 p.2).prod = 1 := fun l hl => by
-          induction l with
-          | nil => simp
-          | cons p l ih =>
-            simp only [List.map_cons, List.prod_cons]
-            rw [show β₁ p.1 p.2 = 1 by simp [β₁, hl p List.mem_cons_self], one_mul]
-            exact ih fun q hq => hl q (List.mem_cons_of_mem _ hq)
-        exact hlist target fun _ h => h
-      have hmem₀ : (⟨h₀, a₀⟩ : Choice H Act i) ∈ target := by simp [target]
-      have hprod0 : (target.map fun p => β₀ p.1 p.2).prod = 0 := by
-        apply List.prod_eq_zero
-        refine List.mem_map.2 ⟨⟨h₀, a₀⟩, hmem₀, ?_⟩
-        simp [β₀]
-      change (target.map fun p => β₁ p.1 p.2).prod - (target.map fun p => β₀ p.1 p.2).prod = 1
+      have hprod1 : realizationProbBehavior β₁ target = 1 :=
+        realizationProbBehavior_eq_one_of_forall β₁ fun p hp => by simp [β₁, hp]
+      have hprod0 : realizationProbBehavior β₀ target = 0 :=
+        realizationProbBehavior_eq_zero_of_exists β₀
+          (by simp [target] : (⟨h₀, a₀⟩ : Choice H Act i) ∈ target) (by simp [β₀])
+      change realizationProbBehavior β₁ target - realizationProbBehavior β₀ target = 1
       rw [hprod1, hprod0, sub_zero]
     · simp only [hτ, ↓reduceIte]
       by_cases hall : ∀ p ∈ τ.1, p ∈ target
@@ -832,24 +835,23 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
               simp only [target, List.append_assoc, List.singleton_append]
             rw [hsplit', List.map_append, List.nodup_append] at hnodup
             exact hnodup.2.2 q.1 hq_fst q.1 (List.mem_cons_self) rfl
-        · have heq : (τ.1.map fun p => β₁ p.1 p.2).prod = (τ.1.map fun p => β₀ p.1 p.2).prod := by
-            congr 1
-            refine List.map_congr_left fun p hp => ?_
-            have hne : p ≠ ⟨h₀, a₀⟩ := fun h => hmem (h ▸ hp)
-            rcases p with ⟨ph, pa⟩
-            by_cases h1 : (⟨ph, pa⟩ : Choice H Act i) ∈ target
-            · simp only [β₁, β₀, h1, true_and, ↓reduceIte]
-              split_ifs with hne'
-              · rfl
-              · exact absurd hne hne'
-            · simp [β₁, β₀, h1]
+        · have heq : realizationProbBehavior β₁ τ.1 = realizationProbBehavior β₀ τ.1 :=
+            realizationProbBehavior_congr β₁ β₀ fun p hp => by
+              have hne : p ≠ ⟨h₀, a₀⟩ := fun h => hmem (h ▸ hp)
+              rcases p with ⟨ph, pa⟩
+              by_cases h1 : (⟨ph, pa⟩ : Choice H Act i) ∈ target
+              · simp only [β₁, β₀, h1, true_and, ↓reduceIte]
+                split_ifs with hne'
+                · rfl
+                · exact absurd hne hne'
+              · simp [β₁, β₀, h1]
           rw [heq, sub_self]
       · push Not at hall
         obtain ⟨q, hq_mem, hq_not⟩ := hall
-        have hzero1 : (τ.1.map fun p => β₁ p.1 p.2).prod = 0 :=
-          List.prod_eq_zero (List.mem_map.2 ⟨q, hq_mem, by simp [β₁, hq_not]⟩)
-        have hzero0 : (τ.1.map fun p => β₀ p.1 p.2).prod = 0 :=
-          List.prod_eq_zero (List.mem_map.2 ⟨q, hq_mem, by simp [β₀, hq_not]⟩)
+        have hzero1 : realizationProbBehavior β₁ τ.1 = 0 :=
+          realizationProbBehavior_eq_zero_of_exists β₁ hq_mem (by simp [β₁, hq_not])
+        have hzero0 : realizationProbBehavior β₀ τ.1 = 0 :=
+          realizationProbBehavior_eq_zero_of_exists β₀ hq_mem (by simp [β₀, hq_not])
         rw [hzero1, hzero0, sub_self]
 
 theorem evalBehavior_true [∀ i h, Fintype (Act i h)] {T : ExtensiveTree Bool H Act}
@@ -940,7 +942,7 @@ private theorem seq_weak_duality_upper [∀ i h, Fintype (Act i h)] {T : Extensi
 
 open Classical in
 /-- **Weak duality** between player `false`'s maximin sequence-form LP and player `true`'s
-minimax sequence-form LP ([vonStengel2007], Section 3.10). -/
+minimax sequence-form LP ([vonStengel2007], Section 3.11, p. 73). -/
 theorem seq_weak_duality [∀ i h, Fintype (Act i h)] {T : ExtensiveTree Bool H Act}
     [Fintype (H false)] [Fintype (H true)]
     {x : SeqVar T false → ℝ} {y : SeqVar T true → ℝ}
@@ -954,8 +956,8 @@ theorem seq_weak_duality [∀ i h, Fintype (Act i h)] {T : ExtensiveTree Bool H 
   ⟨seq_weak_duality_lower hy hq, seq_weak_duality_upper hx hp⟩
 
 open Classical in
-/-- **Zero-sum sequence-form LP minimax theorem** ([vonStengel2007], Theorem 3.13, Section 3.10):
-in a two-player zero-sum extensive-form game with perfect recall, the sequence-form LP pair
+/-- **Zero-sum sequence-form LP minimax theorem** ([vonStengel2007], Theorem 3.13, Section 3.11,
+p. 73): in a two-player zero-sum extensive-form game with perfect recall, the sequence-form LP pair
 `max { q none | x ≥ 0, E₁ x = e₁, E₂ᵀ q ≤ Aᵀ x }` and
 `min { p none | y ≥ 0, E₂ y = e₂, A y ≤ E₁ᵀ p }` attains a common optimal value `v`, and any
 optimal solutions `(x*, y*)` form a sequence-form Nash equilibrium / minimax saddle point with
