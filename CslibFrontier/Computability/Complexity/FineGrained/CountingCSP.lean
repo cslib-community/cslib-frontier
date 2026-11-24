@@ -121,20 +121,11 @@ theorem computableInPolyTime_validDeclaredCSP (encRel : Rel ↪ List Bool) (k : 
       (fun x : DeclaredCSP Rel => validDeclaredCSP k x.numVars x.formula)
       (encDeclaredCSP encRel) encBool := by
   have hN : ComputableInPolyTime (fun x : DeclaredCSP Rel => x.numVars)
-      (encDeclaredCSP encRel) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp
-      (encDeclaredCSP_numVars_polyTime encRel ComputableInPolyTime.id')
-  have hlt : ComputableInPolyTime (fun p : DeclaredCSP Rel × ℕ => decide (p.2 < p.1.numVars))
-      (encPair (encDeclaredCSP encRel) encNat) encBool := by fun_prop
+      (encDeclaredCSP encRel) encNat := unary_to_binary.comp (by fun_prop)
   have hvars : ComputableInPolyTime
       (fun x : DeclaredCSP Rel => x.formula.vars.all fun v => decide (v < x.numVars))
       (encDeclaredCSP encRel) encBool :=
-    ComputableInPolyTime.allWithInput
-      ((computableInPolyTime_vars encRel encNat).comp (by fun_prop)) hlt
-  have hwidth : ComputableInPolyTime
-      (fun x : DeclaredCSP Rel => x.formula.all fun c => decide (c.scope.length ≤ k))
-      (encDeclaredCSP encRel) encBool := by
-    fun_prop
+    allWithInput ((computableInPolyTime_vars encRel encNat).comp (by fun_prop)) (by fun_prop)
   unfold validDeclaredCSP
   fun_prop
 
@@ -177,11 +168,11 @@ theorem exists_counter_of_polyTime_toDeclaredCSP {α : Type} {encA : α ↪ List
       (∀ x, S x ≤ a * ((encA x).length + 1) ^ b) := by
   let toCNFDecl (y : DeclaredCSP Rel) : DeclaredCNF :=
     { numVars := y.numVars, formula := y.formula.toCNFBounded k sem }
-  have htoCNF : ComputableInPolyTime toCNFDecl
-      (encDeclaredCSP encRel) (encDeclaredCNF) :=
-    encDeclaredCNF_mk_polyTime (encDeclaredCSP_numVars_polyTime encRel ComputableInPolyTime.id')
-      ((computableInPolyTime_toCNFBounded_of_forall encRel encNat k sem hsem).comp
-        (encDeclaredCSP_formula_polyTime encRel ComputableInPolyTime.id'))
+  have htoCNF : ComputableInPolyTime toCNFDecl (encDeclaredCSP encRel) encDeclaredCNF := by
+    open scoped DeclaredCNF in
+    have hform := computableInPolyTime_toCNFBounded_of_forall encRel encNat k sem hsem
+    unfold toCNFDecl
+    fun_prop
   obtain ⟨count, T, S, A, c, e, a, b, hcount, hspec, hT, hS⟩ :=
     CountingNativeEndpoint.exists_counter_of_polyTime_toDeclared k (htoCNF.comp hf) hvalid
       fun x hx => validDeclaredInput_toCNFBounded sem (hvalid_imp x hx)

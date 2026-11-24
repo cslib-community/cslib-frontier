@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.MeasureTheory.Function.L2Space
-import Mathlib.Analysis.InnerProductSpace.Projection.Submodule
 
 /-!
 # Inner products of `L²` classes of functions

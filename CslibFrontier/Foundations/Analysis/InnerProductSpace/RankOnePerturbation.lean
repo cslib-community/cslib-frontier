@@ -10,9 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.LinearAlgebra.TracePower
 import Mathlib.Analysis.InnerProductSpace.Trace
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Power growth and approximation of a rank-one direction

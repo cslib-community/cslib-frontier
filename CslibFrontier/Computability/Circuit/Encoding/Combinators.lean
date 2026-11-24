@@ -26,6 +26,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.TakeDrop
 
 /-!
@@ -1305,32 +1306,7 @@ theorem computableInPolyTime_balancedCode {Op α : Type} {encOp : Op ↪ List Bo
     fun_prop
   have hb : PolyBounded (fun a => (enc a).length)
       (fun a => tableBound encOp (n a) (op a) (unit a) (leaves a)) := by
-    have hnlen : ComputableInPolyTime (fun a => (encNat (n a)).length) enc encUnary :=
-      (encoding_length encNat).comp hn
-    have hoplen : ComputableInPolyTime (fun a => (encCode encOp (op a)).length) enc encUnary :=
-      (encoding_length (encCode encOp)).comp hop
-    have hulen : ComputableInPolyTime (fun a => (encCode encOp (unit a)).length) enc encUnary :=
-      (encoding_length (encCode encOp)).comp hu
-    have hllen : ComputableInPolyTime
-        (fun a => (encList (encCode encOp) (leaves a)).length) enc encUnary :=
-      (encoding_length (encList (encCode encOp))).comp hl
-    have hB : ComputableInPolyTime
-        (fun a => inputBudget encOp (op a) (unit a) (leaves a)) enc encUnary :=
-      (((hoplen.unary_add' hulen).unary_add' hllen).unary_add' (const 1))
-    have h2l1 := ((const 2).unary_mul' hcount).unary_add' (const 1)
-    have hM := h2l1.unary_mul' hB
-    have hW := h2l1.unary_mul'
-      (((hB.unary_add' hnlen).unary_add' ((const 3).unary_mul' hM)).unary_add' (const 2))
-    have h2W1 := ((const 2).unary_mul' hW).unary_add' (const 1)
-    have hC : ComputableInPolyTime
-        (fun a => entryBound encOp (n a) (op a) (unit a) (leaves a)) enc encUnary :=
-      ((((const 2).unary_mul' hM).unary_mul'
-        ((((const 4).unary_mul' hB).unary_add' (const 3)).unary_add'
-          (((const 2).unary_mul' hM).unary_mul' h2W1))).unary_add'
-        (const 1)).unary_add' (hM.unary_mul' h2W1)
-    have hl1 := hcount.unary_add' (const 1)
-    have hinner := hl1.unary_mul' (((const 2).unary_mul' hC).unary_add' (const 1))
-    exact polyBounded (hl1.unary_mul' (((const 2).unary_mul' hinner).unary_add' (const 1)))
+    growth_poly
   have ht := iterateWith (par := _root_.id) (count := fun a => (leaves a).length)
     (init := init) (step := step) id' hcount hi hs hb (fun a count hcount =>
       intervalTables_bound encOp (n a) (op a) (unit a) (leaves a) count hcount)
