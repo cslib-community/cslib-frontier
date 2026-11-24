@@ -113,13 +113,13 @@ private theorem liftWord_iterate_toNat {w : ℕ} (lower period r : BitVec w)
 
 /-- The residues of `T` modulo every period up to `K`, selected by the period. -/
 def residueWord {w : ℕ} (T K : ℕ) (period : BitVec w) : BitVec w :=
-  word (selectBits period fun j : Fin (K + 1) =>
+  BitString.equivBitVec (selectBits period fun j : Fin (K + 1) =>
     fun i : Fin w => (BitVec.ofNat w (T % j.val)).getLsbD i.val)
 
 private theorem residueWord_toNat {w T K : ℕ} (period : BitVec w)
     (hK : K < 2 ^ w) (hp : 0 < period.toNat) (hpK : period.toNat ≤ K) :
     (residueWord T K period).toNat = T % period.toNat := by
-  rw [residueWord, selectBits_of_toNat_lt _ _ (by omega), word_getLsbD,
+  rw [residueWord, selectBits_of_toNat_lt _ _ (by omega), BitString.equivBitVec_getLsbD,
     BitVec.toNat_ofNat]
   exact Nat.mod_eq_of_lt ((Nat.mod_lt _ hp).trans_le (hpK.trans hK.le))
 
@@ -184,7 +184,7 @@ private theorem synthesis_residueWord {n w : ℕ} (s : Set (BooleanFunction n))
   have h := Synthesis.selectBits (s := s) period
     (fun j : Fin (K + 1) => fun _ => fun i : Fin w =>
       (BitVec.ofNat w (T % j.val)).getLsbD i.val) hp fun _ _ => hconst _
-  simpa only [wordWires, residueWord, getLsbD_word] using h
+  simpa only [wordWires, residueWord, BitString.getLsbD_equivBitVec] using h
 
 /-- The repeated-interval index circuit has no dependence on the bit length of `T`. -/
 theorem synthesis_repeatWordIndex {n w : ℕ} (s : Set (BooleanFunction n))

@@ -246,34 +246,27 @@ private theorem foldMin_eq_none_iff {n : ℕ} {l : List (Fin n × ℕ)} :
 
 private theorem foldMin_mem_and_le {n : ℕ} {l : List (Fin n × ℕ)} {uk : Fin n × ℕ}
     (h : foldMin l = some uk) : uk ∈ l ∧ ∀ uk' ∈ l, PrioLE uk uk' := by
-  induction l generalizing uk with
-  | nil => simp [foldMin] at h
-  | cons a l ih =>
-    simp only [foldMin] at h
-    cases hl : foldMin l with
-    | none =>
-      rw [hl] at h
-      injection h with h
-      subst h
-      rw [foldMin_eq_none_iff.mp hl]
-      exact ⟨List.mem_singleton.mpr rfl, fun uk' huk' => by
-        rw [List.mem_singleton.mp huk']; exact PrioLE.refl _⟩
-    | some b =>
-      rw [hl] at h
-      injection h with h
-      subst h
-      obtain ⟨hb_mem, hb_le⟩ := ih hl
-      unfold chooseMin
-      split_ifs with hab
-      · refine ⟨List.mem_cons_self, fun uk' huk' => ?_⟩
-        rcases List.mem_cons.mp huk' with rfl | huk'
-        · exact PrioLE.refl _
-        · exact hab.trans (hb_le uk' huk')
-      · have hba : PrioLE b a := (PrioLE.total a b).resolve_left hab
-        refine ⟨List.mem_cons_of_mem a hb_mem, fun uk' huk' => ?_⟩
-        rcases List.mem_cons.mp huk' with rfl | huk'
-        · exact hba
-        · exact hb_le uk' huk'
+  fun_induction foldMin l generalizing uk with
+  | case1 => simp at h -- []
+  | case2 a l hl => -- a :: l, foldMin l = none
+    cases h
+    rw [foldMin_eq_none_iff.mp hl]
+    exact ⟨List.mem_singleton.mpr rfl, fun uk' huk' => by
+      rw [List.mem_singleton.mp huk']; exact PrioLE.refl _⟩
+  | case3 a l b hl ih => -- a :: l, foldMin l = some b
+    cases h
+    obtain ⟨hb_mem, hb_le⟩ := ih hl
+    unfold chooseMin
+    split_ifs with hab
+    · refine ⟨List.mem_cons_self, fun uk' huk' => ?_⟩
+      rcases List.mem_cons.mp huk' with rfl | huk'
+      · exact PrioLE.refl _
+      · exact hab.trans (hb_le uk' huk')
+    · have hba : PrioLE b a := (PrioLE.total a b).resolve_left hab
+      refine ⟨List.mem_cons_of_mem a hb_mem, fun uk' huk' => ?_⟩
+      rcases List.mem_cons.mp huk' with rfl | huk'
+      · exact hba
+      · exact hb_le uk' huk'
 
 /-- Unique present `(u, k)` minimizing `(k, u.val)` lexicographically, or `none` if empty. -/
 def findMin {n : ℕ} (s : State n) : Option (Fin n × ℕ) :=

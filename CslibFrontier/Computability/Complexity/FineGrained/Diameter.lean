@@ -966,8 +966,7 @@ theorem DecidableInTimeO.decidableInTimeO_OV_of_diameter {ε : ℝ} (hε : 0 < �
       rw [Real.rpow_add hX0, Real.rpow_one]
       have := hKb (encOV p).length
       push_cast at this
-      calc X * ((Nat.size (encOV p).length : ℝ) + 1) ^ D ≤ X * (K * X ^ (ε₀ / 4)) :=
-            mul_le_mul_of_nonneg_left this hX0.le
+      calc X * ((Nat.size (encOV p).length : ℝ) + 1) ^ D ≤ X * (K * X ^ (ε₀ / 4)) := by gcongr
         _ = K * (X * X ^ (ε₀ / 4)) := by ring
     -- the reduced instance has encoded length `O(X ^ (1 + δ))`
     have hLG : ((encGraph (toDiameter p)).length : ℝ) + 1 ≤ C₁ * X ^ (1 + ε₀ / 4) := by
@@ -1055,8 +1054,7 @@ theorem DecidableInTimeO.decidableInTimeO_OV_of_diameter {ε : ℝ} (hε : 0 < �
               have hNr : (0 : ℝ) ≤ ((p.1.length + p.2.length : ℕ) : ℝ) ^ r := by positivity
               calc 6 ^ r * (((p.1.length + p.2.length : ℕ) : ℝ) ^ r * ((OV.dim p : ℝ) + 1) ^ r)
                   ≤ 36 * (((p.1.length + p.2.length : ℕ) : ℝ) ^ r * ((OV.dim p : ℝ) + 1) ^ 2) :=
-                    mul_le_mul h6 (mul_le_mul_of_nonneg_left hd hNr) (by positivity)
-                      (by norm_num)
+                    by gcongr
                 _ = 36 * Y := rfl
           _ ≤ 36 * Y + 4 := by linarith
     have := hbound p

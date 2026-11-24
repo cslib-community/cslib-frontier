@@ -132,53 +132,32 @@ private def insertSortedNat (x : ℕ) : List ℕ → List ℕ
 
 private theorem mem_insertSortedNat (x : ℕ) (l : List ℕ) (z : ℕ) :
     z ∈ insertSortedNat x l ↔ z = x ∨ z ∈ l := by
-  induction l with
-  | nil => simp [insertSortedNat]
-  | cons y ys ih =>
-    dsimp only [insertSortedNat]
-    split_ifs with hlt heq
-    · simp
-    · subst heq
-      simp only [List.mem_cons]
-      tauto
-    · simp only [List.mem_cons, ih]
-      tauto
+  fun_induction insertSortedNat x l with
+  | case4 y ys _ _ ih => -- x > y: recurse
+    simp only [List.mem_cons, ih]
+    tauto
+  | _ => simp -- [], x < y, x = y
 
 private theorem length_insertSortedNat_le (x : ℕ) (l : List ℕ) :
     (insertSortedNat x l).length ≤ l.length + 1 := by
-  induction l with
-  | nil => simp [insertSortedNat]
-  | cons y ys ih =>
-    dsimp only [insertSortedNat]
-    split_ifs
-    · simp
-    · simp
-    · simp only [List.length_cons]
-      omega
+  fun_induction insertSortedNat x l <;> simp only [List.length_cons] <;> omega
 
 private theorem pairwise_lt_insertSortedNat (x : ℕ) {l : List ℕ} (hl : l.Pairwise (· < ·)) :
     (insertSortedNat x l).Pairwise (· < ·) := by
-  induction l with
-  | nil => simp [insertSortedNat]
-  | cons y ys ih =>
-    rw [List.pairwise_cons] at hl
-    obtain ⟨hy, hys⟩ := hl
-    dsimp only [insertSortedNat]
-    split_ifs with hlt heq
-    · rw [List.pairwise_cons]
-      refine ⟨?_, List.pairwise_cons.mpr ⟨hy, hys⟩⟩
-      intro z hz
-      rcases List.mem_cons.mp hz with rfl | hz'
-      · exact hlt
-      · exact lt_trans hlt (hy z hz')
-    · exact List.pairwise_cons.mpr ⟨hy, hys⟩
-    · have hyx : y < x := by omega
-      rw [List.pairwise_cons]
-      refine ⟨?_, ih hys⟩
-      intro z hz
-      rcases (mem_insertSortedNat x ys z).mp hz with rfl | hz'
-      · exact hyx
-      · exact hy z hz'
+  fun_induction insertSortedNat x l with
+  | case1 => simp -- []
+  | case2 y ys hlt => -- x < y: prepend x
+    refine List.pairwise_cons.mpr ⟨fun z hz => ?_, hl⟩
+    rcases List.mem_cons.mp hz with rfl | hz'
+    · exact hlt
+    · exact lt_trans hlt ((List.pairwise_cons.mp hl).1 z hz')
+  | case3 => exact hl -- x = y: unchanged
+  | case4 y ys hge hne ih => -- x > y: recurse
+    obtain ⟨hy, hys⟩ := List.pairwise_cons.mp hl
+    refine List.pairwise_cons.mpr ⟨fun z hz => ?_, ih hys⟩
+    rcases (mem_insertSortedNat x ys z).mp hz with rfl | hz'
+    · omega
+    · exact hy z hz'
 
 /-- Fuel-unrolled version of `insertSortedNat` for fixed-length lists in `ComputableInSpace`. -/
 private def insertSortedFuel : ℕ → ℕ → List ℕ → List ℕ

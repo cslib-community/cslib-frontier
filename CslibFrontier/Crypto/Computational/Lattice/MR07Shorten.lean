@@ -289,8 +289,7 @@ private theorem pow_shortenRoundBound_mul_lt_one {n B : ℕ} (hn : 0 < n) :
   have hBL : (B : ℝ) < (2 : ℝ) ^ L := by
     exact_mod_cast Nat.lt_pow_succ_log_self (by decide : 1 < 2) B
   have hbase : ((13 / 16 : ℝ) ^ 2) ^ 2 < 1 / 2 := by norm_num
-  have hstep1 : (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L ≤ (1 / 2 : ℝ) ^ L :=
-    pow_le_pow_left₀ (by positivity) hbase.le L
+  have hstep1 : (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L ≤ (1 / 2 : ℝ) ^ L := by gcongr
   have hone_term : (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L * (B : ℝ) < 1 := by
     calc (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L * (B : ℝ)
         ≤ (1 / 2 : ℝ) ^ L * (B : ℝ) := mul_le_mul_of_nonneg_right hstep1 (Nat.cast_nonneg B)
@@ -487,15 +486,13 @@ theorem ratOrthoScale_sq_bounds {sqS sqV : ℚ} (hS : 0 < sqS) (hV : 0 < sqV) :
 /-- `m × (m + 1)` `RatTable` whose rows are `{S j : j ≠ i}` ordered by `i.succAbove`. -/
 @[expose] def omitRowTable {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ) (i : Fin (m + 1)) :
     Cslib.LinearAlgebra.RatTable :=
-  ⟨m, m + 1, List.ofFn fun a : Fin m => List.ofFn fun k : Fin (m + 1) => S (i.succAbove a) k⟩
+  Cslib.RowTable.ofMatrix (Matrix.of fun a k => S (i.succAbove a) k)
 
 /-- Entry evaluation of `omitRowTable S i`. -/
 theorem omitRowTable_toMatrix_apply {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
     (i : Fin (m + 1)) (a : Fin m) (k : Fin (m + 1)) :
     (omitRowTable S i).toMatrix a k = S (i.succAbove a) k := by
-  simp only [omitRowTable, Cslib.LinearAlgebra.RatTable.toMatrix_apply,
-    Cslib.LinearAlgebra.RatTable.entry, List.getD_eq_getElem?_getD,
-    List.getElem?_ofFn, a.isLt, k.isLt, ↓reduceDIte, Option.getD_some]
+  simp [omitRowTable]
 
 /-- Executable rational orthogonal target `t = ρ • v ∈ ℚ^{m+1}` computed via `ratKernelBasis` on
 `omitRowTable S (maxSqNormIndex S)` and scaled by `ratOrthoScale`. -/
@@ -749,8 +746,7 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
                   (Function.update S (stepTarget S).1 u))
               ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel *
                   sqNormProd (Function.update S (stepTarget S).1 u) := hpot_o
-            _ ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel * ((13 / 16 : ℝ) ^ 2 * sqNormProd S) :=
-                mul_le_mul_of_nonneg_left hpot' (by positivity)
+            _ ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel * ((13 / 16 : ℝ) ^ 2 * sqNormProd S) := by gcongr
             _ = ((13 / 16 : ℝ) ^ 2) ^ (fuel + 1) * sqNormProd S := by rw [pow_succ]; ring
       · have hneg := shortenLoopFrom_succ_some_neg L stepTarget oracles r fuel S hcall hvalid
         dsimp only

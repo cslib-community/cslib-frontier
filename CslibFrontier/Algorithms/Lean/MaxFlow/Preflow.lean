@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -195,11 +196,7 @@ private theorem le_add_card_of_reflTransGen {r : V → V → Prop} {h : V → �
       · exact ih (Finset.mem_Icc.mpr ⟨hk.1, hky⟩)
       · have := hr x y hxy
         exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by omega⟩
-  have hcard := Finset.card_le_card (key u huw)
-  rw [Nat.card_Icc] at hcard
-  have := (Finset.card_image_le (s := Finset.univ) (f := h))
-  rw [Finset.card_univ] at this
-  omega
+  finset_card [key u huw, Nat.card_Icc (h w) (h u)]
 
 theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
     {u w : V} (huw : f.ResReachable u w) : h u + 1 ≤ h w + Fintype.card V :=
@@ -402,11 +399,7 @@ theorem IsValidLabeling.exists_gap {f : N.Preflow} {h : V → ℕ} (hh : f.IsVal
       · exact ⟨N.s, Finset.mem_univ _, hkn ▸ hh.source⟩
       · obtain ⟨v, hv⟩ := hocc k hk0 (by omega)
         exact ⟨v, Finset.mem_univ _, hv⟩
-  have h1 := Finset.card_le_card hsub
-  rw [Finset.card_range] at h1
-  have h2 := Finset.card_image_le (s := (Finset.univ : Finset V)) (f := h)
-  rw [Finset.card_univ] at h2
-  omega
+  finset_card [Finset.card_range (Fintype.card V + 1)]
 
 theorem IsValidLabeling.gapLevel_spec {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
     0 < gapLevel h ∧ gapLevel h < Fintype.card V ∧ ∀ v, h v ≠ gapLevel h := by

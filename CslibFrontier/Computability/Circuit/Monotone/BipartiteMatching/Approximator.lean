@@ -136,10 +136,10 @@ def top : Approximator n r s where
   isClosed := isClosed_self
 
 /-- The approximator of `false`: no matchings. -/
-def bot (hr : 1 ≤ r) : Approximator n r s where
+def bot : Approximator n r s where
   terms := ∅
   subset_matchings := empty_subset _
-  isClosed := isClosed_empty hr
+  isClosed := isClosed_empty
 
 /-- The approximator of a conjunction: the intersection of the families. -/
 def inf (A B : Approximator n r s) : Approximator n r s where
@@ -158,17 +158,15 @@ noncomputable def sup (A B : Approximator n r s) : Approximator n r s where
   decode_eq_true.2 ⟨∅, empty_mem_matchings, fun _ h => absurd h (notMem_empty _)⟩
 
 /-- `bot` decodes to `false`. -/
-@[simp] theorem decode_bot (hr : 1 ≤ r) (x : BitString (n * n)) :
-    (bot hr : Approximator n r s).decode x = false := by
+@[simp] theorem decode_bot (x : BitString (n * n)) :
+    (bot : Approximator n r s).decode x = false := by
   rw [Bool.eq_false_iff, Ne, decode_eq_true]
   exact fun ⟨_, h, _⟩ => absurd h (notMem_empty _)
-
-variable [Fact (2 ≤ r)]
 
 /-- The approximate interpretation of the monotone basis: `top` and `bot` for the constants, the
 intersection for a conjunction and the closure of the union for a disjunction. -/
 noncomputable def interpretation : Interpretation signature (Approximator n r s)
-  | .const b, _ => if b then top else bot (by have : 2 ≤ r := Fact.out; omega)
+  | .const b, _ => if b then top else bot
   | .and, A => inf (A 0) (A 1)
   | .or, A => sup (A 0) (A 1)
 
@@ -187,14 +185,17 @@ noncomputable def interpretation : Interpretation signature (Approximator n r s)
     (interpretation .or A).terms = closure r (matchings n s) ((A 0).terms ∪ (A 1).terms) :=
   rfl
 
+variable [Fact (2 ≤ r)]
+
 /-- The approximator of an input variable: the matchings with at most `s` edges through its
 edge. -/
 def input (i : Fin (n * n)) : Approximator n r s where
   terms := (matchings n s).filter (finProdFinEquiv.symm i ∈ ·)
   subset_matchings := filter_subset _ _
   isClosed W := by
-    rintro ⟨hW, V, hV, hVW⟩
+    rintro ⟨hW, h⟩
     have hr : 2 ≤ r := Fact.out
+    obtain ⟨V, hV, hVW⟩ := (impliedBy_iff_of_two_le hr).1 h
     refine mem_filter.2 ⟨hW, hVW ⟨0, by omega⟩ ⟨1, by omega⟩ (by simp) (mem_inter.2 ⟨?_, ?_⟩)⟩
     exacts [(mem_filter.1 (hV _)).2, (mem_filter.1 (hV _)).2]
 

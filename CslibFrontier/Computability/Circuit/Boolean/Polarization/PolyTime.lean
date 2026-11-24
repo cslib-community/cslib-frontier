@@ -122,13 +122,13 @@ theorem xorMixStageCode_code (c : Bool) (j n : ℕ) :
 and `c₁` of circuits with `n` inputs and `m` outputs. -/
 def xorMixBlockCode (n m : ℕ) (c₀ c₁ : List (Op × List ℕ) × List ℕ) :
     List (Op × List ℕ) × List ℕ :=
-  compCode (n + 1) (muxCode m) (appendCode (n + 1) ([], [0])
+  compCode (n + 1) (muxCircuit m).code (appendCode (n + 1) ([], [0])
     (appendCode (n + 1) (compCode (n + 1) c₁ ([], (List.range n).map (· + 1)))
       (compCode (n + 1) c₀ ([], (List.range n).map (· + 1)))))
 
 theorem xorMixBlockCode_code {n m : ℕ} (C₀ C₁ : Circuit signature n m) :
     xorMixBlockCode n m C₀.code C₁.code = (xorMixBlock C₀ C₁).code := by
-  rw [xorMixBlockCode, muxCode_code,
+  rw [xorMixBlockCode,
     ← Circuit.code_wiring_eq_map (σ := signature) (f := (Fin.succ : Fin n → Fin (n + 1)))
       (g := (· + 1)) (fun _ => rfl),
     show (([], [0]) : List (Op × List ℕ) × List ℕ) =
@@ -221,7 +221,7 @@ theorem computableInPolyTime_xorMixBlockCode {α : Type} {enc : α ↪ List Bool
       have := unary_to_binary.comp (snd enc encUnary)
       fun_prop
     exact (const []).prod (mapWithInput (range.comp hn) hi)
-  exact computableInPolyTime_compCode hn1 (computableInPolyTime_muxCode.comp hm)
+  exact computableInPolyTime_compCode hn1 (computableInPolyTime_muxCircuit.comp hm)
     (computableInPolyTime_appendCode hn1 (const _)
       (computableInPolyTime_appendCode hn1 (computableInPolyTime_compCode hn1 hc₁ hsucc)
         (computableInPolyTime_compCode hn1 hc₀ hsucc)))

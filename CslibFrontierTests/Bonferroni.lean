@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Probability.Bonferroni
 public import Mathlib.MeasureTheory.Measure.Count
-import Mathlib.Tactic
+import Mathlib.SetTheory.Cardinal.NatCard
 
 /-!
 # Worked instances for `ProbabilityTheory` Bonferroni and Brun-sieve lemmas

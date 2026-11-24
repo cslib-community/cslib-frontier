@@ -8,8 +8,8 @@ Usage: python3 scripts/check_encoding_readability.py
 
 This checks rules 1 and 3 of "Encodings in statements" in AGENTS.md. A *compound encoding* is an
 application of one of the generic combinators `encPair`, `encList`, `encOption`, `encSum`,
-`encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them as an
-argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
+`encSigma`, `encFramed`, `encPi` or `encDPi` (`COMBINATORS`) with an application of one of them
+as an argument, such as `encPair encS (encOption encBool)`. `encPair encNat encNat` is not compound, and
 neither is `encPair encNat (encCSP (encOption e) encNat)`, whose inner combinator is an argument of
 another function. A compound encoding
 that the signatures of three or more public declarations of a module spell out is a violation
@@ -102,8 +102,8 @@ BASELINE = ROOT / "scripts/encoding_readability_baseline.json"
 UPDATE = "python3 scripts/check_encoding_readability.py --update-baseline"
 # The generic encoding combinators (`CslibFrontier/Computability/Machines/Turing/MultiTape/
 # Encodings/`) and their explicit arities.
-COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encFramed": 1,
-               "encPi": 1, "encDPi": 1}
+COMBINATORS = {"encPair": 2, "encList": 1, "encOption": 1, "encSum": 2, "encSigma": 2,
+               "encFramed": 1, "encPi": 1, "encDPi": 1}
 # A compound term is repeated when at least this many public declarations of a module spell it out.
 MIN_DECLARATIONS = 3
 
@@ -112,8 +112,6 @@ MODIFIER = r"(?:public|private|protected|noncomputable|unsafe|partial|nonrec|sco
 PREFIX = re.compile(r"(?:open|set_option|include|omit|variable|attribute|unseal|seal|#\w+)\b"
                     r"[^\n]*?(?<![\w'.!?])in(?![\w'!?])")
 HEADER = re.compile(rf"((?:{MODIFIER}\s+)*)(class\s+inductive|[a-z_]+)(?![\w'!?])")
-# `public meta section`, which `proof_lengths.COMMAND` does not recognize as a command.
-EXTRA_SCOPE = re.compile(rf"^(?:@\[[^\]\n]*\]\s*)*(?:{MODIFIER}\s+)+section\b", re.M)
 DECLARATIONS = {"theorem", "lemma", "def", "abbrev", "instance", "structure", "class",
                 "class inductive", "inductive", "opaque", "axiom"}
 TYPE_DECLARATIONS = {"structure", "class", "class inductive", "inductive"}
@@ -351,8 +349,7 @@ def commands(text: str) -> Iterator[Command]:
     namespace, default visibility and `variable`s in force. Comments and strings are masked."""
     _, syntax = masks(text)
     in_module = re.search(r"^module\b", syntax, re.M) is not None
-    starts = sorted(set(command_starts(syntax)) | {m.start() for m in EXTRA_SCOPE.finditer(syntax)})
-    starts.append(len(syntax))
+    starts = command_starts(syntax) + [len(syntax)]
     scopes = [_Scope("", (), not in_module)]
     for start, end in zip(starts, starts[1:]):
         command = syntax[start:end]

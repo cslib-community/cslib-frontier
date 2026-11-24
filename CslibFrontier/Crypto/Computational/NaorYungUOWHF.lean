@@ -21,11 +21,11 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
 import CslibFrontier.Probability.PMF.Finiteness
 import CslibFrontier.Crypto.Game.Order
@@ -1028,18 +1028,10 @@ theorem OneWayPermutation.targetCollisionResistant_naorYungCompression
     (naorYungCompression hf.oneWay.polyTime).TargetCollisionResistant := by
   apply TargetCollisionResistantOn.of_negligible
   intro adversary hadversary
-  have hstep_tcr := hf.targetCollisionResistantOn_naorYungStep
-  have hredPPT : (naorYungCascadeAdversary f adversary).IsPPT :=
-    isPPT_naorYungCascadeAdversary hf.oneWay.polyTime hadversary
-  have hloss_pb : PolynomiallyBounded (fun n => dyadicSize (n + 1)) :=
-    (ComputableInPolyTime.unary_dyadicSize.comp
-      (ComputableInPolyTime.unary_add.comp
-        (ComputableInPolyTime.id'.prod (.const 1)))).polynomiallyBounded
-  refine negligible_of_le
-    ((hstep_tcr.negligible (naorYungCascadeAdversary f adversary) hredPPT).polynomiallyBounded_mul
-      hloss_pb)
-    fun n => ?_
-  exact succProbability_targetCollisionGame_naorYungCompressionEval_le adversary n
+  have hneg := hf.targetCollisionResistantOn_naorYungStep.negligible
+    (naorYungCascadeAdversary f adversary)
+    (isPPT_naorYungCascadeAdversary hf.oneWay.polyTime hadversary)
+  negligible using succProbability_targetCollisionGame_naorYungCompressionEval_le adversary
 
 /-- **Naor–Yung unrestricted `KeyedHashFamily`** ([NaorYung1989], 1995 revision, Sections 2.3 and
 3): hashes arbitrary-length bit strings `List Bool` to `(n + 1)`-bit digests under

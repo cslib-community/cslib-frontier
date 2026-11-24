@@ -129,9 +129,8 @@ theorem sampleSupport2_density_bounds {width n count : ℕ} (h : count ≤ n) (S
 @[aesop (rule_sets := [finiteness]) safe apply]
 theorem supportUpperDensity_ne_top (width n offset count : ℕ) :
     supportUpperDensity width n offset count ≠ ⊤ := by
-  apply ENNReal.prod_ne_top
-  intro j _
-  exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (by positivity)
+  unfold supportUpperDensity
+  finiteness
 
 /-- **Corrected HQC Lemma 6.5:** the density bounds transfer to every nonnegative payoff.
 Using extended nonnegative values also permits unbounded payoffs without summability premises. -/
@@ -222,11 +221,10 @@ private theorem upper_factor_real {M d : ℕ} (hM : 0 < M) (hd : 0 < d) :
 theorem supportLowerDensity_toReal (width n offset count : ℕ) :
     (supportLowerDensity width n offset count).toReal =
       ∏ j : Fin count, (1 - (2 ^ width % (n - (offset + j.val)) : ℕ) / (2 ^ width : ℝ)) := by
-  rw [supportLowerDensity, ENNReal.toReal_prod]
+  rw [supportLowerDensity]
+  ennreal_to_real
   apply Finset.prod_congr rfl
   intro j _
-  simp only [ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_ofNat,
-    Nat.cast_pow, Nat.cast_ofNat]
   simpa only [Nat.cast_pow, Nat.cast_ofNat] using
     lower_factor_real (M := 2 ^ width) (d := n - (offset + j.val)) (by positivity)
 
@@ -236,11 +234,10 @@ theorem supportUpperDensity_toReal {width n offset count : ℕ} (h : offset + co
       ∏ j : Fin count,
         (1 + ((n - (offset + j.val) : ℕ) -
           (2 ^ width % (n - (offset + j.val)) : ℕ)) / (2 ^ width : ℝ)) := by
-  rw [supportUpperDensity, ENNReal.toReal_prod]
+  rw [supportUpperDensity]
+  ennreal_to_real
   apply Finset.prod_congr rfl
   intro j _
-  simp only [ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_ofNat,
-    Nat.cast_pow, Nat.cast_ofNat]
   simpa only [Nat.cast_pow, Nat.cast_ofNat] using
     upper_factor_real (M := 2 ^ width) (d := n - (offset + j.val)) (by positivity)
       (by have := j.isLt; omega)

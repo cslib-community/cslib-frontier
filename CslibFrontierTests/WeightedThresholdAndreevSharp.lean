@@ -56,7 +56,7 @@ example (b m : ℕ) (idx : AndreevSharpIndex b m) :
     IsSignCoherent (andreevBlockVar b m) (argWeight (andreevSharpBottomOp b m idx) id) :=
   isSignCoherent_andreevSharpBottomOp idx
 
--- In the form of lower bounds over the gates read by the output gate (#4718's `hcoh`).
+-- In the form of lower bounds over the gates read by the output gate.
 example (b m : ℕ) {top : Fin (andreevSharpCircuit b m).size}
     (htop : (andreevSharpCircuit b m).outputs 0 = .gate top)
     {k : Fin (andreevSharpCircuit b m).size}

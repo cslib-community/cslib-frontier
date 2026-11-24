@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import Mathlib.Data.List.DropRight
 
 /-!
@@ -39,6 +40,8 @@ query list. Adding one to the encoded input length accounts for the empty word.
 
 * `Cslib.Complexity.PCPVerifier.fglssGraphIso`: the explicit edge list realizes the FGLSS graph.
 * `Cslib.Complexity.PCPVerifier.computableInO_fglssEdgeList`: the native machine certificate.
+* `Cslib.Complexity.PCPVerifier.computableInPolyTime_fglssEdgeList`: polynomial-time construction
+  under logarithmic randomness and a constant query bound.
 -/
 
 public section
@@ -333,5 +336,23 @@ theorem computableInO_fglssEdgeList (hV : V.PolyTime enc) (q : ℕ → ℕ)
   obtain ⟨T, S, hT, hS, h⟩ := nativePostprocess ((hx.prod hrand').prod ha)
     ((hi.add hTr).add hTa) ((hi.add hSr).add hSa) (V.polyGraphFrom hV)
   exact ⟨T, S, hT, hS, h⟩
+
+/-- Under a logarithmic coin bound and a constant query bound on valid random strings, the explicit
+FGLSS edge-list graph is computable in polynomial time. -/
+theorem computableInPolyTime_fglssEdgeList (hV : V.PolyTime enc) {c d : ℕ}
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    (hq : ∀ a ρ, ρ.length = V.coins a → (V.queries (a, ρ)).length ≤ d) :
+    ComputableInPolyTime V.fglssEdgeList enc encGraph := by
+  let size := fun a => 2 ^ (V.coins a + d) * ((enc a).length + 1)
+  have hsize : PolyBounded (fun a => (enc a).length) size :=
+    (((PolyBounded.of_polynomiallyBounded _
+        (Cslib.polynomiallyBounded_two_pow_mul_log c)).mul (.const (2 ^ d))).mul
+      (PolyBounded.self.add (.const 1))).mono fun a => by
+      dsimp only [size]
+      rw [Nat.pow_add]
+      exact Nat.mul_le_mul_right _
+        (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) (hcoins a)))
+  obtain ⟨T, S, hT, hS, h⟩ := V.computableInO_fglssEdgeList hV (fun _ => d) hq
+  exact h.computableInPolyTime (hT.comp hsize) (hS.comp hsize)
 
 end Cslib.Complexity.PCPVerifier

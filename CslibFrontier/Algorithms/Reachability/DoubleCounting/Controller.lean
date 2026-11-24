@@ -197,6 +197,30 @@ inductive ControllerVerdict where
   | decided (reachable : Bool)
   deriving DecidableEq, Repr
 
+/-- A verdict identifies the first nonunique round or decides reachability
+when all rounds have unique passing transcripts. -/
+abbrev ControllerVerdict.Correct {n : ℕ} (r : Fin n → Fin n → Prop) (s target : Fin n) :
+    ControllerVerdict → Prop
+  | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
+  | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target)
+
+/-- Two verdicts satisfying the exact controller specification agree. -/
+theorem ControllerVerdict.Correct.eq {n : ℕ} {r : Fin n → Fin n → Prop} {s target : Fin n}
+    {a b : ControllerVerdict} (ha : a.Correct r s target) (hb : b.Correct r s target) : a = b := by
+  cases a with
+  | bad i =>
+    cases b with
+    | bad j =>
+      congr 1
+      exact le_antisymm (le_of_not_gt fun h => hb.2 (ha.1 j h))
+        (le_of_not_gt fun h => ha.2 (hb.1 i h))
+    | decided hit => exact (ha.2 (hb.1 i)).elim
+  | decided hit =>
+    cases b with
+    | bad j => exact (hb.2 (ha.1 j)).elim
+    | decided answer =>
+      exact congrArg ControllerVerdict.decided (Bool.eq_iff_iff.mpr (ha.2.trans hb.2.symm))
+
 /-- Run the fuel-bounded controller with a supplied round and final membership action. -/
 @[expose] def runRoundsWith {m : Type → Type} [Monad m]
     (nextRound : ℕ → ℕ → Tally → m RoundUpdate) (member : ℕ → ℕ → Tally → m Bool) :
@@ -257,9 +281,7 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     (fuel k : ℕ) (hbound : n ≤ k + fuel) (hpos : 0 < fuel)
     (hgood : ∀ j ≤ k, ∃! w, Passes r s j w) :
     ∃ verdict, runRounds edge member target fuel k (expected r s k) = pure (some verdict) ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
-      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target) := by
+      verdict.Correct r s target := by
   classical
   induction fuel generalizing k with
   | zero => omega
@@ -301,9 +323,7 @@ theorem runController_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n :
     (hm : ∀ k, (∃! w, Passes r s k w) → ∀ v,
       member k (expected r s k) v = pure (by classical exact decide (v ∈ round r s k))) :
     ∃ verdict, runController edge member target = pure (some verdict) ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
-      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target) := by
+      verdict.Correct r s target := by
   have hgood (j : ℕ) (hj : j ≤ 0) : ∃! w, Passes r s j w :=
     (Nat.eq_zero_of_le_zero hj).symm ▸ existsUnique_passes_zero r s
   rw [runController, ← expected_zero r s]

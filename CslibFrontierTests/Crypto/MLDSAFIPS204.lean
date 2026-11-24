@@ -9,7 +9,6 @@ module
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
-import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
@@ -37,6 +36,10 @@ set_option linter.privateModule false
 set_option linter.hashCommand false
 
 open Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204
+
+-- At every FIPS level, a nonzero vector of multiples of q exceeds the fork's doubled radius.
+example (s : Level) : 2 * MLDSA.compressedSelfTargetRadius s.params 13 < 8380417 := by
+  cases s <;> decide
 
 -- Check low-before-high nibble order, the last accepted coefficient, and exhaustion with
 -- 255 accepted coefficients after the final high nibble is rejected.

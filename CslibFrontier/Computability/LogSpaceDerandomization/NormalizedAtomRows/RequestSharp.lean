@@ -71,7 +71,7 @@ theorem normalizedRequest_sharp_noOverflow
   · exact hh
   · simp only [Real.zero_rpow (by norm_num : (4⁻¹ : ℝ) ≠ 0), sub_self, abs_zero]
     exact add_nonneg (mul_nonneg hCp (sum_nonneg fun i hi =>
-      mul_nonneg (dyadicFloor_nonneg hδ.le _ _) (hε i (mem_range.mp hi)))) (mul_nonneg hCf hεf)
+      mul_nonneg (by positivity) (hε i (mem_range.mp hi)))) (mul_nonneg hCf hεf)
 
 
 omit [Fintype V] in
@@ -153,7 +153,7 @@ theorem normalizedRequest_sharp_firstOverflow
   · exact hh
   · simp only [Real.zero_rpow (by norm_num : (4⁻¹ : ℝ) ≠ 0), sub_self, abs_zero]
     exact add_nonneg (mul_nonneg hCp (sum_nonneg fun i hi =>
-      mul_nonneg (dyadicFloor_nonneg hδ.le _ _) (hε i ((mem_range.mp hi).trans hj))))
+      mul_nonneg (by positivity) (hε i ((mem_range.mp hi).trans hj))))
       (mul_nonneg hCt (sum_nonneg fun i hi => mul_nonneg (by positivity) (hε i (mem_Ico.mp hi).2)))
 
 

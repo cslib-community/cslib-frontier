@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BoundedSearch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
@@ -48,8 +49,6 @@ namespace Cslib.Complexity
 
 open _root_.Turing _root_.Turing.MultiTapeTM
 
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd'
-    ComputableInPolyTime.bool_and' in
 /-- **Bounded existential quantification in exponential time.** If a test `f` is computable within
 time and space polynomial in its encoded input, and `ℓ` is computable in unary in polynomial time,
 then whether some word of length `ℓ x` passes `f` with `x` is computable within time and space

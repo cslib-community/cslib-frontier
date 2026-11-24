@@ -17,8 +17,11 @@ For changed APIs and reuse refactors, follow [Check the API through its callers]
 inspect the actual caller and relevant sibling implementation, including generated certificates
 and any representation bridge. Compilation alone does not check placement or duplicated behavior.
 Check new and changed statements against
-[Structures for domain objects and records](statements.md#structures-for-domain-objects-and-records) and
-[Encodings in statements](statements.md#encodings-in-statements).
+[Structures for domain objects and records](statements.md#structures-for-domain-objects-and-records),
+[Encodings in statements](statements.md#encodings-in-statements) and
+[Running-time claims](statements.md#running-time-claims); a PR with any `TimeM` import or use,
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` import, tick/tactic extension (`✓`, `time_simps`,
+`time_spec`), or replacement hand-charged cost monad is blocked.
 Read new and changed proofs against the rest of their file and nearby modules, not only the diff:
 a new copy of an argument the library already makes is a finding when the
 [library quality standard](../CONTRIBUTING.md#library-quality-standard) says a shared lemma pays.
@@ -74,6 +77,21 @@ neighbouring API? In the review, name what you asked the author to delete, merge
 or say that you looked and found nothing to remove. A review without an answer to this question is
 incomplete. Do not use a zero reference count alone to remove expected mathematical API
 ([Check the API through its callers](workflow.md#check-the-api-through-its-callers)).
+
+**Automation must pay for itself.** When a change to a tactic, `simp` set, `fun_prop` rule or
+other automation is justified by the client code it removes, check that claim against the diff.
+
+- **Count both sides.** Compare what the change adds to the automation, its tests and supporting
+  lemmas with what it removes from clients, and have the PR description state the split. Net
+  growth is a finding unless the PR names a benefit other than length, such as a class of goals
+  that no longer needs manual plumbing, robustness against unfolding, or a measured speedup.
+- **Name each branch's callers.** For each new branch or feature of the automation, name the
+  callers that use it. A branch that recognises one definition's shape, one constant or one
+  module's hypotheses, and serves only that family of callers, belongs in a lemma those callers
+  apply, not in the automation. Ask the author to replace it with the lemma, or to show callers
+  outside the family that need it.
+- **Finish the migration.** Sibling sites of the pattern the automation now handles are migrated
+  in the same change. A migration that neither shortens nor clarifies a proof is left out.
 
 **Name the first real property.** For each new definition, construction or transcribed algorithm,
 say what its first non-trivial property is (signatures verify under the transcribed signer, the

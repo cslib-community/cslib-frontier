@@ -63,8 +63,8 @@ example (x : BitString (3 + 3)) :
 
 example (w : ℕ) :
     Synthesis interpretation (inputs (w + w) ∪ {fun _ => false})
-      (wordWires fun x => (word (BitString.fstBits x)).setWidth (w + w) *
-        (word (BitString.sndBits x)).setWidth (w + w))
+      (wordWires fun x => (BitString.equivBitVec (BitString.fstBits x)).setWidth (w + w) *
+        (BitString.equivBitVec (BitString.sndBits x)).setWidth (w + w))
       (Karatsuba.gates w) :=
   Synthesis.word_mul_karatsuba _ _
     (fun i => Or.inl ⟨Fin.castAdd w i, funext fun x => by simp⟩)

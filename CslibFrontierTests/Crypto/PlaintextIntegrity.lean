@@ -49,13 +49,11 @@ example {E : SymmetricCipher} : E.AuthenticatedEncryption ↔ E.INDCCA ∧ E.Enc
 example {E : SymmetricCipher} (hcca : E.INDCCA) : E.EncForge ↔ E.CiphertextIntegrity :=
   ⟨hcca.ciphertextIntegrity, SymmetricCipher.CiphertextIntegrity.encForge⟩
 
--- The hypotheses are satisfiable: Encrypt-then-MAC from a pseudorandom function is CCA-secure and
--- has plaintext integrity (the latter from its own authenticated encryption), so the theorem
--- applies to it.
+-- Encrypt-then-MAC built from a PRF satisfies the fixed-length real/ideal characterization.
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
-    (prfEncryptThenMAC family hprf.polyTime hprf.length_eq).AuthenticatedEncryption :=
-  hprf.indcca_prfEncryptThenMAC.authenticatedEncryption
-    hprf.authenticatedEncryption_prfEncryptThenMAC.2.encForge
+    (prfEncryptThenMAC family hprf.polyTime hprf.length_eq).RealIdealAE :=
+  (SymmetricCipher.realIdealAE_iff_indcca_and_encForge _).mpr
+    ⟨hprf.indcca_prfEncryptThenMAC, hprf.authenticatedEncryption_prfEncryptThenMAC.2.encForge⟩
 
 /-- A CI adversary that asks nothing and outputs the empty ciphertext. -/
 def silentAdversary : CIAdversary :=
