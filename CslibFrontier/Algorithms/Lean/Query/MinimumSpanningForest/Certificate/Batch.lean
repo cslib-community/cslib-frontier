@@ -13,7 +13,6 @@ public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.KeyOracle
 public import Mathlib.Analysis.Real.Sqrt
 import CslibFrontier.Algorithms.Lean.Query.FreeM.LiftM
 import CslibFrontier.Foundations.Combinatorics.SetFamily.HittingSet
-import Mathlib.Combinatorics.Enumerative.DoubleCounting
 import Mathlib.Tactic.IntervalCases
 
 /-!
@@ -562,22 +561,13 @@ private theorem clog_add_one_le_two_sqrt {d : ℕ} (hd : 1 ≤ d) :
   exact Real.le_sqrt_of_sq_le (by exact_mod_cast hsq)
 
 omit [DecidableEq E] in
-/-- Every edge other than a self-loop is at two vertices, so the degrees in `B` add up to at most
-`2 |B|`. -/
-private theorem sum_card_incident_le (ends : E → Sym2 V) (B : Finset E) (X : Finset V) :
-    ∑ v ∈ X, #(incident ends B v) ≤ 2 * #B := by
-  have h := sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow (s := X) (t := B)
-    (r := fun v e => v ∈ ends e ∧ ¬(ends e).IsDiag)
-  simp only [bipartiteAbove, bipartiteBelow] at h
-  simp only [incident]
-  rw [h, mul_comm]
-  refine sum_le_card_nsmul _ _ _ fun e _ => ?_
-  calc #{v ∈ X | v ∈ ends e ∧ ¬(ends e).IsDiag} ≤ #(ends e).toFinset :=
-        card_le_card fun v hv => Sym2.mem_toFinset.2 (mem_filter.1 hv).2.1
-    _ ≤ 2 := by
-        by_cases hd : (ends e).IsDiag
-        · rw [Sym2.card_toFinset_of_isDiag _ hd]; norm_num
-        · rw [Sym2.card_toFinset_of_not_isDiag _ hd]
+/-- The degrees in `B` of the vertices with an edge add up to at most `2 |B|`
+(`Cslib.Multigraph.sum_card_incident_le`). -/
+private theorem sum_card_incident_active_le (ends : E → Sym2 V) (B : Finset E) (X : Finset V) :
+    ∑ v ∈ active ends B X, #(incident ends B v) ≤ 2 * #B :=
+  (sum_le_sum fun _ _ => card_le_card fun _ he =>
+    mem_filter.2 ⟨(mem_incident.1 he).1, (mem_incident.1 he).2.1⟩).trans
+    (Multigraph.sum_card_incident_le ends B _)
 
 omit [DecidableEq E] in
 /-- The successful tests of a batch, after Cauchy–Schwarz: `∑ k (⌈log₂ d_v⌉ + 1) ≤ k √(8 n |B|)`
@@ -590,7 +580,7 @@ private theorem sum_testBound_le (ends : E → Sym2 V) (B : Finset E) (X : Finse
   have hdeg : ∀ v ∈ A, 1 ≤ #(incident ends B v) := fun v hv =>
     card_pos.2 (mem_filter.1 hv).2
   have hsum : (∑ v ∈ A, (#(incident ends B v) : ℝ)) ≤ 2 * #B := by
-    exact_mod_cast (sum_le_sum_of_subset hAX).trans (sum_card_incident_le ends B X)
+    exact_mod_cast sum_card_incident_active_le ends B X
   have hcs := Real.sum_sqrt_mul_sqrt_le A (f := fun _ => (1 : ℝ))
     (g := fun v => (#(incident ends B v) : ℝ)) (fun _ => zero_le_one) (fun _ => by positivity)
   simp only [Real.sqrt_one, one_mul, sum_const, nsmul_eq_mul, mul_one] at hcs
@@ -1077,8 +1067,7 @@ theorem countQueries_batch_le (hw : Function.Injective w)
       (selOf test r st B (LEQuery.keyOracle w))) st.spoke st.vertices.toList
   rw [length_toList] at hspk
   have hdeg : (∑ v ∈ A, #(incident st.ends B v) : ℝ) ≤ 2 * #B := by
-    exact_mod_cast (sum_le_sum_of_subset (filter_subset _ _)).trans
-      (sum_card_incident_le st.ends B st.vertices)
+    exact_mod_cast sum_card_incident_active_le st.ends B st.vertices
   have htb := sum_testBound_le st.ends B st.vertices (r ^ 2)
   simp only [eval_batch]
   rw [hdec]
