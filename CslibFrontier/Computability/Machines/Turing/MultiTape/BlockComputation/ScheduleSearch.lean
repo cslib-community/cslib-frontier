@@ -144,8 +144,8 @@ theorem initial_inSpace : ComputableInSpace (initial E) encArgs (encState E)
     (fun a => (encArgs a).length) := by
   have hid : ComputableInSpace (fun a : Args => a) encArgs encArgs
       (fun a => (encArgs a).length) := of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
-  have hc := budget_prod hid (budget_prod (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encOption encBool) none (.refl _)))
+  have hc := budget_prod hid (budget_prod (budget_const (encB := encNat) 0)
+    (budget_const (encB := encOption encBool) none))
   exact (budget_comp_linear (of_inO (ComputableInO.inl encCaller
     (encPair encCaller E.encState))) hc).of_enc_eq fun _ => rfl
 
@@ -171,7 +171,7 @@ theorem request_inSpace (k : ℕ) : ComputableInSpace (request E k) encCaller
   have hsome := budget_comp_linear (encC := encOption E.encState)
     (of_inO (ComputableInDegree.optionSome (enc₁ := E.encState)).inO_one) hstart
   exact (budget_ite (pending_inSpace k) hsome
-    (budget_const (encB := encOption E.encState) none (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const (encB := encOption E.encState) none)).of_enc_eq fun _ => rfl
 
 /-- Native resumption retains arguments and either a decision or the incremented counter. -/
 theorem resume_inSpace : ComputableInSpace (fun a : CallerState × E.State => resume E a.1 a.2)
@@ -192,21 +192,21 @@ theorem resume_inSpace : ComputableInSpace (fun a : CallerState × E.State => re
 theorem answer_inSpace : ComputableInSpace (answer (E := E)) (encState E)
     (encOption encBool) (fun a => (encState E a).length) :=
   sumElim (snd encArgs (encPair encNat (encOption encBool))).snd'
-    (budget_const (encIn := encPair encCaller E.encState) none (.refl _))
+    (budget_const (encIn := encPair encCaller E.encState) none)
 
 private theorem caller_query_inSpace (k : ℕ) : ComputableInSpace (caller k).query encCaller
-    encNat (fun a => (encCaller a).length) := budget_const 0 (.refl _)
+    encNat (fun a => (encCaller a).length) := budget_const 0
 private theorem caller_next_inSpace (k : ℕ) : ComputableInSpace (caller k).next
     (encPair encCaller (encOption encBool)) encCaller
     (fun a => (encPair encCaller (encOption encBool) a).length) := fst _ _
 private theorem caller_emit_inSpace (k : ℕ) : ComputableInSpace (caller k).emit
     (encPair encCaller (encOption encBool)) encBits
-    (fun a => (encPair encCaller (encOption encBool) a).length) := budget_const [] (.refl _)
+    (fun a => (encPair encCaller (encOption encBool) a).length) := budget_const []
 private theorem caller_halted_inSpace (k : ℕ) : ComputableInSpace (caller k).halted encCaller
     encBool (fun a => (encCaller a).length) :=
   budget_finite Bool.not (pending_inSpace k)
 private theorem caller_finish_inSpace (k : ℕ) : ComputableInSpace (caller k).finish encCaller
-    encBits (fun a => (encCaller a).length) := budget_const [] (.refl _)
+    encBits (fun a => (encCaller a).length) := budget_const []
 
 /-- Native query component of the sequential search. -/
 theorem machine_query_inSpace (k : ℕ) : ComputableInSpace (machine E k).query (encState E)

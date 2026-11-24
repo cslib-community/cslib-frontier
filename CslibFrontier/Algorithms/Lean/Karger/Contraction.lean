@@ -249,11 +249,6 @@ private theorem contractTracked_of_lt {n k u v : ℕ} (W : Fin (k + 1) → Fin (
       ⟨k, contractMatrix W ⟨u, h.1⟩ ⟨v, h.2⟩, contractBlocks b ⟨u, h.1⟩ ⟨v, h.2⟩⟩ := by
   rw [contractTracked, dite_eq_left h]
 
-private theorem contractTracked_of_not_lt {n k u v : ℕ} (W : Fin (k + 1) → Fin (k + 1) → ℕ)
-    (b : Fin (k + 1) → Finset (Fin n)) (h : ¬(u < k + 1 ∧ v < k + 1)) :
-    contractTracked ⟨k + 1, W, b⟩ u v = ⟨k + 1, W, b⟩ := by
-  rw [contractTracked, dite_eq_right h]
-
 /-- Forgetting the blocks commutes with contraction. -/
 theorem toGraph_contractTracked {n : ℕ} (G : TrackedGraph n) (u v : ℕ) :
     (contractTracked G u v).toGraph = contractGraph G.toGraph u v := by
@@ -263,7 +258,7 @@ theorem toGraph_contractTracked {n : ℕ} (G : TrackedGraph n) (u v : ℕ) :
     by_cases h : u < k + 1 ∧ v < k + 1
     · rw [contractTracked_of_lt W b h, contractGraph, dite_eq_left h]
       rfl
-    · rw [contractTracked_of_not_lt W b h, contractGraph, dite_eq_right h]
+    · rw [contractTracked, dite_eq_right h, contractGraph, dite_eq_right h]
       rfl
 
 /-- The transition function of the contraction structure with blocks: `step` on the weights. -/

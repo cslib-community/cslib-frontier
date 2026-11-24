@@ -351,8 +351,7 @@ theorem depth_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     (toFormula op f).depth ≤ d := by
   induction d generalizing op with
   | zero => exact Nat.zero_le _
-  | succ d ih =>
-    cases op <;> exact Nat.succ_le_succ (Finset.sup_le fun j _ => ih _ _)
+  | succ d ih => cases op <;> circuit_bound [toFormula]
 
 /-- An alternating formula of depth `d` translates to a formula of AND/OR depth at most `d`. -/
 @[circuit_bound]
@@ -360,8 +359,7 @@ theorem depthWith_toFormula_le {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     (toFormula op f).depthWith Unbounded.andOrCost ≤ d := by
   induction d generalizing op with
   | zero => exact Nat.zero_le _
-  | succ d ih =>
-    cases op <;> exact Nat.add_le_add (Finset.sup_le fun j _ => ih _ _) le_rfl
+  | succ d ih => cases op <;> circuit_bound [toFormula, Unbounded.andOrCost]
 
 /-- The circuit computing the positive and the negated inputs, with one negation gate per
 input. -/
@@ -403,9 +401,7 @@ theorem depth_literalsCircuit_le (n : ℕ) : (literalsCircuit n).depth ≤ 1 := 
 @[circuit_bound]
 theorem depthWith_literalsCircuit (n : ℕ) :
     (literalsCircuit n).depthWith Unbounded.andOrCost = 0 :=
-  Nat.eq_zero_of_le_zero <| (Circuit.depthWith_append_le _ _ _).trans <| max_le
-    (Circuit.depthWith_wiring _ _).le
-    (Circuit.depthWith_pi_le _ _ fun _ => (Circuit.depthWith_oneGate _ _ _).le)
+  Nat.eq_zero_of_le_zero (by circuit_bound [literalsCircuit, Unbounded.andOrCost])
 
 /-- **Alternating formulas are circuits**: an alternating formula of depth `d` computing `f`
 with root `op` is a circuit over the unbounded fan-in basis of AND/OR depth at most `d`, and of

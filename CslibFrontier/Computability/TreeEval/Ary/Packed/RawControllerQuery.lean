@@ -39,8 +39,22 @@ namespace Cslib.TreeEval.Ary.Packed.RawController.Query
 
 open Turing MultiTapeTM ComputableInSpace
 
-/-- Reader and packing context, with one runtime raw configuration. -/
+/-- Reader and packing context, with one runtime raw configuration:
+`(reader, params, state)`. -/
 abbrev Context (γ : Type) := γ × (Params × State)
+
+/-- The reader and packing context. -/
+abbrev Context.reader {γ : Type} (q : Context γ) : γ := q.1
+
+/-- The runtime modulus, fan-in and register width. -/
+abbrev Context.params {γ : Type} (q : Context γ) : Params := q.2.1
+
+/-- The raw controller state. -/
+abbrev Context.state {γ : Type} (q : Context γ) : State := q.2.2
+
+/-- The raw controller's request at the context's runtime parameters and state. -/
+abbrev Context.need {γ : Type} (q : Context γ) : Option Need :=
+  RawController.need q.params.modulus q.params.fanIn q.params.width q.state
 
 /-- Context and parameters accompany one concrete node or gate request. -/
 abbrev RequestArgs (γ : Type) := γ × Params × Need
@@ -57,12 +71,13 @@ variable {γ τ : Type}
 
 /-- Apply a returned node or gate-vector reply, retaining context and parameters. -/
 @[expose] def advance (q : Context γ) (reply : Reply) : Context γ :=
-  (q.1, q.2.1, step q.2.1.1 q.2.1.2.1 q.2.1.2.2 reply q.2.2)
+  (q.reader, q.params,
+    step q.params.modulus q.params.fanIn q.params.width reply q.state)
 
 /-- Halt at a completed return or reject malformed bank storage. -/
 @[expose] def halted (q : Context γ) : Bool :=
-  !validBank q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2.1 ||
-    (q.2.2.2.2.isNone && q.2.2.2.1.isEmpty)
+  !validBank q.params.modulus q.params.fanIn q.params.width q.state.bank ||
+    (q.state.mode.isNone && q.state.stack.isEmpty)
 
 /-- Ordinary steps consume no input bit; required external data is obtained by subroutine calls. -/
 @[expose] def caller (initial : Context γ) : QueryMachine (Context γ) where
@@ -75,7 +90,7 @@ variable {γ τ : Type}
 
 /-- Construct a callee state only when the raw controller actually requests external data. -/
 @[expose] def request (start : RequestArgs γ → τ) (q : Context γ) : Option τ :=
-  (need q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2).map fun req => start (q.1, q.2.1, req)
+  q.need.map fun req => start (q.reader, q.params, req)
 
 /-- The reply is read from the callee's final state, with no stored output stream. -/
 @[expose] def resume (answer : τ → Reply) (q : Context γ) (t : τ) : Context γ :=
@@ -125,7 +140,7 @@ theorem advance_of_halted (q : Context γ) (reply : Reply) (hh : halted q = true
 
 /-- A pending request always belongs to a live caller. -/
 theorem halted_of_need_some (q : Context γ) (req : Need)
-    (hneed : need q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2 = some req) : halted q = false := by
+    (hneed : q.need = some req) : halted q = false := by
   rcases q with ⟨ctx, ⟨p, d, r⟩, bank, st, mode⟩
   by_cases hv : validBank p d r bank = true
   · simp only [halted, hv, Bool.not_true, Bool.false_or]
@@ -140,7 +155,7 @@ theorem halted_of_need_some (q : Context γ) (req : Need)
 /-- An ordinary controller transition consumes one physical step, including stationary halts. -/
 theorem runFrom_normal (initial : Context γ) (N : QueryMachine τ)
     (start : RequestArgs γ → τ) (answer : τ → Reply) (w : List Bool) (q : Context γ)
-    (hneed : need q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2 = none) :
+    (hneed : q.need = none) :
     (machine initial N start answer).runFrom w (.inl q) 1 =
       .inl (advance q (0, [])) := by
   have hreq : request start q = none := by simp [request, hneed]
@@ -156,11 +171,11 @@ theorem runFrom_normal (initial : Context γ) (N : QueryMachine τ)
 /-- An actual requested subroutine runs against the original input and returns its reply. -/
 theorem runFrom_requested (initial : Context γ) (N : QueryMachine τ)
     (start : RequestArgs γ → τ) (answer : τ → Reply) (w : List Bool) (q : Context γ)
-    (req : Need) (hneed : need q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2 = some req) (T : ℕ)
-    (hpre : ∀ i < T, N.halted (N.runFrom w (start (q.1, q.2.1, req)) i) = false)
-    (hhalt : N.halted (N.runFrom w (start (q.1, q.2.1, req)) T) = true) :
+    (req : Need) (hneed : q.need = some req) (T : ℕ)
+    (hpre : ∀ i < T, N.halted (N.runFrom w (start (q.reader, q.params, req)) i) = false)
+    (hhalt : N.halted (N.runFrom w (start (q.reader, q.params, req)) T) = true) :
     (machine initial N start answer).runFrom w (.inl q) (T + 2) =
-      .inl (advance q (answer (N.runFrom w (start (q.1, q.2.1, req)) T))) := by
+      .inl (advance q (answer (N.runFrom w (start (q.reader, q.params, req)) T))) := by
   apply QueryMachine.withCalls_runFrom_call
   · exact halted_of_need_some q req hneed
   · simp [request, hneed]
@@ -187,13 +202,13 @@ private theorem request_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bo
   have hsome := some_budget (budget_comp_linear hstart harg)
   have hnone : ComputableInSpace (fun _ : Context γ => (none : Option τ))
       (encContext encG) (encOption encT) (fun q => (encContext encG q).length) :=
-    budget_const none (.refl _)
+    budget_const none
   have hid : ComputableInSpace (fun q : Context γ => q) (encContext encG) (encContext encG)
       (fun q => (encContext encG q).length) := of_inO ComputableInDegree.id'.inO_one
   have hneed := budget_comp_linear need_inSpace (snd encG encFullState)
   refine (budget_comp_linear (optionElimSnd hnone hsome) (budget_prod hid hneed)).of_enc_eq ?_
   intro q
-  cases hn : need q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2 <;> simp [request, hn]
+  cases hn : q.need <;> simp [request, hn]
 
 private theorem advance_inSpace (encG : γ ↪ List Bool) :
     ComputableInSpace (fun a : Context γ × Reply => advance a.1 a.2)
@@ -222,7 +237,7 @@ private theorem caller_next_inSpace (encG : γ ↪ List Bool) (initial : Context
       (encContext encG) (fun a => (encPair (encContext encG) (encOption encBool) a).length) := by
   have h := budget_comp_linear (advance_inSpace encG)
     (budget_prod (fst (encContext encG) (encOption encBool))
-      (budget_const (encB := encReply) (0, []) (.refl _)))
+      (budget_const (encB := encReply) (0, [])))
   exact h.of_enc_eq fun _ => rfl
 
 private theorem caller_halted_inSpace (encG : γ ↪ List Bool) (initial : Context γ) :
@@ -241,7 +256,7 @@ theorem machine_query_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool
     ComputableInSpace (machine initial N start answer).query (encMachineState encG encT) encNat
       (fun q => (encMachineState encG encT q).length) :=
   QueryMachine.withCalls_query_inSpace _ _ _ _ _ _
-    (budget_const 0 (.refl _)) hquery (request_inSpace encG encT start hstart)
+    (budget_const 0) hquery (request_inSpace encG encT start hstart)
 
 /-- The concrete evaluator charges caller computation, supplier execution and reply extraction. -/
 theorem machine_next_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
@@ -268,7 +283,7 @@ theorem machine_emit_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
     ComputableInSpace (machine initial N start answer).emit
       (encPair (encMachineState encG encT) (encOption encBool)) encBits
       (fun q => (encPair (encMachineState encG encT) (encOption encBool) q).length) :=
-  QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _ (budget_const [])
     (request_inSpace encG encT start hstart)
 
 /-- The composite halting test uses the actual native raw-controller guard. -/
@@ -285,20 +300,20 @@ theorem machine_finish_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Boo
     (start : RequestArgs γ → τ) (answer : τ → Reply) :
     ComputableInSpace (machine initial N start answer).finish (encMachineState encG encT) encBits
       (fun q => (encMachineState encG encT q).length) :=
-  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [])
 
 /-- A suspended call stores exactly one caller and one callee. Every physical clock, including
 entry, the callee run and return, has the stated bound when both boundary callers fit `R`. -/
 theorem runFrom_requested_encoding_le (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
     (initial : Context γ) (N : QueryMachine τ) (start : RequestArgs γ → τ)
     (answer : τ → Reply) (w : List Bool) (q : Context γ) (req : Need)
-    (hneed : need q.2.1.1 q.2.1.2.1 q.2.1.2.2 q.2.2 = some req) (T R B : ℕ)
-    (hpre : ∀ i < T, N.halted (N.runFrom w (start (q.1, q.2.1, req)) i) = false)
-    (hhalt : N.halted (N.runFrom w (start (q.1, q.2.1, req)) T) = true)
+    (hneed : q.need = some req) (T R B : ℕ)
+    (hpre : ∀ i < T, N.halted (N.runFrom w (start (q.reader, q.params, req)) i) = false)
+    (hhalt : N.halted (N.runFrom w (start (q.reader, q.params, req)) T) = true)
     (hcaller : (encContext encG q).length ≤ R)
     (hreturn : (encContext encG
-      (advance q (answer (N.runFrom w (start (q.1, q.2.1, req)) T)))).length ≤ R)
-    (hcallee : ∀ i ≤ T, (encT (N.runFrom w (start (q.1, q.2.1, req)) i)).length ≤ B)
+      (advance q (answer (N.runFrom w (start (q.reader, q.params, req)) T)))).length ≤ R)
+    (hcallee : ∀ i ≤ T, (encT (N.runFrom w (start (q.reader, q.params, req)) i)).length ≤ B)
     (i : ℕ) (hi : i ≤ T + 2) :
     (encMachineState encG encT ((machine initial N start answer).runFrom w (.inl q) i)).length ≤
       2 * R + B + 2 :=

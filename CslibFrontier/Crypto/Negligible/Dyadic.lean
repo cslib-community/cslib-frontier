@@ -60,6 +60,7 @@ positive constant).
 * `Cslib.Crypto.negligible_of_coe_le`, `Cslib.Crypto.negligible_of_eventually_coe_le`: comparison
   against real-valued upper bounds via `Real.toNNReal`.
 * `Cslib.Crypto.sqrt_pow_two_div_pow_two_le`,
+  `Cslib.Crypto.negligible_sqrt_pow_two_div_pow_two`,
   `Cslib.Crypto.negligible_mul_sqrt_pow_two_div_pow_two`: square-root dyadic entropy estimates.
 -/
 
@@ -465,18 +466,25 @@ theorem sqrt_pow_two_div_pow_two_le {outputBits sourceBits n : ℕ}
       field_simp
 
 open Filter in
+/-- A square-root dyadic ratio `√(2 ^ outputBits n / 2 ^ sourceBits n)` is negligible under an
+eventual entropy surplus of twice the security parameter. -/
+theorem negligible_sqrt_pow_two_div_pow_two {outputBits sourceBits : ℕ → ℕ}
+    (hmargin : ∀ᶠ n in atTop, outputBits n + 2 * n ≤ sourceBits n) :
+    Negligible (fun n => NNReal.sqrt ((2 : ℝ≥0) ^ outputBits n / 2 ^ sourceBits n)) := by
+  refine negligible_of_eventually_le
+    (negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)) ?_
+  filter_upwards [hmargin] with n hn
+  exact sqrt_pow_two_div_pow_two_le hn
+
+open Filter in
 /-- A polynomial number of square-root dyadic errors is negligible under an eventual entropy
 surplus of twice the security parameter. -/
 theorem negligible_mul_sqrt_pow_two_div_pow_two
     {count outputBits sourceBits : ℕ → ℕ} (hcount : PolynomiallyBounded count)
     (hmargin : ∀ᶠ n in atTop, outputBits n + 2 * n ≤ sourceBits n) :
     Negligible (fun n => (count n : ℝ≥0) *
-      NNReal.sqrt ((2 : ℝ≥0) ^ outputBits n / 2 ^ sourceBits n)) := by
-  apply negligible_of_eventually_le
-    ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
-      hcount)
-  filter_upwards [hmargin] with n hn
-  exact mul_le_mul' le_rfl (sqrt_pow_two_div_pow_two_le hn)
+      NNReal.sqrt ((2 : ℝ≥0) ^ outputBits n / 2 ^ sourceBits n)) :=
+  (negligible_sqrt_pow_two_div_pow_two hmargin).polynomiallyBounded_mul hcount
 
 end Cslib.Crypto
 

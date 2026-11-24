@@ -154,27 +154,16 @@ theorem satisfies_clearDenominators_iff (P : RationalIntegerProgram) (x : Fin P.
   · rintro ⟨hn, hc⟩
     exact ⟨hc, fun j hj => (nonnegRow_iff hj x).mpr (hn ⟨j, hj⟩)⟩
 
+@[local fun_prop]
+private theorem computableInPolyTime_denominator :
+    ComputableInPolyTime denominator encInequality encNat := by
+  fun_prop [denominator]
+
+open scoped IntegerProgram in
 /-- Native polynomial-time denominator clearing, charging the binary sizes of products. -/
 theorem computableInPolyTime_clearDenominators :
     ComputableInPolyTime clearDenominators enc IntegerProgram.enc := by
-  have hden : ComputableInPolyTime denominator encInequality encNat := by
-    unfold denominator
-    fun_prop
-  have hrow : ComputableInPolyTime clearRow encInequality IntegerProgram.encInequality := by
-    unfold clearRow clearEntry
-    apply IntegerProgram.encInequality_mk_polyTime
-    · apply mapWithInput (by fun_prop)
-      apply intBin_mul' (by fun_prop)
-      exact intBin_natCast.comp (binary_div' (hden.comp (by fun_prop)) (by fun_prop))
-    · apply intBin_mul' (by fun_prop)
-      exact intBin_natCast.comp (binary_div' hden (by fun_prop))
-  unfold clearDenominators nonnegRow IntegerProgram.unitCoeffs
-  apply IntegerProgram.enc_mk_polyTime (by fun_prop)
-  apply listAppend' (mapWithInput (by fun_prop) (hrow.comp (by fun_prop)))
-  apply mapWithInput (by fun_prop)
-  apply IntegerProgram.encInequality_mk_polyTime ?_ (by fun_prop)
-  apply mapWithInput (by fun_prop)
-  fun_prop
+  fun_prop [clearDenominators, clearRow, clearEntry, nonnegRow, IntegerProgram.unitCoeffs]
 
 /-- The explicit denominator-clearing many-one reduction to integer-input feasibility. -/
 theorem polyTimeReducible_integerProgram :

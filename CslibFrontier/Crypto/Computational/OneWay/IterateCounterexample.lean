@@ -90,9 +90,6 @@ def collapse (g : List Bool → List Bool) (x : List Bool) : List Bool :=
   if lowZero x then List.replicate (x.length + 2 * (g x).length + 1) false
   else mark x.length (g x)
 
-private theorem lowZero_replicate (m : ℕ) : lowZero (List.replicate m false) = true := by
-  simp [lowZero, List.take_replicate, Nat.div_le_self]
-
 private theorem lowZero_mark (n : ℕ) (w : List Bool) : lowZero (mark n w) = true := by
   have hle : (mark n w).length / 2 ≤ (List.replicate (n + w.length) false).length := by
     simp only [mark, List.length_append, List.length_replicate, List.length_cons]
@@ -107,7 +104,7 @@ private theorem lowZero_collapse (g : List Bool → List Bool) (x : List Bool) :
     lowZero (collapse g x) = true := by
   unfold collapse
   split
-  · exact lowZero_replicate _
+  · simp [lowZero, List.take_replicate, Nat.div_le_self]
   · exact lowZero_mark _ _
 
 /-- A marked image determines its value. -/

@@ -505,9 +505,7 @@ theorem countP_eval_toCNF_add_length {Rel V : Type*} (sem : Rel → List Bool �
     have hc := countP_eval_constraintToCNF_add_one sem c σ
     simp only [CSP.toCNF, List.flatMap_cons, List.countP_append, List.length_append,
       List.length_cons, List.countP_cons] at ih ⊢
-    cases h : Constraint.eval sem σ c <;>
-      simp only [h, Bool.cond_true, Bool.cond_false, Bool.false_eq_true, ↓reduceIte] at hc ⊢ <;>
-      omega
+    grind
 
 end MaxCSP
 

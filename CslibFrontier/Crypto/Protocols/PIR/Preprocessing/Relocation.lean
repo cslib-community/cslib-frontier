@@ -35,7 +35,7 @@ $\pi : \text{Fin } m' \simeq \text{Fin } m'$ and a history $C$ of relocated phys
 relocation graph ([WangRen2025], Definition 3.6, p. 15) supporting:
 * `access s c`: returns the logical element (if any) currently stored at physical position $c$,
   by walking backward along `inEdge?` to the start of the chain.
-* `locate s e`: returns the current physical position of logical element $e \in \text{Fin } m$,
+* `locate s e hm`: returns the current physical position of logical element $e \in \text{Fin } m$,
   by walking forward along `outEdge?` to the end of the chain starting at $\pi(e)$.
 * `relocate s c`: appends $c$ to the relocation history $C$, adding a directed edge from $c$ to
   $\pi(m + |C|)$.
@@ -146,7 +146,7 @@ end RelocationState
 @[expose] def init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) : RelocationState m m' := ⟨perm, []⟩
 
 /-- The initial relocation state is valid whenever `m ≤ m'`. -/
-theorem valid_init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) (hm : m ≤ m' := by omega) :
+theorem valid_init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) (hm : m ≤ m') :
     (init (m := m) perm).Valid :=
   ⟨List.nodup_nil, by simp [init, hm]⟩
 
@@ -193,7 +193,7 @@ p. 14): if `c` appears at index `idx` in `history` and `m + idx < m'`, returns
 /-- Return the current physical position of logical element `e` ([WangRen2025],
 Construction 3.5, `DS.Locate`, p. 14). -/
 @[expose] def locate {m m' : ℕ} (s : RelocationState m m') (e : Fin m)
-    (hm : m ≤ m' := by omega) : Fin m' :=
+    (hm : m ≤ m') : Fin m' :=
   endOfChain s (s.perm (Fin.castLE hm e))
 
 /-- Relocate physical position `c` by appending it to `history` ([WangRen2025],
@@ -528,7 +528,7 @@ theorem endOfChain_startOfChain {m m' : ℕ} {s : RelocationState m m'} (hnd : s
 /-- **Fact 3.12** of [WangRen2025] (p. 15): `access s c = some e` iff the chain containing `c`
 starts at `s.perm (Fin.castLE hm e)`. -/
 theorem access_eq_some_iff {m m' : ℕ} (s : RelocationState m m') (c : Fin m') (e : Fin m)
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     access s c = some e ↔ s.perm (Fin.castLE hm e) = startOfChain s c := by
   simp only [access]
   split_ifs with hlt
@@ -556,7 +556,7 @@ theorem access_eq_none_iff {m m' : ℕ} (s : RelocationState m m') (c : Fin m') 
 /-- For any valid state `s` and logical element `e`, `access s (locate s e hm) = some e`
 ([WangRen2025], Lemma 3.13 / Lemma 3.14, p. 15). -/
 theorem access_locate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) (e : Fin m)
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     access s (locate s e hm) = some e := by
   rw [access_eq_some_iff s _ e hm, locate,
     startOfChain_endOfChain hv.1 (inEdge?_perm_castLE_eq_none s e hm)]
@@ -564,7 +564,7 @@ theorem access_locate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) (e 
 /-- For any valid state `s`, `locate s` is injective on `Fin m` ([WangRen2025], Lemma 3.14,
 p. 15). -/
 theorem locate_injective {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     Function.Injective (fun e => locate s e hm) := by
   intro e₁ e₂ h
   dsimp only at h
@@ -575,14 +575,14 @@ theorem locate_injective {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
 /-- For any valid state `s` and logical element `e`, `locate s e hm` is an unconsumed physical
 position (`locate s e hm ∉ s.history`). -/
 theorem locate_not_mem_history {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    (e : Fin m) (hm : m ≤ m' := by omega) :
+    (e : Fin m) (hm : m ≤ m') :
     locate s e hm ∉ s.history :=
   endOfChain_not_mem_history hv (inEdge?_perm_castLE_eq_none s e hm)
 
 /-- **Lemma 3.14** of [WangRen2025] (p. 15): for any valid state `s`, unconsumed position
 `c ∉ s.history`, and logical element `e`, `access s c = some e ↔ locate s e hm = c`. -/
 theorem access_eq_some_iff_locate_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (e : Fin m) (hm : m ≤ m' := by omega) :
+    {c : Fin m'} (hc : c ∉ s.history) (e : Fin m) (hm : m ≤ m') :
     access s c = some e ↔ locate s e hm = c := by
   refine ⟨fun h => ?_, fun h => h ▸ access_locate hv e hm⟩
   rw [locate, (access_eq_some_iff s c e hm).mp h,
@@ -592,8 +592,9 @@ theorem access_eq_some_iff_locate_eq {m m' : ℕ} {s : RelocationState m m'} (hv
 `e ∈ Fin m`, there exists a unique unconsumed physical position `c ∉ s.history` such that
 `access s c = some e`. -/
 theorem existsUnique_access_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    (e : Fin m) (hm : m ≤ m' := by omega) :
+    (e : Fin m) :
     ∃! c : Fin m', c ∉ s.history ∧ access s c = some e :=
+  have hm : m ≤ m' := Nat.le_of_add_right_le hv.2
   ⟨locate s e hm, ⟨locate_not_mem_history hv e hm, access_locate hv e hm⟩,
     fun _ ⟨hc, hacc⟩ => ((access_eq_some_iff_locate_eq hv hc e hm).mp hacc).symm⟩
 
@@ -602,7 +603,7 @@ theorem existsUnique_access_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.V
 /-- Relocating an unconsumed position `c ∉ s.history` when `m + s.history.length < m'` preserves
 `RelocationState.Valid`. -/
 theorem valid_relocate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) {c : Fin m'}
-    (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega) :
+    (hc : c ∉ s.history) (hlen : m + s.history.length < m') :
     (relocate s c).Valid := by
   refine ⟨?_, by simp only [relocate, List.length_append, List.length_singleton]; omega⟩
   rw [relocate, List.nodup_append]
@@ -696,8 +697,8 @@ private theorem endOfChain_relocate_of_eq {m m' : ℕ} {s : RelocationState m m'
 /-- **Lemma 3.15 (i)** of [WangRen2025] (p. 16): relocating an unconsumed physical position `c`
 leaves `locate` unchanged for every logical element `e` not currently located at `c`. -/
 theorem locate_relocate_of_ne {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega)
-    {e : Fin m} (hm : m ≤ m' := by omega) (hne : locate s e hm ≠ c) :
+    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
+    {e : Fin m} (hm : m ≤ m') (hne : locate s e hm ≠ c) :
     locate (relocate s c) e hm = locate s e hm :=
   endOfChain_relocate_of_ne hv hc hlen (inEdge?_perm_castLE_eq_none s e hm) hne
 
@@ -705,8 +706,8 @@ theorem locate_relocate_of_ne {m m' : ℕ} {s : RelocationState m m'} (hv : s.Va
 `locate s e hm = c`, then relocating `c` moves `e` to
 `endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)`. -/
 theorem locate_relocate_self_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega)
-    {e : Fin m} (hm : m ≤ m' := by omega) (heq : locate s e hm = c) :
+    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
+    {e : Fin m} (hm : m ≤ m') (heq : locate s e hm = c) :
     locate (relocate s c) e hm = endOfChain s (s.perm ⟨m + s.history.length, hlen⟩) := by
   refine endOfChain_relocate_of_eq hv hc hlen (inEdge?_perm_castLE_eq_none s e hm) ?_ heq
   intro h
@@ -716,8 +717,8 @@ theorem locate_relocate_self_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.
 /-- Combined one-step equation for `locate (relocate s c) e hm` ([WangRen2025], Lemma 3.15,
 p. 16). -/
 theorem locate_relocate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega)
-    (e : Fin m) (hm : m ≤ m' := by omega) :
+    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
+    (e : Fin m) (hm : m ≤ m') :
     locate (relocate s c) e hm =
       if locate s e hm = c then
         endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)
@@ -740,8 +741,8 @@ private theorem access_endOfChain_perm_add_eq_none {m m' : ℕ} {s : RelocationS
 position `c' = locate (relocate s c) e hm` was empty prior to the relocation
 (`access s c' = none`). -/
 theorem access_locate_relocate_self_eq_none {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega)
-    {e : Fin m} (hm : m ≤ m' := by omega) (heq : locate s e hm = c) :
+    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
+    {e : Fin m} (hm : m ≤ m') (heq : locate s e hm = c) :
     access s (locate (relocate s c) e hm) = none := by
   rw [locate_relocate_self_eq hv hc hlen hm heq]
   exact access_endOfChain_perm_add_eq_none hv.1 hlen
@@ -750,8 +751,8 @@ theorem access_locate_relocate_self_eq_none {m m' : ℕ} {s : RelocationState m 
 `c`, the element `e` is moved to an unconsumed position `c' ∉ (relocate s c).history` that was
 empty prior to the relocation (`access s c' = none`). -/
 theorem relocate_destination_empty {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega)
-    {e : Fin m} (hm : m ≤ m' := by omega) (heq : locate s e hm = c) :
+    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
+    {e : Fin m} (hm : m ≤ m') (heq : locate s e hm = c) :
     locate (relocate s c) e hm ∉ (relocate s c).history ∧
       access s (locate (relocate s c) e hm) = none :=
   ⟨locate_not_mem_history (valid_relocate hv hc hlen) e hm,
@@ -817,9 +818,9 @@ noncomputable def idealRunSteps {m m' : ℕ} (A : Fin m' → IdealCell m) :
     pure (A₂, out :: outs)
 
 /-- One step of the real relocation experiment ([WangRen2025], Experiment 3.1, p. 13): relocate
-`c` and output `some (locate (relocate s c) e)` if `access s c = some e` (`none` otherwise). -/
+`c` and output `some (locate (relocate s c) e hm)` if `access s c = some e` (`none` otherwise). -/
 @[expose] def realStep {m m' : ℕ} (s : RelocationState m m') (c : Fin m')
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     RelocationState m m' × Option (Fin m') :=
   let s' := relocate s c
   let out := (access s c).map (fun e => locate s' e hm)
@@ -827,7 +828,7 @@ noncomputable def idealRunSteps {m m' : ℕ} (A : Fin m' → IdealCell m) :
 
 /-- Run a sequence of real relocation steps on `s` ([WangRen2025], Experiment 3.1, p. 13). -/
 @[expose] def realRunSteps {m m' : ℕ} (s : RelocationState m m') :
-    List (Fin m') → (hm : m ≤ m' := by omega) → RelocationState m m' × List (Option (Fin m'))
+    List (Fin m') → (hm : m ≤ m') → RelocationState m m' × List (Option (Fin m'))
   | [], _ => (s, [])
   | c :: cs, hm =>
     let (s₁, out) := realStep s c hm
@@ -850,7 +851,7 @@ permutation `perm` on `Fin m'`, record the initial positions of all elements in 
 element positions (`locate`), not the tuple of `access` values that the paper literally writes;
 see the module docstring. -/
 @[expose] noncomputable def realExperiment (m m' Q : ℕ) (c : Fin Q → Fin m')
-    (hm : m ≤ m' := by omega) : ProbComp (RelocationOutput m m') := do
+    (hm : m ≤ m') : ProbComp (RelocationOutput m m') := do
   let perm ← $ᵗ (Equiv.Perm (Fin m'))
   let s₀ := init (m := m) perm
   let (_, outs) := realRunSteps s₀ (List.ofFn c) hm
@@ -859,7 +860,7 @@ see the module docstring. -/
 /-- Ideal relocation experiment ([WangRen2025], Experiment 3.2, p. 13): sample a uniform
 injective placement `emb : Fin m ↪ Fin m'` and run `idealRunSteps` on the query sequence `c`. -/
 noncomputable def idealExperiment (m m' Q : ℕ) (c : Fin Q → Fin m')
-    (hm : m ≤ m' := by omega) : ProbComp (RelocationOutput m m') :=
+    (hm : m ≤ m') : ProbComp (RelocationOutput m m') :=
   have : Nonempty (Fin m ↪ Fin m') := ⟨Fin.castLEEmb hm⟩
   do
     let emb ← $ᵗ (Fin m ↪ Fin m')
@@ -1061,7 +1062,7 @@ private def stepEquiv {m m' : ℕ} (s : RelocationState m m') (hv : s.Valid) :
 
 private theorem access_relocate_endOfChain_perm_add {m m' : ℕ} {s : RelocationState m m'}
     (hv : s.Valid) {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     let c' := endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)
     c' ≠ c → access (relocate s c) c' = access s c := by
   intro c' hc'c
@@ -1083,7 +1084,7 @@ private theorem access_relocate_endOfChain_perm_add {m m' : ℕ} {s : Relocation
 private theorem access_relocate_of_ne {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     {c p : Fin m'} (hc : c ∉ s.history) (hp : p ∉ s.history)
     (hlen : m + s.history.length < m') (hpc : p ≠ c)
-    (hpc' : p ≠ endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)) (hm : m ≤ m' := by omega) :
+    (hpc' : p ≠ endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)) (hm : m ≤ m') :
     access (relocate s c) p = access s p := by
   have hv' : (relocate s c).Valid := valid_relocate hv hc hlen
   have hp' : p ∉ (relocate s c).history := by simp [relocate, hp, hpc]
@@ -1098,7 +1099,7 @@ private theorem access_relocate_of_ne {m m' : ℕ} {s : RelocationState m m'} (h
 
 private theorem stateToIdealArray_relocate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m')
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     let c' := endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)
     (stateToIdealArray (relocate s c), (realStep s c hm).2) =
       idealUpdate (stateToIdealArray s) c c' := by
@@ -1171,13 +1172,13 @@ private theorem endOfChain_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')
 
 private theorem locate_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')} {hist : List (Fin m')}
     (hpre : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i)
-    (e : Fin m) (hm : m ≤ m' := by omega) :
+    (e : Fin m) (hm : m ≤ m') :
     locate ⟨π₁, hist⟩ e hm = locate ⟨π₂, hist⟩ e hm := by
   simp only [locate, endOfChain_congr hpre]
   rw [hpre (Fin.castLE hm e) (by simp; omega)]
 
 private theorem access_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')} {hist : List (Fin m')}
-    (hpre : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i) (hm : m ≤ m' := by omega) :
+    (hpre : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i) (hm : m ≤ m') :
     access (m := m) ⟨π₁, hist⟩ = access ⟨π₂, hist⟩ := by
   ext c e
   rw [access_eq_some_iff _ c e hm, access_eq_some_iff _ c e hm,
@@ -1185,12 +1186,12 @@ private theorem access_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')} {h
 
 private theorem stateToIdealArray_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (Fin m')}
     {hist : List (Fin m')} (hpre : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i)
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     stateToIdealArray (m := m) ⟨π₁, hist⟩ = stateToIdealArray ⟨π₂, hist⟩ := by
   ext p; simp only [stateToIdealArray, access_congr hpre hm]
 
 private theorem realRunSteps_fst {m m' : ℕ} (s : RelocationState m m') (cs : List (Fin m'))
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     (realRunSteps s cs hm).1 = { s with history := s.history ++ cs } := by
   induction cs generalizing s with
   | nil => simp [realRunSteps]
@@ -1198,7 +1199,7 @@ private theorem realRunSteps_fst {m m' : ℕ} (s : RelocationState m m') (cs : L
     simp only [realRunSteps, realStep, relocate, ih, List.append_assoc, List.singleton_append]
 
 private theorem realRunSteps_append {m m' : ℕ} (s : RelocationState m m') (cs₁ cs₂ : List (Fin m'))
-    (hm : m ≤ m' := by omega) :
+    (hm : m ≤ m') :
     realRunSteps s (cs₁ ++ cs₂) hm =
       let (s₁, outs₁) := realRunSteps s cs₁ hm
       let (s₂, outs₂) := realRunSteps s₁ cs₂ hm
@@ -1365,14 +1366,15 @@ private theorem realJointPMF_eq_idealJointPMF {m m' : ℕ} (cs : List (Fin m')) 
       PMF.map_comp, ← PMF.bind_pure_comp]
     rfl
 
-/-- **Lemma 3.16** of [WangRen2025] (pp. 16–17), perfect security: for any sequence of
-$Q \le m' - m$ distinct relocated physical positions `c : Fin Q → Fin m'` fixed in advance, the
-real relocation experiment (Experiment 3.1, with an ideal uniformly random permutation) and the
-ideal relocation experiment (Experiment 3.2) have exactly equal output laws. This is an
-information-theoretic statement; the paper's PRP instantiation and adaptive choices of positions
-are not covered. -/
+/-- **Lemma 3.16** of [WangRen2025] (pp. 16–17), perfect security: assuming `hm : m ≤ m'`, for any
+sequence of `Q ≤ m' - m` distinct relocated physical positions `c : Fin Q → Fin m'` fixed in
+advance, the real relocation experiment (Experiment 3.1, with an ideal uniformly random permutation)
+and the ideal relocation experiment (Experiment 3.2) have exactly equal output laws. The hypothesis
+`hm : m ≤ m'` is required alongside `hQ : Q ≤ m' - m` because `m' - m` is truncated subtraction in
+`ℕ`. This is an information-theoretic statement; the paper's PRP instantiation and adaptive choices
+of positions are not covered. -/
 theorem eval_realExperiment_eq_idealExperiment {m m' Q : ℕ} {c : Fin Q → Fin m'}
-    (hc : Function.Injective c) (hQ : Q ≤ m' - m) (hm : m ≤ m' := by omega) :
+    (hc : Function.Injective c) (hQ : Q ≤ m' - m) (hm : m ≤ m') :
     (realExperiment m m' Q c hm).eval = (idealExperiment m m' Q c hm).eval := by
   have hnd : (List.ofFn c).Nodup := List.nodup_ofFn.mpr hc
   have hlen : m + (List.ofFn c).length ≤ m' := by

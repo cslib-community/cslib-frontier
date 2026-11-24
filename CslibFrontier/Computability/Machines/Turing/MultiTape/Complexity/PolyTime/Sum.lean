@@ -25,6 +25,8 @@ without requiring `Inhabited`, `Finite`, or `Decoder` on either summand or on th
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.sumInl`, `.sumInr`: tagged sum construction.
+* `Turing.MultiTapeTM.ComputableInPolyTime.sumGetLeft?`, `.sumGetRight?`: optional summand
+  projection.
 * `Turing.MultiTapeTM.ComputableInPolyTime.sumElim`: tagged sum elimination.
 * `Turing.MultiTapeTM.ComputableInPolyTime.sumElimSnd`, `.sumElimWithInput`: tagged sum elimination
   retaining captured inputs.
@@ -48,6 +50,22 @@ theorem sumInr (left : α ↪ List Bool) (right : β ↪ List Bool) :
     ComputableInPolyTime (Sum.inr (α := α) (β := β)) right (encSum left right) :=
   (ComputableInO.inr left right).computableInPolyTime .self .self
 
+/-- Extract the optional left payload of a computed sum. -/
+@[fun_prop]
+theorem sumGetLeft? {γ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool}
+    {eg : γ ↪ List Bool} {value : γ → α ⊕ β}
+    (hv : ComputableInPolyTime value eg (encSum ea eb)) :
+    ComputableInPolyTime (fun p => (value p).getLeft?) eg (encOption ea) :=
+  (ComputableInO.getLeft?_deg ea eb).computableInPolyTime.comp hv
+
+/-- Extract the optional right payload of a computed sum. -/
+@[fun_prop]
+theorem sumGetRight? {γ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool}
+    {eg : γ ↪ List Bool} {value : γ → α ⊕ β}
+    (hv : ComputableInPolyTime value eg (encSum ea eb)) :
+    ComputableInPolyTime (fun p => (value p).getRight?) eg (encOption eb) :=
+  (ComputableInO.getRight?_deg ea eb).computableInPolyTime.comp hv
+
 /-- Eliminate the right component of a pair `γ × (α ⊕ β)` while retaining the captured input `γ`,
 without requiring `Inhabited`, `Finite`, or `Decoder` on any type. -/
 theorem sumElimSnd {γ δ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool}
@@ -64,20 +82,14 @@ theorem sumElimSnd {γ δ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool
       | .inl a => isEmptyElim (left g a)
       | .inr b => isEmptyElim (right g b)⟩
     exact of_finite _
-  · have hleft : ComputableInPolyTime (fun p : γ × (α ⊕ β) => p.2.getLeft?)
-        (encPair eg (encSum ea eb)) (encOption ea) :=
-      (ComputableInO.getLeft?_deg ea eb).computableInPolyTime.comp (snd eg (encSum ea eb))
-    have hright : ComputableInPolyTime (fun p : γ × (α ⊕ β) => p.2.getRight?)
-        (encPair eg (encSum ea eb)) (encOption eb) :=
-      (ComputableInO.getRight?_deg ea eb).computableInPolyTime.comp (snd eg (encSum ea eb))
+  · have hleft := sumGetLeft? (snd eg (encSum ea eb))
+    have hright := sumGetRight? (snd eg (encSum ea eb))
     have hl' : ComputableInPolyTime (fun p : (γ × (α ⊕ β)) × α => left p.1.1 p.2)
         (encPair (encPair eg (encSum ea eb)) ea) ed :=
-      hl.comp (((fst eg (encSum ea eb)).comp (fst (encPair eg (encSum ea eb)) ea)).prod
-        (snd (encPair eg (encSum ea eb)) ea))
+      hl.comp ((fst (encPair eg (encSum ea eb)) ea).fst'.prod (snd _ _))
     have hr' : ComputableInPolyTime (fun p : (γ × (α ⊕ β)) × β => right p.1.1 p.2)
         (encPair (encPair eg (encSum ea eb)) eb) ed :=
-      hr.comp (((fst eg (encSum ea eb)).comp (fst (encPair eg (encSum ea eb)) eb)).prod
-        (snd (encPair eg (encSum ea eb)) eb))
+      hr.comp ((fst (encPair eg (encSum ea eb)) eb).fst'.prod (snd _ _))
     have h := hleft.optionElimWithInput (body := fun p a => left p.1 a)
       (hright.optionElimWithInput (body := fun p b => right p.1 b) (const d) hr') hl'
     refine h.of_enc_eq ?_
@@ -85,6 +97,7 @@ theorem sumElimSnd {γ δ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool
 
 /-- Eliminate a computed tagged sum while retaining the captured input `γ`, without requiring
 `Inhabited`, `Finite`, or `Decoder` on any type. -/
+@[fun_prop]
 theorem sumElimWithInput {γ δ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool}
     {eg : γ ↪ List Bool} {ed : δ ↪ List Bool}
     {value : γ → α ⊕ β} {left : γ → α → δ} {right : γ → β → δ}
