@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Basic
 public import Mathlib.Analysis.Real.Sqrt
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Finset.Variance
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Balance
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Tactic.FieldSimp
@@ -268,8 +269,7 @@ theorem le_card_interedges_compl_of_two_mul_card_le {S : Finset V}
       (Nat.cast_nonneg _)
   have hc : (Fintype.card V : ℝ) ≤ 2 * #Sᶜ := by
     rw [card_compl_eq]
-    have : (2 * #S : ℝ) ≤ Fintype.card V := by exact_mod_cast hS
-    linarith
+    cast_linarith [hS]
   rw [div_le_div_iff₀ two_pos hn]
   nlinarith [mul_le_mul_of_nonneg_left hc hA]
 

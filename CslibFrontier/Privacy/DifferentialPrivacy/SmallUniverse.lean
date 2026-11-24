@@ -115,7 +115,7 @@ theorem rowCount_apply (x : ι → X) (a : X) : rowCount x a = #{i | x i = a} :=
 theorem rowCount_comp_equiv (x : ι → X) (σ : Equiv.Perm ι) (a : X) :
     rowCount (x ∘ σ) a = rowCount x a := by
   unfold rowCount
-  exact card_equiv σ fun i => by simp
+  exact card_equiv σ fun _ => by simp only [mem_filter, mem_univ, true_and, Function.comp_apply]
 
 /-- The rows of `x` equal to `a` but not matched by the same row of `y`. -/
 private theorem rowCount_sub_rowCount_le (x y : ι → X) (a : X) :
@@ -150,7 +150,7 @@ theorem countExcess_apply (x y : ι → X) :
 /-- A dataset has no excess over itself. -/
 @[simp]
 theorem countExcess_self (x : ι → X) : countExcess x x = 0 := by
-  simp [countExcess]
+  simp only [countExcess, tsub_self, sum_const_zero]
 
 /-- Reordering the rows of the second dataset does not change the excess. -/
 theorem countExcess_comp_equiv_right (x y : ι → X) (σ : Equiv.Perm ι) :
@@ -221,7 +221,7 @@ theorem exists_symmetric_lipschitz_extension (D : H → ι → X) (g : H → ℝ
       linarith
   · refine le_antisymm ?_ ?_
     · calc G (D h) ≤ g h + countExcess (D h) (D h) := inf'_le _ (mem_univ h)
-        _ = g h := by simp
+        _ = g h := by simp only [countExcess_self, CharP.cast_eq_zero, add_zero]
     · exact le_inf' _ _ fun h' _ => by exact_mod_cast hg h h'
 
 end Extension
@@ -264,8 +264,9 @@ private theorem le_rowCount_codeDataset (e : Option (Fin L × Fin 16) ↪ X)
     t ≤ rowCount (codeDataset e pos c) (e (some (j, c j))) := by
   classical
   unfold rowCount
-  calc t = #((univ : Finset (Fin t)).map ⟨fun s => pos (j, s), fun s s' h => by
-        simpa using pos.injective h⟩) := by rw [card_map, card_univ, Fintype.card_fin]
+  calc t = #((univ : Finset (Fin t)).map ⟨fun s => pos (j, s), fun _ _ h => by
+        simpa only [Prod.mk.injEq, true_and] using pos.injective h⟩) := by
+          rw [card_map, card_univ, Fintype.card_fin]
     _ ≤ _ := by
         refine card_le_card fun i hi => ?_
         simp only [mem_map, mem_univ, true_and] at hi
@@ -341,7 +342,8 @@ theorem exists_symmetric_query_two_pow_mul_le {k L t : ℕ} (hLk : L ≤ k)
   obtain ⟨C, hCcard, hCdist⟩ := Code.exists_two_pow_le_card_and_le_two_mul_hammingDist L
   obtain ⟨c⟩ : Nonempty ((Fin L → Bool) ↪ C) :=
     Function.Embedding.nonempty_of_card_le (by
-      simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using hCcard)
+      simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Fintype.card_coe]
+        using hCcard)
   have hc : ∀ w w', w ≠ w' → L ≤ 2 * hammingDist (c w : Fin L → Fin 16) (c w') :=
     fun w w' hww' => hCdist _ (c w).2 _ (c w').2 fun h => hww' (c.injective (Subtype.ext h))
   -- the items and rows used by the encoding
@@ -363,7 +365,7 @@ theorem exists_symmetric_query_two_pow_mul_le {k L t : ℕ} (hLk : L ≤ k)
   have hg : ∀ j w w', g j w ≤ g j w' + countExcess (D w') (D w) := by
     intro j w w'
     by_cases hww' : w' = w
-    · subst hww'; simp
+    · subst hww'; simp only [countExcess_self, CharP.cast_eq_zero, add_zero, le_refl]
     · have := hsep w' w hww'
       have hnn : (0 : ℝ) ≤ t * L := by positivity
       simp only [g]
@@ -379,12 +381,13 @@ theorem exists_symmetric_query_two_pow_mul_le {k L t : ℕ} (hLk : L ≤ k)
   · simp only [F]
     split_ifs
     · exact (hGlip _ y z).trans (by exact_mod_cast hammingAdjacent_iff_hammingDist_le_one.1 hyz)
-    · simp
+    · simp only [sub_self, abs_zero, zero_le_one]
   · -- pack the `2 ^ L` encodings, all within distance `t L` of the all-filler dataset
     have hpack := hM.card_mul_le_of_hammingDist_le_of_pure (univ : Finset (Fin L → Bool))
       (fun _ => e none) D (m := t * L) (fun w _ => hammingDist_codeDataset_le e pos (c w))
       (B := fun w => {a | ∀ j, |a j - F (D w) j| < t * L / 4}) ?_ (fun w _ => hp (D w))
-    · simpa [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using hpack
+    · simpa only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
+        Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat] using hpack
     · intro w _ w' _ hww'
       obtain ⟨j, hj⟩ := Function.ne_iff.1 hww'
       refine Set.disjoint_left.2 fun a ha ha' => ?_

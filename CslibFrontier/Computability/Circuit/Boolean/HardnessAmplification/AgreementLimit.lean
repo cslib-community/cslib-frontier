@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
 public import Mathlib.Basic.Real.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The limit of average-case hardness
@@ -97,11 +98,9 @@ theorem exists_complexity_le_and_add_le_card_agree (f : BooleanFunction n) {t : 
       · rw [min_eq_left h]; omega
       · rw [min_eq_right h]; omega
     have hpos : (0 : ℝ) < 2 ^ n := by positivity
-    have hc : (2 : ℝ) ^ n + 2 * t ≤ 2 * ((#{x | f x = b} : ℝ) + #T) := by exact_mod_cast hcount
     rw [le_div_iff₀ hpos]
     have e : (1 / 2 + (t : ℝ) / 2 ^ n) * 2 ^ n = 2 ^ n / 2 + t := by field_simp
     rw [e]
-    push_cast
-    linarith
+    cast_linarith [hcount]
 
 end Cslib.Circuits.Boolean

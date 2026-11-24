@@ -536,7 +536,7 @@ squeeze the requested number of little-endian bytes. -/
     List (Fin 256) :=
   let suffixed := input ++ suffix
   let padded := suffixed ++ pad10star1 (64 * layout.rateLanes) suffixed.length
-  let blocks := Sponge.toBlocks (64 * layout.rateLanes) padded
+  let blocks := BitString.toBlocks (64 * layout.rateLanes) padded
   let rateBytes := 8 * layout.rateLanes
   let outputBlockCount := outputBytes ⌈/⌉ rateBytes
   (squeezeBytesFor layout blocks outputBlockCount).take outputBytes
