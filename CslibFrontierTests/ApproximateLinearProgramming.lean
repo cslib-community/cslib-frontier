@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearProgramming
 import Mathlib.LinearAlgebra.Matrix.Notation
 import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.FinCases
 
 /-!
 # Regression for approximate LP dual certificates
@@ -17,6 +18,9 @@ import Mathlib.Tactic.NormNum
 The multiplier is nonnegative but not exactly dual feasible. Its two residual
 coordinates have opposite signs, so the certificate uses both variable bounds.
 -/
+
+-- This module contains regression examples only, not an exported API.
+set_option linter.privateModule false
 
 open Matrix
 
@@ -53,4 +57,12 @@ example (x : Fin 2 → ℚ) (hx : A *ᵥ x ≤ b) (hl : l ≤ x) (hu : x ≤ u) 
 example : A *ᵥ (![2, -1] : Fin 2 → ℚ) ≤ b ∧
     l ≤ (![2, -1] : Fin 2 → ℚ) ∧ (![2, -1] : Fin 2 → ℚ) ≤ u ∧
     c ⬝ᵥ (![2, -1] : Fin 2 → ℚ) = 2 := by
-  decide
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro i
+    fin_cases i
+    norm_num [A, b, mulVec, dotProduct, Fin.sum_univ_two]
+  · intro i
+    fin_cases i <;> norm_num [l]
+  · intro i
+    fin_cases i <;> norm_num [u]
+  · norm_num [c, dotProduct, Fin.sum_univ_two]
