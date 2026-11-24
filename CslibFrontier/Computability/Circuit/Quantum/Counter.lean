@@ -163,7 +163,8 @@ private theorem invariant_succ {base T s : ℕ} {src : ℕ → ℕ} (hsrc : src 
           (readBit y (src s) && readBit y (level base T s i))))) (readBit y p) := by
     rw [readBit_classicalRun_of_forall_notMem hcl hread, stage, List.foldl_flatMap]
     refine List.foldl_ext _ _ _ fun b i _ => ?_
-    simp only [List.foldl_cons, List.foldl_nil, List.all_cons, List.all_nil, Bool.and_true]
+    simp only [List.foldl_cons, List.foldl_nil, GateCode.target_mk, GateCode.controls_mk,
+      List.all_cons, List.all_nil, Bool.and_true]
     cases decide (p = level base T (s + 1) i) <;> simp
   -- bits that the stage does not write
   have hkeep (p : ℕ) (hp : ∀ i < T, p ≠ level base T (s + 1) i) :

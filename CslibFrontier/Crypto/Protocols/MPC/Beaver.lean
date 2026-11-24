@@ -14,6 +14,7 @@ public import Mathlib.Data.ZMod.Basic
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Arithmetic Beaver Multiplication Triples, Online Privacy, and Tampered-Opening Attack
@@ -400,135 +401,75 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
   let target : ZMod p := (∑ i : Fin m, (xy i).1) * (∑ i : Fin m, (xy i).2)
   let baseTerm (i : Fin m) (op : ZMod p × ZMod p) (ai bi : ZMod p) : ZMod p :=
     (if i.val = 0 then op.1 * op.2 else 0) + op.1 * bi + op.2 * ai
-  -- Bijection between real preprocessing coins `(a, b, cE)` and ideal coins `(zE, aI, bI, msgsC)`.
-  let equiv :
-      ((Fin m → ZMod p) × (Fin m → ZMod p) × ((k : E) → ZMod p)) ≃
-      (((k : E) → ZMod p) × ((i : I) → ZMod p) × ((i : I) → ZMod p) ×
-        ((j : (Iᶜ : Finset (Fin m))) → ZMod p × ZMod p)) :=
-    { toFun := fun ⟨a, b, cE⟩ =>
-        let msgs : Fin m → ZMod p × ZMod p := fun j => ((xy j).1 - a j, (xy j).2 - b j)
-        let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-        (fun k => baseTerm k.1 op (a k.1) (b k.1) + cE k,
-         I.restrict a,
-         I.restrict b,
-         Iᶜ.restrict msgs)
-      invFun := fun ⟨zE, aI, bI, msgsC⟩ =>
-        let a : Fin m → ZMod p := fun j =>
-          if hj : j ∈ I then aI ⟨j, hj⟩ else (xy j).1 - (msgsC ⟨j, Finset.mem_compl.mpr hj⟩).1
-        let b : Fin m → ZMod p := fun j =>
-          if hj : j ∈ I then bI ⟨j, hj⟩ else (xy j).2 - (msgsC ⟨j, Finset.mem_compl.mpr hj⟩).2
-        let msgs : Fin m → ZMod p × ZMod p := fun j => ((xy j).1 - a j, (xy j).2 - b j)
-        let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-        (a, b, fun k => zE k - baseTerm k.1 op (a k.1) (b k.1))
-      left_inv := fun ⟨a, b, cE⟩ => by
-        have ha : (fun j => if hj : j ∈ I then a j else (xy j).1 - ((xy j).1 - a j)) = a := by
-          ext j; by_cases hj : j ∈ I <;> simp [hj]
-        have hb : (fun j => if hj : j ∈ I then b j else (xy j).2 - ((xy j).2 - b j)) = b := by
-          ext j; by_cases hj : j ∈ I <;> simp [hj]
-        refine Prod.ext ha (Prod.ext hb ?_)
-        ext k
-        let fa : Fin m → ZMod p :=
-          fun j => if hj : j ∈ I then a j else (xy j).1 - ((xy j).1 - a j)
-        let fb : Fin m → ZMod p :=
-          fun j => if hj : j ∈ I then b j else (xy j).2 - ((xy j).2 - b j)
-        change baseTerm k.1 (∑ j : Fin m, ((xy j).1 - a j, (xy j).2 - b j)) (a k.1) (b k.1) +
-            cE k -
-          baseTerm k.1 (∑ j : Fin m, ((xy j).1 - fa j, (xy j).2 - fb j)) (fa k.1) (fb k.1) = cE k
-        have hfa : fa = a := ha
-        have hfb : fb = b := hb
-        rw [hfa, hfb]
-        exact add_sub_cancel_left _ _
-      right_inv := fun ⟨zE, aI, bI, msgsC⟩ => by
-        dsimp only
-        refine Prod.ext ?_ (Prod.ext ?_ (Prod.ext ?_ ?_))
-        · ext k
-          exact add_sub_cancel _ _
-        · ext ⟨i, hi⟩
-          simp [Finset.restrict, hi]
-        · ext ⟨i, hi⟩
-          simp [Finset.restrict, hi]
-        · ext ⟨j, hj⟩ <;> simp [Finset.restrict, Finset.mem_compl.mp hj] }
-  -- Express `realJoint` as a single map over `uniformOfFintype` of `(a, b, cE)`.
-  have hreal :
-      (beaverMulProtocol p m).realJoint (beaverTripleWorld p m) I xy =
-        (PMF.uniformOfFintype
-          ((Fin m → ZMod p) × (Fin m → ZMod p) × ((k : E) → ZMod p))).map fun ⟨a, b, cE⟩ =>
-            let c := ProbComp.completeSharesErase j₀ ((∑ i : Fin m, a i) * (∑ i : Fin m, b i)) cE
-            let t : Fin m → TripleShare (ZMod p) := fun i => ⟨a i, b i, c i⟩
-            let msgs : Fin m → ZMod p × ZMod p := fun j => localMaskedOpening (xy j) (t j)
-            let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-            (fun i : I => beaverViewOf i.1 (xy i.1) (t i.1) msgs,
-             fun i : Fin m => beaverMulShare i op (t i)) := by
-    simp only [pmf_norm, Protocol.realJoint, evalWith_beaverMulProtocol, beaverTripleFunctionality,
-      bind_pure_comp, ProbComp.eval_uniform,
-      ProbComp.eval_sampleAdditiveShares_eq_map_completeSharesErase j₀,
-      PMF.uniformOfFintype_bind_map]
-    refine congrArg (PMF.map · _) (funext fun ⟨a, b, cE⟩ => rfl)
-  -- Express `idealJoint` as a single map over `uniformOfFintype` of `(zE, aI, bI, msgsC)`.
-  have hideal :
-      ProbComp.eval (idealJoint (sharedMulFunctionality m) I (beaverMulSim p m I) xy) =
-        (PMF.uniformOfFintype
-          (((k : E) → ZMod p) × ((i : I) → ZMod p) × ((i : I) → ZMod p) ×
-            ((j : (Iᶜ : Finset (Fin m))) → ZMod p × ZMod p))).map
-          fun ⟨zE, aI, bI, msgsC⟩ =>
-            let z := ProbComp.completeSharesErase j₀ target zE
-            let msgs : Fin m → ZMod p × ZMod p := fun j =>
-              if hj : j ∈ I then ((xy j).1 - aI ⟨j, hj⟩, (xy j).2 - bI ⟨j, hj⟩)
-              else msgsC ⟨j, Finset.mem_compl.mpr hj⟩
-            let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-            (fun i : I =>
-              beaverViewOf i.1 (xy i.1)
-                { a := aI i
-                  b := bI i
-                  c := z i.1 - baseTerm i.1 op (aI i) (bI i) }
-                msgs,
-             z) := by
-    simp only [pmf_norm, idealJoint, sharedMulFunctionality, beaverMulSim, bind_pure_comp,
-      ProbComp.eval_uniform, ProbComp.eval_sampleAdditiveShares_eq_map_completeSharesErase j₀,
-      PMF.uniformOfFintype_bind_map]
-    refine congrArg (PMF.map · _) (funext fun ⟨zE, aI, bI, msgsC⟩ => rfl)
-  rw [hideal, hreal, ← PMF.uniformOfFintype_map_equiv equiv, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun ⟨a, b, cE⟩ => ?_)
-  dsimp only [Function.comp_def, equiv]
-  simp only [Equiv.coe_fn_mk]
-  dsimp only [Finset.restrict]
-  simp only [dite_eq_ite, ite_self]
-  let c := ProbComp.completeSharesErase j₀ ((∑ i : Fin m, a i) * (∑ i : Fin m, b i)) cE
-  let t : Fin m → TripleShare (ZMod p) := fun i => ⟨a i, b i, c i⟩
-  let msgs : Fin m → ZMod p × ZMod p := fun j => localMaskedOpening (xy j) (t j)
-  let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-  let z : Fin m → ZMod p := fun i => beaverMulShare i op (t i)
-  have hc_sum : (∑ i : Fin m, (t i).c) = (∑ i : Fin m, (t i).a) * (∑ i : Fin m, (t i).b) :=
-    ProbComp.sum_completeSharesErase j₀ _ cE
-  have hz_sum : ∑ i : Fin m, z i = target :=
-    sum_beaverMulShare_eq_mul xy t hc_sum
-  have hzE : (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = E.restrict z := by
-    ext ⟨k, hk⟩
-    have hne : k ≠ j₀ := (Finset.mem_erase.mp hk).1
-    have hck : c k = cE ⟨k, hk⟩ := by simp [c, ProbComp.completeSharesErase, hne]
-    simp [Finset.restrict, z, beaverMulShare, baseTerm, t, hck, add_assoc]
-  have hz_eq :
-      ProbComp.completeSharesErase j₀ target
-        (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = z := by
-    rw [hzE]
-    exact ProbComp.completeSharesErase_restrict_erase j₀ hz_sum
-  change (fun i : I =>
-      beaverViewOf i.1 (xy i.1)
-        { a := a i.1
-          b := b i.1
+  simp only [pmf_norm, Protocol.realJoint, evalWith_beaverMulProtocol, beaverTripleFunctionality,
+    idealJoint, sharedMulFunctionality, beaverMulSim, bind_pure_comp, ProbComp.eval_uniform,
+    ProbComp.eval_sampleAdditiveShares_eq_map_completeSharesErase j₀,
+    PMF.uniformOfFintype_bind_map]
+  relabel_uniform
+    (fun q : (Fin m → ZMod p) × (Fin m → ZMod p) × ((k : E) → ZMod p) =>
+      let (a, b, cE) := q
+      let msgs : Fin m → ZMod p × ZMod p := fun j => ((xy j).1 - a j, (xy j).2 - b j)
+      let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
+      (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k,
+       I.restrict a, I.restrict b, Iᶜ.restrict msgs)) with q
+  · rintro ⟨a₁, b₁, cE₁⟩ ⟨a₂, b₂, cE₂⟩ h
+    simp only [Prod.mk.injEq] at h
+    rcases h with ⟨hc, haI, hbI, hC⟩
+    have ha : a₁ = a₂ := by
+      ext j
+      by_cases hj : j ∈ I
+      · exact congrFun haI ⟨j, hj⟩
+      · have := congrFun hC ⟨j, Finset.mem_compl.mpr hj⟩
+        simp only [Finset.restrict, Prod.mk.injEq] at this
+        exact sub_right_inj.mp this.1
+    have hb : b₁ = b₂ := by
+      ext j
+      by_cases hj : j ∈ I
+      · exact congrFun hbI ⟨j, hj⟩
+      · have := congrFun hC ⟨j, Finset.mem_compl.mpr hj⟩
+        simp only [Finset.restrict, Prod.mk.injEq] at this
+        exact sub_right_inj.mp this.2
+    subst ha hb
+    exact Prod.ext rfl (Prod.ext rfl (funext fun k => add_left_cancel (congrFun hc k)))
+  · have hIcard : I.card + Iᶜ.card = m := by simp
+    simp only [Fintype.card_prod, Fintype.card_coe, Fintype.card_pi, Finset.prod_const,
+      Finset.card_univ, Fintype.card_fin, ← sq, ← pow_mul, ← pow_add]
+    congr 1
+    omega
+  · rcases q with ⟨a, b, cE⟩
+    dsimp only [Prod.map, id, Finset.restrict]
+    simp only [dite_eq_ite, ite_self]
+    let c := ProbComp.completeSharesErase j₀ ((∑ i : Fin m, a i) * (∑ i : Fin m, b i)) cE
+    let t : Fin m → TripleShare (ZMod p) := fun i => ⟨a i, b i, c i⟩
+    let msgs : Fin m → ZMod p × ZMod p := fun j => localMaskedOpening (xy j) (t j)
+    let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
+    let z : Fin m → ZMod p := fun i => beaverMulShare i op (t i)
+    have hc_sum : (∑ i : Fin m, (t i).c) = (∑ i : Fin m, (t i).a) * (∑ i : Fin m, (t i).b) :=
+      ProbComp.sum_completeSharesErase j₀ _ cE
+    have hz_sum : ∑ i : Fin m, z i = target :=
+      sum_beaverMulShare_eq_mul xy t hc_sum
+    have hzE : (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = E.restrict z := by
+      ext ⟨k, hk⟩
+      have hne : k ≠ j₀ := (Finset.mem_erase.mp hk).1
+      have hck : c k = cE ⟨k, hk⟩ := by simp [c, ProbComp.completeSharesErase, hne]
+      simp [Finset.restrict, z, beaverMulShare, baseTerm, t, hck, add_assoc]
+    have hz_eq :
+        ProbComp.completeSharesErase j₀ target
+          (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = z := by
+      rw [hzE]
+      exact ProbComp.completeSharesErase_restrict_erase j₀ hz_sum
+    refine Prod.ext (funext fun ⟨i, _⟩ => ?_) hz_eq.symm
+    have hzi : z i - baseTerm i op (a i) (b i) = c i := by
+      simp [z, beaverMulShare, baseTerm, t, add_assoc]
+    change beaverViewOf i (xy i) (t i) msgs =
+      beaverViewOf i (xy i)
+        { a := a i
+          b := b i
           c := ProbComp.completeSharesErase j₀ target
-              (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) i.1 -
-            baseTerm i.1 op (a i.1) (b i.1) }
-        msgs,
-      ProbComp.completeSharesErase j₀ target
-        (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k)) =
-    (fun i : I => beaverViewOf i.1 (xy i.1) (t i.1) msgs, z)
-  rw [hz_eq]
-  refine Prod.ext (funext fun ⟨i, _⟩ => ?_) rfl
-  have hzi : z i - baseTerm i op (a i) (b i) = c i := by
-    simp [z, beaverMulShare, baseTerm, t, add_assoc]
-  dsimp only [t]
-  rw [hzi]
+              (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) i -
+            baseTerm i op (a i) (b i) }
+        msgs
+    rw [hz_eq, hzi]
 
 /-! ### Additive-error tampered-opening attack illustration on unauthenticated 2-party Beaver
 multiplication -/

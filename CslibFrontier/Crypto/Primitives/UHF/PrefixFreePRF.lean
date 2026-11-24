@@ -571,7 +571,9 @@ theorem isOraclePPT_prefixFreeBatchReduction {width outLen Q : ℕ → ℕ}
   apply hrun.isOraclePPTOn.bind_with
   simpa only [map_eq_bind_pure_comp, Function.comp_def] using htraverse.map hcollision
 
-private theorem isPrefixFreeOn_prefixFreeBatchReduction {width cap Q : ℕ → ℕ}
+/-- On complete positive-width blocks, the batch wrapper is prefix-free for every oracle reply
+width, independently of the cap it uses when reading replies. -/
+theorem isPrefixFreeOn_prefixFreeBatchReduction {width cap Q : ℕ → ℕ}
     {valid oracleValid : ℕ → List Bool → Bool}
     (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) (n outLen : ℕ)
     (haligned : ∀ word, valid n word = true → 0 < width n ∧ width n ∣ word.length) :
@@ -851,6 +853,23 @@ theorem succProbability_multiQueryGame_le_prefixFreeBatchReduction
   rw [add_comm ideal.succProbability]
   exact add_le_add le_rfl hIdeal
 
+/-- A strict PPT batch guesser on the duplicated unary parameter has a unary polynomial-time
+cap on the length of every supported list of guesses. -/
+theorem exists_computableInPolyTime_batchQueryCap
+    {guessBatch : ℕ × ℕ → ProbComp (List (List Bool))}
+    (hGuess : IsPPTOn (encPair encUnary encUnary) (encList encBits) guessBatch) :
+    ∃ Q : ℕ → ℕ, ComputableInPolyTime Q encUnary encUnary ∧
+      ∀ n guesses, guesses ∈ (ProbComp.eval (guessBatch (n, n))).support →
+        guesses.length ≤ Q n := by
+  obtain ⟨c, d, hLength⟩ := hGuess.length_le
+  let Q (n : ℕ) := c * (2 * n + 1 + n + 1) ^ d
+  refine ⟨Q, (ComputableInPolyTime.const c).unary_mul'
+    ((ComputableInPolyTime.unary_pow d).comp (by fun_prop)), ?_⟩
+  intro n guesses hGuesses
+  refine (length_le_length_encList encBits guesses).trans ?_
+  simpa only [Q, length_encPair, encUnary_apply, List.length_replicate] using
+    hLength (n, n) guesses hGuesses
+
 /-- Boneh–Shoup v0.6, Theorem 7.4 (printed pp. 259–260), in the word model. An extendable
 prefix-free PRF is a multi-query UHF on the smaller domain when the reciprocals of the block and
 reply alphabet sizes are negligible and the block-count cap is polynomially bounded.
@@ -884,19 +903,8 @@ theorem isMultiQueryUHF_of_extendable_prefixFreePRF
       (fun _ d (key : BitString d) => family (List.ofFn key)) := by
   apply Game.Indistinguishable.of_negligible_succProbability
   intro guessBatch hGuess
-  obtain ⟨c, d, hLength⟩ := hGuess.length_le
-  let Q (n : ℕ) := c * (2 * n + 1 + n + 1) ^ d
-  have hBudget (n : ℕ) (guesses : List (List Bool))
-      (hGuesses : guesses ∈ (ProbComp.eval (guessBatch (n, n))).support) : guesses.length ≤ Q n :=
-    (length_le_length_encList _ _).trans (by
-      simpa only [Q, length_encPair, encUnary_apply, List.length_replicate] using
-        hLength (n, n) guesses hGuesses)
-  have hQ : ComputableInPolyTime Q encUnary encUnary := by
-    exact (ComputableInPolyTime.const c).unary_mul'
-      ((ComputableInPolyTime.unary_pow d).comp (by fun_prop))
-  have hQpoly : PolynomiallyBounded Q := by
-    dsimp only [Q]
-    fun_prop
+  obtain ⟨Q, hQ, hBudget⟩ := exists_computableInPolyTime_batchQueryCap hGuess
+  have hQpoly := hQ.polynomiallyBounded
   let cap (n : ℕ) := (family (List.replicate n false) (List.replicate (width n) false)).length
   have hCap : ComputableInPolyTime cap encUnary encUnary :=
     (hPRF.polyTime.comp (ComputableInPolyTime.bitsReplicate false |>.prod

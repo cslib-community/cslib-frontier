@@ -45,6 +45,7 @@ of the book's statement is not part of this module.
 
 ## Main results
 
+* `Cslib.majority_not`: on an odd number of bits, `majority` is self-dual.
 * `Cslib.BitString.expect_card_agree`: the expected number of voters agreeing with the outcome.
 * `Cslib.BitString.sum_fourierCoeff_singleton_signVal_le`,
   `Cslib.BitString.sum_fourierCoeff_singleton_signVal_eq_iff`: the majority functions are the
@@ -173,3 +174,13 @@ theorem totalInfluence_le_majority_of_monotone {n : ℕ} {f : BooleanFunction n}
   exact sum_fourierCoeff_singleton_le_majority f
 
 end Cslib.BitString
+
+namespace Cslib
+
+/-- On an odd number of bits, majority is self-dual: negating the input negates the output. -/
+theorem majority_not (m : ℕ) (x : BitString (2 * m + 1)) :
+    majority (2 * m + 1) (fun i => !x i) = !majority (2 * m + 1) x := by
+  conv_lhs => rw [majority_eq_strictMajority]
+  exact strictMajority_not x
+
+end Cslib
