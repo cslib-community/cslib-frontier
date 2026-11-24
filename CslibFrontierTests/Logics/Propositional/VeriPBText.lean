@@ -1027,12 +1027,12 @@ def redVar : Option RedProof → Option ℕ
   | some ⟨[.red _ [(v, _)] _ _], _⟩ => some v
   | _ => none
 
--- The proof's names other than `xN` are numbered in order from the base, each at its last
--- occurrence: `version`, `red`, `aux`, …, as `pseudo-Boolean` and `proof` recur at the end. So
--- numbered after the constraints alone (base `1`), `aux` is variable `3`, that is the preserved
--- `x4`; numbered after the preserved set too (base `4`), it is `6`.
-#guard redVar (parseProof 1 1 presOnlyProof) == some 3
-#guard redVar (parseProof 1 4 presOnlyProof) == some 6
+-- The proof's names other than `xN` are numbered from the base in order of first appearance,
+-- keywords included: `pseudo-Boolean`, `proof`, `version`, `red`, `aux`. So numbered after the
+-- constraints alone (base `1`), `aux` is variable `5`, past the preserved `x4` only by chance;
+-- numbered after the preserved set too (base `4`), it is `8`.
+#guard redVar (parseProof 1 1 presOnlyProof) == some 5
+#guard redVar (parseProof 1 4 presOnlyProof) == some 8
 -- So the witness `aux -> 1` leaves the preserved set alone (VeriPB and CakePB accept).
 #guard checkOPB presOnly presOnlyProof == some .noClaim
 

@@ -925,6 +925,18 @@ theorem VarOrder.bump_spec {A : Activity} {H : VarOrder} (vs : List ℕ) (decay 
   have h := VarOrder.bumpAll_spec (dedupVars vs) hwf hp
   exact ⟨h.wf.congr fun _ _ => rfl, h.pos, h.size, h.mem⟩
 
+/-- **Bumping variables listed once each**: `VarOrder.bump` without removing repetitions, which
+costs an array as large as the greatest variable. The solver bumps the variables met by an
+analysis, which lists each once (`Cslib.Algorithms.Lean.CDCL.Learned.seen_nodup`). -/
+def VarOrder.bumpDistinct (A : Activity) (H : VarOrder) (vs : List ℕ) (decay : ℕ := 19) :
+    Activity × VarOrder :=
+  let r := VarOrder.bumpAll vs A H
+  (⟨r.1.score, r.1.inc + r.1.inc / decay⟩, r.2)
+
+theorem VarOrder.bumpDistinct_eq (A : Activity) (H : VarOrder) {vs : List ℕ} (h : vs.Nodup)
+    (decay : ℕ) : VarOrder.bumpDistinct A H vs decay = VarOrder.bump A H vs decay := by
+  simp only [VarOrder.bumpDistinct, VarOrder.bump, dedupKey_of_nodup Function.injective_id h]
+
 
 /-! #### The invariant and popping -/
 

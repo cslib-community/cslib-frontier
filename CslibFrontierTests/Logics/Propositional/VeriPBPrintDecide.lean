@@ -64,7 +64,7 @@ theorem cover_accepted :
 example : ∃ f, cover.objective = some f ∧
     (∀ σ : ℕ → Bool, (∀ c ∈ cover.constraints, c.Holds σ) → 1 ≤ f.eval σ) ∧
     ∃ σ : ℕ → Bool, (∀ c ∈ cover.constraints, c.Holds σ) ∧ f.eval σ ≤ 1 := by
-  obtain ⟨f, hf, hlb, hub⟩ := bounds_of_checkOPB_printOPB (out := none)
+  obtain ⟨f, hf, hlb, hub⟩ := bounds_of_checkOPB_printOPB (stdNames_covers _) (out := none)
     (show (checkOPBOutput (printOPB cover) coverProof).map (·.1) = _ from cover_accepted)
   refine ⟨f, hf, fun σ hσ => ?_, hub 1 rfl⟩
   obtain ⟨l, hl, hle⟩ := hlb σ hσ
@@ -88,7 +88,7 @@ theorem contra_accepted : checkOPB (printOPB contra) contraProof = some (.unsat 
 
 /-- **`contra` has no solution**, from the acceptance of the refutation against its printed text. -/
 example : ∀ σ : ℕ → Bool, ¬ ∀ c ∈ contra.constraints, c.Holds σ :=
-  not_satisfiable_of_checkOPB_printOPB (out := none)
+  not_satisfiable_of_checkOPB_printOPB (stdNames_covers _) (out := none)
     (show (checkOPBOutput (printOPB contra) contraProof).map (·.1) = _ from contra_accepted)
 
 /-- The formula `x1`, `¬x1`. -/
