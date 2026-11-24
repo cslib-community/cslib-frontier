@@ -203,6 +203,37 @@ theorem leafCount_searchTree_le_length_preorder (φ : CNF ℕ) (out : List (Lite
         omega
   termination_by fuel => fuel
 
+/-- With at most one word per node, the preorder has at most one word per node of the tree. -/
+theorem length_preorder_le (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ)
+    (hout : ∀ π, (out π).length ≤ 1) :
+    (fuel : ℕ) → (π : List (Literal ℕ)) → (preorder φ out fuel π).length ≤ Trail.nodes φ fuel π
+  | 0, π => by simpa [preorder, Trail.nodes] using hout π
+  | fuel + 1, π => by
+    have := hout π
+    cases hs : status φ π with
+    | branch l =>
+      have h₁ := length_preorder_le φ out hout fuel (l :: π)
+      have h₂ := length_preorder_le φ out hout fuel (l.negate :: π)
+      simp only [preorder, Trail.nodes, hs, List.length_append]
+      omega
+    | conflict => simpa [preorder, Trail.nodes, hs] using this
+    | sat => simpa [preorder, Trail.nodes, hs] using this
+
+/-- Every word of the preorder is a word of some node. -/
+theorem exists_mem_of_mem_preorder (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ) {x : ℕ} :
+    (fuel : ℕ) → (π : List (Literal ℕ)) → x ∈ preorder φ out fuel π → ∃ π', x ∈ out π'
+  | 0, π, h => ⟨π, by simpa [preorder] using h⟩
+  | fuel + 1, π, h => by
+    unfold preorder at h
+    split at h
+    · rename_i l _
+      rcases List.mem_append.1 h with h | h
+      · exact ⟨π, h⟩
+      rcases List.mem_append.1 h with h | h
+      · exact exists_mem_of_mem_preorder φ out fuel _ h
+      · exact exists_mem_of_mem_preorder φ out fuel _ h
+    · exact ⟨π, h⟩
+
 namespace Trail
 
 /-- **The words emitted by a run** of at most `k` steps from the trail `t`: the words `out π` of
