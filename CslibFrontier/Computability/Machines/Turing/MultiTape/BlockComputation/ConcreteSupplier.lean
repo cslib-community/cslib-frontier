@@ -100,7 +100,8 @@ theorem gateArgs_inSpace : ComputableInSpace gateArgs encArgs QueryReplay.GateRe
   have hpath := hn.snd'.fst'
   have hpoint := hn.snd'.snd'.fst'
   have hchunk := hn.snd'.snd'.snd'
-  have hzero := budget_const (encIn := encArgs) (encB := encNat) 0 (.refl _)
+  have hzero :=
+    budget_const (Bs := fun a => (encArgs a).length) (encIn := encArgs) (encB := encNat) 0
   have hcontext := budget_prod hN (budget_prod hb (budget_prod hσ (budget_prod hzero
     (budget_prod hm (budget_prod hchunk (budget_natMul hcount hm))))))
   have hparameters := budget_prod hmodulus (budget_prod halphabet (budget_natMul hd hcount))
@@ -117,15 +118,15 @@ theorem start_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hr := snd encContext (encPair RawController.encParams RawController.encNeed)
   have htag := hr.snd'.fst'
   have hnode := budget_natIsZero htag
-  have hgate := budget_natEq htag (budget_const (encB := encNat) 1 (.refl _))
+  have hgate := budget_natEq htag (budget_const (encB := encNat) 1)
   have hreply := budget_comp_linear (NodeReply.reply_inSpace M e) nodeArgs_inSpace
   have hleft := budget_comp_linear
     (of_inO (ComputableInO.inl RawController.encReply
       (QueryReplay.GateVector.encState (k := k) (Q := Q)))) hreply
   have hright := budget_comp_linear (QueryReplay.GateReply.initial_inSpace M e) gateArgs_inSpace
-  have hempty := budget_const (encIn := encArgs)
+  have hempty := budget_const (Bs := fun a => (encArgs a).length) (encIn := encArgs)
     (encB := QueryReplay.GateReply.encState (k := k) (Q := Q))
-    (.inl (0, [])) (.refl _)
+    (.inl (0, []))
   refine (budget_ite hnode hleft (budget_ite hgate hright hempty)).of_enc_eq ?_
   rintro ⟨context, params, tag, path, point, chunk⟩
   by_cases hz : tag = 0 <;> by_cases ho : tag = 1 <;> simp [start, hz, ho] <;> rfl

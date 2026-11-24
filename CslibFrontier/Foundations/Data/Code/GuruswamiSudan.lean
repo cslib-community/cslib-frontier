@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.Code.ReedSolomon
 public import CslibFrontier.Foundations.Data.Code.SudanInterpolant
 public import Mathlib.Analysis.Real.Sqrt
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.Tactic.Positivity
@@ -740,8 +741,7 @@ theorem exists_guruswamiSudan_of_eps [Nonempty ι] (hα : Function.Injective α)
           mul_le_mul_of_nonneg_left hdiff (Nat.cast_nonneg m)
         rw [← hnd_eq] at hstrict
         exact hstrict.trans_le hle_m
-      have htR : (0 : ℝ) < t := Nat.cast_pos.2 ht_pos
-      nlinarith
+      cast_nlinarith [ht_pos]
     have hstepN : n * (k - 1) * (m + 1) < t * (m * t + 1) := by exact_mod_cast hstepR
     have hineq : n * (k - 1) * m * (m + 1) < (D + 1) * (D + 2) := by
       rw [hD1, hD2]
