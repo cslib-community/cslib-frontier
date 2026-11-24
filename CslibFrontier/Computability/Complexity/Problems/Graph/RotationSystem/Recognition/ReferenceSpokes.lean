@@ -112,7 +112,7 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
     obtain ⟨T, hT, hpair⟩ := exists_annular_spokes n (D.vertex v) (half_pos hρ)
       (half_lt_self hρ) p q hp hq hpinj hqinj
       (fun i j hi hj hij => by simpa only [hpdir] using horder i j hi hj hij)
-      (fun i j hi hj hij => (cutPort_clockwise_iff_reference hI hD hReal hfixed hρ hw
+      (fun i j hi hj hij => (cutPort_clockwise_iff_reference hI hReal hfixed hρ hw
         (hdmem j) (hdmem i) (hdmem (Fin.last n))
         (hdinj.ne hij.symm) (hdinj.ne hi) (hdinj.ne hj)).trans (horder i j hi hj hij))
     let rank (a : Fiber) : Fin (n + 1) :=
