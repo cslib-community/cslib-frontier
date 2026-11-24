@@ -164,16 +164,15 @@ chamber. -/
   /-- `start` is the first chamber of its pair -/
   first : FQ h2 kind (evX start)
 
-/-- Edges as a subtype of pairs, for counting. -/
-def EE.equivSubtype (h2 : 2 ≤ h) (j : ℕ) :
-    EE h n h2 j ≃ {p : Fin h × XX h n j // FQ h2 p.1 (evX p.2)} where
-  toFun e := ⟨(e.kind, e.start), e.first⟩
-  invFun | ⟨(a, c), hc⟩ => ⟨a, c, hc⟩
-  left_inv _ := rfl
-  right_inv | ⟨(_, _), _⟩ => rfl
+instance instFiniteEE (h2 : 2 ≤ h) (j : ℕ) : Finite (EE h n h2 j) :=
+  Finite.of_injective (fun e : EE h n h2 j => (e.kind, e.start)) fun a b e => by
+    obtain ⟨a1, a2, _⟩ := a
+    obtain ⟨b1, b2, _⟩ := b
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    rfl
 
 noncomputable instance instFintypeEE (h2 : 2 ≤ h) (j : ℕ) : Fintype (EE h n h2 j) :=
-  haveI : Finite (EE h n h2 j) := Finite.of_equiv _ (EE.equivSubtype h2 j).symm
   Fintype.ofFinite _
 
 noncomputable instance instDecEE (h2 : 2 ≤ h) (j : ℕ) : DecidableEq (EE h n h2 j) :=
@@ -309,16 +308,15 @@ theorem deg_edges (h2 : 2 ≤ h) (j : ℕ) (c : XX h n j) (i : Fin h) :
   /-- `elt` is the first element of its pair -/
   first : FU idx elt
 
-/-- Near pairs as a subtype of pairs, for counting. -/
-def NN.equivSubtype (h : ℕ) : NN h ≃ {p : Fin (h - 1) × U h // FU p.1 p.2} where
-  toFun ν := ⟨(ν.idx, ν.elt), ν.first⟩
-  invFun | ⟨(a, c), hc⟩ => ⟨a, c, hc⟩
-  left_inv _ := rfl
-  right_inv | ⟨(_, _), _⟩ => rfl
+instance instFiniteNN : Finite (NN h) :=
+  Finite.of_injective (fun ν : NN h => (ν.idx, ν.elt)) fun a b e => by
+    obtain ⟨a1, a2, _⟩ := a
+    obtain ⟨b1, b2, _⟩ := b
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    rfl
 
-noncomputable instance instFintypeNN : Fintype (NN h) :=
-  haveI : Finite (NN h) := Finite.of_equiv _ (NN.equivSubtype h).symm
-  Fintype.ofFinite _
+noncomputable instance instFintypeNN : Fintype (NN h) := Fintype.ofFinite _
 
 noncomputable instance instDecNN : DecidableEq (NN h) := Classical.decEq _
 

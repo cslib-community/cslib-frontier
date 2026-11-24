@@ -66,14 +66,6 @@ theorem WL.mul {g g' : G h n} {N M : ℕ} (hg : WL h2 g N) (hg' : WL h2 g' M) : 
   exact ⟨l ++ l', by simp; omega, by simp⟩
 
 omit [NeZero h] in
-/-- The addition law of transvections, `Matrix.transvection_mul_transvection_same` in the
-group. -/
-theorem transvection_mul_transvection (i j : Fin h) (hij : i ≠ j) (y y' : R (n + 1)) :
-    SpecialLinearGroup.transvection hij y * SpecialLinearGroup.transvection hij y' =
-      (SpecialLinearGroup.transvection hij (y + y') : G h n) :=
-  Subtype.ext (transvection_mul_transvection_same _ _ hij y y')
-
-omit [NeZero h] in
 theorem two_nsmul_mat (M : Matrix (Fin h) (Fin h) (R (n + 1))) : M + M = 0 := by
   ext a b
   exact add_self _ _
@@ -296,7 +288,7 @@ theorem WL.el_s (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
     WL h2 (SpecialLinearGroup.transvection hij (s (n + 1)) : G h n)
         (4 ^ (h + 3) * (9 * (n + 1) ^ 3)) := by
   have h1 := (WL.el_one (n := n) (h2 := h2) h3 i j hij).mul (WL.el_t h3 i j hij)
-  rw [transvection_mul_transvection, ← s_eq] at h1
+  rw [← SpecialLinearGroup.transvection_add, ← s_eq] at h1
   refine h1.mono ?_
   have : 1 ≤ (n + 1) ^ 3 := Nat.one_le_pow _ _ (by omega)
   calc 4 ^ (h + 3) * (2 * (n + 1)) ^ 3 + 4 ^ (h + 3) = 4 ^ (h + 3) * (8 * (n + 1) ^ 3 + 1) :=

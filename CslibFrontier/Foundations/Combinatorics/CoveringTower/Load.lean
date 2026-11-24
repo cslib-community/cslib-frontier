@@ -21,7 +21,8 @@ A load is a number `n e` on every edge of a level, and `Tower.kap` is its weight
 loads on the edges of type `i` at a chamber (`Tower.be`) are redistributed to the next level
 through the hosts. `Cslib.CoveringTower.Tower.kap_le_of_stage` is a conditional one-stage bound:
 for caller-supplied loads `n`, `n'` satisfying its hypotheses, `κ(n') ≤ ρ κ(n)` up to an error
-controlled by `C₁`, where `ρ` may be at least `1`. Constructing loads with these properties is
+controlled by `C₁`, for any `ρ ≥ 0` with `1 + 8C₁ ≤ ρ² h` (possibly `ρ ≥ 1`). Constructing loads
+with these properties is
 left to the next layer.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Load`.
@@ -391,7 +392,7 @@ theorem other_le {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2
 
 /-- A conditional one-stage bound: for loads `n` and `n'` satisfying the hypotheses `hi`, `hmid`,
 `hal` and `ht` (which the next layer supplies), `κ(n') ≤ ρ κ(n) + √C₁ a₁ |X_{j+1}| / b`. The
-factor `ρ` is any number with `1 + 8C₁ ≤ ρ² h`; it may be at least `1`. -/
+factor `ρ` is any number with `ρ ≥ 0` and `1 + 8C₁ ≤ ρ² h`; it may be at least `1`. -/
 theorem kap_le_of_stage {j : ℕ} (hj : j < J) (hr : 0 < r) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fin h}
     {n : T.Ed j → ℕ} {n' : T.Ed (j + 1) → ℕ} {C₁ a₁ ρ : ℝ} (hC : 0 ≤ C₁) (ha : 0 ≤ a₁) (hρ : 0 ≤ ρ)
     (hρ1 : 1 + 8 * C₁ ≤ ρ ^ 2 * h)
