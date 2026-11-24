@@ -14,9 +14,9 @@ public import CslibFrontier.Crypto.Protocols.MPC.Composition
 /-!
 # Word encodings of the views of composed protocols
 
-This module provides definitions only: word encodings of the two parts of a party's view that
-protocol composition (`Schedule.compose`, `Schedule.ComposedCoins`) builds, for use in the
-`ProtocolFamily.Encoding` of a composed protocol. Nothing here is shown to be computable in
+This module provides word encodings of the two parts of a party's view that protocol composition
+(`Schedule.compose`, `Schedule.ComposedCoins`) builds, for use in the `ProtocolFamily.Encoding` of
+a composed protocol, with their structural laws. Nothing here is shown to be computable in
 polynomial time, and no efficiency or security statement is made.
 
 * **Received messages.** `Schedule.MessageEncodings sc` holds an embedding into words of the
@@ -35,6 +35,14 @@ The first property is injectivity: the words determine the received messages
 `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Encoding.lean` uses them for Yao's protocol in
 the plain model.
 
+The received words follow the two operations of `Schedule.compose`: along `sc₁ ++ sc₂` they are
+the words along `sc₁` followed by the words along `sc₂` (`Schedule.receivedWords_append`), and
+along a schedule lifted by `Round.embed parties` the party `parties s` receives the words of slot
+`s` (`Schedule.receivedWords_embed`) and a party outside the embedding receives none
+(`Schedule.receivedWords_embed_of_forall_ne`). So the received words of a composed run are the
+received words of its parts in the order of the rounds, which is what a machine that writes a view
+round by round produces. No such machine is built here, and the coin words have no such laws yet.
+
 ## Main definitions
 
 * `Cslib.Crypto.Protocols.MPC.Schedule.MessageEncodings`,
@@ -48,6 +56,10 @@ the plain model.
 
 * `Cslib.Crypto.Protocols.MPC.Schedule.receivedWords_injective`,
   `Cslib.Crypto.Protocols.MPC.Schedule.subCoinsWords_injective`: the words determine the values.
+* `Cslib.Crypto.Protocols.MPC.Schedule.receivedWords_append`,
+  `Cslib.Crypto.Protocols.MPC.Schedule.receivedWords_embed`,
+  `Cslib.Crypto.Protocols.MPC.Schedule.receivedWords_embed_of_forall_ne`: the received words along
+  `++` and `Round.embed`.
 -/
 
 public section
@@ -111,6 +123,60 @@ theorem Schedule.receivedWords_injective {i : Fin m} :
       exact Prod.ext (Round.received_message_eq_of_ne hi _ _)
         (Schedule.receivedWords_injective rest e.2 h)
   | .oracle _ _ :: _, e => Empty.elim e
+
+/-- **The words received along `sc₁ ++ sc₂`** are the words received along `sc₁` followed by the
+words received along `sc₂`: a run adds one word at the end for each message it delivers. -/
+theorem Schedule.receivedWords_append {i : Fin m} {sc₂ : Schedule m spec} :
+    (sc₁ : Schedule m spec) → (e₁ : sc₁.MessageEncodings) → (e₂ : sc₂.MessageEncodings) →
+      (r₁ : sc₁.Received i) → (r₂ : sc₂.Received i) →
+      Schedule.receivedWords (sc₁ ++ sc₂) (Schedule.MessageEncodings.append sc₁ e₁ e₂)
+          (Schedule.Received.append r₁ r₂) =
+        Schedule.receivedWords sc₁ e₁ r₁ ++ Schedule.receivedWords sc₂ e₂ r₂
+  | [], _, _, _, _ => rfl
+  | .message _ receiver _ :: rest, e₁, e₂, r₁, r₂ => by
+    have ih := Schedule.receivedWords_append (i := i) rest e₁.2 e₂ r₁.2 r₂
+    by_cases hi : i = receiver
+    · simp only [List.cons_append, Schedule.receivedWords, Schedule.MessageEncodings.append,
+        Schedule.Received.append, dite_eq_left hi, ih]
+    · simp only [List.cons_append, Schedule.receivedWords, Schedule.MessageEncodings.append,
+        Schedule.Received.append, dite_eq_right hi, ih]
+  | .oracle _ _ :: _, e₁, _, _, _ => Empty.elim e₁
+
+/-- **Lifting a schedule along a party embedding keeps the received words**: in
+`sc.map (Round.embed parties)`, party `parties s` receives the words that slot `s` receives along
+`sc`. -/
+theorem Schedule.receivedWords_embed {k : ℕ} (parties : Fin k ↪ Fin m) (s : Fin k) :
+    (sc : Schedule k spec) → (e : sc.MessageEncodings) → (recv : (t : Fin k) → sc.Received t) →
+      Schedule.receivedWords (i := parties s) (sc.map (Round.embed parties))
+          (Schedule.MessageEncodings.embed parties sc e)
+          (Composition.pushScheduleReceived parties sc recv (parties s)) =
+        Schedule.receivedWords sc e (recv s)
+  | [], _, _ => rfl
+  | .message _ receiver _ :: rest, e, recv => by
+    have ih := Schedule.receivedWords_embed parties s rest e.2 fun t => (recv t).2
+    by_cases hs : s = receiver
+    · subst hs
+      refine (dite_eq_left rfl).trans ?_
+      simp only [Schedule.receivedWords, dite_true]
+      exact congrArg (_ :: ·) ih
+    · have hne : parties s ≠ parties receiver := fun h => hs (parties.injective h)
+      refine (dite_eq_right hne).trans (ih.trans ?_)
+      simp only [Schedule.receivedWords, dite_eq_right hs]
+  | .oracle _ _ :: _, e, _ => Empty.elim e
+
+/-- A party that fills no slot of a party embedding receives no word along a lifted schedule. -/
+theorem Schedule.receivedWords_embed_of_forall_ne {k : ℕ} (parties : Fin k ↪ Fin m) {i : Fin m}
+    (hi : ∀ s, parties s ≠ i) :
+    (sc : Schedule k spec) → (e : sc.MessageEncodings) →
+      (r : Schedule.Received (sc.map (Round.embed parties)) i) →
+      Schedule.receivedWords (sc.map (Round.embed parties))
+        (Schedule.MessageEncodings.embed parties sc e) r = []
+  | [], _, _ => rfl
+  | .message _ receiver _ :: rest, e, r => by
+    have ih := Schedule.receivedWords_embed_of_forall_ne parties hi rest e.2 r.2
+    have hne : i ≠ parties receiver := fun h => hi receiver h.symm
+    exact (dite_eq_right hne).trans ih
+  | .oracle _ _ :: _, e, _ => Empty.elim e
 
 /-! ### Words of the coins of a composed protocol -/
 

@@ -8,18 +8,26 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
+import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.Mixture
+import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
 
 /-!
 # Yao's protocol in the plain model: one key-derivation and one DDH distinguisher
 
 This module is a step towards the plain-model statement of Theorem 7 of Lindell and Pinkas
-[LindellPinkas2009] for a corrupted evaluator (#6045, criterion 2), not that theorem.
-`Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le`
-(`CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Games.lean`) bounds the advantage of an
-environment against `Yao.kdfDDHProbFamily` by a sum with one key-derivation and one DDH
-distinguisher per transfer, each under its own absolute value. A sum of absolute values is not
-bounded by a multiple of the advantage of one distinguisher, so `F.SecureKDF` and `F.DDH` do not
-apply to it when the number of transfers grows with the security parameter.
+[LindellPinkas2009] for a corrupted evaluator (#6045, criterion 2), not that theorem. It bounds,
+at every security parameter, the advantage of an `Environment` with a corrupted evaluator between
+`ProtocolFamily.idealGame`, with the composed simulators, and `ProtocolFamily.realGame` of the
+plain-model family `Yao.kdfDDHProbFamily`
+(`CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Games.lean`). The group description is drawn
+by the setup, the environment chooses the inputs with a program that sees it, and every adversary
+of the bound is one explicit program.
+
+A hybrid argument over the transfers that takes one absolute value per transfer bounds this
+advantage by a sum with one key-derivation and one DDH distinguisher per transfer `j`, built from
+`Yao.kdfDDHTransferEnv … Z j`. A sum of absolute values is not bounded by a multiple of the
+advantage of one distinguisher, so `F.SecureKDF` and `F.DDH` do not apply to it when the number of
+transfers grows with the security parameter. No such sum is stated for the family.
 
 Here the hybrids over the transfers telescope before any absolute value is taken
 (`advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame`): the environment program
@@ -32,15 +40,24 @@ distinguisher, built from that one program, with the factor `2 ^ L n` for any `L
 
 * `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul`: at every parameter `n ≥ 1`
   with `(c n).evaluatorLen ≤ 2 ^ L n`, the advantage of an environment `Z` with a corrupted
-  evaluator is at most the `prv.sim` advantage of `Yao.kdfDDHProbEnvToPrvSim` plus `2 ^ L n` times
-  the sum of
-  * the advantage between `F.kdfIdealGame` and `F.kdfRealGame` of
-    `F.roundEnvToKDFDistinguisher H (F.padHidingEnv H F.kdfPadsProb S₂ E)`,
-  * the advantage between `F.ddhRealGame` and `F.ddhRandomGame` of
-    `F.roundEnvToDDHDistinguisher (F.padTransferEnv H F.kdfPadsProb S₂ E)`, and
-  * `18 / 2 ^ n`,
+  evaluator is at most
+  * the `prv.sim` advantage of the adversary `Yao.kdfDDHProbEnvToPrvSim`, which draws `d` with the
+    setup program, runs the choosing stage of `Z` and then `composeDistinguisher`, plus
+  * `2 ^ L n` times the sum of
+    * the advantage between `F.kdfIdealGame` and `F.kdfRealGame` (the games of `F.SecureKDF`) of
+      the distinguisher `F.roundEnvToKDFDistinguisher H (F.padHidingEnv H F.kdfPadsProb S₂ E)`,
+    * the advantage between `F.ddhRealGame` and `F.ddhRandomGame` (the games of `F.DDH`) of the
+      distinguisher `F.roundEnvToDDHDistinguisher (F.padTransferEnv H F.kdfPadsProb S₂ E)`, and
+    * `18 / 2 ^ n`,
 
-  where `E = Yao.kdfDDHDrawnTransferEnv F H c Sm S₂ Z L` does not depend on a transfer.
+    where `E = Yao.kdfDDHDrawnTransferEnv F H c Sm S₂ Z L` does not depend on a transfer: it draws
+    a transfer `j`, runs the choosing stage of `Z`, garbles, runs the transfers before `j` with
+    the real protocol and stops at transfer `j`.
+
+  The setup law of the key-derivation and DDH games is the distribution of the setup program. The
+  absolute value of each of the three advantages is outside the expectation over the setup, the
+  drawn transfer, the choice of the environment, the garbler's coins and the earlier transfers.
+  The label length is the property `Gs.HasTokenLength` of the garbling scheme.
 
 ## What is not proved
 
@@ -84,9 +101,34 @@ open scoped NNReal
 variable {Fn Λ : Type} {Gs : Scheme Fn} {δ : Type} {G : δ → Type} {spec₂ : δ → MultiOracleSpec}
   {sc₂ : (a : δ) → Schedule 2 (spec₂ a)} {Coins₂ : δ → Fin 2 → Type}
 
-/-- `Yao.advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add_sum` with one environment
-that draws the transfer `j` below `2 ^ L` with `L` fair coins, for `c.evaluatorLen ≤ 2 ^ L`: the
-sum over the transfers becomes `2 ^ L` times the two advantages of that environment. -/
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
+(#6045): a concrete bound at a fixed security parameter under a sampled first stage, with no
+efficiency certificate for any reduction, no hardness assumption applied and the terms of the
+transfers left unbounded.
+
+Let `e` sample an index `a`, such as a group description, on which the type `G a` of the pads, the
+masks, the distribution of the pads, the protocol `Sub a` for the pad transfer in the world
+`W₂ a`, its simulators `S₂ a`, the simulators `Sm a` of `maskedOT`, the inputs `x a` and the
+distinguisher `D a` may depend. At every parameter `n ≥ 1` and for `c.evaluatorLen ≤ 2 ^ L`, when
+`Gs` is correct with a projective encoding, the advantage between the ideal game of
+`Yao.protocol Gs n c` over `seqBatchOT` over `maskedOT` over `Sub a` for the coalition `{1}`, with
+the simulator composed from `T₁ {1} = Yao.evaluatorSim Gs Φ S n c`, `seqBatchOTSim`, `Sm a` and
+`S₂ a`, and its real game, both after the first stage, is at most the `prv.sim` advantage against
+the garbling simulator `S n` of the adversary `Yao.evaluatorEnvToPrvSim` applied to
+`composeDistinguisher`, which runs `e` itself, plus `2 ^ L` times the sum of two advantages of the
+one environment that draws a transfer `j` below `2 ^ L` with `L` fair coins
+(`ProbComp.sampleBinaryNat`), runs `e` and then `composeSeqBatchOTRoundEnv` of transfer `j` of the
+only call, followed by one further stage:
+
+* between the ideal and the real game of `maskedOT` with the ideal pad transfer, against
+  `composeDistinguisher`;
+* between the ideal game of the pad transfer, with the simulator `S₂ a`, and its real game with
+  `Sub a` (`composeRoundEnv` of `maskedOT`).
+
+Every absolute value is outside the expectation over the drawn transfer and the first stage: the
+signed differences of the hybrids over the transfers telescope before it is taken
+(`advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame`). Nothing is assumed about `S`,
+`e`, the masks, the pad transfer, the simulators or the distinguishers. -/
 private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add_mul
     (hproj : Gs.encode = projectiveEncode) (hcorrect : Gs.Correct) {n : ℕ} (hn : 0 < n)
     (c : Params Gs) (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) (e : ProbComp δ)
@@ -222,12 +264,19 @@ No efficiency is claimed for it. -/
 distinguisher, with no efficiency certificate for any of the three adversaries and no hardness
 assumption applied.
 
-In the setting of `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le`, let `L n` fair
-coins index the transfers: `(c n).evaluatorLen ≤ 2 ^ L n`. At every parameter `n ≥ 1`, the
-advantage of an environment `Z` between `ProtocolFamily.idealGame` with the composed simulator
-family `Yao.kdfDDHProbSim` and `ProtocolFamily.realGame` is at most
+Let the group description `d` be drawn by the setup program `setup n`, let `Z` be an environment
+against the plain-model family `Yao.kdfDDHProbFamily Gs F H c` with a corrupted evaluator, and let
+`L n` fair coins index the transfers: `(c n).evaluatorLen ≤ 2 ^ L n`. At every parameter `n ≥ 1`,
+when the garbling scheme `Gs` is correct with a projective encoding and tokens of length
+`msgLen n` (`Gs.HasTokenLength`), every derived key `H (d, F.encode d r)` has length `msgLen n`,
+and the simulators at the coalition `{1}` are `Yao.evaluatorSim Gs Φ S n (c n)` for Yao's protocol,
+`maskedOTReceiverSim` with the fair-coin pads and a uniform `msgLen n`-bit word for the masked
+transfer and `F.ddhOTReceiverSimProb n d` for the DDH transfer, the advantage of `Z` between
+`ProtocolFamily.idealGame` with the composed simulator family `Yao.kdfDDHProbSim` and
+`ProtocolFamily.realGame` is at most
 
-* the `prv.sim` advantage against `S n` of the one adversary `Yao.kdfDDHProbEnvToPrvSim`, plus
+* the `prv.sim` advantage against `S n` of the one adversary `Yao.kdfDDHProbEnvToPrvSim`, which
+  runs the setup program, the choosing stage of `Z` and `composeDistinguisher`, plus
 * `2 ^ L n` times the sum of the advantage between `F.kdfIdealGame` and `F.kdfRealGame` of the one
   distinguisher built from `Yao.kdfDDHDrawnTransferEnv … Z L` by `F.padHidingEnv` and
   `F.roundEnvToKDFDistinguisher`, the advantage between `F.ddhRealGame` and `F.ddhRandomGame` of
@@ -241,7 +290,9 @@ absolute value is taken. The factor is `2 ^ L n`, not `(c n).evaluatorLen`, beca
 an exactly uniform index only below a power of two; there is no rounding term, and for
 `L n = Nat.clog 2 (c n).evaluatorLen` the factor is below `2 * (c n).evaluatorLen` when there is a
 transfer. The setup law of the key-derivation and DDH games is the distribution of the setup
-program. -/
+program. Each of the three advantages is the absolute difference of two acceptance probabilities
+of one adversary, outside the expectation over the setup, the drawn transfer, the choice of the
+environment, the garbler's coins and the earlier transfers. -/
 theorem advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul
     (hproj : Gs.encode = projectiveEncode) (hcorrect : Gs.Correct)
     (F : PrimeOrderGroupFamily) (setup : ℕ → ProbComp F.Desc)

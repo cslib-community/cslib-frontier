@@ -10,6 +10,7 @@ import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridChallenge
 import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridProg
 import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDHProb
 import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
+import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.Mixture
 import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
 
 /-!
@@ -50,15 +51,11 @@ A client of `Composition.ForallChallenge`, `composeRoundEnvProg`, `Protocol.real
 * The real game of `Yao.kdfDDHProbFamily` is, by `rfl`, the setup, the choosing stage of the
   environment, the real joint distribution of the four-level composed protocol with the fair-coin
   pads in the plain model, and the guessing stage.
-* `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le` is applied with all its data
-  and hypotheses as variables, and its bound is ascribed: the privacy term of the garbling scheme
-  plus, for every transfer, the advantage between the ideal and the real key-derivation game plus
-  the advantage between the real and the random DDH game plus `18 / 2 ^ n`. Exchanging the two
-  games of a term, or changing the constant, fails the check.
 * `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_garbler_le` is applied to an arbitrary setup
   law and environment, and its bound `(c n).evaluatorLen * (2 / 2 ^ n)` is ascribed.
 
-`CslibFrontierTests/Crypto/YaoLabelLength.lean` discharges the hypotheses of the evaluator bound
+`CslibFrontierTests/Crypto/YaoLabelLength.lean` applies the evaluator bound
+`Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul` and discharges its hypotheses
 on the garbling scheme for a scheme of the library.
 -/
 
@@ -328,39 +325,6 @@ example {Fn : Type} {Gs : Scheme Fn} (F : PrimeOrderGroupFamily) (setup : ℕ �
           ProbComp.eval (Z.guess n d ch.state r) :=
   rfl
 
-/-- The evaluator bound for Yao's protocol in the plain model against an environment, with its
-terms in order: garbling privacy, then per transfer the ideal against the real key-derivation game,
-the real against the random DDH game, and `18 / 2 ^ n`. -/
-example {Fn Λ : Type} {Gs : Scheme Fn}
-    (hproj : Gs.encode = projectiveEncode) (hcorrect : Gs.Correct)
-    (F : PrimeOrderGroupFamily) (setup : ℕ → ProbComp F.Desc)
-    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ)
-    (c : ℕ → Params Gs) (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ)
-    (T₁ : (n : ℕ) → (I : Finset (Fin 2)) →
-      CoalitionSimulator (schedule (c n)) (Input (c n)) Coins (fun _ => List Bool) I)
-    (Sm : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
-      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
-      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
-    (S₂ : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) →
-      CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
-        (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
-    (Z : Environment (kdfDDHProbFamily Gs F H c) {1})
-    {n : ℕ} (hn : 0 < n)
-    (hT₁ : T₁ n {1} = evaluatorSim Gs Φ S n (c n))
-    (hSm : ∀ d, Sm n d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPadsProb n d)
-      (Cslib.BitString.sampleList (msgLen n)))
-    (hS₂ : ∀ d, S₂ n d {1} = F.ddhOTReceiverSimProb n d)
-    (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n)
-    (hlabel : Gs.HasTokenLength n (c n).fn (msgLen n)) :=
-  (Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le hproj hcorrect F setup H msgLen
-    c Φ S T₁ Sm S₂ Z hn hT₁ hSm hS₂ hH hlabel :
-    Game.advantage ((kdfDDHProbFamily Gs F H c).idealGame _ {1} _ Z n)
-        ((kdfDDHProbFamily Gs F H c).realGame _ {1} Z n) ≤
-      prvSimAdvantage _ _ _ _ _ +
-        ∑ _j ∈ Finset.range (c n).evaluatorLen,
-          (Game.advantage (F.kdfIdealGame _ msgLen _ n) (F.kdfRealGame _ H _ n) +
-            (Game.advantage (F.ddhRealGame _ _ n) (F.ddhRandomGame _ _ n) + 18 / 2 ^ n)))
-
 /-- The garbler bound for Yao's protocol in the plain model against an environment, for any setup
 law: `2 / 2 ^ n` per transfer. -/
 example {Fn : Type} {Gs : Scheme Fn}
@@ -380,7 +344,7 @@ example {Fn : Type} {Gs : Scheme Fn}
     (hT₁ : T₁ n {0} = garblerSim Gs n (c n))
     (hSm : ∀ d, Sm n d {0} = maskedOTSenderSim (F.kdfPadsProb n d))
     (hS₂ : ∀ d, S₂ n d {0} = F.ddhOTSenderSimProb n d)
-    (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n)
+    (hH : ∀ d ∈ (setup n).support, ∀ r : F.Carrier d, (H (d, F.encode d r)).length = msgLen n)
     (hlabel : Gs.HasTokenLength n (c n).fn (msgLen n)) :=
   (Yao.advantage_idealGame_realGame_kdfDDHProbFamily_garbler_le hproj hcorrect F setup H msgLen c
     T₁ Sm S₂ Z hn hT₁ hSm hS₂ hH hlabel :
