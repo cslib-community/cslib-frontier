@@ -1195,6 +1195,10 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRankUpper
 public import CslibFrontier.Computability.Circuit.Arithmetic.Rigidity
 public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadget
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
@@ -6464,6 +6468,7 @@ public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import CslibFrontier.Crypto.Protocols.UC.Machine
 public import CslibFrontier.Crypto.Protocols.UC.MultiSession
 public import CslibFrontier.Crypto.Protocols.UC.PPT
+public import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
 public import CslibFrontier.Crypto.Protocols.UC.PushExecution
 public import CslibFrontier.Crypto.Protocols.UC.Reactive
 public import CslibFrontier.Crypto.Protocols.UC.WordInterface
@@ -6909,6 +6914,8 @@ public import CslibFrontier.DataStructure.WordRAM.Resizable.StateTransition
 public import CslibFrontier.DataStructure.WordRAM.StateTransition
 public import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 public import CslibFrontier.Foundations.Algebra.BigOperators.Selection
+public import CslibFrontier.Foundations.Algebra.Covering.Basic
+public import CslibFrontier.Foundations.Algebra.Covering.Certificate
 public import CslibFrontier.Foundations.Algebra.DFT
 public import CslibFrontier.Foundations.Algebra.FiniteMagnitude
 public import CslibFrontier.Foundations.Algebra.GeometricTail
@@ -7039,6 +7046,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.MulMonotonePow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.OneAddRpow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.PolynomialSwitch
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.RationalRamp
@@ -7118,6 +7126,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePart
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
 public import CslibFrontier.Foundations.BooleanAnalysis.Majority
 public import CslibFrontier.Foundations.BooleanAnalysis.MajorityFourier
+public import CslibFrontier.Foundations.BooleanAnalysis.MargulisRusso
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
@@ -7182,6 +7191,10 @@ public import CslibFrontier.Foundations.Combinatorics.CentralBinomial
 public import CslibFrontier.Foundations.Combinatorics.CompositionMoment
 public import CslibFrontier.Foundations.Combinatorics.CompositionMomentLinear
 public import CslibFrontier.Foundations.Combinatorics.CornerCutting
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Load
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Path
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Rank
 public import CslibFrontier.Foundations.Combinatorics.CubeSplitting
 public import CslibFrontier.Foundations.Combinatorics.DepthReduction
 public import CslibFrontier.Foundations.Combinatorics.Design.ReedSolomon
@@ -7895,6 +7908,8 @@ public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
 public import CslibFrontier.Foundations.FieldTheory.Finite.Trinomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.UnitSum
 public import CslibFrontier.Foundations.FieldTheory.TensorBasis
+public import CslibFrontier.Foundations.Geometry.CAT0.Basic
+public import CslibFrontier.Foundations.Geometry.CAT0.Toolkit
 public import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Cap
 public import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Unoriented.Basic
 public import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
@@ -7992,6 +8007,17 @@ public import CslibFrontier.Foundations.GroupTheory.Perm.ReverseCycle
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbitJoin
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbits
 public import CslibFrontier.Foundations.GroupTheory.Perm.SumCycles
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Base
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Chain
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Coord
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Diam
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Grp
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Inst
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Layer
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Ring
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Tower
+public import CslibFrontier.Foundations.GroupTheory.SLTower.UT
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Words
 public import CslibFrontier.Foundations.LinearAlgebra.AffineSolutionSampling
 public import CslibFrontier.Foundations.LinearAlgebra.CubeSum
 public import CslibFrontier.Foundations.LinearAlgebra.ExchangeReplacement
@@ -8092,6 +8118,12 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Amplify
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Basic
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Degeneration
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Indicator
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Basic
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Classes
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Network
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Spectrum
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Polynomial
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Primal
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Round
