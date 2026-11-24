@@ -1361,6 +1361,11 @@ Alexander Hoover, Sarvar Patel, Giuseppe Persiano and Kevin Yeo. "Plinko: Single
 
 Falk Hüffner. "Algorithm Engineering for Optimal Graph Bipartization." *Journal of Graph Algorithms and Applications* 13(2), 77–98, 2009. https://doi.org/10.7155/jgaa.00177 . Journal PDF inspected on 2026-11-08 (https://jgaa.info/index.php/jgaa/article/download/paper177/2776): Section 3, Lemma 2 (p. 84; the disjoint-compression characterization by valid colourings and vertex cuts, after subdividing the edges at the old solution), the Compress-OCC routine (p. 85), and the running-time paragraph with Theorem 1 (p. 86). There Hüffner records that Reed, Smith and Vetta state `O(4^k · kmn)`, and shows that assigning each vertex of the old solution one of three roles (deleted, or one of two colourings of its neighbours) gives `3^k` minimum vertex cut problems and `O(3^k · kmn)` (Theorem 1). [OddCycleTransversal](../CslibFrontier/Algorithms/Lean/IterativeCompression/OddCycleTransversal.lean) credits the `3^k` count to this theorem; the improvement to `O(3^k · mn)` (Theorem 2, p. 88) is not formalized.
 
+<a id="hulsingkudinov22"></a>
+## hulsingkudinov22
+
+Andreas Hülsing and Mikhail Kudinov. *Recovering the Tight Security Proof of SPHINCS+*. Cryptology ePrint Archive, Paper 2022/346, 2022. https://eprint.iacr.org/2022/346 . Bibliographic metadata taken from `references.bib`. The ePrint copy was not inspected for this entry: on 2026-11-24 the server refused automated requests, so the locator is not verified and none is recorded here. An agent source review on #5573 ([2026-11-14](https://github.com/cslib-community/cslib-frontier/issues/5573#issuecomment-6881580912)) reports that the citation matched a theorem of the paper, without naming the copy it read; that check was not repeated. [SLHDSA/MessageCalls.lean](../CslibFrontier/Crypto/Primitives/SLHDSA/MessageCalls.lean) cites the paper only as the source of the security properties that the SPHINCS+ proof requires of `PRF_msg` and `H_msg`. The module implements the FIPS 205 executable calls and states or proves none of those properties.
+
 <a id="iknp03"></a>
 ## iknp03
 
