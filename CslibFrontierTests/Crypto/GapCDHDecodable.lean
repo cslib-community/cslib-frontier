@@ -30,8 +30,8 @@ exports from `GapCDH.Assumption` and `GapCDH.WordKEM`) through ordinary `import`
   `dhKEMDecapsWordOracle`): uniform strict-(oracle-)PPT certificates, support-level round-trip
   correctness (`run_dhKEMDecapsWordOracle_of_mem_support`), and malformed-ciphertext rejection.
 * Certified uniform strict oracle-PPT KEM CCA distinguisher instantiation with
-  `isOraclePPTOn_dhKEMToGapCDHWord`, the fair-coin bound `advantage_dhKEMCCAWordGame_le` (and ideal
-  step `advantage_dhKEMCCAWordIdealGame_le`), and `GapCDH.dhKEMROMINDCCA`.
+  `isOraclePPTOn_dhKEMToGapCDHWord`, the fair-coin bound `advantage_dhKEMCCAWordGame_le`, and
+  `GapCDH.dhKEMROMINDCCA`.
 -/
 
 -- Regression client module exercising ordinary imports; exports no test fixtures.
@@ -161,9 +161,8 @@ theorem isOraclePPT_toyKEMAdversary : IsOraclePPT encBool toyKEMAdversary := by
 
 example {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hGap : F.GapCDH setup) :
-    F.DHKEMROMINDCCA setup id ∧ F.DHKEMIdealROMINDCCA setup id :=
-  ⟨hGap.dhKEMROMINDCCA ComputableInPolyTime.id',
-   hGap.dhKEMIdealROMINDCCA ComputableInPolyTime.id'⟩
+    F.DHKEMROMINDCCA setup id :=
+  hGap.dhKEMROMINDCCA ComputableInPolyTime.id'
 
 example {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hGap : F.GapCDH setup) :

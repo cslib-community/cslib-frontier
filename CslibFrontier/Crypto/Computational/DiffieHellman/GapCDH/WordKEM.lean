@@ -43,8 +43,7 @@ ciphertext-validation remark of [KatzLindell2020], Construction 12.23 (pp. 435�
 key generation, challenge encapsulation, and non-challenge decapsulation queries execute
 `dhKEMKeyGenWordProb`, `dhKEMEncapsWordProb`, and `dhKEMDecapsWordOracle` against `dhKEMROAnswer`,
 hash queries outside `Set.range (F.encode d)` return `[]`, and decapsulation refuses `c = cStar`
-with `[]`. The ideal-sampling step `dhKEMCCAWordIdealGame` (`DHKEMIdealROMINDCCA`) instead draws
-both exponents from `PMF.uniformOfFintype (ZMod (F.order d))`.
+with `[]`.
 
 `dhKEMToGapCDHWord` mirrors `PrimeOrderGroupFamily.dhKEMToGapCDH` on words: when the public key
 word equals `F.encode d 0` it outputs `F.encode d 0`; otherwise it samples a uniform `keyLen n`-bit
@@ -75,10 +74,8 @@ satisfying `queryDDHWord cStar z`. Its oracle-PPT certificate uses only `IsOracl
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMROAnswer`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordAnswer`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordGame`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCA`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordIdealGame`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMIdealROMINDCCA`: word-level ROM IND-CCA
-  oracles, fair-coin experiment and security definition, and ideal-sampling experiment and step.
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCA`: word-level ROM IND-CCA oracles,
+  fair-coin experiment and security definition.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.simWordHandler`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.extractDHWord`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMToGapCDHWord`: word-level query simulator,
@@ -414,42 +411,6 @@ def DHKEMROMINDCCA (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ) : Prop :=
   Game.Indistinguishable
     (fun A n => F.dhKEMCCAWordGame setup keyLen A true n)
     (fun A n => F.dhKEMCCAWordGame setup keyLen A false n)
-    (IsOraclePPT encBool)
-
-/-- Ideal-sampling fixed-group word-level ROM IND-CCA game for Construction 12.19 at parameter `n`
-and group `d`, drawing `x, y : ZMod (F.order d)` from `PMF.uniformOfFintype` rather than
-`sampleExp`; intermediate step toward `dhKEMCCAWordGameAt`. -/
-noncomputable def dhKEMCCAWordIdealGameAt (keyLen : ℕ → ℕ)
-    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ)
-    (d : F.Desc) : Game :=
-  letI : Fintype (F.Carrier d) := F.fintypeCarrier d
-  do
-    let x ← PMF.uniformOfFintype (ZMod (F.order d))
-    let y ← PMF.uniformOfFintype (ZMod (F.order d))
-    let H ← Probability.PMF.pi fun _ : F.Carrier d =>
-      ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
-    let random ← ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
-    let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
-    let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
-      ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
-    ProbComp.eval ((adversary n challenge).run
-      fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
-
-/-- Ideal-sampling word-level ROM IND-CCA game over `setup` and `keyLen`, drawing the key and
-encapsulation exponents from `PMF.uniformOfFintype (ZMod (F.order d))`; intermediate step toward
-`dhKEMCCAWordGame`. -/
-noncomputable def dhKEMCCAWordIdealGame (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
-    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ) : Game :=
-  (setup n).bind (F.dhKEMCCAWordIdealGameAt keyLen adversary bit n)
-
-/-- Ideal-sampling step toward `DHKEMROMINDCCA`, not the cited random-oracle IND-CCA notion of
-Construction 12.19: indistinguishability of the real-key and random-key worlds of
-`dhKEMCCAWordIdealGame`, whose key and encapsulation exponents are drawn exactly uniformly on
-`ZMod (F.order d)` at the `PMF` level rather than via the fair-coin sampler `sampleExp`. -/
-def DHKEMIdealROMINDCCA (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ) : Prop :=
-  Game.Indistinguishable
-    (fun A n => F.dhKEMCCAWordIdealGame setup keyLen A true n)
-    (fun A n => F.dhKEMCCAWordIdealGame setup keyLen A false n)
     (IsOraclePPT encBool)
 
 /-- Stateful query simulator of `dhKEMToGapCDHWord` at parameter `n`, group `d`, and challenge

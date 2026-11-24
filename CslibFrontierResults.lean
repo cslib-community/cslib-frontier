@@ -1,5 +1,6 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.DHKEM
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
