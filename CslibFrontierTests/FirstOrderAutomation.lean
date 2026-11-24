@@ -95,12 +95,30 @@ private def namedGuard {L : Language} (R : L.Relations 2) : L.Formula (Fin 2) :=
 example {L : Language} (R : L.Relations 2) : (namedGuard R).IsQF := by
   fo_qf [namedGuard]
 
--- Local normalization applies only to this invocation's goal.
+-- A hint applies only to its own call: the unhinted search does not unfold `namedGuard`.
 example {L : Language} (R : L.Relations 2) :
     (namedGuard R).IsQF ∧ (namedGuard R).IsQF := by
   constructor
   · fo_qf [namedGuard]
-  · fo_qf [namedGuard]
+  · fail_if_success fo_qf
+    fo_qf [namedGuard]
+
+private def quantifiedGuard {L : Language} (R : L.Relations 2) : L.Sentence :=
+  ∀' R.boundedFormula₂ &0 &0
+
+/-- error: Unknown identifier `noSuchGuard` -/
+#guard_msgs in
+example {L : Language} (R : L.Relations 2) : (namedGuard R).IsQF := by
+  fo_qf [noSuchGuard]
+
+-- A hint that rewrites no goal of the search is not reported.
+example {L : Language} (R : L.Relations 2) : (namedGuard R).IsQF := by
+  fo_qf [namedGuard, quantifiedGuard]
+
+/-- Note: fo_qf proves quantifier-freeness from the rules of the Aesop rule set `FirstOrder` -/
+#guard_msgs (whitespace := lax, substring := true) in
+example {L : Language} (R : L.Relations 2) : (quantifiedGuard R).IsQF := by
+  fo_qf [quantifiedGuard]
 
 -- A semantically harmless quantified guard is still excluded by the syntactic certificate.
 example {N L : Language} (R : N.Relations 2) :
