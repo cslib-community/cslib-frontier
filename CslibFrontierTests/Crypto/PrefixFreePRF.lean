@@ -132,18 +132,20 @@ example : InformationTheory.IsPrefixFree
     rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
     decide)
 
-/-- The real comparison applies to the CBC domain with a proper-prefix pair and extra block. -/
+/-- The combined bound applies to the CBC domain with a proper-prefix pair and extra block. -/
 example (family : List Bool → List Bool → List Bool) :
     let guessBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
       fun _ => pure [[false, false, false], [false, false, false, true, false, false]]
+    let wrapper := prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2))
+      guessBatch
     Game.succProbability (multiQueryGame pure (fun _ d => cbcBlockValid (fun _ => 2) d)
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guessBatch 3) ≤
-    Game.succProbability (ProbComp.eval
-      (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family)
-        (prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2)) guessBatch)
-        3)) := by
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family) wrapper 3))
+      (ProbComp.eval (prfIdealGameOn (cbcBlockValid (fun _ => 3)) id wrapper 3)) +
+      (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ 3 := by
   dsimp only
-  refine succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+  refine succProbability_multiQueryGame_le_prefixFreeBatchReduction
     (cbcMacFamily family) _ 3 2 ?_ ?_ (by decide) cbcBlockValid_append (cbcMacFamily_extend family)
   · intro guesses hguesses
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hguesses
