@@ -255,7 +255,7 @@ theorem start_inSpace : ComputableInSpace start encInput encContext
   have hw := budget_comp_linear natSize (encParameters_width_budget hp)
   have hone : ComputableInSpace (fun _ : Input => 1) encInput encNat
       (fun x => (encParameters x.parameters).length) :=
-    (constZero 1).weaken (.of_le fun _ => by omega)
+    budget_const 1
   have hlen := budget_natAdd (budget_natAdd (budget_natAdd hn hn) hone) hw
   have hoff := budget_natAdd (budget_natAdd hlen hlen) hone
   have hprep := budget_comp_linear prepare_inSpace hp
@@ -298,7 +298,7 @@ theorem finish_inSpace : ComputableInSpace finish encContext (encOption encNat)
   have hboth := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hk hc)
   exact (budget_ite hboth (budget_comp_linear result_inSpace hr)
-    (budget_const none (.refl _))).of_enc_eq fun s => by simp [finish, Bool.and_eq_true]
+    (budget_const none)).of_enc_eq fun s => by simp [finish, Bool.and_eq_true]
 
 /-- One actual native machine performs prefix dispatch, parameter preparation and streaming
 ID decoding. Its workspace is uniform in runtime parameters and independent of suffix length.

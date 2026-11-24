@@ -26,6 +26,10 @@ The finite OT index has constant-size encoding, while every receipt and opening 
 an explicit framed list. The loop reuses the generic probabilistic list-fold certificate; its
 semantic bridge identifies it with the one common receiver recursion.
 
+## Main definitions
+
+* `encReceiverView`: bit-free receiver view `(transcript, state)` encoding.
+
 ## Main results
 
 * `receiverViewProgram_isPPT`: uniform strict PPT of the bit-free receiver view.
@@ -40,6 +44,13 @@ namespace Cslib.Crypto.Protocols.MPC.OTCommitment
 open Probability Turing.MultiTapeTM Crypto.Protocols.Commitment
 
 variable {State : Type}
+
+/-- Bit-free receiver view `(transcript, state)`: the list of OT receipts (`encList
+encReceiverReceipt`, each receipt framed inside the list) is framed before the unframed receiver
+state under `stateEncoding`, with no tag bits. -/
+abbrev encReceiverView (stateEncoding : State ↪ List Bool) :
+    List (Fin 4 × Bool) × State ↪ List Bool :=
+  encPair (encList encReceiverReceipt) stateEncoding
 
 private noncomputable def receiverLoopStep
     (choose : ℕ → State → ProbComp (Fin 4 × State))
@@ -87,15 +98,13 @@ theorem receiverViewProgram_isPPT (stateEncoding : State ↪ List Bool)
     (hreceiveGrowth : ∀ st answer next,
       next ∈ (ProbComp.eval (receive st answer)).support →
       (stateEncoding next).length ≤ (stateEncoding st).length + receiveGrowth) :
-    IsPPTOn (encPair encUnary stateEncoding)
-      (encPair (encList (encPair (encFinEnum (Fin 4)) encBool)) stateEncoding)
+    IsPPTOn (encPair encUnary stateEncoding) (encReceiverView stateEncoding)
       (fun p => receiverViewProgram choose receive p.1 p.2) := by
-  let receiptEncoding := encPair (encFinEnum (Fin 4)) encBool
-  let accEncoding := encPair encUnary (encPair stateEncoding (encList receiptEncoding))
+  let accEncoding := encPair encUnary (encPair stateEncoding (encList encReceiverReceipt))
   have hstep : IsPPTOn (encPair accEncoding (encFinite Unit)) accEncoding
       (Function.uncurry (receiverLoopStep choose receive)) := by
     unfold receiverLoopStep Function.uncurry
-    dsimp only [accEncoding, receiptEncoding]
+    dsimp only [accEncoding, encReceiverReceipt]
     ppt
   have hgrowth : ∀ acc item, ∀ next ∈
       (ProbComp.eval (receiverLoopStep choose receive acc item)).support,
@@ -109,7 +118,7 @@ theorem receiverViewProgram_isPPT (stateEncoding : State ↪ List Bool)
     have hfinal := hreceiveGrowth middle answer final hfinal
     have hindex := length_encFinEnum_lt j
     simp only [Nat.card_fin] at hindex
-    enc_len [accEncoding, receiptEncoding, encList_cons, List.length_singleton]
+    enc_len [accEncoding, encReceiverReceipt, encList_cons, List.length_singleton]
   have hloop : IsPPTOn (encPair encUnary stateEncoding) accEncoding
       (fun p : ℕ × State => (List.replicate p.1 ()).foldlM
         (receiverLoopStep choose receive) (p.1, p.2, [])) :=
@@ -117,8 +126,8 @@ theorem receiverViewProgram_isPPT (stateEncoding : State ↪ List Bool)
   have hresult := hloop.map
     (show ComputableInPolyTime
       (fun p : ℕ × State × List (Fin 4 × Bool) => (p.2.2.reverse, p.2.1))
-      accEncoding (encPair (encList receiptEncoding) stateEncoding) by
-        dsimp only [accEncoding, receiptEncoding]
+      accEncoding (encReceiverView stateEncoding) by
+        dsimp only [accEncoding, encReceiverView, encReceiverReceipt]
         fun_prop)
   simpa [receiverLoop_eq, Function.comp_def] using hresult
 
@@ -138,14 +147,12 @@ theorem receiverClosedProgram_isPPT {Later Output : Type}
       (encPair (encFinEnum (Fin 4)) stateEncoding) (fun p => choose p.1 p.2))
     (hreceive : IsPPTOn (encPair stateEncoding encBool) stateEncoding
       (fun p => receive p.1 p.2))
-    (hplan : IsPPTOn
-      (encPair (encList (encPair (encFinEnum (Fin 4)) encBool)) stateEncoding)
+    (hplan : IsPPTOn (encReceiverView stateEncoding)
       (encPair encBool laterEncoding) (fun p => plan p.1 p.2))
     (hfinish : IsPPTOn
-      (encPair (encList (encPair (encFinEnum (Fin 4)) encBool))
+      (encPair (encList encReceiverReceipt)
         (encPair stateEncoding (encPair laterEncoding
-          (encPair (encFinite Phased.Observation)
-            (encOption (encList (encPair encBool encBool)))))))
+          (encPair (encFinite Phased.Observation) (encOption encOpeningPairs)))))
       outputEncoding (fun p => finish p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2))
     (chooseGrowth receiveGrowth : ℕ)
     (hchooseGrowth : ∀ k st j next, (j, next) ∈ (ProbComp.eval (choose k st)).support →
@@ -155,7 +162,7 @@ theorem receiverClosedProgram_isPPT {Later Output : Type}
       (stateEncoding next).length ≤ (stateEncoding st).length + receiveGrowth) :
     IsPPTOn (encPair encBool (encPair encUnary stateEncoding))
       (encPair (encFinite Phased.Observation) (encPair (encFinite Phased.Observation)
-        (encPair (encList (encPair (encFinEnum (Fin 4)) encBool))
+        (encPair (encList encReceiverReceipt)
           (encPair stateEncoding (encPair laterEncoding outputEncoding)))))
       (fun p => receiverClosedProgram choose receive p.1 p.2.1 p.2.2 plan finish) := by
   have hview := receiverViewProgram_isPPT stateEncoding choose receive hchoose hreceive

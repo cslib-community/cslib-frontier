@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Order.Field.Basic
 public import Mathlib.Algebra.Order.Ring.Abs
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.List.Sort
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Multiset.Filter
 import Mathlib.Tactic.Linarith
 
@@ -474,9 +475,8 @@ private lemma card_sub_le_countP_map {P : Type*}
   have hle_cnt : (S \ F).card ≤ (S.val.map f).countP (fun x => lo ≤ x ∧ x ≤ hi) := by
     rw [← hcnt_hon]
     exact Multiset.countP_le_of_le _ hsub
-  have hsdiff : S.card - F.card ≤ (S \ F).card := Finset.le_card_sdiff F S
   rw [Multiset.card_map, ← Finset.card_def]
-  omega
+  finset_card
 
 /-- **Sender-multiset validity:** if `2 * t < S.card`, `F.card ≤ t`, and every correct sender
 `p ∈ S \ F` reports a value `f p ∈ [lo, hi]`, then `multisetMidTrim t (S.val.map f) ∈ [lo, hi]`. -/
@@ -512,11 +512,7 @@ theorem abs_multisetMidTrim_map_sub_le {P : Type*} [Fintype P]
     |multisetMidTrim t (S₁.val.map f₁) - multisetMidTrim t (S₂.val.map f₂)| ≤ (hi - lo) / 2 := by
   classical
   set H : Finset P := (S₁ ∩ S₂) \ F
-  have hH_card : 2 * t < H.card := by
-    have hiu := Finset.card_union_add_card_inter S₁ S₂
-    have hu : (S₁ ∪ S₂).card ≤ Fintype.card P := Finset.card_le_univ _
-    have hsdiff : (S₁ ∩ S₂).card - F.card ≤ H.card := Finset.le_card_sdiff F (S₁ ∩ S₂)
-    omega
+  have hH_card : 2 * t < H.card := by finset_card
   have hmap_le : ∀ {S : Finset P} {f : P → K},
       H ⊆ S → (∀ p ∈ S, p ∉ F → f p = val p) → H.val.map val ≤ S.val.map f := by
     intro S f hHS hf

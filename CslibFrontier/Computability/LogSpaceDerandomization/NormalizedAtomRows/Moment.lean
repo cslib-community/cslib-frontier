@@ -237,10 +237,10 @@ theorem uniform_moment_capacity {scale : ℝ} (hs : 0 < scale) (hmargin : scale 
   dsimp only at hb
   have hp := vertexNormPow_sum_le_pow_sum (X := X) (by decide : 4 ≠ 0) hNu (range m) e
     (dyadicFloor η m) (fun i => ε * 2 ^ dyadicSlack m i)
-    (fun _ _ => dyadicFloor_nonneg hη.le _ _) (fun _ _ => by positivity)
+    (fun _ _ => by positivity) (fun _ _ => by positivity)
     (fun i hi => (he i).trans (hrow i (mem_range.mp hi)))
-  have hp' := hp.trans (pow_le_pow_left₀ (sum_nonneg fun _ _ => mul_nonneg (dyadicFloor_nonneg
-    hη.le _ _) (by positivity)) (pre_schedule_sum hη.le hε m) 4)
+  have hp' := hp.trans (pow_le_pow_left₀ (sum_nonneg fun _ _ => by positivity)
+    (pre_schedule_sum hη.le hε m) 4)
   have hf : vertexNormPow 4 N u X (fun σ x => if ∀ i < m,
       stepThreshold (S σ) n (fun _ => HP.K) (dyadicFloor η m) (Δ σ x) ⟨0, raw σ x⟩ i ≤ dyadicFloor
         η m i

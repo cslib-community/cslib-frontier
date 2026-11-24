@@ -214,7 +214,6 @@ theorem polyOfCode_eq_and_add_shiftRight (a k : ℕ) :
 @[expose] def clmul (a b : ℕ) : ℕ :=
   if b = 0 then 0
   else (if b % 2 = 1 then a else 0) ^^^ (clmul a (b / 2) <<< 1)
-decreasing_by omega
 
 /-- Carryless multiplication by `0` on the right is `0`. -/
 @[simp]

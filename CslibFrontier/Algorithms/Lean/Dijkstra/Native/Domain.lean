@@ -49,34 +49,22 @@ theorem relax_valid_queue {n K V : ℕ}
     match dist v with
     | none => IndexedMinPQ.valid K pq (.insert v (du + c))
     | some old => du + c < old → IndexedMinPQ.valid K pq (.decreaseKey v (du + c)) := by
-  cases hd : dist v with
-  | none =>
-    have hp := hv
-    unfold relaxEdge at hp
-    dsimp only [edge, getDist, setDist, queue, StateTransitionSpec.clientHistory,
-      StateTransitionSpec.runClient, PFunctor.FreeM.lift, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure,
-      StateTransitionSpec.stepFn, productStepFn] at hp
-    rw [hg] at hp
-    dsimp only [Dictionary.step, StateTransitionSpec.runClient, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure] at hp
-    rw [hd] at hp
-    exact hp.2.2.2.1
-  | some old =>
-    intro hc
-    have hp := hv
-    unfold relaxEdge at hp
-    dsimp only [edge, getDist, setDist, queue, StateTransitionSpec.clientHistory,
-      StateTransitionSpec.runClient, PFunctor.FreeM.lift, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure,
-      StateTransitionSpec.stepFn, productStepFn] at hp
-    rw [hg] at hp
-    dsimp only [Dictionary.step, StateTransitionSpec.runClient, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure] at hp
-    rw [hd] at hp
-    dsimp only at hp
-    rw [ite_eq_left hc] at hp
-    exact hp.2.2.2.1
+  unfold relaxEdge at hv
+  dsimp only [edge, getDist, setDist, queue, StateTransitionSpec.clientHistory,
+    StateTransitionSpec.runClient, PFunctor.FreeM.lift, PFunctor.FreeM.bind,
+    Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure,
+    StateTransitionSpec.stepFn, productStepFn] at hv
+  rw [hg] at hv
+  dsimp only [Dictionary.step, StateTransitionSpec.runClient, PFunctor.FreeM.bind,
+    Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure] at hv
+  rcases hd : dist v with _ | old
+  · rw [hd] at hv
+    exact hv.2.2.2.1
+  · intro hc
+    rw [hd] at hv
+    dsimp only at hv
+    rw [ite_eq_left hc] at hv
+    exact hv.2.2.2.1
 
 
 /-- The suffix of the original adjacency scan after the first `i` edges. -/

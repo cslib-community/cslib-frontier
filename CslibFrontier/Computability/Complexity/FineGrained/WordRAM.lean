@@ -97,8 +97,7 @@ theorem exists_decidableInTimeAndSpace_KSAT (k : ℕ) :
     have h3 : (L + 1) ^ b ≤ (L + 1) ^ E := hYE _ (by omega)
     have h4 : L + 1 ≤ (L + 1) ^ E := Nat.le_self_pow (by omega) _
     have h5 : X * (L + 1) ^ e ≤ X * (L + 1) ^ E := Nat.mul_le_mul_left _ h2
-    have h6 : (2 * c₀ + 1) ^ dp * (L + 1) ^ E ≤ (2 * c₀ + 1) ^ dp * (X * (L + 1) ^ E) :=
-      Nat.mul_le_mul_left _ hZ
+    have h6 : (2 * c₀ + 1) ^ dp * (L + 1) ^ E ≤ (2 * c₀ + 1) ^ dp * (X * (L + 1) ^ E) := by gcongr
     have h7 : (4 + (2 * c₀ + 1) ^ dp) * (X * (L + 1) ^ E) =
         4 * (X * (L + 1) ^ E) + (2 * c₀ + 1) ^ dp * (X * (L + 1) ^ E) := by ring
     have h8 : (4 + (2 * c₀ + 1) ^ dp) * (L + 1) ^ E =

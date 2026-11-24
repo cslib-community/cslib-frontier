@@ -1271,8 +1271,7 @@ theorem exists_leveledAdversary_overhead {E : Scheme}
       ComputableInPolyTime (fun (x, coins) => evalEncrypt x coins)
         (encPair (encKeyedInput encBool) encBits) encBits ∧
       ComputableInPolyTime (fun (x, coins) => evalChoose x coins)
-        (encPair (encPair encUnary encBits) encBits)
-        (encPair (encPair encBool encBool) encBits) ∧
+        encChooseCoinsInput (Encryption.encChoiceOut encBool) ∧
       ComputableInPolyTime (fun (x, coins) => evalGuess x coins)
         (encPair Encryption.encGuessInput encBits) encBool ∧
       (∀ n, ProbComp.eval (E.keyGen n) =

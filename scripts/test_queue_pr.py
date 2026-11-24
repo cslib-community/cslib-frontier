@@ -784,5 +784,215 @@ class QueuePrefixTests(unittest.TestCase):
         api.assert_not_called()
 
 
+class HubImpactQueueTests(unittest.TestCase):
+    GIT_ENV = {
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.test",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.test",
+    }
+
+    def _seed_hub_repo(self, base_dir: pathlib.Path) -> tuple[pathlib.Path, dict[str, str]]:
+        root = base_dir / "repo"
+        (root / "CslibFrontier").mkdir(parents=True)
+        (root / "CslibFrontierTests").mkdir(parents=True)
+
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+        def write(rel: str, text: str) -> None:
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+        def commit(msg: str) -> str:
+            git("add", "-A")
+            git("commit", "-qm", msg)
+            return git("rev-parse", "HEAD")
+
+        git("init", "-q", "-b", "main")
+        write("CslibFrontier/Hub.lean", "module\npublic def hubVal := 0\n")
+        write("CslibFrontier/Mid.lean", "module\npublic import CslibFrontier.Hub\npublic def midVal := 0\n")
+        write("CslibFrontier/Leaf1.lean", "module\npublic import CslibFrontier.Mid\ndef l1 := 0\n")
+        write("CslibFrontier/Leaf2.lean", "module\npublic import CslibFrontier.Mid\ndef l2 := 0\n")
+        write("CslibFrontierTests/Smoke.lean", "module\nimport CslibFrontier.Leaf1\n")
+        write("CslibFrontier.lean", "module\npublic import CslibFrontier.Hub\n")
+        m0 = commit("m0")
+
+        # Active queue entry #10 touches an unrelated file.
+        write("README.md", "queued ahead\n")
+        queued_sha = commit("queued-10")
+        git("switch", "-q", "--detach", m0)
+
+        # Candidate PR A modifies `CslibFrontier/Hub.lean` (4 transitive importers).
+        write("CslibFrontier/Hub.lean", "module\npublic def hubVal := 1\n")
+        hub_pr_sha = commit("hub-pr")
+        git("switch", "-q", "--detach", m0)
+
+        # Candidate PR B modifies `CslibFrontier/Mid.lean` (3 transitive importers).
+        write("CslibFrontier/Mid.lean", "module\npublic import CslibFrontier.Hub\npublic def midVal := 1\n")
+        mid_pr_sha = commit("mid-pr")
+        git("switch", "-q", "--detach", m0)
+
+        # Candidate PR C only adds a new module and updates root aggregate `CslibFrontier.lean`.
+        write("CslibFrontier/BrandNew.lean", "module\ndef brandNew := 0\n")
+        write("CslibFrontier.lean", "module\npublic import CslibFrontier.BrandNew\npublic import CslibFrontier.Hub\n")
+        new_mod_sha = commit("new-mod-pr")
+        git("switch", "-q", "--detach", m0)
+
+        # Advance `main` on `Hub.lean` AFTER `leaf_pr_sha` branched from `m0` to verify 3-dot merge-base diffing.
+        write("CslibFrontier/Leaf2.lean", "module\npublic import CslibFrontier.Mid\ndef l2 := 9\n")
+        leaf_pr_sha = commit("leaf-pr")
+        git("switch", "-q", "main")
+        git("reset", "-q", "--hard", m0)
+        write("CslibFrontier/Hub.lean", "module\npublic def hubVal := 42\n")
+        m1 = commit("main-hub-advance")
+
+        return root, {
+            "m0": m0,
+            "m1": m1,
+            "queued": queued_sha,
+            "hub_pr": hub_pr_sha,
+            "mid_pr": mid_pr_sha,
+            "new_mod": new_mod_sha,
+            "leaf_pr": leaf_pr_sha,
+        }
+
+    def test_hub_notice_and_hold_hubs_with_active_queue(self) -> None:
+        import check_hub_impact
+        import queue_status
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV):
+            root, shas = self._seed_hub_repo(pathlib.Path(tmp))
+            enqueue_ok = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 2, "state": "QUEUED"}}}
+
+            def run_case(sha: str, base_sha: str, entries: list[tuple[int, str]],
+                         extra_args: list[str] = (), threshold: int = 3, high: int = 4) -> tuple[int, str, int]:
+                candidate_pr = pr(check_run(), baseRefOid=base_sha, headRefOid=sha)
+                candidate_pr["commits"]["nodes"][0]["commit"]["oid"] = sha
+                out = io.StringIO()
+                with patch.object(queue_pr, "ROOT", root), \
+                     patch.object(queue_pr, "replay_repository", return_value=root), \
+                     patch.object(queue_pr, "fetch_pr", return_value=candidate_pr), \
+                     patch.object(queue_pr, "fetch_discussion", return_value=("same",)), \
+                     patch.object(queue_status, "prefix", return_value=(base_sha, entries)), \
+                     patch.object(queue_status, "fetch_objects"), \
+                     patch.object(check_hub_impact, "DEFAULT_THRESHOLD", threshold), \
+                     patch.object(check_hub_impact, "HIGH_THRESHOLD", high), \
+                     patch.object(queue_pr, "gh_graphql", return_value=enqueue_ok) as api, \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                    rc = queue_pr.main(["12", sha, *extra_args])
+                return rc, out.getvalue(), api.call_count
+
+            # 1. >= HIGH_THRESHOLD (4 >= 4): default queues and prints `Warning:`.
+            rc, out, calls = run_case(shas["hub_pr"], shas["m0"], [(10, shas["queued"])])
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, 1)
+            self.assertIn("#12 queued at", out)
+            self.assertIn("Warning: #12 modifies high-fan-in hub module(s) (`CslibFrontier/Hub.lean` (4 transitive importers))", out)
+            self.assertIn("(#10)", out)
+
+            # 2. DEFAULT_THRESHOLD <= count < HIGH_THRESHOLD (3 in [3, 4)): prints `Note:`.
+            rc, out, calls = run_case(shas["mid_pr"], shas["m0"], [(10, shas["queued"])])
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, 1)
+            self.assertIn("Note: #12 modifies high-fan-in hub module(s) (`CslibFrontier/Mid.lean` (3 transitive importers))", out)
+
+            # 3. `--hold-hubs` refuses before ENQUEUE when queue has active entries.
+            rc, out, calls = run_case(shas["hub_pr"], shas["m0"], [(10, shas["queued"])], ["--hold-hubs"])
+            self.assertEqual(rc, 1, out)
+            self.assertEqual(calls, 0)
+            self.assertIn("#12 not queued: modifies high-fan-in hub module(s)", out)
+            self.assertIn("`CslibFrontier/Hub.lean` (4 transitive importers)", out)
+
+            # 4. Empty queue allows `--hold-hubs` to enqueue cleanly without warning.
+            rc, out, calls = run_case(shas["hub_pr"], shas["m0"], [], ["--hold-hubs"])
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, 1)
+            self.assertNotIn("modifies high-fan-in hub", out)
+
+            # 5. Adding a brand-new module + root aggregate `CslibFrontier.lean` triggers no hub hit.
+            rc, out, calls = run_case(shas["new_mod"], shas["m0"], [(10, shas["queued"])], ["--hold-hubs"], threshold=1)
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, 1)
+            self.assertNotIn("modifies high-fan-in hub", out)
+
+            # 6. Leaf PR branched before `main` edited `Hub.lean` is not blamed for `main`'s hub edit.
+            rc, out, calls = run_case(shas["leaf_pr"], shas["m1"], [(10, shas["queued"])], ["--hold-hubs"], threshold=2)
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, 1)
+            self.assertNotIn("Hub.lean", out)
+
+    def test_bare_repo_without_checkout_skips_advisory_but_fails_closed_for_hold_hubs(self) -> None:
+        import queue_status
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV):
+            base_dir = pathlib.Path(tmp)
+            root, shas = self._seed_hub_repo(base_dir)
+            bare = base_dir / "bare.git"
+            scratch = base_dir / "scratch"
+            scratch.mkdir()
+            subprocess.run(["git", "clone", "-q", "--bare", str(root), str(bare)], check=True)
+
+            notices: list[str] = []
+            with patch.dict(os.environ, {"GIT_DIR": str(bare)}), \
+                 patch.object(queue_status, "prefix", return_value=(shas["m0"], [(10, shas["queued"])])), \
+                 patch.object(queue_status, "fetch_objects"):
+                # Explicit `root=scratch` has no `CslibFrontier/` checkout: advisory skips cleanly.
+                self.assertIsNone(
+                    queue_pr.check_queue_prefix(
+                        "o", "r", 12, shas["hub_pr"], root=scratch, on_hub_notice=notices.append,
+                    )
+                )
+                self.assertEqual(notices, [])
+                # `--hold-hubs` fails closed when `CslibFrontier/*.lean` changed and cannot be scanned.
+                refusal = queue_pr.check_queue_prefix(
+                    "o", "r", 12, shas["hub_pr"], root=scratch, hold_hubs=True,
+                )
+                self.assertIsNotNone(refusal)
+                assert refusal is not None
+                self.assertIn("--hold-hubs", refusal)
+
+                # Stale checkout missing `Hub.lean` on disk while `base` has it also fails closed.
+                (scratch / "CslibFrontier").mkdir()
+                stale_refusal = queue_pr.check_queue_prefix(
+                    "o", "r", 12, shas["hub_pr"], root=scratch, hold_hubs=True,
+                )
+                self.assertIsNotNone(stale_refusal)
+                assert stale_refusal is not None
+                self.assertIn("missing or symlinked locally", stale_refusal)
+
+    def test_opaque_reverse_graph_compatibility_for_pr_7768(self) -> None:
+        import check_hub_impact
+        import queue_status
+
+        class FakeReverseGraph:
+            pass
+
+        sentinel = FakeReverseGraph()
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV):
+            root, shas = self._seed_hub_repo(pathlib.Path(tmp))
+            seen: list[tuple[object, str]] = []
+
+            def fake_transitive(graph: object, mod: str) -> int:
+                seen.append((graph, mod))
+                return 650
+
+            notices: list[str] = []
+            with patch.object(queue_status, "prefix", return_value=(shas["m0"], [(10, shas["queued"])])), \
+                 patch.object(queue_status, "fetch_objects"), \
+                 patch.object(check_hub_impact, "build_reverse_graph", return_value=(sentinel, 1000)), \
+                 patch.object(check_hub_impact, "transitive_importers", side_effect=fake_transitive):
+                rc_reason = queue_pr.check_queue_prefix(
+                    "o", "r", 12, shas["hub_pr"], root=root, on_hub_notice=notices.append,
+                )
+            self.assertIsNone(rc_reason)
+            self.assertEqual(seen, [(sentinel, "CslibFrontier.Hub")])
+            self.assertEqual(len(notices), 1)
+            self.assertIn("650 transitive importers", notices[0])
+
+
 if __name__ == "__main__":
     unittest.main()
