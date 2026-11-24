@@ -109,7 +109,8 @@ theorem eventually_large {T : ℕ} (hT : 2 ≤ T) (R : ℕ) :
 /-! ### The relative place in a window -/
 
 /-- The relative place `i / n²` of a point in the `n`-th window, clamped to `[0, 1]`. -/
-noncomputable def windowPlace : WindowFn := fun n _ i _ => (clamp (n ^ 2) i : ℕ) / (n : ℝ) ^ 2
+@[expose] noncomputable def windowPlace : WindowFn :=
+  fun n _ i _ => (clamp (n ^ 2) i : ℕ) / (n : ℝ) ^ 2
 
 theorem windowPlace_nonneg (n : ℕ) (b : Bool) (i k : ℤ) : 0 ≤ windowPlace n b i k := by
   unfold windowPlace

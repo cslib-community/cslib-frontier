@@ -1278,7 +1278,9 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Crossing
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Curvature
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Fan
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
