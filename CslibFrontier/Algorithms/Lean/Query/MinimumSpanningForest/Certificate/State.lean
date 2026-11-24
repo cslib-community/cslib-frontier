@@ -109,6 +109,10 @@ theorem proj_of_spoke_eq_some {st : State V E} {v : V} {s : E} (h : st.spoke v =
     st.proj v = otherEnd v (st.ends s) := by
   simp [proj, h]
 
+/-- A vertex without a spoke is its own portal. -/
+theorem proj_of_spoke_eq_none {st : State V E} {v : V} (h : st.spoke v = none) : st.proj v = v := by
+  simp [proj, h]
+
 variable [LinearOrder W]
 
 /-- The invariant of the certificate procedure's state, for weights `w` and admissibility `adm`
