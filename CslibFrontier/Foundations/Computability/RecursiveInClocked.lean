@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Clocked
 public import CslibFrontier.Foundations.Computability.RecursiveInUniform
-public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 
 /-!
 # Oracle codes as clocked oracle programs
@@ -30,20 +29,22 @@ single oracle `ℕ →. ℕ` (the interface `Cslib.natOracleSpec`) compute the s
   (`ClockedComp.exists_code_eval`). The code runs the definition of `ClockedComp.eval`: it
   searches for the least fuel that finishes, and runs each fuel by iterating the dialogue
   (`OracleComp.interpret_eq_rfind`).
-* **Characterization.** Relative to a total oracle `f`, a partial function is recursive in `f`
-  iff some family of clocked programs with computable dialogue computes it
-  (`recursiveIn_iff_exists_clockedComp`). The forward direction uses the universal program
-  `Code.prefixClocked`, which asks for the first `k` oracle values and runs the stage-bounded
-  evaluator `Code.evaln`; its dialogue is primitive recursive.
+* **Characterization.** Relative to a partial oracle `g`, a partial function is recursive in `g`
+  iff some family of clocked programs with computable dialogue computes it against `g`
+  (`recursiveIn_iff_exists_clockedComp`). The forward direction is `toClocked`, whose dialogue
+  is computable (`Code.computable_dialogue_toClocked`). The proof goes through the *play* of a
+  family (`ClockedComp.play`), the next move together with the answers left over, whose
+  computability is closed under `pure`, queries, `bind`, `map`, `rfind` and iterated `bind`.
 
 ## Main definitions
 
 * `Cslib.natOracleSpec`: the interface of a single oracle `ℕ →. ℕ`.
 * `Cslib.OracleComp.nextMove`, `Cslib.OracleComp.replies`: the next move of a program after given
   answers, and the answers it has received after a number of steps.
-* `Cslib.ClockedComp.dialogue`: the dialogue of a family of clocked programs.
+* `Cslib.OracleComp.play`: the next move, with the answers a finished program has not used.
+* `Cslib.ClockedComp.dialogue`, `Cslib.ClockedComp.play`: the dialogue and the play of a family of
+  clocked programs.
 * `Nat.RecursiveIn.Code.toClocked`: the clocked program of a code.
-* `Nat.RecursiveIn.Code.prefixClocked`: the universal clocked program of a code for total oracles.
 
 ## Main results
 
@@ -51,15 +52,19 @@ single oracle `ℕ →. ℕ` (the interface `Cslib.natOracleSpec`) compute the s
 * `Nat.RecursiveIn.Code.eval_toClocked`: code to program, for every partial oracle.
 * `Cslib.ClockedComp.exists_code_eval`, `Cslib.ClockedComp.recursiveIn_eval`: program to code,
   with one code for every partial oracle.
-* `Nat.RecursiveIn.Code.recursiveIn_iff_exists_clockedComp`: recursiveness in a total oracle is
+* `Cslib.ClockedComp.computable_play_bind`, `.computable_play_rfind`, `.computable_play_natRec`
+  and their siblings: computable plays are closed under the program constructors.
+* `Nat.RecursiveIn.Code.computable_dialogue_toClocked`: compiled programs have computable
+  dialogues.
+* `Nat.RecursiveIn.Code.recursiveIn_iff_exists_clockedComp`: recursiveness in a partial oracle is
   computability by clocked programs querying it.
 
 ## Implementation notes
 
-The characterization is stated for total oracles because its forward direction goes through
-`prefixClocked`, which queries positions a computation may not need. For partial oracles the code
-to program direction holds through `toClocked`, but a proof that the dialogue of `toClocked` is
-computable is not provided here.
+A query to a point where the oracle is undefined diverges, as in `Nat.RecursiveIn`, so the
+characterization holds for partial oracles. The dialogue of a bind needs to know how many answers
+its first part consumed; the play records the answers left over, and the dialogue is read off it
+(`ClockedComp.computable_dialogue_of_play`).
 
 -/
 
@@ -80,6 +85,27 @@ def nextMove : OracleComp natOracleSpec α → List ℕ → ℕ ⊕ α
   | .pure a, _ => .inr a
   | .liftBind q _, [] => .inl q
   | .liftBind _ k, r :: rs => nextMove (k r) rs
+
+/-- The play of a program over `natOracleSpec` on the answers `rs`: its next query once the
+answers run out, or its result together with the answers it has not used. -/
+def play : OracleComp natOracleSpec α → List ℕ → ℕ ⊕ (α × List ℕ)
+  | .pure a, rs => .inr (a, rs)
+  | .liftBind q _, [] => .inl q
+  | .liftBind _ k, r :: rs => play (k r) rs
+
+theorem nextMove_eq_play : ∀ (T : OracleComp natOracleSpec α) (rs : List ℕ),
+    nextMove T rs = Sum.map id Prod.fst (play T rs)
+  | .pure _, _ => rfl
+  | .liftBind _ _, [] => rfl
+  | .liftBind _ k, r :: rs => nextMove_eq_play (k r) rs
+
+/-- Playing `T >>= f` plays `T`, then `f` of its result on the answers left over. -/
+theorem play_bind {β : Type} : ∀ (T : OracleComp natOracleSpec α)
+    (f : α → OracleComp natOracleSpec β) (rs : List ℕ),
+    play (T >>= f) rs = Sum.elim Sum.inl (fun p => play (f p.1) p.2) (play T rs)
+  | .pure _, _, _ => rfl
+  | .liftBind _ _, _, [] => rfl
+  | .liftBind _ k, f, r :: rs => play_bind (k r) f rs
 
 /-- One step of running a program against `g`: ask its next query and append the answer, or
 stay put once the program has a result. -/
@@ -403,6 +429,221 @@ theorem recursiveIn_eval (hP : Computable (dialogue P)) (g : ℕ →. ℕ) :
 
 end Compile
 
+section Play
+
+open Computable
+
+variable {σ τ β γ : Type}
+
+/-- The play of a family of clocked programs over `natOracleSpec`: for an input, a fuel and the
+answers received so far, the next query, or the result of the run together with the unused
+answers. -/
+def play (P : σ → ClockedComp natOracleSpec β) : (σ × ℕ) × List ℕ → ℕ ⊕ (Option β × List ℕ)
+  | ((x, k), rs) => OracleComp.play ((P x) k).run rs
+
+@[simp] theorem play_apply (P : σ → ClockedComp natOracleSpec β) (x : σ) (k : ℕ) (rs : List ℕ) :
+    play P ((x, k), rs) = OracleComp.play ((P x) k).run rs := rfl
+
+/-- Play the run with fuel `k` of `P >>= f`: play `P`, then `f` on its result with the answers
+left over. -/
+theorem play_run_bind (P : ClockedComp natOracleSpec β) (f : β → ClockedComp natOracleSpec γ)
+    (k : ℕ) (rs : List ℕ) :
+    OracleComp.play ((P >>= f) k).run rs = Sum.elim Sum.inl (fun p => Option.elim p.1
+      (Sum.inr (none, p.2)) fun a => OracleComp.play ((f a) k).run p.2)
+      (OracleComp.play (P k).run rs) := by
+  change OracleComp.play ((P k >>= fun a => f a k).run) rs = _
+  rw [OptionT.run_bind, Option.elimM, OracleComp.play_bind]
+  cases OracleComp.play (P k).run rs with
+  | inl q => rfl
+  | inr p => rcases p with ⟨_ | a, rs'⟩ <;> rfl
+
+section Rfind
+
+variable (p : σ × ℕ → ClockedComp natOracleSpec Bool) (x : σ) (k : ℕ)
+
+/-- One trial of the search with fuel `k`: on `inr (i, rs)`, play `p (x, i)`; stop with its query,
+with `none` if it runs out of fuel, with `some i` if it returns `true`, and go on to `i + 1` if it
+returns `false`. -/
+private def rfindStep (t : (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ)) :
+    (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ) :=
+  Sum.elim Sum.inl (fun c => Sum.elim (fun q => Sum.inl (Sum.inl q))
+    (fun r => Option.elim r.1 (Sum.inl (Sum.inr (none, r.2)))
+      fun b => cond b (Sum.inl (Sum.inr (some c.1, r.2))) (Sum.inr (c.1 + 1, r.2)))
+    (play p (((x, c.1), k), c.2))) t
+
+private def rfindDone (t : (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ)) : ℕ ⊕ (Option ℕ × List ℕ) :=
+  Sum.elim id (fun c => Sum.inr (none, c.2)) t
+
+private theorem rfindStep_iterate_inl (d : ℕ ⊕ (Option ℕ × List ℕ)) :
+    ∀ n, (rfindStep p x k)^[n] (Sum.inl d) = Sum.inl d
+  | 0 => rfl
+  | n + 1 => by rw [Function.iterate_succ_apply]; exact rfindStep_iterate_inl d n
+
+private theorem play_rfindFrom : ∀ (r i : ℕ) (rs : List ℕ),
+    OracleComp.play (rfindFrom (fun i => p (x, i)) k r i).run rs =
+      rfindDone ((rfindStep p x k)^[r] (Sum.inr (i, rs)))
+  | 0, i, rs => rfl
+  | r + 1, i, rs => by
+    change OracleComp.play ((p (x, i) k >>= fun b =>
+      if b then pure i else rfindFrom (fun i => p (x, i)) k r (i + 1)).run) rs = _
+    rw [OptionT.run_bind, Option.elimM, OracleComp.play_bind, Function.iterate_succ_apply]
+    change _ = rfindDone ((rfindStep p x k)^[r] (Sum.elim _ _ (play p (((x, i), k), rs))))
+    rw [play_apply]
+    rcases OracleComp.play (p (x, i) k).run rs with q | ⟨_ | _ | _, rs'⟩
+    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
+    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
+    · exact play_rfindFrom r (i + 1) rs'
+    · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
+
+end Rfind
+
+private theorem play_natRec (P : σ → ClockedComp natOracleSpec β)
+    (g : σ × ℕ × β → ClockedComp natOracleSpec β) (x : σ) (k : ℕ) (rs : List ℕ) :
+    ∀ n, OracleComp.play ((Nat.rec (motive := fun _ => ClockedComp natOracleSpec β) (P x)
+        (fun y ih => ih >>= fun i => g (x, y, i)) n) k).run rs =
+      Nat.rec (motive := fun _ => ℕ ⊕ (Option β × List ℕ)) (play P ((x, k), rs))
+        (fun y t => Sum.elim Sum.inl (fun p => Option.elim p.1 (Sum.inr (none, p.2))
+          fun i => play g (((x, y, i), k), p.2)) t) n
+  | 0 => rfl
+  | n + 1 => by
+    change OracleComp.play (((Nat.rec (motive := fun _ => ClockedComp natOracleSpec β) (P x)
+        (fun y ih => ih >>= fun i => g (x, y, i)) n) >>= fun i => g (x, n, i)) k).run rs = _
+    rw [play_run_bind, play_natRec P g x k rs n]
+    rfl
+
+private theorem rec_eq_iterate {α : Type} (f : α → α) (s : α) :
+    ∀ n, Nat.rec (motive := fun _ => α) s (fun _ t => f t) n = f^[n] s
+  | 0 => rfl
+  | n + 1 => by rw [Function.iterate_succ_apply', ← rec_eq_iterate f s n]
+
+variable [Primcodable σ] [Primcodable τ] [Primcodable β] [Primcodable γ]
+
+/-- A family with computable play has a computable dialogue. -/
+theorem computable_dialogue_of_play {P : ℕ → ClockedComp natOracleSpec ℕ}
+    (hP : Computable (play P)) : Computable (dialogue P) := by
+  refine (sumCasesOn hP (sumInl.comp snd).to₂ (sumInr.comp (fst.comp snd)).to₂).of_eq
+    fun x => ?_
+  rw [show dialogue P x = Sum.map id Prod.fst (play P x) from
+    OracleComp.nextMove_eq_play _ _]
+  cases play P x <;> rfl
+
+/-! Closure of computable plays under the program constructors. -/
+
+theorem computable_play_comp {P : σ → ClockedComp natOracleSpec β} (hP : Computable (play P))
+    {g : τ → σ} (hg : Computable g) : Computable (play fun y => P (g y)) :=
+  hP.comp (((hg.comp (fst.comp fst)).pair (snd.comp fst)).pair snd)
+
+theorem computable_play_pure {f : σ → β} (hf : Computable f) :
+    Computable (play fun x => (pure (f x) : ClockedComp natOracleSpec β)) :=
+  (sumInr.comp ((option_some.comp (hf.comp (fst.comp fst))).pair snd)).of_eq fun _ => rfl
+
+theorem computable_play_query {f : σ → ℕ} (hf : Computable f) :
+    Computable (play fun x => ClockedComp.query (spec := natOracleSpec) (f x)) := by
+  refine (option_casesOn (Primrec.list_head?.to_comp.comp snd)
+    (sumInl.comp (hf.comp (fst.comp fst)))
+    (sumInr.comp ((option_some.comp snd).pair
+      (Primrec.list_tail.to_comp.comp (snd.comp fst)))).to₂).of_eq fun x => ?_
+  rcases x with ⟨⟨x, k⟩, _ | ⟨r, rs⟩⟩ <;> rfl
+
+theorem computable_play_bind {P : σ → ClockedComp natOracleSpec β}
+    {f : σ → β → ClockedComp natOracleSpec γ} (hP : Computable (play P))
+    (hf : Computable (play fun y : σ × β => f y.1 y.2)) :
+    Computable (play fun x => P x >>= f x) := by
+  have hg : Computable₂ fun (x : (σ × ℕ) × List ℕ) (p : Option β × List ℕ) =>
+      Option.elim p.1 (Sum.inr (none, p.2) : ℕ ⊕ (Option γ × List ℕ))
+        fun a => play (fun y : σ × β => f y.1 y.2) (((x.1.1, a), x.1.2), p.2) := by
+    refine (option_casesOn (fst.comp snd) (sumInr.comp ((const none).pair (snd.comp snd)))
+      (hf.comp ((((fst.comp (fst.comp (fst.comp fst))).pair snd).pair
+        (snd.comp (fst.comp (fst.comp fst)))).pair (snd.comp (snd.comp fst)))).to₂).to₂.of_eq
+      fun x => ?_
+    rcases x with ⟨_, ⟨_ | _, _⟩⟩ <;> rfl
+  refine (sumCasesOn hP (sumInl.comp snd).to₂ hg).of_eq fun x => ?_
+  rcases x with ⟨⟨x, k⟩, rs⟩
+  change _ = OracleComp.play ((P x >>= f x) k).run rs
+  rw [play_run_bind]
+  change _ = Sum.elim _ _ (play P ((x, k), rs))
+  cases play P ((x, k), rs) with
+  | inl q => rfl
+  | inr p => rcases p with ⟨_ | a, rs'⟩ <;> rfl
+
+theorem computable_play_map {P : σ → ClockedComp natOracleSpec β} {f : σ → β → γ}
+    (hP : Computable (play P)) (hf : Computable₂ f) :
+    Computable (play fun x => f x <$> P x) := by
+  refine (computable_play_bind hP (f := fun x a => pure (f x a))
+    (computable_play_pure (hf.comp fst snd))).of_eq fun x => ?_
+  rcases x with ⟨⟨x, k⟩, rs⟩
+  simp only [play_apply, map_eq_bind_pure_comp, Function.comp_def]
+
+theorem computable_play_rfind {p : σ × ℕ → ClockedComp natOracleSpec Bool}
+    (hp : Computable (play p)) : Computable (play fun x => rfind fun i => p (x, i)) := by
+  -- the search state `inr (i, rs)` in context `z = ((a, t), (i, rs))`
+  have hplay : Computable fun z : (((σ × ℕ) × List ℕ) × ((ℕ ⊕ (Option ℕ × List ℕ)) ⊕
+      (ℕ × List ℕ))) × (ℕ × List ℕ) => play p (((z.1.1.1.1, z.2.1), z.1.1.1.2), z.2.2) :=
+    hp.comp ((((fst.comp (fst.comp (fst.comp fst))).pair (fst.comp snd)).pair
+      (snd.comp (fst.comp (fst.comp fst)))).pair (snd.comp snd))
+  have hcond : Computable₂ fun (w : ((((σ × ℕ) × List ℕ) × ((ℕ ⊕ (Option ℕ × List ℕ)) ⊕
+      (ℕ × List ℕ))) × (ℕ × List ℕ)) × (Option Bool × List ℕ)) (b : Bool) =>
+      (cond b (Sum.inl (Sum.inr (some w.1.2.1, w.2.2))) (Sum.inr (w.1.2.1 + 1, w.2.2)) :
+        (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ)) :=
+    (Computable.cond snd
+      (sumInl.comp (sumInr.comp ((option_some.comp (fst.comp (snd.comp (fst.comp fst)))).pair
+        (snd.comp (snd.comp fst)))))
+      (sumInr.comp ((Primrec.succ.to_comp.comp (fst.comp (snd.comp (fst.comp fst)))).pair
+        (snd.comp (snd.comp fst))))).to₂
+  have hrun : Computable₂ fun (z : (((σ × ℕ) × List ℕ) × ((ℕ ⊕ (Option ℕ × List ℕ)) ⊕
+      (ℕ × List ℕ)))) (c : ℕ × List ℕ) =>
+      (Sum.elim (fun q => Sum.inl (Sum.inl q))
+        (fun r => Option.elim r.1 (Sum.inl (Sum.inr (none, r.2)))
+          fun b => cond b (Sum.inl (Sum.inr (some c.1, r.2))) (Sum.inr (c.1 + 1, r.2)))
+        (play p (((z.1.1.1, c.1), z.1.1.2), c.2)) : (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ)) := by
+    refine (sumCasesOn hplay (sumInl.comp (sumInl.comp snd)).to₂
+      (option_casesOn (fst.comp snd) (sumInl.comp (sumInr.comp ((const none).pair
+        (snd.comp snd)))) hcond).to₂).to₂.of_eq fun z => ?_
+    rcases h : play p (((z.1.1.1.1, z.2.1), z.1.1.1.2), z.2.2) with q | ⟨_ | _ | _, rs⟩ <;>
+      simp [h]
+  have hstep : Computable₂ fun (a : (σ × ℕ) × List ℕ)
+      (t : (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ)) => rfindStep p a.1.1 a.1.2 t := by
+    refine (sumCasesOn snd (sumInl.comp snd).to₂ hrun).to₂.of_eq fun z => ?_
+    rcases z with ⟨a, _ | _⟩ <;> rfl
+  have hdone : Computable fun t : (ℕ ⊕ (Option ℕ × List ℕ)) ⊕ (ℕ × List ℕ) => rfindDone t :=
+    (sumCasesOn Computable.id snd.to₂ (sumInr.comp ((const none).pair (snd.comp snd))).to₂).of_eq
+      fun t => by cases t <;> rfl
+  refine (hdone.comp (nat_rec (snd.comp fst) (sumInr.comp ((const 0).pair snd))
+    (hstep.comp fst (snd.comp snd)).to₂)).of_eq fun a => ?_
+  rcases a with ⟨⟨x, k⟩, rs⟩
+  change _ = OracleComp.play (rfindFrom (fun i => p (x, i)) k k 0).run rs
+  rw [play_rfindFrom, ← rec_eq_iterate]
+
+theorem computable_play_natRec {m : σ → ℕ} {P : σ → ClockedComp natOracleSpec β}
+    {g : σ × ℕ × β → ClockedComp natOracleSpec β} (hm : Computable m)
+    (hP : Computable (play P)) (hg : Computable (play g)) :
+    Computable (play fun x => Nat.rec (motive := fun _ => ClockedComp natOracleSpec β) (P x)
+      (fun y ih => ih >>= fun i => g (x, y, i)) (m x)) := by
+  have hstep : Computable₂ fun (a : (σ × ℕ) × List ℕ) (yt : ℕ × (ℕ ⊕ (Option β × List ℕ))) =>
+      (Sum.elim Sum.inl (fun p => Option.elim p.1 (Sum.inr (none, p.2))
+        fun i => play g (((a.1.1, yt.1, i), a.1.2), p.2)) yt.2 : ℕ ⊕ (Option β × List ℕ)) := by
+    have hgc : Computable₂ fun (w : (((σ × ℕ) × List ℕ) × (ℕ × (ℕ ⊕ (Option β × List ℕ)))) ×
+        (Option β × List ℕ)) (i : β) => play g (((w.1.1.1.1, w.1.2.1, i), w.1.1.1.2), w.2.2) :=
+      (hg.comp ((((fst.comp (fst.comp (fst.comp (fst.comp fst)))).pair
+          ((fst.comp (snd.comp (fst.comp fst))).pair snd)).pair
+          (snd.comp (fst.comp (fst.comp (fst.comp fst))))).pair
+          (snd.comp (snd.comp fst)))).to₂
+    have hopt : Computable₂ fun (w : ((σ × ℕ) × List ℕ) × (ℕ × (ℕ ⊕ (Option β × List ℕ))))
+        (p : Option β × List ℕ) => (Option.elim p.1 (Sum.inr (none, p.2))
+          fun i => play g (((w.1.1.1, w.2.1, i), w.1.1.2), p.2) : ℕ ⊕ (Option β × List ℕ)) := by
+      unfold Computable₂
+      refine (option_casesOn (fst.comp snd)
+        (sumInr.comp ((const none).pair (snd.comp snd))) hgc).of_eq fun z => ?_
+      rcases z with ⟨w, ⟨_ | _, _⟩⟩ <;> rfl
+    unfold Computable₂
+    refine (sumCasesOn (snd.comp snd) (sumInl.comp snd).to₂ hopt).of_eq fun z => ?_
+    rcases z with ⟨a, y, _ | ⟨_ | _, rs⟩⟩ <;> rfl
+  refine (nat_rec (hm.comp (fst.comp fst)) hP hstep).of_eq fun a => ?_
+  rcases a with ⟨⟨x, k⟩, rs⟩
+  exact (play_natRec P g x k rs (m x)).symm
+
+end Play
+
 end ClockedComp
 
 end Cslib
@@ -489,111 +730,81 @@ theorem eval_toClocked (g : ℕ →. ℕ) (c : Code) (n : ℕ) :
     ClockedComp.eval g (c.toClocked n) = c.eval g n :=
   (stable_toClocked_and_eval g c n).2
 
-section Prefix
+section Dialogue
 
-variable {α : Type}
+open Computable
 
-/-- Ask the oracle at the positions `σ.length, …, σ.length + m - 1` in order, appending each
-answer to `σ`, and finish with `F` of the answers. -/
-def askPrefix (F : List ℕ → α) : ℕ → List ℕ → OracleComp natOracleSpec α
-  | 0, σ => .pure (F σ)
-  | m + 1, σ => .liftBind σ.length fun r => askPrefix F m (σ ++ [r])
+/-- The compiled program of a code has a computable play. -/
+theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.toClocked) := by
+  induction c with
+  | zero => exact ClockedComp.computable_play_pure (const 0)
+  | succ => exact ClockedComp.computable_play_pure (_root_.Primrec.succ).to_comp
+  | left => exact ClockedComp.computable_play_pure (fst.comp Computable.unpair)
+  | right => exact ClockedComp.computable_play_pure (snd.comp Computable.unpair)
+  | oracle => exact ClockedComp.computable_play_query Computable.id
+  | pair cf cg ihf ihg =>
+    exact ClockedComp.computable_play_bind ihf
+      (ClockedComp.computable_play_bind (ClockedComp.computable_play_comp ihg fst)
+        (ClockedComp.computable_play_pure
+          ((Primrec₂.to_comp Primrec₂.natPair).comp (snd.comp fst) snd)))
+  | comp cf cg ihf ihg =>
+    exact ClockedComp.computable_play_bind ihg (ClockedComp.computable_play_comp ihf snd)
+  | prec cf cg ihf ihg =>
+    have e : toClocked (prec cf cg) = fun n =>
+        Nat.rec (motive := fun _ => ClockedComp natOracleSpec ℕ) (toClocked cf n.unpair.1)
+          (fun y ih => ih >>= fun i => toClocked cg (Nat.pair n.unpair.1 (Nat.pair y i)))
+          n.unpair.2 := by
+      rw [toClocked]
+    have h := ClockedComp.computable_play_natRec (m := fun n : ℕ => n.unpair.2)
+      (P := fun n : ℕ => toClocked cf n.unpair.1)
+      (g := fun z : ℕ × ℕ × ℕ => toClocked cg (Nat.pair z.1.unpair.1 (Nat.pair z.2.1 z.2.2)))
+      (snd.comp Computable.unpair)
+      (ClockedComp.computable_play_comp ihf (fst.comp Computable.unpair))
+      (ClockedComp.computable_play_comp ihg
+        ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp (Computable.unpair.comp fst))
+          ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp snd) (snd.comp snd))))
+    dsimp only at h
+    rw [e]
+    exact h
+  | rfind' cf ihf =>
+    have e : toClocked (rfind' cf) = fun n =>
+        (· + n.unpair.2) <$> ClockedComp.rfind fun i =>
+          (fun x => decide (x = 0)) <$> toClocked cf (Nat.pair n.unpair.1 (i + n.unpair.2)) := by
+      rw [toClocked]
+    have hp := ClockedComp.computable_play_map
+      (P := fun z : ℕ × ℕ => toClocked cf (Nat.pair z.1.unpair.1 (z.2 + z.1.unpair.2)))
+      (f := fun _ x => decide (x = 0))
+      (ClockedComp.computable_play_comp ihf
+        ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp (Computable.unpair.comp fst))
+          ((Primrec₂.to_comp _root_.Primrec.nat_add).comp snd
+            (snd.comp (Computable.unpair.comp fst)))))
+      (((Primrec₂.to_comp _root_.Primrec.eq.decide).comp snd (const 0)).to₂)
+    have h := ClockedComp.computable_play_map (ClockedComp.computable_play_rfind hp)
+      (f := fun (n : ℕ) (r : ℕ) => r + n.unpair.2)
+      ((Primrec₂.to_comp _root_.Primrec.nat_add).comp snd
+        (snd.comp (Computable.unpair.comp fst))).to₂
+    dsimp only at h
+    rw [e]
+    exact h
 
-/-- The universal clocked program of a code: with fuel `k` it asks the oracle at `0, …, k - 1`
-and runs the stage-bounded evaluator `evaln` on the answers. Unlike `toClocked`, it queries
-positions the code may never use, so it computes the code only against total oracles. -/
-def prefixClocked (c : Code) (n : ℕ) : ClockedComp natOracleSpec ℕ := fun k =>
-  OptionT.mk (askPrefix (fun σ => evaln σ k c n) k [])
+/-- The dialogue of the compiled program of a code is computable. -/
+theorem computable_dialogue_toClocked (c : Code) :
+    Computable (ClockedComp.dialogue c.toClocked) :=
+  ClockedComp.computable_dialogue_of_play (computable_play_toClocked c)
 
-theorem nextMove_askPrefix (F : List ℕ → α) :
-    ∀ (m : ℕ) (σ rs : List ℕ), OracleComp.nextMove (askPrefix F m σ) rs =
-      if rs.length < m then .inl (σ.length + rs.length) else .inr (F (σ ++ rs.take m))
-  | 0, σ, rs => by
-    change Sum.inr (F σ) = _
-    simp
-  | m + 1, σ, [] => by
-    change Sum.inl σ.length = _
-    simp
-  | m + 1, σ, r :: rs => by
-    change OracleComp.nextMove (askPrefix F m (σ ++ [r])) rs = _
-    rw [nextMove_askPrefix F m]
-    by_cases h : rs.length < m
-    · simp only [h, ↓reduceIte, List.length_cons, Nat.add_lt_add_iff_right, List.length_append,
-        List.length_nil, Sum.inl.injEq]
-      omega
-    · simp [h]
-
-theorem interpret_askPrefix (F : List ℕ → α) (f : ℕ → ℕ) :
-    ∀ (m : ℕ) (σ : List ℕ), OracleComp.interpret (f : ℕ →. ℕ) (askPrefix F m σ) =
-      Part.some (F (σ ++ (List.range m).map fun i => f (σ.length + i)))
-  | 0, σ => by simp [askPrefix]; rfl
-  | m + 1, σ => by
-    change (Part.some (f σ.length)).bind (fun r => OracleComp.interpret (f : ℕ →. ℕ)
-      (askPrefix F m (σ ++ [r]))) = _
-    rw [Part.bind_some, interpret_askPrefix F f m, List.range_succ_eq_map]
-    simp only [List.length_append, List.length_singleton, List.map_cons, List.map_map,
-      List.append_assoc, List.singleton_append, Nat.add_zero, Function.comp_def]
-    congr 4
-    refine List.map_congr_left fun i _ => ?_
-    congr 1
-    omega
-
-theorem attempt_prefixClocked (f : ℕ → ℕ) (c : Code) (n k : ℕ) :
-    ClockedComp.attempt (f : ℕ →. ℕ) (prefixClocked c n) k =
-      Part.some (evaln (prefixOf f k) k c n) := by
-  exact (interpret_askPrefix _ f k []).trans (by simp [prefixOf])
-
-theorem stable_prefixClocked (f : ℕ → ℕ) (c : Code) (n : ℕ) :
-    ClockedComp.Stable (f : ℕ →. ℕ) (prefixClocked c n) := by
-  intro k a h j
-  rw [attempt_prefixClocked, Part.mem_some_iff] at h
-  rw [attempt_prefixClocked]
-  rcases le_or_gt k j with hkj | hjk
-  · exact Or.inl (by rw [evaln_mono (prefixOf_prefix f hkj) hkj h.symm])
-  · cases hj : evaln (prefixOf f j) j c n with
-    | none => exact Or.inr ⟨hjk, rfl⟩
-    | some a' =>
-      have := evaln_mono (prefixOf_prefix f hjk.le) hjk.le hj
-      rw [← h, Option.mem_def, Option.some_inj] at this
-      exact Or.inl (by rw [this])
-
-/-- Against a total oracle, the universal clocked program computes the code. -/
-theorem eval_prefixClocked (f : ℕ → ℕ) (c : Code) (n : ℕ) :
-    ClockedComp.eval (f : ℕ →. ℕ) (prefixClocked c n) = c.eval f n := by
-  ext a
-  rw [ClockedComp.mem_eval_iff (stable_prefixClocked f c n), mem_eval_iff_exists_evaln]
-  simp [attempt_prefixClocked, eq_comm]
-
-/-- The dialogue of the universal clocked program is primitive recursive. -/
-theorem computable_dialogue_prefixClocked (c : Code) :
-    Computable (ClockedComp.dialogue (prefixClocked c)) := by
-  have h : ∀ x : (ℕ × ℕ) × List ℕ, ClockedComp.dialogue (prefixClocked c) x =
-      if x.2.length < x.1.2 then .inl x.2.length else .inr (evaln x.2 x.1.2 c x.1.1) := by
-    rintro ⟨⟨n, k⟩, rs⟩
-    simp only [ClockedComp.dialogue, prefixClocked, OptionT.run_mk, nextMove_askPrefix,
-      List.length_nil, Nat.zero_add, List.nil_append, evaln_take]
-  have he : _root_.Primrec fun x : (ℕ × ℕ) × List ℕ => evaln x.2 x.1.2 c x.1.1 :=
-    primrec_evaln.comp (_root_.Primrec.snd.pair (((_root_.Primrec.snd.comp _root_.Primrec.fst).pair
-      (_root_.Primrec.const c)).pair (_root_.Primrec.fst.comp _root_.Primrec.fst)))
-  have hlen : _root_.Primrec fun x : (ℕ × ℕ) × List ℕ => x.2.length :=
-    _root_.Primrec.list_length.comp _root_.Primrec.snd
-  refine (_root_.Primrec.ite (_root_.Primrec.nat_lt.comp hlen
-    (_root_.Primrec.snd.comp _root_.Primrec.fst)) (_root_.Primrec.sumInl.comp hlen)
-    (_root_.Primrec.sumInr.comp he)).to_comp.of_eq fun x => (h x).symm
-
-/-- **Codes and clocked programs compute the same functions.** Relative to a total oracle `f`,
-a partial function is recursive in `f` if and only if it is computed by a family of clocked
-programs querying `f` whose dialogue is computable. -/
-theorem recursiveIn_iff_exists_clockedComp {f : ℕ → ℕ} {F : ℕ →. ℕ} :
-    Nat.RecursiveIn {(f : ℕ →. ℕ)} F ↔ ∃ P : ℕ → ClockedComp natOracleSpec ℕ,
-      Computable (ClockedComp.dialogue P) ∧ ∀ n, ClockedComp.eval (f : ℕ →. ℕ) (P n) = F n := by
+/-- **Codes and clocked programs compute the same functions.** Relative to a partial oracle `g`,
+a partial function is recursive in `g` if and only if it is computed against `g` by a family of
+clocked programs querying `g` whose dialogue is computable. -/
+theorem recursiveIn_iff_exists_clockedComp {g : ℕ →. ℕ} {F : ℕ →. ℕ} :
+    Nat.RecursiveIn {g} F ↔ ∃ P : ℕ → ClockedComp natOracleSpec ℕ,
+      Computable (ClockedComp.dialogue P) ∧ ∀ n, ClockedComp.eval g (P n) = F n := by
   constructor
   · intro h
     obtain ⟨c, rfl⟩ := exists_code.1 h
-    exact ⟨prefixClocked c, computable_dialogue_prefixClocked c, eval_prefixClocked f c⟩
+    exact ⟨c.toClocked, computable_dialogue_toClocked c, eval_toClocked g c⟩
   · rintro ⟨P, hP, hF⟩
     exact (ClockedComp.recursiveIn_eval hP _).of_eq hF
 
-end Prefix
+end Dialogue
 
 end Nat.RecursiveIn.Code
