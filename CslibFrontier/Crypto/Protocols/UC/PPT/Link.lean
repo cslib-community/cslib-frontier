@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
+import CslibFrontier.Probability.PMF.Bind
 
 /-!
 # Strict-PPT closure of UC linking and adversary absorption
@@ -99,8 +100,9 @@ emits on its imported interface, in any activation from any state with imported 
 
 /-! ### Transfer lemmas -/
 
-/-- Static-corruption routing preserves `Machine.IsReplyBounded`: every routed reply is either a
-party/network reply from `M` (possibly tagged with one sum bit) or a constant `none` reply. -/
+/-- Library infrastructure (no cited result): static-corruption routing preserves
+`Machine.IsReplyBounded`; every routed reply is either a party/network reply from `M` (possibly
+tagged with one sum bit) or a constant `none` reply. -/
 theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type}
     {In Out NetQ NetR : Type} {iI : WordInterface I}
     {party : WordPort (Fin n × In) (Option Out)} {netPort : WordPort NetQ NetR}
@@ -165,9 +167,9 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
         encSum_inr, List.length_cons] at h1 ⊢
       omega
 
-/-- Static-corruption routing preserves `Machine.IsRequestBounded`: routed adversary requests strip
-the leading sum tag before forwarding to `M`, so `bound (p, w) + bound (p, w.tail)` dominates all
-outgoing request words. -/
+/-- Library infrastructure (no cited result): static-corruption routing preserves
+`Machine.IsRequestBounded`; routed adversary requests strip the leading sum tag before forwarding to
+`M`, so `bound (p, w) + bound (p, w.tail)` dominates all outgoing request words. -/
 theorem Machine.IsRequestBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type}
     {In Out NetQ NetR : Type} {iI : WordInterface I}
     {party : WordPort (Fin n × In) (Option Out)} {netPort : WordPort NetQ NetR}
@@ -355,9 +357,10 @@ private theorem queriesSatisfy_simulate_channelMap {C₁ C₂ α : Type} (f : C�
       refine OracleComp.QueriesSatisfy.bind ?_ (fun a => ih a (h.2 a))
       exact OracleComp.QueriesSatisfy.query h.1
 
-/-- Lifting a reply-bounded machine family past a left pass-through interface preserves
-`Machine.IsReplyBounded`: forwarded left-channel replies are normalized from at most `p.replyBound`
-bits in polynomial time, and right-channel replies are bounded by `M`'s bound. -/
+/-- Library infrastructure (no cited result): lifting a reply-bounded machine family past a left
+pass-through interface preserves `Machine.IsReplyBounded`; forwarded left-channel replies are
+normalized from at most `p.replyBound` bits in polynomial time, and right-channel replies are
+bounded by `M`'s bound. -/
 theorem Machine.IsReplyBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
     {L : ιL → Type} {R : ιR → Type} {E : ιE → Type}
     {iL : WordInterface L} {iR : WordInterface R} {iE : WordInterface E}
@@ -416,9 +419,10 @@ theorem Machine.IsReplyBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
     change (iE.reply qE x.1).length ≤ bound p + boundL p
     omega
 
-/-- Lifting a request-bounded machine family past a left pass-through interface preserves
-`Machine.IsRequestBounded`: forwarded left-channel requests emit their incoming word verbatim, and
-right-channel requests preserve word lengths under channel tagging. -/
+/-- Library infrastructure (no cited result): lifting a request-bounded machine family past a left
+pass-through interface preserves `Machine.IsRequestBounded`; forwarded left-channel requests emit
+their incoming word verbatim, and right-channel requests preserve word lengths under channel
+tagging. -/
 theorem Machine.IsRequestBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
     {L : ιL → Type} {R : ιR → Type} {E : ιE → Type}
     {iL : WordInterface L} {iR : WordInterface R} {iE : WordInterface E}
@@ -459,16 +463,6 @@ theorem Machine.IsRequestBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
       omega
 
 /-! ### Linking and adversary absorption -/
-
-private theorem pmf_bind_congr_support {α β : Type} (p : PMF α) {f g : α → PMF β}
-    (h : ∀ a ∈ p.support, f a = g a) : p.bind f = p.bind g := by
-  ext y
-  simp only [PMF.bind_apply]
-  refine tsum_congr fun a => ?_
-  by_cases ha : a ∈ p.support
-  · rw [h a ha]
-  · rw [PMF.mem_support_iff, not_not] at ha
-    simp [ha]
 
 /-- State-intertwining law between word-level execution of a lowered program against `wordHandle`
 (with exported replies truncated at `L`) and lowering the typed execution `M.runFrom` against the
@@ -559,7 +553,7 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
       simp only [StateT.run, hwh, ProbOracleComp.lowerWith,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, PMF.bind_map, PMF.map_bind,
         Function.comp_def, Prod.map, id_eq]
-      refine pmf_bind_congr_support _ fun x hx => ?_
+      refine PMF.bind_congr_on_support _ _ _ fun x hx => ?_
       have hsupp : x.1 ∈ OracleComp.support
           (ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0)) :=
         ProbOracleComp.mem_support_of_mem oracle hx
@@ -624,8 +618,7 @@ theorem Environment.IsPPT.isOraclePPTOn_lowerWith_link
 
 /-- Library infrastructure (no cited result), toward #6043 (not Proposition 7 of [Canetti2020]):
 linking a strict-PPT environment against a certified machine family with polynomially bounded
-replies
-gives a strict-PPT environment for the machine's imported ports. -/
+replies gives a strict-PPT environment for the machine's imported ports. -/
 theorem Environment.IsPPT.link
     {n : ℕ} {In Out AdvQ AdvR In' Out' Q' R' : Type}
     {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
