@@ -390,7 +390,7 @@ Manuel Blum. *A Machine-Independent Theory of the Complexity of Recursive Functi
 <a id="blumfurstkearnslipton93"></a>
 ## blumfurstkearnslipton93
 
-Avrim Blum, Merrick Furst, Michael Kearns and Richard J. Lipton. "Cryptographic Primitives Based on Hard Learning Problems." *Advances in Cryptology — CRYPTO '93*, LNCS 773, 278–291, 1993. https://doi.org/10.1007/3-540-48329-2_24 . Bibliographic metadata only (`references.bib`); the paper was not inspected and no numbered result is claimed. [CryptoHardness/Inversion.lean](../CslibFrontier/MachineLearning/UniformLearning/CryptoHardness/Inversion.lean) cites it, with [Impagliazzo and Levin](#impagliazzolevin90), for the easy direction of the correspondence between average-case learning and one-way functions: an inverter for the map from a key and examples to the labelled sample is a consistent learner.
+Avrim Blum, Merrick Furst, Michael Kearns and Richard J. Lipton. "Cryptographic Primitives Based on Hard Learning Problems." *Advances in Cryptology — CRYPTO '93*, LNCS 773, 278–291, 1993. https://doi.org/10.1007/3-540-48329-2_24 . Bibliographic metadata only (`references.bib`); the paper was not inspected and no numbered result is claimed. [CryptoHardness/Inversion.lean](../CslibFrontier/MachineLearning/UniformLearning/CryptoHardness/Inversion.lean) cites it, with [Impagliazzo and Levin](#impagliazzolevin90), for the easy direction of the correspondence between average-case learning and one-way functions: an inverter for the map from a key and examples to the labelled sample is a consistent learner. [CryptoHardness/OneWayInversion.lean](../CslibFrontier/MachineLearning/UniformLearning/CryptoHardness/OneWayInversion.lean) cites both papers the same way for a step towards that direction, not for a statement of either paper.
 
 <a id="blummansour07"></a>
 ## blummansour07
@@ -1397,7 +1397,7 @@ Russell Impagliazzo, Ragesh Jaiswal, Valentine Kabanets and Avi Wigderson. *Unif
 <a id="impagliazzolevin90"></a>
 ## impagliazzolevin90
 
-Russell Impagliazzo and Leonid A. Levin. "No Better Ways to Generate Hard NP Instances than Picking Uniformly at Random." *Proceedings of the 31st Annual Symposium on Foundations of Computer Science (FOCS 1990)*, 812–821. https://doi.org/10.1109/FSCS.1990.89604 . Bibliographic metadata only (`references.bib`); the paper was not inspected and no numbered result is claimed. Cited with [Blum, Furst, Kearns and Lipton](#blumfurstkearnslipton93) by [CryptoHardness/Inversion.lean](../CslibFrontier/MachineLearning/UniformLearning/CryptoHardness/Inversion.lean).
+Russell Impagliazzo and Leonid A. Levin. "No Better Ways to Generate Hard NP Instances than Picking Uniformly at Random." *Proceedings of the 31st Annual Symposium on Foundations of Computer Science (FOCS 1990)*, 812–821. https://doi.org/10.1109/FSCS.1990.89604 . Bibliographic metadata only (`references.bib`); the paper was not inspected and no numbered result is claimed. Cited with [Blum, Furst, Kearns and Lipton](#blumfurstkearnslipton93) by [CryptoHardness/Inversion.lean](../CslibFrontier/MachineLearning/UniformLearning/CryptoHardness/Inversion.lean) and [CryptoHardness/OneWayInversion.lean](../CslibFrontier/MachineLearning/UniformLearning/CryptoHardness/OneWayInversion.lean).
 
 <a id="impagliazzopudlaksgall99"></a>
 ## impagliazzopudlaksgall99
