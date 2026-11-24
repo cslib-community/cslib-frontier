@@ -2,6 +2,7 @@ import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.BanditRegret
+import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.CombinatorialAuction
 import CslibFrontierResults.Entries.Cooperative
@@ -24,6 +25,8 @@ import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.InternalRegret
+import CslibFrontierResults.Entries.KellyMarketClearing
+import CslibFrontierResults.Entries.KellyMechanism
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.LocallyDecodable
@@ -50,12 +53,14 @@ import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PlantedClique
 import CslibFrontierResults.Entries.PolynomialHashing
+import CslibFrontierResults.Entries.PotentialPolymatrix
 import CslibFrontierResults.Entries.PredictionMarket
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SamplableNotComputable
+import CslibFrontierResults.Entries.SecurityEconomics
 import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence

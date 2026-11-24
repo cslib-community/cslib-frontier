@@ -9276,6 +9276,7 @@ public import CslibFrontier.GameTheory.NetworkFormation.LocalConnection.Bounds
 public import CslibFrontier.GameTheory.NetworkFormation.Witnesses
 public import CslibFrontier.GameTheory.P2P.Generosity
 public import CslibFrontier.GameTheory.PerfectInformation
+public import CslibFrontier.GameTheory.Polymatrix.Basic
 public import CslibFrontier.GameTheory.PredictionMarket.LMSR
 public import CslibFrontier.GameTheory.PredictionMarket.ScoringRules
 public import CslibFrontier.GameTheory.RandomAssignment.Basic
@@ -9286,6 +9287,11 @@ public import CslibFrontier.GameTheory.RationalCrypto.SecretSharing
 public import CslibFrontier.GameTheory.Reputation.PeerPrediction
 public import CslibFrontier.GameTheory.Reputation.RepeatedPD
 public import CslibFrontier.GameTheory.Reputation.Sybilproof
+public import CslibFrontier.GameTheory.ResourceAllocation.KellyMechanism
+public import CslibFrontier.GameTheory.ResourceAllocation.MarketClearing
+public import CslibFrontier.GameTheory.ResourceAllocation.SSVCG
+public import CslibFrontier.GameTheory.Security.Interdependent
+public import CslibFrontier.GameTheory.Security.SystemReliability
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
 public import CslibFrontier.GameTheory.SocialChoice.Condorcet
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
@@ -9305,6 +9311,7 @@ public import CslibFrontier.GameTheory.Strategic.Nash
 public import CslibFrontier.GameTheory.Strategic.NoRegret
 public import CslibFrontier.GameTheory.Strategic.Payoff
 public import CslibFrontier.GameTheory.Strategic.Potential
+public import CslibFrontier.GameTheory.Strategic.PotentialCharacterization
 public import CslibFrontier.GameTheory.Strategic.RegretMatching
 public import CslibFrontier.GameTheory.Strategic.Semialgebraic
 public import CslibFrontier.GameTheory.Strategic.Smooth
@@ -9985,6 +9992,7 @@ public import CslibFrontier.Logics.SecondOrder.WordMSO.Separation
 public import CslibFrontier.Logics.SecondOrder.WordMSO.StarFree
 public import CslibFrontier.Logics.SecondOrder.WordMSO.ToRegular
 public import CslibFrontier.MachineLearning.Boosting.AdaBoost
+public import CslibFrontier.MachineLearning.Boosting.Margin
 public import CslibFrontier.MachineLearning.LossMinimization.Basic
 public import CslibFrontier.MachineLearning.LossMinimization.Hinge
 public import CslibFrontier.MachineLearning.LossMinimization.RLM
@@ -10083,12 +10091,14 @@ public import CslibFrontier.MachineLearning.Rademacher.Basic
 public import CslibFrontier.MachineLearning.Rademacher.Chaining
 public import CslibFrontier.MachineLearning.Rademacher.Classification
 public import CslibFrontier.MachineLearning.Rademacher.Contraction
+public import CslibFrontier.MachineLearning.Rademacher.ConvexHull
 public import CslibFrontier.MachineLearning.Rademacher.Dudley
 public import CslibFrontier.MachineLearning.Rademacher.Generalization
 public import CslibFrontier.MachineLearning.Rademacher.GrowthFunction
 public import CslibFrontier.MachineLearning.Rademacher.Linear
 public import CslibFrontier.MachineLearning.Rademacher.LinearL1
 public import CslibFrontier.MachineLearning.Rademacher.Margin
+public import CslibFrontier.MachineLearning.Rademacher.UniformMargin
 public import CslibFrontier.MachineLearning.Replicable.Amplification
 public import CslibFrontier.MachineLearning.Replicable.Basic
 public import CslibFrontier.MachineLearning.Replicable.BiasEstimation
