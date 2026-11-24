@@ -12,6 +12,7 @@ import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Convex.Jensen
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
+import CslibFrontier.Foundations.BooleanAnalysis.StableInfluenceBound
 
 /-!
 # The Kahn–Kalai–Linial theorem and Talagrand's inequality
@@ -36,13 +37,16 @@ Boolean function (`BitString.expect_sub_expect_sq_le_seven_mul_sum_influence_div
 
 ## Proof
 
-The derivative `Dᵢ F` takes the values `0` and `±1`, so `‖Dᵢ F‖_{4/3} ^ 2 = Infᵢ[F] ^ (3/2)`
-(`BitString.lpNorm_derivative_signVal`), and the `(4/3, 2)`-Hypercontractivity Theorem
-`Stab_{1/3}[Dᵢ F] ≤ ‖Dᵢ F‖_{4/3} ^ 2` bounds the low-degree part of the Fourier weight on the sets
-containing `i` (`BitString.mul_noiseStability_derivative`,
-`BitString.sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le`; Corollary 9.12 of the book):
+The derivative `Dᵢ F` takes the values `0` and `±1`, so `‖Dᵢ F‖_{4/3} ^ 2 = Infᵢ[F] ^ (3/2)`,
+and the `(4/3, 2)`-Hypercontractivity Theorem bounds the stable influence
+`Infᵢ^{(1/3)}[F] = Stab_{1/3}[Dᵢ F] ≤ ‖Dᵢ F‖_{4/3} ^ 2`: this is Corollary 9.12 of the book, the
+case `ρ = 1/3` of `Infᵢ^{(ρ)}[F] ≤ Infᵢ[F] ^ (2 / (1 + ρ))`
+(`BitString.stableInfluence_signVal_le_influence_rpow`, Corollary 9.25, in
+`CslibFrontier.Foundations.BooleanAnalysis.StableInfluenceBound`). It bounds the low-degree part of
+the Fourier weight on the sets containing `i` (`BitString.mul_noiseStability_derivative`,
+`BitString.sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le`):
 
-  `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 = 1/3 · Stab_{1/3}[Dᵢ F] ≤ 1/3 · Infᵢ[F] ^ (3/2)`.
+  `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 = 1/3 · Infᵢ^{(1/3)}[F] ≤ 1/3 · Infᵢ[F] ^ (3/2)`.
 
 For the Edge-Isoperimetric Theorem, with `M` the largest influence, this gives the book's chain
 `Var[F] 3^{-Ĩ} ≤ ∑_{S ≠ ∅} 3^{-|S|} F̂(S)² ≤ ∑ᵢ ∑_{S ∋ i} 3^{-|S|} F̂(S)² ≤ ∑ᵢ Infᵢ[F]^{3/2} / 3
@@ -106,19 +110,16 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-! ### Hypercontractivity on the derivatives -/
 
 /-- **Hypercontractivity bounds the low-degree weight on the sets containing a coordinate**: for a
-Boolean function read as signs, `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 ≤ 1/3 · Infᵢ[F] ^ (3/2)`, by the
-`(4/3, 2)`-Hypercontractivity Theorem applied to the derivative in `i`
+Boolean function read as signs, `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 = 1/3 · Infᵢ^{(1/3)}[F]`, which
+is at most `1/3 · Infᵢ[F] ^ (3/2)` by `stableInfluence_signVal_le_influence_rpow` at `ρ = 1/3`
 [O'Donnell, Corollary 9.12][ODonnell2014]. -/
 theorem sum_filter_mem_one_third_pow_mul_fourierCoeff_sq_le (f : (ι → Bool) → Bool) (i : ι) :
     ∑ S with i ∈ S, (1 / 3 : ℝ) ^ #S * fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤
       influence i (fun x => signVal (f x)) * √(influence i fun x => signVal (f x)) / 3 := by
-  set a := influence i fun x => signVal (f x)
-  have ha : 0 ≤ a := influence_nonneg i _
-  have hnorm : lpNorm (4 / 3) (derivative i fun x => signVal (f x)) ^ 2 = a * √a := by
-    rw [lpNorm_derivative_signVal f i (by norm_num), ← Real.rpow_natCast, ← Real.rpow_mul ha,
-      Real.sqrt_eq_rpow, show (4 / 3 : ℝ)⁻¹ * ((2 : ℕ) : ℝ) = 1 + 1 / 2 by norm_num,
-      Real.rpow_add' ha (by norm_num), Real.rpow_one]
-  have h := noiseStability_one_third_le (derivative i fun x => signVal (f x))
+  have h := stableInfluence_signVal_le_influence_rpow (ρ := 1 / 3) (by norm_num) (by norm_num) f i
+  rw [show (2 : ℝ) / (1 + 1 / 3) = 1 + 1 / 2 by norm_num,
+    Real.rpow_add' (influence_nonneg i _) (by norm_num), Real.rpow_one, ← Real.sqrt_eq_rpow,
+    stableInfluence_eq_noiseStability_derivative] at h
   rw [← mul_noiseStability_derivative]
   linarith
 
