@@ -34,6 +34,7 @@ import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
+import CslibFrontier.Foundations.Data.ZMod.Basic
 import CslibFrontier.Foundations.Data.ZMod.CRTUnits
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
@@ -501,11 +502,6 @@ private theorem mulCiphertextsNat_unit_val {N : ℕ} (u v : (ZMod N)ˣ) :
     mulCiphertextsNat N u.val.val v.val.val = (u * v).val.val := by
   simp only [mulCiphertextsNat, Units.val_mul, ZMod.val_mul]
 
-private theorem unitOfCoprime_val {N : ℕ} [NeZero N] (u : (ZMod N)ˣ) :
-    ZMod.unitOfCoprime u.val.val (ZMod.val_coe_unit_coprime u) = u := by
-  ext
-  simp [ZMod.coe_unitOfCoprime]
-
 /-- Word-level ciphertext re-randomization via `mulCiphertexts` with a fresh draw from
 `idealEncrypt N z false`. -/
 theorem rerandomize_idealEncrypt_eq (N : ℕ) [NeZero N] (z r₀ : (ZMod N)ˣ) (m : Bool) :
@@ -603,10 +599,8 @@ theorem advantage_sampleModNat_unitOrOne_le (d : ModulusDesc) (n : ℕ)
         fun r => k (unitOrOne (d.p * d.q) r))
       ((PMF.uniformOfFintype (ZMod (d.p * d.q))ˣ).bind fun u => k u.val.val) ≤
       5 / 2 ^ n := by
-  have hk (u : (ZMod (d.p * d.q))ˣ) : k (unitOrOne (d.p * d.q) u.val.val) = k u.val.val := by
-    rw [unitOrOne, ite_eq_left (ZMod.val_coe_unit_coprime u)]
-  simpa only [hk] using Game.advantage_sampleModNat_units_le d.prime_p d.prime_q d.ne_pq
-    hsize.1 hsize.2 fun r => k (unitOrOne (d.p * d.q) r)
+  simpa only [unitOrOne_val_coe_unit] using Game.advantage_sampleModNat_units_le d.prime_p
+    d.prime_q d.ne_pq hsize.1 hsize.2 fun r => k (unitOrOne (d.p * d.q) r)
 
 /-- Replacing `encrypt` by `idealEncrypt` inside any continuation `k` changes game advantage by at
 most `5 / 2 ^ n` when `n ≤ d.p.size ∧ n ≤ d.q.size`. -/
@@ -622,7 +616,7 @@ theorem advantage_encrypt_idealEncrypt_le (d : ModulusDesc) (n : ℕ)
       ciphertext (d.p * d.q) y.val.val m u.val.val =
         ((if m then y else 1) * u ^ 2).val.val := by
     rw [ciphertext_eq_unit_val (ZMod.val_coe_unit_coprime y) (ZMod.val_coe_unit_coprime u) m,
-      unitOfCoprime_val, unitOfCoprime_val]
+      ZMod.unitOfCoprime_val, ZMod.unitOfCoprime_val]
   rw [encrypt, unframe_encPair, dropFrame_encPair, ofBits_encNat, ofBits_encNat]
   simp only [idealEncrypt, idealEncryptUnit, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
@@ -1325,7 +1319,7 @@ theorem advantage_jacobiAttackAdversary_eq_one (d : ModulusDesc)
     have hsq : jacobiSymbol d.p d.q (u ^ 2) = 1 :=
       jacobiSymbol_eq_one_of_isSquare d.p d.q ⟨u, pow_two u⟩
     rw [ciphertext_eq_unit_val (ZMod.val_coe_unit_coprime z) (coprime_unitOrOne (d.p * d.q) r) bit,
-      unitOfCoprime_val, ← jacobiSymbol_eq_jacobiSym d.p d.q ((if bit then z else 1) * u ^ 2)]
+      ZMod.unitOfCoprime_val, ← jacobiSymbol_eq_jacobiSym d.p d.q ((if bit then z else 1) * u ^ 2)]
     cases bit
     · simpa only [Bool.false_eq_true, ↓reduceIte, one_mul] using hsq
     · simp only [↓reduceIte]

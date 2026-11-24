@@ -129,11 +129,11 @@ theorem layeredEdgeQuery_inSpace (ntm : MultiTapeNTM k Bool State) :
   have hi₁ := encLayeredQuery_toLayer_budget hi
   have hv := encLayeredQuery_toLabel_budget hi
   have hs := encLayeredQuery_symbol_budget hi
-  have hN := vertexBound_budget (k := k) hB (.refl _)
-  have he := edgeWithSymbol_budget ntm hB hn hu hv hs (.refl _)
-  have hb := bad_budget (k := k) (State := State) hB hn hu (.refl _)
+  have hN := vertexBound_budget (k := k) hB
+  have he := edgeWithSymbol_budget ntm hB hn hu hv hs
+  have hb := bad_budget (k := k) (State := State) hB hn hu
   have hlocal := budget_boolOr (budget_natEq hu hv)
-    (budget_iteProp (budget_natEq hu hN) (budget_const false (.refl _))
+    (budget_iteProp (budget_natEq hu hN) (budget_const false)
       (budget_iteProp (budget_natEq hv hN) hb he))
   exact budget_boolAnd (budget_boolAnd (budget_boolAnd (budget_boolAnd
     (budget_natEq hi₁ (budget_natSucc hi₀)) (budget_natLt hi₀ hN))
@@ -147,7 +147,7 @@ theorem layeredQueryIndex_inSpace :
   have hB := encLayeredQuery_radix_budget hi
   have hu := encLayeredQuery_fromLabel_budget hi
   exact budget_iteProp
-    (budget_natLt hu (vertexBound_budget (k := k) hB (.refl _)))
+    (budget_natLt hu (vertexBound_budget (k := k) hB))
     (queryIndex_budget hB hu) (encLayeredQuery_inputLength_budget hi)
 
 private theorem query_length_le (q : LayeredQuery) (L : ℕ)

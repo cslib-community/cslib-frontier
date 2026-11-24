@@ -57,19 +57,22 @@ example : loop.runFrom [true] (.inl (initial ctx)) 1 =
 private theorem start_space : ComputableInSpace start encState encRead
     (fun q => (encState q).length) := by
   have hid := of_inO (ComputableInDegree.id' (enc := encState)).inO_one
-  have two := budget_const (encIn := encState) (encB := encNat) 2 (.refl _)
-  have one := budget_const (encIn := encState) (encB := encNat) 1 (.refl _)
-  have zero := budget_const (encIn := encState) (encB := encNat) 0 (.refl _)
+  have two :=
+    budget_const (Bs := fun a => (encState a).length) (encIn := encState) (encB := encNat) 2
+  have one :=
+    budget_const (Bs := fun a => (encState a).length) (encIn := encState) (encB := encNat) 1
+  have zero :=
+    budget_const (Bs := fun a => (encState a).length) (encIn := encState) (encB := encNat) 0
   exact (encRead_mk_budget
     (budget_natAdd (budget_natMul two (encState_cursor_budget hid))
       (budget_ite (encState_memberPhase_budget hid) one zero))
-    (budget_const none (.refl _)) (budget_const false (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const none) (budget_const false)).of_enc_eq fun _ => rfl
 
 private theorem reader_next_space : ComputableInSpace reader.next
     (QueryMachine.encStateRead encRead) encRead
     (fun p => (QueryMachine.encStateRead encRead p).length) := by
   exact (encRead_mk_budget (encRead_index_budget (fst encRead (encOption encBool)))
-    (snd encRead (encOption encBool)) (budget_const true (.refl _))).of_enc_eq fun _ => rfl
+    (snd encRead (encOption encBool)) (budget_const true)).of_enc_eq fun _ => rfl
 
 -- A native scalar certificate is instantiated for a real bit-reading callee and its routing,
 -- not by assuming the whole predecessor loop efficient.
