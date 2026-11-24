@@ -130,12 +130,9 @@ theorem computableInPolyTime_toBooleanDeclared (encRel : Rel ↪ List Bool) (q :
         { numVars := x.numVars * CSP.bitWidth q
           formula := x.formula.toBoolean q x.numVars : DeclaredCSP (Option Rel) })
       (encDeclaredCSP encRel)
-      (encDeclaredCSP (encOption encRel)) :=
-  encDeclaredCSP_mk_polyTime (encOption encRel)
-    (ComputableInPolyTime.unary_mul'
-      (encDeclaredCSP_numVars_polyTime encRel ComputableInPolyTime.id')
-      (ComputableInPolyTime.const (CSP.bitWidth q)))
-    (computableInPolyTime_toBoolean encRel q)
+      (encDeclaredCSP (encOption encRel)) := by
+  have hform := computableInPolyTime_toBoolean encRel q
+  fun_prop
 
 /-- The compiled Boolean CSP encoding length is polynomially bounded in the native finite-domain
 input encoding length. -/

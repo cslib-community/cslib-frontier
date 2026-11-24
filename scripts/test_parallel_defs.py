@@ -1,7 +1,8 @@
 """Unit tests for scripts/parallel_defs.py: the changed lines on a scratch repository, the selection
 and reports on rows shaped like the output of `scripts/ParallelDefs.lean` (parallel definitions and
 duplicate statements), the driver's advisory exits, and, when Lean is available, the reader on
-compiled fixture modules (`CompiledFixtureTests`, `CompiledStatementFixtureTests`)."""
+compiled fixture modules (`CompiledFixtureTests`, `CompiledCollisionTests`,
+`CompiledStatementFixtureTests`)."""
 
 from __future__ import annotations
 
@@ -509,6 +510,187 @@ class CompiledFixtureTests(unittest.TestCase):
         self.assertEqual(aliases, [{"alias": "aliasBounded", "am": "ParallelFixture", "al": line,
                                     "b": "oldBounded", "bm": "ParallelFixture", "bl": 5,
                                     "bp": False}])
+
+
+def _find_colliding_const_names() -> tuple[str, str]:
+    """Find two distinct unqualified Lean constant names with identical `Expr.hash` (32-bit)."""
+    script = """import Lean
+open Lean
+private def checkPair (a b : Name) : Bool :=
+  let rec wrap : Nat → Expr → Expr
+    | 0, e => e
+    | n + 1, e => .app (.const `Nat.succ []) (wrap n e)
+  let ea := wrap 12 (.const a [])
+  let eb := wrap 12 (.const b [])
+  ea.hash == eb.hash && ea != eb
+
+#eval show IO Unit from do
+  if checkPair `c15494 `c98335 then
+    IO.println "PAIR c15494 c98335"
+    return
+  let mut seen : Std.HashMap UInt64 Name := {}
+  for i in [0:500000] do
+    let n : Name := .str .anonymous s!"c{i}"
+    let h := (Expr.const n []).hash
+    if let some m := seen[h]? then
+      if checkPair m n then
+        IO.println s!"PAIR {m} {n}"
+        return
+    seen := seen.insert h n
+  throw <| IO.userError "no 32-bit Expr.hash collision found in 500000 names"
+"""
+    out = subprocess.run(["lake", "env", "lean", "--stdin"], cwd=p.ROOT, input=script,
+                         text=True, check=True, capture_output=True)
+    for line in out.stdout.splitlines():
+        if line.startswith("PAIR "):
+            _, a, b = line.split()
+            return a, b
+    raise AssertionError(f"expected PAIR line from Lean collision probe, got: {out.stdout!r}")
+
+
+def _succ_chain(name: str, depth: int = 12) -> str:
+    expr = name
+    for _ in range(depth):
+        expr = f"Nat.succ ({expr})"
+    return expr
+
+
+@unittest.skipUnless(shutil.which("lake") and (p.ROOT / ".lake/packages").is_dir(),
+                     "needs Lean and the repository's packages (CI runs this after the build)")
+class CompiledCollisionTests(unittest.TestCase):
+    """Regression tests for 32-bit `Expr.hash` collisions in `scripts/ParallelDefs.lean`.
+
+    Regression for the false-positive match on PR #5668 reported by coordinator-6605: before
+    keying `bigSubterms`, `table` and `occurrences` by structural `Expr` equality, distinct
+    subterms sharing an `Expr.hash` were merged across declarations, dropped inside a single
+    declaration (`big.insert e.hash`), and double-counted toward `maxShared`.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.const_a, cls.const_b = _find_colliding_const_names()
+        chain_a = _succ_chain(cls.const_a, 12)
+        chain_b = _succ_chain(cls.const_b, 12)
+        src = f"""module
+public import Init
+public section
+
+def {cls.const_a} : Nat := 1
+def {cls.const_b} : Nat := 2
+
+def oldA1 : Nat := {chain_a}
+def oldB1 : Nat := {chain_b}
+def oldB2 : Nat := {chain_b}
+def bothUnexamined : Nat × Nat := ({chain_a}, {chain_b})
+
+def withLam (α : Type) (P : α → Nat → Prop) : α → Prop :=
+  fun x => P x 1 ∧ P x 2 ∧ P x 3 ∧ P x 4 ∧ P x 5
+
+-- new
+
+def newA : Nat := {chain_a}
+def newB : Nat := {chain_b}
+def bothExamined : Nat × Nat := ({chain_a}, {chain_b})
+
+def withForall (α : Type) (P : α → Nat → Prop) : Prop :=
+  ∀ x : α, P x 1 ∧ P x 2 ∧ P x 3 ∧ P x 4 ∧ P x 5
+
+end
+"""
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        build = root / "build"
+        build.mkdir()
+        (root / "CollisionFixture.lean").write_text(src)
+        subprocess.run(["lake", "env", "lean", f"--root={root}", "-o",
+                        str(build / "CollisionFixture.olean"),
+                        str(root / "CollisionFixture.lean")],
+                       cwd=p.ROOT, check=True, capture_output=True)
+        lines = src.splitlines()
+        first = lines.index("-- new") + 1
+        last = len(lines)
+        cls.build = build
+        cls.spec = f"lines CollisionFixture {first}-{last}\n"
+        cls.both_line = next(i for i, line in enumerate(lines, 1)
+                             if line.startswith("def bothExamined "))
+        # `chain_a` occurs in 4 defs (`oldA1`, `bothUnexamined`, `newA`, `bothExamined`);
+        # `chain_b` occurs in 5 defs (`oldB1`, `oldB2`, `bothUnexamined`, `newB`, `bothExamined`).
+        cls.rows_all = p.run_reader(build, cls.spec, 15, 10)
+        cls.pairs_all = {frozenset((r["a"], r["b"])): r for r in cls.rows_all if "pair" in r}
+        cls.rows_cap4 = p.run_reader(build, cls.spec, 15, 4)
+        cls.pairs_cap4 = {frozenset((r["a"], r["b"])): r for r in cls.rows_cap4 if "pair" in r}
+
+    def test_colliding_constants_are_not_falsely_paired(self) -> None:
+        for a in ("newA", "oldA1"):
+            for b in ("newB", "oldB1", "oldB2"):
+                self.assertNotIn(frozenset((a, b)), self.pairs_all, f"false pair {(a, b)}")
+
+    def test_intra_body_collision_preserves_both_subterms(self) -> None:
+        # Both `bothExamined` (pass 1 `bigSubterms`) and `bothUnexamined` (pass 2
+        # `matchingSubterms`) contain BOTH colliding `Nat.succ` chains of size 25.
+        for x, y, expected, forbidden in (
+            ("newA", "oldA1", self.const_a, self.const_b),
+            ("newA", "bothUnexamined", self.const_a, self.const_b),
+            ("newA", "bothExamined", self.const_a, self.const_b),
+            ("bothExamined", "oldA1", self.const_a, self.const_b),
+            ("newB", "oldB1", self.const_b, self.const_a),
+            ("newB", "oldB2", self.const_b, self.const_a),
+            ("newB", "bothUnexamined", self.const_b, self.const_a),
+            ("newB", "bothExamined", self.const_b, self.const_a),
+            ("bothExamined", "oldB1", self.const_b, self.const_a),
+            ("bothExamined", "oldB2", self.const_b, self.const_a),
+        ):
+            with self.subTest(pair=(x, y)):
+                row = self.pairs_all[frozenset((x, y))]
+                self.assertEqual(row["pair"], 25)
+                self.assertIn(expected, row["c"])
+                self.assertNotIn(forbidden, row["c"])
+        # Examining `bothExamined` alone verifies `bigSubterms` itself does not overwrite one
+        # colliding subterm with the other inside the same body.
+        solo_spec = f"lines CollisionFixture {self.both_line}-{self.both_line}\n"
+        solo = {(r["a"], r["b"]): r for r in p.run_reader(self.build, solo_spec, 15, 10)
+                if "pair" in r}
+        for other, expected, forbidden in (
+            ("oldA1", self.const_a, self.const_b),
+            ("newA", self.const_a, self.const_b),
+            ("oldB1", self.const_b, self.const_a),
+            ("newB", self.const_b, self.const_a),
+        ):
+            with self.subTest(solo_other=other):
+                row = solo[("bothExamined", other)]
+                self.assertEqual(row["pair"], 25)
+                self.assertIn(expected, row["c"])
+                self.assertNotIn(forbidden, row["c"])
+
+    def test_max_shared_counts_structural_expr_not_raw_hash(self) -> None:
+        # `chain_a` (4 defs) survives `max_shared=4` despite colliding `chain_b` (5 defs; 7 raw
+        # unique defs hitting the same 32-bit hash). `chain_b` itself is filtered out (> 4).
+        for x, y in (
+            ("newA", "oldA1"),
+            ("newA", "bothUnexamined"),
+            ("newA", "bothExamined"),
+            ("bothExamined", "oldA1"),
+        ):
+            row = self.pairs_cap4[frozenset((x, y))]
+            self.assertEqual(row["pair"], 25)
+            self.assertIn(self.const_a, row["c"])
+            self.assertNotIn(self.const_b, row["c"])
+        for x, y in (
+            ("newB", "oldB1"),
+            ("newB", "oldB2"),
+            ("newB", "bothUnexamined"),
+            ("newB", "bothExamined"),
+            ("bothExamined", "oldB1"),
+            ("bothExamined", "oldB2"),
+        ):
+            self.assertNotIn(frozenset((x, y)), self.pairs_cap4)
+
+    def test_lam_and_forall_root_hash_collision_not_matched(self) -> None:
+        # In Lean 4, `Expr.lam` and `Expr.forallE` mix identically in `Expr.hash` with no tag.
+        # `withLam` and `withForall` share their inner body (`P x 1 ∧ ... ∧ P x 5`), not the root.
+        row = self.pairs_all[frozenset(("withForall", "withLam"))]
+        self.assertLess(row["pair"], min(row["as"], row["bs"]))
 
 
 # A compiled module for `CompiledStatementFixtureTests`.
