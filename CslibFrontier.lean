@@ -3164,6 +3164,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Arborescences
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.CutVertex
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Loop
+public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Polygonal
 public import CslibFrontier.Computability.Complexity.Problems.Graph.CountingCNF
 public import CslibFrontier.Computability.Complexity.Problems.Graph.DartConnectivity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.DirectedCycle
