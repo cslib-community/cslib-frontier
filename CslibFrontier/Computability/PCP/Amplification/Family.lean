@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.SelectedComposition
 public import CslibFrontier.Computability.PCP.PoweringBound
 public import CslibFrontier.Computability.PCP.Preprocess
 public import CslibFrontier.Computability.PCP.Amplifier
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Amplification with specified expanders
@@ -228,8 +229,7 @@ theorem le_div_unsatVal_power_preprocessWith (loss : ℝ) (hloss : 0 < loss) (h�
   set B : ℝ := 4 * K ^ 2 + 16 * K ^ 4 +
     128 * K ^ 5 / ((1 - μ) * Fintype.card D / (2 * Fintype.card D + 2))
   have hs : 0 ≤ ((q : ℝ) - 1) / B := by
-    have : (2 : ℝ) ≤ q := by exact_mod_cast hq
-    exact div_nonneg (by linarith) (by dsimp only [B]; positivity)
+    exact div_nonneg (by cast_linarith [hq]) (by dsimp only [B]; positivity)
   calc ((q : ℝ) - 1) / Amplification.denominator loss (Fintype.card α) (Fintype.card D) μ *
         min (Amplification.retention (Fintype.card D) μ * G.unsatVal) (1 / T ^ 2)
       = (((q : ℝ) - 1) / B *

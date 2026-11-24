@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Linearize
 public import CslibFrontier.Foundations.Data.Matrix.TotallyRegular
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.Data.Nat.IntermediateValue
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The frontier lower bound for linear maps
@@ -574,9 +575,7 @@ theorem eventually_lt_mul_innerSize_of_isTotallyRegular (hr : 2 ≤ r) {A : ℝ}
       Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.card V)])
     linarith
   · -- The supply: the layout hypothesis, with the cycle rank of the reduction.
-    have hrank' : (G.cycleRank : ℝ) ≤ s - N + 1 := by
-      have : (G.cycleRank : ℝ) + N ≤ ((r - 1) * c.innerSize : ℕ) + 1 := by exact_mod_cast hrank
-      linarith
+    have hrank' : (G.cycleRank : ℝ) ≤ s - N + 1 := by cast_linarith [hrank]
     have := mul_le_mul_of_nonneg_left hrank' (by linarith : 0 ≤ A + η)
     linarith
 

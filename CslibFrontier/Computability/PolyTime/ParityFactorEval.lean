@@ -129,10 +129,16 @@ def mulZJet (J : ℕ) (u v : List ℤ) : List ℤ := (List.range J).map (cauchyC
 /-- Multiplication of univariate integer polynomials represented by low-first coefficient lists. -/
 def polyMul (p q : List ℤ) : List ℤ := mulZJet (p.length + q.length) p q
 
+/-- Constant term `a` of the linear remainder `a + b Y` in a `(quotient, (a, b))` division state. -/
+abbrev ParityFactorEval.divModRemConst (state : List ℤ × (ℤ × ℤ)) : ℤ := state.2.1
+
+/-- Linear coefficient `b` of the remainder `a + b Y` in a `(quotient, (a, b))` division state. -/
+abbrev ParityFactorEval.divModRemLin (state : List ℤ × (ℤ × ℤ)) : ℤ := state.2.2
+
 /-- Single Horner-division step for monic division by $Y^2 - Y$. -/
 def ParityFactorEval.divModByHStep (state : List ℤ × (ℤ × ℤ)) (c : ℤ) : List ℤ × (ℤ × ℤ) :=
-  let ab := state.2
-  (ab.2 :: state.1, (c, ab.1 + ab.2))
+  (ParityFactorEval.divModRemLin state :: state.1,
+    (c, ParityFactorEval.divModRemConst state + ParityFactorEval.divModRemLin state))
 
 /-- Monic division of `p` by $h(Y) = Y^2 - Y$ with linear remainder `(a, b)`. -/
 def divModByH (p : List ℤ) : List ℤ × (ℤ × ℤ) :=
@@ -228,17 +234,18 @@ theorem polyNorm1_polyMul_le (p q : List ℤ) :
 
 /-- Polynomial division identity for `divModByH` dividing by $X^2 - X$. -/
 theorem ofCoeffList_divModByH (p : List ℤ) :
-    let rem := (divModByH p).2
     ofCoeffList p =
       ofCoeffList (divModByH p).1 * (X ^ 2 - X) +
-        (C rem.1 + C rem.2 * X) := by
+        (C (ParityFactorEval.divModRemConst (divModByH p)) +
+          C (ParityFactorEval.divModRemLin (divModByH p)) * X) := by
   induction p with
-  | nil => simp only [divModByH, List.reverse_nil, List.foldl_nil, ofCoeffList_nil, zero_mul,
-      map_zero, add_zero]
+  | nil => simp only [divModByH, ParityFactorEval.divModRemConst, ParityFactorEval.divModRemLin,
+      List.reverse_nil, List.foldl_nil, ofCoeffList_nil, zero_mul, map_zero, add_zero]
   | cons c rest ih =>
     have hcons : divModByH (c :: rest) = ParityFactorEval.divModByHStep (divModByH rest) c := by
       simp only [divModByH, List.reverse_cons, List.foldl_append, List.foldl_cons, List.foldl_nil]
     rw [ofCoeffList_cons, hcons, ParityFactorEval.divModByHStep, ofCoeffList_cons, ih]
+    dsimp only [ParityFactorEval.divModRemConst, ParityFactorEval.divModRemLin]
     simp only [map_add]; ring
 
 private lemma foldl_divModByHStep_bounds (w : List ℤ) :
@@ -252,6 +259,7 @@ private lemma foldl_divModByHStep_bounds (w : List ℤ) :
   | append_singleton u c ih =>
     rcases ih with ⟨hlen, hrem, hq⟩
     simp only [List.foldl_append, List.foldl_cons, List.foldl_nil, ParityFactorEval.divModByHStep,
+      ParityFactorEval.divModRemConst, ParityFactorEval.divModRemLin,
       List.length_cons, List.length_append, List.length_nil, polyNorm1_append, polyNorm1_cons,
       polyNorm1_nil, add_zero]
     have hadd := Int.natAbs_add_le (u.foldl ParityFactorEval.divModByHStep ([], (0, 0))).2.1
@@ -267,9 +275,10 @@ private lemma foldl_divModByHStep_bounds (w : List ℤ) :
 
 /-- Linear remainder magnitude bound for `divModByH` ([OpenAI2026ETH], Lemma B.1). -/
 theorem natAbs_divModByH_snd_le (p : List ℤ) :
-    let rem := (divModByH p).2
-    rem.1.natAbs ≤ polyNorm1 p ∧ rem.2.natAbs ≤ polyNorm1 p := by
+    (ParityFactorEval.divModRemConst (divModByH p)).natAbs ≤ polyNorm1 p ∧
+      (ParityFactorEval.divModRemLin (divModByH p)).natAbs ≤ polyNorm1 p := by
   have h := (foldl_divModByHStep_bounds p.reverse).2.1; rw [polyNorm1_reverse] at h
+  dsimp only [ParityFactorEval.divModRemConst, ParityFactorEval.divModRemLin]
   change (divModByH p).2.1.natAbs + (divModByH p).2.2.natAbs ≤ polyNorm1 p at h; omega
 
 /-- Quotient $\ell_1$-norm bound for `divModByH` ([OpenAI2026ETH], Lemma B.1). -/
@@ -282,9 +291,10 @@ theorem polyNorm1_divModByH_fst_le (p : List ℤ) :
 /-- `divModByH` computes the exact monic quotient and remainder on division by
 `Polynomial.hPoly = X ^ 2 - X`. -/
 theorem divByMonic_and_modByMonic_hPoly_ofCoeffList (p : List ℤ) :
-    let rem := (divModByH p).2
     ofCoeffList p /ₘ hPoly = ofCoeffList (divModByH p).1 ∧
-      ofCoeffList p %ₘ hPoly = C rem.1 + C rem.2 * X := by
+      ofCoeffList p %ₘ hPoly =
+        C (ParityFactorEval.divModRemConst (divModByH p)) +
+          C (ParityFactorEval.divModRemLin (divModByH p)) * X := by
   refine div_modByMonic_unique _ _ monic_hPoly ⟨?_, ?_⟩
   · rw [hPoly, ofCoeffList_divModByH p]; ring
   · have hr : C (divModByH p).2.1 + C (divModByH p).2.2 * X =

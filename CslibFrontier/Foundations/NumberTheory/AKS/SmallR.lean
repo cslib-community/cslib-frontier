@@ -12,6 +12,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.Data.Nat.Choose.Central
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Data.Nat.Choose.Factorization
 import Mathlib.Data.Nat.Factorization.Basic
@@ -234,7 +235,6 @@ theorem exists_lt_orderOf_logb {n : ℕ} (hn : 2 ≤ n) :
       _ = 128 * Real.logb 2 n ^ 5 := by ring
   · have h1 : Real.logb 2 n ^ 2 ≤ (c : ℝ) ^ 2 := pow_le_pow_left₀ (by linarith) hlogc 2
     have h2 : ((c ^ 2 : ℕ) : ℝ) < (orderOf (n : ZMod r) : ℝ) := by exact_mod_cast hord
-    push_cast at h2
-    linarith
+    cast_linarith
 
 end Cslib.AKS

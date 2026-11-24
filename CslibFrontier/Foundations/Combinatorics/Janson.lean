@@ -12,6 +12,7 @@ public import Mathlib.Data.Finset.Powerset
 public import Mathlib.Data.Fintype.Powerset
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Basic.Real.Basic
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Analysis.Complex.Exponential
@@ -198,10 +199,9 @@ theorem card_avoiders_mul_le_card_filter (x : ℕ → Finset U) (K : ℕ)
     push_cast
     exact sum_le_sum hpair
   rw [← mul_sum, hDs] at hcard'
-  have hAD' : (#(avoiders x K) : ℝ) ≤ #D := by exact_mod_cast card_le_card hAD
   have hpos : (0 : ℝ) ≤ #D * (1 / 2) ^ #s := by positivity
   have hle : (#D : ℝ) * (1 / 2) ^ #s * (1 / 2) ≤ #((avoiders x K).filter (s ⊆ ·)) := by
-    nlinarith [mul_le_mul_of_nonneg_left hK hpos]
+    cast_nlinarith [card_le_card hAD, mul_le_mul_of_nonneg_left hK hpos]
   calc (#(avoiders x K) : ℝ) * (1 / 2) ^ (#s + 1)
       = #(avoiders x K) * (1 / 2) ^ #s * (1 / 2) := by rw [pow_succ, mul_assoc]
     _ ≤ #D * (1 / 2) ^ #s * (1 / 2) := by gcongr

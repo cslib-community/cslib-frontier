@@ -7,12 +7,9 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.Hellinger
-public import CslibFrontier.Probability.IID
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.Concentration
-import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
@@ -550,16 +547,13 @@ variable [Finite α] [DecidableEq α]
 
 omit [Finite α] [DecidableEq α] in
 private theorem toOuterMeasure_empiricalMass_tail_le (p : _root_.PMF α) (n : ℕ) (γ : ℝ)
-    (P S : (Fin n → α) → Prop)
-    (hiff : 0 < n → ∀ x : Fin n → α, P x ↔ S x)
-    (hpi : ((iid p n).toOuterMeasure {x | S x}).toReal ≤ Real.exp (-2 * (n : ℝ) * γ ^ 2)) :
+    (P : (Fin n → α) → Prop) {S : (Fin n → α) → Prop}
+    (hpi : ((iid p n).toOuterMeasure {x | S x}).toReal ≤ Real.exp (-2 * (n : ℝ) * γ ^ 2))
+    (hiff : 0 < n → ∀ x : Fin n → α, P x ↔ S x) :
     ((iid p n).toOuterMeasure {x | P x}).toReal ≤ Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · refine (toOuterMeasure_toReal_le_one _ _).trans_eq ?_
-    simp
-  have hevent : {x : Fin n → α | P x} = {x : Fin n → α | S x} := by
-    ext x
-    exact hiff hn x
+  · exact (toOuterMeasure_toReal_le_one _ _).trans_eq (by simp)
+  have hevent : {x : Fin n → α | P x} = {x : Fin n → α | S x} := Set.ext fun x => hiff hn x
   rwa [hevent]
 
 /-- Lower-tail Hoeffding concentration for `empiricalMass A x`. -/
@@ -569,16 +563,12 @@ theorem toOuterMeasure_empiricalMass_le_sub_le (p : _root_.PMF α) (A : Finset �
       {x | empiricalMass A x ≤ (p.toOuterMeasure (A : Set α)).toReal - γ}).toReal ≤
         Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   let := Fintype.ofFinite α
-  refine toOuterMeasure_empiricalMass_tail_le p n γ _
-    (fun x => ∑ i : Fin n, (if x i ∈ A then (1 : ℝ) else 0) ≤
-      n * (p.toOuterMeasure (A : Set α)).toReal - n * γ)
-    (fun hn x => by
-      have hnR : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-      simp only [empiricalMass, div_le_iff₀ hnR]
-      constructor <;> intro hx <;> linarith) ?_
   have h := pi_sum_le_mean_sub_card_mul (fun _ : Fin n => p)
     (fun _ a => if a ∈ A then (1 : ℝ) else 0) (empiricalMass_hoeffding_prep p A n) hγ
-  rwa [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  rw [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  refine toOuterMeasure_empiricalMass_tail_le p n γ _ h fun hn x => ?_
+  simp only [empiricalMass, div_le_iff₀ (Nat.cast_pos.mpr hn : (0 : ℝ) < n)]
+  exact ⟨fun hx => by linarith, fun hx => by linarith⟩
 
 /-- Upper-tail Hoeffding concentration for `empiricalMass A x`. -/
 theorem toOuterMeasure_add_le_empiricalMass_le (p : _root_.PMF α) (A : Finset α) (n : ℕ)
@@ -587,16 +577,12 @@ theorem toOuterMeasure_add_le_empiricalMass_le (p : _root_.PMF α) (A : Finset �
       {x | (p.toOuterMeasure (A : Set α)).toReal + γ ≤ empiricalMass A x}).toReal ≤
         Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   let := Fintype.ofFinite α
-  refine toOuterMeasure_empiricalMass_tail_le p n γ _
-    (fun x => n * (p.toOuterMeasure (A : Set α)).toReal + n * γ ≤
-      ∑ i : Fin n, (if x i ∈ A then (1 : ℝ) else 0))
-    (fun hn x => by
-      have hnR : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-      simp only [empiricalMass, le_div_iff₀ hnR]
-      constructor <;> intro hx <;> linarith) ?_
   have h := pi_sum_ge_mean_add_card_mul (fun _ : Fin n => p)
     (fun _ a => if a ∈ A then (1 : ℝ) else 0) (empiricalMass_hoeffding_prep p A n) hγ
-  rwa [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  rw [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  refine toOuterMeasure_empiricalMass_tail_le p n γ _ h fun hn x => ?_
+  simp only [empiricalMass, le_div_iff₀ (Nat.cast_pos.mpr hn : (0 : ℝ) < n)]
+  exact ⟨fun hx => by linarith, fun hx => by linarith⟩
 
 /-- Two-sided Hoeffding concentration for `empiricalMass A x`:
 `P^{\otimes n}(γ ≤ |empiricalMass A x - p(A)|) ≤ 2 * Real.exp (-2 * n * γ ^ 2)`. -/

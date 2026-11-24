@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.Code.PuncturedBallFourier
 import CslibFrontier.Foundations.Data.Code.BallVolume
 import CslibFrontier.Foundations.Data.Nat.Choose.Entropy
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.DerivHyp
 
@@ -230,12 +231,12 @@ theorem exists_parityCheckCode_of_fourierBounds {ε : ℝ} (hε : 0 < ε) (hε2 
     have := le_of_max_le_left (le_of_max_le_right hn')
     have h := Nat.le_ceil C
     have : ((⌈C⌉₊ + 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast this
-    push_cast at this; linarith
+    cast_linarith
   have hn8 : 8 / δ < n := by
     have := le_of_max_le_right (le_of_max_le_right hn')
     have h := Nat.le_ceil (8 / δ)
     have : ((⌈8 / δ⌉₊ + 1 : ℕ) : ℝ) ≤ n := by exact_mod_cast this
-    push_cast at this; linarith
+    cast_linarith
   have hδn : 8 < δ * n := by rwa [div_lt_iff₀ hδ, mul_comm] at hn8
   have hn2' : (2 : ℝ) ≤ n := by exact_mod_cast hn2
   have hnpos : (0 : ℝ) < n := by linarith

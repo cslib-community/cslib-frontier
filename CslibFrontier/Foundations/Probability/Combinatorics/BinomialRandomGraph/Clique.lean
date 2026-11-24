@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.Basic
 public import Mathlib.Combinatorics.SimpleGraph.Clique
 import CslibFrontier.Foundations.Probability.SecondMoment
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Data.Nat.Choose.Bounds
 import Mathlib.Data.Sym.Card
 
@@ -340,8 +341,7 @@ private theorem pow_three_le_sixteen_mul_choose {n : ℕ} (hn : 4 ≤ n) :
       nlinarith [this]
     rw [show 4 + m = m + 1 + 3 by ring]
     exact_mod_cast (by rw [this]; ring)
-  push_cast
-  nlinarith [sq_nonneg (m : ℝ), (m.cast_nonneg : (0 : ℝ) ≤ m)]
+  cast_nlinarith [sq_nonneg (m : ℝ), (m.cast_nonneg : (0 : ℝ) ≤ m)]
 
 /-- **The triangle threshold, second moment, in terms of `n p`**: for `n ≥ 4` and `p > 0`,
 `G(n, p)` is triangle-free with probability at most `16 / (n p) ^ 3 + 48 / (n p)`. The second
@@ -352,14 +352,13 @@ theorem binomialRandom_real_cliqueFree_three_le {n : ℕ} (hn : 4 ≤ n) (p : I)
     G(Fin n, p).real {G | G.CliqueFree 3} ≤ 16 / (n * p) ^ 3 + 48 / (n * p) := by
   have hC := pow_three_le_sixteen_mul_choose hn
   have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
-  have hn4 : (4 : ℝ) ≤ n := by exact_mod_cast hn
   have hC0 : (0 : ℝ) < n.choose 3 := by exact_mod_cast Nat.choose_pos (by omega)
   refine (binomialRandom_real_cliqueFree_three_le_choose (by omega) p hp).trans
     (add_le_add ?_ ?_)
   · rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    nlinarith [pow_pos hp 3]
+    cast_nlinarith [hn, pow_pos hp 3]
   · rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    nlinarith [mul_pos hn0 hp, sq_nonneg (n : ℝ)]
+    cast_nlinarith [mul_pos hn0 hp, sq_nonneg (n : ℝ)]
 
 /-- **The triangle threshold, first moment** [Alon and Spencer, Section 4.4][AlonSpencer2016]:
 `G(n, p)` contains a triangle with probability at most `C(n, 3) p ^ 3 ≤ (n p) ^ 3 / 6`. -/

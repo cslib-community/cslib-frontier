@@ -186,6 +186,22 @@ example : (signLabelResidue 17 0 1 (fun _ => 3) (fun _ => 0) : ZMod 17) = 1 := b
     Finset.univ_unique]
   decide
 
+-- The weighted test has zero denominator modulo 17, but its cleared numerator survives.
+example : (fingerprintLabelResidue 17 0 1 1 (fun i => if i = 0 then 0 else 3)
+    (fun _ => 1) 16 : ZMod 17) = 4 := by
+  let : Fact (Nat.Prime 17) := ⟨by decide⟩
+  let g (i : Fin 2) : Polynomial ℤ := Polynomial.C (if i.val = 0 then 0 else 3)
+  have hv (i : Fin 2) : ((if i.val = 0 then 0 else 3 : ℕ) : ZMod 17) =
+      (g i).eval₂ (Int.castRingHom (ZMod 17)) 0 := by
+    fin_cases i <;> simp [g]
+  rw [fingerprintLabelResidue_cast (p := 17) 0 1 g (fun _ : Fin 1 => 1) (-1) 0
+    (fun i => if i = 0 then 0 else 3) (fun _ => 1) 16 hv (by simp) (by decide)]
+  simp only [Polynomial.fingerprintLabelPolynomial, Polynomial.eval₂_sub, Polynomial.eval₂_pow,
+    Polynomial.eval₂_mul, Polynomial.eval₂_C, Polynomial.eval₂_finsetSum,
+    Polynomial.eval₂_finsetProd, Polynomial.eval₂_add, Polynomial.eval₂_comp, Polynomial.eval₂_neg,
+    Polynomial.eval₂_dyadicSignProduct, Int.coe_castRingHom, g]
+  decide
+
 -- At -1 the product vanishes, so the cleared values are additive inverses.
 example : (signTestDenominatorResidue 101 1 1 100 : ZMod 101) = 33 ∧
     (signTestNumeratorResidue 101 1 1 100 : ZMod 101) = 68 := by
@@ -812,6 +828,22 @@ example :
   simpa only [hDegree, hNorm] using
     Polynomial.signLabelPolynomial_bounds 1 g (fun _ => 1)
       (D := 1) (fun _ => Polynomial.natDegree_X_le) hb
+
+-- The weighted fingerprint with a negative target has explicit size bounds.
+example :
+    let g : Fin 2 → Polynomial ℤ := Fin.cases 1 (fun _ => Polynomial.X)
+    let p := Polynomial.fingerprintLabelPolynomial 1 2 g (fun _ => 2) (-2)
+    p.natDegree ≤ 72 ∧ p.coeffNorm1 ≤ 2 ^ 230 := by
+  intro g p
+  have hD (i : Fin 2) : (g i).natDegree ≤ 1 := by
+    refine Fin.cases ?_ (fun _ => ?_) i <;> simp [g]
+  have hb (i : Fin 2) : (g i).coeffNorm1 ≤ 2 ^ 0 := by
+    refine Fin.cases ?_ (fun _ => ?_) i <;> simp [g]
+  have hDegree : Polynomial.fingerprintLabelDegreeBound 1 1 2 1 = 72 := by decide
+  have hNorm : Polynomial.fingerprintLabelNormExponent 1 1 2 0 = 230 := by decide
+  simpa only [hDegree, hNorm] using
+    Polynomial.fingerprintLabelPolynomial_bounds 1 2 g (fun _ => 2) (-2) hD hb
+      (by simp only [Fin.sum_univ_one, le_refl]) (by decide)
 
 -- One precision covers all derivative orders at the real root of 2X.
 example (k : ℕ) :

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevAverage
 public import CslibFrontier.Foundations.Combinatorics.TailSum
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Odd errors are orthogonal: truncating the subcube vote for Andreev's function
@@ -472,8 +473,7 @@ theorem sum_andreevReflectedWeight_sq_mem (b m : ℕ) (S : Finset (Fin b)) (τ :
   · have := sum_le_sum fun i (_ : i ∈ univ) => (hblock i).2
     simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one] at this
     unfold andreevVarianceProxy
-    push_cast at this ⊢
-    linarith
+    cast_linarith
 
 /-- **Gaussian tails of a reflected form**: for every `j ≥ 1`, at most a
 `2 exp (-j² / (8 v))` fraction of the inputs have `|X_S ± D_S| ≥ j`. -/
@@ -500,9 +500,8 @@ theorem card_le_natAbs_andreevReflectedForm_le (b m : ℕ) (S : Finset (Fin b)) 
       exact_mod_cast hw
     rw [cast_andreevReflectedForm_eq] at hU
     change (j : ℝ) ≤ |∑ i, a i * (((w i).toNat : ℝ) - 1 / 2) + μ| at hU
-    have hj1 : (1 : ℝ) ≤ j := by exact_mod_cast hj
     have := abs_add_le (∑ i, a i * (((w i).toNat : ℝ) - 1 / 2)) μ
-    linarith
+    cast_linarith [hj]
   calc (#{w : BitString (2 ^ b + b * m) | j ≤ (andreevReflectedForm b m S τ w).natAbs} : ℝ)
       ≤ #{w : BitString (2 ^ b + b * m) |
           (j : ℝ) / 2 ≤ |∑ i, a i * (((w i).toNat : ℝ) - 1 / 2)|} := by
