@@ -1757,6 +1757,12 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Certificates
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Compiler
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.CorrelationBounds
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.DualCert
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.EuclideanSheppard
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.Layout
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.ParamSelection
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.WalkKernel
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
