@@ -8529,6 +8529,8 @@ public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
 public import CslibFrontier.GameTheory.Cooperative.Basic
 public import CslibFrontier.GameTheory.Cooperative.Core
+public import CslibFrontier.GameTheory.Cooperative.FacilityLocationCostSharing
+public import CslibFrontier.GameTheory.Cooperative.FacilityLocationLowerBound
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
