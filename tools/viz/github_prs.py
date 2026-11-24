@@ -13,6 +13,8 @@ publishes PR views made from a partial list.
 
 from __future__ import annotations
 
+import datetime as dt
+import http.client
 import json
 import os
 import sys
@@ -27,10 +29,16 @@ QUERY = """query($owner: String!, $name: String!, $after: String) {
       pageInfo { hasNextPage endCursor }
       nodes { FIELDS
         additions deletions changedFiles
-        reviews { totalCount } comments { totalCount } commits { totalCount } } } } }"""
+        reviews { totalCount } commits { totalCount } } } } }"""
 RECENT = QUERY.replace("CREATED_AT, direction: ASC", "UPDATED_AT, direction: DESC")
 QUERY = QUERY.replace("FIELDS", _FIELDS)
 RECENT = RECENT.replace("FIELDS", _FIELDS)
+OVERLAP_MINUTES = 30
+
+
+def _parse_iso(stamp: str) -> dt.datetime:
+    parsed = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
 
 def token() -> str | None:
@@ -51,18 +59,23 @@ def _pages(query: str, repo: str, tok: str):
     after = None
     while True:
         variables = {"owner": owner, "name": name, "after": after}
+        prs = None
         for attempt in range(6):
             try:
-                page = _post({"query": QUERY, "variables": variables}, tok)
+                page = _post({"query": query, "variables": variables}, tok)
                 if "errors" in page:
                     raise RuntimeError(str(page["errors"])[:300])
+                prs = ((page.get("data") or {}).get("repository") or {}).get("pullRequests")
+                if not isinstance(prs, dict):
+                    raise RuntimeError("GitHub GraphQL returned no pullRequests payload")
                 break
-            except (urllib.error.URLError, RuntimeError, TimeoutError) as e:
+            except (urllib.error.URLError, http.client.HTTPException, OSError,
+                    ValueError, RuntimeError, TimeoutError) as e:
                 if attempt == 5:
                     raise
                 print(f"github: retrying after {e}", file=sys.stderr, flush=True)
                 time.sleep(5 * (attempt + 1))
-        prs = page["data"]["repository"]["pullRequests"]
+        assert isinstance(prs, dict)
         yield prs["nodes"]
         if not prs["pageInfo"]["hasNextPage"]:
             return
@@ -79,19 +92,20 @@ def fetch(repo: str = "cslib-community/cslib-frontier", tok: str | None = None) 
 
 def update(previous: list[dict], repo: str = "cslib-community/cslib-frontier",
            tok: str | None = None) -> list[dict]:
-    """`previous` brought up to date: pull requests updated since its newest `updatedAt` are
-    fetched (newest first, stopping at the first older one) and replace or join the old list.
-    A previous list without `updatedAt` stamps is replaced by a full fetch."""
+    """`previous` brought up to date: pull requests updated since slightly before its newest
+    `updatedAt` (an overlap window avoids missing updates made mid-fetch) are fetched newest first,
+    stopping at the first older one, and replace or join the old list. A previous list without
+    `updatedAt` stamps is replaced by a full fetch."""
     tok = tok or token()
     if not tok:
         raise RuntimeError("no GITHUB_TOKEN or GH_TOKEN")
     stamps = [p.get("updatedAt") for p in previous]
     if not previous or not all(stamps):
         return fetch(repo, tok)
-    since = max(stamps)
+    since = max(_parse_iso(s) for s in stamps) - dt.timedelta(minutes=OVERLAP_MINUTES)
     by_number = {p["number"]: p for p in previous}
     for nodes in _pages(RECENT, repo, tok):
-        fresh = [p for p in nodes if p["updatedAt"] >= since]
+        fresh = [p for p in nodes if _parse_iso(p["updatedAt"]) >= since]
         for p in fresh:
             by_number[p["number"]] = p
         if len(fresh) < len(nodes):

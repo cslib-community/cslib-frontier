@@ -281,8 +281,13 @@ class PageData(unittest.TestCase):
         self.assertEqual(r["commits"], {"1": 1, "7": 2})
 
     def test_embedded_json_cannot_close_its_script(self):
+        import json
         import pages
-        self.assertNotIn("</", pages._json({"s": "</script><b>"}))
+        for payload in ({"s": "</script><b>"}, {"s": "<!-- <script>"}):
+            encoded = pages._json(payload)
+            self.assertNotIn("<", encoded)
+            self.assertNotIn("</", encoded)
+            self.assertEqual(json.loads(encoded), payload)
 
 
 class PullRequests(unittest.TestCase):
@@ -306,7 +311,7 @@ class PullRequests(unittest.TestCase):
         return {"number": n, "title": title, "state": state, "createdAt": iso(created),
                 "mergedAt": iso(merged), "closedAt": iso(closed), "author": {"login": "a"},
                 "additions": 3, "deletions": 1, "changedFiles": 1, "reviews": {"totalCount": 0},
-                "comments": {"totalCount": 0}, "commits": {"totalCount": 1}}
+                "commits": {"totalCount": 1}}
 
     def test_kinds(self):
         import prs
@@ -326,8 +331,68 @@ class PullRequests(unittest.TestCase):
         self.assertIsNone(recs[7]["area"])
         self.assertEqual([recs[n]["kind"] for n in (5, 6, 7)], [0, 1, 0])
         import numpy as np
-        w = prs.wip(list(recs.values()), np.array([t0 + 60, t0 + 160, t0 + 300]), t0 + 300)
+        w = prs.wip(list(recs.values()), np.array([t0 + 60, t0 + 160, t0 + 300]))
         self.assertEqual(list(w), [2, 2, 1])
+        self.assertEqual(list(prs.wip([], np.array([t0]))), [0])
+
+    def test_zero_net_delta_leaves_area_unclassified(self):
+        import prs
+        info = lambda code: h.BlobInfo(code + 1, code, (), {})
+        H = type("FakeHistory", (), {})()
+        H.blobs = {"a1": info(10), "a2": info(10)}
+        H.commits = [
+            h.Commit("1" * 40, self.t0, "x", "feat: add A (#1)",
+                     [("CslibFrontier/Crypto/A.lean", "a1")]),
+            h.Commit("2" * 40, self.t0 + 60, "x", "refactor: rewrite A (#2)",
+                     [("CslibFrontier/Crypto/A.lean", "a2")]),
+        ]
+        recs = {r["n"]: r for r in prs.records(H, [
+            self.raw(1, "feat: add A", "MERGED", self.t0 - 10, self.t0),
+            self.raw(2, "refactor: rewrite A", "MERGED", self.t0 + 10, self.t0 + 60),
+        ])}
+        self.assertEqual(recs[1]["area"], "Crypto")
+        self.assertIsNone(recs[2]["area"])
+
+    def test_short_and_empty_charts(self):
+        import prs
+        import streams
+        import style
+        t0 = 1795003200  # divisible by 6 * 3600 (21600)
+        self.assertEqual(t0 % streams.STEP, 0)
+        info = lambda code: h.BlobInfo(code + 1, code, (), {})
+        H = type("FakeHistory", (), {})()
+        H.blobs = {"a": info(0), "b": info(10)}
+        H.commits = [h.Commit("1" * 40, t0, "x", "doc: init (#1)",
+                              [("CslibFrontier/Crypto/A.lean", "a")])]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir)
+            style.setup(style.LIGHT)
+            # streams: single commit on a 6h boundary + zero total_final code
+            dates, rows = streams.series(H)
+            self.assertEqual(len(dates), 1)
+            self.assertEqual(rows, [{"Crypto": 0}])
+            self.assertTrue(all(p.exists() for p in streams.streamgraph(H, out)))
+            # streams: completely empty commit history
+            H_empty = type("FakeHistory", (), {})()
+            H_empty.blobs = {}
+            H_empty.commits = []
+            self.assertEqual(streams.series(H_empty), ([], []))
+            self.assertTrue(all(p.exists() for p in streams.streamgraph(H_empty, out)))
+            # waterfall & growth_vs_cleanup: empty, unmerged-only, 1-3 six-hour buckets
+            self.assertTrue(all(p.exists() for p in prs.waterfall(H, out, [])))
+            self.assertTrue(all(p.exists() for p in prs.growth_vs_cleanup(H, out, [])))
+            unmerged = prs.records(H, [self.raw(1, "feat: open", "OPEN", t0)])
+            self.assertTrue(all(p.exists() for p in prs.waterfall(H, out, unmerged)))
+            for buckets in (1, 2, 3):
+                raw = [self.raw(i + 1, "feat: p", "MERGED", t0 - 3600, t0 - (buckets - 1 - i) * 21600)
+                       for i in range(buckets)]
+                H_b = type("FakeHistory", (), {})()
+                H_b.blobs = {"b": info(10)}
+                H_b.commits = [h.Commit("1" * 40, t0, "x", "feat: p (#1)",
+                                        [("CslibFrontier/Crypto/A.lean", "b")])]
+                recs = prs.records(H_b, raw)
+                self.assertTrue(all(p.exists() for p in prs.waterfall(H_b, out, recs)))
+                self.assertTrue(all(p.exists() for p in prs.growth_vs_cleanup(H_b, out, recs)))
 
     def test_stream_series_follow_sub_areas(self):
         import streams
@@ -358,6 +423,55 @@ class PullRequestUpdates(unittest.TestCase):
         self.assertEqual([(p["number"], p["title"]) for p in out], [(1, "t"), (2, "new"), (3, "t")])
         self.assertEqual(len(seen), 2)
 
+    def test_update_sends_recent_query_via_post_and_retries(self):
+        import http.client
+        import github_prs as g
+
+        pr = lambda n, c, u, title="t": {"number": n, "createdAt": c, "updatedAt": u, "title": title}
+        previous = [pr(1, "2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z"),
+                    pr(2, "2026-11-03T00:00:00Z", "2026-11-05T12:00:00Z", "old")]
+        calls = []
+        responses = iter([
+            http.client.RemoteDisconnected("drop"),
+            {"data": None},
+            {"data": {"repository": {"pullRequests": {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                # PR 4 updated within the 30-min overlap window (11:45 >= 11:30); PR 3 is new.
+                "nodes": [pr(3, "2026-11-06T00:00:00Z", "2026-11-06T01:00:00Z"),
+                          pr(4, "2026-11-05T00:00:00Z", "2026-11-05T11:45:00Z")],
+            }}}},
+            {"data": {"repository": {"pullRequests": {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c2"},
+                "nodes": [pr(1, "2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z")],
+            }}}},
+        ])
+
+        def fake_post(body, tok):
+            calls.append((body, tok))
+            nxt = next(responses)
+            if isinstance(nxt, BaseException):
+                raise nxt
+            return nxt
+
+        with mock.patch.object(g, "_post", side_effect=fake_post), \
+             mock.patch.object(g.time, "sleep"):
+            out = g.update(previous, tok="secret")
+        self.assertEqual([p["number"] for p in out], [1, 2, 4, 3])
+        self.assertEqual(len(calls), 4)
+        for body, tok in calls:
+            self.assertEqual(body["query"], g.RECENT)
+            self.assertNotEqual(body["query"], g.QUERY)
+            self.assertIn("UPDATED_AT, direction: DESC", body["query"])
+            self.assertEqual(tok, "secret")
+        fetch_calls = []
+        fetch_resp = {"data": {"repository": {"pullRequests": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [pr(1, "2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z")],
+        }}}}
+        with mock.patch.object(g, "_post", side_effect=lambda b, t: (fetch_calls.append(b), fetch_resp)[1]):
+            self.assertEqual(len(g.fetch(tok="secret")), 1)
+        self.assertEqual(fetch_calls[0]["query"], g.QUERY)
+
     def test_update_without_stamps_refetches(self):
         import github_prs as g
         orig = g.fetch
@@ -366,6 +480,39 @@ class PullRequestUpdates(unittest.TestCase):
             self.assertEqual(g.update([{"number": 1, "createdAt": "x"}], tok="x"), ["full"])
         finally:
             g.fetch = orig
+
+
+class AtlasLayout(unittest.TestCase):
+    def test_atlas_uses_nested_layout_and_caches(self):
+        import atlas
+        import evolution as ev
+        info = lambda code, imps=(): h.BlobInfo(code + 1, code, tuple(imps), {})
+        H = type("FakeHistory", (), {})()
+        H.blobs = {"a": info(10), "b": info(20, ("CslibFrontier.Crypto.A",))}
+        H.commits = [
+            h.Commit("1" * 40, 1795000000, "x", "feat: add (#1)",
+                     [("CslibFrontier/Crypto/A.lean", "a"),
+                      ("CslibFrontier/Logics/B.lean", "b")]),
+        ]
+        with mock.patch.object(ev, "layout", side_effect=AssertionError("evolution.layout called")):
+            R = atlas.Atlas(H, 320, 180)
+        self.assertEqual(R.mods, ["CslibFrontier.Crypto.A", "CslibFrontier.Logics.B"])
+        st = ev.State(H)
+        st.apply(H.commits[0])
+        st.refresh()
+        img = R.draw(1795000000, st, smooth=1)
+        self.assertEqual(img.size, (320, 180))
+        # Cached layout avoids recomputing on a second Atlas call when blobs expose fingerprint.
+        class CachedBlobs(dict):
+            fingerprint = "1-test"
+        H.blobs = CachedBlobs(H.blobs)
+        with tempfile.TemporaryDirectory() as tmpdir, \
+             mock.patch.object(h, "HERE", Path(tmpdir)), \
+             mock.patch.object(ev, "layout", side_effect=AssertionError("evolution.layout called")):
+            pos1 = atlas.nested_layout(H)
+            with mock.patch("networkx.spring_layout", side_effect=AssertionError("uncached")):
+                pos2 = atlas.nested_layout(H)
+            self.assertEqual(pos1, pos2)
 
 
 class Squarify(unittest.TestCase):

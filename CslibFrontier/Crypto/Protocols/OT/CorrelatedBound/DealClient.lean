@@ -16,6 +16,7 @@ import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # The `(2, 1; 1)` Deal Source Client
@@ -84,10 +85,7 @@ private theorem uniformPermFin4_map_eval2_eq_uniform :
     let σ := Equiv.swap (0 : Fin 4) b
     have hinv : μ.map σ = μ := by
       dsimp only [μ]
-      rw [PMF.map_comp]
-      have hcomp : ((σ : Fin 4 → Fin 4) ∘ fun ρ : Equiv.Perm (Fin 4) => ρ 2) =
-          (fun ρ : Equiv.Perm (Fin 4) => ρ 2) ∘ Equiv.mulLeft σ := rfl
-      rw [hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+      relabel_uniform (Equiv.mulLeft σ)
     calc μ b = (μ.map σ) b := (congrArg (fun q : PMF (Fin 4) => q b) hinv).symm
       _ = μ (σ.symm b) := map_equiv_apply μ σ b
       _ = μ 0 := by simp only [σ, Equiv.symm_swap, Equiv.swap_apply_right]
@@ -195,11 +193,7 @@ private theorem deal211_const_on_unseen (a : Fin 4 × Fin 4)
     Equiv.prodCongr (Equiv.prodCongr σ σ) σ
   have hinv : deal211.map g = deal211 := by
     dsimp only [deal211]
-    rw [PMF.map_comp]
-    have hcomp : ((g : (Fin 4 × Fin 4) × Fin 4 → (Fin 4 × Fin 4) × Fin 4) ∘
-        fun ρ : Equiv.Perm (Fin 4) => ((ρ 0, ρ 1), ρ 2)) =
-        (fun ρ : Equiv.Perm (Fin 4) => ((ρ 0, ρ 1), ρ 2)) ∘ Equiv.mulLeft σ := rfl
-    rw [hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+    relabel_uniform (Equiv.mulLeft σ)
   have hsymm : g.symm (a, b₁) = (a, b₀) := by
     have hσ1 : σ.symm a.1 = a.1 := by
       rw [Equiv.symm_swap]
@@ -393,26 +387,18 @@ private theorem deal211Unordered_const_on_unseen (s : {s : Finset (Fin 4) // s.c
       right_inv := fun p => Prod.ext (hinv_set p.1) (hσσ p.2) }
   have hinv : deal211Unordered.map g = deal211Unordered := by
     dsimp only [deal211Unordered]
-    rw [PMF.map_comp]
-    have hcomp : ((g : _ → _) ∘ fun ρ : Equiv.Perm (Fin 4) =>
-        (⟨{ρ 0, ρ 1}, Finset.card_pair (ρ.injective.ne (by decide : (0 : Fin 4) ≠ 1))⟩, ρ 2)) =
-        (fun ρ : Equiv.Perm (Fin 4) =>
-          (⟨{ρ 0, ρ 1}, Finset.card_pair (ρ.injective.ne (by decide : (0 : Fin 4) ≠ 1))⟩, ρ 2)) ∘
-        Equiv.mulLeft σ := by
-      funext ρ
-      refine Prod.ext (Subtype.ext ?_) rfl
-      ext x
-      simp only [g, mapSet, Equiv.coe_fn_mk, Function.comp_def, Equiv.coe_mulLeft,
-        Equiv.Perm.mul_apply, Finset.mem_map, Finset.mem_insert, Finset.mem_singleton,
-        Equiv.coe_toEmbedding]
-      constructor
-      · rintro ⟨y, rfl | rfl, rfl⟩
-        · exact Or.inl rfl
-        · exact Or.inr rfl
-      · rintro (rfl | rfl)
-        · exact ⟨ρ 0, Or.inl rfl, rfl⟩
-        · exact ⟨ρ 1, Or.inr rfl, rfl⟩
-    rw [hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+    relabel_uniform (Equiv.mulLeft σ) with ρ
+    refine Prod.ext (Subtype.ext ?_) rfl
+    ext x
+    simp only [g, mapSet, Equiv.coe_fn_mk, Equiv.coe_mulLeft, Equiv.Perm.mul_apply,
+      Finset.mem_map, Finset.mem_insert, Finset.mem_singleton, Equiv.coe_toEmbedding]
+    constructor
+    · rintro ⟨y, rfl | rfl, rfl⟩
+      · exact Or.inl rfl
+      · exact Or.inr rfl
+    · rintro (rfl | rfl)
+      · exact ⟨ρ 0, Or.inl rfl, rfl⟩
+      · exact ⟨ρ 1, Or.inr rfl, rfl⟩
   have hsymm : g.symm (s, b₁) = (s, b₀) := by
     refine Prod.ext (Subtype.ext ?_) ?_
     · ext x

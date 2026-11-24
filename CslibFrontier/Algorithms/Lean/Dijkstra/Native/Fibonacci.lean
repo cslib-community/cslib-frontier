@@ -144,9 +144,8 @@ private def allocHeapLayout (n : ℕ) : Memory.Prog HeapLayout := do
 
 private theorem allocHeapLayout_realizes : Realizes .exact allocHeapLayout wordWords layoutWords
     (fun w n s => Fits w (s.frontier + (9 * n + 5))) (fun _ _ => 0) := by
-  have _ := FibonacciHeap.Native.Initialize.realizes_reserve
   unfold allocHeapLayout
-  realize
+  realize [FibonacciHeap.Native.Initialize.realizes_reserve]
   exact h
 
 /-- Dirty-reservation adapter connecting `Memory.allocDirty (9 * n + 5)` to `nativeMethods`. -/

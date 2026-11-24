@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Congestion.Basic
+public import CslibFrontier.GameTheory.Strategic.Smooth
 public import Mathlib.NumberTheory.Harmonic.Defs
 import CslibFrontier.Foundations.NumberTheory.Harmonic
 import CslibFrontier.GameTheory.Strategic.Stability
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -46,7 +48,9 @@ The bound is tight ([Roughgarden2013CS364A], Lecture #15, Section 1.4 and Figure
 opts out on a private resource of cost `1 / (i + 1)` or meets the other players on a shared resource
 of cost `1 + ε`. For `ε > 0` the unique pure Nash equilibrium is that every player opts out, of
 social cost `H k`, while everyone sharing costs `1 + ε`. The source's network has, in addition,
-zero-cost edges from each source to the meeting point; they change no player's cost and are omitted.
+zero-cost feeder arcs from each source to the meeting point; they change no player's cost and are
+omitted here (retaining them gives `Cslib.GameTheory.broadcastNetwork` in
+`CslibFrontier/GameTheory/NetworkFormation/Witnesses.lean`).
 
 ## Main definitions
 
@@ -56,7 +60,8 @@ zero-cost edges from each source to the meeting point; they change no player's c
 
 ## Main results
 
-* `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing`: the social cost is the total cost
+* `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing_biUnion`,
+  `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing`: the social cost is the total cost
   of the resources in use.
 * `Cslib.GameTheory.CongestionGame.rosenthalPotential_fairCostSharing`: Rosenthal's potential is
   `∑ e, c e * H (load s e)`.
@@ -66,6 +71,14 @@ zero-cost edges from each source to the meeting point; they change no player's c
   `Cslib.GameTheory.CongestionGame.sum_div_card_le_cost_fairCostSharing`: the social cost is at
   least the cost of any player's resources, and each player pays at least a `1 / k` share of the
   cost of its resources.
+* `Cslib.GameTheory.CongestionGame.cost_fairCostSharing_update_le`: a player deviating to `a`
+  pays at most the standalone cost of `resources i a`.
+* `Cslib.GameTheory.CongestionGame.isSmooth_fairCostSharing`,
+  `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing_le_card_mul_of_isPureNash`,
+  `Cslib.GameTheory.CongestionGame.expected_socialCost_fairCostSharing_le_card_mul`
+  ([Roughgarden2015], Definition 2.1 and Theorem 3.2; [TardosWexler2007], Section 19.3): fair
+  cost-sharing games are `(k, 0)`-smooth, so **the pure and coarse-correlated price of anarchy is
+  at most `k`**.
 * `Cslib.GameTheory.CongestionGame.cost_fairCostSharing_const`,
   `Cslib.GameTheory.CongestionGame.socialCost_fairCostSharing_const`: when all players share one
   strategy set and resource map and play the same strategy `p`, each pays `c(R p) / k` and the
@@ -95,6 +108,7 @@ zero-cost edges from each source to the meeting point; they change no player's c
 
 * [AnshelevichDKTWR2008]
 * [Roughgarden2013CS364A]
+* [Roughgarden2015]
 * [RoughgardenTardos2007]
 * [TardosWexler2007]
 -/
@@ -137,20 +151,49 @@ theorem antitoneOn_latency_fairCostSharing (resources : ∀ i, S i → Finset E)
 
 variable [Fintype ι] [DecidableEq E] (resources : ∀ i, S i → Finset E) (c : E → ℝ)
 
+/-- The social cost of a fair cost-sharing game is **the total cost of the union of players' used
+resource sets**, `∑ e ∈ Finset.univ.biUnion fun i => resources i (s i), c e`, without requiring
+`[Fintype E]`. -/
+theorem socialCost_fairCostSharing_biUnion (s : ∀ i, S i) :
+    (fairCostSharing resources c).toCostGame.socialCost s =
+      ∑ e ∈ Finset.univ.biUnion (fun i => resources i (s i)), c e := by
+  set U := Finset.univ.biUnion fun i => resources i (s i)
+  rw [CostGame.socialCost]
+  have hpad : ∀ i ∈ (Finset.univ : Finset ι),
+      (fairCostSharing resources c).toCostGame.cost i s =
+        ∑ e ∈ U, if e ∈ resources i (s i) then
+          c e / (fairCostSharing resources c).load s e else 0 := fun i _ => by
+    rw [toCostGame_cost, fairCostSharing_resources, Finset.sum_ite_mem,
+      Finset.inter_eq_right.2 (Finset.subset_biUnion_of_mem (fun j => resources j (s j))
+        (Finset.mem_univ i))]
+    refine Finset.sum_congr rfl fun e _ => ?_
+    rw [fairCostSharing_latency]
+  rw [Finset.sum_congr rfl hpad, Finset.sum_comm]
+  refine Finset.sum_congr rfl fun e he => ?_
+  have hsum : (∑ i : ι, if e ∈ resources i (s i) then
+        c e / (fairCostSharing resources c).load s e else 0)
+      = ((fairCostSharing resources c).load s e : ℝ) *
+          (c e / (fairCostSharing resources c).load s e) := by
+    simp only [load, fairCostSharing_resources, Finset.card_filter,
+      Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero, Finset.sum_mul, ite_mul, one_mul,
+      zero_mul]
+  rw [hsum]
+  obtain ⟨i, hi, hei⟩ := Finset.mem_biUnion.1 he
+  have hpos : 0 < (fairCostSharing resources c).load s e :=
+    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨hi, by
+      rwa [fairCostSharing_resources]⟩⟩
+  exact mul_div_cancel₀ _ (by exact_mod_cast hpos.ne')
+
 /-- The social cost of a fair cost-sharing game is **the total cost of the resources in use**,
 `∑ e with load s e ≥ 1, c e` ([Roughgarden2013CS364A], Lecture #15, (2)). -/
 theorem socialCost_fairCostSharing [Fintype E] (s : ∀ i, S i) :
     (fairCostSharing resources c).toCostGame.socialCost s
       = ∑ e with 0 < (fairCostSharing resources c).load s e, c e := by
-  rw [socialCost_toCostGame, Finset.sum_filter]
-  refine Finset.sum_congr rfl fun e _ => ?_
-  rw [fairCostSharing_latency]
-  rcases Nat.eq_zero_or_pos ((fairCostSharing resources c).load s e) with h | h
-  · rw [h]
-    simp
-  · simp only [h, ↓reduceIte]
-    have : ((fairCostSharing resources c).load s e : ℝ) ≠ 0 := by exact_mod_cast h.ne'
-    field_simp
+  rw [socialCost_fairCostSharing_biUnion]
+  refine Finset.sum_congr ?_ fun _ _ => rfl
+  ext e
+  simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_filter,
+    load, Finset.card_pos, Finset.Nonempty, fairCostSharing_resources]
 
 /-- **Rosenthal's potential of a fair cost-sharing game** is `∑ e, c e * H (load s e)`
 ([TardosWexler2007], Section 19.3.1; [Roughgarden2013CS364A], Lecture #15, (3)). -/
@@ -218,6 +261,63 @@ theorem sum_div_card_le_cost_fairCostSharing (hc : ∀ e, 0 ≤ c e) (s : ∀ i,
       exact he⟩⟩
   refine div_le_div_of_nonneg_left (hc e) (by exact_mod_cast hpos) ?_
   exact_mod_cast (Finset.card_filter_le _ _).trans_eq Finset.card_univ
+
+/-- In a fair cost-sharing game with nonnegative costs, **a player deviating to `a` pays at most
+the standalone cost `∑ e ∈ resources i a, c e`** of its chosen resources: every resource in
+`resources i a` has load at least `1` after the deviation. -/
+theorem cost_fairCostSharing_update_le [DecidableEq ι] (hc : ∀ e, 0 ≤ c e) (s : ∀ i, S i)
+    (i : ι) (a : S i) :
+    (fairCostSharing resources c).toCostGame.cost i (Function.update s i a)
+      ≤ ∑ e ∈ resources i a, c e := by
+  rw [toCostGame_cost, fairCostSharing_resources, Function.update_self]
+  refine Finset.sum_le_sum fun e he => ?_
+  rw [fairCostSharing_latency]
+  have hpos : 1 ≤ (fairCostSharing resources c).load (Function.update s i a) e :=
+    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ i, by
+      rw [fairCostSharing_resources, Function.update_self]
+      exact he⟩⟩
+  exact div_le_self (hc e) (by exact_mod_cast hpos)
+
+/-- **Fair cost-sharing games are `(k, 0)`-smooth** ([Roughgarden2015], Definition 2.1;
+[TardosWexler2007], Section 19.3): with `k = Fintype.card ι` players and nonnegative resource
+costs, switching player `i` to `s' i` costs `i` at most the standalone cost of
+`resources i (s' i)`, which is at most `socialCost s'`. -/
+theorem isSmooth_fairCostSharing [DecidableEq ι] [Finite E] (hc : ∀ e, 0 ≤ c e) :
+    (fairCostSharing resources c).toCostGame.IsSmooth (Fintype.card ι) 0 := by
+  intro s s'
+  rw [zero_mul, add_zero]
+  calc ∑ i, (fairCostSharing resources c).toCostGame.cost i (Function.update s i (s' i))
+      ≤ ∑ i, ∑ e ∈ resources i (s' i), c e :=
+        Finset.sum_le_sum fun i _ => cost_fairCostSharing_update_le resources c hc s i (s' i)
+    _ ≤ ∑ _i : ι, (fairCostSharing resources c).toCostGame.socialCost s' :=
+        Finset.sum_le_sum fun i _ => sum_le_socialCost_fairCostSharing resources c hc s' i
+    _ = Fintype.card ι * (fairCostSharing resources c).toCostGame.socialCost s' := by
+        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+
+/-- **The price of anarchy of fair cost-sharing games is at most `k`** ([Roughgarden2015],
+Theorem 3.2; [TardosWexler2007], Section 19.3): in a fair cost-sharing game with
+`k = Fintype.card ι` players and nonnegative resource costs, every pure Nash equilibrium `s`
+satisfies `socialCost s ≤ k * socialCost s'` for every profile `s'`. -/
+theorem socialCost_fairCostSharing_le_card_mul_of_isPureNash [DecidableEq ι] [Finite E]
+    (hc : ∀ e, 0 ≤ c e) {s : ∀ i, S i}
+    (hs : (fairCostSharing resources c).toCostGame.IsPureNash s) (s' : ∀ i, S i) :
+    (fairCostSharing resources c).toCostGame.socialCost s
+      ≤ Fintype.card ι * (fairCostSharing resources c).toCostGame.socialCost s' := by
+  have h := (isSmooth_fairCostSharing resources c hc).socialCost_le_of_isPureNash zero_lt_one hs s'
+  rwa [sub_zero, div_one] at h
+
+/-- **The robust price of anarchy of fair cost-sharing games is at most `k`** ([Roughgarden2015],
+Theorem 3.2): in a fair cost-sharing game with `k = Fintype.card ι` players and nonnegative
+resource costs, the expected social cost of every coarse correlated equilibrium `σ` is at most
+`k * socialCost s'` for every profile `s'`. -/
+theorem expected_socialCost_fairCostSharing_le_card_mul [DecidableEq ι] [Finite E]
+    (hc : ∀ e, 0 ≤ c e) {σ : Convexity.StdSimplex ℝ (∀ i, S i)}
+    (hσ : (fairCostSharing resources c).toCostGame.IsCoarseCorrelatedEquilibrium σ)
+    (s' : ∀ i, S i) :
+    σ.weights.sum (fun s w => w * (fairCostSharing resources c).toCostGame.socialCost s)
+      ≤ Fintype.card ι * (fairCostSharing resources c).toCostGame.socialCost s' := by
+  have h := (isSmooth_fairCostSharing resources c hc).expected_socialCost_le zero_lt_one hσ s'
+  rwa [sub_zero, div_one] at h
 
 section Common
 
@@ -398,10 +498,9 @@ theorem exists_one_div_lt_cost_optOut (hε : 0 < ε) {s : Fin k → Bool}
   rw [optOut_cost, hj, ← hF]
   simp only [Bool.false_eq_true, ↓reduceIte]
   have hFR : (0 : ℝ) < F.card := by exact_mod_cast Finset.card_pos.2 hFne
-  have hcardR : (F.card : ℝ) ≤ (j : ℕ) + 1 := by exact_mod_cast hcard
   have hj1 : (0 : ℝ) < (j : ℕ) + 1 := by positivity
   rw [div_lt_div_iff₀ hj1 hFR]
-  nlinarith [mul_pos hε hj1]
+  cast_nlinarith [hcard, mul_pos hε hj1]
 
 /-- **The opt-out game has a unique pure Nash equilibrium** for `ε > 0`: every player opts out
 ([Roughgarden2013CS364A], Lecture #15, Section 1.4). If some players share, the one among them

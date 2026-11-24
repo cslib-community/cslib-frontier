@@ -12,7 +12,6 @@ public import Mathlib.Data.Fin.Tuple.Sort
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # Graham's Longest-Processing-Time Rule
@@ -315,6 +314,10 @@ variable [AddCommMonoid α] [NeZero m]
 order of processing time, ties broken by lowest machine index. -/
 def lptSchedule (p : Fin n → α) : Fin n → Fin m :=
   listSchedule (p ∘ lptOrder p) ∘ (lptOrder p).symm
+
+theorem lptSchedule_def (p : Fin n → α) :
+    lptSchedule (m := m) p = listSchedule (p ∘ lptOrder p) ∘ (lptOrder p).symm := by
+  unfold lptSchedule; rfl
 
 theorem makespan_lptSchedule (p : Fin n → α) :
     makespan p (lptSchedule (m := m) p) =
