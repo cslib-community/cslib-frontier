@@ -13,8 +13,8 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
-import Mathlib.Analysis.Normed.Module.Convex
 import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.NormNum
 
 /-!
 # Subdividing an embedded listed graph
@@ -518,45 +518,13 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
           z ∈ (E.route e).support → z ∈ Metric.closedBall (D.vertex v) ρ →
           ∃ b : Bool, Dart.vertex ((subdivisionEdgeIndex I e).original, b) = v ∧
             z = D.cutPort ρ ((subdivisionEdgeIndex I e).original, b) := by
-  classical
-  choose radius hpos hpoints hlocal hlength using
-    fun v : Fin I.graph.vertices.length => hD.exists_restriction_radius v (old_mem hI v.isLt)
-  let radii := insert (1 : ℝ) (Finset.univ.image fun v => radius v / 2)
-  have hnonempty : radii.Nonempty := ⟨1, Finset.mem_insert_self _ _⟩
-  let ε := radii.min' hnonempty
-  have hε : 0 < ε := by
-    apply (Finset.lt_min'_iff radii hnonempty).2
-    intro x hx
-    rcases Finset.mem_insert.mp hx with rfl | hx
-    · exact zero_lt_one
-    · obtain ⟨v, _, rfl⟩ := Finset.mem_image.mp hx
-      exact half_pos (hpos v)
-  have hbound (v : Fin I.graph.vertices.length) : ε ≤ radius v / 2 :=
-    Finset.min'_le _ _ (Finset.mem_insert_of_mem
-      (Finset.mem_image.mpr ⟨v, Finset.mem_univ _, rfl⟩))
-  have hvertex (v : ℕ) (hv : v ∈ I.graph.vertices) : v < I.graph.vertices.length := by
-    rw [hI.1] at hv
-    exact List.mem_range.mp hv
-  refine ⟨ε, hε, fun ρ hρ => ⟨?_, ?_⟩⟩
-  · intro v hv w hw hne
-    refine Set.disjoint_left.mpr fun z hzv hzw => ?_
-    let i : Fin I.graph.vertices.length := ⟨v, hvertex v hv⟩
-    have hdist := dist_triangle (D.vertex w) z (D.vertex v)
-    rw [dist_comm (D.vertex w) z] at hdist
-    have hwi : D.vertex w ∈ Metric.closedBall (D.vertex i) (radius i) := by
-      apply Metric.mem_closedBall.mpr
-      change dist (D.vertex w) (D.vertex v) ≤ radius i
-      linarith [Metric.mem_closedBall.mp hzv, Metric.mem_closedBall.mp hzw, hρ.2, hbound i]
-    exact hne (hpoints i w hw hwi).symm
-  have htime (d : Dart I.graph) : ρ / ‖D.germ d‖ ∈ Set.Ioo (0 : ℝ) (1 / 2) := by
-    let i : Fin I.graph.vertices.length := ⟨d.vertex, by
-      rcases d with ⟨e, b⟩
-      exact endpoint_lt hI e b⟩
-    have hlen := hlength i d rfl
-    have hd : 0 < ‖D.germ d‖ := norm_pos_iff.mpr (hD.germ_ne_zero d)
-    exact ⟨div_pos hρ.1 hd, (div_lt_iff₀ hd).mpr (by linarith [hpos i, hρ.2, hbound i])⟩
-  let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, htime (i, b)⟩
-  refine ⟨drawing cut hI D, drawing_isEmbedding cut hI hD,
+  obtain ⟨ε, hε, huniform⟩ := D.exists_uniform_restriction hD.vertex_contacts hD.vertices_injective
+    (fun d => old_mem hI (endpoint_lt hI d.1 d.2)) hD.germ_ne_zero
+  refine ⟨ε, hε, fun ρ hρ => ?_⟩
+  obtain ⟨hdisks, htime, _, hcontact⟩ := huniform ρ hρ
+  let cut : CutTable I := fun i b => ⟨ρ / ‖D.germ (i, b)‖, (htime (i, b)).1,
+    (htime (i, b)).2.trans (by norm_num)⟩
+  refine ⟨hdisks, drawing cut hI D, drawing_isEmbedding cut hI hD,
     fun _ hv => drawing_center cut hI D hv, ?_, ?_, ?_, ?_⟩
   · intro d
     simp only [PolygonalDrawing.direction, drawing_germ, Complex.real_smul,
@@ -572,26 +540,19 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
       (cut a.original true).val a.piece).support ⊆ Metric.closedBall z ρ
     dsimp only [a]
     rw [subdivisionEdgeIndex_subdivisionDart]
-    have hc : p.endpoint b ∈ Metric.closedBall z ρ := by
-      have he : p.endpoint b = z := D.endpoint_eq i b
-      rw [he]
-      exact Metric.mem_closedBall_self hρ.1.le
-    have hx : (p.cutEnds (cut i false).val (cut i true).val).endpoint b ∈
-        Metric.closedBall z ρ := by
-      have he : (p.cutEnds (cut i false).val (cut i true).val).endpoint b = D.cutPort ρ (i, b) := by
-        rw [cut_endpoint (cut i), D.endpoint_eq, PolygonalDrawing.cutPort]
-        rfl
-      rw [he, Metric.mem_closedBall, hD.dist_cutPort hρ.1.le]
+    have he : (p.cutEnds (cut i false).val (cut i true).val).endpoint b = D.cutPort ρ (i, b) := by
+      rw [cut_endpoint (cut i), D.endpoint_eq, PolygonalDrawing.cutPort]
+      rfl
+    have hstub := D.cutPort_segment_subset_closedBall hρ.1.le (i, b) (hD.germ_ne_zero (i, b))
     cases b
-    · change (Route.line p.start (p.cutEnds (cut i false).val (cut i true).val).start).support ⊆ _
-      rw [Route.support_line]
-      exact (convex_closedBall z ρ).segment_subset hc hx
-    · change (Route.line (p.cutEnds (cut i false).val (cut i true).val).finish p.finish).support ⊆ _
-      rw [Route.support_line]
-      exact (convex_closedBall z ρ).segment_subset hx hc
+    · change (Route.line (p.endpoint false)
+        ((p.cutEnds (cut i false).val (cut i true).val).endpoint false)).support ⊆ _
+      rwa [Route.support_line, he, D.endpoint_eq]
+    · change (Route.line ((p.cutEnds (cut i false).val (cut i true).val).endpoint true)
+        (p.endpoint true)).support ⊆ _
+      rwa [Route.support_line, he, D.endpoint_eq, segment_symm]
   · intro e he v hv z hz hball
     let a := subdivisionEdgeIndex I e
-    let j : Fin I.graph.vertices.length := ⟨v, hvertex v hv⟩
     have hroute : (drawing cut hI D).route e =
         (D.route a.original).cutEnds (cut a.original false).val (cut a.original true).val := by
       change (D.route a.original).trisect (cut a.original false).val (cut a.original true).val
@@ -601,13 +562,7 @@ theorem exists_subdivision_embedding_in_disjoint_disks {I : FixedRotationInput} 
     rw [hroute] at hz
     obtain ⟨k, u, hu, hval⟩ := ((D.route a.original).cutEnds (cut a.original false).val
       (cut a.original true).val).mem_support_iff z |>.mp hz
-    have hsmall : ρ ≤ radius j := by linarith [hpos j, hρ.2, hbound j]
-    obtain ⟨b, _, hb, hport⟩ := hD.cutEnds_ball_contact v
-      (fun e' k' z' hball' hs => hlocal j e' k' z'
-        (Metric.closedBall_subset_closedBall hsmall hball') hs)
-      a.original (cut a.original false).property.1.le (cut a.original true).property.1.le
-      (cut_small (cut a.original)) (by intro b _; cases b <;> rfl) k hu
-      (hval ▸ hball)
+    obtain ⟨b, _, hb, hport⟩ := hcontact a.original v hv k u hu (hval ▸ hball)
     exact ⟨b, hb, hval.symm.trans hport⟩
 
 /-- Subdivide the routes at their actual common-radius cut ports. Every sufficiently small

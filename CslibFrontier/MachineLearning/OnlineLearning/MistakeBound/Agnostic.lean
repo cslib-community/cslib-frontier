@@ -94,42 +94,43 @@ variable {α : Type*}
 
 /-- The self-labelled history of `flipExpert A I` on the instances `xs`: each instance is labelled
 by `A`'s prediction from the history so far, negated at the rounds in `I`. -/
-def flipHistory (A : OnlineLearner α) (I : Finset ℕ) (xs : List α) : List (α × Bool) :=
+def flipHistory (A : OnlineLearner α Bool) (I : Finset ℕ) (xs : List α) : List (α × Bool) :=
   xs.foldl (fun h x => h ++ [(x, if h.length ∈ I then !A h x else A h x)]) []
 
 /-- The expert that runs `A` on its self-labelled history and negates `A`'s prediction at the
 rounds in `I`. It reads only the instances of its history, not their labels. For `A = soa C` this
 is `Expert(i₁, …, i_L)` [BenDavidPalShalevShwartz2009, §3.2, Algorithm 3]. -/
-def flipExpert (A : OnlineLearner α) (I : Finset ℕ) : OnlineLearner α := fun h x =>
+def flipExpert (A : OnlineLearner α Bool) (I : Finset ℕ) : OnlineLearner α Bool := fun h x =>
   let h' := flipHistory A I (h.map Prod.fst)
   if h'.length ∈ I then !A h' x else A h' x
 
-@[simp] theorem flipHistory_nil (A : OnlineLearner α) (I : Finset ℕ) :
+@[simp] theorem flipHistory_nil (A : OnlineLearner α Bool) (I : Finset ℕ) :
     flipHistory A I [] = [] := by
   simp [flipHistory]
 
-theorem flipHistory_append_singleton (A : OnlineLearner α) (I : Finset ℕ) (xs : List α) (x : α) :
+theorem flipHistory_append_singleton (A : OnlineLearner α Bool) (I : Finset ℕ) (xs : List α)
+    (x : α) :
     flipHistory A I (xs ++ [x]) = flipHistory A I xs ++
       [(x, if (flipHistory A I xs).length ∈ I then !A (flipHistory A I xs) x
         else A (flipHistory A I xs) x)] := by
   rw [flipHistory, flipHistory, List.foldl_append]
   rfl
 
-theorem length_flipHistory (A : OnlineLearner α) (I : Finset ℕ) (xs : List α) :
+theorem length_flipHistory (A : OnlineLearner α Bool) (I : Finset ℕ) (xs : List α) :
     (flipHistory A I xs).length = xs.length := by
   induction xs using List.reverseRecOn with
   | nil => rfl
   | append_singleton xs x ih => simp [flipHistory_append_singleton, ih]
 
 /-- The rounds on which the learner `A` errs on `S`. -/
-def mistakeRounds (A : OnlineLearner α) (S : List (α × Bool)) : Finset ℕ :=
+def mistakeRounds (A : OnlineLearner α Bool) (S : List (α × Bool)) : Finset ℕ :=
   (Finset.univ.filter fun t : Fin S.length => A (S.take t) S[t].1 ≠ S[t].2).map Fin.valEmbedding
 
-theorem card_mistakeRounds (A : OnlineLearner α) (S : List (α × Bool)) :
+theorem card_mistakeRounds (A : OnlineLearner α Bool) (S : List (α × Bool)) :
     (mistakeRounds A S).card = mistakes A S := by
   rw [mistakeRounds, Finset.card_map, mistakes_eq_card]
 
-theorem mem_mistakeRounds {A : OnlineLearner α} {S : List (α × Bool)} {t : ℕ} :
+theorem mem_mistakeRounds {A : OnlineLearner α Bool} {S : List (α × Bool)} {t : ℕ} :
     t ∈ mistakeRounds A S ↔ ∃ ht : t < S.length, A (S.take t) S[t].1 ≠ S[t].2 := by
   simp only [mistakeRounds, Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
     Fin.valEmbedding_apply]
@@ -141,7 +142,7 @@ theorem mem_mistakeRounds {A : OnlineLearner α} {S : List (α × Bool)} {t : �
 
 /-- Negating `A`'s prediction in round `t` exactly when `t` is one of its mistakes gives the label
 of round `t`. -/
-private theorem ite_mem_mistakeRounds (A : OnlineLearner α) (S : List (α × Bool)) {t : ℕ}
+private theorem ite_mem_mistakeRounds (A : OnlineLearner α Bool) (S : List (α × Bool)) {t : ℕ}
     (ht : t < S.length) :
     (if t ∈ mistakeRounds A S then !A (S.take t) S[t].1 else A (S.take t) S[t].1) = S[t].2 := by
   by_cases hm : t ∈ mistakeRounds A S
@@ -155,7 +156,7 @@ private theorem ite_mem_mistakeRounds (A : OnlineLearner α) (S : List (α × Bo
 
 /-- Negating `A` at its mistakes on `S` recovers the labels of `S`: the self-labelled history of
 the first `n` instances is the first `n` examples. -/
-theorem flipHistory_mistakeRounds (A : OnlineLearner α) (S : List (α × Bool)) (n : ℕ)
+theorem flipHistory_mistakeRounds (A : OnlineLearner α Bool) (S : List (α × Bool)) (n : ℕ)
     (hn : n ≤ S.length) :
     flipHistory A (mistakeRounds A S) ((S.take n).map Prod.fst) = S.take n := by
   induction n with
@@ -170,7 +171,7 @@ theorem flipHistory_mistakeRounds (A : OnlineLearner α) (S : List (α × Bool))
 
 /-- The expert that negates `A` at its mistakes on `S` predicts the labels of `S`, after any
 history with the instances of `S` [BenDavidPalShalevShwartz2009, §3.2, Lemma 12]. -/
-theorem flipExpert_mistakeRounds (A : OnlineLearner α) (S : List (α × Bool)) {t : ℕ}
+theorem flipExpert_mistakeRounds (A : OnlineLearner α Bool) (S : List (α × Bool)) {t : ℕ}
     (ht : t < S.length) {h : List (α × Bool)} (hh : h.map Prod.fst = (S.take t).map Prod.fst) :
     flipExpert A (mistakeRounds A S) h S[t].1 = S[t].2 := by
   simp only [flipExpert]
@@ -179,7 +180,7 @@ theorem flipExpert_mistakeRounds (A : OnlineLearner α) (S : List (α × Bool)) 
 
 /-- The expert that negates `A` at its mistakes on the `c`-labelling of the instances of `S` makes
 exactly the mistakes of `c` on `S` [BenDavidPalShalevShwartz2009, §3.2, Corollary 13]. -/
-theorem mistakes_flipExpert_mistakeRounds (A : OnlineLearner α) (c : α → Bool)
+theorem mistakes_flipExpert_mistakeRounds (A : OnlineLearner α Bool) (c : α → Bool)
     (S : List (α × Bool)) :
     mistakes (flipExpert A (mistakeRounds A (S.map fun p => (p.1, c p.1)))) S =
       S.countP fun p => c p.1 ≠ p.2 := by
@@ -282,12 +283,12 @@ theorem expectedMistakes_agnosticSOA_le {C : ConceptClass α Bool} {d : ℕ}
 
 /-- Cover's adversary: it presents the instance `x` in every round and labels it by the negation of
 the learner's prediction. -/
-def Adversary.cover (x : α) : Adversary α where
+def Adversary.cover (x : α) : Adversary α Bool where
   next _ := x
   label _ b := !b
 
 /-- A deterministic learner errs in every round against Cover's adversary. -/
-theorem mistakes_transcript_cover (A : OnlineLearner α) (x : α) (n : ℕ) :
+theorem mistakes_transcript_cover (A : OnlineLearner α Bool) (x : α) (n : ℕ) :
     mistakes A ((Adversary.cover x).transcript A n) = n := by
   induction n with
   | zero => rw [Adversary.transcript_zero]; rfl
@@ -303,7 +304,7 @@ deterministic learner `A` and every `n` there is a labelled sequence of `n` roun
 of `Adversary.cover`, on which `A` errs in every round, while some concept of `C` errs in at most
 `n / 2` rounds. So `expectedMistakes_agnosticSOA_le` needs a randomized learner. -/
 theorem exists_mistakes_eq_length_of_const_mem {C : ConceptClass α Bool}
-    (htrue : (fun _ => true) ∈ C) (hfalse : (fun _ => false) ∈ C) (A : OnlineLearner α) (x : α)
+    (htrue : (fun _ => true) ∈ C) (hfalse : (fun _ => false) ∈ C) (A : OnlineLearner α Bool) (x : α)
     (n : ℕ) :
     ∃ S : List (α × Bool), S.length = n ∧ mistakes A S = n ∧
       ∃ c ∈ C, 2 * S.countP (fun p => c p.1 ≠ p.2) ≤ n := by

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle.LocalClass
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Oracle formulas and local formula classes
@@ -183,9 +184,7 @@ def query (fs : List (Formula signature n)) : OracleFormula n :=
 arguments. -/
 theorem leafSize_query_le {fs : List (Formula signature n)} (hfs : ∀ F ∈ fs, F.leafSize ≤ 1) :
     (query fs).leafSize ≤ fs.length := by
-  rw [leafSize_query]
-  refine (List.sum_le_length_nsmul _ 1 ?_).trans (by simp)
-  simpa using hfs
+  circuit_bound [leafSize_query]
 
 /-! ### Conjunctions -/
 

@@ -98,6 +98,11 @@ variable {I J : Type*} [Fintype I] [Fintype J]
 noncomputable def averageProb (p : ℕ → I → ℝ) (T : ℕ) (i : I) : ℝ :=
   (∑ t ∈ range T, p t i) / T
 
+omit [Fintype I] in
+@[simp] theorem averageProb_apply (p : ℕ → I → ℝ) (T : ℕ) (i : I) :
+    averageProb p T i = (∑ t ∈ range T, p t i) / T := by
+  rw [averageProb]
+
 /-- The empirical distribution of the first `T` entries of the sequence `col`. -/
 noncomputable def empirical [DecidableEq J] (col : ℕ → J) (T : ℕ) (j : J) : ℝ :=
   (#{t ∈ range T | col t = j} : ℝ) / T

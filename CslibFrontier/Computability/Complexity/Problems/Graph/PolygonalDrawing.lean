@@ -52,6 +52,15 @@ variable {G : Graph} (D : PolygonalDrawing G)
 /-- The actual direction of an outgoing segment in the oriented real plane. -/
 @[expose] noncomputable def direction (d : Dart G) : Real.Angle := (D.germ d).arg
 
+/-- An actual listed segment, retaining its edge occurrence and its position on that route. -/
+abbrev SegmentIndex := (e : Fin G.edges.length) × Fin (D.route e).segments
+
+/-- First listed point of an actual segment. -/
+@[expose] def segmentStart (s : D.SegmentIndex) : ℂ := (D.route s.1).point s.2.castSucc
+
+/-- Second listed point of an actual segment. -/
+@[expose] def segmentFinish (s : D.SegmentIndex) : ℂ := (D.route s.1).point s.2.succ
+
 /-- Geometric embedding of the indexed multigraph. Every intersection below is tested at
 arbitrary real parameters of actual straight segments. Endpoint closure of an individual
 loop is permitted by `simple`; different edge routes may meet only at common named ends. -/

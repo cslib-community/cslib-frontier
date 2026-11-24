@@ -27,7 +27,7 @@ laws matter. A deterministic learner is the special case `OnlineLearner.toRandom
 (`expectedMistakes_toRandomized`).
 
 `hedgeLearner η E` runs Hedge [FreundSchapire1997] with learning rate `η` over a finite family of
-deterministic learners `E : ι → OnlineLearner α`, with the 0-1 mistake indicators as losses. In
+deterministic learners `E : ι → OnlineLearner α Bool`, with the 0-1 mistake indicators as losses. In
 each round it draws an expert from the distribution `Experts.prob (Experts.hedgeFactor η)` of the
 experts-setting core `OnlineLearning.MultiplicativeUpdate` and predicts as that expert does. The
 losses of earlier rounds are recomputed from the history, so the learner is a genuine online
@@ -80,10 +80,10 @@ noncomputable def expectedMistakes (A : RandomizedLearner α) (S : List (α × B
   ∑ t : Fin S.length, (A (S.take t) S[t].1 (!S[t].2)).toReal
 
 /-- A deterministic learner as a randomized learner. -/
-noncomputable def OnlineLearner.toRandomized (A : OnlineLearner α) : RandomizedLearner α :=
+noncomputable def OnlineLearner.toRandomized (A : OnlineLearner α Bool) : RandomizedLearner α :=
   fun h x => PMF.pure (A h x)
 
-theorem expectedMistakes_toRandomized (A : OnlineLearner α) (S : List (α × Bool)) :
+theorem expectedMistakes_toRandomized (A : OnlineLearner α Bool) (S : List (α × Bool)) :
     expectedMistakes A.toRandomized S = mistakes A S := by
   rw [expectedMistakes, mistakes_eq_card, Finset.card_filter]
   push_cast
@@ -96,12 +96,13 @@ theorem expectedMistakes_toRandomized (A : OnlineLearner α) (S : List (α × Bo
 variable {ι : Type*}
 
 /-- The 0-1 loss of the expert `E i` in round `t` of `S`, and `0` after the end of `S`. -/
-noncomputable def expertLoss (E : ι → OnlineLearner α) (S : List (α × Bool)) (t : ℕ) (i : ι) :
+noncomputable def expertLoss (E : ι → OnlineLearner α Bool) (S : List (α × Bool)) (t : ℕ) (i : ι) :
     ℝ :=
   if h : t < S.length then (if E i (S.take t) S[t].1 = S[t].2 then 0 else 1) else 0
 
 /-- The loss of round `s` depends only on the first `t > s` rounds. -/
-theorem expertLoss_take {E : ι → OnlineLearner α} {S : List (α × Bool)} {t s : ℕ} (hs : s < t) :
+theorem expertLoss_take {E : ι → OnlineLearner α Bool} {S : List (α × Bool)} {t s : ℕ}
+    (hs : s < t) :
     expertLoss E (S.take t) s = expertLoss E S s := by
   funext i
   simp only [expertLoss, List.length_take, List.take_take, List.getElem_take]
@@ -110,7 +111,7 @@ theorem expertLoss_take {E : ι → OnlineLearner α} {S : List (α × Bool)} {t
   · rw [dite_eq_right (fun h' => h (lt_of_lt_of_le h' (min_le_right _ _))), dite_eq_right h]
 
 /-- The mistakes of an expert are the sum of its losses. -/
-theorem mistakes_eq_sum_expertLoss (E : ι → OnlineLearner α) (S : List (α × Bool)) (i : ι) :
+theorem mistakes_eq_sum_expertLoss (E : ι → OnlineLearner α Bool) (S : List (α × Bool)) (i : ι) :
     (mistakes (E i) S : ℝ) = ∑ t ∈ range S.length, expertLoss E S t i := by
   rw [mistakes_eq_card, Finset.card_filter, Finset.sum_range]
   push_cast
@@ -133,14 +134,14 @@ theorem sum_ofReal_prob_hedgeFactor [Nonempty ι] (η : ℝ) (ℓ : ℕ → ι �
 /-- **Hedge over deterministic experts** with learning rate `η`: after the history `h`, draw the
 expert `i` with Hedge's probability for the 0-1 losses of the experts on `h`, and predict as `E i`
 does. -/
-noncomputable def hedgeLearner [Nonempty ι] (η : ℝ) (E : ι → OnlineLearner α) :
+noncomputable def hedgeLearner [Nonempty ι] (η : ℝ) (E : ι → OnlineLearner α Bool) :
     RandomizedLearner α := fun h x =>
   (PMF.ofFintype (fun i => ENNReal.ofReal
       (Experts.prob (Experts.hedgeFactor η) (expertLoss E h) h.length i))
     (sum_ofReal_prob_hedgeFactor η _ _)).map fun i => E i h x
 
 /-- The probability that Hedge predicts `b` is the total weight of the experts that predict `b`. -/
-theorem toReal_hedgeLearner_apply [Nonempty ι] (η : ℝ) (E : ι → OnlineLearner α)
+theorem toReal_hedgeLearner_apply [Nonempty ι] (η : ℝ) (E : ι → OnlineLearner α Bool)
     (h : List (α × Bool)) (x : α) (b : Bool) :
     (hedgeLearner η E h x b).toReal =
       ∑ i, if E i h x = b then Experts.prob (Experts.hedgeFactor η) (expertLoss E h) h.length i
@@ -157,7 +158,7 @@ theorem toReal_hedgeLearner_apply [Nonempty ι] (η : ℝ) (E : ι → OnlineLea
     split <;> simp
 
 /-- The expected mistakes of Hedge are its expected loss in the experts setting. -/
-theorem expectedMistakes_hedgeLearner [Nonempty ι] (η : ℝ) (E : ι → OnlineLearner α)
+theorem expectedMistakes_hedgeLearner [Nonempty ι] (η : ℝ) (E : ι → OnlineLearner α Bool)
     (S : List (α × Bool)) :
     expectedMistakes (hedgeLearner η E) S =
       ∑ t ∈ range S.length, ∑ i, Experts.prob (Experts.hedgeFactor η) (expertLoss E S) t i *
@@ -175,7 +176,7 @@ theorem expectedMistakes_hedgeLearner [Nonempty ι] (η : ℝ) (E : ι → Onlin
 `log N ≤ T`, on every labelled sequence of at most `T` rounds, Hedge with learning rate
 `√(log N / T)` makes at most `mistakes (E i) S + 2 √(T log N)` expected mistakes, for every expert
 `i`. -/
-theorem expectedMistakes_hedgeLearner_le [Nonempty ι] (E : ι → OnlineLearner α) {T : ℕ}
+theorem expectedMistakes_hedgeLearner_le [Nonempty ι] (E : ι → OnlineLearner α Bool) {T : ℕ}
     (hT : Real.log (Fintype.card ι) ≤ T) (S : List (α × Bool)) (hS : S.length ≤ T) (i : ι) :
     expectedMistakes (hedgeLearner (√(Real.log (Fintype.card ι) / T)) E) S ≤
       mistakes (E i) S + 2 * √(T * Real.log (Fintype.card ι)) := by

@@ -13,8 +13,6 @@ public import CslibFrontier.Logics.FirstOrder.Atom
 public import CslibFrontier.Logics.FirstOrder.Interpretation
 import CslibFrontier.Computability.Circuit.Simps
 import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Tactic.Linarith
 
 /-!
 # First-order model checking in constant depth
@@ -136,47 +134,34 @@ theorem size_imp_le {A B : Formula Unbounded.signature N} {a b : ℕ}
     (hA : A.size ≤ a * (n + 2) ^ a) (hB : B.size ≤ b * (n + 2) ^ b) :
     (Formula.gate (σ := Unbounded.signature) (.or 2) ![.gate .not ![A], B]).size ≤
       (a + b + 1) * (n + 2) ^ (a + b + 1) := by
-  simp only [circuit_simps]
   have ha : (n + 2) ^ a ≤ (n + 2) ^ (a + b + 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hb : (n + 2) ^ b ≤ (n + 2) ^ (a + b + 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hpos : 2 ≤ (n + 2) ^ (a + b + 1) :=
     (show 2 ≤ n + 2 by omega).trans (Nat.le_self_pow (by omega) _)
-  nlinarith [Nat.mul_le_mul_left a ha, Nat.mul_le_mul_left b hb]
+  circuit_bound
 
 /-- The inductive step of the polynomial size bound for the compiled quantifier. -/
 theorem size_all_le {A : Fin n → Formula Unbounded.signature N} {a : ℕ} (ha : 0 < a)
     (hA : ∀ i, (A i).size ≤ a * (n + 2) ^ a) :
     (Formula.gate (σ := Unbounded.signature) (.and n) A).size ≤
       (a + 1) * (n + 2) ^ (a + 1) := by
-  have hsum : ∑ i, (A i).size ≤ n * (a * (n + 2) ^ a) :=
-    (Finset.sum_le_card_nsmul _ _ _ fun i _ => hA i).trans_eq (by simp)
-  have hpos : 1 ≤ (n + 2) ^ a := Nat.one_le_pow _ _ (by omega)
-  calc _ ≤ n * (a * (n + 2) ^ a) + 1 := Nat.add_le_add_right hsum 1
-    _ ≤ (a + 1) * (n + 2) ^ (a + 1) := by
-      rw [pow_succ]
-      nlinarith
+  let _ := ha
+  circuit_bound [pow_succ, Unbounded.Op.arity]
 
 /-- The inductive step of the polynomial leaf bound for the compiled implication. -/
 theorem leafSize_imp_le {A B : Formula Unbounded.signature N} {a b : ℕ}
     (hA : A.leafSize ≤ (n + 2) ^ a) (hB : B.leafSize ≤ (n + 2) ^ b) :
     (Formula.gate (σ := Unbounded.signature) (.or 2) ![.gate .not ![A], B]).leafSize ≤
       (n + 2) ^ (a + b + 1) := by
-  simp only [Formula.leafSize_gate, Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one,
-    Fin.sum_univ_one]
-  have ha : (n + 2) ^ a ≤ (n + 2) ^ (a + b) := Nat.pow_le_pow_right (by omega) (by omega)
-  have hb : (n + 2) ^ b ≤ (n + 2) ^ (a + b) := Nat.pow_le_pow_right (by omega) (by omega)
-  rw [pow_succ]
-  nlinarith
+  have := Nat.pow_le_pow_right (n := n + 2) (by omega) (show a ≤ a + b by omega)
+  have := Nat.pow_le_pow_right (n := n + 2) (by omega) (show b ≤ a + b by omega)
+  circuit_bound [pow_succ]
 
 /-- The inductive step of the polynomial leaf bound for the compiled quantifier. -/
 theorem leafSize_all_le {A : Fin n → Formula Unbounded.signature N} {a : ℕ}
     (hA : ∀ i, (A i).leafSize ≤ (n + 2) ^ a) :
     (Formula.gate (σ := Unbounded.signature) (.and n) A).leafSize ≤ (n + 2) ^ (a + 1) := by
-  have hsum : ∑ i, (A i).leafSize ≤ n * (n + 2) ^ a :=
-    (Finset.sum_le_card_nsmul _ _ _ fun i _ => hA i).trans_eq (by simp)
-  refine hsum.trans ?_
-  rw [pow_succ, mul_comm]
-  exact Nat.mul_le_mul_left _ (by omega)
+  circuit_bound [pow_succ, Unbounded.Op.arity]
 
 /-- A first-order formula, with values `xs` for its bound variables, as a formula over the
 unbounded fan-in basis reading the atomic facts through `e`: atomic formulas are inputs or

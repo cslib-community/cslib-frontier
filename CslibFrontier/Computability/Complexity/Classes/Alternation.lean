@@ -29,9 +29,13 @@ instances, with a bound of the length `n` of the encoded instance, up to constan
   (`Turing.MultiTapeATM.DecidesInSpace`): every computation path visits at most that many
   work-tape cells, and every branch halts.
 
-Chandra, Kozen and Stockmeyer bound the space of an alternating machine without asking it to
-halt; that is recognition within space (`Turing.MultiTapeATM.RecognizesInSpace`). The classes use
-the deciding form of Sipser instead, in which every branch also halts. The deterministic
+Chandra, Kozen and Stockmeyer bound only the space of the accepting computations of accepted
+instances [Chandra, Kozen and Stockmeyer, Definition 2.5][ChandraKozenStockmeyer1981]. Bounding
+every reachable configuration without asking for halting is recognition within space
+(`Turing.MultiTapeATM.RecognizesInSpace`). The classes use the deciding form of Sipser instead, in
+which every reachable configuration obeys the bound and every branch halts. For bounds
+`S(n) ≥ log n` constructible in space `S(n)` these give the same problems
+[Chandra, Kozen and Stockmeyer, Theorem 2.6(b)][ChandraKozenStockmeyer1981]. The deterministic
 simulation `ASPACE s ⊆ DTIME (2 ^ O(log₂ n + s))`
 (`Cslib.Complexity.exists_mem_DTIME_of_mem_ASPACE`, in
 `CslibFrontier.Computability.Complexity.Classes.Alternation.DeterministicTime`) is proved for
@@ -99,8 +103,9 @@ def ATIME (enc : α ↪ List Bool) (t : ℕ → ℕ) : Set (Set α) :=
 [Sipser, Section 10.3][Sipser2013]: the problems decided within space `O(s n)`, that is
 `c₁ * s n + c₂`, by one alternating machine with a binary alphabet and finitely many states, along
 every computation path, on instances whose encoding under `enc` has length `n`. Following Sipser's
-deciders, every branch also halts; Chandra, Kozen and Stockmeyer do not ask for halting, which is
-`Turing.MultiTapeATM.RecognizesInSpace`. -/
+deciders, every branch also halts. Chandra, Kozen and Stockmeyer bound only the accepting
+computations of accepted instances
+[Chandra, Kozen and Stockmeyer, Definition 2.5][ChandraKozenStockmeyer1981]. -/
 def ASPACE (enc : α ↪ List Bool) (s : ℕ → ℕ) : Set (Set α) :=
   {A | ∃ (k : ℕ) (State : Type) (_ : Finite State) (atm : MultiTapeATM k Bool State)
     (c₁ c₂ : ℕ), atm.DecidesInSpace enc A fun a => c₁ * s (enc a).length + c₂}

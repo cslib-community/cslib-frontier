@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Asymptotic
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
@@ -845,6 +846,18 @@ theorem encParams_garblerLen_polyTime {encFn : Fn ↪ List Bool} {γ : Type} {en
   (ComputableInPolyTime.snd' (ComputableInPolyTime.of_eq (encIn := encParams encFn)
     (encOut := encPair encFn encUnary) (f := fun c : Params G => (c.fn, c.garblerLen))
     fun _ => rfl)).comp h
+
+/-- **The number of transfers of computed public parameters is computed in polynomial time**, in
+unary, when the garbling scheme reads input lengths in polynomial time: it is the input length of
+the function less the garbler's share. For a uniform family `c : ℕ → Yao.Params G` it makes
+`fun n => (c n).evaluatorLen` polynomially bounded
+(`ComputableInPolyTime.polynomiallyBounded`). -/
+theorem encParams_evaluatorLen_polyTime {encFn : Fn ↪ List Bool} {γ : Type} {enc : γ ↪ List Bool}
+    {c : γ → Params G} (hc : ComputableInPolyTime c enc (encParams encFn))
+    (hinLen : ComputableInPolyTime G.inLen encFn encUnary) :
+    ComputableInPolyTime (fun a => (c a).evaluatorLen) enc encUnary :=
+  ComputableInPolyTime.unary_sub' (hinLen.comp (encParams_fn_polyTime hc))
+    (encParams_garblerLen_polyTime hc)
 
 variable (G)
 

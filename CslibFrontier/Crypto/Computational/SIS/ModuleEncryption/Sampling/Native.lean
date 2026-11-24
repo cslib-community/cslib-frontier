@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.SIS.Module.ApproximateSampling
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Foundations.Data.List.RowMajor
+import CslibFrontier.Languages.Probabilistic.Norm
 
 /-!
 # Native randomized Module-LWE key generation
@@ -137,9 +138,8 @@ private theorem sampledKeys_eval
         (sampleCenteredBinomial ηe)))
       return (ModuleSIS.encodeVec z,
         run (((k, n), q), (word, ModuleSIS.encodeVec z, ModuleSIS.encodeVec e)))) := by
-  simp only [sampledKeys, eval_bind, eval_pure, eval_moduleLWECenteredBinomialRows,
-    PMF.bind_map, Function.comp_def, encodeRows_ofFn, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure]
+  simp only [sampledKeys, eval_bind, eval_pure, eval_moduleLWECenteredBinomialRows, encodeRows_ofFn,
+    pmf_norm]
 
 /-- One native randomized key generator returns the actual signed CBD secret and its public
 key, using the existing codecs. Its exact joint law uses the actual bounded modular matrix
@@ -205,13 +205,11 @@ theorem exists_isPPTOn_moduleLWEKeyGenJoint :
             run (((k, n), q), (word, ModuleSIS.encodeVec z, ModuleSIS.encodeVec e))))))
   refine ⟨?_, (fun hjoint => ⟨hjoint, ?marginal⟩) ?joint⟩
   · rw [hraw, hmatrix]
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map,
-      Function.comp_def, hrun k n q hq]
+    simp only [hrun k n q hq, pmf_norm]
     rfl
   case joint =>
     rw [hraw]
-    simp only [moduleLWEPublicKeyLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-      PMF.pure_bind, PMF.bind_bind, PMF.bind_map, Function.comp_def, he]
+    simp only [moduleLWEPublicKeyLaw, he, pmf_norm]
     simp only [PMF.bind_map, Function.comp_def, hrun k n q hq] at hj
     simpa only [PMF.map, Function.comp_def] using hj
   case marginal =>
