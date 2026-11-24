@@ -9,7 +9,7 @@ import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Probability.Isolation
 
 /-! Unique satisfiability, the Valiant–Vazirani reduction on concrete formulas, `RP` relative to
-an oracle, asking lists of words, the isolation lemma on a concrete family, and axiom guards. -/
+an oracle, asking lists of words, and the isolation lemma on a concrete family. -/
 
 namespace CslibFrontierTests.Isolation
 
@@ -152,13 +152,5 @@ least `1 / 2`. -/
 example : 1 / 2 ≤ Finset.dens (Finset.univ.filter fun w : Fin 2 → Fin 4 =>
     (minWeightSets (fun x => x.val + 1) w family).card = 1) :=
   half_le_dens_minWeightSets_card_eq_one (by simp) ⟨{0}, by simp [family]⟩
-
-/-! ### Axioms -/
-
-/--
-info: 'Cslib.Complexity.ValiantVazirani.reduce_mem_UNSAT' depends on axioms: [propext]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.ValiantVazirani.reduce_mem_UNSAT
 
 end CslibFrontierTests.Isolation

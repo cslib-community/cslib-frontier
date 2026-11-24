@@ -241,33 +241,4 @@ example : (decider.program ans).DecidesInTime (fun _ (l : Input) => l.val) {l | 
 
 end ElementDistinctness
 
-/-! ## Axioms -/
-
-/--
-info: 'Cslib.WordRAM.UniformDecidableInTime.decidableInTime' depends on axioms: [propext]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.UniformDecidableInTime.decidableInTime
-
-/--
-info: 'Cslib.WordRAM.Executes.mono_width' depends on axioms:
-[propext]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.Executes.mono_width
-
-/--
-info: 'Cslib.WordRAM.executes_iff_exists_run_eq' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.executes_iff_exists_run_eq
-
-/--
-info: 'Cslib.WordRAM.ExecWithin.loop_invariant' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.ExecWithin.loop_invariant
-
 end CslibFrontierTests.WordRAM

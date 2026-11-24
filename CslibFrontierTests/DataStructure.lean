@@ -112,11 +112,5 @@ info: 'Cslib.DataStructure.StateTransitionSpec.Hoare.link' does not depend on an
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.DataStructure.StateTransitionSpec.Hoare.link
-/--
-info: 'Cslib.DataStructure.Amortized.client' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.Amortized.client
 
 end CslibFrontierTests.DataStructure

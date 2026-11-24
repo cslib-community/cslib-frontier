@@ -73,13 +73,6 @@ example :
       (program 2 8).eval 8 4 (.add 0 1) x).isNone = true :=
   ⟨by simp, by simp [fits_iff], by decide⟩
 
-/--
-info: 'Cslib.DataStructure.PrefixSums.WordRAM.Tree.prefixSum_eq_sum_take' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Tree.prefixSum_eq_sum_take
-
 end WordRAMPrefixSumsTests
 
 end

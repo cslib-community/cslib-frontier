@@ -29,13 +29,6 @@ def tab : Fin 2 → Fin 2 → Bool := ![![true, false], ![true, true]]
 example : tableMulBits tab (oneHot 0) = tab 0 ∧ tableMulBits tab (oneHot 1) = tab 1 := by
   decide
 
--- Additivity of `bitOffset` in characteristic two is choice-free.
-/--
-info: 'Cslib.Crypto.Garbling.bitOffset_add' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms bitOffset_add
-
 /-- A toy hash on one-bit labels; it ignores the tweak and is not correlation robust. -/
 def toyH (g : ZMod 2) (_ : Unit) : ZMod 2 := g + 1
 

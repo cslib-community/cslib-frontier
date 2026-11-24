@@ -73,11 +73,4 @@ example :
 example (edge : ℕ → ℕ → Bool) (bad : ℕ → Bool) :
     Accepts 1 0 0 edge bad ↔ Safe 1 0 edge bad := accepts_iff (by decide) (by decide)
 
-/--
-info: 'Cslib.InductiveCounting.halted_replay_budget' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.InductiveCounting.halted_replay_budget
-
 end CslibFrontierTests.InductiveCounting

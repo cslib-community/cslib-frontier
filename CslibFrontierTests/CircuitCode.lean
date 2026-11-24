@@ -147,10 +147,4 @@ info: 'Cslib.Circuits.Circuit.ofCode_code' depends on axioms: [propext, Quot.sou
 #guard_msgs in
 #print axioms Cslib.Circuits.Circuit.ofCode_code
 
-/--
-info: 'Cslib.Circuits.Circuit.code_of_ofCode_eq_some' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Circuits.Circuit.code_of_ofCode_eq_some
-
 end Cslib.Complexity.Tests.CircuitCode

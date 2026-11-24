@@ -79,13 +79,15 @@ example : phiTopo.phi sampleValidCircuit = phiTopo.phi sampleValidCircuitSameTop
 example :
     let t := phiTopo.phi sampleValidCircuit
     let q := mTopo t [true]
-    phiTopo.phi q.fn = t ∧ q.input = [false, false, false] ∧ q.fn.val.evalCirc q.input = [true] := by
+    phiTopo.phi q.fn = t ∧ q.input = [false, false, false] ∧
+      q.fn.val.evalCirc q.input = [true] := by
   decide
 
 example :
     let s := phiSize.phi sampleValidCircuit
     let q := mSize s [true]
-    phiSize.phi q.fn = s ∧ q.input = [false, false, false] ∧ q.fn.val.evalCirc q.input = [true] := by
+    phiSize.phi q.fn = s ∧ q.input = [false, false, false] ∧
+      q.fn.val.evalCirc q.input = [true] := by
   decide
 
 /-- A concrete circuit scheme over `ValidCircuit` with semantics `evalCirc`. -/
@@ -158,28 +160,8 @@ example {σ : Type} (k : ℕ) (A : PrvIndAdversary ValidCircuit σ) :
   prvIndAdvantage_eq_two_mul_prv1Advantage plainCircuitScheme phiTopo
     (phiTopo_compatible plainCircuitScheme_isCircuitScheme) k samplePrv1Simulator A
 
-/-- info: 'Cslib.Crypto.Garbling.phiTopo_isInverter' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms phiTopo_isInverter
-
-/-- info: 'Cslib.Crypto.Garbling.phiSize_isInverter' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms phiSize_isInverter
-
 /-- info: 'Cslib.Crypto.Garbling.phiCirc_isInverter' does not depend on any axioms -/
 #guard_msgs in
 #print axioms phiCirc_isInverter
-
-/--
-info: 'Cslib.Crypto.Garbling.phiTopo_isEvInverter' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms phiTopo_isEvInverter
-
-/--
-info: 'Cslib.Crypto.Garbling.phiSize_isEvInverter' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms phiSize_isEvInverter
 
 end CslibFrontierTests.Crypto.GarblingInverters

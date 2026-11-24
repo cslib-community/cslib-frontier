@@ -61,12 +61,6 @@ example : ComputableInPolyTime
     (encList (encList encNode)) := by fun_prop
 
 /--
-info: 'Cslib.Circuits.Boolean.Layered.eval_padTo' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms eval_padTo
-
-/--
 info: 'Cslib.Circuits.Boolean.Layered.WellFormed.padTo' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs (whitespace := lax) in

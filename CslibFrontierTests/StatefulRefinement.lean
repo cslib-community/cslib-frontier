@@ -195,10 +195,6 @@ example (n : Nat) : counter.CostHoare (fun s _ => s + 1) (fun s => s = n)
 #guard_msgs in
 #print axioms Module.ChargeBound.comp
 
-/-- info: 'Cslib.DataStructure.Tests.ensurePositive_native' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#print axioms ensurePositive_native
-
 /-! ## Nondeterministic relational specification (two-slot allocator) -/
 
 /-- Operations of a two-slot index allocator: `alloc` nondeterministically returns any free

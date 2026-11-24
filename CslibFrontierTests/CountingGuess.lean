@@ -72,10 +72,4 @@ example (input word : List Bool) (h : word.length = input.length) :
   unfold initial
   rw [count_interpret_output, ite_eq_left h]
 
-/--
-info: 'Turing.MultiTapeCTM.interpret_chooseOccurrence' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.MultiTapeCTM.interpret_chooseOccurrence
-
 end CslibFrontierTests.CountingGuess

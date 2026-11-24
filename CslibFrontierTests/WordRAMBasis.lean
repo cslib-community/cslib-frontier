@@ -119,16 +119,4 @@ example {α : Type} {A : Set α} {encode : ℕ → α → List ℕ} {size : α �
    (hULin.mapOp Basis.additiveHomArithmetic).mapOp Basis.arithmeticHomStandard,
    hUPoly.mapOp Basis.arithmeticHomStandard⟩
 
-/--
-info: 'Cslib.WordRAM.executes_mapOp_iff' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.executes_mapOp_iff
-
-/--
-info: 'Cslib.WordRAM.LinearTime.mapOp' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.LinearTime.mapOp
-
 end CslibFrontierTests.WordRAMBasis

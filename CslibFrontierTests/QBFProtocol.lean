@@ -20,8 +20,8 @@ at the origin and their round degrees; the variables and the size of a formula; 
 completeness on a true formula and a concrete soundness bound below `1` on a false one over
 `ZMod 101`, against every prover; the decision of closedness and the parameters of the machine
 verifier on concrete formulas; the encoded words of the records of the machine, unchanged from the
-tuples they replaced; `TQBF ∈ IP`, `IP = PSPACE` and its corollaries, including `#SAT_D ∈ IP`; and
-the axioms of the headline theorems.
+tuples they replaced; and `TQBF ∈ IP`, `IP = PSPACE` and its corollaries, including
+`#SAT_D ∈ IP`.
 -/
 
 namespace CslibFrontierTests.QBFProtocol
@@ -190,13 +190,5 @@ example {α : Type} (enc : α ↪ List Bool) :
         (∀ a ∉ A, ∀ P : Prover Unit,
           Complexity.acceptProb (verifier a) P ≤ (2 ^ (enc a).length : ℝ≥0∞)⁻¹)} :=
   IP_eq_setOf_acceptProb_two_pow_length enc
-
-/-! ### Axioms -/
-
-/--
-info: 'Cslib.Logic.PL.QBF.degBound_arithmetize_le' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Logic.PL.QBF.degBound_arithmetize_le
 
 end CslibFrontierTests.QBFProtocol

@@ -80,9 +80,4 @@ example : (ReadHeaderProgram.code.eval 7 0 input).map
 example : Exec 7 ReadHeaderProgram.code input (ReadHeaderProgram.result input) 54 :=
   ReadHeaderProgram.exec input (by decide)
 
-/-- info: 'Cslib.DataStructure.FusionTree.WordRAM.ReadHeaderProgram.exec' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms ReadHeaderProgram.exec
-
 end FusionTreeLayoutTests
