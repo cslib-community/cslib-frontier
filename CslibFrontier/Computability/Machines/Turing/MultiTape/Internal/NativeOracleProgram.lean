@@ -52,8 +52,17 @@ that materializes or scans a description at runtime must retain that compiler or
 charge its execution.
 
 The semantic function in the type is a specification proved by `computes`; it is not a callback
-available to the machine. This module never extracts a machine from an existential certificate or
-uses choice to manufacture construction data.
+available to the machine. Every witness is assembled from named machine terms, never by extracting
+a machine from an existential certificate.
+
+A witness is a mathematical object, not an executable generator. Only the deterministic leaves
+installed by `ofCompiler` carry an explicit transition table (`NativeCompiler.table`). The composing
+constructors store the `noncomputable` machines `tidyComp`, `itePTM` and `iterateWhile`; `queryTake`
+takes its finite-state instance from `Fintype.ofFinite`, and `Description.ofMachine` orders its rows
+through `Finset.toList`, both of which depend on choice. The fields `computes` and `runsInSpace`,
+`runWith_descriptionRun` and the `descLen` bounds are therefore statements about the retained
+machine in the model. An effective, table-backed generator for the composed machines and their
+finite enumeration is not provided; it is tracked in #5467.
 
 A zero phase coordinate means that this particular artifact does not execute that phase. It does
 not make the work free for a client that does execute it. In particular, the fixed-operation query
