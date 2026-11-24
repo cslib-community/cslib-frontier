@@ -40,25 +40,6 @@ private def publicRoot (p : SecurityBytes) : NBytes p := sequence 0xa0 p.count
 
 private def message : List Byte := [0x00, 0x01, 0x02, 0xfe]
 
-/-! ### The fixtures lie in the SHA-2 source domains -/
-
-example (p : SecurityBytes) (secret optional : NBytes p) :
-    ValidPRFMessageInput .sha2 secret optional message := by
-  cases p <;>
-    simp only [ValidPRFMessageInput, HMAC.ValidHMACSHA256Input,
-      HMAC.ValidHMACSHA512Input, FixedBytes.length_toList, length_prfMessageText] <;>
-    norm_num [SecurityBytes.count, message]
-
-example (p : SecurityBytes) (shape : ParameterShape)
-    (randomizer publicSeed publicRoot : NBytes p) (msg : List Byte) (hmsg : msg.length ≤ 4) :
-    ValidHMessageInput .sha2 shape randomizer publicSeed publicRoot msg := by
-  have hdigest : ParameterShape.digestBytes p shape ≤ 49 := by
-    cases p <;> cases shape <;> decide
-  cases p <;>
-    norm_num [ValidHMessageInput, SHA2.ValidSHA256Input, SHA2.ValidSHA512Input,
-      length_hMessageDigestInput, SecurityBytes.count] at hmsg hdigest ⊢ <;>
-    omega
-
 /-! ### Exact packages and parameter lengths -/
 
 #guard prfMessageText (optionalRandomness .bytes16) message ==

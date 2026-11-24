@@ -26,10 +26,10 @@ SHA-256 and 64 for SHA-512), the source reads as follows.
 * Step 4: the result is the leading `maskLen` bytes of `T`.
 
 `mgf1SHA256` and `mgf1SHA512` are total functions of the seed and the requested length, and the
-length is recorded in the type of the result. `ValidMGF1SHA256Input` and `ValidMGF1SHA512Input`
-state the bound of step 1 separately. Within that bound every counter is below `2^32`, so
-`natToFixedBytesBE 4` is `I2OSP(·, 4)`. Beyond it the functions keep the low 32 bits of the
-counter, where the source has no output.
+length is recorded in the type of the result. For `maskLen ≤ 2^32 * hLen`, the bound of step 1,
+every counter is below `2^32`, so `natToFixedBytesBE 4` is `I2OSP(·, 4)` and the functions are the
+source's MGF1. Beyond the bound, where the source has no output, they reduce the counter modulo
+`2^32`.
 
 The first property beyond the transcription is prefix consistency: a mask is the corresponding
 prefix of every longer mask from the same seed. Nothing else is proved about these functions. In
@@ -43,7 +43,6 @@ computed outside Lean from the steps above.
 
 ## Main definitions
 
-* `Cslib.Crypto.MGF1.ValidMGF1SHA256Input`, `ValidMGF1SHA512Input`: source domains.
 * `Cslib.Crypto.MGF1.mgf1SHA256`, `mgf1SHA512`: masks of the requested length.
 
 ## Main results
@@ -62,20 +61,6 @@ public section
 namespace Cslib.Crypto.MGF1
 
 open Cslib.Crypto
-
-/-- The SHA-256 MGF1 domain from RFC 8017: its inclusive output-length bound. -/
-@[expose] def ValidMGF1SHA256Input (maskLen : ℕ) : Prop := maskLen ≤ 2 ^ 32 * 32
-
-/-- The SHA-512 MGF1 domain from RFC 8017: its inclusive output-length bound. -/
-@[expose] def ValidMGF1SHA512Input (maskLen : ℕ) : Prop := maskLen ≤ 2 ^ 32 * 64
-
-instance (maskLen : ℕ) : Decidable (ValidMGF1SHA256Input maskLen) := by
-  unfold ValidMGF1SHA256Input
-  infer_instance
-
-instance (maskLen : ℕ) : Decidable (ValidMGF1SHA512Input maskLen) := by
-  unfold ValidMGF1SHA512Input
-  infer_instance
 
 /-- The string `T` of RFC 8017 after `blockCount` counters: the digests of
 `seed || I2OSP(counter, 4)` in increasing counter order. -/
@@ -120,15 +105,19 @@ private theorem take_mask {hash : List Byte → List Byte} {hLen : ℕ} (hpos : 
   simp only [Fin.take_apply, mask, Fin.val_castLE, hrest]
   exact List.getD_append _ _ _ _ hi
 
-/-- RFC 8017 MGF1 instantiated with SHA-256: the leading `maskLen` bytes of the digests of
-`seed || I2OSP(counter, 4)` for `counter = 0, 1, …`, concatenated. `ValidMGF1SHA256Input` states
-the source's bound on `maskLen` separately. -/
+/-- MGF1 of RFC 8017, Appendix B.2.1, with SHA-256: the leading `maskLen` bytes of the
+concatenated SHA-256 digests of `seed || C` for the counters `0, 1, …`, where `C` is the counter
+as four big-endian bytes (the source's `I2OSP(counter, 4)`). For `maskLen ≤ 2^32 * 32` this is the
+source's function. For larger `maskLen`, where the source outputs `mask too long`, the counter is
+reduced modulo `2^32`. -/
 def mgf1SHA256 (seed : List Byte) (maskLen : ℕ) : FixedBytes maskLen :=
   mask SHA2.sha256Bytes 32 seed maskLen
 
-/-- RFC 8017 MGF1 instantiated with SHA-512: the leading `maskLen` bytes of the digests of
-`seed || I2OSP(counter, 4)` for `counter = 0, 1, …`, concatenated. `ValidMGF1SHA512Input` states
-the source's bound on `maskLen` separately. -/
+/-- MGF1 of RFC 8017, Appendix B.2.1, with SHA-512: the leading `maskLen` bytes of the
+concatenated SHA-512 digests of `seed || C` for the counters `0, 1, …`, where `C` is the counter
+as four big-endian bytes (the source's `I2OSP(counter, 4)`). For `maskLen ≤ 2^32 * 64` this is the
+source's function. For larger `maskLen`, where the source outputs `mask too long`, the counter is
+reduced modulo `2^32`. -/
 def mgf1SHA512 (seed : List Byte) (maskLen : ℕ) : FixedBytes maskLen :=
   mask SHA2.sha512Bytes 64 seed maskLen
 

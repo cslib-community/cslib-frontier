@@ -28,9 +28,15 @@ SHA-256 and 128 for SHA-512), the source reads as follows.
 
 `hmacSHA256` and `hmacSHA512` return the full 32-byte or 64-byte digest. Section 5 of the source,
 on truncation, is not transcribed: an application that prescribes truncation applies it to the
-result. The functions are total, as the SHA-2 functions are. `ValidHMACSHA256Input` and
-`ValidHMACSHA512Input` say separately when the key and the inner hash input are inside the SHA-2
-message-length domains.
+result.
+
+The functions are total, as the SHA-2 functions are. The source's computation is defined when its
+hash inputs are inside the SHA-2 message-length domain, fewer than `2^61` bytes for SHA-256 and
+fewer than `2^125` bytes for SHA-512. That is two conditions: a key longer than `B` bytes, which
+is hashed, is inside the domain, and so is the inner hash input of `B + text.length` bytes. The
+second is the bound of Section 2.3 on the text, fewer than `2^B - 8B` bits. On such inputs the
+functions are the source's HMAC. On all others they are the same expression over the total SHA-2
+functions, which write the bit length of their input modulo `2^64` or `2^128` into the padding.
 
 The first property beyond the transcription is the zero-padding rule of Table 1, step 3, proved
 as a law of the final functions: appending zero bytes to a key does not change the result while
@@ -46,7 +52,6 @@ exactly one block for each hash.
 
 ## Main definitions
 
-* `Cslib.Crypto.HMAC.ValidHMACSHA256Input`, `ValidHMACSHA512Input`: SHA-2 input domains.
 * `Cslib.Crypto.HMAC.hmacSHA256`, `hmacSHA512`: full-length SHA-2 HMAC functions.
 
 ## Main results
@@ -68,24 +73,6 @@ namespace Cslib.Crypto.HMAC
 
 open Cslib.Crypto
 
-/-- The SHA-256 HMAC source domain: a long key must be hashable, and the inner hash input must be
-inside SHA-256's byte-aligned input domain. -/
-@[expose] def ValidHMACSHA256Input (key text : List Byte) : Prop :=
-  (64 < key.length → SHA2.ValidSHA256Input key) ∧ 64 + text.length < 2 ^ 61
-
-/-- The SHA-512 HMAC source domain: a long key must be hashable, and the inner hash input must be
-inside SHA-512's byte-aligned input domain. -/
-@[expose] def ValidHMACSHA512Input (key text : List Byte) : Prop :=
-  (128 < key.length → SHA2.ValidSHA512Input key) ∧ 128 + text.length < 2 ^ 125
-
-instance (key text : List Byte) : Decidable (ValidHMACSHA256Input key text) := by
-  unfold ValidHMACSHA256Input
-  infer_instance
-
-instance (key text : List Byte) : Decidable (ValidHMACSHA512Input key text) := by
-  unfold ValidHMACSHA512Input
-  infer_instance
-
 /-- The bytes that FIPS 198-1 pads with zeros to form `K0`: the key itself, or its digest when the
 key is longer than one block. -/
 private def keyMaterial (hash : List Byte → List Byte) (blockBytes : ℕ) (key : List Byte) :
@@ -106,16 +93,24 @@ private def input {blockBytes : ℕ} (key : FixedBytes blockBytes) (pad : Byte)
     (text : List Byte) : List Byte :=
   (xorPad key pad).toList ++ text
 
-/-- FIPS 198-1 HMAC instantiated with SHA-256, returning all 32 digest bytes. The key digest and
-the inner digest are the byte lists `SHA2.sha256Bytes`, which are the bytes of `SHA2.sha256`
-(`SHA2.sha256Bytes_eq_toList`). -/
+/-- HMAC of FIPS 198-1 with SHA-256, returning all 32 digest bytes. This is the source's function
+when both hash inputs that depend on the arguments are inside the SHA-256 domain
+`SHA2.ValidSHA256Input`: a key longer than 64 bytes, which is hashed, has `key.length < 2^61`, and
+the inner hash input has `64 + text.length < 2^61`. On all other inputs it is the same expression
+over the total `SHA2.sha256`, which writes the bit length of its input modulo `2^64` into the
+padding. The key digest and the inner digest are the byte lists `SHA2.sha256Bytes`, which are the
+bytes of `SHA2.sha256` (`SHA2.sha256Bytes_eq_toList`). -/
 def hmacSHA256 (key text : List Byte) : FixedBytes 32 :=
   let k0 := keyBlock 64 (keyMaterial SHA2.sha256Bytes 64 key)
   SHA2.sha256 (input k0 0x5c (SHA2.sha256Bytes (input k0 0x36 text)))
 
-/-- FIPS 198-1 HMAC instantiated with SHA-512, returning all 64 digest bytes. The key digest and
-the inner digest are the byte lists `SHA2.sha512Bytes`, which are the bytes of `SHA2.sha512`
-(`SHA2.sha512Bytes_eq_toList`). -/
+/-- HMAC of FIPS 198-1 with SHA-512, returning all 64 digest bytes. This is the source's function
+when both hash inputs that depend on the arguments are inside the SHA-512 domain
+`SHA2.ValidSHA512Input`: a key longer than 128 bytes, which is hashed, has `key.length < 2^125`,
+and the inner hash input has `128 + text.length < 2^125`. On all other inputs it is the same
+expression over the total `SHA2.sha512`, which writes the bit length of its input modulo `2^128`
+into the padding. The key digest and the inner digest are the byte lists `SHA2.sha512Bytes`, which
+are the bytes of `SHA2.sha512` (`SHA2.sha512Bytes_eq_toList`). -/
 def hmacSHA512 (key text : List Byte) : FixedBytes 64 :=
   let k0 := keyBlock 128 (keyMaterial SHA2.sha512Bytes 128 key)
   SHA2.sha512 (input k0 0x5c (SHA2.sha512Bytes (input k0 0x36 text)))

@@ -90,12 +90,6 @@ private def case6SHA512 : List Byte :=
     0x95, 0xe6, 0x4f, 0x73, 0xf6, 0x3f, 0x0a, 0xec,
     0x8b, 0x91, 0x5a, 0x98, 0x5d, 0x78, 0x65, 0x98]
 
--- The source-domain predicates remain separately checkable even though executable HMAC is total.
-set_option maxRecDepth 4096 in
-#guard decide (ValidHMACSHA256Input case6Key case6Text)
-set_option maxRecDepth 4096 in
-#guard decide (ValidHMACSHA512Input case6Key case6Text)
-
 private def byteSequence (length : ℕ) : List Byte :=
   (List.range length).map fun value => ⟨value % 256, Nat.mod_lt _ (by decide)⟩
 
@@ -116,12 +110,6 @@ private def exact128SHA512 : List Byte :=
     0x05, 0x2d, 0xf7, 0x6b, 0x7a, 0xea, 0xda, 0xed,
     0x0c, 0x01, 0x10, 0xfd, 0xe6, 0xec, 0xc7, 0x9c,
     0xd4, 0x5a, 0x3c, 0xe9, 0x50, 0x2f, 0x30, 0xab]
-
--- Reducing the range-generated exact-block fixtures needs a deeper recursion budget.
-set_option maxRecDepth 4096 in
-#guard decide (ValidHMACSHA256Input (byteSequence 64) exactKeyText)
-set_option maxRecDepth 4096 in
-#guard decide (ValidHMACSHA512Input (byteSequence 128) exactKeyText)
 
 example (key text : List Byte) (padding : ℕ) (h : key.length + padding ≤ 64) :
     hmacSHA256 (key ++ List.replicate padding 0) text = hmacSHA256 key text :=
@@ -169,12 +157,6 @@ private def finalCounterSHA512 : List Byte :=
     0x7e, 0x41, 0x23, 0x4c, 0xe4, 0xb6, 0xf9, 0x5f,
     0x83, 0x75, 0xca, 0xaa, 0x8f, 0xbe, 0x4f, 0x30,
     0x77, 0xd2, 0x91, 0x48, 0xf4, 0x1c, 0x41, 0xba]
-
--- RFC 8017 accepts the inclusive `2^32 * hLen` bound and rejects its successor.
-#guard decide (ValidMGF1SHA256Input (2 ^ 32 * 32))
-#guard !decide (ValidMGF1SHA256Input (2 ^ 32 * 32 + 1))
-#guard decide (ValidMGF1SHA512Input (2 ^ 32 * 64))
-#guard !decide (ValidMGF1SHA512Input (2 ^ 32 * 64 + 1))
 
 example (seed : List Byte) {shorter longer : ℕ} (h : shorter ≤ longer) :
     Fin.take shorter h (mgf1SHA256 seed longer) = mgf1SHA256 seed shorter :=

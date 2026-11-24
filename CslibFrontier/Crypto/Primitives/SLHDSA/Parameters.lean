@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.Nat.CeilDiv
 public import CslibFrontier.Init
+public import Mathlib.Algebra.Order.Floor.Div
 
 /-!
 # Shared SLH-DSA parameters
@@ -128,25 +128,12 @@ def forsTrees : SecurityBytes → ParameterShape → ℕ
 @[expose]
 def digestBytes (p : SecurityBytes) (shape : ParameterShape) : ℕ :=
   (totalHeight p shape - xmssHeight p shape) ⌈/⌉ 8 +
-    (forsTrees p shape * forsHeight p shape) ⌈/⌉ 8 +
-    xmssHeight p shape ⌈/⌉ 8
-
-/-- The digest-length definition is exactly the three-slice formula from FIPS 205, Section 9. -/
-theorem digestBytes_eq (p : SecurityBytes) (shape : ParameterShape) :
-    digestBytes p shape =
-      (totalHeight p shape - xmssHeight p shape) ⌈/⌉ 8 +
-        (forsTrees p shape * forsHeight p shape) ⌈/⌉ 8 +
-        xmssHeight p shape ⌈/⌉ 8 :=
-  rfl
+    xmssHeight p shape ⌈/⌉ 8 +
+    (forsTrees p shape * forsHeight p shape) ⌈/⌉ 8
 
 /-- Table 2's `h'` values partition the total hypertree height into `d` equal layers. -/
 theorem totalHeight_eq_layers_mul_xmssHeight (p : SecurityBytes) (shape : ParameterShape) :
     totalHeight p shape = layers p shape * xmssHeight p shape := by
-  cases p <;> cases shape <;> decide
-
-/-- Every standardized message digest has positive byte length. -/
-theorem digestBytes_pos (p : SecurityBytes) (shape : ParameterShape) :
-    0 < digestBytes p shape := by
   cases p <;> cases shape <;> decide
 
 end ParameterShape
