@@ -43,7 +43,7 @@ verbatim for the one-sided definition with no symmetry requirement on `F`.
 ## References
 
 * [M. Mohri, A. Rostamizadeh, A. Talwalkar, *Foundations of Machine Learning*, 2nd
-  ed.][MohriRostamizadehTalwalkar2018], Section 7.2, Lemma 7.4
+  ed.][MohriRostamizadehTalwalkar2018], Section 7.3.3, Lemma 7.4 (p. 157)
 * [S. Shalev-Shwartz, S. Ben-David, *Understanding Machine Learning: From Theory to
   Algorithms*][ShalevShwartzBenDavid2014], Chapter 26, Lemma 26.7
 * [P. L. Bartlett, S. Mendelson, *Rademacher and Gaussian complexities: risk bounds and
