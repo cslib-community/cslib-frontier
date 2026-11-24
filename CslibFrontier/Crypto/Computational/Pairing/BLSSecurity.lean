@@ -1845,8 +1845,10 @@ open DecodablePairingGroupFamily
 /-- **Asymptotic EUF-CMA security of native BLS signatures from co-CDH** (`[BonehShoup2023]`,
 Section 15.5.1, Theorem 15.1, pp. 627–629): if `P.G₀.CoCDH P.G₁ (fun n => PMF.pure (description n))`
 holds for a sequence of group descriptions with polynomially bounded encoding lengths, then
-`P.blsNativeROMScheme n (description n)` is existentially unforgeable under chosen message attack
-(`ROMSignature.EUFCMA`) against every uniform oracle-PPT word forger in the random-oracle model. -/
+`P.blsNativeROMScheme n (description n)` (with `schnorrSigKeyGen` / `sampleExp` key generation and
+deterministic per-parameter group descriptions `description n`; randomized group-generation setups
+are not covered) is existentially unforgeable under chosen message attack (`ROMSignature.EUFCMA`)
+against every uniform oracle-PPT word forger in the random-oracle model. -/
 theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
     {description : ℕ → P.G₀.Desc}
     [∀ n, Fintype (P.G₀.Carrier (description n))]

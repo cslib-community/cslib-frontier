@@ -94,9 +94,6 @@ namespace Cslib.Crypto
 open Probability OracleComp Protocols Protocols.ROMSignature Turing.MultiTapeTM
 open scoped ENNReal NNReal Cslib.Probability.PMF
 
-/-- Canonical `Nonempty` witness for every carrier group in a `PrimeOrderGroupFamily`. -/
-instance (F : PrimeOrderGroupFamily) (d : F.Desc) : Nonempty (F.Carrier d) := ⟨0⟩
-
 /-! ### Pairing group families with decodable `G₀` -/
 
 /-- A pairing group family whose first source group `G₀` admits a canonical polynomial-time
@@ -1253,6 +1250,18 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
     have hhs : List.ofFn hs = samples.map proj := by
       simp [samples, hs, List.map_ofFn, proj, Function.comp_def]
     -- Relate `bankStepHandler id 0 (samples.map proj)` to `bankStepHandler proj (false, 0)`.
+    have hlookup_map :
+        ∀ (tbl : List (List Bool × ((Bool × ZMod (P.G₀.order d)) × ℕ))) (q : List Bool),
+          (tbl.map fun (k, (v, i)) => (k, (proj v, i))).lookup q =
+            (tbl.lookup q).map fun (v, i) => (proj v, i) := by
+      intro tbl q
+      induction tbl with
+      | nil => rfl
+      | cons hd tl iht =>
+        rcases hd with ⟨hk, hv, hi⟩
+        dsimp only [List.map]
+        rw [List.lookup_cons_eq_ite, List.lookup_cons_eq_ite]
+        by_cases hq : q = hk <;> simp [hq, iht]
     have hrel_step :
         ∀ (p : OracleComp (fun _ : List Bool => P.G₀.Carrier d)
             ((List Bool × P.G₀.Carrier d) × List (List Bool) × P.G₀.Carrier d))
@@ -1268,15 +1277,6 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       | pure a => intro t cnt; exact ⟨rfl, rfl, rfl⟩
       | query_bind q cont ih =>
         intro t cnt
-        have hlook : (t.map (fun (k, (v, i)) => (k, (proj v, i)))).lookup q =
-            (t.lookup q).map (fun (v, i) => (proj v, i)) := by
-          induction t with
-          | nil => rfl
-          | cons hd tl iht =>
-            rcases hd with ⟨hk, hv, hi⟩
-            dsimp only [List.map]
-            rw [List.lookup_cons_eq_ite, List.lookup_cons_eq_ite]
-            by_cases hq : q = hk <;> simp [hq, iht]
         have hget : (samples.map proj).getD cnt 0 = proj (samples.getD cnt (false, 0)) := by
           rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map]
           cases samples[cnt]? with
@@ -1291,7 +1291,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         dsimp only [StateT.run, bankStepHandler, bankStepIndexed, id_eq]
         have hlook' :
             (List.map (fun x => (x.1, proj x.2.1, x.2.2)) t).lookup q =
-              (t.lookup q).map (fun e => (proj e.1, e.2)) := hlook
+              (t.lookup q).map (fun e => (proj e.1, e.2)) := hlookup_map t q
         rw [hlook']
         cases hlt : t.lookup q with
         | some e =>
@@ -1302,18 +1302,6 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           simp only [hget]
           exact ih (proj (samples.getD cnt (false, 0)))
             ((q, (samples.getD cnt (false, 0), cnt)) :: t) (cnt + 1)
-    have hlookup_map :
-        ∀ (tbl : List (List Bool × ((Bool × ZMod (P.G₀.order d)) × ℕ))) (q : List Bool),
-          (tbl.map fun (k, (v, i)) => (k, (proj v, i))).lookup q =
-            (tbl.lookup q).map fun (v, i) => (proj v, i) := by
-      intro tbl q
-      induction tbl with
-      | nil => rfl
-      | cons hd tl iht =>
-        rcases hd with ⟨hk, hv, hi⟩
-        dsimp only [List.map]
-        rw [List.lookup_cons_eq_ite, List.lookup_cons_eq_ite]
-        by_cases hq : q = hk <;> simp [hq, iht]
     let f1 := P.runBankedForge d α proj (false, 0) samples
       (A.forge (α • P.G₁.generator d) s) [] [] 0
     have hcore_eq :
@@ -1883,6 +1871,13 @@ theorem runWith_blsWordVerify (n : ℕ) (d : P.G₀.Desc) {limit : ℕ}
   refine PMF.bind_congr_on_support _ _ _ fun ⟨h, st'⟩ _ => ?_
   simp only [Function.comp_apply, Prod.map_apply, id_eq, List.take_of_length_le (hlim h)]
 
+private theorem ofBits_encScalar_eq (d : P.G₀.Desc) (α : ZMod (P.G₀.order d)) :
+    (ofBits (P.G₁.toFamily.encScalar d α) : ZMod (P.G₀.order d)) = α := by
+  change ((ofBits (Turing.MultiTapeTM.encNat α.val) : ℕ) : ZMod (P.G₀.order d)) = α
+  have hnat : ofBits (Turing.MultiTapeTM.encNat α.val) = α.val :=
+    Turing.MultiTapeTM.Decoder.nat.decode_enc α.val
+  rw [hnat, ZMod.natCast_zmod_val]
+
 /-- **Correctness** of `blsNativeROMScheme`: every generated key pair and signature verifies. -/
 theorem blsNativeROMScheme_correct (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)] :
     (P.blsNativeROMScheme n d).Correct := by
@@ -1900,12 +1895,7 @@ theorem blsNativeROMScheme_correct (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.
   change r' ∈ ((oracle (P.G₀.Carrier d) m).run r.2).support at hr'
   rw [run_oracle_of_lookup_eq_some hlookup, PMF.mem_support_pure_iff] at hr'
   subst hr'
-  have hsk : (ofBits (P.G₁.toFamily.encScalar d α) : ZMod (P.G₀.order d)) = α := by
-    change ((ofBits (Turing.MultiTapeTM.encNat α.val) : ℕ) : ZMod (P.G₀.order d)) = α
-    have hnat : ofBits (Turing.MultiTapeTM.encNat α.val) = α.val :=
-      Turing.MultiTapeTM.Decoder.nat.decode_enc α.val
-    rw [hnat, ZMod.natCast_zmod_val]
-  rw [P.G₀.smul_encode, hsk]
+  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α]
   have h_isElem : P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true :=
     DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1)
   rw [h_isElem, Bool.true_and]
@@ -1978,12 +1968,7 @@ theorem wordSufCmaGame_blsNativeROMScheme_eq_wordEufCmaGame (n : ℕ) (d : P.G�
         PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hres
       obtain ⟨r, hr, rfl⟩ := hres
       refine ⟨r.1, lookup_of_mem_support_oracle hr, ?_⟩
-      have hsk : (ofBits (P.G₁.toFamily.encScalar d α) : ZMod (P.G₀.order d)) = α := by
-        change ((ofBits (Turing.MultiTapeTM.encNat α.val) : ℕ) : ZMod (P.G₀.order d)) = α
-        have hnat : ofBits (Turing.MultiTapeTM.encNat α.val) = α.val :=
-          Turing.MultiTapeTM.Decoder.nat.decode_enc α.val
-        rw [hnat, ZMod.natCast_zmod_val]
-      rw [P.G₀.smul_encode, hsk]
+      rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α]
       have h_isElem : P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true :=
         DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1)
       rw [h_isElem, Bool.true_and]
