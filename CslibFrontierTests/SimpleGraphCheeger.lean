@@ -7,9 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Cheeger
-public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
+import CslibFrontier.Init
+import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Cheeger
+import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -40,7 +40,7 @@ Non-vacuous concrete witnesses exercising
    `connected_iff_normSpectralGap_pos`.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.SimpleGraphCheeger
 
@@ -97,7 +97,7 @@ theorem cycleGraph_four_normSpectralGap : (cycleGraph 4).normSpectralGap = 1 := 
     exact hadj
   refine le_antisymm hle
     (((cycleGraph 4).le_normSpectralGap_iff hne_bot).2 fun f horth hpos => ?_)
-  rw [normRayleigh]
+  rw [(cycleGraph 4).normRayleigh_def]
   simp only [cycleGraph_four_isRegular.degree_eq, Nat.cast_ofNat] at horth hpos ⊢
   rw [le_div_iff₀ hpos, one_mul, ← toLinearMap₂'_apply',
     (cycleGraph 4).lapMatrix_toLinearMap₂' ℝ f]
@@ -164,11 +164,9 @@ theorem complete_even_isoperimetricNum {m : ℕ} (hm : 1 ≤ m) :
   let S₀ : Finset (Fin (2 * m)) := (univ : Finset (Fin m)).map emb
   have hS₀_card : #S₀ = m := by
     simp only [S₀, card_map, card_univ, Fintype.card_fin]
-  have hS₀_ne : S₀.Nonempty := card_pos.1 (by omega)
   have hS₀_2 : 2 * #S₀ ≤ Fintype.card (Fin (2 * m)) := by
     rw [hS₀_card, Fintype.card_fin]
-  have hne_sub : Nonempty {S : Finset (Fin (2 * m)) //
-      S.Nonempty ∧ 2 * #S ≤ Fintype.card (Fin (2 * m))} := ⟨⟨S₀, hS₀_ne, hS₀_2⟩⟩
+  have : Nontrivial (Fin (2 * m)) := Fin.nontrivial_iff_two_le.2 (by omega)
   refine le_antisymm ?_ ?_
   · have hmul := (⊤ : SimpleGraph (Fin (2 * m))).isoperimetricNum_mul_card_le hS₀_2
     have hcompl := card_add_card_compl S₀
@@ -178,13 +176,12 @@ theorem complete_even_isoperimetricNum {m : ℕ} (hm : 1 ≤ m) :
     push_cast at hmul
     have hm_pos : (0 : ℝ) < m := Nat.cast_pos.2 (by omega)
     nlinarith
-  · refine le_ciInf fun ⟨S, hne, h2⟩ => ?_
+  · refine (⊤ : SimpleGraph (Fin (2 * m))).le_isoperimetricNum_iff.2 fun S _ h2 => ?_
     have hcompl := card_add_card_compl S
     rw [Fintype.card_fin] at hcompl h2
     have hSc : m ≤ #Sᶜ := by omega
-    have hS_pos : (0 : ℝ) < #S := Nat.cast_pos.2 hne.card_pos
-    rw [le_div_iff₀ hS_pos, card_interedges_top_compl, Nat.cast_mul, mul_comm (#S : ℝ)]
-    exact mul_le_mul_of_nonneg_right (Nat.cast_le.2 hSc) hS_pos.le
+    rw [card_interedges_top_compl, Nat.cast_mul, mul_comm (#S : ℝ)]
+    exact mul_le_mul_of_nonneg_right (Nat.cast_le.2 hSc) (Nat.cast_nonneg _)
 
 theorem complete_even_conductance {m : ℕ} (hm : 1 ≤ m) :
     (⊤ : SimpleGraph (Fin (2 * m))).conductance = (m : ℝ) / (2 * m - 1) := by
