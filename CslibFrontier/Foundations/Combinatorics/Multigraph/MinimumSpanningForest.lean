@@ -27,11 +27,13 @@ joined by edges of `S`, that is, are reachable from each other in the multigraph
 (`Cslib.Multigraph.joins_iff_reachable`). An edge `e` is *supported* by a set `F` of edges when
 the edges of `F` of weight at most `w e` join its ends (`Cslib.Multigraph.Supported`).
 
-The module proves the standard facts of §2 of [Khanna, Putterman and Song][KhannaPuttermanSong2026]
-(Facts 2.2–2.4, p. 11, and Fact 2.5, p. 12) in this setting, and the filtering identity behind
-line 8 of their Algorithm 2 (§4, p. 25). Distinct weights are assumed, as in the paper, through
-`Function.Injective w`, and only where needed: the cut and cycle properties, threshold
-connectivity and the first filtering lemma hold for all weights.
+The module proves, in this setting, the standard facts of §2 of
+[Khanna, Putterman and Song][KhannaPuttermanSong2026] (the paper's Facts 2.2–2.4, p. 11, and
+Fact 2.5, p. 12) and the filtering identity behind line 8 of their Algorithm 2 (§4, p. 25). These
+are steps in the proof of their Theorem 4.1 (§4, p. 25), tracked in #8325, and the paper's numbers
+are kept as pointers. Distinct weights are assumed, as in the paper, through `Function.Injective w`,
+and only where needed: the cut and cycle properties, threshold connectivity and the first filtering
+lemma hold for all weights.
 
 The contraction property is stated without changing the vertex type: contracting a set `C` of
 edges is the vertex map `q` that identifies exactly the vertices joined by `C`, and the contracted
@@ -43,8 +45,8 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 * `Cslib.Multigraph.contract`: a vertex map identifying exactly the vertices joined by `C`.
 * `Cslib.Multigraph.support`: the non-isolated vertices of a set of edges.
 * `Cslib.Multigraph.msf`: the minimum spanning forest of a finite set of edges.
-* `Cslib.Multigraph.Supported`, `Cslib.Multigraph.unsupported`: edges whose ends are joined by no
-  heavier edges of `F`, and the edges of `S` that are not.
+* `Cslib.Multigraph.Supported`, `Cslib.Multigraph.unsupported`: edges whose ends are joined by
+  edges of `F` no heavier than them, and the edges of `S` that are not.
 * `Cslib.Multigraph.IsAcyclic`: no edge of `F` has its ends joined by the other edges of `F`
   (`Cslib.Multigraph.isAcyclic_iff`, `Cslib.Multigraph.IsAcyclic.mono`).
 * `Cslib.Multigraph.IsSpanningForest`: an acyclic subset of `S` joining the ends of every edge of
@@ -56,14 +58,16 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
   of the restriction to `S`.
 * `Cslib.Multigraph.joins_insert_iff`, `Cslib.Multigraph.joins_map_iff`: joining with one more
   edge, and joining in a contracted multigraph.
-* `Cslib.Multigraph.mem_msf_of_mem_edgeCut`: **Fact 2.2 (cut property)**: the lightest edge of `S`
-  crossing a cut is in `msf S`.
-* `Cslib.Multigraph.notMem_msf_of_joins`: **Fact 2.3 (cycle property)**: an edge whose ends are
-  joined by strictly lighter edges of `S` is not in `msf S`.
-* `Cslib.Multigraph.msf_eq_union_msf_map`: **Fact 2.4 (contraction property)**:
+* `Cslib.Multigraph.mem_msf_of_mem_edgeCut`: the cut property (the paper's Fact 2.2): the
+  lightest edge of `S` crossing a cut is in `msf S`.
+* `Cslib.Multigraph.notMem_msf_of_joins`: the cycle property (the paper's Fact 2.3): an edge whose
+  ends are joined by strictly lighter edges of `S` is not in `msf S`.
+* `Cslib.Multigraph.msf_eq_union_msf_map`: the contraction property (the paper's Fact 2.4):
   `msf S = C ∪ msf (S \ C)` for `C ⊆ msf S`, the latter in the multigraph with `C` contracted.
-* `Cslib.Multigraph.joins_msf_of_joins`: **Fact 2.5**: `msf S` preserves connectivity by the edges
-  of weight at most `k`, for every threshold `k`.
+* `Cslib.Multigraph.joins_msf_of_joins`: threshold connectivity (the paper's Fact 2.5): `msf S`
+  preserves connectivity by the edges of weight at most `k`, for every threshold `k`.
+* `Cslib.Multigraph.msf_filter_not_isDiag`, `Cslib.Multigraph.support_filter_not_isDiag`: dropping
+  the self-loops changes neither the minimum spanning forest nor the non-isolated vertices.
 * `Cslib.Multigraph.msf_eq_of_subset`, `Cslib.Multigraph.notMem_msf_of_supported`,
   `Cslib.Multigraph.msf_union_unsupported`: filtering. Any `S'` between `msf S` and `S` has the same
   minimum spanning forest; a supported edge outside `F ⊆ S` is not in `msf S`; and so
@@ -274,7 +278,10 @@ variable [LinearOrder W] (w : E → W) {S : Finset E}
 
 open scoped Classical in
 /-- The **minimum spanning forest** of the edges `S`: the edges `e ∈ S` whose ends are not joined
-by the edges of `S` strictly lighter than `e` (§2, p. 11). A self-loop is never in it. -/
+by the edges of `S` strictly lighter than `e`. A self-loop is never in it. The paper defines the
+minimum spanning forest only for distinct weights (§2, p. 11), and for injective `w` this set is
+it (`Cslib.Multigraph.isSpanningForest_msf`, `Cslib.Multigraph.sum_msf_le`). With ties it need not
+be a forest: two parallel edges of equal weight are both in it. -/
 noncomputable def msf (ends : E → Sym2 V) (w : E → W) (S : Finset E) : Finset E :=
   {e ∈ S | ¬∀ a b, ends e = s(a, b) → Joins ends {f | f ∈ S ∧ w f < w e} a b}
 
@@ -296,14 +303,16 @@ theorem notMem_msf_of_isDiag {e : E} (he : (ends e).IsDiag) : e ∉ msf ends w S
   subst he
   exact fun h => ((mem_msf_iff w hab).1 h).2 (Joins.refl _)
 
-/-- **Cycle property** (§2, Fact 2.3, p. 11): an edge whose ends are joined by edges of `S`
-strictly lighter than it is not in `msf S`. -/
+/-- **Cycle property**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the
+paper's Fact 2.3, §2, p. 11): an edge whose ends are joined by edges of `S` strictly lighter than
+it is not in `msf S`. -/
 theorem notMem_msf_of_joins {e : E} {X : Set E} (hX : X ⊆ S) (hlt : ∀ f ∈ X, w f < w e)
     {a b : V} (h : ends e = s(a, b)) (hj : Joins ends X a b) : e ∉ msf ends w S :=
   fun he => ((mem_msf_iff w h).1 he).2 (hj.mono fun f hf => ⟨hX hf, hlt f hf⟩)
 
-/-- **Cut property** (§2, Fact 2.2, p. 11): an edge of `S` crossing a cut `(P, Pᶜ)` that is no
-heavier than any edge of `S` crossing it is in `msf S`. -/
+/-- **Cut property**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the
+paper's Fact 2.2, §2, p. 11): an edge of `S` crossing a cut `(P, Pᶜ)` that is no heavier than any
+edge of `S` crossing it is in `msf S`. -/
 theorem mem_msf_of_mem_edgeCut {P : Set V} {e : E} (he : e ∈ S)
     (hcut : e ∈ (toGraph ends).edgeCut P)
     (hmin : ∀ f ∈ S, f ∈ (toGraph ends).edgeCut P → w e ≤ w f) : e ∈ msf ends w S := by
@@ -334,9 +343,9 @@ theorem joins_msf_of_mem {e : E} (he : e ∈ S) {a b : V} (h : ends e = s(a, b))
     · simp
   exact (ih _ hlt hfS hf rfl).mono (by rintro g ⟨hg, hgf⟩; exact ⟨hg, hgf.trans hfe.le⟩)
 
-/-- **Threshold connectivity** (§2, Fact 2.5, p. 12): vertices joined by edges of weight at most
-`k` from some `X ⊆ S` are joined by the edges of `msf S` of weight at most `k`, for every
-threshold `k`. -/
+/-- **Threshold connectivity**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
+(the paper's Fact 2.5, §2, p. 12): vertices joined by edges of weight at most `k` from some
+`X ⊆ S` are joined by the edges of `msf S` of weight at most `k`, for every threshold `k`. -/
 theorem joins_msf_of_joins {X : Set E} (hX : X ⊆ S) {k : W} {u v : V}
     (h : Joins ends {f | f ∈ X ∧ w f ≤ k} u v) :
     Joins ends {f | f ∈ msf ends w S ∧ w f ≤ k} u v :=
@@ -368,6 +377,20 @@ theorem msf_eq_of_subset {S' : Finset E} (h₁ : msf ends w S ⊆ S') (h₂ : S'
   rw [mem_msf_iff w hab, mem_msf_iff w hab, hj]
   exact ⟨fun ⟨he, hn⟩ => ⟨h₂ he, hn⟩, fun ⟨he, hn⟩ =>
     ⟨h₁ ((mem_msf_iff w hab).2 ⟨he, hn⟩), hn⟩⟩
+
+omit [LinearOrder W] in
+/-- Dropping the self-loops does not change the non-isolated vertices. -/
+theorem support_filter_not_isDiag [DecidableEq V] (ends : E → Sym2 V) (S : Finset E) :
+    support ends {e ∈ S | ¬(ends e).IsDiag} = support ends S := by
+  ext v
+  simp only [mem_support, mem_filter]
+  exact ⟨fun ⟨e, ⟨he, _⟩, h⟩ => ⟨e, he, h⟩, fun ⟨e, he, h⟩ => ⟨e, ⟨he, h.1⟩, h⟩⟩
+
+/-- Dropping the self-loops does not change the minimum spanning forest. -/
+theorem msf_filter_not_isDiag [DecidableEq V] (ends : E → Sym2 V) (S : Finset E) :
+    msf ends w {e ∈ S | ¬(ends e).IsDiag} = msf ends w S :=
+  msf_eq_of_subset w (fun _ he => mem_filter.2 ⟨msf_subset w he, fun h =>
+    notMem_msf_of_isDiag w h he⟩) (filter_subset _ _)
 
 /-! ### Acyclicity -/
 
@@ -499,10 +522,10 @@ theorem card_msf_le (hw : Function.Injective w) {X : Finset V}
 
 /-! ### Contraction -/
 
-/-- **Contraction property** (§2, Fact 2.4, p. 11): with distinct weights, if `C ⊆ msf S` and `q`
-identifies exactly the vertices joined by `C`, then `msf S` is `C` together with the minimum
-spanning forest of the remaining edges `S \ C` in the contracted multigraph
-`Sym2.map q ∘ ends`. -/
+/-- **Contraction property**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the
+paper's Fact 2.4, §2, p. 11): with distinct weights, if `C ⊆ msf S` and `q` identifies exactly the
+vertices joined by `C`, then `msf S` is `C` together with the minimum spanning forest of the
+remaining edges `S \ C` in the contracted multigraph `Sym2.map q ∘ ends`. -/
 theorem msf_eq_union_msf_map [DecidableEq E] (hw : Function.Injective w) {C : Finset E}
     (hC : C ⊆ msf ends w S) {q : V → V'} (hq : ∀ u v, q u = q v ↔ Joins ends C u v) :
     msf ends w S = C ∪ msf (Sym2.map q ∘ ends) w (S \ C) := by
