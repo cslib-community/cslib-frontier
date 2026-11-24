@@ -53,7 +53,7 @@ theorem mem_marks {e : E} :
   classical exact mem_filter
 
 /-- Endpoint map after contracting this component. Labels still denote their original edges. -/
-noncomputable def nextEnds : E → Sym2 V :=
+@[expose] noncomputable def nextEnds : E → Sym2 V :=
   Sym2.map (contract ends (internalEdges ends S p.vertices)) ∘ ends
 
 /-- Active edges after removing the internal and marked edges of the current component. -/
@@ -78,6 +78,41 @@ private theorem clean {e a b} (he : e ∈ S) (hm : e ∉ p.marks ends w S) (ha :
   exact hm ((p.mem_marks ends w S).2 ⟨he, Graph.mem_edgeCut_iff.2 ⟨a, b, hab, ha, hb⟩, h⟩)
 
 end PartitionPart
+
+/-- In an edge set spanned by a forest `T`, every acyclic subset has at most as many edges
+as `T`. Exchange an edge outside `T` for an edge of `T` crossing its fundamental cut. -/
+theorem IsAcyclic.card_le_spanningForest {ends : E → Sym2 V} {F S T : Finset E}
+    (hF : IsAcyclic ends F) (hFS : F ⊆ S) (hT : IsSpanningForest ends S T) :
+    F.card ≤ T.card := by
+  classical
+  induction hn : (F \ T).card using Nat.strong_induction_on generalizing F with
+  | _ n ih =>
+  by_cases hsub : F \ T = ∅
+  · exact card_le_card (sdiff_eq_empty_iff_subset.1 hsub)
+  obtain ⟨e, he⟩ := nonempty_iff_ne_empty.2 hsub
+  obtain ⟨heF, heT⟩ := mem_sdiff.1 he
+  obtain ⟨a, b, hab⟩ : ∃ a b, ends e = s(a, b) :=
+    Sym2.inductionOn (ends e) fun a b => ⟨a, b, rfl⟩
+  let R : Set E := (F : Set E) \ {e}
+  have sep : ¬Joins ends R a b := hF e heF a b hab
+  obtain ⟨g, hgT, cut⟩ := (hT.joins e (hFS heF) a b hab).exists_mem_edgeCut
+    (P := {v | Joins ends R a v}) (Joins.refl _) sep
+  obtain ⟨x, y, hxy, hx, hy⟩ := Graph.mem_edgeCut_iff.1 cut
+  have no : ¬ Joins ends R x y := fun path => hy (hx.trans path)
+  have hgF : g ∉ F := fun h => no (Joins.of_mem ⟨h, fun eq => heT (eq ▸ hgT)⟩ hxy)
+  let F' := insert g (F.erase e)
+  have ac : IsAcyclic ends F' := hF.exchange hgF hxy no
+  have diff : F' \ T = (F \ T).erase e := by
+    ext z
+    simp only [F', mem_sdiff, mem_insert, mem_erase]
+    grind
+  have smaller : (F' \ T).card < n := by
+    rw [diff, ← hn]
+    exact card_lt_card (erase_ssubset he)
+  have bound := ih _ smaller ac (insert_subset (hT.subset hgT) ((erase_subset _ _).trans hFS)) rfl
+  have size : F'.card = (F.erase e).card + 1 :=
+    card_insert_of_notMem fun h => hgF (mem_of_mem_erase h)
+  simpa only [size, card_erase_add_one heF] using bound
 
 namespace PrimPartition
 
@@ -105,7 +140,7 @@ structure Result (E : Type*) where
 
 /-- Fold the completed components in search order. This specifies the edge sets consumed by
 the small-graph and dense-case solvers. -/
-noncomputable def collect (w : E → W) (ends : E → Sym2 V) (S : Finset E) :
+@[expose] noncomputable def collect (w : E → W) (ends : E → Sym2 V) (S : Finset E) :
     List (PartitionPart V E W) → Result E
   | [] => ⟨[], ∅, msf ends w S, S⟩
   | p :: ps =>

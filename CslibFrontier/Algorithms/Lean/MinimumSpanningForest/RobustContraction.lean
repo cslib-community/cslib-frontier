@@ -125,7 +125,8 @@ theorem PrimPrefix.msf_subset_robust [DecidableEq E] {S M : Finset E} {C : Set V
       have exitX : LightExit ends S C key (w e) x :=
         ⟨hx, f, inS, y, hy, inc, (clean f inS unmarked x hx y hy inc) ▸ le⟩
       have ex : ∃ z, LightExit ends S C key (w e) z := ⟨x, exitX⟩
-      have exitP : LightExit ends S C key (w e) pivot := by simpa only [pivot, dite_eq_left ex] using ex.choose_spec
+      have exitP : LightExit ends S C key (w e) pivot := by
+        simpa only [pivot, dite_eq_left ex] using ex.choose_spec
       simpa only [rep, ite_eq_left hx] using (prim.joins_exits _ exitX exitP).mono safe
     · simpa [rep, hx] using (Joins.refl (ends := ends) (S := B) x)
   have path := (joins_map_iff (ends := ends) (C := (I : Set E))

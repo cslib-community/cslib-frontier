@@ -6,14 +6,17 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Restrict
 public import Mathlib.Data.Sym.Sym2
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Order.Filter.AtTopBot.Basic
 import Mathlib.Analysis.SpecificLimits.Normed
-import Mathlib.Tactic
+import Mathlib.Tactic.GCongr
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Positivity
 
 /-!
 # Precomputing comparison programs for small labeled graphs
@@ -35,6 +38,10 @@ The `cutoff_volume` theorem bounds its total table size at the triple-logarithmi
 public section
 
 namespace Cslib.Multigraph.MSFPrecompute
+
+universe u
+
+variable {k m n maxVertices maxEdges : ℕ} {E V Q X α : Type}
 
 /-- An eager table indexed by a length-`d` string of labels smaller than `n`. -/
 @[expose] def Table (n : ℕ) (α : Type u) : ℕ → Type u
@@ -92,6 +99,77 @@ def lookup {n m : ℕ} {α : Type u} (table : Catalog n m α) (left right : Fin 
       optimalMSFProgram (fun e => s(left e, right e)) := by
   simp [optimalCatalog]
 
+/-- A vector with index-dependent entry types. The index stored alongside each value allows
+a precomputed comparison program to have the correct edge-label type after lookup. -/
+structure IndexedVector (K : Fin k → Type u) where
+  entries : Vector (Σ i, K i) k
+  index : ∀ i : Fin k, entries[i].1 = i
+
+namespace IndexedVector
+
+/-- Construct an eager indexed vector, including its index alignment proof. -/
+def ofFn {K : Fin k → Type u} (f : (i : Fin k) → K i) : IndexedVector K :=
+  ⟨Vector.ofFn (fun i => ⟨i, f i⟩), by simp⟩
+
+/-- Get the entry at a given index. -/
+def get {K : Fin k → Type u} (v : IndexedVector K) (i : Fin k) : K i :=
+  (v.index i) ▸ v.entries[i].2
+
+@[simp] theorem get_ofFn {K : Fin k → Type u} (f : (i : Fin k) → K i) (i : Fin k) :
+    (ofFn f).get i = f i := by
+  have align (t : Σ j, K j) (index : t.1 = i) (stored : t = ⟨i, f i⟩) :
+      index ▸ t.2 = f i := by
+    subst t
+    rfl
+  apply align
+  simp [ofFn]
+
+end IndexedVector
+
+/-- Tables for every pair of vertex and edge sizes within the two cutoffs. -/
+abbrev Bank (maxVertices maxEdges : ℕ) :=
+  IndexedVector (fun n : Fin (maxVertices+1) => IndexedVector (fun m : Fin (maxEdges+1) =>
+    Catalog n m (FreeM (Cslib.Query.LEQuery (Fin m)) (Finset (Fin m)))))
+
+/-- Synthesize and store every program before the partition pieces are supplied. -/
+def fillBank (maxVertices maxEdges : ℕ) : Bank maxVertices maxEdges :=
+  IndexedVector.ofFn fun n => IndexedVector.ofFn fun m => optimalCatalog n m
+
+private def orderedEnds [LinearOrder V] : Sym2 V → V × V :=
+  Sym2.lift ⟨fun a b => (min a b, max a b), by simp [min_comm, max_comm]⟩
+
+private theorem orderedEnds_mk [LinearOrder V] (e : Sym2 V) :
+    s((orderedEnds e).1, (orderedEnds e).2) = e := by
+  induction e using Sym2.ind with
+  | _ a b =>
+    rcases le_total a b with h | h
+    · simp [orderedEnds, min_eq_left h, max_eq_right h]
+    · simp [orderedEnds, min_eq_right h, max_eq_left h]
+
+/-- Run the stored comparison program on a compactly relabeled edge subset. The fallback handles
+pieces outside the supplied size range, making the solver total for arbitrary multigraphs. -/
+def cachedMSFOn [LinearOrder E] [LinearOrder V] (bank : Bank maxVertices maxEdges)
+    (ends : E → Sym2 V) (S : Finset E) : FreeM (Cslib.Query.LEQuery E) (Finset E) :=
+  if hv : (OptimalTree.vertices ends S).card < maxVertices + 1 then
+    if he : S.card < maxEdges + 1 then
+      let edges := S.orderEmbOfFin rfl
+      let table := (bank.get ⟨_, hv⟩).get ⟨_, he⟩
+      let topology := OptimalTree.localEnds ends S
+      let prog := lookup table (fun i => (orderedEnds (topology i)).1)
+        (fun i => (orderedEnds (topology i)).2)
+      Finset.map edges.toEmbedding <$> Cslib.Query.LEQuery.relabel edges prog
+    else optimalMSFOn ends S
+  else optimalMSFOn ends S
+
+/-- The cached solver returns exactly the native subgraph program, for every edge subset. -/
+@[simp] theorem cachedMSFOn_fill [LinearOrder E] [LinearOrder V] (v m : ℕ)
+    (ends : E → Sym2 V) (S : Finset E) :
+    cachedMSFOn (fillBank v m) ends S = optimalMSFOn ends S := by
+  unfold cachedMSFOn
+  split <;> try rfl
+  split <;> try rfl
+  simp [fillBank, optimalMSFOn, orderedEnds_mk]
+
 /-- The enumeration works even for loops and repeated edges. -/
 theorem key_count (n m : ℕ) :
     Fintype.card ((Fin m → Fin n) × (Fin m → Fin n)) = n ^ (2*m) := by
@@ -113,7 +191,8 @@ def branches (pairs : List Q) (answer : X → Q → Bool) (rows : List X) : List
   induction pairs with
   | nil => simp [branches]
   | cons q qs ih =>
-    change (rows.filter _).length + ((rows.filter _).length + ((branches qs answer rows).map List.length).sum) = _
+    change (rows.filter _).length +
+      ((rows.filter _).length + ((branches qs answer rows).map List.length).sum) = _
     rw [ih, ← Nat.add_assoc]
     have split : (rows.filter (fun x => answer x q)).length +
         (rows.filter (fun x => !(answer x q))).length = rows.length := by
@@ -145,7 +224,7 @@ theorem level_size (pairs : List Q) (answer : X → Q → Bool) (d : ℕ) (rows 
   induction d with
   | zero => simp [level]
   | succ d ih =>
-    obtain ⟨a,b⟩ := stats_flatMap (level pairs answer d rows) pairs answer
+    obtain ⟨a, b⟩ := stats_flatMap (level pairs answer d rows) pairs answer
     exact ⟨by simp [level, pow_succ, ih, a], by
       rw [ih.2] at b
       simpa [level, pow_succ, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using b⟩
@@ -169,10 +248,10 @@ theorem rank_level_size (m d : ℕ) :
     simpa only [OptimalTree.ranks, length_assignments, List.length_finRange] using
       (List.length_filter_le (l := OptimalTree.assignments (List.finRange m) m)
         (p := fun r => decide (∀ a b, r a = r b → a = b)))
-  obtain ⟨a,b⟩ := level_size (OptimalTree.pairs m)
+  obtain ⟨a, b⟩ := level_size (OptimalTree.pairs m)
     (fun (rank : Fin m → Fin m) (q : Fin m × Fin m) => decide (rank q.1 ≤ rank q.2)) d
     (OptimalTree.ranks m)
-  rw [a,b,OptimalTree.length_pairs,← pow_two]
+  rw [a, b, OptimalTree.length_pairs, ← pow_two]
   exact Nat.add_le_add_left (Nat.mul_le_mul_left _ hr) _
 
 /-- Upper bound on search cells for all bounded size pairs, all ordered endpoint catalogs and
@@ -243,7 +322,7 @@ private theorem volume_le (r : ℕ) : volume r ≤ 2^(8*(scale r)^2) := by
   have hm : r ≤ m := Nat.le_pow (by decide)
   have hq : m ≤ q := Nat.le_pow (by decide)
   have hqb : 2*q+2 ≤ b := by
-    dsimp [q,m,b,scale]
+    dsimp [q, m, b, scale]
     nlinarith [Nat.zero_le r, Nat.zero_le (r^2), Nat.zero_le (r^3)]
   have bpos : 1 ≤ b := by omega
   have bound {a k : ℕ} (ha : a ≤ b) (hk : k ≤ b) : a^k ≤ b^b :=

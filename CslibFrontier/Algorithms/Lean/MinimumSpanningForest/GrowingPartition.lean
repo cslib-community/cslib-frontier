@@ -67,14 +67,15 @@ variable {ends : E → Sym2 V} {w : E → W} {S : Finset E}
 namespace SearchState
 
 /-- Start a search at one live vertex with the original input weights. -/
-def start (v : V) : SearchState ends w S where
+@[expose] def start (v : V) : SearchState ends w S where
   vertices := {v}
   chosen := ∅
   key := w
   raised _ _ := le_rfl
   stable _ _ _ := by simpa using PrimPrefix.start (ends := ends) (S := S) _
 
-private structure Exit (ends : E → Sym2 V) (S : Finset E) (C : Finset V) (key : E → W) where
+/-- A least boundary edge, oriented out of the reached set. -/
+structure Exit (ends : E → Sym2 V) (S : Finset E) (C : Finset V) (key : E → W) where
   edge : E
   inside : V
   outside : V
@@ -84,7 +85,8 @@ private structure Exit (ends : E → Sym2 V) (S : Finset E) (C : Finset V) (key 
   inc : ends edge = s(inside, outside)
   minimum : ∀ f ∈ S, ∀ x ∈ C, ∀ y ∉ C, ends f = s(x, y) → key edge ≤ key f
 
-private noncomputable def minExit (ends : E → Sym2 V) (S : Finset E) (C : Finset V) (k : E → W) :
+/-- Select a minimum-key outgoing edge when one exists. -/
+noncomputable def minExit (ends : E → Sym2 V) (S : Finset E) (C : Finset V) (k : E → W) :
     Option (Exit ends S C k) := by
   classical
   let B := S.filter fun e => e ∈ (toGraph ends).edgeCut (C : Set V)
@@ -102,20 +104,40 @@ private noncomputable def minExit (ends : E → Sym2 V) (S : Finset E) (C : Fins
         (mem_filter.2 ⟨hf, Graph.mem_edgeCut_iff.2 ⟨x, y, hxy, hx, hy⟩⟩)⟩
   · exact none
 
-private def take (q : SearchState ends w S) (p : KeyPolicy V E W)
-    (x : Exit ends S q.vertices (p.update q.vertices q.chosen q.key)) : SearchState ends w S where
+omit [DecidableEq V] [DecidableEq E] in
+/-- A nonempty cut always yields an oriented minimum. -/
+theorem exists_minExit {ends : E → Sym2 V} {S : Finset E} {C : Finset V} (k : E → W)
+    (h : ∃ e ∈ S, e ∈ (toGraph ends).edgeCut (C : Set V)) :
+    ∃ x, minExit ends S C k = some x := by
+  classical
+  have ne : (S.filter (fun e => e ∈ (toGraph ends).edgeCut (C : Set V))).Nonempty := by
+    obtain ⟨e, he, hc⟩ := h
+    exact ⟨e, mem_filter.mpr ⟨he, hc⟩⟩
+  unfold minExit
+  simp [ne]
+
+/-- Add a least boundary edge at the new keys. The key update may come from a stateful
+heap computation. Only the values on active and previously extracted labels matter. -/
+@[expose] def takeExit (q : SearchState ends w S) (newKey : E → W)
+    (rise : ∀ e ∈ S, q.key e ≤ newKey e) (fixed : ∀ e ∈ q.chosen, newKey e = q.key e)
+    (x : Exit ends S q.vertices newKey) : SearchState ends w S where
   vertices := insert x.outside q.vertices
   chosen := insert x.edge q.chosen
-  key := p.update q.vertices q.chosen q.key
-  raised e he := (q.raised e he).trans (p.raises ..)
+  key := newKey
+  raised e he := (q.raised e he).trans (rise e he)
   stable k higher frozen := by
-    have prior := q.stable k (fun e he => (p.raises ..).trans (higher e he))
-      (fun e he => (frozen e (mem_insert_of_mem he)).trans (p.frozen _ _ _ _ he))
+    have prior := q.stable k (fun e he => (rise e he).trans (higher e he))
+      (fun e he => (frozen e (mem_insert_of_mem he)).trans (fixed e he))
     rw [coe_insert]
     apply PrimPrefix.step prior x.left_mem x.right_notMem x.active x.inc
     intro f hf a ha b hb hab
     rw [frozen x.edge (mem_insert_self ..)]
     exact (x.minimum f hf a ha b hb hab).trans (higher f hf)
+
+private def take (q : SearchState ends w S) (p : KeyPolicy V E W)
+    (x : Exit ends S q.vertices (p.update q.vertices q.chosen q.key)) : SearchState ends w S :=
+  q.takeExit (p.update q.vertices q.chosen q.key) (fun e _ => p.raises _ _ _ e)
+    (fun e he => p.frozen _ _ _ e he) x
 
 /-- Grow up to `fuel` additional vertices. Reaching a stopping vertex ends this search
 immediately, after including the vertex just reached. The empty-boundary case handles
@@ -157,25 +179,41 @@ theorem primPrefix (q : SearchState ends w S) : PrimPrefix ends S q.part.key q.p
 
 end SearchState
 
+/-- A bounded Prim component builder. Its internal state can include a priority queue.
+It returns the final keys and an extraction history certified by `SearchState.stable`. -/
+structure Grower (V E W : Type*) [LinearOrder W] (w : E → W) where
+  /-- Search from a live seed, stopping on arrival at an old component or at the size limit. -/
+  run : (ends : E → Sym2 V) → (S : Finset E) → ℕ → Finset V → V → SearchState ends w S
+  /-- The initial seed and all subsequently added vertices fit the requested size limit. -/
+  bound : ∀ ends S extra dead seed, (run ends S extra dead seed).vertices.card ≤ extra + 1
+
+/-- Finite minimization with a key-update policy instantiates the component builder. -/
+noncomputable def KeyPolicy.grower (p : KeyPolicy V E W) (w : E → W) : Grower V E W w where
+  run ends S extra dead v := SearchState.grow p (fun x => decide (x ∈ dead)) extra
+    (SearchState.start (ends := ends) (S := S) (w := w) v)
+  bound ends S extra dead v := by
+    have h := SearchState.card_grow_le (ends := ends) (w := w) (S := S) p
+      (fun x => decide (x ∈ dead)) extra (SearchState.start v)
+    simpa [SearchState.start, Nat.add_comm] using h
+
 /-- Grow components in the current quotient, trying the original vertices in order.
 The map `rep` follows each original vertex into the current quotient. Reaching a dead
 representative immediately ends a component. A contraction sends all reached vertices and
 previous dead representatives into the next dead set. The size limit is `extra + 1`. -/
-noncomputable def partition (p : KeyPolicy V E W) (extra : ℕ) (w : E → W) (ends : E → Sym2 V)
+@[expose] noncomputable def partition (p : Grower V E W w) (extra : ℕ) (ends : E → Sym2 V)
     (S : Finset E) (rep : V → V) (dead : Finset V) : List V → List (PartitionPart V E W)
   | [] => []
   | v :: rest =>
-    if rep v ∈ dead then partition p extra w ends S rep dead rest else
-    let q := SearchState.grow p (fun x => decide (x ∈ dead)) extra
-      (SearchState.start (ends := ends) (S := S) (w := w) (rep v))
+    if rep v ∈ dead then partition p extra ends S rep dead rest else
+    let q := p.run ends S extra dead (rep v)
     let c := contract ends (internalEdges ends S q.part.vertices)
-    q.part :: partition p extra w (q.part.nextEnds ends S) (q.part.remaining ends w S)
+    q.part :: partition p extra (q.part.nextEnds ends S) (q.part.remaining ends w S)
       (c ∘ rep) ((dead ∪ q.vertices).image c) rest
 
 /-- The output of the live/dead loop satisfies the hypotheses of robust contraction at
 every stage. In particular `Valid.msf_eq` applies to the complete sequence. -/
-theorem valid_partition (p : KeyPolicy V E W) (extra : ℕ) (rep : V → V) (dead : Finset V)
-    (vertices : List V) : Valid w ends S (partition p extra w ends S rep dead vertices) := by
+theorem valid_partition (p : Grower V E W w) (extra : ℕ) (rep : V → V) (dead : Finset V)
+    (vertices : List V) : Valid w ends S (partition p extra ends S rep dead vertices) := by
   induction vertices generalizing ends S rep dead with
   | nil => exact .nil
   | cons v rest ih =>
@@ -186,9 +224,9 @@ theorem valid_partition (p : KeyPolicy V E W) (extra : ℕ) (rep : V → V) (dea
 
 /-- Every component submitted to a small-graph decision tree has at most `extra + 1`
 vertices. Counting includes the old representative when the search attaches to a conglomerate. -/
-theorem size_partition (p : KeyPolicy V E W) (extra : ℕ) (rep : V → V) (dead : Finset V)
+theorem size_partition (p : Grower V E W w) (extra : ℕ) (rep : V → V) (dead : Finset V)
     (vertices : List V) :
-    ∀ part ∈ partition p extra w ends S rep dead vertices,
+    ∀ part ∈ partition p extra ends S rep dead vertices,
       ∃ C : Finset V, part.vertices = C ∧ C.card ≤ extra + 1 := by
   induction vertices generalizing ends S rep dead with
   | nil => simp [partition]
@@ -199,9 +237,7 @@ theorem size_partition (p : KeyPolicy V E W) (extra : ℕ) (rep : V → V) (dead
     · intro part hp
       rcases List.mem_cons.1 hp with rfl | h
       · refine ⟨_, rfl, ?_⟩
-        have h := SearchState.card_grow_le (ends := ends) (w := w) (S := S) p
-          (fun x => decide (x ∈ dead)) extra (SearchState.start (rep v))
-        simpa [SearchState.start, Nat.add_comm] using h
+        exact p.bound ends S extra dead (rep v)
       · exact ih _ _ _ h
 
 end Cslib.Multigraph.PrimPartition

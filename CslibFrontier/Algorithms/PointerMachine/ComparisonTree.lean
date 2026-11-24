@@ -98,11 +98,11 @@ theorem stored_encode (addr : E → ℕ) (out : O → Pointer) (p : FreeM (LEQue
       · simp [List.append_assoc]
       · simpa [left, node, next, List.append_assoc] using
           ih true (before ++ [node]) (encode addr out (k false) next ++ after)
-      · simpa [left, node, next, List.append_assoc, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
-          ih false (before ++ [node] ++ left) after
+      · simpa [left, node, next, List.append_assoc, Nat.add_assoc, Nat.add_left_comm,
+          Nat.add_comm] using ih false (before ++ [node] ++ left) after
 
 /-- An operand address points to an initialized record containing its key. -/
-def HoldsKeys (H : List (Record (model W) layout)) (addr : E → ℕ) (w : E → W) : Prop :=
+@[expose] def HoldsKeys (H : List (Record (model W) layout)) (addr : E → ℕ) (w : E → W) : Prop :=
   ∀ a, ∃ r, H[addr a]? = some r ∧ r.data 0 = w a
 
 private abbrev MachineState (W : Type) [Inhabited W] [LinearOrder W] := State (model W) layout
