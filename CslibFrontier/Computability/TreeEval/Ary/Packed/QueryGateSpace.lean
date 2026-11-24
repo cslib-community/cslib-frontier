@@ -125,7 +125,7 @@ theorem request_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
   have hsome := budget_comp_linear
     (of_inO (ComputableInDegree.optionSome (enc₁ := encT) (enc := encOption encT)).inO_one) hstart
   refine (budget_ite (budget_natLt hk hlimit) hsome
-    (budget_const (encB := encOption encT) none (.refl _))).of_enc_eq ?_
+    (budget_const (encB := encOption encT) none)).of_enc_eq ?_
   intro q
   by_cases h : q.2.1 < q.1.2.2.2 <;> simp [request, h]
 
@@ -158,7 +158,7 @@ theorem resume_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
   have hsum := budget_comp_linear addMod_inSpace
     (budget_prod hp (budget_prod hacc hmul))
   have hnew := budget_ite (budget_natIsZero hp)
-    (budget_const (encB := encNat) 0 (.refl _)) hsum
+    (budget_const (encB := encNat) 0) hsum
   refine (budget_prod hpar (budget_prod (budget_natSucc hk) hnew)).of_enc_eq ?_
   intro q
   by_cases h : q.1.1.2.1.1 = 0 <;> simp [resume, gridSumStep, h]
@@ -186,7 +186,7 @@ theorem machine_query_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool
     ComputableInSpace (machine q N start answer).query (encMachineState encG encT) encNat
       (fun st => (encMachineState encG encT st).length) :=
   QueryMachine.withCalls_query_inSpace _ _ _ _ _ _
-    (budget_const 0 (.refl _)) hquery (request_inSpace encG encT start hstart)
+    (budget_const 0) hquery (request_inSpace encG encT start hstart)
 
 /-- The complete returned-table update has a native linear local-space certificate. -/
 theorem machine_next_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
@@ -214,7 +214,7 @@ theorem machine_emit_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
       (encPair (encMachineState encG encT) (encOption encBool)) encBits
       (fun st => (encPair (encMachineState encG encT) (encOption encBool) st).length) :=
   QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _
-    (budget_const [] (.refl _)) (request_inSpace encG encT start hstart)
+    (budget_const []) (request_inSpace encG encT start hstart)
 
 /-- The composite halts exactly when the assignment caller reaches its supplied limit. -/
 theorem machine_halted_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
@@ -228,6 +228,6 @@ theorem machine_finish_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Boo
     (q : Params γ) (N : QueryMachine τ) (start : State γ → τ) (answer : τ → ℕ) :
     ComputableInSpace (machine q N start answer).finish (encMachineState encG encT) encBits
       (fun st => (encMachineState encG encT st).length) :=
-  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [])
 
 end Cslib.TreeEval.Ary.Packed.QueryGate

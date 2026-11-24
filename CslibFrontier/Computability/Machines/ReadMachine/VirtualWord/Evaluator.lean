@@ -254,7 +254,7 @@ theorem components_inSpace (δ : Bool × Bool → Bool) :
     (encState_mk_budget hrt (budget_natSucc hpos) hδ)
     (encState_mk_budget (budget_comp_linear Runtime.next_inSpace
       (budget_prod hrt (snd encState (encOption encBool)))) hpos hacc)
-  refine ⟨hq, hnext, budget_const [] (.refl _), ?_, hfinish⟩
+  refine ⟨hq, hnext, budget_const [], ?_, hfinish⟩
   simpa only [machine, two_mul] using hhalt
 
 /-- Explicit encoding cost: saved accessor state, binary loop counter and one bit. -/

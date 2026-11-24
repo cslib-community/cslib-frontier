@@ -119,7 +119,7 @@ private theorem exists_nuStart (hB : B ∈ NL encB) {f : α → β}
     rw [e]
     omega
   refine ⟨fun a => nuStart D ((Nat.log2 (enc a).length + 1) * K),
-    nuStart_budget ((constZero D).mono_le fun _ => Nat.zero_le _) (budget_inSpace K),
+    nuStart_budget (budget_const D) (budget_inSpace K),
     ⟨40 * descLen D + 4 * K + 40, fun a choices => ?_⟩, fun a => ?_⟩
   · refine (length_eNU_run_le _ _ _ choices).trans ?_
     have h1 : 1 ≤ Nat.log2 (enc a).length + 1 := Nat.le_add_left _ _
@@ -183,7 +183,7 @@ theorem union_mem_NL (hA : A ∈ NL enc) (hA' : A' ∈ NL enc) : A ∪ A' ∈ NL
     (union_accept_inSpace budgetedNUniversal_accept_inSpace budgetedNUniversal_accept_inSpace)
     (fun a => ⟨s a, s' a, none⟩) (A := A ∪ A')
     (fun a => by rw [union_accepts_iff, Set.mem_union, hcorrect, hcorrect']) _ (fun _ => le_rfl)
-    (eUnion_mk_budget _ _ _ _ hs hs' ((constZero none).mono_le fun _ => Nat.zero_le _)) hsize
+    (eUnion_mk_budget _ _ _ _ hs hs' (budget_const none)) hsize
   exact mem_NL_of_recognizesInSpace hrec
 
 /-- **`NL` is closed under intersection**: by De Morgan, from closure under union and, by the

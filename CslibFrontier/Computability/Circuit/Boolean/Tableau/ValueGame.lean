@@ -380,7 +380,7 @@ private theorem length_inSpace : ComputableInSpace (fun c : Claim => c.input.len
 /-- The gate of the wire of a claim is computed within linear space in the encoded claim. -/
 theorem gate_inSpace :
     ComputableInSpace (Claim.gate tm) encClaim encGate fun c : Claim => (encClaim c).length :=
-  gateCode_inSpace tm length_inSpace steps_inSpace (BigOLe.refl _)
+  gateCode_inSpace tm length_inSpace steps_inSpace
     (budget_natSub wire_inSpace length_inSpace)
 
 /-- The claim after a move is computed within linear space in the encoded claim. -/
