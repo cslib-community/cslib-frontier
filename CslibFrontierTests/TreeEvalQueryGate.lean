@@ -88,7 +88,7 @@ private theorem next_native :
       (fun t => (encPair encEntry (encOption encBool) t).length) := by
   open ComputableInSpace in
     exact budget_prod (fst' (fst encEntry (encOption encBool)))
-      (budget_prod (budget_const true (.refl _))
+      (budget_prod (budget_const true)
         (budget_finite (encC := encNat) (fun b : Option Bool => if b.getD false then 1 else 0)
           (snd encEntry (encOption encBool))))
 
@@ -97,7 +97,7 @@ private theorem start_native :
       (fun q => (encState encUnit q).length) := by
   open ComputableInSpace in
     exact budget_prod (fst' (snd (encParams encUnit) (encPair encNat encNat)))
-      (budget_prod (budget_const false (.refl _)) (budget_const 0 (.refl _)))
+      (budget_prod (budget_const false) (budget_const 0))
 
 private theorem answer_native :
     ComputableInSpace answer encEntry encNat (fun t => (encEntry t).length) :=

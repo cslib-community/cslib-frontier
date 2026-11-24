@@ -102,9 +102,9 @@ theorem advance_inSpace (d : φ) :
     have hr := fst (encRegisters φ β encF encB) (encPair encF encF)
     have hsc := snd (encRegisters φ β encF encB) (encPair encF encF)
     exact encRegisters_mk_budget φ β encF encB
-      (budget_prod hsc.snd' (budget_const none (.refl _)))
+      (budget_prod hsc.snd' (budget_const none))
       (budget_cons hsc.fst' (encRegisters_callers_budget φ β encF encB hr))
-      (budget_const false (.refl _))
+      (budget_const false)
   have hret : ComputableInSpace
       (fun p : Registers φ β × β => if p.1.callers.isEmpty then (⟨(d, some p.2), [], true⟩ :
         Registers φ β) else ⟨(p.1.callers.headD d, some p.2), p.1.callers.tail, false⟩)
@@ -113,10 +113,10 @@ theorem advance_inSpace (d : φ) :
     have hc := encRegisters_callers_budget φ β encF encB (fst (encRegisters φ β encF encB) encB)
     have hv := budget_optionSome (snd (encRegisters φ β encF encB) encB)
     exact budget_ite (budget_isEmpty hc)
-      (encRegisters_mk_budget φ β encF encB (budget_prod (budget_const d (.refl _)) hv)
-        (budget_const [] (.refl _)) (budget_const true (.refl _)))
+      (encRegisters_mk_budget φ β encF encB (budget_prod (budget_const d) hv)
+        (budget_const []) (budget_const true))
       (encRegisters_mk_budget φ β encF encB (budget_prod (budget_headD d hc) hv)
-        (budget_tail hc) (budget_const false (.refl _)))
+        (budget_tail hc) (budget_const false))
   exact (sumElimSnd hcall hret).of_enc_eq fun _ => rfl
 
 variable {encF encB}
@@ -381,9 +381,9 @@ theorem recWith {body : (φ × Option β) × α → (φ × φ) ⊕ β} {init : �
       (fun a => (⟨(init a, none), [], false⟩ : Registers φ β)) encA
       (encRegisters φ β encF encB) S :=
     encRegisters_mk_budget φ β encF encB
-      (budget_prod hinit ((constZero none).mono_le fun _ => Nat.zero_le _))
-      ((constZero []).mono_le fun _ => Nat.zero_le _)
-      ((constZero false).mono_le fun _ => Nat.zero_le _)
+      (budget_prod hinit (budget_const none))
+      (budget_const [])
+      (budget_const false)
   have hloop := loopWith_of_invariant
     (f := fun a => (⟨(d, some (val a (init a, none))), [], true⟩ : Registers φ β))
     (B := fun a => 2 * (6 * M a + 4 * B a + 4 * (encF d).length + 10) + B a +

@@ -82,7 +82,7 @@ theorem unitInv_inSpace :
   have hstep : ComputableInSpace powStep encNat3 encNat3 fun q => (encNat3 q).length := by
     space [powStep, mulMod]
   have hinit := budget_prod hp (budget_prod (budget_comp_lin natSucc linear_succ (snd _ _))
-    (budget_comp_lin natMod (linear_mul _) (budget_prod (budget_const 1 (.refl _)) hp)))
+    (budget_comp_lin natMod (linear_mul _) (budget_prod (budget_const 1) hp)))
   have hn := budget_comp_lin natPred linear_succ (budget_comp_lin natPred linear_succ hp)
   refine (snd' (snd' (budget_iterate hn hinit hstep (fun q k hk => ?_)
     (.of_le_linear 4 8 fun q => le_rfl)))).of_enc_eq fun q => by rw [iterate_powStep]; rfl
