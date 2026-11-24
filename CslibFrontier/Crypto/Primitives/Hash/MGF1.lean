@@ -8,43 +8,53 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.Hash.SHA2
-public import CslibFrontier.Foundations.Data.Nat.CeilDiv
-import CslibFrontier.Foundations.Data.BitString.Block
+import CslibFrontier.Foundations.Data.Nat.CeilDiv
+import Mathlib.Data.List.GetD
 
 /-!
 # MGF1 with SHA-256 and SHA-512
 
-This module implements RFC 8017's MGF1 with the concrete SHA-256 and SHA-512 functions. Each
-counter is encoded as four big-endian bytes, hashes are concatenated for consecutive counters
-starting at zero, and the result is the requested leading number of bytes.
+This module transcribes the mask generation function MGF1 of RFC 8017 (PKCS #1 v2.2, November
+2016), Appendix B.2.1 [RFC8017], instantiated with the SHA-256 and SHA-512 functions of
+`CslibFrontier.Crypto.Primitives.Hash.SHA2`. With `hLen` the digest length in bytes (32 for
+SHA-256 and 64 for SHA-512), the source reads as follows.
 
-The validity predicates expose RFC 8017's inclusive `maskLen <= 2^32 * hLen` bound. SHA-256 and
-SHA-512 are total executable functions, so the seed is unrestricted. At the inclusive boundary
-there are exactly `2^32` digest blocks, and the final counter is still accepted by four-byte
-`I2OSP`.
+* Step 1: a requested length `maskLen > 2^32 * hLen` is rejected as `mask too long`.
+* Step 3: for `counter` from `0` to `⌈maskLen / hLen⌉ - 1`, the digest of
+  `mgfSeed || I2OSP(counter, 4)` is appended to an initially empty string `T`. Section 4.1 defines
+  `I2OSP(counter, 4)` as the four-byte big-endian encoding of `counter`.
+* Step 4: the result is the leading `maskLen` bytes of `T`.
 
-This is an executable specification. It does not claim pseudorandomness, constant-time execution,
-efficient evaluation at enormous output lengths, FIPS validation, or machine/resource bounds.
+`mgf1SHA256` and `mgf1SHA512` are total functions of the seed and the requested length, and the
+length is recorded in the type of the result. `ValidMGF1SHA256Input` and `ValidMGF1SHA512Input`
+state the bound of step 1 separately. Within that bound every counter is below `2^32`, so
+`natToFixedBytesBE 4` is `I2OSP(·, 4)`. Beyond it the functions keep the low 32 bits of the
+counter, where the source has no output.
+
+The first property beyond the transcription is prefix consistency: a mask is the corresponding
+prefix of every longer mask from the same seed. Nothing else is proved about these functions. In
+particular there is no proof of agreement with an independent model of RFC 8017 and no
+pseudorandomness statement. The definitions are executable specifications, not constant-time or
+machine-costed implementations, and evaluating them at a large length is not efficient.
+
+RFC 8017 gives no test vectors for MGF1. The test module `CslibFrontierTests.Crypto.HMACMGF1`
+evaluates both functions at the lengths `0`, `hLen - 1`, `hLen` and `hLen + 1` against values
+computed outside Lean from the steps above.
 
 ## Main definitions
 
 * `Cslib.Crypto.MGF1.ValidMGF1SHA256Input`, `ValidMGF1SHA512Input`: source domains.
-* `Cslib.Crypto.MGF1.sha256CounterDigest`, `sha512CounterDigest`: one typed counter hash.
-* `Cslib.Crypto.MGF1.sha256Blocks`, `sha512Blocks`: digests in increasing counter order.
-* `Cslib.Crypto.MGF1.sha256Stream`, `sha512Stream`: typed complete counter-hash streams.
-* `Cslib.Crypto.MGF1.mgf1SHA256`, `mgf1SHA512`: exact-length leading-byte masks.
+* `Cslib.Crypto.MGF1.mgf1SHA256`, `mgf1SHA512`: masks of the requested length.
 
 ## Main results
 
-* `Cslib.Crypto.MGF1.sha256Counter_lt_two_pow_32`, `sha512Counter_lt_two_pow_32`: every
-  generated counter fits the four-byte encoding.
-* `Cslib.Crypto.MGF1.ofFn_sha256Stream`, `ofFn_sha512Stream`: the stream concatenates
-  counter digests in order.
+* `Cslib.Crypto.MGF1.mgf1SHA256_prefix`, `mgf1SHA512_prefix`: a shorter mask is the corresponding
+  prefix of a longer one.
 
 ## References
 
-* [Moriarty et al., *PKCS #1: RSA Cryptography Specifications Version 2.2*, Section 4.1 and
-  Appendix B.2.1][RFC8017]
+* [K. Moriarty, B. Kaliski, J. Jonsson and A. Rusch, *PKCS #1: RSA Cryptography Specifications
+  Version 2.2*, RFC 8017, November 2016][RFC8017], Section 4.1 and Appendix B.2.1.
 -/
 
 public section
@@ -67,76 +77,73 @@ instance (maskLen : ℕ) : Decidable (ValidMGF1SHA512Input maskLen) := by
   unfold ValidMGF1SHA512Input
   infer_instance
 
-/-- SHA-256 of `seed || I2OSP(counter, 4)` for an RFC 8017 four-byte counter. -/
-def sha256CounterDigest (seed : List Byte) (counter : Fin (2 ^ 32)) : FixedBytes 32 :=
-  SHA2.sha256 (seed ++ (natToFixedBytesBE 4 counter.val).toList)
+/-- The string `T` of RFC 8017 after `blockCount` counters: the digests of
+`seed || I2OSP(counter, 4)` in increasing counter order. -/
+private def counterBytes (hash : List Byte → List Byte) (seed : List Byte) (blockCount : ℕ) :
+    List Byte :=
+  (List.range blockCount).flatMap fun counter =>
+    hash (seed ++ (natToFixedBytesBE 4 counter).toList)
 
-/-- SHA-512 of `seed || I2OSP(counter, 4)` for an RFC 8017 four-byte counter. -/
-def sha512CounterDigest (seed : List Byte) (counter : Fin (2 ^ 32)) : FixedBytes 64 :=
-  SHA2.sha512 (seed ++ (natToFixedBytesBE 4 counter.val).toList)
+/-- The leading `maskLen` bytes of the string `T` built from `⌈maskLen / hLen⌉` counters. -/
+private def mask (hash : List Byte → List Byte) (hLen : ℕ) (seed : List Byte) (maskLen : ℕ) :
+    FixedBytes maskLen :=
+  let stream := counterBytes hash seed (maskLen ⌈/⌉ hLen)
+  fun i => stream.getD i.val 0
 
-/-- Every SHA-256 MGF1 counter generated at an accepted output length fits four bytes. -/
-theorem sha256Counter_lt_two_pow_32 (maskLen : ℕ)
-    (hinput : ValidMGF1SHA256Input maskLen) (counter : Fin (maskLen ⌈/⌉ 32)) :
-    counter.val < 2 ^ 32 :=
-  counter.isLt.trans_le ((Nat.ceilDiv_le_iff (by decide)).2 hinput)
+private theorem length_counterBytes {hash : List Byte → List Byte} {hLen : ℕ}
+    (hhash : ∀ input, (hash input).length = hLen) (seed : List Byte) (blockCount : ℕ) :
+    (counterBytes hash seed blockCount).length = blockCount * hLen := by
+  simp [counterBytes, List.length_flatMap, hhash]
 
-/-- Every SHA-512 MGF1 counter generated at an accepted output length fits four bytes. -/
-theorem sha512Counter_lt_two_pow_32 (maskLen : ℕ)
-    (hinput : ValidMGF1SHA512Input maskLen) (counter : Fin (maskLen ⌈/⌉ 64)) :
-    counter.val < 2 ^ 32 :=
-  counter.isLt.trans_le ((Nat.ceilDiv_le_iff (by decide)).2 hinput)
+/-- More counters extend the string `T` on the right. -/
+private theorem counterBytes_eq_append (hash : List Byte → List Byte) (seed : List Byte)
+    {smaller larger : ℕ} (h : smaller ≤ larger) :
+    ∃ rest, counterBytes hash seed larger = counterBytes hash seed smaller ++ rest := by
+  obtain ⟨extra, rfl⟩ := Nat.exists_eq_add_of_le h
+  unfold counterBytes
+  rw [List.range_add, List.flatMap_append]
+  exact ⟨_, rfl⟩
 
-/-- SHA-256 MGF1 digest blocks indexed by their consecutive counters. -/
-def sha256Blocks (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA256Input maskLen) :
-    Fin (maskLen ⌈/⌉ 32) → FixedBytes 32 := fun counter =>
-  sha256CounterDigest seed
-    ⟨counter.val, sha256Counter_lt_two_pow_32 maskLen hinput counter⟩
+/-- A shorter mask is the corresponding prefix of a longer one, for any hash with digests of
+length `hLen`. -/
+private theorem take_mask {hash : List Byte → List Byte} {hLen : ℕ} (hpos : 0 < hLen)
+    (hhash : ∀ input, (hash input).length = hLen) (seed : List Byte) {shorter longer : ℕ}
+    (h : shorter ≤ longer) :
+    Fin.take shorter h (mask hash hLen seed longer) = mask hash hLen seed shorter := by
+  have hblocks : shorter ⌈/⌉ hLen ≤ longer ⌈/⌉ hLen :=
+    (Nat.ceilDiv_le_iff hpos).2 (h.trans (Nat.le_ceilDiv_mul hpos))
+  obtain ⟨rest, hrest⟩ := counterBytes_eq_append hash seed hblocks
+  funext i
+  have hi : i.val < (counterBytes hash seed (shorter ⌈/⌉ hLen)).length := by
+    rw [length_counterBytes hhash]
+    exact i.isLt.trans_le (Nat.le_ceilDiv_mul hpos)
+  simp only [Fin.take_apply, mask, Fin.val_castLE, hrest]
+  exact List.getD_append _ _ _ _ hi
 
-/-- SHA-512 MGF1 digest blocks indexed by their consecutive counters. -/
-def sha512Blocks (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA512Input maskLen) :
-    Fin (maskLen ⌈/⌉ 64) → FixedBytes 64 := fun counter =>
-  sha512CounterDigest seed
-    ⟨counter.val, sha512Counter_lt_two_pow_32 maskLen hinput counter⟩
+/-- RFC 8017 MGF1 instantiated with SHA-256: the leading `maskLen` bytes of the digests of
+`seed || I2OSP(counter, 4)` for `counter = 0, 1, …`, concatenated. `ValidMGF1SHA256Input` states
+the source's bound on `maskLen` separately. -/
+def mgf1SHA256 (seed : List Byte) (maskLen : ℕ) : FixedBytes maskLen :=
+  mask SHA2.sha256Bytes 32 seed maskLen
 
-/-- The typed concatenation of the required SHA-256 counter digests before MGF1 truncation. -/
-def sha256Stream (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA256Input maskLen) :
-    FixedBytes ((maskLen ⌈/⌉ 32) * 32) :=
-  Cslib.BitString.blocksEquiv.symm (sha256Blocks seed maskLen hinput)
+/-- RFC 8017 MGF1 instantiated with SHA-512: the leading `maskLen` bytes of the digests of
+`seed || I2OSP(counter, 4)` for `counter = 0, 1, …`, concatenated. `ValidMGF1SHA512Input` states
+the source's bound on `maskLen` separately. -/
+def mgf1SHA512 (seed : List Byte) (maskLen : ℕ) : FixedBytes maskLen :=
+  mask SHA2.sha512Bytes 64 seed maskLen
 
-/-- The typed concatenation of the required SHA-512 counter digests before MGF1 truncation. -/
-def sha512Stream (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA512Input maskLen) :
-    FixedBytes ((maskLen ⌈/⌉ 64) * 64) :=
-  Cslib.BitString.blocksEquiv.symm (sha512Blocks seed maskLen hinput)
+/-- A shorter SHA-256 MGF1 mask is the corresponding prefix of any longer mask from the same
+seed. -/
+theorem mgf1SHA256_prefix (seed : List Byte) {shorter longer : ℕ} (h : shorter ≤ longer) :
+    Fin.take shorter h (mgf1SHA256 seed longer) = mgf1SHA256 seed shorter :=
+  take_mask (by decide)
+    (fun input => by rw [SHA2.sha256Bytes_eq_toList, FixedBytes.length_toList]) seed h
 
-/-- The SHA-256 stream concatenates the counter digests in increasing counter order. -/
-theorem ofFn_sha256Stream (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA256Input maskLen) :
-    List.ofFn (sha256Stream seed maskLen hinput) =
-      (List.ofFn fun counter => List.ofFn (sha256Blocks seed maskLen hinput counter)).flatten := by
-  simpa only [sha256Stream] using
-    (Cslib.BitString.ofFn_blocksEquiv_symm (sha256Blocks seed maskLen hinput))
-
-/-- The SHA-512 stream concatenates the counter digests in increasing counter order. -/
-theorem ofFn_sha512Stream (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA512Input maskLen) :
-    List.ofFn (sha512Stream seed maskLen hinput) =
-      (List.ofFn fun counter => List.ofFn (sha512Blocks seed maskLen hinput counter)).flatten := by
-  simpa only [sha512Stream] using
-    (Cslib.BitString.ofFn_blocksEquiv_symm (sha512Blocks seed maskLen hinput))
-
-/-- RFC 8017 MGF1 instantiated with SHA-256, returning exactly `maskLen` leading bytes. -/
-def mgf1SHA256 (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA256Input maskLen) : FixedBytes maskLen :=
-  Fin.take maskLen (Nat.le_ceilDiv_mul (by decide)) (sha256Stream seed maskLen hinput)
-
-/-- RFC 8017 MGF1 instantiated with SHA-512, returning exactly `maskLen` leading bytes. -/
-def mgf1SHA512 (seed : List Byte) (maskLen : ℕ)
-    (hinput : ValidMGF1SHA512Input maskLen) : FixedBytes maskLen :=
-  Fin.take maskLen (Nat.le_ceilDiv_mul (by decide)) (sha512Stream seed maskLen hinput)
+/-- A shorter SHA-512 MGF1 mask is the corresponding prefix of any longer mask from the same
+seed. -/
+theorem mgf1SHA512_prefix (seed : List Byte) {shorter longer : ℕ} (h : shorter ≤ longer) :
+    Fin.take shorter h (mgf1SHA512 seed longer) = mgf1SHA512 seed shorter :=
+  take_mask (by decide)
+    (fun input => by rw [SHA2.sha512Bytes_eq_toList, FixedBytes.length_toList]) seed h
 
 end Cslib.Crypto.MGF1
