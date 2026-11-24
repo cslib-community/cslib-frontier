@@ -4800,6 +4800,14 @@ public import CslibFrontier.Computability.PCP.Approximation.ThreeXOR
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Extend
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.ExtractCheck
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Layout
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Model
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Settle
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.SetupBuckets
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.StartPrune
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Steps
 public import CslibFrontier.Computability.PCP.AssignmentTester
 public import CslibFrontier.Computability.PCP.AssignmentTester.Selection
 public import CslibFrontier.Computability.PCP.Completeness
