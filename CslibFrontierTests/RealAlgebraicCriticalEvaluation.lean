@@ -475,4 +475,24 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   simp only [evaluation, MvPolynomial.rename_X, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_one]
 
+-- Address 3 selects coordinate 1 of the two-variable source.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let F : MvPolynomial (Fin 2) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := (totalDegree_X_le 0).trans (by decide)
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let equations := C.indexedCoordinateEquations (d := fun _ => 1) Decoder.nat
+      (fun _ => by decide) (fun _ => by decide) (fun _ => hF) (.const 1)
+    let Q := (Polynomial.Bivariate.swap (parametricCoordinatePolynomial
+      (by decide : 1 ≤ 2) F hF 1)).leadingCoeff
+    equations.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
+      (equations.cutoff (w, 3) < p → equations.evaluate ((w, 3), p, z) =
+        (Q.eval₂ (Int.castRingHom (ZMod p)) (z.getD 1 0 : ZMod p)).val) := by
+  intro F hF C equations Q
+  refine ⟨equations.evaluate_mem, fun hcut => ?_⟩
+  rw [equations.evaluate_eq (w, 3) p z hp hcut]
+  simp only [evaluation, MvPolynomial.eval₂_rename, MvPolynomial.eval₂_uniqueAlgEquiv_symm]
+  rw [List.getD_eq_getElem?_getD]
+  rfl
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
