@@ -6401,6 +6401,17 @@ public import CslibFrontier.Crypto.Protocols.Commitment.World
 public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.BinaryBridge
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.BinaryDiscrete
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.BinaryJohnsonIOP
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.BinaryJohnsonROM
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.BinaryUnique
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.Helpers
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.SmoothBridge
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.SmoothDiscrete
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.SmoothJohnsonIOP
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.SmoothJohnsonROM
+public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.SmoothUnique
 public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
 public import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Folding
