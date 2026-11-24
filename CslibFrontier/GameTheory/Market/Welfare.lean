@@ -392,6 +392,31 @@ theorem IsQuasiDemand.of_mem_demandSet {u : (G → ℝ) → ℝ} {p : G → ℝ}
   exact ⟨hx.1, fun b hb hub => (lt_expenditure_of_mem_demandSet
     ((mem_demandSet).2 hx) hb hub).le⟩
 
+/-- Under local nonsatiation and nonnegative prices `p`, every nonnegative bundle `x` admits a
+strictly preferred nonnegative bundle whose expenditure is strictly less than `expenditure p x + δ`
+for any `δ > 0`. -/
+theorem IsLocallyNonsatiated.exists_lt_expenditure_lt {u : (G → ℝ) → ℝ}
+    (hlns : IsLocallyNonsatiated u) {p x : G → ℝ} (hp : ∀ g, 0 ≤ p g) (hx : ∀ g, 0 ≤ x g)
+    {δ : ℝ} (hδ : 0 < δ) :
+    ∃ b : G → ℝ, (∀ g, 0 ≤ b g) ∧ u x < u b ∧ expenditure p b < expenditure p x + δ := by
+  set S : ℝ := ∑ g : G, p g
+  have hS_nn : 0 ≤ S := sum_nonneg fun g _ => hp g
+  obtain ⟨b, hb_nn, hb_dist, hub⟩ := hlns x hx (δ / (2 * (1 + S))) (by positivity)
+  refine ⟨b, hb_nn, hub, ?_⟩
+  have hdiff : expenditure p b - expenditure p x ≤ δ / 2 := by
+    calc
+      expenditure p b - expenditure p x = ∑ g : G, p g * (b g - x g) := by
+        rw [← expenditure_sub, expenditure_eq_sum]
+        rfl
+      _ ≤ ∑ g : G, p g * (δ / (2 * (1 + S))) :=
+        sum_le_sum fun g _ => mul_le_mul_of_nonneg_left
+          ((le_abs_self _).trans (hb_dist g).le) (hp g)
+      _ = S * (δ / (2 * (1 + S))) := by rw [← sum_mul]
+      _ ≤ δ / 2 := by
+        rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by positivity)]
+        nlinarith
+  linarith
+
 /-- Under local nonsatiation, a quasi-demand bundle exhausts the consumer's budget
 (`expenditure p x = m`). -/
 theorem IsLocallyNonsatiated.expenditure_eq_of_isQuasiDemand {u : (G → ℝ) → ℝ}
@@ -399,26 +424,9 @@ theorem IsLocallyNonsatiated.expenditure_eq_of_isQuasiDemand {u : (G → ℝ) �
     (hq : IsQuasiDemand u p m x) : expenditure p x = m := by
   refine le_antisymm hq.1.2 ?_
   by_contra hlt
-  push Not at hlt
-  set gap : ℝ := m - expenditure p x
-  have hgap : 0 < gap := sub_pos.2 hlt
-  set S : ℝ := ∑ g : G, p g
-  have hS_nn : 0 ≤ S := sum_nonneg fun g _ => hp g
-  obtain ⟨b, hb_nn, hb_dist, hub⟩ := hlns x hq.1.1 (gap / (2 * (1 + S))) (by positivity)
-  have hm_le : m ≤ expenditure p b := hq.2 b hb_nn hub
-  have hdiff : expenditure p b - expenditure p x ≤ gap / 2 := by
-    calc
-      expenditure p b - expenditure p x = ∑ g : G, p g * (b g - x g) := by
-        rw [← expenditure_sub, expenditure_eq_sum]
-        rfl
-      _ ≤ ∑ g : G, p g * (gap / (2 * (1 + S))) := by
-        refine sum_le_sum fun g _ => mul_le_mul_of_nonneg_left ?_ (hp g)
-        exact (le_abs_self _).trans (hb_dist g).le
-      _ = S * (gap / (2 * (1 + S))) := by rw [← sum_mul]
-      _ ≤ gap / 2 := by
-        rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by positivity)]
-        nlinarith
-  linarith
+  obtain ⟨b, hb_nn, hub, hb_exp⟩ :=
+    hlns.exists_lt_expenditure_lt hp hq.1.1 (sub_pos.2 (not_le.1 hlt))
+  linarith [hq.2 b hb_nn hub]
 
 /-- **Cheaper-point upgrade (`IsQuasiDemand` → `demandSet`):** if `u` is continuous on `ℝ_+^G`,
 prices are nonnegative, and budget `m` is strictly positive (`0 < m`, so `0 ∈ ℝ_+^G` is strictly
@@ -524,6 +532,29 @@ theorem IsFeasibleAllocation.price_mul_excessDemand_eq_zero
   have hsplit := add_sum_erase univ (fun k => p k * E.excessDemand x k) (mem_univ g)
   linarith [hnonpos g (mem_univ g)]
 
+omit [Fintype G] in
+/-- Under local nonsatiation, every feasible allocation `x` of a nonempty market can be perturbed
+to a nonnegative profile `y` strictly preferred by every trader whose aggregate excess over
+`E.totalSupply g` is at most any prescribed `δ > 0`. -/
+theorem IsFeasibleAllocation.exists_forall_utility_lt_sum_sub_totalSupply_le [Nonempty I]
+    {E : ExchangeMarket I G} {x : I → G → ℝ} (hx : E.IsFeasibleAllocation x)
+    (hlns : ∀ i, IsLocallyNonsatiated (E.utility i)) {δ : ℝ} (hδ : 0 < δ) :
+    ∃ y : I → G → ℝ, (∀ i g, 0 ≤ y i g) ∧ (∀ i, E.utility i (x i) < E.utility i (y i)) ∧
+      ∀ g : G, (∑ i : I, y i g) - E.totalSupply g ≤ δ := by
+  set m : ℝ := (Fintype.card I : ℝ)
+  have hm_pos : 0 < m := Nat.cast_pos.2 Fintype.card_pos
+  choose y hy_nn hy_dist hy_gt using fun i =>
+    hlns i (x i) (hx.1 i) (δ / m) (div_pos hδ hm_pos)
+  refine ⟨y, hy_nn, hy_gt, fun g => ?_⟩
+  have hsum_diff : (∑ i : I, y i g) - ∑ i : I, x i g ≤ δ := by
+    rw [← sum_sub_distrib]
+    calc
+      ∑ i : I, (y i g - x i g) ≤ ∑ _i : I, (δ / m) :=
+        sum_le_sum fun i _ => (le_abs_self _).trans (hy_dist i g).le
+      _ = m * (δ / m) := by simp [m]
+      _ = δ := mul_div_cancel₀ δ hm_pos.ne'
+  linarith [hx.2 g]
+
 omit [Fintype I] [Fintype G] in
 @[simp] theorem reendow_endowment (E : ExchangeMarket I G) (x : I → G → ℝ)
     (hx : ∀ i g, 0 ≤ x i g) : (E.reendow x hx).endowment = x := by rfl
@@ -571,6 +602,27 @@ theorem IsPriceQuasiEquilibrium.isCompetitiveEquilibrium_of_income_pos {E : Exch
   rw [E.mem_demandSet]
   exact (hq.2.2.1 i).mem_demandSet_of_budget_pos hq.1 (hinc i) (hcont i)
 
+omit [Fintype I] in
+private theorem exists_forall_lt_sum_expenditure_sub_le [Finite I] [Nonempty I]
+    {u : I → (G → ℝ) → ℝ} (hlns : ∀ i, IsLocallyNonsatiated (u i))
+    {p : G → ℝ} (hp : ∀ g, 0 ≤ p g) {x : I → G → ℝ} (hx : ∀ i g, 0 ≤ x i g)
+    {δ : ℝ} (hδ : 0 < δ) :
+    ∃ y : I → G → ℝ, (∀ i g, 0 ≤ y i g) ∧ (∀ i, u i (x i) < u i (y i)) ∧
+      ∀ S : Finset I, ∑ i ∈ S, (expenditure p (y i) - expenditure p (x i)) ≤ δ := by
+  have := Fintype.ofFinite I
+  set m : ℝ := (Fintype.card I : ℝ)
+  have hm_pos : 0 < m := Nat.cast_pos.2 Fintype.card_pos
+  choose y hy_nn hy_gt hy_exp using fun i =>
+    (hlns i).exists_lt_expenditure_lt hp (hx i) (div_pos hδ hm_pos)
+  refine ⟨y, hy_nn, hy_gt, fun S => ?_⟩
+  calc
+    ∑ i ∈ S, (expenditure p (y i) - expenditure p (x i))
+      ≤ ∑ _i ∈ S, (δ / m) := sum_le_sum fun i _ => by linarith [hy_exp i]
+    _ ≤ ∑ _i : I, (δ / m) :=
+      sum_le_sum_of_subset_of_nonneg (subset_univ S) fun _ _ _ => (div_pos hδ hm_pos).le
+    _ = m * (δ / m) := by simp [m]
+    _ = δ := mul_div_cancel₀ δ hm_pos.ne'
+
 /-- **Second Fundamental Theorem of Welfare Economics (price quasi-equilibrium form)**
 ([Arrow1951Welfare]; [ArrowDebreu1954]): in a locally nonsatiated exchange economy with a nonempty
 finite trader set and convex preferences (`HasConvexPreferences`), every Pareto-optimal
@@ -603,11 +655,8 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
       have hW : E.totalSupply g = (a + b) * E.totalSupply g := by rw [hab, one_mul]
       nlinarith
   have hK_ne : K.Nonempty := by
-    have h_ex : ∀ i : I, ∃ b : G → ℝ, (∀ g, 0 ≤ b g) ∧ E.utility i (x i) < E.utility i b := by
-      intro i
-      obtain ⟨b, hb_nn, -, hub⟩ := hlns i (x i) (hpo.1.1 i) 1 zero_lt_one
-      exact ⟨b, hb_nn, hub⟩
-    choose y hy_nn hy_gt using h_ex
+    obtain ⟨y, hy_nn, hy_gt, -⟩ :=
+      hpo.1.exists_forall_utility_lt_sum_sub_totalSupply_le hlns zero_lt_one
     exact ⟨fun g => (∑ i : I, y i g) - E.totalSupply g, y, hy_nn, hy_gt, fun _ => le_rfl⟩
   have hdisj : Disjoint (negOrthant G) K := by
     rw [Set.disjoint_left]
@@ -616,132 +665,57 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
     obtain ⟨i₀⟩ := ‹Nonempty I›
     exact hpo.2 ⟨y, ⟨hy_nn, fun g => by linarith [hz_le g, hz_neg g]⟩,
       fun i => (hy_gt i).le, ⟨i₀, hy_gt i₀⟩⟩
-  have hzero : ∀ ε : ℝ, 0 < ε → ∃ z ∈ K, ∀ g : G, |z g| < ε := by
-    intro ε hε
-    set m : ℝ := (Fintype.card I : ℝ)
-    have hm_pos : 0 < m := Nat.cast_pos.2 Fintype.card_pos
-    have h_ex : ∀ i : I, ∃ b : G → ℝ, (∀ g, 0 ≤ b g) ∧
-        (∀ g, |b g - x i g| < ε / (2 * m)) ∧ E.utility i (x i) < E.utility i b :=
-      fun i => hlns i (x i) (hpo.1.1 i) (ε / (2 * m)) (by positivity)
-    choose y hy_nn hy_dist hy_gt using h_ex
-    let z : G → ℝ := fun g => max ((∑ i : I, y i g) - E.totalSupply g) 0
-    refine ⟨z, ⟨y, hy_nn, hy_gt, fun g => le_max_left _ _⟩, fun g => ?_⟩
-    have hz_nn : 0 ≤ z g := le_max_right _ _
-    have hy_le : (∑ i : I, y i g) - E.totalSupply g ≤ ε / 2 := by
-      have hsum_diff : (∑ i : I, y i g) - ∑ i : I, x i g ≤ ε / 2 := by
-        rw [← sum_sub_distrib]
-        calc
-          ∑ i : I, (y i g - x i g) ≤ ∑ _i : I, (ε / (2 * m)) :=
-            sum_le_sum fun i _ => (le_abs_self _).trans (hy_dist i g).le
-          _ = m * (ε / (2 * m)) := by simp [m]
-          _ = ε / 2 := by field_simp [hm_pos.ne']
-      linarith [hpo.1.2 g]
-    rw [abs_of_nonneg hz_nn]
-    exact lt_of_le_of_lt (max_le hy_le (by positivity)) (by linarith)
+  have hzero : ∀ ε : ℝ, 0 < ε → ∃ z ∈ K, ∀ g : G, |z g| < ε := fun ε hε => by
+    obtain ⟨y, hy_nn, hy_gt, hy_le⟩ :=
+      hpo.1.exists_forall_utility_lt_sum_sub_totalSupply_le hlns (half_pos hε)
+    refine ⟨fun g => max ((∑ i : I, y i g) - E.totalSupply g) 0,
+      ⟨y, hy_nn, hy_gt, fun g => le_max_left _ _⟩, fun g => ?_⟩
+    rw [abs_of_nonneg (le_max_right _ _)]
+    exact max_lt ((hy_le g).trans_lt (half_lt_self hε)) hε
   obtain ⟨p, hp_nn, hp_pos, hsep⟩ :=
     exists_price_of_convex_disjoint_negOrthant hK_conv hK_ne hdisj hzero
-  -- Approximate `x j` via `hlns j` for `j ≠ i` (and all `j`) to extract individual quasi-demands
-  -- and exact supply-value exhaustion.
+  have hexp_excess : ∀ y : I → G → ℝ,
+      expenditure p (fun g => (∑ i : I, y i g) - E.totalSupply g) =
+        (∑ i : I, expenditure p (y i)) - expenditure p E.totalSupply := fun y => by
+    simp only [expenditure_eq_sum, mul_sub, sum_sub_distrib, mul_sum]
+    rw [sum_comm]
+  -- Approximate `x` via `exists_forall_lt_sum_expenditure_sub_le` to extract supply-value
+  -- exhaustion and individual quasi-demands.
   have hsum_ge : expenditure p E.totalSupply ≤ ∑ i : I, expenditure p (x i) := by
     by_contra hlt
-    push Not at hlt
-    set gap : ℝ := expenditure p E.totalSupply - ∑ i : I, expenditure p (x i)
-    have hgap : 0 < gap := sub_pos.2 hlt
-    set P : ℝ := ∑ g : G, p g
-    set m : ℝ := (Fintype.card I : ℝ)
-    have hm_pos : 0 < m := Nat.cast_pos.2 Fintype.card_pos
-    have hP_pos : 0 < P := by
-      obtain ⟨g₀, hpg₀⟩ := hp_pos
-      exact lt_of_lt_of_le hpg₀ (single_le_sum (fun g _ => hp_nn g) (mem_univ g₀))
-    have h_ex : ∀ i : I, ∃ b : G → ℝ, (∀ g, 0 ≤ b g) ∧
-        (∀ g, |b g - x i g| < gap / (2 * m * P)) ∧ E.utility i (x i) < E.utility i b :=
-      fun i => hlns i (x i) (hpo.1.1 i) (gap / (2 * m * P)) (by positivity)
-    choose y hy_nn hy_dist hy_gt using h_ex
-    have hz_mem : (fun g => (∑ i : I, y i g) - E.totalSupply g) ∈ K :=
-      ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
-    have hge0 : 0 ≤ expenditure p (fun g => (∑ i : I, y i g) - E.totalSupply g) := hsep _ hz_mem
-    have hexp_split : expenditure p (fun g => (∑ i : I, y i g) - E.totalSupply g) =
-        (∑ i : I, expenditure p (y i)) - expenditure p E.totalSupply := by
-      simp only [expenditure_eq_sum, mul_sub, sum_sub_distrib, mul_sum]
-      rw [sum_comm]
-    have hy_sum_le : (∑ i : I, expenditure p (y i)) - ∑ i : I, expenditure p (x i) ≤ gap / 2 := by
-      rw [← sum_sub_distrib]
-      calc
-        ∑ i : I, (expenditure p (y i) - expenditure p (x i))
-          ≤ ∑ _i : I, (gap / (2 * m)) := by
-            refine sum_le_sum fun i _ => ?_
-            rw [← expenditure_sub, expenditure_eq_sum]
-            calc
-              ∑ g : G, p g * (y i g - x i g) ≤ ∑ g : G, p g * (gap / (2 * m * P)) :=
-                sum_le_sum fun g _ => mul_le_mul_of_nonneg_left
-                  ((le_abs_self _).trans (hy_dist i g).le) (hp_nn g)
-              _ = P * (gap / (2 * m * P)) := by rw [← sum_mul]
-              _ = gap / (2 * m) := by field_simp [hP_pos.ne', hm_pos.ne']
-        _ = m * (gap / (2 * m)) := by simp [m]
-        _ = gap / 2 := by field_simp [hm_pos.ne']
+    obtain ⟨y, hy_nn, hy_gt, hy_sum⟩ :=
+      exists_forall_lt_sum_expenditure_sub_le hlns hp_nn hpo.1.1
+        (half_pos (sub_pos.2 (not_le.1 hlt)))
+    have hge0 := hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
+    have hsub := hy_sum univ
+    rw [hexp_excess] at hge0
+    rw [sum_sub_distrib] at hsub
     linarith
   have hsum_eq : ∑ i : I, expenditure p (x i) = expenditure p E.totalSupply :=
     le_antisymm (hpo.1.sum_expenditure_le_totalSupply hp_nn) hsum_ge
   have hex0 : expenditure p (E.excessDemand x) = 0 := by
-    have : expenditure p (E.excessDemand x) =
-        (∑ i : I, expenditure p (x i)) - expenditure p E.totalSupply := by
-      simp only [expenditure_eq_sum, excessDemand_eq, mul_sub, sum_sub_distrib, mul_sum]
-      rw [sum_comm]
-    rw [this, hsum_eq, sub_self]
+    rw [show E.excessDemand x = fun g => (∑ i : I, x i g) - E.totalSupply g from
+      funext (E.excessDemand_eq x), hexp_excess, hsum_eq, sub_self]
   have hcs : ∀ g : G, p g * E.excessDemand x g = 0 :=
     hpo.1.price_mul_excessDemand_eq_zero hp_nn hex0
   have hquasi : ∀ i : I, IsQuasiDemand (E.utility i) p (expenditure p (x i)) (x i) := by
     intro i
     refine ⟨⟨hpo.1.1 i, le_rfl⟩, fun b hb_nn hub => ?_⟩
     by_contra hlt
-    push Not at hlt
-    set gap : ℝ := expenditure p (x i) - expenditure p b
-    have hgap : 0 < gap := sub_pos.2 hlt
-    set P : ℝ := ∑ g : G, p g
-    set m : ℝ := (Fintype.card I : ℝ)
-    have hm_pos : 0 < m := Nat.cast_pos.2 Fintype.card_pos
-    have hP_pos : 0 < P := by
-      obtain ⟨g₀, hpg₀⟩ := hp_pos
-      exact lt_of_lt_of_le hpg₀ (single_le_sum (fun g _ => hp_nn g) (mem_univ g₀))
-    have h_ex : ∀ j : I, ∃ yj : G → ℝ, (∀ g, 0 ≤ yj g) ∧
-        (∀ g, |yj g - x j g| < gap / (2 * m * P)) ∧ E.utility j (x j) < E.utility j yj :=
-      fun j => hlns j (x j) (hpo.1.1 j) (gap / (2 * m * P)) (by positivity)
-    choose yNear hyNear_nn hyNear_dist hyNear_gt using h_ex
+    obtain ⟨yNear, hyNear_nn, hyNear_gt, hyNear_sum⟩ :=
+      exists_forall_lt_sum_expenditure_sub_le hlns hp_nn hpo.1.1
+        (half_pos (sub_pos.2 (not_le.1 hlt)))
     let y : I → G → ℝ := Function.update yNear i b
-    have hy_nn : ∀ j g, 0 ≤ y j g := by
-      intro j g
+    have hy_nn : ∀ j g, 0 ≤ y j g := fun j g => by
       by_cases hj : j = i
       · subst hj; simp [y, hb_nn g]
       · simp [y, hj, hyNear_nn j g]
-    have hy_gt : ∀ j, E.utility j (x j) < E.utility j (y j) := by
-      intro j
+    have hy_gt : ∀ j, E.utility j (x j) < E.utility j (y j) := fun j => by
       by_cases hj : j = i
       · subst hj; simpa [y] using hub
       · simpa [y, hj] using hyNear_gt j
-    have hge0 : 0 ≤ expenditure p (fun g => (∑ j : I, y j g) - E.totalSupply g) :=
-      hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
-    have hexp_split : expenditure p (fun g => (∑ j : I, y j g) - E.totalSupply g) =
-        (∑ j : I, expenditure p (y j)) - ∑ j : I, expenditure p (x j) := by
-      rw [hsum_eq]
-      simp only [expenditure_eq_sum, mul_sub, sum_sub_distrib, mul_sum]
-      rw [sum_comm]
-    have hrest_bound : ∑ j ∈ univ.erase i, (expenditure p (yNear j) - expenditure p (x j)) ≤
-        gap / 2 := by
-      calc
-        ∑ j ∈ univ.erase i, (expenditure p (yNear j) - expenditure p (x j))
-          ≤ ∑ _j ∈ univ.erase i, (gap / (2 * m)) := by
-            refine sum_le_sum fun j _ => ?_
-            rw [← expenditure_sub, expenditure_eq_sum]
-            calc
-              ∑ g : G, p g * (yNear j g - x j g) ≤ ∑ g : G, p g * (gap / (2 * m * P)) :=
-                sum_le_sum fun g _ => mul_le_mul_of_nonneg_left
-                  ((le_abs_self _).trans (hyNear_dist j g).le) (hp_nn g)
-              _ = P * (gap / (2 * m * P)) := by rw [← sum_mul]
-              _ = gap / (2 * m) := by field_simp [hP_pos.ne', hm_pos.ne']
-        _ ≤ ∑ _j : I, (gap / (2 * m)) :=
-          sum_le_sum_of_subset_of_nonneg (erase_subset i univ) fun _ _ _ => by positivity
-        _ = m * (gap / (2 * m)) := by simp [m]
-        _ = gap / 2 := by field_simp [hm_pos.ne']
+    have hge0 := hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
+    rw [hexp_excess, ← hsum_eq] at hge0
     have htot_diff : (∑ j : I, expenditure p (y j)) - ∑ j : I, expenditure p (x j) =
         (expenditure p b - expenditure p (x i)) +
           ∑ j ∈ univ.erase i, (expenditure p (yNear j) - expenditure p (x j)) := by
@@ -750,7 +724,7 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
       congr 1
       refine sum_congr rfl fun j hj => ?_
       rw [Function.update_of_ne (mem_erase.1 hj).1]
-    linarith
+    linarith [hyNear_sum (univ.erase i)]
   refine ⟨p, ⟨hp_nn, hp_pos, fun i => ?_, fun g => ?_, fun g => ?_⟩, hcs⟩
   · simpa only [reendow_utility, reendow_income] using hquasi i
   · simp [reendow_excessDemand]

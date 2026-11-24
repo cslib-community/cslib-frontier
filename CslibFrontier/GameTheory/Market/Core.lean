@@ -594,39 +594,26 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     · intro ic hic
       exact (hb_gt ic.1 (hmem_C.1 hic).1).le
     · exact ⟨_, hic₀_mem, hb_gt i₀ hi₀S⟩
-  have hzero : ∀ ε : ℝ, 0 < ε → ∃ z ∈ K, ∀ g : G, |z g| < ε := by
-    intro ε hε
+  have hzero : ∀ ε : ℝ, 0 < ε → ∃ z ∈ K, ∀ g : G, |z g| < ε := fun ε hε => by
+    obtain ⟨b, hb_nn, hb_gt, hb_le⟩ :=
+      hx_feas.exists_forall_utility_lt_sum_sub_totalSupply_le hlns (half_pos hε)
     set m : ℝ := (Fintype.card I : ℝ)
-    have hm_pos : 0 < m := Nat.cast_pos.2 Fintype.card_pos
-    have h_ex : ∀ i : I, ∃ bi : G → ℝ, (∀ g, 0 ≤ bi g) ∧
-        (∀ g, |bi g - x i g| < ε / 2) ∧ E.utility i (x i) < E.utility i bi :=
-      fun i => hlns i (x i) (hx_feas.1 i) (ε / 2) (half_pos hε)
-    choose b hb_nn hb_dist hb_gt using h_ex
+    have hm_ge_1 : 1 ≤ m := Nat.one_le_cast.2 Fintype.card_pos
+    have hm_pos : 0 < m := lt_of_lt_of_le zero_lt_one hm_ge_1
     let α : I → ℝ := fun _ => 1 / m
-    have hα_pos : ∀ _i ∈ (univ : Finset I), 0 < α _i := fun _ _ => one_div_pos.2 hm_pos
-    have hα_sum : ∑ i : I, α i = 1 := by simp [α, m, hm_pos.ne']
-    let z : G → ℝ := fun g => max (∑ i : I, α i * (b i g - E.endowment i g)) 0
-    refine ⟨z, ⟨univ, α, b, univ_nonempty, hα_pos, hα_sum, fun i _ => hb_nn i,
-      fun i _ => hb_gt i, fun g => le_max_left _ _⟩, fun g => ?_⟩
-    have hz_nn : 0 ≤ z g := le_max_right _ _
+    refine ⟨fun g => max (∑ i : I, α i * (b i g - E.endowment i g)) 0,
+      ⟨univ, α, b, univ_nonempty, fun _ _ => one_div_pos.2 hm_pos, by simp [α, m, hm_pos.ne'],
+        fun i _ => hb_nn i, fun i _ => hb_gt i, fun g => le_max_left _ _⟩, fun g => ?_⟩
     have havg_le : ∑ i : I, α i * (b i g - E.endowment i g) ≤ ε / 2 := by
-      have hdecomp : ∑ i : I, α i * (b i g - E.endowment i g) =
-          (1 / m) * ((∑ i : I, x i g) - E.totalSupply g) +
-            ∑ i : I, α i * (b i g - x i g) := by
-        rw [E.totalSupply_eq_sum, ← sum_sub_distrib, mul_sum, ← sum_add_distrib]
-        exact sum_congr rfl fun i _ => by dsimp only [α]; ring
-      have hterm1 : (1 / m) * ((∑ i : I, x i g) - E.totalSupply g) ≤ 0 :=
-        mul_nonpos_of_nonneg_of_nonpos (by positivity) (sub_nonpos.2 (hx_feas.2 g))
-      have hterm2 : ∑ i : I, α i * (b i g - x i g) ≤ ε / 2 := by
-        calc
-          ∑ i : I, α i * (b i g - x i g) ≤ ∑ i : I, α i * (ε / 2) :=
-            sum_le_sum fun i _ => mul_le_mul_of_nonneg_left
-              ((le_abs_self _).trans (hb_dist i g).le) (by dsimp only [α]; positivity)
-          _ = (∑ i : I, α i) * (ε / 2) := (sum_mul _ _ _).symm
-          _ = ε / 2 := by rw [hα_sum, one_mul]
-      linarith
-    rw [abs_of_nonneg hz_nn]
-    exact lt_of_le_of_lt (max_le havg_le (by positivity)) (by linarith)
+      have hrew : ∑ i : I, α i * (b i g - E.endowment i g) =
+          (1 / m) * ((∑ i : I, b i g) - E.totalSupply g) := by
+        rw [E.totalSupply_eq_sum, ← sum_sub_distrib, mul_sum]
+      have h1m_le : 1 / m ≤ 1 := div_le_one_of_le₀ hm_ge_1 hm_pos.le
+      have hmul : (1 / m) * ((∑ i : I, b i g) - E.totalSupply g) ≤ (1 / m) * (ε / 2) :=
+        mul_le_mul_of_nonneg_left (hb_le g) (by positivity)
+      nlinarith [hrew]
+    rw [abs_of_nonneg (le_max_right _ _)]
+    exact max_lt (havg_le.trans_lt (half_lt_self hε)) hε
   obtain ⟨p, hp_nn, hp_pos, hsep⟩ :=
     exists_price_of_convex_disjoint_negOrthant hK_conv hK_ne hdisj hzero
   -- Singleton `S = {i}` gives `E.income p i ≤ expenditure p b` whenever `u_i(x_i) < u_i(b)`.
@@ -644,27 +631,11 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       exact expenditure_sub p b (E.endowment i)
     linarith
   -- Approaching `x i` via `hlns i` gives `E.income p i ≤ expenditure p (x i)` for every `i`.
-  have hinc_le_exp : ∀ i : I, E.income p i ≤ expenditure p (x i) := by
-    intro i
+  have hinc_le_exp : ∀ i : I, E.income p i ≤ expenditure p (x i) := fun i => by
     by_contra hlt
-    push Not at hlt
-    set gap : ℝ := E.income p i - expenditure p (x i)
-    have hgap : 0 < gap := sub_pos.2 hlt
-    set P : ℝ := ∑ g : G, p g
-    have hP_pos : 0 < P := by
-      obtain ⟨g₀, hpg₀⟩ := hp_pos
-      exact lt_of_lt_of_le hpg₀ (single_le_sum (fun g _ => hp_nn g) (mem_univ g₀))
-    obtain ⟨b, hb_nn, hb_dist, hub⟩ := hlns i (x i) (hx_feas.1 i) (gap / (2 * P)) (by positivity)
-    have hge := hsupp_i i b hb_nn hub
-    have hdiff : expenditure p b - expenditure p (x i) ≤ gap / 2 := by
-      rw [← expenditure_sub, expenditure_eq_sum]
-      calc
-        ∑ g : G, p g * (b g - x i g) ≤ ∑ g : G, p g * (gap / (2 * P)) :=
-          sum_le_sum fun g _ => mul_le_mul_of_nonneg_left
-            ((le_abs_self _).trans (hb_dist g).le) (hp_nn g)
-        _ = P * (gap / (2 * P)) := by rw [← sum_mul]
-        _ = gap / 2 := by field_simp [hP_pos.ne']
-    linarith
+    obtain ⟨b, hb_nn, hub, hb_exp⟩ :=
+      (hlns i).exists_lt_expenditure_lt hp_nn (hx_feas.1 i) (sub_pos.2 (not_le.1 hlt))
+    linarith [hsupp_i i b hb_nn hub]
   -- Feasibility of `x` gives the reverse sum inequality, forcing equality for every trader!
   have hsum_le : ∑ i : I, expenditure p (x i) ≤ ∑ i : I, E.income p i := by
     rw [E.sum_income p]
