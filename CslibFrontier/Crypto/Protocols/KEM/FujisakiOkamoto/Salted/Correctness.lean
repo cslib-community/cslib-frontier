@@ -685,8 +685,7 @@ private theorem simJoint_map_completionCache
     have hcoins : RandomOracle.ofList
         (st.jointCache.map fun e => (e.1, e.2.coins)) input = none := by
       simp only [RandomOracle.ofList, List.lookup_map_snd, hlookup, Option.map_none]
-    simp only [PMF.map_comp, RandomOracle.answer_of_none _ _ _ hcoins,
-      PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map, Function.comp_def]
+    simp only [RandomOracle.answer_of_none _ _ _ hcoins, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun coins _ => ?_
     by_cases htarget : input = S.jointInput pk input.message input.salt
     · rw [ite_eq_left htarget, ite_eq_left htarget]
@@ -726,9 +725,7 @@ private theorem rejection_map_completionCache
   simp only [completionCache]
   rw [RandomOracle.answer_sum_inr, ← RandomOracle.memoize_map_ofList, PMF.map_comp]
   cases hlookup : st.rejectionCache.lookup input <;>
-    simp only [rejection, memoize, hlookup, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind,
-      PMF.pure_bind, Function.comp_def]
+    simp only [rejection, memoize, hlookup, PMF.map, pmf_norm]
 
 private theorem decapsKey_map_completionCache
     [DecidableEq (JointInput JointPrefix M Salt)]
@@ -745,9 +742,7 @@ private theorem decapsKey_map_completionCache
   rw [RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inr, PMF.map_comp,
     ← RandomOracle.memoize_map_ofList, PMF.map_comp]
   cases hlookup : st.decapsCache.lookup ciphertext <;>
-    simp only [decapsKey, memoize, hlookup, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.map, PMF.bind_bind,
-      PMF.pure_bind, Function.comp_def]
+    simp only [decapsKey, memoize, hlookup, PMF.map, pmf_norm]
 
 /-! ### Support characterizations and `Linked` preservation -/
 

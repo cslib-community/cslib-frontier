@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Languages.Probabilistic.Norm
 import Mathlib.Data.List.GetD
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 public import CslibFrontier.Crypto.Computational.MerkleSignature
@@ -255,9 +256,7 @@ private theorem eval_run_plantedHandler
             List.getD_append_cons_length, hkeys, OracleComp.interpret_map,
             ProbOracleComp.interpret_query, SignatureScheme.oneTimeSigningOracle,
             SignatureScheme.oneTimeSigningOracleOn, hlen, hk, beq_self_eq_true, List.isEmpty_nil,
-            Bool.and_self,
-            ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_bind, PMF.pure_bind,
-            PMF.pure_map, hmapApply]
+            Bool.and_self, hmapApply, pmf_norm]
           refine PMF.bind_congr_on_support _ _ _ fun σ hσ => ?_
           have hots : otsLogOf H front.length k ((front.length, m) :: signed) = [H k m] := by
             rw [← List.singleton_append, ← hempty]
@@ -268,9 +267,7 @@ private theorem eval_run_plantedHandler
             simp [otsLogOf, hi]
           simp only [hi, ↓reduceIte, sign, secretKey, secretKeyDecoder.decode_enc, signWith, hkeys,
             List.getD_append_cons_of_ne front back x (x.1, []) ([], []) hi,
-            OracleComp.interpret_map,
-            ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, hmapApply, hsampleApply,
-            PMF.bind_bind, PMF.pure_bind, PMF.pure_map, hots]
+            OracleComp.interpret_map, hmapApply, hsampleApply, hots, pmf_norm]
       · simp only [hguard, ↓reduceIte, ProbComp.eval_pure, PMF.pure_map, OracleComp.interpret_pure,
           hpureApply])
     program [] trivial
@@ -314,11 +311,10 @@ private theorem eval_eufOneTimeGame_oneTimeForgerAt
             (ProbComp.eval (OracleComp.replicate (2 ^ depth n - i - 1) (S.keyGen n))).bind
               fun back => (realRun S H depth hH hlen hcap adversary n k (front ++ x :: back)).map
                 (otsWin S H n i k (front ++ x :: back)) := by
-  simp only [SignatureScheme.eufOneTimeGame, oneTimeForgerAt, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
-    plantKeys, BitString.eval_sampleList, PMF.map_bind,
-    PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
+  simp only [SignatureScheme.eufOneTimeGame, oneTimeForgerAt,
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, plantKeys,
+    BitString.eval_sampleList, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun x hx => ?_
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   refine PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
@@ -364,8 +360,7 @@ private theorem map_otsWin_realExp
   rw [eval_eufOneTimeGame_oneTimeForgerAt hH hlen hcap hbound adversary i, realExp]
   have hsplit : 2 ^ depth n = i + ((2 ^ depth n - i - 1) + 1) := by omega
   rw [hsplit, ← ProbComp.eval_replicate_splice, ← hsplit]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.map_bind,
-    PMF.bind_bind, PMF.pure_bind, PMF.map_comp, Function.comp_def]
+  simp only [pmf_norm]
   rw [PMF.bind_comm]
 
 variable {S H depth} in
@@ -380,8 +375,7 @@ private theorem eval_indexedEufCmaGame_eq
         decide (t.2.2.1.1 < 2 ^ depth n) && !t.2.2.2.contains (t.2.2.1.1, t.2.2.1.2.1) &&
           verify S H depth (publicKey H t.1 t.2.1) t.2.2.1.1 t.2.2.1.2.1 t.2.2.1.2.2 := by
   simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme, keyGen, realExp, realRun,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
-    PMF.map_bind, PMF.bind_bind, PMF.pure_bind, PMF.map_comp, Function.comp_def]
+    BitString.eval_sampleList, pmf_norm]
   rfl
 
 variable {S H depth} in
@@ -396,9 +390,7 @@ private theorem eval_collisionGame_eq
       (realExp S H depth hH hlen hcap adversary n).map fun t =>
         isCollision H (fun _ _ => true) n t.1 (collisionOf H t.1 t.2.1 t.2.2).1
           (collisionOf H t.1 t.2.1 t.2.2).2 := by
-  simp only [collisionGame, collisionFinder, realExp, realRun, ProbComp.eval_bind,
-    ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind, PMF.map_bind,
-    PMF.bind_bind, PMF.pure_bind, PMF.map_comp, Function.comp_def]
+  simp only [collisionGame, collisionFinder, realExp, realRun, BitString.eval_sampleList, pmf_norm]
   rfl
 
 variable {S H depth} in
@@ -478,10 +470,9 @@ private theorem eval_eufOneTimeGame_oneTimeForger (bound : ℕ → ℕ) (adversa
     ProbComp.eval (S.eufOneTimeGame (oneTimeForger S H depth bound adversary) n) =
       (PMF.uniformOfFintype (Fin (2 ^ depth n))).bind fun i =>
         ProbComp.eval (S.eufOneTimeGame (oneTimeForgerAt S H depth bound adversary i.val) n) := by
-  simp only [SignatureScheme.eufOneTimeGame, oneTimeForger, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, eval_leafIndex, PMF.bind_map,
-    PMF.bind_bind, Function.comp_def]
+  simp only [SignatureScheme.eufOneTimeGame, oneTimeForger,
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, eval_leafIndex, pmf_norm]
   rw [PMF.bind_comm]
 
 /-! ### The explicit bound -/

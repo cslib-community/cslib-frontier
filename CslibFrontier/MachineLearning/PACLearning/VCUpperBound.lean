@@ -75,15 +75,15 @@ open scoped ENNReal NNReal
 
 namespace Cslib.MachineLearning.PACLearning
 
-variable {α : Type*}
+variable {α β : Type*}
 
-/-- The *loss class* of a binary concept class `C`: for each `h ∈ C`, the indicator of the labeled
-examples `(x, y)` that `h` misclassifies. -/
-def lossClass (C : ConceptClass α Bool) : ConceptClass (α × Bool) Bool :=
+/-- The *loss class* of a concept class `C` with decidable label equality: for each `h ∈ C`, the
+indicator of the labeled examples `(x, y)` that `h` misclassifies. -/
+def lossClass [DecidableEq β] (C : ConceptClass α β) : ConceptClass (α × β) Bool :=
   (fun h p => decide (h p.1 ≠ p.2)) '' C
 
-theorem mem_lossClass {C : ConceptClass α Bool} {f : α × Bool → Bool} :
-    f ∈ lossClass C ↔ ∃ h ∈ C, (fun p : α × Bool => decide (h p.1 ≠ p.2)) = f := by
+theorem mem_lossClass [DecidableEq β] {C : ConceptClass α β} {f : α × β → Bool} :
+    f ∈ lossClass C ↔ ∃ h ∈ C, (fun p : α × β => decide (h p.1 ≠ p.2)) = f := by
   rw [lossClass, Set.mem_image]
 
 /-- Passing to the loss class does not increase the growth function: the misclassification
@@ -155,14 +155,14 @@ variable [MeasurableSpace α]
 
 /-- Under a distribution realizable by `C`, a consistent learner whose output has error greater
 than `ε` almost surely witnesses that the sample is not an ε-net for the loss class of `C`. -/
-theorem IsConsistent.ae_not_isEpsNet_of_lt_error {C : ConceptClass α Bool} {m : ℕ}
-    {A : Learner α Bool m} (hA : IsConsistent A C) {D : Measure (α × Bool)} [SigmaFinite D]
-    (hD : IsRealizableBy D C) (ε : ℝ) :
+theorem IsConsistent.ae_not_isEpsNet_of_lt_error [MeasurableSpace β] [DecidableEq β]
+    {C : ConceptClass α β} {m : ℕ} {A : Learner α β m} (hA : IsConsistent A C)
+    {D : Measure (α × β)} [SigmaFinite D] (hD : IsRealizableBy D C) (ε : ℝ) :
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D),
       ENNReal.ofReal ε < error D (A S) → ¬ IsEpsNet D (lossClass C) ε S := by
   filter_upwards [hA.ae_mem_versionSpace hD] with S hS hlt hnet
   obtain ⟨hAC, hAS⟩ := hS
-  have hset : {z : α × Bool | decide (A S z.1 ≠ z.2) = true} = {p | A S p.1 ≠ p.2} := by
+  have hset : {z : α × β | decide (A S z.1 ≠ z.2) = true} = {p | A S p.1 ≠ p.2} := by
     ext z
     simp only [Set.mem_ofPred_eq, decide_eq_true_eq]
   obtain ⟨i, hi⟩ := hnet _ ⟨A S, hAC, rfl⟩ (by rw [hset]; exact le_of_lt hlt)

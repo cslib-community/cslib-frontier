@@ -519,11 +519,9 @@ theorem isSome_holeWitness {K : ℕ} :
         have hr' : (rpre ++ r :: rpost)[pre.length]? = some r := by rw [← hlen]; simp
         simp only [hh, hr']
         refine List.findSome?_isSome_iff.mpr ⟨(γ, s₃, ℓν, s', b), FinEnum.mem_toList _, ?_⟩
-        have ht : (pre ++ ⟨i, s₁, s₂⟩ :: post).take pre.length = pre := by simp
-        have hd : (pre ++ ⟨i, s₁, s₂⟩ :: post).drop (pre.length + 1) = post := by simp
-        have ht' : (rpre ++ r :: rpost).take pre.length = rpre := by rw [← hlen]; simp
-        have hd' : (rpre ++ r :: rpost).drop (pre.length + 1) = rpost := by rw [← hlen]; simp
-        simp only [ht, hd, ht', hd']
+        simp only [List.take_left, List.take_left' hlen,
+          show (pre ++ ⟨i, s₁, s₂⟩ :: post).drop (pre.length + 1) = post by simp,
+          show (rpre ++ r :: rpost).drop (pre.length + 1) = rpost by simp [← hlen]]
         split_ifs with hc
         · exact isSome_bind_map _ (ih (List.rel_append hrpre (.cons (.cons hr hγ) hrpost)))
             (isSome_wrWitness hwr)
@@ -535,11 +533,7 @@ theorem isSome_holeWitness {K : ℕ} :
         refine List.findSome?_isSome_iff.mpr ⟨pre.length, List.mem_range.mpr (by simp), ?_⟩
         refine List.findSome?_isSome_iff.mpr ⟨(i, s₂, γ, s₃, ℓν, s', b), FinEnum.mem_toList _,
           ?_⟩
-        have ht : (pre ++ post).take pre.length = pre := by simp
-        have hd : (pre ++ post).drop pre.length = post := by simp
-        have ht' : (rpre ++ rpost).take pre.length = rpre := by rw [← hlen]; simp
-        have hd' : (rpre ++ rpost).drop pre.length = rpost := by rw [← hlen]; simp
-        simp only [ht, hd, ht', hd']
+        simp only [List.take_left, List.drop_left, List.take_left' hlen, List.drop_left' hlen]
         split_ifs with hc
         · exact isSome_bind_map _ (ih (List.rel_append hrpre (.cons (.cons .nil hγ) hrpost)))
             (isSome_wrWitness hwr)

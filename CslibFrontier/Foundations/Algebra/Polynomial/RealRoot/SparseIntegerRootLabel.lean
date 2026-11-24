@@ -38,15 +38,10 @@ slots contain derivatives of `p` and their targets from `L`. Missing slots test 
   Fin.cases (q, 1) fun j =>
     L[j.val]?.elim (0, 0) fun c => (derivative^[c.1.val + 1] p, c.2)
 
-/-- A single dyadic precision for the qualifying test and all derivative tests,
-when the source and qualifying polynomials have degree at most `D` and norm at most `2 ^ b`. -/
-@[expose] def sparseRootLabelPrecision (D b : ℕ) : ℕ :=
-  algebraicValuePrecision D D b (iterateDerivativeNormExponent D b)
-
 /-- The integer polynomial encoding the qualifying test and the first `N` derivative tests. -/
 @[expose] noncomputable def sparseIntegerRootLabel {D : ℕ} (p q : Polynomial ℤ)
     (N b : ℕ) (L : List (Fin D × SignType)) : Polynomial ℤ :=
-  signLabelPolynomial (sparseRootLabelPrecision D b)
+  signLabelPolynomial (derivativeRootLabelPrecision D b)
     (fun i => (sparseRootLabelTests p q N L i).1) (fun i => (sparseRootLabelTests p q N L i).2)
 
 private theorem sparseRootLabelTests_bounds {D N b : ℕ} {p q : Polynomial ℤ}
@@ -68,9 +63,9 @@ theorem sparseIntegerRootLabel_bounds {D N b : ℕ} {p q : Polynomial ℤ}
     (L : List (Fin D × SignType)) (hpD : p.natDegree ≤ D) (hqD : q.natDegree ≤ D)
     (hpb : p.coeffNorm1 ≤ 2 ^ b) (hqb : q.coeffNorm1 ≤ 2 ^ b) :
     (sparseIntegerRootLabel p q N b L).natDegree ≤
-        signLabelDegreeBound (N + 1) (sparseRootLabelPrecision D b) D ∧
+        signLabelDegreeBound (N + 1) (derivativeRootLabelPrecision D b) D ∧
       (sparseIntegerRootLabel p q N b L).coeffNorm1 ≤
-        2 ^ signLabelNormExponent (N + 1) (sparseRootLabelPrecision D b)
+        2 ^ signLabelNormExponent (N + 1) (derivativeRootLabelPrecision D b)
           (iterateDerivativeNormExponent D b) :=
   signLabelPolynomial_bounds _ _ _
     (fun i => (sparseRootLabelTests_bounds L hpD hqD hpb hqb i).1)
@@ -111,7 +106,7 @@ theorem eval₂_sparseIntegerRootLabel_margin {D N b : ℕ} {p q : Polynomial �
     ((1 : ℝ) / 2 ≤ y ∨ y ≤ -(1 : ℝ) / 2) ∧
       (0 < y ↔ 0 < q.eval₂ (Int.castRingHom ℝ) x ∧
         ∀ c ∈ L, (p.map (Int.castRingHom ℝ)).derivativeSign x (c.1.val + 1) = c.2) := by
-  have h := eval₂_signLabelPolynomial_margin (sparseRootLabelPrecision D b)
+  have h := eval₂_signLabelPolynomial_margin (derivativeRootLabelPrecision D b)
     (fun i => (sparseRootLabelTests p q N L i).1) (fun i => (sparseRootLabelTests p q N L i).2)
     x fun i =>
       let hb := sparseRootLabelTests_bounds L hpD hqD hpb hqb i

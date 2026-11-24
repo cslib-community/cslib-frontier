@@ -93,6 +93,10 @@ theorem isPolyTime_powerRelationWithInput
         simpa only [check, ite_eq_left hi, Function.comp_def, enc, powerInputEncoding] using
           hrel.comp ((fst _ _).prod ((hwalk.prod (const (s.1 i))).prod (hleft.prod hright)))
       · simpa only [check, ite_eq_right hi] using (const (encIn := enc) true)
+    rw [show (fun p : PowerInput P W D α T q =>
+        powerRelationWithInput rotate rel T q (p.1, (p.2.1.1, s), p.2.2)) =
+        fun p => (List.finRange T).all (check p) from
+      funext fun ⟨_, _, _, _⟩ => rfl]
     exact allWithInput (encA := encFinEnum (Fin T)) (const (List.finRange T))
       ((snd _ _).finite_cases fun i => (hcheck i).comp (fst _ _))
   exact ((snd _ _).fst'.snd').finite_cases hbranch
