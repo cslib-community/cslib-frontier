@@ -47,7 +47,7 @@ register_result "lahaie-pennock-saberi-vohra-gsp-equilibrium" where
   scope := "Static unit-weight generalized second price (GSP) auction with bidder-independent \
     CTRs μ : Fin k → ℝ (strictly decreasing and positive), nonnegative bidder values v : ι → ℝ, \
     and at least k bidders (k ≤ Fintype.card ι), filling all k slots via full embeddings \
-    σ : Fin k ↪ ι. Ties are modeled relationally by IsGSPOutcome (no fixed tie-breaking ranking \
+    σ : Fin k ↪ ι. Ties are modeled relationally by IsAssortative (no fixed tie-breaking ranking \
     function); IsGSPEquilibrium is a tie-robust Nash equilibrium requiring stability against \
     every nonnegative deviation z ≥ 0 under every consistent GSP outcome σ' of \
     Function.update b j z. \

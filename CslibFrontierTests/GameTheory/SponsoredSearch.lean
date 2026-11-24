@@ -333,15 +333,15 @@ example :
 /-- Under `μ = ![1, 1/2]` and `v = ![10, 8, 1]`, truthful bidding gives bidder `0` utility `2` in
 slot `0`. Deviating to `z = 2` yields the unique GSP outcome `emb10` (`0 ↦ 1, 1 ↦ 0`), where
 bidder `0` gets slot `1` and utility `9/2 > 2`. -/
-example : IsGSPOutcome v3 emb01 ∧
-    (∀ σ' : Fin 2 ↪ Fin 3, IsGSPOutcome (Function.update v3 0 2) σ' → σ' = emb10) ∧
+example : IsAssortative v3 emb01 ∧
+    (∀ σ' : Fin 2 ↪ Fin 3, IsAssortative (Function.update v3 0 2) σ' → σ' = emb10) ∧
     ¬IsGSPEquilibrium μ2 v3 v3 emb01 := by
   have hu0 : Function.update v3 0 2 0 = 2 := Function.update_self 0 2 v3
   have hu1 : Function.update v3 0 2 1 = 8 := by
     rw [Function.update_of_ne (by decide : (1 : Fin 3) ≠ 0)]; norm_num [v3]
   have hu2 : Function.update v3 0 2 2 = 1 := by
     rw [Function.update_of_ne (by decide : (2 : Fin 3) ≠ 0)]; norm_num [v3]
-  have hout : IsGSPOutcome (Function.update v3 0 2) emb10 := by
+  have hout : IsAssortative (Function.update v3 0 2) emb10 := by
     refine ⟨fun a b hab => ?_, fun i j hj => ?_⟩
     · match a, b with
       | 0, 0 => exact le_rfl
@@ -398,13 +398,15 @@ example : IsGSPOutcome v3 emb01 ∧
       have h0 := gspUtility_apply_slot μ2 v3 (Function.update v3 0 2) emb10 1
       rw [emb10_one] at h0
       rw [h0]
-      simp only [gspPerClickPrice, show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
+      simp only [gspPerClickPrice, nextSlotValue,
+        show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
         maxUnassigned_emb10, hu2]
       norm_num [μ2, v3]
     have hold : gspUtility μ2 v3 v3 emb01 0 = 2 := by
       have h0 : emb01 0 = 0 := rfl
       rw [← h0, gspUtility_apply_slot]
-      simp only [gspPerClickPrice, show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
+      simp only [gspPerClickPrice, nextSlotValue,
+        show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
       change μ2 0 * (v3 0 - v3 (emb01 1)) = 2
       norm_num [μ2, v3]
     linarith
@@ -439,12 +441,14 @@ example :
         | 1 => exact hx ⟨0, hσ0⟩
     · have hold0 : gspUtility μ2 v b σ 0 = 5 := by
         rw [← hσ1, gspUtility_apply_slot]
-        simp only [gspPerClickPrice, show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
+        simp only [gspPerClickPrice, nextSlotValue,
+          show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
           maxUnassigned_fin2, hσ1]
         norm_num [μ2, v]
       have hold1 : gspUtility μ2 v b σ 1 = 8 := by
         rw [← hσ0, gspUtility_apply_slot]
-        simp only [gspPerClickPrice, show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
+        simp only [gspPerClickPrice, nextSlotValue,
+          show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
         change μ2 0 * (v 1 - b (σ 1)) = 8
         rw [hσ1]; norm_num [μ2, v, b]
       obtain ⟨s, hs⟩ : j ∈ Set.range σ' :=
@@ -458,7 +462,8 @@ example :
           have hne : σ' 1 ≠ σ' 0 := σ'.injective.ne (by decide)
           rw [hs] at hne
           match h : σ' 1 with | 0 => exact (hne h).elim | 1 => rfl
-        simp only [gspPerClickPrice, show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
+        simp only [gspPerClickPrice, nextSlotValue,
+          show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
         change μ2 0 * (v 0 - Function.update b 0 z (σ' 1)) ≤ 5
         rw [hs1, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)]
         norm_num [μ2, v, b]
@@ -466,7 +471,8 @@ example :
         have hstep := gspUtility_apply_slot μ2 v (Function.update b 0 z) σ' 1
         rw [hs] at hstep
         rw [hstep, hold0]
-        simp only [gspPerClickPrice, show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
+        simp only [gspPerClickPrice, nextSlotValue,
+          show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
           maxUnassigned_fin2]
         norm_num [μ2, v]
       | 1, 0 =>
@@ -477,7 +483,8 @@ example :
           have hne : σ' 1 ≠ σ' 0 := σ'.injective.ne (by decide)
           rw [hs] at hne
           match h : σ' 1 with | 0 => rfl | 1 => exact (hne h).elim
-        simp only [gspPerClickPrice, show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
+        simp only [gspPerClickPrice, nextSlotValue,
+          show (0 : Fin 2).val + 1 < 2 by decide, ↓reduceDIte]
         change μ2 0 * (v 1 - Function.update b 1 z (σ' 1)) ≤ 8
         rw [hs1, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
         norm_num [μ2, v, b]
@@ -485,7 +492,8 @@ example :
         have hstep := gspUtility_apply_slot μ2 v (Function.update b 1 z) σ' 1
         rw [hs] at hstep
         rw [hstep, hold1]
-        simp only [gspPerClickPrice, show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
+        simp only [gspPerClickPrice, nextSlotValue,
+          show ¬((1 : Fin 2).val + 1 < 2) by decide, ↓reduceDIte,
           maxUnassigned_fin2]
         norm_num [μ2, v]
   have hnotopt : ¬IsOptimal μ2 v σ := by

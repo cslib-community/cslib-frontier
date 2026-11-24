@@ -267,15 +267,15 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
     dsimp only [v']
     rw [shiftUp_value v σ t tail htail r]
     simp only [hltv, ↓reduceIte, sub_self]
-  rw [hlt_zero, zero_add]
+  rw [hlt_zero, zero_add, minEnvyFreePrice_eq_sum]
   refine Finset.sum_congr rfl fun r hr => ?_
   have hge : t ≤ r := Finset.mem_Ici.mp hr
   have hnotlt : ¬(r.val < t.val) := Nat.not_lt.mpr hge
   rw [shiftUp_value v σ t tail htail r]
   by_cases hsucc : r.val + 1 < k
-  · simp only [hnotlt, hsucc, ↓reduceIte, ↓reduceDIte]
+  · simp only [nextSlotValue, hnotlt, hsucc, ↓reduceIte, ↓reduceDIte]
     ring
-  · simp only [hnotlt, hsucc, ↓reduceIte, ↓reduceDIte, hval]
+  · simp only [nextSlotValue, hnotlt, hsucc, ↓reduceIte, ↓reduceDIte, hval]
     ring
 
 private theorem shiftUp_isAssortative [DecidableEq ι] {v : ι → ℝ} {σ : Fin k ↪ ι}

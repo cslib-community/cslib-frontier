@@ -61,6 +61,8 @@ identified with the Clarke-pivot payments of `Cslib.GameTheory.Mechanism.vcg` in
   `lastSlot_nonneg`, `unassigned_noEnvy`).
 * `Cslib.GameTheory.SponsoredSearch.maxUnassignedValue`: maximum value among unassigned bidders
   (`0` if every bidder is assigned).
+* `Cslib.GameTheory.SponsoredSearch.nextSlotValue`: value in the next lower slot (`v (σ (i + 1))`
+  or a fallback `base` at the last slot).
 * `Cslib.GameTheory.SponsoredSearch.minEnvyFreePrice`: explicit revenue-minimal nonnegative
   locally envy-free total slot price vector.
 
@@ -437,6 +439,23 @@ theorem IsLocallyEnvyFree.utility_nonneg {μ : Fin k → ℝ} {v : ι → ℝ} {
   have h2 := hlef.noEnvy hμ hμ_pos i last
   nlinarith
 
+private theorem fin_rev_induction {P : Fin k → Prop} (hk : 0 < k)
+    (hlast : P ⟨k - 1, by omega⟩)
+    (hstep : ∀ (i : ℕ) (hi : i + 1 < k), P ⟨i + 1, hi⟩ → P ⟨i, by omega⟩)
+    (r : Fin k) : P r := by
+  have hdown : ∀ d (hd : d < k), P ⟨k - 1 - d, by omega⟩ := by
+    intro d
+    induction d with
+    | zero => intro _; exact hlast
+    | succ n ih =>
+      intro hd
+      have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ := by
+        apply Fin.ext; dsimp; omega
+      exact hstep (k - 1 - (n + 1)) (by omega) (hfinEq.symm ▸ ih (by omega))
+  have heq : (⟨k - 1 - (k - 1 - r.val), by omega⟩ : Fin k) = r := by
+    apply Fin.ext; dsimp; omega
+  exact heq ▸ hdown (k - 1 - r.val) (by omega)
+
 /-- Under strictly decreasing positive CTRs, no unassigned bidder envies *any* slot under a locally
 envy-free price vector. -/
 theorem IsLocallyEnvyFree.unassigned_noEnvy_slot {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin k ↪ ι}
@@ -445,27 +464,13 @@ theorem IsLocallyEnvyFree.unassigned_noEnvy_slot {μ : Fin k → ℝ} {v : ι �
     μ r * v j - p r ≤ 0 := by
   have hσ := hlef.isAssortative hμ hμ_pos
   have hk : 0 < k := Fin.pos r
-  have hdown : ∀ d (hd : d < k),
-      μ ⟨k - 1 - d, by omega⟩ * v j - p ⟨k - 1 - d, by omega⟩ ≤ 0 := by
-    intro d
-    induction d with
-    | zero => intro _; exact hlef.unassigned_noEnvy hk j hj
-    | succ n ih =>
-      intro hd
-      have hs := hlef.noEnvyAbove (k - 1 - (n + 1)) (by omega)
-      have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ := by
-        apply Fin.ext; dsimp; omega
-      rw [hfinEq] at hs
-      have hv : v j ≤ v (σ ⟨k - 1 - n, by omega⟩) := hσ.unassigned_le ⟨k - 1 - n, by omega⟩ j hj
-      have hμle : μ ⟨k - 1 - n, by omega⟩ ≤ μ ⟨k - 1 - (n + 1), by omega⟩ :=
-        (hμ (show (⟨k - 1 - (n + 1), by omega⟩ : Fin k) < ⟨k - 1 - n, by omega⟩ by
-          change k - 1 - (n + 1) < k - 1 - n; omega)).le
-      have hih := ih (by omega)
-      nlinarith
-  have heq : (⟨k - 1 - (k - 1 - r.val), by omega⟩ : Fin k) = r := by
-    apply Fin.ext; dsimp; omega
-  have hfin := hdown (k - 1 - r.val) (by omega)
-  simpa only [heq] using hfin
+  refine fin_rev_induction (P := fun s => μ s * v j - p s ≤ 0) hk
+    (hlef.unassigned_noEnvy hk j hj) (fun i hi hih => ?_) r
+  have hs := hlef.noEnvyAbove i hi
+  have hv : v j ≤ v (σ ⟨i + 1, hi⟩) := hσ.unassigned_le ⟨i + 1, hi⟩ j hj
+  have hμle : μ ⟨i + 1, hi⟩ ≤ μ ⟨i, by omega⟩ :=
+    (hμ (show (⟨i, by omega⟩ : Fin k) < ⟨i + 1, hi⟩ by simp [Fin.lt_def])).le
+  nlinarith
 
 /-- The highest value `v j` among unassigned bidders `j ∉ Set.range σ`, or `0` if every bidder is
 assigned (`Fintype.card ι = k`). -/
@@ -521,11 +526,15 @@ theorem maxUnassignedValue_congr [Fintype ι] [DecidableEq ι] {v₁ v₂ : ι �
     exact hj i rfl
   · rfl
 
+/-- The value directly below slot `i : Fin k` under assignment `σ`: `v (σ (i + 1))` when
+`i.val + 1 < k`, and the fallback `base` at the last slot `i = k - 1`. -/
+@[expose] def nextSlotValue (v : ι → ℝ) (σ : Fin k ↪ ι) (base : ℝ) (i : Fin k) : ℝ :=
+  if h : i.val + 1 < k then v (σ ⟨i.val + 1, h⟩) else base
+
 private def priceFromBase (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (base : ℝ)
     (i : Fin k) : ℝ :=
   ∑ r ∈ Finset.Ici i,
-    (μ r - (if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ else 0)) *
-      (if h : r.val + 1 < k then v (σ ⟨r.val + 1, h⟩) else base)
+    (μ r - (if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ else 0)) * nextSlotValue v σ base r
 
 private theorem priceFromBase_sub_succ (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (base : ℝ)
     (i : ℕ) (hi : i + 1 < k) :
@@ -541,7 +550,7 @@ private theorem priceFromBase_sub_succ (μ : Fin k → ℝ) (v : ι → ℝ) (σ
     omega
   unfold priceFromBase
   rw [hIci, Finset.sum_insert hnotmem, add_sub_cancel_right]
-  simp only [hi, ↓reduceDIte]
+  simp only [nextSlotValue, hi, ↓reduceDIte]
 
 private theorem priceFromBase_last (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (base : ℝ)
     (hk : 0 < k) :
@@ -551,7 +560,7 @@ private theorem priceFromBase_last (μ : Fin k → ℝ) (v : ι → ℝ) (σ : F
     simp only [Finset.mem_Ici, Finset.mem_singleton, Fin.le_def, Fin.ext_iff]
     omega
   have hnot : ¬(k - 1 + 1 < k) := by omega
-  simp only [priceFromBase, hIci, Finset.sum_singleton, hnot, ↓reduceDIte, sub_zero]
+  simp only [priceFromBase, hIci, Finset.sum_singleton, nextSlotValue, hnot, ↓reduceDIte, sub_zero]
 
 private theorem isLocallyEnvyFree_priceFromBase {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin k ↪ ι}
     {base : ℝ} (hσ : IsAssortative v σ) (hμ : Antitone μ) (hμ_nonneg : ∀ i, 0 ≤ μ i)
@@ -586,11 +595,18 @@ private theorem isLocallyEnvyFree_priceFromBase {μ : Fin k → ℝ} {v : ι →
 In [LahaiePennockSaberiVohra2007], §28.3.2, p. 706, these are called the *Vickrey prices*;
 `CslibFrontier.GameTheory.Mechanism.SponsoredSearch.VCG` proves they equal the Clarke-pivot
 payments of `Cslib.GameTheory.Mechanism.vcg`. -/
-@[expose] noncomputable def minEnvyFreePrice [Fintype ι] [DecidableEq ι]
+noncomputable def minEnvyFreePrice [Fintype ι] [DecidableEq ι]
     (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (i : Fin k) : ℝ :=
-  ∑ r ∈ Finset.Ici i,
-    (μ r - (if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ else 0)) *
-      (if h : r.val + 1 < k then v (σ ⟨r.val + 1, h⟩) else maxUnassignedValue v σ)
+  priceFromBase μ v σ (maxUnassignedValue v σ) i
+
+/-- Explicit sum expansion of `minEnvyFreePrice`. -/
+theorem minEnvyFreePrice_eq_sum [Fintype ι] [DecidableEq ι]
+    (μ : Fin k → ℝ) (v : ι → ℝ) (σ : Fin k ↪ ι) (i : Fin k) :
+    minEnvyFreePrice μ v σ i =
+      ∑ r ∈ Finset.Ici i,
+        (μ r - (if h : r.val + 1 < k then μ ⟨r.val + 1, h⟩ else 0)) *
+          nextSlotValue v σ (maxUnassignedValue v σ) r := by
+  simp only [minEnvyFreePrice, priceFromBase]
 
 /-- Adjacent slot difference for `minEnvyFreePrice`. -/
 theorem minEnvyFreePrice_sub_succ [Fintype ι] [DecidableEq ι] (μ : Fin k → ℝ) (v : ι → ℝ)
@@ -614,7 +630,8 @@ theorem minEnvyFreePrice_nonneg [Fintype ι] [DecidableEq ι] {μ : Fin k → �
   · split_ifs with h
     · exact sub_nonneg.mpr (hμ (show r ≤ ⟨r.val + 1, h⟩ by change r.val ≤ r.val + 1; omega))
     · rw [sub_zero]; exact hμ_nonneg r
-  · split_ifs
+  · unfold nextSlotValue
+    split_ifs
     · exact hv _
     · exact maxUnassignedValue_nonneg hv σ
 
@@ -635,39 +652,24 @@ theorem minEnvyFreePrice_le [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ} {
     {σ : Fin k ↪ ι} {p : Fin k → ℝ} (hp : IsLocallyEnvyFree μ v σ p) (hp_nonneg : ∀ i, 0 ≤ p i)
     (i : Fin k) : minEnvyFreePrice μ v σ i ≤ p i := by
   have hk : 0 < k := Fin.pos i
-  have hdown : ∀ d (hd : d < k),
-      minEnvyFreePrice μ v σ ⟨k - 1 - d, by omega⟩ ≤ p ⟨k - 1 - d, by omega⟩ := by
-    intro d
-    induction d with
-    | zero =>
-      intro _
-      have h0 : (⟨k - 1 - 0, by omega⟩ : Fin k) = ⟨k - 1, by omega⟩ := rfl
-      rw [h0, minEnvyFreePrice_last μ v σ hk]
-      unfold maxUnassignedValue
-      split_ifs with hne
-      · obtain ⟨j, hjmem, hj⟩ := Finset.exists_mem_eq_sup' hne v
-        rw [hj]
-        have hj' : j ∉ Set.range σ := by
-          simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
-            not_exists] at hjmem
-          rintro ⟨r, rfl⟩
-          exact hjmem r rfl
-        have := hp.unassigned_noEnvy hk j hj'
-        linarith
-      · rw [mul_zero]; exact hp_nonneg ⟨k - 1, by omega⟩
-    | succ n ih =>
-      intro hd
-      have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ := by
-        apply Fin.ext; dsimp; omega
-      have hdiff := minEnvyFreePrice_sub_succ μ v σ (k - 1 - (n + 1)) (by omega)
-      have hne := hp.noEnvyAbove (k - 1 - (n + 1)) (by omega)
-      rw [hfinEq] at hdiff hne
-      have hih := ih (by omega)
+  refine fin_rev_induction (P := fun r => minEnvyFreePrice μ v σ r ≤ p r) hk ?_
+    (fun r hr hih => ?_) i
+  · rw [minEnvyFreePrice_last μ v σ hk]
+    unfold maxUnassignedValue
+    split_ifs with hne
+    · obtain ⟨j, hjmem, hj⟩ := Finset.exists_mem_eq_sup' hne v
+      rw [hj]
+      have hj' : j ∉ Set.range σ := by
+        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
+          not_exists] at hjmem
+        rintro ⟨r, rfl⟩
+        exact hjmem r rfl
+      have := hp.unassigned_noEnvy hk j hj'
       linarith
-  have heq : (⟨k - 1 - (k - 1 - i.val), by omega⟩ : Fin k) = i := by
-    apply Fin.ext; dsimp; omega
-  have hfin := hdown (k - 1 - i.val) (by omega)
-  simpa only [heq] using hfin
+    · rw [mul_zero]; exact hp_nonneg ⟨k - 1, by omega⟩
+  · have hdiff := minEnvyFreePrice_sub_succ μ v σ r hr
+    have hne := hp.noEnvyAbove r hr
+    linarith
 
 /-- **Theorem 28.1** ([LahaiePennockSaberiVohra2007], §28.3.2, p. 706): under strictly decreasing
 positive click-through rates `μ`, a full assignment `σ : Fin k ↪ ι` is optimal if and only if

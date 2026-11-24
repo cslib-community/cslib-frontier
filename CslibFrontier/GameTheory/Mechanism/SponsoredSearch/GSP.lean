@@ -20,12 +20,13 @@ The unit-weight generalized second price (GSP) auction ("rank by bid", Overture 
 static full-information model with bidder-independent click-through rates `μ : Fin k → ℝ`
 ([LahaiePennockSaberiVohra2007], Chapter 28, §§28.2–28.3, pp. 701–707).
 
-Rather than choosing a fixed tie-breaking bid-ranking function, the auction is formulated as an
-*outcome relation*: an assignment `σ : Fin k ↪ ι` is a valid GSP outcome of a bid profile
-`b : ι → ℝ` (`IsGSPOutcome b σ`, an abbreviation for `IsAssortative b σ`) whenever bids are
-non-increasing along the slots and every unassigned bidder bids at most every assigned bidder's bid.
-The per-click price charged to slot `i` is `gspPerClickPrice b σ i`: the bid of the bidder in slot
-`i + 1`, or the highest unassigned bid (`0` if all bidders are assigned) for the last slot.
+Rather than choosing a fixed tie-breaking bid-ranking function, the auction is formulated via the
+outcome relation `IsAssortative b σ` (`EnvyFree`): an assignment `σ : Fin k ↪ ι` is a valid
+unit-weight GSP outcome of a bid profile `b : ι → ℝ` whenever bids are non-increasing along the
+slots and every unassigned bidder bids at most every assigned bidder's bid (ties may be broken
+arbitrarily). The per-click price charged to slot `i` is `gspPerClickPrice b σ i`: the bid of the
+bidder in slot `i + 1`, or the highest unassigned bid (`0` if all bidders are assigned) for the
+last slot (`nextSlotValue b σ (maxUnassignedValue b σ) i`).
 
 A bid profile and outcome `(b, σ)` form a **tie-robust full-information (Nash) equilibrium**
 (`IsGSPEquilibrium`) if `b` is nonnegative, `σ` is a GSP outcome of `b`, and no bidder can raise its
@@ -50,7 +51,6 @@ p. 707; we prove it in full (independently of tie-breaking) via a pigeonhole low
 
 ## Main definitions
 
-* `Cslib.GameTheory.SponsoredSearch.IsGSPOutcome`: outcome relation (ties broken arbitrarily).
 * `Cslib.GameTheory.SponsoredSearch.gspPerClickPrice`: per-click price charged to slot `i`.
 * `Cslib.GameTheory.SponsoredSearch.gspSlotPrice`: total expected payment `μ i * gspPerClickPrice`.
 * `Cslib.GameTheory.SponsoredSearch.gspUtility`: quasilinear utility of bidder `j`.
@@ -79,20 +79,13 @@ namespace Cslib.GameTheory.SponsoredSearch
 
 variable {k : ℕ} {ι : Type*}
 
-/-- The GSP outcome relation for unit weights (`wⱼ = 1`, [LahaiePennockSaberiVohra2007], §28.2,
-p. 702): an assignment `σ : Fin k ↪ ι` is a valid outcome of bid profile `b : ι → ℝ` when bids are
-non-increasing along the slots and every unassigned bidder bids at most every assigned bidder's bid.
-Ties may be broken arbitrarily. -/
-abbrev IsGSPOutcome (b : ι → ℝ) (σ : Fin k ↪ ι) : Prop :=
-  IsAssortative b σ
-
 /-- Per-click price charged to slot `i : Fin k` under the unit-weight GSP auction with bids `b`
 and assignment `σ`: the bid of the bidder in slot `i + 1`, or the highest unassigned bid
 (`maxUnassignedValue b σ`, which is `0` when all bidders are assigned) for the last slot
 ([LahaiePennockSaberiVohra2007], §28.2, p. 702). -/
 @[expose] noncomputable def gspPerClickPrice [Fintype ι] [DecidableEq ι]
     (b : ι → ℝ) (σ : Fin k ↪ ι) (i : Fin k) : ℝ :=
-  if h : i.val + 1 < k then b (σ ⟨i.val + 1, h⟩) else maxUnassignedValue b σ
+  nextSlotValue b σ (maxUnassignedValue b σ) i
 
 /-- Total expected payment per impression for slot `i : Fin k` under GSP
 (`μ i * gspPerClickPrice`). -/
@@ -125,7 +118,7 @@ theorem gspUtility_of_not_mem_range [Fintype ι] [DecidableEq ι]
 private theorem gspPerClickPrice_nonneg [Fintype ι] [DecidableEq ι]
     {b : ι → ℝ} (hb : ∀ j, 0 ≤ b j) (σ : Fin k ↪ ι) (i : Fin k) :
     0 ≤ gspPerClickPrice b σ i := by
-  unfold gspPerClickPrice
+  unfold gspPerClickPrice nextSlotValue
   split_ifs
   · exact hb _
   · exact maxUnassignedValue_nonneg hb σ
@@ -134,7 +127,7 @@ private theorem gspPerClickPrice_nonneg [Fintype ι] [DecidableEq ι]
 if `x` sits in slot `s` and there is a set `T` of at least `s + 1` *other* bidders each bidding
 at least `c`, then the per-click price paid by slot `s` is at least `c` (any tie-breaking). -/
 private theorem le_gspPerClickPrice_of_card_le [Fintype ι] [DecidableEq ι]
-    {b' : ι → ℝ} {σ' : Fin k ↪ ι} (hσ' : IsGSPOutcome b' σ') {s : Fin k} {x : ι}
+    {b' : ι → ℝ} {σ' : Fin k ↪ ι} (hσ' : IsAssortative b' σ') {s : Fin k} {x : ι}
     (hsx : σ' s = x) {T : Finset ι} (hxT : x ∉ T) (hcard : s.val + 1 ≤ T.card)
     {c : ℝ} (hbid : ∀ y ∈ T, c ≤ b' y) :
     c ≤ gspPerClickPrice b' σ' s := by
@@ -166,27 +159,29 @@ private theorem le_gspPerClickPrice_of_card_le [Fintype ι] [DecidableEq ι]
     have hrs : s < r := lt_of_le_of_ne (not_lt.mp hr_not_lt) hr_ne.symm
     have hlt : s.val + 1 < k := lt_of_le_of_lt hrs r.isLt
     have hle : (⟨s.val + 1, hlt⟩ : Fin k) ≤ r := by change s.val + 1 ≤ r.val; exact hrs
-    simp only [gspPerClickPrice, hlt, ↓reduceDIte]
+    simp only [gspPerClickPrice, nextSlotValue, hlt, ↓reduceDIte]
     exact hcb.trans (hσ'.antitone hle)
-  · unfold gspPerClickPrice
+  · unfold gspPerClickPrice nextSlotValue
     split_ifs with hlt
     · exact hcb.trans (hσ'.unassigned_le ⟨s.val + 1, hlt⟩ y hyrange)
     · exact hcb.trans (le_maxUnassignedValue b' σ' hyrange)
 
 /-- A bid profile `b : ι → ℝ` and assignment `σ : Fin k ↪ ι` form a **tie-robust full-information
 (Nash) equilibrium** of the unit-weight GSP auction ([LahaiePennockSaberiVohra2007], §28.3.2,
-pp. 705–707) if bids are nonnegative, `σ` is a valid GSP outcome of `b`, and no bidder can
-strictly improve its utility by changing its bid to any `z ≥ 0` under *any* consistent GSP
-outcome `σ'` of the updated bid profile `Function.update b j z`. -/
+pp. 705–707) if bids are nonnegative, `σ` is a valid unit-weight GSP outcome of `b` (i.e.,
+`IsAssortative b σ`: bids are non-increasing along the slots and unassigned bidders bid at most
+every assigned bidder's bid, breaking ties arbitrarily), and no bidder can strictly improve its
+utility by changing its bid to any `z ≥ 0` under *any* consistent GSP outcome `σ'`
+(`IsAssortative (Function.update b j z) σ'`). -/
 structure IsGSPEquilibrium [Fintype ι] [DecidableEq ι]
     (μ : Fin k → ℝ) (v b : ι → ℝ) (σ : Fin k ↪ ι) : Prop where
   /-- Every bid is nonnegative. -/
   nonneg : ∀ j, 0 ≤ b j
-  /-- `σ` is a valid GSP outcome of `b`. -/
-  outcome : IsGSPOutcome b σ
+  /-- `σ` is a valid unit-weight GSP outcome of `b` (`IsAssortative b σ`). -/
+  outcome : IsAssortative b σ
   /-- No unilateral deviation to a nonnegative bid `z` helps under any tie-breaking outcome `σ'`. -/
   noDeviation : ∀ (j : ι) (z : ℝ), 0 ≤ z → ∀ (σ' : Fin k ↪ ι),
-    IsGSPOutcome (Function.update b j z) σ' →
+    IsAssortative (Function.update b j z) σ' →
     gspUtility μ v (Function.update b j z) σ' j ≤ gspUtility μ v b σ j
 
 /-- Explicit equilibrium bid profile implementing `minEnvyFreePrice μ v σ`
@@ -239,7 +234,7 @@ theorem minEnvyFreeBid_of_not_mem_range [Fintype ι] [DecidableEq ι] (μ : Fin 
 theorem gspPerClickPrice_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ} {v : ι → ℝ}
     {σ : Fin k ↪ ι} (hμ_pos : ∀ i, 0 < μ i) (i : Fin k) :
     gspPerClickPrice (minEnvyFreeBid μ v σ) σ i = minEnvyFreePrice μ v σ i / μ i := by
-  unfold gspPerClickPrice
+  unfold gspPerClickPrice nextSlotValue
   split_ifs with hlt
   · exact minEnvyFreeBid_slot_succ μ v σ i.val hlt
   · have heq : i = ⟨k - 1, by omega⟩ := by apply Fin.ext; dsimp; omega
@@ -268,10 +263,10 @@ private theorem price_div_ctr_antitone {μ : Fin k → ℝ} {v : ι → ℝ} {σ
   rw [div_le_div_iff₀ h2 h1]
   nlinarith
 
-private theorem isGSPOutcome_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ}
+private theorem isAssortative_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ}
     {v : ι → ℝ} {σ : Fin k ↪ ι} (hσ : IsAssortative v σ) (hμ : StrictAnti μ)
     (hμ_pos : ∀ i, 0 < μ i) (hv : ∀ j, 0 ≤ v j) :
-    IsGSPOutcome (minEnvyFreeBid μ v σ) σ := by
+    IsAssortative (minEnvyFreeBid μ v σ) σ := by
   have hlef : IsLocallyEnvyFree μ v σ (minEnvyFreePrice μ v σ) :=
     isLocallyEnvyFree_minEnvyFreePrice hσ hμ.antitone (fun i => (hμ_pos i).le) hv
   have hanti : Antitone (minEnvyFreeBid μ v σ ∘ σ) := by
@@ -330,7 +325,7 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
   let p := minEnvyFreePrice μ v σ
   have hlef : IsLocallyEnvyFree μ v σ p :=
     isLocallyEnvyFree_minEnvyFreePrice hσ hμ.antitone (fun i => (hμ_pos i).le) hv
-  have hb_out : IsGSPOutcome b σ := isGSPOutcome_minEnvyFreeBid hσ hμ hμ_pos hv
+  have hb_out : IsAssortative b σ := isAssortative_minEnvyFreeBid hσ hμ hμ_pos hv
   have hb_nonneg : ∀ j, 0 ≤ b j := fun j => by
     dsimp only [b, minEnvyFreeBid]
     split_ifs
