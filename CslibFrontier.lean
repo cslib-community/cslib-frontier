@@ -1414,9 +1414,14 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Sort.Run
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Sort.Words
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.ProgRun
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.Run
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunCount
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunGood
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunRename
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunSum
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunValue
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunWord
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.Task
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.WordCode
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Alpha
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.CmpU
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.SortU
@@ -3216,6 +3221,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateReindex
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentCounts
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentRestriction
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Components
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ConnectedEuler
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CornerContraction
@@ -6346,6 +6352,7 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordExtraction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordReduction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtraction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Domain
@@ -9830,6 +9837,9 @@ public import CslibFrontier.MachineLearning.LossMinimization.Smooth
 public import CslibFrontier.MachineLearning.LossMinimization.Squared
 public import CslibFrontier.MachineLearning.LossMinimization.Stability
 public import CslibFrontier.MachineLearning.LossMinimization.StochasticGradientDescent
+public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.Basic
+public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.EXP3
+public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.UCB1
 public import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
 public import CslibFrontier.MachineLearning.OnlineLearning.Calibration
 public import CslibFrontier.MachineLearning.OnlineLearning.ConvexOnlineToBatch
@@ -9869,6 +9879,7 @@ public import CslibFrontier.MachineLearning.PACLearning.Compression.Order
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Shattering
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Thresholds
 public import CslibFrontier.MachineLearning.PACLearning.Compression.VCDimension
+public import CslibFrontier.MachineLearning.PACLearning.DSDimension
 public import CslibFrontier.MachineLearning.PACLearning.DoubleSample
 public import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
 public import CslibFrontier.MachineLearning.PACLearning.ERM
@@ -9878,9 +9889,11 @@ public import CslibFrontier.MachineLearning.PACLearning.FiniteClass
 public import CslibFrontier.MachineLearning.PACLearning.FundamentalTheorem
 public import CslibFrontier.MachineLearning.PACLearning.GrowthFunction
 public import CslibFrontier.MachineLearning.PACLearning.Halfspaces
+public import CslibFrontier.MachineLearning.PACLearning.HausslerPacking
 public import CslibFrontier.MachineLearning.PACLearning.MDL
 public import CslibFrontier.MachineLearning.PACLearning.NatarajanAgnostic
 public import CslibFrontier.MachineLearning.PACLearning.NatarajanDimension
+public import CslibFrontier.MachineLearning.PACLearning.NatarajanPacking
 public import CslibFrontier.MachineLearning.PACLearning.NatarajanUpperBound
 public import CslibFrontier.MachineLearning.PACLearning.Nonuniform
 public import CslibFrontier.MachineLearning.PACLearning.OneInclusionGraph
