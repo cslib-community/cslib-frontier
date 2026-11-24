@@ -72,14 +72,11 @@ theorem sum_fourierCoeff_sq_parityOn_le :
   norm_num at h
   exact h
 
-/-- The coefficients of the parity of the first of two bits weigh exactly `1`, so the bound
-`0 + 1 · 1²` of `sum_fourierCoeff_sq_parityOn_le` is attained. -/
+/-- The coefficients of the parity of the first of two bits weigh exactly `1`, as for every
+Boolean function, so the bound `0 + 1 · 1²` of `sum_fourierCoeff_sq_parityOn_le` is attained. -/
 theorem sum_fourierCoeff_sq_parityOn_eq_one :
-    ∑ S, fourierCoeff (fun x => signVal (parityOn ({0} : Finset (Fin 2)) x)) S ^ 2 = 1 := by
-  rw [sum_eq_single_of_mem {0} (mem_univ _) fun U _ hU => by
-    rw [fourierCoeff_signVal_parityOn]; simp [hU]]
-  rw [fourierCoeff_signVal_parityOn]
-  simp
+    ∑ S, fourierCoeff (fun x => signVal (parityOn ({0} : Finset (Fin 2)) x)) S ^ 2 = 1 :=
+  sum_fourierCoeff_sq_signVal _
 
 /-- On samples accurate at precision `1 / 4`, the hypothesis with threshold `1` errs on at most a
 quarter of the inputs for a parity: no coefficient of a parity lies strictly between `0` and
