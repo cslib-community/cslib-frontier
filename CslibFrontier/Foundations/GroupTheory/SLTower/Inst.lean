@@ -165,12 +165,8 @@ chamber. -/
   first : FQ h2 kind (evX start)
 
 instance instFiniteEE (h2 : 2 ≤ h) (j : ℕ) : Finite (EE h n h2 j) :=
-  Finite.of_injective (fun e : EE h n h2 j => (e.kind, e.start)) fun a b e => by
-    obtain ⟨a1, a2, _⟩ := a
-    obtain ⟨b1, b2, _⟩ := b
-    simp only [Prod.mk.injEq] at e
-    obtain ⟨rfl, rfl⟩ := e
-    rfl
+  Finite.of_injective (fun e : EE h n h2 j => (e.kind, e.start)) fun _ _ e =>
+    EE.ext (congrArg Prod.fst e) (congrArg Prod.snd e)
 
 noncomputable instance instFintypeEE (h2 : 2 ≤ h) (j : ℕ) : Fintype (EE h n h2 j) :=
   Fintype.ofFinite _
@@ -309,12 +305,8 @@ theorem deg_edges (h2 : 2 ≤ h) (j : ℕ) (c : XX h n j) (i : Fin h) :
   first : FU idx elt
 
 instance instFiniteNN : Finite (NN h) :=
-  Finite.of_injective (fun ν : NN h => (ν.idx, ν.elt)) fun a b e => by
-    obtain ⟨a1, a2, _⟩ := a
-    obtain ⟨b1, b2, _⟩ := b
-    simp only [Prod.mk.injEq] at e
-    obtain ⟨rfl, rfl⟩ := e
-    rfl
+  Finite.of_injective (fun ν : NN h => (ν.idx, ν.elt)) fun _ _ e =>
+    NN.ext (congrArg Prod.fst e) (congrArg Prod.snd e)
 
 noncomputable instance instFintypeNN : Fintype (NN h) := Fintype.ofFinite _
 
