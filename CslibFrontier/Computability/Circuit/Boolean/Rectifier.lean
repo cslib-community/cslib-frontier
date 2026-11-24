@@ -69,12 +69,16 @@ first-layer wires.
 * `Cslib.Circuits.Boolean.Rectifier.IsTwoLayer`: a composition of two matrix layers, with a
   distinct terminal gate for every output.
 * `Cslib.Circuits.Boolean.Rectifier.rowPatternCircuit`: the two-layer row-pattern construction.
+* `Cslib.Circuits.Boolean.Rectifier.sumInterpretation`: the same arity-indexed gates interpreted
+  as sums in an additive commutative monoid.
 
 ## Main results
 
 * `Cslib.Circuits.Boolean.Rectifier.exists_depth_two`: Lupanov's finite row-pattern bound.
 * `Cslib.Circuits.Boolean.Rectifier.exists_depth_two_blocked_exact`: the wire count after
   splitting the columns into blocks of a freely chosen positive width.
+* `Cslib.Circuits.Boolean.Rectifier.exists_twoLayer_sum`: the same construction computes
+  matrix sums, with exact wire and gate counts, for compiling linear maps.
 * `Cslib.Circuits.Boolean.Rectifier.IsTwoLayer.orDepthComplexity_two_le`: a two-layer circuit
   bounds `orDepthComplexity 2` of the transposed matrix by its wire count.
 * `Cslib.Circuits.orDepthComplexity_two_le_add_mul_two_pow`: the row-pattern bound for
@@ -137,6 +141,11 @@ theorem eval_layer (A : Matrix (Fin p) (Fin q) Bool) (x : Fin p → Bool) :
 theorem cost_layer (A : Matrix (Fin p) (Fin q) Bool) :
     (layer A).program.cost id = ∑ j, #{i | A i j = true} := by
   simp only [layer, Circuit.cost_program_pi, Circuit.cost_program_oneGate, id_eq]
+
+/-- A matrix layer has one gate for each output, including zero-input outputs. -/
+theorem size_layer (A : Matrix (Fin p) (Fin q) Bool) : (layer A).size = q := by
+  simp only [layer, Circuit.size_pi, Circuit.size_oneGate, sum_const, card_univ,
+    Fintype.card_fin, smul_eq_mul, mul_one]
 
 /-- A disjunction layer has depth at most one, including when there are no outputs. -/
 theorem depth_layer_le (A : Matrix (Fin p) (Fin q) Bool) : (layer A).depth ≤ 1 := by
@@ -405,6 +414,10 @@ private theorem isTwoLayer_blockCircuit {b s : ℕ}
     IsTwoLayer (blockCircuit A select) :=
   ⟨b * 2 ^ s, blockClasses A, (blockPatterns b s).submatrix id select, rfl⟩
 
+private def padColumns (A : Matrix (Fin p) (Fin q) Bool) (r : ℕ) :
+    Matrix (Fin p) (Fin r) Bool :=
+  Matrix.of fun i j => if h : j.val < q then A i ⟨j.val, h⟩ else false
+
 /-- Block synthesis, the finite construction behind the upper bound of [Lupanov1956],
 section 2°, Theorem 1 (proof, part 1; English translation, PDF p. 3). Splitting the `q` columns
 into `⌈q / s⌉` blocks of width `s`, the last one padded with zero columns, and applying the
@@ -419,14 +432,97 @@ theorem exists_depth_two_blocked_exact (A : Matrix (Fin p) (Fin q) Bool) {s : �
         c.program.cost id = (q ⌈/⌉ s) * p + q * 2 ^ (s - 1) := by
   have hq : q ≤ (q ⌈/⌉ s) * s := by
     simpa only [smul_eq_mul, Nat.mul_comm] using (le_smul_ceilDiv hs : q ≤ s • (q ⌈/⌉ s))
-  let padded : Matrix (Fin p) (Fin ((q ⌈/⌉ s) * s)) Bool :=
-    Matrix.of fun i j => if h : j.val < q then A i ⟨j.val, h⟩ else false
+  let padded := padColumns A ((q ⌈/⌉ s) * s)
   refine ⟨blockCircuit padded (Fin.castLE hq), isTwoLayer_blockCircuit _ _, ?_,
     cost_blockCircuit _ _⟩
   intro x
   rw [eval_blockCircuit]
   funext j
-  simp only [matrixAction, padded, Matrix.of_apply, Fin.val_castLE, j.isLt, dite_true]
+  simp only [matrixAction, padded, padColumns, Matrix.of_apply, Fin.val_castLE, j.isLt, dite_true]
+
+/-! ### Additive interpretation
+
+The row classes partition the inputs to each output. Consequently the same circuit computes
+their sum in any additive commutative monoid, with no repeated summands. In the Boolean ring,
+this interprets the construction as a linear circuit over XOR. -/
+
+/-- Interpret an arity-indexed gate as the sum of its arguments. -/
+@[expose] def sumInterpretation (R : Type*) [AddCommMonoid R] : Interpretation signature R :=
+  fun _ x => ∑ i, x i
+
+/-- A matrix layer interpreted additively sums the inputs selected by each column. -/
+theorem eval_layer_sum {R : Type*} [AddCommMonoid R]
+    (A : Matrix (Fin p) (Fin q) Bool) (x : Fin p → R) :
+    (layer A).eval (sumInterpretation R) x = fun j => ∑ i, if A i j = true then x i else 0 := by
+  funext j
+  simp only [layer, Circuit.eval_pi, Circuit.eval_oneGate, sumInterpretation]
+  erw [((univ.filter fun i => A i j = true).equivFin.symm).sum_comp
+    (fun i : (univ.filter fun i => A i j = true) => x i)]
+  rw [sum_coe_sort, sum_filter]
+
+private theorem eval_blockCircuit_sum {R : Type*} [AddCommMonoid R] {b s : ℕ}
+    (A : Matrix (Fin p) (Fin (b * s)) Bool) (select : Fin q → Fin (b * s)) (x : Fin p → R) :
+    (blockCircuit A select).eval (sumInterpretation R) x =
+      fun j => ∑ i, if A i (select j) = true then x i else 0 := by
+  rw [blockCircuit, Circuit.eval_comp, eval_layer_sum, eval_layer_sum]
+  funext j
+  change (∑ r, if blockPatterns b s r (select j) = true then
+    (∑ i, if blockClasses A i r = true then x i else 0) else 0) = _
+  calc
+    _ = ∑ r, ∑ i, if blockPatterns b s r (select j) = true then
+        (if blockClasses A i r = true then x i else 0) else 0 :=
+      sum_congr rfl fun r _ => ite_sum_zero _ _ _
+    _ = ∑ i, ∑ r, if blockPatterns b s r (select j) = true then
+        (if blockClasses A i r = true then x i else 0) else 0 := sum_comm
+    _ = _ := by
+      apply sum_congr rfl
+      intro i _
+      let r₀ := finProdFinEquiv ((finProdFinEquiv.symm (select j)).1,
+        BitString.equivFin s (blockSlice A (finProdFinEquiv.symm (select j)).1 i))
+      rw [sum_eq_single r₀]
+      · simp only [r₀, blockPatterns, blockClasses, rowClasses, patterns, Matrix.of_apply,
+          Equiv.symm_apply_apply, decide_true, Bool.true_and, ite_true, blockSlice,
+          Prod.mk.eta, Equiv.apply_symm_apply]
+      · intro r _ hr
+        by_cases hp : blockPatterns b s r (select j) = true
+        · by_cases hc : blockClasses A i r = true
+          · have hblock : (finProdFinEquiv.symm r).1 = (finProdFinEquiv.symm (select j)).1 := by
+              exact of_decide_eq_true (Bool.and_eq_true_iff.mp hp).1
+            have hpattern : BitString.equivFin s (blockSlice A (finProdFinEquiv.symm r).1 i) =
+                (finProdFinEquiv.symm r).2 := by
+              simpa only [blockClasses, rowClasses, Matrix.of_apply, decide_eq_true_eq] using hc
+            apply (hr ?_).elim
+            apply finProdFinEquiv.symm.injective
+            apply Prod.ext
+            · simpa only [r₀, Equiv.symm_apply_apply] using hblock
+            · simpa only [r₀, Equiv.symm_apply_apply, hblock] using hpattern.symm
+          · simp [hp, hc]
+        · simp [hp]
+      · simp only [mem_univ, not_true_eq_false, false_implies]
+
+
+private theorem size_blockCircuit {b s : ℕ} (A : Matrix (Fin p) (Fin (b * s)) Bool)
+    (select : Fin q → Fin (b * s)) : (blockCircuit A select).size = b * 2 ^ s + q := by
+  simp only [blockCircuit, Circuit.size_comp, size_layer]
+
+/-- The blocked row-pattern circuit computes selected-input sums in any additive commutative
+monoid. Each selected input contributes exactly once to each output. The gate count includes
+the nullary row-class gates, which is needed when compiling these sums into a binary basis. -/
+theorem exists_twoLayer_sum {R : Type*} [AddCommMonoid R]
+    (A : Matrix (Fin p) (Fin q) Bool) {s : ℕ} (hs : 0 < s) :
+    ∃ c : Circuit signature p q, IsTwoLayer c ∧
+      c.Computes (sumInterpretation R) (fun x j => ∑ i, if A i j = true then x i else 0) ∧
+      c.program.cost id = (q ⌈/⌉ s) * p + q * 2 ^ (s - 1) ∧
+      c.size = (q ⌈/⌉ s) * 2 ^ s + q := by
+  have hq : q ≤ (q ⌈/⌉ s) * s := by
+    simpa only [smul_eq_mul, Nat.mul_comm] using (le_smul_ceilDiv hs : q ≤ s • (q ⌈/⌉ s))
+  let padded := padColumns A ((q ⌈/⌉ s) * s)
+  refine ⟨blockCircuit padded (Fin.castLE hq), isTwoLayer_blockCircuit _ _, ?_,
+    cost_blockCircuit _ _, size_blockCircuit _ _⟩
+  intro x
+  rw [eval_blockCircuit_sum]
+  funext j
+  simp only [padded, padColumns, Matrix.of_apply, Fin.val_castLE, j.isLt, dite_true]
 
 end Cslib.Circuits.Boolean.Rectifier
 

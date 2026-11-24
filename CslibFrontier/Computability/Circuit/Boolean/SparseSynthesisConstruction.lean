@@ -9,12 +9,12 @@ module
 
 public import Cslib.Computability.Circuit.Boolean.Complexity
 import CslibFrontier.Computability.Circuit.Boolean.Synthesis
+import CslibFrontier.Computability.Circuit.Boolean.LinearHash
 import CslibFrontier.Computability.Circuit.Complexity
 import CslibFrontier.Foundations.Combinatorics.FiniteCover
 import CslibFrontier.Foundations.Data.Fintype.AgreeOn
 import CslibFrontier.Probability.BitString.LinearHash.Collisions
 import CslibFrontier.Foundations.Data.BitString.Basic
-import CslibFrontier.Foundations.Data.BitString.Parity
 import Cslib.Computability.Circuit.Boolean.Synthesis
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fintype.Powerset
@@ -66,8 +66,8 @@ given pairs of distinct inputs collide [Chashkin, Lemmas 2.3 and 2.4][Chashkin20
   of the other inputs. The conjunction of `t` filters wrongly accepts at most `2 ^ n / 2 ^ (a t)`
   inputs, which are removed by explicit minterms [Chashkin, Lemma 3.3][Chashkin2024].
 
-The collision bound uses the shared `BitString.LinearHash` API; the circuit implementation
-uses finite-set parity masks to retain its exact gate bound.
+The collision bound and circuit construction use the shared `BitString.LinearHash` API,
+with its native circuit gate bound.
 
 ## Main definitions
 
@@ -100,7 +100,7 @@ uses finite-set parity masks to retain its exact gate bound.
 
 namespace Cslib.Circuits.Boolean.SparseSynthesis
 
-open Finset
+open Finset BitString.LinearHash
 
 /-! ### Tables with shared column patterns -/
 
@@ -456,61 +456,6 @@ private theorem exists_eqOn_complexity_le_partialTableBound {k l : ℕ}
     unfold partialTableBound
     omega
 
-/-! ### Linear hashing -/
-
-section Hash
-
-variable {n m : ℕ}
-
-/-- The linear map over the field with two elements whose output `j` is the parity of the bits
-in `A j`. -/
-private def linearMap (A : Fin m → Finset (Fin n)) (x : BitString n) : BitString m :=
-  fun j => parityOn (A j) x
-
-/-- Finite-set parity masks implement the shared Boolean-matrix hash. -/
-private theorem linearMap_filter_eq_hash (rows : Fin m → BitString n) (x : BitString n) :
-    linearMap (fun j => univ.filter fun i => rows j i = true) x =
-      BitString.LinearHash.hash rows x := by
-  funext j
-  simp only [linearMap, parityOn_eq_sum, BitString.LinearHash.hash, dotProduct, sum_filter]
-  apply sum_congr rfl
-  intro i _
-  cases rows j i <;> cases x i <;> rfl
-
-/-- Some linear map collides on at most a `2⁻ᵐ` fraction of any specified distinct pairs. -/
-private theorem exists_card_filter_linearMap_mul_le (P : Finset (BitString n × BitString n))
-    (hP : ∀ z ∈ P, z.1 ≠ z.2) (m : ℕ) :
-    ∃ A : Fin m → Finset (Fin n), #{z ∈ P | linearMap A z.1 = linearMap A z.2} * 2 ^ m ≤ #P := by
-  obtain ⟨rows, hrows⟩ := BitString.LinearHash.exists_card_collisions_le (m := m) P hP
-  refine ⟨fun j => univ.filter fun i => rows j i = true, ?_⟩
-  simpa only [linearMap_filter_eq_hash, Nat.mul_comm] using hrows
-
-/-- The parity on `S` costs four gates per bit of `S` and a constant. -/
-private theorem synthesis_parityOn (S : Finset (Fin n)) :
-    Synthesis interpretation (inputs n) {parityOn S} (4 * #S + 1) := by
-  induction S using Finset.induction_on with
-  | empty =>
-    have heq : parityOn (∅ : Finset (Fin n)) = fun _ => false := funext parityOn_empty
-    simpa [heq] using Synthesis.const (s := inputs n) false
-  | insert i S hi ih =>
-    have heq : parityOn (insert i S) = fun x => x i ^^ parityOn S x :=
-      funext (parityOn_insert hi)
-    rw [heq, card_insert_of_notMem hi]
-    exact ((Synthesis.of_mem (s := inputs n) ⟨i, rfl⟩).xor ih).mono Set.Subset.rfl
-      Set.Subset.rfl (by omega)
-
-/-- A linear map to `m` bits costs at most `4 n + 1` gates per output. -/
-private theorem complexity_linearMap_le (A : Fin m → Finset (Fin n)) :
-    complexity interpretation (linearMap A) ≤ m * (4 * n + 1) := by
-  refine (complexity_pi_le (I := interpretation) fun j => parityOn (A j)).trans ?_
-  calc ∑ j, complexity interpretation (single (parityOn (A j)))
-      ≤ ∑ _j : Fin m, (4 * n + 1) := sum_le_sum fun j _ =>
-        (synthesis_parityOn (A j)).complexity_le.trans
-          (by have := (card_le_univ (A j)).trans_eq (Fintype.card_fin n); omega)
-    _ = m * (4 * n + 1) := by simp
-
-end Hash
-
 /-! ### Sparse indicators -/
 
 /-- The indicator of a set `R` of inputs costs `2 n + 2` gates per element of `R`, and a
@@ -535,26 +480,26 @@ private theorem exists_filter {n : ℕ} (A B : Finset (BitString n)) (hAB : Disj
       #{x ∈ A | φ x = true} * 2 ^ (k + l) ≤ #A * #B ∧
       complexity interpretation (single φ) ≤
         (k + l) * (4 * n + 1) + sparseTableBound k l K #B := by
-  obtain ⟨H, hH⟩ := exists_card_filter_linearMap_mul_le (A ×ˢ B)
+  obtain ⟨H, hH⟩ := exists_card_collisions_le (m := k + l) (A ×ˢ B)
     (fun z hz h => disjoint_left.mp hAB (mem_product.mp hz).1 (h ▸ (mem_product.mp hz).2))
-    (k + l)
-  let φ : BooleanFunction n := fun x => decide (linearMap H x ∈ B.image (linearMap H))
+  rw [Nat.mul_comm] at hH
+  let φ : BooleanFunction n := fun x => decide (hash H x ∈ B.image (hash H))
   refine ⟨φ, fun x hx => decide_eq_true (mem_image_of_mem _ hx), ?_, ?_⟩
   · have hsub : ({x ∈ A | φ x = true} : Finset (BitString n)) ⊆
-        ({z ∈ A ×ˢ B | linearMap H z.1 = linearMap H z.2} :
+        ({z ∈ A ×ˢ B | hash H z.1 = hash H z.2} :
           Finset (BitString n × BitString n)).image Prod.fst := by
       intro x hx
       obtain ⟨hxA, hφ⟩ := mem_filter.mp hx
       obtain ⟨y, hyB, hy⟩ := mem_image.mp (of_decide_eq_true hφ)
       exact mem_image.mpr ⟨(x, y), mem_filter.mpr ⟨mem_product.mpr ⟨hxA, hyB⟩, hy.symm⟩, rfl⟩
     calc #{x ∈ A | φ x = true} * 2 ^ (k + l)
-        ≤ #{z ∈ A ×ˢ B | linearMap H z.1 = linearMap H z.2} * 2 ^ (k + l) :=
+        ≤ #{z ∈ A ×ˢ B | hash H z.1 = hash H z.2} * 2 ^ (k + l) :=
           Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_image_le)
       _ ≤ #A * #B := hH.trans (card_product A B).le
   · have hcomp : single φ =
-        (single fun y => decide (y ∈ B.image (linearMap H))) ∘ linearMap H := rfl
+        (single fun y => decide (y ∈ B.image (hash H))) ∘ hash H := rfl
     rw [hcomp]
-    refine (complexity_comp_le _ _).trans (Nat.add_le_add (complexity_linearMap_le H) ?_)
+    refine (complexity_comp_le _ _).trans (Nat.add_le_add (complexity_linearHash_le H) ?_)
     exact (complexity_indicator_le_sparseTableBound _ hK).trans
       (sparseTableBound_mono card_image_le)
 
@@ -644,47 +589,48 @@ def partialBound (n k l J w : ℕ) : ℕ :=
 theorem complexityOn_le_partialBound {n : ℕ} (k l : ℕ) {J : ℕ} (D : Finset (BitString n))
     (u : BooleanFunction n) (hJ : 0 < J) :
     complexityOn interpretation D (single u) ≤ partialBound n k l J #D := by
-  obtain ⟨H, hH⟩ := exists_card_filter_linearMap_mul_le D.offDiag
-    (fun z hz => (mem_offDiag.mp hz).2.2) (k + l)
-  let T := D.image (linearMap H)
-  have hpre (y : BitString (k + l)) (hy : y ∈ T) : ∃ x ∈ D, linearMap H x = y := mem_image.mp hy
+  obtain ⟨H, hH⟩ := exists_card_collisions_le (m := k + l) D.offDiag
+    (fun z hz => (mem_offDiag.mp hz).2.2)
+  rw [Nat.mul_comm] at hH
+  let T := D.image (hash H)
+  have hpre (y : BitString (k + l)) (hy : y ∈ T) : ∃ x ∈ D, hash H x = y := mem_image.mp hy
   choose rep hrep_mem hrep using hpre
   let label (y : BitString (k + l)) : Bool := if hy : y ∈ T then u (rep y hy) else false
   obtain ⟨φ, hφ, hφc⟩ := exists_eqOn_complexity_le_partialTableBound T label hJ
-  let E := D.filter fun x => φ (linearMap H x) ≠ u x
+  let E := D.filter fun x => φ (hash H x) ≠ u x
   have hE : #E * 2 ^ (k + l) ≤ #D * #D := by
-    have hsub : E ⊆ ({z ∈ D.offDiag | linearMap H z.1 = linearMap H z.2} :
+    have hsub : E ⊆ ({z ∈ D.offDiag | hash H z.1 = hash H z.2} :
         Finset (BitString n × BitString n)).image Prod.fst := by
       intro x hx
       obtain ⟨hxD, hne⟩ := mem_filter.mp hx
-      have hy : linearMap H x ∈ T := mem_image_of_mem _ hxD
+      have hy : hash H x ∈ T := mem_image_of_mem _ hxD
       refine mem_image.mpr ⟨(x, rep _ hy), mem_filter.mpr ⟨mem_offDiag.mpr ⟨hxD,
         hrep_mem _ hy, fun h => hne ?_⟩, (hrep _ hy).symm⟩, rfl⟩
       rw [hφ hy]
       simp only [label, hy, dite_true]
       exact congrArg u h.symm
     calc #E * 2 ^ (k + l)
-        ≤ #{z ∈ D.offDiag | linearMap H z.1 = linearMap H z.2} * 2 ^ (k + l) :=
+        ≤ #{z ∈ D.offDiag | hash H z.1 = hash H z.2} * 2 ^ (k + l) :=
           Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_image_le)
       _ ≤ #D.offDiag := hH
       _ ≤ #D * #D := by rw [offDiag_card]; exact Nat.sub_le _ _
   have hEc := (complexity_indicator_le_card_mul E).trans (Nat.add_le_add_right
     (Nat.mul_le_mul_right (2 * n + 2) ((Nat.le_div_iff_mul_le (Nat.two_pow_pos _)).mpr hE)) 1)
-  have hcongr : Set.EqOn (single u) (single fun x => φ (linearMap H x) ^^ decide (x ∈ E))
+  have hcongr : Set.EqOn (single u) (single fun x => φ (hash H x) ^^ decide (x ∈ E))
       (D : Set (BitString n)) := by
     intro x hx
     funext j
     have hx : x ∈ D := hx
-    by_cases h : φ (linearMap H x) = u x
+    by_cases h : φ (hash H x) = u x
     · simp [E, hx, h]
     · simp only [single_apply, E, mem_filter, hx, true_and]
-      cases hu : u x <;> cases hv : φ (linearMap H x) <;> simp_all
+      cases hu : u x <;> cases hv : φ (hash H x) <;> simp_all
   rw [complexityOn_congr hcongr]
   refine complexityOn_le_complexity.trans ((complexity_xor_le _ _).trans ?_)
-  have hcomp : single (fun x => φ (linearMap H x)) = single φ ∘ linearMap H := rfl
+  have hcomp : single (fun x => φ (hash H x)) = single φ ∘ hash H := rfl
   rw [hcomp]
-  have hHφ := (complexity_comp_le (I := interpretation) (linearMap H) (single φ)).trans
-    (Nat.add_le_add (complexity_linearMap_le H)
+  have hHφ := (complexity_comp_le (I := interpretation) (hash H) (single φ)).trans
+    (Nat.add_le_add (complexity_linearHash_le H)
       (hφc.trans (partialTableBound_mono card_image_le)))
   unfold partialBound
   omega
