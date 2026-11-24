@@ -1278,12 +1278,14 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Psi
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.States
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Terms
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
