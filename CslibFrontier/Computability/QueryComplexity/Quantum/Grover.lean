@@ -76,16 +76,22 @@ open Finset Real BitString
 
 variable {N : ℕ}
 
+/-- Control-bit component `p.2.1` of a Grover basis state `p : Fin N × Bool × Unit`. -/
+abbrev groverControl (p : Fin N × Bool × Unit) : Bool := p.2.1
+
+@[simp] theorem groverControl_mk (i : Fin N) (b : Bool) (u : Unit) :
+    groverControl (i, b, u) = b := rfl
+
 /-- The uniform superposition `|s⟩ = N^{-1/2} ∑_i |i, 1⟩` with control bit `1`. -/
 noncomputable def uniform (N : ℕ) : State N Unit :=
-  WithLp.toLp 2 fun p => if p.2.1 then ((Real.sqrt N)⁻¹ : ℝ) else 0
+  WithLp.toLp 2 fun p => if groverControl p then ((Real.sqrt N)⁻¹ : ℝ) else 0
 
 theorem norm_uniform (hN : 0 < N) : ‖uniform N‖ = 1 := by
   have h : ‖uniform N‖ ^ 2 = 1 := by
     rw [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
     simp only [Fintype.sum_prod_type, Fintype.sum_bool, Fintype.univ_unit, sum_singleton, uniform,
-      PiLp.toLp_apply, ite_true, Bool.false_eq_true, ite_false, norm_zero, Complex.norm_real,
-      Real.norm_eq_abs, sq_abs]
+      groverControl_mk, PiLp.toLp_apply, ite_true, Bool.false_eq_true, ite_false, norm_zero,
+      Complex.norm_real, Real.norm_eq_abs, sq_abs]
     rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, inv_pow,
       Real.sq_sqrt (Nat.cast_nonneg N)]
     field_simp
@@ -100,7 +106,8 @@ noncomputable def diffusion (N : ℕ) : State N Unit ≃ₗᵢ[ℂ] State N Unit
 `(Dψ)(i, b) = 2 b · mean_j ψ(j, 1) - ψ(i, b)`. -/
 theorem diffusion_apply (hN : 0 < N) (ψ : State N Unit) (p : Fin N × Bool × Unit) :
     (diffusion N ψ).ofLp p =
-      2 * (if p.2.1 then (N : ℂ)⁻¹ * ∑ q, (if q.2.1 then ψ.ofLp q else 0) else 0) - ψ.ofLp p := by
+      2 * (if groverControl p then (N : ℂ)⁻¹ * ∑ q, (if groverControl q then ψ.ofLp q else 0)
+        else 0) - ψ.ofLp p := by
   rw [diffusion, Submodule.reflection_apply, Submodule.starProjection_singleton,
     norm_uniform hN]
   simp only [one_pow, PiLp.sub_apply, PiLp.smul_apply,
@@ -169,7 +176,7 @@ control bit `1`, every marked item has amplitude `sin((2k + 1) θ) / √t` and e
 `0`. -/
 theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fin N × Bool × Unit) :
     (run (grover N) (uniform N) x k).ofLp p =
-      if p.2.1 then ((if x p.1 then
+      if groverControl p then ((if x p.1 then
           Real.sin ((2 * k + 1) * searchAngle N (weight x)) / Real.sqrt (weight x)
         else Real.cos ((2 * k + 1) * searchAngle N (weight x)) / Real.sqrt (N - weight x) : ℝ) :
           ℂ) else 0 := by
@@ -208,8 +215,8 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
   induction k generalizing p with
   | zero =>
     obtain ⟨i, c, u⟩ := p
-    simp only [run, grover, LinearIsometry.id_apply, uniform, PiLp.toLp_apply, Nat.cast_zero,
-      mul_zero, zero_add, one_mul]
+    simp only [run, grover, LinearIsometry.id_apply, uniform, groverControl_mk, PiLp.toLp_apply,
+      Nat.cast_zero, mul_zero, zero_add, one_mul]
     cases c
     · rfl
     simp only [ite_true]
@@ -239,10 +246,11 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
       · field_simp
         rw [← hsu2]
         ring
-    have hsum : ∑ q : Fin N × Bool × Unit, (if q.2.1 then (phaseOracle x
+    have hsum : ∑ q : Fin N × Bool × Unit, (if groverControl q then (phaseOracle x
         (run (grover N) (uniform N) x k)).ofLp q else 0) = ((-(st * S) + su * C : ℝ) : ℂ) := by
       simp only [phaseOracle_apply, ih, Fintype.sum_prod_type, Fintype.univ_unit, sum_singleton,
-        Fintype.sum_bool, ite_true, Bool.true_and, Bool.false_eq_true, ite_false, add_zero]
+        Fintype.sum_bool, groverControl_mk, ite_true, Bool.true_and, Bool.false_eq_true,
+        ite_false, add_zero]
       have hterm : ∀ i : Fin N, (if x i = true then (-1 : ℂ) else 1) *
           ((if x i = true then S / st else C / su : ℝ) : ℂ) =
             if x i = true then ((-(S / st) : ℝ) : ℂ) else ((C / su : ℝ) : ℂ) := by
@@ -263,8 +271,8 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     rw [diffusion_apply hN, hsum, phaseOracle_apply, ih]
     obtain ⟨i, c, u⟩ := p
     cases c
-    · simp
-    simp only [Bool.true_and, ite_true]
+    · simp [groverControl]
+    simp only [groverControl_mk, Bool.true_and, ite_true]
     cases hi : x i
     · have hsu0 := hunmarked i hi
       have hreal : 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) - C / su =
@@ -297,7 +305,7 @@ bit `1`, amplitude `sin((2k + 1) θ)` on `z` and `cos((2k + 1) θ) / √(N - 1)`
 control bit `0`, amplitude `0`. -/
 theorem run_grover (hN : 2 ≤ N) (z : Fin N) (k : ℕ) (p : Fin N × Bool × Unit) :
     (run (grover N) (uniform N) (marked z) k).ofLp p =
-      if p.2.1 then ((if p.1 = z then Real.sin ((2 * k + 1) * groverAngle N)
+      if groverControl p then ((if p.1 = z then Real.sin ((2 * k + 1) * groverAngle N)
         else Real.cos ((2 * k + 1) * groverAngle N) / Real.sqrt (N - 1) : ℝ) : ℂ) else 0 := by
   have hweight : weight (marked z) = 1 := by
     simp [weight, marked, Finset.filter_eq']
@@ -313,8 +321,8 @@ theorem regProb_run_grover (hN : 2 ≤ N) (z : Fin N) (k : ℕ) :
     regProb (run (grover N) (uniform N) (marked z) k) z =
       Real.sin ((2 * k + 1) * groverAngle N) ^ 2 := by
   simp only [regProb_eq_sum, run_grover hN, Fintype.sum_prod_type, Fintype.sum_bool,
-    Fintype.univ_unit, sum_singleton, ite_true, Bool.false_eq_true, ite_false, norm_zero,
-    Complex.norm_real, Real.norm_eq_abs, sq_abs]
+    Fintype.univ_unit, sum_singleton, groverControl_mk, ite_true, Bool.false_eq_true, ite_false,
+    norm_zero, Complex.norm_real, Real.norm_eq_abs, sq_abs]
   ring
 
 /-- **Grover's algorithm** [Grover][Grover1996], with the analysis of [Boyer, Brassard, Høyer,

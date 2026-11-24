@@ -60,7 +60,7 @@ theorem Realizes.clockwise_restoration_retained {G : Graph} {u v : ℕ}
     have hz : z.vertex = v := htyz.symm.trans hy
     rw [hcenter x hx, hcenter y hy, hcenter z hz]
     simp only [restoredVertex, ite_eq_left hxu, ite_eq_left hyu, ite_eq_left hzu]
-    apply (hR.cutPort_clockwise hD v hρ ha x y z hx hy hz hneXY hneYZ hneXZ).trans
+    apply (hR.cutPort_clockwise v hρ ha x y z hx hy hz hneXY hneYZ hneXZ).trans
     exact r.mem_rotationInterval_contractionLift_active huv ⟨x, hx⟩ ⟨y, hy⟩ ⟨z, hz⟩ false
       (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hxu)
       (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hyu)
@@ -78,7 +78,7 @@ theorem Realizes.clockwise_restoration_retained {G : Graph} {u v : ℕ}
       rw [hcenter x hx, hcenter y hy, hcenter z hz]
       simp only [restoredVertex, ite_eq_right hxu, ite_eq_right hyu, ite_eq_right hzu,
         ite_eq_left hxv, ite_eq_left hyv, ite_eq_left hzv]
-      apply (hR.cutPort_clockwise hD v hρ hb x y z hx hy hz hneXY hneYZ hneXZ).trans
+      apply (hR.cutPort_clockwise v hρ hb x y z hx hy hz hneXY hneYZ hneXZ).trans
       exact r.mem_rotationInterval_contractionLift_active huv ⟨x, hx⟩ ⟨y, hy⟩ ⟨z, hz⟩ true
         (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hxv)
         (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hyv)
