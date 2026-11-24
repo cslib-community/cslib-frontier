@@ -111,7 +111,7 @@ variable {ι : Type*}
 
 /-- A real-valued function on the Boolean cube `{0,1}^ι` is **submodular** when
 `f (a ⊓ b) + f (a ⊔ b) ≤ f a + f b` for all `a, b`. -/
-@[expose] def IsSubmodularBool (f : (ι → Bool) → ℝ) : Prop :=
+def IsSubmodularBool (f : (ι → Bool) → ℝ) : Prop :=
   ∀ a b : ι → Bool, f (a ⊓ b) + f (a ⊔ b) ≤ f a + f b
 
 /-- A function on the Boolean cube is **complement-symmetric** when `f (!a) = f a`. -/
@@ -550,7 +550,7 @@ private theorem clampedMinimizer_inf_sup [Fintype V] {b c : V → Bool} (hbc : b
 
 /-- The **least clamped minimizer** of `anchoredCost G b`: pointwise AND of all clamped
 minimizers. -/
-@[expose] noncomputable def leastClampedMinimizer [Fintype V] (b : V → Bool) : E → Bool :=
+noncomputable def leastClampedMinimizer [Fintype V] (b : V → Bool) : E → Bool :=
   open Classical in
   fun e => decide (∀ x : E → Bool, IsClamped G b x →
     anchoredCost G b x = crossingCover G b → x e = true)

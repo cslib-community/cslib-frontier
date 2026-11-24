@@ -1768,7 +1768,7 @@ theorem ar2Coeff_sq_sum_eq_one (j : ℕ) (a : Fin (j + 1)) :
 
 /-- Alternating-sign orthant probability `2 * P(∀ i, (-1)^i * X_i > 0)` of the stationary AR(2)
 Gaussian process of length `j`. -/
-@[expose] noncomputable def ar2AltProb (j : ℕ) : ℝ :=
+noncomputable def ar2AltProb (j : ℕ) : ℝ :=
   2 * (piGauss (Fin (j + 1))).real
     {ξ | ∀ i : Fin (j + 1), 0 < (-1 : ℝ) ^ i.val * ar2StepMap j ξ i}
 

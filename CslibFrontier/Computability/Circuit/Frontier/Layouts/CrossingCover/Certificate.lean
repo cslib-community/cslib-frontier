@@ -77,11 +77,16 @@ no custom axioms, and no `maxHeartbeats` overrides).
 * Time-reversibility, pointwise upper bounds, integrability, total mass `1`, and coordinate
   slicing of `ar2JointDensity`.
 * Real Fourier derivative bound on `iteratedDeriv (2 * N) (fun x => exp (-q / 2 * (x - μ) ^ 2))`.
-* Shifted Gauss–Legendre polynomial quadrature exactness, positivity of weights, and Hermite
-  interpolation error theorem via Rolle's theorem.
-* Anisotropic box truncation tail bounds via exact 2- and 3-marginal reduction.
 * `Cslib.Circuits.Frontier.CrossingCover.alternatingWaveSum_13_lt`: the certified upper bound
   `alternatingWaveSum 13 < 130649 / 1000000`.
+
+## Implementation notes
+
+The proof of `alternatingWaveSum_13_lt` is internal to this file. Its private ingredients are
+shifted Gauss–Legendre quadrature (exactness, positivity of the weights, and the Hermite
+interpolation error term via Rolle's theorem), anisotropic box truncation with tail bounds from
+exact 2- and 3-marginal reduction, and the fixed-point interval certificate itself. Only the
+AR(2) definitions and the final inequality are meant for use by other modules.
 -/
 
 public section
