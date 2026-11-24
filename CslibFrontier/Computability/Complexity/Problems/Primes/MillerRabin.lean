@@ -106,6 +106,11 @@ theorem passes_polyTime :
         (fun q : (ℕ × ℕ) × ℕ => q.1.2 ^ (q.1.1 / 2 ^ q.2) % (q.1.1 + 1))
         (encPair (encPair encNat encNat) encUnary) encNat :=
       ComputableInPolyTime.binary_powMod (by fun_prop) hexp (by fun_prop) fun _ => Nat.succ_pos _
+    have hmod2 := ComputableInPolyTime.binary_mod' hexp (ComputableInPolyTime.const 2)
+    have hdivisible := ComputableInPolyTime.binary_mod'
+      ((ComputableInPolyTime.fst (encPair encNat encNat) encUnary).fst')
+      (ComputableInPolyTime.binary_two_pow.comp
+        (ComputableInPolyTime.snd (encPair encNat encNat) encUnary))
     fun_prop
 
 /-- The Miller–Rabin verifier is computable in polynomial time. -/
@@ -114,11 +119,20 @@ theorem verifier_polyTime :
   have hinner : ComputableInPolyTime
       (fun x : ℕ × List Bool => (x.1 - 1, 1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) (encPair encNat encNat) := by
-    fun_prop
+    have hn := ComputableInPolyTime.fst encNat encBits
+    have hpred := ComputableInPolyTime.binary_sub.comp
+      (hn.prod (ComputableInPolyTime.const 1))
+    have hword := ComputableInPolyTime.snd encNat encBits
+    have hnumber := ComputableInPolyTime.bitsToNat.comp hword
+    have hrem := ComputableInPolyTime.binary_mod' hnumber hpred
+    exact hpred.prod (ComputableInPolyTime.binary_add.comp
+      ((ComputableInPolyTime.const 1).prod hrem))
   have hpasses : ComputableInPolyTime
       (fun x : ℕ × List Bool => passes (x.1 - 1) (1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) encBool :=
     passes_polyTime.comp hinner
+  have hmod2 := ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.fst encNat encBits) (ComputableInPolyTime.const 2)
   unfold verifier
   fun_prop
 

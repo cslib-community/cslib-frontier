@@ -97,6 +97,6 @@ example :
     (schnorr ι (2 : ZMod 11)).eavesdropAttack (schnorrKeyGen 2) 2 A =
       (schnorr ι (2 : ZMod 11)).directAttack (schnorrKeyGen 2) (A.withSimulatedViews
         (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod 11) (ZMod 11) 2) id ι)) :=
-  schnorr_eavesdropAttack_eq_directAttack _
+  schnorr_eavesdropAttack_eq_directAttack_ideal _
 
 end CslibFrontierTests.Crypto.SigmaIdentification

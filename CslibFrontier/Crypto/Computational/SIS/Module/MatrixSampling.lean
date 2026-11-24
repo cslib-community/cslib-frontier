@@ -69,10 +69,7 @@ private theorem rotationResidue_polyTime :
         rotationResidue a.1.1 a.1.2 a.2.1 a.2.2.1 a.2.2.2)
       (encPair (encPair encUnary encNat)
         (encPair (encList encNat) (encPair encUnary encUnary))) encNat := by
-  unfold rotationResidue
-  apply ComputableInPolyTime.intBin_emodNat'
-  · fun_prop
-  · fun_prop
+  fun_prop [rotationResidue]
 
 private def expandedRows (d k n q : ℕ) (a : MatrixCoefficients) : List (List ℕ) :=
   (List.range (d * n)).map fun i => (List.range (k * n)).map fun j =>

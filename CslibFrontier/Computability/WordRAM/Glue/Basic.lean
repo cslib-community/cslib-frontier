@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Structured
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Fintype.EquivFin
 import Mathlib.Data.List.FinRange
 
@@ -148,10 +149,7 @@ theorem realize (h : GlueComputes B P f bound time) :
           ∀ i, y.regs (Fin.castAdd (n + 1) i) = v i := by
   obtain ⟨_, n, emit, he⟩ := h
   have hd (i : Fin k) (j : Fin (n + 1)) : Fin.castAdd (n + 1) i ≠ Fin.natAdd k j := by
-    intro h
-    have := congrArg Fin.val h
-    simp only [Fin.val_castAdd, Fin.val_natAdd] at this
-    omega
+    fin_index
   obtain ⟨hg, hrun⟩ := he (Fin.castAdd (n + 1)) (Fin.natAdd k) (Fin.natAdd_injective (n + 1) k) hd
   refine ⟨n, emit (Fin.castAdd (n + 1)) (Fin.natAdd k), hg, ?_⟩
   intro w v mem hv hw
@@ -219,25 +217,14 @@ private def right {a b : ℕ} (j : Fin (b + 1)) : Fin (a + b + 3) :=
   ⟨j.val + a + 2, by omega⟩
 
 private theorem left_injective {a b : ℕ} : Function.Injective (@left a b) := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [left] at this
-  omega
+  fin_index [left]
 
 private theorem right_injective {a b : ℕ} : Function.Injective (@right a b) := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [right] at this
-  omega
+  fin_index [right]
 
 private theorem left_ne_right {a b : ℕ} (i : Fin (a + 1)) (j : Fin (b + 1)) :
     left i ≠ right j := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [left, right] at this
-  omega
+  fin_index [left, right]
 
 /-- Apply a basis operation to two computed words. The operation may repeat or ignore either
 word in its argument vector. Its interpretation and domain are checked explicitly, at every
@@ -278,7 +265,7 @@ def Witness.binary {f g h : (Fin k → ℕ) → ℕ} {tf tg : ℕ}
     funext i
     by_cases h : args i = 0
     · simp [h, hleft]
-    · have h' : args i = 1 := by apply Fin.ext; have := (args i).isLt; omega
+    · have h' : args i = 1 := by omega
       simp [h', hright]
   have he : ExecWithin w (.op (.alu op (tmp 0)
       (fun i => if args i = 0 then tmp (left 0) else tmp (right 0)))) z
@@ -352,26 +339,17 @@ theorem comp_many {m : ℕ} {Q : (Fin m → ℕ) → Prop} {h b : (Fin m → ℕ
   have hindex {i j : Fin m} {p : Fin (ns i + 1)} {q : Fin (ns j + 1)}
       (he : inner i p = inner j q) : (⟨i, p⟩ : S) = ⟨j, q⟩ := by
     apply idx.injective
-    apply Fin.ext
-    have := congrArg Fin.val he
-    dsimp only [inner] at this
-    omega
+    fin_index [inner]
   have hinj (i : Fin m) : Function.Injective (inner i) := by
     intro p q he
     exact Fin.ext (congrArg (fun s : S => s.2.val) (hindex he))
   have hsep (i j : Fin m) (p : Fin (ns i + 1)) (q : Fin (ns j + 1))
       (he : inner i p = inner j q) : i = j := congrArg Sigma.fst (hindex he)
   have hout : Function.Injective outer := by
-    intro p q he
-    apply Fin.ext
-    have hv := congrArg (fun j : Fin (N + a + 1) => j.val) he
-    exact hv
+    fin_index [outer]
   have hio (i : Fin m) (p : Fin (ns i + 1)) (q : Fin (a + 1)) :
       inner i p ≠ outer q := by
-    intro he
-    have := congrArg Fin.val he
-    dsimp only [inner, outer] at this
-    omega
+    fin_index [inner, outer]
   let emit : ∀ {r : ℕ}, (Fin k → Fin r) → (Fin (N + a + 1) → Fin r) → Code B r :=
     fun src tmp => (List.finRange m).foldr
       (fun i rest => .seq (es i src (tmp ∘ inner i)) rest)

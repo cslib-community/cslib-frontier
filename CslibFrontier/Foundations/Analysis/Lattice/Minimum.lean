@@ -49,6 +49,8 @@ full-rank lattice in `ℝⁿ` with the supremum norm this gives `λ₁(L) ≤ de
 * `ZLattice.exists_norm_eq_minimum`: a discrete nonzero lattice has a shortest nonzero vector.
 * `ZLattice.successiveMinimum_one`: `λ₁` agrees with the first minimum.
 * `ZLattice.successiveMinimum_mono`: `λ_j(L) ≤ λ_k(L)` for `j ≤ k ≤ n`.
+* `ZLattice.exists_linearIndependent_norm_le_successiveMinimum`: a full-rank discrete lattice has
+  `k` linearly independent vectors of norm at most `λ_k(L)`.
 * `ZLattice.exists_ne_zero_mem_norm_le`: Minkowski's first theorem for closed balls.
 * `ZLattice.minimum_le_sqrt_mul_covolume_rpow`: `λ₁(L) ≤ √n · det(L)^{1/n}` in the Euclidean
   norm.
@@ -192,6 +194,64 @@ theorem successiveMinimum_mono (L : Submodule ℤ E) [DiscreteTopology L] [IsZLa
     successiveMinimum L j ≤ successiveMinimum L k := by
   obtain ⟨r, hr⟩ := exists_radius_finrank L k hk
   exact csInf_le_csInf ⟨0, fun _ hs => hs.1⟩ ⟨r, hr⟩ fun s hs => ⟨hs.1, hjk.trans hs.2⟩
+
+/-- A full-rank discrete lattice has `k` linearly independent vectors of norm at most `λ_k(L)`
+for every `k ≤ finrank ℝ E`. -/
+theorem exists_linearIndependent_norm_le_successiveMinimum
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    {k : ℕ} (hk : k ≤ finrank ℝ E) :
+    ∃ v : Fin k → E, LinearIndependent ℝ v ∧ (∀ i, v i ∈ L) ∧
+      ∀ i, ‖v i‖ ≤ successiveMinimum L k := by
+  classical
+  have : ProperSpace E := FiniteDimensional.proper ℝ E
+  let A : Set E := {v : E | v ∈ L ∧ ‖v‖ ≤ successiveMinimum L k}
+  have hspan : k ≤ finrank ℝ (Submodule.span ℝ A) := by
+    obtain ⟨R, hR0, hRk⟩ := exists_radius_finrank L k hk
+    let S : Set ℝ := {r : ℝ | 0 ≤ r ∧ k ≤ finrank ℝ (Submodule.span ℝ {v : E | v ∈ L ∧ ‖v‖ ≤ r})}
+    have hSne : S.Nonempty := ⟨R, hR0, hRk⟩
+    let F : Set E := {v : E | v ∈ L ∧ ‖v‖ ≤ R + 1}
+    have hF : F.Finite := by
+      have hfin : (closedBall (0 : E) (R + 1) ∩ (L : Set E)).Finite :=
+        finite_isBounded_inter_isClosed DiscreteTopology.isDiscrete isBounded_closedBall
+          L.toAddSubgroup.isClosed_of_discreteTopology
+      exact hfin.subset fun v hv =>
+        ⟨by simpa only [mem_closedBall, dist_zero_right] using hv.2, hv.1⟩
+    let T : Set E := {v : E | v ∈ F ∧ successiveMinimum L k < ‖v‖}
+    have hT : T.Finite := hF.subset fun _ hv => hv.1
+    by_cases hTe : T.Nonempty
+    · obtain ⟨u, huT, humin⟩ := T.exists_min_image norm hT hTe
+      obtain ⟨r, ⟨_, hrk⟩, hru⟩ := exists_lt_of_csInf_lt hSne huT.2
+      have hsub : {v : E | v ∈ L ∧ ‖v‖ ≤ r} ⊆ A := by
+        intro v ⟨hvL, hvr⟩
+        refine ⟨hvL, le_of_not_gt fun hgt => ?_⟩
+        have hvF : v ∈ F := ⟨hvL, hvr.trans (hru.le.trans huT.1.2)⟩
+        exact not_lt_of_ge (humin v ⟨hvF, hgt⟩) (hvr.trans_lt hru)
+      exact hrk.trans (Submodule.finrank_mono (Submodule.span_mono hsub))
+    · have hsub : {v : E | v ∈ L ∧ ‖v‖ ≤ R} ⊆ A := by
+        intro v ⟨hvL, hvR⟩
+        refine ⟨hvL, le_of_not_gt fun hgt => hTe ⟨v, ⟨hvL, by linarith⟩, hgt⟩⟩
+      exact hRk.trans (Submodule.finrank_mono (Submodule.span_mono hsub))
+  obtain ⟨B, hBA, hspB, hliB⟩ := exists_linearIndependent ℝ A
+  have hBfin : B.Finite := hliB.finite
+  have hcard : k ≤ hBfin.toFinset.card := by
+    have : Fintype B := hBfin.fintype
+    have h2 : finrank ℝ (Submodule.span ℝ B) = hBfin.toFinset.card := by
+      rw [Set.Finite.card_toFinset]
+      have h3 := finrank_span_eq_card hliB
+      rwa [Subtype.range_coe] at h3
+    rw [← hspB] at hspan
+    omega
+  obtain ⟨s, hsB, hscard⟩ := Finset.exists_subset_card_eq hcard
+  let e : Fin k ≃ s := (Fintype.equivFinOfCardEq (by simp [hscard])).symm
+  refine ⟨fun i => (e i : E), ?_, ?_, ?_⟩
+  · have hsubB : ∀ x : s, (x : E) ∈ B := fun x => hBfin.mem_toFinset.1 (hsB x.2)
+    have hcomp : (fun i : Fin k => (e i : E)) =
+        ((↑) : B → E) ∘ (fun i : Fin k => ⟨(e i : E), hsubB (e i)⟩) := rfl
+    rw [hcomp]
+    refine hliB.comp _ fun i j hij => e.injective (Subtype.ext ?_)
+    exact congrArg (Subtype.val : B → E) hij
+  · exact fun i => (hBA (hBfin.mem_toFinset.1 (hsB (e i).2))).1
+  · exact fun i => (hBA (hBfin.mem_toFinset.1 (hsB (e i).2))).2
 
 variable [ProperSpace E]
 

@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
@@ -63,6 +64,8 @@ needed separately when transferring satisfiability.
   a polynomial-time assignment, as `fun_prop` rules.
 * `Cslib.Logic.PL.CNF.computableInPolyTime_eval_bitsAssignment`: evaluating a formula under a
   numbered assignment.
+* `Cslib.Logic.PL.computableInPolyTime_countUnsat_mem`: counting the clauses falsified by the
+  assignment setting the listed variables to `true`.
 * `Cslib.Logic.PL.CNF.isPolyTime_compact`: compact unary indices for arbitrary variable names.
 
 ## References
@@ -154,10 +157,18 @@ polynomial-time. -/
 theorem CNF.computableInPolyTime_distinctVars [DecidableEq V] (enc : V ↪ List Bool) :
     ComputableInPolyTime (CNF.distinctVars (V := V))
       (encCNFOver enc) (encList enc) := by
-  have hrep : ComputableInPolyTime (fun n => List.replicate n true) encUnary encBits :=
-    of_eq fun _ => rfl
-  unfold CNF.distinctVars Cslib.Complexity.selectDistinct
-  fun_prop
+  have hvars := CNF.computableInPolyTime_vars enc
+  have hzip := (zipIdx enc).comp hvars
+  have hrep : ComputableInPolyTime
+      (fun φ : CNF V => List.replicate φ.vars.length true) (encCNFOver enc) encBits :=
+    (of_eq (f := fun n => List.replicate n true) (encIn := encUnary)
+      (encOut := encBits) fun _ => rfl).comp ((length_list enc).comp hvars)
+  have hindex := snd (encCNFOver enc) (encPair enc encUnary)
+  have hfirst := idxOfWithInput (hvars.comp (fst _ _)) hindex.fst'
+  have htest := bool_and'
+    (bitsGetDWithInput (hrep.comp (fst _ _)) hindex.snd' false)
+    (decide_eq' hfirst hindex.snd')
+  exact (map (fst enc encUnary)).comp (filterWithInput hzip htest)
 
 /-- The number of distinct variables of a formula, in unary, is polynomial-time. -/
 @[fun_prop]
@@ -231,6 +242,14 @@ theorem CNF.computableInPolyTime_eval_bitsAssignment [DecidableEq V] (enc : V �
     congr 1 with v : 1
     exact bitsAssignment_eq_getD ..
   rw [e]
+  fun_prop
+
+/-- Counting the clauses falsified by the assignment setting the listed variables to `true` is
+polynomial-time. -/
+theorem computableInPolyTime_countUnsat_mem [DecidableEq V] (enc : V ↪ List Bool) :
+    ComputableInPolyTime (fun p : CNF V × List V => p.1.countUnsat fun v => decide (v ∈ p.2))
+      (encPair (encCNFOver enc) (encList enc)) encUnary := by
+  unfold CNF.countUnsat
   fun_prop
 
 /-- Construct the clause requiring at least one listed variable to hold. -/

@@ -189,6 +189,12 @@ theorem bernoulliAverage_mono {p : ℝ} (hp : 0 ≤ p) (hp' : p ≤ 1) {f g : (�
   · exact hp
   · exact sub_nonneg.mpr hp'
 
+omit [DecidableEq ι] in
+/-- At a rate strictly between `0` and `1`, every mask has positive probability. -/
+theorem bernoulliWeight_pos {p : ℝ} (hp : 0 < p) (hp' : p < 1) (s : ι → Bool) :
+    0 < bernoulliWeight p s :=
+  prod_pos fun _ _ => by split_ifs <;> linarith
+
 /-- The weights of the masks sum to one, so constants are their own expectations. This holds for
 every `p`; the weights are nonnegative when `p ∈ [0, 1]`. -/
 theorem bernoulliAverage_const (p c : ℝ) :

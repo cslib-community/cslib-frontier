@@ -7,11 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.MultiPass
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import Mathlib.Data.List.GetD
@@ -29,7 +30,9 @@ jump around in their input: counters, tuples of elements, indices into tables.
 Such a machine runs within logarithmic space when its states have logarithmic encodings and its
 parts are computable within space linear in the encoded state
 (`Turing.QueryMachine.computableInLogSpace`), and more generally within the space of its states,
-once that is at least logarithmic (`Turing.QueryMachine.computableInSpace`). The proof is a
+once that is at least logarithmic (`Turing.QueryMachine.computableInSpace`).
+A workspace-certified initializer can compute the start state from the original input
+(`Turing.QueryMachine.computableInSpaceFrom`). The proof is a
 multi-pass fold over the input (`Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.multiPassFold`):
 each pass simulates one step, scanning the whole input with a binary position counter to fetch the
 queried bit, so that only the state, the counter and the fetched bit are ever stored
@@ -49,12 +52,14 @@ directly from the multi-pass fold.
 * `Turing.QueryMachine`: a machine with random access to its input.
 * `Turing.QueryMachine.encStateRead`: the encoding of a state with the bit it reads.
 * `Turing.QueryMachine.run`, `Turing.QueryMachine.output`: its run and its output.
+* `Turing.QueryMachine.runFrom`, `Turing.QueryMachine.outputFrom`: the same operations from a
+  supplied start state.
 
 ## Main results
 
-* `Turing.QueryMachine.computableInSpace`: a query machine whose states along its runs have length
-  `O(S)`, for a bound `S` at least logarithmic in the input, and whose parts are computable in
-  linear space, computes a function in space `O(S)`.
+* `Turing.QueryMachine.computableInSpaceFrom`: a workspace-certified initializer and query machine
+  compute a function in space `O(S)` when the state encodings have length `O(S)` and the
+  executor's parts run in linear space.
 * `Turing.QueryMachine.computableInLogSpace`: a query machine with logarithmic states and parts
   computable in linear space computes a function in logarithmic space.
 * `Turing.QueryMachine.output_add_of_halted`: increasing the clock after halting preserves output.
@@ -105,12 +110,45 @@ def step (s : σ) : σ := if M.halted s then s else M.next (s, M.read w s)
 /-- The state after `t` steps on the input `w`. -/
 def run (t : ℕ) : σ := (M.step w)^[t] M.init
 
+/-- Run a query machine from an explicitly supplied state. -/
+def runFrom (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) : σ :=
+  (M.step w)^[n] start
+
+@[simp] theorem runFrom_zero (M : QueryMachine σ) (w : List Bool) (start : σ) :
+    M.runFrom w start 0 = start := rfl
+
+theorem runFrom_succ (M : QueryMachine σ) (w : List Bool) (start : σ) (n : ℕ) :
+    M.runFrom w start (n + 1) = M.step w (M.runFrom w start n) :=
+  Function.iterate_succ_apply' _ _ _
+
+theorem runFrom_add (M : QueryMachine σ) (w : List Bool) (start : σ) (m n : ℕ) :
+    M.runFrom w start (m + n) = M.runFrom w (M.runFrom w start m) n := by
+  induction n with
+  | zero => rfl
+  | succ n ih => rw [← Nat.add_assoc, runFrom_succ, ih, runFrom_succ]
+
 /-- The output of a run halted by step `t`: emissions stop at the first halted state, then the
 final word is appended. Once the run has halted, increasing `t` leaves the output unchanged. -/
 def output (t : ℕ) : List Bool :=
   ((List.range t).map fun i =>
     if M.halted (M.run w i) then [] else M.emit (M.run w i, M.read w (M.run w i))).flatten ++
     M.finish (M.run w t)
+
+/-- The emitted and final word after running from `start` on the same input.
+Emissions stop at the first halt, including when `start` is already halted. -/
+def outputFrom (start : σ) (t : ℕ) : List Bool :=
+  ({ M with init := start } : QueryMachine σ).output w t
+
+/-- With empty step emissions, the output consists of the final word. -/
+theorem output_eq_finish_of_emit_nil (hemit : ∀ p, M.emit p = []) (t : ℕ) :
+    M.output w t = M.finish (M.run w t) := by
+  simp only [output, hemit, ite_self, List.map_const', List.flatten_replicate_nil,
+    List.nil_append]
+
+/-- A run from a supplied start state with empty emissions returns its final word. -/
+theorem outputFrom_eq_finish_of_emit_nil (hemit : ∀ p, M.emit p = []) (start : σ) (t : ℕ) :
+    M.outputFrom w start t = M.finish (M.runFrom w start t) :=
+  ({ M with init := start } : QueryMachine σ).output_eq_finish_of_emit_nil w hemit t
 
 /-- Before the first halt, every scheduled step contributes its emission. -/
 theorem output_eq_of_not_halted {t : ℕ}
@@ -339,13 +377,13 @@ end Simulation
 
 open MultiTapeTM Simulation
 
-/-- **Query machines run in the space of their states.** Let a query machine halt on every encoded
-input `enc a`, first after `time a` steps, with output `encOut (f a)`. If its states along these
-runs have encodings of length `O(S a)`, where `S a` is at least logarithmic in the length of the
+/-- Run a query machine on the original input from a state computed in space `O(S)`.
+From that state, the executor first halts at `time a` with output `encOut (f a)`. If its states have
+encodings of length `O(S a)`, where `S a` is at least logarithmic in the length of the
 input, and its query, transition, emission, halting test and final word are computable
 within space linear in the encoded state, then `f` is computable within space `O(S a)`. The input
 is not charged, so `S` may be much smaller than the length of the input. -/
-theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
+theorem computableInSpaceFrom {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
     {σ : Type} {encS : σ ↪ List Bool} (M : QueryMachine σ)
     (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
     (hnext : ComputableInSpace M.next (encStateRead encS) encS
@@ -354,24 +392,32 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
       fun p => (encStateRead encS p).length)
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
     (hfinish : ComputableInSpace M.finish encS encBits fun s => (encS s).length)
-    {f : α → β} (time : α → ℕ)
-    (hhalt : ∀ a, M.halted (M.run (enc a) (time a)) = true)
-    (hpre : ∀ a, ∀ t < time a, M.halted (M.run (enc a) t) = false)
-    (hf : ∀ a, encOut (f a) = M.output (enc a) (time a))
-    (S : α → ℕ) (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
-    (hsize : ∃ c, ∀ a, ∀ t ≤ time a, (encS (M.run (enc a) t)).length ≤ c * S a) :
+    {start : α → σ} {f : α → β} (time S : α → ℕ)
+    (hinit : ComputableInSpace start enc encS S)
+    (hhalt : ∀ a, M.halted (M.runFrom (enc a) (start a) (time a)) = true)
+    (hpre : ∀ a, ∀ t < time a, M.halted (M.runFrom (enc a) (start a) t) = false)
+    (hf : ∀ a, encOut (f a) = M.outputFrom (enc a) (start a) (time a))
+    (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
+    (hsize : ∃ c, ∀ a, ∀ t ≤ time a, (encS (M.runFrom (enc a) (start a) t)).length ≤ c * S a) :
     ∃ t c, ComputableInTimeAndSpace f enc encOut t fun a => c * S a := by
+  let started (a : α) : QueryMachine σ := { M with init := start a }
+  let initial (a : α) : PassState σ := (start a, 0, none)
   obtain ⟨cS, hS⟩ := hsize
   have hS1 (a : α) : 1 ≤ S a := (Nat.le_add_left _ _).trans (hlog a)
   have hS' (a : α) (t : ℕ) :
-      (encS (M.run (enc a) t)).length ≤ cS * S a := by
+      (encS (M.runFrom (enc a) (start a) t)).length ≤ cS * S a := by
     rcases le_or_gt t (time a) with h | h
     · exact hS a t h
-    · rw [M.run_eq_of_le _ (hhalt a) h.le]
+    · change (encS ((started a).run (enc a) t)).length ≤ _
+      rw [(started a).run_eq_of_le _ (hhalt a) h.le]
       exact hS a _ le_rfl
   -- the parts of the simulation
-  obtain ⟨cI, hI⟩ := computableInTimeAndSpace_of_const (encIn := enc) (encOut := encPass encS)
-    ((M.init, 0, none) : PassState σ)
+  have hrest : ComputableInSpace (fun _ : α => ((0, none) : ℕ × Option Bool)) enc
+      (encPair encNat (encOption encBool)) S :=
+    (ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _
+  have hinitial : ComputableInSpace initial enc (encPass encS) S :=
+    ComputableInSpace.budget_prod hinit hrest
+  obtain ⟨_, cI, hI, -⟩ := Internal.NormalForm.space hinitial
   obtain ⟨cE, hE⟩ := computableInTimeAndSpace_of_const
     (encIn := encPair (encPass encS) encBool) (encOut := encBits) ([] : List Bool)
   obtain ⟨TN, cN, hN, -⟩ := Internal.NormalForm.space (passNext_inSpace (M' := M) hquery)
@@ -380,16 +426,21 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
   obtain ⟨TC, cC, hC, -⟩ := Internal.NormalForm.space (passCont_inSpace (M' := M) hhalted)
   obtain ⟨TF, cF, hF, -⟩ := Internal.NormalForm.space (passFinish_inSpace (M' := M) hfinish)
   -- the states of the passes
-  have hP (a : α) (i : ℕ) := (passState_eq M) (enc a) i
+  have hP (a : α) (i : ℕ) :
+      passState (initial a) (passNext M) (passEnd M) (enc a) i =
+        (M.runFrom (enc a) (start a) i, 0, none) :=
+    passState_eq (started a) (enc a) i
   have hQ (a : α) (i : ℕ) {j : ℕ} (hj : j ≤ (enc a).length) :
-      streamState (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M) (enc a) i)
+      streamState (passState (initial a) (passNext M) (passEnd M) (enc a) i)
         (passNext M) (enc a) j =
-        (M.run (enc a) i, j, ((enc a).take j)[M.query (M.run (enc a) i)]?) := by
+        let s := M.runFrom (enc a) (start a) i
+        (s, j, ((enc a).take j)[M.query s]?) := by
+    dsimp only
     rw [hP, (streamState_passNext M) _ _ hj]
-  -- the encoded states of the passes are logarithmic
+  -- the encoded pass states fit the workspace bound
   set K := 2 * cS + 6 with hK
   have hlenQ (a : α) (i : ℕ) {j : ℕ} (hj : j ≤ (enc a).length) :
-      (encPass encS (streamState (passState ((M.init, 0, none) : PassState σ) (passNext M)
+      (encPass encS (streamState (passState (initial a) (passNext M)
         (passEnd M) (enc a) i) (passNext M) (enc a) j)).length ≤
         K * S a := by
     rw [hQ a i hj]
@@ -401,47 +452,52 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     rw [hK]
     nlinarith
   have hlenP (a : α) (i : ℕ) :
-      (encPass encS (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M)
+      (encPass encS (passState (initial a) (passNext M) (passEnd M)
         (enc a) i)).length ≤ K * S a := by
     simpa only [streamState_zero] using hlenQ a i (Nat.zero_le _)
   -- the passes
   have hpass (a : α) : ∀ i ≤ time a - 1,
-      (passCont M) (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M) (enc a)
+      (passCont M) (passState (initial a) (passNext M) (passEnd M) (enc a)
         (i + 1)) = decide (i < time a - 1) := by
     intro i hi
     rw [hP, passCont]
-    have := M.halted_run_iff (enc a) (hhalt a) (hpre a) (i + 1)
+    have hfirst : M.halted (M.runFrom (enc a) (start a) (i + 1)) = true ↔ time a ≤ i + 1 :=
+      (started a).halted_run_iff (enc a) (hhalt a) (hpre a) (i + 1)
     rcases Nat.eq_zero_or_pos (time a) with h0 | hpos
-    · rw [h0] at this hi ⊢
+    · rw [h0] at hfirst hi ⊢
       have hi0 : i = 0 := by omega
       subst hi0
-      simp [this.mpr (by omega)]
+      simp [hfirst.mpr (by omega)]
     · by_cases hlt : i < time a - 1
-      · have : M.halted (M.run (enc a) (i + 1)) = false := hpre a _ (by omega)
+      · have : M.halted (M.runFrom (enc a) (start a) (i + 1)) = false := hpre a _ (by omega)
         simp [this, hlt]
-      · simp [this.mpr (by omega), hlt]
+      · simp [hfirst.mpr (by omega), hlt]
   -- the output
   have hout (a : α) : encOut (f a) =
       ((List.range (time a - 1 + 1)).map fun i =>
         streamEmit (passNext M) (fun p => encBits ((fun _ => ([] : List Bool)) p))
-          (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M) (enc a) i)
+          (passState (initial a) (passNext M) (passEnd M) (enc a) i)
           (enc a) ++
-        encBits ((passEmit M) (streamState (passState ((M.init, 0, none) : PassState σ)
+        encBits ((passEmit M) (streamState (passState (initial a)
           (passNext M) (passEnd M) (enc a) i) (passNext M) (enc a) (enc a).length))).flatten ++
-      encBits ((passFinish M) (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M)
+      encBits ((passFinish M) (passState (initial a) (passNext M) (passEnd M)
         (enc a) (time a - 1 + 1))) := by
-    rw [hf, M.output_eq_of_not_halted _ (hpre a)]
+    rw [hf, outputFrom, (started a).output_eq_of_not_halted _ (hpre a)]
     simp only [encBits_apply, streamEmit_const_nil, List.nil_append, hP,
       (streamState_passNext_length M), passEmit, passFinish]
     rcases Nat.eq_zero_or_pos (time a) with h0 | hpos
     · rw [h0]
-      have h1 := M.run_eq_of_le (enc a) (h0 ▸ hhalt a) (show 0 ≤ 1 by omega)
-      have h2 : M.halted M.init = true := by simpa [h0] using hhalt a
-      simp [h1, h2]
+      have h1 : M.runFrom (enc a) (start a) 1 = start a :=
+        (started a).run_eq_of_le (enc a) (h0 ▸ hhalt a) (Nat.zero_le _)
+      have h2 : M.halted (start a) = true := by simpa [h0] using hhalt a
+      simp [h1, h2, started]
     · rw [Nat.sub_add_cancel hpos]
+      simp only [read, started, run, runFrom]
       congr 2
       refine List.map_congr_left fun i hi => ?_
-      rw [hpre a i (List.mem_range.mp hi)]
+      have hlive := hpre a i (List.mem_range.mp hi)
+      simp only [runFrom] at hlive
+      simp only [hlive, Bool.false_eq_true, ↓reduceIte]
       rfl
   -- the bounds of the simulation
   set tN : PassState σ × Bool → ℕ := fun p => cN * (TN p + 1)
@@ -454,20 +510,20 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     (⟨(), fun _ b => (none, some b)⟩ : InputReader Bool Unit) (fun b => [b])
     (fun _ => List.cons_ne_nil _ _) (fun a rest => by simp [InputReader.read])
     (fun a => enc a) (fun a => by simp)
-    (init := fun _ => ((M.init, 0, none) : PassState σ)) (next := (passNext M))
+    (init := initial) (next := (passNext M))
     (emit := fun _ => ([] : List Bool)) (passEmit := (passEmit M)) (passEnd := (passEnd M))
     (cont := (passCont M)) (finish := (passFinish M)) (g := f) (passes := fun a => time a - 1)
-    hI.computableTidilyInTimeAndSpace hN hE.computableTidilyInTimeAndSpace hPE hPN hC hF
+    hI hN hE.computableTidilyInTimeAndSpace hPE hPN hC hF
     hpass hout
     (tMax := fun a => ∑ i ∈ Finset.range (time a - 1 + 1),
       ((∑ j ∈ Finset.range (enc a).length,
-        (tN (streamState (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M)
+        (tN (streamState (passState (initial a) (passNext M) (passEnd M)
           (enc a) i) (passNext M) (enc a) j, (enc a).getD j false) + (2 * cE + 2))) +
-        (tPE (streamState (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M)
+        (tPE (streamState (passState (initial a) (passNext M) (passEnd M)
           (enc a) i) (passNext M) (enc a) (enc a).length) +
-        tPN (streamState (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M)
+        tPN (streamState (passState (initial a) (passNext M) (passEnd M)
           (enc a) i) (passNext M) (enc a) (enc a).length) +
-        tC (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M) (enc a) (i + 1)))))
+        tC (passState (initial a) (passNext M) (passEnd M) (enc a) (i + 1)))))
     (sMax := fun a =>
       (2 * cN + cPE + cPN + cC + 4) * ((2 * K + 3) * S a))
     (lMax := fun a => (K + 1) * S a)
@@ -479,7 +535,7 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
       (Finset.mem_range.mpr (Nat.lt_succ_of_le hi)))
     refine le_trans ?_ (Nat.le_add_right _ _)
     exact Finset.single_le_sum (f := fun j => tN (streamState (passState
-      ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M) (enc a) i) (passNext M) (enc a) j,
+      (initial a) (passNext M) (passEnd M) (enc a) i) (passNext M) (enc a) j,
         (enc a).getD j false) + (2 * cE + 2)) (fun _ _ => Nat.zero_le _)
       (Finset.mem_range.mpr hj)
   · intro a i hi j hj
@@ -504,16 +560,39 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     simp only [encBool_apply, List.length_singleton]
     nlinarith
   obtain ⟨c, h⟩ := key
-  refine ⟨_, c * (cF * (K + 1) + (2 * cN + cPE + cPN + cC + 4) * (2 * K + 3) + (K + 1) + 1),
-    h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun a => ?_⟩
+  refine ⟨_, c * (2 * cI + cF * (K + 1) +
+      (2 * cN + cPE + cPN + cC + 4) * (2 * K + 3) + (K + 1) + 1),
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono (fun _ => le_rfl) fun a => ?_⟩
   have h₁ := hlenP a (time a - 1 + 1)
   have hL := hS1 a
+  have hInit := Nat.mul_le_mul_left cI hL
   generalize S a = L at *
-  generalize (encPass encS (passState ((M.init, 0, none) : PassState σ) (passNext M) (passEnd M)
+  generalize (encPass encS (passState (initial a) (passNext M) (passEnd M)
     (enc a) (time a - 1 + 1))).length = E at *
   rw [Nat.mul_assoc]
   refine Nat.mul_le_mul_left c ?_
   nlinarith
+
+/-- The fixed-start case of `computableInSpaceFrom` uses the machine's own initial state. -/
+theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
+    {σ : Type} {encS : σ ↪ List Bool} (M : QueryMachine σ)
+    (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
+    (hnext : ComputableInSpace M.next (encStateRead encS) encS
+      fun p => (encStateRead encS p).length)
+    (hemit : ComputableInSpace M.emit (encStateRead encS) encBits
+      fun p => (encStateRead encS p).length)
+    (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
+    (hfinish : ComputableInSpace M.finish encS encBits fun s => (encS s).length)
+    {f : α → β} (time : α → ℕ)
+    (hhalt : ∀ a, M.halted (M.run (enc a) (time a)) = true)
+    (hpre : ∀ a, ∀ t < time a, M.halted (M.run (enc a) t) = false)
+    (hf : ∀ a, encOut (f a) = M.output (enc a) (time a))
+    (S : α → ℕ) (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
+    (hsize : ∃ c, ∀ a, ∀ t ≤ time a, (encS (M.run (enc a) t)).length ≤ c * S a) :
+    ∃ t c, ComputableInTimeAndSpace f enc encOut t fun a => c * S a := by
+  exact M.computableInSpaceFrom hquery hnext hemit hhalted hfinish time S
+    ((ComputableInSpace.constZero M.init).mono_le fun _ => Nat.zero_le _)
+    hhalt hpre hf hlog hsize
 
 /-- **Query machines run in logarithmic space.** Let a query machine halt on every encoded input
 `enc a`, first after `time a` steps, with output `encOut (f a)`. If its states along these runs

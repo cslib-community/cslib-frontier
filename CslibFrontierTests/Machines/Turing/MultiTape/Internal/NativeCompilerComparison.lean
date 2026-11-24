@@ -24,9 +24,4 @@ example :
       unaryLtTest.outputBits (3, 2) = 0 := by
   decide
 
-/-- The retained comparison still exposes the direct tidy zip machine. -/
-example : unaryLtBool.machine = tidy false true unaryLtT.toTM :=
-  machine_ofZipTransducer encUnary encUnary encBool unaryLtT Universal.eBit fun input =>
-    unaryLtT_run input.1 input.2
-
 end CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerComparison

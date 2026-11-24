@@ -33,7 +33,8 @@ uses the existing successor-splicing operation, including unsuccessful and repea
 
 * `exec_visits_le_height`: every native operation visits at most the initial tree height.
 * `nodeVisitBound`: a representation-independent bound by the current set cardinality.
-* `realized_client`: adaptive clients have correct executions with additive node-visit bounds.
+* `realized_client`, `run_correct`: adaptive clients and the concrete runner agree with finite-set
+  semantics and satisfy additive node-visit bounds.
 
 The cardinality bound is deliberately worst-case: these trees have no balancing invariant. The
 cost model excludes allocation, pure continuations and comparison implementation, and makes no
@@ -44,7 +45,7 @@ RAM or Turing-machine time claim.
 * [Cormen, Leiserson, Rivest and Stein, *Introduction to Algorithms*, Chapter 12][CLRS2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.DataStructure.SearchTree
 
@@ -53,7 +54,8 @@ open Cslib.DataStructure Cslib.DataStructure.OrderedSet
 variable {α : Type} [LinearOrder α]
 
 /-- Concrete operation and exact charge in the internal-node-visit model. -/
-def step (t : BinaryTree α) (o : Op α) : StepResult (BinaryTree α) Nat ((spec α).Result o) :=
+@[expose] def step (t : BinaryTree α) (o : Op α) :
+    StepResult (BinaryTree α) Nat ((spec α).Result o) :=
   match o with
   | .contains x => ⟨t, contains x t, searchVisits x t⟩
   | .insert x => ⟨insert x t, (), searchVisits x t⟩
@@ -65,20 +67,18 @@ def step (t : BinaryTree α) (o : Op α) : StepResult (BinaryTree α) Nat ((spec
 abbrev Exec : Execution (spec α) (BinaryTree α) Nat := Execution.ofStep step
 
 /-- Representation includes both set semantics and strict subtree ordering. -/
-def Rep (s : Finset α) (t : BinaryTree α) : Prop := Ordered t ∧ elements t = s
+@[expose] def Rep (s : Finset α) (t : BinaryTree α) : Prop := Ordered t ∧ elements t = s
 
 /-- Empty trees represent empty sets without an initialization assumption. -/
 theorem rep_empty : Rep (∅ : Finset α) .nil := ⟨trivial, rfl⟩
 
 /-- Semantic correctness is independent of the later resource certificate. -/
-def impl : StateTransitionImpl (spec α) Exec :=
+@[expose] def impl : StateTransitionImpl (spec α) Exec :=
   StateTransitionImpl.ofStep (D := spec α) Rep step fun {_ t} o hr _ => by
     obtain ⟨ht, rfl⟩ := hr
     cases o with
     | contains x =>
-      refine ⟨?_, ht, rfl⟩
-      have h := contains_eq_true ht x
-      by_cases hx : x ∈ elements t <;> simp_all [step]
+      exact ⟨Bool.eq_iff_iff.mpr ((contains_eq_true ht x).trans decide_eq_true_iff.symm), ht, rfl⟩
     | insert x => exact ⟨rfl, ordered_insert ht x, elements_insert x t⟩
     | delete x => exact ⟨rfl, ordered_erase ht x, elements_erase ht x⟩
     | minimum => exact ⟨(minimum_spec ht).eq_least, ht, rfl⟩

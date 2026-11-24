@@ -15,6 +15,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # Hardness of bounded-alternation quantified SAT
 
@@ -74,8 +76,8 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
   have hW : ComputableInPolyTime W (encPair enc encBits) encBool := by
     unfold W
     cases r <;> fun_prop
-  obtain ⟨t, s, ht, _, k, State, hfinite, tm, htm⟩ := hW.tidy
-  obtain ⟨c, d, hbound⟩ := ht.exists_le
+  obtain ⟨c, d, k, State, hfinite, tm, htm⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hW
   have := Fintype.ofFinite State
   classical
   let width (a : α) := i * p.eval (enc a).length
@@ -106,7 +108,7 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
   let z := block σ (width a) 0 0 ++ block σ (width a) 1 0
   have hz : z.length = 2 * width a := by
     simp only [z, List.length_append, length_block]; omega
-  have hrun := ((htm (a, z)).mono (hbound _) le_rfl).runFrom_initCfg
+  have hrun := (htm (a, z)).runFrom_initCfg
   have hlen : (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * width a + 1 := by
     simp only [length_encPair, encBits_apply, hz]
     omega

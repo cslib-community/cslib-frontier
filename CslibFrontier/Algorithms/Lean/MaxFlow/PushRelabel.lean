@@ -67,7 +67,7 @@ executable scheduler.
 ## Limitations
 
 The bounds count operations; no cost is charged for selecting an operation, so this is not a
-`TimeM` running-time bound. Only the generic algorithm is treated: the FIFO and relabel-to-front
+machine running-time bound. Only the generic algorithm is treated: the FIFO and relabel-to-front
 (`O(|V|³)`) and highest-label (`O(|V|² √|E|)`) selection rules, gap and global relabelling
 heuristics, and dynamic trees ([GoldbergTarjan1988]) are not formalized.
 

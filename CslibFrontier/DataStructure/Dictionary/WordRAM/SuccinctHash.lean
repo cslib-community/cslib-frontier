@@ -10,6 +10,8 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctValidHistory
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
 import CslibFrontier.Tactic.Realize
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Quotient Hashing, `DictStateInv`, and Feistel-Dispatched `Memory.Prog` Operations
@@ -77,7 +79,7 @@ def qBits (U n_max : ℕ) : ℕ :=
 
 /-- Reduction target bit-width parameter `totalMicroBits n_max + 1 = ⌊log₂ n_max⌋ + 1` passed to
 `ReducedKWise`, ensuring `n_max + 1 ≤ 2 ^ hashB n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def hashB (n_max : ℕ) : ℕ :=
   totalMicroBits n_max + 1
 
@@ -88,14 +90,14 @@ def hashSpace (U w n_max : ℕ) : ℕ :=
 
 /-- Total Word-RAM footprint `totalSpace U V w n_max (hashSpace U w n_max)` of the succinct
 dictionary in `w`-bit words. -/
-@[expose]
+@[expose, wram_arith]
 def space (U V w n_max : ℕ) : ℕ :=
   totalSpace U V w n_max (hashSpace U w n_max)
 
 /-- Initialization instruction budget (`2` plus `ReducedKWise.initTableSteps` and
 `ReducedKWise.resampleSteps`; with `3` allocation instructions in `allocSpan`, the total
 initialization time is `initTime = initSteps U n_max + 1`). -/
-@[expose]
+@[expose, wram_arith]
 def initSteps (U n_max : ℕ) : ℕ :=
   2 + ReducedKWise.initTableSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) +
     ReducedKWise.resampleSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
@@ -116,9 +118,7 @@ theorem qBits_le_of_le_pow {U w n_max : ℕ} (hw : 0 < w) (hU : U ≤ 2 ^ w) :
   exact max_le (quotientBits_le_of_le_pow hU) hw
 
 theorem totalMicroBits_le_three_mul_hashB (n_max : ℕ) :
-    totalMicroBits n_max ≤ 3 * hashB n_max := by
-  unfold hashB
-  omega
+    totalMicroBits n_max ≤ 3 * hashB n_max := by wram_omega
 
 theorem hashB_div_two_le_log (n_max : ℕ) :
     hashB n_max / 2 ≤ Nat.log 2 n_max := by
@@ -211,8 +211,7 @@ theorem two_mul_reducedChunkBits_hash_lt {U V w n_max base : ℕ}
   have hw2 := two_le_w_of_fits_space hfit
   have hfit_hash : Fits w (base + hashSpace U w n_max) := by
     refine hfit.of_le ?_
-    unfold space totalSpace offGM offLM offVal offQuot
-    omega
+    wram_omega
   exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
     (two_mul_reducedChunkBits_hash_le hw2 hnU hU) hfit_hash
 
@@ -227,8 +226,7 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       (totalMicroBits_le_of_le_pow hnU hU)
       hw2
     have hm := max_eight_two_pow_hashB_div_two_le n_max
-    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w :=
-      Nat.div_le_div_right (by omega)
+    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w := by gcongr; omega
     have hdiv2 : (16 + 2 * n_max) / w < 9 + (2 * n_max + w - 1) / w := by
       refine Nat.div_lt_of_lt_mul ?_
       have h2 := Nat.div_add_mod (2 * n_max + w - 1) w
@@ -306,11 +304,8 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
   have hdiv :
       (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
         (2 * n_max) * 1 + w - 1) / w ≤
-      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w :=
-    Nat.div_le_div_right hnum
-  unfold space
-  unfold Dynamic.succinctWords at htab ⊢
-  omega
+      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by gcongr
+  wram_omega [htab]
 
 /-! ## Section 2: Expected `probeExcess` bound (`≤ 5`) under `ReducedPolySeed` -/
 
@@ -403,8 +398,7 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
           (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by
       calc (#(univ \ G) * (2 * #(S.erase u))) * 2 ^ (3 * hashB n_max)
           = (#(univ \ G) * 2 ^ (3 * hashB n_max)) * (2 * #(S.erase u)) := by ring
-        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) :=
-            Nat.mul_le_mul_right _ hunion
+        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) := by gcongr
         _ = ((#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))) * 2 ^ (qBits U n_max - 1) := by ring
         _ ≤ (2 * 2 ^ (3 * hashB n_max)) * 2 ^ (qBits U n_max - 1) :=
             Nat.mul_le_mul_right _ hprod_le

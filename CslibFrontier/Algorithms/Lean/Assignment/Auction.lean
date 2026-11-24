@@ -46,8 +46,9 @@ when the bidder has a single object; we raise the price by `ε` instead, which a
 
 ## Cost model and limitations
 
-* The resource measure is the **number of bids** (`AuctionState.bids`); each bid scans the `n`
-  objects, which is not charged. There is no `TimeM` accounting here.
+* The resource measure here is the **number of bids** (`AuctionState.bids`); machine-level
+  `O(n² (C / ε + 1))` and scaled `O(n³ C + n²)` running-time bounds on the word RAM live in
+  `CslibFrontier.Algorithms.WordRAM.Auction`.
 * The bid bound `bids_auction_le` is pseudo-polynomial: at most `n (C + ε) / ε + 1` bids when every
   row has cost range at most `C`; it comes from the measure `n (C + ε) - ∑ j, p j`, which every bid
   lowers by at least `ε` and which stays nonnegative while some person is unassigned. With an
@@ -85,6 +86,8 @@ when the bidder has a single object; we raise the price by `ε` instead, which a
 * `sum_scaledAuctionPerm_le`, `bids_scaledAuction_le`: exact optimality for integer costs after
   scaling by `n + 1` with `ε = 1` ([Bertsekas1988], §3; [Bertsekas1998], §7.1.4), within
   `n ((n + 1) C + 1) + 1` bids.
+* `price_nonneg_bidStep`, `auction_add_const`, `auctionPerm_add_const`: nonnegativity of object
+  prices and invariance of the auction trajectory under uniform cost shifts `c + d`.
 
 ## References
 
@@ -630,5 +633,130 @@ theorem bids_scaledAuction_le {C : ℤ} (hC : ∀ i j k, c (i, k) - c (i, j) ≤
       exact mul_le_mul_of_nonneg_left (hC i j k) (by positivity)
   have := bids_auction_le (c := fun e => ((n : ℤ) + 1) * c e) one_pos hC'
   simpa only [scaledAuction, bidBound, Int.toNat_one, Nat.div_one] using this
+
+/-! ### Price nonnegativity and shift invariance -/
+
+/-- Nonnegativity of object prices is preserved by `bidStep` when `0 ≤ ε`. -/
+theorem price_nonneg_bidStep {s : AuctionState n} (hε : 0 ≤ ε)
+    (hp : ∀ j, 0 ≤ s.price j) (j : Fin n) : 0 ≤ (bidStep c ε s).price j := by
+  rcases hs : s.free with _ | ⟨i, rest⟩
+  · rw [bidStep_nil hs]
+    exact hp j
+  obtain ⟨j₀, hj₀, heq⟩ := bidStep_cons (c := c) (ε := ε) hs
+  rw [heq]
+  dsimp only
+  by_cases hj : j = j₀
+  · subst hj
+    rw [Function.update_self]
+    have := le_bidPrice (ε := ε) hj₀
+    have := hp j
+    omega
+  · rw [Function.update_of_ne hj]
+    exact hp j
+
+private theorem argmin_add_const {α : Type*} (l : List α) (f : α → ℤ) (d : ℤ) :
+    l.argmin (fun x => f x + d) = l.argmin f := by
+  unfold List.argmin
+  have hgen : ∀ acc : Option α,
+      l.foldl (List.argAux fun a b => f a + d < f b + d) acc =
+        l.foldl (List.argAux fun a b => f a < f b) acc := by
+    induction l with
+    | nil => intro _; rfl
+    | cons x l ih =>
+      intro acc
+      cases acc with
+      | none => exact ih (some x)
+      | some a =>
+        simp only [List.foldl_cons, List.argAux, add_lt_add_iff_right]
+        exact ih _
+  exact hgen none
+
+private theorem min?_map_add_const {α : Type*} (l : List α) (f : α → ℤ) (d : ℤ) :
+    (l.map fun x => f x + d).min? = (l.map f).min?.map (· + d) := by
+  cases hf : (l.map f).min? with
+  | none =>
+    rw [List.min?_eq_none_iff, List.map_eq_nil_iff] at hf
+    simp [hf]
+  | some w =>
+    rw [List.min?_eq_some_iff] at hf
+    obtain ⟨hmem, hle⟩ := hf
+    obtain ⟨x₀, hx₀, rfl⟩ := List.mem_map.mp hmem
+    rw [Option.map_some, List.min?_eq_some_iff]
+    refine ⟨List.mem_map.mpr ⟨x₀, hx₀, rfl⟩, fun b hb => ?_⟩
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hb
+    have := hle (f y) (List.mem_map_of_mem hy)
+    omega
+
+private theorem bestObject_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) (p : Fin n → ℤ) (i : Fin n) :
+    bestObject (fun e => c e + d) p i = bestObject c p i := by
+  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d := by
+    funext k
+    simp only [redCost]
+    omega
+  rw [bestObject, hrc]
+  exact argmin_add_const (List.finRange n) (redCost c p i) d
+
+private theorem secondBest_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) (p : Fin n → ℤ)
+    (i j : Fin n) :
+    secondBest (fun e => c e + d) p i j = (secondBest c p i j).map (· + d) := by
+  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d := by
+    funext k
+    simp only [redCost]
+    omega
+  rw [secondBest, hrc]
+  exact min?_map_add_const _ (redCost c p i) d
+
+private theorem bidPrice_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (p : Fin n → ℤ)
+    (i j : Fin n) :
+    bidPrice (fun e => c e + d) ε p i j = bidPrice c ε p i j := by
+  unfold bidPrice
+  rw [secondBest_add_const]
+  cases secondBest c p i j with
+  | none => rfl
+  | some w =>
+    dsimp only [Option.map]
+    omega
+
+/-- Shifting every cost by a constant `d` leaves `bidStep` unchanged. -/
+theorem bidStep_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (s : AuctionState n) :
+    bidStep (fun e => c e + d) ε s = bidStep c ε s := by
+  unfold bidStep
+  cases s.free with
+  | nil => rfl
+  | cons i rest => simp only [bestObject_add_const, bidPrice_add_const]
+
+/-- Shifting every cost by a constant `d` leaves `auctionLoop` unchanged. -/
+theorem auctionLoop_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) :
+    ∀ (fuel : ℕ) (s : AuctionState n),
+      auctionLoop (fun e => c e + d) ε fuel s = auctionLoop c ε fuel s
+  | 0, _ => rfl
+  | fuel + 1, s => by
+    unfold auctionLoop
+    cases s.free with
+    | nil => rfl
+    | cons _ _ => rw [bidStep_add_const, auctionLoop_add_const c d ε fuel]
+
+/-- Shifting every cost by a constant `d` leaves the completed state `auction` unchanged. -/
+theorem auction_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε : 0 < ε) :
+    auction (fun e => c e + d) ε = auction c ε := by
+  unfold auction
+  rw [auctionLoop_add_const]
+  have hf1 : (auctionLoop c ε (bidBound n (costSpread c) ε) (auctionInit n)).free = [] :=
+    auction_free hε
+  have hf2 :
+      (auctionLoop c ε (bidBound n (costSpread fun e => c e + d) ε) (auctionInit n)).free = [] := by
+    rw [← auctionLoop_add_const c d ε]
+    exact auction_free (c := fun e => c e + d) hε
+  rcases le_total (bidBound n (costSpread c) ε)
+      (bidBound n (costSpread fun e => c e + d) ε) with hle | hle
+  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf1]
+  · symm
+    rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
+
+/-- Shifting every cost by a constant `d` leaves `auctionPerm` unchanged. -/
+theorem auctionPerm_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε : 0 < ε) :
+    auctionPerm (fun e => c e + d) hε = auctionPerm c hε := by
+  ext i
+  simp only [auctionPerm, Equiv.coe_fn_mk, auction_add_const c d hε]
 
 end Cslib.Algorithms.Lean.Assignment

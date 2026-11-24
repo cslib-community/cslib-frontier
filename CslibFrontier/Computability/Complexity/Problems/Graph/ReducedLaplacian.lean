@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Rational.Runtime.Determinant
 public import CslibFrontier.Computability.Complexity.Problems.Graph
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 
 /-!
 # Reduced-Laplacian determinant tables for polynomial-time graph counting
@@ -45,14 +46,7 @@ theorem detRows_map_eq {vs : List ℕ} {V : Type*} [Fintype V] [DecidableEq V]
   rw [Cslib.Circuits.Rational.detRows_eq_det_of_rowEntry (M.submatrix e e) (List.length_map _)]
   · exact Matrix.det_submatrix_equiv_self e M
   · intro i j
-    have hi : (i : ℕ) < (vs.map fun u => vs.map fun v => entry u v).length := by
-      simpa only [List.length_map] using i.isLt
-    have hj : (j : ℕ) < (vs.map fun v => entry vs[(i : ℕ)] v).length := by
-      simpa only [List.length_map] using j.isLt
-    simp only [Cslib.rowEntry, List.getD_eq_getElem?_getD]
-    rw [List.getElem?_eq_getElem hi, Option.getD_some, List.getElem_map,
-      List.getElem?_eq_getElem hj, Option.getD_some, List.getElem_map, Matrix.submatrix_apply]
-    exact hM i j
+    simpa [Cslib.rowEntry, List.getD_eq_getElem?_getD, i.isLt, j.isLt] using hM i j
 
 /-- Evaluating `Cslib.Circuits.Rational.detRows` after deleting vertex `r` from a duplicate-free
 vertex list `vs` equals the determinant of the `(r, r)` minor of `M`. -/
@@ -100,9 +94,7 @@ theorem detRows_filter_ne_equiv_eq {vs : List ℕ} (hnd : vs.Nodup)
 /-- Indexing equivalence `G.vertexEquiv` evaluates to `G.distinctVertices[i]`. -/
 theorem Graph.vertexEquiv_getElem (G : Graph) (i : Fin G.distinctVertices.length) :
     (G.vertexEquiv i : ℕ) = G.distinctVertices[i] := by
-  rw [Graph.vertexEquiv_apply, List.getD_eq_getElem?_getD,
-    List.getElem?_eq_getElem i.isLt, Option.getD_some]
-  rfl
+  simp [Graph.vertexEquiv_apply, List.getD_eq_getElem?_getD, i.isLt]
 
 /-- Filtering a vertex list to remove a computed vertex runs in polynomial time. -/
 @[fun_prop]
@@ -112,12 +104,7 @@ theorem computableInPolyTime_filter_ne {γ : Type} {encIn : γ ↪ List Bool}
     (hr : ComputableInPolyTime r encIn encNat) :
     ComputableInPolyTime (fun x => (vs x).filter fun v => decide (v ≠ r x))
       encIn (encList encNat) := by
-  refine ComputableInPolyTime.filterWithInput hvs ?_
-  have heq : ComputableInPolyTime (fun p : γ × ℕ => decide (p.2 = r p.1))
-      (encPair encIn encNat) encBool :=
-    (ComputableInPolyTime.snd encIn encNat).decide_eq'
-      (hr.comp (ComputableInPolyTime.fst encIn encNat))
-  simpa only [Function.comp_def, decide_not] using ComputableInPolyTime.bool_not.comp heq
+  fun_prop
 
 /-- Tabulating an integer matrix over a computed vertex list and computing its determinant with
 `Cslib.Circuits.Rational.detRows` runs in polynomial time. -/
@@ -130,9 +117,9 @@ theorem computableInPolyTime_detRows_map {γ : Type} {encIn : γ ↪ List Bool}
     ComputableInPolyTime
       (fun x => Cslib.Circuits.Rational.detRows
         ((verts x).map fun u => (verts x).map fun v => entry x u v))
-      encIn encIntBin := by
-  refine Cslib.Circuits.Rational.detRows_polytime.comp (ComputableInPolyTime.mapWithInput hverts ?_)
-  exact ComputableInPolyTime.mapWithInput (hverts.comp (ComputableInPolyTime.fst encIn encNat))
-    hentry
+      encIn encIntBin :=
+  Cslib.Circuits.Rational.detRows_polytime.comp
+    (ComputableInPolyTime.mapWithInput hverts
+      (ComputableInPolyTime.mapWithInput (hverts.comp (.fst _ _)) hentry))
 
 end Cslib.Complexity

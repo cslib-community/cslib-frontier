@@ -7,6 +7,7 @@ Authors: OpenAI
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Problems.CSP.IncidenceAppendIndex
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Logics.Propositional.CSP.Occurrence.AppendScope
 
@@ -23,6 +24,18 @@ public section
 namespace Cslib.Complexity.CSP
 
 open Cslib.Logic.PL Cslib.Logic.PL.CSP
+
+variable {Rel V : Type} [DecidableEq V]
+
+/-- Reindexing only a final scope preserves every original body incidence index. -/
+theorem incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inl (F : CSP Rel V) (r : Rel) {n : ℕ}
+    (x : Fin n → V) (o : F.Occurrence) :
+    incidenceEdgeIndex (appendOfFnOccurrenceEquiv F r x (Sum.inl o)) = incidenceEdgeIndex o := by
+  have he : appendOfFnOccurrenceEquiv F r x (Sum.inl o) =
+      appendOccurrenceEquiv F [Constraint.mk r (List.ofFn x)] (Sum.inl o) := by
+    apply Occurrence.record_injective
+    rw [record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inl]
+  rw [he, incidenceEdgeIndex_appendOccurrenceEquiv_inl]
 
 /-- The appended argument's incidence edge is the body-prefix length plus its actual slot.
 The empty-scope case has no argument to select. Variable names need not be distinct. -/
@@ -44,5 +57,20 @@ theorem incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr {Rel V : Type} [Decidab
   unfold incidenceEdgeIndex
   rw [record_appendOfFnOccurrenceEquiv_inr, ← he]
   exact (F ++ [Constraint.mk r (List.ofFn scope)]).occurrences_nodup.idxOf_getElem _ hi
+
+/-- An arbitrary appended scope uses its literal body-prefix length and selected list
+position. This follows from the function-indexed theorem on the same list of entries. -/
+theorem incidenceEdgeIndex_appendScopeOccurrenceEquiv_inr {Rel V : Type} [DecidableEq V]
+    (F : CSP Rel V) (r : Rel) (scope : List V) (j : Fin scope.length) :
+    incidenceEdgeIndex (appendScopeOccurrenceEquiv F r scope (Sum.inr j)) =
+      F.occurrences.length + j.val := by
+  have h := incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr F r (scope.get) j
+  unfold incidenceEdgeIndex at h ⊢
+  rw [record_appendOfFnOccurrenceEquiv_inr] at h
+  rw [record_appendScopeOccurrenceEquiv_inr]
+  have he : List.ofFn scope.get = scope := by
+    change List.ofFn (fun i : Fin scope.length => scope[i.val]) = scope
+    exact List.ofFn_getElem
+  simpa only [he, List.get_eq_getElem] using h
 
 end Cslib.Complexity.CSP

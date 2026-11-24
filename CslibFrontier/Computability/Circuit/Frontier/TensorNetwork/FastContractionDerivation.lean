@@ -56,7 +56,7 @@ public section
 
 namespace Cslib.Circuits.Frontier.FastContraction
 
-open ChildCursor Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+open ChildCursor Cslib.Algorithms.StackRecursion
 
 variable {T : Type} (ev : T → List Bool → List ℕ)
   (mk : Call T → State → ℕ × DescribedNetwork (VertexDesc T))
@@ -145,12 +145,12 @@ private theorem reach_call {x : Call T} (hx : Reach mk x₀ x) (ha : active x = 
       (x.depth, value ev mk x) = (scheme ev mk).finish x (acc (children x).length) := by
   obtain ⟨h0, hnext, hdone, habs, hfin⟩ := walk ev mk ha fun c => value ev mk (child x mk c)
   refine ⟨frameAt x fun c => value ev mk (child x mk c),
-    fun c => child x mk ((children x).getD c (0, 0, [], 0)), h0, hnext, hdone,
-    fun c hc => habs c hc, fun c hc => ⟨⟨hx, ha, c, hc.le, rfl⟩, ?_, ?_, rfl⟩, ?_⟩
-  · exact Reach.step _ hx ha (List.getD_eq_getElem _ _ hc ▸ List.getElem_mem hc)
-  · exact edges_lt_bound_of_active ha
-  · simp only [scheme, Prod.mk.injEq, true_and]
-    rw [value_of_active ev mk ha, hfin]
+    fun c => child x mk ((children x).getD c (0, 0, [], 0)), h0, hnext, hdone, fun c hc => by
+      dsimp only; rw [show (child x mk _).depth = x.depth + 1 from rfl]; exact habs c hc,
+    fun c hc => ⟨⟨hx, ha, c, hc.le, rfl⟩,
+      Reach.step _ hx ha (List.getD_eq_getElem _ _ hc ▸ List.getElem_mem hc),
+      edges_lt_bound_of_active ha, rfl⟩, ?_⟩
+  simp only [scheme, value_of_active ev mk ha, hfin]
 
 /-- The leaves and values of a derivation over the reached calls. -/
 private theorem reach_leaf {x : Call T} (hl : (scheme ev mk).isLeaf x = true) :
