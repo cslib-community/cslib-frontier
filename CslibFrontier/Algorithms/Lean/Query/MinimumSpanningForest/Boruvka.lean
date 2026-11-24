@@ -44,6 +44,10 @@ edges `rest`. Then
 The comparison bounds and the halving hold for every oracle; only the identity with the minimum
 spanning forest needs the oracle of weights, and distinct weights.
 
+These programs and their properties are steps in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (§4, p. 25), tracked in #8325, whose final algorithm begins with Borůvka
+steps (Algorithm 2, lines 1–3, p. 25).
+
 ## Main definitions
 
 * `Cslib.Query.boruvkaStep`: one Borůvka step, returning the selected edges.
@@ -485,10 +489,10 @@ theorem card_support_boruvka_le (ends : E → Sym2 V) (S : Finset E) (k : ℕ)
         Nat.div_le_div_right ((Nat.le_div_iff_mul_le two_pos).2 (by rw [Nat.mul_comm]; exact hhalf))
       _ = #(support ends S) / 2 ^ (k + 1) := by rw [Nat.div_div_eq_div_mul, pow_succ']
 
-/-- **Correctness of `k` Borůvka steps** (§2, p. 12, by Facts 2.2 and 2.4): with distinct
-weights, against the comparison oracle of `w`, the minimum spanning forest of `S` is the selected
-edges together with the minimum spanning forest of the remaining edges in the contracted
-multigraph. -/
+/-- **Correctness of `k` Borůvka steps**, a step in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (§2, p. 12, by the paper's Facts 2.2 and 2.4): with distinct weights,
+against the comparison oracle of `w`, the minimum spanning forest of `S` is the selected edges
+together with the minimum spanning forest of the remaining edges in the contracted multigraph. -/
 theorem msf_eq_union_boruvka (ends : E → Sym2 V) (S : Finset E) (k : ℕ) (w : E → W)
     (hw : Function.Injective w) {r : BoruvkaResult V E}
     (hr : (boruvka ends S k).eval (LEQuery.keyOracle w) = r) :
