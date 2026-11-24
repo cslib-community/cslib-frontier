@@ -60,7 +60,7 @@ structure RelJ (M j : ℕ) (r : Run A) (q : SimRun A) : Prop where
   cost : r.cost + j ≤ M * q.run.cost
 
 /-- The bound for the overhead. -/
-def MM (H : ℕ) : ℕ := 1000 + 100 * H
+@[expose] def MM (H : ℕ) : ℕ := 1000 + 100 * H
 
 theorem IF_case {f x : Tree} {t : Bt} {c : Fm} (hc : caseL[f.hd.len]? = some c) {M : ℕ}
     {Q : List (SimRun A)} (h : ∃ l, Ev θ c (env f x t) l ∧ List.Forall₂ (RelJ M 300) l Q) :
