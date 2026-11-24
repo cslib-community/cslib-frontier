@@ -169,151 +169,68 @@ private theorem sum_powerset_bernWeight {α : Type*} [DecidableEq α] (p : α �
     (∑ E ∈ U.powerset with inSet ⊆ E ∧ Disjoint E outSet,
         ∏ a ∈ U, (if a ∈ E then p a else 1 - p a)) =
       (∏ a ∈ inSet, p a) * (∏ a ∈ outSet, (1 - p a)) := by
-  induction U using Finset.induction generalizing inSet outSet with
-  | empty =>
-    rw [Finset.subset_empty.mp hin, Finset.subset_empty.mp hout]
-    simp
-  | insert a U haU ih =>
-    have hsplit_sum :
-        ∀ f : Finset α → ℝ,
-          ∑ E ∈ (insert a U).powerset, f E =
-            (∑ E ∈ U.powerset, f E) + ∑ E ∈ U.powerset, f (insert a E) := by
-      intro f
-      have hdisj_pow : Disjoint U.powerset (U.powerset.image (insert a)) := by
-        rw [Finset.disjoint_left]
-        intro E h1 h2
-        rcases Finset.mem_image.mp h2 with ⟨F, _, rfl⟩
-        exact haU (Finset.mem_powerset.mp h1 (Finset.mem_insert_self a F))
-      rw [Finset.powerset_insert, Finset.sum_union hdisj_pow, Finset.sum_image]
-      intro E₁ hE₁ E₂ hE₂ heq
-      have ha₁ : a ∉ E₁ := fun h => haU (Finset.mem_powerset.mp hE₁ h)
-      have ha₂ : a ∉ E₂ := fun h => haU (Finset.mem_powerset.mp hE₂ h)
-      simpa only [Finset.erase_insert ha₁, Finset.erase_insert ha₂] using
-        congrArg (fun S => S.erase a) heq
-    rw [Finset.sum_filter, hsplit_sum]
-    have hprod_no : ∀ {E : Finset α}, E ∈ U.powerset →
-        (∏ x ∈ insert a U, if x ∈ E then p x else 1 - p x) =
-          (1 - p a) * ∏ x ∈ U, if x ∈ E then p x else 1 - p x := by
-      intro E hE
-      have haE : a ∉ E := fun h => haU (Finset.mem_powerset.mp hE h)
-      rw [Finset.prod_insert haU]
-      simp [haE]
-    have hprod_yes : ∀ {E : Finset α}, E ∈ U.powerset →
-        (∏ x ∈ insert a U, if x ∈ insert a E then p x else 1 - p x) =
-          p a * ∏ x ∈ U, if x ∈ E then p x else 1 - p x := by
-      intro E hE
-      rw [Finset.prod_insert haU]
-      simp only [Finset.mem_insert_self, ↓reduceIte]
-      congr 1
-      refine Finset.prod_congr rfl fun x hxU => ?_
-      have hxa : x ≠ a := fun h => haU (h ▸ hxU)
-      simp [hxa]
-    by_cases hain : a ∈ inSet
-    · have haout : a ∉ outSet := Finset.disjoint_left.mp hdisj hain
-      have hin' : inSet.erase a ⊆ U :=
-        fun x hx => (Finset.mem_insert.mp (hin (Finset.mem_of_mem_erase hx))).resolve_left
-          (Finset.ne_of_mem_erase hx)
-      have hout' : outSet ⊆ U :=
-        fun x hx => (Finset.mem_insert.mp (hout hx)).resolve_left fun hxa => haout (hxa ▸ hx)
-      have hdisj' : Disjoint (inSet.erase a) outSet :=
-        hdisj.mono_left (Finset.erase_subset a inSet)
-      have hno_zero : (∑ E ∈ U.powerset,
-          if inSet ⊆ E ∧ Disjoint E outSet then
-            ∏ x ∈ insert a U, (if x ∈ E then p x else 1 - p x) else 0) = 0 := by
-        refine Finset.sum_eq_zero fun E hE => ?_
-        have haE : a ∉ E := fun h => haU (Finset.mem_powerset.mp hE h)
-        have hnot : ¬ (inSet ⊆ E ∧ Disjoint E outSet) := fun h => haE (h.1 hain)
-        simp [hnot]
-      have hyes : (∑ E ∈ U.powerset,
-          if inSet ⊆ insert a E ∧ Disjoint (insert a E) outSet then
-            ∏ x ∈ insert a U, (if x ∈ insert a E then p x else 1 - p x) else 0) =
-          p a * ∑ E ∈ U.powerset with inSet.erase a ⊆ E ∧ Disjoint E outSet,
-            ∏ x ∈ U, (if x ∈ E then p x else 1 - p x) := by
-        rw [Finset.sum_filter, Finset.mul_sum]
-        refine Finset.sum_congr rfl fun E hE => ?_
-        have hcond : (inSet ⊆ insert a E ∧ Disjoint (insert a E) outSet) ↔
-            (inSet.erase a ⊆ E ∧ Disjoint E outSet) := by
-          rw [Finset.disjoint_insert_left]
-          refine and_congr ?_ ⟨fun h => h.2, fun h => ⟨haout, h⟩⟩
-          exact ⟨fun h x hx => (Finset.mem_insert.mp (h (Finset.mem_of_mem_erase hx))).resolve_left
-              (Finset.ne_of_mem_erase hx),
-            fun h x hx => by
-              rcases eq_or_ne x a with rfl | hxa
-              · exact Finset.mem_insert_self x E
-              · exact Finset.mem_insert_of_mem (h (Finset.mem_erase.mpr ⟨hxa, hx⟩))⟩
-        split_ifs with h1 h2 h2
-        · exact hprod_yes hE
-        · exact absurd (hcond.mp h1) h2
-        · exact absurd (hcond.mpr h2) h1
-        · simp
-      rw [hno_zero, zero_add, hyes, ih (inSet.erase a) outSet hin' hout' hdisj', ← mul_assoc,
-        Finset.mul_prod_erase inSet p hain]
-    · by_cases haout : a ∈ outSet
-      · have hin' : inSet ⊆ U :=
-          fun x hx => (Finset.mem_insert.mp (hin hx)).resolve_left fun hxa => hain (hxa ▸ hx)
-        have hout' : outSet.erase a ⊆ U :=
-          fun x hx => (Finset.mem_insert.mp (hout (Finset.mem_of_mem_erase hx))).resolve_left
-            (Finset.ne_of_mem_erase hx)
-        have hdisj' : Disjoint inSet (outSet.erase a) :=
-          hdisj.mono_right (Finset.erase_subset a outSet)
-        have hyes_zero : (∑ E ∈ U.powerset,
-            if inSet ⊆ insert a E ∧ Disjoint (insert a E) outSet then
-              ∏ x ∈ insert a U, (if x ∈ insert a E then p x else 1 - p x) else 0) = 0 := by
-          refine Finset.sum_eq_zero fun E _ => ?_
-          split_ifs with h
-          · exact absurd haout (Finset.disjoint_insert_left.mp h.2).1
-          · rfl
-        have hno : (∑ E ∈ U.powerset,
-            if inSet ⊆ E ∧ Disjoint E outSet then
-              ∏ x ∈ insert a U, (if x ∈ E then p x else 1 - p x) else 0) =
-            (1 - p a) * ∑ E ∈ U.powerset with inSet ⊆ E ∧ Disjoint E (outSet.erase a),
-              ∏ x ∈ U, (if x ∈ E then p x else 1 - p x) := by
-          rw [Finset.sum_filter, Finset.mul_sum]
-          refine Finset.sum_congr rfl fun E hE => ?_
-          have haE : a ∉ E := fun h => haU (Finset.mem_powerset.mp hE h)
-          have hcond : Disjoint E outSet ↔ Disjoint E (outSet.erase a) := by
-            refine ⟨fun h => h.mono_right (Finset.erase_subset a outSet), fun h => ?_⟩
-            rw [Finset.disjoint_left] at h ⊢
-            intro x hxE hxout
-            rcases eq_or_ne x a with rfl | hxa
-            · exact haE hxE
-            · exact h hxE (Finset.mem_erase.mpr ⟨hxa, hxout⟩)
-          split_ifs with h1 h2 h2
-          · exact hprod_no hE
-          · exact absurd ⟨h1.1, hcond.mp h1.2⟩ h2
-          · exact absurd ⟨h2.1, hcond.mpr h2.2⟩ h1
-          · simp
-        rw [hyes_zero, add_zero, hno, ih inSet (outSet.erase a) hin' hout' hdisj',
-          mul_left_comm, Finset.mul_prod_erase outSet (fun x => 1 - p x) haout]
-      · have hin' : inSet ⊆ U :=
-          fun x hx => (Finset.mem_insert.mp (hin hx)).resolve_left fun hxa => hain (hxa ▸ hx)
-        have hout' : outSet ⊆ U :=
-          fun x hx => (Finset.mem_insert.mp (hout hx)).resolve_left fun hxa => haout (hxa ▸ hx)
-        have hcomb :
-            (∑ E ∈ U.powerset,
-              if inSet ⊆ E ∧ Disjoint E outSet then
-                ∏ x ∈ insert a U, (if x ∈ E then p x else 1 - p x) else 0) +
-            (∑ E ∈ U.powerset,
-              if inSet ⊆ insert a E ∧ Disjoint (insert a E) outSet then
-                ∏ x ∈ insert a U, (if x ∈ insert a E then p x else 1 - p x) else 0) =
-            ∑ E ∈ U.powerset with inSet ⊆ E ∧ Disjoint E outSet,
-              ∏ x ∈ U, (if x ∈ E then p x else 1 - p x) := by
-          rw [← Finset.sum_add_distrib, Finset.sum_filter]
-          refine Finset.sum_congr rfl fun E hE => ?_
-          have hcond : (inSet ⊆ insert a E ∧ Disjoint (insert a E) outSet) ↔
-              (inSet ⊆ E ∧ Disjoint E outSet) := by
-            rw [Finset.disjoint_insert_left]
-            refine and_congr ?_ ⟨fun h => h.2, fun h => ⟨haout, h⟩⟩
-            exact ⟨fun h x hx => (Finset.mem_insert.mp (h hx)).resolve_left
-                fun hxa => hain (hxa ▸ hx),
-              fun h => h.trans (Finset.subset_insert a E)⟩
-          split_ifs with h1 h2 h2
-          · rw [hprod_no hE, hprod_yes hE]
-            ring
-          · exact absurd (hcond.mpr h1) h2
-          · exact absurd (hcond.mp h2) h1
-          · simp
-        rw [hcomb, ih inSet outSet hin' hout' hdisj]
+  let free := U \ (inSet ∪ outSet)
+  have hbij : (∑ E ∈ U.powerset with inSet ⊆ E ∧ Disjoint E outSet,
+        ∏ a ∈ U, (if a ∈ E then p a else 1 - p a)) =
+      ∑ S ∈ free.powerset, ∏ a ∈ U, (if a ∈ inSet ∪ S then p a else 1 - p a) := by
+    refine Finset.sum_bij' (fun E _ => E \ inSet) (fun S _ => inSet ∪ S) ?_ ?_ ?_ ?_ ?_
+    · intro E hE
+      rcases Finset.mem_filter.mp hE with ⟨hEU, _, hEout⟩
+      rw [Finset.mem_powerset] at hEU ⊢
+      intro a ha
+      rcases Finset.mem_sdiff.mp ha with ⟨haE, hain⟩
+      exact Finset.mem_sdiff.mpr ⟨hEU haE, Finset.notMem_union.mpr
+        ⟨hain, Finset.disjoint_left.mp hEout haE⟩⟩
+    · intro S hS
+      have hSfree : S ⊆ free := Finset.mem_powerset.mp hS
+      refine Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr
+        (Finset.union_subset hin (hSfree.trans Finset.sdiff_subset)),
+        Finset.subset_union_left, Finset.disjoint_union_left.mpr ⟨hdisj, ?_⟩⟩
+      rw [Finset.disjoint_left]
+      intro a haS haout
+      exact (Finset.mem_sdiff.mp (hSfree haS)).2 (Finset.mem_union_right _ haout)
+    · intro E hE
+      exact Finset.union_sdiff_of_subset (Finset.mem_filter.mp hE).2.1
+    · intro S hS
+      have hSin : Disjoint inSet S := by
+        rw [Finset.disjoint_right]
+        intro a haS hain
+        exact (Finset.mem_sdiff.mp (Finset.mem_powerset.mp hS haS)).2
+          (Finset.mem_union_left _ hain)
+      exact Finset.union_sdiff_cancel_left hSin
+    · intro E hE
+      rw [Finset.union_sdiff_of_subset (Finset.mem_filter.mp hE).2.1]
+  have hterm : ∀ S ∈ free.powerset,
+      (∏ a ∈ U, (if a ∈ inSet ∪ S then p a else 1 - p a)) =
+        ((∏ a ∈ inSet, p a) * (∏ a ∈ outSet, (1 - p a))) *
+          ((∏ a ∈ S, p a) * (∏ a ∈ free \ S, (1 - p a))) := by
+    intro S hS
+    have hSfree : S ⊆ free := Finset.mem_powerset.mp hS
+    rw [← Finset.prod_sdiff (Finset.union_subset hin hout), Finset.prod_union hdisj,
+      ← Finset.prod_sdiff hSfree]
+    have hin_prod : (∏ a ∈ inSet, if a ∈ inSet ∪ S then p a else 1 - p a) = ∏ a ∈ inSet, p a :=
+      Finset.prod_congr rfl fun a ha => ite_eq_left (Finset.mem_union_left _ ha)
+    have hout_prod :
+        (∏ a ∈ outSet, if a ∈ inSet ∪ S then p a else 1 - p a) = ∏ a ∈ outSet, (1 - p a) :=
+      Finset.prod_congr rfl fun a ha => ite_eq_right fun hmem =>
+        (Finset.mem_union.mp hmem).elim (fun hain => Finset.disjoint_left.mp hdisj hain ha)
+          fun haS => (Finset.mem_sdiff.mp (hSfree haS)).2 (Finset.mem_union_right _ ha)
+    have hS_prod : (∏ a ∈ S, if a ∈ inSet ∪ S then p a else 1 - p a) = ∏ a ∈ S, p a :=
+      Finset.prod_congr rfl fun a ha => ite_eq_left (Finset.mem_union_right _ ha)
+    have hcomp_prod :
+        (∏ a ∈ free \ S, if a ∈ inSet ∪ S then p a else 1 - p a) = ∏ a ∈ free \ S, (1 - p a) :=
+      Finset.prod_congr rfl fun a ha => ite_eq_right fun hmem =>
+        (Finset.mem_union.mp hmem).elim
+          (fun hain => (Finset.mem_sdiff.mp (Finset.mem_sdiff.mp ha).1).2
+            (Finset.mem_union_left _ hain))
+          (Finset.mem_sdiff.mp ha).2
+    rw [hin_prod, hout_prod, hS_prod, hcomp_prod]
+    ring
+  have hfree1 :
+      (∑ S ∈ free.powerset, (∏ a ∈ S, p a) * (∏ a ∈ free \ S, (1 - p a))) = 1 := by
+    rw [← Finset.prod_add p (fun a => 1 - p a) free]
+    exact Finset.prod_eq_one fun a _ => by ring
+  rw [hbij, Finset.sum_congr rfl hterm, ← Finset.mul_sum, hfree1, mul_one]
 
 /-- Equivalence between `Digraph V` and edge sets `Finset (V × V)`. -/
 private noncomputable def digraphEquivEdgeFinset (V : Type*) [DecidableEq V] [Fintype V] :
@@ -356,13 +273,8 @@ variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G
 
 /-- Expected number of active vertices at the end of the Independent Cascade process starting from
 seed set `S` ([Kleinberg2007], Section 24.4, p. 623). -/
-noncomputable def influence (S : Finset V) : ℝ :=
+@[expose] noncomputable def influence (S : Finset V) : ℝ :=
   IC.toCascadeModel.influence S
-
-@[simp]
-theorem toCascadeModel_influence (S : Finset V) :
-    IC.toCascadeModel.influence S = IC.influence S := by
-  rfl
 
 private theorem survivalProb_toCascadeModel (w : V) (X : Finset V) :
     IC.toCascadeModel.survivalProb w X = ∏ u ∈ X, (1 - IC.edgeProb u w) := by
@@ -576,131 +488,29 @@ theorem activeSetProb_eq_sum_liveGraphWeight
                 subst hyv
                 simp [mkH]
             convert hbij
-        have hsum_succ :
-            (∑ H : Digraph V with
-                (∀ w ∉ insert v active, ∀ x ∈ tried' w, ¬ H.Adj x w) ∧
-                  liveReachable H (insert v active) = A,
-              liveGraphWeight IC H) =
-            ∑ H₀ ∈ Base,
-              ∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
-                if H₀.Adj e.1 e.2 then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
-          have hprod_bij :
-              (∑ H : Digraph V with
-                  (∀ w ∉ insert v active, ∀ x ∈ tried' w, ¬ H.Adj x w) ∧
-                    liveReachable H (insert v active) = A,
-                liveGraphWeight IC H) =
-              ∑ p ∈ Base ×ˢ (Finset.univ : Finset (Finset V)),
-                liveGraphWeight IC (mkH p.1 p.2) := by
-            refine Finset.sum_bij (fun H _ => decompV H) ?_ (fun _ _ _ _ h => hdecomp_inj h) ?_
-              (fun H _ => congrArg (liveGraphWeight IC) (hmkH_decomp H).symm)
-            · intro H hH
-              rcases (Finset.mem_filter.mp hH).2 with ⟨hno, hreach⟩
-              have hreach₀ : liveReachable (decompV H).1 (insert v active) = A := by
-                rw [← hreach]
-                exact liveReachable_congr_inEdges (Finset.mem_insert_self v active)
-                  fun x y hy => by simp [decompV, hy]
-              refine Finset.mem_product.mpr ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-                fun x => by simp [decompV], fun w hw x hx h => hno w hw x hx h.2, hreach₀⟩,
-                Finset.mem_univ _⟩
-            · rintro ⟨H₀, X⟩ hp
-              rcases Finset.mem_product.mp hp with ⟨hBase, _⟩
-              dsimp only at hBase
-              rcases (Finset.mem_filter.mp hBase).2 with ⟨hnov, hno, hreach₀⟩
-              have hreach : liveReachable (mkH H₀ X) (insert v active) = A := by
-                rw [← hreach₀]
-                exact liveReachable_congr_inEdges (Finset.mem_insert_self v active)
-                  fun x y hy => by simp [mkH, hy]
-              refine ⟨mkH H₀ X, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_, hreach⟩,
-                hdecomp_mkH X hnov⟩
-              intro w hw x hx
-              have hwv : w ≠ v := fun h => hw (h ▸ Finset.mem_insert_self v active)
-              simpa [mkH, hwv] using hno w hw x hx
-          rw [hprod_bij, Finset.sum_product]
-          refine Finset.sum_congr rfl fun H₀ hH₀ => ?_
-          have hrow : (∑ X : Finset V, liveGraphWeight IC (mkH H₀ X)) =
-              (∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
-                if H₀.Adj e.1 e.2 then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2) *
-              ∑ X ∈ (Finset.univ : Finset V).powerset with (∅ : Finset V) ⊆ X ∧
-                  Disjoint X (∅ : Finset V),
-                ∏ x ∈ (Finset.univ : Finset V),
-                  (if x ∈ X then IC.edgeProb x v else 1 - IC.edgeProb x v) := by
-            rw [Finset.mul_sum]
-            have hpuniv : (Finset.univ : Finset V).powerset.filter
-                (fun X => (∅ : Finset V) ⊆ X ∧ Disjoint X (∅ : Finset V)) = Finset.univ := by
-              ext X
-              simp
-            rw [hpuniv]
-            exact Finset.sum_congr rfl fun X _ => hweight_mkH H₀ hH₀ X
-          rw [hrow, sum_powerset_bernWeight _ _ _ _ (Finset.empty_subset _)
-            (Finset.empty_subset _) (Finset.disjoint_empty_left _)]
-          simp
-        have hsum_act :
-            (∑ H ∈ S_all with H.Adj u v, liveGraphWeight IC H) =
-            IC.edgeProb u v * IC.toCascadeModel.survivalProb v (tried v) *
-            ∑ H₀ ∈ Base,
-              ∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
-                if H₀.Adj e.1 e.2 then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
+        have hdecomp_sum : ∀ (Dom : Finset (Digraph V)) (inX outX : Finset V),
+            Disjoint inX outX →
+            (∀ H : Digraph V,
+              H ∈ Dom ↔ decompV H ∈ Base ×ˢ
+                (Finset.univ.powerset.filter fun X => inX ⊆ X ∧ Disjoint X outX)) →
+            (∑ H ∈ Dom, liveGraphWeight IC H) =
+              ((∏ x ∈ inX, IC.edgeProb x v) * (∏ x ∈ outX, (1 - IC.edgeProb x v))) *
+              ∑ H₀ ∈ Base,
+                ∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
+                  if H₀.Adj e.1 e.2 then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
+          intro Dom inX outX hdisj hDom
           let XValid := (Finset.univ : Finset V).powerset.filter
-            fun X => ({u} : Finset V) ⊆ X ∧ Disjoint X (tried v)
-          have hreach_ins : ∀ H : Digraph V, H.Adj u v →
-              liveReachable H active = liveReachable H (insert v active) := by
-            intro H huvH
-            refine Finset.Subset.antisymm
-              (monotone_liveReachable H (Finset.subset_insert v active)) ?_
-            intro z hz
-            rcases mem_liveReachable.mp hz with ⟨s, hs, hp⟩
-            rcases Finset.mem_insert.mp hs with rfl | hs_act
-            · exact mem_liveReachable.mpr
-                ⟨u, hu_act, (Relation.ReflTransGen.single huvH).trans hp⟩
-            · exact mem_liveReachable.mpr ⟨s, hs_act, hp⟩
-          have hprod_bij :
-              (∑ H ∈ S_all with H.Adj u v, liveGraphWeight IC H) =
+            fun X => inX ⊆ X ∧ Disjoint X outX
+          have hbij : (∑ H ∈ Dom, liveGraphWeight IC H) =
               ∑ p ∈ Base ×ˢ XValid, liveGraphWeight IC (mkH p.1 p.2) := by
-            refine Finset.sum_bij (fun H _ => decompV H) ?_ (fun _ _ _ _ h => hdecomp_inj h) ?_
+            refine Finset.sum_bij (fun H _ => decompV H) (fun H hH => (hDom H).mp hH)
+              (fun _ _ _ _ h => hdecomp_inj h) ?_
               (fun H _ => congrArg (liveGraphWeight IC) (hmkH_decomp H).symm)
-            · intro H hH
-              rcases Finset.mem_filter.mp hH with ⟨hS, huvH⟩
-              rcases (Finset.mem_filter.mp hS).2 with ⟨hno, hreach⟩
-              have hreach₀ : liveReachable (decompV H).1 (insert v active) = A := by
-                rw [← hreach, hreach_ins H huvH]
-                exact liveReachable_congr_inEdges (Finset.mem_insert_self v active)
-                  fun x y hy => by simp [decompV, hy]
-              refine Finset.mem_product.mpr ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-                fun x => by simp [decompV], ?_, hreach₀⟩, ?_⟩
-              · intro w hw x hx h
-                have hwv : w ≠ v := fun heq => hw (heq ▸ Finset.mem_insert_self v active)
-                have hwin : w ∉ active := fun ha => hw (Finset.mem_insert_of_mem ha)
-                dsimp only [tried'] at hx
-                rw [Function.update_of_ne hwv] at hx
-                exact hno w hwin x hx h.2
-              · refine Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr (Finset.subset_univ _),
-                  Finset.singleton_subset_iff.mpr (by simp [decompV, huvH]), ?_⟩
-                rw [Finset.disjoint_left]
-                intro x hx hxt
-                exact hno v hv_inact x hxt (Finset.mem_filter.mp hx).2
-            · rintro ⟨H₀, X⟩ hp
-              rcases Finset.mem_product.mp hp with ⟨hBase, hXV⟩
-              dsimp only at hBase hXV
-              rcases (Finset.mem_filter.mp hBase).2 with ⟨hnov, hno, hreach₀⟩
-              rcases (Finset.mem_filter.mp hXV).2 with ⟨huX, hdisjX⟩
-              have huv_mk : (mkH H₀ X).Adj u v := by
-                simpa [mkH] using Finset.singleton_subset_iff.mp huX
-              have hreach_mk : liveReachable (mkH H₀ X) active = A := by
-                rw [hreach_ins (mkH H₀ X) huv_mk, ← hreach₀]
-                exact (liveReachable_congr_inEdges (Finset.mem_insert_self v active)
-                  fun x y hy => by simp [mkH, hy]).symm
-              refine ⟨mkH H₀ X, Finset.mem_filter.mpr ⟨Finset.mem_filter.mpr
-                ⟨Finset.mem_univ _, ?_, hreach_mk⟩, huv_mk⟩, hdecomp_mkH X hnov⟩
-              intro w hw x hx
-              rcases eq_or_ne w v with rfl | hwv
-              · simp only [mkH, ↓reduceIte]
-                exact fun hxX => Finset.disjoint_left.mp hdisjX hxX hx
-              · have hw' : w ∉ insert v active := by simp [hwv, hw]
-                have hx' : x ∈ tried' w := by
-                  dsimp only [tried']
-                  rwa [Function.update_of_ne hwv]
-                simpa [mkH, hwv] using hno w hw' x hx'
-          rw [hprod_bij, Finset.sum_product, Finset.mul_sum]
+            rintro ⟨H₀, X⟩ hp
+            have hnov : ∀ x, ¬ H₀.Adj x v := (Finset.mem_filter.mp (Finset.mem_product.mp hp).1).2.1
+            have hdec : decompV (mkH H₀ X) = (H₀, X) := hdecomp_mkH X hnov
+            exact ⟨mkH H₀ X, (hDom (mkH H₀ X)).mpr (hdec.symm ▸ hp), hdec⟩
+          rw [hbij, Finset.sum_product, Finset.mul_sum]
           refine Finset.sum_congr rfl fun H₀ hH₀ => ?_
           have hrow : (∑ X ∈ XValid, liveGraphWeight IC (mkH H₀ X)) =
               (∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
@@ -710,12 +520,78 @@ theorem activeSetProb_eq_sum_liveGraphWeight
                   (if x ∈ X then IC.edgeProb x v else 1 - IC.edgeProb x v) := by
             rw [Finset.mul_sum]
             exact Finset.sum_congr rfl fun X _ => hweight_mkH H₀ hH₀ X
-          have hdisj_ut : Disjoint ({u} : Finset V) (tried v) :=
-            Finset.disjoint_singleton_left.mpr hu_untried
-          have hbern := sum_powerset_bernWeight (fun x => IC.edgeProb x v) Finset.univ
-            {u} (tried v) (Finset.subset_univ _) (Finset.subset_univ _) hdisj_ut
-          rw [hrow, hbern, Finset.prod_singleton, ← IC.survivalProb_toCascadeModel v (tried v)]
-          ring
+          rw [hrow, sum_powerset_bernWeight (fun x => IC.edgeProb x v) Finset.univ inX outX
+            (Finset.subset_univ _) (Finset.subset_univ _) hdisj, mul_comm]
+        have hsum_succ :
+            (∑ H : Digraph V with
+                (∀ w ∉ insert v active, ∀ x ∈ tried' w, ¬ H.Adj x w) ∧
+                  liveReachable H (insert v active) = A,
+              liveGraphWeight IC H) =
+            ∑ H₀ ∈ Base,
+              ∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
+                if H₀.Adj e.1 e.2 then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
+          rw [hdecomp_sum _ ∅ ∅ (Finset.disjoint_empty_left _) ?_]
+          · simp
+          · intro H
+            have hreach_eq :
+                liveReachable (decompV H).1 (insert v active) =
+                  liveReachable H (insert v active) :=
+              liveReachable_congr_inEdges (Finset.mem_insert_self v active)
+                fun x y hy => by simp [decompV, hy]
+            simp only [Base, Finset.mem_product, Finset.mem_filter, Finset.mem_univ,
+              Finset.mem_powerset, Finset.subset_univ, Finset.empty_subset,
+              Finset.disjoint_empty_right, and_self, and_true, true_and, hreach_eq]
+            refine ⟨fun ⟨hno, hr⟩ => ⟨fun x => by simp [decompV],
+                fun w hw x hx hadj => hno w hw x hx hadj.2, hr⟩,
+              fun ⟨_, hno, hr⟩ => ⟨fun w hw x hx hadj => ?_, hr⟩⟩
+            have hwv : w ≠ v := fun heq => hw (heq ▸ Finset.mem_insert_self v active)
+            exact hno w hw x hx ⟨hwv, hadj⟩
+        have hsum_act :
+            (∑ H ∈ S_all with H.Adj u v, liveGraphWeight IC H) =
+            IC.edgeProb u v * IC.toCascadeModel.survivalProb v (tried v) *
+            ∑ H₀ ∈ Base,
+              ∏ e ∈ Finset.univ.filter (fun e : V × V => e.2 ≠ v),
+                if H₀.Adj e.1 e.2 then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
+          have hreach_ins : ∀ H : Digraph V, H.Adj u v →
+              liveReachable H active = liveReachable H (insert v active) := by
+            intro H huvH
+            refine Finset.Subset.antisymm
+              (monotone_liveReachable H (Finset.subset_insert v active)) fun z hz => ?_
+            rcases mem_liveReachable.mp hz with ⟨s, hs, hp⟩
+            rcases Finset.mem_insert.mp hs with rfl | hs_act
+            · exact mem_liveReachable.mpr
+                ⟨u, hu_act, (Relation.ReflTransGen.single huvH).trans hp⟩
+            · exact mem_liveReachable.mpr ⟨s, hs_act, hp⟩
+          rw [hdecomp_sum _ {u} (tried v) (Finset.disjoint_singleton_left.mpr hu_untried) ?_,
+            Finset.prod_singleton, ← IC.survivalProb_toCascadeModel v (tried v)]
+          intro H
+          have hreach_eq :
+              liveReachable (decompV H).1 (insert v active) =
+                liveReachable H (insert v active) :=
+            liveReachable_congr_inEdges (Finset.mem_insert_self v active)
+              fun x y hy => by simp [decompV, hy]
+          simp only [S_all, Base, Finset.mem_product, Finset.mem_filter, Finset.mem_univ,
+            Finset.mem_powerset, Finset.subset_univ, Finset.singleton_subset_iff, true_and,
+            hreach_eq]
+          constructor
+          · rintro ⟨⟨hno, hr⟩, huvH⟩
+            refine ⟨⟨fun x => by simp [decompV], fun w hw x hx hadj => ?_,
+                (hreach_ins H huvH).symm.trans hr⟩,
+              by simp [decompV, huvH], Finset.disjoint_left.mpr fun x hx hxt =>
+                hno v hv_inact x hxt (Finset.mem_filter.mp hx).2⟩
+            have hwv : w ≠ v := fun heq => hw (heq ▸ Finset.mem_insert_self v active)
+            have hwin : w ∉ active := fun ha => hw (Finset.mem_insert_of_mem ha)
+            dsimp only [tried'] at hx
+            rw [Function.update_of_ne hwv] at hx
+            exact hno w hwin x hx hadj.2
+          · rintro ⟨⟨_, hno, hr⟩, huX, hdisjX⟩
+            have huvH : H.Adj u v := by simpa [decompV] using huX
+            refine ⟨⟨fun w hw x hx hadj => ?_, (hreach_ins H huvH).trans hr⟩, huvH⟩
+            rcases eq_or_ne w v with rfl | hwv
+            · exact Finset.disjoint_left.mp hdisjX (by simp [decompV, hadj]) hx
+            · have hw' : w ∉ insert v active := by simp [hwv, hw]
+              have hx' : x ∈ tried' w := by simpa [tried', Function.update_of_ne hwv] using hx
+              exact hno w hw' x hx' ⟨hwv, hadj⟩
         rw [hsum_succ, hsum_act]
       · -- `¬ H.Adj u v` branch: identical filter to `tried'`.
         refine Finset.sum_congr ?_ fun _ _ => rfl
@@ -770,16 +646,11 @@ theorem influence_eq_sum_liveGraphWeight (S : Finset V) :
     rw [hA]
 
 @[simp]
-theorem influence_empty : IC.influence ∅ = 0 := by
-  simp [IC.influence_eq_sum_liveGraphWeight]
+theorem influence_empty : IC.influence ∅ = 0 :=
+  IC.toCascadeModel.influence_empty
 
-theorem monotone_influence : Monotone IC.influence := by
-  intro A B hAB
-  simp only [IC.influence_eq_sum_liveGraphWeight]
-  refine Finset.sum_le_sum fun H _ => ?_
-  exact mul_le_mul_of_nonneg_left
-    (Nat.cast_le.mpr (Finset.card_le_card (monotone_liveReachable H hAB)))
-    (liveGraphWeight_nonneg IC H)
+theorem monotone_influence : Monotone IC.influence :=
+  IC.toCascadeModel.monotone_influence
 
 /-- **Kempe–Kleinberg–Tardos Independent Cascade Submodularity Theorem**
 ([KempeKleinbergTardos2003]; [Kleinberg2007], Theorem 24.5, pp. 625–626): for every instance of
@@ -867,23 +738,6 @@ private theorem measurePreserving_reflectUnit {c : ℝ} (hc0 : 0 ≤ c) :
       Disjoint.mono_left inter_subset_right disjoint_sdiff_right
     rw [hvol_eq, ← measure_union hdisj2 hm_diff, inter_union_sdiff]
 
-private theorem ae_lt_one_thresholdMeasure (V : Type*) [Fintype V] :
-    ∀ᵐ θ ∂thresholdMeasure V, ∀ v : V, θ v < 1 := by
-  have hae_unit : ∀ᵐ z ∂unitMeasure, z < 1 := by
-    rw [ae_iff]
-    have hmeas : MeasurableSet {z : ℝ | ¬ z < 1} := by
-      simp_rw [not_lt]
-      exact measurableSet_Ici
-    have hsub : {z : ℝ | ¬ z < 1} ∩ Icc (0 : ℝ) 1 = {1} := by
-      ext z
-      simp only [mem_inter_iff, mem_ofPred_eq, not_lt, mem_Icc, mem_singleton_iff]
-      exact ⟨fun ⟨h1, _, h2⟩ => le_antisymm h2 h1, fun h => ⟨h.ge, h ▸ zero_le_one, h.le⟩⟩
-    rw [unitMeasure_def, Measure.restrict_apply hmeas, hsub, Real.volume_singleton]
-  rw [thresholdMeasure_def, ae_all_iff]
-  intro v
-  have hp := MeasureTheory.measurePreserving_eval (fun _ : V => unitMeasure) v
-  exact hp.quasiMeasurePreserving.ae hae_unit
-
 namespace GeneralThresholdModel
 
 variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G.Adj]
@@ -962,9 +816,9 @@ private theorem integral_reflectCouple {X Y : Finset V} (hXY : X ⊆ Y) (φ : Fi
   have hsum_ae : ∀ ψ : (V → ℝ) → ℝ, ∀ᵐ U ∂thresholdMeasure V,
       ψ U = ∑ K : Finset V, (E K).indicator ψ U := by
     intro ψ
-    filter_upwards [ae_lt_one_thresholdMeasure V] with U hlt1
+    filter_upwards [ae_mem_Ioo_thresholdMeasure V] with U hU
     rw [Finset.sum_eq_single (M.thresholdFinal U X)]
-    · have hmem : U ∈ E (M.thresholdFinal U X) := ⟨rfl, hlt1⟩
+    · have hmem : U ∈ E (M.thresholdFinal U X) := ⟨rfl, fun v => (hU v).2⟩
       rw [indicator_of_mem hmem]
     · intro K _ hne
       have hnot : U ∉ E K := fun h => hne h.1.symm
@@ -1067,7 +921,8 @@ theorem isSubmodular_integral_thresholdFinal
     ← integral_add (M.integrable_of_finset A φ) hintB]
   refine integral_mono_ae (hintD.add (M.integrable_of_finset (A ∩ B) φ))
     ((M.integrable_of_finset A φ).add hintB) ?_
-  filter_upwards [ae_lt_one_thresholdMeasure V] with U hlt1
+  filter_upwards [ae_mem_Ioo_thresholdMeasure V] with U hU
+  have hlt1 : ∀ v : V, U v < 1 := fun v => (hU v).2
   set Cstar := M.thresholdFinal U (A ∩ B)
   set Astar := M.thresholdFinal U A
   set Bstar := M.reflectCouple (A ∩ B) B U
@@ -1232,15 +1087,6 @@ namespace CascadeModel
 
 variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G.Adj]
   (C : CascadeModel G)
-
-@[simp]
-theorem influence_empty : C.influence ∅ = 0 := by
-  rw [C.influence_eq_toGeneralThresholdModel, C.toGeneralThresholdModel.influence_empty]
-
-theorem monotone_influence : Monotone C.influence := by
-  intro A B hAB
-  rw [C.influence_eq_toGeneralThresholdModel, C.influence_eq_toGeneralThresholdModel]
-  exact C.toGeneralThresholdModel.monotone_influence hAB
 
 /-- If a `CascadeModel` has diminishing-returns incremental probabilities (`HasDiminishingReturns`),
 every local threshold function of `C.toGeneralThresholdModel` is submodular

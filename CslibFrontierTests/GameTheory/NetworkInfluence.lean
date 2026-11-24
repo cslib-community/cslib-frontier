@@ -214,6 +214,48 @@ theorem veeLinear_schedule_invariance (A : Finset (Fin 3)) :
   · exact veeLinear.toGeneralThresholdModel.activeSetProb_toCascadeModel
       validNextEdge_preferZeroNextEdge {0, 1} A
 
+/-- Saturation boundary (`g_v(X) = 1`, `1 - g_v(X) = 0`) witness: entering saturation on `veeLinear`
+has conditional probability `prob 2 1 {0} = 1`, while at `X = {0, 1}` both
+`veeLinear.toGeneralThresholdModel` and `criticalMassTwo` satisfy `thresholdFn 2 {0, 1} = 1`,
+hitting the `0 / 0 = 0` division-by-zero boundary in `toCascadeModel.prob` with zero survival
+probability and exact round-trip recovery via `toGeneralThresholdModel_toCascadeModel`. -/
+theorem saturation_boundary_toCascadeModel (u : Fin 3) :
+    veeLinear.toGeneralThresholdModel.toCascadeModel.prob 2 1 {0} = 1 ∧
+    veeLinear.toGeneralThresholdModel.thresholdFn 2 {0, 1} = 1 ∧
+    veeLinear.toGeneralThresholdModel.toCascadeModel.prob 2 u {0, 1} = 0 ∧
+    veeLinear.toGeneralThresholdModel.toCascadeModel.survivalProb 2 {0, 1} = 0 ∧
+    veeLinear.toGeneralThresholdModel.toCascadeModel.toGeneralThresholdModel =
+      veeLinear.toGeneralThresholdModel ∧
+    criticalMassTwo.thresholdFn 2 {0, 1} = 1 ∧
+    criticalMassTwo.toCascadeModel.prob 2 u {0, 1} = 0 ∧
+    criticalMassTwo.toCascadeModel.toGeneralThresholdModel = criticalMassTwo := by
+  have hg_zero : veeLinear.toGeneralThresholdModel.thresholdFn 2 {0} = 1 / 2 := by
+    simp [veeLinear]
+  have hg_10 : veeLinear.toGeneralThresholdModel.thresholdFn 2 {1, 0} = 1 := by
+    rw [veeLinear.toGeneralThresholdModel_thresholdFn, Finset.sum_pair (by decide)]
+    norm_num [veeLinear]
+  have hg_01 : veeLinear.toGeneralThresholdModel.thresholdFn 2 {0, 1} = 1 := by
+    rw [veeLinear.toGeneralThresholdModel_thresholdFn, Finset.sum_pair (by decide)]
+    norm_num [veeLinear]
+  have hprob_enter : veeLinear.toGeneralThresholdModel.toCascadeModel.prob 2 1 {0} = 1 := by
+    rw [GeneralThresholdModel.toCascadeModel_prob, hg_zero, hg_10]
+    norm_num
+  have hprob_sat_vee : veeLinear.toGeneralThresholdModel.toCascadeModel.prob 2 u {0, 1} = 0 := by
+    rw [GeneralThresholdModel.toCascadeModel_prob, hg_01, sub_self, div_zero]
+  have hsurv_sat_vee :
+      veeLinear.toGeneralThresholdModel.toCascadeModel.survivalProb 2 {0, 1} = 0 := by
+    have h := congrArg (fun M => M.thresholdFn 2 ({0, 1} : Finset (Fin 3)))
+      veeLinear.toGeneralThresholdModel.toGeneralThresholdModel_toCascadeModel
+    simp only [CascadeModel.toGeneralThresholdModel_thresholdFn, hg_01] at h
+    linarith
+  have hg_cm : criticalMassTwo.thresholdFn 2 {0, 1} = 1 := by
+    simp [criticalMassTwo]
+  have hprob_sat_cm : criticalMassTwo.toCascadeModel.prob 2 u {0, 1} = 0 := by
+    rw [GeneralThresholdModel.toCascadeModel_prob, hg_cm, sub_self, div_zero]
+  exact ⟨hprob_enter, hg_01, hprob_sat_vee, hsurv_sat_vee,
+    veeLinear.toGeneralThresholdModel.toGeneralThresholdModel_toCascadeModel,
+    hg_cm, hprob_sat_cm, criticalMassTwo.toGeneralThresholdModel_toCascadeModel⟩
+
 /-! ## 4. Independent Cascade live-edge decomposition and `(1 - 1/e)` greedy bound -/
 
 /-- Independent Cascade Model on `veeDigraph` with `p_{0,2} = 1 / 2` and `p_{1,2} = 1 / 3`. -/
