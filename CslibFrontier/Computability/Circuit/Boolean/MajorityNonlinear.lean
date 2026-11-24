@@ -44,8 +44,6 @@ and `2r + 1` give the claimed bound for every input count, including zero.
 
 * `Cslib.Circuits.Circuit.sub_sum_digits_le_nonlinearCost_of_eval_eq_majority`: every designated
   output computing majority requires at least `n - B(n)` nonaffine gates.
-* `Cslib.Circuits.Boolean.Zhegalkin.nonlinearCost_eq_andCost`: on the Zhegalkin basis, the
-  nonaffine-gate cost is exactly the conjunction-gate cost.
 * `Cslib.Circuits.Boolean.Zhegalkin.sub_sum_digits_le_multiplicativeComplexity_majority`:
   the native multiplicative complexity of majority is at least `n - B(n)`.
 
@@ -86,8 +84,10 @@ private theorem two_mul_le_add_sum_digits_of_centralBinom_denominator (r k : ℕ
 
 /-- A designated circuit output computing majority on `n` inputs requires at least `n - B(n)`
 nonaffine gates, where `B(n)` is the sum of the binary digits of `n`. All affine operations and
-arbitrary wire reuse are free. This is the binary-basis form of [Chistopolskaya and Podolskii,
-Corollary 11][ChistopolskayaPodolskii2018]. -/
+arbitrary wire reuse are free. This generalizes [Chistopolskaya and Podolskii, Corollary 11]
+[ChistopolskayaPodolskii2018] from the basis `{AND, XOR, NOT}` to every basis of fan-in at most
+two; the cited statement is
+`Boolean.Zhegalkin.sub_sum_digits_le_multiplicativeComplexity_majority`. -/
 theorem Circuit.sub_sum_digits_le_nonlinearCost_of_eval_eq_majority
     {σ : Signature.{u}} {n m : ℕ} (c : Circuit σ n m) (I : Interpretation σ Bool)
     (hArity : ∀ op, σ.Arity op ≤ 2) (j : Fin m)

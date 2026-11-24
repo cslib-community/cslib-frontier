@@ -29,7 +29,9 @@ public section
 namespace Nat
 
 /-- The exponent of two in the central binomial coefficient `C(2n, n)` is the sum of the binary
-digits of `n`. -/
+digits of `n`. This is the `p = 2`, `k = n` case of Mathlib's Kummer theorem
+`sub_one_mul_multiplicity_choose_eq_sub_sum_digits'`, simplified using that `2 * n` and `n` have
+the same binary digit sum. -/
 theorem factorization_centralBinom_two (n : ℕ) :
     n.centralBinom.factorization 2 = (Nat.digits 2 n).sum := by
   have hprod : n.centralBinom * n.factorial * n.factorial = (2 * n).factorial := by

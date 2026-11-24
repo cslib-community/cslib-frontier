@@ -28,8 +28,6 @@ gates when the composition result is applied to fan-in-two circuits.
 
 * `Cslib.BitString.exists_fourierCoeff_signVal_eq_intCast_of_isAffine`: integral coefficients
   for affine Boolean functions.
-* `Cslib.BitString.exists_fourierCoeff_signVal_eq_intCast_div_two_of_card_le_two`:
-  half-integral coefficients for Boolean functions of at most two bits.
 * `Cslib.BitString.exists_fourierCoeff_chi_append_eq_intCast_div_two_pow`: the joint denominator
   bound after adjoining one Boolean coordinate.
 -/
