@@ -10,9 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.Nat.BinarySize
 public import CslibFrontier.Foundations.NumberTheory.PrimeCounting
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # Explicit prime products above an excluded cutoff

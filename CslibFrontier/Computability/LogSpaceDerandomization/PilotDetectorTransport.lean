@@ -79,6 +79,12 @@ theorem sourceDetector_sum_moment {π : ℝ} (hπ : 0 < π)
       dsimp only [E]
       rw [sum_comm]
 
+/-- Source integration coordinate `p.2.1` of a combined `(outer, source, terminal)` sample. -/
+abbrev sourceCoord {Ω ι κ : Type*} (p : Ω × (ι × κ)) : ι := p.2.1
+
+/-- Terminal integration coordinate `p.2.2` of a combined `(outer, source, terminal)` sample. -/
+abbrev terminalCoord {Ω ι κ : Type*} (p : Ω × (ι × κ)) : κ := p.2.2
+
 /-- The literal detector payment is a score row moment on the full product of its
 outer coordinates and its two actual integration variables. The parent source costs
 one vertex width; source normalization changes by `v/u`. Terminal conditioning costs
@@ -92,9 +98,10 @@ theorem sourceDetector_row_moment_transport {Ω : Type*} [Fintype Ω]
       sourceDetector P X Y (B σ) y) ≤
     (Fintype.card V : ℝ) * v / (u * π) *
       rowNormPow 4 N v
-        (fun (p : Ω × (ι × κ)) x => X p.2.1 x)
-        (fun p y => Y p.2.2 y)
-        (fun p x y => A p.1 p.2.1 p.2.2 x y - B p.1 p.2.1 p.2.2 x y) := by
+        (fun (p : Ω × (ι × κ)) x => X (sourceCoord p) x)
+        (fun p y => Y (terminalCoord p) y)
+        (fun p x y => A p.1 (sourceCoord p) (terminalCoord p) x y -
+          B p.1 (sourceCoord p) (terminalCoord p) x y) := by
   classical
   have hpoint (σ : Ω) :
       (∑ _a ∈ ({a | Xs σ a} : Finset V), ∑ y ∈ ({y | Z σ y} : Finset V),
@@ -147,9 +154,9 @@ theorem detector_row_moment_transport {Ω : Type*} [Fintype Ω]
       detector P X Y (B σ) y) ≤
     (Fintype.card V : ℝ) * v / (u * π) *
       rowNormPow 4 N v
-        (fun (p : Ω × (ι × κ)) x => X p.2.1 x)
-        (fun p y => Y p.2.2 y)
-        (fun p x y => A p.1 p.2.2 x y - B p.1 p.2.2 x y) :=
+        (fun (p : Ω × (ι × κ)) x => X (sourceCoord p) x)
+        (fun p y => Y (terminalCoord p) y)
+        (fun p x y => A p.1 (terminalCoord p) x y - B p.1 (terminalCoord p) x y) :=
   sourceDetector_row_moment_transport P X Y Xs Z hN hu hv hπ hY (fun σ _ => A σ) (fun σ _ => B σ)
 
 end Matrix.HierarchyParams.PilotRowRecipe

@@ -113,7 +113,7 @@ example : ∃ ρ > 0,
     rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, Complex.norm_real,
       Real.norm_of_nonneg (by positivity)]
     linarith
-  apply (realized.cutPort_clockwise embedded big hρ hx (0, false) (0, true) (1, false)
+  apply (realized.cutPort_clockwise big hρ hx (0, false) (0, true) (1, false)
     rfl rfl rfl (by decide) (by decide) (by decide)).mpr
   have hd : rotation.rotationDistance (0, false) (1, false) = 2 := by
     apply rotation.rotationDistance_eq _ _ (by decide +kernel) 2 (by decide +kernel)
