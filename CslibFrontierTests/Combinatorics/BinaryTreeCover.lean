@@ -71,7 +71,7 @@ example :
       ¬ (((cover S).card : ℝ) ≤ (2 : ℝ) * Real.logb 2 ((2 ^ 0 : ℝ) / 2)) := by
   intro S
   refine ⟨rfl, by decide, ?_⟩
-  simp [S, cover]
+  simp [S, cover, eq_comm (a := ∅)]
 
 /-! `S.card + r = 2 ^ h` cannot be weakened to `S.card + r ≤ 2 ^ h`: for `h = 3` (`n = 8`) and
 `S = {0, 2, 4, 6}`, taking `r = 1` gives `|cover(S)| = 4 > 3 = 1 * log₂(8 / 1)`. -/

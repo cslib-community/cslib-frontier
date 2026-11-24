@@ -171,22 +171,23 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
           calc (2 : ℝ) ^ L ≤ exp 1 ^ L := by
                 gcongr
                 exact (by norm_num : (2 : ℝ) ≤ 1 + 1).trans (add_one_le_exp 1)
-            _ = exp L := by rw [← exp_nat_mul, mul_one]
+            _ = exp L := by rw [← exp_natCast_mul, mul_one]
       _ = exp (L - 2 * t ^ 2 / 2 ^ n) := by rw [← exp_add]; ring_nf
       _ < exp 0 := exp_lt_exp.mpr (by linarith)
       _ = 1 := exp_zero
-  let bad : Finset (BooleanFunction n) := (computableFunctions n S).biUnion fun g =>
+  have hfin := (computableFunctions n S).toFinite
+  let bad : Finset (BooleanFunction n) := hfin.toFinset.biUnion fun g =>
     {f | (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x}}
   have hbad : (#bad : ℝ) < 2 ^ 2 ^ n := by
-    have hU : #bad ≤ ∑ g ∈ computableFunctions n S,
+    have hU : #bad ≤ ∑ g ∈ hfin.toFinset,
         #{f : BooleanFunction n | (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x}} := card_biUnion_le
-    calc (#bad : ℝ) ≤ ∑ g ∈ computableFunctions n S,
+    calc (#bad : ℝ) ≤ ∑ g ∈ hfin.toFinset,
           (#{f : BooleanFunction n | (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x}} : ℝ) := by
           exact_mod_cast hU
-      _ ≤ ∑ _g ∈ computableFunctions n S, (2 : ℝ) ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n)) :=
+      _ ≤ ∑ _g ∈ hfin.toFinset, (2 : ℝ) ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n)) :=
           sum_le_sum fun g _ => card_filter_add_le_card_agree_le g ht
-      _ = (#(computableFunctions n S) : ℝ) * (2 ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n))) := by
-          rw [sum_const, nsmul_eq_mul]
+      _ = ((computableFunctions n S).ncard : ℝ) * (2 ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n))) := by
+          rw [sum_const, nsmul_eq_mul, Set.ncard_eq_toFinset_card _ hfin]
       _ ≤ (2 : ℝ) ^ L * (2 ^ 2 ^ n * exp (-(2 * t ^ 2 / 2 ^ n))) := by
           gcongr
           exact_mod_cast card_computableFunctions_le_two_pow n S
@@ -200,7 +201,8 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
     exact_mod_cast hbad
   obtain ⟨f, -, hf⟩ := exists_mem_notMem_of_card_lt_card hlt
   refine ⟨f, S, hS₁, fun g hg => ?_⟩
-  have hgmem : g ∈ computableFunctions n S := mem_computableFunctions_iff_complexity_le.mpr hg
+  have hgmem : g ∈ hfin.toFinset :=
+    hfin.mem_toFinset.mpr (mem_computableFunctions_iff_complexity_le.mpr hg)
   have hnot : ¬ (2 : ℝ) ^ n / 2 + t ≤ #{x | g x = f x} := fun h =>
     hf (mem_biUnion.mpr ⟨g, hgmem, by simpa using h⟩)
   rw [div_lt_iff₀ hN]

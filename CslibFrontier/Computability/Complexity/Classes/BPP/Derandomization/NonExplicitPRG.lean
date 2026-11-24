@@ -281,30 +281,31 @@ private theorem exists_forall_complexity_le_abs_sub_lt {ℓ m : ℕ} (hm : 60 �
       calc (2 : ℝ) ^ (L + 1) ≤ exp 1 ^ (L + 1) := by
             gcongr
             exact (by norm_num : (2 : ℝ) ≤ 1 + 1).trans (add_one_le_exp 1)
-        _ = exp (L + 1) := by rw [← exp_nat_mul, mul_one]; push_cast; ring_nf
+        _ = exp (L + 1) := by rw [← exp_natCast_mul, mul_one]; push_cast; ring_nf
     calc (2 : ℝ) ^ L * (2 * exp (-(2 ^ ℓ / 50))) = 2 ^ (L + 1) * exp (-(2 ^ ℓ / 50)) := by
           ring
       _ ≤ exp (L + 1) * exp (-(2 ^ ℓ / 50)) := by gcongr
       _ = exp (L + 1 - 2 ^ ℓ / 50) := by rw [← exp_add]; ring_nf
       _ < exp 0 := exp_lt_exp.mpr (by linarith)
       _ = 1 := exp_zero
-  let bad : Finset (BitString ℓ → BitString m) := (computableFunctions m (m ^ 3)).biUnion
+  have hfin := (Boolean.computableFunctions m (m ^ 3)).toFinite
+  let bad : Finset (BitString ℓ → BitString m) := hfin.toFinset.biUnion
     fun T => {g | 1 / 10 ≤ |(#{z | T (g z) = true} : ℝ) / 2 ^ ℓ - #{y | T y = true} / 2 ^ m|}
-  have hU : #bad ≤ ∑ T ∈ computableFunctions m (m ^ 3),
+  have hU : #bad ≤ ∑ T ∈ hfin.toFinset,
       #{g : BitString ℓ → BitString m |
         1 / 10 ≤ |(#{z | T (g z) = true} : ℝ) / 2 ^ ℓ - #{y | T y = true} / 2 ^ m|} :=
     card_biUnion_le
   have hbad : (#bad : ℝ) < (2 ^ m) ^ 2 ^ ℓ := by
-    calc (#bad : ℝ) ≤ ∑ T ∈ computableFunctions m (m ^ 3),
+    calc (#bad : ℝ) ≤ ∑ T ∈ hfin.toFinset,
           (#{g : BitString ℓ → BitString m |
             1 / 10 ≤ |(#{z | T (g z) = true} : ℝ) / 2 ^ ℓ - #{y | T y = true} / 2 ^ m|} : ℝ) := by
           exact_mod_cast hU
-      _ ≤ ∑ _T ∈ computableFunctions m (m ^ 3),
+      _ ≤ ∑ _T ∈ hfin.toFinset,
           ((2 : ℝ) ^ m) ^ 2 ^ ℓ * (2 * exp (-(2 ^ ℓ / 50))) :=
           sum_le_sum fun T _ => card_filter_le_abs_sub_le ℓ m T
-      _ = (#(computableFunctions m (m ^ 3)) : ℝ) *
+      _ = ((Boolean.computableFunctions m (m ^ 3)).ncard : ℝ) *
           (((2 : ℝ) ^ m) ^ 2 ^ ℓ * (2 * exp (-(2 ^ ℓ / 50)))) := by
-          rw [sum_const, nsmul_eq_mul]
+          rw [sum_const, nsmul_eq_mul, Set.ncard_eq_toFinset_card _ hfin]
       _ ≤ (2 : ℝ) ^ L * (((2 : ℝ) ^ m) ^ 2 ^ ℓ * (2 * exp (-(2 ^ ℓ / 50)))) := by
           gcongr
           exact_mod_cast card_computableFunctions_le_two_pow m (m ^ 3)
@@ -318,7 +319,7 @@ private theorem exists_forall_complexity_le_abs_sub_lt {ℓ m : ℕ} (hm : 60 �
     exact_mod_cast hbad
   obtain ⟨g, -, hg⟩ := exists_mem_notMem_of_card_lt_card hlt
   refine ⟨g, fun T hT => lt_of_not_ge fun h => hg (mem_biUnion.mpr ⟨T, ?_, ?_⟩)⟩
-  · exact mem_computableFunctions_iff_complexity_le.mpr hT
+  · exact hfin.mem_toFinset.mpr (mem_computableFunctions_iff_complexity_le.mpr hT)
   · simpa using h
 
 /-- The corrected output length: `⌈2 ^ (ℓ / 10)⌉` for `ℓ ≥ 2`, and `ℓ` for `ℓ ≤ 1`. -/

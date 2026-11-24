@@ -163,7 +163,7 @@ private theorem toyB_dual_mass_le :
   have hpow : (2 : ℝ) ^ (40 : ℕ) ≤ Real.exp 40 := by
     calc (2 : ℝ) ^ (40 : ℕ) ≤ (Real.exp 1) ^ (40 : ℕ) :=
           pow_le_pow_left₀ (by norm_num) h2le 40
-      _ = Real.exp ((40 : ℕ) * (1 : ℝ)) := (Real.exp_nat_mul 1 40).symm
+      _ = Real.exp ((40 : ℕ) * (1 : ℝ)) := (Real.exp_natCast_mul 40 1).symm
       _ = Real.exp 40 := by norm_num
   have hexp_le : Real.exp (-40 : ℝ) ≤ ((2 : ℝ) ^ (40 : ℕ))⁻¹ := by
     rw [Real.exp_neg]
