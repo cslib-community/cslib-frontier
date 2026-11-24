@@ -269,4 +269,15 @@ def trivOPB : String := "* #variable= 1 #constraint= 1\n1 x1 >= 0 ;\n"
 #guard checkAugmented trivOPB ((specLabels "@s1").replace "qed : @x;\nqed;\nend;\nreflexivity"
   "qed : @s1;\nqed;\nend;\nreflexivity") == none
 
+/-- `specLabels goal` with the subproof `body` of its `proofgoal`, closed by the label `@y`. -/
+def specGoal (goal body : String) : String :=
+  (specLabels goal).replace "rup >= 1 : -1 -2 ;\nqed : -1;" (body ++ "\nqed : @y;")
+
+-- The goal of a `proofgoal` is resolved before its subproof, so a label `@s1` given again inside
+-- the subproof does not change it, and a label first given there does not name it.
+#guard checkAugmented trivOPB (specGoal "@s1" "@y rup >= 1 : -1 -2 ;") == some .noClaim
+#guard checkAugmented trivOPB ((specGoal "@s1" "@s1 rup >= 1 : -1 -2 ;").replace "@y" "@s1") ==
+  some .noClaim
+#guard checkAugmented trivOPB ((specGoal "@u" "@u rup >= 1 : -1 -2 ;").replace "@y" "@u") == none
+
 end CslibFrontierTests.Logics.Propositional.VeriPBLabels

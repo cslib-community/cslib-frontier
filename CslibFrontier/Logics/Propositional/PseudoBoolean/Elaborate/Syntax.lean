@@ -714,11 +714,12 @@ private partial def toKernelItems (lbl : Std.HashMap String ℕ) (items : List A
     List RedItem × ℕ × Std.HashMap String ℕ :=
   items.foldl (fun (acc, n, lbl) s => match s with
     | .goal g sub q =>
-      let (ks, n', lbl) := toKernelSteps lbl sub (n + 1)
+      -- The goal is resolved before the subproof, whose labels name the closing constraint.
       let g := match g with
         | .hash k => GoalId.hash k
         | .ref r => GoalId.db (refNum lbl n r)
-      (acc ++ [.goal g ks ((q.map (refNum lbl n')).getD (n' - 1))], n', lbl)
+      let (ks, n', lbl') := toKernelSteps lbl sub (n + 1)
+      (acc ++ [.goal g ks ((q.map (refNum lbl' n')).getD (n' - 1))], n', lbl')
     | s => match toKernelStep lbl s n with
       | some (k, n', lbl') => (acc ++ [.step k], n', lbl')
       | none => (acc, n, lbl)) ([], next, lbl)
