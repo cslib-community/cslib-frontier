@@ -9574,9 +9574,11 @@ public import CslibFrontier.Probability.MoserTardos.Witness
 public import CslibFrontier.Probability.MutualInformation
 public import CslibFrontier.Probability.MutualInformation.DataProcessing
 public import CslibFrontier.Probability.OptimalStopping.Basic
+public import CslibFrontier.Probability.OptimalStopping.MatroidSecretary
 public import CslibFrontier.Probability.OptimalStopping.Prophet
 public import CslibFrontier.Probability.OptimalStopping.ProphetIID
 public import CslibFrontier.Probability.OptimalStopping.Secretary
+public import CslibFrontier.Probability.OptimalStopping.TransversalSecretary
 public import CslibFrontier.Probability.Option
 public import CslibFrontier.Probability.PMF
 public import CslibFrontier.Probability.PMF.AnchorPair
