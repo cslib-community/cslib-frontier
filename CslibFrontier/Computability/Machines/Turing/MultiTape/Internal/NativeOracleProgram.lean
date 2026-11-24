@@ -43,8 +43,8 @@ The semantic function in the type is a specification proved by `computes`, and e
 assembled from named machine terms.
 
 A witness is a mathematical object, not an executable generator. `Description.ofMachine` lists the
-rows of a given machine in increasing order of encoded key and does not use choice, but only the
-deterministic leaves installed by `ofCompiler` carry an explicit transition table
+rows of a given machine in increasing order of encoded key and is a computable definition, but only
+the deterministic leaves installed by `ofCompiler` carry an explicit transition table
 (`NativeCompiler.table`). The composing constructors store the `noncomputable` machines `tidyComp`,
 `itePTM` and `iterateWhile`. The field `computes`, `runWith_descriptionRun` and the `descLen`
 bounds are therefore statements about the retained machine in the model. An effective,
