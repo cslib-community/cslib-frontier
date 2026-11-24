@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Fourier
+public import CslibFrontier.Foundations.Data.BitString.Affine
+import Mathlib.Algebra.BigOperators.Option
 
 /-!
 # Pulling Boolean characters back along coordinate maps
@@ -18,10 +20,16 @@ along `π` projects its frequency set: `chi T (f ∘ π) = chi (projectSet π T)
 (`BitString.chi_comp_eq_chi_projectSet`) [Håstad][Hastad2001]. In particular, repeated
 coordinates cancel in pairs; the coordinate map need not be injective.
 
+Affine Boolean functions, read as signs, are characters multiplied by the sign of their
+constant term. Adjoining a Boolean function of selected coordinates expands each new character
+as a linear combination of old characters.
+
 ## Main results
 
 * `Cslib.BitString.chi_comp_eq_chi_projectSet`: character pullback along any coordinate map.
 * `Cslib.BitString.card_projectSet_le`: mod-2 projection never increases cardinality.
+* `Cslib.BitString.chi_append_eq_sum`: adjoining a Boolean coordinate expands each character
+  into a linear combination of the old characters, including repeated coordinate selections.
 
 ## References
 
@@ -113,5 +121,45 @@ theorem chi_comp_eq_chi_projectSet (π : β → γ) (T : Finset β) (f : γ → 
       prod_insert hx, ← chi_eq_prod_signVal, Function.comp_apply, mul_comm]
 
 end Projection
+
+/-- An affine Boolean function, read as signs, is a character multiplied by the sign of its
+constant term. -/
+theorem exists_signVal_eq_mul_chi_of_isAffine
+    {ι : Type*} [Finite ι] {f : (ι → Bool) → Bool} (hf : IsAffine f) :
+    ∃ T : Finset ι, (fun x => signVal (f x)) = fun x => signVal (f 0) * chi ℝ T x := by
+  classical
+  let := Fintype.ofFinite ι
+  obtain ⟨T, -, hT⟩ := exists_affine_of_add_add
+    (M := (univ : Finset ι)) (fun x y h => congrArg f (funext fun i => h i (mem_univ i))) hf
+  refine ⟨T, funext fun x => ?_⟩
+  rw [hT x, Bool.add_eq_xor, signVal_xor, chi_eq_signVal_parityOn]
+  congr 2
+  exact (parityOn_eq_sum T x).symm
+
+/-! ### Adjoining a Boolean coordinate -/
+
+/-- A character of an `Option`-indexed vector splits into the new coordinate, when selected,
+and the character of the old coordinates. -/
+theorem chi_option_elim {κ : Type*} [Finite κ] [DecidableEq κ]
+    (S : Finset (Option κ)) (b : Bool) (y : κ → Bool) :
+    chi ℝ S (fun o => o.elim b y) =
+      (if none ∈ S then signVal b else 1) * chi ℝ S.eraseNone y := by
+  let := Fintype.ofFinite κ
+  simp only [chi_eq_prod_univ, Fintype.prod_option, Option.elim_none, Option.elim_some,
+    mem_eraseNone, signVal_eq_neg_one_pow]
+
+/-- Adjoining `φ` of selected coordinates expands a character containing the new coordinate
+into old characters. The map `args` may repeat coordinates. -/
+theorem chi_append_eq_sum {α κ : Type*} [Fintype α] [DecidableEq α]
+    [Fintype κ] [DecidableEq κ] (φ : (α → Bool) → Bool) (args : α → κ)
+    (S : Finset (Option κ)) (hnone : none ∈ S) (y : κ → Bool) :
+    chi ℝ S (fun o => o.elim (φ (y ∘ args)) y) =
+      ∑ T, fourierCoeff (fun z => signVal (φ z)) T *
+        chi ℝ (symmDiff (projectSet args T) S.eraseNone) y := by
+  rw [chi_option_elim, ite_eq_left hnone,
+    ← sum_fourierCoeff_mul_chi (fun z => signVal (φ z)) (y ∘ args), sum_mul]
+  apply sum_congr rfl
+  intro T _
+  rw [mul_assoc, chi_comp_eq_chi_projectSet, chi_mul_chi]
 
 end Cslib.BitString

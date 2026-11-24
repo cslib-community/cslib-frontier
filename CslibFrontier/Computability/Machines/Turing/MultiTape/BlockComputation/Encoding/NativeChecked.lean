@@ -46,11 +46,11 @@ theorem parse_inSpace (e : Q ≃ Fin s) :
   have hp := NativeDecode.parse_inSpace (k := k) e
   have hr := budget_optionGetD empty hp
   have hinput := budget_prod (fst encNat encBits)
-    (budget_prod (budget_const (encB := encBool) true (.refl _)) hr)
+    (budget_prod (budget_const (encB := encBool) true) hr)
   have hout := budget_comp_linear (NativeEncode.serialize_bits_inSpace e) hinput
   have heq := budget_comp_linear (of_inO (ComputableInO.eq encBits))
     (budget_prod hout (snd encNat encBits))
-  refine (budget_ite heq hp (budget_const none (.refl _))).of_enc_eq ?_
+  refine (budget_ite heq hp (budget_const none)).of_enc_eq ?_
   intro p
   simp only [parse, Bool.decide_iff, empty]
 

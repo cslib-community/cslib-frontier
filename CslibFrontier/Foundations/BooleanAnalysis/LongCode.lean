@@ -270,7 +270,7 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
       cases k i <;> cases g i <;> rfl
   have hcard : #S * #T = #(univ : Finset (α → Bool)) := by
     rw [← sum_const_nat hfiber, sum_card_fiberwise_eq_card_filter]
-    exact congrArg card (filter_true_of_mem hmaps)
+    exact congrArg Finset.card (filter_true_of_mem hmaps)
   have hsum : (∑ h : α → Bool, φ (fun i => f i && h i)) = (#T : ℝ) * ∑ g ∈ S, φ g := by
     rw [← sum_fiberwise_of_maps_to hmaps]
     have hinner : ∀ g ∈ S,

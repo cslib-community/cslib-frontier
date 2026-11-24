@@ -45,8 +45,9 @@ theorem chunk_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (chunk M e) encArgs encNat (fun a => (encArgs a).length) := by
   have hm := fst encNat encNat
   have hj := snd encNat encNat
-  have hprefix := budget_const (encB := encBits) (headerWord M e)
-    (show (fun a => (encArgs a).length) ≼ fun a => (encArgs a).length from .refl _)
+  have hprefix :=
+    budget_const (encIn := encArgs) (Bs := fun a => (encArgs a).length) (encB := encBits)
+      (headerWord M e)
   exact (budget_comp_linear Encoding.NativeDecode.readNat_inSpace
     (budget_prod hprefix (budget_prod (budget_natMul hj hm) hm))).of_enc_eq fun _ => rfl
 
