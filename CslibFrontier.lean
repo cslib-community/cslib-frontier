@@ -6417,6 +6417,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Eager
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
