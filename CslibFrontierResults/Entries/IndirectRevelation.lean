@@ -28,9 +28,12 @@ register_result "gibbard-satterthwaite-single-monotonicity" where
     SocialChoice.SocialChoiceFunction.isSingleMonotone_iff_isStrategyProof,
     SocialChoice.SocialChoiceFunction.isSingleMonotone_iff_isMaskinMonotone
   ]
-  scope := "Single-voter monotonicity (Definition 9.5) is equivalent to strategy-proofness on \
-    arbitrary voter and alternative types, and for finite electorates [Finite V] also to Maskin \
-    monotonicity. Note that Nisan's x ≺ y denotes 'y preferred to x' (Prefers y x)."
+  scope := "Proposition 9.6 proves that single-voter monotonicity (Definition 9.5) is equivalent \
+    to strategy-proofness (incentive compatibility) on arbitrary voter and alternative types \
+    (isSingleMonotone_iff_isStrategyProof); isSingleMonotone_iff_isMaskinMonotone is a derived \
+    finite-electorate [Finite V] corollary composing Proposition 9.6 with the library's \
+    isStrategyProof_iff_isMaskinMonotone. Note that Nisan's x ≺ y denotes 'y preferred to x' \
+    (Prefers y x)."
 
 register_result "gibbard-satterthwaite-nisan-swf-order" where
   title := "Nisan's pairwise-top extension defines a strict social welfare function"
@@ -64,10 +67,12 @@ register_result "gibbard-satterthwaite-nisan-swf-properties" where
     SocialChoice.SocialChoiceFunction.nisanSWF_isDictatorial_iff
   ]
   scope := "For finite V and any strategy-proof social choice function f onto A, Nisan's \
-    extension nisanSWF (a ≽_P b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) satisfies weak \
-    Pareto (under [Nonempty V] or [Nontrivial A], discharging the source's implicit n ≥ 1 \
-    assumption when |A| = 1), independence of irrelevant alternatives, and has the exact same \
-    dictators as f (hence is non-dictatorial iff f is non-dictatorial)."
+    extension nisanSWF (a ≽_P b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) satisfies \
+    unanimity / weak Pareto (under [Nonempty V] or [Nontrivial A], discharging the source's \
+    implicit n ≥ 1 assumption when |A| = 1) and independence of irrelevant alternatives. \
+    Where Lemma 9.11 concludes non-dictatorship of F given non-dictatorship of f (using one \
+    direction), nisanSWF_isDictator_iff and nisanSWF_isDictatorial_iff give the strengthening \
+    to a full equivalence (↔) between dictators of nisanSWF and dictators of f."
 
 register_result "vcg-groves-dsic-restricted-domain" where
   title := "Groves and VCG mechanisms are DSIC on restricted valuation domains"
@@ -171,14 +176,16 @@ register_result "revelation-principle-bayesian" where
     { paper := Harsanyi1967, theorem := unverified, locator := unverified }
   ]
   theorems := [
-    Cslib.GameTheory.BayesianMechanism.revelation_isTruthful,
-    Cslib.GameTheory.BayesianMechanism.revelation_interimPayment_eq,
     Cslib.GameTheory.BayesianMechanism.exists_truthful_of_implementsInBayesNash,
-    Cslib.GameTheory.IndirectMechanism.toMechanism_isBICOn
+    Cslib.GameTheory.BayesianMechanism.revelation_integral_payment_eq
   ]
-  scope := "Finite player set [Fintype ι] [DecidableEq ι] with general measurable type spaces T i \
-    and independent prior measures prior i (intended to carry IsProbabilityMeasure). Composing \
-    an indirect BayesianMechanism M with a Bayes–Nash equilibrium s yields a truthful direct \
-    BayesianMechanism M.revelation s preserving priors, valuations, implemented outcomes, \
-    ex-post equilibrium payments, and interim expected payments, and induces an IsBICOn μ V \
-    direct Mechanism ι Ω on valuation domains."
+  scope := "Finite player set [Fintype ι] [DecidableEq ι] with measurable type spaces T i and \
+    independent probability priors [∀ i, IsProbabilityMeasure (M.prior i)]. Under integrable \
+    interim utilities and equilibrium interim payments (ImplementsInBayesNash), composing an \
+    indirect BayesianMechanism M with a Bayes–Nash equilibrium s yields a truthful direct \
+    BayesianMechanism D = M.revelation s with probability priors, integrable truthful interim \
+    utilities and interim payments, identical implemented outcome f, and identical ex-post, \
+    interim, and (under ex-ante payment integrability, via revelation_integral_payment_eq) \
+    ex-ante expected equilibrium payments. Derived from the general measure-theoretic \
+    integral-preservation steps BayesianMechanism.revelation_isTruthful, \
+    BayesianMechanism.revelation_interimPayment_eq, and IndirectMechanism.toMechanism_isBICOn."
