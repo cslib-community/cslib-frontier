@@ -12,11 +12,6 @@ public import CslibFrontier.Foundations.Combinatorics.MaximaVectors
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
--- `import all` only to unfold the preference rule (`pref`, `PrefersFind`, `Projectable`, `spokes`,
--- `State.proj`) and `prefSeq`, which their modules do not expose.
-import all CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Correctness
-import all CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Instance
-import all CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.State
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Foundations.Data.Nat.Choose.Real
 import Mathlib.Data.Finset.Max
@@ -256,23 +251,10 @@ section Pref
 
 variable [LinearOrder W] {w : E → W}
 
-omit [DecidableEq E] in
-/-- The spokes of a projectable edge with ends `u, v`. -/
-private theorem exists_spokes_of_projectable {st : State V E} {e : E} (he : Projectable st e)
-    {u v : V} (huv : st.ends e = s(u, v)) :
-    ∃ su sv, st.spoke u = some su ∧ st.spoke v = some sv ∧ st.proj u ≠ st.proj v := by
-  obtain ⟨su, hsu⟩ := Option.isSome_iff_exists.1
-    (he.isSome_spoke (by rw [huv]; exact Sym2.mem_mk_left u v))
-  obtain ⟨sv, hsv⟩ := Option.isSome_iff_exists.1
-    (he.isSome_spoke (by rw [huv]; exact Sym2.mem_mk_right u v))
-  have hne := he.not_isDiag
-  rw [huv, Sym2.map_mk, Sym2.mk_isDiag_iff] at hne
-  exact ⟨su, sv, hsu, hsv, hne⟩
-
 theorem candidates_nonempty {st : State V E} {e : E} (he : Contested st e) :
     (candidates st e).Nonempty := by
   obtain ⟨⟨u, v⟩, huv⟩ := Quot.exists_rep (st.ends e)
-  obtain ⟨su, sv, hsu, -, -⟩ := exists_spokes_of_projectable he.1 huv.symm
+  obtain ⟨su, sv, hsu, -, -⟩ := he.1.exists_spokes huv.symm
   refine ⟨(true, su), mem_union_left _ (mem_image_of_mem _ ?_)⟩
   rw [mem_spokes]
   exact ⟨u, by rw [← huv]; exact Sym2.mem_mk_left u v, hsu⟩
@@ -287,7 +269,7 @@ theorem fst_eq_true_iff_prefersFind (hw : Function.Injective w) {st : State V E}
     y.1 = true ↔ PrefersFind w st e := by
   obtain ⟨⟨u, v⟩, huv⟩ := Quot.exists_rep (st.ends e)
   replace huv : st.ends e = s(u, v) := huv.symm
-  obtain ⟨su, sv, hsu, hsv, hne⟩ := exists_spokes_of_projectable he.1 huv
+  obtain ⟨su, sv, hsu, hsv, hne⟩ := he.1.exists_spokes huv
   have hspokes : spokes st e = {su, sv} := by
     rw [spokes_eq huv, hsu, hsv]
     rfl
@@ -320,21 +302,6 @@ theorem fst_eq_true_iff_prefersFind (hw : Function.Injective w) {st : State V E}
         (tagKey_true_le_false.1 (hmax (true, su) ((hmem _).2 (Or.inl ⟨rfl, Or.inl rfl⟩)))))
     · exact absurd hxs (not_le.2
         (tagKey_true_le_false.1 (hmax (true, sv) ((hmem _).2 (Or.inl ⟨rfl, Or.inr rfl⟩)))))
-
-/-- An edge that is not projectable prefers *find* (p. 13). -/
-theorem prefersFind_of_not_projectable {st : State V E} {e : E} (hp : ¬Projectable st e) :
-    PrefersFind w st e :=
-  Or.inl hp
-
-/-- A projectable edge whose ends the forest does not join prefers *project* (p. 20). -/
-theorem not_prefersFind_of_not_contested {st : State V E} {e : E} (hp : Projectable st e)
-    (hc : ¬Contested st e) : ¬PrefersFind w st e := by
-  unfold PrefersFind
-  rintro (h | h)
-  · exact h hp
-  · refine hc ⟨hp, fun a b hab => (h a b hab).mono ?_⟩
-    rintro f ⟨hf, -⟩
-    exact hf
 
 end Pref
 
@@ -420,8 +387,9 @@ theorem prefVector_mem_prefFamily {w : E → W} (hw : Function.Injective w) {st 
     by_cases heI : e ∈ I
     · by_cases hp : Projectable st e
       · simp only [heI, hp, and_self, ↓reduceIte, pref_eq_project_iff.2
-          (not_prefersFind_of_not_contested hp fun h => hc (mem_contested.2 ⟨heI, h⟩))]
-      · simp only [heI, hp, and_false, ↓reduceIte, pref_eq_find_iff.2 (Or.inl hp)]
+          (not_prefersFind_of_not_joins hp fun h => hc (mem_contested.2 ⟨heI, hp, h⟩))]
+      · simp only [heI, hp, and_false, ↓reduceIte,
+          pref_eq_find_iff.2 (prefersFind_of_not_projectable hp)]
     · simp only [heI, false_and, ↓reduceIte]
 
 omit [DecidableEq V] in
@@ -497,31 +465,17 @@ noncomputable def history (inst : Instance V E) :
     (snapshot cfg (LEQuery.keyOracle w) inst i).state.forest,
     prefVector w (snapshot cfg (LEQuery.keyOracle w) inst i).state inst.edges⟩
 
-/-- The true preference sequence of `e` is its preference at the start of each round. -/
-theorem prefSeq_eq (inst : Instance V E) (e : E) (j : ℕ) :
-    prefSeq cfg w inst e j = pref w (snapshot cfg (LEQuery.keyOracle w) inst j).state e := by
-  rw [prefSeq]
-
 /-- The preferences of the edges of the call in the history are the true preferences. -/
 theorem pref_history_of_mem {inst : Instance V E} (i : Fin (levelT cfg.γ inst.level ^ 2)) {e : E}
-    (he : e ∈ inst.edges) : (history cfg w inst i).pref e = prefSeq cfg w inst e i :=
-  prefVector_of_mem he
+    (he : e ∈ inst.edges) : (history cfg w inst i).pref e = prefSeq cfg w inst e i := by
+  rw [prefSeq_eq]
+  exact prefVector_of_mem he
 
 /-- The state on the vertices and ends of `inst` with the spokes `σ` and the forest `F`, and no
 portals: the preferences depend on nothing else. -/
 @[expose] def Instance.stateOf (inst : Instance V E) (σ : V → Option E) (F : Finset E) :
     State V E :=
   ⟨inst.vertices, inst.ends, ∅, σ, F⟩
-
-/-- The preferences at a state depend only on its ends, spokes and forest. -/
-theorem pref_congr {st st' : State V E} (he : st.ends = st'.ends) (hs : st.spoke = st'.spoke)
-    (hf : st.forest = st'.forest) : pref w st = pref w st' := by
-  obtain ⟨X, ends, P, σ, F⟩ := st
-  obtain ⟨X', ends', P', σ', F'⟩ := st'
-  simp only at he hs hf
-  subst he hs hf
-  funext e
-  rfl
 
 open scoped Classical in
 /-- The spoke choices (p. 19): every vertex has no spoke or an incident edge of the instance. -/
@@ -612,7 +566,8 @@ theorem history_mem_histories (hw : Function.Injective w) (hmsf : cfg.ExactMsf w
         prefVector w st inst.edges := by
       funext e
       unfold prefVector
-      rw [pref_congr w (st := inst.stateOf st.spoke st.forest) (st' := st) hends.symm rfl rfl]
+      rw [pref_congr (w := w) (st := inst.stateOf st.spoke st.forest) (st' := st) hends.symm rfl
+        rfl]
     rw [this]
     rfl
 
