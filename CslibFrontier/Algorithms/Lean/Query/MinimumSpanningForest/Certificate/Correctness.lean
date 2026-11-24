@@ -335,10 +335,10 @@ private theorem invariant_snapshot_of (hw : Function.Injective w) (hmsf : cfg.Ex
     · exact invariant_blockEnd hw hmsf hwf ha (by simp [afterRound]) (by simp [afterRound])
     · exact ha
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **Claim 3.5** (§3.3, p. 17).
-Every edge of the forest returned by a call is admissible, and the forest is an acyclic set of
-edges of the call; the rejected edges are edges of the call, each with the index of its first
-invalid projection. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**Claim 3.5** (§3.3, p. 17). Every edge of the forest returned by a call is admissible, and the
+forest is an acyclic set of edges of the call; the rejected edges are edges of the call, each with
+the index of its first invalid projection. -/
 theorem sound_certificate (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
     (inst : Instance V E) (hwf : inst.WellFormed) :
     ((certificate cfg inst).eval (LEQuery.keyOracle w)).Sound w inst := by
@@ -531,10 +531,11 @@ private theorem joins_proj {st : State V E} {adm : E → Prop} (hst : st.Invaria
     Joins st.ends {f | f ∈ st.forest ∧ w f ≤ w sx} x (st.proj x) :=
   (supported_iff w (hst.ends_spoke hx)).1 (hst.spoke_supported x sx hx)
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **Claim 3.6** (§3.3, p. 17).
-Let `e` with ends `u, v` be projected in round `i`, with spokes `σ(u) = su` and `σ(v) = sv`. If
-the child's forest supports the projected edge, then after the round the forest edges of weight at
-most `max (w e) (p e)`, where `p e = max (w su) (w sv)`, join `u` and `v`. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**Claim 3.6** (§3.3, p. 17). Let `e` with ends `u, v` be projected in round `i`, with spokes
+`σ(u) = su` and `σ(v) = sv`. If the child's forest supports the projected edge, then after the round
+the forest edges of weight at most `max (w e) (p e)`, where `p e = max (w su) (w sv)`, join `u` and
+`v`. -/
 theorem joins_afterRound_of_supported_child (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
     {inst : Instance V E} (hwf : inst.WellFormed) {i : ℕ} {e : E}
     (hsup : Supported (child cfg (LEQuery.keyOracle w) inst i).ends w
@@ -885,9 +886,10 @@ private theorem vertices_nonempty {inst : Instance V E} (hwf : inst.WellFormed) 
   obtain ⟨⟨u, v⟩, huv⟩ := Quot.exists_rep (inst.ends e)
   exact ⟨u, hwf.ends_mem e he u (by rw [← huv]; exact Sym2.mem_mk_left u v)⟩
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **Lemma 3.7, first claim**
-(§3.3, p. 18), for any call. An edge with no error in this call or in any call below it that
-receives its projection is rejected by the call or supported by the call's forest. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**Lemma 3.7, first claim** (§3.3, p. 18), for any call. An edge with no error in this call or in any
+call below it that receives its projection is rejected by the call or supported by the call's
+forest. -/
 theorem supported_or_rejected_of_forall_not_hasError (hw : Function.Injective w)
     (hmsf : cfg.ExactMsf w) (inst : Instance V E) (hwf : inst.WellFormed) {e : E}
     (he : e ∈ inst.edges)
@@ -928,9 +930,9 @@ theorem rejected_certificate_root (hw : Function.Injective w) (hmsf : cfg.ExactM
   have := hs.firstInvalid_rejected e he
   simp [firstInvalid_nil] at this
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **Lemma 3.7, first
-claim** (§3.3, p. 18). In the root instance, an edge for which no error occurs, in any call of the
-recursion that receives its projection, is supported by the returned forest. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**Lemma 3.7, first claim** (§3.3, p. 18). In the root instance, an edge for which no error occurs,
+in any call of the recursion that receives its projection, is supported by the returned forest. -/
 theorem supported_certificate_root_of_forall_not_hasError (hw : Function.Injective w)
     (hmsf : cfg.ExactMsf w) {X : Finset V} {ends : E → Sym2 V} {S : Finset E}
     (hS : ∀ e ∈ S, ∀ v ∈ ends e, v ∈ X) {e : E} (he : e ∈ S)
@@ -943,11 +945,11 @@ theorem supported_certificate_root_of_forall_not_hasError (hw : Function.Injecti
   · simp [rejected_certificate_root hw hmsf hS] at h
   · exact h
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **Lemma 3.7, second claim**
-(§3.3, p. 18). An edge rejected below a call whose first invalid projection is the one made in this
-call (an edge of R″) has an error in this call. Its projection being invalid, the forest joins its
-ends below its heavier spoke after the round, so the rest of the block prefers *find*: the round
-was bad, or the estimate was wrong. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**Lemma 3.7, second claim** (§3.3, p. 18). An edge rejected below a call whose first invalid
+projection is the one made in this call (an edge of R″) has an error in this call. Its projection
+being invalid, the forest joins its ends below its heavier spoke after the round, so the rest of the
+block prefers *find*: the round was bad, or the estimate was wrong. -/
 theorem hasError_of_mem_absorbed (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
     {inst : Instance V E} (hwf : inst.WellFormed) {i : ℕ} {e : E}
     (he : e ∈ absorbed cfg (LEQuery.keyOracle w) inst i) : HasError cfg w inst e := by
@@ -1069,11 +1071,11 @@ private theorem card_unsupported_add_sum_absorbed_le_step (hw : Function.Injecti
     _ ≤ #(errors cfg w inst) + #Uc := card_union_le _ _
     _ ≤ _ := Nat.add_le_add_left card_biUnion_le _
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **the counting
-consequence of Lemma 3.7** (§3.6, pp. 23–24), for any call. The edges of the call that are neither
-rejected nor supported by its forest, together with the edges of all the sets R″ of the calls below
-it (the rejected edges, each counted once, in the call that absorbs it), number at most the errors
-over all these calls. -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**the counting consequence of Lemma 3.7** (§3.6, pp. 23–24), for any call. The edges of the call
+that are neither rejected nor supported by its forest, together with the edges of all the sets R″ of
+the calls below it (the rejected edges, each counted once, in the call that absorbs it), number at
+most the errors over all these calls. -/
 theorem card_unsupported_add_sum_absorbed_le_of_wellFormed (hw : Function.Injective w)
     (hmsf : cfg.ExactMsf w) (inst : Instance V E) (hwf : inst.WellFormed) :
     #(unsupported inst.ends w ↑((certificate cfg inst).eval (LEQuery.keyOracle w)).forest
@@ -1119,11 +1121,11 @@ theorem card_unsupported_add_sum_absorbed_le_of_wellFormed (hw : Function.Inject
       rw [sum_add_distrib] at hsum
       omega
 
-/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): **the counting consequence of
-Lemma 3.7** (§3.6, pp. 23–24), at the root. The root edges unsupported by the returned forest,
-plus the rejected edges (each counted once, in the call whose R″ absorbs it), number at most the
-errors over all calls of the recursion. The sizes of the sets R″ are the rejected edges entering
-the exact minimum spanning forest calls (p. 24). -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325):
+**the counting consequence of Lemma 3.7** (§3.6, pp. 23–24), at the root. The root edges unsupported
+by the returned forest, plus the rejected edges (each counted once, in the call whose R″ absorbs
+it), number at most the errors over all calls of the recursion. The sizes of the sets R″ are the
+rejected edges entering the exact minimum spanning forest calls (p. 24). -/
 theorem card_unsupported_add_sum_absorbed_le (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
     {X : Finset V} {ends : E → Sym2 V} {S : Finset E} (hS : ∀ e ∈ S, ∀ v ∈ ends e, v ∈ X) :
     #(unsupported ends w
