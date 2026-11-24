@@ -6,6 +6,7 @@ import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
+import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
