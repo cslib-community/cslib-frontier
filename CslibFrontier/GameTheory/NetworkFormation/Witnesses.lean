@@ -503,7 +503,7 @@ theorem isPureNash_broadcastShared_zero (k : ℕ) :
     simp only [Bool.false_eq_true, ↓reduceIte, add_zero]
     exact one_div_le_one_div_of_le (by positivity) (by exact_mod_cast Nat.succ_le_of_lt i.isLt)
 
-/-! ### 2. Undirected single-sink counterpart (`PoS = 1`, NRTV Exercise 17.2) -/
+/-! ### 2. Undirected single-sink counterpart (`PoS = 1`) -/
 
 private def broadcastRel (k : ℕ) : BroadcastVertex k → BroadcastVertex k → Prop
   | .source _, .hub => True
@@ -511,9 +511,8 @@ private def broadcastRel (k : ℕ) : BroadcastVertex k → BroadcastVertex k →
   | .hub, .sink => True
   | _, _ => False
 
-/-- Underlying simple graph of the undirected single-sink `H_k` example
-([RoughgardenTardos2007], Exercise 17.2): unordered edges `{source i, hub}`, `{hub, sink}`, and
-`{source i, sink}`. -/
+/-- Underlying simple graph of the undirected single-sink `H_k` example ([RoughgardenTardos2007]):
+unordered edges `{source i, hub}`, `{hub, sink}`, and `{source i, sink}`. -/
 def undirectedBroadcastGraph (k : ℕ) : SimpleGraph (BroadcastVertex k) :=
   SimpleGraph.fromRel (broadcastRel k)
 

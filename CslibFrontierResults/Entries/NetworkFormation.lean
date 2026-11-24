@@ -99,7 +99,7 @@ register_result "fair-connection-poa-smoothness" where
   topic := "game theory"
   sources := [
     { paper := Roughgarden2015,
-      theorem := "Definition 2.1 and Theorem 3.2",
+      theorem := "Definition 2.1, derivation (3)–(5), and Theorem 3.2",
       locator := "author's version of 14 July 2015" },
     { paper := TardosWexler2007, theorem := unverified, locator := unverified }
   ]

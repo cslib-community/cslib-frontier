@@ -38,7 +38,7 @@ Kernel-checked examples (using ordinary `module` imports and zero `native_decide
      equilibrium of globally minimal social cost `1 / 4` (`PoS = 1`, each player paying `1 / 16`).
 4. **Four-player parallel-link `PoA = 4` network**: exact `socialCost = 4 = 4 * OPT` at `ε = 0`,
    strict pure Nash equilibrium at `ε = 1 / 10`, and matching general `PoA ≤ 4` upper bound.
-5. **Three-player `potentialGapNetwork` (NRTV Exercise 19.14)**: socially optimal pure Nash
+5. **Three-player `potentialGapNetwork` ([TardosWexler2007])**: socially optimal pure Nash
    equilibrium (`socialCost = 2`, `Φ = 11 / 3`) strictly exceeds the global minimum of Rosenthal's
    potential (`Φ = 18 / 5` at the cost-`18 / 5` direct pure Nash equilibrium).
 -/
@@ -282,7 +282,7 @@ example :
       (parallelNetwork_edgeCost_nonneg le_rfl) hs (parallelCheapProfile 4 0)
     simpa [Fintype.card_fin] using h
 
-/-! ### 5. Exercise 19.14 witness: socially optimal pure NE vs. potential minimizer -/
+/-! ### 5. Socially optimal pure NE vs. potential minimizer (`potentialGapNetwork`) -/
 
 example :
     potentialGapNetwork.toCostGame.IsPureNash potentialGapShared ∧
