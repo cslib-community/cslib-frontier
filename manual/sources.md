@@ -149,6 +149,11 @@ Elliot Anshelevich, Anirban Dasgupta, Jon Kleinberg, Éva Tardos, Tom Wexler and
 
 Alberto Apostolico, Dany Breslauer and Zvi Galil. "Parallel Detection of All Palindromes in a String." *Theoretical Computer Science* 141(1–2), 163–173, 1995. https://doi.org/10.1016/0304-3975(94)00083-U . Locators refer to the preliminary version, INRIA Research Report RR-2136, 1993, open copy https://inria.hal.science/inria-00074536 , checked on 2026-11-08 UTC. Section 1 defines even and odd palindromes of radius `R` centered at a position and the maximal radii at all positions; the manual's center convention is translated from these definitions. Section 1 also states that Manacher's algorithm computes the maximal radii at all positions in linear time. The journal text was not inspected.
 
+<a id="arrow1951welfare"></a>
+## arrow1951welfare
+
+Kenneth J. Arrow. "An Extension of the Basic Theorems of Classical Welfare Economics." *Proceedings of the Second Berkeley Symposium on Mathematical Statistics and Probability*, 507–532, University of California Press, Berkeley, 1951 (library key `Arrow1951Welfare`). Bibliographic metadata only; the proceedings PDF was not directly inspected, so no internal theorem, lemma or page locators are claimed. Cited alongside [arrowdebreu1954](#arrowdebreu1954) for price quasi-equilibria (`ExchangeMarket.IsPriceQuasiEquilibrium`), the Second Fundamental Theorem of Welfare Economics via hyperplane separation and lump-sum endowment redistribution (`ExchangeMarket.exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal`, `ExchangeMarket.exists_isCompetitiveEquilibrium_reendow_of_isParetoOptimal`), and Arrow's zero-income corner counterexample (`arrowCorner` in [CoreWelfare.lean](../CslibFrontierTests/GameTheory/CoreWelfare.lean)) in [Welfare.lean](../CslibFrontier/GameTheory/Market/Welfare.lean), steps toward [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
+
 <a id="arrowdebreu1954"></a>
 ## arrowdebreu1954
 
@@ -759,6 +764,11 @@ Caterina De Simone. "The cut polytope and the boolean quadric polytope." *Discre
 ## datar04
 
 Mayur Datar, Nicole Immorlica, Piotr Indyk and Vahab S. Mirrokni. “Locality-sensitive hashing scheme based on p-stable distributions.” *Proceedings of the Twentieth Annual Symposium on Computational Geometry (SoCG 2004)*, ACM, 253–262, 2004. https://doi.org/10.1145/997817.997857 . Bibliographic metadata checked against DBLP search results; the full text was not inspected (attempted archive links returned HTTP 404), so section and theorem locators remain unverified.
+
+<a id="debreuscarf1963"></a>
+## debreuscarf1963
+
+Gerard Debreu and Herbert Scarf. "A Limit Theorem on the Core of an Economy." *International Economic Review* 4(3), 235–246, 1963 (library key `DebreuScarf1963`). https://doi.org/10.2307/2525306 . Bibliographic metadata only; the journal PDF was not directly inspected, so no internal theorem, lemma or page locators are claimed. Cited in [Core.lean](../CslibFrontier/GameTheory/Market/Core.lean) for coalition blocking (`ExchangeMarket.IsBlockedBy`), the exchange-economy core (`ExchangeMarket.IsInCore`), core inclusion of competitive equilibria (`ExchangeMarket.IsCompetitiveEquilibrium.isInCore`), `r`-fold replica economies (`ExchangeMarket.replica`), the equal-treatment theorem under strictly concave utilities (`ExchangeMarket.eq_of_isInCore_replica`), and the Debreu–Scarf core shrinking and core equivalence theorems (`ExchangeMarket.exists_priceQuasiEquilibrium_of_forall_replica_isInCore`, `ExchangeMarket.exists_isCompetitiveEquilibrium_of_forall_replica_isInCore`, `ExchangeMarket.exists_isCompetitiveEquilibrium_iff_forall_replica_isInCore`), steps toward [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
 
 <a id="devroyelugosi01"></a>
 ## devroyelugosi01
@@ -2698,6 +2708,11 @@ T. van Aardenne-Ehrenfest and N. G. de Bruijn. "Circuits and trees in oriented l
 ## vanderzanden2015
 
 Tom C. van der Zanden. *Parameterized Complexity of Graph Constraint Logic*. IPEC 2015, LIPIcs 43, 282–293. https://doi.org/10.4230/LIPIcs.IPEC.2015.282 . [Conference PDF](https://drops.dagstuhl.de/storage/00lipics/lipics-vol043-ipec2015/LIPIcs.IPEC.2015.282/LIPIcs.IPEC.2015.282.pdf). Outside-fleet [agent source check](https://github.com/cslib-community/cslib-frontier/pull/7948#pullrequestreview-6028755848), 2026-11-23: §2.1 and Definition 4; §3, Theorem 6 and its proof, printed pp. 286–289 (PDF pp. 5–8). The registered result is configuration-to-configuration PSPACE-completeness for planar AND/OR graphs with one fixed bandwidth bound, under the general graph encoding.
+
+<a id="varian1974"></a>
+## varian1974
+
+Hal R. Varian. "Equity, Envy, and Efficiency." *Journal of Economic Theory* 9(1), 63–91, 1974 (library key `Varian1974`). https://doi.org/10.1016/0022-0531(74)90075-1 . Bibliographic metadata only; the journal PDF was not directly inspected, so no internal theorem, lemma or page locators are claimed. Cited in [Welfare.lean](../CslibFrontier/GameTheory/Market/Welfare.lean) for Fisher-market equal-budget envy-freeness (`FisherMarket.IsEquilibrium.utility_le_of_budget_le`, `LinearFisherMarket.IsEquilibrium.envyFree_of_budget_eq`), budget-weighted envy-freeness (`LinearFisherMarket.IsEquilibrium.budget_mul_utility_le`), and proportional-share guarantees (`FisherMarket.IsEquilibrium.utility_budgetShare_supply_le`, `LinearFisherMarket.IsEquilibrium.proportional_share`), steps toward [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
 
 <a id="vazirani2007"></a>
 ## vazirani2007
