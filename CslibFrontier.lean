@@ -1551,6 +1551,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.Reparamete
 public import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.Rewiring
 public import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.Simplification
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded
+public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.AuxPDACompiler
+public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.BalancedCircuit
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.MinIsolation
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.WeightGenerator
 public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric
@@ -3991,6 +3993,7 @@ public import CslibFrontier.Computability.MCSP.SuccinctNP
 public import CslibFrontier.Computability.MCSP.SuccinctNP.Words
 public import CslibFrontier.Computability.MCSP.ZeroErrorAverageCase
 public import CslibFrontier.Computability.Machines.AuxPDA.Basic
+public import CslibFrontier.Computability.Machines.AuxPDA.BoundedSurface
 public import CslibFrontier.Computability.Machines.AuxPDA.Counting
 public import CslibFrontier.Computability.Machines.AuxPDA.Surface
 public import CslibFrontier.Computability.Machines.ReadMachine.Basic
