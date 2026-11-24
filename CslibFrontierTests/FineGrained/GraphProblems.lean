@@ -4,10 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.FineGrained.GraphProblems
+import CslibFrontier.Computability.Complexity.FineGrained.Reduction
+import CslibFrontier.Computability.Complexity.Problems.Coloring
+import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Sparse
+import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Sparse
 
 /-!
-# Tests: exponential lower bounds for graph problems
+# Tests: linear-size reductions from 3SAT to graph problems
 
 The reduction with variable edges on concrete formulas: its target and size against the linear
 bound, its edges against those of Karp's reduction on a formula with many complementary
@@ -16,8 +19,7 @@ with no clauses and one with an empty clause; the sparse diamond reduction: its 
 Sipser's construction on a formula with many occurrences of one variable, and its correctness for
 directed paths, directed cycles and undirected cycles on satisfiable and unsatisfiable formulas,
 including the formula with no clauses and the empty clause; the size of the 3-coloring reduction;
-the non-vacuity of the subexponential time predicate; the lower bound for the number of distinct
-vertices of a clique instance, by changing the measure; and the axioms of the headline theorems.
+the non-vacuity of the subexponential time predicate; and the axioms of the reductions.
 -/
 
 namespace CslibFrontierTests.FineGrained.GraphProblems
@@ -126,16 +128,6 @@ example : DecidableInSubexpTime (∅ : Set Graph) encGraph fun G =>
     have h₀ : (0 : ℝ) ≤ (encGraph G).length := Nat.cast_nonneg _
     simp only [Nat.cast_one, pow_one, one_mul]
     nlinarith
-
-/-- Subexponential clique deciders in the number of distinct vertices transfer unconditionally to
-subexponential `ThreeSAT` deciders in the number of clauses. -/
-example
-    (hClique : DecidableInSubexpTime Clique encCliqueInstance
-      (fun x => x.graph.vertices.toFinset.card)) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length :=
-  (hClique.mono_measure (c := 1) fun x => by
-    have := x.graph.vertices.toFinset_card_le
-    omega).threeSAT_of_Clique
 
 /-! ### Axioms -/
 

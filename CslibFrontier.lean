@@ -2692,7 +2692,6 @@ public import CslibFrontier.Computability.Complexity.FineGrained.Exponents
 public import CslibFrontier.Computability.Complexity.FineGrained.FunctionRates
 public import CslibFrontier.Computability.Complexity.FineGrained.GapETH
 public import CslibFrontier.Computability.Complexity.FineGrained.GeneralCNFBranchSchedule
-public import CslibFrontier.Computability.Complexity.FineGrained.GraphProblems
 public import CslibFrontier.Computability.Complexity.FineGrained.LocalMapCounting
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram

@@ -31,13 +31,15 @@ More generally, subexponential time transfers along **$2^{O(m(a))}$-time reducti
 linearly in $m(a) \log_2 m(a)$ and the $2^{O(m(a))}$ runtime is absorbed into
 $2^{(\varepsilon / 2) m(a) \log_2 m(a)}$.
 
-A polynomial-time reduction from 3SAT whose output measure is linear in the number of clauses
-transfers subexponential-time decision for the target problem unconditionally to subexponential-time
-decision for `ThreeSAT` in clause count
-(`Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_reduction`) [ImpagliazzoPaturiZane2001]
-[CyganEtAl2015, Chapter 14]. Transfers from smaller measures are stronger: subexponential time in a
-smaller measure transfers to every measure that bounds it up to a linear factor
-(`Cslib.Complexity.DecidableInSubexpTime.mono_measure`).
+Subexponential time in a smaller measure transfers to every measure that bounds it up to a linear
+factor (`Cslib.Complexity.DecidableInSubexpTime.mono_measure`).
+
+These transfers are how linear-size reductions from 3SAT give the classical lower bounds under the
+exponential time hypothesis [ImpagliazzoPaturiZane2001] [CyganEtAl2015, Chapter 14].
+`Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes that hypothesis, and with it
+`Cslib.Complexity.ETH_iff_not_decidableInSubexpTime_length` proves that `ThreeSAT` is decidable in
+subexponential time in the number of clauses, so a transfer whose conclusion is that statement
+carries no information and is not stated here.
 
 The scalar estimates for measure rescaling and reduction-time composition are shared with
 function-time and randomized transfers through
@@ -52,8 +54,6 @@ function-time and randomized transfers through
   size.
 * `Cslib.Complexity.DecidableInSubexpTime.of_expReduction`: subexponential-time transfer along
   $2^{O(m)}$-time reductions into parameter $m \log_2 m$.
-* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_reduction`: unconditional subexponential-time
-  transfer to `ThreeSAT` in clause count along reductions of linear size from 3-CNF formulas.
 
 ## References
 
@@ -133,36 +133,6 @@ theorem DecidableInSubexpTime.of_reduction {f : α → β}
     DecidableInSubexpTime A encA μA := fun δ hδ =>
   ((h (δ / (c + 1)) (by positivity)).of_reduction hf hfA hμ (by positivity)).mono
     (natCast_mul_div_add_one_le hδ.le c)
-
-/-- **Unconditional subexponential-time transfer to `ThreeSAT` along a linear-size reduction**
-[ImpagliazzoPaturiZane2001] [CyganEtAl2015, Chapter 14]: if `f` is computable in polynomial time
-and, on formulas `φ` in conjunctive normal form with `m` clauses of at most three literals, maps
-`φ` to an instance of `B` exactly when `φ` is satisfiable, with `μB (f φ) ≤ k * m + k`, then any
-subexponential-time decider for `B` in `μB` yields a subexponential-time decider for `ThreeSAT` in
-clause count `List.length`. -/
-theorem DecidableInSubexpTime.threeSAT_of_reduction {f : CNF ℕ → β}
-    (hf : ComputableInPolyTime f encCNF encB)
-    (hfB : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → (f φ ∈ B ↔ φ ∈ SAT)) {k : ℕ}
-    (hμ : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → μB (f φ) ≤ k * φ.length + k)
-    (h : DecidableInSubexpTime B encB μB) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length := by
-  -- formulas with a clause of more than three literals go to the image of the empty clause
-  refine h.of_reduction (f := fun φ => if φ.all (fun c => decide (c.length ≤ 3)) then f φ
-    else f [[]]) (ComputableInPolyTime.ite' (computableInPolyTime_all_length_le 3)
-      hf (ComputableInPolyTime.const _)) (fun φ => ?_) (c := 2 * k) fun φ => ?_
-  · by_cases hφ : ∀ c ∈ φ, c.length ≤ 3
-    · have hw : (φ.all fun c => decide (c.length ≤ 3)) = true := by simpa using hφ
-      simp only [hw, ite_true, hfB φ hφ]
-      exact ⟨fun h => h.2, fun h => ⟨hφ, h⟩⟩
-    · have hw : (φ.all fun c => decide (c.length ≤ 3)) = false := by simpa using hφ
-      simp only [hw, Bool.false_eq_true, ite_false, hfB [[]] (by simp)]
-      exact ⟨fun h => (hφ h.1).elim, fun ⟨σ, hσ⟩ => by simp at hσ⟩
-  · split_ifs with hw
-    · have := hμ φ (by simpa using hw)
-      nlinarith
-    · have := hμ [[]] (by simp)
-      simp only [List.length_singleton, mul_one] at this
-      nlinarith
 
 /-! ### Exponential-time reductions into $m \log_2 m$ -/
 

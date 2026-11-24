@@ -20,10 +20,8 @@ Kernel-checked tests (with no `native_decide`) exercising `Cslib.Complexity.SAT.
    edges are produced (`edges = []`), so `groupClique 2 unsat2 ∉ Clique` and `unsat2 ∉ ThreeSAT`.
 3. Boundary inputs (`[]`, `[[]]`, a width-4 clause `non3CNF`, and `r = 0`), verifying
    `groupClique_snd`, `length_groupClique_vertices_le`, and `groupClique_mem_Clique_iff`.
-4. Non-vacuous type signatures of `exists_computableInO_groupClique`,
-   `DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`,
-   `DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`, and
-   `DecidableInSubexpTime.threeSAT_of_clique_mem_FPT`.
+4. Non-vacuous type signatures of `exists_computableInO_groupClique` and
+   `DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`.
 -/
 
 public section
@@ -81,11 +79,7 @@ example : SAT.groupClique 2 non3CNF ∉ Clique := by
 
 example : SAT.groupClique 0 sat2 = ⟨⟨[], []⟩, 1⟩ := by decide
 
-/-- Typecheck of the unconditional subexponential and `FPT` transfer theorems. -/
-example (hFPT : Clique ∈ FPT encCliqueInstance CliqueInstance.m) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length :=
-  DecidableInSubexpTime.threeSAT_of_clique_mem_FPT hFPT
-
+/-- Typecheck of the transfer from `f(k) * |V| ^ o(k) * poly` algorithms. -/
 example
     (hClique : DecidableInTimeO Clique encCliqueInstance
       (fun x =>

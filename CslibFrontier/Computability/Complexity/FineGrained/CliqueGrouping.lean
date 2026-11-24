@@ -48,11 +48,13 @@ assignments in distinct blocks) such that `⟨G, r⟩ ∈ Clique ↔ φ ∈ Thre
 Uniformity of the padded polynomial-time reduction over `(r, φ)` gives an
 `O(2 ^ (O(m / r)) * poly)` construction whose polynomial exponent `D` is independent of `r`.
 Choosing `r` sufficiently large transfers any `f(k) * |V| ^ o(k) * poly(|enc|)` or
-`f(k) * |enc| ^ o(k)` algorithm—and in particular any `FPT` algorithm—for `Clique` unconditionally
-to a subexponential-time algorithm for `ThreeSAT` parameterized by `φ.length`. Because
-`CountingNativeEndpoint.not_ETH` refutes `ETH` in this library's native machine model, we state
-these results directly as unconditional subexponential-time transfers rather than vacuous
-`ETH → ¬…` implications.
+`f(k) * |enc| ^ o(k)` algorithm for `Clique` to a subexponential-time algorithm for `ThreeSAT`
+parameterized by `φ.length`. The source uses this transfer to rule out such algorithms, and in
+particular `FPT` algorithms, under the exponential time hypothesis. That hypothesis is refuted
+(`CountingNativeEndpoint.not_ETH`), and `ThreeSAT` is already decidable in subexponential time in
+`φ.length` (`ETH_iff_not_decidableInSubexpTime_length`), so the two transfers below record the
+reduction's time analysis rather than a lower bound. Transfers at quantitative rates are tracked
+in #5342.
 
 ## Main definitions
 
@@ -67,10 +69,9 @@ these results directly as unconditional subexponential-time transfers rather tha
 * `Cslib.Complexity.SAT.exists_computableInO_groupClique`: uniform runtime/size bound in
   `(r, φ)` via `ComputableInPolyTime.exists_computableInO_pad`.
 * `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`,
-  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`,
-  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_mem_FPT`: unconditional transfers from
-  `f(k) * |V| ^ o(k) * poly`, `f(k) * |enc| ^ o(k)`, and `FPT` algorithms for `Clique` to
-  subexponential `ThreeSAT` algorithms.
+  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`: transfers from
+  `f(k) * |V| ^ o(k) * poly` and `f(k) * |enc| ^ o(k)` algorithms for `Clique` to subexponential
+  `ThreeSAT` algorithms.
 
 ## References
 
@@ -897,16 +898,5 @@ theorem DecidableInSubexpTime.threeSAT_of_clique_subexpVertex
         gcongr
         exact le_abs_self _
       _ ≤ _ := le_add_of_nonneg_right zero_le_one
-
-/-- Any fixed-parameter tractable (`FPT`) algorithm for parameterized `Clique` yields a
-subexponential-time algorithm for `ThreeSAT` parameterized by clause count `List.length`. -/
-theorem DecidableInSubexpTime.threeSAT_of_clique_mem_FPT
-    (hFPT : Clique ∈ FPT encCliqueInstance CliqueInstance.m) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length := by
-  rw [mem_FPT] at hFPT
-  obtain ⟨f, c, hClique⟩ := hFPT
-  refine threeSAT_of_clique_subexpVertex (fun k => (f k : ℝ)) (fun _ => 0) c
-    (fun ε hε => ⟨0, fun k _ => by positivity⟩) ?_
-  simpa using hClique
 
 end Cslib.Complexity

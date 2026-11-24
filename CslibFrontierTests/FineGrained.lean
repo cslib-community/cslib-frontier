@@ -123,9 +123,4 @@ example (h : ETH) : 0 < satExponent 4 :=
 example (h : ∀ δ : ℝ, δ < 1 → ¬DecidableInExpTime SAT encCNF CNF.numVars δ) : OVH :=
   OVH_of_not_decidableInExpTime_SAT h
 
-example (hOV : DecidableInTimeO OV encOV
-    fun p => ((p.1.length + p.2.length : ℕ) : ℝ) ^ (2 - (1 / 2 : ℝ)) * (OV.dim p + 1) ^ 2) :
-    DecidableInExpTime ThreeSAT encCNF CNF.numVars (1 - min (1 / 2 : ℝ) 1 / 2) :=
-  KSAT_three ▸ hOV.decidableInExpTime_KSAT (by norm_num) 3
-
 end CslibFrontierTests.FineGrained

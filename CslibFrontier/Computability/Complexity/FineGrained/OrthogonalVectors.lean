@@ -43,16 +43,17 @@ polynomial in the length of the encoded formula
 at a time (`Turing.MultiTapeTM.ComputableInTimeAndSpace.iterate_unary_stream_sum`);
 accumulating them in a list would cost time quadratic in the number of vectors. Then a decider
 for `OV` within time `N ^ (2 - ε)` times a polynomial in the dimension, on `N` vectors, decides
-unrestricted `SAT` (and every fixed-width `KSAT k`) within time `2 ^ ((1 - min ε 1 / 2) n)` times a
-polynomial (`Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`,
-`Cslib.Complexity.DecidableInTimeO.decidableInExpTime_KSAT`). Contrapositively, if unrestricted
-`SAT` requires exponential rate `1` (`∀ δ < 1, ¬DecidableInExpTime SAT encCNF CNF.numVars δ`), then
-`OVH` holds (`Cslib.Complexity.OVH_of_not_decidableInExpTime_SAT`).
+unrestricted `SAT` within time `2 ^ ((1 - min ε 1 / 2) n)` times a polynomial, for `ε > 0`
+(`Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`). Contrapositively, if unrestricted
+`SAT` is not decidable at any exponential rate below `1`, the orthogonal vectors hypothesis holds
+(`Cslib.Complexity.OVH_of_not_decidableInExpTime_SAT`).
 
 The orthogonal vectors hypothesis is stated with a polynomial factor in the dimension. Its form for
-dimension `c log N` is not proved here. Because `Cslib.Complexity.CountingNativeEndpoint.not_SETH`
-refutes fixed-width `SETH` in this library while leaving unrestricted `SAT` and `OVH` open, we state
-the unrestricted `SAT` transfer and implication rather than a vacuous `SETH → OVH` wrapper.
+dimension `c log N` is not proved here. Williams derives `OVH` from the strong exponential time
+hypothesis, which concerns `k`-SAT for fixed widths `k`.
+`Cslib.Complexity.CountingNativeEndpoint.not_SETH` refutes that hypothesis, so this module does
+not state the implication from it. The premise of `OVH_of_not_decidableInExpTime_SAT`, about
+unrestricted `SAT`, is not refuted, and the library neither proves nor refutes `OVH`.
 
 ## Main definitions
 
@@ -65,9 +66,8 @@ the unrestricted `SAT` transfer and implication rather than a vacuous `SETH → 
 * `Cslib.Complexity.toOV_mem_OV_iff`: `toOV φ ∈ OV ↔ φ ∈ SAT`.
 * `Cslib.Complexity.exists_computableInO_toOV`: the reduction runs within time
   `2 ^ ⌈n / 2⌉` times a polynomial.
-* `Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`,
-  `Cslib.Complexity.DecidableInTimeO.decidableInExpTime_KSAT`: a fast `OV` decider gives a fast
-  `SAT` (and `KSAT k`) decider.
+* `Cslib.Complexity.DecidableInTimeO.decidableInExpTime_SAT`: a fast `OV` decider gives a fast
+  `SAT` decider.
 * `Cslib.Complexity.OVH_of_not_decidableInExpTime_SAT`: if unrestricted `SAT` is not decidable at
   any exponential rate `< 1`, then `OVH` holds.
 
@@ -603,19 +603,6 @@ theorem DecidableInTimeO.decidableInExpTime_SAT {ε : ℝ} (hε : 0 < ε) {e : �
   have h₃ := mul_le_mul_of_nonneg_left hY hc
   rw [Nat.cast_add, show ((3 + 9 * c : ℕ) : ℝ) = 3 + 9 * (c : ℝ) by push_cast; ring]
   nlinarith
-
-/-- Any truly subquadratic `OV` decider in `N` with polynomial dependence on dimension `d` decides
-every fixed-width `KSAT k` at variable exponent `1 - min ε 1 / 2` [Williams2005]. -/
-theorem DecidableInTimeO.decidableInExpTime_KSAT {ε : ℝ} (hε : 0 < ε) {e : ℕ}
-    (hOV : DecidableInTimeO OV encOV
-      fun p => ((p.1.length + p.2.length : ℕ) : ℝ) ^ (2 - ε) * (OV.dim p + 1) ^ e)
-    (k : ℕ) :
-    DecidableInExpTime (KSAT k) encCNF CNF.numVars (1 - min ε 1 / 2) := by
-  have hSAT := hOV.decidableInExpTime_SAT hε
-  rw [KSAT_eq_inter k (KSAT_subset_SAT k) le_rfl]
-  refine hSAT.inter (computableInPolyTime_all_length_le k) ?_
-  have : min ε 1 / 2 ≤ 1 / 2 := div_le_div_of_nonneg_right (min_le_right ε 1) zero_le_two
-  linarith
 
 /-- If unrestricted `SAT` is not decidable at any exponential rate strictly below `1`, then the
 orthogonal vectors hypothesis `OVH` holds [Williams2005]. -/
