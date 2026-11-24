@@ -4,14 +4,20 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.SOA
-import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Thresholds
-import CslibFrontier.MachineLearning.PACLearning.Compression.MistakeBound
-import CslibFrontier.MachineLearning.PACLearning.Compression.Thresholds
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Init
+public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.SOA
+public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Thresholds
+public import CslibFrontier.MachineLearning.PACLearning.Compression.MistakeBound
+public import CslibFrontier.MachineLearning.PACLearning.Compression.Thresholds
 
 /-! Checked instances for binary and multiclass mistake trees, Littlestone dimension, the standard
 optimal algorithm, plurality halving, Natarajan/VC lower bounds, threshold separations on `ℕ` and
 `ℚ`, and multiclass mistake-bound sample compression. -/
+
+public section
 
 namespace CslibFrontierTests.Littlestone
 
@@ -48,19 +54,19 @@ theorem adaptiveThreeTree_shatters :
   cases h0 : bs 0 <;> cases h1 : bs 1
   · refine ⟨![0, 0, 0], by decide, ?_⟩
     have hp : adaptiveThreeTree.path bs = [(0, 0), (1, 0)] := by
-      simp [adaptiveThreeTree, MistakeTree.path, h0, h1]
+      simp [adaptiveThreeTree, h0, h1]
     rw [hp]; decide
   · refine ⟨![0, 2, 0], by decide, ?_⟩
     have hp : adaptiveThreeTree.path bs = [(0, 0), (1, 2)] := by
-      simp [adaptiveThreeTree, MistakeTree.path, h0, h1]
+      simp [adaptiveThreeTree, h0, h1]
     rw [hp]; decide
   · refine ⟨![1, 0, 1], by decide, ?_⟩
     have hp : adaptiveThreeTree.path bs = [(0, 1), (2, 1)] := by
-      simp [adaptiveThreeTree, MistakeTree.path, h0, h1]
+      simp [adaptiveThreeTree, h0, h1]
     rw [hp]; decide
   · refine ⟨![1, 0, 2], by decide, ?_⟩
     have hp : adaptiveThreeTree.path bs = [(0, 1), (2, 2)] := by
-      simp [adaptiveThreeTree, MistakeTree.path, h0, h1]
+      simp [adaptiveThreeTree, h0, h1]
     rw [hp]; decide
 
 /-- `fourBranchClass` has exact Littlestone dimension `2` and optimal mistake bound `2`:
@@ -140,8 +146,8 @@ example :
 example : littlestoneDim (∅ : ConceptClass Unit Empty) = 0 ∧
     optimalMistakeBound (∅ : ConceptClass Unit Empty) = ⊤ := by
   refine ⟨littlestoneDim_empty, ?_⟩
-  have hempty : IsEmpty (OnlineLearner Unit Empty) := ⟨fun A => (A [] ()).elim⟩
-  simp [optimalMistakeBound]
+  have : IsEmpty (OnlineLearner Unit Empty) := ⟨fun A => (A [] ()).elim⟩
+  simp
 
 /-! ### `vcDim ≤ littlestoneDim` and threshold separations on `ℕ` and `ℚ` -/
 
@@ -169,7 +175,8 @@ def unitIntervalThresholdsQ : ConceptClass ℚ Bool :=
 
 example : vcDim unitIntervalThresholdsQ = 1 ∧ littlestoneDim unitIntervalThresholdsQ = ⊤ := by
   refine ⟨?_, ?_⟩
-  · refine vcDim_eq_one_of_subset_thresholdClass (Set.image_subset_range _ _) (1 / 2 : ℚ) ?_
+  · refine vcDim_eq_one_of_subset_thresholdClass
+      (by rintro _ ⟨θ, _, rfl⟩; exact thresholdConcept_mem_thresholdClass θ) (1 / 2 : ℚ) ?_
     intro W' hW'
     rcases Set.subset_singleton_iff_eq.mp hW' with rfl | rfl
     · refine ⟨thresholdConcept (1 / 4 : ℚ), ⟨1 / 4, by norm_num, rfl⟩, ?_⟩
@@ -216,7 +223,6 @@ example : natarajanDim threeClassThresholdsQ = 1 ∧ littlestoneDim threeClassTh
       have hcard : 1 < W.card := by
         have : (1 : ℕ∞) < (W.card : ℕ∞) := not_le.mp hlt
         exact_mod_cast this
-      obtain ⟨a, ha, b, hb, hab⟩ := Finset.one_lt_card.mp hcard
       -- Embed into Boolean `thresholdClass ℚ` via `(· == 1)`
       refine not_setShatters_thresholdClass (α := ℚ) hcard ?_
       refine PACLearning.natarajanShatters_iff_setShatters.mp ?_
@@ -242,7 +248,8 @@ example : natarajanDim threeClassThresholdsQ = 1 ∧ littlestoneDim threeClassTh
         · exfalso
           exact hne' ((Set.mem_singleton_iff.mp h0).trans (Set.mem_singleton_iff.mp h1).symm)
       · obtain ⟨_, ⟨θ, rfl⟩, h₀, h₁⟩ := hB B hBW
-        refine ⟨thresholdConcept θ, ⟨θ, rfl⟩, fun x hx => ?_, fun x hx => ?_⟩
+        refine ⟨thresholdConcept θ, thresholdConcept_mem_thresholdClass θ,
+          fun x hx => ?_, fun x hx => ?_⟩
         · have h := h₀ x hx
           dsimp only at h ⊢
           rw [← h, thresholdConcept_apply]

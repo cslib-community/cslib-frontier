@@ -99,6 +99,10 @@ theorem mem_thresholdClass {c : α → Bool} :
     c ∈ thresholdClass α ↔ ∃ θ : α, thresholdConcept θ = c := by
   simp [thresholdClass]
 
+@[simp] theorem thresholdConcept_mem_thresholdClass (θ : α) :
+    thresholdConcept θ ∈ thresholdClass α :=
+  ⟨θ, rfl⟩
+
 /-- Binary search along any order-embedded chain of `2 ^ k` thresholds gives a complete `k`-mistake
 tree. -/
 theorem hasMistakeTree_thresholdConcept_orderEmb (k : ℕ) (e : Fin (2 ^ k) ↪o α) :

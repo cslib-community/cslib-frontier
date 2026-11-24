@@ -163,6 +163,12 @@ the `right` (`y₁`) branch. -/
 @[simp] theorem MistakeTree.path_leaf (bs : Fin 0 → Bool) :
     (MistakeTree.leaf : MistakeTree α β 0).path bs = [] := rfl
 
+@[simp] theorem MistakeTree.path_node {d : ℕ} (x : α) (y₀ y₁ : β) (hne : y₀ ≠ y₁)
+    (left right : MistakeTree α β d) (bs : Fin (d + 1) → Bool) :
+    (MistakeTree.node x y₀ y₁ hne left right).path bs =
+      if bs 0 then (x, y₁) :: right.path (bs ∘ Fin.succ)
+      else (x, y₀) :: left.path (bs ∘ Fin.succ) := rfl
+
 @[simp] theorem MistakeTree.length_path {d : ℕ} (T : MistakeTree α β d) (bs : Fin d → Bool) :
     (T.path bs).length = d := by
   induction T with

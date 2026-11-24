@@ -293,6 +293,12 @@ theorem optimalMistakeBound_mono {C C' : ConceptClass α β} (h : C ⊆ C') :
   nonpos_iff_eq_zero.mp <|
     (optimalMistakeBound_le (fun _ _ => Classical.arbitrary β) ∅).trans_eq (mistakeBound_empty _)
 
+/-- When no `OnlineLearner α β` exists (for instance, `Nonempty α` and `IsEmpty β`), the optimal
+mistake bound is `⊤`. -/
+@[simp] theorem optimalMistakeBound_of_isEmpty [IsEmpty (OnlineLearner α β)]
+    (C : ConceptClass α β) : optimalMistakeBound C = ⊤ :=
+  eq_top_iff.mpr (le_optimalMistakeBound_iff.mpr isEmptyElim)
+
 /-- The mistake bound in Littlestone's form [Littlestone1988, §3]: the target `c ∈ C` is fixed and
 the adversary chooses the instances, each labelled by `c`. -/
 theorem mistakeBound_eq_iSup_concept (A : OnlineLearner α β) (C : ConceptClass α β) :
