@@ -20,6 +20,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 Squaring preserves real zeros and the counting level of modular evaluation. For the square,
 the determinant sign decides a fixed-width feasibility witness at level `F_(a+24)`.
 Existential quantification over those bits gives a Boolean decision one level higher.
+Two such decisions can test, for one shared fixed-width word, that one polynomial
+has a real zero and that the other has none.
 
 Adapted from `ControlledFeasibilityWitnesses`, `ControlledFeasibilityFunction`, and
 `ControlledFeasibility` in lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`, using
@@ -30,6 +32,8 @@ a controlled family. Its polynomial is a specification accessed through its modu
 
 * `Controlled.feasibilityFunction_mem`: the real-zero Boolean decision at level `F_(a+25)`.
 * `Controlled.feasibility_mem`: the real-zero language at level `C_(a+26)P`.
+* `Controlled.boundedFeasibilityTests_mem`: the language of inputs with a fixed-width
+  word passing one real-zero test and failing the other at level `C_(a+27)P`.
 -/
 
 public section
@@ -109,5 +113,27 @@ theorem feasibility_mem (C : Controlled P enc a) (E : Decoder enc) :
       CountingLevel (a + 26) enc := by
   simpa only [decide_eq_true_eq, Nat.add_assoc] using
     CountingFunction.decision (C.feasibilityFunction_mem E)
+
+/-- Combine two controlled real-zero tests under a shared word of a polynomial-time unary
+width. Accept if the first polynomial has a real zero and the second has none. Adapted
+from lean-canny's `BoundedTwoTestDecision` at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. -/
+theorem boundedFeasibilityTests_mem {n₁ n₂ : α × List Bool → ℕ}
+    {P₁ : (q : α × List Bool) → MvPolynomial (Fin (n₁ q)) ℤ}
+    {P₂ : (q : α × List Bool) → MvPolynomial (Fin (n₂ q)) ℤ}
+    (C₁ : Controlled P₁ (encPair enc encBits) a) (C₂ : Controlled P₂ (encPair enc encBits) a)
+    (E : Decoder enc) (width : α → ℕ) (hw : ComputableInPolyTime width enc encUnary) :
+    {w | ∃ word : List Bool, word.length = width w ∧
+      (∃ x : Fin (n₁ (w, word)) → ℝ, eval₂ (Int.castRingHom ℝ) x (P₁ (w, word)) = 0) ∧
+      ¬ ∃ y : Fin (n₂ (w, word)) → ℝ, eval₂ (Int.castRingHom ℝ) y (P₂ (w, word)) = 0} ∈
+        CountingLevel (a + 27) enc := by
+  classical
+  let D := Decoder.pair E Decoder.bits
+  have hboth := CountingFunction.prod (C₁.feasibilityFunction_mem D)
+    (C₂.feasibilityFunction_mem D)
+  have htest := CountingFunction.map hboth (g := fun b : Bool × Bool => b.1 && !b.2)
+    (by fun_prop)
+  have hlanguage := CountingFunction.decision (CountingFunction.exists_bits E htest hw)
+  simpa only [MvPolynomial.eval_map, Function.comp_def, Bool.and_eq_true, Bool.not_eq_true',
+    decide_eq_true_eq, decide_eq_false_iff_not, Nat.add_assoc] using hlanguage
 
 end Cslib.Complexity.RealAlgebraic.Controlled
