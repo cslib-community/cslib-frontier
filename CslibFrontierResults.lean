@@ -13,6 +13,7 @@ import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.GraphicalGames
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF

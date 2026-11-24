@@ -9005,6 +9005,8 @@ public import CslibFrontier.GameTheory.Evolutionary.Basic
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.GameTheory.Extensive.PerfectInfo
 public import CslibFrontier.GameTheory.Extensive.SequenceForm
+public import CslibFrontier.GameTheory.Graphical.Basic
+public import CslibFrontier.GameTheory.Graphical.TreeNash
 public import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
 public import CslibFrontier.GameTheory.InterdomainRouting.StablePaths
 public import CslibFrontier.GameTheory.Market.Basic
