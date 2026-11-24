@@ -15,11 +15,13 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 /-!
 # Path maxima in a forest with linearly many comparisons
 
-**Lemma 2.9** of [Khanna, Putterman and Song][KhannaPuttermanSong2026] (§2, p. 12), which they
-cite from [Komlos1985] (see also [King1997]): given a forest `F` on `n` vertices and `q` query paths
-specified by their endpoints, the maximum edge weight on each query path can be determined with
-`O(n + q)` comparisons. The paper uses it in §3.5 (p. 22), to learn the preferred actions of the
-sampled edges, and in §4 (p. 25), to find the edges that the certificate forest does not support.
+Path maxima in a forest are a step in the proof of Theorem 4.1 of
+[Khanna, Putterman and Song][KhannaPuttermanSong2026], tracked in #8325. The paper states them as
+its Lemma 2.9 (§2, p. 12), which it cites from [Komlos1985] (see also [King1997]): given a forest
+`F` on `n` vertices and `q` query paths specified by their endpoints, the maximum edge weight on
+each query path can be determined with `O(n + q)` comparisons. The paper uses it in §3.5 (p. 22), to
+learn the preferred actions of the sampled edges, and in §4 (p. 25), to find the edges that the
+certificate forest does not support.
 
 ## The statement
 
@@ -41,14 +43,15 @@ sampled edges, and in §4 (p. 25), to find the edges that the certificate forest
 
 ## The algorithm
 
-This is King's algorithm ([King1997]). It runs Borůvka phases on `F`
-(`Cslib.Query.ForestBoruvka`): the blocks of all levels, with the edge that each block selects as
-its parent edge, form a full branching tree whose leaves are the vertices. Each query `(u, v)` is
-split, without comparisons, at the first level `j` where `u` and `v` share a block, into the two
-chains of parent edges of the blocks of `u` and of `v` below `j`. Komlós's procedure
-(`Cslib.Query.chainMaxima`) answers all chains with linearly many comparisons, because the number
-of blocks that hold an open query at least halves from each level to the next. A last comparison
-per query picks the heavier of the two chain maxima.
+This follows King's algorithm, after [King1997]. The module proves the step along King's route; it
+does not formalize [Komlos1985] or [King1997] as cited results, and their texts were not consulted.
+It runs Borůvka phases on `F` (`Cslib.Query.ForestBoruvka`): the blocks of all levels, with the edge
+that each block selects as its parent edge, form a full branching tree whose leaves are the
+vertices. Each query `(u, v)` is split, without comparisons, at the first level `j` where `u` and
+`v` share a block, into the two chains of parent edges of the blocks of `u` and of `v` below `j`.
+Komlós's procedure (`Cslib.Query.chainMaxima`) answers all chains with linearly many comparisons,
+because the number of blocks that hold an open query at least halves from each level to the next. A
+last comparison per query picks the heavier of the two chain maxima.
 
 The answer is right by King's reduction: the heaviest parent edge `f` on the two chains is the
 heaviest edge on the path of `F`. No edge of `F` lighter than `f` leaves the block that selected
@@ -58,7 +61,7 @@ acyclic, holds exactly one of `u` and `v`; so `g` is on one of the two chains.
 
 ## Main definitions
 
-* `Cslib.Query.pathMaxima`: King's path-maxima algorithm in `FreeM (LEQuery E)`.
+* `Cslib.Query.pathMaxima`: path maxima by King's algorithm in `FreeM (LEQuery E)`.
 
 ## Main results
 
@@ -259,12 +262,12 @@ private noncomputable def chainQueries (H : List (Finset E × (Finset V → Opti
   (joinedPairs ends F qs).flatMap fun p =>
     [⟨p.1, mergeLevel ends H p.1 p.2⟩, ⟨p.2, mergeLevel ends H p.1 p.2⟩]
 
-/-- **Path maxima in a forest** by King's algorithm ([King1997]; [Komlos1985]). Run `#F` Borůvka
-phases on the forest `F`, split each query `(u, v)` at the first level where `u` and `v` share a
-block into two chain queries, answer these by Komlós's procedure (`Cslib.Query.chainMaxima`), and
-compare the two answers. The result answers `(u, v)` by the heaviest edge on the path of `F`
-between `u` and `v` (`Cslib.Query.pathMaxima_eq_some_iff`), and `none` for a query that is not in
-`qs`, whose ends are equal, or whose ends `F` does not join. -/
+/-- **Path maxima in a forest** by King's algorithm (after [King1997] and [Komlos1985]). Run `#F`
+Borůvka phases on the forest `F`, split each query `(u, v)` at the first level where `u` and `v`
+share a block into two chain queries, answer these by Komlós's procedure
+(`Cslib.Query.chainMaxima`), and compare the two answers. The result answers `(u, v)` by the
+heaviest edge on the path of `F` between `u` and `v` (`Cslib.Query.pathMaxima_eq_some_iff`), and
+`none` for a query that is not in `qs`, whose ends are equal, or whose ends `F` does not join. -/
 noncomputable def pathMaxima (qs : List (V × V)) : FreeM (LEQuery E) (V → V → Option E) := do
   let H ← levels ends F (#F + 1) ∅
   let ans ← chainMaxima (fun l => block ends F (levelAt F H l).1) (fun l => (levelAt F H l).2)
@@ -408,12 +411,12 @@ private theorem eq_of_isPathMax (hw : Function.Injective w) {u v : V} {f₁ f₂
   · exact fun g hg => ⟨hg.1, hg.2.trans_lt hlt⟩
   · exact fun g hg => ⟨hg.1, hg.2.trans_lt hlt⟩
 
-/-- **Lemma 2.9 of [Khanna, Putterman and Song][KhannaPuttermanSong2026], correctness** (after
-[Komlos1985], [King1997]). Against an oracle comparing distinct weights `w`, for every query
-`(u, v)` of `qs`, `pathMaxima` answers `some f` exactly when `f` is the heaviest edge on the path
-of the forest `F` between `u` and `v`, stated by threshold connectivity: the edges of `F` of
-weight at most `w f` join `u` and `v`, and those lighter than `f` do not. It answers `none` when
-`u = v` or `F` does not join them. -/
+/-- **Path maxima are correct**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
+(the paper's Lemma 2.9, §2, p. 12), along King's route (after [King1997] and [Komlos1985]). Against
+an oracle comparing distinct weights `w`, for every query `(u, v)` of `qs`, `pathMaxima` answers
+`some f` exactly when `f` is the heaviest edge on the path of the forest `F` between `u` and `v`,
+stated by threshold connectivity: the edges of `F` of weight at most `w f` join `u` and `v`, and
+those lighter than `f` do not. It answers `none` when `u = v` or `F` does not join them. -/
 theorem pathMaxima_eq_some_iff (hw : Function.Injective w)
     (horacle : ∀ a b, oracle (.le a b) = decide (w a ≤ w b)) (hF : IsAcyclic ends (F : Set E))
     {qs : List (V × V)} {u v : V} (hq : (u, v) ∈ qs) (f : E) :
@@ -509,10 +512,11 @@ private theorem sum_le_two_mul_of_halving {N : ℕ → ℕ} (hhalf : ∀ l, 2 * 
     simp only [add_zero]
     omega
 
-/-- **Lemma 2.9 of [Khanna, Putterman and Song][KhannaPuttermanSong2026], comparison count**
-(after [Komlos1985], [King1997]). Against an oracle comparing weights, `pathMaxima` on a
-forest `F` with `q` queries makes at most `16 * #F + 5 * q` comparisons. Since a forest on `n`
-vertices has fewer than `n` edges, this is `O(n + q)`. -/
+/-- **Comparison count of path maxima**, a step in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (the paper's Lemma 2.9, §2, p. 12), along King's route (after [King1997]
+and [Komlos1985]). Against an oracle comparing weights, `pathMaxima` on a forest `F` with `q`
+queries makes at most `16 * #F + 5 * q` comparisons. Since a forest on `n` vertices has fewer than
+`n` edges, this is `O(n + q)`. -/
 theorem countQueries_pathMaxima_le
     (horacle : ∀ a b, oracle (.le a b) = decide (w a ≤ w b)) (hF : IsAcyclic ends (F : Set E))
     (qs : List (V × V)) :
