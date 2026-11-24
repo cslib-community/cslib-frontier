@@ -49,8 +49,9 @@ reply-length bound (`Machine.IsReplyBounded`) on the machine family.
   `Cslib.Crypto.Protocols.UC.Machine.isReplyBounded_id`: polynomial reply-length bound for
   truncated replies and for the forwarding machine `Machine.id`.
 * `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.routeCorrupt`,
-  `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.liftRight`: structural transfer lemmas for
-  static-corruption routing and right-side interface lifting.
+  `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.liftRight`,
+  `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.hybridWrap`: structural transfer lemmas for
+  static-corruption routing, right-side interface lifting, and hybrid protocol wrapping.
 * `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_lowerWith_link`: linking a strict-PPT
   environment with any reply-bounded strict-PPT machine family yields a uniform strict oracle-PPT
   program over the machine's lowered imported interface.
@@ -235,6 +236,70 @@ theorem Machine.IsReplyBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
     have h1 := hle p qE s' x hx
     change (iE.reply qE x.1).length ≤ bound p + boundL p
     omega
+
+/-- Library infrastructure (no cited result), toward #6043: `hybridWrap` preserves
+`Machine.IsReplyBounded`; network replies gain one sum bit, and forwarded subroutine-network replies
+are bounded as for `Machine.id`. -/
+theorem Machine.IsReplyBounded.hybridWrap
+    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
+    {party : WordPort (Fin n × In) (Option Out)} {net : WordPort NetQ NetR}
+    {subParty : WordPort (Fin n × SubIn) (Option SubOut)} {nq : WordPort NQ NR}
+    (h : Machine.IsReplyBounded ρ (WordInterface.net subParty) (WordInterface.protocol party net)) :
+    Machine.IsReplyBounded (fun κ C => UC.hybridWrap (NQ := NQ) (NR := NR) (ρ κ C))
+      (WordInterface.protocol subParty nq)
+      (WordInterface.protocol party (WordPort.sum net nq)) := by
+  obtain ⟨bρ, hbρ, hle⟩ := h
+  obtain ⟨bN, hbN, hleN⟩ := (WordInterface.net nq).exists_polyBounded_reply_take (n := n)
+  refine ⟨fun p => bρ p + 1 + bN p, (hbρ.add (PolyBounded.const 1)).add hbN, fun p q s x hx => ?_⟩
+  let s' : (ρ p.secParam p.corrupted).State := s
+  cases q with
+  | inl qp =>
+    change x ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
+      p.replyBound (liftParty (((ρ p.secParam p.corrupted).handle (.inl qp)).run s'))) at hx
+    rw [support_lowerWith_liftParty subParty nq] at hx
+    have h1 := hle p (.inl qp) s' x hx
+    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net] at h1 ⊢
+    omega
+  | inr qnet =>
+    cases qnet with
+    | inl qm =>
+      change x ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
+        p.replyBound
+        (liftParty ((Sum.inl <$> (ρ p.secParam p.corrupted).handle (.inr qm)).run s')))
+        at hx
+      rw [StateT.run_map, liftParty_map, ProbOracleComp.lowerWith,
+        ProbOracleComp.simulate_map] at hx
+      obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
+      change y ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
+        p.replyBound (liftParty (((ρ p.secParam p.corrupted).handle (.inr qm)).run s'))) at hy
+      rw [support_lowerWith_liftParty subParty nq] at hy
+      have h1 := hle p (.inr qm) s' y hy
+      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+        encSum_inl, List.length_cons] at h1 ⊢
+      omega
+    | inr qs =>
+      let x' : (NetR ⊕ NR) × (ρ p.secParam p.corrupted).State := x
+      change x' ∈ OracleComp.support (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq)
+        p.replyBound ((StateT.lift (Sum.inr (α := NetR) <$>
+          ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs))).run s'))
+        at hx
+      have hrun : (StateT.lift (Sum.inr (α := NetR) <$>
+            ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs))).run s' =
+          (fun y : NR × _ => (Sum.inr y.1, y.2)) <$>
+            (ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR) (.inr qs) >>=
+              fun r => pure (r, s')) := by
+        simp only [StateT.run_lift, bind_map_left, map_bind, map_pure]
+      rw [hrun, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
+      obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
+      obtain ⟨w, hw⟩ := exists_word_of_mem_support_lowerWith_query_bind_pure
+        (WordInterface.protocol subParty nq) p.replyBound (.inr qs) s' hy
+      have h1 : (nq.reply y.1).length ≤ bN p := by
+        simpa only [WordInterface.protocol, WordInterface.sum, WordInterface.net] using
+          hw ▸ hleN p qs w
+      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+        encSum_inr, List.length_cons]
+      omega
 
 /-! ### Linking -/
 
