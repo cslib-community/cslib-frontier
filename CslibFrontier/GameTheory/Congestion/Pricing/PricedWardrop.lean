@@ -89,7 +89,7 @@ section Definitions
 
 /-- The single-commodity parallel-link `NonatomicCongestionGame` routing `d` units of traffic across
 `Link` under effective latencies `latency i u + p i`. -/
-def pricedParallelCongestionGame {Link : Type*} (d : ℝ) (latency : Link → ℝ → ℝ)
+@[expose] def pricedParallelCongestionGame {Link : Type*} (d : ℝ) (latency : Link → ℝ → ℝ)
     (p : Link → ℝ) : NonatomicCongestionGame Unit Link Link where
   commodity _ := ()
   resources i := {i}
@@ -179,6 +179,83 @@ end Definitions
 section BasicProperties
 
 variable {Link : Type*} [Fintype Link]
+
+/-- Adding `t` units of flow to link `i` increases total flow by `t`. -/
+theorem sum_update_add_eq [DecidableEq Link] (x : Link → ℝ) (i : Link) (t : ℝ) :
+    ∑ k, Function.update x i (x i + t) k = (∑ k, x k) + t := by
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self]
+  conv_rhs => rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
+  have hrest : ∑ k ∈ Finset.univ.erase i, Function.update x i (x i + t) k =
+      ∑ k ∈ Finset.univ.erase i, x k :=
+    Finset.sum_congr rfl fun k hk => Function.update_of_ne (Finset.mem_erase.mp hk).1 _ _
+  rw [hrest]
+  ring
+
+/-- Adding `t ≥ 0` units of flow to link `j` preserves feasibility when `(∑ k, x k) + t ≤ d`. -/
+theorem isFeasiblePricedFlow_update_add [DecidableEq Link] {d : ℝ} {x : Link → ℝ}
+    (hx : IsFeasiblePricedFlow d x) {j : Link} {t : ℝ} (ht0 : 0 ≤ t)
+    (htd : (∑ k, x k) + t ≤ d) :
+    IsFeasiblePricedFlow d (Function.update x j (x j + t)) := by
+  refine ⟨fun k => ?_, (sum_update_add_eq x j t).trans_le htd⟩
+  by_cases hkj : k = j
+  · subst hkj; simp only [Function.update_self]; linarith [hx.1 k]
+  · simp only [Function.update_of_ne hkj]; exact hx.1 k
+
+/-- Splitting a filtered sum at `i` when `f` and `g` agree on all other elements satisfying
+`own`. -/
+theorem sum_filter_eq_add_erase [DecidableEq Link] (own : Link → Prop) [DecidablePred own]
+    {i : Link} (hi : own i) (f g : Link → ℝ) (hfg : ∀ m, own m → m ≠ i → f m = g m) :
+    ∑ m with own m, f m = f i + ∑ m ∈ (Finset.univ.filter own).erase i, g m := by
+  have hmem : i ∈ Finset.univ.filter own := Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi⟩
+  rw [← Finset.add_sum_erase _ _ hmem]
+  congr 1
+  exact Finset.sum_congr rfl fun m hm =>
+    hfg m (Finset.mem_filter.mp (Finset.mem_erase.mp hm).2).2 (Finset.mem_erase.mp hm).1
+
+/-- Redistributing signed steps `step q` across `q ∈ S` (`i ∉ S`) balanced by `-∑ q ∈ S, step q` on
+link `i`. -/
+@[expose] def flowShift {ι : Type*} [DecidableEq ι] (i : ι) (S : Finset ι) (step x : ι → ℝ)
+    (k : ι) : ℝ :=
+  if k = i then x i - ∑ q ∈ S, step q else if k ∈ S then x k + step k else x k
+
+/-- `flowShift` preserves total network flow whenever `i ∉ S`. -/
+theorem sum_flowShift_eq [DecidableEq Link] {i : Link} {S : Finset Link} (hi : i ∉ S)
+    (step x : Link → ℝ) :
+    ∑ k, flowShift i S step x k = ∑ k, x k := by
+  have h1 : ∀ k, flowShift i S step x k =
+      x k + (if k = i then -∑ q ∈ S, step q else if k ∈ S then step k else 0) := fun k => by
+    by_cases hki : k = i
+    · subst hki; simp only [flowShift, ↓reduceIte]; ring
+    · by_cases hkS : k ∈ S <;> simp [flowShift, hki, hkS]
+  have hzero : ∑ k : Link, (if k = i then -∑ q ∈ S, step q else if k ∈ S then step k else 0) =
+      0 := by
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
+    simp only [↓reduceIte]
+    have hrest : ∑ k ∈ Finset.univ.erase i,
+        (if k = i then -∑ q ∈ S, step q else if k ∈ S then step k else 0) =
+        ∑ q ∈ S, step q := by
+      rw [← Finset.sum_subset (fun q hq => Finset.mem_erase.mpr
+        ⟨fun (h : q = i) => hi (h ▸ hq), Finset.mem_univ q⟩)]
+      · exact Finset.sum_congr rfl fun q hq => by
+          have hne : q ≠ i := fun h => hi (h ▸ hq)
+          simp [hne, hq]
+      · intro k hk hkS
+        simp [(Finset.mem_erase.mp hk).1, hkS]
+    rw [hrest]
+    ring
+  simp [h1, Finset.sum_add_distrib, hzero]
+
+/-- `flowShift` preserves coordinatewise nonnegativity when `∑ q ∈ S, step q ≤ x i` and
+`0 ≤ x q + step q` on `S`. -/
+theorem nonneg_flowShift {ι : Type*} [DecidableEq ι] {i : ι} {S : Finset ι} {step x : ι → ℝ}
+    (hx : ∀ k, 0 ≤ x k) (hi : ∑ q ∈ S, step q ≤ x i) (hS : ∀ q ∈ S, 0 ≤ x q + step q)
+    (k : ι) :
+    0 ≤ flowShift i S step x k := by
+  simp only [flowShift]
+  split_ifs with hki hkS
+  · linarith
+  · exact hS k hkS
+  · exact hx k
 
 /-- Shifting `t` units of flow from link `i` to a distinct link `j` preserves total flow. -/
 theorem sum_update_sub_add_eq [DecidableEq Link] (x : Link → ℝ) {i j : Link} (hij : i ≠ j)
@@ -356,29 +433,8 @@ section ExistenceAndPigou
 
 variable {Link : Type*} [Fintype Link]
 
-private theorem continuous_finsetSum {X : Type*} [TopologicalSpace X] {ι : Type*} (s : Finset ι)
-    {f : ι → X → ℝ} (hf : ∀ i ∈ s, Continuous (f i)) :
-    Continuous (fun x => ∑ i ∈ s, f i x) := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp only [Finset.sum_empty]; exact continuous_const
-  | @insert a s ha ih =>
-    simp only [Finset.sum_insert ha]
-    exact (hf a (Finset.mem_insert_self a s)).add
-      (ih fun i hi => hf i (Finset.mem_insert_of_mem hi))
-
-private theorem continuousOn_finsetSum {X : Type*} [TopologicalSpace X] {t : Set X} {ι : Type*}
-    (s : Finset ι) {f : ι → X → ℝ} (hf : ∀ i ∈ s, ContinuousOn (f i) t) :
-    ContinuousOn (fun x => ∑ i ∈ s, f i x) t := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp only [Finset.sum_empty]; exact continuousOn_const
-  | @insert a s ha ih =>
-    simp only [Finset.sum_insert ha]
-    exact (hf a (Finset.mem_insert_self a s)).add
-      (ih fun i hi => hf i (Finset.mem_insert_of_mem hi))
-
-private theorem isCompact_feasiblePricedFlows {d : ℝ} :
+/-- The set `{x : Link → ℝ | IsFeasiblePricedFlow d x}` of feasible priced flows is compact. -/
+theorem isCompact_feasiblePricedFlows {d : ℝ} :
     IsCompact {x : Link → ℝ | IsFeasiblePricedFlow d x} := by
   classical
   by_cases hd : 0 ≤ d
@@ -422,14 +478,6 @@ theorem nonneg_of_hasDerivAt_of_forall_pos {g : ℝ → ℝ} {g' δ : ℝ} (hδ 
   rw [Set.mem_Ioi] at ht2
   rw [slope_def_field, sub_zero]
   exact div_nonneg (sub_nonneg.mpr (hle t ht2 ht1)) ht2.le
-
-private theorem hasDerivAt_const_sub_id (c : ℝ) : HasDerivAt (fun t : ℝ => c - t) (-1) 0 := by
-  convert (hasDerivAt_const (0 : ℝ) c).sub (hasDerivAt_id' (0 : ℝ)) using 1
-  ring
-
-private theorem hasDerivAt_const_add_id (c : ℝ) : HasDerivAt (fun t : ℝ => c + t) 1 0 := by
-  convert (hasDerivAt_const (0 : ℝ) c).add (hasDerivAt_id' (0 : ℝ)) using 1
-  ring
 
 /-- **Existence of a priced Wardrop equilibrium** via Beckmann's convex potential: for any `0 ≤ d`,
 reservation utility `R`, price vector `p`, and latencies continuous on `[0, ∞)`, there exists a
@@ -491,12 +539,12 @@ theorem exists_isPricedWardrop {d R : ℝ} {latency : Link → ℝ → ℝ}
           ((extLat i (x i) + (p i - R)) * (-1)) 0 := by
         have h0 : HasDerivAt (potTerm i) (extLat i (x i) + (p i - R)) (x i - 0) := by
           simpa only [sub_zero] using hpotDeriv i (x i)
-        exact HasDerivAt.comp (0 : ℝ) h0 (hasDerivAt_const_sub_id (x i))
+        exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_sub (x i))
       have hd_j : HasDerivAt (fun t => potTerm j (x j + t))
           ((extLat j (x j) + (p j - R)) * 1) 0 := by
         have h0 : HasDerivAt (potTerm j) (extLat j (x j) + (p j - R)) (x j + 0) := by
           simpa only [add_zero] using hpotDeriv j (x j)
-        exact HasDerivAt.comp (0 : ℝ) h0 (hasDerivAt_const_add_id (x j))
+        exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_add (x j))
       have htot := (hd_i.add hd_j).add_const (∑ k ∈ (Finset.univ.erase j).erase i, potTerm k (x k))
       have hext_i : extLat i (x i) = latency i (x i) := by
         simp only [extLat, max_eq_right (hxFeas.1 i)]
@@ -532,7 +580,7 @@ theorem exists_isPricedWardrop {d R : ℝ} {latency : Link → ℝ → ℝ}
       simp only [funext hsum_eq]
       have hd_i : HasDerivAt (fun t => potTerm i (x i - t))
           ((extLat i (x i - 0) + (p i - R)) * (-1)) 0 :=
-        HasDerivAt.comp (0 : ℝ) (hpotDeriv i (x i - 0)) (hasDerivAt_const_sub_id (x i))
+        HasDerivAt.comp (0 : ℝ) (hpotDeriv i (x i - 0)) ((hasDerivAt_id' (0 : ℝ)).const_sub (x i))
       simp only [sub_zero] at hd_i
       have htot := hd_i.add_const (∑ k ∈ Finset.univ.erase i, potTerm k (x k))
       have hext_i : extLat i (x i) = latency i (x i) := by
@@ -569,7 +617,7 @@ theorem exists_isPricedWardrop {d R : ℝ} {latency : Link → ℝ → ℝ}
       simp only [funext hsum_eq]
       have hd_j : HasDerivAt (fun t => potTerm j (x j + t))
           ((extLat j (x j + 0) + (p j - R)) * 1) 0 :=
-        HasDerivAt.comp (0 : ℝ) (hpotDeriv j (x j + 0)) (hasDerivAt_const_add_id (x j))
+        HasDerivAt.comp (0 : ℝ) (hpotDeriv j (x j + 0)) ((hasDerivAt_id' (0 : ℝ)).const_add (x j))
       simp only [add_zero] at hd_j
       have htot := hd_j.add_const (∑ k ∈ Finset.univ.erase j, potTerm k (x k))
       have hext_j : extLat j (x j) = latency j (x j) := by
@@ -581,19 +629,7 @@ theorem exists_isPricedWardrop {d R : ℝ} {latency : Link → ℝ → ℝ}
       refine nonneg_of_hasDerivAt_of_forall_pos (sub_pos.mpr hlt) hcurve fun t ht0 htd => ?_
       have h0 : Function.update x j (x j + 0) = x := by simp
       rw [h0]
-      refine hxMin ⟨fun k => ?_, ?_⟩
-      · by_cases hkj : k = j
-        · subst hkj; simp only [Function.update_self]; linarith [hxFeas.1 k]
-        · simp only [Function.update_of_ne hkj]; exact hxFeas.1 k
-      · have hsum : ∑ k, Function.update x j (x j + t) k = (∑ k, x k) + t := by
-          rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j), Function.update_self]
-          conv_rhs => rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
-          have hrest : ∑ k ∈ Finset.univ.erase j, Function.update x j (x j + t) k =
-              ∑ k ∈ Finset.univ.erase j, x k :=
-            Finset.sum_congr rfl fun k hk => Function.update_of_ne (Finset.mem_erase.mp hk).1 _ _
-          rw [hrest]
-          ring
-        linarith
+      exact hxMin (isFeasiblePricedFlow_update_add hxFeas ht0.le (by linarith))
     linarith
 
 /-- **Existence of a social optimum** for continuous latency functions on `[0, ∞)` and `0 ≤ d`. -/
@@ -679,13 +715,13 @@ theorem SmoothConvexLatencies.isSocialOptimum_iff_kkt {d R : ℝ}
           have h0 : HasDerivAt (fun u => (R - latency i u) * u)
               (R - latency i (xS i) - xS i * latencyDeriv i (xS i)) (xS i - 0) := by
             simpa only [sub_zero] using hasDerivAt_surplusTerm h R i (hopt.1.1 i)
-          exact HasDerivAt.comp (0 : ℝ) h0 (hasDerivAt_const_sub_id (xS i))
+          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_sub (xS i))
         have hdj : HasDerivAt (fun t => (R - latency j (xS j + t)) * (xS j + t))
             ((R - latency j (xS j) - xS j * latencyDeriv j (xS j)) * 1) 0 := by
           have h0 : HasDerivAt (fun u => (R - latency j u) * u)
               (R - latency j (xS j) - xS j * latencyDeriv j (xS j)) (xS j + 0) := by
             simpa only [add_zero] using hasDerivAt_surplusTerm h R j (hopt.1.1 j)
-          exact HasDerivAt.comp (0 : ℝ) h0 (hasDerivAt_const_add_id (xS j))
+          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_add (xS j))
         have htot := ((hdi.add hdj).add_const
           (∑ k ∈ (Finset.univ.erase j).erase i, (R - latency k (xS k)) * xS k)).neg
         convert htot using 1
@@ -724,7 +760,7 @@ theorem SmoothConvexLatencies.isSocialOptimum_iff_kkt {d R : ℝ}
           have h0 : HasDerivAt (fun u => (R - latency i u) * u)
               (R - latency i (xS i) - xS i * latencyDeriv i (xS i)) (xS i - 0) := by
             simpa only [sub_zero] using hasDerivAt_surplusTerm h R i (hopt.1.1 i)
-          exact HasDerivAt.comp (0 : ℝ) h0 (hasDerivAt_const_sub_id (xS i))
+          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_sub (xS i))
         have htot := (hdi.add_const (∑ k ∈ Finset.univ.erase i, (R - latency k (xS k)) * xS k)).neg
         convert htot using 1
         ring
@@ -758,27 +794,14 @@ theorem SmoothConvexLatencies.isSocialOptimum_iff_kkt {d R : ℝ}
           have h0 : HasDerivAt (fun u => (R - latency j u) * u)
               (R - latency j (xS j) - xS j * latencyDeriv j (xS j)) (xS j + 0) := by
             simpa only [add_zero] using hasDerivAt_surplusTerm h R j (hopt.1.1 j)
-          exact HasDerivAt.comp (0 : ℝ) h0 (hasDerivAt_const_add_id (xS j))
+          exact HasDerivAt.comp (0 : ℝ) h0 ((hasDerivAt_id' (0 : ℝ)).const_add (xS j))
         have htot := (hdj.add_const (∑ k ∈ Finset.univ.erase j, (R - latency k (xS k)) * xS k)).neg
         convert htot using 1
         ring
       have h0 : 0 ≤ -(R - latency j (xS j) - xS j * latencyDeriv j (xS j)) := by
         refine nonneg_of_hasDerivAt_of_forall_pos (sub_pos.mpr hlt) hg_deriv fun t ht0 htd => ?_
         simp only [g, add_zero, Function.update_eq_self, neg_le_neg_iff]
-        refine hopt.2 _ ⟨fun k => ?_, ?_⟩
-        · by_cases hkj : k = j
-          · subst hkj; simp only [Function.update_self]; linarith [hopt.1.1 k]
-          · simp only [Function.update_of_ne hkj]; exact hopt.1.1 k
-        · have hsum : ∑ k, Function.update xS j (xS j + t) k = (∑ k, xS k) + t := by
-            rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j), Function.update_self]
-            conv_rhs => rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
-            have hrest : ∑ k ∈ Finset.univ.erase j, Function.update xS j (xS j + t) k =
-                ∑ k ∈ Finset.univ.erase j, xS k :=
-              Finset.sum_congr rfl fun k hk =>
-                Function.update_of_ne (Finset.mem_erase.mp hk).1 _ _
-            rw [hrest]
-            ring
-          linarith
+        exact hopt.2 _ (isFeasiblePricedFlow_update_add hopt.1 ht0.le (by linarith))
       linarith
     rcases hopt.1.2.lt_or_eq with hlt | hsum_eq
     · refine ⟨0, le_rfl, by ring, hinc hlt, fun i hi => le_antisymm (hinc hlt i) (hdec i hi)⟩
@@ -1077,7 +1100,8 @@ theorem mul_deriv_le_of_forall_pos_sub {g : ℝ → ℝ} {x g' B : ℝ} (_hx : 0
   push Not at hgt
   have hlin : Filter.Tendsto (fun t : ℝ => x - t)
       (nhdsWithin (0 : ℝ) (Set.Ioi (0 : ℝ))) (nhds x) := by
-    have hc : ContinuousAt (fun t : ℝ => x - t) 0 := (hasDerivAt_const_sub_id x).continuousAt
+    have hc : ContinuousAt (fun t : ℝ => x - t) 0 :=
+      ((hasDerivAt_id' (0 : ℝ)).const_sub x).continuousAt
     simpa only [sub_zero] using hc.tendsto.mono_left nhdsWithin_le_nhds
   have hslope_lim : Filter.Tendsto (fun t : ℝ => slope g x (x - t))
       (nhdsWithin (0 : ℝ) (Set.Ioi (0 : ℝ))) (nhds g') := by
@@ -1123,7 +1147,8 @@ theorem le_mul_deriv_add_of_forall_pos_add {g : ℝ → ℝ} {x g' B C : ℝ}
   have hε : 0 < ε := by simp only [ε]; linarith
   have hlin : Filter.Tendsto (fun t : ℝ => x + t)
       (nhdsWithin (0 : ℝ) (Set.Ioi (0 : ℝ))) (nhds x) := by
-    have hc : ContinuousAt (fun t : ℝ => x + t) 0 := (hasDerivAt_const_add_id x).continuousAt
+    have hc : ContinuousAt (fun t : ℝ => x + t) 0 :=
+      ((hasDerivAt_id' (0 : ℝ)).const_add x).continuousAt
     simpa only [add_zero] using hc.tendsto.mono_left nhdsWithin_le_nhds
   have hslope_lim : Filter.Tendsto (fun t : ℝ => slope g x (x + t))
       (nhdsWithin (0 : ℝ) (Set.Ioi (0 : ℝ))) (nhds g') := by
@@ -1232,15 +1257,10 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
       · linarith [hcost_ge_R j]
     have hprof := hbest p' x' hp'0 hp'comp
       (Or.inr (by simp [x', hδ0.le])) hw'
-    have hmem_i : i ∈ Finset.univ.filter own := Finset.mem_filter.mpr ⟨Finset.mem_univ i, hown_i⟩
-    rw [← Finset.add_sum_erase _ _ hmem_i] at hprof
-    conv_rhs at hprof => rw [← Finset.add_sum_erase _ _ hmem_i]
-    have hrest : ∑ m ∈ (Finset.univ.filter own).erase i, p' m * x' m =
-        ∑ m ∈ (Finset.univ.filter own).erase i, p m * x m :=
-      Finset.sum_congr rfl fun m hm => by
-        have hmi : m ≠ i := (Finset.mem_erase.mp hm).1
-        simp [p', x', hmi]
-    rw [hrest] at hprof
+    rw [sum_filter_eq_add_erase own hown_i (fun m => p' m * x' m) (fun m => p m * x m)
+        (fun m _ hmi => by simp [p', x', hmi]),
+      sum_filter_eq_add_erase own hown_i (fun m => p m * x m) (fun m => p m * x m)
+        (fun _ _ _ => rfl)] at hprof
     simp only [p', x', Function.update_self] at hprof
     have hpi_eq : R = latency i (x i) + p i := hc_eq_R.symm
     have hmul_le : (latency i (x i) - latency i (x i - δ)) * (x i - δ) ≤ p i * δ := by nlinarith
@@ -1363,22 +1383,7 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
       have hp'comp : ∀ r, ¬ own r → p' r = p r := fun r hr => by
         have hri : r ≠ i := fun h => hr (h ▸ hown_i)
         simp [p', hri]
-      have hx'sum : ∑ k, x' k = d := by
-        simp only [x']
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ q)]
-        have hi_mem : i ∈ Finset.univ.erase q := Finset.mem_erase.mpr ⟨hqi, Finset.mem_univ i⟩
-        rw [← Finset.add_sum_erase _ _ hi_mem, ← hsum_d]
-        conv_rhs =>
-          rw [← Finset.add_sum_erase _ _ (Finset.mem_univ q),
-            ← Finset.add_sum_erase _ _ hi_mem]
-        have hrest : ∑ k ∈ (Finset.univ.erase q).erase i,
-            Function.update (Function.update x i (x i - δ)) q (x q + δ) k =
-            ∑ k ∈ (Finset.univ.erase q).erase i, x k :=
-          Finset.sum_congr rfl fun k hk => by
-            rw [Function.update_of_ne (Finset.mem_erase.mp (Finset.mem_erase.mp hk).2).1,
-              Function.update_of_ne (Finset.mem_erase.mp hk).1]
-        simp only [Function.update_self, Function.update_of_ne hqi, hrest]
-        ring
+      have hx'sum : ∑ k, x' k = d := (sum_update_sub_add_eq x hqi δ).trans hsum_d
       have hcost_ge : ∀ k, cStar ≤ latency k (x' k) + p' k := fun k => by
         by_cases hkq : k = q
         · subst hkq
@@ -1399,28 +1404,19 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
             simp [x', p', hkq]
           · simp only [x', p', Function.update_of_ne hkq, Function.update_of_ne hki] at hxk ⊢
             exact hw.effectiveCost_eq_of_pos hxk hxi
-      have hw' : IsPricedWardrop d R latency p' x' := by
-        refine ⟨⟨fun k => ?_, hx'sum.le⟩, fun a b ha => ?_, fun a ha => ?_, fun _ => hx'sum⟩
-        · by_cases hkq : k = q
-          · subst hkq; simp only [x', Function.update_self]; linarith [hw.1.1 k]
-          · by_cases hki : k = i
-            · subst hki; simp only [x', Function.update_of_ne hkq, Function.update_self]; linarith
-            · simp only [x', Function.update_of_ne hkq, Function.update_of_ne hki]; exact hw.1.1 k
-        · rw [hcost_pos a ha]; exact hcost_ge b
-        · rw [hcost_pos a ha]; exact hc_lt_R.le
+      have hw' : IsPricedWardrop d R latency p' x' :=
+        ⟨⟨fun k => nonneg_update_sub_add hw.1.1 hδ0.le hδx.le k, hx'sum.le⟩,
+          fun a b ha => by rw [hcost_pos a ha]; exact hcost_ge b,
+          fun a ha => by rw [hcost_pos a ha]; exact hc_lt_R.le,
+          fun _ => hx'sum⟩
       have hprof := hbest p' x' hp'0 hp'comp
         (Or.inr (by simp [x', hqi, hδ0.le])) hw'
-      have hmem_i : i ∈ Finset.univ.filter own := Finset.mem_filter.mpr ⟨Finset.mem_univ i, hown_i⟩
-      rw [← Finset.add_sum_erase _ _ hmem_i] at hprof
-      conv_rhs at hprof => rw [← Finset.add_sum_erase _ _ hmem_i]
-      have hrest : ∑ m ∈ (Finset.univ.filter own).erase i, p' m * x' m =
-          ∑ m ∈ (Finset.univ.filter own).erase i, p m * x m :=
-        Finset.sum_congr rfl fun m hm => by
-          have hmi : m ≠ i := (Finset.mem_erase.mp hm).1
-          have hmq : m ≠ q := fun h =>
-            hq_not_own (h ▸ (Finset.mem_filter.mp (Finset.mem_erase.mp hm).2).2)
-          simp [p', x', hmi, hmq]
-      rw [hrest] at hprof
+      rw [sum_filter_eq_add_erase own hown_i (fun m => p' m * x' m) (fun m => p m * x m)
+          (fun m hm_own hmi => by
+            have hmq : m ≠ q := fun h => hq_not_own (h ▸ hm_own)
+            simp [p', x', hmi, hmq]),
+        sum_filter_eq_add_erase own hown_i (fun m => p m * x m) (fun m => p m * x m)
+          (fun _ _ _ => rfl)] at hprof
       simp only [p', x', Function.update_of_ne hqi, Function.update_self, cStar] at hprof
       have hmul_le : (latency i (x i) - latency i (x i - δ)) * (x i - δ) ≤ p i * δ := by nlinarith
       refine ⟨δ, hδ0, hδη, hδx, ?_⟩
@@ -1524,8 +1520,7 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
         have h1 : Δ < min η (x i) / 2 := lt_of_lt_of_le hΔ_lt_card hcard_mul_le
         have h2 : min η (x i) ≤ x i := min_le_right _ _
         linarith
-      let x' : Link → ℝ := fun k =>
-        if k = i then x i - Δ else if k ∈ Q0 then x k + step k else x k
+      let x' : Link → ℝ := flowShift i Q0 step x
       let p' : Link → ℝ := fun k =>
         if k = i then cStar + μ - latency i (x i - Δ)
         else if own k then (if 0 < x k then p k + μ else max (p k) (cStar + μ))
@@ -1543,79 +1538,54 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
       have hp'comp : ∀ r, ¬ own r → p' r = p r := fun r hr => by
         have hri : r ≠ i := fun h => hr (h ▸ hown_i)
         simp [p', hri, hr]
-      have hx'sum : ∑ k, x' k = d := by
-        have h1 : ∀ k, x' k = x k + (if k = i then -Δ else step k) := fun k => by
-          by_cases hki : k = i
-          · subst hki; simp only [x', ↓reduceIte]; ring
-          · by_cases hkQ : k ∈ Q0
-            · simp [x', hki, hkQ]
-            · simp [x', hki, hkQ, step]
-        simp only [h1, Finset.sum_add_distrib, hsum_d]
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-        simp only [↓reduceIte]
-        have hrest : ∑ k ∈ Finset.univ.erase i, (if k = i then -Δ else step k) =
-            ∑ k ∈ Q0, step k := by
-          rw [← Finset.sum_subset (fun q hq => Finset.mem_erase.mpr
-            ⟨fun (h : q = i) => hi_not_Q0 (h ▸ hq), Finset.mem_univ q⟩)]
-          · exact Finset.sum_congr rfl fun q hq => by
-              have hne_q : q ≠ i := fun h => hi_not_Q0 (h ▸ hq)
-              simp [hne_q]
-          · intro k hk hkQ
-            have hne_k : k ≠ i := (Finset.mem_erase.mp hk).1
-            simp [hne_k, step, hkQ]
-        rw [hrest]
-        linarith
-      have hx'Feas : IsFeasiblePricedFlow d x' := by
-        refine ⟨fun k => ?_, hx'sum.le⟩
-        simp only [x']
-        split_ifs with hk1 hk2
-        · linarith
-        · linarith [hw.1.1 k, hstep_pos k hk2]
-        · exact hw.1.1 k
+      have hx'sum : ∑ k, x' k = d := (sum_flowShift_eq hi_not_Q0 step x).trans hsum_d
+      have hx'Feas : IsFeasiblePricedFlow d x' :=
+        ⟨nonneg_flowShift hw.1.1 hΔx.le (fun q hq => by linarith [hw.1.1 q, hstep_pos q hq]),
+          hx'sum.le⟩
       have hcost_ge : ∀ k, cStar + μ ≤ latency k (x' k) + p' k := fun k => by
         by_cases hki : k = i
-        · subst hki; simp [x', p']
+        · subst hki; simp [x', flowShift, Δ, p']
         · by_cases hkQ : k ∈ Q0
           · have hk_not_own : ¬ own k := (Finset.mem_filter.mp hkQ).2.1
             have hk_cost : latency k (x k) + p k = cStar := (Finset.mem_filter.mp hkQ).2.2
             have hdq_eq : latency k (x k + step k) - latency k (x k) = μ := by
               simpa [step, hkQ] using (hdq ⟨k, hkQ⟩).2.2
-            simp only [x', p', hki, hkQ, hk_not_own, ↓reduceIte]
+            simp only [x', flowShift, p', hki, hkQ, hk_not_own, ↓reduceIte]
             linarith
           · by_cases hk_own : own k
-            · simp only [x', p', hki, hkQ, hk_own, ↓reduceIte]
+            · simp only [x', flowShift, p', hki, hkQ, hk_own, ↓reduceIte]
               split_ifs with hxk
               · have heq := hw.effectiveCost_eq_of_pos hxk hxi
                 linarith
               · have hxk0 : x k = 0 := le_antisymm (not_lt.mp hxk) (hw.1.1 k)
                 rw [hxk0]
                 linarith [hlat0 k hk_own, le_max_right (p k) (cStar + μ)]
-            · simp only [x', p', hki, hkQ, hk_own, ↓reduceIte]
+            · simp only [x', flowShift, p', hki, hkQ, hk_own, ↓reduceIte]
               exact hrem_ge k (Finset.mem_filter.mpr ⟨Finset.mem_univ k, hk_own, hkQ⟩)
       have hcost_pos : ∀ k, 0 < x' k → latency k (x' k) + p' k = cStar + μ := fun k hxk => by
         by_cases hki : k = i
-        · subst hki; simp [x', p']
+        · subst hki; simp [x', flowShift, Δ, p']
         · by_cases hkQ : k ∈ Q0
           · have hk_not_own : ¬ own k := (Finset.mem_filter.mp hkQ).2.1
             have hk_cost : latency k (x k) + p k = cStar := (Finset.mem_filter.mp hkQ).2.2
             have hdq_eq : latency k (x k + step k) - latency k (x k) = μ := by
               simpa [step, hkQ] using (hdq ⟨k, hkQ⟩).2.2
-            simp only [x', p', hki, hkQ, hk_not_own, ↓reduceIte]
+            simp only [x', flowShift, p', hki, hkQ, hk_not_own, ↓reduceIte]
             linarith
           · by_cases hk_own : own k
-            · simp only [x', p', hki, hkQ, hk_own, ↓reduceIte] at hxk ⊢
+            · simp only [x', flowShift, p', hki, hkQ, hk_own, ↓reduceIte] at hxk ⊢
               simp only [hxk, ↓reduceIte]
               have heq := hw.effectiveCost_eq_of_pos hxk hxi
               linarith
             · exfalso
-              simp only [x', hki, hkQ, ↓reduceIte] at hxk
+              simp only [x', flowShift, hki, hkQ, ↓reduceIte] at hxk
               have heq := hw.effectiveCost_eq_of_pos hxk hxi
               exact hkQ (Finset.mem_filter.mpr ⟨Finset.mem_univ k, hk_own, heq⟩)
       have hw' : IsPricedWardrop d R latency p' x' :=
         ⟨hx'Feas, fun a b ha => by rw [hcost_pos a ha]; exact hcost_ge b,
           fun a ha => by rw [hcost_pos a ha]; exact hcμR.le, fun _ => hx'sum⟩
       have hprof := hbest p' x' hp'0 hp'comp
-        (Or.inr (by simp [x', hΔ0.le])) hw'
+        (Or.inr (by simp [x', flowShift, Δ, hΔ0.le])) hw'
       have hmem_i : i ∈ Finset.univ.filter own := Finset.mem_filter.mpr ⟨Finset.mem_univ i, hown_i⟩
       rw [← Finset.add_sum_erase _ _ hmem_i] at hprof
       conv_rhs at hprof => rw [← Finset.add_sum_erase _ _ hmem_i]
@@ -1626,12 +1596,12 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
         have hm_own : own m := (Finset.mem_filter.mp (Finset.mem_erase.mp hm).2).2
         have hm_not_Q0 : m ∉ Q0 := fun h => (Finset.mem_filter.mp h).2.1 hm_own
         rcases (hw.1.1 m).eq_or_lt with hxm | hxm
-        · simp [x', hmi, hm_not_Q0, ← hxm]
-        · simp only [p', x', hmi, hm_own, hm_not_Q0, hxm, ↓reduceIte]
+        · simp [x', flowShift, hmi, hm_not_Q0, ← hxm]
+        · simp only [p', x', flowShift, hmi, hm_own, hm_not_Q0, hxm, ↓reduceIte]
           nlinarith
       have hi_term : p' i * x' i =
           (p i + μ + (latency i (x i) - latency i (x i - Δ))) * (x i - Δ) := by
-        simp only [p', x', ↓reduceIte, cStar]
+        simp only [p', x', flowShift, Δ, ↓reduceIte, cStar]
         ring
       rw [hi_term] at hprof
       have hmul_le : (latency i (x i) - latency i (x i - Δ)) * (x i - Δ) ≤ p i * Δ := by

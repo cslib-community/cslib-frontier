@@ -150,17 +150,6 @@ section HalfBound
 
 variable {Path : Type*} {SerialLink : Path → Type*} [∀ i, Fintype (SerialLink i)]
 
-private theorem hasDerivAt_finset_sum {ι : Type*} (s : Finset ι) {f : ι → ℝ → ℝ} {f' : ι → ℝ}
-    {x : ℝ} (hf : ∀ j ∈ s, HasDerivAt (f j) (f' j) x) :
-    HasDerivAt (fun u => ∑ j ∈ s, f j u) (∑ j ∈ s, f' j) x := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp only [Finset.sum_empty]; exact hasDerivAt_const x 0
-  | @insert a s ha ih =>
-    simp only [Finset.sum_insert ha]
-    convert (hf a (Finset.mem_insert_self a s)).add
-      (ih fun j hj => hf j (Finset.mem_insert_of_mem hj)) using 1
-
 /-- Summing smooth convex serial-link latencies along each path yields `SmoothConvexLatencies` at
 the path level. -/
 theorem SmoothConvexSerialLatencies.toPath
@@ -178,7 +167,7 @@ theorem SmoothConvexSerialLatencies.toPath
     simp only [serialPathLatency, smul_eq_mul, Finset.mul_sum, ← Finset.sum_add_distrib]
     exact Finset.sum_le_sum fun j _ => ((h i).convexOn j).2 ha hb hw₁ hw₂ hw
   hasDerivAt i u hu :=
-    hasDerivAt_finset_sum Finset.univ fun j _ => (h i).hasDerivAt j u hu
+    HasDerivAt.fun_sum fun j _ => (h i).hasDerivAt j u hu
 
 @[simp]
 theorem serialPathPrice_updateSerialPrice_self [DecidableEq Path]

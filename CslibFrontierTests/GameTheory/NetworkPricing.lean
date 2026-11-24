@@ -4,9 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.GameTheory.Congestion.Pricing.Oligopoly
 import CslibFrontier.GameTheory.Congestion.Pricing.ParallelSerial
 import CslibFrontier.GameTheory.Congestion.Pricing.PricedWardrop
+import Mathlib.Analysis.Calculus.Deriv.Add
+import Mathlib.Analysis.Calculus.Deriv.Mul
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Positivity
 
 /-!
 # Network pricing, monopoly efficiency, and oligopoly price-of-anarchy tests
@@ -31,6 +38,9 @@ Concrete instances and boundary counterexamples for NRTV Chapter 22 (`§22.2–2
    (`[AcemogluOzdaglar2007JSAC]` Example 3 with `8` serial links, achieving `32 / 81 < 1 / 2`), and
    `1 / 2 + 1 / 100` tightness witness for full-demand strict OE (`Theorem 22.5`).
 -/
+
+-- This regression module intentionally exports no declarations.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GameTheory.NetworkPricing
 
