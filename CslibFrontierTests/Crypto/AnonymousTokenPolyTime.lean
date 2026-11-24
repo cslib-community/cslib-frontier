@@ -4,7 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Karn Seth
 -/
 
+module
+
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Crypto.Protocols.AnonymousToken.PolyTime
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 
@@ -13,21 +18,23 @@ import CslibFrontier.Tactic.PolyTime
 
 Exercises `Cslib.Crypto.AnonymousToken` and `Cslib.Crypto.AnonymousToken.Conservation` word-level
 reductions, polynomial-time / PPT certificates, `PMF` law-equality theorems, and headline
-negligibility bounds via ordinary imports:
+negligibility bounds via a `module` client with ordinary imports:
 * encoding injectivity (`encWordPayload.injective`, `wordTag_injective`, `encComTuple.injective`)
   and decoder round-trips (`wordPairDecoder`, `wordPayloadDecoder`, `creditNoteDecoder`,
   `wordRequestDecoder`);
 * negative boundary check on `noteBindingCollisionOrTrivialWord ... none`;
-* concrete `WordSignatureScheme` (`identitySigScheme`), concrete polynomial-time hash (`constHash`),
-  and concrete oracle-PPT adversaries exercising `targetForgerWord`, `bindingReductionWord`,
-  `targetCollisionFinder`, `sampledTargetForger`, `noteForgerWord`,
-  `commitmentBindingReductionWord`, `sampledConservationForger`, and `noteCollisionFinder`,
-  including an explicit collision-winning reduction (`targetCollisionFinder` succeeds with
-  probability `1`);
-* generic `example` applications of `negligible_extractedTokenWordGame` and
-  `negligible_extractedConservationWordGame` assuming only `S.EUFCMA`, `CollisionResistant H`, and
-  efficient `H` and `A`.
+* concrete `WordSignatureScheme` (`identitySigScheme`), concrete polynomial-time hashes
+  (`constHash`, `idHash`), and concrete oracle-PPT adversaries exercising `targetForgerWord`,
+  `bindingReductionWord`, `targetCollisionFinder`, `sampledTargetForger`, `noteForgerWord`,
+  `commitmentBindingReductionWord`, `sampledConservationForger`, and `noteCollisionFinder`;
+* concrete `extractedTokenWordGame` and `extractedConservationWordGame` evaluations (both
+  probability-`1` attacks under `constHash` and probability-`0` honest runs), plus concrete
+  `idHash`/adversary instantiations of `negligible_extractedTokenWordGame` and
+  `negligible_extractedConservationWordGame` assuming only `S.EUFCMA`.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.AnonymousTokenPolyTime
 
@@ -162,17 +169,22 @@ private theorem computableInPolyTime_constNoteCom :
   rw [h]
   exact ComputableInPolyTime.const []
 
-private theorem computableInPolyTime_wordTag :
-    ComputableInPolyTime (fun p : List Bool × ℕ => wordTag p.1 p.2) encTagPair encBits :=
-  ComputableInPolyTime.of_eq (f := encTagPair) (encOut := encBits) fun _ => rfl
+private def constPayloadForger (msg : List Bool) : WordExtractedForgerOf (List Bool) :=
+  fun _ _ => do
+    let sig ← List.take 0 <$> ProbOracleComp.query ((), encWordPayload ⟨[true], []⟩)
+    return ⟨⟨msg, []⟩, sig⟩
 
 /-- Concrete word forger that queries `[true]` with opening `[]` and outputs `[false]` with opening
 `[]`, triggering a collision under `constHash`. -/
-private def collidingWordForger : WordExtractedForgerOf (List Bool) := fun _ _ => do
-  let sig ← List.take 0 <$> ProbOracleComp.query ((), encWordPayload ⟨[true], []⟩)
-  return ⟨⟨[false], []⟩, sig⟩
+private abbrev collidingWordForger : WordExtractedForgerOf (List Bool) :=
+  constPayloadForger [false]
 
-private theorem isOraclePPT_collidingWordForger : IsOraclePPT encWordToken collidingWordForger := by
+/-- Honest word forger that queries `[true]` and outputs `[true]`. -/
+private abbrev honestWordForger : WordExtractedForgerOf (List Bool) :=
+  constPayloadForger [true]
+
+private theorem isOraclePPT_constPayloadForger (msg : List Bool) :
+    IsOraclePPT encWordToken (constPayloadForger msg) := by
   have hq : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun _ : ℕ × List Bool =>
         List.take 0 <$> ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
@@ -180,12 +192,12 @@ private theorem isOraclePPT_collidingWordForger : IsOraclePPT encWordToken colli
     IsOraclePPTOn.query_take () (ComputableInPolyTime.const _) (ComputableInPolyTime.const 0)
   have hret : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
-        (⟨⟨[false], []⟩, p.2⟩ : Token (List Bool) (List Bool) (List Bool)))
+        (⟨⟨msg, []⟩, p.2⟩ : Token (List Bool) (List Bool) (List Bool)))
       (encPair (encPair encUnary encBits) encBits) encWordToken :=
     encTokenOf_mk_polyTime encBits
-      (ComputableInPolyTime.const (⟨[false], []⟩ : Payload (List Bool) (List Bool)))
+      (ComputableInPolyTime.const (⟨msg, []⟩ : Payload (List Bool) (List Bool)))
       (ComputableInPolyTime.snd _ _)
-  simpa only [collidingWordForger, bind_pure_comp] using (hq.map_with hret).isOraclePPT
+  simpa only [constPayloadForger, bind_pure_comp] using (hq.map_with hret).isOraclePPT
 
 /-- Concrete note adversary issuing one note under `constNoteCom` and returning context `[true]`. -/
 private def sampleNoteReq : IssueRequest (List Bool) (List Bool) (List Bool) (List Bool) :=
@@ -206,6 +218,89 @@ private theorem isOraclePPT_simpleNoteAdversary : IsOraclePPT encBits simpleNote
     ComputableInPolyTime.const _
   simpa only [simpleNoteAdversary, bind_pure_comp] using (hq.map hret).isOraclePPT
 
+private def sampleIssueReplyLen : ℕ :=
+  (encOption encBits (some (wordTag [] 0))).length
+
+private def collidingSpendReq (sig : List Bool) :
+    SpendRequest (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) :=
+  { ctx := [true], nullifier := [false], debit := 10, refund := 0,
+    changeCommitment := [], oldCredit := 10, oldOpening := [],
+    oldRefund := 0, signature := sig, newNullifier := [true],
+    newCredit := 0, newOpening := [] }
+
+/-- Concrete note adversary issuing `1` unit (`sampleNoteReq`) and then spending `10` units using
+the returned signature via the commitment collision under `constHash`. -/
+private def collidingSpendAdversary : WordExtractedAdversary := fun _ _ => do
+  let reply ← List.take sampleIssueReplyLen <$>
+    ProbOracleComp.query ((), encWordRequest (.issue sampleNoteReq))
+  let sig := ((Decoder.option Decoder.bits).decode reply).getD []
+  let _ ← List.take 0 <$>
+    ProbOracleComp.query ((), encWordRequest (.spend (collidingSpendReq sig)))
+  return [true]
+
+private theorem isOraclePPT_collidingSpendAdversary :
+    IsOraclePPT encBits collidingSpendAdversary := by
+  have hq1 : IsOraclePPTOn (encPair encUnary encBits) encBits
+      (fun _ : ℕ × List Bool =>
+        List.take sampleIssueReplyLen <$>
+          ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+            ((), encWordRequest (.issue sampleNoteReq))) :=
+    IsOraclePPTOn.query_take () (ComputableInPolyTime.const _) (ComputableInPolyTime.const _)
+  have hdec : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool => (Decoder.option Decoder.bits).decode p.2)
+      (encPair (encPair encUnary encBits) encBits) (encOption encBits) :=
+    (Decoder.option Decoder.bits).computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
+  have hsig : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool => ((Decoder.option Decoder.bits).decode p.2).getD [])
+      (encPair (encPair encUnary encBits) encBits) encBits :=
+    ComputableInPolyTime.optionGetDWithInput hdec (ComputableInPolyTime.const [])
+  have hspend : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool =>
+        collidingSpendReq (((Decoder.option Decoder.bits).decode p.2).getD []))
+      (encPair (encPair encUnary encBits) encBits) encSpendRequest := by
+    unfold collidingSpendReq
+    fun_prop
+  have hreq2 : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool =>
+        encWordRequest (.spend
+          (collidingSpendReq (((Decoder.option Decoder.bits).decode p.2).getD []))))
+      (encPair (encPair encUnary encBits) encBits) encBits :=
+    (ComputableInPolyTime.of_eq (f := encRequestSum) (encOut := encBits) fun _ => rfl).comp
+      ((ComputableInPolyTime.sumInr encIssueRequest encSpendRequest).comp hspend)
+  have hq2 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
+      (fun p : (ℕ × List Bool) × List Bool =>
+        List.take 0 <$> ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+          ((), encWordRequest (.spend
+            (collidingSpendReq (((Decoder.option Decoder.bits).decode p.2).getD []))))) :=
+    IsOraclePPTOn.query_take () hreq2 (ComputableInPolyTime.const 0)
+  have hret : ComputableInPolyTime (fun _ : List Bool => ([true] : List Bool)) encBits encBits :=
+    ComputableInPolyTime.const _
+  simpa only [collidingSpendAdversary, bind_pure_comp, bind_assoc] using
+    (hq1.bind_with (hq2.map hret)).isOraclePPT
+
+private def idHash (_ m : List Bool) : List Bool := m
+
+private theorem computableInPolyTime_idHash :
+    ComputableInPolyTime (fun p : List Bool × List Bool => idHash p.1 p.2)
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.snd _ _
+
+private theorem collisionResistant_idHash : CollisionResistant idHash := by
+  refine CollisionResistantOn.of_negligible fun adv _ => ?_
+  have hfalse : ∀ n k m₁ m₂, isCollision idHash (fun _ _ => true) n k m₁ m₂ = false := by
+    intro n k m₁ m₂
+    by_contra h
+    rw [Bool.not_eq_false, isCollision_eq_true_iff] at h
+    exact h.2.2.1 h.2.2.2
+  have hzero : (fun n => Game.succProbability
+      (ProbComp.eval (collisionGame idHash (fun _ _ => true) adv n))) = fun _ => 0 := by
+    funext n
+    simp only [Game.succProbability, collisionGame, hfalse, ProbComp.eval_bind, ProbComp.eval_pure]
+    rw [Cslib.Probability.PMF.bind_apply_of_forall _ fun _ =>
+      Cslib.Probability.PMF.bind_apply_of_forall _ fun _ => rfl]
+    simp
+  simpa only [hzero] using negligible_zero
+
 /-! ### 3. Concrete reduction witnesses, `eval` equalities, and collision witness -/
 
 example :
@@ -213,26 +308,26 @@ example :
       (fun p => targetForgerWord idSigBound (wordPayloadTarget constHash)
         collidingWordForger p.1 p.2) :=
   isOraclePPTOn_targetForgerWord computableInPolyTime_idSigBound
-    computableInPolyTime_constWordPayloadTarget isOraclePPT_collidingWordForger
+    computableInPolyTime_constWordPayloadTarget (isOraclePPT_constPayloadForger [false])
 
 example :
     IsOraclePPT (encPair encBits encBits)
       (sampledTargetForger idSigBound constHash collidingWordForger) :=
   isOraclePPT_sampledTargetForger computableInPolyTime_idSigBound computableInPolyTime_constHash
-    isOraclePPT_collidingWordForger
+    (isOraclePPT_constPayloadForger [false])
 
 example :
     IsPPTOn encParamInput encOptionWordBindingWitness
       (fun p => bindingReductionWord identitySigScheme (wordPayloadTarget constHash)
         Decoder.bits collidingWordForger p.1 p.2) :=
   isPPTOn_bindingReductionWord identitySigScheme computableInPolyTime_constWordPayloadTarget
-    Decoder.bits isOraclePPT_collidingWordForger
+    Decoder.bits (isOraclePPT_constPayloadForger [false])
 
 example :
     IsPPT (encPair encBits encBits)
       (targetCollisionFinder identitySigScheme constHash collidingWordForger) :=
   isPPT_targetCollisionFinder identitySigScheme computableInPolyTime_constHash
-    isOraclePPT_collidingWordForger
+    (isOraclePPT_constPayloadForger [false])
 
 example (n : ℕ) (ck : List Bool) :
     ProbComp.eval (identitySigScheme.eufCmaGame
@@ -266,10 +361,11 @@ example (n : ℕ) (ck : List Bool) :
         ⟨[true], []⟩ := wordPayloadDecoder.decode_enc _
     simp only [targetCollisionFinder, eval_bindingReductionWord_eq, bindingReduction, runExtracted,
       WordExtractedForgerOf.toTyped, WordExtractedForgerOf.atKey, collidingWordForger,
-      identitySigScheme, WordSignatureScheme.toScheme, ProbComp.eval_map, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.pure_bind, ProbOracleComp.runLog, bind_pure_comp,
-      ProbOracleComp.simulate_map, ProbOracleComp.simulate_query, ProbOracleComp.runState_map,
-      ProbOracleComp.runState_query, findBindingWitness, wordPayloadTarget, constHash]
+      constPayloadForger, identitySigScheme, WordSignatureScheme.toScheme, ProbComp.eval_map,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, ProbOracleComp.runLog,
+      bind_pure_comp, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
+      ProbOracleComp.runState_map, ProbOracleComp.runState_query, findBindingWitness,
+      wordPayloadTarget, constHash]
     rw [hdec, StateT.run_map, StateT.run_map]
     simp only [StateT.run, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map]
     rfl
@@ -335,26 +431,94 @@ example (n : ℕ) (ck : List Bool) :
   eval_commitmentBindingReductionWord_eq identitySigScheme idSigBound idSigBound_holds
     constNoteCom wordTag wordTag_injective simpleNoteAdversary n ck ()
 
-/-! ### 4. Generic asymptotic headline theorems -/
+/-! ### 4. Concrete word-game evaluations and headline instantiations -/
 
-example (S : WordSignatureScheme) (hS : S.EUFCMA)
-    (H : List Bool → List Bool → List Bool)
-    (hHPoly : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
-      (encPair encBits encBits) encBits)
-    (hH : CollisionResistant H)
-    (A : WordExtractedForgerOf (List Bool)) (hA : IsOraclePPT encWordToken A) :
-    Negligible
-      (fun n => Game.succProbability (ProbComp.eval (extractedTokenWordGame S H A n))) :=
-  negligible_extractedTokenWordGame S hS H hHPoly hH A hA
+-- Under `constHash`, `collidingWordForger` wins `extractedTokenWordGame` with probability `1`.
+example (n : ℕ) :
+    ProbComp.eval (extractedTokenWordGame identitySigScheme constHash collidingWordForger n) true =
+      1 := by
+  rw [eval_extractedTokenWordGame_eq]
+  refine Cslib.Probability.PMF.bind_apply_of_forall _ fun ck => ?_
+  have hdec : (payloadDecoderOf Decoder.bits).decode (encWordPayload ⟨[true], []⟩) =
+      ⟨[true], []⟩ := wordPayloadDecoder.decode_enc _
+  simp only [extractedExperiment, runExtracted, WordExtractedForgerOf.toTyped,
+    WordExtractedForgerOf.atKey, collidingWordForger, constPayloadForger, identitySigScheme,
+    WordSignatureScheme.toScheme, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.pure_bind, ProbOracleComp.runLog, bind_pure_comp, ProbOracleComp.simulate_map,
+    ProbOracleComp.simulate_query, ProbOracleComp.runState_map, ProbOracleComp.runState_query,
+    wordPayloadTarget, constHash]
+  rw [hdec, StateT.run_map, StateT.run_map]
+  simp [StateT.run, extractedAccept, Token.valid, wordPayloadTarget, constHash]
 
-example (S : WordSignatureScheme) (hS : S.EUFCMA)
-    (H : List Bool → List Bool → List Bool)
-    (hHPoly : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
-      (encPair encBits encBits) encBits)
-    (hH : CollisionResistant H)
-    (A : WordExtractedAdversary) (hA : IsOraclePPT encBits A) :
-    Negligible
-      (fun n => Game.succProbability (ProbComp.eval (extractedConservationWordGame S H A n))) :=
-  negligible_extractedConservationWordGame S hS H hHPoly hH A hA
+-- An honest forger outputting its queried message `[true]` never wins `extractedTokenWordGame`.
+example (n : ℕ) :
+    ProbComp.eval (extractedTokenWordGame identitySigScheme constHash honestWordForger n) true =
+      0 := by
+  rw [eval_extractedTokenWordGame_eq]
+  refine Cslib.Probability.PMF.bind_apply_of_forall _ fun ck => ?_
+  have hdec : (payloadDecoderOf Decoder.bits).decode (encWordPayload ⟨[true], []⟩) =
+      ⟨[true], []⟩ := wordPayloadDecoder.decode_enc _
+  simp only [extractedExperiment, runExtracted, WordExtractedForgerOf.toTyped,
+    WordExtractedForgerOf.atKey, honestWordForger, constPayloadForger, identitySigScheme,
+    WordSignatureScheme.toScheme, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.pure_bind, ProbOracleComp.runLog, bind_pure_comp, ProbOracleComp.simulate_map,
+    ProbOracleComp.simulate_query, ProbOracleComp.runState_map, ProbOracleComp.runState_query,
+    wordPayloadTarget, constHash]
+  rw [hdec, StateT.run_map, StateT.run_map]
+  simp [StateT.run, extractedAccept, Token.valid]
+
+-- Under `constHash`, `collidingSpendAdversary` overspends `10 > 1` from a single `1`-unit note
+-- and wins `extractedConservationWordGame` with probability `1`.
+example (n : ℕ) :
+    ProbComp.eval
+      (extractedConservationWordGame identitySigScheme constHash collidingSpendAdversary n) true =
+      1 := by
+  simp only [extractedConservationWordGame, ProbComp.eval_bind]
+  refine Cslib.Probability.PMF.bind_apply_of_forall _ fun ck => ?_
+  have hdec : ∀ r, wordRequestDecoder.decode (encRequestSum (requestEquiv r)) = r :=
+    fun r => wordRequestDecoder.decode_enc r
+  have hdecOpt :
+      (Decoder.option Decoder.bits).decode (List.take sampleIssueReplyLen
+        (true :: wordTag [] 0)) = some (wordTag [] 0) := by
+    unfold sampleIssueReplyLen
+    rw [show true :: wordTag [] 0 = encOption encBits (some (wordTag [] 0)) from rfl,
+      List.take_of_length_le le_rfl, (Decoder.option Decoder.bits).decode_enc]
+  simp [extractedConservationExperiment, runExtractedConservation, WordExtractedAdversary.toTyped,
+    collidingSpendAdversary, identitySigScheme, pairScheme, wordNoteCom, constHash,
+    ProbOracleComp.runLogWith, extractedIssuerOracle, hdec, acceptRequest, acceptLocal,
+    Request.signedMessage, sampleNoteReq, hdecOpt, Credit.target, SpendRequest.inputNote,
+    hasSpentNullifier, collidingSpendReq, extractedConservationAccept, issuedAmount, issuesIn,
+    grantedRefund, spentDebit, spendsIn, spends]
+
+-- Issuing a single note without spends never violates conservation (`0` win probability).
+example (n : ℕ) :
+    ProbComp.eval
+      (extractedConservationWordGame identitySigScheme constHash simpleNoteAdversary n) true =
+      0 := by
+  simp only [extractedConservationWordGame, ProbComp.eval_bind]
+  refine Cslib.Probability.PMF.bind_apply_of_forall _ fun ck => ?_
+  have hdec : ∀ r, wordRequestDecoder.decode (encRequestSum (requestEquiv r)) = r :=
+    fun r => wordRequestDecoder.decode_enc r
+  simp [extractedConservationExperiment, runExtractedConservation, WordExtractedAdversary.toTyped,
+    simpleNoteAdversary, identitySigScheme, pairScheme, wordNoteCom, constHash,
+    ProbOracleComp.runLogWith, extractedIssuerOracle, hdec, acceptRequest, acceptLocal,
+    Request.signedMessage, sampleNoteReq, extractedConservationAccept, issuedAmount, issuesIn,
+    grantedRefund, spentDebit, spendsIn, spends]
+
+-- Concrete client instantiations of both asymptotic headlines using `idHash` (unconditionally
+-- poly-time and collision-resistant) and concrete PPT adversaries (`collidingWordForger` and
+-- `collidingSpendAdversary`), requiring only `S.EUFCMA`.
+example (S : WordSignatureScheme) (hS : S.EUFCMA) :
+    Negligible (fun n => Game.succProbability
+      (ProbComp.eval (extractedTokenWordGame S idHash collidingWordForger n))) :=
+  negligible_extractedTokenWordGame S hS idHash computableInPolyTime_idHash
+    collisionResistant_idHash collidingWordForger (isOraclePPT_constPayloadForger [false])
+
+example (S : WordSignatureScheme) (hS : S.EUFCMA) :
+    Negligible (fun n =>
+      Game.succProbability
+        (ProbComp.eval (extractedConservationWordGame S idHash collidingSpendAdversary n))) :=
+  negligible_extractedConservationWordGame S hS idHash computableInPolyTime_idHash
+    collisionResistant_idHash collidingSpendAdversary isOraclePPT_collidingSpendAdversary
 
 end CslibFrontierTests.Crypto.AnonymousTokenPolyTime
