@@ -103,53 +103,45 @@ theorem wm_r (A : Matrix (Fin b) (Fin b) F2) : wm (hr (a := a) (b := b)) A =
   abel
 
 /-- The element with given blocks. -/
-def blk (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : U (a + b) :=
-  win (hr (a := a) (b := b)) t.2.2 * up t.2.1 * win (hl (a := a) (b := b)) t.1
+def blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)
+  | (A, M, C) => win (hr (a := a) (b := b)) C * up M * win (hl (a := a) (b := b)) A
 
-theorem mat_blk (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (blk t) =
+private theorem mat_blk' (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (blk t) =
     wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ + wr a b * mat t.2.2 * (wr a b)ᵀ := by
   obtain ⟨A, M, C⟩ := t
-  have z1 : ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
-      (X : Matrix (Fin c) (Fin a) F2) (Y : Matrix (Fin b) (Fin d) F2),
-      P * X * (wl a b)ᵀ * (wr a b * Y * Q) = 0 := by
-    intro c d P Q X Y
-    simp only [Matrix.mul_assoc]
-    rw [← Matrix.mul_assoc ((wl a b)ᵀ) (wr a b), wi_lr]
+  -- a sandwich vanishes when the middle factor does, and collapses when it is the identity
+  have z : ∀ {k k' : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2)
+      (V : Matrix (Fin (a + b)) (Fin k') F2), Wᵀ * V = 0 →
+      ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
+        (X : Matrix (Fin c) (Fin k) F2) (Y : Matrix (Fin k') (Fin d) F2),
+        P * X * Wᵀ * (V * Y * Q) = 0 := fun W V hWV _ _ P Q X Y => by
+    rw [mul_sandwich, hWV]
     simp
-  have z2 : ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
-      (X : Matrix (Fin c) (Fin b) F2) (Y : Matrix (Fin a) (Fin d) F2),
-      P * X * (wr a b)ᵀ * (wl a b * Y * Q) = 0 := by
-    intro c d P Q X Y
-    simp only [Matrix.mul_assoc]
-    rw [← Matrix.mul_assoc ((wr a b)ᵀ) (wl a b), wi_rl]
-    simp
-  have e1 : ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
-      (X : Matrix (Fin c) (Fin a) F2) (Y : Matrix (Fin a) (Fin d) F2),
-      P * X * (wl a b)ᵀ * (wl a b * Y * Q) = P * (X * Y) * Q := by
-    intro c d P Q X Y
-    simp only [Matrix.mul_assoc]
-    rw [← Matrix.mul_assoc ((wl a b)ᵀ) (wl a b), wi_t_mul, Matrix.one_mul]
-  have e2 : ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
-      (X : Matrix (Fin c) (Fin b) F2) (Y : Matrix (Fin b) (Fin d) F2),
-      P * X * (wr a b)ᵀ * (wr a b * Y * Q) = P * (X * Y) * Q := by
-    intro c d P Q X Y
-    simp only [Matrix.mul_assoc]
-    rw [← Matrix.mul_assoc ((wr a b)ᵀ) (wr a b), wi_t_mul, Matrix.one_mul]
+  have e : ∀ {k : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2), Wᵀ * W = 1 →
+      ∀ {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
+        (X : Matrix (Fin c) (Fin k) F2) (Y : Matrix (Fin k) (Fin d) F2),
+        P * X * Wᵀ * (W * Y * Q) = P * (X * Y) * Q := fun W hW _ _ P Q X Y => by
+    rw [mul_sandwich, hW, Matrix.mul_one]
   have s1 : wl a b * (wl a b)ᵀ = wl a b * (1 : Matrix (Fin a) (Fin a) F2) * (wl a b)ᵀ := by
     rw [Matrix.mul_one]
   have s2 : wr a b * (wr a b)ᵀ = wr a b * (1 : Matrix (Fin b) (Fin b) F2) * (wr a b)ᵀ := by
     rw [Matrix.mul_one]
   change mat (win (hr (a := a) (b := b)) C * up M * win (hl (a := a) (b := b)) A) = _
   rw [mat_mul, mat_mul, mat_win, mat_win, mat_up, wm_l, wm_r, ← wi_add (a := a) (b := b), s1, s2]
-  simp only [Matrix.add_mul, Matrix.mul_add, z1, z2, e1, e2, add_zero, zero_add]
+  simp only [Matrix.add_mul, Matrix.mul_add, z (wl a b) (wr a b) wi_lr, z (wr a b) (wl a b) wi_rl,
+    e (wl a b) (wi_t_mul _), e (wr a b) (wi_t_mul _), add_zero, zero_add]
   simp only [Matrix.mul_one, Matrix.one_mul]
   abel
+
+theorem mat_blk (A : U a) (M : Matrix (Fin a) (Fin b) F2) (C : U b) : mat (blk (A, M, C)) =
+    wl a b * mat A * (wl a b)ᵀ + wl a b * M * (wr a b)ᵀ + wr a b * mat C * (wr a b)ᵀ :=
+  mat_blk' (A, M, C)
 
 theorem blk_injective : Function.Injective
     (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
   intro s t hst
   have h := congrArg mat hst
-  rw [mat_blk, mat_blk] at h
+  rw [mat_blk', mat_blk'] at h
   have k1 : ∀ t : U a × Matrix (Fin a) (Fin b) F2 × U b,
       (wl a b)ᵀ * (wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ +
         wr a b * mat t.2.2 * (wr a b)ᵀ) * wl a b = mat t.1 := by

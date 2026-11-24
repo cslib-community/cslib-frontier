@@ -64,6 +64,14 @@ theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 := (Cslib.SLTow
 theorem mat_mk {h : ℕ} (M : Matrix (Fin h) (Fin h) F2) (h0 : ∀ i j, j < i → M i j = 0)
     (h1 : ∀ i, M i i = 1) : mat (mk M h0 h1) = M := by rfl
 
+/-- Regrouping a product of two sandwiches `P X Wᵀ` and `V Y Q` around the middle factor
+`Wᵀ V`. -/
+theorem mul_sandwich {k c d e f : ℕ} (P : Matrix (Fin k) (Fin c) F2) (X : Matrix (Fin c) (Fin d) F2)
+    (W : Matrix (Fin k) (Fin d) F2) (V : Matrix (Fin k) (Fin e) F2) (Y : Matrix (Fin e) (Fin f) F2)
+    (Q : Matrix (Fin f) (Fin k) F2) :
+    P * X * Wᵀ * (V * Y * Q) = P * (X * (Wᵀ * V) * Y) * Q := by
+  simp only [Matrix.mul_assoc]
+
 section Win
 variable {p n h : ℕ} (hp : p + n ≤ h)
 

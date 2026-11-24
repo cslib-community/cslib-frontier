@@ -84,14 +84,12 @@ theorem win_comm {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ h) (hd 
   have z1 : ∀ (X : Matrix (Fin n) (Fin n) F2) (Y : Matrix (Fin n') (Fin n') F2),
       wi hp * X * (wi hp)ᵀ * (wi hp' * Y * (wi hp')ᵀ) = 0 := by
     intro X Y
-    simp only [Matrix.mul_assoc]
-    rw [← Matrix.mul_assoc ((wi hp)ᵀ) (wi hp'), h1]
+    rw [mul_sandwich, h1]
     simp
   have z2 : ∀ (X : Matrix (Fin n) (Fin n) F2) (Y : Matrix (Fin n') (Fin n') F2),
       wi hp' * Y * (wi hp')ᵀ * (wi hp * X * (wi hp)ᵀ) = 0 := by
     intro X Y
-    simp only [Matrix.mul_assoc]
-    rw [← Matrix.mul_assoc ((wi hp')ᵀ) (wi hp), h2]
+    rw [mul_sandwich, h2]
     simp
   unfold wm
   simp only [Matrix.add_mul, Matrix.mul_add, Matrix.mul_sub, Matrix.sub_mul, z1, z2]
