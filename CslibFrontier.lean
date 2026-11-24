@@ -905,6 +905,16 @@ public import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Algorithms.WordRAM.NatNthRoot
 public import CslibFrontier.Algorithms.WordRAM.NatSqrt
 public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.CompressProg
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.CompressSpec
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.Cost
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.Layout
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.LeafSubroutines
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.MinSep
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.NetworkProg
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.Outer
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.Range
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.Validity
 public import CslibFrontier.Algorithms.WordRAM.OptimalBST
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Amplify
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Clauses
