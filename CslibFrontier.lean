@@ -1240,7 +1240,14 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Wor
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccProg
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccSize
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Accel
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxAccel
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxAdd
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxBack
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxExtract
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxMain
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxOrder
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxRound
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Approximate
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.BaseChange
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Budget
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Comp
@@ -8470,6 +8477,7 @@ public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients
 public import CslibFrontier.Foundations.RingTheory.Derivation.Determinant
 public import CslibFrontier.Foundations.RingTheory.Derivation.Wronskian
 public import CslibFrontier.Foundations.RingTheory.GaloisRing
+public import CslibFrontier.Foundations.RingTheory.LaurentPolynomial.OrderSpan
 public import CslibFrontier.Foundations.RingTheory.LaurentSeries
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.Line
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Basis
