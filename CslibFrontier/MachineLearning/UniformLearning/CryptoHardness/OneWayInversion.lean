@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.OneWay.Weak
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Inversion
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Probability.BitString
+import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -50,8 +51,12 @@ An efficient average-case learner and the converse direction stay open on
 ## Main definitions
 
 * `Cslib.MachineLearning.UniformLearning.OneWayInversion.family`: the key-and-point family.
+* `Cslib.MachineLearning.UniformLearning.OneWayInversion.inputLength`: the input length of the
+  labelling map, for a key, the points and `n + 1` spare bits.
 * `Cslib.MachineLearning.UniformLearning.OneWayInversion.labelMap`: its labelling map on bit
   strings.
+* `Cslib.MachineLearning.UniformLearning.OneWayInversion.encodeSample`: the bit encoding of a
+  labelled sample, points followed by labels.
 * `Cslib.MachineLearning.UniformLearning.OneWayInversion.inverterLearner`: the output law of an
   inverter run on the encoded sample, read as a key.
 * `Cslib.MachineLearning.UniformLearning.OneWayInversion.learningExperiment`: a uniform key,
@@ -104,17 +109,6 @@ padding missing bits with `false`, and output the points followed by their label
 def encodeSample {n m : ℕ} (S : LabeledSample (Fin n → Bool) Bool m) : List Bool :=
   (List.ofFn fun i => List.ofFn (S i).1).flatten ++ List.ofFn fun i => (S i).2
 
-/-- The rows of `s` points of `n` bits followed by anything are the points. -/
-private theorem listRows_flatten_ofFn_append {s n : ℕ} (x : Fin s → Fin n → Bool)
-    (rest : List Bool) :
-    BitString.listRows s n ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest) =
-      List.ofFn fun i => List.ofFn (x i) := by
-  induction s with
-  | zero => simp [BitString.listRows]
-  | succ s ih =>
-    rw [List.ofFn_succ, List.flatten_cons, List.append_assoc,
-      BitString.listRows_succ_append _ _ (List.length_ofFn), ih fun i => x i.succ]
-
 /-- The labelling map on a key followed by the points of a sample is the encoding of the
 labelled sample. -/
 theorem labelMap_append (n : ℕ) (K : BitString (keyBits n)) (x : Fin (samples n) → Fin n → Bool)
@@ -128,8 +122,17 @@ theorem labelMap_append (n : ℕ) (K : BitString (keyBits n)) (x : Fin (samples 
   have hdrop : (List.ofFn K ++ ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest)).drop
       (keyBits n) = (List.ofFn fun i => List.ofFn (x i)).flatten ++ rest :=
     List.drop_left' (by simp)
-  simp only [labelMap, hkey, hdrop, listRows_flatten_ofFn_append, encodeSample, examples_apply,
-    family, List.map_ofFn, Function.comp_def]
+  have hrows : BitString.listRows (samples n) n
+      ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest) =
+        List.ofFn fun i => List.ofFn (x i) := by
+    have hflat := BitString.listRows_flatten (width := n) (List.ofFn fun i => List.ofFn (x i))
+      (by simp)
+    have hlen : (List.ofFn fun i => List.ofFn (x i)).flatten.length = samples n * n := by
+      simp [List.length_flatten, Function.comp_def]
+    rw [List.length_ofFn] at hflat
+    rw [← BitString.listRows_take, List.take_left' hlen, hflat]
+  simp only [labelMap, hkey, hdrop, hrows, encodeSample, examples_apply, family, List.map_ofFn,
+    Function.comp_def]
 
 /-- A word whose labelling map is the encoding of a labelled sample starts with a key that is
 consistent with the sample. -/
@@ -143,10 +146,14 @@ theorem consistent_of_labelMap_eq {n : ℕ} {S : LabeledSample (Fin n → Bool) 
   have happ := List.append_inj h hlen
   have hrows : BitString.listRows (samples n) n (w.drop (keyBits n)) =
       List.ofFn fun i => List.ofFn (S i).1 := by
-    have e := BitString.listRows_eq_ofFn (samples n) n (w.drop (keyBits n))
-    have h1 := congrArg (fun l => BitString.listRows (samples n) n (l ++ [])) happ.1
-    rw [e] at h1 ⊢
-    rwa [listRows_flatten_ofFn_append, listRows_flatten_ofFn_append] at h1
+    have hleft := BitString.listRows_flatten
+      (BitString.listRows (samples n) n (w.drop (keyBits n)))
+      fun _ hrow => BitString.length_of_mem_listRows hrow
+    have hright := BitString.listRows_flatten (width := n) (List.ofFn fun i => List.ofFn (S i).1)
+      (by simp)
+    rw [BitString.length_listRows] at hleft
+    rw [List.length_ofFn] at hright
+    exact hleft.symm.trans ((congrArg (BitString.listRows (samples n) n) happ.1).trans hright)
   have hlabels := happ.2
   rw [hrows, List.map_ofFn] at hlabels
   have := congrFun (List.ofFn_inj.1 hlabels) i
@@ -154,7 +161,7 @@ theorem consistent_of_labelMap_eq {n : ℕ} {S : LabeledSample (Fin n → Bool) 
 
 /-- A uniform input of the labelling map is a uniform key, then uniform points, then uniform spare
 bits. -/
-theorem uniformList_inputLength (n : ℕ) :
+private theorem uniformList_inputLength (n : ℕ) :
     BitString.uniformList (inputLength keyBits samples n) =
       (PMF.uniformOfFintype (BitString (keyBits n))).bind fun K =>
         (PMF.uniformOfFintype (Fin (samples n) → Fin n → Bool)).bind fun x =>
