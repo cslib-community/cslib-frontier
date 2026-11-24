@@ -25,6 +25,14 @@ A client of `CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage` and
   `Yao.semiHonestAdvantage_composedProtocol_garbler_le` asks nothing of the subprotocol: its
   hypotheses hold for point-and-permute garbling on one AND gate, for any base family of hybrid
   simulators and any transfer simulators, and the replacement gap on the right is the only term.
+* The same fixtures witness `Yao.semiHonestAdvantage_composedProtocol_evaluator_le` and
+  `Yao.semiHonestAdvantage_composedOneSidedProtocol_evaluator_le` for a corrupted evaluator, for
+  any side information and any garbling simulator: the right-hand side is the `prv.sim` advantage
+  of the explicit reduction plus the replacement gap.
+* On the steps of `Yao.protocol`, `Composition.kernelRun` depends on the kernel family only through
+  the one batched transfer at the corrupted slots. By `advantage_replacement_eq_kernelRun` the
+  replacement gap in these bounds is therefore a gap between the ideal and the real joint
+  distributions of the transfer subprotocol; no bound on it is checked here.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -107,5 +115,96 @@ example {n : ℕ} (hn : 0 < n) (a b : Bool)
     (PointPermute.scheme_isValid xorFamily).correct hn andParams
     (clearTransfer andParams.evaluatorLen (List Bool)) noOracleWorld _
     (Function.update_self ..) S₂ (inputs a b) D
+
+/-- **Witness for `Yao.semiHonestAdvantage_composedProtocol_evaluator_le`.** For point-and-permute
+garbling of one AND gate over the plain-model `clearTransfer`, at every parameter `n ≥ 1`, with any
+side information `Φ`, any garbling simulator `S`, any base family `S₀` of hybrid simulators whose
+evaluator component is `Yao.evaluatorSim _ Φ S` and any transfer simulators `S₂`: the advantage
+against the composed protocol for a corrupted evaluator is at most the `prv.sim` advantage of the
+reduction against `S n` plus the replacement gap. -/
+example {Λ : Type} (Φ : SideInfo ValidCircuit Λ) (S : ℕ → PrvSimulator Λ) {n : ℕ} (hn : 0 < n)
+    (a b : Bool)
+    (S₀ : (I : Finset (Fin 2)) → CoalitionSimulator (Yao.schedule andParams)
+      (Yao.Input andParams) Yao.Coins (fun _ => List Bool) I)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator [Round.message 0 1 (Fin andParams.evaluatorLen → Bool → List Bool)]
+        ((batchOTSpec andParams.evaluatorLen (List Bool)).Query ()) (fun _ => Unit)
+        ((batchOTSpec andParams.evaluatorLen (List Bool)).Answer ()) J)
+    (D) :
+    semiHonestAdvantage
+        (Yao.composedProtocol _ n andParams (clearTransfer andParams.evaluatorLen (List Bool)))
+        noOracleWorld (Yao.functionality _ andParams) {1}
+        (composeSim (Yao.protocol _ n andParams)
+          (Function.update S₀ {1} (Yao.evaluatorSim _ Φ S n andParams)) S₂ {1}) (inputs a b) D ≤
+      prvSimAdvantage (PointPermute.scheme xorFamily) Φ n (S n)
+          (Yao.evaluatorDistinguisherToPrvSim andParams (inputs a b)
+            (composeDistinguisher (Yao.protocol _ n andParams) S₂ {1} (inputs a b) D)) +
+        Game.advantage
+          (((Yao.protocol _ n andParams).realJoint
+            (batchOTWorld andParams.evaluatorLen (List Bool)) {1} (inputs a b)).bind fun r =>
+              ProbComp.eval (composeDistinguisher (Yao.protocol _ n andParams) S₂ {1}
+                (inputs a b) D r))
+          (((Yao.composedProtocol _ n andParams
+            (clearTransfer andParams.evaluatorLen (List Bool))).realJoint noOracleWorld {1}
+              (inputs a b)).bind fun r => ProbComp.eval (D r)) :=
+  Yao.semiHonestAdvantage_composedProtocol_evaluator_le rfl
+    (PointPermute.scheme_isValid xorFamily).correct hn andParams Φ S
+    (clearTransfer andParams.evaluatorLen (List Bool)) noOracleWorld _
+    (Function.update_self ..) S₂ (inputs a b) D
+
+/-- **Witness for `Yao.semiHonestAdvantage_composedOneSidedProtocol_evaluator_le`**, on the same
+fixtures: the one-sided protocol over `clearTransfer`, with the evaluator component of the base
+family `Yao.oneSidedEvaluatorSim _ Φ S`. -/
+example {Λ : Type} (Φ : SideInfo ValidCircuit Λ) (S : ℕ → PrvSimulator Λ) {n : ℕ} (hn : 0 < n)
+    (a b : Bool)
+    (S₀ : (I : Finset (Fin 2)) → CoalitionSimulator (Yao.oneSidedSchedule andParams)
+      (Yao.Input andParams) Yao.Coins (fun _ => List Bool) I)
+    (S₂ : (_ : Unit) → (J : Finset (Fin 2)) →
+      CoalitionSimulator [Round.message 0 1 (Fin andParams.evaluatorLen → Bool → List Bool)]
+        ((batchOTSpec andParams.evaluatorLen (List Bool)).Query ()) (fun _ => Unit)
+        ((batchOTSpec andParams.evaluatorLen (List Bool)).Answer ()) J)
+    (D) :
+    semiHonestAdvantage
+        (Yao.composedOneSidedProtocol _ n andParams
+          (clearTransfer andParams.evaluatorLen (List Bool)))
+        noOracleWorld (Yao.oneSidedFunctionality _ andParams) {1}
+        (composeSim (Yao.oneSidedProtocol _ n andParams)
+          (Function.update S₀ {1} (Yao.oneSidedEvaluatorSim _ Φ S n andParams)) S₂ {1})
+        (inputs a b) D ≤
+      prvSimAdvantage (PointPermute.scheme xorFamily) Φ n (S n)
+          (Yao.oneSidedEvaluatorDistinguisherToPrvSim andParams (inputs a b)
+            (composeDistinguisher (Yao.oneSidedProtocol _ n andParams) S₂ {1} (inputs a b) D)) +
+        Game.advantage
+          (((Yao.oneSidedProtocol _ n andParams).realJoint
+            (batchOTWorld andParams.evaluatorLen (List Bool)) {1} (inputs a b)).bind fun r =>
+              ProbComp.eval (composeDistinguisher (Yao.oneSidedProtocol _ n andParams) S₂ {1}
+                (inputs a b) D r))
+          (((Yao.composedOneSidedProtocol _ n andParams
+            (clearTransfer andParams.evaluatorLen (List Bool))).realJoint noOracleWorld {1}
+              (inputs a b)).bind fun r => ProbComp.eval (D r)) :=
+  Yao.semiHonestAdvantage_composedOneSidedProtocol_evaluator_le rfl
+    (PointPermute.scheme_isValid xorFamily).correct hn andParams Φ S
+    (clearTransfer andParams.evaluatorLen (List Bool)) noOracleWorld _
+    (Function.update_self ..) S₂ (inputs a b) D
+
+/-- **The kernel program of Yao's protocol draws from the transfer kernel once.** On the steps of
+`Yao.protocol`, `Composition.kernelRun` depends on the kernel family only through the joint
+distribution of the one batched transfer at the corrupted slots: two families that agree there give
+the same program, whatever the transfer subprotocol's schedule and coins. -/
+example {n : ℕ} {spec₂ : MultiOracleSpec} {sc₂ : Schedule 2 spec₂} {Coins₂ : Fin 2 → Type}
+    (I : Finset (Fin 2))
+    (μ ν : (_ : Unit) → (J : Finset (Fin 2)) →
+      ((s : Fin 2) → (batchOTSpec andParams.evaluatorLen (List Bool)).Query () s) →
+      PMF (((s : J) →
+          PartyView ((batchOTSpec andParams.evaluatorLen (List Bool)).Query ()) Coins₂ sc₂ s) ×
+        ((s : Fin 2) → (batchOTSpec andParams.evaluatorLen (List Bool)).Answer () s)))
+    (h : ∀ q, μ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I) q =
+      ν () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I) q)
+    (st) :
+    Composition.kernelRun (sc₂ := fun _ => sc₂) (Coins₂ := fun _ => Coins₂) μ I
+        (Yao.protocol (PointPermute.scheme xorFamily) n andParams).steps st =
+      Composition.kernelRun (sc₂ := fun _ => sc₂) (Coins₂ := fun _ => Coins₂) ν I
+        (Yao.protocol (PointPermute.scheme xorFamily) n andParams).steps st := by
+  simp only [Yao.protocol, Composition.kernelRun, h]
 
 end CslibFrontierTests.Crypto.YaoPlainComposition
