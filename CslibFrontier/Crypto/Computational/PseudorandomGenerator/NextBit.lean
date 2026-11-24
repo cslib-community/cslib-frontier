@@ -29,10 +29,11 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Yao's next-bit theorem for uniform pseudorandom generators
 
-`CslibFrontier/Crypto/Primitives/PRG/NextBit.lean` establishes the finite equivalence between
-pseudorandomness and next-bit unpredictability for caller-supplied admissibility predicates and
-closure hypotheses. This module lifts that argument to uniform strict-PPT `PseudorandomGenerator`s
-over arbitrary bit strings without closure hypotheses or non-uniform advice.
+`CslibFrontier/Crypto/Primitives/PRG/NextBit.lean` relates prediction to distinguishing for
+arbitrary tests and predictors on finite output types, without bounding the cost of the tests and
+predictors that its reductions build. This module lifts that argument to uniform strict-PPT
+`PseudorandomGenerator`s over arbitrary bit strings: the reductions are explicit programs with
+strict-PPT certificates, and no closure hypothesis or non-uniform advice is used.
 
 Two standard uniform next-bit formulations are covered and proved equivalent to
 `PseudorandomGenerator`:
@@ -708,10 +709,12 @@ theorem PseudorandomGenerator.of_nextBitUnpredictableRandomIndex
   rw [guessingAdvantage_nextBitPredictionGame_wordNextBitPredictor hlen adversary hpos,
     mul_div_cancel₀ _ hLne, eval_prgRealGame, eval_prgIdealGame]
 
-/-- **Yao's next-bit theorem (random-index formulation)**: a function is a `PseudorandomGenerator`
-with expansion schedule `length` if and only if it runs in polynomial time, produces words of length
-`length n`, strictly stretches every seed, and is uniformly PPT random-index next-bit
-unpredictable. -/
+/-- **Yao's next-bit theorem (random-index formulation)** (after [BonehShoup2023], Section 3.5,
+Theorems 3.4 and 3.6, with the position drawn by the challenger instead of chosen by the adversary;
+registration in the results inventory is pending an outside-fleet source check, #5363): a function
+is a `PseudorandomGenerator` with expansion schedule `length` if and only if it runs in polynomial
+time, produces words of length `length n`, strictly stretches every seed, and is uniformly PPT
+random-index next-bit unpredictable. -/
 theorem pseudorandomGenerator_iff_nextBitUnpredictableRandomIndex
     (generator : List Bool → List Bool) (length : ℕ → ℕ) :
     PseudorandomGenerator generator length ↔
@@ -995,10 +998,11 @@ theorem PseudorandomGenerator.of_nextBitUnpredictable
   rw [guessingAdvantage_nextBitExperiment_wordNextBitTwoStage hlen adversary hpos,
     mul_div_cancel₀ _ hDne, eval_prgRealGame, eval_prgIdealGame]
 
-/-- **Yao's next-bit theorem (Boneh–Shoup Attack Game 3.2)**: a function is a
-`PseudorandomGenerator` with expansion schedule `length` if and only if it runs in polynomial time,
-produces words of length `length n`, strictly stretches every seed, and is uniformly PPT two-stage
-next-bit unpredictable. -/
+/-- **Yao's next-bit theorem (Boneh–Shoup Attack Game 3.2)** ([BonehShoup2023], Section 3.5,
+Theorems 3.4 and 3.6; registration in the results inventory is pending an outside-fleet source
+check, #5363): a function is a `PseudorandomGenerator` with expansion schedule `length` if and only
+if it runs in polynomial time, produces words of length `length n`, strictly stretches every seed,
+and is uniformly PPT two-stage next-bit unpredictable. -/
 theorem pseudorandomGenerator_iff_nextBitUnpredictable
     (generator : List Bool → List Bool) (length : ℕ → ℕ) :
     PseudorandomGenerator generator length ↔
