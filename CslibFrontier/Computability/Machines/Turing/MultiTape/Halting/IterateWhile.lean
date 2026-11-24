@@ -12,8 +12,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.CopyWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhileLayout
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelComp
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelIterateWhile
+-- `import all` avoids modifying the `Internal.KernelComp` hub while unfolding unexposed
+-- `Turing.MultiTapeTM.comp`.
+import all CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelComp
+-- `import all` reads the private `IterateWhile.transformsTapes_{load,emit,clearCur,onWords_step}`
+-- lemmas from `Internal.KernelIterateWhile` without modifying that vendored hub.
+import all CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelIterateWhile
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelOnWords
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
@@ -59,7 +63,7 @@ open IterateWhile
 
 variable {k : ℕ} {Symbol State State₀ State₁ : Type*} {input : List Symbol}
 
-/-! ### Local loop and composition machines -/
+/-! ### Local loop machine -/
 
 /-- Condition testing whether the next-word tape `nextTape k` is non-empty. -/
 private def nextNonEmpty (k : ℕ) (Symbol : Type*) :
@@ -79,49 +83,16 @@ private noncomputable def loopMachine (tm : MultiTapeTM k Symbol State) (mark : 
       ((whileCond (nextNonEmpty k Symbol) (loopRound tm mark)).seq
         ((emitWord (emitEmb k) mark).seq ((clearWork Symbol).extendTapes (tapeEmb (curTape k))))))
 
-/-- Sequential pipeline `tm₂` after `tm₁` via a shared buffer tape. -/
-private noncomputable def pipeMachine {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
-    (tm₂ : MultiTapeTM k₂ Symbol S₂) (tm₁ : MultiTapeTM k₁ Symbol S₁) (mark : Symbol) :=
-  ((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
-      Fin.castSuccEmb).seq
-    (((tm₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))).inputFromWord mark).seq
-      ((clearWork Symbol).extendTapes (tapeEmb (Fin.natAdd (max k₁ k₂) 0))))
-
 /-! ### Terminating specifications -/
-
-private lemma transformsTapes_loadNext (v : List Symbol) :
-    TransformsTapes (loadWord Symbol (nextTape k)) (fun inp ws => inp = v ∧ ws = fun _ => [])
-      (fun _ _ ws' e => ws' = words [] v ∧ e = [])
-      (3 * v.length + 6) (2 * v.length + (k + 1 + 2) + 3) :=
-  (transformsTapes_loadWord (nextTape k) v).imp (fun _ _ ⟨hin, hws⟩ => ⟨hin, by rw [hws]⟩)
-    (fun _ _ _ _ ⟨_, hws⟩ ⟨h', he⟩ => ⟨by rw [h', hws, words_nil_cur], he⟩) le_rfl le_rfl
-
-private lemma transformsTapes_emitCur (mark : Symbol) (v : List Symbol) :
-    TransformsTapes (emitWord (emitEmb k) mark) (fun _ ws => ws = words v [])
-      (fun _ _ ws' e => ws' = words v [] ∧ e = v)
-      (2 * v.length + 8) (2 * v.length + (k + 1 + 2) + 10) :=
-  (transformsTapes_emitWord (emitEmb k) mark v).imp (fun _ _ h => by subst h; simp)
-    (fun _ _ _ _ h ⟨h', he⟩ => ⟨h'.trans h, he⟩) le_rfl le_rfl
-
-private lemma transformsTapes_clearCurTape (vc vn : List Symbol) :
-    TransformsTapes ((clearWork Symbol).extendTapes (tapeEmb (curTape k)))
-      (fun _ ws => ws = words vc vn) (fun _ _ ws' e => ws' = words [] vn ∧ e = [])
-      (3 * (vc.length + 1)) (vc.length + 1 + (k + 1 + 2)) :=
-  (transformsTapes_clearWork_tapeEmb _ vc).imp (fun _ _ h => by rw [h, words_cur])
-    (fun _ _ _ _ h ⟨h', he⟩ => ⟨by rw [h', h, update_words_cur], he⟩) le_rfl le_rfl
 
 private lemma transformsTapes_loopRound {tm : MultiTapeTM k Symbol State} (mark : Symbol)
     {vp v v' : List Symbol} {t s : ℕ} (h : tm.ComputesTidilyInTimeAndSpace v v' t s) :
     TransformsTapes (loopRound tm mark) (fun _ ws => ws = words vp v)
       (fun _ _ ws' e => ws' = words v v' ∧ e = [])
       (t + 3 * vp.length + 6 * v.length + v'.length + 22)
-      (s + vp.length + 7 * v.length + 2 * v'.length + 6 * k + 44) := by
-  have hon : TransformsTapes (tm.onWords mark) (fun _ ws => ws = words v [])
-      (fun _ _ ws' e => ws' = words v v' ∧ e = [])
-      (t + v'.length + 6) (s + 2 * v.length + 2 * v'.length + 3 * k + 18) :=
-    (h.onWords mark).imp (fun _ _ hws => hws.trans (words_nil_next v))
-      (fun _ _ _ _ hws ⟨h', he⟩ => ⟨by rw [h', hws, update_words_next], he⟩) le_rfl le_rfl
-  exact ((transformsTapes_prepareRound (k := k) mark vp v).seq_eq hon).imp
+      (s + vp.length + 7 * v.length + 2 * v'.length + 6 * k + 44) :=
+  ((transformsTapes_prepareRound (k := k) mark vp v).seq_eq
+    (transformsTapes_onWords_step mark h)).imp
     (fun _ _ h => h) (fun _ _ _ _ _ ⟨h', he⟩ => ⟨h', by simp [he]⟩) (by omega) (by omega)
 
 private lemma condAt_nextNonEmpty (p : Fin (input.length + 2)) (vc vn : List Symbol) :
@@ -183,53 +154,15 @@ private theorem computesTidily_loopMachine {tm : MultiTapeTM k Symbol State}
       simp [Finset.sum_const, Finset.card_range]
     rw [hsum] at hrun hsp
     exact ⟨ws', e, hrun, ⟨hws', he⟩, hsp⟩
-  refine ((transformsTapes_loadNext (k := k) (w 0)).seq_eq
+  refine ((transformsTapes_load (k := k) (w 0)).seq_eq
     ((hfirstRound.seq_eq (hwhile.seq_eq
-      ((transformsTapes_emitCur mark (w r)).seq_eq (transformsTapes_clearCurTape (w r) [])))))).imp
+      ((transformsTapes_emit mark (w r)).seq_eq (transformsTapes_clearCur Symbol (w r) [])))))).imp
     (fun _ _ h => h) (fun _ _ _ _ _ ⟨hws, he⟩ => ⟨hws.trans words_nil_nil, by simp [he]⟩) ?_ ?_
   all_goals
     have := hl 0 (Nat.zero_le _)
     have := hl r le_rfl
     ring_nf
     omega
-
-private theorem computesTidily_pipeMachine {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
-    {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}
-    {x w y : List Symbol} {t₁ s₁ t₂ s₂ : ℕ}
-    (h₁ : tm₁.ComputesTidilyInTimeAndSpace x w t₁ s₁)
-    (h₂ : tm₂.ComputesTidilyInTimeAndSpace w y t₂ s₂) (mark : Symbol) :
-    (pipeMachine tm₂ tm₁ mark).ComputesTidilyInTimeAndSpace x y (t₁ + t₂ + 4 * w.length + 9)
-      (s₁ + s₂ + 5 * w.length + (6 * max k₁ k₂ + 20)) := by
-  set K := max k₁ k₂
-  set A : Fin (K + 2) := Fin.natAdd K 0
-  have hA : Fin.append (fun _ : Fin K => ([] : List Symbol)) ![w, []] =
-      Function.update (fun _ => []) A w := by
-    simpa only [A] using (append_nil_eq_update (k := K) w)
-  have hp₁Raw :=
-    (((h₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord).imp
-      (P' := fun inp ws => inp = x ∧
-        ws = Function.update (fun _ => []) (Fin.last K) [])
-      (Q' := fun _ ws ws' e => ws' = Function.update ws (Fin.last K) w ∧ e = [])
-      (fun _ _ ⟨hin, hws⟩ => ⟨hin, by rw [hws, Function.update_eq_self]⟩)
-      (fun _ _ _ _ ⟨_, hws⟩ ⟨hws', he⟩ =>
-        ⟨by rw [hws', hws, Function.update_idem], he⟩)
-      le_rfl le_rfl).extendTapes_update Fin.castSuccEmb
-  rw [show Fin.castSuccEmb (Fin.last K) = A by simp [A, Fin.ext_iff]] at hp₁Raw
-  have hp₁ := hp₁Raw.imp (P' := fun inp ws => inp = x ∧ ws = fun _ => [])
-    (Q' := fun _ _ ws' e => ws' = Function.update (fun _ => []) A w ∧ e = [])
-    (fun _ _ ⟨hin, hws⟩ => ⟨hin, by rw [hws]; simp⟩)
-    (fun _ _ _ _ ⟨_, hws⟩ ⟨hws', he⟩ => ⟨by rw [hws', hws], he⟩) le_rfl le_rfl
-  have hp₂ := (transformsTapes_inputFromWord mark
-      (computesTidily_iff.mp (h₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))))).imp
-    (P' := fun _ ws => ws = Function.update (fun _ => []) A w)
-    (Q' := fun _ _ ws' e => ws' = Function.update (fun _ => []) A w ∧ e = y)
-    (fun _ _ hws => hws.trans hA.symm) (fun _ _ _ _ _ ⟨hws', he⟩ => ⟨hws'.trans hA, he⟩)
-    le_rfl le_rfl
-  have hp₃ := transformsTapes_clearWork_only (Symbol := Symbol) A w
-  refine (transformsTapes_seq hp₁ (transformsTapes_seq hp₂ hp₃ fun _ _ _ _ _ hQ => hQ.1)
-    fun _ _ _ _ _ hQ => hQ.1).imp (fun _ _ h => h) ?_ (by omega) (by omega)
-  rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨_, _, _, ⟨-, rfl⟩, ⟨hws, rfl⟩, rfl⟩, rfl⟩
-  exact ⟨hws, by simp⟩
 
 /-! ### Divergence preservation -/
 
@@ -240,15 +173,19 @@ private lemma initCfg_seq_eq_wordsCfg {tm₀ : MultiTapeTM k Symbol State₀}
   refine Cfg.ext rfl rfl (funext fun _ => ?_) rfl rfl
   simp [Cfg.mapState, wordsCfg, tapeOfList_nil, Cfg.init, MultiTapeNTM.initCfg]
 
+private lemma not_halted_mapState {State' : Type*} {cfg : Cfg k Symbol State input}
+    {f : Option State → Option State'} (hf : ∀ q, f (some q) ≠ none) (h : ¬cfg.Halted) :
+    ¬(cfg.mapState f).Halted := by
+  cases hq : cfg.state with
+  | none => simp [Cfg.Halted, hq] at h
+  | some q => simp [Cfg.Halted, Cfg.mapState, hq, hf]
+
 private theorem not_halted_seq_of_left {tm₀ : MultiTapeTM k Symbol State₀}
     {tm₁ : MultiTapeTM k Symbol State₁} {cfg : Cfg k Symbol State₀ input}
     (h₀ : ∀ t, ¬(tm₀.runFrom cfg t).Halted) (t : ℕ) :
     ¬((tm₀.seq tm₁).runFrom (cfg.mapState (handOver tm₁.q₀)) t).Halted := by
   rw [seq, runFrom_combine_left (handOver_some _) cfg fun s _ => h₀ s]
-  have hst : (tm₀.runFrom cfg t).state ≠ none := h₀ t
-  cases hq : (tm₀.runFrom cfg t).state with
-  | none => exact (hst hq).elim
-  | some q => simp [Cfg.Halted, Cfg.mapState, hq, handOver]
+  exact not_halted_mapState (fun _ => by simp [handOver]) (h₀ t)
 
 private theorem not_halted_seq_of_right {tm₀ : MultiTapeTM k Symbol State₀}
     {tm₁ : MultiTapeTM k Symbol State₁} {cfg mid : Cfg k Symbol State₀ input} {t₀ : ℕ}
@@ -258,16 +195,10 @@ private theorem not_halted_seq_of_right {tm₀ : MultiTapeTM k Symbol State₀}
   obtain ⟨u, hu, hhaltsAt⟩ := exists_haltsAt (tm := tm₀) (cfg := cfg) (h₀ ▸ hmid)
   rcases Nat.lt_or_ge t u with ht | ht
   · rw [seq, hhaltsAt.runFrom_combine_left (handOver_some _) ht.le]
-    have hst : (tm₀.runFrom cfg t).state ≠ none := hhaltsAt.not_halted ht
-    cases hq : (tm₀.runFrom cfg t).state with
-    | none => exact (hst hq).elim
-    | some q => simp [Cfg.Halted, Cfg.mapState, hq, handOver]
+    exact not_halted_mapState (fun _ => by simp [handOver]) (hhaltsAt.not_halted ht)
   · obtain ⟨n, rfl⟩ := Nat.exists_eq_add_of_le ht
     rw [hhaltsAt.runFrom_seq, ← hhaltsAt.runFrom_eq hu, h₀]
-    have hst : (tm₁.runFrom (mid.withState (some tm₁.q₀)) n).state ≠ none := h₁ n
-    cases hq : (tm₁.runFrom (mid.withState (some tm₁.q₀)) n).state with
-    | none => exact (hst hq).elim
-    | some q => simp [Cfg.Halted, Cfg.mapState, hq]
+    exact not_halted_mapState (fun _ => by simp) (h₁ n)
 
 private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
     {w : ℕ → List Symbol}
@@ -276,7 +207,7 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
     ¬(loopMachine tm mark).Halts (w 0) := by
   rintro ⟨t, hhalt⟩
   have hload := transformsTapes_iff_runFrom.mp
-    (transformsTapes_loadNext (k := k) (w 0)) (w 0) (fun _ => []) [] ⟨rfl, rfl⟩
+    (transformsTapes_load (k := k) (w 0)) (w 0) (fun _ => []) [] ⟨rfl, rfl⟩
   obtain ⟨ws₀, e₀, hloadRun, ⟨hws₀, he₀⟩, -⟩ := hload
   rw [hws₀, he₀, List.nil_append] at hloadRun
   obtain ⟨t₀, s₀, h0⟩ := hstep 0
@@ -344,10 +275,10 @@ private theorem not_halted_outputToTape {tm : MultiTapeTM k Symbol State}
   rw [initCfg_outputToTape, ← outCfgHom_apply tm, runFrom_map, outCfgHom_apply] at hhalt
   exact hhalt
 
-private theorem not_halts_pipeMachine_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
+private theorem not_halts_comp_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}
     {x : List Symbol} (h₁ : ¬tm₁.Halts x) (mark : Symbol) :
-    ¬(pipeMachine tm₂ tm₁ mark).Halts x := by
+    ¬(tm₂.comp tm₁ mark).Halts x := by
   rintro ⟨t, hhalt⟩
   have h1 : ¬(tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).Halts x :=
     not_halts_extendTapes _ h₁
@@ -361,31 +292,23 @@ private theorem not_halts_pipeMachine_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Typ
     not_halts_extendTapes Fin.castSuccEmb (fun ⟨v, hv⟩ => h2 v hv) ⟨u, hu⟩
   exact not_halted_seq_of_left h3 t hhalt
 
-private theorem not_halts_pipeMachine_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
+private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}
     {x w : List Symbol} {t₁ s₁ : ℕ}
     (h₁ : tm₁.ComputesTidilyInTimeAndSpace x w t₁ s₁) (h₂ : ¬tm₂.Halts w) (mark : Symbol) :
-    ¬(pipeMachine tm₂ tm₁ mark).Halts x := by
+    ¬(tm₂.comp tm₁ mark).Halts x := by
   rintro ⟨t, hhalt⟩
   set K := max k₁ k₂
   set A : Fin (K + 2) := Fin.natAdd K 0
   have hA : Fin.append (fun _ : Fin K => ([] : List Symbol)) ![w, []] =
       Function.update (fun _ => []) A w := by
     simpa only [A] using (append_nil_eq_update (k := K) w)
-  have hp₁Raw :=
-    (((h₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord).imp
-      (P' := fun inp ws => inp = x ∧
-        ws = Function.update (fun _ => []) (Fin.last K) [])
-      (Q' := fun _ ws ws' e => ws' = Function.update ws (Fin.last K) w ∧ e = [])
-      (fun _ _ ⟨hin, hws⟩ => ⟨hin, by rw [hws, Function.update_eq_self]⟩)
-      (fun _ _ _ _ ⟨_, hws⟩ ⟨hws', he⟩ =>
-        ⟨by rw [hws', hws, Function.update_idem], he⟩)
-      le_rfl le_rfl).extendTapes_update Fin.castSuccEmb
-  rw [show Fin.castSuccEmb (Fin.last K) = A by simp [A, Fin.ext_iff]] at hp₁Raw
   obtain ⟨ws₁, e₁, hp₁Run, ⟨hws₁, he₁⟩, -⟩ :=
-    transformsTapes_iff_runFrom.mp hp₁Raw x (fun _ => []) [] ⟨rfl, by simp⟩
-  have hws₁' : ws₁ = Function.update (fun _ => []) A w := by simpa using hws₁
-  rw [hws₁', he₁, List.nil_append] at hp₁Run
+    transformsTapes_iff_runFrom.mp
+      ((h₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord_onTape
+        (show Fin.castSuccEmb (Fin.last K) = A by simp [A, Fin.ext_iff]))
+      x (fun _ => []) [] ⟨rfl, rfl⟩
+  rw [hws₁, he₁, List.nil_append] at hp₁Run
   have hflag : ∃ u, (markFlag K (some mark)).runFrom
       (wordsCfg x (some (markFlag K (some mark)).q₀) (Function.update (fun _ => []) A w) []) u =
       inCfg mark (wordsCfg w (none : Option MarkWorkState) (fun _ : Fin K => []) []) x := by
@@ -438,7 +361,7 @@ private theorem not_halts_pipeMachine_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Ty
         (some ((tm2e.inputFromWord mark).seq
           ((clearWork Symbol).extendTapes (tapeEmb A))).q₀)) u).Halted :=
     fun u => not_halted_seq_of_left h2Div u
-  rw [pipeMachine, initCfg_seq_eq_wordsCfg] at hhalt
+  rw [MultiTapeTM.comp, initCfg_seq_eq_wordsCfg] at hhalt
   exact not_halted_seq_of_right hp₁Run rfl h23Div t hhalt
 
 end Machinery
@@ -469,13 +392,13 @@ theorem exists_partial_iterateWhile {α β γ : Type}
   obtain ⟨ci, di, ki, Si, _, tmi, hi⟩ := Internal.NormalForm.polyTime hinit
   obtain ⟨cs, ds, ks, Ss, _, tms, hs⟩ := Internal.NormalForm.polyTime hstep
   obtain ⟨cf, df, kf, Sf, _, tmf, hf⟩ := Internal.NormalForm.polyTime hfin
-  let main := pipeMachine (loopMachine tms true) tmi true
-  let kMain := max ki (ks + 1 + 2) + 1 + 1
+  let main := (loopMachine tms true).comp tmi true
+  let kMain := max ki (ks + 1 + 2) + 2
   let c₀ := 6 * max kMain kf + 29
   let E := 2 * (ks + 3) + 1
   let D := 2 * di + 2 * ds + 2 * df + 1
   let C := 2 * ci + cs + E * cs + 2 * cf + 2 * c₀ + 6 * ki + E * (6 * ks + 54) + 10 * ks + 200
-  refine ⟨_, _, ?_, pipeMachine tmf main true, C, D, ?_, ?_⟩
+  refine ⟨_, _, ?_, tmf.comp main true, C, D, ?_, ?_⟩
   · repeat apply Finite.instSum
   · intro a r l hl hne hnil
     have hloop := computesTidily_loopMachine (tm := tms)
@@ -489,8 +412,8 @@ theorem exists_partial_iterateWhile {α β γ : Type}
             (Nat.add_le_add_right (hl n hn) 1) ds))
         simpa only [Function.iterate_succ_apply'] using h)
       hl hne hnil true
-    have hmain := computesTidily_pipeMachine (hi a) hloop true
-    have hraw := computesTidily_pipeMachine hmain (hf (step^[r] (init a))) true
+    have hmain := (hi a).comp hloop true
+    have hraw := hmain.comp (hf (step^[r] (init a))) true
     have hpow {e x : ℕ} (he : e ≤ D) (hx : x + 1 ≤ l + (encIn a).length + 1) :
         (x + 1) ^ e ≤ (l + (encIn a).length + 1) ^ D :=
       (Nat.pow_le_pow_left hx e).trans (Nat.pow_le_pow_right (by omega) he)
@@ -508,7 +431,7 @@ theorem exists_partial_iterateWhile {α β γ : Type}
     have hmax : max ki (ks + 1 + 2) ≤ ki + ks + 3 := by omega
     have hPpos : 1 ≤ (l + (encIn a).length + 1) ^ D := Nat.one_le_pow _ _ (by omega)
     have ho2 : 5 * (encState (step^[r] (init a))).length +
-        (6 * max (max ki (ks + 1 + 2) + 1 + 1) kf + 20) ≤
+        (6 * max (max ki (ks + 1 + 2) + 2) kf + 20) ≤
         c₀ * ((encState (step^[r] (init a))).length + 1) := by
       have hm := Nat.mul_le_mul_right (encState (step^[r] (init a))).length
         (show 5 ≤ c₀ by dsimp only [c₀]; omega)
@@ -544,7 +467,7 @@ theorem exists_partial_iterateWhile {α β γ : Type}
       have hEY : E * (cs * (l + 1) ^ ds + 10 * l + 6 * ks + 44) ≤
           E * ((cs + 6 * ks + 54) * P) := Nat.mul_le_mul_left E hY
       have ho2' : 5 * (encState (step^[r] (init a))).length +
-          (6 * max (max ki (ks + 1 + 2) + 1 + 1) kf + 20) ≤ c₀ * P :=
+          (6 * max (max ki (ks + 1 + 2) + 2) kf + 20) ≤ c₀ * P :=
         ho2.trans (Nat.mul_le_mul_left c₀ (by omega))
       have hconst : 6 * ki + 10 * ks + 94 ≤ (6 * ki + 10 * ks + 94) * P :=
         Nat.le_mul_of_pos_right _ hPpos
@@ -557,7 +480,7 @@ theorem exists_partial_iterateWhile {α β γ : Type}
         (fun n => ⟨_, _, by simpa only [Function.iterate_succ_apply'] using hs (step^[n] (init a))⟩)
         hne true
     have hmainDiv : ¬main.Halts (encIn a) :=
-      not_halts_pipeMachine_of_right (hi a) hiterDiv true
-    exact not_halts_pipeMachine_of_left hmainDiv true
+      not_halts_comp_of_right (hi a) hiterDiv true
+    exact not_halts_comp_of_left hmainDiv true
 
 end Turing.MultiTapeTM

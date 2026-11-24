@@ -74,8 +74,10 @@ Packaging the unbounded stage loop `K = 0, 1, 2, …` through
   `Cslib.Complexity.isSome_levinStage_mono`,
   `Cslib.Complexity.exists_levinStage_eq_some_iff`: soundness, output-length bound, monotonicity,
   and completeness of `levinStage`.
-* `Cslib.Complexity.exists_index_levinStage_isSome`: stage optimality against any finite-state
-  multi-tape machine, with explicit `2 ^ (2 * |eDesc d| + 2)` description-index bound.
+* `Cslib.Complexity.exists_index_le_two_pow_levinStage_isSome`,
+  `Cslib.Complexity.exists_index_levinStage_isSome`: stage optimality against any finite-state
+  multi-tape machine (the former with the explicit `2 ^ (2 * |eDesc d| + 2)` description-index
+  bound).
 * `Cslib.Complexity.computableInPolyTime_levinStage`: `levinStage` is polynomial-time with `K` in
   unary.
 * `Cslib.Complexity.exists_native_levinSearch`,
@@ -155,28 +157,31 @@ private theorem levinStage_eq_find (enc : α ↪ List Bool) (V : α × List Bool
 theorem levinStage_zero (enc : α ↪ List Bool) (V : α × List Bool → Bool) (a : α) :
     levinStage enc V a 0 = none := rfl
 
-/-- **Soundness of `levinStage`:** every certificate returned by stage `K` is accepted by `V`. -/
-theorem verifier_of_levinStage_eq_some {enc : α ↪ List Bool} {V : α × List Bool → Bool}
-    {a : α} {K : ℕ} {w : List Bool} (h : levinStage enc V a K = some w) :
-    V (a, w) = true := by
+private theorem levinTry_of_levinStage_eq_some {enc : α ↪ List Bool}
+    {V : α × List Bool → Bool} {a : α} {K : ℕ} {w : List Bool}
+    (h : levinStage enc V a K = some w) :
+    ∃ i, levinTry enc V a i K = some w := by
   rw [levinStage_eq_find] at h
   cases hf : (List.range K).find? (fun i => (levinTry enc V a i K).isSome) with
   | none => simp [hf] at h
   | some i =>
     simp only [hf, Option.elim_some] at h
-    exact (levinTry_eq_some_iff.mp h).2
+    exact ⟨i, h⟩
+
+/-- **Soundness of `levinStage`:** every certificate returned by stage `K` is accepted by `V`. -/
+theorem verifier_of_levinStage_eq_some {enc : α ↪ List Bool} {V : α × List Bool → Bool}
+    {a : α} {K : ℕ} {w : List Bool} (h : levinStage enc V a K = some w) :
+    V (a, w) = true :=
+  let ⟨_, hi⟩ := levinTry_of_levinStage_eq_some h
+  (levinTry_eq_some_iff.mp hi).2
 
 /-- Any certificate returned by stage `K` has length at most `K` (a machine emits at most one bit
 per simulated step). -/
 theorem length_le_of_levinStage_eq_some {enc : α ↪ List Bool} {V : α × List Bool → Bool}
     {a : α} {K : ℕ} {w : List Bool} (h : levinStage enc V a K = some w) :
-    w.length ≤ K := by
-  rw [levinStage_eq_find] at h
-  cases hf : (List.range K).find? (fun i => (levinTry enc V a i K).isSome) with
-  | none => simp [hf] at h
-  | some i =>
-    simp only [hf, Option.elim_some] at h
-    exact length_le_of_runWord_eq_some (levinTry_eq_some_iff.mp h).1
+    w.length ≤ K :=
+  let ⟨_, hi⟩ := levinTry_of_levinStage_eq_some h
+  length_le_of_runWord_eq_some (levinTry_eq_some_iff.mp hi).1
 
 /-- Stage `K` succeeds iff some machine with index `i < K` halts within `K` steps on `enc a` with
 a certificate accepted by `V`. -/
@@ -611,23 +616,15 @@ for `K` steps each on `encCNF φ` and returns the first halted output accepted b
 abbrev levinStage (φ : CNF ℕ) (K : ℕ) : Option (List Bool) :=
   Complexity.levinStage encCNF verifier φ K
 
-/-- `SAT.levinStage` is polynomial-time with `K` in unary. -/
-@[fun_prop]
-theorem computableInPolyTime_levinStage :
-    ComputableInPolyTime (fun p : CNF ℕ × ℕ => levinStage p.1 p.2)
-      (encPair encCNF encUnary) (encOption encBits) :=
-  Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier
+private lemma exists_verifier_iff_mem {φ : CNF ℕ} :
+    (∃ w, verifier (φ, w) = true) ↔ φ ∈ SAT :=
+  ⟨fun ⟨w, hw⟩ => ⟨assignment φ w, hw⟩,
+    fun hφ => let ⟨w, _, hw⟩ := (isVerifier φ).mp hφ; ⟨w, hw⟩⟩
 
 /-- **Completeness and soundness of `SAT.levinStage`:** some stage succeeds on `φ` iff `φ ∈ SAT`. -/
 theorem exists_levinStage_eq_some_iff {φ : CNF ℕ} :
-    (∃ K w, levinStage φ K = some w) ↔ φ ∈ SAT := by
-  rw [Complexity.exists_levinStage_eq_some_iff]
-  constructor
-  · rintro ⟨w, hw⟩
-    exact ⟨assignment φ w, hw⟩
-  · intro hφ
-    obtain ⟨w, -, hw⟩ := (isVerifier φ).mp hφ
-    exact ⟨w, hw⟩
+    (∃ K w, levinStage φ K = some w) ↔ φ ∈ SAT :=
+  Complexity.exists_levinStage_eq_some_iff.trans exists_verifier_iff_mem
 
 /-- **Stage-level `P = NP` characterization for `SAT`:** there is a polynomial `p` such that every
 satisfiable formula `φ` is solved by stage `p (encCNF φ).length` if and only if `P = NP` for every
@@ -648,7 +645,8 @@ theorem exists_poly_levinStage_iff :
       have hstage : ComputableInPolyTime
           (fun φ : CNF ℕ => levinStage φ (p.eval (encCNF φ).length))
           encCNF (encOption encBits) := by
-        simpa only [Function.comp_def] using SAT.computableInPolyTime_levinStage.comp hpair
+        simpa only [Function.comp_def] using
+          (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp hpair
       exact optionIsSome hstage
     · constructor
       · exact hp φ
@@ -705,11 +703,8 @@ theorem exists_native_levinSearch :
         ∀ {β : Type} (e : β ↪ List Bool), P e = NP e) := by
   obtain ⟨k, State, hfin, tm, _, D, hsound, hhalts, _, hopt⟩ :=
     Complexity.exists_native_levinSearch computableInPolyTime_verifier
-  have hhalts_sat : ∀ φ, tm.Halts (encCNF φ) ↔ φ ∈ SAT := fun φ => by
-    rw [hhalts φ]
-    exact ⟨fun ⟨w, hw⟩ => ⟨assignment φ w, hw⟩, fun hφ =>
-      let ⟨w, _, hw⟩ := (isVerifier φ).mp hφ
-      ⟨w, hw⟩⟩
+  have hhalts_sat : ∀ φ, tm.Halts (encCNF φ) ↔ φ ∈ SAT := fun φ =>
+    (hhalts φ).trans exists_verifier_iff_mem
   refine ⟨k, State, hfin, tm, D, hsound, hhalts_sat, hopt, ?_⟩
   rw [← SAT_mem_P_iff]
   constructor

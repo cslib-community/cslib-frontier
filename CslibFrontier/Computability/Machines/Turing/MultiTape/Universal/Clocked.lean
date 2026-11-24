@@ -93,12 +93,6 @@ theorem runWord_eq_some_iff {d : Desc} {w o : List Bool} {t : ℕ} :
   unfold runWord
   rcases h : universal (d, w.map eBit, t) with ⟨u, _ | _⟩ <;> simp [eq_comm]
 
-private theorem stepOut_iterate_of_state_none (d : Desc) (x : List ℕ) (c : SCfg) (out : List ℕ)
-    (h : c.state = none) (k : ℕ) : (stepOut d x)^[k] (c, out) = (c, out) := by
-  induction k with
-  | zero => rfl
-  | succ k ih => rw [Function.iterate_succ_apply', ih, stepOut_of_state_eq_none h]
-
 /-- Once a described machine halts, giving it more steps preserves its output word. -/
 theorem runWord_mono {d : Desc} {w o : List Bool} {t₁ t₂ : ℕ} (ht : t₁ ≤ t₂)
     (h : runWord d w t₁ = some o) : runWord d w t₂ = some o := by
@@ -111,7 +105,7 @@ theorem runWord_mono {d : Desc} {w o : List Bool} {t₁ t₂ : ℕ} (ht : t₁ �
   simp only [Prod.mk.injEq, Option.isNone_iff_eq_none] at hu
   rcases hu with ⟨rfl, hstate⟩
   rw [Nat.add_comm, Function.iterate_add_apply, hiter,
-    stepOut_iterate_of_state_none d (w.map eBit) c out hstate]
+    Function.iterate_fixed (stepOut_of_state_eq_none hstate out)]
   simp [hstate]
 
 /-- A machine halted within `t` steps emits a word of length at most `t`. -/
