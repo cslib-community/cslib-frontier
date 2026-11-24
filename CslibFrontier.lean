@@ -306,6 +306,8 @@ public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Coefficient
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Correctness
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Defs
 public import CslibFrontier.Algorithms.MatrixMultiplication.Strassen.Phases
+public import CslibFrontier.Algorithms.Online.BipartiteMatching.Basic
+public import CslibFrontier.Algorithms.Online.BipartiteMatching.Ranking
 public import CslibFrontier.Algorithms.PlantedClique.Algorithm
 public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborAsymptotics
 public import CslibFrontier.Algorithms.PlantedClique.CommonNeighborFinal
