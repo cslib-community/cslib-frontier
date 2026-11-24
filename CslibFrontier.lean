@@ -406,6 +406,12 @@ public import CslibFrontier.Algorithms.WordRAM.CYK
 public import CslibFrontier.Algorithms.WordRAM.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Algorithms.WordRAM.DFS
+public import CslibFrontier.Algorithms.WordRAM.DFS.CSR
+public import CslibFrontier.Algorithms.WordRAM.DFS.ForwardDFS
+public import CslibFrontier.Algorithms.WordRAM.DFS.Kosaraju
+public import CslibFrontier.Algorithms.WordRAM.DFS.Programs
+public import CslibFrontier.Algorithms.WordRAM.DFS.Transpose
+public import CslibFrontier.Algorithms.WordRAM.DFS.Visit
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
