@@ -18,12 +18,14 @@ import Mathlib.Tactic.Ring
 /-!
 # Lupanov's asymptotic upper bound for rectifier circuits
 
-The finite row-pattern construction yields the upper bound proved in
-[Lupanov, §2, Theorem 1][Lupanov1956]. For any positive `ε`, a Boolean `p × q` matrix has a
-two-layer rectifier circuit with at most `(1 + ε) * p * q / log₂ p` wires once `p` is large
-enough and `q` is at least a suitable constant times `log₂ p`. The threshold is uniform in
-the matrix. The theorem therefore applies along any sequences with `p → ∞` and
-`q / log₂ p → ∞`.
+The blocked row-pattern construction yields the upper bound of
+[Lupanov, section 2°, Theorem 1][Lupanov1956]. For any positive `ε`, a Boolean matrix with `p`
+input rows and `q` output columns has a two-layer rectifier circuit with at most
+`(1 + ε) * p * q / log₂ p` wires once `p` is large enough and `q` is at least a suitable
+constant times `log₂ p`. The threshold is uniform in the matrix. The theorem therefore applies
+along any sequences with `p → ∞` and `q / log₂ p → ∞`. A two-layer circuit is a rectifier
+`(p, q)`-circuit of rank at most two in Lupanov's sense, as explained in the documentation of
+`IsTwoLayer` and of its module, so these are bounds on his `B₂`.
 
 There is a discrepancy in the displayed hypotheses of the available English translation:
 Theorem 1 prints `log₂ p / q → ∞`. Here we use `q / log₂ p → ∞`, the regime required to
@@ -33,8 +35,9 @@ The formal statement therefore corrects the displayed condition in that translat
 claim is made about the wording of the uninspected Russian original.
 
 The source also assumes `p ≥ q`. The upper construction does not need that condition, so it is
-omitted here. The counting lower bound and the source's resulting asymptotic equivalence of
-the worst-case complexity are separate results.
+omitted here. The counting lower bound and the resulting asymptotic equivalence of Theorem 1
+are not proved here; the series is tracked in
+[#7621](https://github.com/cslib-community/cslib-frontier/issues/7621).
 
 We use blocks of `s = ⌊log₂ p⌋ - 2 * ⌊log₂ ⌊log₂ p⌋⌋` columns. Their width approaches
 `log₂ p`, while their row-pattern output cost is lower order. The numerical estimates are
@@ -47,11 +50,13 @@ real logarithm in the final statement.
   the two matrix dimensions.
 * `Cslib.Circuits.Boolean.Rectifier.exists_depth_two_eventually`: the upper bound under the
   corrected growth condition above, with explicit native circuit witnesses.
+* `Cslib.Circuits.orDepthComplexity_two_asymptotic_upper`: the same bound for
+  `orDepthComplexity 2`, a weaker statement than Lupanov's.
 
 ## References
 
 * [O. B. Lupanov, *On rectifier and switching-and-rectifier circuits*][Lupanov1956],
-  §2, Theorem 1, upper-bound proof, p. 1172 (English translation, p. 3).
+  section 2°, Theorem 1, part 1 of the proof (English translation, PDF p. 3).
 * [S. Jukna, *Lupanov's decomposition lemma*](https://web.vu.lt/mif/s.jukna/boolean/Lupanov-decomposition.html),
   the author's companion note to [Jukna2012, Lemma 1.2], for the growth regime.
 -/
@@ -171,9 +176,12 @@ private theorem eventually_scaled_bound (P : ℕ) (hP : 0 < P) :
     intro q hq
     exact (scaled_bound P p q hP hp0 hlarge hlog hq).2
 
-/-- The construction in [Lupanov1956, §2, Theorem 1]: uniformly over all `p × q` Boolean
-matrices, `p` sufficiently large and `q` at least a suitable constant times `log₂ p` suffice
-for a two-layer rectifier circuit using at most `(1 + ε) * p * q / log₂ p` wires.
+/-- The upper bound of [Lupanov1956], section 2°, Theorem 1 (part 1 of the proof; English
+translation, PDF p. 3), with thresholds uniform in the matrix: for each `ε > 0`, once `p` is
+large enough and `q` is at least a suitable constant times `log₂ p`, every Boolean matrix with
+`p` input rows and `q` output columns is computed by a two-layer rectifier circuit with at most
+`(1 + ε) * p * q / log₂ p` wires. As for `exists_depth_two`, the witness is a `(p, q)`-circuit
+of rank at most two in Lupanov's sense, so the statement bounds his `B₂`.
 This uses the growth regime of the upper-bound proof; the English translation displays the
 reciprocal condition, as explained in the module documentation.
 The source's additional restriction `p ≥ q` is unnecessary for this upper bound. -/
@@ -181,7 +189,7 @@ theorem exists_depth_two_asymptotic_upper (ε : ℝ) (hε : 0 < ε) :
     ∃ N K : ℕ, 2 ≤ N ∧ ∀ p ≥ N, ∀ q : ℕ,
       (K : ℝ) * Real.logb 2 p ≤ q → ∀ A : Matrix (Fin p) (Fin q) Bool,
         ∃ c : Circuit signature p q,
-          IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧ c.depth ≤ 2 ∧
+          IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧
             (c.program.cost id : ℝ) ≤ (1 + ε) * p * q / Real.logb 2 p := by
   obtain ⟨P, hP⟩ := exists_nat_gt (1 / ε)
   have hP0 : (0 : ℝ) < P := lt_trans (by positivity) hP
@@ -208,8 +216,8 @@ theorem exists_depth_two_asymptotic_upper (ε : ℝ) (hε : 0 < ε) :
         (by simpa only [Nat.cast_mul, Nat.cast_ofNat] using hq)
     exact_mod_cast hqR
   obtain ⟨hs, hbound⟩ := hb p hp
-  obtain ⟨c, hl, hc, hd, hw⟩ := exists_depth_two_blocked_exact A hs
-  refine ⟨c, hl, hc, hd, ?_⟩
+  obtain ⟨c, hl, hc, hw⟩ := exists_depth_two_blocked_exact A hs
+  refine ⟨c, hl, hc, ?_⟩
   have hscaled : (P : ℝ) * (Nat.log2 p + 1) * c.program.cost id ≤ (P + 1) * p * q := by
     exact_mod_cast (by rw [hw]; exact hbound q hqN)
   have hcost : (P : ℝ) * Real.logb 2 p * c.program.cost id ≤ (P + 1) * p * q := by
@@ -225,19 +233,21 @@ theorem exists_depth_two_asymptotic_upper (ε : ℝ) (hε : 0 < ε) :
       nlinarith only [mul_le_mul_of_nonneg_right hcoef
         (by positivity : (0 : ℝ) ≤ (p : ℝ) * q)]
 
-/-- Lupanov's asymptotic upper bound along rectangular matrix dimensions: if `p → ∞` and
-`q / log₂ p → ∞`, then every matrix eventually has a two-layer rectifier circuit with wire
-cost at most `(1 + ε) * p * q / log₂ p`. This proves the upper direction of
-[Lupanov1956, §2, Theorem 1] with the exact real logarithm. The displayed growth hypothesis in
-the English translation is corrected to the regime required by its upper-bound proof;
-see the module documentation for the source discrepancy. -/
+/-- The upper bound of [Lupanov1956], section 2°, Theorem 1 (part 1 of the proof; English
+translation, PDF p. 3), along sequences of matrix dimensions: if `p → ∞` and
+`q / log₂ p → ∞`, then eventually every Boolean matrix with `p` input rows and `q` output
+columns is computed by a two-layer rectifier circuit with at most `(1 + ε) * p * q / log₂ p`
+wires, for the exact real logarithm. As for `exists_depth_two`, the witness is a
+`(p, q)`-circuit of rank at most two in Lupanov's sense, so the statement bounds his `B₂`.
+The displayed growth hypothesis in the English translation is corrected to the regime required
+by its upper-bound proof; see the module documentation for the source discrepancy. -/
 theorem exists_depth_two_eventually {p q : ℕ → ℕ}
     (hp : Tendsto p atTop atTop)
     (hq : Tendsto (fun n => (q n : ℝ) / Real.logb 2 (p n)) atTop atTop)
     (ε : ℝ) (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ A : Matrix (Fin (p n)) (Fin (q n)) Bool,
       ∃ c : Circuit signature (p n) (q n),
-        IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧ c.depth ≤ 2 ∧
+        IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧
           (c.program.cost id : ℝ) ≤ (1 + ε) * p n * q n / Real.logb 2 (p n) := by
   obtain ⟨N, K, hN, h⟩ := exists_depth_two_asymptotic_upper ε hε
   filter_upwards [hp.eventually_ge_atTop N, hq.eventually_ge_atTop (K : ℝ)] with n hn hqn
@@ -246,3 +256,29 @@ theorem exists_depth_two_eventually {p q : ℕ → ℕ}
   exact h (p n) hn (q n) ((le_div_iff₀ hlog).1 hqn)
 
 end Cslib.Circuits.Boolean.Rectifier
+
+namespace Cslib.Circuits
+
+open Boolean.Rectifier
+open scoped Matrix
+
+/-- The asymptotic upper bound for the library's graph measure. This is a weaker statement than
+the upper bound of [Lupanov1956], section 2°, Theorem 1, and is not that result: a
+`RectifierCircuit` may have edges into input poles and out of output poles, which a
+`(p, q)`-circuit may not, so a bound on `orDepthComplexity 2` does not bound Lupanov's `B₂`.
+The cited bound is `Cslib.Circuits.Boolean.Rectifier.exists_depth_two_asymptotic_upper`.
+
+For each `ε > 0`, once `p` is large enough and `q` is at least a suitable constant times
+`log₂ p`, every Boolean matrix with `q` output rows and `p` input columns, the convention of
+`RectifierCircuit.Computes`, has depth-two rectifier complexity at most
+`⌊(1 + ε) * p * q / log₂ p⌋`. -/
+theorem orDepthComplexity_two_asymptotic_upper (ε : ℝ) (hε : 0 < ε) :
+    ∃ N K : ℕ, 2 ≤ N ∧ ∀ p ≥ N, ∀ q : ℕ,
+      (K : ℝ) * Real.logb 2 p ≤ q → ∀ A : Matrix (Fin q) (Fin p) Bool,
+        orDepthComplexity 2 A ≤ ((⌊(1 + ε) * p * q / Real.logb 2 p⌋₊ : ℕ) : ℕ∞) := by
+  obtain ⟨N, K, hN, h⟩ := exists_depth_two_asymptotic_upper ε hε
+  refine ⟨N, K, hN, fun p hp q hq A => ?_⟩
+  obtain ⟨c, hl, hc, hw⟩ := h p hp q hq Aᵀ
+  exact (hl.orDepthComplexity_two_le hc).trans (Nat.cast_le.mpr (Nat.le_floor hw))
+
+end Cslib.Circuits

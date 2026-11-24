@@ -21,7 +21,7 @@ open Filter Cslib.Circuits Cslib.Circuits.Boolean.Rectifier
 example (ε : ℝ) (hε : 0 < ε) :
     ∀ᶠ n : ℕ in atTop, ∀ A : Matrix (Fin (2 ^ n)) (Fin (n ^ 2)) Bool,
       ∃ c : Circuit signature (2 ^ n) (n ^ 2),
-        IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧ c.depth ≤ 2 ∧
+        IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧
           (c.program.cost id : ℝ) ≤ (1 + ε) * (2 : ℝ) ^ n * n := by
   have hp : Tendsto (fun n : ℕ => 2 ^ n) atTop atTop :=
     tendsto_pow_atTop_atTop_of_one_lt (by decide)
@@ -35,8 +35,8 @@ example (ε : ℝ) (hε : 0 < ε) :
     field_simp
   filter_upwards [exists_depth_two_eventually hp hq ε hε, eventually_ge_atTop 1] with n hn hn1
   intro A
-  obtain ⟨c, hl, hc, hd, hw⟩ := hn A
-  refine ⟨c, hl, hc, hd, ?_⟩
+  obtain ⟨c, hl, hc, hw⟩ := hn A
+  refine ⟨c, hl, hc, ?_⟩
   have hn0 : (n : ℝ) ≠ 0 := by exact_mod_cast (by omega : n ≠ 0)
   convert hw using 1
   simp only [Nat.cast_pow, Nat.cast_ofNat, Real.logb_pow,
