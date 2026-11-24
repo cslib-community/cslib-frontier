@@ -44,7 +44,6 @@ instantiations, or a security theorem.
 ## Main results
 
 * `Cslib.Crypto.SLHDSA.WOTS.checksum_lt`: the checksum fits in its three base-16 digits.
-* `Cslib.Crypto.SLHDSA.WOTS.len_le_67`: every standardized WOTS+ block count is at most 67.
 * `Cslib.Crypto.SLHDSA.WOTS.message_sum_add_checksum`: the checksum exactly complements the
   message digits to `15 * len1`.
 * `Cslib.Crypto.SLHDSA.WOTS.binaryValue_checksumByteString`: the prescribed two-byte string
