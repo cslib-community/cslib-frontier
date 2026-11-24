@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # the codebase views read pull request metadata
 
 env:
   CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
@@ -75,12 +76,16 @@ jobs:
       # as the API docs. The Lean census extends the series published by the previous run. The
       # results registry is exported from the built CslibFrontierResults.
       - name: Build codebase visualizations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           lake build CslibFrontierResults
           "$RUNNER_TEMP/viz-venv/bin/python" -m unittest discover -s tools/viz -p 'test_*.py'
           "$RUNNER_TEMP/viz-venv/bin/python" tools/viz/build.py \
             --lean-lib .lake/build/lib/lean \
             --require-registry \
+            --fetch-prs \
+            --prs-previous https://www.cslib.io/cslib-frontier/viz/prs.json \
             --lean-history https://www.cslib.io/cslib-frontier/viz/lean-history.json
       - name: Restore Guide dependencies
         id: guide-deps
