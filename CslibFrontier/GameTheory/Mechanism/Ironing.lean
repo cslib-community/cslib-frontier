@@ -33,15 +33,18 @@ with equality at `0` and local constancy wherever cumulative slack is positive.
 
 This module develops five parts extending `CslibFrontier/GameTheory/Mechanism/OptimalAuction.lean`:
 
-1. **Continuous Myerson ironing and irregular optimal auctions** (`IsIronedVirtualValue`,
+1. **Continuous Myerson ironing and conditional optimality step** (`IsIronedVirtualValue`,
    `IsIronedVirtualValue.integral_virtualValue_mul_le`,
-   `IsIronedVirtualValue.integral_virtualValue_mul_eq`, `integral_sum_payment_le_ironed_myerson`,
-   `Vickrey.integral_sum_payment_le_ironed`): via a layer-cake and Fubini representation of
-   arbitrary measurable monotone allocation curves, every monotone curve has expected virtual
-   surplus at most its expected ironed virtual surplus, with equality whenever the allocation rule
-   is constant across pooled intervals. Consequently, maximizing ironed virtual welfare with
+   `IsIronedVirtualValue.integral_virtualValue_mul_eq`,
+   `integral_sum_payment_le_ironed_myerson_of_isIronedVirtualValue`,
+   `Vickrey.integral_sum_payment_le_ironed_of_isIronedVirtualValue`): via a layer-cake and Fubini
+   representation of arbitrary measurable monotone allocation curves, every monotone curve has
+   expected virtual surplus at most its expected ironed virtual surplus, with equality whenever the
+   allocation rule is constant across pooled intervals. Given caller-supplied ironed virtual
+   valuations `φBarᵢ` (constructive convex-hull existence of `IsIronedVirtualValue` from arbitrary
+   `HasValueDensity` is tracked in #7789), maximizing ironed virtual welfare with
    ironed-bid-dependent tie-breaking is monotone, DSIC, individually rational, and maximizes
-   expected seller revenue among all DSIC, IR mechanisms without assuming regularity.
+   expected seller revenue among all DSIC, IR mechanisms.
 2. **Necessity of monotone virtual valuations** (`isMonotone_virtualSurplusMaximizer_iff`,
    `not_isImplementable_of_isVirtualWelfareMaximizing`,
    `not_isImplementable_iid_of_virtualValue_gt`): the converse direction of
@@ -49,9 +52,12 @@ This module develops five parts extending `CslibFrontier/GameTheory/Mechanism/Op
    zero-cost single-item auctions.
 3. **Seller production costs and reservation value `v₀ ≥ 0`**
    (`Mechanism.IsDSIC.integral_profit_le_virtualSurplus_sub_cost`,
-   `Vickrey.integral_profit_le_sellerReserve`): [HartlineKarlin2007], Definition 13.9,
-   Theorem 13.10 (p. 336), and Exercise 13.1 (p. 360), showing that for i.i.d. regular bidders and
-   seller valuation `v₀ ≥ 0`, `VA_{φ⁻¹(v₀)}` maximizes expected seller profit.
+   `Vickrey.integral_profit_le_sellerReserve`,
+   `Vickrey.integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue`):
+   [HartlineKarlin2007], Definition 13.9, Theorem 13.10 (p. 336), and Exercise 13.1 (p. 360),
+   showing that for i.i.d. regular bidders and seller valuation `v₀ ≥ 0`, `VA_{φ⁻¹(v₀)}` maximizes
+   expected seller profit, together with the conditional irregular optimality step given ironed
+   virtual valuations.
 4. **Monopoly pricing `opt(F)` and optimal Bayesian digital goods without regularity**
    (`IsMonopolyPrice`, `postedPriceDigitalGoods`,
    `integral_sum_payment_le_postedPriceDigitalGoods`): [HartlineKarlin2007], Definition 13.17 and
@@ -60,25 +66,31 @@ This module develops five parts extending `CslibFrontier/GameTheory/Mechanism/Op
    densities (`IsRegular.isMonopolyPrice_reservePrice`).
 5. **Discrete finite-support virtual valuations, discrete ironing, `DOP`, and single-item `EM`**
    (`DiscretePrior`, `DiscretePrior.virtualValue`, `IsDiscreteIronedVirtualValue`,
-   `empiricalMonopolyPrice`, `dopMechanism`, `empiricalSingleItemMechanism`):
-   [HartlineKarlin2007], Exercise 13.3 (p. 360) via summation by parts, discrete concave-envelope
-   ironing via Abel summation, Definitions 13.19–13.21 and Example 13.23 (pp. 339–340) showing the
-   `$10` vs. `$100` failure of `DOP`, and Exercise 13.4 (p. 360) showing that single-item `EM`
-   (`VA_{opt(F_{b₋ᵢ})}`) collapses identically to the reserve-free Vickrey auction.
+   `expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue`,
+   `empiricalMonopolyPrice`, `dopMechanism`, `dopBadBids`, `empiricalSingleItemMechanism`):
+   [HartlineKarlin2007], Exercise 13.3 (p. 360) via summation by parts, discrete ironing inequality
+   and conditional optimality step via Abel summation (discrete concave-envelope existence tracked
+   in #7789), Definitions 13.19–13.21 and the parametric `k²`-bidder generalization of
+   Example 13.23 (pp. 339–340) proving unbounded `k` vs. `k²` gap for `DOP`, and Exercise 13.4
+   (p. 360) showing that single-item `EM` (`VA_{opt(F_{b₋ᵢ})}`) collapses identically to the
+   reserve-free Vickrey auction.
 
 ## Main definitions
 
 * `SingleParameter.IsIronedVirtualValue`: Myerson's ironed virtual valuation on `[0, h]`.
 * `SingleParameter.ironedAllocation`, `SingleParameter.Vickrey.ironedAllocation`: pooling-invariant
   allocation rules factoring through ironed virtual bids.
-* `SingleParameter.IsMonopolyPrice`, `SingleParameter.postedPriceDigitalGoods`: monopoly sale price
-  `opt(F)` and fixed posted-price digital goods auction ([HartlineKarlin2007], Definition 13.17).
+* `SingleParameter.digitalGoodsFeasible`, `SingleParameter.IsMonopolyPrice`,
+  `SingleParameter.postedPriceDigitalGoods`: digital-goods feasibility `[0, 1]^ι`, monopoly sale
+  price `opt(F)`, and fixed posted-price digital goods auction ([HartlineKarlin2007],
+  Definition 13.17).
 * `SingleParameter.DiscretePrior`, `SingleParameter.DiscretePrior.virtualValue`,
   `SingleParameter.IsDiscreteIronedVirtualValue`: discrete finite-support priors, virtual
   valuations, and discrete ironed virtual valuations ([HartlineKarlin2007], Exercise 13.3).
 * `SingleParameter.empiricalMonopolyPrice`, `SingleParameter.dopMechanism`,
-  `SingleParameter.empiricalSingleItemMechanism`: empirical monopoly price `opt(F_{b₋ᵢ})`, `DOP`,
-  and single-item `EM` ([HartlineKarlin2007], Definitions 13.19–13.21).
+  `SingleParameter.dopBadBids`, `SingleParameter.empiricalSingleItemMechanism`: empirical monopoly
+  price `opt(F_{b₋ᵢ})`, `DOP`, its parametric `k²`-bidder worst-case family, and single-item `EM`
+  ([HartlineKarlin2007], Definitions 13.19–13.21, Example 13.23).
 
 ## Main results
 
@@ -87,28 +99,32 @@ This module develops five parts extending `CslibFrontier/GameTheory/Mechanism/Op
 * `SingleParameter.IsIronedVirtualValue.integral_virtualValue_mul_le`,
   `SingleParameter.IsIronedVirtualValue.integral_virtualValue_mul_eq`: Myerson's continuous ironing
   inequality and pooling complementary-slackness equality.
-* `SingleParameter.integral_sum_payment_le_ironed_myerson`,
-  `SingleParameter.Vickrey.integral_sum_payment_le_ironed`: **Myerson's optimal auction theorem for
-  irregular distributions**.
+* `SingleParameter.integral_sum_payment_le_ironed_myerson_of_isIronedVirtualValue`,
+  `SingleParameter.Vickrey.integral_sum_payment_le_ironed_of_isIronedVirtualValue`: conditional
+  optimality steps of [Myerson1981] given caller-supplied ironed virtual valuations (convex-hull
+  existence tracked in #7789).
 * `SingleParameter.isMonotone_virtualSurplusMaximizer_iff`,
   `SingleParameter.not_isImplementable_iid_of_virtualValue_gt`: necessity of monotone virtual
   valuations ([HartlineKarlin2007], Lemma 13.12).
 * `SingleParameter.Vickrey.integral_profit_le_sellerReserve`,
-  `SingleParameter.Vickrey.integral_profit_le_ironed_sellerReserve`: optimal single-item auction
-  with seller reservation value `v₀ ≥ 0` for regular and irregular distributions
-  ([HartlineKarlin2007], Exercise 13.1).
+  `SingleParameter.Vickrey.integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue`: optimal
+  single-item auction with seller reservation value `v₀ ≥ 0` for regular distributions
+  ([HartlineKarlin2007], Exercise 13.1), and conditional irregular optimality step given ironed
+  virtual valuations.
 * `SingleParameter.integral_sum_payment_le_postedPriceDigitalGoods`: optimal Bayesian digital goods
   auction via monopoly pricing without regularity ([HartlineKarlin2007], Theorem 13.18).
 * `SingleParameter.DiscretePrior.expectedEnvelopePayment_eq_expectedVirtualSurplus`,
-  `SingleParameter.IsDiscreteIronedVirtualValue.sum_virtualValue_mul_le`: discrete virtual-surplus
-  identity ([HartlineKarlin2007], Exercise 13.3) and discrete ironing inequality.
+  `SingleParameter.IsDiscreteIronedVirtualValue.sum_virtualValue_mul_le`,
+  `SingleParameter.expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue`: discrete
+  virtual-surplus identity ([HartlineKarlin2007], Exercise 13.3), discrete ironing inequality, and
+  conditional multi-bidder optimality step given discrete ironed virtual valuations.
 * `SingleParameter.empiricalSingleItemMechanism_allocation`,
   `SingleParameter.empiricalSingleItemMechanism_payment`: single-item `EM` equals Vickrey on all
   nonnegative bid profiles ([HartlineKarlin2007], Exercise 13.4).
-* `SingleParameter.empiricalSinglePriceRevenue_tenNinetyBids_opt`,
-  `SingleParameter.dopMechanism_sum_payment_tenNinetyBids`: `DOP` achieves revenue `10` against
-  optimal single-price revenue `100` on `10` bids at `10` and `90` bids at `1`
-  ([HartlineKarlin2007], Example 13.23).
+* `SingleParameter.empiricalSinglePriceRevenue_dopBadBids_opt`,
+  `SingleParameter.dopMechanism_sum_payment_dopBadBids`: for every `k ≥ 2`, `DOP` collects revenue
+  `k` against optimal single-price revenue `k²` on `dopBadBids k` (parametric generalization of
+  [HartlineKarlin2007], Example 13.23).
 
 ## References
 
@@ -518,15 +534,18 @@ theorem integral_sum_myersonPayment_eq_ironed (hμ : ∀ i, HasValueDensity (μ 
     ((hx i).comp (measurable_update v))
     ((hmono i v hv).mono fun _ hz => hz.1) (hpool i v hv)
 
-/-- **Myerson's optimal auction theorem for irregular distributions** ([Myerson1981];
-[HartlineKarlin2007], §13.2.2, p. 337).
+/-- Conditional optimality step (not the unconditional irregular-auction existence theorem) of
+[Myerson1981] and [HartlineKarlin2007], §13.2.2, p. 337, taking caller-supplied ironed virtual
+valuations `φBarᵢ` (constructive convex-hull existence of `IsIronedVirtualValue` from arbitrary
+`HasValueDensity` is tracked in #7789).
 
-For independent (not necessarily regular or identical) valuation distributions `(μᵢ, fᵢ, hᵢ)` with
+Given independent (not necessarily regular or identical) valuation distributions `(μᵢ, fᵢ, hᵢ)` and
 ironed virtual valuations `φBarᵢ`, if `x` is a monotone, measurable allocation rule that maximizes
 ironed virtual welfare `∑ᵢ φBarᵢ(vᵢ) yᵢ` over `X ⊆ [0, 1]^ι` and is constant across every flat of
-`φBarᵢ` on `(0, hᵢ]`, then `myerson x` is DSIC, individually rational, and achieves at least the
-expected revenue of every DSIC, individually rational mechanism with allocations in `X`. -/
-theorem integral_sum_payment_le_ironed_myerson (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i))
+`φBarᵢ` on `(0, hᵢ]`, then `myerson x` achieves at least the expected revenue of every DSIC,
+individually rational mechanism with allocations in `X`. -/
+theorem integral_sum_payment_le_ironed_myerson_of_isIronedVirtualValue
+    (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i))
     (hφ : ∀ i, IsIronedVirtualValue (μ i) (f i) (h i) (φBar i))
     {X : Set (ι → ℝ)} (hX : ∀ y ∈ X, ∀ i, 0 ≤ y i ∧ y i ≤ 1) {x : (ι → ℝ) → ι → ℝ}
     (hx : IsVirtualWelfareMaximizing φBar X x) (hmono : IsMonotone x)
@@ -730,11 +749,13 @@ theorem isMonotone_ironedAllocation [Finite ι] {φBar : ι → ℝ → ℝ}
   cases nonempty_fintype ι
   exact SingleParameter.isMonotone_ironedAllocation virtualWinnerAllocation_mem_and_max hmono
 
-/-- **Optimal single-item auction for irregular, non-identical distributions.** Under independent
-distributions `(μᵢ, fᵢ, hᵢ)` with ironed virtual valuations `φBarᵢ` that are nondecreasing on
-`[0, ∞)`, `myerson (Vickrey.ironedAllocation φBar)` is single-item feasible, DSIC, individually
-rational, and maximizes expected revenue among all DSIC, IR single-item mechanisms. -/
-theorem integral_sum_payment_le_ironed [Fintype ι] {μ : ι → Measure ℝ}
+/-- Single-item specialization of the conditional optimality step of [Myerson1981] (not the
+unconditional irregular single-item theorem; convex-hull existence of `IsIronedVirtualValue` is
+tracked in #7789): given independent distributions `(μᵢ, fᵢ, hᵢ)` and caller-supplied ironed
+virtual valuations `φBarᵢ` that are nondecreasing on `[0, ∞)`,
+`myerson (Vickrey.ironedAllocation φBar)` achieves at least the expected revenue of every DSIC, IR
+single-item mechanism. -/
+theorem integral_sum_payment_le_ironed_of_isIronedVirtualValue [Fintype ι] {μ : ι → Measure ℝ}
     [∀ i, IsProbabilityMeasure (μ i)] {f : ι → ℝ → NNReal} {h : ι → ℝ} {φBar : ι → ℝ → ℝ}
     (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i))
     (hφ : ∀ i, IsIronedVirtualValue (μ i) (f i) (h i) (φBar i))
@@ -743,7 +764,7 @@ theorem integral_sum_payment_le_ironed [Fintype ι] {μ : ι → Measure ℝ}
     (hMm : ∀ i, Measurable fun v => M.allocation v i) :
     ∫ v, ∑ i, M.payment v i ∂Measure.pi μ ≤
       ∫ v, ∑ i, (myerson (ironedAllocation φBar)).payment v i ∂Measure.pi μ :=
-  integral_sum_payment_le_ironed_myerson hμ hφ
+  integral_sum_payment_le_ironed_myerson_of_isIronedVirtualValue hμ hφ
     (fun y hy i => by rcases hy.1 i with h0 | h1 <;> [rw [h0]; rw [h1]] <;> norm_num)
     (isVirtualWelfareMaximizing_ironedAllocation virtualWinnerAllocation_mem_and_max)
     (isMonotone_ironedAllocation hmono)
@@ -758,17 +779,23 @@ end Vickrey
 
 /-! ### Necessity of monotone virtual valuations (Lemma 13.12) -/
 
+/-- Feasible allocations in a single-parameter digital goods auction ([HartlineKarlin2007],
+Example 13.2, p. 332): unlimited supply with zero marginal cost, so each bidder independently
+receives an allocation in `[0, 1]`. -/
+@[expose] def digitalGoodsFeasible {ι : Type*} : Set (ι → ℝ) :=
+  {y | ∀ i, 0 ≤ y i ∧ y i ≤ 1}
+
 /-- **Truthfulness of virtual-surplus maximization across seller-cost environments**
 ([HartlineKarlin2007], Lemma 13.12, p. 337).
 
 For virtual valuations `φ : ι → ℝ → ℝ` on a nonempty bidder set, maximizing virtual surplus
-`∑ᵢ φᵢ(bᵢ) yᵢ − c₀ ∑ᵢ yᵢ` over `[0, 1]^ι` yields a monotone allocation rule for every per-unit
-seller cost `c₀ ∈ ℝ` (and arbitrary tie-breaking, or even for some tie-breaking per `c₀`) if and
-only if every `φᵢ` is monotone nondecreasing on `[0, ∞)`. -/
+`∑ᵢ φᵢ(bᵢ) yᵢ − c₀ ∑ᵢ yᵢ` over `digitalGoodsFeasible` (`[0, 1]^ι`) yields a monotone allocation
+rule for every per-unit seller cost `c₀ ∈ ℝ` (and arbitrary tie-breaking, or even for some
+tie-breaking per `c₀`) if and only if every `φᵢ` is monotone nondecreasing on `[0, ∞)`. -/
 theorem isMonotone_virtualSurplusMaximizer_iff {ι : Type*} [Fintype ι] [DecidableEq ι]
     (φ : ι → ℝ → ℝ) :
     (∀ c₀ : ℝ, ∃ x : (ι → ℝ) → ι → ℝ,
-      IsVirtualWelfareMaximizing (fun i v => φ i v - c₀) {y | ∀ i, 0 ≤ y i ∧ y i ≤ 1} x ∧
+      IsVirtualWelfareMaximizing (fun i v => φ i v - c₀) digitalGoodsFeasible x ∧
         IsMonotone x) ↔
       ∀ i, MonotoneOn (φ i) (Ici 0) := by
   constructor
@@ -783,11 +810,11 @@ theorem isMonotone_virtualSurplusMaximizer_iff {ι : Type*} [Fintype ι] [Decida
     have hb₂ : 0 ≤ b₂ := update_nonneg le_rfl i hv₂
     obtain ⟨hx1_mem, hx1_opt⟩ := hx_max b₁ hb₁
     obtain ⟨hx2_mem, hx2_opt⟩ := hx_max b₂ hb₂
-    have hy1_mem : Function.update (x b₁) i 1 ∈ {y : ι → ℝ | ∀ j, 0 ≤ y j ∧ y j ≤ 1} := fun j => by
+    have hy1_mem : Function.update (x b₁) i 1 ∈ digitalGoodsFeasible := fun j => by
       by_cases hj : j = i
       · subst hj; rw [Function.update_self]; exact ⟨zero_le_one, le_rfl⟩
       · rw [Function.update_of_ne hj]; exact hx1_mem j
-    have hy2_mem : Function.update (x b₂) i 0 ∈ {y : ι → ℝ | ∀ j, 0 ≤ y j ∧ y j ≤ 1} := fun j => by
+    have hy2_mem : Function.update (x b₂) i 0 ∈ digitalGoodsFeasible := fun j => by
       by_cases hj : j = i
       · subst hj; rw [Function.update_self]; exact ⟨le_rfl, zero_le_one⟩
       · rw [Function.update_of_ne hj]; exact hx2_mem j
@@ -811,8 +838,8 @@ theorem isMonotone_virtualSurplusMaximizer_iff {ι : Type*} [Fintype ι] [Decida
     linarith
   · intro hφ c₀
     let xHat : (ι → ℝ) → ι → ℝ := fun w i => if 0 ≤ w i then 1 else 0
-    have hxHat : ∀ w : ι → ℝ, xHat w ∈ {y : ι → ℝ | ∀ i, 0 ≤ y i ∧ y i ≤ 1} ∧
-        ∀ y ∈ {y : ι → ℝ | ∀ i, 0 ≤ y i ∧ y i ≤ 1}, ∑ i, w i * y i ≤ ∑ i, w i * xHat w i := by
+    have hxHat : ∀ w : ι → ℝ, xHat w ∈ digitalGoodsFeasible ∧
+        ∀ y ∈ digitalGoodsFeasible, ∑ i, w i * y i ≤ ∑ i, w i * xHat w i := by
       intro w
       refine ⟨fun i => by simp only [xHat]; split_ifs <;> norm_num, fun y hy => ?_⟩
       refine Finset.sum_le_sum fun i _ => ?_
@@ -1112,15 +1139,17 @@ theorem integral_profit_le_sellerReserve {ι : Type*} [Fintype ι] [LinearOrder 
     simp only [Pi.zero_apply, mul_zero, Finset.sum_const_zero] at h0
     rwa [halg']
 
-/-- **Optimal single-item auction with seller reservation value `v₀ ≥ 0` for irregular
-distributions** ([HartlineKarlin2007], Exercise 13.1, p. 360).
+/-- Conditional seller-reserve optimality step after [Myerson1981] and [HartlineKarlin2007],
+Exercise 13.1, p. 360 (not an unconditional irregular theorem; convex-hull existence of
+`IsIronedVirtualValue` is tracked in #7789).
 
-For independent (possibly irregular and non-identical) distributions `(μᵢ, fᵢ, hᵢ)` with ironed
-virtual valuations `φBarᵢ` nondecreasing on `[0, ∞)` and seller valuation `v₀ ≥ 0`, maximizing
-shifted ironed virtual welfare `∑ᵢ (φBarᵢ(vᵢ) − v₀) xᵢ` via
-`myerson (ironedAllocation (fun i z => φBar i z - v₀))` is DSIC, individually rational, single-item
-feasible, and maximizes expected seller profit among all DSIC, IR single-item mechanisms. -/
-theorem integral_profit_le_ironed_sellerReserve {ι : Type*} [Fintype ι] [LinearOrder ι]
+Given independent (possibly irregular and non-identical) distributions `(μᵢ, fᵢ, hᵢ)`,
+caller-supplied ironed virtual valuations `φBarᵢ` nondecreasing on `[0, ∞)`, and seller valuation
+`v₀ ≥ 0`, maximizing shifted ironed virtual welfare `∑ᵢ (φBarᵢ(vᵢ) − v₀) xᵢ` via
+`myerson (ironedAllocation (fun i z => φBar i z - v₀))` achieves at least the expected seller
+profit of every DSIC, IR single-item mechanism. -/
+theorem integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue
+    {ι : Type*} [Fintype ι] [LinearOrder ι]
     {μ : ι → Measure ℝ} [∀ i, IsProbabilityMeasure (μ i)] {f : ι → ℝ → NNReal} {h : ι → ℝ}
     {φBar : ι → ℝ → ℝ} {v₀ : ℝ} (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i))
     (hφ : ∀ i, IsIronedVirtualValue (μ i) (f i) (h i) (φBar i))
@@ -1197,12 +1226,6 @@ theorem integral_profit_le_ironed_sellerReserve {ι : Type*} [Fintype ι] [Linea
 end Vickrey
 
 /-! ### Monopoly pricing `opt(F)` and Bayesian digital goods without regularity (Theorem 13.18) -/
-
-/-- Feasible allocations in a single-parameter digital goods auction ([HartlineKarlin2007],
-Example 13.2, p. 332): unlimited supply with zero marginal cost, so each bidder independently
-receives an allocation in `[0, 1]`. -/
-@[expose] def digitalGoodsFeasible {ι : Type*} : Set (ι → ℝ) :=
-  {y | ∀ i, 0 ≤ y i ∧ y i ≤ 1}
 
 /-- `pStar ≥ 0` is a **monopoly sale price** (`opt(F)`) for a valuation measure `μ`
 ([HartlineKarlin2007], Definition 13.17, p. 338) if `pStar · μ([pStar, ∞))` maximizes the
@@ -1925,15 +1948,17 @@ theorem sum_virtualValue_mul_eq (hφ : IsDiscreteIronedVirtualValue D φBar)
 
 end IsDiscreteIronedVirtualValue
 
-/-- **Multi-bidder discrete optimal irregular auction theorem.**
+/-- Conditional discrete optimality step after [Myerson1981] and [HartlineKarlin2007],
+Exercise 13.3, p. 360 (not an unconditional discrete irregular-auction theorem; concave-envelope
+existence of `IsDiscreteIronedVirtualValue` from arbitrary `DiscretePrior` is tracked in #7789).
 
-For independent finite-support priors `D : ∀ i, DiscretePrior (m i)` with discrete ironed virtual
-valuations `φBar i`, if `x : (∀ i, Fin (m i + 1)) → ι → ℝ` maximizes `∑ᵢ φBarᵢ(kᵢ) yᵢ` over
-`X` at every grid profile `k`, is monotone in each coordinate `kᵢ`, and is constant across every
-pooled adjacent step of `φBarᵢ`, then pairing `x` with coordinatewise discrete envelope payments
-achieves at least the expected revenue of **every** discrete DSIC, IR feasible mechanism
-`(x', p')`. -/
-theorem expectedDiscreteSumPayment_le_ironed {ι : Type*} [Fintype ι] [DecidableEq ι]
+Given independent finite-support priors `D : ∀ i, DiscretePrior (m i)` and caller-supplied discrete
+ironed virtual valuations `φBar i`, if `x : (∀ i, Fin (m i + 1)) → ι → ℝ` maximizes
+`∑ᵢ φBarᵢ(kᵢ) yᵢ` over `X` at every grid profile `k` and is constant across every pooled adjacent
+step of `φBarᵢ`, then pairing `x` with coordinatewise discrete envelope payments achieves at least
+the expected revenue of every discrete DSIC, IR feasible mechanism `(x', p')`. -/
+theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
+    {ι : Type*} [Fintype ι] [DecidableEq ι]
     {m : ι → ℕ} (D : ∀ i, DiscretePrior (m i))
     {φBar : ∀ i, Fin (m i + 1) → ℝ}
     (hφ : ∀ i, IsDiscreteIronedVirtualValue (D i) (φBar i))
@@ -2249,153 +2274,159 @@ theorem dopMechanism_isNormalized {ι : Type*} [Fintype ι] [DecidableEq ι] :
   · exact le_antisymm h (empiricalMonopolyPrice_nonneg b i)
   · rfl
 
-/-- Bid profile of [HartlineKarlin2007], Example 13.23 (p. 340): `10` bidders bid `10` and `90`
-bidders bid `1`. -/
-def tenNinetyBids (i : Fin 100) : ℝ :=
-  if i.1 < 10 then 10 else 1
+/-- Parametric `k²`-bidder worst-case bid family generalizing [HartlineKarlin2007], Example 13.23
+(p. 340, `k = 10`): among `k²` bidders, the first `k` bid `k` and the remaining `k² − k` bid `1`. -/
+def dopBadBids (k : ℕ) (i : Fin (k ^ 2)) : ℝ :=
+  if i.1 < k then k else 1
 
-private theorem mem_empiricalCandidatePrices_tenNinetyBids {S : Finset (Fin 100)} {p : ℝ}
-    (hp : p ∈ empiricalCandidatePrices S tenNinetyBids) :
-    p = 0 ∨ p = 1 ∨ p = 10 := by
+private theorem mem_empiricalCandidatePrices_dopBadBids {k : ℕ} {S : Finset (Fin (k ^ 2))} {p : ℝ}
+    (hp : p ∈ empiricalCandidatePrices S (dopBadBids k)) :
+    p = 0 ∨ p = 1 ∨ p = k := by
   classical
   simp only [empiricalCandidatePrices, Finset.mem_insert, Finset.mem_image, Finset.mem_filter] at hp
   rcases hp with rfl | ⟨j, _, rfl⟩
   · exact Or.inl rfl
-  · simp only [tenNinetyBids]
+  · simp only [dopBadBids]
     split_ifs
     · exact Or.inr (Or.inr rfl)
     · exact Or.inr (Or.inl rfl)
 
-/-- On `tenNinetyBids` ([HartlineKarlin2007], Example 13.23, p. 340), the optimal single-price
-revenue `max_p p · |{i : bᵢ ≥ p}|` is `100` (achieved at both `p = 1` and `p = 10`). -/
-theorem empiricalSinglePriceRevenue_tenNinetyBids_opt :
-    empiricalSinglePriceRevenue Finset.univ tenNinetyBids
-      (empiricalMonopolyPriceOn Finset.univ tenNinetyBids) = 100 := by
-  let cut : Fin 100 := ⟨10, by omega⟩
-  have hfilter_all_1 : ∀ inst : DecidablePred (fun j : Fin 100 => (1 : ℝ) ≤ tenNinetyBids j),
+/-- For every `k ≥ 2`, the optimal single-price revenue `max_p p · |{i : bᵢ ≥ p}|` on `dopBadBids k`
+is `k²` (achieved at both `p = 1` and `p = k`, generalizing [HartlineKarlin2007], Example 13.23,
+p. 340). -/
+theorem empiricalSinglePriceRevenue_dopBadBids_opt {k : ℕ} (hk : 2 ≤ k) :
+    empiricalSinglePriceRevenue Finset.univ (dopBadBids k)
+      (empiricalMonopolyPriceOn Finset.univ (dopBadBids k)) = (k : ℝ) ^ 2 := by
+  have hk_lt_sq : k < k ^ 2 := by nlinarith
+  have hk1 : (1 : ℝ) < k := by exact_mod_cast (show 1 < k by omega)
+  let cut : Fin (k ^ 2) := ⟨k, hk_lt_sq⟩
+  have hfilter_all_1 : ∀ inst : DecidablePred (fun j : Fin (k ^ 2) => (1 : ℝ) ≤ dopBadBids k j),
       (@Finset.filter _ _ inst Finset.univ) = Finset.univ := fun inst => by
     ext j
     rw [@Finset.mem_filter _ _ inst]
-    simp only [Finset.mem_univ, true_and, iff_true, tenNinetyBids]
-    split_ifs <;> norm_num
-  have hfilter_all_10 : ∀ inst : DecidablePred (fun j : Fin 100 => (10 : ℝ) ≤ tenNinetyBids j),
+    simp only [Finset.mem_univ, true_and, iff_true, dopBadBids]
+    split_ifs <;> linarith
+  have hfilter_all_k : ∀ inst : DecidablePred (fun j : Fin (k ^ 2) => (k : ℝ) ≤ dopBadBids k j),
       (@Finset.filter _ _ inst Finset.univ) = Finset.Iio cut := fun inst => by
     ext j
     rw [@Finset.mem_filter _ _ inst]
-    simp only [Finset.mem_univ, true_and, Finset.mem_Iio, Fin.lt_def, cut, tenNinetyBids]
-    split_ifs with hj <;> simp only [hj] <;> norm_num
-  have hrev10 : empiricalSinglePriceRevenue Finset.univ tenNinetyBids 10 = 100 := by
-    simp only [empiricalSinglePriceRevenue, hfilter_all_10, Fin.card_Iio, cut]
-    norm_num
-  have hrev1 : empiricalSinglePriceRevenue Finset.univ tenNinetyBids 1 = 100 := by
-    simp only [empiricalSinglePriceRevenue, hfilter_all_1, Finset.card_univ, Fintype.card_fin]
-    norm_num
+    simp only [Finset.mem_univ, true_and, Finset.mem_Iio, Fin.lt_def, cut, dopBadBids]
+    split_ifs with hj
+    · exact ⟨fun _ => hj, fun _ => le_rfl⟩
+    · exact ⟨fun h => absurd h (not_le.2 hk1), fun h => absurd h hj⟩
+  have hrev_k : empiricalSinglePriceRevenue Finset.univ (dopBadBids k) k = (k : ℝ) ^ 2 := by
+    simp only [empiricalSinglePriceRevenue, hfilter_all_k, Fin.card_Iio, cut]
+    ring
+  have hrev_1 : empiricalSinglePriceRevenue Finset.univ (dopBadBids k) 1 = (k : ℝ) ^ 2 := by
+    simp only [empiricalSinglePriceRevenue, hfilter_all_1, Finset.card_univ, Fintype.card_fin,
+      one_mul, Nat.cast_pow]
   refine le_antisymm ?_ ?_
-  · rcases mem_empiricalCandidatePrices_tenNinetyBids
-        (empiricalMonopolyPriceOn_mem_candidates Finset.univ tenNinetyBids) with
-      h0 | h1 | h10
+  · rcases mem_empiricalCandidatePrices_dopBadBids
+        (empiricalMonopolyPriceOn_mem_candidates Finset.univ (dopBadBids k)) with
+      h0 | h1 | hk'
     · rw [h0, empiricalSinglePriceRevenue, zero_mul]
-      norm_num
-    · rw [h1, hrev1]
-    · rw [h10, hrev10]
-  · simpa only [hrev1] using
-      empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn Finset.univ tenNinetyBids 1
+      positivity
+    · rw [h1, hrev_1]
+    · rw [hk', hrev_k]
+  · simpa only [hrev_1] using
+      empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn Finset.univ (dopBadBids k) 1
 
-/-- **Worst-case failure of `DOP`** ([HartlineKarlin2007], Example 13.23, p. 340): on `10` bids at
-`10` and `90` bids at `1` (where optimal single-price revenue is `100` by
-`empiricalSinglePriceRevenue_tenNinetyBids_opt`), `DOP` offers price `1` to every `10`-bidder
-(`99 > 90`) and price `10` to every `1`-bidder (`100 > 99`), collecting total profit `10`. -/
-theorem dopMechanism_sum_payment_tenNinetyBids :
-    ∑ i : Fin 100, dopMechanism.payment tenNinetyBids i = 10 := by
-  let cut : Fin 100 := ⟨10, by omega⟩
-  have herase_1 : ∀ i : Fin 100,
-      empiricalSinglePriceRevenue (Finset.univ.erase i) tenNinetyBids 1 = 99 := fun i => by
-    have hf : ∀ inst : DecidablePred (fun j : Fin 100 => (1 : ℝ) ≤ tenNinetyBids j),
+/-- **Unbounded worst-case competitive ratio of `DOP`** (parametric generalization of
+[HartlineKarlin2007], Example 13.23, p. 340): for every `k ≥ 2`, on `dopBadBids k` (where optimal
+single-price revenue is `k²`), `DOP` offers price `1` to each of the `k` high bidders
+(`k² − 1 > k(k − 1)`) and price `k` to each of the `k² − k` low bidders (`k² > k² − 1`),
+collecting total revenue `k`. -/
+theorem dopMechanism_sum_payment_dopBadBids {k : ℕ} (hk : 2 ≤ k) :
+    ∑ i : Fin (k ^ 2), dopMechanism.payment (dopBadBids k) i = k := by
+  have hk_lt_sq : k < k ^ 2 := by nlinarith
+  have hk1 : (1 : ℝ) < k := by exact_mod_cast (show 1 < k by omega)
+  have hsq_pos : 1 ≤ k ^ 2 := by nlinarith
+  have hk_pos : 1 ≤ k := by omega
+  let cut : Fin (k ^ 2) := ⟨k, hk_lt_sq⟩
+  have herase_1 : ∀ i : Fin (k ^ 2),
+      empiricalSinglePriceRevenue (Finset.univ.erase i) (dopBadBids k) 1 = (k : ℝ) ^ 2 - 1 := by
+    intro i
+    have hf : ∀ inst : DecidablePred (fun j : Fin (k ^ 2) => (1 : ℝ) ≤ dopBadBids k j),
         (@Finset.filter _ _ inst (Finset.univ.erase i)) = Finset.univ.erase i := fun inst => by
       ext j
       rw [@Finset.mem_filter _ _ inst]
-      simp only [and_iff_left_iff_imp, tenNinetyBids]
+      simp only [and_iff_left_iff_imp, dopBadBids]
       intro _
-      split_ifs <;> norm_num
+      split_ifs <;> linarith
     simp only [empiricalSinglePriceRevenue, hf, Finset.card_erase_of_mem (Finset.mem_univ i),
-      Finset.card_univ, Fintype.card_fin]
-    norm_num
-  have herase_10_lt : ∀ i : Fin 100, i.1 < 10 →
-      empiricalSinglePriceRevenue (Finset.univ.erase i) tenNinetyBids 10 = 90 := by
+      Finset.card_univ, Fintype.card_fin, one_mul, Nat.cast_sub hsq_pos, Nat.cast_pow,
+      Nat.cast_one]
+  have herase_k_lt : ∀ i : Fin (k ^ 2), i.1 < k →
+      empiricalSinglePriceRevenue (Finset.univ.erase i) (dopBadBids k) k = (k : ℝ) * (k - 1) := by
     intro i hi
-    have hf : ∀ inst : DecidablePred (fun j : Fin 100 => (10 : ℝ) ≤ tenNinetyBids j),
+    have hf : ∀ inst : DecidablePred (fun j : Fin (k ^ 2) => (k : ℝ) ≤ dopBadBids k j),
         (@Finset.filter _ _ inst (Finset.univ.erase i)) = (Finset.Iio cut).erase i := fun inst => by
       ext j
       rw [@Finset.mem_filter _ _ inst]
       simp only [Finset.mem_erase, Finset.mem_univ, and_true, Finset.mem_Iio, Fin.lt_def, cut,
-        tenNinetyBids]
+        dopBadBids]
       split_ifs with hj
-      · simp only [hj, le_refl, and_true]
-      · simp only [hj, and_false, iff_false]
-        intro ⟨_, h10⟩
-        norm_num at h10
+      · exact ⟨fun ⟨hne, _⟩ => ⟨hne, hj⟩, fun ⟨hne, _⟩ => ⟨hne, le_rfl⟩⟩
+      · exact ⟨fun ⟨_, hle⟩ => absurd hle (not_le.2 hk1), fun ⟨_, hlt⟩ => absurd hlt hj⟩
     have himem : i ∈ Finset.Iio cut := by simp only [Finset.mem_Iio, Fin.lt_def, cut, hi]
-    simp only [empiricalSinglePriceRevenue, hf, Finset.card_erase_of_mem himem, Fin.card_Iio, cut]
-    norm_num
-  have herase_10_ge : ∀ i : Fin 100, ¬ i.1 < 10 →
-      empiricalSinglePriceRevenue (Finset.univ.erase i) tenNinetyBids 10 = 100 := by
+    simp only [empiricalSinglePriceRevenue, hf, Finset.card_erase_of_mem himem, Fin.card_Iio, cut,
+      Nat.cast_sub hk_pos, Nat.cast_one]
+  have herase_k_ge : ∀ i : Fin (k ^ 2), ¬ i.1 < k →
+      empiricalSinglePriceRevenue (Finset.univ.erase i) (dopBadBids k) k = (k : ℝ) ^ 2 := by
     intro i hi
-    have hf : ∀ inst : DecidablePred (fun j : Fin 100 => (10 : ℝ) ≤ tenNinetyBids j),
+    have hf : ∀ inst : DecidablePred (fun j : Fin (k ^ 2) => (k : ℝ) ≤ dopBadBids k j),
         (@Finset.filter _ _ inst (Finset.univ.erase i)) = Finset.Iio cut := fun inst => by
       ext j
       rw [@Finset.mem_filter _ _ inst]
       simp only [Finset.mem_erase, Finset.mem_univ, and_true, Finset.mem_Iio, Fin.lt_def, cut,
-        tenNinetyBids]
+        dopBadBids]
       split_ifs with hj
       · have hne : j ≠ i := fun hjeq => hi (hjeq ▸ hj)
         exact ⟨fun _ => hj, fun _ => ⟨hne, le_rfl⟩⟩
-      · simp only [hj, iff_false]
-        intro ⟨_, h10⟩
-        norm_num at h10
+      · exact ⟨fun ⟨_, hle⟩ => absurd hle (not_le.2 hk1), fun hlt => absurd hlt hj⟩
     simp only [empiricalSinglePriceRevenue, hf, Fin.card_Iio, cut]
-    norm_num
-  have hemp_lt : ∀ i : Fin 100, i.1 < 10 → empiricalMonopolyPrice tenNinetyBids i = 1 := by
+    ring
+  have hemp_lt : ∀ i : Fin (k ^ 2), i.1 < k → empiricalMonopolyPrice (dopBadBids k) i = 1 := by
     intro i hi
-    have hmem := empiricalMonopolyPriceOn_mem_candidates (Finset.univ.erase i) tenNinetyBids
+    have hmem := empiricalMonopolyPriceOn_mem_candidates (Finset.univ.erase i) (dopBadBids k)
     have hge1 := empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn
-      (Finset.univ.erase i) tenNinetyBids 1
+      (Finset.univ.erase i) (dopBadBids k) 1
     rw [herase_1 i] at hge1
-    rcases mem_empiricalCandidatePrices_tenNinetyBids hmem with h0 | h1 | h10
+    rcases mem_empiricalCandidatePrices_dopBadBids hmem with h0 | h1 | hk'
     · exfalso
       rw [h0, empiricalSinglePriceRevenue, zero_mul] at hge1
-      norm_num at hge1
+      nlinarith
     · exact h1
     · exfalso
-      rw [h10, herase_10_lt i hi] at hge1
-      norm_num at hge1
-  have hemp_ge : ∀ i : Fin 100, ¬ i.1 < 10 → empiricalMonopolyPrice tenNinetyBids i = 10 := by
+      rw [hk', herase_k_lt i hi] at hge1
+      nlinarith
+  have hemp_ge : ∀ i : Fin (k ^ 2), ¬ i.1 < k → empiricalMonopolyPrice (dopBadBids k) i = k := by
     intro i hi
-    have hmem := empiricalMonopolyPriceOn_mem_candidates (Finset.univ.erase i) tenNinetyBids
-    have hge10 := empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn
-      (Finset.univ.erase i) tenNinetyBids 10
-    rw [herase_10_ge i hi] at hge10
-    rcases mem_empiricalCandidatePrices_tenNinetyBids hmem with h0 | h1 | h10
+    have hmem := empiricalMonopolyPriceOn_mem_candidates (Finset.univ.erase i) (dopBadBids k)
+    have hgek := empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn
+      (Finset.univ.erase i) (dopBadBids k) k
+    rw [herase_k_ge i hi] at hgek
+    rcases mem_empiricalCandidatePrices_dopBadBids hmem with h0 | h1 | hk'
     · exfalso
-      rw [h0, empiricalSinglePriceRevenue, zero_mul] at hge10
-      norm_num at hge10
+      rw [h0, empiricalSinglePriceRevenue, zero_mul] at hgek
+      nlinarith
     · exfalso
-      rw [h1, herase_1 i] at hge10
-      norm_num at hge10
-    · exact h10
-  have hpay : ∀ i : Fin 100, dopMechanism.payment tenNinetyBids i =
+      rw [h1, herase_1 i] at hgek
+      linarith
+    · exact hk'
+  have hpay : ∀ i : Fin (k ^ 2), dopMechanism.payment (dopBadBids k) i =
       if i ∈ Finset.Iio cut then 1 else 0 := fun i => by
-    by_cases hi : i.1 < 10
+    by_cases hi : i.1 < k
     · have himem : i ∈ Finset.Iio cut := by simp only [Finset.mem_Iio, Fin.lt_def, cut, hi]
-      simp only [himem, ↓reduceIte, dopMechanism, hemp_lt i hi, tenNinetyBids, hi]
-      norm_num
+      have hle : (1 : ℝ) ≤ k := hk1.le
+      simp only [himem, ↓reduceIte, dopMechanism, hemp_lt i hi, dopBadBids, hi, hle]
     · have hinot : i ∉ Finset.Iio cut := by
         simp only [Finset.mem_Iio, Fin.lt_def, cut, hi, not_false_eq_true]
-      simp only [hinot, ↓reduceIte, dopMechanism, hemp_ge i hi, tenNinetyBids, hi]
-      norm_num
+      have hnle : ¬ (k : ℝ) ≤ 1 := not_le.2 hk1
+      simp only [hinot, ↓reduceIte, dopMechanism, hemp_ge i hi, dopBadBids, hi, hnle]
   simp_rw [hpay]
   rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, Fin.card_Iio]
-  simp only [cut, nsmul_eq_mul]
-  norm_num
+  simp only [cut, nsmul_eq_mul, mul_one]
 
 open Classical in
 /-- **Empirical Myerson single-item mechanism (`EM`)** ([HartlineKarlin2007], Definition 13.20,

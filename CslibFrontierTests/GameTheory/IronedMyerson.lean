@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.GameTheory.Mechanism.Ironing
+import CslibFrontier.GameTheory.Mechanism.Ironing
 import Mathlib.Analysis.Calculus.Deriv.Add
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Pow
@@ -35,7 +35,7 @@ Checked non-vacuous witnesses exercising `CslibFrontier.GameTheory.Mechanism.Iro
      (`![4/3, 4/3, 12]`) pooled virtual values;
    * 2-bidder i.i.d. single-item auction on `![4, 5, 12]` achieving optimal expected revenue `6`,
      strictly exceeding un-pooled Vickrey (`43/8`), verified via
-     `expectedDiscreteSumPayment_le_ironed`.
+     `expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue`.
 2. **Continuous bimodal irregular density on `[0, 3]`**:
    * continuous positive density `bimodalDensity` (`2/3` on `[0, 1]`, cubic trough down to `2/27` at
      `v = 2`, rising linearly to a second mode `4/27` at `v = 3`);
@@ -45,20 +45,22 @@ Checked non-vacuous witnesses exercising `CslibFrontier.GameTheory.Mechanism.Iro
    * explicit continuous ironed virtual valuation `bimodalIroned` pooling `[1, 2]` at `+1/2 > 0`,
      satisfying `IsIronedVirtualValue` (and negative witness showing un-ironed `φ` fails
      `IsIronedVirtualValue`);
-   * instantiation of `Vickrey.integral_sum_payment_le_ironed` and irregular digital-goods monopoly
-     pricing `IsMonopolyPrice bimodal (3 / 4)` (`integral_sum_payment_le_postedPriceDigitalGoods`).
+   * instantiation of `Vickrey.integral_sum_payment_le_ironed_of_isIronedVirtualValue` and irregular
+     digital-goods monopoly pricing `IsMonopolyPrice bimodal (3 / 4)`
+     (`integral_sum_payment_le_postedPriceDigitalGoods`).
 3. **Seller reservation value `v₀ = 1/3`** (Exercise 13.1): shifted reserve `2/3` on `U[0, 1]`
-   (`Vickrey.integral_profit_le_sellerReserve`) and ironed seller-reserve optimality on irregular
-   `bimodal` (`Vickrey.integral_profit_le_ironed_sellerReserve`).
+   (`Vickrey.integral_profit_le_sellerReserve`) and conditional ironed seller-reserve optimality on
+   irregular `bimodal` (`Vickrey.integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue`).
 4. **Empirical Myerson (`DOP` Example 13.23 and single-item `EM` Exercise 13.4)**:
-   * `10` bids at `$10` and `90` bids at `$1`: optimal single-price revenue `100` vs. `DOP` profit
-     `10` (`empiricalSinglePriceRevenue_tenNinetyBids_opt`,
-     `dopMechanism_sum_payment_tenNinetyBids`);
+   * `k = 10` instance of `dopBadBids` (`10` bids at `$10` and `90` bids at `$1`): optimal
+     single-price revenue `100` vs. `DOP` profit `10`
+     (`empiricalSinglePriceRevenue_dopBadBids_opt`, `dopMechanism_sum_payment_dopBadBids`);
    * `n = 3` single-item profiles (strict winner and exact tie) verifying
      `empiricalSingleItemMechanism_allocation` and `empiricalSingleItemMechanism_payment`.
 -/
 
-public section
+-- Downstream leaf test module intentionally keeps declarations non-public.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GameTheory.IronedMyerson
 
@@ -202,7 +204,7 @@ private theorem sum_fin2_fin3 (F : (Fin 2 → Fin 3) → ℝ) :
 
 /-- Two-bidder i.i.d. auction on `![4, 5, 12]`: pooling `{4, 5}` at `+4/3 > 0` achieves expected
 revenue `6`, strictly exceeding un-pooled Vickrey (`43/8`), and dominates every discrete DSIC, IR
-single-item mechanism by `expectedDiscreteSumPayment_le_ironed`. -/
+single-item mechanism by `expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue`. -/
 example :
     (∑ k : Fin 2 → Fin 3, (∏ j, discretePosPool.prob (k j)) *
         ∑ i, discretePosPool.envelopePayment
@@ -296,8 +298,9 @@ example :
     exact discretePosPool.envelopePayment_isDiscreteIR fun r => by
       rcases (hv_mem (Function.update k i r)).1 i with h | h <;> rw [h]
       exact zero_le_one
-  have hopt := expectedDiscreteSumPayment_le_ironed (fun _ : Fin 2 => discretePosPool)
-    (fun _ => isDiscreteIroned_discretePosPool) hx_max hx_pool (p' := pVick) hv_mem hv_dsic hv_ir
+  have hopt := expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
+    (fun _ : Fin 2 => discretePosPool) (fun _ => isDiscreteIroned_discretePosPool)
+    hx_max hx_pool (p' := pVick) hv_mem hv_dsic hv_ir
   have hrev_v : (∑ k : Fin 2 → Fin 3, (∏ j, discretePosPool.prob (k j)) *
       ∑ i, pVick k i) = 43 / 8 := by
     rw [sum_fin2_fin3]
@@ -799,7 +802,8 @@ example :
       rcases (Vickrey.ironedAllocation_mem_singleItemFeasible
         (fun _ : Fin 2 => bimodalIroned) b).1 i with h | h <;> rw [h]
       exact zero_le_one),
-    Vickrey.integral_sum_payment_le_ironed (fun _ => hasValueDensity_bimodal)
+    Vickrey.integral_sum_payment_le_ironed_of_isIronedVirtualValue
+      (fun _ => hasValueDensity_bimodal)
       (fun _ => isIronedVirtualValue_bimodal) (fun _ => monotone_bimodalIroned.monotoneOn _)
       mechanism_isDSIC mechanism_isIR (fun v _ => allocation_mem_singleItemFeasible v)
       measurable_allocation⟩
@@ -905,7 +909,7 @@ example :
     (fun v _ => allocation_mem_singleItemFeasible v) measurable_allocation⟩
 
 /-- **Irregular Exercise 13.1 witness on `bimodal` with seller value `v₀ = 1 / 3`:** instantiating
-`Vickrey.integral_profit_le_ironed_sellerReserve`. -/
+`Vickrey.integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue`. -/
 example :
     ∫ v, ((∑ i, (Vickrey.mechanism (ι := Fin 2)).payment v i) -
         (1 / 3) * ∑ i, (Vickrey.mechanism (ι := Fin 2)).allocation v i)
@@ -915,23 +919,26 @@ example :
         (1 / 3) * ∑ i, Vickrey.ironedAllocation
           (fun _ : Fin 2 => fun z => bimodalIroned z - 1 / 3) v i)
         ∂Measure.pi (fun _ => bimodal) :=
-  Vickrey.integral_profit_le_ironed_sellerReserve (fun _ => hasValueDensity_bimodal)
+  Vickrey.integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue
+    (fun _ => hasValueDensity_bimodal)
     (fun _ => isIronedVirtualValue_bimodal) (fun _ => monotone_bimodalIroned.monotoneOn _)
     (by norm_num) mechanism_isDSIC mechanism_isIR
     (fun v _ => allocation_mem_singleItemFeasible v) measurable_allocation
 
 /-! ### 4. Empirical Myerson: `DOP` (Example 13.23) and single-item `EM` (Exercise 13.4) -/
 
-/-- **Example 13.23 client check:** `DOP` is DSIC and IR, optimal single-price revenue on
-`tenNinetyBids` is `100`, and `DOP` total revenue is `10`. -/
+/-- **Example 13.23 client check (`k = 10` of `dopBadBids`):** `DOP` is DSIC and IR, optimal
+single-price revenue on `dopBadBids 10` (`10` bids at `$10` and `90` bids at `$1`) is `100`, and
+`DOP` total revenue is `10`. -/
 example :
-    (dopMechanism (ι := Fin 100)).IsDSIC ∧
-      (dopMechanism (ι := Fin 100)).IsIR ∧
-      empiricalSinglePriceRevenue Finset.univ tenNinetyBids
-        (empiricalMonopolyPriceOn Finset.univ tenNinetyBids) = 100 ∧
-      ∑ i : Fin 100, dopMechanism.payment tenNinetyBids i = 10 :=
-  ⟨dopMechanism_isDSIC, dopMechanism_isIR, empiricalSinglePriceRevenue_tenNinetyBids_opt,
-    dopMechanism_sum_payment_tenNinetyBids⟩
+    (dopMechanism (ι := Fin (10 ^ 2))).IsDSIC ∧
+      (dopMechanism (ι := Fin (10 ^ 2))).IsIR ∧
+      empiricalSinglePriceRevenue Finset.univ (dopBadBids 10)
+        (empiricalMonopolyPriceOn Finset.univ (dopBadBids 10)) = 100 ∧
+      ∑ i : Fin (10 ^ 2), dopMechanism.payment (dopBadBids 10) i = 10 :=
+  ⟨dopMechanism_isDSIC, dopMechanism_isIR,
+    by rw [empiricalSinglePriceRevenue_dopBadBids_opt (by decide)]; norm_num,
+    by rw [dopMechanism_sum_payment_dopBadBids (by decide)]; norm_num⟩
 
 /-- **Exercise 13.4 client check on `n = 3` (strict winner `![10, 1, 8]` and exact tie
 `![8, 8, 2]`):** `empiricalSingleItemMechanism` matches `Vickrey.mechanism` in allocation and
