@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Scale
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Isolation
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -258,7 +259,6 @@ dilation factor is larger than twice their radius. -/
 theorem eq_of_inPointBoxes {a b : Point} {k radius : ℕ} (hr : 2 * radius < k)
     {p : ℝ × ℝ} (ha : inPointBox (k • a) radius p) (hb : inPointBox (k • b) radius p) :
     a = b := by
-  have hr' : 2 * (radius : ℝ) < k := by exact_mod_cast hr
   rcases a with ⟨ax, ay⟩
   rcases b with ⟨bx, by'⟩
   simp only [inPointBox, Prod.smul_mk, Int.nsmul_eq_mul, Int.cast_mul,
@@ -270,9 +270,9 @@ theorem eq_of_inPointBoxes {a b : Point} {k radius : ℕ} (hr : 2 * radius < k)
     by_contra h
     rcases lt_or_gt_of_ne h with hd | hd
     · have hd' : (u : ℝ) + 1 ≤ v := by exact_mod_cast hd
-      nlinarith
+      cast_nlinarith [hr]
     · have hd' : (v : ℝ) + 1 ≤ u := by exact_mod_cast hd
-      nlinarith
+      cast_nlinarith
   exact Prod.ext (hcoord ha.1 ha.2.1 hb.1 hb.2.1) (hcoord ha.2.2.1 ha.2.2.2 hb.2.2.1 hb.2.2.2)
 
 /-- Distinct source vertices have disjoint closed local boxes under a sufficiently large

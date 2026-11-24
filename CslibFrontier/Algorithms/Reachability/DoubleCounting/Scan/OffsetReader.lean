@@ -151,7 +151,9 @@ theorem load_inSpace : ComputableInSpace load encRequest (encOption encContext)
   have ho := encRequest_offset_budget (fst encRequest encState)
   have hs := snd encRequest encState
   have hsome := budget_optionSome (QueryMachine.encLocated_mk_budget State encState ho hs)
-  have hnone := budget_const (encIn := encRequest) (encB := encOption encContext) none (.refl _)
+  have hnone :=
+    budget_const (Bs := fun a => (encRequest a).length) (encIn := encRequest)
+      (encB := encOption encContext) none
   exact (budget_comp_linear (optionElimSnd hnone hsome) (budget_prod hid hp)).of_enc_eq
     fun r => by cases hp : prepare r.parameters <;> simp [load, hp]
 

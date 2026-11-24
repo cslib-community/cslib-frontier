@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.TwoPoint
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.BinomialSeries
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.OneAddRpow
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Calculus.Deriv.Pow
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
@@ -234,8 +235,7 @@ private theorem choose_add_two_mul (a : ℝ) (n : ℕ) :
     have h := Ring.choose_smul_choose a (Nat.le_add_right m 1)
     rw [Nat.choose_succ_self_right, Nat.add_sub_cancel_left, Ring.choose_one_right,
       nsmul_eq_mul] at h
-    push_cast at h
-    linarith only [h]
+    cast_linarith only [h]
   have h2 := h1 (n + 1)
   push_cast at h2
   linear_combination (n + 1 : ℝ) * h2 + (a - n - 1) * h1 n

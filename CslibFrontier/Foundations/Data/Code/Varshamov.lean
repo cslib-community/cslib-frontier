@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.Code.BallVolume
 public import CslibFrontier.Foundations.Data.Code.ParityCheck
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Lindsey
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.LinearAlgebra.Dimension.Free
 
 /-!
@@ -72,8 +73,7 @@ private theorem card_filter_dotProduct_eq_zero_mul_two {x : ι → ZMod 2} (hx :
   rw [card_univ, Fintype.card_fun, ZMod.card] at hsplit
   have hR : (#{r : ι → ZMod 2 | r ⬝ᵥ x = 0} : ℝ) * 2 = 2 ^ Fintype.card ι := by
     have := congrArg (Nat.cast (R := ℝ)) hsplit
-    push_cast at this
-    linarith
+    cast_linarith
   exact_mod_cast hR
 
 omit [DecidableEq ι] in
@@ -144,8 +144,7 @@ theorem exists_linearMap_injective_and_le_hammingDist {δ : ℝ} (hδ₀ : 0 ≤
       have e : (m : ℝ) * (1 - binEntropy δ / log 2) * log 2 = m * log 2 - m * binEntropy δ := by
         field_simp
       linarith
-    have hcardR : (#B : ℝ) + 1 ≤ #ball := by exact_mod_cast hcard
-    have : (#B : ℝ) < 2 ^ (m - n) := by linarith
+    have : (#B : ℝ) < 2 ^ (m - n) := by cast_linarith [hcard]
     exact_mod_cast this
   obtain ⟨H, hH⟩ := exists_mulVec_ne_zero_of_card_lt (by simp [B]) hB
   -- The kernel of `H` has dimension at least `n`.
