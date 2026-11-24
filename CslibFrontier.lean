@@ -6673,6 +6673,13 @@ public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFallback
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModel
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.DeleteHelpers
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.DeleteLast
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.DeleteReloc
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.FastDelete
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.Invariants
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.MapRel
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep.Overmars
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpParams
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpProb
