@@ -612,7 +612,8 @@ private theorem realizes_bufWalkStep :
       BufWalkStepPre
       (fun _ _ => 0) := by
   unfold bufWalkStepProg
-  realize [realizes_readPackedGen]
+  have hrp := realizes_readPackedGen
+  realize
   all_goals
     rcases d with ⟨rt, ⟨alive, ⟨cur, r_cur⟩⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hcur⟩ := h
@@ -830,7 +831,8 @@ private theorem realizes_bufEverLeafRt :
       (fun w d _ => BufRtEnvGen w d.1 ∧ d.2 < brMaxNodes d.1)
       (fun _ _ => 0) := by
   unfold bufEverLeafRtProg
-  realize [realizes_readPackedGen]
+  have hrp := realizes_readPackedGen
+  realize
   all_goals
     rcases d with ⟨rt, leaf⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hleaf⟩ := h
@@ -955,7 +957,10 @@ theorem realizes_bufEverPresentGen :
       BufReadGenPre
       (fun _ _ => 0) := by
   unfold bufEverPresentGenProg
-  realize [realizes_mkBufRtGen, realizes_bufWalkLoopGen, realizes_bufEverLeafRt]
+  have hmrt := realizes_mkBufRtGen
+  have hwl := realizes_bufWalkLoopGen
+  have hel := realizes_bufEverLeafRt
+  realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, ep⟩, rKey⟩
     obtain ⟨c, U, V, w₀, n_max, tr, mapFn, henv, rfl, hep, hrep, hv⟩ := h
@@ -1009,8 +1014,9 @@ private theorem realizes_bufReadItemPairRt :
       (fun w d _ => BufRtEnvGen w d.1 ∧ d.2 < brQEp d.1)
       (fun _ _ => 0) := by
   unfold bufReadItemPairRtProg
+  have hrp := realizes_readPackedGen
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen]
+  realize
   all_goals
     rcases d with ⟨rt, id⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hid⟩ := h
@@ -1079,8 +1085,10 @@ private theorem realizes_bufLookupLeafRt :
       BufLookupLeafPre
       (fun _ _ => 0) := by
   unfold bufLookupLeafRtProg
+  have hrp := realizes_readPackedGen
+  have hrip := realizes_bufReadItemPairRt
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_bufReadItemPairRt]
+  realize
   all_goals
     rcases d with ⟨rt, leaf⟩
     obtain ⟨c, U, V, w₀, n_max, base, ep, tr, henv, hep, rfl, hrep, hleaf, hli_le⟩ := h
@@ -1288,7 +1296,10 @@ theorem realizes_bufLookupGen :
       BufReadGenPre
       (fun _ _ => 0) := by
   unfold bufLookupGenProg
-  realize [realizes_mkBufRtGen, realizes_bufWalkLoopGen, realizes_bufLookupLeafRt]
+  have hmrt := realizes_mkBufRtGen
+  have hwl := realizes_bufWalkLoopGen
+  have hll := realizes_bufLookupLeafRt
+  realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, ep⟩, rKey⟩
     obtain ⟨c, U, V, w₀, n_max, tr, mapFn, henv, rfl, hep, hrep, hv⟩ := h
@@ -1359,8 +1370,10 @@ private theorem realizes_bufDeleteLeafRt :
       (fun w d _ => BufRtEnvGen w d.1 ∧ d.2 < brMaxNodes d.1)
       (fun _ _ => 0) := by
   unfold bufDeleteLeafRtProg
+  have hrp := realizes_readPackedGen
+  have hwp := realizes_writePackedGen
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_writePackedGen]
+  realize
   all_goals
     rcases d with ⟨rt, leaf⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hleaf⟩ := h
@@ -1585,7 +1598,10 @@ theorem realizes_bufDeleteGen :
       BufReadGenPre
       (fun _ _ => 0) := by
   unfold bufDeleteGenProg
-  realize [realizes_mkBufRtGen, realizes_bufWalkLoopGen, realizes_bufDeleteLeafRt]
+  have hmrt := realizes_mkBufRtGen
+  have hwl := realizes_bufWalkLoopGen
+  have hdl := realizes_bufDeleteLeafRt
+  realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, ep⟩, rKey⟩
     obtain ⟨c, U, V, w₀, n_max, tr, mapFn, henv, rfl, hep, hrep, hv⟩ := h
@@ -1633,7 +1649,8 @@ private theorem realizes_bufAllocMetaRt :
       (fun w d _ => BufRtEnvGen w d.1.1 ∧ d.1.2 < brMaxNodes d.1.1)
       (fun _ _ => 0) := by
   unfold bufAllocMetaRtProg
-  realize [realizes_writePackedGen]
+  have hwp := realizes_writePackedGen
+  realize
   all_goals
     rcases d with ⟨⟨rt, u⟩, ⟨cur, ch⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hu⟩ := h
@@ -1750,9 +1767,11 @@ private theorem realizes_bufAllocNodeRt :
       BufAllocNodePre
       (fun _ _ => 0) := by
   unfold bufAllocNodeRtProg
+  have hwp := realizes_writePackedGen
+  have ham := realizes_bufAllocMetaRt
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
   have hcr_r : ∀ a s', (Memory.spec 0).clientResult s' (Memory.read a) = s'.mem a := fun _ _ => rfl
-  realize [realizes_writePackedGen, realizes_bufAllocMetaRt]
+  realize
   all_goals
     rcases d with ⟨⟨rt, ⟨cur, ch⟩⟩, r_nxt⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hcur, hch, hu_lt⟩ := h
@@ -2046,8 +2065,10 @@ private theorem realizes_bufEnsureStep :
       BufEnsureStepPre
       (fun _ _ => 0) := by
   unfold bufEnsureStepProg
+  have hrp := realizes_readPackedGen
+  have han := realizes_bufAllocNodeRt
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_bufAllocNodeRt]
+  realize
   all_goals
     rcases d with ⟨rt, ⟨cur, r_cur⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hcur, hna_lt⟩ := h
@@ -2338,7 +2359,8 @@ private theorem realizes_bufWriteItemTripleRt :
       (fun w d _ => BufRtEnvGen w d.1.1.1 ∧ d.1.1.2 < brQEp d.1.1.1)
       (fun _ _ => 0) := by
   unfold bufWriteItemTripleRtProg
-  realize [realizes_writePackedGen]
+  have hwp := realizes_writePackedGen
+  realize
   all_goals
     rcases d with ⟨⟨⟨rt, id⟩, leaf⟩, ⟨b, loc⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hid⟩ := h
@@ -2457,6 +2479,8 @@ private theorem realizes_bufInsertFreshRt :
         s.mem (brBase d.1.1 + brHdrIA d.1.1) < brQEp d.1.1)
       (fun _ _ => 0) := by
   unfold bufInsertFreshRtProg
+  have hwp := realizes_writePackedGen
+  have hwt := realizes_bufWriteItemTripleRt
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
   have hcr_r : ∀ a s', (Memory.spec 0).clientResult s' (Memory.read a) = s'.mem a := fun _ _ => rfl
   have hcs_w : ∀ a v s', (Memory.spec 0).clientState s' (Memory.write a v) =
@@ -2464,7 +2488,7 @@ private theorem realizes_bufInsertFreshRt :
   have hcs_wp : ∀ x s', (Memory.spec 0).clientState s' (writePackedGenProg x) =
       { mem := writePacked (x.1.1.1.1 + x.1.1.1.2) x.1.1.2.1 x.1.1.2.2 s'.mem x.1.2 x.2,
         frontier := s'.frontier } := fun _ _ => rfl
-  realize [realizes_writePackedGen, realizes_bufWriteItemTripleRt]
+  realize
   all_goals
     rcases d with ⟨⟨rt, leaf⟩, ⟨b, loc⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hleaf, hid_lt⟩ := h
@@ -2511,7 +2535,8 @@ private theorem realizes_bufInsertUpdRt :
         d.1.2 < brQEp d.1.1.1)
       (fun _ _ => 0) := by
   unfold bufInsertUpdRtProg
-  realize [realizes_writePackedGen]
+  have hwp := realizes_writePackedGen
+  realize
   all_goals
     rcases d with ⟨⟨⟨rt, leaf⟩, id⟩, ⟨b, loc⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hleaf, hid⟩ := h
@@ -2562,8 +2587,11 @@ private theorem realizes_bufInsertLeafRt :
       BufInsertLeafPre
       (fun _ _ => 0) := by
   unfold bufInsertLeafRtProg
+  have hrp := realizes_readPackedGen
+  have hfr := realizes_bufInsertFreshRt
+  have hup := realizes_bufInsertUpdRt
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_bufInsertFreshRt, realizes_bufInsertUpdRt]
+  realize
   all_goals
     rcases d with ⟨⟨rt, leaf⟩, ⟨b, loc⟩⟩
     obtain ⟨c, U, V, w₀, n_max, base, ep, tr, henv, hep, rfl, hrep, hleaf, hia_lt, hli_le⟩ := h
@@ -3083,7 +3111,10 @@ theorem realizes_bufInsertGen :
       BufInsertGenPre
       (fun _ _ => 0) := by
   unfold bufInsertGenProg
-  realize [realizes_mkBufRtGen, realizes_bufEnsureLoopGen, realizes_bufInsertLeafRt]
+  have hmrt := realizes_mkBufRtGen
+  have hel := realizes_bufEnsureLoopGen
+  have hil := realizes_bufInsertLeafRt
+  realize
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, ep⟩, rKey⟩, ⟨b, loc⟩⟩
     obtain ⟨c, U, V, w₀, n_max, tr, mapFn, henv, rfl, hep, hrep, hv,
@@ -3161,8 +3192,10 @@ private theorem realizes_bufCheckSlotLeafRt :
       (fun w d _ => BufRtEnvGen w d.1.1 ∧ d.1.2 < brQEp d.1.1 ∧ d.2 < brMaxNodes d.1.1)
       (fun _ _ => 0) := by
   unfold bufCheckSlotLeafRtProg
+  have hrp := realizes_readPackedGen
+  have hrip := realizes_bufReadItemPairRt
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_bufReadItemPairRt]
+  realize
   all_goals
     rcases d with ⟨⟨rt, id⟩, leaf⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hid, hleaf⟩ := h
@@ -3217,10 +3250,12 @@ private theorem realizes_bufCheckSlotInBoundsRt :
         s.mem (brBase d.1 + brHdrNA d.1) ≤ brMaxNodes d.1)
       (fun _ _ => 0) := by
   unfold bufCheckSlotInBoundsRtProg
+  have hrp := realizes_readPackedGen
+  have hsl := realizes_bufCheckSlotLeafRt
   have hcs_p : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
   have hcr_r : ∀ a s', (Memory.spec 0).clientResult s' (Memory.read a) = s'.mem a := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_bufCheckSlotLeafRt]
+  realize
   all_goals
     rcases d with ⟨rt, id⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hid, hna_le⟩ := h
@@ -3436,9 +3471,11 @@ theorem realizes_bufCheckSlotGen :
       BufReadGenPre
       (fun _ _ => 0) := by
   unfold bufCheckSlotGenProg
+  have hmrt := realizes_mkBufRtGen
+  have hsib := realizes_bufCheckSlotInBoundsRt
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
   have hcr_r : ∀ a s', (Memory.spec 0).clientResult s' (Memory.read a) = s'.mem a := fun _ _ => rfl
-  realize [realizes_mkBufRtGen, realizes_bufCheckSlotInBoundsRt]
+  realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, ep⟩, id⟩
     obtain ⟨c, U, V, w₀, n_max, tr, mapFn, henv, rfl, hep, hrep, _⟩ := h
@@ -3494,7 +3531,8 @@ private theorem realizes_bufClearEdgeRt :
       (fun w d _ => BufRtEnvGen w d.1 ∧ d.2.1 < brMaxNodes d.1)
       (fun _ _ => 0) := by
   unfold bufClearEdgeRtProg
-  realize [realizes_writePackedGen]
+  have hwp := realizes_writePackedGen
+  realize
   all_goals
     rcases d with ⟨rt, ⟨par, ch⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hpar⟩ := h
@@ -3548,7 +3586,8 @@ private theorem realizes_bufClearPopTailRt :
       (fun w d _ => BufRtEnvGen w d.1 ∧ d.2 < brMaxNodes d.1)
       (fun _ _ => 0) := by
   unfold bufClearPopTailRtProg
-  realize [realizes_writePackedGen]
+  have hwp := realizes_writePackedGen
+  realize
   all_goals
     rcases d with ⟨rt, u⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hu⟩ := h
@@ -3600,8 +3639,11 @@ private theorem realizes_bufClearPopRt :
           brMaxNodes d.1)
       (fun _ _ => 0) := by
   unfold bufClearPopRtProg
+  have hrp := realizes_readPackedGen
+  have hce := realizes_bufClearEdgeRt
+  have hpt := realizes_bufClearPopTailRt
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize [realizes_readPackedGen, realizes_bufClearEdgeRt, realizes_bufClearPopTailRt]
+  realize
   all_goals
     rcases d with ⟨rt, u⟩
     obtain ⟨⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩, hu, hpar_lt⟩ := h
@@ -3653,7 +3695,8 @@ private theorem realizes_bufClearRootRt :
       (fun w rt _ => BufRtEnvGen w rt)
       (fun _ _ => 0) := by
   unfold bufClearRootRtProg
-  realize [realizes_writePackedGen]
+  have hwp := realizes_writePackedGen
+  realize
   all_goals
     obtain ⟨c, U, V, w₀, n_max, base, ep, henv, hep, rfl⟩ := h
     have hw_eq := henv.2.2.1
@@ -3700,9 +3743,11 @@ private theorem realizes_bufClearOneRt :
       BufClearOnePre
       (fun _ _ => 0) := by
   unfold bufClearOneRtProg
+  have hcp := realizes_bufClearPopRt
+  have hcr := realizes_bufClearRootRt
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
   have hcr_r : ∀ a s', (Memory.spec 0).clientResult s' (Memory.read a) = s'.mem a := fun _ _ => rfl
-  realize [realizes_bufClearPopRt, realizes_bufClearRootRt]
+  realize
   all_goals
     rcases d with ⟨rt, ⟨⟩⟩
     obtain ⟨c, U, V, w₀, n_max, base, ep, tr, henv, hep, rfl, hrep, hclr⟩ := h
@@ -4180,7 +4225,9 @@ theorem realizes_bufClearStepsGen :
       BufClearStepsGenPre
       (fun _ _ => 0) := by
   unfold bufClearStepsGenProg
-  realize [realizes_mkBufRtGen, realizes_bufClearLoopGen]
+  have hmrt := realizes_mkBufRtGen
+  have hcl := realizes_bufClearLoopGen
+  realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, ep⟩, k⟩
     obtain ⟨c, U, V, w₀, n_max, tr, henv, rfl, hep, hrep, hclr⟩ := h

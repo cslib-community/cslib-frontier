@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Budget
-import Mathlib.Tactic.Ring
 
 /-!
 # Formulas for counting the names of constants
@@ -242,7 +241,7 @@ theorem DC_none {t : Bt} {x : Tree} (h : Bt.dec x.path t = none) : Ev θ DC
 theorem AW_ev (w : List Bool) : ∃ k ≤ 20 * w.length + 5, ∃ o, Ev θ AW (.cons AW.code (ofBits w))
     (if w.all (! ·) then [.det k o] else []) := by
   induction w with
-  | nil => exact ⟨_, by norm_num, _, Dt.ite_false (.tl (.id _)) (.quote _ _)⟩
+  | nil => exact ⟨_, by omega, _, Dt.ite_false (.tl (.id _)) (.quote _ _)⟩
   | cons b w ih =>
     obtain ⟨k, hk, o, ih⟩ := ih
     cases b with
@@ -302,20 +301,17 @@ theorem AZ_ev (t : Bt) : ∃ k ≤ 40 * t.nds, ∃ o,
   | node l r ihl ihr =>
     obtain ⟨kl, hkl, ol, hl⟩ := ihl
     obtain ⟨kr, hkr, or, hr⟩ := ihr
-    have el : Ev θ (.run (.hd .id) (.cons (.hd .id) (.hd (.hd (.tl .id)))))
-        (.cons AZ.code (Bt.node l r).enc)
-        ((if l.zero then [.det kl ol] else []).map (Run.delay 10)) := by
-      refine Ev.run_det (k := 2) (j := 7) (.hd (.id _))
-          (.cons (.hd (.id _)) (.hd (.hd (.tl (.id _))))) ?_
+    have erun (arg : Fm) {t : Bt} {kt : ℕ} {ot : Tree}
+        (hs : Dt θ (.cons (.hd .id) arg) (.cons AZ.code (Bt.node l r).enc)
+          (.cons AZ.code t.enc) 7)
+        (ht : Ev θ AZ (.cons AZ.code t.enc) (if t.zero then [.det kt ot] else [])) :
+        Ev θ (.run (.hd .id) (.cons (.hd .id) arg)) (.cons AZ.code (Bt.node l r).enc)
+          ((if t.zero then [.det kt ot] else []).map (Run.delay 10)) := by
+      refine Ev.run_det (k := 2) (j := 7) (.hd (.id _)) hs ?_
       simp only [hd_cons, Fm.ofTree_code]
-      exact hl
-    have er : Ev θ (.run (.hd .id) (.cons (.hd .id) (.tl (.hd (.tl .id)))))
-        (.cons AZ.code (Bt.node l r).enc)
-        ((if r.zero then [.det kr or] else []).map (Run.delay 10)) := by
-      refine Ev.run_det (k := 2) (j := 7) (.hd (.id _))
-          (.cons (.hd (.id _)) (.tl (.hd (.tl (.id _))))) ?_
-      simp only [hd_cons, Fm.ofTree_code]
-      exact hr
+      exact ht
+    have el := erun (.hd (.hd (.tl .id))) (.cons (.hd (.id _)) (.hd (.hd (.tl (.id _))))) hl
+    have er := erun (.tl (.hd (.tl .id))) (.cons (.hd (.id _)) (.tl (.hd (.tl (.id _))))) hr
     simp only [Bt.zero]
     by_cases hzl : l.zero
     · by_cases hzr : r.zero

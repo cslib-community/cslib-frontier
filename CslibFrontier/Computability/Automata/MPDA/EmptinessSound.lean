@@ -60,10 +60,8 @@ theorem stacksOf_append_singleton (C : List (HoleChain n Γ)) (c : HoleChain n �
     stacksOf (C ++ [c]) =
       Function.update (stacksOf C) c.stack (c.pushes.map Prod.snd ++ stacksOf C c.stack) := by
   funext j
-  by_cases hj : j = c.stack
-  · subst hj
-    simp [stacksOf, List.filter_append]
-  · simp [stacksOf, List.filter_append, Function.update_of_ne hj, Ne.symm hj]
+  by_cases hj : j = c.stack <;>
+    simp [stacksOf, List.filter_append, hj, Function.update_of_ne, Ne.symm]
 
 theorem stacksOf_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {p : ℕ} {γ : Γ}
     {ps : List (ℕ × Γ)} (hpost : ∀ c ∈ post, c.stack ≠ i) :
@@ -74,10 +72,8 @@ theorem stacksOf_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {p : ℕ} {�
       (post.filter fun c => decide (c.stack = i)) = [] := fun _ =>
     List.filter_eq_nil_iff.mpr fun c hc => by simpa using hpost c hc
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [stacksOf, List.filter_append, hfilter []]
-  · simp [stacksOf, List.filter_append, Function.update_of_ne hj, Ne.symm hj]
+  by_cases hj : j = i <;>
+    simp [stacksOf, List.filter_append, hfilter [], hj, Function.update_of_ne, Ne.symm]
 
 theorem stacksOf_close {pre post : List (HoleChain n Γ)} {i : Fin n} :
     stacksOf (pre ++ ⟨i, []⟩ :: post) = stacksOf (pre ++ post) := by
