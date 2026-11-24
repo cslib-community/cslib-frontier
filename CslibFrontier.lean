@@ -8387,6 +8387,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumIn
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.NoCloning
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.PartialTracePairing
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
