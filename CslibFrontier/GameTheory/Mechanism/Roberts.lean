@@ -586,6 +586,34 @@ private theorem gamma_add [Finite ι] [Nonempty ι] [DecidableEq Ω]
 private def openShifted [DecidableEq Ω] (f : (ι → Ω → ℝ) → Ω) (x y : Ω) : Set (ι → ℝ) :=
   {α | ∃ ε : ℝ, 0 < ε ∧ (fun i => α i + gamma f x y - ε) ∈ diffSet f x y}
 
+private theorem openShifted_trans_add [Finite ι] [Nonempty ι] [DecidableEq Ω]
+    {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
+    (hpad : IsPADOn f (fun _ => Set.univ))
+    (hgw : IsGeneralizedWMONOn f (fun _ => Set.univ))
+    {x y z : Ω} (hxy : x ≠ y) (hyz : y ≠ z) (hxz : x ≠ z)
+    {α β : ι → ℝ} (hα : α ∈ openShifted f x y) (hβ : β ∈ openShifted f y z) :
+    α + β ∈ openShifted f x z := by
+  obtain ⟨ε₁, hε₁, hmem₁⟩ := hα
+  obtain ⟨ε₂, hε₂, hmem₂⟩ := hβ
+  have htri := add_shift_mem_diffSet hf_onto hgw hxy hyz hxz hmem₁ hmem₂
+    (δ := (ε₁ + ε₂) / 2) (by linarith)
+  refine ⟨(ε₁ + ε₂) / 2, by linarith, ?_⟩
+  convert htri using 1
+  ext i
+  rw [gamma_add hf_onto hpad hgw x y z]
+  simp only [Pi.add_apply]
+  ring
+
+private theorem const_pos_mem_openShifted [Finite ι] [Nonempty ι] [DecidableEq Ω]
+    {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
+    (hpad : IsPADOn f (fun _ => Set.univ)) {x y : Ω} (hxy : x ≠ y)
+    {r : ℝ} (hr : 0 < r) : (fun _ : ι => r) ∈ openShifted f x y := by
+  refine ⟨r / 2, by linarith, ?_⟩
+  convert const_mem_diffSet_of_gamma_lt hf_onto hpad hxy (p := gamma f x y + r / 2) (by linarith)
+    using 1
+  ext _
+  ring
+
 private theorem openShifted_subset_right [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
     (hpad : IsPADOn f (fun _ => Set.univ))
@@ -595,34 +623,26 @@ private theorem openShifted_subset_right [Finite ι] [Nonempty ι] [DecidableEq 
   by_cases hyz : y = z
   · subst hyz; exact Set.Subset.rfl
   rintro α ⟨ε, hε, hmem⟩
-  have hyz_mem := const_mem_diffSet_of_gamma_lt hf_onto hpad hyz
-    (p := gamma f y z + ε / 4) (by linarith)
-  have htri := add_shift_mem_diffSet hf_onto hgw hxy hyz hxz hmem hyz_mem
-    (δ := ε / 4) (by linarith)
-  refine ⟨ε / 2, by linarith, ?_⟩
-  convert htri using 1
-  ext i
-  rw [gamma_add hf_onto hpad hgw x y z]
-  ring
+  have hα' : (fun i => α i - ε / 2) ∈ openShifted f x y :=
+    ⟨ε / 2, by linarith, by convert hmem using 1; ext _; ring⟩
+  have hc := const_pos_mem_openShifted hf_onto hpad hyz (r := ε / 2) (by linarith)
+  simpa only [show (fun i => α i - ε / 2) + (fun _ => ε / 2) = α by ext _; simp] using
+    openShifted_trans_add hf_onto hpad hgw hxy hyz hxz hα' hc
 
 private theorem openShifted_subset_left [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
     (hpad : IsPADOn f (fun _ => Set.univ))
     (hgw : IsGeneralizedWMONOn f (fun _ => Set.univ))
-    {w x y : Ω} (hwx : w ≠ y) (hxy : x ≠ y) :
+    {w x y : Ω} (hwy : w ≠ y) (hxy : x ≠ y) :
     openShifted f x y ⊆ openShifted f w y := by
-  by_cases h : w = x
-  · subst h; exact Set.Subset.rfl
+  by_cases hwx : w = x
+  · subst hwx; exact Set.Subset.rfl
   rintro α ⟨ε, hε, hmem⟩
-  have hwx_mem := const_mem_diffSet_of_gamma_lt hf_onto hpad h
-    (p := gamma f w x + ε / 4) (by linarith)
-  have htri := add_shift_mem_diffSet hf_onto hgw h hxy hwx hwx_mem hmem
-    (δ := ε / 4) (by linarith)
-  refine ⟨ε / 2, by linarith, ?_⟩
-  convert htri using 1
-  ext i
-  rw [gamma_add hf_onto hpad hgw w x y]
-  ring
+  have hc := const_pos_mem_openShifted hf_onto hpad hwx (r := ε / 2) (by linarith)
+  have hα' : (fun i => α i - ε / 2) ∈ openShifted f x y :=
+    ⟨ε / 2, by linarith, by convert hmem using 1; ext _; ring⟩
+  simpa only [show (fun _ => ε / 2) + (fun i => α i - ε / 2) = α by ext _; simp] using
+    openShifted_trans_add hf_onto hpad hgw hwx hxy hwy hc hα'
 
 private theorem openShifted_eq [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -681,17 +701,7 @@ private theorem openShifted_add [Finite ι] [Nonempty ι] [Fintype Ω] [Decidabl
   obtain ⟨z₀, hzx, hzy⟩ := exists_ne_pair hcard x₀ y₀
   have hβ' : β ∈ openShifted f y₀ z₀ := by
     rwa [openShifted_eq hf_onto hpad hgw hcard hxy hzy.symm] at hβ
-  obtain ⟨ε₁, hε₁, hmem₁⟩ := hα
-  obtain ⟨ε₂, hε₂, hmem₂⟩ := hβ'
-  have htri := add_shift_mem_diffSet hf_onto hgw hxy hzy.symm hzx.symm hmem₁ hmem₂
-    (δ := (ε₁ + ε₂) / 2) (by linarith)
-  have hmem_sum : α + β ∈ openShifted f x₀ z₀ := by
-    refine ⟨(ε₁ + ε₂) / 2, by linarith, ?_⟩
-    convert htri using 1
-    ext i
-    rw [gamma_add hf_onto hpad hgw x₀ y₀ z₀]
-    simp only [Pi.add_apply]
-    ring
+  have hmem_sum := openShifted_trans_add hf_onto hpad hgw hxy hzy.symm hzx.symm hα hβ'
   rwa [openShifted_eq hf_onto hpad hgw hcard hxy hzx.symm]
 
 private theorem openShifted_half [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
@@ -889,10 +899,8 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
     rw [map_sum]
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [map_smul, smul_eq_mul, mul_comm]
-  have hone_mem : (fun _ : ι => (1 : ℝ)) ∈ openShifted f x₀ y₀ := by
-    refine ⟨1 / 2, by norm_num, ?_⟩
-    exact const_mem_diffSet_of_gamma_lt hf_onto hpad hxy (p := gamma f x₀ y₀ + 1 / 2) (by linarith)
-      |> fun h => by convert h using 1; ext _; ring
+  have hone_mem : (fun _ : ι => (1 : ℝ)) ∈ openShifted f x₀ y₀ :=
+    const_pos_mem_openShifted hf_onto hpad hxy zero_lt_one
   have hsum_pos : 0 < ∑ i, w₀ i := by
     have h := hL_pos (fun _ => 1) hone_mem
     rw [hL_eq] at h
