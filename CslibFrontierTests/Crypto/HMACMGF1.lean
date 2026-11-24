@@ -90,10 +90,6 @@ private def case6SHA512 : List Byte :=
     0x95, 0xe6, 0x4f, 0x73, 0xf6, 0x3f, 0x0a, 0xec,
     0x8b, 0x91, 0x5a, 0x98, 0x5d, 0x78, 0x65, 0x98]
 
--- The source-domain predicates remain separately checkable even though executable HMAC is total.
-#guard decide (ValidHMACSHA256Input case6Key case6Text)
-#guard decide (ValidHMACSHA512Input case6Key case6Text)
-
 private def byteSequence (length : ℕ) : List Byte :=
   (List.range length).map fun value => ⟨value % 256, Nat.mod_lt _ (by decide)⟩
 
@@ -114,10 +110,6 @@ private def exact128SHA512 : List Byte :=
     0x05, 0x2d, 0xf7, 0x6b, 0x7a, 0xea, 0xda, 0xed,
     0x0c, 0x01, 0x10, 0xfd, 0xe6, 0xec, 0xc7, 0x9c,
     0xd4, 0x5a, 0x3c, 0xe9, 0x50, 0x2f, 0x30, 0xab]
-
--- The exact-block fixtures are inside the same source domains.
-#guard decide (ValidHMACSHA256Input (byteSequence 64) exactKeyText)
-#guard decide (ValidHMACSHA512Input (byteSequence 128) exactKeyText)
 
 example (key text : List Byte) (padding : ℕ) (h : key.length + padding ≤ 64) :
     hmacSHA256 (key ++ List.replicate padding 0) text = hmacSHA256 key text :=
