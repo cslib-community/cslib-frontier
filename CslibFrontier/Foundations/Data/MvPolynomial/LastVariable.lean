@@ -20,6 +20,8 @@ Evaluating the univariate variable specializes the last coordinate. Degree in
 the last variable becomes univariate degree, and prefix-degree bounds become
 bounds on every coefficient. The underlying option equivalence also gives a
 total-degree bound when the outer variable is joined to the coefficient variables.
+Evaluation in another coefficient semiring agrees with evaluating the coefficients
+and then the outer variable.
 
 ## Main definitions
 
@@ -60,6 +62,25 @@ theorem totalDegree_optionEquivLeft_symm_le {κ : Type*}
     exact Finset.notMem_empty _ hm'
   rw [Finsupp.sum_option_index _ (fun _ a => a) (fun _ => rfl) (fun _ _ _ => rfl), add_comm]
   exact (Nat.add_le_add_right (le_totalDegree hm') _).trans (h _ hk)
+
+/-- Evaluate the outer variable at the value assigned to `none`, while evaluating
+the coefficients at the values assigned to the remaining variables. -/
+theorem eval₂_optionEquivLeft_symm {κ T : Type*} [CommSemiring T]
+    (φ : R →+* T) (y : T) (x : κ → T) (p : Polynomial (MvPolynomial κ R)) :
+    eval₂ φ (fun i : Option κ => i.elim y x) ((optionEquivLeft R κ).symm p) =
+      p.eval₂ (eval₂Hom φ x) y := by
+  have h : (Polynomial.eval₂RingHom (eval₂Hom φ x) y).comp (optionEquivLeft R κ).toRingHom =
+      eval₂Hom φ (fun i : Option κ => i.elim y x) := by
+    apply ringHom_ext
+    · intro r
+      simp
+    · intro i
+      cases i <;> simp
+  have heval := RingHom.congr_fun h ((optionEquivLeft R κ).symm p)
+  change ((optionEquivLeft R κ) ((optionEquivLeft R κ).symm p)).eval₂ (eval₂Hom φ x) y =
+    eval₂ φ (fun i : Option κ => i.elim y x) ((optionEquivLeft R κ).symm p) at heval
+  rw [AlgEquiv.apply_symm_apply] at heval
+  exact heval.symm
 
 /-- Isolate the last variable of a multivariate polynomial. -/
 noncomputable def lastVariableEquiv (R : Type*) [CommSemiring R] (m : ℕ) :

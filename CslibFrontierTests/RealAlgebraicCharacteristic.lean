@@ -126,6 +126,23 @@ example (u x : ℤ) :
   intro F hF
   simpa [F] using relativeValuePolynomial_map (by decide : 1 ≤ 2) F hF u (fun _ => x)
 
+-- The flattened variable slots agree with specialization in a modular coefficient ring.
+open MvPolynomial.CriticalSystem in
+example (y u x : ZMod 5) :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) + MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_add _ _).trans (by simp)
+    MvPolynomial.eval₂ (Int.castRingHom (ZMod 5))
+      (fun i : Option (Option (Fin 1)) => i.elim y (fun j => j.elim u (fun _ => x)))
+      (flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF) =
+    (valuePolynomial (by decide : 1 ≤ 2) (fun _ => 0) u
+      (MvPolynomial.X (0 : Fin 1) + MvPolynomial.C x)
+      ((MvPolynomial.totalDegree_add _ _).trans (by
+        have : Fact (1 < 5) := ⟨by decide⟩
+        rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_C]
+        decide))).eval y := by
+  intro F hF
+  simpa [F] using eval₂_flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF y u (fun _ => x)
+
 -- A parameter variable remains in the constant coefficient of the witness polynomial.
 open MvPolynomial in
 open MvPolynomial.CriticalSystem in
