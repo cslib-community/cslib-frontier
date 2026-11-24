@@ -9110,11 +9110,13 @@ public import CslibFrontier.MachineLearning.LossMinimization.Smooth
 public import CslibFrontier.MachineLearning.LossMinimization.Squared
 public import CslibFrontier.MachineLearning.LossMinimization.Stability
 public import CslibFrontier.MachineLearning.LossMinimization.StochasticGradientDescent
+public import CslibFrontier.MachineLearning.OnlineLearning.ConstantSum
 public import CslibFrontier.MachineLearning.OnlineLearning.ConvexOnlineToBatch
 public import CslibFrontier.MachineLearning.OnlineLearning.FTRL
 public import CslibFrontier.MachineLearning.OnlineLearning.Greedy
 public import CslibFrontier.MachineLearning.OnlineLearning.Hedge
 public import CslibFrontier.MachineLearning.OnlineLearning.HighProbabilityOnlineToBatch
+public import CslibFrontier.MachineLearning.OnlineLearning.InternalRegret
 public import CslibFrontier.MachineLearning.OnlineLearning.LowerBounds
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Agnostic
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Basic
