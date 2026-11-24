@@ -137,7 +137,7 @@ register_result "load-balancing-two-related-golden-ratio-poa" where
     LoadBalancingGame.makespan_goldenRatioTightNE
   ]
   scope := "For any finite set of jobs on Fin 2 uniformly related machines, every pure Nash \
-    equilibrium satisfies makespan A ≤ ((1 + √5) / 2) * optMakespan, and the 3-job instance \
+    equilibrium satisfies makespan A ≤ ((1 + √5) / 2) * optMakespan, and the 2-job instance \
     goldenRatioTight attains exact equality ((1 + √5) / 2) * optMakespan ([Vocking2007])."
 
 register_result "load-balancing-related-pure-poa-log-over-log-log" where
