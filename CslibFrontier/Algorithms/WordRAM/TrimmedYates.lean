@@ -26,7 +26,7 @@ Every operation left uncharged in a unit-cost cell model is implemented and char
 `Basis.standard` instructions across focused sub-modules:
 
 * `CslibFrontier.Algorithms.WordRAM.TrimmedYates.Basic`: `d`-bit subset masks (`setMask`), depth-`d`
-  binary trie predicates (`TrieRep`, `HoldsTrie`), caller register ABI (`numRegs`, `Reg.*`), and
+  binary trie view (`HoldsTrie`), caller register ABI (`numRegs`, `Reg.*`), and
   combinatorial domain/workspace/width envelopes (`lowCount`, `highCount`, `highPeak`,
   `valueEnvelope`, `solveSpace`).
 * `CslibFrontier.Algorithms.WordRAM.TrimmedYates.Instance`: sparse `(set, weight)` entry lists

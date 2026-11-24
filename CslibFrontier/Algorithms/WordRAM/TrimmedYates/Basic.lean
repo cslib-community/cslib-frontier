@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Algorithms.WordRAM.TrimmedYates.TrieRep
 
 /-!
 # Bitmasks, trie views, caller registers, and envelopes for trimmed Yates on the word RAM
@@ -17,8 +18,7 @@ Shared data definitions and semantic invariants for the Word-RAM implementation 
 of covering product and ranked subset convolution ([ChanItakuraMaYu2026], Theorem 2.2):
 
 * `setMask`: unsigned `d`-bit word representation of `S : Finset (Fin d)`.
-* `TrieRep`, `HoldsTrie`: cell-footprint and read-only bounded views of depth-`d` binary tries in
-  flat word memory.
+* `HoldsTrie`: read-only bounded view of depth-`d` binary tries in flat word memory.
 * `numRegs` and `Reg.*`: caller-facing register ABI over the `56`-register bank.
 * `lowCount`, `highCount`, `highPeak`, `valueEnvelope`, `solveSpace`: combinatorial domain counts
   and explicit space and word-width envelopes.
@@ -26,9 +26,8 @@ of covering product and ranked subset convolution ([ChanItakuraMaYu2026], Theore
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.TrimmedYates.setMask`: `d`-bit unsigned mask of `S : Finset (Fin d)`.
-* `Cslib.Algorithms.WordRAM.TrimmedYates.TrieRep`,
-  `Cslib.Algorithms.WordRAM.TrimmedYates.HoldsTrie`: owned-footprint and bounded read-only depth-`d`
-  binary trie predicates.
+* `Cslib.Algorithms.WordRAM.TrimmedYates.HoldsTrie`: bounded read-only depth-`d` binary trie
+  predicate.
 * `Cslib.Algorithms.WordRAM.TrimmedYates.numRegs`: total register count (`56`).
 * `Cslib.Algorithms.WordRAM.TrimmedYates.lowCount`, `highCount`, `highPeak`, `valueEnvelope`,
   `solveSpace`: combinatorial table sizes and explicit space/width envelopes.
@@ -130,59 +129,8 @@ theorem setMask_sdiff {d : ℕ} {C Y : Finset (Fin d)} (hY : Y ⊆ C) :
 
 /-! ### Depth-`d` binary tries in flat word memory -/
 
-/-- `TrieRep mem d node S fn`: `node` is the root of a depth-`d` binary trie in `mem` with owned
-cell footprint `S`, representing the function `fn : ℕ → ℕ` on low-`d`-bit keys. `node = 0` is the
-empty trie returning `0` everywhere. Every allocated node occupies `{node, node + 1}` with
-`0 < node`. -/
-@[expose] def TrieRep (mem : ℕ → ℕ) : ℕ → ℕ → Set ℕ → (ℕ → ℕ) → Prop
-  | 0, node, S, fn =>
-    (node = 0 ∧ S = ∅ ∧ ∀ m, fn m = 0) ∨
-    (0 < node ∧ S = {node, node + 1} ∧ ∀ m, fn m = mem node)
-  | d + 1, node, S, fn =>
-    (node = 0 ∧ S = ∅ ∧ ∀ m, fn m = 0) ∨
-    (0 < node ∧ ∃ S₀ S₁ fn₀ fn₁,
-      Disjoint ({node, node + 1} : Set ℕ) (S₀ ∪ S₁) ∧
-      Disjoint S₀ S₁ ∧
-      S = {node, node + 1} ∪ S₀ ∪ S₁ ∧
-      TrieRep mem d (mem node) S₀ fn₀ ∧
-      TrieRep mem d (mem (node + 1)) S₁ fn₁ ∧
-      ∀ m, fn m = if m % 2 = 0 then fn₀ (m / 2) else fn₁ (m / 2))
-
-theorem TrieRep.congr_mem {mem mem' : ℕ → ℕ} {d node : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}
-    (h : TrieRep mem d node S fn) (heq : ∀ a ∈ S, mem' a = mem a) :
-    TrieRep mem' d node S fn := by
-  induction d generalizing node S fn with
-  | zero =>
-    rcases h with ⟨rfl, rfl, hfn⟩ | ⟨hpos, rfl, hfn⟩
-    · exact Or.inl ⟨rfl, rfl, hfn⟩
-    · refine Or.inr ⟨hpos, rfl, fun m => ?_⟩
-      rw [hfn m, heq node (by simp)]
-  | succ d ih =>
-    rcases h with ⟨rfl, rfl, hfn⟩ | ⟨hpos, S₀, S₁, fn₀, fn₁, hd₀, hd₁, rfl, ht₀, ht₁, hfn⟩
-    · exact Or.inl ⟨rfl, rfl, hfn⟩
-    · refine Or.inr ⟨hpos, S₀, S₁, fn₀, fn₁, hd₀, hd₁, rfl, ?_, ?_, hfn⟩
-      · rw [heq node (by simp)]
-        exact ih ht₀ fun a ha => heq a (by simp [ha])
-      · rw [heq (node + 1) (by simp)]
-        exact ih ht₁ fun a ha => heq a (by simp [ha])
-
-theorem TrieRep.zero_root (mem : ℕ → ℕ) (d : ℕ) :
-    TrieRep mem d 0 ∅ (fun _ => 0) := by
-  cases d <;> exact Or.inl ⟨rfl, rfl, fun _ => rfl⟩
-
-theorem TrieRep.fresh_node {mem : ℕ → ℕ} (d : ℕ) {node : ℕ} (hpos : 0 < node)
-    (h0 : mem node = 0) (h1 : mem (node + 1) = 0) :
-    TrieRep mem d node {node, node + 1} (fun _ => 0) := by
-  cases d with
-  | zero => exact Or.inr ⟨hpos, rfl, fun _ => h0.symm⟩
-  | succ d =>
-    refine Or.inr ⟨hpos, ∅, ∅, fun _ => 0, fun _ => 0, by simp, by simp, by simp, ?_, ?_,
-      fun _ => by split_ifs <;> rfl⟩
-    · rw [h0]; exact TrieRep.zero_root mem d
-    · rw [h1]; exact TrieRep.zero_root mem d
-
 /-- Read-only view of a depth-`d` trie whose nodes all lie in `Ico 1 bound`. -/
-@[expose] def HoldsTrie (mem : ℕ → ℕ) (bound d root : ℕ) (fn : ℕ → ℕ) : Prop :=
+def HoldsTrie (mem : ℕ → ℕ) (bound d root : ℕ) (fn : ℕ → ℕ) : Prop :=
   ∃ S ⊆ Set.Ico 1 bound, TrieRep mem d root S fn
 
 /-- Enlarging the address bound preserves `HoldsTrie`. -/
@@ -200,8 +148,8 @@ theorem HoldsTrie.congr_below {mem mem' : ℕ → ℕ} {bound d root : ℕ} {fn 
 
 /-- Address `0` represents the identically zero depth-`d` table without allocating nodes. -/
 theorem HoldsTrie.zero_root (mem : ℕ → ℕ) (bound d : ℕ) :
-    HoldsTrie mem bound d 0 (fun _ => 0) :=
-  ⟨∅, Set.empty_subset _, TrieRep.zero_root mem d⟩
+    HoldsTrie mem bound d 0 (fun _ => 0) := by
+  exact ⟨∅, Set.empty_subset _, TrieRep.zero_root mem d⟩
 
 /-! ### Caller-facing register ABI -/
 

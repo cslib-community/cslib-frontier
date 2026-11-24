@@ -1069,6 +1069,7 @@ public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Stages
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Tabulate
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Trie
+public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.TrieRep
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Triple
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination

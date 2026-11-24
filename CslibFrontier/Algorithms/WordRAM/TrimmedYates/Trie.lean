@@ -10,6 +10,9 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Basic
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
+public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.TrieRep
+-- `import all` bridges unexposed `HoldsTrie` to `TrieRep` via `HoldsTrie.iff_exists_trieRep`.
+import all CslibFrontier.Algorithms.WordRAM.TrimmedYates.Basic
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 
@@ -36,6 +39,11 @@ public section
 namespace Cslib.Algorithms.WordRAM.TrimmedYates
 
 open Cslib.WordRAM
+
+/-- Unfold `HoldsTrie` into an owned cell footprint `S ⊆ Set.Ico 1 bound` with `TrieRep`. -/
+theorem HoldsTrie.iff_exists_trieRep {mem : ℕ → ℕ} {bound d root : ℕ} {fn : ℕ → ℕ} :
+    HoldsTrie mem bound d root fn ↔ ∃ S ⊆ Set.Ico 1 bound, TrieRep mem d root S fn := by
+  rfl
 
 /-- Allocate a fresh 2-word zeroed trie root at `Reg.free`. -/
 def trieInit : Code .standard numRegs := ram[

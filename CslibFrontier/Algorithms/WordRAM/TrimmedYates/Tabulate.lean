@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Basic
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
+public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.TrieRep
 import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Trie
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec
@@ -450,7 +451,8 @@ theorem exec_tabulateMul {w d domPtr free rootF rootG B : ℕ}
       have : 14 * d + (18 * d + 37) + 16 = 32 * d + 53 := by omega
       rw [this])
   exact ⟨y, free', outFn, he', hysav, hyfree, hlo', hhi',
-    ⟨S', fun a ha => ⟨hfree_pos.trans (hS' ha).1, (hS' ha).2⟩, hyrep⟩, hydom, hyframe,
-    fun i hi => he'.regs_eq (tabulateMul_preserves i hi)⟩
+    HoldsTrie.iff_exists_trieRep.mpr
+      ⟨S', fun a ha => ⟨hfree_pos.trans (hS' ha).1, (hS' ha).2⟩, hyrep⟩,
+    hydom, hyframe, fun i hi => he'.regs_eq (tabulateMul_preserves i hi)⟩
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

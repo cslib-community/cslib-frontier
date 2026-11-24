@@ -113,6 +113,27 @@ theorem input_total_time_le {d nL nR nQ L H : ℕ} (hL : 1 ≤ L) :
       250 * (d + 1) ^ 2 * (nL + nR + (Lp + 1) + nQ * H) := by ring
   omega
 
+private theorem getElem_encodeEntries {d : ℕ} (es : List (Finset (Fin d) × ℤ))
+    (p : ℕ) (hp : p < es.length) :
+    (encodeEntries es)[2 * p]'(by simp; omega) = setMask es[p].1 ∧
+    (encodeEntries es)[2 * p + 1]'(by simp; omega) = Signed.encode es[p].2 := by
+  induction es generalizing p with
+  | nil => simp at hp
+  | cons hd tl ih =>
+    rcases p with _ | p
+    · simp [encodeEntries]
+    · have hp' : p < tl.length := by simp at hp; omega
+      obtain ⟨h0, h1⟩ := ih p hp'
+      have heq : encodeEntries (hd :: tl) = [setMask hd.1, Signed.encode hd.2] ++
+          encodeEntries tl := rfl
+      refine ⟨?_, ?_⟩
+      · simp only [heq]
+        rw [List.getElem_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
+        simpa [Nat.mul_add] using h0
+      · simp only [heq]
+        rw [List.getElem_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
+        simpa [Nat.mul_add] using h1
+
 theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) :
     ∃ u₄ baseFree rootF rootG fnF fnG,
       ExecWithin w inputSetupCode (.init inst.encode) u₄

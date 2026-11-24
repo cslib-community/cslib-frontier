@@ -396,11 +396,12 @@ private def HoldsTrieOutside (mem : ℕ → ℕ) (exclLo exclHi bound d root : �
 private theorem HoldsTrieOutside.toHoldsTrie {mem : ℕ → ℕ} {exclLo exclHi bound d root : ℕ}
     {fn : ℕ → ℕ} (h : HoldsTrieOutside mem exclLo exclHi bound d root fn) :
     HoldsTrie mem bound d root fn :=
-  let ⟨S, hS, _, hrep⟩ := h; ⟨S, hS, hrep⟩
+  let ⟨S, hS, _, hrep⟩ := h; HoldsTrie.iff_exists_trieRep.mpr ⟨S, hS, hrep⟩
 
 private theorem HoldsTrie.toOutside_of_le {mem : ℕ → ℕ} {b exclLo exclHi bound d root : ℕ}
     {fn : ℕ → ℕ} (h : HoldsTrie mem b d root fn) (hb_excl : b ≤ exclLo) (hb_bound : b ≤ bound) :
     HoldsTrieOutside mem exclLo exclHi bound d root fn := by
+  rw [HoldsTrie.iff_exists_trieRep] at h
   obtain ⟨S, hS, hrep⟩ := h
   refine ⟨S, fun a ha => ⟨(hS ha).1, (hS ha).2.trans_le hb_bound⟩, Set.disjoint_left.mpr ?_, hrep⟩
   intro a ha hexcl

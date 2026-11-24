@@ -32,7 +32,7 @@ instances over `Fin d` ([ChanItakuraMaYu2026], Problem 2.1 / Theorem 2.2).
 * `Cslib.Algorithms.WordRAM.TrimmedYates.evalEntries_eq_sum_filter`, `evalEntries_ranked`,
   `natAbs_evalEntries_le`: filter-sum characterization, rank preservation, and weight bound for
   `evalEntries`.
-* `Cslib.Algorithms.WordRAM.TrimmedYates.length_encodeEntries`, `getElem_encodeEntries`,
+* `Cslib.Algorithms.WordRAM.TrimmedYates.length_encodeEntries`,
   `Instance.length_encode`, `Instance.FitsWidth.inputFits`: word-layout characterizations and
   `InputFits` admissibility.
 
@@ -113,27 +113,6 @@ theorem natAbs_evalEntries_le {d : ℕ} (es : List (Finset (Fin d) × ℤ))
     simp only [encodeEntries, List.flatMap_cons, List.length_append, List.length_cons,
       List.length_nil]
     rw [← encodeEntries, ih]; omega
-
-theorem getElem_encodeEntries {d : ℕ} (es : List (Finset (Fin d) × ℤ))
-    (p : ℕ) (hp : p < es.length) :
-    (encodeEntries es)[2 * p]'(by simp; omega) = setMask es[p].1 ∧
-    (encodeEntries es)[2 * p + 1]'(by simp; omega) = Signed.encode es[p].2 := by
-  induction es generalizing p with
-  | nil => simp at hp
-  | cons hd tl ih =>
-    rcases p with _ | p
-    · simp [encodeEntries]
-    · have hp' : p < tl.length := by simp at hp; omega
-      obtain ⟨h0, h1⟩ := ih p hp'
-      have heq : encodeEntries (hd :: tl) = [setMask hd.1, Signed.encode hd.2] ++
-          encodeEntries tl := rfl
-      refine ⟨?_, ?_⟩
-      · simp only [heq]
-        rw [List.getElem_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
-        simpa [Nat.mul_add] using h0
-      · simp only [heq]
-        rw [List.getElem_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
-        simpa [Nat.mul_add] using h1
 
 /-- Sparse weighted set-function instance over `Fin d` with threshold `s` and query sets `queries`.
 In the ranked setting of [ChanItakuraMaYu2026], Problem 2.1 / Theorem 2.2, `leftEntries` are

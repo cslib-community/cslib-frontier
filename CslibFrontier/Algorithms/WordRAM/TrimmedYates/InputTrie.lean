@@ -76,7 +76,7 @@ private theorem exec_trieAdd {w lo d root key free B : ℕ} {delta : ℤ}
       ∀ i : Fin numRegs, 9 ≤ i.val ∧ i ≠ Reg.free ∧ (i.val < 18 ∨ 23 ≤ i.val) →
         y.regs i = x.regs i := by
   have htrie_ro : HoldsTrie x.mem free d root (fun m => Signed.encode (fnZ m)) :=
-    ⟨S, fun a ha => ⟨hlo.trans (hS ha).1, (hS ha).2⟩, hrep⟩
+    HoldsTrie.iff_exists_trieRep.mpr ⟨S, fun a ha => ⟨hlo.trans (hS ha).1, (hS ha).2⟩, hrep⟩
   obtain ⟨u₁, he₁, hu₁_val, hu₁_mem, hu₁_regs⟩ := exec_trieGet x hz ho hd hr hk htrie_ro
     (hfit_free.of_le (by omega)) hfit_d hfit_key
   let u₂ := u₁.set (Signed.left (r := 47)) (Signed.encode (fnZ key))
@@ -361,7 +361,8 @@ theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
     have h40 : 23 * d + 38 + 2 = 23 * d + 40 := by omega
     rw [h40]; omega
   refine ⟨y, free', fun m => Signed.encode (fnZ m), htot, hysav, hyfr, hlo', hhi',
-    ⟨S', fun a ha => ⟨hfree_pos.trans (hS' ha).1, (hS' ha).2⟩, hyrep⟩,
+    HoldsTrie.iff_exists_trieRep.mpr
+      ⟨S', fun a ha => ⟨hfree_pos.trans (hS' ha).1, (hS' ha).2⟩, hyrep⟩,
     fun S => by dsimp only; rw [hfnZ_eq S], hyframe,
     fun i hi => htot.regs_eq (buildInputTrie_preserves i hi)⟩
 
