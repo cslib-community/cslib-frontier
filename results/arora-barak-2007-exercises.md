@@ -7,6 +7,9 @@ The 2026-11-16 HAVE-row recheck against `c6ebd6bd86` (`origin/main`) moves one r
 partial: the list-encoded NP-completeness does not cover the dense `(A, b)` encoding.
 Source inspection only; no Lean build was run.
 
+The 2026-11-24 samplable-ensemble update moves 15 §4 from T to C; the Chapter 15 counts below
+include that change.
+
 This inventory classifies every end-of-chapter exercise of the
 [public web draft dated 2007-01-08](https://theory.cs.princeton.edu/complexity/book.pdf)
 (SHA-256 `da0881782a35bde6a0779a2eb1a8d480f39fbddf70bbb92824d1dc5550a033b2`), the source of the
@@ -55,7 +58,7 @@ linked issue bodies read; a mention only in an older body may be missed.
 | 11 | 4 | 0 | 4 | 0 | — |
 | 12 | 12 | 0 | 8 | 2 | — |
 | 13 | 9 | 1 | 8 | 1 | — |
-| 15 | 6 | 3 | 0 | 1 | §3 (corrected) listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
+| 15 | 6 | 2 | 1 | 1 | §3 (corrected) listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
 | 16 | 16 | 4 | 9 | 5 | — |
 | 17 | 10 | 2 | 5 | 6 | — |
 | 18 | 16 | 7 | 9 | 5 | — |
@@ -365,7 +368,7 @@ Source: PDF p. 295 / printed p. 279. 6 exercises (§1–§6). Model conventions 
 | Exercise | Printed / PDF page | Class | Endpoint and disposition |
 |---|---|---|---|
 | 15 §3 | 279 / 295 | **S** | The prompt says polynomial-time computable ⇒ polynomial-time samplable, with no hypothesis. The text itself (p. 279/295) adds condition (13): $\mu'(x)\ge2^{-\mathrm{poly}(\|x\|)}$ or $\mu'(x)=0$. Without (13), a sampler that runs in time $\mathrm{poly}(\|x\|)$ when it outputs $x$ cannot produce a string of probability $2^{-2^{\|x\|}}$. **Corrected endpoint:** every P-computable distribution satisfying (13) is P-samplable in the sense of Definition 15.12. Library caveat: `Ensemble.PSamp` demands exact sampling by strict PPT, so non-dyadic probabilities such as $1/3$ are not samplable. A library version needs a dyadic hypothesis, or an expected-time or approximate sampler notion. **Owned:** #2865 lists "`PComp ⊆ PSamp` (BT §3.3)" as a remaining objective. |
-| 15 §4 | 279 / 295 | **T** | If $\mathrm{P}^{\#\mathrm{P}}\ne\mathrm{P}$, then some polynomial-time samplable distribution is not polynomial-time computable. In library form: $\neg(\mathrm{FP}\supseteq\#\mathrm{P})$ (or $\mathrm P^{\#\mathrm P}\ne\mathrm P$) implies $\exists D$, `D.PSamp ∧ ¬ D.PComp`. Route: sample (formula, uniform assignment, value); the cdf then counts satisfying assignments. Not located. Prerequisites: `Ensemble.PSamp`/`PComp` ([Ensemble](../CslibFrontier/Computability/Complexity/Classes/AverageCase/Ensemble.lean)) and `Cslib.Complexity.SharpP` ([SharpP](../CslibFrontier/Computability/Complexity/Classes/SharpP.lean)). |
+| 15 §4 | 279 / 295 | **C** | If $\mathrm{P}^{\#\mathrm{P}}\ne\mathrm{P}$, then some polynomial-time samplable distribution is not polynomial-time computable. Covered for the library's length-indexed ensembles: `Cslib.Complexity.Ensemble.exists_pSamp_not_pComp_of_P_ne_PWithSharpPOracle` in [AverageCase/SharpP](../CslibFrontier/Computability/Complexity/Classes/AverageCase/SharpP.lean) assumes `P enc ≠ PWithSharpPOracle enc` at any instance encoding and concludes `∃ D, D.PSamp ∧ ¬ D.PComp`. If #P on words were in FP, `P^#P` would collapse to `P` (`Cslib.Complexity.PWithSharpPOracle_subset_P_of_SharpP_subset` in [Counting/OracleSpace](../CslibFrontier/Computability/Complexity/Classes/Counting/OracleSpace.lean), through the total word extension `SharpP.exists_extension`), so the claim follows from the #P ⊄ FP form (Goldreich Exercise 10.26). The sampler outputs a uniform $x$ followed by the verifier's verdict on $x$ and a uniform certificate. Model note: the draft's Definition 15.12 and §15.1.1 use one distribution on $\{0,1\}^*$ with a sampler running in (expected) time polynomial in its output; the library states the exercise for ensembles, as in the chapter audit. Registered as `samplable-not-computable-unless-sharp-p-easy`; the outside-fleet source check is pending. |
 | 15 §5 | 279 / 295 | **T** | Peak-elimination map $g$ of Lemma 15.9 is efficiently invertible: from $y=g(x)$, $x$ can be recovered in time $\|x\|^{O(1)}$. In the library's per-length form: there is a polytime map that, given $n$ and $y=$ `Compression.compress num den x` with $\|x\|=n$, returns $x$. **Partial:** `Cslib.Complexity.Compression.compress_injective` and `compress_polyTime` in [Compression](../CslibFrontier/Computability/Complexity/Classes/AverageCase/Compression.lean) give injectivity within a length and polytime evaluation. A polytime inverse was not located; it needs binary search over the cdf for heavy words. |
 | 15 §6 | 279 / 295 | **T** | If one-way functions exist, then dist NP ⊄ dist P. In library form: `OneWay f` for some $f$ ⇒ `¬ DistNP ⊆ AvgP` (and for `HeurP` if desired). Not located. Prerequisites: `Cslib.Crypto.OneWay` ([OneWay](../CslibFrontier/Crypto/Computational/OneWay.lean)); `DistNP`, `SampNP`, `AvgP` ([Distributional](../CslibFrontier/Computability/Complexity/Classes/AverageCase/Distributional.lean)); `BoundedHalting.distComplete_problem` ([Completeness](../CslibFrontier/Computability/Complexity/Classes/AverageCase/Completeness.lean)). The standard route goes through a hard samplable problem and the Impagliazzo–Levin samplable-to-computable reduction, which is absent. #2865 lists OWF bridges as remaining. |
 

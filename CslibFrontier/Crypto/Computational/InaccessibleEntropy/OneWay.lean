@@ -26,6 +26,7 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Inaccessible average max-entropy from any one-way function
@@ -557,16 +558,10 @@ private theorem uniformList_rompelBaseInLen_eq (n m : ℕ) :
         (PMF.uniformOfFintype (BitString (rompelTruncWidth n))).bind fun rBits =>
           (PMF.uniformOfFintype ((Fin n → BitString m) × BitString n)).map fun s =>
             (RompelBaseInput.mk x s.1 s.2 rBits).packWord := by
-  let eSwap : (BitString n × BitString (rompelTruncWidth n) ×
-      ((Fin n → BitString m) × BitString n)) ≃ RompelBaseInput n m :=
-    ⟨fun t => ⟨t.1, t.2.2.1, t.2.2.2, t.2.1⟩,
-     fun z => (z.preimage, z.truncBits, (z.hashRows, z.hashShift)),
-     fun ⟨_, _, ⟨_, _⟩⟩ => rfl, fun ⟨_, _, _, _⟩ => rfl⟩
-  rw [Cslib.BitString.uniformList,
-    ← PMF.uniformOfFintype_map_equiv (eSwap.trans (rompelBaseInputEquiv n m)),
-    ← PMF.uniformOfFintype_prod (BitString n)]
-  simp only [← PMF.uniformOfFintype_prod (BitString (rompelTruncWidth n)), PMF.map_bind,
-    PMF.map_comp, Function.comp_def, Equiv.trans_apply, ofFn_rompelBaseInputEquiv]
+  rw [Cslib.BitString.uniformList]
+  relabel_uniform ((Equiv.prodCongr (Equiv.refl (BitString n)) (Equiv.prodComm _ _)).trans
+    ((rompelTupleEquiv n m).trans (rompelBaseInputEquiv n m))) with t
+  simp only [Equiv.trans_apply, Equiv.prodCongr_apply, ofFn_rompelBaseInputEquiv]
   rfl
 
 private abbrev rompelEscPred (c : ℕ) (g : List Bool → List Bool) (outLen : ℕ → ℕ) (n : ℕ)

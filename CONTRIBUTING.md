@@ -156,8 +156,11 @@ Two places keep projections, as standing exceptions:
   or bind the hypothesis in the theorem's own signature.
 
 `scripts/check_projection_chains.py` counts the chains of depth 2 or more in each module's public
-statements and public definition bodies, leaving out proofs, these two exceptions and named
-accessors. CI fails a pull request when a module it changes has more chains than its entry in
+statements and public definition bodies — dotted chains (`c.1.2`), nested or mixed
+`Prod.fst`/`Prod.snd` applications (`Prod.fst (Prod.snd p)`), and projections chained through a
+`let`-bound projection alias (`let rest := p.2; rest.1`) — leaving out proofs, these two
+exceptions, point-free composition (`Prod.fst ∘ Prod.snd`), and named accessors. CI fails a pull
+request when a module it changes has more chains than its entry in
 `scripts/projection_chains_baseline.json`, or than it had at the merge base unless the pull request
 raises the entry; a new module starts at 0. Removing chains needs no baseline edit, which keeps
 pull requests from colliding on neighbouring lines of the baseline in the merge queue; a periodic

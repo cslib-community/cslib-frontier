@@ -21,10 +21,12 @@ ends avoid the closed observation. Endpoint-height jumps
 are summed with occurrence multiplicity, including simultaneous events and duplicate
 segments. The intended application is isolated-interior ray-parity transport.
 
-## Main result
+## Main results
 
 * `Cslib.Polygonal.rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero`:
   actual open-intersection parity from endpoint ray colors and local jump cancellation.
+* `Cslib.Polygonal.sum_openIntersections_eq_zero_of_even`: even parity between two even
+  families of segments with reciprocal endpoint avoidance.
 
 Global edge moves, frozen placement, Hanani–Tutte and the recognition criterion remain
 open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
@@ -82,6 +84,19 @@ private theorem mem_segment_height_iff {a b : ℂ} (hab : a.im < b.im) (z : ℂ)
   have himage := image_segment ℝ (heightMap a b) a.im b.im
   rw [heightMap_left, heightMap_right hab.ne] at himage
   rw [← himage, mem_heightMap_image_iff hab.ne, segment_eq_Icc hab.le]
+
+/-- A height in the half-open range of a segment has its intercept on the closed segment. -/
+theorem horizontalIntercept_mem_segment {a b : ℂ} {h : ℝ}
+    (hh : h ∈ Set.Ico (min a.im b.im) (max a.im b.im)) :
+    (⟨horizontalIntercept a b h, h⟩ : ℂ) ∈ segment ℝ a b := by
+  rcases lt_trichotomy a.im b.im with hab | hab | hab
+  · rw [Set.mem_Ico, min_eq_left hab.le, max_eq_right hab.le] at hh
+    exact (mem_segment_height_iff hab _).mpr ⟨⟨hh.1, hh.2.le⟩, rfl⟩
+  · simp only [hab, min_self, max_self, Set.mem_Ico] at hh
+    exact (not_lt_of_ge hh.1 hh.2).elim
+  · rw [Set.mem_Ico, min_eq_right hab.le, max_eq_left hab.le] at hh
+    rw [segment_symm, horizontalIntercept_reverse hab.ne]
+    exact (mem_segment_height_iff hab _).mpr ⟨⟨hh.1, hh.2.le⟩, rfl⟩
 
 private theorem mem_openSegment_height_iff {a b : ℂ} (hab : a.im < b.im) (z : ℂ) :
     z ∈ openSegment ℝ a b ↔
@@ -439,5 +454,51 @@ theorem rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
         ∑ i, x i * (decide (Sweep c d (a i)) + decide (Sweep c d (b i))) := by
       simp only [hi, Finset.sum_add_distrib]
     _ = _ := by rw [weighted_sweeps_eq_zero a b x hcd hjump, add_zero]
+
+open Classical in
+/-- Two even nonhorizontal arrangements have even indexed open-intersection parity when
+the ends of each selected segment avoid the selected closed segments of the other family.
+The arrangements may have several components, repeated pieces or concurrent contacts. -/
+theorem sum_openIntersections_eq_zero_of_even {ι κ : Type*} [Fintype ι] [Fintype κ]
+    (a b : ι → ℂ) (c d : κ → ℂ) (x : ι → Bool) (y : κ → Bool)
+    (hab : ∀ i, (a i).im ≠ (b i).im) (hcd : ∀ j, (c j).im ≠ (d j).im)
+    (havoid : ∀ i j, x i = true → y j = true →
+      a i ∉ segment ℝ (c j) (d j) ∧ b i ∉ segment ℝ (c j) (d j) ∧
+      c j ∉ segment ℝ (a i) (b i) ∧ d j ∉ segment ℝ (a i) (b i))
+    (hx : ∀ p : ℂ, (∑ i, ((if a i = p then x i else 0) +
+      (if b i = p then x i else 0))) = false)
+    (hy : ∀ p : ℂ, (∑ j, ((if c j = p then y j else 0) +
+      (if d j = p then y j else 0))) = false) :
+    (∑ j, y j * ∑ i, x i * decide ((openSegment ℝ (a i) (b i) ∩
+      openSegment ℝ (c j) (d j)).Nonempty)) = 0 := by
+  classical
+  have hrow (j : κ) (hsel : y j = true) :
+      rayParity a b x (d j) + rayParity a b x (c j) =
+        ∑ i, x i * decide ((openSegment ℝ (a i) (b i) ∩
+          openSegment ℝ (c j) (d j)).Nonempty) := by
+    have hav (i : ι) (hi : x i = true) := havoid i j hi hsel
+    apply rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
+      a b x _ _ hab (hcd j)
+    · intro i hi
+      obtain ⟨_, _, hc, _⟩ := hav i hi
+      exact hc
+    · intro i hi
+      obtain ⟨_, _, _, hd⟩ := hav i hi
+      exact hd
+    · intro i hi
+      exact (hav i hi).1
+    · intro i hi
+      obtain ⟨_, hb, _, _⟩ := hav i hi
+      exact hb
+    · exact fun z _ => sum_rayParity_endpoint_jumps_eq_zero a b x hx z
+  calc
+    _ = ∑ j, y j * (rayParity a b x (d j) + rayParity a b x (c j)) := by
+      apply Finset.sum_congr rfl
+      intro j _
+      by_cases hsel : y j = true
+      · rw [hrow j hsel]
+      · rw [Bool.eq_false_iff.mpr hsel, ← Bool.zero_eq_false, zero_mul, zero_mul]
+    _ = 0 := by
+      simpa only [add_comm] using sum_endpointWeights_eq_zero c d y hy (rayParity a b x)
 
 end Cslib.Polygonal

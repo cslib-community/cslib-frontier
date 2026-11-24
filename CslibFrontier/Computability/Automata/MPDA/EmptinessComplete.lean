@@ -415,9 +415,7 @@ theorem exists_block_run {w : List (Symbol × Op n Γ)} {i : Fin n} :
     have hqlen : q < w.length := (List.getElem?_eq_some_iff.mp hqa).1
     -- The push at `q`.
     have hdrop : w.drop q = (a, Op.push i γ) :: w.drop (q + 1) := by
-      rw [List.drop_eq_getElem_cons hqlen]
-      congr 1
-      exact (List.getElem?_eq_some_iff.mp hqa).2
+      rw [List.drop_eq_getElem_cons hqlen, (List.getElem?_eq_some_iff.mp hqa).2]
     rw [hdrop] at hrun
     obtain ⟨c₁, hpush, hrest⟩ := LTS.MTr.cons_iff.mp hrun
     obtain ⟨hpushT, hpushA⟩ := configLTS_tr.mp hpush
@@ -523,13 +521,11 @@ theorem eq_nil_of_stacksOf_eq_empty {C : List (HoleChain n Γ)} (hne : ∀ c ∈
 theorem update_cons_injective {σ σ' : Stacks n Γ} {i : Fin n} {γ : Γ}
     (h : Function.update σ i (γ :: σ i) = Function.update σ' i (γ :: σ' i)) : σ = σ' := by
   funext j
+  have hj' := congrFun h j
   by_cases hj : j = i
   · subst hj
-    have := congrFun h j
-    simp only [Function.update_self, List.cons.injEq, true_and] at this
-    exact this
-  · have := congrFun h j
-    rwa [Function.update_of_ne hj, Function.update_of_ne hj] at this
+    simpa only [Function.update_self, List.cons.injEq, true_and] using hj'
+  · rwa [Function.update_of_ne hj, Function.update_of_ne hj] at hj'
 
 theorem reverse_take_eq_cons {β : Type*} {L : List β} {m : ℕ} (hm₁ : 1 ≤ m)
     (hm₂ : m ≤ L.length) :
@@ -782,8 +778,8 @@ theorem pendingAt_of_push {w : List (α × Op n Γ)} {p t : ℕ} {a : α} {i : F
   rw [show t - 1 + 1 = t by omega, List.extract_eq_singleton hwt]
   rcases k with _ | k
   · simp
-  · simp only [List.take_succ_cons, List.take_nil, net_cons, net_nil, add_zero]
-    simp only [Op.net, Op.kind, OpKind.net]
+  · simp only [List.take_succ_cons, List.take_nil, net_cons, net_nil, add_zero,
+      Op.net, Op.kind, OpKind.net]
     split_ifs <;> simp
 
 variable {State Symbol : Type*} [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
