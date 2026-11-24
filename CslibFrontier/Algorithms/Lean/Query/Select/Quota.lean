@@ -28,8 +28,9 @@ Items `xs : List α` are partitioned into groups by `g : α → γ`. Each item h
 predicate `adm`. The representative of a group with an admissible item is its lightest admissible
 item (`Cslib.Query.IsGroupRepresentative`). Quota selection finds the `k` lightest representatives,
 or all of them if there are fewer than `k`, learning weights only by comparisons and admissibility
-only by tests. This is Lemma 3.3 of [KhannaPuttermanSong2026] (§3.2, p. 16), the selection step of
-the batch procedure in their deterministic linear-comparison minimum spanning forest algorithm.
+only by tests. This is the selection step of the batch procedure in the deterministic
+linear-comparison minimum spanning forest algorithm of [KhannaPuttermanSong2026], stated there as
+Lemma 3.3 (§3.2, p. 16), and a step in the proof of their Theorem 4.1, tracked in #8325.
 
 Programs are `FreeM (CmpTestQuery α)` values, where `CmpTestQuery α` is the sum
 (`Cslib.Query.SumQuery`) of comparison queries `LEQuery α` and test queries `TestQuery α`. The
@@ -1117,10 +1118,10 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
 
 variable (g) {k : ℕ} {xs : List α}
 
-/-- **Quota selection is correct** ([KhannaPuttermanSong2026], §3.2, Lemma 3.3, p. 16). Against
-comparisons by an injective weight `w` and tests by `adm`, `quotaSelect g k xs` selects exactly the
-representatives with fewer than `k` lighter representatives: the `k` lightest representatives,
-or all of them if there are fewer than `k`. -/
+/-- **Quota selection is correct**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
+(the paper's Lemma 3.3, §3.2, p. 16). Against comparisons by an injective weight `w` and tests by
+`adm`, `quotaSelect g k xs` selects exactly the representatives with fewer than `k` lighter
+representatives: the `k` lightest representatives, or all of them if there are fewer than `k`. -/
 theorem mem_selected_quotaSelect (hw : Function.Injective w) (hxs : xs.Nodup) (r : α) :
     r ∈ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected ↔
       IsGroupRepresentative g w adm xs r ∧
@@ -1166,16 +1167,18 @@ end Representatives
 
 variable (g : α → γ) (k : ℕ) (xs : List α)
 
-/-- **Comparison bound for quota selection** ([KhannaPuttermanSong2026], §3.2, Lemma 3.3, p. 16).
-For every oracle, `quotaSelect g k xs` makes at most `234 * xs.length` comparisons. -/
+/-- **Comparison bound for quota selection**, a step in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (the paper's Lemma 3.3, §3.2, p. 16). For every oracle,
+`quotaSelect g k xs` makes at most `234 * xs.length` comparisons. -/
 theorem countInl_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
     SumQuery.countInl oracle (quotaSelect g k xs) ≤ 234 * xs.length := by
   have h := (quotaSelect_cost oracle g _ k xs rfl).1
   split_ifs at h <;> omega
 
-/-- **Successful-test bound for quota selection** ([KhannaPuttermanSong2026], §3.2, Lemma 3.3,
-p. 16). For every oracle, `quotaSelect g k xs` makes at most `k * (⌈log₂ m⌉ + 1)` tests answered
-`true`, where `m = xs.length`. -/
+/-- **Successful-test bound for quota selection**, a step in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (the paper's Lemma 3.3, §3.2, p. 16). For every oracle,
+`quotaSelect g k xs` makes at most `k * (⌈log₂ m⌉ + 1)` tests answered `true`, where
+`m = xs.length`. -/
 theorem cost_passWeight_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
     (quotaSelect g k xs).cost oracle (CmpTestQuery.passWeight oracle) ≤
       k * (Nat.clog 2 xs.length + 1) :=
