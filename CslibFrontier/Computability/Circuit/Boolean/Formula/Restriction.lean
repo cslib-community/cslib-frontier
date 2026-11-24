@@ -380,13 +380,12 @@ theorem IsSimplified.constValue?_eq_none {F : Formula signature n} (hF : F.IsSim
 /-- A simplified formula has a leaf. -/
 theorem IsSimplified.one_le_leafSize {F : Formula signature n} (hF : F.IsSimplified) :
     1 ≤ F.leafSize := by
-  induction hF <;> simp only [leafSize_input, leafSize_not, leafSize_and, leafSize_or] <;> omega
+  induction hF <;> simp only [circuit_simps] <;> omega
 
 /-- A simplified formula with `L` leaves has at most `3 L - 2` operation nodes. -/
 theorem IsSimplified.size_add_two_le {F : Formula signature n} (hF : F.IsSimplified) :
     F.size + 2 ≤ 3 * F.leafSize := by
-  induction hF <;>
-    simp only [circuit_simps, leafSize_input, leafSize_not, leafSize_and, leafSize_or] <;> omega
+  induction hF <;> simp only [circuit_simps] <;> omega
 
 /-- A formula that is a constant or simplified. -/
 private def ConstOrSimplified (F : Formula signature n) : Prop :=
