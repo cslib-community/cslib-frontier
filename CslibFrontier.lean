@@ -8411,6 +8411,8 @@ public import CslibFrontier.GameTheory.Congestion.PLS
 public import CslibFrontier.GameTheory.Congestion.PigouBound
 public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
+public import CslibFrontier.GameTheory.Market.Basic
+public import CslibFrontier.GameTheory.Market.EisenbergGale
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
