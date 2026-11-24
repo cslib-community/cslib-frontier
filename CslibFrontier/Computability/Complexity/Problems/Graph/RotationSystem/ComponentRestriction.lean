@@ -117,7 +117,7 @@ theorem vertex_componentDartEquiv (G : Graph) (root : ℕ)
   rfl
 
 /-- The correspondence sends opposite ends of a retained edge to opposite original ends. -/
-@[simp] theorem componentDartEquiv_reverse (G : Graph) (root : ℕ)
+theorem componentDartEquiv_reverse (G : Graph) (root : ℕ)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart (G.componentGraph root)) :
     (G.componentDartEquiv root hG d.reverse).val =
       (G.componentDartEquiv root hG d).val.reverse := by
