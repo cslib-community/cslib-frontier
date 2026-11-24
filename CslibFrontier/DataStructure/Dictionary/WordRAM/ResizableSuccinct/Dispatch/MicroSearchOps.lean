@@ -2079,6 +2079,7 @@ private theorem clientResult_compOvfStepGenProg_eq
   obtain ⟨hphys_eq, hp_next⟩ := clientResult_resolveOvfStepProg
     (U := U) (V := V) (w := ghostW w) (n_max := N) (h_space := epochHashSpace U (ghostW w) N)
     (d := ((0, b), (j, p_cur))) s_fix hb_pos hb hj_bc_fix hslot_fix hp_fix
+  dsimp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx] at hphys_eq hp_next
   have hphys_comp :
       ((Memory.spec 0).clientResult s
         (compResolveOvfStepGenProg (((mkCompParams U V w N, metaBase), b), (j, p_cur)))).1 =
@@ -2087,6 +2088,8 @@ private theorem clientResult_compOvfStepGenProg_eq
   obtain ⟨hovf_fix, _⟩ := clientResult_ovfStepProg
     (x := (((0, b), q_target), ((((j, p_cur), found), j_found), phys_found))) s_fix
     hb_pos hb hj_bc_fix hslot_fix hp_fix
+  dsimp only [ovfQueryLoc, ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfAccCursor,
+    ovfAccSlotIdx, ovfAccFound, ovfAccMatchIdx, ovfAccPhys] at hovf_fix
   have hcomp_res :
       (Memory.spec 0).clientResult s
         (compOvfStepGenProg (((mkCompParams U V w N, (metaBase, itemBase)), (b, q_target)),
@@ -2100,7 +2103,6 @@ private theorem clientResult_compOvfStepGenProg_eq
       prog_clientResult_bind,
       clientResult_compReadPhysQuot_slotOf hcpl henv hslot hm_items hb hj_bc,
       clientState_compReadPhysQuotGenProg, hovf_fix, hres_ovf_eq]
-    dsimp only
     simp only [← hcpl.gm_eq]
     split_ifs <;> rfl
   refine ⟨hcomp_res, ?_⟩
@@ -2769,13 +2771,13 @@ theorem searchBucket_found_slotOf
     (d := (((0, b), q_target), m))
     (ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V)
     hb hm hslot_fix hchain_fix hc_lt_fix).2.2
-  dsimp only at hres_spec
+  dsimp only [ovfQueryBase, ovfQueryBucket, ovfQueryQuot] at hres_spec
   rw [hres_sb]
   rcases hres_eq : (Memory.spec 0).clientResult s_fix
       (searchBucketProg U V (ghostW w) N (hashSpace U (ghostW w) N)
         (((0, b), q_target), m)) with ⟨⟨found, j_found⟩, phys_found⟩
   rw [hres_eq] at hres_spec
-  dsimp only at hres_spec ⊢
+  dsimp only [ovfSearchFound, ovfSearchIdx] at hres_spec ⊢
   intro hf1
   by_cases hex :
       (∃ j ∈ L, quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
@@ -2844,7 +2846,7 @@ theorem compQueryBodyGenProg_spec
     ⟨⟨found, j_found⟩, phys_found⟩
   rw [hres_eq] at hres_sb hfnd
   rw [← hres_sb]
-  dsimp only at hfnd ⊢
+  dsimp only [ovfSearchFound, ovfQueryBase] at hfnd ⊢
   dsimp only [gm]
   split_ifs with hf1
   · obtain ⟨hj_bc, hphys_comp⟩ := hfnd hf1
