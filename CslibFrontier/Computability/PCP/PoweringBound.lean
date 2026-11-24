@@ -222,8 +222,8 @@ end of `d` whose far ends report `σ` truthfully. Split at step `i`, the killed 
 uniformly random dart, and its pieces before and after are independent uniformly random walks. -/
 theorem expect_killTime_eq_and_hit [Fintype V] [Fintype D] [Nonempty D]
     (A : V → WalkLabels D T → α) (σ : V → α) {ℓ i : ℕ} (hℓ : ℓ < T) (hi : i < ℓ) :
-    𝔼 p : V × (Fin T → D) × (Fin T → Fin q),
-        (if killTime p.2.2 = ℓ ∧ R.Hit T q A σ p i then 1 else 0 : ℝ) =
+    𝔼 p : KilledDart V D T q,
+        (if killTime p.signals = ℓ ∧ R.Hit T q A σ p i then 1 else 0 : ℝ) =
       (1 - (q : ℝ)⁻¹) ^ ℓ / q * 𝔼 d : V × D,
         (if d ∈ R.toConstraintGraph.unsatEdges σ then 1 else 0) * R.truthProb T A σ d.1 i *
           R.truthProb T A σ (R.graph.rot d).1 (ℓ - (i + 1)) := by
@@ -278,14 +278,14 @@ open Classical in
 /-- A killed walk hit at step `i` is killed at a single step `i + j + 1`, so the indicators over
 `j ∈ range (H + 1)` sum to at most the indicator of `R.Hit T q A σ p i`. -/
 private theorem sum_ite_killTime_eq_and_hit_le (A : V → WalkLabels D T → α) (σ : V → α)
-    (H i : ℕ) (p : V × (Fin T → D) × (Fin T → Fin q)) :
-    ∑ j ∈ range (H + 1), (if killTime p.2.2 = i + j + 1 ∧ R.Hit T q A σ p i then 1 else 0 : ℝ) ≤
+    (H i : ℕ) (p : KilledDart V D T q) :
+    ∑ j ∈ range (H + 1), (if killTime p.signals = i + j + 1 ∧ R.Hit T q A σ p i then 1 else 0 : ℝ) ≤
       if R.Hit T q A σ p i then 1 else 0 := by
   by_cases h : R.Hit T q A σ p i
   · have hk := h.lt_killTime
     simp only [h, and_true, ↓reduceIte]
-    rw [sum_congr rfl fun j _ ↦ if_congr (show killTime p.2.2 = i + j + 1 ↔
-      j = killTime p.2.2 - (i + 1) by omega) rfl rfl, sum_ite_eq']
+    rw [sum_congr rfl fun j _ ↦ if_congr (show killTime p.signals = i + j + 1 ↔
+      j = killTime p.signals - (i + 1) by omega) rfl rfl, sum_ite_eq']
     split_ifs <;> norm_num
   · simp [h]
 
@@ -343,7 +343,8 @@ theorem le_expect_numHits [Fintype V] [Fintype D] [Nonempty D] [Fintype α] [Non
           𝔼 d, b d * R.truthProb T A σ d.1 i * R.truthProb T A σ (R.graph.rot d).1 j := by
         simp only [S, P, sub_one_mul_sum_mul_sum_eq q H, expect_sum_comm, mul_expect]
     _ = ∑ i ∈ range (H + 1), ∑ j ∈ range (H + 1),
-          𝔼 p, (if killTime p.2.2 = i + j + 1 ∧ R.Hit T q A σ p i then 1 else 0 : ℝ) := by
+          𝔼 p : KilledDart V D T q,
+            (if killTime p.signals = i + j + 1 ∧ R.Hit T q A σ p i then 1 else 0 : ℝ) := by
         refine sum_congr rfl fun i hi ↦ sum_congr rfl fun j hj ↦ ?_
         rw [mem_range] at hi hj
         rw [R.expect_killTime_eq_and_hit T q A σ (by omega) (by omega),

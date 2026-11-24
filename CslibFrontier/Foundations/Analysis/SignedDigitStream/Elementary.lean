@@ -9,13 +9,6 @@ module
 
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Basic
 public import CslibFrontier.Foundations.Data.Finset.KthLargest
-import Mathlib.Algebra.Order.Floor.Ring
-import Mathlib.Algebra.Order.Group.MinMax
-import Mathlib.Data.Rat.Floor
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Elementary stream operations, finite-state prefix comparisons, ranks, and buffered tests

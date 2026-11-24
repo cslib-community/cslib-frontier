@@ -796,8 +796,7 @@ theorem realizes_queryWithHashGen :
       (WordEncoding.encode (α := Option ℕ))
       QueryWithHashGenPre
       (fun _ _ => 0) := by
-  have hqb := realizes_queryBodyGen
-  realize
+  realize [realizes_queryBodyGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1
@@ -882,8 +881,7 @@ theorem realizes_insertWithHashGen :
       (WordEncoding.encode (α := Unit))
       InsertWithHashGenPre
       (fun _ _ => 0) := by
-  have hib := realizes_insertBodyGen
-  realize
+  realize [realizes_insertBodyGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1.1
@@ -944,8 +942,7 @@ theorem realizes_deletePrepWithHashGen :
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
       QueryWithHashGenPre
       (fun _ _ => 0) := by
-  have hdp := realizes_deletePrepGen
-  realize
+  realize [realizes_deletePrepGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1
@@ -1042,8 +1039,7 @@ theorem realizes_deleteFinishWithHashGen :
       (WordEncoding.encode (α := Unit))
       DeleteFinishWithHashGenPre
       (fun _ _ => 0) := by
-  have hdf := realizes_deleteFinishGen
-  realize
+  realize [realizes_deleteFinishGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1
@@ -1284,7 +1280,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
       (deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)))
   dsimp only at hprep_spec hfin_spec
   rw [hprep_val] at hprep_spec hfin_spec
-  dsimp only at hprep_spec hfin_spec
+  dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys, deletePrepHdr] at hprep_spec hfin_spec
   refine ⟨found, j_del, phys_del, q_last, ?_⟩
   intro prep h_q_last d_fin prog_fin s' gm₀ gm'
   have hfin_eq : prog_fin =
