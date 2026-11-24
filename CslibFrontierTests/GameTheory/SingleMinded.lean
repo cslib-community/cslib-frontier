@@ -661,15 +661,4 @@ example :
   · simp [Mechanism.utility, losMechanism, hw_true, hpay_true, Function.update_self,
       SingleMindedBid.eval, trueBid]
 
-/-! ### Non-vacuity check on `losMechanism_incentiveCompatible_and_approx` -/
-
-example :
-    (losMechanism (N := Fin 4) (M := Fin 3)).IsFeasible ∧
-    (losMechanism (N := Fin 4) (M := Fin 3)).LosersPayZero ∧
-    (losMechanism (N := Fin 4) (M := Fin 3)).IsDSIC ∧
-    (losMechanism (N := Fin 4) (M := Fin 3)).IsIR ∧
-    (losMechanism (N := Fin 4) (M := Fin 3)).HasNonnegPayment := by
-  have h := losMechanism_incentiveCompatible_and_approx (N := Fin 4) (M := Fin 3)
-  exact ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1⟩
-
 end CslibFrontierTests.GameTheory.SingleMinded

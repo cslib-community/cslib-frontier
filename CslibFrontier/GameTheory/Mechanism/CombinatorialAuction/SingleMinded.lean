@@ -87,9 +87,10 @@ characterization is distinct from the single-parameter model in
   earliest-blocked-bidder payment characterization for winners in `losMechanism`.
 * `losWinners_approx`: the `√m`-approximation guarantee ([BlumrosenNisan2007], Lemma 11.10,
   p. 275).
-* `losMechanism_incentiveCompatible_and_approx`: partial (non-computational) step combining
-  feasibility, DSIC, IR, losers-pay-zero, nonnegative payments, and `√m`-approximation for
-  `losMechanism` (toward Theorem 11.8, p. 273; no running-time claim).
+* `losMechanism_isFeasible`, `losMechanism_losersPayZero`, `losMechanism_isDSIC`,
+  `losMechanism_isIR`, `losMechanism_hasNonnegPayment`: feasibility, normalization, truthfulness,
+  individual rationality, and nonnegative payments for `losMechanism` (without requiring
+  `[Fintype M]` or `[Nonempty M]`; no running-time claim is made).
 
 ## References
 
@@ -1467,25 +1468,5 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
         nlinarith
     _ = Real.sqrt (Fintype.card M) * ∑ i ∈ W, (b i).value := by
         rw [← mul_add, ← hW_part]
-
-/-- Partial (non-computational) step toward [BlumrosenNisan2007], Theorem 11.8 (p. 273); it is
-**not** a complete formalization of Theorem 11.8 because the polynomial-time / computational
-efficiency clause is **not** formalized (remaining open under issue #7789). Bundles feasibility,
-losers-pay-zero normalization, dominant-strategy incentive compatibility, individual rationality,
-nonnegative payments, and the `√m`-approximation bound for `losMechanism`. -/
-theorem losMechanism_incentiveCompatible_and_approx {N M : Type*} [Fintype N] [LinearOrder N]
-    [Fintype M] [DecidableEq M] [Nonempty M] :
-    (losMechanism (N := N) (M := M)).IsFeasible ∧
-    (losMechanism (N := N) (M := M)).LosersPayZero ∧
-    (losMechanism (N := N) (M := M)).IsDSIC ∧
-    (losMechanism (N := N) (M := M)).IsIR ∧
-    (losMechanism (N := N) (M := M)).HasNonnegPayment ∧
-    ∀ (b : N → SingleMindedBid M), (∀ i, 0 ≤ (b i).value) →
-      ∀ opt : Finset N, IsCompatible b opt →
-        ∑ i ∈ opt, (b i).value ≤
-          Real.sqrt (Fintype.card M) * ∑ i ∈ losWinners b, (b i).value :=
-  ⟨losMechanism_isFeasible, losMechanism_losersPayZero, losMechanism_isDSIC,
-    losMechanism_isIR, losMechanism_hasNonnegPayment,
-    fun b hb opt hopt => losWinners_approx b hb opt hopt⟩
 
 end Cslib.GameTheory.CombinatorialAuction.SingleMinded
