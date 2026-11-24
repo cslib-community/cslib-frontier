@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Batch
+import Mathlib.Tactic.FinCases
 
 /-!
 # Tests for the batch processing of the certificate procedure
@@ -21,6 +22,13 @@ with tests that answer correctly at no cost and an exact minimum spanning forest
 `P' = ∅`, no vertex can get a spoke, and Lemma 3.2 then says that every edge of `B \ R'` is
 supported by the new forest: the heavier parallel edge `1`, the self-loop `3`, and edge `2` unless
 it failed its test. The comparison bound is instantiated with `cs = cf = 0`.
+
+A second batch, with `r = 1` (`k = 1`), exercises the spoke branch. On the path `2 — 0 — 1 — 3`
+with edges `0 = {0, 2}`, `1 = {1, 3}` and `2 = {0, 1}`, weighted by their index, each vertex
+selects only its lightest edge, so the heaviest edge `2` is not declared
+(`Cslib.Query.Certificate.exists_end_card_lt_of_mem_declared_batch`). It is then not supported by
+the new forest, and Lemma 3.2 gives both of its ends spokes no heavier than it: vertex `0` gets the
+spoke `0` to the new portal `2`, and vertex `1` the spoke `1` to the new portal `3`.
 -/
 
 namespace CslibFrontierTests.MSFCertificateBatch
@@ -116,5 +124,130 @@ example : ((batch test msfSub 7 st univ).countQueries (LEQuery.keyOracle w) : �
       ((0 : ℕ) : ℝ) * #res.rejected +
       (msfSub (st.forest ∪ res.declared)).countQueries (LEQuery.keyOracle w) :=
   countQueries_batch_le hw htest (fun _ _ => le_of_eq rfl) (fun _ _ => le_of_eq rfl)
+
+/-! ### A batch with `k = 1`, where vertices get spokes -/
+
+namespace Spokes
+
+/-- The path `2 — 0 — 1 — 3`. -/
+def ends : Fin 3 → Sym2 (Fin 4)
+  | 0 => s(0, 2)
+  | 1 => s(1, 3)
+  | 2 => s(0, 1)
+
+/-- Weights: the index of the edge. -/
+def w : Fin 3 → ℕ := Fin.val
+
+/-- Every edge is admissible. -/
+def adm (_ : Fin 3) : Prop := True
+
+instance : DecidablePred adm := fun _ => inferInstanceAs (Decidable True)
+
+/-- The admissibility test, answering without comparisons. -/
+def test (e : Fin 3) : FreeM (LEQuery (Fin 3)) Bool := pure (decide (adm e))
+
+/-- The exact minimum spanning forest call, answering without comparisons. -/
+noncomputable def msfSub (S : Finset (Fin 3)) : FreeM (LEQuery (Fin 3)) (Finset (Fin 3)) :=
+  pure (msf ends w S)
+
+/-- The initial state on the four vertices. -/
+abbrev st : State (Fin 4) (Fin 3) := State.init univ ends
+
+/-- The run of the batch of all three edges, with `r = 1`. -/
+noncomputable abbrev res : BatchResult (Fin 4) (Fin 3) :=
+  (batch test msfSub 1 st univ).eval (LEQuery.keyOracle w)
+
+theorem hw : Function.Injective w := Fin.val_injective
+
+theorem htest (e : Fin 3) : (test e).eval (LEQuery.keyOracle w) = decide (adm e) := rfl
+
+theorem hB : ∀ e ∈ (univ : Finset (Fin 3)), ∀ v ∈ st.ends e, v ∈ st.vertices := by
+  simp [st]
+
+theorem hmsf :
+    (msfSub (st.forest ∪ res.declared)).eval (LEQuery.keyOracle w) =
+      msf st.ends w (st.forest ∪ res.declared) := rfl
+
+theorem hinv : res.state.Invariant w adm :=
+  (State.invariant_init univ ends w adm).batch hw htest hB hmsf
+
+/-- With quota `1`, each end of edge `2` has a lighter edge to another neighbour, so edge `2` is
+not declared. -/
+theorem two_notMem_declared : (2 : Fin 3) ∉ res.declared := by
+  intro h
+  obtain ⟨v, hv, hT⟩ := exists_end_card_lt_of_mem_declared_batch hw htest h
+  have hv' : v = 0 ∨ v = 1 := by simpa [st, ends] using hv
+  rcases hv' with rfl | rfl
+  · have := hT {0} (subset_univ _) (by simp [st, ends, adm, w])
+      (by rw [coe_singleton]; exact Set.injOn_singleton _ _)
+    simp at this
+  · have := hT {1} (subset_univ _) (by simp [st, ends, adm, w])
+      (by rw [coe_singleton]; exact Set.injOn_singleton _ _)
+    simp at this
+
+/-- So edge `2` is not supported by the new forest: no other edge crosses between `{0, 2}` and
+`{1, 3}`. -/
+theorem two_not_supported : ¬Supported ends w ↑res.state.forest 2 := by
+  rw [supported_iff w (show ends 2 = s(0, 1) from rfl)]
+  intro hj
+  obtain ⟨f, ⟨hfF, -⟩, hcut⟩ := hj.exists_mem_edgeCut (P := {0, 2}) (by simp) (by simp)
+  rw [forest_batch, hmsf] at hfF
+  have hf2 : f ≠ 2 := by
+    rintro rfl
+    exact two_notMem_declared (by simpa [st] using msf_subset w hfF)
+  obtain ⟨a, b, hab, ha, hb⟩ := Graph.mem_edgeCut_iff.1 hcut
+  change ends f = s(a, b) at hab
+  fin_cases f
+  · simp only [ends, Sym2.eq_iff] at hab
+    rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp at ha hb
+  · simp only [ends, Sym2.eq_iff] at hab
+    rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp at ha hb
+  · exact hf2 rfl
+
+/-- Lemma 3.2 gives both ends of edge `2` spokes no heavier than it. -/
+theorem spokes : ∃ su sv, res.state.spoke 0 = some su ∧ res.state.spoke 1 = some sv ∧
+    max (w su) (w sv) ≤ w 2 :=
+  (supported_or_spokes_batch hw htest (by norm_num) hB hmsf (mem_univ 2)
+    (fun h => not_adm_of_mem_rejected_batch hw htest h trivial) rfl).resolve_left
+    two_not_supported
+
+/-- The spoke of an end of edge `2` is a declared edge at that end other than `2`. -/
+theorem spoke_eq {v : Fin 4} {s e : Fin 3} (hs : res.state.spoke v = some s)
+    (hother : ∀ f : Fin 3, v ∈ ends f → f = e ∨ f = 2) : s = e := by
+  rcases spoke_batch_eq_or_mem_declared hw htest hs with h | h
+  · simp [st] at h
+  · rcases hother s (by simpa [st] using hinv.mem_ends_spoke v s hs) with h' | rfl
+    · exact h'
+    · exact absurd h two_notMem_declared
+
+/-- Vertex `0` gets the spoke `0`, to the new portal `2`. -/
+example : res.state.spoke 0 = some 0 ∧ res.state.proj 0 = 2 ∧ 2 ∈ res.newPortals ∧
+    Supported ends w ↑res.state.forest 0 := by
+  obtain ⟨su, -, hsu, -⟩ := spokes
+  obtain rfl : su = 0 := spoke_eq hsu (by decide)
+  have hproj : res.state.proj 0 = 2 := by
+    rw [State.proj_of_spoke_eq_some hsu, ends_batch]; rfl
+  have hport := hinv.proj_mem_portals 0 0 hsu
+  rw [hproj, portals_batch] at hport
+  exact ⟨hsu, hproj, by simpa [st] using hport, by
+    have h := hinv.spoke_supported 0 0 hsu
+    rw [ends_batch] at h
+    exact h⟩
+
+/-- Vertex `1` gets the spoke `1`, to the new portal `3`. -/
+example : res.state.spoke 1 = some 1 ∧ res.state.proj 1 = 3 ∧ 3 ∈ res.newPortals ∧
+    Supported ends w ↑res.state.forest 1 := by
+  obtain ⟨-, sv, -, hsv, -⟩ := spokes
+  obtain rfl : sv = 1 := spoke_eq hsv (by decide)
+  have hproj : res.state.proj 1 = 3 := by
+    rw [State.proj_of_spoke_eq_some hsv, ends_batch]; rfl
+  have hport := hinv.proj_mem_portals 1 1 hsv
+  rw [hproj, portals_batch] at hport
+  exact ⟨hsv, hproj, by simpa [st] using hport, by
+    have h := hinv.spoke_supported 1 1 hsv
+    rw [ends_batch] at h
+    exact h⟩
+
+end Spokes
 
 end CslibFrontierTests.MSFCertificateBatch

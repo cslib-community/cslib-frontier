@@ -66,8 +66,6 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
   `msf S = C ∪ msf (S \ C)` for `C ⊆ msf S`, the latter in the multigraph with `C` contracted.
 * `Cslib.Multigraph.joins_msf_of_joins`: threshold connectivity (the paper's Fact 2.5): `msf S`
   preserves connectivity by the edges of weight at most `k`, for every threshold `k`.
-* `Cslib.Multigraph.msf_filter_not_isDiag`, `Cslib.Multigraph.support_filter_not_isDiag`: dropping
-  the self-loops changes neither the minimum spanning forest nor the non-isolated vertices.
 * `Cslib.Multigraph.msf_eq_of_subset`, `Cslib.Multigraph.notMem_msf_of_supported`,
   `Cslib.Multigraph.msf_union_unsupported`: filtering. Any `S'` between `msf S` and `S` has the same
   minimum spanning forest; a supported edge outside `F ⊆ S` is not in `msf S`; and so
@@ -560,6 +558,24 @@ def Supported (ends : E → Sym2 V) (w : E → W) (F : Set E) (e : E) : Prop :=
 theorem supported_iff {F : Set E} {e : E} {a b : V} (h : ends e = s(a, b)) :
     Supported ends w F e ↔ Joins ends {f | f ∈ F ∧ w f ≤ w e} a b :=
   forall_joins_iff h
+
+variable {w} in
+/-- An edge supported by `F` is supported by every superset of `F`. -/
+theorem Supported.mono {F G : Set E} (hFG : F ⊆ G) {e : E} (h : Supported ends w F e) :
+    Supported ends w G e := fun a b hab =>
+  (h a b hab).mono (by rintro f ⟨hf, hfe⟩; exact ⟨hFG hf, hfe⟩)
+
+/-- Every edge of `F` is supported by `F`. -/
+theorem supported_of_mem {F : Set E} {e : E} (he : e ∈ F) : Supported ends w F e :=
+  fun _ _ hab => Joins.of_mem (by exact ⟨he, le_rfl⟩) hab
+
+/-- An edge is supported by `msf S` exactly when it is supported by `S`, by Fact 2.5. -/
+theorem supported_msf_iff {e : E} :
+    Supported ends w ↑(msf ends w S) e ↔ Supported ends w ↑S e := by
+  obtain ⟨a, b, hab⟩ := exists_ends_eq (ends := ends) e
+  rw [supported_iff w hab, supported_iff w hab]
+  exact ⟨Joins.mono (by rintro f ⟨hf, hfe⟩; exact ⟨msf_subset w hf, hfe⟩),
+    joins_msf_of_joins w (X := ↑S) subset_rfl⟩
 
 open scoped Classical in
 /-- The edges of `S` not supported by `F`, the set `U(F)` of §3.1 (p. 13). -/
