@@ -189,9 +189,9 @@ private theorem computableInPolyTime_forbidOneHot (q : ℕ) (ts : List (Fin q)) 
     have hhd : ComputableInPolyTime (fun vs : List ℕ => vs.getD 0 0) (encList encNat) encNat :=
       listGetD_binary (encA := encNat) (encL := encList encNat) 0
         (id' (encIn := encList encNat)) (const 0)
-    have hlit : ComputableInPolyTime (fun vs : List ℕ => (vs.getD 0 0 * q + a.1, false))
+    have hlit : ComputableInPolyTime (fun vs : List ℕ => (vs.getD 0 0 * q + a.val, false))
         (encList encNat) (encPair encNat encBool) :=
-      (binary_add.comp ((binary_mul' hhd (const q)).prod (const a.1))).prod (const false)
+      (binary_add.comp ((binary_mul' hhd (const q)).prod (const a.val))).prod (const false)
     have htl : ComputableInPolyTime (fun vs : List ℕ => vs.tail)
         (encList encNat) (encList encNat) := by
       fun_prop
