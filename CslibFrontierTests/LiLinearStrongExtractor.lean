@@ -23,7 +23,7 @@ import Mathlib.Tactic.NormNum
 Exercises concrete non-vacuous witnesses, linearity & structural checks, boundary behavior, and
 alternating-extraction / polynomial-correlation-breaker compositions. -/
 
-@[expose] public section
+public section
 
 namespace CslibFrontierTests.LiLinearStrongExtractor
 
@@ -101,14 +101,14 @@ theorem isLinearStrongExtractor_trevisanRRV_2048_1 :
   norm_num
 
 /-- Symmetric power-of-two `trevisanRRVExt` witness (`w = 64`, `m = seed = 32768`, `n = 2 ^ 18`,
-`ε = 1 / 2`, `k = 65586`) for alternating extraction composition below. -/
+`ε = 1 / 16`, `k = 65595`) for alternating extraction composition below. -/
 theorem isLinearStrongExtractor_trevisanRRV_symm :
     IsLinearStrongExtractor
       (trevisanRRVExt (2 ^ 18) ((64 + 64) * (2 * (64 + 64))) 64 (by omega))
-      65586 (1 / 2) := by
+      65595 (1 / 16) := by
   refine isLinearStrongExtractor_trevisanRRV (hm := by omega) (hw := by omega) (hε := by norm_num)
     (hw_bound := by norm_num) (hk := ?_)
-  have hratio : (((((64 + 64) * (2 * (64 + 64)) : ℕ) : ℝ) / (1 / 2))) = (2 : ℝ) ^ (16 : ℕ) := by
+  have hratio : (((((64 + 64) * (2 * (64 + 64)) : ℕ) : ℝ) / (1 / 16))) = (2 : ℝ) ^ (19 : ℕ) := by
     norm_num
   rw [hratio, Real.logb_pow, Real.logb_self_eq_one (by norm_num)]
   norm_num
@@ -149,8 +149,9 @@ example (x₁ x₂ : BitString 8) (y : BitString 2) (ext2 : BitString 2 → BitS
       toeplitzLinearExt 8 2 x₂ (altExtS (toeplitzLinearExt 8 2) ext2 (x₁ + x₂) y s0 k) :=
   altExtR_add_source ext2 isLinearStrongExtractor_toeplitz_8_2 x₁ x₂ y s0 k
 
-/-- Concrete two-source round-1 look-ahead witness (`k = 1`, `r = 1`, `δ = 1 / 4`) via
-`dist_altExt_lookAhead_le` instantiated with `isLinearStrongExtractor_trevisanRRV_symm`. -/
+/-- Concrete two-source round-1 look-ahead witness (`k = 1`, `r = 1`, `ε = 1 / 16`, `δ = 1 / 32`,
+total error `5 / 16 < 1 / 2`) via `dist_altExt_lookAhead_le` instantiated with
+`isLinearStrongExtractor_trevisanRRV_symm`. -/
 theorem dist_altExt_trevisanRRV_lookAhead_witness :
     let d := (64 + 64) * (2 * (64 + 64))
     let ext := trevisanRRVExt (2 ^ 18) d 64 (by omega)
@@ -171,7 +172,7 @@ theorem dist_altExt_trevisanRRV_lookAhead_witness :
           (view px py, altExtR ext ext x y s0 1))
       ((((PMF.uniformOfFintype (BitString (2 ^ 18) × (Fin 1 → BitString (2 ^ 18)))).bind fun px =>
           (PMF.uniformOfFintype _).map fun py => view px py)).bind fun v =>
-        (PMF.uniformOfFintype (BitString d)).map fun u => (v, u)) ≤ 5 / 2 := by
+        (PMF.uniformOfFintype (BitString d)).map fun u => (v, u)) ≤ 5 / 16 := by
   intro d ext view
   let PX := PMF.uniformOfFintype (BitString (2 ^ 18) × (Fin 1 → BitString (2 ^ 18)))
   let PY := PMF.uniformOfFintype ((BitString (2 ^ 18) × (Fin 1 → BitString (2 ^ 18))) ×
@@ -183,7 +184,7 @@ theorem dist_altExt_trevisanRRV_lookAhead_witness :
           let ((y, _), (s0, _)) := py
           (view px py, altExtR ext ext x y s0 1))
       ((PX.bind fun px => PY.map fun py => view px py).bind fun v =>
-        (PMF.uniformOfFintype (BitString d)).map fun u => (v, u)) ≤ 5 / 2
+        (PMF.uniformOfFintype (BitString d)).map fun u => (v, u)) ≤ 5 / 16
   have hPX : ((2 ^ 18 : ℕ) : ℝ) ≤ minEntropy (PX.map Prod.fst) := by
     have hunif : PX.map Prod.fst = PMF.uniformOfFintype (BitString (2 ^ 18)) := by
       change (PMF.uniformOfFintype (BitString (2 ^ 18) × (Fin 1 → BitString (2 ^ 18)))).map
@@ -225,20 +226,21 @@ theorem dist_altExt_trevisanRRV_lookAhead_witness :
         rw [PMF.map_comp]; rfl
       rw [hm, hsnd, uniformOfFintype_prod_map_snd, ← uniformOfFintype_prod]
     rw [hL, hR, dist_self]
-  have hlog4 : Real.logb 2 ((1 / 4 : ℝ)⁻¹) = 2 := by
-    rw [show (1 / 4 : ℝ)⁻¹ = (2 : ℝ) ^ (2 : ℕ) by norm_num, Real.logb_pow,
+  have hlog32 : Real.logb 2 ((1 / 32 : ℝ)⁻¹) = 5 := by
+    rw [show (1 / 32 : ℝ)⁻¹ = (2 : ℝ) ^ (5 : ℕ) by norm_num, Real.logb_pow,
       Real.logb_self_eq_one (by norm_num)]
     norm_num
   have h := dist_altExt_lookAhead_le (kX := ((2 ^ 18 : ℕ) : ℝ)) (kY := ((2 ^ 18 : ℕ) : ℝ))
-    (η0 := 0) (δ := 1 / 4) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (η0 := 0) (δ := 1 / 32) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     isLinearStrongExtractor_trevisanRRV_symm.1 isLinearStrongExtractor_trevisanRRV_symm.1
     PX PY hPX hPY hη0 1
-    (by rw [hlog4]; norm_num)
-    (by rw [hlog4]; norm_num)
+    (by rw [hlog32]; norm_num)
+    (by rw [hlog32]; norm_num)
   exact h.trans_eq (by norm_num)
 
-/-- Concrete sumset alternating-extraction witness (`k = 1`, `δ = 1 / 4`) via
-`dist_altExt_sumset_lookAhead_le` and `isLinearStrongExtractor_trevisanRRV_symm`. -/
+/-- Concrete sumset alternating-extraction witness (`k = 1`, `ε = 1 / 16`, `δ = 1 / 32`, total
+error `5 / 16 < 1 / 2`) via `dist_altExt_sumset_lookAhead_le` and
+`isLinearStrongExtractor_trevisanRRV_symm`. -/
 theorem dist_altExt_sumset_trevisanRRV_witness :
     let d := (64 + 64) * (2 * (64 + 64))
     let ext := trevisanRRVExt (2 ^ 18) d 64 (by omega)
@@ -251,7 +253,7 @@ theorem dist_altExt_sumset_trevisanRRV_witness :
       (((PMF.uniformOfFintype (BitString (2 ^ 18))).bind fun a =>
           (PMF.uniformOfFintype (BitString (2 ^ 18) × BitString d)).map fun bs =>
             view a bs).bind fun v =>
-        (PMF.uniformOfFintype (BitString d)).map fun u => (v, u)) ≤ 5 / 2 := by
+        (PMF.uniformOfFintype (BitString d)).map fun u => (v, u)) ≤ 5 / 16 := by
   intro d ext view
   have hA : ((2 ^ 18 : ℕ) : ℝ) ≤ minEntropy (PMF.uniformOfFintype (BitString (2 ^ 18))) := by
     rw [minEntropy_uniformOfFintype_bitString]
@@ -261,18 +263,18 @@ theorem dist_altExt_sumset_trevisanRRV_witness :
   have hη0 : dist ((PMF.uniformOfFintype (BitString (2 ^ 18) × BitString d)).map Prod.snd)
       (PMF.uniformOfFintype (BitString d)) ≤ 0 := by
     rw [uniformOfFintype_prod_map_snd, dist_self]
-  have hlog4 : Real.logb 2 ((1 / 4 : ℝ)⁻¹) = 2 := by
-    rw [show (1 / 4 : ℝ)⁻¹ = (2 : ℝ) ^ (2 : ℕ) by norm_num, Real.logb_pow,
+  have hlog32 : Real.logb 2 ((1 / 32 : ℝ)⁻¹) = 5 := by
+    rw [show (1 / 32 : ℝ)⁻¹ = (2 : ℝ) ^ (5 : ℕ) by norm_num, Real.logb_pow,
       Real.logb_self_eq_one (by norm_num)]
     norm_num
   have h := dist_altExt_sumset_lookAhead_le (kA := ((2 ^ 18 : ℕ) : ℝ)) (kB := ((2 ^ 18 : ℕ) : ℝ))
-    (η0 := 0) (δ := 1 / 4) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (η0 := 0) (δ := 1 / 32) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     isLinearStrongExtractor_trevisanRRV_symm isLinearStrongExtractor_trevisanRRV_symm
     (PMF.uniformOfFintype (BitString (2 ^ 18)))
     (PMF.uniformOfFintype (BitString (2 ^ 18) × BitString d))
     hA hB hη0 1
-    (by rw [hlog4]; norm_num)
-    (by rw [hlog4]; norm_num)
+    (by rw [hlog32]; norm_num)
+    (by rw [hlog32]; norm_num)
   exact h.trans_eq (by norm_num)
 
 /-- Unconditional `t = 2` polynomial weak-seed correlation breaker witness via `vanderCB 2 8` on

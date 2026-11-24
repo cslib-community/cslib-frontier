@@ -172,20 +172,16 @@ variable {ℓ t m : ℕ} {r : ℝ} {α : Type*}
   z ∘ (D.block i).orderEmbOfFin (D.card_block i)
 
 /-- Overwrite the `i`-th block of `w` with `x` in increasing order of position. -/
-@[expose] def extend (D : WeakDesign ℓ t m r) (i : Fin m) (x : Fin t → α) (w : Fin ℓ → α) :
+private def extend (D : WeakDesign ℓ t m r) (i : Fin m) (x : Fin t → α) (w : Fin ℓ → α) :
     Fin ℓ → α := fun k =>
   if h : k ∈ D.block i then x (((D.block i).orderIsoOfFin (D.card_block i)).symm ⟨k, h⟩)
   else w k
 
 /-- Positions inside the `i`-th block of `D` that also lie in the `j`-th block. -/
-@[expose] def overlap (D : WeakDesign ℓ t m r) (i j : Fin m) : Finset (Fin t) :=
+private def overlap (D : WeakDesign ℓ t m r) (i j : Fin m) : Finset (Fin t) :=
   {k | (D.block i).orderEmbOfFin (D.card_block i) k ∈ D.block j}
 
-private theorem orderEmbOfFin_orderIsoOfFin_symm {β : Type*} [LinearOrder β] (s : Finset β)
-    {k : ℕ} (h : #s = k) (p : s) : s.orderEmbOfFin h ((s.orderIsoOfFin h).symm p) = p := by
-  rw [← coe_orderIsoOfFin_apply, OrderIso.apply_symm_apply]
-
-@[simp] theorem restrict_extend (D : WeakDesign ℓ t m r) (i : Fin m) (x : Fin t → α)
+private theorem restrict_extend (D : WeakDesign ℓ t m r) (i : Fin m) (x : Fin t → α)
     (w : Fin ℓ → α) : D.restrict i (D.extend i x w) = x := by
   ext k
   simp only [restrict, Function.comp_apply, extend, orderEmbOfFin_mem, ↓reduceDIte]
@@ -193,20 +189,16 @@ private theorem orderEmbOfFin_orderIsoOfFin_symm {β : Type*} [LinearOrder β] (
   rw [OrderIso.symm_apply_eq]
   exact Subtype.ext (coe_orderIsoOfFin_apply _ _ k).symm
 
-@[simp] theorem extend_restrict (D : WeakDesign ℓ t m r) (i : Fin m) (z : Fin ℓ → α) :
+private theorem extend_restrict (D : WeakDesign ℓ t m r) (i : Fin m) (z : Fin ℓ → α) :
     D.extend i (D.restrict i z) z = z := by
   ext k
   by_cases hk : k ∈ D.block i
-  · rw [extend, dite_eq_left hk, restrict, Function.comp_apply, orderEmbOfFin_orderIsoOfFin_symm]
+  · rw [extend, dite_eq_left hk, restrict, Function.comp_apply, ← coe_orderIsoOfFin_apply,
+      OrderIso.apply_symm_apply]
   · rw [extend, dite_eq_right hk]
 
-@[simp] theorem extend_extend (D : WeakDesign ℓ t m r) (i : Fin m) (x y : Fin t → α)
-    (w : Fin ℓ → α) : D.extend i y (D.extend i x w) = D.extend i y w := by
-  ext k
-  by_cases hk : k ∈ D.block i <;> simp [extend, hk]
-
 /-- The overlap positions inside block `i` are in bijection with `block i ∩ block j`. -/
-theorem card_overlap (D : WeakDesign ℓ t m r) (i j : Fin m) :
+private theorem card_overlap (D : WeakDesign ℓ t m r) (i j : Fin m) :
     #(D.overlap i j) = #(D.block i ∩ D.block j) := by
   rw [← card_map ((D.block i).orderEmbOfFin (D.card_block i)).toEmbedding]
   congr 1
@@ -223,15 +215,17 @@ theorem card_overlap (D : WeakDesign ℓ t m r) (i j : Fin m) :
 
 /-- With bits outside block `i` fixed to `w`, block `j` of `D.extend i x w` depends on `x` only
 through `D.overlap i j`. -/
-theorem dependsOn_restrict_extend (D : WeakDesign ℓ t m r) (i j : Fin m) (w : Fin ℓ → α) :
+private theorem dependsOn_restrict_extend (D : WeakDesign ℓ t m r) (i j : Fin m) (w : Fin ℓ → α) :
     DependsOn (fun x : Fin t → α => D.restrict j (D.extend i x w)) (D.overlap i j) := by
   intro x y hxy
   ext k
   simp only [restrict, Function.comp_apply, extend]
   split_ifs with h
   · refine hxy _ ?_
-    simp only [overlap, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq,
-      orderEmbOfFin_orderIsoOfFin_symm, orderEmbOfFin_mem]
+    rw [mem_coe, overlap, mem_filter]
+    refine ⟨mem_univ _, ?_⟩
+    rw [← coe_orderIsoOfFin_apply, OrderIso.apply_symm_apply]
+    exact orderEmbOfFin_mem _ _ k
   · rfl
 
 /-- Swapping block `i` of `w` with `x` is an involution on `(Fin ℓ → α) × (Fin t → α)`. -/
@@ -239,11 +233,15 @@ private theorem involutive_extend_restrict (D : WeakDesign ℓ t m r) (i : Fin m
     Function.Involutive fun p : (Fin ℓ → α) × (Fin t → α) =>
       (D.extend i p.2 p.1, D.restrict i p.1) := by
   rintro ⟨w, x⟩
-  simp
+  refine Prod.ext (funext fun k => ?_) (D.restrict_extend i x w)
+  by_cases hk : k ∈ D.block i
+  · simp only [extend, restrict, dite_eq_left hk, Function.comp_apply]
+    rw [← coe_orderIsoOfFin_apply, OrderIso.apply_symm_apply]
+  · simp only [extend, dite_eq_right hk]
 
 /-- Sampling a uniform seed `z : Fin ℓ → α` is equivalent to sampling `w` and block `i`
 independently and overwriting block `i` of `w`. -/
-theorem uniformOfFintype_bind_eq [Fintype α] [Nonempty α] {β : Type*}
+private theorem uniformOfFintype_bind_eq [Fintype α] [Nonempty α] {β : Type*}
     (D : WeakDesign ℓ t m r) (i : Fin m) (F : (Fin ℓ → α) → PMF β) :
     (PMF.uniformOfFintype (Fin ℓ → α)).bind F =
       (PMF.uniformOfFintype (Fin ℓ → α)).bind fun w =>

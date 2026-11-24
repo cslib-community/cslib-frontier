@@ -115,23 +115,6 @@ open Cslib Cslib.BitString Cslib.Probability Cslib.Probability.PMF Finset
 
 section ImperfectSeed
 
-/-- Average strong-extractor distance over uniform seeds equals the strong-extractor distance. -/
-private theorem sum_uniform_dist_strongExtractor {Input Seed Output : Type*}
-    [Fintype Seed] [Nonempty Seed] [Fintype Output] [Nonempty Output]
-    (ext : Input → Seed → Output) (PX : PMF Input) :
-    ∑ s : Seed, ((PMF.uniformOfFintype Seed) s).toReal *
-        dist (PX.map fun x => ext x s) (PMF.uniformOfFintype Output) =
-      dist (PX.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s))
-        (PMF.uniformOfFintype (Seed × Output)) := by
-  have hcomm :
-      (PX.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s)) =
-      (PMF.uniformOfFintype Seed).bind fun s => (PX.map fun x => ext x s).map (s, ·) := by
-    simp only [PMF.map, Function.comp_def]
-    rw [PMF.bind_comm]
-    refine congrArg ((PMF.uniformOfFintype Seed).bind ·) (funext fun s => ?_)
-    simp only [PMF.bind_bind, PMF.pure_bind]
-  rw [hcomm, ← uniformOfFintype_prod, dist_bind_pair]
-
 /-- **Strong extraction with a near-uniform seed (exact, no factor-of-2 loss)**:
 if `ext` is a strong `(k, ε)`-extractor and `k ≤ minEntropy PX`, then evaluating `ext` on `PX`
 and a seed `seed Y` driven by an independent distribution `PY` yields output within
@@ -250,37 +233,6 @@ end ImperfectSeed
 /-! ### 2. Conditional-independence engine (`CondState`) -/
 
 section CondEngine
-
-/-- Conditioning `P` on `f x` and mixing back recovers `P`. -/
-private theorem bind_conditionalSnd_of_map {α β : Type*} (P : PMF α) (f : α → β) :
-    ((P.map fun x => (f x, x)).map Prod.fst).bind
-      (conditionalSnd (P.map fun x => (f x, x))) = P := by
-  have h := congrArg (PMF.map Prod.snd) (bind_conditionalSnd (P.map fun x => (f x, x)))
-  have hsnd : (P.map fun x => (f x, x)).map Prod.snd = P :=
-    (PMF.map_comp _ _ _).trans (PMF.map_id P)
-  rw [hsnd, PMF.map_bind] at h
-  have hsimp (a : β) :
-      ((conditionalSnd (P.map fun x => (f x, x)) a).map (a, ·)).map Prod.snd =
-      conditionalSnd (P.map fun x => (f x, x)) a :=
-    (PMF.map_comp _ _ _).trans (PMF.map_id _)
-  simpa only [hsimp] using h
-
-/-- Every element in the support of `P` conditioned on `f x = ℓ` satisfies `f x = ℓ` and lies in
-`P.support`. -/
-private theorem mem_support_and_eq_of_conditionalSnd_map {α β : Type*}
-    (P : PMF α) (f : α → β) {ℓ : β}
-    (hℓ : ℓ ∈ ((P.map fun x => (f x, x)).map Prod.fst).support)
-    {x : α} (hx : x ∈ (conditionalSnd (P.map fun x => (f x, x)) ℓ).support) :
-    x ∈ P.support ∧ f x = ℓ := by
-  have hpair : (ℓ, x) ∈ (P.map fun a => (f a, a)).support :=
-    (mem_support_conditionalSnd_iff _ ℓ hℓ x).mp hx
-  rw [PMF.mem_support_map_iff] at hpair
-  obtain ⟨x', hx', heq⟩ := hpair
-  have h1 := congrArg Prod.fst heq
-  have h2 := congrArg Prod.snd heq
-  dsimp only at h1 h2
-  rw [← h2]
-  exact ⟨hx', h1⟩
 
 /-- Support-preserving uniform-lifting: refines
 `exists_dist_le_and_le_minEntropy_map_of_dist_uniform` so that `A'.support ⊆ A.support`. -/
@@ -1282,22 +1234,19 @@ private theorem altExt_round_state {α β LShiftX LShiftY : Type} {nX nY d1 d2 r
       rw [hi0]
       rfl
   | succ k ih =>
-    have hX_prev : k1 ≤ kX - (((k + 1) * r + k) * d2 : ℕ) -
-        (k : ℝ) * Real.logb 2 (Fintype.card LShiftY) - (k + 1 : ℕ) * Real.logb 2 δ⁻¹ := by
-      have hnat : ((k + 1) * r + k) * d2 ≤ ((k + 1 + 1) * r + (k + 1)) * d2 :=
-        Nat.mul_le_mul_right d2 (by nlinarith)
-      have hcast : ((((k + 1) * r + k) * d2 : ℕ) : ℝ) ≤ (((k + 1 + 1) * r + (k + 1)) * d2 : ℕ) :=
+    have hent_prev {k0 kSrc : ℝ} {d : ℕ} {c : ℝ} (hc : 0 ≤ c)
+        (h : k0 ≤ kSrc - (((k + 1 + 1) * r + (k + 1)) * d : ℕ) -
+          ((k + 1 : ℕ) : ℝ) * c - (k + 1 + 1 : ℕ) * Real.logb 2 δ⁻¹) :
+        k0 ≤ kSrc - (((k + 1) * r + k) * d : ℕ) -
+          (k : ℝ) * c - (k + 1 : ℕ) * Real.logb 2 δ⁻¹ := by
+      have hnat : ((k + 1) * r + k) * d ≤ ((k + 1 + 1) * r + (k + 1)) * d :=
+        Nat.mul_le_mul_right d (by nlinarith)
+      have hcast : ((((k + 1) * r + k) * d : ℕ) : ℝ) ≤ (((k + 1 + 1) * r + (k + 1)) * d : ℕ) :=
         Nat.cast_le.mpr hnat
-      push_cast at hX_ent hcast ⊢
+      push_cast at h hcast ⊢
       nlinarith
-    have hY_prev : k2 ≤ kY - (((k + 1) * r + k) * d1 : ℕ) -
-        (k : ℝ) * Real.logb 2 (Fintype.card LShiftX) - (k + 1 : ℕ) * Real.logb 2 δ⁻¹ := by
-      have hnat : ((k + 1) * r + k) * d1 ≤ ((k + 1 + 1) * r + (k + 1)) * d1 :=
-        Nat.mul_le_mul_right d1 (by nlinarith)
-      have hcast : ((((k + 1) * r + k) * d1 : ℕ) : ℝ) ≤ (((k + 1 + 1) * r + (k + 1)) * d1 : ℕ) :=
-        Nat.cast_le.mpr hnat
-      push_cast at hY_ent hcast ⊢
-      nlinarith
+    have hX_prev := hent_prev hlogShY hX_ent
+    have hY_prev := hent_prev hlogShX hY_ent
     obtain ⟨T, hFT, S, obs, curS, histR, histR', hJ, hbad, herr, hminX, hminY, hsupp⟩ :=
       ih hX_prev hY_prev
     -- Half-step 1: extract `R_k = ext1 (projX x) (curS τ y) + shiftX`,
@@ -1526,25 +1475,10 @@ theorem dist_altExt_lookAhead_le {nX nY d1 d2 r : ℕ}
                   altExtR ext1 ext2 (x' j) (y' j) (s0' j) i.1))).bind fun v =>
         (PMF.uniformOfFintype (BitString d2)).map fun u => (v, u)) := by
     congr 1
-    have hcongr :
-        (S.joint.map fun ⟨τ, _, y⟩ => (y, (histR τ, histR' τ))) =
-        S.joint.map fun ⟨_, ⟨x1, x2⟩, ⟨⟨y1, y2⟩, ⟨s0, s0'⟩⟩⟩ =>
-          (((y1, y2), (s0, s0')),
-           (fun i : Fin k => altExtR ext1 ext2 x1 y1 s0 i.1,
-            fun i : Fin (k + 1) => fun j : Fin r =>
-              altExtR ext1 ext2 (x2 j) (y2 j) (s0' j) i.1)) := by
-      simp only [PMF.map]
-      refine PMF.bind_congr_on_support S.joint _ _
-        fun ⟨τ, ⟨x1, x2⟩, ⟨⟨y1, y2⟩, ⟨s0, s0'⟩⟩⟩ hmem => ?_
-      have hmem' := CondState.support_of_mem_joint S hmem
-      obtain ⟨-, -, hhistR, hhistR'⟩ :=
-        hsupp τ hmem'.1 (x1, x2) hmem'.2.1 ((y1, y2), (s0, s0')) hmem'.2.2
-      refine congrArg PMF.pure (Prod.ext rfl (Prod.ext (funext fun i => ?_)
-        (funext fun i => funext fun j => ?_)))
-      · dsimp only; rw [hhistR i]; dsimp only; rw [add_zero, hrecS_eq, altExtR_eq]
-      · dsimp only; rw [hhistR' i j]; dsimp only; rw [hrecS'_eq, altExtR_eq]
-    rw [hcongr, hJ]
-    simp only [CondState.realJoint, PMF.map_bind, PMF.map_comp, Function.comp_def]
+    have hfst := congrArg (PMF.map Prod.fst) hL
+    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def] at hfst
+    exact hfst.trans (congrArg (PX.bind ·) (funext fun ⟨x, x'⟩ =>
+      congrArg (PY.map ·) (funext fun ⟨⟨y, y'⟩, ⟨s0, s0'⟩⟩ => rfl)))
   rw [hL, hR] at hstep
   refine hstep.trans ?_
   push_cast at hbad herr ⊢
@@ -1652,18 +1586,8 @@ theorem dist_altExt_sumset_lookAhead_le {n d1 d2 : ℕ}
           (bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.1)).bind fun v =>
         (PMF.uniformOfFintype (BitString d2)).map fun u => (v, u)) := by
     congr 1
-    have hcongr :
-        (S.joint.map fun ⟨τ, _, bs⟩ => (bs, histR τ)) =
-        S.joint.map fun ⟨_, a, bs⟩ =>
-          (bs, fun i : Fin k => altExtR ext1 ext2 (a + bs.1) (a + bs.1) bs.2 i.1) := by
-      simp only [PMF.map]
-      refine PMF.bind_congr_on_support S.joint _ _ fun ⟨τ, a, bs⟩ hmem => ?_
-      have hmem' := CondState.support_of_mem_joint S hmem
-      obtain ⟨-, -, hhistR, -⟩ := hsupp τ hmem'.1 a hmem'.2.1 bs hmem'.2.2
-      refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-      dsimp only; rw [hhistR i]; dsimp only [id]; rw [hrecS_eq, ← hext1.2, altExtR_eq]
-    rw [hcongr, hJ]
-    simp only [CondState.realJoint, PMF.map_bind, PMF.map_comp, Function.comp_def]
+    have hfst := congrArg (PMF.map Prod.fst) hL
+    simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def] using hfst
   rw [hL, hR] at hstep
   refine hstep.trans ?_
   push_cast at hbad herr ⊢
@@ -1685,55 +1609,6 @@ noncomputable def vanderCB (t ℓ : ℕ) (hℓ : ℓ ≠ 0)
   let val : BinaryField ℓ :=
     ∑ i : Fin (t + 1), (BinaryField.equivBits hℓ).symm (BitString.block b i) * a ^ i.1
   BinaryField.equivBits hℓ val ⬝ᵥ y
-
-/-- Helper: Chor–Goldreich distance bound for a conditioned fiber with fixed tampered outputs. -/
-private theorem dist_dotProduct_fiber_le {n ℓ r : ℕ} {kSrc kSeed : ℝ}
-    (B : PMF (BitString n)) (J : PMF (BitString ℓ × (Fin r → BitString ℓ)))
-    (proj : BitString n → BitString ℓ) (tamper : Fin r → BitString ℓ)
-    (hB : kSrc ≤ minEntropy (B.map proj)) (hJ : kSeed ≤ minEntropy (J.map Prod.fst)) :
-    dist
-      (B.bind fun b => J.map fun ⟨y, y'⟩ => (proj b ⬝ᵥ y, fun j => tamper j ⬝ᵥ y' j))
-      ((PMF.uniformOfFintype Bool).bind fun u =>
-        B.bind fun _ => J.map fun ⟨_, y'⟩ => (u, fun j => tamper j ⬝ᵥ y' j)) ≤
-      2 ^ (((ℓ : ℝ) - kSrc - kSeed) / 2) / 2 := by
-  let post : (BitString ℓ × (Fin r → BitString ℓ)) × Bool → Bool × (Fin r → Bool) :=
-    fun ⟨⟨_, y'⟩, z⟩ => (z, fun j => tamper j ⬝ᵥ y' j)
-  have hL :
-      (B.bind fun b => J.map fun ⟨y, y'⟩ => (proj b ⬝ᵥ y, fun j => tamper j ⬝ᵥ y' j)) =
-      (J.bind fun ⟨y, y'⟩ => (B.map proj).map fun x => ((y, y'), x ⬝ᵥ y)).map post := by
-    simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, post]
-    exact PMF.bind_comm B J _
-  have hR :
-      ((PMF.uniformOfFintype Bool).bind fun u =>
-        B.bind fun _ => J.map fun ⟨_, y'⟩ => (u, fun j => tamper j ⬝ᵥ y' j)) =
-      (J.bind fun yy => (PMF.uniformOfFintype Bool).map fun u => (yy, u)).map post := by
-    simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, post]
-    have hconst (u : Bool) :
-        (B.bind fun _ => J.bind fun ⟨_, y'⟩ => PMF.pure (u, fun j => tamper j ⬝ᵥ y' j)) =
-        J.bind fun ⟨_, y'⟩ => PMF.pure (u, fun j => tamper j ⬝ᵥ y' j) := PMF.bind_const B _
-    simp_rw [hconst]
-    exact PMF.bind_comm (PMF.uniformOfFintype Bool) J _
-  rw [hL, hR]
-  refine (dist_map_le _ _ post).trans ?_
-  have hpair :
-      dist (J.bind fun ⟨y, y'⟩ => (B.map proj).map fun x => ((y, y'), x ⬝ᵥ y))
-        (J.bind fun yy => (PMF.uniformOfFintype Bool).map fun u => (yy, u)) =
-      ∑ yy, (J yy).toReal *
-        dist ((B.map proj).map fun x => x ⬝ᵥ yy.1) (PMF.uniformOfFintype Bool) := by
-    have hmapL (yy : BitString ℓ × (Fin r → BitString ℓ)) :
-        ((B.map proj).map fun x => (yy, x ⬝ᵥ yy.1)) =
-          ((B.map proj).map fun x => x ⬝ᵥ yy.1).map (yy, ·) := (PMF.map_comp _ _ _).symm
-    have hrew : (J.bind fun ⟨y, y'⟩ => (B.map proj).map fun x => ((y, y'), x ⬝ᵥ y)) =
-        J.bind fun yy => ((B.map proj).map fun x => x ⬝ᵥ yy.1).map (yy, ·) :=
-      congrArg (J.bind ·) (funext fun ⟨y, y'⟩ => hmapL (y, y'))
-    rw [hrew]
-    exact dist_bind_pair J _ _
-  rw [hpair, ← sum_map_mul J Prod.fst
-    (fun y => dist ((B.map proj).map fun x => x ⬝ᵥ y) (PMF.uniformOfFintype Bool))]
-  simp only [dist_map_uniformOfFintype_bool, mul_div_assoc', ← Finset.sum_div]
-  have hcg := sum_mul_abs_bias_dotProduct_le hB hJ
-  rw [Fintype.card_fin] at hcg
-  exact div_le_div_of_nonneg_right hcg zero_le_two
 
 /-- **Unconditional polynomial `IsLinearWeakSeedCB` over `2 ^ ℓ` advice strings**:
 for `ℓ ≠ 0`, `t + 1 ≤ 2 ^ ℓ`, and `δ > 0`, `vanderCB t ℓ hℓ` is an `𝔽₂`-linear weak-seed
