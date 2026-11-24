@@ -57,7 +57,7 @@ Containments, separations, closure properties, complete problems and reductions 
   Cook–Mertz malformed-input handling and the refined `O(ℓ + H log(ℓ + 2))` bound remain open on [#2855](https://github.com/cslib-community/cslib-frontier/issues/2855).
 - **Time–space lower bounds for nondeterministic linear time** ([#2896](https://github.com/cslib-community/cslib-frontier/issues/2896)): the Arora–Barak bound `NTIME(n) ⊄ TISP(n^1.2, n^0.2)` by virtual padding and the Lipton–Viglas `n^(√2 − ε)` form, from the speedup and slowdown lemmas for `TISP` and `Σ₂TIME`.
   Beyond these: the textbook `√(t·s)` speedup, the golden-ratio deterministic bound of Fortnow, Lipton, van Melkebeek and Viglas, and the transfer to SAT through a quasi-linear-size Cook–Levin reduction.
-- **Alternating classes** ([#4086](https://github.com/cslib-community/cslib-frontier/issues/4086)): the remaining Chandra–Kozen–Stockmeyer bridges `NSPACE s ⊆ ATIME (s ^ 2)` and `DTIME (2 ^ O(s)) ⊆ ASPACE s` (`ATIME`, `ASPACE`, `ASPACE s ⊆ DTIME (2 ^ O(s))` and `ATIME t ⊆ DSPACE (n + t n)` are done), and bounded-alternation characterizations of PH; sharp bounds for sublinear space, distinct from polynomial-space simulation.
+- **Alternating classes** ([#4086](https://github.com/cslib-community/cslib-frontier/issues/4086)): the remaining Chandra–Kozen–Stockmeyer bridges `NSPACE s ⊆ ATIME (s ^ 2)` without a time-constructibility hypothesis on `s` and `DTIME (2 ^ O(s)) ⊆ ASPACE s` (`ATIME`, `ASPACE`, `ASPACE s ⊆ DTIME (2 ^ O(s))`, `ATIME t ⊆ DSPACE (n + t n)` and `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for time-constructible `s` are done), and bounded-alternation characterizations of PH; sharp bounds for sublinear space, distinct from polynomial-space simulation.
 - **Unambiguous space** ([#7185](https://github.com/cslib-community/cslib-frontier/issues/7185)): `NSPACE(s) = USPACE(s)` for every bound `s ≥ log₂ n`, without space-constructibility, for native machines and arbitrary injective input encodings.
   Run the Justesen seed scheduler on configuration graphs of growing radix, for a decider and for its Immerman–Szelepcsényi complement, until one of the two accepts.
   This needs the scheduler's size bounds uniformly in the radix exponent.
@@ -108,6 +108,10 @@ Containments, separations, closure properties, complete problems and reductions 
 
 - **MIP = NEXP** ([#892](https://github.com/cslib-community/cslib-frontier/issues/892)): `NEXP ⊆ MIP₂` through the BFL multilinearity test and arithmetization of exponential-time tableaux; an efficient GKR verifier under log-space uniformity.
 - **Arthur–Merlin classes:** the Babai–Moran speedup `AM[2 t(n)] = AM[t(n)]` for polynomially many rounds (patterns that depend on the input length), interactive-machine characterizations of Arthur–Merlin classes, and statistical and perfect zero knowledge.
+- **Debate protocols** ([#7579](https://github.com/cslib-community/cslib-frontier/issues/7579)): competing provers with bounded honest strategies, starting from doubly-efficient debate with a stochastic oracle (Brown-Cohen, Irving and Piliouras, arXiv:2311.14125, Section 6).
+  The endpoint is the cross-examination protocol for encoded machines, with prover time, verifier time and verifier query bounds, under a Lipschitz hypothesis whose exact form is settled in the issue.
+  Correctness for a prefix-indexed step law alone leaves it open.
+  Then prover-estimator debate (arXiv:2506.13609).
 - **Statistical zero knowledge** ([#3205](https://github.com/cslib-community/cslib-frontier/issues/3205)): Sahai–Vadhan polarization as a polynomial-time map on encoded Statistical Difference instances with error `2^-(|x|+1)`, honest-verifier SZK containing `SD`, `SD` being SZK-complete, Entropy Difference (Goldreich–Vadhan), closure under complement (Okamoto), and `SZK ⊆ AM ∩ coAM` (Fortnow; Aiello–Håstad).
   Instances are pairs of De Morgan circuits, with general pairs padded to common input and output counts.
 

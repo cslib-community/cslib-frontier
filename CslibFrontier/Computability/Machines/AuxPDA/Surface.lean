@@ -437,14 +437,16 @@ private lemma stackOp_pop_length {s s' : List StackSym}
 
 /-- Structural split of any `SameHeightRun` of length `d' + 2`: either it hits the base stack
 height at an interior index `0 < j < p.length`, or it consists of a first `push γ`, an interior
-`SameHeightRun` of length `d'` one level higher, and a final `pop` step. -/
-private theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
+`SameHeightRun` of length `d'` one level higher whose configurations all belong to `p`, and a
+final `pop` step. -/
+theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
     (p : M.RunPath input) (hlen : p.length = d' + 2) (hsame : SameHeightRun p) :
     (∃ j : Fin (p.length + 1), 0 < j.val ∧ j.val < p.length ∧
       SameHeightRun (p.take j) ∧ SameHeightRun (p.drop j)) ∨
     (∃ (γ : StackSym) (pmid : M.RunPath input),
       pmid.length = d' ∧
       SameHeightRun pmid ∧
+      (∀ c ∈ pmid, c ∈ p) ∧
       pmid.head.stack = γ :: p.head.stack ∧
       M.PushStep p.head.surface γ pmid.head.surface ∧
       (pmid.last.stack = γ :: p.head.stack →
@@ -528,7 +530,9 @@ private theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d
       have hilt : i.val < d' + 1 := i.isLt
       exact hstrict ⟨i.val + 1, by omega⟩ (by change 0 < i.val + 1; omega)
         (by change i.val + 1 < p.length; omega)
-    refine ⟨γ, pmid, rfl, hmidSame, hmidHead ▸ h1stack, hmidHead ▸ hpush, fun hpenStack => ?_⟩
+    refine ⟨γ, pmid, rfl, hmidSame,
+      fun _ ⟨i, hi⟩ => ⟨⟨i.val + 1, by have := i.isLt; dsimp only [pmid] at this; omega⟩, hi⟩,
+      hmidHead ▸ h1stack, hmidHead ▸ hpush, fun hpenStack => ?_⟩
     rw [hmidLast] at hpenStack ⊢
     cases hq : (p ⟨p.length - 1, hpenlt⟩).tapes.state with
     | none =>
@@ -613,7 +617,7 @@ private theorem sameHeightRun_stack_and_realizable {M : AuxPDA k Bool StackSym S
           omega
     | d' + 2 =>
       rcases sameHeightRun_split_ge_two p hlen hsame with
-        ⟨j, hjpos, hjlt, h1, h2⟩ | ⟨γ, pmid, hmidLen, hmidSame, hmidHeadStack, hpush, hpopFn⟩
+        ⟨j, hjpos, hjlt, h1, h2⟩ | ⟨γ, pmid, hmidLen, hmidSame, -, hmidHeadStack, hpush, hpopFn⟩
       · obtain ⟨h1Stack, h1Real⟩ := ih j.val (by omega) (p.take j) rfl h1
         obtain ⟨h2Stack, h2Real⟩ :=
           ih (p.length - j.val) (by omega) (p.drop j) (RelSeries.drop_length p j) h2
@@ -665,7 +669,7 @@ theorem realizable_decomp {M : AuxPDA k Bool StackSym State}
       (realizable_iff_exists_sameHeightRun (Cfg.surface_toRepresentativeCfg s₁)).mp h
     have hheadSurf : p.head.surface = s₁ := by rw [hhead, Cfg.surface_toRepresentativeCfg]
     rcases sameHeightRun_split_ge_two (d' := d - 2) p (by omega) hsame with
-      ⟨j, hjpos, hjlt, h1, h2⟩ | ⟨γ, pmid, hmidLen, hmidSame, hmidHeadStack, hpush, hpopFn⟩
+      ⟨j, hjpos, hjlt, h1, h2⟩ | ⟨γ, pmid, hmidLen, hmidSame, -, hmidHeadStack, hpush, hpopFn⟩
     · right
       have h1Real := (sameHeightRun_stack_and_realizable j.val (p.take j) rfl h1).2
       have h2Real := (sameHeightRun_stack_and_realizable (p.length - j.val) (p.drop j)
