@@ -294,7 +294,7 @@ private theorem realizesBounded_outerClmulStepGen :
     rcases d with ⟨⟨hp, tBase, scratchBase, rVal⟩, i⟩
     obtain ⟨w₀, b, b', k, hashBase, hc_lt, rfl, rfl, hfr_h, hfr_s, hdisj, htab,
       hi_lt, hr_fit, hacc_lt, hprod_lt⟩ := h
-    try (dsimp only [hpL0_mk] at *)
+    dsimp only [hpL0_mk] at *
     dsimp only [accWords, prodWords, scratchWords] at *
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have hL_eq : 2 * rHalf w₀ b b' = rLimbs w₀ b b' := rfl)
@@ -705,7 +705,7 @@ theorem realizesBounded_hornerStepGen :
     rcases d with ⟨⟨hp, hashBase, scratchBase, rVal⟩, j⟩
     obtain ⟨w₀, b, b', k, θ, accVal, hc_lt, rfl, hfr_h, hfr_s, hdisj, htab, hseed,
       hj_lt, hr_fit, hr_lt, hacc_lt, hacc⟩ := h
-    try (dsimp only [hpL0_mk, hpSeedWords_mk, hpK_mk] at *)
+    dsimp only [hpL0_mk, hpSeedWords_mk, hpK_mk] at *
     dsimp only [accWords, prodWords, scratchWords] at *
     have hL0_le : rHalf w₀ b b' ≤ 27 := reducedHalfLimbs_le _
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _

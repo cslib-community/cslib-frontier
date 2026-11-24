@@ -43,19 +43,20 @@ open Cslib.DataStructure Cslib.DataStructure.Memory
 open Cslib.WordRAM Cslib.WordRAM.Realization
 open Cslib.DataStructure.PriorityQueue.BinaryHeap (space)
 
-private theorem space_add (n : ℕ) : space n = (n + n) + n + 1 := by wram_omega
+private theorem space_glue : GlueComputable .exact (fun v : Fin 1 → ℕ => space (v 0))
+    (fun _ => True) (fun v => space (v 0)) := by
+  obtain ⟨time, hm⟩ := GlueComputable.const_mul 3
+  exact (hm.mono (bound' := fun v => space (v 0))
+    (fun v _ => by wram_omega) (Nat.le_refl time)).computable.add
+    (GlueComputable.const 1 (fun v _ => by wram_omega)) (fun v _ => by wram_omega)
 
-/-- Reserve the exact original span. The addition spelling avoids materializing a constant
+/-- Reserve the exact original span. The scalar certificate avoids materializing a constant
 three, which need not fit in an admitted one-bit zero-handle initialization. -/
 theorem realizes_reserve : Realizes .exact (fun n : ℕ => Memory.allocDirty (space n))
     (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
     (fun w n s => Fits w (s.frontier + space n)) (fun _ _ => 0) := by
-  have h : Realizes .exact (fun n : ℕ => Memory.allocDirty ((n + n) + n + 1))
-      (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
-      (fun w n s => Fits w (s.frontier + space n)) (fun _ _ => 0) := by
-    realize
-    exact h.of_le (by wram_omega)
-  exact h.congr (fun n => by rw [space_add])
+  realize [space_glue]
+  exact h.of_le (by wram_omega)
 
 /-- One selected reservation emitter returns the old frontier, preserves every cell and moves
 the frontier by exactly the old span. Its one memory charge plus the fixed exit unit cost at
@@ -160,17 +161,9 @@ theorem realizes_allocLayout : Realizes .exact
     (fun n : ℕ => do let L ← BinaryHeap.Memory.allocLayout n; pure (⟨n, L⟩ : HeapLayout))
     (WordEncoding.encode (α := ℕ)) layoutWords
     (fun w n s => Fits w (s.frontier + 1 + space n)) (fun _ _ => 0) := by
-  have h : Realizes .exact
-      (fun n : ℕ => do
-        let size ← Memory.allocBlockDirty 1
-        let arrays ← Memory.allocBlockDirty ((n + n) + n + 1)
-        pure (⟨n, ⟨size, arrays.base⟩⟩ : HeapLayout))
-      (WordEncoding.encode (α := ℕ)) layoutWords
-      (fun w n s => Fits w (s.frontier + 1 + space n)) (fun _ _ => 0) := by
-    realize
-    all_goals exact h.of_le (by wram_omega)
-  exact h.congr (fun n => by
-    simp only [BinaryHeap.Memory.allocLayout, space_add, bind_assoc, pure_bind])
+  simp only [BinaryHeap.Memory.allocLayout, bind_assoc, pure_bind]
+  realize [space_glue]
+  all_goals exact h.of_le (by wram_omega)
 
 /-- One selected code before all runtime sizes/frontiers/widths runs the actual two-query
 allocator. Memory is literally unchanged; the original allocated layout is really staged in

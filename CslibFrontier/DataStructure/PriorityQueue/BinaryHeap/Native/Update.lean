@@ -91,10 +91,6 @@ theorem realizes_insert :
     | exact hmem.fits_of_lt_frontier (Memory.key_lt hs.arrays_allocated hv)
     | exact hmem.fits_of_lt_frontier (Memory.heap_lt hs.arrays_allocated (by omega))
     | exact hmem.fits_of_lt_frontier (Memory.pos_lt hs.arrays_allocated hv)
-    | (apply hmem.fits_of_lt_frontier
-       have hA := hs.arrays_allocated
-       change d.layout.base + (3 * d.capacity + 1) ≤ s.frontier at hA
-       omega)
     | (have hsz := Memory.size_location hL
        have hpush := (Memory.heapInv_update_size hL hs.heap (s.mem d.layout.size.base + 1)).push hv
          (c := d.key) (by rw [Function.update_of_ne (by omega)]; exact hp)
@@ -114,10 +110,6 @@ theorem realizes_decreaseKey :
     first
     | exact hmem.fits_of_lt_frontier (Memory.pos_lt hs.arrays_allocated hv)
     | exact hmem.fits_of_lt_frontier (Memory.key_lt hs.arrays_allocated hv)
-    | (apply hmem.fits_of_lt_frontier
-       have hA := hs.arrays_allocated
-       change d.layout.base + (3 * d.capacity + 1) ≤ s.frontier at hA
-       omega)
     | (have hp : s.mem (d.layout.base + 2 * d.capacity + 1 + d.handle) ≠ 0 := by
          intro hn
          simp [Memory.abs, stateOfMem, hn] at hk₀

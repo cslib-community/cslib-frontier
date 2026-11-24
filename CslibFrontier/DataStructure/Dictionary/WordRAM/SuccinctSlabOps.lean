@@ -441,7 +441,6 @@ theorem realizes_lastSlotOfGen :
   · wram_omega
   · exact single_gm0_pos_of_bCount hc h.2.2.1 h.2.2.2
   · exact gmRIdx_fits h.1 (Nat.pos_of_ne_zero hc) hw hnU hU h.2.2.1
-  · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
   · exact gmRIdx_lt (Nat.pos_of_ne_zero hc) h.2.2.1
   · have hb_pos := Nat.pos_of_ne_zero hc
@@ -700,8 +699,6 @@ theorem realizes_pushBackTailWriteGen :
   · exact h.1.1
   · have hlt := appendTailItem_lt_n_max hw h.2 d s h.1; dsimp only [d] at hlt; omega
   · exact gmRIdx_fits h.1.1 h.2 hw hnU hU h.1.2.2.1
-  · refine fits_of_le_globalMetaLen h.1.1 h.2 hw hnU hU ?_
-    have := gmRIdx_lt h.2 h.1.2.2.1; wram_omega [this]
   · exact gmRIdx_lt h.2 h.1.2.2.1
 
 /-- Parameter-free `Memory.Prog` operation appending `(q_val, v_val) = (d.1.2, d.2)` at logical
@@ -1334,7 +1331,6 @@ theorem realizes_popBackSlotGen :
     exact ⟨h.1, h.2.1.multi_tail hb_pos, h.2.2.1,
       pos_gmRIdx_of_pos_bCount hb_pos h.2.1 h.2.2.1 h.2.2.2, hb_pos⟩
   · exact gmRIdx_fits h.1 (Nat.pos_of_ne_zero hc) hw hnU hU h.2.2.1
-  · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
   · exact gmRIdx_lt (Nat.pos_of_ne_zero hc) h.2.2.1
   · exact fits_of_le_globalMetaLen h.1 (Nat.pos_of_ne_zero hc) hw hnU hU

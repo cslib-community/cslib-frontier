@@ -356,7 +356,6 @@ theorem realizes_demoteStepGen :
   )
   · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU
       (le_of_lt (demoteStep_bounds hw h.2).2.1)
-  · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
   · exact (demoteStep_bounds hw h.2).2.1
   · exact (demoteStep_bounds hw h.2).2.2.1

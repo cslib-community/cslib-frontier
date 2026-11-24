@@ -17,8 +17,8 @@ import CslibFrontier.Tactic.Realize
 
 One uniform exact-basis emitter reserves the original `9 n + 5` cells, returns their base and
 preserves every memory cell. Address arithmetic and result copies are charged through the
-existing `realize` rules. Repeated addition avoids materializing the literal nine: zero capacity
-can be admitted with three-bit words even though nine does not fit.
+existing `realize` rules. A scalar certificate uses repeated addition without materializing the
+literal nine: zero capacity can be admitted with three-bit words even though nine does not fit.
 
 Reservation alone does not initialize arbitrary dirty storage. The existing framed empty heap
 follows under the explicit zero-above-input condition, through `zeroAllocator`; the method
@@ -43,13 +43,8 @@ additions fit because the final frontier does; the one memory charge includes no
 theorem realizes_reserve : Realizes .exact (fun n : ℕ => Memory.allocDirty (9 * n + 5))
     (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
     (fun w n s => Fits w (s.frontier + (9 * n + 5))) (fun _ _ => 0) := by
-  have h : Realizes .exact
-      (fun n : ℕ => Memory.allocDirty (n + n + n + n + n + n + n + n + n + 5))
-      (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
-      (fun w n s => Fits w (s.frontier + (9 * n + 5))) (fun _ _ => 0) := by
-    realize
-    exact h.of_le (by omega)
-  exact h.congr (fun n => congrArg Memory.allocDirty (by omega))
+  realize
+  exact h.of_le (by omega)
 
 /-- One selected emitter returns the old frontier and reserves exactly the original span.
 The fixed exchange factor precedes capacity, width, memory and register layout; all memory and

@@ -364,6 +364,28 @@ theorem mul (hf : GlueComputable .exact f P bound)
     GlueComputable .exact (fun v => f v * g v) P bound :=
   bin_exact hf hg .mul (fun _ _ => rfl) hb
 
+/-- Multiplication by a fixed natural uses repeated addition, so the coefficient itself need
+not fit in a word. The code and its instruction bound depend on `c`, before runtime inputs
+and word widths are chosen. -/
+@[fun_prop]
+theorem const_mul (c : ℕ) : GlueComputable .exact (fun v : Fin 1 → ℕ => c * v 0)
+    (fun _ => True) (fun v => c * v 0) := by
+  suffices ∀ bound : (Fin 1 → ℕ) → ℕ, (∀ v, c * v 0 ≤ bound v) →
+      GlueComputable .exact (fun v => c * v 0) (fun _ => True) bound from
+    this _ (fun _ => le_rfl)
+  induction c with
+  | zero =>
+    intro bound _
+    simpa only [Nat.zero_mul] using
+      const (B := .exact) (P := fun _ => True) (bound := bound) 0 (fun _ _ => Nat.zero_le _)
+  | succ c ih =>
+    intro bound hb
+    have hc := ih bound (fun v => (Nat.mul_le_mul_right (v 0) (Nat.le_succ c)).trans (hb v))
+    have hv := proj (B := .exact) (P := fun _ => True) 0
+      (fun v _ => (Nat.le_mul_of_pos_left (v 0) (Nat.succ_pos c)).trans (hb v))
+    simpa only [Nat.succ_mul] using hc.add hv (fun v _ => by
+      simpa only [Nat.succ_mul] using hb v)
+
 /-- Closure under exact-basis `div`; the common envelope also bounds this result. -/
 @[fun_prop]
 theorem div (hf : GlueComputable .exact f P bound)

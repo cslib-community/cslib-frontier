@@ -61,10 +61,7 @@ private def finishBody (d : Fin 3 → ℕ) : Memory.Prog Unit := do
 
 private theorem realizes_finishBody : Realizes .exact finishBody (.refl _)
     (WordEncoding.encode (α := Unit)) finishSafe (fun _ _ => 0) := by
-  have nine (n : ℕ) : n + n + n + n + n + n + n + n + n = 9 * n := by omega
-  conv => arg 2; ext d; simp only [finishBody, ← nine]
   realize [realizes_gather]
-  all_goals simp only [nine] at *
   all_goals first
     | exact h.1.of_le (by omega)
     | exact h.2.1
