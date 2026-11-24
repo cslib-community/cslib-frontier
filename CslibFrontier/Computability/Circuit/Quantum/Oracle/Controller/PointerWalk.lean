@@ -185,7 +185,7 @@ private theorem transcript_cost_phase {State : Type} (cost : Operation → ℕ)
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         2 * cost (.inl .gate) + cost (.inl .query) := by
   supp_cases h [phase, gate, command, runWith_norm, OracleComp.withTranscript]
-  simp only [runWith_norm, List.map_cons, List.sum_cons]
+  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   omega
 
 private theorem transcript_cost_round {State : Type} (cost : Operation → ℕ)
@@ -201,7 +201,7 @@ private theorem transcript_cost_round {State : Type} (cost : Operation → ℕ)
   supp_cases h [round, runWith_norm] with ⟨⟨next, middle, seen⟩, hnext, hphase⟩
   have hcost := transcript_cost_phase cost oracle next hphase
   supp_cases hnext [requestBit, runWith_norm, OracleComp.withTranscript]
-  simp only [runWith_norm, List.map_cons, List.sum_cons] at hcost ⊢
+  simp only [List.map_cons, List.sum_cons] at hcost ⊢
   omega
 
 private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
@@ -237,7 +237,7 @@ private theorem transcript_cost_prepare {State : Type} (cost : Operation → ℕ
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         3 * cost (.inl .gate) := by
   supp_cases h [prepare, gate, command, runWith_norm, OracleComp.withTranscript]
-  simp only [runWith_norm, List.map_cons, List.sum_cons]
+  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   omega
 
 /-- Every supported execution has exactly the separate operation costs. Indicator weights count
@@ -256,7 +256,7 @@ theorem transcript_cost_program {State : Type} (cost : Operation → ℕ)
   have hfirst := transcript_cost_prepare cost oracle ‹_›
   have hsecond := transcript_cost_walk cost oracle count ‹_›
   simp only [List.map_nil, List.sum_nil, Nat.zero_add] at hfirst
-  simp only [runWith_norm, List.map_cons, List.sum_cons]
+  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
   rw [hsecond, hfirst]
   ring
 

@@ -1602,10 +1602,11 @@ A proof that starts from `h : x ∈ m.support` usually needs the intermediate re
 components, and a conditional becomes a disjunction, so a pattern such as `⟨-, h⟩ | ⟨-, h⟩` splits
 it. A dependent conditional `if hc : c then p hc else q hc` also splits: the first witness of
 each branch is the proof of its condition, so `⟨hc, h⟩ | ⟨hc, h⟩` keeps the proof used by the
-selected program. Without `with`, `supp_cases h` destructures completely, substitutes every equation
-that has a local variable on one side and closes the goal when two different constructors are equated, such
-as `false = true`; the names it introduces are inaccessible, so use this form when the rest of the
-proof refers to hypotheses only by type, through `‹_›`, `assumption` or `omega`.
+selected program. Without `with`, `supp_cases h` destructures completely, substitutes every
+equation that has a local variable on one side and closes the goal when two different
+constructors are equated, such as `false = true`; the names it introduces are inaccessible, so
+use this form when the rest of the proof refers to hypotheses only by type, through `‹_›`,
+`assumption` or `omega`.
 
 When `m` is a definition or a local `let`, pass it as in `supp_cases h [realRoundHandler]` or
 `supp_cases h [ν_det]`; the same list takes a hypothesis that decides a condition. The tactic fails
@@ -1615,7 +1616,8 @@ destructuring it. For stateful executions, import
 [Oracle/Norm.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Norm.lean) and use
 `supp_cases h [runWith_norm, program_def]`. This shares the priority-ordered run normalizer with
 game proofs and keeps joint result/state support hypotheses for opaque subprograms; see the
-transcript proofs in [Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean).
+transcript proofs in
+[Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean).
 An `ExecRand` derivation still needs induction; call `supp_cases` in each case, as the proofs in
 [Structured.lean](../../CslibFrontier/Computability/WordRAM/Randomized/Structured.lean) do. The
 checked examples, including the failure messages, are in
