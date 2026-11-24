@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Crypto.Computational.Kilian.NP
 import CslibFrontier.Crypto.Computational.Kilian.MicaliSoundness
 import CslibFrontier.Computability.Complexity.Problems.SAT.Relation
@@ -22,6 +25,9 @@ Non-vacuous checked clients for:
   instantiations on a concrete binary NP relation with distinct member and non-member witnesses,
   and on `SAT.npRelation`.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.KilianNP
 

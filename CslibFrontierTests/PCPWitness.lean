@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Computability.PCP.Completeness
 import CslibFrontier.Computability.PCP.Encoded.Witness
 import CslibFrontier.Computability.Complexity.Problems.SAT.Relation
@@ -18,6 +21,9 @@ Executable checks on the constructive Dinur witness-compilation pipeline (`ofCom
 `powerPreprocessLabels`, and `proofOfLabelList`) together with non-vacuous instantiations of
 `exists_pcpVerifier_of_npRelation` on a concrete binary `NPRelation` and on `SAT.npRelation`.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.PCPWitness
 
