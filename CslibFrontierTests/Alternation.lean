@@ -355,7 +355,7 @@ example {α : Type} (enc : α ↪ List Bool) : ∃ (j k : ℕ) (State : Type) (_
   obtain ⟨k, State, hfin, ntm, K, h⟩ := exists_midpointGame_of_mem_NSPACE hj
   exact ⟨j, k, State, hfin, ntm, K, fun a w hw => (h a w hw).not.mp (Set.notMem_empty a)⟩
 
-/-! ### Savitch's midpoint game from its leaf test -/
+/-! ### Nondeterministic space in alternating time -/
 
 section MidpointLeaf
 
@@ -370,11 +370,11 @@ example {k : ℕ} {State : Type} [Finite State] (ntm : MultiTapeNTM k Bool State
         (MultiTapeNTM.viewCode w (ntm.initView input)) (MultiTapeNTM.acceptCode w) :=
   rfl
 
-/-- The hypothesis on `s` is satisfiable: `s n = n` is time-constructible, so a quadratic-time leaf
-test would put `NSPACE n` in `ATIME ((n + n) ^ 2)`. The leaf-test hypothesis itself is open and is
-not checked here. -/
-example {α : Type} (enc : α ↪ List Bool) :=
-  NSPACE_subset_ATIME_sq_of_midpointLeaf (enc := enc) (s := fun n => n) timeConstructible_id
+/-- The hypothesis on `s` is satisfiable: `s n = n` is time-constructible, so `NSPACE n` is in
+`ATIME ((n + n) ^ 2)`. -/
+example {α : Type} (enc : α ↪ List Bool) :
+    NSPACE enc (fun n => n) ⊆ ATIME enc fun n => (n + n) ^ 2 :=
+  NSPACE_subset_ATIME_sq_of_timeConstructible timeConstructible_id
 
 end MidpointLeaf
 
