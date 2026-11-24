@@ -45,7 +45,8 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 * `Cslib.Multigraph.msf`: the minimum spanning forest of a finite set of edges.
 * `Cslib.Multigraph.Supported`, `Cslib.Multigraph.unsupported`: edges whose ends are joined by no
   heavier edges of `F`, and the edges of `S` that are not.
-* `Cslib.Multigraph.IsAcyclic`: no edge of `F` has its ends joined by the other edges of `F`.
+* `Cslib.Multigraph.IsAcyclic`: no edge of `F` has its ends joined by the other edges of `F`
+  (`Cslib.Multigraph.isAcyclic_iff`, `Cslib.Multigraph.IsAcyclic.mono`).
 * `Cslib.Multigraph.IsSpanningForest`: an acyclic subset of `S` joining the ends of every edge of
   `S`.
 
@@ -374,6 +375,19 @@ theorem msf_eq_of_subset {S' : Finset E} (h₁ : msf ends w S ⊆ S') (h₂ : S'
 `F`. A self-loop, or a pair of parallel edges, is a cycle. -/
 def IsAcyclic (ends : E → Sym2 V) (F : Set E) : Prop :=
   ∀ e ∈ F, ∀ a b, ends e = s(a, b) → ¬Joins ends (F \ {e}) a b
+
+theorem isAcyclic_iff {F : Set E} :
+    IsAcyclic ends F ↔ ∀ e ∈ F, ∀ a b, ends e = s(a, b) → ¬Joins ends (F \ {e}) a b :=
+  Iff.rfl
+
+theorem isAcyclic_empty : IsAcyclic ends (∅ : Set E) :=
+  fun _ he => absurd he (Set.notMem_empty _)
+
+/-- A subset of an acyclic set of edges is acyclic. -/
+theorem IsAcyclic.mono {F G : Set E} (hG : IsAcyclic ends G) (hFG : F ⊆ G) : IsAcyclic ends F :=
+  fun e he a b hab hj => hG e (hFG he) a b hab (hj.mono (by
+    rintro f ⟨hf, hfe⟩
+    exact ⟨hFG hf, hfe⟩))
 
 /-- No subset `T` of `msf S` avoiding `e ∈ msf S` joins the ends of `e`. Induction on `T`: if
 every edge of `T` is lighter than `e`, this is the definition of `msf`; otherwise the heaviest
