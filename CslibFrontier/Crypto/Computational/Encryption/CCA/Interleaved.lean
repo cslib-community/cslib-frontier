@@ -1602,9 +1602,8 @@ private theorem eval_interleavedToSingleAt_guess_active {Msg Out : Type} [Inhabi
   unfold interleavedToSingleAt
   dsimp only
   rw [interleavedSingleStateDecoder.decode_enc]
-  simp only [↓reduceIte, OracleComp.interpret_bind, StateT.run_bind,
-    OracleComp.interpret_pure, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [↓reduceIte, OracleComp.interpret_bind, StateT.run_bind, OracleComp.interpret_pure,
+    StateT.run_pure, pmf_norm]
   rw [eval_interpret_iterate_interleavedOpenRoundStep_phase2 valid encOut encrypt decrypt decBound
     adversary false n pk sk ct remRounds (state', true :: ct, ct :: S) (List.mem_cons_self ..)
     hdecBound]
@@ -1690,9 +1689,8 @@ private theorem eval_cca2GameOn_interleavedToSingleAt_of_lt {Msg Out : Type} [In
     | challenge m₀ m₁ =>
       simp only [CCAQuery.isChallenge, CCAQuery.challengePair] at hval ⊢
       simp only [hval, Bool.and_self, ↓reduceIte, OracleComp.interpret_pure, StateT.run_pure,
-        ProbComp.eval_pure, PMF.pure_bind, ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state,
-        ProbComp.eval_bind, interleavedHybridAfterStep, interleavedCcaWordOracle,
-        interleavedCcaOracle, PMF.bind_bind, encodeCCAResponseWord_inl_some]
+        ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state, interleavedHybridAfterStep,
+        interleavedCcaWordOracle, interleavedCcaOracle, encodeCCAResponseWord_inl_some, pmf_norm]
       refine PMF.bind_congr_on_support _ _ _ fun ct _ => ?_
       rw [hG]
       simpa only [ProbComp.eval_bind, ProbComp.eval_pure] using
@@ -1774,7 +1772,7 @@ private theorem eval_interleavedHybridGameOn_split_of_lt {Msg Out : Type}
     intro stMid _
     dsimp only [interleavedHybridAfterStep]
     rw [interleavedRoundStep]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    simp only [pmf_norm]
   · have hmin : min (split + 1) (adversary.numRounds n) = split + 1 := Nat.min_eq_left hlt
     have hsub : adversary.numRounds n - (split + 1) = adversary.numRounds n - 1 - split := by omega
     simp only [↓reduceIte, interleavedHybridGameOn, hmin, hsub,
@@ -1785,7 +1783,7 @@ private theorem eval_interleavedHybridGameOn_split_of_lt {Msg Out : Type}
     intro stMid _
     dsimp only [interleavedHybridAfterStep]
     rw [interleavedRoundStep]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    simp only [pmf_norm]
 
 /-- **Single-step hybrid identity for interleaved multi-challenge CCA** ([BonehShoup2023],
 Theorem 12.1, printed p. 468): at any round index `split : ℕ`, the signed success-probability gap

@@ -125,13 +125,13 @@ theorem MinorizesPartrec.map {β : Type*} [Primcodable β] {U : DescriptionMetho
 /-- Step `j` of the search of the code `ofNat Code m` for a statement `n ≤ C(x)` with `n > B`:
 `j` encodes a sentence `t` and a fuel `s`; the step succeeds with `x` if the code halts on
 `encode t` within fuel `s` and `t` reads as `(x, n)` with `B < n`. -/
-private def chaitinSearch (read : σ → Option (α × ℕ)) (m B j : ℕ) : Option α :=
+@[expose] def chaitinSearch (read : σ → Option (α × ℕ)) (m B j : ℕ) : Option α :=
   (decode (α := σ × ℕ) j).bind fun ts =>
     ((Code.evaln ts.2 (ofNat Code m) (encode ts.1)).bind fun _ => read ts.1).bind fun xn =>
       bif decide (B < xn.2) then some xn.1 else none
 
-private theorem computable_chaitinSearch {read : σ → Option (α × ℕ)} (hread : Computable read) :
-    Computable fun a : (ℕ × ℕ) × ℕ => chaitinSearch read a.1.1 a.1.2 a.2 := by
+theorem computable₂_chaitinSearch {read : σ → Option (α × ℕ)} (hread : Computable read) :
+    Computable₂ fun (mB : ℕ × ℕ) (j : ℕ) => chaitinSearch read mB.1 mB.2 j := by
   have h₃ : Computable₂ fun (B : ℕ) (xn : α × ℕ) =>
       bif decide (B < xn.2) then some xn.1 else none :=
     Computable.cond (Primrec.nat_lt.decide.to_comp.comp Computable.fst
@@ -152,8 +152,90 @@ private theorem computable_chaitinSearch {read : σ → Option (α × ℕ)} (hre
         fun xn => bif decide (mB.2 < xn.2) then some xn.1 else none :=
     Computable.option_bind (h₂.comp (Computable.fst.comp Computable.fst) Computable.snd)
       (h₃.comp (Computable.snd.comp (Computable.fst.comp Computable.fst)) Computable.snd).to₂
-  exact Computable.option_bind (Computable.decode.comp Computable.snd)
-    (h₁.comp (Computable.fst.comp Computable.fst) Computable.snd).to₂
+  have hch : Computable fun a : (ℕ × ℕ) × ℕ => chaitinSearch read a.1.1 a.1.2 a.2 :=
+    Computable.option_bind (Computable.decode.comp Computable.snd)
+      (h₁.comp (Computable.fst.comp Computable.fst) Computable.snd).to₂
+  exact Computable₂.mk hch
+
+/-- Partial recursiveness of the Berry search decoder: `1^k 0 r` runs the decoder `f` on `r` to get
+a code `m`, then searches for a proof of `n ≤ C_U(x)` with `n > |1^k 0 r| + k`. -/
+theorem partrec_chaitinBerryDecoder {read : σ → Option (α × ℕ)} (hread : Computable read)
+    {f : List Bool →. ℕ} (hf : Partrec f) :
+    Partrec fun p : List Bool =>
+      (f (p.drop (p.idxOf false + 1))).bind fun m =>
+        Nat.rfindOpt (chaitinSearch read m (p.length + p.idxOf false)) := by
+  have hidx : Primrec fun p : List Bool => p.idxOf false :=
+    Primrec.list_idxOf.comp (Primrec.const false) Primrec.id
+  have hB : Computable fun p : List Bool => p.length + p.idxOf false :=
+    (Primrec.nat_add.comp Primrec.list_length hidx).to_comp
+  have hmB : Computable fun pmj : (List Bool × ℕ) × ℕ =>
+      (pmj.1.2, pmj.1.1.length + pmj.1.1.idxOf false) :=
+    (Computable.snd.comp Computable.fst).pair (hB.comp (Computable.fst.comp Computable.fst))
+  have hS : Computable₂ fun (pm : List Bool × ℕ) (j : ℕ) =>
+      chaitinSearch read pm.2 (pm.1.length + pm.1.idxOf false) j := by
+    have h := Computable.comp (computable₂_chaitinSearch hread) (hmB.pair Computable.snd)
+    exact h.to₂
+  have hdrop : Computable fun p : List Bool => p.drop (p.idxOf false + 1) :=
+    (Primrec.list_drop.comp (Primrec.succ.comp hidx) Primrec.id).to_comp
+  exact (hf.comp hdrop).bind (Partrec.rfindOpt hS)
+
+omit [Primcodable α] in
+/-- Shared Berry-paradox bound for Chaitin's incompleteness theorem: given a partial decoder
+`f : List Bool →. ℕ`, if the Berry search decoder `1^k 0 r ↦ Nat.rfindOpt (chaitinSearch read m
+(|p| + k))` is minorized by `U` with additive constant `k`, then any `r` decoding to `encode e`
+bounds every `n` proved in `T` by `|r| + (2 * k + 1)`. -/
+theorem chaitin_berry_bound {read : σ → Option (α × ℕ)} {f : List Bool →. ℕ}
+    {U : DescriptionMethod α} {k : ℕ}
+    (hk : ∀ (p : List Bool) (x : α),
+      x ∈ ((f (p.drop (p.idxOf false + 1))).bind fun m =>
+        Nat.rfindOpt (chaitinSearch read m (p.length + p.idxOf false))) →
+      U.ecomplexity x ≤ p.length + k)
+    {e : Code} {T : σ → Prop} (hT : ∀ t, T t ↔ (e.eval (encode t)).Dom)
+    (hsound : ∀ t, T t → ∀ x n, read t = some (x, n) → (n : ℕ∞) ≤ U.ecomplexity x)
+    {r : List Bool} (hr : encode e ∈ f r)
+    {t : σ} (ht : T t) {x : α} {n : ℕ} (hxn : read t = some (x, n)) :
+    n ≤ r.length + (2 * k + 1) := by
+  by_contra! hlt
+  set B : List Bool → ℕ := fun p => p.length + p.idxOf false with hBdef
+  set p : List Bool := List.replicate k true ++ false :: r with hp
+  have hpidx : p.idxOf false = k := by
+    rw [hp, List.idxOf_append_of_notMem (by simp), List.length_replicate, List.idxOf_cons_self,
+      Nat.add_zero]
+  have hpdrop : p.drop (k + 1) = r := by
+    rw [hp, ← List.drop_drop, List.drop_left' (List.length_replicate ..), List.drop_one,
+      List.tail_cons]
+  have hplen : p.length = k + 1 + r.length := by
+    simp only [hp, List.length_append, List.length_replicate, List.length_cons]
+    omega
+  have hBp : B p = p.length + k := by simp only [B, hpidx]
+  obtain ⟨y₀, hy₀⟩ := Part.dom_iff_mem.mp ((hT t).mp ht)
+  obtain ⟨s, hs⟩ := Code.evaln_complete.mp hy₀
+  -- The search succeeds on `p`, at the sentence `t`.
+  have hsearch : x ∈ chaitinSearch read (encode e) (B p) (encode (t, s)) := by
+    have hlt' : B p < n := by omega
+    simp [chaitinSearch, Option.mem_def.mp hs, hxn, hlt']
+  obtain ⟨z, hz⟩ := Part.dom_iff_mem.mp (Nat.rfindOpt_dom.mpr ⟨_, x, hsearch⟩)
+  have hzD : z ∈ ((f (p.drop (p.idxOf false + 1))).bind fun m =>
+      Nat.rfindOpt (chaitinSearch read m (B p))) := by
+    simp only [hpidx, hpdrop]
+    exact Part.mem_bind hr hz
+  -- Its output `z` comes with a true sentence `n' ≤ C_U(z)` of the theory with `n' > B p`.
+  obtain ⟨m, hm', hzm⟩ := Part.mem_bind_iff.mp hzD
+  rw [hpidx, hpdrop] at hm'
+  have hme : m = encode e := Part.mem_unique hm' hr
+  subst hme
+  obtain ⟨j, hj⟩ := Nat.rfindOpt_spec hzm
+  simp only [chaitinSearch, ofNat_encode, Option.mem_def, Option.bind_eq_some_iff] at hj
+  obtain ⟨⟨t', s'⟩, -, ⟨x', n'⟩, ⟨w, hw, hread'⟩, hcond⟩ := hj
+  have hT' : T t' := (hT t').mpr (Part.dom_iff_mem.mpr ⟨w, Code.evaln_sound hw⟩)
+  have hn' : (n' : ℕ∞) ≤ U.ecomplexity x' := hsound t' hT' x' n' hread'
+  by_cases hc : B p < n'
+  · simp only [hc, decide_true, Bool.cond_true, Option.some.injEq] at hcond
+    subst hcond
+    have hk' := hk p x' hzD
+    have : n' ≤ p.length + k := by exact_mod_cast hn'.trans hk'
+    omega
+  · simp [hc] at hcond
 
 /-! ### Chaitin's theorem -/
 
@@ -173,73 +255,15 @@ theorem MinorizesPartrec.exists_forall_le_complexity_universal_add_of_read
       (∀ t, T t → ∀ x n, read t = some (x, n) → (n : ℕ∞) ≤ U.ecomplexity x) →
       ∀ t, T t → ∀ x n, read t = some (x, n) → n ≤ universal.complexity (encode e) + c := by
   obtain ⟨f, hf, hfU⟩ := isPartrec_universal
-  have hidx : Primrec fun p : List Bool => p.idxOf false :=
-    Primrec.list_idxOf.comp (Primrec.const false) Primrec.id
-  have hB : Computable fun p : List Bool => p.length + p.idxOf false :=
-    (Primrec.nat_add.comp Primrec.list_length hidx).to_comp
-  have hpair : Computable fun a : (List Bool × ℕ) × ℕ =>
-      ((a.1.2, a.1.1.length + a.1.1.idxOf false), a.2) :=
-    (Computable.pair (Computable.snd.comp Computable.fst)
-      (hB.comp (Computable.fst.comp Computable.fst))).pair Computable.snd
-  have hS : Computable₂ fun (pm : List Bool × ℕ) (j : ℕ) =>
-      chaitinSearch read pm.2 (pm.1.length + pm.1.idxOf false) j := by
-    -- Elaborating this composition as a term times out; `have` fixes its type first.
-    have h := (computable_chaitinSearch hread).comp hpair
-    exact h
-  have hdrop : Computable fun p : List Bool => p.drop (p.idxOf false + 1) :=
-    (Primrec.list_drop.comp (Primrec.succ.comp hidx) Primrec.id).to_comp
   -- The Berry decoder: `1^k 0 r` runs the theory with code `universal(r)` and outputs the first
   -- `x` found with a sentence `n ≤ C_U(x)` such that `n > |1^k 0 r| + k`.
-  have hD : Partrec fun p : List Bool => (f (p.drop (p.idxOf false + 1))).bind fun m =>
-      Nat.rfindOpt (chaitinSearch read m (p.length + p.idxOf false)) :=
-    (hf.comp hdrop).bind (Partrec.rfindOpt hS)
-  set B : List Bool → ℕ := fun p => p.length + p.idxOf false with hBdef
-  set D : List Bool →. α := fun p => (f (p.drop (p.idxOf false + 1))).bind fun m =>
-      Nat.rfindOpt (chaitinSearch read m (B p)) with hDdef
-  obtain ⟨k, hk⟩ := hU D hD
+  have hD := partrec_chaitinBerryDecoder hread hf
+  obtain ⟨k, hk⟩ := hU _ hD
   refine ⟨2 * k + 1, fun e T hT hsound t ht x n hxn => ?_⟩
-  by_contra! hlt
   obtain ⟨r, hr, hrlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universal_ne_top (encode e))
   rw [← natCast_complexity_universal, Nat.cast_inj] at hrlen
-  set p : List Bool := List.replicate k true ++ false :: r with hp
-  have hpidx : p.idxOf false = k := by
-    rw [hp, List.idxOf_append_of_notMem (by simp), List.length_replicate, List.idxOf_cons_self,
-      Nat.add_zero]
-  have hpdrop : p.drop (k + 1) = r := by
-    rw [hp, ← List.drop_drop, List.drop_left' (List.length_replicate ..), List.drop_one,
-      List.tail_cons]
-  have hplen : p.length = k + 1 + r.length := by
-    simp only [hp, List.length_append, List.length_replicate, List.length_cons]
-    omega
-  have hBp : B p = p.length + k := by simp only [B, hpidx]
-  -- The search succeeds on `p`, at the sentence `t`.
-  obtain ⟨y₀, hy₀⟩ := Part.dom_iff_mem.mp ((hT t).mp ht)
-  obtain ⟨s, hs⟩ := Code.evaln_complete.mp hy₀
-  have hm : encode e ∈ f r := (hfU r (encode e)).mp hr
-  have hsearch : x ∈ chaitinSearch read (encode e) (B p) (encode (t, s)) := by
-    have hlt' : B p < n := by omega
-    simp [chaitinSearch, Option.mem_def.mp hs, hxn, hlt']
-  obtain ⟨z, hz⟩ := Part.dom_iff_mem.mp (Nat.rfindOpt_dom.mpr ⟨_, x, hsearch⟩)
-  have hzD : z ∈ D p := by
-    simp only [D, hpidx, hpdrop]
-    exact Part.mem_bind hm hz
-  -- Its output `z` comes with a true sentence `n' ≤ C_U(z)` of the theory with `n' > B p`.
-  obtain ⟨m, hm', hzm⟩ := Part.mem_bind_iff.mp hzD
-  rw [hpidx, hpdrop] at hm'
-  have hme : m = encode e := Part.mem_unique hm' hm
-  subst hme
-  obtain ⟨j, hj⟩ := Nat.rfindOpt_spec hzm
-  simp only [chaitinSearch, ofNat_encode, Option.mem_def, Option.bind_eq_some_iff] at hj
-  obtain ⟨⟨t', s'⟩, -, ⟨x', n'⟩, ⟨w, hw, hread'⟩, hcond⟩ := hj
-  have hT' : T t' := (hT t').mpr (Part.dom_iff_mem.mpr ⟨w, Code.evaln_sound hw⟩)
-  have hn' : (n' : ℕ∞) ≤ U.ecomplexity x' := hsound t' hT' x' n' hread'
-  by_cases hc : B p < n'
-  · simp only [hc, decide_true, Bool.cond_true, Option.some.injEq] at hcond
-    subst hcond
-    have hk' := hk p x' hzD
-    have : n' ≤ p.length + k := by exact_mod_cast hn'.trans hk'
-    omega
-  · simp [hc] at hcond
+  rw [← hrlen]
+  exact chaitin_berry_bound hk hT hsound ((hfU r (encode e)).mp hr) ht hxn
 
 /-- **Chaitin's incompleteness theorem**, quantitative form [Chaitin][Chaitin1974],
 [Li and Vitányi, Chapter 2][LiVitanyi2019]. There is a constant `c` such that, whenever a code `e`

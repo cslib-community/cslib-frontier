@@ -58,6 +58,8 @@ of [Ladner][Ladner1975].
 
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.wins_position_iff`: the existential player wins exactly
   the true claims.
+* `Cslib.Circuits.Boolean.Tableau.ValueGame.wins_position_outWire_iff`: the game on the claim that
+  the output wire is true decides the run of the machine.
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.ends_position`,
   `Cslib.Circuits.Boolean.Tableau.ValueGame.reach_position`: plays end, and reachable positions are
   positions of claims about tableau wires.
@@ -253,6 +255,16 @@ theorem wins_position_iff (x : List Bool) (T : ℕ) :
       have h₁ := harg a₁ (by simp)
       cases v <;> cases e₀ : val tm T x a₀ <;> cases e₁ : val tm T x a₁ <;>
         simp [Bool.forall_bool, Bool.exists_bool, h₀, h₁, e₀, e₁, interpretation]
+
+variable (encC) in
+/-- **The game on the output claim decides the run**: on an input `x` with `x.length < 2 * T`, the
+existential player wins from the claim that the output wire of the tableau of `T` steps is true
+exactly when `tm`, started on `x`, has written exactly `[true]` after `T` steps. -/
+theorem wins_position_outWire_iff {x : List Bool} {T : ℕ} (hn : x.length < 2 * T) :
+    Wins (update tm encC) (position tm encC ⟨x, T, outWire k State x.length T, true⟩) ↔
+      OutView.ofList (tm.runFrom (tm.initCfg x) T).output = .one true := by
+  rw [wins_position_iff x T _ (outWire_lt _ _) true]
+  exact (congrArg (· = true) (evalOutput_gates tm hn)).to_iff.trans decide_eq_true_iff
 
 /-! ### Plays end, and reachable positions -/
 
