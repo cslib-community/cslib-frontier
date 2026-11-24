@@ -47,11 +47,11 @@ forced to *find* on edges that are not projectable (`Cslib.Query.Certificate.mas
 is the one property the paper requires of the estimate (p. 13).
 
 **Parameters and bad rounds.** A call at level `d` has `t = γ d³` blocks of `t` rounds and
-`r = 8 t³` (p. 12): `Cslib.Query.Certificate.levelT`, `Cslib.Query.Certificate.levelR`. The generic
-parts of Algorithm 1 — the schedule, the preference estimator and the exact minimum spanning
-forest subroutine — are the fields of `Cslib.Query.Certificate.Config`. Definition 3.4 (p. 17) of
-the bad rounds of an edge depends only on its sequence of preferences:
-`Cslib.Query.Certificate.BadRound`, with at most `2t` bad rounds
+`r = 8 t³` (p. 13, restated on p. 22): `Cslib.Query.Certificate.levelT`,
+`Cslib.Query.Certificate.levelR`. The generic parts of Algorithm 1 — the schedule, the preference
+estimator and the exact minimum spanning forest subroutine — are the fields of
+`Cslib.Query.Certificate.Config`. Definition 3.4 (p. 17) of the bad rounds of an edge depends only
+on its sequence of preferences: `Cslib.Query.Certificate.BadRound`, with at most `2t` bad rounds
 (`Cslib.Query.Certificate.card_badRound_le`).
 
 ## Main definitions
@@ -74,6 +74,10 @@ the bad rounds of an edge depends only on its sequence of preferences:
   `Cslib.Query.Certificate.countQueries_findInvalid_le_of_eq_some`: `O(d)` comparisons, and
   `2 (k + 1)` when the first invalid entry has index `k` (p. 24).
 * `Cslib.Query.Certificate.card_badRound_le`: at most `2t` bad rounds (p. 17).
+* `Cslib.Query.Certificate.prefersFind_iff`, `Cslib.Query.Certificate.Projectable.exists_spokes`,
+  `Cslib.Query.Certificate.prefersFind_of_not_projectable`,
+  `Cslib.Query.Certificate.not_prefersFind_of_not_joins`, `Cslib.Query.Certificate.pref_congr`: the
+  interface of the preference rule (p. 13), so that clients need not unfold it.
 
 ## References
 
@@ -379,6 +383,20 @@ theorem Projectable.not_isDiag {st : State V E} {e : E} (h : Projectable st e) :
     ¬(Sym2.map st.proj (st.ends e)).IsDiag :=
   h.2
 
+omit [DecidableEq E] in
+/-- **The spokes of a projectable edge**: both ends `u, v` have spokes, leading to distinct
+portals. -/
+theorem Projectable.exists_spokes {st : State V E} {e : E} (h : Projectable st e) {u v : V}
+    (huv : st.ends e = s(u, v)) :
+    ∃ su sv, st.spoke u = some su ∧ st.spoke v = some sv ∧ st.proj u ≠ st.proj v := by
+  obtain ⟨su, hsu⟩ := Option.isSome_iff_exists.1
+    (h.isSome_spoke (by rw [huv]; exact Sym2.mem_mk_left u v))
+  obtain ⟨sv, hsv⟩ := Option.isSome_iff_exists.1
+    (h.isSome_spoke (by rw [huv]; exact Sym2.mem_mk_right u v))
+  have hne := h.not_isDiag
+  rw [huv, Sym2.map_mk, Sym2.mk_isDiag_iff] at hne
+  exact ⟨su, sv, hsu, hsv, hne⟩
+
 variable [LinearOrder W]
 
 /-- The edge `e` **prefers find** at the state `st` (p. 13 and p. 17): it is not projectable, or
@@ -386,6 +404,20 @@ the forest edges no heavier than one of its spokes, `F≤p(e)`, join its ends. -
 def PrefersFind (w : E → W) (st : State V E) (e : E) : Prop :=
   ¬Projectable st e ∨ ∀ a b, st.ends e = s(a, b) →
     Joins st.ends {f | f ∈ st.forest ∧ ∃ s ∈ spokes st e, w f ≤ w s} a b
+
+/-- An edge that is not projectable prefers *find* (p. 13). -/
+theorem prefersFind_of_not_projectable {w : E → W} {st : State V E} {e : E}
+    (h : ¬Projectable st e) : PrefersFind w st e :=
+  Or.inl h
+
+/-- A projectable edge whose ends the forest does not join prefers *project* (p. 13): no
+threshold `p(e)` can make `F≤p(e)` join them. -/
+theorem not_prefersFind_of_not_joins {w : E → W} {st : State V E} {e : E} (hp : Projectable st e)
+    (hj : ¬∀ a b, st.ends e = s(a, b) → Joins st.ends (st.forest : Set E) a b) :
+    ¬PrefersFind w st e := by
+  rintro (h | h)
+  · exact h hp
+  · exact hj fun a b hab => (h a b hab).mono (by rintro f ⟨hf, -⟩; exact hf)
 
 /-- **The preference rule with both spokes present** (p. 13): for an edge with ends `u, v` and
 spokes `σ(u) = su`, `σ(v) = sv`, *find* is preferred exactly when `π u = π v` or `F≤p(e)` joins
@@ -440,6 +472,29 @@ theorem pref_eq_project_iff {w : E → W} {st : State V E} {e : E} :
   unfold pref
   split <;> simp_all
 
+/-- The preferences at a state depend only on its ends, spokes and forest, not on its vertices
+or portals. -/
+theorem pref_congr {w : E → W} {st st' : State V E} (he : st.ends = st'.ends)
+    (hs : st.spoke = st'.spoke) (hf : st.forest = st'.forest) : pref w st = pref w st' := by
+  obtain ⟨X, ends, P, σ, F⟩ := st
+  obtain ⟨X', ends', P', σ', F'⟩ := st'
+  simp only at he hs hf
+  subst he hs hf
+  have hproj : State.proj ⟨X, ends, P, σ, F⟩ = State.proj ⟨X', ends, P', σ, F⟩ := by
+    funext v
+    rcases h : σ v with _ | s
+    · rw [State.proj_of_spoke_eq_none (st := ⟨X, ends, P, σ, F⟩) h,
+        State.proj_of_spoke_eq_none (st := ⟨X', ends, P', σ, F⟩) h]
+    · rw [State.proj_of_spoke_eq_some (st := ⟨X, ends, P, σ, F⟩) h,
+        State.proj_of_spoke_eq_some (st := ⟨X', ends, P', σ, F⟩) h]
+  funext e
+  have hpf : PrefersFind w ⟨X, ends, P, σ, F⟩ e ↔ PrefersFind w ⟨X', ends, P', σ, F⟩ e := by
+    unfold PrefersFind Projectable spokes
+    rw [hproj]
+  by_cases h : PrefersFind w ⟨X, ends, P, σ, F⟩ e
+  · rw [pref_eq_find_iff.2 h, pref_eq_find_iff.2 (hpf.1 h)]
+  · rw [pref_eq_project_iff.2 h, pref_eq_project_iff.2 (mt hpf.2 h)]
+
 omit [LinearOrder W] in
 open scoped Classical in
 /-- The action used by the algorithm: the estimate `a`, forced to *find* on edges that are not
@@ -481,12 +536,12 @@ end Pref
 
 /-! ### Parameters and the generic parts of Algorithm 1 -/
 
-/-- The parameter `t = γ d³` of level `d` (p. 12): the number of blocks of a call and of rounds
+/-- The parameter `t = γ d³` of level `d` (p. 13): the number of blocks of a call and of rounds
 per block. -/
 @[expose] def levelT (γ d : ℕ) : ℕ := γ * d ^ 3
 
-/-- The parameter `r = 8 t³` of level `d` (p. 12): a batch selects at most `2n / r` new portals
-and declares at most `r²` edges per vertex. -/
+/-- The parameter `r = 8 t³` of level `d` (p. 13). By Lemma 3.2 (p. 15), a batch selects at most
+`2n / r` new portals and declares at most `r²` edges per vertex. -/
 @[expose] def levelR (γ d : ℕ) : ℕ := 8 * levelT γ d ^ 3
 
 /-- The generic parts of Algorithm 1. -/

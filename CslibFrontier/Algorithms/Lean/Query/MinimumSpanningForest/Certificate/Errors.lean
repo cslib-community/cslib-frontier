@@ -9,8 +9,6 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Estimate
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Schedule
--- `import all` only to unfold `HasError`, which its module does not expose.
-import all CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Correctness
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -94,7 +92,7 @@ theorem card_errors_le (γ : ℕ) (hγ : 0 < γ)
           prefSeq cfg w inst e (cfg.sched inst e)} := by
     intro e he
     obtain ⟨heE, h⟩ := mem_errors.1 he
-    rcases h with h | h
+    rcases hasError_iff.1 h with h | h
     · exact mem_union_left _ (mem_filter.2 ⟨heE, h⟩)
     · exact mem_union_right _ (mem_filter.2 ⟨heE, h⟩)
   have hcard : (#(errors cfg w inst) : ℝ) ≤ X + Y := by

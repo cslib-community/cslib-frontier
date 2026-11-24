@@ -174,15 +174,7 @@ theorem eval_queryPref (hw : Function.Injective w) {st : State V E}
   unfold queryPref
   by_cases hp : Projectable st e
   · simp only [hp, ↓reduceIte]
-    obtain ⟨su, sv, hsu, hsv, hne⟩ : ∃ su sv, st.spoke u = some su ∧ st.spoke v = some sv ∧
-        st.proj u ≠ st.proj v := by
-      obtain ⟨su, hsu⟩ := Option.isSome_iff_exists.1
-        (hp.isSome_spoke (by rw [huv]; exact Sym2.mem_mk_left u v))
-      obtain ⟨sv, hsv⟩ := Option.isSome_iff_exists.1
-        (hp.isSome_spoke (by rw [huv]; exact Sym2.mem_mk_right u v))
-      have hne := hp.not_isDiag
-      rw [huv, Sym2.map_mk, Sym2.mk_isDiag_iff] at hne
-      exact ⟨su, sv, hsu, hsv, hne⟩
+    obtain ⟨su, sv, hsu, hsv, hne⟩ := hp.exists_spokes huv
     have hspokes : ∀ s, s ∈ spokes st e ↔ s = su ∨ s = sv := fun s => by
       rw [spokes_eq huv, hsu, hsv]
       simp [eq_comm]
