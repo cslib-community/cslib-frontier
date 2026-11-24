@@ -111,31 +111,8 @@ theorem depth_testDecoder : testDecoder.depth ≤ 1 := by
   have h : testDecoder.depthWith 1 ≤ 1 := by
     rw [Circuit.depthWith_le_iff]
     intro j
-    fin_cases j
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature 1 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depthsWith 1 (Fin.castSucc (Fin.last 0)) ≤ 1
-      rw [Program.depthsWith_gate_castSucc, Program.depthsWith_gate_last]
-      rfl
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature 1 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depthsWith 1 (Fin.last 1) ≤ 1
-      rw [Program.depthsWith_gate_last]
-      rfl
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature 1 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depthsWith 1 (Fin.castSucc (Fin.last 0)) ≤ 1
-      rw [Program.depthsWith_gate_castSucc, Program.depthsWith_gate_last]
-      rfl
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature 1 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depthsWith 1 (Fin.last 1) ≤ 1
-      rw [Program.depthsWith_gate_last]
-      rfl
+    dsimp only [testDecoder]
+    split_ifs with hmod
     · change (Program.gate
           (Program.gate (Program.empty : Program Unbounded.extSignature 1 0)
             ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)

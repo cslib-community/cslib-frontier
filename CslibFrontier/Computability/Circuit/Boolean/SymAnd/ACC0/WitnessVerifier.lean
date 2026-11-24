@@ -884,9 +884,6 @@ private theorem computableInPolyTime_padCertificateCircuitExt
   exact (hmax.prod hcomp).of_enc_eq fun p => by
     rw [Unbounded.encExtCircuit, Circuit.encCircuit_apply, code_padInputs]
 
-private theorem nthRoot_le_self_nat {r_w : ℕ} (hr : 0 < r_w) (n : ℕ) : Nat.nthRoot r_w n ≤ n :=
-  (Nat.le_self_pow hr.ne' _).trans (Nat.pow_nthRoot_le (n := r_w) (a := n) (Or.inl hr.ne'))
-
 private theorem nthRoot_le_rpow_real {r_w : ℕ} (hr : 0 < r_w) (n : ℕ) :
     (Nat.nthRoot r_w n : ℝ) ≤ (n : ℝ) ^ ((r_w : ℝ)⁻¹) := by
   have hpow : (Nat.nthRoot r_w n : ℝ) ^ r_w ≤ (n : ℝ) := by
@@ -1057,6 +1054,9 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   obtain ⟨C_out, hC_out⟩ := hdeg.2
   obtain ⟨Ct, dt, hTc_le⟩ := hTc.exists_le
   -- 1. Certificate length `ℓ x = 2 * 2 ^ Nat.nthRoot r_w x.length + 1` in unary
+  have hnr_self (k : ℕ) : Nat.nthRoot r_w k ≤ k :=
+    (Nat.le_self_pow hrw_pos.ne' _).trans
+      (Nat.pow_nthRoot_le (n := r_w) (a := k) (Or.inl hrw_pos.ne'))
   let ℓ : List Bool → ℕ := fun x => 2 * 2 ^ Nat.nthRoot r_w x.length + 1
   have hroot : ComputableInPolyTime (fun x : List Bool => Nat.nthRoot r_w x.length)
       encBits encUnary := by
@@ -1066,7 +1066,7 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
       (ComputableInPolyTime.const (encIn := encBits) r_w)
       (ComputableInPolyTime.unary_to_binary.comp hlen_bits)
     exact ComputableInPolyTime.binary_to_unary_bounded hbin hlen_bits
-      (fun x => nthRoot_le_self_nat hrw_pos x.length)
+      (fun x => hnr_self x.length)
   obtain ⟨Tr, Sr, hTr, hSr, hrootO⟩ := hroot.exists_computableInO
   obtain ⟨Cr, dr, hTr_le⟩ := hTr.exists_le
   have hpowO := ComputableInO.unary_two_pow.comp hrootO
@@ -1075,6 +1075,19 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   obtain ⟨Cm, dm, hTm_le⟩ := hTm.exists_le
   have hℓO : ComputableInO ℓ encBits encUnary _ _ := hmO.comp hpowO
   -- 2. Asymptotic threshold `M₀` where `|enc (padCert (x, w))| ≤ 2 ^ (n ^ ε)`
+  have hpair_le (x w : List Bool) (hw : w.length = ℓ x) :
+      (encPair encBits encBits (x, w)).length + 1 ≤
+        7 * (x.length + 1) * 2 ^ Nat.nthRoot r_w x.length := by
+    set n := x.length with hn
+    set P := 2 ^ Nat.nthRoot r_w n with hP
+    have hP1 : 1 ≤ P := Nat.one_le_two_pow
+    simp only [length_encPair, encBits_apply, hw, ℓ]
+    rw [← hn, ← hP]
+    have h1 : 2 * n + 3 ≤ 5 * (n + 1) * P :=
+      (by omega : 2 * n + 3 ≤ 5 * (n + 1)).trans (Nat.le_mul_of_pos_right _ hP1)
+    have h2 : 2 * P ≤ 2 * (n + 1) * P := Nat.mul_le_mul_right P (by omega)
+    have : 7 * (n + 1) * P = 5 * (n + 1) * P + 2 * (n + 1) * P := by ring
+    omega
   let C_enc : ℕ := (C_out + 1) * 7 ^ d_out
   have henc_ev := eventually_poly_mul_two_pow_nthRoot_le hrw_pos hrw_lt C_enc d_out
   obtain ⟨M₀, hM₀⟩ := Filter.eventually_atTop.mp henc_ev
@@ -1083,17 +1096,8 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
         C_enc * (x.length + 1) ^ d_out * 2 ^ (d_out * Nat.nthRoot r_w x.length) := by
     set n := x.length with hn
     set P := 2 ^ Nat.nthRoot r_w n with hP
-    have hP1 : 1 ≤ P := Nat.one_le_two_pow
-    have hpair : (encPair encBits encBits (x, w)).length + 1 ≤ 7 * (n + 1) * P := by
-      simp only [length_encPair, encBits_apply, hw, ℓ]
-      rw [← hn, ← hP]
-      have h1 : 2 * n + 3 ≤ 5 * (n + 1) * P := by
-        have : 2 * n + 3 ≤ 5 * (n + 1) := by omega
-        exact this.trans (Nat.le_mul_of_pos_right _ hP1)
-      have h2 : 2 * P ≤ 2 * (n + 1) * P :=
-        Nat.mul_le_mul_right P (by omega)
-      have : 7 * (n + 1) * P = 5 * (n + 1) * P + 2 * (n + 1) * P := by ring
-      omega
+    have hpair : (encPair encBits encBits (x, w)).length + 1 ≤ 7 * (n + 1) * P :=
+      hpair_le x w hw
     have h1 := hC_out (x, w)
     calc (Unbounded.encExtCircuit 1 (padCert (x, w))).length
         ≤ C_out * ((encPair encBits encBits (x, w)).length + 1) ^ d_out := h1
@@ -1199,15 +1203,8 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   set n := x.length with hn
   set P := 2 ^ Nat.nthRoot r_w n with hP
   have hP1 : 1 ≤ P := Nat.one_le_two_pow
-  have hnr_le : Nat.nthRoot r_w n ≤ n := nthRoot_le_self_nat hrw_pos n
-  have hpair : (encPair encBits encBits (x, w)).length + 1 ≤ 7 * (n + 1) * P := by
-    simp only [length_encPair, encBits_apply, hw, ℓ]
-    rw [← hn, ← hP]
-    have h1 : 2 * n + 3 ≤ 5 * (n + 1) * P :=
-      (by omega : 2 * n + 3 ≤ 5 * (n + 1)).trans (Nat.le_mul_of_pos_right _ hP1)
-    have h2 : 2 * P ≤ 2 * (n + 1) * P := Nat.mul_le_mul_right P (by omega)
-    have : 7 * (n + 1) * P = 5 * (n + 1) * P + 2 * (n + 1) * P := by ring
-    omega
+  have hnr_le : Nat.nthRoot r_w n ≤ n := hnr_self n
+  have hpair : (encPair encBits encBits (x, w)).length + 1 ≤ 7 * (n + 1) * P := hpair_le x w hw
   have hpow_le (k : ℕ) (hk : k ≤ D_all) :
       ((n + 1) ^ k * P ^ k) ≤ (n + 1) ^ D_all * 2 ^ (D_all * Nat.nthRoot r_w n) := by
     have h1 : (n + 1) ^ k ≤ (n + 1) ^ D_all := Nat.pow_le_pow_right (Nat.succ_pos _) hk

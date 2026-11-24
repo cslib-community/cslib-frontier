@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Complexity.Classes.Time
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalVerifier
+import CslibFrontier.Computability.Complexity.Classes.Hierarchy.TimePolylog
 import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
@@ -202,24 +204,6 @@ private theorem size_le_two_pow_iff (m r : ℕ) :
   conv_rhs => rw [Nat.size_le]
   have hpos : 0 < 2 ^ r := Nat.two_pow_pos r
   omega
-
-/-- Linear-time verdict test matching `TimePolylog.computableInO_verdict_linear`. -/
-private theorem computableInO_verdict_linear :
-    ComputableInO Diagonal.verdict eOut encBool
-      (fun r => (eOut r).length) (fun r => (eOut r).length) := by
-  have heq := (ComputableInO.eq (encList encUnary)).comp
-    ((ComputableInO.const (encMid := encList encUnary) [eBit true]).prod
-      (ComputableInO.fst (encList encUnary) encBool))
-  have hfin := (ComputableInDegree.of_finite (encIn := encPair encBool encBool)
-    (encMid := encBool) fun q : Bool × Bool => !(q.1 && q.2)).inO_one
-  refine ((hfin.comp ((ComputableInO.snd (encList encUnary) encBool).prod heq)).mono 64
-    (fun r => ?_) (fun r => ?_)).of_enc_eq fun r => ?_
-  rotate_left 2
-  · simp only [Diagonal.verdict, Function.comp_apply, encBool_apply, List.cons.injEq, and_true]
-    rw [decide_eq_decide.mpr eq_comm]
-  all_goals
-    have h₁ := length_le_encPair_left (encList encUnary) encBool r
-    enc_len [Function.comp_apply, show eBit true = 1 from rfl] at h₁ ⊢
 
 /-- The unary exponent `m - e * Nat.size (m + 1)` is polynomial-time from a bit string of length
 `m` (or `m - 1`). -/
@@ -430,7 +414,7 @@ private theorem exists_computableInO_fineAccepts :
     (hbud.inO.comp hy).of_enc_eq fun _ => rfl
   have hpre := hdesc.prod (hsym.prod hclock)
   have hU := computableInO_universal_nlogn.comp hpre
-  have hv := computableInO_verdict_linear.comp hU
+  have hv := Diagonal.computableInO_verdict_linear.comp hU
   have hnot := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
     (fun b : Bool => !b)).inO_one.comp hv
   obtain ⟨cO, hcO⟩ := hU.length_le
@@ -582,7 +566,7 @@ private theorem computableInPolyTime_capTest (e : ℕ) :
       (hTp.add ((hIpoly.pow 4).mul (hBpoly.pow 2)))
       (hSp.add ((hIpoly.pow 2).mul hBpoly))
   have hv_poly : ComputableInPolyTime Diagonal.verdict eOut encBool :=
-    computableInO_verdict_linear.computableInPolyTime
+    Diagonal.computableInO_verdict_linear.computableInPolyTime
       (PolyBounded.of_forall_le 1 1 fun _ => by simp)
       (PolyBounded.of_forall_le 1 1 fun _ => by simp)
   have hnot_poly : ComputableInPolyTime (fun b : Bool => !b) encBool encBool :=
@@ -634,25 +618,8 @@ private theorem exists_computableInO_fineBrute (e : ℕ) :
     have h4 : (4 : ℕ) ^ (q.2.length - e * Nat.size (q.2.length + 1)) = c * c := by
       rw [show c = 2 ^ (q.2.length - e * Nat.size (q.2.length + 1)) from rfl, ← mul_pow]
       norm_num
-    set B := 2 ^ ((3 * K₀ + 4) * (N + c))
-    have hN : 2 ^ N ≤ B :=
-      Nat.pow_le_pow_right Nat.one_lt_two.le
-        ((Nat.le_add_right N c).trans (Nat.le_mul_of_pos_left _ (by omega)))
-    have hN' : N < 2 ^ N := Nat.lt_two_pow_self
-    have hcc : c * c ≤ B := by
-      have h1 : c * c ≤ 2 ^ (c + c) := by
-        rw [pow_add]
-        exact Nat.mul_le_mul Nat.lt_two_pow_self.le Nat.lt_two_pow_self.le
-      exact h1.trans (Nat.pow_le_pow_right Nat.one_lt_two.le
-        ((by omega : c + c ≤ 4 * (N + c)).trans (Nat.mul_le_mul_right _ (by omega))))
-    have hs : 2 ^ (K₀ * (2 * N + 1 + c + c)) ≤ B :=
-      Nat.pow_le_pow_right Nat.one_lt_two.le
-        ((Nat.mul_le_mul_left K₀ (by omega : 2 * N + 1 + c + c ≤ 3 * (N + c))).trans
-          ((le_of_eq (by ring : K₀ * (3 * (N + c)) = 3 * K₀ * (N + c))).trans
-            (Nat.mul_le_mul_right _ (by omega))))
-    have hC : C * 2 ^ N ≤ C * B := Nat.mul_le_mul_left _ hN
+    have hbound := LazyDiagonal.brute_bound_aux C K₀ N c hc1
     have hcc1 : c ≤ c * c := Nat.le_mul_of_pos_left c hc1
-    have heq : (C + 3) * (B + 1) = C * B + 3 * B + (C + 3) := by ring
     dsimp only [Function.comp_apply] at *
     rw [show 2 ^ (q.2.length - e * Nat.size (q.2.length + 1)) = c from rfl, he1]
     try rw [h4]
@@ -729,24 +696,17 @@ theorem exists_fineExpLazyDiagonal_mem_NTIME :
         simpa only [encBits_apply] using length_le_encPair_left encBits encBits p
       dsimp only [Ctest, Function.comp_apply] at *
       omega
-  have hc₁ : ComputableInO (fun p : List Bool × List Bool =>
-      decide (Nat.size (p.1.length + 1) ≤ horizon c (2 * (unframe p.1).length + 1)))
-      (encPair encBits encBits) encBool Ctest
-      (fun p => (encPair encBits encBits p).length + (p.1.length + 1) ^ d1) := by
-    refine (hd1.inO.comp hfst).mono_time 1 fun p => ?_
-    have hd : (p.1.length + 1) ^ d1 ≤ (p.1.length + 1) ^ dt :=
-      Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)
+  have hmono_dt {f : List Bool → Bool} {d k : ℕ} (hd : d ≤ dt)
+      (hf : ComputableInDegree f encBits encBool d k) :
+      ComputableInO (fun p : List Bool × List Bool => f p.1) (encPair encBits encBits) encBool
+        Ctest (fun p => (encPair encBits encBits p).length + (p.1.length + 1) ^ d) := by
+    refine (hf.inO.comp hfst).mono_time 1 fun p => ?_
+    have hpow : (p.1.length + 1) ^ d ≤ (p.1.length + 1) ^ dt :=
+      Nat.pow_le_pow_right (Nat.succ_pos _) hd
     dsimp only [Ctest, Function.comp_apply, encBits_apply]
     omega
-  have hc₂ : ComputableInO (fun p : List Bool × List Bool =>
-      decide (Nat.size p.1.length ≤ horizon c (2 * (unframe p.1).length + 1)))
-      (encPair encBits encBits) encBool Ctest
-      (fun p => (encPair encBits encBits p).length + (p.1.length + 1) ^ d2) := by
-    refine (hd2.inO.comp hfst).mono_time 1 fun p => ?_
-    have hd : (p.1.length + 1) ^ d2 ≤ (p.1.length + 1) ^ dt :=
-      Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)
-    dsimp only [Ctest, Function.comp_apply, encBits_apply]
-    omega
+  have hc₁ := hmono_dt (le_max_left d1 d2) hd1
+  have hc₂ := hmono_dt (le_max_right d1 d2) hd2
   -- 3. Assemble the lazy verifier
   obtain ⟨SV, hV⟩ := Diagonal.exists_computableInO_lazyVerifier hacc hbrute hc₀ hc₁ hc₂
     (fun p => by dsimp only [Ctest]; omega)
