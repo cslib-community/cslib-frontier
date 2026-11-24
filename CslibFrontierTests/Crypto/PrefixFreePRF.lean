@@ -183,6 +183,30 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
   exact hF.isMultiQueryUHF_cbcMac (.const 2)
 
+private def emptyWordBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
+  fun _ => pure [[], [false, false, false]]
+
+example : IsOraclePPT encBool
+    (cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2) emptyWordBatch) :=
+  isOraclePPT_cbcMacMultiQueryReduction (.const 4) (.const 2)
+    (ComputableInPolyTime.const [[], [false, false, false]]).isPPTOn
+
+/-- The concrete CBC bound applies at zero and at an exhausted alphabet budget (width three). -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) (n : ℕ) :
+    let reduction := cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2) emptyWordBatch
+    Game.succProbability (multiQueryGame pure (fun _ d => lpBlockValid (fun _ => 4) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) emptyWordBatch n) ≤
+    Game.advantage (ProbComp.eval (prfRealGame id family reduction n))
+      (ProbComp.eval (prfIdealGame id id reduction n)) +
+      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / 2 ^ n + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ n := by
+  dsimp only
+  refine succProbability_multiQueryGame_cbcMac_le hF.length_eq (fun _ => 4) (fun _ => 2)
+    emptyWordBatch ?_
+  intro guesses hGuesses
+  simp only [emptyWordBatch, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hGuesses
+  subst guesses
+  decide
+
 example : lpBlockValid (fun _ => 2) 3 [] = true ∧
     (prefixFreeBatchQueries 3 2 (lpBlockValid (fun _ => 2) 3) [[], [false, false, false]]).length =
       2 := by

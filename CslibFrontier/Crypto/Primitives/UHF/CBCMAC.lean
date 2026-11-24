@@ -19,6 +19,8 @@ This is the CBC-MAC step toward [BonehShoup2023], v0.6, Corollary 7.5 (printed p
 The collision game includes the empty word. The prefix-free wrapper appends one block before
 querying the CBC oracle, so its queries are in the nonempty CBC domain. Composing the batch
 wrapper with the CBC-to-PRF reduction gives an explicit distinguisher and a birthday bound.
+Issue #5790 tracks the exact constants and remaining security conclusions. The cascade
+application also depends on the Chapter 6 construction and security proof in #5801.
 
 ## Main definitions
 
@@ -27,6 +29,7 @@ wrapper with the CBC-to-PRF reduction gives an explicit distinguisher and a birt
 ## Main results
 
 * `Cslib.Crypto.PseudorandomFunction.isMultiQueryUHF_cbcMac`: asymptotic multi-query UHF security.
+* `Cslib.Crypto.UHF.isOraclePPT_cbcMacMultiQueryReduction`: strict oracle PPT for the composition.
 * `Cslib.Crypto.UHF.succProbability_multiQueryGame_cbcMac_le`: the concrete CBC comparison,
   using the library's Theorem 6.3 error term and the exact pair count from Theorem 7.4.
 -/
@@ -66,50 +69,6 @@ private theorem cbcMacFamily_extend_of_lpBlockValid (family : List Bool → List
   rw [cbcMacWord_append_block family hn key (lpBlockValid_spec hLeft).1 hBlock,
     cbcMacWord_append_block family hn key (lpBlockValid_spec hRight).1 hBlock, hEq]
 
-/-- CBC-MAC on zero to `ℓ n` whole blocks is a multi-query UHF under a length-preserving
-secure PRF, the CBC part of [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
-The word model uses uniform `n`-bit keys and a unary polynomial-time block cap. For positive
-`n`, appending a block puts each hash word in the nonempty CBC oracle domain of at most
-`ℓ n + 1` blocks. The proof uses this reduction for `n ≥ 1`, which suffices for negligibility. -/
-theorem PseudorandomFunction.isMultiQueryUHF_cbcMac
-    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
-    {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
-    UHF.IsMultiQueryUHF encUnary encBits pure (fun _ d => lpBlockValid ℓ d)
-      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
-  let valid (n : ℕ) (word : List Bool) := decide (0 < n) && lpBlockValid ℓ n word
-  have hValid : ComputableInPolyTime (fun p => valid p.1 p.2)
-      (encPair encUnary encBits) encBool :=
-    ComputableInPolyTime.bool_and'
-      ((ComputableInPolyTime.const 0).unary_lt' (ComputableInPolyTime.fst encUnary encBits))
-      (computableInPolyTime_lpBlockValid hℓ)
-  have hValidSpec {n : ℕ} {word : List Bool} (hw : valid n word = true) :
-      0 < n ∧ lpBlockValid ℓ n word = true := by
-    simpa only [valid, Bool.and_eq_true, decide_eq_true_eq] using hw
-  have hPRF := hF.prefixFreePRF_cbcMac (hℓ.unary_add' (ComputableInPolyTime.const 1))
-  have hProbe : ∀ᶠ n in Filter.atTop,
-      cbcBlockValid (fun k => ℓ k + 1) n (List.replicate n false) = true := by
-    filter_upwards [Filter.eventually_ge_atTop (1 : ℕ)] with n hn
-    have hEmpty : lpBlockValid ℓ n [] = true := by simp [lpBlockValid]
-    simpa only [List.nil_append] using
-      cbcBlockValid_append_of_lpBlockValid hn hEmpty (List.length_replicate (a := false))
-  have hGuarded := UHF.isMultiQueryUHF_of_extendable_prefixFreePRF
-    (maxBlocks := ℓ) hPRF ComputableInPolyTime.id' hValid
-    (fun _ _ hw => ⟨(hValidSpec hw).1, (lpBlockValid_spec (hValidSpec hw).2).1⟩)
-    (fun _ _ hw => lpBlockValid_blockCount_le (hValidSpec hw).2) hℓ.polynomiallyBounded
-    (fun hw hb => cbcBlockValid_append_of_lpBlockValid (hValidSpec hw).1 (hValidSpec hw).2 hb)
-    hProbe (fun hk hl hr hb => cbcMacFamily_extend_of_lpBlockValid family
-      (hValidSpec hl).1 hk (hValidSpec hl).2 (hValidSpec hr).2 hb)
-    negligible_inv_two_pow negligible_inv_two_pow
-  apply Game.Indistinguishable.of_negligible_succProbability
-  intro guessBatch hGuess
-  apply negligible_of_eventually_le (hGuarded.negligible_succProbability guessBatch hGuess)
-  filter_upwards [Filter.eventually_ge_atTop (1 : ℕ)] with n hn
-  have hvalidEq : valid n = lpBlockValid ℓ n := by
-    funext word
-    simp only [valid, decide_eq_true (show 0 < n from hn), Bool.true_and]
-  simp only [UHF.multiQueryGame, ProbComp.eval_pure, Game.withSetup_pure, hvalidEq]
-  exact le_rfl
-
 namespace UHF
 
 /-- Compose the prefix-free batch collision wrapper with the base-PRF reduction for CBC-MAC
@@ -132,28 +91,51 @@ theorem isOraclePPT_cbcMacMultiQueryReduction {ℓ Q : ℕ → ℕ}
     (isOraclePPT_prefixFreeBatchReduction ComputableInPolyTime.id' ComputableInPolyTime.id'
       hQ (computableInPolyTime_lpBlockValid hℓ) hGuess)
 
-/-- Concrete CBC-MAC instance of [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260),
-combining the library's Theorem 6.3 bound with (7.9). The length-preserving base PRF
-contributes the error `Q² * (ℓ + 1)² / 2^n`, twice the corresponding term in (7.10).
-The batch comparison contributes the sharper birthday term `Q.choose 2 / 2^n`.
-As in Theorem 7.4, the block alphabet must exceed the largest batch's block count. -/
+/-- A concrete CBC-MAC step toward [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
+The library's Theorem 6.3 bound contributes `Q² * (ℓ + 1)² / 2^n`, twice the CBC term
+in (7.10), and (7.9) contributes `Q.choose 2 / 2^n`. At parameter zero, the only valid
+word is empty. If the block alphabet is too small for fresh-block search, the CBC term
+already bounds the probability by one. Issue #5790 tracks the exact constant and the
+cascade case, which also depends on #5801. -/
 theorem succProbability_multiQueryGame_cbcMac_le
     {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
       (family key query).length = key.length)
-    (ℓ Q : ℕ → ℕ) (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) {n : ℕ} (hn : 0 < n)
-    (hBudget : ∀ guesses ∈ (ProbComp.eval (guessBatch (n, n))).support, guesses.length ≤ Q n)
-    (hAlphabet : ℓ n * Q n < 2 ^ n) :
+    (ℓ Q : ℕ → ℕ) (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) {n : ℕ}
+    (hBudget : ∀ guesses ∈ (ProbComp.eval (guessBatch (n, n))).support, guesses.length ≤ Q n) :
     Game.succProbability (multiQueryGame pure (fun _ d => lpBlockValid ℓ d)
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guessBatch n) ≤
     Game.advantage
       (ProbComp.eval (prfRealGame id family (cbcMacMultiQueryReduction ℓ Q guessBatch) n))
       (ProbComp.eval (prfIdealGame id id (cbcMacMultiQueryReduction ℓ Q guessBatch) n)) +
       (Q n : ℝ≥0) ^ 2 * (ℓ n + 1 : ℝ≥0) ^ 2 / 2 ^ n + (Q n).choose 2 / (2 : ℝ≥0) ^ n := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · have hEmpty {word : List Bool} (hw : lpBlockValid ℓ 0 word = true) : word = [] := by
+      apply List.length_eq_zero_iff.mp
+      exact Nat.eq_zero_of_le_zero (by simpa only [Nat.mul_zero] using (lpBlockValid_spec hw).2)
+    have hNoCollision (guesses : List (List Bool)) (key : BitString 0) :
+        ¬ ∃ u ∈ guesses, ∃ v ∈ guesses, u ≠ v ∧ lpBlockValid ℓ 0 u = true ∧
+          lpBlockValid ℓ 0 v = true ∧
+          cbcMacFamily family (List.ofFn key) u = cbcMacFamily family (List.ofFn key) v := by
+      rintro ⟨u, _, v, _, hne, hu, hv, _⟩
+      exact hne ((hEmpty hu).trans (hEmpty hv).symm)
+    simp only [multiQueryGame, Game.withSetup_pure, ProbComp.eval_pure, ProbComp.eval_bind,
+      hNoCollision, decide_false, PMF.bind_const]
+    simp [Game.succProbability]
+  by_cases hSmallAlphabet : 2 ^ n ≤ ℓ n * Q n
+  · have hNat : 2 ^ n ≤ Q n * (ℓ n + 1) := hSmallAlphabet.trans
+      (by simpa only [Nat.mul_comm] using Nat.mul_le_mul_left (Q n) (Nat.le_succ (ℓ n)))
+    have hSize : (2 : ℝ≥0) ^ n ≤ (Q n : ℝ≥0) * (ℓ n + 1 : ℝ≥0) := by exact_mod_cast hNat
+    have hOne : (1 : ℝ≥0) ≤ 2 ^ n := one_le_pow₀ one_le_two
+    have hCBC : (1 : ℝ≥0) ≤ (Q n : ℝ≥0) ^ 2 * (ℓ n + 1 : ℝ≥0) ^ 2 / 2 ^ n := by
+      rw [le_div_iff₀ (by positivity), one_mul, ← mul_pow, pow_two]
+      exact hSize.trans (le_mul_of_one_le_right zero_le (hOne.trans hSize))
+    refine (Game.succProbability_le_one _).trans (hCBC.trans ?_)
+    exact (le_add_of_nonneg_left zero_le).trans (le_add_of_nonneg_right zero_le)
   let batch := prefixFreeBatchReduction id id Q (lpBlockValid ℓ) guessBatch
   have hBatch := succProbability_multiQueryGame_le_prefixFreeBatchReduction
     (width := id) (outLen := id) (cbcMacFamily family) guessBatch n (ℓ n) hBudget
-    (fun _ hw => lpBlockValid_blockCount_le hw) hAlphabet
+    (fun _ hw => lpBlockValid_blockCount_le hw) (Nat.lt_of_not_ge hSmallAlphabet)
     (cbcBlockValid_append_of_lpBlockValid hn) (cbcMacFamily_extend_of_lpBlockValid family hn)
   have hCBC := advantage_cbcMac_le hlen (fun k => ℓ k + 1) batch
     (isQueryBounded_prefixFreeBatchReduction id id Q (lpBlockValid ℓ) guessBatch n [])
@@ -163,5 +145,28 @@ theorem succProbability_multiQueryGame_cbcMac_le
   simpa only [cbcMacMultiQueryReduction, batch, Nat.cast_add, Nat.cast_one] using hCBC
 
 end UHF
+
+/-- An asymptotic CBC-MAC step toward [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
+CBC-MAC on zero to `ℓ n` whole blocks is a multi-query UHF under a length-preserving secure
+PRF. The word model uses uniform `n`-bit keys and a unary polynomial-time block cap.
+Issue #5790 tracks the exact bound and the remaining security conclusions, including the
+cascade case that depends on #5801. -/
+theorem PseudorandomFunction.isMultiQueryUHF_cbcMac
+    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
+    {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
+    UHF.IsMultiQueryUHF encUnary encBits pure (fun _ d => lpBlockValid ℓ d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro guessBatch hGuess
+  obtain ⟨Q, hQ, hBudget⟩ := UHF.exists_computableInPolyTime_batchQueryCap hGuess
+  have hBase := hF.secure _ (UHF.isOraclePPT_cbcMacMultiQueryReduction hℓ hQ hGuess)
+  have hQpoly := hQ.polynomiallyBounded
+  have hExtended := hℓ.polynomiallyBounded.add (.const 1)
+  have hCBC := ((hQpoly.pow 2).mul (hExtended.pow 2)).negligible_div_two_pow
+  have hBirthday := hQpoly.negligible_choose_two_div_two_pow
+  apply negligible_of_le ((hBase.add hCBC).add hBirthday)
+  intro n
+  simpa only [Pi.add_apply, Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one] using
+    UHF.succProbability_multiQueryGame_cbcMac_le hF.length_eq ℓ Q guessBatch (hBudget n)
 
 end Cslib.Crypto
