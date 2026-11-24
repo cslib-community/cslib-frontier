@@ -161,11 +161,6 @@ theorem isOraclePPT_toyKEMAdversary : IsOraclePPT encBool toyKEMAdversary := by
 
 example {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hGap : F.GapCDH setup) :
-    F.DHKEMROMINDCCA setup id :=
-  hGap.dhKEMROMINDCCA ComputableInPolyTime.id'
-
-example {F : DecodablePrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
-    (hGap : F.GapCDH setup) :
     IsOraclePPTOn (encGapCDHInput F.toPrimeOrderGroupFamily) encBits
       (F.dhKEMToGapCDHWord id toyKEMAdversary) ∧
     (∀ n, Game.advantage (F.dhKEMCCAWordGame setup id toyKEMAdversary true n)

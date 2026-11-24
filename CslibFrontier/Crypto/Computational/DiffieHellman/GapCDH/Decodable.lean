@@ -440,24 +440,32 @@ private theorem replay_runWith_eq (keyLen : ℕ → ℕ)
     ← F.run_runCoins_routeToTypedQuery d rep handler' handler hstep machine _ _ s, PMF.map_comp]
   rfl
 
+/-- The fixed-group word-level ROM IND-CCA game for Construction 12.19 at parameter `n` and group
+`d` once the key exponent `x` and the encapsulation exponent `y` are fixed: draw the random oracle
+`H` and the random key, build the challenge, and run the adversary against
+`dhKEMCCAWordAnswer`. Shared by the ideal game and the fair-coin sampling comparison. -/
+private noncomputable def dhKEMCCAWordGameGivenExps (keyLen : ℕ → ℕ)
+    (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ)
+    (d : F.Desc) (x y : ZMod (F.order d)) : Game :=
+  letI : Fintype (F.Carrier d) := F.fintypeCarrier d
+  (Probability.PMF.pi fun _ : F.Carrier d =>
+    ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun H =>
+    (ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun random =>
+      let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
+      let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
+        ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
+      ProbComp.eval ((adversary n challenge).run
+        fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
+
 /-- Ideal-sampling fixed-group word-level ROM IND-CCA game for Construction 12.19 at parameter `n`
 and group `d`, drawing `x, y : ZMod (F.order d)` from `PMF.uniformOfFintype` rather than
 `sampleExp`; intermediate step toward `dhKEMCCAWordGameAt`. -/
 private noncomputable def dhKEMCCAWordIdealGameAt (keyLen : ℕ → ℕ)
     (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ)
     (d : F.Desc) : Game :=
-  letI : Fintype (F.Carrier d) := F.fintypeCarrier d
-  do
-    let x ← PMF.uniformOfFintype (ZMod (F.order d))
-    let y ← PMF.uniformOfFintype (ZMod (F.order d))
-    let H ← Probability.PMF.pi fun _ : F.Carrier d =>
-      ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
-    let random ← ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
-    let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
-    let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
-      ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
-    ProbComp.eval ((adversary n challenge).run
-      fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
+  (PMF.uniformOfFintype (ZMod (F.order d))).bind fun x =>
+    (PMF.uniformOfFintype (ZMod (F.order d))).bind fun y =>
+      F.dhKEMCCAWordGameGivenExps keyLen adversary bit n d x y
 
 /-- Ideal-sampling word-level ROM IND-CCA game over `setup` and `keyLen`, drawing the key and
 encapsulation exponents from `PMF.uniformOfFintype (ZMod (F.order d))`; intermediate step toward
@@ -484,8 +492,8 @@ private theorem dhKEMCCAWordIdealGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
         F.toPrimeOrderGroupFamily.dhKEMCCAGame d (ProbComp.uniform (BitString (keyLen n)))
           (F.savedCoinDHKEMAdversary machine keyLen c deg n d coins) bit := by
   let _ : Fintype (F.Carrier d) := F.fintypeCarrier d
-  simp only [dhKEMCCAWordIdealGameAt, PrimeOrderGroupFamily.dhKEMCCAGame, dhKEMEncapsWord,
-    PrimeOrderGroupFamily.dhKEMEncaps, Probability.PMF.monad_bind_eq_bind]
+  simp only [dhKEMCCAWordIdealGameAt, dhKEMCCAWordGameGivenExps, PrimeOrderGroupFamily.dhKEMCCAGame,
+    dhKEMEncapsWord, PrimeOrderGroupFamily.dhKEMEncaps, Probability.PMF.monad_bind_eq_bind]
   have hite (kReal kRand : BitString (keyLen n)) :
       (if bit = true then List.ofFn kReal else List.ofFn kRand) =
         List.ofFn (if bit = true then kReal else kRand) := by
@@ -680,22 +688,15 @@ private theorem advantage_dhKEMCCAWordGame_ideal_le (setup : ℕ → PMF F.Desc)
   simp only [dhKEMCCAWordGame, dhKEMCCAWordIdealGame]
   refine Game.advantage_bind_le_nnreal (setup n) _ _ fun d => ?_
   let _ : Fintype (F.Carrier d) := F.fintypeCarrier d
-  let ccaBody (x y : ZMod (F.order d)) : Game :=
-    (Probability.PMF.pi fun _ : F.Carrier d =>
-      ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun H =>
-      (ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun random =>
-        let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
-        let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
-          ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
-        ProbComp.eval ((adversary n challenge).run
-          fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
   have hprob : F.dhKEMCCAWordGameAt keyLen adversary bit n d =
       (ProbComp.eval (F.toPrimeOrderGroupFamily.sampleExp n d)).bind fun x =>
         (ProbComp.eval (F.toPrimeOrderGroupFamily.sampleExp n d)).bind fun y =>
-          ccaBody (x : ZMod (F.order d)) (y : ZMod (F.order d)) := by
+          F.dhKEMCCAWordGameGivenExps keyLen adversary bit n d (x : ZMod (F.order d))
+            (y : ZMod (F.order d)) := by
     simp only [dhKEMCCAWordGameAt, dhKEMKeyGenWordProb, Probability.PMF.monad_bind_eq_bind,
       ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, F.smul_encode,
-      F.run_dhKEMEncapsWordProb, ProbComp.eval_map, PMF.bind_map, Function.comp_def, ccaBody]
+      F.run_dhKEMEncapsWordProb, ProbComp.eval_map, PMF.bind_map, Function.comp_def,
+      dhKEMCCAWordGameGivenExps]
     pmf_swap
     congr 2
     funext ⟨op, w⟩
@@ -705,13 +706,9 @@ private theorem advantage_dhKEMCCAWordGame_ideal_le (setup : ℕ → PMF F.Desc)
       dsimp only [dhKEMCCAWordAnswer]
       rw [F.run_dhKEMDecapsWordOracle, map_pure]
       split_ifs <;> rfl
-  have hideal : F.dhKEMCCAWordIdealGameAt keyLen adversary bit n d =
-      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun x =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun y =>
-          ccaBody x y := by
-    simp only [dhKEMCCAWordIdealGameAt, Probability.PMF.monad_bind_eq_bind, ccaBody]
-  rw [hprob, hideal]
-  exact F.toPrimeOrderGroupFamily.advantage_bind_sampleExp_pair_le n d ccaBody
+  rw [hprob]
+  exact F.toPrimeOrderGroupFamily.advantage_bind_sampleExp_pair_le n d
+    (F.dhKEMCCAWordGameGivenExps keyLen adversary bit n d)
 
 /-- **Concrete family-level reduction** for [KatzLindell2020], Theorem 12.22 (p. 435): for every
 setup distribution, key length, uniform strict oracle-PPT adversary `adversary`, and security
