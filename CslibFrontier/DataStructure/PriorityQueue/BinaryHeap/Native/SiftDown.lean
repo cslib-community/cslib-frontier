@@ -275,8 +275,7 @@ theorem realizes_loop : Realizes .exact
     (appendWords inputWords (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding)
     (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
     (fun w (d, k) s => Shape w d k s) (fun _ _ => 0) := by
-  have hStep := realizes_step
-  realize
+  realize [realizes_step]
   intro hv
   -- Compare body domains at the loop's fixed captured environment.
   refine whileSafe_imp _ _ (fun _ => Iff.rfl) (fun _ => rfl) ?_ (loop_safe h hv)
@@ -302,8 +301,7 @@ theorem realizes_siftDown : Realizes .exact
       pure ()
   have hp : Realizes .exact p inputWords (Equiv.ofUnique Unit (Fin 0 → ℕ)).toEmbedding
       Safe (fun _ _ => 0) := by
-    have hLoop := realizes_loop
-    realize
+    realize [realizes_loop]
     all_goals
       rcases h with ⟨hn, hA, hshape, hkS⟩
       have hSn := hshape.size_le

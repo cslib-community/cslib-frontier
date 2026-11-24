@@ -13,14 +13,14 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Tactic.Negligible
 
 /-!
-# Computational multi-query universal hashing from CBC-MAC
+# Computational universal hashing from CBC-MAC
 
-This is the CBC-MAC step toward [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
+This proves the CBC-MAC case of [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
 The collision game includes the empty word. The prefix-free wrapper appends one block before
 querying the CBC oracle, so its queries are in the nonempty CBC domain. Composing the batch
 wrapper with the CBC-to-PRF reduction gives an explicit distinguisher and a birthday bound.
-Issue #5790 tracks the remaining security conclusions. The cascade
-application also depends on the Chapter 6 construction and security proof in #5801.
+The single-pair bound applies it to a two-message batch. The cascade application also depends
+on the Chapter 6 construction and security proof in #5801.
 
 ## Main definitions
 
@@ -29,9 +29,11 @@ application also depends on the Chapter 6 construction and security proof in #58
 ## Main results
 
 * `Cslib.Crypto.PseudorandomFunction.isMultiQueryUHF_cbcMac`: asymptotic multi-query UHF security.
+* `Cslib.Crypto.PseudorandomFunction.isComputationalUHF_cbcMac`: asymptotic single-pair security.
 * `Cslib.Crypto.UHF.isOraclePPT_cbcMacMultiQueryReduction`: strict oracle PPT for the composition.
 * `Cslib.Crypto.UHF.succProbability_multiQueryGame_cbcMac_le`: the concrete CBC comparison,
   using the library's Theorem 6.3 error term and the exact pair count from Theorem 7.4.
+* `Cslib.Crypto.UHF.succProbability_collisionGame_cbcMac_le`: the two-message specialization.
 -/
 
 public section
@@ -91,7 +93,7 @@ theorem isOraclePPT_cbcMacMultiQueryReduction {ℓ Q : ℕ → ℕ}
     (isOraclePPT_prefixFreeBatchReduction ComputableInPolyTime.id' ComputableInPolyTime.id'
       hQ (computableInPolyTime_lpBlockValid hℓ) hGuess)
 
-/-- A concrete CBC-MAC step toward [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
+/-- The concrete CBC-MAC bound from [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
 The CBC term is `Q² * (ℓ + 1)² / (2 * 2^n)` as in (7.10). For the reply collisions,
 the bound uses the exact pair count `Q.choose 2` from (7.9). At parameter zero the only valid
 word is empty. If the block alphabet is too small for fresh-block search at positive width,
@@ -145,13 +147,33 @@ theorem succProbability_multiQueryGame_cbcMac_le
   refine hBatch.trans (add_le_add ?_ le_rfl)
   simpa only [cbcMacMultiQueryReduction, batch, Nat.cast_add, Nat.cast_one] using hCBC
 
+/-- The single-pair CBC-MAC bound from [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
+The collision guess is presented to the multi-query reduction as a batch with `Q = 2`. -/
+theorem succProbability_collisionGame_cbcMac_le
+    {family : List Bool → List Bool → List Bool}
+    (hlen : ∀ key query : List Bool, query.length = key.length →
+      (family key query).length = key.length)
+    (ℓ : ℕ → ℕ) (guess : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) (n : ℕ) :
+    let reduction := cbcMacMultiQueryReduction ℓ (fun _ => 2)
+      (fun p => collisionPairToBatch (guess p))
+    Game.succProbability (collisionGame pure (fun _ d => lpBlockValid ℓ d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guess n) ≤
+    Game.advantage
+      (ProbComp.eval (prfRealGame id family reduction n))
+      (ProbComp.eval (prfIdealGame id id reduction n)) +
+      (2 : ℝ≥0) ^ 2 * (ℓ n + 1 : ℝ≥0) ^ 2 / (2 * 2 ^ n) + 1 / (2 : ℝ≥0) ^ n := by
+  simpa only [multiQueryGame_collisionPairToBatch, Nat.choose_self,
+    Nat.cast_one, Nat.cast_ofNat] using
+    succProbability_multiQueryGame_cbcMac_le hlen ℓ (fun _ => 2)
+      (fun p => collisionPairToBatch (guess p)) (n := n)
+      (fun _ hm => (length_of_mem_support_collisionPairToBatch hm).le)
+
 end UHF
 
-/-- An asymptotic CBC-MAC step toward [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260).
+/-- The CBC-MAC case of [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260), for batches.
 CBC-MAC on zero to `ℓ n` whole blocks is a multi-query UHF under a length-preserving secure
 PRF. The word model uses uniform `n`-bit keys and a unary polynomial-time block cap.
-Issue #5790 tracks the remaining security conclusions, including the cascade case
-that depends on #5801. -/
+The cascade case depends on #5801. -/
 theorem PseudorandomFunction.isMultiQueryUHF_cbcMac
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
@@ -163,5 +185,15 @@ theorem PseudorandomFunction.isMultiQueryUHF_cbcMac
   have hBase := hF.secure _ (UHF.isOraclePPT_cbcMacMultiQueryReduction hℓ hQ hGuess)
   negligible using fun n =>
     UHF.succProbability_multiQueryGame_cbcMac_le hF.length_eq ℓ Q guessBatch (hBudget n)
+
+/-- The CBC-MAC case of [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260), for
+single-pair adversaries. A secure length-preserving PRF gives a computational UHF on zero to
+`ℓ n` whole blocks, with uniform `n`-bit keys and a unary polynomial-time block cap. -/
+theorem PseudorandomFunction.isComputationalUHF_cbcMac
+    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
+    {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
+    UHF.IsComputationalUHF encUnary encBits pure (fun _ d => lpBlockValid ℓ d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) :=
+  (hF.isMultiQueryUHF_cbcMac hℓ).isComputationalUHF
 
 end Cslib.Crypto
