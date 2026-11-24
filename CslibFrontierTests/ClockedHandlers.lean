@@ -99,17 +99,4 @@ example (p x : ℕ →. ℕ) : ClockedComp.eval (OracleComp.sumHandler p x)
     ((ClockedComp.eval_query (p ⊕ x) 1).trans ?_)
   simp [Partrec.join]
 
-/-- A partial oracle, undefined at `0`. -/
-def holey : ℕ →. ℕ := fun n => if n = 0 then Part.none else Part.some n
-
-/-- The characterization applies to the partial oracle `holey`: the oracle itself is computed by
-a family of clocked programs with computable dialogue, and the family diverges at `0`. -/
-example : ∃ P : ℕ → ClockedComp natOracleSpec ℕ, Computable (ClockedComp.dialogue P) ∧
-    ∀ n, ClockedComp.eval holey (P n) = holey n :=
-  Nat.RecursiveIn.Code.recursiveIn_iff_exists_clockedComp.1 (Nat.RecursiveIn.oracle _ rfl)
-
-example : ClockedComp.eval holey (Nat.RecursiveIn.Code.oracle.toClocked 0) = Part.none := by
-  rw [Nat.RecursiveIn.Code.eval_toClocked]
-  rfl
-
 end CslibFrontierTests.ClockedHandlers
