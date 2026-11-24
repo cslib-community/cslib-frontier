@@ -7645,7 +7645,10 @@ public import CslibFrontier.Foundations.Computability.KleenePostJump
 public import CslibFrontier.Foundations.Computability.RecursiveInClocked
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
+public import CslibFrontier.Foundations.Computability.RecursiveInJoin
+public import CslibFrontier.Foundations.Computability.RecursiveInSmn
 public import CslibFrontier.Foundations.Computability.RecursiveInUniform
+public import CslibFrontier.Foundations.Computability.TuringJoin
 public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.Clock
 public import CslibFrontier.Foundations.Control.Monad.FilterM
