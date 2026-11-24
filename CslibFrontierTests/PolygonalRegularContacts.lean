@@ -9,6 +9,8 @@ module
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Subdrawing
+import CslibFrontier.Computability.Complexity.Problems.Graph.CutComponent
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
@@ -87,6 +89,63 @@ private theorem regular : D.HasRegularContacts where
       i.2 j.2 s t (htimes hs) (htimes ht) he
     exact ⟨Dart.vertex (i.1, b), endpoints_declared _ _,
       (((D.route i.1).at_eq_endpoint i.2 (htimes hs) b hb).trans (D.endpoint_eq i.1 b)).symm⟩
+
+private abbrev splitStar : Cslib.Complexity.Graph :=
+  ⟨3 :: (starGraph 2).vertices, [(0, 3), (1, 2)]⟩
+
+private abbrev splitLabels := Function.update (id : ℕ → ℕ) 3 2
+
+private theorem star_even : D.EvenCrossings (fun v => v = 2) := by
+  intro e f hef _
+  classical
+  change (Route.line ⟨(e.val : ℝ) + 1, 1⟩ 0).intersectionParity
+    (Route.line ⟨(f.val : ℝ) + 1, 1⟩ 0) = false
+  rw [Route.intersectionParity_line_line]
+  apply decide_eq_false
+  rintro ⟨z, hz, hz'⟩
+  exact open_disjoint ⟨e, (0 : Fin 1)⟩ ⟨f, (0 : Fin 1)⟩
+    (fun h => hef (congrArg Sigma.fst h)) hz hz'
+
+-- Both separated copies of the star center inherit its point while retaining regularity.
+example :
+    ∃ (A : PolygonalDrawing (splitStar.componentGraph 3))
+      (B : PolygonalDrawing (splitStar.componentGraph 2)),
+      A.HasRegularContacts ∧ B.HasRegularContacts ∧ A.vertex 3 = B.vertex 2 ∧
+        A.EvenCrossings ((fun v => v = 2) ∘ splitLabels) ∧
+        B.EvenCrossings ((fun v => v = 2) ∘ splitLabels) := by
+  let selected (d : Dart (starGraph 2)) := d = starDartEquiv 2 (0, true)
+  let E : Fin (starGraph 2).edges.length ≃ Fin splitStar.edges.length := Equiv.refl _
+  have hEnds (d : Dart (starGraph 2)) :
+      Dart.vertex (G := splitStar) (E d.1, d.2) =
+        if selected d then 3 else d.vertex := by
+    exact (by decide : ∀ d : Dart (starGraph 2),
+      Dart.vertex (G := splitStar) (E d.1, d.2) =
+        if selected d then 3 else d.vertex) d
+  have hdecl := split_darts_endpoints_declared (starGraph_endpoints_declared 2)
+    3 selected E rfl hEnds
+  have hback := vertex_preimage_split_darts (G := starGraph 2) (H := splitStar) 2 3
+    (by decide) selected (by decide) E hEnds
+  have hsep : ¬RotationCertificate.SameComponent splitStar 3 2 := by
+    intro h
+    have he := Dart.eq_of_sameComponent (G := splitStar) (fun d => decide (d.1 = 0))
+      (by decide) (by decide) (d := (0, true)) (e := (1, true)) h
+    cases he
+  have restrict (root : ℕ) : ∃ A : PolygonalDrawing (splitStar.componentGraph root),
+      A.HasRegularContacts ∧ A.vertex = D.vertex ∘ splitLabels ∧
+        A.EvenCrossings ((fun v => v = 2) ∘ splitLabels) := by
+    obtain ⟨A, hA, hroutes, hv, _, hinj⟩ := regular.exists_component_subdrawing
+      E.symm.toEmbedding 3 2 (by decide) hsep hdecl (fun _ h => List.mem_cons.mp h) hback root
+    let edges := (splitStar.componentEdgeEquiv root).toEmbedding.trans
+      ((Function.Embedding.subtype _).trans E.symm.toEmbedding)
+    have hEnds' (i : Fin (splitStar.componentGraph root).edges.length) (b : Bool) :
+        Dart.vertex (G := starGraph 2) (edges i, b) = splitLabels (Dart.vertex (i, b)) := by
+      rw [splitStar.vertex_componentEdgeEquiv root i b]
+      exact hback _ _
+    exact ⟨A, hA, hv, star_even.of_route_restriction edges splitLabels hEnds'
+      (splitStar.componentGraph_endpoints_declared root hdecl) hinj hroutes⟩
+  obtain ⟨A, hA, hvA, heA⟩ := restrict 3
+  obtain ⟨B, hB, hvB, heB⟩ := restrict 2
+  exact ⟨A, B, hA, hB, by rw [hvA, hvB]; rfl, heA, heB⟩
 
 private abbrev leftSpoke : D.SegmentIndex := ⟨⟨0, by decide⟩, (0 : Fin 1)⟩
 private abbrev rightSpoke : D.SegmentIndex := ⟨⟨1, by decide⟩, (0 : Fin 1)⟩
