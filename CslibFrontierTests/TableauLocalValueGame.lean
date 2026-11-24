@@ -18,7 +18,10 @@ bit, so the encoding stays injective across inputs. With claims encoded relative
 on the claim that the output wire is true still decides the run of the machine
 (`Cslib.Circuits.Boolean.Tableau.ValueGame.wins_position_outWire_iff`), and its reachable positions
 have length logarithmic in the input length and the step count
-(`Cslib.Circuits.Boolean.Tableau.ValueGame.exists_length_le_of_reach_encLocal`).
+(`Cslib.Circuits.Boolean.Tableau.ValueGame.exists_length_le_of_reach_encLocal`). The local data of a
+claim is encoded by the words of the former right-nested tuple encoding, and at an input wire the
+local position (`Cslib.Circuits.Boolean.Tableau.ValueGame.localPosition`) uses the bit it is given
+as the read of the input there: the true claim is won and the false one lost.
 -/
 
 set_option linter.privateModule false
@@ -26,13 +29,19 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.TableauLocalValueGame
 
 open Cslib Cslib.Circuits.Boolean.Tableau Cslib.Circuits.Boolean.Tableau.ValueGame
-open Turing Turing.MultiTapeATM.WordGame
+open Turing Turing.MultiTapeTM Turing.MultiTapeATM.WordGame
 
 /-- The bits of the input are not stored: claims about two inputs of the same length have the same
 encoding relative to their inputs. -/
 example : encLocal (List.replicate 1000 true) ⟨List.replicate 1000 true, 4, 7, true⟩ =
     encLocal (List.replicate 1000 false) ⟨List.replicate 1000 false, 4, 7, true⟩ := by
   simp only [encLocal_self, List.length_replicate]
+
+-- `encLocalClaim` has the exact encoded words of the former right-nested tuple encoding.
+example (n T w : ℕ) (v : Bool) :
+    encLocalClaim ⟨n, T, w, v⟩ =
+      encPair encNat (encPair encNat (encPair encNat encBool)) (n, T, w, v) :=
+  rfl
 
 /-- A claim about another input is tagged `true`, a claim about `x` is tagged `false`. -/
 example : (encLocal [true] ⟨[false], 0, 0, true⟩).head? = some true ∧
@@ -56,5 +65,17 @@ example : ∃ c, ∀ (x : List Bool) (T : ℕ) (w : List Bool),
     w.length ≤ 4 * Nat.size x.length + 6 * Nat.size T + c := by
   obtain ⟨c, hc⟩ := exists_length_le_of_reach_encLocal (tm := tm)
   exact ⟨c, fun x T w h => hc x T _ true w (outWire_lt _ _) h⟩
+
+/-- At an input wire, the local position reads the given input bit: with claims encoded relative
+to the input, the true claim is won and the false one lost. -/
+example (x : List Bool) (T i : ℕ) (hi : i < x.length) :
+    Wins (update tm (encLocal x)) (localPosition tm (⟨x.length, T, i, x[i]⟩, x[i]?)) ∧
+      ¬ Wins (update tm (encLocal x)) (localPosition tm (⟨x.length, T, i, !x[i]⟩, x[i]?)) := by
+  have hw : i < x.length + numGates k State T := by omega
+  have h₁ := position_encLocal (tm := tm) (c := ⟨x, T, i, x[i]⟩) rfl
+  have h₂ := position_encLocal (tm := tm) (c := ⟨x, T, i, !x[i]⟩) rfl
+  simp only [Claim.toLocal_mk] at h₁ h₂
+  rw [← h₁, ← h₂, wins_position_iff x T i hw, wins_position_iff x T i hw, val_input tm hi]
+  simp
 
 end CslibFrontierTests.TableauLocalValueGame
