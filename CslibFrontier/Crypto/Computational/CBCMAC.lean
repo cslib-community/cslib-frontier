@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
@@ -187,20 +188,13 @@ theorem cbcMacWord_append_block (family : List Bool → List Bool → List Bool)
     (hblock : block.length = n) :
     cbcMacWord family n key (msg ++ block) =
       (family key (List.zipWith xor (cbcMacWord family n key msg) block)).take n := by
-  let rows := BitString.listRows (msg.length / n) n msg
-  have hrowsWidth : ∀ w ∈ rows ++ [block], w.length = n := by
-    intro w hw
-    rcases List.mem_append.mp hw with hw | hw
-    · exact BitString.length_of_mem_listRows hw
-    · exact (List.mem_singleton.mp hw) ▸ hblock
-  have hrows := BitString.listRows_flatten (rows ++ [block]) hrowsWidth
-  rw [List.flatten_append, List.flatten_singleton,
-    BitString.flatten_listRows_of_length (Nat.div_mul_cancel hmsg).symm,
-    List.length_append, BitString.length_listRows, List.length_singleton] at hrows
-  have hcount : (msg ++ block).length / n = msg.length / n + 1 := by
-    rw [List.length_append, hblock, Nat.add_div_right _ hn]
-  simp only [cbcMacWord, hcount, hrows, List.foldl_append, List.foldl_cons, List.foldl_nil]
-  rfl
+  have hdvd : n ∣ block.length := by simpa only [hblock] using (dvd_rfl : n ∣ n)
+  have hrow : BitString.listRows (block.length / n) n block = [block] := by
+    simpa only [List.length_singleton, List.flatten_singleton, hblock, Nat.div_self hn] using
+      BitString.listRows_flatten [block]
+        (fun _ hm => (List.mem_singleton.mp hm) ▸ hblock)
+  simp only [cbcMacWord, BitString.listRows_append_aligned hn hmsg hdvd, hrow,
+    List.foldl_append, List.foldl_cons, List.foldl_nil]
 
 /-- Keyed-family presentation of basic CBC-MAC at block width `key.length`. -/
 @[expose]
@@ -1650,8 +1644,7 @@ private theorem eval_prfIdealGameOn_restrictLengthDistinguisher
         cases cache.lookup req.2 with
         | some v => simp [rep, PMF.pure_map]
         | none =>
-          simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp,
-            Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+          simp only [← PMF.bind_pure_comp, pmf_norm]
           refine PMF.bind_congr_on_support _ _ _ fun v hvMem => ?_
           have hvLen : v.length = n := BitString.length_of_mem_support_uniformList hvMem
           simp [rep, List.take_of_length_le hvLen.le]
@@ -1965,8 +1958,7 @@ private theorem run_macLogHandlerOn_eq_macSigningOracleOn
         simp only [hv, ↓reduceIte, Functor.map_map, OracleComp.interpret_map,
           ProbOracleComp.interpret_query, ProbComp.eval_pure]
         dsimp only [Functor.map, StateT.map]
-        simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.pure_map,
-          List.take_of_length_le hlenEq.le]
+        simp only [List.take_of_length_le hlenEq.le, pmf_norm]
       · simp only [Bool.eq_false_iff.mpr hv, Bool.false_eq_true, ↓reduceIte,
           OracleComp.interpret_pure, ProbComp.eval_pure]
         rw [show (pure ([], queried) : StateT Unit PMF _) PUnit.unit =
@@ -2088,8 +2080,8 @@ theorem succProbability_prfIdealGameOn_macToPrfOnDistinguisher_le
         (adversary n [])).run ([], [])).bind post := by
     rw [prfIdealGameOn, id_eq, ProbComp.eval_map, ProbOracleComp.eval_run_interpret]
     dsimp only [macToPrfOnDistinguisher, prfIdealLogOracleOn]
-    simp only [OracleComp.interpret_bind, StateT.run_bind, PMF.monad_bind_eq_bind, PMF.map_bind,
-      ProbOracleComp.run_interpret_run_interpret, PMF.bind_map, Function.comp_def]
+    simp only [OracleComp.interpret_bind, StateT.run_bind,
+      ProbOracleComp.run_interpret_run_interpret, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun ⟨(msg, tag), queried, cache⟩ _ => ?_
     dsimp only [post]
     by_cases hcond : (valid n msg && !queried.contains msg) = true
@@ -2115,8 +2107,7 @@ theorem succProbability_prfIdealGameOn_macToPrfOnDistinguisher_le
       simp only [hcond.1, ↓reduceIte, ProbComp.eval_memoize, BitString.eval_sampleList]
       dsimp only [StateT.run]
       rw [memoize, hmiss, BitString.uniformList]
-      simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp,
-        Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+      simp only [← PMF.bind_pure_comp, pmf_norm]
       have htake : (fun x : BitString n => PMF.pure ((List.ofFn x).take n == tag)) =
           (fun x : BitString n => PMF.pure (List.ofFn x == tag)) := by
         funext x
@@ -2314,8 +2305,7 @@ theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
       decide_eq_true_eq]
     omega
   simp only [macEufCmaGameOn, cbcExtensionForger, Functor.map_map, OracleComp.interpret_map,
-    StateT.run_map, ProbOracleComp.interpret_query, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_map, Function.comp_def]
+    StateT.run_map, ProbOracleComp.interpret_query, BitString.eval_sampleList, pmf_norm]
   dsimp only [StateT.run, macSigningOracleOn]
   simp only [hval1, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
   trans PMF.bind (BitString.uniformList n) (fun _ => PMF.pure true)

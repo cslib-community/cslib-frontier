@@ -17,10 +17,13 @@ nondeterministic machine of its table (`Turing.MultiTapePTM.toNTM`). The machine
 within space `s` (`Turing.MultiTapeATM.RecognizesInSpace`) when on every encoded instance `enc a`
 every computation path of that nondeterministic machine visits at most `s a` work-tape cells
 (`Turing.MultiTapeNTM.RunsInSpace`), and `a ∈ A` exactly when the alternating machine accepts
-`enc a` (`Turing.MultiTapeATM.Accepts`). This is the space bound of Chandra, Kozen and Stockmeyer
-[Chandra, Kozen and Stockmeyer][ChandraKozenStockmeyer1981]: every configuration reachable from the
-initial one obeys it. Branches need not halt. Acceptance is the least fixed point
-of the labelling, so an infinite branch never helps a configuration accept.
+`enc a` (`Turing.MultiTapeATM.Accepts`). Every configuration reachable from the initial one obeys
+the bound, whichever player chooses. Branches need not halt. Acceptance is the least fixed point
+of the labelling, so an infinite branch never helps a configuration accept. This bound is stronger
+than that of [Chandra, Kozen and Stockmeyer, Definition 2.5][ChandraKozenStockmeyer1981], which
+asks only that each accepted instance be accepted with the labelling restricted to configurations
+within the bound. For bounds `S(n) ≥ log n` constructible in space `S(n)` the two give the same
+problems [Chandra, Kozen and Stockmeyer, Theorem 2.6(b)][ChandraKozenStockmeyer1981].
 
 The machine decides `A` within space `s` (`Turing.MultiTapeATM.DecidesInSpace`) when moreover every
 branch halts: on every encoded instance some number of steps bounds every computation path, as in

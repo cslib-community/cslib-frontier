@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.GenericRAM.Simulation.Turing
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -1166,15 +1167,14 @@ theorem runCertificateOf_isPolynomial (enc : M.Encoding) (N : M.NativePrimitives
     iterate_isPolynomial cSteps _ (roundCertificate enc N p)
       hSteps (prod_isPolynomial _ _ hCfg (some_isPolynomial _ (inl_isPolynomial _ _ hInit)))
       (roundCertificate_isPolynomial enc N p hN) hStepsBound
-      ((((PolyBounded.const 2).mul (cCfg.polyTime hCfg).polyBounded_length).add (.const 1)).add hB)
+      (B := fun a => 2 * (enc.config (cfg a)).length + 1 + B a) (by growth_poly)
       fun a j hj => by
         rw [iterate_round_inl]
         have := hOutLen a j hj
         enc_len [loopEncoding]
   have hInLen : PolyBounded (fun a => (ei a).length)
-      (fun a => (runInputEncoding enc (steps a, (cfg a, initState a))).length) :=
-    ((prod cSteps (prod cCfg cInit)).polyTime
-      (prod_isPolynomial _ _ hSteps (prod_isPolynomial _ _ hCfg hInit))).polyBounded_length
+      (fun a => (runInputEncoding enc (steps a, (cfg a, initState a))).length) := by
+    growth_poly
   refine ⟨(hIter.1.add ((PolyBounded.const 3).mul hInLen)).mono fun a => ?_,
     (hIter.2.add ((PolyBounded.const 3).mul hInLen)).mono fun a => ?_⟩
   · simp only [runCertificateOf, comp_time, runCertificate, congr_time, snd_time,
@@ -1285,18 +1285,12 @@ theorem transport_polyTime_of_le_const (enc : M.Encoding) (N : M.NativePrimitive
     (hSteps : cSteps.IsPolynomial) (hCfg : cCfg.IsPolynomial) (hInit : cInit.IsPolynomial)
     (K : ℕ) (hStepsLe : ∀ a, steps a ≤ K) :
     ComputableInPolyTime f ei enc.value := by
-  have hSum : ∀ n : ℕ, PolyBounded (fun a => (ei a).length)
-      (fun a => ∑ j ∈ Finset.range n,
-        (resultEncoding enc (run (cfg a) p j (initState a))).length) := by
-    intro n
-    induction n with
-    | zero =>
-      simpa only [Finset.range_zero, Finset.sum_empty] using PolyBounded.const 0
-    | succ n ih =>
-      simpa only [Finset.sum_range_succ] using
-        ih.add (polyBounded_length_run enc N p cCfg cInit hN hCfg hInit n)
+  have hSum : PolyBounded (fun a => (ei a).length)
+      (fun a => ∑ j ∈ Finset.range (K + 1),
+        (resultEncoding enc (run (cfg a) p j (initState a))).length) :=
+    PolyBounded.sum _ fun j _ => polyBounded_length_run enc N p cCfg cInit hN hCfg hInit j
   exact transport_polyTime enc N p cSteps cCfg cInit hExec hN hSteps hCfg hInit
-    ((PolyBounded.const K).mono hStepsLe) (hSum (K + 1)) fun a j hj =>
+    (by growth_poly [hStepsLe]) hSum fun a j hj =>
       Finset.single_le_sum
         (f := fun i => (resultEncoding enc (run (cfg a) p i (initState a))).length)
         (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (by have := hStepsLe a; omega))

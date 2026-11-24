@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.DiscreteLog
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.Ring
 
@@ -299,10 +300,7 @@ theorem uniform_projHash_fiber {α_out : Type*} (d : F.Desc) {α β γ : ZMod (F
       f (projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d))) =
       (PMF.uniformOfFintype (ZMod (F.order d))).bind fun ζ => f (ζ • F.generator d) := by
   simp only [projHash_fiber_eq]
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-      ((fun ζ => f (ζ • F.generator d)) ∘ projHashFiberEquiv F d hγ δ) =
-    (PMF.uniformOfFintype (ZMod (F.order d))).bind (fun ζ => f (ζ • F.generator d))
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (projHashFiberEquiv F d hγ δ)
 
 /-- **One-time group mask via `projHash` on a non-DH triple**: fixing `δ = σ + α * τ`, for any
 message `m : F.Carrier d` and any non-DH triple `γ ≠ α * β`, masking `m` by
