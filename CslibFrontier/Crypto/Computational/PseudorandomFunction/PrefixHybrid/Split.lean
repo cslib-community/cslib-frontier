@@ -34,11 +34,7 @@ open Probability
 private abbrev SplitPrefix (cut width : ℕ) :=
   {word : List Bool // word.length ≤ cut} ⊕ (BitString cut × BitString width)
 
-/-- Use the entire word at or before the cut. Beyond the cut, read a parent and its next block,
-padding missing bits with zero. The hybrid uses this branch only on queries with a full block. -/
-@[expose]
-def prefixHybridSplitIndex (cut width : ℕ) (query : List Bool) :
-    {word : List Bool // word.length ≤ cut} ⊕ (BitString cut × BitString width) :=
+private def splitPrefixIndex (cut width : ℕ) (query : List Bool) : SplitPrefix cut width :=
   if h : query.length ≤ cut then .inl ⟨query, h⟩
   else .inr (BitString.ofList cut query, BitString.ofList width (query.drop cut))
 
@@ -46,19 +42,19 @@ private def splitPrefixKey {cut width : ℕ} (hwidth : 0 < width) :
     SplitPrefix cut width ↪ List Bool where
   toFun := Sum.elim Subtype.val (fun (parent, block) => List.ofFn parent ++ List.ofFn block)
   inj' := by
-    apply Function.LeftInverse.injective (g := prefixHybridSplitIndex cut width)
+    apply Function.LeftInverse.injective (g := splitPrefixIndex cut width)
     intro key
     rcases key with ⟨word, hword⟩ | ⟨parent, block⟩
-    · simp [prefixHybridSplitIndex, hword]
-    · simp [prefixHybridSplitIndex, hwidth.ne', BitString.ofList_ofFn_append,
+    · simp [splitPrefixIndex, hword]
+    · simp [splitPrefixIndex, hwidth.ne', BitString.ofList_ofFn_append,
         List.drop_left' (List.length_ofFn (f := parent))]
 
 private theorem splitPrefixKey_index {cut width : ℕ} (hwidth : 0 < width)
     {query : List Bool} (hquery : cut < query.length → cut + width ≤ query.length) :
-    splitPrefixKey hwidth (prefixHybridSplitIndex cut width query) = query.take (cut + width) := by
+    splitPrefixKey hwidth (splitPrefixIndex cut width query) = query.take (cut + width) := by
   by_cases h : query.length ≤ cut
   · have hfull : query.length ≤ cut + width := by omega
-    simp [prefixHybridSplitIndex, splitPrefixKey, h, List.take_of_length_le hfull]
+    simp [splitPrefixIndex, splitPrefixKey, h, List.take_of_length_le hfull]
   · have hcut := hquery (Nat.lt_of_not_ge h)
     have hparent : List.ofFn (BitString.ofList cut query) = query.take cut := by
       rw [← BitString.ofList_take]
@@ -70,19 +66,38 @@ private theorem splitPrefixKey_index {cut width : ℕ} (hwidth : 0 < width)
         omega
       rw [← BitString.ofList_take]
       exact BitString.ofFn_ofList (by simp only [List.length_take, Nat.min_eq_left hlength])
-    simp [prefixHybridSplitIndex, splitPrefixKey, h, hparent, hblock, List.take_add]
+    simp [splitPrefixIndex, splitPrefixKey, h, hparent, hblock, List.take_add]
 
 /-- Read a short word's own label, or find the next-block label in its parent's child table
 and evaluate the remaining suffix. The caller handles query validity. -/
-@[expose]
 def prefixHybridSplitAnswer {n cut width : ℕ}
     (family : List Bool → List Bool → List Bool)
     (short : {word : List Bool // word.length ≤ cut} → BitString n)
     (children : BitString cut → BitString width → BitString n) (query : List Bool) :
     List Bool :=
-  match prefixHybridSplitIndex cut width query with
+  match splitPrefixIndex cut width query with
   | .inl word => List.ofFn (short word)
   | .inr (parent, block) => family (List.ofFn (children parent block)) (query.drop (cut + width))
+
+/-- A query ending at or before the old cut reads its own label. -/
+theorem prefixHybridSplitAnswer_of_length_le {n cut width : ℕ}
+    {family : List Bool → List Bool → List Bool}
+    {short : {word : List Bool // word.length ≤ cut} → BitString n}
+    {children : BitString cut → BitString width → BitString n} {query : List Bool}
+    (h : query.length ≤ cut) :
+    prefixHybridSplitAnswer family short children query = List.ofFn (short ⟨query, h⟩) := by
+  simp [prefixHybridSplitAnswer, splitPrefixIndex, h]
+
+/-- A query beyond the old cut reads its child label and evaluates the suffix after the block. -/
+theorem prefixHybridSplitAnswer_of_lt_length {n cut width : ℕ}
+    {family : List Bool → List Bool → List Bool}
+    {short : {word : List Bool // word.length ≤ cut} → BitString n}
+    {children : BitString cut → BitString width → BitString n} {query : List Bool}
+    (h : cut < query.length) :
+    prefixHybridSplitAnswer family short children query =
+      family (List.ofFn (children (BitString.ofList cut query)
+        (BitString.ofList width (query.drop cut)))) (query.drop (cut + width)) := by
+  simp [prefixHybridSplitAnswer, splitPrefixIndex, h.not_ge]
 
 /-- The next-cut hybrid has the same law as sampling an independent short-label table and
 a uniform child function for every parent. Valid queries beyond `cut` contain a whole next
@@ -107,17 +122,18 @@ theorem eval_prefixHybridGame_add_eq_split (valid : ℕ → List Bool → Bool)
     (Equiv.sumArrowEquivProdArrow _ _ _).trans
       (Equiv.prodCongr (Equiv.refl _) (Equiv.curry _ _ _))
   rw [eval_prefixHybridGame_eq_eager_of_index (splitPrefixKey hwidth)
-    (prefixHybridSplitIndex cut width) valid family adversary n (cut + width)
+    (splitPrefixIndex cut width) valid family adversary n (cut + width)
     (fun query hv => splitPrefixKey_index hwidth (hquery query hv))]
   rw [← PMF.uniformOfFintype_map_equiv splitTable, PMF.bind_map]
   have hreply (table : SplitPrefix cut width → BitString n) (query : List Bool) :
-      family (List.ofFn (table (prefixHybridSplitIndex cut width query)))
+      family (List.ofFn (table (splitPrefixIndex cut width query)))
           (query.drop (cut + width)) =
         prefixHybridSplitAnswer family (splitTable table).1 (splitTable table).2 query := by
     by_cases h : query.length ≤ cut
     · have hdrop : query.drop (cut + width) = [] := List.drop_eq_nil_of_le (by omega)
-      simp [prefixHybridSplitAnswer, prefixHybridSplitIndex, h, hdrop, hnil, splitTable]
-    · simp [prefixHybridSplitAnswer, prefixHybridSplitIndex, h, splitTable]
+      simp [prefixHybridSplitAnswer_of_length_le h, splitPrefixIndex, h, hdrop, hnil, splitTable]
+    · simp [prefixHybridSplitAnswer_of_lt_length (Nat.lt_of_not_ge h), splitPrefixIndex, h,
+        splitTable]
   simp only [Function.comp_def, hreply]
 
 end Cslib.Crypto

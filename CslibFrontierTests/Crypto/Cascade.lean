@@ -93,7 +93,8 @@ example :
     prefixHybridSplitAnswer (cascadeFamily (fun _ => 1) toggle) short children [true] = [true] ∧
       prefixHybridSplitAnswer (cascadeFamily (fun _ => 1) toggle) short children
         [true, false] = [false] := by
-  exact ⟨rfl, rfl⟩
+  exact ⟨(prefixHybridSplitAnswer_of_length_le (by decide)).trans rfl,
+    (prefixHybridSplitAnswer_of_lt_length (by decide)).trans rfl⟩
 
 example :
     ProbComp.eval (cascadePrefixHybridGame boundedWords (fun _ => 1) toggle compareReplies 2 2) =
