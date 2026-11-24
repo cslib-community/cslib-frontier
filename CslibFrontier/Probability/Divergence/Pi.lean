@@ -170,19 +170,37 @@ section MixtureKL
 
 variable {V X : Type*}
 
-private theorem map_fst_bind_prodMk (μ : PMF V) (P : V → PMF X) :
+/-- First marginal of the observation-first joint law `μ.bind fun v => (P v).map (·, v)`. -/
+theorem map_fst_bind_prodMk (μ : PMF V) (P : V → PMF X) :
     (μ.bind fun v => (P v).map (·, v)).map Prod.fst = μ.bind P := by
   rw [_root_.PMF.map_bind]
   have hid : (fun v : V => ((P v).map (·, v)).map Prod.fst) = P :=
     funext fun v => (_root_.PMF.map_comp _ _ _).trans (_root_.PMF.map_id _)
   rw [hid]
 
-private theorem map_snd_bind_prodMk (μ : PMF V) (P : V → PMF X) :
+/-- Second marginal of the observation-first joint law `μ.bind fun v => (P v).map (·, v)`. -/
+theorem map_snd_bind_prodMk (μ : PMF V) (P : V → PMF X) :
     (μ.bind fun v => (P v).map (·, v)).map Prod.snd = μ := by
   rw [_root_.PMF.map_bind]
   have hconst : (fun v : V => ((P v).map (·, v)).map Prod.snd) = _root_.PMF.pure :=
     funext fun v => (_root_.PMF.map_comp _ _ _).trans (_root_.PMF.map_const (P v) v)
   rw [hconst, _root_.PMF.bind_pure]
+
+/-- Real probability mass of the observation-first joint law `μ.bind fun v => (P v).map (·, v)` at
+`(x, v)`. -/
+theorem toReal_bind_map_prodMk_apply (μ : PMF V) (P : V → PMF X) (x : X) (v : V) :
+    ((μ.bind fun v => (P v).map (·, v)) (x, v)).toReal = (μ v).toReal * (P v x).toReal := by
+  classical
+  simp only [_root_.PMF.bind_apply, _root_.PMF.map_apply, Prod.mk.injEq]
+  have hsingle : ∀ w : V, (μ w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
+      if w = v then μ v * P v x else 0 := by
+    intro w
+    by_cases hwv : w = v
+    · subst hwv
+      simp only [and_true, tsum_ite_eq', ↓reduceIte]
+    · have hne : v ≠ w := Ne.symm hwv
+      simp only [hne, and_false, hwv, ↓reduceIte, tsum_zero, mul_zero]
+  rw [tsum_congr hsingle, tsum_ite_eq, ENNReal.toReal_mul]
 
 private theorem support_bind_subset_of_forall {μ : PMF V} {P : V → PMF X} {Q : PMF X}
     (hQ : ∀ v ∈ μ.support, (P v).support ⊆ Q.support) :
@@ -191,15 +209,6 @@ private theorem support_bind_subset_of_forall {μ : PMF V} {P : V → PMF X} {Q 
   rw [_root_.PMF.mem_support_bind_iff] at hx
   obtain ⟨v, hv, hxv⟩ := hx
   exact hQ v hv hxv
-
-private theorem support_subset_marginal_prod (joint : PMF (X × V)) :
-    joint.support ⊆
-      ((joint.map Prod.fst).bind fun x => (joint.map Prod.snd).map (x, ·)).support := by
-  intro pair hpair
-  rw [_root_.PMF.mem_support_iff, bind_map_prodMk_apply]
-  exact mul_ne_zero
-    (ne_of_gt (lt_of_lt_of_le (pos_iff_ne_zero.mpr hpair) (le_map_apply joint _ pair)))
-    (ne_of_gt (lt_of_lt_of_le (pos_iff_ne_zero.mpr hpair) (le_map_apply joint _ pair)))
 
 /-- **Golden mixture identity for mutual information**: for a prior `μ : PMF V`, channel
 `P : V → PMF X`, and any reference distribution `Q : PMF X` dominating `P v` on `μ.support`,
@@ -222,7 +231,8 @@ theorem mutualInfo_bind_mul_log_two_eq_sum_klDiv_sub [Fintype V] [Finite X]
         Real.log ((joint p).toReal /
           (((joint.map Prod.fst) p.1).toReal * ((joint.map Prod.snd) p.2).toReal)) := by
     have hdiv := entropy_map_fst_add_entropy_map_snd_sub_entropy joint
-    rw [← toMeasure_bind_pair, toReal_klDiv_toMeasure (support_subset_marginal_prod joint)] at hdiv
+    rw [← toMeasure_bind_pair,
+      toReal_klDiv_toMeasure (support_subset_bind_map_prodMk joint)] at hdiv
     have hid : joint.map (fun ab : X × V => (ab.1, ab.2)) = joint := _root_.PMF.map_id joint
     have h1 : mutualInfo joint =
         entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) - entropy joint := by
@@ -234,17 +244,6 @@ theorem mutualInfo_bind_mul_log_two_eq_sum_klDiv_sub [Fintype V] [Finite X]
     · rw [bind_map_prodMk_apply, ENNReal.toReal_mul]
   rw [hmi, map_fst_bind_prodMk, map_snd_bind_prodMk,
     toReal_klDiv_toMeasure (support_bind_subset_of_forall hQ)]
-  have hjoint_apply (x : X) (v : V) : (joint (x, v)).toReal = (μ v).toReal * (P v x).toReal := by
-    simp only [joint, _root_.PMF.bind_apply, _root_.PMF.map_apply, Prod.mk.injEq]
-    have hsingle : ∀ w : V, (μ w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
-        if w = v then μ v * P v x else 0 := by
-      intro w
-      by_cases hwv : w = v
-      · subst hwv
-        simp only [and_true, tsum_ite_eq', ↓reduceIte]
-      · have hne : v ≠ w := Ne.symm hwv
-        simp only [hne, and_false, hwv, ↓reduceIte, tsum_zero, mul_zero]
-    rw [tsum_congr hsingle, tsum_ite_eq, ENNReal.toReal_mul]
   have hbar_apply (x : X) : ((μ.bind P) x).toReal = ∑ v, (μ v).toReal * (P v x).toReal := by
     rw [_root_.PMF.bind_apply, tsum_fintype, ENNReal.toReal_sum fun v _ =>
       ENNReal.mul_ne_top (μ.apply_ne_top v) ((P v).apply_ne_top x)]
@@ -255,7 +254,7 @@ theorem mutualInfo_bind_mul_log_two_eq_sum_klDiv_sub [Fintype V] [Finite X]
           Real.log ((joint (x, v)).toReal / (((μ.bind P) x).toReal * (μ v).toReal)) =
         (μ v).toReal * ((P v x).toReal * Real.log ((P v x).toReal / (Q x).toReal)) -
           (μ v).toReal * (P v x).toReal * Real.log (((μ.bind P) x).toReal / (Q x).toReal) := by
-    rw [hjoint_apply x v]
+    rw [toReal_bind_map_prodMk_apply μ P x v]
     by_cases hμv : μ v = 0
     · simp [hμv]
     by_cases hPvx : P v x = 0

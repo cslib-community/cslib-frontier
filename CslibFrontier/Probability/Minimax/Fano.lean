@@ -62,14 +62,6 @@ section Testing
 
 variable {V X : Type*} [Fintype V] [Finite X]
 
-omit [Finite X] in
-private theorem joint_snd_uniform [Nonempty V] (P : V → PMF X) :
-    ((uniformOfFintype V).bind fun v => (P v).map (·, v)).map Prod.snd = uniformOfFintype V := by
-  rw [_root_.PMF.map_bind]
-  have hconst : (fun v : V => ((P v).map (·, v)).map Prod.snd) = _root_.PMF.pure :=
-    funext fun v => (_root_.PMF.map_comp _ _ _).trans (_root_.PMF.map_const (P v) v)
-  rw [hconst, _root_.PMF.bind_pure]
-
 private theorem joint_error_eq_avg [Nonempty V] (P : V → PMF X) (ψ : X → V) :
     (((uniformOfFintype V).bind fun v => (P v).map (·, v)).toOuterMeasure
         {z : X × V | ψ z.1 ≠ z.2}).toReal =
@@ -77,21 +69,11 @@ private theorem joint_error_eq_avg [Nonempty V] (P : V → PMF X) (ψ : X → V)
         ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal := by
   classical
   let _ := Fintype.ofFinite X
-  set joint : PMF (X × V) := (uniformOfFintype V).bind fun v => (P v).map (·, v)
   have hjoint_apply (x : X) (v : V) :
-      (joint (x, v)).toReal = (Fintype.card V : ℝ)⁻¹ * (P v x).toReal := by
-    simp only [joint, _root_.PMF.bind_apply, _root_.PMF.map_apply, Prod.mk.injEq]
-    have hsingle : ∀ w : V,
-        (uniformOfFintype V w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
-          if w = v then uniformOfFintype V v * P v x else 0 := by
-      intro w
-      by_cases hwv : w = v
-      · subst hwv
-        simp only [and_true, tsum_ite_eq', ↓reduceIte]
-      · have hne : v ≠ w := Ne.symm hwv
-        simp only [hne, and_false, hwv, ↓reduceIte, tsum_zero, mul_zero]
-    rw [tsum_congr hsingle, tsum_ite_eq, ENNReal.toReal_mul, uniformOfFintype_apply,
-      ENNReal.toReal_inv, ENNReal.toReal_natCast]
+      (((uniformOfFintype V).bind fun v => (P v).map (·, v)) (x, v)).toReal =
+        (Fintype.card V : ℝ)⁻¹ * (P v x).toReal := by
+    rw [toReal_bind_map_prodMk_apply, uniformOfFintype_apply, ENNReal.toReal_inv,
+      ENNReal.toReal_natCast]
   rw [toOuterMeasure_apply_toReal, Fintype.sum_prod_type, Finset.sum_comm]
   simp only [Set.mem_ofPred_eq, hjoint_apply]
   rw [Finset.mul_sum]
@@ -114,7 +96,7 @@ theorem fano_binEntropy_testing_bound [Nonempty V] (P : V → PMF X) (ψ : X →
   let joint : PMF (X × V) := (uniformOfFintype V).bind fun v => (P v).map (·, v)
   have hfano := conditionalEntropy_le_binEntropy_add_mul_logb joint ψ
   have hmi := mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy joint
-  rw [joint_snd_uniform P, entropy_uniform] at hmi
+  rw [map_snd_bind_prodMk (uniformOfFintype V) P, entropy_uniform] at hmi
   rw [joint_error_eq_avg P ψ] at hfano
   linarith
 
@@ -129,7 +111,7 @@ theorem fano_avg_testing_error_ge_of_mutualInfo [Nonempty V] (hV : 2 ≤ Fintype
   set joint : PMF (X × V) := (uniformOfFintype V).bind fun v => (P v).map (·, v)
   have hfano := conditionalEntropy_le_one_add_mul_logb joint ψ
   have hmi := mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy joint
-  rw [joint_snd_uniform P, entropy_uniform] at hmi
+  rw [map_snd_bind_prodMk (uniformOfFintype V) P, entropy_uniform] at hmi
   rw [joint_error_eq_avg P ψ] at hfano
   set Pe := (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal
   have hlog2 : 0 < Real.log 2 := Real.log_pos one_lt_two
@@ -237,13 +219,11 @@ private theorem exists_decoder_err_imp_ge [Finite V] [Nonempty V] {loss : T → 
 private theorem exists_mem_ge_of_avg_ge [Fintype V] [Nonempty V] {f : V → ℝ} {c : ℝ}
     (h : c ≤ (Fintype.card V : ℝ)⁻¹ * ∑ v : V, f v) :
     ∃ v : V, c ≤ f v := by
-  by_contra! hlt
-  have hpos : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
-  have hsum : ∑ v : V, f v < ∑ _ : V, c :=
-    Finset.sum_lt_sum_of_nonempty Finset.univ_nonempty fun v _ => hlt v
-  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at hsum
-  have hmul := (inv_mul_lt_iff₀ hpos).mpr hsum
-  linarith
+  have hsum : ∑ _ : V, c ≤ ∑ v : V, f v := by
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+    exact (le_inv_mul_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)).mp h
+  obtain ⟨v, -, hv⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty hsum
+  exact ⟨v, hv⟩
 
 variable [Fintype V]
 
@@ -276,6 +256,27 @@ theorem fano_minimax_prob_ge_of_klDiv_center [Finite X] [MeasurableSpace X]
     · exact ENNReal.toReal_nonneg
     · exact le_rfl
 
+private theorem minimax_risk_ge_of_avg_testing_error [Fintype X] [Nonempty V]
+    (P : V → PMF X) {c : ℝ}
+    (havg : ∀ ψ : X → V,
+      c ≤ (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal)
+    {loss : T → Θ → ℝ} {θ : V → Θ} {Δ : ℝ} (hΔ : 0 ≤ Δ)
+    (hloss : ∀ t v, 0 ≤ loss t (θ v))
+    (hpack : ∀ t, ∀ v w, v ≠ w → 2 * Δ ≤ loss t (θ v) + loss t (θ w)) (est : X → T) :
+    ∃ v : V, Δ * c ≤ ∑ x : X, (P v x).toReal * loss (est x) (θ v) := by
+  classical
+  obtain ⟨ψ, hψ⟩ := exists_decoder_err_imp_ge hpack est
+  obtain ⟨v, hv⟩ := exists_mem_ge_of_avg_ge (havg ψ)
+  refine ⟨v, (mul_le_mul_of_nonneg_left hv hΔ).trans ?_⟩
+  rw [toOuterMeasure_apply_toReal, Finset.mul_sum]
+  refine Finset.sum_le_sum fun x _ => ?_
+  simp only [Set.mem_ofPred_eq]
+  by_cases hx : ψ x ≠ v
+  · rw [ite_eq_left hx, mul_comm]
+    exact mul_le_mul_of_nonneg_left (hψ x v hx) ENNReal.toReal_nonneg
+  · rw [ite_eq_right hx, mul_zero]
+    exact mul_nonneg ENNReal.toReal_nonneg (hloss (est x) v)
+
 /-- **Expected-risk KL-center Fano minimax lower bound** ([Tsybakov2009], Theorem 2.5): if
 `θ : V → Θ` (`2 ≤ |V|`) is `2Δ`-separated under a nonnegative `loss` (`Δ ≥ 0`) and
 `|V|⁻¹ · ∑ v, D(P v ‖ Q) ≤ β`, then for every estimator `est : X → T` some `v : V` has expected risk
@@ -289,18 +290,10 @@ theorem fano_minimax_risk_ge_of_klDiv_center [Fintype X] [MeasurableSpace X]
     (hloss : ∀ t v, 0 ≤ loss t (θ v))
     (hpack : ∀ t, ∀ v w, v ≠ w → 2 * Δ ≤ loss t (θ v) + loss t (θ w)) (est : X → T) :
     ∃ v : V, Δ * (1 - (β + Real.log 2) / Real.log (Fintype.card V)) ≤
-      ∑ x : X, (P v x).toReal * loss (est x) (θ v) := by
-  classical
-  obtain ⟨v, hv⟩ := fano_minimax_prob_ge_of_klDiv_center hV P hQ hβ hpack est
-  refine ⟨v, (mul_le_mul_of_nonneg_left hv hΔ).trans ?_⟩
-  rw [toOuterMeasure_apply_toReal, Finset.mul_sum]
-  refine Finset.sum_le_sum fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
-  by_cases hx : Δ ≤ loss (est x) (θ v)
-  · rw [ite_eq_left hx, mul_comm]
-    exact mul_le_mul_of_nonneg_left hx ENNReal.toReal_nonneg
-  · rw [ite_eq_right hx, mul_zero]
-    exact mul_nonneg ENNReal.toReal_nonneg (hloss (est x) v)
+      ∑ x : X, (P v x).toReal * loss (est x) (θ v) :=
+  have : Nonempty V := Fintype.card_pos_iff.mp (by omega)
+  minimax_risk_ge_of_avg_testing_error P (fano_avg_testing_error_ge_of_klDiv_center hV P hQ hβ)
+    hΔ hloss hpack est
 
 /-- **Randomized-estimator KL-center Fano minimax lower bound**: holds for every randomized
 estimator `est : X → PMF T` by lifting `loss` linearly to `PMF T`. -/
@@ -339,21 +332,10 @@ theorem fano_minimax_risk_ge_of_klDiv_pairwise [Fintype X] [MeasurableSpace X]
     (hloss : ∀ t v, 0 ≤ loss t (θ v))
     (hpack : ∀ t, ∀ v w, v ≠ w → 2 * Δ ≤ loss t (θ v) + loss t (θ w)) (est : X → T) :
     ∃ v : V, Δ * (1 - (β + Real.log 2) / Real.log (Fintype.card V)) ≤
-      ∑ x : X, (P v x).toReal * loss (est x) (θ v) := by
-  classical
+      ∑ x : X, (P v x).toReal * loss (est x) (θ v) :=
   have : Nonempty V := Fintype.card_pos_iff.mp (by omega)
-  obtain ⟨ψ, hψ⟩ := exists_decoder_err_imp_ge hpack est
-  have havg := fano_avg_testing_error_ge_of_klDiv_pairwise hV P hsupp hβ ψ
-  obtain ⟨v, hv⟩ := exists_mem_ge_of_avg_ge havg
-  refine ⟨v, (mul_le_mul_of_nonneg_left hv hΔ).trans ?_⟩
-  rw [toOuterMeasure_apply_toReal, Finset.mul_sum]
-  refine Finset.sum_le_sum fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
-  by_cases hx : ψ x ≠ v
-  · rw [ite_eq_left hx, mul_comm]
-    exact mul_le_mul_of_nonneg_left (hψ x v hx) ENNReal.toReal_nonneg
-  · rw [ite_eq_right hx, mul_zero]
-    exact mul_nonneg ENNReal.toReal_nonneg (hloss (est x) v)
+  minimax_risk_ge_of_avg_testing_error P (fano_avg_testing_error_ge_of_klDiv_pairwise hV P hsupp hβ)
+    hΔ hloss hpack est
 
 /-- **I.i.d. `n`-sample pairwise KL-Fano minimax lower bound**: if single-sample laws satisfy
 `(|V| : ℝ)⁻² · ∑ v, ∑ w, D(P v ‖ P w) ≤ β`, then from `n` i.i.d. observations some `v : V` incurs

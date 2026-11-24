@@ -236,24 +236,16 @@ theorem leCam_randomized_max_ge [Fintype T] (p₀ p₁ : PMF X) {loss : T → Θ
     (sep / 2) * (1 - dist p₀ p₁) ≤
       max (∑ x, (p₀ x).toReal * ∑ t, (est x t).toReal * loss t θ₀)
         (∑ x, (p₁ x).toReal * ∑ t, (est x t).toReal * loss t θ₁) := by
-  have h0 (x : X) : 0 ≤ ∑ t, (est x t).toReal * loss t θ₀ :=
-    Finset.sum_nonneg fun t _ => mul_nonneg ENNReal.toReal_nonneg (hloss₀ t)
-  have h1 (x : X) : 0 ≤ ∑ t, (est x t).toReal * loss t θ₁ :=
-    Finset.sum_nonneg fun t _ => mul_nonneg ENNReal.toReal_nonneg (hloss₁ t)
-  have hs (x : X) : sep ≤ (∑ t, (est x t).toReal * loss t θ₀) +
-      ∑ t, (est x t).toReal * loss t θ₁ := by
-    rw [← Finset.sum_add_distrib]
-    calc sep = ∑ t, (est x t).toReal * sep := by
-          rw [← Finset.sum_mul, sum_toReal, one_mul]
-      _ ≤ ∑ t, ((est x t).toReal * loss t θ₀ + (est x t).toReal * loss t θ₁) := by
-          refine Finset.sum_le_sum fun t _ => ?_
-          rw [← mul_add]
-          exact mul_le_mul_of_nonneg_left (hsep t) ENNReal.toReal_nonneg
-  have hsum := leCam_add_ge p₀ p₁ h0 h1 hs
-  linarith [le_max_left (∑ x, (p₀ x).toReal * ∑ t, (est x t).toReal * loss t θ₀)
-      (∑ x, (p₁ x).toReal * ∑ t, (est x t).toReal * loss t θ₁),
-    le_max_right (∑ x, (p₀ x).toReal * ∑ t, (est x t).toReal * loss t θ₀)
-      (∑ x, (p₁ x).toReal * ∑ t, (est x t).toReal * loss t θ₁)]
+  refine leCam_max_ge p₀ p₁ (loss := fun (q : PMF T) θ => ∑ t, (q t).toReal * loss t θ)
+    (fun q => Finset.sum_nonneg fun t _ => mul_nonneg ENNReal.toReal_nonneg (hloss₀ t))
+    (fun q => Finset.sum_nonneg fun t _ => mul_nonneg ENNReal.toReal_nonneg (hloss₁ t))
+    (fun q => ?_) est
+  rw [← Finset.sum_add_distrib]
+  calc sep = ∑ t, (q t).toReal * sep := by rw [← Finset.sum_mul, sum_toReal, one_mul]
+    _ ≤ ∑ t, ((q t).toReal * loss t θ₀ + (q t).toReal * loss t θ₁) := by
+        refine Finset.sum_le_sum fun t _ => ?_
+        rw [← mul_add]
+        exact mul_le_mul_of_nonneg_left (hsep t) ENNReal.toReal_nonneg
 
 /-- **Le Cam–Pinsker minimax bound** on `PMF`: when `p₀.support ⊆ p₁.support` and `0 ≤ sep`,
 worst-case expected loss is at least `(sep / 2) · (1 - √(D(p₀ ‖ p₁) / 2))`. -/

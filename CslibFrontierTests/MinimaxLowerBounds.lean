@@ -7,9 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Probability.Minimax.Assouad
-public import CslibFrontier.Probability.Minimax.Fano
-public import CslibFrontier.Probability.Minimax.LeCam
+import CslibFrontier.Probability.Minimax.Assouad
+import CslibFrontier.Probability.Minimax.Fano
+import CslibFrontier.Probability.Minimax.LeCam
 
 /-!
 # Checked tests for KL tensorization, Le Cam, Fano, and Assouad minimax lower bounds
@@ -28,7 +28,7 @@ concrete finite instances and model boundaries:
    (`≥ 1 / 96` in squared `ℓ₂` and `≥ 1 / 8` in `ℓ₁`), plus the `Fin 0` empty-cube boundary.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.MinimaxLowerBounds
 

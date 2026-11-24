@@ -68,34 +68,38 @@ private theorem exists_cube_ge_of_avg_ge {ι : Type*} [Fintype ι] [DecidableEq 
     {f : (ι → Bool) → ℝ} {c : ℝ}
     (h : c ≤ (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, f v) :
     ∃ v : ι → Bool, c ≤ f v := by
-  by_contra! hlt
-  have hpos : (0 : ℝ) < Fintype.card (ι → Bool) := Nat.cast_pos.mpr Fintype.card_pos
-  have hsum : ∑ v : ι → Bool, f v < ∑ _ : ι → Bool, c :=
-    Finset.sum_lt_sum_of_nonempty Finset.univ_nonempty fun v _ => hlt v
-  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at hsum
-  linarith [(inv_mul_lt_iff₀ hpos).mpr hsum]
+  have hsum : ∑ _ : ι → Bool, c ≤ ∑ v : ι → Bool, f v := by
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+    exact (le_inv_mul_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)).mp h
+  obtain ⟨v, -, hv⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty hsum
+  exact ⟨v, hv⟩
 
-private theorem hypercube_coord_avg_ge {ι : Type*} [Fintype ι] [DecidableEq ι] (i : ι)
-    {sep : ℝ} {d F : (ι → Bool) → ℝ}
-    (hpair : ∀ v : ι → Bool, sep * (1 - d v) ≤ F v + F (Function.update v i (!v i))) :
-    (sep / 2) * (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d v) ≤
-      (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, F v := by
+private theorem hypercube_sum_coord_avg_ge {ι : Type*} [Fintype ι] [DecidableEq ι]
+    {sep : ℝ} {d F : ι → (ι → Bool) → ℝ}
+    (hpair : ∀ i v, sep * (1 - d i v) ≤ F i v + F i (Function.update v i (!v i))) :
+    (sep / 2) * ∑ i : ι, (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d i v) ≤
+      (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, ∑ i : ι, F i v := by
   have hcard_pos : (0 : ℝ) < Fintype.card (ι → Bool) := Nat.cast_pos.mpr Fintype.card_pos
   have hcard_ne : (Fintype.card (ι → Bool) : ℝ) ≠ 0 := hcard_pos.ne'
-  have hsum_pair := Finset.sum_le_sum fun v (_ : v ∈ Finset.univ) => hpair v
-  rw [Finset.sum_add_distrib, sum_update_not i F] at hsum_pair
-  have hlhs : (∑ v : ι → Bool, sep * (1 - d v)) =
-      (Fintype.card (ι → Bool) : ℝ) * sep - sep * ∑ v : ι → Bool, d v := by
-    simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ,
-      nsmul_eq_mul, ← Finset.mul_sum]
-  rw [hlhs] at hsum_pair
-  have hdiv := mul_le_mul_of_nonneg_left hsum_pair (inv_nonneg.mpr hcard_pos.le)
-  have hsimp : (Fintype.card (ι → Bool) : ℝ)⁻¹ *
-      ((Fintype.card (ι → Bool) : ℝ) * sep - sep * ∑ v : ι → Bool, d v) =
-      2 * ((sep / 2) * (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d v)) := by
-    field_simp
-  rw [hsimp] at hdiv
-  linarith
+  have hcoord (i : ι) :
+      (sep / 2) * (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d i v) ≤
+        (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, F i v := by
+    have hsum_pair := Finset.sum_le_sum fun v (_ : v ∈ Finset.univ) => hpair i v
+    rw [Finset.sum_add_distrib, sum_update_not i (F i)] at hsum_pair
+    have hlhs : (∑ v : ι → Bool, sep * (1 - d i v)) =
+        (Fintype.card (ι → Bool) : ℝ) * sep - sep * ∑ v : ι → Bool, d i v := by
+      simp only [mul_sub, mul_one, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ,
+        nsmul_eq_mul, ← Finset.mul_sum]
+    rw [hlhs] at hsum_pair
+    have hdiv := mul_le_mul_of_nonneg_left hsum_pair (inv_nonneg.mpr hcard_pos.le)
+    have hsimp : (Fintype.card (ι → Bool) : ℝ)⁻¹ *
+        ((Fintype.card (ι → Bool) : ℝ) * sep - sep * ∑ v : ι → Bool, d i v) =
+        2 * ((sep / 2) * (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, d i v)) := by
+      field_simp
+    rw [hsimp] at hdiv
+    linarith
+  have hsum_i := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hcoord i
+  rwa [← Finset.mul_sum, ← Finset.mul_sum, Finset.sum_comm] at hsum_i
 
 /-! ### Measure-theoretic Assouad's hypercube lemma -/
 
@@ -118,19 +122,16 @@ theorem assouad_measure_avg_ge (μ : (ι → Bool) → Measure α) [∀ v, IsPro
     (sep / 2) * ∑ i : ι, (1 - (Fintype.card (ι → Bool) : ℝ)⁻¹ *
         ∑ v : ι → Bool, tvDist (μ v) (μ (Function.update v i (!v i))) / 2) ≤
       (Fintype.card (ι → Bool) : ℝ)⁻¹ * ∑ v : ι → Bool, ∫ x, loss (est x) v ∂(μ v) := by
-  have hcard_pos : (0 : ℝ) < Fintype.card (ι → Bool) := Nat.cast_pos.mpr Fintype.card_pos
-  have hcoord (i : ι) := hypercube_coord_avg_ge i
-    (d := fun v => tvDist (μ v) (μ (Function.update v i (!v i))) / 2)
-    (F := fun v => ∫ x, coordLoss i (est x) v ∂(μ v)) fun v =>
+  refine (hypercube_sum_coord_avg_ge
+    (d := fun i v => tvDist (μ v) (μ (Function.update v i (!v i))) / 2)
+    (F := fun i v => ∫ x, coordLoss i (est x) v ∂(μ v)) fun i v =>
       leCam_measure_add_ge (μ v) (μ (Function.update v i (!v i)))
         (fun x => hcoord_nn i (est x) v)
         (fun x => hcoord_nn i (est x) (Function.update v i (!v i)))
         (hint_coord i v) (hint_coord i (Function.update v i (!v i)))
-        (fun x => hsep i (est x) v)
-  have hsum_i := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hcoord i
-  rw [← Finset.mul_sum, ← Finset.mul_sum, Finset.sum_comm] at hsum_i
-  refine hsum_i.trans (mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun v _ => ?_)
-    (inv_nonneg.mpr hcard_pos.le))
+        (fun x => hsep i (est x) v)).trans
+    (mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun v _ => ?_)
+      (inv_nonneg.mpr (Nat.cast_nonneg _)))
   rw [← integral_finsetSum Finset.univ fun i _ => hint_coord i v]
   exact integral_mono (integrable_finsetSum Finset.univ fun i _ => hint_coord i v)
     (hint_loss v) fun x => hsum_le (est x) v
@@ -220,18 +221,15 @@ theorem assouad_avg_ge (P : (ι → Bool) → PMF X)
         ∑ v : ι → Bool, dist (P v) (P (Function.update v i (!v i)))) ≤
       (Fintype.card (ι → Bool) : ℝ)⁻¹ *
         ∑ v : ι → Bool, ∑ x : X, (P v x).toReal * loss (est x) v := by
-  have hcard_pos : (0 : ℝ) < Fintype.card (ι → Bool) := Nat.cast_pos.mpr Fintype.card_pos
-  have hcoord (i : ι) := hypercube_coord_avg_ge i
-    (d := fun v => dist (P v) (P (Function.update v i (!v i))))
-    (F := fun v => ∑ x : X, (P v x).toReal * coordLoss i (est x) v) fun v =>
+  refine (hypercube_sum_coord_avg_ge
+    (d := fun i v => dist (P v) (P (Function.update v i (!v i))))
+    (F := fun i v => ∑ x : X, (P v x).toReal * coordLoss i (est x) v) fun i v =>
       leCam_add_ge (P v) (P (Function.update v i (!v i)))
         (fun x => hcoord_nn i (est x) v)
         (fun x => hcoord_nn i (est x) (Function.update v i (!v i)))
-        (fun x => hsep i (est x) v)
-  have hsum_i := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hcoord i
-  rw [← Finset.mul_sum, ← Finset.mul_sum, Finset.sum_comm] at hsum_i
-  refine hsum_i.trans (mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun v _ => ?_)
-    (inv_nonneg.mpr hcard_pos.le))
+        (fun x => hsep i (est x) v)).trans
+    (mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun v _ => ?_)
+      (inv_nonneg.mpr (Nat.cast_nonneg _)))
   rw [Finset.sum_comm]
   refine Finset.sum_le_sum fun x _ => ?_
   rw [← Finset.mul_sum]
@@ -390,6 +388,12 @@ private theorem exists_product_bernoulli_edge_klDiv_le {n : ℕ} (hn : 0 < n) :
   simp only [hterm, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
   exact hkl (v i)
 
+private theorem sqrt_mul_one_div_two_mul_div_two {n : ℕ} (hn : 0 < n) :
+    Real.sqrt ((n : ℝ) * (1 / (2 * (n : ℝ))) / 2) = 1 / 2 := by
+  have : (0 : ℝ) < n := Nat.cast_pos.mpr hn
+  have hq : (n : ℝ) * (1 / (2 * (n : ℝ))) / 2 = (1 / 2) ^ 2 := by field_simp
+  rw [hq, Real.sqrt_sq (by norm_num)]
+
 /-- **`Ω(|ι| / n)` minimax lower bound for `d`-dimensional product-Bernoulli mean estimation under
 squared `ℓ₂` loss**: for every `n ≥ 1` and every estimator `est : (Fin n → ι → Bool) → (ι → ℝ)`,
 some mean vector `p : ι → I` incurs expected squared `ℓ₂` error at least `|ι| / (72 n)`. -/
@@ -415,12 +419,8 @@ theorem product_bernoulli_minimax_sq_l2_lower_bound {n : ℕ} (hn : 0 < n)
         nlinarith [sq_nonneg (t i - 1 / 2)])
     est
   refine ⟨fun i => pBit (v i), le_trans ?_ hv⟩
-  have hn_quarter : (n : ℝ) * (1 / (2 * (n : ℝ))) / 2 = 1 / 4 := by field_simp; ring
-  have hsqrt_quarter : Real.sqrt (1 / 4 : ℝ) = 1 / 2 := by
-    rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  rw [hn_quarter, hsqrt_quarter, hδ_sq]
-  ring_nf
-  exact le_rfl
+  rw [sqrt_mul_one_div_two_mul_div_two hn, hδ_sq]
+  exact le_of_eq (by ring)
 
 /-- **`Ω(|ι| / √n)` minimax lower bound for `d`-dimensional product-Bernoulli mean estimation under
 `ℓ₁` loss**: for every `n ≥ 1` and every estimator `est : (Fin n → ι → Bool) → (ι → ℝ)`,
@@ -432,7 +432,6 @@ theorem product_bernoulli_minimax_l1_lower_bound {n : ℕ} (hn : 0 < n)
         (iid (pi fun i => coin (p i)) n x).toReal * ∑ i : ι, |est x i - (p i : ℝ)| := by
   obtain ⟨pBit, hpF, hpT, hsupp, hkl⟩ := exists_product_bernoulli_edge_klDiv_le (ι := ι) hn
   set δ : ℝ := 1 / (6 * Real.sqrt n)
-  have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
   obtain ⟨v, hv⟩ := assouad_iid_exists_ge_of_klDiv_le
     (P := fun v : ι → Bool => pi fun j => coin (pBit (v j))) n
     (coordLoss := fun i (t : ι → ℝ) v => |t i - (pBit (v i) : ℝ)|)
@@ -448,13 +447,8 @@ theorem product_bernoulli_minimax_l1_lower_bound {n : ℕ} (hn : 0 < n)
       cases hv_i : v i <;> simp only [Bool.not_false, Bool.not_true, hpF, hpT] <;> linarith)
     est
   refine ⟨fun i => pBit (v i), le_trans ?_ hv⟩
-  have hn_quarter : (n : ℝ) * (1 / (2 * (n : ℝ))) / 2 = 1 / 4 := by field_simp; ring
-  have hsqrt_quarter : Real.sqrt (1 / 4 : ℝ) = 1 / 2 := by
-    rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  rw [hn_quarter, hsqrt_quarter]
-  simp only [δ]
-  ring_nf
-  exact le_rfl
+  rw [sqrt_mul_one_div_two_mul_div_two hn]
+  exact le_of_eq (by simp only [δ]; ring)
 
 end ProductBernoulli
 
