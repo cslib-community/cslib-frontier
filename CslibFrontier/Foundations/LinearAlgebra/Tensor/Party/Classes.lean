@@ -50,7 +50,7 @@ open Finset Covering
 variable {K : Type} [CommSemiring K] {I : Type} [Fintype I] [DecidableEq I]
 
 /-- A representative of a product of classes is equivalent to the product of representatives. -/
-private theorem antisymmRel_ofAntisymmetrization_mul
+theorem antisymmRel_ofAntisymmetrization_mul
     (x y : Antisymmetrization (PartyTensor K I) (· ≤ ·)) :
     AntisymmRel (· ≤ ·) (ofAntisymmetrization (· ≤ ·) (x * y))
       (ofAntisymmetrization (· ≤ ·) x * ofAntisymmetrization (· ≤ ·) y) := by

@@ -15,7 +15,7 @@ import CslibFrontier.Foundations.Algebra.Covering.Gauge
 /-!
 # Spectral points below upper functionals, and duality for tensors
 
-The tensor forms of Proposition prop:gauge and Theorem A.6 (thm:duality) of *VP ≠ VNP over
+The tensor forms of Proposition A.5 (prop:gauge) and Theorem A.6 (thm:duality) of *VP ≠ VNP over
 every field* [AnthropicVPVNP2026]. Both are proved in the monoid of classes of tensors with its
 covering relation (`Cslib.PartyTensor.tensorCovering`), with the results of
 `Cslib.Covering.IsUpperFunctional.exists_map_mul_le` and
@@ -43,7 +43,7 @@ open Finset Covering
 
 variable {K : Type} [Field K] {I : Type} [Fintype I] [DecidableEq I]
 
-/-- **Paper: Proposition prop:gauge.** "Below every gauge there is a spectral point that
+/-- **Paper: Proposition A.5 (prop:gauge).** "Below every gauge there is a spectral point that
 keeps every triple which the gauge keeps." A gauge is an upper functional; it keeps `(x, y, c)` if
 `P (t * x) ≤ c * P (t * y)` for all `t`. -/
 theorem UpperFunctional.exists_spectralPoint_le (P : UpperFunctional K I) :
@@ -115,7 +115,7 @@ theorem exists_coveredBy_pow_of_forall_le [Nonempty I] {B : Type} [Fintype B] [D
     simp only [← toAntisymmetrization_pow, ← toAntisymmetrization_prod] at hc
     exact (tensorCovering_coveredBy.1 hc).reindex e.symm
   · -- otherwise the infimum of the weights of certificates is an upper functional, and
-    -- Proposition prop:gauge contradicts the hypothesis
+    -- Proposition A.5 (prop:gauge) contradicts the hypothesis
     exfalso
     push Not at hcert
     obtain ⟨hp, hA⟩ := isUpperFunctional_sInf_certificate (D := tensorCovering K I)

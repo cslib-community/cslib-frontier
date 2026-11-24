@@ -7,13 +7,15 @@ Authors: Anthropic, Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Spectrum
+public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Algebra.Covering.Gauge
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 
 /-!
 # Extending spectral points to more parties
 
-Proposition prop:extend of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
+Proposition A.7 (prop:extend) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
 `ι : I → I'` and `π l : I' → I` be maps with `π l ∘ ι = id`, let `θ l ≥ 0` add up to `1`, let `F` be
 a spectral point on `I` and `C` a tensor on `I`. Then there is a spectral point `F'` on `I'` with
 `F' t ≤ ∏ l, F (π l t) ^ θ l` for all `t`, and `F' (ι C) = F C`
@@ -43,7 +45,7 @@ variable {K : Type} [Field K] {I : Type} [Fintype I] [DecidableEq I]
 
 namespace SpectralPoint
 
-/-- The product `f t = ∏ l, F (π l t) ^ θ l` of Proposition prop:extend. -/
+/-- The product `f t = ∏ l, F (π l t) ^ θ l` of Proposition A.7 (prop:extend). -/
 private noncomputable def extendProduct (π : L → I' → I) (θ : L → ℝ) (F : SpectralPoint K I)
     (t : PartyTensor K I') : ℝ :=
   ∏ l, F (push (π l) t) ^ θ l
@@ -175,9 +177,7 @@ private theorem exists_upperFunctional_extend (ι : I → I') (π : L → I' →
       rw [Fintype.sum_sigma, Finset.sum_mul_sum]
       refine Finset.sum_congr rfl fun k _ => Finset.sum_congr rfl fun k' _ => ?_
       rw [← fmul]
-      refine hcongr ((toAntisymmetrization_eq _ _ _).1 ?_)
-      rw [toAntisymmetrization_mul, toAntisymmetrization_ofAntisymmetrization,
-        toAntisymmetrization_ofAntisymmetrization, toAntisymmetrization_ofAntisymmetrization]
+      exact hcongr (antisymmRel_ofAntisymmetrization_mul _ _)
     · intro κ _ t b hb w hw
       choose μ i c hc hw using hw
       refine ⟨_, ⟨Σ k, μ k, inferInstance, _, (tensorCovering K I').bind hb hc, rfl⟩, ?_⟩
@@ -210,7 +210,7 @@ private theorem exists_localize (p : UpperFunctional K I) (f : PartyTensor K I) 
     toAntisymmetrization_mul, toAntisymmetrization_mul]
   exact this
 
-/-- **Paper: Proposition prop:extend.** "Let `ι : I → I′` and `π_l : I′ → I`, `l ≤ L`, be maps
+/-- **Paper: Proposition A.7 (prop:extend).** "Let `ι : I → I′` and `π_l : I′ → I`, `l ≤ L`, be maps
 with `π_l ι = id`, let `θ_l ≥ 0` add up to `1`, let `φ` be a spectral point on `I`, and let `C` be a
 tensor on `I`. There is a spectral point `φ′` on `I′` with `φ′(t) ≤ ∏ φ(π_l t)^θ_l` for all `t`, and
 `φ′(ιC) = φ(C)`." The maps are indexed by any finite type `L`. -/
