@@ -133,9 +133,13 @@ class RuleTests(unittest.TestCase):
                    "def b (p : ℕ × (ℕ × ℕ)) : ℕ := p.2 |> Prod.fst\n"
                    "def c (p : ℕ × (ℕ × ℕ)) : ℕ := (Prod.snd p) |> Prod.fst\n"
                    "def d (p : ℕ × (ℕ × ℕ)) : ℕ := (p |> Prod.snd).1\n"
-                   "def e (p : ℕ × (ℕ × (ℕ × ℕ))) : ℕ := p.2.1 |> Prod.fst\n"),
+                   "def e (p : ℕ × (ℕ × (ℕ × ℕ))) : ℕ := p.2.1 |> Prod.fst\n"
+                   "def f (p : ℕ × (ℕ × ℕ)) : ℕ :=\n"
+                   "  let x := p.2 |> Prod.fst\n"
+                   "  x + 1\n"
+                   "def g (p : ℕ × (ℕ × ℕ)) : ℕ := p.2 |> Prod.fst |> id\n"),
             ["… |> Prod.snd |> Prod.fst", "….2 |> Prod.fst", "(Prod.snd …) |> Prod.fst",
-             "(… |> Prod.snd).1", "….2.1 |> Prod.fst"])
+             "(… |> Prod.snd).1", "….2.1 |> Prod.fst", "….2 |> Prod.fst", "….2 |> Prod.fst"])
         # Structure field and inner chain inside a pair literal / larger call.
         self.assertEqual(
             chains("structure S where\n  x : ℕ × (ℕ × ℕ)\n  h : Prod.fst (Prod.snd x) = 0\n"),
@@ -146,10 +150,13 @@ class RuleTests(unittest.TestCase):
             ["Prod.snd (Prod.fst …)", ".1.2"])
 
     def test_allowed_prod_projections_do_not_count(self) -> None:
-        # Point-free composition is explicitly allowed by CONTRIBUTING.md.
+        # Point-free composition is explicitly allowed by CONTRIBUTING.md, including after `|>`.
         self.assertEqual(
             chains("def f : (ℕ × (ℕ × ℕ)) → ℕ := Prod.fst ∘ Prod.snd\n"
-                   "def g (p : ℕ × (ℕ × ℕ)) : ℕ := (Prod.fst ∘ Prod.snd) p\n"), [])
+                   "def g (p : ℕ × (ℕ × ℕ)) : ℕ := (Prod.fst ∘ Prod.snd) p\n"
+                   "def h (p : ℕ × (ℕ × ℕ)) : ℕ := p.2 |> Prod.fst ∘ Prod.swap\n"
+                   "def i (p : ℕ × (ℕ × ℕ)) : ℕ := p |> Prod.snd |> Prod.fst ∘ Prod.swap\n"
+                   "def j (p : ℕ × (ℕ × ℕ)) : ℕ := p |> Prod.snd ∘ Prod.swap |> Prod.fst\n"), [])
         # Single projection, higher-order arguments, field separator, checked indexing proof.
         self.assertEqual(
             chains("def a (p : ℕ × ℕ) : ℕ := Prod.fst p\n"
@@ -161,8 +168,10 @@ class RuleTests(unittest.TestCase):
                    "def g := Prod.fst (Prod.snd p).field\n"
                    "def h := Prod.fst (Prod.fst p, x)\n"
                    "def i := Prod.fst <| p.2 + q\n"
+                   "def i2 := Prod.fst <| p.2 |> f\n"
                    "def j := Prod.fst <| p.2 x\n"
                    "def k := f x.2 |> Prod.fst\n"
+                   "def m := p.2 |> Prod.fst + 1\n"
                    "def l := Prod.fst xs[i]'h.2\n"), [])
         # Ignored inside proofs, comments, docstrings, private decls, and efficiency predicates.
         self.assertEqual(
@@ -239,7 +248,21 @@ class RuleTests(unittest.TestCase):
                    "def i := let r := xs[k]'h.2; r.1\n"
                    "def j (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; foo Prod.fst r\n"
                    "def k (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; f r |> Prod.fst\n"
-                   "def l (p : ℕ × (ℕ × ℕ)) : ℕ := let fn (x : ℕ) := p.2; fn.1\n"), [])
+                   "def l (p : ℕ × (ℕ × ℕ)) : ℕ := let fn (x : ℕ) := p.2; fn.1\n"
+                   "def m (p : ℕ × (ℕ × ℕ)) (q : ℕ × ℕ) : ℕ := let r := p.2; Prod.fst <| r + q\n"
+                   "def n (p : ℕ × (ℕ × ℕ)) (q : ℕ × ℕ) : ℕ := let r := p.2; Prod.fst $ r + q\n"
+                   "def o (p : ℕ × (ℕ × ℕ)) (q : ℕ × ℕ) : ℕ := let r := p.2; Prod.fst <| (r) + q\n"
+                   "def p2 (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; Prod.fst <| r |> f\n"
+                   "def q2 (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; Prod.fst <| r x\n"
+                   "def s2 (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; r |> Prod.fst ∘ Prod.swap\n"
+                   "def t2 (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; r |> Prod.fst + 1\n"), [])
+        # Tight prefix `Prod.fst r + q` and `Prod.fst $ r` still count as alias chains.
+        self.assertEqual(
+            chains("def a (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; Prod.fst r\n"
+                   "def b (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; Prod.fst r + 1\n"
+                   "def c (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; Prod.fst $ r\n"
+                   "def d (p : ℕ × (ℕ × ℕ)) : ℕ := let r := p.2; (Prod.fst <| r : ℕ)\n"),
+            ["Prod.fst r (via let r := ….2)"] * 4)
         # Shadowing by fun, forall, match pattern, let :=, let ←, destructuring let, set-builder.
         self.assertEqual(
             chains("def a (p : ℕ × (ℕ × ℕ)) := let r := p.2; fun r : ℕ × ℕ => r.1\n"

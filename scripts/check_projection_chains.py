@@ -326,7 +326,55 @@ def _peel_atom(text: str, start: int, end: int
     return None
 
 
-def _peel_prod_app(text: str, prod_start: int, limit: int
+def _rhs_ends(text: str, pos: int, limit: int, anchor_pos: int, first_line_col: int,
+              *, is_pipe_forward: bool) -> bool:
+    """Whether a `<|`/`$` (`is_pipe_forward=False`) or `|>` (`is_pipe_forward=True`) right operand
+    ending at `pos` terminates before any further argument or operator."""
+    after = _skip_ws(text, pos, limit)
+    if after >= limit:
+        return True
+    ch = text[after]
+    if ch in CLOSE or ch in ",;":
+        return True
+    if is_pipe_forward and (text.startswith("|>", after) or text.startswith("<|", after)
+                            or (ch == "$" and (after + 1 >= limit or text[after + 1].isspace()))):
+        return True
+    if ch == ":" and not text.startswith(":=", after) and not text.startswith("::", after):
+        return True
+    if ch == "|" and not text.startswith("|>", after) and not text.startswith("||", after):
+        return True
+    if re.match(r"(?:in|then|else|where|with|by|decreasing_by|termination_by)(?![\w'!?])",
+                text[after:]):
+        return True
+    if "\n" in text[pos:after] \
+            and _line_col(text, after, first_line_col) <= _line_indent(
+                text, anchor_pos, first_line_col) \
+            and ch not in ATOM_TOP_STOP and ch != "." \
+            and not text.startswith(":=", after) and not text.startswith("::", after):
+        return True
+    return False
+
+
+def _unwrap_ident_parens(tokens: list[re.Match[str]], match: dict[int, int],
+                         idx: int, end: int) -> tuple[str, int] | None:
+    """If `tokens[idx:end]` starts with a bare or parenthesized identifier (`r`, `(r)`), return
+    `(name, after_tok_idx)`."""
+    if idx >= end:
+        return None
+    outer_end = match[idx] + 1 if tokens[idx][0] == "(" else idx + 1
+    if outer_end > end:
+        return None
+    left, right = idx, outer_end
+    while left + 1 < right and tokens[left][0] == "(" and match[left] == right - 1 \
+            and tokens[right - 1][0] == ")":
+        left += 1
+        right -= 1
+    if left + 1 == right and tokens[left].lastgroup == "ident" and "." not in tokens[left][0]:
+        return tokens[left][0], outer_end
+    return None
+
+
+def _peel_prod_app(text: str, prod_start: int, limit: int, first_line_col: int = 0
                    ) -> tuple[int, str, set[int], set[int]] | None:
     """Unwrap nested `Prod.fst`/`Prod.snd` projection steps starting at `prod_start`."""
     m = PROD_PROJ.match(text, prod_start, limit)
@@ -341,17 +389,13 @@ def _peel_prod_app(text: str, prod_start: int, limit: int
         if arg_start >= limit:
             return None
         if PROD_PROJ.match(text, arg_start, limit):
-            sub = _peel_prod_app(text, arg_start, limit)
+            sub = _peel_prod_app(text, arg_start, limit, first_line_col)
             if sub is not None:
                 return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3]
         arg_end = _single_postfix_end(text, arg_start, limit)
-        after = _skip_ws(text, arg_end, limit)
-        # Only consume `<| e.2` if `e.2` is not immediately applied to another argument or infix op
-        # like `+`/`*` (e.g. skip `Prod.fst <| p.2 x` or `Prod.fst <| p.2 + q`).
-        if after < limit and (text[after] in OPEN or text[after] in "+-*/·"
-                              or (re.match(r"[\w'!?]", text[after])
-                                  and not re.match(r"(?:in|then|else|where|with)(?![\w'!?])",
-                                                   text[after:]))):
+        # Only consume `<| e.2` if `e.2` is the entire operand of `<|` / `$` (not `p.2 + q`,
+        # `p.2 x`, or `p.2 |> f`).
+        if not _rhs_ends(text, arg_end, limit, m.start(), first_line_col, is_pipe_forward=False):
             return 1, f"{step} …", {m.start()}, set()
         sub = _peel_atom(text, arg_start, arg_end)
         if sub is not None:
@@ -378,7 +422,7 @@ def _matching_open(text: str, close_pos: int) -> int:
     return -1
 
 
-def _prod_chains(text: str, exempt: list[tuple[int, int]]
+def _prod_chains(text: str, exempt: list[tuple[int, int]], first_line_col: int = 0
                  ) -> tuple[list[tuple[int, str]], set[int], set[int]]:
     """Detect nested/mixed `Prod.fst`/`Prod.snd` projection chains and return
     `(hits, consumed_prod_offsets, consumed_dot_offsets)`."""
@@ -394,7 +438,7 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]]
         off = m.start()
         if off in consumed_prods or not _is_head_pos(text, off):
             continue
-        peel = _peel_prod_app(text, off, len(text))
+        peel = _peel_prod_app(text, off, len(text), first_line_col)
         if peel is not None and peel[0] >= 2:
             if not is_exempt(off):
                 hits.append((off, peel[1]))
@@ -423,7 +467,7 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]]
                         break
                 consumed_dots.add(dm.start())
                 continue
-            peel = _peel_prod_app(text, istart, iend)
+            peel = _peel_prod_app(text, istart, iend, first_line_col)
             if peel is not None:
                 if not is_exempt(i):
                     hits.append((i, f"({peel[1]}){dm[0]}"))
@@ -442,10 +486,16 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]]
         prod_off = m.start(1)
         if prod_off in consumed_prods:
             continue
+        if not _rhs_ends(text, m.end(), len(text), prod_off, first_line_col, is_pipe_forward=True):
+            continue
         steps, p_offs, cur = [f"Prod.{m[2]}"], {prod_off}, m.end()
         while nm := re.match(r"\s*\|>\s*((?:_root_\.)?Prod\.(fst|snd))(?![\w'!?])", text[cur:]):
+            next_off = cur + nm.start(1)
+            if not _rhs_ends(text, cur + nm.end(), len(text), next_off, first_line_col,
+                             is_pipe_forward=True):
+                break
             steps.append(f"Prod.{nm[2]}")
-            p_offs.add(cur + nm.start(1))
+            p_offs.add(next_off)
             cur += nm.end()
         lhs_end = m.start()
         while lhs_end > 0 and text[lhs_end - 1].isspace():
@@ -723,22 +773,27 @@ def _let_alias_chains(text: str, exempt: list[tuple[int, int]],
             continue
 
         # Active alias uses: `x.1` / `x.2` / `x.fst` / `x.snd`, `Prod.fst x`, `x |> Prod.fst`
+        limit_char = tokens[end].start() if end < len(tokens) else len(text)
         if tok.lastgroup == "ident" and PROD_PROJ.fullmatch(word):
             poff = tok.start()
             if poff not in consumed_prods and _is_head_pos(text, poff):
                 nxt = k + 1
-                if nxt < end and (tokens[nxt][0] == "$" or adj(nxt, "<", "|")):
-                    nxt += 1 if tokens[nxt][0] == "$" else 2
-                target = None
-                if nxt < end and tokens[nxt].lastgroup == "ident" and "." not in tokens[nxt][0]:
-                    target = tokens[nxt][0]
-                elif nxt < end and tokens[nxt][0] == "(" and match[nxt] == nxt + 2 \
-                        and tokens[nxt + 1].lastgroup == "ident" and "." not in tokens[nxt + 1][0]:
-                    target = tokens[nxt + 1][0]
-                if target is not None and (lbl := lookup(target)) is not None \
-                        and not is_exempt(poff):
-                    which = word.rsplit(".", 1)[-1]
-                    hits.append((poff, f"Prod.{which} {target} (via let {target} := {lbl})"))
+                has_app_op = False
+                if nxt < end and tokens[nxt][0] == "$":
+                    nxt += 1
+                    has_app_op = True
+                elif nxt + 1 < end and adj(nxt, "<", "|"):
+                    nxt += 2
+                    has_app_op = True
+                unwrapped = _unwrap_ident_parens(tokens, match, nxt, end)
+                if unwrapped is not None:
+                    target, after_tok = unwrapped
+                    if (not has_app_op or _rhs_ends(
+                            text, tokens[after_tok - 1].end(), limit_char, poff, first_line_col,
+                            is_pipe_forward=False)) \
+                            and (lbl := lookup(target)) is not None and not is_exempt(poff):
+                        which = word.rsplit(".", 1)[-1]
+                        hits.append((poff, f"Prod.{which} {target} (via let {target} := {lbl})"))
         elif tok.lastgroup == "ident" and "." in word:
             parts = word.split(".")
             lbl = lookup(parts[0])
@@ -749,10 +804,12 @@ def _let_alias_chains(text: str, exempt: list[tuple[int, int]],
                     hits.append((tok.start(),
                                  f"{parts[0]}.{parts[1]} (via let {parts[0]} := {lbl})"))
         elif tok.lastgroup == "ident" and "." not in word and (lbl := lookup(word)) is not None:
-            if k + 3 < len(tokens) and adj(k + 1, "|", ">") and _is_head_pos(text, tok.start()):
+            if k + 3 < end and adj(k + 1, "|", ">") and _is_head_pos(text, tok.start()):
                 rhs_tok = tokens[k + 3]
                 if rhs_tok.lastgroup == "ident" and PROD_PROJ.fullmatch(rhs_tok[0]) \
-                        and rhs_tok.start() not in consumed_prods and not is_exempt(tok.start()):
+                        and rhs_tok.start() not in consumed_prods and not is_exempt(tok.start()) \
+                        and _rhs_ends(text, rhs_tok.end(), limit_char, rhs_tok.start(),
+                                      first_line_col, is_pipe_forward=True):
                     which = rhs_tok[0].rsplit(".", 1)[-1]
                     hits.append((tok.start(),
                                  f"{word} |> Prod.{which} (via let {word} := {lbl})"))
@@ -776,7 +833,7 @@ def mask_tactics(text: str) -> str:
 def chains(text: str, first_line_col: int = 0) -> list[tuple[int, str]]:
     """The chains of masked source, as `(offset, chain)`, outside efficiency predicates."""
     exempt = [(m.start(), _group_end(text, m.end())) for m in EFFICIENCY.finditer(text)]
-    prod_hits, consumed_prods, consumed_dots = _prod_chains(text, exempt)
+    prod_hits, consumed_prods, consumed_dots = _prod_chains(text, exempt, first_line_col)
     dot_hits = [(m.start(), m[1]) for m in CHAIN.finditer(text)
                 if m.start() not in consumed_dots
                 and not _is_numeric_proj(text, m.start())
