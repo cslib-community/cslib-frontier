@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Iteration.SparseLookup
 import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.EndpointCheckpoints
 import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.ForestIntervals
 import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Tactic.SynthesisBool
 
 /-!
 # Transient targets from a checkpoint forest
@@ -250,15 +251,10 @@ private theorem synthesis_windowFlags (s : Set (BooleanFunction a))
     Set.range fun j x => decide (d x ≤ height j)))
   have row (j : Fin M) : Synthesis interpretation src
       {fun x => windowFlags (v x) (d x) lo hi floor height j} 3 := by
-    have h₁ : Synthesis interpretation src {fun x => decide (lo j ≤ v x)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inl (Or.inl ⟨j, rfl⟩)))
-    have h₂ : Synthesis interpretation src {fun x => decide (v x ≤ hi j)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inl (Or.inr ⟨j, rfl⟩)))
-    have h₃ : Synthesis interpretation src {fun x => decide (floor j ≤ d x)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inr (Or.inl ⟨j, rfl⟩)))
-    have h₄ : Synthesis interpretation src {fun x => decide (d x ≤ height j)} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inr (Or.inr ⟨j, rfl⟩)))
-    exact (h₁.and (h₂.and (h₃.and h₄))).congr_iff (by simp [windowFlags])
+    have h : Synthesis interpretation src {fun x => decide (lo j ≤ v x) &&
+        (decide (v x ≤ hi j) && (decide (floor j ≤ d x) && decide (d x ≤ height j)))} 3 := by
+      synthesis_bool
+    exact h.congr_iff (by simp [windowFlags])
   have hh := Synthesis.family (s := src) _ _ row
   apply (tests.trans hh).mono Set.Subset.rfl Set.Subset.rfl
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]

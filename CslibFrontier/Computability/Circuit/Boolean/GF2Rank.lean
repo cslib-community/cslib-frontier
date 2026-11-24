@@ -12,7 +12,7 @@ public import CslibFrontier.Foundations.Data.BitString.ZModTwo
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GaussJordan
 import CslibFrontier.Computability.Circuit.Boolean.AtLeast
 import CslibFrontier.Computability.Circuit.Boolean.Synthesis
-import CslibFrontier.Tactic.Synthesis
+import CslibFrontier.Tactic.SynthesisBool
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
 
@@ -210,7 +210,8 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
       (Set.range (newFn A k)) (r * c * 7) := by
     refine (Synthesis.family (newFn A k) (fun _ => 7) fun p => ?_).mono Set.Subset.rfl
       Set.Subset.rfl (by simp)
-    synthesis_bool [newFn]
+    unfold newFn
+    synthesis_bool
   have h := ((h₁.comp h₂).comp h₃).trans h₄
   have hset : Set.range (newFn A k) = entryBits fun x => stage (A x) k :=
     congrArg Set.range (funext (newFn_eq A k))

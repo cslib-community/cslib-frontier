@@ -8,11 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Synthesis
-public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
-public meta import Lean.Elab.Tactic.Omega
 
 /-!
-# Finding available wires and synthesizing Boolean expressions
+# Finding available circuit wires
 
 `synthesis_available` proves membership and inclusion of wire families by following unions,
 indexed bundles, and local availability hypotheses. It also finds the wires retained by a
@@ -26,20 +24,12 @@ compares wire functions at default transparency. On wire families of equal width
 bits of `BitVec` words, those comparisons unfold the word operations before they fail.
 On a fifteen-step chain they exhaust the default heartbeat budget.
 
-`synthesis_bool` constructs a singleton-output De Morgan synthesis certificate by composing
-constants, NOT, AND, OR and XOR. An available wire costs zero; every other operation uses its
-existing synthesis theorem, including the four-gate XOR construction. The final generated cost
-must satisfy the original goal's bound. `synthesis_bool [f, g]` first unfolds the indicated
-definitions. This is expression construction, not a minimizer: share a computed intermediate by
-adding it to a builder before using it in another construction.
-
 ## Main definitions
 
 * `synthesis_available`: close an available-wire obligation by structural proof search.
 * `synthesis_union`: close it when the wires are syntactically a member of a union, or are
   in one by a local hypothesis, without unfolding any definition.
 * `synthesis_step b using rule`: append a certified construction to `b`, finding its input wires.
-* `synthesis_bool`: synthesize a Boolean expression and prove its requested gate bound.
 -/
 
 public section
@@ -98,27 +88,5 @@ syntax (name := synthesisStep) "synthesis_step " ident " using " term : tactic
 macro_rules
   | `(tactic| synthesis_step $b:ident using $rule:term) =>
     `(tactic| let $b := ($b).add (by apply $rule <;> synthesis_available))
-
-/-- Construct a Boolean expression at its generated cost. Internal to `synthesis_bool`;
-its cost argument is inferred from the constructors, not from an unproved inequality. -/
-syntax (name := synthesisBoolSearch) "synthesis_bool_search" : tactic
-macro_rules | `(tactic| synthesis_bool_search) => `(tactic| first
-  | (solve | apply Cslib.Circuits.Synthesis.of_mem; synthesis_available)
-  | exact Cslib.Circuits.Synthesis.const _
-  | (solve | apply Cslib.Circuits.Synthesis.not; synthesis_bool_search)
-  | (solve | apply Cslib.Circuits.Synthesis.and <;> synthesis_bool_search)
-  | (solve | apply Cslib.Circuits.Synthesis.or <;> synthesis_bool_search)
-  | (solve | apply Cslib.Circuits.Synthesis.xor <;> synthesis_bool_search))
-
-/-- Synthesize a Boolean expression over available wires and check the requested gate bound.
-Optional definitions are unfolded only in the goal; no circuit statement or budget is weakened. -/
-syntax (name := synthesisBool) "synthesis_bool" (" [" ident,* "]")? : tactic
-macro_rules
-  | `(tactic| synthesis_bool [$defs,*]) =>
-    `(tactic| (dsimp only [$defs,*]; synthesis_bool))
-  | `(tactic| synthesis_bool) => `(tactic| solve
-    | refine Cslib.Circuits.Synthesis.mono ?_ Set.Subset.rfl Set.Subset.rfl ?_
-      · synthesis_bool_search
-      · omega)
 
 end

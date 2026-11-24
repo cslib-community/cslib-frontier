@@ -9566,6 +9566,7 @@ public import CslibFrontier.Tactic.StrideOmega
 public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
+public import CslibFrontier.Tactic.SynthesisBool
 public import CslibFrontier.Tactic.UpdateSimp
 public import CslibFrontier.Tactic.ValidProg
 public import CslibFrontier.Tactic.ValidProg.Init
