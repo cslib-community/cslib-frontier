@@ -33,6 +33,8 @@ prices below a given function form a compact set.
   pseudometrics.
 * `Cslib.PartyTensor.IsPrice.comp`, `IsPrice.smul`, `Cslib.PartyTensor.isClosed_setOf_isPrice`,
   `Cslib.PartyTensor.isPrice_of_tendsto`, `Cslib.PartyTensor.isCompact_setOf_isPrice_le`.
+* `Cslib.PartyTensor.unit_two_entry` (over a commutative semiring): the entries of a unit tensor
+  with two legs.
 * `Cslib.PartyTensor.SpectralPoint.apply_wires`: a spectral point at a product of wires.
 
 ## References
@@ -42,11 +44,13 @@ prices below a given function form a compact set.
   `Paper.Prices` (the definition and its properties)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.PartyTensor
 
 open Finset Filter
+
+section Field
 
 variable {K : Type} [Field K]
 
@@ -243,6 +247,12 @@ theorem isCompact_setOf_isPrice_le (C : Y → Y → ℝ) :
 
 end General
 
+end Field
+
+section CommSemiring
+
+variable {K : Type} [CommSemiring K]
+
 /-- The entries of the unit tensor with two legs (a wire before it is placed). -/
 theorem unit_two_entry {n : ℕ} (y : Fin 2 → Fin n) :
     (unit K (Fin 2) n).entry y = if y 0 = y 1 then 1 else 0 := by
@@ -253,26 +263,20 @@ theorem unit_two_entry {n : ℕ} (y : Fin 2 → Fin n) :
   · rw [unit_entry_of (key.2 h), ite_eq_left h]
   · rw [unit_entry_of_not (mt key.1 h), ite_eq_right h]
 
-theorem unit_two_entry' {n : ℕ} {β : Type} [DecidableEq β] (ε : Fin n ≃ β) (y : Fin 2 → Fin n) :
-    (unit K (Fin 2) n).entry y = if ε (y 0) = ε (y 1) then 1 else 0 := by
-  rw [unit_two_entry]
-  simp only [ε.injective.eq_iff]
-
-section Wires
-
 variable {I E : Type} [Fintype I] [DecidableEq I] [Fintype E] [DecidableEq E]
 
 variable (K) in
 /-- A product of wires: one of dimension `n e` from `a e` to `b e` for every `e`. -/
-def wires (a b : E → I) (n : E → ℕ) : PartyTensor K I :=
+@[expose] def wires (a b : E → I) (n : E → ℕ) : PartyTensor K I :=
   prod fun e => wire K (n e) (a e) (b e)
 
+end CommSemiring
+
 /-- A spectral point at a product of wires of dimensions `n e ≥ 1`. -/
-theorem SpectralPoint.apply_wires (F : SpectralPoint K I) (a b : E → I) {n : E → ℕ}
+theorem SpectralPoint.apply_wires {K : Type} [Field K] {I E : Type} [Fintype I] [DecidableEq I]
+    [Fintype E] [DecidableEq E] (F : SpectralPoint K I) (a b : E → I) {n : E → ℕ}
     (hn : ∀ e, 1 ≤ n e) : F (wires K a b n) = ∏ e, (n e : ℝ) ^ F.wireExponent (a e) (b e) := by
   rw [wires, F.map_prod]
   exact Finset.prod_congr rfl fun e _ => F.apply_wire _ _ (hn e)
-
-end Wires
 
 end Cslib.PartyTensor

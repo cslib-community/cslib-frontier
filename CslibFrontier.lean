@@ -8355,6 +8355,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Classes
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Hubs
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Network
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random

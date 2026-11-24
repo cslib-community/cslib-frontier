@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Hubs
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -106,5 +107,30 @@ example : ∃ w' : Bool ⊕ Unit → Bool ⊕ Unit → ℝ, IsPrice K w' ∧
   obtain ⟨w', h, h1, -⟩ := (isPrice_zero (K := K) (Y := Bool)).exists_extend_of_weights
     (fun _ : Unit => (1 : ℝ)) (fun _ => zero_le_one) (by simp) (fun _ _ => true)
   exact ⟨w', h, h1⟩
+
+/-- Lemma A.3 for the unit tensor of size `n` on two parties, a sum of `n` products of a vector at
+each party: it is routed through two hubs, with a wire of dimension `n` between them. -/
+example (n : ℕ) :
+    push (Sum.inl : Unit ⊕ Unit → (Unit ⊕ Unit) ⊕ Bool) (unit K (Unit ⊕ Unit) n) ≤
+      prod (fun p : Unit => wire K (Fintype.card ((unit K (Unit ⊕ Unit) n).Index (Sum.inl p)))
+          (Sum.inl (Sum.inl p)) (Sum.inr true)) *
+        wire K n (Sum.inr true) (Sum.inr false) *
+        prod fun p : Unit => wire K (Fintype.card ((unit K (Unit ⊕ Unit) n).Index (Sum.inr p)))
+          (Sum.inl (Sum.inr p)) (Sum.inr false) := by
+  refine push_inl_le_prod_wire_hubs (unit K (Unit ⊕ Unit) n)
+    (fun (j : Fin n) (y : Unit → Fin n) => if j = y () then (1 : K) else 0)
+    (fun (j : Fin n) (y : Unit → Fin n) => if j = y () then (1 : K) else 0) fun x => ?_
+  have key : (∀ i j, x i = x j) ↔ x (Sum.inr ()) = x (Sum.inl ()) := by
+    refine ⟨fun h => h _ _, fun h i j => ?_⟩
+    rcases i with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;> rcases j with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;>
+      first | rfl | exact h | exact h.symm
+  obtain ⟨a, ha⟩ : ∃ a : Fin n, x (Sum.inl ()) = a := ⟨_, rfl⟩
+  obtain ⟨b, hb⟩ : ∃ b : Fin n, x (Sum.inr ()) = b := ⟨_, rfl⟩
+  simp only [ite_mul, one_mul, zero_mul, ha, hb, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+  by_cases h : b = a
+  · rw [unit_entry_of (key.2 (hb.trans (h.trans ha.symm)))]
+    simp [h]
+  · rw [unit_entry_of_not (mt key.1 fun h' => h (hb.symm.trans (h'.trans ha)))]
+    simp [Ne.symm h]
 
 end Cslib.PartyTensorTests
