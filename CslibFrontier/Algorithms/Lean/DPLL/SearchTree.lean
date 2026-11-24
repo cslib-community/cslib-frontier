@@ -132,7 +132,8 @@ theorem eval_searchTree (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal �
   termination_by fuel => fuel
 
 /-- The search without skipping finds no model of an unsatisfiable formula. -/
-theorem dfs_eq_none {φ : CNF ℕ} (h : ¬ φ.Satisfiable) : dfs φ (depth φ) [] = none := by
+theorem dfs_eq_none_of_not_satisfiable {φ : CNF ℕ} (h : ¬ φ.Satisfiable) :
+    dfs φ (depth φ) [] = none := by
   have hs := isSat_solve_eq_isSome_dfs φ
   have : (solve φ).isSat = false := by
     rw [← Bool.not_eq_true, isSat_solve_iff]
@@ -144,7 +145,8 @@ theorem dfs_eq_none {φ : CNF ℕ} (h : ¬ φ.Satisfiable) : dfs φ (depth φ) [
 empty partial assignment finds a falsified clause on every assignment. -/
 theorem findsFalsifiedClause_searchTree {φ : CNF ℕ} (h : ¬ φ.Satisfiable) :
     (searchTree φ (depth φ) []).FindsFalsifiedClause φ :=
-  fun σ => eval_searchTree φ _ _ (by simp [openVars_nil, depth]) (dfs_eq_none h) σ (by simp)
+  fun σ => eval_searchTree φ _ _ (by simp [openVars_nil, depth])
+    (dfs_eq_none_of_not_satisfiable h) σ (by simp)
 
 /-- **The trail run explores `2 ^ Ω(n log n)` leaves on the pigeonhole formulas.** For `m > n`
 and an injective map `f` numbering the variables of `PHP^m_n`, the tree explored by the trail run
@@ -288,19 +290,6 @@ theorem runLog_add_nodes (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ) 
       rw [ih₁, ih₂]
       simp only [preorder, hs, List.append_assoc]
   termination_by fuel => fuel
-
-/-- Each step emits at most `c` words when `out` emits at most `c`, so a run of `k` steps emits at
-most `k c` words. -/
-theorem length_runLog_le (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ) (c : ℕ)
-    (hout : ∀ π, (out π).length ≤ c) : (k : ℕ) → (t : Trail) → (runLog φ out k t).length ≤ k * c
-  | 0, _ => by simp [runLog]
-  | k + 1, t => by
-    have ih := fun t => length_runLog_le φ out c hout k t
-    have := hout (lits t)
-    simp only [runLog, List.length_append]
-    split
-    · simp only [List.length_nil]; nlinarith
-    · rename_i t' _; have := ih t'; nlinarith
 
 end Trail
 

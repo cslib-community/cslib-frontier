@@ -170,7 +170,7 @@ def answerLog (N : ℕ) : Trail.Answer → List ℕ → List ℕ
 def LogAt (N T : ℕ) (x : Data 32) (log : List ℕ) : Prop :=
   x.regs lg = T + 4 * N + 2 + log.length ∧ HoldsList (T + 4 * N + 2) log x.mem
 
-theorem length_logOut_le (φ : CNF ℕ) (π : List (Literal ℕ)) : (logOut φ π).length ≤ 1 := by
+private theorem length_logOut_le (φ : CNF ℕ) (π : List (Literal ℕ)) : (logOut φ π).length ≤ 1 := by
   unfold logOut
   split <;> simp
 
@@ -224,7 +224,7 @@ theorem clauseAt_clauseAddr (φ : CNF ℕ) (p : Clause ℕ → Bool) :
         ↓reduceIte]
       rw [ite_eq_right (by simp [clauseAddr]; omega), Nat.add_sub_cancel, ih]
 
-theorem clauseAddr_lt {φ : CNF ℕ} {i : ℕ} (h : i < φ.length) :
+private theorem clauseAddr_lt {φ : CNF ℕ} {i : ℕ} (h : i < φ.length) :
     clauseAddr φ i < 2 + (φ.flatMap encodeClause).length := by
   induction φ generalizing i with
   | nil => simp at h
@@ -304,7 +304,7 @@ theorem decodeTree_treeWords {φ : CNF ℕ} (h : ¬ φ.Satisfiable) :
       t.FindsFalsifiedClause φ := by
   refine ⟨_, ?_, findsFalsifiedClause_searchTree h⟩
   simpa [treeWords] using decodeTree_preorder φ (depth φ) [] (by simp [openVars_nil, depth])
-    (dfs_eq_none h) _ le_rfl []
+    (dfs_eq_none_of_not_satisfiable h) _ le_rfl []
 
 /-! ### Finding the falsified clause -/
 
@@ -574,7 +574,7 @@ theorem mainLoopLog_spec (φ : CNF ℕ) (N T : ℕ) :
 
 /-- The run of the search, `nodes` steps long, ends with the answer of the search, and its log is
 the output of the variant. -/
-theorem run_nodes (N : ℕ) (φ : CNF ℕ) :
+private theorem run_nodes (N : ℕ) (φ : CNF ℕ) :
     Trail.run φ (Trail.nodes φ (depth φ) []) [] = some (Trail.answer φ) ∧
       answerLog N (Trail.answer φ) (Trail.runLog φ (logOut φ) (Trail.nodes φ (depth φ) []) []) =
         refutationWords N φ := by
@@ -657,15 +657,15 @@ end Specs
 
 /-! ### The program -/
 
-theorem two_le_of_mem_treeWords {φ : CNF ℕ} {a : ℕ} (h : a ∈ treeWords φ) : 2 ≤ a := by
+private theorem two_le_of_mem_treeWords {φ : CNF ℕ} {a : ℕ} (h : a ∈ treeWords φ) : 2 ≤ a := by
   obtain ⟨π, hπ⟩ := exists_mem_of_mem_preorder φ (logOut φ) _ _ h
   unfold logOut at hπ
   split at hπ <;> simp [clauseAddr] at hπ <;> omega
 
-theorem length_treeWords_lt (φ : CNF ℕ) : (treeWords φ).length < 2 ^ (depth φ + 1) :=
+private theorem length_treeWords_lt (φ : CNF ℕ) : (treeWords φ).length < 2 ^ (depth φ + 1) :=
   (length_preorder_le φ (logOut φ) (length_logOut_le φ) _ _).trans_lt (Trail.nodes_lt φ _ _)
 
-theorem length_refutationWords_le (N : ℕ) (φ : CNF ℕ) :
+private theorem length_refutationWords_le (N : ℕ) (φ : CNF ℕ) :
     (refutationWords N φ).length ≤ N + 2 ^ (depth φ + 1) := by
   have := length_treeWords_lt φ
   unfold refutationWords answerWords
@@ -730,7 +730,7 @@ theorem leafCount_searchTree_le_of_executes (N : ℕ) (φ : CNF ℕ)
     omega
   have hleaf := leafCount_searchTree_le_length_preorder φ (logOut φ)
     (fun π hπ => by unfold logOut; cases hs : status φ π <;> simp_all) (depth φ) []
-    (by simp [openVars_nil, depth]) (dfs_eq_none hφ)
+    (by simp [openVars_nil, depth]) (dfs_eq_none_of_not_satisfiable hφ)
   simp only at hb
   unfold treeWords at hb
   omega
