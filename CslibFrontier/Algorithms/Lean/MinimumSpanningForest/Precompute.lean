@@ -102,6 +102,7 @@ def lookup {n m : ℕ} {α : Type u} (table : Catalog n m α) (left right : Fin 
 /-- A vector with index-dependent entry types. The index stored alongside each value allows
 a precomputed comparison program to have the correct edge-label type after lookup. -/
 structure IndexedVector (K : Fin k → Type u) where
+  /-- Cells in index order, each paired with its dependent index. -/
   entries : Vector (Σ i, K i) k
   index : ∀ i : Fin k, entries[i].1 = i
 

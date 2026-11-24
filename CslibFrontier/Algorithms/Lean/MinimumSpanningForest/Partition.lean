@@ -63,6 +63,11 @@ noncomputable def remaining [DecidableEq E] : Finset E :=
 theorem remaining_subset [DecidableEq E] : p.remaining ends w S ⊆ S :=
   fun _ he => (mem_sdiff.1 (mem_sdiff.1 he).1).1
 
+/-- Remaining labels exclude every edge internal to the component just contracted. -/
+theorem remaining_subset_sdiff [DecidableEq E] :
+    p.remaining ends w S ⊆ S \ internalEdges ends S p.vertices :=
+  sdiff_subset
+
 theorem marks_subset_sdiff [DecidableEq E] :
     p.marks ends w S ⊆ S \ internalEdges ends S p.vertices := by
   intro e he
@@ -211,7 +216,8 @@ theorem Valid.msf_eq (run : Valid w ends S ps) (hw : Function.Injective w) :
   msf_eq_of_subset w (run.msf_subset hw) (union_subset forests_subset marked_subset)
 
 omit [DecidableEq E] in
-private theorem acyclic_insert {F : Set E} {g : E} (hF : IsAcyclic ends F)
+/-- Adding an edge between two components preserves acyclicity. -/
+theorem acyclic_insert {F : Set E} {g : E} (hF : IsAcyclic ends F)
     (fresh : ∀ a b, ends g = s(a, b) → ¬Joins ends F a b) : IsAcyclic ends (insert g F) := by
   intro e he u v huv hj
   rcases he with rfl | he

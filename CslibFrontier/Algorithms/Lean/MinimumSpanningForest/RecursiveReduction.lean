@@ -31,7 +31,8 @@ variable {E V W : Type*} [LinearOrder W]
 noncomputable def nonloops (ends : E → Sym2 V) (S : Finset E) : Finset E := by
   classical exact S.filter fun e => ¬ (ends e).IsDiag
 
-private theorem mem_nonloops {ends : E → Sym2 V} {S : Finset E} {e : E} :
+/-- Membership in the active non-loop edge set. -/
+theorem mem_nonloops {ends : E → Sym2 V} {S : Finset E} {e : E} :
     e ∈ nonloops ends S ↔ e ∈ S ∧ ¬ (ends e).IsDiag := by
   classical exact mem_filter
 
@@ -179,6 +180,42 @@ theorem boruvka_support_le (ends : E → Sym2 V) (w : E → W) (S : Finset E) :
     _ ≤ ∑ u ∈ X.image q, (X.filter fun v => q v = u).card := sum_le_sum paired
     _ = _ := (card_eq_sum_card_image q X).symm
 
+/-- One Borůvka pass halves the number of edges in the residual minimum spanning forest.
+Every non-isolated vertex is incident to a chosen edge, and each chosen label reduces the
+forest rank by one. The graph may be disconnected. -/
+theorem boruvka_rank_le (ends : E → Sym2 V) (w : E → W) (S : Finset E)
+    (hw : Function.Injective w) :
+    2 * (msf (boruvka ends w S).ends w (boruvka ends w S).remaining).card ≤
+      (msf ends w S).card := by
+  classical
+  let b := boruvka ends w S
+  let X := b.chosen.biUnion fun e => (ends e).toFinset
+  have cover : support ends S ⊆ X := by
+    intro x hx
+    obtain ⟨v, _, ne, eq⟩ := boruvka_partner ends w S hx
+    have path : Joins ends (b.chosen : Set E) x v := contract_eq_contract_iff.mp eq.symm
+    obtain ⟨g, hg, hcut⟩ := path.exists_mem_edgeCut (P := {x}) rfl ne
+    obtain ⟨u, v, hab, hu, _⟩ := Graph.mem_edgeCut_iff.mp hcut
+    change u = x at hu
+    subst u
+    exact mem_biUnion.mpr ⟨g, hg, Sym2.mem_toFinset.mpr
+      (by change ends g = s(x, v) at hab; simp [hab])⟩
+  have size : X.card ≤ b.chosen.card * 2 := by
+    apply Finset.card_biUnion_le_card_mul
+    intro e _
+    rw [Sym2.card_toFinset]
+    split <;> omega
+  have rank : (msf ends w S).card ≤ (support ends S).card - 1 :=
+    (isAcyclic_msf w hw).card_le fun e he x hx =>
+      mem_support.mpr ⟨e, msf_subset w he, fun loop => notMem_msf_of_isDiag w loop he, hx⟩
+  have disj : Disjoint b.chosen (msf b.ends w b.remaining) :=
+    disjoint_left.mpr fun _ h hm => (mem_sdiff.mp (mem_nonloops.mp (msf_subset w hm)).1).2 h
+  have total : b.chosen.card + (msf b.ends w b.remaining).card = (msf ends w S).card := by
+    rw [← card_union_of_disjoint disj, boruvka_msf _ _ _ hw]
+  have hx := card_le_card cover
+  change 2 * (msf b.ends w b.remaining).card ≤ _
+  omega
+
 omit [DecidableEq E] in
 private theorem empty_msf {ends : E → Sym2 V} {w : E → W} {S : Finset E}
     (h : ¬ (nonloops ends S).Nonempty) : msf ends w S = ∅ := by
@@ -220,7 +257,8 @@ private theorem candidates_eq (alg : Solvers V E W w) (budget : ℕ) (ends : E �
 
 variable [DecidableEq V]
 
-private noncomputable def roundParts (grower : PrimPartition.Grower V E W w)
+/-- The bounded Prim components actually processed by a recursive round. -/
+@[expose] noncomputable def roundParts (grower : PrimPartition.Grower V E W w)
     (ends : E → Sym2 V) (S : Finset E) : List (PartitionPart V E W) :=
   let A := nonloops ends S
   let X := support ends A
@@ -313,10 +351,10 @@ private theorem boruvka_excess (ends : E → Sym2 V) (w : E → W) (S : Finset E
 /-- The final edge count is at most one forest of the surviving quotient plus the
 number of corrupted boundary labels. A Borůvka pass contracts one independent label for
 each unit of lost forest rank. -/
-theorem round_card_le (grower : PrimPartition.Grower V E W w) (alg : Solvers V E W w)
+theorem round_card_le_rank (grower : PrimPartition.Grower V E W w) (alg : Solvers V E W w)
     (hw : Function.Injective w) (ends : E → Sym2 V) (S : Finset E) :
     (round grower alg ends S).remaining.card ≤
-      (support (round grower alg ends S).ends (round grower alg ends S).remaining).card - 1 +
+      (msf (round grower alg ends S).ends w (round grower alg ends S).remaining).card +
         (roundMarks grower ends S).card := by
   let A := nonloops ends S
   let R := PrimPartition.collect w ends A (roundParts grower ends S)
@@ -333,19 +371,38 @@ theorem round_card_le (grower : PrimPartition.Grower V E W w) (alg : Solvers V E
       _ ≤ R.forests.card + R.marked.card := card_union_le _ _
       _ ≤ _ := Nat.add_le_add_right rankF _
   have count := boruvka_excess b.ends w b.remaining hw _ (boruvka_excess ends w G hw _ countG)
-  have rankC : (msf c.ends w c.remaining).card ≤ (support c.ends c.remaining).card - 1 :=
-    card_msf_le w hw (fun e he x hx => mem_support.2 ⟨e, he, (mem_nonloops.1 he).2, hx⟩)
-  exact count.trans (Nat.add_le_add_right rankC _)
+  exact count
+
+/-- Vertex-count form of the residual edge bound. -/
+theorem round_card_le (grower : PrimPartition.Grower V E W w) (alg : Solvers V E W w)
+    (hw : Function.Injective w) (ends : E → Sym2 V) (S : Finset E) :
+    (round grower alg ends S).remaining.card ≤
+      (support (round grower alg ends S).ends (round grower alg ends S).remaining).card - 1 +
+        (roundMarks grower ends S).card := by
+  let r := round grower alg ends S
+  have rank : (msf r.ends w r.remaining).card ≤ (support r.ends r.remaining).card - 1 :=
+    (isAcyclic_msf w hw).card_le fun e he x hx =>
+      mem_support.mpr ⟨e, msf_subset w he, fun loop => notMem_msf_of_isDiag w loop he, hx⟩
+  exact (round_card_le_rank grower alg hw ends S).trans (Nat.add_le_add_right rank _)
 
 /-- With at most one marked label per four active input labels, a round halves the edge
-count on the source theorem's density range `n ≤ m + 1` (in particular on connected graphs). -/
+count on arbitrary input, including disconnected multigraphs. -/
 theorem round_half_of_mark_bound (grower : PrimPartition.Grower V E W w) (alg : Solvers V E W w)
     (hw : Function.Injective w) (ends : E → Sym2 V) (S : Finset E)
-    (density : (support ends S).card ≤ (nonloops ends S).card + 1)
     (corrupt : 4 * (roundMarks grower ends S).card ≤ (nonloops ends S).card) :
     2 * (round grower alg ends S).remaining.card ≤ (nonloops ends S).card := by
-  have vertices := round_support_le grower alg ends S
-  have edges := round_card_le grower alg hw ends S
+  let G := sparseGraph grower alg ends S
+  let b := boruvka ends w G
+  let c := boruvka b.ends w b.remaining
+  have rankG : (msf ends w G).card ≤ (nonloops ends S).card :=
+    card_le_card ((msf_subset w).trans (sparse_subset grower alg ends S))
+  have first : 2 * (msf b.ends w b.remaining).card ≤ (msf ends w G).card :=
+    boruvka_rank_le ends w G hw
+  have second : 2 * (msf c.ends w c.remaining).card ≤ (msf b.ends w b.remaining).card :=
+    boruvka_rank_le b.ends w b.remaining hw
+  have edges := round_card_le_rank grower alg hw ends S
+  change c.remaining.card ≤ (msf c.ends w c.remaining).card + _ at edges
+  change 2 * c.remaining.card ≤ _
   omega
 
 /-- On a graph with an active non-loop label, a complete round strictly reduces the number
@@ -373,8 +430,9 @@ theorem round_card_lt (grower : PrimPartition.Grower V E W w) (alg : Solvers V E
 
 /-- Run the recursive §5 reduction until no non-loop label remains. The decision-tree and
 dense-case calls occur on the graphs produced by the live/dead partition at each level. -/
-noncomputable def reduceMSF (grower : PrimPartition.Grower V E W w) (alg : Solvers V E W w)
-    (hw : Function.Injective w) (ends : E → Sym2 V) (S : Finset E) : Finset E :=
+@[expose] noncomputable def reduceMSF (grower : PrimPartition.Grower V E W w)
+    (alg : Solvers V E W w) (hw : Function.Injective w) (ends : E → Sym2 V)
+    (S : Finset E) : Finset E :=
   if _h : (nonloops ends S).Nonempty then
     let r := round grower alg ends S
     r.chosen ∪ reduceMSF grower alg hw r.ends r.remaining

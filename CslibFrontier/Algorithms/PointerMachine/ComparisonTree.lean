@@ -38,8 +38,9 @@ abbrev model (W : Type) [Inhabited W] [LinearOrder W] : Model where
   evalOp := nofun
   evalTest _ a b := decide (a ≤ b)
 
-/-- Register 0 holds the current node, 1 and 2 hold operands, and 3 holds null. -/
-abbrev layout : Layout := ⟨4, 2, 4, 1⟩
+/-- Register 0 holds the current node, 1 and 2 hold operands, and 3 holds null.
+Pointer fields 0–3 encode the tree and field 4 links a reusable key slot to its input edge. -/
+abbrev layout : Layout := ⟨4, 2, 5, 1⟩
 
 /-- A tree node either has a null first pointer (leaf), or has one pointer to each
 of two keys and two children. At a leaf, the second pointer gives the result. -/

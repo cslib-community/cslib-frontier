@@ -35,6 +35,10 @@ private theorem mem_compactParallel {e : E} :
       e ∈ S ∧ ¬ (ends e).IsDiag ∧ ∀ f ∈ S, ends f = ends e → w e ≤ w f := by
   classical exact mem_filter
 
+/-- Parallel-edge compaction selects labels present in the input. -/
+theorem compactParallel_subset : compactParallel ends w S ⊆ S :=
+  fun _ he => (mem_compactParallel.1 he).1
+
 /-- Every original MSF label survives compaction. A strictly lighter parallel edge supplies
 a bypass consisting of just one edge. -/
 theorem msf_compactParallel (ends : E → Sym2 V) (w : E → W) (S : Finset E) :

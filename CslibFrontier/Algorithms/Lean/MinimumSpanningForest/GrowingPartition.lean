@@ -76,8 +76,11 @@ namespace SearchState
 
 /-- A least boundary edge, oriented out of the reached set. -/
 structure Exit (ends : E → Sym2 V) (S : Finset E) (C : Finset V) (key : E → W) where
+  /-- Original label of the selected edge. -/
   edge : E
+  /-- Its endpoint in the reached set. -/
   inside : V
+  /-- Its endpoint outside the reached set. -/
   outside : V
   active : edge ∈ S
   left_mem : inside ∈ C
@@ -171,7 +174,7 @@ theorem card_grow_le (p : KeyPolicy V E W) (stop : V → Bool) (fuel : ℕ) (q :
         omega
 
 /-- The final vertex set and weight function passed to the partition routine. -/
-def part (q : SearchState ends w S) : PartitionPart V E W := ⟨q.vertices, q.key⟩
+@[expose] def part (q : SearchState ends w S) : PartitionPart V E W := ⟨q.vertices, q.key⟩
 
 omit [DecidableEq V] [DecidableEq E] in
 theorem primPrefix (q : SearchState ends w S) : PrimPrefix ends S q.part.key q.part.vertices :=

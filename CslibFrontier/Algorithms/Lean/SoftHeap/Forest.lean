@@ -70,7 +70,7 @@ termination_by _ _ h => h.length
 @[expose] def corruptions (h : Forest α) : ℕ := (h.map fun f => f.2.corruptions).sum
 
 /-- All trees satisfy the bucket capacity and key-order invariant of the soft heap. -/
-def Valid {W : Type*} [LE W] (w : α → W) (t : ℕ) (h : Forest α) : Prop :=
+@[expose] def Valid {W : Type*} [LE W] (w : α → W) (t : ℕ) (h : Forest α) : Prop :=
   ∀ f ∈ h, f.2.Valid w t
 
 theorem carry_spec {W : Type*} [LinearOrder W] (w : α → W) (t : ℕ) {r}

@@ -107,6 +107,20 @@ structure State (ends : E → Sym2 V) (w : E → W) (S : Finset E) where
     · exact mem_insert_self ..
   · exact mem_insert_of_mem (q.inside f prev a ha)
 
+@[simp] theorem advance_vertices (q : State ends w S) (t : ℕ) (e rep : E) (u v : V) (he : e ∈ S)
+    (out : orient q.search.vertices (ends e) = some (u, v)) (h : Forest E) (more : Bool) :
+    (advance q t e rep u v he out h more).search.vertices = insert v q.search.vertices := rfl
+
+@[simp] theorem advance_key (q : State ends w S) (t : ℕ) (e rep : E) (u v : V) (he : e ∈ S)
+    (out : orient q.search.vertices (ends e) = some (u, v)) (h : Forest E) (more : Bool) :
+    (advance q t e rep u v he out h more).search.key =
+      liftCut ends q.search.vertices q.search.key (max (q.search.key e) (w rep)) := rfl
+
+@[simp] theorem advance_heap (q : State ends w S) (t : ℕ) (e rep : E) (u v : V) (he : e ∈ S)
+    (out : orient q.search.vertices (ends e) = some (u, v)) (h : Forest E) (more : Bool) :
+    (advance q t e rep u v he out h more).heap =
+      if more then expose ends w t S q.search.vertices (insert v q.search.vertices) h else h := rfl
+
 /-- Execute at most `ticks` extractions and add at most `extra` vertices. Dead vertices
 terminate the current component as soon as they are reached. -/
 @[expose] def grow (t : ℕ) (dead : Finset V) :

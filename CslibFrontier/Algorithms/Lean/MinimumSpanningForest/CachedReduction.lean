@@ -59,7 +59,7 @@ theorem partition_lookup_fits (grower : PrimPartition.Grower V E W w) (hw : Func
 
 /-- Bind one shared bank to the small solver. A lookup uses the compact vertex and edge
 indices of the actual local multigraph. The dense procedure receives the terminal quotient. -/
-private noncomputable def withBank (w : E → W) (hw : Function.Injective w) {r : ℕ}
+noncomputable def bankSolvers (w : E → W) (hw : Function.Injective w) {r : ℕ}
     (bank : MSFPrecompute.Bank r (r ^ 2)) (filled : bank = MSFPrecompute.fillBank r (r ^ 2)) :
     Solvers V E W w where
   small ends S := (MSFPrecompute.cachedMSFOn bank ends (compactParallel ends w S)).eval
@@ -75,7 +75,7 @@ noncomputable def cachedReduction (grower : PrimPartition.Grower V E W w)
     (hw : Function.Injective w) (ends : E → Sym2 V) (S : Finset E) : Finset E :=
   let r := (support ends S).card.log2.log2.log2 + 1
   let bank := MSFPrecompute.fillBank r (r ^ 2)
-  reduceMSF grower (withBank w hw bank rfl) hw ends S
+  reduceMSF grower (bankSolvers w hw bank rfl) hw ends S
 
 theorem cachedReduction_eq (grower : PrimPartition.Grower V E W w) (hw : Function.Injective w)
     (ends : E → Sym2 V) (S : Finset E) :
