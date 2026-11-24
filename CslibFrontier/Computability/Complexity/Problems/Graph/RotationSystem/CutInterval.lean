@@ -21,8 +21,6 @@ the original vertex and which side of the interval each dart lies on.
 ## Main results
 
 * `Cslib.Complexity.Graph.RotationSystem.sameCycle_swap_cutInterval_iff` identifies those orbits.
-* `Cslib.Complexity.Graph.RotationSystem.rotationDistance_le_iff_portRank_between` converts an
-  interval of the library's chosen linear ranks to the corresponding interval of rotation powers.
 * `Cslib.Complexity.Graph.RotationSystem.exists_split_cutInterval` realizes the swap as a rotation
   system on the graph with the selected ends moved to the new vertex label.
 -/
@@ -34,38 +32,6 @@ namespace Cslib.Complexity.Graph.RotationSystem
 open Equiv
 
 variable {G : Graph} (r : RotationSystem G)
-
-/-- Between ordered endpoints in the chosen linear ranks, the inclusive interval starts at
-the first endpoint and ends at its first forward visit to the last endpoint. -/
-theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
-    (hab : a.vertex = b.vertex) (had : a.vertex = d.vertex)
-    (hrank : r.portRank a ≤ r.portRank b) :
-    r.rotationDistance a d ≤ r.rotationDistance a b ↔
-      r.portRank a ≤ r.portRank d ∧ r.portRank d ≤ r.portRank b := by
-  by_cases hda : d = a
-  · subst d
-    simp [hrank]
-  by_cases hdb : d = b
-  · subst d
-    simp [hrank]
-  have hrd : r.portRank d ≠ r.portRank a :=
-    fun h => hda (r.portRank_injective d a had.symm h)
-  have hrb : r.portRank d ≠ r.portRank b :=
-    fun h => hdb (r.portRank_injective d b (had.symm.trans hab) h)
-  have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := by
-    intro h
-    exact hdb ((r.pow_rotationDistance a d had).symm.trans
-      (h ▸ r.pow_rotationDistance a b hab))
-  by_cases he : a = b
-  · subst b
-    have hpos := r.rotationDistance_pos_of_ne a d had hda
-    rw [r.rotationDistance_self]
-    omega
-  have had' : a ≠ d := Ne.symm hda
-  have hinterval := (r.mem_rotationInterval_iff_lt_distance a d b had hab
-    had' hdb he).symm.trans
-      (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) had' hdb he)
-  omega
 
 /-- The outgoing swap at the last dart of a proper directed interval and at the predecessor
 of its first dart preserves the original vertex fibers and divides the selected fiber into

@@ -18,6 +18,14 @@ import CslibFrontier.Tactic.LRATTauto
 Cutting a finite vertex cycle at any one of its darts gives first-hit ranks. These ranks
 retain the direction of the supplied rotation, without a geometric realization or any
 restriction on the graph's loops or components.
+
+* `Cslib.Complexity.Graph.RotationSystem.exists_consecutive_class_of_no_alternates` finds a
+  class that forms a consecutive interval when distinct classes do not alternate.
+* `Cslib.Complexity.Graph.RotationSystem.rotationDistance_le_iff_portRank_between` turns an
+  inclusive interval of linear ranks into an interval of first-hit distances.
+
+These support the cut-vertex argument in Claim A of [FulekKynclPalvolgyi2017], §3,
+tracked in [issue #3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 -/
 
 public section
@@ -387,5 +395,37 @@ theorem mem_rotationInterval_cyclic (a b c : Dart G)
     r.mem_rotationInterval_iff_portRank b c a hbc (hab.trans hbc).symm
       hnebc hneac.symm hneab.symm]
   lrat_tauto
+
+/-- Between ordered endpoints in the chosen linear ranks, the inclusive interval starts at
+the first endpoint and ends at its first forward visit to the last endpoint. -/
+theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
+    (hab : a.vertex = b.vertex) (had : a.vertex = d.vertex)
+    (hrank : r.portRank a ≤ r.portRank b) :
+    r.rotationDistance a d ≤ r.rotationDistance a b ↔
+      r.portRank a ≤ r.portRank d ∧ r.portRank d ≤ r.portRank b := by
+  by_cases hda : d = a
+  · subst d
+    simp [hrank]
+  by_cases hdb : d = b
+  · subst d
+    simp [hrank]
+  have hrd : r.portRank d ≠ r.portRank a :=
+    fun h => hda (r.portRank_injective d a had.symm h)
+  have hrb : r.portRank d ≠ r.portRank b :=
+    fun h => hdb (r.portRank_injective d b (had.symm.trans hab) h)
+  have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := by
+    intro h
+    exact hdb ((r.pow_rotationDistance a d had).symm.trans
+      (h ▸ r.pow_rotationDistance a b hab))
+  by_cases he : a = b
+  · subst b
+    have hpos := r.rotationDistance_pos_of_ne a d had hda
+    rw [r.rotationDistance_self]
+    omega
+  have had' : a ≠ d := Ne.symm hda
+  have hinterval := (r.mem_rotationInterval_iff_lt_distance a d b had hab
+    had' hdb he).symm.trans
+      (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) had' hdb he)
+  omega
 
 end Cslib.Complexity.Graph.RotationSystem
