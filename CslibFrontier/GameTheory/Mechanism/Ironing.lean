@@ -213,15 +213,6 @@ theorem setIntegral_Ioi_virtualValue_eq [IsFiniteMeasure μ] (hμ : HasValueDens
     integral_indicator measurableSet_Ioi, setIntegral_const, smul_eq_mul, mul_comm] at hid
   exact hid.symm
 
-/-- The expected virtual valuation over the entire distribution is zero (`0 · μ((0, ∞)) = 0`). -/
-theorem integral_virtualValue_eq_zero [IsFiniteMeasure μ] (hμ : HasValueDensity μ f h) :
-    ∫ z, virtualValue μ f z ∂μ = 0 := by
-  have h0 := hμ.setIntegral_Ioi_virtualValue_eq (p := 0) le_rfl
-  rw [zero_mul, ← integral_indicator measurableSet_Ioi] at h0
-  refine (integral_congr_ae ?_).trans h0
-  filter_upwards [hμ.ae_pos] with z hz
-  exact (indicator_of_mem hz _).symm
-
 end HasValueDensity
 
 /-- `φBar` is an **ironed virtual valuation** for a distribution `μ` with density `f` on `[0, h]`
