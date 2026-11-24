@@ -205,7 +205,7 @@ private theorem reject_inSpace :
   have hid := budget_id (enc := encState) (.refl _)
   exact (encState_mk_budget (encState_context_budget hid) (encState_cursor_budget hid)
     (encState_update_budget hid) (encState_predecessor_budget hid)
-    (budget_const true (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const true)).of_enc_eq fun _ => rfl
 
 private theorem advance_withoutPredecessor_inSpace :
     ComputableInSpace
@@ -219,8 +219,8 @@ private theorem advance_withoutPredecessor_inSpace :
   have hpc := Predecessor.encContext_mk_budget (encContext_size_budget hc)
     (encContext_source_budget hc) hi (encContext_radius_budget hc) (encContext_expected_budget hc)
   have hp := budget_optionSome (budget_comp_linear Predecessor.initial_inSpace hpc)
-  have hnext := encState_mk_budget hc (budget_natAdd hi (budget_const 1 (.refl _))) hu
-    (budget_const none (.refl _)) hr
+  have hnext := encState_mk_budget hc (budget_natAdd hi (budget_const 1)) hu
+    (budget_const none) hr
   exact (budget_ite (snd encState encBool) hnext (encState_mk_budget hc hi hu hp hr)).of_enc_eq
     fun ⟨_, b⟩ => by cases b <;> rfl
 
@@ -241,8 +241,8 @@ private theorem advance_withPredecessor_inSpace :
   have hupdate := budget_comp_linear addVertex_inSpace
     (budget_prod hu (budget_prod (encContext_radius_budget hc)
       (Predecessor.encState_count_budget hnext)))
-  have hdone := encState_mk_budget hc (budget_natAdd hi (budget_const 1 (.refl _))) hupdate
-    (budget_const none (.refl _)) hr
+  have hdone := encState_mk_budget hc (budget_natAdd hi (budget_const 1)) hupdate
+    (budget_const none) hr
   have hpending := encState_mk_budget hc hi hu (budget_optionSome hnext) hr
   exact (budget_ite (budget_comp_linear Predecessor.halted_inSpace hnext)
     hdone hpending).of_enc_eq fun ⟨⟨_, _⟩, _⟩ => by simp only [advance]
@@ -264,11 +264,13 @@ theorem entry_inSpace {τ : Type} (encT : τ ↪ List Bool) :
     ComputableInSpace (entry (τ := τ)) encContext (encMachineState τ encT)
       (fun ctx => (encContext ctx).length) := by
   have hctx := budget_id (enc := encContext) (.refl _)
-  have no := budget_const (encIn := encContext) (encB := encBool) false (.refl _)
-  have hcaller := encState_mk_budget hctx (budget_const 0 (.refl _))
+  have no :=
+    budget_const (Bs := fun a => (encContext a).length) (encIn := encContext) (encB := encBool)
+      false
+  have hcaller := encState_mk_budget hctx (budget_const 0)
     (encRoundUpdate_mk_budget (encContext_expected_budget hctx) no)
-    (budget_const none (.refl _)) no
-  exact (encMachineState_mk_budget τ encT hcaller (budget_const none (.refl _))).of_enc_eq
+    (budget_const none) no
+  exact (encMachineState_mk_budget τ encT hcaller (budget_const none)).of_enc_eq
     fun _ => rfl
 
 /-- Query the original input at the callee's position, or at zero between calls. -/
@@ -280,7 +282,7 @@ theorem machine_query_inSpace {τ : Type} (encT : τ ↪ List Bool)
       (fun q => (encMachineState τ encT q).length) := by
   have hid := budget_id (enc := encMachineState τ encT) (.refl _)
   exact (budget_comp_linear
-    (optionElimSnd (budget_const 0 (.refl _)) (budget_comp_linear hq (snd encState encT)))
+    (optionElimSnd (budget_const 0) (budget_comp_linear hq (snd encState encT)))
     (budget_prod (encMachineState_controller_budget τ encT hid)
       (encMachineState_callee_budget τ encT hid))).of_enc_eq fun q => by cases q; rfl
 
@@ -309,7 +311,7 @@ theorem answer_inSpace {τ : Type} (encT : τ ↪ List Bool) :
     ComputableInSpace (answer (τ := τ)) (encMachineState τ encT) (encOption encRoundUpdate)
       (fun q => (encMachineState τ encT q).length) := by
   have hc := encMachineState_controller_budget τ encT (budget_id (.refl _))
-  exact (budget_ite (encState_rejected_budget hc) (budget_const none (.refl _))
+  exact (budget_ite (encState_rejected_budget hc) (budget_const none)
     (budget_optionSome (encState_update_budget hc))).of_enc_eq fun _ => rfl
 
 /-- Step the scalar round with an extra immutable parameter for callback entry. -/
@@ -333,7 +335,7 @@ theorem machine_next_withParameter_inSpace {κ τ : Type} (encK : κ ↪ List Bo
   have henter := encMachineState_mk_budget τ encT hstate
     (budget_optionSome (budget_comp_linear hs hcaller))
   have hreject := encMachineState_mk_budget τ encT (budget_comp_linear reject_inSpace hstate)
-    (budget_const none (.refl _))
+    (budget_const none)
   have hbetween := budget_ite hchoice hreject henter
   have hframe := fst encCaller encT
   have hcallee := snd encCaller encT
@@ -341,7 +343,7 @@ theorem machine_next_withParameter_inSpace {κ τ : Type} (encK : κ ↪ List Bo
   have hreadChoice := snd' hframe
   have hreturn := budget_comp_linear advance_inSpace
     (budget_prod hcontroller (budget_comp_linear hf hcallee))
-  have hreturned := encMachineState_mk_budget τ encT hreturn (budget_const none (.refl _))
+  have hreturned := encMachineState_mk_budget τ encT hreturn (budget_const none)
   have hcontinue := encMachineState_mk_budget τ encT hcontroller
     (budget_optionSome (budget_comp_linear hn (budget_prod hcallee hreadChoice)))
   have hactive := budget_ite (budget_comp_linear hh hcallee)
@@ -375,7 +377,7 @@ theorem machine_next_inSpace {τ : Type} (encT : τ ↪ List Bool)
   have hnext := machine_next_withParameter_inSpace encUnit encT ctx N (fun _ => start) finish
     hentry hf hh hn
   have hstep := budget_prod
-    (budget_prod (budget_const (encB := encUnit) () (.refl _))
+    (budget_prod (budget_const (encB := encUnit) ())
       (fst (encMachineState τ encT) encReadChoice))
     (snd (encMachineState τ encT) encReadChoice)
   exact (budget_comp_linear hnext hstep).of_enc_eq fun _ => rfl

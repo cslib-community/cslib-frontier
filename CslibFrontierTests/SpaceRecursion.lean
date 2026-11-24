@@ -83,7 +83,7 @@ theorem body_inSpace : ComputableInSpace body (encPair encConfig encBits)
   have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
       ComputableInSpace (fun _ : (Frame × Option Bool) × List Bool => b)
         (encPair encConfig encBits) encB budget :=
-    (ComputableInSpace.constZero b).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const b
   have hh := encFrame_height_budget hc.fst'
   have hi := encFrame_index_budget hc.fst'
   have ho := hc.snd'
@@ -227,8 +227,8 @@ theorem tree_inSpace :
     val (fun _ => rank) (fun w c => (c.1.height + 1) * (10 * Nat.log2 w.length + 20))
     (fun w => Reach (Nat.log2 w.length))
     (encFrame_mk_budget hheight
-      ((ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _)
-      ((ComputableInSpace.constZero false).mono_le fun _ => Nat.zero_le _))
+      (ComputableInSpace.budget_const 0)
+      (ComputableInSpace.budget_const false))
     body_inSpace
     (fun w => ⟨by simp, fun _ => rfl, le_rfl, by simp⟩)
     (fun w c saved child hc hb => by

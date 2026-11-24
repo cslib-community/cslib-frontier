@@ -245,7 +245,7 @@ theorem mapEqOne_inSpace :
     have hl : (fun q => (encPair encBits encNat q).length) ≼
         fun q => 4 * ((encPair encBits encNat q).length + 1) := .of_le fun _ => by omega
     have he := budget_comp_linear natEq (budget_prod ((snd encBits encNat).weaken hl)
-      (budget_const (encB := encNat) 1 hl))
+      (budget_const (encB := encNat) 1))
     have h := ComputableInSpace.append ((fst encBits encNat).weaken hl) he
       (g := fun q : List Bool × ℕ => q.1 ++ [q.2 == 1]) (encD := encBits) fun q => by
         cases hq : q.2 == 1 <;> simp_all [encBits_apply, encBool_apply]
@@ -264,7 +264,8 @@ theorem mapEqOne_inSpace :
     omega
   have h := foldl (encL := encList encNat) (list := fun l : List ℕ => l)
     (init := fun _ => ([] : List Bool)) (step := fun acc v => acc ++ [v == 1])
-    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)) (budget_const [] (.refl _)) hstep
+    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl))
+    (budget_const (Bs := fun l => (encList encNat l).length) []) hstep
     (Q := fun l => 8 * (3 * (encList encNat l).length + 2))
     (B := fun l => (encList encNat l).length)
     (fun l i hi => by
