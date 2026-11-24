@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Game
+public import CslibFrontier.Crypto.Protocols.MPC.SPDZ
 public import CslibFrontier.Languages.Probabilistic.Notation
 public import CslibFrontier.Probability.LinearCombination
 public import Mathlib.Data.ZMod.Basic
@@ -47,8 +48,9 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
    - *Single authenticated share:* given a uniform MAC key `α ← $ᵗ ZMod q` unknown to `P₁` and an
      authentic additive sharing `(x, t)` with `t = α * x` (`x = x₀ + x₁`, `t = t₀ + t₁`), if a
      corrupt `P₁` submits tampered shares `(x₁ + δ_x, t₁ + δ_t)`, the reconstructed verification
-     check `t' - α * x' = 0` passes if and only if `δ_t = α * δ_x`. For any nonzero input shift
-     `δ_x ≠ 0`, this holds with exact probability `1 / q`.
+     check `t' = α * x'` passes if and only if `δ_t = α * δ_x`. For any nonzero input shift
+     `δ_x ≠ 0`, this holds with exact probability `1 / q`. `AuthShare2.toSPDZ` embeds `AuthShare2`
+     as a two-party `SPDZ.AuthShare q 2` with public modifier `δ = 0`.
    - *Vector of `k` input shares:* we package both (i) a batched vector-MAC / linear-code validity
      check (`LinearCombAuthVec2`) under a fresh uniform linear-combination key
      `r ← $ᵗ (Fin k → ZMod q)`, where honest shares pass with probability `1` and any nonzero
@@ -56,17 +58,17 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
      `Cslib.Probability.toOuterMeasure_uniform_linearComb_eq`), and (ii) a batched check
      (`vecBatchMacCheckGame`) of `k` scalar-MAC shares under independent random weights
      `r ← $ᵗ (Fin k → ZMod q)` and scalar MAC key `α ← $ᵗ ZMod q`, passing with probability `1`
-     when honest and at most `2 / q` when `δ_x ≠ 0`.
+     when honest and at most `2 / q` when `δ_x ≠ 0` (via `SPDZ.eval_macKey_guess_le`).
 
 ## Source & Framing Notes
 
 * Motivated by the active-security input-consistency / MAC-checking discussion in
-  [BonehShoup2023], Section 23.4.1 (printed pp. 1035–1037).
+  [BonehShoup2023], Section 23.4.1 (page/section locators not verified from the rendered PDF).
 * The concrete 2-world distinguishing games (`naiveBitCheckRealExp`, `naiveBitCheckIdealExp`,
   `naiveBitCheckRealLRGame`, `naiveBitCheckRealGuessGame`), the standalone tampering games
   (`macSingleCheckGame`, `vecLinearCombCheckGame`, `vecBatchMacCheckGame`), and the
-  `q > 2` characterization for `f(x) = x * (x - 1)` are original self-contained formalizations
-  derived directly from the underlying field algebra rather than from a rendered page scan.
+  `q > 2` characterization for `f(x) = x * (x - 1)` are original framing derived directly from
+  the underlying field algebra.
 
 ## Main definitions
 
@@ -74,6 +76,7 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `f(x) = x * (x - 1)`.
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.AdditiveShare2`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.AdditiveShare2.reconstruct`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.AdditiveShare2.IsValidFor`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.AdditiveShare2.shiftShare1`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.evalShiftedBitCheck`: two-party additive shares,
   corrupt share-`1` additive shift, and shifted bit-check evaluation.
@@ -87,22 +90,27 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `Cslib.Crypto.Protocols.MPC.InputConsistency.naiveBitCheckIdealGuessGame`: `ProbComp` real and
   ideal experiments and distinguishing games for the `δ = 1` attack.
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.IsAuthentic`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.tamper1`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.toSPDZ`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleForgeGame`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.macSingleCheckGame`: two-party MAC-authenticated
-  additive shares and single-input tampering check games.
+  additive shares, SPDZ embedding, and single-input tampering check games.
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.IsValidFor`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.vecLinearCombCheckGame`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.batchMacCheckPasses`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.vecBatchMacCheckGame`: vector input-sharing
   validity checks under fresh random linear-combination and MAC keys.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_add`,
+* `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_eq_zero_of_mem`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_add`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.evalShiftedBitCheck_eq`: exact algebraic evaluation
   identity `f(x + δ) = f(x) + δ * (2 * x + δ - 1)`.
-* `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_zero_add_one`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_one_add_one`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_add_one_eq_zero_iff`,
+* `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_add_one_eq_zero_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.bitCheckPoly_add_one_eq_two_iff`: specialization to
   `δ = 1` and exact input recovery when `q > 2` is prime.
 * `Cslib.Crypto.Protocols.MPC.InputConsistency.advantage_naiveBitCheckIdealLRGame`,
@@ -111,15 +119,16 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_naiveBitCheckIdealGuessGame`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.advantage_naiveBitCheckGuessGame`: exact
   distinguishing advantages (`1` vs `0`) and bit-recovery probabilities (`1` vs `1 / 2`).
-* `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.tamper1_checkPasses_iff`,
+* `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.toSPDZ_valid_iff`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.AuthShare2.tamper1_isAuthentic_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_honest`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_eq`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_le`: single-share
-  MAC check equivalence `δ_t = α * δ_x` and exact `1 / q` soundness bound.
-* `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1_checkPasses_iff`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleForgeGame_eq`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_macSingleCheckGame_eq`: SPDZ
+  compatibility, single-share MAC check equivalence `δ_t = α * δ_x`, and exact `1 / q` soundness.
+* `Cslib.Crypto.Protocols.MPC.InputConsistency.LinearCombAuthVec2.tamper1_isValidFor_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_honest`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_eq`,
-  `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecLinearCombCheckGame_le`,
+  `Cslib.Crypto.Protocols.MPC.InputConsistency.tamper1_batchMacCheckPasses_iff`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecBatchMacCheckGame_honest`,
   `Cslib.Crypto.Protocols.MPC.InputConsistency.probability_vecBatchMacCheckGame_le`: completeness
   (`1`) and soundness (`1 / q` and `2 / q`) for `k`-element input vectors.
@@ -127,7 +136,7 @@ vulnerabilities in unauthenticated two-party additive secret sharing over a prim
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section
-  23.4.1 (printed pp. 1035–1037).
+  23.4.1 (page/section locators not verified from the rendered PDF).
 -/
 
 public section
@@ -177,28 +186,15 @@ theorem reconstruct_shiftShare1_of_isValidFor {R : Type} [AddSemigroup R]
 
 end AdditiveShare2
 
-/-- Naive two-party arithmetic circuit evaluation of `f(x) = x * (x - 1)` on additive shares `s`.
--/
-@[expose] def evalNaiveBitCheck {R : Type} [Ring R] (s : AdditiveShare2 R) : R :=
-  bitCheckPoly s.reconstruct
-
 /-- Output of the naive two-party bit-check circuit when corrupt `P₁` adds offset `δ` to its
 share before evaluation. -/
 @[expose] def evalShiftedBitCheck {R : Type} [Ring R] (s : AdditiveShare2 R) (δ : R) : R :=
   bitCheckPoly (s.shiftShare1 δ).reconstruct
 
-@[simp] theorem bitCheckPoly_zero {R : Type} [Ring R] : bitCheckPoly (0 : R) = 0 := by
-  simp [bitCheckPoly]
-
-@[simp] theorem bitCheckPoly_one {R : Type} [Ring R] : bitCheckPoly (1 : R) = 0 := by
-  simp [bitCheckPoly]
-
 /-- Any binary input `x ∈ {0, 1}` is a root of `f(x) = x * (x - 1)`. -/
 theorem bitCheckPoly_eq_zero_of_mem {R : Type} [Ring R] {x : R} (hx : x ∈ ({0, 1} : Set R)) :
     bitCheckPoly x = 0 := by
-  rcases hx with rfl | rfl
-  · exact bitCheckPoly_zero
-  · exact bitCheckPoly_one
+  rcases hx with rfl | rfl <;> simp [bitCheckPoly]
 
 /-- **Exact algebraic shift identity:** adding `δ` to `x` shifts `f(x) = x * (x - 1)` by
 `δ * (2 * x + δ - 1)`. -/
@@ -215,31 +211,16 @@ theorem evalShiftedBitCheck_eq {R : Type} [CommRing R]
   dsimp only [evalShiftedBitCheck]
   rw [s.reconstruct_shiftShare1_of_isValidFor hs, bitCheckPoly_add]
 
-/-- Specializing `bitCheckPoly_add` to `δ = 1` gives `f(x + 1) = f(x) + 2 * x`. -/
-theorem bitCheckPoly_add_one {R : Type} [CommRing R] (x : R) :
-    bitCheckPoly (x + 1) = bitCheckPoly x + 2 * x := by
-  rw [bitCheckPoly_add]
-  ring
-
-/-- Under the shift `δ = 1`, `x = 0` evaluates to `f(0 + 1) = 0`. -/
-@[simp] theorem bitCheckPoly_zero_add_one {R : Type} [Ring R] :
-    bitCheckPoly ((0 : R) + 1) = 0 := by
+private theorem bitCheckPoly_one {R : Type} [Ring R] :
+    bitCheckPoly (1 : R) = 0 := by
   simp [bitCheckPoly]
 
-/-- Under the shift `δ = 1`, `x = 1` evaluates to `f(1 + 1) = 2`. -/
-@[simp] theorem bitCheckPoly_one_add_one {R : Type} [CommRing R] :
+private theorem bitCheckPoly_one_add_one {R : Type} [Ring R] :
     bitCheckPoly ((1 : R) + 1) = 2 := by
   dsimp only [bitCheckPoly]
-  ring
+  norm_num
 
-/-- For binary `x ∈ {0, 1}`, shifting by `δ = 1` yields `f(x + 1) = 2 * x`. -/
-theorem bitCheckPoly_add_one_eq_two_mul {R : Type} [CommRing R]
-    {x : R} (hx : x ∈ ({0, 1} : Set R)) :
-    bitCheckPoly (x + 1) = 2 * x := by
-  rw [bitCheckPoly_add_one, bitCheckPoly_eq_zero_of_mem hx, zero_add]
-
-/-- In a prime field `ZMod q` with `q > 2`, `2` is nonzero. -/
-theorem two_ne_zero_zmod {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 < q) :
+private theorem two_ne_zero_zmod {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 < q) :
     (2 : ZMod q) ≠ 0 := by
   intro h2
   have h2' : ((2 : ℕ) : ZMod q) = 0 := by exact_mod_cast h2
@@ -247,20 +228,14 @@ theorem two_ne_zero_zmod {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 < q) :
   have hle : q ≤ 2 := Nat.le_of_dvd (by decide) hdvd
   omega
 
-/-- When `q > 2` is prime, `f(1 + 1) = 2 ≠ 0` in `ZMod q`. -/
-theorem bitCheckPoly_one_add_one_ne_zero {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 < q) :
-    bitCheckPoly ((1 : ZMod q) + 1) ≠ 0 := by
-  rw [bitCheckPoly_one_add_one]
-  exact two_ne_zero_zmod hq
-
 /-- **Converse / recovery lemma (`x = 0`):** for binary `x ∈ {0, 1} ⊆ ZMod q` with `q > 2` prime,
 under the additive shift `δ = 1`, `f(x + 1) = 0 ↔ x = 0`. -/
 theorem bitCheckPoly_add_one_eq_zero_iff {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 < q)
     {x : ZMod q} (hx : x ∈ ({0, 1} : Set (ZMod q))) :
     bitCheckPoly (x + 1) = 0 ↔ x = 0 := by
   rcases hx with rfl | rfl
-  · simp
-  · simp [two_ne_zero_zmod hq]
+  · simp [bitCheckPoly_one]
+  · simp [bitCheckPoly_one_add_one, two_ne_zero_zmod hq]
 
 /-- **Converse / recovery lemma (`x = 1`):** for binary `x ∈ {0, 1} ⊆ ZMod q` with `q > 2` prime,
 under the additive shift `δ = 1`, `f(x + 1) = 2 ↔ x = 1`. -/
@@ -269,8 +244,8 @@ theorem bitCheckPoly_add_one_eq_two_iff {q : ℕ} [Fact (Nat.Prime q)] (hq : 2 <
     bitCheckPoly (x + 1) = 2 ↔ x = 1 := by
   have h2 : (2 : ZMod q) ≠ 0 := two_ne_zero_zmod hq
   rcases hx with rfl | rfl
-  · simp [Ne.symm h2]
-  · simp
+  · simp [bitCheckPoly_one, Ne.symm h2]
+  · simp [bitCheckPoly_one_add_one]
 
 /-! ### 2. Explicit two-world distinguishing games for the `δ = 1` shift attack -/
 
@@ -321,23 +296,11 @@ of the random share `x₀`. -/
           rw [s.reconstruct_shiftShare1_of_isValidFor hval]
     _ = PMF.pure (bitCheckPoly ((if b then (1 : ZMod q) else 0) + δ)) := PMF.map_const _ _
 
-/-- At `δ = 1` and `b = false` (`x = 0`), `naiveBitCheckRealExp` outputs `0` with probability `1`.
--/
-@[simp] theorem eval_naiveBitCheckRealExp_one_false (q : ℕ) [NeZero q] :
-    ProbComp.eval (naiveBitCheckRealExp q 1 false) = PMF.pure 0 := by
-  simp
-
-/-- At `δ = 1` and `b = true` (`x = 1`), `naiveBitCheckRealExp` outputs `2` with probability `1`.
--/
-@[simp] theorem eval_naiveBitCheckRealExp_one_true (q : ℕ) [NeZero q] :
-    ProbComp.eval (naiveBitCheckRealExp q 1 true) = PMF.pure 2 := by
-  simp
-
 /-- In the ideal world, `naiveBitCheckIdealExp q b` outputs `0` identically for both `b = false`
 and `b = true`. -/
 @[simp] theorem eval_naiveBitCheckIdealExp (q : ℕ) (b : Bool) :
     ProbComp.eval (naiveBitCheckIdealExp q b) = PMF.pure 0 := by
-  cases b <;> simp [naiveBitCheckIdealExp]
+  cases b <;> simp [naiveBitCheckIdealExp, bitCheckPoly]
 
 /-- Distinguisher / bit-extractor for the `δ = 1` attack: outputs `true` iff the circuit output
 equals `2`. -/
@@ -385,11 +348,11 @@ theorem advantage_naiveBitCheckRealLRGame_shiftOne {q : ℕ} [Fact (Nat.Prime q)
   have hfalse :
       let D : ZMod q → ProbComp Bool := fun z => return shiftOneDistinguisher z
       ProbComp.eval (naiveBitCheckRealLRGame q 1 D false) = PMF.pure false := by
-    simp [naiveBitCheckRealLRGame, shiftOneDistinguisher, Ne.symm h2]
+    simp [naiveBitCheckRealLRGame, shiftOneDistinguisher, bitCheckPoly_one, Ne.symm h2]
   have htrue :
       let D : ZMod q → ProbComp Bool := fun z => return shiftOneDistinguisher z
       ProbComp.eval (naiveBitCheckRealLRGame q 1 D true) = PMF.pure true := by
-    simp [naiveBitCheckRealLRGame, shiftOneDistinguisher]
+    simp [naiveBitCheckRealLRGame, shiftOneDistinguisher, bitCheckPoly_one_add_one]
   rw [hfalse, htrue, Game.advantage_pure_false_left]
   simp [Game.succProbability]
 
@@ -424,7 +387,8 @@ theorem probability_naiveBitCheckRealGuessGame {q : ℕ} [Fact (Nat.Prime q)] (h
             (bitCheckPoly ((if b then (1 : ZMod q) else 0) + 1)) = b))) =
         fun _ : Bool => PMF.pure true := by
       ext b
-      cases b <;> simp [shiftOneDistinguisher, Ne.symm h2]
+      cases b <;>
+        simp [shiftOneDistinguisher, bitCheckPoly_one, bitCheckPoly_one_add_one, Ne.symm h2]
     rw [hfun]
     exact PMF.bind_const _ (PMF.pure true)
   rw [heval]
@@ -443,17 +407,14 @@ theorem probability_naiveBitCheckIdealGuessGame (q : ℕ) (A : ZMod q → ProbCo
         ((ProbComp.eval (A 0)) true + (ProbComp.eval (A 0)) false) = 1 := by
       rw [add_comm, ← tsum_bool]
       exact (ProbComp.eval (A 0)).tsum_coe
-    have h0 :
-        ((PMF.uniformOfFintype Bool).bind fun a => PMF.pure (decide (false = a))) true =
+    have hguess : ∀ c : Bool,
+        ((PMF.uniformOfFintype Bool).bind fun a => PMF.pure (decide (c = a))) true =
           (2 : ℝ≥0∞)⁻¹ := by
+      intro c
       rw [PMF.bind_apply, tsum_bool]
-      simp [PMF.uniformOfFintype_apply]
-    have h1 :
-        ((PMF.uniformOfFintype Bool).bind fun a => PMF.pure (decide (true = a))) true =
-          (2 : ℝ≥0∞)⁻¹ := by
-      rw [PMF.bind_apply, tsum_bool]
-      simp [PMF.uniformOfFintype_apply]
-    rw [h0, h1, ← add_mul, add_comm ((ProbComp.eval (A 0)) false), hsum, one_mul]
+      cases c <;> simp [PMF.uniformOfFintype_apply]
+    rw [hguess false, hguess true, ← add_mul, add_comm ((ProbComp.eval (A 0)) false),
+      hsum, one_mul]
   rw [heval, ENNReal.toReal_inv, ENNReal.toReal_ofNat, one_div]
 
 /-- In the uniform-bit guessing game, the `δ = 1` attack outperforms every ideal-world observer
@@ -497,40 +458,34 @@ namespace AuthShare2
 @[expose] def tamper1 {R : Type} [Add R] (s : AuthShare2 R) (δ_x δ_t : R) : AuthShare2 R :=
   ⟨s.val.shiftShare1 δ_x, s.tag.shiftShare1 δ_t⟩
 
-/-- Reconstructed MAC verification residual `t' - α * x'`. -/
-@[expose] def checkResidual {R : Type} [Ring R] (alpha : R) (s : AuthShare2 R) : R :=
-  s.macTag - alpha * s.secret
+/-- Embed a two-party authenticated share over `ZMod q` as a two-party `SPDZ.AuthShare q 2` with
+public modifier `δ = 0`. -/
+@[expose] def toSPDZ {q : ℕ} (s : AuthShare2 (ZMod q)) : SPDZ.AuthShare q 2 where
+  delta := 0
+  valShares := ![s.val.share0, s.val.share1]
+  macShares := ![s.tag.share0, s.tag.share1]
 
-/-- Predicate asserting that the MAC verification check `t' - α * x' = 0` passes. -/
-@[expose] def checkPasses {R : Type} [Ring R] (alpha : R) (s : AuthShare2 R) : Prop :=
-  s.checkResidual alpha = 0
+theorem toSPDZ_secret {q : ℕ} (s : AuthShare2 (ZMod q)) :
+    s.toSPDZ.secret = s.secret := by
+  simp [toSPDZ, SPDZ.AuthShare.secret, secret, AdditiveShare2.reconstruct, Fin.sum_univ_two]
 
-theorem checkPasses_iff {R : Type} [Ring R] (alpha : R) (s : AuthShare2 R) :
-    s.checkPasses alpha ↔ s.macTag = alpha * s.secret :=
-  sub_eq_zero
+theorem toSPDZ_macSum {q : ℕ} (s : AuthShare2 (ZMod q)) :
+    s.toSPDZ.macSum = s.macTag := by
+  simp [toSPDZ, SPDZ.AuthShare.macSum, macTag, AdditiveShare2.reconstruct, Fin.sum_univ_two]
 
-/-- Honest authentic shares always pass the MAC verification check. -/
-theorem checkPasses_of_isAuthentic {R : Type} [Ring R] {alpha : R} {s : AuthShare2 R}
-    (hauth : s.IsAuthentic alpha) :
-    s.checkPasses alpha :=
-  sub_eq_zero.mpr hauth
-
-/-- Exact algebraic residual under `P₁`'s tampering `(δ_x, δ_t)`:
-`t' - α * x' = δ_t - α * δ_x`. -/
-theorem checkResidual_tamper1 {R : Type} [CommRing R] {alpha : R} {s : AuthShare2 R}
-    (hauth : s.IsAuthentic alpha) (δ_x δ_t : R) :
-    (s.tamper1 δ_x δ_t).checkResidual alpha = δ_t - alpha * δ_x := by
-  dsimp only [checkResidual, tamper1, macTag, secret, IsAuthentic] at hauth ⊢
-  rw [s.tag.reconstruct_shiftShare1, s.val.reconstruct_shiftShare1, hauth]
-  ring
+theorem toSPDZ_valid_iff {q : ℕ} (alpha : ZMod q) (s : AuthShare2 (ZMod q)) :
+    s.toSPDZ.Valid alpha ↔ s.IsAuthentic alpha := by
+  rw [SPDZ.AuthShare.Valid, toSPDZ_macSum, toSPDZ_secret]
+  simp [toSPDZ, IsAuthentic]
 
 /-- **Single-share MAC check characterization:** when `s` is authentic under `α`, the tampered
-submission `(x₁ + δ_x, t₁ + δ_t)` passes `t' - α * x' = 0` if and only if `δ_t = α * δ_x`. -/
-theorem tamper1_checkPasses_iff {R : Type} [CommRing R] {alpha : R} {s : AuthShare2 R}
+submission `(x₁ + δ_x, t₁ + δ_t)` satisfies `t' = α * x'` if and only if `δ_t = α * δ_x`. -/
+theorem tamper1_isAuthentic_iff {R : Type} [CommRing R] {alpha : R} {s : AuthShare2 R}
     (hauth : s.IsAuthentic alpha) (δ_x δ_t : R) :
-    (s.tamper1 δ_x δ_t).checkPasses alpha ↔ δ_t = alpha * δ_x := by
-  dsimp only [checkPasses]
-  rw [checkResidual_tamper1 hauth, sub_eq_zero]
+    (s.tamper1 δ_x δ_t).IsAuthentic alpha ↔ δ_t = alpha * δ_x := by
+  dsimp only [IsAuthentic, tamper1, macTag, secret] at hauth ⊢
+  rw [s.tag.reconstruct_shiftShare1, s.val.reconstruct_shiftShare1, hauth, mul_add]
+  exact ⟨fun h => add_left_cancel h, fun h => by rw [h]⟩
 
 end AuthShare2
 
@@ -584,9 +539,7 @@ theorem eval_macSingleCheckGame_eq_forge (q : ℕ) [NeZero q] (x δ_x δ_t : ZMo
           (fun _ => decide (δ_t = alpha * δ_x)) := by
           refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun s hs => ?_
           have hauth := isAuthentic_of_mem_support_sampleAuthShare2 hs
-          have hiff := AuthShare2.tamper1_checkPasses_iff hauth δ_x δ_t
-          rw [AuthShare2.checkPasses_iff] at hiff
-          exact decide_eq_decide.mpr hiff
+          exact decide_eq_decide.mpr (AuthShare2.tamper1_isAuthentic_iff hauth δ_x δ_t)
     _ = PMF.pure (decide (δ_t = alpha * δ_x)) := PMF.map_const _ _
 
 /-- Honest single-input shares (`δ_x = 0`, `δ_t = 0`) pass `macSingleCheckGame` with probability
@@ -623,24 +576,12 @@ theorem probability_macSingleForgeGame_eq {q : ℕ} [Fact (Nat.Prime q)] {δ_x �
     Pr[macSingleForgeGame q δ_x δ_t] = 1 / q := by
   rw [eval_macSingleForgeGame_eq hδ, ENNReal.toReal_inv, ENNReal.toReal_natCast, one_div]
 
-/-- Real-valued `≤ 1 / q` soundness bound for `macSingleForgeGame`. -/
-theorem probability_macSingleForgeGame_le {q : ℕ} [Fact (Nat.Prime q)] {δ_x δ_t : ZMod q}
-    (hδ : δ_x ≠ 0) :
-    Pr[macSingleForgeGame q δ_x δ_t] ≤ 1 / q :=
-  (probability_macSingleForgeGame_eq hδ).le
-
 /-- Real-valued exact `1 / q` soundness for `macSingleCheckGame` when `δ_x ≠ 0`. -/
 theorem probability_macSingleCheckGame_eq {q : ℕ} [Fact (Nat.Prime q)] (x : ZMod q)
     {δ_x δ_t : ZMod q} (hδ : δ_x ≠ 0) :
     Pr[macSingleCheckGame q x δ_x δ_t] = 1 / q := by
   rw [eval_macSingleCheckGame_eq_forge]
   exact probability_macSingleForgeGame_eq hδ
-
-/-- Real-valued `≤ 1 / q` soundness bound for `macSingleCheckGame` when `δ_x ≠ 0`. -/
-theorem probability_macSingleCheckGame_le {q : ℕ} [Fact (Nat.Prime q)] (x : ZMod q)
-    {δ_x δ_t : ZMod q} (hδ : δ_x ≠ 0) :
-    Pr[macSingleCheckGame q x δ_x δ_t] ≤ 1 / q :=
-  (probability_macSingleCheckGame_eq x hδ).le
 
 /-! ### 4. Vector of `k` input shares: random-linear-combination and batched MAC checks -/
 
@@ -675,25 +616,14 @@ to its MAC tag share. -/
     (v : LinearCombAuthVec2 R k) (δ : Fin k → R) (δ_t : R) : LinearCombAuthVec2 R k :=
   ⟨fun j => (v.vals j).shiftShare1 (δ j), v.tag.shiftShare1 δ_t⟩
 
-/-- Reconstructed linear-combination validity check `t' = ∑ j, r j * x' j`. -/
-@[expose] def checkPasses {R : Type} [Semiring R] {k : ℕ}
-    (r : Fin k → R) (v : LinearCombAuthVec2 R k) : Prop :=
-  v.macTag = ∑ j : Fin k, r j * v.secretVec j
-
-/-- Honest valid vector shares pass `checkPasses`. -/
-theorem checkPasses_of_isValidFor {R : Type} [Semiring R] {k : ℕ}
-    {r : Fin k → R} {v : LinearCombAuthVec2 R k} (hv : v.IsValidFor r) :
-    v.checkPasses r :=
-  hv
-
 /-- **Vector linear-combination tampering equivalence:** when `v` is valid under `r`, the
-tampered submission `v.tamper1 δ δ_t` passes `t' = ∑ j, r j * x' j` if and only if
+tampered submission `v.tamper1 δ δ_t` satisfies `t' = ∑ j, r j * x' j` if and only if
 `∑ j, r j * δ j = δ_t`. -/
-theorem tamper1_checkPasses_iff {R : Type} [CommRing R] {k : ℕ}
+theorem tamper1_isValidFor_iff {R : Type} [CommRing R] {k : ℕ}
     {r : Fin k → R} {v : LinearCombAuthVec2 R k} (hv : v.IsValidFor r)
     (δ : Fin k → R) (δ_t : R) :
-    (v.tamper1 δ δ_t).checkPasses r ↔ ∑ j : Fin k, r j * δ j = δ_t := by
-  dsimp only [checkPasses, tamper1, macTag, secretVec, IsValidFor] at hv ⊢
+    (v.tamper1 δ δ_t).IsValidFor r ↔ ∑ j : Fin k, r j * δ j = δ_t := by
+  dsimp only [IsValidFor, tamper1, macTag, secretVec] at hv ⊢
   rw [v.tag.reconstruct_shiftShare1, hv]
   have hsum :
       (∑ j : Fin k, r j * ((v.vals j).shiftShare1 (δ j)).reconstruct) =
@@ -760,10 +690,9 @@ theorem probability_vecLinearCombCheckGame_honest (q k : ℕ) [NeZero q]
           = (ProbComp.eval (sampleLinearCombAuthVec2 q k r x)).map (fun _ => true) := by
               refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun v hv => ?_
               have hval := isValidFor_of_mem_support_sampleLinearCombAuthVec2 hv
-              have hiff : (v.tamper1 0 0).checkPasses r ↔ ∑ j : Fin k, r j * (0 : ZMod q) = 0 :=
-                LinearCombAuthVec2.tamper1_checkPasses_iff hval 0 0
-              simp only [LinearCombAuthVec2.checkPasses, mul_zero, Finset.sum_const_zero,
-                iff_true] at hiff
+              have hiff := LinearCombAuthVec2.tamper1_isValidFor_iff hval 0 0
+              simp only [LinearCombAuthVec2.IsValidFor, Pi.zero_apply, mul_zero,
+                Finset.sum_const_zero, iff_true] at hiff
               exact decide_eq_true hiff
         _ = PMF.pure true := PMF.map_const _ true
     rw [hconst]
@@ -796,7 +725,7 @@ theorem eval_vecLinearCombCheckGame_eq {q k : ℕ} [Fact (Nat.Prime q)]
             refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun v hv => ?_
             have hval := isValidFor_of_mem_support_sampleLinearCombAuthVec2 hv
             exact decide_eq_decide.mpr
-              (LinearCombAuthVec2.tamper1_checkPasses_iff hval δ δ_t)
+              (LinearCombAuthVec2.tamper1_isValidFor_iff hval δ δ_t)
       _ = PMF.pure (decide (∑ j : Fin k, r j * δ j = δ_t)) := PMF.map_const _ _
   rw [heval, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   have hpre :
@@ -811,12 +740,6 @@ theorem probability_vecLinearCombCheckGame_eq {q k : ℕ} [Fact (Nat.Prime q)]
     (x : Fin k → ZMod q) {δ : Fin k → ZMod q} (hδ : δ ≠ 0) (δ_t : ZMod q) :
     Pr[vecLinearCombCheckGame q k x δ δ_t] = 1 / q := by
   rw [eval_vecLinearCombCheckGame_eq x hδ δ_t, ENNReal.toReal_inv, ENNReal.toReal_natCast, one_div]
-
-/-- Real-valued `≤ 1 / q` soundness bound for `vecLinearCombCheckGame` when `δ ≠ 0`. -/
-theorem probability_vecLinearCombCheckGame_le {q k : ℕ} [Fact (Nat.Prime q)]
-    (x : Fin k → ZMod q) {δ : Fin k → ZMod q} (hδ : δ ≠ 0) (δ_t : ZMod q) :
-    Pr[vecLinearCombCheckGame q k x δ δ_t] ≤ 1 / q :=
-  (probability_vecLinearCombCheckGame_eq x hδ δ_t).le
 
 /-- Batched MAC verification predicate for `k` individually authenticated shares under global
 scalar MAC key `α` and random linear-combination weights `r : Fin k → R`:
@@ -906,7 +829,8 @@ theorem probability_vecBatchMacCheckGame_honest (q k : ℕ) [NeZero q]
 
 /-- **Batched `k`-share scalar-MAC soundness (`≤ 2 / q`):** for prime `q` and any nonzero input
 tampering vector `δ_x ≠ 0`, `vecBatchMacCheckGame q k x δ_x δ_t` passes with probability at most
-`2 / q`. -/
+`2 / q`. Reuses `SPDZ.eval_macKey_guess_le` for the per-`r` key-guessing bound (since
+`SPDZ.macCheckSoundnessGame` is an unexposed definition in `SPDZ.lean`). -/
 theorem probability_vecBatchMacCheckGame_le {q k : ℕ} [Fact (Nat.Prime q)]
     (x : Fin k → ZMod q) {δ_x : Fin k → ZMod q} (hδ : δ_x ≠ 0) (δ_t : Fin k → ZMod q) :
     Pr[vecBatchMacCheckGame q k x δ_x δ_t] ≤ 2 / q := by
@@ -952,35 +876,13 @@ theorem probability_vecBatchMacCheckGame_le {q k : ℕ} [Fact (Nat.Prime q)]
           (fun alpha => decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j))) true ≤
         S.indicator μ r + μ r * (q : ℝ≥0∞)⁻¹ := by
       intro r
+      have hkey := SPDZ.eval_macKey_guess_le (∑ j, r j * δ_x j) (∑ j, r j * δ_t j)
+      refine (mul_le_mul_right hkey (μ r)).trans ?_
       by_cases hr : r ∈ S
       · have hr0 : ∑ j, r j * δ_x j = 0 := hr
-        have hle1 :
-            ((PMF.uniformOfFintype (ZMod q)).map
-              (fun alpha => decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j))) true ≤ 1 :=
-          PMF.coe_le_one _ _
-        calc μ r * ((PMF.uniformOfFintype (ZMod q)).map _) true
-            ≤ μ r * 1 := mul_le_mul_right hle1 (μ r)
-          _ = μ r := mul_one _
-          _ ≤ μ r + μ r * (q : ℝ≥0∞)⁻¹ := le_self_add
-          _ = S.indicator μ r + μ r * (q : ℝ≥0∞)⁻¹ := by simp [hr]
+        simp [hr, hr0, mul_add]
       · have hr0 : ∑ j, r j * δ_x j ≠ 0 := hr
-        have hguess :
-            ((PMF.uniformOfFintype (ZMod q)).map
-              (fun alpha => decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j))) true =
-              (q : ℝ≥0∞)⁻¹ := by
-          rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-            ← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (ZMod q)),
-            PMF.toOuterMeasure_map_apply]
-          have hpre :
-              (Equiv.funUnique Unit (ZMod q) ⁻¹'
-                ((fun alpha : ZMod q =>
-                  decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j)) ⁻¹' {true})) =
-              {u : Unit → ZMod q | ∑ i : Unit, u i * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j} := by
-            ext u
-            simp
-          rw [hpre, toOuterMeasure_uniform_linearComb_eq
-            (d := fun _ => ∑ j, r j * δ_x j) (i₀ := ()) hr0 (∑ j, r j * δ_t j), ZMod.card, one_div]
-        simp [hr, hguess]
+        simp [hr, hr0]
     calc ∑' r, μ r * ((PMF.uniformOfFintype (ZMod q)).map
           (fun alpha => decide (alpha * (∑ j, r j * δ_x j) = ∑ j, r j * δ_t j))) true
         ≤ ∑' r, (S.indicator μ r + μ r * (q : ℝ≥0∞)⁻¹) := tsum_le_tsum hstep

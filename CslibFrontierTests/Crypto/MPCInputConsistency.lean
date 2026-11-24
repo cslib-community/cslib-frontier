@@ -23,9 +23,9 @@ Non-vacuous concrete evaluations and theorem instantiations exercising
    - Demonstrates why `q > 2` is necessary for the `δ = 1` shift attack: in `ZMod 2`, `2 = 0`, so
      `f(0 + 1) = 0` and `f(1 + 1) = 0`, leaving the shifted output invariant on `{0, 1}`.
 3. **Random-MAC and random-linear-combination input-authentication repair (`q = 5` and `q = 7`):**
-   - Non-vacuous `AuthShare2` witness over `ZMod 5`, verifying honest check acceptance, detection
-     of an unauthenticated shift `(δ_x = 1, δ_t = 2)`, and exact `1 / q` forgery probability
-     (`Pr = 1 / 5` for `q = 5`, `Pr = 1 / 7` for `q = 7`).
+   - Non-vacuous `AuthShare2` witness over `ZMod 5` (including its `SPDZ.AuthShare` embedding),
+     verifying honest check acceptance, detection of an unauthenticated shift `(δ_x = 1, δ_t = 2)`,
+     and exact `1 / q` forgery probability (`Pr = 1 / 5` for `q = 5`, `Pr = 1 / 7` for `q = 7`).
    - Non-vacuous `k = 3` vector witness `LinearCombAuthVec2 (ZMod 5) 3`, verifying honest
      completeness (`Pr = 1`), exact `1 / q` soundness (`Pr = 1 / 5` for `q = 5`, `Pr = 1 / 7`
      for `q = 7`), and `≤ 2 / 5` batched scalar-MAC soundness.
@@ -58,18 +58,16 @@ example : shareOneMod5.IsValidFor 1 := by
   dsimp [AdditiveShare2.IsValidFor, AdditiveShare2.reconstruct, shareOneMod5]
   decide
 
-example : evalNaiveBitCheck shareZeroMod5 = 0 ∧ evalNaiveBitCheck shareOneMod5 = 0 := by
+example : evalShiftedBitCheck shareZeroMod5 0 = 0 ∧ evalShiftedBitCheck shareOneMod5 0 = 0 := by
   decide
 
 example : evalShiftedBitCheck shareZeroMod5 1 = 0 := by decide
 
 example : evalShiftedBitCheck shareOneMod5 1 = 2 := by decide
 
-example : (2 : ZMod 5) ≠ 0 :=
-  two_ne_zero_zmod (q := 5) (by decide)
+example : (2 : ZMod 5) ≠ 0 := by decide
 
-example : (2 : ZMod 7) ≠ 0 :=
-  two_ne_zero_zmod (q := 7) (by decide)
+example : (2 : ZMod 7) ≠ 0 := by decide
 
 example :
     let D : ZMod 5 → ProbComp Bool := fun z => return shiftOneDistinguisher z
@@ -131,23 +129,23 @@ example : authShareMod5.IsAuthentic 3 := by
     AdditiveShare2.reconstruct, authShareMod5]
   decide
 
-example : authShareMod5.checkPasses 3 :=
-  authShareMod5.checkPasses_of_isAuthentic (by
+example : authShareMod5.toSPDZ.Valid 3 :=
+  (authShareMod5.toSPDZ_valid_iff 3).mpr (by
     dsimp [AuthShare2.IsAuthentic, AuthShare2.macTag, AuthShare2.secret,
       AdditiveShare2.reconstruct, authShareMod5]
     decide)
 
 /-- Tampering with `(δ_x = 1, δ_t = 2)` fails the MAC check under `α = 3` (`2 ≠ 3 * 1` in `ZMod 5`).
 -/
-example : ¬ (authShareMod5.tamper1 1 2).checkPasses 3 := by
-  dsimp [AuthShare2.checkPasses, AuthShare2.checkResidual, AuthShare2.tamper1,
+example : ¬ (authShareMod5.tamper1 1 2).IsAuthentic 3 := by
+  dsimp [AuthShare2.IsAuthentic, AuthShare2.tamper1,
     AuthShare2.macTag, AuthShare2.secret, AdditiveShare2.shiftShare1,
     AdditiveShare2.reconstruct, authShareMod5]
   decide
 
 /-- Tampering with `(δ_x = 1, δ_t = 3)` passes only because `δ_t = α * δ_x`. -/
-example : (authShareMod5.tamper1 1 3).checkPasses 3 := by
-  dsimp [AuthShare2.checkPasses, AuthShare2.checkResidual, AuthShare2.tamper1,
+example : (authShareMod5.tamper1 1 3).IsAuthentic 3 := by
+  dsimp [AuthShare2.IsAuthentic, AuthShare2.tamper1,
     AuthShare2.macTag, AuthShare2.secret, AdditiveShare2.shiftShare1,
     AdditiveShare2.reconstruct, authShareMod5]
   decide
@@ -171,15 +169,9 @@ example : authVecMod5.IsValidFor ![2, 1, 4] := by
     LinearCombAuthVec2.secretVec, AdditiveShare2.reconstruct, authVecMod5]
   decide
 
-example : authVecMod5.checkPasses ![2, 1, 4] :=
-  authVecMod5.checkPasses_of_isValidFor (by
-    dsimp [LinearCombAuthVec2.IsValidFor, LinearCombAuthVec2.macTag,
-      LinearCombAuthVec2.secretVec, AdditiveShare2.reconstruct, authVecMod5]
-    decide)
-
 /-- Nonzero input shift `δ = ![0, 1, 0]` with `δ_t = 0` fails under `r = ![2, 1, 4]`. -/
-example : ¬ (authVecMod5.tamper1 ![0, 1, 0] 0).checkPasses ![2, 1, 4] := by
-  dsimp [LinearCombAuthVec2.checkPasses, LinearCombAuthVec2.tamper1,
+example : ¬ (authVecMod5.tamper1 ![0, 1, 0] 0).IsValidFor ![2, 1, 4] := by
+  dsimp [LinearCombAuthVec2.IsValidFor, LinearCombAuthVec2.tamper1,
     LinearCombAuthVec2.macTag, LinearCombAuthVec2.secretVec,
     AdditiveShare2.shiftShare1, AdditiveShare2.reconstruct, authVecMod5]
   decide
