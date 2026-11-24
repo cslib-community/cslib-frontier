@@ -70,7 +70,8 @@ example (u x : ℤ) :
     let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) + MvPolynomial.X (.inr 0)
     let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_add _ _).trans (by simp)
     (relativeValuePolynomial (by decide : 1 ≤ 2) F hF).map
-      (MvPolynomial.eval₂Hom (Int.castRingHom ℤ) (fun i : Option (Fin 1) => i.elim u (fun _ => x))) =
+      (MvPolynomial.eval₂Hom (Int.castRingHom ℤ)
+        (fun i : Option (Fin 1) => i.elim u (fun _ => x))) =
     valuePolynomial (by decide : 1 ≤ 2) (fun _ => 0) u
       (MvPolynomial.X (0 : Fin 1) + MvPolynomial.C x)
       ((MvPolynomial.totalDegree_add _ _).trans (by
