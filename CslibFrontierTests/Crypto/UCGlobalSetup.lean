@@ -98,8 +98,9 @@ theorem eval_gExec_xorWithCoin_coinReader (κ : ℕ) (z : List Bool) :
       simp only [gExecMachine, Machine.comp, gLiftAdversary, gDummyAdversary, shareRight,
         routeCorrupt, gCompose, gHybridWrap, xorWithCoin, coinReaderProto, liftPartyWithG,
         coinSetup, StateT.run, StateT.lift, Finset.notMem_empty, ↓reduceIte, Machine.runFrom_bind,
-        Machine.runFrom_map, Machine.runFrom_query, bind_pure_comp, interp_norm, Functor.map_map]
-      simp
+        Machine.runFrom_map, Machine.runFrom_query, bind_pure_comp, interp_norm, Functor.map_map,
+        map_pure, Prod.map_apply, id_eq, Equiv.prodAssoc_apply, Option.map_some,
+        decide_true]
       rfl
     erw [hq, pure_bind, Machine.runFrom_pure]
     rfl
