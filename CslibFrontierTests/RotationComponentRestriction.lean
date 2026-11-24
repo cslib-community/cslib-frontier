@@ -8,6 +8,7 @@ module
 -- upstream: local-only (rotation component restriction regression)
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentEuler
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Equality
 
 set_option linter.privateModule false
 
@@ -19,6 +20,9 @@ open Cslib.Complexity Cslib.Complexity.Graph RotationCertificate
 
 private abbrev G : Graph := ⟨[0, 1, 2, 3], [(0, 1), (0, 1), (2, 3)]⟩
 private theorem hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices := by decide
+
+private def certificate : RotationCertificate := ⟨[2, 3, 0, 1, 4, 5]⟩
+private theorem certificate_ok : verifyRotation G certificate = true := by decide
 
 private def r : RotationSystem G where
   rotate := Equiv.swap (0, false) (1, false) * Equiv.swap (0, true) (1, true)
@@ -76,5 +80,22 @@ example : ∃ p q : (r.component 0 hG).Face, p ≠ q := by
   have hcyc : r.faceNext.SameCycle (0, false) (1, false) :=
     Quotient.exact (congrArg Subtype.val h)
   exact (by decide : ¬r.faceNext.SameCycle (0, false) (1, false)) hcyc
+
+-- Assembling genus-zero choices keeps the nontrivial marked successor of the first parallel dart.
+example : ∃ s : RotationSystem G, s.NumericalGenusZero ∧ s.rotate (0, false) = (1, false) := by
+  have he : decode G certificate certificate_ok = r := by
+    apply RotationSystem.ext_rotate
+    apply Equiv.ext
+    intro d
+    apply (Dart.indexEquiv G).injective
+    apply Fin.ext
+    change ((decode G certificate certificate_ok).rotate d).index = (r.rotate d).index
+    rw [index_decode_rotate certificate_ok]
+    exact (by decide : ∀ a : Dart G, certificate.successor.getD a.index 0 = (r.rotate a).index) d
+  have hr : r.NumericalGenusZero := he ▸ (verifyEuler_eq_true_iff certificate_ok).mp (by decide)
+  obtain ⟨s, hz, hmarked⟩ := r.exists_numericalGenusZero_agreeing_on_of_components hG (· = 0)
+    (fun root _ => ⟨r.component root hG, r.numericalGenusZero_component hG hr root,
+      fun _ _ => rfl⟩)
+  exact ⟨s, hz, (hmarked (0, false) rfl).trans (by decide)⟩
 
 end CslibFrontierTests.RotationComponentRestriction

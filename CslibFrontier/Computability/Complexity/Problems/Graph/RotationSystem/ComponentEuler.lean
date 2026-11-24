@@ -21,6 +21,7 @@ occurrences and face orbits. These are the three counts in the numerical genus t
 
 * `componentGraph_preconnected` gives walks within the restricted graph.
 * `RotationSystem.componentFaceEquiv` identifies its faces with the original component faces.
+* `RotationSystem.numericalGenusZero_component` restricts numerical genus zero.
 * `RotationSystem.numericalGenusZero_of_components` reassembles the Euler equations.
 * `RotationSystem.exists_numericalGenusZero_agreeing_on_of_components` combines independent
   choices of genus-zero component rotations with prescribed successors.
@@ -122,13 +123,12 @@ noncomputable def componentFaceEquiv {G : Graph} (r : RotationSystem G) (root : 
     refine ⟨Quotient.mk _ a, Subtype.ext ?_⟩
     exact congrArg (fun x => (Quotient.mk _ x.val : r.Face)) ha⟩
 
-private theorem numericalGenusZero_of_component_cover {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
-    (hs : ∀ d : Dart G, ∃ root, SameComponent G root d.vertex ∧
-      (r.component root hG).NumericalGenusZero) : r.NumericalGenusZero := by
-  apply (r.numericalGenusZero_iff_component_cards hG).mpr
-  intro d
-  obtain ⟨root, hd, hs⟩ := hs d
+private theorem numericalGenusZero_component_iff_cards {G : Graph} (r : RotationSystem G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (root : ℕ) (d : Dart G)
+    (hd : SameComponent G root d.vertex) :
+    (r.component root hG).NumericalGenusZero ↔
+      (G.componentVertexSet d.vertex).card + (r.componentFaceIndices d.vertex).card =
+        (G.componentEdgeSet d.vertex).card + 2 := by
   let K := G.componentGraph root
   let s := r.component root hG
   let e := G.componentDartEquiv root hG
@@ -145,8 +145,6 @@ private theorem numericalGenusZero_of_component_cover {G : Graph} (r : RotationS
   have hF : Nat.card s.Face = (r.componentFaceIndices root).card := by
     rw [r.card_componentFaceIndices, r.count_faceRepresentatives_eq_card_componentFace hG]
     exact Nat.card_congr (r.componentFaceEquiv root hG)
-  have he := (s.numericalGenusZero_iff_connected_euler hK hconn a).mp hs
-  rw [hV, hE, hF] at he
   have hroot (v : ℕ) : SameComponent G d.vertex v ↔ SameComponent G root v :=
     ⟨hd.trans, hd.symm.trans⟩
   have hv : G.componentVertexSet d.vertex = G.componentVertexSet root := by
@@ -161,29 +159,53 @@ private theorem numericalGenusZero_of_component_cover {G : Graph} (r : RotationS
     ext i
     simp only [componentFaceIndices, Finset.mem_filter]
     exact and_congr Iff.rfl (and_congr (hroot ((Dart.indexEquiv G).symm i).vertex) Iff.rfl)
-  rwa [hv, he', hf]
+  rw [s.numericalGenusZero_iff_connected_euler hK hconn a, hv, he', hf, hV, hE, hF]
+
+private theorem numericalGenusZero_of_component_cover {G : Graph} (r : RotationSystem G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hs : ∀ d : Dart G, ∃ root, SameComponent G root d.vertex ∧
+      (r.component root hG).NumericalGenusZero) : r.NumericalGenusZero := by
+  apply (r.numericalGenusZero_iff_component_cards hG).mpr
+  intro d
+  obtain ⟨root, hd, hz⟩ := hs d
+  exact (r.numericalGenusZero_component_iff_cards hG root d hd).mp hz
+
+/-- Restricting a genus-zero rotation to a declared component preserves numerical genus zero. -/
+theorem numericalGenusZero_component {G : Graph} (r : RotationSystem G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero) (root : ℕ) :
+    (r.component root hG).NumericalGenusZero := by
+  cases isEmpty_or_nonempty (Dart (G.componentGraph root)) with
+  | inl h =>
+    exact ((r.component root hG).numericalGenusZero_iff_component_cards
+      (G.componentGraph_endpoints_declared root hG)).mpr (fun d => (h.false d).elim)
+  | inr h =>
+    obtain ⟨a⟩ := h
+    let d := G.componentDartEquiv root hG a
+    exact (r.numericalGenusZero_component_iff_cards hG root d.val d.property).mpr
+      ((r.numericalGenusZero_iff_component_cards hG).mp hr d.val)
 
 /-- Componentwise numerical genus zero follows from the Euler equation on each restricted
 rotation. This includes isolated vertices, whose Euler equation is automatic. -/
 theorem numericalGenusZero_of_components {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
-    (hs : ∀ root, (r.component root hG).NumericalGenusZero) : r.NumericalGenusZero :=
+    (hs : ∀ root ∈ G.vertices, (r.component root hG).NumericalGenusZero) : r.NumericalGenusZero :=
   r.numericalGenusZero_of_component_cover hG fun d =>
-    ⟨d.vertex, .refl (vertex_mem hG d), hs d.vertex⟩
+    ⟨d.vertex, .refl (vertex_mem hG d), hs d.vertex (vertex_mem hG d)⟩
 
 /-- Independently chosen genus-zero rotations of the components give a genus-zero rotation of
 the whole graph. A successor prescribed by `r` at a marked vertex is retained when each
 component choice agrees there with the restriction of `r`. -/
 theorem exists_numericalGenusZero_agreeing_on_of_components {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (marked : ℕ → Prop)
-    (hs : ∀ root, ∃ t : RotationSystem (G.componentGraph root), t.NumericalGenusZero ∧
+    (hs : ∀ root ∈ G.vertices, ∃ t : RotationSystem (G.componentGraph root), t.NumericalGenusZero ∧
       ∀ d, marked d.vertex → t.rotate d = (r.component root hG).rotate d) :
     ∃ s : RotationSystem G, s.NumericalGenusZero ∧
       ∀ d, marked d.vertex → s.rotate d = r.rotate d := by
   classical
-  choose t ht hagree using hs
+  choose rotations ht hagree using hs
   let key (d : Dart G) := G.induced.connectedComponentMk ⟨d.vertex, vertex_mem hG d⟩
   let root (c : G.induced.ConnectedComponent) : ℕ := (Quot.out c).val
+  let t (c : G.induced.ConnectedComponent) := rotations (root c) (Quot.out c).property
   have hkey (c : G.induced.ConnectedComponent) (d : Dart G) :
       key d = c ↔ SameComponent G (root c) d.vertex := by
     have hc : G.induced.connectedComponentMk (Quot.out c) = c := Quot.out_eq c
@@ -195,10 +217,10 @@ theorem exists_numericalGenusZero_agreeing_on_of_components {G : Graph} (r : Rot
     (G.componentDartEquiv (root c) hG).trans (Equiv.subtypeEquivRight fun d => (hkey c d).symm)
   let e := (Equiv.sigmaCongrRight coord).trans (Equiv.sigmaFiberEquiv key)
   let p : Equiv.Perm (Σ c : G.induced.ConnectedComponent, Dart (G.componentGraph (root c))) :=
-    Equiv.sigmaCongrRight fun c => (t (root c)).rotate
+    Equiv.sigmaCongrRight fun c => (t c).rotate
   let f := e.permCongr p
   have hstep (c : G.induced.ConnectedComponent) :
-      Function.Semiconj (fun a => (coord c a).val) (t (root c)).rotate f := by
+      Function.Semiconj (fun a => (coord c a).val) (t c).rotate f := by
     intro a
     change e (p ⟨c, a⟩) = e.permCongr p (e ⟨c, a⟩)
     rw [permCongr_apply, symm_apply_apply]
@@ -230,7 +252,7 @@ theorem exists_numericalGenusZero_agreeing_on_of_components {G : Graph} (r : Rot
       have hs := ((t _).sameCycle_iff a b).mpr heq
       have hm := hs.map_of_semiconj (hstep (key d))
       simpa only [hda, hgb] using hm⟩
-  have hrestrict (c : G.induced.ConnectedComponent) : s.component (root c) hG = t (root c) := by
+  have hrestrict (c : G.induced.ConnectedComponent) : s.component (root c) hG = t c := by
     apply ext_rotate
     apply Equiv.ext
     intro a
@@ -240,13 +262,14 @@ theorem exists_numericalGenusZero_agreeing_on_of_components {G : Graph} (r : Rot
   refine ⟨s, s.numericalGenusZero_of_component_cover hG (fun d => ?_), fun d hd => ?_⟩
   · refine ⟨root (key d), (hkey _ _).mp rfl, ?_⟩
     rw [hrestrict (key d)]
-    exact ht _
+    exact ht _ (Quot.out (key d)).property
   · let c := key d
     obtain ⟨a, ha⟩ := (coord c).surjective ⟨d, rfl⟩
     have hda : (coord c a).val = d := congrArg Subtype.val ha
     have hma : marked a.vertex := by rwa [← hv c a, hda]
     rw [← hda]
-    exact (hstep c a).symm.trans ((congrArg (fun d => (coord c d).val) (hagree _ a hma)).trans
+    have h := hagree (root c) (Quot.out c).property a hma
+    exact (hstep c a).symm.trans ((congrArg (fun d => (coord c d).val) h).trans
       (r.componentDartEquiv_rotate (root c) hG a))
 
 end RotationSystem
