@@ -50,9 +50,9 @@ dynamics terminate (`IsBasic.hasFIP`).
 For **monotone** valid utility games, diminishing marginal returns imply the payoff-smoothness
 bound `profileValue o - profileValue s ≤ ∑ i, utility i (update s i (o i))`
 (`IsValid.profileValue_sub_le_sum_deviation`), yielding Vetta's price-of-anarchy bound of `2`
-for pure Nash equilibria ([TardosWexler2007], Theorem 19.19), coarse correlated equilibria
-(hence correlated equilibria), and mixed Nash equilibria ([Vetta2002]; [TardosWexler2007],
-Section 19.5.3, p. 511).
+for pure Nash equilibria ([TardosWexler2007], Theorem 19.19) and mixed Nash equilibria
+([Vetta2002]; [TardosWexler2007], Section 19.5.3, p. 511), together with an original extension to
+coarse correlated equilibria (hence correlated equilibria).
 
 For **monotone basic** utility games, one uniformly random best-response step increases expected
 welfare by at least `(profileValue o - 2 * profileValue s) / n`, so `O(n log(1 / ε))` random
@@ -90,10 +90,10 @@ closely.
 * `Cslib.GameTheory.UtilityGame.IsValid.profileValue_le_two_mul_of_isPureNash`
   ([TardosWexler2007], Theorem 19.19; [Vetta2002]): every pure Nash equilibrium of a monotone valid
   utility game achieves at least half the social welfare of any profile (`PoA ≤ 2`).
-* `IsValid.profileValue_le_two_mul_expected_of_isCoarseCorrelatedEquilibrium`,
-  `Cslib.GameTheory.UtilityGame.IsValid.profileValue_le_two_mul_expected_of_isMixedNash`
-  ([Vetta2002]; [TardosWexler2007], Section 19.5.3): `PoA ≤ 2` extends to coarse correlated,
-  correlated, and mixed Nash equilibria.
+* `Cslib.GameTheory.UtilityGame.IsValid.profileValue_le_two_mul_expected_of_isMixedNash`
+  ([Vetta2002]; [TardosWexler2007], Section 19.5.3): `PoA ≤ 2` extends to mixed Nash equilibria.
+* `IsValid.profileValue_le_two_mul_expected_of_isCoarseCorrelatedEquilibrium` (original):
+  expected-welfare `PoA ≤ 2` extension to coarse correlated (hence correlated) equilibria.
 * `Cslib.GameTheory.UtilityGame.IsBasic.mul_profileValue_le_expectedWalkValue`
   ([MirrokniVetta2004]; [GoemansMirrokniVetta2005]; [TardosWexler2007], Theorem 19.20): after
   `t ≥ (n / 2) * log (1 / ε)` random best-response steps in a monotone basic utility game with
@@ -395,10 +395,10 @@ theorem IsValid.profileValue_le_two_mul_of_isPureNash {G : UtilityGame ι S} (hG
   have hbud := hG.sum_utility_le s
   linarith
 
-/-- **Coarse Correlated Price of Anarchy for Monotone Utility Games**: for every coarse correlated
-equilibrium `σ` of `G.toCostGame` (hence also every correlated equilibrium via
-`CostGame.IsCorrelatedEquilibrium.isCoarseCorrelatedEquilibrium`), expected social welfare under `σ`
-is at least half the social welfare of any profile `o`. -/
+/-- **Coarse Correlated Price of Anarchy for Monotone Utility Games** (original extension): for
+every coarse correlated equilibrium `σ` of `G.toCostGame` (hence also every correlated equilibrium
+via `CostGame.IsCorrelatedEquilibrium.isCoarseCorrelatedEquilibrium`), expected social welfare under
+`σ` is at least half the social welfare of any profile `o`. -/
 theorem IsValid.profileValue_le_two_mul_expected_of_isCoarseCorrelatedEquilibrium
     {G : UtilityGame ι S} (hG : G.IsValid) (hmono : Monotone G.socialValue)
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} (hσ : G.toCostGame.IsCoarseCorrelatedEquilibrium σ)
