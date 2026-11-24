@@ -1227,6 +1227,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ACC0
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Gadgets
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Simulation
+public import CslibFrontier.Computability.Circuit.Boolean.ACC0.UniversalSimulation
 public import CslibFrontier.Computability.Circuit.Boolean.Advice
 public import CslibFrontier.Computability.Circuit.Boolean.Advice.Hierarchy
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser
@@ -1537,6 +1538,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.SymAnd
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.Compile
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.SAT
+public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.WitnessVerifier
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Collapse
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Mobius
@@ -2278,6 +2280,7 @@ public import CslibFrontier.Computability.Complexity.Classes.FunctionTime.Bounds
 public import CslibFrontier.Computability.Complexity.Classes.FunctionTime.Decide
 public import CslibFrontier.Computability.Complexity.Classes.FunctionTime.WordRAM
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy
+public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.FineNondeterministicExponentialTime
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonal
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalBounds
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiagonalVerifier
