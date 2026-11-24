@@ -669,4 +669,31 @@ example :
   have h := hray c (Finset.mem_singleton_self c)
   exact ⟨r, hgerm, by simpa only [Finset.mem_singleton_self, decide_true] using h⟩
 
+-- The observation is exactly at cut height and starts with odd ray parity.
+example : ∃ r : Route, r.start = 0 ∧ r.finish = ⟨0, 2⟩ ∧
+    r.rayParity 1 ⟨-1, 1⟩ = false := by
+  classical
+  let b : ℂ := ⟨0, 2⟩
+  let c : ℂ := ⟨-1, 1⟩
+  let points : Finset ℂ := {c}
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have hcut : AffineMap.lineMap (0 : ℂ) b (1 / 2 : ℝ) ∈
+      Set.univ \ (↑points : Set ℂ) := by
+    refine ⟨Set.mem_univ _, ?_⟩
+    intro h
+    have he : AffineMap.lineMap (0 : ℂ) b (1 / 2 : ℝ) = c := Finset.mem_singleton.mp h
+    have hr := congrArg Complex.re he
+    norm_num [AffineMap.lineMap_apply_module', Complex.real_smul, Complex.mul_re, b, c] at hr
+  obtain ⟨r, he, -, -, -, hr⟩ :=
+    Route.exists_line_add_rayParity isOpen_univ hconn points points (fun _ h => h)
+      (fun z _ => Set.mem_univ z) 0 b (t := 1 / 2) (by constructor <;> norm_num) hcut
+      (u := 1) one_ne_zero
+  have hline : (Route.line 0 b).rayParity 1 c = true := by
+    rw [Route.rayParity_line]
+    norm_num [RayCrosses, horizontalIntercept, b, c]
+  refine ⟨r, he false, he true, ?_⟩
+  have hc : c ∈ points := Finset.mem_singleton_self _
+  simpa only [hline, hc, decide_true, BooleanRing.add_self, Bool.zero_eq_false] using hr c hc
+
 end CslibFrontierTests.PolygonalRayParityIntersections
