@@ -15,15 +15,17 @@ import CslibFrontier.Computability.Probabilistic.PPT.Composition
 /-!
 # Prefix hybrids for the word cascade
 
-This is the endpoint step for the tree-hybrid proof of [BonehShoup2023], v0.6, Section 6.4.2,
-printed pp. 229–230. At block depth `d`, sample a uniform key for each distinct prefix of
-at most `d` blocks and evaluate the remaining suffix using the cascade. Short queries are
+This is the endpoint step for the cascade proof of [BonehShoup2023], v0.6, Section 6.4.2
+(printed pp. 229–230), which carries over the variable-length tree hybrids from
+Section 4.6.1 (printed pp. 152–153). At block depth `d`, sample a uniform key for each distinct
+prefix of at most `d` blocks and evaluate the remaining suffix using the cascade. Short queries are
 their own frontier prefixes, so a cut covering the domain is the random-function oracle
 even when valid queries can have different lengths. The adjacent-hybrid reduction requires
 prefix-free admissibility and is separate.
 
-For the source domain, choose `valid n` to accept aligned words of at most `ℓ` blocks. The
-endpoint laws also apply to any restriction of that domain. Invalid queries receive `[]`.
+For the source's admissible queries (Definition 4.5), choose `valid n` to accept encodings of
+one through `ℓ` blocks from the input alphabet. The endpoint laws also hold when the predicate
+allows the empty word. Invalid queries receive `[]`.
 -/
 
 public section
@@ -59,8 +61,10 @@ theorem eval_cascadePrefixHybridGame_eq_ideal {valid : ℕ → List Bool → Boo
   simp only [cascadePrefixHybridGame, prefixHybridGame, prfIdealGameOn, id_eq,
     prefixHybridOracle_eq_cachedRandomFunctionOracle hcut (cascadeFamily_nil inLen family)]
 
-/-- The word-cascade hybrid has a strict polynomial-time certificate for the complete interaction
-when the base evaluator, block width and validity test are polynomial-time computable. -/
+/-- Certify the complete word-cascade hybrid against a strict oracle-PPT adversary. The evaluator,
+block width and validity test are polynomial-time computable, and the base evaluator preserves the
+key width on valid blocks. The parameter and depth are unary and the certificate charges the
+encoded prefix cache. -/
 theorem isPPTOn_cascadePrefixHybridGame {valid : ℕ → List Bool → Bool}
     {inLen : ℕ → ℕ} {family : List Bool → List Bool → List Bool}
     {adversary : OracleDistinguisher}
