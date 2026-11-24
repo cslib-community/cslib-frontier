@@ -41,9 +41,9 @@ and §16.3.3, locators not verified against primary PDF):
 ## Main definitions
 
 * `PriceSchedule`, `PriceSchedule.policy`, `PriceSchedule.arrivalMechanism`.
-* `ThresholdWins`, `thresholdSingleItemPolicy`, `thresholdSingleItemMechanism`.
-  Social welfare (`welfare`) and seller revenue (`revenue`) live in
-  `CslibFrontier.GameTheory.Mechanism.Online.Basic`.
+* `ThresholdWins`, `thresholdSingleItemPolicy`, `thresholdSingleItemMechanism`: fixed-threshold
+  single-item winning predicate, causal policy, and strongly truthful mechanism (scored via
+  `welfare` and `revenue` from `CslibFrontier.GameTheory.Mechanism.Online.Basic`).
 
 ## Main results
 
