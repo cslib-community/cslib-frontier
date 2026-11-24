@@ -23,8 +23,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.UT`.
 
 ## Main definitions
 
-* `Cslib.SLTower.UMonoid h`, `Cslib.SLTower.U h`: the upper unitriangular matrices, as a
-  submonoid and as a subgroup of `SL_h(F₂)`.
+* `Cslib.SLTower.U h`: the upper unitriangular matrices, as a subgroup of `SL_h(F₂)`
+  (membership: `Cslib.SLTower.mem_U`).
 * `Cslib.SLTower.x h j`: the simple root element `1 + E_{j,j+1}`.
 * `Cslib.SLTower.equivU h`: `U h` is parametrized by its entries above the diagonal.
 
@@ -43,7 +43,7 @@ open Matrix Finset
 abbrev SL2 (h : ℕ) : Type := Matrix.SpecialLinearGroup (Fin h) (ZMod 2)
 
 /-- Upper unitriangular matrices, as a submonoid of `SL_h(F₂)`. -/
-@[expose] def UMonoid (h : ℕ) : Submonoid (SL2 h) where
+private def UMonoid (h : ℕ) : Submonoid (SL2 h) where
   carrier := {A | ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1}
   one_mem' := fun i j => ⟨fun hij => Matrix.one_apply_ne hij.ne', Matrix.one_apply_eq i⟩
   mul_mem' := by
@@ -66,7 +66,7 @@ abbrev SL2 (h : ℕ) : Type := Matrix.SpecialLinearGroup (Fin h) (ZMod 2)
 
 /-- Upper unitriangular matrices: the submonoid, closed under inverses since `SL_h(F₂)` is
 finite. -/
-@[expose] def U (h : ℕ) : Subgroup (SL2 h) :=
+def U (h : ℕ) : Subgroup (SL2 h) :=
   { UMonoid h with
     inv_mem' := fun {a} ha => by
       -- in a finite group `a⁻¹ = a ^ (orderOf a - 1)`
