@@ -21,7 +21,7 @@ Let `c` be a circuit of size `s` computing `f` on `n`-bit states. Some circuit o
 `60000 * powerBudget n s (2 ^ n) L` computes the canonical label of every state: the
 lexicographically least state of its eventual cycle, the cycle length and its phase
 (`cycle_label_circuit`), for every `0 < L ≤ 2 ^ n`; with the balanced parameter the size is at
-most `180000 * optimizedBudget n s (2 ^ n)` (`cycle_labels_optimized`).
+most `120000 * optimizedBudget n s (2 ^ n)` (`cycle_labels_optimized`).
 
 The construction first applies `f^[(2 ^ n)!]` with a fixed-power circuit. This moves every state
 onto its cycle without changing its label. On a periodic state, choose checkpoints as for fixed
@@ -241,11 +241,11 @@ theorem cycle_label_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (
     omega
 
 /-- **Square-root cycle labels.** Some circuit of size at most
-`180000 * optimizedBudget n c.size (2 ^ n)` computes the canonical label of every state. -/
+`120000 * optimizedBudget n c.size (2 ^ n)` computes the canonical label of every state. -/
 theorem cycle_labels_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature n (labelWidth n),
       out.Computes interpretation (canonicalLabel (c.eval interpretation)) ∧
-      (out.size : ℝ) ≤ 180000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 120000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := cycle_label_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩

@@ -202,7 +202,7 @@ theorem visit_schedule_circuit (c : Circuit signature n n) (L : ℕ)
     lia
 
 /-- **Square-root visit-schedule circuit.** Optimizing `L` gives a circuit of size at most
-`15000000 * optimizedBudget n c.size (2 ^ n)` whose output record characterizes all visit times and
+`10000000 * optimizedBudget n c.size (2 ^ n)` whose output record characterizes all visit times and
 determines the exact visit count up to any deadline `T`. -/
 theorem visit_schedule_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature (n + n) (visitScheduleWidth n),
@@ -211,7 +211,7 @@ theorem visit_schedule_optimized (c : Circuit signature n n) :
       (∀ z T, Set.ncard {t : ℕ | t ≤ T ∧
         (c.eval interpretation)^[t] (inputLeft z) = inputRight z} =
           visitScheduleCount (out.eval interpretation z) T) ∧
-      (out.size : ℝ) ≤ 15000000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 10000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := visit_schedule_circuit c L hL hLN
   refine ⟨out, ho, fun z T => ?_, ?_⟩
