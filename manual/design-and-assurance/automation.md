@@ -246,8 +246,7 @@ forms, it executes data instructions and conditionals and leaves the postconditi
 reached. It stops at a loop, a random sample or a program given by name and leaves `WP w c' y Q'`:
 continue with `refine WP.of_execWithin h ?_` from a specification `h` of `c'` (with
 `refine WP.Exact.of_exec h ?_` on an exact goal), or with `wram_call`, then run `wram_exec`
-again. A program named among the hints, as in `wram_exec [program, h]`, is executed instead, up to
-the programs it calls. A conditional the facts do not decide splits into goals tagged `pos` and `neg`;
+again. A conditional the facts do not decide splits into goals tagged `pos` and `neg`;
 `wram_exec -split` stops there instead. `wram_simp` simplifies register
 and memory reads in the remaining postcondition, and `wram_bounded` proves `y.Bounded w` for data
 built by writes from bounded data, leaving the fitting conditions it cannot prove. The
