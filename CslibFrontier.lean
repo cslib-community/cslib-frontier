@@ -6394,6 +6394,7 @@ public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin
 public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.Basic
+public import CslibFrontier.Crypto.Protocols.Quantum.KeyLowerBound
 public import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
 public import CslibFrontier.Crypto.Protocols.SSP.Hybrid
@@ -8306,6 +8307,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumInformationChain
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.FidelityTraceDistance
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.Holevo
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Isometry
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize

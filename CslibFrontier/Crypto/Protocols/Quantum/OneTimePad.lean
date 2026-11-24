@@ -34,9 +34,9 @@ This product form (full decoupling) is a standard strengthening of the remark in
 Theorem 4.1 that the twirled qubit is maximally mixed "no matter if it is entangled with other
 qubits".
 
-Only the sufficiency of `2n` key bits is formalized; the matching lower bound (`2n` bits of key
-entropy are necessary, [Ambainis, Mosca, Tapp, de Wolf][AmbainisMoscaTappdeWolf2000],
-Corollary 5.4) is not.
+This file proves the sufficiency of `2n` key bits; the matching `2n`-bit key-entropy lower bound
+([Ambainis, Mosca, Tapp, de Wolf][AmbainisMoscaTappdeWolf2000], Corollary 5.4) is proved in
+`CslibFrontier.Crypto.Protocols.Quantum.KeyLowerBound`.
 
 ## Main definitions
 
