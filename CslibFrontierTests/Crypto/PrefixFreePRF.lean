@@ -22,7 +22,7 @@ malformed guesses and respects a cap on the batch.
 set_option linter.privateModule false
 
 open Cslib Cslib.Crypto Cslib.Crypto.UHF Cslib.Probability Turing.MultiTapeTM
-open scoped NNReal
+open scoped ENNReal NNReal
 
 private def properPrefixGuess : CollisionGuess (List Bool) :=
   ⟨[true, false], [true, false, false, false]⟩
@@ -152,6 +152,17 @@ example (family : List Bool → List Bool → List Bool) :
   · intro word hw
     simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hw
     exact Nat.div_le_of_le_mul hw.2
+
+/-- The ideal bound allows repeated and malformed guesses before batch preparation. -/
+example :
+    let guessBatch : ℕ × ℕ → ProbComp (List (List Bool)) := fun _ =>
+      pure [[false, false, false], [false, false, false], [true],
+        [false, false, false, true, false, false]]
+    ProbComp.eval (prfIdealGameOn (cbcBlockValid (fun _ => 3)) id
+      (prefixFreeBatchReduction id id (fun _ => 4) (cbcBlockValid (fun _ => 2)) guessBatch)
+      3) true ≤ (4 : ℕ).choose 2 / (2 : ℝ≥0∞) ^ 3 := by
+  dsimp only
+  exact eval_prfIdealGameOn_prefixFreeBatchReduction_le _ _ cbcBlockValid_append
 
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {cap : ℕ → ℕ} (hcap : ComputableInPolyTime cap encUnary encUnary) :
