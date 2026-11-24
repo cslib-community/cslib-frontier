@@ -1781,6 +1781,14 @@ public import CslibFrontier.Computability.Circuit.Frontier.PolynomialWitness
 public import CslibFrontier.Computability.Circuit.Frontier.Projection
 public import CslibFrontier.Computability.Circuit.Frontier.Quantum
 public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.AcceptCutBounds
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.ActiveSplit
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.CappedNet
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.CompiledNet
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.Observables
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.OpenState
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.SpliceTwo
+public import CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork.StateLinearCutBounds
 public import CslibFrontier.Computability.Circuit.Frontier.Rectangle
 public import CslibFrontier.Computability.Circuit.Frontier.Reduction
 public import CslibFrontier.Computability.Circuit.Frontier.SumsetBridge
