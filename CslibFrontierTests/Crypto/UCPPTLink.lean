@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Probabilistic.QueryBounds
 import CslibFrontier.Crypto.Protocols.UC.PPT
 import CslibFrontier.Crypto.Protocols.UC.PPT.Link
 import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
+import CslibFrontier.Foundations.Analysis.SpecificLimits.PolyLtPow
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontierTests.Crypto.UCPPT
 
@@ -401,28 +402,10 @@ theorem iterLinkEnv_isPPT : iterLinkEnv.IsPPT coinPartyPort msgPort := by
   rw [hl]
 
 private theorem exists_poly_lt_two_pow (c d : ℕ) : ∃ κ, c * (κ + 1) ^ d < 2 ^ κ := by
-  have hsq : ∀ m : ℕ, (m + 4) ^ 2 ≤ 2 ^ (m + 6) := by
-    intro m; induction m with
-    | zero => decide
-    | succ m ih =>
-      have : 2 * m + 9 ≤ (m + 4) ^ 2 := by nlinarith
-      calc (m + 1 + 4) ^ 2 = (m + 4) ^ 2 + (2 * m + 9) := by ring
-        _ ≤ 2 ^ (m + 6) + 2 ^ (m + 6) := Nat.add_le_add ih (this.trans ih)
-        _ = 2 ^ (m + 1 + 6) := by rw [pow_succ]; ring
-  let k : ℕ := 2 * d + c + 6
-  refine ⟨2 ^ k, ?_⟩
-  have hbase : 2 ^ k + 1 ≤ 2 ^ (k + 1) := by
-    have := Nat.one_le_pow k 2 (by decide)
-    calc 2 ^ k + 1 ≤ 2 ^ k + 2 ^ k := Nat.add_le_add_left this _
-      _ = 2 ^ (k + 1) := by rw [pow_succ]; ring
-  have hexp : c + (k + 1) * d ≤ 2 ^ k :=
-    (show c + (k + 1) * d ≤ (2 * d + c + 4) ^ 2 by dsimp only [k]; nlinarith).trans
-      (hsq (2 * d + c))
-  calc c * (2 ^ k + 1) ^ d < 2 ^ c * (2 ^ (k + 1)) ^ d :=
-      Nat.mul_lt_mul_of_lt_of_le (Nat.lt_pow_self (by decide : 1 < 2))
-        (Nat.pow_le_pow_left hbase d) (Nat.pow_pos (Nat.pow_pos (by decide : 0 < 2)))
-    _ = 2 ^ (c + (k + 1) * d) := by rw [← pow_mul, mul_comm (k + 1) d, ← pow_add]
-    _ ≤ 2 ^ (2 ^ k) := Nat.pow_le_pow_right (by decide) hexp
+  obtain ⟨N, hN⟩ := Filter.eventually_atTop.mp
+    (eventually_mul_add_one_pow_lt_pow (c : ℝ) d (by norm_num : (1 : ℝ) < 2))
+  refine ⟨N, ?_⟩
+  exact_mod_cast hN N le_rfl
 
 private theorem queriesSatisfy_bind_right {ι : Type} {spec : ι → Type} {α β : Type}
     {p : ι → Prop} {prog : OracleComp spec α} {cont : α → OracleComp spec β}

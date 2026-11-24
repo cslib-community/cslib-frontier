@@ -143,73 +143,6 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
         encSum_inr, List.length_cons] at h1 ⊢
       omega
 
-private theorem lowerWith_liftRightProgram {ιL ιR α : Type} {L : ιL → Type} {R : ιR → Type}
-    (iL : WordInterface L) (iR : WordInterface R) (limit : ℕ) (prog : ProbOracleComp R α) :
-    ProbOracleComp.lowerWith (iL.sum iR) limit (Machine.liftRightProgram L prog) =
-      ProbOracleComp.simulate
-        (fun cw : iR.Channel × List Bool =>
-          ProbOracleComp.query (spec := fun _ : (iL.sum iR).Channel × List Bool => List Bool)
-            (.inr cw.1, cw.2))
-        (ProbOracleComp.lowerWith iR limit prog) := by
-  induction prog with
-  | pure a => rfl
-  | liftBind q cont ih =>
-    cases q with
-    | inl m =>
-      change ProbOracleComp.lowerWith (iL.sum iR) limit
-        (Machine.liftRightProgram L (ProbOracleComp.sample (ProbComp.unifFin m) >>= cont)) =
-        ProbOracleComp.simulate _ (ProbOracleComp.lowerWith iR limit
-          (ProbOracleComp.sample (ProbComp.unifFin m) >>= cont))
-      simp only [Machine.liftRightProgram_bind, Machine.liftRightProgram_sample,
-        ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample]
-      exact congrArg (ProbOracleComp.sample (ProbComp.unifFin m) >>= ·) (funext ih)
-    | inr r =>
-      change ProbOracleComp.lowerWith (iL.sum iR) limit
-        (Machine.liftRightProgram L (ProbOracleComp.query r >>= cont)) =
-        ProbOracleComp.simulate _ (ProbOracleComp.lowerWith iR limit
-          (ProbOracleComp.query r >>= cont))
-      simp only [Machine.liftRightProgram_bind, Machine.liftRightProgram_query,
-        ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
-        ProbOracleComp.simulate_map, WordInterface.lowerQuery, WordInterface.sum,
-        Sum.map_inr, Sum.elim_inr]
-      exact congrArg _ (funext ih)
-
-private theorem mem_support_simulate_channelMap {C₁ C₂ α : Type} (f : C₁ → C₂)
-    (prog : WordOracleComp C₁ α) {x : α}
-    (hx : x ∈ OracleComp.support
-      (ProbOracleComp.simulate
-        (fun cw : C₁ × List Bool =>
-          ProbOracleComp.query (spec := fun _ : C₂ × List Bool => List Bool) (f cw.1, cw.2))
-        prog)) :
-    x ∈ OracleComp.support prog := by
-  induction prog with
-  | pure a => exact hx
-  | liftBind q cont ih =>
-    cases q with
-    | inl m =>
-      change x ∈ OracleComp.support
-        (ProbOracleComp.simulate
-          (fun cw : C₁ × List Bool =>
-            ProbOracleComp.query (spec := fun _ : C₂ × List Bool => List Bool) (f cw.1, cw.2))
-          (ProbOracleComp.sample (ProbComp.unifFin m) >>= cont)) at hx
-      rw [ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample] at hx
-      obtain ⟨a, _, hcont⟩ := OracleComp.mem_supportWith_bind_iff.mp hx
-      change x ∈ OracleComp.support (ProbOracleComp.sample (ProbComp.unifFin m) >>= cont)
-      exact OracleComp.mem_supportWith_bind_iff.mpr
-        ⟨a, by simp [ProbOracleComp.support_sample, ProbComp.eval_unifFin], ih a hcont⟩
-    | inr cw =>
-      change x ∈ OracleComp.support
-        (ProbOracleComp.simulate
-          (fun cw : C₁ × List Bool =>
-            ProbOracleComp.query (spec := fun _ : C₂ × List Bool => List Bool) (f cw.1, cw.2))
-          (ProbOracleComp.query cw >>= cont)) at hx
-      rw [ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query] at hx
-      obtain ⟨w, _, hcont⟩ := OracleComp.mem_supportWith_bind_iff.mp hx
-      change x ∈ OracleComp.support
-        (ProbOracleComp.query (spec := fun _ : C₁ × List Bool => List Bool) cw >>= cont)
-      exact OracleComp.mem_supportWith_bind_iff.mpr
-        ⟨w, by simp [ProbOracleComp.supportWith_query], ih w hcont⟩
-
 /-- Library infrastructure (no cited result): lifting a reply-bounded machine family past a left
 pass-through interface preserves `Machine.IsReplyBounded`; forwarded left-channel replies are
 normalized from at most `p.replyBound` bits in polynomial time, and right-channel replies are
@@ -266,9 +199,8 @@ theorem Machine.IsReplyBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
   | inr qE =>
     change x ∈ OracleComp.support (ProbOracleComp.lowerWith (iL.sum iR) p.replyBound
       (Machine.liftRightProgram L (((M p.secParam p.corrupted).handle qE).run s'))) at hx
-    rw [lowerWith_liftRightProgram] at hx
-    have hy := mem_support_simulate_channelMap Sum.inr _ hx
-    have h1 := hle p qE s' x hy
+    rw [support_lowerWith_liftRightProgram iL iR] at hx
+    have h1 := hle p qE s' x hx
     change (iE.reply qE x.1).length ≤ bound p + boundL p
     omega
 
