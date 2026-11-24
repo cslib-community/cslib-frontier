@@ -42,15 +42,16 @@ example : streamGroupJetSum testGroupEval 2 2 0 3 = [[3, 0], [1, 0]] ∧
     streamGroupJetSum testGroupEval 2 2 2 3 = [[18, 0], [6, 1]] := by decide +kernel
 
 example : ofJetTable (∑ x : ∀ g : Fin 2, BitString (![1, 2] g),
-      ∏ g : Fin 2, toJetTable 2 2 (testGroupEval (3 + g.1, (![1, 2] g, List.ofFn (x g))))) =
+      ∏ g : Fin 2, toJetTable 2 2 (testGroupEval (3 + g.val, (![1, 2] g, List.ofFn (x g))))) =
     [[154, 22], [86, 13]] := by
-  rw [← toJetTable_prodJet_streamGroupJetSum ![1, 2] (fun g p => testGroupEval (p.1 + g.1, p.2)) 3,
+  rw [← toJetTable_prodJet_streamGroupJetSum ![1, 2]
+      (fun g p => testGroupEval (p.1 + g.val, p.2)) 3,
     ofJetTable_toJetTable (isTableShape_prodJet 2 2 _)]
   decide +kernel
 
 private def testRoundJet (t : ℤ) (idx : ℕ) (g : Fin 2) : JetRows :=
-  if idx = 0 then if g.1 = 0 then [[-2 + t, 4], [1, 0]] else [[4 - t, t], [-1, 1]]
-  else if g.1 = 0 then [[2 + t, 0], [1, 0]] else [[2, 6 - t], [0, -1]]
+  if idx = 0 then if g.val = 0 then [[-2 + t, 4], [1, 0]] else [[4 - t, t], [-1, 1]]
+  else if g.val = 0 then [[2 + t, 0], [1, 0]] else [[2, 6 - t], [0, -1]]
 
 private def testRoundEval (p : ℤ × ℕ) : ℤ × List JetRows :=
   (if p.2 = 0 then 3 else -3, List.ofFn (testRoundJet p.1 p.2))
@@ -67,14 +68,14 @@ example : let j₁ := streamOuterJetAccum testRoundEval 2 2 2 1
 
 private noncomputable def testRoundPoly (idx : ℕ) (g : Fin 2) : Polynomial (Polynomial ℚ) :=
   if idx = 0 then
-    if g.1 = 0 then C (C (-1) + C (1 / 2) * X) + C (C 2) * X
+    if g.val = 0 then C (C (-1) + C (1 / 2) * X) + C (C 2) * X
     else C (C 2 - C (1 / 2) * X) + C (C (1 / 2) * X) * X
-  else if g.1 = 0 then C (C 1 + C (1 / 2) * X) + C 0 * X
+  else if g.val = 0 then C (C 1 + C (1 / 2) * X) + C 0 * X
   else C (C 1) + C (C 3 - C (1 / 2) * X) * X
 
 private theorem coeff_linear_mul (a₁ b₁ a₂ b₂ : Polynomial ℚ) (u : Fin 2) :
     ((C a₁ + C b₁ * X) * (C a₂ + C b₂ * X)).coeff u =
-      if u.1 = 0 then a₁ * a₂ else a₁ * b₂ + b₁ * a₂ := by
+      if u.val = 0 then a₁ * a₂ else a₁ * b₂ + b₁ * a₂ := by
   fin_cases u
   · simp only [↓reduceIte, Nat.one_ne_zero, mul_add, add_mul, mul_assoc, X_mul_C, coeff_add,
       coeff_C_mul, coeff_X_mul_zero, coeff_X, coeff_C]; ring

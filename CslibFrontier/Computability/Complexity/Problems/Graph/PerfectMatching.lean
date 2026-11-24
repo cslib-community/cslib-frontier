@@ -110,7 +110,7 @@ noncomputable def perfectMatchingPositionsEquiv (G : Graph) :
         · rw [hie]
           exact ⟨u.property, w.property, h⟩
         · rw [hie]
-          exact ⟨w.2, u.2, h.symm⟩
+          exact ⟨w.property, u.property, h.symm⟩
   right_inv S := by
     obtain ⟨S, hS1, _⟩ := S
     refine Subtype.ext (Finset.ext fun i => ⟨fun hi => ?_, fun hi => ?_⟩)
@@ -139,10 +139,11 @@ theorem partitionFunction_perfectMatchingInstance (G : Graph) :
     simp only [Finset.subset_iff, List.mem_toFinset, mem_vars_perfectMatchingInstance]
   symm
   refine Nat.card_congr ((perfectMatchingPositionsEquiv G).trans
-    { toFun := fun S => ⟨S.1, Finset.mem_filter.mpr
-        ⟨Finset.mem_powerset.mpr (hsub.mpr S.2.1), S.2.2⟩⟩
-      invFun := fun S => ⟨S.1, hsub.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp S.2).1),
-        (Finset.mem_filter.mp S.2).2⟩
+    { toFun := fun S => ⟨S.val, Finset.mem_filter.mpr
+        ⟨Finset.mem_powerset.mpr (hsub.mpr S.property.1), S.property.2⟩⟩
+      invFun := fun S => ⟨S.val,
+        hsub.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp S.property).1),
+        (Finset.mem_filter.mp S.property).2⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl })
 

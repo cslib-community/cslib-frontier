@@ -592,8 +592,8 @@ private abbrev BipNode : Type :=
 
 /-- Incidence adjacency on `BipNode c K₀`. -/
 private def bipAdj : BipNode c K₀ → BipNode c K₀ → Prop
-  | .inl v, .inr e => v ∈ hyperEdge c e.1
-  | .inr e, .inl v => v ∈ hyperEdge c e.1
+  | .inl v, .inr e => v ∈ hyperEdge c e.val
+  | .inr e, .inl v => v ∈ hyperEdge c e.val
   | _, _ => False
 
 private theorem bipAdj_symm {x y : BipNode c K₀} (h : bipAdj c K₀ x y) : bipAdj c K₀ y x := by
@@ -612,13 +612,13 @@ private def bipSimpleGraph : SimpleGraph (BipNode c K₀) where
 pruned hyperedges. -/
 private noncomputable def bipBranch (r : ℕ) : BipNode c K₀ → ℕ
   | .inl _ => r
-  | .inr e => (hyperEdge c e.1).card - 1
+  | .inr e => (hyperEdge c e.val).card - 1
 
 private theorem one_le_bipBranch {r : ℕ} (hr : 2 ≤ r) (x : BipNode c K₀) :
     1 ≤ bipBranch c K₀ r x := by
   rcases x with v | e
   · exact Nat.one_le_of_lt hr
-  · have := e.2.1
+  · have := e.property.1
     dsimp only [bipBranch]
     omega
 
@@ -719,13 +719,13 @@ private theorem card_bipAdj_inl_le {r : ℕ} (hfan : c.FanInAtMost r) (v : Hyper
     (Finset.univ.filter (bipAdj c K₀ (.inl v))).card ≤ r + 1 := by
   let f : {y : BipNode c K₀ // y ∈ Finset.univ.filter (bipAdj c K₀ (.inl v))} →
       {w : LiveSignal c // v ∈ hyperEdge c w} := fun ⟨y, hy⟩ =>
-    match y, (Finset.mem_filter.mp hy).2 with | .inr e', hadj => ⟨e'.1, hadj⟩
+    match y, (Finset.mem_filter.mp hy).2 with | .inr e', hadj => ⟨e'.val, hadj⟩
   have hf_inj : Function.Injective f := by
     rintro ⟨u₁ | e₁, h₁⟩ ⟨u₂ | e₂, h₂⟩ h
     · exact False.elim (Finset.mem_filter.mp h₁).2
     · exact False.elim (Finset.mem_filter.mp h₁).2
     · exact False.elim (Finset.mem_filter.mp h₂).2
-    · have he : e₁.1 = e₂.1 := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
+    · have he : e₁.val = e₂.val := congrArg (Subtype.val : {w // v ∈ hyperEdge c w} → _) h
       exact Subtype.ext (congrArg Sum.inr (Subtype.ext he))
   have hcard := Fintype.card_le_of_injective f hf_inj
   rw [Fintype.card_coe, Fintype.card_subtype] at hcard
@@ -733,7 +733,7 @@ private theorem card_bipAdj_inl_le {r : ℕ} (hfan : c.FanInAtMost r) (v : Hyper
 
 open Classical in
 private theorem card_bipAdj_inr_eq (e : PrunedEdge c K₀) :
-    (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.1).card := by
+    (Finset.univ.filter (bipAdj c K₀ (.inr e))).card = (hyperEdge c e.val).card := by
   refine Finset.card_bij (fun y hy => match y, (Finset.mem_filter.mp hy).2 with
     | .inl v, _ => v) (fun y hy => ?_) (fun y₁ hy₁ y₂ hy₂ h => ?_) (fun v hv => ?_)
   · rcases y with v | e'
@@ -751,7 +751,7 @@ private theorem card_bipAdj_le {r : ℕ} (hfan : c.FanInAtMost r) (x : BipNode c
     (Finset.univ.filter (bipAdj c K₀ x)).card ≤ max (r + 1) K₀ := by
   rcases x with v | e
   · exact (card_bipAdj_inl_le c K₀ hfan v).trans (le_max_left _ _)
-  · exact ((card_bipAdj_inr_eq c K₀ e).trans_le e.2.2).trans (le_max_right _ _)
+  · exact ((card_bipAdj_inr_eq c K₀ e).trans_le e.property.2).trans (le_max_right _ _)
 
 open Classical in
 private theorem card_bipAdj_ne_le {r : ℕ} (hfan : c.FanInAtMost r) {prev x : BipNode c K₀}
@@ -1112,14 +1112,14 @@ private theorem inner_hyperUnitRow_nonneg (r : ℕ) {θ : ℝ} (hθ : 0 ≤ θ) 
 private theorem stepWeight_mul_stepWeight {r : ℕ} (hr : 2 ≤ r) (θ : ℝ) (e : PrunedEdge c K₀)
     (u v : HyperNode c) :
     stepWeight c K₀ r θ (.inl u) (.inr e) * stepWeight c K₀ r θ (.inr e) (.inl v) =
-      θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) := by
+      θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) := by
   have hr0 : (0 : ℝ) ≤ r := Nat.cast_nonneg r
-  have hk2 : 2 ≤ (hyperEdge c e.1).card := e.2.1
-  have hk1 : ((hyperEdge c e.1).card - 1 : ℕ) = ((hyperEdge c e.1).card : ℝ) - 1 := by
+  have hk2 : 2 ≤ (hyperEdge c e.val).card := e.property.1
+  have hk1 : ((hyperEdge c e.val).card - 1 : ℕ) = ((hyperEdge c e.val).card : ℝ) - 1 := by
     rw [Nat.cast_sub (by omega), Nat.cast_one]
   have _ := hr
   dsimp only [stepWeight, bipBranch]
-  rw [hk1, mul_comm (√(((hyperEdge c e.1).card : ℝ) - 1)) (√(r : ℝ)), div_mul_div_comm,
+  rw [hk1, mul_comm (√(((hyperEdge c e.val).card : ℝ) - 1)) (√(r : ℝ)), div_mul_div_comm,
     mul_self_sqrt (mul_nonneg (sqrt_nonneg _) (sqrt_nonneg _)), ← sqrt_mul hr0, ← pow_two]
 
 /-- **Two-step pairwise correlation lower bound:** for `S ≥ 1` and `u, v ∈ hyperEdge c e.1`,
@@ -1127,17 +1127,17 @@ private theorem stepWeight_mul_stepWeight {r : ℕ} (hr : 2 ≤ r) (θ : ℝ) (e
 `q₂' = θ² / √(r (k - 1))`. -/
 private theorem twoStep_le_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMost r)
     {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ ≤ 1) {S : ℕ} (hS : 1 ≤ S) (e : PrunedEdge c K₀)
-    {u v : HyperNode c} (hu : u ∈ hyperEdge c e.1) (hv : v ∈ hyperEdge c e.1) :
-    let q₂' := θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))
+    {u v : HyperNode c} (hu : u ∈ hyperEdge c e.val) (hv : v ∈ hyperEdge c e.val) :
+    let q₂' := θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))
     2 * q₂' / (1 + q₂' ^ 2) - 4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) ≤
       ⟪hyperUnitRow c K₀ r θ S u, hyperUnitRow c K₀ r θ S v⟫ := by
   classical
   intro q₂'
   have hq₂'_nn : 0 ≤ q₂' := div_nonneg (sq_nonneg θ) (sqrt_nonneg _)
   have hq₂'_le : q₂' ≤ 1 := by
-    have hk2 : (2 : ℝ) ≤ (hyperEdge c e.1).card := by exact_mod_cast e.2.1
+    have hk2 : (2 : ℝ) ≤ (hyperEdge c e.val).card := by exact_mod_cast e.property.1
     have hr2 : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    have h1 : (1 : ℝ) ≤ √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) :=
+    have h1 : (1 : ℝ) ≤ √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) :=
       (le_sqrt zero_le_one (by nlinarith)).mpr (by nlinarith)
     exact (div_le_self (sq_nonneg θ) h1).trans (pow_le_one₀ hθ0.le hθ1)
   set m := 2 * S - 2
@@ -1214,15 +1214,15 @@ private theorem twoStep_le_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r) (hfan : c
 private theorem oneStep_le_inner_hyperUnitRow_center {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMost r)
     {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ ≤ 1) {S : ℕ} (hS : 1 ≤ S) (e : PrunedEdge c K₀) :
     let q₁' := stepWeight c K₀ r θ (.inr e) (.inl (Classical.choose
-      (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1))))
+      (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1))))
     ∃ w_e : EuclideanSpace ℝ (HyperNode c), ‖w_e‖ = 1 ∧
-      ∀ v ∈ hyperEdge c e.1,
+      ∀ v ∈ hyperEdge c e.val,
         2 * q₁' / (1 + q₁' ^ 2) - 2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) / q₁' ≤
           ⟪hyperUnitRow c K₀ r θ S v, w_e⟫ := by
   classical
-  set v₀ := Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1))
-  have hv₀ : v₀ ∈ hyperEdge c e.1 :=
-    Classical.choose_spec (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1))
+  set v₀ := Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1))
+  have hv₀ : v₀ ∈ hyperEdge c e.val :=
+    Classical.choose_spec (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1))
   intro q₁'
   have hq₁'_eq_all (v : HyperNode c) : stepWeight c K₀ r θ (.inr e) (.inl v) = q₁' ∧
       stepWeight c K₀ r θ (.inl v) (.inr e) = q₁' := by
@@ -1230,8 +1230,8 @@ private theorem oneStep_le_inner_hyperUnitRow_center {r : ℕ} (hr : 2 ≤ r) (h
     exact ⟨rfl, by rw [mul_comm]⟩
   have hq₁'_pos : 0 < q₁' := by
     have hr_pos : (0 : ℝ) < r := by exact_mod_cast Nat.zero_lt_of_lt hr
-    have hk_pos : (0 : ℝ) < ((hyperEdge c e.1).card - 1 : ℕ) := by
-      exact_mod_cast (show 0 < (hyperEdge c e.1).card - 1 by have := e.2.1; omega)
+    have hk_pos : (0 : ℝ) < ((hyperEdge c e.val).card - 1 : ℕ) := by
+      exact_mod_cast (show 0 < (hyperEdge c e.val).card - 1 by have := e.property.1; omega)
     dsimp only [q₁', stepWeight, bipBranch]
     exact div_pos hθ0 (sqrt_pos.mpr (mul_pos (sqrt_pos.mpr hk_pos) (sqrt_pos.mpr hr_pos)))
   have hq₁'_le : q₁' ≤ 1 := (stepWeight_le c K₀ hr hθ0.le _ _).trans hθ1
@@ -1312,20 +1312,20 @@ cone tangent hypotheses hold at `q₂' = θ² / √(r (k - 1))`, the off-diagona
 `(2 q₂' + (k - 2) q₂'²) / (1 + (k - 1) q₂'²) - 8 √D θ ^ (2S - 1)`. -/
 private theorem starCone_le_sum_offDiag_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r)
     (hfan : c.FanInAtMost r) {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ ≤ 1) {S : ℕ} (hS : 1 ≤ S)
-    (e : PrunedEdge c K₀) (hk : 3 ≤ (hyperEdge c e.1).card)
-    (htan_lo : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) ≤
-      (1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-        (hyperEdge c e.1).card)
-    (htan_hi : (1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-        (hyperEdge c e.1).card -
-        θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) ≤
-      2 * (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) *
-        √((1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-          (hyperEdge c e.1).card)) :
-    let s := hyperEdge c e.1
+    (e : PrunedEdge c K₀) (hk : 3 ≤ (hyperEdge c e.val).card)
+    (htan_lo : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) ≤
+      (1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+        (hyperEdge c e.val).card)
+    (htan_hi : (1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+        (hyperEdge c e.val).card -
+        θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) ≤
+      2 * (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) *
+        √((1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+          (hyperEdge c e.val).card)) :
+    let s := hyperEdge c e.val
     let q₂' := θ ^ 2 / √((r : ℝ) * ((s.card : ℝ) - 1))
     (s.card : ℝ) * ((s.card : ℝ) - 1) *
         ((2 * q₂' + ((s.card : ℝ) - 2) * q₂' ^ 2) / (1 + ((s.card : ℝ) - 1) * q₂' ^ 2) -
@@ -1521,8 +1521,8 @@ private theorem exists_theta_radius_twoStep_inner_ge {r k K₀ : ℕ} (hr : 2 �
     {δ : ℝ} (hδ : 0 < δ) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k →
-          ∀ {u v : HyperNode c}, u ∈ hyperEdge c e.1 → v ∈ hyperEdge c e.1 →
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k →
+          ∀ {u v : HyperNode c}, u ∈ hyperEdge c e.val → v ∈ hyperEdge c e.val →
             twoStepCorr r k - 3 * δ / 4 ≤
               ⟪hyperUnitRow c K₀ r θ S u, hyperUnitRow c K₀ r θ S v⟫ := by
   have hkR : (2 : ℝ) ≤ k := by exact_mod_cast hk
@@ -1572,7 +1572,7 @@ private theorem exists_theta_radius_twoStep_inner_ge {r k K₀ : ℕ} (hr : 2 �
     have hsimp : 4 * D * (δ / (16 * D)) = δ / 4 := by field_simp; ring
     linarith
   have hcorr := twoStep_le_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ1.le hS1 e hu hv
-  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
+  have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) = θ ^ 2 * q₂ := by
     rw [hk_eq]
     dsimp only [q₂]
     ring
@@ -1590,9 +1590,9 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
     {p η : ℝ} (hη : 0 < η) (hb : HyperEdgeBound r k p) :
     ∃ θ₀ ∈ Ioo (0 : ℝ) 1, ∀ θ ∈ Ioo θ₀ 1, ∃ S₀ : ℕ, 1 ≤ S₀ ∧ ∀ S ≥ S₀,
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
-        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.1).card = k → ∀ t : ℝ,
+        ∀ (e : PrunedEdge c K₀), (hyperEdge c e.val).card = k → ∀ t : ℝ,
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   have hkR : (2 : ℝ) ≤ k := by exact_mod_cast hk
   have hrR : (2 : ℝ) ≤ r := by exact_mod_cast hr
@@ -1625,12 +1625,12 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
     refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
     obtain ⟨S₀, hS₀, hS_sel⟩ := hθ_sel θ hθ
     refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
-    have hangle : ∑ pq ∈ (hyperEdge c e.1).offDiag,
+    have hangle : ∑ pq ∈ (hyperEdge c e.val).offDiag,
         InnerProductGeometry.angle (hyperUnitRow c K₀ r θ S pq.1)
           (hyperUnitRow c K₀ r θ S pq.2) ≤
-        ((hyperEdge c e.1).card : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1) * arccos ρ := by
-      have hcard : ((hyperEdge c e.1).offDiag.card : ℝ) =
-          ((hyperEdge c e.1).card : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1) := by
+        ((hyperEdge c e.val).card : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1) * arccos ρ := by
+      have hcard : ((hyperEdge c e.val).offDiag.card : ℝ) =
+          ((hyperEdge c e.val).card : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1) := by
         rw [Finset.offDiag_card, Nat.cast_sub (Nat.le_mul_self _), Nat.cast_mul]
         ring
       rw [← hcard, ← nsmul_eq_mul, ← Finset.sum_const]
@@ -1641,10 +1641,10 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
       exact arccos_le_arccos (hS_sel S hS c hfan e hk_eq h1 h2)
     have hprob := measureReal_straddlesOn_le_of_sum_angle (hk_eq ▸ hk)
       (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hangle t
-    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.val)
         {v | hyperScore c K₀ r θ S ω v < t}} =
         {ω | StraddlesOn (fun v => ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫) t
-          ↑(hyperEdge c e.1)} := by
+          ↑(hyperEdge c e.val)} := by
       ext ω
       exact hyperedgeStraddles_threshold_iff _ _ _
     rw [hev]
@@ -1679,13 +1679,13 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
     refine ⟨θ₀, hθ₀_mem, fun θ hθ => ?_⟩
     obtain ⟨S₀, hS₀, hS_sel⟩ := hθ_sel θ hθ
     refine ⟨S₀, hS₀, fun S hS σ n c hfan e hk_eq t => ?_⟩
-    have hprob := measureReal_straddlesOn_le_equicorr (s := hyperEdge c e.1) (hk_eq ▸ hk)
+    have hprob := measureReal_straddlesOn_le_equicorr (s := hyperEdge c e.val) (hk_eq ▸ hk)
       (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hρ0 hρ1
       (fun u hu v hv _ => hS_sel S hS c hfan e hk_eq hu hv) t
-    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.val)
         {v | hyperScore c K₀ r θ S ω v < t}} =
-        {ω | (∃ v ∈ hyperEdge c e.1, ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫ < t) ∧
-          (∃ v ∈ hyperEdge c e.1, t ≤ ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫)} := by
+        {ω | (∃ v ∈ hyperEdge c e.val, ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫ < t) ∧
+          (∃ v ∈ hyperEdge c e.val, t ≤ ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫)} := by
       ext ω
       rw [mem_ofPred_eq, mem_ofPred_eq, hyperedgeStraddles_threshold_iff]
       simp only [StraddlesOn, Finset.mem_coe, hyperScore]
@@ -1791,13 +1791,14 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
     obtain ⟨w_e, hw_e_norm, hw_e_inner⟩ :=
       oneStep_le_inner_hyperUnitRow_center c K₀ hr hfan hθ0 hθ1.le hS1 e
     have hsw_eq : stepWeight c K₀ r θ (.inr e)
-        (.inl (Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.2.1)))) = θ * q₁ := by
+        (.inl (Classical.choose (Finset.card_pos.mp (Nat.zero_lt_of_lt e.property.1)))) =
+        θ * q₁ := by
       dsimp only [stepWeight, bipBranch, q₁]
-      have hk1 : ((hyperEdge c e.1).card - 1 : ℕ) = (k : ℝ) - 1 := by
+      have hk1 : ((hyperEdge c e.val).card - 1 : ℕ) = (k : ℝ) - 1 := by
         rw [hk_eq, Nat.cast_sub (by omega), Nat.cast_one]
       rw [hk1]
       ring
-    have hκ_inner (v : HyperNode c) (hv : v ∈ hyperEdge c e.1) :
+    have hκ_inner (v : HyperNode c) (hv : v ∈ hyperEdge c e.val) :
         κ ≤ ⟪hyperUnitRow c K₀ r θ S v, w_e⟫ := by
       have hcorr := hw_e_inner v hv
       rw [hsw_eq] at hcorr
@@ -1805,16 +1806,16 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
       linarith
     have hsum_ang := InnerProductGeometry.sum_offDiag_angle_le hw_e_norm
       (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hκ_ge hκ_inner
-    have hH_eq : (((hyperEdge c e.1).card : ℝ) * κ ^ 2 - 1) /
-        (((hyperEdge c e.1).card : ℝ) - 1) = Hcap κ := by
+    have hH_eq : (((hyperEdge c e.val).card : ℝ) * κ ^ 2 - 1) /
+        (((hyperEdge c e.val).card : ℝ) - 1) = Hcap κ := by
       rw [hk_eq]
     rw [hH_eq] at hsum_ang
     have hprob := measureReal_straddlesOn_le_of_sum_angle (hk_eq ▸ hk)
       (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hsum_ang t
-    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.val)
         {v | hyperScore c K₀ r θ S ω v < t}} =
         {ω | StraddlesOn (fun v => ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫) t
-          ↑(hyperEdge c e.1)} := by
+          ↑(hyperEdge c e.val)} := by
       ext ω
       exact hyperedgeStraddles_threshold_iff _ _ _
     rw [hev]
@@ -1925,42 +1926,42 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
         have hk_ne : (k : ℝ) ≠ 0 := by positivity
         field_simp
       linarith
-    have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) = qf θ := by
+    have hq_eq : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) = qf θ := by
       rw [hk_eq]
       dsimp only [qf, q₂]
       ring
-    have hlo_e : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) ≤
-        (1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-          (hyperEdge c e.1).card := by
+    have hlo_e : θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) ≤
+        (1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+          (hyperEdge c e.val).card := by
       rw [hq_eq, hk_eq]
       exact htan_lo_θ
-    have hhi_e : (1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-        (hyperEdge c e.1).card -
-        θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1)) ≤
-      2 * (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) *
-        √((1 + (((hyperEdge c e.1).card : ℝ) - 1) *
-          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1))) ^ 2) /
-          (hyperEdge c e.1).card) := by
+    have hhi_e : (1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+        (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+        (hyperEdge c e.val).card -
+        θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1)) ≤
+      2 * (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) *
+        √((1 + (((hyperEdge c e.val).card : ℝ) - 1) *
+          (θ ^ 2 / √((r : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1))) ^ 2) /
+          (hyperEdge c e.val).card) := by
       rw [hq_eq, hk_eq]
       exact htan_hi_θ
     have hcone_sum := starCone_le_sum_offDiag_inner_hyperUnitRow c K₀ hr hfan hθ0 hθ1.le hS1 e
       (hk_eq ▸ hk3) hlo_e hhi_e
     dsimp only at hcone_sum
     rw [hq_eq, hk_eq] at hcone_sum
-    have hsum_ang : ∑ pq ∈ (hyperEdge c e.1).offDiag,
+    have hsum_ang : ∑ pq ∈ (hyperEdge c e.val).offDiag,
         InnerProductGeometry.angle (hyperUnitRow c K₀ r θ S pq.1)
           (hyperUnitRow c K₀ r θ S pq.2) ≤
-        ((hyperEdge c e.1).card : ℝ) * (((hyperEdge c e.1).card : ℝ) - 1) * arccos ρ := by
-      have hcard : ((hyperEdge c e.1).offDiag.card : ℝ) =
+        ((hyperEdge c e.val).card : ℝ) * (((hyperEdge c e.val).card : ℝ) - 1) * arccos ρ := by
+      have hcard : ((hyperEdge c e.val).offDiag.card : ℝ) =
           (k : ℝ) * ((k : ℝ) - 1) := by
         rw [Finset.offDiag_card, hk_eq, Nat.cast_sub (Nat.le_mul_self _), Nat.cast_mul]
         ring
-      have hrew : ∑ pq ∈ (hyperEdge c e.1).offDiag,
+      have hrew : ∑ pq ∈ (hyperEdge c e.val).offDiag,
           InnerProductGeometry.angle (hyperUnitRow c K₀ r θ S pq.1)
             (hyperUnitRow c K₀ r θ S pq.2) =
-          ∑ pq ∈ (hyperEdge c e.1).offDiag,
+          ∑ pq ∈ (hyperEdge c e.val).offDiag,
             arccos ⟪hyperUnitRow c K₀ r θ S pq.1, hyperUnitRow c K₀ r θ S pq.2⟫ :=
         Finset.sum_congr rfl fun pq _ =>
           InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one
@@ -1979,10 +1980,10 @@ private theorem exists_theta_radius_of_hyperEdgeBound {r k K₀ : ℕ} (hr : 2 �
         exact (mul_le_mul_of_nonneg_left hρ_le hk_prod_nn).trans hcone_sum
     have hprob := measureReal_straddlesOn_le_of_sum_angle (hk_eq ▸ hk)
       (fun v _ => norm_hyperUnitRow c K₀ r θ S v) hsum_ang t
-    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.1)
+    have hev : {ω : HyperNode c → ℝ | HyperedgeStraddles (hyperEdge c e.val)
         {v | hyperScore c K₀ r θ S ω v < t}} =
         {ω | StraddlesOn (fun v => ⟪hyperUnitRow c K₀ r θ S v, WithLp.toLp 2 ω⟫) t
-          ↑(hyperEdge c e.1)} := by
+          ↑(hyperEdge c e.val)} := by
       ext ω
       exact hyperedgeStraddles_threshold_iff _ _ _
     rw [hev]
@@ -1996,14 +1997,14 @@ private theorem exists_uniform_theta_radius {r K₀ : ℕ} {a b : ℚ}
       ∀ {σ : Signature} {n : ℕ} (c : Circuit σ n 1), c.FanInAtMost r →
         ∀ (e : PrunedEdge c K₀) (t : ℝ),
           (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real
-            {ω | HyperedgeStraddles (hyperEdge c e.1)
+            {ω | HyperedgeStraddles (hyperEdge c e.val)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤
-            (a : ℝ) * (hyperEdge c e.1).card + b + η := by
+            (a : ℝ) * (hyperEdge c e.val).card + b + η := by
   classical
   let I := Finset.Icc 2 K₀
   have hI_ne : I.Nonempty := Finset.nonempty_Icc.mpr hcert.hK₀
   have hex (k : I) := exists_theta_radius_of_hyperEdgeBound (K₀ := K₀) hcert.hr
-    (Finset.mem_Icc.mp k.2).1 hη (hcert.hedge k.1 k.2)
+    (Finset.mem_Icc.mp k.property).1 hη (hcert.hedge k.val k.property)
   let θ_of (k : I) : ℝ := Classical.choose (hex k)
   have hθ_spec (k : I) := Classical.choose_spec (hex k)
   let θ_img : Finset ℝ := (Finset.univ : Finset I).image θ_of
@@ -2029,7 +2030,7 @@ private theorem exists_uniform_theta_radius {r K₀ : ℕ} {a b : ℚ}
   have hS_spec (k : I) := Classical.choose_spec ((hθ_spec k).2 θ (hθ_k k))
   set S : ℕ := max 1 ((Finset.univ : Finset I).sup S_of)
   refine ⟨θ, hθ_mem, S, le_max_left _ _, fun c hfan e t => ?_⟩
-  let k_e : I := ⟨(hyperEdge c e.1).card, Finset.mem_Icc.mpr ⟨e.2.1, e.2.2⟩⟩
+  let k_e : I := ⟨(hyperEdge c e.val).card, Finset.mem_Icc.mpr ⟨e.property.1, e.property.2⟩⟩
   have hS_ge : S_of k_e ≤ S :=
     (Finset.le_sup (f := S_of) (Finset.mem_univ k_e)).trans (le_max_right _ _)
   exact (hS_spec k_e).2 S hS_ge c hfan e rfl t
@@ -2186,7 +2187,7 @@ of pruned expected straddling probabilities plus the cardinality of large signal
 private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ} {a b : ℚ}
     (hcert : HyperDualCert r K₀ a b) (hfan : c.FanInAtMost r) {η₀ : ℝ} (hη₀ : 0 ≤ η₀)
     (P_cross : PrunedEdge c K₀ → ℝ)
-    (hP : ∀ e : PrunedEdge c K₀, P_cross e ≤ (a : ℝ) * (hyperEdge c e.1).card + b + η₀) :
+    (hP : ∀ e : PrunedEdge c K₀, P_cross e ≤ (a : ℝ) * (hyperEdge c e.val).card + b + η₀) :
     let B_main := (((r + 1 : ℕ) : ℝ) * a + b) * Fintype.card (LiveGate c) +
       max (b : ℝ) (-a) * Fintype.card (LiveInput c) + a
     0 ≤ B_main ∧
@@ -2255,10 +2256,11 @@ private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ}
     omega
   have hsum_pruned : ∑ e : PrunedEdge c K₀, P_cross e ≤ ∑ w ∈ F_mid, wt w := by
     calc ∑ e : PrunedEdge c K₀, P_cross e
-        ≤ ∑ e : PrunedEdge c K₀, wt e.1 := Finset.sum_le_sum fun e _ => (hP e).trans (hwt_ge e.1)
+        ≤ ∑ e : PrunedEdge c K₀, wt e.val :=
+          Finset.sum_le_sum fun e _ => (hP e).trans (hwt_ge e.val)
       _ = ∑ w ∈ F_mid, wt w :=
-          Finset.sum_bij (fun e _ => e.1)
-            (fun e _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.2⟩)
+          Finset.sum_bij (fun e _ => e.val)
+            (fun e _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.property⟩)
             (fun _ _ _ _ h => Subtype.ext h)
             (fun w hw => ⟨⟨w, (Finset.mem_filter.mp hw).2⟩, Finset.mem_univ _, rfl⟩)
             (fun _ _ => rfl)
@@ -2292,7 +2294,7 @@ private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ}
 
 private def hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (t : ℝ)
     (e : PrunedEdge c K₀) : Set (HyperNode c → ℝ) :=
-  {ω | HyperedgeStraddles (hyperEdge c e.1) {v | hyperScore c K₀ r θ S ω v < t}}
+  {ω | HyperedgeStraddles (hyperEdge c e.val) {v | hyperScore c K₀ r θ S ω v < t}}
 
 private def hyperVertEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (f : ℝ → Prop)
     (v : HyperNode c) : Set (HyperNode c → ℝ) :=
@@ -2305,7 +2307,7 @@ private theorem card_hyperCut_threshold_le {c : Circuit σ n 1} {r K₀ : ℕ} {
     (θ : ℝ) (S : ℕ) (ω : HyperNode c → ℝ) (t : ℝ)
     (hprob : ∀ e : PrunedEdge c K₀,
       (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real (hyperCrossEvent c K₀ r θ S t e) ≤
-        (a : ℝ) * (hyperEdge c e.1).card + b + η₀)
+        (a : ℝ) * (hyperEdge c e.val).card + b + η₀)
     (hdev : ω ∉ Gaussian.deviation (hyperCrossEvent c K₀ r θ S t) c_dev) :
     ((hyperCut c {v | hyperScore c K₀ r θ S ω v < t}).card : ℝ) ≤
       ((((r + 1 : ℕ) : ℝ) * a + b) * Fintype.card (LiveGate c) +
@@ -2331,7 +2333,8 @@ private theorem card_hyperCut_threshold_le {c : Circuit σ n 1} {r K₀ : ℕ} {
     refine Finset.card_bij (fun w hw => ⟨w, (Finset.mem_filter.mp hw).2⟩)
       (fun w hw => mem_toFinset.mpr (mem_hyperCut_iff.mp (Finset.mem_filter.mp hw).1))
       (fun _ _ _ _ h => congrArg Subtype.val h)
-      (fun e he => ⟨e.1, Finset.mem_filter.mpr ⟨mem_hyperCut_iff.mpr (mem_toFinset.mp he), e.2⟩,
+      (fun e he => ⟨e.val,
+        Finset.mem_filter.mpr ⟨mem_hyperCut_iff.mpr (mem_toFinset.mp he), e.property⟩,
         Subtype.ext rfl⟩)
   have hcard_cut : (S_cut.card : ℝ) ≤ (S_mid.card : ℝ) + (S_big.card : ℝ) := by
     exact_mod_cast (Finset.card_le_card hcut_sub).trans (Finset.card_union_le _ _)
@@ -2375,15 +2378,15 @@ private theorem measurable_hyperScore (c : Circuit σ n 1) (K₀ r : ℕ) (θ : 
 private theorem measurableSet_hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ)
     (t : ℝ) (e : PrunedEdge c K₀) : MeasurableSet (hyperCrossEvent c K₀ r θ S t e) := by
   have heq : hyperCrossEvent c K₀ r θ S t e =
-      (⋃ v ∈ hyperEdge c e.1, {ω | hyperScore c K₀ r θ S ω v < t}) ∩
-      (⋃ v ∈ hyperEdge c e.1, {ω | ¬ hyperScore c K₀ r θ S ω v < t}) := by
+      (⋃ v ∈ hyperEdge c e.val, {ω | hyperScore c K₀ r θ S ω v < t}) ∩
+      (⋃ v ∈ hyperEdge c e.val, {ω | ¬ hyperScore c K₀ r θ S ω v < t}) := by
     ext ω
     simp only [hyperCrossEvent, HyperedgeStraddles, mem_ofPred_eq, mem_inter_iff, mem_iUnion,
       exists_prop]
   rw [heq]
-  exact ((hyperEdge c e.1).measurableSet_biUnion fun v _ =>
+  exact ((hyperEdge c e.val).measurableSet_biUnion fun v _ =>
     measurableSet_lt (measurable_hyperScore c K₀ r θ S v) measurable_const).inter
-    ((hyperEdge c e.1).measurableSet_biUnion fun v _ =>
+    ((hyperEdge c e.val).measurableSet_biUnion fun v _ =>
       (measurableSet_lt (measurable_hyperScore c K₀ r θ S v) measurable_const).compl)
 
 private theorem dependsOn_hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (t : ℝ)
@@ -2391,7 +2394,7 @@ private theorem dependsOn_hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (�
     DependsOn (· ∈ hyperCrossEvent c K₀ r θ S t e)
       (bipSupportBall c K₀ (.inr e) (2 * S + 1)) := by
   intro ω ω' hω
-  have hsc (v : HyperNode c) (hv : v ∈ hyperEdge c e.1) :
+  have hsc (v : HyperNode c) (hv : v ∈ hyperEdge c e.val) :
       hyperScore c K₀ r θ S ω v = hyperScore c K₀ r θ S ω' v := by
     refine hyperScore_congr fun z (hz : (bipSimpleGraph c K₀).edist (.inl v) (.inl z) ≤ 2 * S) =>
       hω z ?_
