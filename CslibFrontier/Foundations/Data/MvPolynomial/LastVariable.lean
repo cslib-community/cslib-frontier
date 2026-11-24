@@ -18,7 +18,8 @@ The last-variable equivalence represents a multivariate polynomial as a
 univariate polynomial with multivariate coefficients in the prefix variables.
 Evaluating the univariate variable specializes the last coordinate. Degree in
 the last variable becomes univariate degree, and prefix-degree bounds become
-bounds on every coefficient.
+bounds on every coefficient. The underlying option equivalence also gives a
+total-degree bound when the outer variable is joined to the coefficient variables.
 
 ## Main definitions
 
@@ -39,6 +40,26 @@ namespace MvPolynomial
 open Finset
 
 variable {R : Type*} {m : ℕ} [CommSemiring R]
+
+/-- Bound the total degree after bringing the univariate variable into the index type.
+The degree of each coefficient contributes together with its own outer exponent. -/
+theorem totalDegree_optionEquivLeft_symm_le {κ : Type*}
+    (p : Polynomial (MvPolynomial κ R)) {D : ℕ}
+    (h : ∀ k ∈ p.support, (p.coeff k).totalDegree + k ≤ D) :
+    ((optionEquivLeft R κ).symm p).totalDegree ≤ D := by
+  rw [totalDegree, Finset.sup_le_iff]
+  intro m hm
+  have hcoeff := optionEquivLeft_coeff_some_coeff_none R κ m ((optionEquivLeft R κ).symm p)
+  rw [AlgEquiv.apply_symm_apply] at hcoeff
+  have hm' : m.some ∈ (p.coeff (m none)).support := by
+    apply mem_support_iff.mpr
+    rw [hcoeff]
+    exact mem_support_iff.mp hm
+  have hk : m none ∈ p.support := Polynomial.mem_support_iff.mpr fun hz => by
+    rw [hz, support_zero] at hm'
+    exact Finset.notMem_empty _ hm'
+  rw [Finsupp.sum_option_index _ (fun _ a => a) (fun _ => rfl) (fun _ _ _ => rfl), add_comm]
+  exact (Nat.add_le_add_right (le_totalDegree hm') _).trans (h _ hk)
 
 /-- Isolate the last variable of a multivariate polynomial. -/
 noncomputable def lastVariableEquiv (R : Type*) [CommSemiring R] (m : ℕ) :

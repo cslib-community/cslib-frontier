@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterDegree
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
 import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.ParameterDegree
 import Mathlib.Algebra.Polynomial.BigOperators
@@ -23,6 +24,8 @@ numerator can contribute. For a positive power trace, the Jacobian's fixed degre
 be absorbed into a bound linear in the power. Newton's identity then gives a linear bound
 in the reversed characteristic coefficient index. Scaling the retained parameters by a
 fresh indeterminate transfers the same bound to their multivariate total degree.
+The decreasing coefficient bound also controls the degree after joining the
+critical-value variable to the retained variables.
 
 Adapted from `QuotientParameterDegree`, `SeparatedPotentialDegree`, and
 `ParametricCriticalBounds`, `MultivariateQuotientDegree`, and `RelativeCharacteristicBounds`
@@ -240,5 +243,28 @@ theorem totalDegree_relativeValuePolynomial_coeff_le {n ell : ℕ} {κ : Type*} 
     _ = _ := by
       simp only [Nat.succ_eq_add_one]
       ring
+
+/-- Bound the total degree in the critical value, penalty, and retained parameters together.
+A higher critical-value exponent leaves less degree available in its coefficient. -/
+theorem totalDegree_flattenedRelativeValuePolynomial_le {n ell : ℕ} {κ : Type*} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) :
+    (flattenedRelativeValuePolynomial (by omega : 1 ≤ ell) F hF).totalDegree ≤
+      ell ^ n * ((ell + 2 + n * ell) * (F.totalDegree + 1)) := by
+  let D := ell ^ n
+  let A := (ell + 2 + n * ell) * (F.totalDegree + 1)
+  let p := relativeValuePolynomial (by omega : 1 ≤ ell) F hF
+  change ((optionEquivLeft ℤ (Option κ)).symm p).totalDegree ≤ D * A
+  apply totalDegree_optionEquivLeft_symm_le
+  intro k hk
+  have hD : p.natDegree = D := valuePolynomial_natDegree _ _ _ _ _
+  have hkD := (Polynomial.le_natDegree_of_mem_supp k hk).trans_eq hD
+  have hA : 1 ≤ A := Nat.succ_le_of_lt (by dsimp only [A]; positivity)
+  have hcoeff : (p.coeff k).totalDegree ≤ (D - k) * A :=
+    totalDegree_relativeValuePolynomial_coeff_le hell F hF k
+  calc
+    _ ≤ (D - k) * A + k := Nat.add_le_add_right hcoeff _
+    _ ≤ (D - k) * A + k * A := by
+      simpa only [mul_one] using Nat.add_le_add_left (Nat.mul_le_mul_left k hA) ((D - k) * A)
+    _ = D * A := by rw [← Nat.add_mul, Nat.sub_add_cancel hkD]
 
 end MvPolynomial.CriticalSystem

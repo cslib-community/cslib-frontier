@@ -51,17 +51,20 @@ example :
     MvPolynomial.coeffNorm1_one.le MvPolynomial.coeffNorm1_add_le MvPolynomial.coeffNorm1_mul_le
     MvPolynomial.coeffNorm1_neg MvPolynomial.coeffNorm1_nsmul (by decide) r hr hR v hdeg hV
 
--- The flattened relative critical-value polynomial keeps the source norm bound.
+-- The flattened relative critical-value polynomial keeps the source norm and degree bounds.
 open MvPolynomial.CriticalSystem in
 example :
     let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) * MvPolynomial.X (.inr 0)
     let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_mul _ _).trans (by simp)
-    (flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF).coeffNorm1 ≤
-      2 ^ relativeValueCoeffNormExponent 1 2 0 := by
+    let p := flattenedRelativeValuePolynomial (by decide : 1 ≤ 2) F hF
+    p.coeffNorm1 ≤ 2 ^ relativeValueCoeffNormExponent 1 2 0 ∧
+      p.totalDegree ≤ 2 * (6 * (F.totalDegree + 1)) := by
   dsimp only
-  apply coeffNorm1_flattenedRelativeValuePolynomial_le (by decide)
-  exact (MvPolynomial.coeffNorm1_mul_le _ _).trans
-    (by simp only [MvPolynomial.coeffNorm1_X, one_mul, pow_zero, le_refl])
+  constructor
+  · apply coeffNorm1_flattenedRelativeValuePolynomial_le (by decide)
+    exact (MvPolynomial.coeffNorm1_mul_le _ _).trans
+      (by simp only [MvPolynomial.coeffNorm1_X, one_mul, pow_zero, le_refl])
+  · exact totalDegree_flattenedRelativeValuePolynomial_le (by decide) _ _
 
 -- The logarithm's zero slot is masked before inversion, including at the smallest prime.
 example (t : ℕ) : traceLogarithmResidue 2 0 t = 0 := by
