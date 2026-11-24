@@ -2431,6 +2431,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ConfigurationMatrix
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.ConfigurationReader
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.Nisan
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.NisanSpace
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.PairedPorts
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized.TimeLayer

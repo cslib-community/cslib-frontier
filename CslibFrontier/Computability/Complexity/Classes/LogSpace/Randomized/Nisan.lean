@@ -38,7 +38,8 @@ machine's answers over the `O(log² m)`-bit seeds of Nisan's generator
 (`Cslib.Complexity.exists_acceptNisanSeeds_of_mem_BPL`). This is a step of Nisan's proof that
 `BPL ⊆ DSPACE(log² n)` [Nisan1992], [Arora and Barak, Section 16.7][AroraBarak07], not that
 inclusion: the deterministic simulation that enumerates the seeds, evaluates the generator and
-replays the machine within `O(log² m)` work-tape cells is not formalized here (issue #459).
+replays the machine within `O(log² m)` work-tape cells is
+`Cslib.Complexity.BPL_subset_DSPACE_log2_sq`.
 
 ## Main definitions
 
@@ -191,7 +192,7 @@ a constant `d` such that on every such instance, with
 and the machine, reading the generator's output as its coins, accepts members on more than half of
 the seeds and non-members on fewer than half. The parameters depend only on `m`. The deterministic
 `O(log² m)`-space simulation that enumerates the seeds, evaluates the generator and replays the
-machine remains open (issue #459). -/
+machine is `Cslib.Complexity.BPL_subset_DSPACE_log2_sq`. -/
 theorem exists_acceptNisanSeeds_of_mem_BPL (h : A ∈ BPL enc) :
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : MultiTapePTM k Bool State) (c d : ℕ),
       (∀ a, M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1))) ∧
