@@ -653,27 +653,29 @@ private partial def endSection (L : Lexer σ) : PM σ Unit := do
 
 mutual
 
-/-- A reference of a specification step, made absolute and sent to its kernel number. -/
-private partial def remapRef (map : Std.HashMap ℕ ℕ) : Ref → Ref
-  | .abs n => .abs ((map[n]?).getD n)
+/-- An absolute reference of the specification step whose negation has the augmented number `a`,
+sent to its kernel number: `map` sends the earlier steps, and the constraints of this step (its
+negation and those of its subproof) are numbered `off` higher in the kernel syntax. -/
+private partial def remapRef (map : Std.HashMap ℕ ℕ) (a off : ℕ) : Ref → Ref
+  | .abs n => .abs (if a ≤ n then n + off else (map[n]?).getD n)
   | r => r
 
-/-- The constraint references of a step in a specification, sent to kernel numbers; relative
-references inside the subproof are kept. -/
-private partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
+/-- The constraint references of a step in a specification, whose negation has the augmented
+number `a`, sent to kernel numbers (`remapRef`); relative references are kept. -/
+private partial def remap (map : Std.HashMap ℕ ℕ) (a off : ℕ) : AStep → AStep
   | .pol ops => .pol (ops.map fun (o : AOp) => match o with
-    | .ref r => .ref (remapRef map r)
+    | .ref r => .ref (remapRef map a off r)
     | o => o)
   | .rup c (some hs) => .rup c (some (hs.map fun (h : AHint) => match h with
-    | .ref r => .ref (remapRef map r)
+    | .ref r => .ref (remapRef map a off r)
     | h => h))
-  | .pbc c sub q => .pbc c (sub.map (·.map (remap map a))) (q.map (remapRef map))
+  | .pbc c sub q => .pbc c (sub.map (·.map (remap map a off))) (q.map (remapRef map a off))
   | .goal g sub q =>
     let g := match g with
-      | .ref r => AGoal.ref (remapRef map r)
+      | .ref r => AGoal.ref (remapRef map a off r)
       | g => g
-    .goal g (sub.map (remap map a)) (q.map (remapRef map))
-  | .labeled l s => .labeled l (remap map a s)
+    .goal g (sub.map (remap map a off)) (q.map (remapRef map a off))
+  | .labeled l s => .labeled l (remap map a off s)
   | s => s
 
 /-- The local number of a reference inside `def_order`, the next number being `next` and the
@@ -997,9 +999,9 @@ private partial def orderBody (L : Lexer σ) (full : Bool) :
       a := a + 1
       n := n + 2
     | some sub =>
-      let sub := sub.map (remap map a)
+      let sub := sub.map (remap map a (n - a))
       let (items, n', lbl') := toKernelItems lbl sub (n + 1)
-      ksp := ksp.push ⟨ω, some items, q.map (fun r => refNum lbl' n' (remapRef map r))⟩
+      ksp := ksp.push ⟨ω, some items, q.map (fun r => refNum lbl' n' (remapRef map a (n - a) r))⟩
       map := map.insert (a + (n' - n)) n'
       lbl := lbl'
       if let some l := lab then lbl := lbl.insert l n'

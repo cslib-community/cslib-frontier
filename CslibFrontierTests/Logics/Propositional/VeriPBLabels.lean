@@ -33,7 +33,9 @@ elaboration of it.
   instance or in the proof, takes precedence; VeriPB's test `def_order_labels`, where a label
   inside the transitivity proof of an order is local to it; and a label on a `red` step of a
   specification, used by a `proofgoal` of the next step, but not visible in the transitivity
-  proof.
+  proof. The goal of a `proofgoal` is resolved before its subproof. After a step of the
+  specification without a subproof, references to earlier steps, by number or by label, and to
+  the constraints of the current step reach the right constraints.
 -/
 
 set_option linter.hashCommand false
@@ -293,5 +295,9 @@ def specNoSub (goal body : String) : String :=
 #guard checkAugmented trivOPB (specNoSub "1" "@y pol -2 -1 + ;") == some .noClaim
 #guard checkAugmented trivOPB (specNoSub "@s1" "@y pol -2 -1 + ;") == some .noClaim
 #guard checkAugmented trivOPB (specNoSub "1" "@y pol 1 -1 + ;") == none
+-- Absolute references to the negation `2` of the second step and to the negated goal `3`.
+#guard checkAugmented trivOPB (specNoSub "1" "@y rup >= 1 : 3 2 ;") == some .noClaim
+#guard checkAugmented trivOPB (specNoSub "@s1" "@y pol 3 2 + ;") == some .noClaim
+#guard checkAugmented trivOPB (specNoSub "1" "@y rup >= 1 : 3 ;") == none
 
 end CslibFrontierTests.Logics.Propositional.VeriPBLabels
