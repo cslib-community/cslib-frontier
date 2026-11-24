@@ -23,15 +23,15 @@ or the initial left endpoint if there is none, and the right endpoint is the mid
 the last level whose half is `false`, or the initial right endpoint if there is none
 (`Cslib.Reachability.midpointGame_eq_reach_lastMidpoint`).
 
-The midpoint of the last level with a given half is extracted from the moves in time linear in
+The midpoint of the last level with a given half is extracted from any moves `z` in time linear in
 the number of moves, `O((2 * w + 2) * i + w + |z|)`, by a native multi-tape machine
-(`Cslib.Reachability.computableInO_endpointWord`): the level marks are written in one streaming
-pass (`Cslib.Reachability.levelMarks`), the moves are reversed, and a finite-state zip transducer
-reads the marks and the reversed moves in lockstep (`Cslib.Reachability.endpointZip`), copying the
-first level, from the end, with the wanted half. The moves are read a constant number of times,
-not once per level: re-reading the remaining moves at every level would take order `w * i ^ 2`
-steps. On moves of the length of the game the result is the midpoint of the last level with that
-half (`Cslib.Reachability.endpointWord_eq`).
+(`Cslib.Reachability.computableInO_lastMidpoint`). The moves are padded or cut to the length of the
+game by a zip transducer (`Cslib.Reachability.padZip`); then the level marks are written in one
+streaming pass (`Cslib.Reachability.levelMarks`), the moves are reversed, and a finite-state zip
+transducer reads the marks and the reversed moves in lockstep (`Cslib.Reachability.endpointZip`),
+copying the first level, from the end, with the wanted half. The moves are read a constant number of
+times, not once per level: re-reading the remaining moves at every level would take order
+`w * i ^ 2` steps. The word this endpoint machine computes is `Cslib.Reachability.endpointWord`.
 
 This is a step toward `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and
 Stockmeyer][ChandraKozenStockmeyer1981]; that simulation is not proved here. A verifier of the
@@ -45,6 +45,7 @@ that time.
 * `Cslib.Reachability.levelMarks`: the level marks, read backwards.
 * `Cslib.Reachability.endpointZip`: the zip transducer copying the midpoint.
 * `Cslib.Reachability.endpointWord`: the word the endpoint machine computes.
+* `Cslib.Reachability.padZip`: the zip transducer padding or cutting the moves to the marks.
 
 ## Main results
 
@@ -53,10 +54,9 @@ that time.
 * `Cslib.Reachability.iterate_midpointStep`: the endpoints after `i` levels.
 * `Cslib.Reachability.midpointGame_eq_reach_lastMidpoint`: the midpoint game is the edge test of
   the midpoints of the last levels with each half.
-* `Cslib.Reachability.endpointWord_eq`: on moves of the length of the game, the endpoint machine
-  computes the midpoint of the last level with the given half.
-* `Cslib.Reachability.computableInO_endpointWord`: the endpoint machine runs in time and space
-  linear in the number of moves.
+* `Cslib.Reachability.lastMidpoint_congr`: `lastMidpoint` reads only the moves of its levels.
+* `Cslib.Reachability.computableInO_lastMidpoint`: the midpoint of the last level with a given
+  half, on any moves, within time and space linear in the number of moves.
 
 ## References
 
@@ -369,10 +369,9 @@ private theorem length_run_le {Q : Type} (τ : ZipTransducer Q) (q : Q) (u v : L
 
 /-- The word computed by the endpoint machine for the half `d`, on the width `w`, the number `i`
 of levels and the moves `z`: the endpoint scan of the level marks and the reversed moves, reversed.
-On moves of the length of the game it encodes `Cslib.Reachability.lastMidpoint w i z d`
-(`Cslib.Reachability.endpointWord_eq`). -/
-def endpointWord (d : Bool) (p : ℕ × ℕ × List Bool) : List Bool :=
-  ((endpointZip d).run .seek (levelMarks p.1 p.2.1) p.2.2.reverse).reverse
+On moves of the length of the game it encodes `Cslib.Reachability.lastMidpoint w i z d`. -/
+def endpointWord (d : Bool) : ℕ × ℕ × List Bool → List Bool
+  | (w, i, z) => ((endpointZip d).run .seek (levelMarks w i) z.reverse).reverse
 
 /-- The midpoint of a level read from its moves, one universal move and one midpoint bit at a
 time. -/
@@ -494,7 +493,8 @@ private theorem run_seek_levelMarks (d : Bool) :
 /-- **The endpoint machine finds the last level with a given half.** On moves of the length of the
 midpoint game, `endpointWord d` encodes the midpoint of the last level whose half is `d`, as an
 option. -/
-theorem endpointWord_eq (d : Bool) {i : ℕ} {z : List Bool} (hz : z.length = (2 * w + 2) * i) :
+private theorem endpointWord_eq (d : Bool) {i : ℕ} {z : List Bool}
+    (hz : z.length = (2 * w + 2) * i) :
     endpointWord d (w, i, z) = encOption encBits (lastMidpoint w i z d) := by
   rcases run_seek_levelMarks d i z hz with ⟨hn, hseek⟩ | ⟨m, q, hs, hq, hseek⟩
   · have h := hseek [] []
@@ -509,7 +509,7 @@ theorem endpointWord_eq (d : Bool) {i : ℕ} {z : List Bool} (hz : z.length = (2
 /-- **The endpoint machine runs in linear time.** The word `endpointWord d (w, i, z)` is computed
 on a multi-tape machine within time and space `O((2 * w + 2) * i + w + |z|)`, linear in the number
 `(2 * w + 2) * i` of moves of the midpoint game. -/
-theorem computableInO_endpointWord (d : Bool) :
+private theorem computableInO_endpointWord (d : Bool) :
     ComputableInO (endpointWord d) (encPair encUnary (encPair encUnary encBits)) encBits
       (fun p => (2 * p.1 + 2) * p.2.1 + p.1 + p.2.2.length)
       (fun p => (2 * p.1 + 2) * p.2.1 + p.1 + p.2.2.length) := by
@@ -535,5 +535,88 @@ theorem computableInO_endpointWord (d : Bool) :
   refine h.mono 8 (fun p => ?_) (fun p => ?_) <;>
   · simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
     nlinarith
+
+/-- The pad scan: one move per mark, `false` past the end of the moves, nothing past the marks. -/
+def padZip : ZipTransducer Unit where
+  q₀ := ()
+  step _ x := ((), match x with
+    | (some _, b) => [b.getD false]
+    | (none, _) => [])
+  final _ := []
+  length_step_le _ x := by rcases x with ⟨_ | _, _ | _⟩ <;> simp
+  length_final_le _ := by simp
+
+/-- The pad scan reads the moves at the positions of the marks, `false` past their end. -/
+theorem padZip_run (u z : List Bool) :
+    padZip.run () u z = (List.range u.length).map fun p => z.getD p false := by
+  induction u generalizing z with
+  | nil =>
+    induction z with
+    | nil => simp [padZip]
+    | cons b z ih => simpa [padZip] using ih
+  | cons a u ih =>
+    cases z with
+    | nil => simpa [padZip, List.range_succ_eq_map, Function.comp_def] using ih []
+    | cons b z => simpa [padZip, List.range_succ_eq_map, Function.comp_def] using ih z
+
+/-- `lastMidpoint w i z d` reads only the first `(2 * w + 2) * i` moves of `z`. -/
+theorem lastMidpoint_congr {i : ℕ} {z z' : List Bool} {d : Bool}
+    (h : ∀ p < (2 * w + 2) * i, z.getD p false = z'.getD p false) :
+    lastMidpoint w i z d = lastMidpoint w i z' d := by
+  induction i generalizing z z' with
+  | zero => rfl
+  | succ i ih =>
+    have hd : ∀ p < (2 * w + 2) * i,
+        (z.drop (2 * w + 2)).getD p false = (z'.drop (2 * w + 2)).getD p false := fun p hp => by
+      simpa only [List.getD_eq_getElem?_getD, List.getElem?_drop] using
+        h _ (by rw [Nat.mul_succ]; omega)
+    have hm : midpointMoves w z = midpointMoves w z' :=
+      List.map_congr_left fun j hj => h _ (by simp at hj; rw [Nat.mul_succ]; omega)
+    simp only [lastMidpoint, ih hd, hm, h (2 * w + 1) (by rw [Nat.mul_succ]; omega)]
+
+/-- A machine computes any function with the same encoded outputs, within the same bounds. -/
+private theorem computableInO_of_encOut_eq {α β γ : Type*} {encIn : α ↪ List Bool}
+    {encOut : β ↪ List Bool} {encOut' : γ ↪ List Bool} {f : α → β} {g : α → γ} {T S : α → ℕ}
+    (h : ComputableInO f encIn encOut T S) (he : ∀ a, encOut (f a) = encOut' (g a)) :
+    ComputableInO g encIn encOut' T S := by
+  obtain ⟨c, ⟨k, State, hfin, tm, htm⟩, hl⟩ := h
+  exact ⟨c, ⟨k, State, hfin, tm, fun a => he a ▸ htm a⟩, fun a => he a ▸ hl a⟩
+
+/-- **The midpoint of the last level with a given half, in linear time.** On any moves `z`, the
+midpoint of the last of the first `i` levels whose half is `d`, as an option, is computed on a
+multi-tape machine within time and space `O((2 * w + 2) * i + w + |z|)`: the moves are padded or
+cut to the length of the game by the pad scan, and then the endpoint machine runs. -/
+theorem computableInO_lastMidpoint (d : Bool) :
+    ComputableInO (fun ((w, i, z) : ℕ × ℕ × List Bool) => lastMidpoint w i z d)
+      (encPair encUnary (encPair encUnary encBits)) (encOption encBits)
+      (fun ((w, i, z) : ℕ × ℕ × List Bool) => (2 * w + 2) * i + w + z.length)
+      (fun ((w, i, z) : ℕ × ℕ × List Bool) => (2 * w + 2) * i + w + z.length) := by
+  have hzip : ComputableInO (fun q : List Bool × List Bool => padZip.run () q.1 q.2)
+      (encPair encBits encBits) encBits (fun q => (encPair encBits encBits q).length)
+      (fun q => (encPair encBits encBits q).length) :=
+    .of_bounds padZip.computableInTimeAndSpace_run 3 (fun q => by omega)
+      (fun q => by simp only [length_encPair, encBits_apply]; omega)
+      (fun q => by
+        simp only [padZip_run, length_encPair, encBits_apply, List.length_map, List.length_range]
+        omega)
+  have hfst := ComputableInO.fst encUnary (encPair encUnary encBits)
+  have hsnd := ComputableInO.snd encUnary (encPair encUnary encBits)
+  have hmarks := computableInO_levelMarks.comp (hfst.prod hsnd.fst')
+  have hpad := hfst.prod (hsnd.fst'.prod (hzip.comp_linear (hmarks.prod hsnd.snd')))
+  have h := computableInO_of_encOut_eq ((computableInO_endpointWord d).comp hpad)
+    (g := fun ((w, i, z) : ℕ × ℕ × List Bool) => lastMidpoint w i z d)
+    (encOut' := encOption encBits) fun p => by
+      obtain ⟨w, i, z⟩ := p
+      have hlen : (padZip.run () (levelMarks w i) z).length = (2 * w + 2) * i := by
+        simp [padZip_run, length_levelMarks]
+      simp only [Function.comp_apply, encBits_apply]
+      rw [endpointWord_eq d hlen]
+      congr 1
+      exact lastMidpoint_congr fun p hp => by
+        simp [padZip_run, List.getD_eq_getElem?_getD, length_levelMarks, hp]
+  refine h.mono 40 (fun ⟨w, i, z⟩ => ?_) (fun ⟨w, i, z⟩ => ?_) <;>
+  · simp only [Function.comp_apply, padZip_run, length_encPair, encUnary_apply, encBits_apply,
+      List.length_replicate, List.length_map, List.length_range, length_levelMarks]
+    nlinarith [Nat.zero_le (w * i)]
 
 end Cslib.Reachability
