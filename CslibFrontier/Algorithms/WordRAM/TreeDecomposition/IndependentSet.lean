@@ -3636,7 +3636,6 @@ private theorem initNodesProg_realizes :
   realize [powProg_realizes]
   · obtain ⟨_, _, _, _, _, _, hfit_peak⟩ := h
     exact hfit_peak.of_le (by omega)
-  · exact h.1
   · obtain ⟨h4, bags, M, hbags_len, hbags_M, hraw_h, hfit_peak⟩ := h
     have h1 : Fits w 1 := h4.of_le (by decide)
     have h2 : Fits w 2 := h4.of_le (by decide)
@@ -4534,8 +4533,8 @@ private theorem processNodesProg_realizes :
     rfl
   rw [ht_a_eq]
   exact ⟨hfit_par_j,
-    ⟨hfit_dJ0, h4⟩, ⟨hfit_dJ1, h4⟩, ⟨hfit_dJ2, h4⟩, ⟨hfit_dJ3, h4⟩,
-    ⟨hfit_dP0, h4⟩, ⟨hfit_dP1, h4⟩, ⟨hfit_dP2, h4⟩, ⟨hfit_dP3, h4⟩,
+    hfit_dJ0, hfit_dJ1, hfit_dJ2, hfit_dJ3,
+    hfit_dP0, hfit_dP1, hfit_dP2, hfit_dP3,
     hcp_safe, hpp_safe, h1_le_j1⟩
 
 private def runMWISProg (_ : Unit) : Memory.Prog ℕ := do
