@@ -446,25 +446,32 @@ example :
       Conservation.acceptRequest, Conservation.acceptLocal, Conservation.hasSpentNullifier,
       Conservation.SpendRequest.inputNote, Credit.target, req, spendStep1, st1, creq, testCom,
       testSig]
+  let stOf (n : ℕ) : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
+    ⟨n, [(1, 10)], [0], [creq, .spend (req.toSpendRequest (n + 1))]⟩
+  let res (n : ℕ) :
+      Option (ℕ × (ℕ × ℕ × ℕ) × ℕ) ×
+        IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
+    (some (n + 1, ((2, 1, 6), n + 1)), stOf n)
   have heval :
       ProbComp.eval
           ((draftIssuerOracle testCom Prod.mk testSig randPolicy 16 ((), ()) (.spend req)).run
             st1) =
-        (Probability.PMF.uniformOfFintype (Fin 2)).bind fun r =>
-          PMF.pure
-            (some (r.val + 1, ((2, 1, 6), r.val + 1)),
-              ⟨r.val, [(1, 10)], [0], [creq, .spend (req.toSpendRequest (r.val + 1))]⟩) := by
+        (Probability.PMF.uniformOfFintype (Fin 2)).bind fun r => PMF.pure (res r.val) := by
     simp only [draftIssuerOracle, hpre, ↓reduceIte, randPolicy, StateT.run, ProbComp.eval_bind,
-      ProbComp.eval_unifFin]
-    congr 1 with r : 1
+      ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind]
+    change (Probability.PMF.uniformOfFintype (Fin 2)).bind _ = _
+    refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin 2))) (funext fun r => ?_)
     have hr : r.val + 1 < 16 := by omega
-    simp [hr, Conservation.Request.signedMessage, DraftSpendRequest.toSpendRequest, req,
-      spendStep1, testSig, st1]
-  constructor
-  · rw [heval, PMF.bind_apply, tsum_fintype, Fin.sum_univ_two]
-    simp [Probability.PMF.uniformOfFintype_apply, creq]
-  · rw [heval, PMF.bind_apply, tsum_fintype, Fin.sum_univ_two]
-    simp [Probability.PMF.uniformOfFintype_apply, creq]
+    simp [res, stOf, hr, Conservation.Request.signedMessage, DraftSpendRequest.toSpendRequest, req,
+      spendStep1, testSig, st1, draftReply]
+  have hrhs (k : Fin 2) :
+      ((Probability.PMF.uniformOfFintype (Fin 2)).bind fun r => PMF.pure (res r.val))
+          (res k.val) =
+        2⁻¹ := by
+    rw [PMF.bind_apply, tsum_fintype, Fin.sum_univ_two]
+    fin_cases k <;> simp [res, stOf, Probability.PMF.uniformOfFintype_apply, creq]
+  exact ⟨(congrFun (congrArg DFunLike.coe heval) (res 0)).trans (hrhs 0),
+    (congrFun (congrArg DFunLike.coe heval) (res 1)).trans (hrhs 1)⟩
 
 /-! ### Generic query-bound and keyless-binding compositions -/
 
