@@ -22,7 +22,8 @@ symbol, work-head observation and answer-head observation
 cardinality `s`, `k` work tapes and `r` oracle channels that is `s * 3 * 3 ^ k * 3 ^ r` rows. This
 module bounds the encoded description by that row count and the largest encoded row.
 
-The family-level bound `Description.scheduledBitsBound` assumes that the row schedule is
+The family-level theorem `Description.staticBits_polynomiallyBounded_of_le` compares a size
+schedule with `Description.scheduledBitsBound` and assumes that the row schedule is
 polynomially bounded. Polynomial state, tape and channel schedules do not imply this: the factor
 `3 ^ (k + r)` can be exponential. For fixed `k` and `r` the row count is a constant multiple of the
 state cardinality, so the premise follows from a polynomial state schedule. An application whose

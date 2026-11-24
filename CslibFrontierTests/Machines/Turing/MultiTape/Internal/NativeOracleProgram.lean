@@ -67,7 +67,7 @@ example : liftedPreprocessed.time () =
       liftedSource.time (ULift.up [] : ULift.{1} (List Bool)) + 9 :=
   NativeOracleProgram.time_preprocess liftedPrepare liftedSource ()
 
-/-- The first and second calls use genuinely different fixed native operation artifacts. -/
+/-- The first and second calls use the artifacts of two different fixed operations. -/
 noncomputable def firstArtifact :=
   NativeOracleProgram.queryTake (r := 2) (0 : Operation)
 
@@ -113,7 +113,7 @@ example : secondArtifact.machine.ComputesTidily
       (1 : Operation) ([true], 2)) :=
   secondArtifact.computes ([true], 2)
 
-/-- An actual constant compiler prepares the first request. -/
+/-- A constant compiler prepares the first request. -/
 noncomputable def firstRequestCompiler :=
   Turing.MultiTapeTM.Internal.NativeCompiler.const encUnit
     (encPair encBits encUnary) ([false], 1)
@@ -128,7 +128,7 @@ example : localArtifact.machine.ComputesTidily (encUnit ())
 
 /-! #### Typed retained composition -/
 
-/-- A genuinely typed postprocessor discards a `Bool`; its constant machine has an
+/-- A typed postprocessor discards a `Bool`; its constant machine has an
 input-independent one-step clock. -/
 noncomputable def discardBitCompiler :=
   Turing.MultiTapeTM.Internal.NativeCompiler.const encBool encUnit ()
@@ -159,7 +159,7 @@ example : typedPostArtifact.machine.ComputesTidily (encUnit ())
     (encUnit <$> ((fun _ : Bool => ()) <$> ProbOracleComp.sample (ProbComp.uniform Bool))) :=
   typedPostArtifact.computes ()
 
-/-- The captured continuation consumes an actually typed `(Unit × Bool)` and emits `Unit`; no
+/-- The captured continuation consumes a typed `(Unit × Bool)` and emits `Unit`; no
 decoder or raw-word cast appears in the artifact or its proof. -/
 noncomputable def typedContinuationCompiler :=
   Turing.MultiTapeTM.Internal.NativeCompiler.const (encPair encUnit encBool) encUnit ()
@@ -194,7 +194,7 @@ example : typedCapturedArtifact.machine.ComputesTidily (encUnit ())
       (fun _ : Unit × Bool => pure ()) ()) :=
   typedCapturedArtifact.computes ()
 
-/-- Binary dispatch likewise preserves a typed `Bool` output rather than forcing a raw word. -/
+/-- Binary dispatch keeps the typed `Bool` output of its branches. -/
 noncomputable def trueCondition := ClassifiedCompiler.inPhase .dispatch
   (Turing.MultiTapeTM.Internal.NativeCompiler.const encUnit encBits [true])
 
@@ -419,8 +419,8 @@ theorem secondPrepared_resource_bound (input : Unit) (OracleState : Type)
   simp only [secondOnline]
   omega
 
-/-- The concrete two-call client is the retained captured-input machine, not merely semantic bind.
-Its second request is the first reply prefix. -/
+/-- The concrete two-call client is the retained captured-input machine. Its second request is the
+first reply prefix. -/
 noncomputable def adaptiveArtifact :=
   NativeOracleProgram.sequenceCaptured firstPrepared secondPrepared secondOnline
     secondPrepared_resource_bound
