@@ -6731,6 +6731,16 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhp
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.CheckOk
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Common
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.RebScan
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Stage0
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Stage1
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Stage2
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Stage2Swap
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Stage3
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Stage4
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Tick
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpHashProg
