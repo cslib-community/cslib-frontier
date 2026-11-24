@@ -6666,6 +6666,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Asymptotic
 public import CslibFrontier.Crypto.Protocols.MPC.BGW
 public import CslibFrontier.Crypto.Protocols.MPC.Basic
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
+public import CslibFrontier.Crypto.Protocols.MPC.BatchOT.Sequential
 public import CslibFrontier.Crypto.Protocols.MPC.Beaver
 public import CslibFrontier.Crypto.Protocols.MPC.Broadcast
 public import CslibFrontier.Crypto.Protocols.MPC.CircuitEval
