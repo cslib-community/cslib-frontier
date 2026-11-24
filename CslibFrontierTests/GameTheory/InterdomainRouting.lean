@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
@@ -11,7 +14,8 @@ import Mathlib.Tactic.FinCases
 /-!
 # Interdomain Routing (BGP): Checked Witnesses and Boundary Cases
 
-Kernel-checked witnesses (no `native_decide`) exercising `StablePaths` and `GaoRexford`:
+Kernel-checked witnesses (using ordinary `module` imports and zero `native_decide`) exercising
+`StablePaths` and `GaoRexford`:
 
 1. **`BAD GADGET` (4-node, 3-cycle):** explicit dispute wheel of size `3` and absence of any stable
    path assignment.
@@ -27,17 +31,20 @@ Kernel-checked witnesses (no `native_decide`) exercising `StablePaths` and `GaoR
    ([FeigenbaumSchapiraShenker2007], Chapter 14, Exercise 14.7).
 -/
 
-namespace CslibFrontierTests.InterdomainRoutingNRTV
+set_option linter.privateModule false
+
+namespace CslibFrontierTests.GameTheory.InterdomainRouting
 
 open Cslib.GameTheory.InterdomainRouting
 
 /-! ### 1. `BAD GADGET` and `DISAGREE` -/
 
-example : badGadgetDisputeWheel.size = 3 := rfl
+example : badGadgetDisputeWheel.size = 3 := by simp
+example : Nonempty (DisputeWheel badGadget) := ⟨badGadgetDisputeWheel⟩
 example : 2 ≤ badGadgetDisputeWheel.size := badGadgetDisputeWheel.two_le_size
 example : ¬ ∃ π, badGadget.IsStable π := not_exists_isStable_badGadget
 
-example : disagreeDisputeWheel.size = 2 := rfl
+example : disagreeDisputeWheel.size = 2 := by simp
 example : ∃ π₁ π₂, disagree.IsStable π₁ ∧ disagree.IsStable π₂ ∧ π₁ ≠ π₂ :=
   exists_two_isStable_disagree
 
@@ -385,4 +392,4 @@ example : ¬ PreferCustomer nonGaoRexfordSafe (fun u v =>
     (by decide)
   simp [nonGaoRexfordSafe] at hlt
 
-end CslibFrontierTests.InterdomainRoutingNRTV
+end CslibFrontierTests.GameTheory.InterdomainRouting

@@ -47,7 +47,8 @@ with permitted pivot paths `Rᵢ` and nonempty rim prefixes `Qᵢ` such that eac
   equilibrium of BGP path selection).
 * `Cslib.GameTheory.InterdomainRouting.DisputeWheel`: a cyclic preference conflict in an `SPP`.
 * `Cslib.GameTheory.InterdomainRouting.SPP.bestResponse`, `SPP.run`, `IsFair`: asynchronous
-  best-response BGP dynamics under a fair activation schedule.
+  per-node atomic best-response BGP dynamics ([FeigenbaumSchapiraShenker2007], Chapter 14) under a
+  fair activation schedule.
 * `Cslib.GameTheory.InterdomainRouting.badGadget`: the classic 4-node (`BAD GADGET`) instance with
   a dispute wheel and no stable path assignment.
 * `Cslib.GameTheory.InterdomainRouting.disagree`: the classic 3-node (`DISAGREE`) instance with a
@@ -64,9 +65,10 @@ with permitted pivot paths `Rᵢ` and nonempty rim prefixes `Qᵢ` such that eac
   assignments yield an explicit dispute wheel, so absence of a dispute wheel implies a unique
   stable path assignment.
 * `Cslib.GameTheory.InterdomainRouting.SPP.exists_converges_of_isEmpty_disputeWheel`:
-  **Griffin–Shepherd–Wilfong safety** ([GriffinShepherdWilfong2002]): without a dispute wheel,
-  asynchronous best-response dynamics from the initial destination-only state converge under every
-  fair activation schedule to the unique stable path assignment.
+  **Griffin–Shepherd–Wilfong safety** ([GriffinShepherdWilfong2002]; atomic best-response model
+  of [FeigenbaumSchapiraShenker2007], Chapter 14): without a dispute wheel, asynchronous per-node
+  atomic best-response dynamics from the initial destination-only state converge under every fair
+  activation schedule to the unique stable path assignment.
 * `Cslib.GameTheory.InterdomainRouting.not_exists_isStable_badGadget`: `badGadget` has no stable
   path assignment.
 * `Cslib.GameTheory.InterdomainRouting.exists_two_isStable_disagree`: `disagree` has two distinct
@@ -120,23 +122,9 @@ theorem IsSimplePath.length_le_card [Fintype V] {G : SimpleGraph V} {u v : V} {p
     (hp : IsSimplePath G u v p) : p.length ≤ Fintype.card V :=
   hp.2.2.2.length_le_card
 
-private theorem isChain_suffix {R : V → V → Prop} :
-    ∀ {q s : List V}, (q ++ s).IsChain R → s.IsChain R := by
-  intro q s h
-  induction q with
-  | nil => exact h
-  | cons a q ih =>
-    cases hq : q ++ s with
-    | nil =>
-      have hs : s = [] := (List.append_eq_nil_iff.mp hq).2
-      simp [hs]
-    | cons b t =>
-      rw [List.cons_append, hq] at h
-      exact ih (hq ▸ (List.isChain_cons_cons.mp h).2)
-
 private theorem isChain_adj_of_append {R : V → V → Prop} {q : List V} {x y : V} {t : List V}
     (h : (q ++ x :: y :: t).IsChain R) : R x y :=
-  (List.isChain_cons_cons.mp (isChain_suffix h)).1
+  (List.isChain_cons_cons.mp h.right_of_append).1
 
 private theorem exists_split_not_mem_mem {A : Finset V} :
     ∀ {p : List V} {u d : V}, p.head? = some u → p.getLast? = some d → u ∉ A → d ∈ A →
@@ -774,6 +762,16 @@ private def extendElimState {S : SPP V} (st : ElimState S) (u : V) (p : List V)
     rcases List.mem_cons.mp hx with rfl | hxq
     · exact Finset.mem_insert_self _ _
     · exact Finset.mem_insert_of_mem (hsub_w x hxq)
+  have haux : ∀ r, (∀ x ∈ r, x ∈ st.settled) → AllSuffixesMatch st.assign r →
+      AllSuffixesMatch assign' r := by
+    intro r
+    induction r with
+    | nil => intro _ _; trivial
+    | cons a t ih =>
+      intro hsub hm
+      have ha_ne : a ≠ u := fun h => huA (h ▸ hsub a List.mem_cons_self)
+      exact ⟨by simpa [assign', Function.update_of_ne ha_ne] using hm.1,
+        ih (fun x hx => hsub x (List.mem_cons_of_mem a hx)) hm.2⟩
   have hmatch_p : AllSuffixesMatch assign' p := by
     rcases hdir with ⟨_, _, w, hw, q, _, hqw, rfl⟩
     obtain ⟨p_w, hpw, _, _, hsub_w, hmatch_w⟩ := st.assign_some_of_mem w hw
@@ -781,16 +779,6 @@ private def extendElimState {S : SPP V} (st : ElimState S) (u : V) (p : List V)
     have hq_eq : q = p_w := Option.some.inj hpw
     subst hq_eq
     refine ⟨by simp [assign'], ?_⟩
-    have haux : ∀ r, (∀ x ∈ r, x ∈ st.settled) → AllSuffixesMatch st.assign r →
-        AllSuffixesMatch assign' r := by
-      intro r
-      induction r with
-      | nil => intro _ _; trivial
-      | cons a t ih =>
-        intro hsub hm
-        have ha_ne : a ≠ u := fun h => huA (h ▸ hsub a List.mem_cons_self)
-        exact ⟨by simpa [assign', Function.update_of_ne ha_ne] using hm.1,
-          ih (fun x hx => hsub x (List.mem_cons_of_mem a hx)) hm.2⟩
     exact haux q hsub_w hmatch_w
   { settled := settled'
     assign := assign'
@@ -801,16 +789,6 @@ private def extendElimState {S : SPP V} (st : ElimState S) (u : V) (p : List V)
       · exact ⟨p, by simp [assign'], hdir.2.1, hall_p, hsub_p, hmatch_p⟩
       · have hv_ne : v ≠ u := fun h => huA (h ▸ hvA)
         obtain ⟨pv, hpv, hperm_v, hall_v, hsub_v, hmatch_v⟩ := st.assign_some_of_mem v hvA
-        have haux : ∀ r, (∀ x ∈ r, x ∈ st.settled) → AllSuffixesMatch st.assign r →
-            AllSuffixesMatch assign' r := by
-          intro r
-          induction r with
-          | nil => intro _ _; trivial
-          | cons a t ih =>
-            intro hsub hm
-            have ha_ne : a ≠ u := fun h => huA (h ▸ hsub a List.mem_cons_self)
-            exact ⟨by simpa [assign', Function.update_of_ne ha_ne] using hm.1,
-              ih (fun x hx => hsub x (List.mem_cons_of_mem a hx)) hm.2⟩
         exact ⟨pv, by simpa [assign', Function.update_of_ne hv_ne] using hpv, hperm_v, hall_v,
           fun x hx => Finset.mem_insert_of_mem (hsub_v x hx), haux pv hsub_v hmatch_v⟩
     assign_none_of_not_mem := fun v hv => by
@@ -823,6 +801,35 @@ private def extendElimState {S : SPP V} (st : ElimState S) (u : V) (p : List V)
       · simpa [assign'] using hopt p' hp'_old
       · have hv_ne : v ≠ u := fun h => huA (h ▸ hvA)
         simpa [assign', Function.update_of_ne hv_ne] using st.optimal v hvA hvne p' hp'_old }
+
+/-- Splitting a surviving path from an unsettled node at its first transition into `st.settled`
+yields a suffix starting at an unsettled node that is a direct candidate for `st`. -/
+private theorem surviving_split_directCand {S : SPP V} (st : ElimState S) {v : V} {p : List V}
+    (hvA : v ∉ st.settled) (hsurv : Surviving S st.settled st.assign v p) :
+    ∃ Q x y t, p = Q ++ x :: y :: t ∧ x ∉ st.settled ∧ y ∈ st.settled ∧
+      S.graph.Adj x y ∧ S.permitted x (x :: y :: t) ∧ st.assign y = some (y :: t) := by
+  have hsp := S.permitted_isSimplePath v p hsurv.1
+  obtain ⟨Q, x, y, t, hsplit, hxA, hyA⟩ :=
+    exists_split_not_mem_mem hsp.1 hsp.2.1 hvA st.dest_mem
+  have hadj : S.graph.Adj x y := isChain_adj_of_append (hsplit ▸ hsp.2.2.1)
+  have hperm_x : S.permitted x (x :: y :: t) :=
+    (allSuffixesPermitted_append_right S (q := Q) (s := x :: y :: t) (hsplit ▸ hsurv.2.1)).1
+  have hπy : st.assign y = some (y :: t) := by
+    cases Q with
+    | nil =>
+      rw [List.nil_append] at hsplit
+      have hagr := hsurv.2.2
+      rw [hsplit, List.tail_cons] at hagr
+      exact hagr.1 hyA
+    | cons a Q' =>
+      rw [List.cons_append] at hsplit
+      have hagr := hsurv.2.2
+      rw [hsplit, List.tail_cons] at hagr
+      have hagr' := suffixesAgreeOn_append_right
+        (q := Q' ++ [x]) (s := y :: t) (by simpa only [List.append_assoc, List.cons_append,
+          List.nil_append] using hagr)
+      exact hagr'.1 hyA
+  exact ⟨Q, x, y, t, hsplit, hxA, hyA, hadj, hperm_x, hπy⟩
 
 /-- When a nonempty frontier of direct candidates exists and there is no dispute wheel, some
 frontier node's best direct candidate dominates every surviving path for that node. -/
@@ -852,30 +859,12 @@ private theorem exists_extendable_of_isEmpty_disputeWheel {S : SPP V} (st : Elim
     obtain ⟨p', hp'_surv, hlt_best⟩ := hno c.1.1 pbest hbest_dir
     have hlt : S.rank c.1.1 (some (pivotOf c)) < S.rank c.1.1 (some p') :=
       lt_of_le_of_lt (hbest_max (pivotOf c) (hpivot_dir c)) hlt_best
-    have hsp := S.permitted_isSimplePath c.1.1 p' hp'_surv.1
-    obtain ⟨Q, x, y, t, hsplit, hxA, hyA⟩ :=
-      exists_split_not_mem_mem hsp.1 hsp.2.1 c.2.1 st.dest_mem
-    have hadj : S.graph.Adj x y := isChain_adj_of_append (hsplit ▸ hsp.2.2.1)
-    have hperm_x : S.permitted x (x :: y :: t) :=
-      (allSuffixesPermitted_append_right S (q := Q) (s := x :: y :: t) (hsplit ▸ hp'_surv.2.1)).1
-    have hπy : st.assign y = some (y :: t) := by
-      cases Q with
-      | nil =>
-        rw [List.nil_append] at hsplit
-        have hagr := hp'_surv.2.2
-        rw [hsplit, List.tail_cons] at hagr
-        exact hagr.1 hyA
-      | cons a Q' =>
-        rw [List.cons_append] at hsplit
-        have hagr := hp'_surv.2.2
-        rw [hsplit, List.tail_cons] at hagr
-        have hagr' := suffixesAgreeOn_append_right
-          (q := Q' ++ [x]) (s := y :: t) (by simpa only [List.append_assoc, List.cons_append,
-            List.nil_append] using hagr)
-        exact hagr'.1 hyA
+    obtain ⟨Q, x, y, t, hsplit, hxA, hyA, hadj, hperm_x, hπy⟩ :=
+      surviving_split_directCand st c.2.1 hp'_surv
     have hQ_ne : Q ≠ [] := by
       intro hQ
       rw [hQ, List.nil_append] at hsplit
+      have hsp := S.permitted_isSimplePath c.1.1 p' hp'_surv.1
       have hxu : x = c.1.1 := Option.some.inj (by simpa [hsplit] using hsp.1)
       have hdir' : IsDirectCand st c.1.1 p' :=
         ⟨c.2.1, hp'_surv.1, y, hyA, y :: t, hxu ▸ hadj, hπy, hxu ▸ hsplit⟩
@@ -1027,7 +1016,10 @@ theorem isStable_iff_bestResponse (S : SPP V) (π : V → Option (List V)) :
 @[expose] def initAssignment (S : SPP V) : V → Option (List V) :=
   fun u => if u = S.dest then some [S.dest] else none
 
-/-- Asynchronous best-response execution along activation schedule `sched`, starting from `π₀`. -/
+/-- Asynchronous best-response execution along activation schedule `sched`, starting from `π₀`.
+This models asynchronous per-node atomic best-response activation ([FeigenbaumSchapiraShenker2007],
+Chapter 14), rather than the asynchronous link-queue message-passing protocol (`SPVP`) of
+[GriffinShepherdWilfong2002]. -/
 @[expose] noncomputable def run (S : SPP V) (sched : ℕ → V) (π₀ : V → Option (List V)) :
     ℕ → V → Option (List V)
   | 0 => π₀
@@ -1106,9 +1098,11 @@ private theorem run_surviving_init (S : SPP V) (sched : ℕ → V) (t : ℕ) :
     · rw [Function.update_of_ne hv] at hp
       exact ih v p hp
 
-/-- **Griffin–Shepherd–Wilfong safety** ([GriffinShepherdWilfong2002]): if an `SPP` instance has no
-dispute wheel, then asynchronous best-response dynamics from `initAssignment` converge under every
-fair activation schedule to the unique stable path assignment. -/
+/-- **Griffin–Shepherd–Wilfong safety** ([GriffinShepherdWilfong2002], proved here for the
+asynchronous per-node atomic best-response activation model `SPP.run` of
+[FeigenbaumSchapiraShenker2007], Chapter 14, rather than FIFO link-queue `SPVP`): if an `SPP`
+instance has no dispute wheel, then asynchronous best-response dynamics from `initAssignment`
+converge under every fair activation schedule to the unique stable path assignment. -/
 theorem exists_converges_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (DisputeWheel S))
     (sched : ℕ → V) (hfair : IsFair sched) :
     ∃ π, S.IsStable π ∧ ∃ T, ∀ t ≥ T, S.run sched S.initAssignment t = π := by
@@ -1342,29 +1336,8 @@ theorem exists_converges_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (D
         | none => rfl
         | some p =>
           exfalso
-          have hsurv_v := hsurv t ht v p hq
-          have hsp := S.permitted_isSimplePath v p hsurv_v.1
-          obtain ⟨Q, x, y, r, hsplit, hxA, hyA⟩ :=
-            exists_split_not_mem_mem hsp.1 hsp.2.1 hvA st.dest_mem
-          have hadj : S.graph.Adj x y := isChain_adj_of_append (hsplit ▸ hsp.2.2.1)
-          have hperm_x : S.permitted x (x :: y :: r) :=
-            (allSuffixesPermitted_append_right S (q := Q) (s := x :: y :: r)
-              (hsplit ▸ hsurv_v.2.1)).1
-          have hπy : st.assign y = some (y :: r) := by
-            cases Q with
-            | nil =>
-              rw [List.nil_append] at hsplit
-              have hagr := hsurv_v.2.2
-              rw [hsplit, List.tail_cons] at hagr
-              exact hagr.1 hyA
-            | cons a Q' =>
-              rw [List.cons_append] at hsplit
-              have hagr := hsurv_v.2.2
-              rw [hsplit, List.tail_cons] at hagr
-              have hagr' := suffixesAgreeOn_append_right
-                (q := Q' ++ [x]) (s := y :: r) (by simpa only [List.append_assoc,
-                  List.cons_append, List.nil_append] using hagr)
-              exact hagr'.1 hyA
+          obtain ⟨_, x, y, r, _, hxA, hyA, hadj, hperm_x, hπy⟩ :=
+            surviving_split_directCand st hvA (hsurv t ht v p hq)
           exact hne x (x :: y :: r) ⟨hxA, hperm_x, y, hyA, y :: r, hadj, hπy, rfl⟩
 
 end ExistenceAndSafety
@@ -1377,7 +1350,7 @@ end SPP
 [FeigenbaumSchapiraShenker2007], Chapter 14): destination `0`, with nodes `1, 2, 3` each
 preferring a two-hop detour through the next node cyclically (`1 → 2 → 0`, `2 → 3 → 0`,
 `3 → 1 → 0`) over their direct path to `0`. -/
-@[expose] def badGadget : SPP (Fin 4) where
+def badGadget : SPP (Fin 4) where
   graph := ⊤
   dest := 0
   permitted u p :=
@@ -1406,7 +1379,7 @@ preferring a two-hop detour through the next node cyclically (`1 → 2 → 0`, `
       simp_all
 
 /-- Explicit 3-spoke dispute wheel in `badGadget`. -/
-@[expose] def badGadgetDisputeWheel : DisputeWheel badGadget where
+def badGadgetDisputeWheel : DisputeWheel badGadget where
   size := 3
   size_pos := by decide
   node := ![1, 2, 3]
@@ -1416,6 +1389,9 @@ preferring a two-hop detour through the next node cyclically (`1 → 2 → 0`, `
   pivot_permitted := fun i => by fin_cases i <;> simp [badGadget]
   rim_pivot_permitted := fun i => by fin_cases i <;> simp [badGadget]
   prefers := fun i => by fin_cases i <;> decide
+
+@[simp] theorem badGadgetDisputeWheel_size : badGadgetDisputeWheel.size = 3 := by
+  dsimp [badGadgetDisputeWheel]
 
 /-- `badGadget` has no stable path assignment ([GriffinShepherdWilfong2002]). -/
 theorem not_exists_isStable_badGadget : ¬ ∃ π, badGadget.IsStable π := by
@@ -1489,7 +1465,7 @@ theorem not_exists_isStable_badGadget : ¬ ∃ π, badGadget.IsStable π := by
 /-- The classic 3-node `DISAGREE` instance ([GriffinShepherdWilfong2002]): destination `0`, with
 nodes `1` and `2` each preferring to route through the other (`1 → 2 → 0` over `1 → 0`, and
 `2 → 1 → 0` over `2 → 0`). -/
-@[expose] def disagree : SPP (Fin 3) where
+def disagree : SPP (Fin 3) where
   graph := ⊤
   dest := 0
   permitted u p :=
@@ -1516,7 +1492,7 @@ nodes `1` and `2` each preferring to route through the other (`1 → 2 → 0` ov
       simp_all
 
 /-- Explicit 2-spoke dispute wheel in `disagree`. -/
-@[expose] def disagreeDisputeWheel : DisputeWheel disagree where
+def disagreeDisputeWheel : DisputeWheel disagree where
   size := 2
   size_pos := by decide
   node := ![1, 2]
@@ -1526,6 +1502,9 @@ nodes `1` and `2` each preferring to route through the other (`1 → 2 → 0` ov
   pivot_permitted := fun i => by fin_cases i <;> simp [disagree]
   rim_pivot_permitted := fun i => by fin_cases i <;> simp [disagree]
   prefers := fun i => by fin_cases i <;> decide
+
+@[simp] theorem disagreeDisputeWheel_size : disagreeDisputeWheel.size = 2 := by
+  dsimp [disagreeDisputeWheel]
 
 /-- `disagree` admits two distinct stable path assignments ([GriffinShepherdWilfong2002]). -/
 theorem exists_two_isStable_disagree :

@@ -49,9 +49,10 @@ conditions (`GaoRexfordConditions`) on an instance `S : SPP V` of the Stable Pat
   **Gao–Rexford stability** ([GaoRexford2001]): every `SPP` satisfying the Gao–Rexford conditions
   admits a unique stable path assignment.
 * `Cslib.GameTheory.InterdomainRouting.GaoRexfordConditions.exists_converges`:
-  **Gao–Rexford safety** ([GaoRexford2001]; [GriffinShepherdWilfong2002]): asynchronous
-  best-response BGP dynamics from `initAssignment` converge under every fair activation schedule to
-  the unique stable path assignment.
+  **Gao–Rexford safety** ([GaoRexford2001]; [GriffinShepherdWilfong2002]; atomic best-response
+  model of [FeigenbaumSchapiraShenker2007], Chapter 14): asynchronous per-node atomic
+  best-response BGP dynamics from `initAssignment` converge under every fair activation schedule
+  to the unique stable path assignment.
 
 ## References
 
@@ -257,23 +258,9 @@ private theorem transGen_cycle_forward {R : V → V → Prop} {k : ℕ} (hk : 0 
 
 private theorem transGen_cycle_backward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
     (hstep : ∀ i : Fin k, Relation.TransGen R (f ⟨(i.val + 1) % k, Nat.mod_lt _ hk⟩) (f i)) :
-    Relation.TransGen R (f ⟨0, hk⟩) (f ⟨0, hk⟩) := by
-  have hwalk : ∀ m, 1 ≤ m →
-      Relation.TransGen R (f ⟨m % k, Nat.mod_lt _ hk⟩) (f ⟨0, hk⟩) := by
-    intro m hm
-    induction m, hm using Nat.le_induction with
-    | base => exact hstep ⟨0, hk⟩
-    | succ m hm ihm =>
-      have hmod : ((m % k) + 1) % k = (m + 1) % k := by
-        simp [Nat.add_mod]
-      have hs := hstep ⟨m % k, Nat.mod_lt _ hk⟩
-      have hs' : Relation.TransGen R (f ⟨(m + 1) % k, Nat.mod_lt _ hk⟩)
-          (f ⟨m % k, Nat.mod_lt _ hk⟩) := by
-        convert hs using 2
-        exact Fin.ext hmod.symm
-      exact Relation.TransGen.trans hs' ihm
-  have h := hwalk k hk
-  simpa only [Nat.mod_self] using h
+    Relation.TransGen R (f ⟨0, hk⟩) (f ⟨0, hk⟩) :=
+  Relation.transGen_swap.mp
+    (transGen_cycle_forward hk f fun i => Relation.transGen_swap.mpr (hstep i))
 
 /-! ### Gao–Rexford main theorems -/
 
@@ -292,6 +279,23 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
       ∃ v t, W.pivot i = W.node i :: v :: t ∧ S.graph.Adj (W.node i) v := fun i =>
     S.exists_cons_cons_of_permitted (W.node_ne_dest i) (W.pivot_permitted i)
   choose nextHop pivTail hpiv_eq _ using hpiv_decomp
+  have hrp_perm : ∀ i : Fin W.size, S.permitted (W.node i) (W.rim i ++ W.pivot (W.next i)) :=
+    W.rim_pivot_permitted
+  have hrp_sp : ∀ i : Fin W.size,
+      IsSimplePath S.graph (W.node i) S.dest (W.rim i ++ W.pivot (W.next i)) := fun i =>
+    S.permitted_isSimplePath (W.node i) _ (hrp_perm i)
+  have hrp_vf : ∀ i : Fin W.size, IsValleyFree hGR.rel (W.rim i ++ W.pivot (W.next i)) :=
+    fun i => hGR.valleyFree (W.node i) _ (hrp_perm i)
+  have hrim_head : ∀ i : Fin W.size, (W.rim i).head? = some (W.node i) := fun i => by
+    have h1 := (hrp_sp i).1
+    rw [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] at h1
+    exact h1
+  have hchain : ∀ i : Fin W.size, (W.rim i ++
+      W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)).IsChain S.graph.Adj :=
+    fun i => by rw [← hpiv_eq (W.next i)]; exact (hrp_sp i).2.2.1
+  have hvf : ∀ i : Fin W.size, IsValleyFree hGR.rel
+      (W.rim i ++ W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)) :=
+    fun i => by rw [← hpiv_eq (W.next i)]; exact hrp_vf i
   by_cases hex : ∃ i₀ : Fin W.size, hGR.rel (W.node i₀) (nextHop i₀) = .customer
   · -- Case 1: some spoke has a customer pivot path; forward propagation forces a customer–provider
     -- cycle around the entire wheel.
@@ -299,38 +303,25 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         Relation.TransGen (IsProviderOf S.graph hGR.rel) (W.node i) (W.node (W.next i)) ∧
           hGR.rel (W.node (W.next i)) (nextHop (W.next i)) = .customer := by
       intro i hcust_i
-      have hrp_perm := W.rim_pivot_permitted i
-      have hrp_sp := S.permitted_isSimplePath (W.node i) _ hrp_perm
-      have hrp_vf := hGR.valleyFree (W.node i) _ hrp_perm
-      obtain ⟨w, t', hrp_eq, _⟩ := S.exists_cons_cons_of_permitted (W.node_ne_dest i) hrp_perm
+      obtain ⟨w, t', hrp_eq, _⟩ := S.exists_cons_cons_of_permitted (W.node_ne_dest i) (hrp_perm i)
       have hcust_rim : hGR.rel (W.node i) w = .customer := by
         by_contra hne
         have hlt := hGR.preferCustomer (W.node i) (nextHop i) w (pivTail i) t'
-          (hpiv_eq i ▸ W.pivot_permitted i) (hrp_eq ▸ hrp_perm) hcust_i hne
+          (hpiv_eq i ▸ W.pivot_permitted i) (hrp_eq ▸ hrp_perm i) hcust_i hne
         have hpref := W.prefers i
+        change S.rank (W.node i) (some (W.pivot i)) <
+          S.rank (W.node i) (some (W.rim i ++ W.pivot (W.next i))) at hpref
         rw [hpiv_eq i, hrp_eq] at hpref
         omega
-      have hrim_head : (W.rim i).head? = some (W.node i) := by
-        have h1 := hrp_sp.1
-        rw [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] at h1
-        exact h1
-      have hchain : (W.rim i ++
-          W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)).IsChain S.graph.Adj := by
-        rw [← hpiv_eq (W.next i)]
-        exact hrp_sp.2.2.1
-      have hvf : IsValleyFree hGR.rel
-          (W.rim i ++ W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)) := by
-        rw [← hpiv_eq (W.next i)]
-        exact hrp_vf
       have hfirst :
           (match W.rim i ++ W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i) with
            | a :: b :: _ => hGR.rel a b = .customer | _ => False) := by
         rw [← hpiv_eq (W.next i)]
-        change (match W.rim i ++ W.pivot ⟨(i.val + 1) % W.size, Nat.mod_lt _ W.size_pos⟩ with
+        change (match W.rim i ++ W.pivot (W.next i) with
           | a :: b :: _ => hGR.rel a b = .customer | _ => False)
         rw [hrp_eq]
         exact hcust_rim
-      exact valleyFree_customer_propagate hrim_head hchain hvf hfirst
+      exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i) hfirst
     obtain ⟨i₀, hi₀⟩ := hex
     have hall_cust : ∀ i : Fin W.size, hGR.rel (W.node i) (nextHop i) = .customer := by
       have hshift : ∀ m : ℕ,
@@ -367,24 +358,9 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
     -- customer–provider cycle around the entire wheel.
     push Not at hex
     have hback : ∀ i : Fin W.size,
-        Relation.TransGen (IsProviderOf S.graph hGR.rel) (W.node (W.next i)) (W.node i) := by
-      intro i
-      have hrp_perm := W.rim_pivot_permitted i
-      have hrp_sp := S.permitted_isSimplePath (W.node i) _ hrp_perm
-      have hrp_vf := hGR.valleyFree (W.node i) _ hrp_perm
-      have hrim_head : (W.rim i).head? = some (W.node i) := by
-        have h1 := hrp_sp.1
-        rw [List.head?_append_of_ne_nil _ (W.rim_nonempty i)] at h1
-        exact h1
-      have hchain : (W.rim i ++
-          W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)).IsChain S.graph.Adj := by
-        rw [← hpiv_eq (W.next i)]
-        exact hrp_sp.2.2.1
-      have hvf : IsValleyFree hGR.rel
-          (W.rim i ++ W.node (W.next i) :: nextHop (W.next i) :: pivTail (W.next i)) := by
-        rw [← hpiv_eq (W.next i)]
-        exact hrp_vf
-      exact (valleyFree_provider_backprop hGR.rel_symm hrim_head hchain hvf (hex (W.next i))).1
+        Relation.TransGen (IsProviderOf S.graph hGR.rel) (W.node (W.next i)) (W.node i) := fun i =>
+      (valleyFree_provider_backprop hGR.rel_symm (hrim_head i) (hchain i) (hvf i)
+        (hex (W.next i))).1
     have hcyc := transGen_cycle_backward W.size_pos W.node hback
     exact hGR.noCustomerProviderCycle _ hcyc
 
@@ -393,7 +369,9 @@ conditions, an `SPP` instance has a unique stable path assignment. -/
 theorem existsUnique_isStable (hGR : GaoRexfordConditions S) : ∃! π, S.IsStable π :=
   S.existsUnique_isStable_of_isEmpty_disputeWheel hGR.isEmpty_disputeWheel
 
-/-- **Gao–Rexford safety** ([GaoRexford2001]; [GriffinShepherdWilfong2002]): under the
+/-- **Gao–Rexford safety** ([GaoRexford2001]; [GriffinShepherdWilfong2002], proved here for the
+asynchronous per-node atomic best-response activation model `SPP.run` of
+[FeigenbaumSchapiraShenker2007], Chapter 14, rather than FIFO link-queue `SPVP`): under the
 Gao–Rexford commercial routing conditions, asynchronous best-response BGP dynamics from
 `initAssignment` converge under every fair activation schedule to the unique stable path
 assignment. -/
