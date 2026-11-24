@@ -136,17 +136,6 @@ abbrev Bank (maxVertices maxEdges : ℕ) :=
 def fillBank (maxVertices maxEdges : ℕ) : Bank maxVertices maxEdges :=
   IndexedVector.ofFn fun n => IndexedVector.ofFn fun m => optimalCatalog n m
 
-private def orderedEnds [LinearOrder V] : Sym2 V → V × V :=
-  Sym2.lift ⟨fun a b => (min a b, max a b), by simp [min_comm, max_comm]⟩
-
-private theorem orderedEnds_mk [LinearOrder V] (e : Sym2 V) :
-    s((orderedEnds e).1, (orderedEnds e).2) = e := by
-  induction e using Sym2.ind with
-  | _ a b =>
-    rcases le_total a b with h | h
-    · simp [orderedEnds, min_eq_left h, max_eq_right h]
-    · simp [orderedEnds, min_eq_right h, max_eq_left h]
-
 /-- Run the stored comparison program on a compactly relabeled edge subset. The fallback handles
 pieces outside the supplied size range, making the solver total for arbitrary multigraphs. -/
 def cachedMSFOn [LinearOrder E] [LinearOrder V] (bank : Bank maxVertices maxEdges)
@@ -156,8 +145,8 @@ def cachedMSFOn [LinearOrder E] [LinearOrder V] (bank : Bank maxVertices maxEdge
       let edges := S.orderEmbOfFin rfl
       let table := (bank.get ⟨_, hv⟩).get ⟨_, he⟩
       let topology := OptimalTree.localEnds ends S
-      let prog := lookup table (fun i => (orderedEnds (topology i)).1)
-        (fun i => (orderedEnds (topology i)).2)
+      let prog := lookup table (fun i => (OptimalTree.endpointPair (topology i)).1)
+        (fun i => (OptimalTree.endpointPair (topology i)).2)
       Finset.map edges.toEmbedding <$> Cslib.Query.LEQuery.relabel edges prog
     else optimalMSFOn ends S
   else optimalMSFOn ends S
@@ -169,7 +158,7 @@ def cachedMSFOn [LinearOrder E] [LinearOrder V] (bank : Bank maxVertices maxEdge
   unfold cachedMSFOn
   split <;> try rfl
   split <;> try rfl
-  simp [fillBank, optimalMSFOn, orderedEnds_mk]
+  simp [fillBank, optimalMSFOn]
 
 /-- The enumeration works even for loops and repeated edges. -/
 theorem key_count (n m : ℕ) :
@@ -239,19 +228,20 @@ private theorem length_assignments (vals : List α) (n : ℕ) :
 
 /-- A call or stored rank row at a potential depth-`d` state in the actual search for
 `OptimalTree.atDepth`. The initial promise contains only injective rank assignments. -/
-theorem rank_level_size (m d : ℕ) :
+theorem rank_level_size (ends : Fin m → Sym2 (Fin n)) (d : ℕ) :
     let states := level (OptimalTree.pairs m)
-      (fun (rank : Fin m → Fin m) (q : Fin m × Fin m) => decide (rank q.1 ≤ rank q.2)) d
-      (OptimalTree.ranks m)
+      (fun (row : (Fin m → Fin m) × Finset (Fin m)) q => decide (row.1 q.1 ≤ row.1 q.2)) d
+      (OptimalTree.rankRows ends)
     states.length + (states.map List.length).sum ≤ (2*m^2)^d + (m^2)^d*m^m := by
   dsimp only
-  have hr : (OptimalTree.ranks m).length ≤ m^m := by
-    simpa only [OptimalTree.ranks, length_assignments, List.length_finRange] using
+  have hr : (OptimalTree.rankRows ends).length ≤ m^m := by
+    simpa only [OptimalTree.rankRows, List.length_map, OptimalTree.ranks, length_assignments,
+      List.length_finRange] using
       (List.length_filter_le (l := OptimalTree.assignments (List.finRange m) m)
         (p := fun r => decide (∀ a b, r a = r b → a = b)))
   obtain ⟨a, b⟩ := level_size (OptimalTree.pairs m)
-    (fun (rank : Fin m → Fin m) (q : Fin m × Fin m) => decide (rank q.1 ≤ rank q.2)) d
-    (OptimalTree.ranks m)
+    (fun (row : (Fin m → Fin m) × Finset (Fin m)) q => decide (row.1 q.1 ≤ row.1 q.2)) d
+    (OptimalTree.rankRows ends)
   rw [a, b, OptimalTree.length_pairs, ← pow_two]
   exact Nat.add_le_add_left (Nat.mul_le_mul_left _ hr) _
 
@@ -279,6 +269,75 @@ private theorem sum_range_le (f : ℕ → ℕ) (k b : ℕ) (hf : ∀ i < k, f i 
     _ ≤ ∑ _ ∈ Finset.range k, b :=
       Finset.sum_le_sum fun i hi => hf i (Finset.mem_range.mp hi)
     _ = _ := by simp
+
+private def rowParentSteps (ends : Fin m → Sym2 (Fin n)) (rank : Fin m → Fin m) : ℕ :=
+  ∑ e : Fin m, Cslib.DataStructure.total id
+    (OptimalTree.testEdge ends (fun a b => decide (rank a ≤ rank b)) e).traces
+
+private def topologyParentSteps (ends : Fin m → Sym2 (Fin n)) :=
+  ((OptimalTree.ranks m).map (rowParentSteps ends)).sum
+
+/-- Total concrete union-find trace for labeling the rank rows of every oriented endpoint key
+in the given size range. Each reference output is stored before the depth search starts. -/
+noncomputable def catalogParentSteps (r : ℕ) : ℕ :=
+  ∑ n ∈ Finset.range (r + 1), ∑ m ∈ Finset.range (r^2 + 1),
+    ∑ key : (Fin m → Fin n) × (Fin m → Fin n),
+      topologyParentSteps (fun f => s(key.1 f, key.2 f))
+
+private theorem topologyParentSteps_le (ends : Fin m → Sym2 (Fin n)) :
+    topologyParentSteps ends ≤ (OptimalTree.ranks m).length * (m*(m+1)*(2*Nat.log 2 n+3)) := by
+  let b := m*(m+1)*(2*Nat.log 2 n+3)
+  have bound (r : Fin m → Fin m) : rowParentSteps ends r ≤ b :=
+    OptimalTree.output_parent_steps_le ends (fun a c => decide (r a ≤ r c))
+  have all (rows : List (Fin m → Fin m)) :
+      (rows.map (rowParentSteps ends)).sum ≤ rows.length * b := by
+    induction rows with
+    | nil => simp
+    | cons x xs ih =>
+      simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.succ_mul]
+      have hx := bound x
+      omega
+  exact all _
+
+private theorem catalogParentSteps_le {r : ℕ} (hr : 2 ≤ r) : catalogParentSteps r ≤ volume r := by
+  let M := r^2
+  let Q := M^2
+  let B := (2*Q+1)^Q + (Q+1)^Q * M^M
+  have pos : 0 < r := by omega
+  have mpos : 0 < M := Nat.pow_pos pos
+  have qpos : 0 < Q := Nat.pow_pos mpos
+  have big : 2*r+3 ≤ Q+1 := by dsimp [Q, M]; nlinarith [Nat.pow_le_pow_left hr 2]
+  have per (n m : ℕ) (hn : n ≤ r) (hm : m ≤ M) :
+      (∑ key : (Fin m → Fin n) × (Fin m → Fin n),
+        topologyParentSteps (fun f => s(key.1 f, key.2 f))) ≤ r^(2*M) * ((Q+1)^2 * B) := by
+    have cardRows : (OptimalTree.ranks m).length ≤ M^M := by
+      have small : (OptimalTree.ranks m).length ≤ m^m := by
+        simpa only [OptimalTree.ranks, length_assignments, List.length_finRange] using
+          List.length_filter_le (fun row => decide (∀ a b, row a = row b → a = b))
+            (OptimalTree.assignments (List.finRange m) m)
+      exact small.trans ((Nat.pow_le_pow_left hm m).trans (Nat.pow_le_pow_right mpos hm))
+    have perRow : m*(m+1)*(2*Nat.log 2 n+3) ≤ (Q+1)^2 * (Q+1)^Q := by
+      have hmQ : M ≤ Q := Nat.le_pow (by decide)
+      have log := Nat.log_le_self 2 n
+      rw [pow_two]
+      exact Nat.mul_le_mul (Nat.mul_le_mul (by omega) (by omega))
+        ((show 2*Nat.log 2 n+3 ≤ Q+1 by omega).trans (Nat.le_pow qpos))
+    have keyBound (key : (Fin m → Fin n) × (Fin m → Fin n)) :
+        topologyParentSteps (fun f => s(key.1 f, key.2 f)) ≤ (Q+1)^2 * B := by
+      apply (topologyParentSteps_le _).trans
+      apply (Nat.mul_le_mul cardRows perRow).trans
+      calc
+        _ = (Q+1)^2 * ((Q+1)^Q * M^M) := by ac_rfl
+        _ ≤ _ := Nat.mul_le_mul_left _ (Nat.le_add_left _ _)
+    calc
+      _ ≤ ∑ _ : (Fin m → Fin n) × (Fin m → Fin n), (Q+1)^2 * B :=
+        Finset.sum_le_sum fun key _ => keyBound key
+      _ = n^(2*m)*((Q+1)^2*B) := by rw [Finset.sum_const, Finset.card_univ, key_count]; rfl
+      _ ≤ _ := Nat.mul_le_mul_right _ ((Nat.pow_le_pow_left hn _).trans
+        (Nat.pow_le_pow_right pos (Nat.mul_le_mul_left 2 hm)))
+  apply (sum_range_le _ _ _ (fun n hn =>
+    sum_range_le _ _ _ (fun m hm => per n m (by omega) (by dsimp [M]; omega)))).trans
+  exact le_of_eq (by dsimp [volume, B, Q, M]; ac_rfl)
 
 /-- The sum over topology sizes, search budgets and recursion levels is bounded by `volume`. -/
 theorem allCatalogCells_le (r : ℕ) : allCatalogCells r ≤ volume r := by
@@ -392,5 +451,20 @@ theorem cutoff_volume : ∀ᶠ n : ℕ in Filter.atTop, volume (cutoff n) ≤ n.
 when counted across recursion levels and search budgets. -/
 theorem cutoff_catalogCells : ∀ᶠ n : ℕ in Filter.atTop, allCatalogCells (cutoff n) ≤ n.log2 :=
   cutoff_volume.mono fun n hn => (allCatalogCells_le (cutoff n)).trans hn
+
+/-- The union-find parent inspections and links for labeling *all* precomputed rank tables
+fit within logarithmic growth in the original graph size at the chosen cutoff. -/
+theorem cutoff_catalogParentSteps :
+    ∀ᶠ n : ℕ in Filter.atTop, catalogParentSteps (cutoff n) ≤ n.log2 := by
+  filter_upwards [cutoff_volume, Filter.eventually_ge_atTop (16 : ℕ)] with n cap hn
+  have one : 1 ≤ n.log2.log2.log2 := by
+    have h : 16 ≤ n := hn
+    apply (Nat.le_log2 (by
+      have h1 : 4 ≤ n.log2 := (Nat.le_log2 (by omega)).2 h
+      have h2 : 2 ≤ n.log2.log2 := (Nat.le_log2 (by omega)).2 h1
+      omega)).2
+    have h1 : 4 ≤ n.log2 := (Nat.le_log2 (by omega)).2 h
+    exact (Nat.le_log2 (by omega)).2 h1
+  exact (catalogParentSteps_le (r := cutoff n) (by dsimp [cutoff]; omega)).trans cap
 
 end Cslib.Multigraph.MSFPrecompute

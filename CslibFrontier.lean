@@ -179,6 +179,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Algorithms.Lean.MaxFlow.WeightedMatching
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.CachedLookup
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.CachedReduction
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.CompactParallel
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.Conglomerates
@@ -194,6 +195,7 @@ public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.DirectSum
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.DisjointUnion
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Packing
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.RankOutput
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Recurrence
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Restrict
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Search
@@ -361,7 +363,10 @@ public import CslibFrontier.Algorithms.PlantedClique.Program
 public import CslibFrontier.Algorithms.PlantedClique.RandomGraph
 public import CslibFrontier.Algorithms.PlantedClique.Representation
 public import CslibFrontier.Algorithms.PlantedClique.Selection
+public import CslibFrontier.Algorithms.PointerMachine.BindMSF
+public import CslibFrontier.Algorithms.PointerMachine.BoundSmallMSF
 public import CslibFrontier.Algorithms.PointerMachine.ComparisonTree
+public import CslibFrontier.Algorithms.PointerMachine.LocalMSFCost
 public import CslibFrontier.Algorithms.PointerMachine.SmallMSF
 public import CslibFrontier.Algorithms.Quantum.PeriodFinding
 public import CslibFrontier.Algorithms.Reachability.BreadthFirst

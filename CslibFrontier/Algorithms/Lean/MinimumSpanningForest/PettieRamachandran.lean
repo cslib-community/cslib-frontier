@@ -48,6 +48,19 @@ variable [AddCommGroup W] [IsOrderedAddMonoid W]
 /-- Order equal weights by the index of their original edge. -/
 def tieKey {m : ℕ} (w : Fin m → W) (e : Fin m) : W ×ₗ ℤ := toLex (w e, (e.val : ℤ))
 
+omit [AddCommGroup W] [IsOrderedAddMonoid W] in
+/-- Each stabilized key query uses one original weight comparison. The direction is
+determined by the edge indices before consulting their weights. -/
+theorem tieKey_compare {m : ℕ} (w : Fin m → W) (a b : Fin m) :
+    decide (tieKey w a ≤ tieKey w b) =
+      if a ≤ b then decide (w a ≤ w b) else !(decide (w b ≤ w a)) := by
+  by_cases h : a ≤ b
+  · have ab : (a.val : ℤ) ≤ b.val := by exact_mod_cast h
+    simp [tieKey, Prod.Lex.toLex_le_toLex', h, ab]
+  · have ab : ¬ (a.val : ℤ) ≤ b.val := by exact_mod_cast h
+    simp only [tieKey, Prod.Lex.toLex_le_toLex, ab, and_false, or_false, ite_eq_right h]
+    simp [decide_not, ← not_le]
+
 omit [LinearOrder W] [AddCommGroup W] [IsOrderedAddMonoid W] in
 theorem tieKey_injective {m : ℕ} (w : Fin m → W) : Function.Injective (tieKey w) := by
   intro a b eq

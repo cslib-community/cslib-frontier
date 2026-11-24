@@ -119,6 +119,12 @@ private theorem jobSizes_le {ps : List (PartitionPart V E W)} (run : Valid w end
     change edges ≤ remain.card ∧ vertices ≤ (collect w next remain ps).forests.card at ih
     exact ⟨by omega, by omega⟩
 
+/-- The sum of compact local edge counts in a partition fits its input edge count. -/
+theorem sum_localJobs_edges_le {ps : List (PartitionPart V E W)} (run : Valid w ends S ps)
+    (hw : Function.Injective w) :
+    ((localJobs w ends S ps).map (fun j => j.2.card)).sum ≤ S.card :=
+  (jobSizes_le run hw).1
+
 /-- Sum of actual cached local-program comparisons in one valid partition is at most the
 global worst-case optimum at the input edge count and any nonempty support bound. -/
 theorem sum_cached_countQueries_le {ps : List (PartitionPart V E W)} (run : Valid w ends S ps)

@@ -99,6 +99,29 @@ noncomputable def forestRounds (ends : E → Sym2 V) (w : E → W) (hw : Functio
   roundInputs (PrimPartition.HeapPrim.grower 2 w)
     (bankSolvers w hw (MSFPrecompute.fillBank r (r ^ 2)) rfl) hw ends S
 
+private theorem roundInputs_edges_le (alg : Solvers V E W w) (hw : Function.Injective w)
+    (ends : E → Sym2 V) (S : Finset E) :
+    ((roundInputs (PrimPartition.HeapPrim.grower 2 w) alg hw ends S).map
+      (fun j => j.2.card)).sum ≤ 2 * S.card := by
+  rw [roundInputs]
+  split
+  next h =>
+    let g : PrimPartition.Grower V E W w := PrimPartition.HeapPrim.grower 2 w
+    let r := round g alg ends S
+    have rest := roundInputs_edges_le alg hw r.ends r.remaining
+    have half := heapRound_half alg hw ends S
+    change S.card + ((roundInputs g alg hw r.ends r.remaining).map _).sum ≤ 2 * S.card
+    exact (Nat.add_le_add_left (rest.trans half) _).trans (by omega)
+  next => simp
+termination_by (nonloops ends S).card
+decreasing_by exact round_card_lt _ alg hw _ _ (by assumption)
+
+/-- The total number of input edge occurrences across all active recursive rounds is at
+most twice the original edge count. This is the available budget for linear per-round work. -/
+theorem forestRounds_edges_le (ends : E → Sym2 V) (w : E → W) (hw : Function.Injective w)
+    (S : Finset E) : ((forestRounds ends w hw S).map (fun j => j.2.card)).sum ≤ 2 * S.card :=
+  roundInputs_edges_le _ hw ends S
+
 /-- Over all recursive rounds, all fixed-topology cached local programs together use at most
 twice the optimal worst-case comparison budget for the input sizes. The sums count queries
 at the actual weights, with the original bank capacity fixed throughout recursion. -/

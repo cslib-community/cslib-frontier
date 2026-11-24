@@ -10,7 +10,7 @@ public import CslibFrontier.Algorithms.Lean.SoftHeap.Forest
 import Mathlib.Tactic.FinCases
 
 /-!
-# Amortized node visits in soft - heap refills
+# Amortized node visits in soft-heap refills
 
 The counter follows the calls made by `Tree.refill`. Each occupied bucket carries credits,
 and an internal node carries one extra credit while it has an occupied child. Above the
@@ -255,7 +255,7 @@ namespace Cslib.SoftHeap.Forest
 
 variable {α W : Type} [LinearOrder W] {r : ℕ}
 
-/-- The forest credit includes a linear-in-rank reserve for future equal - rank links. -/
+/-- The forest credit includes a linear-in-rank reserve for future equal-rank links. -/
 @[expose] def refillCredits (w : α → W) (t : ℕ) (h : Forest α) : ℕ :=
   (h.map fun f => f.2.credits w t + (f.1 + 2)).sum
 

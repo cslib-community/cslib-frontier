@@ -6,10 +6,10 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
+public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.RankOutput
 public import CslibFrontier.Algorithms.Lean.MinimumSpanningForest.OptimalTree.Search
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.KeyOracle
 public import CslibFrontier.Foundations.Combinatorics.Multigraph.MinimumSpanningForest
-public import Mathlib.Data.Fintype.Powerset
 
 /-!
 # An optimal comparison program for each small multigraph
@@ -65,40 +65,6 @@ theorem mem_pairs (q : Fin m × Fin m) : q ∈ pairs m := by
 @[simp] theorem length_pairs (m : ℕ) : (pairs m).length = m * m := by
   exact (List.length_product (List.finRange m) (List.finRange m)).trans (by simp)
 
-/-- Test membership in a finite cut by enumerating the two ends. -/
-@[expose] def crosses (ends : Fin m → Sym2 (Fin n)) (cut : Finset (Fin n)) (e : Fin m) : Bool :=
-  decide (∃ a b, ends e = s(a, b) ∧ a ∈ cut ∧ b ∉ cut)
-
-/-- Compute the reference output from a table of edge comparisons. An edge is retained when
-it is minimum on at least one cut. -/
-@[expose] def output (ends : Fin m → Sym2 (Fin n)) (ask : Fin m → Fin m → Bool) :
-    Finset (Fin m) :=
-  Finset.univ.filter fun e => ∃ cut : Finset (Fin n), crosses ends cut e ∧
-    ∀ f, crosses ends cut f → ask e f = true
-
-theorem output_eq_msf {W : Type*} [LinearOrder W] (ends : Fin m → Sym2 (Fin n)) (w : Fin m → W) :
-    output ends (fun e f => decide (w e ≤ w f)) = msf ends w Finset.univ := by
-  classical
-  ext e
-  simp only [output, Finset.mem_filter, Finset.mem_univ, true_and, crosses, decide_eq_true_eq]
-  constructor
-  · rintro ⟨cut, he, light⟩
-    apply mem_msf_of_mem_edgeCut w (Finset.mem_univ e) (P := ↑cut) (Graph.mem_edgeCut_iff.mpr he)
-    exact fun f _ hf => light f (Graph.mem_edgeCut_iff.mp hf)
-  · intro he
-    have ex : ∃ a b, ends e = s(a, b) := by
-      induction ends e using Sym2.ind with | _ a b => exact ⟨a, b, rfl⟩
-    obtain ⟨a, b, hab⟩ := ex
-    let lower : Set (Fin m) := {f | f ∈ (Finset.univ : Finset (Fin m)) ∧ w f < w e}
-    let cut := Finset.univ.filter fun v => Joins ends lower a v
-    have inCut (v : Fin n) : v ∈ cut ↔ Joins ends lower a v := by simp [cut]
-    refine ⟨cut, ⟨a, b, hab, (inCut _).mpr (Joins.refl _), ?_⟩, ?_⟩
-    · exact fun hb => ((mem_msf_iff w hab).mp he).2 ((inCut _).mp hb)
-    · rintro f ⟨c, d, hcd, hc, hd⟩
-      by_contra! lighter
-      exact hd ((inCut _).mpr (((inCut _).mp hc).trans
-        (Joins.of_mem (S := lower) ⟨Finset.mem_univ _, lighter⟩ hcd)))
-
 /-- The order rank of an edge, obtained by counting its strictly lighter predecessors. -/
 @[expose] def rank {W : Type*} [LinearOrder W] (w : Fin m → W) (e : Fin m) : Fin m :=
   ⟨(Finset.univ.filter (fun f => w f < w e)).card, by
@@ -134,10 +100,26 @@ theorem rank_injective {W : Type*} [LinearOrder W] {w : Fin m → W} (hw : Funct
   exact le_antisymm (le_of_not_gt (fun h => (ne_of_lt (rank_strict h)) eq.symm))
     (le_of_not_gt (fun h => (ne_of_lt (rank_strict h)) eq))
 
+/-- Store the reference forest beside its rank permutation before iterative deepening. -/
+@[expose] def rankRows (ends : Fin m → Sym2 (Fin n)) :
+    List ((Fin m → Fin m) × Finset (Fin m)) :=
+  (ranks m).map fun r => (r, output ends (fun e f => decide (r e ≤ r f)))
+
+private theorem row_spec (ends : Fin m → Sym2 (Fin n)) {row}
+    (h : row ∈ rankRows ends) :
+    Function.Injective row.1 ∧ row.2 = output ends (fun a b => decide (row.1 a ≤ row.1 b)) := by
+  simp only [rankRows, List.mem_map] at h
+  obtain ⟨r, hr, eq⟩ := h
+  subst row
+  exact ⟨(mem_ranks _).mp hr, rfl⟩
+
+/-- Search a materialized rank table. Every promise restriction carries the cached output
+with its rank permutation. -/
+@[expose] def searchRows (rows : List ((Fin m → Fin m) × Finset (Fin m))) (d : ℕ) :=
+  LEQuery.boundedSearch (pairs m) (fun row e f => decide (row.1 e ≤ row.1 f)) Prod.snd d rows
+
 /-- Synthesize a program at a fixed comparison budget on the complete rank table. -/
-@[expose] def atDepth (ends : Fin m → Sym2 (Fin n)) (d : ℕ) :=
-  LEQuery.boundedSearch (pairs m) (fun (r : Fin m → Fin m) e f => decide (r e ≤ r f))
-    (fun r => output ends (fun e f => decide (r e ≤ r f))) d (ranks m)
+@[expose] def atDepth (ends : Fin m → Sym2 (Fin n)) := searchRows (rankRows ends)
 
 theorem atDepth_complete (ends : Fin m → Sym2 (Fin n)) (d : ℕ)
     (p : FreeM (LEQuery (Fin m)) (Finset (Fin m)))
@@ -145,15 +127,18 @@ theorem atDepth_complete (ends : Fin m → Sym2 (Fin n)) (d : ℕ)
       p.eval (LEQuery.keyOracle r) = msf ends r Finset.univ ∧
         p.countQueries (LEQuery.keyOracle r) ≤ d) :
     (atDepth ends d).isSome := by
-  apply LEQuery.boundedSearch_complete mem_pairs p
-  intro r hr
-  obtain ⟨v, c⟩ := ok r ((mem_ranks r).mp hr)
-  exact ⟨v.trans (output_eq_msf ends r).symm, c⟩
+  apply LEQuery.boundedSearch_complete (ask := fun row e f => decide (row.1 e ≤ row.1 f))
+    (out := Prod.snd) (rows := rankRows ends) mem_pairs p
+  intro row hr
+  obtain ⟨inj, ans⟩ := row_spec ends hr
+  obtain ⟨v, c⟩ := ok row.1 inj
+  exact ⟨v.trans ((output_eq_msf ends row.1).symm.trans ans.symm), c⟩
 
 theorem atDepth_limit (ends : Fin m → Sym2 (Fin n)) : (atDepth ends (m * m)).isSome := by
   apply LEQuery.boundedSearch_complete mem_pairs
     (LEQuery.queryPairs (output ends) (pairs m) (fun _ _ => false))
-  intro r _
+  intro row hr
+  obtain ⟨r, _, rfl⟩ := List.mem_map.mp (show row ∈ (rankRows ends) from hr)
   have h := LEQuery.queryPairs_spec (output ends) (pairs m) (fun _ _ => false)
     (fun a b => decide (r a ≤ r b)) (fun x y missing => False.elim (missing (mem_pairs (x, y))))
   exact ⟨h.1, by simpa using h.2.le⟩
@@ -161,7 +146,8 @@ theorem atDepth_limit (ends : Fin m → Sym2 (Fin n)) : (atDepth ends (m * m)).i
 /-- The first successful comparison budget and the program certified at that budget. -/
 @[expose] def solution (ends : Fin m → Sym2 (Fin n)) :
     ℕ × FreeM (LEQuery (Fin m)) (Finset (Fin m)) :=
-  (LEQuery.firstFeasible (atDepth ends) (m * m)).get
+  let rows := rankRows ends
+  (LEQuery.firstFeasible (searchRows rows) (m * m)).get
     (LEQuery.firstFeasible_isSome _ _ (atDepth_limit ends))
 
 theorem solution_spec (ends : Fin m → Sym2 (Fin n)) :
@@ -186,7 +172,8 @@ theorem optimalMSFProgram_spec {W : Type*} [LinearOrder W] (ends : Fin m → Sym
     (optimalMSFProgram ends).eval (LEQuery.keyOracle w) = msf ends w Finset.univ ∧
       (optimalMSFProgram ends).countQueries (LEQuery.keyOracle w) ≤ optimalMSFComparisons ends := by
   have h := LEQuery.boundedSearch_spec (OptimalTree.solution_spec ends).1
-    ((OptimalTree.mem_ranks _).mpr (OptimalTree.rank_injective hw))
+    (List.mem_map.mpr ⟨OptimalTree.rank w,
+      (OptimalTree.mem_ranks _).mpr (OptimalTree.rank_injective hw), rfl⟩)
   have eq : (fun e f => decide (OptimalTree.rank w e ≤ OptimalTree.rank w f)) =
       (fun e f => decide (w e ≤ w f)) := by
     funext e f
