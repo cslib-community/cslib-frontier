@@ -8492,6 +8492,8 @@ public import CslibFrontier.GameTheory.Congestion.PLS
 public import CslibFrontier.GameTheory.Congestion.PigouBound
 public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
+public import CslibFrontier.GameTheory.Congestion.Weighted
+public import CslibFrontier.GameTheory.Congestion.WeightedAffine
 public import CslibFrontier.GameTheory.Cooperative.Basic
 public import CslibFrontier.GameTheory.Cooperative.Core
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
