@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.FusionTree.WordRAM.Packed
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Sparse
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
 /-!
@@ -219,7 +220,7 @@ theorem exec {w b n q : ℕ} (s : ℕ → ℕ) (x : Data 10) (hn : 0 < n)
   let cq := 2 ^ b - 1 - q
   let cs := fun i => 2 ^ b - 1 - s i
   have hp := Nat.two_pow_pos b
-  have hcq : cq < 2 ^ b := by dsimp only [cq]; omega
+  have hcq : cq < 2 ^ b := by omega
   have hcs (i : ℕ) (_ : i < n) : cs i < 2 ^ b := by dsimp only [cs]; omega
   have hbitwidth : b ≤ w := by
     have := Nat.le_mul_of_pos_right (b + 1) hn
@@ -229,9 +230,8 @@ theorem exec {w b n q : ℕ} (s : ℕ → ℕ) (x : Data 10) (hn : 0 < n)
   simp only [cq, cs, countGuards, guardFlags,
     packedDifference] at hqfit hrep hdiff hmask hflag hcount hdiv hmod
   refine ⟨?_, ?_, rfl⟩
-  · ram_eval [code, result, hxq, hxn, hxc, hxg, hxb, hxm, hxr, hxmax,
-      hqfit, hrep, hdiff, hmask, hflag, hcount, hdiv, hmod,
-      cq, cs, upperRankExpr, countGuards, guardFlags, packedDifference]
+  · simp only [code, result, upperRankExpr, countGuards, guardFlags, packedDifference]
+    wram_exec *
   · simpa only [result, Data.set_regs, Function.update_self] using
       upperRankExpr_eq_card s hn hb hs hq
 

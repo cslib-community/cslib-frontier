@@ -134,9 +134,7 @@ private def check (x : FeedbackArcSetInstance × List ℕ) : Bool :=
 private theorem computableInPolyTime_backArcs :
     ComputableInPolyTime (fun x : FeedbackArcSetInstance × List ℕ => backArcs x.1.graph x.2)
       (encPair encFeedbackArcSet (encList encNat)) (encList (encPair encNat encNat)) := by
-  unfold backArcs
-  exact filterWithInput (encGraph_edges_polyTime (by fun_prop))
-    (by fun_prop [encGraph_vertices_polyTime])
+  fun_prop [backArcs]
 
 private theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair encFeedbackArcSet (encList encNat)) encBool := by
@@ -313,12 +311,7 @@ theorem toFeedbackArcSet_mem_iff (x : FeedbackVertexSetInstance) :
 @[fun_prop]
 theorem computableInPolyTime_toFeedbackArcSet :
     ComputableInPolyTime toFeedbackArcSet encFeedbackVertexSet encFeedbackArcSet := by
-  have hs : ComputableInPolyTime (fun x : FeedbackVertexSetInstance => splitVertices x.graph)
-      encFeedbackVertexSet encGraph := by
-    unfold splitVertices
-    fun_prop
-  unfold toFeedbackArcSet
-  fun_prop
+  fun_prop [splitVertices, toFeedbackArcSet]
 
 end FeedbackVertexSet
 

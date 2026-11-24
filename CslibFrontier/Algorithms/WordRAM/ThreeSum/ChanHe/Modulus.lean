@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Search
 import CslibFrontier.Algorithms.ThreeSum.ChanHe.SelectorBounds
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native setup of the two Chan–He prime searches
@@ -88,11 +89,12 @@ theorem exec_firstSetup {w : ℕ} (x : Data 64) (h3 : Fits w 3)
     (hsq : ∀ j, Fits w (x.regs (CountCall.length j) ^ 2))
     (hcut : ∀ j, Fits w (3 * x.regs digits * x.regs (CountCall.length j) ^ 2)) :
     ExecWithin w firstSetup x (firstState x) 9 := by
-  simp only [digits] at htriple
-  simp only [CountCall.length, pow_two] at hsq hcut
-  ram_eval [firstSetup, firstState, h3, htriple, hsq 0, hsq 1, hsq 2,
-    hcut 0, hcut 1, hcut 2, digits, multiplier, Search.rawModulus, Search.factor,
-    CountCall.length, CollisionTest.threshold, Fin.mk.injEq, pow_two, Nat.mul_comm]
+  have hs0 := hsq 0; have hs1 := hsq 1; have hs2 := hsq 2
+  have hc0 := hcut 0; have hc1 := hcut 1; have hc2 := hcut 2
+  simp only [pow_two] at hs0 hs1 hs2 hc0 hc1 hc2
+  unfold firstSetup firstState
+  wram_exec [Nat.mul_comm _ 3]
+  simp only [pow_two]
 
 /-- The exact data after the second setup; memory is unchanged. -/
 def secondState (x : Data 64) : Data 64 :=
@@ -107,11 +109,9 @@ theorem exec_secondSetup {w : ℕ} (x : Data 64) (h3 : Fits w 3)
     (htriple : Fits w (3 * x.regs digits))
     (hcut : ∀ j, Fits w (3 * x.regs digits * x.regs (CountCall.result j))) :
     ExecWithin w secondSetup x (secondState x) 6 := by
-  simp only [digits] at htriple
-  simp only [CountCall.result] at hcut
-  ram_eval [secondSetup, secondState, h3, htriple, hcut, digits, multiplier, first,
-    Search.rawModulus, Search.factor, CountCall.result, CollisionTest.threshold,
-    Fin.mk.injEq, Nat.mul_comm]
+  have hc0 := hcut 0; have hc1 := hcut 1; have hc2 := hcut 2
+  unfold secondSetup secondState
+  wram_exec [Nat.mul_comm _ 3]
 
 private theorem selector_bounds {m : ℕ} (hm : 1 ≤ m) (A : ℕ → Prop) [DecidablePred A] :
     1 ≤ minOrOne {q ∈ Nat.primesLE m | A q} ∧
@@ -306,8 +306,7 @@ private theorem exec_search {w : ℕ} (x y : Data 64) (values : Fin 3 → ℕ �
     hyinput (by simpa only [hl] using hinj)
   refine ⟨z, he.mono ?_, ?_, ?_⟩
   · simp only [hm, hl, searchTime]
-    exact Nat.add_le_add_right (Nat.mul_le_mul_left _
-      (Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul_left 15 hM) _) _)) _
+    gcongr
   · refine ⟨?_, fun a ha => (hmem a (by simpa only [hk] using ha)).trans (hy.2 a ha)⟩
     intro i hi
     by_cases hid : i = digits
@@ -458,15 +457,15 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
   have hc : ExecWithin (w + 2)
       (ram[ first ← Search.answer; Search.two ← #2; CountCall.modulus ← first * Search.two ])
       b c 3 := by
-    ram_eval [c, hbanswer, htwo, hencoded, first, Search.answer, Search.two,
-      CountCall.modulus, Fin.mk.injEq, Nat.mul_comm]
+    dsimp only [c]
+    wram_exec [hbanswer, Nat.mul_comm _ 2]
   have hcs : Same x c := same_set (same_set (same_set hbs first (by decide) _)
     Search.two (by decide) _) CountCall.modulus (by decide) _
   have hcm : c.regs CountCall.modulus = encode (p : ℤ) := by simpa only [henc] using
     (show c.regs CountCall.modulus = 2 * p from rfl)
   obtain ⟨d, hd, hds, hdcounts, hdr⟩ := exec_counts x c values (by omega)
     (hp.2.trans (Nat.le_self_pow two_ne_zero _)) hmod hfits hcs hcm hvalues hsk hkd hinput hinj
-  have hdvalue : d.regs first = p := (hdr first (by decide)).trans (by rfl)
+  have hdvalue : d.regs first = p := by regs_frame
   have hddigits : d.regs digits = x.regs digits := hds.1 _ (by decide)
   have hcoll (j : Fin 3) : coll (S j) p ≤ x.regs (CountCall.length j) ^ 2 := by
     have hsize : (S j).card ≤ x.regs (CountCall.length j) :=

@@ -121,7 +121,7 @@ theorem query_repeatedEdgeVerifier_lt (width repeats : ℕ)
 theorem polyTime_repeatedEdgeVerifier (width repeats : ℕ) (decode : (Fin width → Bool) → α)
     {enc : C ↪ List Bool} {alphabet : α ↪ List Bool} {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     (repeatedEdgeVerifier width repeats decode eval).PolyTime (encoding enc) := by
   have h := polyTime_edgeVerifier width decode heval
   have hclog : ComputableInPolyTime (fun g : Graph C => (edgeVerifier width decode eval).coins g)

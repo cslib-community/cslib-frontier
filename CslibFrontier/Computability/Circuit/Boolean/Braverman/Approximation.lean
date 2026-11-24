@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Formula
 import CslibFrontier.Computability.Circuit.Pointwise
 import CslibFrontier.Computability.Circuit.Program
+import CslibFrontier.Computability.Circuit.Simps
 import CslibFrontier.Probability.PMF
 
 /-!
@@ -233,11 +234,13 @@ private def lit (i : Fin N) (v : Bool) : F :=
     (lit i v).eval Unbounded.interpretation y = true ↔ y i = v := by
   cases v <;> simp [lit]
 
+@[circuit_bound]
 private theorem size_lit (i : Fin N) (v : Bool) : (lit i v).size ≤ 1 := by
-  cases v <;> simp [lit]
+  circuit_bound [lit]
 
+@[circuit_bound]
 private theorem depth_lit (i : Fin N) (v : Bool) : (lit i v).depth ≤ 1 := by
-  cases v <;> simp [lit]
+  circuit_bound [lit]
 
 /-- A set has a size other than one exactly when each of its elements has a distinct companion. -/
 private theorem card_ne_one_iff {α : Type*} (A : Finset α) :
@@ -308,9 +311,9 @@ private theorem eval_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K �
           exact (h1 j).1 (by simpa using hz)
     · simp [hS]
   rw [Bool.eq_iff_iff, decide_eq_true_iff, AndMiss]
-  simp only [andMissFormula, Formula.eval_gate, Unbounded.interpretation_and,
-    Unbounded.interpretation_or, decide_eq_true_eq, Fin.forall_fin_two, Matrix.cons_val_zero,
-    Matrix.cons_val_one, eval_lit, hclause, card_ne_one_iff]
+  simp only [circuit_simps, andMissFormula, Unbounded.interpretation_and,
+    Unbounded.interpretation_or, decide_eq_true_eq, Fin.forall_fin_two, eval_lit, hclause,
+    card_ne_one_iff]
   constructor
   · rintro ⟨⟨j, hj⟩, h⟩
     refine ⟨⟨j, (h0 j).2 hj⟩, fun c j' hj' => ?_⟩
@@ -319,61 +322,22 @@ private theorem eval_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K �
   · rintro ⟨⟨j, hj⟩, h⟩
     refine ⟨⟨j, (h0 j).1 hj⟩, fun c j' hj' => h c j' (by simpa using hj')⟩
 
+@[circuit_bound]
 private theorem size_clause (S : Fin t → Fin K → Bool) (w : Fin K → Fin N) (pol : Bool)
     (c : Fin t) (j : Fin K) : (clause S w pol c j).size ≤ K + 1 := by
-  unfold clause
-  split_ifs
-  · rw [Formula.size_gate]
-    refine Nat.add_le_add_right ((sum_le_card_nsmul _ _ 1 fun j' _ => ?_).trans (by simp)) 1
-    split_ifs
-    exacts [size_lit _ _, size_lit _ _, le_rfl]
-  · simp [trueF]
+  circuit_bound [clause, falseF, trueF, Unbounded.Op.arity, zero_add, max_self, mul_one]
 
 private theorem size_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K → Fin N)
     (pol : Bool) : (andMissFormula S w pol).size ≤ (t + 1) * (K + 1) ^ 2 + 2 := by
-  have h1 : (Formula.gate (σ := Unbounded.signature) (n := N) (.or K)
-      fun j => lit (w j) pol).size ≤ K + 1 := by
-    rw [Formula.size_gate]
-    exact Nat.add_le_add_right
-      ((sum_le_card_nsmul _ _ 1 fun j _ => size_lit _ _).trans (by simp)) 1
-  have h2 : (Formula.gate (σ := Unbounded.signature) (n := N) (.and t)
-      fun c => .gate (.and K) fun j => clause S w pol c j).size ≤ t * (K * (K + 1) + 1) + 1 := by
-    rw [Formula.size_gate]
-    refine Nat.add_le_add_right ((sum_le_card_nsmul _ _ (K * (K + 1) + 1) fun c _ => ?_).trans
-      (by simp)) 1
-    rw [Formula.size_gate]
-    exact Nat.add_le_add_right
-      ((sum_le_card_nsmul _ _ (K + 1) fun j _ => size_clause S w pol c j).trans (by simp)) 1
-  rw [andMissFormula, Formula.size_gate, Fin.sum_univ_two]
-  simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+  have h : (andMissFormula S w pol).size ≤ K + 1 + (t * (K * (K + 1) + 1) + 1) + 1 := by
+    circuit_bound [andMissFormula, Unbounded.Op.arity]
   nlinarith
 
 private theorem depth_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K → Fin N)
     (pol : Bool) : (andMissFormula S w pol).depth ≤ 5 := by
   have hclause (c : Fin t) (j : Fin K) : (clause S w pol c j).depth ≤ 2 := by
-    unfold clause
-    split_ifs
-    · rw [Formula.depth_gate]
-      refine Nat.add_le_add_right (Finset.sup_le fun j' _ => ?_) 1
-      split_ifs
-      exacts [depth_lit _ _, depth_lit _ _, by simp [falseF]]
-    · simp [trueF]
-  rw [andMissFormula, Formula.depth_gate]
-  refine Nat.add_le_add_right (Finset.sup_le fun i _ => ?_) 1
-  have hA : (Formula.gate (σ := Unbounded.signature) (n := N) (.or K)
-      fun j => lit (w j) pol).depth ≤ 4 := by
-    rw [Formula.depth_gate]
-    exact (Nat.add_le_add_right (Finset.sup_le fun j _ => depth_lit (w j) pol) 1).trans
-      (by norm_num)
-  have hB : (Formula.gate (σ := Unbounded.signature) (n := N) (.and t)
-      fun c => .gate (.and K) fun j => clause S w pol c j).depth ≤ 4 := by
-    rw [Formula.depth_gate]
-    refine Nat.add_le_add_right (Finset.sup_le fun c _ => ?_) 1
-    rw [Formula.depth_gate]
-    exact Nat.add_le_add_right (Finset.sup_le fun j _ => hclause c j) 1
-  fin_cases i
-  · exact hA
-  · exact hB
+    circuit_bound [clause, falseF, trueF]
+  circuit_bound [andMissFormula]
 
 /-- The formula deciding whether the approximator of a gate misses at the bits `y (w a)`. -/
 private def missFormula :
@@ -393,6 +357,7 @@ private theorem eval_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity
   | .or _, S, w => (eval_andMissFormula S w true y).trans
       (decide_eq_decide.2 (by simp only [GateMiss, Bool.xor_true]))
 
+@[circuit_bound]
 private theorem size_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity → Bool)
     (w : Fin op.arity → Fin N) : (missFormula op S w).size ≤ (t + 1) * (op.arity + 1) ^ 2 + 2 :=
   match op, S, w with
@@ -400,6 +365,7 @@ private theorem size_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity
   | .and _, S, w => size_andMissFormula S w false
   | .or _, S, w => size_andMissFormula S w true
 
+@[circuit_bound]
 private theorem depth_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity → Bool)
     (w : Fin op.arity → Fin N) : (missFormula op S w).depth ≤ 5 :=
   match op, S, w with
@@ -461,9 +427,7 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
   let W := wf.toCircuit.comp Cw
   have hW (x : BitString n) : W.eval Unbounded.interpretation x 0 = true ↔
       ∃ k, P.depths k ≤ D ∧ Miss ℓ s ν P k x := by
-    change (wf.toCircuit.comp Cw).eval Unbounded.interpretation x 0 = true ↔ _
-    rw [Circuit.eval_comp, Formula.eval_toCircuit]
-    simp only [wf, Formula.eval_gate, Unbounded.interpretation_or, decide_eq_true_eq]
+    simp only [circuit_simps, W, wf, Unbounded.interpretation_or, decide_eq_true_eq]
     refine exists_congr fun k => ?_
     split_ifs with hk
     · rw [eval_missFormula, decide_eq_true_iff]
@@ -482,27 +446,14 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
         (Nat.pow_le_pow_right h1 (C.outputDepths_le_depth 0)) 1))),
     W, ?_, ?_, ?_, fun x hx => ?_⟩
   · -- size
-    have hwf : wf.size ≤ C.size * ((ℓ * s + 1) * (r + 1) ^ 2 + 2) + 1 := by
-      rw [Formula.size_gate]
-      refine Nat.add_le_add_right ((sum_le_card_nsmul _ _ ((ℓ * s + 1) * (r + 1) ^ 2 + 2)
-        fun k _ => ?_).trans (by simp)) 1
-      split_ifs
-      · exact (size_missFormula _ _ _).trans (Nat.add_le_add_right (Nat.mul_le_mul_left _
-          (Nat.pow_le_pow_left (Nat.add_le_add_right (hfan k) 1) 2)) 2)
-      · simp [falseF]
+    have hwf : wf.size ≤ C.size * max ((ℓ * s + 1) * (r + 1) ^ 2 + 2) 1 + 1 := by
+      circuit_bound [wf, falseF, Unbounded.Op.arity, zero_add]
+    rw [Nat.max_eq_left (by omega)] at hwf
     change C.size + wf.toCircuit.size ≤ _
     rw [Formula.size_toCircuit]
     nlinarith
   · -- depth
-    refine (Circuit.depth_comp_le _ _).trans ?_
-    have hwf : wf.depth ≤ 6 := by
-      rw [Formula.depth_gate]
-      refine Nat.add_le_add_right (Finset.sup_le fun k _ => ?_) 1
-      split_ifs
-      · exact depth_missFormula _ _ _
-      · simp [falseF]
-    have := Formula.depth_toCircuit_le wf
-    omega
+    circuit_bound [W, wf, falseF]
   · -- the probability of a miss
     calc ∑ x with W.eval Unbounded.interpretation x 0 = true, (ν x).toReal
         ≤ ∑ x, ∑ k, if Miss ℓ s ν P k x then (ν x).toReal else 0 := by

@@ -53,6 +53,8 @@ namespace Cslib.Complexity.SAT
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
+attribute [local irreducible] ComputableInPolyTime
+
 /-- The NP relation of `SAT`: certificates as long as the encoded formula, checked by
 `Cslib.Complexity.SAT.verifier`. -/
 @[expose]
@@ -129,10 +131,6 @@ theorem computableInPolyTime_padCertificate {γ : Type} {input : γ ↪ List Boo
     {φ : γ → CNF ℕ} {u : γ → List Bool} (hφ : ComputableInPolyTime φ input encCNF)
     (hu : ComputableInPolyTime u input encBits) :
     ComputableInPolyTime (fun x => padCertificate (φ x) (u x)) input encBits := by
-  have henc := ComputableInPolyTime.encoding_comp hφ
-  have hlen : ComputableInPolyTime (fun x => (encCNF (φ x)).length) input encUnary := by
-    fun_prop
-  unfold padCertificate List.rightpad
-  exact hu.bitsAppend ((ComputableInPolyTime.bitsReplicate false).comp (by fun_prop))
+  fun_prop [padCertificate, List.rightpad]
 
 end Cslib.Complexity.SAT

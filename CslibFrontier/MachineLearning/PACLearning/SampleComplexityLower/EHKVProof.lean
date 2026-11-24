@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.MachineLearning.PACLearning.SampleComplexityLower.AdversarialMeasure
 public import CslibFrontier.MachineLearning.PACLearning.SampleComplexityLower.InvolutionPairing
+import CslibFrontier.Tactic.ENNRealToReal
 
 -- vendored: the Lemma 3 entry below records the source's `δ ≤ 1/100` against this proof's
 -- `δ < 1/14`.
@@ -124,8 +125,7 @@ theorem markov_bad_samples
           (ENNReal.ofReal_div_of_pos hk_pos).symm
   have harith : 8 * ↑m * ε' / ↑k < 1 / 2 := by
     have h8mε : 8 * (m : ℝ) * ε' < (↑d : ℝ) / 4 := by
-      calc 8 * (m : ℝ) * ε' < 8 * ((↑d : ℝ) / (32 * ε')) * ε' :=
-            mul_lt_mul_of_pos_right (by linarith) hε'_pos
+      calc 8 * (m : ℝ) * ε' < 8 * ((↑d : ℝ) / (32 * ε')) * ε' := by gcongr
         _ = ↑d / 4 := by field_simp; ring
     have h2k : (d : ℝ) < 2 * ↑k := by
       exact_mod_cast (show d < 2 * k from by omega)
@@ -352,10 +352,7 @@ theorem exists_bad_concept_marginal
   have hε_ne_top : ε ≠ ⊤ := ne_top_of_le_ne_top ENNReal.ofReal_ne_top hε_le
   set ε' := ε.toReal with hε'_def
   have hε'_pos : 0 < ε' := ENNReal.toReal_pos (ne_of_gt hε_pos) hε_ne_top
-  have hε'_le : ε' ≤ 1 / 8 := by
-    rw [hε'_def]
-    have := (ENNReal.toReal_le_toReal hε_ne_top ENNReal.ofReal_ne_top).mpr hε_le
-    rwa [ENNReal.toReal_ofReal (by norm_num : (0 : ℝ) ≤ 1 / 8)] at this
+  have hε'_le : ε' ≤ 1 / 8 := by ennreal_to_real using hε_le
   have hε_eq : ENNReal.ofReal ε' = ε := ENNReal.ofReal_toReal hε_ne_top
   have hW_nonempty : W.Nonempty := card_pos.mp (by omega)
   obtain ⟨w₀, hw₀⟩ := hW_nonempty

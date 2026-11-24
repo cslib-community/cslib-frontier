@@ -19,8 +19,8 @@ node's keys in order, stop at the query, or descend into the child before the fi
 Each operation is defined once, over an arbitrary monad `m`, taking a comparator
 `le : α → α → m Bool` and a node-visit action `visit : m Unit`, with no order instance in scope,
 so that every comparison goes through `le`. The pure operations are the `Id` instantiations with
-the decidable comparator `leI` of a linear order and `visit := pure ()`, in the pattern of
-CSLib's `List.mergeSortM` and `List.idRun_mergeSortM`. Costs are not stated here.
+the decidable comparator `Cslib.SortedAssoc.leI` of a linear order and `visit := pure ()`, in
+the pattern of CSLib's `List.mergeSortM` and `List.idRun_mergeSortM`. Costs are not stated here.
 
 `lookupM` recurses on `.node c rest`, which is not a structural subterm, so it is defined by
 well-founded recursion on `sizeOf`; `decide` and `rfl` cannot evaluate `lookup`, and concrete
@@ -58,6 +58,8 @@ universe w
 namespace Cslib.DataStructure
 
 namespace BTree
+
+open Cslib.SortedAssoc (leI)
 
 section Polymorphic
 
@@ -132,9 +134,6 @@ section Pure
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
 
-/-- The decidable comparator of a linear order, in the identity monad. -/
-abbrev leI (a b : α) : Id Bool := pure (decide (a ≤ b))
-
 /-- Pure within-node search: the `Id` instantiation of `slotM`. -/
 @[expose] def slot (k : α) (rest : List (Triple α β)) : ℕ := Id.run (slotM leI k rest)
 
@@ -185,10 +184,7 @@ theorem slot_eq_length_takeWhile (k : α) (rest : List (Triple α β)) :
   | nil => rfl
   | cons e rest ih =>
     obtain ⟨k', v, c⟩ := e
-    unfold slot at ih ⊢
-    by_cases hk : k ≤ k'
-    · simp [slotM, hk, not_lt.2 hk]
-    · simp [slotM, hk, lt_of_not_ge hk, ih]
+    by_cases hk : k ≤ k' <;> simp [slot_cons, hk, not_lt.2, lt_of_not_ge, ih]
 
 /-- The pure within-node search is the index of the first key not below `k`; this is the form
 that insertion and rank will use. -/
@@ -212,22 +208,17 @@ theorem slot_le_length (k : α) (rest : List (Triple α β)) : slot k rest ≤ r
 /-- Model equation: on a tree with sorted entries, lookup is lookup in `toList`. -/
 theorem lookup_eq_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k : α) :
     lookup k tr = List.lookup k tr.toList := by
-  fun_induction lookupM (m := Id) leI (pure ()) k tr with
-  | case1 => simp
-  | case2 first ih => simpa using ih (by simpa using h)
-  | case3 first k' v c rest ih₁ ih₂ =>
-    rw [toList_node, toListRest_cons, List.cons_append] at h ⊢
-    rw [toList_node] at ih₂
-    obtain ⟨h₁, h₂, hlt, hgt⟩ := List.isSortedAssoc_append_cons_iff.1 h
-    rw [lookup_node_cons]
+  induction h using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil _ _ ih => simpa using ih
+  | node_cons first k' v c rest _ _ hlt hgt ih₁ ih₂ =>
+    rw [lookup_node_cons, toList_node_cons, ih₁, ih₂]
     rcases lt_trichotomy k k' with hk | rfl | hk
-    · simp only [hk.le, not_le.2 hk, ↓reduceIte]
-      rw [ih₁ h₁, List.lookup_append_of_forall_gt fun p hp => ?_]
-      rcases List.mem_cons.1 hp with rfl | hp
-      exacts [hk, hk.trans (hgt p hp)]
+    · rw [List.lookup_append_of_forall_gt
+        (List.forall_mem_cons.2 ⟨hk, fun p hp => hk.trans (hgt p hp)⟩)]
+      simp [hk.le, not_le.2 hk]
     · simp [List.lookup_append_of_forall_lt hlt]
-    · simp only [not_le.2 hk, ↓reduceIte]
-      rw [ih₂ h₂, List.lookup_append_of_forall_lt fun p hp => (hlt p hp).trans hk,
+    · simp [not_le.2 hk, List.lookup_append_of_forall_lt fun p hp => (hlt p hp).trans hk,
         List.lookup_cons_of_ne hk.ne']
 
 /-- Model equation on well-formed trees. -/

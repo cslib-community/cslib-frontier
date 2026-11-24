@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Data.List.Lookup
 import Cslib.Foundations.Data.Polynomial.Monotone
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -94,18 +95,6 @@ ratio of at least `2 ^ (2 * K)`. -/
 private def newmanAmp (M K : ℕ) (z : ℤ) : ℤ :=
   newmanPoly M z ^ (2 * K)
 
-private theorem exists_two_pow_interval {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
-    ∃ k ∈ range (M + 1), (2 : ℤ) ^ k ≤ z ∧ z ≤ 2 * (2 : ℤ) ^ k := by
-  induction M with
-  | zero =>
-    exact ⟨0, mem_range.mpr (by omega), by simpa using hz₁, by simpa using hz₂.trans (by omega)⟩
-  | succ M ih =>
-    by_cases hle : z ≤ (2 : ℤ) ^ M
-    · obtain ⟨k, hk, hk₁, hk₂⟩ := ih hle
-      exact ⟨k, mem_range.mpr (Nat.lt_succ_of_lt (mem_range.mp hk)), hk₁, hk₂⟩
-    · refine ⟨M, mem_range.mpr (by omega), by omega, ?_⟩
-      simpa [pow_succ'] using hz₂
-
 /-- Newman's polynomial is at least `1` at every positive integer. -/
 private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ newmanPoly M z :=
   one_le_prod₀ fun j _ => by
@@ -116,20 +105,10 @@ private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ new
 `newmanPoly M z`. -/
 theorem two_mul_abs_newmanPoly_neg_le {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
     2 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-  obtain ⟨k, hk, hk₁, hk₂⟩ := exists_two_pow_interval hz₁ hz₂
-  unfold newmanPoly
-  rw [← mul_prod_erase (range (M + 1)) (fun j => (2 : ℤ) ^ j + -z) hk,
-    ← mul_prod_erase (range (M + 1)) (fun j => (2 : ℤ) ^ j + z) hk,
-    abs_mul, ← mul_assoc]
-  have hhead : 2 * |(2 : ℤ) ^ k + -z| ≤ (2 : ℤ) ^ k + z := by
-    rcases abs_cases ((2 : ℤ) ^ k + -z) with ⟨h, _⟩ | ⟨h, _⟩ <;> omega
-  have htail : |∏ x ∈ (range (M + 1)).erase k, ((2 : ℤ) ^ x + -z)| ≤
-      ∏ x ∈ (range (M + 1)).erase k, ((2 : ℤ) ^ x + z) := by
-    rw [abs_prod]
-    refine prod_le_prod₀ (fun j _ => abs_nonneg _) fun j _ => ?_
-    have : (0 : ℤ) ≤ (2 : ℤ) ^ j := by positivity
-    rcases abs_cases ((2 : ℤ) ^ j + -z) with ⟨h, _⟩ | ⟨h, _⟩ <;> omega
-  exact mul_le_mul hhead htail (abs_nonneg _) (by omega)
+  have h : 3 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
+    simpa only [newmanPoly, sub_eq_add_neg] using
+      Polynomial.three_mul_abs_prod_two_pow_sub_le hz₁ hz₂
+  exact (mul_le_mul_of_nonneg_right (by decide : (2 : ℤ) ≤ 3) (abs_nonneg _)).trans h
 
 /-- The amplified weight is nonnegative, being an even power. -/
 private theorem newmanAmp_nonneg (M K : ℕ) (z : ℤ) : 0 ≤ newmanAmp M K z :=

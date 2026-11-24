@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Cslib.Algorithms.Lean.TimeM
 
 /-!
 # Dynamic programs over pairs of suffixes
@@ -26,32 +25,19 @@ recursion follow the list structure.)
 A `GridDP` records the four rules. `GridDP.value D x y` is the entry for the whole words, computed
 row by row: `GridDP.row D y x` lists the entries for `x` against every suffix of `y`, longest
 first, and the row for `a :: x` is computed from the row for `x` alone (`GridDP.stepRow`). This is
-the usual two-row scheme, in which only the previous row is kept.
+the usual two-row scheme, in which only the previous row is kept. Checked Word-RAM running-time
+bounds for the concrete edit-distance and longest-common-subsequence instances live in
+`CslibFrontier.Algorithms.WordRAM.EditDistance`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.EditDistance.GridDP`: the four rules of a table over pairs of suffixes.
 * `Cslib.Algorithms.Lean.EditDistance.GridDP.value`: the entry for the whole words.
-* `Cslib.Algorithms.Lean.EditDistance.GridDP.valueM`: the same program in `TimeM`, charging one
-  unit per table entry.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.EditDistance.GridDP.value_nil_nil`, `value_cons_nil`, `value_nil_cons`,
   `value_cons_cons`: `value` satisfies the four rules.
-* `Cslib.Algorithms.Lean.EditDistance.GridDP.ret_valueM`: `valueM` returns `value`.
-* `Cslib.Algorithms.Lean.EditDistance.GridDP.time_valueM`: `valueM` costs exactly
-  `(|x| + 1) (|y| + 1)`, the number of table entries.
-
-## Cost model
-
-`Cslib.Algorithms.Lean.EditDistance.GridDP.valueM` charges one unit per table entry. An entry is
-computed by one application of a rule to at most three neighbouring entries, which sit at the heads
-of the current and previous rows, so reading them is a constant-time step. The application of a rule
-is counted as one step: for edit distance it is a constant number of cost-function calls, additions
-and comparisons, and for the longest common subsequence it is a letter comparison, an addition and a
-comparison. `TimeM` does not track space; that only the previous row is kept is a property of the
-definition, not a proved bound.
 
 ## References
 
@@ -132,85 +118,6 @@ theorem value_cons_cons (a b : α) (x y : List α) :
       D.consCons a b (D.value x y) (D.value x (b :: y)) (D.value (a :: x) y) := by
   simp only [value, row, stepRow, List.headD_cons]
   rw [← tail_row D b y x]
-
-/-! ### Cost -/
-
-open TimeM
-
-/-- `nilRow` in `TimeM`, charging one unit per entry. -/
-@[expose] def nilRowM : List α → TimeM ℕ (List β)
-  | [] => do ✓ return [D.nilNil]
-  | b :: y => do
-    let r ← nilRowM y
-    ✓ return D.nilCons b (r.headD D.nilNil) :: r
-
-/-- `stepRow` in `TimeM`, charging one unit per entry. -/
-@[expose] def stepRowM (a : α) : List α → List β → TimeM ℕ (List β)
-  | [], r => do ✓ return [D.consNil a (r.headD D.nilNil)]
-  | b :: y, r => do
-    let s ← stepRowM a y r.tail
-    ✓ return D.consCons a b (r.tail.headD D.nilNil) (r.headD D.nilNil) (s.headD D.nilNil) :: s
-
-/-- `row` in `TimeM`. -/
-@[expose] def rowM (y : List α) : List α → TimeM ℕ (List β)
-  | [] => D.nilRowM y
-  | a :: x => do
-    let r ← rowM y x
-    D.stepRowM a y r
-
-/-- `value` in `TimeM`. Reading off the head of the last row is not charged. -/
-@[expose] def valueM (x y : List α) : TimeM ℕ β := do
-  let r ← D.rowM y x
-  return r.headD D.nilNil
-
-@[simp] theorem ret_nilRowM : ∀ y : List α, (D.nilRowM y).ret = D.nilRow y
-  | [] => rfl
-  | b :: y => by
-    simp only [nilRowM, ret_bind, ret_pure, ret_nilRowM y]
-    rfl
-
-theorem time_nilRowM : ∀ y : List α, (D.nilRowM y).time = y.length + 1
-  | [] => rfl
-  | b :: y => by
-    simp only [nilRowM, time_bind, time_tick, time_pure, time_nilRowM y, List.length_cons]
-    omega
-
-@[simp] theorem ret_stepRowM (a : α) :
-    ∀ (y : List α) (r : List β), (D.stepRowM a y r).ret = D.stepRow a y r
-  | [], _ => rfl
-  | b :: y, r => by
-    simp only [stepRowM, ret_bind, ret_pure, ret_stepRowM a y r.tail]
-    rfl
-
-theorem time_stepRowM (a : α) :
-    ∀ (y : List α) (r : List β), (D.stepRowM a y r).time = y.length + 1
-  | [], _ => rfl
-  | b :: y, r => by
-    simp only [stepRowM, time_bind, time_tick, time_pure, time_stepRowM a y r.tail,
-      List.length_cons]
-    omega
-
-@[simp] theorem ret_rowM (y : List α) : ∀ x : List α, (D.rowM y x).ret = D.row y x
-  | [] => ret_nilRowM D y
-  | a :: x => by
-    simp only [rowM, ret_bind, ret_stepRowM, ret_rowM y x]
-    rfl
-
-theorem time_rowM (y : List α) :
-    ∀ x : List α, (D.rowM y x).time = (x.length + 1) * (y.length + 1)
-  | [] => by rw [rowM, time_nilRowM, List.length_nil, Nat.zero_add, Nat.one_mul]
-  | a :: x => by
-    rw [rowM, time_bind, time_rowM y x, time_stepRowM, List.length_cons,
-      Nat.succ_mul (x.length + 1)]
-
-/-- `valueM` computes `value`. -/
-@[simp] theorem ret_valueM (x y : List α) : (D.valueM x y).ret = D.value x y := by
-  simp only [valueM, ret_bind, ret_pure, ret_rowM]
-  rfl
-
-/-- `valueM` charges one unit per table entry: `(|x| + 1) (|y| + 1)` units. -/
-theorem time_valueM (x y : List α) : (D.valueM x y).time = (x.length + 1) * (y.length + 1) := by
-  simp only [valueM, time_bind, time_pure, Nat.add_zero, time_rowM]
 
 end GridDP
 

@@ -21,7 +21,7 @@ Exercises the HHK17 modular Fujisaki–Okamoto transforms (`T`, `FO^⊥`, `FO-no
    for `T`, `FO^⊥`, and `FO-notbot`, and rejection of a valid underlying PKE ciphertext encrypted
    under
    non-canonical coins (`c = (1, 6)` decrypts to `some 2` under PKE, yet `decapsBot` rejects with
-   `none` and `decapsNotBot` returns the domain-separated fallback key `H(true, fallback, c)`),
+   `none` and `decapsNotBot` returns the fallback key `H(fallback, c)`),
    and the same decapsulations with oracle access (`decapsBotM`, `decapsNotBotM`) against a `G`
    oracle that records its queries.
 2. **Positive and negative witnesses for `DeltaCorrect` (including `δ > 0` tight and non-tight
@@ -83,10 +83,8 @@ def maskedShiftScheme : Scheme (Fin 8) (Fin 8) (Fin 8) (Fin 8) (Fin 8 × Fin 8) 
 /-- Deterministic test functions `G` and `H` for `FO^⊥` and `FO-notbot` unit tests. -/
 def testG : Fin 8 → Fin 8 := fun _ => 0
 
-/-- Domain-separated test hash returning `15` on fallback inputs (`true`) and casting `m` into
-`Fin 16` on valid inputs (`false`). -/
-def testH : Bool × Fin 8 × (Fin 8 × Fin 8) → Fin 16 :=
-  fun x => if x.1 then 15 else x.2.1.castLE (by decide)
+/-- Read the message component of the shared HHK key oracle. -/
+def testH : Fin 8 × (Fin 8 × Fin 8) → Fin 16 := fun mc => mc.1.castLE (by decide)
 
 /-- Honest `T`, `FO^⊥`, and `FO-notbot` recovery on `maskedShiftScheme` at `pk = sk = 3`,
 `m = 2`. -/
@@ -102,11 +100,11 @@ example :
 
 /-- Ciphertext `(1, 6)` decrypts to `some 2` under `maskedShiftPKE` (`pk = sk = 3`, non-canonical
 coin `r = 1 ≠ testG 2 = 0`), yet `FO^⊥` rejects with `none` and `FO-notbot` outputs the fallback
-key `testH (true, 7, (1, 6)) = 15`. -/
+key `testH (7, (1, 6)) = 7`. -/
 example :
     maskedShiftPKE.dec 3 (1, 6) = some 2 ∧
     maskedShiftScheme.decapsBot testG testH 3 3 (1, 6) = none ∧
-    maskedShiftScheme.decapsNotBot testG testH ⟨3, 3, 7⟩ (1, 6) = 15 := by
+    maskedShiftScheme.decapsNotBot testG testH ⟨3, 3, 7⟩ (1, 6) = 7 := by
   have hbad : ∀ m', maskedShiftPKE.dec 3 (1, 6) = some m' →
       encT maskedShiftPKE testG 3 m' ≠ (1, 6) := by decide
   exact ⟨by decide,
@@ -124,7 +122,7 @@ keeps that query before returning `none` or the fallback key. With pure oracles,
 is `decapsNotBot`. -/
 example :
     (maskedShiftScheme.decapsBotM logG (pure ∘ testH) 3 3 (1, 6)).run [] = (none, [2]) ∧
-    (maskedShiftScheme.decapsNotBotM logG (pure ∘ testH) ⟨3, 3, 7⟩ (1, 6)).run [] = (15, [2]) ∧
+    (maskedShiftScheme.decapsNotBotM logG (pure ∘ testH) ⟨3, 3, 7⟩ (1, 6)).run [] = (7, [2]) ∧
     (maskedShiftScheme.decapsNotBotM logG (pure ∘ testH) ⟨3, 3, 7⟩
       (encT maskedShiftPKE testG 3 2)).run [] = (2, [2]) ∧
     maskedShiftScheme.decapsNotBotM (m := Id) (pure ∘ testG) (pure ∘ testH) ⟨3, 3, 7⟩ (1, 6) =
@@ -274,9 +272,7 @@ theorem identityScheme_simFilterHit (pk : Unit) (m c : Fin 4) :
     ProbComp.eval (identityScheme.simFilterHit (fun _ _ _ => true) queryCiphertextGAdv pk m c) =
       PMF.pure (decide (m = c)) := by
   simp [-bind_pure_comp, -_root_.PMF.bind_apply, Scheme.simFilterHit, queryCiphertextGAdv,
-    identityScheme, Scheme.simFilterHandler, Scheme.simFilterDispatch, simHashG,
-    OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-    ROQuery.dispatch]
+    identityScheme, Scheme.simFilterHandler, Scheme.simFilterDispatch, simHashG, ROQuery.dispatch]
   by_cases hm : m = c
   · simp [-_root_.PMF.bind_apply, StateT.run, RandomOracle.zoomStateT, identityPKE,
       memoize_of_none _ c [] rfl, hm]
@@ -324,10 +320,8 @@ theorem identityUnifKeyScheme_indCcaRomAdvantage_eq_half :
           let kReal ← ProbComp.unifFin 1
           let kRand ← ProbComp.unifFin 1
           return decide (kReal = if b then kRand else kReal)) := by
-    simp [-bind_pure_comp, Scheme.roIndCcaGame, Scheme.keyGenNotBot,
-      identityUnifKeyScheme, identityPKE, checkKeyHAdv, Scheme.roHandler, roHashH,
-      OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_pure,
-      ROQuery.dispatch]
+    simp [-bind_pure_comp, Scheme.roIndCcaGame, Scheme.keyGenNotBot, identityUnifKeyScheme,
+      identityPKE, checkKeyHAdv, Scheme.roHandler, roHashH, ROQuery.dispatch]
     simp [StateT.run, RandomOracle.zoomStateT,
       memoize_of_some _ (false, (0 : Fin 4), (0 : Fin 4)) [((false, 0, 0), _)] _ rfl]
   rw [Scheme.indCcaRomAdvantage, RandomizedROAdversary.play_ofDeterministic,

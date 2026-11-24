@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Communication.Forcing
 public import CslibFrontier.Computability.Communication.OneOut
-import Mathlib.Tactic
 
 /-!
 # Projected leaf rectangles for distinct-instance choice

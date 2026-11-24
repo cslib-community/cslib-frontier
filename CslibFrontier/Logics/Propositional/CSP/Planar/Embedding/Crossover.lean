@@ -58,6 +58,12 @@ def figureOneBBoundary : GadgetWitness figureOneB where
   certificate := figureOneBBoundaryCertificate
   accepted := by decide +kernel
 
+/-- The production Figure 1(b) witness carries its literal ordered numerical certificate. -/
+theorem figureOneBBoundary_certificate :
+    figureOneBBoundary.certificate = figureOneBBoundaryCertificate := by
+  unfold figureOneBBoundary
+  rfl
+
 end Crossover
 
 namespace NonSelfDual

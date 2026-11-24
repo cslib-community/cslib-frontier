@@ -95,8 +95,9 @@ private theorem map_runWith_cpaToCCAHandler (E : SymmetricCipher) (ctBound : ℕ
     (request : Unit × List Bool) (queried : List (List Bool)) :
     (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaOracle n k bit q s))
         (cpaToCCAHandler (ctBound n) request) queried).map (fun x => (x.1, ())) =
-      ProbComp.eval (E.cpaEncryptionOracle n k bit request ()) := by
-  simp only [cpaToCCAHandler, cpaEncryptionOracle, ProbOracleComp.runWith_map,
+      (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+        E.encrypt n k bit request)).map (·, ()) := by
+  simp only [cpaToCCAHandler, symmetricCPAReplyOn, ProbOracleComp.runWith_map,
     ProbOracleComp.runWith_query, ccaOracle, Bool.false_eq_true, ↓reduceIte]
   by_cases hlen : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
   · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
@@ -107,6 +108,7 @@ private theorem map_runWith_cpaToCCAHandler (E : SymmetricCipher) (ctBound : ℕ
       simp only [Bool.and_eq_true, beq_iff_eq] at hlen
       cases bit <;> simp [hlen]
     rw [List.take_of_length_le (hctBound _ hmb ct hct)]
+    rfl
   · simp only [hlen, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_map,
       Prod.map_apply, List.take_nil]
 
@@ -118,19 +120,22 @@ theorem eval_ccaGame_cpaToCCAAdversary (E : SymmetricCipher) (ctBound : ℕ → 
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.ccaGame (cpaToCCAAdversary ctBound adversary) bit n) =
       ProbComp.eval (E.cpaGame adversary bit n) := by
-  simp only [ccaGame, cpaGame, cpaToCCAAdversary, runWith_norm, pmf_norm]
+  simp only [ccaGame, cpaGame, symmetricCPAGameOn, ProbOracleComp.run, cpaToCCAAdversary,
+    runWith_norm, pmf_norm]
   peel_binds k
   have hsim := ProbOracleComp.runWith_map_state
     (oracle := fun q s =>
       ProbOracleComp.runWith (fun q' s' => ProbComp.eval (E.ccaOracle n k bit q' s'))
       (cpaToCCAHandler (ctBound n) q) s)
-    (oracle' := fun q s => ProbComp.eval (E.cpaEncryptionOracle n k bit q s))
+    (oracle' := fun q (s : Unit) =>
+      (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+        E.encrypt n k bit q)).map (·, s))
     (represent := fun _ => ())
     (step := map_runWith_cpaToCCAHandler E ctBound bit n k (hctBound k k_mem))
     (adversary n []) []
+  rw [ProbOracleComp.runWith_memoryless] at hsim
   have hsim' := congrArg (PMF.map Prod.fst) hsim
-  simp only [pmf_norm] at hsim'
-  exact hsim'
+  simpa only [pmf_norm, PMF.map, Function.comp_def, PMF.bind_pure] using hsim'
 
 /-- Adaptive chosen-ciphertext security implies adaptive chosen-plaintext security. -/
 theorem INDCCA.indcpa {E : SymmetricCipher} (h : E.INDCCA) : E.INDCPA := by

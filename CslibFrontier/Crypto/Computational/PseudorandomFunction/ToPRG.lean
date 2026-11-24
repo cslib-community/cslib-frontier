@@ -97,13 +97,13 @@ theorem computableInPolyTime_prgFromPRF
   have hpts : ComputableInPolyTime
       (fun seed : List Bool => List.ofFn fun i : Fin (ℓ seed.length) => List.ofFn (x seed.length i))
       encBits (encList encBits) := hx.comp ComputableInPolyTime.length_bits
-  have hmapped : ComputableTidilyInPolyTime
+  have hmapped : ComputableInPolyTime
       (fun seed : List Bool =>
         (List.ofFn fun i : Fin (ℓ seed.length) => List.ofFn (x seed.length i)).map
           (family seed))
       encBits (encList encBits) :=
-    ComputableTidilyInPolyTime.mapWithInput hpts.tidy hfamily.tidy
-  exact .of_tidy (ComputableTidilyInPolyTime.bitsFlatten hmapped)
+    ComputableInPolyTime.mapWithInput hpts hfamily
+  exact (ComputableInPolyTime.bitsFlatten hmapped)
 
 end Construction
 
@@ -184,11 +184,11 @@ theorem isOraclePPT_prgFromPRFReduction {ℓ inLen outLen : ℕ → ℕ}
   have hsample : IsOraclePPTOn (Operation := Unit) (encPair encUnary (encList encBits)) encBool
       (fun p : ℕ × List (List Bool) => ProbOracleComp.sample (A p.1 (p.2.flatMap fun r =>
         (r ++ List.replicate (outLen p.1) false).take (outLen p.1)))) :=
-    hA.on.isOraclePPTOn.preprocess' ((ComputableInPolyTime.fst _ _).prod hpad)
+    hA.on.isOraclePPTOn.preprocess ((ComputableInPolyTime.fst _ _).prod hpad)
   unfold prgFromPRFReductionWord
   have hbody := hreplies.bind_with hsample (second := fun n replies => ProbOracleComp.sample
     (A n (replies.flatMap fun r => (r ++ List.replicate (outLen n) false).take (outLen n))))
-  exact (hbody.preprocess' (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+  exact (hbody.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
 
 end Reduction
 

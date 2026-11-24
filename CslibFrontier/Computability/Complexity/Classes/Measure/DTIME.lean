@@ -189,23 +189,35 @@ theorem isMartingale (k : ℕ) : IsMartingale (martingale k) where
 /-- The approximation is polynomial-time. -/
 theorem computableInPolyTime_approx (k : ℕ) :
     ComputableInPolyTime (approx k) (encPair encUnary encBits) encNat := by
-  have hpred : ComputableInPolyTime (fun p : ℕ × ℕ => predicts k p.1 p.2)
-      (encPair encUnary encUnary) encBool := by
-    unfold predicts
-    fun_prop
-  have hagree : ComputableInPolyTime (fun p : List Bool × ℕ => agrees k p.1 p.2)
-      (encPair encBits encUnary) encBool := by
-    unfold agrees
-    fun_prop
-  have hterm : ComputableInPolyTime (fun p : List Bool × ℕ => term k p.1 p.2)
-      (encPair encBits encUnary) encNat := by
-    unfold term
-    fun_prop
-  have hnum : ComputableInPolyTime (num k) encBits encNat := by
-    unfold num
-    fun_prop
-  unfold approx
-  fun_prop
+  have hpredicts : ComputableInPolyTime (fun q : ℕ × ℕ => predicts k q.1 q.2)
+      (encPair encUnary encUnary) encBool := by fun_prop [predicts]
+  have htest : ComputableInPolyTime
+      (fun q : (List Bool × ℕ) × ℕ =>
+        decide (q.2 < q.1.2) || (q.1.1.getD q.2 false == predicts k q.1.2 q.2))
+      (encPair (encPair encBits encUnary) encUnary) encBool := by
+    have hword : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.1)
+        (encPair (encPair encBits encUnary) encUnary) encBits :=
+      (ComputableInPolyTime.fst encBits encUnary).comp (.fst _ _)
+    have hi : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.2)
+        (encPair (encPair encBits encUnary) encUnary) encUnary :=
+      (ComputableInPolyTime.snd encBits encUnary).comp (.fst _ _)
+    have hj : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.2)
+        (encPair (encPair encBits encUnary) encUnary) encUnary := .snd _ _
+    have hbeq : ComputableInPolyTime (fun p : Bool × Bool => p.1 == p.2)
+        (encPair encBool encBool) encBool := ComputableInPolyTime.of_finite _
+    exact ComputableInPolyTime.bool_or'
+      (ComputableInPolyTime.unary_lt.comp (hj.prod hi))
+      (hbeq.comp ((ComputableInPolyTime.bitsGetDWithInput hword hj false).prod
+        (hpredicts.comp (hi.prod hj))))
+  have hagrees : ComputableInPolyTime (fun q : List Bool × ℕ => agrees k q.1 q.2)
+      (encPair encBits encUnary) encBool :=
+    ComputableInPolyTime.allWithInput
+      (ComputableInPolyTime.range.comp
+        (ComputableInPolyTime.length_bits.comp (.fst encBits encUnary))) htest
+  have hterm : ComputableInPolyTime (fun q : List Bool × ℕ => term k q.1 q.2)
+      (encPair encBits encUnary) encNat := by fun_prop [term]
+  have hnum : ComputableInPolyTime (num k) encBits encNat := by fun_prop [num]
+  fun_prop [approx]
 
 /-- The approximation is within `2 ^ (-r)`. -/
 theorem abs_approx_sub_le (k r : ℕ) (w : List Bool) :

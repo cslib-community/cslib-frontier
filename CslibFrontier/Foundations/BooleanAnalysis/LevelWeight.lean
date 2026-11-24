@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
+public import CslibFrontier.Foundations.BooleanAnalysis.Noise
 import Mathlib.Algebra.BigOperators.Ring.Finset
 
 /-!
@@ -21,11 +22,15 @@ coefficients on the sets of size `k` (`BitString.fourierCoeff_levelPart`), has d
 (`BitString.levelPart_mem_lowDegree`), and the parts sum to `f` (`BitString.sum_levelPart`). The
 parts of different degrees are orthogonal, and the part of degree `k` has squared norm `W^k[f]`
 (`BitString.expect_levelPart_mul_levelPart`) [O'Donnell, Exercise 1.18][ODonnell2014], so the
-weights sum to `𝔼 f ^ 2` (`BitString.sum_levelWeight`). The weight at degree zero is the squared
+weights sum to `𝔼 f ^ 2` (`BitString.sum_levelWeight`), and the noise stability is
+`Stab_ρ[f] = ∑_k ρ ^ k W^k[f]` (`BitString.noiseStability_eq_sum_levelWeight`)
+[O'Donnell, Theorem 2.49][ODonnell2014]. The weight at degree zero is the squared
 mean (`BitString.levelWeight_zero`), the weight at degree one is `∑ᵢ f̂({i}) ^ 2`
 (`BitString.levelWeight_one`), and the weights above a level `t` are the Fourier weight
 `∑_{t < |S|} f̂(S) ^ 2` that the library uses for spectral concentration
-(`BitString.sum_levelWeight_Ioc`).
+(`BitString.sum_levelWeight_Ioc`). The degree-one coefficients themselves sum to the correlation
+`𝔼_x f(x) (x₁ + ⋯ + xₙ)` with the sum of the signs
+(`BitString.sum_fourierCoeff_singleton_eq_expect`) [O'Donnell, equation (2.3)][ODonnell2014].
 
 ## Main definitions
 
@@ -40,9 +45,11 @@ mean (`BitString.levelWeight_zero`), the weight at degree one is `∑ᵢ f̂({i}
   `‖f^{=k}‖² = W^k[f]`.
 * `Cslib.BitString.sum_levelWeight`: the weights sum to `𝔼 f ^ 2`, and to one for a Boolean
   function read as signs (`Cslib.BitString.sum_levelWeight_signVal`).
+* `Cslib.BitString.noiseStability_eq_sum_levelWeight`: `Stab_ρ[f] = ∑_k ρ ^ k W^k[f]`.
 * `Cslib.BitString.levelWeight_zero`, `Cslib.BitString.levelWeight_one`,
   `Cslib.BitString.sum_levelWeight_Ioc`: the weights at degrees zero and one and the weight above
   a level.
+* `Cslib.BitString.sum_fourierCoeff_singleton_eq_expect`: `∑ᵢ f̂({i}) = 𝔼 f(x) (x₁ + ⋯ + xₙ)`.
 
 ## References
 
@@ -141,6 +148,16 @@ theorem sum_levelWeight_signVal (f : (ι → Bool) → Bool) :
     ∑ k ∈ range (Fintype.card ι + 1), levelWeight k (fun x => signVal (f x)) = 1 := by
   rw [sum_levelWeight, expect_sq_eq_sum_fourierCoeff_sq, sum_fourierCoeff_sq_signVal]
 
+/-- **The Fourier formula for the noise stability by degree**: `Stab_ρ[f] = ∑_k ρ ^ k W^k[f]`
+[O'Donnell, Theorem 2.49][ODonnell2014]. -/
+theorem noiseStability_eq_sum_levelWeight (ρ : ℝ) (f : (ι → Bool) → ℝ) :
+    noiseStability ρ f = ∑ k ∈ range (Fintype.card ι + 1), ρ ^ k * levelWeight k f := by
+  rw [noiseStability_eq_sum, ← sum_fiberwise_of_maps_to (g := card)
+    fun S _ => mem_range.2 (Nat.lt_succ_of_le (card_le_univ S))]
+  refine sum_congr rfl fun k _ => ?_
+  rw [levelWeight, mul_sum]
+  exact sum_congr rfl fun S hS => by rw [(mem_filter.1 hS).2]
+
 /-- The Fourier weight at degree zero is the squared mean. -/
 theorem levelWeight_zero (f : (ι → Bool) → ℝ) : levelWeight 0 f = (𝔼 x, f x) ^ 2 := by
   have h : (univ.filter fun S : Finset ι => #S = 0) = {∅} := by
@@ -159,6 +176,14 @@ theorem levelWeight_one (f : (ι → Bool) → ℝ) :
     exact ⟨fun ⟨i, hi⟩ => ⟨i, hi.symm⟩, fun ⟨i, hi⟩ => ⟨i, hi.symm⟩⟩
   rw [levelWeight, h, sum_map]
   rfl
+
+/-- **The degree-one coefficients and the vote count**: the degree-one Fourier coefficients of `f`
+sum to its correlation with the sum of the signs of the bits
+[O'Donnell, equation (2.3)][ODonnell2014]. -/
+theorem sum_fourierCoeff_singleton_eq_expect (f : (ι → Bool) → ℝ) :
+    ∑ i, fourierCoeff f {i} = 𝔼 x, f x * ∑ i, signVal (x i) := by
+  simp only [fourierCoeff, chi_singleton, mul_sum]
+  exact (expect_sum_comm _ _ _).symm
 
 /-- The Fourier weights above level `t` are the Fourier weight on the sets of more than `t`
 coordinates. -/

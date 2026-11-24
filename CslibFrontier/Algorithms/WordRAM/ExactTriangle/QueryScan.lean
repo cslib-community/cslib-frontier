@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import Mathlib.Data.Nat.Count
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Native row-major residue-class queries
@@ -80,11 +83,11 @@ def program : Code .standard 12 :=
 theorem program_fixed : program.size ≤ 32 ∧ ¬program.ReadsWidth := by decide
 
 private theorem body_preserves : ∀ i : Fin 12,
-    (i.val < 4 ∨ i = area ∨ i = one) → body.Preserves i := by decide
+    (i.val < 4 ∨ i = area ∨ i = one) → body.Preserves i := by decide +kernel
 
 private theorem exec_body {w : ℕ} (x : Data 12) (R : ℕ → ℕ)
     (ho : x.regs one = 1) (hq : x.regs idx < x.regs size * x.regs size)
-    (hc : x.regs count ≤ x.regs idx)
+    (hcle : x.regs count ≤ x.regs idx)
     (hinput : x.mem (x.regs src + x.regs idx) = R (x.regs idx))
     (hsrc : Fits w (x.regs src + x.regs size * x.regs size))
     (hdst : Fits w (x.regs dst + 2 * (x.regs size * x.regs size))) :
@@ -94,40 +97,14 @@ private theorem exec_body {w : ℕ} (x : Data 12) (R : ℕ → ℕ)
         Function.update (Function.update x.mem (x.regs dst + 2 * x.regs count)
           (x.regs idx / x.regs size)) (x.regs dst + 2 * x.regs count + 1)
             (x.regs idx % x.regs size) else x.mem) := by
-  let q := x.regs idx
-  let c := x.regs count
-  let n := x.regs size
-  let d := x.regs dst
-  have hread : Fits w (x.regs src + q) := hsrc.of_le (by dsimp [q]; omega)
-  have hqfit : Fits w q := hsrc.of_le (by dsimp [q]; omega)
-  have hdiv : Fits w (q / n) := hqfit.of_le (Nat.div_le_self ..)
-  have hmod : Fits w (q % n) := hqfit.of_le (Nat.mod_le ..)
-  have hdouble : Fits w (c + c) := hdst.of_le (by dsimp [c] at *; omega)
-  have hdest : Fits w (c + c + d) := hdst.of_le (by dsimp [c, d] at *; omega)
-  have hnext : Fits w (c + c + d + 1) := hdst.of_le (by dsimp [c, d] at *; omega)
-  have hcount : Fits w (c + 1) := hdst.of_le (by dsimp [c] at *; omega)
-  have hidx : Fits w (q + 1) := hsrc.of_le (by dsimp [q]; omega)
-  let a := x.set addr (x.regs src + q) |>.set key (R q)
-  let b := if R q = x.regs residue then
-      a.set row (q / n) |>.set col (q % n) |>.set addr (c + c)
-      |>.set addr (c + c + d) |>.write (c + c + d) (q / n)
-      |>.set addr (c + c + d + 1) |>.write (c + c + d + 1) (q % n) |>.set count (c + 1)
-    else a.set count c
-  let y := b.set idx (q + 1)
-  refine ⟨y, ?_, ?_, ?_, ?_⟩
-  · by_cases h : R q = x.regs residue <;>
-      ram_eval [body, a, b, y, q, c, n, d, ho, h, hinput, hread, hdiv, hmod, hdouble,
-        hdest, hnext, hcount, hidx, src, dst, size, residue, idx, count, addr, key, one,
-        row, col, Fin.mk.injEq]
-  · simp [y, q]
-  · by_cases h : R q = x.regs residue <;>
-      simp +decide [y, b, a, q, c, h, count, idx, addr, key, row, col]
-  · by_cases h : R q = x.regs residue
-    · change R (x.regs idx) = x.regs residue at h
-      simp only [y, b, a, q, n, c, d, h, ↓reduceIte, Data.set_mem, Data.write_mem]
-      congr 2 <;> omega
-    · change ¬R (x.regs idx) = x.regs residue at h
-      simp only [y, b, a, q, h, ↓reduceIte, Data.set_mem]
+  have hdiv : x.regs idx / x.regs size ≤ x.regs idx := Nat.div_le_self ..
+  have hmod : x.regs idx % x.regs size ≤ x.regs idx := Nat.mod_le ..
+  unfold body
+  wram_exec [hinput, ho]
+  · refine ⟨by wram_simp, by wram_simp [hc], ?_⟩
+    simp only [hc, ↓reduceIte, Data.set_mem, Data.write_mem]
+    congr 2 <;> omega
+  · exact ⟨by wram_simp, by wram_simp [hc], by simp only [hc, ↓reduceIte, Data.set_mem]⟩
 
 /-- Scan an actual residue matrix, preserving the input and all cells outside the emitted pair
 prefix. Each selected flat position is stored at its exact row-major rank, counted by `Nat.count`.
@@ -165,99 +142,53 @@ theorem exec {w : ℕ} (x : Data 12) (R : ℕ → ℕ) (h1 : Fits w 1)
     have hyρ : y.regs residue = x.regs residue := hyr residue (by decide)
     have hlt : y.regs idx < n * n := by simpa only [Cond.holds_lt, hya] using hcond
     have hread : y.mem (y.regs src + y.regs idx) = R (y.regs idx) := by
-      rw [hys, hyout _ (by dsimp [d, n] at *; omega)]
-      exact hinput _ hlt
+      rw [hys, hyout _ (by dsimp [d, n] at *; omega)]; exact hinput _ hlt
     have hcle : y.regs count ≤ y.regs idx := by rw [hyc]; exact Nat.count_le _
     obtain ⟨z, he, hzi, hzc, hzm⟩ := exec_body y R hyo (by simpa only [hyn] using hlt)
-      hcle hread (by simpa only [hys, hyn] using hsrc)
-      (by simpa only [hyd, hyn] using hdst)
+      hcle hread (by simpa only [hys, hyn] using hsrc) (by simpa only [hyd, hyn] using hdst)
     have hsucc : C (y.regs idx + 1) =
         C (y.regs idx) + if R (y.regs idx) = x.regs residue then 1 else 0 := Nat.count_succ _ _
     have hzc' : z.regs count = C (z.regs idx) := by
-      rw [hzi]
-      simpa only [hyc, hyρ, hsucc] using hzc
+      rw [hzi]; simpa only [hyc, hyρ, hsucc] using hzc
     have hpres (i : Fin 12) (hi : i.val < 4 ∨ i = area ∨ i = one) :
         z.regs i = y.regs i := he.regs_eq (body_preserves i hi)
     simp only [hyd, hyn, hyc, hyρ] at hzm
     refine ⟨z, he, ⟨fun i hi => (hpres i (Or.inl hi)).trans (hyr i hi),
       (hpres area (by simp)).trans hya, (hpres one (by simp)).trans hyo,
       by omega, hzc', ?_, ?_⟩, by omega⟩
-    · intro j hj hkey
+    · intro j hj hkey; rw [hzm]
       by_cases h : R (y.regs idx) = x.regs residue
-      · simp only [h, ↓reduceIte] at hzm
+      · simp only [h, ↓reduceIte]
         by_cases hji : j = y.regs idx
-        · subst j
-          rw [hzm]
-          constructor
-          · rw [Function.update_of_ne (by omega), Function.update_self]
-          · exact Function.update_self ..
+        · subst j; exact ⟨by update_simp, by update_simp⟩
         · have hjlt : j < y.regs idx := by omega
           have hrank : C j < C (y.regs idx) := Nat.count_strict_mono hkey hjlt
           obtain ⟨hrow, hcol⟩ := hycells j hjlt hkey
-          rw [hzm]
-          constructor
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            exact hrow
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            exact hcol
-      · simp only [h, ↓reduceIte] at hzm
-        rw [hzm]
-        have hne : j ≠ y.regs idx := by
-          intro hj
-          exact h (hj ▸ hkey)
+          exact ⟨by update_simp; exact hrow, by update_simp; exact hcol⟩
+      · simp only [h, ↓reduceIte]
+        have hne : j ≠ y.regs idx := fun hj => h (hj ▸ hkey)
         exact hycells j (by omega) hkey
-    · intro a ha
+    · intro a ha; rw [hzm]
       by_cases h : R (y.regs idx) = x.regs residue
-      · simp only [h, ↓reduceIte] at hzm
-        have hcstep : C (z.regs idx) = C (y.regs idx) + 1 := by
+      · have hcstep : C (z.regs idx) = C (y.regs idx) + 1 := by
           simp only [hzi, hsucc, h, ↓reduceIte]
-        rw [hzm, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact hyout a (by omega)
-      · simp only [h, ↓reduceIte] at hzm
-        have hcstep : C (z.regs idx) = C (y.regs idx) := by
+        simp only [h, ↓reduceIte]; update_simp; exact hyout a (by omega)
+      · have hcstep : C (z.regs idx) = C (y.regs idx) := by
           simp only [hzi, hsucc, h, ↓reduceIte, Nat.add_zero]
-        rw [hzm]
-        exact hyout a (by omega)
-  have harea : Fits w (n * n) := hsrc.of_le (by dsimp [n]; omega)
-  let x₀ := x.set one 1 |>.set idx 0 |>.set count 0 |>.set area (n * n)
-  have hx₀ : I x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro i hi
-      have ho : i ≠ one := by intro h; subst i; change 9 < 4 at hi; omega
-      have hi' : i ≠ idx := by intro h; subst i; change 4 < 4 at hi; omega
-      have hc : i ≠ count := by intro h; subst i; change 6 < 4 at hi; omega
-      have ha : i ≠ area := by intro h; subst i; change 5 < 4 at hi; omega
-      simp only [x₀, Data.set_regs, Function.update_of_ne ho, Function.update_of_ne hi',
-        Function.update_of_ne hc, Function.update_of_ne ha]
-    · simp [x₀]
-    · simp +decide [x₀, one, idx, count, area]
-    · simp +decide [x₀, idx, count, area]
-    · simp +decide [x₀, idx, count, area, C]
-    · intro j hj
-      simp +decide only [x₀, Data.set_regs, Function.update_apply, idx, count, area,
-        ↓reduceIte] at hj
-      omega
-    · intro a _
-      rfl
-  have hinit : ExecWithin w (ram[ one ← #1; idx ← #0; count ← #0; area ← size * size ])
-      x x₀ 4 := by
-    ram_eval [x₀, n, h1, harea, one, idx, count, area, size, Fin.mk.injEq]
-  obtain ⟨y, hy, hI, hc⟩ := ExecWithin.loop_invariant I
-    (fun y => n * n - y.regs idx) hbody hx₀
-  obtain ⟨hr, ha, -, hi, hcount, hcells, hout⟩ := hI
-  have hend : y.regs idx = n * n := by
-    simp only [Cond.holds_lt, ha] at hc
-    omega
-  refine ⟨y, ?_, hend, by simpa only [hend] using hcount, hr, ?_, ?_⟩
-  · convert hinit.seq hy using 1
-    · rfl
-    · simp +decide only [x₀, Data.set_regs, Function.update_apply, idx, count, area,
-        ↓reduceIte]
-      dsimp [n]
-      omega
-  · simpa only [hend] using hcells
-  · intro a ha
-    apply hout a
-    simpa only [← hcount] using ha
+        simp only [h, ↓reduceIte]; exact hyout a (by omega)
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec
+  have hx₀ : I ((((x.set one 1).set idx 0).set count 0).set area (n * n)) :=
+    ⟨fun i hi => by
+      have hne : i ≠ one ∧ i ≠ idx ∧ i ≠ count ∧ i ≠ area := by revert i hi; decide
+      wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2],
+     by wram_simp, by wram_simp, by wram_simp; exact Nat.zero_le _,
+     by wram_simp [C, Nat.count_zero], fun _ hj => by wram_simp at hj, fun _ _ => rfl⟩
+  wram_call (ExecWithin.loop_invariant I (fun y => n * n - y.regs idx) hbody hx₀)
+    with y ⟨⟨hr, ha, -, hi, hcount, hcells, hout⟩, hc⟩
+  have hend : y.regs idx = n * n := by simp only [Cond.holds_lt, ha] at hc; omega
+  refine ⟨by wram_simp; dsimp [n]; omega, hend, by simpa only [hend] using hcount, hr,
+    by simpa only [hend] using hcells, fun a ha => hout a (by simpa only [← hcount] using ha)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.QueryScan

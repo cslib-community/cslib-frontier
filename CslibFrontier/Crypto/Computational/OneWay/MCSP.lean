@@ -232,9 +232,7 @@ theorem interpret_mcspDistinguisher (d : ℕ) (oracle : List Bool → List Bool)
 @[fun_prop]
 theorem computableInPolyTime_tableArity (d : ℕ) :
     ComputableInPolyTime (tableArity d) encUnary encUnary := by
-  unfold tableArity
-  have := ComputableInPolyTime.unary_clog_const 2
-  fun_prop
+  fun_prop [tableArity]
 
 /-- The table size `2 ^ m` is computed in unary from the unary parameter. -/
 theorem computableInPolyTime_two_pow_tableArity (d : ℕ) :

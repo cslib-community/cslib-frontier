@@ -100,7 +100,7 @@ theorem initialPilotOuter_allocated
         (CopyPadding.identifier D ss) (CopyPadding.identifier D st))
         (fun _ _ => steps) A σ x y - rowSliceMean X Y A x y) ≤ ε^4 := by
   intro X Y A steps
-  have hNu : 0 ≤ (P : ℝ) * rate ks := mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le
+  have hNu : 0 ≤ (P : ℝ) * rate ks := by positivity
   have hrange := rowNormPow_fourth_le_expect_envelope hNu X Y A
     (fun _ => (2 * HP.Q HP.toHierarchyParams.atomCap)^4) (fun _ => by positivity)
     (fun σ x y _ _ => by
@@ -157,7 +157,7 @@ theorem initialPilotCompleted_error
         (4 * (2 * HP.Q HP.toHierarchyParams.atomCap)^((3 : ℝ)/4))^4 *
           rootDistPow 4 P (rate k) X Y A A') := by
   intro X Y A A' G target
-  have hNu : 0 ≤ (P : ℝ) * rate k := mul_nonneg (Nat.cast_nonneg _) (rate_pos k).le
+  have hNu : 0 ≤ (P : ℝ) * rate k := by positivity
   have hm : ∀ x y, rate k * rowSliceMean X Y A' x y = target x y :=
     initialTrueNormalized_mean HP D hD R H k hk ss st C hC hC1 hCf
   have hb := rowNormPow_sliceMean_sub_le_rootDistPow hNu X Y A A'

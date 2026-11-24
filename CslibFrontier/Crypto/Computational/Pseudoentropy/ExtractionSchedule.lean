@@ -65,17 +65,7 @@ theorem isPolyTime_count {α : Type} {input : α ↪ List Bool} {n sourceBits in
     (hslack : ComputableInPolyTime inverseSlack input encUnary) :
     ComputableInPolyTime (fun a => count (n a) (sourceBits a) (inverseSlack a))
       input encUnary := by
-  unfold count
-  exact ComputableInPolyTime.unary_mul'
-    (ComputableInPolyTime.unary_mul'
-      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 32)
-        (ComputableInPolyTime.unary_add' hn (ComputableInPolyTime.const 1)))
-      ((ComputableInPolyTime.unary_pow 2).comp
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_add' hsource hn)
-          (ComputableInPolyTime.const 2))))
-    ((ComputableInPolyTime.unary_pow 2).comp
-      (ComputableInPolyTime.unary_add' hslack (ComputableInPolyTime.const 1)))
+  fun_prop [count]
 
 /-- The integer slack is available in unary with polynomial cost. -/
 theorem isPolyTime_slack {α : Type} {input : α ↪ List Bool} {n sourceBits inverseSlack : α → ℕ}
@@ -84,16 +74,7 @@ theorem isPolyTime_slack {α : Type} {input : α ↪ List Bool} {n sourceBits in
     (hslack : ComputableInPolyTime inverseSlack input encUnary) :
     ComputableInPolyTime (fun a => slack (n a) (sourceBits a) (inverseSlack a))
       input encUnary := by
-  unfold slack
-  exact ComputableInPolyTime.unary_mul'
-    (ComputableInPolyTime.unary_mul'
-      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 8)
-        (ComputableInPolyTime.unary_add' hn (ComputableInPolyTime.const 1)))
-      ((ComputableInPolyTime.unary_pow 2).comp
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_add' hsource hn)
-          (ComputableInPolyTime.const 2))))
-    (ComputableInPolyTime.unary_add' hslack (ComputableInPolyTime.const 1))
+  fun_prop [slack]
 
 attribute [program_certificate] isPolyTime_count isPolyTime_slack
 

@@ -14,9 +14,9 @@ set_option linter.privateModule false
 # Tests for CBC mode with a random IV
 
 Concrete evaluations and non-vacuity witnesses for
-`CslibFrontier/Crypto/Computational/Encryption/CBCMode.lean`. The headline bounds are instantiated
-with a concrete adversary whose cost bound is proved, at parameters where they are strictly below
-`1`, and the random-permutation bound is compared with (5.22) of [BonehShoup2023].
+`CslibFrontier/Crypto/Computational/Encryption/CBCMode.lean`. The bounds are instantiated with a
+concrete adversary whose cost bound is proved, at parameters where the additive terms are strictly
+below `1`, and compared with equation (5.22) of [BonehShoup2023].
 -/
 
 namespace CslibFrontierTests.Crypto.CBCMode
@@ -129,5 +129,28 @@ empty message and cost nothing. -/
 example : blockModeSelect 2 true (([0], [1, 1]) : BlockModeQuery 8) = [] ∧
     blockModeBlocks 1 cbcQueryLR = 0 := by
   decide
+
+/-- Keyed PRF bound on 8-bit blocks: for `cbcOneQueryAdversary` (`K = 2`), the additive collision
+term is `2 * (2.choose 2 / 2 ^ 8) = 1 / 128`. -/
+example (F : BitString 8 → BitString 8 → BitString 8) :
+    (Game.advantage
+        (cbcCpaGame F 2 false cbcOneQueryAdversary)
+        (cbcCpaGame F 2 true cbcOneQueryAdversary) : ℝ) ≤
+      PRF.advantage F (cbcReduction 2 false cbcOneQueryAdversary) +
+        PRF.advantage F (cbcReduction 2 true cbcOneQueryAdversary) + 1 / 128 :=
+  (advantage_cbcCpaGame_prf_le F 2 isCostBounded_cbcOneQueryAdversary).trans_eq (by norm_num)
+
+/-- Keyed block-cipher bound (5.22) on 8-bit blocks instantiated with a concrete keyed permutation
+(`k ↦ Equiv.addLeft k`) and `cbcOneQueryAdversary` (`K = 2`): the additive term is
+`4 * (2.choose 2 / 2 ^ 8) = 1 / 64 < 1`. -/
+example :
+    let E : BitString 8 → Equiv.Perm (BitString 8) := Equiv.addLeft
+    (Game.advantage
+        (cbcCpaGame (fun k => ⇑(E k)) 2 false cbcOneQueryAdversary)
+        (cbcCpaGame (fun k => ⇑(E k)) 2 true cbcOneQueryAdversary) : ℝ) ≤
+      PRP.advantage E (cbcReduction 2 false cbcOneQueryAdversary) +
+        PRP.advantage E (cbcReduction 2 true cbcOneQueryAdversary) + 1 / 64 :=
+  (advantage_cbcCpaGame_le Equiv.addLeft 2 isCostBounded_cbcOneQueryAdversary).trans_eq
+    (by norm_num)
 
 end CslibFrontierTests.Crypto.CBCMode

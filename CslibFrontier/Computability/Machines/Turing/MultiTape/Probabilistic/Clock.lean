@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Clock
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Internal clocks for probabilistic machines
@@ -70,7 +71,7 @@ theorem run_interpret_runConfigFrom_withClock_add (machine : MultiTapePTM k Bool
     query oracle ?_ cfg tape position budget padding s hbudget hstop
   intro α a s
   change (OracleComp.interpret oracle ((fun _ : Bool => a) <$> coin)).run s = _
-  simp only [OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, hcoin, PMF.map_comp]
+  simp only [interp_norm, pmf_norm, hcoin]
   exact PMF.map_const coinLaw (a, s)
 
 end Turing.MultiTapePTM

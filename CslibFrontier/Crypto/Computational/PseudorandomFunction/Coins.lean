@@ -210,7 +210,7 @@ theorem isOraclePPT_coinDistinguisher {adversary : OracleDistinguisher}
   refine (hadversary.on.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun c => coinQuery c.1) (prepare := id) (resources := fun _ w => w.length)
     ComputableInPolyTime.id' ?_ (by polytime) fun _ request reply hreply => ?_).isOraclePPT
-  · refine IsOraclePPTOn.query_take' () ?_ (by polytime)
+  · refine IsOraclePPTOn.query_take () ?_ (by polytime)
     unfold padRequest
     polytime
   · obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply

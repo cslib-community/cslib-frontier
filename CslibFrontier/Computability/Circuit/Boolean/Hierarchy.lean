@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.PPoly
 public import Cslib.Computability.Circuit.Boolean.Shannon
+public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Analysis.Complex.ExponentialBounds
 import CslibFrontier.Foundations.Data.Nat.Asymptotics
 import CslibFrontier.Foundations.Data.Nat.IntermediateValue
 
@@ -28,7 +30,7 @@ Walking from a constant function to any function `f` shows that `f` costs at mos
 
 * `Cslib.Circuits.Boolean.complexity_const`: a constant costs exactly one gate.
 * `Cslib.Circuits.Boolean.complexity_update_le`: changing one value costs `2 n + 3` gates.
-* `Cslib.Circuits.Boolean.complexity_mask_le`,
+* `Cslib.Circuits.Boolean.complexity_ite_mem_le`, `Cslib.Circuits.Boolean.complexity_mask_le`,
   `Cslib.Circuits.Boolean.complexity_le_two_pow_mul_add_one`,
   `Cslib.Circuits.Boolean.complexity_le_of_dependsOn`: the sparse and truth-table bounds, for
   finite supports, all functions, and functions depending on few inputs.
@@ -36,10 +38,14 @@ Walking from a constant function to any function `f` shows that `f` costs at mos
   are attained, up to `2 n + 3`.
 * `Cslib.Circuits.Boolean.SIZE_ssubset`: the size hierarchy.
 * `Cslib.Circuits.Boolean.SIZE_pow_ssubset`: `SIZE ((n + 1) ^ k) ⊂ SIZE ((n + 1) ^ (k + 1))`.
+* `Cslib.Circuits.Boolean.SIZE_sub_ssubset_of_isLittleO`: the hierarchy under the hypotheses of
+  [AroraBarak07, Theorem 6.17], with sizes counting input vertices.
 
 ## References
 
 * [C. E. Shannon, *The synthesis of two-terminal switching circuits*][Shannon1949]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft
+  2007-01-08][AroraBarak07]
 -/
 
 public section
@@ -77,25 +83,35 @@ theorem complexity_update_le (f : BooleanFunction n) (a : Fin n → Bool) (b : B
           complexity_or_le _ _
       _ ≤ complexity interpretation (single f) + (2 * n + 3) := by omega
 
-/-- Restricting a Boolean function `f` to `S` and returning `false` outside `S` costs at most
-`#S * (2 * n + 3) + 1` gates: start from the constant `false` and change one value in `S` at a
-time. -/
-theorem complexity_mask_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) :
-    complexity interpretation (single fun x => decide (x ∈ S) && f x) ≤
+/-- **Finite override of a constant.** Returning `f x` on a finite set `S` and the constant `c`
+outside `S` costs at most `#S * (2 * n + 3) + 1` gates: start from the constant `c` and change
+one value in `S` at a time. -/
+theorem complexity_ite_mem_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) (c : Bool) :
+    complexity interpretation (single fun x => if x ∈ S then f x else c) ≤
       #S * (2 * n + 3) + 1 := by
-  classical
   induction S using Finset.induction_on with
-  | empty => simpa using (Synthesis.const false).complexity_le
+  | empty => simpa using (Synthesis.const (n := n) c).complexity_le
   | @insert a S ha ih =>
-    have e : (fun x => decide (x ∈ insert a S) && f x) =
-        Function.update (fun x => decide (x ∈ S) && f x) a (f a) := funext fun x => by
+    have e : (fun x => if x ∈ insert a S then f x else c) =
+        Function.update (fun x => if x ∈ S then f x else c) a (f a) := funext fun x => by
       by_cases hx : x = a
       · subst hx
         simp
       · simp [hx]
     rw [e, Finset.card_insert_of_notMem ha, add_one_mul]
-    calc _ ≤ _ := complexity_update_le _ a (f a)
-      _ ≤ _ := by omega
+    calc _ ≤ _ + (2 * n + 3) := complexity_update_le _ a (f a)
+      _ ≤ #S * (2 * n + 3) + 1 + (2 * n + 3) := Nat.add_le_add_right ih _
+      _ = _ := by ring
+
+/-- Restricting a Boolean function `f` to `S` and returning `false` outside `S` costs at most
+`#S * (2 * n + 3) + 1` gates (`complexity_ite_mem_le` with the constant `false`). -/
+theorem complexity_mask_le (f : BooleanFunction n) (S : Finset (Fin n → Bool)) :
+    complexity interpretation (single fun x => decide (x ∈ S) && f x) ≤
+      #S * (2 * n + 3) + 1 := by
+  have e : (fun x => decide (x ∈ S) && f x) = fun x => if x ∈ S then f x else false :=
+    funext fun x => by by_cases hx : x ∈ S <;> simp [hx]
+  rw [e]
+  exact complexity_ite_mem_le f S false
 
 /-- **The truth-table bound.** A Boolean function on `n` inputs costs at most
 `2 ^ n * (2 * n + 3) + 1` gates: start from a constant and change one value at a time. -/
@@ -194,5 +210,43 @@ theorem SIZE_pow_ssubset {k : ℕ} (hk : 1 ≤ k) :
   have h1 : n + 1 ≤ (n + 1) ^ k := Nat.le_self_pow (by omega) _
   rw [pow_succ]
   nlinarith
+
+/-- **The circuit size hierarchy under the draft's hypotheses** [AroraBarak07, Theorem 6.17]. If
+`n < T n < T' n` for every `n`, eventually `T' n < 2 ^ n / (100 n)`, and `T log T = o(T')`, then
+circuits with `T' n` vertices decide strictly more languages than circuits with `T n` vertices.
+
+The draft counts the `n` input vertices in the size of a circuit, so its `SIZE (T(n))` is
+`SIZE (fun n => T n - n)` here, under the convention of `SIZE`: the library's circuits may also
+use constant gates and need no separate output vertex. The cap `2 ^ n / (100 n) > T'(n)` is
+read eventually, as is standard for asymptotic hypotheses: the literal every-`n` reading cannot
+hold for `n ≤ 14` and would make the theorem vacuous. The other two bounds are assumed for every
+`n`, as printed. The proof reduces to `SIZE_ssubset`: `T log T = o(T')` gives the gap of
+`2 n + 3` gates, and the draft's bound keeps `T` below Shannon's `2 ^ n / n`. -/
+theorem SIZE_sub_ssubset_of_isLittleO {T T' : ℕ → ℕ} (hT : ∀ n, n < T n)
+    (hTT' : ∀ n, T n < T' n) (hT' : ∀ᶠ n in atTop, (T' n : ℝ) < 2 ^ n / (100 * n))
+    (hlog : (fun n => (T n : ℝ) * Real.log (T n)) =o[atTop] fun n => (T' n : ℝ)) :
+    SIZE (fun n => T n - n) ⊂ SIZE (fun n => T' n - n) := by
+  refine SIZE_ssubset (fun n => Nat.sub_le_sub_right (hTT' n).le n)
+    (fun n => by have := hT n; have := hTT' n; omega) ?_ ?_
+  · filter_upwards [hlog.bound one_pos, eventually_ge_atTop 55] with n hn hn55
+    have hT55 : (55 : ℝ) ≤ T n := by exact_mod_cast (hn55.trans (hT n).le)
+    have hlog4 : 4 ≤ Real.log (T n) := by
+      rw [Real.le_log_iff_exp_le (by linarith), show (4 : ℝ) = (4 : ℕ) * 1 by norm_num,
+        Real.exp_nat_mul]
+      have := Real.exp_one_lt_d9
+      have := Real.exp_pos 1
+      have : Real.exp 1 ^ 4 < 2.7182818286 ^ 4 := by gcongr
+      norm_num at this ⊢
+      linarith
+    rw [Real.norm_of_nonneg (mul_nonneg (by positivity) (by linarith)), one_mul,
+      Real.norm_of_nonneg (by positivity)] at hn
+    have h4 : 4 * T n ≤ T' n := by exact_mod_cast (by nlinarith : (4 : ℝ) * T n ≤ T' n)
+    have := hT n
+    omega
+  · refine (hT'.and (eventually_ge_atTop 1)).frequently.mono fun n ⟨h, hn⟩ => ?_
+    have hn' : (0 : ℝ) < n := by exact_mod_cast hn
+    calc ((T n - n : ℕ) : ℝ) ≤ T' n := by exact_mod_cast (Nat.sub_le _ _).trans (hTT' n).le
+      _ < 2 ^ n / (100 * n) := h
+      _ ≤ 2 ^ n / n := div_le_div_of_nonneg_left (by positivity) hn' (by linarith)
 
 end Cslib.Circuits.Boolean

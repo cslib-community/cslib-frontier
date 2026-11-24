@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Checked correction boundaries
@@ -94,32 +95,21 @@ theorem exec {w q p : ℕ} (x : Data 10) (hq : Fits w q) (hp : p < w)
       (result x q p).regs upper = upperBoundary q p ∧
       (result x q p).regs bit = ((q >>> p) &&& 1) ∧
       (result x q p).mem = x.mem := by
-  have hw : 0 < w := by omega
-  have h1 : Fits w 1 := by
-    exact (by decide : 1 < 2 ^ 1).trans_le (Nat.pow_le_pow_right (by decide) hw)
-  have hn : Fits w (p + 1) :=
-    (show p + 1 ≤ w by omega).trans_lt Nat.lt_two_pow_self
+  have hn : Fits w (p + 1) := (show p + 1 ≤ w by omega).trans_lt Nat.lt_two_pow_self
   have hpower : Fits w (2 ^ p) := Nat.pow_lt_pow_right (by decide) hp
   have hlow : Fits w (2 ^ p - 1) := hpower.of_le (Nat.sub_le _ _)
-  have hshift : Fits w (q >>> (p + 1)) := hq.of_le (by
-    rw [Nat.shiftRight_eq_div_pow]
-    exact Nat.div_le_self _ _)
+  have hshift : Fits w (q >>> (p + 1)) :=
+    hq.of_le (Nat.shiftRight_eq_div_pow _ _ ▸ Nat.div_le_self _ _)
   have hprefix : Fits w ((q >>> (p + 1)) <<< (p + 1)) := hq.of_le (by
-    rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-    exact Nat.div_mul_le_self _ _)
+    rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]; exact Nat.div_mul_le_self _ _)
   have hlower : Fits w (lowerBoundary q p) := Nat.or_lt_two_pow hprefix hlow
   have hupper : Fits w (upperBoundary q p) := Nat.or_lt_two_pow hprefix hpower
-  have hbitshift : Fits w (q >>> p) := hq.of_le (by
-    rw [Nat.shiftRight_eq_div_pow]
-    exact Nat.div_le_self _ _)
+  have hbitshift : Fits w (q >>> p) :=
+    hq.of_le (Nat.shiftRight_eq_div_pow _ _ ▸ Nat.div_le_self _ _)
   have hbit : Fits w ((q >>> p) &&& 1) := hbitshift.of_le Nat.and_le_left
-  simp only [lowerBoundary, upperBoundary, Nat.shiftLeft_eq] at hprefix hlower hupper
-  refine ⟨?_, ?_, ?_, ?_, rfl⟩
-  · ram_eval [code, result, hxq, hxp, lowerBoundary, upperBoundary,
-      h1, hn, hpower, hlow, hshift, hprefix, hlower, hupper, hbitshift, hbit,
-      Nat.shiftLeft_eq, one_mul]
-  · simp +decide [result, one, next, power, low, stem, lower, upper, bit]
-  · simp +decide [result, one, next, power, low, stem, lower, upper, bit]
-  · simp +decide [result, one, next, power, low, stem, lower, upper, bit]
+  simp only [lowerBoundary, upperBoundary] at hlower hupper
+  refine ⟨?_, by wram_simp [result], by wram_simp [result], by wram_simp [result], rfl⟩
+  simp only [code, result, lowerBoundary, upperBoundary]
+  wram_exec * [Nat.one_shiftLeft]
 
 end Cslib.DataStructure.FusionTree.WordRAM.BoundaryProgram
