@@ -238,7 +238,8 @@ private theorem prop_crossing_classes (E : ℕ) : ∃ μ e,
     have := (mem_product.1 hz).2
     rw [mem_range] at this
     omega
-  refine ⟨z.1, z.2, hzE, ?_, card_le_card ((filter_subset _ _).trans (lowStates_mono hzE))⟩
+  refine ⟨z.1, z.2, hzE, ?_, card_le_card
+    fun s hs => lowStates_mono hzE (mem_states.1 hs).1⟩
   change (lowStates E).card ≤ _
   rw [Finset.card_eq_sum_card_fiberwise hmaps]
   calc ∑ b ∈ S, ((lowStates E).filter fun s => (s.1.card, energy s.1 + energy s.2) = b).card
@@ -247,7 +248,7 @@ private theorem prop_crossing_classes (E : ℕ) : ∃ μ e,
         obtain ⟨h1, h2⟩ := mem_filter.1 hs
         obtain ⟨h3, h4⟩ := mem_lowStates.1 h1
         rw [← h2]
-        exact mem_filter.2 ⟨mem_lowStates.2 ⟨h3, le_rfl⟩, rfl, h3.symm, rfl⟩
+        exact mem_states.2 ⟨mem_lowStates.2 ⟨h3, le_rfl⟩, rfl, h3.symm, rfl⟩
     _ ≤ ∑ _b ∈ S, (states z.1 z.2).card := Finset.sum_le_sum fun b hb => hmax b hb
     _ = (E + 1) ^ 2 * (states z.1 z.2).card := by
         rw [Finset.sum_const, smul_eq_mul, hS, card_product, card_range, pow_two]
@@ -346,8 +347,8 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
   have hH : ((2 * (e₁ + e₂) : ℕ) : ℝ) ≤ A * n := by
     have h1 : ((e₁ : ℕ) : ℝ) ≤ (⌊p ^ 2 * n⌋₊ : ℕ) := by exact_mod_cast he₁
     have h2 : ((e₂ : ℕ) : ℝ) ≤ (⌊q ^ 2 * n⌋₊ : ℕ) := by exact_mod_cast he₂
-    have h3 := floor_sq_mul_le (p := p) n
-    have h4 := floor_sq_mul_le (p := q) n
+    have h3 : ((⌊p ^ 2 * n⌋₊ : ℕ) : ℝ) ≤ p ^ 2 * n := Nat.floor_le (by positivity)
+    have h4 : ((⌊q ^ 2 * n⌋₊ : ℕ) : ℝ) ≤ q ^ 2 * n := Nat.floor_le (by positivity)
     push_cast
     rw [hA]
     linarith
