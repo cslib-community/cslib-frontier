@@ -100,10 +100,6 @@ theorem kleeneTwoEval_kleeneTwoCode (c : Code) (p x : ℕ → ℕ) :
     kleeneTwoEval (kleeneTwoCode c p) x = Code.eval (Partrec.join p x) c := by
   simp [kleeneTwoEval, kleeneTwoCode]
 
--- Under the module system `ℕ →. ℕ` does not unfold to `ℕ → Part ℕ` for `simp`, so binds into
--- partial functions are eta-expanded before Mathlib's `Part.bind` lemmas apply.
-private theorem bind_pfun (x : Part ℕ) (f : ℕ →. ℕ) : x >>= f = x.bind fun y => f y := rfl
-
 /-- A partial function defined everywhere, as a total function. -/
 private def total (φ : ℕ →. ℕ) : Part (ℕ → ℕ) :=
   ⟨∀ n, (φ n).Dom, fun h n => (φ n).get (h n)⟩
