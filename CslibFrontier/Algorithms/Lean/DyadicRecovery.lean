@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Foundations.Data.Rat.Approximation
 import CslibFrontier.Foundations.Data.Rat.Reconstruction
 import Mathlib.Data.Rat.Floor
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.NumberTheory.DiophantineApproximation.Basic
 
 /-!
@@ -362,10 +363,7 @@ private theorem euclidConvergent_polyTime :
     exact (snd _ _).prod (rat_natCast.comp hquot)
   have hbound : PolyBounded (fun x => (input x).length)
       (fun x => 2 * (input x).length +
-        3 * ((input x).length + 1) * ((input x).length + 3) + 4) :=
-    (((PolyBounded.const 2).mul .self).add
-      (((PolyBounded.const 3).mul (PolyBounded.self.add (.const 1))).mul
-        (PolyBounded.self.add (.const 3)))).add (.const 4)
+        3 * ((input x).length + 1) * ((input x).length + 3) + 4) := by growth_poly
   have hloop := iterateWith (fst encEuclidPair encUnary) (snd _ _) hinit
     convergentStep_polyTime hbound (fun x j hj => by
       dsimp only [init]
