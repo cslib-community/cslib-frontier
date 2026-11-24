@@ -6407,6 +6407,7 @@ public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sourc
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Interpolation
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Linear
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Product
+public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Robust
 public import CslibFrontier.Crypto.Protocols.SelectiveFailure
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort.FiatShamir
