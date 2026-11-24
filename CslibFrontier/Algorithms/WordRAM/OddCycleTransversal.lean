@@ -2586,13 +2586,6 @@ private theorem memoryCost_compressProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (h
 
 /-! ### Split-network semantics, BFS, and minimum-separator correctness -/
 
-@[simp, client_simps]
-private theorem cr_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α) (s : Memory.State) :
-    (Memory.spec w).clientResult s (f <$> p) = f ((Memory.spec w).clientResult s p) := by
-  induction p generalizing s with
-  | pure _ => rfl
-  | liftBind _ _ ih => exact ih _ _
-
 private theorem cr_bind_pure {α β : Type} (w : ℕ) (s : Memory.State) (p : Memory.Prog α)
     (f : α → β) :
     (Memory.spec w).clientResult s (p >>= fun x => pure (f x)) =
