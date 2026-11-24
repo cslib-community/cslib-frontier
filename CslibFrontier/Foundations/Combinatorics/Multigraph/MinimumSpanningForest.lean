@@ -28,8 +28,8 @@ joined by edges of `S`, that is, are reachable from each other in the multigraph
 the edges of `F` of weight at most `w e` join its ends (`Cslib.Multigraph.Supported`).
 
 The module proves the standard facts of §2 of [Khanna, Putterman and Song][KhannaPuttermanSong2026]
-(Facts 2.2–2.5, p. 11) in this setting, and the filtering identity behind line 8 of their
-Algorithm 2 (§4, p. 25). Distinct weights are assumed, as in the paper, through
+(Facts 2.2–2.4, p. 11, and Fact 2.5, p. 12) in this setting, and the filtering identity behind
+line 8 of their Algorithm 2 (§4, p. 25). Distinct weights are assumed, as in the paper, through
 `Function.Injective w`, and only where needed: the cut and cycle properties, threshold
 connectivity and the first filtering lemma hold for all weights.
 
@@ -77,7 +77,7 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 ## References
 
 * [S. Khanna, A. Putterman and J. Song, *A Deterministic Linear Time Algorithm for Minimum
-  Spanning Tree*][KhannaPuttermanSong2026], §2, p. 11.
+  Spanning Tree*][KhannaPuttermanSong2026], §2, pp. 11–12.
 -/
 
 public section
@@ -334,7 +334,7 @@ theorem joins_msf_of_mem {e : E} (he : e ∈ S) {a b : V} (h : ends e = s(a, b))
     · simp
   exact (ih _ hlt hfS hf rfl).mono (by rintro g ⟨hg, hgf⟩; exact ⟨hg, hgf.trans hfe.le⟩)
 
-/-- **Threshold connectivity** (§2, Fact 2.5, p. 11): vertices joined by edges of weight at most
+/-- **Threshold connectivity** (§2, Fact 2.5, p. 12): vertices joined by edges of weight at most
 `k` from some `X ⊆ S` are joined by the edges of `msf S` of weight at most `k`, for every
 threshold `k`. -/
 theorem joins_msf_of_joins {X : Set E} (hX : X ⊆ S) {k : W} {u v : V}
