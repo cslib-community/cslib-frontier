@@ -463,7 +463,7 @@ theorem link_without_isReplyBounded_not_isPPT :
     | zero =>
       intro w
       dsimp only [M, liftAdversary, Machine.liftRight, doubleForwardAdv]
-      simp [OracleComp.support, ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure]
+      simp only [OracleComp.support, ProbOracleComp.lowerWith]
       rfl
     | succ k ih =>
       intro w

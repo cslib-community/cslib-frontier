@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.UC.Composition
-public import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
+public import CslibFrontier.Crypto.Protocols.UC.PPT
+import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
