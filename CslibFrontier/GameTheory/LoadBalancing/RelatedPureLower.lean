@@ -104,7 +104,8 @@ assigned to each machine in tier `t + 1` under the pure Nash equilibrium. -/
 abbrev relatedPureLowerJob (k : ℕ) : Type :=
   Σ t : Fin k, Fin (relatedPureLowerTierCount k (t.val + 1)) × Fin (2 * (t.val + 1))
 
-private theorem tierCount_pos (k : ℕ) {t : ℕ} (ht : t ≤ k) :
+/-- Every tier `t ≤ k` of `relatedPureLower k` has at least one machine. -/
+theorem relatedPureLowerTierCount_pos (k : ℕ) {t : ℕ} (ht : t ≤ k) :
     0 < relatedPureLowerTierCount k t := by
   unfold relatedPureLowerTierCount
   have hdvd : t.factorial ∣ k.factorial := Nat.factorial_dvd_factorial ht
@@ -112,14 +113,16 @@ private theorem tierCount_pos (k : ℕ) {t : ℕ} (ht : t ≤ k) :
     Nat.div_pos (Nat.le_of_dvd (Nat.factorial_pos k) hdvd) (Nat.factorial_pos t)
   positivity
 
-private theorem tierCount_last (k : ℕ) : relatedPureLowerTierCount k k = 1 := by
+/-- The top tier `k` of `relatedPureLower k` has exactly `1` machine. -/
+theorem relatedPureLowerTierCount_last (k : ℕ) : relatedPureLowerTierCount k k = 1 := by
   simp [relatedPureLowerTierCount, Nat.div_self (Nat.factorial_pos k)]
 
 private theorem tierCount_zero (k : ℕ) :
     relatedPureLowerTierCount k 0 = 2 ^ k * k.factorial := by
   simp [relatedPureLowerTierCount]
 
-private theorem tierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
+/-- Tier count recurrence: `m_t = m_{t + 1} * (2 * (t + 1))` for every `t < k`. -/
+theorem relatedPureLowerTierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
     relatedPureLowerTierCount k t =
       relatedPureLowerTierCount k (t + 1) * (2 * (t + 1)) := by
   unfold relatedPureLowerTierCount
@@ -141,7 +144,7 @@ private theorem tierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
   ring
 
 instance (k : ℕ) : Nonempty (relatedPureLowerMachine k) :=
-  ⟨⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩⟩
+  ⟨⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩⟩
 
 /-- **Czumaj–Vöcking pure PoA lower-bound game** ([CzumajVocking2002]; [Vocking2007], Theorem 20.9):
 `k + 1` tiers of machines with speeds `2 ^ t`, and `m_t` jobs of weight `2 ^ t` for each `t < k`.
@@ -250,7 +253,7 @@ theorem makespan_relatedPureLowerNE (k : ℕ) :
     rw [load_relatedPureLowerNE]
     exact_mod_cast Nat.le_of_lt_succ r.isLt
   · calc (k : ℝ) = (relatedPureLower k).load (relatedPureLowerNE k)
-            ⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩ := by
+            ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ := by
           simp [load_relatedPureLowerNE]
       _ ≤ (relatedPureLower k).makespan (relatedPureLowerNE k) :=
           (relatedPureLower k).load_le_makespan _ _
@@ -259,7 +262,7 @@ theorem makespan_relatedPureLowerNE (k : ℕ) :
 private def relatedPureLowerOpt (k : ℕ) :
     relatedPureLowerJob k → relatedPureLowerMachine k :=
   fun ⟨t, p⟩ =>
-    ⟨t.castSucc, (finProdFinEquiv p).cast (tierCount_eq_mul_succ k t.isLt).symm⟩
+    ⟨t.castSucc, (finProdFinEquiv p).cast (relatedPureLowerTierCount_eq_mul_succ k t.isLt).symm⟩
 
 private theorem relatedPureLowerOpt_injective (k : ℕ) :
     Function.Injective (relatedPureLowerOpt k) := by
@@ -267,8 +270,8 @@ private theorem relatedPureLowerOpt_injective (k : ℕ) :
   have ht : t₁ = t₂ := Fin.castSucc_injective _ (congrArg Sigma.fst h)
   subst ht
   have hslot :
-      (finProdFinEquiv p₁).cast (tierCount_eq_mul_succ k t₁.isLt).symm =
-        (finProdFinEquiv p₂).cast (tierCount_eq_mul_succ k t₁.isLt).symm :=
+      (finProdFinEquiv p₁).cast (relatedPureLowerTierCount_eq_mul_succ k t₁.isLt).symm =
+        (finProdFinEquiv p₂).cast (relatedPureLowerTierCount_eq_mul_succ k t₁.isLt).symm :=
     eq_of_heq (Sigma.mk.inj_iff.mp h).2
   have hslot' : finProdFinEquiv p₁ = finProdFinEquiv p₂ := by
     apply Fin.ext
@@ -312,7 +315,7 @@ theorem optMakespan_relatedPureLower_pos {k : ℕ} (hk : 1 ≤ k) :
     0 < (relatedPureLower k).optMakespan := by
   have hsum_pos : 0 < ∑ i : relatedPureLowerJob k, (relatedPureLower k).weight i := by
     let i₀ : relatedPureLowerJob k :=
-      ⟨⟨0, hk⟩, (⟨0, tierCount_pos k hk⟩, ⟨0, by omega⟩)⟩
+      ⟨⟨0, hk⟩, (⟨0, relatedPureLowerTierCount_pos k hk⟩, ⟨0, by omega⟩)⟩
     refine sum_pos' (fun i _ => (relatedPureLower k).weight_nonneg i) ⟨i₀, mem_univ _, ?_⟩
     simp [relatedPureLower, i₀]
   have hvol := (relatedPureLower k).sum_weight_le_sum_speed_mul_optMakespan
@@ -338,7 +341,7 @@ theorem card_relatedPureLowerMachine_le (k : ℕ) :
       2 * relatedPureLowerTierCount k (t + 1) ≤ relatedPureLowerTierCount k t := by
     intro t ht
     rw [mem_range] at ht
-    rw [tierCount_eq_mul_succ k ht]
+    rw [relatedPureLowerTierCount_eq_mul_succ k ht]
     have h1 : 1 ≤ t + 1 := Nat.succ_pos t
     nlinarith
   have hsum_le :
@@ -605,12 +608,12 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
       · rw [load_relatedPureLowerNE]
         exact_mod_cast Nat.le_of_lt_succ (eM ⟨j.val, hj⟩).1.isLt
       · positivity
-    · let jtop : Fin m := embedM ⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩
+    · let jtop : Fin m := embedM ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩
       have htop_lt : jtop.val < M k := (eM.symm _).isLt
       calc (k : ℝ) = G.load A jtop := by
             rw [hload_embed (relatedPureLowerNE k) jtop, dite_eq_left htop_lt]
             have hfin : (⟨jtop.val, htop_lt⟩ : Fin (M k)) =
-                eM.symm ⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩ := Fin.ext rfl
+                eM.symm ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ := Fin.ext rfl
             rw [hfin, eM.apply_symm_apply, load_relatedPureLowerNE]
             simp
         _ ≤ G.makespan A := G.load_le_makespan A jtop
@@ -622,7 +625,8 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
     · exact zero_le_one
   have hopt_pos : 0 < G.optMakespan := by
     have hsum_pos : 0 < ∑ i : Fin n, G.weight i := by
-      let i₀ : Fin n := eJ.symm ⟨⟨0, by omega⟩, (⟨0, tierCount_pos k (by omega)⟩, ⟨0, by omega⟩)⟩
+      let i₀ : Fin n :=
+        eJ.symm ⟨⟨0, by omega⟩, (⟨0, relatedPureLowerTierCount_pos k (by omega)⟩, ⟨0, by omega⟩)⟩
       refine sum_pos' (fun i _ => G.weight_nonneg i) ⟨i₀, mem_univ _, ?_⟩
       simp [G, relatedPureLower, i₀]
     have hvol := G.sum_weight_le_sum_speed_mul_optMakespan

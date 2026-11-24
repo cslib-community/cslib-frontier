@@ -947,6 +947,81 @@ private theorem pow_le_factorial_two_mul (r : ℕ) : r ^ r ≤ (2 * r).factorial
   calc r ^ r = 1 * r ^ r := (one_mul _).symm
     _ ≤ (∏ i ∈ range r, (i + 1)) * (∏ i ∈ range r, (r + i + 1)) := Nat.mul_le_mul h1 h2
 
+/-- If `m ≥ 3`, `0 < opt`, `0 ≤ val`, and every integer `c` with `(c + 1) * opt ≤ val` satisfies
+`c! ≤ m`, then `val ≤ (4 * log m / log (log m) + 3) * opt`. Shared between the uniformly related
+pure makespan bound and mixed expected-load bound. -/
+theorem le_log_div_log_log_add_three_mul_of_factorial_le {m : ℕ} (hm : 3 ≤ m) {val opt : ℝ}
+    (hopt : 0 < opt) (hval : 0 ≤ val)
+    (hfac : ∀ c : ℕ, ((c + 1 : ℕ) : ℝ) * opt ≤ val → c.factorial ≤ m) :
+    val ≤ (4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) + 3) * opt := by
+  have hm3 : (3 : ℝ) ≤ m := by exact_mod_cast hm
+  have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
+  have hlogm_gt1 : 1 < Real.log (m : ℝ) := by
+    rw [← Real.log_exp 1]
+    exact Real.log_lt_log (Real.exp_pos 1) (hexp1.trans_le hm3)
+  have hloglog_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
+  have hratio_pos : 0 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
+  by_cases hsmall : val ≤ 2 * opt
+  · nlinarith
+  · push Not at hsmall
+    set q : ℕ := ⌊val / opt⌋₊
+    have hq_ge2 : 2 ≤ q := by
+      rw [Nat.le_floor_iff (div_nonneg hval hopt.le), le_div_iff₀ hopt]
+      push_cast
+      linarith
+    set c : ℕ := q - 1
+    have hge : ((c + 1 : ℕ) : ℝ) * opt ≤ val := by
+      have hcq : c + 1 = q := by omega
+      rw [hcq]
+      exact (le_div_iff₀ hopt).mp (Nat.floor_le (div_nonneg hval hopt.le))
+    have hc_fac : c.factorial ≤ m := hfac c hge
+    set r : ℕ := c / 2
+    have hpow : r ^ r ≤ m :=
+      (pow_le_factorial_two_mul r).trans ((Nat.factorial_le (by omega)).trans hc_fac)
+    have hr_lt : (r : ℝ) < 2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by
+      by_contra hge_r
+      push Not at hge_r
+      set x : ℝ := Real.log (m : ℝ)
+      have hlogx_lt : Real.log x < 2 * √x := by
+        have h1 : Real.log (√x) ≤ √x - 1 :=
+          Real.log_le_sub_one_of_pos (Real.sqrt_pos.mpr (by linarith))
+        have h2 : Real.log (√x) = Real.log x / 2 := Real.log_sqrt (by linarith)
+        linarith
+      have hsqrt_lt : √x < 2 * x / Real.log x := by
+        rw [lt_div_iff₀ hloglog_pos]
+        have hsq : √x * √x = x := Real.mul_self_sqrt (by linarith)
+        nlinarith [Real.sqrt_pos.mpr (show 0 < x by linarith)]
+      have hr_gt_sqrt : √x < (r : ℝ) := hsqrt_lt.trans_le hge_r
+      have hsqrt_gt1 : 1 < √x := by
+        rw [← Real.sqrt_one]
+        exact Real.sqrt_lt_sqrt (by norm_num) hlogm_gt1
+      have hr_pos : (0 : ℝ) < r := by linarith
+      have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) := by
+        rw [← Real.log_sqrt (by linarith)]
+        exact Real.log_lt_log (by linarith) hr_gt_sqrt
+      have hmul_gt : x < (r : ℝ) * Real.log (r : ℝ) := by
+        have h1 : (2 * x / Real.log x) * (Real.log x / 2) = x := by
+          field_simp [hloglog_pos.ne']
+        have h3 : (2 * x / Real.log x) * (Real.log x / 2) ≤ (r : ℝ) * (Real.log x / 2) :=
+          mul_le_mul_of_nonneg_right hge_r (by positivity)
+        have h4 : (r : ℝ) * (Real.log x / 2) < (r : ℝ) * Real.log (r : ℝ) :=
+          mul_lt_mul_of_pos_left hlogr_gt hr_pos
+        linarith
+      have hpow_real : ((r : ℝ) ^ r) ≤ (m : ℝ) := by exact_mod_cast hpow
+      have hlog_pow : (r : ℝ) * Real.log (r : ℝ) ≤ x := by
+        rw [← Real.log_pow]
+        exact Real.log_le_log (pow_pos hr_pos r) hpow_real
+      linarith
+    have hq_lt : val / opt < (q : ℝ) + 1 := Nat.lt_floor_add_one _
+    have hq_le_r : q ≤ 2 * r + 2 := by omega
+    have hq_real : (q : ℝ) ≤ 2 * (r : ℝ) + 2 := by exact_mod_cast hq_le_r
+    have hval_lt : val < ((q : ℝ) + 1) * opt := (div_lt_iff₀ hopt).mp hq_lt
+    have hcoef : (q : ℝ) + 1 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) + 3 := by
+      have h2 : 2 * (2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) =
+          4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by ring
+      linarith
+    nlinarith
+
 /-- **Asymptotic pure PoA for uniformly related machines** ([CzumajVocking2002]; [Vocking2007],
 Theorem 20.7): for every load-balancing game on `m = |M| ≥ 3` uniformly related machines and every
 pure Nash equilibrium `A`,
@@ -957,14 +1032,6 @@ theorem makespan_le_log_div_log_log_mul_optMakespan (G : LoadBalancingGame ι M)
     G.makespan A ≤
       (4 * Real.log (Fintype.card M) / Real.log (Real.log (Fintype.card M)) + 3) *
         G.optMakespan := by
-  set m : ℕ := Fintype.card M
-  have hm3 : (3 : ℝ) ≤ m := by exact_mod_cast hm
-  have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
-  have hlogm_gt1 : 1 < Real.log (m : ℝ) := by
-    rw [← Real.log_exp 1]
-    exact Real.log_lt_log (Real.exp_pos 1) (hexp1.trans_le hm3)
-  have hloglog_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
-  have hratio_pos : 0 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
   rcases G.optMakespan_nonneg.eq_or_lt with hopt0 | hopt_pos
   · -- If `optMakespan = 0`, all jobs have weight `0`, so `makespan A = 0`.
     have hsum0 : ∑ i, G.weight i = 0 := by
@@ -978,73 +1045,8 @@ theorem makespan_le_log_div_log_log_mul_optMakespan (G : LoadBalancingGame ι M)
       rw [G.load_eq_sum_div]
       simp [hw0]
     rw [hms0, ← hopt0, mul_zero]
-  · have hms_nn : 0 ≤ G.makespan A := G.makespan_nonneg A
-    by_cases hsmall : G.makespan A ≤ 2 * G.optMakespan
-    · nlinarith
-    · push Not at hsmall
-      set q : ℕ := ⌊G.makespan A / G.optMakespan⌋₊
-      have hq_ge2 : 2 ≤ q := by
-        rw [Nat.le_floor_iff (div_nonneg hms_nn hopt_pos.le)]
-        rw [le_div_iff₀ hopt_pos]
-        push_cast
-        linarith
-      set c : ℕ := q - 1
-      have hc_ge1 : 1 ≤ c := by omega
-      have hge : ((c + 1 : ℕ) : ℝ) * G.optMakespan ≤ G.makespan A := by
-        have hcq : c + 1 = q := by omega
-        rw [hcq]
-        exact (le_div_iff₀ hopt_pos).mp (Nat.floor_le (div_nonneg hms_nn hopt_pos.le))
-      have hfac : c.factorial ≤ m := G.factorial_le_card_of_makespan_ge hA hopt_pos hge
-      set r : ℕ := c / 2
-      have hpow : r ^ r ≤ m :=
-        (pow_le_factorial_two_mul r).trans ((Nat.factorial_le (by omega)).trans hfac)
-      have hr_lt : (r : ℝ) < 2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by
-        by_contra hge_r
-        push Not at hge_r
-        set x : ℝ := Real.log (m : ℝ)
-        have hlogx_lt : Real.log x < 2 * √x := by
-          have h1 : Real.log (√x) ≤ √x - 1 :=
-            Real.log_le_sub_one_of_pos (Real.sqrt_pos.mpr (by linarith))
-          have h2 : Real.log (√x) = Real.log x / 2 := Real.log_sqrt (by linarith)
-          linarith
-        have hsqrt_lt : √x < 2 * x / Real.log x := by
-          rw [lt_div_iff₀ hloglog_pos]
-          have hsq : √x * √x = x := Real.mul_self_sqrt (by linarith)
-          nlinarith [Real.sqrt_pos.mpr (show 0 < x by linarith)]
-        have hr_gt_sqrt : √x < (r : ℝ) := hsqrt_lt.trans_le hge_r
-        have hsqrt_gt1 : 1 < √x := by
-          rw [← Real.sqrt_one]
-          exact Real.sqrt_lt_sqrt (by norm_num) hlogm_gt1
-        have hr_pos : (0 : ℝ) < r := by linarith
-        have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) := by
-          rw [← Real.log_sqrt (by linarith)]
-          exact Real.log_lt_log (by linarith) hr_gt_sqrt
-        have hmul_gt : x < (r : ℝ) * Real.log (r : ℝ) := by
-          have h1 : (2 * x / Real.log x) * (Real.log x / 2) = x := by
-            field_simp [hloglog_pos.ne']
-          have h2 : (2 * x / Real.log x) * (Real.log x / 2) < (r : ℝ) * Real.log (r : ℝ) := by
-            have h3 : (2 * x / Real.log x) * (Real.log x / 2) ≤ (r : ℝ) * (Real.log x / 2) :=
-              mul_le_mul_of_nonneg_right hge_r (by positivity)
-            have h4 : (r : ℝ) * (Real.log x / 2) < (r : ℝ) * Real.log (r : ℝ) :=
-              mul_lt_mul_of_pos_left hlogr_gt hr_pos
-            linarith
-          linarith
-        have hpow_real : ((r : ℝ) ^ r) ≤ (m : ℝ) := by exact_mod_cast hpow
-        have hlog_pow : (r : ℝ) * Real.log (r : ℝ) ≤ x := by
-          rw [← Real.log_pow]
-          exact Real.log_le_log (pow_pos hr_pos r) hpow_real
-        linarith
-      have hq_lt : G.makespan A / G.optMakespan < (q : ℝ) + 1 := Nat.lt_floor_add_one _
-      have hq_le_r : q ≤ 2 * r + 2 := by omega
-      have hq_real : (q : ℝ) ≤ 2 * (r : ℝ) + 2 := by exact_mod_cast hq_le_r
-      have hms_lt : G.makespan A < ((q : ℝ) + 1) * G.optMakespan :=
-        (div_lt_iff₀ hopt_pos).mp hq_lt
-      have hcoef : (q : ℝ) + 1 <
-          4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) + 3 := by
-        have h2 : 2 * (2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) =
-            4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by ring
-        linarith
-      nlinarith
+  · exact le_log_div_log_log_add_three_mul_of_factorial_le hm hopt_pos (G.makespan_nonneg A)
+      fun _ hge => G.factorial_le_card_of_makespan_ge hA hopt_pos hge
 
 end GeneralRelatedPurePoA
 
