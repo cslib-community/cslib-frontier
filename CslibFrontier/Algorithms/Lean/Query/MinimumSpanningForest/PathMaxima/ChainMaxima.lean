@@ -18,7 +18,7 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Linarith
 
 /-!
-# Komlós's chain maxima on a nested hierarchy of blocks
+# Chain maxima on a nested hierarchy of blocks
 
 A *hierarchy* on points `X` is given by block labels `lab l x : γ` at each level `l`, nested in the
 sense that points in the same block at level `l` are in the same block at level `l + 1`, and by an
@@ -27,28 +27,31 @@ optional *parent edge* `sel l c : Option E` of each block `c` at level `l`. The 
 `⟨x, j⟩` (`Cslib.Query.ChainQuery`) asks for a heaviest edge of the chain of `x` below level `j`,
 with weights learned by comparisons in `FreeM (LEQuery E)`.
 
-`Cslib.Query.chainMaxima` is Komlós's top-down procedure ([Komlos1985]; in the form used by
-[King1997] on a full branching tree). It processes the levels from the top. At level `i` it
-keeps, for every query `⟨x, j⟩` with `i < j`, the heaviest chain edge at the levels
-`i, …, j - 1`. Within a block `c` at
-level `i`, the queries still open above `i + 1`, sorted by `j`, have nondecreasing answers at
-level `i + 1`, so a single binary search against the parent edge `sel i c` finds which of them it
-overtakes. The block costs `⌊log₂ s⌋ + 1` comparisons for `s` such queries, whatever the oracle
-answers.
+`Cslib.Query.chainMaxima` follows Komlós's top-down procedure, after [Komlos1985] and in the form
+used by [King1997] on a full branching tree. It processes the levels from the top. At level `i` it
+keeps, for every query `⟨x, j⟩` with `i < j`, the heaviest chain edge at the levels `i, …, j - 1`.
+Within a block `c` at level `i`, the queries still open above `i + 1`, sorted by `j`, have
+nondecreasing answers at level `i + 1`, so a single binary search against the parent edge `sel i c`
+finds which of them it overtakes. The block costs `⌊log₂ s⌋ + 1` comparisons for `s` such queries,
+whatever the oracle answers.
 
 When at most `N l` blocks at level `l` hold a query still open above `l + 1`, and these counts at
 least halve from each level to the next, as they do for the levels of Borůvka's algorithm on a
-forest, the total is at most `4 N 0 + 2 q` comparisons for `q` queries. This is Komlós's counting
-on a full branching tree as King uses it, done here with `log₂ s ≤ l + s / 2 ^ l` at level `l` in
-place of the concavity of the logarithm. The texts of [Komlos1985] and [King1997] were not
-consulted for this module, so no locators into them are given; the argument is the standard
-one.
+forest, the total is at most `4 N 0 + 2 q` comparisons for `q` queries. This follows Komlós's
+counting on a full branching tree as King uses it, done here with `log₂ s ≤ l + s / 2 ^ l` at level
+`l` in place of the concavity of the logarithm. The texts of [Komlos1985] and [King1997] were not
+consulted for this module, so no locators into them are given; the argument is the standard one, and
+this module does not formalize either paper as a cited result.
+
+Chain maxima are a step, tracked in #8325, in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026]: they answer the path-maxima queries of the paper's Lemma 2.9 (§2, p. 12)
+along King's route.
 
 ## Main definitions
 
 * `Cslib.Query.ChainQuery`: a point and the level below which its chain is queried.
 * `Cslib.Query.IsChainMax`: `e` is a heaviest edge of the chain of `x` at the levels `i, …, j - 1`.
-* `Cslib.Query.chainMaxima`: Komlós's procedure answering a list of chain queries.
+* `Cslib.Query.chainMaxima`: Komlós's procedure, answering a list of chain queries.
 
 ## Main results
 
@@ -60,6 +63,8 @@ one.
 
 ## References
 
+* [S. Khanna, A. Putterman and J. Song, *A Deterministic Linear Time Algorithm for Minimum
+  Spanning Tree*][KhannaPuttermanSong2026], §2, Lemma 2.9, p. 12.
 * [J. Komlós, *Linear verification for spanning trees*][Komlos1985]
 * [V. King, *A simpler minimum spanning tree verification algorithm*][King1997]
 -/
@@ -133,8 +138,9 @@ private def chainMaximaFrom (K i : ℕ) : FreeM (LEQuery E) (ChainQuery X → Op
   else pure fun _ => none
 termination_by K - i
 
-/-- **Komlós's chain maxima.** Answer each chain query of `qs` whose level is at most `K`, top-down
-over the levels `K - 1, …, 0` of the hierarchy, by one binary search per block and level. -/
+/-- **Chain maxima**, after Komlós's procedure ([Komlos1985]). Answer each chain query of `qs` whose
+level is at most `K`, top-down over the levels `K - 1, …, 0` of the hierarchy, by one binary search
+per block and level. -/
 def chainMaxima (K : ℕ) : FreeM (LEQuery E) (ChainQuery X → Option E) :=
   chainMaximaFrom lab sel qs K 0
 
@@ -295,10 +301,10 @@ private theorem answers_chainMaximaFrom (oracle : {ι : Type} → LEQuery E ι �
     have := hK h hq
     omega
 
-/-- **Correctness of Komlós's chain maxima.** Against an oracle comparing the weights `w`, if the
-blocks are nested, every query of `qs` has level at most `K`, and the chain of every query has a
-parent edge at each level below its own, then `chainMaxima` answers every query `⟨x, j⟩` with
-`0 < j` by a heaviest edge of the chain of `x` below level `j`. -/
+/-- **Correctness of chain maxima.** Against an oracle comparing the weights `w`, if the blocks are
+nested, every query of `qs` has level at most `K`, and the chain of every query has a parent edge at
+each level below its own, then `chainMaxima` answers every query `⟨x, j⟩` with `0 < j` by a heaviest
+edge of the chain of `x` below level `j`. -/
 theorem chainMaxima_correct (oracle : {ι : Type} → LEQuery E ι → ι)
     (horacle : ∀ a b, oracle (.le a b) = decide (w a ≤ w b))
     (hnest : ∀ l x y, lab l x = lab l y → lab (l + 1) x = lab (l + 1) y)
@@ -430,9 +436,10 @@ private theorem levelCost_le (i : ℕ) :
         rw [liveLabels, this]
         exact List.length_filter_le _ _
 
-/-- **Komlós's counting.** If at each level `l < K` at most `N l` blocks hold a query still open
-above level `l + 1`, and `2 * N (l + 1) ≤ N l` for all `l`, then `chainMaxima` makes at most
-`4 * N 0 + 2 * qs.length` comparisons, under every oracle. -/
+/-- **Comparison count of chain maxima**, after Komlós's counting ([Komlos1985], [King1997]). If at
+each level `l < K` at most `N l` blocks hold a query still open above level `l + 1`, and
+`2 * N (l + 1) ≤ N l` for all `l`, then `chainMaxima` makes at most `4 * N 0 + 2 * qs.length`
+comparisons, under every oracle. -/
 theorem countQueries_chainMaxima_le (oracle : {ι : Type} → LEQuery E ι → ι) {K : ℕ}
     {N : ℕ → ℕ}
     (hN : ∀ l < K, ∃ s : Finset γ, s.card ≤ N l ∧ ∀ h ∈ qs, l + 1 < h.level → lab l h.point ∈ s)
