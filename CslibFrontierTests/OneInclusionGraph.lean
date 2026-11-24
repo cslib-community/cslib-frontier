@@ -135,7 +135,50 @@ theorem leaveOneOut_threshold_four :
     card_leaveOneOut_mistakes_le card_le_one_of_setShatters_thresholdClass ?_⟩
   exact ⟨thresholdConcept 4, ⟨4, rfl⟩, by intro j; fin_cases j <;> decide⟩
 
-/-! ### 3. PAC sample-complexity separation from `vcSampleSize` -/
+/-- Realizable sample with duplicate points (`2` and `5` each repeated twice), exercising the
+observed-label reuse branch `∃ j, (S j).1 = x` of `oneInclusionLearner` inside leave-one-out:
+folds `0` and `1` (held-out `2`) see `(2, true)` in the remaining folds and make `0` mistakes, and
+total leave-one-out mistakes across all `5` folds remain at most `1`. -/
+def dupSample : LabeledSample ℕ Bool 5 := ![(2, true), (2, true), (4, true), (5, false), (5, false)]
+
+theorem realizable_dupSample : Realizable thresholdClass dupSample :=
+  ⟨thresholdConcept 5, ⟨5, rfl⟩, by intro j; fin_cases j <;> decide⟩
+
+theorem leaveOneOut_dupSample :
+    oneInclusionLearner thresholdClass (Fin.removeNth 0 dupSample) (dupSample 0).1 = true ∧
+      oneInclusionLearner thresholdClass (Fin.removeNth 4 dupSample) (dupSample 4).1 = false ∧
+      (Finset.univ.filter fun t : Fin 5 =>
+        oneInclusionLearner thresholdClass (t.removeNth dupSample) (dupSample t).1 ≠
+          (dupSample t).2).card ≤ 1 := by
+  have hrem : ∀ t : Fin 5, Realizable thresholdClass (t.removeNth dupSample) := fun t =>
+    ⟨thresholdConcept 5, ⟨5, rfl⟩, fun j => by
+      have h := realizable_dupSample
+      rcases h with ⟨_, _, _⟩
+      exact (show ∀ k : Fin 5, (dupSample k).2 = thresholdConcept 5 (dupSample k).1 by
+        intro k; fin_cases k <;> decide) (t.succAbove j)⟩
+  refine ⟨?_, ?_, card_leaveOneOut_mistakes_le card_le_one_of_setShatters_thresholdClass
+    realizable_dupSample⟩
+  · simpa [dupSample, Fin.removeNth] using oneInclusionLearner_apply_sample_of_realizable (hrem 0) 0
+  · have h := oneInclusionLearner_apply_sample_of_realizable (hrem 4) 3
+    have h3 : Fin.removeNth 4 dupSample 3 = (5, false) := by decide
+    rw [h3] at h
+    exact h
+
+/-! ### 3. Expected error bound and PAC sample-complexity separation from `vcSampleSize` -/
+
+/-- Concrete instantiation of `lintegral_error_oneInclusionLearner_le`: on any `thresholdClass`-
+realizable distribution `D` (for instance `Measure.dirac (2, true)`), `3` i.i.d. examples achieve
+expected true error at most `1 / 4`. -/
+theorem lintegral_error_thresholdClass_three_le_quarter :
+    let D : Measure (ℕ × Bool) := Measure.dirac (2, true)
+    ∫⁻ S, error D (oneInclusionLearner thresholdClass S) ∂Measure.pi (fun _ : Fin 3 => D) ≤
+      1 / 4 := by
+  intro D
+  have hD : IsRealizableBy D thresholdClass :=
+    ⟨thresholdConcept 4, ⟨4, rfl⟩, by simp [D, error, thresholdConcept]⟩
+  have h := lintegral_error_oneInclusionLearner_le (m := 3)
+    card_le_one_of_setShatters_thresholdClass (measurable_of_countable _) hD
+  exact h.trans_eq (by norm_num)
 
 /-- `1 / 2` and `1 / 100` in `(0, 1)`. -/
 noncomputable def half : Set.Ioo (0 : ℝ≥0) 1 := ⟨1 / 2, by norm_num, by norm_num⟩

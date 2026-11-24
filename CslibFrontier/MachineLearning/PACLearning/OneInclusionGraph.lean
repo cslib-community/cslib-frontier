@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.MachineLearning.PACLearning.RealizableSample
 public import CslibFrontier.MachineLearning.PACLearning.VCDimension
+import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
 import Mathlib.Combinatorics.Hall.Finite
 import Mathlib.Data.Fintype.Pi
 import Mathlib.MeasureTheory.Constructions.Pi
@@ -25,21 +26,22 @@ and Warmuth [HausslerLittlestoneWarmuth1994] removed the `log (1 / ε)` factor i
 the **one-inclusion graph** (the induced subgraph of the Boolean hypercube on the labelings `C`
 realizes on the `m + 1` observed and test points):
 
-1. **Subgraph density bound** (`card_oneInclusionEdges_le_mul_card`, Lemma 2.4): if every finite
-   shattered set of `S : Finset (ι → Bool)` has size at most `d`, then the one-inclusion graph of
-   `S` has at most `d * |S|` edges.
-2. **Bounded-outdegree orientation** (`exists_orientation_outdegree_le`, Lemma 2.3 / Hakimi's
-   theorem via Hall's marriage theorem): every induced subgraph `U ⊆ S` has at most `d * |U|`
-   edges, so the edges of `S` can be oriented so that every vertex has outdegree at most `d`.
-3. **Leave-one-out transductive bound** (`card_leaveOneOut_mistakes_le`, Theorem 2.3): the
-   parameter-free improper predictor `oneInclusionLearner C` orients the one-inclusion graph on the
-   unordered point set of `m` labeled training examples plus one unlabeled test point, predicting
-   toward edge heads (and reusing the observed label on duplicate points). On any realizable sample
-   of length `m + 1`, `oneInclusionLearner C` errs on at most `d` of the `m + 1` leave-one-out
-   folds.
+1. **Subgraph density bound** (`card_oneInclusionEdges_le_mul_card`, Lemma 2.4 (locator
+   unverified)): if every finite shattered set of `S : Finset (ι → Bool)` has size at most `d`,
+   then the one-inclusion graph of `S` has at most `d * |S|` edges.
+2. **Bounded-outdegree orientation** (`exists_orientation_outdegree_le`, §2.3 (locator unverified)
+   / Hakimi's theorem via Hall's marriage theorem): every induced subgraph `U ⊆ S` has at most
+   `d * |U|` edges, so the edges of `S` can be oriented so that every vertex has outdegree at most
+   `d`.
+3. **Leave-one-out transductive bound** (`card_leaveOneOut_mistakes_le`, Theorem 2.3 (locator
+   unverified)): the parameter-free improper predictor `oneInclusionLearner C` orients the
+   one-inclusion graph on the unordered point set of `m` labeled training examples plus one
+   unlabeled test point, predicting toward edge heads (and reusing the observed label on duplicate
+   points). On any realizable sample of length `m + 1`, `oneInclusionLearner C` errs on at most `d`
+   of the `m + 1` leave-one-out folds.
 4. **Expected generalization error and `O(d / (ε δ))` PAC learning**
-   (`mul_lintegral_error_oneInclusionLearner_le`, `lintegral_error_oneInclusionLearner_le`,
-   `isPACLearnerFor_oneInclusionLearner`, `sampleComplexity_realizableDistributions_le_div_vcDim`):
+   (`lintegral_error_oneInclusionLearner_le`, `isPACLearnerFor_oneInclusionLearner`,
+   `sampleComplexity_realizableDistributions_le_div_vcDim`):
    by exchangeability of `D ^ (m + 1)`, `oneInclusionLearner C` achieves expected true error at
    most `d / (m + 1)` (with exact constant `1` and no logarithmic factors), yielding an `(ε, δ)`-PAC
    learner whenever `d ≤ ε δ (m + 1)`. At fixed confidence `δ`, this achieves the optimal `O(d / ε)`
@@ -63,9 +65,7 @@ realizes on the `m + 1` observed and test points):
   exact sample-consistency on realizable training data and unanimous-extension characterization.
 - `card_leaveOneOut_mistakes_le`: on any realizable `(m + 1)`-sample, `oneInclusionLearner C` errs
   on at most `d` of the `m + 1` leave-one-out folds.
-- `mul_lintegral_error_oneInclusionLearner_le`, `lintegral_error_oneInclusionLearner_le`:
-  `(m + 1) * 𝔼[error D (oneInclusionLearner C S)] ≤ d` and
-  `𝔼[error D (oneInclusionLearner C S)] ≤ d / (m + 1)`.
+- `lintegral_error_oneInclusionLearner_le`: `𝔼[error D (oneInclusionLearner C S)] ≤ d / (m + 1)`.
 - `isPACLearnerFor_oneInclusionLearner`, `sampleComplexity_realizableDistributions_le_div_vcDim`:
   realizable `(ε, δ)`-PAC learning for `d ≤ ε δ (m + 1)` and sample complexity at most
   `⌈vcDim C / (ε δ)⌉₊` on countable domains with measurable singletons.
@@ -108,22 +108,8 @@ theorem oneInclusionEdges_mono [DecidableEq ι] [Fintype ι] {S₁ S₂ : Finset
   exact mem_oneInclusionEdges.mpr ⟨h h1, h2, h h3⟩
 
 private theorem setShatters_image_succ {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters (Fin.tail '' S) W) : SetShatters S (Fin.succ '' W) := by
-  intro T hT
-  obtain ⟨_, ⟨c, hc, rfl⟩, hcT⟩ := hW (Fin.succ ⁻¹' T) fun i hi => by
-    obtain ⟨j, hj, hji⟩ := hT hi
-    rwa [Fin.succ_inj.mp hji] at hj
-  refine ⟨c, hc, Set.ext fun x => ?_⟩
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-  constructor
-  · rintro ⟨hcx, i, hiW, rfl⟩
-    have hmem : i ∈ Fin.tail c ⁻¹' {true} ∩ W := ⟨hcx, hiW⟩
-    rw [hcT] at hmem
-    exact hmem
-  · intro hxT
-    obtain ⟨i, hiW, rfl⟩ := hT hxT
-    have hmem : i ∈ Fin.tail c ⁻¹' {true} ∩ W := hcT ▸ hxT
-    exact ⟨hmem.1, i, hiW, rfl⟩
+    (hW : SetShatters (Fin.tail '' S) W) : SetShatters S (Fin.succ '' W) :=
+  SetShatters.image_of_comp hW
 
 private theorem setShatters_insert_zero {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
     (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} W) :
@@ -375,8 +361,9 @@ private theorem card_oneInclusionEdges_fin_le :
         _ = (d + 1) * S.card := by rw [← hScard]
 
 /-- **Haussler–Littlestone–Warmuth subgraph edge-density bound**
-[HausslerLittlestoneWarmuth1994, Lemma 2.4]: if `S : Finset (ι → Bool)` shatters no finite set of
-more than `d` coordinates, then `(oneInclusionEdges S).card ≤ d * S.card`. -/
+[HausslerLittlestoneWarmuth1994, Lemma 2.4 (locator unverified)]: if `S : Finset (ι → Bool)`
+shatters no finite set of more than `d` coordinates, then `(oneInclusionEdges S).card ≤ d * S.card`.
+-/
 theorem card_oneInclusionEdges_le_mul_card [DecidableEq ι] [Fintype ι] {d : ℕ}
     {S : Finset (ι → Bool)}
     (hS : ∀ W : Finset ι, SetShatters (S : Set (ι → Bool)) ↑W → W.card ≤ d) :
@@ -419,26 +406,8 @@ theorem card_oneInclusionEdges_le_mul_card [DecidableEq ι] [Fintype ι] {d : �
       refine ⟨(e j, f), mem_oneInclusionEdges.mpr ⟨hfS, hgj, hf'_upd ▸ hf'S⟩, ?_⟩
       simp
   have hS' : ∀ W : Finset (Fin (Fintype.card ι)),
-      SetShatters (S' : Set (Fin (Fintype.card ι) → Bool)) ↑W → W.card ≤ d := by
-    intro W hW
-    have hsh : SetShatters (S : Set (ι → Bool)) ↑(W.map e.toEmbedding) := by
-      intro T hT
-      obtain ⟨g, hgS', hgT⟩ :=
-        hW {j ∈ (↑W : Set (Fin (Fintype.card ι))) | e j ∈ T} fun _ hj => hj.1
-      obtain ⟨f, hfS, rfl⟩ := mem_image.mp (mem_coe.mp hgS')
-      refine ⟨f, hfS, Set.ext fun i => ?_⟩
-      simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, coe_map,
-        Equiv.coe_toEmbedding, Set.mem_image]
-      constructor
-      · rintro ⟨hfi, j, hjW, rfl⟩
-        have hmem : j ∈ (f ∘ e) ⁻¹' {true} ∩ ↑W := ⟨hfi, hjW⟩
-        rw [hgT] at hmem
-        exact hmem.2
-      · intro hiT
-        rcases mem_map.mp (mem_coe.mp (hT hiT)) with ⟨j, hjW, rfl⟩
-        have hmem : j ∈ (f ∘ e) ⁻¹' {true} ∩ ↑W := hgT ▸ ⟨hjW, hiT⟩
-        exact ⟨hmem.1, j, hjW, rfl⟩
-    simpa only [card_map] using hS _ hsh
+      SetShatters (S' : Set (Fin (Fintype.card ι) → Bool)) ↑W → W.card ≤ d := fun W hW =>
+    SetShatters.card_le_of_comp hS (by simpa only [S', coe_image] using hW)
   rw [hedg_eq, ← hcard_S]
   exact card_oneInclusionEdges_fin_le hS'
 
@@ -457,9 +426,9 @@ def oneInclusionOutdegree [DecidableEq ι] [Fintype ι] (S : Finset (ι → Bool
   ((oneInclusionEdges S).filter fun e => tailEndpoint orient e = g).card
 
 /-- **Haussler–Littlestone–Warmuth Bounded-Outdegree Orientation Lemma**
-[HausslerLittlestoneWarmuth1994, Lemma 2.3]: if `S : Finset (ι → Bool)` shatters no finite set of
-more than `d` coordinates, then `oneInclusionEdges S` admits an orientation `orient` in which every
-vertex has outdegree at most `d`. -/
+[HausslerLittlestoneWarmuth1994, §2.3 (locator unverified)]: if `S : Finset (ι → Bool)` shatters no
+finite set of more than `d` coordinates, then `oneInclusionEdges S` admits an orientation `orient`
+in which every vertex has outdegree at most `d`. -/
 theorem exists_orientation_outdegree_le [DecidableEq ι] [Fintype ι] {d : ℕ}
     {S : Finset (ι → Bool)}
     (hS : ∀ W : Finset ι, SetShatters (S : Set (ι → Bool)) ↑W → W.card ≤ d) :
@@ -551,24 +520,11 @@ private theorem card_le_of_setShatters_resFinset {C : ConceptClass α Bool} {U :
     {d : ℕ} (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d)
     (W : Finset ↑U) (hW : SetShatters (resFinset C U : Set (↑U → Bool)) ↑W) :
     W.card ≤ d := by
-  classical
-  have hsh : SetShatters C ↑(W.map ⟨Subtype.val, Subtype.coe_injective⟩) := by
-    intro T hT
-    obtain ⟨f, hfR, hfT⟩ := hW {u ∈ (↑W : Set ↑U) | u.1 ∈ T} fun _ hu => hu.1
-    obtain ⟨c, hc, hcf⟩ := mem_resFinset.mp hfR
-    refine ⟨c, hc, Set.ext fun x => ?_⟩
-    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff, coe_map,
-      Function.Embedding.coeFn_mk, Set.mem_image]
-    constructor
-    · rintro ⟨hcx, u, huW, rfl⟩
-      have hmem : u ∈ f ⁻¹' {true} ∩ ↑W := ⟨(hcf u).trans hcx, huW⟩
-      rw [hfT] at hmem
-      exact hmem.2
-    · intro hxT
-      rcases mem_map.mp (mem_coe.mp (hT hxT)) with ⟨u, huW, rfl⟩
-      have hmem : u ∈ f ⁻¹' {true} ∩ ↑W := hfT ▸ ⟨huW, hxT⟩
-      exact ⟨(hcf u).symm.trans hmem.1, u, huW, rfl⟩
-  simpa only [card_map] using hC _ hsh
+  have hsub : (resFinset C U : Set (↑U → Bool)) ⊆ (fun c : α → Bool => c ∘ Subtype.val) '' C := by
+    intro f hf
+    obtain ⟨c, hc, hcf⟩ := mem_resFinset.mp hf
+    exact ⟨c, hc, funext fun u => (hcf u).symm⟩
+  exact SetShatters.card_le_of_comp hC (hW.superset hsub)
 
 /-- Canonical orientation of `oneInclusionEdges (resFinset C U)` achieving outdegree at most
 `vcDim (resFinset C U : Set (↑U → Bool))` (and hence at most `d` whenever `C` shatters no finite
@@ -599,9 +555,10 @@ private theorem oneInclusionOutdegree_canonicalOrient_le {C : ConceptClass α Bo
   exact hspec.trans hvc_le
 
 /-- The parameter-free **Haussler–Littlestone–Warmuth one-inclusion graph learner**
-[HausslerLittlestoneWarmuth1994, §2]: if test point `x` already appears in `S`, reuse its observed
-label; otherwise form the unordered point set `U` of `S` and `x`, restrict to concepts of `C`
-consistent with `S`, and resolve `0`/`1` ambiguity at `x` using `canonicalOrient C U`. -/
+[HausslerLittlestoneWarmuth1994, §2 (locator unverified)]: if test point `x` already appears in `S`,
+reuse its observed label; otherwise form the unordered point set `U` of `S` and `x`, restrict to
+concepts of `C` consistent with `S`, and resolve `0`/`1` ambiguity at `x` using
+`canonicalOrient C U`. -/
 noncomputable def oneInclusionLearner (C : ConceptClass α Bool) {m : ℕ}
     (S : LabeledSample α Bool m) (x : α) : Bool :=
   open Classical in
@@ -754,9 +711,10 @@ theorem oneInclusionLearner_eq_of_forall_consistent {C : ConceptClass α Bool} {
   exact Bool.false_ne_true ((hb_eq false hf0).symm.trans (hb_eq true hf1))
 
 /-- **Haussler–Littlestone–Warmuth Transductive Leave-One-Out Bound**
-[HausslerLittlestoneWarmuth1994, Theorem 2.3]: if `C` shatters no finite set of more than `d`
-points, then on every realizable `(m + 1)`-sample `Z` (`Realizable C Z`), `oneInclusionLearner C`
-errs on at most `d` of the `m + 1` leave-one-out folds `(t.removeNth Z, (Z t).1)`. -/
+[HausslerLittlestoneWarmuth1994, Theorem 2.3 (locator unverified)]: if `C` shatters no finite set of
+more than `d` points, then on every realizable `(m + 1)`-sample `Z` (`Realizable C Z`),
+`oneInclusionLearner C` errs on at most `d` of the `m + 1` leave-one-out folds
+`(t.removeNth Z, (Z t).1)`. -/
 theorem card_leaveOneOut_mistakes_le {C : ConceptClass α Bool} {d m : ℕ}
     (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d)
     {Z : LabeledSample α Bool (m + 1)} (hZ : Realizable C Z) :
@@ -843,12 +801,10 @@ theorem lintegral_error_eq_leaveOneOut {m : ℕ} {A : Learner α Bool m}
   rw [hset, he.measure_preimage hF.nullMeasurableSet, Measure.prod_apply_symm hF]
   rfl
 
-/-- **Haussler–Littlestone–Warmuth Expected Error Bound**
-[HausslerLittlestoneWarmuth1994, Theorem 2.3]: if `C` shatters no finite set of more than `d`
-points, `oneInclusionLearner C` is jointly measurable, and `D` is realizable by `C`, then on `m`
-i.i.d. examples from `D`,
+/-- Multiplicative form of the Haussler–Littlestone–Warmuth expected error bound
+[HausslerLittlestoneWarmuth1994, Theorem 2.3 (locator unverified)]:
 `(m + 1) * ∫⁻ S, error D (oneInclusionLearner C S) ∂D^m ≤ d`. -/
-theorem mul_lintegral_error_oneInclusionLearner_le {C : ConceptClass α Bool} {d m : ℕ}
+private theorem mul_lintegral_error_oneInclusionLearner_le {C : ConceptClass α Bool} {d m : ℕ}
     (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d)
     (hmeas : Measurable fun p : LabeledSample α Bool m × α => oneInclusionLearner C p.1 p.2)
     {D : Measure (α × Bool)} [IsProbabilityMeasure D] (hD : IsRealizableBy D C) :
@@ -893,8 +849,10 @@ theorem mul_lintegral_error_oneInclusionLearner_le {C : ConceptClass α Bool} {d
         exact_mod_cast card_leaveOneOut_mistakes_le hC hZ
     _ = d := by rw [lintegral_const, measure_univ, mul_one]
 
-/-- Divided form of the Haussler–Littlestone–Warmuth expected error bound:
-`𝔼[error D (oneInclusionLearner C S)] ≤ d / (m + 1)`. -/
+/-- **Haussler–Littlestone–Warmuth Expected Error Bound**
+[HausslerLittlestoneWarmuth1994, Theorem 2.3 (locator unverified)]: if `C` shatters no finite set of
+more than `d` points, `oneInclusionLearner C` is jointly measurable, and `D` is realizable by `C`,
+then on `m` i.i.d. examples from `D`, `𝔼[error D (oneInclusionLearner C S)] ≤ d / (m + 1)`. -/
 theorem lintegral_error_oneInclusionLearner_le {C : ConceptClass α Bool} {d m : ℕ}
     (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d)
     (hmeas : Measurable fun p : LabeledSample α Bool m × α => oneInclusionLearner C p.1 p.2)
@@ -905,8 +863,8 @@ theorem lintegral_error_oneInclusionLearner_le {C : ConceptClass α Bool} {d m :
   exact mul_lintegral_error_oneInclusionLearner_le hC hmeas hD
 
 /-- **Haussler–Littlestone–Warmuth PAC Sample-Size Theorem**
-[HausslerLittlestoneWarmuth1994, Theorem 2.3]: if `C` shatters no finite set of more than `d`
-points and `oneInclusionLearner C` is jointly measurable at sample size `m`, then
+[HausslerLittlestoneWarmuth1994, Theorem 2.3 (locator unverified)]: if `C` shatters no finite set of
+more than `d` points and `oneInclusionLearner C` is jointly measurable at sample size `m`, then
 `oneInclusionLearner C` is an `(ε, δ)`-PAC learner over `realizableDistributions C` whenever
 `d ≤ ε δ (m + 1)`. -/
 theorem isPACLearnerFor_oneInclusionLearner {C : ConceptClass α Bool} {d m : ℕ}
