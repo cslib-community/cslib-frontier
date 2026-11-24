@@ -850,9 +850,9 @@ Figures 3–9. `Address.toCompressedBits` is literally the byte-slice projection
 by the SHA2 parameter sets, and `Address.toCompressedBytes` gives its typed 22-byte form. The
 compressed projection is injective under `Address.FitsCompressed`, which records that the
 one-byte layer and eight-byte tree fields do not overflow. The unrestricted compressed format is
-not injective, and the checked client exhibits the discarded high tree word. This address module
-does not itself define the FIPS 205 hash instantiations, WOTS+, XMSS, FORS, the hypertree, signing
-or verification, nor does it prove classical or quantum security.
+not injective, and the checked client exhibits the discarded high tree word. This module does not
+define the FIPS 205 hash instantiations, WOTS+, XMSS, FORS, the hypertree, signing or verification,
+nor does it prove classical or quantum security.
 
 FIPS 202 SHA3-512, SHAKE256 and SHAKE128 ([fips202][fips202]) are implemented in
 [`Hash/Keccak.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak.lean) and
@@ -900,58 +900,10 @@ Equal-length byte lists and their `bytesToBitsBE` serializations have the same l
 The implementation follows the standard's byte-aligned padding, message schedule, compression and
 digest conversion, but no independent functional-correctness theorem is claimed. The
 [ordinary-import client](../../CslibFrontierTests/Crypto/SHA2.lean) checks NIST's official
-one- and two-block SHA-256 and SHA-512 examples and both padding boundaries.
-
-The addressed FIPS 205 hash calls are packaged in
-[`SLHDSA/HashCalls.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/HashCalls.lean), with
-ordinary-import byte-package and independently computed oracle clients in
-[`SLHDSAHashCalls.lean`](../../CslibFrontierTests/Crypto/SLHDSAHashCalls.lean). The public types
-record the standardized `n = 16, 24, 32` byte lengths and the `n`, `2n`, and `l*n` input arities.
-For SHAKE, `PRF`, `F`, `H`, and `T_l` use the full address and request `8n` bits (`n` bytes). For
-SHA2, they use the compressed address and exact zero padding; `PRF` and `F` always use SHA-256,
-while `H` and `T_l` use SHA-256 at `n = 16` and SHA-512 at `n = 24, 32`. General block
-concatenation reuses `BitString.blocksEquiv.symm`, while the two-block convenience wrapper is
-derived from `FixedBytes.append`; WOTS+, FORS, and tree clients therefore preserve block structure
-at this byte boundary. The arbitrary-`l` SHA2 input-domain obligation is explicit, and the
-standardized block counts are proved valid. The separate message-call layer below reuses this
-boundary. The addressed calls establish no asymptotic or concrete security, query,
-machine-resource, or program-size bound.
-
-The shared SHA-2 message-call prerequisites are in
-[`HMAC.lean`](../../CslibFrontier/Crypto/Primitives/Hash/HMAC.lean) and
-[`MGF1.lean`](../../CslibFrontier/Crypto/Primitives/Hash/MGF1.lean)
-[fips1981][fips1981] [rfc8017][rfc8017]. HMAC exposes the complete FIPS 198-1 key preprocessing:
-short keys are right-padded, exact-block keys are unchanged, and long keys are hashed before
-padding. MGF1 hashes `seed || I2OSP(counter, 4)` in increasing counter order, concatenates the
-typed digest blocks with `BitString.blocksEquiv.symm`, and uses `FixedBytes.take` for the requested
-leading bytes. Its source domain admits the inclusive `2^32 * hLen` output bound and avoids a
-spurious seed-length restriction for an empty mask. The
-[ordinary-import client](../../CslibFrontierTests/Crypto/HMACMGF1.lean) checks RFC 4231 short- and
-long-key vectors, exact-block keys, empty and digest-boundary masks, and the final four-byte
-counter [rfc4231][rfc4231]. These executable functions are not constant-time implementations,
-FIPS validations, security proofs, or machine/resource bounds.
-
-The FIPS 205 arbitrary-message calls are packaged in
-[`SLHDSA/MessageCalls.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/MessageCalls.lean), with
-ordinary-import clients in
-[`SLHDSAMessageCalls.lean`](../../CslibFrontierTests/Crypto/SLHDSAMessageCalls.lean)
-[fips205][fips205]. `ParameterShape.digestBytes` derives the six `m = 30, 34, 39, 42, 47, 49`
-byte lengths from Section 9 and Table 2. `prfMessage` and `hMessage` retain the exact SHAKE and
-SHA2 packages of Sections 11.1--11.2.2, including left HMAC truncation and the SHA-2 digest inside
-the MGF1 seed. Their SHA-2 source domains are erased proof obligations, not runtime failures; the
-pure calls install no oracle handler, cannot abort, and leave the hedged or deterministic choice
-of `opt_rand` to Algorithm 19's caller. The source-cost record gives exact package/output bytes,
-SHA-2 compression blocks, Keccak-f[1600] evaluations, and reused static-table entry counts. It is
-not a compiled-machine certificate and deliberately omits `descSize`, wrappers, advice, layouts,
-copies, interpreter cost, emitted output, gates, and qubits.
-
-Hülsing and Kudinov's corrected SPHINCS+ proof separates `PRF_msg` PRF insecurity and `H_msg`
-ITSR insecurity in Theorem 3 and Equations (5)--(6) [hulsingkudinov22][hulsingkudinov22]. Its
-`H_msg` output length is in bits, so the FIPS mapping is `m_paper = 8m`; honest signing and
-secret-keyed oracles remain classical even for quantum adversaries. The executable calls do not
-prove either assumption, a FIPS-to-paper game bridge, digest slicing, signing/verification
-correctness, EUF-CMA/QROM security, constant-time behavior, FIPS validation, or machine-level
-resources.
+one- and two-block SHA-256 and SHA-512 examples and both padding boundaries. This is reusable
+executable infrastructure: it does not yet package FIPS 205's `F`, `H`, `T_l`, `PRF`, `PRF_msg` or
+`H_msg` calls, and establishes neither asymptotic security nor concrete candidate-parameter
+advantage, query, machine-resource or program-size bounds.
 
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import
@@ -1014,43 +966,10 @@ standard values `n = 16, 24, 32`, `WOTS.digits` implements the common first seve
 `wots_sign` and `wots_pkFromSig`: the `2n` base-16 message digits followed by the three complement
 checksum digits, including the specified four-bit left shift and two-byte encoding. The client now
 uses the same `Byte` and `bytesToBitsBE` boundary as SHA-2 rather than a parallel serialization.
-The WOTS+ chaining and verification-facing public-key reconstruction layers are in
-[`SLHDSA/WOTS/Chain.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/WOTS/Chain.lean) and
-[`SLHDSA/WOTS/PublicKeyFromSignature.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/WOTS/PublicKeyFromSignature.lean),
-with ordinary-import clients in
-[`SLHDSAWOTSPublicKey.lean`](../../CslibFrontierTests/Crypto/SLHDSAWOTSPublicKey.lean).
-`WOTS.chain` is Algorithm 5 under its erased `WOTS_HASH` and `i + s < w` source preconditions:
-it writes every hash address and calls the concrete addressed `F` once per step. Algorithm 8's
-`wotsPkFromSig` starts each remaining suffix at the corresponding message/checksum digit, preserves
-the `len` chain ends in canonical block order, clears the payload while changing the address to
-`WOTS_PK`, restores the key-pair word, and makes one concrete `T_len` call. The source ledger
-records exact `F`/`T_len` calls, address writes and byte shapes, including the
-`len * (w - 1)` bound. It deliberately does not invent lower-level permutation/compression or
-machine-program costs that the current hash-call API does not expose.
-
-The definitions-only, verification-facing XMSS composition is in
-[`SLHDSA/XMSS/PublicKeyFromSignature.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/XMSS/PublicKeyFromSignature.lean),
-with public-API checks in
-[`SLHDSAXMSSPublicKey.lean`](../../CslibFrontierTests/Crypto/SLHDSAXMSSPublicKey.lean).
-`XMSS.xmssPkFromSig` implements FIPS 205 Algorithm 11: it clears and initializes the WOTS hash
-address, invokes Algorithm 8, clears and initializes the tree address, then makes exactly `h'`
-ordered `H` calls while updating tree height and index in leaf-to-root order. The named signature
-shape contains exactly `len` WOTS+ blocks and `h'` authentication blocks. The structurally
-accumulated operation ledger retains the nested WOTS+ counts and the branch/address operations;
-the separate query ledger records zero external oracle queries or handlers because all hashes are
-concrete. The static ledger records signature and hash-input shapes and explicitly leaves compiled
-description size unmeasured. The first library consumer is the separately scoped FIPS 205
-Algorithm 13 hypertree verifier in [#5656](https://github.com/cslib-community/cslib-frontier/issues/5656),
-which adds the `d`-layer signature representation, index slicing, address evolution and final root
-comparison.
-
-The first semantic correctness property for this definition would state that an Algorithm 10
-signature reconstructs the corresponding Algorithm 9 root. This milestone does not prove that
-property because it does not yet define WOTS+ key generation or signing, XMSS tree generation or
-signing. FORS,
-hypertree and top-level sign/verify composition; classical or quantum reductions; and exact
-machine, program-size, gate, qubit and query costs remain obligations under the NIST post-quantum
-portfolio roadmap item.
+This milestone
+does not define the WOTS+ hash chain, key generation, signing, public-key reconstruction, concrete
+FIPS 205 hash instantiations, or any security reduction; those remain obligations under the NIST
+post-quantum portfolio roadmap item.
 
 These are implications from hardness assumptions. They do not prove that a concrete OWF, DDH group, LWE family or SIS parameter choice is hard. `DecisionLWE` runs the fixed-instance experiments `LWE.realExperiment` and `LWE.randomExperiment` over `ZMod (2 ^ w)`: a typed distinguisher receives a uniform matrix `A` and either `A t + e`, with independent errors and one shared uniform secret, or an independent uniform vector. For other secret and error laws over any finite commutative ring, `LWE.advantage` is the distance between `LWE.realGame` and `LWE.randomGame`. The distinguisher's machine reads only the row-major binary word of `[b | A]`, and `decisionLWE_iff_encoded` shows that this is the word-level assumption on the serialized public matrix `[B*t+e | B]` (checked in [`CslibFrontierTests/Crypto/DecisionLWE.lean`](../../CslibFrontierTests/Crypto/DecisionLWE.lean)); in [`SIS/Module.lean`](../../CslibFrontier/Crypto/Computational/SIS/Module.lean), `expandModuleMatrix` and `flattenPolyVec` embed negacyclic `ModuleSIS` and `ModuleLWE` instances over `ℤ_q[X]/(X^n+1)` into unstructured `(d * n) × (k * n)` matrices over `ℤ_q` (checked with concrete evaluations and nonvacuity proofs in [`CslibFrontierTests/Crypto/ModuleSIS.lean`](../../CslibFrontierTests/Crypto/ModuleSIS.lean)); [`LWE/Module.lean`](../../CslibFrontier/Crypto/Computational/LWE/Module.lean) states decision Module-LWE as the typed games `ModuleLWE.realGame` and `ModuleLWE.randomGame` for any secret and error laws, whose advantage `ModuleLWE.advantage` is the LWE advantage over the ring `Negacyclic (ZMod q) n` (`ModuleLWE.advantage_eq_lweAdvantage`), and the assumption `DecisionModuleLWEWith` takes an explicit secret law and error law, as the CRYSTALS-Kyber and CRYSTALS-Dilithium submissions state Module-LWE with short secrets, and is the word-level assumption by `decisionModuleLWEWith_iff_encoded`; it is meaningful only for a parameter family that grows with the security parameter, and `DecisionModuleLWE` is its uniform-secret case (checked in [`CslibFrontierTests/Crypto/DecisionModuleLWE.lean`](../../CslibFrontierTests/Crypto/DecisionModuleLWE.lean)); and [`SIS/ModuleEncryption.lean`](../../CslibFrontier/Crypto/Computational/SIS/ModuleEncryption.lean) builds Module-LWE public-key encryption (`moduleLWEKeyGen`, `moduleLWEEncrypt`, `moduleLWEDecrypt`), bounded-noise decryption correctness (`moduleLWEDecrypt_moduleLWEEncrypt_eq`), and two-hop public-key/ciphertext reductions to `ModuleLWE.sampleLaw` (`advantage_realEncryptionView_uniform_le`, `advantage_realEncryptionView_msg_le`, checked in [`CslibFrontierTests/Crypto/ModuleEncryption.lean`](../../CslibFrontierTests/Crypto/ModuleEncryption.lean)); no worst-case lattice reduction is asserted there.
 
@@ -3763,7 +3682,6 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [hhrvw20]: ../sources.md#hhrvw20
 [hill99]: ../sources.md#hill99
 [holenstein06]: ../sources.md#holenstein06
-[hulsingkudinov22]: ../sources.md#hulsingkudinov22
 [katzlindell20]: ../sources.md#katzlindell20
 [kyber302]: ../sources.md#kyber302
 [manin56]: ../sources.md#manin56
