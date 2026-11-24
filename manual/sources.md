@@ -884,6 +884,11 @@ Falcon team. *Falcon: Fast-Fourier Lattice-Based Compact Signatures over NTRU*, 
 
 Uriel Feige. "A Threshold of ln n for Approximating Set Cover." *Journal of the ACM* 45(4), 634–652, 1998. https://doi.org/10.1145/285055.285059 . Bibliographic metadata checked via search records only; primary text uninspected and internal theorem locators unverified (no numbered paper theorems claimed). Cited for the Set Cover hardness threshold framework using separating partition gadgets.
 
+<a id="feigenbaumpapadimitrioushenker2001"></a>
+## feigenbaumpapadimitrioushenker2001
+
+Joan Feigenbaum, Christos H. Papadimitriou and Scott Shenker. "Sharing the Cost of Multicast Transmissions." *Journal of Computer and System Sciences* 63(1), 21–41, 2001 (preliminary version in STOC 2000). https://doi.org/10.1006/jcss.2001.1754 . Bibliographic metadata checked via DOI and secondary search summaries on 2026-11-24; the published PDF was not inspected directly, so internal page numbers are not claimed. Cited by [MulticastCostSharing.lean](../CslibFrontier/GameTheory/Cooperative/MulticastCostSharing.lean) for the comparison of Shapley (`SH`) and Marginal Cost (`MC` / Clarke VCG) multicast cost sharing on rooted trees, the exact two-pass (`2` messages per link) distributed tree algorithm for `MC` receiver selection and VCG payments, failure of group-strategyproofness for `MC`, and the deterministic `(k + 1)`-bit cut communication lower bound for `SH` on path instances (leaving the paper's randomized lower bound open).
+
 <a id="fgms20"></a>
 ## fgms20
 
@@ -2034,6 +2039,11 @@ T. S. Motzkin and E. G. Straus. "Maxima for Graphs and a New Proof of a Theorem 
 ## moulin80
 
 Hervé Moulin. "On Strategy-Proofness and Single Peakedness." *Public Choice* 35(4), 437–455, 1980. https://doi.org/10.1007/BF00128122 . Bibliographic metadata checked against `references.bib` (`Moulin1980`) and secondary search summaries on 2026-11-10; the full text was not inspected, so no internal theorem numbers are claimed. Cited in [the mechanism-design chapter](algorithms-and-memory/mechanism-design.md) via [procacciatennenholtz13](#procacciatennenholtz13) (§3.1, p. 18:8) for group strategyproofness of fixed order-statistic (generalized median) rules on the real line (PT note the weak notion; the library proves the strong variant directly).
+
+<a id="moulinshenker2001"></a>
+## moulinshenker2001
+
+Hervé Moulin and Scott Shenker. "Strategyproof Sharing of Submodular Costs: Budget Balance versus Efficiency." *Economic Theory* 18(3), 511–533, 2001. https://doi.org/10.1007/PL00004200 . Bibliographic metadata checked via DOI and secondary search summaries on 2026-11-24; the published PDF was not inspected directly, so internal page and theorem numbers are not claimed. Cited by [MulticastCostSharing.lean](../CslibFrontier/GameTheory/Cooperative/MulticastCostSharing.lean) for the per-link Shapley cost-sharing mechanism on submodular multicast games, impossibility of combining strategyproofness, voluntary participation, no positive transfers, exact budget balance, and social-welfare maximization on excludable public goods, and the tight `(H_n - 1) C` minimax worst-case additive welfare-loss bound for `1`-budget-balanced cross-monotonic Moulin mechanisms.
 
 <a id="mullersatterthwaite77"></a>
 ## mullersatterthwaite77
