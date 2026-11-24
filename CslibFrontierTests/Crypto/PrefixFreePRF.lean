@@ -132,6 +132,27 @@ example : InformationTheory.IsPrefixFree
     rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
     decide)
 
+/-- The real comparison applies to the CBC domain with a proper-prefix pair and extra block. -/
+example (family : List Bool → List Bool → List Bool) :
+    let guessBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
+      fun _ => pure [[false, false, false], [false, false, false, true, false, false]]
+    Game.succProbability (multiQueryGame pure (fun _ d => cbcBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guessBatch 3) ≤
+    Game.succProbability (ProbComp.eval
+      (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family)
+        (prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2)) guessBatch)
+        3)) := by
+  dsimp only
+  refine succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+    (cbcMacFamily family) _ 3 2 ?_ ?_ (by decide) cbcBlockValid_append (cbcMacFamily_extend family)
+  · intro guesses hguesses
+    simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hguesses
+    subst guesses
+    decide
+  · intro word hw
+    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hw
+    exact Nat.div_le_of_le_mul hw.2
+
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {cap : ℕ → ℕ} (hcap : ComputableInPolyTime cap encUnary encUnary) :
     IsComputationalUHF encUnary encBits pure (fun _ d => cbcBlockValid cap d)
