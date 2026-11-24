@@ -24,10 +24,11 @@ At the end of each block of rounds, the certificate procedure of
 the action *find* (§3.2, pp. 14–16; Algorithm 1, lines 20–21, p. 14). Every vertex `v` groups its
 edges in `B` by their other end and selects the `k = r²` lightest *representatives* (lightest
 admissible edges of a group), with the quota selection of Lemma 3.3; the selected edges are
-*declared*, forming `D`, and `S_v` is the set of neighbours they reach. New portals `P'` meet
-every `S_v` of size `k`. Each such `v` gets the lighter of its spoke and a selected edge to a new
-portal. Edges whose admissibility test failed form `R'`. Finally the forest is replaced by
-`MSF(F ∪ D)`.
+*declared*, forming `D`, and `S_v` is the set of neighbours they reach. New portals `P'` meet every
+`S_v` of size `k`. Each such `v` gets the lighter of its spoke and a selected edge to a new portal.
+Edges whose admissibility test failed form `R'`. Finally the forest is replaced by `MSF(F ∪ D)`.
+Batch processing, with the paper's Lemma 3.2 (§3.2, p. 15) and the accounting after its Lemma 3.3
+(p. 16), is a step in the proof of their Theorem 4.1 (§4, p. 25), tracked in #8325.
 
 `Cslib.Query.Certificate.batch test msfSub r st B` is this procedure as a comparison program in
 `FreeM (LEQuery E)`, acting on the state `st` of the call (`Cslib.Query.Certificate.State`) and
@@ -677,8 +678,9 @@ theorem newPortals_subset_batch (o : {ι : Type} → LEQuery E ι → ι) :
   simp only [eval_batch, portalsOf]
   exact (portalCover_spec _ _ _).1
 
-/-- **Lemma 3.2, the portals** ([KhannaPuttermanSong2026], §3.2, p. 15): at most `2n / r` new
-portals, in the form `|P'| r ≤ 2n`, for every oracle. -/
+/-- **Few new portals**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (part of
+the paper's Lemma 3.2, §3.2, p. 15): at most `2n / r` new portals, in the form `|P'| r ≤ 2n`, for
+every oracle. -/
 theorem card_newPortals_batch_mul_le (o : {ι : Type} → LEQuery E ι → ι) :
     #((batch test msfSub r st B).eval o).newPortals * r ≤ 2 * #st.vertices := by
   simp only [eval_batch, portalsOf]
@@ -737,8 +739,9 @@ theorem adm_of_mem_declared_batch (hw : Function.Injective w)
   obtain ⟨v, -, hv⟩ := mem_biUnion.1 he
   exact ((hf v).selected e (List.mem_toFinset.1 hv)).2
 
-/-- **Lemma 3.2, the declared edges** ([KhannaPuttermanSong2026], §3.2, p. 15): each vertex
-declares at most `k = r²` edges, so `|D| ≤ k n`. -/
+/-- **Few declared edges**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (part
+of the paper's Lemma 3.2, §3.2, p. 15): each vertex declares at most `k = r²` edges, so
+`|D| ≤ k n`. -/
 theorem card_declared_batch_le (hw : Function.Injective w)
     (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) :
     #((batch test msfSub r st B).eval (LEQuery.keyOracle w)).declared ≤ r ^ 2 * #st.vertices := by
@@ -890,7 +893,8 @@ private theorem endpoint_guarantee (hw : Function.Injective w)
     obtain ⟨s', hs', hle⟩ := (offerSpoke_spec (w := w) _ (st.spoke x)).2.1 c hcand
     exact Or.inr ⟨s', hs', hle.trans hcw.le⟩
 
-/-- **Lemma 3.2, the guarantee** ([KhannaPuttermanSong2026], §3.2, p. 15). Let `R'` be the edges
+/-- **The guarantee of the batch**, a step in the proof of Theorem 4.1 of
+[KhannaPuttermanSong2026] (part of the paper's Lemma 3.2, §3.2, p. 15). Let `R'` be the edges
 that failed a test. After the forest is replaced by `MSF(F ∪ D)`, every edge `e ∈ B \ R'` with ends
 `u, v` is supported by the new forest, or both of its ends have spokes and
 `p(e) = max (w σ(u)) (w σ(v)) ≤ w e`. The exact minimum spanning forest call is assumed to return
@@ -995,13 +999,13 @@ theorem State.Invariant.batch (h : st.Invariant w adm) (hw : Function.Injective 
     · obtain ⟨-, hne, -⟩ := sel_spec hw htest r st B
       exact supported_of_mem (mem_union_right _ (mem_declOf (candidate_some hc).1 hne))
 
-/-- **Comparisons of the batch** ([KhannaPuttermanSong2026], §3.2, p. 16). Let each test cost at
-most `cs` comparisons when it succeeds and `cf` when it fails. Then the batch makes at most
-`468 |B| + n` comparisons outside the tests and the exact minimum spanning forest call (quota
-selection at every vertex, and one comparison per vertex for the spokes), at most `r² √(8 n |B|)`
-successful tests (`∑_v k (⌈log₂ deg_B v⌉ + 1)` over the vertices with an edge, by Cauchy–Schwarz),
-at most `|R'|` failed tests (an edge that failed is not tested again), and the one exact call,
-on `F ∪ D`. -/
+/-- **Comparisons of the batch**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
+(the accounting after the paper's Lemma 3.3, §3.2, p. 16). Let each test cost at most `cs`
+comparisons when it succeeds and `cf` when it fails. Then the batch makes at most `468 |B| + n`
+comparisons outside the tests and the exact minimum spanning forest call (quota selection at every
+vertex, and one comparison per vertex for the spokes), at most `r² √(8 n |B|)` successful tests
+(`∑_v k (⌈log₂ deg_B v⌉ + 1)` over the vertices with an edge, by Cauchy–Schwarz), at most `|R'|`
+failed tests (an edge that failed is not tested again), and the one exact call, on `F ∪ D`. -/
 theorem countQueries_batch_le (hw : Function.Injective w)
     (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs cf : ℕ}
     (hcs : ∀ e, adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cs)

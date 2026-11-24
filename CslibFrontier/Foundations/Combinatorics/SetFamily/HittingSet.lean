@@ -43,9 +43,10 @@ namespace Cslib
 
 open Finset
 
-/-- **Small hitting sets** ([KhannaPuttermanSong2026], §3.2, p. 15, the portal selection of the
-batch procedure). If `r ≥ 1` and the sets `S i ⊆ X`, for `i ∈ I`, each have at least `r²`
-elements, then some `P ⊆ X` meets every `S i` and has `|P| r ≤ |I| + |X|`. -/
+/-- **Small hitting sets**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (the
+portal selection of the batch procedure, §3.2, p. 15). If `r ≥ 1` and the sets `S i ⊆ X`, for
+`i ∈ I`, each have at least `r²` elements, then some `P ⊆ X` meets every `S i` and has
+`|P| r ≤ |I| + |X|`. -/
 theorem exists_hittingSet_card_mul_le {ι α : Type*} [DecidableEq α] (X : Finset α)
     (I : Finset ι) (S : ι → Finset α) {r : ℕ} (hr : 0 < r) (hS : ∀ i ∈ I, S i ⊆ X)
     (hcard : ∀ i ∈ I, r ^ 2 ≤ #(S i)) :
