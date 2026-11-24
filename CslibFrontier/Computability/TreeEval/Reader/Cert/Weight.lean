@@ -155,8 +155,8 @@ private theorem half_inSpace :
   have hn := (snd (encPair encNat3 (encList encNat)) encNat).weaken hl
   have hp := fst' (fst' hpar)
   have hone := budget_comp_lin natMod (linear_mul _)
-    (budget_prod (budget_const (encB := encNat) 1 hl) hp)
-  have hinit := budget_prod hpar (budget_prod (budget_const (encB := encNat) 0 hl) hone)
+    (budget_prod (budget_const (encB := encNat) 1) hp)
+  have hinit := budget_prod hpar (budget_prod (budget_const (encB := encNat) 0) hone)
   have hlen (h : ((ℕ × ℕ × ℕ) × List ℕ) × ℕ) (j : ℕ) (hj : j ≤ h.2) :
       (encHalf (halfStep^[j] (h.1, 0, 1 % h.1.1.1))).length ≤
         4 * ((encHalfIn h).length + h.2 + 1) := by
@@ -192,7 +192,7 @@ theorem weight_inSpace :
   have hℓ := fst' (snd' hpkl)
   have hk := snd' (snd' hpkl)
   have hlo₀ := budget_prod (budget_prod (budget_prod hp
-    (budget_prod hk (budget_const (encB := encNat) 0 hl))) (fst' hxy)) hℓ
+    (budget_prod hk (budget_const (encB := encNat) 0))) (fst' hxy)) hℓ
   have hhi₀ := budget_prod (budget_prod (budget_prod hp (budget_prod hk hℓ)) (snd' hxy)) hℓ
   have hlo := budget_comp half_inSpace hlo₀
     (.const_mul 256 (((length_le hlo₀).add hℓle).add (.const 1 _)))

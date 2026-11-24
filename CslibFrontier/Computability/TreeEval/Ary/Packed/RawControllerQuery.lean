@@ -202,7 +202,7 @@ private theorem request_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bo
   have hsome := some_budget (budget_comp_linear hstart harg)
   have hnone : ComputableInSpace (fun _ : Context γ => (none : Option τ))
       (encContext encG) (encOption encT) (fun q => (encContext encG q).length) :=
-    budget_const none (.refl _)
+    budget_const none
   have hid : ComputableInSpace (fun q : Context γ => q) (encContext encG) (encContext encG)
       (fun q => (encContext encG q).length) := of_inO ComputableInDegree.id'.inO_one
   have hneed := budget_comp_linear need_inSpace (snd encG encFullState)
@@ -237,7 +237,7 @@ private theorem caller_next_inSpace (encG : γ ↪ List Bool) (initial : Context
       (encContext encG) (fun a => (encPair (encContext encG) (encOption encBool) a).length) := by
   have h := budget_comp_linear (advance_inSpace encG)
     (budget_prod (fst (encContext encG) (encOption encBool))
-      (budget_const (encB := encReply) (0, []) (.refl _)))
+      (budget_const (encB := encReply) (0, [])))
   exact h.of_enc_eq fun _ => rfl
 
 private theorem caller_halted_inSpace (encG : γ ↪ List Bool) (initial : Context γ) :
@@ -256,7 +256,7 @@ theorem machine_query_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool
     ComputableInSpace (machine initial N start answer).query (encMachineState encG encT) encNat
       (fun q => (encMachineState encG encT q).length) :=
   QueryMachine.withCalls_query_inSpace _ _ _ _ _ _
-    (budget_const 0 (.refl _)) hquery (request_inSpace encG encT start hstart)
+    (budget_const 0) hquery (request_inSpace encG encT start hstart)
 
 /-- The concrete evaluator charges caller computation, supplier execution and reply extraction. -/
 theorem machine_next_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
@@ -283,7 +283,7 @@ theorem machine_emit_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Bool)
     ComputableInSpace (machine initial N start answer).emit
       (encPair (encMachineState encG encT) (encOption encBool)) encBits
       (fun q => (encPair (encMachineState encG encT) (encOption encBool) q).length) :=
-  QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_emit_inSpace _ _ _ _ _ _ (budget_const [])
     (request_inSpace encG encT start hstart)
 
 /-- The composite halting test uses the actual native raw-controller guard. -/
@@ -300,7 +300,7 @@ theorem machine_finish_inSpace (encG : γ ↪ List Bool) (encT : τ ↪ List Boo
     (start : RequestArgs γ → τ) (answer : τ → Reply) :
     ComputableInSpace (machine initial N start answer).finish (encMachineState encG encT) encBits
       (fun q => (encMachineState encG encT q).length) :=
-  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [] (.refl _))
+  QueryMachine.withCalls_finish_inSpace _ _ _ _ _ _ (budget_const [])
 
 /-- A suspended call stores exactly one caller and one callee. Every physical clock, including
 entry, the callee run and return, has the stated bound when both boundary callers fit `R`. -/
