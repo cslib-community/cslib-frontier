@@ -769,8 +769,8 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
     have hmul : BitString.monomial (ZMod 2) (μ (j₁, j₂)).val (z (i, k)) =
         BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁) (z (i, k)) *
           BitString.monomial (ZMod 2) ((J₂ j₂).val.map emb₂) (z (i, k)) := by
-      change (BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁ ∪ (J₂ j₂).val.map emb₂)) (z
-          (i, k)) = _
+      change (BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁ ∪ (J₂ j₂).val.map emb₂))
+          (z (i, k)) = _
       rw [← BitString.monomial_mul]
       rfl
     have hzX : ∀ x : X, z (i, k) x.val = a i x := fun x => by

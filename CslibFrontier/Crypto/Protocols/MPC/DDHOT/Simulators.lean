@@ -424,8 +424,8 @@ private def ddhOTEmptySim : SimulatorFamily F.ddhOTProbFamily ∅ :=
 
 /-- `ddhOTEmptySim` is PPT for `ddhOTEncoding`. -/
 private theorem isPPT_ddhOTEmptySim : F.ddhOTEmptySim.IsPPT F.ddhOTEncoding :=
-  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch
-      i.property).isPPTOn.congr fun _ => rfl
+  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.property).isPPTOn.congr
+    fun _ => rfl
 
 /-- When no party is corrupted, `ddhOTEmptySim` reproduces `ddhOTProbProtocol`'s real joint law
 exactly. -/

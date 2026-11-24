@@ -758,8 +758,8 @@ private theorem exists_isHalfspaceComb_on_cut {σ : Signature.{v}} {U : Type u}
   obtain ⟨hby_cut, hby_dom⟩ := Classical.choose_spec hb
   set x₀ := Classical.choose ha
   set y₀ := Classical.choose hb
-  have hcut_xy : EqOn (fun e => p.trace I x₀ e.signal.val) (fun e => p.trace I y₀
-      e.signal.val) Ecut :=
+  have hcut_xy : EqOn (fun e => p.trace I x₀ e.signal.val)
+      (fun e => p.trace I y₀ e.signal.val) Ecut :=
     fun e he => by
       have h1 := congrFun hax_cut e
       have h2 := congrFun hby_cut e

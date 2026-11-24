@@ -1673,14 +1673,14 @@ private theorem compactRowColProg_spec {w : ℕ} (a : CompactArgs)
               · dsimp only [embedCompact, kFin]
                 simp [hj_t, htk, hM.1]
             · rw [Function.update_of_ne (fun h => hjt (by
-                  have := hinj i.val j.val k tv.val (Nat.lt_succ_of_lt i.isLt) (Nat.lt_succ_of_lt
-                      j.isLt)
-                    (Nat.lt_succ_of_lt hk) (Nat.lt_succ_of_lt ht_lt) (by rw [← ht]; exact h)
+                  have := hinj i.val j.val k tv.val (Nat.lt_succ_of_lt i.isLt)
+                    (Nat.lt_succ_of_lt j.isLt) (Nat.lt_succ_of_lt hk) (Nat.lt_succ_of_lt ht_lt)
+                    (by rw [← ht]; exact h)
                   exact this)),
                 Function.update_of_ne (fun h => hit (by
-                  have := hinj i.val j.val tv.val k (Nat.lt_succ_of_lt i.isLt) (Nat.lt_succ_of_lt
-                      j.isLt)
-                    (Nat.lt_succ_of_lt ht_lt) (Nat.lt_succ_of_lt hk) (by rw [← ht]; exact h)
+                  have := hinj i.val j.val tv.val k (Nat.lt_succ_of_lt i.isLt)
+                    (Nat.lt_succ_of_lt j.isLt) (Nat.lt_succ_of_lt ht_lt) (Nat.lt_succ_of_lt hk)
+                    (by rw [← ht]; exact h)
                   exact this)),
                 hcur i j]
               have hiff :

@@ -235,8 +235,8 @@ private theorem card_submodule_finrank_eq_lt {r : ℕ} (hr : r ≤ Fintype.card 
             · rw [Submodule.span_le]
               rintro _ ⟨i, rfl⟩
               exact (s'.val i).property
-            · rw [finrank_span_eq_card (s'.property.map' W.subtype W.ker_subtype), Fintype.card_fin,
-                hWr]⟩
+            · rw [finrank_span_eq_card (s'.property.map' W.subtype W.ker_subtype),
+                Fintype.card_fin, hWr]⟩
         invFun := fun s =>
           ⟨fun i => ⟨s.val.val i, s.property.le (Submodule.subset_span ⟨i, rfl⟩)⟩,
             LinearIndependent.of_comp W.subtype s.val.property⟩

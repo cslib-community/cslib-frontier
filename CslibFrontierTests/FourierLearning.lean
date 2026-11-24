@@ -73,8 +73,8 @@ example (n t d g m : ℕ) (b : Bool) {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
     ⟨by decide, card_filter_card_le_le_pow 1⟩,
     lowDegreeLearner_learns hε hδ (Nat.le_ceil _) (parities_weight hε),
     Learns.isPACLearnerFor (lowDegreeLearner_learns (by exact_mod_cast εIoo.property.1)
-      (by exact_mod_cast δIoo.property.1) (Nat.le_ceil _) (parities_weight
-          (by exact_mod_cast εIoo.property.1))),
+      (by exact_mod_cast δIoo.property.1) (Nat.le_ceil _)
+      (parities_weight (by exact_mod_cast εIoo.property.1))),
     ?_,
     mem_uniformRealizable_iff.2 ⟨_, rfl, rfl⟩,
     ⟨QueryLearner.learns_ofLearner_iff.2

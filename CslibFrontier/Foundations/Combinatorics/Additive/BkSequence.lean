@@ -143,8 +143,8 @@ theorem IsBkSet.of_injOn_map {M N : Type*} [AddCommMonoid M] [AddCommMonoid N]
     · rw [← map_multiset_sum, ← map_multiset_sum, hsum]
   let s' : Multiset B := s.pmap Subtype.mk hs
   let t' : Multiset B := t.pmap Subtype.mk ht
-  have hu : Function.Injective (fun x : B => φ x.val) := fun x y hxy => Subtype.ext (hinj x.property
-      y.property hxy)
+  have hu : Function.Injective (fun x : B => φ x.val) := fun x y hxy =>
+    Subtype.ext (hinj x.property y.property hxy)
   have hs' : s'.map Subtype.val = s := by
     simp only [s', Multiset.map_pmap, Multiset.pmap_eq_map, Multiset.map_id']
   have ht' : t'.map Subtype.val = t := by

@@ -765,8 +765,8 @@ private theorem bind_simSharedMulSteps_singleCoordSteps {m k : ℕ} [NeZero m] {
           (sc₂ := GMWCircuit.gatherSchedule m coord.1 (List.finRange m))
           (Round.deliverOracle (spec := sharedMulSpec m) (op := ())
             (Function.Embedding.refl (Fin m)) ans i.val, ())
-          (GMWCircuit.deliverGather (spec := sharedMulSpec m) coord.1 ans (List.finRange m)
-              i.val)) :=
+          (GMWCircuit.deliverGather (spec := sharedMulSpec m) coord.1 ans
+              (List.finRange m) i.val)) :=
     rfl
   rw [singleCoordSteps_eq_append, hdeliv,
     simSharedMulSteps_append_of_pure I _ _ _ _ _
@@ -1333,8 +1333,8 @@ private theorem eval_simSharedMulSteps_gmwCircuitSim {m coins n k : ℕ} [NeZero
       (GMWCircuit.inputShareSteps m (n + coins)).outputAt i.val
         (Fin.append (xI i) (rI i), c₁ i.val) (GMWCircuit.deliverInputShares xr c₁ i.val) =
             st i.val := by
-    have hxr_i : Fin.append (xI i) (rI i) =
-        xr i.val := by simp [xr, GMWCircuit.extendByZero, i.property]
+    have hxr_i : Fin.append (xI i) (rI i) = xr i.val := by
+      simp [xr, GMWCircuit.extendByZero, i.property]
     rw [hxr_i, GMWCircuit.outputAt_inputShareSteps]
   have hstep1 :
       simSharedMulSteps I (GMWCircuit.inputShareSteps m (n + coins))

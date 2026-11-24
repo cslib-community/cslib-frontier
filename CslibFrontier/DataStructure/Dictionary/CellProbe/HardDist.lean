@@ -1100,8 +1100,7 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
   have htake := take_hardSeq c (j.val + 1) keys vals metaOp hc
   have hidx : n + c * (j.val + 1) = (n + c * j.val) + c := by ring
   rw [hidx, List.take_succ_finRange j.isLt, List.flatMap_append, List.flatMap_cons,
-      List.flatMap_nil,
-    List.append_nil, ← List.append_assoc] at htake
+    List.flatMap_nil, List.append_nil, ← List.append_assoc] at htake
   refine drop_take_of_take_add htake ?_ (hc j)
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,
     List.length_take, List.length_finRange, min_eq_left j.isLt.le]

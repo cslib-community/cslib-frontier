@@ -65,8 +65,8 @@ theorem sum_coeff_le_trace (hcard : (Finset.univ.filter fun t => p.isV t).card =
   have hsq (N : Slice p (p.a - p.k, p.b + p.m)) :
       ∑ P : Path p.n, (if N.val + P.vPart p = M.val + P.uPart p then (P.coeff p M.val : ℝ) else 0) ≤
         (∑ P : Path p.n, if N.val + P.vPart p = M.val + P.uPart p then √(P.coeff p M.val) else 0) *
-          ∑ P : Path p.n, if N.val + P.vPart p =
-              M.val + P.uPart p then √(P.coeff p M.val) else 0 := by
+          ∑ P : Path p.n,
+            if N.val + P.vPart p = M.val + P.uPart p then √(P.coeff p M.val) else 0 := by
     rw [← sq]
     refine le_trans (le_of_eq (Finset.sum_congr rfl fun P _ => ?_))
       (Finset.sum_sq_le_sq_sum_of_nonneg fun P _ => by split_ifs <;> positivity)

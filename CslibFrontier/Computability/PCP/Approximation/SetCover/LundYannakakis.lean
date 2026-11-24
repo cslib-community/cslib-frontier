@@ -570,8 +570,8 @@ private structure BipartiteCoverModel {β γ : Type} (g : Graph (β → γ)) (G 
           (left.item k).1 = g.edges[e].src ∧ (left.item k).2.1 = r₁ ∧
           G.mem x (g.edges[e].constraint (left.item k).2.2) = false) ∧
         (∀ k : Fin right.n,
-          mem z ⟨left.n +
-              k.val, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ →
+          mem z ⟨left.n + k.val,
+              Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ →
           (right.item k).1 = g.edges[e].dst ∧ (right.item k).2.1 = r₂ ∧
           G.mem x (right.item k).2.2 = true)
 

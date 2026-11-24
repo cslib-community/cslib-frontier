@@ -87,8 +87,8 @@ def encXorAndCircuit : XorAndCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encValidCircuit
 
 /-- An XOR–AND circuit is written as its valid circuit. -/
-theorem encXorAndCircuit_apply (f : XorAndCircuit) : encXorAndCircuit f =
-    encValidCircuit f.val := by
+theorem encXorAndCircuit_apply (f : XorAndCircuit) :
+    encXorAndCircuit f = encValidCircuit f.val := by
   simp only [encXorAndCircuit, Function.Embedding.trans_apply, Function.Embedding.coe_subtype]
 
 /-- An XOR–AND circuit is written as its valid circuit, so reading the valid circuit costs

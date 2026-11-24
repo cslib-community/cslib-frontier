@@ -128,9 +128,8 @@ noncomputable instance instDecVV (j : ℕ) (i : Fin h) : DecidableEq (VV h n j i
 theorem vert_val {j : ℕ} (i : Fin h) (c : XX h n j) : (vert i c).val = (th i (cor i c)⁻¹ : G h n) •
     c := by rfl
 
-theorem th_vert {j : ℕ} (i : Fin h) (c : XX h n j) : (th i (cor i c) : G h n) • (vert i c).val =
-    c :=
-    by
+theorem th_vert {j : ℕ} (i : Fin h) (c : XX h n j) :
+    (th i (cor i c) : G h n) • (vert i c).val = c := by
   rw [vert_val, ← mul_smul, ← map_mul, mul_inv_cancel, map_one, one_smul]
 
 theorem vert_th {j : ℕ} (i : Fin h) (u : U h) (c : XX h n j) : vert i ((th i u : G h n) • c) =

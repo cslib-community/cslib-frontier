@@ -1037,8 +1037,8 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
     have hcut_r₀ : D.cutSet r₀ c₀ = {a₀} := by
       ext a
       simp only [SubcubicLeafTree.cutSet, hr₀_side, mem_ofPred_eq, mem_singleton_iff]
-      exact ⟨fun h => D.leaf.injective (Subtype.ext h), fun h => congrArg (fun x => (D.leaf x).val)
-          h⟩
+      exact ⟨fun h => D.leaf.injective (Subtype.ext h),
+        fun h => congrArg (fun x => (D.leaf x).val) h⟩
     have hcut_c₀ : D.cutSet c₀ r₀ = ({a₀} : Set α)ᶜ := by
       rw [D.cutSet_compl_of_adj hc₀_adj, hcut_r₀]
     rw [hcut_c₀] at hbt₀_part

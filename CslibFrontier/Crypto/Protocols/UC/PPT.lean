@@ -471,8 +471,8 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
       (fun x state => state ∈ Set.range (cert.codec x.val.1.secParam C).enc)
       (fun x => x.property) hgrowth
       (fun x req state hinv result hmem =>
-        cert.preserve_wordHandle ⟨x.val.1.secParam, x.val.1.replyBound,
-            C⟩ req state hinv result hmem)
+        cert.preserve_wordHandle ⟨x.val.1.secParam, x.val.1.replyBound, C⟩
+          req state hinv result hmem)
   have hcombined : IsOraclePPTOn (Operation := iI.Channel)
       encEnvParam encBool fun e =>
         Prod.fst <$> (ProbOracleComp.sample

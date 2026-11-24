@@ -1053,8 +1053,8 @@ theorem exists_zetaNat_program :
     have heq := foldl_yatesPass_eq_of_fn (1 : ℕ) (fun S => I.entries[(maskIndex S).val])
       ((List.finRange I.n).take m) k
     simp only [one_smul] at heq
-    have hbase : (fun x : Fin (2 ^ I.n) => I.entries[(maskIndex (maskSet I.n x.val)).val]) =
-        t₀ := by
+    have hbase :
+        (fun x : Fin (2 ^ I.n) => I.entries[(maskIndex (maskSet I.n x.val)).val]) = t₀ := by
       funext x; simp [t₀]
     rw [hbase] at heq
     rw [heq]

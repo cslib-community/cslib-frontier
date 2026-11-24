@@ -843,13 +843,10 @@ private structure ConstRegs {L : ℕ} (g : Graph (Fin L → Fin L)) (x : Data 34
 @[local wram_simps] private theorem ConstRegs.write_iff {L : ℕ} {g : Graph (Fin L → Fin L)}
     (x : Data 34) (a v : ℕ) : ConstRegs g (x.write a v) ↔ ConstRegs g x := by
   simp only [Data.write]
-  exact ⟨fun h =>
-      ⟨h.zero, h.one, h.two, h.regL, h.stride, h.regN, h.regE, h.edgeB, h.headB, h.nodeB, h.visB,
-      h.tabB, h.candB, h.invB,
-      h.stackB, h.compB, h.outB⟩,
-    fun h => ⟨h.zero, h.one, h.two, h.regL, h.stride, h.regN, h.regE, h.edgeB, h.headB, h.nodeB,
-        h.visB, h.tabB, h.candB, h.invB,
-      h.stackB, h.compB, h.outB⟩⟩
+  exact ⟨fun h => ⟨h.zero, h.one, h.two, h.regL, h.stride, h.regN, h.regE, h.edgeB, h.headB,
+      h.nodeB, h.visB, h.tabB, h.candB, h.invB, h.stackB, h.compB, h.outB⟩,
+    fun h => ⟨h.zero, h.one, h.two, h.regL, h.stride, h.regN, h.regE, h.edgeB, h.headB,
+      h.nodeB, h.visB, h.tabB, h.candB, h.invB, h.stackB, h.compB, h.outB⟩⟩
 
 @[local wram_simps] private theorem ConstRegs.set_iff {L : ℕ} {g : Graph (Fin L → Fin L)}
     (x : Data 34) {r : Fin 34} (v : ℕ) (hr : 17 ≤ r.val) :

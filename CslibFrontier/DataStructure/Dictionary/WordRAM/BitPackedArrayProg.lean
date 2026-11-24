@@ -149,8 +149,8 @@ theorem validHistory_writePackedProg {w base offset N k idx val : ℕ} {s : Memo
   valid_prog
   all_goals first
     | ((try dsimp only); omega)
-    | exact Nat.xor_lt_two_pow (hwf.mem_fits _) (shiftLeft_lt_two_pow_of_lt xor_masked_lt
-        (by omega))
+    | exact Nat.xor_lt_two_pow (hwf.mem_fits _)
+        (shiftLeft_lt_two_pow_of_lt xor_masked_lt (by omega))
 
 /-- `writePackedProg` preserves `Memory.WellFormed w` at every interpreter width `w'` whenever
 `0 < w` and `k ≤ w`. -/

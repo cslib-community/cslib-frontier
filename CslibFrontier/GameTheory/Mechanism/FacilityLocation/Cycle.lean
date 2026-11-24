@@ -792,8 +792,8 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
       · exact h0.symm.trans (by dsimp only [φ]; congr 1; ring)
       · exact h1.symm.trans (by dsimp only [φ]; congr 1; ring)
     obtain ⟨r, hr, hreq⟩ :=
-        hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.property.1], by linarith [t0.property.2]⟩
-      ((t1 : ℝ) - δ) ⟨by linarith [t1.property.1], by linarith [t1.property.2]⟩
+      hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.property.1], by linarith [t0.property.2]⟩
+        ((t1 : ℝ) - δ) ⟨by linarith [t1.property.1], by linarith [t1.property.2]⟩
     refine ⟨⟨r + δ, by linarith [hr.1], by linarith [hr.2]⟩, ?_⟩
     dsimp only [φ]
     rw [hx_eq, ← hreq]

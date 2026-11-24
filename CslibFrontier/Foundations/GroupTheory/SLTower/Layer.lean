@@ -46,8 +46,8 @@ variable {h n : ℕ} [NeZero h]
 noncomputable def redG : G h (n + 1) →* G h n := Matrix.SpecialLinearGroup.map (red (n + 1))
 
 omit [NeZero h] in
-theorem redG_apply (g : G h (n + 1)) (a b : Fin h) : (redG g).val a b =
-    red (n + 1) (g.val a b) := by
+theorem redG_apply (g : G h (n + 1)) (a b : Fin h) :
+    (redG g).val a b = red (n + 1) (g.val a b) := by
     rfl
 
 theorem s_sq (n : ℕ) : (s (n + 2) ^ (n + 1)) ^ 2 = 0 := by

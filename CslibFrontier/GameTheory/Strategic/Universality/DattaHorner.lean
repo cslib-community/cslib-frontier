@@ -151,8 +151,8 @@ theorem continuous_horner (F : MvPolynomial (Fin n) ℝ) (k : ℕ) (e : Fin n �
 theorem horner_of_le (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) {k : ℕ} (hk : n ≤ k)
     (e : Fin n →₀ ℕ) : horner F x k e = F.coeff e := by
   have hf : ∀ f : Fin n →₀ ℕ, (e ≤ f ∧ ∀ i : Fin n, i.val < k → f i = e i) ↔ f = e := fun f =>
-    ⟨fun h => Finsupp.ext fun i => h.2 i (i.isLt.trans_le hk), fun h => h ▸
-        ⟨le_rfl, fun _ _ => rfl⟩⟩
+    ⟨fun h => Finsupp.ext fun i => h.2 i (i.isLt.trans_le hk),
+      fun h => h ▸ ⟨le_rfl, fun _ _ => rfl⟩⟩
   simp only [horner, hf, filter_eq']
   split_ifs with h
   · simp [expoPow]

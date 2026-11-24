@@ -300,8 +300,8 @@ theorem length_walk_le (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
     ((rule hM hK).tree.walk (rootState hkK φ) w).val.length ≤ φ.length + 1 + K * h := by
   have hcard : (((rule hM hK).tree.walk (rootState hkK φ) w).val.toClauseSet).card ≤
       (rootState hkK φ).val.toClauseSet.card + K * w.length :=
-    CountingBranchingRule.card_walk_le (one_le_countingThreshold hM) (rootState hkK
-        φ).property.card_le hw
+    CountingBranchingRule.card_walk_le (one_le_countingThreshold hM)
+      (rootState hkK φ).property.card_le hw
   rw [((rule hM hK).tree.walk (rootState hkK φ) w).property.card_toClauseSet,
     (rootState hkK φ).property.card_toClauseSet] at hcard
   exact hcard.trans (Nat.add_le_add (length_root_le k φ) (Nat.mul_le_mul_left K hwlen))
@@ -309,8 +309,8 @@ theorem length_walk_le (hw : (rule hM hK).tree.IsNodeWord (rootState hkK φ) w)
 /-- **Sparse leaves are small.** The sparse states of the counting-sparsification tree have at most
 `occBound K M * φ.numVars + 1` clauses. -/
 theorem length_walk_le_of_isSparse
-    (hs : isSparse (countingThreshold M) K ((rule hM hK).tree.walk (rootState hkK φ) w).val =
-        true) :
+    (hs : isSparse (countingThreshold M) K
+        ((rule hM hK).tree.walk (rootState hkK φ) w).val = true) :
     ((rule hM hK).tree.walk (rootState hkK φ) w).val.length ≤ occBound K M * φ.numVars + 1 := by
   set ψ := (rule hM hK).tree.walk (rootState hkK φ) w
   have hsparse := (isSparse_eq_true_iff (one_le_countingThreshold hM) ψ.property.toNormalized).mp hs

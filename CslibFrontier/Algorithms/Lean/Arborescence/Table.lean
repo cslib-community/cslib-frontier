@@ -140,8 +140,8 @@ check feasibility, and materialize the parent vector `f`. -/
 private theorem selectParents_eq (a : AdjTable n) (c : CostTable β n) (r : Fin n) :
     let optFn : Fin n → Option (Fin n) := fun v =>
       if v = r then some r
-      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin (fun w =>
-          c[v.val][w.val])
+      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin
+          (fun w => c[v.val][w.val])
     selectParents a c r =
       { feasible := (List.finRange n).all (fun v => (optFn v).isSome)
       , parents := Vector.ofFn fun v => (optFn v).getD v } := by

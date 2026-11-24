@@ -237,9 +237,8 @@ private theorem length_walk_le_of_isSparse (hw : (rule hK hα).tree.IsNodeWord (
   set ψ := (rule hK hα).tree.walk (rootState hkK φ) w
   have hsparse := (isSparse_eq_true_iff (one_le_threshold hK hα) ψ.property).mp hs
   rw [← Normalized.card_toClauseSet ψ.property]
-  refine ClauseSet.Sparsification.card_le_of_sparse (one_le_threshold hK
-      hα) hsparse ψ.property.card_le
-    φ.vars.toFinset fun C' hC' l hl => ?_
+  refine ClauseSet.Sparsification.card_le_of_sparse (one_le_threshold hK hα) hsparse
+    ψ.property.card_le φ.vars.toFinset fun C' hC' l hl => ?_
   obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_walk hK hα hkK hw hC
   have hl' := List.mem_toFinset.mp (hCD hl)

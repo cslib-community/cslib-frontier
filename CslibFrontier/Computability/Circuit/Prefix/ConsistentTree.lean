@@ -532,8 +532,8 @@ private def buildConsistentChainAux {k h : ℕ} (hk : 2 ≤ k)
       simp only [ConsistentChain.inDepth, ConsistentChain.maxOutDepth, ConsistentChain.arity,
         ConsistentChain.FanoutAtMost]
       exact ⟨by have := t₁.property.1; have := t₂.property.1; omega,
-        Nat.max_le.mpr ⟨t₁.property.2.1,
-            t₂.property.2.1⟩, trivial, t₁.property.2.2, t₂.property.2.2⟩⟩
+        Nat.max_le.mpr ⟨t₁.property.2.1, t₂.property.2.1⟩, trivial,
+        t₁.property.2.2, t₂.property.2.2⟩⟩
   | a, d, m + 2, _, hmd, hmk =>
     let init := buildConsistentChainAux hk buildTree a (d - 1) (m + 1) (by omega) (by omega)
       (by omega)
@@ -548,8 +548,8 @@ private def buildConsistentChainAux {k h : ℕ} (hk : 2 ≤ k)
       simp only [ConsistentChain.inDepth, ConsistentChain.maxOutDepth, ConsistentChain.arity,
         ConsistentChain.FanoutAtMost]
       exact ⟨by have := init.property.1; have := last.property.1; omega,
-        Nat.max_le.mpr ⟨init.property.2.1, last.property.2.1⟩, by have :=
-            init.property.2.2.1; omega,
+        Nat.max_le.mpr ⟨init.property.2.1, last.property.2.1⟩,
+        by have := init.property.2.2.1; omega,
         init.property.2.2.2, last.property.2.2⟩⟩
 
 private def buildConsistentTree {k : ℕ} (hk : 2 ≤ k) :

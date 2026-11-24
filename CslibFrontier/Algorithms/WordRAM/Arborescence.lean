@@ -2369,8 +2369,8 @@ private theorem selectParents_feasible_spec {n : ℕ} (a : AdjTable n) (c : Cost
   have hsome := hfeas.2 v (List.mem_finRange v)
   simp only [Vector.getElem_ofFn, Fin.eta, hvr, ↓reduceIte] at hsome ⊢
   obtain ⟨fv, harg⟩ := Option.isSome_iff_exists.mp hsome
-  have hfv : (argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])).getD v =
-      fv := by
+  have hfv : (argMinFin n (fun w => a[v.val][w.val] && w != v)
+      (fun w => c[v.val][w.val])).getD v = fv := by
     rw [harg]; rfl
   obtain ⟨hpred, hmin⟩ := argMinFin_spec _ _ harg
   simp only [Bool.and_eq_true, bne_iff_ne] at hpred
@@ -2517,10 +2517,10 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       · rw [add_assoc, ih]
       · exact ih a b
   have hnotmem : ∀ (l : List (Fin n)) (init : ℤ), x ∉ l →
-      l.foldl (fun acc y => if inCycle[y.val] && y != x then acc +
-          c[y.val][f[y.val].val] else acc) init =
-        l.foldl (fun acc y => if inCycle[y.val] then acc +
-            c[y.val][f[y.val].val] else acc) init := by
+      l.foldl (fun acc y =>
+          if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc) init =
+        l.foldl (fun acc y =>
+            if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) init := by
     intro l
     induction l with
     | nil => intro _ _; rfl
@@ -2532,11 +2532,10 @@ private theorem otherCycleCost_add_self {n : ℕ} (c : CostTable ℤ n) (f : Par
       exact ih _ hmem.2
   have hmem : ∀ (l : List (Fin n)) (init : ℤ), l.Nodup → x ∈ l →
       c[x.val][f[x.val].val] +
-        l.foldl (fun acc y => if inCycle[y.val] && y != x then acc +
-            c[y.val][f[y.val].val] else acc)
-          init =
-        l.foldl (fun acc y => if inCycle[y.val] then acc +
-            c[y.val][f[y.val].val] else acc) init := by
+        l.foldl (fun acc y =>
+            if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc) init =
+        l.foldl (fun acc y =>
+            if inCycle[y.val] then acc + c[y.val][f[y.val].val] else acc) init := by
     intro l
     induction l with
     | nil => intro _ _ hm; cases hm
@@ -2635,8 +2634,8 @@ private theorem rowPotEq_contractReduced {n : ℕ} {a : AdjTable n}
       (contractCostTable cUnred inCycle other bEntry bExit x0)
       (contractReducedCostTable a cRed f inCycle bEntry bExit x0) := by
   obtain ⟨φ, hφ⟩ := hpot
-  refine ⟨fun u => if inCycle[u.val] then (if u = x0 then cycleSum cUnred f inCycle else 0) else φ
-      u,
+  refine ⟨fun u =>
+      if inCycle[u.val] then (if u = x0 then cycleSum cUnred f inCycle else 0) else φ u,
     fun u w ha' => ?_⟩
   rw [getElem_contractAdjTable] at ha'
   rw [getElem_contractCostTable, getElem_contractReducedCostTable]
@@ -3010,8 +3009,8 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
       ⟨n, colFin.val, curAdjBase ws n, curCostBase ws n, frameMaskBase ws n k,
         frameParentBase ws n k, candPredBase ws n, candCostBase ws n⟩
     let exitVal : Fin n → ℤ := fun x =>
-      if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] -
-          c[x.val][f[x.val].val] else 0
+      if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] - c[x.val][f[x.val].val]
+      else 0
     let s1 := (Memory.spec 0).clientState s (fillBestExitRowProg rowArgs)
     iterationSafe bestExitRowStep BestExitRowStepSafe w rowArgs n 0 s ∧
       (Memory.spec w).ValidHistory s
@@ -3034,8 +3033,8 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
     ⟨n, colFin.val, curAdjBase ws n, curCostBase ws n, frameMaskBase ws n k,
       frameParentBase ws n k, candPredBase ws n, candCostBase ws n⟩
   let exitVal : Fin n → ℤ := fun x =>
-    if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] -
-        c[x.val][f[x.val].val] else 0
+    if inCycle[x.val] && a[x.val][colFin.val] then c[x.val][colFin.val] - c[x.val][f[x.val].val]
+    else 0
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have h2 : Fits w 2 := hws.of_le (by dsimp only [wsSize]; omega)
   have hcol_lt := colFin.isLt
@@ -3748,9 +3747,9 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillContractRowProg ra)) ∧
       memoryCost (fillContractRowProg ra) s ≤ 16 * n ∧
       sr'.frontier = s.frontier ∧
-      (∀ addr, ¬(nextAdjBase ws n + uFin.val * n ≤ addr ∧
-          addr < nextAdjBase ws n + uFin.val * n + n ∨
-        nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n) →
+      (∀ addr,
+        ¬(nextAdjBase ws n + uFin.val * n ≤ addr ∧ addr < nextAdjBase ws n + uFin.val * n + n ∨
+          nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n) →
         sr'.mem addr = s.mem addr) ∧
       (∀ col : Fin n,
         sr'.mem (nextAdjBase ws n + uFin.val * n + col.val) =
@@ -3776,8 +3775,8 @@ private theorem fillContractRowProg_spec {w n ws k B_k : ℕ} (r x0 uFin : Fin n
           sr.mem (nextCostBase ws n + uFin.val * n + c0.val) =
             Signed.encode
               (contractReducedCostTable a c f inCycle bEntry bExit x0)[uFin.val][c0.val]))
-    (fun addr => nextAdjBase ws n + uFin.val * n ≤ addr ∧
-        addr < nextAdjBase ws n + uFin.val * n + n ∨
+    (fun addr =>
+      nextAdjBase ws n + uFin.val * n ≤ addr ∧ addr < nextAdjBase ws n + uFin.val * n + n ∨
       nextCostBase ws n + uFin.val * n ≤ addr ∧ addr < nextCostBase ws n + uFin.val * n + n)
     (fun col hcol idxR sr ⟨hidxR, hfr_r, ha_r, hc_r, hm_r, hfp_r, hbe_r, hbx_r, hcur⟩ => by
       subst idxR

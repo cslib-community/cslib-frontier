@@ -2732,8 +2732,8 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
       · exact hlt
       · exfalso
         have hrt_ji : rt ord_p[j] ord_p[i] :=
-          History.prec_of_same_proc_lt (hp_j.trans
-              hp_i.symm) hgt ord_p[j].property ord_p[i].property
+          History.prec_of_same_proc_lt (hp_j.trans hp_i.symm) hgt ord_p[j].property
+            ord_p[i].property
         have hval_i := hfval ⟨i, hi⟩
         have hval_j := hfval ⟨j, hj⟩
         have hrel : TransGen (loc ⊔ rt) order[(fidx ⟨j, hj⟩).val] order[(fidx ⟨i, hi⟩).val] := by

@@ -642,12 +642,12 @@ private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
     polyOfBits_false_cons, map_mul, aeval_X, hfold, hfold, map_add, map_sum, map_mul,
     map_sum, add_mul, Finset.sum_mul, Finset.mul_sum, Finset.sum_mul]
   have hsub : ∀ i : Fin q,
-      T i.val (k - i).val = if i.val ≤
-          k.val then T i.val (k.val - i.val) else T i.val (q + k.val - i.val) := by
+      T i.val (k - i).val =
+          if i.val ≤ k.val then T i.val (k.val - i.val) else T i.val (q + k.val - i.val) := by
     intro i; split_ifs with hik
     · rw [Fin.sub_val_of_le hik]
-    · rw [show (k - i).val =
-        q + k.val - i.val by rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
+    · rw [show (k - i).val = q + k.val - i.val by
+        rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
   simp_rw [e, Equiv.coe_fn_mk, hsub]
   rw [Fin.sum_univ_eq_sum_range (fun i =>
     if i ≤ k.val then T i (k.val - i) else T i (q + k.val - i)) q]
@@ -804,7 +804,7 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
       ∑ i : Fin q, (∑ j : Fin m, d i j • bK j) • bL i := by
     have hterm : ∀ c : Fin (q + 1), v c • βL ^ c.val = ∑ i : Fin q,
         (∑ j : Fin m,
-            (v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j.val false)) •
+          (v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j.val false)) •
           bK j) • bL i := fun c => by
       rw [← hpows_eval c.val c.isLt, evalL, Finset.smul_sum]
       refine Finset.sum_congr rfl fun i _ => ?_

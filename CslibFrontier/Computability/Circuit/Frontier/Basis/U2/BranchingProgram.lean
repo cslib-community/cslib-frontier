@@ -197,8 +197,8 @@ private theorem edgeCut_src_inter_tgt (e : D.eqPairs) :
 private theorem edgeCut_pairVerts (e : D.eqPairs) :
     (graph c).edgeCut (D.pairVerts e) =
       {(D.pinA e).val, (D.pinB e).val, (D.pinC e).val, (D.pinD e).val} := by
-  have hd : Disjoint {v | v ∈ (D.Q.quotient.src e.val).val} {v | v ∈
-      (D.Q.quotient.tgt e.val).val} :=
+  have hd : Disjoint {v | v ∈ (D.Q.quotient.src e.val).val}
+      {v | v ∈ (D.Q.quotient.tgt e.val).val} :=
     D.Q.disjoint_of_ne (D.Q.quotient_loopless e.val)
   obtain ⟨hc_u, _⟩ := edgeCut_union_of_inter_singleton hd (D.edgeCut_src_inter_tgt e)
   have hs₁ :=
@@ -925,14 +925,14 @@ private theorem effective_cut_le {lam B_sup : ℝ} (hlam0 : 0 ≤ lam) (hlam1 : 
           rcases hg_pair x₁ with h | h <;> rw [h] <;> exact Subtype.prop _
         let gx : D.Q.external := ⟨g_of x₁, hg_ext⟩
         have hm₁ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₁.val) x₁.val,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt
-                x₁.val) x₁.val} : Set D.Q.external) := by
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₁.val) x₁.val} :
+              Set D.Q.external) := by
           rcases hg_pair x₁ with h | h
           · exact Or.inl (Subtype.ext h)
           · exact Or.inr (Subtype.ext h)
         have hm₂ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₂.val) x₂.val,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt
-                x₂.val) x₂.val} : Set D.Q.external) := by
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₂.val) x₂.val} :
+              Set D.Q.external) := by
           rcases hg_pair x₂ with h | h
           · exact Or.inl (Subtype.ext (hg_eq.trans h))
           · exact Or.inr (Subtype.ext (hg_eq.trans h))
@@ -1464,8 +1464,8 @@ private theorem ncard_newly_le [Finite ι] (hm : ∀ v, (N.readAt v).ncard ≤ 1
     · exact (hi₂ ⟨v, hv_old, hsite⟩).elim
   refine (ncard_le_ncard hsub).trans ?_
   rcases D.stepLayout.symm ⟨t, ht⟩ with u | e
-  · have hread_eq : N.readIn {u.val} =
-      N.readAt u.val := by ext i; simp [Network.readIn, Network.readAt]
+  · have hread_eq : N.readIn {u.val} = N.readAt u.val := by
+      ext i; simp [Network.readIn, Network.readAt]
     dsimp only [nodeVerts]
     rw [hread_eq]
     exact hm u.val

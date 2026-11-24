@@ -112,8 +112,8 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have h2 := cycleRank_add_ncard_read_le I (fun _ => Acc) hfan (connected c)
     omega
   have hblk_le_V : Nat.card Q.blocks ≤ Nat.card (Vertex c) := by
-    refine Nat.card_le_card_of_injective (fun B : Q.blocks => B.val.head
-        (Q.ne_nil B.val B.property))
+    refine Nat.card_le_card_of_injective
+      (fun B : Q.blocks => B.val.head (Q.ne_nil B.val B.property))
       fun B₁ B₂ h => Subtype.ext ?_
     dsimp only at h
     have hm : B₁.val.head (Q.ne_nil B₁.val B₁.property) ∈ B₂.val := h ▸ List.head_mem _

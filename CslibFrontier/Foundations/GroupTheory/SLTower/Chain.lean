@@ -101,7 +101,6 @@ theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
   · intro j hj
     rw [Nat.card_congr
         ((f j).val.equivMapOfInjective _ (Subgroup.subtype_injective _)).toEquiv.symm,
-        (f j).property,
-      min_eq_left hj, pow_mul]
+      (f j).property, min_eq_left hj, pow_mul]
 
 end Cslib.SLTower

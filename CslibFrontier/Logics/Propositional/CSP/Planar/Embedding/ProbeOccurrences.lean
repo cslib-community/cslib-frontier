@@ -76,8 +76,8 @@ theorem argumentSuccessor_probeOccurrence_reverse (F : CSP Rel V) (ports : List 
   · change (finRotate _ (probeOccurrence F ports (finRotate ports.length i)).2).val = _
     rw [val_finRotate, probeOccurrence_argument]
     have hlen := length_scope_probeOccurrence F ports (finRotate ports.length i)
-    change (probeBody F
-        ports)[(probeOccurrence F ports (finRotate ports.length i)).1.val].scope.length
+    change
+      (probeBody F ports)[(probeOccurrence F ports (finRotate ports.length i)).1.val].scope.length
       = ports.length at hlen
     rw [hlen, probeOccurrence_argument, val_finRotate]
     split_ifs <;> omega

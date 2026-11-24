@@ -70,8 +70,8 @@ example [Fintype F] {ℓ : ℕ} {encodeLength : Fin ℓ → F} (hencode : Functi
       simp only [coefficients, List.getLastD_concat] at h
       have h2 : m.val.length = m'.val.length := congrArg Fin.val (hencode h)
       simp [coefficients, h2])
-    (fun m => by simp only [coefficients, List.length_append, List.length_singleton]; exact
-        m.property)
+    (fun m => by
+      simp only [coefficients, List.length_append, List.length_singleton]; exact m.property)
   have heq : hash encodeLength = fun k m => ghash k (coefficients encodeLength m) := by
     funext k m; exact hash_eq_ghash encodeLength k m
   rwa [heq]

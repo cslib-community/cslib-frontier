@@ -741,8 +741,8 @@ private theorem detExpandOTSim_append {m : ℕ} (I : Finset (Fin m))
     (r₁ : (i : I) → sc₁.Received i.val) (r₂ : (i : I) → sc₂.Received i.val) (i : I) :
     detExpandOTSim I (sc₁ ++ sc₂) (fun j => Schedule.Received.append (r₁ j) (r₂ j)) i =
       (joinSubCoins2 sc₁ sc₂ i.val (detExpandOTSim I sc₁ r₁ i).1 (detExpandOTSim I sc₂ r₂ i).1,
-       joinReceived2 sc₁ sc₂ i.val (detExpandOTSim I sc₁ r₁ i).2 (detExpandOTSim I sc₂ r₂
-           i).2) := by
+       joinReceived2 sc₁ sc₂ i.val (detExpandOTSim I sc₁ r₁ i).2
+           (detExpandOTSim I sc₂ r₂ i).2) := by
   induction sc₁ with
   | nil =>
     rw [show (fun j : I => Schedule.Received.append (r₁ j) (r₂ j)) = r₂ from

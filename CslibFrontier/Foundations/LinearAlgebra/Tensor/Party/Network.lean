@@ -147,8 +147,8 @@ theorem antisymmRel_push_outerPair (π : L ⊕ L' → I) (s : PartyTensor K L)
     AntisymmRel (· ≤ ·) (push π (outerPair s t))
       (push (fun l => π (Sum.inl l)) s * push (fun l => π (Sum.inr l)) t) :=
   antisymmRel_of_equiv
-    (fun q =>
-        ⟨fun y => (fun l => y ⟨Sum.inl l.val, l.property⟩, fun l => y ⟨Sum.inr l.val, l.property⟩),
+    (fun q => ⟨fun y =>
+        (fun l => y ⟨Sum.inl l.val, l.property⟩, fun l => y ⟨Sum.inr l.val, l.property⟩),
       fun z l => match l with
         | ⟨Sum.inl l, h⟩ => z.1 ⟨l, h⟩
         | ⟨Sum.inr l, h⟩ => z.2 ⟨l, h⟩,

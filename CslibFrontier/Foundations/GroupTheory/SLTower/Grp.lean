@@ -134,9 +134,8 @@ theorem ev_wt_inv (i a : Fin h) : ev n (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n +
   rw [map_mul, ev_wt, one_mul, map_one] at h2
   exact h2
 
-theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) : (evG (th0 i A : G h n)).val a b =
-    A.val (a - i)
-    (b - i) := by
+theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) :
+    (evG (th0 i A : G h n)).val a b = A.val (a - i) (b - i) := by
   rw [evG_apply, th0_val, shMat_apply, map_mul, map_mul, ev_wt, ev_wt_inv, ev_cst, one_mul, mul_one]
 
 theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h =>

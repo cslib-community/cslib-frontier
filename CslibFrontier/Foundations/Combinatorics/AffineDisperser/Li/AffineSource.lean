@@ -194,8 +194,8 @@ private theorem uniformAffine_eq_bind_add_of_isCompl {n : ℕ}
   classical
   let e := isCompl_prodEquiv hU hK hcompl
   rw [uniformAffine_eq_map_direction A hx₀, ← uniformOfFintype_map_equiv e, PMF.map_comp,
-    show (fun v : A.direction => x₀ + v.val) ∘ e = fun p : U × K => x₀ +
-        (e (p.1, p.2)).val from rfl,
+    show (fun v : A.direction => x₀ + v.val) ∘ e =
+        fun p : U × K => x₀ + (e (p.1, p.2)).val from rfl,
     ← uniformOfFintype_bind_map (fun u k => x₀ + (e (u, k)).val),
     uniformAffine_mk'_eq_map x₀ U, PMF.bind_map]
   refine congrArg (PMF.bind _) (funext fun u => ?_)

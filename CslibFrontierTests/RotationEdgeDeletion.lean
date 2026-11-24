@@ -124,7 +124,7 @@ private abbrev oneLoop : Graph := ⟨[0], [(0, 0)]⟩
 private def sphereBigon : RotationSystem (lastEdgeGraph bridge 0 1) where
   rotate := (Equiv.prodCongr
     (finCongr (show 2 = (lastEdgeGraph bridge 0 1).edges.length by decide))
-        (Equiv.refl Bool)).permCongr
+    (Equiv.refl Bool)).permCongr
       (Equiv.prodCongr (Equiv.swap (0 : Fin 2) 1) (Equiv.refl Bool))
   sameCycle_iff := by decide +kernel
 
