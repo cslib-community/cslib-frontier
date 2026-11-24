@@ -31,7 +31,9 @@ leaves:
   (`getD_merkleExtractVector_eq_of_conflict_eq_none`).
 
 All extraction and conflict-search functions carry `ComputableInPolyTime` certificates, and
-`merkleVectorBindingAdversary` yields a standard-model binding reduction to `CollisionResistantOn`.
+`merkleVectorBindingOutput` produces a `MerkleBindingOutput` satisfying `merkleBreaksBinding` for
+downstream standard-model binding reductions via `CollisionResistantOn.merklePositionBinding` or
+`merklePositionBinding_of_hashFamily`.
 
 ## Main definitions
 
@@ -58,9 +60,9 @@ All extraction and conflict-search functions carry `ComputableInPolyTime` certif
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 8.9.1 (Definition 8.3, Attack Game 8.2, Theorem 8.8).
+  Section 8.9.1 (Definitions 8.3 and 8.4, Attack Game 8.2, Theorem 8.8).
 * [B. Barak, O. Goldreich, *Universal Arguments and their Applications*][BarakGoldreich2001],
-  Construction 3.4.
+  Construction 3.4 (locator not re-verified against primary PDF).
 -/
 
 @[expose] public section
