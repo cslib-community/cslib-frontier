@@ -30,7 +30,7 @@ discharge for the paper's schedule (Lemma 3.11) and estimator (§3.5),
 Here `n_c`, `m_c`, `d_c` are the vertices, edges and level of the call and `t_c = γ d_c³`. All
 results are steps in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325).
 
-## Comparisons (pp. 23–24)
+## Comparisons (p. 24)
 
 `Cslib.Query.Certificate.countQueries_certificate` and
 `Cslib.Query.Certificate.countQueries_roundStep` decompose the comparisons of a call into those
@@ -87,9 +87,6 @@ ones.
 * `Cslib.Query.Certificate.certificate_root_accounting`: Lemma 3.1 under (i) and (ii): on a
   root instance with `n ≤ 2 m`, `|F| + |U(F)| + ∑ |E_i| ≤ 8 m / γ + C √(m n)`, the comparisons
   are at most `C' m` plus those of the exact calls, and the exact calls work on root edges.
-* `Cslib.Query.Certificate.countQueries_certificate_root_le`: the form used for Theorem 4.1: each
-  exact input has at most `8 m / γ + C √(m n)` root edges, and if each exact call costs at most
-  `κ` per input edge, the procedure costs at most `C' m + κ (8 m / γ + C √(m n))`.
 
 ## Deviations from §3.6
 
@@ -663,12 +660,6 @@ theorem sum_map_msfInputs {M : Type*} [AddCommMonoid M] (f : Finset E → M) (c 
   refine sum_congr rfl fun i _ => ?_
   split <;> simp
 
-omit [DecidableEq V] [DecidableEq E] in
-private theorem vertices_nonempty_of_mem {inst : Instance V E} (hwf : inst.WellFormed) {e : E}
-    (he : e ∈ inst.edges) : inst.vertices.Nonempty := by
-  obtain ⟨⟨u, v⟩, huv⟩ := Quot.exists_rep (inst.ends e)
-  exact ⟨u, hwf.ends_mem e he u (by rw [← huv]; exact Sym2.mem_mk_left u v)⟩
-
 variable {W : Type} [LinearOrder W] {cfg} {w : E → W}
 
 /-- **The comparisons of a call**, by induction on the recursion: at most the bound outside the
@@ -689,7 +680,7 @@ private theorem countQueries_certificate_le_aux (hw : Function.Injective w)
     · rw [certificate_eq, calls_eq]
       simp [hS, outsideBound, msfCost, msfInputs]
     obtain ⟨e₀, he₀⟩ := nonempty_iff_ne_empty.2 hS
-    have hX := vertices_nonempty_of_mem hwf he₀
+    have hX := vertices_nonempty hwf he₀
     set F : Instance V E → ℝ := fun c =>
       outsideBound cfg (LEQuery.keyOracle w) c + msfCost cfg (LEQuery.keyOracle w) c
     -- one round
@@ -1239,14 +1230,14 @@ theorem certificate_root_accounting (γ : ℕ) {A B : ℝ} (hA : 0 ≤ A) (hB : 
     linarith
 
 /-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the cost of the
-certificate procedure with a linear exact subroutine, the form of the paper's Lemma 3.1 (§3.1, p.
-12) used in the proof of Theorem 4.1 (§4, pp. 25–26) by strong induction on the number of edges.
+certificate procedure with a linear exact subroutine, the form of the paper's Lemma 3.1 (§3.1,
+p. 13) used in the proof of Theorem 4.1 (§4, pp. 25–26) by strong induction on the number of edges.
 
 Under the hypotheses of `Cslib.Query.Certificate.certificate_root_accounting`, every exact call
 works on root edges and has at most `8 m / γ + C √(m n)` of them; and if each exact call costs at
 most `κ` comparisons per input edge, the certificate procedure makes at most
 `C' m + κ (8 m / γ + C √(m n))` comparisons in all. -/
-theorem countQueries_certificate_root_le (γ : ℕ) {A B : ℝ} (hA : 0 ≤ A) (hB : 0 ≤ B) :
+private theorem countQueries_certificate_root_le (γ : ℕ) {A B : ℝ} (hA : 0 ≤ A) (hB : 0 ≤ B) :
     ∃ C C' : ℝ, ∀ {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
       (cfg : Config V E) (w : E → W) (X : Finset V) (ends : E → Sym2 V) (S : Finset E),
       cfg.γ = γ → Function.Injective w → cfg.ExactMsf w → (∀ e ∈ S, ∀ v ∈ ends e, v ∈ X) →

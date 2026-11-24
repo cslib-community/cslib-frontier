@@ -886,8 +886,8 @@ private theorem joins_final_of_project (hw : Function.Injective w) (hmsf : cfg.E
       cases hj
 
 omit [DecidableEq V] [DecidableEq E] in
-/-- A call with an edge of a well-formed instance has a vertex. -/
-private theorem vertices_nonempty {inst : Instance V E} (hwf : inst.WellFormed) {e : E}
+/-- A call with an edge of a well-formed instance has a vertex: the ends of the edge. -/
+theorem vertices_nonempty {inst : Instance V E} (hwf : inst.WellFormed) {e : E}
     (he : e ∈ inst.edges) : inst.vertices.Nonempty := by
   obtain ⟨⟨u, v⟩, huv⟩ := Quot.exists_rep (inst.ends e)
   exact ⟨u, hwf.ends_mem e he u (by rw [← huv]; exact Sym2.mem_mk_left u v)⟩
