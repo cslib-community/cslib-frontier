@@ -73,12 +73,16 @@ jobs:
       # doc-gen4 keeps every module's documentation in one SQLite database and writes a marker per
       # module whose trace covers its compiled files, its imports' markers and the doc-gen4 build.
       # With the database and markers of the last run restored, Lake redoes only the modules whose
-      # compiled files changed, and the modules that import them (#7988). The key changes with the
-      # toolchain and every pin, so a bump starts from an empty database. Everything else is
-      # rebuilt: `doc/` is not cached, because later steps trim it and add pages to it, and
-      # generation first deletes every file in `doc-data/` other than the module markers (the
-      # bibliography pass, whose output lands in `doc/`, the final pass's marker, and per-module
-      # search data that a deleted module would otherwise leave behind).
+      # compiled files changed, and the modules that import them (#7988). The key changes with
+      # `CACHE_RECOVERY_GENERATION`, the toolchain, and every root/`docbuild` lockfile or
+      # configuration file, so a bump or recovery increment starts from an empty database. Because
+      # `doc-gen4`'s `fromDb` loads `tactics` and `linkingContext` across the entire database and
+      # `scripts/check_docs.py` rejects obsolete local modules, `check_docs.py --prepare-cache`
+      # deletes non-module-marker files in `doc-data/` (bibliography, final pass, per-module search
+      # data), removes obsolete `CslibFrontier*` markers, and cascades obsolete `CslibFrontier*`
+      # rows from `api-docs.db` with `PRAGMA foreign_keys = ON`. After generation,
+      # `--checkpoint-cache` runs `PRAGMA wal_checkpoint(TRUNCATE)` so saving `api-docs.db` alone
+      # preserves all committed WAL rows. Only `main` writes to the Actions cache.
       - name: Restore the documentation database
         id: docgen-db
         if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
@@ -89,19 +93,29 @@ jobs:
           path: |
             docbuild/.lake/build/api-docs.db
             docbuild/.lake/build/doc-data
-          key: docgen-db-v1-${{ hashFiles('lean-toolchain', 'lake-manifest.json', 'docbuild/lake-manifest.json') }}-${{ github.sha }}-${{ github.run_id }}
+          key: docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', 'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}-${{ github.sha }}-${{ github.run_id }}
           restore-keys: |
-            docgen-db-v1-${{ hashFiles('lean-toolchain', 'lake-manifest.json', 'docbuild/lake-manifest.json') }}-
+            docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', 'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}-
+      - name: Discard an incomplete documentation cache restore
+        env:
+          DOCGEN_RESTORE_OUTCOME: ${{ steps.docgen-db.outcome }}
+          DOCGEN_MATCHED_KEY: ${{ steps.docgen-db.outputs.cache-matched-key }}
+        run: |
+          if [ "$DOCGEN_RESTORE_OUTCOME" != "success" ] || [ -z "$DOCGEN_MATCHED_KEY" ]; then
+            rm -rf -- docbuild/.lake/build/api-docs.db* docbuild/.lake/build/doc-data
+          fi
       - name: Generate API documentation
         run: |
-          if [ -d docbuild/.lake/build/doc-data ]; then
-            find docbuild/.lake/build/doc-data -type f ! -name '*.doc' ! -name '*.doc.hash' \
-              ! -name '*.doc.trace' -delete
-          fi
+          python3 -B scripts/check_docs.py --prepare-cache --discard-corrupt
           DISABLE_EQUATIONS=1 lake -d docbuild build CslibFrontier:docs
-      # Saved straight after generation, so a later failing step does not lose the work.
+          python3 -B scripts/check_docs.py --checkpoint-cache
+      # Saved straight after generation on `main` only (excluding exact hits and cache opt-out), so
+      # a later failing step does not lose the work and branch runs cannot evict repo caches.
       - name: Save the documentation database
-        if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          steps.docgen-db.outputs.cache-hit != 'true'
         continue-on-error: true
         timeout-minutes: 10
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -109,7 +123,7 @@ jobs:
           path: |
             docbuild/.lake/build/api-docs.db
             docbuild/.lake/build/doc-data
-          key: docgen-db-v1-${{ hashFiles('lean-toolchain', 'lake-manifest.json', 'docbuild/lake-manifest.json') }}-${{ github.sha }}-${{ github.run_id }}
+          key: docgen-db-v1-${{ env.CACHE_RECOVERY_GENERATION }}-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json', 'docbuild/lakefile.toml', 'docbuild/lake-manifest.json') }}-${{ github.sha }}-${{ github.run_id }}
       # Built from this run's checkout and its library build, so the views describe the same commit
       # as the API docs. The Lean census extends the series published by the previous run. The
       # results registry is exported from the built CslibFrontierResults.
