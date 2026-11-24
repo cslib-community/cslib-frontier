@@ -14,15 +14,17 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Len
 /-!
 # Finite groups of isometries of complete CAT(0) spaces: projections to fixed points
 
-`Flag.IsoAct G Z`: an action of `G` on `Z` by isometries. For a finite group acting on a
+`Flag.IsoAct G Z`: an action of `G` on `Z` by isometries, as a homomorphism `G →* (Z ≃ᵢ Z)`. For a finite group acting on a
 complete CAT(0) space, the barycenter of an orbit (`Flag.IsoAct.P`, from
-`Cslib.CAT0.exists_isBarycenter`) is a fixed point, and the projection commutes with the action.
+`Cslib.CAT0.exists_isBarycenter`) is a fixed point (`Flag.IsoAct.P_fix`), and it commutes with every
+surjective isometry of `Z` that commutes with all group elements (`Flag.IsoAct.P_comm`).
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Act`.
 
 ## Main definitions
 
-* `Flag.IsoAct`, `Flag.IsoAct.comap`, `Flag.IsoAct.len`, `Flag.IsoAct.Fix`, `Flag.IsoAct.P`.
+* `Flag.IsoAct G Z`: `G →* (Z ≃ᵢ Z)`; pullbacks are `MonoidHom.comp`.
+* `Flag.IsoAct.len`, `Flag.IsoAct.Fix`, `Flag.IsoAct.P`.
 
 ## Main results
 
@@ -37,76 +39,66 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 
 open Cslib.CAT0
 
-/-- An action by isometries. -/
-structure IsoAct (G Z : Type*) [Group G] [MetricSpace Z] where
-  /-- the action -/
-  act : G → Z → Z
-  one' : ∀ z, act 1 z = z
-  mul' : ∀ g h z, act (g * h) z = act g (act h z)
-  iso' : ∀ g z z', dist (act g z) (act g z') = dist z z'
+/-- An action of `G` on `Z` by isometries: a homomorphism into the isometries of `Z`. -/
+abbrev IsoAct (G Z : Type*) [Group G] [MetricSpace Z] := G →* (Z ≃ᵢ Z)
 
 namespace IsoAct
 variable {G H Z : Type*} [Group G] [Group H] [MetricSpace Z] (A : IsoAct G Z)
 
-/-- Pull-back along a homomorphism. -/
-@[expose] def comap (φ : H →* G) : IsoAct H Z where
-  act g := A.act (φ g)
-  one' z := by rw [map_one, A.one']
-  mul' g h z := by rw [map_mul, A.mul']
-  iso' g := A.iso' _
+theorem act_mul (g h : G) (z : Z) : A (g * h) z = A g (A h z) := by
+  rw [map_mul, IsometryEquiv.mul_apply]
 
-theorem isometry (g : G) : Isometry (A.act g) := Isometry.of_dist_eq (A.iso' g)
+theorem act_one (z : Z) : A 1 z = z := by
+  rw [map_one, IsometryEquiv.coe_one, id]
 
-theorem surj (g : G) : Function.Surjective (A.act g) := fun z =>
-  ⟨A.act g⁻¹ z, by rw [← A.mul', mul_inv_cancel, A.one']⟩
-
-/-- The displacement of a point. -/
+/-- The displacement `g ↦ dist z (g • z)` of a point, a length function. -/
 def len (z : Z) : Len G where
-  val g := dist z (A.act g z)
-  one' := by rw [A.one', dist_self]
+  toFun g := dist z (A g z)
+  map_one' := by rw [act_one, dist_self]
   inv' g := by
-    rw [← A.iso' g, ← A.mul', mul_inv_cancel, A.one', dist_comm]
-  mul' g h := by
-    rw [A.mul']
-    refine (dist_triangle z (A.act g z) _).trans ?_
-    rw [A.iso']
+    rw [← (A g).dist_eq, ← act_mul, mul_inv_cancel, act_one, dist_comm]
+  mul_le' g h := by
+    rw [act_mul]
+    refine (dist_triangle z (A g z) _).trans ?_
+    rw [(A g).dist_eq]
 
-theorem len_val (z : Z) (g : G) : (A.len z).val g = dist z (A.act g z) := by rfl
+theorem len_apply (z : Z) (g : G) : A.len z g = dist z (A g z) := by rfl
 
 /-- Fixed points. -/
-@[expose] def Fix (z : Z) : Prop := ∀ g, A.act g z = z
+@[expose] def Fix (z : Z) : Prop := ∀ g, A g z = z
 
 section proj
 variable [CompleteCAT0Space Z] [Fintype G]
 
-theorem exists_proj (z : Z) : ∃ b, IsBarycenter (fun _ : G => (1 : ℝ)) (fun g => A.act g z) b := by
+theorem exists_proj (z : Z) : ∃ b, IsBarycenter (fun _ : G => (1 : ℝ)) (fun g => A g z) b := by
   have : Nonempty Z := ⟨z⟩
   exact exists_isBarycenter _ (fun _ => zero_le_one) _
 
 /-- The projection to the fixed points: the barycentre of the orbit. -/
 noncomputable def P (z : Z) : Z := Classical.choose (A.exists_proj z)
 
-theorem P_spec (z : Z) : IsBarycenter (fun _ : G => (1 : ℝ)) (fun g => A.act g z) (A.P z) :=
+theorem P_spec (z : Z) : IsBarycenter (fun _ : G => (1 : ℝ)) (fun g => A g z) (A.P z) :=
   Classical.choose_spec (A.exists_proj z)
 
 theorem card_pos' : (0 : ℝ) < ∑ _g : G, (1 : ℝ) := by
   rw [sum_const, card_univ, nsmul_eq_mul, mul_one]
   exact_mod_cast Fintype.card_pos
 
-/-- An isometry that commutes with the action commutes with the projection. -/
+/-- A surjective isometry `f` that commutes with every group element commutes with the
+projection. -/
 theorem P_comm (f : Z → Z) (hf : Isometry f) (hs : Function.Surjective f)
-    (hc : ∀ g z, f (A.act g z) = A.act g (f z)) (z : Z) : f (A.P z) = A.P (f z) := by
+    (hc : ∀ g z, f (A g z) = A g (f z)) (z : Z) : f (A.P z) = A.P (f z) := by
   have h1 := (A.P_spec z).map hf hs
   simp only [hc] at h1
   exact h1.unique card_pos' (A.P_spec (f z))
 
 theorem P_fix (z : Z) : A.Fix (A.P z) := by
   intro g
-  have h1 := (A.P_spec z).map (A.isometry g) (A.surj g)
+  have h1 := (A.P_spec z).map (A g).isometry (A g).surjective
   have h2 := (A.P_spec z).comp_equiv (Equiv.mulLeft g)
   refine h1.unique card_pos' ?_
-  have e : (fun i => A.act g (A.act i z)) = (fun g => A.act g z) ∘ Equiv.mulLeft g :=
-    funext fun k => (A.mul' g k z).symm
+  have e : (fun i => A g (A i z)) = (fun g => A g z) ∘ Equiv.mulLeft g :=
+    funext fun k => (A.act_mul g k z).symm
   rw [e]
   exact h2
 

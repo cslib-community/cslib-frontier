@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Analysis.Normed.Group.Seminorm
+import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Cslib.Tactic.Membership
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.RingTheory.WittVector.IsPoly
@@ -23,11 +25,11 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Len`.
 
 ## Main definitions
 
-* `Flag.Len`, `Flag.GLM`, `Flag.DM`, `Flag.dg`, `Flag.permU`.
+* `Flag.Len` (group seminorms), `Flag.GLM`, `Flag.DM`, `Flag.dg`, `Flag.permU`.
 
 ## Main results
 
-* `Flag.Len.nonneg`, `Flag.Len.conj`; `Flag.sqrt_sum_le` (Minkowski for square sums).
+* `Flag.Len.conj`; `Flag.sqrt_sum_le` (Minkowski for square sums).
 * `Flag.DM_dg_congr`, `Flag.DM_dg_le`: averages over diagonal matrices.
 -/
 
@@ -37,49 +39,35 @@ open Finset Matrix
 
 namespace Cslib.Circuits.Arithmetic.Separation.Flag
 
-/-- A length function: `dist z (g • z)` for an isometric action. -/
-structure Len (G : Type*) [Group G] where
-  /-- the value -/
-  val : G → ℝ
-  one' : val 1 = 0
-  inv' : ∀ g, val g⁻¹ = val g
-  mul' : ∀ g h, val (g * h) ≤ val g + val h
+/-- Length functions on a group, such as `g ↦ dist z (g • z)` for an isometric action: Mathlib's
+group seminorms. The abbreviation keeps the Flag-specific quantities (`Len.S`, `Len.T`,
+`Len.rms`) available by dot notation; the laws are `map_one_eq_zero`, `map_inv_eq_map`,
+`map_mul_le_add` and `apply_nonneg`. -/
+abbrev Len (G : Type*) [Group G] := GroupSeminorm G
 
 namespace Len
 variable {G : Type*} [Group G] (l : Len G)
 
-theorem nonneg (g : G) : 0 ≤ l.val g := by
-  have h := l.mul' g g⁻¹
-  rw [mul_inv_cancel, l.one', l.inv'] at h
-  linarith
-
-theorem conj (g h : G) : l.val (g * h * g⁻¹) ≤ 2 * l.val g + l.val h := by
-  have h1 := l.mul' (g * h) g⁻¹
-  have h2 := l.mul' g h
-  rw [l.inv'] at h1
+theorem conj (g h : G) : l (g * h * g⁻¹) ≤ 2 * l g + l h := by
+  have h1 := map_mul_le_add l (g * h) g⁻¹
+  have h2 := map_mul_le_add l g h
+  rw [map_inv_eq_map l] at h1
   linarith
 
 end Len
 
-/-- Minkowski for square sums. -/
+/-- Minkowski's inequality for square sums over a finset, after a coordinatewise bound
+`0 ≤ c ≤ a + b`: the triangle inequality in `EuclideanSpace ℝ s`. -/
 theorem sqrt_sum_le {α : Type*} (s : Finset α) (a b c : α → ℝ)
     (hc : ∀ i, 0 ≤ c i) (h : ∀ i, c i ≤ a i + b i) :
     √(∑ i ∈ s, c i ^ 2) ≤ √(∑ i ∈ s, a i ^ 2) + √(∑ i ∈ s, b i ^ 2) := by
-  have hA : 0 ≤ ∑ i ∈ s, a i ^ 2 := sum_nonneg fun i _ => sq_nonneg _
-  have hB : 0 ≤ ∑ i ∈ s, b i ^ 2 := sum_nonneg fun i _ => sq_nonneg _
-  apply Real.sqrt_le_iff.2 ⟨by positivity, ?_⟩
-  have hcs : ∑ i ∈ s, a i * b i ≤ √(∑ i ∈ s, a i ^ 2) * √(∑ i ∈ s, b i ^ 2) := by
-    rw [← Real.sqrt_mul hA]
-    apply Real.le_sqrt_of_sq_le
-    exact sum_mul_sq_le_sq_mul_sq s a b
-  calc ∑ i ∈ s, c i ^ 2 ≤ ∑ i ∈ s, (a i + b i) ^ 2 :=
-        sum_le_sum fun i _ => pow_le_pow_left₀ (hc i) (h i) 2
-    _ = ∑ i ∈ s, a i ^ 2 + 2 * ∑ i ∈ s, a i * b i + ∑ i ∈ s, b i ^ 2 := by
-        rw [mul_sum, ← sum_add_distrib, ← sum_add_distrib]
-        exact sum_congr rfl fun i _ => by ring
-    _ ≤ _ := by
-        rw [add_sq, Real.sq_sqrt hA, Real.sq_sqrt hB]
-        linarith
+  refine (Real.sqrt_le_sqrt (sum_le_sum fun i _ => pow_le_pow_left₀ (hc i) (h i) 2)).trans ?_
+  have hn := norm_add_le (WithLp.toLp 2 fun i : s => a i : EuclideanSpace ℝ s)
+    (WithLp.toLp 2 fun i : s => b i)
+  simp only [EuclideanSpace.norm_eq, ← WithLp.toLp_add, Pi.add_apply,
+    Real.norm_eq_abs, sq_abs] at hn
+  simpa only [Finset.sum_coe_sort s (fun i => (a i + b i) ^ 2),
+    Finset.sum_coe_sort s (fun i => a i ^ 2), Finset.sum_coe_sort s (fun i => b i ^ 2)] using hn
 
 /-- The field with two elements. -/
 abbrev F2 := ZMod 2

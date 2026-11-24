@@ -16,12 +16,15 @@ open Cslib.Circuits.Arithmetic.Separation.Flag
 
 /-- `ℤˣ = {1, -1}` acts on `ℝ` by multiplication, by isometries. -/
 noncomputable def signAct : IsoAct ℤˣ ℝ where
-  act u z := (u : ℤ) * z
-  one' z := by simp
-  mul' g h z := by push_cast; ring
-  iso' g z z' := by
-    rw [Real.dist_eq, Real.dist_eq, ← mul_sub, abs_mul]
-    rcases Int.units_eq_one_or g with rfl | rfl <;> simp
+  toFun u := IsometryEquiv.mk (Equiv.mulLeft₀ ((u : ℤ) : ℝ) (by
+      rcases Int.units_eq_one_or u with rfl | rfl <;> norm_num))
+    (Isometry.of_dist_eq fun z z' => by
+      rw [Real.dist_eq, Real.dist_eq]
+      change |((u : ℤ) : ℝ) * z - ((u : ℤ) : ℝ) * z'| = |z - z'|
+      rw [← mul_sub, abs_mul]
+      rcases Int.units_eq_one_or u with rfl | rfl <;> simp)
+  map_one' := by ext z; simp
+  map_mul' g h := by ext z; simp [IsometryEquiv.mul_apply, mul_assoc]
 
 /-- The projection of any point to the fixed points of the sign action is `0`, the barycenter of
 `z` and `-z`. -/

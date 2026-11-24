@@ -14,7 +14,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Wor
 /-!
 # Lengths on `U n`: quotients and the two diagonal blocks
 
-Pulling lengths back along homomorphisms (`Flag.Len.comap`), their root mean squares
+Pulling lengths back along homomorphisms (`GroupSeminorm.comp`), their root mean squares
 (`Flag.Len.rms`), and the bound of a length by its restrictions to the two diagonal blocks
 (`Flag.S_add_le`).
 
@@ -22,7 +22,7 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Walk`.
 
 ## Main results
 
-* `Flag.Contr.comap`, `Flag.Len.rms_comap`, `Flag.S_add_le`.
+* `Flag.Contr.comp`, `Flag.Len.rms_comp`, `Flag.S_add_le`.
 -/
 
 public section
@@ -41,53 +41,46 @@ theorem three_le {T : Type*} [Fintype T] (c f g k : T → ℝ) (hc : ∀ t, 0 �
     (fun t => add_nonneg (hg t) (hk t)) fun t => le_rfl
   linarith
 
-/-- Pull-back of a length along a homomorphism. -/
-@[expose] def Len.comap {G H : Type*} [Group G] [Group H] (l : Len H) (φ : G →* H) : Len G where
-  val g := l.val (φ g)
-  one' := by rw [map_one, l.one']
-  inv' g := by rw [map_inv, l.inv']
-  mul' g h := by rw [map_mul]; exact l.mul' _ _
-
-theorem Contr.comap {G H : Type*} [Group G] [Group H] {l : Len H} {m : ℕ} {s : ℝ}
-    (h : Contr l m s) (φ : G →* H) : Contr (l.comap φ) m s := by
+theorem Contr.comp {G H : Type*} [Group G] [Group H] {l : Len H} {m : ℕ} {s : ℝ}
+    (h : Contr l m s) (φ : G →* H) : Contr (l.comp φ) m s := by
   intro τ hτ i
   exact h (fun M => φ (τ M)) (fun M N => by rw [hτ, map_mul]) i
 
 /-- The root mean square of a length. -/
 noncomputable def Len.rms {G : Type*} [Group G] [Fintype G] (l : Len G) : ℝ :=
-  √((∑ g : G, l.val g ^ 2) / Fintype.card G)
+  √((∑ g : G, l g ^ 2) / Fintype.card G)
 
 theorem Len.rms_nonneg {G : Type*} [Group G] [Fintype G] (l : Len G) : 0 ≤ l.rms :=
   Real.sqrt_nonneg _
 
 theorem Len.rms_sq {G : Type*} [Group G] [Fintype G] (l : Len G) :
-    l.rms ^ 2 = (∑ g : G, l.val g ^ 2) / Fintype.card G :=
+    l.rms ^ 2 = (∑ g : G, l g ^ 2) / Fintype.card G :=
   Real.sq_sqrt (div_nonneg (sum_nonneg fun _ _ => sq_nonneg _) (Nat.cast_nonneg _))
 
 /-- The mean square along a surjective homomorphism. -/
-theorem Len.rms_comap {G H : Type*} [Group G] [Group H] [Fintype G] [Fintype H] (l : Len H)
-    (φ : G →* H) (hφ : Function.Surjective φ) : (l.comap φ).rms = l.rms := by
+theorem Len.rms_comp {G H : Type*} [Group G] [Group H] [Fintype G] [Fintype H] (l : Len H)
+    (φ : G →* H) (hφ : Function.Surjective φ) : Len.rms (l.comp φ) = l.rms := by
   classical
   unfold Len.rms
   congr 1
   have hG : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
   have hH : (0 : ℝ) < Fintype.card H := by exact_mod_cast Fintype.card_pos
   rw [div_eq_div_iff hG.ne' hH.ne']
-  have h1 : ∑ h : H, ∑ g : G, l.val (h * φ g) ^ 2 = Fintype.card G * ∑ h : H, l.val h ^ 2 := by
+  have h1 : ∑ h : H, ∑ g : G, l (h * φ g) ^ 2 = Fintype.card G * ∑ h : H, l h ^ 2 := by
     rw [sum_comm]
-    have e : ∀ g, ∑ h : H, l.val (h * φ g) ^ 2 = ∑ h : H, l.val h ^ 2 := fun g =>
-      Equiv.sum_comp (Equiv.mulRight (φ g)) (fun h => l.val h ^ 2)
+    have e : ∀ g, ∑ h : H, l (h * φ g) ^ 2 = ∑ h : H, l h ^ 2 := fun g =>
+      Equiv.sum_comp (Equiv.mulRight (φ g)) (fun h => l h ^ 2)
     rw [sum_congr rfl fun g _ => e g]
     simp
-  have h2 : ∑ h : H, ∑ g : G, l.val (h * φ g) ^ 2 = Fintype.card H * ∑ g : G, l.val (φ g) ^ 2 := by
-    have : ∀ h : H, ∑ g : G, l.val (h * φ g) ^ 2 = ∑ g : G, l.val (φ g) ^ 2 := by
+  have h2 : ∑ h : H, ∑ g : G, l (h * φ g) ^ 2 = Fintype.card H * ∑ g : G, l (φ g) ^ 2 := by
+    have : ∀ h : H, ∑ g : G, l (h * φ g) ^ 2 = ∑ g : G, l (φ g) ^ 2 := by
       intro h
       obtain ⟨k, rfl⟩ := hφ h
-      rw [← Equiv.sum_comp (Equiv.mulLeft k) (fun g => l.val (φ g) ^ 2)]
-      exact sum_congr rfl fun g _ => by rw [Equiv.coe_mulLeft, map_mul]
+      rw [← Equiv.sum_comp (Equiv.mulLeft k) (fun g => l (φ g) ^ 2)]
+      exact sum_congr rfl fun g _ => by rw [Equiv.coe_mulLeft, map_mul φ]
     rw [sum_congr rfl fun h _ => this h]
     simp
-  change (∑ g : G, l.val (φ g) ^ 2) * _ = _
+  change (∑ g : G, l (φ g) ^ 2) * _ = _
   linarith
 
 /-- The bound of Lemma lem:first for one n with the constant κ. -/
@@ -101,20 +94,21 @@ theorem bd_one (m : ℕ) (s : ℝ) : Bd m s 1 0 := by
     apply mat_inj
     ext i j
     rw [Subsingleton.elim i j, mat_diag, mat_one, Matrix.one_apply_eq]
-  have h : ∑ g : U 1, l.val g ^ 2 = 0 := sum_eq_zero fun g _ => by rw [this g, l.one']; simp
+  have h : ∑ g : U 1, l g ^ 2 = 0 := sum_eq_zero fun g _ => by rw [this g, map_one_eq_zero l]; simp
   rw [Len.rms, h]
   simp
 
 theorem S_add_le {a b : ℕ} (l : Len (U (a + b))) :
-    (l.comap (win (hl (a := a) (b := b)))).S + (l.comap (win (hr (a := a) (b := b)))).S ≤ l.S := by
+    Len.S (l.comp (win (hl (a := a) (b := b)))) + Len.S (l.comp (win (hr (a := a) (b := b)))) ≤
+      l.S := by
   unfold Len.S
-  have e1 : ∀ j, (l.comap (win (hl (a := a) (b := b)))).val (x a j) = l.val (x _ (wt hl j)) := by
+  have e1 : ∀ j, (l.comp (win (hl (a := a) (b := b)))) (x a j) = l (x _ (wt hl j)) := by
     intro j
-    change l.val (win hl (x a j)) = _
+    change l (win hl (x a j)) = _
     rw [win_x]
-  have e2 : ∀ j, (l.comap (win (hr (a := a) (b := b)))).val (x b j) = l.val (x _ (wt hr j)) := by
+  have e2 : ∀ j, (l.comp (win (hr (a := a) (b := b)))) (x b j) = l (x _ (wt hr j)) := by
     intro j
-    change l.val (win hr (x b j)) = _
+    change l (win hr (x b j)) = _
     rw [win_x]
   rw [sum_congr rfl fun j _ => e1 j, sum_congr rfl fun j _ => e2 j]
   have i1 : Function.Injective (wt (hl (a := a) (b := b))) := by
@@ -123,11 +117,11 @@ theorem S_add_le {a b : ℕ} (l : Len (U (a + b))) :
   have i2 : Function.Injective (wt (hr (a := a) (b := b))) := by
     intro j j' h
     simpa [wt, Fin.ext_iff] using h
-  rw [← sum_image (s := univ) (g := wt (hl (a := a) (b := b))) (f := fun k => l.val (x _ k))
+  rw [← sum_image (s := univ) (g := wt (hl (a := a) (b := b))) (f := fun k => l (x _ k))
       (fun j _ j' _ h => i1 h),
-    ← sum_image (s := univ) (g := wt (hr (a := a) (b := b))) (f := fun k => l.val (x _ k))
+    ← sum_image (s := univ) (g := wt (hr (a := a) (b := b))) (f := fun k => l (x _ k))
       (fun j _ j' _ h => i2 h), ← sum_union]
-  · exact sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => l.nonneg _
+  · exact sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => apply_nonneg l _
   · rw [disjoint_left]
     intro k h1 h2
     simp only [mem_image, mem_univ, true_and] at h1 h2
@@ -179,14 +173,14 @@ theorem tr_surjective {n n' : ℕ} (h : n ≤ n') : Function.Surjective (tr h) :
 theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ : 0 ≤ κ) (hB : Bd m s n' κ) :
     Bd m s n κ := by
   intro l hC
-  have h1 := hB (l.comap (tr h)) (hC.comap _)
-  rw [Len.rms_comap _ _ (tr_surjective h)] at h1
+  have h1 := hB (l.comp (tr h)) (hC.comp _)
+  rw [Len.rms_comp _ _ (tr_surjective h)] at h1
   refine h1.trans (mul_le_mul_of_nonneg_left ?_ hκ)
   unfold Len.S
-  have e : ∀ j : Fin (n' - 1), (l.comap (tr h)).val (x n' j) =
-      if hj : j.1 < n - 1 then l.val (x n ⟨j.1, hj⟩) else 0 := by
+  have e : ∀ j : Fin (n' - 1), (l.comp (tr h)) (x n' j) =
+      if hj : j.1 < n - 1 then l (x n ⟨j.1, hj⟩) else 0 := by
     intro j
-    change l.val (tr h (x n' j)) = _
+    change l (tr h (x n' j)) = _
     split_ifs with hj
     · congr 1
       apply mat_inj
@@ -201,7 +195,7 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
           have := b.2
           omega
         simp [Matrix.one_apply, lo, hi, Fin.ext_iff, this]
-      rw [this, l.one']
+      rw [this, map_one_eq_zero l]
   rw [sum_congr rfl fun j _ => e j]
   rw [← Finset.sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.1 < n - 1)]
   rw [Finset.sum_eq_zero (s := univ.filter fun j : Fin (n' - 1) => ¬ j.1 < n - 1), add_zero]

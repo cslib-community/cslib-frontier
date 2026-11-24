@@ -146,7 +146,7 @@ additive map
 from μ×μ matrices, full rank is only `s²` times as far as rank one. -/
 @[expose] def Contr {G : Type*} [Group G] (l : Len G) (μ : ℕ) (s : ℝ) : Prop :=
   ∀ τ : Matrix (Fin μ) (Fin μ) F2 → G, (∀ M N, τ (M + N) = τ M * τ N) →
-    ∀ i, DM (fun M => l.val (τ M)) (dg univ) ≤ s ^ 2 * DM (fun M => l.val (τ M)) (dg {i})
+    ∀ i, DM (fun M => l (τ M)) (dg univ) ≤ s ^ 2 * DM (fun M => l (τ M)) (dg {i})
 
 theorem DM_blow (e : μ × κ ↪ ι) (f : Matrix ι ι F2 → ℝ) (M : Matrix μ μ F2) :
     ∑ p : GLM ι, ∑ q : GLM ι,
@@ -182,8 +182,8 @@ variable {G : Type*} [Group G]
 omit [DecidableEq κ] in
 theorem DM_digit (l : Len G) {m : ℕ} {s : ℝ} (hC : Contr l m s)
     (τ : Matrix ι ι F2 → G) (hτ : ∀ M N, τ (M + N) = τ M * τ N) (e : Fin m × κ ↪ ι) (i : Fin m) :
-    DM (fun M => l.val (τ M)) (dg ((univ : Finset (Fin m × κ)).map e)) ≤
-      s ^ 2 * DM (fun M => l.val (τ M)) (dg ((({i} : Finset (Fin m)) ×ˢ univ).map e)) := by
+    DM (fun M => l (τ M)) (dg ((univ : Finset (Fin m × κ)).map e)) ≤
+      s ^ 2 * DM (fun M => l (τ M)) (dg ((({i} : Finset (Fin m)) ×ˢ univ).map e)) := by
   classical
   have h0 : (0 : ℝ) < (Fintype.card (GLM (Fin m)) : ℝ) ^ 2 := by
     have : 0 < Fintype.card (GLM (Fin m)) := Fintype.card_pos

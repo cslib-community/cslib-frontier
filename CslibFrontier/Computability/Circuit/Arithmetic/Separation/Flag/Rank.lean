@@ -59,16 +59,16 @@ structure Good (f : Matrix ι ι F2 → ℝ) (m : ℕ) (s : ℝ) : Prop where
 
 theorem good_of_contr (l : Len G) {m : ℕ} {s : ℝ} (hC : Contr l m s)
     (τ : Matrix ι ι F2 → G) (hτ : ∀ M N, τ (M + N) = τ M * τ N) :
-    Good (fun M => l.val (τ M)) m s where
-  nonneg _ := l.nonneg _
+    Good (fun M => l (τ M)) m s where
+  nonneg _ := apply_nonneg l _
   zero := by
     have h := hτ 0 0
     rw [add_zero] at h
     have : τ 0 = 1 := by simpa using h
-    simp only [this, l.one']
+    simp only [this, map_one_eq_zero l]
   add M N := by
     simp only [hτ]
-    exact l.mul' _ _
+    exact map_mul_le_add l _ _
   digit _ e i := DM_digit l hC τ hτ e i
 
 variable {f : Matrix ι ι F2 → ℝ} {m : ℕ} {s : ℝ}

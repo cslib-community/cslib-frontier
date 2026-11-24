@@ -40,12 +40,12 @@ open Cslib.SLTower (U SL2 lo hi x)
 variable {n : ℕ}
 
 /-- The total length of the generators. -/
-@[expose] noncomputable def Len.S (l : Len (U n)) : ℝ := ∑ j : Fin (n - 1), l.val (x n j)
+@[expose] noncomputable def Len.S (l : Len (U n)) : ℝ := ∑ j : Fin (n - 1), l (x n j)
 
-theorem Len.S_nonneg (l : Len (U n)) : 0 ≤ l.S := sum_nonneg fun _ _ => l.nonneg _
+theorem Len.S_nonneg (l : Len (U n)) : 0 ≤ l.S := sum_nonneg fun _ _ => apply_nonneg l _
 
-theorem Len.x_le_S (l : Len (U n)) (j : Fin (n - 1)) : l.val (x n j) ≤ l.S :=
-  single_le_sum (f := fun j => l.val (x n j)) (fun _ _ => l.nonneg _) (mem_univ j)
+theorem Len.x_le_S (l : Len (U n)) (j : Fin (n - 1)) : l (x n j) ≤ l.S :=
+  single_le_sum (f := fun j => l (x n j)) (fun _ _ => apply_nonneg l _) (mem_univ j)
 
 theorem x_mul_apply (j : Fin (n - 1)) (A : U n) (i k : Fin n) :
     mat (x n j * A) i k = mat A i k + if i = lo j then mat A (hi j) k else 0 := by
@@ -71,12 +71,12 @@ theorem f2_add_self (a : F2) : a + a = 0 := CharTwo.add_self_eq_zero a
 
 /-- The sum of the lengths of the generators of types ≥ p. -/
 noncomputable def Len.T (l : Len (U n)) (p : ℕ) : ℝ :=
-  ∑ j ∈ univ.filter (fun j : Fin (n - 1) => p ≤ j.1), l.val (x n j)
+  ∑ j ∈ univ.filter (fun j : Fin (n - 1) => p ≤ j.1), l (x n j)
 
 theorem Len.T_zero (l : Len (U n)) : l.T 0 = l.S := by
   simp [Len.T, Len.S]
 
-theorem Len.T_succ (l : Len (U n)) (j : Fin (n - 1)) : l.T j.1 = l.T (j.1 + 1) + l.val (x n j) := by
+theorem Len.T_succ (l : Len (U n)) (j : Fin (n - 1)) : l.T j.1 = l.T (j.1 + 1) + l (x n j) := by
   unfold Len.T
   have : univ.filter (fun i : Fin (n - 1) => j.1 ≤ i.1) =
       insert j (univ.filter fun i : Fin (n - 1) => j.1 + 1 ≤ i.1) := by
@@ -90,11 +90,11 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
     ∃ c d : U n, (∀ i j : Fin n, (i.1 < p ∨ a ≤ i) → mat c i j = (1 : Matrix _ _ F2) i j) ∧
       (∀ i j : Fin n, (i.1 < p ∨ a ≤ i) → mat d i j = (1 : Matrix _ _ F2) i j) ∧
       (∀ i : Fin n, mat d i a = if p ≤ i.1 ∧ i ≤ a then 1 else 0) ∧
-      (∀ i, mat (c * d) i a = u i) ∧ l.val c ≤ l.T p ∧ l.val d ≤ l.T p := by
+      (∀ i, mat (c * d) i a = u i) ∧ l c ≤ l.T p ∧ l d ≤ l.T p := by
   induction k with
   | zero =>
     intro p hp u hua hu1 hu2
-    have hT : 0 ≤ l.T p := sum_nonneg fun _ _ => l.nonneg _
+    have hT : 0 ≤ l.T p := sum_nonneg fun _ _ => apply_nonneg l _
     refine ⟨1, 1, fun _ _ _ => rfl, fun _ _ _ => rfl, fun i => ?_, fun i => ?_, ?_, ?_⟩
     · rw [mat_one, Matrix.one_apply]
       by_cases h : i = a
@@ -109,8 +109,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       · subst h
         rw [ite_eq_left rfl, hua]
       · rw [ite_eq_right h.ne', hu1 i h]
-    · rw [l.one']; exact hT
-    · rw [l.one']; exact hT
+    · rw [map_one_eq_zero l]; exact hT
+    · rw [map_one_eq_zero l]; exact hT
   | succ k ih =>
     intro p hp u hua hu1 hu2
     have hpa : p < a.1 := by omega
@@ -136,8 +136,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
           apply hu2
           have : i.1 ≠ p := fun h2 => h (Fin.ext h2)
           omega)
-    have hT : l.T p = l.T (p + 1) + l.val (x n j) := l.T_succ j
-    have hx0 := l.nonneg (x n j)
+    have hT : l.T p = l.T (p + 1) + l (x n j) := l.T_succ j
+    have hx0 := apply_nonneg l (x n j)
     have hclo : ∀ i, mat c i (lo j) = (1 : Matrix _ _ F2) i (lo j) := by
       intro i
       by_cases hi : i.1 < p + 1
@@ -171,8 +171,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
         constructor
         · rintro ⟨h1, h2⟩; exact ⟨by omega, h2⟩
         · rintro ⟨h1, h2⟩; exact ⟨by omega, h2⟩
-    have hld' : l.val (x n j * d) ≤ l.T p := by
-      have := l.mul' (x n j) d
+    have hld' : l (x n j * d) ≤ l.T p := by
+      have := map_mul_le_add l (x n j) d
       linarith
     by_cases hu : u (lo j) = 0
     · refine ⟨c * x n j, x n j * d, fun i k hi => ?_, hd', hda', fun i => ?_, ?_, hld'⟩
@@ -182,7 +182,7 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
         by_cases h : i = lo j
         · rw [h, Function.update_self, hu]
         · rw [Function.update_of_ne h]
-      · have := l.mul' c (x n j)
+      · have := map_mul_le_add l c (x n j)
         linarith
     · have hu' : u (lo j) = 1 := by
         have : ∀ a : F2, a ≠ 0 → a = 1 := by decide
@@ -201,7 +201,7 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
 theorem exists_col (l : Len (U n)) (a : Fin n) (u : Fin n → F2) (hua : u a = 1)
     (hu : ∀ i, a < i → u i = 0) :
     ∃ g : U n, (∀ i j : Fin n, a ≤ i → mat g i j = (1 : Matrix _ _ F2) i j) ∧
-      (∀ i, mat g i a = u i) ∧ l.val g ≤ 2 * l.S := by
+      (∀ i, mat g i a = u i) ∧ l g ≤ 2 * l.S := by
   obtain ⟨c, d, hc, hd, -, hcd, hlc, hld⟩ := exists_col_aux l a a.1 0 (by omega) u hua hu
     (fun i hi => absurd hi (by omega))
   refine ⟨c * d, fun i j hi => ?_, hcd, ?_⟩
@@ -209,7 +209,7 @@ theorem exists_col (l : Len (U n)) (a : Fin n) (u : Fin n → F2) (hua : u a = 1
     simp only [hc i _ (Or.inr hi)]
     rw [← hd i j (Or.inr hi), ← Matrix.mul_apply, Matrix.one_mul]
   · rw [Len.T_zero] at hlc hld
-    have := l.mul' c d
+    have := map_mul_le_add l c d
     linarith
 
 /-- Reflection in the antidiagonal. -/
@@ -254,26 +254,26 @@ theorem refl_x (j : Fin (n - 1)) : refl (x n j) = x n (Fin.rev j) := by
   simp only [Fin.rev_inj, h1, h2, eq_comm (a := k), and_comm]
 
 /-- The reflected length. -/
-def Len.refl (l : Len (U n)) : Len (U n) where
-  val A := l.val (Cslib.Circuits.Arithmetic.Separation.Flag.refl A)
-  one' := by rw [refl_one, l.one']
-  inv' g := by rw [refl_inv, l.inv']
-  mul' g h := by
+@[expose] def Len.refl (l : Len (U n)) : Len (U n) where
+  toFun A := l (Cslib.Circuits.Arithmetic.Separation.Flag.refl A)
+  map_one' := by rw [refl_one, map_one_eq_zero l]
+  inv' g := by rw [refl_inv, map_inv_eq_map l]
+  mul_le' g h := by
     rw [refl_mul, add_comm]
-    exact l.mul' _ _
+    exact map_mul_le_add l _ _
 
 theorem Len.refl_S (l : Len (U n)) : l.refl.S = l.S := by
   unfold Len.S
   rw [← Equiv.sum_comp Fin.revPerm]
   refine sum_congr rfl fun j _ => ?_
-  change l.val (Cslib.Circuits.Arithmetic.Separation.Flag.refl _) = _
+  change l (Cslib.Circuits.Arithmetic.Separation.Flag.refl _) = _
   rw [refl_x]
   simp
 
 theorem exists_row (l : Len (U n)) (b : Fin n) (φ : Fin n → F2) (hb : φ b = 1)
     (hφ : ∀ i, i < b → φ i = 0) :
     ∃ g : U n, (∀ i j : Fin n, j ≤ b → mat g i j = (1 : Matrix _ _ F2) i j) ∧
-      (∀ j, mat g b j = φ j) ∧ l.val g ≤ 2 * l.S := by
+      (∀ j, mat g b j = φ j) ∧ l g ≤ 2 * l.S := by
   obtain ⟨g, h1, h2, h3⟩ := exists_col l.refl (Fin.rev b) (fun i => φ (Fin.rev i))
     (by simpa using hb) (fun i hi => hφ _ (by rw [← Fin.rev_lt_rev, Fin.rev_rev]; exact hi))
   refine ⟨refl g, fun i j hj => ?_, fun j => ?_, ?_⟩
@@ -286,7 +286,7 @@ theorem exists_row (l : Len (U n)) (b : Fin n) (φ : Fin n → F2) (hb : φ b = 
 
 theorem lead_le (l : Len (U n)) (j : Fin (n - 1)) (u φ : Fin n → F2) (hu1 : u (lo j) = 1)
     (hu : ∀ i, lo j < i → u i = 0) (hφ1 : φ (hi j) = 1) (hφ : ∀ i, i < hi j → φ i = 0)
-    (A : U n) (hA : mat A = 1 + Matrix.vecMulVec u φ) : l.val A ≤ 9 * l.S := by
+    (A : U n) (hA : mat A = 1 + Matrix.vecMulVec u φ) : l A ≤ 9 * l.S := by
   obtain ⟨g, hg1, hg2, hg3⟩ := exists_col l (lo j) u hu1 hu
   obtain ⟨k, hk1, hk2, hk3⟩ := exists_row l (hi j) φ hφ1 hφ
   set Y : U n := k⁻¹ * x n j * k with hY
@@ -336,7 +336,7 @@ theorem lead_le (l : Len (U n)) (j : Fin (n - 1)) (u φ : Fin n → F2) (hu1 : u
   have h1 := l.conj g Y
   rw [← hA2] at h1
   have h2 := l.conj k⁻¹ (x n j)
-  rw [inv_inv, ← hY, l.inv'] at h2
+  rw [inv_inv, ← hY, map_inv_eq_map l] at h2
   have h3 := l.x_le_S j
   linarith
 

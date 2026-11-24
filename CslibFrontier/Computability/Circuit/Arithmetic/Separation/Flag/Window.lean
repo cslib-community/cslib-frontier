@@ -106,11 +106,11 @@ variable {Z : Type*} [MetricSpace Z] (A : IsoAct (U h) Z)
 namespace IsoAct
 
 /-- The action of a window. -/
-@[expose] def W (p n : ℕ) : IsoAct (U n) Z := A.comap (wh h p n)
+@[expose] def W (p n : ℕ) : IsoAct (U n) Z := A.comp (wh h p n)
 
 /-- The displacement by a generator. -/
 noncomputable def e (j : ℕ) (z : Z) : ℝ :=
-  if hj : j < h - 1 then dist z (A.act (x h ⟨j, hj⟩) z) else 0
+  if hj : j < h - 1 then dist z (A (x h ⟨j, hj⟩) z) else 0
 
 theorem e_nonneg (j : ℕ) (z : Z) : 0 ≤ A.e j z := by
   unfold e
@@ -126,7 +126,7 @@ theorem Fix.sub {p n p' n' : ℕ} {z : Z} (hz : (A.W p n).Fix z) (h1 : p ≤ p')
     have : p + (p' - p) = p' := by omega
     congr! 2
     exact this.symm
-  change A.act (wh h p' n' g) z = z
+  change A (wh h p' n' g) z = z
   rw [e1]
   exact hz _
 
@@ -145,18 +145,18 @@ theorem e_zero {p n j : ℕ} {z : Z} (hz : (A.W p n).Fix z) (h1 : p ≤ j) (h2 :
   unfold e
   rw [dite_eq_left hj, ← wh_x hj]
   have := h4 (x 2 ⟨0, by omega⟩)
-  rw [show A.act (wh h j 2 (x 2 ⟨0, by omega⟩)) z = z from this, dist_self]
+  rw [show A (wh h j 2 (x 2 ⟨0, by omega⟩)) z = z from this, dist_self]
 
 theorem e_le {p n j : ℕ} {y : Z} (hy : (A.W p n).Fix y) (h1 : p ≤ j) (h2 : j + 2 ≤ p + n)
     (h3 : p + n ≤ h) (z : Z) : A.e j z ≤ 2 * dist z y := by
   have hj : j < h - 1 := by omega
   have h4 := hy.sub A h1 h2 h3 (x 2 ⟨0, by omega⟩)
-  have h5 : A.act (x h ⟨j, hj⟩) y = y := by rw [← wh_x hj]; exact h4
+  have h5 : A (x h ⟨j, hj⟩) y = y := by rw [← wh_x hj]; exact h4
   unfold e
   rw [dite_eq_left hj]
   refine (dist_triangle z y _).trans ?_
   conv_lhs => rw [← h5]
-  rw [A.iso', h5, dist_comm y z]
+  rw [(A _).dist_eq, h5, dist_comm y z]
   linarith
 
 end IsoAct
