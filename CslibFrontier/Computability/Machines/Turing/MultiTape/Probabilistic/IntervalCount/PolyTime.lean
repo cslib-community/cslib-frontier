@@ -80,9 +80,10 @@ variable {k : ℕ} {State : Type}
 @[expose] def LocalCfg.equivProd :
     LocalCfg k State ≃ Option State × ℕ × (Fin k → BiTape Bool) × (Fin k → ℤ) × OutputTrack where
   toFun l := (l.state, l.inputPos, l.workTapes, l.workTapePos, l.track)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
+  invFun := fun (state, inputPos, workTapes, workTapePos, track) =>
+    ⟨state, inputPos, workTapes, workTapePos, track⟩
+  left_inv l := by cases l; rfl
+  right_inv := fun (_, _, _, _, _) => rfl
 
 variable [Finite State]
 
@@ -551,10 +552,10 @@ structure IntervalData (k : ℕ) (State : Type) where
     List Bool × ℕ × (Option (Fin k) → ℤ) × (Option (Fin k) → SignType) × ControlData k State ×
       (Fin k → List (Option Bool)) × ControlData k State × (Fin k → List (Option Bool)) where
   toFun d := (d.input, d.b, d.J, d.δ, d.cIn, d.wIn, d.cOut, d.wOut)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2.1, p.2.2.2.2.2.2.1,
-    p.2.2.2.2.2.2.2⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
+  invFun := fun (input, b, J, δ, cIn, wIn, cOut, wOut) =>
+    ⟨input, b, J, δ, cIn, wIn, cOut, wOut⟩
+  left_inv d := by cases d; rfl
+  right_inv := fun (_, _, _, _, _, _, _, _) => rfl
 
 /-- The encoding of a control record on plain data: the state and the track by their ranks, and
 the offsets in unary. -/

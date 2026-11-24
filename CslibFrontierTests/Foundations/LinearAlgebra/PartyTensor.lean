@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Hubs
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -93,5 +95,42 @@ example {ε : ℝ} (hε : 0 < ε) :
         prod fun β => (fun _ : Unit => (1 : PartyTensor K Unit)) β ^ v i β :=
   exists_coveredBy_pow_of_forall_le (C := 1) (A := fun _ : Unit => 1)
     ⟨fun _ => (), one_ne_zero⟩ ⟨(), fun _ => (), one_ne_zero⟩ (fun _ => ⟨(), le_rfl⟩) hε
+
+/-- The wire exponent of a spectral point is a price, hence a pseudometric. -/
+example (F : SpectralPoint K I) (p q r : I) :
+    IsPrice K F.wireExponent ∧ F.wireExponent p r ≤ F.wireExponent p q + F.wireExponent q r :=
+  ⟨isPrice_wireExponent F, (isPrice_wireExponent F).triangle p q r⟩
+
+/-- Extending the zero price to two further points, with weight `1` on one map. -/
+example : ∃ w' : Bool ⊕ Unit → Bool ⊕ Unit → ℝ, IsPrice K w' ∧
+    (∀ y y', w' (Sum.inl y) (Sum.inl y') = 0) := by
+  obtain ⟨w', h, h1, -⟩ := (isPrice_zero (K := K) (Y := Bool)).exists_extend_of_weights
+    (fun _ : Unit => (1 : ℝ)) (fun _ => zero_le_one) (by simp) (fun _ _ => true)
+  exact ⟨w', h, h1⟩
+
+/-- Lemma A.3 for the unit tensor of size `n` on two parties, a sum of `n` products of a vector at
+each party: it is routed through two hubs, with a wire of dimension `n` between them. -/
+example (n : ℕ) :
+    push (Sum.inl : Unit ⊕ Unit → (Unit ⊕ Unit) ⊕ Bool) (unit K (Unit ⊕ Unit) n) ≤
+      prod (fun p : Unit => wire K (Fintype.card ((unit K (Unit ⊕ Unit) n).Index (Sum.inl p)))
+          (Sum.inl (Sum.inl p)) (Sum.inr true)) *
+        wire K n (Sum.inr true) (Sum.inr false) *
+        prod fun p : Unit => wire K (Fintype.card ((unit K (Unit ⊕ Unit) n).Index (Sum.inr p)))
+          (Sum.inl (Sum.inr p)) (Sum.inr false) := by
+  refine push_inl_le_prod_wire_hubs (unit K (Unit ⊕ Unit) n)
+    (fun (j : Fin n) (y : Unit → Fin n) => if j = y () then (1 : K) else 0)
+    (fun (j : Fin n) (y : Unit → Fin n) => if j = y () then (1 : K) else 0) fun x => ?_
+  have key : (∀ i j, x i = x j) ↔ x (Sum.inr ()) = x (Sum.inl ()) := by
+    refine ⟨fun h => h _ _, fun h i j => ?_⟩
+    rcases i with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;> rcases j with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;>
+      first | rfl | exact h | exact h.symm
+  obtain ⟨a, ha⟩ : ∃ a : Fin n, x (Sum.inl ()) = a := ⟨_, rfl⟩
+  obtain ⟨b, hb⟩ : ∃ b : Fin n, x (Sum.inr ()) = b := ⟨_, rfl⟩
+  simp only [ite_mul, one_mul, zero_mul, ha, hb, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+  by_cases h : b = a
+  · rw [unit_entry_of (key.2 (hb.trans (h.trans ha.symm)))]
+    simp [h]
+  · rw [unit_entry_of_not (mt key.1 fun h' => h (hb.symm.trans (h'.trans ha)))]
+    simp [Ne.symm h]
 
 end Cslib.PartyTensorTests

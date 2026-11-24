@@ -18,6 +18,7 @@ import CslibFrontier.Crypto.Computational.Encryption.OFBMode
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -177,15 +178,13 @@ theorem computableInPolyTime_ofbWordKeystream {family : List Bool → List Bool 
       EStep (encPair encBits encBits) :=
     hy.prod (ComputableInPolyTime.bitsAppend
       ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)) hy)
-  have hnBound : PolyBounded (fun a => (input a).length) n := by
-    simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
   have hloop := ComputableInPolyTime.iterateWithInput_of_bounded_growth
     (encState := encPair encBits encBits) (count := blocks)
     (init := fun a => (iv a, ([] : List Bool)))
     (step := fun a state => ofbWordStep family (n a) (k a) state)
     hblocks (hiv.prod (ComputableInPolyTime.const [])) hstep
     (growth := fun a => n a * 3)
-    ⟨hnBound.mul (PolyBounded.const 3), fun a state => by
+    ⟨by growth_poly, fun a state => by
       have htake := List.length_take_le (n a) (family (k a) state.1)
       simp only [ofbWordStep, length_encPair, encBits_apply, List.length_append]
       omega⟩

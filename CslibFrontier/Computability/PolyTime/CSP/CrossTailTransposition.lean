@@ -92,34 +92,18 @@ theorem accepted_transposeTail (I : State Rel) (hI : I.Accepted) :
     have h8 := accepted_hideHead _ (accepted_fuseHead _ h7)
     exact accepted_rotateLeft _ (accepted_rotateLeft _ h8)
 
+attribute [local fun_prop] computableInPolyTime_insert computableInPolyTime_rotateRight
+  computableInPolyTime_rotateLeft computableInPolyTime_fuseHead computableInPolyTime_hideHead
+
 /-- Fixed composition is plain polynomial time on EVERY raw State, for any encoded
 relation alphabet. Actual lists fund the primitive clocks; binary labels/entries remain
 data. The fixed template and witness are constants outside runtime, not runtime search. -/
 theorem computableInPolyTime_transposeTail (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (transposeTail g w) (encState encRel) (encState encRel) := by
-  let input := encState encRel
-  have hr := computableInPolyTime_rotateRight encRel
-  have hl := computableInPolyTime_rotateLeft encRel
-  have hf := computableInPolyTime_fuseHead encRel
-  have hh := computableInPolyTime_hideHead encRel
-  have h0 := computableInPolyTime_insert g w encRel
-  have h1 := hr.comp h0
-  have h2 := hr.comp h1
-  have h3 := hr.comp h2
-  have h4 := hr.comp h3
-  have h5 := hr.comp h4
-  have h6 := hh.comp (hf.comp h5)
-  have h7 := hr.comp h6
-  have h8 := hh.comp (hf.comp h7)
-  have hout := hl.comp (hl.comp h8)
-  have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hshort := ComputableInPolyTime.binary_lt'
-    (ComputableInPolyTime.unary_to_binary.comp
-      ((ComputableInPolyTime.length_list encNat).comp hports)) (ComputableInPolyTime.const 2)
-  apply (ComputableInPolyTime.ite_decide hshort
-    (ComputableInPolyTime.id' (encIn := input)) hout).of_enc_eq
-  intro I
-  rfl
+  open scoped State in
+  unfold transposeTail
+  dsimp only
+  exact ComputableInPolyTime.ite_decide (by fun_prop) (by fun_prop) (by fun_prop)
 
 private theorem right_fields (J : State Rel) (ps : List ℕ) (p : ℕ)
     (hp : J.ports = ps ++ [p]) :

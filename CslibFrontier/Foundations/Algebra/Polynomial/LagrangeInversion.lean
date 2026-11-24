@@ -76,7 +76,7 @@ large weight.
   (unrefereed preprint). The finite proof given here is not the proof of either source.
 -/
 
-@[expose] public section
+public section
 
 namespace Polynomial
 
@@ -88,13 +88,14 @@ variable {F R : Type*} [CommRing R] (J : Ideal R)
 
 /-- `Q` has weight at least `n` for the ideal `J`: the coefficient of `y ^ j` lies in
 `J ^ ⌈(n - j) / 2⌉`. A term `c y ^ j` with `c ∈ J ^ a` has weight `2 a + j`. -/
-def HasWeight (n : ℕ) (Q : R[X]) : Prop :=
+@[expose] def HasWeight (n : ℕ) (Q : R[X]) : Prop :=
   ∀ j, Q.coeff j ∈ J ^ ((n - j + 1) / 2)
 
 variable {J}
 
 theorem hasWeight_zero (Q : R[X]) : HasWeight J 0 Q := fun j => by
-  simp
+  rw [show (0 - j + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
+  exact Submodule.mem_top
 
 theorem HasWeight.mul {m n : ℕ} {Q Q' : R[X]} (h : HasWeight J m Q) (h' : HasWeight J n Q') :
     HasWeight J (m + n) (Q * Q') := fun j => by
@@ -117,16 +118,18 @@ theorem HasWeight.pow {n : ℕ} {Q : R[X]} (h : HasWeight J n Q) (k : ℕ) :
 theorem hasWeight_two_of_coeff_mem {G : R[X]} (h0 : G.coeff 0 ∈ J) (h1 : G.coeff 1 ∈ J) :
     HasWeight J 2 G := fun j => by
   rcases j with _ | _ | j
-  · simpa using h0
-  · simpa using h1
-  · simp
+  · change G.coeff 0 ∈ J ^ 1; rwa [pow_one]
+  · change G.coeff 1 ∈ J ^ 1; rwa [pow_one]
+  · rw [show (2 - (j + 2) + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
+    exact Submodule.mem_top
 
 /-- A polynomial whose constant coefficient lies in `J` has weight at least `1`. -/
 theorem hasWeight_one_of_coeff_mem {D : R[X]} (h0 : D.coeff 0 ∈ J) : HasWeight J 1 D :=
   fun j => by
   rcases j with _ | j
-  · simpa using h0
-  · simp
+  · change D.coeff 0 ∈ J ^ 1; rwa [pow_one]
+  · rw [show (1 - (j + 1) + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
+    exact Submodule.mem_top
 
 /-! ### Telescoping -/
 
@@ -155,6 +158,21 @@ private theorem coeff_derivative_mul_pow (G : R[X]) (n j : ℕ) :
   simp only [coeff_derivative] at h
   rw [h, mul_assoc, coeff_C_mul, mul_comm (G ^ n)]
 
+/-- `[y ^ j] (G' G ^ n) = ((j + 1) / (n + 1)) • [y ^ (j + 1)] G ^ (n + 1)` over a
+characteristic-zero field `F`. -/
+private theorem coeff_derivative_mul_pow_eq [Field F] [CharZero F] [Algebra F R]
+    (G : R[X]) (n j : ℕ) :
+    (derivative G * G ^ n).coeff j =
+      (((j : F) + 1) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff (j + 1) := by
+  have h := coeff_derivative_mul_pow G n j
+  have hn : ((n : F) + 1) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero n
+  have h' : ((n : F) + 1) • (derivative G * G ^ n).coeff j =
+      ((j : F) + 1) • (G ^ (n + 1)).coeff (j + 1) := by
+    rw [Algebra.smul_def, Algebra.smul_def, map_add, map_natCast, map_one,
+      map_add, map_natCast, map_one, h, mul_comm]
+  have h'' := congrArg (fun x => ((n : F) + 1)⁻¹ • x) h'
+  simpa only [smul_smul, inv_mul_cancel₀ hn, one_smul, mul_comm] using h''
+
 variable (F) in
 /-- `∑ n ≤ N, [y ^ n] ((1 - G') G ^ n) = 1 - [y ^ (N + 1)] G ^ (N + 1)`, over an algebra over a
 field `F` of characteristic zero. -/
@@ -163,18 +181,11 @@ theorem sum_coeff_one_sub_derivative [Field F] [CharZero F] [Algebra F R] (G : R
       1 - (G ^ (N + 1)).coeff (N + 1) := by
   have hterm : ∀ n, ((1 - derivative G) * G ^ n).coeff n =
       (G ^ n).coeff n - (G ^ (n + 1)).coeff (n + 1) := fun n => by
-    rw [sub_mul, one_mul, coeff_sub]
-    congr 1
-    have h := coeff_derivative_mul_pow G n n
-    have hn : ((n : F) + 1) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero n
-    have h' : ((n : F) + 1) • (derivative G * G ^ n).coeff n =
-        ((n : F) + 1) • (G ^ (n + 1)).coeff (n + 1) := by
-      rw [Algebra.smul_def, Algebra.smul_def, map_add, map_natCast, map_one, h, mul_comm]
-    have h'' := congrArg (fun x => ((n : F) + 1)⁻¹ • x) h'
-    simpa [smul_smul, inv_mul_cancel₀ hn] using h''
+    rw [sub_mul, one_mul, coeff_sub, coeff_derivative_mul_pow_eq (F := F) G n n,
+      mul_inv_cancel₀ (by exact_mod_cast Nat.succ_ne_zero n), one_smul]
   simp only [hterm]
-  rw [sum_range_sub' (fun n => (G ^ n).coeff n)]
-  simp
+  rw [sum_range_sub' (fun n => (G ^ n).coeff n), pow_zero]
+  simp only [coeff_one, ↓reduceIte]
 
 /-! ### The fixed point -/
 
@@ -270,19 +281,10 @@ theorem sub_sum_coeff_pow_mem_of_eval_eq [Field F] [CharZero F] [Algebra F R] {G
   have hterm : ∀ n, (X * (1 - derivative G) * G ^ (n + 1)).coeff (n + 1) =
       (G ^ (n + 1)).coeff n -
         (((n : F) + 1) * ((n : F) + 2)⁻¹) • (G ^ (n + 2)).coeff (n + 1) := fun n => by
-    have h := coeff_derivative_mul_pow G (n + 1) n
-    have hn : ((n : F) + 2) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero (n + 1)
     have h' : (derivative G * G ^ (n + 1)).coeff n =
         (((n : F) + 1) * ((n : F) + 2)⁻¹) • (G ^ (n + 2)).coeff (n + 1) := by
-      have h2 : ((n : F) + 2) • (derivative G * G ^ (n + 1)).coeff n =
-          ((n : F) + 1) • (G ^ (n + 2)).coeff (n + 1) := by
-        rw [Algebra.smul_def, Algebra.smul_def, map_add, map_add, map_natCast, map_one,
-          map_ofNat, mul_comm _ ((G ^ (n + 2)).coeff (n + 1)), ← h]
-        push_cast
-        ring
-      have h3 := congrArg (fun x => ((n : F) + 2)⁻¹ • x) h2
-      simp only [smul_smul, inv_mul_cancel₀ hn, one_smul] at h3
-      rw [h3, mul_comm]
+      simpa only [Nat.cast_add, Nat.cast_one, add_assoc, one_add_one_eq_two] using
+        coeff_derivative_mul_pow_eq (F := F) G (n + 1) n
     have hx : X * (1 - derivative G) * G ^ (n + 1) =
         X * (G ^ (n + 1) - derivative G * G ^ (n + 1)) := by ring
     rw [hx, coeff_X_mul, coeff_sub, h']

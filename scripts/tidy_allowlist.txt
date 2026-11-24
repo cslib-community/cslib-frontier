@@ -29,6 +29,9 @@ CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelZeroSpace.l
 # Named finite-control construction data with exact composition bounds; internal kernel milestone
 # #5442 (https://github.com/cslib-community/cslib-frontier/issues/5442).
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeCompiler.lean
+# Named finite-control open-oracle construction data with direct tidy semantics; internal
+# prerequisite #5467 (https://github.com/cslib-community/cslib-frontier/issues/5467).
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeOracleProgram.lean
 # Effect-free explicit-table counterpart of KernelOnWords and Combinators/StreamFold;
 # raw machine assembly and exact operational endpoint laws only (#862, #5912).
 CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelStreamTable.lean
