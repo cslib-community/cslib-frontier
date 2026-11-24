@@ -3,3 +3,7 @@
 # rejects any budget above the default in a file not listed here, or above its cap, and reports
 # entries that are no longer needed, so this list only shrinks. Add an entry only with review,
 # and link the issue tracking its reduction.
+# #2226: `tame` tier searches over unfolded network terms in the NTIME ⊆ DSPACE[t/√log t] port.
+CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/NetTerm.lean 1000000
+CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/TameIntervalEntry.lean 1000000
+CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/TameWeight.lean 2000000
