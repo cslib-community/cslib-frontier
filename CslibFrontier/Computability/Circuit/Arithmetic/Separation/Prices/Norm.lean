@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.BitLaw
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 
 /-!
@@ -41,7 +40,7 @@ of norm at most `(1 + η) S R` that costs at least as much as `S` times an old l
 
 namespace Cslib.Circuits.Arithmetic.Separation.Prices
 
-open Cslib.PartyTensor Finset
+open Finset
 
 section Norm
 
@@ -84,12 +83,12 @@ theorem loadNorm_zero (α : E → ℝ) : loadNorm α (fun _ => 0) = 0 := by simp
 
 theorem loadNorm_sum_le {B : Type*} (s : Finset B) (α : E → ℝ) (hα : ∀ e, 0 < α e) (n : B → E → ℝ) :
     loadNorm α (fun e => ∑ β ∈ s, n β e) ≤ ∑ β ∈ s, loadNorm α (n β) := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp [loadNorm_zero]
-  | insert β s hβ ih =>
-    simp only [Finset.sum_insert hβ]
-    exact (loadNorm_add_le α hα _ _).trans (add_le_add le_rfl ih)
+  rw [loadNorm_eq_norm α hα]
+  refine le_trans (le_of_eq ?_) ((norm_sum_le s _).trans
+    (Finset.sum_le_sum fun β _ => (loadNorm_eq_norm α hα (n β)).ge))
+  congr 1
+  ext e
+  simp [Finset.sum_div]
 
 theorem le_loadNorm (α : E → ℝ) (hα : ∀ e, 0 < α e) (n : E → ℝ) (e : E) :
     n e ≤ loadNorm α n * √(α e) := by

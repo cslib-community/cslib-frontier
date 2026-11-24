@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
 
 /-!
 # Lemmas for the crossing inequality
