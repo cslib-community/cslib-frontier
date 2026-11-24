@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import Cslib.Computability.Circuit.Program
 public import Cslib.Computability.Circuit.Signature
-public import CslibFrontier.Computability.Circuit.StraightLine
+import CslibFrontier.Computability.Circuit.StraightLine
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 
