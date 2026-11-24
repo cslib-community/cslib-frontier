@@ -36,10 +36,11 @@ returning a `Cslib.Query.Certificate.BatchResult`. Its two subprograms are param
 
 * `test e` decides whether `e` is admissible. It is correct for a predicate `adm` against the
   comparison oracle `LEQuery.keyOracle w` of the weights, and costs at most `cs` comparisons when
-  `e` is admissible and `cf` when not. In the certificate procedure the test scans the projection
-  record of `e` (p. 13). The test returns a `Bool`; the first invalid recursion level of a
-  rejected edge, which Algorithm 1 uses on line 18, is recomputed by the caller, at the cost of one
-  more test per rejected edge.
+  `e` is admissible and `cf e` when not. In the certificate procedure the test scans the
+  projection record of `e` (p. 13), so a failed test costs `O(ℓ)` for the first invalid level `ℓ`
+  of `e` (§3.6, p. 24), which depends on the edge. The test returns a `Bool`; the first invalid
+  recursion level of a rejected edge, which Algorithm 1 uses on line 18, is recomputed by the
+  caller, at the cost of one more test per rejected edge.
 * `msfSub S` is the exact minimum spanning forest call `MSF(G[F ∪ D])` of line 21. Costs are
   stated as the comparisons outside the call plus those of the call, and results that read the new
   forest assume that the call returned `msf (F ∪ D)`.
@@ -64,7 +65,8 @@ Lemma 3.2 (§3.2, p. 15), for a batch `B` on an instance with `n` vertices:
 
 The accounting paragraph after Lemma 3.3 (p. 16): `Cslib.Query.Certificate.countQueries_batch_le`
 bounds the comparisons by `468 |B| + n` outside the tests and the exact call, `cs r² √(8 n |B|)`
-for successful tests, `cf |R'|` for failed tests, and the call itself, on `F ∪ D`.
+for successful tests, `∑_{e ∈ R'} cf e` for failed tests (each edge of `R'` fails exactly one test),
+and the call itself, on `F ∪ D`.
 
 What the correctness argument of §3.3 (Claims 3.5–3.6, Lemma 3.7, pp. 17–18) uses of the spokes:
 
@@ -236,22 +238,22 @@ private theorem eval_liftM_runTests
 
 omit [DecidableEq E] in
 private theorem countQueries_liftM_runTests_le
-    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs cf : ℕ}
+    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs : ℕ} {cf : E → ℕ}
     (hcs : ∀ e, adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cs)
-    (hcf : ∀ e, ¬adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cf)
+    (hcf : ∀ e, ¬adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cf e)
     {α : Type} (p : FreeM (CmpTestQuery E) α) :
     (p.liftM (runTests test)).countQueries (LEQuery.keyOracle w) ≤
       SumQuery.countInl (CmpTestQuery.oracleOf w adm) p +
         cs * p.cost (CmpTestQuery.oracleOf w adm)
           (CmpTestQuery.passWeight (CmpTestQuery.oracleOf w adm)) +
-        cf * p.cost (CmpTestQuery.oracleOf w adm)
-          (CmpTestQuery.failWeight (CmpTestQuery.oracleOf w adm)) := by
+        p.cost (CmpTestQuery.oracleOf w adm)
+          (CmpTestQuery.failCost (CmpTestQuery.oracleOf w adm) cf) := by
   induction p with
   | pure a => simp
   | lift_bind op cont ih =>
     change ((FreeM.lift op >>= cont).liftM (runTests test)).countQueries _ ≤
       SumQuery.countInl _ (FreeM.lift op >>= cont) +
-        cs * (FreeM.lift op >>= cont).cost _ _ + cf * (FreeM.lift op >>= cont).cost _ _
+        cs * (FreeM.lift op >>= cont).cost _ _ + (FreeM.lift op >>= cont).cost _ _
     rw [FreeM.liftM_lift_bind, FreeM.countQueries_bind]
     simp only [SumQuery.countInl, FreeM.cost_liftBind]
     cases op with
@@ -262,7 +264,7 @@ private theorem countQueries_liftM_runTests_le
             LEQuery.keyOracle w (.le a b) := rfl
         have := ih (LEQuery.keyOracle w (.le a b))
         simp only [SumQuery.countInl] at this
-        simp only [runTests, e1, CmpTestQuery.passWeight, CmpTestQuery.failWeight,
+        simp only [runTests, e1, CmpTestQuery.passWeight, CmpTestQuery.failCost,
           SumQuery.weightInl, FreeM.countQueries_lift, FreeM.eval_lift, zero_add]
         linarith
     | inr q =>
@@ -272,7 +274,7 @@ private theorem countQueries_liftM_runTests_le
           rfl
         have h := ih (decide (adm e))
         simp only [SumQuery.countInl] at h
-        simp only [runTests, e1, htest, CmpTestQuery.passWeight, CmpTestQuery.failWeight,
+        simp only [runTests, e1, htest, CmpTestQuery.passWeight, CmpTestQuery.failCost,
           SumQuery.weightInl, zero_add]
         by_cases ha : adm e
         · simp only [ha, decide_true, ↓reduceIte] at h ⊢
@@ -302,7 +304,8 @@ private theorem selectAll_spec (hw : Function.Injective w)
     (∀ v ∉ L, sel v = ⟨[], []⟩) ∧
     (∀ v ∈ L, ∃ Rv ⊆ R ∪ U, sel v = (quotaSelect (fun e => otherEnd v (ends e)) k
         (incident ends B v \ Rv).toList).eval (CmpTestQuery.oracleOf w adm)) ∧
-    Disjoint R U ∧ ∑ v ∈ L.toFinset, (sel v).failed.length = #U := by
+    Disjoint R U ∧
+    ∀ cf : E → ℕ, ∑ v ∈ L.toFinset, ((sel v).failed.map cf).sum = ∑ e ∈ U, cf e := by
   induction L generalizing R with
   | nil => simp [selectAll]
   | cons v vs ih =>
@@ -338,23 +341,23 @@ private theorem selectAll_spec (hw : Function.Injective w)
         rw [hU, union_assoc]
     · rw [hU]
       exact disjoint_union_right.2 ⟨hsR, h3.mono_left subset_union_left⟩
-    · have hv' : v ∉ vs.toFinset := fun h => hv (List.mem_toFinset.1 h)
+    · intro cf
+      have hv' : v ∉ vs.toFinset := fun h => hv (List.mem_toFinset.1 h)
       rw [List.toFinset_cons, sum_insert hv', hsv, hU,
-        card_union_of_disjoint (h3.mono_left subset_union_right), ← h4,
-        List.toFinset_card_of_nodup hsnd]
+        sum_union (h3.mono_left subset_union_right), ← h4 cf, ← List.sum_toFinset cf hsnd]
       exact congrArg _ (sum_congr rfl fun u hu => by rw [hrest u (List.mem_toFinset.1 hu)])
 
 /-- The comparisons of `selectAll`, with the tests run by subprograms that cost at most `cs` on
-admissible and `cf` on inadmissible edges. -/
+admissible and `cf e` on an inadmissible edge `e`. -/
 private theorem countQueries_selectAll_le
-    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs cf : ℕ}
+    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs : ℕ} {cf : E → ℕ}
     (hcs : ∀ e, adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cs)
-    (hcf : ∀ e, ¬adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cf)
+    (hcf : ∀ e, ¬adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cf e)
     (ends : E → Sym2 V) (k : ℕ) (B : Finset E) (L : List V) (hL : L.Nodup) (R : Finset E) :
     (selectAll test ends k B L R).countQueries (LEQuery.keyOracle w) ≤
       ∑ v ∈ L.toFinset, (234 * #(incident ends B v) +
         cs * (k * (Nat.clog 2 #(incident ends B v) + 1)) +
-        cf * ((selectAll test ends k B L R).eval (LEQuery.keyOracle w) v).failed.length) := by
+        (((selectAll test ends k B L R).eval (LEQuery.keyOracle w) v).failed.map cf).sum) := by
   induction L generalizing R with
   | nil => simp [selectAll]
   | cons v vs ih =>
@@ -381,15 +384,15 @@ private theorem countQueries_selectAll_le
       (incident ends B v \ R).toList (CmpTestQuery.oracleOf w adm)
     have hpass := cost_passWeight_quotaSelect_le (fun e => otherEnd v (ends e)) k
       (incident ends B v \ R).toList (CmpTestQuery.oracleOf w adm)
-    have hfail := cost_failWeight_quotaSelect (fun e => otherEnd v (ends e)) k
-      (incident ends B v \ R).toList (CmpTestQuery.oracleOf w adm)
+    have hfail := cost_failCost_quotaSelect (fun e => otherEnd v (ends e)) k
+      (incident ends B v \ R).toList (CmpTestQuery.oracleOf w adm) cf
     have hclog := Nat.clog_mono_right 2 hlen
     have hrestsum := ih hvs (R ∪ s.failed.toFinset)
     have hcongr : ∑ u ∈ vs.toFinset, (234 * #(incident ends B u) +
-        cs * (k * (Nat.clog 2 #(incident ends B u) + 1)) + cf * (rest u).failed.length) =
+        cs * (k * (Nat.clog 2 #(incident ends B u) + 1)) + ((rest u).failed.map cf).sum) =
         ∑ u ∈ vs.toFinset, (234 * #(incident ends B u) +
         cs * (k * (Nat.clog 2 #(incident ends B u) + 1)) +
-          cf * (Function.update rest v s u).failed.length) :=
+          ((Function.update rest v s u).failed.map cf).sum) :=
       sum_congr rfl fun u hu => by
         rw [Function.update_of_ne (by rintro rfl; exact hv' hu)]
     rw [← hcongr]
@@ -699,8 +702,9 @@ private theorem sel_spec (hw : Function.Injective w)
       selOf test r st B (LEQuery.keyOracle w) v =
         (quotaSelect (fun e => otherEnd v (st.ends e)) (r ^ 2)
           (incident st.ends B v \ Rv).toList).eval (CmpTestQuery.oracleOf w adm)) ∧
-    ∑ v ∈ active st.ends B st.vertices, (selOf test r st B (LEQuery.keyOracle w) v).failed.length =
-      #(rejOf test r st B (LEQuery.keyOracle w)) := by
+    ∀ cf : E → ℕ, ∑ v ∈ active st.ends B st.vertices,
+      ((selOf test r st B (LEQuery.keyOracle w) v).failed.map cf).sum =
+        ∑ e ∈ rejOf test r st B (LEQuery.keyOracle w), cf e := by
   obtain ⟨h1, h2, -, h4⟩ := selectAll_spec (adm := adm) hw htest st.ends (r ^ 2) B
     (active st.ends B st.vertices).toList (nodup_toList _) ∅
   simp only [toList_toFinset, empty_union, mem_toList] at h1 h2 h4
@@ -1033,18 +1037,21 @@ theorem State.Invariant.batch (h : st.Invariant w adm) (hw : Function.Injective 
 
 /-- **Comparisons of the batch**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
 (the accounting after the paper's Lemma 3.3, §3.2, p. 16). Let each test cost at most `cs`
-comparisons when it succeeds and `cf` when it fails. Then the batch makes at most `468 |B| + n`
+comparisons when it succeeds and `cf e` when the test of `e` fails. Then the batch makes at most
+`468 |B| + n`
 comparisons outside the tests and the exact minimum spanning forest call (quota selection at every
 vertex, and one comparison per vertex for the spokes), at most `r² √(8 n |B|)` successful tests
-(`∑_v k (⌈log₂ deg_B v⌉ + 1)` over the vertices with an edge, by Cauchy–Schwarz), at most `|R'|`
-failed tests (an edge that failed is not tested again), and the one exact call, on `F ∪ D`. -/
+(`∑_v k (⌈log₂ deg_B v⌉ + 1)` over the vertices with an edge, by Cauchy–Schwarz), exactly one
+failed test for each edge of `R'` (an edge that failed is not tested again), costing
+`∑_{e ∈ R'} cf e`, and the one exact call, on `F ∪ D`. A uniform failed-test cost is the case
+`cf = fun _ => c`. -/
 theorem countQueries_batch_le (hw : Function.Injective w)
-    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs cf : ℕ}
+    (htest : ∀ e, (test e).eval (LEQuery.keyOracle w) = decide (adm e)) {cs : ℕ} {cf : E → ℕ}
     (hcs : ∀ e, adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cs)
-    (hcf : ∀ e, ¬adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cf) :
+    (hcf : ∀ e, ¬adm e → (test e).countQueries (LEQuery.keyOracle w) ≤ cf e) :
     ((batch test msfSub r st B).countQueries (LEQuery.keyOracle w) : ℝ) ≤
       468 * #B + #st.vertices + cs * (r ^ 2 * √(8 * #st.vertices * #B)) +
-        cf * #((batch test msfSub r st B).eval (LEQuery.keyOracle w)).rejected +
+        ∑ e ∈ ((batch test msfSub r st B).eval (LEQuery.keyOracle w)).rejected, (cf e : ℝ) +
         (msfSub (st.forest ∪ ((batch test msfSub r st B).eval
           (LEQuery.keyOracle w)).declared)).countQueries (LEQuery.keyOracle w) := by
   set A := active st.ends B st.vertices
@@ -1060,11 +1067,11 @@ theorem countQueries_batch_le (hw : Function.Injective w)
   have hsel := countQueries_selectAll_le htest hcs hcf st.ends (r ^ 2) B A.toList
     (nodup_toList _) ∅
   simp only [toList_toFinset] at hsel
-  rw [sum_add_distrib, sum_add_distrib, ← mul_sum, ← mul_sum, ← mul_sum, ← mul_sum] at hsel
+  rw [sum_add_distrib, sum_add_distrib, ← mul_sum, ← mul_sum, ← mul_sum] at hsel
   obtain ⟨-, -, -, hrej⟩ := sel_spec hw htest r st B
-  change _ ≤ _ + _ + cf * ∑ v ∈ A, (selOf test r st B (LEQuery.keyOracle w) v).failed.length
+  change _ ≤ _ + _ + ∑ v ∈ A, ((selOf test r st B (LEQuery.keyOracle w) v).failed.map cf).sum
     at hsel
-  rw [hrej] at hsel
+  rw [hrej cf] at hsel
   have hspk := countQueries_updateSpokes_le (LEQuery.keyOracle w)
     (candidate st.ends r (portalsOf test r st B (LEQuery.keyOracle w))
       (selOf test r st B (LEQuery.keyOracle w))) st.spoke st.vertices.toList
@@ -1078,7 +1085,7 @@ theorem countQueries_batch_le (hw : Function.Injective w)
   have hsel' : ((selectAll test st.ends (r ^ 2) B A.toList ∅).countQueries
       (LEQuery.keyOracle w) : ℝ) ≤ 234 * ∑ v ∈ A, (#(incident st.ends B v) : ℝ) +
         cs * ((r ^ 2 * ∑ v ∈ A, (Nat.clog 2 #(incident st.ends B v) + 1) : ℕ) : ℝ) +
-        cf * #(rejOf test r st B (LEQuery.keyOracle w)) := by
+        ((∑ e ∈ rejOf test r st B (LEQuery.keyOracle w), cf e : ℕ) : ℝ) := by
     exact_mod_cast hsel
   have hcs0 : (0 : ℝ) ≤ cs := Nat.cast_nonneg _
   have := mul_le_mul_of_nonneg_left htb hcs0
