@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Interp
+import CslibFrontier.Foundations.Data.List.Forall2
 import Mathlib.Tactic.Linarith.Frontend
 import Mathlib.Tactic.NormNum.Ineq
 
@@ -51,17 +52,6 @@ theorem forall₂_flatMap {R : α → β → Prop} {S : γ → δ → Prop} {l :
     refine List.rel_append (hf _ List.mem_cons_self _ List.mem_cons_self hab) (ih fun a ha b hb =>
       hf a (List.mem_cons_of_mem _ ha) b (List.mem_cons_of_mem _ hb))
 
-theorem forall₂_exists {R : α → β → Prop} {l : List α} {l' : List β} (h : List.Forall₂ R l l')
-    {a : α} (ha : a ∈ l) :
-    ∃ b ∈ l', R a b := by
-  induction h with
-  | nil => simp at ha
-  | cons hab _ ih =>
-    rcases List.mem_cons.1 ha with rfl | ha
-    · exact ⟨_, List.mem_cons_self, hab⟩
-    · obtain ⟨b, hb, h⟩ := ih ha
-      exact ⟨b, List.mem_cons_of_mem _ hb, h⟩
-
 /-- `let`, for lists that correspond to other lists. -/
 theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le) {Q : List β}
     {R : Run A → β → Prop} (hR : List.Forall₂ R le Q) {Q2 : β → List γ} {R2 : Run A → γ → Prop}
@@ -70,7 +60,7 @@ theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le
           (Q2 b)) :
     ∃ l, Ev θ (lett e body) x l ∧ List.Forall₂ R2 l (Q.flatMap Q2) := by
   refine ⟨_, Ev.lett he fun s hs => ?_, forall₂_flatMap hR fun s hs b hb hsb => ?_⟩
-  · obtain ⟨b, hb, hsb⟩ := forall₂_exists hR hs
+  · obtain ⟨b, hb, hsb⟩ := hR.exists_mem_of_mem hs
     obtain ⟨l2, h2, -⟩ := h s hs b hb hsb
     exact h2.hl
   · obtain ⟨l2, h2, h3⟩ := h s hs b hb hsb
