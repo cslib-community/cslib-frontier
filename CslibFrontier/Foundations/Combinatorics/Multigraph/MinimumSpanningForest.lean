@@ -44,7 +44,8 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 
 * `Cslib.Multigraph.Joins`: `u` and `v` are joined by edges of `S`.
 * `Cslib.Multigraph.contract`: a vertex map identifying exactly the vertices joined by `C`.
-* `Cslib.Multigraph.support`: the non-isolated vertices of a set of edges.
+* `Cslib.Multigraph.support`: the non-isolated vertices of a set of edges; there are at most two per
+  edge (`Cslib.Multigraph.card_support_le`).
 * `Cslib.Multigraph.msf`: the minimum spanning forest of a finite set of edges.
 * `Cslib.Multigraph.Supported`, `Cslib.Multigraph.unsupported`: edges whose ends are joined by
   edges of `F` no heavier than them, and the edges of `S` that are not.
@@ -78,7 +79,8 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
   ends of the edges of `S` lie in `X`.
 * `Cslib.Multigraph.sum_card_incident_le`: the degrees in `S` add up to at most `2 |S|`.
 * `Cslib.Multigraph.isSpanningForest_msf`, `Cslib.Multigraph.sum_msf_le`: `msf S` is a spanning
-  forest of `S` of least total weight.
+  forest of `S` of least total weight; `Cslib.Multigraph.sum_msf_le_of_monotone` for any cost
+  ordered like the weights, such as the weights before tie-breaking.
 
 ## References
 
@@ -443,6 +445,18 @@ theorem support_filter_not_isDiag [DecidableEq V] (ends : E → Sym2 V) (S : Fin
   simp only [mem_support, mem_filter]
   exact ⟨fun ⟨e, ⟨he, _⟩, h⟩ => ⟨e, he, h⟩, fun ⟨e, he, h⟩ => ⟨e, ⟨he, h.1⟩, h⟩⟩
 
+omit [LinearOrder W] in
+/-- A multigraph with `m` edges has at most `2 m` non-isolated vertices. -/
+theorem card_support_le (ends : E → Sym2 V) (S : Finset E) :
+    #(support ends S) ≤ 2 * #S := by
+  classical
+  have hsub : support ends S ⊆ S.biUnion fun e => (ends e).toFinset := fun v hv => by
+    obtain ⟨e, he, -, hv⟩ := mem_support.1 hv
+    exact mem_biUnion.2 ⟨e, he, Sym2.mem_toFinset.2 hv⟩
+  refine (card_le_card hsub).trans ((card_biUnion_le_card_mul S _ 2 fun e _ => ?_).trans_eq
+    (mul_comm _ _))
+  rw [Sym2.card_toFinset]; split <;> omega
+
 /-- Dropping the self-loops does not change the minimum spanning forest. -/
 theorem msf_filter_not_isDiag [DecidableEq V] (ends : E → Sym2 V) (S : Finset E) :
     msf ends w {e ∈ S | ¬(ends e).IsDiag} = msf ends w S :=
@@ -717,12 +731,16 @@ private theorem IsAcyclic.exchange [DecidableEq E] {F : Finset E} (hF : IsAcycli
       · exact hsep hj'
       · exact hsep hj'.symm
 
-/-- **Weight optimality**: with distinct weights in an ordered additive monoid, `msf S` has the
-least total weight among the spanning forests of `S`. Each spanning forest `F ≠ msf S` exchanges
-an edge outside `msf S` for a lighter edge of `msf S`, as in the cut property. -/
-theorem sum_msf_le [AddCommMonoid W] [IsOrderedAddMonoid W] (hw : Function.Injective w)
-    {F : Finset E} (hF : IsSpanningForest ends S F) :
-    ∑ e ∈ msf ends w S, w e ≤ ∑ e ∈ F, w e := by
+/-- **Weight optimality for costs ordered like the weights**: with distinct weights `w`, `msf S`
+has the least total cost among the spanning forests of `S`, for every cost `c` into an ordered
+additive monoid that is monotone along `w` (`w a < w b → c a ≤ c b`). Each spanning forest
+`F ≠ msf S` exchanges an edge outside `msf S` for a lighter edge of `msf S`, as in the cut
+property. With `c = w` this is `Cslib.Multigraph.sum_msf_le`; with `w` a tie-broken version of
+arbitrary weights `c`, it says that tie-breaking yields a minimum-weight spanning forest. -/
+theorem sum_msf_le_of_monotone {W' : Type*} [AddCommMonoid W'] [PartialOrder W']
+    [IsOrderedAddMonoid W'] (hw : Function.Injective w) {c : E → W'}
+    (hc : ∀ a b, w a < w b → c a ≤ c b) {F : Finset E} (hF : IsSpanningForest ends S F) :
+    ∑ e ∈ msf ends w S, c e ≤ ∑ e ∈ F, c e := by
   classical
   set M := msf ends w S
   induction hn : #(F \ M) using Nat.strong_induction_on generalizing F with
@@ -783,9 +801,16 @@ theorem sum_msf_le [AddCommMonoid W] [IsOrderedAddMonoid W] (hw : Function.Injec
     rcases hg with ⟨rfl | ⟨-, hg⟩, hgM⟩
     · exact absurd hmM hgM
     · exact ⟨hg, hgM⟩
-  calc ∑ e ∈ M, w e ≤ ∑ e ∈ insert m (F.erase f), w e := ih _ hlt hF' rfl
-    _ = w m + ∑ e ∈ F.erase f, w e := sum_insert fun h => hmF (mem_of_mem_erase h)
-    _ ≤ w f + ∑ e ∈ F.erase f, w e := add_le_add hmf.le le_rfl
-    _ = ∑ e ∈ F, w e := add_sum_erase _ _ hfF
+  calc ∑ e ∈ M, c e ≤ ∑ e ∈ insert m (F.erase f), c e := ih _ hlt hF' rfl
+    _ = c m + ∑ e ∈ F.erase f, c e := sum_insert fun h => hmF (mem_of_mem_erase h)
+    _ ≤ c f + ∑ e ∈ F.erase f, c e := add_le_add (hc m f hmf) le_rfl
+    _ = ∑ e ∈ F, c e := add_sum_erase _ _ hfF
+
+/-- **Weight optimality**: with distinct weights in an ordered additive monoid, `msf S` has the
+least total weight among the spanning forests of `S`. -/
+theorem sum_msf_le [AddCommMonoid W] [IsOrderedAddMonoid W] (hw : Function.Injective w)
+    {F : Finset E} (hF : IsSpanningForest ends S F) :
+    ∑ e ∈ msf ends w S, w e ≤ ∑ e ∈ F, w e :=
+  sum_msf_le_of_monotone w hw (fun _ _ h => h.le) hF
 
 end Cslib.Multigraph
