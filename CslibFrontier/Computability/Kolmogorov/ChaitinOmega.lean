@@ -410,16 +410,16 @@ theorem tendsto_universalPrefixApprox :
   rw [Real.dist_eq, abs_lt]
   constructor <;> linarith
 
-/-- Maximum program length occurring in `universalPrefixTable n`. -/
-@[expose] def universalPrefixMaxLen (n : ℕ) : ℕ :=
+-- Maximum program length occurring in `universalPrefixTable n`.
+private def universalPrefixMaxLen (n : ℕ) : ℕ :=
   ((universalPrefixTable n).map Prod.fst).foldr (fun w m => max w.length m) 0
 
-/-- Scaled integer numerator `universalPrefixApprox n * 2 ^ universalPrefixMaxLen n`. -/
-@[expose] def universalPrefixScaled (n : ℕ) : ℕ :=
+-- Scaled integer numerator `universalPrefixApprox n * 2 ^ universalPrefixMaxLen n`.
+private def universalPrefixScaled (n : ℕ) : ℕ :=
   (((universalPrefixTable n).map Prod.fst).map
     fun w => 2 ^ (universalPrefixMaxLen n - w.length)).sum
 
-theorem primrec_universalPrefixMaxLen : Primrec universalPrefixMaxLen := by
+private theorem primrec_universalPrefixMaxLen : Primrec universalPrefixMaxLen := by
   have hh : Primrec₂ fun (_ : ℕ) (wm : List Bool × ℕ) => max wm.1.length wm.2 :=
     Primrec₂.mk <| Primrec.nat_max.comp
       (Primrec.list_length.comp (Primrec.fst.comp Primrec.snd)) (Primrec.snd.comp Primrec.snd)
@@ -427,7 +427,7 @@ theorem primrec_universalPrefixMaxLen : Primrec universalPrefixMaxLen := by
     (Primrec.list_map primrec_universalPrefixTable (Primrec.fst.comp Primrec.snd).to₂)
     (Primrec.const 0) hh).of_eq fun _ => rfl
 
-theorem primrec_universalPrefixScaled : Primrec universalPrefixScaled := by
+private theorem primrec_universalPrefixScaled : Primrec universalPrefixScaled := by
   have hprog : Primrec fun n => (universalPrefixTable n).map Prod.fst :=
     Primrec.list_map primrec_universalPrefixTable (Primrec.fst.comp Primrec.snd).to₂
   have hel : Primrec₂ fun (n : ℕ) (w : List Bool) => 2 ^ (universalPrefixMaxLen n - w.length) :=
@@ -436,7 +436,7 @@ theorem primrec_universalPrefixScaled : Primrec universalPrefixScaled := by
         (Primrec.list_length.comp Primrec.snd))
   exact (Primrec.list_sum (Primrec.list_map hprog hel)).of_eq fun _ => rfl
 
-theorem universalPrefixScaled_cast (n : ℕ) :
+private theorem universalPrefixScaled_cast (n : ℕ) :
     (universalPrefixApprox n : ℝ) * (2 : ℝ) ^ universalPrefixMaxLen n =
       (universalPrefixScaled n : ℝ) := by
   have hle : ∀ w ∈ (universalPrefixTable n).map Prod.fst, w.length ≤ universalPrefixMaxLen n :=
@@ -779,9 +779,9 @@ theorem irrational_chaitinOmega_universalPrefix :
   rw [hq_real, sub_self, abs_zero]
   positivity
 
-/-- No computable dyadic integer numerator approximates `chaitinOmega universalPrefix` within
-`2⁻¹ ^ m`. -/
-theorem not_exists_computable_dyadic_approx_chaitinOmega :
+-- No computable dyadic integer numerator approximates `chaitinOmega universalPrefix` within
+-- `2⁻¹ ^ m`.
+private theorem not_exists_computable_dyadic_approx_chaitinOmega :
     ¬ ∃ f : ℕ → ℕ, Computable f ∧
       ∀ m : ℕ, |chaitinOmega universalPrefix - (f m : ℝ) * (2 : ℝ)⁻¹ ^ m| ≤ (2 : ℝ)⁻¹ ^ m := by
   rintro ⟨f, hf, happrox⟩
@@ -1078,15 +1078,6 @@ theorem exists_le_complexity_realPrefix_chaitinOmega :
     exact_mod_cast hz_ub
   dsimp only [w] at hp_len
   omega
-
-theorem exists_natCast_le_ecomplexity_realPrefix_chaitinOmega :
-    ∃ c : ℕ, ∀ n : ℕ,
-      (n : ℕ∞) ≤ universalPrefixBits.ecomplexity (realPrefix (chaitinOmega universalPrefix) n)
-        + c := by
-  obtain ⟨c, hc⟩ := exists_le_complexity_realPrefix_chaitinOmega
-  refine ⟨c, fun n => ?_⟩
-  rw [← natCast_complexity_universalPrefixBits]
-  exact_mod_cast hc n
 
 end DescriptionMethod
 

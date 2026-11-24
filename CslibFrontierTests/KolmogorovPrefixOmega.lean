@@ -5,6 +5,7 @@ Authors: Matthew Doty, Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 import CslibFrontier.Computability.Kolmogorov.ChaitinOmega
 
@@ -261,10 +262,10 @@ info: 'Cslib.Kolmogorov.PrefixDisjoint.symm' does not depend on any axioms
 #print axioms Cslib.Kolmogorov.PrefixDisjoint.symm
 
 /--
-info: 'Cslib.Kolmogorov.length_splitFrom_fst' depends on axioms: [propext]
+info: 'Cslib.Kolmogorov.PrefixDisjoint.of_prefix_left' depends on axioms: [propext]
 -/
 #guard_msgs (whitespace := lax) in
-#print axioms Cslib.Kolmogorov.length_splitFrom_fst
+#print axioms Cslib.Kolmogorov.PrefixDisjoint.of_prefix_left
 
 /--
 info: 'Cslib.Kolmogorov.prefixDisjoint_append_false_true' depends on axioms: [propext, Quot.sound]

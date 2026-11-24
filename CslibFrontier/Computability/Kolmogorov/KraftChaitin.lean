@@ -134,22 +134,22 @@ theorem nodup_of_pairwise_prefixDisjoint {L : List (List Bool)} (hL : L.Pairwise
 
 namespace DescriptionMethod
 
-/-- **Binary Kraft's inequality** (finite set form) [Kraft1949]. -/
-theorem finsetSum_two_inv_pow_length_le_one_of_isPrefixFree {S : Finset (List Bool)}
+-- Binary Kraft's inequality (finite set form) [Kraft1949].
+private theorem finsetSum_two_inv_pow_length_le_one_of_isPrefixFree {S : Finset (List Bool)}
     (hS : InformationTheory.IsPrefixFree (S : Set (List Bool))) :
     ∑ w ∈ S, (2 : ℝ)⁻¹ ^ w.length ≤ 1 := by
   simpa only [Fintype.card_bool, Nat.cast_ofNat, one_div] using
     hS.finsetSum_one_div_card_pow_length_le_one
 
-/-- Summability of `2⁻¹ ^ |w|` over any binary prefix-free set. -/
-theorem summable_two_inv_pow_length_of_isPrefixFree {S : Set (List Bool)}
+-- Summability of `2⁻¹ ^ |w|` over any binary prefix-free set.
+private theorem summable_two_inv_pow_length_of_isPrefixFree {S : Set (List Bool)}
     (hS : InformationTheory.IsPrefixFree S) :
     Summable fun w : S => (2 : ℝ)⁻¹ ^ (w : List Bool).length := by
   simpa only [Fintype.card_bool, Nat.cast_ofNat, one_div] using
     hS.summable_one_div_card_pow_length
 
-/-- **Binary Kraft's inequality** (infinite set form) [Kraft1949]. -/
-theorem tsum_two_inv_pow_length_le_one_of_isPrefixFree {S : Set (List Bool)}
+-- Binary Kraft's inequality (infinite set form) [Kraft1949].
+private theorem tsum_two_inv_pow_length_le_one_of_isPrefixFree {S : Set (List Bool)}
     (hS : InformationTheory.IsPrefixFree S) :
     ∑' w : S, (2 : ℝ)⁻¹ ^ (w : List Bool).length ≤ 1 := by
   simpa only [Fintype.card_bool, Nat.cast_ofNat, one_div] using
@@ -261,7 +261,7 @@ length `|u| + 1, ..., |u| + d`. -/
     let res := splitFrom (u ++ [false]) d
     (res.1, (u ++ [true]) :: res.2)
 
-theorem splitFrom_fst (u : List Bool) (d : ℕ) :
+private theorem splitFrom_fst (u : List Bool) (d : ℕ) :
     (splitFrom u d).1 = u ++ List.replicate d false := by
   induction d generalizing u with
   | zero => simp [splitFrom]
@@ -269,11 +269,11 @@ theorem splitFrom_fst (u : List Bool) (d : ℕ) :
     simp [splitFrom, ih, List.replicate_succ, List.append_assoc]
 
 @[simp]
-theorem length_splitFrom_fst (u : List Bool) (d : ℕ) :
+private theorem length_splitFrom_fst (u : List Bool) (d : ℕ) :
     (splitFrom u d).1.length = u.length + d := by
   simp [splitFrom_fst]
 
-theorem mem_splitFrom_snd_iff {u w : List Bool} {d : ℕ} :
+private theorem mem_splitFrom_snd_iff {u w : List Bool} {d : ℕ} :
     w ∈ (splitFrom u d).2 ↔ ∃ k < d, w = u ++ List.replicate k false ++ [true] := by
   induction d generalizing u with
   | zero => simp [splitFrom]
@@ -294,7 +294,7 @@ theorem mem_splitFrom_snd_iff {u w : List Bool} {d : ℕ} :
         refine ⟨k, Nat.lt_of_succ_lt_succ hk, ?_⟩
         simpa [List.replicate_succ, List.append_assoc] using h
 
-theorem splitFrom_snd_eq (u : List Bool) (d : ℕ) :
+private theorem splitFrom_snd_eq (u : List Bool) (d : ℕ) :
     (splitFrom u d).2 = (List.range d).map fun k => u ++ List.replicate k false ++ [true] := by
   induction d generalizing u with
   | zero => rfl
@@ -302,23 +302,23 @@ theorem splitFrom_snd_eq (u : List Bool) (d : ℕ) :
     rw [splitFrom, ih, List.range_succ_eq_map, List.map_cons, List.map_map]
     simp [List.replicate_succ, List.append_assoc]
 
-theorem prefix_splitFrom_fst (u : List Bool) (d : ℕ) : u <+: (splitFrom u d).1 := by
+private theorem prefix_splitFrom_fst (u : List Bool) (d : ℕ) : u <+: (splitFrom u d).1 := by
   rw [splitFrom_fst]
   exact List.prefix_append _ _
 
-theorem prefix_of_mem_splitFrom_snd {u w : List Bool} {d : ℕ} (hw : w ∈ (splitFrom u d).2) :
+private theorem prefix_of_mem_splitFrom_snd {u w : List Bool} {d : ℕ} (hw : w ∈ (splitFrom u d).2) :
     u <+: w := by
   obtain ⟨k, _, rfl⟩ := mem_splitFrom_snd_iff.mp hw
   rw [List.append_assoc]
   exact List.prefix_append _ _
 
-theorem length_mem_splitFrom_snd {u w : List Bool} {d : ℕ} (hw : w ∈ (splitFrom u d).2) :
+private theorem length_mem_splitFrom_snd {u w : List Bool} {d : ℕ} (hw : w ∈ (splitFrom u d).2) :
     u.length < w.length ∧ w.length ≤ u.length + d := by
   obtain ⟨k, hk, rfl⟩ := mem_splitFrom_snd_iff.mp hw
   simp only [List.length_append, List.length_replicate, List.length_singleton]
   omega
 
-theorem nodup_map_length_splitFrom_snd (u : List Bool) (d : ℕ) :
+private theorem nodup_map_length_splitFrom_snd (u : List Bool) (d : ℕ) :
     ((splitFrom u d).2.map List.length).Nodup := by
   induction d generalizing u with
   | zero => simp [splitFrom]
@@ -330,7 +330,7 @@ theorem nodup_map_length_splitFrom_snd (u : List Bool) (d : ℕ) :
     simp only [List.length_append, List.length_singleton] at hlt hlen
     omega
 
-theorem pairwise_prefixDisjoint_splitFrom (u : List Bool) (d : ℕ) :
+private theorem pairwise_prefixDisjoint_splitFrom (u : List Bool) (d : ℕ) :
     ((splitFrom u d).1 :: (splitFrom u d).2).Pairwise PrefixDisjoint := by
   induction d generalizing u with
   | zero => simp [splitFrom]
@@ -345,7 +345,7 @@ theorem pairwise_prefixDisjoint_splitFrom (u : List Bool) (d : ℕ) :
     · exact ((prefixDisjoint_append_false_true u).of_prefix_left
         (prefix_of_mem_splitFrom_snd hw)).symm
 
-theorem weight_splitFrom (u : List Bool) (d : ℕ) :
+private theorem weight_splitFrom (u : List Bool) (d : ℕ) :
     wordWeight (splitFrom u d).1 + listWeight (splitFrom u d).2 = wordWeight u := by
   induction d generalizing u with
   | zero => simp [splitFrom]

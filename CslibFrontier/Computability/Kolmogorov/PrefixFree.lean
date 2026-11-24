@@ -328,10 +328,6 @@ namespace DescriptionMethod
 @[expose] def haltingSet {α : Type*} (M : DescriptionMethod α) : Set (List Bool) :=
   {p | ∃ x, M.Produces p x}
 
-theorem mem_haltingSet_iff {α : Type*} {M : DescriptionMethod α} {p : List Bool} :
-    p ∈ M.haltingSet ↔ ∃ x, M.Produces p x :=
-  Iff.rfl
-
 /-- A description method is *prefix-free* when its halting set is prefix-free: no halting program
 is a prefix of a distinct halting program. -/
 @[expose] def IsPrefixFree {α : Type*} (M : DescriptionMethod α) : Prop :=
