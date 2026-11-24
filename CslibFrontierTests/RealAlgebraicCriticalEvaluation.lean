@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
@@ -531,5 +532,18 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     Fin.val_zero, List.getD_eq_getElem?_getD]
   rw [Finset.sum_const, Finset.card_range, two_nsmul, ← Nat.cast_pow, ← Nat.cast_add,
     ZMod.val_natCast]
+
+-- An out-of-range auxiliary address gives the same residue even with extra coordinates.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let CQ : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let rows := CQ.positivityEquations (n := fun _ : ℕ => 1) (fun _ => 1) (.const 1)
+    rows.evaluate ∈ CountingFunction 0 (encEvaluation (encPair encNat encNat)) encNat ∧
+      (rows.cutoff (w, 2) < p → rows.evaluate ((w, 2), p, z) = (-1 : ZMod p).val) := by
+  intro CQ rows
+  refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
+  rw [rows.evaluate_eq (w, 2) p z hp hcut, positivityEquation_of_le _ (by decide : 1 ≤ 2)]
+  simp [evaluation]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
