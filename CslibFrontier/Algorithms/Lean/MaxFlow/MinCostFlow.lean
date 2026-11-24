@@ -11,7 +11,9 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.Dinitz
 public import Mathlib.Algebra.Order.Monoid.Defs
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.Module.BigOperators
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Algebra.Order.Monoid.Unbundled.Pow
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Fintype.Pi
@@ -120,16 +122,7 @@ structure ResArc (V : Type*) where
   dst : V
   /-- `true` for a forward step `(src, dst)`; `false` for canceling reverse arc `(dst, src)`. -/
   isFwd : Bool
-
-instance instDecidableEqResArc {V : Type*} [DecidableEq V] : DecidableEq (ResArc V) :=
-  fun a b =>
-    if hs : a.src = b.src then
-      if hd : a.dst = b.dst then
-        if hb : a.isFwd = b.isFwd then
-          isTrue (by cases a; cases b; cases hs; cases hd; cases hb; rfl)
-        else isFalse (fun h => by cases h; exact hb rfl)
-      else isFalse (fun h => by cases h; exact hd rfl)
-    else isFalse (fun h => by cases h; exact hs rfl)
+  deriving @[expose] DecidableEq
 
 /-- A walk from `u` to `v` of `ResArc V` steps satisfying predicate `p`. -/
 private def IsArcWalk {V : Type*} (p : ResArc V → Prop) : V → V → List (ResArc V) → Prop
@@ -295,30 +288,6 @@ theorem Flow.pos_resCap_of_mem_isResCycle {f : M.Flow} {arcs : List (ResArc V)}
   | nil => exact h.elim
   | cons _ _ => exact pos_of_mem_isArcWalk ((isArcWalk_pos_resCap_iff f).mpr h.1) a ha
 
-private theorem foldl_min_le_init_arc {f : M.Flow} (as : List (ResArc V)) (init : ℕ) :
-    as.foldl (fun acc b => min acc (f.resCap b)) init ≤ init := by
-  induction as generalizing init with
-  | nil => exact le_rfl
-  | cons _ _ ih => exact le_trans (ih _) (Nat.min_le_left _ _)
-
-private theorem foldl_min_le_mem_arc {f : M.Flow} :
-    ∀ (as : List (ResArc V)) (init : ℕ) {a : ResArc V}, a ∈ as →
-      as.foldl (fun acc b => min acc (f.resCap b)) init ≤ f.resCap a
-  | [], _, _, ha => by simp at ha
-  | b :: bs, init, a, ha => by
-    rcases List.mem_cons.mp ha with rfl | ha'
-    · exact le_trans (foldl_min_le_init_arc bs _) (Nat.min_le_right _ _)
-    · exact foldl_min_le_mem_arc bs (min init (f.resCap b)) ha'
-
-private theorem foldl_min_pos_arc {f : M.Flow} :
-    ∀ (as : List (ResArc V)) (init : ℕ), 0 < init → (∀ a ∈ as, 0 < f.resCap a) →
-      0 < as.foldl (fun acc b => min acc (f.resCap b)) init
-  | [], _, hinit, _ => hinit
-  | b :: bs, init, hinit, hall =>
-    foldl_min_pos_arc bs (min init (f.resCap b))
-      (lt_min hinit (hall b List.mem_cons_self))
-      (fun a ha => hall a (List.mem_cons_of_mem b ha))
-
 theorem Flow.cycleBottleneck_le {f : M.Flow} :
     ∀ {arcs : List (ResArc V)} {a : ResArc V}, a ∈ arcs →
       f.cycleBottleneck arcs ≤ f.resCap a
@@ -326,16 +295,20 @@ theorem Flow.cycleBottleneck_le {f : M.Flow} :
   | x :: xs, a, ha => by
     unfold Flow.cycleBottleneck
     rcases List.mem_cons.mp ha with rfl | ha'
-    · exact foldl_min_le_init_arc xs (f.resCap a)
-    · exact foldl_min_le_mem_arc xs (f.resCap x) ha'
+    · exact foldl_min_le_init f.resCap xs (f.resCap a)
+    · exact foldl_min_le_mem f.resCap (f.resCap x) ha'
 
 theorem Flow.cycleBottleneck_pos {f : M.Flow} {arcs : List (ResArc V)}
     (hne : arcs ≠ []) (hpos : ∀ a ∈ arcs, 0 < f.resCap a) : 0 < f.cycleBottleneck arcs := by
   cases arcs with
   | nil => exact absurd rfl hne
   | cons x xs =>
-    exact foldl_min_pos_arc xs (f.resCap x) (hpos x List.mem_cons_self)
-      (fun a ha => hpos a (List.mem_cons_of_mem x ha))
+    change 0 < xs.foldl (fun acc b => min acc (f.resCap b)) (f.resCap x)
+    rcases foldl_min_eq_init_or_mem f.resCap xs (f.resCap x) with heq | ⟨a, ha, heq⟩
+    · rw [heq]
+      exact hpos x List.mem_cons_self
+    · rw [heq]
+      exact hpos a (List.mem_cons_of_mem x ha)
 
 private theorem sum_ite_mem_src [DecidableEq V] {arcs : List (ResArc V)} (hnodup : arcs.Nodup)
     (x : V) :
@@ -498,7 +471,7 @@ private theorem sum_resCost_ite [DecidableEq V] [AddCommGroup W] (M : CostNetwor
             (if a = z then c else 0) + (if z ∈ rest then (1 : ℕ) else 0) • c := by
         intro z c
         by_cases he : a = z
-        · subst he; simp [ha, one_nsmul]
+        · subst he; simp [ha]
         · have hmem : (z ∈ a :: rest) ↔ z ∈ rest := by simp [List.mem_cons, Ne.symm he]
           simp [he, hmem]
       rw [hadd ⟨u, v, true⟩ (M.cost u v), hadd ⟨v, u, false⟩ (M.cost u v)]
@@ -538,29 +511,6 @@ private theorem sum_resCost_ite [DecidableEq V] [AddCommGroup W] (M : CostNetwor
       have h2 := hzero ⟨s, d, true⟩ (fun u v => ⟨v, u, false⟩) fun _ _ h => by cases h
       simp only [h1, h2, sub_zero, resCost, ↓reduceIte]
 
-private theorem nsmul_neg_eq {W : Type*} [AddCommGroup W] (n : ℕ) (x : W) :
-    n • (-x) = -(n • x) := by
-  induction n with
-  | zero => simp
-  | succ n ih => rw [succ_nsmul, succ_nsmul, ih]; abel
-
-private theorem nsmul_sum_eq {α W : Type*} [AddCommGroup W] (n : ℕ) (s : Finset α)
-    (fn : α → W) : n • (∑ i ∈ s, fn i) = ∑ i ∈ s, n • fn i := by
-  induction s using Finset.cons_induction with
-  | empty => simp
-  | cons a s _ ih => rw [Finset.sum_cons, Finset.sum_cons, nsmul_add, ih]
-
-private theorem nsmul_neg_of_pos_neg {W : Type*} [AddCommGroup W] [LinearOrder W]
-    [IsOrderedAddMonoid W] {n : ℕ} {x : W} (hn : 0 < n) (hx : x < 0) : n • x < 0 := by
-  induction n with
-  | zero => exact absurd hn (Nat.lt_irrefl 0)
-  | succ n ih =>
-    cases n with
-    | zero => simpa [one_nsmul] using hx
-    | succ m =>
-      rw [succ_nsmul]
-      exact add_neg (ih (Nat.succ_pos m)) hx
-
 /-- Canceling `δ` units along a residual cycle `arcs` changes `totalCost` by `δ • M.walkCost arcs`.
 -/
 theorem Flow.totalCost_cancelCycle [DecidableEq V] [AddCommGroup W] (f : M.Flow)
@@ -583,7 +533,7 @@ theorem Flow.totalCost_cancelCycle [DecidableEq V] [AddCommGroup W] (f : M.Flow)
       abel
     · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ h2
       have heq : f u v - δ + δ = f u v := by omega
-      simp only [h1, h2, ↓reduceIte, add_zero, zero_nsmul, one_nsmul, zero_sub, nsmul_neg_eq]
+      simp only [h1, h2, ↓reduceIte, add_zero, zero_nsmul, one_nsmul, zero_sub, smul_neg]
       conv_lhs =>
         arg 2
         rw [← heq]
@@ -591,7 +541,7 @@ theorem Flow.totalCost_cancelCycle [DecidableEq V] [AddCommGroup W] (f : M.Flow)
       abel
     · simp [h1, h2]
   unfold Flow.totalCost
-  simp only [← Finset.sum_sub_distrib, hpt, ← nsmul_sum_eq]
+  simp only [← Finset.sum_sub_distrib, hpt, ← Finset.smul_sum]
   rw [sum_resCost_ite M arcs hnodup]
 
 theorem Flow.totalCost_cancelCycle_lt [DecidableEq V] [AddCommGroup W] [LinearOrder W]
@@ -599,7 +549,7 @@ theorem Flow.totalCost_cancelCycle_lt [DecidableEq V] [AddCommGroup W] [LinearOr
     {δ : ℕ} (hδ_pos : 0 < δ) (hδ : ∀ a ∈ arcs, δ ≤ f.resCap a) (hneg : M.walkCost arcs < 0) :
     (f.cancelCycle arcs hc δ hδ).totalCost < f.totalCost := by
   have heq := f.totalCost_cancelCycle hc hδ
-  have hsmul : δ • M.walkCost arcs < 0 := nsmul_neg_of_pos_neg hδ_pos hneg
+  have hsmul : δ • M.walkCost arcs < 0 := Right.nsmul_neg hδ_pos hneg
   exact sub_lt_zero.mp (heq ▸ hsmul)
 
 end CycleOps
@@ -610,28 +560,14 @@ section PotentialSufficiency
 
 variable {V : Type*} {W : Type*} [Fintype V] {M : CostNetwork V W}
 
-private theorem nsmul_sub_eq_zsmul {W : Type*} [AddCommGroup W] (n : ℕ) (x y : W) :
-    n • (x - y) = (n : ℤ) • x - (n : ℤ) • y := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [succ_nsmul, ih, Nat.cast_succ, add_zsmul, add_zsmul, one_zsmul, one_zsmul]
-    abel
-
-private theorem sum_zsmul_const {V W : Type*} [AddCommGroup W] (s : Finset V) (c : V → ℤ)
-    (x : W) : (∑ i ∈ s, c i • x) = (∑ i ∈ s, c i) • x := by
-  induction s using Finset.cons_induction with
-  | empty => simp
-  | cons a s _ ih => rw [Finset.sum_cons, Finset.sum_cons, ih, add_zsmul]
-
 private theorem sum_balance_smul_potential [AddCommGroup W] (f : M.Flow) (π : V → W) :
     (∑ u : V, ∑ v : V, f u v • (π u - π v)) = ∑ u : V, M.balance u • π u := by
-  simp only [nsmul_sub_eq_zsmul, Finset.sum_sub_distrib]
+  simp only [← natCast_zsmul, smul_sub, Finset.sum_sub_distrib]
   have hswap : (∑ u : V, ∑ v : V, (f u v : ℤ) • π v) = ∑ u : V, ∑ v : V, (f v u : ℤ) • π u :=
     Finset.sum_comm
   rw [hswap, ← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun u _ => ?_
-  rw [sum_zsmul_const, sum_zsmul_const, sub_eq_add_neg, ← neg_zsmul, ← add_zsmul,
+  rw [← Finset.sum_smul, ← Finset.sum_smul, sub_eq_add_neg, ← neg_zsmul, ← add_zsmul,
     ← sub_eq_add_neg, f.balance_eq u]
 
 /-- **Complementary slackness implies minimum cost** ([Klein1967], [Schrijver2003], Chapter 12,
@@ -654,7 +590,7 @@ theorem isMinCost_of_compSlackness [AddCommGroup W] [PartialOrder W] [IsOrderedA
       have heq : f u v = (f u v - g u v) + g u v := (Nat.sub_add_cancel hgt.le).symm
       rw [heq, add_nsmul]
       have hle0 : (f u v - g u v) • (M.cost u v + π u - π v) ≤ 0 := by
-        rwa [nsmul_neg_eq, neg_nonneg] at hsub
+        rwa [smul_neg, neg_nonneg] at hsub
       exact add_le_of_nonpos_left hle0
   have hsum : (∑ u : V, ∑ v : V, f u v • (M.cost u v + π u - π v)) ≤
       ∑ u : V, ∑ v : V, g u v • (M.cost u v + π u - π v) :=
