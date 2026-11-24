@@ -94,7 +94,7 @@ variable {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
 variable (cfg : Config V E) (w : E → W)
 
 /-- The exact minimum spanning forest subroutine of `cfg` is correct for the weights `w`. -/
-def Config.ExactMsf : Prop :=
+@[expose] def Config.ExactMsf : Prop :=
   ∀ (ends : E → Sym2 V) (S : Finset E),
     (cfg.msfSub ends S).eval (LEQuery.keyOracle w) = msf ends w S
 

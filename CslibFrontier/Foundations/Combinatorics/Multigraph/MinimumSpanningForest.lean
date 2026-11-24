@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Combinatorics.Multigraph
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Algebra.Order.Monoid.Defs
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
 # Minimum spanning forests of multigraphs
@@ -43,7 +44,8 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 
 * `Cslib.Multigraph.Joins`: `u` and `v` are joined by edges of `S`.
 * `Cslib.Multigraph.contract`: a vertex map identifying exactly the vertices joined by `C`.
-* `Cslib.Multigraph.support`: the non-isolated vertices of a set of edges.
+* `Cslib.Multigraph.support`: the non-isolated vertices of a set of edges; there are at most two per
+  edge (`Cslib.Multigraph.card_support_le`).
 * `Cslib.Multigraph.msf`: the minimum spanning forest of a finite set of edges.
 * `Cslib.Multigraph.Supported`, `Cslib.Multigraph.unsupported`: edges whose ends are joined by
   edges of `F` no heavier than them, and the edges of `S` that are not.
@@ -422,6 +424,18 @@ theorem support_filter_not_isDiag [DecidableEq V] (ends : E → Sym2 V) (S : Fin
   ext v
   simp only [mem_support, mem_filter]
   exact ⟨fun ⟨e, ⟨he, _⟩, h⟩ => ⟨e, he, h⟩, fun ⟨e, he, h⟩ => ⟨e, ⟨he, h.1⟩, h⟩⟩
+
+omit [LinearOrder W] in
+/-- A multigraph with `m` edges has at most `2 m` non-isolated vertices. -/
+theorem card_support_le (ends : E → Sym2 V) (S : Finset E) :
+    #(support ends S) ≤ 2 * #S := by
+  classical
+  have hsub : support ends S ⊆ S.biUnion fun e => (ends e).toFinset := fun v hv => by
+    obtain ⟨e, he, -, hv⟩ := mem_support.1 hv
+    exact mem_biUnion.2 ⟨e, he, Sym2.mem_toFinset.2 hv⟩
+  refine (card_le_card hsub).trans ((card_biUnion_le_card_mul S _ 2 fun e _ => ?_).trans_eq
+    (mul_comm _ _))
+  rw [Sym2.card_toFinset]; split <;> omega
 
 /-- Dropping the self-loops does not change the minimum spanning forest. -/
 theorem msf_filter_not_isDiag [DecidableEq V] (ends : E → Sym2 V) (S : Finset E) :

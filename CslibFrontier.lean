@@ -215,6 +215,7 @@ public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certific
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Procedure
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Schedule
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.State
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Linear
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.Boruvka
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.ChainMaxima
