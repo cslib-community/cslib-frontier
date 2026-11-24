@@ -23,6 +23,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
@@ -85,12 +86,9 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   formalizes the concrete Section 6.6.1 Method 1 composition (`prependLengthWord` followed by basic
   CBC-MAC) over `{0,1}^n` whole-block messages of `0` to `L n` blocks (including the `0`-block
   empty message, so the prepended chain has `1` to `L n + 1` blocks).
-* **Factor of `2` in the URF collision term.** [BonehShoup2023], Theorem 6.3, equation (6.7)
-  (printed p. 227) bounds the prefix-free URF-to-ideal gap by `(Q * ℓ) ^ 2 / (2 * |X|)`. Here
-  `advantage_cbcMac_le` and `advantage_lengthPrependedCbcMac_le` inherit the looser constant
-  `Q ^ 2 * (ℓ n) ^ 2 / 2 ^ n` (twice `(6.7)`) and `Q ^ 2 * (L n + 1) ^ 2 / 2 ^ n` from
-  `abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le` and
-  `abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le`.
+* **Random-function collision term.** `advantage_cbcMac_le` uses `Q ^ 2 * (ℓ n) ^ 2 /
+  (2 * 2 ^ n)`, as in [BonehShoup2023], Theorem 6.3, equation (6.7) (printed p. 227). The
+  length-prepended specialization uses `Q ^ 2 * (L n + 1) ^ 2 / 2 ^ n`.
 * **Uniform strict oracle-PPT adversaries and flat bit-word messages.** Following the asymptotic
   reading of [BonehShoup2023], Sections 2.3 and 4.4.5, adversaries are uniform strict `IsOraclePPT`
   programs over `List Bool` with `n`-bit keys and blocks (`|X| = 2 ^ n`), and queries outside the
@@ -1264,7 +1262,7 @@ Theorem 6.3, printed pp. 226–229): for any length-preserving `family`, block-c
 distinguisher `adversary` that at parameter `n` makes at most `Q` queries and is prefix-free on
 `cbcBlockValid ℓ n`, the domain-restricted PRF advantage of `cbcMacFamily family` is at most the
 length-preserving PRF advantage of `cbcMacToPrfDistinguisher ℓ adversary` plus
-`Q ^ 2 * (ℓ n) ^ 2 / 2 ^ n` (twice equation `(6.7)`'s `(Q * ℓ) ^ 2 / (2 * |X|)`). -/
+`Q ^ 2 * (ℓ n) ^ 2 / (2 * 2 ^ n)` (equation (6.7) with `|X| = 2 ^ n`). -/
 theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
       (family key query).length = key.length)
@@ -1277,7 +1275,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
       Game.advantage
         (ProbComp.eval (prfRealGame id family (cbcMacToPrfDistinguisher ℓ adversary) n))
         (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n)) +
-      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / 2 ^ n := by
+      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · have hfalse : cbcBlockValid ℓ 0 = fun _ => false := by
       funext msg
@@ -1300,7 +1298,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
     have hidealLe : Game.advantage
         (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n))
         (ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n)) ≤
-      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / 2 ^ n := by
+      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
       let codec := cbcInputCodec n (ℓ n) hn
       let P := codec.adapt (adversary n [])
       let D : PMF (OracleComp (CBCOracleSpec n (ℓ n)) Bool) :=
@@ -1466,7 +1464,15 @@ theorem PseudorandomFunction.prefixFreePRF_cbcMac {family : List Bool → List B
       simpa only [Q, List.length_nil, Nat.add_zero] using (hbounds n []).1
     have hprf := hF.secure (cbcMacToPrfDistinguisher ℓ adversary)
       (isOraclePPT_cbcMacToPrfDistinguisher hℓ hadversary)
-    negligible using fun n => advantage_cbcMac_le hF.length_eq ℓ adversary (hQ n) (hpf n)
+    have hQpoly : PolynomiallyBounded Q :=
+      (PolynomiallyBounded.const c).mul ((PolynomiallyBounded.id.add (.const 2)).pow d)
+    have hCBC := Negligible.polynomiallyBounded_div
+      ((hQpoly.pow 2).mul (hℓ.polynomiallyBounded.pow 2))
+      (negligible_inv_two_pow_comp_of_le Nat.le_succ)
+    apply negligible_of_le (hprf.add hCBC)
+    intro n
+    simpa only [Pi.add_apply, Nat.cast_mul, Nat.cast_pow, pow_succ'] using
+      advantage_cbcMac_le hF.length_eq ℓ adversary (hQ n) (hpf n)
 
 /-- **Variable-length length-prepended CBC-MAC is a pseudorandom function** ([BonehShoup2023],
 Section 6.4.1 Theorem 6.3, pp. 226–229, and Section 6.6.1 Method 1 via Section 6.6 Theorem 6.8,
@@ -2556,7 +2562,9 @@ theorem succProbability_sufCmaGame_cbcFixedBlockMAC_le (ℓ : ℕ → ℕ)
     (restrictLengthDistinguisher (fun m => ℓ m * m) M) hMRestQ hMRestPf
   rw [Nat.cast_add, Nat.cast_one] at hprf
   rw [hrealEq, hidealEq] at hmac
-  exact hmac.trans (add_le_add hprf le_rfl)
+  refine hmac.trans (add_le_add (hprf.trans (add_le_add le_rfl ?_)) le_rfl)
+  exact div_le_div_of_nonneg_left (by positivity) (by positivity)
+    (le_mul_of_one_le_left (by positivity) one_le_two)
 
 /-- **Fixed-block-count basic CBC-MAC is `SUFCMA`-secure** ([BonehShoup2023], Section 6.3 Theorem
 6.2 and Section 6.4.1 Theorem 6.3, printed pp. 224 and 226–229, specialized to fixed positive block

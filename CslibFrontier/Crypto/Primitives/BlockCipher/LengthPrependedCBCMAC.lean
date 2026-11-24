@@ -280,5 +280,6 @@ theorem abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSucces
         (hD T ((PMF.mem_support_iff _ _).mp hT)) oracle
       exact ⟨cbcPrefixFree_of_forall_mem_range he hrange, hlength⟩
   push_cast at h
-  exact h
+  refine h.trans (div_le_div_of_nonneg_left (by positivity) (by positivity) ?_)
+  exact le_mul_of_one_le_left (by positivity) one_le_two
 end Cslib.Crypto

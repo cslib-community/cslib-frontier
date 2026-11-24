@@ -422,8 +422,8 @@ example {family : List Bool → List Bool → List Bool}
         (ProbComp.eval
           (prfIdealGame id id
             (cbcMacToPrfDistinguisher (fun _ => 2) adaptivePrefixFreeAdv) 16)) +
-      (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / 2 ^ 16 ∧
-    (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / 2 ^ 16 < 1 :=
+      (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / (2 * 2 ^ 16) ∧
+    (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / (2 * 2 ^ 16) < 1 :=
   ⟨advantage_cbcMac_le hlen (fun _ => 2) adaptivePrefixFreeAdv
       (isQueryBounded_adaptivePrefixFreeAdv 16)
       (isPrefixFreeOn_adaptivePrefixFreeAdv 16),

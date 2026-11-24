@@ -198,7 +198,7 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) emptyWordBatch n) ≤
     Game.advantage (ProbComp.eval (prfRealGame id family reduction n))
       (ProbComp.eval (prfIdealGame id id reduction n)) +
-      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / 2 ^ n + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ n := by
+      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / (2 * 2 ^ n) + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ n := by
   dsimp only
   refine succProbability_multiQueryGame_cbcMac_le hF.length_eq (fun _ => 4) (fun _ => 2)
     emptyWordBatch ?_

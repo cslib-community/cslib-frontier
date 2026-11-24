@@ -38,9 +38,9 @@ register_result "cbc-mac-prefix-free-prf" where
     words and invalid queries to [], no valid query in a run is a proper prefix of another; \
     repeated identical valid queries are permitted). The reduction cbcMacToPrfDistinguisher is \
     certified oracle PPT (isOraclePPT_cbcMacToPrfDistinguisher). Concrete bound: \
-    advantage_cbcMac_le gives Adv ≤ PRFadv[cbcMacToPrfDistinguisher ℓ A, F] + Q² ℓ(n)² / 2^n \
+    advantage_cbcMac_le gives Adv ≤ PRFadv[cbcMacToPrfDistinguisher ℓ A, F] + Q² ℓ(n)² / (2 * 2^n) \
     at parameter n for any distinguisher making at most Q queries and satisfying \
-    IsPrefixFreeOn (cbcBlockValid ℓ n) n, carrying twice equation (6.7)'s (Q ℓ)² / (2 |X|) \
+    IsPrefixFreeOn (cbcBlockValid ℓ n) n, using equation (6.7)'s (Q ℓ)² / (2 |X|) \
     collision constant from abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le."
 
 register_result "cbc-mac-fixed-block-prf-and-mac" where
