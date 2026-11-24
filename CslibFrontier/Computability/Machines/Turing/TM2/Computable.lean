@@ -165,7 +165,7 @@ private theorem readDigits_halt (c : ToPartrec.Code) (n : ℕ)
     (cfg : TM2.Cfg (fun _ : K' => Γ') (Label c) (Option Γ'))
     (h : cfg.mapLabel Subtype.val = halt [n]) : readDigits c cfg = n.bits := by
   have hstk : cfg.stk K'.main = trList [n] := by
-    simpa [halt] using congrFun (congrArg TM2.Cfg.stk h) K'.main
+    simpa [halt, TM2.Cfg.mapLabel] using congrFun (congrArg TM2.Cfg.stk h) K'.main
   rw [readDigits, hstk, trList, trList, trNat_eq_map_bits]
   simp only [List.filter_append, List.map_append, List.filter_map,
     List.map_map]

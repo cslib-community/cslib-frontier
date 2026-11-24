@@ -39,6 +39,8 @@ and the support hypothesis is used only to show that a run is unchanged
   list on the main stack.
 * `Turing.PartrecToTM2.trNat_eq_map_bits`: the stack encoding of a number lists its binary digits,
   least significant first.
+* `Turing.PartrecToTM2.primrec_trNat`, `Turing.PartrecToTM2.primrec_bits`: the stack encoding of
+  numbers and their binary digits `Nat.bits` are primitive recursive.
 -/
 
 public section
@@ -63,19 +65,10 @@ variable {K : Type*} {Γ : K → Type*} {Λ Λ₂ σ : Type*}
 @[expose] def Cfg.mapLabel (f : Λ → Λ₂) (c : Cfg Γ Λ σ) : Cfg Γ Λ₂ σ :=
   ⟨c.l.map f, c.var, c.stk⟩
 
-@[simp] theorem Cfg.mapLabel_l (f : Λ → Λ₂) (c : Cfg Γ Λ σ) : (c.mapLabel f).l = c.l.map f :=
-  rfl
-
-@[simp] theorem Cfg.mapLabel_var (f : Λ → Λ₂) (c : Cfg Γ Λ σ) : (c.mapLabel f).var = c.var :=
-  rfl
-
-@[simp] theorem Cfg.mapLabel_stk (f : Λ → Λ₂) (c : Cfg Γ Λ σ) : (c.mapLabel f).stk = c.stk :=
-  rfl
-
 variable [DecidableEq K]
 
 /-- Executing a renamed statement renames the label reached. -/
-theorem stepAux_mapLabel (f : Λ → Λ₂) (q : Stmt Γ Λ σ) (v : σ) (S : ∀ k, List (Γ k)) :
+private theorem stepAux_mapLabel (f : Λ → Λ₂) (q : Stmt Γ Λ σ) (v : σ) (S : ∀ k, List (Γ k)) :
     stepAux (q.mapLabel f) v S = (stepAux q v S).mapLabel f := by
   induction q generalizing v S with
   | push _ _ _ ih => exact ih _ _
@@ -97,7 +90,7 @@ variable [DecidableEq Λ] {M : Λ → Stmt Γ Λ σ} {S : Finset Λ}
   fun l => (M l).mapLabel fun l' => if h : l' ∈ S then ⟨l', h⟩ else d
 
 /-- On a configuration in `S`, a step of the restricted program is a step of the program. -/
-theorem step_restrict (hS : ∀ q ∈ S, SupportsStmt S (M q)) (d : S) (c : Cfg Γ S σ) :
+private theorem step_restrict (hS : ∀ q ∈ S, SupportsStmt S (M q)) (d : S) (c : Cfg Γ S σ) :
     (step (restrict M S d) c).map (Cfg.mapLabel Subtype.val) =
       step M (c.mapLabel Subtype.val) := by
   rcases c with ⟨_ | l, v, T⟩
@@ -136,7 +129,7 @@ instance fintypeK' : Fintype K' :=
   ⟨⟨{K'.main, K'.rev, K'.aux, K'.stack}, by decide⟩, fun k => by cases k <;> decide⟩
 
 /-- The binary stack encoding of a positive number starts with its lowest digit. -/
-theorem trNat_eq (n : ℕ) :
+private theorem trNat_eq (n : ℕ) :
     trNat n = if n = 0 then [] else (if n.bodd then Γ'.bit1 else Γ'.bit0) :: trNat n.div2 := by
   split_ifs with hn hb
   · rw [hn, trNat_zero]
