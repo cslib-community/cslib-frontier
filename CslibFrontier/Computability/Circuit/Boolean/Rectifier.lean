@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.Unbounded
+public import CslibFrontier.Computability.Circuit.Rectifier.Basic
 public import CslibFrontier.Computability.Circuit.Simulation
 public import CslibFrontier.Foundations.Data.BitString.Basic
 public import Mathlib.Algebra.Order.Floor.Div
@@ -20,17 +21,45 @@ import Mathlib.Data.Fintype.EquivFin
 
 A Boolean matrix with `p` rows and `q` columns specifies a map from `p` input bits to `q`
 output bits: output `j` is the disjunction of those inputs `i` for which `A i j` is true.
-This is the input-to-output reachability convention of [Lupanov, §2][Lupanov1956].
+Rows index input poles and columns index output poles, as in the matrix `αᵢⱼ = (aᵢ, bⱼ)`
+implemented by a rectifier `(p, q)`-circuit in [Lupanov, section 2°][Lupanov1956].
 
-Rectifier circuits use the native `Circuit` syntax with only disjunction gates. An operation
-is its arity, and `Program.cost id` counts wires, including wires entering output gates.
-Output pointers themselves are free. A nullary disjunction is an output with no incoming path.
-The signature embeds into the existing unbounded Boolean basis through `toUnbounded`.
+## The circuit model and its relation to `RectifierCircuit`
 
-The row-pattern construction groups inputs with identical matrix rows. Its first layer has
-one gate for every row pattern; its second layer sends each pattern to the columns in its
-support. It has depth at most two and exactly `p + q * 2 ^ (q - 1)` wires. Empty row classes
-are permitted and contribute no first-layer wires.
+The library's rectifier circuits are the directed graphs `Cslib.Circuits.RectifierCircuit`, with
+the measures `Cslib.Circuits.orComplexity` and `Cslib.Circuits.orDepthComplexity`. This file uses
+a second model, the native `Circuit` syntax over a signature with only disjunction gates,
+because a syntactic circuit can also be evaluated under other interpretations of its gates and
+translated gate by gate into other bases, which a reachability graph does not support. An
+operation is its arity, and `Program.cost id` counts wires, including wires entering output
+gates. Output pointers themselves are free. A nullary disjunction is an output with no incoming
+path.
+
+`IsTwoLayer` singles out the compositions of two matrix layers. Such a circuit is a graph on
+the `p` inputs, its inner gates and `q` distinct output gates, with one edge for each wire, from
+an input to an inner gate or from an inner gate to an output. No chain joins two inputs or two
+outputs or leads from an output to an input, and no chain has more than two edges, so it is a
+rectifier `(p, q)`-circuit of rank at most two in the sense of [Lupanov1956], section 2°. A
+two-layer circuit with `w` wires that computes `matrixAction A` therefore shows `B₂(A) ≤ w` for
+Lupanov's measure `B₂`.
+
+The two models use transposed conventions: `RectifierCircuit.Computes` indexes rows by outputs
+and columns by inputs, so the matrix `A` of this file is `Aᵀ` there.
+`IsTwoLayer.orDepthComplexity_two_le` turns a two-layer circuit with `w` wires into
+`orDepthComplexity 2 Aᵀ ≤ w`. That bound is weaker than `B₂(A) ≤ w`. A `(p, q)`-circuit of rank
+at most two contains a `RectifierCircuit` of depth two for the same matrix (keep one chain for
+each true entry), so `orDepthComplexity 2 Aᵀ ≤ B₂(A)`. The inequality can be strict, because a
+`RectifierCircuit` may have edges into input poles and out of output poles, which the conditions
+on a `(p, q)`-circuit exclude: for the all-true matrix with two inputs and three outputs, the
+four edges `a₁ → a₂` and `a₂ → b₁, b₂, b₃` form a `RectifierCircuit` of depth two, while a
+`(2, 3)`-circuit needs five rectifiers. The measure `B₂` itself is not defined in the library.
+
+## The row-pattern construction
+
+The construction groups inputs with identical matrix rows. Its first layer has one gate for
+every row pattern; its second layer sends each pattern to the columns in its support. It has
+exactly `p + q * 2 ^ (q - 1)` wires. Empty row classes are permitted and contribute no
+first-layer wires.
 
 ## Main definitions
 
@@ -44,13 +73,18 @@ are permitted and contribute no first-layer wires.
 ## Main results
 
 * `Cslib.Circuits.Boolean.Rectifier.exists_depth_two`: Lupanov's finite row-pattern bound.
-* `Cslib.Circuits.Boolean.Rectifier.exists_depth_two_blocked`: the bound after splitting the
-  columns into blocks of a freely chosen positive width.
+* `Cslib.Circuits.Boolean.Rectifier.exists_depth_two_blocked_exact`: the wire count after
+  splitting the columns into blocks of a freely chosen positive width.
+* `Cslib.Circuits.Boolean.Rectifier.IsTwoLayer.orDepthComplexity_two_le`: a two-layer circuit
+  bounds `orDepthComplexity 2` of the transposed matrix by its wire count.
+* `Cslib.Circuits.orDepthComplexity_two_le_add_mul_two_pow`: the row-pattern bound for
+  `orDepthComplexity 2`, a weaker statement than Lupanov's.
 
 ## References
 
 * [O. B. Lupanov, *On rectifier and switching-and-rectifier circuits*][Lupanov1956],
-  §2, the unnamed lemma, pp. 1171–1172 (English translation, pp. 2–3).
+  section 2°: the definition of a `(p, q)`-circuit and the unnumbered Lemma (English
+  translation, PDF pp. 1–2).
 -/
 
 public section
@@ -58,6 +92,7 @@ public section
 namespace Cslib.Circuits.Boolean.Rectifier
 
 open Finset
+open scoped Matrix
 
 /-- The pure disjunction signature: the operation `m` is disjunction of `m` arguments. -/
 abbrev signature : Signature where
@@ -67,14 +102,6 @@ abbrev signature : Signature where
 /-- The Boolean meaning of a rectifier gate. The nullary gate is `false`. -/
 @[expose] def interpretation : Interpretation signature Bool :=
   fun m => Unbounded.interpretation (.or m)
-
-/-- The arity-preserving inclusion of rectifier gates into the unbounded Boolean basis. -/
-@[expose] def toUnbounded : signature.Hom Unbounded.signature :=
-  ⟨Unbounded.Op.or, fun _ => rfl⟩
-
-/-- The inclusion into the unbounded Boolean basis preserves gate meanings. -/
-instance : toUnbounded.Preserves interpretation Unbounded.interpretation where
-  interpret_eq _ _ := rfl
 
 variable {p q : ℕ}
 
@@ -117,7 +144,10 @@ theorem depth_layer_le (A : Matrix (Fin p) (Fin q) Bool) : (layer A).depth ≤ 1
 
 /-- A rectifier realization by two matrix layers. Every output has its own terminal gate,
 and every wire belongs to one of the two layers. This excludes free aliases among outputs or
-between an input and an output, which would not be distinct poles in the source model. -/
+between an input and an output, which would not be distinct poles in the source model. With
+the wires as edges, from inputs to inner gates and from inner gates to outputs, the circuit is a
+rectifier `(p, q)`-circuit of rank at most two in the sense of [Lupanov1956], section 2°;
+`IsTwoLayer.orDepthComplexity_two_le` builds the corresponding `RectifierCircuit`. -/
 @[expose] def IsTwoLayer (c : Circuit signature p q) : Prop :=
   ∃ (k : ℕ) (inputs : Matrix (Fin p) (Fin k) Bool) (outputs : Matrix (Fin k) (Fin q) Bool),
     c = (layer outputs).comp (layer inputs)
@@ -127,6 +157,94 @@ theorem IsTwoLayer.depth_le {c : Circuit signature p q} (hc : IsTwoLayer c) : c.
   obtain ⟨k, inputs, outputs, rfl⟩ := hc
   exact (Circuit.depth_comp_le _ _).trans
     (Nat.add_le_add (depth_layer_le _) (depth_layer_le _))
+
+/-! ### Comparison with the rectifier-graph model -/
+
+/-- The rectifier graph of two matrix layers: the `p` input poles, `k` inner vertices and the `q`
+output poles, with one edge for each true entry of either matrix. -/
+private def twoLayerGraph {k : ℕ} (inputs : Matrix (Fin p) (Fin k) Bool)
+    (outputs : Matrix (Fin k) (Fin q) Bool) :
+    RectifierCircuit (Fin q) (Fin p) (Fin p ⊕ Fin k ⊕ Fin q) where
+  edges :=
+    (univ.filter fun e : Fin k × Fin p => inputs e.2 e.1 = true).image
+        (fun e => (Sum.inl e.2, Sum.inr (Sum.inl e.1))) ∪
+      (univ.filter fun e : Fin q × Fin k => outputs e.2 e.1 = true).image
+        (fun e => (Sum.inr (Sum.inl e.2), Sum.inr (Sum.inr e.1)))
+  inp := Function.Embedding.inl
+  out := Function.Embedding.inr.trans Function.Embedding.inr
+  disjoint_poles := by
+    refine Set.disjoint_iff_forall_ne.mpr ?_
+    rintro _ ⟨i, rfl⟩ _ ⟨j, rfl⟩ h
+    nomatch h
+
+private theorem mem_edges_twoLayerGraph {k : ℕ} {inputs : Matrix (Fin p) (Fin k) Bool}
+    {outputs : Matrix (Fin k) (Fin q) Bool} {u v : Fin p ⊕ Fin k ⊕ Fin q} :
+    (u, v) ∈ (twoLayerGraph inputs outputs).edges ↔
+      (∃ m i, inputs i m = true ∧ Sum.inl i = u ∧ Sum.inr (Sum.inl m) = v) ∨
+        ∃ j m, outputs m j = true ∧ Sum.inr (Sum.inl m) = u ∧ Sum.inr (Sum.inr j) = v := by
+  simp only [twoLayerGraph, mem_union, mem_image, mem_filter, mem_univ, true_and, Prod.exists,
+    Prod.mk.injEq]
+
+private theorem size_twoLayerGraph_le {k : ℕ} (inputs : Matrix (Fin p) (Fin k) Bool)
+    (outputs : Matrix (Fin k) (Fin q) Bool) :
+    (twoLayerGraph inputs outputs).size ≤
+      ((layer outputs).comp (layer inputs)).program.cost id := by
+  rw [Circuit.cost_program_comp, cost_layer, cost_layer]
+  refine (card_union_le _ _).trans (Nat.add_le_add ?_ ?_)
+  · exact card_image_le.trans (boolMatrixWeight_eq_sum_row inputsᵀ).le
+  · exact card_image_le.trans (boolMatrixWeight_eq_sum_row outputsᵀ).le
+
+private theorem hasDepthLE_two_twoLayerGraph {k : ℕ} (inputs : Matrix (Fin p) (Fin k) Bool)
+    (outputs : Matrix (Fin k) (Fin q) Bool) : (twoLayerGraph inputs outputs).HasDepthLE 2 := by
+  refine RectifierCircuit.hasDepthLE_of_layer
+    (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) fun _ => 2)) ?_ ?_
+  · intro u v h
+    rcases mem_edges_twoLayerGraph.mp h with ⟨m, i, -, rfl, rfl⟩ | ⟨j, m, -, rfl, rfl⟩ <;> rfl
+  · rintro (i | m | j) <;> simp
+
+private theorem computes_twoLayerGraph {k : ℕ} {inputs : Matrix (Fin p) (Fin k) Bool}
+    {outputs : Matrix (Fin k) (Fin q) Bool} {A : Matrix (Fin p) (Fin q) Bool}
+    (hA : ∀ i j, A i j = true ↔ ∃ m, outputs m j = true ∧ inputs i m = true) :
+    (twoLayerGraph inputs outputs).Computes Aᵀ := by
+  intro j i
+  rw [Matrix.transpose_apply, hA]
+  constructor
+  · rintro ⟨m, ho, hi⟩
+    exact ⟨.cons (mem_edges_twoLayerGraph.mpr (.inl ⟨m, i, hi, rfl, rfl⟩))
+      (.cons (mem_edges_twoLayerGraph.mpr (.inr ⟨j, m, ho, rfl, rfl⟩)) (.nil _))⟩
+  · rintro ⟨w⟩
+    obtain ⟨v, he, ⟨w⟩⟩ := w.uncons (fun h => by nomatch h)
+    rcases mem_edges_twoLayerGraph.mp he with ⟨m, i', hi, hu, rfl⟩ | ⟨_, _, -, hu, -⟩
+    swap
+    · nomatch hu
+    cases hu
+    obtain ⟨v, he, ⟨w⟩⟩ := w.uncons (fun h => by nomatch h)
+    rcases mem_edges_twoLayerGraph.mp he with ⟨_, _, -, hu, -⟩ | ⟨j', m', ho, hu, rfl⟩
+    · nomatch hu
+    cases hu
+    by_cases hj : j' = j
+    · exact ⟨m, hj ▸ ho, hi⟩
+    · obtain ⟨v, he, -⟩ := w.uncons (fun h => hj (Sum.inr.inj (Sum.inr.inj h)))
+      rcases mem_edges_twoLayerGraph.mp he with ⟨_, _, -, hu, -⟩ | ⟨_, _, -, hu, -⟩ <;>
+        nomatch hu
+
+/-- **Two matrix layers as a rectifier graph.** If a two-layer circuit computes the action of
+`A`, then the depth-two rectifier complexity of the transpose `Aᵀ`, in the graph model
+`Cslib.Circuits.RectifierCircuit`, is at most its number of wires. The transpose appears because
+rows index inputs here and outputs there. The graph has the inputs, the inner gates and the
+output gates as vertices and the wires as edges. -/
+theorem IsTwoLayer.orDepthComplexity_two_le {c : Circuit signature p q} (hc : IsTwoLayer c)
+    {A : Matrix (Fin p) (Fin q) Bool} (hA : c.Computes interpretation (matrixAction A)) :
+    orDepthComplexity 2 Aᵀ ≤ (c.program.cost id : ℕ∞) := by
+  obtain ⟨k, inputs, outputs, rfl⟩ := hc
+  have h (i : Fin p) (j : Fin q) :
+      A i j = true ↔ ∃ m, outputs m j = true ∧ inputs i m = true := by
+    have hx := congrFun (hA fun i' => decide (i' = i)) j
+    rw [Circuit.eval_comp, eval_layer, eval_layer] at hx
+    simp only [matrixAction, decide_eq_true_eq, exists_eq_right, decide_eq_decide] at hx
+    exact hx.symm
+  exact ((computes_twoLayerGraph h).orDepthComplexity_le (hasDepthLE_two_twoLayerGraph _ _)).trans
+    (Nat.cast_le.mpr (size_twoLayerGraph_le _ _))
 
 private def rowClasses (A : Matrix (Fin p) (Fin q) Bool) :
     Matrix (Fin p) (Fin (2 ^ q)) Bool :=
@@ -185,21 +303,20 @@ theorem cost_rowPatternCircuit (A : Matrix (Fin p) (Fin q) Bool) :
   rw [rowPatternCircuit, Circuit.cost_program_comp, cost_rowClasses, cost_layer]
   simp only [card_patterns, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
 
-/-- The row-pattern construction has depth at most two. -/
-theorem depth_rowPatternCircuit_le (A : Matrix (Fin p) (Fin q) Bool) :
-    (rowPatternCircuit A).depth ≤ 2 :=
-  (isTwoLayer_rowPatternCircuit A).depth_le
-
-/-- **Lupanov's row-pattern bound** [Lupanov1956, §2, unnamed lemma, pp. 1171–1172]: every
-Boolean `p × q` matrix has a rectifier circuit of depth at most two using at most
-`p + q * 2 ^ (q - 1)` wires. The matrix convention is `p` inputs and `q` outputs. Both dimensions
-may be zero; nullary disjunctions represent outputs with no incoming paths. -/
+/-- **Lupanov's row-pattern bound** ([Lupanov1956], section 2°, the unnumbered Lemma
+`B₂(p, q) ≤ p + q · 2^(q−1)`; English translation, PDF p. 2): every Boolean matrix with `p`
+input rows and `q` output columns is computed by a two-layer rectifier circuit with at most
+`p + q * 2 ^ (q - 1)` wires. A two-layer circuit has edges only from inputs to inner gates and
+from inner gates to distinct output gates, so it is a `(p, q)`-circuit of rank at most two in
+Lupanov's sense and the statement bounds his `B₂`; its native depth is at most two by
+`IsTwoLayer.depth_le`. Both dimensions may be zero; nullary disjunctions represent outputs with
+no incoming paths. -/
 theorem exists_depth_two (A : Matrix (Fin p) (Fin q) Bool) :
     ∃ c : Circuit signature p q,
-      IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧ c.depth ≤ 2 ∧
+      IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧
         c.program.cost id ≤ p + q * 2 ^ (q - 1) :=
   ⟨rowPatternCircuit A, isTwoLayer_rowPatternCircuit A, eval_rowPatternCircuit A,
-    depth_rowPatternCircuit_le A, (cost_rowPatternCircuit A).le⟩
+    (cost_rowPatternCircuit A).le⟩
 
 private def blockSlice {b s : ℕ} (A : Matrix (Fin p) (Fin (b * s)) Bool) (t : Fin b) :
     Matrix (Fin p) (Fin s) Bool :=
@@ -288,40 +405,47 @@ private theorem isTwoLayer_blockCircuit {b s : ℕ}
     IsTwoLayer (blockCircuit A select) :=
   ⟨b * 2 ^ s, blockClasses A, (blockPatterns b s).submatrix id select, rfl⟩
 
-/-- Block synthesis with no wires to the padded columns: `⌈q / s⌉ * p` wires enter the row
-classes and `q * 2 ^ (s - 1)` wires enter the original outputs. This strengthens the uniform
-block budget in Lupanov's construction by omitting unused terminal gates. -/
+/-- Block synthesis, the finite construction behind the upper bound of [Lupanov1956],
+section 2°, Theorem 1 (proof, part 1; English translation, PDF p. 3). Splitting the `q` columns
+into `⌈q / s⌉` blocks of width `s`, the last one padded with zero columns, and applying the
+row-pattern construction to each block gives a two-layer circuit in which `⌈q / s⌉ * p` wires
+enter the row classes and `q * 2 ^ (s - 1)` wires enter the outputs. No wire enters a padded
+column, so the count is at most `⌈q / s⌉ * (p + s * 2 ^ (s - 1))`, which is at most the
+source's `(⌊q / s⌋ + 1) * (p + s * 2 ^ (s - 1))`. As for `exists_depth_two`, the witness is a
+`(p, q)`-circuit of rank at most two in Lupanov's sense. -/
 theorem exists_depth_two_blocked_exact (A : Matrix (Fin p) (Fin q) Bool) {s : ℕ} (hs : 0 < s) :
     ∃ c : Circuit signature p q,
-      IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧ c.depth ≤ 2 ∧
+      IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧
         c.program.cost id = (q ⌈/⌉ s) * p + q * 2 ^ (s - 1) := by
   have hq : q ≤ (q ⌈/⌉ s) * s := by
     simpa only [smul_eq_mul, Nat.mul_comm] using (le_smul_ceilDiv hs : q ≤ s • (q ⌈/⌉ s))
   let padded : Matrix (Fin p) (Fin ((q ⌈/⌉ s) * s)) Bool :=
     Matrix.of fun i j => if h : j.val < q then A i ⟨j.val, h⟩ else false
   refine ⟨blockCircuit padded (Fin.castLE hq), isTwoLayer_blockCircuit _ _, ?_,
-    (isTwoLayer_blockCircuit _ _).depth_le, cost_blockCircuit _ _⟩
+    cost_blockCircuit _ _⟩
   intro x
   rw [eval_blockCircuit]
   funext j
   simp only [matrixAction, padded, Matrix.of_apply, Fin.val_castLE, j.isLt, dite_true]
 
-/-- The finite block construction underlying [Lupanov1956, §2, Theorem 1, p. 1172]. Splitting
-the `q` columns into `⌈q / s⌉` blocks and applying the row-pattern construction to each block
-gives a depth-two rectifier circuit with at most `⌈q / s⌉ * (p + s * 2 ^ (s - 1))` wires.
-The last block is padded with zero columns. This is the finite construction used in the
-asymptotic theorem; the statement makes no asymptotic or optimality claim. -/
-theorem exists_depth_two_blocked (A : Matrix (Fin p) (Fin q) Bool) {s : ℕ} (hs : 0 < s) :
-    ∃ c : Circuit signature p q,
-      IsTwoLayer c ∧ c.Computes interpretation (matrixAction A) ∧ c.depth ≤ 2 ∧
-        c.program.cost id ≤ (q ⌈/⌉ s) * (p + s * 2 ^ (s - 1)) := by
-  obtain ⟨c, hl, hc, hd, hw⟩ := exists_depth_two_blocked_exact A hs
-  refine ⟨c, hl, hc, hd, ?_⟩
-  rw [hw, Nat.mul_add, ← Nat.mul_assoc]
-  apply Nat.add_le_add_left
-  apply Nat.mul_le_mul_right
-  have hq : q ≤ (q ⌈/⌉ s) * s := by
-    simpa only [smul_eq_mul, Nat.mul_comm] using (le_smul_ceilDiv hs : q ≤ s • (q ⌈/⌉ s))
-  exact hq
-
 end Cslib.Circuits.Boolean.Rectifier
+
+namespace Cslib.Circuits
+
+open Boolean.Rectifier
+open scoped Matrix
+
+/-- The row-pattern bound for the library's graph measure. This is a weaker statement than the
+Lemma of [Lupanov1956], section 2°, and is not that result: a `RectifierCircuit` may have edges
+into input poles and out of output poles, which a `(p, q)`-circuit may not, so a bound on
+`orDepthComplexity 2` does not bound Lupanov's `B₂`. The cited bound is
+`Cslib.Circuits.Boolean.Rectifier.exists_depth_two`.
+
+A matrix with `q` output rows and `p` input columns, the convention of
+`RectifierCircuit.Computes`, has depth-two rectifier complexity at most `p + q * 2 ^ (q - 1)`. -/
+theorem orDepthComplexity_two_le_add_mul_two_pow {p q : ℕ} (A : Matrix (Fin q) (Fin p) Bool) :
+    orDepthComplexity 2 A ≤ ((p + q * 2 ^ (q - 1) : ℕ) : ℕ∞) :=
+  ((isTwoLayer_rowPatternCircuit Aᵀ).orDepthComplexity_two_le (eval_rowPatternCircuit Aᵀ)).trans
+    (Nat.cast_le.mpr (cost_rowPatternCircuit Aᵀ).le)
+
+end Cslib.Circuits
