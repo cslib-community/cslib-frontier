@@ -38,7 +38,8 @@ machine's answers over the `O(log² m)`-bit seeds of Nisan's generator
 (`Cslib.Complexity.exists_acceptNisanSeeds_of_mem_BPL`). This is a step of Nisan's proof that
 `BPL ⊆ DSPACE(log² n)` [Nisan1992], [Arora and Barak, Section 16.7][AroraBarak07], not that
 inclusion: the deterministic simulation that enumerates the seeds, evaluates the generator and
-replays the machine within `O(log² m)` work-tape cells is not formalized here (issue #459).
+replays the machine within `O(log² m)` work-tape cells is
+`Cslib.Complexity.BPL_subset_DSPACE_log2_sq`.
 
 ## Main definitions
 
@@ -184,22 +185,24 @@ private theorem seedLength_le (d ℓ : ℕ) :
 
 /-- **A `BPL` language is decided by majority over the seeds of Nisan's generator**: a step of
 Nisan's proof of `BPL ⊆ DSPACE(log² n)` [Nisan1992], not that inclusion. A `BPL` language has a
-fair-coin machine and a constant `d` such that on every encoded instance of length `m`, with
+fair-coin machine, within `c (log₂ m + 1)` work cells on every encoded instance of length `m`, and
+a constant `d` such that on every such instance, with
 `r = d (log₂ m + 2) + 1` hash seeds and blocks of `n = 2 (2 r + 3)` bits, the seeds of
 `Cslib.Crypto.PRG.Nisan.bitGenerator n r` have at most `39 (2 d + 1) ^ 2 (log₂ m + 1) ^ 2` bits,
 and the machine, reading the generator's output as its coins, accepts members on more than half of
 the seeds and non-members on fewer than half. The parameters depend only on `m`. The deterministic
 `O(log² m)`-space simulation that enumerates the seeds, evaluates the generator and replays the
-machine remains open (issue #459). -/
+machine is `Cslib.Complexity.BPL_subset_DSPACE_log2_sq`. -/
 theorem exists_acceptNisanSeeds_of_mem_BPL (h : A ∈ BPL enc) :
-    ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : MultiTapePTM k Bool State) (d : ℕ),
+    ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : MultiTapePTM k Bool State) (c d : ℕ),
+      (∀ a, M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1))) ∧
       ∀ a r n, r = d * (Nat.log2 (enc a).length + 2) + 1 → n = 2 * (2 * r + 3) →
         n + r * (3 * n - 1) ≤ 39 * (2 * d + 1) ^ 2 * (Nat.log2 (enc a).length + 1) ^ 2 ∧
         (a ∈ A → 2 ^ (n + r * (3 * n - 1)) < 2 * M.acceptNisanSeeds (enc a) n r) ∧
         (a ∉ A → 2 * M.acceptNisanSeeds (enc a) n r < 2 ^ (n + r * (3 * n - 1))) := by
   obtain ⟨k, State, hfin, M, c, hM⟩ := h
   set d := MultiTapeNTM.logSpaceClockExponent k State c
-  refine ⟨k, State, hfin, M, d, fun a r n hr hn => ?_⟩
+  refine ⟨k, State, hfin, M, c, d, fun a => (hM a).1, fun a r n hr hn => ?_⟩
   obtain ⟨hs, t, ht, hmem, hnot⟩ := hM a
   obtain ⟨V, hreach, hV, hcard⟩ := M.exists_finset_reachable hs
   have hinit : M.toNTM.initView (enc a) ∈ V := (hreach _).mpr .refl

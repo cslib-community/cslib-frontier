@@ -284,8 +284,7 @@ private theorem allPositiveIndices_cert {α γ : Type} {encIn : α ↪ List Bool
     (NativeCertificate.ofPolyTime_isPolynomial (hctx.prod hinit))
     (.ofPolyTime hbody) (K := fun _ => 1)
     (B := fun a => 2 * (encCtx (ctx a)).length + 2)
-    (fun _ => le_rfl)
-    (((PolyBounded.const 2).mul hctx.polyBounded_length).add (.const 2))
+    (fun _ => le_rfl) (by growth_poly)
     (fun _ _ _ => le_rfl) fun a j _ => ?_).snd.snd).mono_const 1 fun _ => by omega).congr hf⟩
   rw [length_encPair, run_allIndex_fst test]; simp only [encBool_apply, List.length_singleton]
   omega
@@ -1058,9 +1057,7 @@ private theorem exists_pow_of_polyBounded_mb {u : ℕ × ℕ → ℕ}
     (hu : PolyBounded (fun p => (encMB p).length) u) :
     ∃ E : ℕ × ℕ → ℕ, PolyBounded (fun p => p.2 + Nat.log 2 (p.1 + 2)) E ∧ ∀ p, u p ≤ 2 ^ E p := by
   obtain ⟨c, d, hle⟩ := hu.exists_le
-  refine ⟨fun p => c + d * (p.2 + Nat.log 2 (p.1 + 2) + 4),
-    (PolyBounded.const c).add ((PolyBounded.const d).mul (PolyBounded.self.add (.const 4))),
-    fun p => ?_⟩
+  refine ⟨fun p => c + d * (p.2 + Nat.log 2 (p.1 + 2) + 4), by growth_poly, fun p => ?_⟩
   have hlen : (encMB p).length + 1 = 2 * p.1 + 2 + p.2 := by enc_len [encMB]
   rw [Nat.pow_add]; refine (hle p).trans (Nat.mul_le_mul Nat.lt_two_pow_self.le ?_)
   rw [Nat.mul_comm, Nat.pow_mul, hlen]; exact Nat.pow_le_pow_left (linear_mb_le_two_pow p.1 p.2) d
@@ -1113,15 +1110,12 @@ theorem initialTestsRows_computableInO :
     (PolyBounded.self.add (.const 1)).mono fun p => by
       have := Nat.add_le_add_right (Nat.log_mono_right (by omega : p.1 ≤ p.1 + 2) (b := 2)) 1
       dsimp only [X, mu] at this ⊢; omega
-  have hdG_X : PolyBounded X (fun p => dG p.1 p.2) :=
-    (((PolyBounded.const 320000).mul (hB_X.mul hB_X)).mul
-      (hmu_X.mul (hmu_X.mul hmu_X))).mono fun p => by
-      refine (Nat.min_le_right _ _).trans ?_; unfold initialRowWeightBound mu; ring_nf; exact le_rfl
-  have hell_X : PolyBounded X (fun p => ellG p.1 p.2) := hmu_X.mono fun p => ellG_le_mu p.1 p.2
-  have hcG_X : PolyBounded X (fun p => cG p.1 p.2) :=
-    (hdG_X.add (.const 1)).mono fun p => cG_le_dG_add_one p.1 p.2
-  obtain ⟨q, hq_poly, hEq⟩ := ((((hdG_X.mul hell_X).add hell_X).add
-    ((hcG_X.mul hdG_X).add hdG_X)).add hEpP)
+  have hdG_X : PolyBounded X (fun p => dG p.1 p.2) := by
+    growth_poly [fun p : ℕ × ℕ => Nat.min_le_right (64 * p.1) (initialRowWeightBound p.1 p.2)]
+  obtain ⟨q, hq_poly, hEq⟩ := (show PolyBounded X
+      (fun p => dG p.1 p.2 * ellG p.1 p.2 + ellG p.1 p.2 +
+        (cG p.1 p.2 * dG p.1 p.2 + dG p.1 p.2) + Ep p) by
+    growth_poly [ellG_le_mu, cG_le_dG_add_one])
   refine ⟨q, S, hq_poly, hS_poly, hcFull.mono_le (fun p => ?_) hSpace⟩
   refine (Nat.mul_le_mul_left _ (hEp p)).trans ?_
   rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide : 0 < 2)

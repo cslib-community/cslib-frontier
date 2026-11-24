@@ -25,6 +25,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.UniformRelabel
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -383,18 +384,7 @@ theorem dist_concreteCaseA_restrict_le {a m b_aux c n : ℕ}
         F, eA]
     rw [hfun, ← PMF.map_comp, ← PMF.map_comp, uniformOfFintype_map_equiv eA,
       uniformOfFintype_prod_map_fst]
-    rw [← uniformOfFintype_prod Top, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype Top).bind ·) (funext fun τ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod (Fin (2 ^ (m - 1))), PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype _).bind ·) (funext fun α₀ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod BotA₀, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype _).bind ·) (funext fun botA₀ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod (Fin (2 ^ (a - m - 1))), PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def, F]
-    rfl
+    relabel_uniform (Equiv.refl (Top × Fin (2 ^ (m - 1)) × BotA₀ × Fin (2 ^ (a - m - 1)) × BotA₁₂))
   rw [hmarg]
   exact dist_caseA_reducedDoubleTab_le hma hgap hn hS hTS hT
 
@@ -520,15 +510,8 @@ theorem dist_concreteCaseB_shardTuple_le {a m b_aux c n : ℕ}
       simp [G, eB, concreteRounds, concreteAux, hnotA, h_sh, h_nr₀, h_nr₁, h_nr₂, h_aux]
     rw [hfun, ← PMF.map_comp, ← PMF.map_comp, uniformOfFintype_map_equiv eB,
       uniformOfFintype_prod_map_fst]
-    rw [← uniformOfFintype_prod Top, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype Top).bind ·) (funext fun τ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod BotSh, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype BotSh).bind ·) (funext fun s_sh => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod (NRComposedSeed (nrRounds c) NR₀ NR₁ NR₂) BotAux, PMF.map_bind,
-      nrComposedSeedDist_eq, PMF.bind_map]
-    simp only [PMF.map_comp, Function.comp_def, G]
+    simp only [nrComposedSeedDist_eq]
+    relabel_uniform (Equiv.refl (Top × BotSh × NRComposedSeed (nrRounds c) NR₀ NR₁ NR₂ × BotAux))
   rw [hmarg]
   let GoodTop : Set Top := {τ | IsKUnique (quotientPermInd c n) (simpleTabTuple τ)}
   have habs := dist_caseB_shardTuple_le hma (one_le_nrRounds c) h_sh h_nr₀ h_nr₁ h_nr₂ h_aux hT

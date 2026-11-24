@@ -400,4 +400,30 @@ example :
       (by decide) 3 5 (by decide) (by decide) (by decide) (by decide),
       Polynomial.iterate_derivative_eq_zero hdeg, Polynomial.eval₂_zero]
 
+-- A varying binary evaluation point and a negative target exercise the fingerprint query.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := (totalDegree_X_le 0).trans (by decide)
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let residue := fun z =>
+      C.criticalCoordinateFingerprintLabelResidue (d := fun _ => 1) (fun _ => 0)
+        (fun _ => hF) z 101 5 2 z (-1)
+    let Q := (Polynomial.Bivariate.swap
+      (parametricCoordinatePolynomial (by decide) F hF 0)).leadingCoeff
+    residue ∈ CountingFunction 20 encNat encNat ∧
+      ∀ z : ℕ, (residue z : ZMod 101) =
+        (Polynomial.fingerprintIntegerRootLabel Q 1 2
+          (parametricCoordinateCoeffNormExponent 1 2 (C.massExponent z)) 5 2 (-1)).eval₂
+            (Int.castRingHom (ZMod 101)) (z : ZMod 101) := by
+  intro F hF C residue Q
+  let : Fact (Nat.Prime 101) := ⟨by decide⟩
+  refine ⟨C.criticalCoordinateFingerprintLabelResidue_mem Decoder.nat (fun _ => 0)
+    (fun _ => by decide) (fun _ => hF) (.const 1) (.const 0) (.const 101) (.const 5)
+    (.const 2) ComputableInPolyTime.id' (.const (-1)), ?_⟩
+  intro z
+  exact C.criticalCoordinateFingerprintLabelResidue_cast (fun _ => 0) (fun _ => hF) z
+    (by decide) 5 2 z (by decide) (-1) (by change 0 < 101; decide)
+    (by decide) (by decide) (by decide)
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

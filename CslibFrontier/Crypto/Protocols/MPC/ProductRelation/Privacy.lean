@@ -14,6 +14,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Uniform
 import CslibFrontier.Probability.Uniform.AffineLine
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Simulation Privacy for Protocol 23.5 (Fact 23.2)
@@ -317,31 +318,13 @@ private theorem honestC2_involutive {q m : ℕ} [Fact (Nat.Prime q)]
       add_comm (interpPoly (Fin.cons b02 fun j => (t₂ j).b))]
     ring
 
-private noncomputable def swapDealerEquiv {q m : ℕ} [Fact (Nat.Prime q)]
-    (t₁ t₂ : Fin m → TripleShare (ZMod q)) :
-    (DealerExtra q m × ZMod q × ZMod q) ≃ (DealerExtra q m × ZMod q × ZMod q) where
-  toFun x := (honestC2 t₁ t₂ x.1 x.2.1 x.2.2, x.1.a0, x.1.b0)
-  invFun y := (honestC2 t₂ t₁ y.1 y.2.1 y.2.2, y.1.a0, y.1.b0)
-  left_inv x := by
-    ext <;> simp [honestC2_involutive, honestC2_a0, honestC2_b0]
-  right_inv y := by
-    ext <;> simp [honestC2_involutive, honestC2_a0, honestC2_b0]
-
 private theorem eval_deal_eq_map {q m : ℕ} [Fact (Nat.Prime q)]
     (t₁ t₂ : Fin m → TripleShare (ZMod q)) :
     ProbComp.eval (deal t₁ t₂) =
       (PMF.uniformOfFintype (DealerExtra q m × ZMod q × ZMod q)).map
         (fun x => (x.1.toDeal t₁, (honestC2 t₁ t₂ x.1 x.2.1 x.2.2).toDeal t₂)) := by
   simp only [deal, pmf_norm, ProbComp.eval_uniform]
-  change ((PMF.uniformOfFintype (DealerExtra q m)).bind fun e₁ =>
-    (PMF.uniformOfFintype (ZMod q)).bind fun a02 =>
-      (PMF.uniformOfFintype (ZMod q)).map fun b02 =>
-        (e₁.toDeal t₁, (honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂)) = _
-  conv_lhs =>
-    arg 2
-    ext e₁
-    rw [Cslib.Probability.PMF.uniformOfFintype_bind_map]
-  rw [Cslib.Probability.PMF.uniformOfFintype_bind_map]
+  relabel_uniform (Equiv.refl (DealerExtra q m × ZMod q × ZMod q))
 
 /-- Symmetry of the honest dealer distribution: swapping `(d₁, d₂)` from `deal t₁ t₂` gives
 `deal t₂ t₁`. -/
@@ -349,12 +332,13 @@ theorem eval_deal_swap {q m : ℕ} [Fact (Nat.Prime q)]
     (t₁ t₂ : Fin m → TripleShare (ZMod q)) :
     (ProbComp.eval (deal t₁ t₂)).map Prod.swap = ProbComp.eval (deal t₂ t₁) := by
   rw [eval_deal_eq_map, eval_deal_eq_map, PMF.map_comp]
-  conv_rhs =>
-    rw [← PMF.uniformOfFintype_map_equiv (swapDealerEquiv t₁ t₂), PMF.map_comp]
-  congr 1 with x : 1
-  simp only [Function.comp_def, Prod.swap, swapDealerEquiv]
-  exact Prod.ext rfl (congrArg (fun e => e.toDeal t₁)
-    (honestC2_involutive t₁ t₂ x.1 x.2.1 x.2.2).symm)
+  relabel_uniform (fun x : DealerExtra q m × ZMod q × ZMod q =>
+    (honestC2 t₁ t₂ x.1 x.2.1 x.2.2, x.1.a0, x.1.b0)) with x
+  · refine Function.LeftInverse.injective (g := fun z : DealerExtra q m × ZMod q × ZMod q =>
+      (honestC2 t₂ t₁ z.1 z.2.1 z.2.2, z.1.a0, z.1.b0)) fun y => ?_
+    ext <;> simp [honestC2_involutive, honestC2_a0, honestC2_b0]
+  · exact Prod.ext rfl (congrArg (fun e => e.toDeal t₁)
+      (honestC2_involutive t₁ t₂ x.1 x.2.1 x.2.2).symm)
 
 /-- Interactive adversary corrupting `P₂` in Protocol 23.5 (Section 23.2.4.7). -/
 structure CorruptP2Adversary (q m : ℕ) (σ : Type) where

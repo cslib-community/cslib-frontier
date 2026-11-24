@@ -410,11 +410,11 @@ private theorem cbcMacWord_eq_ofFn_cbcMacBlocks {n : ℕ} {f : List Bool → Lis
     (hfg : ∀ x : BitString n, (f (List.ofFn x)).take n = List.ofFn (g x))
     (msg : List Bool) :
     cbcMacWord (fun _ => f) n [] msg =
-      List.ofFn (cbcMacBlocks g 0 (BitString.padBlocks n msg.length msg)) := by
+      List.ofFn (cbcMacBlocks g 0 (BitString.toBlocks n msg)) := by
   have hzero : List.replicate n false = List.ofFn (0 : BitString n) := by
     refine List.ext_getElem (by simp) fun i _ _ => ?_
     simp [OfNat.ofNat, Zero.zero]
-  rw [cbcMacWord, BitString.listRows_eq_map_ofFn_padBlocks, hzero]
+  rw [cbcMacWord, BitString.listRows_eq_map_ofFn_toBlocks, hzero]
   exact foldl_cbcStep_map_ofFn hfg 0 _
 
 /-! ### Section 2: CBC-MAC Query Domains -/
@@ -464,8 +464,8 @@ private theorem length_encodeBlockList {n : ℕ} (bs : List (BitString n)) :
       List.length_cons, Nat.succ_mul]
     rw [← encodeBlockList, ih, Nat.add_comm]
 
-private theorem padBlocks_encodeBlockList {n : ℕ} (hn : 0 < n) (bs : List (BitString n)) :
-    BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs) = bs := by
+private theorem toBlocks_encodeBlockList {n : ℕ} (hn : 0 < n) (bs : List (BitString n)) :
+    BitString.toBlocks n (encodeBlockList bs) = bs := by
   have hrows : ∀ r ∈ bs.map List.ofFn, r.length = n := by
     intro r hr
     obtain ⟨b, _, rfl⟩ := List.mem_map.mp hr
@@ -473,11 +473,11 @@ private theorem padBlocks_encodeBlockList {n : ℕ} (hn : 0 < n) (bs : List (Bit
   have hdiv : (encodeBlockList bs).length / n = bs.length := by
     rw [length_encodeBlockList, Nat.mul_div_cancel _ hn]
   have hlhs :=
-    BitString.listRows_eq_map_ofFn_padBlocks n (encodeBlockList bs).length (encodeBlockList bs)
+    BitString.listRows_eq_map_ofFn_toBlocks n (encodeBlockList bs)
   rw [hdiv] at hlhs
   have hflat : encodeBlockList bs = (bs.map List.ofFn).flatten := List.flatMap_def
   have hlhs' : BitString.listRows bs.length n (bs.map List.ofFn).flatten =
-      (BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs)).map List.ofFn := by
+      (BitString.toBlocks n (encodeBlockList bs)).map List.ofFn := by
     rw [← hflat]
     exact hlhs
   rw [← (List.length_map List.ofFn : (bs.map List.ofFn).length = bs.length),
@@ -494,7 +494,7 @@ private theorem cbcInputBlocks_injective {n ℓ : ℕ} :
   exact congrArg (Sigma.mk k) (List.ofFn_injective h)
 
 private def decodeCBCWord (n ℓ : ℕ) (w : List Bool) : Option (CBCInput n ℓ) :=
-  let blocks := BitString.padBlocks n w.length w
+  let blocks := BitString.toBlocks n w
   if h : blocks.length - 1 < ℓ ∧ 0 < blocks.length ∧ w.length = blocks.length * n then
     some ⟨⟨blocks.length - 1, h.1⟩, fun i => blocks[i.val]'(i.isLt.trans_le (by
       have := h.2.1
@@ -518,30 +518,29 @@ def cbcInputCodec (n ℓ : ℕ) (hn : 0 < n) : OracleCodec Unit (CBCInput n ℓ)
       obtain rfl := Option.some.inj hdec.symm
       refine Prod.ext rfl ?_
       have hblocks : cbcInputBlocks
-          ⟨⟨(BitString.padBlocks n w.length w).length - 1, h.1⟩,
-            fun i => (BitString.padBlocks n w.length w)[i.val]'(i.isLt.trans_le (by
+          ⟨⟨(BitString.toBlocks n w).length - 1, h.1⟩,
+            fun i => (BitString.toBlocks n w)[i.val]'(i.isLt.trans_le (by
               have := h.2.1; dsimp only; omega))⟩ =
-          BitString.padBlocks n w.length w := by
+          BitString.toBlocks n w := by
         refine List.ext_getElem ?_ fun i _ _ => by simp only [cbcInputBlocks, List.getElem_ofFn]
         rw [length_cbcInputBlocks]
         have := h.2.1
         dsimp only
         omega
       have hmod : n ∣ w.length := ⟨_, by rw [Nat.mul_comm]; exact h.2.2⟩
-      rw [hblocks, encodeBlockList, BitString.flatMap_ofFn_padBlocks hmod]
+      rw [hblocks, encodeBlockList, BitString.flatMap_ofFn_toBlocks hmod]
     · intro henc
       rcases Prod.mk.inj henc with ⟨-, rfl⟩
       rcases q with ⟨k, f⟩
       let bs := cbcInputBlocks ⟨k, f⟩
-      have hpad : BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs) = bs :=
-        padBlocks_encodeBlockList hn bs
+      have hpad : BitString.toBlocks n (encodeBlockList bs) = bs :=
+        toBlocks_encodeBlockList hn bs
       have hbsLen : bs.length = k.val + 1 := length_cbcInputBlocks ⟨k, f⟩
       have hcond :
-          (BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs)).length - 1 < ℓ ∧
-          0 < (BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs)).length ∧
+          (BitString.toBlocks n (encodeBlockList bs)).length - 1 < ℓ ∧
+          0 < (BitString.toBlocks n (encodeBlockList bs)).length ∧
           (encodeBlockList bs).length =
-            (BitString.padBlocks n (encodeBlockList bs).length
-              (encodeBlockList bs)).length * n := by
+            (BitString.toBlocks n (encodeBlockList bs)).length * n := by
         rw [hpad, length_encodeBlockList, hbsLen]
         exact ⟨by omega, Nat.succ_pos k.val, rfl⟩
       change decodeCBCWord n ℓ (encodeBlockList bs) = some ⟨k, f⟩
@@ -574,19 +573,19 @@ private theorem cbcBlockValid_eq_isSome_cbcInputCodec {ℓ : ℕ → ℕ} {n : �
     have hdivLe : query.length / n ≤ ℓ n := by
       rw [hmul] at hle
       exact Nat.le_of_mul_le_mul_right hle hn
-    have hcond : (BitString.padBlocks n query.length query).length - 1 < ℓ n ∧
-        0 < (BitString.padBlocks n query.length query).length ∧
-        query.length = (BitString.padBlocks n query.length query).length * n := by
-      rw [BitString.length_padBlocks]
+    have hcond : (BitString.toBlocks n query).length - 1 < ℓ n ∧
+        0 < (BitString.toBlocks n query).length ∧
+        query.length = (BitString.toBlocks n query).length * n := by
+      rw [BitString.length_toBlocks]
       exact ⟨by omega, hdivPos, hmul⟩
     dsimp only [cbcInputCodec, decodeCBCWord]
     rw [dite_eq_left_of_eq_true (eq_true hcond)]
     rfl
   · have hvf : cbcBlockValid ℓ n query = false := Bool.eq_false_iff.mpr hv
     rw [hvf]
-    have hnot : ¬ ((BitString.padBlocks n query.length query).length - 1 < ℓ n ∧
-        0 < (BitString.padBlocks n query.length query).length ∧
-        query.length = (BitString.padBlocks n query.length query).length * n) := by
+    have hnot : ¬ ((BitString.toBlocks n query).length - 1 < ℓ n ∧
+        0 < (BitString.toBlocks n query).length ∧
+        query.length = (BitString.toBlocks n query).length * n) := by
       rintro ⟨hlt, hpos, hmul⟩
       have hposQ : 0 < query.length := by
         rw [hmul]
@@ -603,7 +602,7 @@ private theorem cbcBlockValid_eq_isSome_cbcInputCodec {ℓ : ℕ → ℕ} {n : �
     rfl
 
 private def decodeLPWord (n L : ℕ) (w : List Bool) : Option (LengthPrependedInput n L) :=
-  let blocks := BitString.padBlocks n w.length w
+  let blocks := BitString.toBlocks n w
   if h : blocks.length < L + 1 ∧ w.length = blocks.length * n then
     some ⟨⟨blocks.length, h.1⟩, fun i => blocks[i.val]'i.isLt⟩
   else
@@ -626,13 +625,13 @@ def lengthPrependedCodec (n L : ℕ) (hL : L < 2 ^ n) :
       refine Prod.ext rfl ?_
       have hblocks :
           lengthPrependedBlocks
-            ⟨⟨(BitString.padBlocks n w.length w).length, h.1⟩,
-              fun i => (BitString.padBlocks n w.length w)[i.val]'i.isLt⟩ =
-          BitString.padBlocks n w.length w := by
+            ⟨⟨(BitString.toBlocks n w).length, h.1⟩,
+              fun i => (BitString.toBlocks n w)[i.val]'i.isLt⟩ =
+          BitString.toBlocks n w := by
         refine List.ext_getElem ?_ fun i _ _ => by simp [lengthPrependedBlocks]
         rw [length_lengthPrependedBlocks]
       have hmod : n ∣ w.length := ⟨_, by rw [Nat.mul_comm]; exact h.2⟩
-      rw [hblocks, encodeBlockList, BitString.flatMap_ofFn_padBlocks hmod]
+      rw [hblocks, encodeBlockList, BitString.flatMap_ofFn_toBlocks hmod]
     · intro henc
       rcases Prod.mk.inj henc with ⟨-, rfl⟩
       rcases q with ⟨k, f⟩
@@ -644,25 +643,24 @@ def lengthPrependedCodec (n L : ℕ) (hL : L < 2 ^ n) :
         have hnil : encodeBlockList (lengthPrependedBlocks ⟨⟨0, Nat.zero_lt_one⟩, f⟩) = [] := by
           simp [lengthPrependedBlocks, encodeBlockList]
         rw [hnil]
-        have hcond0 : (BitString.padBlocks 0 ([] : List Bool).length []).length < 0 + 1 ∧
+        have hcond0 : (BitString.toBlocks 0 ([] : List Bool)).length < 0 + 1 ∧
             ([] : List Bool).length =
-              (BitString.padBlocks 0 ([] : List Bool).length []).length * 0 := by
-          simp [BitString.length_padBlocks]
+              (BitString.toBlocks 0 ([] : List Bool)).length * 0 := by
+          simp [BitString.length_toBlocks]
         unfold decodeLPWord
         dsimp only
         rw [dite_eq_left_of_eq_true (eq_true hcond0), Option.some.injEq]
         exact lengthPrependedBlocks_injective
-          (by simp [lengthPrependedBlocks, BitString.length_padBlocks])
+          (by simp [lengthPrependedBlocks, BitString.length_toBlocks])
       · let bs := lengthPrependedBlocks ⟨k, f⟩
-        have hpad : BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs) = bs :=
-          padBlocks_encodeBlockList hn bs
+        have hpad : BitString.toBlocks n (encodeBlockList bs) = bs :=
+          toBlocks_encodeBlockList hn bs
         have hbsLen : bs.length = k.val := length_lengthPrependedBlocks ⟨k, f⟩
         have hcond :
-            (BitString.padBlocks n (encodeBlockList bs).length (encodeBlockList bs)).length <
+            (BitString.toBlocks n (encodeBlockList bs)).length <
               L + 1 ∧
             (encodeBlockList bs).length =
-              (BitString.padBlocks n (encodeBlockList bs).length
-                (encodeBlockList bs)).length * n := by
+              (BitString.toBlocks n (encodeBlockList bs)).length * n := by
           rw [hpad, length_encodeBlockList, hbsLen]
           exact ⟨k.isLt, rfl⟩
         change decodeLPWord n L (encodeBlockList bs) = some ⟨k, f⟩
@@ -691,17 +689,17 @@ private theorem lpBlockValid_eq_isSome_lengthPrependedCodec {L : ℕ → ℕ} {n
       · simp
       · rw [hmul] at hle
         exact Nat.lt_succ_of_le (Nat.le_of_mul_le_mul_right hle hn)
-    have hcond : (BitString.padBlocks n query.length query).length < L n + 1 ∧
-        query.length = (BitString.padBlocks n query.length query).length * n := by
-      rw [BitString.length_padBlocks]
+    have hcond : (BitString.toBlocks n query).length < L n + 1 ∧
+        query.length = (BitString.toBlocks n query).length * n := by
+      rw [BitString.length_toBlocks]
       exact ⟨hdivLt, hmul⟩
     dsimp only [lengthPrependedCodec, decodeLPWord]
     rw [dite_eq_left_of_eq_true (eq_true hcond)]
     rfl
   · have hvf : lpBlockValid L n query = false := Bool.eq_false_iff.mpr hv
     rw [hvf]
-    have hnot : ¬ ((BitString.padBlocks n query.length query).length < L n + 1 ∧
-        query.length = (BitString.padBlocks n query.length query).length * n) := by
+    have hnot : ¬ ((BitString.toBlocks n query).length < L n + 1 ∧
+        query.length = (BitString.toBlocks n query).length * n) := by
       rintro ⟨hlt, hmul⟩
       have hmod : query.length % n = 0 := by
         rw [hmul]
@@ -1321,7 +1319,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
                 (fun x => by
                   simp [randomFunctionOracle,
                     List.take_of_length_le (List.length_ofFn (f := g x)).le]),
-                henc, padBlocks_encodeBlockList hn, cbcMacFinite]
+                henc, toBlocks_encodeBlockList hn, cbcMacFinite]
             simp [codec, cbcInputCodec, run_cbcMacQueries, hword]
         simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform, hrunG]
         rw [eval_table_run_eq_coinLaw_bind]
@@ -1414,7 +1412,7 @@ theorem advantage_lengthPrependedCbcMac_le {family : List Bool → List Bool →
                 (fun x => by
                   simp [randomFunctionOracle,
                     List.take_of_length_le (List.length_ofFn (f := g x)).le]),
-                hprepEq, padBlocks_encodeBlockList hn, lengthPrependedCbcMac, cbcMacFinite]
+                hprepEq, toBlocks_encodeBlockList hn, lengthPrependedCbcMac, cbcMacFinite]
           simp [codec, lengthPrependedCodec, run_cbcMacQueries, hword]
       simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform, hrunG]
       exact eval_table_run_eq_coinLaw_bind _ _ _

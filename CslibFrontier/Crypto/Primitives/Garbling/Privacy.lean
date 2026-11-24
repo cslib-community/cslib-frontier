@@ -17,6 +17,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Simulation-based privacy of garbled circuits
@@ -297,32 +298,6 @@ private theorem hybridView_update (C : Circuit σ n m) (I : Interpretation σ Bo
     rfl
   · rfl
 
-/-- Masking the colour of each wire by an independent bit and keeping the key of the active
-colour separately is a bijection. -/
-private def maskEquiv {W : Type} (v : W → Bool) :
-    (W × Bool → K) × (W → Bool) ≃ (W → K × Bool) × (W → K) where
-  toFun p := (fun w => (p.1 (w, v w + p.2 w), v w + p.2 w), fun w => p.1 (w, !(v w + p.2 w)))
-  invFun q := (fun wc => if wc.2 = (q.1 wc.1).2 then (q.1 wc.1).1 else q.2 wc.1,
-    fun w => (q.1 w).2 + v w)
-  left_inv p := by
-    obtain ⟨key, perm⟩ := p
-    have hperm : ∀ w, v w + perm w + v w = perm w := fun w => by
-      rw [add_comm, ← add_assoc, BooleanRing.add_self, zero_add]
-    refine Prod.ext (funext fun ⟨w, c⟩ => ?_) (funext hperm)
-    dsimp only
-    split_ifs with h
-    · rw [h]
-    · rw [Bool.eq_not_of_ne h]
-  right_inv q := by
-    obtain ⟨A, B⟩ := q
-    have hcol : ∀ w, v w + ((A w).2 + v w) = (A w).2 := fun w => by
-      rw [add_comm, add_assoc, BooleanRing.add_self, add_zero]
-    refine Prod.ext (funext fun w => ?_) (funext fun w => ?_)
-    · dsimp only
-      rw [hcol, ite_eq_left rfl]
-    · dsimp only
-      rw [hcol, ite_eq_right (Bool.ne_not.mpr rfl).symm]
-
 /-- A map from a uniform input whose values are fixed off a set `U` of coordinates, and whose
 translations on `U` are realized by permutations of the input, is uniform on `U`. -/
 private theorem uniformOfFintype_map_eq_of_shift {Ω ι L : Type} [Fintype Ω] [Nonempty Ω]
@@ -495,10 +470,29 @@ theorem hybridGame_of_le (C : Circuit σ n m) (I : Interpretation σ Bool)
       rw [add_comm, ← add_assoc, BooleanRing.add_self, zero_add]
   simp only [hybridGame, simGame, simulate, hv, bind_assoc, pure_bind, ProbComp.eval_bind,
     ProbComp.eval_uniform]
-  exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv
-    (maskEquiv (K := K) (C.program.trace I x)) (fun A =>
-      (PMF.uniformOfFintype (Row C.topology → K × Bool)).bind fun R =>
-        ProbComp.eval (D (simulateWith C.topology F tw (C.eval I x) A R)))
+  conv_rhs =>
+    enter [2, A]
+    rw [← PMF.bind_const (PMF.uniformOfFintype (Wire n C.size → K))
+      ((PMF.uniformOfFintype (Row C.topology → K × Bool)).bind fun R =>
+        ProbComp.eval (D (simulateWith C.topology F tw (C.eval I x) A R)))]
+  relabel_uniform (fun p : (Wire n C.size × Bool → K) × (Wire n C.size → Bool) =>
+    (fun w => (p.1 (w, C.program.trace I x w + p.2 w), C.program.trace I x w + p.2 w),
+     fun w => p.1 (w, !(C.program.trace I x w + p.2 w)))) with p
+  · rintro ⟨key₁, perm₁⟩ ⟨key₂, perm₂⟩ h
+    obtain ⟨hA, hB⟩ := Prod.mk.inj h
+    have hperm : perm₁ = perm₂ := funext fun w => by
+      have hc := congrArg Prod.snd (congr_fun hA w)
+      simpa [add_assoc, BooleanRing.add_self] using congrArg (C.program.trace I x w + ·) hc
+    refine Prod.ext (funext fun ⟨w, c⟩ => ?_) hperm
+    subst hperm
+    by_cases hc : c = C.program.trace I x w + perm₁ w
+    · subst hc; exact congrArg Prod.fst (congr_fun hA w)
+    · rw [Bool.eq_not_of_ne hc]; exact congr_fun hB w
+  · simp only [Fintype.card_prod, Fintype.card_pi, Fintype.card_bool, Finset.prod_const,
+      Finset.card_univ, mul_pow]
+    rw [show Fintype.card (Wire n C.size) * 2 =
+      Fintype.card (Wire n C.size) + Fintype.card (Wire n C.size) by omega, pow_add]
+    ring
 
 /-- Against the keyed oracle, reduction `j` plays hybrid `j`. -/
 theorem eval_realExperiment_reduction (C : Circuit σ n m) (I : Interpretation σ Bool)

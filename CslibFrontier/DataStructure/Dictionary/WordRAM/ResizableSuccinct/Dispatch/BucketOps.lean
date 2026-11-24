@@ -2711,7 +2711,7 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     rfl hm_lt
   dsimp only at hprep_spec_fix
   rw [← hfix_prep_eq, hres_fix_prep] at hprep_spec_fix
-  dsimp only at hprep_spec_fix
+  dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys] at hprep_spec_fix
   have hbm_eq := bucketMapOfState_feistelBucket henv.le_U (hValOfSeed U N θ) s_abs u
   have hfound_iff : found = 1 ↔ (s_abs u).isSome := by
     have hbr := hprep_spec_fix.2.2.2

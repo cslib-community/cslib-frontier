@@ -15,6 +15,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Semi-honest two-party protocols over correlated randomness with a public transcript
@@ -680,43 +681,29 @@ private theorem mutualInfo_map_prodMap {α α' β β' : Type*}
     ← mutualInfo_map_swap, PMF.map_comp]
   exact (mutualInfo_map_congr p Prod.snd he₁ (fun _ _ => rfl)).trans (mutualInfo_map_swap p)
 
-/-- Reparametrizing `k` uniform ROT instances `(S, C) ↔ ((C, Y), U)` preserves uniformity. -/
-private def rotEquiv (k : ℕ) :
-    ((Fin k → Bool × Bool) × (Fin k → Bool)) ≃
-      ((Fin k → Bool × Bool) × (Fin k → Bool)) where
-  toFun sc :=
-    (fun j => (sc.2 j, otSelect (sc.1 j) (sc.2 j)),
-      fun j => otSelect (sc.1 j) (!(sc.2 j)))
-  invFun ru :=
-    (fun j => if (ru.1 j).1 then (ru.2 j, (ru.1 j).2) else ((ru.1 j).2, ru.2 j),
-      fun j => (ru.1 j).1)
-  left_inv := fun ⟨s, c⟩ => Prod.ext
-    (funext fun j => by cases hc : c j <;> simp [otSelect, hc]) rfl
-  right_inv := fun ⟨r, u⟩ => Prod.ext
-    (funext fun j => by
-      dsimp only
-      cases hc : (r j).1 <;> simp only [otSelect] <;> exact Prod.ext hc.symm rfl)
-    (funext fun j => by cases hc : (r j).1 <;> simp [otSelect, hc])
-
 private theorem idealROT_eq_reparam (k : ℕ) :
     idealROT k =
       (PMF.uniformOfFintype (Fin k → Bool × Bool)).bind fun rb =>
         (PMF.uniformOfFintype (Fin k → Bool)).map fun ub =>
           Fin.cases (fun j => if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j))
             (fun _ => rb) := by
-  rw [idealROT, ← uniformOfFintype_map_equiv (rotEquiv k).symm, PMF.map_comp,
-    ← uniformOfFintype_prod, PMF.map_bind]
-  congr 1 with rb : 1
-  rw [PMF.map_comp]
-  congr 1 with ub : 1
-  funext i
-  fin_cases i
-  · rfl
-  · funext j
-    dsimp only [Function.comp_def, rotEquiv, Equiv.coe_fn_symm_mk]
-    change ((rb j).1,
-      otSelect (if (rb j).1 then (ub j, (rb j).2) else ((rb j).2, ub j)) (rb j).1) = rb j
-    cases hc : (rb j).1 <;> exact Prod.ext hc.symm rfl
+  rw [idealROT]
+  relabel_uniform (fun sc : (Fin k → Bool × Bool) × (Fin k → Bool) =>
+    (fun j => (sc.2 j, otSelect (sc.1 j) (sc.2 j)),
+      fun j => otSelect (sc.1 j) (!(sc.2 j)))) with sc
+  · rintro ⟨s₁, c₁⟩ ⟨s₂, c₂⟩ h
+    obtain ⟨hr, hu⟩ := Prod.mk.inj h
+    have hc : c₁ = c₂ := funext fun j => congrArg Prod.fst (congrFun hr j)
+    subst hc
+    refine Prod.ext (funext fun j => ?_) rfl
+    have hrj := congrArg Prod.snd (congrFun hr j)
+    have huj := congrFun hu j
+    cases h1 : c₁ j <;> simp_all [otSelect, Prod.ext_iff]
+  · funext i
+    fin_cases i
+    · funext j
+      cases h1 : sc.2 j <;> simp [h1, otSelect]
+    · rfl
 
 /-- **Ahlswede–Csiszár-style upper bound for correlated-source MPC protocols**:
 any two-party plain-channel protocol over correlated source `source : PMF (A × B)` that realizes
@@ -978,9 +965,7 @@ private theorem chosenOT_bobPriv {k : ℕ}
     rw [hRealUnif, PMF.bind_comm, ← uniformOfFintype_prod, PMF.bind_bind]
     simp only [PMF.bind_map]
     congr 1 with x1 : 1
-    rw [← uniformOfFintype_map_equiv (otPairEquiv x1), PMF.bind_map, ← uniformOfFintype_prod,
-      PMF.bind_bind]
-    simp only [PMF.bind_map]; rfl
+    relabel_uniform (otPairEquiv x1)
   rw [hRealRe, PMF.map_bind]; congr 1 with ⟨x1, y1⟩ : 1
   rw [PMF.map_bind]; congr 1 with u : 1
   let x0 := otPairEquiv x1 (y1, u)

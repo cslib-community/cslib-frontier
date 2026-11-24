@@ -635,7 +635,8 @@ example :
     PerfectSemiHonestPrivate
       ((multiPartyMulProtocol 3).compose (fun _ => twoPartyMulProtocol))
       ot14World (sharedMulFunctionality 3)
-      (composeSim (multiPartyMulProtocol 3) (multiPartyMulSim 3) (fun _ => twoPartyMulSim)) :=
+      (fun I => composeSim (multiPartyMulProtocol 3) (multiPartyMulSim 3 I)
+        (fun _ => twoPartyMulSim)) :=
   (perfectSemiHonestPrivate_multiPartyMul 3).compose (fun _ => perfectSemiHonestPrivate_twoPartyMul)
 
 /-- For `m = 2`, `n = 1`, `k = 1`, and `andNandCircuit` (1 `.and` gate and 1 `.not` gate),
