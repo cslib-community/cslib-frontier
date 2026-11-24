@@ -169,6 +169,32 @@ theorem call2_rel {f x o : Tree} {t t1 : Bt} {M : ℕ} {l : List (Run A)}
       List.forall₂_map_left_iff]
   exact det_seq_rel h1' (by norm_num)
 
+/-- The common step of the `quote` and `id` cases: the value `o` is read off the environment by
+the selector `S` in `4` steps, and the budget is kept. -/
+private theorem leaf_case {f x o : Tree} {t : Bt} {S : Fm} {M : ℕ} (hM : 1000 ≤ M)
+    (hc : caseL[f.hd.len]? = some (.cons S (fS .id))) (hS : Dt θ S (env f x t) o 4) :
+    ∃ l', Ev θ IF (env f x t) l' ∧ List.Forall₂ (RelJ M 0) l' (simS t [Run.det 1 o]) := by
+  refine IF_case hc ⟨_, Dt.cons hS (Dt.fS (Dt.id _)), ?_⟩
+  simp only [simS, Run.det, List.filterMap_cons, Bt.decAll, Option.map_some, List.filterMap_nil]
+  refine .cons ⟨rfl, rfl, rfl, ?_⟩ .nil
+  simp only
+  omega
+
+/-- The common step of the `hd` and `tl` cases: call the interpreter on the operand, then apply
+the projection `π` (computed by the selector `S` in `3` steps) to the value and keep the budget.
+-/
+private theorem proj_call {f x : Tree} {t : Bt} {M : ℕ} {l : List (Run A)} {S : Fm}
+    {π : Tree → Tree} (hM : 1000 ≤ M) (hS : ∀ y z : Tree, Dt θ S (.cons y z) (π y) 3)
+    (h : ∃ l', Ev θ IF (env f.tl x t) l' ∧ List.Forall₂ (RelJ M 0) l' (simS t l)) :
+    ∃ l', Ev θ (lett (rec' .id (fA .id) (fX .id) (fS .id)) (.cons S (.tl .id))) (env f x t) l' ∧
+      List.Forall₂ (RelJ M 300) l' (simS t (l.map fun r => r.tick (π r.out))) := by
+  rw [simS_map (G := fun r => r.tick (π r.out)) (fun _ => rfl), List.map_eq_flatMap]
+  refine call0 h fun q hq => ⟨_, Dt.cons (hS _ _) (.tl (.id _)), ?_⟩
+  refine .cons ⟨rfl, mul_one _, rfl, ?_⟩ .nil
+  simp only [Run.tick, Run.det]
+  rw [Nat.mul_succ]
+  omega
+
 set_option hygiene false in
 /-- Recover from `hf : Fm.ofTree f = F` the tag of `f` (as `h1 : f.hd.len = …`) and the decoded
 operands, by `Fm.ofTree_cases`; the branch for an unknown opcode is the `fail` case. -/
@@ -186,39 +212,21 @@ theorem interp {H : ℕ} {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l
   | quote c x =>
     intro f hf t ht
     opcode f hf
-    refine IF_case (c := .cons (fA .id) (fS .id))
-        (by rw [h1]; rfl) ⟨_, Dt.cons (Dt.fA (Dt.id _)) (Dt.fS (Dt.id _)), ?_⟩
-    simp only [simS, Run.det, List.filterMap_cons, Bt.decAll, Option.map_some, List.filterMap_nil]
-    refine .cons ⟨rfl, rfl, rfl, ?_⟩ .nil
-    simp only
-    omega
+    exact leaf_case hM (by rw [h1]; rfl) (Dt.fA (Dt.id _))
   | id x =>
     intro f hf t ht
     opcode f hf
-    refine IF_case (c := .cons (fX .id) (fS .id))
-        (by rw [h1]; rfl) ⟨_, Dt.cons (Dt.fX (Dt.id _)) (Dt.fS (Dt.id _)), ?_⟩
-    simp only [simS, Run.det, List.filterMap_cons, Bt.decAll, Option.map_some, List.filterMap_nil]
-    refine .cons ⟨rfl, rfl, rfl, ?_⟩ .nil
-    simp only
-    omega
+    exact leaf_case hM (by rw [h1]; rfl) (Dt.fX (Dt.id _))
   | @hd a x l h ih =>
     intro f hf t ht
     opcode f hf
-    refine IF_case (c := _) (by rw [h1]; rfl) ?_
-    rw [simS_map (G := fun r => r.tick r.out.hd) (fun _ => rfl), List.map_eq_flatMap]
-    refine call0 (ih f.tl rfl t ht) fun q hq => ⟨_, Dt.cons (.hd (.hd (.id _))) (.tl (.id _)), ?_⟩
-    refine .cons ⟨rfl, mul_one _, rfl, ?_⟩ .nil
-    simp only [Run.tick, Run.det]
-    linarith
+    exact IF_case (c := _) (by rw [h1]; rfl)
+      (proj_call hM (fun _ _ => .hd (.hd (.id _))) (ih f.tl rfl t ht))
   | @tl a x l h ih =>
     intro f hf t ht
     opcode f hf
-    refine IF_case (c := _) (by rw [h1]; rfl) ?_
-    rw [simS_map (G := fun r => r.tick r.out.tl) (fun _ => rfl), List.map_eq_flatMap]
-    refine call0 (ih f.tl rfl t ht) fun q hq => ⟨_, Dt.cons (.tl (.hd (.id _))) (.tl (.id _)), ?_⟩
-    refine .cons ⟨rfl, mul_one _, rfl, ?_⟩ .nil
-    simp only [Run.tick, Run.det]
-    linarith
+    exact IF_case (c := _) (by rw [h1]; rfl)
+      (proj_call hM (fun _ _ => .tl (.hd (.id _))) (ih f.tl rfl t ht))
   | @cons a b x la lb ha hb iha ihb =>
     intro f hf t ht
     opcode f hf
