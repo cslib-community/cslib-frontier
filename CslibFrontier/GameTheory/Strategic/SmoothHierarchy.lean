@@ -21,16 +21,15 @@ import Mathlib.Tactic.Ring
 Roughgarden's smoothness framework [Roughgarden2015] extends pure Nash price-of-anarchy bounds
 along two orthogonal axes:
 
-1. **Across the complete-information equilibrium hierarchy** ([Roughgarden2015], Section 3,
-   Figure 1 and Theorem 3.2): every `(λ, μ)`-smooth cost-minimization game with `μ < 1` has
-   expected social cost at most `λ / (1 - μ)` times any benchmark profile at pure Nash equilibria,
-   mixed Nash equilibria, correlated equilibria, and coarse correlated equilibria (with additive
-   slack carried through for `ε`-approximate correlated equilibria).
-2. **Across algebraic composition and incomplete information** ([Roughgarden2016], Lectures 12 and
-   14; Roughgarden, *The Price of Anarchy in Games of Incomplete Information*, 2012 — locator not
-   re-verified against primary PDF): `(λ, μ)`-smoothness is closed under nonnegative scaling, sum,
-   and finite simultaneous composition, and transfers to pure Bayes–Nash equilibria under arbitrary
-   independent finite type distributions.
+1. **Across the complete-information equilibrium hierarchy** ([Roughgarden2015], Theorem 3.2):
+   every `(λ, μ)`-smooth cost-minimization game with `μ < 1` has expected social cost at most
+   `λ / (1 - μ)` times any benchmark profile at pure Nash equilibria, mixed Nash equilibria,
+   correlated equilibria, and coarse correlated equilibria (with additive slack carried through for
+   `ε`-approximate correlated equilibria).
+2. **Across algebraic composition and incomplete information** ([Roughgarden2012];
+   [SyrgkanisTardos2013]): `(λ, μ)`-smoothness is closed under nonnegative scaling, sum, and finite
+   simultaneous composition, and transfers to pure Bayes–Nash equilibria under arbitrary independent
+   finite type distributions.
 
 ## Main definitions
 
@@ -55,17 +54,18 @@ along two orthogonal axes:
   `Cslib.GameTheory.CostGame.IsSmooth.simultaneous`: closure of `(λ, μ)`-smoothness under
   nonnegative scaling, sum, and simultaneous composition.
 * `Cslib.GameTheory.BayesianCostGame.IsSmooth.expected_socialCost_le_of_isPureBayesNash`:
-  Roughgarden's incomplete-information extension theorem — under independent type priors, every
-  pure Bayes–Nash equilibrium of a `(λ, μ)`-smooth Bayesian cost game with `μ < 1` has expected
-  social cost at most `λ / (1 - μ)` times the expected social cost of any feasible type-contingent
-  benchmark.
+  Roughgarden's incomplete-information extension theorem ([Roughgarden2012]) — under independent
+  type priors, every pure Bayes–Nash equilibrium of a `(λ, μ)`-smooth Bayesian cost game with
+  `μ < 1` has expected social cost at most `λ / (1 - μ)` times the expected social cost of any
+  feasible type-contingent benchmark.
 * `Cslib.GameTheory.BayesianCostGame.isSmooth_ofCostGame`: any complete-information `(λ, μ)`-smooth
   cost game equipped with private feasible strategy sets is `(λ, μ)`-smooth as a Bayesian game.
 
 ## References
 
+* [Roughgarden2012]
 * [Roughgarden2015]
-* [Roughgarden2016]
+* [SyrgkanisTardos2013]
 -/
 
 public section
@@ -80,16 +80,6 @@ section Hierarchy
 
 variable {ι : Type*} {S : ι → Type*} [DecidableEq ι] [Fintype ι] {G : CostGame ι S}
 
-omit [Fintype ι] in
-/-- An `ε`-approximate correlated equilibrium satisfies the coarse correlated equilibrium
-inequalities with the same additive slack `ε`, via constant switching functions. -/
-theorem IsApproxCorrelatedEquilibrium.forall_le {ε : ι → ℝ}
-    {σ : Convexity.StdSimplex ℝ (∀ i, S i)} (hσ : G.IsApproxCorrelatedEquilibrium ε σ)
-    (i : ι) (a : S i) :
-    σ.weights.sum (fun s w => w * G.cost i s)
-      ≤ σ.weights.sum (fun s w => w * G.cost i (update s i a)) + ε i :=
-  hσ i fun _ => a
-
 /-- **Price of anarchy for approximate correlated equilibria in smooth games**
 ([Roughgarden2015], Theorem 3.2 with additive slack): if `G` is `(λ, μ)`-smooth with `μ < 1` and
 `σ` is an `ε`-approximate correlated equilibrium, then
@@ -99,7 +89,7 @@ theorem IsSmooth.expected_socialCost_le_of_isApproxCorrelatedEquilibrium {lam μ
     (hσ : G.IsApproxCorrelatedEquilibrium ε σ) (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * G.socialCost s)
       ≤ (lam * G.socialCost s' + ∑ i, ε i) / (1 - μ) :=
-  hG.expected_socialCost_le_of_forall_le hμ hσ.forall_le s'
+  hG.expected_socialCost_le_of_forall_le hμ (fun i a => hσ i fun _ => a) s'
 
 /-- **Price of anarchy for correlated equilibria in smooth games** ([Roughgarden2015],
 Theorem 3.2): if `G` is `(λ, μ)`-smooth with `μ < 1` and `σ` is a correlated equilibrium, then
@@ -172,9 +162,9 @@ theorem IsSmooth.add [DecidableEq ι] {S : ι → Type*} {G₁ G₂ : CostGame �
   linarith [h₁ s s', h₂ s s']
 
 /-- **Simultaneous composition** of a finite family of cost-minimization games `G k`
-([Roughgarden2016], Lecture 14 — locator not re-verified against primary PDF): each player `i`
-chooses a component strategy `s i k : S k i` in every game `k : κ` simultaneously and pays the sum
-of its component costs `∑ k, (G k).cost i (fun j => s j k)`. -/
+([SyrgkanisTardos2013]): each player `i` chooses a component strategy `s i k : S k i` in every game
+`k : κ` simultaneously and pays the sum of its component costs
+`∑ k, (G k).cost i (fun j => s j k)`. -/
 @[expose] def simultaneous {κ : Type*} [Fintype κ] {S : κ → ι → Type*}
     (G : ∀ k, CostGame ι (S k)) : CostGame ι (fun i => ∀ k, S k i) where
   cost i s := ∑ k, (G k).cost i (fun j => s j k)
@@ -219,10 +209,9 @@ end CostGame
 /-! ### Incomplete-information (Bayesian) smooth cost games -/
 
 /-- An incomplete-information (**Bayesian**) cost-minimization game with private types and
-type-restricted strategy sets (Roughgarden, 2012; [Roughgarden2016], Lecture 12 — locator not
-re-verified against primary PDF). Each player `i : ι` has a private type `t : Θ i`, a feasible set
-`allowed i t ⊆ S i` of ambient actions available to type `t`, and ex-post cost `cost i t s` at
-ambient action profile `s : ∀ j, S j`. -/
+type-restricted strategy sets ([Roughgarden2012]). Each player `i : ι` has a private type `t : Θ i`,
+a feasible set `allowed i t ⊆ S i` of ambient actions available to type `t`, and ex-post cost
+`cost i t s` at ambient action profile `s : ∀ j, S j`. -/
 structure BayesianCostGame (ι : Type*) (Θ : ι → Type*) (S : ι → Type*) where
   /-- Ambient actions available to player `i` when its private type is `t`. -/
   allowed : ∀ i, Θ i → Set (S i)
@@ -250,8 +239,7 @@ every player `i`. -/
   ∀ i, s i ∈ B.allowed i (θ i)
 
 /-- Universal **`(λ, μ)`-smoothness** of a Bayesian cost game across feasible type-profile pairs
-(Roughgarden, 2012, Definition 3.1; [Roughgarden2016], Definition 12.5 — locator not re-verified
-against primary PDF): for all type profiles `θ`, `θ'` and respective feasible action profiles `s`,
+([Roughgarden2012]): for all type profiles `θ`, `θ'` and respective feasible action profiles `s`,
 `s'`, evaluating player `i`'s unilateral deviation to `s' i` under type `θ' i` sums to at most
 `lam * socialCost θ' s' + μ * socialCost θ s`. -/
 @[expose] def IsSmooth [DecidableEq ι] [Fintype ι] (B : BayesianCostGame ι Θ S)
@@ -265,11 +253,6 @@ against primary PDF): for all type profiles `θ`, `θ'` and respective feasible 
     BayesianCostGame ι Θ S where
   allowed := allowed
   cost i _ s := G.cost i s
-
-@[simp]
-theorem socialCost_ofCostGame [Fintype ι] (G : CostGame ι S) (allowed : ∀ i, Θ i → Set (S i))
-    (θ : ∀ i, Θ i) (s : ∀ i, S i) :
-    (ofCostGame G allowed).socialCost θ s = G.socialCost s := rfl
 
 /-- Any complete-information `(λ, μ)`-smooth cost game remains `(λ, μ)`-smooth when players have
 private feasible action sets `allowed i t`, because player costs do not vary directly with types. -/
@@ -317,9 +300,8 @@ theorem sum_mul_interimCost_eq (B : BayesianCostGame ι Θ S) (p : ∀ i, Θ i �
   simp only [interimCost, hupd]
   exact sum_mul_sum_productWeight_update p hp fun θ => B.cost i (θ i) (fun j => β j (θ j))
 
-/-- **Roughgarden's incomplete-information smoothness extension theorem** (Roughgarden, 2012,
-Theorem 3.2; [Roughgarden2016], Theorem 12.6 — locator not re-verified against primary PDF): if `B`
-is `(λ, μ)`-smooth with `μ < 1`, `p` is an independent profile of probability distributions over
+/-- **Roughgarden's incomplete-information smoothness extension theorem** ([Roughgarden2012]): if
+`B` is `(λ, μ)`-smooth with `μ < 1`, `p` is an independent profile of probability distributions over
 types, and `β` is a pure Bayes–Nash equilibrium, then for every feasible type-contingent benchmark
 `s' : (∀ i, Θ i) → ∀ i, S i`,
 `E_{θ ∼ p}[socialCost θ (β ∘ θ)] ≤ λ / (1 - μ) * E_{θ' ∼ p}[socialCost θ' (s' θ')]`. -/
@@ -385,10 +367,9 @@ theorem IsSmooth.expected_socialCost_le_of_isPureBayesNash {B : BayesianCostGame
   nlinarith
 
 /-- **Incomplete-information robust price of anarchy for smooth complete-information games**
-(Roughgarden, 2012, Corollary 3.4 — locator not re-verified against primary PDF): in any
-complete-information `(λ, μ)`-smooth cost game `G` with `μ < 1`, restricting players to private
-feasible strategy sets `allowed i t` drawn from independent priors `p` preserves the
-price-of-anarchy bound `λ / (1 - μ)` across all pure Bayes–Nash equilibria. -/
+([Roughgarden2012]): in any complete-information `(λ, μ)`-smooth cost game `G` with `μ < 1`,
+restricting players to private feasible strategy sets `allowed i t` drawn from independent priors
+`p` preserves the price-of-anarchy bound `λ / (1 - μ)` across all pure Bayes–Nash equilibria. -/
 theorem expected_socialCost_ofCostGame_le_of_isPureBayesNash {G : CostGame ι S}
     (allowed : ∀ i, Θ i → Set (S i)) {lam μ : ℝ} (hG : G.IsSmooth lam μ) (hμ : μ < 1)
     {p : ∀ i, Θ i → ℝ} (hp : ∀ i, IsMixedStrategy (p i)) {β : ∀ i, Θ i → S i}

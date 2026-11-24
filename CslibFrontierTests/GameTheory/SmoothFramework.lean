@@ -188,14 +188,6 @@ def asymVal : Fin 2 → ℝ := fun i => if i = 0 then 2 else 1
 def tieBidOne : Fin 2 → ℝ≥0 := fun _ => 1
 def winnerZeroAlloc : Fin 2 → ℝ := fun i => if i = 0 then 1 else 0
 
-private theorem coe_update_fin2 (b : Fin 2 → ℝ≥0) (i : Fin 2) (z : ℝ≥0) :
-    (fun j : Fin 2 => ((update b i z j : ℝ≥0) : ℝ)) =
-      update (fun j : Fin 2 => (b j : ℝ)) i (z : ℝ) := by
-  funext j
-  rcases eq_or_ne j i with rfl | hj
-  · rw [update_self, update_self]
-  · rw [update_of_ne hj, update_of_ne hj]
-
 /-- Complete-information 2-bidder asymmetric first-price pure Nash equilibrium: with valuations
 `asymVal 0 = 2`, `asymVal 1 = 1`, both bidding `1` (`tieBidOne`) is a pure Nash equilibrium of
 `FirstPrice.mechanism.toCostGame asymVal`, checked against `1 - exp (-1)`. -/
@@ -220,8 +212,8 @@ theorem firstPrice_asymmetric_pureNash_witness :
         (SingleParameter.FirstPrice.mechanism.toCostGame asymVal).cost 0 (update tieBidOne 0 z)
       dsimp only [SingleParameter.Mechanism.toCostGame, SingleParameter.Mechanism.utility,
         SingleParameter.FirstPrice.mechanism]
-      rw [coe_update_fin2 tieBidOne 0 z, SingleParameter.Vickrey.allocation_eq_one_iff.2 hw0,
-        update_self]
+      rw [SingleParameter.Mechanism.coe_update_nnreal tieBidOne 0 z,
+        SingleParameter.Vickrey.allocation_eq_one_iff.2 hw0, update_self]
       have hv0 : asymVal 0 = 2 := rfl
       have hb0 : (tieBidOne 0 : ℝ) = 1 := rfl
       rw [hv0, hb0]
@@ -238,7 +230,7 @@ theorem firstPrice_asymmetric_pureNash_witness :
         (SingleParameter.FirstPrice.mechanism.toCostGame asymVal).cost 1 (update tieBidOne 1 z)
       dsimp only [SingleParameter.Mechanism.toCostGame, SingleParameter.Mechanism.utility,
         SingleParameter.FirstPrice.mechanism]
-      rw [coe_update_fin2 tieBidOne 1 z, hl1, update_self]
+      rw [SingleParameter.Mechanism.coe_update_nnreal tieBidOne 1 z, hl1, update_self]
       have hv1 : asymVal 1 = 1 := rfl
       rw [hv1]
       by_cases hwin : SingleParameter.Vickrey.Wins
@@ -403,7 +395,8 @@ theorem secondPrice_noOverbidding_and_overbidding_witnesses :
         (SingleParameter.Vickrey.mechanism.toCostGame unitVal).cost 0 (update asymZeroOneBid 0 z)
       dsimp only [SingleParameter.Mechanism.toCostGame, SingleParameter.Mechanism.utility,
         SingleParameter.Vickrey.mechanism, unitVal]
-      rw [coe_update_fin2 asymZeroOneBid 0 z, SingleParameter.Vickrey.allocation_eq_one_iff.2 hw0,
+      rw [SingleParameter.Mechanism.coe_update_nnreal asymZeroOneBid 0 z,
+        SingleParameter.Vickrey.allocation_eq_one_iff.2 hw0,
         SingleParameter.Vickrey.highestOtherBid_update, hob0]
       rcases SingleParameter.Vickrey.allocation_binary
           (update (fun j : Fin 2 => (asymZeroOneBid j : ℝ)) 0 (z : ℝ)) 0 with h0 | h1
@@ -424,7 +417,7 @@ theorem secondPrice_noOverbidding_and_overbidding_witnesses :
         (SingleParameter.Vickrey.mechanism.toCostGame unitVal).cost 1 (update asymZeroOneBid 1 z)
       dsimp only [SingleParameter.Mechanism.toCostGame, SingleParameter.Mechanism.utility,
         SingleParameter.Vickrey.mechanism, unitVal]
-      rw [coe_update_fin2 asymZeroOneBid 1 z, hl1,
+      rw [SingleParameter.Mechanism.coe_update_nnreal asymZeroOneBid 1 z, hl1,
         SingleParameter.Vickrey.highestOtherBid_update, hob1]
       rcases SingleParameter.Vickrey.allocation_binary
           (update (fun j : Fin 2 => (asymZeroOneBid j : ℝ)) 1 (z : ℝ)) 1 with h0 | h1

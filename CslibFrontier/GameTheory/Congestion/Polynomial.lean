@@ -25,16 +25,16 @@ import Mathlib.Topology.Order.IntermediateValue
 
 An atomic congestion game has **degree-`d` polynomial latencies** (`HasPolynomialLatencies d`) if
 every resource latency has the form `latency e k = ∑ j ∈ range (d + 1), c e j * k ^ j` with
-nonnegative coefficients `c e j ≥ 0` ([NisanRoughgardenTardosVazirani2007], Chapter 18,
-Remark 18.26; [Roughgarden2015], Example 2.6 — locator not re-verified against primary PDF).
+nonnegative coefficients `c e j ≥ 0` ([Roughgarden2015], Example 2.5;
+[AlandDumraufGairingMonienSchoppmann2006]), generalizing the `d = 1` affine case of
+[ChristodoulouKoutsoupias2005].
 
 We prove two complementary smoothness theorems:
 
 1. **General degree `d ≥ 1` (`isSmooth_of_hasPolynomialLatencies`)**: let `φ_d = polynomialRoot d`
-   be the unique root `φ > 1` of `φ ^ (d + 1) = (1 + φ) ^ d` ([AwerbuchAzarEpstein2005]; Aland,
-   Dumrauf, Gairing, Monien, and Schoppmann, 2006 — locator not re-verified against primary PDF).
-   Every atomic congestion game with degree-`d` polynomial latencies is
-   `(polynomialSmoothLam d, polynomialSmoothMu d)`-smooth with ratio
+   be the unique root `φ > 1` of `φ ^ (d + 1) = (1 + φ) ^ d` ([AwerbuchAzarEpstein2005];
+   [AlandDumraufGairingMonienSchoppmann2006]). Every atomic congestion game with degree-`d`
+   polynomial latencies is `(polynomialSmoothLam d, polynomialSmoothMu d)`-smooth with ratio
    `polynomialSmoothLam d / (1 - polynomialSmoothMu d) = φ_d ^ (d + 1) < (d + 1) ^ (d + 1)`,
    yielding a `d^{O(d)}` robust price-of-anarchy bound across pure Nash, mixed Nash, correlated,
    coarse correlated, and incomplete-information Bayes–Nash equilibria.
@@ -42,8 +42,8 @@ We prove two complementary smoothness theorems:
    `exists_socialCost_eq_quadratic_poa`)**: on natural numbers,
    `y * (z + 1) ^ 2 ≤ 115 / 19 * y ^ 3 + 7 / 19 * z ^ 3`, so every unweighted congestion game with
    nonnegative quadratic latencies (`HasPolynomialLatencies 2`) is `(115 / 19, 7 / 19)`-smooth with
-   exact robust price of anarchy `115 / 12` (Aland et al., 2006 — locator not re-verified against
-   primary PDF), attained by an explicit symmetric four-player, eight-resource pure Nash witness.
+   exact robust price of anarchy `115 / 12` ([AlandDumraufGairingMonienSchoppmann2006]), attained
+   by an explicit symmetric four-player, eight-resource pure Nash witness.
 
 ## Main definitions
 
@@ -74,9 +74,9 @@ We prove two complementary smoothness theorems:
 
 ## References
 
+* [AlandDumraufGairingMonienSchoppmann2006]
 * [AwerbuchAzarEpstein2005]
 * [ChristodoulouKoutsoupias2005]
-* [NisanRoughgardenTardosVazirani2007]
 * [Roughgarden2015]
 -/
 
@@ -549,8 +549,7 @@ variable {ι : Type*} {S : ι → Type*} {E : Type*}
 
 /-- `C` has **nonnegative polynomial latencies of degree at most `d`**: every latency has the form
 `latency e k = ∑ j ∈ range (d + 1), c e j * k ^ j` with `c e j ≥ 0`
-([NisanRoughgardenTardosVazirani2007], Chapter 18, Remark 18.26; [Roughgarden2015], Example 2.6 —
-locator not re-verified against primary PDF). -/
+([Roughgarden2015], Example 2.5; [AlandDumraufGairingMonienSchoppmann2006]). -/
 @[expose] def HasPolynomialLatencies (C : CongestionGame ι S E) (d : ℕ) : Prop :=
   ∃ c : E → ℕ → ℝ, (∀ e j, 0 ≤ c e j) ∧
     ∀ e k, C.latency e k = ∑ j ∈ range (d + 1), c e j * (k : ℝ) ^ j
@@ -587,7 +586,8 @@ private theorem isSmooth_of_latency_bound {lam μ : ℝ}
         rw [socialCost_toCostGame, socialCost_toCostGame, sum_add_distrib, mul_sum, mul_sum]
 
 /-- **Degree-`d` polynomial atomic congestion games are `(λ_d, μ_d)`-smooth**
-([Roughgarden2015], Example 2.6; [AwerbuchAzarEpstein2005]). -/
+([Roughgarden2015], Example 2.5; [AwerbuchAzarEpstein2005];
+[AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_of_hasPolynomialLatencies {d : ℕ} (h : C.HasPolynomialLatencies d) :
     C.toCostGame.IsSmooth (polynomialSmoothLam d) (polynomialSmoothMu d) := by
   have hmono := h.monotone_latency
@@ -618,10 +618,9 @@ theorem expected_socialCost_le_of_hasPolynomialLatencies {d : ℕ} (hd : 1 ≤ d
     (polynomialSmoothMu_lt_one d) hσ s'
   rwa [polynomialSmoothRatio_eq hd] at hsm
 
-/-- **Explicit closed-form `d^{O(d)}` robust price of anarchy**
-([NisanRoughgardenTardosVazirani2007], Chapter 18, Remark 18.26; [Roughgarden2015], Example 2.6 —
-locator not re-verified against primary PDF): for `d ≥ 1`, every coarse correlated equilibrium of
-a degree-`d` polynomial congestion game has expected social cost at most
+/-- **Explicit closed-form `d^{O(d)}` robust price of anarchy** ([AwerbuchAzarEpstein2005];
+[Roughgarden2015], Example 2.5 and Theorem 3.2): for `d ≥ 1`, every coarse correlated equilibrium
+of a degree-`d` polynomial congestion game has expected social cost at most
 `(d + 1) ^ (d + 1) * socialCost s'`. -/
 theorem expected_socialCost_le_succ_pow_of_hasPolynomialLatencies {d : ℕ} (hd : 1 ≤ d)
     (h : C.HasPolynomialLatencies d) {σ : Convexity.StdSimplex ℝ (∀ i, S i)}
@@ -646,8 +645,8 @@ end GeneralPolynomial
 
 section Quadratic
 
-/-- **Exact natural-number quadratic smoothness inequality** (Aland, Dumrauf, Gairing, Monien, and
-Schoppmann, 2006; [Roughgarden2015], Section 5 — locator not re-verified against primary PDF):
+/-- **Exact natural-number quadratic smoothness inequality**
+([AlandDumraufGairingMonienSchoppmann2006]):
 `y * (z + 1) ^ 2 ≤ 115 / 19 * y ^ 3 + 7 / 19 * z ^ 3` for all `y, z : ℕ`, with equality at
 `(y, z) = (1, 2)` and `(y, z) = (1, 3)`. -/
 theorem mul_add_one_sq_le_quadraticSmooth (y z : ℕ) :
@@ -692,7 +691,7 @@ variable {ι : Type*} {S : ι → Type*} {E : Type*} [Fintype ι] [DecidableEq �
   [Finite E] {C : CongestionGame ι S E}
 
 /-- **Unweighted quadratic atomic congestion games are `(115 / 19, 7 / 19)`-smooth**
-(Aland et al., 2006; [Roughgarden2015], Section 5 — locator not re-verified against primary PDF). -/
+([AlandDumraufGairingMonienSchoppmann2006]). -/
 theorem isSmooth_quadratic (h : C.HasPolynomialLatencies 2) :
     C.toCostGame.IsSmooth (115 / 19) (7 / 19) := by
   have hmono := h.monotone_latency
@@ -717,10 +716,11 @@ theorem isSmooth_quadratic (h : C.HasPolynomialLatencies 2) :
   nlinarith [mul_le_mul_of_nonneg_left hlin hc1, mul_le_mul_of_nonneg_left hquad hc2,
     mul_nonneg hc0 hy0, mul_nonneg hc0 hz0]
 
-/-- **Exact robust price of anarchy `115 / 12` for quadratic congestion games** (Aland et al.,
-2006; [Roughgarden2015], Theorem 3.2 — locator not re-verified against primary PDF): every coarse
-correlated equilibrium of an unweighted congestion game with nonnegative quadratic latencies has
-expected social cost at most `115 / 12` times the social cost of every profile `s'`. -/
+/-- **Exact robust price of anarchy `115 / 12` for quadratic congestion games**
+([AlandDumraufGairingMonienSchoppmann2006], extended to coarse correlated equilibria via
+[Roughgarden2015], Theorem 3.2): every coarse correlated equilibrium of an unweighted congestion
+game with nonnegative quadratic latencies has expected social cost at most `115 / 12` times the
+social cost of every profile `s'`. -/
 theorem expected_socialCost_le_quadratic (h : C.HasPolynomialLatencies 2)
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} (hσ : C.toCostGame.IsCoarseCorrelatedEquilibrium σ)
     (s' : ∀ i, S i) :

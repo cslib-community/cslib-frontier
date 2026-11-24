@@ -25,13 +25,12 @@ import Mathlib.Tactic.Ring
 /-!
 # Smooth mechanisms and the price of anarchy of first- and second-price auctions
 
-Syrgkanis and Tardos (2013) adapted Roughgarden's smoothness framework [Roughgarden2015] from
-cost-minimization games to sealed-bid quasilinear mechanisms ([Roughgarden2016], Lecture 14 —
-locator not re-verified against primary PDF). A single-parameter mechanism `M` is
-**`(λ, μ)`-smooth** with respect to feasible allocations `X` (`Mechanism.IsSmoothMechanism`) if for
-every nonnegative valuation profile `v` and benchmark `x ∈ X`, each bidder `i` has a finitely
-supported deviation distribution `D i` over nonnegative bids (depending only on `v` and `x`, never
-on `b`) such that against every nonnegative bid profile `b`,
+Syrgkanis and Tardos [SyrgkanisTardos2013] adapted Roughgarden's smoothness framework
+[Roughgarden2015] from cost-minimization games to sealed-bid quasilinear mechanisms. A
+single-parameter mechanism `M` is **`(λ, μ)`-smooth** with respect to feasible allocations `X`
+(`Mechanism.IsSmoothMechanism`) if for every nonnegative valuation profile `v` and benchmark
+`x ∈ X`, each bidder `i` has a finitely supported deviation distribution `D i` over nonnegative bids
+(depending only on `v` and `x`, never on `b`) such that against every nonnegative bid profile `b`,
 `λ * socialWelfare v x - μ * ∑ i, M.payment b i` is at most
 `∑ i, E_{z ∼ D i}[M.utility i (v i) (update b i z)]`.
 
@@ -61,8 +60,9 @@ We instantiate this framework on the two canonical single-item auctions:
   `FirstPrice.integral_welfare_ge_one_sub_exp_neg_one`).
 * **Vickrey second-price auction (`Vickrey.mechanism`)**: truthful deviation gives
   `u_i(v_i, b_{-i}) ≥ v_i - highestOtherBid b i` (`Vickrey.utility_truthful_ge`), yielding the
-  Christodoulou–Kovács–Schapira (2008) **`1 / 2` price of anarchy under no-overbidding** for coarse
-  correlated and Bayes–Nash equilibria (`Vickrey.welfare_ge_half_of_noOverbidding`,
+  Christodoulou–Kovács–Schapira [ChristodoulouKovacsSchapira2008] **`1 / 2` price of anarchy under
+  no-overbidding** for coarse correlated and Bayes–Nash equilibria
+  (`Vickrey.welfare_ge_half_of_noOverbidding`,
   `Vickrey.integral_welfare_ge_half_of_isBayesNash_noOverbidding`), paired with a checked two-bidder
   overbidding pure Nash witness (`Vickrey.exists_overbidding_isPureNash_welfare_zero`) showing why
   the no-overbidding hypothesis is indispensable in second-price auctions.
@@ -101,9 +101,9 @@ We instantiate this framework on the two canonical single-item auctions:
 
 ## References
 
-* [Hartline2021]
+* [ChristodoulouKovacsSchapira2008]
 * [Roughgarden2015]
-* [Roughgarden2016]
+* [SyrgkanisTardos2013]
 -/
 
 open MeasureTheory Finset Function
@@ -150,10 +150,9 @@ theorem HasZeroBidFloor.utility_zero_nonneg [DecidableEq ι] {M : Mechanism ι}
   rw [utility]
   nlinarith
 
-/-- **Syrgkanis–Tardos `(λ, μ)`-smooth mechanism** (Syrgkanis and Tardos, 2013, Definition 2.1;
-[Roughgarden2016], Lecture 14 — locator not re-verified against primary PDF): for every nonnegative
-valuation profile `v` and feasible benchmark allocation `x ∈ X`, there exist finitely supported
-bid distributions `D i` (independent of `b`) such that for every nonnegative bid profile `b`,
+/-- **Syrgkanis–Tardos `(λ, μ)`-smooth mechanism** ([SyrgkanisTardos2013]): for every nonnegative
+valuation profile `v` and feasible benchmark allocation `x ∈ X`, there exist finitely supported bid
+distributions `D i` (independent of `b`) such that for every nonnegative bid profile `b`,
 `λ * socialWelfare v x - μ * ∑ i, M.payment b i` is at most
 `∑ i, E_{z ∼ D i}[M.utility i (v i) (update b i z)]`. -/
 @[expose] def IsSmoothMechanism [Fintype ι] [DecidableEq ι] (M : Mechanism ι)
@@ -166,12 +165,10 @@ bid distributions `D i` (independent of `b`) such that for every nonnegative bid
 
 section CompleteInfo
 
-private theorem coe_update_nnreal [DecidableEq ι] (b : ι → ℝ≥0) (i : ι) (z : ℝ≥0) :
-    (fun j => ((update b i z j : ℝ≥0) : ℝ)) = update (fun j => (b j : ℝ)) i (z : ℝ) := by
-  funext j
-  rcases eq_or_ne j i with rfl | hj
-  · rw [update_self, update_self]
-  · rw [update_of_ne hj, update_of_ne hj]
+/-- Coercing `Function.update` on `ℝ≥0` bid profiles commutes with `(↑) : ℝ≥0 → ℝ`. -/
+theorem coe_update_nnreal [DecidableEq ι] (b : ι → ℝ≥0) (i : ι) (z : ℝ≥0) :
+    (fun j => ((update b i z j : ℝ≥0) : ℝ)) = update (fun j => (b j : ℝ)) i (z : ℝ) :=
+  funext <| apply_update (fun _ => ((↑) : ℝ≥0 → ℝ)) b i z
 
 theorem expected_utility_ge_of_cce [DecidableEq ι] {M : Mechanism ι}
     {v : ι → ℝ} {σ : Convexity.StdSimplex ℝ (ι → ℝ≥0)}
@@ -194,8 +191,7 @@ private theorem div_max_one_mul_le {lam μ W U P E : ℝ} (hsm : lam * W - μ * 
 
 variable [Fintype ι] [DecidableEq ι] {M : Mechanism ι}
 
-/-- **Complete-information robust price of anarchy for smooth mechanisms** (Syrgkanis and Tardos,
-2013, Theorem 2.2; [Roughgarden2016], Lecture 14 — locator not re-verified against primary PDF):
+/-- **Complete-information robust price of anarchy for smooth mechanisms** ([SyrgkanisTardos2013]):
 if `M` is `(λ, μ)`-smooth, satisfies `HasZeroBidFloor`, and collects nonnegative total payments on
 nonnegative bids, then every coarse correlated equilibrium `σ` of `M.toCostGame v` (`0 ≤ v`)
 satisfies `λ / max 1 μ * socialWelfare v x ≤ E_{b ∼ σ}[M.welfare v b]` for all `x ∈ X`. -/
@@ -387,8 +383,7 @@ private theorem integral_welfare_eq_add_payment (M : Mechanism ι) {ν : ι → 
   rw [hpt, integral_add (integrable_finsetSum _ fun i _ => hu i)
     (integrable_finsetSum _ fun i _ => hp i)]
 
-/-- **Bayesian price of anarchy for smooth mechanisms** (Syrgkanis and Tardos, 2013, Theorem 4.2;
-[Roughgarden2016], Lecture 14 — locator not re-verified against primary PDF): if `M` is
+/-- **Bayesian price of anarchy for smooth mechanisms** ([SyrgkanisTardos2013]): if `M` is
 `(λ, μ)`-smooth, satisfies `HasZeroBidFloor`, and collects nonnegative total payments on
 nonnegative bids, then for any independent probability measures `ν i` supported on `[0, h i]` and
 any Bayes–Nash equilibrium `β` (`M.IsBayesNash ν h β`), every integrable benchmark allocation rule
@@ -526,6 +521,13 @@ end Bayesian
 
 end Mechanism
 
+private theorem vickrey_allocation_nonneg {ι : Type*} [LinearOrder ι] (b : ι → ℝ) (i : ι) :
+    0 ≤ Vickrey.allocation b i := by
+  rcases Vickrey.allocation_binary b i with h0 | h1
+  · rw [h0]
+  · rw [h1]
+    exact zero_le_one
+
 /-! ### First-price auction: `(1 - 1 / e, 1)`-smoothness and unconditional PoA -/
 
 namespace FirstPrice
@@ -538,19 +540,13 @@ omit [Fintype ι] in
 theorem hasZeroBidFloor : (FirstPrice.mechanism (ι := ι)).HasZeroBidFloor := by
   intro i b _
   refine ⟨?_, ?_⟩
-  · rcases Vickrey.allocation_binary (update b i 0) i with h0 | h1
-    · rw [FirstPrice.mechanism_allocation, h0]
-    · rw [FirstPrice.mechanism_allocation, h1]
-      exact zero_le_one
+  · rw [FirstPrice.mechanism_allocation]
+    exact vickrey_allocation_nonneg (update b i 0) i
   · simp only [FirstPrice.mechanism, update_self, zero_mul, le_refl]
 
 theorem sum_payment_nonneg {b : ι → ℝ} (hb : 0 ≤ b) :
-    0 ≤ ∑ i, FirstPrice.mechanism.payment b i := by
-  refine sum_nonneg fun i _ => mul_nonneg (hb i) ?_
-  rcases Vickrey.allocation_binary b i with h0 | h1
-  · rw [h0]
-  · rw [h1]
-    exact zero_le_one
+    0 ≤ ∑ i, FirstPrice.mechanism.payment b i :=
+  sum_nonneg fun i _ => mul_nonneg (hb i) (vickrey_allocation_nonneg b i)
 
 private theorem sum_mul_allocation_eq_of_wins {b f : ι → ℝ} {w : ι} (hw : Vickrey.Wins b w) :
     ∑ j, f j * Vickrey.allocation b j = f w := by
@@ -721,8 +717,8 @@ theorem isSmoothMechanism_half :
     linarith
 
 /-- **Uniform `K`-grid `(exp (-1 / K) * (1 - exp (-1)), 1)`-smoothness of the first-price auction**
-(finitely supported discretization of Syrgkanis and Tardos, 2013, Lemma 3.1 — locator not
-re-verified against primary PDF). -/
+(finitely supported discretization of the geometric-shading distribution of
+[SyrgkanisTardos2013]). -/
 theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
     (FirstPrice.mechanism (ι := ι)).IsSmoothMechanism Vickrey.singleItemFeasible
       (Real.exp (-1 / (K : ℝ)) * (1 - Real.exp (-1))) 1 := by
@@ -905,11 +901,10 @@ private theorem socialWelfare_nonneg_of_singleItemFeasible {v x : ι → ℝ} (h
   · rw [h1]
     exact zero_le_one
 
-/-- **Unconditional `1 - 1 / e` robust price of anarchy of the first-price auction** (Syrgkanis
-and Tardos, 2013, Theorem 3.2; [Roughgarden2016], Lecture 14 — locator not re-verified against
-primary PDF): for every nonnegative valuation profile `v`, every feasible single-item allocation
-`x ∈ singleItemFeasible`, and every coarse correlated equilibrium `σ` of `mechanism.toCostGame v`
-(without any no-overbidding assumption),
+/-- **Unconditional `1 - 1 / e` robust price of anarchy of the first-price auction**
+([SyrgkanisTardos2013]): for every nonnegative valuation profile `v`, every feasible single-item
+allocation `x ∈ singleItemFeasible`, and every coarse correlated equilibrium `σ` of
+`mechanism.toCostGame v` (without any no-overbidding assumption),
 `(1 - exp (-1)) * socialWelfare v x ≤ E_{b ∼ σ}[mechanism.welfare v b]`. -/
 theorem welfare_ge_one_sub_exp_neg_one {v : ι → ℝ} (hv : 0 ≤ v)
     {x : ι → ℝ} (hx : x ∈ Vickrey.singleItemFeasible) {σ : Convexity.StdSimplex ℝ (ι → ℝ≥0)}
@@ -926,11 +921,11 @@ theorem welfare_ge_one_sub_exp_neg_one {v : ι → ℝ} (hv : 0 ≤ v)
   rw [max_self, div_one, mul_assoc] at hgrid
   exact hgrid
 
-/-- **Unconditional `1 - 1 / e` Bayesian price of anarchy of the first-price auction** (Syrgkanis
-and Tardos, 2013, Theorem 4.2 — locator not re-verified against primary PDF): for arbitrary
-independent valuation distributions `ν i` on `[0, h i]` and any Bayes–Nash equilibrium `β` of
-`FirstPrice.mechanism`, expected equilibrium welfare is at least `1 - exp (-1)` times the expected
-welfare of any integrable benchmark rule `x` valued in `singleItemFeasible`. -/
+/-- **Unconditional `1 - 1 / e` Bayesian price of anarchy of the first-price auction**
+([SyrgkanisTardos2013]): for arbitrary independent valuation distributions `ν i` on `[0, h i]` and
+any Bayes–Nash equilibrium `β` of `FirstPrice.mechanism`, expected equilibrium welfare is at least
+`1 - exp (-1)` times the expected welfare of any integrable benchmark rule `x` valued in
+`singleItemFeasible`. -/
 theorem integral_welfare_ge_one_sub_exp_neg_one
     {ν : ι → Measure ℝ} [∀ i, IsProbabilityMeasure (ν i)] {h : ι → ℝ}
     (hsupp : ∀ i, ∀ᵐ t ∂ν i, t ∈ Set.Icc 0 (h i))
@@ -1009,24 +1004,11 @@ private theorem highestOtherBid_le_welfare_of_noOverbidding {v b : ι → ℝ} (
   · exact (hw j hjw).1.trans (hnob w)
 
 private theorem sum_payment_nonneg_vickrey (b : ι → ℝ) :
-    0 ≤ ∑ i, Vickrey.mechanism.payment b i := by
-  refine sum_nonneg fun i _ => mul_nonneg (highestOtherBid_nonneg b i) ?_
-  rcases allocation_binary b i with h0 | h1
-  · rw [h0]
-  · rw [h1]
-    exact zero_le_one
-
-omit [Fintype ι] in
-private theorem allocation_nonneg_vickrey (b : ι → ℝ) (i : ι) :
-    0 ≤ allocation b i := by
-  rcases allocation_binary b i with h0 | h1
-  · rw [h0]
-  · rw [h1]
-    exact zero_le_one
+    0 ≤ ∑ i, Vickrey.mechanism.payment b i :=
+  sum_nonneg fun i _ => mul_nonneg (highestOtherBid_nonneg b i) (vickrey_allocation_nonneg b i)
 
 /-- **`1 / 2` robust price of anarchy of the second-price auction under no-overbidding**
-(Christodoulou, Kovács, and Schapira, 2008; [Roughgarden2016], Lecture 14 — locator not
-re-verified against primary PDF): for every coarse correlated equilibrium `σ` of
+([ChristodoulouKovacsSchapira2008]): for every coarse correlated equilibrium `σ` of
 `Vickrey.mechanism.toCostGame v` (`0 ≤ v`) supported on bid profiles satisfying `b j ≤ v j`,
 `1 / 2 * socialWelfare v x ≤ E_{b ∼ σ}[mechanism.welfare v b]` for all `x ∈ singleItemFeasible`. -/
 theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι → ℝ}
@@ -1041,7 +1023,7 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
     rw [hsw, mul_zero]
     simp only [Finsupp.sum]
     refine sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b) ?_
-    exact sum_nonneg fun i _ => mul_nonneg (hv i) (allocation_nonneg_vickrey _ i)
+    exact sum_nonneg fun i _ => mul_nonneg (hv i) (vickrey_allocation_nonneg _ i)
   · have hsw : socialWelfare v x = v i₀ := by
       rw [socialWelfare, sum_eq_single i₀
         (fun j _ hj => by rw [hj0 j hj, mul_zero])
@@ -1088,7 +1070,7 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
       simp only [Finsupp.sum, NNReal.coe_zero]
       refine sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b) ?_
       rw [Mechanism.utility, mechanism_isNormalized j _ (fun k => (b k).coe_nonneg), sub_zero]
-      exact mul_nonneg (hv j) (allocation_nonneg_vickrey _ j)
+      exact mul_nonneg (hv j) (vickrey_allocation_nonneg _ j)
     have hu_le_wel : σ.weights.sum (fun b w =>
           w * Vickrey.mechanism.utility i₀ (v i₀) (fun j => (b j : ℝ))) ≤
         σ.weights.sum (fun b w => w * Vickrey.mechanism.welfare v (fun j => (b j : ℝ))) := by
@@ -1114,10 +1096,9 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
     linarith
 
 /-- **`1 / 2` Bayesian price of anarchy of the second-price auction under no-overbidding**
-(Christodoulou, Kovács, and Schapira, 2008 — locator not re-verified against primary PDF): for
-independent valuation priors `ν i` on `[0, h i]` and any Bayes–Nash equilibrium `β` satisfying
-`β i t ≤ t` on `[0, h i]`, expected equilibrium welfare is at least `1 / 2` of any integrable
-`singleItemFeasible` benchmark. -/
+([ChristodoulouKovacsSchapira2008]): for independent valuation priors `ν i` on `[0, h i]` and any
+Bayes–Nash equilibrium `β` satisfying `β i t ≤ t` on `[0, h i]`, expected equilibrium welfare is at
+least `1 / 2` of any integrable `singleItemFeasible` benchmark. -/
 theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
     {ν : ι → Measure ℝ} [∀ i, IsProbabilityMeasure (ν i)] {h : ι → ℝ}
     (hsupp : ∀ i, ∀ᵐ t ∂ν i, t ∈ Set.Icc 0 (h i))
@@ -1179,7 +1160,7 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
       filter_upwards [hbox] with w hw
       dsimp only [Pi.zero_apply]
       rw [Mechanism.utility, mechanism_isNormalized i _ (fun j => hβ.nonneg (hw j)), sub_zero]
-      exact mul_nonneg ht.1 (allocation_nonneg_vickrey _ i)
+      exact mul_nonneg ht.1 (vickrey_allocation_nonneg _ i)
     linarith
   have hpt : ∀ᵐ v ∂Measure.pi ν,
       socialWelfare v (x v) - W_eq ≤ ∑ i, Vickrey.mechanism.interimSliceUtil ν β i (v i) := by
@@ -1192,7 +1173,7 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
         refine integral_nonneg_of_ae ?_
         filter_upwards [hbox] with w hw
         dsimp only [Pi.zero_apply]
-        exact sum_nonneg fun i _ => mul_nonneg (hw i).1 (allocation_nonneg_vickrey _ i)
+        exact sum_nonneg fun i _ => mul_nonneg (hw i).1 (vickrey_allocation_nonneg _ i)
       linarith
     · have hsw : socialWelfare v (x v) = v i₀ := by
         rw [socialWelfare, sum_eq_single i₀
@@ -1281,12 +1262,8 @@ theorem exists_overbidding_isPureNash_welfare_zero :
         fin_cases j
         · exact absurd rfl hj
         · simp [b]
-      have hupd0 : (fun j : Fin 2 => ((update b 0 z j : ℝ≥0) : ℝ)) =
-          update (fun j : Fin 2 => (b j : ℝ)) 0 (z : ℝ) := by
-        funext j
-        fin_cases j <;> rfl
       dsimp [Mechanism.toCostGame]
-      rw [hupd0]
+      rw [Mechanism.coe_update_nnreal b 0 z]
       simp only [Mechanism.utility, Vickrey.mechanism, v, Fin.isValue, ↓reduceIte,
         zero_mul, zero_sub, neg_neg, highestOtherBid_update, hob0]
       exact le_rfl
@@ -1299,12 +1276,8 @@ theorem exists_overbidding_isPureNash_welfare_zero :
         · have hle := le_highestOtherBid (b := fun j : Fin 2 => (b j : ℝ))
             (i := 1) (j := 0) (by decide)
           simpa [b] using hle
-      have hupd1 : (fun j : Fin 2 => ((update b 1 z j : ℝ≥0) : ℝ)) =
-          update (fun j : Fin 2 => (b j : ℝ)) 1 (z : ℝ) := by
-        funext j
-        fin_cases j <;> rfl
       dsimp [Mechanism.toCostGame]
-      rw [hupd1]
+      rw [Mechanism.coe_update_nnreal b 1 z]
       simp only [Mechanism.utility, Vickrey.mechanism, hlose, mul_zero, sub_self, neg_zero,
         v, Fin.isValue, one_ne_zero, ↓reduceIte, one_mul, highestOtherBid_update, hob1]
       rcases allocation_binary (update (fun j : Fin 2 => (b j : ℝ)) 1 (z : ℝ)) 1 with h0 | h1
