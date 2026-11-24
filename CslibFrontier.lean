@@ -8647,6 +8647,10 @@ public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
 public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
 public import CslibFrontier.GameTheory.PerfectInformation
+public import CslibFrontier.GameTheory.RandomAssignment.Basic
+public import CslibFrontier.GameTheory.RandomAssignment.Impossibility
+public import CslibFrontier.GameTheory.RandomAssignment.ProbabilisticSerial
+public import CslibFrontier.GameTheory.RandomAssignment.RandomSerialDictatorship
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction
