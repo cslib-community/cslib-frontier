@@ -40,17 +40,15 @@ section Rel
 
 variable {α β γ δ : Type*}
 
-theorem forall₂_flatMap {R : α → β → Prop} {S : γ → δ → Prop} {l : List α} {l' : List β}
-    {f : α → List γ}
-    {g : β → List δ} (h : List.Forall₂ R l l')
-        (hf : ∀ a ∈ l, ∀ b ∈ l', R a b → List.Forall₂ S (f a) (g b)) :
-    List.Forall₂ S (l.flatMap f) (l'.flatMap g) := by
+/-- A `Forall₂` relation also records that both elements come from the lists. -/
+private theorem forall₂_mem {R : α → β → Prop} {l : List α} {l' : List β}
+    (h : List.Forall₂ R l l') : List.Forall₂ (fun a b => a ∈ l ∧ b ∈ l' ∧ R a b) l l' := by
   induction h with
-  | nil => simp
+  | nil => exact .nil
   | cons hab _ ih =>
-    rw [List.flatMap_cons, List.flatMap_cons]
-    refine List.rel_append (hf _ List.mem_cons_self _ List.mem_cons_self hab) (ih fun a ha b hb =>
-      hf a (List.mem_cons_of_mem _ ha) b (List.mem_cons_of_mem _ hb))
+    exact .cons ⟨List.mem_cons_self, List.mem_cons_self, hab⟩
+      (ih.imp fun a b ⟨ha, hb, h⟩ => ⟨List.mem_cons_of_mem _ ha, List.mem_cons_of_mem _ hb, h⟩)
+
 
 /-- `let`, for lists that correspond to other lists. -/
 theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le) {Q : List β}
@@ -59,7 +57,7 @@ theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le
       List.Forall₂ (fun t c => R2 ⟨s.cost + t.cost + 2, s.th * t.th, s.bill ++ t.bill, t.out⟩ c) l2
           (Q2 b)) :
     ∃ l, Ev θ (lett e body) x l ∧ List.Forall₂ R2 l (Q.flatMap Q2) := by
-  refine ⟨_, Ev.lett he fun s hs => ?_, forall₂_flatMap hR fun s hs b hb hsb => ?_⟩
+  refine ⟨_, Ev.lett he fun s hs => ?_, List.rel_flatMap (forall₂_mem hR) fun s b ⟨hs, hb, hsb⟩ => ?_⟩
   · obtain ⟨b, hb, hsb⟩ := hR.exists_mem_of_mem hs
     obtain ⟨l2, h2, -⟩ := h s hs b hb hsb
     exact h2.hl

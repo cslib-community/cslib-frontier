@@ -155,12 +155,6 @@ theorem call2_rel {f x o : Tree} {t t1 : Bt} {M : ℕ} {l : List (Run A)}
     simp only [Run.seq, Run.tick, Run.det, Run.delay]
     omega
 
-theorem flatMap_single {α β : Type*} (l : List α) (g : α → β) : (l.flatMap fun a => [g a]) =
-    l.map g := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => simp [List.flatMap_cons, ih]
-
 /-- **The interpreter is right.** -/
 theorem interp {H : ℕ} {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l) :
     ∀ f, Fm.ofTree f = F → ∀ t : Bt, t.ht ≤ H →
@@ -195,7 +189,7 @@ theorem interp {H : ℕ} {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l
         ⟨h1, h2⟩ | ⟨h1, h2⟩ |
       ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [hf] at h2 <;> cases h2
     refine IF_case (c := _) (by rw [h1]; rfl) ?_
-    rw [simS_map (G := fun r => r.tick r.out.hd) (fun _ => rfl), ← flatMap_single]
+    rw [simS_map (G := fun r => r.tick r.out.hd) (fun _ => rfl), List.map_eq_flatMap]
     refine call0 (ih f.tl rfl t ht) fun q hq => ⟨_, Dt.cons (.hd (.hd (.id _))) (.tl (.id _)), ?_⟩
     refine .cons ⟨rfl, mul_one _, rfl, ?_⟩ .nil
     simp only [Run.tick, Run.det]
@@ -206,7 +200,7 @@ theorem interp {H : ℕ} {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l
         ⟨h1, h2⟩ | ⟨h1, h2⟩ |
       ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [hf] at h2 <;> cases h2
     refine IF_case (c := _) (by rw [h1]; rfl) ?_
-    rw [simS_map (G := fun r => r.tick r.out.tl) (fun _ => rfl), ← flatMap_single]
+    rw [simS_map (G := fun r => r.tick r.out.tl) (fun _ => rfl), List.map_eq_flatMap]
     refine call0 (ih f.tl rfl t ht) fun q hq => ⟨_, Dt.cons (.tl (.hd (.id _))) (.tl (.id _)), ?_⟩
     refine .cons ⟨rfl, mul_one _, rfl, ?_⟩ .nil
     simp only [Run.tick, Run.det]
@@ -224,7 +218,7 @@ theorem interp {H : ℕ} {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l
     have hqt : q.2.ht ≤ H := (Bt.ht_decAll (mem_simS hq).2).trans_le ht
     obtain ⟨l2, e2, r2⟩ := call2_rel (f := f) (o := q.1.out) (t := t) (ihb f.tl.tl rfl q.2 hqt)
     rw [← s3] at e2
-    rw [← flatMap_single]
+    rw [List.map_eq_flatMap]
     refine lett_rel e2 r2 fun u _ p hp hu => ?_
     obtain ⟨u1, u2, u3, u4⟩ := hu
     rw [u3]
@@ -349,7 +343,7 @@ theorem interp {H : ℕ} {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l
       ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [hf] at h2 <;> cases h2
     refine IF_case (c := _) (by rw [h1]; rfl) ?_
     rw [simS_map (G := fun r => ⟨r.cost + 1, r.th * θ r.out.path, r.bill, .nil⟩) (fun _ => rfl),
-        ← flatMap_single]
+        List.map_eq_flatMap]
     refine call0 (ih f.tl rfl t ht) fun q hq =>
         ⟨_, Ev.cons (Ev.theta (Dt.hd (.id _))) (Dt.tl (.id _)), ?_⟩
     refine .cons ⟨rfl, ?_, rfl, ?_⟩ .nil

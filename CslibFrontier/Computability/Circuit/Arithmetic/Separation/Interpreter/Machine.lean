@@ -25,7 +25,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Machine`.
 
 * `Interpreter.Tree`, `Interpreter.Fm`, `Interpreter.Run`.
 * `Interpreter.Ev θ F x l`: all runs of `F` at `x` stop, and `l` is the list of the accepting runs.
-* `Interpreter.Dt θ F x o k`: `F` at `x` is deterministic, with value `o` after `k` steps.
+* `Interpreter.Dt θ F x o k`: the accepting runs of `F` at `x` are the single run `Run.det k o`
+  (value `o` after `k` steps, weight `1`, empty bill).
 
 ## Main results
 
@@ -329,7 +330,9 @@ theorem Ev.run' {a b : Fm} {x : Tree} {la lb : List (Run A)} (ha : Ev θ a x la)
         ((r.seq s).seq t).tick t.out) :=
   .run ha hb fun r hr s hs => (h r hr s hs).ev
 
-/-- A run without guesses and weights. -/
+/-- `F` at `x` has exactly one accepting run, with value `o` after `k` steps, weight `1` and an
+empty bill (`Run.det k o`). This does not say that `F` is deterministic: it also holds for a
+program that guesses and rejects all branches but one, or that multiplies by a `θ` of value `1`. -/
 @[expose] def Dt (θ : List Bool → A) (F : Fm) (x o : Tree) (k : ℕ) : Prop := Ev θ F x [.det k o]
 
 theorem Dt.quote (c x : Tree) : Dt θ (.quote c) x c 1 := Ev.quote c x
