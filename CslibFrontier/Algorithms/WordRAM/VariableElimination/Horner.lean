@@ -46,11 +46,11 @@ open Cslib.WordRAM.Realization
 theorem one_le_capFactor (f : FactorTable ℕ ℕ) : 1 ≤ capFactor f :=
   le_max_left 1 _
 
-theorem mem_entries_le_capFactor {f : FactorTable ℕ ℕ} {v : ℕ}
+private theorem mem_entries_le_capFactor {f : FactorTable ℕ ℕ} {v : ℕ}
     (hv : v ∈ f.entries.toList) : v ≤ capFactor f :=
   (List.mem_le_foldl_max hv).trans (le_max_right 1 _)
 
-theorem evalAt_le_capFactor (d : ℕ) (f : FactorTable ℕ ℕ) (σ : ℕ → ℕ) :
+private theorem evalAt_le_capFactor (d : ℕ) (f : FactorTable ℕ ℕ) (σ : ℕ → ℕ) :
     f.evalAt d σ ≤ capFactor f := by
   rw [FactorTable.evalAt, Array.getD]
   split_ifs with hlt
@@ -335,7 +335,7 @@ theorem evalScopeIdx_realizes :
 
 /-! ### Multiplicative state-capacity budget (`stateCap`), `elimVarProg`, and `elimOrderLoop` -/
 
-theorem capFactor_elimBucketTable (d x : ℕ) (bucket : List (FactorTable ℕ ℕ)) :
+private theorem capFactor_elimBucketTable (d x : ℕ) (bucket : List (FactorTable ℕ ℕ)) :
     capFactor (elimBucketTable d x bucket) ≤ max 1 d * (bucket.map capFactor).prod := by
   rw [capFactor]
   refine max_le (Nat.mul_le_mul (le_max_left 1 d)
@@ -361,10 +361,7 @@ theorem capFactor_elimBucketTable (d x : ℕ) (bucket : List (FactorTable ℕ �
 @[expose] def stateCap (s : ElimState ℕ ℕ) : ℕ :=
   max 1 s.scalar * (s.live.map capFactor).prod
 
-theorem one_le_stateCap (s : ElimState ℕ ℕ) : 1 ≤ stateCap s :=
-  Nat.mul_le_mul (le_max_left 1 _) (List.one_le_prod_of_one_le (by simp [one_le_capFactor]))
-
-theorem max_one_mul_le (a d : ℕ) : max 1 (a * d) ≤ max 1 d * max 1 a := by
+private theorem max_one_mul_le (a d : ℕ) : max 1 (a * d) ≤ max 1 d * max 1 a := by
   rcases Nat.eq_zero_or_pos a with rfl | ha
   · simp
   · rcases Nat.eq_zero_or_pos d with rfl | hd

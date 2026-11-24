@@ -49,28 +49,6 @@ theorem length_le_foldr_dedupStepPure (x : ℕ) :
     unfold dedupStepPure
     split_ifs <;> simp
 
-theorem mem_foldr_dedupStepPure (x : ℕ) :
-    ∀ (ys : List ℕ) (u : ℕ), u ∈ ys.foldr (dedupStepPure x) [] ↔ u ≠ x ∧ u ∈ ys
-  | [], u => by simp
-  | v :: rest, u => by
-    simp only [List.foldr_cons, dedupStepPure]
-    have ih := mem_foldr_dedupStepPure x rest u
-    have ihv := mem_foldr_dedupStepPure x rest v
-    split_ifs with hcond
-    · rcases hcond with rfl | hmem
-      · simp only [ih, List.mem_cons]
-        exact ⟨fun ⟨hne, hr⟩ => ⟨hne, Or.inr hr⟩,
-          fun ⟨hne, h⟩ => ⟨hne, h.resolve_left hne⟩⟩
-      · have hv_in : v ≠ x ∧ v ∈ rest := ihv.mp hmem
-        simp only [ih, List.mem_cons]
-        exact ⟨fun ⟨hne, hr⟩ => ⟨hne, Or.inr hr⟩,
-          fun ⟨hne, h⟩ => ⟨hne, by rcases h with rfl | hr; exacts [hv_in.2, hr]⟩⟩
-    · simp only [not_or] at hcond
-      simp only [List.mem_cons, ih]
-      exact ⟨fun h => by rcases h with rfl | ⟨hne, hr⟩; exacts [⟨hcond.1, Or.inl rfl⟩,
-        ⟨hne, Or.inr hr⟩],
-        fun ⟨hne, h⟩ => by rcases h with rfl | hr; exacts [Or.inl rfl, Or.inr ⟨hne, hr⟩]⟩
-
 private theorem filter_dedup_eq_foldr (x : ℕ) :
     ∀ (xs : List ℕ), (xs.dedup.filter fun v => decide (v ≠ x)) = xs.foldr (dedupStepPure x) []
   | [] => rfl
