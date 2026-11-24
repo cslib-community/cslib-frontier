@@ -15,9 +15,8 @@ import CslibFrontier.GameTheory.Strategic.Stability
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Data.Fintype.List
 import Mathlib.Data.Fintype.Option
-import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Sym.Sym2
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -50,7 +49,7 @@ that bridge:
   ([TardosWexler2007], Lemma 19.7), sandwiched by `socialCost s ≤ Φ s ≤ H k * socialCost s`
   ([TardosWexler2007], Lemma 19.8).
 * Every finite fair connection game whose terminal pairs are connected has the **finite improvement
-  property** and at least one **pure Nash equilibrium** ([TardosWexler2007], Theorem 19.9).
+  property** and at least one **pure Nash equilibrium** ([TardosWexler2007], Section 19.3.1).
 * **Anshelevich et al.'s `H_k` theorem** ([AnshelevichDKTWR2008]; [TardosWexler2007],
   Theorem 19.10): some pure Nash equilibrium (reachable by better-response dynamics from an optimal
   network) has social cost at most `H k` times that of any strategy profile—and, equivalently, at
@@ -58,8 +57,8 @@ that bridge:
   connecting every player's terminals.
 * Every fair connection game with nonnegative edge costs is **`(k, 0)`-smooth**, so **every** pure
   Nash equilibrium (and coarse correlated equilibrium) has cost at most `k` times that of any
-  profile or Steiner subnetwork ([TardosWexler2007], Exercise 19.9; exercise locator not
-  re-verified against primary PDF).
+  profile or Steiner subnetwork ([Roughgarden2015], Definition 2.1 and Theorem 3.2;
+  [TardosWexler2007], Section 19.3).
 
 Matching tightness and separation witnesses (`PoS → H_k` on directed single-sink networks vs.
 `PoS = 1` on the undirected counterpart, `PoA = k` on parallel links, and a game whose socially
@@ -81,9 +80,6 @@ best pure Nash equilibrium does not minimize Rosenthal's potential) are in
 
 ## Main results
 
-* `Cslib.Multidigraph.IsDipath.nodup`, `Cslib.Multidigraph.exists_isDipath_iff_reflTransGen`:
-  every multidigraph dipath is arc-duplicate-free, and a simple `u`–`v` dipath exists iff `v` is
-  reachable from `u` in `toDigraph src tgt`.
 * `Cslib.GameTheory.FairConnectionGame.socialCost_eq_sum_formedEdges`: social cost equals the total
   cost of the formed subnetwork `⋃ i, pathEdges (s i)`.
 * `Cslib.GameTheory.FairConnectionGame.potential_eq`,
@@ -93,7 +89,7 @@ best pure Nash equilibrium does not minimize Rosenthal's potential) are in
   `Cslib.GameTheory.FairConnectionGame.potential_le_harmonic_mul_socialCost` ([TardosWexler2007],
   Lemma 19.8): `socialCost s ≤ Φ s ≤ H k * socialCost s`.
 * `Cslib.GameTheory.FairConnectionGame.hasFIP`,
-  `Cslib.GameTheory.FairConnectionGame.exists_isPureNash` ([TardosWexler2007], Theorem 19.9):
+  `Cslib.GameTheory.FairConnectionGame.exists_isPureNash` ([TardosWexler2007], Section 19.3.1):
   finite improvement property and pure Nash equilibrium existence.
 * `Cslib.GameTheory.FairConnectionGame.exists_isPureNash_socialCost_le_harmonic_mul`,
   `Cslib.GameTheory.FairConnectionGame.exists_isPureNash_socialCost_le_harmonic_mul_steinerCost`,
@@ -103,7 +99,8 @@ best pure Nash equilibrium does not minimize Rosenthal's potential) are in
 * `Cslib.GameTheory.FairConnectionGame.isSmooth`,
   `Cslib.GameTheory.FairConnectionGame.socialCost_le_card_mul_of_isPureNash`,
   `Cslib.GameTheory.FairConnectionGame.socialCost_le_card_mul_steinerCost_of_isPureNash`
-  ([TardosWexler2007], Exercise 19.9): **`(k, 0)`-smoothness and price of anarchy at most `k`**.
+  ([Roughgarden2015], Definition 2.1; [TardosWexler2007], Section 19.3): **`(k, 0)`-smoothness and
+  price of anarchy at most `k`**.
 * `Cslib.GameTheory.UndirectedFairConnectionGame.isExactPotential_potential`,
   `Cslib.GameTheory.UndirectedFairConnectionGame.exists_isPureNash`,
   `Cslib.GameTheory.UndirectedFairConnectionGame.exists_isPureNash_socialCost_le_harmonic_mul`,
@@ -121,150 +118,9 @@ best pure Nash equilibrium does not minimize Rosenthal's potential) are in
 
 public section
 
-/-! ### Multidigraph simple-path finiteness and shortcutting -/
-
-private instance finite_subtype_nodup {α : Type*} [Finite α] : Finite {l : List α // l.Nodup} := by
-  classical
-  have := Fintype.ofFinite α
-  have hlen : ∀ x : {l : List α // l.Nodup}, x.1.length ≤ Fintype.card α := fun x => by
-    rw [← List.toFinset_card_of_nodup x.2]
-    exact Finset.card_le_univ _
-  refine Finite.of_injective (fun (x : {l : List α // l.Nodup}) (j : Fin (Fintype.card α)) =>
-    x.1[j.1]?) fun x y hxy => Subtype.ext (List.ext_getElem? fun n => ?_)
-  by_cases hn : n < Fintype.card α
-  · exact congrFun hxy ⟨n, hn⟩
-  · rw [List.getElem?_eq_none ((hlen x).trans (Nat.le_of_not_lt hn)),
-      List.getElem?_eq_none ((hlen y).trans (Nat.le_of_not_lt hn))]
-
-namespace Cslib.Multidigraph
-
-variable {V E : Type*} {src tgt : E → V}
-
-/-- Every simple directed path `IsDipath src tgt s t q` uses each arc at most once (`q.Nodup`),
-because its visited target vertices `q.map tgt` are duplicate-free. -/
-theorem IsDipath.nodup {s t : V} {q : List E} (hq : IsDipath src tgt s t q) : q.Nodup :=
-  (List.nodup_cons.mp hq.2.1).2.of_map tgt
-
-private theorem reflTransGen_of_isChain_adj {R : V → V → Prop} :
-    ∀ {l : List V} {u v : V}, l.IsChain R → l.head? = some u → l.getLast? = some v →
-      Relation.ReflTransGen R u v
-  | [], _, _, _, hu, _ => by simp at hu
-  | [x], _, _, _, hu, hv => by
-    obtain rfl := Option.some.inj hu
-    obtain rfl := Option.some.inj hv
-    exact .refl
-  | x :: y :: rest, u, v, hc, hu, hv => by
-    obtain rfl : x = u := Option.some.inj hu
-    rw [List.isChain_cons_cons] at hc
-    exact .head hc.1 (reflTransGen_of_isChain_adj hc.2 rfl (by simpa using hv))
-
-/-- Every multidigraph dipath from `s` to `t` witnesses reachability in `toDigraph src tgt`. -/
-theorem IsDipath.reflTransGen_toDigraph {s t : V} {q : List E} (hq : IsDipath src tgt s t q) :
-    Relation.ReflTransGen (toDigraph src tgt).Adj s t :=
-  reflTransGen_of_isChain_adj hq.isChain_toDigraph rfl hq.getLast?_vertices
-
-private theorem isDipath_tail_of_mem_map_tgt {b v a : V} :
-    ∀ {q : List E}, IsDipath src tgt b v q → a ∈ q.map tgt → ∃ q', IsDipath src tgt a v q'
-  | [], _, hmem => by simp at hmem
-  | e :: qs, hq, hmem => by
-    simp only [List.map_cons, List.mem_cons] at hmem
-    have hnd_cons : (b :: tgt e :: qs.map tgt).Nodup := hq.2.1
-    have hnd_tail : (tgt e :: qs.map tgt).Nodup := (List.nodup_cons.mp hnd_cons).2
-    have hchain_qs : qs.IsChain (fun x y => tgt x = src y) := by
-      rcases qs with _ | ⟨e', rest⟩
-      · exact List.isChain_nil
-      · exact (List.isChain_cons_cons.mp hq.1).2
-    have hhd_qs : ∀ x ∈ qs.head?, src x = tgt e := by
-      rcases qs with _ | ⟨e', rest⟩
-      · intro _ h; simp at h
-      · intro x hx
-        obtain rfl : e' = x := Option.some.inj hx
-        exact (List.isChain_cons_cons.mp hq.1).1.symm
-    have hnil_qs : qs = [] → tgt e = v := fun hnil => by
-      subst hnil
-      exact hq.2.2.2.2 e rfl
-    have hlast_qs : ∀ x ∈ qs.getLast?, tgt x = v := by
-      rcases qs with _ | ⟨e', rest⟩
-      · intro _ h; simp at h
-      · intro x hx
-        exact hq.2.2.2.2 x (by simpa using hx)
-    have hq_tail : IsDipath src tgt (tgt e) v qs :=
-      ⟨hchain_qs, hnd_tail, hhd_qs, hnil_qs, hlast_qs⟩
-    rcases hmem with rfl | hmem_qs
-    · exact ⟨qs, hq_tail⟩
-    · exact isDipath_tail_of_mem_map_tgt hq_tail hmem_qs
-
-/-- A simple directed `s`–`t` path of arcs exists in `(src, tgt)` if and only if `t` is reachable
-from `s` in `toDigraph src tgt` (loop removal shortcuts any directed walk to a simple dipath). -/
-theorem exists_isDipath_iff_reflTransGen {s t : V} :
-    (∃ q, IsDipath src tgt s t q) ↔ Relation.ReflTransGen (toDigraph src tgt).Adj s t := by
-  classical
-  refine ⟨fun ⟨q, hq⟩ => hq.reflTransGen_toDigraph, fun h => ?_⟩
-  induction h using Relation.ReflTransGen.head_induction_on with
-  | refl =>
-    exact ⟨[], List.isChain_nil, List.nodup_singleton _, fun _ h => by simp at h,
-      fun _ => rfl, fun _ h => by simp at h⟩
-  | @head a b hab _ ih =>
-    obtain ⟨e, hsrc, htgt⟩ := hab
-    obtain ⟨q, hq⟩ := ih
-    by_cases hab_eq : a = b
-    · subst hab_eq
-      exact ⟨q, hq⟩
-    · by_cases hmem : a ∈ q.map tgt
-      · exact isDipath_tail_of_mem_map_tgt hq hmem
-      · refine ⟨e :: q, ?_, ?_, ?_, by simp, ?_⟩
-        · rcases q with _ | ⟨e', qs⟩
-          · exact List.isChain_singleton e
-          · exact List.isChain_cons_cons.mpr ⟨htgt.trans (hq.2.2.1 e' rfl).symm, hq.1⟩
-        · rw [List.map_cons, htgt]
-          exact List.nodup_cons.mpr ⟨by simp [hab_eq, hmem], hq.2.1⟩
-        · intro x hx
-          obtain rfl : e = x := Option.some.inj hx
-          exact hsrc
-        · rcases q with _ | ⟨e', qs⟩
-          · intro x hx
-            obtain rfl : e = x := Option.some.inj hx
-            exact htgt.trans (hq.2.2.2.1 rfl)
-          · intro x hx
-            exact hq.2.2.2.2 x (by simpa using hx)
-
-end Cslib.Multidigraph
-
 /-! ### Directed Fair Connection Games -/
 
 namespace Cslib.GameTheory
-
-private theorem socialCost_fairCostSharing_biUnion {ι E : Type*} {S : ι → Type*} [Fintype ι]
-    [DecidableEq E] (resources : ∀ i, S i → Finset E) (c : E → ℝ) (s : ∀ i, S i) :
-    (CongestionGame.fairCostSharing resources c).toCostGame.socialCost s =
-      ∑ e ∈ Finset.univ.biUnion (fun i => resources i (s i)), c e := by
-  set U := Finset.univ.biUnion fun i => resources i (s i)
-  rw [CostGame.socialCost]
-  have hpad : ∀ i ∈ (Finset.univ : Finset ι),
-      (CongestionGame.fairCostSharing resources c).toCostGame.cost i s =
-        ∑ e ∈ U, if e ∈ resources i (s i) then
-          c e / (CongestionGame.fairCostSharing resources c).load s e else 0 := fun i _ => by
-    rw [CongestionGame.toCostGame_cost, CongestionGame.fairCostSharing_resources,
-      Finset.sum_ite_mem,
-      Finset.inter_eq_right.2 (Finset.subset_biUnion_of_mem (fun j => resources j (s j))
-        (Finset.mem_univ i))]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    rw [CongestionGame.fairCostSharing_latency]
-  rw [Finset.sum_congr rfl hpad, Finset.sum_comm]
-  refine Finset.sum_congr rfl fun e he => ?_
-  have hsum : (∑ i : ι, if e ∈ resources i (s i) then
-        c e / (CongestionGame.fairCostSharing resources c).load s e else 0)
-      = ((CongestionGame.fairCostSharing resources c).load s e : ℝ) *
-          (c e / (CongestionGame.fairCostSharing resources c).load s e) := by
-    simp only [CongestionGame.load, CongestionGame.fairCostSharing_resources, Finset.card_filter,
-      Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero, Finset.sum_mul, ite_mul, one_mul,
-      zero_mul]
-  rw [hsum]
-  obtain ⟨i, hi, hei⟩ := Finset.mem_biUnion.1 he
-  have hpos : 0 < (CongestionGame.fairCostSharing resources c).load s e :=
-    Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨hi, by
-      rwa [CongestionGame.fairCostSharing_resources]⟩⟩
-  exact mul_div_cancel₀ _ (by exact_mod_cast hpos.ne')
 
 /-- A **fair connection game** (global connection game or Shapley network design game,
 [AnshelevichDKTWR2008]; [TardosWexler2007], Section 19.3.1) on a directed multigraph with vertices
@@ -320,6 +176,7 @@ theorem mem_pathEdges_iff [DecidableEq E] {i : ι} {p : G.Path i} {e : E} :
   List.mem_toFinset
 
 instance instFinitePath [Finite E] (i : ι) : Finite (G.Path i) :=
+  letI := Fintype.ofFinite E
   Finite.of_injective (fun p : G.Path i => (⟨Path.arcs p, Path.nodup p⟩ : {l : List E // l.Nodup}))
     fun _ _ h => Subtype.ext (congrArg (Subtype.val : {l : List E // l.Nodup} → List E) h)
 
@@ -390,7 +247,7 @@ theorem isSteinerSubgraph_formedEdges [Fintype ι] [DecidableEq E] (s : ∀ i, G
 shares cancels `k_e(s)` on every used edge, leaving `∑ e ∈ formedEdges s, edgeCost e`. -/
 theorem socialCost_eq_sum_formedEdges [Fintype ι] [DecidableEq E] (s : ∀ i, G.Path i) :
     G.toCostGame.socialCost s = ∑ e ∈ G.formedEdges s, G.edgeCost e :=
-  socialCost_fairCostSharing_biUnion (fun _ p => G.pathEdges p) G.edgeCost s
+  CongestionGame.socialCost_fairCostSharing_biUnion (fun _ p => G.pathEdges p) G.edgeCost s
 
 /-- Every centralized Steiner subnetwork `F` induces a path profile `s` with `formedEdges s ⊆ F`
 and (for nonnegative edge costs) `socialCost s ≤ ∑ e ∈ F, edgeCost e`. -/
@@ -446,12 +303,12 @@ theorem potential_le_harmonic_mul_socialCost [Fintype E] (hc : ∀ e, 0 ≤ G.ed
     G.potential s ≤ harmonic (Fintype.card ι) * G.toCostGame.socialCost s :=
   CongestionGame.rosenthalPotential_fairCostSharing_le_harmonic_mul _ _ hc s
 
-/-- **Finite improvement property** ([TardosWexler2007], Theorem 19.9, second part): on a finite
-edge set, every sequence of strictly improving unilateral path deviations is finite. -/
+/-- **Finite improvement property** ([TardosWexler2007], Section 19.3.1): on a finite edge set,
+every sequence of strictly improving unilateral path deviations is finite. -/
 theorem hasFIP [DecidableEq ι] [Finite E] : G.toCostGame.HasFIP :=
   G.toCongestionGame.hasFIP
 
-/-- **Pure Nash equilibrium existence** ([TardosWexler2007], Theorem 19.9, first part): every fair
+/-- **Pure Nash equilibrium existence** ([TardosWexler2007], Section 19.3.1): every fair
 connection game on finitely many edges in which each player's sink is reachable from its source
 admits a pure Nash equilibrium. -/
 theorem exists_isPureNash [DecidableEq ι] [Finite E] (hconn : G.TerminalsConnected) :
@@ -487,8 +344,9 @@ theorem exists_isPureNash_socialCost_le_harmonic_mul_steinerCost [DecidableEq ι
   exact (hle s').trans (mul_le_mul_of_nonneg_left hs' (by exact_mod_cast harmonic_nonneg _))
 
 /-- **Better-response dynamics from any profile reach an `H_k`-competitive pure Nash equilibrium**
-([TardosWexler2007], Theorems 19.9 and 19.10): started at a socially optimal profile, improving
-unilateral path deviations terminate at a pure Nash equilibrium within factor `H k` of `OPT`. -/
+([TardosWexler2007], Section 19.3.1 and Theorem 19.10): started at a socially optimal profile,
+improving unilateral path deviations terminate at a pure Nash equilibrium within factor `H k` of
+`OPT`. -/
 theorem exists_reflTransGen_isPureNash_socialCost_le_harmonic_mul [DecidableEq ι] [Finite E]
     (hc : ∀ e, 0 ≤ G.edgeCost e) (s₀ : ∀ i, G.Path i) :
     ∃ t, Relation.ReflTransGen (flip G.toCostGame.Improves) s₀ t ∧
@@ -496,16 +354,15 @@ theorem exists_reflTransGen_isPureNash_socialCost_le_harmonic_mul [DecidableEq �
       G.toCostGame.socialCost t ≤ harmonic (Fintype.card ι) * G.toCostGame.socialCost s₀ :=
   CongestionGame.exists_reflTransGen_isPureNash_fairCostSharing_socialCost_le_harmonic_mul _ _ hc s₀
 
-/-- **`(k, 0)`-smoothness of fair connection games** ([TardosWexler2007], Exercise 19.9;
-[Roughgarden2015], Definition 2.1; exercise locator not re-verified against primary PDF). -/
+/-- **`(k, 0)`-smoothness of fair connection games** ([Roughgarden2015], Definition 2.1;
+[TardosWexler2007], Section 19.3). -/
 theorem isSmooth [DecidableEq ι] [Finite E] (hc : ∀ e, 0 ≤ G.edgeCost e) :
     G.toCostGame.IsSmooth (Fintype.card ι) 0 :=
   CongestionGame.isSmooth_fairCostSharing _ _ hc
 
-/-- **Price of anarchy at most `k`** ([TardosWexler2007], Exercise 19.9; exercise locator not
-re-verified against primary PDF): every pure Nash equilibrium `s` of a `k`-player fair connection
-game with nonnegative edge costs satisfies `socialCost s ≤ k * socialCost s'` for every profile
-`s'`. -/
+/-- **Price of anarchy at most `k`** ([Roughgarden2015], Theorem 3.2; [TardosWexler2007],
+Section 19.3): every pure Nash equilibrium `s` of a `k`-player fair connection game with nonnegative
+edge costs satisfies `socialCost s ≤ k * socialCost s'` for every profile `s'`. -/
 theorem socialCost_le_card_mul_of_isPureNash [DecidableEq ι] [Finite E]
     (hc : ∀ e, 0 ≤ G.edgeCost e) {s : ∀ i, G.Path i} (hs : G.toCostGame.IsPureNash s)
     (s' : ∀ i, G.Path i) :
@@ -529,10 +386,10 @@ end FairConnectionGame
 /-! ### Undirected Fair Connection Games -/
 
 /-- A **fair connection game on an undirected simple graph** `graph : SimpleGraph V`
-([AnshelevichDKTWR2008], Section 3; [RoughgardenTardos2007], Exercise 17.2): each undirected edge
-`e : Sym2 V` has cost `edgeCost e`, and each player `i : ι` chooses a simple undirected path in
-`graph` between `source i` and `sink i`. Players traversing the same unordered edge `s(u, v)` in
-either direction share its cost equally. -/
+([AnshelevichDKTWR2008]; [RoughgardenTardos2007]): each undirected edge `e : Sym2 V` has cost
+`edgeCost e`, and each player `i : ι` chooses a simple undirected path in `graph` between
+`source i` and `sink i`. Players traversing the same unordered edge `s(u, v)` in either
+direction share its cost equally. -/
 structure UndirectedFairConnectionGame (ι V : Type*) where
   /-- Underlying undirected graph. -/
   graph : SimpleGraph V
@@ -562,6 +419,7 @@ theorem mem_pathEdges_iff [DecidableEq V] {i : ι} {p : G.Path i} {e : Sym2 V} :
   List.mem_toFinset
 
 instance instFinitePath [Finite V] (i : ι) : Finite (G.Path i) :=
+  letI := Fintype.ofFinite V
   Finite.of_injective
     (fun p : G.Path i =>
       (⟨(p : G.graph.Walk (G.source i) (G.sink i)).support, p.nodup_support⟩ :
@@ -601,7 +459,7 @@ theorem toCostGame_cost [Fintype ι] [DecidableEq V] (i : ι) (s : ∀ i, G.Path
 
 theorem socialCost_eq_sum_formedEdges [Fintype ι] [DecidableEq V] (s : ∀ i, G.Path i) :
     G.toCostGame.socialCost s = ∑ e ∈ G.formedEdges s, G.edgeCost e :=
-  socialCost_fairCostSharing_biUnion (fun _ p => G.pathEdges p) G.edgeCost s
+  CongestionGame.socialCost_fairCostSharing_biUnion (fun _ p => G.pathEdges p) G.edgeCost s
 
 /-- Rosenthal's harmonic potential on undirected edges `Sym2 V`. -/
 noncomputable def potential [Fintype ι] [DecidableEq V] [Fintype V] (s : ∀ i, G.Path i) : ℝ :=

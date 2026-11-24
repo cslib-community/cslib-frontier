@@ -43,27 +43,25 @@ Concrete finite network families accompanying
      `H k`) are pure Nash equilibria.
 
 2. **Undirected single-sink counterpart (`undirectedBroadcastNetwork k ε`)**
-   ([RoughgardenTardos2007], Exercise 17.2; exercise locator not re-verified against primary PDF):
-   replacing the directed arcs of `broadcastNetwork k ε` with unordered edges on the same vertices
-   and costs collapses the price of stability from `H k` to **`1`**. Player `k - 1` traverses its
-   cost-`1 / k` direct edge `{source (k - 1), sink}` while every other player `i` routes along the
-   three-edge simple path `source i — hub — source (k - 1) — sink`, sharing
-   `{source (k - 1), sink}` and zero-cost hub edges for a pure Nash equilibrium that globally
-   minimizes social cost (`1 / k`).
+   ([RoughgardenTardos2007]): replacing the directed arcs of `broadcastNetwork k ε` with unordered
+   edges on the same vertices and costs collapses the price of stability from `H k` to **`1`**.
+   Player `k - 1` traverses its cost-`1 / k` direct edge `{source (k - 1), sink}` while every
+   other player `i` routes along the three-edge simple path
+   `source i — hub — source (k - 1) — sink`,
+   sharing `{source (k - 1), sink}` and zero-cost hub edges for a pure Nash equilibrium that
+   globally minimizes social cost (`1 / k`).
 
-3. **Two-node parallel-link network (`parallelNetwork k ε`)** ([RoughgardenTardos2007],
-   Example 17.2; [TardosWexler2007], Exercise 19.9; locators not re-verified against primary PDF):
-   `k ≥ 1` players connect `false` to `true` across two parallel directed arcs of costs `1 + ε` and
-   `k`. At `ε = 0`, all players sharing the cost-`k` arc is a pure Nash equilibrium of cost `k`
-   against optimal cost `1` (**exact `PoA = k`**); for `ε > 0`, it is a **strict** pure Nash
-   equilibrium of cost ratio `k / (1 + ε) → k`.
+3. **Two-node parallel-link network (`parallelNetwork k ε`)** ([RoughgardenTardos2007];
+   [TardosWexler2007]): `k ≥ 1` players connect `false` to `true` across two parallel directed arcs
+   of costs `1 + ε` and `k`. At `ε = 0`, all players sharing the cost-`k` arc is a pure Nash
+   equilibrium of cost `k` against optimal cost `1` (**exact `PoA = k`**); for `ε > 0`, it is a
+   **strict** pure Nash equilibrium of cost ratio `k / (1 + ε) → k`.
 
 4. **Best pure Nash equilibrium need not minimize Rosenthal's potential (`potentialGapNetwork`)**
-   ([TardosWexler2007], Exercise 19.14; exercise locator not re-verified against primary PDF):
-   a three-player single-sink network (`trunk` cost `2`, private bypass cost `6 / 5`) whose
-   socially optimal profile (`socialCost = 2`, `Φ = 11 / 3`) is a pure Nash equilibrium, while the
-   all-direct pure Nash equilibrium (`socialCost = 18 / 5`) strictly minimizes Rosenthal's
-   potential (`Φ = 18 / 5`).
+   ([TardosWexler2007]): a three-player single-sink network (`trunk` cost `2`, private bypass cost
+   `6 / 5`) whose socially optimal profile (`socialCost = 2`, `Φ = 11 / 3`) is a pure Nash
+   equilibrium, while the all-direct pure Nash equilibrium (`socialCost = 18 / 5`) strictly
+   minimizes Rosenthal's potential (`Φ = 18 / 5`).
 
 ## Main definitions
 
@@ -91,14 +89,14 @@ Concrete finite network families accompanying
   and the `H_k`-cost direct network are pure Nash equilibria.
 * `Cslib.GameTheory.isPureNash_undirectedViaLastProfile`,
   `Cslib.GameTheory.socialCost_undirectedViaLastProfile_le`: **in the undirected `H_k` network,
-  `PoS = 1`** ([RoughgardenTardos2007], Exercise 17.2).
+  `PoS = 1`** ([RoughgardenTardos2007]).
 * `Cslib.GameTheory.isPureNash_parallelExpensiveProfile`,
   `Cslib.GameTheory.socialCost_parallelExpensive_eq_mul_cheap`,
   `Cslib.GameTheory.exists_strictPureNash_parallelNetwork_mul_lt`: **tightness of `PoA = k`** (both
   exact at `ε = 0` and via strict pure Nash equilibria for `ε > 0`).
 * `Cslib.GameTheory.potentialGapNetwork_best_nash_not_min_potential`: socially optimal pure Nash
   equilibrium with strictly larger Rosenthal potential than the global potential minimizer
-  ([TardosWexler2007], Exercise 19.14).
+  ([TardosWexler2007]).
 
 ## References
 
@@ -535,8 +533,7 @@ noncomputable def undirectedBroadcastEdgeCost (k : ℕ) (ε : ℝ) :
     Sym2 (BroadcastVertex k) → ℝ :=
   Sym2.lift ⟨broadcastPairCost k ε, broadcastPairCost_symm k ε⟩
 
-/-- **Undirected single-sink `H_k` fair connection game** ([RoughgardenTardos2007], Exercise 17.2;
-exercise locator not re-verified against primary PDF). -/
+/-- **Undirected single-sink `H_k` fair connection game** ([RoughgardenTardos2007]). -/
 noncomputable abbrev undirectedBroadcastNetwork (k : ℕ) (ε : ℝ) :
     UndirectedFairConnectionGame (Fin k) (BroadcastVertex k) where
   graph := undirectedBroadcastGraph k
@@ -693,7 +690,7 @@ theorem socialCost_undirectedViaLastProfile_le {k : ℕ} (hk : 0 < k) {ε : ℝ}
       (undirectedBroadcastEdgeCost_nonneg hε) s' ⟨0, hk⟩)
 
 /-- **In the undirected `H_k` network, `undirectedViaLastProfile` is a pure Nash equilibrium** (so
-**`PoS = 1`**, [RoughgardenTardos2007], Exercise 17.2): in every profile every player pays at least
+**`PoS = 1`**, [RoughgardenTardos2007]): in every profile every player pays at least
 `(1 / k) / k`, which `undirectedViaLastProfile` already achieves. -/
 theorem isPureNash_undirectedViaLastProfile {k : ℕ} (hk : 0 < k) {ε : ℝ} (hε : 0 ≤ ε) :
     (undirectedBroadcastNetwork k ε).toCostGame.IsPureNash (undirectedViaLastProfile hk ε) := by
@@ -713,10 +710,9 @@ theorem isPureNash_undirectedViaLastProfile {k : ℕ} (hk : 0 < k) {ε : ℝ} (h
 
 /-! ### 3. Two-node parallel-link `PoA = k` witness (`parallelNetwork k ε`) -/
 
-/-- **Two-node parallel-arc Shapley network design game** ([RoughgardenTardos2007], Example 17.2;
-[TardosWexler2007], Exercise 19.9; locators not re-verified against primary PDF): `k` players
-connect `false` to `true` across two parallel directed arcs (`true` of cost `1 + ε` and `false` of
-cost `k`). -/
+/-- **Two-node parallel-arc Shapley network design game** ([RoughgardenTardos2007];
+[TardosWexler2007]): `k` players connect `false` to `true` across two parallel directed arcs
+(`true` of cost `1 + ε` and `false` of cost `k`). -/
 @[expose] noncomputable def parallelNetwork (k : ℕ) (ε : ℝ) :
     FairConnectionGame (Fin k) Bool Bool where
   src _ := false
@@ -831,10 +827,9 @@ theorem isPureNash_parallelExpensiveProfile {k : ℕ} (hk : k ≠ 0) {ε : ℝ} 
         parallelExpensiveProfile k ε := Function.update_eq_self i _
     rw [hsame]
 
-/-- **Exact `PoA = k` witness** ([RoughgardenTardos2007], Example 17.2; [TardosWexler2007],
-Exercise 19.9): for `k ≥ 1` at `ε = 0`, `parallelExpensiveProfile k 0` is a pure Nash equilibrium
-of social cost `k * OPT`, and `parallelCheapProfile k 0` achieves the minimum social cost `1`
-across all profiles. -/
+/-- **Exact `PoA = k` witness** ([RoughgardenTardos2007]; [TardosWexler2007]): for `k ≥ 1` at
+`ε = 0`, `parallelExpensiveProfile k 0` is a pure Nash equilibrium of social cost `k * OPT`, and
+`parallelCheapProfile k 0` achieves the minimum social cost `1` across all profiles. -/
 theorem socialCost_parallelExpensive_eq_mul_cheap {k : ℕ} (hk : k ≠ 0) :
     (parallelNetwork k 0).toCostGame.IsPureNash (parallelExpensiveProfile k 0) ∧
       (∀ s', (parallelNetwork k 0).toCostGame.socialCost (parallelCheapProfile k 0)
@@ -859,7 +854,7 @@ theorem socialCost_parallelExpensive_eq_mul_cheap {k : ℕ} (hk : k ≠ 0) :
   · rw [socialCost_parallelExpensiveProfile hk 0, socialCost_parallelCheapProfile hk 0,
       Fintype.card_fin, add_zero, mul_one]
 
-/-- **Strict pure Nash equilibrium `PoA → k` witness** ([RoughgardenTardos2007], Example 17.2):
+/-- **Strict pure Nash equilibrium `PoA → k` witness** ([RoughgardenTardos2007]):
 for `k ≥ 1` and every `r < k`, there exists `ε > 0` such that `parallelExpensiveProfile k ε` is a
 strict pure Nash equilibrium (every unilateral deviation to a distinct path strictly increases the
 deviator's cost) whose social cost exceeds `r` times `socialCost (parallelCheapProfile k ε)`. -/
@@ -887,12 +882,11 @@ theorem exists_strictPureNash_parallelNetwork_mul_lt {k : ℕ} (hk : k ≠ 0) {r
   · rw [socialCost_parallelCheapProfile hk ε, socialCost_parallelExpensiveProfile hk ε]
     exact hlt
 
-/-! ### 4. Socially best pure Nash need not minimize Rosenthal's potential (Ex. 19.14) -/
+/-! ### 4. Socially best pure Nash need not minimize Rosenthal's potential -/
 
 /-- Three-player single-sink fair connection game separating socially optimal pure Nash equilibria
-from global minimizers of Rosenthal's potential ([TardosWexler2007], Exercise 19.14; exercise
-locator not re-verified against primary PDF): `trunk` costs `2`, feeder arcs `toHub i` cost `0`,
-and each player's private bypass `direct i` costs `6 / 5`. -/
+from global minimizers of Rosenthal's potential ([TardosWexler2007]): `trunk` costs `2`, feeder
+arcs `toHub i` cost `0`, and each player's private bypass `direct i` costs `6 / 5`. -/
 noncomputable abbrev potentialGapNetwork :
     FairConnectionGame (Fin 3) (BroadcastVertex 3) (BroadcastArc 3) :=
   generalBroadcastNetwork 3 2 fun _ => 6 / 5
@@ -906,8 +900,7 @@ noncomputable abbrev potentialGapShared : ∀ i, potentialGapNetwork.Path i :=
 noncomputable abbrev potentialGapDirect : ∀ i, potentialGapNetwork.Path i :=
   broadcastDirectPath 2 fun _ => 6 / 5
 
-/-- **Exercise 19.14** ([TardosWexler2007]; locator not re-verified against primary PDF): in
-`potentialGapNetwork`,
+/-- **Potential-minimizer separation witness** ([TardosWexler2007]): in `potentialGapNetwork`,
 1. `potentialGapShared` is a pure Nash equilibrium that globally minimizes `socialCost` (`2`),
 2. `potentialGapDirect` is a pure Nash equilibrium that globally minimizes `potential` (`18 / 5`),
 3. `potential potentialGapDirect < potential potentialGapShared` (`18 / 5 < 11 / 3`) and
