@@ -86,7 +86,7 @@ theorem initial_inSpace : ComputableInSpace (initial E) encNat (encState E)
   have hid : ComputableInSpace (fun N : ℕ => N) encNat encNat
       (fun N => (encNat N).length) := of_inO ComputableInDegree.id'.inO_one
   have hc := budget_prod hid (budget_prod (budget_natSucc hid)
-    (budget_const (encB := encOption encBool) none (.refl _)))
+    (budget_const (encB := encOption encBool) none))
   exact (budget_comp_linear (of_inO (ComputableInO.inl encCaller
     (encPair encCaller (ScheduleSearch.encState E)))) hc).of_enc_eq fun _ => rfl
 
@@ -112,7 +112,7 @@ theorem request_inSpace (P : Parameters) : ComputableInSpace (request E P) encCa
   have hsome := budget_comp_linear (encC := encOption (ScheduleSearch.encState E))
     (of_inO (ComputableInDegree.optionSome (enc₁ := ScheduleSearch.encState E)).inO_one) hstart
   exact budget_ite pending_inSpace hsome
-    (budget_const (encB := encOption (ScheduleSearch.encState E)) none (.refl _))
+    (budget_const (encB := encOption (ScheduleSearch.encState E)) none)
 
 /-- Native return handling charges the saved caller and the actual returned search state. -/
 theorem resume_inSpace : ComputableInSpace
@@ -131,13 +131,13 @@ theorem resume_inSpace : ComputableInSpace
   cases ho : ScheduleSearch.answer returned <;> simp [resume, ho, encCaller, encPair_apply]
 
 private theorem caller_query_inSpace : ComputableInSpace caller.query encCaller encNat
-    (fun a => (encCaller a).length) := budget_const 0 (.refl _)
+    (fun a => (encCaller a).length) := budget_const 0
 private theorem caller_next_inSpace : ComputableInSpace caller.next
     (encPair encCaller (encOption encBool)) encCaller
     (fun a => (encPair encCaller (encOption encBool) a).length) := fst _ _
 private theorem caller_emit_inSpace : ComputableInSpace caller.emit
     (encPair encCaller (encOption encBool)) encBits
-    (fun a => (encPair encCaller (encOption encBool) a).length) := budget_const [] (.refl _)
+    (fun a => (encPair encCaller (encOption encBool) a).length) := budget_const []
 private theorem caller_halted_inSpace : ComputableInSpace caller.halted encCaller encBool
     (fun a => (encCaller a).length) := budget_finite Bool.not pending_inSpace
 private theorem caller_finish_inSpace : ComputableInSpace caller.finish encCaller encBits

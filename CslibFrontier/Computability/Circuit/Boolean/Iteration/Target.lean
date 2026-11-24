@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Depth
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Circuits for first targets and halting
@@ -226,10 +227,7 @@ theorem first_target_time_optimized (c : Circuit signature n n) (p : Circuit sig
     exists_powerBudget_le_optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, hf, ht, hs⟩ := first_target_time c p L hL hLN
   refine ⟨out, hf, ht, ?_⟩
-  have hs' : (out.size : ℝ) ≤
-      90000 * (powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L : ℝ) + p.size := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 /-- **Halting times.** If `c` fixes every halting state and the orbit of every initial state
 halts, some circuit of size at most `100000 * optimizedBudget n c.size (2 ^ n)` returns, in

@@ -30,6 +30,15 @@ tuple of its fields, with everything a certificate needs to work with it:
 * the constructor rules `eS_mk_deg` on tuples, `eS_mk_inO` adding up the bounds of its arguments,
   `eS_mk_budget` constructing a record whose fields share a workspace budget, and `eS_mk_polyTime`.
 
+After importing
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words`, add `logspace`
+before `where` to also generate `eS_fields_logSpace`, the tuple of the fields, and `eS_f_logSpace`
+for each listed field `f`. These rules read the existing encoding in logarithmic workspace, without
+charging the output; they do not change the encoded words. The option applies to records in `Type`.
+It adds no constructor rule and no rule for a `flattened` parent. It is explicit because the
+logspace composition library itself uses the base command while constructing the universal machine
+and cannot be imported here.
+
 Public rules are registered as `scoped` `fun_prop` rules, activated by the declaration's
 namespace. Private rules are registered with `local fun_prop` in the defining scope and are not
 exported to importers. The optional `public` or `private` prefix sets the visibility of the
@@ -87,11 +96,14 @@ unknown, repeated or misplaced field, or all missing ones. Before `where`,
 projection rules, provided its encoded word is definitionally the selected field tuple. A field
 whose type depends on earlier fields is written `f : w using hw`, encoding it as the word `w f` for
 an injective `w`. Explicit parameters `(p : T)` before the colon become explicit arguments of every
-generated declaration. An optional `public` or `private` prefix applies to every generated
-declaration; the default is public, independently of the surrounding section. Public `fun_prop`
-rules are scoped; private ones are registered locally and do not export. -/
+generated declaration. Add `logspace` before `where` to also generate the logspace rules of the
+fields, after importing `Complexity.LogSpace.Words`; the encoding stays unchanged. An optional
+`public` or `private` prefix applies to every generated declaration; the default is public,
+independently of the surrounding section. Public `fun_prop` rules are scoped; private ones are
+registered locally and do not export. -/
 syntax (name := encStructure) (docComment)? (visibility)? "enc_structure " ident
-  (" (" ident " : " term ")")* " : " term (" flattened " ident " : " term:max)* " where "
+  (" (" ident " : " term ")")* " : " term (" flattened " ident " : " term:max)*
+  (" logspace")? " where "
   (ident " : " term:max (" using " term:max)?),+ : command
 
 private def app (base : Name) (suffix : String) : Ident :=
@@ -320,7 +332,7 @@ private def checkFlattenedParents (env : Environment) (s : Name)
 @[command_elab encStructure] def elabEncStructure : CommandElab := fun stx => do
   let `($[$doc:docComment]? $[$vis:visibility]? enc_structure $eS:ident
       $[($ps:ident : $pts:term)]* : $S:term
-      $[flattened $parents:ident : $parentEncs:term]* where
+      $[flattened $parents:ident : $parentEncs:term]* $[logspace%$logSpaceOpt]? where
       $[$fs:ident : $es:term $[using $hws:term]?],*) :=
     stx | throwUnsupportedSyntax
   -- The syntax declaration parses both as terms; the repeated antiquotations are untyped.
@@ -340,6 +352,19 @@ private def checkFlattenedParents (env : Environment) (s : Name)
       elabCommand (← `(attribute [scoped fun_prop] $decl:ident))
   let (s, paths) ← checkFields S fs
   let env ← getEnv
+  -- Resolve these names only for the opt-in family: importing their module here would cycle
+  -- through the universal machine's structure encodings.
+  let logSpace := mkCIdent `Turing.MultiTapeTM.ComputableInLogSpace
+  let logSpaceEq := mkCIdent `Turing.MultiTapeTM.ComputableInLogSpace.of_eq
+  if let some opt := logSpaceOpt then
+    for decl in #[logSpace, logSpaceEq,
+        mkCIdent `Turing.MultiTapeTM.ComputableInLogSpace.fst',
+        mkCIdent `Turing.MultiTapeTM.ComputableInLogSpace.snd'] do
+      let decl := decl.getId.eraseMacroScopes
+      unless env.contains decl do
+        throwErrorAt opt "enc_structure logspace: import \
+          CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words \
+          before requesting logspace rules (missing `{decl}`)"
   let checkedParents ← checkFlattenedParents env s paths parents
   let name := eS.getId
   let n := fs.size
@@ -445,6 +470,12 @@ private def checkFlattenedParents (env : Environment) (s : Name)
   elabCommand (← `($vis:visibility theorem $fieldsDeg:ident $params* :
     ComputableInDegree (fun $a : $S => $fieldsOf) $encRef $fieldsTerm 1 1 :=
       ComputableInDegree.of_eq fun _ => rfl))
+  let fieldsLogSpace := app name "_fields_logSpace"
+  let fieldsLogSpaceTerm := applied fieldsLogSpace
+  if logSpaceOpt.isSome then
+    elabCommand (← `($vis:visibility theorem $fieldsLogSpace:ident $params* :
+      $logSpace (fun $a : $S => $fieldsOf) $encRef $fieldsTerm :=
+        $logSpaceEq fun _ => rfl))
   let g ← freshIdent `g
   let c ← freshIdent `c
   let declareProjectionRules (projection : Name) (fn compFn e degBody : Term) :
@@ -485,6 +516,13 @@ private def checkFlattenedParents (env : Environment) (s : Name)
     let degBody ←
       liftMacroM <| component `Turing.MultiTapeTM.ComputableInDegree fieldsDegTerm i n
     declareProjectionRules f.getId fn compFn e degBody
+    if logSpaceOpt.isSome then
+      let logRule := app name s!"_{f.getId}_logSpace"
+      let logBody ← liftMacroM <|
+        component `Turing.MultiTapeTM.ComputableInLogSpace fieldsLogSpaceTerm i n
+      elabCommand (← `($vis:visibility theorem $logRule:ident $params* :
+        $logSpace $fn $encRef $e := $logBody))
+      registerRule logRule
     -- Size bounds describe encoded words, independently of a realizing machine's constants.
     let lengthRule := app name s!"_{f.getId}_length_le"
     let applyName := app name "_apply"
