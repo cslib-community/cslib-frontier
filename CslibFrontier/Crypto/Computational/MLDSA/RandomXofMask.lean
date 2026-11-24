@@ -10,10 +10,15 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 public import CslibFrontier.Probability.IID.FirstSome
+-- Reads private `Table`, `RawWord`, `install`, and `byteAt_install`, plus `uniformPrefixes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+-- Reads private `verified_programmedTrial` and unexposed `matrixTrial` and `programmedTrial`.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `AttemptCommitment`, `expandMaskFrom`, `firstAccepted`, and `Xofs.expandMask`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Unfolds unexposed `packSigned`, `unpackSigned`, `Level.params`, and `commitmentDigest`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+-- Reads private `maskSet`, `mask_nonempty`, and `mem_intervalVectors`, plus `signingMaskLaw`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Probability.PMF.Support
@@ -320,7 +325,9 @@ theorem Xofs.uniformPrefixes_expandMask_schedule (base : Xofs) (s : Level) {a b 
   convert law using 1 <;> apply congrArg (fun g => PMF.map g _) <;>
     funext x i k j <;> rfl
 
-private theorem iid_maskFromRow (s : Level) :
+/-- Reading the 814 scheduled mask polynomials from a uniform two-byte-indexed XOF row table
+produces i.i.d. uniform masks in the signing mask distribution. -/
+theorem iid_maskFromRow (s : Level) :
     (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).map
         (fun row (i : Fin 814) =>
           ringVectorCoeffs (maskFromRow s row (signingAttemptCounter s.params 0 i))) =

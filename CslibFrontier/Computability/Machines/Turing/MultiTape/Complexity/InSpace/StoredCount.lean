@@ -46,7 +46,7 @@ private structure CountState where
   count : ℕ
 
 /-- Registers of the counting loop, as their fields. -/
-private enc_structure encCountState : CountState where
+private enc_structure encCountState : CountState logspace where
   bound : encNat, idx : encNat, count : encNat
 
 /-- The body of the counting loop: count the predicate at the next index, or stop at the
@@ -83,13 +83,7 @@ theorem ComputableInSpace.countWith {α : Type} {encA : α ↪ List Bool} {m : �
       fun q => (encCountState q.1).length + (S q.2 + Nat.log2 (encA q.2).length) :=
     hp.comp_logSpace_context (f := fun q : CountState × α => (q.1.idx, q.2))
       (S := fun a => S a + Nat.log2 (encA a).length)
-      (ComputableInLogSpace.pair
-        (((ComputableInLogSpace.fst encNat encNat).comp'
-          (ComputableInLogSpace.snd encNat (encPair encNat encNat))).comp'
-          ((ComputableInLogSpace.of_eq (f := fun s : CountState => (s.bound, s.idx, s.count))
-            (encIn := encCountState) (encMid := encPair encNat (encPair encNat encNat))
-            fun _ => rfl).comp' (ComputableInLogSpace.fst _ encA)))
-        (ComputableInLogSpace.snd _ encA))
+      (by fun_prop)
       (.of_le fun q => by
         simp only [encCountState_apply, encCountStateFields, length_encPair]; omega)
       fun _ => by omega

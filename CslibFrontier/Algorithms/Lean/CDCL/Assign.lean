@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.CDCL.System
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
+public import CslibFrontier.Foundations.Data.Array.SetGrow
 
 /-! # Assignments indexed by variable
 
@@ -119,9 +120,7 @@ theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).i
   rcases c with _ | _ | c <;> rfl
 
 /-- Setting the value of `v` to `x`, growing the array if needed. -/
-def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
-  if v < A.vals.size then ⟨A.vals.set! v (code x)⟩
-  else ⟨(A.vals ++ Array.replicate (v - A.vals.size) 0).push (code x)⟩
+def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign := ⟨A.vals.setGrow v 0 (code x)⟩
 
 /-- Assigning the literal `l`. -/
 def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
@@ -149,32 +148,10 @@ theorem ofTrail_nil : ofTrail [] = ⟨#[]⟩ := rfl
 theorem ofTrail_cons (e : Entry) (M : Trail) : ofTrail (e :: M) = (ofTrail M).assign e.lit :=
   assignTrail_cons _ e M
 
-private theorem getD_set (A : Assign) (v w : ℕ) (x : Option Bool) :
-    (A.set v x).vals.getD w 0 = if w = v then code x else A.vals.getD w 0 := by
-  unfold set
-  split
-  · rename_i hv
-    simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
-      Array.getElem?_setIfInBounds]
-    by_cases hw : w = v
-    · subst hw; simp [hv]
-    · simp [hw, Ne.symm hw]
-  · rename_i hv
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
-      Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
-    by_cases hw : w = v
-    · subst hw; simp only [↓reduceIte]; split <;> first | rfl | omega
-    · have : ¬ w = A.vals.size + (v - A.vals.size) := by omega
-      simp only [hw, this, ↓reduceIte]
-      by_cases hlt : w < A.vals.size
-      · simp [hlt]
-      · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : A.vals.size ≤ w)]
-        split <;> rfl
-
 theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
     (A.set v x).value w = if w = v then x else A.value w := by
-  unfold value
-  rw [getD_set]
+  unfold value set
+  rw [Array.getD_setGrow]
   split <;> simp
 
 theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
@@ -185,10 +162,8 @@ theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
 theorem value_clear (A : Assign) (v w : ℕ) :
     (A.clear v).value w = if w = v then none else A.value w := by
   unfold clear value
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
-  by_cases hw : w = v
-  · subst hw; simp only [↓reduceIte]; split <;> simp
-  · simp [hw, Ne.symm hw]
+  rw [Array.getD_setIfInBounds_self]
+  split <;> simp
 
 theorem size_clear (A : Assign) (v : ℕ) : (A.clear v).vals.size = A.vals.size := by
   simp [clear]
