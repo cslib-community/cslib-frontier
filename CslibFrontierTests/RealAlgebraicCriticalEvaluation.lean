@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
@@ -282,6 +283,16 @@ example : zeroObjectiveCoefficientValue 11 0 1 0 0 (fun _ => 0) = 0 := by
   rw [zeroObjectiveCoefficientValue_eq 1 (by decide) 0 0 (0 : MvPolynomial (Fin 0) (ZMod 11))
     (by simp) (by decide) (by decide) (fun _ => 0) (by simp)]
   simp [deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero]
+
+-- The retained coordinate of a two-variable source is fixed while the coefficient address varies.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    C.relativeCoefficientValue (n := fun _ => 1) (m := fun _ => 1) (fun _ => 19)
+      (fun _ => 1) (fun _ => 1) id (fun _ => [2]) ∈ CountingFunction 9 encNat encNat := by
+  intro C
+  exact C.relativeCoefficientValue_mem Decoder.nat (.const 1) (.const 19) (.const 1)
+    (.const 1) ComputableInPolyTime.id' (.const [2])
 
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
