@@ -10,6 +10,9 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
 import Mathlib.Tactic.NormNum
 
 /-!
@@ -24,9 +27,12 @@ Their sum-of-squares feasibility polynomial uses one auxiliary variable per labe
 Its modular evaluator costs one additional counting level over the labels.
 A fixed-width witness can make the labels select any given point in the root grid.
 A second system adds counterexample variables and one equation at the same counting level.
+The counterexample renaming places the parameters before the witnesses and leaves room
+for the leading reciprocal variable of the parameter system.
 
 Adapted from lean-canny's `SelectionSystem`, `SelectionSystemCorrectness`,
-`SelectionCounterexampleSystem` and `SelectionCounterexampleCorrectness` at
+`SelectionCounterexampleSystem`, `SelectionCounterexampleCorrectness` and
+`CounterexampleVariableOrder` at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
@@ -351,5 +357,72 @@ theorem exists_selectionCounterexamplePolynomial_zero_iff {n u d : ℕ}
         simpa only [selectionCounterexampleEquation, decide_eq_true_eq, Nat.succ_ne_zero,
           ite_false, Nat.add_sub_cancel, hrename] using heq j (Nat.lt_of_succ_lt_succ hj)
     · simpa only [hrename] using hpos j hj
+
+private def counterexampleVariable {n m : ℕ} : Fin (n + m) → Fin ((m + 1) + n) :=
+  Fin.addCases (Fin.natAdd (m + 1)) (fun i : Fin m => Fin.castAdd n i.succ)
+
+/-- Reorder a polynomial from witness-then-parameter coordinates to parameter-then-witness
+coordinates, with an unused leading slot for the reciprocal variable. -/
+noncomputable def counterexamplePolynomial {n m : ℕ} (P : MvPolynomial (Fin (n + m)) ℤ) :
+    MvPolynomial (Fin ((m + 1) + n)) ℤ :=
+  MvPolynomial.rename counterexampleVariable P
+
+/-- The first entry of the parameter block is ignored. Evaluation uses the remaining
+parameters and the full witness block in their original order. -/
+theorem eval₂_counterexamplePolynomial {n m : ℕ} {S : Type*} [CommRing S] (f : ℤ →+* S)
+    (P : MvPolynomial (Fin (n + m)) ℤ) (c : Fin (m + 1) → S) (z : Fin n → S) :
+    MvPolynomial.eval₂ f (Fin.addCases c z) (counterexamplePolynomial P) =
+      MvPolynomial.eval₂ f (Fin.addCases z (fun i => c i.succ)) P := by
+  rw [counterexamplePolynomial, MvPolynomial.eval₂_rename]
+  congr 2
+  funext i
+  refine Fin.addCases (fun j => ?_) (fun j => ?_) i <;>
+    simp only [Function.comp_def, counterexampleVariable, Fin.addCases_left, Fin.addCases_right]
+
+private def counterexampleAddress (n m i : ℕ) : ℕ :=
+  if i < n then m + 1 + i else i - n + 1
+
+private def counterexamplePoint (n m : ℕ) (z : List ℕ) : List ℕ :=
+  (List.range (n + m)).map (fun i => z.getD (counterexampleAddress n m i) 0)
+
+/-- Reorder the counterexample equation without increasing its counting level.
+Both block sizes are computed in unary, and absent entries of the evaluation point
+continue to be read as zero. -/
+noncomputable def Controlled.counterexampleOrder {α : Type} {n m : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {P : (w : α) → MvPolynomial (Fin (n w + m w)) ℤ}
+    (C : Controlled P enc a) (hn : ComputableInPolyTime n enc encUnary)
+    (hm : ComputableInPolyTime m enc encUnary) :
+    Controlled (fun w => counterexamplePolynomial (P w)) enc a := by
+  let input := encPair enc (encList encNat)
+  have hw := fst enc (encList encNat)
+  have hz := snd enc (encList encNat)
+  have hinput := fst input encUnary
+  have hi := unary_to_binary.comp (snd input encUnary)
+  have hn' := (unary_to_binary.comp hn).comp (hw.comp hinput)
+  have hm' := (unary_to_binary.comp hm).comp (hw.comp hinput)
+  have haddress : ComputableInPolyTime
+      (fun q : (α × List ℕ) × ℕ =>
+        let ((w, _), i) := q
+        counterexampleAddress (n w) (m w) i)
+      (encPair input encUnary) encNat := by
+    exact ite_decide (binary_lt' hi hn') (binary_add' (binary_add' hm' (.const 1)) hi)
+      (binary_add' (binary_sub' hi hn') (.const 1))
+  have hpoint : ComputableInPolyTime
+      (fun q : α × List ℕ => counterexamplePoint (n q.1) (m q.1) q.2) input (encList encNat) :=
+    mapWithInput (range.comp (C.arity_computable.comp hw))
+      (listGetD_binary 0 (hz.comp hinput) haddress)
+  apply C.rename (unary_add' (unary_add' hm (.const 1)) hn)
+    (fun _ => counterexampleVariable) _ hpoint
+  intro w z i
+  rw [List.getD_eq_getElem?_getD, counterexamplePoint, List.getElem?_map,
+    List.getElem?_range i.isLt]
+  change z.getD (counterexampleAddress (n w) (m w) i.val) 0 = z.getD _ 0
+  congr 1
+  refine Fin.addCases (fun j => ?_) (fun j => ?_) i
+  · simp only [counterexampleAddress, Fin.val_castAdd, j.isLt, ite_true, counterexampleVariable,
+      Fin.addCases_left, Fin.val_natAdd]
+  · simp only [counterexampleAddress, Fin.val_natAdd,
+      Nat.not_lt.mpr (Nat.le_add_right _ _), ite_false, Nat.add_sub_cancel_left,
+      counterexampleVariable, Fin.addCases_right, Fin.val_castAdd, Fin.val_succ]
 
 end Cslib.Complexity.RealAlgebraic

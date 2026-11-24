@@ -651,4 +651,23 @@ example (word : List Bool) :
       (C.massExponent word) (by decide) word).mp hz
   simp [F] at hzero
 
+-- The first parameter coordinate is unused, and the two remaining blocks retain their values.
+example :
+    let P : MvPolynomial (Fin (2 + 1)) ℤ := X (Fin.castAdd 1 1) + 2 * X (Fin.natAdd 2 0)
+    let c (i : Fin (1 + 1)) : ℤ := if i = 0 then 99 else 3
+    let z (i : Fin 2) : ℤ := if i = 0 then 10 else 20
+    MvPolynomial.eval₂ (RingHom.id ℤ) (Fin.addCases c z)
+      (counterexamplePolynomial (n := 2) (m := 1) P) = 26 := by
+  intro P c z
+  rw [eval₂_counterexamplePolynomial]
+  norm_num [P, c, z, MvPolynomial.eval₂_add, MvPolynomial.eval₂_mul, MvPolynomial.eval₂_X]
+  decide
+
+-- The reordered evaluator is available at the original counting level.
+example (P : MvPolynomial (Fin (2 + 1)) ℤ) (a : ℕ)
+    (C : Controlled (fun _ : List Bool => P) encBits a) :
+    (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate ∈
+      CountingFunction a (encEvaluation encBits) encNat :=
+  (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate_mem
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
