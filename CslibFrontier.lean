@@ -6451,6 +6451,7 @@ public import CslibFrontier.Crypto.Protocols.Signature.OneMore
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle.Simulation
 public import CslibFrontier.Crypto.Protocols.UC.Adaptive
+public import CslibFrontier.Crypto.Protocols.UC.AdaptiveComposition
 public import CslibFrontier.Crypto.Protocols.UC.AdaptiveDummyAdversary
 public import CslibFrontier.Crypto.Protocols.UC.AdaptiveToStatic
 public import CslibFrontier.Crypto.Protocols.UC.Commitment
