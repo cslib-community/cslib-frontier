@@ -368,7 +368,7 @@ theorem hasInfiniteInitialSlope_sqrt : HasInfiniteInitialSlope Real.sqrt := by
     linarith [le_max_left b 0]
   exact ⟨hconc, Real.continuous_sqrt.continuousOn, hmono, hdiff, htend⟩
 
-/-- Applying Proposition 21.14 to two users with `U_i(x) = √x` under the logarithmic SSVCG
+/-- Applying Proposition 21.14 to one or two users with `U_i(x) = √x` under the logarithmic SSVCG
 mechanism: every Nash equilibrium induces a socially optimal allocation (and nonnegative VCG
 payments). -/
 example (θ : Fin 2 → ℝ)
@@ -378,9 +378,17 @@ example (θ : Fin 2 → ℝ)
       ((⟨1, fun t x => t * Real.log (1 + x)⟩ : SSVCGMechanism (Fin 2)).allocation θ) ∧
     ∀ i, 0 ≤ (⟨1, fun t x => t * Real.log (1 + x)⟩ : SSVCGMechanism (Fin 2)).payment θ i := by
   have hfam := isSSVCGSurrogateFamily_mul_log_one_add
-  exact ⟨SSVCGMechanism.isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope (by decide)
+  exact ⟨SSVCGMechanism.isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope
       zero_lt_one hfam (fun _ => hasInfiniteInitialSlope_sqrt) hne,
     fun i => SSVCGMechanism.payment_nonneg zero_le_one hfam hne.1 i⟩
+
+example (θ : Fin 1 → ℝ)
+    (hne : (⟨1, fun t x => t * Real.log (1 + x)⟩ : SSVCGMechanism (Fin 1)).IsNashEquilibrium
+      (fun _ => Real.sqrt) θ) :
+    (⟨1, fun _ => Real.sqrt⟩ : KellyGame (Fin 1)).IsSocialOptimum
+      ((⟨1, fun t x => t * Real.log (1 + x)⟩ : SSVCGMechanism (Fin 1)).allocation θ) :=
+  SSVCGMechanism.isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope
+    zero_lt_one isSSVCGSurrogateFamily_mul_log_one_add (fun _ => hasInfiniteInitialSlope_sqrt) hne
 
 /-- Corollary 21.12 and Example 21.13 both hold for the logarithmic SSVCG mechanism on two
 identical `log (1 + x)` users: an efficient Nash equilibrium exists, and an inefficient bluff

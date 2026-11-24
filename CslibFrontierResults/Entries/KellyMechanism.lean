@@ -120,8 +120,7 @@ register_result "ssvcg-nash-characterization-and-efficiency" where
     hybrid welfare maximization; SSVCGMechanism.exists_efficient_isNashEquilibrium establishes \
     PoS = 1 for admissible utilities; exists_bluff_isNashEquilibrium exhibits a concrete 2-user \
     inefficient bluff Nash equilibrium on U(x) = log (1 + x); and \
-    SSVCGMechanism.isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope proves PoA = 1 for \
-    2 ≤ Fintype.card ι whenever all users satisfy HasInfiniteInitialSlope (U_i'(x) → +∞ as \
-    x → 0⁺)."
+    SSVCGMechanism.isSocialOptimum_of_isNashEquilibrium_of_infiniteSlope proves PoA = 1 whenever \
+    all users satisfy HasInfiniteInitialSlope (U_i'(x) → +∞ as x → 0⁺)."
 
 end

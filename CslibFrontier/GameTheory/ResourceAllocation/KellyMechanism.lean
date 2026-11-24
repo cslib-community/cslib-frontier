@@ -68,6 +68,11 @@ closely as `n → ∞`.
 Assumption 1 of [Johari2007], §21.2, without needing an explicit continuity assumption on the
 derivative (which is automatic for differentiable concave functions on `(0, ∞)`).
 
+`KellyGame.IsNashEquilibrium` maximizes quasilinear payoffs directly over nonnegative real bids
+on `ι → ℝ` rather than wrapping `CostGame ι (fun _ => {t : ℝ // 0 ≤ t})`
+(`CslibFrontier.GameTheory.Strategic.Basic`), keeping unilateral deviations and single-variable
+convex calculus over `ℝ` subtype-free.
+
 ## Main definitions
 
 * `Cslib.GameTheory.IsAdmissibleUtility`: concave, strictly increasing utilities differentiable on
@@ -81,7 +86,7 @@ derivative (which is automatic for differentiable concave functions on `(0, ∞)
 * `Cslib.GameTheory.KellyGame.IsNashEquilibrium`: price-anticipating Nash equilibrium.
 * `Cslib.GameTheory.KellyGame.modifiedUtility`, `modifiedWelfare`, `IsGameOptimum`: the `GAME`
   optimization problem.
-* `Cslib.GameTheory.kellyTightGame`: explicit `(n + 1)`-user linear tightness instances.
+* `Cslib.GameTheory.KellyGame.kellyTightGame`: explicit `(n + 1)`-user linear tightness instances.
 
 ## Main results
 
@@ -99,8 +104,8 @@ derivative (which is automatic for differentiable concave functions on `(0, ∞)
   characterizing the Nash allocation ([Johari2007], Corollary 21.3).
 * `Cslib.GameTheory.KellyGame.IsNashEquilibrium.three_fourths_welfare_le`: the Johari–Tsitsiklis
   `3/4` worst-case efficiency guarantee ([JohariTsitsiklis2004]; [Johari2007], Theorem 21.4).
-* `Cslib.GameTheory.exists_nash_welfare_lt_three_fourths_add`: tightness of `3/4` to within every
-  `ε > 0` on linear utilities ([JohariTsitsiklis2004]; [Johari2007], Theorem 21.4).
+* `Cslib.GameTheory.KellyGame.exists_nash_welfare_lt_three_fourths_add`: tightness of `3/4` to
+  within every `ε > 0` on linear utilities ([JohariTsitsiklis2004]; [Johari2007], Theorem 21.4).
 
 ## References
 
@@ -129,14 +134,7 @@ structure IsAdmissibleUtility (u : ℝ → ℝ) : Prop where
   /-- Differentiability within `[0, ∞)` (including a finite right derivative at `0`). -/
   differentiableOn : DifferentiableOn ℝ u (Ici 0)
 
-/-! ### First-order concave helpers -/
-
-private theorem concaveOn_le_add_mul_sub {K : Set ℝ} {f : ℝ → ℝ} {x y d : ℝ}
-    (hf : ConcaveOn ℝ K f) (hx : x ∈ K) (hy : y ∈ K) (hd : HasDerivWithinAt f d K x) :
-    f y ≤ f x + d * (y - x) := by
-  have h := hf.neg.add_le_of_hasFDerivWithinAt hx hy hd.neg.hasFDerivWithinAt
-  simp only [Pi.neg_apply, ContinuousLinearMap.toSpanSingleton_apply, smul_eq_mul] at h
-  linarith
+/-! ### First-order local-maximum helper -/
 
 private theorem hasDerivWithinAt_nonpos_of_isMaxOn_Icc {φ : ℝ → ℝ} {d δ : ℝ} (hδ : 0 < δ)
     (hd : HasDerivWithinAt φ d (Ici 0) 0) (hmax : ∀ t ∈ Icc 0 δ, φ t ≤ φ 0) : d ≤ 0 := by
@@ -162,7 +160,7 @@ theorem hasDerivWithinAt {u : ℝ → ℝ} (hu : IsAdmissibleUtility u) {x : ℝ
 theorem le_add_derivWithin {u : ℝ → ℝ} (hu : IsAdmissibleUtility u) {x y : ℝ}
     (hx : 0 ≤ x) (hy : 0 ≤ y) :
     u y ≤ u x + derivWithin u (Ici 0) x * (y - x) :=
-  concaveOn_le_add_mul_sub hu.concaveOn hx hy (hu.hasDerivWithinAt hx)
+  hu.concaveOn.le_add_mul_of_hasDerivWithinAt hx hy (hu.hasDerivWithinAt hx)
 
 /-- The marginal utility `u'` is nonincreasing on `[0, ∞)`. -/
 theorem derivWithin_antitoneOn {u : ℝ → ℝ} (hu : IsAdmissibleUtility u) :
@@ -511,7 +509,7 @@ private theorem simplex_maximizer_of_kkt {G : KellyGame ι}
     ∑ i, f i (x i) ≤ ∑ i, f i (d i) := by
   have htan : ∑ i, f i (x i) ≤ ∑ i, (f i (d i) + f' i (d i) * (x i - d i)) :=
     Finset.sum_le_sum fun i _ =>
-      concaveOn_le_add_mul_sub (hconc i)
+      (hconc i).le_add_mul_of_hasDerivWithinAt
         ⟨hd.1 i, G.isFeasibleAllocation_le_capacity hd i⟩
         ⟨hx.1 i, G.isFeasibleAllocation_le_capacity hx i⟩
         (hd_deriv i (d i) ⟨hd.1 i, G.isFeasibleAllocation_le_capacity hd i⟩)
@@ -679,12 +677,9 @@ theorem existsUnique_isCompetitiveEquilibrium_of_strictConcaveOn [Nonempty ι] {
       (fun i => (hstrict i).subset (fun _ hz => hz.1) (convex_Icc 0 G.capacity))
       hopt'.1 hopt.1 hopt'.2 hopt.2
   have hprice_eq : μ' = μ := by
-    have hsum_d : ∑ i, G.allocation w i = G.capacity := by
-      have hW : ∑ j, w j ≠ 0 := by
-        have : ∑ j, w j = μ * G.capacity := by
-          rw [hce.2.2.1, price, div_mul_cancel₀ _ hC.ne']
-        exact this ▸ (mul_pos hce.2.1 hC).ne'
-      exact G.sum_allocation_eq_capacity hW
+    have hsum_d : ∑ i, G.allocation w i = G.capacity :=
+      G.sum_allocation_eq_capacity fun h0 =>
+        hce.2.1.ne' (by rw [hce.2.2.1]; simp only [price, h0, zero_div])
     have hex : ∃ i₀, 0 < G.allocation w i₀ := by
       by_contra hall
       push Not at hall
@@ -876,6 +871,14 @@ theorem IsNashEquilibrium.price_pos [Nonempty ι] {G : KellyGame ι} (hC : 0 < G
     linarith [hne.1 i₀]
   exact div_pos hsum hC
 
+/-- At any Nash equilibrium with strictly increasing utilities, total equilibrium allocation equals
+the resource capacity. -/
+theorem IsNashEquilibrium.sum_allocation_eq_capacity [Nonempty ι] {G : KellyGame ι}
+    (hC : 0 < G.capacity) (hmono : ∀ i, StrictMonoOn (G.utility i) (Ici 0)) {w : ι → ℝ}
+    (hne : G.IsNashEquilibrium w) : ∑ i, G.allocation w i = G.capacity :=
+  G.sum_allocation_eq_capacity fun h0 =>
+    (hne.price_pos hC hmono).ne' (by simp only [price, h0, zero_div])
+
 theorem IsNashEquilibrium.allocation_lt_capacity {G : KellyGame ι} (hC : 0 < G.capacity)
     (hmono : ∀ i, StrictMonoOn (G.utility i) (Ici 0)) {w : ι → ℝ} (hne : G.IsNashEquilibrium w)
     (i : ι) : G.allocation w i < G.capacity := by
@@ -1061,7 +1064,8 @@ theorem isNashEquilibrium_iff_kkt {G : KellyGame ι} (hC : 0 < G.capacity)
     obtain ⟨halloc_eq, hfac⟩ := hfactor i (hw i) hs
     have hd := hasDerivWithinAt_userPayoff hC hs (hw i) (hU i)
     rw [halloc_eq, hfac] at hd
-    have htan := concaveOn_le_add_mul_sub (concaveOn_userPayoff hC hs (hU i)) (hw i) ht hd
+    have htan :=
+      (concaveOn_userPayoff hC hs (hU i)).le_add_mul_of_hasDerivWithinAt (hw i) ht hd
     have hterm :
         (derivWithin (G.utility i) (Ici 0) (G.allocation w i) *
           ((1 - G.allocation w i / G.capacity) / G.price w) - 1) * (t - w i) ≤ 0 := by
@@ -1175,12 +1179,8 @@ theorem existsUnique_isNashEquilibrium {G : KellyGame ι} (hcard : 2 ≤ Fintype
     intro w hne
     obtain ⟨hw, herase, hle, heq⟩ := (isNashEquilibrium_iff_kkt hC hU).mp hne
     have hμpos : 0 < G.price w := hne.price_pos hC fun j => (hU j).strictMonoOn
-    have hWne : ∑ j, w j ≠ 0 := by
-      have : ∑ j, w j = G.price w * G.capacity := by
-        simp only [price, div_mul_cancel₀ _ hC.ne']
-      exact this ▸ (mul_pos hμpos hC).ne'
     have hfeas := G.isFeasibleAllocation_allocation hC.le hw
-    have hsum := G.sum_allocation_eq_capacity hWne
+    have hsum := hne.sum_allocation_eq_capacity hC fun j => (hU j).strictMonoOn
     refine ⟨hfeas, fun x hx => simplex_maximizer_of_kkt
       (fun i => (hstrict i).concaveOn) hderiv hfeas hsum hμpos.le
       (fun i => by rw [mul_comm]; exact hle i)
@@ -1218,13 +1218,10 @@ theorem IsNashEquilibrium.variational_inequality {G : KellyGame ι} (hC : 0 < G.
   · simp
   · obtain ⟨hw, _, hle, heq⟩ := (isNashEquilibrium_iff_kkt hC hU).mp hne
     have hμpos : 0 < G.price w := hne.price_pos hC fun j => (hU j).strictMonoOn
-    have hWne : ∑ j, w j ≠ 0 := by
-      have : ∑ j, w j = G.price w * G.capacity := by
-        simp only [price, div_mul_cancel₀ _ hC.ne']
-      exact this ▸ (mul_pos hμpos hC).ne'
     exact simplex_variational_of_kkt
       (f' := fun i t => derivWithin (G.utility i) (Ici 0) t * (1 - t / G.capacity))
-      hμpos.le (G.sum_allocation_eq_capacity hWne) hle heq (G.allocation_nonneg hC.le hw) hx
+      hμpos.le (hne.sum_allocation_eq_capacity hC fun j => (hU j).strictMonoOn)
+      hle heq (G.allocation_nonneg hC.le hw) hx
 
 end NashEquilibrium
 
@@ -1301,16 +1298,12 @@ theorem IsNashEquilibrium.three_fourths_welfare_le [DecidableEq ι] {G : KellyGa
   rcases isEmpty_or_nonempty ι with hEmpty | hNonempty
   · simp [welfare]
   · obtain ⟨hw, _, hle, heq⟩ := (isNashEquilibrium_iff_kkt hC hU).mp hne
-    have hμpos : 0 < G.price w := hne.price_pos hC fun j => (hU j).strictMonoOn
-    have hWne : ∑ j, w j ≠ 0 := by
-      have : ∑ j, w j = G.price w * G.capacity := by
-        simp only [price, div_mul_cancel₀ _ hC.ne']
-      exact this ▸ (mul_pos hμpos hC).ne'
     set d := G.allocation w
     set α : ι → ℝ := fun i => derivWithin (G.utility i) (Ici 0) (d i)
     have hd0 : ∀ i, 0 ≤ d i := G.allocation_nonneg hC.le hw
     have hlin := linear_three_fourths_bound hC (fun i => ((hU i).derivWithin_pos (hd0 i)).le)
-      hd0 (G.sum_allocation_eq_capacity hWne) hle heq hx.1 hx.2
+      hd0 (hne.sum_allocation_eq_capacity hC fun j => (hU j).strictMonoOn)
+      hle heq hx.1 hx.2
     have hconc_x : ∀ i, G.utility i (x i) ≤ G.utility i (d i) + α i * (x i - d i) :=
       fun i => (hU i).le_add_derivWithin (hd0 i) (hx.1 i)
     have hconc_0 : ∀ i, 0 ≤ G.utility i (d i) - α i * d i := fun i => by
