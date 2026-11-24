@@ -9,34 +9,42 @@ module
 
 public import CslibFrontier.Crypto.Computational.Kilian.Soundness
 public import CslibFrontier.Crypto.Computational.Kilian.Succinct
-public import CslibFrontier.Computability.Complexity.Classes.NP
+public import CslibFrontier.Computability.Complexity.Classes.NP.Relation
 import CslibFrontier.Computability.PCP.Completeness
 
 /-!
 # Kilian's arguments for NP
 
-With the PCP theorem (`NP_subset_PCP_log`), every language `L ∈ NP` has a polynomial-time PCP
-verifier `V` with `O(log n)` random bits and a constant number of queries. Kilian's protocol over
-`V` and a collision-resistant `HashFamily` is then an interactive argument for `L`
-(`exists_kilianSound_of_mem_NP`):
+With the PCP theorem and its witness compiler (`exists_pcpVerifier_of_npRelation`), every NP
+relation `R : NPRelation enc` has a polynomial-time PCP verifier `V` with `O(log n)` random bits
+and constantly many queries together with a polynomial-time compiler `compile` sending every
+relation witness `(x, w)` to an accepted compact PCP table `V.tableVerifier (x, compile (x, w))`
+(`exists_kilianArgument_of_npRelation`):
 
-* the witnesses of the honest prover are the compact tables accepted by `V.tableVerifier`, and
-  these characterize `L` (`x ∈ L` exactly when some table is accepted,
-  `IsPCPVerifier.mem_iff_exists_tableVerifier`), so they form an NP relation
-  for `L` (`PCP_log_subset_NP`); on them the honest prover is accepted with probability one and runs
-  in polynomial time (`eval_kilianHonestGame`, `computableInPolyTime_kilianCommit`,
-  `computableInPolyTime_kilianRespond`);
+* `compile` itself and the composed honest prover maps
+  `(key, (x, w)) ↦ kilianCommit H V key x (compile (x, w))` and
+  `((key, (x, w)), ρs) ↦ kilianRespond H V key x (compile (x, w)) ρs` run in polynomial time
+  (`computableInPolyTime_kilianCommit`, `computableInPolyTime_kilianRespond`), giving a uniform
+  polynomial-time honest prover on arbitrary NP relations ([BarakGoldreich2001],
+  Definition 3.2);
+* on every witness `R.IsWitness x w`, `kilianHonestGame` accepts `compile (x, w)` with
+  probability one (`eval_kilianHonestGame`);
 * the protocol is computationally sound (`HashFamily.kilianSound`);
 * the honest transcript after the statement has `O(n² · (log₂ |enc x| + 1))` payload bits at
-  security parameter `n` (`kilianCommunication_honest_le_log`).
+  security parameter `n` (`kilianCommunication_honest_le_log`);
+* a single binary multi-tape Turing machine computes `kilianVerify` on every `KilianView α` in
+  polynomial time and space in its received input, and in time and space polynomial in
+  `n + |enc x|` on every honest transcript (`computableInTimeAndSpace_kilianVerify_honest_le`).
+  The verifier does not truncate oversized raw tapes from malformed provers before decoding.
 
-**Gap.** The honest prover is efficient on this particular NP relation, not on an arbitrary given
-NP relation for `L`: that would need a polynomial-time map from witnesses of the given relation to
-PCP proofs (Barak and Goldreich's "relatively-efficient oracle-construction", [BarakGoldreich2001],
-Definition 3.2), which the library's proof of the PCP theorem does not provide.
+`exists_kilianSound_of_mem_NP` states the corresponding language-level consequence for every
+`L ∈ NP enc`.
 
 ## Main results
 
+* `Cslib.Crypto.exists_kilianArgument_of_npRelation`: Kilian's succinct interactive argument for
+  arbitrary NP relations, including polynomial-time witness compilation and honest verifier
+  runtime accounting.
 * `Cslib.Crypto.exists_kilianSound_of_mem_NP`: every language in NP has a Kilian argument.
 
 ## References
@@ -49,9 +57,152 @@ public section
 
 namespace Cslib.Crypto
 
-open Complexity
+open Complexity Turing.MultiTapeTM
 
 variable {α : Type} {H : List Bool → List Bool → List Bool}
+
+/-- **Kilian's interactive arguments for arbitrary NP relations**: for a collision-resistant
+`HashFamily H` and any NP relation `R : NPRelation enc`, there exist a polynomial-time PCP
+verifier `V` with `O(log n)` random bits and constantly many queries `d` and a polynomial-time
+witness compiler `compile : α × List Bool → List Bool` such that the composed honest commitment
+and opening maps on `(key, x, w)` run in polynomial time, `compile` produces tables accepted by
+`V.tableVerifier` with perfect completeness on `R.IsWitness x w`, the protocol is computationally
+sound (`KilianSound H V enc R.language`), honest transcripts use `O(n² · (log₂ |enc x| + 1))`
+payload bits, and a fixed binary machine computes `kilianVerify` in time and space polynomial in
+`n + |enc x|` on every honest transcript. -/
+theorem exists_kilianArgument_of_npRelation (hH : HashFamily H) {enc : α ↪ List Bool}
+    (R : NPRelation enc) :
+    ∃ (V : PCPVerifier α) (compile : α × List Bool → List Bool) (c d : ℕ),
+      V.PolyTime enc ∧
+      (∀ x, V.coins x ≤ c * (Nat.log 2 (enc x).length + 1)) ∧
+      (∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d) ∧
+      ComputableInPolyTime compile (encPair enc encBits) encBits ∧
+      ComputableInPolyTime
+        (fun p : List Bool × α × List Bool =>
+          let (key, state) := p
+          let (x, w) := state
+          kilianCommit H V key x (compile (x, w)))
+        (encPair encBits (encPair enc encBits)) encBits ∧
+      ComputableInPolyTime
+        (fun p : (List Bool × α × List Bool) × List (List Bool) =>
+          let (proverIn, ρs) := p
+          let (key, state) := proverIn
+          let (x, w) := state
+          kilianRespond H V key x (compile (x, w)) ρs)
+        (encPair (encPair encBits (encPair enc encBits)) (encList encBits))
+        encKilianResponse ∧
+      (∀ x, x ∈ R.language ↔ ∃ table, V.tableVerifier (x, table) = true) ∧
+      (∀ x w, R.IsWitness x w → V.tableVerifier (x, compile (x, w)) = true) ∧
+      (∀ x w, R.IsWitness x w →
+        ∀ n, ProbComp.eval (kilianHonestGame H V x (compile (x, w)) n) = PMF.pure true) ∧
+      KilianSound H V enc R.language ∧
+      (∃ C : ℕ, ∀ (n : ℕ) (k : List Bool) (x : α) (table : List Bool) (ρs : List (List Bool)),
+        k.length = n → ρs.length = n → (∀ ρ ∈ ρs, ρ.length = V.coins x) →
+          kilianCommunication k (kilianCommit H V k x table) ρs
+            (kilianRespond H V k x table ρs) ≤
+          C * (n + 1) ^ 2 * (Nat.log 2 (enc x).length + 1)) ∧
+      (∃ (k : ℕ) (State : Type) (_ : Finite State) (tm : Turing.MultiTapeTM k Bool State)
+        (t s tHonest sHonest : ℕ → ℕ),
+        PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
+        PolynomiallyBounded tHonest ∧ PolynomiallyBounded sHonest ∧
+        tm.ComputesFunInTimeAndSpace (encKilianView enc) encBool
+          (fun v => kilianVerify H V v.key v.stmt v.root v.challenges v.response)
+          (fun v => t (encKilianView enc v).length)
+          (fun v => s (encKilianView enc v).length) ∧
+        (∀ (n : ℕ) (key : List Bool) (x : α) (table : List Bool) (ρs : List (List Bool)),
+          key.length = n → ρs.length = n → (∀ ρ ∈ ρs, ρ.length = V.coins x) →
+            let view : KilianView α :=
+              { key := key, stmt := x, root := kilianCommit H V key x table,
+                challenges := ρs, response := kilianRespond H V key x table ρs }
+            t (encKilianView enc view).length ≤ tHonest (n + (enc x).length) ∧
+            s (encKilianView enc view).length ≤ sHonest (n + (enc x).length) ∧
+            tm.ComputesInTimeAndSpace (encKilianView enc view)
+              (encBool (kilianVerify H V key x view.root ρs view.response))
+              (tHonest (n + (enc x).length)) (sHonest (n + (enc x).length)))) := by
+  obtain ⟨V, compile, c, d, hV, hpcp, hcompile, hacc⟩ := exists_pcpVerifier_of_npRelation enc R
+  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := by
+    intro x ρ hρ
+    simpa using hpcp.length_queries_le x ρ hρ
+  have hk : Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : List Bool × α × List Bool => p.1)
+      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
+      Turing.MultiTapeTM.encBits :=
+    Turing.MultiTapeTM.ComputableInPolyTime.fst _ _
+  have hsnd : Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : List Bool × α × List Bool => p.2)
+      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
+      (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits) :=
+    Turing.MultiTapeTM.ComputableInPolyTime.snd _ _
+  have hx : Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : List Bool × α × List Bool => p.2.1)
+      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
+      enc :=
+    (Turing.MultiTapeTM.ComputableInPolyTime.fst _ _).comp hsnd
+  have hin : Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : List Bool × α × List Bool =>
+        ({ key := p.1, stmt := p.2.1, table := compile p.2 } : KilianProverInput α))
+      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
+      (encKilianProverInput enc) :=
+    encKilianProverInput_mk_polyTime enc hk hx (hcompile.comp hsnd)
+  have hcommit_raw :=
+    (computableInPolyTime_kilianCommit hH.polyTime hH.length_eq hV hpcp.coins_le).comp hin
+  have hcommit : Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : List Bool × α × List Bool =>
+        let (key, state) := p
+        let (x, w) := state
+        kilianCommit H V key x (compile (x, w)))
+      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
+      Turing.MultiTapeTM.encBits := by
+    have heq : (fun p : List Bool × α × List Bool =>
+        kilianCommit H V p.1 p.2.1 (compile p.2)) =
+        fun p : List Bool × α × List Bool =>
+          let (key, state) := p
+          let (x, w) := state
+          kilianCommit H V key x (compile (x, w)) := by
+      funext p
+      rcases p with ⟨key, ⟨x, w⟩⟩
+      rfl
+    simpa only [Function.comp_def, heq] using hcommit_raw
+  have hrespond_raw :=
+    (computableInPolyTime_kilianRespond hH.polyTime hH.length_eq hV hpcp.coins_le).comp
+      ((hin.comp (Turing.MultiTapeTM.ComputableInPolyTime.fst _ _)).prod
+        (Turing.MultiTapeTM.ComputableInPolyTime.snd _ _))
+  have hrespond : Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : (List Bool × α × List Bool) × List (List Bool) =>
+        let (proverIn, ρs) := p
+        let (key, state) := proverIn
+        let (x, w) := state
+        kilianRespond H V key x (compile (x, w)) ρs)
+      (Turing.MultiTapeTM.encPair
+        (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+          (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
+        (Turing.MultiTapeTM.encList Turing.MultiTapeTM.encBits))
+      encKilianResponse := by
+    have heq : (fun p : (List Bool × α × List Bool) × List (List Bool) =>
+        kilianRespond H V p.1.1 p.1.2.1 (compile p.1.2) p.2) =
+        fun p : (List Bool × α × List Bool) × List (List Bool) =>
+          let (proverIn, ρs) := p
+          let (key, state) := proverIn
+          let (x, w) := state
+          kilianRespond H V key x (compile (x, w)) ρs := by
+      funext p
+      rcases p with ⟨⟨key, ⟨x, w⟩⟩, ρs⟩
+      rfl
+    simpa only [Function.comp_def, heq] using hrespond_raw
+  refine ⟨V, compile, c, d, hV, hpcp.coins_le, hq, hcompile, hcommit, hrespond,
+    hpcp.mem_iff_exists_tableVerifier, hacc,
+    fun x w hw n => eval_kilianHonestGame H V hH.length_eq (hacc x w hw) n,
+    hH.kilianSound hV hpcp,
+    ⟨_, fun n k x table ρs hk hn hρs =>
+      kilianCommunication_honest_le_log hH.length_eq hk hn hρs (fun ρ hρ => hq x ρ hρ)
+        (hpcp.coins_le x)⟩,
+    computableInTimeAndSpace_kilianVerify_honest_le hH.polyTime hH.length_eq hV
+      hpcp.coins_le hq⟩
 
 /-- **Kilian's arguments for NP**: for a collision-resistant `HashFamily H`, every language `L` in
 NP has a polynomial-time PCP verifier `V` with `O(log n)` random bits whose accepted compact tables
@@ -71,11 +222,10 @@ theorem exists_kilianSound_of_mem_NP (hH : HashFamily H) {enc : α ↪ List Bool
           kilianCommunication k (kilianCommit H V k x table) ρs
             (kilianRespond H V k x table ρs) ≤
           C * (n + 1) ^ 2 * (Nat.log 2 (enc x).length + 1) := by
-  obtain ⟨V, c, d, hV, hpcp⟩ := NP_subset_PCP_log enc hL
-  exact ⟨V, c, hV, hpcp.coins_le, hpcp.mem_iff_exists_tableVerifier,
-    fun x table htable n => eval_kilianHonestGame H V hH.length_eq htable n,
-    hH.kilianSound hV hpcp,
-    _, fun n k x table ρs hk hn hρs => kilianCommunication_honest_le_log hH.length_eq hk hn hρs
-      (fun ρ hρ => hpcp.length_queries_le x ρ hρ) (hpcp.coins_le x)⟩
+  obtain ⟨R, rfl⟩ := (mem_NP_iff_exists_npRelation (enc := enc)).mp hL
+  obtain ⟨V, _, c, _, hV, hcoins, -, -, -, -, hmem, -, -, hsound, hcomm, -⟩ :=
+    exists_kilianArgument_of_npRelation hH R
+  exact ⟨V, c, hV, hcoins, hmem,
+    fun x table htable n => eval_kilianHonestGame H V hH.length_eq htable n, hsound, hcomm⟩
 
 end Cslib.Crypto

@@ -1127,10 +1127,7 @@ theorem realizes_splitFullNodeGen :
       (WordEncoding.encode (α := (ℕ × (ℕ × ℕ)) × (ℕ × (ℕ × (ℕ × ℕ)))))
       (fun w d _ => ∃ base, WhpLargeEnvGen w d.1 base)
       (fun _ _ => 0) := by
-  have hlg := realizes_laneGetGen
-  have htl := realizes_wordTakeLowGen
-  have hdl := realizes_wordDropLowGen
-  realize
+  realize [realizes_laneGetGen, realizes_wordTakeLowGen, realizes_wordDropLowGen]
   all_goals
     rcases d with ⟨cp, ⟨mW, ⟨kW, vW⟩⟩⟩
     obtain ⟨base, c, U, V, w₀, n_max, henv, rfl⟩ := h
@@ -1208,8 +1205,7 @@ theorem realizes_readSliceHeaderGen :
       (WordEncoding.encode (α := ℕ × ℕ))
       (fun w ((cp, base), sIdx) _ => WhpLargeEnvGen w cp base ∧ sIdx < 3 * wpM cp)
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
@@ -1359,8 +1355,7 @@ theorem realizes_resetBTreeSliceGen :
       (WordEncoding.encode (α := Unit))
       (fun w ((cp, base), sIdx) _ => WhpLargeEnvGen w cp base ∧ sIdx < 3 * wpM cp)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
@@ -1446,8 +1441,7 @@ theorem realizes_readBTreeNodeGen :
       (fun w (((cp, base), sIdx), u) _ => WhpLargeEnvGen w cp base ∧
         sIdx < 3 * wpM cp ∧ u < wpNSlice cp)
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, u⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu⟩ := h
@@ -1678,8 +1672,7 @@ theorem realizes_writeBTreeNodeGen :
       (fun w ((((cp, base), sIdx), u), _) _ => WhpLargeEnvGen w cp base ∧
         sIdx < 3 * wpM cp ∧ u < wpNSlice cp)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, u⟩, ⟨mW, ⟨kW, vW⟩⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu⟩ := h

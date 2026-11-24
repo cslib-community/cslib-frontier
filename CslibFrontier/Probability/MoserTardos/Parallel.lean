@@ -36,6 +36,12 @@ of depth `k` and size at least `k + 1` ([MoserTardos2010, Lemma 4.1]). Summing t
 tail bounds `Pr[parallelRounds ≥ k + 1] ≤ min 1 ((1 - ε)^(k+1) * ∑ i, x i / (1 - x i))` yields
 the logarithmic expected round bound `((max 0 (Real.log M) + 1) / ε)` of Theorem 1.3.
 
+Termination needs no slack. Every prefix of the parallel run is a valid log, so the bound of
+Theorem 1.2 for all valid logs (`lintegral_iSup_count_le`) applies to it. Under the plain
+hypothesis `Pr[A i] ≤ x i * ∏ j ∈ Γ i, (1 - x j)`, almost surely every admissible rule reaches an
+empty batch, and the whole run performs at most `∑ i, x i / (1 - x i)` resamplings in
+expectation. The slack `ε` is needed only for the round bound.
+
 ## Main definitions
 
 * `Cslib.Probability.MoserTardos.IsValidParallelRule`: admissibility predicate for a parallel
@@ -55,9 +61,17 @@ the logarithmic expected round bound `((max 0 (Real.log M) + 1) / ε)` of Theore
 * `Cslib.Probability.MoserTardos.table_succ_le_parallelRounds_le` and
   `Cslib.Probability.MoserTardos.lintegral_parallelRounds_le`: [MoserTardos2010, Theorem 1.3] tail
   and expected round bounds under `Pr[A i] ≤ (1 - ε) * x i * ∏ j ∈ Γ i, (1 - x j)`.
+* `Cslib.Probability.MoserTardos.ae_exists_parallelRun_eq_nil`,
+  `Cslib.Probability.MoserTardos.ae_exists_forall_notMem_parallelRun`: almost sure termination at
+  an assignment avoiding every event, under `Pr[A i] ≤ x i * ∏ j ∈ Γ i, (1 - x j)` with no slack;
+  `ae_exists_parallelRun_eq_nil_of_bound` is the generic form and
+  `ae_exists_forall_notMem_parallelRun_symmetric` the symmetric case `e * q * (d + 1) ≤ 1`.
+* `Cslib.Probability.MoserTardos.lintegral_iSup_length_parallelRun_le`: the expected total number
+  of resamplings of the parallel run is at most `∑ i, x i / (1 - x i)`, with no slack, as a
+  consequence of `lintegral_iSup_count_le` through a measurable majorant.
 * `Cslib.Probability.MoserTardos.lintegral_parallelRounds_le_symmetric`,
   `Cslib.Probability.MoserTardos.lintegral_parallelRounds_le_symmetric_of_pos`: symmetric
-  specializations under `e * q * (d + 1) ≤ 1 - ε`.
+  specializations of the round bound under `e * q * (d + 1) ≤ 1 - ε`.
 * `Cslib.Probability.MoserTardos.lintegral_parallelRounds_le_pmfPi` and
   `Cslib.Probability.MoserTardos.lintegral_parallelRounds_le_pmfPi_symmetric`: `PMF.pi` bridges.
 
@@ -195,17 +209,22 @@ noncomputable def parallelRounds (psel : (∀ p : V × ℕ, α p.1) → List ι 
     (T : ∀ p : V × ℕ, α p.1) : ℝ≥0∞ :=
   ⨆ (n : ℕ) (_ : psel T (parallelRun psel T n) ≠ []), ((n : ℝ≥0∞) + 1)
 
+/-- If round `n` returns `[]`, at most `n` rounds are non-empty. -/
+theorem parallelRounds_le_of_eq_nil {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
+    {T : ∀ p : V × ℕ, α p.1} {n : ℕ} (hn : psel T (parallelRun psel T n) = []) :
+    parallelRounds psel T ≤ n := by
+  refine iSup₂_le fun m hm => ?_
+  have hlt : m < n := by
+    by_contra hge
+    exact hm (psel_parallelRun_eq_nil_of_le hn (Nat.le_of_not_lt hge))
+  exact_mod_cast Nat.succ_le_of_lt hlt
+
 theorem succ_le_parallelRounds_iff (psel : (∀ p : V × ℕ, α p.1) → List ι → List ι)
     (T : ∀ p : V × ℕ, α p.1) (k : ℕ) :
     ((k : ℝ≥0∞) + 1 ≤ parallelRounds psel T) ↔ psel T (parallelRun psel T k) ≠ [] := by
   constructor
   · intro hle hnil
-    have hbound : parallelRounds psel T ≤ k := by
-      refine iSup₂_le fun n hn => ?_
-      have hlt : n < k := by
-        by_contra hge
-        exact hn (psel_parallelRun_eq_nil_of_le hnil (Nat.le_of_not_lt hge))
-      exact_mod_cast Nat.succ_le_of_lt hlt
+    have hbound : parallelRounds psel T ≤ k := parallelRounds_le_of_eq_nil hnil
     have hk : (k : ℝ≥0∞) + 1 ≤ (k : ℝ≥0∞) := hle.trans hbound
     have hlt : (k : ℝ≥0∞) < (k : ℝ≥0∞) + 1 := by
       exact_mod_cast Nat.lt_succ_self k
@@ -261,13 +280,7 @@ theorem parallelRounds_eq_tsum (psel : (∀ p : V × ℕ, α p.1) → List ι �
         have heq : ((n₀ - 1 : ℕ) : ℝ≥0∞) + 1 = (n₀ : ℝ≥0∞) := by
           exact_mod_cast Nat.sub_add_cancel hpos
         rwa [heq] at h1
-      have hge : parallelRounds psel T ≤ (n₀ : ℝ≥0∞) := by
-        refine iSup₂_le fun n hn => ?_
-        have hlt : n < n₀ := by
-          by_contra hnot
-          exact hn (hge_nil n (Nat.le_of_not_lt hnot))
-        exact_mod_cast Nat.succ_le_of_lt hlt
-      exact le_antisymm hge hle
+      exact le_antisymm (parallelRounds_le_of_eq_nil hn₀) hle
   · push Not at hterm
     have htop1 : parallelRounds psel T = ⊤ := by
       by_contra hfin
@@ -283,6 +296,18 @@ theorem parallelRounds_eq_tsum (psel : (∀ p : V × ℕ, α p.1) → List ι �
         simp [hterm]
       exact hn.trans_le (hsum.symm ▸ sum_le_tsum (Finset.range n))
     rw [htop1, htop2]
+
+/-- A run whose rounds are never empty resamples at least one event per round. -/
+private theorem le_length_parallelRun_of_forall
+    {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι} {T : ∀ p : V × ℕ, α p.1}
+    (h : ∀ n, psel T (parallelRun psel T n) ≠ []) :
+    ∀ n, n ≤ (parallelRun psel T n).length
+  | 0 => Nat.zero_le _
+  | n + 1 => by
+    have hpos := List.length_pos_of_ne_nil (h n)
+    have ih := le_length_parallelRun_of_forall h n
+    rw [parallelRun_succ, List.length_append]
+    omega
 
 end ParallelExecution
 
@@ -1013,115 +1038,105 @@ theorem exists_measurable_ge_parallelRounds [Fintype V] [DecidableEq V] [Fintype
     lintegral_parallelEventSum_le μ vbl A hAm hA Γ hΓ hx hε hP,
     fun _ hrule T => parallelRounds_le_parallelEventSum vbl A hA hrule T⟩
 
-/-- When `ε = 1` (so every bad event has probability zero), every valid parallel rule performs
-`0` expected rounds. -/
-theorem lintegral_parallelRounds_eq_zero_of_one [Fintype V] [DecidableEq V] [Finite ι]
-    (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
-    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
+/-- **Termination of the parallel algorithm, generic form.** If every event's largest count in a
+valid log has finite expectation, then almost surely every admissible parallel rule reaches an
+empty batch after finitely many rounds. No slack is needed: the run's logs are valid
+(`isLog_parallelRun`) and grow in every non-empty round, while
+`ae_exists_forall_isLog_length_le_of_bound` bounds the length of every valid log. -/
+theorem ae_exists_parallelRun_eq_nil_of_bound [DecidableEq V] [Finite ι]
+    (μ : ∀ v, Measure (α v)) (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
-    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
-    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
-    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ 0)
+    (hc : ∀ [DecidableEq ι] (i : ι),
+      ∫⁻ T, ⨆ (w : List ι) (_ : IsLog vbl A T w), (w.count i : ℝ≥0∞) ∂table μ ≠ ⊤)
     {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
     (hrule : IsValidParallelRule vbl A psel) :
-    ∫⁻ T, parallelRounds psel T ∂table μ = 0 := by
-  classical
-  let _ := Fintype.ofFinite ι
-  have hev0 : ∀ k, table μ (parallelEvent vbl A k) = 0 := fun k => by
-    have h1 : ∀ i, (Measure.pi μ).real (A i) ≤
-        (1 - (1 : ℝ)) * (x i * ∏ j ∈ Γ i, (1 - x j)) := by
-      simpa using hP
-    simpa using table_parallelEvent_le μ vbl A hAm hA Γ hΓ hx ⟨zero_lt_one, le_rfl⟩ h1 k
-  refine le_antisymm ?_ zero_le
-  calc ∫⁻ T, parallelRounds psel T ∂table μ
-      ≤ ∫⁻ T, parallelEventSum vbl A T ∂table μ :=
-        lintegral_mono (parallelRounds_le_parallelEventSum vbl A hA hrule)
-    _ = ∑' k : ℕ, table μ (parallelEvent vbl A k) := lintegral_parallelEventSum_eq μ vbl A hAm
-    _ = 0 := by simp [hev0]
+    ∀ᵐ T ∂table μ, ∃ n : ℕ, psel T (parallelRun psel T n) = [] := by
+  filter_upwards [ae_exists_forall_isLog_length_le_of_bound μ vbl A hAm hc] with T ⟨N, hN⟩
+  by_contra hne
+  push Not at hne
+  have hle := hN _ (isLog_parallelRun vbl A hA hrule T (N + 1))
+  have hge := le_length_parallelRun_of_forall hne (N + 1)
+  omega
 
-/-- The expected number of parallel rounds is finite under the slack LLL condition. -/
-theorem lintegral_parallelRounds_ne_top [Fintype V] [DecidableEq V] [Finite ι]
-    (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
-    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
-    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
-    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
-    {ε : ℝ} (hε : ε ∈ Set.Ioc 0 1)
-    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ (1 - ε) * (x i * ∏ j ∈ Γ i, (1 - x j)))
-    {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
-    (hrule : IsValidParallelRule vbl A psel) :
-    ∫⁻ T, parallelRounds psel T ∂table μ ≠ ⊤ := by
-  let _ := Fintype.ofFinite ι
-  exact ne_top_of_le_ne_top ENNReal.ofReal_ne_top
-    (lintegral_parallelRounds_le μ vbl A hAm hA Γ hΓ hx hε hP hrule)
-
-/-- Under the slack LLL condition, `parallelRounds psel T < ⊤` almost surely for every valid
-parallel rule `psel`. -/
-theorem ae_parallelRounds_ne_top [Fintype V] [DecidableEq V] [Finite ι]
-    (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
-    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
-    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
-    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
-    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
-    {ε : ℝ} (hε : ε ∈ Set.Ioc 0 1)
-    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ (1 - ε) * (x i * ∏ j ∈ Γ i, (1 - x j)))
-    {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
-    (hrule : IsValidParallelRule vbl A psel) :
-    ∀ᵐ T ∂table μ, parallelRounds psel T ≠ ⊤ := by
-  classical
-  let _ := Fintype.ofFinite ι
-  have hae : ∀ᵐ T ∂table μ, parallelEventSum vbl A T < ⊤ :=
-    ae_lt_top (measurable_parallelEventSum vbl A hAm)
-      (ne_top_of_le_ne_top ENNReal.ofReal_ne_top
-        (lintegral_parallelEventSum_le μ vbl A hAm hA Γ hΓ hx hε hP))
-  refine hae.mono fun T hT => ?_
-  exact (lt_of_le_of_lt (parallelRounds_le_parallelEventSum vbl A hA hrule T) hT).ne
-
-/-- Almost surely under the slack LLL condition, every admissible parallel rule reaches an empty
-batch in finitely many rounds. -/
+/-- Under the local-lemma hypothesis `Pr[A i] ≤ x i * ∏ j ∈ Γ i, (1 - x j)` of Theorem 1.2,
+without the slack `1 - ε` that Theorem 1.3 needs for its round bound, almost surely every
+admissible parallel rule reaches an empty batch after finitely many rounds. This is a consequence
+of the valid-log bound `lintegral_iSup_count_le` through `ae_exists_parallelRun_eq_nil_of_bound`.
+Moser and Tardos make the same observation when they introduce Algorithm 1.2
+[MoserTardos2010, Section 1]: the parallel algorithm "can be considered a special case of the
+sequential algorithm, so the statement of Theorem 1.2 applies to the parallel version too". -/
 theorem ae_exists_parallelRun_eq_nil [Fintype V] [DecidableEq V] [Finite ι]
     (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
-    {ε : ℝ} (hε : ε ∈ Set.Ioc 0 1)
-    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ (1 - ε) * (x i * ∏ j ∈ Γ i, (1 - x j)))
+    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
     {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
     (hrule : IsValidParallelRule vbl A psel) :
     ∀ᵐ T ∂table μ, ∃ n : ℕ, psel T (parallelRun psel T n) = [] :=
-  (ae_parallelRounds_ne_top μ vbl A hAm hA Γ hΓ hx hε hP hrule).mono
-    fun _ h => exists_eq_nil_of_parallelRounds_ne_top psel h
+  ae_exists_parallelRun_eq_nil_of_bound μ vbl A hAm hA
+    (fun i => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
+      (lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i))
+    hrule
 
-/-- Almost surely under the slack LLL condition, every admissible parallel rule reaches an
-assignment avoiding all bad events in finitely many parallel rounds. -/
+/-- Under the local-lemma hypothesis of Theorem 1.2 (no slack), `parallelRounds psel T < ⊤` almost
+surely for every admissible parallel rule `psel`. -/
+theorem ae_parallelRounds_ne_top [Fintype V] [DecidableEq V] [Finite ι]
+    (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
+    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
+    (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
+    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
+    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
+    {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
+    (hrule : IsValidParallelRule vbl A psel) :
+    ∀ᵐ T ∂table μ, parallelRounds psel T ≠ ⊤ :=
+  (ae_exists_parallelRun_eq_nil μ vbl A hAm hA Γ hΓ hx hP hrule).mono fun _ ⟨n, hn⟩ =>
+    ne_top_of_le_ne_top (ENNReal.natCast_ne_top n) (parallelRounds_le_of_eq_nil hn)
+
+/-- Under the local-lemma hypothesis of Theorem 1.2 (no slack), almost surely every admissible
+parallel rule reaches an assignment avoiding all bad events in finitely many parallel rounds. -/
 theorem ae_exists_forall_notMem_parallelRun [Fintype V] [DecidableEq V] [Finite ι]
     (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
-    {ε : ℝ} (hε : ε ∈ Set.Ioc 0 1)
-    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ (1 - ε) * (x i * ∏ j ∈ Γ i, (1 - x j)))
+    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
     {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
     (hrule : IsValidParallelRule vbl A psel) :
     ∀ᵐ T ∂table μ, ∃ n : ℕ, ∀ i, current vbl T (parallelRun psel T n) ∉ A i :=
-  (ae_exists_parallelRun_eq_nil μ vbl A hAm hA Γ hΓ hx hε hP hrule).mono
+  (ae_exists_parallelRun_eq_nil μ vbl A hAm hA Γ hΓ hx hP hrule).mono
     fun T ⟨n, hn⟩ => ⟨n, (hrule.eq_nil_iff T _).1 hn⟩
 
-/-- Canonical greedy specialization: `greedyParallel` terminates almost surely at an assignment
-avoiding all bad events. -/
-theorem ae_exists_forall_notMem_parallelRun_greedy [Fintype V] [DecidableEq V]
-    [DecidableEq ι] [Fintype ι] (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
+/-- Under the local-lemma hypothesis of Theorem 1.2 (no slack), every admissible parallel rule
+performs at most `∑ i, x i / (1 - x i)` resamplings in expectation over the whole run. This is a
+consequence of the valid-log bound `lintegral_iSup_count_le`: each prefix of the parallel run is a
+valid log (`isLog_parallelRun`), so its length is at most the measurable majorant
+`∑ i, ⨆ (w valid), w.count i` (`length_le_sum_iSup_count`), whose integral
+`lintegral_sum_iSup_count_le_of_bound` bounds. Moser and Tardos note after introducing
+Algorithm 1.2 that Theorem 1.2 applies to the parallel version [MoserTardos2010, Section 1].
+
+As for `lintegral_parallelRounds_le`, the rule is not assumed measurable and `∫⁻` is the lower
+Lebesgue integral. The theorem bounds that lower integral through the majorant; it does not
+identify it with the integral of the majorant. -/
+theorem lintegral_iSup_length_parallelRun_le [Fintype V] [DecidableEq V] [Fintype ι]
+    (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
-    {ε : ℝ} (hε : ε ∈ Set.Ioc 0 1)
-    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ (1 - ε) * (x i * ∏ j ∈ Γ i, (1 - x j))) :
-    ∀ᵐ T ∂table μ, ∃ n : ℕ, ∀ i, current vbl T (parallelRun (greedyParallel vbl A) T n) ∉ A i :=
-  ae_exists_forall_notMem_parallelRun μ vbl A hAm hA Γ hΓ hx hε hP
-    (isValidParallelRule_greedyParallel vbl A)
+    (hP : ∀ i, (Measure.pi μ).real (A i) ≤ x i * ∏ j ∈ Γ i, (1 - x j))
+    {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
+    (hrule : IsValidParallelRule vbl A psel) :
+    ∫⁻ T, ⨆ n, ((parallelRun psel T n).length : ℝ≥0∞) ∂table μ ≤
+      ∑ i, ENNReal.ofReal (x i / (1 - x i)) := by
+  classical
+  exact (lintegral_mono fun T => iSup_le fun n =>
+      length_le_sum_iSup_count vbl A (isLog_parallelRun vbl A hA hrule T n)).trans
+    (lintegral_sum_iSup_count_le_of_bound μ vbl A hAm
+      fun i => lintegral_iSup_count_le μ vbl A hAm hA Γ hΓ hx hP i)
 
 end Expectation
 
@@ -1182,21 +1197,23 @@ theorem lintegral_parallelRounds_le_symmetric [Fintype V]
   exact (lintegral_parallelRounds_le μ vbl A hAm hA Γ hΓ hx hε hP hrule).trans
     (ofReal_max_log_mono hM0 hsum hε.1)
 
-/-- Almost sure termination and avoidance under the symmetric slack LLL hypothesis
-`e * q * (d + 1) ≤ 1 - ε`. -/
+/-- Almost sure termination and avoidance under the symmetric local-lemma hypothesis
+`e * q * (d + 1) ≤ 1`, with no slack, for every `d : ℕ`. -/
 theorem ae_exists_forall_notMem_parallelRun_symmetric [Fintype V]
     (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
     (hAm : ∀ i, MeasurableSet (A i)) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     {d : ℕ} (hd : ∀ i, #{j : ι | j ≠ i ∧ ¬Disjoint (vbl i) (vbl j)} ≤ d)
-    {q ε : ℝ} (hq : ∀ i, (Measure.pi μ).real (A i) ≤ q) (hε : ε ∈ Set.Ioc 0 1)
-    (hlll : Real.exp 1 * q * (d + 1) ≤ 1 - ε)
+    {q : ℝ} (hq : ∀ i, (Measure.pi μ).real (A i) ≤ q)
+    (hlll : Real.exp 1 * q * (d + 1) ≤ 1)
     {psel : (∀ p : V × ℕ, α p.1) → List ι → List ι}
     (hrule : IsValidParallelRule vbl A psel) :
-    ∀ᵐ T ∂table μ, ∃ n : ℕ, ∀ i, current vbl T (parallelRun psel T n) ∉ A i := by
-  obtain ⟨Γ, x, hΓ, hx, hP, -, -⟩ := exists_slack_weights_of_symmetric vbl hd
-    (fun _ => measureReal_nonneg) hq hε hlll
-  exact ae_exists_forall_notMem_parallelRun μ vbl A hAm hA Γ hΓ hx hε hP hrule
+    ∀ᵐ T ∂table μ, ∃ n : ℕ, ∀ i, current vbl T (parallelRun psel T n) ∉ A i :=
+  -- The generic theorem quantifies over the `DecidableEq ι` instance used by `List.count`, while
+  -- `hd` fixes the section's; `convert` identifies the two.
+  have hc := lintegral_iSup_count_ne_top_symmetric μ vbl A hAm hA hd hq hlll
+  (ae_exists_parallelRun_eq_nil_of_bound μ vbl A hAm hA (fun i => by convert hc i) hrule).mono
+    fun T ⟨n, hn⟩ => ⟨n, (hrule.eq_nil_iff T _).1 hn⟩
 
 omit [DecidableEq ι] in
 /-- `PMF.pi` bridge for parallel Moser–Tardos expected rounds under the general asymmetric slack
@@ -1220,42 +1237,24 @@ theorem lintegral_parallelRounds_le_pmfPi [Fintype V] [∀ v, Finite (α v)]
 
 omit [DecidableEq ι] [Fintype ι] in
 /-- `PMF.pi` bridge for almost-sure parallel Moser–Tardos termination and avoidance under the
-general asymmetric slack LLL hypothesis. -/
+general asymmetric local-lemma hypothesis, with no slack. -/
 theorem ae_exists_forall_notMem_parallelRun_pmfPi [Fintype V] [Finite ι]
     [∀ v, Finite (α v)] [∀ v, MeasurableSingletonClass (α v)]
     (p : ∀ v, PMF (α v)) (vbl : ι → Finset V)
     (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
     (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
-    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1) {ε : ℝ} (hε : ε ∈ Set.Ioc 0 1)
+    {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1)
     (hAx : ∀ i, ((Cslib.Probability.PMF.pi p).toOuterMeasure (A i)).toReal ≤
-      (1 - ε) * (x i * ∏ j ∈ Γ i, (1 - x j)))
+      x i * ∏ j ∈ Γ i, (1 - x j))
     {psel : (∀ q : V × ℕ, α q.1) → List ι → List ι}
     (hrule : IsValidParallelRule vbl A psel) :
     ∀ᵐ T ∂table (fun v => (p v).toMeasure),
       ∃ n : ℕ, ∀ i, current vbl T (parallelRun psel T n) ∉ A i :=
-  ae_exists_forall_notMem_parallelRun (fun v => (p v).toMeasure) vbl A hAm hA Γ hΓ hx hε
+  ae_exists_forall_notMem_parallelRun (fun v => (p v).toMeasure) vbl A hAm hA Γ hΓ hx
     (fun i => by
       simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hAx i)
     hrule
-
-/-- `PMF.pi` bridge for symmetric parallel Moser–Tardos expected rounds (`1 ≤ d`). -/
-theorem lintegral_parallelRounds_le_pmfPi_symmetric_of_pos [Fintype V] [∀ v, Finite (α v)]
-    [∀ v, MeasurableSingletonClass (α v)] (p : ∀ v, PMF (α v))
-    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
-    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
-    {d : ℕ} (hdpos : 1 ≤ d)
-    (hd : ∀ i, #{j : ι | j ≠ i ∧ ¬Disjoint (vbl i) (vbl j)} ≤ d)
-    {q ε : ℝ} (hq : ∀ i, ((Cslib.Probability.PMF.pi p).toOuterMeasure (A i)).toReal ≤ q)
-    (hε : ε ∈ Set.Ioc 0 1) (hlll : Real.exp 1 * q * (d + 1) ≤ 1 - ε)
-    {psel : (∀ q' : V × ℕ, α q'.1) → List ι → List ι}
-    (hrule : IsValidParallelRule vbl A psel) :
-    ∫⁻ T, parallelRounds psel T ∂table (fun v => (p v).toMeasure) ≤
-      ENNReal.ofReal ((max 0 (Real.log ((Fintype.card ι : ℝ) / d)) + 1) / ε) :=
-  lintegral_parallelRounds_le_symmetric_of_pos (fun v => (p v).toMeasure) vbl A hAm hA hdpos hd
-    (fun i => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hq i)
-    hε hlll hrule
 
 /-- `PMF.pi` bridge for symmetric parallel Moser–Tardos expected rounds (all `d : ℕ`). -/
 theorem lintegral_parallelRounds_le_pmfPi_symmetric [Fintype V] [∀ v, Finite (α v)]
@@ -1270,23 +1269,6 @@ theorem lintegral_parallelRounds_le_pmfPi_symmetric [Fintype V] [∀ v, Finite (
     ∫⁻ T, parallelRounds psel T ∂table (fun v => (p v).toMeasure) ≤
       ENNReal.ofReal ((max 0 (Real.log (Fintype.card ι : ℝ)) + 1) / ε) :=
   lintegral_parallelRounds_le_symmetric (fun v => (p v).toMeasure) vbl A hAm hA hd
-    (fun i => by
-      simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hq i)
-    hε hlll hrule
-
-/-- `PMF.pi` bridge for almost-sure symmetric parallel Moser–Tardos termination and avoidance. -/
-theorem ae_exists_forall_notMem_parallelRun_pmfPi_symmetric [Fintype V] [∀ v, Finite (α v)]
-    [∀ v, MeasurableSingletonClass (α v)] (p : ∀ v, PMF (α v))
-    (vbl : ι → Finset V) (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
-    (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
-    {d : ℕ} (hd : ∀ i, #{j : ι | j ≠ i ∧ ¬Disjoint (vbl i) (vbl j)} ≤ d)
-    {q ε : ℝ} (hq : ∀ i, ((Cslib.Probability.PMF.pi p).toOuterMeasure (A i)).toReal ≤ q)
-    (hε : ε ∈ Set.Ioc 0 1) (hlll : Real.exp 1 * q * (d + 1) ≤ 1 - ε)
-    {psel : (∀ q' : V × ℕ, α q'.1) → List ι → List ι}
-    (hrule : IsValidParallelRule vbl A psel) :
-    ∀ᵐ T ∂table (fun v => (p v).toMeasure),
-      ∃ n : ℕ, ∀ i, current vbl T (parallelRun psel T n) ∉ A i :=
-  ae_exists_forall_notMem_parallelRun_symmetric (fun v => (p v).toMeasure) vbl A hAm hA hd
     (fun i => by
       simpa only [toReal_toOuterMeasure_pi_eq_measureReal p (hAm i)] using hq i)
     hε hlll hrule

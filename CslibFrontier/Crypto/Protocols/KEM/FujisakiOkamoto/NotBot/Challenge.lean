@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Hybrids
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Correctness
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
@@ -315,8 +316,7 @@ private theorem eval_simFilterOwExperiment (S : Scheme PK SK M R CT K)
         (S.simRun (d u.1.1) A u.1.1 (S.pke.encDet u.1.1 u.2.1 u.2.2.1) u.2.2.2 {}).map
           fun x => (x.2.gCache.lookup u.2.1).isSome := by
   simp only [simFilterOwExperiment, simFilterHit, simRun, ExplicitCoinPKE.encrypt, chalOuter4,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-    OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
+    OracleComp.map_run_interpret ProbComp.isMonadHom_eval, pmf_norm]
   rfl
 
 /-! ### Simulators with lazily programmed points -/
@@ -837,9 +837,8 @@ private theorem eval_simHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (mStar 
       simHashHq S.sampleKey (S.pke.encDet pk mStar rStar)
       else simHashHRaw S.sampleKey (false, mStar, S.pke.encDet pk mStar rStar)) z.2) = _
   rw [ProbComp.eval_bind, eval_simHashG_singleton, PMF.pure_bind]
-  simp only [↓reduceIte, simHashHq, RandomOracle.eval_zoomStateT_memoize, memoize,
-    List.lookup_nil, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-    PMF.map_bind, PMF.pure_map]
+  simp only [↓reduceIte, simHashHq, RandomOracle.eval_zoomStateT_memoize, memoize, List.lookup_nil,
+    pmf_norm]
   rfl
 
 /-- The outer randomness of `simFilterGame`: key pair, challenge message and coins, real and random
@@ -878,7 +877,7 @@ private theorem eval_chalGame_aux (S : Scheme PK SK M R CT K)
           (A ⟨t.1.1, S.pke.encDet t.1.1 t.2.1 t.2.2.1,
             if b then t.2.2.2.2 else t.2.2.2.1⟩)).run
           (initSt t.1.1 t.1.2 t.2.1 t.2.2.1 t.2.2.2.1)).map Prod.fst := by
-  simp only [chalOuter, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [chalOuter, pmf_norm]
   congr 1 with keys : 1; congr 1 with mStar : 1; congr 1 with rStar : 1
   rw [hinit keys.1 keys.2 mStar rStar, PMF.bind_map]
   congr 1 with kq : 1; dsimp only [Function.comp_apply]; congr 1 with kRand : 1
@@ -1165,9 +1164,7 @@ private theorem eval_coupledHashH_run_init (S : Scheme PK SK M R CT K) (pk : PK)
   rw [ProbComp.eval_bind, eval_simHashG_singleton, PMF.pure_bind]
   by_cases hr : S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar <;>
     simp only [hr, true_and, ↓reduceIte, coupledInit, simHashHq, simHashHRaw,
-      RandomOracle.eval_zoomStateT_memoize, memoize, List.lookup_nil,
-      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
-      PMF.map_bind, PMF.pure_map] <;> rfl
+      RandomOracle.eval_zoomStateT_memoize, memoize, List.lookup_nil, pmf_norm] <;> rfl
 
 private theorem eval_coupledGame (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K)
     (b : Bool) :

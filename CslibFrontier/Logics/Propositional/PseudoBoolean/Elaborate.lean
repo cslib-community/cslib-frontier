@@ -74,9 +74,10 @@ def checkResult (F : List PBConstr) (obj : Option Objective) (pres : Option (Lis
 check the kernel proof; the conclusion, if accepted. The proof may refer to the constraints of
 the instance by their labels (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`). -/
 def checkAugmented (opb pbp : String) : Option Conclusion :=
-  (parseOPBLabelled (opbNames opb) opb).bind fun (I, L) =>
+  let N := opbNames opb
+  (parseOPBLabelled N opb).bind fun (I, L) =>
     checkResult I.constraints I.objective I.preserved
-      (elaborate I.constraints I.objective I.preserved pbp L)
+      (elaborate I.constraints I.objective I.preserved pbp N L)
 
 /-- **Check an augmented proof for a DIMACS CNF formula**, its clause `1 -2 3 0` read as the
 constraint `x1 + ~x2 + x3 >= 1`. -/

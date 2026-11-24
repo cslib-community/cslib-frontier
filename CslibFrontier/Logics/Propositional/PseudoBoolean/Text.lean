@@ -909,6 +909,10 @@ theorem parseOPB_eq_some_of_parseOPBLabelled {s : String} {I : Instance}
     parseOPB s = some I := by
   simp [parseOPB, parseOPBWith, h]
 
+/-- An OPB instance is read with the names of its own text. -/
+theorem parseOPB_eq_parseOPBWith (s : String) : parseOPB s = parseOPBWith (opbNames s) s := by
+  unfold parseOPB; rfl
+
 /-- The clauses of a DIMACS body over the variables `1, …, V`: nonzero integers of magnitude at
 most `V`, each clause ended by `0`. -/
 private def dimacsClauses (V : ℕ) : List String → List ℤ → Option (CNF ℕ)
