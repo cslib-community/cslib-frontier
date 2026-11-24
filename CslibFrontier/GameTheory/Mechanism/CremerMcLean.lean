@@ -42,13 +42,15 @@ their converses and the independent-prior impossibility corollary (internal page
 theorem locators of the paywalled 1988 *Econometrica* article were not directly inspected and are
 not claimed):
 
-* **Dominant-strategy (`IsExPostDSIC`) full surplus extraction**: adding any opponent-only side
-  transfer `g : ∀ i, OppProfile T i → ℝ` (`IndirectMechanism.withOpponentTransfer`) leaves
-  `IsExPostDSIC` invariant while subtracting `(P.condBelief i *ᵥ g i) ti` from truthful interim
-  utility. Linear independence of every agent's conditional belief rows (`P.HasFullBeliefRank`) is
-  equivalent to surjectivity of `(P.condBelief i).mulVecLin`, and for `[Finite Ω] [Nontrivial Ω]`
-  is both necessary and sufficient for universal ex-post efficient, ex-post DSIC, interim-IR full
-  surplus extraction (`CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_exPostDSIC`).
+* **Dominant-strategy (`IndirectMechanism.IsTruthful`) full surplus extraction**: adding any
+  opponent-only side transfer `g : ∀ i, OppProfile T i → ℝ`
+  (`IndirectMechanism.withOpponentTransfer`) leaves `IndirectMechanism.IsTruthful` invariant while
+  subtracting `(P.condBelief i *ᵥ g i) ti` from truthful interim utility. Linear independence of
+  every agent's conditional belief rows (`P.HasFullBeliefRank`) is equivalent to solvability of all
+  interim side-bet targets (`CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_mulVec_eq`), and
+  for `[Finite Ω] [Nontrivial Ω]` is both necessary and sufficient for universal ex-post efficient,
+  dominant-strategy truthful, interim-IR full surplus extraction
+  (`CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_isTruthful`).
 * **Bayesian (`IsBIC`) full surplus extraction**: convex independence of every agent's conditional
   belief rows (`P.HasConvexIndependentBeliefs`, via Mathlib's `ConvexIndependent`) is characterized
   through `CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas` by separating lotteries that have
@@ -74,8 +76,7 @@ not claimed):
   recombination `(tᵢ, t₋ᵢ) ≃ ∀ j, T j`.
 * `Mechanism.toDirectMechanism`, `IndirectMechanism.withOpponentTransfer`: pullback of a
   valuation-domain `Mechanism ι Ω` to `IndirectMechanism ι T Ω` and opponent-only payment shifts.
-* `IndirectMechanism.IsExPostEfficient`, `IndirectMechanism.IsExPostDSIC`: ex-post welfare
-  maximization and ex-post dominant-strategy incentive compatibility on `∀ i, T i`.
+* `IndirectMechanism.IsExPostEfficient`: ex-post welfare maximization on `∀ i, T i`.
 * `CorrelatedPrior`, `CorrelatedPrior.marginal`, `CorrelatedPrior.condBelief`,
   `CorrelatedPrior.product`: correlated common priors with positive marginals, conditional belief
   matrices, and independent product priors.
@@ -87,19 +88,18 @@ not claimed):
 
 ## Main results
 
-* `IndirectMechanism.isExPostDSIC_iff_isTruthful`,
-  `IndirectMechanism.isExPostDSIC_withOpponentTransfer`: equivalence with
-  `IndirectMechanism.IsTruthful` and invariance of `IsExPostDSIC` under opponent-only transfers.
+* `IndirectMechanism.isTruthful_iff`,
+  `IndirectMechanism.isTruthful_withOpponentTransfer`: single-misreport characterization of
+  `IndirectMechanism.IsTruthful` ([Nisan2007]) and invariance under opponent-only transfers.
 * `CorrelatedPrior.sum_marginal_mul_interimUtility`,
   `CorrelatedPrior.extractsFullSurplus_iff_forall_interimUtility_eq_zero`: law-of-total-probability
   surplus accounting and equivalence between full surplus extraction and zero interim rents under
   `IsInterimIR`.
-* `CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_mulVec_eq`,
-  `CorrelatedPrior.hasFullBeliefRank_iff_forall_surjective_mulVecLin`: row linear independence of
+* `CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_mulVec_eq`: row linear independence of
   `condBelief` is equivalent to solvability of all interim side-bet targets.
-* `CorrelatedPrior.HasFullBeliefRank.exists_exPostDSIC_interimIR_extractsFullSurplus`,
-  `CorrelatedPrior.exists_nonneg_val_not_exists_exPostDSIC_of_not_hasFullBeliefRank`,
-  `CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_exPostDSIC`: dominant-strategy full surplus
+* `CorrelatedPrior.HasFullBeliefRank.exists_isTruthful_interimIR_extractsFullSurplus`,
+  `CorrelatedPrior.exists_nonneg_val_not_exists_isTruthful_of_not_hasFullBeliefRank`,
+  `CorrelatedPrior.hasFullBeliefRank_iff_forall_exists_isTruthful`: dominant-strategy full surplus
   extraction characterization ([CremerMcLean1988]).
 * `CorrelatedPrior.condBelief_notMem_convexHull_iff_exists_separating_lottery`,
   `CorrelatedPrior.HasConvexIndependentBeliefs.exists_separating_lottery`,
@@ -258,28 +258,24 @@ if at every type profile `t`, `D.outcome t` maximizes total social welfare `∑ 
     (val : ∀ i, T i → Ω → ℝ) : Prop :=
   ∀ (t : ∀ i, T i) (ω : Ω), ∑ i, val i (t i) ω ≤ ∑ i, val i (t i) (D.outcome t)
 
-/-- A direct mechanism `D : IndirectMechanism ι T Ω` is **ex-post dominant-strategy incentive
-compatible** (`IsExPostDSIC`) for valuations `val` if at every true profile `t`, no agent `i`
-strictly gains by misreporting `ti' : T i`. -/
-@[expose] def IsExPostDSIC [DecidableEq ι] (D : IndirectMechanism ι T Ω)
-    (val : ∀ i, T i → Ω → ℝ) : Prop :=
-  ∀ (t : ∀ i, T i) (i : ι) (ti' : T i),
-    val i (t i) (D.outcome (Function.update t i ti')) -
-        D.payment (Function.update t i ti') i ≤
-      val i (t i) (D.outcome t) - D.payment t i
-
-/-- `IsExPostDSIC` coincides with `IndirectMechanism.IsTruthful` ([Nisan2007], Definition 9.22). -/
-theorem isExPostDSIC_iff_isTruthful [DecidableEq ι] {D : IndirectMechanism ι T Ω}
+/-- Single-misreport characterization of `IndirectMechanism.IsTruthful` ([Nisan2007],
+Definition 9.22): at every true type profile `t`, no agent `i` strictly gains by misreporting
+`ti' : T i`. -/
+theorem isTruthful_iff [DecidableEq ι] {D : IndirectMechanism ι T Ω}
     {val : ∀ i, T i → Ω → ℝ} :
-    D.IsExPostDSIC val ↔ D.IsTruthful val := by
+    D.IsTruthful val ↔
+      ∀ (t : ∀ i, T i) (i : ι) (ti' : T i),
+        val i (t i) (D.outcome (Function.update t i ti')) -
+            D.payment (Function.update t i ti') i ≤
+          val i (t i) (D.outcome t) - D.payment t i := by
   constructor
-  · intro h i ti x
-    have key := h (Function.update x i ti) i (x i)
-    simpa only [toIncompleteInfoGame_utility, id_eq, Function.update_self, Function.update_idem,
-      Function.update_eq_self] using key
   · intro h t i ti'
     have key := h i (t i) (Function.update t i ti')
     simpa only [toIncompleteInfoGame_utility, id_eq, Function.update_idem,
+      Function.update_eq_self] using key
+  · intro h i ti x
+    have key := h (Function.update x i ti) i (x i)
+    simpa only [toIncompleteInfoGame_utility, id_eq, Function.update_self, Function.update_idem,
       Function.update_eq_self] using key
 
 /-- Shift each agent `i`'s payment by an opponent-contingent transfer `g i (oppProj i t)` that
@@ -307,12 +303,13 @@ theorem isExPostEfficient_withOpponentTransfer [Fintype ι]
     (D.withOpponentTransfer g).IsExPostEfficient val ↔ D.IsExPostEfficient val := by
   rfl
 
-/-- Adding any opponent-only transfer `gᵢ(t₋ᵢ)` preserves `IsExPostDSIC` identically, because
+/-- Adding any opponent-only transfer `gᵢ(t₋ᵢ)` preserves `IsTruthful` identically, because
 agent `i`'s report does not affect `oppProj i` ([CremerMcLean1988]). -/
 @[simp]
-theorem isExPostDSIC_withOpponentTransfer [DecidableEq ι] (D : IndirectMechanism ι T Ω)
+theorem isTruthful_withOpponentTransfer [DecidableEq ι] (D : IndirectMechanism ι T Ω)
     (g : ∀ i, OppProfile T i → ℝ) (val : ∀ i, T i → Ω → ℝ) :
-    (D.withOpponentTransfer g).IsExPostDSIC val ↔ D.IsExPostDSIC val := by
+    (D.withOpponentTransfer g).IsTruthful val ↔ D.IsTruthful val := by
+  rw [isTruthful_iff, isTruthful_iff]
   refine forall_congr' fun t => forall_congr' fun i => forall_congr' fun ti' => ?_
   simp only [withOpponentTransfer_outcome, withOpponentTransfer_payment, oppProj_update]
   constructor <;> intro h <;> linarith
@@ -328,10 +325,11 @@ theorem isExPostEfficient_toDirectMechanism {ι Ω : Type*} {T : ι → Type*} [
     (M.toDirectMechanism val).IsExPostEfficient val :=
   fun t ω => hM (fun j => val j (t j)) ω
 
-/-- Pulling back a DSIC `Mechanism ι Ω` gives an `IsExPostDSIC` direct mechanism. -/
-theorem IsDSIC.isExPostDSIC_toDirectMechanism {ι Ω : Type*} {T : ι → Type*} [DecidableEq ι]
+/-- Pulling back a DSIC `Mechanism ι Ω` gives an `IsTruthful` direct mechanism. -/
+theorem IsDSIC.isTruthful_toDirectMechanism {ι Ω : Type*} {T : ι → Type*} [DecidableEq ι]
     {M : Mechanism ι Ω} (hM : M.IsDSIC) (val : ∀ i, T i → Ω → ℝ) :
-    (M.toDirectMechanism val).IsExPostDSIC val := by
+    (M.toDirectMechanism val).IsTruthful val := by
+  rw [IndirectMechanism.isTruthful_iff]
   intro t i ti'
   have key := hM i (Function.update (fun j => val j (t j)) i (val i ti')) (val i (t i))
   have hupd : (fun j => val j (Function.update t i ti' j)) =
@@ -474,10 +472,11 @@ truthful reporting `ti' = ti` maximizes `P.interimUtility val D i ti`. -/
     (D : IndirectMechanism ι T Ω) : Prop :=
   ∀ (i : ι) (ti ti' : T i), P.interimUtility val D i ti ti' ≤ P.interimUtility val D i ti ti
 
-/-- Every ex-post DSIC direct mechanism is Bayesian incentive compatible under any correlated
-prior `P`. -/
-theorem isBIC_of_isExPostDSIC (P : CorrelatedPrior ι T) {val : ∀ i, T i → Ω → ℝ}
-    {D : IndirectMechanism ι T Ω} (hD : D.IsExPostDSIC val) : P.IsBIC val D := by
+/-- Every dominant-strategy truthful direct mechanism is Bayesian incentive compatible under any
+correlated prior `P`. -/
+theorem isBIC_of_isTruthful (P : CorrelatedPrior ι T) {val : ∀ i, T i → Ω → ℝ}
+    {D : IndirectMechanism ι T Ω} (hD : D.IsTruthful val) : P.IsBIC val D := by
+  rw [IndirectMechanism.isTruthful_iff] at hD
   intro i ti ti'
   refine sum_le_sum fun t_opp _ => ?_
   refine mul_le_mul_of_nonneg_left ?_ (P.condBelief_nonneg i ti t_opp)
@@ -613,17 +612,11 @@ theorem hasFullBeliefRank_iff_forall_exists_mulVec_eq (P : CorrelatedPrior ι T)
       ∀ (i : ι) (target : T i → ℝ), ∃ g : OppProfile T i → ℝ, P.condBelief i *ᵥ g = target :=
   forall_congr' fun i => linearIndependent_rows_iff_forall_exists_mulVec_eq (P.condBelief i)
 
-/-- `P.HasFullBeliefRank` holds if and only if `(P.condBelief i).mulVecLin` is surjective for
-every agent `i`. -/
-theorem hasFullBeliefRank_iff_forall_surjective_mulVecLin (P : CorrelatedPrior ι T) :
-    P.HasFullBeliefRank ↔ ∀ i : ι, Function.Surjective (P.condBelief i).mulVecLin :=
-  P.hasFullBeliefRank_iff_forall_exists_mulVec_eq
-
 namespace HasFullBeliefRank
 
 /-- Upgrade any baseline direct mechanism `D₀` by opponent-only side transfers so that every type
 receives zero truthful interim utility while preserving `D₀.outcome` (hence `IsExPostEfficient`
-and `IsExPostDSIC`). -/
+and `IsTruthful`). -/
 theorem exists_withOpponentTransfer_extractsFullSurplus {P : CorrelatedPrior ι T}
     (hP : P.HasFullBeliefRank) {Ω : Type*} (val : ∀ i, T i → Ω → ℝ)
     (D₀ : IndirectMechanism ι T Ω) :
@@ -642,13 +635,14 @@ theorem exists_withOpponentTransfer_extractsFullSurplus {P : CorrelatedPrior ι 
 /-- **Crémer–McLean dominant-strategy full surplus extraction** ([CremerMcLean1988]): under
 `P.HasFullBeliefRank`, for any nonempty finite outcome space `Ω` and arbitrary valuations `val`,
 adding opponent-only transfers to a VCG baseline yields a direct mechanism that is simultaneously
-ex-post efficient, ex-post DSIC, interim individually rational, and extracts the full surplus. -/
-theorem exists_exPostDSIC_interimIR_extractsFullSurplus {P : CorrelatedPrior ι T}
+ex-post efficient, dominant-strategy truthful (`IsTruthful`), interim individually rational, and
+extracts the full surplus. -/
+theorem exists_isTruthful_interimIR_extractsFullSurplus {P : CorrelatedPrior ι T}
     (hP : P.HasFullBeliefRank) {Ω : Type*} [Finite Ω] [Nonempty Ω]
     (val : ∀ i, T i → Ω → ℝ) :
     ∃ D : IndirectMechanism ι T Ω,
       D.IsExPostEfficient val ∧
-      D.IsExPostDSIC val ∧
+      D.IsTruthful val ∧
       P.IsInterimIR val D ∧
       P.ExtractsFullSurplus val D ∧
       ∀ i (ti : T i), P.interimUtility val D i ti ti = 0 := by
@@ -659,31 +653,31 @@ theorem exists_exPostDSIC_interimIR_extractsFullSurplus {P : CorrelatedPrior ι 
   refine ⟨D₀.withOpponentTransfer g, ?_, ?_, hIR, hExt, hzero⟩
   · rw [IndirectMechanism.isExPostEfficient_withOpponentTransfer]
     exact Mechanism.isExPostEfficient_toDirectMechanism hf val
-  · rw [IndirectMechanism.isExPostDSIC_withOpponentTransfer]
-    exact (Mechanism.vcg_isDSIC hf).isExPostDSIC_toDirectMechanism val
+  · rw [IndirectMechanism.isTruthful_withOpponentTransfer]
+    exact (Mechanism.vcg_isDSIC hf).isTruthful_toDirectMechanism val
 
 end HasFullBeliefRank
 
 /-- **Converse to Crémer–McLean dominant-strategy extraction**: if `P.HasFullBeliefRank` fails and
 `Ω` has at least two outcomes, there exists a nonnegative valuation profile (normalized to `0` on
-a status-quo outcome) for which no ex-post efficient, ex-post DSIC, interim-IR direct mechanism
-extracts the full surplus. -/
-theorem exists_nonneg_val_not_exists_exPostDSIC_of_not_hasFullBeliefRank
+a status-quo outcome) for which no ex-post efficient, dominant-strategy truthful (`IsTruthful`),
+interim-IR direct mechanism extracts the full surplus. -/
+theorem exists_nonneg_val_not_exists_isTruthful_of_not_hasFullBeliefRank
     {P : CorrelatedPrior ι T} (hP : ¬ P.HasFullBeliefRank) {Ω : Type*} [Nontrivial Ω] :
     ∃ val : (∀ i, T i → Ω → ℝ),
       (∀ i ti ω, 0 ≤ val i ti ω) ∧
       (∃ ω₀, ∀ i ti, val i ti ω₀ = 0) ∧
       ¬ ∃ D : IndirectMechanism ι T Ω,
           D.IsExPostEfficient val ∧
-          D.IsExPostDSIC val ∧
+          D.IsTruthful val ∧
           P.IsInterimIR val D ∧
           P.ExtractsFullSurplus val D := by
   classical
-  rw [HasFullBeliefRank, not_forall] at hP
-  obtain ⟨i₀, hi₀⟩ := hP
-  rw [Fintype.linearIndependent_iff] at hi₀
-  push Not at hi₀
-  obtain ⟨c, hcB, ti₀, hcti₀⟩ := hi₀
+  have hnotSurj := mt P.hasFullBeliefRank_iff_forall_exists_mulVec_eq.2 hP
+  push Not at hnotSurj
+  obtain ⟨i₀, c, hno_sol⟩ := hnotSurj
+  have hc_ne : c ≠ 0 := fun hc0 => hno_sol 0 (by rw [hc0, mulVec_zero])
+  obtain ⟨ti₀, -⟩ : ∃ ti₀ : T i₀, c ti₀ ≠ 0 := Function.ne_iff.1 hc_ne
   obtain ⟨ω₀, ω₁, hω⟩ := exists_pair_ne Ω
   let shift : ℝ := 1 + ∑ ti : T i₀, |c ti|
   have hpos_val : ∀ ti : T i₀, 1 ≤ shift + c ti := fun ti => by
@@ -703,7 +697,8 @@ theorem exists_nonneg_val_not_exists_exPostDSIC_of_not_hasFullBeliefRank
     · exact le_rfl
   · dsimp only [val]
     simp only [ite_eq_right hω, dite_eq_ite, ite_self]
-  · rintro ⟨D, hEff, hDSIC, hIR, hExt⟩
+  · rintro ⟨D, hEff, hTruth, hIR, hExt⟩
+    rw [IndirectMechanism.isTruthful_iff] at hTruth
     have hzero := (P.extractsFullSurplus_iff_forall_interimUtility_eq_zero hIR).1 hExt
     have hval_i₀ : ∀ (ti : T i₀) (ω : Ω),
         val i₀ ti ω = if ω = ω₁ then shift + c ti else 0 := fun ti ω => by
@@ -723,8 +718,8 @@ theorem exists_nonneg_val_not_exists_exPostDSIC_of_not_hasFullBeliefRank
     have hpay_const : ∀ (ti : T i₀) (t_opp : OppProfile T i₀),
         D.payment (extendProfile i₀ ti t_opp) i₀ =
           D.payment (extendProfile i₀ ti₀ t_opp) i₀ := fun ti t_opp => by
-      have h1 := hDSIC (extendProfile i₀ ti t_opp) i₀ ti₀
-      have h2 := hDSIC (extendProfile i₀ ti₀ t_opp) i₀ ti
+      have h1 := hTruth (extendProfile i₀ ti t_opp) i₀ ti₀
+      have h2 := hTruth (extendProfile i₀ ti₀ t_opp) i₀ ti
       simp only [update_extendProfile, hout] at h1 h2
       linarith
     let q : OppProfile T i₀ → ℝ :=
@@ -757,36 +752,28 @@ theorem exists_nonneg_val_not_exists_exPostDSIC_of_not_hasFullBeliefRank
         ring
       rw [hqsplit, hu', hsum1, mul_one]
       ring
-    have hcB' : c ᵥ* P.condBelief i₀ = 0 := by rwa [← sum_smul_row_eq_vecMul]
-    have hcc : c ⬝ᵥ c = 0 := by
-      calc c ⬝ᵥ c = c ⬝ᵥ (P.condBelief i₀ *ᵥ q) := by rw [hBq]
-        _ = (c ᵥ* P.condBelief i₀) ⬝ᵥ q := dotProduct_mulVec c (P.condBelief i₀) q
-        _ = 0 := by rw [hcB', zero_dotProduct]
-    have hnonneg : ∀ ti ∈ (univ : Finset (T i₀)), 0 ≤ c ti * c ti :=
-      fun ti _ => mul_self_nonneg (c ti)
-    exact hcti₀ (mul_self_eq_zero.1
-      ((sum_eq_zero_iff_of_nonneg hnonneg).1 hcc ti₀ (mem_univ ti₀)))
+    exact hno_sol q hBq
 
 /-- **Crémer–McLean dominant-strategy characterization** ([CremerMcLean1988]): for any finite
 outcome space `Ω` with at least two outcomes, `P.HasFullBeliefRank` holds if and only if every
-nonnegative valuation profile admits an ex-post efficient, ex-post DSIC, interim-IR direct
-mechanism extracting the full surplus. -/
-theorem hasFullBeliefRank_iff_forall_exists_exPostDSIC (P : CorrelatedPrior ι T)
+nonnegative valuation profile admits an ex-post efficient, dominant-strategy truthful
+(`IsTruthful`), interim-IR direct mechanism extracting the full surplus. -/
+theorem hasFullBeliefRank_iff_forall_exists_isTruthful (P : CorrelatedPrior ι T)
     (Ω : Type*) [Finite Ω] [Nontrivial Ω] :
     P.HasFullBeliefRank ↔
       ∀ val : (∀ i, T i → Ω → ℝ), (∀ i ti ω, 0 ≤ val i ti ω) →
         ∃ D : IndirectMechanism ι T Ω,
           D.IsExPostEfficient val ∧
-          D.IsExPostDSIC val ∧
+          D.IsTruthful val ∧
           P.IsInterimIR val D ∧
           P.ExtractsFullSurplus val D := by
   refine ⟨fun hP val _ => ?_, fun H => ?_⟩
-  · obtain ⟨D, hEff, hDSIC, hIR, hExt, -⟩ :=
-      hP.exists_exPostDSIC_interimIR_extractsFullSurplus val
-    exact ⟨D, hEff, hDSIC, hIR, hExt⟩
+  · obtain ⟨D, hEff, hTruth, hIR, hExt, -⟩ :=
+      hP.exists_isTruthful_interimIR_extractsFullSurplus val
+    exact ⟨D, hEff, hTruth, hIR, hExt⟩
   · by_contra hP
     obtain ⟨val, hnonneg, -, hno⟩ :=
-      exists_nonneg_val_not_exists_exPostDSIC_of_not_hasFullBeliefRank (Ω := Ω) hP
+      exists_nonneg_val_not_exists_isTruthful_of_not_hasFullBeliefRank (Ω := Ω) hP
     exact hno (H val hnonneg)
 
 /-! ### Bayesian characterization: convex independence of beliefs (`HasConvexIndependentBeliefs`) -/

@@ -21,7 +21,7 @@ bodies) of `CslibFrontier.GameTheory.Mechanism.CremerMcLean` across three concre
 1. **`2 × 2` correlated binary single-item auction vs independent uniform prior**:
    - Under `corrBinaryPrior` (`Pr(b, b) = 1/3`, `Pr(b, ¬b) = 1/6`), `HasFullBeliefRank` holds and
      adding the explicit opponent-only side transfer `(-1/3, +2/3)` to the second-price baseline
-     `binaryVCG` yields `corrBinaryCM`, which satisfies `IsExPostEfficient`, `IsExPostDSIC`,
+     `binaryVCG` yields `corrBinaryCM`, which satisfies `IsExPostEfficient`, `IsTruthful`,
      `IsInterimIR`, and `ExtractsFullSurplus` with exact seller expected revenue `2/3` equal to
      expected first-best welfare.
    - Under the uniform independent product prior `indepBinaryPrior` (`Pr = 1/4` each), both
@@ -301,7 +301,8 @@ theorem isExPostEfficient_binaryVCG : binaryVCG.IsExPostEfficient binaryAuctionV
       rcases fin2_eq_zero_or_one j with rfl | rfl <;>
         simp only [Fin.sum_univ_two, binaryVCG, binaryAuctionVal, h0, h1] <;> norm_num
 
-theorem isExPostDSIC_binaryVCG : binaryVCG.IsExPostDSIC binaryAuctionVal := by
+theorem isTruthful_binaryVCG : binaryVCG.IsTruthful binaryAuctionVal := by
+  rw [IndirectMechanism.isTruthful_iff]
   intro t i ti'
   have hext : t = ![t 0, t 1] := by
     funext j
@@ -326,8 +327,8 @@ noncomputable def corrBinaryCM :
 theorem isExPostEfficient_corrBinaryCM : corrBinaryCM.IsExPostEfficient binaryAuctionVal :=
   (IndirectMechanism.isExPostEfficient_withOpponentTransfer _ _ _).2 isExPostEfficient_binaryVCG
 
-theorem isExPostDSIC_corrBinaryCM : corrBinaryCM.IsExPostDSIC binaryAuctionVal :=
-  (IndirectMechanism.isExPostDSIC_withOpponentTransfer _ _ _).2 isExPostDSIC_binaryVCG
+theorem isTruthful_corrBinaryCM : corrBinaryCM.IsTruthful binaryAuctionVal :=
+  (IndirectMechanism.isTruthful_withOpponentTransfer _ _ _).2 isTruthful_binaryVCG
 
 theorem corrBinaryCM_interimUtility_zero (i : Fin 2) (ti : Bool) :
     corrBinaryPrior.interimUtility binaryAuctionVal corrBinaryCM i ti ti = 0 := by
@@ -471,7 +472,7 @@ theorem not_exists_isBIC_extractsFullSurplus_posAuctionVal_indepBinaryPrior :
 
 end BinaryAuction
 
-/-! ### 2. `4 × 3` rhombus-in-simplex prior separating `IsBIC` from `IsExPostDSIC` -/
+/-! ### 2. `4 × 3` rhombus-in-simplex prior separating `IsBIC` from `IsTruthful` -/
 
 section RhombusSeparation
 
@@ -649,13 +650,13 @@ theorem hasConvexIndependentBeliefs_rhombusPrior :
         norm_num
 
 /-- **Strict separation between Theorems 1 and 2 on `rhombusPrior`**: on `Ω = Bool`, universal
-`IsExPostDSIC` full surplus extraction fails, whereas universal `IsBIC` full surplus extraction
+`IsTruthful` full surplus extraction fails, whereas universal `IsBIC` full surplus extraction
 holds. -/
-theorem rhombusPrior_separates_isBIC_from_isExPostDSIC :
+theorem rhombusPrior_separates_isBIC_from_isTruthful :
     (¬ ∀ val : (∀ i, RhombusType i → Bool → ℝ), (∀ i ti ω, 0 ≤ val i ti ω) →
         ∃ D : IndirectMechanism (Fin 2) RhombusType Bool,
           D.IsExPostEfficient val ∧
-          D.IsExPostDSIC val ∧
+          D.IsTruthful val ∧
           rhombusPrior.IsInterimIR val D ∧
           rhombusPrior.ExtractsFullSurplus val D) ∧
     (∀ val : (∀ i, RhombusType i → Bool → ℝ), (∀ i ti ω, 0 ≤ val i ti ω) →
@@ -664,7 +665,7 @@ theorem rhombusPrior_separates_isBIC_from_isExPostDSIC :
           rhombusPrior.IsBIC val D ∧
           rhombusPrior.IsInterimIR val D ∧
           rhombusPrior.ExtractsFullSurplus val D) :=
-  ⟨mt (rhombusPrior.hasFullBeliefRank_iff_forall_exists_exPostDSIC Bool).2
+  ⟨mt (rhombusPrior.hasFullBeliefRank_iff_forall_exists_isTruthful Bool).2
       not_hasFullBeliefRank_rhombusPrior,
     (rhombusPrior.hasConvexIndependentBeliefs_iff_forall_exists_isBIC Bool).1
       hasConvexIndependentBeliefs_rhombusPrior⟩
