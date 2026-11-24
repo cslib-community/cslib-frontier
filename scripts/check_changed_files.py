@@ -162,10 +162,7 @@ def known_names(ileans: dict[str, dict]) -> dict[str, set[str]]:
     names: set[str] = set()
     for ilean in ileans.values():
         names.update(ilean.get("decls", ()))
-        for key in ilean["references"]:
-            constant = json.loads(key).get("c")
-            if constant:
-                names.add(constant["n"])
+        names.update(name for name, _, _ in lo.constant_references(ilean))
     by_last: dict[str, set[str]] = defaultdict(set)
     for name in names:
         plain = re.sub(r"^_private\..*?\.0\.", "", name)

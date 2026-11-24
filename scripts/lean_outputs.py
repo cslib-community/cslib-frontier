@@ -187,6 +187,25 @@ def check_outputs(build_dir: Path, skip: bool, current=None,
 
 # --- Loading ------------------------------------------------------------------------------------
 
+def constant_references(ilean: dict):
+    """`(name, defining module, info)` for each constant in an `.ilean` file's references.
+
+    Lean v4.37 writes `references` as a flat array alternating `[kind, module, name]` (kind `0`
+    for a constant, `1` for a local) with its info; earlier versions wrote an object keyed by
+    JSON-encoded `{"c": {"m": module, "n": name}}` identifiers. Both are read."""
+    refs = ilean["references"]
+    if isinstance(refs, dict):
+        for key, info in refs.items():
+            ident = json.loads(key).get("c")
+            if ident:
+                yield ident["n"], ident["m"], info
+        return
+    for ident, info in zip(refs[::2], refs[1::2]):
+        if ident[0] == 0:
+            yield ident[2], ident[1], info
+
+
+
 def load_ileans(build_dir: Path, glob=glob_modules,
                 roots: tuple[str, ...] = ROOTS) -> dict[str, dict]:
     """The `.ilean` data of the modules the requested `roots` import, by module name.
@@ -276,12 +295,10 @@ class Library:
 
     def references(self, module: str, definitions_only: bool = False):
         """`(name, defining module, info)` for each constant referenced in `module`."""
-        for key, info in self.ileans[module]["references"].items():
+        for name, defined_in, info in constant_references(self.ileans[module]):
             if definitions_only and not info["definition"]:
                 continue
-            ident = json.loads(key).get("c")
-            if ident:
-                yield ident["n"], ident["m"], info
+            yield name, defined_in, info
 
 
 def collect_declarations(lib: Library) -> tuple[dict[str, dict], dict[str, str]]:

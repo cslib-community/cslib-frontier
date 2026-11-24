@@ -24,6 +24,16 @@ class ModuleTests(unittest.TestCase):
         self.assertEqual(lo.module_role("CslibFrontierTests.Smoke"), "test")
 
 
+class ReferenceFormatTests(unittest.TestCase):
+    def test_both_ilean_reference_formats(self) -> None:
+        info = {"definition": [1, 0, 1, 3], "usages": []}
+        legacy = {"references": {json.dumps({"c": {"m": "M", "n": "M.f"}}): info,
+                                 json.dumps({"f": {"m": "M", "i": "_uniq.1"}}): info}}
+        flat = {"references": [[0, "M", "M.f"], info, [1, "M", "_uniq.1"], info]}
+        for ilean in (legacy, flat):
+            self.assertEqual(list(lo.constant_references(ilean)), [("M.f", "M", info)])
+
+
 class OutputCheckTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
