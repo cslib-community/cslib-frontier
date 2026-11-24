@@ -98,6 +98,12 @@ example (f : Fin 2) : (pathMaxima pathEnds Finset.univ [(0, 2), (0, 0)]).eval
     isAcyclic_pathEnds (by simp)]
   exact fun ⟨_, _, h⟩ => h (Joins.refl _)
 
+/-- The same query, through `pathMaxima_eq_none_iff`. -/
+example : (pathMaxima pathEnds Finset.univ [(0, 2), (0, 0)]).eval
+    (LEQuery.oracleOf fun a b => decide (pathWeight a ≤ pathWeight b)) 0 0 = none :=
+  (pathMaxima_eq_none_iff (w := pathWeight) (fun a b h => Fin.ext h) (fun _ _ => rfl)
+    isAcyclic_pathEnds (by simp)).2 (Or.inl rfl)
+
 /-- Two queries on the path cost at most `16 * 2 + 5 * 2` comparisons. -/
 example : (pathMaxima pathEnds Finset.univ [(0, 2), (0, 0)]).countQueries
     (LEQuery.oracleOf fun a b => decide (pathWeight a ≤ pathWeight b)) ≤ 42 :=

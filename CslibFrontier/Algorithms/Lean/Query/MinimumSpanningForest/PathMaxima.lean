@@ -35,7 +35,7 @@ certificate forest does not support.
   edges of `F` of weight at most `w f` join `u` and `v`, and those of weight less than `w f` do
   not. With distinct weights, as the paper assumes (§2, p. 11), this is the heaviest edge on the
   path of `F` between `u` and `v`. There is no path when `u = v` or `F` does not join them, and
-  then the answer is `none`.
+  exactly then the answer is `none` (`Cslib.Query.pathMaxima_eq_none_iff`).
 * The program makes at most `16 * #F + 5 * q` comparisons
   (`Cslib.Query.countQueries_pathMaxima_le`), which is `O(n + q)` since an acyclic `F` with its
   ends among `n` vertices has at most `n - 1` edges (`Cslib.Multigraph.IsAcyclic.card_le`). The
@@ -65,7 +65,9 @@ acyclic, holds exactly one of `u` and `v`; so `g` is on one of the two chains.
 
 ## Main results
 
-* `Cslib.Query.pathMaxima_eq_some_iff`: correctness, by threshold connectivity.
+* `Cslib.Query.pathMaxima_eq_some_iff`, `Cslib.Query.pathMaxima_eq_none_iff`: correctness, by
+  threshold connectivity; no answer exactly when there is no path.
+* `Cslib.Multigraph.exists_bottleneck`: distinct vertices joined by `F` have a bottleneck edge.
 * `Cslib.Query.countQueries_pathMaxima_le`: at most `16 * #F + 5 * q` comparisons.
 
 ## References
@@ -99,9 +101,12 @@ private theorem nonempty_of_joins {T : Finset E} {u v : V} (huv : u ≠ v)
   · exact ⟨e, he⟩
 
 omit [DecidableEq V] [DecidableEq E] in
-/-- Distinct vertices joined by `F` have a *bottleneck* edge `g ∈ F`: the edges of `F` of weight
-at most `w g` join them and those of weight less than `w g` do not. -/
-private theorem exists_bottleneck {u v : V} (huv : u ≠ v) (h : Joins ends (F : Set E) u v) :
+/-- **Bottleneck edges.** Distinct vertices joined by a finite set `F` of edges have a
+*bottleneck* edge `g ∈ F`: the edges of `F` of weight at most `w g` join them and those of weight
+less than `w g` do not. With distinct weights it is unique, and when `F` is acyclic it is the
+heaviest edge on the path of `F` between the two vertices. Any weights in a linear order will do. -/
+theorem _root_.Cslib.Multigraph.exists_bottleneck {u v : V} (huv : u ≠ v)
+    (h : Joins ends (F : Set E) u v) :
     ∃ g ∈ F, Joins ends {x | x ∈ F ∧ w x ≤ w g} u v ∧
       ¬Joins ends {x | x ∈ F ∧ w x < w g} u v := by
   classical
@@ -162,7 +167,7 @@ private theorem king (hw : Function.Injective w)
     · exact hA l hl x v (Or.inl ⟨rfl, rfl⟩) f hsel
     · exact fun h => hA l hl x u (Or.inr ⟨rfl, rfl⟩) f hsel h.symm
   -- the bottleneck edge `g`
-  obtain ⟨g, hgF, hgJ, hgnot⟩ := exists_bottleneck (w := w) huv hjoin
+  obtain ⟨g, hgF, hgJ, hgnot⟩ := Multigraph.exists_bottleneck (w := w) huv hjoin
   have hfg : w f ≤ w g := by
     by_contra hlt
     have hle : {x | x ∈ F ∧ w x ≤ w g} ⊆ {x | x ∈ F ∧ w x < w f} :=
@@ -497,6 +502,24 @@ theorem pathMaxima_eq_some_iff (hw : Function.Injective w)
         exact (hmv.2 l (Nat.zero_le _) hl e he).trans hfm.2.2)
   refine ⟨fun h => Option.some_inj.1 h ▸ hspec, fun h => ?_⟩
   rw [eq_of_isPathMax hw hspec.2 h.2]
+
+/-- **Unanswered queries.** Under the hypotheses of `Cslib.Query.pathMaxima_eq_some_iff`,
+`pathMaxima` answers a query `(u, v)` of `qs` by `none` exactly when there is no path: `u = v`, or
+the forest `F` does not join `u` and `v`. -/
+theorem pathMaxima_eq_none_iff (hw : Function.Injective w)
+    (horacle : ∀ a b, oracle (.le a b) = decide (w a ≤ w b)) (hF : IsAcyclic ends (F : Set E))
+    {qs : List (V × V)} {u v : V} (hq : (u, v) ∈ qs) :
+    (pathMaxima ends F qs).eval oracle u v = none ↔ u = v ∨ ¬Joins ends (F : Set E) u v := by
+  rw [Option.eq_none_iff_forall_ne_some]
+  refine ⟨fun h => ?_, fun h f hf => ?_⟩
+  · by_contra hn
+    push Not at hn
+    obtain ⟨g, hgF, hg⟩ := Multigraph.exists_bottleneck (w := w) hn.1 hn.2
+    exact h g ((pathMaxima_eq_some_iff hw horacle hF hq g).2 ⟨hgF, hg⟩)
+  · obtain ⟨-, hle, hlt⟩ := (pathMaxima_eq_some_iff hw horacle hF hq f).1 hf
+    rcases h with rfl | h
+    · exact hlt (Joins.refl _)
+    · exact h (hle.mono (show {g | g ∈ F ∧ w g ≤ w f} ⊆ (F : Set E) from fun g hg => hg.1))
 
 /-- Counts that at least halve from each level to the next add up to at most twice the first. -/
 private theorem sum_le_two_mul_of_halving {N : ℕ → ℕ} (hhalf : ∀ l, 2 * N (l + 1) ≤ N l) :

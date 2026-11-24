@@ -36,10 +36,28 @@ contains two active blocks of level `l`, so their number at least halves from on
 next (`ForestBoruvka.two_mul_card_active_succ_le`). These blocks, with the selected edges as
 parent edges, form King's full branching tree.
 
-Borůvka steps on general multigraphs, contracting after each step, are milestone M1 of #8325.
-This module keeps the blocks of every level and the edge each block selects, which the tree
-needs, and bounds the
-comparisons of the phases on a forest by the halving count of active blocks.
+### Why this is separate from the contracting Borůvka steps of #8325 (milestone M1)
+
+Milestone M1 of #8325 implements Borůvka steps on general multigraphs by contracting after each
+step. This module keeps a separate, forest-specific implementation for three reasons.
+
+* **The selections.** M1's step returns only the set of selected edges. The per-vertex choice
+  stays internal, and so do its specification lemmas. King's tree needs, at every level, which
+  edge each block selected.
+* **The vertex maps.** M1 represents a level by a contracted multigraph
+  `Sym2.map proj ∘ ends`, whose representative map is recomposed at each step. King's reduction
+  and the chain labels are statements about blocks of the original vertices under `Joins` in the
+  original `ends`. Running the chain maxima on M1's levels would mean carrying every block
+  statement through `joins_map_iff` and composed representative maps. M1's support halving would
+  also need a lemma that the support count does not depend on the choice of representatives.
+* **The counting.** M1 bounds a step by `2 · #S` for its input edges `S`. A linear total over all
+  levels still needs the forest-specific bound of those edges by the active blocks
+  (`ForestBoruvka.countQueries_phase_le`, by `IsAcyclic.card_le` after contraction). So the
+  forest-specific counting stays in this module either way.
+
+Here the levels are the edge sets themselves, and the blocks and selections are read off them
+directly. This keeps King's reduction in the language of threshold connectivity that the
+statement of `Cslib.Query.pathMaxima_eq_some_iff` uses.
 
 ## Main definitions
 
