@@ -60,6 +60,8 @@ programming or the ellipsoid method [Knuth1994]; that algorithmic statement is n
 * `SimpleGraph.lovaszTheta_strongProd_le`, `SimpleGraph.lovaszTheta_strongPow_le`:
   submultiplicativity.
 * `SimpleGraph.shannonCapacity_le_lovaszTheta`: Lovász's bound `Θ(G) ≤ ϑ(G)`.
+* `SimpleGraph.natCard_le_lovaszTheta_mul_lovaszTheta_compl`: `|V| ≤ ϑ(G) ϑ(Gᶜ)`
+  [Knuth1994, §23, (23.2)].
 
 ## References
 
@@ -335,5 +337,14 @@ theorem lovaszTheta_strongPow_le [Finite V] (k : ℕ) :
 theorem shannonCapacity_le_lovaszTheta [Finite V] : G.shannonCapacity ≤ G.lovaszTheta :=
   shannonCapacity_le fun k =>
     (indepNum_le_lovaszTheta (G := G.strongPow (k + 1))).trans (lovaszTheta_strongPow_le _)
+
+/-- **A graph and its complement**: `|V| ≤ ϑ(G) ϑ(Gᶜ)` [Knuth1994, §23, (23.2)].
+Proved directly from `|V| ≤ α(G ⊠ Gᶜ) ≤ ϑ(G ⊠ Gᶜ) ≤ ϑ(G) ϑ(Gᶜ)`. -/
+theorem natCard_le_lovaszTheta_mul_lovaszTheta_compl [Finite V] :
+    (Nat.card V : ℝ) ≤ G.lovaszTheta * Gᶜ.lovaszTheta :=
+  calc (Nat.card V : ℝ)
+      ≤ ((G ⊠ Gᶜ).indepNum : ℝ) := by exact_mod_cast natCard_le_indepNum_strongProd_compl
+    _ ≤ (G ⊠ Gᶜ).lovaszTheta := indepNum_le_lovaszTheta
+    _ ≤ G.lovaszTheta * Gᶜ.lovaszTheta := lovaszTheta_strongProd_le
 
 end SimpleGraph

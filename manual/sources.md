@@ -1634,7 +1634,7 @@ L. Kou, G. Markowsky and L. Berman. *A Fast Algorithm for Steiner Trees*. Acta I
 <a id="knuth1994"></a>
 ## knuth1994
 
-Donald E. Knuth. *The Sandwich Theorem*. Electronic Journal of Combinatorics 1, A1, 1994. https://doi.org/10.37236/1193 ; arXiv text https://arxiv.org/abs/math/9312214 . The arXiv text was consulted on 2026-11-07 for §1 (orthogonal labelings and the lemma `α ≤ ϑ`), §4 (4.9), §5 (5.2), the product lemma of §20 and the pentagon umbrella of §22. The formal umbrella matches §22 up to the vertex relabelling `i ↦ 3i`.
+Donald E. Knuth. *The Sandwich Theorem*. Electronic Journal of Combinatorics 1, A1, 1994. https://doi.org/10.37236/1193 ; arXiv text https://arxiv.org/abs/math/9312214 . The arXiv source (`sand.tex`, tarball SHA-256 `49935660d33743f024aa6dc081ba45eb61646d610005379d062ef94112abc115`) was consulted on 2026-11-07 and 2026-11-24 UTC for §1 (orthogonal labelings and Lemma (1.1), `α ≤ ϑ`), §4 (sandwich inequality (4.9)), §5 (`ϑ₁`, display (5.2)), §11 (display (11.1)), the product lemma of §20 (display (20.5)), §22 (odd-cycle umbrella (22.2)–(22.5), Fourier representation (22.6)–(22.9), exact values (22.11)–(22.12), and the pentagon umbrella matching `pentagonUmbrella` up to `i ↦ 3i`), and §23 (Lemma (23.2), `ϑ(G) ϑ(Gᶜ) ≥ |V|`, and strict-inequality example (23.1)).
 
 <a id="knuth71"></a>
 ## knuth71
