@@ -7405,6 +7405,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ArborescenceIn
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.BallPath
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Berge
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CFI
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Cheeger
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueCover
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueRecovery
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueUniqueness

@@ -94,6 +94,11 @@ Noga Alon, Phillip B. Gibbons, Yossi Matias, Mario Szegedy. “Tracking Join and
 
 Noga Alon, Yossi Matias, Mario Szegedy. “The Space Complexity of Approximating the Frequency Moments.” *Journal of Computer and System Sciences* 58(1), 137–147, 1999; preliminary version in STOC 1996. https://doi.org/10.1006/jcss.1997.1545 . Author-hosted copy of the journal version: https://www.tau.ac.il/~nogaa/PDFS/amsz4.pdf . An independent agent review checked the theorem locators and statements (Theorem 2.2 for the `F₂` sketch, Proposition 3.1 for the `F∞` lower bound) against that copy on 2026-11-07 UTC. The JCSS page numbers were taken from secondary search summaries and were not checked against the typeset journal PDF.
 
+<a id="alonmilman1985"></a>
+## alonmilman1985
+
+Noga Alon and Vitali D. Milman. "λ₁, Isoperimetric Inequalities for Graphs, and Superconcentrators." *Journal of Combinatorial Theory, Series B* 38(1), 73–88, 1985. https://doi.org/10.1016/0095-8956(85)90092-9 . Bibliographic metadata checked on 2026-11-24; the article PDF was not directly inspected, so no internal theorem number from this paper is claimed. Cited as the origin of the discrete combinatorial-Laplacian Cheeger inequality, whose statement and proof (`(h'_G)² / (2 max_v d_v) ≤ λ'_1 ≤ 2 h'_G`) were verified firsthand against [chung1997](#chung1997), §2.5, pp. 34–35.
+
 <a id="alonspencer2016"></a>
 ## alonspencer2016
 
@@ -641,6 +646,11 @@ Marek Chrobak, Howard J. Karloff, Thomas H. Payne, Sundar Vishwanathan. "New Res
 ## chuliu65
 
 Yoeng-Jin Chu and Tseng-Hong Liu. "On the Shortest Arborescence of a Directed Graph." *Scientia Sinica* 14, 1396–1400, 1965. The bibliographic details come from search summaries; the paper was not inspected, and no theorem locator is claimed. The manual cites it as the earlier, independent source of the cycle-contraction algorithm for minimum-cost arborescences; the formalization follows [Edmonds 1967](#edmonds67b).
+
+<a id="chung1997"></a>
+## chung1997
+
+Fan R. K. Chung. *Spectral Graph Theory*. CBMS Regional Conference Series in Mathematics 92, American Mathematical Society, 1997 (revised chapters hosted by the author at https://mathweb.ucsd.edu/~fan/research/revised.html ). Checked firsthand on 2026-11-24 against the author-hosted revised Chapter 1 (`https://mathweb.ucsd.edu/~fan/research/cb/ch1.pdf`, SHA-256 `c37f9caff11d5ea03197ddfe6276e11f959d56bc2783eea5a241f648c85357f9`, printed pp. 1–21) and Chapter 2 (`https://mathweb.ucsd.edu/~fan/research/cb/ch2.pdf`, SHA-256 `dff6acad98635c9efcac9ea1a5338ab45a6fb9093ca50ab433df5a9552883a17`, printed pp. 23–40): §1.2 (pp. 2–6, combinatorial Laplacian `L`, normalized Laplacian `𝓛 = T^{-1/2} L T^{-1/2}` with convention `T^{-1}(v, v) = 0` at isolated vertices `d_v = 0`, Rayleigh quotient (1.1), spectral gap `λ_G = λ_1` in (1.2), volume `vol G = ∑_v d_v`, and Examples 1.1 and 1.5 for `K_n` and `C_n`), §1.3 (pp. 6–7, Lemma 1.7 basic bounds `λ_1 ≤ n / (n - 1)`, `λ_1 ≤ 1` for incomplete graphs, and `λ_i ≤ 2`), §2.2 (pp. 24–25, volume `vol S`, edge boundary `∂S = E(S, Sᶜ)`, set conductance `h_G(S)` in (2.1), and Cheeger constant `h_G` in (2.2)), §2.3 (pp. 25–28, Lemma 2.1 `2 h_G ≥ λ_1`, Theorem 2.2 `λ_1 > h_G² / 2` for connected graphs, Theorem 2.3 `λ_G ≥ 1 - √(1 - h_G²)`, and `h_G ≥ 2 / vol G` for connected graphs on p. 28), and §2.5 (pp. 34–35, modified Cheeger constant / isoperimetric number `h'_G`, combinatorial Laplacian algebraic connectivity `λ'_1`, `2 h'_G ≥ λ'_1`, and `λ'_1 ≥ (h'_G)² / (2 max_v d_v)`). Formalized in [`SimpleGraph/Cheeger.lean`](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/Cheeger.lean). Pagination of the printed 1997 AMS monograph was not separately checked against the revised author chapters.
 
 <a id="chvatal83"></a>
 ## chvatal83
