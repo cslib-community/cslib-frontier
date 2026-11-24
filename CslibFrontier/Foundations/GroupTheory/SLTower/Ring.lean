@@ -159,7 +159,7 @@ theorem eq_cst_ev (x : R 1) : x = cst 1 (ev 0 x) := by
   conv_lhs => rw [h1, map_add, map_mul, h2, zero_mul, add_zero]
 
 /-- The unit t = 1 + s. -/
-noncomputable def t (m : ℕ) : R m := 1 + s m
+@[expose] noncomputable def t (m : ℕ) : R m := 1 + s m
 
 theorem isUnit_t (m : ℕ) : IsUnit (t m) := by
   have h : IsNilpotent (s m) := ⟨m, s_pow_self m⟩

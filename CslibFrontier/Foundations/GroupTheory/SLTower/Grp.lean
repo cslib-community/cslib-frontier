@@ -164,7 +164,7 @@ theorem evG_th_eq_one {i : Fin h} {u : U h} (e : evG (th i u : G h n) = 1) : u =
 
 variable (n) in
 /-- The entry of the generators. -/
-noncomputable def tt (k : Fin h) : R (n + 1) := if k = 0 then t (n + 1) else 1
+@[expose] noncomputable def tt (k : Fin h) : R (n + 1) := if k = 0 then t (n + 1) else 1
 
 theorem sub_one_ne (h2 : 2 ≤ h) (k : Fin h) : k - 1 ≠ k := by
   intro e
@@ -176,7 +176,7 @@ theorem sub_one_ne (h2 : 2 ≤ h) (k : Fin h) : k - 1 ≠ k := by
   omega
 
 /-- The generators: involutions of type k. -/
-noncomputable def gen (h2 : 2 ≤ h) (k : Fin h) : G h n :=
+@[expose] noncomputable def gen (h2 : 2 ≤ h) (k : Fin h) : G h n :=
   ⟨transvection (k - 1) k (tt n k), det_transvection_of_ne _ _ (sub_one_ne h2 k) _⟩
 
 theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).1 = transvection (k - 1) k (tt n k)
