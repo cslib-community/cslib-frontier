@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Complexity.Classes.Alternation.NP
 import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
+import CslibFrontier.Computability.Complexity.Classes.Alternation.SavitchEndpoints
 import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
 import CslibFrontier.Computability.Complexity.Classes.Constructible.UnaryClock
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Polynomial
@@ -22,10 +23,12 @@ which puts `Set.univ` and `∅` in `AP` with explicit machines, and their games 
 lost. Two game verifiers, one won by the existential player's first move and one lost to the
 universal player's, put `Set.univ` and `∅` in `AP` through the guess-then-verify machine.
 Single-bit moves on concrete predicates, rounds of quantifiers on a concrete formula, and
-Savitch's midpoint game on a two-word graph. `Set.univ` and `∅`, in nondeterministic polynomial
-space through `P`, are midpoint games won and lost on every instance. For a time-constructible
-`s`, the number of moves of the midpoint game at width `K * (n + s n + 1)` is written in unary
-within time `O((n + s n + 1) ^ 2)`, here for `s n = n`.
+Savitch's midpoint game on a two-word graph, and the endpoints of its plays: the midpoint of the
+last level with each half, and the endpoint machine on the same moves, with two levels of the
+same half, so that the last one is found and not the first. `Set.univ` and `∅`, in
+nondeterministic polynomial space through `P`, are midpoint games won and lost on every instance.
+For a time-constructible `s`, the number of moves of the midpoint game at width
+`K * (n + s n + 1)` is written in unary within time `O((n + s n + 1) ^ 2)`, here for `s n = n`.
 -/
 
 namespace CslibFrontierTests.Alternation
@@ -269,6 +272,45 @@ example : Alternation true (List.replicate (2 * ((1 + 1) * 1)) 1)
 example : ¬Alternation true (List.replicate (2 * ((1 + 1) * 1)) 1)
     fun z => Cslib.Reachability.midpointGame oneEdge 1 1 [true] [false] z = true := by
   rw [Cslib.Reachability.alternation_midpointGame_iff]
+  decide
+
+/-! ### The endpoints of a play -/
+
+/-- Moves of two levels at width `1`: midpoint `[true]` with half `true`, then midpoint `[false]`
+with half `false`. -/
+private def twoHalves : List Bool := [true, false, false, true, false, true, true, false]
+
+/-- Moves of two levels at width `1` whose halves are both `true`: midpoints `[true]`, then
+`[false]`. -/
+private def bothTrue : List Bool := [true, false, false, true, false, false, false, true]
+
+/-- Each endpoint comes from the last level with its half. -/
+example : Cslib.Reachability.lastMidpoint 1 2 twoHalves true = some [true] ∧
+    Cslib.Reachability.lastMidpoint 1 2 twoHalves false = some [false] := by
+  decide
+
+/-- With both halves `true`, the left endpoint is the midpoint of the second level, and the right
+endpoint stays the initial one. -/
+example : Cslib.Reachability.lastMidpoint 1 2 bothTrue true = some [false] ∧
+    Cslib.Reachability.lastMidpoint 1 2 bothTrue false = none := by
+  decide
+
+/-- The endpoint machine on `twoHalves`: the encoded options `some [true]` and `some [false]`. -/
+example : Cslib.Reachability.endpointWord true (1, 2, twoHalves) = [true, true] ∧
+    Cslib.Reachability.endpointWord false (1, 2, twoHalves) = [true, false] := by
+  simp [twoHalves, Cslib.Reachability.endpointWord, Cslib.Reachability.levelMarks,
+    Cslib.Reachability.endpointZip]
+
+/-- The endpoint machine on `bothTrue`: the encoded options `some [false]` and `none`. -/
+example : Cslib.Reachability.endpointWord true (1, 2, bothTrue) = [true, false] ∧
+    Cslib.Reachability.endpointWord false (1, 2, bothTrue) = [] := by
+  simp [bothTrue, Cslib.Reachability.endpointWord, Cslib.Reachability.levelMarks,
+    Cslib.Reachability.endpointZip]
+
+/-- The play of `twoHalves` from `[false]` to `[true]` ends at `[true]` and `[false]`, which are
+neither equal nor an edge. -/
+example : Cslib.Reachability.midpointGame oneEdge 1 2 [false] [true] twoHalves = false := by
+  rw [Cslib.Reachability.midpointGame_eq_reach_lastMidpoint]
   decide
 
 /-- Trailing moves do not change a game that reads only its first move. -/

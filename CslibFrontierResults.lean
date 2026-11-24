@@ -46,6 +46,7 @@ import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.SergeevPrefixDepth
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
+import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.VeriPBClique
