@@ -11,10 +11,11 @@ public import CslibFrontier.Init
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Lad
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import Mathlib.Combinatorics.SimpleGraph.Copy
+import CslibFrontier.Foundations.Data.List.Append
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Logic.Equiv.Fin.Basic
--- `import all`: the names of `isoNames` are checked against the unexposed bodies of
--- `isNameChar`, `isOPBName` and `Names.next`.
+-- `import all`: `name_isoNames_isoVar` and `isoNames_covers` unfold the unexposed bodies of
+-- `Names.name`, `Names.nameChars`, `Names.next`, `isNameChar` and `isOPBName`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Subgraph isomorphism as a pseudo-Boolean satisfaction problem, end to end
@@ -98,6 +99,10 @@ checker are verified.
 
 * `Cslib.Logic.PL.VeriPB.Graph.forall_holds_isoConstraints_iff`,
   `Cslib.Logic.PL.VeriPB.Graph.exists_holds_isoConstraints_iff`: correctness of the encoding.
+* `Cslib.Logic.PL.VeriPB.Graph.name_isoNames_isoVar`: the variable `xₐᵤ` is named `xa_u`.
+* `Cslib.Logic.PL.VeriPB.Graph.isoNames_covers`: CakePB's names cover the encoding, the side
+  condition of the round-trip theorems of `Cslib.Logic.PL.VeriPB.Print`, for a client that
+  applies them to the printed encoding.
 * `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIsoGraph`,
   `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIso`: the end-to-end theorems.
 
@@ -288,24 +293,6 @@ vertex `u`), as `cake_pb_iso` and the Glasgow Subgraph Solver write it. -/
 @[expose] def isoNames (p t : ℕ) : Names :=
   ⟨(List.range (p * t)).map fun i => isoName (i / t) (i % t), 0⟩
 
-/-- A character that is not in two lists splits their concatenations around it the same way. -/
-private theorem eq_of_append_cons_eq {c : Char} :
-    ∀ {l₁ l₂ r₁ r₂ : List Char}, c ∉ l₁ → c ∉ l₂ → l₁ ++ c :: r₁ = l₂ ++ c :: r₂ →
-      l₁ = l₂ ∧ r₁ = r₂
-  | [], [], _, _, _, _, h => ⟨rfl, (List.cons.inj h).2⟩
-  | [], d :: _, _, _, _, h₂, h => by
-    rw [List.nil_append, List.cons_append] at h
-    exact absurd ((List.cons.inj h).1 ▸ List.mem_cons_self) h₂
-  | d :: _, [], _, _, h₁, _, h => by
-    rw [List.nil_append, List.cons_append] at h
-    exact absurd ((List.cons.inj h).1 ▸ List.mem_cons_self) h₁
-  | d :: l₁, e :: l₂, _, _, h₁, h₂, h => by
-    rw [List.cons_append, List.cons_append] at h
-    obtain ⟨rfl, h'⟩ := List.cons.inj h
-    obtain ⟨rfl, rfl⟩ := eq_of_append_cons_eq (fun hc => h₁ (List.mem_cons_of_mem _ hc))
-      (fun hc => h₂ (List.mem_cons_of_mem _ hc)) h'
-    exact ⟨rfl, rfl⟩
-
 private theorem underscore_not_mem_toDecimal (n : ℕ) : '_' ∉ Nat.toDecimal n := fun h =>
   absurd (Nat.isDigit_of_mem_toDecimal h) (by decide)
 
@@ -314,8 +301,8 @@ private theorem isoName_inj {a u a' u' : ℕ} (h : isoName a u = isoName a' u') 
   have h := congrArg String.toList h
   rw [isoName, isoName, String.toList_ofList, String.toList_ofList] at h
   replace h := (List.cons.inj h).2
-  obtain ⟨ha, hu⟩ := eq_of_append_cons_eq (underscore_not_mem_toDecimal a)
-    (underscore_not_mem_toDecimal a') h
+  obtain ⟨ha, hu⟩ := (List.append_cons_inj_of_notMem_prefix (underscore_not_mem_toDecimal a)
+    (underscore_not_mem_toDecimal a')).1 h
   exact ⟨by simpa using congrArg Nat.ofDecimal? ha, by simpa using congrArg Nat.ofDecimal? hu⟩
 
 private theorem isOPBName_isoName (a u : ℕ) : isOPBName (isoName a u) = true := by
@@ -361,8 +348,20 @@ private theorem lt_of_mem_varList_isoConstraints (P : SimpleGraph (Fin p)) [Deci
       cases h
       exact isoVar_lt b' w
 
-/-- CakePB's names cover the encoding: every variable of the encoding has its name `xa_u`. -/
-private theorem isoNames_covers (P : SimpleGraph (Fin p)) [DecidableRel P.Adj]
+/-- **CakePB's name of a variable**: the variable `xₐᵤ = t·a + u` is named `xa_u`. -/
+@[simp] theorem name_isoNames_isoVar (a : Fin p) (u : Fin t) :
+    (isoNames p t).name (isoVar t a u) = isoName a u := by
+  have hlt := isoVar_lt a u
+  have hd : isoVar t a u / t = a := by
+    rw [isoVar, Nat.mul_add_div (Fin.pos u), Nat.div_eq_of_lt u.isLt,
+      Nat.add_zero]
+  have hm : isoVar t a u % t = u := by
+    rw [isoVar, Nat.mul_add_mod, Nat.mod_eq_of_lt u.isLt]
+  simp [Names.name, Names.nameChars, isoNames, hlt, hd, hm]
+
+/-- **CakePB's names cover the encoding** (`Cslib.Logic.PL.VeriPB.Text.Names.Covers`): they are
+distinct OPB names, and every variable of the encoding is named, `xa_u`. -/
+theorem isoNames_covers (P : SimpleGraph (Fin p)) [DecidableRel P.Adj]
     (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] :
     (isoNames p t).Covers ⟨isoConstraints P T, none, none⟩ := by
   have hopb : ∀ s ∈ (isoNames p t).others, isOPBName s = true := fun s hs => by
