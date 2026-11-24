@@ -28,6 +28,8 @@ The tactic `wram_exec` applies these rules along the syntax of the program. It i
 straight-line glue of correctness proofs, between loops and calls of subprograms with their own
 specifications: it executes data instructions and conditionals, and stops at a loop, at a random
 sample and at a program given by name, leaving the goal `WP w c y Q` with the data `y` reached.
+A program named among the hints, as in `wram_exec [program, h₁]`, is executed instead; its callees
+stay closed.
 `Cslib.WordRAM.WP.of_execWithin` then continues from a specification of `c`, and `wram_exec`
 resumes on the remaining program; on a `WP.Exact` goal, `Cslib.WordRAM.WP.Exact.of_exec` continues
 from an exact specification. At a loop whose condition holds, `Cslib.WordRAM.WP.loop_iter` continues
@@ -875,9 +877,7 @@ meta def opRule? (o : Expr) : Option Name :=
   | some ``Op.bin => some ``WP.bin
   | some ``Op.width => some ``WP.width
   | some ``Op.exactWidth => some ``WP.exactWidth
-  -- `Op.addAdditive` is defined in `WordRAM.Allocation`, which this module does not import, so its
-  -- name is not resolved here; `CslibFrontierTests/WordRAMSymbolicExec.lean` runs it.
-  | some ``Op.alu | some `Cslib.WordRAM.Op.addAdditive => some ``WP.alu
+  | some ``Op.alu => some ``WP.alu
   | some ``Op.exactBin =>
     match (o.getArg! 1).constName? with
     | some ``BinOp.sub => some ``WP.exactSub
@@ -907,7 +907,9 @@ meta partial def walk (cfg : Config) (g : MVarId) : TacticM (Array MVarId) := g.
   match code.getAppFn.constName? with
   | some ``Code.seq => step cfg g (rule ``WP.seq)
   | some ``Code.op =>
-    match opRule? (code.getArg! 2) with
+    -- An instruction defined through another one, such as `Op.addAdditive`, runs by its rule.
+    let o := code.getArg! 2
+    match opRule? (← if (opRule? o).isSome then pure o else whnf o) with
     | some r => step cfg g (rule r)
     | none => return #[g]
   | some ``Code.branch =>
@@ -915,7 +917,12 @@ meta partial def walk (cfg : Config) (g : MVarId) : TacticM (Array MVarId) := g.
     | some ``Cond.lt => branch cfg g (rule ``WP.branch_lt)
     | some ``Cond.eq => branch cfg g (rule ``WP.branch_eq)
     | _ => return #[g]
-  | _ => return #[g]
+  | some c =>
+    -- A program named among the hints is opened. Any other stays closed, for its specification.
+    unless cfg.ctx.simpTheorems.isDeclToUnfold c do return #[g]
+    let some code ← unfoldDefinition? code | return #[g]
+    walk cfg (← g.replaceTargetDefEq (mkAppN tgt.getAppFn (tgt.getAppArgs.set! 3 code)))
+  | none => return #[g]
 
 /-- Apply the rule `rule` to `g`: evaluate the values it reads, prove or leave its side
 conditions, and continue with its continuation `h`. -/
@@ -1109,7 +1116,7 @@ end of the program, where `t ≤ T ∧ P y` (respectively `t ≤ T ∧ y' = y`, 
 the data `y` and instruction count `t` reached; a leading bound `t ≤ T` is closed by `omega` when
 it can. It stops at a loop, a random sample or a program given by name, leaving `WP w c' y Q'`:
 continue with `refine WP.of_execWithin h ?_` from a specification `h` of `c'`, then `wram_exec`
-again. Unfold programs given by name to execute them instead.
+again. Name a program among the hints to execute it instead.
 
 On the exact-count goals `∃ y, Exec w c x y T ∧ P y`, `Exec w c x y T` and
 `Cslib.WordRAM.WP.Exact w c x Q` it works the same way with the rules of `WP.Exact`: the count
@@ -1117,7 +1124,9 @@ On the exact-count goals `∃ y, Exec w c x y T ∧ P y`, `Exec w c x y T` and
 exact specification `h` at a stop.
 
 * `wram_exec [h₁, h₂]` adds simp lemmas for the values read, typically the contents of the
-  registers of `x`, such as `x.regs zeroP = 0`, and the memory cells it reads.
+  registers of `x`, such as `x.regs zeroP = 0`, and the memory cells it reads. A definition of a
+  program among them, as in `wram_exec [program, h₁]`, is unfolded where execution reaches it;
+  programs that are not listed stay closed.
 * `wram_exec (disch := tac)` sets the discharger, by default `fits` on a word-size bound and
   `omega` on anything else. It proves side conditions
   (`Fits w v`, `b ≤ a` for an exact subtraction, a nonzero divisor), decides conditions of
@@ -1200,7 +1209,7 @@ elab_rules : tactic
         let tgt ← instantiateMVars (← g.getType)
         throwError "wram_exec: nothing to execute in{indentExpr tgt}\nThe program starts with a \
           loop, a random sample or a program given by name. Apply its specification with \
-          `WP.of_execWithin`, or unfold it."
+          `WP.of_execWithin`, or name the program among the hints."
       let mains ← mains.filterMapM (WP.Exec.closeBound cfg eq exact)
       replaceMainGoal (mains ++ (← cfg.sideGoals.get)).toList
 

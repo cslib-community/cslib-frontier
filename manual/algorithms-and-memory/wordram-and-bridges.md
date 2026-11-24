@@ -71,8 +71,8 @@ use `ExecWithin.loop_potential` in
 
 For structured `Code`, import
 [`SymbolicExec.Call`](../../CslibFrontier/Computability/WordRAM/SymbolicExec/Call.lean).
-Unfold the caller and run `wram_exec` to its named routine. Apply
-`wram_call routine_spec with y post`, then resume `wram_exec` using the returned facts.
+Name the caller among the hints, as in `wram_exec [caller, h]`, to run it to its named routine.
+Apply `wram_call routine_spec with y post`, then resume `wram_exec` using the returned facts.
 The routine specification supplies its instruction allowance and full postcondition; the
 routine body stays closed. A fixed-time existential contract and a time-indexed `WP` contract
 are both supported. In the latter case, bind `y`, the returned allowance, and its postcondition.

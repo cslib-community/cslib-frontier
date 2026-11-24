@@ -60,8 +60,7 @@ private theorem sumLoop_spec {w : ℕ} (l : List ℕ) (x : Data 6) (hone : x.reg
     obtain ⟨ha, hrest⟩ := holdsList_cons_iff.mp hl'
     simp only [List.sum_cons] at hs
     refine ⟨by omega, ?_⟩
-    unfold addCell
-    wram_exec [ha, hone]
+    wram_exec [addCell, ha, hone]
     wram_simp
     exact ⟨by omega, hrest, by omega⟩
   case post =>
