@@ -9047,6 +9047,7 @@ public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Nash
 public import CslibFrontier.GameTheory.Strategic.NoRegret
 public import CslibFrontier.GameTheory.Strategic.Potential
+public import CslibFrontier.GameTheory.Strategic.RegretMatching
 public import CslibFrontier.GameTheory.Strategic.Semialgebraic
 public import CslibFrontier.GameTheory.Strategic.Smooth
 public import CslibFrontier.GameTheory.Strategic.Stability
@@ -9751,6 +9752,7 @@ public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Winnow
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeUpdate
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeWeights
 public import CslibFrontier.MachineLearning.OnlineLearning.OnlineGradientDescent
+public import CslibFrontier.MachineLearning.OnlineLearning.RegretMatching
 public import CslibFrontier.MachineLearning.OnlineLearning.SwapRegret
 public import CslibFrontier.MachineLearning.OnlineLearning.WeightedMajority
 public import CslibFrontier.MachineLearning.OnlineLearning.ZeroSum
