@@ -6,8 +6,10 @@ Authors: Samuel Schlesinger
 
 module
 
+import CslibFrontier.Foundations.Data.Code.EliasBassalygo
 import CslibFrontier.Foundations.Data.Code.Hadamard
 import CslibFrontier.Foundations.Data.Code.ListDecoding.JohnsonBound
+import CslibFrontier.Foundations.Data.Nat.Choose.Entropy
 import Mathlib.Data.Rat.Defs
 import Mathlib.Data.ZMod.Basic
 import Mathlib.FieldTheory.Finite.Basic
@@ -16,10 +18,14 @@ import Mathlib.Tactic.ComputeDegree
 /-!
 # Tests: combinatorial list decodability, Johnson bound, and Elias–Bassalygo rate bound
 
-Exercises `CslibFrontier.Foundations.Data.Code.ListDecoding.JohnsonBound` across:
+Exercises `CslibFrontier.Foundations.Data.Code.ListDecoding`,
+`CslibFrontier.Foundations.Data.Code.ListDecoding.JohnsonBound`,
+`CslibFrontier.Foundations.Data.Code.EliasBassalygo`, and
+`CslibFrontier.Foundations.Data.Nat.Choose.Entropy` across:
 
 1. **Analytic Johnson radius identities and `q → ∞` comparisons:** concrete evaluations of
-   `johnsonRadius`, `johnsonRadiusLimit`, and `johnsonRadius_antitone`.
+   `johnsonRadius`, `johnsonRadiusLimit`, `johnsonRadius_nonneg`, `johnsonRadius_antitone`, and
+   `tendsto_johnsonRadius_atTop`.
 2. **`q`-ary (`Fin 3`) list decodability and `ListCode` equivalence:** the length-3 distance-2
    ternary code `{(a, b, a + b)}` at `ε = 1 / 3` (`L = 4`) and comparison against the boundary
    `ρ = J_3(2 / 3) = 2 / 3`.
@@ -31,10 +37,11 @@ Exercises `CslibFrontier.Foundations.Data.Code.ListDecoding.JohnsonBound` across
 4. **Binary simplex code (`n = 7, d = 4`):** punctured Hadamard code with `δ = 4 / 7 > 1 / 2`,
    list-decodable at `ρ = 3 / 7` (`e = 3`) where `fun _ => true` puts all `7` nonzero codewords
    inside the ball (matching the exact finite Johnson bound `M ≤ 7`).
-5. **Guruswami–Sudan / Reed–Solomon specialization (`q → ∞`):** concrete `(ρ, L)`-list-decodable
+5. **Combinatorial Reed–Solomon list-decodability (`q → ∞`):** concrete `(ρ, L)`-list-decodable
    Reed–Solomon codes beyond unique decoding over both `ZMod 11` (`n = 11, k = 3, e = 5`) and the
-   infinite field `ℚ` (`n = 7, k = 3, e = 3`) with explicit recovering witnesses.
-6. **Finite and asymptotic Elias–Bassalygo rate bounds.**
+   infinite field `ℚ` (`n = 7, k = 3, e = 3`) with explicit codeword witnesses (not an algorithmic
+   decoder).
+6. **Finite and asymptotic Elias–Bassalygo rate bounds** and `q`-ary entropy bounds.
 -/
 
 set_option linter.privateModule false
@@ -72,6 +79,18 @@ example : johnsonRadiusLimit (3 / 4) ≤ johnsonRadius 5 (3 / 4) ∧
   ⟨johnsonRadiusLimit_le_johnsonRadius (by norm_num) (by norm_num) (by norm_num),
     johnsonRadius_antitone (by norm_num) (by norm_num) (by norm_num) (by norm_num)⟩
 
+example : 0 ≤ johnsonRadius 3 (2 / 5) :=
+  johnsonRadius_nonneg (by norm_num) (by norm_num)
+
+example : Filter.Tendsto (fun q : ℝ => johnsonRadius q (3 / 4)) Filter.atTop (nhds (1 / 2)) := by
+  have hval : johnsonRadiusLimit (3 / 4) = 1 / 2 := by
+    rw [johnsonRadiusLimit]
+    have hsqrt : Real.sqrt (1 - (3 : ℝ) / 4) = 1 / 2 := by
+      rw [show (1 : ℝ) - 3 / 4 = (1 / 2) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
+    rw [hsqrt]
+    norm_num
+  simpa only [hval] using tendsto_johnsonRadius_atTop (3 / 4)
+
 /-! ### 2. `q`-ary (`Fin 3`) list decodability and `ListCode` equivalence -/
 
 /-- Encoder for the ternary length-3 distance-2 code `{(a, b, a + b)}` over `Fin 3`. -/
@@ -96,7 +115,8 @@ private theorem le_minDist_ternaryFin3 :
 
 /-- At `q = 3, n = 3, d = 2`, we have `J_3(2 / 3) = 2 / 3`, so taking `ε = 1 / 3` gives
 `(1 / 3, 4)`-list-decodability and a matching `ListCode`. -/
-example : IsListDecodable (ternaryFin3 : Set (Fin 3 → Fin 3)) (1 / 3) 4 := by
+private theorem ternaryFin3_isListDecodable :
+    IsListDecodable (ternaryFin3 : Set (Fin 3 → Fin 3)) (1 / 3) 4 := by
   have h := isListDecodable_of_le_johnsonRadius (α := Fin 3) (by simp)
     le_minDist_ternaryFin3 (ε := 1 / 3) (ρ := 1 / 3) (by norm_num) (by
       simp only [Fintype.card_fin, Nat.cast_ofNat, johnsonRadius]
@@ -106,6 +126,13 @@ example : IsListDecodable (ternaryFin3 : Set (Fin 3 → Fin 3)) (1 / 3) 4 := by
   symm
   exact Nat.floor_eq_iff (by norm_num) |>.2 ⟨by norm_num, by norm_num⟩
 
+example : ∀ w : Fin 3 → Fin 3,
+    #{c ∈ ternaryFin3 | (hammingDist c w : ℝ) ≤ (1 / 3 : ℝ) * Fintype.card (Fin 3)} ≤ 4 :=
+  isListDecodable_finset_iff.1 ternaryFin3_isListDecodable
+
+example : IsListDecodable (ternaryFin3 : Set (Fin 3 → Fin 3)) (1 / 4) 5 :=
+  ternaryFin3_isListDecodable.mono (subset_refl _) (by norm_num) (by decide)
+
 example : ∃ D : ListCode (Fin 3 × Fin 3) (Fin 3) (Fin 3) 4,
     D.encode = ternaryEncode ∧ D.ListDecodes (1 / 3) := by
   rw [← isListDecodable_range_iff_exists_listCode ternaryEncode_injective]
@@ -113,14 +140,7 @@ example : ∃ D : ListCode (Fin 3 × Fin 3) (Fin 3) (Fin 3) 4,
     ext x
     simp [ternaryFin3]
   rw [hrange]
-  have h := isListDecodable_of_le_johnsonRadius (α := Fin 3) (by simp)
-    le_minDist_ternaryFin3 (ε := 1 / 3) (ρ := 1 / 3) (by norm_num) (by
-      simp only [Fintype.card_fin, Nat.cast_ofNat, johnsonRadius]
-      norm_num)
-  simp only [Fintype.card_fin, Nat.cast_ofNat] at h
-  convert h using 1
-  symm
-  exact Nat.floor_eq_iff (by norm_num) |>.2 ⟨by norm_num, by norm_num⟩
+  exact ternaryFin3_isListDecodable
 
 /-- At the boundary `ρ = J_3(2 / 3) = 2 / 3`, the ball around `0` contains 7 codewords (`> 4`),
 confirming the need for `ε > 0`. -/
@@ -150,11 +170,12 @@ theorem hadamard_isListDecodable {ι : Type*} [Fintype ι] [Nonempty ι] [Decida
     have hpos : (0 : ℝ) < (2 : ℝ) ^ Fintype.card ι := by positivity
     rw [div_eq_iff hpos.ne']
     linarith
-  have h := isListDecodable_binary_of_le_johnsonRadius hd hε (ρ := 1 / 2 - ε) (by
-    rw [hdiv]
+  have h := isListDecodable_of_le_johnsonRadius (α := Bool) (by decide) hd hε (ρ := 1 / 2 - ε) (by
+    rw [hdiv, Fintype.card_bool, Nat.cast_ofNat, johnsonRadius_two]
     norm_num)
-  rw [hdiv] at h
-  rwa [show ((1 / 2 : ℝ) / (2 * ε ^ 2)) = 1 / (4 * ε ^ 2) by ring] at h
+  rw [hdiv, Fintype.card_bool] at h
+  simpa only [Nat.cast_ofNat,
+    show ((2 : ℝ) - 1) * (1 / 2) / (2 * ε ^ 2) = 1 / (4 * ε ^ 2) by ring] using h
 
 example : IsListDecodable (Set.range (hadamardCode (ι := Fin 5))) (3 / 8) 16 := by
   have h := hadamard_isListDecodable (ι := Fin 5) (ε := 1 / 8) (by norm_num)
@@ -249,14 +270,14 @@ private theorem le_minDist_simplex3 :
 guarantees `(3 / 7, 56)`-list-decodability; concretely at `e = 3` (`ρ = 3 / 7`), `fun _ => true`
 places all `7` nonzero codewords in the ball, matching the sharp finite Johnson bound `M ≤ 7`. -/
 example : IsListDecodable (simplex3 : Set (Fin 7 → Bool)) (3 / 7) 56 := by
-  have h := isListDecodable_binary_of_le_johnsonRadius le_minDist_simplex3 (ε := 1 / 14)
-    (ρ := 3 / 7) (by norm_num) (by
-      rw [Fintype.card_fin]
+  have h := isListDecodable_of_le_johnsonRadius (α := Bool) (by decide) le_minDist_simplex3
+    (ε := 1 / 14) (ρ := 3 / 7) (by norm_num) (by
+      rw [Fintype.card_bool, Fintype.card_fin, Nat.cast_ofNat, johnsonRadius_two]
       have hsqrt : Real.sqrt (1 - 2 * ((4 : ℕ) : ℝ) / 7) = 0 :=
         Real.sqrt_eq_zero_of_nonpos (by norm_num)
       rw [show 1 - 2 * (((4 : ℕ) : ℝ) / (7 : ℕ)) = 1 - 2 * ((4 : ℕ) : ℝ) / 7 by ring, hsqrt]
       norm_num)
-  rw [Fintype.card_fin] at h
+  rw [Fintype.card_bool, Fintype.card_fin] at h
   convert h using 1
   symm
   exact Nat.floor_eq_iff (by norm_num) |>.2 ⟨by norm_num, by norm_num⟩
@@ -266,7 +287,7 @@ example :
     #{c ∈ simplex3 | hammingDist c (fun _ => false) ≤ 4} = 8 := by
   decide
 
-/-! ### 5. Guruswami–Sudan / Reed–Solomon special case (`ZMod 11` and `ℚ`) -/
+/-! ### 5. Combinatorial Reed–Solomon list-decodability (`ZMod 11` and `ℚ`) -/
 
 instance : Fact (Nat.Prime 11) := ⟨by decide⟩
 
@@ -345,25 +366,54 @@ example (C : Finset (Fin 10 → Bool)) (hC : ((4 : ℕ) : ℕ∞) ≤ minDist (C
     rate (C : Set (Fin 10 → Bool)) ≤
       1 - Real.qaryEntropy 2 ((2 : ℝ) / 10) / Real.log 2 +
         Real.logb 2 ((2 - 1 : ℝ) * 10 * 4 * 11) / 10 := by
-  have hsqrt : Real.sqrt (1 - 2 * ((4 : ℝ) / 10)) ≤ 1 - 2 * ((2 : ℝ) / 10 + 1 / 20) := by
-    refine Real.sqrt_le_iff.2 ⟨by norm_num, by norm_num⟩
-  have he : ((2 : ℕ) : ℝ) / Fintype.card (Fin 10) ≤
-      johnsonRadius (Fintype.card Bool) ((4 : ℝ) / Fintype.card (Fin 10)) - 1 / 20 := by
+  have hsqrt : Real.sqrt (1 - 2 * ((4 : ℝ) / 10)) < 1 - 2 * ((2 : ℝ) / 10) :=
+    Real.sqrt_lt' (by norm_num) |>.2 (by norm_num)
+  have he : ((2 : ℕ) : ℝ) / Fintype.card (Fin 10) <
+      johnsonRadius (Fintype.card Bool) ((4 : ℝ) / Fintype.card (Fin 10)) := by
     rw [Fintype.card_fin, Fintype.card_bool, Nat.cast_ofNat, johnsonRadius_two]
     linarith
-  have hr := rate_le_of_lt_johnsonRadius (α := Bool) (by simp) hC (by decide) (ε := 1 / 20)
-    (by norm_num) he
+  have hr := rate_le_of_lt_johnsonRadius (α := Bool) (by simp) hC (by decide) he
   simpa only [Fintype.card_bool, Fintype.card_fin, Nat.cast_ofNat,
     show (10 : ℝ) + 1 = 11 by norm_num] using hr
 
-example {ιs : ℕ → Type} [∀ n, Fintype (ιs n)] (C : ∀ n, Finset (ιs n → Bool))
-    (hC : ∀ n, ∀ x ∈ C n, ∀ y ∈ C n, x ≠ y → (1 / 4 : ℝ) * Fintype.card (ιs n) ≤ hammingDist x y)
-    (hn : Filter.Tendsto (fun n => Fintype.card (ιs n)) Filter.atTop Filter.atTop)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in Filter.atTop, rate (C n : Set (ιs n → Bool)) ≤
-      1 - Real.qaryEntropy 2 (johnsonRadius 2 (1 / 4)) / Real.log 2 + ε := by
+/-- Non-vacuous concrete witness for `eventually_rate_le_one_sub_qaryEntropy_johnsonRadius`: the
+binary repetition code `{fun _ => false, fun _ => true}` of length `n`, whose two distinct codewords
+lie at Hamming distance `n ≥ (1 / 2) * n`. -/
+example {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in Filter.atTop,
+      rate (({fun _ : Fin n => false, fun _ : Fin n => true} : Finset (Fin n → Bool)) :
+        Set (Fin n → Bool)) ≤
+        1 - Real.qaryEntropy 2 (johnsonRadius 2 (1 / 2)) / Real.log 2 + ε := by
+  have hC : ∀ n : ℕ,
+      ∀ x ∈ ({fun _ : Fin n => false, fun _ : Fin n => true} : Finset (Fin n → Bool)),
+      ∀ y ∈ ({fun _ : Fin n => false, fun _ : Fin n => true} : Finset (Fin n → Bool)),
+      x ≠ y → (1 / 2 : ℝ) * Fintype.card (Fin n) ≤ hammingDist x y := by
+    intro n x hx y hy hxy
+    simp only [mem_insert, mem_singleton] at hx hy
+    have hcard : hammingDist (fun _ : Fin n => false) (fun _ : Fin n => true) = n := by
+      simp [hammingDist]
+    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
+    · exact absurd rfl hxy
+    · rw [hcard, Fintype.card_fin]
+      linarith [Nat.cast_nonneg (α := ℝ) n]
+    · rw [hammingDist_comm, hcard, Fintype.card_fin]
+      linarith [Nat.cast_nonneg (α := ℝ) n]
+    · exact absurd rfl hxy
+  have hn : Filter.Tendsto (fun n : ℕ => Fintype.card (Fin n)) Filter.atTop Filter.atTop := by
+    simp only [Fintype.card_fin]
+    exact Filter.tendsto_id
   simpa only [Fintype.card_bool, Nat.cast_ofNat] using
-    eventually_rate_le_one_sub_qaryEntropy_johnsonRadius (α := Bool) (by norm_num)
-      (by simp only [Fintype.card_bool]; norm_num) hC hn hε
+    eventually_rate_le_one_sub_qaryEntropy_johnsonRadius (α := Bool) (δ := 1 / 2)
+      (by norm_num) (by simp only [Fintype.card_bool]; norm_num) hC hn hε
+
+example {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) :
+    Real.qaryEntropy 3 p ≤ Real.log 3 :=
+  qaryEntropy_le_log (by decide) hp0 hp1
+
+example : Real.exp (4 * Real.qaryEntropy 3 ((1 : ℝ) / 4)) ≤
+    (4 + 1 : ℝ) * ((Nat.choose 4 1 : ℝ) * ((3 : ℝ) - 1) ^ 1) := by
+  simpa only [Nat.cast_ofNat, Nat.cast_one] using
+    exp_mul_qaryEntropy_le_succ_mul_choose_mul_pow (q := 3) (n := 4) (e := 1)
+      (by decide) (by decide)
 
 end CslibFrontierTests.JohnsonBound
