@@ -4,9 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Extensive.PerfectInfoEmbedding
-import CslibFrontier.GameTheory.Extensive.SequenceFormLP
+module
+-- upstream: local-only (tests)
+
+public import CslibFrontier.GameTheory.Extensive.PerfectInfoEmbedding
+public import CslibFrontier.GameTheory.Extensive.SequenceFormLP
 import Mathlib.Data.Fin.VecNotation
+import Mathlib.Data.Fintype.Option
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.LinearCombination
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Ring
 
 /-!
 # Checked tests for `PerfectInfoEmbedding` and `SequenceFormLP`
@@ -30,16 +39,21 @@ Non-vacuous checked examples exercising [vonStengel2007], Chapter 3:
   `IsZeroSum.exists_behavior_minimax`, `exists_isSeqNash`, and `exists_isBehaviorNash`.
 -/
 
+public section
+
 namespace CslibFrontierTests.GameTheory.ExtensiveSequenceLP
 
 open Cslib.GameTheory Cslib.GameTheory.Extensive Finset Matrix
 
 /-! ### 1. Embedding a finite perfect-information game with chance nodes -/
 
-private theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ)) :=
+/-- Fair coin distribution on `Bool`. -/
+theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ)) :=
   isMixedStrategy_iff.2 ⟨fun _ => by norm_num, by norm_num⟩
 
-@[reducible] private noncomputable def entryChanceSub : PerfectInfoTree (Fin 2) :=
+/-- Subgame after chance chooses `true` in `entryChanceTree`: player `1` chooses `Accommodate`
+(`false`, payoff `(2, 1)`) or `Fight` (`true`, payoff `(0, 0)`). -/
+@[expose, reducible] noncomputable def entryChanceSub : PerfectInfoTree (Fin 2) :=
   .decision (1 : Fin 2) fun
     | false => .leaf ![2, 1]
     | true => .leaf ![0, 0]
@@ -48,7 +62,7 @@ private theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ
 * player `0` plays `Out` (`false`, payoff `(2, 2)`) or `Enter` (`true`);
 * upon `Enter`, chance flips a fair coin: `false` gives `(3, 1)`, while `true` leads to player
   `1` choosing `Accommodate` (`false`, payoff `(2, 1)`) or `Fight` (`true`, payoff `(0, 0)`). -/
-@[reducible] noncomputable def entryChanceTree : PerfectInfoTree (Fin 2) :=
+@[expose, reducible] noncomputable def entryChanceTree : PerfectInfoTree (Fin 2) :=
   .decision 0 fun
     | false => .leaf ![2, 2]
     | true =>
@@ -58,7 +72,7 @@ private theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ
 
 /-- Subgame-perfect strategy profile for `entryChanceTree`: player `0` plays `Enter` (`true`) and
 player `1` plays `Accommodate` (`false`), giving expected payoff `(5 / 2, 1)`. -/
-@[reducible] noncomputable def entryChanceSPE :
+@[expose, reducible] noncomputable def entryChanceSPE :
     ∀ i : Fin 2, PerfectInfoTree.PureStrategy i entryChanceTree :=
   fun _ => .decision (fun _ => true) fun
     | false => .leaf
@@ -69,7 +83,7 @@ player `1` plays `Accommodate` (`false`), giving expected payoff `(5 / 2, 1)`. -
             | true => .leaf
 
 /-- Non-SPE pure Nash equilibrium `(Out, Fight)`: deviating to `Enter` yields `3 / 2 ≤ 2`. -/
-@[reducible] noncomputable def entryChanceThreat :
+@[expose, reducible] noncomputable def entryChanceThreat :
     ∀ i : Fin 2, PerfectInfoTree.PureStrategy i entryChanceTree :=
   fun _ => .decision (fun _ => false) fun
     | false => .leaf
@@ -79,21 +93,62 @@ player `1` plays `Accommodate` (`false`), giving expected payoff `(5 / 2, 1)`. -
             | false => .leaf
             | true => .leaf
 
+private theorem eval_entryChanceSPE :
+    entryChanceTree.expectedPayoff entryChanceSPE = ![5 / 2, 1] := by
+  rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := true)
+    (by simp [entryChanceSPE])]
+  ext i
+  simp only [PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
+    PerfectInfoTree.expectedPayoff_leaf]
+  rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+    (by simp [entryChanceSPE])]
+  fin_cases i <;> simp <;> norm_num
+
 theorem entryChanceSPE_isPureSPE : entryChanceTree.IsPureSPE entryChanceSPE := by
   rw [PerfectInfoTree.isPureSPE_iff_oneShot]
   refine ⟨fun a => ?_, fun b => ?_⟩
-  · cases a <;> simp [entryChanceSPE]; norm_num
+  · have h0 : (entryChanceSPE 0).headChoice = true := by simp [entryChanceSPE]
+    rw [h0]
+    simp only [PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
+      PerfectInfoTree.expectedPayoff_leaf]
+    rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+      (by simp [entryChanceSPE])]
+    cases a
+    · simp
+      norm_num
+    · rw [PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
+        PerfectInfoTree.expectedPayoff_leaf,
+        PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false)
+          (by simp [entryChanceSPE])]
   · cases b
     · trivial
     · intro c
       cases c
       · trivial
       · refine ⟨fun f => ?_, fun f => ?_⟩
-        · cases f <;> simp [entryChanceSPE]
+        · dsimp only
+          have h1 : (((entryChanceSPE 1).childDecision true).childChance true).headChoice =
+              false := by simp [entryChanceSPE]
+          rw [h1]
+          cases f <;> simp
         · cases f <;> trivial
 
-private theorem entryChanceSub_backwardInduction_snd :
-    entryChanceSub.backwardInduction.2 = ![2, 1] := by
+private theorem entryChanceSub_hasNoContinuationTies : entryChanceSub.HasNoContinuationTies := by
+  have hdet : entryChanceSub.IsDeterministic := fun b => by cases b <;> trivial
+  have hdist : entryChanceSub.HasDistinctLeafPayoffs := by
+    intro z₁ z₂ hne i
+    dsimp only [entryChanceSub] at z₁ z₂
+    rcases z₁ with _ | ⟨b₁, sub₁⟩ | ⟨⟩
+    rcases z₂ with _ | ⟨b₂, sub₂⟩ | ⟨⟩
+    cases b₁ <;> cases b₂ <;> cases sub₁ <;> cases sub₂
+    · exact absurd rfl hne
+    · fin_cases i <;> simp
+    · fin_cases i <;> simp
+    · exact absurd rfl hne
+  exact hdet.hasNoContinuationTies hdist
+
+private theorem entryChanceSub_backwardInduction_payoff :
+    entryChanceSub.backwardInduction.payoff = ![2, 1] := by
   let strat : ∀ i : Fin 2, PerfectInfoTree.PureStrategy i entryChanceSub :=
     fun _ => .decision (fun _ => false) fun
       | false => .leaf
@@ -101,34 +156,28 @@ private theorem entryChanceSub_backwardInduction_snd :
   have hspe : entryChanceSub.IsPureSPE strat := by
     rw [PerfectInfoTree.isPureSPE_iff_oneShot]
     refine ⟨fun a => ?_, fun b => ?_⟩
-    · cases a <;> simp [strat]
+    · have hs1 : (strat 1).headChoice = false := by simp [strat]
+      rw [hs1]
+      cases a <;> simp
     · cases b <;> trivial
-  have htie : entryChanceSub.HasNoContinuationTies := by
-    refine ⟨fun a₁ a₂ hne => ?_, fun b => ?_⟩
-    · cases a₁ <;> cases a₂ <;> simp [PerfectInfoTree.backwardInduction] at *
-    · cases b <;> trivial
-  have hbi : (entryChanceSub.backwardInduction).1 = strat := by
-    obtain ⟨_, _, hu⟩ := PerfectInfoTree.existsUnique_isPureSPE_of_hasNoContinuationTies htie
-    rw [hu _ (PerfectInfoTree.isPureSPE_backwardInduction entryChanceSub), hu _ hspe]
-  rw [PerfectInfoTree.backwardInduction_snd, hbi]
+  have hbi : strat = entryChanceSub.backwardInduction.strategy :=
+    PerfectInfoTree.eq_backwardInduction_of_isPureSPE entryChanceSub_hasNoContinuationTies hspe
+  rw [PerfectInfoTree.backwardInduction_payoff, ← hbi,
+    PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := false) (by simp [strat])]
   ext i
-  fin_cases i <;> simp [strat]
+  fin_cases i <;> simp
 
 theorem entryChanceTree_hasNoContinuationTies : entryChanceTree.HasNoContinuationTies := by
   refine ⟨fun a₁ a₂ hne => ?_, fun b => ?_⟩
   · cases a₁ <;> cases a₂
     · exact absurd rfl hne
-    · dsimp only [PerfectInfoTree.backwardInduction]
-      rw [Fintype.sum_bool]
-      dsimp only
-      rw [entryChanceSub_backwardInduction_snd]
-      dsimp only [PerfectInfoTree.backwardInduction]
+    · simp only [PerfectInfoTree.backwardInduction_leaf_payoff,
+        PerfectInfoTree.backwardInduction_chance_payoff, Fintype.sum_bool,
+        entryChanceSub_backwardInduction_payoff]
       norm_num
-    · dsimp only [PerfectInfoTree.backwardInduction]
-      rw [Fintype.sum_bool]
-      dsimp only
-      rw [entryChanceSub_backwardInduction_snd]
-      dsimp only [PerfectInfoTree.backwardInduction]
+    · simp only [PerfectInfoTree.backwardInduction_leaf_payoff,
+        PerfectInfoTree.backwardInduction_chance_payoff, Fintype.sum_bool,
+        entryChanceSub_backwardInduction_payoff]
       norm_num
     · exact absurd rfl hne
   · cases b
@@ -136,16 +185,10 @@ theorem entryChanceTree_hasNoContinuationTies : entryChanceTree.HasNoContinuatio
     · intro c
       cases c
       · trivial
-      · refine ⟨fun f₁ f₂ hne => ?_, fun f => ?_⟩
-        · cases f₁ <;> cases f₂
-          · exact absurd rfl hne
-          · simp [PerfectInfoTree.backwardInduction]
-          · simp [PerfectInfoTree.backwardInduction]
-          · exact absurd rfl hne
-        · cases f <;> trivial
+      · exact entryChanceSub_hasNoContinuationTies
 
 theorem entryChanceTree_backwardInduction_eq :
-    (entryChanceTree.backwardInduction).1 = entryChanceSPE := by
+    entryChanceTree.backwardInduction.strategy = entryChanceSPE := by
   obtain ⟨_, _, hu⟩ := PerfectInfoTree.existsUnique_isPureSPE_of_hasNoContinuationTies
     entryChanceTree_hasNoContinuationTies
   rw [hu _ (PerfectInfoTree.isPureSPE_backwardInduction entryChanceTree),
@@ -169,9 +212,7 @@ theorem entryChance_embedding_properties :
         (PerfectInfoTree.leafPathEquivTerminal entryChanceTree z).payoff = z.payoff) := by
   have heval : entryChanceTree.toExtensiveTree.evalPure (fun i => (entryChanceSPE i).toExtensive) =
       ![5 / 2, 1] := by
-    rw [PerfectInfoTree.toExtensiveTree_evalPure]
-    ext i
-    fin_cases i <;> simp [entryChanceSPE] <;> norm_num
+    rw [PerfectInfoTree.toExtensiveTree_evalPure, eval_entryChanceSPE]
   have hbi_nash :
       entryChanceTree.toExtensiveTree.toCostGame.IsPureNash
         (fun i => (entryChanceSPE i).toExtensive) := by
@@ -181,23 +222,31 @@ theorem entryChance_embedding_properties :
     intro i s'
     match i with
     | ⟨0, _⟩ =>
-      simp only [PerfectInfoTree.toCostGame, neg_le_neg_iff]
+      simp only [PerfectInfoTree.toCostGame_cost, neg_le_neg_iff]
       change entryChanceTree.expectedPayoff (Function.update entryChanceThreat 0 s') 0 ≤
         entryChanceTree.expectedPayoff entryChanceThreat 0
-      rw [PerfectInfoTree.expectedPayoff_decision]
-      have hupd0 :
-          (Function.update entryChanceThreat (0 : Fin 2) s' 0).headChoice = s'.headChoice := by
-        simp
-      rw [hupd0]
+      rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq
+        (s := Function.update entryChanceThreat 0 s') (a := s'.headChoice) (by simp),
+        PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq
+          (s := entryChanceThreat) (a := false) (by simp [entryChanceThreat])]
       cases s'.headChoice
-      · simp [Function.update, entryChanceThreat]
-      · simp [Function.update, entryChanceThreat]
+      · simp
+      · rw [PerfectInfoTree.expectedPayoff_chance, Fintype.sum_bool,
+          PerfectInfoTree.expectedPayoff_leaf, PerfectInfoTree.expectedPayoff_leaf,
+          PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq (a := true)
+            (by simp [Function.update, entryChanceThreat])]
+        simp
         norm_num
-    | ⟨1, _⟩ =>
-      simp only [PerfectInfoTree.toCostGame, neg_le_neg_iff]
-      change entryChanceTree.expectedPayoff (Function.update entryChanceThreat 1 s') 1 ≤
+    | ⟨1, hi⟩ =>
+      simp only [PerfectInfoTree.toCostGame_cost, neg_le_neg_iff]
+      change entryChanceTree.expectedPayoff (Function.update entryChanceThreat ⟨1, hi⟩ s') 1 ≤
         entryChanceTree.expectedPayoff entryChanceThreat 1
-      simp [Function.update, entryChanceThreat]
+      rw [PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq
+        (s := Function.update entryChanceThreat ⟨1, hi⟩ s') (a := false)
+        (by simp [entryChanceThreat]),
+        PerfectInfoTree.expectedPayoff_decision_of_headChoice_eq
+          (s := entryChanceThreat) (a := false) (by simp [entryChanceThreat])]
+      simp
   have hthreat_ext :
       entryChanceTree.toExtensiveTree.toCostGame.IsPureNash
         (fun i => (entryChanceThreat i).toExtensive) :=
@@ -285,7 +334,7 @@ instance (i : Bool) (h : zsH i) : Nonempty (zsAct i h) := by dsimp [zsAct]; exac
 
 /-- Asymmetric zero-sum payoff kernel for `zeroSeqGame`: matrix `[[1, -1], [-1, 3]]` for player
 `false`, negated for player `true`, with minimax value `1 / 3`. -/
-def zsLeafPayoff (a₁ a₂ : Bool) : Bool → ℝ
+@[expose] def zsLeafPayoff (a₁ a₂ : Bool) : Bool → ℝ
   | false => if !a₁ && !a₂ then 1 else if a₁ && a₂ then 3 else -1
   | true => -(if !a₁ && !a₂ then 1 else if a₁ && a₂ then 3 else -1)
 
@@ -303,12 +352,10 @@ theorem zeroSeqGame_isZeroSum : zeroSeqGame.IsZeroSum := by
   intro z
   rcases z with _ | ⟨⟩ | ⟨_ | _, sub⟩
   · cases sub
-    change (0 : ℝ) + 0 = 0
-    norm_num
+    simp
   · rcases sub with _ | ⟨⟩ | ⟨a₁, sub'⟩
     rcases sub' with _ | ⟨⟩ | ⟨a₂, sub''⟩
     cases sub''
-    change zsLeafPayoff a₁ a₂ false + zsLeafPayoff a₁ a₂ true = 0
     simp [zsLeafPayoff]
 
 theorem zeroSeqGame_perfectRecall_false : zeroSeqGame.PerfectRecall false := by
@@ -366,13 +413,13 @@ private theorem zeroSeqGame_perfectRecall : ∀ i, zeroSeqGame.PerfectRecall i
 
 /-- Minimax behavioral strategy profile for `zeroSeqGame`: player `false` chooses `Play` at `false`
 and `(2/3, 1/3)` at `true`; player `true` chooses `(2/3, 1/3)` at `()`. -/
-noncomputable def zsOptB : ∀ i : Bool, ∀ h : zsH i, zsAct i h → ℝ
+@[expose] noncomputable def zsOptB : ∀ i : Bool, ∀ h : zsH i, zsAct i h → ℝ
   | false, false => fun a => if a then 1 else 0
   | false, true => fun a => if a then 1 / 3 else 2 / 3
   | true, () => fun a => if a then 1 / 3 else 2 / 3
 
 /-- Suboptimal behavioral strategy for player `false`: choose `Stay` (`0`) at root. -/
-noncomputable def zsStayB : ∀ h : zsH false, zsAct false h → ℝ
+@[expose] noncomputable def zsStayB : ∀ h : zsH false, zsAct false h → ℝ
   | false => fun a => if a then 0 else 1
   | true => fun a => if a then 1 / 3 else 2 / 3
 
@@ -412,8 +459,8 @@ private theorem zs_evalBehavior_false (β₀ : ∀ h : zsH false, zsAct false h 
       β₀ false true *
         (β₀ true false * (β₁ () false * 1 + β₁ () true * (-1)) +
           β₀ true true * (β₁ () false * (-1) + β₁ () true * 3)) := by
-  simp only [ExtensiveTree.evalBehavior, Fintype.sum_bool, zsLeafPayoff,
-    Bool.not_false, Bool.not_true, Bool.and_false, Bool.and_true,
+  simp only [zeroSeqGame, ExtensiveTree.evalBehavior_decision, ExtensiveTree.evalBehavior_leaf,
+    Fintype.sum_bool, zsLeafPayoff, Bool.not_false, Bool.not_true, Bool.and_false, Bool.and_true,
     ↓reduceIte, Bool.false_eq_true]
   ring
 
@@ -491,7 +538,7 @@ theorem zeroSeqGame_equilibria_and_deviation :
         zeroSeqGame.behaviorToRealizationPlan i (zsOptB i) := by
     intro i
     ext σ
-    rw [ExtensiveTree.mixedToRealizationPlan_def, ExtensiveTree.behaviorToRealizationPlan]
+    rw [ExtensiveTree.mixedToRealizationPlan_def, ExtensiveTree.behaviorToRealizationPlan_apply]
     obtain ⟨z, _, hz⟩ := σ.2
     have hzn := (zeroSeqGame_perfectRecall i).noRepeatedInfoSet z
     rw [← hz, List.map_append] at hzn
@@ -526,22 +573,16 @@ private theorem zeroSeqGame_terminal_seq_cases (z : Terminal zeroSeqGame) :
       z.chanceWeight * z.payoff false = zsLeafPayoff a₁ a₂ false) := by
   rcases z with _ | ⟨⟩ | ⟨_ | _, sub⟩
   · cases sub
-    exact .inl ⟨rfl, rfl, show (1 : ℝ) * 0 = 0 by norm_num⟩
+    exact .inl ⟨by simp, by simp, by simp⟩
   · rcases sub with _ | ⟨⟩ | ⟨a₁, sub'⟩
     rcases sub' with _ | ⟨⟩ | ⟨a₂, sub''⟩
     cases sub''
-    exact .inr ⟨a₁, a₂, rfl, rfl,
-      show (1 : ℝ) * zsLeafPayoff a₁ a₂ false = zsLeafPayoff a₁ a₂ false from one_mul _⟩
-
-private theorem zsTerminal_chanceWeight (a₁ a₂ : Bool) :
-    (Terminal.decision true (Terminal.decision a₁ (Terminal.decision a₂ Terminal.leaf)) :
-        Terminal zeroSeqGame).chanceWeight = 1 := by
-  cases a₁ <;> cases a₂ <;> rfl
+    exact .inr ⟨a₁, a₂, by simp, by simp, by simp⟩
 
 private theorem zsTerminal_payoff_false (a₁ a₂ : Bool) :
     (Terminal.decision true (Terminal.decision a₁ (Terminal.decision a₂ Terminal.leaf)) :
         Terminal zeroSeqGame).payoff false = zsLeafPayoff a₁ a₂ false := by
-  cases a₁ <;> cases a₂ <;> rfl
+  simp
 
 private theorem zs_seqVar_true_cases (τ : SeqVar zeroSeqGame true) :
     τ.1 = [] ∨ τ.1 = [⟨(), false⟩] ∨ τ.1 = [⟨(), true⟩] := by
@@ -676,7 +717,9 @@ theorem zeroSeqGame_lp_minimax_value :
           fun τ₁ => if τ₁.1 = τ.1 then 1 else 0 := by
         ext τ₁
         simp only [Pi.single_apply, Subtype.ext_iff, eq_comm]
-      rw [hdot, hcol]
+      have hxStar_eq : xStar = fun σ => realizationProbBehavior (zsOptB false) σ.1 := by
+        ext σ; exact ExtensiveTree.behaviorToRealizationPlan_apply _ _ _ _
+      rw [hdot, hxStar_eq, hcol]
       exact seqPayoffMat_bilinear zeroSeqGame false (realizationProbBehavior (zsOptB false))
         (fun t => if t = τ.1 then 1 else 0)
     have hcol_q : ((seqMat zeroSeqGame true)ᵀ *ᵥ qConst) τ =
@@ -685,15 +728,15 @@ theorem zeroSeqGame_lp_minimax_value :
         seqMat_mulVec_some (zeroSeqGame_perfectRecall true) ⟨(), hunit_occ⟩]
       have hinf_eq : SeqVar.infoSeq (zeroSeqGame_perfectRecall true) hunit_occ =
           SeqVar.nil zeroSeqGame true := by
-        apply Subtype.ext; rw [SeqVar.infoSeq_val, hinfo_unit]; rfl
+        apply Subtype.ext; rw [SeqVar.infoSeq_val, hinfo_unit]; simp
       rw [hinf_eq]
       rcases zs_seqVar_true_cases τ with h | h | h
-      · have hτ : τ = SeqVar.nil zeroSeqGame true := Subtype.ext h
+      · have hτ : τ = SeqVar.nil zeroSeqGame true := Subtype.ext (by simp [h])
         have hne_nil : ∀ a : zsAct true (),
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall true) hunit_occ a ≠
               SeqVar.nil zeroSeqGame true := fun a he =>
           seqVar_infoSeqExt_ne_nil (zeroSeqGame_perfectRecall true) hunit_occ a
-            (congrArg Subtype.val he)
+            (by simpa using congrArg Subtype.val he)
         have hrhs : (if τ.1 = [] then (0 : ℝ) else 1 / 3) = 0 := by simp [h]
         rw [hrhs, hτ]
         simp [qConst, hne_nil, Pi.single_eq_same, Pi.single_eq_of_ne]
@@ -701,7 +744,7 @@ theorem zeroSeqGame_lp_minimax_value :
           Subtype.ext (by simp [SeqVar.infoSeqExt_val, hinfo_unit, h])
         have hne_nil : SeqVar.nil zeroSeqGame true ≠ τ := fun he => by
           have := congrArg Subtype.val he
-          rw [h] at this; exact absurd this.symm (by simp [SeqVar.nil])
+          rw [h] at this; exact absurd this.symm (by simp)
         have hne_tf : SeqVar.infoSeqExt (zeroSeqGame_perfectRecall true) hunit_occ true ≠ τ := by
           rw [hτ]
           intro he
@@ -715,7 +758,7 @@ theorem zeroSeqGame_lp_minimax_value :
           Subtype.ext (by simp [SeqVar.infoSeqExt_val, hinfo_unit, h])
         have hne_nil : SeqVar.nil zeroSeqGame true ≠ τ := fun he => by
           have := congrArg Subtype.val he
-          rw [h] at this; exact absurd this.symm (by simp [SeqVar.nil])
+          rw [h] at this; exact absurd this.symm (by simp)
         have hne_ft : SeqVar.infoSeqExt (zeroSeqGame_perfectRecall true) hunit_occ false ≠ τ := by
           rw [hτ]
           intro he
@@ -753,8 +796,7 @@ theorem zeroSeqGame_lp_minimax_value :
             rcases sub' with _ | ⟨⟩ | ⟨c₂, sub''⟩
             cases sub''
             cases c₁ <;> cases c₂ <;>
-              simp [zsOptB, realizationProbBehavior, zsTerminal_chanceWeight,
-                zsTerminal_payoff_false, zsLeafPayoff]
+              simp [zsOptB, zsTerminal_payoff_false, zsLeafPayoff]
         simp_rw [hterm]
         rw [sum_terminal_add _ _ (by simp)]
         norm_num
@@ -772,8 +814,7 @@ theorem zeroSeqGame_lp_minimax_value :
             rcases sub' with _ | ⟨⟩ | ⟨c₂, sub''⟩
             cases sub''
             cases c₁ <;> cases c₂ <;>
-              simp [zsOptB, realizationProbBehavior, zsTerminal_chanceWeight,
-                zsTerminal_payoff_false, zsLeafPayoff]
+              simp [zsOptB, zsTerminal_payoff_false, zsLeafPayoff]
         simp_rw [hterm]
         rw [sum_terminal_add _ _ (by simp)]
         norm_num
@@ -815,7 +856,9 @@ theorem zeroSeqGame_lp_minimax_value :
       have hcol : Pi.single (M := fun _ => ℝ) σ (1 : ℝ) =
           fun σ₁ => if σ₁.1 = σ.1 then 1 else 0 := by
         ext σ₁; simp only [Pi.single_apply, Subtype.ext_iff, eq_comm]
-      rw [hdot, hcol]
+      have hyStar_eq : yStar = fun τ => realizationProbBehavior (zsOptB true) τ.1 := by
+        ext τ; exact ExtensiveTree.behaviorToRealizationPlan_apply _ _ _ _
+      rw [hdot, hyStar_eq, hcol]
       exact seqPayoffMat_bilinear zeroSeqGame false (fun s => if s = σ.1 then 1 else 0)
         (realizationProbBehavior (zsOptB true))
     have hcol_p : ((seqMat zeroSeqGame false)ᵀ *ᵥ pConst) σ =
@@ -825,7 +868,7 @@ theorem zeroSeqGame_lp_minimax_value :
         seqMat_mulVec_some (zeroSeqGame_perfectRecall false) ⟨true, hT_occ⟩]
       have hinfF_eq : SeqVar.infoSeq (zeroSeqGame_perfectRecall false) hF_occ =
           SeqVar.nil zeroSeqGame false := by
-        apply Subtype.ext; rw [SeqVar.infoSeq_val, hinfo_F]; rfl
+        apply Subtype.ext; rw [SeqVar.infoSeq_val, hinfo_F]; simp
       have hinfT_eq : SeqVar.infoSeq (zeroSeqGame_perfectRecall false) hT_occ =
           SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ true := by
         apply Subtype.ext; rw [SeqVar.infoSeq_val, SeqVar.infoSeqExt_val, hinfo_F, hinfo_T]; rfl
@@ -836,15 +879,15 @@ theorem zeroSeqGame_lp_minimax_value :
         Bool.false_ne_true
           (congrArg Subtype.val (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj _ he)).1)
       rcases zs_seqVar_false_cases σ with h | h | h | h | h
-      · have hσ : σ = SeqVar.nil zeroSeqGame false := Subtype.ext h
+      · have hσ : σ = SeqVar.nil zeroSeqGame false := Subtype.ext (by simp [h])
         have hF : ∀ a, SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ a ≠
             SeqVar.nil zeroSeqGame false := fun a he =>
           seqVar_infoSeqExt_ne_nil (zeroSeqGame_perfectRecall false) hF_occ a
-            (congrArg Subtype.val he)
+            (by simpa using congrArg Subtype.val he)
         have hT : ∀ a, SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ a ≠
             SeqVar.nil zeroSeqGame false := fun a he =>
           seqVar_infoSeqExt_ne_nil (zeroSeqGame_perfectRecall false) hT_occ a
-            (congrArg Subtype.val he)
+            (by simpa using congrArg Subtype.val he)
         have hrhs : (if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 0 := by
           simp [h]
         rw [hrhs, hσ]
@@ -853,7 +896,7 @@ theorem zeroSeqGame_lp_minimax_value :
           Subtype.ext (by simp [SeqVar.infoSeqExt_val, hinfo_F, h])
         have hnil : SeqVar.nil zeroSeqGame false ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ false := fun he =>
-          seqVar_infoSeqExt_ne_nil _ hF_occ false (congrArg Subtype.val he).symm
+          seqVar_infoSeqExt_ne_nil _ hF_occ false (by simpa using (congrArg Subtype.val he).symm)
         have hft : SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ true ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ false := fun he =>
           Bool.false_ne_true.symm
@@ -869,7 +912,7 @@ theorem zeroSeqGame_lp_minimax_value :
           Subtype.ext (by simp [SeqVar.infoSeqExt_val, hinfo_F, h])
         have hnil : SeqVar.nil zeroSeqGame false ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ true := fun he =>
-          seqVar_infoSeqExt_ne_nil _ hF_occ true (congrArg Subtype.val he).symm
+          seqVar_infoSeqExt_ne_nil _ hF_occ true (by simpa using (congrArg Subtype.val he).symm)
         have htf : SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ false ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ true := fun he =>
           Bool.false_ne_true
@@ -885,7 +928,7 @@ theorem zeroSeqGame_lp_minimax_value :
           Subtype.ext (by simp [SeqVar.infoSeqExt_val, hinfo_T, h])
         have hnil : SeqVar.nil zeroSeqGame false ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ false := fun he =>
-          seqVar_infoSeqExt_ne_nil _ hT_occ false (congrArg Subtype.val he).symm
+          seqVar_infoSeqExt_ne_nil _ hT_occ false (by simpa using (congrArg Subtype.val he).symm)
         have hF : ∀ a, SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ a ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ false :=
           fun a he => hinj_diff he
@@ -901,7 +944,7 @@ theorem zeroSeqGame_lp_minimax_value :
           Subtype.ext (by simp [SeqVar.infoSeqExt_val, hinfo_T, h])
         have hnil : SeqVar.nil zeroSeqGame false ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ true := fun he =>
-          seqVar_infoSeqExt_ne_nil _ hT_occ true (congrArg Subtype.val he).symm
+          seqVar_infoSeqExt_ne_nil _ hT_occ true (by simpa using (congrArg Subtype.val he).symm)
         have hF : ∀ a, SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ a ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ true :=
           fun a he => hinj_diff he
@@ -950,8 +993,7 @@ theorem zeroSeqGame_lp_minimax_value :
             rcases sub' with _ | ⟨⟩ | ⟨c₂, sub''⟩
             cases sub''
             cases c₁ <;> cases c₂ <;>
-              simp [zsOptB, realizationProbBehavior, zsTerminal_chanceWeight,
-                zsTerminal_payoff_false, zsLeafPayoff]
+              simp [zsOptB, zsTerminal_payoff_false, zsLeafPayoff]
         simp_rw [hterm]
         rw [sum_terminal_add _ _ (by simp)]
         norm_num
@@ -972,8 +1014,7 @@ theorem zeroSeqGame_lp_minimax_value :
             rcases sub' with _ | ⟨⟩ | ⟨c₂, sub''⟩
             cases sub''
             cases c₁ <;> cases c₂ <;>
-              simp [zsOptB, realizationProbBehavior, zsTerminal_chanceWeight,
-                zsTerminal_payoff_false, zsLeafPayoff]
+              simp [zsOptB, zsTerminal_payoff_false, zsLeafPayoff]
         simp_rw [hterm]
         rw [sum_terminal_add _ _ (by simp)]
         norm_num

@@ -92,7 +92,7 @@ theorem start_inSpace : ComputableInSpace (start (Q := Q) k s)
 /-- Initializer clocks need no input; evaluator clocks preserve the original-input queries. -/
 theorem machine_query_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).query encState encNat (fun a => (encState a).length) :=
-  sumElim (budget_const (encIn := Initializer.encState) (encB := encNat) 0 (.refl _))
+  sumElim (budget_const (encIn := Initializer.encState) (encB := encNat) 0)
     (ConcreteEvaluator.machine_query_inSpace M e)
 
 /-- Native transitions cover streamed growth, handoff and concrete evaluator execution. -/
@@ -115,18 +115,18 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
 theorem machine_emit_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).emit (encPair encState (encOption encBool)) encBits
       (fun a => (encPair encState (encOption encBool) a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Initialization remains live until handoff; concrete evaluation decides final completion. -/
 theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).halted encState encBool (fun a => (encState a).length) :=
-  sumElim (budget_const (encIn := Initializer.encState) (encB := encBool) false (.refl _))
+  sumElim (budget_const (encIn := Initializer.encState) (encB := encBool) false)
     (ConcreteEvaluator.machine_halted_inSpace M e)
 
 /-- The final bank is read from the actual returned state. -/
 theorem machine_finish_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).finish encState encBits (fun a => (encState a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 omit [Finite Q] in
 /-- Decode only returned active evaluator banks; incomplete or suspended states give no decision. -/
@@ -155,16 +155,20 @@ theorem outcome_inSpace (e : Q ≃ Fin s) : ComputableInSpace (outcome (k := k) 
   have hbank := hraw.fst'
   have hwidth := budget_comp_linear (Encoding.width_inSpace k s) hb
   have hdecodeArgs := budget_prod (budget_prod hwidth (budget_prod hm (budget_prod hp
-    (budget_prod hr (budget_const (encB := encNat) 0 (.refl _)))))) hbank
+    (budget_prod hr (budget_const (encB := encNat) 0))))) hbank
   have hword := budget_comp_linear listToBits
     (budget_comp_linear RawController.Output.decode_inSpace hdecodeArgs)
   have hroot := budget_comp_linear (RootDecision.classify_inSpace (k := k) e)
     (budget_prod hb hword)
   have hsuspended := budget_const (encIn := encPair ScheduleSearch.encArgs
     (encPair encC (QueryReplay.GateReply.encState (k := k) (Q := Q))))
-    (encB := encOption encBool) none (.refl _)
-  have hinitial := budget_const (encIn := encPair ScheduleSearch.encArgs Initializer.encState)
-    (encB := encOption encBool) none (.refl _)
+    (Bs := fun a => (encPair ScheduleSearch.encArgs
+      (encPair encC (QueryReplay.GateReply.encState (k := k) (Q := Q))) a).length)
+    (encB := encOption encBool) none
+  have hinitial :=
+    budget_const (Bs := fun a => (encPair ScheduleSearch.encArgs Initializer.encState a).length)
+      (encIn := encPair ScheduleSearch.encArgs Initializer.encState)
+    (encB := encOption encBool) none
   exact (sumElimSnd hinitial (sumElimSnd hroot hsuspended)).of_enc_eq fun a => by
     rcases a with ⟨args, initial | (active | suspended)⟩ <;> rfl
 

@@ -12,25 +12,30 @@ import Mathlib.Data.Fin.VecNotation
 /-!
 # Extensive-form games, backward induction, sequence form, and Kuhn's theorem
 
-Non-vacuous checked examples exercising [vonStengel2007], Chapter 3:
+Non-vacuous checked examples exercising finite extensive-form games and [vonStengel2007], Chapter 3:
 
-* Entry deterrence (`entryTree`): finite deterministic perfect-information game with distinct leaf
-  payoffs ([vonStengel2007], Section 3.8, Algorithm 3.9). Backward induction yields the unique
-  subgame-perfect equilibrium `(Enter, Accommodate)` with payoff `(2, 1)`, whereas the non-credible
-  threat `(Out, Fight)` is a pure Nash equilibrium of `entryTree.toCostGame` that fails to be
-  subgame-perfect.
+* Entry deterrence (`entryTree`): classic finite deterministic perfect-information game with
+  distinct leaf payoffs. Backward induction ([vonStengel2007], Algorithm 3.9) and uniqueness yield
+  the unique subgame-perfect equilibrium `(Enter, Accommodate)` with payoff `(2, 1)`, whereas the
+  non-credible threat `(Out, Fight)` is a pure Nash equilibrium of `entryTree.toCostGame` that
+  fails to be subgame-perfect.
 * Chance tree with distinct leaf payoffs (`chanceTieTree`): distinct leaf payoffs alone do not
   rule out continuation ties once chance nodes are present, so `IsDeterministic` cannot be dropped
   from `existsUnique_isPureSPE`; Zermelo's existence theorem (`exists_isPureSPE`) still applies.
 * Sequential hidden-move game (`seqGame`): two-player extensive game with perfect recall
   ([vonStengel2007], Sections 3.7, 3.9–3.10). Checks reduced strategic-form equivalence
-  (`ReducedEquiv`), flow conservation (`IsRealizationPlan`), explicit behavioral reconstruction via
+  (`ReducedEquiv`, `evalPure_eq_of_reducedEquiv`), sequence count (`card_seqVar`), flow
+  conservation (`IsRealizationPlan`), mixed realization equivalence
+  (`realizationEquivMixed_iff_mixedToRealizationPlan_eq`, Proposition 3.11), behavioral uniqueness
+  (`realizationPlanToBehavior_unique`, Proposition 3.10), explicit behavioral reconstruction via
   Kuhn's theorem (`kuhn_theorem`), two-player bilinear sequence form
   (`evalBehavior_eq_seqPayoffMat`, `evalMixed_eq_seqPayoffMat`), and extreme-point / vertex
   separation (`isVertex_seqPolyMat_iff`).
-* Imperfect-recall counterexample (`absentGame`, [vonStengel2007], Exercise 3.12): a single-player
-  game violating `PerfectRecall` (while still satisfying `NoRepeatedInfoSet`) in which a mixed
-  strategy `½(false, false) + ½(true, true)` has no realization-equivalent behavior strategy.
+* Imperfect-recall counterexample (`forgetfulGame`): a single-player game violating
+  `PerfectRecall` (while still satisfying `NoRepeatedInfoSet`, so not absent-mindedness in the
+  repeated-information-set sense) in which a mixed strategy `½(false, false) + ½(true, true)` has no
+  realization-equivalent behavior strategy, showing perfect recall cannot be dropped from Kuhn's
+  theorem.
 -/
 
 namespace CslibFrontierTests.GameTheory.Extensive
@@ -39,9 +44,9 @@ open Cslib.GameTheory Cslib.GameTheory.Extensive Finset Matrix
 
 /-! ### 1. Perfect-information entry deterrence and non-credible threats -/
 
-/-- Entry-deterrence game ([vonStengel2007], Section 3.8): player `0` (Entrant) chooses `Out`
-(`false`, payoff `(1, 2)`) or `Enter` (`true`); upon entry, player `1` (Incumbent) chooses
-`Accommodate` (`false`, payoff `(2, 1)`) or `Fight` (`true`, payoff `(0, 0)`). -/
+/-- Entry-deterrence game: player `0` (Entrant) chooses `Out` (`false`, payoff `(1, 2)`) or
+`Enter` (`true`); upon entry, player `1` (Incumbent) chooses `Accommodate` (`false`, payoff
+`(2, 1)`) or `Fight` (`true`, payoff `(0, 0)`). -/
 abbrev entryTree : PerfectInfoTree (Fin 2) :=
   .decision 0 fun
     | false => .leaf ![1, 2]
@@ -97,27 +102,44 @@ theorem entryTree_hasDistinctLeafPayoffs : entryTree.HasDistinctLeafPayoffs := b
 theorem entrySPE_isPureSPE : entryTree.IsPureSPE entrySPE := by
   rw [PerfectInfoTree.isPureSPE_iff_oneShot]
   refine ⟨fun a => ?_, fun b => ?_⟩
-  · cases a <;> simp
+  · cases a
+    · dsimp only [entrySPE]
+      rw [PerfectInfoTree.PureStrategy.headChoice_decision]
+      simp only [PerfectInfoTree.PureStrategy.childDecision_decision,
+        PerfectInfoTree.expectedPayoff_decision]
+      rw [PerfectInfoTree.PureStrategy.headChoice_decision]
+      simp
+    · dsimp only [entrySPE]
+      rw [PerfectInfoTree.PureStrategy.headChoice_decision]
   · cases b
     · trivial
     · refine ⟨fun f => ?_, fun f => ?_⟩
-      · cases f <;> simp
+      · dsimp only [entrySPE]
+        rw [PerfectInfoTree.PureStrategy.childDecision_decision,
+          PerfectInfoTree.PureStrategy.headChoice_decision]
+        cases f <;> simp
       · cases f <;> trivial
 
 /-- Every pure SPE (in particular backward induction) equals `entrySPE`, with payoff `(2, 1)`. -/
 theorem entryTree_unique_spe :
-    (entryTree.backwardInduction).1 = entrySPE ∧
+    entryTree.backwardInduction.strategy = entrySPE ∧
       (∀ s, entryTree.IsPureSPE s → s = entrySPE) ∧
       entryTree.expectedPayoff entrySPE = ![2, 1] := by
   obtain ⟨u, _, hu_uniq⟩ :=
     PerfectInfoTree.existsUnique_isPureSPE entryTree_isDeterministic
       entryTree_hasDistinctLeafPayoffs
-  have hbi : (entryTree.backwardInduction).1 = entrySPE := by
+  have hbi : entryTree.backwardInduction.strategy = entrySPE := by
     rw [hu_uniq _ (PerfectInfoTree.isPureSPE_backwardInduction entryTree),
       hu_uniq _ entrySPE_isPureSPE]
   refine ⟨hbi, fun s hs => ?_, ?_⟩
   · rw [hu_uniq s hs, hu_uniq entrySPE entrySPE_isPureSPE]
   · ext i
+    rw [PerfectInfoTree.expectedPayoff_decision]
+    dsimp only [entrySPE]
+    rw [PerfectInfoTree.PureStrategy.headChoice_decision]
+    simp only [PerfectInfoTree.PureStrategy.childDecision_decision,
+      PerfectInfoTree.expectedPayoff_decision]
+    rw [PerfectInfoTree.PureStrategy.headChoice_decision]
     fin_cases i <;> simp
 
 /-- `(Out, Fight)` is a pure Nash equilibrium of the strategic form yet fails `IsPureSPE`. -/
@@ -126,20 +148,34 @@ theorem entryThreat_isPureNash_not_isPureSPE :
   constructor
   · intro i s'
     match i with
-    | ⟨0, _⟩ =>
-      simp only [PerfectInfoTree.toCostGame, neg_le_neg_iff]
-      change entryTree.expectedPayoff (Function.update entryThreat 0 s') 0 ≤
-        entryTree.expectedPayoff entryThreat 0
-      have hupd0 : (Function.update entryThreat (0 : Fin 2) s' 0).headChoice = s'.headChoice := by
+    | ⟨0, hi⟩ =>
+      simp only [PerfectInfoTree.toCostGame_cost, neg_le_neg_iff]
+      have hupd0 : (Function.update entryThreat ⟨0, hi⟩ s' 0).headChoice = s'.headChoice := by
         simp
-      rw [PerfectInfoTree.expectedPayoff_decision, hupd0]
+      rw [PerfectInfoTree.expectedPayoff_decision, hupd0, PerfectInfoTree.expectedPayoff_decision]
+      dsimp only [entryThreat]
+      rw [PerfectInfoTree.PureStrategy.headChoice_decision]
       cases s'.headChoice
       · simp [Function.update]
-      · simp [Function.update]
-    | ⟨1, _⟩ =>
-      simp only [PerfectInfoTree.toCostGame, neg_le_neg_iff]
-      change entryTree.expectedPayoff (Function.update entryThreat 1 s') 1 ≤
-        entryTree.expectedPayoff entryThreat 1
+      · simp only [PerfectInfoTree.PureStrategy.childDecision_decision,
+          PerfectInfoTree.expectedPayoff_decision]
+        have h1 : (Function.update entryThreat ⟨0, hi⟩ s' 1).childDecision true =
+            (entryThreat 1).childDecision true := by
+          simp [Function.update]
+        dsimp only [entryThreat] at h1 ⊢
+        rw [h1, PerfectInfoTree.PureStrategy.childDecision_decision,
+          PerfectInfoTree.PureStrategy.headChoice_decision]
+        simp
+    | ⟨1, hi⟩ =>
+      simp only [PerfectInfoTree.toCostGame_cost, neg_le_neg_iff]
+      rw [PerfectInfoTree.expectedPayoff_decision, PerfectInfoTree.expectedPayoff_decision]
+      have h0 : (Function.update entryThreat ⟨1, hi⟩ s' 0).headChoice = false := by
+        have hne : (0 : Fin 2) ≠ ⟨1, hi⟩ := Fin.ne_of_val_ne Nat.zero_ne_one
+        rw [Function.update_of_ne hne]
+        simp [entryThreat]
+      have h0' : (entryThreat 0).headChoice = false := by
+        simp [entryThreat]
+      rw [h0, h0']
       simp [Function.update]
   · intro hspe
     exact absurd (entryTree_unique_spe.2.1 entryThreat hspe) (by
@@ -205,7 +241,10 @@ theorem chanceTieTree_hasDistinctLeafPayoffs : chanceTieTree.HasDistinctLeafPayo
 theorem chanceTieStrat_isPureSPE (b : Bool) : chanceTieTree.IsPureSPE (chanceTieStrat b) := by
   rw [PerfectInfoTree.isPureSPE_iff_oneShot]
   refine ⟨fun a => ?_, fun br => ?_⟩
-  · cases b <;> cases a <;> simp [chanceTieStrat] <;> norm_num
+  · dsimp only [chanceTieStrat]
+    rw [PerfectInfoTree.PureStrategy.headChoice_decision]
+    cases b <;> cases a <;>
+      simp [PerfectInfoTree.PureStrategy.childDecision_decision] <;> norm_num
   · cases br <;> intro c <;> cases c <;> trivial
 
 theorem chanceTieTree_not_hasNoContinuationTies : ¬ chanceTieTree.HasNoContinuationTies := by
@@ -368,6 +407,51 @@ theorem seqGame_reducedEquiv_stay :
     have hp := hm ⟨false, true⟩ (by simp [Node.playerSeq])
     simp at hp
 
+/-- Under `seqGame_reducedEquiv_stay`, `(Stay, L)` and `(Stay, R)` yield identical payoffs
+against any opponent strategy (`evalPure_eq_of_reducedEquiv`), and the corresponding pure mixed
+strategies are realization-equivalent (`realizationEquivMixed_iff_mixedToRealizationPlan_eq`). -/
+theorem seqGame_reduced_and_prop311 :
+    (∀ s : ∀ j, PureStrategy seqH seqAct j, ∀ k,
+      seqGame.evalPure (Function.update s false fun _ => false) k =
+        seqGame.evalPure (Function.update s false fun b => b) k) ∧
+    seqGame.RealizationEquivMixed false
+      (Pi.single (fun _ : Bool => false) (1 : ℝ))
+      (Pi.single (fun b : Bool => b) (1 : ℝ)) := by
+  refine ⟨fun s k => evalPure_eq_of_reducedEquiv seqGame_reducedEquiv_stay s k, ?_⟩
+  have hpos : seqGame.HasPositiveChance := by
+    intro b
+    cases b
+    · trivial
+    · intro a₁ a₂
+      trivial
+  have hnr : ∀ j ≠ false, seqGame.NoRepeatedInfoSet j := by
+    intro j hj
+    cases j
+    · exact absurd rfl hj
+    · exact seqGame_perfectRecall_true.noRepeatedInfoSet
+  rw [realizationEquivMixed_iff_mixedToRealizationPlan_eq hpos hnr]
+  rw [← pureToRealizationPlan_eq_mixedToRealizationPlan,
+    ← pureToRealizationPlan_eq_mixedToRealizationPlan]
+  exact seqGame_reducedEquiv_stay
+
+open Classical in
+/-- For player `false` in `seqGame`, the 2 occurring binary information sets yield `1 + 4 = 5`
+realized sequences (`card_seqVar`). -/
+theorem seqGame_card_seqVar : Fintype.card (SeqVar seqGame false) = 5 := by
+  rw [card_seqVar seqGame_perfectRecall_false]
+  have hocc : ∀ h : seqH false, seqGame.OccursInfoSet false h := by
+    intro h
+    cases h
+    · exact ⟨Node.here, rfl⟩
+    · exact ⟨Node.decision true Node.here, rfl⟩
+  let e : {h : seqH false // seqGame.OccursInfoSet false h} ≃ Bool :=
+    { toFun := fun h => h.1
+      invFun := fun b => ⟨b, hocc b⟩
+      left_inv := fun ⟨_, _⟩ => rfl
+      right_inv := fun _ => rfl }
+  rw [Fintype.sum_equiv e _ (fun _ => Fintype.card Bool) (fun _ => rfl)]
+  simp [Fintype.card_bool]
+
 /-- Kuhn's theorem produces an explicit behavioral realization-equivalent strategy `β` for
 `seqMixed`, matching its realization plan `x`, bilinear sequence-form payoffs, and separating
 pure polytope vertices from strictly mixed realization plans (`isVertex_seqPolyMat_iff`). -/
@@ -389,8 +473,13 @@ theorem seqGame_kuhn_and_sequenceForm :
       β true true = 2 / 3 ∧
       seqGame.evalBehavior profB false = 1 ∧
       seqGame.evalMixed profM false = 1 ∧
+      (seqGame.behaviorToRealizationPlan false β ⬝ᵥ
+        seqGame.seqPayoffMat false *ᵥ seqGame.behaviorToRealizationPlan true βOpp) = 1 ∧
       (x ⬝ᵥ seqGame.seqPayoffMat false *ᵥ seqGame.mixedToRealizationPlan true (profM true)) =
         1 ∧
+      (∀ β' : ∀ h : seqH false, seqAct false h → ℝ,
+        seqGame.behaviorToRealizationPlan false β' = x →
+        β' false = β false ∧ β' true = β true) ∧
       Matrix.IsVertex (seqPolyMat seqGame false) (seqPolyRhs seqGame false)
         (seqGame.pureToRealizationPlan false fun _ => false) ∧
       ¬ Matrix.IsVertex (seqPolyMat seqGame false) (seqPolyRhs seqGame false) x := by
@@ -497,6 +586,15 @@ theorem seqGame_kuhn_and_sequenceForm :
       simp [profB]
       ring
     rw [hother, hevalB]
+  have hbilinB :
+      (seqGame.behaviorToRealizationPlan false β ⬝ᵥ
+        seqGame.seqPayoffMat false *ᵥ seqGame.behaviorToRealizationPlan true βOpp) = 1 := by
+    have hb := evalBehavior_eq_seqPayoffMat seqGame profB false
+    change seqGame.evalBehavior profB false =
+      seqGame.behaviorToRealizationPlan false β ⬝ᵥ
+        seqGame.seqPayoffMat false *ᵥ seqGame.behaviorToRealizationPlan true βOpp at hb
+    rw [hevalB] at hb
+    exact hb.symm
   have hbilin :
       (x ⬝ᵥ seqGame.seqPayoffMat false *ᵥ seqGame.mixedToRealizationPlan true (profM true)) =
         1 := by
@@ -505,6 +603,12 @@ theorem seqGame_kuhn_and_sequenceForm :
       simp [profM, x]
     rw [hmx0, hevalM] at hm
     exact hm.symm
+  have huniqB :
+      ∀ β' : ∀ h : seqH false, seqAct false h → ℝ,
+        seqGame.behaviorToRealizationPlan false β' = x →
+        β' false = β false ∧ β' true = β true := fun β' hreal =>
+    ⟨realizationPlanToBehavior_unique seqGame_perfectRecall_false hreal hh0 hpos0,
+     realizationPlanToBehavior_unique seqGame_perfectRecall_false hreal hh1 hpos1⟩
   have hvtx_pure : Matrix.IsVertex (seqPolyMat seqGame false) (seqPolyRhs seqGame false)
       (seqGame.pureToRealizationPlan false fun _ => false) :=
     (isVertex_seqPolyMat_iff seqGame_perfectRecall_false _).2 ⟨fun _ => false, rfl⟩
@@ -520,65 +624,66 @@ theorem seqGame_kuhn_and_sequenceForm :
     rw [ExtensiveTree.pureToRealizationPlan_def, SeqVar.infoSeqExt_val, hinfo0,
       List.nil_append, hlhs] at hval
     split_ifs at hval <;> norm_num at hval
-  refine ⟨hx, hk.1, hk.2.2, hβ0f, hβ1f, hβ1t, hevalB, hevalM, hbilin, hvtx_pure, hnot_vtx_x⟩
+  refine ⟨hx, hk.1, hk.2.2, hβ0f, hβ1f, hβ1t, hevalB, hevalM, hbilinB, hbilin, huniqB,
+    hvtx_pure, hnot_vtx_x⟩
 
-/-! ### 4. Imperfect-recall counterexample to Kuhn's theorem (NRTV Exercise 3.12) -/
+/-! ### 4. Imperfect-recall counterexample to Kuhn's theorem -/
 
-/-- Information sets for `absentGame`. -/
-abbrev absentH : Unit → Type := fun _ => Bool
+/-- Information sets for `forgetfulGame`. -/
+abbrev forgetfulH : Unit → Type := fun _ => Bool
 
-/-- Actions for `absentGame`. -/
-abbrev absentAct : ∀ i : Unit, absentH i → Type := fun _ _ => Bool
+/-- Actions for `forgetfulGame`. -/
+abbrev forgetfulAct : ∀ i : Unit, forgetfulH i → Type := fun _ _ => Bool
 
-/-- One-player imperfect-recall game ([vonStengel2007], Exercise 3.12): at root information set
+/-- Classic one-player imperfect-recall counterexample to Kuhn's theorem: at root information set
 `false` the player picks `false`/`true`, then at second information set `true` forgets the first
 choice and picks `false`/`true`. Payoff is `1` when the two choices agree and `0` otherwise. -/
-abbrev absentGame : ExtensiveTree Unit absentH absentAct :=
+abbrev forgetfulGame : ExtensiveTree Unit forgetfulH forgetfulAct :=
   .decision () false fun a₀ =>
     .decision () true fun a₁ =>
       .leaf fun _ => if a₀ == a₁ then 1 else 0
 
-theorem absentGame_not_perfectRecall : ¬ absentGame.PerfectRecall () := by
+theorem forgetfulGame_not_perfectRecall : ¬ forgetfulGame.PerfectRecall () := by
   intro hpr
-  have hv₁ : (Node.decision false (Node.here (T := _)) : Node absentGame).IsDecisionOf () true :=
+  have hv₁ : (Node.decision false (Node.here (T := _)) : Node forgetfulGame).IsDecisionOf () true :=
     rfl
-  have hv₂ : (Node.decision true (Node.here (T := _)) : Node absentGame).IsDecisionOf () true :=
+  have hv₂ : (Node.decision true (Node.here (T := _)) : Node forgetfulGame).IsDecisionOf () true :=
     rfl
   have heq := hpr hv₁ hv₂
   simp [Node.playerSeq] at heq
 
-theorem absentGame_noRepeatedInfoSet : absentGame.NoRepeatedInfoSet () := by
+theorem forgetfulGame_noRepeatedInfoSet : forgetfulGame.NoRepeatedInfoSet () := by
   intro z
   rcases z with _ | ⟨⟩ | ⟨a₀, sub⟩
   rcases sub with _ | ⟨⟩ | ⟨a₁, leaf⟩
   cases leaf
   simp
 
-/-- Mixed strategy `½(false, false) + ½(true, true)` in `absentGame`. -/
-noncomputable def absentMixed : PureStrategy absentH absentAct () → ℝ :=
+/-- Mixed strategy `½(false, false) + ½(true, true)` in `forgetfulGame`. -/
+noncomputable def forgetfulMixed : PureStrategy forgetfulH forgetfulAct () → ℝ :=
   fun s => if s false == s true then 1 / 2 else 0
 
-theorem absentMixed_isMixed : IsMixedStrategy absentMixed := by
+theorem forgetfulMixed_isMixed : IsMixedStrategy forgetfulMixed := by
   refine isMixedStrategy_iff.2 ⟨fun s => ?_, ?_⟩
-  · dsimp [absentMixed]
+  · dsimp [forgetfulMixed]
     split_ifs <;> norm_num
-  · change (∑ s : Bool → Bool, absentMixed s) = 1
+  · change (∑ s : Bool → Bool, forgetfulMixed s) = 1
     rw [sum_bool_fun_cases]
-    norm_num [absentMixed]
+    norm_num [forgetfulMixed]
 
 /-- Perfect recall cannot be dropped in Kuhn's theorem: no behavior strategy is
-realization-equivalent to `absentMixed` in `absentGame`. -/
-theorem absentGame_no_realizationEquiv_behavior :
-    ¬ ∃ β : ∀ h : absentH (), absentAct () h → ℝ,
-      IsBehaviorStrategy β ∧ absentGame.RealizationEquivMixedBehavior () absentMixed β := by
+realization-equivalent to `forgetfulMixed` in `forgetfulGame`. -/
+theorem forgetfulGame_no_realizationEquiv_behavior :
+    ¬ ∃ β : ∀ h : forgetfulH (), forgetfulAct () h → ℝ,
+      IsBehaviorStrategy β ∧ forgetfulGame.RealizationEquivMixedBehavior () forgetfulMixed β := by
   rintro ⟨β, _, heq⟩
-  let s₀ : ∀ _ : Unit, PureStrategy absentH absentAct () := fun _ _ => false
-  let zff : Terminal absentGame := .decision false (.decision false .leaf)
-  let zft : Terminal absentGame := .decision false (.decision true .leaf)
-  let ztf : Terminal absentGame := .decision true (.decision false .leaf)
-  let ztt : Terminal absentGame := .decision true (.decision true .leaf)
-  have eq_of_z : ∀ z : Terminal absentGame,
-      realizationProbMixed absentMixed (z.seq ()) = realizationProbBehavior β (z.seq ()) := by
+  let s₀ : ∀ _ : Unit, PureStrategy forgetfulH forgetfulAct () := fun _ _ => false
+  let zff : Terminal forgetfulGame := .decision false (.decision false .leaf)
+  let zft : Terminal forgetfulGame := .decision false (.decision true .leaf)
+  let ztf : Terminal forgetfulGame := .decision true (.decision false .leaf)
+  let ztt : Terminal forgetfulGame := .decision true (.decision true .leaf)
+  have eq_of_z : ∀ z : Terminal forgetfulGame,
+      realizationProbMixed forgetfulMixed (z.seq ()) = realizationProbBehavior β (z.seq ()) := by
     intro z
     have h := heq s₀ z
     rw [terminalProbWithFactor_def, terminalProbWithFactor_def] at h
@@ -597,7 +702,7 @@ theorem absentGame_no_realizationEquiv_behavior :
     rw [sum_bool_fun_cases] at h
     simp only [zff, Terminal.seq_decision_self, Terminal.seq_leaf] at h
     simp only [realizationProbBehavior_cons, realizationProbBehavior_nil, mul_one,
-      absentMixed] at h
+      forgetfulMixed] at h
     norm_num at h
     exact h
   have hft : (0 : ℝ) = β false false * β true true := by
@@ -607,7 +712,7 @@ theorem absentGame_no_realizationEquiv_behavior :
     rw [sum_bool_fun_cases] at h
     simp only [zft, Terminal.seq_decision_self, Terminal.seq_leaf] at h
     simp only [realizationProbBehavior_cons, realizationProbBehavior_nil, mul_one,
-      absentMixed] at h
+      forgetfulMixed] at h
     norm_num at h
     rcases h with h0 | h0 <;> simp [h0]
   have htf : (0 : ℝ) = β false true * β true false := by
@@ -617,7 +722,7 @@ theorem absentGame_no_realizationEquiv_behavior :
     rw [sum_bool_fun_cases] at h
     simp only [ztf, Terminal.seq_decision_self, Terminal.seq_leaf] at h
     simp only [realizationProbBehavior_cons, realizationProbBehavior_nil, mul_one,
-      absentMixed] at h
+      forgetfulMixed] at h
     norm_num at h
     rcases h with h0 | h0 <;> simp [h0]
   have htt : (1 / 2 : ℝ) = β false true * β true true := by
@@ -627,7 +732,7 @@ theorem absentGame_no_realizationEquiv_behavior :
     rw [sum_bool_fun_cases] at h
     simp only [ztt, Terminal.seq_decision_self, Terminal.seq_leaf] at h
     simp only [realizationProbBehavior_cons, realizationProbBehavior_nil, mul_one,
-      absentMixed] at h
+      forgetfulMixed] at h
     norm_num at h
     exact h
   have hcontra : (1 / 4 : ℝ) = 0 := by

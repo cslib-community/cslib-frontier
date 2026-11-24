@@ -124,12 +124,6 @@ theorem bootstrappable : Scheme.Bootstrappable decryptionCircuits where
     have h := DecryptionCircuit.layers_augment_le_depthBudget security
     rwa [Layered.length_compile] at h
 
-private theorem native_dimension : ComputableInPolyTime dimension encUnary encUnary :=
-  Parameters.computableInPolyTime_dimension
-
-private theorem native_width : ComputableInPolyTime width encUnary encUnary :=
-  computableInPolyTime_width
-
 /-- Key generation is strict PPT in the unary security parameter. -/
 theorem isPPTOn_keyGen : IsPPTOn encUnary (encPair encBits encBits) scheme.keyGen :=
   LWE.isPPTOn_keyGenSerialized Parameters.computableInPolyTime_dimension
@@ -157,8 +151,8 @@ theorem computableInPolyTime_decrypt :
   change ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
     decryptSerialized (dimension p.1) (width p.1) p.2.1 p.2.2) _ _
   apply computableInPolyTime_decryptSerialized
-  · exact native_dimension.comp (.fst _ _)
-  · exact native_width.comp (.fst _ _)
+  · exact Parameters.computableInPolyTime_dimension.comp (.fst _ _)
+  · exact computableInPolyTime_width.comp (.fst _ _)
   · fun_prop
   · fun_prop
 
@@ -171,8 +165,8 @@ theorem isPPTOn_evaluate :
     pure (evaluateCircuit (dimension p.1) (width p.1) p.2.2.1 p.2.2.2))
   apply ComputableInPolyTime.isPPTOn
   apply computableInPolyTime_evaluateCircuit
-  · exact native_dimension.comp (.fst _ _)
-  · exact native_width.comp (.fst _ _)
+  · exact Parameters.computableInPolyTime_dimension.comp (.fst _ _)
+  · exact computableInPolyTime_width.comp (.fst _ _)
   · fun_prop
   · fun_prop
 
@@ -184,7 +178,8 @@ theorem computableInPolyTime_decryptionCircuits :
   change ComputableInPolyTime (fun security => (fun p : ℕ × ℕ =>
       (⟨DecryptionCircuit.inputWidth p.1 p.2, DecryptionCircuit.circuit p.1 p.2⟩ :
         Σ k, Circuit signature k 1)) (dimension security, width security)) _ _
-  exact DecryptionCircuit.computableInPolyTime_circuit.comp (native_dimension.prod native_width)
+  exact DecryptionCircuit.computableInPolyTime_circuit.comp
+    (Parameters.computableInPolyTime_dimension.prod computableInPolyTime_width)
 
 /-- The scheme's key generation and encryption are IND-CPA under decision LWE for exactly this
 family's dimensions, modulus and centered-binomial noise. -/

@@ -7,14 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Vertex
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VertexExtremePoints
 public import CslibFrontier.GameTheory.Extensive.Basic
-public import Mathlib.Analysis.Convex.Extreme
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 import Mathlib.Analysis.Convex.Combination
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.Pi
+import Mathlib.Data.List.Infix
+import Mathlib.Data.List.Sigma
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -28,8 +29,8 @@ recall ([vonStengel2007], Sections 3.9–3.10):
 * `SeqVar T i`: the finite type of realized player-`i` sequences (`σ : Seq H Act i` occurring as a
   prefix of some terminal path's `z.seq i`).
 * Under `PerfectRecall T i`, every occurring information set `h` has a unique preceding
-  player-`i` sequence `infoSeq T i h`, and `seqVarEquiv` bijects non-empty sequences in
-  `SeqVar T i` with choices `⟨h, a⟩` at occurring information sets ([vonStengel2007], §3.10).
+  player-`i` sequence `infoSeq T i h`, and `seqVarEquiv` bijects `Unit ⊕ (Σ h, Act i h.1)` with
+  `SeqVar T i` (`|S_i| = 1 + ∑_{h ∈ H_i} |C_h|`, `card_seqVar`, [vonStengel2007], §3.10, p. 70).
 * `seqMat T i *ᵥ x = seqRhs T i` (`E x = e`) and `x ≥ 0` define `IsRealizationPlan T i x`,
   unfolded by `isRealizationPlan_iff` as `x ∅ = 1` together with flow conservation
   `∑ a : Act i h, x (σ_h a) = x σ_h` at each occurring information set `h`.
@@ -64,147 +65,9 @@ open Finset Matrix
 
 universe u v
 
-section MatrixPolytope
-
-/-- For any finite inequality system `A *ᵥ x ≤ b` over `ℝ`, basic feasible vertices
-(`Matrix.IsVertex A b x`) coincide with convex-geometric extreme points of `{y | A *ᵥ y ≤ b}`. -/
-theorem isVertex_iff_mem_extremePoints_real {κ α : Type*} [Fintype κ] [Fintype α]
-    (A : Matrix κ α ℝ) (b : κ → ℝ) (x : α → ℝ) :
-    Matrix.IsVertex A b x ↔ x ∈ ({y : α → ℝ | A *ᵥ y ≤ b}).extremePoints ℝ := by
-  classical
-  rw [Matrix.isVertex_iff]
-  constructor
-  · rintro ⟨hx, htight⟩
-    refine ⟨hx, fun x₁ hx₁ x₂ hx₂ ⟨s, t, hs, ht, hst, hxst⟩ => ?_⟩
-    have hfull : ∀ k ∈ Matrix.tightRows A b x, (A *ᵥ (x₁ - x)) k = 0 := by
-      intro k hk
-      have hkx : (A *ᵥ x) k = b k := Matrix.mem_tightRows.1 hk
-      have hcomb : s * (b k - (A *ᵥ x₁) k) + t * (b k - (A *ᵥ x₂) k) = 0 := by
-        have hmul : (A *ᵥ x) k = s * (A *ᵥ x₁) k + t * (A *ᵥ x₂) k := by
-          rw [← hxst, Matrix.mulVec_add, Matrix.mulVec_smul, Matrix.mulVec_smul]
-          simp [smul_eq_mul]
-        calc s * (b k - (A *ᵥ x₁) k) + t * (b k - (A *ᵥ x₂) k)
-            = (s + t) * b k - (s * (A *ᵥ x₁) k + t * (A *ᵥ x₂) k) := by ring
-          _ = 1 * b k - (A *ᵥ x) k := by rw [hst, hmul]
-          _ = 0 := by rw [one_mul, hkx, sub_self]
-      have h1_nonneg : 0 ≤ s * (b k - (A *ᵥ x₁) k) := mul_nonneg hs.le (sub_nonneg.2 (hx₁ k))
-      have h2_nonneg : 0 ≤ t * (b k - (A *ᵥ x₂) k) := mul_nonneg ht.le (sub_nonneg.2 (hx₂ k))
-      have h1_zero : s * (b k - (A *ᵥ x₁) k) = 0 :=
-        le_antisymm (by linarith) h1_nonneg
-      have hkx1 : (A *ᵥ x₁) k = b k := by
-        rcases mul_eq_zero.1 h1_zero with hs0 | hsub0
-        · exact absurd hs0 hs.ne'
-        · exact (sub_eq_zero.1 hsub0).symm
-      rw [Matrix.mulVec_sub, Pi.sub_apply, hkx1, hkx, sub_self]
-    exact sub_eq_zero.1 (htight (x₁ - x) hfull)
-  · rintro ⟨hx, hext⟩
-    refine ⟨hx, fun v hv => ?_⟩
-    by_contra hv0
-    let slack : Finset κ := univ \ Matrix.tightRows A b x
-    let ε : ℝ :=
-      if hne : slack.Nonempty then
-        slack.inf' hne fun k => (b k - (A *ᵥ x) k) / (|(A *ᵥ v) k| + 1)
-      else 1
-    have hε : 0 < ε := by
-      dsimp only [ε]
-      split_ifs with hne
-      · refine (Finset.lt_inf'_iff hne).2 fun k hk => ?_
-        have hnot : k ∉ Matrix.tightRows A b x := (mem_sdiff.1 hk).2
-        have hlt : (A *ᵥ x) k < b k :=
-          lt_of_le_of_ne (hx k) (fun h => hnot (Matrix.mem_tightRows.2 h))
-        exact div_pos (sub_pos.2 hlt) (by positivity)
-      · exact one_pos
-    have hbound : ∀ k, ε * |(A *ᵥ v) k| ≤ b k - (A *ᵥ x) k := by
-      intro k
-      by_cases htk : k ∈ Matrix.tightRows A b x
-      · have hv0k : (A *ᵥ v) k = 0 := hv k htk
-        have hxk : (A *ᵥ x) k = b k := Matrix.mem_tightRows.1 htk
-        simp [hv0k, hxk]
-      · have hkslack : k ∈ slack := mem_sdiff.2 ⟨mem_univ k, htk⟩
-        have hne : slack.Nonempty := ⟨k, hkslack⟩
-        have hε_le : ε ≤ (b k - (A *ᵥ x) k) / (|(A *ᵥ v) k| + 1) := by
-          have hε_eq : ε = slack.inf' hne fun k => (b k - (A *ᵥ x) k) / (|(A *ᵥ v) k| + 1) := by
-            simp only [ε, hne, ↓reduceDIte]
-          rw [hε_eq]
-          exact Finset.inf'_le _ hkslack
-        have hden : 0 < |(A *ᵥ v) k| + 1 := by positivity
-        have h1 : ε * (|(A *ᵥ v) k| + 1) ≤ b k - (A *ᵥ x) k :=
-          (le_div_iff₀ hden).1 hε_le
-        have h2 : ε * |(A *ᵥ v) k| ≤ ε * (|(A *ᵥ v) k| + 1) := by
-          nlinarith [hε]
-        linarith
-    have hx₁ : A *ᵥ (x + ε • v) ≤ b := by
-      intro k
-      rw [Matrix.mulVec_add, Matrix.mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-      have hab : ε * (A *ᵥ v) k ≤ ε * |(A *ᵥ v) k| :=
-        mul_le_mul_of_nonneg_left (le_abs_self _) hε.le
-      linarith [hbound k]
-    have hx₂ : A *ᵥ (x - ε • v) ≤ b := by
-      intro k
-      rw [Matrix.mulVec_sub, Matrix.mulVec_smul, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
-      have hab : -(ε * (A *ᵥ v) k) ≤ ε * |(A *ᵥ v) k| := by
-        calc -(ε * (A *ᵥ v) k) = ε * (-(A *ᵥ v) k) := by ring
-          _ ≤ ε * |(A *ᵥ v) k| := mul_le_mul_of_nonneg_left (neg_le_abs _) hε.le
-      linarith [hbound k]
-    have hseg : x ∈ openSegment ℝ (x + ε • v) (x - ε • v) := by
-      refine ⟨(1 / 2 : ℝ), (1 / 2 : ℝ), by norm_num, by norm_num, by norm_num, ?_⟩
-      ext j
-      simp
-      ring
-    have heq := hext hx₁ hx₂ hseg
-    have hεv : ε • v = 0 := by
-      have : x + ε • v - x = 0 := by rw [heq, sub_self]
-      simpa using this
-    exact hv0 ((smul_eq_zero.1 hεv).resolve_left hε.ne')
-
-end MatrixPolytope
-
 section Structural
 
 variable {ι : Type u} {H : ι → Type v} {Act : ∀ i, H i → Type}
-
-private def listPrefixes {α : Type*} : List α → List (List α)
-  | [] => [[]]
-  | a :: l => [] :: (listPrefixes l).map (a :: ·)
-
-private theorem mem_listPrefixes {α : Type*} :
-    ∀ {σ l : List α}, σ ∈ listPrefixes l ↔ σ <+: l
-  | σ, [] => by simp [listPrefixes, List.prefix_nil]
-  | [], a :: l => by simp [listPrefixes]
-  | b :: σ, a :: l => by
-    simp only [listPrefixes, List.mem_cons, List.mem_map, List.cons_ne_nil, false_or,
-      List.cons_prefix_cons]
-    constructor
-    · rintro ⟨τ, hτ, heq⟩
-      obtain ⟨rfl, rfl⟩ := List.cons.inj heq
-      exact ⟨rfl, mem_listPrefixes.1 hτ⟩
-    · rintro ⟨rfl, h⟩
-      exact ⟨σ, mem_listPrefixes.2 h, rfl⟩
-
-/-- Concatenate a node `v` from the root with a terminal path in its subtree. -/
-@[expose] def Node.catTerminal : {T : ExtensiveTree ι H Act} →
-    (v : Node T) → Terminal v.subtree → Terminal T
-  | _, .here, z => z
-  | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance c sub, z => .chance c (sub.catTerminal z)
-  | .decision _ _ _, .decision a sub, z => .decision a (sub.catTerminal z)
-
-theorem Terminal.seq_catTerminal [DecidableEq ι] (i : ι) :
-    ∀ {T : ExtensiveTree ι H Act} (v : Node T) (z : Terminal v.subtree),
-      (v.catTerminal z).seq i = v.playerSeq i ++ z.seq i
-  | _, .here => fun _ => rfl
-  | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance c sub => fun z => by
-      dsimp only [Node.catTerminal]
-      rw [Terminal.seq_chance, Node.playerSeq_chance]
-      exact Terminal.seq_catTerminal i sub z
-  | .decision j h' _, .decision a sub => fun z => by
-      dsimp only [Node.catTerminal]
-      by_cases hij : j = i
-      · subst hij
-        rw [Terminal.seq_decision_self, Node.playerSeq_decision_self, List.cons_append]
-        congr 1
-        exact Terminal.seq_catTerminal j sub z
-      · rw [Terminal.seq_decision_ne hij, Node.playerSeq_decision_ne hij]
-        exact Terminal.seq_catTerminal i sub z
 
 /-- Given a node `v` where player `i` decides at information set `h` and an action `a : Act i h`,
 extend `v` through `a` to a terminal path. -/
@@ -318,12 +181,12 @@ open Classical in
 /-- Finite set of all player-`i` sequences occurring as a prefix of some terminal play in `T`. -/
 noncomputable def occursSeqFinset [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     (T : ExtensiveTree ι H Act) (i : ι) : Finset (Seq H Act i) :=
-  univ.biUnion fun z : Terminal T => (listPrefixes (z.seq i)).toFinset
+  univ.biUnion fun z : Terminal T => (z.seq i).inits.toFinset
 
 theorem mem_occursSeqFinset [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     {T : ExtensiveTree ι H Act} {i : ι} {σ : Seq H Act i} :
     σ ∈ occursSeqFinset T i ↔ ∃ z : Terminal T, σ <+: z.seq i := by
-  simp only [occursSeqFinset, mem_biUnion, mem_univ, true_and, List.mem_toFinset, mem_listPrefixes]
+  simp only [occursSeqFinset, mem_biUnion, mem_univ, true_and, List.mem_toFinset, List.mem_inits]
 
 open Classical in
 noncomputable instance SeqVar.instFintype [DecidableEq ι] [∀ j h, Fintype (Act j h)]
@@ -357,9 +220,15 @@ theorem ExtensiveTree.PerfectRecall.not_mem_infoSeq [DecidableEq ι]
   exact lt_irrefl _ hlen
 
 /-- The empty sequence `[]` in `SeqVar T i`. -/
-@[expose] def SeqVar.nil [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
+def SeqVar.nil [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
     (T : ExtensiveTree ι H Act) (i : ι) : SeqVar T i :=
   ⟨[], let ⟨z⟩ := Terminal.instNonempty T; ⟨z, List.nil_prefix⟩⟩
+
+@[simp]
+theorem SeqVar.nil_val [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
+    (T : ExtensiveTree ι H Act) (i : ι) :
+    (SeqVar.nil T i).1 = [] := by
+  simp [SeqVar.nil]
 
 /-- `T.infoSeq i h` as an element of `SeqVar T i` when `h` occurs in `T`. -/
 noncomputable def SeqVar.infoSeq [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
@@ -460,6 +329,16 @@ noncomputable def seqVarEquiv [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
       exact ⟨.inr ⟨h, a⟩, rfl⟩
   Equiv.ofBijective toFun ⟨hinj, hsurj⟩
 
+open Classical in
+/-- Under perfect recall for player `i`, the number of realized sequences equals
+`1 + ∑ h ∈ H_i, |C_h|` ([vonStengel2007], Section 3.10, p. 70). -/
+theorem card_seqVar [DecidableEq ι] [∀ j h, Fintype (Act j h)] [∀ j h, Nonempty (Act j h)]
+    {T : ExtensiveTree ι H Act} {i : ι} [Fintype (H i)] (hpr : T.PerfectRecall i) :
+    Fintype.card (SeqVar T i) =
+      1 + ∑ h : {h : H i // T.OccursInfoSet i h}, Fintype.card (Act i h.1) := by
+  rw [← Fintype.card_congr (seqVarEquiv hpr), Fintype.card_sum, Fintype.card_unit,
+    Fintype.card_sigma]
+
 end Structural
 
 section RealizationPlans
@@ -490,10 +369,20 @@ noncomputable def seqMat [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι) 
 
 /-- Sequence-form right-hand side `e` (`1` at root `none`, `0` at every information set
 `some h`). -/
-@[expose] def seqRhs (T : ExtensiveTree ι H Act) (i : ι) :
+def seqRhs (T : ExtensiveTree ι H Act) (i : ι) :
     Option {h : H i // T.OccursInfoSet i h} → ℝ
   | none => 1
   | some _ => 0
+
+@[simp]
+theorem seqRhs_none (T : ExtensiveTree ι H Act) (i : ι) :
+    seqRhs T i none = 1 := by
+  simp [seqRhs]
+
+@[simp]
+theorem seqRhs_some (T : ExtensiveTree ι H Act) (i : ι) (h : {h : H i // T.OccursInfoSet i h}) :
+    seqRhs T i (some h) = 0 := by
+  simp [seqRhs]
 
 /-- A **realization plan** of player `i` is a nonnegative vector `x : SeqVar T i → ℝ` satisfying
 `seqMat T i *ᵥ x = seqRhs T i` ([vonStengel2007], Section 3.10). -/
@@ -598,9 +487,15 @@ theorem ExtensiveTree.mixedToRealizationPlan_def [DecidableEq ι]
   rw [ExtensiveTree.mixedToRealizationPlan]
 
 /-- Realization plan induced by a behavior strategy `β` of player `i`. -/
-@[expose] def ExtensiveTree.behaviorToRealizationPlan [DecidableEq ι]
+def ExtensiveTree.behaviorToRealizationPlan [DecidableEq ι]
     (T : ExtensiveTree ι H Act) (i : ι) (β : ∀ h : H i, Act i h → ℝ) (σ : SeqVar T i) : ℝ :=
   realizationProbBehavior β σ.1
+
+@[simp]
+theorem ExtensiveTree.behaviorToRealizationPlan_apply [DecidableEq ι]
+    (T : ExtensiveTree ι H Act) (i : ι) (β : ∀ h : H i, Act i h → ℝ) (σ : SeqVar T i) :
+    T.behaviorToRealizationPlan i β σ = realizationProbBehavior β σ.1 := by
+  simp [ExtensiveTree.behaviorToRealizationPlan]
 
 open Classical in
 /-- Realization plan induced by a pure strategy `s` of player `i`. -/
@@ -842,25 +737,6 @@ section KuhnAndRealizationEquiv
 
 variable {ι : Type u} {H : ι → Type v} {Act : ∀ i, H i → Type}
 
-/-- Helper: if `(l.map Sigma.fst).Nodup`, any two choices at the same information set `h` in `l`
-have equal actions. -/
-private theorem nodup_fst_eq_snd {α : Type*} {β : α → Type*} {l : List (Σ a, β a)}
-    (hnodup : (l.map Sigma.fst).Nodup) {a : α} {b₁ b₂ : β a}
-    (h₁ : (⟨a, b₁⟩ : Σ x, β x) ∈ l) (h₂ : (⟨a, b₂⟩ : Σ x, β x) ∈ l) : b₁ = b₂ := by
-  induction l with
-  | nil => exact absurd h₁ List.not_mem_nil
-  | cons q tl ih =>
-    rw [List.map_cons, List.nodup_cons] at hnodup
-    rcases q with ⟨qa, qb⟩
-    rcases List.mem_cons.1 h₁ with h1 | h1 <;> rcases List.mem_cons.1 h₂ with h2 | h2
-    · have := h1.trans h2.symm
-      exact eq_of_heq (Sigma.mk.inj_iff.1 this).2
-    · cases (Sigma.mk.inj_iff.1 h1).1
-      exact absurd (List.mem_map.2 ⟨(⟨a, b₂⟩ : Σ x, β x), h2, rfl⟩) hnodup.1
-    · cases (Sigma.mk.inj_iff.1 h2).1
-      exact absurd (List.mem_map.2 ⟨(⟨a, b₁⟩ : Σ x, β x), h1, rfl⟩) hnodup.1
-    · exact ih hnodup.2 h1 h2
-
 /-- When `((z.seq j).map Sigma.fst).Nodup`, there exists a pure strategy `s_j` matching `z.seq j`.
 -/
 private theorem exists_pureStrategy_matchesSeq {T : ExtensiveTree ι H Act} [DecidableEq ι]
@@ -875,7 +751,9 @@ private theorem exists_pureStrategy_matchesSeq {T : ExtensiveTree ι H Act} [Dec
   rcases p with ⟨h, a⟩
   have hex : ∃ b : Act j h, (⟨h, b⟩ : Choice H Act j) ∈ z.seq j := ⟨a, hp⟩
   simp only [s_j, hex, ↓reduceDIte]
-  exact nodup_fst_eq_snd hnodup hex.choose_spec hp
+  have hnk : (z.seq j).NodupKeys := by
+    simpa [List.NodupKeys, List.keys] using hnodup
+  exact hnk.eq_of_mk_mem hex.choose_spec hp
 
 /-- **Corollary 3.12 (Kuhn's theorem)** ([vonStengel2007], Section 3.10): under perfect recall for
 player `i`, every mixed strategy `μ` of player `i` is realization-equivalent to the explicit
@@ -1138,7 +1016,8 @@ theorem convex_isRealizationPlan [DecidableEq ι] [∀ j h, Fintype (Act j h)]
   rw [Matrix.mulVec_add, Matrix.mulVec_smul, Matrix.mulVec_smul, hx_eq, hy_eq, ← add_smul, hab,
     one_smul]
 
-private theorem exists_mixed_of_isRealizationPlan [DecidableEq ι] [∀ j h, Fintype (Act j h)]
+/-- Every realization plan under perfect recall is induced by some mixed strategy. -/
+theorem exists_mixed_of_isRealizationPlan [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     [∀ j h, Nonempty (Act j h)] {T : ExtensiveTree ι H Act} {i : ι} [Fintype (H i)]
     [DecidableEq (H i)] (hpr : T.PerfectRecall i) {x : SeqVar T i → ℝ}
     (hx : T.IsRealizationPlan i x) :
@@ -1317,12 +1196,29 @@ noncomputable def seqPolyMat [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : 
   | .inr (.inr σ₀), σ => if σ₀ = σ then -1 else 0
 
 /-- Inequality-system right-hand side stacking `[e; -e; 0]`. -/
-@[expose] def seqPolyRhs [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι) :
+def seqPolyRhs [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι) :
     (Option {h : H i // T.OccursInfoSet i h} ⊕
       Option {h : H i // T.OccursInfoSet i h} ⊕ SeqVar T i) → ℝ
   | .inl r => seqRhs T i r
   | .inr (.inl r) => -seqRhs T i r
   | .inr (.inr _) => 0
+
+@[simp]
+theorem seqPolyRhs_inl [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι)
+    (r : Option {h : H i // T.OccursInfoSet i h}) :
+    seqPolyRhs T i (.inl r) = seqRhs T i r := by
+  simp [seqPolyRhs]
+
+@[simp]
+theorem seqPolyRhs_inr_inl [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι)
+    (r : Option {h : H i // T.OccursInfoSet i h}) :
+    seqPolyRhs T i (.inr (.inl r)) = -seqRhs T i r := by
+  simp [seqPolyRhs]
+
+@[simp]
+theorem seqPolyRhs_inr_inr [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι) (σ : SeqVar T i) :
+    seqPolyRhs T i (.inr (.inr σ)) = 0 := by
+  simp [seqPolyRhs]
 
 theorem seqPolyMat_mulVec_le_iff [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     (T : ExtensiveTree ι H Act) (i : ι) (x : SeqVar T i → ℝ) :
@@ -1362,16 +1258,16 @@ theorem seqPolyMat_mulVec_le_iff [DecidableEq ι] [∀ j h, Fintype (Act j h)]
       linarith [hnn σ₀]
 
 open Classical in
-/-- **Proposition 3.11 (polyhedral vertex characterization)** ([vonStengel2007], §§3.9–3.10):
-the basic feasible vertices (`Matrix.IsVertex`) of the realization-plan polytope `seqMat *ᵥ x =
-seqRhs, x ≥ 0` are precisely the pure realization plans `T.pureToRealizationPlan i s`. -/
+/-- **Polyhedral vertex characterization** ([vonStengel2007], Section 3.10, p. 72): the basic
+feasible vertices (`Matrix.IsVertex`) of the realization-plan polytope `seqMat *ᵥ x = seqRhs, x ≥ 0`
+are precisely the pure realization plans `T.pureToRealizationPlan i s`. -/
 theorem isVertex_seqPolyMat_iff [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     [∀ j h, Nonempty (Act j h)] {T : ExtensiveTree ι H Act} {i : ι} [Fintype (H i)]
     (hpr : T.PerfectRecall i) (x : SeqVar T i → ℝ) :
     Matrix.IsVertex (seqPolyMat T i) (seqPolyRhs T i) x ↔
       x ∈ Set.range (T.pureToRealizationPlan i) := by
   classical
-  rw [isVertex_iff_mem_extremePoints_real]
+  rw [Matrix.isVertex_iff_mem_extremePoints_real]
   have hset : {y : SeqVar T i → ℝ | seqPolyMat T i *ᵥ y ≤ seqPolyRhs T i} =
       {y : SeqVar T i → ℝ | T.IsRealizationPlan i y} :=
     Set.ext fun y => seqPolyMat_mulVec_le_iff T i y

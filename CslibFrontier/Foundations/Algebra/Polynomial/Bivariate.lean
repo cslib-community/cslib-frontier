@@ -16,7 +16,6 @@ public import Mathlib.RingTheory.Polynomial.UniqueFactorization
 public import Mathlib.RingTheory.Radical.Basic
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Polynomial.BigOperators
-import Mathlib.Tactic.Linarith
 
 /-!
 # Bivariate polynomial shifts, Hasse derivatives, vanishing order, and weighted degree
@@ -141,34 +140,33 @@ theorem coeff_hasseDerivX (i : ℕ) (Q : R[X][Y]) (b : ℕ) :
   rw [hasseDerivX, coeff_sum, sum_def]
   by_cases hb : b ∈ Q.support
   · rw [Finset.sum_eq_single b]
-    · simp
+    · simp only [coeff_monomial, Finsupp.single_eq_same]
     · intro b' _ hne
-      simp [coeff_monomial, hne]
+      simp only [coeff_monomial, ne_eq, hne, not_false_eq_true, Finsupp.single_eq_of_ne']
     · intro h
       exact absurd hb h
   · rw [notMem_support_iff.1 hb, map_zero]
     refine Finset.sum_eq_zero fun b' hb' => ?_
     have hne : b' ≠ b := fun h => hb (h ▸ hb')
-    simp [coeff_monomial, hne]
+    simp only [coeff_monomial, ne_eq, hne, not_false_eq_true, Finsupp.single_eq_of_ne']
 
 /-- `hasseDerivX i` on `0` is `0`. -/
 @[simp]
 theorem hasseDerivX_zero (i : ℕ) : hasseDerivX i (0 : R[X][Y]) = 0 := by
   ext b a
-  simp
+  simp only [coeff_hasseDerivX, coeff_zero, map_zero]
 
 /-- `hasseDerivX i` is additive. -/
 theorem hasseDerivX_add (i : ℕ) (P Q : R[X][Y]) :
     hasseDerivX i (P + Q) = hasseDerivX i P + hasseDerivX i Q := by
   ext b a
-  simp
+  simp only [coeff_hasseDerivX, coeff_add, map_add]
 
 /-- `hasseDerivX i` on a monomial in `Y`. -/
 @[simp]
 theorem hasseDerivX_monomial (i b : ℕ) (p : R[X]) :
     hasseDerivX i (monomial b p) = monomial b (hasseDeriv i p) := by
-  ext b' a
-  by_cases h : b = b' <;> simp [h]
+  simp only [hasseDerivX, sum_monomial_index, map_zero]
 
 /-- Evaluating `hasseDerivX i Q` at `Y = C y` commutes with `hasseDeriv i`. -/
 theorem eval_C_hasseDerivX (i : ℕ) (Q : R[X][Y]) (y : R) :
@@ -209,11 +207,16 @@ theorem map_shift (φ : R →+* S) (x y : R) (Q : R[X][Y]) :
   have hcomp :
       (taylorAlgHom (φ x) : S[X] →+* S[X]).comp (Polynomial.mapRingHom φ) =
         (Polynomial.mapRingHom φ).comp (taylorAlgHom x : R[X] →+* R[X]) := by
-    ext p
-    · simp
-    · simp
+    apply Polynomial.ringHom_ext
+    · intro a
+      simp only [RingHom.coe_comp, Function.comp_apply, coe_mapRingHom, RingHom.coe_coe,
+        taylorAlgHom_apply, map_C, taylor_C]
+    · simp only [RingHom.coe_comp, Function.comp_apply, coe_mapRingHom, RingHom.coe_coe,
+        taylorAlgHom_apply, map_X, taylor_X, Polynomial.map_add, Polynomial.map_X,
+        Polynomial.map_C]
   rw [hcomp, ← Polynomial.map_map]
-  have hCy : C (φ y) = Polynomial.mapRingHom φ (C y) := by simp
+  have hCy : C (φ y) = Polynomial.mapRingHom φ (C y) := by
+    rw [Polynomial.coe_mapRingHom, Polynomial.map_C]
   rw [hCy, ← Polynomial.map_taylor]
 
 end Shift
@@ -246,12 +249,11 @@ theorem vanishesToOrder_one_iff (x y : R) (Q : R[X][Y]) :
     VanishesToOrder 1 x y Q ↔ Q.evalEval x y = 0 := by
   constructor
   · intro h
-    simpa using h 0 0 (by omega)
+    simpa only [coeff_coeff_shift_zero] using h 0 0 (by omega)
   · intro h i j hij
-    have hi : i = 0 := by omega
-    have hj : j = 0 := by omega
-    subst hi; subst hj
-    simpa using h
+    obtain rfl : i = 0 := by omega
+    obtain rfl : j = 0 := by omega
+    simpa only [coeff_coeff_shift_zero] using h
 
 /-- Monotonicity of vanishing order. -/
 theorem VanishesToOrder.mono {m m' : ℕ} {x y : R} {Q : R[X][Y]}
@@ -262,7 +264,7 @@ theorem VanishesToOrder.mono {m m' : ℕ} {x y : R} {Q : R[X][Y]}
 @[simp]
 theorem vanishesToOrder_of_zero (m : ℕ) (x y : R) : VanishesToOrder m x y (0 : R[X][Y]) := by
   intro i j _
-  simp
+  rw [map_zero, coeff_zero, coeff_zero]
 
 /-- Vanishing to order `m` is closed under addition. -/
 theorem VanishesToOrder.add {m : ℕ} {x y : R} {P Q : R[X][Y]}
@@ -309,7 +311,7 @@ theorem VanishesToOrder.mul {m₁ m₂ : ℕ} {x y : R} {Q₁ Q₂ : R[X][Y]}
 theorem VanishesToOrder.pow {m : ℕ} {x y : R} {Q : R[X][Y]}
     (hQ : VanishesToOrder m x y Q) (r : ℕ) : VanishesToOrder (r * m) x y (Q ^ r) := by
   induction r with
-  | zero => simp
+  | zero => rw [zero_mul]; exact vanishesToOrder_zero _ _ _
   | succ r ih =>
     rw [pow_succ, Nat.succ_mul]
     exact ih.mul hQ
@@ -430,7 +432,8 @@ noncomputable def weightedDegree (d : ℕ) (Q : R[X][Y]) : ℕ :=
 /-- The weighted degree of `0` is `0`. -/
 @[simp]
 theorem weightedDegree_zero (d : ℕ) : weightedDegree d (0 : R[X][Y]) = 0 := by
-  simp [weightedDegree]
+  rw [weightedDegree, support_zero, Finset.sup_empty]
+  rfl
 
 /-- `weightedDegree d Q ≤ D` iff every nonzero coefficient `(Q.coeff b).coeff a` has
 `a + d * b ≤ D`. -/
@@ -549,8 +552,8 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
         dsimp only at h1 h2
         have hsum : (i.1 + d * b₁) + (i.2 + d * b₂) = weightedDegree d A + weightedDegree d B := by
           rw [← hdeg₁, ← hdeg₂]
-          linarith
-        have hi1 : i.1 = a₁ := by linarith
+          omega
+        have hi1 : i.1 = a₁ := by omega
         exact hne (Prod.ext hi1 (by omega))
       · intro hmem
         exact absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
@@ -624,8 +627,9 @@ theorem weightedDegree_X_sub_C {R : Type*} [CommRing R] [Nontrivial R] {d : ℕ}
       simp only [h1, h2, ↓reduceIte, sub_self, coeff_zero] at hab
       exact absurd rfl hab
   · have h1 : (((Y - C P : R[X][Y]).coeff 1).coeff 0) ≠ 0 := by
-      simp
-    simpa using le_weightedDegree (d := d) h1
+      simp only [coeff_sub, coeff_X_one, coeff_C_succ, sub_zero, coeff_one, ↓reduceIte, ne_eq,
+        one_ne_zero, not_false_eq_true]
+    simpa only [zero_add, mul_one] using le_weightedDegree (d := d) h1
 
 /-- Powers `(Y - C P) ^ r` have `(1, d)`-weighted degree `r * d` whenever `P.natDegree ≤ d`. -/
 theorem weightedDegree_X_sub_C_pow {R : Type*} [CommRing R] [IsDomain R] {d : ℕ} {P : R[X]}
@@ -643,7 +647,7 @@ theorem weightedDegree_le_of_X_sub_C_pow_mul {R : Type*} [CommRing R] [IsDomain 
     (h : weightedDegree d ((Y - C P) ^ r * S) ≤ D) :
     weightedDegree d S ≤ D - r * d := by
   rcases eq_or_ne S 0 with rfl | hS0
-  · simp
+  · rw [weightedDegree_zero]; exact Nat.zero_le _
   · rw [weightedDegree_mul (pow_ne_zero r (X_sub_C_ne_zero P)) hS0,
       weightedDegree_X_sub_C_pow hP r] at h
     omega
@@ -654,7 +658,8 @@ theorem weightedDegree_multiset_prod {R : Type*} [CommSemiring R] [NoZeroDivisor
     {fs : Multiset R[X][Y]} (hfs : ∀ P ∈ fs, P ≠ 0) :
     weightedDegree d fs.prod = (fs.map (weightedDegree d)).sum := by
   induction fs using Multiset.induction_on with
-  | empty => simp
+  | empty =>
+    rw [Multiset.prod_zero, weightedDegree_one, Multiset.map_zero, Multiset.sum_zero]
   | cons P s ih =>
     have hP0 : P ≠ 0 := hfs P (Multiset.mem_cons_self P s)
     have : Nontrivial R[X][Y] := ⟨P, 0, hP0⟩
@@ -699,7 +704,7 @@ variable [DecidableEq F]
 theorem weightedDegree_primPart_le (d : ℕ) (Q : F[X][Y]) :
     weightedDegree d Q.primPart ≤ weightedDegree d Q := by
   rcases eq_or_ne Q 0 with rfl | hQ0
-  · simp
+  · simp only [primPart_zero, weightedDegree_one, Nat.zero_le]
   · exact weightedDegree_le_of_dvd hQ0 Q.primPart_dvd
 
 /-- For `Q ≠ 0`, `Q` and its primitive part `Q.primPart` have the same roots in `F[X]`. -/
@@ -707,8 +712,7 @@ theorem eval_primPart_eq_zero_iff {Q : F[X][Y]} (hQ : Q ≠ 0) (P : F[X]) :
     Q.primPart.eval P = 0 ↔ Q.eval P = 0 := by
   conv_rhs => rw [Q.eq_C_content_mul_primPart]
   rw [eval_mul, eval_C, mul_eq_zero]
-  have hc : Q.content ≠ 0 := mt content_eq_zero_iff.1 hQ
-  simp [hc]
+  exact (or_iff_right (mt content_eq_zero_iff.1 hQ)).symm
 
 /-- `radical Q.primPart` has `(1, d)`-weighted degree at most that of `Q`. -/
 theorem weightedDegree_radical_primPart_le (d : ℕ) (Q : F[X][Y]) :

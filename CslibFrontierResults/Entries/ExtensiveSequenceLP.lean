@@ -18,8 +18,8 @@ register_result "extensive-perfect-info-embedding" where
   topic := "game theory"
   sources := [
     { paper := vonStengel2007,
-      theorem := "Section 3.7",
-      locator := unverified }
+      theorem := "Section 3.7 and Corollary 3.12",
+      locator := "Section 3.7, pp. 66–68, and Section 3.10, pp. 70–71" }
   ]
   theorems := [
     Cslib.GameTheory.Extensive.PerfectInfoTree.toExtensiveTree_isSingletonInfoSet,
@@ -51,8 +51,8 @@ register_result "extensive-sequence-form-lp-minimax" where
   topic := "game theory"
   sources := [
     { paper := vonStengel2007,
-      theorem := "Sections 3.10-3.11 and Theorem 3.13",
-      locator := unverified }
+      theorem := "Theorem 3.13 and Theorem 3.14",
+      locator := "Sections 3.10–3.11, pp. 72–74" }
   ]
   theorems := [
     Cslib.GameTheory.Extensive.exists_seqMat_transpose_mulVec_ge,

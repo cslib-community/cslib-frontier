@@ -142,8 +142,8 @@ theorem callbackVerdict_inSpace :
       (fun s => (encCallback encContext encT s).length) := by
   have hcaller : ComputableInSpace (Sum.elim (fun _ => false) id) (encCaller encContext) encBool
       (fun s => (encCaller encContext s).length) :=
-    sumElim (budget_const false (.refl _)) (budget_id (.refl _))
-  exact sumElim hcaller (budget_const false (.refl _))
+    sumElim (budget_const false) (budget_id (.refl _))
+  exact sumElim hcaller (budget_const false)
 
 /-- Running the supplied read-only callee returns the subdivision answer after its own
 first-halting time plus call entry and return. No answer bit is assumed in the initial query. -/
@@ -205,7 +205,7 @@ private theorem request_inSpace (baseRequest : Query Context → τ)
     ComputableInSpace (request baseRequest) (encCaller encContext) (encOption encT)
       (fun s => (encCaller encContext s).length) := by
   have hsome := budget_optionSome hr
-  exact sumElim hsome (budget_const (encIn := encBool) none (.refl _))
+  exact sumElim hsome (budget_const (encIn := encBool) none)
 
 /-- The return transition has native linear workspace relative to the supplied weight
 routine and decoder for the original-edge callee's final state. -/
@@ -255,16 +255,16 @@ theorem callback_parts_inSpace (N : QueryMachine τ) (baseRequest : Query Contex
   have hreq := request_inSpace encContext encT baseRequest hr
   have hres := resume_inSpace encContext encT weight answer hw ha
   have hmq : ComputableInSpace M.query encS encNat (fun s => (encS s).length) :=
-    budget_const 0 (.refl _)
+    budget_const 0
   have hmn : ComputableInSpace M.next (QueryMachine.encStateRead encS) encS
       (fun p => (QueryMachine.encStateRead encS p).length) := fst encS (encOption encBool)
   have hmh : ComputableInSpace M.halted encS encBool (fun s => (encS s).length) :=
-    sumElim (budget_const (encIn := encQuery encContext) false (.refl _))
-      (budget_const (encIn := encBool) true (.refl _))
+    sumElim (budget_const (encIn := encQuery encContext) false)
+      (budget_const (encIn := encBool) true)
   have hme : ComputableInSpace M.emit (QueryMachine.encStateRead encS) encBits
-      (fun p => (QueryMachine.encStateRead encS p).length) := budget_const [] (.refl _)
+      (fun p => (QueryMachine.encStateRead encS p).length) := budget_const []
   have hmf : ComputableInSpace M.finish encS encBits (fun s => (encS s).length) :=
-    budget_const [] (.refl _)
+    budget_const []
   exact ⟨QueryMachine.withCalls_query_inSpace M N _ _ encS encT hmq hnq hreq,
     QueryMachine.withCalls_next_inSpace M N _ _ encS encT hmn hnn hnh hreq hres,
     QueryMachine.withCalls_halted_inSpace M N _ _ encS encT hmh,
