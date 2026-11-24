@@ -397,6 +397,11 @@ Avrim Blum, Merrick Furst, Michael Kearns and Richard J. Lipton. "Cryptographic 
 
 Avrim Blum and Yishay Mansour. "From External to Internal Regret." *Journal of Machine Learning Research* 8, 1307–1324, 2007. https://www.jmlr.org/papers/v8/blum07a.html . Read in the JMLR PDF on 2026-11-10. Locators checked there: the definition of swap regret as regret against all `N^N` modification rules (§2, p. 1311), Definition 2 (`ε`-correlated equilibrium) and Theorem 3 (`R/T`-correlated equilibria from swap regret `R`, p. 1311), the reduction with stationary `p = pQ` and Definition 4 (§3, p. 1312), and Theorem 5 (swap regret at most `∑ i, R_i`) with Corollaries 6 and 7 (`O(N √(T log N))` and `O(√(T N log N))`, p. 1313). The paper scales losses to `[0, 1]`; the library's Hedge-based bound uses losses in `[-1, 1]` and the second-order Hedge bound, which gives `2 √(T N ln N)` with explicit constants.
 
+<a id="blummansour07agt"></a>
+## blummansour07agt
+
+Avrim Blum and Yishay Mansour. "Learning, Regret Minimization, and Equilibria." Chapter 4 of N. Nisan, T. Roughgarden, É. Tardos and V. V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, pp. 79–102. https://doi.org/10.1017/CBO9780511800481.006 . Inspected on 2026-11-24 against the author-hosted chapter PDF at https://www.cs.cmu.edu/~avrim/Papers/regret-chapter.pdf (preprint pagination pp. 4–30; section, definition, theorem, and exercise numbers match the published chapter): checked §4.2 (preprint pp. 7–8: external, internal `F_{i,j}`, and swap `F^{sw}` modification rules), §4.4 (preprint pp. 17–19: `switch_i`, Definitions 4.10 and 4.11 for exact and `ε`-correlated equilibrium, Theorem 4.12 for `(R/T)`-correlated equilibria from swap regret `R`, and Theorem 4.13 bounding average weight on `ε`-dominated actions by `R / (ε T)`), §4.5 (preprint pp. 19–21: Definition 4.14, Theorem 4.15, Corollary 4.16), and Exercise 4.1 (preprint p. 28: swap regret at most `N` times internal regret), formalized in [OnlineLearning/RegretMatching.lean](../CslibFrontier/MachineLearning/OnlineLearning/RegretMatching.lean) and [Strategic/RegretMatching.lean](../CslibFrontier/GameTheory/Strategic/RegretMatching.lean).
+
 <a id="bm15"></a>
 ## bm15
 
@@ -1186,6 +1191,11 @@ Jason D. Hartline. *Mechanism Design and Approximation*, book manuscript; chapte
 ## hartmanis1968
 
 Juris Hartmanis. "Computational Complexity of One-Tape Turing Machine Computations." *Journal of the ACM* 15(2), 325–339, 1968. https://doi.org/10.1145/321450.321464 . Bibliographic metadata checked through Crossref; the article body was not inspected in this pass. The manual cites it for the `n log n` lower bound on one-tape recognition of nonregular languages, as attributed in [Pighizzini 2009](#pighizzini2009), §1 and §4.
+
+<a id="hartmascolell00"></a>
+## hartmascolell00
+
+Sergiu Hart and Andreu Mas-Colell. "A Simple Adaptive Procedure Leading to Correlated Equilibrium." *Econometrica* 68(5), 1127–1150, September 2000. https://doi.org/10.1111/1468-0262.00153 . Inspected on 2026-11-24 against the published *Econometrica* PDF: checked §2 (pp. 1129–1131: correlated equilibrium and correlated `ε`-equilibrium definitions, Chicken non-convex-hull-of-Nash remark on p. 1129, pairwise regret `(2.1a)–(2.1c)`, inertial transition probabilities `(2.2)` with footnote 5 normalization, empirical distribution `(2.3)`, and Main Theorem), §3 (pp. 1133–1138: stationary regret-matching balance equation `(3.1)`, Theorem A, the Proposition on pp. 1133–1134 characterizing empirical convergence to correlated `ε`-equilibria via pairwise regrets, the Corollary on p. 1134, Blackwell's Approachability Theorem `(3.2)` with Euclidean projection `F(x) = [x]_-` onto `ℝ_-^L` in Figure 2 on p. 1137, proof `(3.3)–(3.5)` of Theorem A, and the `1/√t` rate remark on p. 1138), §4(c) (p. 1139: unconditional/external regret-matching `(4.2a)–(4.2b)` and Theorem B, attributing Blackwell's approachability construction to [Blackwell 1956]), and Appendix Step M1 (p. 1146: quadratic nonpositive-orthant potential recursion), formalized in [OnlineLearning/RegretMatching.lean](../CslibFrontier/MachineLearning/OnlineLearning/RegretMatching.lean) and [Strategic/RegretMatching.lean](../CslibFrontier/GameTheory/Strategic/RegretMatching.lean).
 
 <a id="hearndemaine2005"></a>
 ## hearndemaine2005
