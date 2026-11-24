@@ -8993,6 +8993,8 @@ public import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
 public import CslibFrontier.GameTheory.InterdomainRouting.StablePaths
 public import CslibFrontier.GameTheory.Market.Basic
 public import CslibFrontier.GameTheory.Market.EisenbergGale
+public import CslibFrontier.GameTheory.Mechanism.Approximation.LaviSwamy
+public import CslibFrontier.GameTheory.Mechanism.Approximation.RelatedScheduling
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Walrasian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
