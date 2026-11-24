@@ -178,7 +178,8 @@ It keeps no state. This is `Yao.evaluatorToPrvSim` at fixed public parameters an
 
 open Classical in
 /-- Fixed-instance environment on `Yao.family G` concentrating on `(c, x)` and running `D`, used to
-specialize `Yao.idealGame_evaluator_eq` and `Yao.realGame_evaluator_eq` from `Yao/Security.lean`. -/
+specialize `Yao.idealGame_evaluator_eq` and `Yao.realGame_evaluator_eq` from
+`CslibFrontier/Crypto/Protocols/MPC/Yao/Security.lean`. -/
 private noncomputable def fixedEvaluatorEnv (c : Params G) (x : (i : Fin 2) → Input c i)
     (D : ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
       ((i : Fin 2) → List Bool) → ProbComp Bool) : Environment (family G) {1} where
