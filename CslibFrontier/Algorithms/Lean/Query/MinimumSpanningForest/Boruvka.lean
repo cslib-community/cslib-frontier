@@ -106,10 +106,6 @@ noncomputable def boruvkaStep (ends : E → Sym2 V) (S : Finset E) : FreeM (LEQu
     let best ← scan ends S.toList fun _ => none
     return {e ∈ S | ∃ v, best v = some e}
 
-omit [DecidableEq V] in
-private theorem ends_eq_out (z : Sym2 V) : z = s((Quot.out z).1, (Quot.out z).2) :=
-  (Quot.out_eq z).symm
-
 private theorem countQueries_offer_le (oracle : {ι : Type} → LEQuery E ι → ι)
     (best : V → Option E) (v : V) (e : E) : (offer best v e).countQueries oracle ≤ 1 := by
   unfold offer
@@ -220,7 +216,7 @@ private theorem scan_spec (ends : E → Sym2 V) (oracle : {ι : Type} → LEQuer
       simp only [FreeM.eval_bind]
       set a := (Quot.out (ends e)).1
       set b := (Quot.out (ends e)).2
-      have hab : ends e = s(a, b) := ends_eq_out _
+      have hab : ends e = s(a, b) := (Sym2.mk_fst_out_snd_out _).symm
       have hmem : ∀ v, v = a ∨ v = b → v ∈ ends e := by
         rintro v (rfl | rfl) <;> simp [hab]
       obtain ⟨c₁, k₁⟩ := offer_choice oracle best a e
@@ -271,7 +267,7 @@ private theorem scan_le (ends : E → Sym2 V) (oracle : {ι : Type} → LEQuery 
       simp only [FreeM.eval_bind] at hx
       set a := (Quot.out (ends e)).1
       set b := (Quot.out (ends e)).2
-      have hab : ends e = s(a, b) := ends_eq_out _
+      have hab : ends e = s(a, b) := (Sym2.mk_fst_out_snd_out _).symm
       obtain ⟨m₁, n₁⟩ := offer_le oracle w hw best a e
       set best₁ := (offer best a e).eval oracle
       obtain ⟨m₂, n₂⟩ := offer_le oracle w hw best₁ b e
