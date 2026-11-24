@@ -30,8 +30,8 @@ where a computable test asks for it, and otherwise returns its input.
 
 ## Main results
 
-* `Nat.RecursiveIn.Code.HasUniformCode.of_partrec`, `.of_computable`, `.oracle`, `.pair`, `.comp`, `.prec`,
-  `.rfind`: closure under the constructors of `Nat.RecursiveIn`.
+* `Nat.RecursiveIn.Code.HasUniformCode.of_partrec`, `.of_computable`, `.oracle`, `.pair`,
+  `.comp`, `.prec`, `.rfind`: closure under the constructors of `Nat.RecursiveIn`.
 * `Nat.RecursiveIn.Code.HasUniformCode.ite`: a guarded call.
 * `Nat.RecursiveIn.Code.HasUniformCode.recursiveIn`: each member is recursive in its oracle.
 -/

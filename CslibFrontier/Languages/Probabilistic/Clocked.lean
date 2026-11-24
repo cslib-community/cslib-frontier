@@ -328,7 +328,8 @@ theorem eval_rfind {p : ℕ → ClockedComp spec Bool} (hp : ∀ i, Stable o (p 
     let K := max (max (Finset.univ.sup kf) kn) (n + 1)
     refine ⟨K, ?_⟩
     have hlt' : ∀ m < n, attempt o (p m) K = Part.some (some false) := fun m hm =>
-      (hp m).mono (hkf ⟨m, hm⟩) (le_trans (Finset.le_sup (f := kf) (Finset.mem_univ (⟨m, hm⟩ : Fin n)))
+      (hp m).mono (hkf ⟨m, hm⟩) (le_trans
+        (Finset.le_sup (f := kf) (Finset.mem_univ (⟨m, hm⟩ : Fin n)))
         (le_trans (le_max_left _ _) (le_max_left _ _)))
     have hn' : attempt o (p n) K = Part.some (some true) :=
       (hp n).mono hkn (le_trans (le_max_right _ _) (le_max_left _ _))

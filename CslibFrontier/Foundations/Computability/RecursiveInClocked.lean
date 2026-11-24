@@ -9,11 +9,58 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Clocked
 public import CslibFrontier.Foundations.Computability.RecursiveInUniform
+public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 
 /-!
 # Oracle codes as clocked oracle programs
 
-TODO
+Oracle codes `Nat.RecursiveIn.Code` and clocked oracle programs `Cslib.ClockedComp` querying a
+single oracle `ℕ →. ℕ` (the interface `Cslib.natOracleSpec`) compute the same partial functions.
+
+* **Code to program.** `Code.toClocked` compiles a code constructor by constructor: composition
+  is `bind`, primitive recursion is Lean recursion, and unbounded search is `ClockedComp.rfind`.
+  The compiled program computes the code relative to every partial oracle (`eval_toClocked`); it
+  does not depend on the oracle.
+* **Program to code.** A clocked program is a shallow embedding: its continuations are arbitrary
+  Lean functions, so a program may compute a function that is not recursive in its oracle. The
+  admissible programs are those whose *dialogue* is computable (`ClockedComp.dialogue`): the
+  next move (query or result) for each input, fuel and list of answers received so far. Such a
+  family is an oracle machine: its control is computable and only the answers come from the
+  oracle. Such a family is computed by a single code relative to every partial oracle
+  (`ClockedComp.exists_code_eval`). The code runs the definition of `ClockedComp.eval`: it
+  searches for the least fuel that finishes, and runs each fuel by iterating the dialogue
+  (`OracleComp.interpret_eq_rfind`).
+* **Characterization.** Relative to a total oracle `f`, a partial function is recursive in `f`
+  iff some family of clocked programs with computable dialogue computes it
+  (`recursiveIn_iff_exists_clockedComp`). The forward direction uses the universal program
+  `Code.prefixClocked`, which asks for the first `k` oracle values and runs the stage-bounded
+  evaluator `Code.evaln`; its dialogue is primitive recursive.
+
+## Main definitions
+
+* `Cslib.natOracleSpec`: the interface of a single oracle `ℕ →. ℕ`.
+* `Cslib.OracleComp.nextMove`, `Cslib.OracleComp.replies`: the next move of a program after given
+  answers, and the answers it has received after a number of steps.
+* `Cslib.ClockedComp.dialogue`: the dialogue of a family of clocked programs.
+* `Nat.RecursiveIn.Code.toClocked`: the clocked program of a code.
+* `Nat.RecursiveIn.Code.prefixClocked`: the universal clocked program of a code for total oracles.
+
+## Main results
+
+* `Cslib.OracleComp.interpret_eq_rfind`: running a program is iterating its dialogue.
+* `Nat.RecursiveIn.Code.eval_toClocked`: code to program, for every partial oracle.
+* `Cslib.ClockedComp.exists_code_eval`, `Cslib.ClockedComp.recursiveIn_eval`: program to code,
+  with one code for every partial oracle.
+* `Nat.RecursiveIn.Code.recursiveIn_iff_exists_clockedComp`: recursiveness in a total oracle is
+  computability by clocked programs querying it.
+
+## Implementation notes
+
+The characterization is stated for total oracles because its forward direction goes through
+`prefixClocked`, which queries positions a computation may not need. For partial oracles the code
+to program direction holds through `toClocked`, but a proof that the dialogue of `toClocked` is
+computable is not provided here.
+
 -/
 
 @[expose] public section
@@ -149,8 +196,8 @@ open Nat.RecursiveIn.Code (HasUniformCode)
 
 /-- The dialogue of a family of clocked programs on natural numbers: the next move of the program
 for input `n` run with fuel `k`, after it has received the answers `rs`. A family whose dialogue
-is computable is an oracle machine in the sense of Kleene: its control is computable, and only the
-answers to its queries come from the oracle. -/
+is computable is an oracle machine: its control is computable, and only the answers to its
+queries come from the oracle. -/
 def dialogue (P : ℕ → ClockedComp natOracleSpec ℕ) (x : (ℕ × ℕ) × List ℕ) : ℕ ⊕ Option ℕ :=
   OracleComp.nextMove ((P x.1.1) x.1.2).run x.2
 
@@ -169,14 +216,16 @@ private theorem decodeState_encode (x : State) : decodeState (Encodable.encode x
   simp only [decodeState, Encodable.encodek, Option.getD_some]
 
 /-- The run of input and fuel `nk`, without the reader layer. -/
-private abbrev run (P : ℕ → ClockedComp natOracleSpec ℕ) (nk : ℕ) : OracleComp natOracleSpec (Option ℕ) :=
+private abbrev run (P : ℕ → ClockedComp natOracleSpec ℕ) (nk : ℕ) :
+    OracleComp natOracleSpec (Option ℕ) :=
   ((P nk.unpair.1) nk.unpair.2).run
 
 /-- The encoded state of the run `nk` after receiving `rs`. -/
 private abbrev enc (nk : ℕ) (rs : List ℕ) : ℕ :=
   Encodable.encode (((nk.unpair.1, nk.unpair.2), rs) : State)
 
-private theorem computable_move (hP : Computable (dialogue P)) : Computable fun s => dialogue P (decodeState s) :=
+private theorem computable_move (hP : Computable (dialogue P)) :
+    Computable fun s => dialogue P (decodeState s) :=
   hP.comp computable_decodeState
 
 /-- `0` once the program has a result, `1` while it still queries. -/
@@ -210,7 +259,8 @@ private theorem computable_output (hP : Computable (dialogue P)) : Computable (o
     Computable.snd.to₂)
 
 private theorem busy_enc (nk : ℕ) (rs : List ℕ) :
-    busy P (enc nk rs) = Sum.elim (fun _ => 1) (fun _ => 0) (OracleComp.nextMove (run P nk) rs) := by
+    busy P (enc nk rs) =
+      Sum.elim (fun _ => 1) (fun _ => 0) (OracleComp.nextMove (run P nk) rs) := by
   simp only [busy, enc, decodeState_encode, dialogue, run]
 
 private theorem nextQuery_enc (nk : ℕ) (rs : List ℕ) :
@@ -237,8 +287,8 @@ private theorem hasUniformCode_step (hP : Computable (dialogue P)) : HasUniformC
           (HasUniformCode.of_computable (computable_nextQuery hP)))))).of_eq fun g s => ?_
   split_ifs
   · rfl
-  · simp [Seq.seq, Part.bind_some_eq_map, Part.map_map, Function.comp_def]
-    exact congrArg _ (Part.bind_some _ _)
+  · have e : Part.some (nextQuery P s) >>= g = g (nextQuery P s) := Part.bind_some _ _
+    simp [Seq.seq, Part.bind_some_eq_map, Part.map_map, Function.comp_def, e]
 
 private theorem step_enc (g : ℕ →. ℕ) (nk : ℕ) (rs : List ℕ) :
     (if busy P (enc nk rs) = 0 then Part.some (enc nk rs)
@@ -381,8 +431,7 @@ def toClocked : Code → ℕ → ClockedComp natOracleSpec ℕ
       (· + m) <$> ClockedComp.rfind fun i =>
         (fun x => decide (x = 0)) <$> toClocked cf (Nat.pair a (i + m))
 
-/-- The compiled program is stable against every partial oracle and computes the code. -/
-theorem stable_toClocked_and_eval (g : ℕ →. ℕ) :
+private theorem stable_toClocked_and_eval (g : ℕ →. ℕ) :
     ∀ (c : Code) (n : ℕ), ClockedComp.Stable g (c.toClocked n) ∧
       ClockedComp.eval g (c.toClocked n) = c.eval g n
   | zero, n => ⟨.pure _, ClockedComp.eval_pure g 0⟩
@@ -428,5 +477,123 @@ theorem stable_toClocked_and_eval (g : ℕ →. ℕ) :
     rw [ClockedComp.eval_map g (.rfind hp), ClockedComp.eval_rfind g hp]
     simp only [ClockedComp.eval_map g (hf _).1, (hf _).2]
     rfl
+
+/-- The compiled program of a code is stable against every partial oracle. -/
+theorem stable_toClocked (g : ℕ →. ℕ) (c : Code) (n : ℕ) :
+    ClockedComp.Stable g (c.toClocked n) :=
+  (stable_toClocked_and_eval g c n).1
+
+/-- **Code to program.** The compiled program computes the code relative to every partial
+oracle. -/
+theorem eval_toClocked (g : ℕ →. ℕ) (c : Code) (n : ℕ) :
+    ClockedComp.eval g (c.toClocked n) = c.eval g n :=
+  (stable_toClocked_and_eval g c n).2
+
+section Prefix
+
+variable {α : Type}
+
+/-- Ask the oracle at the positions `σ.length, …, σ.length + m - 1` in order, appending each
+answer to `σ`, and finish with `F` of the answers. -/
+def askPrefix (F : List ℕ → α) : ℕ → List ℕ → OracleComp natOracleSpec α
+  | 0, σ => .pure (F σ)
+  | m + 1, σ => .liftBind σ.length fun r => askPrefix F m (σ ++ [r])
+
+/-- The universal clocked program of a code: with fuel `k` it asks the oracle at `0, …, k - 1`
+and runs the stage-bounded evaluator `evaln` on the answers. Unlike `toClocked`, it queries
+positions the code may never use, so it computes the code only against total oracles. -/
+def prefixClocked (c : Code) (n : ℕ) : ClockedComp natOracleSpec ℕ := fun k =>
+  OptionT.mk (askPrefix (fun σ => evaln σ k c n) k [])
+
+theorem nextMove_askPrefix (F : List ℕ → α) :
+    ∀ (m : ℕ) (σ rs : List ℕ), OracleComp.nextMove (askPrefix F m σ) rs =
+      if rs.length < m then .inl (σ.length + rs.length) else .inr (F (σ ++ rs.take m))
+  | 0, σ, rs => by
+    change Sum.inr (F σ) = _
+    simp
+  | m + 1, σ, [] => by
+    change Sum.inl σ.length = _
+    simp
+  | m + 1, σ, r :: rs => by
+    change OracleComp.nextMove (askPrefix F m (σ ++ [r])) rs = _
+    rw [nextMove_askPrefix F m]
+    by_cases h : rs.length < m
+    · simp only [h, ↓reduceIte, List.length_cons, Nat.add_lt_add_iff_right, List.length_append,
+        List.length_nil, Sum.inl.injEq]
+      omega
+    · simp [h]
+
+theorem interpret_askPrefix (F : List ℕ → α) (f : ℕ → ℕ) :
+    ∀ (m : ℕ) (σ : List ℕ), OracleComp.interpret (f : ℕ →. ℕ) (askPrefix F m σ) =
+      Part.some (F (σ ++ (List.range m).map fun i => f (σ.length + i)))
+  | 0, σ => by simp [askPrefix]; rfl
+  | m + 1, σ => by
+    change (Part.some (f σ.length)).bind (fun r => OracleComp.interpret (f : ℕ →. ℕ)
+      (askPrefix F m (σ ++ [r]))) = _
+    rw [Part.bind_some, interpret_askPrefix F f m, List.range_succ_eq_map]
+    simp only [List.length_append, List.length_singleton, List.map_cons, List.map_map,
+      List.append_assoc, List.singleton_append, Nat.add_zero, Function.comp_def]
+    congr 4
+    refine List.map_congr_left fun i _ => ?_
+    congr 1
+    omega
+
+theorem attempt_prefixClocked (f : ℕ → ℕ) (c : Code) (n k : ℕ) :
+    ClockedComp.attempt (f : ℕ →. ℕ) (prefixClocked c n) k =
+      Part.some (evaln (prefixOf f k) k c n) := by
+  exact (interpret_askPrefix _ f k []).trans (by simp [prefixOf])
+
+theorem stable_prefixClocked (f : ℕ → ℕ) (c : Code) (n : ℕ) :
+    ClockedComp.Stable (f : ℕ →. ℕ) (prefixClocked c n) := by
+  intro k a h j
+  rw [attempt_prefixClocked, Part.mem_some_iff] at h
+  rw [attempt_prefixClocked]
+  rcases le_or_gt k j with hkj | hjk
+  · exact Or.inl (by rw [evaln_mono (prefixOf_prefix f hkj) hkj h.symm])
+  · cases hj : evaln (prefixOf f j) j c n with
+    | none => exact Or.inr ⟨hjk, rfl⟩
+    | some a' =>
+      have := evaln_mono (prefixOf_prefix f hjk.le) hjk.le hj
+      rw [← h, Option.mem_def, Option.some_inj] at this
+      exact Or.inl (by rw [this])
+
+/-- Against a total oracle, the universal clocked program computes the code. -/
+theorem eval_prefixClocked (f : ℕ → ℕ) (c : Code) (n : ℕ) :
+    ClockedComp.eval (f : ℕ →. ℕ) (prefixClocked c n) = c.eval f n := by
+  ext a
+  rw [ClockedComp.mem_eval_iff (stable_prefixClocked f c n), mem_eval_iff_exists_evaln]
+  simp [attempt_prefixClocked, eq_comm]
+
+/-- The dialogue of the universal clocked program is primitive recursive. -/
+theorem computable_dialogue_prefixClocked (c : Code) :
+    Computable (ClockedComp.dialogue (prefixClocked c)) := by
+  have h : ∀ x : (ℕ × ℕ) × List ℕ, ClockedComp.dialogue (prefixClocked c) x =
+      if x.2.length < x.1.2 then .inl x.2.length else .inr (evaln x.2 x.1.2 c x.1.1) := by
+    rintro ⟨⟨n, k⟩, rs⟩
+    simp only [ClockedComp.dialogue, prefixClocked, OptionT.run_mk, nextMove_askPrefix,
+      List.length_nil, Nat.zero_add, List.nil_append, evaln_take]
+  have he : _root_.Primrec fun x : (ℕ × ℕ) × List ℕ => evaln x.2 x.1.2 c x.1.1 :=
+    primrec_evaln.comp (_root_.Primrec.snd.pair (((_root_.Primrec.snd.comp _root_.Primrec.fst).pair
+      (_root_.Primrec.const c)).pair (_root_.Primrec.fst.comp _root_.Primrec.fst)))
+  have hlen : _root_.Primrec fun x : (ℕ × ℕ) × List ℕ => x.2.length :=
+    _root_.Primrec.list_length.comp _root_.Primrec.snd
+  refine (_root_.Primrec.ite (_root_.Primrec.nat_lt.comp hlen
+    (_root_.Primrec.snd.comp _root_.Primrec.fst)) (_root_.Primrec.sumInl.comp hlen)
+    (_root_.Primrec.sumInr.comp he)).to_comp.of_eq fun x => (h x).symm
+
+/-- **Codes and clocked programs compute the same functions.** Relative to a total oracle `f`,
+a partial function is recursive in `f` if and only if it is computed by a family of clocked
+programs querying `f` whose dialogue is computable. -/
+theorem recursiveIn_iff_exists_clockedComp {f : ℕ → ℕ} {F : ℕ →. ℕ} :
+    Nat.RecursiveIn {(f : ℕ →. ℕ)} F ↔ ∃ P : ℕ → ClockedComp natOracleSpec ℕ,
+      Computable (ClockedComp.dialogue P) ∧ ∀ n, ClockedComp.eval (f : ℕ →. ℕ) (P n) = F n := by
+  constructor
+  · intro h
+    obtain ⟨c, rfl⟩ := exists_code.1 h
+    exact ⟨prefixClocked c, computable_dialogue_prefixClocked c, eval_prefixClocked f c⟩
+  · rintro ⟨P, hP, hF⟩
+    exact (ClockedComp.recursiveIn_eval hP _).of_eq hF
+
+end Prefix
 
 end Nat.RecursiveIn.Code
