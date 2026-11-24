@@ -42,7 +42,7 @@ variable {P Data : Type*} [Fintype P] [DecidableEq P] {ord : ScanOrder P} {dInit
 /-- A clean double collect (`∀ k, (collectAVal k).seq = (collectBVal k).seq`) returns the
 instantaneous memory state `memSnapshot (τ.stateAt u).reg` at the midpoint `u` between `collectA`
 and `collectB` (after Lemma 3.1 of [AfekAttiyaDolevGafniMerrittShavit1993]). -/
-theorem clean_double_collect_memSnapshot (τ : SnapshotTrace ord dInit)
+private theorem clean_double_collect_memSnapshot (τ : SnapshotTrace ord dInit)
     {st : ActiveScan P Data} {iterS u t : ℕ} (ht : t ≤ τ.events.length)
     (ha_all : ∀ k, ∃ tA, iterS ≤ tA ∧ tA ≤ u ∧ st.collectAVal k = (τ.stateAt tA).reg k)
     (hb_all : ∀ k, ∃ tB, u ≤ tB ∧ tB ≤ t ∧ st.collectBVal k = (τ.stateAt tB).reg k)
@@ -60,7 +60,7 @@ theorem clean_double_collect_memSnapshot (τ : SnapshotTrace ord dInit)
 updater `k` wrote at `w₁ ∈ [lo + 1, iterS)` during an earlier double collect and its register
 sequence number changed between `collectA` (`tA ∈ [iterS, u]`) and `collectB` (`tB ∈ [u, t]`), then
 `(st.collectBVal k).view` equals `memSnapshot (τ.stateAt v).reg` for some `v ∈ [lo + 1, t]`. -/
-theorem borrowed_view_memSnapshot {τ : SnapshotTrace ord dInit} {t : ℕ}
+private theorem borrowed_view_memSnapshot {τ : SnapshotTrace ord dInit} {t : ℕ}
     (inv : TraceInv τ t) (ht : t ≤ τ.events.length)
     {lo iterS u w₁ : ℕ} {st : ActiveScan P Data} {k : P}
     (hw₁_lo : lo + 1 ≤ w₁) (hw₁_hi : w₁ < iterS) (hw₁_write : τ.isWriteStep k w₁)
@@ -105,7 +105,7 @@ theorem borrowed_view_memSnapshot {τ : SnapshotTrace ord dInit} {t : ℕ}
   exact ⟨v_k, by omega, by omega, hv_k_snap.trans hview_eq.symm⟩
 
 /-- Finishing a scan (`finishScan`) with an interval-valid `snap` preserves `TraceInv`. -/
-theorem TraceInv.of_finishScan {τ : SnapshotTrace ord dInit} {t : ℕ}
+private theorem TraceInv.of_finishScan {τ : SnapshotTrace ord dInit} {t : ℕ}
     (inv : TraceInv τ t) {i : P} {st : ActiveScan P Data}
     (hpi : (τ.stateAt t).proc i = .scanning st)
     (hnow : ¬∃ j, τ.isWriteStep j t)
@@ -142,7 +142,7 @@ theorem TraceInv.of_finishScan {τ : SnapshotTrace ord dInit} {t : ℕ}
 
 /-- Advancing an active scan to `st_next` (same `opId` and `mode`, unchanged history) preserves
 `TraceInv`. -/
-theorem TraceInv.of_continueScan {τ : SnapshotTrace ord dInit} {t : ℕ}
+private theorem TraceInv.of_continueScan {τ : SnapshotTrace ord dInit} {t : ℕ}
     (inv : TraceInv τ t) {i : P} {st : ActiveScan P Data}
     (hpi : (τ.stateAt t).proc i = .scanning st)
     (hnow : ¬∃ j, τ.isWriteStep j t)
@@ -158,7 +158,7 @@ theorem TraceInv.of_continueScan {τ : SnapshotTrace ord dInit} {t : ℕ}
     fun _ heq => by injection heq with h1; subst h1; exact ⟨hop_eq, hmode_eq, hnext⟩
 
 /-- Single-writer atomic register write (`readyToWrite → idle`) preserves `TraceInv`. -/
-theorem TraceInv.of_writeStep {τ : SnapshotTrace ord dInit} {t : ℕ}
+private theorem TraceInv.of_writeStep {τ : SnapshotTrace ord dInit} {t : ℕ}
     (inv : TraceInv τ t) (ht_lt : t < τ.events.length) {i : P}
     {opId : ℕ} {val : Data} {snap : P → Data}
     (hev : τ.events[t]'ht_lt = .step i)
@@ -192,7 +192,7 @@ theorem TraceInv.of_writeStep {τ : SnapshotTrace ord dInit} {t : ℕ}
     (fun j hw => ⟨hji_of_write hw, rfl⟩)
 
 /-- One atomic `.step i` of a process executing an active `scan` preserves `TraceInv`. -/
-theorem TraceInv.of_scanning {τ : SnapshotTrace ord dInit} {t : ℕ}
+private theorem TraceInv.of_scanning {τ : SnapshotTrace ord dInit} {t : ℕ}
     (inv : TraceInv τ t) (ht_lt : t < τ.events.length) {i : P} {st : ActiveScan P Data}
     (hev : τ.events[t]'ht_lt = .step i)
     (hpi : (τ.stateAt t).proc i = .scanning st)

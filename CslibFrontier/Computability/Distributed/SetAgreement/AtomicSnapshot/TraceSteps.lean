@@ -70,7 +70,7 @@ theorem TraceInv.of_invoke {τ : SnapshotTrace ord dInit} {t : ℕ}
   have hget_new : ∀ hId : (τ.stateAt t).history.length < (τ.stateAt (t + 1)).history.length,
       (τ.stateAt (t + 1)).history[(τ.stateAt t).history.length]'hId = ⟨i, kind, t, .pending⟩ := by
     intro hId
-    rw [getElem_of_eq hhist_eq hId (by rw [List.length_append, List.length_singleton]; omega)]
+    rw [List.getElem_of_eq hhist_eq hId]
     simp only [List.getElem_append_right (le_refl _), Nat.sub_self, List.getElem_singleton]
   refine inv.of_actor_step i (τ.stateAt t).history.length
     (by rw [← hs₁, inv.stepCount_eq])
@@ -78,8 +78,7 @@ theorem TraceInv.of_invoke {τ : SnapshotTrace ord dInit} {t : ℕ}
     (by omega)
     (fun id h₁ hne => by omega)
     (fun id h₁ h₀ _ => by
-      rw [getElem_of_eq hhist_eq h₁ (by rw [List.length_append]; omega),
-        List.getElem_append_left h₀])
+      rw [List.getElem_of_eq hhist_eq h₁, List.getElem_append_left h₀])
     (fun h₀ => absurd h₀ (lt_irrefl _))
     (fun j hw => absurd ⟨j, hw⟩ hnow)
     (fun _ _ _ hp => by rw [← hs₁] at hp; simp only [Function.update_self] at hp; cases hp)
@@ -103,8 +102,7 @@ theorem TraceInv.of_invoke {τ : SnapshotTrace ord dInit} {t : ℕ}
       exact Or.inl ⟨st_new, by rw [← hs₁]; exact Function.update_self _ _ _, rfl⟩
     · have hId₀ : id < (τ.stateAt t).history.length := by omega
       have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId = (τ.stateAt t).history[id]'hId₀ := by
-        rw [getElem_of_eq hhist_eq hId (by rw [List.length_append]; omega),
-          List.getElem_append_left hId₀]
+        rw [List.getElem_of_eq hhist_eq hId, List.getElem_append_left hId₀]
       have hci : ((τ.stateAt t).history[id]'hId₀).caller = i := hrec_eq ▸ hcase.resolve_left hid
       rw [hrec_eq] at hpend
       obtain ⟨-, -, hact_old⟩ := inv.hist_pending id hId₀ hpend
@@ -138,28 +136,28 @@ theorem TraceInv.of_local_active {τ : SnapshotTrace ord dInit} {t : ℕ}
     (fun p hp => by rw [← hs_eq]; exact Function.update_of_ne hp _ _)
     (by rw [hhist_eq])
     (fun id h₁ _ => hhist_eq ▸ h₁)
-    (fun id h₁ h₀ _ => getElem_of_eq hhist_eq h₁ h₀)
+    (fun id h₁ h₀ _ => List.getElem_of_eq hhist_eq h₁)
     (fun h₀ => absurd h₀ (lt_irrefl _))
     (fun j hw => absurd ⟨j, hw⟩ hnow)
     (fun id' v' sn' hp => by
       obtain ⟨rfl, hmode, hsnap⟩ := hready_i id' v' sn' (hpi_new ▸ hp)
       have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := hhist_eq ▸ hId
       refine ⟨hId₁, ?_, by omega, hkeep ▸ hsnap⟩
-      rw [getElem_of_eq hhist_eq hId₁ hId, hrec_i, hmode, hkeep])
+      rw [List.getElem_of_eq hhist_eq hId₁, hrec_i, hmode, hkeep])
     (fun st' hp => by
       obtain ⟨hop, hmode, hloop⟩ := hscan_i st' (hpi_new ▸ hp)
       have hId₁ : st'.opId < (τ.stateAt (t + 1)).history.length := by
         rw [hhist_eq, hop]; exact hId
       refine ⟨hId₁, ?_, by omega, hkeep ▸ hloop⟩
-      rw [getElem_of_eq hhist_eq hId₁ (hop ▸ hId),
-        getElem_congr_idx _ hop (hop ▸ hId) hId, hrec_i, hmode, hkeep])
+      rw [List.getElem_of_eq hhist_eq hId₁, _root_.getElem_congr_idx hop, hrec_i, hmode, hkeep])
     ?_
     (fun h₁ => absurd (hhist_eq ▸ h₁) (lt_irrefl _))
     (fun h₁ => absurd (hhist_eq ▸ h₁) (lt_irrefl _))
     (fun j hw => absurd ⟨j, hw⟩ hnow)
   intro id hId₁ hcase hpend
   have hId₀ : id < (τ.stateAt t).history.length := hhist_eq ▸ hId₁
-  have hrec_eq := getElem_of_eq hhist_eq hId₁ hId₀
+  have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId₁ = (τ.stateAt t).history[id]'hId₀ :=
+    List.getElem_of_eq hhist_eq hId₁
   have hci : ((τ.stateAt t).history[id]'hId₀).caller = i :=
     hrec_eq ▸ hcase.resolve_left (Nat.ne_of_lt hId₀)
   rw [hrec_eq] at hpend ⊢
@@ -206,13 +204,13 @@ theorem TraceInv.of_complete {τ : SnapshotTrace ord dInit} {t : ℕ}
   have hnew_at : ∀ h₁ : activeId < (τ.stateAt (t + 1)).history.length,
       (τ.stateAt (t + 1)).history[activeId]'h₁ = ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ := by
     intro h₁
-    rw [getElem_of_eq hset h₁ (by simp only [List.length_set]; exact hId)]
+    rw [List.getElem_of_eq hset h₁]
     exact List.getElem_set_self (by simp only [List.length_set]; exact hId)
   have hunch : ∀ id (h₁ : id < (τ.stateAt (t + 1)).history.length)
       (h₀ : id < (τ.stateAt t).history.length), id ≠ activeId →
       (τ.stateAt (t + 1)).history[id]'h₁ = (τ.stateAt t).history[id]'h₀ := by
     intro id h₁ h₀ hne
-    rw [getElem_of_eq hset h₁ (by simp only [List.length_set]; exact h₀)]
+    rw [List.getElem_of_eq hset h₁]
     exact List.getElem_set_ne (Ne.symm hne) (by simp only [List.length_set]; exact h₀)
   refine inv.of_actor_step i activeId hstepCount
     (fun p hp => by rw [hproc_eq, Function.update_of_ne hp])

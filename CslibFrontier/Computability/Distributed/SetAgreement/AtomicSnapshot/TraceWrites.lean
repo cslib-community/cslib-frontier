@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.SetAgreement.AtomicSnapshot.Trace
 import CslibFrontier.Computability.Distributed.SetAgreement.AtomicSnapshot.StepFacts
-public import Mathlib.Data.Finset.Max
+import Mathlib.Data.Finset.Max
 
 /-!
 # Internal trace write-step monotonicity and last-idle-step helpers
@@ -151,18 +151,18 @@ theorem exists_last_writeStep_of_seq_pos (τ : SnapshotTrace ord dInit) (j : P) 
         rfl, fun _ hm₁ hm₂ => by omega⟩
 
 /-- Zero is always in the idle-step filter up to step `t`. -/
-theorem zero_mem_idleFilter (τ : SnapshotTrace ord dInit) (i : P) (t : ℕ) :
+private theorem zero_mem_idleFilter (τ : SnapshotTrace ord dInit) (i : P) (t : ℕ) :
     0 ∈ (range (t + 1)).filter fun m => ((τ.stateAt m).proc i).isIdle :=
   mem_filter.mpr ⟨mem_range.mpr (Nat.zero_lt_succ t), by rw [stateAt_zero]; rfl⟩
 
 /-- Proof-only helper: the largest step index `m ≤ t` at which `(τ.stateAt m).proc i = .idle`
 (well-defined since `m = 0` always has `(τ.stateAt 0).proc i = .idle`). -/
-def lastIdleStep (τ : SnapshotTrace ord dInit) (i : P) (t : ℕ) : ℕ :=
+noncomputable def lastIdleStep (τ : SnapshotTrace ord dInit) (i : P) (t : ℕ) : ℕ :=
   ((range (t + 1)).filter fun m => ((τ.stateAt m).proc i).isIdle).max'
     ⟨0, τ.zero_mem_idleFilter i t⟩
 
 /-- Upper bound `lastIdleStep i t ≤ t`. -/
-theorem lastIdleStep_le (τ : SnapshotTrace ord dInit) (i : P) (t : ℕ) :
+private theorem lastIdleStep_le (τ : SnapshotTrace ord dInit) (i : P) (t : ℕ) :
     τ.lastIdleStep i t ≤ t := by
   have hmem := Finset.max'_mem
     ((range (t + 1)).filter fun m => ((τ.stateAt m).proc i).isIdle)
@@ -209,16 +209,6 @@ theorem lastIdleStep_eq_of_step_not_idle (τ : SnapshotTrace ord dInit) (i : P) 
             ⟨0, τ.zero_mem_idleFilter i t⟩
           exact (ProcSnapshotState.isIdle_eq_true _).mp (mem_filter.mp hmem).2)
 
-/-- Index into equal lists at corresponding indices. -/
-theorem getElem_of_eq {α : Type*} {xs ys : List α} (h : xs = ys) {i : ℕ}
-    (hxi : i < xs.length) (hyi : i < ys.length) : xs[i]'hxi = ys[i]'hyi := by
-  subst h; rfl
-
-/-- List indexing congruence across index equalities. -/
-theorem getElem_congr_idx {α : Type*} (xs : List α) {i j : ℕ} (h : i = j)
-    (hi : i < xs.length) (hj : j < xs.length) : xs[i]'hi = xs[j]'hj := by
-  subst h; rfl
-
 end SnapshotTrace
 
 /-- History entry lookup when its updated status differs from `newSt`. -/
@@ -235,8 +225,7 @@ theorem getElem_completeHistoryAt_of_status_ne {P Data : Type*}
     · have hset : completeHistoryAt hist k newSt =
           hist.set k { hist[k] with status := newSt } := by
         simp only [completeHistoryAt, List.getElem?_eq_getElem hop]
-      rw [SnapshotTrace.getElem_of_eq hset hk (by simp only [List.length_set]; exact hk₀),
-        List.getElem_set_self] at hst
+      rw [List.getElem_of_eq hset hk, List.getElem_set_self] at hst
       exact absurd hst.symm hne
     · exact absurd hk₀ hop
   · exact getElem_completeHistoryAt_ne hko hk

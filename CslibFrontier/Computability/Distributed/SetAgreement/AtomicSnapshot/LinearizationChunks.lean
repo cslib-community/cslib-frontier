@@ -41,7 +41,7 @@ public section
 namespace Cslib.Distributed.SetAgreement
 
 /-- Sequential memory state across appended index lists. -/
-theorem seqSnapshotMemAfter_append {P Data : Type*} [DecidableEq P] (mem : P → Data)
+private theorem seqSnapshotMemAfter_append {P Data : Type*} [DecidableEq P] (mem : P → Data)
     (hist : List (SnapshotOpRecord P Data)) (xs ys : List ℕ) :
     seqSnapshotMemAfter mem hist (xs ++ ys) =
       seqSnapshotMemAfter (seqSnapshotMemAfter mem hist xs) hist ys := by
@@ -50,7 +50,7 @@ theorem seqSnapshotMemAfter_append {P Data : Type*} [DecidableEq P] (mem : P →
   | cons _ _ ih => exact ih _
 
 /-- Distinct history entries never carry the same `.doneUpdate w` completion step. -/
-theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
+private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
     {ord : ScanOrder P} {dInit : Data} (τ : SnapshotTrace ord dInit)
     (hinv : ∀ m ≤ τ.events.length, τ.TraceInv m) :
     ∀ t ≤ τ.events.length,
@@ -84,7 +84,7 @@ theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
             hhist ▸ hk
           have hst' : ((τ.stateAt t).history[k]'((length_completeHistoryAt ..) ▸ hk')).status =
               .doneUpdate t := by
-            rwa [SnapshotTrace.getElem_of_eq hhist hk hk',
+            rwa [List.getElem_of_eq hhist hk,
               getElem_completeHistoryAt_ne hne hk'] at hst
           obtain ⟨_, -, -, hlt_w, -⟩ := inv.hist_doneUpdate k _ t hst'
           omega
@@ -93,14 +93,14 @@ theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
           fun h => hwt (SnapshotOpStatus.doneUpdate.inj h)
         have h₁' := hhist ▸ h₁
         have h₂' := hhist ▸ h₂
-        rw [SnapshotTrace.getElem_of_eq hhist h₁ h₁'] at hst₁
-        rw [SnapshotTrace.getElem_of_eq hhist h₂ h₂'] at hst₂
+        rw [List.getElem_of_eq hhist h₁] at hst₁
+        rw [List.getElem_of_eq hhist h₂] at hst₂
         obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne hne_st h₁' hst₁
         obtain ⟨hk₂, heq₂⟩ := getElem_completeHistoryAt_of_status_ne hne_st h₂' hst₂
         exact ih_t id₁ id₂ hk₁ hk₂ w (heq₁ ▸ hst₁) (heq₂ ▸ hst₂)
     · exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
-        (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
-        (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
+        (by rwa [List.getElem_of_eq hhist h₁] at hst₁)
+        (by rwa [List.getElem_of_eq hhist h₂] at hst₂)
     · have lt_old : ∀ {k} (hk : k < (τ.stateAt (t + 1)).history.length),
           ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate w →
           ∃ hk₀ : k < (τ.stateAt t).history.length,
@@ -111,21 +111,20 @@ theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
           have heq : k = (τ.stateAt t).history.length := by
             rw [hhist, List.length_append, List.length_singleton] at hk; omega
           subst heq
-          rw [SnapshotTrace.getElem_of_eq hhist hk
-            (by rw [List.length_append, List.length_singleton]; omega)] at hst
+          rw [List.getElem_of_eq hhist hk] at hst
           simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
             List.getElem_singleton, hpend] at hst
           cases hst
         refine ⟨hk₀, ?_⟩
-        rwa [SnapshotTrace.getElem_of_eq hhist hk (by rw [List.length_append]; omega),
+        rwa [List.getElem_of_eq hhist hk,
           List.getElem_append_left hk₀] at hst
       obtain ⟨hk₁, hs₁'⟩ := lt_old h₁ hst₁
       obtain ⟨hk₂, hs₂'⟩ := lt_old h₂ hst₂
       exact ih_t id₁ id₂ hk₁ hk₂ w hs₁' hs₂'
     · have h₁' := hhist ▸ h₁
       have h₂' := hhist ▸ h₂
-      rw [SnapshotTrace.getElem_of_eq hhist h₁ h₁'] at hst₁
-      rw [SnapshotTrace.getElem_of_eq hhist h₂ h₂'] at hst₂
+      rw [List.getElem_of_eq hhist h₁] at hst₁
+      rw [List.getElem_of_eq hhist h₂] at hst₂
       obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne (fun h => by cases h) h₁' hst₁
       obtain ⟨hk₂, heq₂⟩ := getElem_completeHistoryAt_of_status_ne (fun h => by cases h) h₂' hst₂
       exact ih_t id₁ id₂ hk₁ hk₂ w (heq₁ ▸ hst₁) (heq₂ ▸ hst₂)
@@ -138,7 +137,6 @@ variable {P Data : Type*} [Fintype P] [DecidableEq P] {ord : ScanOrder P} {dInit
 
 /-- Witness serialization step in `(invStep, resp]` selected for a completed scan returning `snap`
 (returns `0` when no such witness exists). -/
-@[expose]
 noncomputable def linScanPoint (τ : SnapshotTrace ord dInit) (invStep resp : ℕ)
     (snap : P → Data) : ℕ :=
   open Classical in
@@ -158,7 +156,6 @@ theorem linScanPoint_spec (τ : SnapshotTrace ord dInit) {invStep resp : ℕ}
   exact Classical.choose_spec hex
 
 /-- Final-history indices of completed scans serialized at step `t`. -/
-@[expose]
 noncomputable def linScansAt (τ : SnapshotTrace ord dInit) (t : ℕ) : List ℕ :=
   let hist := (τ.stateAt τ.events.length).history
   (List.range hist.length).filter fun id =>
@@ -170,7 +167,6 @@ noncomputable def linScansAt (τ : SnapshotTrace ord dInit) (t : ℕ) : List ℕ
     | none => false
 
 /-- Final-history indices of completed updates that wrote at step `t`. -/
-@[expose]
 def linUpdatesAt (τ : SnapshotTrace ord dInit) (t : ℕ) : List ℕ :=
   let hist := (τ.stateAt τ.events.length).history
   (List.range hist.length).filter fun id =>
@@ -262,7 +258,7 @@ theorem nodup_linPrefix (τ : SnapshotTrace ord dInit) (k : ℕ) :
   exact absurd (hs₁.symm.trans hs₂) nofun
 
 /-- All scans linearized at `t` validate against and preserve `memSnapshot (τ.stateAt t).reg`. -/
-theorem linScansAt_valid (τ : SnapshotTrace ord dInit)
+private theorem linScansAt_valid (τ : SnapshotTrace ord dInit)
     (inv : TraceInv τ τ.events.length) (t : ℕ) :
     seqSnapshotMemAfter (memSnapshot (τ.stateAt t).reg)
         (τ.stateAt τ.events.length).history (τ.linScansAt t) =
@@ -298,7 +294,7 @@ theorem linScansAt_valid (τ : SnapshotTrace ord dInit)
 
 /-- For each transition `t < τ.events.length`, `linUpdatesAt τ t` contains at most the unique write
 occurring at `t`, validates sequentially, and advances `memSnapshot` to `t + 1`. -/
-theorem linUpdatesAt_valid (τ : SnapshotTrace ord dInit)
+private theorem linUpdatesAt_valid (τ : SnapshotTrace ord dInit)
     (hinv : ∀ m ≤ τ.events.length, τ.TraceInv m) {t : ℕ} (ht_lt : t < τ.events.length) :
     seqSnapshotMemAfter (memSnapshot (τ.stateAt t).reg)
         (τ.stateAt τ.events.length).history (τ.linUpdatesAt t) =

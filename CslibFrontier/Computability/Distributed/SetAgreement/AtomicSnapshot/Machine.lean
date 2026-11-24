@@ -28,10 +28,6 @@ Defines process states (`ActiveScan`, `ProcSnapshotState`), global configuration
   `Cslib.Distributed.SetAgreement.stepSnapshot`: atomic step transition semantics.
 * `Cslib.Distributed.SetAgreement.snapshotLTS`,
   `Cslib.Distributed.SetAgreement.SnapshotReachable`: labelled transition system and reachability.
-
-## Main results
-
-* `Cslib.Distributed.SetAgreement.ProcSnapshotState.isIdle_eq_true`: idle predicate equivalence.
 -/
 
 public section

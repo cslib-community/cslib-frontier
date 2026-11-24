@@ -204,7 +204,8 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
       have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := lt_of_lt_of_le hId₀ hhist_len
       have hne_mod : st.opId ≠ modId := by
         intro heq
-        have hidx := getElem_congr_idx (τ.stateAt t).history heq hId₀ (heq ▸ hId₀)
+        have hidx : (τ.stateAt t).history[st.opId]'hId₀ =
+            (τ.stateAt t).history[modId]'(heq ▸ hId₀) := _root_.getElem_congr_idx heq
         exact hpi ((congrArg SnapshotOpRecord.caller (hrec₀.symm.trans hidx)).trans
           (hmod_old (heq ▸ hId₀)).1)
       refine ⟨hId₁, ?_, by omega, hkeep ▸ hloop.mono_hi (Nat.le_succ t)⟩
