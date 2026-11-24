@@ -7997,6 +7997,7 @@ public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Jacobi
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Kernel
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Relations
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Residue
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.SeparatedCriticalValues
