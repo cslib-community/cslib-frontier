@@ -100,15 +100,14 @@ theorem coinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => coinCountWithSymbol machine (B a) (n a) (u a) (v a) (symbol a))
       enc encNat S :=
   budget_natAdd
     (budget_finite Bool.toNat
-      (edgeWithSymbol_budget (machine.withCoin false).toTM.toMultiTapeNTM hB hn hu hv hs hin))
+      (edgeWithSymbol_budget (machine.withCoin false).toTM.toMultiTapeNTM hB hn hu hv hs))
     (budget_finite Bool.toNat
-      (edgeWithSymbol_budget (machine.withCoin true).toTM.toMultiTapeNTM hB hn hu hv hs hin))
+      (edgeWithSymbol_budget (machine.withCoin true).toTM.toMultiTapeNTM hB hn hu hv hs))
 
 /-- Zeroing the halted rows preserves the same native space budget. -/
 theorem liveCoinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
@@ -116,8 +115,7 @@ theorem liveCoinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace
       (fun a => liveCoinCountWithSymbol machine (B a) (n a) (u a) (v a) (symbol a))
       enc encNat S := by
@@ -125,7 +123,7 @@ theorem liveCoinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
       enc encNat S :=
     budget_comp_linear (component_inSpace (Register.control : Register k)) (budget_prod hB hu)
   simpa only [liveCoinCountWithSymbol, decide_eq_true_eq] using
-    budget_ite (budget_natEq hc (budget_const (stateCode (none : Option State)) hin))
-      (budget_const 0 hin) (coinCountWithSymbol_budget machine hB hn hu hv hs hin)
+    budget_ite (budget_natEq hc (budget_const (stateCode (none : Option State))))
+      (budget_const 0) (coinCountWithSymbol_budget machine hB hn hu hv hs)
 
 end Turing.MultiTapePTM.ConfigurationGraph

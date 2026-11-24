@@ -2105,7 +2105,10 @@ theorem optBits_two_pow_le_benchmarkBits_add_one {U b n : ℕ} (hn : n ≤ U) :
   rw [hl2]
   linarith
 
-private theorem ofReal_le_tsum_seqProbes_of_toReal_le {Op : Type*} {Result : Op → Type}
+/-- Lift a real-valued expected probe-count lower bound `L ≤ ∑' ops, (dist ops).toReal *
+(D_det.seqProbes ops : ℝ)` into `ℝ≥0∞`: `ENNReal.ofReal L ≤ ∑' ops, dist ops *
+(D_det.seqProbes ops : ℝ≥0∞)`. -/
+theorem ofReal_le_tsum_seqProbes_of_toReal_le {Op : Type*} {Result : Op → Type}
     {cells w : ℕ} (dist : PMF (List Op)) (D_det : IndexedScheme Op Result cells w) {L : ℝ}
     (hL : L ≤ ∑' ops, (dist ops).toReal * (D_det.seqProbes ops : ℝ)) :
     ENNReal.ofReal L ≤ ∑' ops, dist ops * (D_det.seqProbes ops : ℝ≥0∞) := by
