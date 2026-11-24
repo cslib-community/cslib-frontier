@@ -24,6 +24,7 @@ import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
@@ -310,8 +311,7 @@ theorem CollisionResistantOn.targetCollisionResistantOn
   have heq (n : ℕ) :
       ProbComp.eval (targetCollisionGame id (fun _ k msg => H k msg) valid adversary n) =
         ProbComp.eval (collisionGame H valid colFinder n) := by
-    simp only [targetCollisionGame, collisionGame, colFinder, id_eq, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    simp only [targetCollisionGame, collisionGame, colFinder, id_eq, pmf_norm]
     exact PMF.bind_comm _ _ _
   simpa only [heq] using hCR.negligible colFinder hcolPPT
 
@@ -1062,16 +1062,14 @@ theorem succProbability_targetCollisionGame_uowhfTreeHash_le
           (uowhfTreeAdversary h keyLen blockLen maxBlocks adversary) n) =
         (PMF.uniformOfFintype (Fin (dyadicSize bound))).bind (fun s => slotTrial s.val) := by
     dsimp only [targetCollisionGame, uowhfTreeAdversary, slotTrial, κ, M, B, bound]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, eval_sampleDyadicIndex,
-      BitString.eval_sampleList, treeStateDecoder.decode_enc, PMF.bind_bind, PMF.pure_bind,
-      PMF.bind_map, Function.comp_def]
+    simp only [eval_sampleDyadicIndex, BitString.eval_sampleList, treeStateDecoder.decode_enc,
+      pmf_norm]
   have htree_eq :
       ProbComp.eval
         (targetCollisionGame (fun m => (m + 1) * keyLen m)
           (uowhfTreeHash h keyLen blockLen) (fun _ _ => true) adversary n) =
         μ.map W := by
-    simp only [targetCollisionGame, μ, W, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, κ]
+    simp only [targetCollisionGame, μ, W, BitString.eval_sampleList, PMF.map, κ, pmf_norm]
   let Wi (s : Fin (dyadicSize bound))
       (t : (List Bool × List Bool) × List Bool × List Bool) : Bool :=
     if s.val < bound then

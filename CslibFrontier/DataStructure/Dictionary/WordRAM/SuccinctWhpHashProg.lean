@@ -502,8 +502,7 @@ private theorem realizes_bktHashRt :
       (fun w d s => HashRtEnv w d.1 s)
       (fun _ _ => 0) := by
   unfold bktHashRtProg
-  have heh := realizes_evalHashGen
-  realize
+  realize [realizes_evalHashGen]
   all_goals (
     rcases d with ⟨hrt, q⟩
     dsimp only at h
@@ -593,8 +592,7 @@ theorem realizes_feistelSplitRt :
       (fun w d s => HashRtEnv w d.1 s)
       (fun _ _ => 0) := by
   unfold feistelSplitRtProg
-  have hbh := realizes_bktHashRt
-  realize
+  realize [realizes_bktHashRt]
   all_goals (
     rcases d with ⟨hrt, u_val⟩
     dsimp only at h
@@ -673,8 +671,7 @@ private theorem realizes_feistelReconstructRt :
       (fun w ((hrt, _), q) s => QuotHashRtEnv w hrt q s)
       (fun _ _ => 0) := by
   unfold feistelReconstructRtProg
-  have hbh := realizes_bktHashRt
-  realize
+  realize [realizes_bktHashRt]
   all_goals (
     rcases d with ⟨⟨hrt, b⟩, q⟩
     dsimp only at h
@@ -756,8 +753,7 @@ theorem realizes_fpReducedKeyOptRt :
       (fun w d s => HashRtEnv w d.1 s)
       (fun _ _ => 0) := by
   unfold fpReducedKeyOptRtProg
-  have hs1 := realizes_stage1RedGen
-  realize
+  realize [realizes_stage1RedGen]
   all_goals (
     rcases d with ⟨hrt, kv⟩
     dsimp only at h
@@ -844,8 +840,7 @@ theorem realizes_fpOfSaltOptRt :
       (fun w ((hrt, _), _) s => HashRtEnv w hrt s)
       (fun _ _ => 0) := by
   unfold fpOfSaltOptRtProg
-  have heh := realizes_evalHashGen
-  realize
+  realize [realizes_evalHashGen]
   all_goals (
     rcases d with ⟨⟨hrt, salt⟩, kv⟩
     dsimp only at h
@@ -936,9 +931,7 @@ theorem realizes_rKeyOfQuotRt :
       (fun w ((hrt, _), q) s => QuotHashRtEnv w hrt q s)
       (fun _ _ => 0) := by
   unfold rKeyOfQuotRtProg
-  have hfr := realizes_feistelReconstructRt
-  have hrk := realizes_fpReducedKeyOptRt
-  realize
+  realize [realizes_feistelReconstructRt, realizes_fpReducedKeyOptRt]
   all_goals (
     rcases d with ⟨⟨hrt, b⟩, q⟩
     dsimp only at h
@@ -995,9 +988,7 @@ theorem realizes_fpOfQuotRt :
       (fun w (((hrt, _), _), q) s => QuotHashRtEnv w hrt q s)
       (fun _ _ => 0) := by
   unfold fpOfQuotRtProg
-  have hfr := realizes_feistelReconstructRt
-  have hfp := realizes_fpOfSaltOptRt
-  realize
+  realize [realizes_feistelReconstructRt, realizes_fpOfSaltOptRt]
   all_goals (
     rcases d with ⟨⟨⟨hrt, salt⟩, b⟩, q⟩
     dsimp only at h

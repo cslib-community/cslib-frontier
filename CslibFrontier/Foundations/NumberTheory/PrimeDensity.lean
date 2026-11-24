@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Nat.Prime.Defs
 public import Mathlib.Order.Interval.Finset.Nat
 import CslibFrontier.Foundations.NumberTheory.CentralBinomPrimes
-import Mathlib.Data.Nat.Choose.Central
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.NormNum.Prime
 

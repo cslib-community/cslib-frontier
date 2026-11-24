@@ -9,9 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Analysis.Normed.Ring.Basic
-import Mathlib.Tactic.Abel
-import Mathlib.Tactic.GCongr
-import Mathlib.Tactic.Ring
 
 /-!
 # Powers of contractions in a seminormed ring

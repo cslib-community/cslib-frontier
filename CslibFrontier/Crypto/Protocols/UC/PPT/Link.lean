@@ -45,6 +45,9 @@ reply-length bound (`Machine.IsReplyBounded`) on the machine family.
 
 ## Main results
 
+* `Cslib.Crypto.Protocols.UC.WordInterface.exists_polyBounded_reply_take`,
+  `Cslib.Crypto.Protocols.UC.Machine.isReplyBounded_id`: polynomial reply-length bound for
+  truncated replies and for the forwarding machine `Machine.id`.
 * `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.routeCorrupt`,
   `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.liftRight`: structural transfer lemmas for
   static-corruption routing and right-side interface lifting.
@@ -144,6 +147,65 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
         encSum_inr, List.length_cons] at h1 ⊢
       omega
 
+/-- Library infrastructure (no cited result): a reply word truncated at `p.replyBound`, decoded and
+re-encoded through a `WordInterface`, has length at most a polynomial in
+`(encPPTParam n p).length`. -/
+theorem WordInterface.exists_polyBounded_reply_take {n : ℕ} {ι : Type} {E : ι → Type}
+    (I : WordInterface E) :
+    ∃ bound : PPTParam n → ℕ, PolyBounded (fun p => (encPPTParam n p).length) bound ∧
+      ∀ (p : PPTParam n) (q : ι) (w : List Bool),
+        (I.reply q (I.decodeReply q (List.take p.replyBound w))).length ≤ bound p := by
+  obtain ⟨c, d, hnorm⟩ := I.computable_replyNormalize.polyBounded_length.exists_le
+  have hrb : PolyBounded (fun p : PPTParam n => (encPPTParam n p).length)
+      (fun p => p.replyBound) := by
+    have hc : ComputableInPolyTime (fun p : PPTParam n => p.replyBound)
+        (encPPTParam n) encUnary := by
+      fun_prop
+    simpa only [encUnary_apply, List.length_replicate] using hc.polyBounded_length
+  refine ⟨fun p => c * (2 * Nat.card I.Channel + 2 + p.replyBound) ^ d,
+    (PolyBounded.const c).mul
+      (((PolyBounded.const (2 * Nat.card I.Channel + 2)).add hrb).pow d),
+    fun p q w => ?_⟩
+  rw [I.reply_decodeReply]
+  have h1 : (I.replyNormalize (I.channel q) (List.take p.replyBound w)).length ≤
+      c * ((encPair (encFinite I.Channel) encBits
+        (I.channel q, List.take p.replyBound w)).length + 1) ^ d := by
+    simpa only [encBits_apply] using hnorm (I.channel q, List.take p.replyBound w)
+  have hch : (encFinite I.Channel (I.channel q)).length ≤ Nat.card I.Channel :=
+    (length_encFinite_lt _).le
+  have hlen : (encPair (encFinite I.Channel) encBits
+      (I.channel q, List.take p.replyBound w)).length + 1 ≤
+      2 * Nat.card I.Channel + 2 + p.replyBound := by
+    simp only [length_encPair, encBits_apply, List.length_take]
+    omega
+  exact h1.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hlen d))
+
+/-- Every supported output of forwarding a single lowered query and keeping state `s` decodes a
+reply word truncated at `limit`. -/
+private theorem exists_word_of_mem_support_lowerWith_query_bind_pure
+    {ι : Type} {E : ι → Type} {σ : Type}
+    (I : WordInterface E) (limit : ℕ) (q : ι) (s : σ) {x : E q × σ}
+    (hx : x ∈ OracleComp.support
+      (ProbOracleComp.lowerWith I limit (ProbOracleComp.query q >>= fun r => pure (r, s)))) :
+    ∃ w : List Bool, x.1 = I.decodeReply q (List.take limit w) := by
+  simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+    ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery] at hx
+  obtain ⟨r, hr, hx'⟩ := OracleComp.mem_supportWith_bind_iff.mp hx
+  obtain ⟨t, ht, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hr
+  obtain ⟨w, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp ht
+  obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx'
+  exact ⟨w, rfl⟩
+
+/-- Library infrastructure (no cited result): the forwarding machine `Machine.id` is
+`Machine.IsReplyBounded`: each exported reply is an imported reply truncated at `p.replyBound`
+and re-encoded. -/
+theorem Machine.isReplyBounded_id {n : ℕ} {ι : Type} {E : ι → Type} (I : WordInterface E) :
+    Machine.IsReplyBounded (n := n) (fun _ _ => Machine.id E) I I := by
+  obtain ⟨bound, hpoly, hle⟩ := I.exists_polyBounded_reply_take (n := n)
+  refine ⟨bound, hpoly, fun p q s x hx => ?_⟩
+  obtain ⟨w, hw⟩ := exists_word_of_mem_support_lowerWith_query_bind_pure I p.replyBound q s hx
+  exact hw ▸ hle p q w
+
 /-- Library infrastructure (no cited result): lifting a reply-bounded machine family past a left
 pass-through interface preserves `Machine.IsReplyBounded`; forwarded left-channel replies are
 normalized from at most `p.replyBound` bits in polynomial time, and right-channel replies are
@@ -155,47 +217,16 @@ theorem Machine.IsReplyBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
     (h : Machine.IsReplyBounded M iR iE) :
     Machine.IsReplyBounded (fun κ C => Machine.liftRight L (M κ C)) (iL.sum iR) (iL.sum iE) := by
   obtain ⟨bound, hpoly, hle⟩ := h
-  obtain ⟨c, d, hnorm⟩ := iL.computable_replyNormalize.polyBounded_length.exists_le
-  have hrb : PolyBounded (fun p : PPTParam n => (encPPTParam n p).length)
-      (fun p => p.replyBound) := by
-    have hc : ComputableInPolyTime (fun p : PPTParam n => p.replyBound)
-        (encPPTParam n) encUnary := by
-      fun_prop
-    simpa only [encUnary_apply, List.length_replicate] using hc.polyBounded_length
-  let boundL : PPTParam n → ℕ :=
-    fun p => c * (2 * Nat.card iL.Channel + 2 + p.replyBound) ^ d
-  have hpolyL : PolyBounded (fun p : PPTParam n => (encPPTParam n p).length) boundL :=
-    (PolyBounded.const c).mul
-      (((PolyBounded.const (2 * Nat.card iL.Channel + 2)).add hrb).pow d)
+  obtain ⟨boundL, hpolyL, hleL⟩ := iL.exists_polyBounded_reply_take (n := n)
   refine ⟨fun p => bound p + boundL p, hpoly.add hpolyL, fun p q s x hx => ?_⟩
   let s' : (M p.secParam p.corrupted).State := s
   cases q with
   | inl qL =>
-    change x ∈ OracleComp.support (ProbOracleComp.lowerWith (iL.sum iR) p.replyBound
-      (ProbOracleComp.query (spec := L ⊕ₒ R) (.inl qL) >>= fun r => pure (r, s'))) at hx
-    simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
-      ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery,
-      WordInterface.sum] at hx
-    obtain ⟨r, hr, hx'⟩ := OracleComp.mem_supportWith_bind_iff.mp hx
-    obtain ⟨t, ht, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hr
-    obtain ⟨w, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp ht
-    obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx'
-    change (iL.reply qL (iL.decodeReply qL (List.take p.replyBound w))).length ≤ bound p + boundL p
-    rw [iL.reply_decodeReply]
-    have h1 : (iL.replyNormalize (iL.channel qL) (List.take p.replyBound w)).length ≤
-        c * ((encPair (encFinite iL.Channel) encBits
-          (iL.channel qL, List.take p.replyBound w)).length + 1) ^ d := by
-      simpa only [encBits_apply] using hnorm (iL.channel qL, List.take p.replyBound w)
-    have hch : (encFinite iL.Channel (iL.channel qL)).length ≤ Nat.card iL.Channel :=
-      (length_encFinite_lt _).le
-    have hlen : (encPair (encFinite iL.Channel) encBits
-        (iL.channel qL, List.take p.replyBound w)).length + 1 ≤
-        2 * Nat.card iL.Channel + 2 + p.replyBound := by
-      simp only [length_encPair, encBits_apply, List.length_take]
-      omega
-    have h2 : c * ((encPair (encFinite iL.Channel) encBits
-        (iL.channel qL, List.take p.replyBound w)).length + 1) ^ d ≤ boundL p :=
-      Nat.mul_le_mul_left c (Nat.pow_le_pow_left hlen d)
+    obtain ⟨w, hw⟩ := exists_word_of_mem_support_lowerWith_query_bind_pure
+      (iL.sum iR) p.replyBound (.inl qL) s' hx
+    have h1 : (iL.reply qL x.1).length ≤ boundL p := by
+      simpa only [WordInterface.sum] using hw ▸ hleL p qL w
+    change (iL.reply qL x.1).length ≤ bound p + boundL p
     omega
   | inr qE =>
     change x ∈ OracleComp.support (ProbOracleComp.lowerWith (iL.sum iR) p.replyBound

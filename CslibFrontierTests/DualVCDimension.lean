@@ -16,26 +16,26 @@ open Cslib.MachineLearning.PACLearning Cslib.MachineLearning.OnlineLearning.Mist
 
 /-- The thresholds on `ℕ` shatter no two points. -/
 theorem card_le_one_of_setShatters_thresholdClass (W : Finset ℕ)
-    (hW : SetShatters thresholdClass ↑W) : W.card ≤ 1 :=
+    (hW : SetShatters (thresholdClass ℕ) ↑W) : W.card ≤ 1 :=
   not_lt.1 fun h => not_setShatters_thresholdClass h hW
 
 /-- So the dual class of the thresholds shatters at most `2 ^ 2 - 1 = 3` thresholds. -/
-example (F : Finset ↥thresholdClass) (hF : SetShatters (dualClass thresholdClass) ↑F) :
+example (F : Finset ↥(thresholdClass ℕ)) (hF : SetShatters (dualClass (thresholdClass ℕ)) ↑F) :
     F.card ≤ 3 :=
   card_le_of_setShatters_dualClass card_le_one_of_setShatters_thresholdClass hF
 
 /-- The same bound for `vcDim`. -/
-example : vcDim (dualClass thresholdClass) ≤ 3 := by
+example : vcDim (dualClass (thresholdClass ℕ)) ≤ 3 := by
   have h := vcDim_dualClass_le
     (hasFiniteVCDim_iff.2 ⟨1, card_le_one_of_setShatters_thresholdClass⟩)
   rwa [vcDim_thresholdClass] at h
 
-/-- The threshold `x < 1` as a concept of `thresholdClass`. -/
-def one : ↥thresholdClass := ⟨thresholdConcept 1, mem_thresholdClass.2 ⟨1, rfl⟩⟩
+/-- The threshold `x < 1` as a concept of `thresholdClass ℕ`. -/
+def one : ↥(thresholdClass ℕ) := ⟨thresholdConcept 1, mem_thresholdClass.2 ⟨1, rfl⟩⟩
 
 /-- The dual class shatters the family `{x < 1}`: the point `0` lies below the threshold and the
 point `1` does not. -/
-example : SetShatters (dualClass thresholdClass) {one} := by
+example : SetShatters (dualClass (thresholdClass ℕ)) {one} := by
   intro V hV
   rcases Set.subset_singleton_iff_eq.1 hV with rfl | rfl
   · refine ⟨_, mem_dualClass.2 ⟨1, rfl⟩, Set.eq_empty_of_forall_notMem fun c ⟨hc, hc1⟩ => ?_⟩

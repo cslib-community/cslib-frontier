@@ -36,6 +36,7 @@ import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Foundations.Data.ZMod.Basic
 import CslibFrontier.Foundations.Data.ZMod.CRTUnits
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
@@ -511,10 +512,8 @@ theorem rerandomize_idealEncrypt_eq (N : ℕ) [NeZero N] (z r₀ : (ZMod N)ˣ) (
         (encNat ((if m then z else 1) * r₀ ^ 2).val.val) ct)) =
       idealEncrypt N z m := by
   conv_rhs => rw [idealEncrypt, ← rerandomize_idealEncryptUnit_eq N z r₀ m]
-  simp only [idealEncrypt, idealEncryptUnit, PMF.map, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, Function.comp_def, Bool.false_eq_true,
-    ↓reduceIte, one_mul, mulCiphertexts, unframe_encPair, ofBits_encNat,
-    mulCiphertextsNat_unit_val]
+  simp only [idealEncrypt, idealEncryptUnit, PMF.map, Bool.false_eq_true, ↓reduceIte, one_mul,
+    mulCiphertexts, unframe_encPair, ofBits_encNat, mulCiphertextsNat_unit_val, pmf_norm]
 
 /-- **Distributional XOR homomorphism on `(ZMod N)ˣ`** ([KatzLindell2020], Exercise 15.11). -/
 theorem idealEncryptUnit_mul_eq (N : ℕ) [NeZero N] (z : (ZMod N)ˣ) (b₁ b₂ : Bool) :
@@ -529,8 +528,7 @@ theorem idealEncryptUnit_mul_eq (N : ℕ) [NeZero N] (z : (ZMod N)ˣ) (b₁ b₂
     cases b₁ <;> cases b₂ <;> simp [pow_two, mul_comm, mul_left_comm]
   have hre (r₁ : (ZMod N)ˣ) :=
     rerandomize_idealEncryptUnit_eq N z ((if b₁ && b₂ then z else 1) * r₁) (b₁ ^^ b₂)
-  simp only [idealEncryptUnit, PMF.map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind, Function.comp_def] at hre ⊢
+  simp only [idealEncryptUnit, PMF.map, pmf_norm] at hre ⊢
   simp only [halg, hre, PMF.bind_const]
 
 /-- **Exercise 15.11** ([KatzLindell2020], p. 568, and Definition 15.14, second clause):
@@ -543,9 +541,8 @@ theorem idealEncrypt_mulCiphertexts_eq (N : ℕ) [NeZero N] (z : (ZMod N)ˣ) (b�
       pure (mulCiphertexts (encPair encNat encNat (N, z.val.val)) ct₁ ct₂)) =
       idealEncrypt N z (b₁ ^^ b₂) := by
   conv_rhs => rw [idealEncrypt, ← idealEncryptUnit_mul_eq N z b₁ b₂]
-  simp only [idealEncrypt, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map,
-    PMF.map_bind, PMF.pure_map, Function.comp_def, mulCiphertexts, unframe_encPair,
-    ofBits_encNat, mulCiphertextsNat_unit_val]
+  simp only [idealEncrypt, mulCiphertexts, unframe_encPair, ofBits_encNat,
+    mulCiphertextsNat_unit_val, pmf_norm]
 
 /-- When `IsSquare y`, `idealEncryptUnit N y m` is independent of `m`. -/
 theorem idealEncryptUnit_of_isSquare (N : ℕ) [NeZero N] {y : (ZMod N)ˣ} (hy : IsSquare y)
@@ -618,8 +615,7 @@ theorem advantage_encrypt_idealEncrypt_le (d : ModulusDesc) (n : ℕ)
     rw [ciphertext_eq_unit_val (ZMod.val_coe_unit_coprime y) (ZMod.val_coe_unit_coprime u) m,
       ZMod.unitOfCoprime_val, ZMod.unitOfCoprime_val]
   rw [encrypt, unframe_encPair, dropFrame_encPair, ofBits_encNat, ofBits_encNat]
-  simp only [idealEncrypt, idealEncryptUnit, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
+  simp only [idealEncrypt, idealEncryptUnit, pmf_norm]
   simpa only [hct] using advantage_sampleModNat_unitOrOne_le d n hsize
     fun r => k (encNat (ciphertext (d.p * d.q) y.val.val m r))
 
@@ -643,15 +639,13 @@ private theorem distinguishingGame_publicKeyLaw (setup : ℕ → PMF ModulusDesc
     (n : ℕ) :
     distinguishingGame (publicKeyLaw setup n) (D n) =
       qrIdealGame setup (fun n input => D n (encPair encNat encNat input)) n := by
-  simp only [distinguishingGame_eq_bind, publicKeyLaw, qrIdealGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [distinguishingGame_eq_bind, publicKeyLaw, qrIdealGame, pmf_norm]
 
 private theorem distinguishingGame_qrPublicKeyLaw (setup : ℕ → PMF ModulusDesc)
     (D : Distinguisher) (n : ℕ) :
     distinguishingGame (qrPublicKeyLaw setup n) (D n) =
       qrRealGame setup (fun n input => D n (encPair encNat encNat input)) n := by
-  simp only [distinguishingGame_eq_bind, qrPublicKeyLaw, qrRealGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [distinguishingGame_eq_bind, qrPublicKeyLaw, qrRealGame, pmf_norm]
 
 /-- **Single-bit QR reduction distinguisher** ([KatzLindell2020], proof of Theorem 15.29). -/
 noncomputable def qrDistinguisher (adversary : Encryption.Adversary) (n : ℕ)
@@ -693,7 +687,7 @@ theorem advantage_publicKeyGame_qrPublicKeyLaw_le {setup : ℕ → PMF ModulusDe
       Game.advantage (Encryption.publicKeyGame (qrPublicKeyLaw setup n) encrypt adversary bit n)
         (idealGame bit) ≤ 5 / 2 ^ n := by
     simp only [Encryption.publicKeyGame, Encryption.publicKeyGameOn, ↓reduceIte, qrPublicKeyLaw,
-      idealGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+      idealGame, pmf_norm]
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd =>
       Game.advantage_bind_le_nnreal _ _ _ fun y =>
         Game.advantage_bind_le_nnreal _ _ _ fun _ =>
@@ -896,9 +890,8 @@ theorem advantage_blumGame_le_qr {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
       Game.advantage (ProbComp.eval (Encryption.game (blumKeyGen gen) encrypt adversary bit n))
         (ideal bit) ≤ 5 / 2 ^ n := by
     rw [Encryption.eval_game_eq_publicKeyGame]
-    simp only [Encryption.publicKeyGame, Encryption.publicKeyGameOn, ↓reduceIte, blumKeyGen,
-      ideal, idealBody, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-      PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
+    simp only [Encryption.publicKeyGame, Encryption.publicKeyGameOn, ↓reduceIte, blumKeyGen, ideal,
+      idealBody, pmf_norm]
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd =>
       Game.advantage_bind_le_nnreal _ _ _ fun choice => ?_
     rw [blumPublicKey_eq d]
@@ -1162,9 +1155,7 @@ theorem advantage_encryptBits_idealEncryptBits_le (d : ModulusDesc) (n : ℕ)
       PMF.monad_pure_eq_pure, PMF.pure_bind, List.length_nil, Nat.cast_zero, zero_mul,
       Game.advantage_self, le_refl]
   | cons b bs ih =>
-    simp only [encryptBits, idealEncryptBits, List.mapM_cons, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.pure_bind]
+    simp only [encryptBits, idealEncryptBits, List.mapM_cons, pmf_norm]
     let pk := encPair encNat encNat (d.p * d.q, y.val.val)
     let mid : Game := (idealEncrypt (d.p * d.q) y b).bind fun ct =>
       (ProbComp.eval (encryptBits n pk bs)).bind fun cts => k (ct :: cts)
@@ -1241,8 +1232,7 @@ theorem advantage_publicKeyWordGame_le_qr (maxLen : ℕ → ℕ) {setup : ℕ �
         (publicKeyWordGame maxLen (qrPublicKeyLaw setup n) adversary bit n)
         (idealWordGame bit) ≤ (maxLen n : ℝ≥0) * (5 / 2 ^ n) := by
     simp only [publicKeyWordGame, Encryption.publicKeyGameOn, qrPublicKeyLaw, idealWordGame,
-      encryptWord, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ProbComp.eval_map,
-      PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
+      encryptWord, pmf_norm]
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd =>
       Game.advantage_bind_le_nnreal _ _ _ fun y =>
         Game.advantage_bind_le_nnreal _ _ _ fun choice => ?_
@@ -1334,7 +1324,7 @@ theorem advantage_jacobiAttackAdversary_eq_one (d : ModulusDesc)
       jacobiAttackAdversary, pk, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.pure_bind,
       ChoiceOut.msg₀_mk, ChoiceOut.msg₁_mk, ChoiceOut.state_mk]
     rw [encrypt, unframe_encPair, dropFrame_encPair, ofBits_encNat, ofBits_encNat]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, ofBits_encNat]
+    simp only [ofBits_encNat, pmf_norm]
     have hstep (r : ℕ) :
         decide (jacobiSym (ciphertext (d.p * d.q) z.val.val
           (if bit then true else false) (unitOrOne (d.p * d.q) r) : ℤ) (d.p * d.q) = -1) =

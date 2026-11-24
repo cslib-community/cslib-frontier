@@ -562,8 +562,7 @@ private theorem oneTimeLogFilterStep {Op : Type} (op : Op)
   cases ha : accept w
   · simp [ProbComp.eval_pure, ProbOracleComp.runWith_pure]
   · simp only [↓reduceIte, Functor.map_map, ProbOracleComp.runWith_map,
-      ProbOracleComp.runWith_query, hoOuter, ha, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq, Bool.not_false]
+      ProbOracleComp.runWith_query, hoOuter, ha, Prod.map_apply, id_eq, Bool.not_false, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
     rw [List.take_of_length_le (hbound w ha ct hct)]
 
@@ -1086,9 +1085,8 @@ theorem eval_ciGame_ciLimitToOneQuery (E : SymmetricCipher) (ctBound : ℕ → �
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.ciGame (ciLimitToOneQuery ctBound adversary) n) =
       ProbComp.eval (E.ciOneTimeGame adversary n) := by
-  simp only [ciGame, ciOneTimeGame, ciLimitToOneQuery, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [ciGame, ciOneTimeGame, ciLimitToOneQuery, ProbOracleComp.eval_run_interpret_eq_runWith,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   have hsim := ProbOracleComp.runWith_run_interpret_map
     (ciOneTimeFilterHandler n (ctBound n))
@@ -1440,9 +1438,9 @@ theorem eval_ccaGame_ccaLimitToOneEncryptionQuery (E : SymmetricCipher) (ctBound
       ∀ ct, (encOption encBits (E.decrypt n k ct)).length ≤ decBound n ct) :
     ProbComp.eval (E.ccaGame (ccaLimitToOneEncryptionQuery ctBound decBound adversary) bit n) =
       ProbComp.eval (E.ccaOneTimeGame adversary bit n) := by
-  simp only [ccaGame, ccaOneTimeGame, ccaLimitToOneEncryptionQuery, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [ccaGame, ccaOneTimeGame, ccaLimitToOneEncryptionQuery,
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_pure, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   have hsim := ProbOracleComp.runWith_run_interpret_map
     (ccaOneTimeFilterHandler n (ctBound n) decBound)
@@ -1659,8 +1657,7 @@ private theorem runWith_ccaToCPAAdversary_eq {S : Type} (E : SymmetricCipher)
         · simp [ProbComp.eval_pure, List.take_nil]
         · simp only [Bool.and_eq_true, beq_iff_eq] at hlen
           have hmb := length_ite_unframe_dropFrame (bit := bit) hlen.1 hlen.2
-          simp only [↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-            PMF.map_comp, PMF.map_bind, PMF.pure_map, Function.comp_def, Prod.map_apply, id_eq]
+          simp only [↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
           rw [← PMF.bind_pure_comp]
           refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
           simp only [Function.comp_apply, List.take_of_length_le (hctBound k hk _ hmb ct hct)]
@@ -2011,8 +2008,8 @@ private theorem eval_ciGameOn_ccaToCIAtIndexAdversary_key (E : SymmetricCipher)
             have hmbLen := length_ite_unframe_dropFrame (bit := bit) hlenEq.1 hlenEq.2
             cases allow state.oracleState
             · simp [ProbComp.eval_pure, List.take_nil]
-            · simp only [hmbLen, beq_self_eq_true, Bool.true_and, ↓reduceIte, ProbComp.eval_bind,
-                ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq]
+            · simp only [hmbLen, beq_self_eq_true, Bool.true_and, ↓reduceIte, Prod.map_apply, id_eq,
+                pmf_norm]
               refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
               rw [List.take_of_length_le (hctBound k hk _ hmbLen ct hct)]
           · simp [Bool.and_assoc, Bool.eq_false_iff.mpr hlenEq, ProbOracleComp.runWith_pure,
@@ -2261,7 +2258,7 @@ private theorem eval_ciGameOn_ccaToCIHiddenBitAdversary (E : SymmetricCipher)
   congr 1 with k : 1
   rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, BitString.eval_sampleList,
     BitString.uniformList_succ 0, BitString.uniformList_zero]
-  simp only [PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
+  simp only [pmf_norm]
   congr 1 with bit : 1; cases bit <;> rfl
 
 /-- Running `ccaToCIHiddenBitAdversary` in `ciGame` averages `ccaToCIAdversary` uniformly over

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenRoundCallback.Resource
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop.Retained
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 
 /-!
@@ -294,10 +295,8 @@ noncomputable def configurationJustesenRetainedSourceRoundClock
 theorem configurationJustesenRetainedSourceRoundClock_polyBounded
     (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     PolyBounded List.length (configurationJustesenRetainedSourceRoundClock ntm c) := by
-  have hn := configurationSubdivisionVertexCount_polyBounded ntm c
-  have ht := configurationJustesenRoundCallbackClock_polyBounded ntm c
-  exact (((hn.add (.const 1)).mul (((PolyBounded.const 2).mul hn).add (.const 1))).mul
-    (ht.add (.const 2))).add (ht.add (.const 1))
+  growth_poly [configurationSubdivisionVertexCount_polyBounded ntm c,
+    configurationJustesenRoundCallbackClock_polyBounded ntm c]
 
 /-- For an initialized subdivision, every admissible round entry shares a selector clock and
 an encoded-state envelope. The latter charges the retained context and the scalar round at
