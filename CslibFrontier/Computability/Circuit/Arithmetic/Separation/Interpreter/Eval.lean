@@ -25,7 +25,9 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Eval`.
 
 ## Main definitions
 
-* `Interpreter.IF`, `Interpreter.env`, `Interpreter.simS`.
+* `Interpreter.IF`, `Interpreter.env`.
+* `Interpreter.SimRun`: a simulated run, with the run of the formula (`run`) and the budgets left
+  after its bill (`left`); `Interpreter.simS t l`: the simulated runs of `l` that fit into `t`.
 -/
 
 public section
@@ -49,7 +51,6 @@ private theorem forall₂_mem {R : α → β → Prop} {l : List α} {l' : List 
     exact .cons ⟨List.mem_cons_self, List.mem_cons_self, hab⟩
       (ih.imp fun a b ⟨ha, hb, h⟩ => ⟨List.mem_cons_of_mem _ ha, List.mem_cons_of_mem _ hb, h⟩)
 
-
 /-- `let`, for lists that correspond to other lists. -/
 theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le) {Q : List β}
     {R : Run A → β → Prop} (hR : List.Forall₂ R le Q) {Q2 : β → List γ} {R2 : Run A → γ → Prop}
@@ -57,7 +58,8 @@ theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le
       List.Forall₂ (fun t c => R2 ⟨s.cost + t.cost + 2, s.th * t.th, s.bill ++ t.bill, t.out⟩ c) l2
           (Q2 b)) :
     ∃ l, Ev θ (lett e body) x l ∧ List.Forall₂ R2 l (Q.flatMap Q2) := by
-  refine ⟨_, Ev.lett he fun s hs => ?_, List.rel_flatMap (forall₂_mem hR) fun s b ⟨hs, hb, hsb⟩ => ?_⟩
+  refine ⟨_, Ev.lett he fun s hs => ?_,
+      List.rel_flatMap (forall₂_mem hR) fun s b ⟨hs, hb, hsb⟩ => ?_⟩
   · obtain ⟨b, hb, hsb⟩ := hR.exists_mem_of_mem hs
     obtain ⟨l2, h2, -⟩ := h s hs b hb hsb
     exact h2.hl
@@ -195,13 +197,20 @@ theorem rec_ev {b a x s : Fm} {y g z : Tree} {f' x' : Tree} {t t' : Bt} {kb ka k
   simp only [Run.delay, Run.mk.injEq, and_true]
   omega
 
-/-- The runs that stay within the budgets, with what is left. -/
-@[expose] def simS (t : Bt) (l : List (Run A)) : List (Run A × Bt) :=
-  l.filterMap fun r => (Bt.decAll r.bill t).map fun t' => (r, t')
+/-- A simulated run: a run of the formula, together with the budgets left after its bill. -/
+structure SimRun (A : Type) where
+  /-- the run of the simulated formula -/
+  run : Run A
+  /-- the budgets left after paying its bill -/
+  left : Bt
+
+/-- The simulated runs of `l` with the budgets `t`: those whose bill fits into `t`. -/
+@[expose] def simS (t : Bt) (l : List (Run A)) : List (SimRun A) :=
+  l.filterMap fun r => (Bt.decAll r.bill t).map fun t' => ⟨r, t'⟩
 
 omit [CommRing A] in
-theorem mem_simS {t : Bt} {l : List (Run A)} {q : Run A × Bt} (h : q ∈ simS t l) :
-    q.1 ∈ l ∧ Bt.decAll q.1.bill t = some q.2 := by
+theorem mem_simS {t : Bt} {l : List (Run A)} {q : SimRun A} (h : q ∈ simS t l) :
+    q.run ∈ l ∧ Bt.decAll q.run.bill t = some q.left := by
   rw [simS, List.mem_filterMap] at h
   obtain ⟨r, hr, h⟩ := h
   rw [Option.map_eq_some_iff] at h
@@ -210,7 +219,7 @@ theorem mem_simS {t : Bt} {l : List (Run A)} {q : Run A × Bt} (h : q ∈ simS t
 
 omit [CommRing A] in
 theorem simS_map {t : Bt} {l : List (Run A)} {G : Run A → Run A} (h : ∀ r, (G r).bill = r.bill) :
-    simS t (l.map G) = (simS t l).map fun q => (G q.1, q.2) := by
+    simS t (l.map G) = (simS t l).map fun q => ⟨G q.run, q.left⟩ := by
   induction l with
   | nil => rfl
   | cons r l ih =>
@@ -229,10 +238,11 @@ omit [CommRing A] in
 theorem simS_flatMap {t : Bt} {la : List (Run A)} {L : Run A → List (Run A)}
     {G : Run A → Run A → Run A}
     (h : ∀ r s, (G r s).bill = r.bill ++ s.bill) : simS t (la.flatMap fun r => (L r).map (G r)) =
-      (simS t la).flatMap fun q => (simS q.2 (L q.1)).map fun p => (G q.1 p.1, p.2) := by
+      (simS t la).flatMap fun q => (simS q.left (L q.run)).map fun p => ⟨G q.run p.run, p.left⟩ :=
+          by
   have one : ∀ (r : Run A) (l : List (Run A)), simS t (l.map (G r)) =
-      ((Bt.decAll r.bill t).toList.map fun t' => (r, t')).flatMap fun q =>
-        (simS q.2 l).map fun p => (G q.1 p.1, p.2) := by
+      ((Bt.decAll r.bill t).toList.map fun t' => (⟨r, t'⟩ : SimRun A)).flatMap fun q =>
+        (simS q.left l).map fun p => ⟨G q.run p.run, p.left⟩ := by
     intro r l
     cases hd : Bt.decAll r.bill t with
     | none =>
