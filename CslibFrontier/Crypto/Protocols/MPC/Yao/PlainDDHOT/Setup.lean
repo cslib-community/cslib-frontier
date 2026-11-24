@@ -28,9 +28,9 @@ environments is claimed.
 
 ## Main results
 
-* `Yao.advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add_sum` (in the namespace
-  `Cslib.Crypto.Protocols.MPC`): the advantage against the composed protocol for a corrupted
-  evaluator, after the first stage, is at most the `prv.sim` advantage of
+* `Yao.advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add_sum`: the advantage
+  against the composed protocol for a corrupted evaluator, after the first stage, is at most the
+  `prv.sim` advantage of
   `Yao.evaluatorEnvToPrvSim` plus, per transfer, the advantage of one environment against
   `maskedOT` with the ideal pad transfer and against the pad transfer.
 -/
