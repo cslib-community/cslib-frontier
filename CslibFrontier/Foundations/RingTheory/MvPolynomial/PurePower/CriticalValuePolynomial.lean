@@ -200,6 +200,13 @@ the penalty variable at `none` and the original parameters at `some i`. -/
   valuePolynomial hell (fun _ => 0) (X none) (relativeSource F)
     ((totalDegree_relativeSource_le F).trans hF)
 
+/-- The relative critical-value polynomial as one multivariate polynomial. The critical value
+is indexed by `none`, the penalty by `some none`, and parameter `i` by `some (some i)`. -/
+@[expose] noncomputable def flattenedRelativeValuePolynomial (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) :
+    MvPolynomial (Option (Option κ)) ℤ :=
+  (optionEquivLeft ℤ (Option κ)).symm (relativeValuePolynomial hell F hF)
+
 private theorem relativeSource_map (F : MvPolynomial (Fin n ⊕ κ) ℤ) (u : T) (x : κ → T) :
     (relativeSource F).map (eval₂Hom (Int.castRingHom T) (fun i => i.elim u x)) =
       (sumRingEquiv ℤ (Fin n) κ F).map (eval₂Hom (Int.castRingHom T) x) := by
