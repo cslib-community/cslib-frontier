@@ -6574,6 +6574,15 @@ public import CslibFrontier.DataStructure.BTree.Rank
 public import CslibFrontier.DataStructure.BTree.TreeMap
 public import CslibFrontier.DataStructure.BTree.WordRAM
 public import CslibFrontier.DataStructure.BTree.WordRAM.Arena
+public import CslibFrontier.DataStructure.BTree.WordRAM.CopyUpper
+public import CslibFrontier.DataStructure.BTree.WordRAM.Insert
+public import CslibFrontier.DataStructure.BTree.WordRAM.InsertLoop
+public import CslibFrontier.DataStructure.BTree.WordRAM.LeafInsert
+public import CslibFrontier.DataStructure.BTree.WordRAM.Lookup
+public import CslibFrontier.DataStructure.BTree.WordRAM.Loops
+public import CslibFrontier.DataStructure.BTree.WordRAM.Rep
+public import CslibFrontier.DataStructure.BTree.WordRAM.SplitChild
+public import CslibFrontier.DataStructure.BTree.WordRAM.SplitRoot
 public import CslibFrontier.DataStructure.BallsToSlots.KickTree
 public import CslibFrontier.DataStructure.BallsToSlots.Spec
 public import CslibFrontier.DataStructure.CellProbe.OfWordRAM
