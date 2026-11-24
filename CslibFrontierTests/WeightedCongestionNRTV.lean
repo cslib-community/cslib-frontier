@@ -24,9 +24,9 @@ Concrete boundary and witness checks for `CslibFrontier.GameTheory.Congestion.We
    (`(3, 0) → (3, 1) → (2, 1) → (2, 0) → (3, 0)`).
 3. Concrete three-player asymmetric game (`weights = (1, 2, 3)`) on two parallel affine links,
    checking pure Nash equilibrium and social cost `42`.
-4. Separation `5 / 2 < (3 + √5) / 2` on `aaeTriangleGame` and two-player weighted separation at
-   `weights = (4, 5)` (`twoPlayerRatio 4 5 = 549 / 269 > 2`, strictly exceeding the unweighted
-   two-player bound `2`).
+4. Separation `5 / 2 < (3 + √5) / 2` instantiated on `aaeTriangleGame` (`(φ, 1)` strictly
+   exceeding `5 / 2`) and two-player weighted separation at `weights = (4, 5)`
+   (`twoPlayerRatio 4 5 = 549 / 269 > 2`, strictly exceeding the unweighted two-player bound `2`).
 -/
 
 public section
@@ -37,6 +37,7 @@ open Cslib.GameTheory Cslib.GameTheory.WeightedCongestionGame
 
 /-! ### 1. Zero-weight boundary and `affinePotential = 2 * socialCost` witness -/
 
+/-- Two-player single-resource linear game with zero-weight player `0` and weight-`3` player `1`. -/
 @[expose] def zeroWeightGame : WeightedCongestionGame (Fin 2) (fun _ => Bool) Unit where
   resources _ b := if b then {()} else ∅
   weight i := if i = 0 then 0 else 3
@@ -80,9 +81,13 @@ theorem zeroWeightGame_affinePotential_eq_two_mul :
 
 /-! ### 2. Explicit 4-state strict improvement cycle in `gmvGame` -/
 
+/-- First profile `(3, 0)` of the four-state strict improvement cycle in `gmvGame`. -/
 @[expose] def gmvState0 : Fin 2 → Fin 4 := fun i => if i = 0 then 3 else 0
+/-- Second profile `(3, 1)` of the four-state strict improvement cycle in `gmvGame`. -/
 @[expose] def gmvState1 : Fin 2 → Fin 4 := fun i => if i = 0 then 3 else 1
+/-- Third profile `(2, 1)` of the four-state strict improvement cycle in `gmvGame`. -/
 @[expose] def gmvState2 : Fin 2 → Fin 4 := fun i => if i = 0 then 2 else 1
+/-- Fourth profile `(2, 0)` of the four-state strict improvement cycle in `gmvGame`. -/
 @[expose] def gmvState3 : Fin 2 → Fin 4 := fun i => if i = 0 then 2 else 0
 
 private lemma gmvTestLoad (s : Fin 2 → Fin 4) (e : Fin 6) :
@@ -114,6 +119,7 @@ theorem gmvGame_four_cycle_improves :
 
 /-! ### 3. Three-player asymmetric parallel-link game `(weights = 1, 2, 3)` -/
 
+/-- Three-player congestion game with weights `(1, 2, 3)` on two parallel affine links. -/
 @[expose] def parallelAffine3 : WeightedCongestionGame (Fin 3) (fun _ => Bool) Bool where
   resources _ b := {b}
   weight i := (i.val + 1 : ℝ)
@@ -160,6 +166,17 @@ theorem five_halves_lt_golden_poa : (5 / 2 : ℝ) < (3 + Real.sqrt 5) / 2 := by
     rw [← Real.sqrt_sq (by norm_num : (0 : ℝ) ≤ 2)]
     exact Real.sqrt_lt_sqrt (by norm_num) (by norm_num)
   linarith
+
+theorem aaeTriangleGame_weighted_exceeds_five_halves :
+    let φ := (1 + Real.sqrt 5) / 2
+    (aaeTriangleGame φ 1).toCostGame.IsPureNash (fun _ => false) ∧
+      5 / 2 * (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => true) <
+        (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => false) := by
+  intro φ
+  obtain ⟨hne, hpos, heq⟩ := aaeTriangleGame_weighted_golden
+  refine ⟨hne, ?_⟩
+  rw [heq]
+  exact mul_lt_mul_of_pos_right five_halves_lt_golden_poa hpos
 
 theorem twoPlayerRatio_four_five_gt_two :
     twoPlayerRatio 4 5 = 549 / 269 ∧ (2 : ℝ) < twoPlayerRatio 4 5 ∧

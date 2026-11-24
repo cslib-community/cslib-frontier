@@ -185,24 +185,14 @@ section Deviation
 
 variable [DecidableEq ι]
 
-/-- If player `i` already uses `e` in `s` and deviates to `a` still using `e`, the load on `e` is
-unchanged. -/
-theorem load_update_of_mem_of_mem (s : ∀ j, S j) {i : ι} {a : S i} {e : E}
-    (hs : e ∈ W.resources i (s i)) (ha : e ∈ W.resources i a) :
-    W.load (Function.update s i a) e = W.load s e := by
-  rw [W.load_eq_ite_add_erase (Function.update s i a) i e, W.load_eq_ite_add_erase s i e]
-  simp only [Function.update_self, ha, hs, ↓reduceIte]
-  congr 1
-  refine Finset.sum_congr rfl fun j hj => ?_
-  simp only [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-
-/-- If player `i` does not use `e` in `s` and deviates to `a` using `e`, the load on `e` increases
-by `weight i`. -/
-theorem load_update_of_notMem_of_mem (s : ∀ j, S j) {i : ι} {a : S i} {e : E}
-    (hs : e ∉ W.resources i (s i)) (ha : e ∈ W.resources i a) :
-    W.load (Function.update s i a) e = W.load s e + W.weight i := by
-  rw [W.load_eq_ite_add_erase (Function.update s i a) i e, W.load_eq_ite_add_erase s i e]
-  simp only [Function.update_self, ha, hs, ↓reduceIte, zero_add]
+/-- Unilateral deviation formula for resource load: updating player `i` to `a` replaces player `i`'s
+demand indicator while leaving all other players' contributions unchanged. -/
+theorem load_update (s : ∀ j, S j) (i : ι) (a : S i) (e : E) :
+    W.load (Function.update s i a) e =
+      W.load s e + (if e ∈ W.resources i a then W.weight i else 0) -
+        (if e ∈ W.resources i (s i) then W.weight i else 0) := by
+  rw [W.load_eq_ite_add_erase (Function.update s i a) i e, W.load_eq_ite_add_erase s i e,
+    Function.update_self]
   have hsum : (∑ j ∈ Finset.univ.erase i,
         if e ∈ W.resources j (Function.update s i a j) then W.weight j else 0) =
       ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (s j) then W.weight j else 0 :=
@@ -214,15 +204,8 @@ theorem load_update_of_notMem_of_mem (s : ∀ j, S j) {i : ι} {a : S i} {e : E}
 load on any resource by at most `weight i`. -/
 theorem load_update_le {s : ∀ j, S j} {i : ι} (hi : 0 ≤ W.weight i) (a : S i) (e : E) :
     W.load (Function.update s i a) e ≤ W.load s e + W.weight i := by
-  rw [W.load_eq_ite_add_erase (Function.update s i a) i e, W.load_eq_ite_add_erase s i e]
-  have hsum : (∑ j ∈ Finset.univ.erase i,
-        if e ∈ W.resources j (Function.update s i a j) then W.weight j else 0) =
-      ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (s j) then W.weight j else 0 :=
-    Finset.sum_congr rfl fun j hj => by
-      simp only [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  rw [hsum, Function.update_self]
-  by_cases hs : e ∈ W.resources i (s i) <;> by_cases ha : e ∈ W.resources i a <;>
-    simp only [hs, ha, ↓reduceIte] <;> linarith
+  rw [W.load_update s i a e]
+  split_ifs <;> linarith
 
 end Deviation
 
@@ -318,11 +301,6 @@ theorem affinePotential_update_sub [DecidableEq ι] [Fintype E] {a b : E → ℝ
       2 * W.weight i *
         ((if e ∈ W.resources i a' then W.latency e (W.load s' e) else 0) -
           (if e ∈ W.resources i (s i) then W.latency e (W.load s e) else 0)) := fun e => by
-    have hL_eq : (∑ j ∈ Finset.univ.erase i,
-          if e ∈ W.resources j (s' j) then W.weight j else 0) =
-        ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (s j) then W.weight j else 0 :=
-      Finset.sum_congr rfl fun j hj => by
-        simp only [s', Function.update_of_ne (Finset.ne_of_mem_erase hj)]
     have hM_eq : (∑ j ∈ Finset.univ.erase i,
           if e ∈ W.resources j (s' j) then W.weight j * W.latency e (W.weight j) else 0) =
         ∑ j ∈ Finset.univ.erase i,
@@ -330,23 +308,14 @@ theorem affinePotential_update_sub [DecidableEq ι] [Fintype E] {a b : E → ℝ
       Finset.sum_congr rfl fun j hj => by
         simp only [s', Function.update_of_ne (Finset.ne_of_mem_erase hj)]
     rw [hself s' e, hself s e, hM_eq]
-    have hlds' : W.load s' e = (if e ∈ W.resources i a' then W.weight i else 0) +
-        ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (s j) then W.weight j else 0 := by
-      simpa only [s', Function.update_self, hL_eq] using W.load_eq_ite_add_erase s' i e
-    have hlds : W.load s e = (if e ∈ W.resources i (s i) then W.weight i else 0) +
-        ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (s j) then W.weight j else 0 :=
-      W.load_eq_ite_add_erase s i e
     have hs'_i : s' i = a' := Function.update_self i a' s
-    rw [hs'_i, hlds', hlds]
+    rw [hs'_i, show W.load s' e = W.load (Function.update s i a') e from rfl,
+      W.load_update s i a' e]
     simp only [hl]
     by_cases h1 : e ∈ W.resources i (s i) <;> by_cases h2 : e ∈ W.resources i a' <;>
       simp only [h1, h2, ↓reduceIte] <;> ring
   rw [affinePotential_def, affinePotential_def, ← Finset.sum_sub_distrib]
-  simp only [hpt, ← Finset.mul_sum, Finset.sum_sub_distrib]
-  have hsum_ite : ∀ (A : Finset E) (f : E → ℝ),
-      (∑ e : E, if e ∈ A then f e else 0) = ∑ e ∈ A, f e := fun A f => by
-    rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
-  rw [hsum_ite, hsum_ite]
+  simp only [hpt, ← Finset.mul_sum, Finset.sum_sub_distrib, Finset.sum_ite_mem, Finset.univ_inter]
   have hu' : W.unitCost i s' = ∑ e ∈ W.resources i a', W.latency e (W.load s' e) := by
     simp only [unitCost, s', Function.update_self]
   rw [hu', unitCost]

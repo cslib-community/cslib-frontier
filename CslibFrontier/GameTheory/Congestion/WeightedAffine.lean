@@ -151,6 +151,17 @@ private lemma golden_smooth_ratio :
     _ = (15 + 2 * Real.sqrt 5 - Real.sqrt 5 ^ 2) / 8 := by rw [hs5]
     _ = (3 + Real.sqrt 5) / 2 * (1 - (Real.sqrt 5 - 1) / 4) := by ring
 
+private lemma goldenRatio_identities {φ : ℝ} (hφ : φ = (1 + Real.sqrt 5) / 2) :
+    0 < φ ∧ φ ^ 2 = φ + 1 ∧ (3 + Real.sqrt 5) / 2 = φ ^ 2 := by
+  subst hφ
+  have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
+  have hgt2 : 2 < Real.sqrt 5 := sqrt_five_bounds.1
+  have hφ_sq : ((1 + Real.sqrt 5) / 2) ^ 2 = (1 + Real.sqrt 5) / 2 + 1 := by
+    calc ((1 + Real.sqrt 5) / 2) ^ 2
+      _ = (1 + 2 * Real.sqrt 5 + Real.sqrt 5 ^ 2) / 4 := by ring
+      _ = (1 + Real.sqrt 5) / 2 + 1 := by rw [hs5]; ring
+  exact ⟨by linarith, hφ_sq, by linarith [hφ_sq]⟩
+
 /-! ### Equilibrium inequalities, smoothness, and `(3 + √5) / 2` Price of Anarchy -/
 
 section SmoothAndPoA
@@ -228,7 +239,7 @@ theorem sum_cost_update_le_socialCost_add [Fintype E] {a b : E → ℝ} (ha : �
       ∑ e, a e * ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2 := by
     have h1 : ∀ i, (∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2) =
         ∑ e : E, if e ∈ W.resources i (s' i) then a e * W.weight i ^ 2 else 0 := fun i => by
-      rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
+      rw [Finset.sum_ite_mem, Finset.univ_inter]
     simp only [h1]
     rw [Finset.sum_comm]
     refine Finset.sum_congr rfl fun e _ => ?_
@@ -428,16 +439,7 @@ theorem aaeTriangleGame_weighted_golden :
       (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => false) =
         (3 + Real.sqrt 5) / 2 * (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => true) := by
   intro φ
-  have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
-  have hgt2 : 2 < Real.sqrt 5 := sqrt_five_bounds.1
-  have hφ_pos : 0 < φ := by dsimp [φ]; linarith
-  have hφ_sq : φ ^ 2 = φ + 1 := by
-    dsimp [φ]
-    calc ((1 + Real.sqrt 5) / 2) ^ 2
-      _ = (1 + 2 * Real.sqrt 5 + Real.sqrt 5 ^ 2) / 4 := by ring
-      _ = (1 + Real.sqrt 5) / 2 + 1 := by rw [hs5]; ring
-  have hgolden : (3 + Real.sqrt 5) / 2 = φ ^ 2 := by
-    dsimp [φ]; linarith [hφ_sq]
+  obtain ⟨hφ_pos, hφ_sq, hgolden⟩ := goldenRatio_identities (φ := φ) rfl
   have huniv4 : (Finset.univ : Finset (Fin 4)) = {0, 1, 2, 3} := by decide
   have htrue : (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => true) = 2 * φ ^ 2 + 2 := by
     simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
@@ -485,15 +487,7 @@ theorem exists_three_player_socialCost_eq_golden_mul :
         0 < W.toCostGame.socialCost s' ∧
         W.toCostGame.socialCost s = (3 + Real.sqrt 5) / 2 * W.toCostGame.socialCost s' := by
   let φ := (1 + Real.sqrt 5) / 2
-  have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
-  have hgt2 : 2 < Real.sqrt 5 := sqrt_five_bounds.1
-  have hφ_pos : 0 < φ := by dsimp [φ]; linarith
-  have hφ_sq : φ ^ 2 = φ + 1 := by
-    dsimp [φ]
-    calc ((1 + Real.sqrt 5) / 2) ^ 2
-      _ = (1 + 2 * Real.sqrt 5 + Real.sqrt 5 ^ 2) / 4 := by ring
-      _ = (1 + Real.sqrt 5) / 2 + 1 := by rw [hs5]; ring
-  have hgolden : (3 + Real.sqrt 5) / 2 = φ ^ 2 := by dsimp [φ]; linarith [hφ_sq]
+  obtain ⟨hφ_pos, hφ_sq, hgolden⟩ := goldenRatio_identities (φ := φ) rfl
   let W : WeightedCongestionGame (Fin 3) (fun _ => Bool) (Fin 4) :=
     { resources := threePlayerGoldenPaths
       weight := fun i => if i = 0 then 1 else φ
@@ -654,12 +648,8 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
               W.latency e (W.load (Function.update s i t') e) else 0) -
             (if decide (e ∈ W.resources i (s i)) then W.latency e (W.load s e) else 0)) := by
     intro i t'
-    simp only [toCostGame_cost, unitCost, Function.update_self,
-      Finset.sum_sub_distrib, decide_eq_true_eq]
-    have hite : ∀ (A : Finset E) (f : E → ℝ),
-        (∑ e : E, if e ∈ A then f e else 0) = ∑ e ∈ A, f e := fun A f => by
-      rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
-    rw [hite, hite]
+    simp only [toCostGame_cost, unitCost, Function.update_self, Finset.sum_sub_distrib,
+      decide_eq_true_eq, Finset.sum_ite_mem, Finset.univ_inter]
     ring
   have hpt : ∀ e : E,
       D * (W.load s e * W.latency e (W.load s e)) +
@@ -671,19 +661,10 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
             (if decide (e ∈ W.resources 1 (s 1)) then W.latency e (W.load s e) else 0))) ≤
         N * (W.load s' e * W.latency e (W.load s' e)) := by
     intro e
-    have hl_upd0 : W.load (Function.update s 0 (s' 0)) e =
-        (if decide (e ∈ W.resources 0 (s' 0)) then w₀ else 0) +
-          (if decide (e ∈ W.resources 1 (s 1)) then w₁ else 0) := by
-      simpa only [Function.update_self,
-        Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)] using
-        hload2 (Function.update s 0 (s' 0)) e
-    have hl_upd1 : W.load (Function.update s 1 (s' 1)) e =
-        (if decide (e ∈ W.resources 0 (s 0)) then w₀ else 0) +
-          (if decide (e ∈ W.resources 1 (s' 1)) then w₁ else 0) := by
-      simpa only [Function.update_self,
-        Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)] using
-        hload2 (Function.update s 1 (s' 1)) e
-    rw [hl, hl, hl, hl, hl_upd0, hl_upd1, hload2 s e, hload2 s' e]
+    rw [hl, hl, hl, hl, hload2 (Function.update s 0 (s' 0)) e,
+      hload2 (Function.update s 1 (s' 1)) e, hload2 s e, hload2 s' e]
+    simp only [Function.update_self, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0),
+      Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
     obtain ⟨b'_0, hb'_0⟩ : ∃ x, decide (e ∈ W.resources 0 (s' 0)) = x := ⟨_, rfl⟩
     obtain ⟨b'_1, hb'_1⟩ : ∃ x, decide (e ∈ W.resources 1 (s' 1)) = x := ⟨_, rfl⟩
     obtain ⟨b_0, hb_0⟩ : ∃ x, decide (e ∈ W.resources 0 (s 0)) = x := ⟨_, rfl⟩
@@ -711,15 +692,19 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
   dsimp only [D, N, w₀, w₁] at hmul_le
   linarith
 
-/-- Three-resource two-player affine congestion game attaining `twoPlayerRatio w₀ w₁` for every
-`0 < w₀` and `0 < w₁`. -/
-@[expose] def twoPlayerTightPaths : Fin 2 → Bool → Finset (Fin 3)
+/-- Resource sets of `twoPlayerTightGame`: player `0` chooses between `{0}` and `{1, 2}`, while
+player `1` chooses between `{1}` and `{0}`. -/
+private def twoPlayerTightPaths : Fin 2 → Bool → Finset (Fin 3)
   | 0, true => {0}
   | 0, false => {1, 2}
   | 1, true => {1}
   | 1, false => {0}
 
-@[expose] def twoPlayerTightGame (w₀ w₁ : ℝ) :
+/-- Three-resource two-player affine congestion game with demand weights `(w₀, w₁)` and latencies
+`(w₀ + w₁) x`, `w₁ x`, and `w₀² + w₀ w₁ + w₁²`, attaining `twoPlayerRatio w₀ w₁` for all
+`0 < w₀` and `0 < w₁` ([NisanRoughgardenTardosVazirani2007], Chapter 18, Exercise 18.2(c); locator
+not re-verified against primary PDF). -/
+def twoPlayerTightGame (w₀ w₁ : ℝ) :
     WeightedCongestionGame (Fin 2) (fun _ => Bool) (Fin 3) where
   resources := twoPlayerTightPaths
   weight i := if i = 0 then w₀ else w₁
