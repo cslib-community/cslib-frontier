@@ -48,7 +48,8 @@ runs out of fuel ends the try.
 
 `Implements` asks for nothing beyond stability: every partial handler is implemented by constant
 and diverging programs, so it is a reducibility only together with a restriction on the programs,
-such as a computable dialogue over `natOracleSpec` (`Cslib.ClockedComp.dialogue`).
+such as a computable dialogue over `natOracleSpec` (`Cslib.ClockedComp.dialogue`), under which it
+is transitive through codes (`Nat.RecursiveIn.Code.exists_clockedComp_trans`).
 -/
 
 @[expose] public section

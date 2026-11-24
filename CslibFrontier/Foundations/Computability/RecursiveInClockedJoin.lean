@@ -20,6 +20,8 @@ This file connects the handlers of `Cslib.ClockedComp.subst` with the code-level
 * *Code substitution.* The compiled program of a code `d` implements the function `d` computes,
   against every partial oracle (`Code.implements_toClocked`). Substituting it into the compiled
   program of `c` computes the substituted code `c.subst d` (`Code.eval_subst_toClocked`).
+  Through codes, computability by clocked programs with computable dialogue is transitive
+  (`Code.exists_clockedComp_trans`): the composite is the compiled program of a substituted code.
 * *Two oracles and their join.* A program over the sum interface
   `natOracleSpec ⊕ₒ natOracleSpec`, run with the oracles `p` and `x`, computes the same as its
   substitution by `Code.joinHandler` run with the single oracle `p ⊕ x`
@@ -38,6 +40,8 @@ This file connects the handlers of `Cslib.ClockedComp.subst` with the code-level
 ## Main results
 
 * `Nat.RecursiveIn.Code.implements_toClocked`, `Nat.RecursiveIn.Code.eval_subst_toClocked`.
+* `Nat.RecursiveIn.Code.exists_clockedComp_trans`: computability by clocked programs with
+  computable dialogue is transitive.
 * `Nat.RecursiveIn.Code.implements_joinHandler`, `Nat.RecursiveIn.Code.eval_subst_joinHandler`.
 * `Nat.RecursiveIn.Code.implements_splitHandler`, `Nat.RecursiveIn.Code.eval_subst_splitHandler`.
 * `Nat.RecursiveIn.Code.implements_subst_splitHandler`: the clocked form of `Code.eval_join`.
@@ -61,6 +65,26 @@ theorem implements_toClocked (g : ℕ →. ℕ) (d : Code) :
 theorem eval_subst_toClocked (g : ℕ →. ℕ) (c d : Code) (n : ℕ) :
     ClockedComp.eval g ((c.toClocked n).subst d.toClocked) = (c.subst d).eval g n := by
   rw [(implements_toClocked g d).eval_subst (stable_toClocked _ c n), eval_toClocked, eval_subst]
+
+/-- **Transitivity of clocked reducibility.** If `F` is computed against `g`, and `g` against
+`h`, by families of clocked programs with computable dialogue, then so is `F` against `h`. The
+family is the compiled program of a substituted code, so its dialogue is computable even when the
+given families are not stable. -/
+theorem exists_clockedComp_trans {F g h : ℕ →. ℕ}
+    (hF : ∃ P : ℕ → ClockedComp natOracleSpec ℕ, Computable (ClockedComp.dialogue P) ∧
+      ∀ n, ClockedComp.eval g (P n) = F n)
+    (hg : ∃ Q : ℕ → ClockedComp natOracleSpec ℕ, Computable (ClockedComp.dialogue Q) ∧
+      ∀ n, ClockedComp.eval h (Q n) = g n) :
+    ∃ R : ℕ → ClockedComp natOracleSpec ℕ, Computable (ClockedComp.dialogue R) ∧
+      ∀ n, ClockedComp.eval h (R n) = F n := by
+  obtain ⟨P, hP, hPF⟩ := hF
+  obtain ⟨Q, hQ, hQg⟩ := hg
+  obtain ⟨cP, hcP⟩ := ClockedComp.exists_code_eval hP
+  obtain ⟨cQ, hcQ⟩ := ClockedComp.exists_code_eval hQ
+  have eg : cQ.eval h = g := funext fun n => (congrFun (hcQ h) n).trans (hQg n)
+  refine ⟨(cP.subst cQ).toClocked, computable_dialogue_toClocked _, fun n => ?_⟩
+  rw [eval_toClocked, eval_subst, eg, hcP g]
+  exact hPF n
 
 /-! ### Two oracles and their join -/
 
