@@ -379,6 +379,30 @@ theorem IsIdentical.weight_le_optMakespan [DecidableEq ι] {G : LoadBalancingGam
   rw [hId (A i), div_one] at h
   exact h
 
+/-- When `optMakespan = 0`, every job has weight `0`. -/
+theorem weight_eq_zero_of_optMakespan_eq_zero [DecidableEq ι] (hopt0 : G.optMakespan = 0)
+    (i : ι) : G.weight i = 0 := by
+  have hsum0 : ∑ r, G.weight r = 0 := by
+    have h1 := G.sum_weight_le_sum_speed_mul_optMakespan
+    rw [hopt0, mul_zero] at h1
+    exact le_antisymm h1 (sum_nonneg fun r _ => G.weight_nonneg r)
+  exact (sum_eq_zero_iff_of_nonneg fun k _ => G.weight_nonneg k).mp hsum0 i (mem_univ i)
+
+/-- When some job `i` has strictly positive weight, `0 < optMakespan`. -/
+theorem optMakespan_pos_of_weight_pos [DecidableEq ι] {i : ι} (hi : 0 < G.weight i) :
+    0 < G.optMakespan := by
+  rcases G.optMakespan_nonneg.eq_or_lt with h0 | hpos
+  · exact absurd (G.weight_eq_zero_of_optMakespan_eq_zero h0.symm i) hi.ne'
+  · exact hpos
+
+/-- When `optMakespan = 0`, every assignment has makespan `0`. -/
+theorem makespan_eq_zero_of_optMakespan_eq_zero [DecidableEq ι] (hopt0 : G.optMakespan = 0)
+    (A : ι → M) : G.makespan A = 0 := by
+  have hw0 := G.weight_eq_zero_of_optMakespan_eq_zero hopt0
+  refine le_antisymm ((G.makespan_le_iff A).mpr fun j => ?_) (G.makespan_nonneg A)
+  rw [G.load_eq_sum_div]
+  simp [hw0]
+
 end Makespan
 
 section SchedulingBridge

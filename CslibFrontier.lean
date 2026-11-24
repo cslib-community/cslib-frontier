@@ -7561,6 +7561,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.FiberCount
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.GoemansWilliamson
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.GoemansWilliamsonDicut
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogDivLogLog
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
@@ -9013,10 +9014,13 @@ public import CslibFrontier.GameTheory.Extensive.PerfectInfo
 public import CslibFrontier.GameTheory.Extensive.SequenceForm
 public import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
 public import CslibFrontier.GameTheory.InterdomainRouting.StablePaths
+public import CslibFrontier.GameTheory.LoadBalancing.BallsIntoBins
 public import CslibFrontier.GameTheory.LoadBalancing.Basic
 public import CslibFrontier.GameTheory.LoadBalancing.MixedNash
+public import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
 public import CslibFrontier.GameTheory.LoadBalancing.PureNash
 public import CslibFrontier.GameTheory.LoadBalancing.PurePoA
+public import CslibFrontier.GameTheory.LoadBalancing.RelatedPureLower
 public import CslibFrontier.GameTheory.Market.Basic
 public import CslibFrontier.GameTheory.Market.EisenbergGale
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
