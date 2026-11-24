@@ -12,44 +12,36 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 import CslibFrontier.Crypto.Computational.ElGamal.KDF
 import CslibFrontier.Crypto.Computational.ElGamal.KeyDerivation
-import CslibFrontier.Crypto.Computational.PseudorandomPermutation
-import CslibFrontier.Crypto.Computational.PseudorandomPermutation.StrongSwitching
-import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.InversePolynomial
-import CslibFrontier.Languages.Probabilistic.RandomPermutation
-import CslibFrontier.Tactic.PPT
-import CslibFrontier.Tactic.PolyTime
 import Mathlib.NumberTheory.Bertrand
 
 set_option linter.privateModule false
 
 /-!
-# Checked non-vacuity witnesses for `LinearHashKDFConditions` and `BlockCipher.StrongPRP`
+# Checked non-vacuity witnesses for `PrimeOrderGroupFamily.LinearHashKDFConditions`
 
-Ordinary `module` client (no `import all`) supplying missing witness checks from the crypto
-non-vacuity audit:
+Ordinary `module` client (no `import all`) supplying positive and negative non-vacuity checks for
+`PrimeOrderGroupFamily.LinearHashKDFConditions` (`ElGamal/KDF.lean`):
 
-1. **`PrimeOrderGroupFamily.LinearHashKDFConditions` (`ElGamal/KDF.lean`):** constructs a concrete
-   additive prime-order group family `additivePrimeGroups` (`Carrier q = ZMod q` for prime `q`),
-   discharges all five fields of `LinearHashKDFConditions` unconditionally for growing key length
-   `msgLen n = n + 1` via Bertrand's postulate (`linearHashKDFConditions_bertrand`), instantiates
-   `secureKDF_linearHashKDF` and `KeyDerivation.Secure` with no remaining hypotheses, and refutes
-   `LinearHashKDFConditions` on a fixed group of order `2` (`not_linearHashKDFConditions_fixedTwo`).
-2. **`BlockCipher.StrongPRP` (`PseudorandomPermutation.lean`):** refutes `idBlockCipher.StrongPRP`
-   directly via a 1-query decryption-channel adversary `decryptZeroDistinguisher`
-   (`not_strongPRP_idBlockCipher`), exercising `strongPRPRealGame`, `strongPRPIdealGame`, and
-   `advantage_strongPRPIdealGame_forgetful_le` at `Q = 1`.
+1. **Concrete group family (`additivePrimeGroups`):** additive cyclic groups `(ZMod q, +)` of
+   prime order `q`, with little-endian residue encoding and binary-arithmetic `ComputableInPolyTime`
+   certificates.
+2. **Satisfying instance (`linearHashKDFConditions_bertrand`):** picks a prime order
+   `q ∈ (2^(2n + 1), 2^(2n + 2))` via Bertrand's postulate (`bertrandPrimeDesc`, `bertrandSetup`)
+   and discharges all five fields of `LinearHashKDFConditions` unconditionally for growing key
+   length `msgLen n = n + 1`, yielding unconditional `SecureKDF`
+   (`secureKDF_additivePrimeGroups_bertrand`) and `KeyDerivation.Secure`
+   (`keyDerivation_secure_additivePrimeGroups`) instantiations.
+3. **Refuting instance (`not_linearHashKDFConditions_fixedTwo`):** proves
+   `LinearHashKDFConditions` fails when the group order stays fixed at `2` with constant `1`-bit
+   output length, regardless of `keyLen`, `bound`, and `qMin`.
 -/
 
-namespace CslibFrontierTests.Crypto.KDFAndStrongPRPNonvacuity
+namespace CslibFrontierTests.Crypto.LinearHashKDFNonvacuity
 
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily Turing.MultiTapeTM
-open scoped NNReal ENNReal
-
-/-! ### 1. `LinearHashKDFConditions`: concrete group family, satisfying & failing instances -/
-
-section LinearHashKDF
+open scoped NNReal
 
 /-- Description of an additive cyclic prime-order group: a prime natural number `q`. -/
 private abbrev PrimeDesc : Type := { q : ℕ // q.Prime }
@@ -255,170 +247,4 @@ theorem not_linearHashKDFConditions_fixedTwo (keyLen _bound : additivePrimeGroup
     exact_mod_cast hq_le
   exact not_negligible_const one_ne_zero (negligible_of_le h.negligible hle)
 
-end LinearHashKDF
-
-/-! ### 2. `BlockCipher.StrongPRP`: direct decryption-channel non-vacuity witness -/
-
-section StrongPRP
-
-/-- Identity block cipher on `(n + 1)`-bit keys and `(n + 1)`-bit blocks. -/
-private def idBlockCipher : BlockCipher where
-  keyLen n := n + 1
-  blockLen n := n + 1
-  keyLen_polyTime := by fun_prop
-  blockLen_polyTime := by fun_prop
-  encrypt _ _ block := block
-  decrypt _ _ block := block
-  encrypt_polyTime := by polytime
-  decrypt_polyTime := by polytime
-  length_encrypt _ _ _ _ hblock := hblock
-  length_decrypt _ _ _ _ hblock := hblock
-  decrypt_encrypt _ _ _ _ _ := rfl
-  encrypt_decrypt _ _ _ _ _ := rfl
-
-/-- One-query chosen-ciphertext distinguisher: sends a **decryption** query `(true, 0^(n+1))` and
-checks whether the reply equals `0^(n+1)`. -/
-private noncomputable def decryptZeroDistinguisher : StrongPRPDistinguisher := fun n _ => do
-  let reply ← List.take (n + 1) <$> ProbOracleComp.query (true, List.replicate (n + 1) false)
-  return reply == List.replicate (n + 1) false
-
-private theorem isOraclePPT_decryptZeroDistinguisher :
-    IsOraclePPT encBool decryptZeroDistinguisher := by
-  have h : IsOraclePPTOn (encPair encUnary encBits) encBool
-      (fun p : ℕ × List Bool => decryptZeroDistinguisher p.1 p.2) := by
-    ppt [decryptZeroDistinguisher]
-  exact h.isOraclePPT
-
-private theorem isQueryBounded_decryptZeroDistinguisher (n : ℕ) :
-    (decryptZeroDistinguisher n []).IsQueryBounded 1 := by
-  unfold decryptZeroDistinguisher
-  refine OracleComp.IsCostBounded.bind (n := 1) (m := 0) ?_ fun _ => .pure _ 0
-  rw [OracleComp.isCostBounded_map_iff]
-  exact ProbOracleComp.IsQueryBounded.query _
-
-private theorem eval_strongPRPRealGame_idBlockCipher_decryptZero (n : ℕ) :
-    ProbComp.eval (idBlockCipher.strongPRPRealGame decryptZeroDistinguisher n) = PMF.pure true := by
-  simp only [BlockCipher.strongPRPRealGame, decryptZeroDistinguisher, ProbOracleComp.run,
-    idBlockCipher, BlockCipher.strongPRPOracle, List.length_replicate, ↓reduceIte,
-    List.take_replicate, min_self, OracleComp.interpret_map, ProbOracleComp.interpret_query,
-    map_pure, bind_pure_comp, ProbComp.eval_map, BitString.eval_sampleList, beq_self_eq_true]
-  exact PMF.map_const _ _
-
-private theorem succProbability_forgetful_decryptZero (n : ℕ) :
-    Game.succProbability
-        ((ProbOracleComp.runWith
-          ((strongBitStringCodec (n + 1)).wordOracle RandomPermutation.forgetfulAnswer)
-          (decryptZeroDistinguisher n []) []).map Prod.fst) =
-      (2 ^ (n + 1) : ℝ≥0)⁻¹ := by
-  have hword :
-      (strongBitStringCodec (n + 1)).wordOracle RandomPermutation.forgetfulAnswer
-        (true, List.replicate (n + 1) false) [] =
-      (PMF.uniformOfFintype (BitString (n + 1))).map
-        fun x => (List.ofFn x, [(x, BitString.ofList (n + 1) (List.replicate (n + 1) false))]) := by
-    rw [strongBitStringCodec_wordOracle_of_length RandomPermutation.forgetfulAnswer true
-      (word := List.replicate (n + 1) false) (List.length_replicate)]
-    change ((RandomPermutation.forgetfulAnswer
-      (RandomPermutation.PermQuery.inverse (BitString.ofList (n + 1) _))) []).map
-        (fun p => (List.ofFn p.1, p.2)) = _
-    rw [RandomPermutation.forgetfulAnswer_inverse_of_none rfl, PMF.map_comp]
-    rfl
-  have htake (x : BitString (n + 1)) :
-      List.take (n + 1) (List.ofFn x) = List.ofFn x :=
-    List.take_of_length_le (by simp only [List.length_ofFn, le_rfl])
-  have hrun :
-      ((ProbOracleComp.runWith
-        ((strongBitStringCodec (n + 1)).wordOracle RandomPermutation.forgetfulAnswer)
-        (decryptZeroDistinguisher n []) []).map Prod.fst) =
-      (PMF.uniformOfFintype (BitString (n + 1))).map
-        fun x => List.ofFn x == List.replicate (n + 1) false := by
-    simp only [decryptZeroDistinguisher, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, hword, PMF.bind_map,
-      PMF.map_bind, PMF.pure_map, Function.comp_def, Prod.map_fst, htake]
-    exact (PMF.bind_pure_comp _ _).symm
-  rw [hrun, Game.succProbability, PMF.map_apply]
-  have hzero : ∀ x : BitString (n + 1),
-      ((List.ofFn x == List.replicate (n + 1) false) = true) ↔ x = fun _ => false := by
-    intro x
-    rw [beq_iff_eq]
-    constructor
-    · intro hx
-      funext i
-      have hi := congrArg (fun l : List Bool => l[i.1]?) hx
-      simp only [List.getElem?_ofFn, i.isLt, ↓reduceDIte, List.getElem?_replicate,
-        ↓reduceIte, Option.some.injEq] at hi
-      exact hi
-    · intro hx
-      subst hx
-      simp only [List.ofFn_const]
-  rw [tsum_eq_single (fun _ => false)]
-  · have htrue : (List.ofFn (fun _ : Fin (n + 1) => false) == List.replicate (n + 1) false) =
-        true := by
-      simp only [List.ofFn_const, beq_self_eq_true]
-    simp only [htrue, ↓reduceIte, PMF.uniformOfFintype_apply, Fintype.card_fun,
-      Fintype.card_bool, Fintype.card_fin, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
-    push_cast
-    rfl
-  · intro x hx
-    have hne : true ≠ (List.ofFn x == List.replicate (n + 1) false) :=
-      Ne.symm ((hzero x).not.mpr hx)
-    simp only [hne, ↓reduceIte]
-
-/-- Direct decryption-channel refutation: `idBlockCipher` is not a `StrongPRP`. -/
-theorem not_strongPRP_idBlockCipher : ¬ idBlockCipher.StrongPRP := by
-  intro h
-  have hneg := h decryptZeroDistinguisher isOraclePPT_decryptZeroDistinguisher
-  have hle : ∀ n : ℕ, (1 / 2 : ℝ≥0) ≤
-      Game.advantage
-        (ProbComp.eval (idBlockCipher.strongPRPRealGame decryptZeroDistinguisher n))
-        (ProbComp.eval (strongPRPIdealGame idBlockCipher.blockLen decryptZeroDistinguisher n)) := by
-    intro n
-    have hid := advantage_strongPRPIdealGame_forgetful_le idBlockCipher.blockLen
-      decryptZeroDistinguisher n 1 (isQueryBounded_decryptZeroDistinguisher n)
-    have hchoose : ((1 : ℕ).choose 2 : ℝ) = 0 := by norm_num
-    rw [hchoose, zero_mul] at hid
-    change (Game.advantage
-      (ProbComp.eval (strongPRPIdealGame (fun n => n + 1) decryptZeroDistinguisher n))
-      ((ProbOracleComp.runWith
-        ((strongBitStringCodec (n + 1)).wordOracle RandomPermutation.forgetfulAnswer)
-        (decryptZeroDistinguisher n []) []).map Prod.fst) : ℝ) ≤ 0 at hid
-    have hsucc_ideal :
-        Game.succProbability
-          (ProbComp.eval (strongPRPIdealGame idBlockCipher.blockLen decryptZeroDistinguisher n)) ≤
-          (2 ^ (n + 1) : ℝ≥0)⁻¹ := by
-      have hc := Game.coe_succProbability_le_add_of_advantage_le hid
-      rw [succProbability_forgetful_decryptZero, add_zero] at hc
-      exact_mod_cast hc
-    have hpow : (2 ^ (n + 1) : ℝ≥0)⁻¹ ≤ 1 / 2 := by
-      rw [one_div, inv_le_inv₀ (pow_pos two_pos _) two_pos]
-      exact_mod_cast Nat.le_self_pow (Nat.succ_ne_zero n) 2
-    have htri := Game.advantage_triangle
-      (ProbComp.eval (idBlockCipher.strongPRPRealGame decryptZeroDistinguisher n))
-      (ProbComp.eval (strongPRPIdealGame idBlockCipher.blockLen decryptZeroDistinguisher n))
-      (PMF.pure false)
-    have hpure : Game.succProbability (PMF.pure true) = 1 := by simp [Game.succProbability]
-    rw [Game.advantage_pure_false, Game.advantage_pure_false] at htri
-    have hreal : Game.succProbability
-        (ProbComp.eval (idBlockCipher.strongPRPRealGame decryptZeroDistinguisher n)) = 1 := by
-      rw [eval_strongPRPRealGame_idBlockCipher_decryptZero, hpure]
-    rw [hreal] at htri
-    have htriR : (1 : ℝ) ≤ (Game.advantage
-        (ProbComp.eval (idBlockCipher.strongPRPRealGame decryptZeroDistinguisher n))
-        (ProbComp.eval (strongPRPIdealGame idBlockCipher.blockLen
-          decryptZeroDistinguisher n)) : ℝ) +
-        (Game.succProbability (ProbComp.eval (strongPRPIdealGame
-          idBlockCipher.blockLen decryptZeroDistinguisher n)) : ℝ) := by
-      exact_mod_cast htri
-    have hideal_le : (Game.succProbability (ProbComp.eval (strongPRPIdealGame
-        idBlockCipher.blockLen decryptZeroDistinguisher n)) : ℝ) ≤ 1 / 2 := by
-      exact_mod_cast hsucc_ideal.trans hpow
-    have hadvR : (1 / 2 : ℝ) ≤ (Game.advantage
-        (ProbComp.eval (idBlockCipher.strongPRPRealGame decryptZeroDistinguisher n))
-        (ProbComp.eval (strongPRPIdealGame idBlockCipher.blockLen
-          decryptZeroDistinguisher n)) : ℝ) := by
-      linarith
-    exact_mod_cast hadvR
-  exact not_negligible_const (by norm_num) (negligible_of_le hneg hle)
-
-end StrongPRP
-
-end CslibFrontierTests.Crypto.KDFAndStrongPRPNonvacuity
+end CslibFrontierTests.Crypto.LinearHashKDFNonvacuity
