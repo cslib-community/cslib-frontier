@@ -4038,6 +4038,7 @@ public import CslibFrontier.Computability.Kolmogorov.Incompleteness
 public import CslibFrontier.Computability.Kolmogorov.Incompressibility
 public import CslibFrontier.Computability.Kolmogorov.Invariance
 public import CslibFrontier.Computability.Kolmogorov.KraftChaitin
+public import CslibFrontier.Computability.Kolmogorov.LevinCoding
 public import CslibFrontier.Computability.Kolmogorov.MINKT
 public import CslibFrontier.Computability.Kolmogorov.MINKTStar
 public import CslibFrontier.Computability.Kolmogorov.MINKTStar.Generator
@@ -4051,6 +4052,7 @@ public import CslibFrontier.Computability.Kolmogorov.MultiTape
 public import CslibFrontier.Computability.Kolmogorov.NisanWigderson
 public import CslibFrontier.Computability.Kolmogorov.Partrec
 public import CslibFrontier.Computability.Kolmogorov.PrefixFree
+public import CslibFrontier.Computability.Kolmogorov.PrefixSymmetry
 public import CslibFrontier.Computability.Kolmogorov.SelfDelimiting
 public import CslibFrontier.Computability.Kolmogorov.SingleTape
 public import CslibFrontier.Computability.Kolmogorov.SymmetryOfInformation
