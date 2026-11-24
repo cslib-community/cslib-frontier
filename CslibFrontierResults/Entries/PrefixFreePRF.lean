@@ -6,11 +6,36 @@ Authors: Samuel Schlesinger, Erik Demaine
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
+import CslibFrontier.Crypto.Primitives.UHF.CBCMAC
 
 /-!
 # Collected results: universal hashing from prefix-free PRFs
 -/
+
+register_result "cbc-mac-computational-universality" where
+  title := "CBC-MAC from a secure PRF is computationally universal"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Corollary 7.5 (CBC-MAC case)",
+      locator := "v0.6, Section 7.2.2, printed p. 260; equation (7.10) and Q = 2 specialization" }
+  ]
+  theorems := [
+    Cslib.Crypto.PseudorandomFunction.isMultiQueryUHF_cbcMac,
+    Cslib.Crypto.PseudorandomFunction.isComputationalUHF_cbcMac,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_cbcMac_le,
+    Cslib.Crypto.UHF.succProbability_collisionGame_cbcMac_le,
+    Cslib.Crypto.UHF.isOraclePPT_cbcMacMultiQueryReduction
+  ]
+  scope := "The CBC-MAC case of Corollary 7.5 in the word model, with a base PRF on n-bit keys, \
+    blocks and replies. The hash domain consists of zero to ℓ(n) whole blocks with a unary \
+    polynomial-time cap ℓ. Uniform strict PPT adversaries submit lists of messages or pairs. \
+    A collision requires two distinct valid messages. The prefix-free batch wrapper appends a \
+    common fresh block to each distinct valid message when the alphabet exceeds the block \
+    budget. The base-PRF reduction is certified strict oracle PPT. The concrete \
+    bound uses (7.10)'s CBC term Q²(ℓ(n)+1)²/(2 · 2^n) with the sharper Q.choose 2/2^n \
+    for reply collisions. The single-pair wrapper uses Q = 2 and preserves success exactly. \
+    At width zero only the empty word is valid. At positive widths too small for the block \
+    budget, the CBC term already bounds success by one. Cascade is tracked in #5801."
 
 register_result "extendable-prefix-free-prf-computational-universality" where
   title := "An extendable prefix-free PRF is computationally universal"
