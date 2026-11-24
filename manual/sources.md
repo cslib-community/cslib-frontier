@@ -457,6 +457,11 @@ Gabriel Bracha and Sam Toueg. "Asynchronous Consensus and Broadcast Protocols." 
 
 L. M. Brégman. "Some properties of nonnegative matrices and their permanents." *Soviet Mathematics Doklady* 14, 945–949, 1973; translated from *Doklady Akademii Nauk SSSR* 211, 27–30, 1973. Bibliographic data from secondary sources; the paper was not inspected. The manual credits it only with the statement of the bound `per A ≤ ∏ i, (r i)! ^ (1 / r i)` for 0/1 matrices.
 
+<a id="brier50"></a>
+## brier50
+
+Glenn W. Brier. "Verification of Forecasts Expressed in Terms of Probability." *Monthly Weather Review* 78(1), 1–3, 1950 (bibliography key `Brier1950`). https://doi.org/10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2 . Bibliographic metadata checked via DOI and catalogue records; the 1950 article PDF was not directly inspected, so internal equation, section and page locators are marked `unverified` in the results registry. Cited at paper level in [ScoringRules.lean](../CslibFrontier/GameTheory/PredictionMarket/ScoringRules.lean) as the primary origin of the quadratic (Brier) probability score alongside [friedmanresnicksami07](#friedmanresnicksami07).
+
 <a id="broder97"></a>
 ## broder97
 
@@ -984,6 +989,11 @@ Peter Frankl and Richard M. Wilson. “Intersection Theorems with Geometric Cons
 
 Rūsiņš Freivalds. "Fast Probabilistic Algorithms." *Mathematical Foundations of Computer Science 1979*, Lecture Notes in Computer Science 74, 57–69. https://doi.org/10.1007/3-540-09526-8_5 . Bibliographic data from the DOI record, checked 2026-11-07; the full text was not inspected. The manual attributes only the random-vector matrix-product check to this paper.
 
+<a id="friedmanresnicksami07"></a>
+## friedmanresnicksami07
+
+Eric Friedman, Paul Resnick and Rahul Sami. "Manipulation-Resistant Reputation Systems." Chapter 27 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 677–698 (bibliography key `FriedmanResnickSami2007`). https://doi.org/10.1017/CBO9780511800481.029 . Checked against the 2007 Cambridge University Press book text (printed pp. 677–698) for §27.4.2 (pp. 686–687: Definition 27.1 of strictly proper scoring rules on p. 686, and the quadratic and logarithmic scoring rules) and Exercise 27.7 (p. 697: strict propriety and range bounds of `a + b * quadraticScore`; the book states the 2-event affine form without writing `b > 0`, which [ScoringRules.lean](../CslibFrontier/GameTheory/PredictionMarket/ScoringRules.lean) formalizes over arbitrary finite `Ω` with `[-1, 1]` bounds on `quadraticScore` and positive rescaling `0 < b` in `ScoringRule.IsStrictlyProperOn.affine`, while restricting real-valued `logScore` to `openProbSimplex Ω` or `supp(q) ⊆ supp(p)` because `Real.log 0 = 0`).
+
 <a id="friezekaronski2016"></a>
 ## friezekaronski2016
 
@@ -1053,6 +1063,11 @@ Chun Guo, Jonathan Katz, Xiao Wang and Yu Yu. "Efficient and Secure Multiparty C
 ## gm94
 
 Torbjörn Granlund, Peter L. Montgomery. "Division by Invariant Integers using Multiplication." *Proceedings of the ACM SIGPLAN 1994 Conference on Programming Language Design and Implementation (PLDI 1994)*, 61–72, 1994. https://doi.org/10.1145/178243.178249 . Checked on 2026-11-10 against the copy at https://gmplib.org/~tege/divcnst-pldi94.pdf : Section 4, Theorem 4.2 (multiply-and-shift division by an invariant integer, base 2, word size `N`, with a non-strict bound on the multiplier). The formalized identity is a radix-`p` variant with a strict bound, in the form of [ll24](#ll24) Lemma 5; the bound `m ≤ p ^ (k + 1)` on the chosen multiplier is proved in the Lean source.
+
+<a id="gneitingraftery07"></a>
+## gneitingraftery07
+
+Tilmann Gneiting and Adrian E. Raftery. "Strictly Proper Scoring Rules, Prediction, and Estimation." *Journal of the American Statistical Association* 102(477), 359–378, 2007 (bibliography key `GneitingRaftery2007`). https://doi.org/10.1198/016214506000001437 . Bibliographic metadata checked via DOI and catalogue records; the journal full text was not directly inspected, so internal theorem, section and page locators are marked `unverified` in the results registry. Cited at paper level in [ScoringRules.lean](../CslibFrontier/GameTheory/PredictionMarket/ScoringRules.lean) for the convex-potential / Bregman-divergence characterization of proper and strictly proper scoring rules on convex subsets of the simplex (where real-valued finiteness on `P` discharges regularity) and for the spherical scoring rule (`sphericalScore`).
 
 <a id="gochtmccreeshmyreennordstromoerteltan2024"></a>
 ## gochtmccreeshmyreennordstromoerteltan2024
@@ -1171,6 +1186,16 @@ Dan Gusfield. *Algorithms on Strings, Trees, and Sequences: Computer Science and
 ## hadzilacostoueg1994
 
 Vassos Hadzilacos and Sam Toueg. *A Modular Approach to Fault-Tolerant Broadcasts and Related Problems*. Technical Report TR94-1425, Department of Computer Science, Cornell University, May 1994. https://hdl.handle.net/1813/6207 . Checked firsthand on 2026-11-22 against the Cornell eCommons scan (`https://ecommons.cornell.edu/server/api/core/bitstreams/5c4f64e7-53d3-4098-a28b-341974cb86b2/content`, SHA-256 `cb3ba50162af16ed480ccdabf38661653577002f19ccce6790b072ae412002c5`; cited by printed report page numbers, where printed page `p` is PDF page `p + 2`): §3.1 (pp. 9–10, Reliable Broadcast = Validity + Agreement + Integrity on p. 10), §3.3 (pp. 11–12, Causal Broadcast and prefix-closed Causal Order, Theorem 1), §3.4 (pp. 12–13, Atomic Broadcast = Reliable Broadcast + Total Order on p. 13), §3.8 (pp. 14–15, Uniform Integrity on p. 14 and Uniform Causal/Total Order and Uniform counterparts on p. 15), §3.9 (pp. 15–16, modular broadcast hierarchy on p. 16), §7.1 (pp. 56–57, Consensus specification), §7.2.1 (p. 58, Figure 13 transformation of Atomic Broadcast into Consensus, Theorem 13, and Corollary 2 establishing 1-crash asynchronous impossibility via FLP), and §7.2.2 (pp. 59–63, Figure 14 on p. 60 transforming Consensus and Reliable Broadcast into Atomic Broadcast, Lemmas 1–5 and Corollary 3 on pp. 61–63, and Theorem 14 and Corollary 4 on p. 63). As steps toward [#7297](https://github.com/cslib-community/cslib-frontier/issues/7297) in [CausalBroadcast/TotalOrder.lean](../CslibFrontier/Computability/Distributed/CausalBroadcast/TotalOrder.lean), `TotalOrderBroadcastAlg` follows `Cslib.FLP.Algorithm` in supplying one initial broadcast value `inp p : V` per process `p` (`start`) for the Figure 13 / Theorem 13 / Corollary 2 reduction (`consensusOfTotalOrderBroadcast`, `not_exists_oneShotTotalOrderBroadcast_ge_one`) and the `0`-fault sequencer `zeroFaultTotalOrderAlg` (`exists_oneShotTotalOrderBroadcast_iff_eq_zero`), while `ConsensusSlotExec` and `totalOrderBroadcast_of_consensusSlotExec` model the multi-shot Figure 14 / Chandra–Toueg Figure 7 batch reduction over arbitrary `[LinearOrder Msg]` at the abstract discrete-time (`t : ℕ`) subprotocol-trace level.
+
+<a id="hanson03"></a>
+## hanson03
+
+Robin Hanson. "Combinatorial Information Market Design." *Information Systems Frontiers* 5(1), 107–119, 2003 (bibliography key `Hanson2003`). https://doi.org/10.1023/A:1022058209073 . Bibliographic metadata checked via DOI/catalogue records and cross-referenced in [pennocksami07](#pennocksami07), §26.4.1; the journal full text was not directly inspected, so internal theorem and page locators are marked `unverified` in the results registry. Cited at paper level in [LMSR.lean](../CslibFrontier/GameTheory/PredictionMarket/LMSR.lean) for sequential market scoring rules (`msrStepPayoff`, `msrTotalPayoff`, `msrStepPayoff_expected_lt`).
+
+<a id="hanson07"></a>
+## hanson07
+
+Robin Hanson. "Logarithmic Market Scoring Rules for Modular Combinatorial Information Aggregation." *The Journal of Prediction Markets* 1(1), 3–15, 2007 (bibliography key `Hanson2007`). https://doi.org/10.5750/jpm.v1i1.417 . Bibliographic metadata checked via DOI/catalogue records and cross-referenced in [pennocksami07](#pennocksami07), §26.4.1; the journal full text was not directly inspected, so internal theorem and page locators are marked `unverified` in the results registry. Cited at paper level in [LMSR.lean](../CslibFrontier/GameTheory/PredictionMarket/LMSR.lean) for Hanson's logarithmic market scoring rule cost-function formulation (`lmsrCost`, `lmsrPrice`) and `b * log |Ω|` worst-case loss bound.
 
 <a id="harpeledindykmotwani12"></a>
 ## harpeledindykmotwani12
@@ -2178,6 +2203,11 @@ Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifia
 
 Chris Peikert. *A Decade of Lattice Cryptography*. Foundations and Trends in Theoretical Computer Science 10(4), 283–424, 2016. https://doi.org/10.1561/0400000074 ; author PDF dated February 17, 2016 at https://web.eecs.umich.edu/~cpeikert/pubs/lattice-survey.pdf . Consulted in the February 17, 2016 author PDF: Section 4.2.1, unnumbered "Normal form" paragraph, printed p. 23, for the sample transformation from `(n + m)`-sample uniform-secret LWE to `m`-sample error-secret (normal-form) LWE by inverting the top `n × n` block, losing the singular-block probability (`NormalForm.lean` formalizes these finite probability steps on framed-integer `ProbComp` callers toward the hardness reductions in #3673, without certifying polynomial-time inversion).
 
+<a id="pennocksami07"></a>
+## pennocksami07
+
+David M. Pennock and Rahul Sami. "Computational Aspects of Prediction Markets." Chapter 26 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 651–676 (bibliography key `PennockSami2007`). https://doi.org/10.1017/CBO9780511800481.028 . Checked against the 2007 Cambridge University Press book text (printed pp. 651–676) for §26.4.1 (pp. 663–664: Hanson's sequential market scoring rules, the LMSR cost function `C(q) = b ln(∑ e^{q_i / b})`, instantaneous softmax prices `∂C/∂q_i`, equivalence between cost-function trading and logarithmic MSR updates, and the `b ln |Ω|` worst-case market-maker loss bound). In [LMSR.lean](../CslibFrontier/GameTheory/PredictionMarket/LMSR.lean), the KL-divergence Bregman identity (`lmsrCost_bregmanDivergence_eq`) and global convexity (`convexOn_lmsrCost`) are proved as mathematical companions (not stated in Chapter 26), and Exercise 26.3 (pp. 674–675, conditional securities `S_{φ|ψ}` and conditional cost function `C_ψ`) remains open under [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
+
 <a id="peterson1981"></a>
 ## peterson1981
 
@@ -2342,6 +2372,11 @@ Ramprasad Saptharishi. *A survey of lower bounds in arithmetic circuit complexit
 ## satterthwaite75
 
 Mark A. Satterthwaite. "Strategy-Proofness and Arrow's Conditions: Existence and Correspondence Theorems for Voting Procedures and Social Welfare Functions." *Journal of Economic Theory* 10(2), 187–217, 1975. https://doi.org/10.1016/0022-0531(75)90050-2 . Bibliographic data from secondary search summaries on 2026-11-08 UTC; the paper was not inspected. Cited, with [Gibbard](#gibbard73), for the Gibbard–Satterthwaite theorem; no theorem number is claimed.
+
+<a id="savage71"></a>
+## savage71
+
+Leonard J. Savage. "Elicitation of Personal Probabilities and Expectations." *Journal of the American Statistical Association* 66(336), 783–801, 1971 (bibliography key `Savage1971`). https://doi.org/10.1080/01621459.1971.10482346 . Bibliographic metadata checked via DOI and catalogue records; the 1971 journal PDF was not directly inspected, so internal theorem, section and page locators are marked `unverified` in the results registry. Cited at paper level in [ScoringRules.lean](../CslibFrontier/GameTheory/PredictionMarket/ScoringRules.lean) for the convex-potential / subgradient characterization of proper and strictly proper scoring rules (`savageScoringRule`, `isProperOn_iff_exists_savage`, `isStrictlyProperOn_iff_exists_savage`).
 
 <a id="schoenebeck08"></a>
 ## schoenebeck08

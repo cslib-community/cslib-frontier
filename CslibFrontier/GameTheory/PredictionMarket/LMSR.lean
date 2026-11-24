@@ -26,12 +26,12 @@ import Mathlib.Tactic.Ring
 Robin Hanson's *market scoring rule* (MSR) turns any proper scoring rule `S` into a sequential
 automated market maker: a trader who updates the market's reported distribution from `p₁` to `p₂`
 receives net payoff `S.score p₂ ω - S.score p₁ ω` when outcome `ω` occurs
-[Hanson2003; PennockSami2007, §26.4.1]. Sequential payoffs telescope across any chain of updates,
-so the market maker's net loss depends only on the initial and final distributions.
+[Hanson2003; PennockSami2007, §26.4.1, pp. 663–664]. Sequential payoffs telescope across any chain
+of updates, so the market maker's net loss depends only on the initial and final distributions.
 
 For the logarithmic scoring rule scaled by liquidity parameter `b > 0`, Hanson's **Logarithmic
-Market Scoring Rule (LMSR)** is equivalent to a convex cost-function automated market maker with
-cost function
+Market Scoring Rule (LMSR)** is equivalent to a cost-function automated market maker with cost
+function
 
   `lmsrCost b q = b * Real.log (∑ ω, Real.exp (q ω / b))`
 
@@ -39,7 +39,7 @@ and instantaneous price vector given by the softmax distribution
 
   `lmsrPrice b q ω = Real.exp (q ω / b) / ∑ ω', Real.exp (q ω' / b)`
 
-[Hanson2007; PennockSami2007, §26.4.1, Exercise 26.3].
+[Hanson2007; PennockSami2007, §26.4.1, pp. 663–664].
 
 ## Main definitions
 
@@ -51,8 +51,6 @@ and instantaneous price vector given by the softmax distribution
   `b * log (∑ ω, exp (q ω / b))`.
 * `Cslib.GameTheory.PredictionMarket.lmsrPrice`: the instantaneous softmax price vector
   `exp (q ω / b) / ∑ ω', exp (q ω' / b)`.
-* `Cslib.GameTheory.PredictionMarket.lmsrTradeCost`: the cost `C(q₂) - C(q₁)` of moving the share
-  vector from `q₁` to `q₂`.
 * `Cslib.GameTheory.PredictionMarket.lmsrTraderPayoff`: net payoff `(q₂ ω - q₁ ω) - (C(q₂) - C(q₁))`
   to the trader (equivalently, the market maker's net loss) when moving from `q₁` to `q₂` and
   outcome `ω` occurs.
@@ -67,20 +65,21 @@ and instantaneous price vector given by the softmax distribution
 * `Cslib.GameTheory.PredictionMarket.hasFDerivAt_lmsrCost`,
   `Cslib.GameTheory.PredictionMarket.hasDerivAt_lmsrCost_update`: the gradient (and coordinate
   partial derivatives) of `lmsrCost b` equals the softmax price vector `lmsrPrice b q`
-  [PennockSami2007, §26.4.1].
+  [PennockSami2007, §26.4.1, pp. 663–664].
 * `Cslib.GameTheory.PredictionMarket.lmsrCost_bregmanDivergence_eq`,
-  `Cslib.GameTheory.PredictionMarket.convexOn_lmsrCost`: exact KL-divergence Bregman identity and
-  global convexity of `lmsrCost b` [PennockSami2007, §26.4.1, Exercise 26.3].
+  `Cslib.GameTheory.PredictionMarket.convexOn_lmsrCost`: original mathematical companions proving
+  the exact KL-divergence Bregman identity for `lmsrCost b` and global convexity of `lmsrCost b`
+  on `ℝ^Ω`.
 * `Cslib.GameTheory.PredictionMarket.lmsrTraderPayoff_eq_msrStepPayoff`,
   `Cslib.GameTheory.PredictionMarket.sum_lmsrTraderPayoff_eq_msrTotalPayoff`,
   `Cslib.GameTheory.PredictionMarket.exists_shares_lmsrTraderPayoff_eq_msrStepPayoff`: pointwise
   and sequential equivalence between LMSR cost-function trading and Hanson's logarithmic market
-  scoring rule [PennockSami2007, §26.4.1, Exercise 26.3].
+  scoring rule [PennockSami2007, §26.4.1, pp. 663–664].
 * `Cslib.GameTheory.PredictionMarket.lmsrTraderPayoff_zero_le`,
   `Cslib.GameTheory.PredictionMarket.lmsrTraderPayoff_zero_seq_le`,
   `Cslib.GameTheory.PredictionMarket.exists_lmsrTraderPayoff_zero_gt`: worst-case market-maker
   loss starting from zero shares is at most `b * log |Ω|`, and this bound is tight
-  [PennockSami2007, §26.4.1, Exercise 26.3; Hanson2007].
+  [PennockSami2007, §26.4.1, pp. 663–664; Hanson2007].
 
 ## References
 
@@ -102,7 +101,8 @@ section MSR
 variable {Ω : Type*}
 
 /-- Net payoff `S.score p₂ ω - S.score p₁ ω` to a trader who updates the market scoring rule from
-distribution `p₁` to `p₂` when outcome `ω` realizes [Hanson2003; PennockSami2007, §26.4.1]. -/
+distribution `p₁` to `p₂` when outcome `ω` realizes
+[Hanson2003; PennockSami2007, §26.4.1, pp. 663–664]. -/
 def msrStepPayoff (S : ScoringRule Ω) (p₁ p₂ : Ω → ℝ) (ω : Ω) : ℝ :=
   S.score p₂ ω - S.score p₁ ω
 
@@ -117,7 +117,8 @@ def msrTotalPayoff (S : ScoringRule Ω) (reports : ℕ → Ω → ℝ) (T : ℕ)
   ∑ t ∈ range T, msrStepPayoff S (reports t) (reports (t + 1)) ω
 
 /-- Sequential MSR payoffs telescope: the net transfer from the market maker across any chain of
-updates depends only on the initial and final distributions [PennockSami2007, §26.4.1]. -/
+updates depends only on the initial and final distributions
+[PennockSami2007, §26.4.1, pp. 663–664]. -/
 theorem msrTotalPayoff_eq_sub (S : ScoringRule Ω) (reports : ℕ → Ω → ℝ) (T : ℕ) (ω : Ω) :
     msrTotalPayoff S reports T ω = S.score (reports T) ω - S.score (reports 0) ω := by
   simpa only [msrTotalPayoff, msrStepPayoff_apply] using
@@ -125,7 +126,7 @@ theorem msrTotalPayoff_eq_sub (S : ScoringRule Ω) (reports : ℕ → Ω → ℝ
 
 /-- Myopic truthfulness of a strictly proper market scoring rule: a trader with true belief `q ∈ P`
 strictly maximizes expected net MSR payoff by updating the current report `p₁` to `q`
-[Hanson2003; PennockSami2007, §26.4.1]. -/
+[Hanson2003; PennockSami2007, §26.4.1, pp. 663–664]. -/
 theorem msrStepPayoff_expected_lt [Fintype Ω] {S : ScoringRule Ω} {P : Set (Ω → ℝ)}
     (hS : S.IsStrictlyProperOn P) {q p₁ p₂ : Ω → ℝ} (hq : q ∈ P) (hp₂ : p₂ ∈ P) (hne : p₂ ≠ q) :
     ∑ ω, q ω * msrStepPayoff S p₁ p₂ ω < ∑ ω, q ω * msrStepPayoff S p₁ q ω := by
@@ -142,25 +143,22 @@ section LMSR
 variable {Ω : Type*} [Fintype Ω]
 
 /-- Hanson's **LMSR cost function** with liquidity parameter `b`:
-`C(q) = b * Real.log (∑ ω, Real.exp (q ω / b))` [PennockSami2007, §26.4.1; Hanson2007]. -/
+`C(q) = b * Real.log (∑ ω, Real.exp (q ω / b))`
+[PennockSami2007, §26.4.1, pp. 663–664; Hanson2007]. -/
 noncomputable def lmsrCost (b : ℝ) (q : Ω → ℝ) : ℝ :=
   b * Real.log (∑ ω, Real.exp (q ω / b))
 
 /-- Instantaneous **LMSR price vector** (softmax probability distribution):
-`p_ω(q) = Real.exp (q ω / b) / ∑ ω', Real.exp (q ω' / b)` [PennockSami2007, §26.4.1]. -/
+`p_ω(q) = Real.exp (q ω / b) / ∑ ω', Real.exp (q ω' / b)`
+[PennockSami2007, §26.4.1, pp. 663–664]. -/
 noncomputable def lmsrPrice (b : ℝ) (q : Ω → ℝ) (ω : Ω) : ℝ :=
   Real.exp (q ω / b) / ∑ ω', Real.exp (q ω' / b)
-
-/-- The monetary cost `C(q₂) - C(q₁)` charged by the LMSR market maker to move from share vector
-`q₁` to `q₂`. -/
-noncomputable def lmsrTradeCost (b : ℝ) (q₁ q₂ : Ω → ℝ) : ℝ :=
-  lmsrCost b q₂ - lmsrCost b q₁
 
 /-- Net payoff `(q₂ ω - q₁ ω) - (C(q₂) - C(q₁))` to the trader moving the LMSR state from `q₁` to
 `q₂` when outcome `ω` occurs. By zero-sum accounting, this equally equals the market maker's net
 loss on that transition. -/
 noncomputable def lmsrTraderPayoff (b : ℝ) (q₁ q₂ : Ω → ℝ) (ω : Ω) : ℝ :=
-  (q₂ ω - q₁ ω) - lmsrTradeCost b q₁ q₂
+  (q₂ ω - q₁ ω) - (lmsrCost b q₂ - lmsrCost b q₁)
 
 @[simp]
 theorem lmsrCost_apply (b : ℝ) (q : Ω → ℝ) :
@@ -170,11 +168,6 @@ theorem lmsrCost_apply (b : ℝ) (q : Ω → ℝ) :
 @[simp]
 theorem lmsrPrice_apply (b : ℝ) (q : Ω → ℝ) (ω : Ω) :
     lmsrPrice b q ω = Real.exp (q ω / b) / ∑ ω', Real.exp (q ω' / b) := by
-  rfl
-
-@[simp]
-theorem lmsrTradeCost_apply (b : ℝ) (q₁ q₂ : Ω → ℝ) :
-    lmsrTradeCost b q₁ q₂ = lmsrCost b q₂ - lmsrCost b q₁ := by
   rfl
 
 @[simp]
@@ -196,7 +189,7 @@ theorem sum_lmsrPrice [Nonempty Ω] (b : ℝ) (q : Ω → ℝ) : ∑ ω, lmsrPri
   exact div_self (sum_exp_pos b q).ne'
 
 /-- Instantaneous LMSR prices form a strictly positive probability distribution in
-`openProbSimplex Ω` [PennockSami2007, §26.4.1]. -/
+`openProbSimplex Ω` [PennockSami2007, §26.4.1, pp. 663–664]. -/
 theorem lmsrPrice_mem_openProbSimplex [Nonempty Ω] (b : ℝ) (q : Ω → ℝ) :
     lmsrPrice b q ∈ openProbSimplex Ω :=
   ⟨isMixedStrategy_iff.2 ⟨fun ω => (lmsrPrice_pos b q ω).le, sum_lmsrPrice b q⟩, lmsrPrice_pos b q⟩
@@ -260,8 +253,8 @@ theorem lmsrCost_log_eq_zero {b : ℝ} (hb : 0 < b) {p : Ω → ℝ} (hp : p ∈
 
 /-! ### Instantaneous price as gradient of `lmsrCost` -/
 
-/-- **Gradient identity for LMSR** [PennockSami2007, §26.4.1]: the Fréchet derivative of
-`lmsrCost b` at `q` is `v ↦ v ⬝ᵥ lmsrPrice b q`. -/
+/-- **Gradient identity for LMSR** [PennockSami2007, §26.4.1, pp. 663–664]: the Fréchet derivative
+of `lmsrCost b` at `q` is `v ↦ v ⬝ᵥ lmsrPrice b q`. -/
 theorem hasFDerivAt_lmsrCost [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q : Ω → ℝ) :
     HasFDerivAt (lmsrCost b) (dotCLM (lmsrPrice b q)) q := by
   have hterm : ∀ ω : Ω, HasFDerivAt (fun x : Ω → ℝ => Real.exp (x ω / b))
@@ -294,7 +287,7 @@ theorem hasFDerivAt_lmsrCost [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q : Ω → �
   exact hfull
 
 /-- Coordinate partial derivative of `lmsrCost b`: `∂C / ∂q_ω = lmsrPrice b q ω`
-[PennockSami2007, §26.4.1]. -/
+[PennockSami2007, §26.4.1, pp. 663–664]. -/
 theorem hasDerivAt_lmsrCost_update [Nonempty Ω] [DecidableEq Ω] {b : ℝ} (hb : 0 < b)
     (q : Ω → ℝ) (ω : Ω) :
     HasDerivAt (fun t : ℝ => lmsrCost b (Function.update q ω t)) (lmsrPrice b q ω) (q ω) := by
@@ -318,12 +311,14 @@ theorem sub_lmsrCost_eq_mul_log_lmsrPrice [Nonempty Ω] {b : ℝ} (hb : 0 < b) (
     lmsrCost_apply]
   field_simp [hb.ne']
 
-/-- The Bregman divergence of `lmsrCost b` equals `b` times the KL divergence (expected log-score
-gap) between the induced softmax distributions `lmsrPrice b q₁` and `lmsrPrice b q₂`. -/
+/-- Mathematical identity (original to this formalization): the Bregman divergence
+`bregmanDivergence (lmsrCost b) (lmsrPrice b) q₂ q₁` equals `b` times the KL divergence (expected
+log-score gap) between the induced softmax distributions `lmsrPrice b q₁` and `lmsrPrice b q₂`. -/
 theorem lmsrCost_bregmanDivergence_eq [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q₁ q₂ : Ω → ℝ) :
-    lmsrCost b q₂ - lmsrCost b q₁ - (q₂ - q₁) ⬝ᵥ lmsrPrice b q₁ =
+    bregmanDivergence (lmsrCost b) (lmsrPrice b) q₂ q₁ =
       b * ((logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₁) -
         (logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₂)) := by
+  rw [bregmanDivergence_apply]
   have hpoint : ∀ ω, (q₂ ω - q₁ ω) - (lmsrCost b q₂ - lmsrCost b q₁) =
       b * Real.log (lmsrPrice b q₂ ω) - b * Real.log (lmsrPrice b q₁ ω) := fun ω => by
     linarith [sub_lmsrCost_eq_mul_log_lmsrPrice hb q₁ ω,
@@ -356,10 +351,12 @@ theorem lmsrCost_subgradient_le [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q₁ q₂ 
   have hnonneg : 0 ≤ b * ((logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₁) -
       (logScore Ω).expectedScore (lmsrPrice b q₁) (lmsrPrice b q₂)) :=
     mul_nonneg hb.le (sub_nonneg.mpr hproper)
-  linarith [lmsrCost_bregmanDivergence_eq hb q₁ q₂]
+  have hbreg := lmsrCost_bregmanDivergence_eq hb q₁ q₂
+  rw [bregmanDivergence_apply] at hbreg
+  linarith
 
-/-- **Convexity of Hanson's LMSR cost function** on `ℝ^Ω`
-[PennockSami2007, §26.4.1, Exercise 26.3]. -/
+/-- Global convexity of `lmsrCost b` on `ℝ^Ω` (original mathematical companion deduced from
+`lmsrCost_subgradient_le` and `convexOn_of_forall_add_le`). -/
 theorem convexOn_lmsrCost [Nonempty Ω] {b : ℝ} (hb : 0 < b) :
     ConvexOn ℝ (Set.univ : Set (Ω → ℝ)) (lmsrCost b) :=
   convexOn_of_forall_add_le (g := fun q : Ω → ℝ => dotCLM (lmsrPrice b q)) convex_univ
@@ -375,7 +372,7 @@ theorem lmsrCost_mono [Nonempty Ω] {b : ℝ} (hb : 0 < b) {q₁ q₂ : Ω → �
 
 /-! ### Equivalence with sequential logarithmic market scoring rule -/
 
-/-- **Single-step LMSR / MSR equivalence** [PennockSami2007, §26.4.1, Exercise 26.3]: the net
+/-- **Single-step LMSR / MSR equivalence** [PennockSami2007, §26.4.1, pp. 663–664]: the net
 payoff of moving the cost-function market maker from `q₁` to `q₂` equals the payoff of updating
 Hanson's scaled logarithmic market scoring rule from `lmsrPrice b q₁` to `lmsrPrice b q₂`. -/
 theorem lmsrTraderPayoff_eq_msrStepPayoff [Nonempty Ω] {b : ℝ} (hb : 0 < b)
@@ -386,7 +383,7 @@ theorem lmsrTraderPayoff_eq_msrStepPayoff [Nonempty Ω] {b : ℝ} (hb : 0 < b)
     logScore_score, Pi.zero_apply, add_zero]
   linarith [sub_lmsrCost_eq_mul_log_lmsrPrice hb q₁ ω, sub_lmsrCost_eq_mul_log_lmsrPrice hb q₂ ω]
 
-/-- **Sequential LMSR / MSR equivalence** [PennockSami2007, §26.4.1, Exercise 26.3]: across any
+/-- **Sequential LMSR / MSR equivalence** [PennockSami2007, §26.4.1, pp. 663–664]: across any
 finite sequence of share updates `qs 0, …, qs T`, cumulative cost-function trading payoffs equal
 cumulative logarithmic MSR payoffs (and telescope to `lmsrTraderPayoff b (qs 0) (qs T) ω`). -/
 theorem sum_lmsrTraderPayoff_eq_msrTotalPayoff [Nonempty Ω] {b : ℝ} (hb : 0 < b)
@@ -407,7 +404,7 @@ theorem sum_lmsrTraderPayoff_eq_endpoints (b : ℝ) (qs : ℕ → Ω → ℝ) (T
   ring
 
 /-- **Realizability of any sequential MSR trajectory by LMSR cost-function trading**
-[PennockSami2007, §26.4.1, Exercise 26.3]: every sequence of strictly positive probability reports
+[PennockSami2007, §26.4.1, pp. 663–664]: every sequence of strictly positive probability reports
 `ps : ℕ → Ω → ℝ` is realized by an explicit sequence of LMSR share vectors with identical prices
 and identical step-by-step payoffs. -/
 theorem exists_shares_lmsrTraderPayoff_eq_msrStepPayoff [Nonempty Ω] {b : ℝ} (hb : 0 < b)
@@ -437,9 +434,10 @@ theorem lmsrTraderPayoff_le_neg_mul_log_price [Nonempty Ω] {b : ℝ} (hb : 0 < 
     Real.log_nonpos (lmsrPrice_pos b q ω).le hp_le
   nlinarith
 
-/-- **Worst-case LMSR market-maker loss bound** [PennockSami2007, §26.4.1, Exercise 26.3;
-Hanson2007]: starting from zero initial shares (`q₀ = 0`, uniform initial prices), for every final
-share vector `q` and every outcome `ω`, the market maker loses at most `b * Real.log |Ω|`. -/
+/-- **Worst-case LMSR market-maker loss bound**
+[PennockSami2007, §26.4.1, pp. 663–664; Hanson2007]: starting from zero initial shares (`q₀ = 0`,
+uniform initial prices), for every final share vector `q` and every outcome `ω`, the market maker
+loses at most `b * Real.log |Ω|`. -/
 theorem lmsrTraderPayoff_zero_le [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q : Ω → ℝ) (ω : Ω) :
     lmsrTraderPayoff b 0 q ω ≤ b * Real.log (Fintype.card Ω) := by
   have h := lmsrTraderPayoff_le_neg_mul_log_price hb 0 q ω
@@ -448,7 +446,7 @@ theorem lmsrTraderPayoff_zero_le [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q : Ω �
 
 /-- Sequential form of the worst-case LMSR loss bound: starting from `qs 0 = 0`, the cumulative
 market-maker loss over any number `T` of trades and any outcome `ω` is at most
-`b * Real.log |Ω|` [PennockSami2007, §26.4.1, Exercise 26.3]. -/
+`b * Real.log |Ω|` [PennockSami2007, §26.4.1, pp. 663–664]. -/
 theorem lmsrTraderPayoff_zero_seq_le [Nonempty Ω] {b : ℝ} (hb : 0 < b) {qs : ℕ → Ω → ℝ}
     (h0 : qs 0 = 0) (T : ℕ) (ω : Ω) :
     ∑ t ∈ range T, lmsrTraderPayoff b (qs t) (qs (t + 1)) ω ≤ b * Real.log (Fintype.card Ω) := by

@@ -22,19 +22,19 @@ import Mathlib.Tactic.Ring
 
 A *scoring rule* on a finite outcome space `Ω` assigns a real reward `S.score p ω` to a reported
 probability distribution `p : Ω → ℝ` when outcome `ω : Ω` realizes
-[FriedmanResnickSami2007, §27.4.2; GneitingRaftery2007, §2]. Probability distributions are
+[FriedmanResnickSami2007, §27.4.2, pp. 686–687; GneitingRaftery2007]. Probability distributions are
 represented by `Cslib.GameTheory.IsMixedStrategy`, forming the closed simplex `probSimplex Ω` and
 its strictly positive interior `openProbSimplex Ω`.
 
 A scoring rule is *proper* on a set `P` of distributions if reporting one's true belief `q ∈ P`
 maximizes expected score `∑ ω, q ω * S.score p ω` over `p ∈ P`, and *strictly proper* on `P` if
-`p = q` is the unique maximizer [FriedmanResnickSami2007, Definition 27.1]. Real-valued scoring
-rules such as the quadratic (Brier) score and spherical score are strictly proper on the entire
-closed simplex `probSimplex Ω`, while the logarithmic score `ω ↦ Real.log (p ω)` is strictly proper
-on `openProbSimplex Ω` (and, more generally, whenever the support of `q` is contained in that of
-`p`, avoiding the real-valued `Real.log 0 = 0` convention at zero-probability reports).
+`p = q` is the unique maximizer [FriedmanResnickSami2007, Definition 27.1, p. 686]. Real-valued
+scoring rules such as the quadratic (Brier) score and spherical score are strictly proper on the
+entire closed simplex `probSimplex Ω`, while the logarithmic score `ω ↦ Real.log (p ω)` is strictly
+proper on `openProbSimplex Ω` (and, more generally, whenever the support of `q` is contained in
+that of `p`, avoiding the real-valued `Real.log 0 = 0` convention at zero-probability reports).
 
-Following [Savage1971] and [GneitingRaftery2007, Theorem 1], every (strictly) proper scoring rule
+Following [Savage1971] and [GneitingRaftery2007], every (strictly) proper scoring rule
 on a convex set `P ⊆ probSimplex Ω` is characterized by a (strictly) convex potential
 `G : (Ω → ℝ) → ℝ` together with a (strict) subgradient map `g : (Ω → ℝ) → Ω → ℝ` via
 `S(p, ω) = G(p) + g(p)(ω) - p ⬝ᵥ g(p)`. The expected score loss of misreporting `p` under true
@@ -68,7 +68,7 @@ directly implies propriety (respectively strict propriety) of `savageScoringRule
 * `Cslib.GameTheory.PredictionMarket.isProperOn_iff_exists_savage`,
   `Cslib.GameTheory.PredictionMarket.isStrictlyProperOn_iff_exists_savage`: the Savage /
   Gneiting–Raftery characterization of proper and strictly proper scoring rules on a convex subset
-  of the simplex [Savage1971; GneitingRaftery2007, Theorem 1].
+  of the simplex [Savage1971; GneitingRaftery2007].
 * `Cslib.GameTheory.PredictionMarket.isProperOn_savageScoringRule_of_convexOn`,
   `Cslib.GameTheory.PredictionMarket.isStrictlyProperOn_savageScoringRule_of_strictConvexOn`:
   differentiable convex / strictly convex potentials generate proper / strictly proper scoring
@@ -77,12 +77,13 @@ directly implies propriety (respectively strict propriety) of `savageScoringRule
   `Cslib.GameTheory.PredictionMarket.isStrictlyProper_brierScore`,
   `Cslib.GameTheory.PredictionMarket.quadraticScore_bounds`: strict propriety and `[-1, 1]` bounds
   for the quadratic (Brier) scoring rule
-  [Brier1950; FriedmanResnickSami2007, §27.4.2, Exercise 27.7].
+  [Brier1950; FriedmanResnickSami2007, §27.4.2, pp. 686–687, Exercise 27.7, p. 697;
+  GneitingRaftery2007].
 * `Cslib.GameTheory.PredictionMarket.isStrictlyProperOn_logScore`,
   `Cslib.GameTheory.PredictionMarket.logScore_expectedScore_lt`: strict propriety of the
-  logarithmic scoring rule [FriedmanResnickSami2007, §27.4.2; GneitingRaftery2007, §3.1].
+  logarithmic scoring rule [FriedmanResnickSami2007, §27.4.2, pp. 686–687; GneitingRaftery2007].
 * `Cslib.GameTheory.PredictionMarket.isStrictlyProper_sphericalScore`: strict propriety of the
-  spherical scoring rule [GneitingRaftery2007, §3.1].
+  spherical scoring rule [GneitingRaftery2007].
 
 ## References
 
@@ -112,10 +113,6 @@ abbrev probSimplex (Ω : Type*) [Fintype Ω] : Set (Ω → ℝ) :=
 abbrev openProbSimplex (Ω : Type*) [Fintype Ω] : Set (Ω → ℝ) :=
   {p | IsMixedStrategy p ∧ ∀ ω, 0 < p ω}
 
-/-- Every strictly positive probability distribution lies in the closed probability simplex. -/
-theorem openProbSimplex_subset_probSimplex : openProbSimplex Ω ⊆ probSimplex Ω :=
-  fun _ hp => hp.1
-
 /-- The closed probability simplex is convex. -/
 theorem convex_probSimplex : Convex ℝ (probSimplex Ω) := by
   intro p hp q hq a b ha hb hab
@@ -143,7 +140,7 @@ variable {Ω : Type*}
 
 /-- A real-valued scoring rule on a finite outcome space `Ω`, mapping a reported probability
 vector `p : Ω → ℝ` and realized outcome `ω : Ω` to a real score
-[FriedmanResnickSami2007, §27.4.2]. -/
+[FriedmanResnickSami2007, §27.4.2, pp. 686–687]. -/
 @[ext]
 structure ScoringRule (Ω : Type*) where
   /-- The score awarded when reporting distribution `p` and outcome `ω` occurs. -/
@@ -173,6 +170,13 @@ theorem expectedScore_apply (q p : Ω → ℝ) : S.expectedScore q p = ∑ ω, q
 theorem expectedScore_eq_dotProduct (q p : Ω → ℝ) : S.expectedScore q p = q ⬝ᵥ S.score p := by
   rfl
 
+/-- Two scoring rules that agree at report `p` across all outcomes have equal expected scores at
+report `p` under every belief `q`. -/
+theorem expectedScore_congr {S₁ S₂ : ScoringRule Ω} {p : Ω → ℝ}
+    (h : ∀ ω, S₁.score p ω = S₂.score p ω) (q : Ω → ℝ) :
+    S₁.expectedScore q p = S₂.expectedScore q p :=
+  sum_congr rfl fun ω _ => by rw [h ω]
+
 /-- A scoring rule is *proper* on a set `P` of distributions if reporting one's true belief `q ∈ P`
 maximizes expected score among all reports `p ∈ P`. -/
 def IsProperOn (P : Set (Ω → ℝ)) : Prop :=
@@ -180,7 +184,7 @@ def IsProperOn (P : Set (Ω → ℝ)) : Prop :=
 
 /-- A scoring rule is *strictly proper* on a set `P` of distributions if reporting one's true
 belief `q ∈ P` is the unique maximizer of expected score among all reports `p ∈ P`
-[FriedmanResnickSami2007, Definition 27.1]. -/
+[FriedmanResnickSami2007, Definition 27.1, p. 686]. -/
 def IsStrictlyProperOn (P : Set (Ω → ℝ)) : Prop :=
   ∀ q ∈ P, ∀ p ∈ P, p ≠ q → S.expectedScore q p < S.expectedScore q q
 
@@ -271,7 +275,7 @@ theorem dotCLM_apply (g v : Ω → ℝ) : dotCLM g v = v ⬝ᵥ g := by
 
 /-- The **Savage scoring rule** generated by a potential `G : (Ω → ℝ) → ℝ` and vector field
 `g : (Ω → ℝ) → Ω → ℝ`: `S(p, ω) = G(p) + g(p)(ω) - p ⬝ᵥ g(p) = G(p) + (e_ω - p) ⬝ᵥ g(p)`
-[Savage1971; GneitingRaftery2007, Theorem 1]. -/
+[Savage1971; GneitingRaftery2007]. -/
 def savageScoringRule (G : (Ω → ℝ) → ℝ) (g : (Ω → ℝ) → Ω → ℝ) : ScoringRule Ω where
   score p ω := G p + g p ω - p ⬝ᵥ g p
 
@@ -316,7 +320,7 @@ theorem savageScoringRule_expectedScore_self {G : (Ω → ℝ) → ℝ} {g : (Ω
 
 /-- The expected score gap of `savageScoringRule G g` between truthfully reporting `q` and
 reporting `p` equals the Bregman divergence `bregmanDivergence G g q p`
-[GneitingRaftery2007, §2]. -/
+[GneitingRaftery2007]. -/
 theorem savageScoringRule_score_gap_eq_bregmanDivergence {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ}
     {q p : Ω → ℝ} (hq : ∑ ω, q ω = 1) :
     (savageScoringRule G g).expectedScore q q - (savageScoringRule G g).expectedScore q p =
@@ -357,68 +361,9 @@ theorem savageScoringRule_isStrictlyProperOn_iff {P : Set (Ω → ℝ)} (hP : P 
       savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
     exact h p hp q hq hpq.symm
 
-/-- A strictly convex function lies strictly above its tangent hyperplane within its domain:
-if `G` is strictly convex on `K` and has derivative `f'` within `K` at `x ∈ K`, then
-`G x + f' (y - x) < G y` for all `y ∈ K` with `y ≠ x`. -/
-private theorem strictConvexOn_add_lt_of_hasFDerivWithinAt {F : Type*} [NormedAddCommGroup F]
-    [NormedSpace ℝ F] {K : Set F} {f : F → ℝ} (hf : StrictConvexOn ℝ K f) {x y : F}
-    {f' : F →L[ℝ] ℝ} (hx : x ∈ K) (hy : y ∈ K) (hxy : y ≠ x)
-    (hd : HasFDerivWithinAt f f' K x) : f x + f' (y - x) < f y := by
-  set m : F := (1 / 2 : ℝ) • x + (1 / 2 : ℝ) • y
-  have hm : m ∈ K := hf.1 hx hy (by norm_num) (by norm_num) (by norm_num)
-  have hmid : f m < (1 / 2 : ℝ) * f x + (1 / 2 : ℝ) * f y := by
-    simpa only [smul_eq_mul] using
-      hf.2 hx hy hxy.symm (by norm_num : (0 : ℝ) < 1 / 2) (by norm_num : (0 : ℝ) < 1 / 2)
-        (by norm_num)
-  have hsub := hf.convexOn.add_le_of_hasFDerivWithinAt hx hm hd
-  have hdiff : m - x = (1 / 2 : ℝ) • (y - x) := by
-    simp only [m]
-    module
-  rw [hdiff, map_smul, smul_eq_mul] at hsub
-  linarith
-
-/-- A function with a strict subgradient at every point of a convex set is strictly convex there. -/
-private theorem strictConvexOn_of_forall_add_lt {P : Set (Ω → ℝ)} (hP : Convex ℝ P)
-    {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ}
-    (hsub : ∀ p ∈ P, ∀ q ∈ P, q ≠ p → G p + (q - p) ⬝ᵥ g p < G q) :
-    StrictConvexOn ℝ P G := by
-  refine ⟨hP, fun x hx y hy hxy a b ha hb hab => ?_⟩
-  set z : Ω → ℝ := a • x + b • y
-  have hz : z ∈ P := hP hx hy ha.le hb.le hab
-  have hxz : x ≠ z := by
-    intro h
-    have h0 : b • (y - x) = 0 := by
-      have : z - x = b • (y - x) := by
-        simp only [z]
-        rw [show a = 1 - b by linarith]
-        module
-      rw [← this, h, sub_self]
-    exact hxy (sub_eq_zero.mp ((smul_eq_zero.mp h0).resolve_left hb.ne')).symm
-  have hyz : y ≠ z := by
-    intro h
-    have h0 : a • (x - y) = 0 := by
-      have : z - y = a • (x - y) := by
-        simp only [z]
-        rw [show b = 1 - a by linarith]
-        module
-      rw [← this, h, sub_self]
-    exact hxy (sub_eq_zero.mp ((smul_eq_zero.mp h0).resolve_left ha.ne'))
-  have hlin : a * ((x - z) ⬝ᵥ g z) + b * ((y - z) ⬝ᵥ g z) = 0 := by
-    have hv : a • (x - z) + b • (y - z) = 0 := by
-      simp only [z]
-      rw [show b = 1 - a by linarith]
-      module
-    have : (a • (x - z) + b • (y - z)) ⬝ᵥ g z = 0 := by rw [hv, zero_dotProduct]
-    simpa only [add_dotProduct, smul_dotProduct, smul_eq_mul] using this
-  have e1 := mul_lt_mul_of_pos_left (hsub z hz x hx hxz) ha
-  have e2 := mul_lt_mul_of_pos_left (hsub z hz y hy hyz) hb
-  have hGz : G z = a * G z + b * G z := by rw [← add_mul, hab, one_mul]
-  simp only [smul_eq_mul]
-  linarith
-
 /-- Differentiable sufficient condition for propriety: if `G` is convex on `P ⊆ probSimplex Ω`
 and has Fréchet derivative `dotCLM (g p)` within `P` at every `p ∈ P`, then
-`savageScoringRule G g` is proper on `P` [Savage1971; GneitingRaftery2007, Theorem 1]. -/
+`savageScoringRule G g` is proper on `P` [Savage1971; GneitingRaftery2007]. -/
 theorem isProperOn_savageScoringRule_of_convexOn {P : Set (Ω → ℝ)} (hP : P ⊆ probSimplex Ω)
     {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ} (hG : ConvexOn ℝ P G)
     (hd : ∀ p ∈ P, HasFDerivWithinAt G (dotCLM (g p)) P p) :
@@ -429,17 +374,17 @@ theorem isProperOn_savageScoringRule_of_convexOn {P : Set (Ω → ℝ)} (hP : P 
 
 /-- Differentiable sufficient condition for strict propriety: if `G` is strictly convex on
 `P ⊆ probSimplex Ω` and has Fréchet derivative `dotCLM (g p)` within `P` at every `p ∈ P`, then
-`savageScoringRule G g` is strictly proper on `P` [Savage1971; GneitingRaftery2007, Theorem 1]. -/
+`savageScoringRule G g` is strictly proper on `P` [Savage1971; GneitingRaftery2007]. -/
 theorem isStrictlyProperOn_savageScoringRule_of_strictConvexOn {P : Set (Ω → ℝ)}
     (hP : P ⊆ probSimplex Ω) {G : (Ω → ℝ) → ℝ} {g : (Ω → ℝ) → Ω → ℝ}
     (hG : StrictConvexOn ℝ P G) (hd : ∀ p ∈ P, HasFDerivWithinAt G (dotCLM (g p)) P p) :
     (savageScoringRule G g).IsStrictlyProperOn P := by
   rw [savageScoringRule_isStrictlyProperOn_iff hP]
   intro p hp q hq hqp
-  simpa only [dotCLM_apply] using strictConvexOn_add_lt_of_hasFDerivWithinAt hG hp hq hqp (hd p hp)
+  simpa only [dotCLM_apply] using hG.add_lt_of_hasFDerivWithinAt hp hq hqp (hd p hp)
 
 /-- **Savage / Gneiting–Raftery characterization of proper scoring rules**
-[Savage1971; GneitingRaftery2007, Theorem 1]: on a convex subset `P ⊆ probSimplex Ω`, a scoring
+[Savage1971; GneitingRaftery2007]: on a convex subset `P ⊆ probSimplex Ω`, a scoring
 rule `S` is proper on `P` if and only if there exist a convex potential `G` on `P` and a
 subgradient map `g` on `P` such that `S.score p ω = (savageScoringRule G g).score p ω` for all
 `p ∈ P` and `ω : Ω`. -/
@@ -466,15 +411,12 @@ theorem isProperOn_iff_exists_savage {P : Set (Ω → ℝ)} (hP : P ⊆ probSimp
       simp only [savageScoringRule_score, ScoringRule.expectedScore_eq_dotProduct]
       ring
   · rintro ⟨G, g, -, hsub, heq⟩ q hq p hp
-    have hproper := (savageScoringRule_isProperOn_iff hP).2 hsub q hq p hp
-    have he1 : S.expectedScore q p = (savageScoringRule G g).expectedScore q p :=
-      sum_congr rfl fun ω _ => by rw [heq p hp ω]
-    have he2 : S.expectedScore q q = (savageScoringRule G g).expectedScore q q :=
-      sum_congr rfl fun ω _ => by rw [heq q hq ω]
-    linarith
+    rw [ScoringRule.expectedScore_congr (heq p hp) q,
+      ScoringRule.expectedScore_congr (heq q hq) q]
+    exact (savageScoringRule_isProperOn_iff hP).2 hsub q hq p hp
 
 /-- **Savage / Gneiting–Raftery characterization of strictly proper scoring rules**
-[Savage1971; GneitingRaftery2007, Theorem 1]: on a convex subset `P ⊆ probSimplex Ω`, a scoring
+[Savage1971; GneitingRaftery2007]: on a convex subset `P ⊆ probSimplex Ω`, a scoring
 rule `S` is strictly proper on `P` if and only if there exist a strictly convex potential `G` on
 `P` and a strict subgradient map `g` on `P` such that
 `S.score p ω = (savageScoringRule G g).score p ω` for all `p ∈ P` and `ω : Ω`. -/
@@ -494,17 +436,16 @@ theorem isStrictlyProperOn_iff_exists_savage {P : Set (Ω → ℝ)} (hP : P ⊆ 
       simp only [ScoringRule.expectedScore_eq_dotProduct] at this
       linarith
     refine ⟨fun p => S.expectedScore p p, S.score,
-      strictConvexOn_of_forall_add_lt hPconv hsub, hsub, ?_⟩
+      strictConvexOn_of_forall_add_lt (g := fun p => dotCLM (S.score p)) hPconv
+        (fun p hp q hq hqp => by simpa only [dotCLM_apply] using hsub p hp q hq hqp),
+      hsub, ?_⟩
     intro p _ ω
     simp only [savageScoringRule_score, ScoringRule.expectedScore_eq_dotProduct]
     ring
   · rintro ⟨G, g, -, hsub, heq⟩ q hq p hp hpq
-    have hstrict := (savageScoringRule_isStrictlyProperOn_iff hP).2 hsub q hq p hp hpq
-    have he1 : S.expectedScore q p = (savageScoringRule G g).expectedScore q p :=
-      sum_congr rfl fun ω _ => by rw [heq p hp ω]
-    have he2 : S.expectedScore q q = (savageScoringRule G g).expectedScore q q :=
-      sum_congr rfl fun ω _ => by rw [heq q hq ω]
-    linarith
+    rw [ScoringRule.expectedScore_congr (heq p hp) q,
+      ScoringRule.expectedScore_congr (heq q hq) q]
+    exact (savageScoringRule_isStrictlyProperOn_iff hP).2 hsub q hq p hp hpq
 
 end Savage
 
@@ -513,7 +454,7 @@ section CanonicalRules
 /-! ### Quadratic (Brier) scoring rule -/
 
 /-- The **quadratic scoring rule**: `S(p, ω) = 2 * p ω - ∑ ω', p ω' ^ 2`
-[FriedmanResnickSami2007, §27.4.2, Exercise 27.7; GneitingRaftery2007, §3.1]. -/
+[FriedmanResnickSami2007, §27.4.2, pp. 686–687, Exercise 27.7, p. 697; GneitingRaftery2007]. -/
 def quadraticScore (Ω : Type*) [Fintype Ω] : ScoringRule Ω where
   score p ω := 2 * p ω - ∑ ω', p ω' ^ 2
 
@@ -558,7 +499,7 @@ theorem quadraticScore_expectedScore_sub {Ω : Type*} [Fintype Ω] {q p : Ω →
   ring
 
 /-- **Strict propriety of the quadratic scoring rule** on the full probability simplex
-[FriedmanResnickSami2007, §27.4.2, Exercise 27.7; GneitingRaftery2007, §3.1]. -/
+[FriedmanResnickSami2007, §27.4.2, pp. 686–687, Exercise 27.7, p. 697; GneitingRaftery2007]. -/
 theorem isStrictlyProper_quadraticScore {Ω : Type*} [Fintype Ω] :
     (quadraticScore Ω).IsStrictlyProper := by
   intro q hq p _ hpq
@@ -571,7 +512,7 @@ theorem isStrictlyProper_quadraticScore {Ω : Type*} [Fintype Ω] :
 
 /-- Sharp range bounds for the quadratic scoring rule on `probSimplex Ω`: every score lies in
 `[-1, 1]` (giving `[a - b, a + b]` for the affine version `a + b * quadraticScore`, `b > 0`, as in
-[FriedmanResnickSami2007, Exercise 27.7]). -/
+[FriedmanResnickSami2007, Exercise 27.7, p. 697]). -/
 theorem quadraticScore_bounds {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp : IsMixedStrategy p)
     (ω : Ω) : -1 ≤ (quadraticScore Ω).score p ω ∧ (quadraticScore Ω).score p ω ≤ 1 := by
   have hp_le_one : ∀ i, p i ≤ 1 := fun i => by
@@ -628,7 +569,7 @@ theorem isStrictlyProper_brierScore {Ω : Type*} [Fintype Ω] [DecidableEq Ω] :
 /-! ### Logarithmic scoring rule -/
 
 /-- The **logarithmic scoring rule**: `S(p, ω) = Real.log (p ω)`
-[FriedmanResnickSami2007, §27.4.2; GneitingRaftery2007, §3.1]. -/
+[FriedmanResnickSami2007, §27.4.2, pp. 686–687; GneitingRaftery2007]. -/
 noncomputable def logScore (Ω : Type*) : ScoringRule Ω where
   score p ω := Real.log (p ω)
 
@@ -695,7 +636,7 @@ theorem logScore_expectedScore_lt {Ω : Type*} [Fintype Ω] {q p : Ω → ℝ} (
   linarith
 
 /-- **Strict propriety of the logarithmic scoring rule** on the open probability simplex
-`openProbSimplex Ω` [FriedmanResnickSami2007, §27.4.2; GneitingRaftery2007, §3.1]. -/
+`openProbSimplex Ω` [FriedmanResnickSami2007, §27.4.2, pp. 686–687; GneitingRaftery2007]. -/
 theorem isStrictlyProperOn_logScore {Ω : Type*} [Fintype Ω] :
     (logScore Ω).IsStrictlyProperOn (openProbSimplex Ω) :=
   fun _ hq _ hp hpq => logScore_expectedScore_lt hq.1 hp.1 (fun ω _ => hp.2 ω) hpq
@@ -703,7 +644,7 @@ theorem isStrictlyProperOn_logScore {Ω : Type*} [Fintype Ω] :
 /-! ### Spherical scoring rule -/
 
 /-- The **spherical scoring rule**: `S(p, ω) = p ω / √(∑ ω', p ω' ^ 2)`
-[GneitingRaftery2007, §3.1]. -/
+[GneitingRaftery2007]. -/
 noncomputable def sphericalScore (Ω : Type*) [Fintype Ω] : ScoringRule Ω where
   score p ω := p ω / Real.sqrt (∑ ω', p ω' ^ 2)
 
@@ -736,6 +677,14 @@ theorem sphericalScore_eq_savage {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp 
   rw [hdot]
   ring
 
+/-- Truthful expected spherical score on `probSimplex Ω` equals the Euclidean norm
+`√(∑ ω, q ω ^ 2)`. -/
+theorem sphericalScore_expectedScore_self {Ω : Type*} [Fintype Ω] {q : Ω → ℝ}
+    (hq : IsMixedStrategy q) :
+    (sphericalScore Ω).expectedScore q q = Real.sqrt (∑ ω, q ω ^ 2) := by
+  rw [ScoringRule.expectedScore_congr (sphericalScore_eq_savage hq) q,
+    savageScoringRule_expectedScore_self hq.sum_eq_one]
+
 /-- Lagrange's identity for finite sums. -/
 private theorem lagrange_identity {Ω : Type*} [Fintype Ω] (q p : Ω → ℝ) :
     ∑ i, ∑ j, (q i * p j - q j * p i) ^ 2 =
@@ -749,7 +698,7 @@ private theorem lagrange_identity {Ω : Type*} [Fintype Ω] (q p : Ω → ℝ) :
   ring
 
 /-- **Strict propriety of the spherical scoring rule** on the full probability simplex
-[GneitingRaftery2007, §3.1]. -/
+[GneitingRaftery2007]. -/
 theorem isStrictlyProper_sphericalScore {Ω : Type*} [Fintype Ω] :
     (sphericalScore Ω).IsStrictlyProper := by
   intro q hq p hp hpq
@@ -783,14 +732,7 @@ theorem isStrictlyProper_sphericalScore {Ω : Type*} [Fintype Ω] :
       (∑ ω, q ω * p ω) / Real.sqrt (∑ ω, p ω ^ 2) := by
     simp only [ScoringRule.expectedScore_apply, sphericalScore_score, sum_div]
     exact sum_congr rfl fun ω _ => by ring
-  have heval_q : (sphericalScore Ω).expectedScore q q = Real.sqrt (∑ ω, q ω ^ 2) := by
-    simp only [ScoringRule.expectedScore_apply, sphericalScore_score]
-    have h1 : ∑ ω, q ω * (q ω / Real.sqrt (∑ ω', q ω' ^ 2)) =
-        (∑ ω, q ω ^ 2) / Real.sqrt (∑ ω', q ω' ^ 2) := by
-      rw [sum_div]
-      exact sum_congr rfl fun ω _ => by ring
-    rw [h1, div_eq_iff hqsqrt.ne', Real.mul_self_sqrt hqpos.le]
-  rw [heval_p, heval_q, div_lt_iff₀ hpsqrt]
+  rw [heval_p, sphericalScore_expectedScore_self hq, div_lt_iff₀ hpsqrt]
   exact hcs
 
 end CanonicalRules
