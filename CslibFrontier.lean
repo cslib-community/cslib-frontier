@@ -1270,6 +1270,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.BinaryField
 public import CslibFrontier.Computability.Circuit.Boolean.BitBlast
 public import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 public import CslibFrontier.Computability.Circuit.Boolean.BoundedError
+public import CslibFrontier.Computability.Circuit.Boolean.Braverman.AlmostResilience
 public import CslibFrontier.Computability.Circuit.Boolean.Braverman.Approximation
 public import CslibFrontier.Computability.Circuit.Boolean.Braverman.Fooling
 public import CslibFrontier.Computability.Circuit.Boolean.Braverman.Gates
@@ -7144,6 +7145,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThresholdWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.QuadraticForm
 public import CslibFrontier.Foundations.BooleanAnalysis.RelevantCoordinates
+public import CslibFrontier.Foundations.BooleanAnalysis.ResilientComposition
 public import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
 public import CslibFrontier.Foundations.BooleanAnalysis.SmallSetExpansion
@@ -9309,6 +9311,7 @@ public import CslibFrontier.Probability.EntropyExtraction
 public import CslibFrontier.Probability.EventCount
 public import CslibFrontier.Probability.Extractor.Basic
 public import CslibFrontier.Probability.Extractor.LeftoverHash
+public import CslibFrontier.Probability.Extractor.ResilientTwoSource
 public import CslibFrontier.Probability.Extractor.TwoSource
 public import CslibFrontier.Probability.Fooling
 public import CslibFrontier.Probability.Fooling.DecisionTree
@@ -9487,12 +9490,14 @@ public import CslibFrontier.Probability.RankDecoder.Native
 public import CslibFrontier.Probability.RejectionSampling
 public import CslibFrontier.Probability.Renyi
 public import CslibFrontier.Probability.Resilience
+public import CslibFrontier.Probability.Resilience.NOBF
 public import CslibFrontier.Probability.Rewinding
 public import CslibFrontier.Probability.Rewinding.Consistency
 public import CslibFrontier.Probability.SaksZhou
 public import CslibFrontier.Probability.SaksZhou.Snap
 public import CslibFrontier.Probability.Shearer
 public import CslibFrontier.Probability.SmallBias
+public import CslibFrontier.Probability.SmallBias.AlmostIndependent
 public import CslibFrontier.Probability.SmallBias.Code
 public import CslibFrontier.Probability.SmallBias.Correlation
 public import CslibFrontier.Probability.SmallBias.Degree
