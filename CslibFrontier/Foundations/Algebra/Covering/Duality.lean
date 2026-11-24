@@ -15,9 +15,9 @@ import Mathlib.Data.Fintype.BigOperators
 /-!
 # Duality in a covering monoid
 
-The two halves of the proof of Theorem thm:duality of *VP ≠ VNP over every field*
-[AnthropicVPVNP2026], for a commutative monoid with a covering relation (`Cslib.Covering`) and
-certificates (`Cslib.Covering.Certificate`).
+The two halves of the proof of Theorem A.6 of *VP ≠ VNP over every field* [AnthropicVPVNP2026], for
+a commutative monoid with a covering relation (`Cslib.Covering`) and certificates
+(`Cslib.Covering.Certificate`).
 
 * The infimum of the weights of the certificates of `t` is an upper functional if `1` has no
   certificate of weight below `1`. It respects `(A β, C, η)` for every `β`
@@ -28,12 +28,16 @@ certificates (`Cslib.Covering.Certificate`).
   exchanges factors `C`, replaces `C ^ k` by the cover as long as it occurs, and replaces the
   remaining factors `C` by copies of `A β₀`.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Paper.Gauges` (the certificate part).
-
 ## Main results
 
 * `Cslib.Covering.isUpperFunctional_sInf_certificate`.
 * `Cslib.Covering.exists_coveredBy_pow_of_certificate`.
+
+## References
+
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  Theorem A.6 (§A.5) of the paper and its proof in Appendix Q; module `Paper.Gauges` (the
+  certificate part)
 -/
 
 public section
@@ -45,11 +49,11 @@ open Finset
 variable {M : Type*} [CommMonoid M] {D : Covering M} {B : Type} [Fintype B]
 
 
-/-- Proof of Theorem thm:duality, first half: "Let p(t) be the infimum of the weights of all
-certificates for t. Certificates can be multiplied, and can be raised to a common level and added
-along covers. As the trivial certificate of level 0 gives p(1) ≤ 1, and copies of 1 give every t a
-certificate of level 0, the function p is a gauge if p(1) ≥ 1. … Multiplying a certificate for tC by
-A_β gives one for tA_β of one level higher and η times the weight; so p keeps (A_β, C, η)." -/
+/-- Proof of Theorem A.6, first half: let `p(t)` be the infimum of the weights of the certificates
+for `t`. Certificates can be multiplied, raised to a common level and added along covers. The
+trivial certificate of level `0` gives `p(1) ≤ 1`, and copies of `1` give every `t` a certificate of
+level `0`, so `p` is an upper functional if `p(1) ≥ 1`. Multiplying a certificate for `tC` by `A_β`
+gives one for `tA_β` of one level higher and `η` times the weight, so `p` respects `(A_β, C, η)`. -/
 theorem isUpperFunctional_sInf_certificate {C : M} {A : B → M} {η : ℝ} (hη : 0 < η)
     (hone : ∀ t : M, ∃ r : ℕ, D.CoveredBy t (fun _ : Fin r => (1 : M)))
     (h : ∀ k W, Nonempty (Certificate D C A η 1 k W) → 1 ≤ W) :
@@ -70,10 +74,10 @@ theorem isUpperFunctional_sInf_certificate {C : M} {A : B → M} {η : ℝ} (hη
       (Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ j))⟩⟩, le_rfl⟩
   · exact respects_sInf hne h0 hη fun t w ⟨k, ⟨c⟩⟩ => ⟨k + 1, ⟨c.mulGen hη β⟩⟩
 
-/-- Proof of Theorem thm:duality: "So p(1) < 1, and 1 has a certificate of some level k and weight
-below 1. Then k ≥ 1, and every term has v_j ≠ 0, as it would weigh 1 otherwise: this is a cover of
-C^k by terms in which at least one C was exchanged." (The certificate of level k₀ is raised to the
-level k = k₀ + 1.) -/
+/-- Proof of Theorem A.6: if `1` has a certificate of level `k` and weight below `1`, then `k ≥ 1`
+and every term has `v_j ≠ 0`, as it would weigh `1` otherwise. So the certificate is a cover of
+`C^k` by terms in which at least one `C` was exchanged. (The certificate of level `k₀` is raised to
+the level `k = k₀ + 1`.) -/
 private theorem thm_duality_exchange {C : M} {A : B → M} {η : ℝ} (hη : 0 < η) {k₀ : ℕ} {W : ℝ}
     (h : Certificate D C A η 1 k₀ W) (hW1 : W < 1) :
     ∃ (κ : Type) (_ : Fintype κ) (u : κ → ℕ) (v : κ → B → ℕ), (∀ j, u j + ∑ β, v j β = k₀ + 1) ∧
@@ -96,9 +100,9 @@ private theorem thm_duality_exchange {C : M} {A : B → M} {η : ℝ} (hη : 0 <
   simp only [h2, pow_zero] at h3
   linarith
 
-/-- Proof of Theorem thm:duality: "In C^N replace C^k by this cover as long as some term contains
-it. The total weight never increases, so it stays at most 1, and each final term has fewer than k
-factors C." -/
+/-- Proof of Theorem A.6: in `C^N`, replace `C^k` by this cover as long as some term contains it.
+The total weight never increases, so it stays at most `1`, and each final term has fewer than `k`
+factors `C`. -/
 private theorem thm_duality_replace {C : M} {A : B → M} {η : ℝ} (hη : 0 < η)
     {k : ℕ} {κ : Type} [Fintype κ] {u : κ → ℕ}
     {v : κ → B → ℕ} (hu : ∀ j, u j + ∑ β, v j β = k) (huk : ∀ j, u j < k)
@@ -144,8 +148,8 @@ private theorem thm_duality_replace {C : M} {A : B → M} {η : ℝ} (hη : 0 < 
           _ = _ := mul_one _
 
 omit [Fintype B] in
-/-- Proof of Theorem thm:duality: "Replacing each remaining factor C by a fixed number c of copies
-of a nonzero A_β": if C is covered by c copies of a, then Cⁿ is covered by cⁿ copies of aⁿ. -/
+/-- Proof of Theorem A.6, the remaining factors: if `C` is covered by `c` copies of `a`, then `Cⁿ`
+is covered by `cⁿ` copies of `aⁿ`. -/
 private theorem thm_duality_copies {C a : M} {c : ℕ} (hc : D.CoveredBy C (fun _ : Fin c => a))
     (n : ℕ) :
     ∃ (μ : Type) (_ : Fintype μ),
@@ -160,10 +164,11 @@ private theorem thm_duality_copies {C a : M} {c : ℕ} (hc : D.CoveredBy C (fun 
     · have := D.mul_mul hcov hc
       simpa only [pow_succ] using this
 
-/-- Proof of Theorem thm:duality, second half: from a certificate for 1 of level k₀ and weight below
-1, and a cover of C by c copies of some A_β, a cover of C^N by products of N factors. "Hence there
-are at most η^(-N) terms. Replacing each remaining factor C by a fixed number c of copies of a
-nonzero A_β gives at most c^k η^(-N)" terms; the Lean bound has c + 1 for c, and k = k₀ + 1. -/
+/-- Proof of Theorem A.6, second half: from a certificate for `1` of level `k₀` and weight below
+`1`, and a cover of `C` by `c` copies of some `A_β`, a cover of `C^N` by products of `N` factors.
+The paper bounds the number of terms by `η^(-N)` before, and by `c^k η^(-N)` after, replacing each
+remaining factor `C` by `c` copies of `A_β`; the bound here has `c + 1` for `c`, and `k = k₀ + 1`.
+-/
 theorem exists_coveredBy_pow_of_certificate {C : M} {A : B → M} {η : ℝ} (hη : 0 < η) (hη1 : η < 1)
     {β₀ : B} {c : ℕ}
     (hcA : D.CoveredBy C (fun _ : Fin c => A β₀)) {k₀ : ℕ} {W : ℝ} (h : Certificate D C A η 1 k₀ W)

@@ -8,31 +8,37 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Algebra.Covering.Basic
+public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Analysis.SpecialFunctions.Pow.Continuity
 
 /-!
 # Multiplicative upper functionals below an upper functional
 
-Proposition prop:gauge of *VP ≠ VNP over every field* [AnthropicVPVNP2026], for a commutative monoid
-with a covering relation (`Cslib.Covering`). Below every upper functional `p₀` there is a
-multiplicative upper functional that respects every triple `(x, y, c)` which `p₀` respects
-(`Cslib.Covering.IsUpperFunctional.exists_map_mul_le`). The proof follows the paper:
+Proposition A.5 of *VP ≠ VNP over every field* [AnthropicVPVNP2026], for a commutative monoid with
+a covering relation (`Cslib.Covering`). Below every upper functional `p₀` there is a multiplicative
+upper functional that respects every triple `(x, y, c)` which `p₀` respects
+(`Cslib.Covering.IsUpperFunctional.exists_map_mul`). The proof follows the paper:
 
 * by Zorn's lemma there is a minimal upper functional below `p₀` that respects its triples;
-* its spectral radius `r(t) = inf p(tⁿ)^(1/n)` (through `Cslib.Covering.radiusSet`) is again one, so
-  by minimality `p(tⁿ) = p(t)ⁿ`;
+* its spectral radius `r(t) = inf p(tⁿ)^(1/n)` is again one, so by minimality `p(tⁿ) = p(t)ⁿ`. The
+  radius is the infimum of `Cslib.Covering.radiusSet`
+  (`Cslib.Covering.IsUpperFunctional.sInf_radiusSet_eq`);
 * localizing at an element `f` with `p(fⁿ) = p(f)ⁿ`
   (`Cslib.Covering.IsUpperFunctional.exists_localize`) makes `p` multiplicative.
 
-The paper calls these functions *gauges*; here they are T1's upper functionals.
-
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Paper.Gauges` (the monoid part).
-
 ## Main results
 
-* `Cslib.Covering.IsUpperFunctional.exists_map_mul_le`.
+* `Cslib.Covering.IsUpperFunctional.exists_map_mul`.
 * `Cslib.Covering.IsUpperFunctional.exists_localize`.
+* `Cslib.Covering.IsUpperFunctional.sInf_radiusSet_eq`: the infimum of the radius set is the
+  spectral radius.
+
+## References
+
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  Proposition A.5 (§A.4) of the paper; module `Paper.Gauges` (the monoid part, where upper
+  functionals are called gauges and respecting a triple is keeping it)
 -/
 
 public section
@@ -43,10 +49,8 @@ open Finset
 
 variable {M : Type*} [CommMonoid M] {D : Covering M} {p : M → ℝ}
 
-
-/-- Proof of Proposition prop:gauge: "The gauges below the given one that keep its triples are
-closed under infima of chains." The infimum of a chain (or a directed family) of gauges is a gauge
-below them that keeps every triple which all of them keep. -/
+/-- Proof of Proposition A.5: the infimum of a chain (or a directed family) of upper functionals is
+an upper functional below them that respects every triple which all of them respect. -/
 private theorem prop_gauge_chain {ι : Type*} [Nonempty ι] {P : ι → M → ℝ} (dir : Directed (· ≥ ·) P)
     (hP : ∀ i, IsUpperFunctional D (P i)) :
     IsUpperFunctional D (fun t => ⨅ i, P i t) ∧ (∀ i t, ⨅ j, P j t ≤ P i t) ∧
@@ -57,8 +61,8 @@ private theorem prop_gauge_chain {ι : Type*} [Nonempty ι] {P : ι → M → �
     fun i t => ciInf_le ⟨0, by rintro _ ⟨j, rfl⟩; exact (hP j).nonneg t⟩ i,
     fun _ _ _ hc h => respects_iInf (fun i => (hP i).nonneg) hc h⟩
 
-/-- Proof of Proposition prop:gauge: "By Zorn's lemma there is a minimal one, p": a gauge below p₀
-that keeps the triples of p₀, and that is equal to every such gauge below it. -/
+/-- Proof of Proposition A.5: by Zorn's lemma there is an upper functional `p` below `p₀` that
+respects the triples of `p₀` and is equal to every such upper functional below it. -/
 private theorem prop_gauge_minimal {p₀ : M → ℝ} (h₀ : IsUpperFunctional D p₀) :
     ∃ p : M → ℝ,
         IsUpperFunctional D p ∧ (∀ t, p t ≤ p₀ t) ∧
@@ -85,11 +89,12 @@ private theorem prop_gauge_minimal {p₀ : M → ℝ} (h₀ : IsUpperFunctional 
   have h4 : OrderDual.ofDual m ≤ q := hmax.2 (y := OrderDual.toDual q) ⟨h1, h2⟩ h3
   exact le_antisymm (h3 t) (h4 t)
 
-/-- Proof of Proposition prop:gauge, for r(t) = inf p(tⁿ)^(1/n): "If s is covered by t_1, …, t_l,
-then sⁿ is covered by their words of length n; grouping these … and bounding p(t_jᵃ) ≤ c_δ (r(t_j) +
-δ)ᵃ gives r(s) ≤ ∑ r(t_j)." In Lean r(t) is the infimum of the a > 0 with p(tⁿ) ≤ C·aⁿ for some C
-and all n (`Cslib.Covering.radiusSet`; it is the printed number by prop_gauge_radius_eq), and the
-words are bounded by induction on n. -/
+/-- Proof of Proposition A.5: the spectral radius `r` is at most the sum of its values along a
+cover. If `s` is covered by `t_1, …, t_l`, then `sⁿ` is covered by their words of length `n`, and
+the bound `p(t_jᵃ) ≤ c_δ (r(t_j) + δ)ᵃ` gives `r(s) ≤ ∑ r(t_j)`. Here `r(t)` is the infimum of
+`Cslib.Covering.radiusSet` (equal to the printed `inf p(tⁿ)^(1/n)` by
+`Cslib.Covering.IsUpperFunctional.sInf_radiusSet_eq`), and the words are bounded by induction on
+`n`. -/
 private theorem prop_gauge_radius_cover (h : IsUpperFunctional D p) {κ : Type} [Fintype κ] (t : M)
     (b : κ → M) (hb : D.CoveredBy t b) :
     sInf (radiusSet p t) ≤ ∑ k, sInf (radiusSet p (b k)) := by
@@ -160,8 +165,8 @@ private theorem prop_gauge_radius_cover (h : IsUpperFunctional D p) {κ : Type} 
   have h8 : ((Fintype.card κ : ℝ) + 1) * ε = δ := by rw [hεd]; field_simp
   linarith
 
-/-- Proof of Proposition prop:gauge: r is a gauge. "Clearly r(1) = 1 and r(st) ≤ r(s)r(t)"; for
-covers see prop_gauge_radius_cover. -/
+/-- Proof of Proposition A.5: the spectral radius `r` is an upper functional. The paper notes
+`r(1) = 1` and `r(st) ≤ r(s) r(t)`; covers are `prop_gauge_radius_cover`. -/
 private theorem prop_gauge_radius (h : IsUpperFunctional D p) : IsUpperFunctional D
     (fun t => sInf (radiusSet p t)) := by
   classical
@@ -189,29 +194,18 @@ private theorem prop_gauge_radius (h : IsUpperFunctional D p) : IsUpperFunctiona
         _ ≤ (C * a ^ m) * (C' * b ^ m) :=
           mul_le_mul (hC m) (hC' m) (h.nonneg _) (by positivity)
         _ = _ := by ring
-    have hs := h0 s
-    have ht := h0 t
-    refine le_of_forall_pos_le_add fun δ hδ => ?_
-    set A := sInf (radiusSet p s) with hA
-    set B := sInf (radiusSet p t) with hB
-    obtain ⟨ε, hε, hε1, hε2⟩ : ∃ ε : ℝ, 0 < ε ∧ ε ≤ 1 ∧ ε * (A + B + 1) ≤ δ := by
-      refine ⟨min 1 (δ / (A + B + 1)), by positivity, min_le_left _ _, ?_⟩
-      calc min 1 (δ / (A + B + 1)) * (A + B + 1) ≤ δ / (A + B + 1) * (A + B + 1) := by
-            gcongr; exact min_le_right _ _
-        _ = δ := by field_simp
-    have := key (A + ε) (h.mem_radiusSet_of_sInf_lt (by linarith)) (B + ε)
-        (h.mem_radiusSet_of_sInf_lt (by linarith))
-    nlinarith
+    exact le_sInf_mul_sInf ⟨_, h.add_mem_radiusSet s one_pos⟩ ⟨_, h.add_mem_radiusSet t one_pos⟩
+      (fun a ha => ha.1.le) (fun b hb => hb.1.le) key
 
-/-- Proof of Proposition prop:gauge: r ≤ p. -/
+/-- Proof of Proposition A.5: `r ≤ p`. -/
 private theorem prop_gauge_radius_le (h : IsUpperFunctional D p) (t : M) : sInf (radiusSet p t) ≤
     p t :=
   le_of_forall_pos_le_add fun _ hδ => csInf_le (bddBelow_radiusSet p t) (h.add_mem_radiusSet t hδ)
 
-/-- Proof of Proposition prop:gauge: "If p keeps (x, y, c), then p(tⁿxⁿ) ≤ cⁿ p(tⁿyⁿ), so r keeps
-it." -/
-private theorem prop_gauge_radius_keeps (h : IsUpperFunctional D p) {x y : M} {c : ℝ} (hc : 0 ≤ c)
-    (hk : Respects p x y c) :
+/-- Proof of Proposition A.5: if `p` respects `(x, y, c)`, then `p(tⁿxⁿ) ≤ cⁿ p(tⁿyⁿ)`, so `r`
+respects it. -/
+private theorem prop_gauge_radius_respects (h : IsUpperFunctional D p) {x y : M} {c : ℝ}
+    (hc : 0 ≤ c) (hk : Respects p x y c) :
     Respects (fun t => sInf (radiusSet p t)) x y c := by
   intro t
   -- first p(s x^m) ≤ c^m p(s y^m) for all m and s
@@ -277,11 +271,11 @@ private theorem prop_gauge_radius_root (h : IsUpperFunctional D p) {t : M} {n : 
       mul_le_mul (hC _) h4 (h.nonneg _) (by positivity)
     _ = _ := by ring
 
-/-- Proof of Proposition prop:gauge: "Let r(t) = inf_{n≥1} p(tⁿ)^(1/n)". The number r(t) of the Lean
-proof, the infimum of the a > 0 with p(tⁿ) ≤ C·aⁿ for some C and all n, is the printed one. (That
-r(t) + δ is such an a, `IsUpperFunctional.mem_radiusSet_of_sInf_lt`, is the printed bound p(tᵃ) ≤
-c_δ (r(t) + δ)ᵃ, which the paper takes from Fekete's lemma.) -/
-private theorem prop_gauge_radius_eq (h : IsUpperFunctional D p) (t : M) :
+/-- The infimum of the radius set of an upper functional `p` at `t` is its spectral radius
+`inf_{n ≥ 1} p(tⁿ)^(1/n)`, the number `r(t)` of the proof of Proposition A.5. (That `r(t) + δ`
+belongs to the radius set, `Cslib.Covering.IsUpperFunctional.mem_radiusSet_of_sInf_lt`, is the
+bound `p(tᵃ) ≤ c_δ (r(t) + δ)ᵃ`, which the paper takes from Fekete's lemma.) -/
+theorem IsUpperFunctional.sInf_radiusSet_eq (h : IsUpperFunctional D p) (t : M) :
     sInf (radiusSet p t) = ⨅ n : ℕ, p (t ^ (n + 1)) ^ (((n + 1 : ℕ) : ℝ)⁻¹) := by
   have hbdd : BddBelow (Set.range fun n : ℕ => p (t ^ (n + 1)) ^ (((n + 1 : ℕ) : ℝ)⁻¹)) :=
     ⟨0, by rintro _ ⟨n, rfl⟩; exact Real.rpow_nonneg (h.nonneg _) _⟩
@@ -320,7 +314,7 @@ private theorem prop_gauge_radius_eq (h : IsUpperFunctional D p) (t : M) :
     rw [Real.rpow_zero, one_mul] at h2
     exact ge_of_tendsto' h2 h1
 
-/-- Proof of Proposition prop:gauge: "r = p, that is, p(tⁿ) = p(t)ⁿ." -/
+/-- Proof of Proposition A.5: if `r = p`, then `p(tⁿ) = p(t)ⁿ`. -/
 private theorem prop_gauge_radius_pow (h : IsUpperFunctional D p)
     (hr : ∀ t, sInf (radiusSet p t) = p t) (t : M) (n : ℕ) :
     p (t ^ n) = p t ^ n := by
@@ -335,11 +329,12 @@ private theorem prop_gauge_radius_pow (h : IsUpperFunctional D p)
   calc p t ^ n ≤ (a ^ ((n : ℝ)⁻¹)) ^ n := pow_le_pow_left₀ (h.nonneg t) h5 n
     _ = a := Real.rpow_inv_natCast_pow ha.1.le (by omega)
 
-/-- Proof of Proposition prop:gauge: "Let f satisfy p(f) > 0 and let p_f(t) = inf p(tfⁿ)/p(f)ⁿ; the
-sequence is nonincreasing. It is again such a gauge: p_f(1) = 1, submultiplicativity follows from
-p(stf^(a+b)) ≤ p(sfᵃ)p(tfᵇ), and the two other properties pass to the limit." Here p(fⁿ) = p(f)ⁿ is
-a hypothesis. The statement says of q = p_f what is used: it is a gauge below p, it keeps what p
-keeps, and it keeps (1, f, 1/p(f)), that is, p(f)·p_f(t) ≤ p_f(tf). -/
+/-- Proof of Proposition A.5, localization: for `f` with `p(f) > 0` and `p(fⁿ) = p(f)ⁿ`, the
+function `p_f(t) = inf p(tfⁿ)/p(f)ⁿ` (a nonincreasing sequence) is again an upper functional. Here
+`p_f(1) = 1`, submultiplicativity follows from `p(stf^(a+b)) ≤ p(sfᵃ)p(tfᵇ)`, and the other two
+properties pass to the limit. The statement says of `q = p_f` what is used: it is an upper
+functional below `p`, it respects what `p` respects, and it respects `(1, f, 1/p(f))`, that is,
+`p(f) · p_f(t) ≤ p_f(tf)`. -/
 theorem IsUpperFunctional.exists_localize (h : IsUpperFunctional D p) {f : M} (hf : 0 < p f)
     (hpow : ∀ n, p (f ^ n) = p f ^ n) :
     ∃ q : M → ℝ, IsUpperFunctional D q ∧ (∀ t, q t ≤ p t) ∧ Respects q 1 f (p f)⁻¹ ∧
@@ -391,29 +386,29 @@ theorem IsUpperFunctional.exists_localize (h : IsUpperFunctional D p) {f : M} (h
     have := hk (t * f ^ n)
     rwa [mul_right_comm, mul_right_comm t y]
 
-/-- Proposition prop:gauge for a commutative monoid with a covering relation: below every gauge p₀
-there is a gauge that is multiplicative and keeps every triple which p₀ keeps. -/
-theorem IsUpperFunctional.exists_map_mul_le {p₀ : M → ℝ} (h₀ : IsUpperFunctional D p₀) :
+/-- **Paper: Proposition A.5**, for a commutative monoid with a covering relation: below every upper
+functional `p₀` there is a multiplicative upper functional that respects every triple which `p₀`
+respects. -/
+theorem IsUpperFunctional.exists_map_mul {p₀ : M → ℝ} (h₀ : IsUpperFunctional D p₀) :
     ∃ F : M → ℝ, IsUpperFunctional D F ∧ (∀ s t, F (s * t) = F s * F t) ∧ (∀ t, F t ≤ p₀ t) ∧
       ∀ x y c, 0 ≤ c → Respects p₀ x y c → Respects F x y c := by
   obtain ⟨p, hp, hle, hkeep, hmin⟩ := prop_gauge_minimal h₀
-  -- "By minimality r = p, that is, p(tⁿ) = p(t)ⁿ."
+  -- by minimality `r = p`, that is, `p(tⁿ) = p(t)ⁿ`
   have hrad : ∀ t, sInf (radiusSet p t) = p t :=
     hmin _ (prop_gauge_radius hp)
-        (fun x y c hc hk => prop_gauge_radius_keeps hp hc (hkeep x y c hc hk))
+        (fun x y c hc hk => prop_gauge_radius_respects hp hc (hkeep x y c hc hk))
       (prop_gauge_radius_le hp)
   refine ⟨p, hp, fun s f => le_antisymm (hp.map_mul_le s f) ?_, hle, hkeep⟩
   rcases (hp.nonneg f).eq_or_lt with hf | hf
-  · -- "If p(f) = 0, then p(tf) = 0 as well."
+  · -- if `p(f) = 0`, then `p(tf) = 0` as well
     rw [← hf, mul_zero]
     exact hp.nonneg _
-  · -- "By minimality p_f = p, hence p(tf) = p(t)p(f)."
+  · -- by minimality `p_f = p`, hence `p(tf) = p(t) p(f)`
     obtain ⟨q, hq, hqle, hqk, hqkeep⟩ :=
         IsUpperFunctional.exists_localize hp hf (prop_gauge_radius_pow hp hrad f)
     have hqp := hmin q hq (fun x y c hc hk => hqkeep x y c hc (hkeep x y c hc hk)) hqle
     have h1 := hqk s
     rw [hqp, hqp, mul_one, inv_mul_eq_div, le_div_iff₀ hf] at h1
     exact h1
-
 
 end Cslib.Covering

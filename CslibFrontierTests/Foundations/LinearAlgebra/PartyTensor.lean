@@ -45,18 +45,21 @@ example : unit K I 1 ≤ unit K I 2 := unit_le_unit (by norm_num)
 /-- A wire of dimension one is equivalent to `1`. -/
 example (p q : I) : AntisymmRel (· ≤ ·) (wire K 1 p q) 1 := antisymmRel_wire_one p q
 
-/-- The support point has wire exponent `0`: its value at a wire is `1`. -/
-example (p q : I) : (supportPoint (K := K) (I := I)).wireExponent p q = 0 := by
-  have : Nonempty I := ⟨p⟩
-  have h1 : (supportPoint (K := K) (I := I)) (wire K 2 p q) = 1 := by
-    have hge : 1 ≤ (supportPoint (K := K) (I := I)) (wire K 2 p q) :=
-      (supportPoint (K := K) (I := I)).one_le_unit ![p, q] (by norm_num)
-    have hle : (supportPoint (K := K) (I := I)) (wire K 2 p q) ≤ 1 := by
-      classical
-      change (if _ then (1 : ℝ) else 0) ≤ 1
-      split_ifs <;> norm_num
-    linarith
-  rw [SpectralPoint.wireExponent, h1, Real.logb_one]
+/-- The support point has wire exponent `0`. -/
+example (p q : I) : (supportPoint (K := K) (I := I)).wireExponent p q = 0 :=
+  SpectralPoint.wireExponent_support p q
+
+/-- At a wire of dimension `3`, the support point is `1`. -/
+example (p q : I) : (supportPoint (K := K) (I := I)) (wire K 3 p q) = 1 := by
+  rw [SpectralPoint.apply_wire _ p q (by norm_num), SpectralPoint.wireExponent_support,
+    Real.rpow_zero]
+
+/-- The square root of a spectral point, at a wire of dimension `4`: `4 ^ (d / 2)`. -/
+example (F : SpectralPoint K I) (p q : I) :
+    F.rpow (1 / 2) (by norm_num) (by norm_num) (wire K 4 p q) =
+      (4 : ℝ) ^ (1 / 2 * F.wireExponent p q) := by
+  rw [SpectralPoint.apply_wire _ p q (by norm_num), SpectralPoint.wireExponent_rpow]
+  norm_num
 
 /-- The wire exponent of a spectral point is a pseudometric with values in `[0, 1]`. -/
 example (F : SpectralPoint K I) (p q r : I) :
