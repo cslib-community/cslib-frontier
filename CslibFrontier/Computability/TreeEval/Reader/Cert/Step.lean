@@ -215,7 +215,7 @@ abbrev encStepOut : Tuple × List Bool ↪ List Bool := encPair encTuple encBits
 private theorem out_inSpace {T : Tuple × Bool → Tuple}
     (hT : ComputableInSpace T encStepInT encTuple stepBudget) :
     ComputableInSpace (fun y => (T y, ([] : List Bool))) encStepInT encStepOut stepBudget :=
-  budget_prod hT (budget_const [] len_le_stepBudget)
+  budget_prod hT (budget_const [])
 
 private theorem withCtl_inSpace {c : Tuple × Bool → Fin 7 × ℕ × ℕ × List ℕ}
     (hc : ComputableInSpace c encStepInT encCtlTuple stepBudget) :
@@ -225,15 +225,15 @@ private theorem withCtl_inSpace {c : Tuple × Bool → Fin 7 × ℕ × ℕ × Li
 private theorem hConstTag (t : Fin 7) :
     ComputableInSpace (fun _ : Tuple × Bool => t) encStepInT
       (encFinEnum (Fin 7)) stepBudget :=
-  budget_const t len_le_stepBudget
+  budget_const t
 
 private theorem hConstNat (n : ℕ) :
     ComputableInSpace (fun _ : Tuple × Bool => n) encStepInT encNat stepBudget :=
-  budget_const n len_le_stepBudget
+  budget_const n
 
 private theorem hNil :
     ComputableInSpace (fun _ : Tuple × Bool => ([] : List ℕ)) encStepInT (encList encNat)
-      stepBudget := budget_const [] len_le_stepBudget
+      stepBudget := budget_const []
 
 theorem succ_inSpace {n : Tuple × Bool → ℕ}
     (hn : ComputableInSpace n encStepInT encNat stepBudget) :
@@ -465,9 +465,9 @@ private theorem branch3_inSpace :
       rw [show (y.1.stack.headD dfr).round + 1 + 1 = (y.1.stack.headD dfr).round + 2 by omega]
       omega
   have hout := budget_comp mapEqOne_inSpace
-    (get_inSpace hRegs (budget_const 2 len_le_stepBudget))
+    (get_inSpace hRegs (budget_const 2))
     (.const_mul 64
-      ((length_le (get_inSpace hRegs (budget_const 2 len_le_stepBudget))).add (.const 1 _)))
+      ((length_le (get_inSpace hRegs (budget_const 2))).add (.const 1 _)))
   have hnext := hLt (succ_inSpace hRound) (budget_natPred hP)
   refine (budget_ite hcall
     (budget_ite hlenEq
@@ -490,7 +490,7 @@ private theorem branch3_inSpace :
               (out_inSpace (withRegsModeCtl_inSpace hR3' (budget_cons hFrameNext rest_inSpace)
                 (hTopFinite (encB := encMode) fun g => .call false (g.2.2 + 1)) hRun))
               (out_inSpace (withRegsModeCtl_inSpace hR3 rest_inSpace
-                (budget_const (encB := encMode) .ret len_le_stepBudget) hRun)))))))).of_enc_eq
+                (budget_const (encB := encMode) .ret) hRun)))))))).of_enc_eq
     fun y => ?_
   simp only [runStepT, decide_eq_true_eq]
   rfl

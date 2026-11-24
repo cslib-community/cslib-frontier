@@ -69,7 +69,7 @@ structure Registers (φ β : Type) where
 /-- Registers as their fields: the framed pair of the frame in control and the returned value,
 the framed list of waiting frames, and the stopping bit. -/
 private enc_structure encRegisters (φ : Type) (β : Type) (encF : φ ↪ List Bool)
-    (encB : β ↪ List Bool) : Registers φ β where
+    (encB : β ↪ List Bool) : Registers φ β logspace where
   config : (encPair encF (encOption encB)), callers : (encList encF), done : encBool
 
 /-- The registers after the body has answered: a call saves the resumed frame and gives control
@@ -102,9 +102,9 @@ theorem advance_inSpace (d : φ) :
     have hr := fst (encRegisters φ β encF encB) (encPair encF encF)
     have hsc := snd (encRegisters φ β encF encB) (encPair encF encF)
     exact encRegisters_mk_budget φ β encF encB
-      (budget_prod hsc.snd' (budget_const none (.refl _)))
+      (budget_prod hsc.snd' (budget_const none))
       (budget_cons hsc.fst' (encRegisters_callers_budget φ β encF encB hr))
-      (budget_const false (.refl _))
+      (budget_const false)
   have hret : ComputableInSpace
       (fun p : Registers φ β × β => if p.1.callers.isEmpty then (⟨(d, some p.2), [], true⟩ :
         Registers φ β) else ⟨(p.1.callers.headD d, some p.2), p.1.callers.tail, false⟩)
@@ -113,10 +113,10 @@ theorem advance_inSpace (d : φ) :
     have hc := encRegisters_callers_budget φ β encF encB (fst (encRegisters φ β encF encB) encB)
     have hv := budget_optionSome (snd (encRegisters φ β encF encB) encB)
     exact budget_ite (budget_isEmpty hc)
-      (encRegisters_mk_budget φ β encF encB (budget_prod (budget_const d (.refl _)) hv)
-        (budget_const [] (.refl _)) (budget_const true (.refl _)))
+      (encRegisters_mk_budget φ β encF encB (budget_prod (budget_const d) hv)
+        (budget_const []) (budget_const true))
       (encRegisters_mk_budget φ β encF encB (budget_prod (budget_headD d hc) hv)
-        (budget_tail hc) (budget_const false (.refl _)))
+        (budget_tail hc) (budget_const false))
   exact (sumElimSnd hcall hret).of_enc_eq fun _ => rfl
 
 variable {encF encB}
@@ -137,13 +137,9 @@ theorem step_inSpace (d : φ) {body : (φ × Option β) × α → (φ × φ) ⊕
       fun p => (encRegisters φ β encF encB p.1).length + Nat.log2 (encA p.2).length :=
     (ComputableInLogSpace.fst _ encA).inSpace_context (.of_le fun _ => Nat.le_add_right _ _)
   -- the frame in control and the input: a logspace rearrangement of the registers and the input
-  have hfields : ComputableInLogSpace (fun r : Registers φ β => (r.config, r.callers, r.done))
-      (encRegisters φ β encF encB) (encRegistersFields φ β encF encB) :=
-    .of_eq fun r => (encRegisters_apply φ β encF encB r).symm
   have hproj : ComputableInLogSpace (fun p : Registers φ β × α => (p.1.config, p.2))
       (encPair (encRegisters φ β encF encB) encA)
-      (encPair (encPair encF (encOption encB)) encA) :=
-    .pair (hfields.fst'.comp' (.fst _ encA)) (.snd _ encA)
+      (encPair (encPair encF (encOption encB)) encA) := by fun_prop
   have hbody' : ComputableInSpace (fun p : Registers φ β × α => body (p.1.config, p.2))
       (encPair (encRegisters φ β encF encB) encA) (encSum (encPair encF encF) encB)
       fun p => T (p.1.config, p.2) + (encRegisters φ β encF encB p.1).length +
@@ -381,9 +377,9 @@ theorem recWith {body : (φ × Option β) × α → (φ × φ) ⊕ β} {init : �
       (fun a => (⟨(init a, none), [], false⟩ : Registers φ β)) encA
       (encRegisters φ β encF encB) S :=
     encRegisters_mk_budget φ β encF encB
-      (budget_prod hinit ((constZero none).mono_le fun _ => Nat.zero_le _))
-      ((constZero []).mono_le fun _ => Nat.zero_le _)
-      ((constZero false).mono_le fun _ => Nat.zero_le _)
+      (budget_prod hinit (budget_const none))
+      (budget_const [])
+      (budget_const false)
   have hloop := loopWith_of_invariant
     (f := fun a => (⟨(d, some (val a (init a, none))), [], true⟩ : Registers φ β))
     (B := fun a => 2 * (6 * M a + 4 * B a + 4 * (encF d).length + 10) + B a +

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Tactic.Linarith
 
@@ -75,8 +76,7 @@ theorem sub_le_sum_sum_signVal_mul_of_threshold_eq {U : Type*} [Fintype U] {t θ
       simp only [mul_one]
       have := weight_le_length (v u)
       rw [sum_signVal_eq_sub_two_mul_weight]
-      have : (weight (v u) : ℝ) ≤ t := by exact_mod_cast this
-      linarith
+      cast_linarith [this]
     calc (Fintype.card U : ℝ) - (t + 1) * |∑ u, signVal (F u)| = ∑ _u : U, -(t : ℝ) := by
           rw [hsum, sum_const, card_univ, nsmul_eq_mul]
           ring
@@ -84,9 +84,8 @@ theorem sub_le_sum_sum_signVal_mul_of_threshold_eq {U : Type*} [Fintype U] {t θ
   · -- the signed margin is at least one at every point
     set c : ℝ := 2 * θ - 1 - t with hc
     have hc_abs : |c| ≤ t + 1 := by
-      have : (θ : ℝ) ≤ t + 1 := by exact_mod_cast not_lt.mp hθ
       rw [abs_le]
-      constructor <;> linarith [(Nat.cast_nonneg θ : (0 : ℝ) ≤ θ)]
+      constructor <;> cast_linarith [not_lt.mp hθ, (Nat.cast_nonneg θ : (0 : ℝ) ≤ θ)]
     have hmargin (u : U) :
         1 ≤ signVal (F u) * c + ∑ i, signVal (v u i) * signVal (F u) := by
       rw [← sum_mul, sum_signVal_eq_sub_two_mul_weight, ← h u, threshold_apply]

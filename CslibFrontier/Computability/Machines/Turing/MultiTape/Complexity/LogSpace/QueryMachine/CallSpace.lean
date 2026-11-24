@@ -52,7 +52,7 @@ theorem withCalls_halted_inSpace
       (encWithCalls encS encT) encBool
       (fun s => (encWithCalls encS encT s).length) := by
   exact (sumElim hhalted
-    (budget_const (encIn := encPair encS encT) false (.refl _))).of_enc_eq
+    (budget_const (encIn := encPair encS encT) false)).of_enc_eq
       fun s => by cases s <;> rfl
 
 /-- Only the caller contributes the final output word. -/
@@ -62,7 +62,7 @@ theorem withCalls_finish_inSpace
       (encWithCalls encS encT) encBits
       (fun s => (encWithCalls encS encT s).length) := by
   exact (sumElim hfinish
-    (budget_const (encIn := encPair encS encT) [] (.refl _))).of_enc_eq
+    (budget_const (encIn := encPair encS encT) [])).of_enc_eq
       fun s => by cases s <;> rfl
 
 /-- A call queries the original input through its active machine, without copying that input. -/
@@ -78,7 +78,7 @@ theorem withCalls_query_inSpace
       (fun s => (encS s).length) := of_inO ComputableInDegree.id'.inO_one
   have hleft := budget_comp_linear
     (optionElimSnd hqueryM
-      (budget_const (encIn := encPair encS encT) (encB := encNat) 0 (.refl _)))
+      (budget_const (encIn := encPair encS encT) (encB := encNat) 0))
     (budget_prod hid hrequest)
   have hright := budget_comp_linear hqueryN (snd encS encT)
   refine (sumElim hleft hright).of_enc_eq ?_
@@ -101,11 +101,11 @@ theorem withCalls_emit_inSpace
   have hreq := budget_comp_linear hrequest (fst encS (encOption encBool))
   have hleft := budget_comp_linear
     (optionElimSnd hemit
-      (budget_const (encIn := encPair encSB encT) (encB := encBits) [] (.refl _)))
+      (budget_const (encIn := encPair encSB encT) (encB := encBits) []))
     (budget_prod hid hreq)
   refine (sumElimFst hleft
     (budget_const (encIn := encPair (encPair encS encT) (encOption encBool))
-      (encB := encBits) [] (.refl _))).of_enc_eq ?_
+      (encB := encBits) [])).of_enc_eq ?_
   rintro ⟨s | ⟨s, t⟩, b⟩
   · cases h : request s <;> simp [withCalls, h]
   · rfl
