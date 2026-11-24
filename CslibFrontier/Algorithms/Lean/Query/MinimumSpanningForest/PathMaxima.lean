@@ -67,7 +67,6 @@ acyclic, holds exactly one of `u` and `v`; so `g` is on one of the two chains.
 
 * `Cslib.Query.pathMaxima_eq_some_iff`, `Cslib.Query.pathMaxima_eq_none_iff`: correctness, by
   threshold connectivity; no answer exactly when there is no path.
-* `Cslib.Multigraph.exists_bottleneck`: distinct vertices joined by `F` have a bottleneck edge.
 * `Cslib.Query.countQueries_pathMaxima_le`: at most `16 * #F + 5 * q` comparisons.
 
 ## References
@@ -99,31 +98,6 @@ private theorem nonempty_of_joins {T : Finset E} {u v : V} (huv : u ≠ v)
   rcases Relation.ReflTransGen.cases_tail h with rfl | ⟨b, -, e, he, -⟩
   · exact absurd rfl huv
   · exact ⟨e, he⟩
-
-omit [DecidableEq V] [DecidableEq E] in
-/-- **Bottleneck edges.** Distinct vertices joined by a finite set `F` of edges have a
-*bottleneck* edge `g ∈ F`: the edges of `F` of weight at most `w g` join them and those of weight
-less than `w g` do not. With distinct weights it is unique, and when `F` is acyclic it is the
-heaviest edge on the path of `F` between the two vertices. Any weights in a linear order will do. -/
-theorem _root_.Cslib.Multigraph.exists_bottleneck {u v : V} (huv : u ≠ v)
-    (h : Joins ends (F : Set E) u v) :
-    ∃ g ∈ F, Joins ends {x | x ∈ F ∧ w x ≤ w g} u v ∧
-      ¬Joins ends {x | x ∈ F ∧ w x < w g} u v := by
-  classical
-  set A := F.filter fun g => Joins ends {x | x ∈ F ∧ w x ≤ w g} u v
-  have hA : A.Nonempty := by
-    obtain ⟨g, hg, hmax⟩ := F.exists_max_image w (nonempty_of_joins huv h)
-    exact ⟨g, mem_filter.2 ⟨hg, h.mono fun x hx => ⟨hx, hmax x hx⟩⟩⟩
-  obtain ⟨g, hgA, hmin⟩ := A.exists_min_image w hA
-  obtain ⟨hgF, hg⟩ := mem_filter.1 hgA
-  refine ⟨g, hgF, hg, fun hlt => ?_⟩
-  set T := F.filter fun x => w x < w g
-  have hT : Joins ends (T : Set E) u v := hlt.mono fun x hx => mem_coe.2 (mem_filter.2 hx)
-  obtain ⟨g', hg'T, hg'max⟩ := T.exists_max_image w (nonempty_of_joins huv hT)
-  obtain ⟨hg'F, hg'g⟩ := mem_filter.1 hg'T
-  have : g' ∈ A := mem_filter.2 ⟨hg'F, hT.mono fun x hx =>
-    ⟨(mem_filter.1 (mem_coe.1 hx)).1, hg'max x (mem_coe.1 hx)⟩⟩
-  exact absurd (hmin g' this) (not_le.2 hg'g)
 
 variable {oracle : {ι : Type} → LEQuery E ι → ι}
 
@@ -167,7 +141,7 @@ private theorem king (hw : Function.Injective w)
     · exact hA l hl x v (Or.inl ⟨rfl, rfl⟩) f hsel
     · exact fun h => hA l hl x u (Or.inr ⟨rfl, rfl⟩) f hsel h.symm
   -- the bottleneck edge `g`
-  obtain ⟨g, hgF, hgJ, hgnot⟩ := Multigraph.exists_bottleneck (w := w) huv hjoin
+  obtain ⟨g, hgF, hgJ, hgnot⟩ := exists_bottleneck (w := w) huv hjoin
   have hfg : w f ≤ w g := by
     by_contra hlt
     have hle : {x | x ∈ F ∧ w x ≤ w g} ⊆ {x | x ∈ F ∧ w x < w f} :=
@@ -514,7 +488,7 @@ theorem pathMaxima_eq_none_iff (hw : Function.Injective w)
   refine ⟨fun h => ?_, fun h f hf => ?_⟩
   · by_contra hn
     push Not at hn
-    obtain ⟨g, hgF, hg⟩ := Multigraph.exists_bottleneck (w := w) hn.1 hn.2
+    obtain ⟨g, hgF, hg⟩ := exists_bottleneck (w := w) hn.1 hn.2
     exact h g ((pathMaxima_eq_some_iff hw horacle hF hq g).2 ⟨hgF, hg⟩)
   · obtain ⟨-, hle, hlt⟩ := (pathMaxima_eq_some_iff hw horacle hF hq f).1 hf
     rcases h with rfl | h
