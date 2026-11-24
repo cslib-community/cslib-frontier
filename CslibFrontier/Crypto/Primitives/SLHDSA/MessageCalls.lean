@@ -21,8 +21,8 @@ randomness boundaries. The output of `H_msg` uses the six Table 2 digest lengths
 
 The SHAKE parameter sets use the specified direct SHAKE256 packages. The SHA2 category 1 sets
 use HMAC-SHA-256 and SHA-256 followed by MGF1-SHA-256; categories 3 and 5 use the corresponding
-SHA-512 functions. `prfMessage` and `hMessage` are total functions. `ValidPRFMessageInput` and
-`ValidHMessageInput` state the SHA-2 source domains separately, as the HMAC and MGF1 modules do.
+SHA-512 functions. `prfMessage` and `hMessage` are total functions. FIPS 180-4 defines SHA-2 only
+below a message-length limit, and the docstring of each call states the resulting bound on `M`.
 These two calls do not choose the optional randomness and cannot abort.
 
 This module is definitions only: its theorems are the length equations of the byte packages. It
@@ -35,14 +35,14 @@ against values computed outside Lean.
 ## Main definitions
 
 * `Cslib.Crypto.SLHDSA.prfMessage`, `hMessage`: the exact FIPS 205 calls.
-* `Cslib.Crypto.SLHDSA.ValidPRFMessageInput`, `ValidHMessageInput`: inherited SHA-2 domains.
 
 ## References
 
 * [NIST, *Stateless Hash-Based Digital Signature Standard*, Section 4.1, Section 9,
   Table 2, Algorithm 19, and Sections 11.1--11.2.2][NISTFIPS205]
 * [A. Hülsing and M. Kudinov, *Recovering the Tight Security Proof of SPHINCS+*,
-  Theorem 3 and Equations (5)--(6)][HulsingKudinov2022]
+  Theorem 3 and Equations (5)--(6)][HulsingKudinov2022], cited for the security properties the
+  SPHINCS+ proof requires of these two calls; no declaration here states or proves them.
 -/
 
 public section
@@ -101,32 +101,14 @@ def hMessageMGFSeed {p : SecurityBytes} {digestBytes : ℕ}
   simp only [hMessageMGFSeed, List.length_append, FixedBytes.length_toList]
   omega
 
-/-- The source domain of `PRF_msg`.
+/-- FIPS 205 `PRF_msg(SK.prf, opt_rand, M)` from Sections 11.1--11.2.2.
 
-SHAKE256 accepts every finite byte message. The SHA2 branches are exactly the HMAC input
-predicate selected by FIPS 205. `prfMessage` is total and does not take this as an argument. -/
-@[expose]
-def ValidPRFMessageInput (family : HashFamily) {p : SecurityBytes}
-    (secretPRF optionalRandomness : NBytes p) (message : List Byte) : Prop :=
-  match family, p with
-  | .shake, _ => True
-  | .sha2, .bytes16 =>
-      HMAC.ValidHMACSHA256Input secretPRF.toList
-        (prfMessageText optionalRandomness message)
-  | .sha2, .bytes24 =>
-      HMAC.ValidHMACSHA512Input secretPRF.toList
-        (prfMessageText optionalRandomness message)
-  | .sha2, .bytes32 =>
-      HMAC.ValidHMACSHA512Input secretPRF.toList
-        (prfMessageText optionalRandomness message)
-
-instance (family : HashFamily) {p : SecurityBytes}
-    (secretPRF optionalRandomness : NBytes p) (message : List Byte) :
-    Decidable (ValidPRFMessageInput family secretPRF optionalRandomness message) := by
-  unfold ValidPRFMessageInput
-  cases family <;> cases p <;> infer_instance
-
-/-- FIPS 205 `PRF_msg(SK.prf, opt_rand, M)` from Sections 11.1--11.2.2. -/
+The SHAKE branch is the FIPS 205 value for every message. In the SHA2 branch the inner HMAC hash
+reads one padded key block followed by `opt_rand ‖ M`, and FIPS 180-4 defines SHA-256 only below
+`2 ^ 61` input bytes and SHA-512 only below `2 ^ 125`. The SHA2 branch is therefore the FIPS 205
+value when `64 + n + |M| < 2 ^ 61` at `n = 16` and when `128 + n + |M| < 2 ^ 125` at
+`n = 24, 32`. For a longer message the standards define no value, and this function returns what
+the total evaluators `HMAC.hmacSHA256` and `HMAC.hmacSHA512` return. -/
 def prfMessage (family : HashFamily) {p : SecurityBytes}
     (secretPRF optionalRandomness : NBytes p) (message : List Byte) : NBytes p :=
   match family with
@@ -139,46 +121,19 @@ def prfMessage (family : HashFamily) {p : SecurityBytes}
       | .bytes16 =>
           Fin.take 16 (by decide)
             (HMAC.hmacSHA256 secretPRF.toList (prfMessageText optionalRandomness message))
-      | .bytes24 =>
-          Fin.take 24 (by decide)
-            (HMAC.hmacSHA512 secretPRF.toList (prfMessageText optionalRandomness message))
-      | .bytes32 =>
-          Fin.take 32 (by decide)
+      | .bytes24 | .bytes32 =>
+          Fin.take _ (by decide)
             (HMAC.hmacSHA512 secretPRF.toList (prfMessageText optionalRandomness message))
 
-/-- The source domain of `H_msg`.
+/-- FIPS 205 `H_msg(R, PK.seed, PK.root, M)` from Sections 11.1--11.2.2.
 
-The first conjunct is the inner SHA-2 digest domain. The remaining conjuncts are the MGF1 seed and
-output bounds after substituting the fixed seed length. `hMessage` is total and does not take this
-as an argument. -/
-@[expose]
-def ValidHMessageInput (family : HashFamily) {p : SecurityBytes} (shape : ParameterShape)
-    (randomizer publicSeed publicRoot : NBytes p) (message : List Byte) : Prop :=
-  match family, p with
-  | .shake, _ => True
-  | .sha2, .bytes16 =>
-      SHA2.ValidSHA256Input
-          (hMessageDigestInput randomizer publicSeed publicRoot message) ∧
-        (ParameterShape.digestBytes p shape = 0 ∨ 2 * p.count + 32 + 4 < 2 ^ 61) ∧
-        ParameterShape.digestBytes p shape ≤ 2 ^ 32 * 32
-  | .sha2, .bytes24 =>
-      SHA2.ValidSHA512Input
-          (hMessageDigestInput randomizer publicSeed publicRoot message) ∧
-        (ParameterShape.digestBytes p shape = 0 ∨ 2 * p.count + 64 + 4 < 2 ^ 125) ∧
-        ParameterShape.digestBytes p shape ≤ 2 ^ 32 * 64
-  | .sha2, .bytes32 =>
-      SHA2.ValidSHA512Input
-          (hMessageDigestInput randomizer publicSeed publicRoot message) ∧
-        (ParameterShape.digestBytes p shape = 0 ∨ 2 * p.count + 64 + 4 < 2 ^ 125) ∧
-        ParameterShape.digestBytes p shape ≤ 2 ^ 32 * 64
-
-instance (family : HashFamily) {p : SecurityBytes} (shape : ParameterShape)
-    (randomizer publicSeed publicRoot : NBytes p) (message : List Byte) :
-    Decidable (ValidHMessageInput family shape randomizer publicSeed publicRoot message) := by
-  unfold ValidHMessageInput
-  cases family <;> cases p <;> infer_instance
-
-/-- FIPS 205 `H_msg(R, PK.seed, PK.root, M)` from Sections 11.1--11.2.2. -/
+The SHAKE branch is the FIPS 205 value for every message. In the SHA2 branch the inner digest
+hashes `R ‖ PK.seed ‖ PK.root ‖ M`, and FIPS 180-4 defines SHA-256 only below `2 ^ 61` input bytes
+and SHA-512 only below `2 ^ 125`. The SHA2 branch is therefore the FIPS 205 value when
+`3 * n + |M| < 2 ^ 61` at `n = 16` and when `3 * n + |M| < 2 ^ 125` at `n = 24, 32`. For a longer
+message the standards define no value, and this function returns what the total evaluators
+`SHA2.sha256` and `SHA2.sha512` return. The MGF1 step adds no condition: its seed has the fixed
+length `2 * n + 32` or `2 * n + 64` and its output has at most 49 bytes. -/
 def hMessage (family : HashFamily) {p : SecurityBytes} (shape : ParameterShape)
     (randomizer publicSeed publicRoot : NBytes p) (message : List Byte) :
     MessageDigestBytes p shape :=
@@ -195,15 +150,10 @@ def hMessage (family : HashFamily) {p : SecurityBytes} (shape : ParameterShape)
           let digest := SHA2.sha256 digestInput
           let seed := hMessageMGFSeed randomizer publicSeed digest
           MGF1.mgf1SHA256 seed (ParameterShape.digestBytes .bytes16 shape)
-      | .bytes24 =>
+      | .bytes24 | .bytes32 =>
           let digestInput := hMessageDigestInput randomizer publicSeed publicRoot message
           let digest := SHA2.sha512 digestInput
           let seed := hMessageMGFSeed randomizer publicSeed digest
-          MGF1.mgf1SHA512 seed (ParameterShape.digestBytes .bytes24 shape)
-      | .bytes32 =>
-          let digestInput := hMessageDigestInput randomizer publicSeed publicRoot message
-          let digest := SHA2.sha512 digestInput
-          let seed := hMessageMGFSeed randomizer publicSeed digest
-          MGF1.mgf1SHA512 seed (ParameterShape.digestBytes .bytes32 shape)
+          MGF1.mgf1SHA512 seed (ParameterShape.digestBytes _ shape)
 
 end Cslib.Crypto.SLHDSA
