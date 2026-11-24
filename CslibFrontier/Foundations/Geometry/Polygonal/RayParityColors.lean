@@ -17,6 +17,8 @@ import Mathlib.Topology.Order.LeftRight
 An endpoint color adds the clockwise-side angular prefix to the horizontal-ray parity
 at the center. Even incidence removes the dependence on the auxiliary horizontal cut.
 The endpoints remain indexed separately throughout.
+`rayGermColor_ends_add_eq_crossings` computes the sum of the two endpoint colors
+as the segment label plus the parity of crossings with other selected segments.
 -/
 
 public section
@@ -135,13 +137,13 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
       AffineMap.lineMap (a i) (b i) t ≠ a j ∧ AffineMap.lineMap (a i) (b i) t ≠ b j)
     (hunique : ∀ j, j ≠ i → x j = true →
       (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (a i) (b i)).Subsingleton)
-    (hremote : ∀ k : ι × Bool, ∀ j,
-      a j ≠ rayEndpoint a b k → b j ≠ rayEndpoint a b k →
-      (rayEndpoint a b k).im ≠ (a j).im ∧
-      (rayEndpoint a b k).im ≠ (b j).im ∧
-      rayEndpoint a b k ∉ segment ℝ (a j) (b j))
-    (hdistinct : ∀ k e : ι × Bool, rayEndpoint a b e = rayEndpoint a b k →
-      turnArg (rayEndVector a b e) = turnArg (rayEndVector a b k) → e = k) :
+    (hremote : ∀ side : Bool, ∀ j,
+      a j ≠ rayEndpoint a b (i, side) → b j ≠ rayEndpoint a b (i, side) →
+      (rayEndpoint a b (i, side)).im ≠ (a j).im ∧
+      (rayEndpoint a b (i, side)).im ≠ (b j).im ∧
+      rayEndpoint a b (i, side) ∉ segment ℝ (a j) (b j))
+    (hdistinct : ∀ (side : Bool) (e : ι × Bool), rayEndpoint a b e = rayEndpoint a b (i, side) →
+      turnArg (rayEndVector a b e) = turnArg (rayEndVector a b (i, side)) → e = (i, side)) :
     rayGermColor a b x (a i) (b i - a i) +
       rayGermColor a b x (b i) (a i - b i) =
       x i + ∑ j, (if j = i then 0 else x j) * decide
@@ -171,9 +173,9 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
       with s hlo hhi
     exact ⟨hlo, by linarith [show s < 1 - t from hhi]⟩
   have h0 := eventually_rayParity_rightGerm a b x hheight heven (i, false)
-    (hremote (i, false)) (hdistinct (i, false))
+    (hremote false) (hdistinct false)
   have h1 := eventually_rayParity_rightGerm a b x hheight heven (i, true)
-    (hremote (i, true)) (hdistinct (i, true))
+    (hremote true) (hdistinct true)
   have hsmall : ∀ᶠ t : ℝ in nhds 0, t < 1 / 2 :=
     isOpen_Iio.mem_nhds (by norm_num)
   obtain ⟨t, htpos, ht0, ht1, htlt, hthits⟩ := (h0.and (h1.and (hsmall.and hsmallHits))).exists_gt
@@ -277,7 +279,8 @@ theorem rayGermColor_ends {ι : Type*} [Fintype ι]
     (fun j hj _ t ht => ⟨
       fun h => hisolated j hj t ht (h ▸ left_mem_segment ℝ (a j) (b j)),
       fun h => hisolated j hj t ht (h ▸ right_mem_segment ℝ (a j) (b j))⟩)
-    (fun j hj _ _ hz _ _ => (hno j hj ⟨_, hz⟩).elim) hremote hdistinct]
+    (fun j hj _ _ hz _ _ => (hno j hj ⟨_, hz⟩).elim)
+    (fun side => hremote (i, side)) (fun side => hdistinct (i, side))]
   refine add_eq_left.mpr ?_
   apply Finset.sum_eq_zero
   intro j _
