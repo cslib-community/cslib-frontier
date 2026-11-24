@@ -272,8 +272,7 @@ private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
     _ ≤ (K * Real.log n) ^ δ := by
         refine Real.rpow_le_rpow (by positivity) (hr.trans ?_) hδ0
         have h4 : (0 : ℝ) ≤ 4 ^ 2 ^ p := by positivity
-        calc (4 : ℝ) ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) ≤ 4 ^ 2 ^ p * (3 * Real.log n) :=
-              mul_le_mul_of_nonneg_left hL h4
+        calc (4 : ℝ) ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) ≤ 4 ^ 2 ^ p * (3 * Real.log n) := by gcongr
           _ = K * Real.log n := by ring
     _ = K ^ δ * Real.log n ^ δ := Real.mul_rpow (by positivity) hlog0.le
     _ ≤ Real.log n ^ (ε - δ) * Real.log n ^ δ :=

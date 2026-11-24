@@ -38,9 +38,14 @@ bounded by
 `ε ≤ Qs · (Qs + Qro) · δ + (Qro + 1) / N + √((Qro + 1) · ε')`,
 
 where `N` is the number of challenges and `ε'` the success probability of an explicit adversary
-in the one-way game for the key generator (`succProbability_eufCmaGame_le`). This is
-[BonehShoup2023], Equation 19.21, with `Qs · (Qs + Qro) · δ` in place of the slightly larger
-`Qs · (Qs + Qro + 1) · δ`.
+in the one-way game for the key generator (`succProbability_eufCmaGame_le`). This is the
+bound (19.21) stated after [BonehShoup2023], Theorem 19.16, with `Qs · (Qs + Qro) · δ` in place of
+the slightly larger `Qs · (Qs + Qro + 1) · δ`, for one instance. It is a step toward
+Theorem 19.16, not the cited result: the book's adversary in (19.21) is efficient, running in
+about twice the forger's time, while nothing here certifies the reduction as efficient. The
+asymptotic theorem for a generic Sigma protocol is open (#5293). For Schnorr signatures it is
+`PrimeOrderGroupFamily.DiscreteLog.eufCma_schnorrNativeROMScheme`, which reaches this bound
+through a word instance and the certified forking adversary `schnorrForkingAdversary`.
 
 The proof follows [BonehShoup2023], Theorems 19.7 and 19.16, with the general forking lemma of
 [BellareNeven2006] in place of the reduction through impersonation:
@@ -61,7 +66,7 @@ The proof follows [BonehShoup2023], Theorems 19.7 and 19.16, with the general fo
    one-way adversary `FiatShamir.reduction`.
 
 These are exact probability laws for one Sigma protocol, key generator and forger; there is no
-efficiency claim. The forger has explicit coins, so the reduction can rerun it.
+efficiency claim (#5293). The forger has explicit coins, so the reduction can rerun it.
 
 ## Main definitions
 
@@ -76,7 +81,11 @@ efficiency claim. The forger has explicit coins, so the reduction can rerun it.
 ## Main results
 
 * `Cslib.Crypto.Protocols.SigmaProtocol.fiatShamir_correct`: honest signatures verify.
-* `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_eufCmaGame_le`: the security bound.
+
+## Step toward Theorem 19.16
+
+* `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_eufCmaGame_le`: the concrete
+  random-oracle bound (19.21) for one instance.
 
 ## References
 
@@ -350,16 +359,22 @@ end FiatShamir
 
 open FiatShamir in
 open scoped NNReal in
-/-- **Security of Fiat–Shamir signatures** ([BonehShoup2023], Theorem 19.16 with Equation 19.21,
-via [BellareNeven2006], Lemma 1). Let the Sigma protocol be special sound on the generated keys
-with extractor `extract`, special HVZK with simulator `simulate`, and have `δ`-unpredictable
-commitments, and let the key generator produce pairs in the relation. A forger making at most `Qs`
+/-- Concrete bound (19.21) for one Sigma protocol, key generator and forger, a step toward
+[BonehShoup2023], Theorem 19.16, not the cited result (proved via [BellareNeven2006], Lemma 1).
+Let the Sigma protocol be special sound on the generated keys with extractor `extract`, special
+HVZK with simulator `simulate`, and have `δ`-unpredictable commitments, and let the key generator
+produce pairs in the relation. A forger making at most `Qs`
 signing calls and `Qro` hash calls wins the random-oracle EUF-CMA experiment with probability at
 most `Qs · (Qs + Qro) · δ + (Qro + 1) / N + √((Qro + 1) · ε')`, where `N` is the number of
 challenges and `ε'` is the probability that the reduction outputs a witness for a generated
 statement. The signer and final verifier use `hashPoint (m, t)`, while `Qro` counts all adversary
 hash calls, including queries outside the embedding's image. The bound holds for every supplied
-failure output `fallback`; no correctness assumption is made about that output. -/
+failure output `fallback`; no correctness assumption is made about that output.
+
+The book's (19.21) has an efficient one-way adversary, running in about twice the forger's time,
+and Theorem 19.16 concludes that the Fiat–Shamir scheme is secure. This lemma has no efficiency
+claim for `reduction` and fixes one instance; the generic asymptotic theorem is open (#5293). For
+Schnorr signatures it is `PrimeOrderGroupFamily.DiscreteLog.eufCma_schnorrNativeROMScheme`. -/
 theorem succProbability_eufCmaGame_le [Nonempty T] [Nonempty Z] [DecidableEq C]
     {P : SigmaProtocol X Y T C Z} {keyGen : PMF (X × Y)} {R : X → Y → Prop}
     [∀ x y, Decidable (R x y)] {extract : Y → T → C → Z → C → Z → X}

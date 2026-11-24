@@ -27,7 +27,7 @@ apply to it. Its native decapsulations are run against fixed oracles `G` and `H`
 
 * an honest ciphertext of a message of the right length decapsulates to `H(false, m, c)`;
 * a ciphertext whose decryption has the wrong length is a decryption failure, so `FO-notbot`
-  returns the fallback key `H(true, s, c)` and `FO^⊥` returns `none`;
+  returns the fallback key `H(false, s, c)` and `FO^⊥` returns `none`;
 * a word longer than the ciphertext bound is rejected with `none` by both.
 
 The native keyless simulator of the IND-CPA reduction caches an in-domain `G` request, rejects a
@@ -104,12 +104,12 @@ example : ProbOracleComp.runWith fixedOracle
     runWith_norm, pmf_norm]
 
 /-- At parameter `2`, the ciphertext `[false]` decrypts to a word of the wrong length, so
-`FO-notbot` returns the fallback key `H(true, s, c)`. -/
+`FO-notbot` returns the ordinary key-oracle answer at the valid seed `[true, true]`. -/
 example : ProbOracleComp.runWith fixedOracle
-      (identityPKE.decapsNotBot (fun _ => 20) 2 dk [false]) () =
-    PMF.pure (some ((encHQuery (true, [true], [false])).take 20), ()) := by
+      (identityPKE.decapsNotBot (fun _ => 20) 2 ⟨[], [], [true, true]⟩ [false]) () =
+    PMF.pure (some ((encHQuery (false, [true, true], [false])).take 20), ()) := by
   simp [WordPKE.decapsNotBot, identityPKE, WordPKE.scheme, WordPKE.toExplicitCoin,
-    Scheme.decapsNotBotM_eq, Option.filter_some, queryH, fixedOracle, dk, runWith_norm, pmf_norm]
+    Scheme.decapsNotBotM_eq, Option.filter_some, queryH, fixedOracle, runWith_norm, pmf_norm]
 
 /-- At parameter `2`, `FO^⊥` rejects the same ciphertext with `none`. -/
 example : ProbOracleComp.runWith fixedOracle
@@ -168,8 +168,8 @@ def queryChallengeG (_ : ℕ) (challenge : List Bool) : WordOracleComp CCAOp Boo
 
 /-- The adversary is uniform strict oracle PPT. -/
 theorem isOraclePPT_queryChallengeG : IsOraclePPT encBool queryChallengeG :=
-  ((IsOraclePPTOn.query_take' CCAOp.G (ComputableInPolyTime.snd encUnary encBits)
-    (ComputableInPolyTime.const 1)).map' (by fun_prop)).isOraclePPT
+  ((IsOraclePPTOn.query_take CCAOp.G (ComputableInPolyTime.snd encUnary encBits)
+    (ComputableInPolyTime.const 1)).map (by fun_prop)).isOraclePPT
 
 /-- Its IND-CPA reduction against the identity scheme is uniform strict PPT. -/
 example : (identityPKE.romCpaReductionWord (fun n => n) queryChallengeG).IsPPT encBits :=
@@ -193,6 +193,20 @@ example : (identityPKE.romBotCpaReductionWord (fun n => n) queryChallengeG).IsPP
     isOraclePPT_queryChallengeG
 
 /-! ### The word ROM IND-CCA game -/
+
+/-- Exactly the ordinary encoding of a seed/ciphertext pair is a public hash request. -/
+example : identityPKE.isHQuery 2 (encHQuery (false, [true, true], [false])) = true ∧
+    identityPKE.isHQuery 2 (encHQuery (true, [true, true], [false])) = false := by decide
+
+/-- A key already returned by a public `H(s,c)` query is exactly the key returned on rejecting
+`c`, for either possible value of the cached bit. -/
+example (k : Bool) :
+    let cache : ROCache (List Bool) (List Bool) (List Bool) (List Bool) :=
+      { hCache := [((false, [true, true], [false]), [k])] }
+    ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 1) 2
+      (identityPKE.decapsNotBot (fun _ => 1) 2 ⟨[], [], [true, true]⟩)
+      [] (.decaps, [false]) cache) = PMF.pure (encOption encBits (some [k]), cache) := by
+  cases k <;> rfl
 
 /-- The game's decapsulation oracle refuses the challenge ciphertext with the empty word. -/
 example : ProbComp.eval (identityPKE.ccaWordOracle (fun _ => 0) 1

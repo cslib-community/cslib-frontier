@@ -359,7 +359,7 @@ theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
   exact wordInsertAt_lt (by omega) hv (wordDeleteAt_lt (by omega) hw)
 /-! ### `swarOnes`, `ltMask`, and `swarRank_eq_count_lt` -/
 
-private theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
+theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
     swarOnes W n = ∑ j ∈ range n, 2 ^ (j * W) := by
   have hpos : 0 < 2 ^ W - 1 := by
     have : 2 ^ 1 ≤ 2 ^ W := Nat.pow_le_pow_right (by decide) hW
@@ -449,7 +449,7 @@ private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
     by_cases hkm : k < m
     · rcases b with _ | b'
       · simp only [hkm, and_self, decide_true, Bool.and_true, Nat.add_zero]
-        have hfp_lt : fpBits < W := by dsimp only [W]; omega
+        have hfp_lt : fpBits < W := by omega
         have hl_d := testBit_laneGet W (∑ j ∈ range m, d j * 2 ^ (j * W)) k fpBits
         rw [laneGet_sum_mul_pow hd_lt] at hl_d
         simp only [hkm, ↓reduceIte, hfp_lt, decide_true, Bool.true_and] at hl_d

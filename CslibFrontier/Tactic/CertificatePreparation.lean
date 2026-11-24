@@ -103,14 +103,15 @@ private meta def exposeFieldCertificates : TacticM Unit := withMainContext do
   replaceMainGoal [goal]
 
 open Lean Meta Elab Tactic in
-/-- Prepare a certificate goal: unfold the hinted definitions in the goal and inline the `let`s
-they expose, unfold local encoding `let`s, and expose certificates stored in fields of local
-structures. -/
+/-- Prepare a certificate goal: unfold the hinted definitions, inline literal `let`s in the goal,
+unfold local encoding `let`s, and expose certificates stored in fields of local structures.
+Inlining does not unfold named programs or change their certificate lookup. -/
 meta def prepareCertificateGoal (hints : Array Ident) : TacticM Unit := do
   unless hints.isEmpty do
     evalTactic (← `(tactic| unfold $hints*))
-    liftMetaTactic1 fun goal => do
-      goal.replaceTargetDefEq (← zetaReduce (← instantiateMVars (← goal.getType)))
+  liftMetaTactic1 fun goal => do
+    goal.replaceTargetDefEq (← zetaReduce (← instantiateMVars (← goal.getType))
+      (zetaDelta := !hints.isEmpty))
   unfoldEncodingLets
   exposeFieldCertificates
 

@@ -8,11 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Probability.PMF.Bool
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 
 /-!
 # Uniform strict probabilistic polynomial time
@@ -38,7 +38,8 @@ loops; oracle PPT requires further certified constructions.
 
 Adapted from the cslib `crypto` branch's Computability/Probabilistic/PPT.lean at
 `5ff69ca93402e7c947208dc56396d6d86203ccd8`. The witness uses the common machine and any finite
-control type, as the upstream tidy calculus does, instead of imposing a separate `Fin` presentation.
+control type, instead of imposing a separate `Fin` presentation. The deterministic lift uses its
+plain halting/output contract directly; no clean-machine premise is added.
 
 ## Main definitions
 
@@ -104,23 +105,15 @@ theorem isPPTOn_iff_encoded : IsPPTOn input output program ↔
 
 end Cslib.Probability
 
-/-- Reuse a tidy deterministic machine as a fair-coin machine that ignores its sampled bits. -/
-@[fun_prop]
-theorem Turing.MultiTapeTM.ComputableTidilyInPolyTime.isPPTOn {α β : Type}
-    {input : α ↪ List Bool} {output : β ↪ List Bool} {f : α → β}
-    (h : ComputableTidilyInPolyTime f input output) :
-    Cslib.Probability.IsPPTOn input output (fun a => pure (f a)) := by
-  obtain ⟨t, s, ht, _, k, State, hfinite, machine, hmachine⟩ := h
-  obtain ⟨c, d, ht⟩ := ht.exists_le
-  refine ⟨k, State, hfinite, Turing.MultiTapePTM.ofDeterministic machine, c, d, fun a => ?_⟩
-  rw [Cslib.ProbComp.eval_pure, PMF.pure_map, Turing.MultiTapePTM.eval_runClosed_ofDeterministic]
-  exact congrArg PMF.pure ((hmachine a).mono (ht a) le_rfl).runFrom_initCfg.2.symm
-
 /-- A plain deterministic polynomial-time certificate gives a fair-coin machine that ignores
 its sampled bits, with the same encoded result distribution. -/
 @[fun_prop]
 theorem Turing.MultiTapeTM.ComputableInPolyTime.isPPTOn {α β : Type}
     {input : α ↪ List Bool} {output : β ↪ List Bool} {f : α → β}
     (h : ComputableInPolyTime f input output) :
-    Cslib.Probability.IsPPTOn input output (fun a => pure (f a)) :=
-  h.tidy.isPPTOn
+    Cslib.Probability.IsPPTOn input output (fun a => pure (f a)) := by
+  obtain ⟨t, s, ht, _, k, State, hfinite, machine, hmachine⟩ := h
+  obtain ⟨c, d, ht⟩ := Cslib.polynomiallyBounded_iff_le.mp ht
+  refine ⟨k, State, hfinite, Turing.MultiTapePTM.ofDeterministic machine, c, d, fun a => ?_⟩
+  rw [Cslib.ProbComp.eval_pure, PMF.pure_map, Turing.MultiTapePTM.eval_runClosed_ofDeterministic]
+  exact congrArg PMF.pure ((hmachine a).runFrom_of_le (ht _)).2.symm

@@ -34,9 +34,9 @@ For the nearly balanced choice `s = tribesSize w` of [O'Donnell, Definition 4.11
 influence is at most `8 Var log n / n` (`Cslib.BitString.influence_tribes_le_mul_log_div`). This is
 the sense in which the Kahn–Kalai–Linial theorem
 `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`, which finds an
-influence of at least `Var log n / (12 n)`, is sharp up to the constant
+influence of at least `Var log n / (4 n)`, is sharp up to the constant
 [KahnKalaiLinial1988] [O'Donnell, Sections 4.2 and 9.6][ODonnell2014]: no constant above `8` can
-replace `1 / 12` for all large `n` (`Cslib.BitString.exists_forall_influence_lt_mul_log_div`). The
+replace `1 / 4` for all large `n` (`Cslib.BitString.exists_forall_influence_lt_mul_log_div`). The
 asymptotic `1 ± o(1)` form is not formalized.
 
 ## Main results
@@ -301,7 +301,7 @@ theorem three_div_four_le_expect_sub_expect_sq_tribes (hw : 2 ≤ w) :
 
 /-- **Tribes witnesses the sharpness of KKL** [O'Donnell, Sections 4.2 and 9.6][ODonnell2014]: on
 `n = s w` bits with `s = tribesSize w` and `w ≥ 2`, every influence of Tribes is at most
-`8 Var log n / n`, against the influence of at least `Var log n / (12 n)` that
+`8 Var log n / n`, against the influence of at least `Var log n / (4 n)` that
 `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence` provides for every
 Boolean function. The constant `8` is ours. -/
 theorem influence_tribes_le_mul_log_div (hw : 2 ≤ w) (k : Fin (tribesSize w * w)) :
@@ -322,7 +322,7 @@ theorem influence_tribes_le_mul_log_div (hw : 2 ≤ w) (k : Fin (tribesSize w * 
 
 /-- **The constant in KKL is at most `8`**: for every `c > 8` and every `n₀` there are `n ≥ n₀` and
 a Boolean function on `n` bits all of whose influences are less than `c Var log n / n`, so no
-constant above `8` can replace `1 / 12` in
+constant above `8` can replace `1 / 4` in
 `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence` for all large `n`
 [KahnKalaiLinial1988] [O'Donnell, Sections 4.2 and 9.6][ODonnell2014]. The constant `8` is
 ours. -/

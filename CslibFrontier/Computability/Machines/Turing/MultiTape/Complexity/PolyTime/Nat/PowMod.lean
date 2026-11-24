@@ -86,12 +86,23 @@ private theorem computableInPolyTime_powMod_succ :
     fun_prop
   have hinit : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => 1 % (p.2.2 + 1))
       (encPair encNat (encPair encNat encNat)) encNat := by
-    fun_prop
+    exact ComputableInPolyTime.binary_mod' (.const 1)
+      (ComputableInPolyTime.binary_add'
+        (ComputableInPolyTime.snd encNat (encPair encNat encNat)).snd' (.const 1))
   have hstep : ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × ℕ) × Bool => step q.1.1 q.1.2 q.2)
       (encPair (encPair (encPair encNat encNat) encNat) encBool) encNat := by
     unfold step
-    fun_prop
+    have hstate := ComputableInPolyTime.fst
+      (encPair (encPair encNat encNat) encNat) encBool
+    have hbit := ComputableInPolyTime.snd
+      (encPair (encPair encNat encNat) encNat) encBool
+    have hm := hstate.fst'.snd'
+    have hr := hstate.snd'
+    exact ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul'
+        (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hr hr) hm)
+        (hbit.ite' hstate.fst'.fst' (.const 1))) hm
   have hfold := ComputableInPolyTime.foldlWith (encP := encPair encNat encNat)
     (encA := encBool) (encL := encBits) (encB := encNat) hpar hlist hinit hstep
     (B := fun p => (encPair encNat (encPair encNat encNat) p).length)

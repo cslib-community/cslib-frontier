@@ -7,16 +7,16 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.Nat.Log
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
-# Compacted Epoch Parameters, Dense Pair-Stream Packing, and `Memory.Prog` Bit-Slice Accessors
+# Compacted Epoch Parameters and Dense Pair-Stream Packing
 
 This module defines the 8-word persistent root header, the 225-word active epoch header, the
 metadata-first compacted epoch layout, and the dense `[0, n)` `(quotient, value)` pair-stream
@@ -26,8 +26,9 @@ W. Kuszmaul, SOSA 2024][BenderFarachColtonKuszmaulKuszmaul2024].
 ## Memory layout (`[metaBase, +offCompItems)` and `[itemBase, +compactedItemWords)`)
 
 1. **Persistent 8-word root header (`[metaBase, metaBase + 8)`):**
-   `[U, V, w, keyBits U, valBits V, N, n, n_init]`. When `n = 0` (`N = 0`), the resting dictionary
-   occupies only these `8` words (`compactedEpochWords U V w 0 0 = 8`).
+   `[U - 1, V - 1, w, keyBits U, valBits V, N, n, n_init]` (storing `U - 1` and `V - 1` so
+   `V = 2 ^ w` fits in a `w`-bit word). When `n = 0` (`N = 0`), the resting dictionary occupies
+   only these `8` words (`compactedEpochWords U V w 0 0 = 8`).
 2. **Active epoch parameter and hash-scratch header (`[metaBase + 8, metaBase + 225)`):**
    * `[metaBase + 8, metaBase + 27)`: 19 words of `RuntimeReducedKWise.HashParams`.
    * `[metaBase + 27, metaBase + 63)`: 36 words of `CompParams`.
@@ -47,8 +48,8 @@ W. Kuszmaul, SOSA 2024][BenderFarachColtonKuszmaulKuszmaul2024].
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.rootHdrWords`, `RootHeaderValid`,
   `EpochValid`, `targetCap`: root header and epoch capacity invariants.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.wOffQ`, `bOffQ`, `wOffV`, `bOffV`,
-  `compactedItemWords`, `readBitSlice`, `writeBitSlice`, `compQuotAt`, `compValAt`,
-  `writeCompQuot`, `writeCompVal`: overflow-free dense `[0, n)` pair-stream packing.
+  `compactedItemWords`, `compQuotAt`, `compValAt`, `writeCompQuot`, `writeCompVal`: overflow-free
+  dense `[0, n)` pair-stream packing.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.epochHdrWords`, `offCompLM`,
   `offCompLMSub`, `offCompGM`, `offTailToDense`, `offDenseToTail`, `offCompItems`,
   `compactedEpochWords`: compacted epoch word offsets and total footprint.
@@ -143,15 +144,14 @@ theorem wOffV_mul_add_bOffV {q_bits v_bits w d : ℕ} :
     _ = d * (q_bits + v_bits) + q_bits := by rw [hq]
 
 /-- Word footprint of `n` densely packed `(quotient, value)` entries in epoch `N`. -/
-@[expose] def compactedItemWords (U V w N n : ℕ) : ℕ :=
+@[expose, wram_arith] def compactedItemWords (U V w N n : ℕ) : ℕ :=
   (n * (quotientBits U N + valBits V) + w - 1) / w + 2
 
 theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
     wOffQ (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n := by
   have hid := wOffQ_mul_add_bOffQ
     (q_bits := quotientBits U N) (v_bits := valBits V) (w := w) (d := d)
-  have hle : d * (quotientBits U N + valBits V) ≤ n * (quotientBits U N + valBits V) :=
-    Nat.mul_le_mul_right _ hd.le
+  have hle : d * (quotientBits U N + valBits V) ≤ n * (quotientBits U N + valBits V) := by gcongr
   have hdiv : wOffQ (quotientBits U N) (valBits V) w d ≤
       (n * (quotientBits U N + valBits V) + w - 1) / w := by
     have h1 : wOffQ (quotientBits U N) (valBits V) w d =
@@ -160,8 +160,7 @@ theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
       rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
     rw [h1]
     exact Nat.div_le_div_right (by omega)
-  unfold compactedItemWords
-  omega
+  wram_omega
 
 theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd : d < n) :
     wOffV (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n := by
@@ -181,14 +180,12 @@ theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
       rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
     rw [h1]
     exact Nat.div_le_div_right (by omega)
-  unfold compactedItemWords
-  omega
+  wram_omega
 
 theorem compactedItemWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedItemWords U V w N n₁ ≤ compactedItemWords U V w N n₂ := by
   unfold compactedItemWords
-  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) :=
-    Nat.mul_le_mul_right _ h
+  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) := by gcongr
   have hdiv : (n₁ * (quotientBits U N + valBits V) + w - 1) / w ≤
       (n₂ * (quotientBits U N + valBits V) + w - 1) / w :=
     Nat.div_le_div_right (by omega)
@@ -205,8 +202,7 @@ theorem compactedItemWords_succ_sub_le_two {U V w N n : ℕ} (hw : 0 < w)
       (n * (quotientBits U N + valBits V) + w - 1) / w + 2 := by
     rw [Nat.add_mul, Nat.one_mul]
     calc (n * (quotientBits U N + valBits V) + (quotientBits U N + valBits V) + w - 1) / w
-        ≤ (n * (quotientBits U N + valBits V) + w - 1 + 2 * w) / w :=
-          Nat.div_le_div_right (by omega)
+        ≤ (n * (quotientBits U N + valBits V) + w - 1 + 2 * w) / w := by gcongr; omega
       _ = (n * (quotientBits U N + valBits V) + w - 1) / w + 2 :=
           Nat.add_mul_div_right _ _ hw
   omega
@@ -383,7 +379,7 @@ theorem compValAt_of_lt {itemBase U V w N n₁ n₂ d : ℕ} (mem : ℕ → ℕ)
 
 /-! ## Section 2: Persistent Root Header, Compacted Epoch Layout, and `1 · OPT` Space Bounds -/
 
-/-- The 8-word persistent root header `[U, V, w, keyBits U, valBits V, N, n, n_init]`. -/
+/-- The 8-word persistent root header `[U - 1, V - 1, w, keyBits U, valBits V, N, n, n_init]`. -/
 @[expose] def rootHdrWords : ℕ := 8
 /-- Word offset `8` of the 19-word `RuntimeReducedKWise.HashParams` vector. -/
 @[expose] def offHashParams : ℕ := 8
@@ -392,7 +388,7 @@ theorem compValAt_of_lt {itemBase U V w N n₁ n₂ d : ℕ} (mem : ℕ → ℕ)
 /-- Word offset `63` of the 162-word limb scratch slice (`63 + 162 = 225`). -/
 @[expose] def offScratch : ℕ := 63
 /-- Word offset `225` where the active epoch's `ReducedKWise` hash table and seed begin. -/
-@[expose] def epochHdrWords : ℕ := 225
+@[expose, wram_arith] def epochHdrWords : ℕ := 225
 
 /-- Persistent 8-word root header invariant at `metaBase`. -/
 structure RootHeaderValid (U V w N n n_init metaBase : ℕ) (mem : ℕ → ℕ) : Prop where
@@ -434,27 +430,27 @@ abbrev epochHashSpace (U w N : ℕ) : ℕ :=
   ReducedKWise.space w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3
 
 /-- Word offset of `LocalMeta` relative to `metaBase` in a compacted epoch of capacity `N`. -/
-@[expose] def offCompLM (U w N : ℕ) : ℕ :=
+@[expose, wram_arith] def offCompLM (U w N : ℕ) : ℕ :=
   epochHdrWords + epochHashSpace U w N
 
 /-- Word offset of the `c`-th `LocalMeta` sub-array (`c < 9`) relative to `metaBase`. -/
-@[expose] def offCompLMSub (U w N c : ℕ) : ℕ :=
+@[expose, wram_arith] def offCompLMSub (U w N c : ℕ) : ℕ :=
   offCompLM U w N + c * lmSubWords N w
 
 /-- Word offset of `GlobalMeta` relative to `metaBase` in a compacted epoch of capacity `N`. -/
-@[expose] def offCompGM (U w N : ℕ) : ℕ :=
+@[expose, wram_arith] def offCompGM (U w N : ℕ) : ℕ :=
   offCompLM U w N + 9 * lmSubWords N w
 
 /-- Word offset of `TailToDense` relative to `metaBase`. -/
-@[expose] def offTailToDense (U w N : ℕ) : ℕ :=
+@[expose, wram_arith] def offTailToDense (U w N : ℕ) : ℕ :=
   offCompGM U w N + packedWords (globalMetaLen N) (globalPtrBits N) w
 
 /-- Word offset of `DenseToTail` relative to `metaBase`. -/
-@[expose] def offDenseToTail (U w N : ℕ) : ℕ :=
+@[expose, wram_arith] def offDenseToTail (U w N : ℕ) : ℕ :=
   offTailToDense U w N + packedWords (maxTailItems N) (globalPtrBits N) w
 
 /-- Word offset of the dense `[0, n)` active `(quotient, value)` stream relative to `metaBase`. -/
-@[expose] def offCompItems (U w N : ℕ) : ℕ :=
+@[expose, wram_arith] def offCompItems (U w N : ℕ) : ℕ :=
   offDenseToTail U w N + packedWords (maxTailItems N) (globalPtrBits N) w
 
 /-- Total resting word footprint of a compacted epoch `(N, n)`:
@@ -484,8 +480,7 @@ theorem quotientBits_le_add_six_of_le_four_mul {n N : ℕ} (U : ℕ)
   have hlog : Nat.log 2 n ≤ Nat.log 2 N := Nat.log_mono_right hnN
   have hll : Dynamic.logLogFactor N ≤ Dynamic.logLogFactor n + 2 :=
     (Dynamic.logLogFactor_mono hN4).trans (Dynamic.logLogFactor_four_mul_le_add_two n)
-  unfold quotientBits bucketBits
-  omega
+  wram_omega
 
 theorem succinctWords_mul_w_le_bits (C C₀ U V w n : ℕ) :
     w * Dynamic.succinctWords C C₀ U V w n ≤

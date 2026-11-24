@@ -22,9 +22,10 @@ import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.StatisticalDistance.Coupling
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Case A unbalanced Feistel transfer and concrete Double-Tabulation round-seed parameters
@@ -277,21 +278,22 @@ theorem dist_caseA_restrict_le {Top ι₀ ι₁ : Type*}
           (S : Set (Fin (2 ^ a)))) :=
       filter_congr fun _ _ => Iff.rfl
     rw [hfilt]
-    linarith
+    exact add_le_add_left hd δ₁
   have hnn : 0 ≤ ((#S * (#S - 1) : ℕ) : ℝ) / (2 * (2 ^ (a - m) : ℝ)) + δ₁ :=
     add_nonneg (by positivity) hδ₁
   refine (dist_bind_of_good _ _ U_target GoodTop hnn hgood_τ).trans ?_
-  linarith
+  rw [add_assoc]; exact add_le_add hδ_top le_rfl
 
 
 /-! ## Section 2: Concrete Double-Tabulation + `oddMulModWord` parameters and failure bounds -/
 
 /-- Number of composed 3-round Naor–Reingold blocks `18 * (c + 2) = O(c)` in Case B. -/
+@[wram_arith]
 def nrRounds (c : ℕ) : ℕ := 18 * (c + 2)
 
 theorem nrRounds_eq (c : ℕ) : nrRounds c = 18 * (c + 2) := by unfold nrRounds; rfl
 
-theorem one_le_nrRounds (c : ℕ) : 1 ≤ nrRounds c := by unfold nrRounds; omega
+theorem one_le_nrRounds (c : ℕ) : 1 ≤ nrRounds c := by wram_omega
 
 /-- Logarithmic independence order `κ = 8 * (c + 3) * ⌈log₂ (max n 2)⌉ = Θ(c log n)`. -/
 def quotientPermInd (c n : ℕ) : ℕ := 8 * (c + 3) * Nat.clog 2 (max n 2)
@@ -306,18 +308,21 @@ theorem quotientPermRedBits_eq (c n : ℕ) :
     quotientPermRedBits c n = (c + 5) * Nat.clog 2 (max n 4) := by unfold quotientPermRedBits; rfl
 
 /-- Double-tabulation character bit-width `b = max 1 (⌊log₂ n⌋ / 4)`. -/
+@[wram_arith]
 def quotientPermCharBits (n : ℕ) : ℕ := max 1 (Nat.log 2 n / 4)
 
 theorem quotientPermCharBits_eq (n : ℕ) :
     quotientPermCharBits n = max 1 (Nat.log 2 n / 4) := by unfold quotientPermCharBits; rfl
 
 /-- Number of input characters `c_tab = 8 * (c + 5)` for the shared top-level table. -/
+@[wram_arith]
 def quotientPermChars (c : ℕ) : ℕ := 8 * (c + 5)
 
 theorem quotientPermChars_eq (c : ℕ) :
     quotientPermChars c = 8 * (c + 5) := by unfold quotientPermChars; rfl
 
 /-- Code repetition parameter `q_tab = 4 * c + 11` in `DoubleTabulation.card_not_isKUnique_le`. -/
+@[wram_arith]
 def quotientPermRep (c : ℕ) : ℕ := 4 * c + 11
 
 theorem quotientPermRep_eq (c : ℕ) :
@@ -376,11 +381,9 @@ private theorem clog_max_le_eight_mul_charBits_aux {c n : ℕ} (hn : quotientPer
   have hmin_pos := one_le_quotientPermMinB c
   have hlog : 4 * quotientPermMinB c ≤ Nat.log 2 n :=
     Nat.le_log_of_pow_le (by decide) hn
-  have hb_min : quotientPermMinB c ≤ quotientPermCharBits n := by
-    unfold quotientPermCharBits; omega
+  have hb_min : quotientPermMinB c ≤ quotientPermCharBits n := by wram_omega
   have h4n : 4 ≤ n := (four_le_quotientPermThreshold c).trans hn
-  have hlog_ub : Nat.log 2 n + 1 ≤ 8 * quotientPermCharBits n := by
-    unfold quotientPermCharBits; omega
+  have hlog_ub : Nat.log 2 n + 1 ≤ 8 * quotientPermCharBits n := by wram_omega
   have hn_pow : max n 4 ≤ 2 ^ (8 * quotientPermCharBits n) := by
     rw [max_eq_left h4n]
     exact (Nat.lt_pow_succ_log_self (by decide) n).le.trans
@@ -416,13 +419,26 @@ private theorem threshold_charBits_bounds {c n : ℕ} (hn : quotientPermThreshol
     calc quotientPermInd c n = 8 * (c + 3) * Nat.clog 2 (max n 2) := rfl
       _ ≤ 8 * (c + 5) * (8 * quotientPermCharBits n) := Nat.mul_le_mul (by omega) hclog2
       _ = 8 * quotientPermChars c * quotientPermCharBits n := by unfold quotientPermChars; ring
-  have hc_ge : 40 ≤ quotientPermChars c := by unfold quotientPermChars; omega
-  have hq_ge : 11 ≤ quotientPermRep c := by unfold quotientPermRep; omega
-  have hD_ge : 44 * quotientPermChars c ≤ quotientPermCodeExp c := by
-    unfold quotientPermCodeExp; nlinarith
+  have hc_ge : 40 ≤ quotientPermChars c := by wram_omega
+  have hq_ge : 11 ≤ quotientPermRep c := by wram_omega
+  have hD_ge : 44 * quotientPermChars c ≤ quotientPermCodeExp c :=
+    (by omega : 44 * _ ≤ (4 * _ + 1) * 11).trans
+      (Nat.le_succ_of_le (Nat.mul_le_mul_left _ hq_ge))
   have hmin_eq : 4 * (quotientPermCodeExp c) ^ 2 ≤ quotientPermCharBits n := hb_min
   exact ⟨h4n, hn_pow, hκ_le, hc_ge, hq_ge,
     (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hD_ge 2)).trans hmin_eq, hmin_eq⟩
+
+private theorem mul_chars_le_charBits {c n : ℕ} (hn : quotientPermThreshold c ≤ n) :
+    7040 * quotientPermChars c ≤ quotientPermCharBits n := by
+  obtain ⟨_, _, _, hc_ge, _, hb_44c, _⟩ := threshold_charBits_bounds hn
+  rw [mul_pow] at hb_44c
+  have := Nat.le_self_pow (n := 2) (by decide) (quotientPermChars c); omega
+
+private theorem mul_sq_le_two_pow {a κ m : ℕ} (ha : a ≤ m) (hκ : κ ≤ m ^ 2)
+    (hm : 4 * 5 ^ 2 ≤ m) : a * κ ^ 2 ≤ 2 ^ m :=
+  calc a * κ ^ 2 ≤ m * (m ^ 2) ^ 2 := Nat.mul_le_mul ha (Nat.pow_le_pow_left hκ 2)
+    _ = m ^ 5 := by ring
+    _ ≤ 2 ^ m := Nat.pow_le_two_pow (by decide) hm
 
 /-- Top-level `k`-uniqueness failure probability `≤ 1 / (8 * n ^ (c + 2))` above
 `quotientPermThreshold c`. -/
@@ -436,7 +452,7 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
   have hκ_pos : 0 < quotientPermInd c n := by
     have : 1 ≤ Nat.clog 2 (max n 2) := Nat.clog_pos (by decide) (by omega)
     unfold quotientPermInd; positivity
-  have hq1 : 4 * (c + 2) + 1 ≤ quotientPermRep c - 1 := by unfold quotientPermRep; omega
+  have hq1 : 4 * (c + 2) + 1 ≤ quotientPermRep c - 1 := by wram_omega
   have hD_eq : quotientPermCodeExp c = (4 * quotientPermChars c + 1) * quotientPermRep c + 1 := rfl
   have hd_eq : quotientPermInter c = 2 * quotientPermRep c * quotientPermChars c := rfl
   generalize quotientPermChars c = c_tab at *
@@ -446,10 +462,14 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
   generalize quotientPermInd c n = κ at *
   generalize quotientPermCodeExp c = D at *
   subst hd_eq
-  have hb_c2 : 8 * c_tab ^ 2 ≤ b_char := by nlinarith
-  have hb_d : 2 * q_tab * c_tab ≤ b_char := by nlinarith
-  have hb_4c : 4 * c_tab ≤ b_char := by nlinarith
-  have hcκ : c_tab * κ ≤ b_char ^ 2 := by nlinarith
+  have hb_c2 : 8 * c_tab ^ 2 ≤ b_char := by rw [mul_pow] at hb_44c; omega
+  have hb_4c : 4 * c_tab ≤ b_char := by have := Nat.le_self_pow (n := 2) (by decide) c_tab; omega
+  have hD_le : D ≤ b_char := by have := Nat.le_self_pow (n := 2) (by decide) D; omega
+  have hb_d : 2 * q_tab * c_tab ≤ b_char := (by rw [hD_eq]; ring_nf; omega : _ ≤ D).trans hD_le
+  have hcκ : c_tab * κ ≤ b_char ^ 2 := by
+    calc c_tab * κ ≤ c_tab * (8 * c_tab * b_char) := Nat.mul_le_mul_left _ hκ_le
+      _ = 8 * c_tab ^ 2 * b_char := by ring
+      _ ≤ b_char ^ 2 := by rw [sq b_char]; exact Nat.mul_le_mul_right _ hb_c2
   have hinner : (c_tab * κ) ^ (2 * c_tab) * (2 * q_tab * c_tab) ≤ b_char ^ (4 * c_tab + 1) := by
     calc (c_tab * κ) ^ (2 * c_tab) * (2 * q_tab * c_tab)
         ≤ (b_char ^ 2) ^ (2 * c_tab) * b_char :=
@@ -476,9 +496,9 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
       _ ≤ 2 ^ (4 * (c + 2) * b_char) * 2 ^ b_char := Nat.mul_le_mul_left _ h4B
       _ = 2 ^ (4 * (c + 2) * b_char + b_char) := (pow_add _ _ _).symm
       _ ≤ W := Nat.pow_le_pow_right (by decide) hexp_W
-  have h2B : 2 * B ≤ W := by
-    have : 1 ≤ 2 ^ (4 * (c + 2) * b_char) := Nat.one_le_two_pow
-    nlinarith
+  have h2B : 2 * B ≤ W :=
+    (Nat.mul_le_mul_right B (by have := @Nat.one_le_two_pow (4 * (c + 2) * b_char); omega)).trans
+      hWB
   have hcard := card_not_isKUnique_le (c := c_tab) (d := 2 * q_tab * c_tab) (b := b_char)
     (q := q_tab) (k := κ) (by omega) (by omega) rfl h2B
   have hnpow_c : n ^ (c + 2) ≤ (2 ^ (4 * (c + 2) * b_char)) ^ 2 := by
@@ -511,9 +531,7 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
       IsKUnique κ (simpleTabTuple T₁)}ᶜ : Set _)) = Bad :=
     filter_congr fun _ _ => Iff.rfl
   rw [hfilt, div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity)]
-  have hnat : #Bad * (8 * n ^ (c + 2)) ≤
-      Fintype.card (DoubleTabTopSeed c_tab (2 * q_tab * c_tab) b_char) := by linarith
-  simpa [one_mul] using (Nat.cast_le (α := ℝ)).mpr hnat
+  exact_mod_cast (by simpa only [one_mul, mul_comm #Bad] using hmul_bad)
 
 /-- Multiply-shift reduction non-injectivity bound `≤ 1 / (16 * n ^ (c + 1))` on any `#X ≤ n`. -/
 theorem prob_not_injOn_reduceBits_le {c n s_in : ℕ} (hn : quotientPermThreshold c ≤ n)
@@ -545,7 +563,7 @@ theorem prob_not_injOn_reduceBits_le {c n s_in : ℕ} (hn : quotientPermThreshol
     have hR_pow : 16 * n ^ (c + 1) * n ^ 2 ≤ 2 ^ quotientPermRedBits c n := by
       calc 16 * n ^ (c + 1) * n ^ 2
           ≤ n ^ 2 * n ^ (c + 1) * n ^ 2 :=
-            Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (by nlinarith))
+            Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left h4n 2))
         _ = n ^ (c + 5) := by ring
         _ ≤ (2 ^ Nat.clog 2 (max n 4)) ^ (c + 5) := Nat.pow_le_pow_left hn_clog _
         _ = 2 ^ quotientPermRedBits c n := by
@@ -566,8 +584,7 @@ theorem prob_not_injOn_reduceBits_le {c n s_in : ℕ} (hn : quotientPermThreshol
       unfold reduceBits
       simp [Bad, mem_sdiff, mem_reducedGoodTop]
     rw [hfilt, div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity)]
-    have hnat : #Bad * (16 * n ^ (c + 1)) ≤ Fintype.card (Fin (2 ^ (s_in - 1))) := by linarith
-    simpa [one_mul] using (Nat.cast_le (α := ℝ)).mpr hnat
+    exact_mod_cast (by simpa only [one_mul, mul_comm #Bad] using hmul)
 
 /-- Quantitative Naor–Reingold contraction bound `≤ 1 / (8 * n ^ (c + 2))` for `nrRounds c`
 blocks whenever `2 * quotientPermCharBits n ≤ a'` and `quotientPermThreshold c ≤ n`. -/
@@ -576,40 +593,28 @@ theorem nr_contraction_quotientPerm_le {c n a' : ℕ} (hn : quotientPermThreshol
     (1 / 2 : ℝ) *
       (3 * (quotientPermInd c n : ℝ) ^ 2 / (2 ^ nrHalfLow a' : ℝ)) ^ (nrRounds c) ≤
       1 / (8 * (n : ℝ) ^ (c + 2)) := by
-  obtain ⟨_, hn_pow, hκ_le, hc_ge, _, hb_44c, _⟩ := threshold_charBits_bounds hn
-  have hb_lo : quotientPermCharBits n ≤ nrHalfLow a' := by
-    unfold nrHalfLow; omega
+  obtain ⟨_, hn_pow, hκ_le, hc_ge, _, _, _⟩ := threshold_charBits_bounds hn
+  have hb_lin := mul_chars_le_charBits hn
+  have hb_lo : quotientPermCharBits n ≤ nrHalfLow a' := by wram_omega
   generalize quotientPermChars c = c_tab at *
   generalize quotientPermCharBits n = b_char at *
   generalize quotientPermInd c n = κ at *
   set h_char := b_char / 2
-  have hh_24c : 24 * c_tab ≤ h_char := by
-    have : 48 * c_tab + 2 ≤ b_char := by nlinarith
-    omega
-  have hh_100 : 4 * 5 ^ 2 ≤ h_char := by
-    have : 202 ≤ b_char := by nlinarith
-    omega
   have hκ_h2 : κ ≤ h_char ^ 2 := by
     have hb_2h : b_char ≤ 3 * h_char := by omega
     calc κ ≤ 8 * c_tab * b_char := hκ_le
       _ ≤ 8 * c_tab * (3 * h_char) := Nat.mul_le_mul_left _ hb_2h
       _ = (24 * c_tab) * h_char := by ring
-      _ ≤ h_char * h_char := Nat.mul_le_mul_right _ hh_24c
+      _ ≤ h_char * h_char := Nat.mul_le_mul_right _ (by omega)
       _ = h_char ^ 2 := (sq h_char).symm
-  have h3κ : 3 * κ ^ 2 ≤ 2 ^ h_char := by
-    calc 3 * κ ^ 2 ≤ h_char * (h_char ^ 2) ^ 2 :=
-          Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left hκ_h2 2)
-      _ = h_char ^ 5 := by ring
-      _ ≤ 2 ^ h_char := Nat.pow_le_two_pow (by decide) hh_100
+  have h3κ : 3 * κ ^ 2 ≤ 2 ^ h_char := mul_sq_le_two_pow (by omega) hκ_h2 (by omega)
   have hstep_nat : 3 * κ ^ 2 * 2 ^ h_char ≤ 2 ^ nrHalfLow a' := by
     calc 3 * κ ^ 2 * 2 ^ h_char ≤ 2 ^ h_char * 2 ^ h_char := Nat.mul_le_mul_right _ h3κ
       _ = 2 ^ (2 * h_char) := by rw [← pow_add, two_mul]
       _ ≤ 2 ^ nrHalfLow a' := Nat.pow_le_pow_right (by decide) (by omega)
   have hstep_real : 3 * (κ : ℝ) ^ 2 / (2 ^ nrHalfLow a' : ℝ) ≤ 1 / (2 ^ h_char : ℝ) := by
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    have : (3 * (κ : ℝ) ^ 2) * (2 ^ h_char : ℝ) ≤ 1 * (2 ^ nrHalfLow a' : ℝ) := by
-      exact_mod_cast (by simpa only [one_mul] using hstep_nat)
-    exact this
+    exact_mod_cast (by simpa only [one_mul] using hstep_nat)
   have hexp : 8 * (c + 2) * b_char + 2 ≤ h_char * nrRounds c := by
     unfold nrRounds
     have h18 : 8 * b_char + 2 ≤ 18 * h_char := by omega
@@ -626,9 +631,8 @@ theorem nr_contraction_quotientPerm_le {c n a' : ℕ} (hn : quotientPermThreshol
           rw [← pow_mul, ← pow_add]; exact congrArg (2 ^ ·) (by ring)
       _ ≤ 2 ^ (h_char * nrRounds c) := Nat.pow_le_pow_right (by decide) hexp
   have hden_real : 8 * (n : ℝ) ^ (c + 2) ≤ 2 * ((2 ^ h_char : ℝ) ^ nrRounds c) := by
-    have h4 : 4 * (n : ℝ) ^ (c + 2) ≤ (2 : ℝ) ^ (h_char * nrRounds c) := by exact_mod_cast hden_nat
     rw [← pow_mul]
-    linarith
+    exact_mod_cast (by omega : 8 * n ^ (c + 2) ≤ 2 * 2 ^ (h_char * nrRounds c))
   calc (1 / 2 : ℝ) * (3 * (κ : ℝ) ^ 2 / (2 ^ nrHalfLow a' : ℝ)) ^ nrRounds c
       ≤ (1 / 2 : ℝ) * (1 / (2 ^ h_char : ℝ)) ^ nrRounds c := by
         gcongr
@@ -647,29 +651,23 @@ theorem quotientPermInd_le_self_of_threshold {c n : ℕ} (hn : quotientPermThres
   have hmin_pos := one_le_quotientPermMinB c
   have hlog : 4 * quotientPermMinB c ≤ Nat.log 2 n :=
     Nat.le_log_of_pow_le (by decide : 1 < 2) hn
-  have hb_log : 4 * quotientPermCharBits n ≤ Nat.log 2 n := by
-    unfold quotientPermCharBits; omega
-  obtain ⟨h4n, _, hκ_le, hc_ge, _, hb_44c, _⟩ := threshold_charBits_bounds hn
-  have hκ_ge : 2 ≤ quotientPermInd c n := by
-    have : 1 ≤ Nat.clog 2 (max n 2) := Nat.clog_pos (by decide) (by omega)
-    unfold quotientPermInd; nlinarith
+  have hb_log : 4 * quotientPermCharBits n ≤ Nat.log 2 n := by wram_omega
+  obtain ⟨h4n, _, hκ_le, hc_ge, _, _, _⟩ := threshold_charBits_bounds hn
+  have hb_lin := mul_chars_le_charBits hn
+  have hκ_ge : 2 ≤ quotientPermInd c n :=
+    (by omega : 2 ≤ 8 * (c + 3) * 1).trans
+      (Nat.mul_le_mul_left _ (Nat.clog_pos (by decide) (by omega)))
   generalize quotientPermChars c = c_tab at *
   generalize quotientPermCharBits n = b_char at *
   generalize quotientPermInd c n = κ at *
-  have hb_8c : 8 * c_tab ≤ b_char := by nlinarith
-  have hb_100 : 4 * 5 ^ 2 ≤ b_char := by nlinarith
   have hκ_b2 : κ ≤ b_char ^ 2 := by
     calc κ ≤ 8 * c_tab * b_char := hκ_le
-      _ ≤ b_char * b_char := Nat.mul_le_mul_right _ hb_8c
+      _ ≤ b_char * b_char := Nat.mul_le_mul_right _ (by omega)
       _ = b_char ^ 2 := (sq b_char).symm
-  have h2κ2 : 2 * κ ^ 2 ≤ 2 ^ b_char := by
-    calc 2 * κ ^ 2 ≤ b_char * (b_char ^ 2) ^ 2 :=
-          Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left hκ_b2 2)
-      _ = b_char ^ 5 := by ring
-      _ ≤ 2 ^ b_char := Nat.pow_le_two_pow (by decide) hb_100
+  have h2κ2 : 2 * κ ^ 2 ≤ 2 ^ b_char := mul_sq_le_two_pow (by omega) hκ_b2 (by omega)
   have hn_pos : 0 < n := lt_of_lt_of_le (by decide : 0 < 4) h4n
   refine ⟨hb_log, hκ_ge, ?_, h2κ2⟩
-  calc κ ≤ 2 * κ ^ 2 := by nlinarith
+  calc κ ≤ 2 * κ ^ 2 := (Nat.le_self_pow (n := 2) (by decide) κ).trans (by omega)
     _ ≤ 2 ^ b_char := h2κ2
     _ ≤ 2 ^ Nat.log 2 n := Nat.pow_le_pow_right (by decide) (by omega)
     _ ≤ n := Nat.pow_log_le_self 2 hn_pos.ne'
@@ -762,9 +760,7 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
         _ = 2 ^ caseAGap c n := by unfold caseAGap; rw [← pow_mul, Nat.mul_comm]
         _ ≤ 2 ^ (a - m) := Nat.pow_le_pow_right (by decide) hgap'
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
-    have hreal : ((#S * (#S - 1) : ℕ) : ℝ) * (n : ℝ) ^ (c + 1) ≤ (2 ^ (a - m) : ℝ) := by
-      exact_mod_cast hnat
-    linarith
+    exact_mod_cast (by simpa only [one_mul, mul_left_comm _ 2] using Nat.mul_le_mul_left 2 hnat)
   have hgroup : ((PMF.uniformOfFintype Top).bind fun τ =>
       (PMF.uniformOfFintype (Fin (2 ^ (m - 1)))).bind fun α₀ =>
         (PMF.uniformOfFintype BotA₀).bind fun botA₀ =>
@@ -848,8 +844,8 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
   have hr₃ : 1 / (32 * (n : ℝ) ^ (c + 1)) + 1 / (16 * (n : ℝ) ^ (c + 1)) +
       1 / (2 * (n : ℝ) ^ (c + 1)) + 1 / (16 * (n : ℝ) ^ (c + 1)) =
       (21 / 32 : ℝ) * (1 / (n : ℝ) ^ (c + 1)) := by ring
-  have hpos_pow : 0 ≤ 1 / (n : ℝ) ^ (c + 1) := by positivity
-  linarith
+  refine habs.trans ((add_le_add (add_le_add (add_le_add hτ_le le_rfl) hquot_div) le_rfl).trans ?_)
+  rw [hr₃]; exact mul_le_of_le_one_left (by positivity) (by norm_num)
 
 /-- Concrete double-tabulation 1-round Feistel shard-load tail bound via
 `FeistelPerm.dens_exists_bucketLoad_sub_ge_le`. -/

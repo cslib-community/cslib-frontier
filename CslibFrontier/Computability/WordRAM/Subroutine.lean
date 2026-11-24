@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Composable Word-RAM subroutine infrastructure
@@ -108,14 +110,12 @@ theorem ExecWithin.loop_potential_retain {B : Basis} {r w : ℕ} {cond : Cond r}
       ∃ y T, ExecWithin w body x y T ∧ I y ∧ T + 2 + Φ y ≤ Φ x)
     {x : Data r} (hx : I x) :
     ∃ z T, ExecWithin w (.loop cond body) x z T ∧ I z ∧ ¬cond.Holds z ∧ T + Φ z ≤ Φ x + 2 := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
-    by_cases hc : cond.Holds x
-    · obtain ⟨y, T₁, hy, hIy, hΦ⟩ := hbody x hx hc
-      obtain ⟨z, T₂, hz, hIz, hcz, hΦz⟩ := ih (Φ y) (by omega) hIy rfl
-      exact ⟨z, T₁ + T₂ + 2, .loop_iter hc hy hz, hIz, hcz, by omega⟩
-    · exact ⟨x, 2, .loop_exit hc, hx, hc, by omega⟩
+  by_cases hc : cond.Holds x
+  · obtain ⟨y, T₁, hy, hIy, hΦ⟩ := hbody x hx hc
+    obtain ⟨z, T₂, hz, hIz, hcz, hΦz⟩ := ExecWithin.loop_potential_retain I Φ hbody hIy
+    exact ⟨z, T₁ + T₂ + 2, .loop_iter hc hy hz, hIz, hcz, by omega⟩
+  · exact ⟨x, 2, .loop_exit hc, hx, hc, by omega⟩
+termination_by Φ x
 
 /-- `Data.comap` preserves `Bounded w`. -/
 theorem Data.Bounded.comap {r r' w : ℕ} {x : Data r'} (hx : x.Bounded w) (f : Fin r → Fin r') :
@@ -395,6 +395,7 @@ variable {B B' : Basis} {r_ds r_caller k_init w base : ℕ}
   {Result : O → Type z} {valid : State → O → Prop} {params : Fin k_init → ℕ} {s₀ : State}
 
 /-- Total instruction bound for `P.initFresh`. -/
+@[wram_arith]
 def initTime (C : SubroutineBase P Result valid w base params s₀) : ℕ :=
   C.spanTime + C.setupTime
 
@@ -501,7 +502,7 @@ theorem initClear_exec (C : SubroutineBase P Result valid w base params s₀) {x
   rw [hm₁] at hmod₂
   have hmod : Modifies (Block.mk base C.space).footprint x.mem y.mem := by
     simpa only [Finset.union_idempotent] using hmod₂.trans hmod₃
-  exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by unfold initTime; omega), hfr₃, hrep, hpot, hmod⟩
+  exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by wram_omega), hfr₃, hrep, hpot, hmod⟩
 
 /-- Relocated dirty-memory initialization along any injective register embedding `f`, in
 `C.initTime + 4 * C.space + 6` instructions. -/

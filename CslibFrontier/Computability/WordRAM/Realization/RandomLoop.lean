@@ -70,11 +70,8 @@ theorem iterate (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ
   let zero := tmp (zeroSlot l n)
   let bt : Fin (l + n + 1) → Fin r := fun i => tmp (bodySlot i)
   let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
-  let bs := Fin.append env st
-  obtain ⟨hbt, hbdis, hbf, hbs⟩ := bodyBank_layout (env := env) hi bodySlot_injective
-    stateSlot_ne_bodySlot (fun _ _ => hd _ _) hf (fun _ => hs _)
-  obtain ⟨hnw, hrun⟩ := he frontier bs bt hbt hbdis hbf hbs
-  refine ⟨loopEmit_not_readsWidth emit hnw, ?_⟩
+  obtain ⟨hnw, hrun⟩ := loopEmit_instantiate emit he hi hd hf hs
+  refine ⟨hnw, ?_⟩
   intro w ⟨⟨d₀, a₀⟩, fuel⟩ x hx hin hsafe hv
   let s₀ := memoryState frontier x
   let D := (Memory.spec w).toRandomized.withCoins

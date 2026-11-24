@@ -10,6 +10,7 @@ module
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RepeatUntilBlank
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryTake
 public import CslibFrontier.Languages.Probabilistic.Iteration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 
@@ -182,7 +183,7 @@ theorem run_interpret_runOracleConfigFrom_add (cfg : Config k Bool State Operati
 configuration. -/
 theorem apply_idle_wordsCfg {S : Type} (q q' : Option S) (ws : Fin k → List Bool)
     (out : List Bool) : (idle q).apply (wordsCfg x q' ws out) = wordsCfg x q ws out := by
-  refine Cfg.ext rfl ?_ ?_ ?_ ?_ <;> simp [idle, Turing.Action.apply, wordsCfg]
+  tm_step [idle]
 
 omit [DecidableEq Operation] in
 /-- Such an instruction also leaves every oracle channel unchanged. -/

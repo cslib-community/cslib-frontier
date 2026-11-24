@@ -88,7 +88,7 @@ public section
 
 namespace Cslib.Circuits.Frontier
 
-open GaloisRingArith Cslib.GenericRAM Cslib.GenericRAM.StackRecursion Turing.MultiTapeTM
+open GaloisRingArith Cslib.GenericRAM Cslib.Algorithms.StackRecursion Turing.MultiTapeTM
   ContractionSchedule
 
 variable {T : Type}

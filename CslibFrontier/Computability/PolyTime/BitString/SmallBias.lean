@@ -113,12 +113,7 @@ theorem poweringWord_eq {w : ℕ} (hw : w ≠ 0) (n : ℕ) (x y : BitString w) :
     have h := congrFun (congrArg (equivBits hw)
       (fieldOfBits_powerWord hw (List.ofFn x) i)) ⟨j, hjw⟩
     rw [equivBits_fieldOfBits] at h
-    have hx : fieldOfBits (basis hw) (List.ofFn x) = (equivBits hw).symm x := by
-      rw [fieldOfBits_basis]
-      congr 1
-      funext u
-      simp
-    rw [hx] at h
+    rw [fieldOfBits_ofFn] at h
     rw [← getD_listRow_zero w _ _ hjw] at h
     rw [List.getD_eq_getElem (listRow w 0 (powerWord (fieldTable w) (List.ofFn x) i)) false
       (by simpa using hjw)] at h
