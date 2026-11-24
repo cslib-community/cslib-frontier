@@ -9,10 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.RingTheory.PowerSeries.Meixner
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Terms
 public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
-import Mathlib.RingTheory.Ideal.Quotient.Defs
-import Mathlib.RingTheory.Ideal.Span
 
 /-!
 # The determinant `Ψ`
@@ -22,15 +19,16 @@ four sites `a, b, c, d`; a word at a site is a pair (rows, columns) of tuples of
 (`Word`). `psi x` is the determinant of the matrix `matM x` with the blocks (rows `a, d | c, b`,
 columns `a, d | c, b`) `ad: C`, `cb: -(y - 1) C`, `ac: Λ`, `ab: (y - 1) Λ B`, `dc: Bᵀ Λ`,
 `db: -Λ`, and minus the transposes, where `y = x²`. Ring homomorphisms commute with it
-(`map_psi`).
+(`map_psi`). Its value at `x = 1` and its reflection under `x ↦ 1/x` are proved with
+Proposition B.2 (`Separation.Curvature.Identity`).
 
 ## Main definitions
 
-* `Word`, `matM`, `psi`, and the blocks `blX`, `blY`, `blU`, `facA`, `facB`.
+* `Word`, `matM`, `psi`, and the blocks `blX`, `blY`, `blU`.
 
 ## Main results
 
-* `map_matM`, `map_psi`, `dvd_det_sub`.
+* `map_matM`, `map_psi`.
 
 ## References
 
@@ -44,8 +42,21 @@ namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
 open Matrix Finset PowerSeries
 
-/-- Words: rows and columns at a site. -/
-abbrev Word (μ : ℕ) := (Fin μ → ℕ) × (Fin μ → ℕ)
+/-- A word at a site: the tuples of row indices and of column indices. -/
+@[ext] structure Word (μ : ℕ) where
+  /-- The row indices. -/
+  row : Fin μ → ℕ
+  /-- The column indices. -/
+  col : Fin μ → ℕ
+
+/-- The word with rows and columns exchanged. -/
+def Word.swap {μ : ℕ} (w : Word μ) : Word μ := ⟨w.col, w.row⟩
+
+@[simp] theorem Word.row_swap {μ : ℕ} (w : Word μ) : w.swap.row = w.col := by rfl
+
+@[simp] theorem Word.col_swap {μ : ℕ} (w : Word μ) : w.swap.col = w.row := by rfl
+
+@[simp] theorem Word.swap_swap {μ : ℕ} (w : Word μ) : w.swap.swap = w := by rfl
 
 section blocks
 
@@ -53,21 +64,21 @@ variable {R : Type*} [CommRing R] {μ ν : ℕ}
 
 /-- The block of rows and columns at `a, d`: the paper's `M₁`. -/
 def blX (x : R) (sa : Word μ) (sd : Word ν) : Matrix (Fin μ ⊕ Fin ν) (Fin μ ⊕ Fin ν) R :=
-  fromBlocks 0 (of fun i j => meixnerC (x ^ 2) (sa.1 i) (sd.2 j))
-    (of fun i j => -meixnerC (x ^ 2) (sa.2 j) (sd.1 i)) 0
+  fromBlocks 0 (of fun i j => meixnerC (x ^ 2) (sa.row i) (sd.col j))
+    (of fun i j => -meixnerC (x ^ 2) (sa.col j) (sd.row i)) 0
 
 /-- The block of rows and columns at `c, b`: the paper's `M₂`. -/
 def blY (x : R) (sc : Word μ) (sb : Word ν) : Matrix (Fin μ ⊕ Fin ν) (Fin μ ⊕ Fin ν) R :=
-  fromBlocks 0 (of fun i j => -((x ^ 2 - 1) * meixnerC (x ^ 2) (sc.1 i) (sb.2 j)))
-    (of fun i j => (x ^ 2 - 1) * meixnerC (x ^ 2) (sc.2 j) (sb.1 i)) 0
+  fromBlocks 0 (of fun i j => -((x ^ 2 - 1) * meixnerC (x ^ 2) (sc.row i) (sb.col j)))
+    (of fun i j => (x ^ 2 - 1) * meixnerC (x ^ 2) (sc.col j) (sb.row i)) 0
 
 /-- The block of rows at `a, d` and columns at `c, b`. -/
 def blU (x : R) (sa : Word μ) (sd : Word ν) (sc : Word μ) (sb : Word ν) :
     Matrix (Fin μ ⊕ Fin ν) (Fin μ ⊕ Fin ν) R :=
-  fromBlocks (of fun i j => if sa.1 i = sc.2 j then x ^ (2 * sa.1 i + 1) else 0)
-    (of fun i j => (x ^ 2 - 1) * (x ^ (2 * sa.1 i + 1) * meixnerB (x ^ 2) (sa.1 i) (sb.2 j)))
-    (of fun i j => x ^ (2 * sc.2 j + 1) * meixnerB (x ^ 2) (sc.2 j) (sd.1 i))
-    (of fun i j => -(if sd.1 i = sb.2 j then x ^ (2 * sd.1 i + 1) else 0))
+  fromBlocks (of fun i j => if sa.row i = sc.col j then x ^ (2 * sa.row i + 1) else 0)
+    (of fun i j => (x ^ 2 - 1) * (x ^ (2 * sa.row i + 1) * meixnerB (x ^ 2) (sa.row i) (sb.col j)))
+    (of fun i j => x ^ (2 * sc.col j + 1) * meixnerB (x ^ 2) (sc.col j) (sd.row i))
+    (of fun i j => -(if sd.row i = sb.col j then x ^ (2 * sd.row i + 1) else 0))
 
 /-- The paper's matrix **M**, with the rows and the columns in the order `a, d | c, b`. -/
 def matM (x : R) (sa : Word μ) (sb : Word ν) (sc : Word μ) (sd : Word ν) :
@@ -91,33 +102,6 @@ theorem map_psi {S : Type*} [CommRing S] (f : R →+* S) (x : R) (sa : Word μ) 
     (sd : Word ν) : f (psi x sa sb sc sd) = psi (f x) sa sb sc sd := by
   rw [psi, psi, RingHom.map_det, map_matM]
 
-/-- The paper's `F`: the rows `([r = i])_{r<K}` for `i ∈ I_a` and `(B(r,i))_{r<K}` for `i ∈ I_d`. -/
-def facA (K : ℕ) (x : R) (sa : Word μ) (sd : Word ν) : Matrix (Fin μ ⊕ Fin ν) (Fin K) R :=
-  of (Sum.elim (fun i r => if sa.1 i = (r : ℕ) then 1 else 0) fun i r =>
-      meixnerB (x ^ 2) r (sd.1 i))
-
-/-- The paper's `G`: the columns `([r = j])_{r<K}` for `j ∈ J_c` and `((y−1)B(r,j))_{r<K}` for `j ∈
-J_b`. -/
-def facB (K : ℕ) (x : R) (sc : Word μ) (sb : Word ν) : Matrix (Fin K) (Fin μ ⊕ Fin ν) R :=
-  of fun r => Sum.elim (fun j => if (r : ℕ) = sc.2 j then 1 else 0)
-    fun j => (x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.2 j)
-
-theorem sum_ite_val (K n : ℕ) (f : ℕ → R) :
-    ∑ r : Fin K, (if n = (r : ℕ) then f r else 0) = if n < K then f n else 0 := by
-  rw [Fin.sum_univ_eq_sum_range (fun r => if n = r then f r else 0) K, Finset.sum_ite_eq]
-  simp
-
 end blocks
-
-/-- Congruent matrices have congruent determinants. -/
-theorem dvd_det_sub {R n : Type*} [CommRing R] [Fintype n] [DecidableEq n] (d : R)
-    (M N : Matrix n n R)
-    (h : ∀ i j, d ∣ M i j - N i j) : d ∣ M.det - N.det := by
-  rw [← Ideal.mem_span_singleton, ← Ideal.Quotient.eq, RingHom.map_det, RingHom.map_det]
-  congr 1
-  ext i j
-  simp only [RingHom.mapMatrix_apply, Matrix.map_apply]
-  rw [Ideal.Quotient.eq, Ideal.mem_span_singleton]
-  exact h i j
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

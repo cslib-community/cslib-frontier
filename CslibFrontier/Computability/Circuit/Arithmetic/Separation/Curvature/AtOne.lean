@@ -8,14 +8,16 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Psi
-import Cslib.Tactic.Membership
+public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
+import Mathlib.Order.Hom.Set
 
 /-!
-# The value of `Ψ` at `x = 1`: a determinant
+# The determinant of coincidences of two increasing tuples
 
-For Proposition B.2 (prop:identity) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]: the
-determinant of coincidences of two strictly increasing tuples (`det_coinc`).
+For Proposition B.2 (prop:identity) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]: for two
+strictly increasing tuples `f, g` of natural numbers, the matrix `[f i = g j]` has determinant
+`[f = g]` (`det_coinc`). The value of `Ψ` at `x = 1` reduces to it in the proof of
+Proposition B.2.
 
 ## Main results
 

@@ -5,12 +5,14 @@ Authors: Anthropic
 -/
 
 module
--- upstream: candidate
+-- upstream: candidate (Mathlib, beside Mathlib/LinearAlgebra/Matrix/Block.lean)
 
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 import Mathlib.LinearAlgebra.Matrix.Block
 import Mathlib.LinearAlgebra.Multilinear.Curry
+import Mathlib.RingTheory.Ideal.Quotient.Defs
+import Mathlib.RingTheory.Ideal.Span
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -34,6 +36,8 @@ rows of `∏_{r ∈ T} l r` times the determinant with the rows `v r` for `r ∈
 
 * `Matrix.det_glue_eq_zero_of_card_ne`, `Matrix.exists_det_glue_eq_mul`.
 * `Matrix.det_sumElim_smul_add`.
+* `Matrix.dvd_det_sub`: matrices that are congruent modulo `d` entrywise have congruent
+  determinants.
 
 ## References
 
@@ -47,25 +51,29 @@ namespace Matrix
 
 open Finset
 
-section split
+section glue
 
-variable {ι : Type*} [Fintype ι] [DecidableEq ι] {R : Type*} [CommRing R]
+variable {ι R : Type*} [Zero R]
 
 /-- The matrix with the entries of `N₁` in the rows and columns of the first group, those of `N₂`
-in the rows
-and columns of the second, and zeros elsewhere. -/
+in the rows and columns of the second, and zeros elsewhere. -/
 def glue (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg] (N₁ N₂ : Matrix ι ι R) :
     Matrix ι ι R :=
   of fun i j => if rg i then (if cg j then N₁ i j else 0) else (if cg j then 0 else N₂ i j)
 
-omit [Fintype ι] [DecidableEq ι] in
 @[simp] theorem glue_apply (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg]
     (N₁ N₂ : Matrix ι ι R) (i j : ι) :
     glue rg cg N₁ N₂ i j =
       if rg i then (if cg j then N₁ i j else 0) else (if cg j then 0 else N₂ i j) := by
   rfl
 
-theorem det_glue_eq_zero_of_card_lt (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg]
+end glue
+
+section split
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] {R : Type*} [CommRing R]
+
+private theorem det_glue_eq_zero_of_card_lt (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg]
     (N₁ N₂ : Matrix ι ι R) (h : (univ.filter cg).card < (univ.filter rg).card) :
     (glue rg cg N₁ N₂).det = 0 := by
   rw [det_apply]
@@ -164,5 +172,16 @@ theorem det_sumElim_smul_add (P : n → (n ⊕ m) → R) (l : m → R) (v e : m 
     _ = _ := Finset.sum_congr rfl fun T _ => by rw [h2, hg]
 
 end expand
+
+/-- Congruent matrices have congruent determinants. -/
+theorem dvd_det_sub {R n : Type*} [CommRing R] [Fintype n] [DecidableEq n] (d : R)
+    (M N : Matrix n n R)
+    (h : ∀ i j, d ∣ M i j - N i j) : d ∣ M.det - N.det := by
+  rw [← Ideal.mem_span_singleton, ← Ideal.Quotient.eq, RingHom.map_det, RingHom.map_det]
+  congr 1
+  ext i j
+  simp only [RingHom.mapMatrix_apply, Matrix.map_apply]
+  rw [Ideal.Quotient.eq, Ideal.mem_span_singleton]
+  exact h i j
 
 end Matrix

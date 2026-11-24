@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GlueDeterminant
-import Mathlib.Algebra.Polynomial.Basic
 
 /-!
 # States, and the terms of the expansion of `det [[X, AΛB], [B'ΛA', Y]]`
@@ -36,17 +35,17 @@ is the matrix whose determinant is the term of `T` in the expansion of
   Proposition B.2 of the paper; module `Nc.Cross.Near`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
 open Matrix Finset
 
 /-- The energy `∑ (2i+1)` of a set. -/
-def energy (S : Finset ℕ) : ℕ := ∑ i ∈ S, (2 * i + 1)
+@[expose] def energy (S : Finset ℕ) : ℕ := ∑ i ∈ S, (2 * i + 1)
 
 /-- The states of energy at most `E`. -/
-def lowStates (E : ℕ) : Finset (Finset ℕ × Finset ℕ) :=
+@[expose] def lowStates (E : ℕ) : Finset (Finset ℕ × Finset ℕ) :=
   ((range E).powerset ×ˢ (range E).powerset).filter
     fun s => s.1.card = s.2.card ∧ energy s.1 + energy s.2 ≤ E
 
@@ -71,35 +70,35 @@ variable {p q ρ : Type*} [Fintype p] [DecidableEq p] [Fintype q] [DecidableEq q
 variable {R : Type*} [CommRing R]
 
 /-- The upper rows `(X, 0, A, 0)` and `(0, Y, 0, B')` of the big matrix. -/
-def topRows (X : Matrix p p R) (A : Matrix p ρ R) (Y : Matrix q q R) (B' : Matrix q ρ R) :
+@[expose] def topRows (X : Matrix p p R) (A : Matrix p ρ R) (Y : Matrix q q R) (B' : Matrix q ρ R) :
     p ⊕ q → (p ⊕ q) ⊕ (ρ ⊕ ρ) → R :=
   fun i => Sum.elim (fromBlocks X 0 0 Y i) (fromBlocks A 0 0 B' i)
 
 /-- The parts `(0, −B, 0, 0)` and `(−A', 0, 0, 0)` of the lower rows, without the factors from `Λ`.
 -/
-def lowRows (A' : Matrix ρ p R) (B : Matrix ρ q R) : ρ ⊕ ρ → (p ⊕ q) ⊕ (ρ ⊕ ρ) → R :=
+@[expose] def lowRows (A' : Matrix ρ p R) (B : Matrix ρ q R) : ρ ⊕ ρ → (p ⊕ q) ⊕ (ρ ⊕ ρ) → R :=
   fun r => Sum.elim (-(fromBlocks 0 B A' 0 : Matrix (ρ ⊕ ρ) (p ⊕ q) R) r) 0
 
 /-- The parts of the lower rows with the entry 1. -/
-def unitRows : ρ ⊕ ρ → (p ⊕ q) ⊕ (ρ ⊕ ρ) → R :=
+@[expose] def unitRows : ρ ⊕ ρ → (p ⊕ q) ⊕ (ρ ⊕ ρ) → R :=
   fun r => Sum.elim 0 ((1 : Matrix (ρ ⊕ ρ) (ρ ⊕ ρ) R) r)
 
 /-- The matrix of the term of `T`: in the lower rows in `T` the first part is taken, in the others
 the entry 1. -/
-def termMat (T : Finset (ρ ⊕ ρ)) (X : Matrix p p R) (A : Matrix p ρ R) (A' : Matrix ρ p R)
+@[expose] def termMat (T : Finset (ρ ⊕ ρ)) (X : Matrix p p R) (A : Matrix p ρ R) (A' : Matrix ρ p R)
     (Y : Matrix q q R) (B : Matrix ρ q R) (B' : Matrix q ρ R) :
     Matrix ((p ⊕ q) ⊕ (ρ ⊕ ρ)) ((p ⊕ q) ⊕ (ρ ⊕ ρ)) R :=
   of (Sum.elim (topRows X A Y B') (T.piecewise (lowRows A' B) unitRows))
 
 /-- Columns of the first group. -/
-def colGroup : (p ⊕ q) ⊕ (ρ ⊕ ρ) → Prop
+@[expose] def colGroup : (p ⊕ q) ⊕ (ρ ⊕ ρ) → Prop
   | Sum.inl (Sum.inl _) => True
   | Sum.inl (Sum.inr _) => False
   | Sum.inr (Sum.inl _) => True
   | Sum.inr (Sum.inr _) => False
 
 /-- Rows of the first group. -/
-def rowGroup (T : Finset (ρ ⊕ ρ)) : (p ⊕ q) ⊕ (ρ ⊕ ρ) → Prop
+@[expose] def rowGroup (T : Finset (ρ ⊕ ρ)) : (p ⊕ q) ⊕ (ρ ⊕ ρ) → Prop
   | Sum.inl (Sum.inl _) => True
   | Sum.inl (Sum.inr _) => False
   | Sum.inr (Sum.inl r) => Sum.inl r ∉ T
@@ -162,20 +161,5 @@ theorem card_rowGroup (T : Finset (ρ ⊕ ρ)) :
   omega
 
 end
-
-section coeff
-
-open Polynomial
-
-/-- The paper's `E(T)`, for `T = (T₁, T₂)`. -/
-def enT {K : ℕ} (T : Finset (Fin K ⊕ Fin K)) : ℕ :=
-  ∑ r ∈ T, Sum.elim (fun r : Fin K => 2 * (r : ℕ) + 1) (fun r : Fin K => 2 * (r : ℕ) + 1) r
-
-/-- The `T` with `|T₁| = |T₂|` and `E(T) ≤ N`: the terms that contribute to the coefficient of
-`x^N`. -/
-def goodT (K N : ℕ) : Finset (Finset (Fin K ⊕ Fin K)) :=
-  univ.filter fun T => T.toLeft.card = T.toRight.card ∧ enT T ≤ N
-
-end coeff
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

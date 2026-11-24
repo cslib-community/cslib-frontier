@@ -33,7 +33,7 @@ logarithm of the number of states of bounded energy (`logLowStates`).
   Lemma B.1 of the paper; module `Nc.Cross.Count`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
@@ -138,7 +138,7 @@ theorem two_le_card_lowStates : 2 ≤ (lowStates 2).card := by
   simp
 
 /-- The sets of energy at most `E`. -/
-def lowSets (E : ℕ) : Finset (Finset ℕ) := (range E).powerset.filter fun S => energy S ≤ E
+@[expose] def lowSets (E : ℕ) : Finset (Finset ℕ) := (range E).powerset.filter fun S => energy S ≤ E
 
 /-- The states of energy at most `E` are pairs of sets of energy at most `E`. -/
 theorem card_lowStates_le (E : ℕ) : (lowStates E).card ≤ (lowSets E).card * (lowSets E).card := by
@@ -150,7 +150,7 @@ theorem card_lowStates_le (E : ℕ) : (lowStates E).card ≤ (lowSets E).card * 
   exact ⟨⟨hs.1.1, by omega⟩, hs.1.2, by omega⟩
 
 /-- The logarithm of the number of states. -/
-noncomputable def logLowStates (E : ℕ) : ℝ := Real.log (lowStates E).card
+@[expose] noncomputable def logLowStates (E : ℕ) : ℝ := Real.log (lowStates E).card
 
 theorem logLowStates_nonneg (E : ℕ) : 0 ≤ logLowStates E := Real.log_natCast_nonneg _
 
@@ -174,7 +174,7 @@ theorem logLowStates_zero : logLowStates 0 = 0 := by
   rw [logLowStates, this]
   simp
 
-theorem lp_mono {E E' : ℕ} (h : E ≤ E') : logLowStates E ≤ logLowStates E' :=
+theorem logLowStates_mono {E E' : ℕ} (h : E ≤ E') : logLowStates E ≤ logLowStates E' :=
   Real.log_le_log (by exact_mod_cast lowStates_card_pos E)
       (by exact_mod_cast card_le_card (lowStates_mono h))
 

@@ -16,7 +16,8 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvatur
 For the reflection step of the proof of Proposition B.2 (prop:identity) of *VP ≠ VNP over every
 field* [AnthropicVPVNP2026]: the permutation that exchanges the sites `b` and `d` (`exchangeBD`),
 the multipliers of the rows and columns (`multiplier`, `multiplier'`), and the energy of a word
-(`wordEnergy`).
+(`wordEnergy`). The reflection identity itself is proved with Proposition B.2
+(`Separation.Curvature.Identity`).
 
 ## Main definitions
 
@@ -33,8 +34,6 @@ the multipliers of the rows and columns (`multiplier`, `multiplier'`), and the e
 -/
 
 @[expose] public section
-
-set_option linter.unusedSimpArgs false
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
@@ -73,7 +72,7 @@ def multiplier' (x : R) : (Fin μ ⊕ Fin ν) ⊕ (Fin μ ⊕ Fin ν) → R :=
   Sum.elim (Sum.elim (fun _ => 1) fun _ => 1) (Sum.elim (fun _ => 1) fun _ => 1 - x ^ 2)
 
 /-- The energy of a word. -/
-def wordEnergy (s : Word μ) : ℕ := ∑ i, (2 * s.1 i + 1) + ∑ i, (2 * s.2 i + 1)
+def wordEnergy (s : Word μ) : ℕ := ∑ i, (2 * s.row i + 1) + ∑ i, (2 * s.col i + 1)
 
 theorem prod_multiplier (x : R) (fa : Fin μ → ℕ) (fb : Fin ν → ℕ) (fc : Fin μ → ℕ)
     (fd : Fin ν → ℕ) :

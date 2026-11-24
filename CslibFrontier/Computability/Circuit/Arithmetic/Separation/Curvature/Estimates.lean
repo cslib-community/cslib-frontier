@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
 import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 
 /-!
@@ -34,6 +34,7 @@ namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
 open Finset Filter
 
+/-- `log (A n + 1) ≤ η √n` for all large `n`, for every `A ≥ 0` and `η > 0`. -/
 theorem eventually_log_le_mul_sqrt {A : ℝ} (hA : 0 ≤ A) {η : ℝ} (hη : 0 < η) :
     ∀ᶠ n : ℕ in atTop, Real.log (A * n + 1) ≤ η * Real.sqrt n := by
   have h1 : (fun x : ℝ => Real.log x) =o[atTop] fun x => x ^ (1 / 2 : ℝ) :=
@@ -52,14 +53,17 @@ theorem eventually_log_le_mul_sqrt {A : ℝ} (hA : 0 ≤ A) {η : ℝ} (hη : 0 
     _ = Real.log (A + 1) + Real.log n := Real.log_mul (by positivity) (by positivity)
     _ ≤ _ := by linarith
 
-theorem floor_sq_mul_le {p : ℝ} (n : ℕ) : ((⌊p ^ 2 * n⌋₊ : ℕ) : ℝ) ≤ p ^ 2 * n :=
+private theorem floor_sq_mul_le {p : ℝ} (n : ℕ) : ((⌊p ^ 2 * n⌋₊ : ℕ) : ℝ) ≤ p ^ 2 * n :=
     Nat.floor_le (by positivity)
 
+/-- `√⌊p² n⌋ ≤ p √n` for `p ≥ 0`. -/
 theorem sqrt_floor_le {p : ℝ} (hp : 0 ≤ p) (n : ℕ) :
     Real.sqrt (⌊p ^ 2 * n⌋₊ : ℕ) ≤ p * Real.sqrt n := by
   rw [Real.sqrt_le_left (by positivity), mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
   exact floor_sq_mul_le n
 
+/-- If `log P(E) ≥ (c - ε) √E` for all large `E`, then the states of energy at most `⌊p² n⌋`
+satisfy `log P(⌊p² n⌋) - 2 log (⌊p² n⌋ + 1) ≥ c p √n - η √n` for all large `n`. -/
 theorem eventually_le_logLowStates_floor {c : ℝ} (hc : 0 < c)
     (hl : ∀ ε > 0, ∃ E₀ : ℕ, ∀ E, E₀ ≤ E → (c - ε) * Real.sqrt E ≤ logLowStates E)
         {p : ℝ} (hp : 0 ≤ p)

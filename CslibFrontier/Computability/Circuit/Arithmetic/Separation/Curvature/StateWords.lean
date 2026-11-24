@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
 
 /-!
@@ -33,7 +32,7 @@ The index sets of Proposition B.2 (prop:identity) of *VP ≠ VNP over every fiel
   Proposition B.2 of the paper; module `Nc.Cross.Ident`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
@@ -42,6 +41,11 @@ open Finset
 /-- The states of size `μ` and energy `e`. -/
 def states (μ e : ℕ) : Finset (Finset ℕ × Finset ℕ) :=
   (lowStates e).filter fun s => s.1.card = μ ∧ s.2.card = μ ∧ energy s.1 + energy s.2 = e
+
+@[simp] theorem mem_states {μ e : ℕ} {s : Finset ℕ × Finset ℕ} :
+    s ∈ states μ e ↔
+      s ∈ lowStates e ∧ s.1.card = μ ∧ s.2.card = μ ∧ energy s.1 + energy s.2 = e :=
+  mem_filter
 
 section word
 
@@ -57,10 +61,10 @@ theorem card_snd_of_mem_states (s : ↥(states μ e)) : s.val.2.card = μ := (st
 
 /-- The word of a state. -/
 def word (s : ↥(states μ e)) : Word μ :=
-  (s.val.1.orderEmbOfFin (card_fst_of_mem_states s),
-    s.val.2.orderEmbOfFin (card_snd_of_mem_states s))
+  ⟨s.val.1.orderEmbOfFin (card_fst_of_mem_states s),
+    s.val.2.orderEmbOfFin (card_snd_of_mem_states s)⟩
 
-theorem word_strictMono (s : ↥(states μ e)) : StrictMono (word s).1 ∧ StrictMono (word s).2 :=
+theorem word_strictMono (s : ↥(states μ e)) : StrictMono (word s).row ∧ StrictMono (word s).col :=
   ⟨(s.val.1.orderEmbOfFin (states_prop s).1).strictMono,
       (s.val.2.orderEmbOfFin (states_prop s).2.1).strictMono⟩
 
@@ -69,14 +73,14 @@ theorem word_injective : Function.Injective (word : ↥(states μ e) → Word μ
   have h1 : ((s.val.1 : Finset ℕ) : Set ℕ) = s'.val.1 := by
     rw [← Finset.range_orderEmbOfFin _ (states_prop s).1,
         ← Finset.range_orderEmbOfFin _ (states_prop s').1]
-    exact congrArg Set.range (Prod.ext_iff.1 h).1
+    exact congrArg Set.range (congrArg Word.row h)
   have h2 : ((s.val.2 : Finset ℕ) : Set ℕ) = s'.val.2 := by
     rw [← Finset.range_orderEmbOfFin _ (states_prop s).2.1,
         ← Finset.range_orderEmbOfFin _ (states_prop s').2.1]
-    exact congrArg Set.range (Prod.ext_iff.1 h).2
+    exact congrArg Set.range (congrArg Word.col h)
   exact Subtype.ext (Prod.ext (Finset.coe_injective h1) (Finset.coe_injective h2))
 
-theorem sum_orderEmb (S : Finset ℕ) {k : ℕ} (h : S.card = k) :
+private theorem sum_orderEmb (S : Finset ℕ) {k : ℕ} (h : S.card = k) :
     ∑ i, (2 * S.orderEmbOfFin h i + 1) = energy S := by
   conv_rhs => rw [energy, ← Finset.map_orderEmbOfFin_univ S h, Finset.sum_map]
   rfl

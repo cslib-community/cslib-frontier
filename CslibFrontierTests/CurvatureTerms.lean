@@ -7,7 +7,10 @@ Authors: Anthropic
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.GlueDeterminant
 import CslibFrontier.Foundations.RingTheory.PowerSeries.Meixner
 
@@ -15,7 +18,8 @@ import CslibFrontier.Foundations.RingTheory.PowerSeries.Meixner
 
 * glued determinants vanish when the groups have different sizes;
 * the two coefficient families: their recursions, generating functions and orthogonality;
-* the states of bounded energy;
+* the states of bounded energy, a state of size `1` and energy `2` and its word;
+* the coincidence determinant, the matrix `Ψ`, the multipliers and the term matrices;
 * logarithms against square roots. -/
 
 namespace CslibFrontierTests.CurvatureTerms
@@ -54,5 +58,40 @@ example (E : ℕ) : (lowStates E).card ≤ (lowSets E).card ^ 2 := by
 /-- `log (2 n + 1) ≤ √n / 10` for all large `n`. -/
 example : ∀ᶠ n : ℕ in atTop, Real.log (2 * n + 1) ≤ (1 / 10) * Real.sqrt n :=
   eventually_log_le_mul_sqrt (by norm_num) (by norm_num)
+
+/-- The coincidence determinant of two equal increasing tuples is `1`. -/
+example : (Matrix.of fun i j : Fin 2 => if ![0, 3] i = ![0, 3] j then (1 : ℤ) else 0).det = 1 := by
+  rw [det_coinc (R := ℤ) ![0, 3] ![0, 3] (by decide) (by decide)]
+  simp
+
+/-- The coincidence determinant of two different increasing tuples is `0`. -/
+example : (Matrix.of fun i j : Fin 2 => if ![0, 3] i = ![1, 3] j then (1 : ℤ) else 0).det = 0 := by
+  rw [det_coinc (R := ℤ) ![0, 3] ![1, 3] (by decide) (by decide)]
+  exact ite_eq_right fun h => by simpa using congrFun h 0
+
+/-- The state `({0}, {0})` has size `1` and energy `2`, and its word has energy `2`. -/
+example : (({0}, {0}) : Finset ℕ × Finset ℕ) ∈ states 1 2 ∧
+    wordEnergy (word (⟨({0}, {0}), by simp [mem_lowStates, energy]⟩ : ↥(states 1 2))) = 2 :=
+  ⟨by simp [mem_lowStates, energy], wordEnergy_word _⟩
+
+/-- Ring homomorphisms commute with `Ψ`. -/
+example (x : ℤ) (sa sb sc sd : Word 1) :
+    Int.castRingHom ℚ (psi x sa sb sc sd) = psi (x : ℚ) sa sb sc sd :=
+  map_psi _ x sa sb sc sd
+
+/-- The product of the multipliers for one row and column at each site. -/
+example (x : ℤ) (fa fb fc fd : Fin 1 → ℕ) :
+    ∏ i, multiplier x fa fb fc fd i = (x ^ 2 - 1) ^ 1 *
+      x ^ ((∑ i, (2 * fa i + 1)) + (∑ i, (2 * fc i + 1)) + (∑ i, 2 * fd i) +
+        ∑ i, (2 * fb i + 2)) :=
+  prod_multiplier x fa fb fc fd
+
+/-- A term matrix of the expansion is glued from its two halves. -/
+example (T : Finset (Fin 1 ⊕ Fin 1)) (X Y : Matrix (Fin 2) (Fin 2) ℤ)
+    (A B' : Matrix (Fin 2) (Fin 1) ℤ)
+    (A' B : Matrix (Fin 1) (Fin 2) ℤ) :
+    termMat T X A A' Y B B' =
+      Matrix.glue (rowGroup T) colGroup (termMat T X A A' 0 0 0) (termMat T 0 0 0 Y B B') :=
+  termMat_eq_glue T X A A' Y B B'
 
 end CslibFrontierTests.CurvatureTerms

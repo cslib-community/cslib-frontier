@@ -5,7 +5,7 @@ Authors: Anthropic
 -/
 
 module
--- upstream: candidate
+-- upstream: candidate (Mathlib, beside Mathlib/RingTheory/PowerSeries/Basic.lean)
 
 public import CslibFrontier.Init
 public import Mathlib.RingTheory.PowerSeries.Basic
@@ -64,9 +64,9 @@ def meixnerC (y : R) : ℕ → ℕ → R
   | r + 1, n + 1 => meixnerC y r (n + 1) + y * meixnerC y r n - meixnerC y (r + 1) n
 termination_by r n => (r, n)
 
-theorem meixnerB_zero (y : R) (n : ℕ) : meixnerB y 0 n = (-y) ^ n := by rw [meixnerB]
+@[simp] theorem meixnerB_zero (y : R) (n : ℕ) : meixnerB y 0 n = (-y) ^ n := by rw [meixnerB]
 
-theorem meixnerB_zero_right (y : R) (r : ℕ) : meixnerB y r 0 = 1 := by
+@[simp] theorem meixnerB_zero_right (y : R) (r : ℕ) : meixnerB y r 0 = 1 := by
   cases r with
   | zero => rw [meixnerB, pow_zero]
   | succ r => rw [meixnerB]
@@ -75,9 +75,9 @@ theorem meixnerB_succ (y : R) (r n : ℕ) :
     meixnerB y (r + 1) (n + 1) = meixnerB y r (n + 1) + meixnerB y r n - y *
         meixnerB y (r + 1) n := by rw [meixnerB]
 
-theorem meixnerC_zero (y : R) (n : ℕ) : meixnerC y 0 n = (-1) ^ n := by rw [meixnerC]
+@[simp] theorem meixnerC_zero (y : R) (n : ℕ) : meixnerC y 0 n = (-1) ^ n := by rw [meixnerC]
 
-theorem meixnerC_zero_right (y : R) (r : ℕ) : meixnerC y r 0 = 1 := by
+@[simp] theorem meixnerC_zero_right (y : R) (r : ℕ) : meixnerC y r 0 = 1 := by
   cases r with
   | zero => rw [meixnerC, pow_zero]
   | succ r => rw [meixnerC]
@@ -113,9 +113,7 @@ private theorem coeff_mk_mul_one_add_succ (f : ℕ → R) (a : R) (n : ℕ) :
     coeff (n + 1) (mk f * (1 + C a * X)) = f (n + 1) + f n * a := by
   simp [mul_add, ← mul_assoc, coeff_succ_mul_X]
 
-/-- "Let B(r,n) and C(r,n) be the coefficients of tⁿ in (1+t)^r/(1+yt)^(r+1) and
-(1+yt)^r/(1+t)^(r+1)." For B: the recursion
-that defines Nc.Cross.mB gives the coefficients of the first series. -/
+/-- `meixnerB y r` is the sequence of coefficients of `(1 + X)^r / (1 + y X)^(r + 1)`. -/
 theorem mk_meixnerB_mul_pow (y : R) (r : ℕ) :
     mk (meixnerB y r) * (1 + C y * X) ^ (r + 1) = (1 + X) ^ r := by
   induction r with
@@ -139,8 +137,7 @@ theorem mk_meixnerB_mul_pow (y : R) (r : ℕ) :
     rw [map_one, one_mul] at step
     rw [pow_succ' _ (r + 1), ← mul_assoc, step, mul_right_comm, ih, pow_succ]
 
-/-- The same sentence for C: the recursion that defines Nc.Cross.mC gives the coefficients of
-(1+yt)^r/(1+t)^(r+1). -/
+/-- `meixnerC y r` is the sequence of coefficients of `(1 + y X)^r / (1 + X)^(r + 1)`. -/
 theorem mk_meixnerC_mul_pow (y : R) (r : ℕ) :
     mk (meixnerC y r) * (1 + X) ^ (r + 1) = (1 + C y * X) ^ r := by
   have one : (1 + X : PowerSeries R) = 1 + C 1 * X := by rw [map_one, one_mul]
@@ -193,9 +190,25 @@ private theorem sum_range_pow_mul_sub (y : R) (u v : ℕ → R) (N : ℕ) (h : �
     rw [Finset.sum_range_succ, ih, h]
     ring
 
+/-- The first family against `1`: `(1 - y) ∑_{r<N} y^r B(r, k + 1) ≡ 0` modulo `y^N`. -/
+private theorem pow_dvd_sum_meixnerB_succ (y : R) (N k : ℕ) :
+    y ^ N ∣ (1 - y) * ∑ r ∈ Finset.range N, y ^ r * meixnerB y r (k + 1) := by
+  have := sum_range_pow_mul_sub y (fun r => meixnerB y r (k + 1) + meixnerB y r k)
+      (fun r => meixnerB y r (k + 1) + y * meixnerB y r k) N
+    (fun r => by rw [meixnerB_succ]; ring)
+  refine ⟨-(meixnerB y N (k + 1) + y * meixnerB y N k), ?_⟩
+  simp only [meixnerB_zero] at this
+  rw [Finset.mul_sum]
+  have e : ∑ r ∈ Finset.range N, (1 - y) * (y ^ r * meixnerB y r (k + 1)) =
+      ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r (k + 1) + y * meixnerB y r k
+        - y * (meixnerB y r (k + 1) + meixnerB y r k)) :=
+    Finset.sum_congr rfl fun r _ => by ring
+  rw [e, this]
+  ring
+
 /-- Orthogonality modulo `y^N`: `(1 - y) ∑_{r<N} y^r B(r, i) B(r, j) ≡ [i = j] y^i`, where
-`B = meixnerB y`, for any element `y` of any commutative ring (the display (eq:orth) in the proof
-of Proposition B.2 of [AnthropicVPVNP2026], where `y` is the variable of `ℤ[y]`). -/
+`B = meixnerB y`, for any element `y` of any commutative ring (the display (B.1) (eq:orth) in the
+proof of Proposition B.2 of [AnthropicVPVNP2026], where `y` is the variable of `ℤ[y]`). -/
 theorem pow_dvd_meixnerB_orthogonality (y : R) (N i j : ℕ) :
     y ^ N ∣ (1 - y) * ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r i * meixnerB y r j)
       - (if i = j then y ^ i else 0) := by
@@ -210,35 +223,11 @@ theorem pow_dvd_meixnerB_orthogonality (y : R) (N i j : ℕ) :
       rw [← Finset.sum_mul] at this
       linear_combination this
     | succ j =>
-      have := sum_range_pow_mul_sub y (fun r => meixnerB y r (j + 1) + meixnerB y r j)
-          (fun r => meixnerB y r (j + 1) + y * meixnerB y r j) N
-        (fun r => by rw [meixnerB_succ]; ring)
-      refine ⟨-(meixnerB y N (j + 1) + y * meixnerB y N j), ?_⟩
-      simp only [meixnerB_zero_right, one_mul, (Nat.succ_ne_zero j).symm, ite_false, meixnerB_zero]
-          at this ⊢
-      rw [Finset.mul_sum]
-      have e : ∑ r ∈ Finset.range N, (1 - y) * (y ^ r * meixnerB y r (j + 1)) =
-          ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r (j + 1) + y * meixnerB y r j
-            - y * (meixnerB y r (j + 1) + meixnerB y r j)) :=
-        Finset.sum_congr rfl fun r _ => by ring
-      rw [e, this]
-      ring
+      simpa [(Nat.succ_ne_zero j).symm] using pow_dvd_sum_meixnerB_succ y N j
   | succ i ih =>
     cases j with
     | zero =>
-      have := sum_range_pow_mul_sub y (fun r => meixnerB y r (i + 1) + meixnerB y r i)
-          (fun r => meixnerB y r (i + 1) + y * meixnerB y r i) N
-        (fun r => by rw [meixnerB_succ]; ring)
-      refine ⟨-(meixnerB y N (i + 1) + y * meixnerB y N i), ?_⟩
-      simp only [meixnerB_zero_right, mul_one, Nat.succ_ne_zero i, ite_false, meixnerB_zero]
-          at this ⊢
-      rw [Finset.mul_sum]
-      have e : ∑ r ∈ Finset.range N, (1 - y) * (y ^ r * meixnerB y r (i + 1)) =
-          ∑ r ∈ Finset.range N, y ^ r * (meixnerB y r (i + 1) + y * meixnerB y r i
-            - y * (meixnerB y r (i + 1) + meixnerB y r i)) :=
-        Finset.sum_congr rfl fun r _ => by ring
-      rw [e, this]
-      ring
+      simpa [Nat.succ_ne_zero i] using pow_dvd_sum_meixnerB_succ y N i
     | succ j =>
       have := sum_range_pow_mul_sub y
         (fun r => (meixnerB y r (i + 1) + meixnerB y r i) * (meixnerB y r (j + 1) + meixnerB y r j))
