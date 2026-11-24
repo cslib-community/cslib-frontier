@@ -3126,6 +3126,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateReindex
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentCounts
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentRestriction
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Components
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ConnectedEuler
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CornerContraction
