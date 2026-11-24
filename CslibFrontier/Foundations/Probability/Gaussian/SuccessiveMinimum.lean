@@ -8,12 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Analysis.Lattice.Minimum
-public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
-public import Mathlib.Analysis.InnerProductSpace.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
-public import Mathlib.LinearAlgebra.BilinearForm.DualLattice
 
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import Mathlib.Analysis.SpecificLimits.Normed
