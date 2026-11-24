@@ -8502,6 +8502,7 @@ public import CslibFrontier.GameTheory.Mechanism.Knapsack
 public import CslibFrontier.GameTheory.Mechanism.LinearValuation
 public import CslibFrontier.GameTheory.Mechanism.Myerson
 public import CslibFrontier.GameTheory.Mechanism.OptimalAuction
+public import CslibFrontier.GameTheory.Mechanism.PostedPrice
 public import CslibFrontier.GameTheory.Mechanism.Revenue
 public import CslibFrontier.GameTheory.Mechanism.SingleParameter
 public import CslibFrontier.GameTheory.Mechanism.VCG
@@ -9483,6 +9484,7 @@ public import CslibFrontier.Probability.MutualInformation.DataProcessing
 public import CslibFrontier.Probability.OptimalStopping.Basic
 public import CslibFrontier.Probability.OptimalStopping.Prophet
 public import CslibFrontier.Probability.OptimalStopping.ProphetIID
+public import CslibFrontier.Probability.OptimalStopping.ProphetSample
 public import CslibFrontier.Probability.OptimalStopping.Secretary
 public import CslibFrontier.Probability.Option
 public import CslibFrontier.Probability.PMF
