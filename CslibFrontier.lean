@@ -609,6 +609,12 @@ public import CslibFrontier.Algorithms.WordRAM.HamiltonianCount
 public import CslibFrontier.Algorithms.WordRAM.HeldKarp
 public import CslibFrontier.Algorithms.WordRAM.Histogram
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.BFS
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.DFS
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.DFSStep
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.Internal
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.Layout
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp.MatrixCSR
 public import CslibFrontier.Algorithms.WordRAM.Huffman
 public import CslibFrontier.Algorithms.WordRAM.Hungarian
 public import CslibFrontier.Algorithms.WordRAM.KMP
