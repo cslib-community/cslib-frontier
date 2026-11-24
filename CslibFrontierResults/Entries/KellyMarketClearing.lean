@@ -22,7 +22,7 @@ open Cslib.GameTheory
 register_result "johari-tsitsiklis-market-clearing-characterization" where
   title := "Johari–Tsitsiklis characterization of smooth market-clearing mechanisms and 3/4 \
     optimality of proportional sharing"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := Johari2007,
       theorem := "Theorem 21.10",
