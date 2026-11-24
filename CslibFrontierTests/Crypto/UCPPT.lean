@@ -588,9 +588,10 @@ theorem coinStore_wordRun_delivers_coin
       exact PMF.pure_map (fun x : Unit × List Bool => (x, ())) ((), s')
     let sInit : (coinStore.toProtocol κ ∅).State := ([] : List Bool)
     have hinit : (coinStore.toProtocol κ ∅).init = pure sInit := rfl
-    simp only [wordRun, hinit, map_pure, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-      ProbOracleComp.runWith_map, ProbComp.eval_pure, PMF.pure_map, PMF.pure_bind]
-    simp only [wordRunFrom, coinEnv, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
+    simp only [wordRunWith, hinit, map_pure, ProbOracleComp.runWith_bind,
+      ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, ProbComp.eval_pure, PMF.pure_map,
+      PMF.pure_bind]
+    simp only [wordRunFromWith, coinEnv, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,
       OracleComp.interpret_pure, StateT.run_bind, StateT.run_map, StateT.run_pure]

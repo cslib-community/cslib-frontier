@@ -58,10 +58,11 @@ Definition 6 of [Canetti2020]. In particular:
   parameters `(secParam, replyBound, aux)` for a UC environment and their encoding.
 * `Cslib.Crypto.Protocols.UC.WordCodec`, `Cslib.Crypto.Protocols.UC.StateCodec`: injective binary
   state presentation with total left-inverse decoder for a UC machine or ideal functionality.
-* `Cslib.Crypto.Protocols.UC.wordHandle`, `Cslib.Crypto.Protocols.UC.wordRunFrom`,
+* `Cslib.Crypto.Protocols.UC.wordHandle`, `Cslib.Crypto.Protocols.UC.wordRunFromWith`,
+  `Cslib.Crypto.Protocols.UC.wordRunWith`, `Cslib.Crypto.Protocols.UC.wordRunFrom`,
   `Cslib.Crypto.Protocols.UC.wordRun`: one word-level activation of a typed UC machine family, its
-  state-passing execution from an encoded state, and the full word-level execution of a lowered
-  environment against `wordHandle` from sampled initial state.
+  parameterized and fixed-corruption state-passing executions from an encoded state, and the full
+  word-level execution of a lowered environment against `wordHandle` from sampled initial state.
 * `Cslib.Crypto.Protocols.UC.PPTCertificate`: strict-PPT certificate for a UC machine family
   (`init`, `handle`, and polynomially bounded additive state growth `preserve`).
 * `Cslib.Crypto.Protocols.UC.Machine.IsPPTFamily`, `Cslib.Crypto.Protocols.UC.Protocol.IsPPT`,
@@ -75,9 +76,11 @@ Definition 6 of [Canetti2020]. In particular:
 
 * `Cslib.Crypto.Protocols.UC.PPTCertificate.preserve_wordHandle`: invariant-and-growth bridge
   from `PPTCertificate` to `IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`.
-* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_run_wordHandle`: running a
-  strict-PPT environment against any machine family equipped with a `PPTCertificate` yields a
-  uniform strict oracle-PPT program.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_runWith_wordHandle` and
+  `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_run_wordHandle`: running a
+  strict-PPT environment against any machine family equipped with a `PPTCertificate` (with
+  general polynomial-time parameter maps or fixed corruption set) yields a uniform strict
+  oracle-PPT program.
 * `Cslib.Crypto.Protocols.UC.Machine.isPPTFamily_id`: the forwarding machine `Machine.id` is
   strict PPT over any `WordInterface`.
 * `Cslib.Crypto.Protocols.UC.Adversary.isPPT_dummyAdversary`: the dummy adversary is strict PPT
@@ -357,8 +360,45 @@ in this library's word model for party port `party` and backdoor port `back` whe
 /-! ### Environment-machine composition -/
 
 /-- Library construction (no cited definition): state-passing word-level execution of a lowered
+UC environment `Z` evaluated at `envParam e` against `wordHandle` at `param e`, starting from an
+already-encoded machine state `state`. -/
+@[expose] def wordRunFromWith
+    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
+    (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
+    (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
+    (adv : WordPort AdvQ AdvR) (codec : StateCodec M)
+    (Z : Environment n In Out AdvQ AdvR)
+    (param : EnvParam → PPTParam n) (envParam : EnvParam → EnvParam)
+    (e : EnvParam) (state : List Bool) :
+    WordOracleComp iI.Channel (Bool × List Bool) :=
+  let iE := WordInterface.exec party adv
+  let ep := envParam e
+  (OracleComp.interpret
+    (OracleComp.sumHandler
+      (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
+      (wordHandle M iI iE codec (param e)))
+    (ProbOracleComp.lowerWith iE ep.replyBound (Z ep.secParam ep.aux))).run state
+
+/-- Library construction (no cited definition): word-level execution of a lowered UC environment
+`Z` evaluated at `envParam e` against a machine family `M` at `param e` equipped with a
+`StateCodec`, sampling the encoded initial state of `M (param e).secParam (param e).corrupted` and
+interpreting the lowered environment through `wordHandle`. -/
+@[expose] def wordRunWith
+    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
+    (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
+    (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
+    (adv : WordPort AdvQ AdvR) (codec : StateCodec M)
+    (Z : Environment n In Out AdvQ AdvR)
+    (param : EnvParam → PPTParam n) (envParam : EnvParam → EnvParam) (e : EnvParam) :
+    WordOracleComp iI.Channel Bool := do
+  let p := param e
+  let s0 ← ProbOracleComp.sample
+    ((codec p.secParam p.corrupted).enc <$> (M p.secParam p.corrupted).init)
+  Prod.fst <$> wordRunFromWith M iI party adv codec Z param envParam e s0
+
+/-- Library construction (no cited definition): state-passing word-level execution of a lowered
 UC environment `Z` against `wordHandle` starting from an already-encoded machine state `state`. -/
-@[expose] def wordRunFrom
+abbrev wordRunFrom
     {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
     (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
     (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
@@ -366,26 +406,117 @@ UC environment `Z` against `wordHandle` starting from an already-encoded machine
     (Z : Environment n In Out AdvQ AdvR)
     (C : Finset (Fin n)) (e : EnvParam) (state : List Bool) :
     WordOracleComp iI.Channel (Bool × List Bool) :=
-  let iE := WordInterface.exec party adv
-  (OracleComp.interpret
-    (OracleComp.sumHandler
-      (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
-      (wordHandle M iI iE codec ⟨e.secParam, e.replyBound, C⟩))
-    (ProbOracleComp.lowerWith iE e.replyBound (Z e.secParam e.aux))).run state
+  wordRunFromWith M iI party adv codec Z (fun e => ⟨e.secParam, e.replyBound, C⟩) id e state
 
 /-- Library construction (no cited definition): word-level execution of a lowered UC environment
 `Z` against a machine family `M` equipped with a `StateCodec`, sampling the encoded initial state
 of `M e.secParam C` and interpreting `Z e.secParam e.aux` (lowered with reply bound `e.replyBound`)
 through `wordHandle`. -/
-@[expose] def wordRun
+abbrev wordRun
     {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
     (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
     (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
     (adv : WordPort AdvQ AdvR) (codec : StateCodec M)
     (Z : Environment n In Out AdvQ AdvR) (C : Finset (Fin n)) (e : EnvParam) :
-    WordOracleComp iI.Channel Bool := do
-  let s0 ← ProbOracleComp.sample ((codec e.secParam C).enc <$> (M e.secParam C).init)
-  Prod.fst <$> wordRunFrom M iI party adv codec Z C e s0
+    WordOracleComp iI.Channel Bool :=
+  wordRunWith M iI party adv codec Z (fun e => ⟨e.secParam, e.replyBound, C⟩) id e
+
+/-- Library infrastructure (no cited result): running a strict-PPT environment at `envParam e`
+against any machine family equipped with a `PPTCertificate` at `param e` via `wordRunWith`
+(sampling the initial encoded state via `cert.init` and interpreting lowered queries via
+`cert.handle` with polynomially bounded additive state growth `cert.preserve_wordHandle`) yields a
+uniform strict oracle-PPT program over `iI.Channel`. -/
+theorem Environment.IsPPT.isOraclePPTOn_runWith_wordHandle
+    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
+    {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
+    {Z : Environment n In Out AdvQ AdvR}
+    (hZ : Z.IsPPT party adv)
+    {iI : WordInterface I}
+    {M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR)}
+    (cert : PPTCertificate M iI (WordInterface.exec party adv))
+    {param : EnvParam → PPTParam n} {envParam : EnvParam → EnvParam}
+    (hparam : ComputableInPolyTime param encEnvParam (encPPTParam n))
+    (henv : ComputableInPolyTime envParam encEnvParam encEnvParam) :
+    IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool
+      (wordRunWith M iI party adv cert.codec Z param envParam) := by
+  let iE := WordInterface.exec party adv
+  let ValidState : Type :=
+    { x : EnvParam × List Bool //
+      x.2 ∈ Set.range (cert.codec (param x.1).secParam (param x.1).corrupted).enc }
+  let encValid : ValidState ↪ List Bool :=
+    (Function.Embedding.subtype _).trans (encPair encEnvParam encBits)
+  have hval : ComputableInPolyTime (fun x : ValidState => x.1)
+      encValid (encPair encEnvParam encBits) :=
+    ComputableInPolyTime.of_eq fun _ => rfl
+  have hinitBase : IsPPTOn encEnvParam (encPair encEnvParam encBits) fun e =>
+      (fun w => (e, w)) <$>
+        ((cert.codec (param e).secParam (param e).corrupted).enc <$>
+          (M (param e).secParam (param e).corrupted).init) :=
+    (cert.init.preprocess hparam).keep_input
+  have hinitValid : IsPPTOn encEnvParam encValid fun e =>
+      (fun s => (⟨(e, (cert.codec (param e).secParam (param e).corrupted).enc s),
+        ⟨s, rfl⟩⟩ : ValidState)) <$>
+        (M (param e).secParam (param e).corrupted).init := by
+    rw [isPPTOn_iff_encoded] at hinitBase ⊢
+    refine hinitBase.congr fun e => ?_
+    simp only [encValid, Function.Embedding.trans_apply, ProbComp.eval_map, PMF.map_comp,
+      Function.comp_def]
+    rfl
+  have hstep : IsOraclePPTOn (Operation := iI.Channel)
+      encValid (encPair encBool encBits) fun x =>
+        wordRunFromWith M iI party adv cert.codec Z param envParam x.1.1 x.1.2 := by
+    have hbase : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
+      (ComputableInPolyTime.fst encEnvParam encBits).comp hval
+    have hprepare : ComputableInPolyTime (fun x : ValidState => envParam x.1.1)
+        encValid encEnvParam :=
+      henv.comp hbase
+    have hparamValid : ComputableInPolyTime (fun x : ValidState => param x.1.1)
+        encValid (encPPTParam n) :=
+      hparam.comp hbase
+    have hhandlerProj : ComputableInPolyTime
+        (fun x : ValidState × ((iE.Channel × List Bool) × List Bool) =>
+          (param x.1.1.1, x.2))
+        (encHandlerCall encValid (encFinite iE.Channel) encBits)
+        (encHandlerCall (encPPTParam n) (encFinite iE.Channel) encBits) :=
+      (hparamValid.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
+    have hhandler : IsOraclePPTOn
+        (encHandlerCall encValid (encFinite iE.Channel) encBits)
+        (encPair encBits encBits)
+        (fun x => wordHandle M iI iE cert.codec (param x.1.1.1) x.2.1 x.2.2) :=
+      cert.handle.preprocess hhandlerProj
+    have hinitProj : ComputableInPolyTime (fun x : ValidState => x.1.2) encValid encBits :=
+      (ComputableInPolyTime.snd encEnvParam encBits).comp hval
+    have hgrowthProj : ComputableInPolyTime
+        (fun pair : ValidState × List Bool => (param pair.1.1.1, pair.2))
+        (encPair encValid encBits) (encPair (encPPTParam n) encBits) :=
+      (hparamValid.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
+    have hgrowth : Turing.MultiTapeTM.PolyBounded
+        (fun pair : ValidState × List Bool => (encPair encValid encBits pair).length)
+        (fun pair => cert.growth (param pair.1.1.1) pair.2) :=
+      cert.growth_poly.comp hgrowthProj.polyBounded_length
+    exact IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
+      (Operation := iE.Channel) (External := iI.Channel)
+      (operationEncoding := encFinite iE.Channel)
+      (program := fun e : EnvParam =>
+        ProbOracleComp.lowerWith iE e.replyBound (Z e.secParam e.aux))
+      hZ hprepare hhandler hinitProj
+      (fun x state =>
+        state ∈ Set.range (cert.codec (param x.1.1).secParam (param x.1.1).corrupted).enc)
+      (fun x => x.2) hgrowth
+      (fun x req state hinv result hmem =>
+        cert.preserve_wordHandle (param x.1.1) req state hinv result hmem)
+  have hcombined : IsOraclePPTOn (Operation := iI.Channel)
+      encEnvParam encBool fun e =>
+        Prod.fst <$> (ProbOracleComp.sample
+          ((fun s => (⟨(e, (cert.codec (param e).secParam (param e).corrupted).enc s),
+            ⟨s, rfl⟩⟩ : ValidState)) <$>
+            (M (param e).secParam (param e).corrupted).init) >>= fun x =>
+          wordRunFromWith M iI party adv cert.codec Z param envParam x.1.1 x.1.2) :=
+    (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
+  refine hcombined.congr fun e State oracle s => ?_
+  simp only [wordRunWith, ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbComp.eval_map, PMF.bind_map, PMF.map_bind,
+    Function.comp_def]
 
 /-- Library infrastructure (no cited result): running a strict-PPT environment against any machine
 family equipped with a `PPTCertificate` via `wordRun` (sampling the initial encoded state via
@@ -403,86 +534,11 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
     (C : Finset (Fin n)) :
     IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool
       (wordRun M iI party adv cert.codec Z C) := by
-  let iE := WordInterface.exec party adv
-  let ValidState : Type :=
-    { x : EnvParam × List Bool // x.2 ∈ Set.range (cert.codec x.1.secParam C).enc }
-  let encValid : ValidState ↪ List Bool :=
-    (Function.Embedding.subtype _).trans (encPair encEnvParam encBits)
-  have hval : ComputableInPolyTime (fun x : ValidState => x.1)
-      encValid (encPair encEnvParam encBits) :=
-    ComputableInPolyTime.of_eq fun _ => rfl
-  have hprep : ComputableInPolyTime
-      (fun e : EnvParam => (⟨e.secParam, e.replyBound, C⟩ : PPTParam n))
-      encEnvParam (encPPTParam n) := by
-    have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
-        encEnvParam (encFinite (Finset (Fin n))) :=
-      ComputableInPolyTime.const C
-    fun_prop
-  have hinitBase : IsPPTOn encEnvParam (encPair encEnvParam encBits) fun e =>
-      (fun w => (e, w)) <$>
-        ((cert.codec e.secParam C).enc <$> (M e.secParam C).init) :=
-    (cert.init.preprocess hprep).keep_input
-  have hinitValid : IsPPTOn encEnvParam encValid fun e =>
-      (fun s => (⟨(e, (cert.codec e.secParam C).enc s), ⟨s, rfl⟩⟩ : ValidState)) <$>
-        (M e.secParam C).init := by
-    rw [isPPTOn_iff_encoded] at hinitBase ⊢
-    refine hinitBase.congr fun e => ?_
-    simp only [encValid, Function.Embedding.trans_apply, ProbComp.eval_map, PMF.map_comp,
-      Function.comp_def]
-    rfl
-  have hstep : IsOraclePPTOn (Operation := iI.Channel)
-      encValid (encPair encBool encBits) fun x =>
-        wordRunFrom M iI party adv cert.codec Z C x.1.1 x.1.2 := by
-    have hprepare : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
-      (ComputableInPolyTime.fst encEnvParam encBits).comp hval
-    have hparam : ComputableInPolyTime
-        (fun x : ValidState => (⟨x.1.1.secParam, x.1.1.replyBound, C⟩ : PPTParam n))
-        encValid (encPPTParam n) :=
-      hprep.comp hprepare
-    have hhandlerProj : ComputableInPolyTime
-        (fun x : ValidState × ((iE.Channel × List Bool) × List Bool) =>
-          ((⟨x.1.1.1.secParam, x.1.1.1.replyBound, C⟩ : PPTParam n), x.2))
-        (encHandlerCall encValid (encFinite iE.Channel) encBits)
-        (encHandlerCall (encPPTParam n) (encFinite iE.Channel) encBits) :=
-      (hparam.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
-    have hhandler : IsOraclePPTOn
-        (encHandlerCall encValid (encFinite iE.Channel) encBits)
-        (encPair encBits encBits)
-        (fun x => wordHandle M iI iE cert.codec
-          ⟨x.1.1.1.secParam, x.1.1.1.replyBound, C⟩ x.2.1 x.2.2) :=
-      cert.handle.preprocess hhandlerProj
-    have hinitProj : ComputableInPolyTime (fun x : ValidState => x.1.2) encValid encBits :=
-      (ComputableInPolyTime.snd encEnvParam encBits).comp hval
-    have hgrowthProj : ComputableInPolyTime
-        (fun pair : ValidState × List Bool =>
-          ((⟨pair.1.1.1.secParam, pair.1.1.1.replyBound, C⟩ : PPTParam n), pair.2))
-        (encPair encValid encBits) (encPair (encPPTParam n) encBits) :=
-      (hparam.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
-    have hgrowth : Turing.MultiTapeTM.PolyBounded
-        (fun pair : ValidState × List Bool => (encPair encValid encBits pair).length)
-        (fun pair => cert.growth ⟨pair.1.1.1.secParam, pair.1.1.1.replyBound, C⟩ pair.2) :=
-      cert.growth_poly.comp hgrowthProj.polyBounded_length
-    exact IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
-      (Operation := iE.Channel) (External := iI.Channel)
-      (operationEncoding := encFinite iE.Channel)
-      (program := fun e : EnvParam =>
-        ProbOracleComp.lowerWith iE e.replyBound (Z e.secParam e.aux))
-      hZ hprepare hhandler hinitProj
-      (fun x state => state ∈ Set.range (cert.codec x.1.1.secParam C).enc)
-      (fun x => x.2) hgrowth
-      (fun x req state hinv result hmem =>
-        cert.preserve_wordHandle ⟨x.1.1.secParam, x.1.1.replyBound, C⟩ req state hinv result hmem)
-  have hcombined : IsOraclePPTOn (Operation := iI.Channel)
-      encEnvParam encBool fun e =>
-        Prod.fst <$> (ProbOracleComp.sample
-          ((fun s => (⟨(e, (cert.codec e.secParam C).enc s), ⟨s, rfl⟩⟩ : ValidState)) <$>
-            (M e.secParam C).init) >>= fun x =>
-          wordRunFrom M iI party adv cert.codec Z C x.1.1 x.1.2) :=
-    (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
-  refine hcombined.congr fun e State oracle s => ?_
-  simp only [wordRun, ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_sample, ProbComp.eval_map, PMF.bind_map, PMF.map_bind,
-    Function.comp_def]
+  have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
+      encEnvParam (encFinite (Finset (Fin n))) :=
+    ComputableInPolyTime.const C
+  exact hZ.isOraclePPTOn_runWith_wordHandle cert (by fun_prop)
+    (ComputableInPolyTime.of_eq fun _ => rfl)
 
 /-! ### Baseline certificates -/
 
