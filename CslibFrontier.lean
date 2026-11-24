@@ -8451,6 +8451,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyCon
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDataProcessing
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyDomination
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.RelativeEntropyResolvent
+public import CslibFrontier.Foundations.Quantum.DensityMatrix.TraceDistanceDataProcessing
 public import CslibFrontier.Foundations.Quantum.Fourier
 public import CslibFrontier.Foundations.Quantum.HadamardTransform
 public import CslibFrontier.Foundations.Quantum.LinearityRounding
