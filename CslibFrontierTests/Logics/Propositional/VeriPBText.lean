@@ -1840,32 +1840,30 @@ qed;
 #guard (checkOPB pres4
   (presProof 4 (defX5 ++ addX5.replace "qed;\n" "qed preserved_rm;\n"))).isNone
 
-/-- An `EQUIENUMERABLE` output of `pres4Rm` itself, after the steps `steps`. -/
-def presEnumOut (steps : String) : String :=
-  "pseudo-Boolean proof version 3.0\nf 6;\n" ++ steps ++
-    "output EQUIENUMERABLE FILE;\nconclusion NONE;\nend pseudo-Boolean proof;\n"
-
-/-- For `pres4Rm`, after `rmX5`: `preserved_add x5 : x1 >= 1` adds `x5` back, its goals negated
-as `11` and `13` and refuted with `5` and `6`. -/
-def readdX5 : String := "preserved_add x5 : 1 x1 >= 1 : subproof
-proofgoal #1
-pol 11 5 +;
-qed : 12;
-proofgoal #2
-pol 13 6 +;
-qed : 14;
-qed;
-"
-
--- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set.
--- Removing `x5` and adding it back leaves the core set, the preserved set (as `epreserved`
--- checks) and the output text the same, so only the change itself is rejected. VeriPB and CakePB
--- accept both: they compare only the final preserved sets.
+-- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set,
+-- and after removing `x5` and adding it back, which leaves the core set, the preserved set (as
+-- `epreserved` checks) and the output text the same. All three accept both.
 #guard (checkOPBOutput pres4Rm (presEnumOut "") pres4Rm).isSome
 #guard checkOPB pres4Rm (presProof 6 (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n")) ==
   some .noClaim
 #guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n"))
-  pres4Rm).isNone
+  pres4Rm).isSome
+-- After removing `x5`, the output must preserve the new set `x1 x3`, in any order, not the old
+-- one: all three accept the first and reject the second.
+#guard (checkOPBOutput pres4Rm (presEnumOut rmX5)
+  (pres4Rm.replace "preserved: x1 x3 x5 ;" "preserved: x3 x1 ;")).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut rmX5) pres4Rm).isNone
+-- After removing `x5` and deleting its definition, `x5` is free: the output without it preserving
+-- `x1 x3` is accepted, and preserving `x1 x3 x5`, which would double the count, is rejected. All
+-- three agree.
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5)) pres4Free).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5))
+  pres4FreeX5).isNone
+-- Removing `x5`, redefining it as `~x1` and adding it back: the output preserves `x1 x3 x5`
+-- again, but its projections are those of the input with `x5` flipped, in bijection and not
+-- equal. All three accept it, and reject the input as the output.
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Flip).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Rm).isNone
 
 /-! ### The order, dominance and preserved-set API under ordinary imports
 
