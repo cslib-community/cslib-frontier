@@ -12,6 +12,7 @@ public import CslibFrontier.GameTheory.RandomAssignment.Basic
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Finset.Max
+import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
@@ -41,7 +42,7 @@ object simultaneously at elapsed time `t = 1`.
 ## Main results
 
 * `Cslib.GameTheory.RandomAssignment.probabilisticSerial_mem_doublyStochastic`: `PS` always
-  returns a doubly stochastic matrix (`probabilisticSerial_isFeasible`).
+  returns a doubly stochastic matrix.
 * `Cslib.GameTheory.RandomAssignment.probabilisticSerial_isSDEnvyFree`: `PS` is
   `sd`-envy-free (every round adds `Δ` of `i`'s best available object, beating `j`'s choice).
 * `Cslib.GameTheory.RandomAssignment.probabilisticSerial_isEqualTreatmentOfEquals`: `PS` satisfies
@@ -101,7 +102,7 @@ private lemma activeRanks_nonempty {n : ℕ} (π : Equiv.Perm (Fin n)) (rem : Fi
   exact ⟨π.symm o, (mem_activeRanks π rem _).mpr (by simpa using ho)⟩
 
 /-- Agent `i`'s top remaining object (minimum rank `r` with `0 < rem (p i r)`). -/
-noncomputable def favObject {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
+private noncomputable def favObject {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
     (h : ∃ o : Fin n, 0 < rem o) (i : Fin n) : Fin n :=
   p i ((activeRanks (p i) rem).min' (activeRanks_nonempty (p i) rem h))
 
@@ -123,7 +124,7 @@ private lemma favObject_lt_le_zero {n : ℕ} (p : Profile n) (rem : Fin n → �
   exact hlt.not_ge (favObject_rank_le p rem h i a hpos)
 
 /-- Number of agents simultaneously eating object `o` in the current phase. -/
-noncomputable def eatingDemand {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
+private noncomputable def eatingDemand {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
     (h : ∃ o : Fin n, 0 < rem o) (o : Fin n) : ℕ :=
   (Finset.univ.filter fun i : Fin n => favObject p rem h i = o).card
 
@@ -135,7 +136,7 @@ private lemma demanded_nonempty {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
   exact Finset.card_pos.mpr ⟨o₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, rfl⟩⟩
 
 /-- Duration `Δ = min {rem o / demand o | demand o > 0}` of the current eating phase. -/
-noncomputable def eatingDuration {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
+private noncomputable def eatingDuration {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
     (h : ∃ o : Fin n, 0 < rem o) : ℝ :=
   (Finset.univ.filter fun o : Fin n => 0 < eatingDemand p rem h o).inf'
     (demanded_nonempty p rem h)
@@ -494,11 +495,6 @@ theorem probabilisticSerial_mem_doublyStochastic {n : ℕ} (p : Profile n) :
     rw [eatingStep_rem_eq_zero p o, zero_add] at hcol
     exact hcol
 
-/-- `probabilisticSerial` is a feasible random assignment rule. -/
-theorem probabilisticSerial_isFeasible {n : ℕ} :
-    IsFeasible (probabilisticSerial (n := n)) :=
-  fun p => probabilisticSerial_mem_doublyStochastic p
-
 /-- **Probabilistic Serial is `sd`-envy-free** ([BogomolnaiaMoulin2001], locator unverified). -/
 theorem probabilisticSerial_isSDEnvyFree {n : ℕ} (p : Profile n) :
     IsSDEnvyFree p (probabilisticSerial p) :=
@@ -515,7 +511,7 @@ making the trade graph acyclic. -/
 theorem probabilisticSerial_isSDEfficient {n : ℕ} (p : Profile n) :
     IsSDEfficient p (probabilisticSerial p) := by
   rw [isSDEfficient_iff_isAcyclicTrade]
-  refine ⟨probabilisticSerial_mem_doublyStochastic p, fun a ha => ?_⟩
+  refine ⟨probabilisticSerial_mem_doublyStochastic p, ⟨fun a ha => ?_⟩⟩
   set s := (eatingStep p)^[n] (initEatingState n)
   have hinv := eatingStep_iter_inv p n
   have hmono : ∀ {x y : Fin n},
@@ -576,11 +572,97 @@ private lemma eatingDuration_eq_of_le {n : ℕ} (p : Profile n) (rem : Fin n →
       (fun o => rem o / (eatingDemand p rem h o : ℝ)) fun o ho =>
         hle o (Finset.mem_filter.mp ho).2
 
-/-- Helper evaluating a filter cardinality via an explicit list of matching indices. -/
-private lemma card_filter_eq_of_iff {n : ℕ} (P : Fin n → Prop) [DecidablePred P]
-    (s : Finset (Fin n)) (hs : ∀ i : Fin n, P i ↔ i ∈ s) :
-    (Finset.univ.filter P).card = s.card := by
-  congr 1; ext i; simp [hs i]
+/-- Remaining-supply vector assigning `(r 0, r 1, r 2)` to the first three objects and uniform
+supply `d` to every dummy object `o ≥ 3`. -/
+private def padVec {n : ℕ} (r : Fin 3 → ℝ) (d : ℝ) (o : Fin n) : ℝ :=
+  if h : o.val < 3 then r ⟨o.val, h⟩ else d
+
+/-- Demand count among the first three agents `0, 1, 2` for object `j : Fin 3`. -/
+private def coreCount (f : Fin 3 → Fin 3) (j : Fin 3) : ℕ :=
+  (Finset.univ.filter fun a : Fin 3 => f a = j).card
+
+/-- Advance `eatingStep` by one phase on a dummy-padded profile whose first three agents target
+`f : Fin 3 → Fin 3` and whose dummy agents `i ≥ 3` each target their own top object `i`. -/
+private lemma eatingStep_padded {n : ℕ} (hn : 3 ≤ n) (p : Profile n) (s : EatingState n)
+    (r : Fin 3 → ℝ) (d dt : ℝ) (f : Fin 3 → Fin 3)
+    (hdum : ∀ i : Fin n, 3 ≤ i.val → (p i).symm i = ⟨0, by omega⟩)
+    (hs : ∀ o : Fin n, s.rem o = padVec r d o)
+    (hpos : 0 < r 2) (hdpos : 0 < d)
+    (hfav : ∀ a : Fin 3, favObject p s.rem ⟨⟨2, by omega⟩, by simpa [hs, padVec] using hpos⟩
+      ⟨a.val, by omega⟩ = ⟨(f a).val, by omega⟩)
+    (hdt_mem : ∃ j : Fin 3, 0 < coreCount f j ∧ r j / (coreCount f j : ℝ) = dt)
+    (hdt_le : ∀ j : Fin 3, 0 < coreCount f j → dt ≤ r j / (coreCount f j : ℝ))
+    (hdt_d : dt ≤ d) :
+    (∀ o : Fin n, (eatingStep p s).rem o =
+      padVec (fun j => r j - (coreCount f j : ℝ) * dt) (d - dt) o) ∧
+    (∀ a : Fin 3, (eatingStep p s).alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ =
+      s.alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ + if f 2 = a then dt else 0) := by
+  have hex : ∃ o : Fin n, 0 < s.rem o := ⟨⟨2, by omega⟩, by simpa [hs, padVec] using hpos⟩
+  have hfav_all : ∀ i : Fin n, favObject p s.rem hex i =
+      if h : i.val < 3 then ⟨(f ⟨i.val, h⟩).val, by omega⟩ else i := fun i => by
+    by_cases hi : i.val < 3
+    · simp only [hi, ↓reduceDIte]
+      exact hfav ⟨i.val, hi⟩
+    · simp only [hi, ↓reduceDIte]
+      refine favObject_eq_of_lt_nonpos p s.rem hex i i
+        (by simpa [hs, padVec, hi] using hdpos) fun _ ha => by
+          rw [hdum i (by omega)] at ha; exact absurd ha (by simp [Fin.lt_def])
+  have hdem : ∀ o : Fin n, eatingDemand p s.rem hex o =
+      if h : o.val < 3 then coreCount f ⟨o.val, h⟩ else 1 := fun o => by
+    unfold eatingDemand; simp_rw [hfav_all]
+    by_cases ho : o.val < 3
+    · simp only [ho, ↓reduceDIte, coreCount]
+      refine Finset.card_bij (fun i hi => ⟨i.val, by
+        by_contra hnot
+        have h' := (Finset.mem_filter.mp hi).2
+        simp only [hnot, ↓reduceDIte] at h'
+        subst h'; exact hnot ho⟩) ?_ ?_ ?_
+      · intro i hi
+        have heq := (Finset.mem_filter.mp hi).2
+        have hi3 : i.val < 3 := by
+          by_contra hnot; simp only [hnot, ↓reduceDIte] at heq; subst heq; exact hnot ho
+        simp only [hi3, ↓reduceDIte] at heq
+        exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, Fin.ext (Fin.mk.injEq .. ▸ heq)⟩
+      · intro i₁ _ i₂ _ h; exact Fin.ext (Fin.mk.injEq .. ▸ h)
+      · intro a ha
+        have hfa : f a = ⟨o.val, ho⟩ := (Finset.mem_filter.mp ha).2
+        refine ⟨⟨a.val, by omega⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, rfl⟩
+        simp only [a.isLt, ↓reduceDIte]
+        have hfv : (f a).val = o.val := congrArg Fin.val hfa
+        exact Fin.ext hfv
+    · simp only [ho, ↓reduceDIte]
+      have hsing : Finset.univ.filter (fun i : Fin n =>
+          (if h : i.val < 3 then (⟨(f ⟨i.val, h⟩).val, by omega⟩ : Fin n) else i) = o) =
+          {o} := by
+        ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+        by_cases hi : i.val < 3
+        · simp only [hi, ↓reduceDIte]
+          constructor
+          · intro heq
+            have hv : (f ⟨i.val, hi⟩).val = o.val := congrArg Fin.val heq
+            have hlt : (f ⟨i.val, hi⟩).val < 3 := (f ⟨i.val, hi⟩).isLt
+            omega
+          · intro heq; subst heq; exact absurd hi ho
+        · simp only [hi, ↓reduceDIte]
+      rw [hsing, Finset.card_singleton]
+  have hdt : eatingDuration p s.rem hex = dt := by
+    refine eatingDuration_eq_of_le p s.rem hex dt ?_ fun o hd => ?_
+    · obtain ⟨j, hj_pos, hj_eq⟩ := hdt_mem
+      refine ⟨⟨j.val, by omega⟩, ?_, ?_⟩
+      · simpa [hdem, j.isLt] using hj_pos
+      · simpa [hs, padVec, hdem, j.isLt] using hj_eq
+    · by_cases ho : o.val < 3
+      · simp only [hdem o, ho, ↓reduceDIte] at hd ⊢
+        simpa [hs, padVec, ho] using hdt_le ⟨o.val, ho⟩ hd
+      · simp only [hs o, padVec, hdem o, ho, ↓reduceDIte, Nat.cast_one, div_one]
+        exact hdt_d
+  refine ⟨fun o => ?_, fun a => ?_⟩
+  · rw [eatingStep_pos_rem p s hex o, hs o, hdem o, hdt]
+    by_cases ho : o.val < 3 <;> simp [padVec, ho]
+  · rw [eatingStep_pos_alloc p s hex ⟨2, by omega⟩ ⟨a.val, by omega⟩, hdt]
+    have hf2 : favObject p s.rem hex ⟨2, by omega⟩ = ⟨(f 2).val, by omega⟩ := hfav 2
+    rw [hf2]
+    congr 1; simp [Fin.ext_iff]
 
 /-- Generalized 3-object manipulation witness profile `(a b c …, a c b …, b a c …)` padded with
 dummy agents `k ≥ 3` whose top choice is object `k`. -/
@@ -590,566 +672,263 @@ dummy agents `k ≥ 3` whose top choice is object `k`. -/
   else if i.val = 2 then Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩
   else Equiv.swap ⟨0, by omega⟩ i
 
-private lemma psManip_eq_refl {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : i.val = 0) :
-    psManipProfile hn i = Equiv.refl (Fin n) := by
-  simp [psManipProfile, hi]
-
-private lemma psManip_eq_swap12 {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : i.val = 1) :
-    psManipProfile hn i = Equiv.swap ⟨1, by omega⟩ ⟨2, by omega⟩ := by
-  simp [psManipProfile, hi]
-
-private lemma psManip_eq_swap01 {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : i.val = 2) :
-    psManipProfile hn i = Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by
-  simp [psManipProfile, hi]
-
 private lemma psManip_symm_dummy {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : 3 ≤ i.val) :
     (psManipProfile hn i).symm i = ⟨0, by omega⟩ := by
   have hp : psManipProfile hn i = Equiv.swap ⟨0, by omega⟩ i := by
     simp [psManipProfile, show i.val ≠ 0 by omega, show i.val ≠ 1 by omega,
       show i.val ≠ 2 by omega]
-  rw [hp, Equiv.symm_apply_eq]
-  simp
+  rw [hp, Equiv.symm_apply_eq]; simp
 
-private lemma fav_rank_zero {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
-    (h : ∃ o : Fin n, 0 < rem o) (i o : Fin n)
-    (hr : (p i).symm o = ⟨0, Nat.zero_lt_of_lt i.isLt⟩) (hpos : 0 < rem o) :
-    favObject p rem h i = o :=
-  favObject_eq_of_lt_nonpos p rem h i o hpos fun _ ha => by
-    rw [hr] at ha
-    exact absurd ha (by simp [Fin.lt_def])
+/-- Verify the favorite object of agent `i` under a permutation `π` agreeing with `id`, `swap 1 2`,
+or `swap 0 1` on `{0, 1, 2}`: every strictly preferred object in `{0, 1, 2}` is `≤ 0`. -/
+private lemma fav_core {n : ℕ} (hn : 3 ≤ n) (p : Profile n) {r : Fin 3 → ℝ} {d : ℝ}
+    (s : EatingState n) (hs : ∀ o, s.rem o = padVec r d o)
+    (h : ∃ o : Fin n, 0 < s.rem o) (i : Fin n) (k : Fin 3)
+    (hpos : 0 < r k)
+    (hprev : ∀ x : Fin n, (p i).symm x < (p i).symm ⟨k.val, by omega⟩ →
+      ∃ j : Fin 3, x.val = j.val ∧ r j ≤ 0) :
+    favObject p s.rem h i = ⟨k.val, by omega⟩ :=
+  favObject_eq_of_lt_nonpos p s.rem h i ⟨k.val, by omega⟩
+    (by simpa [hs, padVec, k.isLt] using hpos) fun x hx => by
+      obtain ⟨j, hj, hjle⟩ := hprev x hx
+      have hx3 : x.val < 3 := by omega
+      have hxj : (⟨x.val, hx3⟩ : Fin 3) = j := Fin.ext hj
+      simpa [hs, padVec, hx3, hxj] using hjle
 
-/-- Exact first 3 rounds of `eatingStep` on the truthful `psManipProfile hn`. -/
-private lemma psManip_truthful_row2 {n : ℕ} (hn : 3 ≤ n) :
-    probabilisticSerial (psManipProfile hn) ⟨2, by omega⟩ ⟨0, by omega⟩ = 0 ∧
-    probabilisticSerial (psManipProfile hn) ⟨2, by omega⟩ ⟨1, by omega⟩ = 3 / 4 ∧
-    probabilisticSerial (psManipProfile hn) ⟨2, by omega⟩ ⟨2, by omega⟩ = 1 / 4 := by
-  set p := psManipProfile hn
-  let f0 : Fin n := ⟨0, by omega⟩
-  let f1 : Fin n := ⟨1, by omega⟩
-  let f2 : Fin n := ⟨2, by omega⟩
-  have h01 : f0 ≠ f1 := by simp [f0, f1, Fin.ext_iff]
-  have h02 : f0 ≠ f2 := by simp [f0, f2, Fin.ext_iff]
-  have h12 : f1 ≠ f2 := by simp [f1, f2, Fin.ext_iff]
+private lemma eq_iter_three_of_rem_zero {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
+    (h0 : ∀ o : Fin n, ((eatingStep p)^[3] (initEatingState n)).rem o = 0) :
+    (eatingStep p)^[n] (initEatingState n) = (eatingStep p)^[3] (initEatingState n) :=
+  calc (eatingStep p)^[n] (initEatingState n)
+      = (eatingStep p)^[(n - 3) + 3] (initEatingState n) :=
+        congrArg (fun k => (eatingStep p)^[k] (initEatingState n)) (by omega)
+    _ = (eatingStep p)^[n - 3] ((eatingStep p)^[3] (initEatingState n)) :=
+        Function.iterate_add_apply _ _ _ _
+    _ = (eatingStep p)^[3] (initEatingState n) := eatingStep_iter_of_rem_zero p _ h0 (n - 3)
+
+private lemma swap01_lt {n : ℕ} (hn : 3 ≤ n) (x : Fin n)
+    (h : ((Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm x).val < 2) :
+    x.val = 0 ∨ x.val = 1 := by
+  by_contra hnot
+  have heq : (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm x = x := by
+    rw [Equiv.symm_apply_eq]
+    exact (Equiv.swap_apply_of_ne_of_ne
+      (fun he => hnot (Or.inl (congrArg Fin.val he)))
+      (fun he => hnot (Or.inr (congrArg Fin.val he)))).symm
+  rw [heq] at h; omega
+
+private lemma swap12_symm_r2 {n : ℕ} (hn : 3 ≤ n) :
+    (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨2, by omega⟩ = ⟨1, by omega⟩ := by
+  rw [Equiv.symm_apply_eq]
+  exact (Equiv.swap_apply_left (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm
+
+private lemma swap12_symm_r0 {n : ℕ} (hn : 3 ≤ n) :
+    (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨0, by omega⟩ = ⟨0, by omega⟩ := by
+  rw [Equiv.symm_apply_eq]
+  exact (Equiv.swap_apply_of_ne_of_ne (by simp [Fin.ext_iff]) (by simp [Fin.ext_iff])).symm
+
+private lemma swap12_lt_two {n : ℕ} (hn : 3 ≤ n) (x : Fin n)
+    (hx : (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x <
+      (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨2, by omega⟩) :
+    x.val = 0 := by
+  rw [swap12_symm_r2 hn] at hx
+  have hlt : ((Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x).val < 1 := hx
+  have h01eq : (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x =
+      (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨0, by omega⟩ := by
+    rw [swap12_symm_r0 hn]; exact Fin.ext (by change _ = 0; omega)
+  exact congrArg Fin.val
+    ((Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm.injective h01eq)
+
+private lemma psManip_eq_swap01 {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : i.val = 2) :
+    psManipProfile hn i = Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by
+  simp [psManipProfile, hi]
+
+/-- Common 3-round trace when agent `0` has `0 > 1 > 2`, agent `1` has `0 > 2 > 1`, dummies `≥ 3`
+rank themselves first, and agent `2` has either `1 > 0 > 2` (truthful) or `0 > 1 > 2`
+(misreport). -/
+private lemma eval_psManip_three {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
+    (hp0 : p ⟨0, by omega⟩ = Equiv.refl (Fin n))
+    (hp1 : p ⟨1, by omega⟩ = Equiv.swap ⟨1, by omega⟩ ⟨2, by omega⟩)
+    (hdum : ∀ i : Fin n, 3 ≤ i.val → (p i).symm i = ⟨0, by omega⟩)
+    (f₀ : Fin 3 → Fin 3) (dt₀ dt₁ dt₂ : ℝ)
+    (r₁ r₂ : Fin 3 → ℝ) (d₁ d₂ : ℝ)
+    (hr₁_def : ∀ j : Fin 3, 1 - (coreCount f₀ j : ℝ) * dt₀ = r₁ j)
+    (hd₁_def : 1 - dt₀ = d₁)
+    (hr₂_def : ∀ j : Fin 3, r₁ j - (coreCount ![1, 2, 1] j : ℝ) * dt₁ = r₂ j)
+    (hd₂_def : d₁ - dt₁ = d₂)
+    (hr₃_zero : ∀ j : Fin 3, r₂ j - (coreCount ![2, 2, 2] j : ℝ) * dt₂ = 0)
+    (hd₃_zero : d₂ - dt₂ = 0)
+    (h0_p2 : (p ⟨2, by omega⟩).symm ⟨(f₀ 2).val, by omega⟩ = ⟨0, by omega⟩)
+    (hf0_0 : f₀ 0 = 0) (hf0_1 : f₀ 1 = 0)
+    (hdt₀ : (∃ j : Fin 3, 0 < coreCount f₀ j ∧ 1 / (coreCount f₀ j : ℝ) = dt₀) ∧
+      (∀ j : Fin 3, 0 < coreCount f₀ j → dt₀ ≤ 1 / (coreCount f₀ j : ℝ)) ∧ dt₀ ≤ 1)
+    (hr₁_0 : r₁ 0 ≤ 0) (hr₁_1 : 0 < r₁ 1) (hr₁_2 : 0 < r₁ 2) (hd₁_pos : 0 < d₁)
+    (hprev1_2 : ∀ x : Fin n, (p ⟨2, by omega⟩).symm x < (p ⟨2, by omega⟩).symm ⟨1, by omega⟩ →
+      x.val = 0)
+    (hdt₁ : (∃ j : Fin 3, 0 < coreCount ![1, 2, 1] j ∧
+        r₁ j / (coreCount ![1, 2, 1] j : ℝ) = dt₁) ∧
+      (∀ j : Fin 3, 0 < coreCount ![1, 2, 1] j →
+        dt₁ ≤ r₁ j / (coreCount ![1, 2, 1] j : ℝ)) ∧ dt₁ ≤ d₁)
+    (hr₂_0 : r₂ 0 ≤ 0) (hr₂_1 : r₂ 1 ≤ 0) (hr₂_2 : 0 < r₂ 2) (hd₂_pos : 0 < d₂)
+    (hprev2_2 : ∀ x : Fin n, (p ⟨2, by omega⟩).symm x < (p ⟨2, by omega⟩).symm ⟨2, by omega⟩ →
+      x.val = 0 ∨ x.val = 1)
+    (hdt₂ : (∃ j : Fin 3, 0 < coreCount ![2, 2, 2] j ∧
+        r₂ j / (coreCount ![2, 2, 2] j : ℝ) = dt₂) ∧
+      (∀ j : Fin 3, 0 < coreCount ![2, 2, 2] j →
+        dt₂ ≤ r₂ j / (coreCount ![2, 2, 2] j : ℝ)) ∧ dt₂ ≤ d₂) :
+    ∀ a : Fin 3, probabilisticSerial p ⟨2, by omega⟩ ⟨a.val, by omega⟩ =
+      (if f₀ 2 = a then dt₀ else 0) + (if (1 : Fin 3) = a then dt₁ else 0) +
+        (if (2 : Fin 3) = a then dt₂ else 0) := by
   let s0 := initEatingState n
   let s1 := eatingStep p s0
   let s2 := eatingStep p s1
   let s3 := eatingStep p s2
-  -- Rank checks for agents 0, 1, 2
-  have hp0_r : ∀ o : Fin n, (p f0).symm o = o := fun o => by
-    rw [show p f0 = Equiv.refl (Fin n) from psManip_eq_refl hn f0 rfl]; rfl
-  have hp1_r0 : (p f1).symm f0 = f0 := by
-    rw [show p f1 = Equiv.swap f1 f2 from psManip_eq_swap12 hn f1 rfl, Equiv.symm_apply_eq]
-    exact Equiv.swap_apply_of_ne_of_ne h01 h02
-  have hp1_r2 : (p f1).symm f2 = f1 := by
-    rw [show p f1 = Equiv.swap f1 f2 from psManip_eq_swap12 hn f1 rfl, Equiv.symm_apply_eq]
-    exact Equiv.swap_apply_left f1 f2
-  have hp2_r1 : (p f2).symm f1 = f0 := by
-    rw [show p f2 = Equiv.swap f0 f1 from psManip_eq_swap01 hn f2 rfl, Equiv.symm_apply_eq]
-    exact Equiv.swap_apply_left f0 f1
-  have hp2_r2 : (p f2).symm f2 = f2 := by
-    rw [show p f2 = Equiv.swap f0 f1 from psManip_eq_swap01 hn f2 rfl, Equiv.symm_apply_eq]
-    exact Equiv.swap_apply_of_ne_of_ne h02.symm h12.symm
-  -- Round 0
-  have hex0 : ∃ o : Fin n, 0 < s0.rem o := ⟨f0, by simp [s0, initEatingState]⟩
-  have hfav0 : ∀ i : Fin n, favObject p s0.rem hex0 i =
-      if i.val = 0 ∨ i.val = 1 then f0 else if i.val = 2 then f1 else i := by
-    intro i
-    have hpos : ∀ o, (0 : ℝ) < s0.rem o := fun _ => by simp [s0, initEatingState]
-    by_cases h0 : i.val = 0
-    · have hi : i = f0 := Fin.ext h0; rw [hi]
-      simp only [f0, true_or, ↓reduceIte]
-      exact fav_rank_zero p _ hex0 f0 f0 (hp0_r f0) (hpos f0)
-    · by_cases h1 : i.val = 1
-      · have hi : i = f1 := Fin.ext h1; rw [hi]
-        simp only [f1, or_true, ↓reduceIte]
-        exact fav_rank_zero p _ hex0 f1 f0 hp1_r0 (hpos f0)
-      · by_cases h2 : i.val = 2
-        · have hi : i = f2 := Fin.ext h2; rw [hi]
-          simp only [f2, show ¬ ((2 : ℕ) = 0 ∨ (2 : ℕ) = 1) by omega, ↓reduceIte]
-          exact fav_rank_zero p _ hex0 f2 f1 hp2_r1 (hpos f1)
-        · simp only [h0, h1, or_self, h2, ↓reduceIte]
-          exact fav_rank_zero p _ hex0 i i (psManip_symm_dummy hn i (by omega)) (hpos i)
-  have hdem0 : ∀ o : Fin n, eatingDemand p s0.rem hex0 o =
-      if o.val = 0 then 2 else if o.val = 2 then 0 else 1 := by
-    intro o; unfold eatingDemand; simp_rw [hfav0]
-    by_cases h0 : o.val = 0
-    · simp only [h0, ↓reduceIte]
-      have ho : o = f0 := Fin.ext h0; rw [ho]
-      rw [card_filter_eq_of_iff _ {f0, f1} (fun i => by
-        split_ifs <;> simp [Fin.ext_iff, f0, f1] <;> omega), Finset.card_pair h01]
-    · by_cases h2 : o.val = 2
-      · rw [ite_eq_right h0, ite_eq_left h2]
-        rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-        intro i _; split_ifs <;> simp [Fin.ext_iff, f0, f1] <;> omega
-      · rw [ite_eq_right h0, ite_eq_right h2]
-        by_cases h1 : o.val = 1
-        · have ho : o = f1 := Fin.ext h1; rw [ho]
-          rw [card_filter_eq_of_iff _ {f2} (fun i => by
-            split_ifs <;> simp [Fin.ext_iff, f0, f1, f2] <;> omega), Finset.card_singleton]
-        · rw [card_filter_eq_of_iff _ {o} (fun i => by
-            split_ifs <;> simp [Fin.ext_iff, f0, f1] <;> omega), Finset.card_singleton]
-  have hdt0 : eatingDuration p s0.rem hex0 = 1 / 2 := by
-    refine eatingDuration_eq_of_le p _ hex0 (1 / 2)
-      ⟨f0, by simp [hdem0, f0], by rw [hdem0 f0]; simp [s0, initEatingState, f0]⟩
-      fun o hd => ?_
-    rw [hdem0 o] at hd ⊢
-    change 1 / 2 ≤ (1 : ℝ) / _
-    split_ifs at hd ⊢
-    · norm_num
-    · omega
-    · norm_num
-  have hs1_rem : ∀ o : Fin n, s1.rem o =
-      if o.val = 0 then 0 else if o.val = 2 then 1 else 1 / 2 := fun o => by
-    rw [eatingStep_pos_rem p s0 hex0 o, hdem0 o, hdt0]
-    change 1 - _ = _
-    split_ifs <;> norm_num
-  have hs1_a2 : ∀ o : Fin n, s1.alloc f2 o = if o.val = 1 then 1 / 2 else 0 := fun o => by
-    rw [eatingStep_pos_alloc p s0 hex0 f2 o, hfav0 f2, hdt0]
-    have h0a : s0.alloc f2 o = 0 := rfl
-    rw [h0a, zero_add]
-    simp only [f2, show ¬ ((2 : ℕ) = 0 ∨ (2 : ℕ) = 1) by omega, ↓reduceIte, Fin.ext_iff, f1]
-    by_cases h1 : o.val = 1 <;> simp [h1, eq_comm]
-  -- Round 1
-  have hex1 : ∃ o : Fin n, 0 < s1.rem o := ⟨f2, by simp [hs1_rem, f2]⟩
-  have hfav1 : ∀ i : Fin n, favObject p s1.rem hex1 i =
-      if i.val = 0 ∨ i.val = 2 then f1 else if i.val = 1 then f2 else i := by
-    intro i
-    by_cases h0 : i.val = 0
-    · have hi : i = f0 := Fin.ext h0; rw [hi]
-      simp only [f0, true_or, ↓reduceIte]
-      refine favObject_eq_of_lt_nonpos p _ hex1 f0 f1 (by simp [hs1_rem, f1]) ?_
-      intro a ha
-      rw [hp0_r a, hp0_r f1] at ha
-      have ha0 : a.val = 0 := by change a.val < 1 at ha; omega
-      simp [hs1_rem, ha0]
-    · by_cases h2 : i.val = 2
-      · have hi : i = f2 := Fin.ext h2; rw [hi]
-        simp only [f2, or_true, ↓reduceIte]
-        exact fav_rank_zero p _ hex1 f2 f1 hp2_r1 (by simp [hs1_rem, f1])
-      · by_cases h1 : i.val = 1
-        · have hi : i = f1 := Fin.ext h1; rw [hi]
-          simp only [f1, show ¬ ((1 : ℕ) = 0 ∨ (1 : ℕ) = 2) by omega, ↓reduceIte]
-          refine favObject_eq_of_lt_nonpos p _ hex1 f1 f2 (by simp [hs1_rem, f2]) ?_
-          intro a ha
-          rw [hp1_r2] at ha
-          have ha_lt : ((p f1).symm a).val < 1 := ha
-          have ha_eq : (p f1).symm a = (p f1).symm f0 := by
-            rw [hp1_r0]; apply Fin.ext; change _ = (0 : ℕ); omega
-          rw [(p f1).symm.injective ha_eq]
-          simp [hs1_rem, f0]
-        · simp only [h0, h2, or_self, h1, ↓reduceIte]
-          exact fav_rank_zero p _ hex1 i i (psManip_symm_dummy hn i (by omega))
-            (by simp [hs1_rem, h0, h2])
-  have hdem1 : ∀ o : Fin n, eatingDemand p s1.rem hex1 o =
-      if o.val = 0 then 0 else if o.val = 1 then 2 else 1 := by
-    intro o; unfold eatingDemand; simp_rw [hfav1]
-    by_cases h0 : o.val = 0
-    · simp only [h0, ↓reduceIte]
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro i _; split_ifs <;> simp [Fin.ext_iff, f1, f2] <;> omega
-    · by_cases h1 : o.val = 1
-      · rw [ite_eq_right h0, ite_eq_left h1]
-        have ho : o = f1 := Fin.ext h1; rw [ho]
-        rw [card_filter_eq_of_iff _ {f0, f2} (fun i => by
-          split_ifs <;> simp [Fin.ext_iff, f0, f1, f2] <;> omega), Finset.card_pair h02]
-      · rw [ite_eq_right h0, ite_eq_right h1]
-        by_cases h2 : o.val = 2
-        · have ho : o = f2 := Fin.ext h2; rw [ho]
-          rw [card_filter_eq_of_iff _ {f1} (fun i => by
-            split_ifs <;> simp [Fin.ext_iff, f1, f2] <;> omega), Finset.card_singleton]
-        · rw [card_filter_eq_of_iff _ {o} (fun i => by
-            split_ifs <;> simp [Fin.ext_iff, f1, f2] <;> omega), Finset.card_singleton]
-  have hdt1 : eatingDuration p s1.rem hex1 = 1 / 4 := by
-    refine eatingDuration_eq_of_le p _ hex1 (1 / 4)
-      ⟨f1, by simp [hdem1, f1], by simp [hs1_rem, hdem1, f1]; norm_num⟩
-      fun o hd => ?_
-    rw [hdem1 o] at hd ⊢; rw [hs1_rem o]
-    by_cases h0 : o.val = 0
-    · simp [h0] at hd
-    · by_cases h1 : o.val = 1
-      · rw [ite_eq_right h0, ite_eq_left h1, ite_eq_right h0,
-          ite_eq_right (show o.val ≠ 2 by omega)]
-        norm_num
-      · by_cases h2 : o.val = 2 <;> simp [h0, h1, h2] <;> norm_num
-  have hs2_rem : ∀ o : Fin n, s2.rem o =
-      if o.val = 0 ∨ o.val = 1 then 0 else if o.val = 2 then 3 / 4 else 1 / 4 := fun o => by
-    rw [eatingStep_pos_rem p s1 hex1 o, hs1_rem o, hdem1 o, hdt1]
-    by_cases h0 : o.val = 0
-    · simp [h0]
-    · by_cases h1 : o.val = 1
-      · rw [ite_eq_right h0, ite_eq_right (show o.val ≠ 2 by omega),
-          ite_eq_right h0, ite_eq_left h1, ite_eq_left (Or.inr h1)]
-        norm_num
-      · by_cases h2 : o.val = 2 <;> simp [h0, h1, h2] <;> norm_num
-  have hs2_a2 : ∀ o : Fin n, s2.alloc f2 o = if o.val = 1 then 3 / 4 else 0 := fun o => by
-    rw [eatingStep_pos_alloc p s1 hex1 f2 o, hs1_a2 o, hfav1 f2, hdt1]
-    simp only [f2, or_true, ↓reduceIte, Fin.ext_iff, f1]
-    by_cases h1 : o.val = 1
-    · simp [h1, eq_comm]; norm_num
-    · simp [h1, eq_comm]
-  -- Round 2
-  have hex2 : ∃ o : Fin n, 0 < s2.rem o := ⟨f2, by simp [hs2_rem, f2]⟩
-  have hfav2 : ∀ i : Fin n, favObject p s2.rem hex2 i = if i.val < 3 then f2 else i := by
-    intro i
-    by_cases hi : i.val < 3
-    · simp only [hi, ↓reduceIte]
-      refine favObject_eq_of_lt_nonpos p _ hex2 i f2 (by simp [hs2_rem, f2]) fun a ha => ?_
-      have ha01 : a.val = 0 ∨ a.val = 1 := by
-        by_cases h0 : i.val = 0
-        · rw [show i = f0 from Fin.ext h0, hp0_r a, hp0_r f2] at ha
-          have : a.val < 2 := ha; omega
-        · by_cases h1 : i.val = 1
-          · rw [show i = f1 from Fin.ext h1, hp1_r2] at ha
-            have ha_lt : ((p f1).symm a).val < 1 := ha
-            have heq : (p f1).symm a = (p f1).symm f0 := by
-              rw [hp1_r0]; apply Fin.ext; change _ = (0 : ℕ); omega
-            left; exact congrArg Fin.val ((p f1).symm.injective heq)
-          · have h2 : i = f2 := Fin.ext (show i.val = 2 by omega)
-            rw [h2, hp2_r2] at ha
-            have ha_lt : ((p f2).symm a).val < 2 := ha
-            by_contra hnot
-            have ha0 : a ≠ f0 := fun h => hnot (Or.inl (congrArg Fin.val h))
-            have ha1 : a ≠ f1 := fun h => hnot (Or.inr (congrArg Fin.val h))
-            have hpa : (p f2).symm a = a := by
-              rw [show p f2 = Equiv.swap f0 f1 from psManip_eq_swap01 hn f2 rfl,
-                Equiv.symm_apply_eq]
-              exact (Equiv.swap_apply_of_ne_of_ne ha0 ha1).symm
-            rw [hpa] at ha_lt; omega
-      simp [hs2_rem, ha01]
-    · simp only [hi, ↓reduceIte]
-      exact fav_rank_zero p _ hex2 i i (psManip_symm_dummy hn i (by omega))
-        (by simp [hs2_rem, show ¬ (i.val = 0 ∨ i.val = 1) by omega,
-          show i.val ≠ 2 by omega])
-  have hdem2 : ∀ o : Fin n, eatingDemand p s2.rem hex2 o =
-      if o.val = 0 ∨ o.val = 1 then 0 else if o.val = 2 then 3 else 1 := by
-    intro o; unfold eatingDemand; simp_rw [hfav2]
-    by_cases h01' : o.val = 0 ∨ o.val = 1
-    · rw [ite_eq_left h01']
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro i _; split_ifs <;> simp [Fin.ext_iff, f2] <;> omega
-    · by_cases h2 : o.val = 2
-      · rw [ite_eq_right h01', ite_eq_left h2]
-        have ho : o = f2 := Fin.ext h2; rw [ho]
-        rw [card_filter_eq_of_iff _ {f0, f1, f2} (fun i => by
-          split_ifs <;> simp [Fin.ext_iff, f0, f1, f2] <;> omega),
-          Finset.card_insert_of_notMem (by
-            simp only [Finset.mem_insert, Finset.mem_singleton, not_or]; exact ⟨h01, h02⟩),
-          Finset.card_pair h12]
-      · rw [ite_eq_right h01', ite_eq_right h2]
-        rw [card_filter_eq_of_iff _ {o} (fun i => by
-          split_ifs
-          · simp [Fin.ext_iff, f2]; omega
-          · simp [Fin.ext_iff]), Finset.card_singleton]
-  have hdt2 : eatingDuration p s2.rem hex2 = 1 / 4 := by
-    refine eatingDuration_eq_of_le p _ hex2 (1 / 4)
-      ⟨f2, by simp [hdem2, f2], by simp [hs2_rem, hdem2, f2]; norm_num⟩
-      fun o hd => ?_
-    rw [hdem2 o] at hd ⊢; rw [hs2_rem o]
-    by_cases h01' : o.val = 0 ∨ o.val = 1
-    · simp [h01'] at hd
-    · by_cases h2 : o.val = 2
-      · simp [h2]; norm_num
-      · simp [h01', h2]
-  have hs3_rem : ∀ o : Fin n, s3.rem o = 0 := fun o => by
-    rw [eatingStep_pos_rem p s2 hex2 o, hs2_rem o, hdem2 o, hdt2]
-    by_cases h01' : o.val = 0 ∨ o.val = 1
-    · simp [h01']
-    · by_cases h2 : o.val = 2
-      · simp [h2]; norm_num
-      · simp [h01', h2]
-  have hfinal : (eatingStep p)^[n] s0 = s3 :=
-    calc (eatingStep p)^[n] s0
-        = (eatingStep p)^[(n - 3) + 3] s0 :=
-          congrArg (fun k => (eatingStep p)^[k] s0) (by omega)
-      _ = (eatingStep p)^[n - 3] ((eatingStep p)^[3] s0) := Function.iterate_add_apply _ _ _ _
-      _ = s3 := eatingStep_iter_of_rem_zero p s3 hs3_rem (n - 3)
-  have hs3_a2 : ∀ o : Fin n, s3.alloc f2 o =
-      if o.val = 1 then 3 / 4 else if o.val = 2 then 1 / 4 else 0 := fun o => by
-    rw [eatingStep_pos_alloc p s2 hex2 f2 o, hs2_a2 o, hfav2 f2, hdt2]
-    have hf2_lt : f2.val < 3 := by change (2 : ℕ) < 3; omega
-    rw [ite_eq_left hf2_lt]
-    by_cases h1 : o.val = 1
-    · have hne2 : f2 ≠ o := fun heq => by
-        have := congrArg Fin.val heq; change 2 = o.val at this; omega
-      rw [ite_eq_left h1, ite_eq_right hne2, add_zero, ite_eq_left h1]
-    · by_cases h2 : o.val = 2
-      · have heq2 : f2 = o := Fin.ext (show 2 = o.val from h2.symm)
-        rw [ite_eq_right h1, ite_eq_left heq2, zero_add, ite_eq_right h1, ite_eq_left h2]
-      · have hne2 : f2 ≠ o := fun heq => h2 (congrArg Fin.val heq).symm
-        rw [ite_eq_right h1, ite_eq_right hne2, zero_add, ite_eq_right h1, ite_eq_right h2]
-  have hs3_eval : probabilisticSerial p f2 f0 = 0 ∧
-      probabilisticSerial p f2 f1 = 3 / 4 ∧ probabilisticSerial p f2 f2 = 1 / 4 := by
-    change ((eatingStep p)^[n] s0).alloc f2 f0 = 0 ∧
-      ((eatingStep p)^[n] s0).alloc f2 f1 = 3 / 4 ∧
-      ((eatingStep p)^[n] s0).alloc f2 f2 = 1 / 4
-    rw [hfinal, hs3_a2 f0, hs3_a2 f1, hs3_a2 f2]
-    simp [f0, f1, f2]
-  exact hs3_eval
+  have hs0 : ∀ o : Fin n, s0.rem o = padVec (fun _ => 1) 1 o := fun o => by
+    simp [s0, initEatingState, padVec]
+  obtain ⟨hs1_rem', hs1_a⟩ := eatingStep_padded hn p s0 (fun _ => 1) 1 dt₀ f₀ hdum hs0
+    zero_lt_one zero_lt_one (fun a => by
+      fin_cases a
+      · exact fav_core hn p s0 hs0 _ _ (f₀ 0) zero_lt_one fun x hx => by
+          rw [hf0_0, hp0] at hx; exact absurd hx (by simp [Fin.lt_def])
+      · exact fav_core hn p s0 hs0 _ _ (f₀ 1) zero_lt_one fun x hx => by
+          rw [hf0_1, hp1] at hx
+          change (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x <
+            (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨0, by omega⟩ at hx
+          rw [swap12_symm_r0 hn] at hx; exact absurd hx (by simp [Fin.lt_def])
+      · exact fav_core hn p s0 hs0 _ _ (f₀ 2) zero_lt_one fun x hx => by
+          rw [h0_p2] at hx; exact absurd hx (by simp [Fin.lt_def]))
+    hdt₀.1 hdt₀.2.1 hdt₀.2.2
+  have hs1_rem : ∀ o : Fin n, s1.rem o = padVec r₁ d₁ o := fun o => by
+    rw [hs1_rem' o]; by_cases ho : o.val < 3 <;> simp [padVec, ho, hr₁_def, hd₁_def]
+  obtain ⟨hs2_rem', hs2_a⟩ := eatingStep_padded hn p s1 r₁ d₁ dt₁ ![1, 2, 1] hdum hs1_rem
+    hr₁_2 hd₁_pos (fun a => by
+      fin_cases a
+      · exact fav_core hn p s1 hs1_rem _ _ 1 hr₁_1 fun x hx => by
+          rw [hp0] at hx; exact ⟨0, by change x.val = 0; have : x.val < 1 := hx; omega, hr₁_0⟩
+      · exact fav_core hn p s1 hs1_rem _ _ 2 hr₁_2 fun x hx => by
+          rw [hp1] at hx; exact ⟨0, swap12_lt_two hn x hx, hr₁_0⟩
+      · exact fav_core hn p s1 hs1_rem _ _ 1 hr₁_1 fun x hx =>
+          ⟨0, hprev1_2 x hx, hr₁_0⟩)
+    hdt₁.1 hdt₁.2.1 hdt₁.2.2
+  have hs2_rem : ∀ o : Fin n, s2.rem o = padVec r₂ d₂ o := fun o => by
+    rw [hs2_rem' o]; by_cases ho : o.val < 3 <;> simp [padVec, ho, hr₂_def, hd₂_def]
+  obtain ⟨hs3_rem', hs3_a⟩ := eatingStep_padded hn p s2 r₂ d₂ dt₂ ![2, 2, 2] hdum hs2_rem
+    hr₂_2 hd₂_pos (fun a => by
+      fin_cases a
+      · exact fav_core hn p s2 hs2_rem _ _ 2 hr₂_2 fun x hx => by
+          rw [hp0] at hx
+          have hlt : x.val < 2 := hx
+          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hlt) with h0 | h1
+          · exact ⟨0, by omega, hr₂_0⟩
+          · exact ⟨1, by omega, hr₂_1⟩
+      · exact fav_core hn p s2 hs2_rem _ _ 2 hr₂_2 fun x hx => by
+          rw [hp1] at hx; exact ⟨0, swap12_lt_two hn x hx, hr₂_0⟩
+      · exact fav_core hn p s2 hs2_rem _ _ 2 hr₂_2 fun x hx =>
+          (hprev2_2 x hx).elim (fun h => ⟨0, h, hr₂_0⟩) (fun h => ⟨1, h, hr₂_1⟩))
+    hdt₂.1 hdt₂.2.1 hdt₂.2.2
+  have hs3_zero : ∀ o : Fin n, s3.rem o = 0 := fun o => by
+    rw [hs3_rem' o]; by_cases ho : o.val < 3 <;> simp [padVec, ho, hr₃_zero, hd₃_zero]
+  intro a
+  change ((eatingStep p)^[n] s0).alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = _
+  rw [eq_iter_three_of_rem_zero hn p hs3_zero]
+  change s3.alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = _
+  rw [hs3_a a, hs2_a a, hs1_a a]
+  have hs0_zero : s0.alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = 0 := rfl
+  rw [hs0_zero, zero_add]
+  have h1eq : (![1, 2, 1] : Fin 3 → Fin 3) 2 = 1 := rfl
+  have h2eq : (![2, 2, 2] : Fin 3 → Fin 3) 2 = 2 := rfl
+  rw [h1eq, h2eq]
 
-/-- Exact first 3 rounds of `eatingStep` when agent `2` misreports `Equiv.refl (Fin n)`. -/
+private lemma coreCount_t0 (j : Fin 3) : coreCount ![0, 0, 1] j = ![2, 1, 0] j := by
+  fin_cases j <;> decide
+
+private lemma coreCount_m0 (j : Fin 3) : coreCount ![0, 0, 0] j = ![3, 0, 0] j := by
+  fin_cases j <;> decide
+
+private lemma coreCount_r1 (j : Fin 3) : coreCount ![1, 2, 1] j = ![0, 2, 1] j := by
+  fin_cases j <;> decide
+
+private lemma coreCount_r2 (j : Fin 3) : coreCount ![2, 2, 2] j = ![0, 0, 3] j := by
+  fin_cases j <;> decide
+
+private lemma psManip_truthful_row2 {n : ℕ} (hn : 3 ≤ n) :
+    probabilisticSerial (psManipProfile hn) ⟨2, by omega⟩ ⟨0, by omega⟩ = 0 ∧
+    probabilisticSerial (psManipProfile hn) ⟨2, by omega⟩ ⟨1, by omega⟩ = 3 / 4 ∧
+    probabilisticSerial (psManipProfile hn) ⟨2, by omega⟩ ⟨2, by omega⟩ = 1 / 4 := by
+  have heval := eval_psManip_three hn (psManipProfile hn)
+    (by simp [psManipProfile]) (by simp [psManipProfile]) (psManip_symm_dummy hn)
+    ![0, 0, 1] (1 / 2) (1 / 4) (1 / 4)
+    ![0, 1 / 2, 1] ![0, 0, 3 / 4] (1 / 2) (1 / 4)
+    (fun j => by fin_cases j <;> simp [coreCount_t0]; norm_num)
+    (by norm_num)
+    (fun j => by fin_cases j <;> simp [coreCount_r1] <;> norm_num)
+    (by norm_num)
+    (fun j => by fin_cases j <;> simp [coreCount_r2]; norm_num)
+    (by norm_num)
+    (by simp [psManipProfile]) rfl rfl
+    ⟨⟨0, by decide, by simp [coreCount_t0]⟩,
+      fun j hj => by fin_cases j <;> simp [coreCount_t0] at hj ⊢; norm_num, by norm_num⟩
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (fun x hx => by
+      have hp2 : psManipProfile hn ⟨2, by omega⟩ =
+          Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by simp [psManipProfile]
+      rw [hp2, show (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm ⟨1, by omega⟩ =
+        ⟨0, by omega⟩ from by rw [Equiv.symm_apply_eq]; simp] at hx
+      exact absurd hx (by simp [Fin.lt_def]))
+    ⟨⟨1, by decide, by simp [coreCount_r1]; norm_num⟩,
+      fun j hj => by fin_cases j <;> simp [coreCount_r1] at hj ⊢ <;> norm_num, by norm_num⟩
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (fun x hx => by
+      have hp2 : psManipProfile hn ⟨2, by omega⟩ =
+          Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by simp [psManipProfile]
+      rw [hp2] at hx
+      have h2 : (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm ⟨2, by omega⟩ =
+          ⟨2, by omega⟩ := by
+        rw [Equiv.symm_apply_eq]
+        exact (Equiv.swap_apply_of_ne_of_ne (by simp [Fin.ext_iff]) (by simp [Fin.ext_iff])).symm
+      rw [h2] at hx; exact swap01_lt hn x hx)
+    ⟨⟨2, by decide, by simp [coreCount_r2]; norm_num⟩,
+      fun j hj => by fin_cases j <;> simp [coreCount_r2] at hj ⊢; norm_num, by norm_num⟩
+  refine ⟨?_, ?_, ?_⟩
+  · have h0 := heval 0; simpa using h0
+  · have h1 := heval 1; norm_num at h1; exact h1
+  · have h2 := heval 2; simpa using h2
+
 private lemma psManip_misreport_row2 {n : ℕ} (hn : 3 ≤ n) :
     let p' := Function.update (psManipProfile hn) ⟨2, by omega⟩ (Equiv.refl (Fin n))
     probabilisticSerial p' ⟨2, by omega⟩ ⟨0, by omega⟩ = 1 / 3 ∧
     probabilisticSerial p' ⟨2, by omega⟩ ⟨1, by omega⟩ = 1 / 2 ∧
     probabilisticSerial p' ⟨2, by omega⟩ ⟨2, by omega⟩ = 1 / 6 := by
   intro p'
-  let f0 : Fin n := ⟨0, by omega⟩
-  let f1 : Fin n := ⟨1, by omega⟩
-  let f2 : Fin n := ⟨2, by omega⟩
-  have h01 : f0 ≠ f1 := by simp [f0, f1, Fin.ext_iff]
-  have h02 : f0 ≠ f2 := by simp [f0, f2, Fin.ext_iff]
-  have h12 : f1 ≠ f2 := by simp [f1, f2, Fin.ext_iff]
-  have hp'_ne2 : ∀ i : Fin n, i.val ≠ 2 → p' i = psManipProfile hn i := fun i hi =>
+  have hne2 : ∀ i : Fin n, i.val ≠ 2 → p' i = psManipProfile hn i := fun i hi =>
     Function.update_of_ne (fun h => hi (congrArg Fin.val h)) _ _
-  have hp0_r : ∀ o : Fin n, (p' f0).symm o = o := fun o => by
-    rw [hp'_ne2 f0 (by simp [f0]), psManip_eq_refl hn f0 rfl]; rfl
-  have hp2_r : ∀ o : Fin n, (p' f2).symm o = o := fun o => by
-    have : p' f2 = Equiv.refl (Fin n) := Function.update_self _ _ _
-    rw [this]; rfl
-  have hp1_r0 : (p' f1).symm f0 = f0 := by
-    rw [hp'_ne2 f1 (by simp [f1]), show psManipProfile hn f1 = Equiv.swap f1 f2 from
-      psManip_eq_swap12 hn f1 rfl, Equiv.symm_apply_eq]
-    exact Equiv.swap_apply_of_ne_of_ne h01 h02
-  have hp1_r2 : (p' f1).symm f2 = f1 := by
-    rw [hp'_ne2 f1 (by simp [f1]), show psManipProfile hn f1 = Equiv.swap f1 f2 from
-      psManip_eq_swap12 hn f1 rfl, Equiv.symm_apply_eq]
-    exact Equiv.swap_apply_left f1 f2
-  have hp'_dummy : ∀ i : Fin n, 3 ≤ i.val → (p' i).symm i = f0 := fun i hi => by
-    rw [hp'_ne2 i (by omega)]; exact psManip_symm_dummy hn i hi
-  let s0 := initEatingState n
-  let s1 := eatingStep p' s0
-  let s2 := eatingStep p' s1
-  let s3 := eatingStep p' s2
-  -- Round 0
-  have hex0 : ∃ o : Fin n, 0 < s0.rem o := ⟨f0, by simp [s0, initEatingState]⟩
-  have hfav0 : ∀ i : Fin n, favObject p' s0.rem hex0 i = if i.val < 3 then f0 else i := by
-    intro i
-    have hpos : ∀ o, (0 : ℝ) < s0.rem o := fun _ => by simp [s0, initEatingState]
-    by_cases hi : i.val < 3
-    · simp only [hi, ↓reduceIte]
-      by_cases h0 : i.val = 0
-      · rw [show i = f0 from Fin.ext h0]; exact fav_rank_zero p' _ hex0 f0 f0 (hp0_r f0) (hpos f0)
-      · by_cases h1 : i.val = 1
-        · rw [show i = f1 from Fin.ext h1]; exact fav_rank_zero p' _ hex0 f1 f0 hp1_r0 (hpos f0)
-        · rw [show i = f2 from Fin.ext (show i.val = 2 by omega)]
-          exact fav_rank_zero p' _ hex0 f2 f0 (hp2_r f0) (hpos f0)
-    · simp only [hi, ↓reduceIte]
-      exact fav_rank_zero p' _ hex0 i i (hp'_dummy i (by omega)) (hpos i)
-  have hdem0 : ∀ o : Fin n, eatingDemand p' s0.rem hex0 o =
-      if o.val = 0 then 3 else if o.val = 1 ∨ o.val = 2 then 0 else 1 := by
-    intro o; unfold eatingDemand; simp_rw [hfav0]
-    by_cases h0 : o.val = 0
-    · rw [ite_eq_left h0]
-      have ho : o = f0 := Fin.ext h0; rw [ho]
-      rw [card_filter_eq_of_iff _ {f0, f1, f2} (fun i => by
-        split_ifs <;> simp [Fin.ext_iff, f0, f1, f2] <;> omega),
-        Finset.card_insert_of_notMem (by
-          simp only [Finset.mem_insert, Finset.mem_singleton, not_or]; exact ⟨h01, h02⟩),
-        Finset.card_pair h12]
-    · by_cases h12' : o.val = 1 ∨ o.val = 2
-      · rw [ite_eq_right h0, ite_eq_left h12']
-        rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-        intro i _; split_ifs <;> simp [Fin.ext_iff, f0] <;> omega
-      · rw [ite_eq_right h0, ite_eq_right h12']
-        rw [card_filter_eq_of_iff _ {o} (fun i => by
-          split_ifs
-          · simp [Fin.ext_iff, f0]; omega
-          · simp [Fin.ext_iff]), Finset.card_singleton]
-  have hdt0 : eatingDuration p' s0.rem hex0 = 1 / 3 := by
-    refine eatingDuration_eq_of_le p' _ hex0 (1 / 3)
-      ⟨f0, by simp [hdem0, f0], by rw [hdem0 f0]; simp [s0, initEatingState, f0]⟩
-      fun o hd => ?_
-    rw [hdem0 o] at hd ⊢
-    change 1 / 3 ≤ (1 : ℝ) / _
-    split_ifs at hd ⊢
-    · norm_num
-    · omega
-    · norm_num
-  have hs1_rem : ∀ o : Fin n, s1.rem o =
-      if o.val = 0 then 0 else if o.val = 1 ∨ o.val = 2 then 1 else 2 / 3 := fun o => by
-    rw [eatingStep_pos_rem p' s0 hex0 o, hdem0 o, hdt0]
-    change 1 - _ = _
-    split_ifs <;> norm_num
-  have hs1_a2 : ∀ o : Fin n, s1.alloc f2 o = if o.val = 0 then 1 / 3 else 0 := fun o => by
-    rw [eatingStep_pos_alloc p' s0 hex0 f2 o, hfav0 f2, hdt0]
-    have h0a : s0.alloc f2 o = 0 := rfl
-    rw [h0a, zero_add]
-    have hf2_lt : f2.val < 3 := by change (2 : ℕ) < 3; omega
-    rw [ite_eq_left hf2_lt]
-    by_cases h0 : o.val = 0
-    · rw [ite_eq_left (Fin.ext (show 0 = o.val from h0.symm)), ite_eq_left h0]
-    · rw [ite_eq_right (fun heq => h0 (congrArg Fin.val heq).symm), ite_eq_right h0]
-  -- Round 1
-  have hex1 : ∃ o : Fin n, 0 < s1.rem o := ⟨f1, by simp [hs1_rem, f1]⟩
-  have hfav1 : ∀ i : Fin n, favObject p' s1.rem hex1 i =
-      if i.val = 0 ∨ i.val = 2 then f1 else if i.val = 1 then f2 else i := by
-    intro i
-    by_cases h02' : i.val = 0 ∨ i.val = 2
-    · rw [ite_eq_left h02']
-      rcases h02' with h0 | h2
-      · rw [show i = f0 from Fin.ext h0]
-        refine favObject_eq_of_lt_nonpos p' _ hex1 f0 f1 (by simp [hs1_rem, f1]) fun a ha => ?_
-        rw [hp0_r a, hp0_r f1] at ha
-        have ha0 : a.val = 0 := by change a.val < 1 at ha; omega
-        simp [hs1_rem, ha0]
-      · rw [show i = f2 from Fin.ext h2]
-        refine favObject_eq_of_lt_nonpos p' _ hex1 f2 f1 (by simp [hs1_rem, f1]) fun a ha => ?_
-        rw [hp2_r a, hp2_r f1] at ha
-        have ha0 : a.val = 0 := by change a.val < 1 at ha; omega
-        simp [hs1_rem, ha0]
-    · by_cases h1 : i.val = 1
-      · rw [ite_eq_right h02', ite_eq_left h1]
-        rw [show i = f1 from Fin.ext h1]
-        refine favObject_eq_of_lt_nonpos p' _ hex1 f1 f2 (by simp [hs1_rem, f2]) fun a ha => ?_
-        rw [hp1_r2] at ha
-        have ha_lt : ((p' f1).symm a).val < 1 := ha
-        have heq : (p' f1).symm a = (p' f1).symm f0 := by
-          rw [hp1_r0]; apply Fin.ext; change _ = (0 : ℕ); omega
-        rw [(p' f1).symm.injective heq]; simp [hs1_rem, f0]
-      · rw [ite_eq_right h02', ite_eq_right h1]
-        exact fav_rank_zero p' _ hex1 i i (hp'_dummy i (by omega))
-          (by simp [hs1_rem, show i.val ≠ 0 by omega,
-            show ¬ (i.val = 1 ∨ i.val = 2) by omega])
-  have hdem1 : ∀ o : Fin n, eatingDemand p' s1.rem hex1 o =
-      if o.val = 0 then 0 else if o.val = 1 then 2 else 1 := by
-    intro o; unfold eatingDemand; simp_rw [hfav1]
-    by_cases h0 : o.val = 0
-    · rw [ite_eq_left h0]
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro i _; split_ifs <;> simp [Fin.ext_iff, f1, f2] <;> omega
-    · by_cases h1 : o.val = 1
-      · rw [ite_eq_right h0, ite_eq_left h1]
-        have ho : o = f1 := Fin.ext h1; rw [ho]
-        rw [card_filter_eq_of_iff _ {f0, f2} (fun i => by
-          split_ifs <;> simp [Fin.ext_iff, f0, f1, f2] <;> omega), Finset.card_pair h02]
-      · rw [ite_eq_right h0, ite_eq_right h1]
-        by_cases h2 : o.val = 2
-        · have ho : o = f2 := Fin.ext h2; rw [ho]
-          rw [card_filter_eq_of_iff _ {f1} (fun i => by
-            split_ifs <;> simp [Fin.ext_iff, f1, f2] <;> omega), Finset.card_singleton]
-        · rw [card_filter_eq_of_iff _ {o} (fun i => by
-            split_ifs <;> simp [Fin.ext_iff, f1, f2] <;> omega), Finset.card_singleton]
-  have hdt1 : eatingDuration p' s1.rem hex1 = 1 / 2 := by
-    refine eatingDuration_eq_of_le p' _ hex1 (1 / 2)
-      ⟨f1, by simp [hdem1, f1], by simp [hs1_rem, hdem1, f1]⟩
-      fun o hd => ?_
-    rw [hdem1 o] at hd ⊢; rw [hs1_rem o]
-    by_cases h0 : o.val = 0
-    · simp [h0] at hd
-    · by_cases h1 : o.val = 1
-      · rw [ite_eq_right h0, ite_eq_left h1, ite_eq_right h0, ite_eq_left (Or.inl h1)]; norm_num
-      · by_cases h2 : o.val = 2 <;> simp [h0, h1, h2] <;> norm_num
-  have hs2_rem : ∀ o : Fin n, s2.rem o =
-      if o.val = 0 ∨ o.val = 1 then 0 else if o.val = 2 then 1 / 2 else 1 / 6 := fun o => by
-    rw [eatingStep_pos_rem p' s1 hex1 o, hs1_rem o, hdem1 o, hdt1]
-    by_cases h0 : o.val = 0
-    · simp [h0]
-    · by_cases h1 : o.val = 1
-      · rw [ite_eq_right h0, ite_eq_left (Or.inl h1), ite_eq_right h0,
-          ite_eq_left h1, ite_eq_left (Or.inr h1)]
-        norm_num
-      · by_cases h2 : o.val = 2 <;> simp [h0, h1, h2] <;> norm_num
-  have hs2_a2 : ∀ o : Fin n, s2.alloc f2 o =
-      if o.val = 0 then 1 / 3 else if o.val = 1 then 1 / 2 else 0 := fun o => by
-    rw [eatingStep_pos_alloc p' s1 hex1 f2 o, hs1_a2 o, hfav1 f2, hdt1]
-    simp only [f2, or_true, ↓reduceIte, Fin.ext_iff, f1]
-    by_cases h0 : o.val = 0
-    · simp [h0]
-    · by_cases h1 : o.val = 1 <;> simp [h0, h1, eq_comm]
-  -- Round 2
-  have hex2 : ∃ o : Fin n, 0 < s2.rem o := ⟨f2, by simp [hs2_rem, f2]⟩
-  have hfav2 : ∀ i : Fin n, favObject p' s2.rem hex2 i = if i.val < 3 then f2 else i := by
-    intro i
-    by_cases hi : i.val < 3
-    · simp only [hi, ↓reduceIte]
-      refine favObject_eq_of_lt_nonpos p' _ hex2 i f2 (by simp [hs2_rem, f2]) fun a ha => ?_
-      have ha01 : a.val = 0 ∨ a.val = 1 := by
-        by_cases h0 : i.val = 0
-        · rw [show i = f0 from Fin.ext h0, hp0_r a, hp0_r f2] at ha
-          have : a.val < 2 := ha; omega
-        · by_cases h1 : i.val = 1
-          · rw [show i = f1 from Fin.ext h1, hp1_r2] at ha
-            have ha_lt : ((p' f1).symm a).val < 1 := ha
-            have heq : (p' f1).symm a = (p' f1).symm f0 := by
-              rw [hp1_r0]; apply Fin.ext; change _ = (0 : ℕ); omega
-            left; exact congrArg Fin.val ((p' f1).symm.injective heq)
-          · rw [show i = f2 from Fin.ext (show i.val = 2 by omega), hp2_r a, hp2_r f2] at ha
-            have : a.val < 2 := ha; omega
-      simp [hs2_rem, ha01]
-    · simp only [hi, ↓reduceIte]
-      exact fav_rank_zero p' _ hex2 i i (hp'_dummy i (by omega))
-        (by simp [hs2_rem, show ¬ (i.val = 0 ∨ i.val = 1) by omega,
-          show i.val ≠ 2 by omega])
-  have hdem2 : ∀ o : Fin n, eatingDemand p' s2.rem hex2 o =
-      if o.val = 0 ∨ o.val = 1 then 0 else if o.val = 2 then 3 else 1 := by
-    intro o; unfold eatingDemand; simp_rw [hfav2]
-    by_cases h01' : o.val = 0 ∨ o.val = 1
-    · rw [ite_eq_left h01']
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro i _; split_ifs <;> simp [Fin.ext_iff, f2] <;> omega
-    · by_cases h2 : o.val = 2
-      · rw [ite_eq_right h01', ite_eq_left h2]
-        have ho : o = f2 := Fin.ext h2; rw [ho]
-        rw [card_filter_eq_of_iff _ {f0, f1, f2} (fun i => by
-          split_ifs <;> simp [Fin.ext_iff, f0, f1, f2] <;> omega),
-          Finset.card_insert_of_notMem (by
-            simp only [Finset.mem_insert, Finset.mem_singleton, not_or]; exact ⟨h01, h02⟩),
-          Finset.card_pair h12]
-      · rw [ite_eq_right h01', ite_eq_right h2]
-        rw [card_filter_eq_of_iff _ {o} (fun i => by
-          split_ifs
-          · simp [Fin.ext_iff, f2]; omega
-          · simp [Fin.ext_iff]), Finset.card_singleton]
-  have hdt2 : eatingDuration p' s2.rem hex2 = 1 / 6 := by
-    refine eatingDuration_eq_of_le p' _ hex2 (1 / 6)
-      ⟨f2, by simp [hdem2, f2], by simp [hs2_rem, hdem2, f2]; norm_num⟩
-      fun o hd => ?_
-    rw [hdem2 o] at hd ⊢; rw [hs2_rem o]
-    by_cases h01' : o.val = 0 ∨ o.val = 1
-    · simp [h01'] at hd
-    · by_cases h2 : o.val = 2
-      · simp [h2]; norm_num
-      · simp [h01', h2]
-  have hs3_rem : ∀ o : Fin n, s3.rem o = 0 := fun o => by
-    rw [eatingStep_pos_rem p' s2 hex2 o, hs2_rem o, hdem2 o, hdt2]
-    by_cases h01' : o.val = 0 ∨ o.val = 1
-    · simp [h01']
-    · by_cases h2 : o.val = 2
-      · simp [h2]; norm_num
-      · simp [h01', h2]
-  have hfinal : (eatingStep p')^[n] s0 = s3 :=
-    calc (eatingStep p')^[n] s0
-        = (eatingStep p')^[(n - 3) + 3] s0 :=
-          congrArg (fun k => (eatingStep p')^[k] s0) (by omega)
-      _ = (eatingStep p')^[n - 3] ((eatingStep p')^[3] s0) := Function.iterate_add_apply _ _ _ _
-      _ = s3 := eatingStep_iter_of_rem_zero p' s3 hs3_rem (n - 3)
-  have hs3_a2 : ∀ o : Fin n, s3.alloc f2 o =
-      if o.val = 0 then 1 / 3 else if o.val = 1 then 1 / 2 else if o.val = 2 then 1 / 6 else 0 :=
-    fun o => by
-      rw [eatingStep_pos_alloc p' s2 hex2 f2 o, hs2_a2 o, hfav2 f2, hdt2]
-      have hf2_lt : f2.val < 3 := by change (2 : ℕ) < 3; omega
-      rw [ite_eq_left hf2_lt]
-      by_cases h0 : o.val = 0
-      · have hne2 : f2 ≠ o := fun heq => by
-          have := congrArg Fin.val heq; change 2 = o.val at this; omega
-        rw [ite_eq_left h0, ite_eq_right hne2, add_zero, ite_eq_left h0]
-      · by_cases h1 : o.val = 1
-        · have hne2 : f2 ≠ o := fun heq => by
-            have := congrArg Fin.val heq; change 2 = o.val at this; omega
-          rw [ite_eq_right h0, ite_eq_left h1, ite_eq_right hne2, add_zero,
-            ite_eq_right h0, ite_eq_left h1]
-        · by_cases h2 : o.val = 2
-          · have heq2 : f2 = o := Fin.ext (show 2 = o.val from h2.symm)
-            rw [ite_eq_right h0, ite_eq_right h1, ite_eq_left heq2, zero_add,
-              ite_eq_right h0, ite_eq_right h1, ite_eq_left h2]
-          · have hne2 : f2 ≠ o := fun heq => h2 (congrArg Fin.val heq).symm
-            rw [ite_eq_right h0, ite_eq_right h1, ite_eq_right hne2, zero_add,
-              ite_eq_right h0, ite_eq_right h1, ite_eq_right h2]
-  change ((eatingStep p')^[n] s0).alloc f2 f0 = 1 / 3 ∧
-    ((eatingStep p')^[n] s0).alloc f2 f1 = 1 / 2 ∧
-    ((eatingStep p')^[n] s0).alloc f2 f2 = 1 / 6
-  rw [hfinal, hs3_a2 f0, hs3_a2 f1, hs3_a2 f2]
-  simp [f0, f1, f2]
+  have hp2 : p' ⟨2, by omega⟩ = Equiv.refl (Fin n) := Function.update_self _ _ _
+  have heval := eval_psManip_three hn p'
+    (by rw [hne2 _ (by change (0 : ℕ) ≠ 2; omega)]; simp [psManipProfile])
+    (by rw [hne2 _ (by change (1 : ℕ) ≠ 2; omega)]; simp [psManipProfile])
+    (fun i hi => by rw [hne2 i (by omega)]; exact psManip_symm_dummy hn i hi)
+    ![0, 0, 0] (1 / 3) (1 / 2) (1 / 6)
+    ![0, 1, 1] ![0, 0, 1 / 2] (2 / 3) (1 / 6)
+    (fun j => by fin_cases j <;> simp [coreCount_m0])
+    (by norm_num)
+    (fun j => by fin_cases j <;> simp [coreCount_r1]; norm_num)
+    (by norm_num)
+    (fun j => by fin_cases j <;> simp [coreCount_r2]; norm_num)
+    (by norm_num)
+    (by rw [hp2]; rfl) rfl rfl
+    ⟨⟨0, by decide, by simp [coreCount_m0]⟩,
+      fun j hj => by fin_cases j <;> simp [coreCount_m0] at hj ⊢, by norm_num⟩
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (fun x hx => by rw [hp2] at hx; change x.val < 1 at hx; omega)
+    ⟨⟨1, by decide, by simp [coreCount_r1]⟩,
+      fun j hj => by fin_cases j <;> simp [coreCount_r1] at hj ⊢; norm_num, by norm_num⟩
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (fun x hx => by rw [hp2] at hx; change x.val < 2 at hx; omega)
+    ⟨⟨2, by decide, by simp [coreCount_r2]; norm_num⟩,
+      fun j hj => by fin_cases j <;> simp [coreCount_r2] at hj ⊢; norm_num, by norm_num⟩
+  refine ⟨?_, ?_, ?_⟩
+  · simpa using heval 0
+  · simpa using heval 1
+  · simpa using heval 2
 
 /-- Exact values of agent `2`'s lottery under `probabilisticSerial` on `psManipProfile hn`:
 truthful `(0, 3/4, 1/4)` vs misreported `(1/3, 1/2, 1/6)`. -/

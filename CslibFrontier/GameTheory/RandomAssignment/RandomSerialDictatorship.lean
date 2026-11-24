@@ -25,10 +25,8 @@ orderings.
 
 ## Main definitions
 
-* `Cslib.GameTheory.RandomAssignment.serialDictFun`: computable greedy allocation function under
-  priority order `σ`.
-* `Cslib.GameTheory.RandomAssignment.serialDictatorship`: packaged bijection
-  `Equiv.Perm (Fin n)` returned by serial dictatorship.
+* `Cslib.GameTheory.RandomAssignment.serialDictatorship`: bijection `Equiv.Perm (Fin n)` returned
+  by deterministic serial dictatorship under priority order `σ`.
 * `Cslib.GameTheory.RandomAssignment.rsd`: random serial dictatorship `AssignmentRule n`.
 
 ## Main results
@@ -48,10 +46,10 @@ orderings.
 * `Cslib.GameTheory.RandomAssignment.not_isSDEnvyFree_rsd_three`: for `n = 3`, `rsd` fails
   `sd`-envy-freeness.
 * `Cslib.GameTheory.RandomAssignment.not_isSDEfficient_rsd_four` /
-  `rsd_counterexample_dominated`: for `n = 4` (and `not_isSDEfficient_rsd_of_four_le` for every
-  `n ≥ 4`), `rsd` is **not** `sd`-efficient (witnessed on `p₄ = (abcd, abcd, badc, badc)` where
-  `rsd` yields `(5/12, 1/12, 5/12, 1/12)` and `(1/12, 5/12, 1/12, 5/12)`, strictly `sd`-dominated
-  for all four agents by `(1/2, 0, 1/2, 0)` and `(0, 1/2, 0, 1/2)`).
+  `rsd_ineffProfileFour_strictly_dominated`: for `n = 4` (and `not_isSDEfficient_rsd_of_four_le`
+  for every `n ≥ 4`), `rsd` is **not** `sd`-efficient (witnessed on `p₄ = (abcd, abcd, badc, badc)`
+  where `rsd` yields `(5/12, 1/12, 5/12, 1/12)` and `(1/12, 5/12, 1/12, 5/12)`, strictly
+  `sd`-dominated for all four agents by `(1/2, 0, 1/2, 0)` and `(0, 1/2, 0, 1/2)`).
 
 ## References
 
@@ -66,7 +64,7 @@ namespace Cslib.GameTheory.RandomAssignment
 open Finset Matrix
 
 /-- Internal step picking the best remaining object from `Fin n` avoiding `taken`. -/
-def bestRemaining {n : ℕ} (π : Equiv.Perm (Fin n)) (taken : Finset (Fin n))
+private def bestRemaining {n : ℕ} (π : Equiv.Perm (Fin n)) (taken : Finset (Fin n))
     (hne : (Finset.univ.filter fun r : Fin n => π r ∉ taken).Nonempty) : Fin n :=
   π ((Finset.univ.filter fun r : Fin n => π r ∉ taken).min' hne)
 
@@ -109,13 +107,13 @@ private def sdPrefix {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
       rw [Finset.card_insert_of_notMem (bestRemaining_not_mem _ _ hne), prev.2]⟩
 
 /-- The object picked at turn `t : Fin n` (by agent `σ t`). -/
-def serialDictPick {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (t : Fin n) : Fin n :=
+private def serialDictPick {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (t : Fin n) : Fin n :=
   let prev := sdPrefix p σ t.val (by omega)
   bestRemaining (p (σ t)) prev.1
     (exists_avail_of_card_lt (p (σ t)) prev.1 (by rw [prev.2]; exact t.isLt))
 
 /-- The set of objects already claimed strictly before turn `t : Fin n`. -/
-def serialDictTaken {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (t : ℕ)
+private def serialDictTaken {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (t : ℕ)
     (ht : t ≤ n) : Finset (Fin n) :=
   (sdPrefix p σ t ht).1
 
@@ -142,16 +140,16 @@ private lemma mem_serialDictTaken_iff {n : ℕ} (p : Profile n) (σ : Equiv.Perm
       · exact Or.inr ⟨s, hlt, rfl⟩
       · left; congr 1; exact Fin.ext heq
 
-lemma serialDictPick_not_mem_taken {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
+private lemma serialDictPick_not_mem_taken {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
     (t : Fin n) : serialDictPick p σ t ∉ serialDictTaken p σ t.val (by omega) :=
   bestRemaining_not_mem _ _ _
 
-lemma serialDictPick_optimal {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
+private lemma serialDictPick_optimal {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
     (t : Fin n) {o : Fin n} (ho : o ∉ serialDictTaken p σ t.val (by omega)) :
     (p (σ t)).symm (serialDictPick p σ t) ≤ (p (σ t)).symm o :=
   bestRemaining_rank_le _ _ _ ho
 
-lemma serialDictPick_injective {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
+private lemma serialDictPick_injective {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
     Function.Injective (serialDictPick p σ) := by
   intro s t hst
   by_contra hne
@@ -165,23 +163,23 @@ lemma serialDictPick_injective {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n
 
 /-- Computable serial dictatorship assignment mapping each agent `i` to the object she picks when
 agents choose in order `σ 0, σ 1, …, σ (n - 1)`. -/
-def serialDictFun {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (i : Fin n) : Fin n :=
+private def serialDictFun {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (i : Fin n) : Fin n :=
   serialDictPick p σ (σ.symm i)
 
-lemma serialDictFun_bijective {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
+private lemma serialDictFun_bijective {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
     Function.Bijective (serialDictFun p σ) := by
   rw [Finite.injective_iff_bijective.symm]
   intro i j hij
   exact σ.symm.injective (serialDictPick_injective p σ hij)
 
-/-- Serial dictatorship as a permutation of `Fin n`: agent `i` receives
-`serialDictatorship p σ i = serialDictFun p σ i`. -/
+/-- Serial dictatorship as a permutation of `Fin n`: agent `i` receives her top available object
+when agents choose in priority order `σ 0, σ 1, …, σ (n - 1)`. -/
 noncomputable def serialDictatorship {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
     Equiv.Perm (Fin n) :=
   Equiv.ofBijective (serialDictFun p σ) (serialDictFun_bijective p σ)
 
-lemma serialDictatorship_apply {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) (i : Fin n) :
-    serialDictatorship p σ i = serialDictFun p σ i :=
+private lemma serialDictatorship_apply {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
+    (i : Fin n) : serialDictatorship p σ i = serialDictFun p σ i :=
   Equiv.ofBijective_apply _ _ i
 
 /-- If `i` prefers `o` strictly over what she receives in `serialDictatorship p σ`, then some
@@ -402,10 +400,6 @@ theorem rsd_mem_doublyStochastic {n : ℕ} (p : Profile n) :
     simp only [hcol, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one, hcard]
     exact inv_mul_cancel₀ hfac
 
-/-- `rsd` is feasible (`rsd p ∈ doublyStochastic ℝ (Fin n)` for every profile `p`). -/
-theorem rsd_isFeasible {n : ℕ} : IsFeasible (rsd (n := n)) :=
-  fun p => rsd_mem_doublyStochastic p
-
 /-- `rsd` is ex-post efficient: it assigns positive weight only to Pareto-efficient deterministic
 matchings. -/
 theorem rsd_isExPostEfficient {n : ℕ} (p : Profile n) : IsExPostEfficient p (rsd p) := by
@@ -614,7 +608,7 @@ for every strict preference profile `p`. -/
 theorem rsd_isSDEfficient_of_le_three {n : ℕ} (hn : n ≤ 3) (p : Profile n) :
     IsSDEfficient p (rsd p) := by
   rw [isSDEfficient_iff_isAcyclicTrade]
-  refine ⟨rsd_mem_doublyStochastic p, fun x hx => ?_⟩
+  refine ⟨rsd_mem_doublyStochastic p, ⟨fun x hx => ?_⟩⟩
   have hstep : ∀ m : ℕ, 2 ≤ m → m ≤ n →
       ∀ c : Fin m → Fin n, Function.Injective c →
         (∀ j : Fin m, tradeRel p (rsd p)
@@ -708,8 +702,7 @@ theorem rsd_isSDEfficient_of_le_three {n : ℕ} (hn : n ≤ 3) (p : Profile n) :
         rw [hjd_eq, hσ₁_eq] at hle
         exact lt_asymm hf₃ (lt_of_le_of_ne hle fun h => had.symm ((p i₂).symm.injective h))
   -- Reduce `TransGen` to a shortest simple cycle and apply `hstep`.
-  have hirr : ∀ y, ¬ tradeRel p (rsd p) y y := fun y ⟨i, _, hlt⟩ => lt_irrefl _ hlt
-  obtain ⟨m, hm2, c, hc_inj, hcyc⟩ := exists_simple_cycle_of_transGen hirr hx
+  obtain ⟨m, hm2, c, hc_inj, hcyc⟩ := exists_simple_tradeCycle hx
   have hm_le_n : m ≤ n := by
     simpa using Fintype.card_le_of_injective c hc_inj
   exact hstep m hm2 hm_le_n c hc_inj hcyc
@@ -738,110 +731,58 @@ def rsdIneffProfile {n : ℕ} (hn : 4 ≤ n) : Profile n := fun i =>
   else
     Equiv.swap ⟨0, by omega⟩ i
 
+/-- If the first two dictators `σ 0` and `σ 1` both rank `o₀` first, and `σ 1` ranks `o₁` second,
+then `σ 1` picks `o₁`. -/
+private lemma serialDictatorship_second_eq {n : ℕ} (hn : 2 ≤ n) (p : Profile n)
+    (σ : Equiv.Perm (Fin n)) (i₀ i₁ o₀ o₁ : Fin n) (hne : o₀ ≠ o₁)
+    (hσ0 : σ ⟨0, by omega⟩ = i₀) (hσ1 : σ ⟨1, by omega⟩ = i₁)
+    (hr0 : (p i₀).symm o₀ = ⟨0, by omega⟩) (hr1_0 : (p i₁).symm o₀ = ⟨0, by omega⟩)
+    (hr1_1 : (p i₁).symm o₁ = ⟨1, by omega⟩) :
+    serialDictatorship p σ i₁ = o₁ := by
+  have hpick0 : serialDictPick p σ ⟨0, by omega⟩ = o₀ := by
+    have hmem : o₀ ∉ serialDictTaken p σ 0 (by omega) := by simp [serialDictTaken, sdPrefix]
+    have hle := serialDictPick_optimal p σ ⟨0, by omega⟩ hmem
+    rw [hσ0, hr0] at hle
+    exact (p i₀).symm.injective (Fin.ext (Nat.eq_zero_of_le_zero hle) |>.trans hr0.symm)
+  have ht1 : serialDictTaken p σ 1 (by omega) = {o₀} := by
+    rw [serialDictTaken_succ p σ 0 (by omega), hpick0]
+    simp [serialDictTaken, sdPrefix]
+  have hpick1 : serialDictPick p σ ⟨1, by omega⟩ = o₁ := by
+    have hnot1 : o₁ ∉ serialDictTaken p σ 1 (by omega) := by
+      rw [ht1, Finset.mem_singleton]; exact hne.symm
+    have hnot0 : serialDictPick p σ ⟨1, by omega⟩ ≠ o₀ := by
+      simpa [ht1] using serialDictPick_not_mem_taken p σ ⟨1, by omega⟩
+    have hle := serialDictPick_optimal p σ ⟨1, by omega⟩ hnot1
+    rw [hσ1, hr1_1] at hle
+    have hval : ((p i₁).symm (serialDictPick p σ ⟨1, by omega⟩)).val ≤ 1 := hle
+    have hne0 : ((p i₁).symm (serialDictPick p σ ⟨1, by omega⟩)).val ≠ 0 := fun hz =>
+      hnot0 ((p i₁).symm.injective ((Fin.ext hz).trans hr1_0.symm))
+    have heq : (p i₁).symm (serialDictPick p σ ⟨1, by omega⟩) = (p i₁).symm o₁ := by
+      rw [hr1_1]; exact Fin.ext (by change _ = (1 : ℕ); omega)
+    exact (p i₁).symm.injective heq
+  rw [serialDictatorship_apply, serialDictFun,
+    show σ.symm i₁ = ⟨1, by omega⟩ from (Equiv.symm_apply_eq σ).mpr hσ1.symm, hpick1]
+
 private lemma rsd_ineff_entry_one {n : ℕ} (hn : 4 ≤ n) :
     0 < rsd (rsdIneffProfile hn) ⟨0, by omega⟩ ⟨1, by omega⟩ := by
   rw [rsd_apply_pos_iff]
-  refine ⟨Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩, ?_⟩
-  set σ : Equiv.Perm (Fin n) := Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩
-  set p := rsdIneffProfile hn
-  have hσ0 : σ ⟨0, by omega⟩ = ⟨1, by omega⟩ := by simp [σ]
-  have hσ1 : σ ⟨1, by omega⟩ = ⟨0, by omega⟩ := by simp [σ]
-  have hp0 : p ⟨0, by omega⟩ = Equiv.refl (Fin n) := by simp [p, rsdIneffProfile]
-  have hp1 : p ⟨1, by omega⟩ = Equiv.refl (Fin n) := by simp [p, rsdIneffProfile]
-  have hpick0 : serialDictPick p σ ⟨0, by omega⟩ = ⟨0, by omega⟩ := by
-    have hmem0 : (⟨0, by omega⟩ : Fin n) ∉ serialDictTaken p σ 0 (by omega) := by
-      simp [serialDictTaken, sdPrefix]
-    have hle := serialDictPick_optimal p σ ⟨0, by omega⟩ hmem0
-    rw [hσ0, hp1] at hle
-    exact Fin.eq_of_val_eq (Nat.eq_zero_of_le_zero hle)
-  have ht1 : serialDictTaken p σ 1 (by omega) = {⟨0, by omega⟩} := by
-    rw [serialDictTaken_succ p σ 0 (by omega), hpick0]
-    simp [serialDictTaken, sdPrefix]
-  have hpick1 : serialDictPick p σ ⟨1, by omega⟩ = ⟨1, by omega⟩ := by
-    have hnot1 : (⟨1, by omega⟩ : Fin n) ∉ serialDictTaken p σ 1 (by omega) := by
-      rw [ht1]; simp [Fin.ext_iff]
-    have hnot0 : serialDictPick p σ ⟨1, by omega⟩ ≠ ⟨0, by omega⟩ := by
-      have hm := serialDictPick_not_mem_taken p σ ⟨1, by omega⟩
-      rw [ht1, Finset.mem_singleton] at hm
-      exact hm
-    have hle := serialDictPick_optimal p σ ⟨1, by omega⟩ hnot1
-    rw [hσ1, hp0] at hle
-    have hval : (serialDictPick p σ ⟨1, by omega⟩).val ≤ 1 := hle
-    have hne : (serialDictPick p σ ⟨1, by omega⟩).val ≠ 0 :=
-      fun h => hnot0 (Fin.ext h)
-    exact Fin.ext (by change (serialDictPick p σ ⟨1, by omega⟩).val = 1; omega)
-  simp only [serialDictatorship_apply, serialDictFun]
-  have hsymm : σ.symm ⟨0, by omega⟩ = ⟨1, by omega⟩ := by simp [σ]
-  rw [hsymm, hpick1]
+  refine ⟨Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩,
+    serialDictatorship_second_eq (by omega) (rsdIneffProfile hn) _
+      ⟨1, by omega⟩ ⟨0, by omega⟩ ⟨0, by omega⟩ ⟨1, by omega⟩ (by simp [Fin.ext_iff])
+      (by simp) (by simp) ?_ ?_ ?_⟩ <;> simp [rsdIneffProfile]
 
 private lemma rsd_ineff_entry_two {n : ℕ} (hn : 4 ≤ n) :
     0 < rsd (rsdIneffProfile hn) ⟨2, by omega⟩ ⟨0, by omega⟩ := by
   rw [rsd_apply_pos_iff]
-  let σ : Equiv.Perm (Fin n) :=
-    Equiv.swap ⟨0, by omega⟩ ⟨3, by omega⟩ * Equiv.swap ⟨1, by omega⟩ ⟨2, by omega⟩
-  refine ⟨σ, ?_⟩
-  set p := rsdIneffProfile hn
-  have hσ0 : σ ⟨0, by omega⟩ = ⟨3, by omega⟩ := by
-    simp [σ, Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
-  have hσ1 : σ ⟨1, by omega⟩ = ⟨2, by omega⟩ := by
-    simp [σ, Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
-  have hp_eq : ∀ i : Fin n, i.val = 2 ∨ i.val = 3 →
-      p i = Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ *
-        Equiv.swap ⟨2, by omega⟩ ⟨3, by omega⟩ := by
-    intro i hi
-    simp only [p, rsdIneffProfile]
-    have hnot : ¬ i.val < 2 := by omega
-    have hlt4 : i.val < 4 := by omega
-    simp [hnot, hlt4]
-  have hp2 := hp_eq ⟨2, by omega⟩ (Or.inl rfl)
-  have hp3 := hp_eq ⟨3, by omega⟩ (Or.inr rfl)
-  have hrank1 : (p ⟨3, by omega⟩).symm ⟨1, by omega⟩ = ⟨0, by omega⟩ := by
-    rw [hp3]
-    simp [Equiv.symm_apply_eq, Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
-  have hrank0 : (p ⟨2, by omega⟩).symm ⟨0, by omega⟩ = ⟨1, by omega⟩ := by
-    rw [hp2]
-    simp [Equiv.symm_apply_eq, Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
-  have hrank1' : (p ⟨2, by omega⟩).symm ⟨1, by omega⟩ = ⟨0, by omega⟩ := by
-    rw [hp2]
-    simp [Equiv.symm_apply_eq, Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
-  have hpick0 : serialDictPick p σ ⟨0, by omega⟩ = ⟨1, by omega⟩ := by
-    have hmem : (⟨1, by omega⟩ : Fin n) ∉ serialDictTaken p σ 0 (by omega) := by
-      simp [serialDictTaken, sdPrefix]
-    have hle := serialDictPick_optimal p σ ⟨0, by omega⟩ hmem
-    rw [hσ0, hrank1] at hle
-    have hz : ((p ⟨3, by omega⟩).symm (serialDictPick p σ ⟨0, by omega⟩)).val = 0 :=
-      Nat.eq_zero_of_le_zero hle
-    have h0eq : (p ⟨3, by omega⟩).symm (serialDictPick p σ ⟨0, by omega⟩) = ⟨0, by omega⟩ :=
-      Fin.ext hz
-    exact (p ⟨3, by omega⟩).symm.injective (h0eq.trans hrank1.symm)
-  have ht1 : serialDictTaken p σ 1 (by omega) = {⟨1, by omega⟩} := by
-    rw [serialDictTaken_succ p σ 0 (by omega), hpick0]
-    simp [serialDictTaken, sdPrefix]
-  have hpick1 : serialDictPick p σ ⟨1, by omega⟩ = ⟨0, by omega⟩ := by
-    have hnot0 : (⟨0, by omega⟩ : Fin n) ∉ serialDictTaken p σ 1 (by omega) := by
-      rw [ht1]; simp [Fin.ext_iff]
-    have hnot_eq : serialDictPick p σ ⟨1, by omega⟩ ≠ ⟨1, by omega⟩ := by
-      have hm := serialDictPick_not_mem_taken p σ ⟨1, by omega⟩
-      rw [ht1, Finset.mem_singleton] at hm
-      exact hm
-    have hle := serialDictPick_optimal p σ ⟨1, by omega⟩ hnot0
-    rw [hσ1, hrank0] at hle
-    have hval : ((p ⟨2, by omega⟩).symm (serialDictPick p σ ⟨1, by omega⟩)).val ≤ 1 := hle
-    have hne : ((p ⟨2, by omega⟩).symm (serialDictPick p σ ⟨1, by omega⟩)).val ≠ 0 := by
-      intro hz
-      have : (p ⟨2, by omega⟩).symm (serialDictPick p σ ⟨1, by omega⟩) =
-          (p ⟨2, by omega⟩).symm ⟨1, by omega⟩ := by
-        rw [hrank1']; exact Fin.ext hz
-      exact hnot_eq ((p ⟨2, by omega⟩).symm.injective this)
-    have h1 : (p ⟨2, by omega⟩).symm (serialDictPick p σ ⟨1, by omega⟩) = ⟨1, by omega⟩ :=
-      Fin.ext (by
-        change ((p ⟨2, by omega⟩).symm (serialDictPick p σ ⟨1, by omega⟩)).val = 1
-        omega)
-    exact (p ⟨2, by omega⟩).symm.injective (h1.trans hrank0.symm)
-  simp only [serialDictatorship_apply, serialDictFun]
-  have hsymm : σ.symm ⟨2, by omega⟩ = ⟨1, by omega⟩ := by
-    rw [Equiv.symm_apply_eq]; exact hσ1
-  rw [hsymm, hpick1]
+  refine ⟨Equiv.swap ⟨0, by omega⟩ ⟨3, by omega⟩ * Equiv.swap ⟨1, by omega⟩ ⟨2, by omega⟩,
+    serialDictatorship_second_eq (by omega) (rsdIneffProfile hn) _
+      ⟨3, by omega⟩ ⟨2, by omega⟩ ⟨1, by omega⟩ ⟨0, by omega⟩ (by simp [Fin.ext_iff])
+      ?_ ?_ ?_ ?_ ?_⟩
+  · simp [Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
+  · simp [Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
+  all_goals
+    simp [rsdIneffProfile, Equiv.symm_apply_eq, Equiv.Perm.mul_apply,
+      Equiv.swap_apply_of_ne_of_ne, Fin.ext_iff]
 
 /-- For every `n ≥ 4`, Random Serial Dictatorship fails `sd`-efficiency. -/
 theorem not_isSDEfficient_rsd_of_four_le {n : ℕ} (hn : 4 ≤ n) :
@@ -876,7 +817,8 @@ theorem not_isSDEfficient_rsd_of_four_le {n : ℕ} (hn : 4 ≤ n) :
   exact heff.not_twoCycle h01 hpref0 h20 hpref2
 
 /-- The exact 4-agent `rsd` profile agrees with `rsdIneffProfile (le_refl 4)`. -/
-lemma rsdIneffProfileFour_eq : rsdIneffProfileFour = rsdIneffProfile (le_refl 4) := by
+private lemma rsdIneffProfileFour_eq :
+    rsdIneffProfileFour = rsdIneffProfile (le_refl 4) := by
   funext i
   fin_cases i <;> simp [rsdIneffProfileFour, rsdIneffProfile]
 
@@ -886,48 +828,32 @@ theorem not_isSDEfficient_rsd_four :
   rw [rsdIneffProfileFour_eq]
   exact not_isSDEfficient_rsd_of_four_le (le_refl 4)
 
-/-- Exact count version of `rsd` on `n = 3` and `n = 4` for `profileThree` and
-`rsdIneffProfileFour`, enabling explicit fraction checks. -/
+private lemma rsd_eq_inv_fac_mul_card {n : ℕ} (p : Profile n) (i o : Fin n) :
+    rsd p i o = (Nat.factorial n : ℝ)⁻¹ *
+      ((∑ σ : Equiv.Perm (Fin n), if serialDictFun p σ i = o then (1 : ℕ) else 0 : ℕ) : ℝ) := by
+  rw [rsd_apply, Nat.cast_sum]
+  congr 1
+  refine Finset.sum_congr rfl fun σ _ => ?_
+  simp [serialDictatorship_apply]
+
+private lemma rsd_profileThree_counts (i o : Fin 3) :
+    (∑ σ : Equiv.Perm (Fin 3), if serialDictFun profileThree σ i = o then (1 : ℕ) else 0) =
+      (if i = 0 then ![3, 1, 2] o else if i = 1 then ![3, 0, 3] o else ![0, 5, 1] o) := by
+  decide +revert
+
+/-- Exact `rsd` assignment probabilities for agent `0` on `profileThree`: `(1/2, 1/6, 1/3)`. -/
 theorem rsd_profileThree_row0 :
     rsd profileThree 0 0 = 1 / 2 ∧ rsd profileThree 0 1 = 1 / 6 ∧
     rsd profileThree 0 2 = 1 / 3 := by
-  have hc : ∀ (i o : Fin 3),
-      (∑ σ : Equiv.Perm (Fin 3), if serialDictFun profileThree σ i = o then (1 : ℕ) else 0) =
-        (if i = 0 then ![3, 1, 2] o else if i = 1 then ![3, 0, 3] o else ![0, 5, 1] o) := by
-    decide
-  have hcast : ∀ o : Fin 3,
-      rsd profileThree 0 o = (6 : ℝ)⁻¹ *
-        ((∑ σ : Equiv.Perm (Fin 3),
-          if serialDictFun profileThree σ 0 = o then (1 : ℕ) else 0 : ℕ) : ℝ) := by
-    intro o
-    rw [rsd_apply]
-    simp only [Nat.factorial, Nat.cast_sum]
-    congr 1
-    refine Finset.sum_congr rfl fun σ _ => ?_
-    simp [serialDictatorship_apply]
-  refine ⟨?_, ?_, ?_⟩ <;> [rw [hcast 0, hc 0 0]; rw [hcast 1, hc 0 1]; rw [hcast 2, hc 0 2]] <;>
-    norm_num
+  simp only [rsd_eq_inv_fac_mul_card, rsd_profileThree_counts]
+  norm_num [Nat.factorial]
 
 /-- Exact `rsd` assignment probabilities for agent `2` on `profileThree`: `(0, 5/6, 1/6)`. -/
 theorem rsd_profileThree_row2 :
     rsd profileThree 2 0 = 0 ∧ rsd profileThree 2 1 = 5 / 6 ∧
     rsd profileThree 2 2 = 1 / 6 := by
-  have hc : ∀ (o : Fin 3),
-      (∑ σ : Equiv.Perm (Fin 3), if serialDictFun profileThree σ 2 = o then (1 : ℕ) else 0) =
-        ![0, 5, 1] o := by
-    decide
-  have hcast : ∀ o : Fin 3,
-      rsd profileThree 2 o = (6 : ℝ)⁻¹ *
-        ((∑ σ : Equiv.Perm (Fin 3),
-          if serialDictFun profileThree σ 2 = o then (1 : ℕ) else 0 : ℕ) : ℝ) := by
-    intro o
-    rw [rsd_apply]
-    simp only [Nat.factorial, Nat.cast_sum]
-    congr 1
-    refine Finset.sum_congr rfl fun σ _ => ?_
-    simp [serialDictatorship_apply]
-  refine ⟨?_, ?_, ?_⟩ <;> [rw [hcast 0, hc 0]; rw [hcast 1, hc 1]; rw [hcast 2, hc 2]] <;>
-    norm_num
+  simp only [rsd_eq_inv_fac_mul_card, rsd_profileThree_counts]
+  norm_num [Nat.factorial]
 
 /-- `rsd` is **not** `sd`-envy-free at `n = 3`: on `profileThree = (a b c, a c b, b a c)`, agent
 `0` (`a > b > c`) gets `a + b` weight `1/2 + 1/6 = 2/3`, strictly less than agent `2`'s `a + b`
@@ -963,16 +889,7 @@ theorem rsd_ineffProfileFour_apply (i o : Fin 4) :
         else
           if o.val = 1 ∨ o.val = 3 then 10 else 2 := by
     decide
-  rw [rsd_apply]
-  have hcast :
-      (∑ σ : Equiv.Perm (Fin 4),
-        if serialDictatorship rsdIneffProfileFour σ i = o then (1 : ℝ) else 0) =
-      ((∑ σ : Equiv.Perm (Fin 4),
-        if serialDictFun rsdIneffProfileFour σ i = o then (1 : ℕ) else 0 : ℕ) : ℝ) := by
-    rw [Nat.cast_sum]
-    refine Finset.sum_congr rfl fun σ _ => ?_
-    simp [serialDictatorship_apply]
-  rw [hcast, hc i o]
+  rw [rsd_eq_inv_fac_mul_card, hc i o]
   have hfac : (Nat.factorial 4 : ℝ) = 24 := by norm_num [Nat.factorial]
   rw [hfac]
   split_ifs <;> norm_num

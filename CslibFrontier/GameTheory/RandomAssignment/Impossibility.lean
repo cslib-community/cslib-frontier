@@ -77,10 +77,6 @@ agents `i, j` over two objects `a, b` carrying positive weight (`0 < P i b` and 
     0 < P i b → (p i).symm a < (p i).symm b →
     0 < P j a → (p j).symm b < (p j).symm a → False
 
-lemma IsSDEfficient.noTwoCycle {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fin n) ℝ}
-    (heff : IsSDEfficient p P) : NoTwoCycle p P :=
-  fun _ _ _ _ hib hij hja hji => heff.not_twoCycle hib hij hja hji
-
 /-- The strict ordering `a > b > c > d` (`0 > 1 > 2 > 3`) on `Fin 4`. -/
 private abbrev prefABCD : Equiv.Perm (Fin 4) := Equiv.refl (Fin 4)
 
@@ -110,19 +106,27 @@ private lemma col_sum_four {M : Matrix (Fin 4) (Fin 4) ℝ}
   have h := sum_col_of_mem_doublyStochastic hM o
   simpa [Fin.sum_univ_four, add_assoc] using h
 
+private lemma inv_adjSwap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
+    (p : Profile 4) (i : Fin 4) (k : Fin 4) (hk : k.val + 1 < 4)
+    (π' : Equiv.Perm (Fin 4)) (hswap : π' = Equiv.swap (p i k) (p i ⟨k.val + 1, hk⟩) * p i)
+    (r₁ r₂ : Fin 4) (hr₁ : r₁ ≠ k ∧ r₁ ≠ ⟨k.val + 1, hk⟩)
+    (hr₂ : r₂ ≠ k ∧ r₂ ≠ ⟨k.val + 1, hk⟩) :
+    φ (Function.update p i π') i (p i r₁) = φ p i (p i r₁) ∧
+    φ (Function.update p i π') i (p i r₂) = φ p i (p i r₂) ∧
+    φ (Function.update p i π') i (p i k) +
+        φ (Function.update p i π') i (p i ⟨k.val + 1, hk⟩) =
+      φ p i (p i k) + φ p i (p i ⟨k.val + 1, hk⟩) := by
+  obtain ⟨hother, hpair⟩ := hsp.adjSwap_invariance p i k hk π' hswap
+  exact ⟨hother r₁ hr₁.1 hr₁.2, hother r₂ hr₂.1 hr₂.2, hpair⟩
+
 private lemma inv_ab_swap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
     (p : Profile 4) (i : Fin 4) (hi : p i = prefABCD) :
     φ (Function.update p i prefBACD) i 2 = φ p i 2 ∧
     φ (Function.update p i prefBACD) i 3 = φ p i 3 ∧
     φ (Function.update p i prefBACD) i 0 + φ (Function.update p i prefBACD) i 1 =
       φ p i 0 + φ p i 1 := by
-  have hswap : prefBACD = Equiv.swap (p i 0) (p i ⟨0 + 1, by omega⟩) * p i := by
-    rw [hi]; exact prefBACD_eq_swap
-  obtain ⟨hother, hpair⟩ := hsp.adjSwap_invariance p i 0 (by omega) prefBACD hswap
-  have h2 := hother 2 (by decide) (by decide)
-  have h3 := hother 3 (by decide) (by decide)
-  simp only [hi, prefABCD, Equiv.refl_apply] at h2 h3 hpair
-  exact ⟨h2, h3, hpair⟩
+  simpa [hi, prefABCD] using inv_adjSwap hsp p i 0 (by omega) prefBACD
+    (by rw [hi]; exact prefBACD_eq_swap) 2 3 (by decide) (by decide)
 
 private lemma inv_bc_swap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
     (p : Profile 4) (i : Fin 4) (hi : p i = prefABCD) :
@@ -130,13 +134,8 @@ private lemma inv_bc_swap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
     φ (Function.update p i prefACBD) i 3 = φ p i 3 ∧
     φ (Function.update p i prefACBD) i 1 + φ (Function.update p i prefACBD) i 2 =
       φ p i 1 + φ p i 2 := by
-  have hswap : prefACBD = Equiv.swap (p i 1) (p i ⟨1 + 1, by omega⟩) * p i := by
-    rw [hi]; exact prefACBD_eq_swap
-  obtain ⟨hother, hpair⟩ := hsp.adjSwap_invariance p i 1 (by omega) prefACBD hswap
-  have h0 := hother 0 (by decide) (by decide)
-  have h3 := hother 3 (by decide) (by decide)
-  simp only [hi, prefABCD, Equiv.refl_apply] at h0 h3 hpair
-  exact ⟨h0, h3, hpair⟩
+  simpa [hi, prefABCD] using inv_adjSwap hsp p i 1 (by omega) prefACBD
+    (by rw [hi]; exact prefACBD_eq_swap) 0 3 (by decide) (by decide)
 
 private lemma inv_ba_swap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
     (p : Profile 4) (i : Fin 4) (hi : p i = prefBACD) :
@@ -144,20 +143,34 @@ private lemma inv_ba_swap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
     φ (Function.update p i prefABCD) i 3 = φ p i 3 ∧
     φ (Function.update p i prefABCD) i 1 + φ (Function.update p i prefABCD) i 0 =
       φ p i 1 + φ p i 0 := by
-  have hswap : prefABCD = Equiv.swap (p i 0) (p i ⟨0 + 1, by omega⟩) * p i := by
-    rw [hi]; exact prefABCD_eq_swap_bacd
-  obtain ⟨hother, hpair⟩ := hsp.adjSwap_invariance p i 0 (by omega) prefABCD hswap
-  have h2 := hother 2 (by decide) (by decide)
-  have h3 := hother 3 (by decide) (by decide)
-  rw [hi] at h2 h3 hpair
+  have h := inv_adjSwap hsp p i 0 (by omega) prefABCD
+    (by rw [hi]; exact prefABCD_eq_swap_bacd) 2 3 (by decide) (by decide)
+  rw [hi] at h
   have h2e : prefBACD 2 = 2 := by decide
   have h3e : prefBACD 3 = 3 := by decide
   have h0e : prefBACD 0 = 1 := by decide
   have h1e : prefBACD ⟨(0 : Fin 4).val + 1, by omega⟩ = 0 := by decide
-  rw [h2e] at h2
-  rw [h3e] at h3
-  rw [h0e, h1e] at hpair
-  exact ⟨h2, h3, hpair⟩
+  rw [h2e, h3e, h0e, h1e] at h
+  exact h
+
+/-- Under `NoTwoCycle`, if agent `i` prefers `b` over `a` while every other agent `j ≠ i`
+prefers `a` over `b`, and `M i a + M i b < 1`, then `M i a = 0`. -/
+private lemma zero_of_noTwoCycle_col {p : Profile 4} {M : Matrix (Fin 4) (Fin 4) ℝ}
+    (hM : M ∈ doublyStochastic ℝ (Fin 4)) (hntc : NoTwoCycle p M)
+    (i a b : Fin 4) (hbound : M i a + M i b < 1)
+    (hi_pref : (p i).symm b < (p i).symm a)
+    (hother : ∀ j : Fin 4, j ≠ i → (p j).symm a < (p j).symm b) :
+    M i a = 0 := by
+  have hnn : ∀ j o, 0 ≤ M j o := fun _ _ => nonneg_of_mem_doublyStochastic hM
+  by_contra hne
+  have hpos : 0 < M i a := lt_of_le_of_ne (hnn i a) (Ne.symm hne)
+  have hzero : ∀ j ∈ Finset.univ, j ≠ i → M j b = 0 := fun j _ hj => by
+    by_contra hne'
+    exact hntc j i a b (lt_of_le_of_ne (hnn j b) (Ne.symm hne')) (hother j hj) hpos hi_pref
+  have hcol : M i b = 1 := by
+    rw [← sum_col_of_mem_doublyStochastic hM b]
+    exact (Finset.sum_eq_single i hzero fun h => absurd (Finset.mem_univ i) h).symm
+  linarith only [hcol, hbound, hpos]
 
 /-- Convenience: a constant vector `p` forces uniform row `(1/4, 1/4, 1/4, 1/4)` by ETE. -/
 private lemma uniform_of_ete {φ : AssignmentRule 4}
@@ -227,19 +240,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hB2_c : φ pB 2 2 = 1 / 4 := by rw [hB2_sw.1, hA]
   have hB2_ab : φ pB 2 0 + φ pB 2 1 = 1 / 2 := by
     rw [hB2_sw.2.2, hA, hA]; norm_num
-  have hB2_nn : ∀ i o, 0 ≤ φ pB i o := fun i o =>
-    nonneg_of_mem_doublyStochastic (hfeas pB)
-  have hB2_a0 : φ pB 2 0 = 0 := by
-    by_contra hne
-    have hpos : 0 < φ pB 2 0 := lt_of_le_of_ne (hB2_nn 2 0) (Ne.symm hne)
-    have hzero : ∀ j : Fin 4, j ≠ 2 → φ pB j 1 = 0 := fun j hj => by
-      by_contra hne'
-      have hpj : 0 < φ pB j 1 := lt_of_le_of_ne (hB2_nn j 1) (Ne.symm hne')
-      have hpr : pB j = prefABCD := by fin_cases j <;> simp_all [pB]
-      exact hntc pB j 2 0 1 hpj (by rw [hpr]; exact hlt_abcd_01) hpos hlt_bacd_10
-    have hcol := col_sum_four (hfeas pB) 1
-    rw [hzero 0 (by decide), hzero 1 (by decide), hzero 3 (by decide)] at hcol
-    linarith only [hcol, hB2_ab, hpos]
+  have hB2_a0 : φ pB 2 0 = 0 :=
+    zero_of_noTwoCycle_col (hfeas pB) (hntc pB) 2 0 1 (by linarith only [hB2_ab])
+      hlt_bacd_10 fun j hj => by fin_cases j <;> simp_all [pB]
   have hB2_b : φ pB 2 1 = 1 / 2 := by linarith only [hB2_ab, hB2_a0]
   have hB_ete01 : φ pB 0 = φ pB 1 := hete pB 0 1 rfl
   have hB_ete03 : φ pB 0 = φ pB 3 := hete pB 0 3 rfl
@@ -267,19 +270,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hC3_a : φ pC 3 0 = 1 / 4 := by rw [hC3_sw.1, hA]
   have hC3_bc : φ pC 3 1 + φ pC 3 2 = 1 / 2 := by
     rw [hC3_sw.2.2, hA, hA]; norm_num
-  have hC_nn : ∀ i o, 0 ≤ φ pC i o := fun i o =>
-    nonneg_of_mem_doublyStochastic (hfeas pC)
-  have hC3_b0 : φ pC 3 1 = 0 := by
-    by_contra hne
-    have hpos : 0 < φ pC 3 1 := lt_of_le_of_ne (hC_nn 3 1) (Ne.symm hne)
-    have hzero : ∀ j : Fin 4, j ≠ 3 → φ pC j 2 = 0 := fun j hj => by
-      by_contra hne'
-      have hpj : 0 < φ pC j 2 := lt_of_le_of_ne (hC_nn j 2) (Ne.symm hne')
-      have hpr : pC j = prefABCD := by fin_cases j <;> simp_all [pC]
-      exact hntc pC j 3 1 2 hpj (by rw [hpr]; exact hlt_abcd_12) hpos hlt_acbd_21
-    have hcol := col_sum_four (hfeas pC) 2
-    rw [hzero 0 (by decide), hzero 1 (by decide), hzero 2 (by decide)] at hcol
-    linarith only [hcol, hC3_bc, hpos]
+  have hC3_b0 : φ pC 3 1 = 0 :=
+    zero_of_noTwoCycle_col (hfeas pC) (hntc pC) 3 1 2 (by linarith only [hC3_bc])
+      hlt_acbd_21 fun j hj => by fin_cases j <;> simp_all [pC]
   have hC3_c : φ pC 3 2 = 1 / 2 := by linarith only [hC3_bc, hC3_b0]
   have hC_ete02 : φ pC 0 = φ pC 2 := hete pC 0 2 rfl
   have hC_ete12 : φ pC 1 = φ pC 2 := hete pC 1 2 rfl
@@ -308,22 +301,14 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hR2_ab : φ pR 2 0 + φ pR 2 1 = 7 / 12 := by
     rw [hR2_sw.2.2, hC2_a, hC2_b]; norm_num
   have hR2_c : φ pR 2 2 = 1 / 6 := by rw [hR2_sw.1, hC2_c]
-  have hR2_a0 : φ pR 2 0 = 0 := by
-    by_contra hne
-    have hpos : 0 < φ pR 2 0 := lt_of_le_of_ne (hR_nn 2 0) (Ne.symm hne)
-    have hzero : ∀ j : Fin 4, j ≠ 2 → φ pR j 1 = 0 := fun j hj => by
-      by_contra hne'
-      have hpj : 0 < φ pR j 1 := lt_of_le_of_ne (hR_nn j 1) (Ne.symm hne')
-      have hpr : (pR j).symm 0 < (pR j).symm 1 := by
+  have hR2_a0 : φ pR 2 0 = 0 :=
+    zero_of_noTwoCycle_col (hfeas pR) (hntc pR) 2 0 1 (by linarith only [hR2_ab])
+      hlt_bacd_10 fun j hj => by
         fin_cases j
         · exact hlt_abcd_01
         · exact hlt_abcd_01
         · exact absurd rfl hj
         · exact hlt_acbd_01
-      exact hntc pR j 2 0 1 hpj hpr hpos hlt_bacd_10
-    have hcol := col_sum_four (hfeas pR) 1
-    rw [hzero 0 (by decide), hzero 1 (by decide), hzero 3 (by decide)] at hcol
-    linarith only [hcol, hR2_ab, hpos]
   have hR2_b : φ pR 2 1 = 7 / 12 := by linarith only [hR2_ab, hR2_a0]
   have hR3_b0 : φ pR 3 1 = 0 := by
     by_contra hne
@@ -412,37 +397,17 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hB'3_c : φ pB' 3 2 = 1 / 4 := by rw [hB'3_sw.1, hA']
   have hB'3_ba : φ pB' 3 1 + φ pB' 3 0 = 1 / 2 := by
     rw [hB'3_sw.2.2, hA', hA']; norm_num
-  have hB'_nn : ∀ i o, 0 ≤ φ pB' i o := fun i o =>
-    nonneg_of_mem_doublyStochastic (hfeas pB')
-  have hB'3_b0 : φ pB' 3 1 = 0 := by
-    by_contra hne
-    have hpos : 0 < φ pB' 3 1 := lt_of_le_of_ne (hB'_nn 3 1) (Ne.symm hne)
-    have hzero : ∀ j : Fin 4, j ≠ 3 → φ pB' j 0 = 0 := fun j hj => by
-      by_contra hne'
-      have hpj : 0 < φ pB' j 0 := lt_of_le_of_ne (hB'_nn j 0) (Ne.symm hne')
-      have hpr : pB' j = prefBACD := by fin_cases j <;> simp_all [pB']
-      exact hntc pB' j 3 1 0 hpj (by rw [hpr]; exact hlt_bacd_10) hpos hlt_abcd_01
-    have hcol := col_sum_four (hfeas pB') 0
-    rw [hzero 0 (by decide), hzero 1 (by decide), hzero 2 (by decide)] at hcol
-    linarith only [hcol, hB'3_ba, hpos]
+  have hB'3_b0 : φ pB' 3 1 = 0 :=
+    zero_of_noTwoCycle_col (hfeas pB') (hntc pB') 3 1 0 (by linarith only [hB'3_ba])
+      hlt_abcd_01 fun j hj => by fin_cases j <;> simp_all [pB']
   -- 9. Profile pC' = (bacd, bacd, bacd, acbd): row 0 gets c = 1/4.
   have hC'3_sw := inv_bc_swap hsp pB' 3 rfl
   rw [huB'C'] at hC'3_sw
   have hC'3_bc : φ pC' 3 1 + φ pC' 3 2 = 1 / 4 := by
     rw [hC'3_sw.2.2, hB'3_b0, hB'3_c]; norm_num
-  have hC'_nn : ∀ i o, 0 ≤ φ pC' i o := fun i o =>
-    nonneg_of_mem_doublyStochastic (hfeas pC')
-  have hC'3_b0 : φ pC' 3 1 = 0 := by
-    by_contra hne
-    have hpos : 0 < φ pC' 3 1 := lt_of_le_of_ne (hC'_nn 3 1) (Ne.symm hne)
-    have hzero : ∀ j : Fin 4, j ≠ 3 → φ pC' j 2 = 0 := fun j hj => by
-      by_contra hne'
-      have hpj : 0 < φ pC' j 2 := lt_of_le_of_ne (hC'_nn j 2) (Ne.symm hne')
-      have hpr : pC' j = prefBACD := by fin_cases j <;> simp_all [pC']
-      exact hntc pC' j 3 1 2 hpj (by rw [hpr]; exact hlt_bacd_12) hpos hlt_acbd_21
-    have hcol := col_sum_four (hfeas pC') 2
-    rw [hzero 0 (by decide), hzero 1 (by decide), hzero 2 (by decide)] at hcol
-    linarith only [hcol, hC'3_bc, hpos]
+  have hC'3_b0 : φ pC' 3 1 = 0 :=
+    zero_of_noTwoCycle_col (hfeas pC') (hntc pC') 3 1 2 (by linarith only [hC'3_bc])
+      hlt_acbd_21 fun j hj => by fin_cases j <;> simp_all [pC']
   have hC'3_c : φ pC' 3 2 = 1 / 4 := by linarith only [hC'3_bc, hC'3_b0]
   have hC'_ete01 : φ pC' 0 = φ pC' 1 := hete pC' 0 1 rfl
   have hC'_ete02 : φ pC' 0 = φ pC' 2 := hete pC' 0 2 rfl
@@ -531,7 +496,11 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
   let S : Finset (Fin n) := Finset.univ.filter fun x =>
     (x.val < 4 ∧ ∃ j : Fin n, 4 ≤ j.val ∧ 0 < M j x) ∨ (4 ≤ x.val ∧ M x x < 1)
   have hSne : S.Nonempty := ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, Or.inr ⟨hk, hlt1⟩⟩⟩
-  obtain ⟨v, hvS, hsrc⟩ := exists_source_of_acyclic hacyc S hSne
+  obtain ⟨rank, -, hrank⟩ :=
+    hacyc.exists_rank Finset.univ fun _ _ _ => ⟨Finset.mem_univ _, Finset.mem_univ _⟩
+  obtain ⟨v, hvS, hmin⟩ := Finset.exists_min_image S rank hSne
+  have hsrc : ∀ b ∈ S, ¬ tradeRel (padProfile hn p) M b v := fun b hb hbv =>
+    (hrank b v hbv).not_ge (hmin b hb)
   have hrow_lt_of_off : ∀ (j y : Fin n), j ≠ y → 0 < M j y → M j j < 1 := by
     intro j y hne hpos
     have hsum := hMds.2.1 j
@@ -640,23 +609,20 @@ private lemma dummy_block_zero {n : ℕ} (hn : 4 ≤ n) (p : Profile 4)
     (∀ i k : Fin n, i.val < 4 → 4 ≤ k.val → M i k = 0) ∧
     (∀ k o : Fin n, 4 ≤ k.val → o.val < 4 → M k o = 0) := by
   have hMds := mem_doublyStochastic_iff_sum.mp heff.1
-  constructor
-  · intro i k hi hk
-    have hkk := dummy_fixed_of_isSDEfficient hn p heff k hk
-    have hcol : ∑ j : Fin n, M j k = 1 := hMds.2.2 k
-    have hrest : ∑ j ∈ Finset.univ.erase k, M j k = 0 := by
-      have hadd := Finset.add_sum_erase Finset.univ (fun j => M j k) (Finset.mem_univ k)
+  have hother_zero : ∀ (f : Fin n → ℝ) (k x : Fin n),
+      (∀ y, 0 ≤ f y) → ∑ y : Fin n, f y = 1 → f k = 1 → x ≠ k → f x = 0 := by
+    intro f k x hnn hsum hfk hne
+    have hrest : ∑ y ∈ Finset.univ.erase k, f y = 0 := by
+      have hadd := Finset.add_sum_erase Finset.univ f (Finset.mem_univ k)
       linarith
-    have hzero := (Finset.sum_eq_zero_iff_of_nonneg fun j _ => hMds.1 j k).mp hrest
-    exact hzero i (Finset.mem_erase.mpr ⟨fun h => by subst h; omega, Finset.mem_univ i⟩)
-  · intro k o hk ho
-    have hkk := dummy_fixed_of_isSDEfficient hn p heff k hk
-    have hrow : ∑ y : Fin n, M k y = 1 := hMds.2.1 k
-    have hrest : ∑ y ∈ Finset.univ.erase k, M k y = 0 := by
-      have hadd := Finset.add_sum_erase Finset.univ (fun y => M k y) (Finset.mem_univ k)
-      linarith
-    have hzero := (Finset.sum_eq_zero_iff_of_nonneg fun y _ => hMds.1 k y).mp hrest
-    exact hzero o (Finset.mem_erase.mpr ⟨fun h => by subst h; omega, Finset.mem_univ o⟩)
+    exact (Finset.sum_eq_zero_iff_of_nonneg fun y _ => hnn y).mp hrest x
+      (Finset.mem_erase.mpr ⟨hne, Finset.mem_univ x⟩)
+  exact ⟨fun i k hi hk =>
+      hother_zero (fun j => M j k) k i (fun j => hMds.1 j k) (hMds.2.2 k)
+        (dummy_fixed_of_isSDEfficient hn p heff k hk) (fun h => by subst h; omega),
+    fun k o hk ho =>
+      hother_zero (fun y => M k y) k o (fun y => hMds.1 k y) (hMds.2.1 k)
+        (dummy_fixed_of_isSDEfficient hn p heff k hk) (fun h => by subst h; omega)⟩
 
 /-- **Bogomolnaia–Moulin impossibility theorem** ([BogomolnaiaMoulin2001], locator unverified):
 for every `n ≥ 4`, there is **no** feasible random assignment rule `φ : AssignmentRule n`
@@ -769,7 +735,7 @@ theorem exists_sdEfficient_ete_sdStrategyProof_iff (n : ℕ) :
     by_contra! hgt
     exact bogomolnaiaMoulin_impossibility (by omega) φ hfeas heff hete hsp
   · intro hn
-    exact ⟨rsd, rsd_isFeasible, fun p => rsd_isSDEfficient_of_le_three hn p,
+    exact ⟨rsd, fun p => rsd_mem_doublyStochastic p, fun p => rsd_isSDEfficient_of_le_three hn p,
       rsd_isEqualTreatmentOfEquals, rsd_isSDStrategyProof⟩
 
 end Cslib.GameTheory.RandomAssignment
