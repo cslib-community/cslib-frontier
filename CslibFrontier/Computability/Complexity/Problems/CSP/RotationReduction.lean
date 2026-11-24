@@ -48,14 +48,11 @@ theorem polyTimeReducible_rotationCSPSAT_of_gadgets {Src Rel : Type} [Finite Src
     let out := GadgetRotation.compileGadgets gadgets witnesses B (I.constraints, I.rotation)
     ⟨out.1, out.2⟩
   refine ⟨f, ?_, fun I => ?_⟩
-  · have hp := GadgetRotation.computableInPolyTime_compileGadgets
-      encSrc encRel gadgets witnesses B
-    have hi : ComputableInPolyTime (fun I : RotationInstance Src =>
-        (I.constraints, I.rotation)) (encRotationInstance encSrc)
-        (encCSPRotationCertificate encSrc encNat) :=
-      (encRotationInstance_constraints_polyTime encSrc .id').pair
-        (encRotationInstance_rotation_polyTime encSrc .id')
-    have ho := hp.comp hi
+  · open scoped RotationInstance in
+    have ho := (GadgetRotation.computableInPolyTime_compileGadgets
+      encSrc encRel gadgets witnesses B).comp
+        (g := fun I : RotationInstance Src => (I.constraints, I.rotation))
+        (by unfold encCSPRotationCertificate; fun_prop)
     exact encRotationInstance_mk_polyTime encRel ho.fst' ho.snd'
   · exact (GadgetRotation.wellFormed_certifiedSatisfiable_compileGadgets_iff
       gadgets witnesses B hb (I.constraints, I.rotation)).symm

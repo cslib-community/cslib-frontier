@@ -172,33 +172,23 @@ theorem cfgSpace_le_cfgBudget (a : SPACETMInstance) {t : ℕ}
 @[fun_prop]
 theorem computableInPolyTime_cfgBudget :
     ComputableInPolyTime cfgBudget encSPACETMInstance encUnary := by
-  have hdesc_id : ComputableInPolyTime (fun d : Desc => eDesc d) eDesc encBits :=
-    ComputableInPolyTime.of_eq (f := fun d : Desc => eDesc d)
-      (encIn := eDesc) (encOut := encBits) fun _ => rfl
   have hmlen : ComputableInPolyTime (fun a : SPACETMInstance => descLen a.machine)
       encSPACETMInstance encUnary :=
-    ComputableInPolyTime.length_bits.comp (hdesc_id.comp (encSPACETMInstance_machine_polyTime .id'))
-  have hilen : ComputableInPolyTime (fun a : SPACETMInstance => a.input.length)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.length_bits.comp (encSPACETMInstance_input_polyTime .id')
-  have hspace : ComputableInPolyTime (fun a : SPACETMInstance => a.space)
-      encSPACETMInstance encUnary :=
-    encSPACETMInstance_space_polyTime .id'
-  have h2m5 : ComputableInPolyTime (fun a : SPACETMInstance => 2 * descLen a.machine + 5)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hmlen) (.const 5)
-  have hterm1 : ComputableInPolyTime
-      (fun a : SPACETMInstance => 3 * descLen a.machine + 2 * a.input.length)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul' (.const 3) hmlen)
-      (ComputableInPolyTime.unary_mul' (.const 2) hilen)
-  have hterm2 : ComputableInPolyTime
-      (fun a : SPACETMInstance => 6 * (2 * descLen a.machine + 5) * a.space)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.unary_mul'
-      (ComputableInPolyTime.unary_mul' (.const 6) h2m5) hspace
-  exact ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hterm1 hterm2) (.const 6)
+    ComputableInPolyTime.length_bits.comp
+      ((ComputableInPolyTime.of_eq (encIn := eDesc) (encOut := encBits) fun _ => rfl).comp
+        (by fun_prop))
+  unfold cfgBudget
+  exact ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_add'
+        (ComputableInPolyTime.unary_mul' (.const 3) hmlen)
+        (ComputableInPolyTime.unary_mul' (.const 2) (by fun_prop)))
+      (ComputableInPolyTime.unary_mul'
+        (ComputableInPolyTime.unary_mul' (.const 6)
+          (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hmlen)
+            (.const 5)))
+        (by fun_prop)))
+    (.const 6)
 
 /-- Instance `a` accepts at step `t` when the simulation of `a.machine` on `a.input.map eBit` up
 to step `t` visits at most `a.space` work-tape cells (`simSpace ≤ a.space`) and has halted with
@@ -268,16 +258,15 @@ theorem computableInPolySpace_decider :
         (a.machine, a.input.map eBit, 2 ^ (a.cfgBudget + 1), a.space))
       encSPACETMInstance eInS := by
     have hmap : ComputableInPolyTime (fun a : SPACETMInstance => a.input.map eBit)
-        encSPACETMInstance (encList encUnary) :=
-      computableInPolyTime_map_eBit.comp (encSPACETMInstance_input_polyTime .id')
+        encSPACETMInstance (encList encUnary) := computableInPolyTime_map_eBit.comp (by fun_prop)
     have hclock : ComputableInPolyTime (fun a : SPACETMInstance => 2 ^ (a.cfgBudget + 1))
-        encSPACETMInstance encNat :=
-      ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
-    exact (encSPACETMInstance_machine_polyTime .id').prod
-      (hmap.prod (hclock.prod (encSPACETMInstance_space_polyTime .id')))
+        encSPACETMInstance encNat := ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
+    unfold eInS
+    fun_prop
   have hverd : ComputableInPolyTime
-      (fun r : List ℕ × Bool => decide (r = ([eBit true], true))) eOut encBool :=
-    ComputableInPolyTime.decide_eq' .id' (.const _)
+      (fun r : List ℕ × Bool => decide (r = ([eBit true], true))) eOut encBool := by
+    unfold eOut
+    fun_prop
   exact (ComputableInPolySpace.of_polyTime hverd).comp
     (computableInPolySpace_spaceBoundedUniversal.comp (ComputableInPolySpace.of_polyTime hinput))
 
