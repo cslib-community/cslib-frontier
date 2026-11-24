@@ -128,6 +128,22 @@ theorem realizes_deletePrepGen :
     rw [clientResult_lastSlotOfProg d.1.1 s h.2.2.2.1 h.2.1 hbc]
     exact (slotOf_lt_and_injective h.2.2.2.1).1 d.1.1.2 h.2.1 _ (by omega)
 
+/-- Search header `(found, j_del)` in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepHdr (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ × ℕ := prep.1.1
+
+/-- Found flag (`1` if found, `0` otherwise) in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepFound (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := prep.1.1.1
+
+/-- Bucket-local slot index `j_del` in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepIdx (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := prep.1.1.2
+
+/-- Physical slot `phys_del` in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepPhys (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := prep.1.2
+
 /-- Specification of `deletePrepProg` under `BucketStateInv` when `m = mOf q_target`. -/
 theorem deletePrepProg_bucket_spec {U V w₀ n_max h_space w base b q_target m : ℕ}
     {mOf : ℕ → ℕ} {L : ℕ → ℕ → List ℕ} {B : ℕ → ℕ → Option ℕ} {s : Memory.State}
@@ -139,25 +155,21 @@ theorem deletePrepProg_bucket_spec {U V w₀ n_max h_space w base b q_target m :
     let d := (((base, b), q_target), m)
     let prog := deletePrepProg U V w₀ n_max h_space d
     let prep := (Memory.spec 0).clientResult s prog
-    let checkRes (res : (ℕ × ℕ) × ℕ) : Prop :=
-      let checkHdr (hdr : ℕ × ℕ) : Prop :=
-        if ∃ j < bCount n_max gm b,
-             quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b j) = q_target then
-          hdr.1 = 1 ∧
-          hdr.2 < bCount n_max gm b ∧
-          quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b hdr.2) = q_target ∧
-          res.2 = slotOf n_max gm b hdr.2 ∧
-          prep.2 = quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b (bCount n_max gm b - 1))
-        else
-          hdr.1 = 0 ∧ prep.2 = 0
-      checkHdr res.1
     (Memory.spec 0).clientState s prog = s ∧
     memoryCost prog s ≤
       16 + 8 * (L b m).length + 6 * (bCount n_max gm b - effBucketCap n_max) ∧
     prep.2 < 2 ^ quotientBits U n_max ∧
-    checkRes prep.1 := by
-  intro gm d prog prep checkRes
-  dsimp only [gm, d, prog, prep, checkRes]
+    (if ∃ j < bCount n_max gm b,
+         quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b j) = q_target then
+       deletePrepFound prep = 1 ∧
+       deletePrepIdx prep < bCount n_max gm b ∧
+       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b (deletePrepIdx prep)) = q_target ∧
+       deletePrepPhys prep = slotOf n_max gm b (deletePrepIdx prep) ∧
+       prep.2 = quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b (bCount n_max gm b - 1))
+     else
+       deletePrepFound prep = 0 ∧ prep.2 = 0) := by
+  intro gm d prog prep
+  dsimp only [gm, d, prog, prep, deletePrepFound, deletePrepIdx, deletePrepPhys]
   have ⟨hsb_st, hsb_cost, hres⟩ :=
     searchBucketProg_bucket_spec hinv henv hb hm_eq hm_lt (q_target := q_target)
   dsimp only at hsb_st hsb_cost hres
@@ -927,8 +939,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     let prep := (Memory.spec 0).clientResult s
       (deletePrepProg U V w₀ n_max h_space (((base, b), q_target), m))
     let m_last := mOf prep.2
-    let mkFin (res : (ℕ × ℕ) × ℕ) := (((((base, b), res.1), res.2), m), m_last)
-    let d_fin := mkFin prep.1
+    let d_fin := (((((base, b), deletePrepHdr prep), deletePrepPhys prep), m), m_last)
     let s' := (Memory.spec 0).clientState s (deleteFinishProg U V w₀ n_max h_space d_fin)
     let gm' := gmAt base U V w₀ n_max h_space s'.mem
     let B' := Function.update B b (Function.update (B b) q_target none)
@@ -941,10 +952,10 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
       (if (B b q_target).isSome then totalSlots n_max gm₀ - 1 else totalSlots n_max gm₀) ∧
     memoryCost (deleteFinishProg U V w₀ n_max h_space d_fin) s + 66 * slotPotential n_max gm' ≤
       66 * slotPotential n_max gm₀ + 240 := by
-  intro gm₀ prep m_last mkFin d_fin s' gm' B'
+  intro gm₀ prep m_last d_fin s' gm' B'
   have ⟨_, _, hq_lt, hprep⟩ :=
     deletePrepProg_bucket_spec hinv henv hb hm_eq hm_lt (q_target := q_target)
-  dsimp only at hq_lt hprep
+  dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys] at hq_lt hprep
   have hm_last_lt : m_last < numMicroPerBucket n_max := hmOf_lt prep.2 hq_lt
   by_cases hex : ∃ j < bCount n_max gm₀ b,
       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm₀ b j) = q_target
@@ -956,14 +967,15 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     have hpre_fin : DeleteFinishPre U V w₀ n_max h_space w d_fin s :=
       ⟨henv, fun _ => ⟨henv, hinv.hslot, hb, hm_lt, hm_last_lt, hj_del_lt,
         by
-          dsimp only [d_fin, mkFin, deleteFinishToFound, deleteFinishPhys, deleteSlotPhys]
+          dsimp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishToFound, deleteFinishPhys,
+            deleteSlotPhys]
           exact hphys_del_eq ▸ (slotOf_lt_and_injective hinv.hslot).1 b hb _ hj_del_lt,
         L, hinv.hchains,
         fun hc => (hinv.hchain_mem b hb m hm_lt _).mpr ⟨hj_del_lt, hc, hq_del ▸ hm_eq.symm⟩,
         fun hc => (hinv.hchain_mem b hb m_last hm_last_lt _).mpr
           ⟨by
-              dsimp only [d_fin, mkFin, gm₀, deleteFinishToFound, deleteFinishPair,
-                nestedCallBase, nestedCallBucket] at *
+              dsimp only [d_fin, deletePrepHdr, deletePrepPhys, gm₀, deleteFinishToFound,
+                deleteFinishPair, nestedCallBase, nestedCallBucket] at *
               omega,
             hc, hm_last_eq.symm⟩⟩⟩
     obtain ⟨s_mid, L_mid, hst_mid, hcost_mid, hf_mid, hout_mid, hgm_mid,
@@ -976,9 +988,9 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         (base := base) (b := b) hw s_mid (by rw [hgm_mid]; exact hinv.hslot) hb hbc_mid
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = deleteFoundProg U V w₀ n_max h_space
         ((((base, b), prep.1.1.2), slotOf n_max gm₀ b prep.1.1.2), (m, m_last)) := by
-      simp only [d_fin, mkFin, deleteFinishProg, deleteFinishGenProg, deleteFoundGenProg_mk,
-        deleteFinishFound, deleteFinishToFound, deleteFinishPair, deleteFinishIdx,
-        deleteFinishPhys, deleteFinishMicro, pure_bind]
+      simp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishProg, deleteFinishGenProg,
+        deleteFoundGenProg_mk, deleteFinishFound, deleteFinishToFound, deleteFinishPair,
+        deleteFinishIdx, deleteFinishPhys, deleteFinishMicro, pure_bind]
       rw [ite_eq_left hf1, hphys_del_eq]
     have hs'_eq : s' = (Memory.spec 0).clientState s_mid
         (popBackSlotProg U V w₀ n_max h_space (base, b)) := by rw [← hst_mid, ← hfin]
@@ -1007,12 +1019,12 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
       simp only [B', Function.update_eq_self_iff, Option.not_isSome_iff_eq_none.mp hnot_some]
     have hne1 : prep.1.1.1 ≠ 1 := by have hf0 := hprep.1; dsimp only [prep]; omega
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = pure () := by
-      simp only [d_fin, mkFin, deleteFinishProg, deleteFinishGenProg, deleteFoundGenProg_mk,
-        deleteFinishFound, pure_bind]
+      simp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishProg, deleteFinishGenProg,
+        deleteFoundGenProg_mk, deleteFinishFound, pure_bind]
       exact ite_eq_right hne1
     have hs'_eq : s' = s := by dsimp only [s']; rw [hfin]; rfl
     exact ⟨⟨henv, fun h => by
-        dsimp only [d_fin, mkFin, deleteFinishFound] at h
+        dsimp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishFound] at h
         omega⟩,
       by rw [hs'_eq], fun _ _ => by rw [hs'_eq], ⟨L, by rw [hs'_eq, hB_eq]; exact hinv⟩,
       by dsimp only [gm', gm₀]; rw [hs'_eq, ite_eq_right hnot_some],
