@@ -177,6 +177,9 @@ theorem LinearThresholdModel.toGeneralThresholdModel_thresholdFn {V : Type*} [De
 noncomputable def unitMeasure : Measure ℝ :=
   volume.restrict (Icc (0 : ℝ) 1)
 
+theorem unitMeasure_def : unitMeasure = volume.restrict (Icc (0 : ℝ) 1) := by
+  rfl
+
 instance instIsProbabilityMeasureUnitMeasure : IsProbabilityMeasure unitMeasure :=
   ⟨by rw [unitMeasure, Measure.restrict_apply_univ, Real.volume_Icc, sub_zero, ENNReal.ofReal_one]⟩
 
@@ -184,6 +187,10 @@ instance instIsProbabilityMeasureUnitMeasure : IsProbabilityMeasure unitMeasure 
 ([Kleinberg2007], Section 24.3, pp. 619–620). -/
 noncomputable def thresholdMeasure (V : Type*) [Fintype V] : Measure (V → ℝ) :=
   Measure.pi fun _ : V => unitMeasure
+
+theorem thresholdMeasure_def (V : Type*) [Fintype V] :
+    thresholdMeasure V = Measure.pi fun _ : V => unitMeasure := by
+  rfl
 
 instance instIsProbabilityMeasureThresholdMeasure (V : Type*) [Fintype V] :
     IsProbabilityMeasure (thresholdMeasure V) := by
@@ -535,6 +542,10 @@ noncomputable def activeSetProb (S A : Finset V) : ℝ :=
 noncomputable def influence (S : Finset V) : ℝ :=
   ∫ θ, ((M.thresholdFinal θ S).card : ℝ) ∂thresholdMeasure V
 
+theorem influence_def (S : Finset V) :
+    M.influence S = ∫ θ, ((M.thresholdFinal θ S).card : ℝ) ∂thresholdMeasure V := by
+  rfl
+
 private theorem apply_thresholdFinal_eq_sum (S : Finset V) (φ : Finset V → ℝ) :
     (fun θ : V → ℝ => φ (M.thresholdFinal θ S)) =
       fun θ => ∑ A : Finset V,
@@ -639,6 +650,13 @@ def IndependentCascadeModel.toCascadeModel {V : Type*} [DecidableEq V] [Fintype 
   inNeighbors_congr _ _ _ := rfl
   swap_survival _ _ _ _ _ _ _ := mul_comm _ _
 
+@[simp]
+theorem IndependentCascadeModel.toCascadeModel_prob {V : Type*} [DecidableEq V] [Fintype V]
+    {G : Digraph V} [DecidableRel G.Adj] (IC : IndependentCascadeModel G)
+    (v u : V) (X : Finset V) :
+    IC.toCascadeModel.prob v u X = IC.edgeProb u v := by
+  rfl
+
 namespace CascadeModel
 
 variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G.Adj]
@@ -646,7 +664,7 @@ variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G
 
 /-- Diminishing-returns condition on incremental cascade probabilities
 ([Kleinberg2007], Section 24.3, p. 621): `X ⊆ Y → p_v(u, Y) ≤ p_v(u, X)` for untried `u ∉ Y`. -/
-def HasDiminishingReturns : Prop :=
+@[expose] def HasDiminishingReturns : Prop :=
   ∀ v u ⦃X Y : Finset V⦄, X ⊆ Y → u ∉ Y → C.prob v u Y ≤ C.prob v u X
 
 theorem _root_.Cslib.GameTheory.Network.IndependentCascadeModel.hasDiminishingReturns_toCascadeModel
@@ -906,6 +924,12 @@ noncomputable def toCascadeModel : CascadeModel G where
         · rfl
 
 @[simp]
+theorem toCascadeModel_prob (v u : V) (X : Finset V) :
+    M.toCascadeModel.prob v u X =
+      (M.thresholdFn v (insert u X) - M.thresholdFn v X) / (1 - M.thresholdFn v X) := by
+  rfl
+
+@[simp]
 theorem survivalProb_toCascadeModel (v : V) (X : Finset V) :
     M.toCascadeModel.survivalProb v X = 1 - M.thresholdFn v X := by
   induction X using Finset.induction with
@@ -991,9 +1015,29 @@ decreasing_by
         _ = Fintype.card V * Fintype.card V := by simp
     omega
 
+theorem cascadeProbFrom_eq (nextEdge : Finset V → (V → Finset V) → Option (V × V))
+    (active : Finset V) (tried : V → Finset V) (A : Finset V) :
+    C.cascadeProbFrom nextEdge active tried A =
+      match nextEdge active tried with
+      | none => if active = A then 1 else 0
+      | some (u, v) =>
+        if (u, v) ∈ untriedEdges G active tried then
+          let p := C.prob v u (tried v)
+          let tried' := Function.update tried v (insert u (tried v))
+          p * C.cascadeProbFrom nextEdge (insert v active) tried' A +
+            (1 - p) * C.cascadeProbFrom nextEdge active tried' A
+        else
+          if active = A then 1 else 0 := by
+  rw [cascadeProbFrom]
+  cases nextEdge active tried with
+  | none => rfl
+  | some e =>
+    rcases e with ⟨u, v⟩
+    by_cases h : (u, v) ∈ untriedEdges G active tried <;> simp [h]
+
 /-- An edge selector `nextEdge` is valid if it picks an untried active-to-inactive edge whenever
 one exists and returns `none` when none exists. -/
-def ValidNextEdge (G : Digraph V) [DecidableRel G.Adj]
+@[expose] def ValidNextEdge (G : Digraph V) [DecidableRel G.Adj]
     (nextEdge : Finset V → (V → Finset V) → Option (V × V)) : Prop :=
   ∀ active tried,
     ((untriedEdges G active tried).Nonempty →
@@ -1011,10 +1055,19 @@ noncomputable def activeSetProb (nextEdge : Finset V → (V → Finset V) → Op
     (S A : Finset V) : ℝ :=
   C.cascadeProbFrom nextEdge S (fun _ => ∅) A
 
+theorem activeSetProb_def (nextEdge : Finset V → (V → Finset V) → Option (V × V))
+    (S A : Finset V) :
+    C.activeSetProb nextEdge S A = C.cascadeProbFrom nextEdge S (fun _ => ∅) A := by
+  rfl
+
 /-- Expected number of final active nodes in the Cascade Model starting from `S`
 ([Kleinberg2007], Section 24.4, p. 623). -/
 noncomputable def influence (S : Finset V) : ℝ :=
   ∑ A : Finset V, C.activeSetProb (defaultNextEdge G) S A * (A.card : ℝ)
+
+theorem influence_def (S : Finset V) :
+    C.influence S = ∑ A : Finset V, C.activeSetProb (defaultNextEdge G) S A * (A.card : ℝ) := by
+  rfl
 
 /-- Cylinder event of threshold draws `θ` surviving the already-tried history `tried` on inactive
 vertices `activeᶜ`, intersected with terminating at `A`. -/
@@ -1482,6 +1535,15 @@ def toTimeLayered (T : ℕ) : GeneralThresholdModel (timeLayeredDigraph G T).toD
       change ((u, _) ∈ X ∧ ((vt.2 : ℕ) = ((vt.2 : ℕ) - 1) + 1 ∧ G.Adj u vt.1)) ↔ _
       have hsucc : (vt.2 : ℕ) = (vt.2 : ℕ) - 1 + 1 := by omega
       exact ⟨fun ⟨h1, _, h2⟩ => ⟨h1, h2⟩, fun ⟨h1, h2⟩ => ⟨h1, hsucc, h2⟩⟩
+
+theorem toTimeLayered_thresholdFn (T : ℕ) (vt : V × Fin (T + 1))
+    (X : Finset (V × Fin (T + 1))) :
+    (M.toTimeLayered T).thresholdFn vt X =
+      if h0 : (vt.2 : ℕ) = 0 then 0
+      else
+        M.thresholdFn vt.1
+          (Finset.univ.filter fun u => (u, (⟨(vt.2 : ℕ) - 1, by omega⟩ : Fin (T + 1))) ∈ X) := by
+  rfl
 
 /-- `T`-step synchronous **nonprogressive** active set at step `t : Fin (T + 1)` under threshold
 realizations `θ : V × Fin (T + 1) → ℝ`: step `0` is `S`, and at step `t + 1` vertex `v` is active
