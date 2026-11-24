@@ -73,11 +73,10 @@ private theorem sessionAdvance_length (k : ℕ) (request : SenderOperation × Li
           encBits_apply,
           encList_append, encList_cons, encList_nil, List.length_append, length_frame]
   all_goals try omega
-  all_goals
-    rename_i values hlt
-    have h := length_encFinEnum_lt values
-    norm_num [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
-    omega
+  rename_i values hlt
+  have h := length_encFinEnum_lt values
+  norm_num [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
+  omega
 
 /-- A complete globally oracle-PPT sender is efficient under the real constant-reply interface.
 The unary round count is part of the actual adversary input. No local adversary-state bound is
@@ -106,7 +105,7 @@ theorem sessionProgram_isPPT {Input Output : Type}
 private theorem sessionOpening_polyTime :
     ComputableInPolyTime (fun p : ℕ × Session => p.2.opening p.1)
       (encPair encUnary encSession)
-      (encOption (encPair encBool (encList (encPair encBool encBool)))) := by
+      (encOption (encPair encBool encOpeningPairs)) := by
   let encInput := encPair encUnary encSession
   let encSubmission := encPair encBool encBits
   have hinput := ComputableInPolyTime.fst encInput encSubmission
@@ -122,7 +121,7 @@ private theorem sessionOpening_polyTime :
   have hlength := (ComputableInPolyTime.length_bits.comp hword).decide_eq'
     (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hcount))
   have hbody := hlength.ite_decide
-    ((ComputableInPolyTime.optionSome (encPair encBool (encList (encPair encBool encBool)))).comp
+    ((ComputableInPolyTime.optionSome (encPair encBool encOpeningPairs)).comp
       (hbit.prod hpairs)) (ComputableInPolyTime.const none)
   unfold Session.opening
   convert ComputableInPolyTime.optionElimWithInput

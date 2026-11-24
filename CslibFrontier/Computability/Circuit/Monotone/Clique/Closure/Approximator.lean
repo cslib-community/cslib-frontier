@@ -57,6 +57,8 @@ at most `(r - 1) ^ j` minimal sets of at most `j ≤ l` vertices
 
 @[expose] public section
 
+open Cslib.BitString.Graph
+
 namespace Cslib.Circuits.Monotone.Closure
 
 open Cslib.Circuits.Clique Finset Relation
@@ -260,8 +262,9 @@ noncomputable def input (i : Fin (edgeCount n)) : Approximator n r l where
     have hr : 2 ≤ r := Fact.out
     have he := Sym2.card_toFinset_of_not_isDiag _ ((edgeEquiv n).symm i).2
     refine mem_filter.2 ⟨mem_filter.2 ⟨mem_univ _, hW.1⟩, ?_⟩
-    obtain ⟨-, ⟨V, hV, hVW⟩ | ⟨-, V, hV, hV1⟩⟩ := hW
-    · have h0 := (mem_filter.1 (hV ⟨0, by omega⟩)).2
+    obtain ⟨-, h | ⟨-, V, hV, hV1⟩⟩ := hW
+    · obtain ⟨V, hV, hVW⟩ := (impliedBy_iff_of_two_le hr).1 h
+      have h0 := (mem_filter.1 (hV ⟨0, by omega⟩)).2
       have h1 := (mem_filter.1 (hV ⟨1, by omega⟩)).2
       exact (subset_inter h0 h1).trans (hVW _ _ (by simp))
     · have := card_le_card (mem_filter.1 hV).2

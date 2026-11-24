@@ -99,9 +99,6 @@ bounds: time `exp(O(L log s))` and polynomial space.
 
 namespace Cslib.Circuits.Frontier
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local macro "ℤ₍₂₎" : term => `(Valuation.integer (Rat.padicValuation 2))
-
 namespace NativePacket
 
 open GaloisRingArith TensorNetwork Turing.MultiTapeTM Cslib.GenericRAM
@@ -110,9 +107,9 @@ attribute [local irreducible] ComputableInPolyTime
 
 /-! ### The `2`-adic valuation by halving -/
 
-/-- The valuation by halving is `padicValNat 2` whenever the fuel exceeds the valuation. -/
-theorem twoValAux_eq_of_lt : ∀ (k m : ℕ), (m = 0 ∨ padicValNat 2 m < k) →
-    twoValAux k m = padicValNat 2 m
+/-- The valuation by halving is `multiplicity 2` whenever the fuel exceeds the valuation. -/
+theorem twoValAux_eq_of_lt : ∀ (k m : ℕ), (m = 0 ∨ multiplicity 2 m < k) →
+    twoValAux k m = multiplicity 2 m
   | 0, m, h => by
     rcases h with rfl | h
     · rw [twoValAux]; simp
@@ -122,16 +119,18 @@ theorem twoValAux_eq_of_lt : ∀ (k m : ℕ), (m = 0 ∨ padicValNat 2 m < k) �
     split_ifs with hm
     · obtain ⟨hm0, hm2⟩ := hm
       have hm' : m = 2 * (m / 2) := by omega
-      have hv : padicValNat 2 m = padicValNat 2 (m / 2) + 1 := by
-        conv_lhs => rw [hm', padicValNat.mul two_ne_zero (by omega), padicValNat_self, add_comm]
+      have hv : multiplicity 2 m = multiplicity 2 (m / 2) + 1 := by
+        conv_lhs => rw [hm', Nat.multiplicity_mul two_ne_zero (by omega),
+          Nat.Prime.multiplicity_self, add_comm]
       rw [hv, twoValAux_eq_of_lt k (m / 2) (by omega)]
     · by_cases hm0 : m = 0
       · rw [hm0]; simp
-      · exact (padicValNat.eq_zero_of_not_dvd fun h2 => hm ⟨hm0, by omega⟩).symm
+      · exact (multiplicity_eq_zero_of_not_dvd fun h2 => hm ⟨hm0, by omega⟩).symm
 
 /-- The valuation of a nonzero natural is below its bit length. -/
-theorem padicValNat_two_lt_size {m : ℕ} (hm : m ≠ 0) : padicValNat 2 m < m.size := by
-  have h1 : 2 ^ padicValNat 2 m ≤ m := Nat.le_of_dvd (Nat.pos_of_ne_zero hm) pow_padicValNat_dvd
+theorem multiplicity_two_lt_size {m : ℕ} (hm : m ≠ 0) : multiplicity 2 m < m.size := by
+  have h1 : 2 ^ multiplicity 2 m ≤ m :=
+    Nat.le_of_dvd (Nat.pos_of_ne_zero hm) (pow_multiplicity_dvd _ _)
   have h2 := Nat.lt_size_self m
   exact (Nat.pow_lt_pow_iff_right (by norm_num)).mp (h1.trans_lt h2)
 
@@ -141,7 +140,7 @@ theorem twoVal_eq_twoValAux_size (n : ℤ) : twoVal n = twoValAux n.natAbs.size 
   · rfl
   · by_cases h : n.natAbs = 0
     · exact .inl h
-    · exact .inr (padicValNat_two_lt_size h)
+    · exact .inr (multiplicity_two_lt_size h)
 
 /-- One step of the valuation by halving, on the value, the count and whether it has stopped. -/
 def twoValStep (s : ℕ × ℕ × Bool) : ℕ × ℕ × Bool :=
@@ -248,7 +247,7 @@ theorem ediv_two_pow_twoVal (n : ℤ) :
     n / 2 ^ twoVal n = if n < 0 then -((n.natAbs / 2 ^ twoVal n : ℕ) : ℤ)
       else ((n.natAbs / 2 ^ twoVal n : ℕ) : ℤ) := by
   have hdvd : 2 ^ twoVal n ∣ n.natAbs := by
-    rw [twoVal_eq]; exact pow_padicValNat_dvd
+    rw [twoVal_eq]; exact pow_multiplicity_dvd _ _
   have hdvd' : (2 : ℤ) ^ twoVal n ∣ (n.natAbs : ℤ) := by exact_mod_cast hdvd
   generalize twoVal n = v at *
   split_ifs with h
@@ -277,12 +276,11 @@ variable {α : Type} {encIn : α ↪ List Bool}
 /-- The odd part of a binary integer. -/
 theorem oddPart_polyTime {z : α → ℤ} (hz : ComputableInPolyTime z encIn encIntBin) :
     ComputableInPolyTime (fun x => z x / 2 ^ twoVal (z x)) encIn encIntBin := by
-  have habs := ComputableInPolyTime.intBin_natAbs.comp hz
-  have hv := twoVal_polyTime.comp hz
-  refine (ComputableInPolyTime.intBin_signMagnitude.comp
-    ((ComputableInPolyTime.intBin_isNeg.comp hz).prod
-      (ComputableInPolyTime.binary_div.comp
-        (habs.prod (ComputableInPolyTime.binary_two_pow.comp hv))))).of_enc_eq fun x => ?_
+  refine (ComputableInPolyTime.intBin_signMagnitude'
+    (ComputableInPolyTime.intBin_isNeg.comp hz)
+    (ComputableInPolyTime.binary_div.comp ((ComputableInPolyTime.intBin_natAbs.comp hz).prod
+      (ComputableInPolyTime.binary_two_pow.comp
+        (twoVal_polyTime.comp hz))))).of_enc_eq fun x => ?_
   simp only [Function.comp_apply, decide_eq_true_eq, ediv_two_pow_twoVal (z x)]
 
 /-- The residue modulo `2 ^ p` of a binary integer, with `p` in unary. -/
@@ -396,15 +394,10 @@ theorem linFactor_polyTime {p : α → ℕ} {fl : α → List ℕ} {z : α → �
     (computableInPolyTime_mul hp hfl (intConst_two_pow_polyTime hp hfl hk) hζ)
 
 /-- The grid of `L` slots, with `L` in unary, as binary integers. -/
-theorem gridList_polyTime : ComputableInPolyTime gridList encUnary (encList encIntBin) := by
-  have hj := ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.snd encUnary encUnary))
-  have hL := ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.fst encUnary encUnary))
-  exact ComputableInPolyTime.mapWithInput (f := fun (L j : ℕ) => (j : ℤ) - (L : ℤ))
-    (ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_mul'
-      (ComputableInPolyTime.const 2) ComputableInPolyTime.id'))
-    (ComputableInPolyTime.intBin_sub.comp (hj.prod hL))
+theorem gridList_polyTime : ComputableInPolyTime gridList encUnary (encList encIntBin) :=
+  ComputableInPolyTime.mapWithInput (f := fun (L j : ℕ) => (j : ℤ) - (L : ℤ))
+    (ComputableInPolyTime.range.comp (by fun_prop))
+    (by fun_prop)
 
 end PolyTime
 
@@ -425,8 +418,7 @@ theorem kernelUnitDen_polyTime {p : α → ℕ} {fl : α → List ℕ} {L : α �
     (gridList_polyTime.comp hL) (h2.decide_ne (ComputableInPolyTime.const 0))
   exact prodList_polyTime hp hfl (ComputableInPolyTime.mapWithInput
     (f := fun x q => intConst (p x) (fl x) ((0 - q) / 2 ^ twoVal (0 - q))) hfilt
-    (intConst_oddPart_polyTime (hp.comp h1) (hfl.comp h1)
-      (ComputableInPolyTime.intBin_sub.comp ((ComputableInPolyTime.const 0).prod h2))))
+    (intConst_oddPart_polyTime (hp.comp h1) (hfl.comp h1) (by fun_prop)))
 
 /-- **The kernel unit is polynomial-time.** -/
 theorem kernelUnitList_polyTime {p : α → ℕ} {fl : α → List ℕ} {L : α → ℕ}
@@ -449,7 +441,7 @@ theorem kernelValueList_polyTime {p : α → ℕ} {fl : α → List ℕ} {a L : 
       ComputableInPolyTime (fun x => a x + 1 - twoVal (z x)) encIn encUnary :=
     ComputableInPolyTime.unary_sub' (ComputableInPolyTime.unary_add' ha
       (ComputableInPolyTime.const 1)) (twoVal_polyTime.comp hz)
-  have htd := ComputableInPolyTime.intBin_sub.comp (ht.prod hd)
+  have htd := ComputableInPolyTime.intBin_sub' ht hd
   have hmid : ComputableInPolyTime (fun x => if d x = t x then one (fl x) else
       mul (p x) (fl x) (intConst (p x) (fl x) (2 ^ (a x + 1 - twoVal (t x - d x)))) (ζ x))
       encIn (encList encNat) :=
@@ -468,7 +460,7 @@ theorem kernelValueList_polyTime {p : α → ℕ} {fl : α → List ℕ} {a L : 
       by_cases h : z.2 = d z.1 <;> by_cases h' : z.2 = t z.1 <;> simp [h, h']
   have hfilt := ComputableInPolyTime.filterWithInput
     (test := fun x q => decide (q ≠ d x ∧ q ≠ t x)) (gridList_polyTime.comp hL) htest
-  have htq := ComputableInPolyTime.intBin_sub.comp ((ht.comp h1).prod h2)
+  have htq := ComputableInPolyTime.intBin_sub' (ht.comp h1) h2
   have hfac := ComputableInPolyTime.mapWithInput
     (f := fun x q => linFactor (p x) (fl x) ((t x - q) / 2 ^ twoVal (t x - q))
       (a x + 1 - twoVal (t x - q)) (ζ x)) hfilt
@@ -488,7 +480,7 @@ theorem crossRatioList_polyTime {p : α → ℕ} {fl : α → List ℕ} {a i : �
     (hζ : ComputableInPolyTime ζ encIn (encList encNat)) :
     ComputableInPolyTime (fun x => crossRatioList (p x) (fl x) (a x) (i x) (t x) (d x) (ζ x))
       encIn (encList encNat) := by
-  have htd := ComputableInPolyTime.intBin_sub.comp (ht.prod hd)
+  have htd := ComputableInPolyTime.intBin_sub' ht hd
   have hv := twoVal_polyTime.comp htd
   exact computableInPolyTime_mul hp hfl
     (intConst_two_pow_polyTime hp hfl (ComputableInPolyTime.unary_sub'
@@ -523,15 +515,12 @@ theorem localFormList_polyTime {p : α → ℕ} {fl : α → List ℕ} {a L : α
       (ζ z)) encIn (encList encNat) := by
   have h1 := ComputableInPolyTime.fst encIn (encPair encNat encBool)
   have h2 := ComputableInPolyTime.snd encIn (encPair encNat encBool)
-  have hd := ComputableInPolyTime.intBin_sub.comp
-    ((ComputableInPolyTime.intBin_natCast.comp ((ComputableInPolyTime.fst _ _).comp h2)).prod
-      (ComputableInPolyTime.intBin_natCast.comp (hx.comp h1)))
   have hf : ComputableInPolyTime (fun q : α × (ℕ × Bool) =>
       if q.2.2 then kernelValueList (p q.1) (fl q.1) (a q.1) (L q.1) (t q.1) ((q.2.1 : ℤ) - x q.1)
         (ζ q.1) else zero (fl q.1)) (encPair encIn (encPair encNat encBool)) (encList encNat) :=
     ComputableInPolyTime.ite ((ComputableInPolyTime.snd _ _).comp h2)
       (kernelValueList_polyTime (hp.comp h1) (hfl.comp h1) (ha.comp h1) (hL.comp h1) (ht.comp h1)
-        hd (hζ.comp h1))
+        (by fun_prop) (hζ.comp h1))
       (computableInPolyTime_tabulate (g := fun _ _ => 0)
         ((ComputableInPolyTime.length_list encNat).comp (hfl.comp h1))
         (ComputableInPolyTime.const 0))
@@ -553,9 +542,7 @@ theorem modeCoeffList_polyTime {p : α → ℕ} {fl : α → List ℕ} {a L i : 
     (hζ : ComputableInPolyTime ζ encIn (encList encNat)) :
     ComputableInPolyTime (fun z => modeCoeffList (p z) (fl z) (a z) (L z) (i z) (t z) (differ z)
       (x z) (y₀ z) (b z) (ζ z)) encIn (encList encNat) := by
-  have hd := ComputableInPolyTime.intBin_sub.comp
-    ((ComputableInPolyTime.intBin_natCast.comp hy₀).prod
-      (ComputableInPolyTime.intBin_natCast.comp hx))
+  have hd : ComputableInPolyTime (fun z => (y₀ z : ℤ) - x z) encIn encIntBin := by fun_prop
   have hzero := computableInPolyTime_tabulate (g := fun _ _ => 0)
     ((ComputableInPolyTime.length_list encNat).comp hfl) (ComputableInPolyTime.const 0)
   refine (ComputableInPolyTime.ite hdiffer (ComputableInPolyTime.ite (ComputableInPolyTime.beq

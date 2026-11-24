@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.Nat.Choose.Central
 public import Mathlib.Data.Nat.Choose.Central
 public import Mathlib.Data.Fintype.Powerset
 public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Nat.Choose.Sum
 import Mathlib.Algebra.Order.Group.Nat
 import Mathlib.Tactic.Positivity
@@ -33,6 +34,8 @@ binomial coefficients), are at most `6 / 10` of all sets when `100 (t + 1)² ≤
 * `Nat.centralBinom_sq_mul_le`: `C(2m, m)² (2m + 1) ≤ 16 ^ m`.
 * `Cslib.two_pow_succ_le_centralBinom`: `2 ^ (B + 1) ≤ B.centralBinom` for `B ≥ 3`.
 * `Cslib.choose_half_sq_mul_le`: `C(n, ⌊n/2⌋)² (n + 1) ≤ 4 ^ n`.
+* `Cslib.choose_le_choose_of_le_of_le_half`: `C(n, k) ≤ C(n, a)` for `k ≤ a ≤ n / 2`, binomial
+  coefficients below half increase.
 * `Cslib.ten_mul_card_filter_card_le_le`: few sets are much larger than half.
 * `Cslib.four_mul_two_pow_le_mul_choose_sub`: `4 · 2 ^ n ≤ 5 (n + 1) C(n, ⌈n/2⌉ - s)` when
   `1 ≤ s` and `100 s² ≤ n + 1`, a binomial coefficient near the middle is large.
@@ -105,22 +108,14 @@ theorem two_mul_card_small_le (n : ℕ) :
     · intro S hS
       simp only [A, B, Finset.coe_filter, Finset.mem_univ, true_and,
         Set.mem_ofPred_eq] at hS ⊢
-      rw [Finset.card_compl, Fintype.card_fin]
-      have := Finset.card_le_univ S
-      simp only [Fintype.card_fin] at this
-      omega
+      finset_card
     · intro S _ T _ hST
       exact compl_injective hST
   have hdisj : Disjoint A B := by
     rw [Finset.disjoint_filter]
     intro S _ hS
     omega
-  have hunion : A.card + B.card ≤ 2 ^ n := by
-    rw [← Finset.card_union_of_disjoint hdisj]
-    calc
-      (A ∪ B).card ≤ (univ : Finset (Finset (Fin n))).card := Finset.card_le_univ _
-      _ = 2 ^ n := by rw [Finset.card_univ, Fintype.card_finset, Fintype.card_fin]
-  omega
+  finset_card [show Fintype.card (Finset (Fin n)) = 2 ^ n by simp]
 
 /-- Subsets of size between `n / 2` and `n / 2 + t` number at most
 `(t + 1) · C(n, ⌊n/2⌋)`. -/
@@ -189,7 +184,7 @@ theorem ten_mul_card_filter_card_le_le (n t : ℕ) (h : 100 * (t + 1) ^ 2 ≤ n 
       omega
 
 /-- Below `n / 2`, the binomial coefficients `C(n, k)` increase with `k`. -/
-private theorem choose_le_choose_of_le_of_le_half {n k a : ℕ} (hka : k ≤ a) (ha : a ≤ n / 2) :
+theorem choose_le_choose_of_le_of_le_half {n k a : ℕ} (hka : k ≤ a) (ha : a ≤ n / 2) :
     n.choose k ≤ n.choose a := by
   induction hka using Nat.decreasingInduction with
   | self => exact le_rfl
@@ -217,8 +212,7 @@ theorem four_mul_two_pow_le_mul_choose_sub {n s : ℕ} (hs : 1 ≤ s) (h : 100 *
       A.card := by
     refine card_le_card_of_injOn (fun S => Sᶜ) (fun S hS => ?_) compl_injective.injOn
     simp only [A, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hS ⊢
-    rw [card_compl, Fintype.card_fin]
-    omega
+    finset_card
   -- each size `k ≤ a` contributes at most `C(n, k) ≤ C(n, a)` sets
   have hA : A.card ≤ n.choose a * (range (a + 1)).card := by
     refine card_le_mul_card_image_of_maps_to (f := card) (fun S hS => ?_) _ fun k hk => ?_

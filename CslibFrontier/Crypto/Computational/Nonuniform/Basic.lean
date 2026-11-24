@@ -160,8 +160,8 @@ theorem NonuniformlyIndistinguishable.computationallyIndistinguishable
 /-- **Advice of any encoded type.** Indistinguishability with the advice words
 `encAdvice (advice n)` covers every uniform strict PPT test that reads the advice value
 `advice n` itself, of an arbitrary type `γ` under an arbitrary encoding. The test need not be able
-to decode the advice word: the proof runs its machine on that word
-(`Cslib.Probability.IsPPTOn.exists_extension`). -/
+to decode the advice word: the test is a word test run on that word
+(`Cslib.Probability.IsPPTOn.exists_bool_factor`). -/
 theorem IndistinguishableWithAdvice.negligible_encoded {X Y : ℕ → PMF (List Bool)}
     {γ : Type} {encAdvice : γ ↪ List Bool} {advice : ℕ → γ}
     (h : IndistinguishableWithAdvice (fun n => encAdvice (advice n)) X Y)
@@ -170,16 +170,10 @@ theorem IndistinguishableWithAdvice.negligible_encoded {X Y : ℕ → PMF (List 
     Negligible (fun n => Game.advantage
       (distinguishingGame (X n) (fun word => test ((n, advice n), word)))
       (distinguishingGame (Y n) (fun word => test ((n, advice n), word)))) := by
-  obtain ⟨extension, hextension, heq⟩ :=
-    htest.exists_extension (ComputableInPolyTime.headD false) (fun _ => rfl)
-  have hword : IsPPTOn encAdvisedInput encBool
-      (fun input => extension (encAdvisedInput input)) :=
-    hextension.preprocess (ComputableInPolyTime.of_eq fun _ => rfl)
-  have hkey (n : ℕ) (word : List Bool) :
-      ProbComp.eval (extension (encAdvisedInput ((n, encAdvice (advice n)), word))) =
-        ProbComp.eval (test ((n, advice n), word)) :=
-    heq ((n, advice n), word)
-  simpa only [distinguishingGame_eq_bind, hkey] using h _ hword
+  obtain ⟨W, hW, hWtest⟩ := htest.exists_bool_factor (words := encAdvisedInput)
+    (toWords := fun x => ((x.1.1, encAdvice x.1.2), x.2)) fun _ => rfl
+  obtain rfl : test = _ := funext hWtest
+  exact h W hW
 
 /-- **Typed advice tests suffice.** The converse of `negligible_encoded`: if every uniform strict
 PPT test that reads the advice value `advice n` itself has negligible advantage, the ensembles are
@@ -233,7 +227,11 @@ theorem not_nonuniformlyIndistinguishable_pure_uniformList (target : ℕ → Lis
 reading the parameter `n`, the advice word `advice n` and the image of a uniform `n`-bit input has
 negligible probability of finding any preimage. The advice family is not bounded here; its length
 is charged to the inverter's clock. With empty advice this is the security condition of `OneWay`
-(`oneWay_iff_inversionHardWithAdvice_nil`). -/
+(`oneWay_iff_inversionHardWithAdvice_nil`), that is, of [Goldreich1998Fragments],
+Definition 2.2.1, p. 29; required of every polynomially bounded family, it is the security
+condition of `NonuniformOneWay` (Definition 2.2.6, p. 36). One fixed family is not a notion of
+the source, and a family whose length grows faster than every polynomial also extends the
+inverter's clock beyond the source's polynomial bounds. -/
 def InversionHardWithAdvice (f : List Bool → List Bool) (advice : ℕ → List Bool) : Prop :=
   Game.Indistinguishable
     (fun (adversary : (ℕ × List Bool) × List Bool → ProbComp (List Bool)) n =>
@@ -270,21 +268,11 @@ theorem InversionHardWithAdvice.inversion_negligible_encoded {f : List Bool → 
     (hPPT : IsPPTOn (encAdvisedInputWith encAdvice) encBits adversary) :
     Negligible (fun n => Game.succProbability (ProbComp.eval
       (inversionGame f (fun n image => adversary ((n, advice n), image)) n))) := by
-  obtain ⟨extension, hextension, heq⟩ :=
-    hPPT.exists_extension (decode := id) (ComputableInPolyTime.of_eq fun _ => rfl) (fun _ => rfl)
-  have hword : IsPPTOn encAdvisedInput encBits
-      (fun input => extension (encAdvisedInput input)) :=
-    hextension.preprocess (ComputableInPolyTime.of_eq fun _ => rfl)
-  have hkey (n : ℕ) (image : List Bool) :
-      ProbComp.eval (extension (encAdvisedInput
-        ((n, encAdvice (advice n)), image))) = ProbComp.eval (adversary ((n, advice n), image)) :=
-    heq ((n, advice n), image)
-  have hgame (n : ℕ) :
-      ProbComp.eval (inversionGame f (fun n image => extension
-        (encAdvisedInput ((n, encAdvice (advice n)), image))) n) =
-      ProbComp.eval (inversionGame f (fun n image => adversary ((n, advice n), image)) n) := by
-    simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, hkey]
-  simpa only [hgame] using h.inversion_negligible _ hword
+  obtain ⟨W, hW, hWadversary⟩ := hPPT.exists_factor (words := encAdvisedInput)
+    (toWords := fun x => ((x.1.1, encAdvice x.1.2), x.2)) (fun _ => rfl) (decode := id)
+    (ComputableInPolyTime.of_eq fun _ => rfl) (fun _ => rfl)
+  obtain rfl : adversary = _ := funext hWadversary
+  exact h.inversion_negligible W hW
 
 /-- **Uniform one-wayness is the empty-advice case.** A uniform inverter is an advice inverter
 that ignores its advice, and an advice inverter run on empty advice is a uniform inverter. -/
@@ -300,7 +288,15 @@ theorem oneWay_iff_inversionHardWithAdvice_nil {f : List Bool → List Bool} :
       h.inversion_negligible (fun input => adversary input.1.1 input.2) hPPT.dropAdvice
 
 /-- A function is **nonuniformly one-way** when one deterministic polynomial-time algorithm
-evaluates it and inversion is hard with every polynomially bounded advice family. -/
+evaluates it and inversion is hard with every polynomially bounded advice family.
+
+This is [Goldreich1998Fragments], Definition 2.2.6, p. 36, with uniform strict PPT inverters that
+read a polynomially bounded advice word, charged to their clock, in place of the source's
+families of polynomial-size circuits. The two give the same notion: fixing an advised inverter's
+coins to a best choice and writing out its run gives a polynomial-size circuit at each length, as
+the source's remark after the definition does for uniform inverters, and a circuit's description
+is polynomially bounded advice for a uniform circuit evaluator. Section 1.3.3, pp. 18–20, of the
+source describes this correspondence between machines with advice and circuit families. -/
 structure NonuniformOneWay (f : List Bool → List Bool) : Prop where
   /-- A deterministic polynomial-time algorithm evaluates the function. -/
   polyTime : ComputableInPolyTime f encBits encBits
@@ -338,7 +334,14 @@ theorem NonuniformOneWay.toOneWay {f : List Bool → List Bool} (h : NonuniformO
 
 /-- A **nonuniform pseudorandom generator**: a plain polynomial-time generator with exact output
 length `length`, strictly expanding every seed length, whose output on a uniform seed is
-nonuniformly indistinguishable from a uniform word of the output length. -/
+nonuniformly indistinguishable from a uniform word of the output length.
+
+This is [Goldreich1998Fragments], Definition 3.3.2, p. 85, with pseudorandomness against
+polynomial-size circuits, the indistinguishability that Exercise 8 of Chapter 3, p. 121, defines,
+in place of probabilistic polynomial-time tests. As for `NonuniformOneWay`, the circuits are
+replaced by uniform strict PPT tests reading a polynomially bounded advice word, which give the
+same notion; fixing a probabilistic test's coins loses no distinguishing gap (Exercise 7 of
+Chapter 3, p. 121). -/
 structure NonuniformPRG (generator : List Bool → List Bool) (length : ℕ → ℕ) : Prop where
   /-- One deterministic polynomial-time machine evaluates the generator. -/
   polyTime : ComputableInPolyTime generator encBits encBits

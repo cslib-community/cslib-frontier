@@ -13,6 +13,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # The re-encryption check of `FO-notbot` is load-bearing
@@ -25,11 +26,11 @@ that the check cannot be dropped.
 For any explicit-coin PKE `P` with messages `Fin n → Bool`, `leakyPKE P` appends a tag
 `Option (Fin n)` to ciphertexts. Honest ciphertexts carry `none` and decrypt as in `P`, while
 `Dec(sk, (c, some i))` returns the constant message with value `m i`, where `m = Dec(sk, c)`. The
-encryption algorithm, and hence the IND-CPA experiment, is unchanged
-(`leakyPKE_indCpaAdvantage`), and so are `δ`-correctness and `γ`-spreadness
+encryption algorithm, and hence the two-stage IND-CPA experiment, is unchanged
+(`leakyPKE_cpaAdvantage`), and so are `δ`-correctness and `γ`-spreadness
 (`leakyPKE_deltaCorrect`, `leakyPKE_gammaSpread`). With the re-encryption check in place, a tagged
 ciphertext `(c, some i)` is never an encryption of any message (`encT_leakyPKE`), so `decT`
-rejects it and `Scheme.decapsNotBot` outputs the fallback key `H(true, dk.fallback, (c, some i))`
+rejects it and `Scheme.decapsNotBot` outputs the fallback key `H(dk.fallback, (c, some i))`
 (`decapsNotBot_leakyPKE_some`).
 
 Without the check (`Scheme.decapsNoCheck`, `Scheme.eagerNoCheckGame`), the adversary `leakAdv`
@@ -56,7 +57,7 @@ probability `1 / |K|`.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.leakyPKE_indCpaAdvantage`,
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.leakyPKE_cpaAdvantage`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.leakyPKE_deltaCorrect`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.leakyPKE_gammaSpread`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.decapsNotBot_leakyPKE_some`: `leakyPKE P` preserves the
@@ -103,14 +104,14 @@ carry `none`, and `Dec(sk, (c, some i))` is the constant message with value `m i
     | none => P.dec sk c.1
     | some i => (P.dec sk c.1).map fun m _ => m i
 
-/-- `leakyPKE P` has the IND-CPA advantages of `P`: an adversary against `leakyPKE P` is an
-adversary against `P` that appends the tag `none`. -/
-theorem leakyPKE_indCpaAdvantage (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT)
-    (m₀ m₁ : Fin n → Bool) (A : PK → CT × Option (Fin n) → ProbComp Bool) :
-    (leakyPKE P).indCpaAdvantage m₀ m₁ A =
-      P.indCpaAdvantage m₀ m₁ fun pk c => A pk (c, none) := by
-  simp [ExplicitCoinPKE.indCpaAdvantage, ExplicitCoinPKE.indCpaGame, ExplicitCoinPKE.encrypt,
-    leakyPKE]
+/-- `leakyPKE P` has the two-stage IND-CPA advantages of `P`: an adversary against `leakyPKE P`
+is an adversary against `P` whose second stage appends the tag `none` to the challenge. -/
+theorem leakyPKE_cpaAdvantage (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT) {σ : Type}
+    (A : TwoStage PK (MessagePair (Fin n → Bool)) (CT × Option (Fin n)) Bool σ) :
+    (leakyPKE P).cpaAdvantage A =
+      P.cpaAdvantage ⟨A.choose, fun state c => A.guess state (c, none)⟩ := by
+  simp [ExplicitCoinPKE.cpaAdvantage, PKE.cpaExperiment, lrExperiment, ExplicitCoinPKE.toPKE,
+    ExplicitCoinPKE.encrypt, leakyPKE]
 
 /-- `leakyPKE P` is `δ`-correct whenever `P` is. -/
 theorem leakyPKE_deltaCorrect (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT) {δ : ℝ}
@@ -141,16 +142,16 @@ theorem leakyPKE_dec_some {P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT} {sk 
   simp [leakyPKE, h]
 
 /-- With the re-encryption check of `T`, `Scheme.decapsNotBot` over `leakyPKE P` rejects every
-tagged ciphertext `(c, some i)` and returns the fallback key `H(true, dk.fallback, (c, some i))`. -/
+tagged ciphertext `(c, some i)` and returns the fallback key `H(dk.fallback, (c, some i))`. -/
 theorem decapsNotBot_leakyPKE_some [DecidableEq CT]
     (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT)
     (sampleMsg : ProbComp (Fin n → Bool)) (sampleKey : ProbComp K)
     (G : (Fin n → Bool) → R)
-    (H : Bool × (Fin n → Bool) × (CT × Option (Fin n)) → K)
+    (H : (Fin n → Bool) × (CT × Option (Fin n)) → K)
     (dk : ImplicitSK PK SK (Fin n → Bool)) (c : CT) (i : Fin n) :
     (⟨leakyPKE P, sampleMsg, sampleKey⟩ :
       Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K).decapsNotBot G H dk (c, some i) =
-      H (true, dk.fallback, (c, some i)) :=
+      H (dk.fallback, (c, some i)) :=
   Scheme.decapsNotBot_of_reencrypt_ne _ G H dk (c, some i) fun _ _ henc => by
     simpa [encT_leakyPKE] using congrArg Prod.snd henc
 
@@ -163,12 +164,12 @@ namespace Scheme
 variable [DecidableEq M] [DecidableEq CT]
 
 /-- `FO-notbot` decapsulation without the re-encryption check: `H(false, m', c)` whenever
-`Dec(sk, c) = some m'`, and the implicit-rejection key `H(true, s, c)` otherwise. -/
+`Dec(sk, c) = some m'`, and the implicit-rejection key `H(false, s, c)` otherwise. -/
 def decapsNoCheck (S : Scheme PK SK M R CT K) (H : Bool × M × CT → K)
     (dk : ImplicitSK PK SK M) (c : CT) : K :=
   match S.pke.dec dk.sk c with
   | some m' => H (false, m', c)
-  | none => H (true, dk.fallback, c)
+  | none => H (false, dk.fallback, c)
 
 omit [DecidableEq M] [DecidableEq CT] in
 /-- Without the check, a ciphertext that decrypts to `m'` decapsulates to `H(false, m', c)`. -/
@@ -191,9 +192,9 @@ noncomputable def eagerNoCheckOracle (S : Scheme PK SK M R CT K) (G : M → R)
 noncomputable def eagerNoCheckGame [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) (b : Bool) : Game := do
   let (pk, dk) ← ProbComp.eval S.keyGenNotBot
-  let G ← pi (α := fun _ : M => R) (fun _ => ProbComp.eval S.pke.sampleCoins)
-  let H ← pi (α := fun _ : Bool × M × CT => K) (fun _ => ProbComp.eval S.sampleKey)
-  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G H pk)
+  let G ← S.coinTable
+  let H ← S.keyTable (Bool × M × CT)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsNotBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   OracleComp.interpret (S.eagerNoCheckOracle G H dk cStar)
     (A ⟨pk, cStar, if b then kRand else kReal⟩)
@@ -331,11 +332,7 @@ private theorem le_advantage_of_apply_le {g₀ g₁ : Game} {n k : ℕ} (hk : k 
     (h₀ : g₀ false ≤ n * (k : ℝ≥0∞)⁻¹) (h₁ : g₁ true ≤ (k : ℝ≥0∞)⁻¹) :
     1 - ((n : ℝ) + 1) / k ≤ (Game.advantage g₀ g₁ : ℝ) := by
   have hk' : (k : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.2 (by exact_mod_cast hk)
-  have hr₀ := ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) hk') h₀
-  have hr₁ := ENNReal.toReal_mono hk' h₁
-  rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast]
-    at hr₀
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hr₁
+  ennreal_to_real at h₀ h₁
   have hsum := toReal_true_add_toReal_false g₀
   rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
   refine le_trans ?_ (le_abs_self _)
@@ -374,7 +371,7 @@ theorem advantage_eagerNoCheckGame_leakAdv [Finite R] [Fintype CT] [Fintype K] [
   have h0 : (⟨leakyPKE P, sampleMsg, sampleKey⟩ :
       Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K).eagerNoCheckGame leakAdv false false ≤
         n * (Fintype.card K : ℝ≥0∞)⁻¹ := by
-    simp only [Scheme.eagerNoCheckGame, Scheme.keyGenNotBot, Scheme.encapsNotBot,
+    simp only [Scheme.eagerNoCheckGame, Scheme.keyTable, Scheme.keyGenNotBot, Scheme.encapsNotBot,
       Scheme.encapsBot, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
       PMF.bind_bind, PMF.pure_bind]
     refine bind_apply_le_on_support _ fun ⟨pk, sk⟩ hk => ?_

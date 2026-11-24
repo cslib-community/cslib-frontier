@@ -9,38 +9,32 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
-public import CslibFrontier.Crypto.Computational.LWE.Basic
 public import CslibFrontier.Crypto.Computational.SIS.Basic
 public import CslibFrontier.Foundations.Algebra.Negacyclic
 
 /-!
-# Module-SIS and Module-LWE
+# Module-SIS
 
-This module states structured lattice problems over the negacyclic polynomial ring
+This module states the short integer solution problem over the negacyclic polynomial ring
 `R_q = ℤ_q[X] / (X^n + 1)` ([Lyubashevsky2012], [DucasEtAl2018]). The unstructured short integer
-solution problem is in `CslibFrontier.Crypto.Computational.SIS.Basic`. Elements of `R_q` are
-represented by their coefficient vectors `Fin n → ZMod q`, multiplied by
-`negacyclicMul a b = rotMatrix a *ᵥ b`; these operations and the ring `Negacyclic R n` are in
+solution problem is in `CslibFrontier.Crypto.Computational.SIS.Basic`, and Module-LWE over the same
+ring is in `CslibFrontier.Crypto.Computational.LWE.Module`. Elements of `R_q` are represented by
+their coefficient vectors `Fin n → ZMod q`, multiplied by `negacyclicMul a b = rotMatrix a *ᵥ b`;
+these operations and the ring `Negacyclic R n` are in
 `CslibFrontier.Foundations.Algebra.Negacyclic`.
 
-1. **Module-SIS, Ring-SIS and the structured-to-unstructured embedding (`ModuleSIS`, `RingSIS`)**:
-   A `d × k` module matrix `A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)` defines the linear map
-   `moduleSISMap A z i = ∑ j, negacyclicMul (A i j) (z j)` (`RingSIS` is the rank-`1` case).
-   Replacing each polynomial entry `A i j` by its `n × n` block `rotMatrix (A i j)` gives an
-   unstructured `(d * n) × (k * n)` matrix `expandModuleMatrix A` over `ZMod q` that preserves
-   the linear relation (`expandModuleMatrix_mulVec`), non-zeroness and the `ℓ_∞` norm bound under
-   coefficient flattening `flattenPolyVec`. Consequently, `ModuleSIS.IsSolution` is equivalent to
-   `SIS.IsSolution` on `expandModuleMatrix A` (`isSolution_expandModuleMatrix_iff`).
-   `moduleSISExperiment` draws a uniform module matrix and tests the solver's answer as
-   `sisExperiment` does, and `ModuleSIS M` asserts that every PPT solver has negligible
-   advantage for the parameter family `M`. Solver machines read a module matrix through its
-   expansion (`ModuleSIS.encodeMatrix`). This module proves no relation between `ModuleSIS` and
-   `SIS`, whose experiment draws a uniform unstructured matrix.
-2. **Module-LWE (`ModuleLWE`, `DecisionModuleLWE`)**:
-   Samples `(A, A · s + e)` over `R_q` expand via `expandModuleMatrix` and `flattenPolyVec` into
-   standard LWE relations `(expandModuleMatrix A) *ᵥ flattenPolyVec s + flattenPolyVec e`
-   (`ModuleLWE.flattenPolyVec_sample`), and `DecisionModuleLWE` states computational
-   indistinguishability of encoded Module-LWE samples from uniform module samples.
+A `d × k` module matrix `A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)` defines the linear map
+`moduleSISMap A z i = ∑ j, negacyclicMul (A i j) (z j)` (`RingSIS` is the rank-`1` case).
+Replacing each polynomial entry `A i j` by its `n × n` block `rotMatrix (A i j)` gives an
+unstructured `(d * n) × (k * n)` matrix `expandModuleMatrix A` over `ZMod q` that preserves the
+linear relation (`expandModuleMatrix_mulVec`), non-zeroness and the `ℓ_∞` norm bound under
+coefficient flattening `flattenPolyVec`. Consequently, `ModuleSIS.IsSolution` is equivalent to
+`SIS.IsSolution` on `expandModuleMatrix A` (`isSolution_expandModuleMatrix_iff`).
+`moduleSISExperiment` draws a uniform module matrix and tests the solver's answer as
+`sisExperiment` does, and `ModuleSIS M` asserts that every PPT solver has negligible advantage for
+the parameter family `M`. Solver machines read a module matrix through its expansion
+(`ModuleSIS.encodeMatrix`). This module proves no relation between `ModuleSIS` and `SIS`, whose
+experiment draws a uniform unstructured matrix.
 
 ## Main definitions
 
@@ -61,10 +55,6 @@ represented by their coefficient vectors `Fin n → ZMod q`, multiplied by
   inputs and their encoding, and efficient solvers.
 * `Cslib.Crypto.ModuleSIS`, `Cslib.Crypto.RingSIS`: the Module-SIS and Ring-SIS hardness
   hypotheses.
-* `Cslib.Crypto.ModuleLWE.sample`, `Cslib.Crypto.ModuleLWE.encodeSample`,
-  `Cslib.Crypto.ModuleLWE.sampleLaw`, `Cslib.Crypto.ModuleLWE.realEnsemble`,
-  `Cslib.Crypto.ModuleLWE.uniformEnsemble`, `Cslib.Crypto.DecisionModuleLWE`: Module-LWE sample
-  law, ensembles and decision hardness hypothesis.
 
 ## Main results
 
@@ -77,14 +67,14 @@ represented by their coefficient vectors `Fin n → ZMod q`, multiplied by
 * `Cslib.Crypto.ModuleSIS.isSolution_expandModuleMatrix_iff`,
   `Cslib.Crypto.ModuleSIS.isResidueSolution_expandModuleMatrix_iff`: `ModuleSIS` solutions are
   characterized by `SIS` solutions of `expandModuleMatrix A`.
-* `Cslib.Crypto.ModuleLWE.flattenPolyVec_sample`: Module-LWE samples flatten to standard LWE
-  matrix-vector relations under `expandModuleMatrix`.
 
 ## References
 
 * [V. Lyubashevsky, *Lattice Signatures without Trapdoors*][Lyubashevsky2012]
 * [L. Ducas et al., *CRYSTALS-Dilithium: A Lattice-Based Digital Signature
   Scheme*][DucasEtAl2018]
+* [A. Langlois and D. Stehlé, *Worst-case to average-case reductions for module
+  lattices*][LangloisStehle2015]
 -/
 
 @[expose] public section
@@ -94,7 +84,7 @@ namespace Cslib.Crypto
 open Probability Turing.MultiTapeTM
 open scoped _root_.Matrix NNReal ENNReal
 
-/-! ### Part 1: Module-SIS, Ring-SIS and Structured-to-Unstructured Expansion -/
+/-! ### Module-SIS, Ring-SIS and Structured-to-Unstructured Expansion -/
 
 /-- The Module-SIS linear map `A · z` over `ℤ_q[X] / (X^n + 1)`: the `i`-th output polynomial
 is `∑ j : Fin k, negacyclicMul (A i j) (z j)`. -/
@@ -352,7 +342,7 @@ an `SIS.IsSolution` for `expandModuleMatrix A`. -/
 theorem isSolution_expandModuleMatrix_iff {d k n q β : ℕ}
     (A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)) (z : Fin k → Fin n → ℤ) :
     SIS.IsSolution (expandModuleMatrix A) β (flattenPolyVec z) ↔ IsSolution A β z := by
-  simp only [SIS.IsSolution, IsSolution, flattenPolyVec_ne_zero_iff,
+  simp only [SIS.IsSolution, IsSolution, InKernelLattice, flattenPolyVec_ne_zero_iff,
     forall_abs_flattenPolyVec_le_iff, intCast_comp_flattenPolyVec,
     expandModuleMatrix_mulVec_eq_zero_iff]
 
@@ -467,78 +457,34 @@ end ModuleSISParams
 
 /-- The Module-SIS hardness hypothesis for a parameter family `M`: every PPT solver has
 negligible advantage in `moduleSISExperiment` at the parameters `M` assigns to each security
-parameter. This is a hypothesis against classical adversaries, not a theorem of hardness. -/
+parameter. This is a hypothesis against classical adversaries, not a theorem of hardness.
+
+*Source.* This is `M-SIS_{q,m,β}` of [LangloisStehle2015], Definition 3.5, p. 12 (ePrint version
+2012/090): given `a₁, …, a_m ∈ R_q^d` drawn independently and uniformly, here the `k` columns of
+`A`, find `z ∈ R^m` with `∑ aᵢ zᵢ = 0 mod q` and `0 < ‖z‖ ≤ β`. [DucasEtAl2018], Section 4.1,
+p. 249, states it over `R_q = ℤ_q[X]/(X^n + 1)` (Section 2.1, p. 242) with the `ℓ_∞` norm, as
+`MSIS_{m,k,γ}`. This definition differs from these as follows.
+* The bound `β` is on the `ℓ_∞` norm of the coefficients, as in Ducas et al. Langlois and Stehlé
+  work over the ring of integers `R` of a cyclotomic field with the Euclidean norm of the canonical
+  embedding (Section 2.1).
+* The matrix is uniform, as in Langlois and Stehlé; Ducas et al. take it in Hermite normal form
+  `[I | A]` with `A` uniform. The two forms are equivalent up to the probability that a uniform
+  square block over `R_q` is invertible, which is close to 1 for Ducas et al.'s `q` but not for
+  every `q` (for example `q = 2`).
+* The ring is `ℤ_q[X]/(X^n + 1)` for any `n` and `q`, where Ducas et al. fix `n = 256` and
+  `q = 8380417`; for `n` not a power of two, `X^n + 1` is not cyclotomic, so the ring is outside
+  Langlois and Stehlé's setting too. The solvers are uniform classical strict PPT programs, and
+  their success probability must be negligible in `κ`. -/
 def ModuleSIS (M : ModuleSISParams) : Prop :=
   ∀ S : M.Solver, S.IsPPT → Negligible fun κ => moduleSISAdvantage (M.q κ) (M.β κ) (S κ)
 
-/-- The Ring-SIS hardness hypothesis is `ModuleSIS` at module rank `1`. -/
+/-- The Ring-SIS hardness hypothesis is `ModuleSIS` at module rank `1`. This is the ring version of
+`ℓ₂-SIS` that [Lyubashevsky2012], Section 7, pp. 21–22 (ePrint full version 2011/537), uses, with
+uniform `a₁, …, a_γ ∈ ℤ_q[x]/⟨xⁿ + 1⟩` for `n` a power of two, and `R-SIS_{q,m,β}` of
+[LangloisStehle2015], Definition 3.3, p. 12. It differs from them as `ModuleSIS` does: the
+`ℓ_∞` norm of the coefficients in place of the Euclidean norm, any `n` and `q`, and uniform
+classical strict PPT solvers. -/
 abbrev RingSIS (R : RingSISParams) : Prop :=
   ModuleSIS R.toModuleSISParams
-
-/-! ### Part 2: Module-LWE and Structured Expansion -/
-
-namespace ModuleLWE
-
-/-- Deterministic Module-LWE noisy linear map `A · s + e` over `ℤ_q[X] / (X^n + 1)`. -/
-def sample {m d n q : ℕ}
-    (A : Matrix (Fin m) (Fin d) (Fin n → ZMod q))
-    (s : Fin d → Fin n → ZMod q)
-    (e : Fin m → Fin n → ZMod q) : Fin m → Fin n → ZMod q :=
-  moduleSISMap A s + e
-
-/-- **Structured-to-unstructured Module-LWE identity**: flattening `ModuleLWE.sample A s e` gives
-the standard LWE vector `expandModuleMatrix A *ᵥ flattenPolyVec s + flattenPolyVec e`. -/
-theorem flattenPolyVec_sample {m d n q : ℕ}
-    (A : Matrix (Fin m) (Fin d) (Fin n → ZMod q))
-    (s : Fin d → Fin n → ZMod q)
-    (e : Fin m → Fin n → ZMod q) :
-    flattenPolyVec (sample A s e) =
-      expandModuleMatrix A *ᵥ flattenPolyVec s + flattenPolyVec e := by
-  rw [sample, flattenPolyVec_add, expandModuleMatrix_mulVec]
-
-/-- Encode a Module-LWE public pair `(A, b)` as a framed pair of the encoded module matrix `A`
-and the framed list of natural residue coefficients of `b`. -/
-def encodeSample {m d n q : ℕ}
-    (pair : Matrix (Fin m) (Fin d) (Fin n → ZMod q) × (Fin m → Fin n → ZMod q)) : List Bool :=
-  encPair encBits (encList encNat)
-    (ModuleSIS.encodeMatrix pair.1,
-      List.ofFn fun c : Fin (m * n) => (flattenPolyVec pair.2 c).val)
-
-/-- Draw a Module-LWE sample `(A, A · s + e)` with uniform `A`, uniform secret `s`, and
-independent polynomial errors drawn from `noise`. -/
-noncomputable def sampleLaw (m d n q : ℕ) [NeZero q] (noise : PMF (Fin n → ZMod q)) :
-    PMF (Matrix (Fin m) (Fin d) (Fin n → ZMod q) × (Fin m → Fin n → ZMod q)) := do
-  let secret ← PMF.uniformOfFintype (Fin d → Fin n → ZMod q)
-  let A ← PMF.uniformOfFintype (Matrix (Fin m) (Fin d) (Fin n → ZMod q))
-  let error ← PMF.pi (fun _ : Fin m => noise)
-  return (A, sample A secret error)
-
-/-- Encoded real Module-LWE ensemble at each security parameter. -/
-noncomputable def realEnsemble (m d n q : ℕ → ℕ)
-    [∀ security, NeZero (q security)]
-    (noise : (security : ℕ) → PMF (Fin (n security) → ZMod (q security)))
-    (security : ℕ) : PMF (List Bool) :=
-  (sampleLaw (m security) (d security) (n security) (q security) (noise security)).map
-    encodeSample
-
-/-- Encoded uniform comparison ensemble `(A, u)` with independent uniform `A` and `u`. -/
-noncomputable def uniformEnsemble (m d n q : ℕ → ℕ)
-    [∀ security, NeZero (q security)]
-    (security : ℕ) : PMF (List Bool) :=
-  (PMF.uniformOfFintype
-    (Matrix (Fin (m security)) (Fin (d security)) (Fin (n security) → ZMod (q security)) ×
-      (Fin (m security) → Fin (n security) → ZMod (q security)))).map encodeSample
-
-end ModuleLWE
-
-/-- The Decision Module-LWE hardness hypothesis over `ℤ_q[X] / (X^n + 1)`: encoded samples
-`(A, A · s + e)` are computationally indistinguishable from uniform pairs `(A, u)` against
-uniform classical strict PPT distinguishers. -/
-def DecisionModuleLWE (m d n q : ℕ → ℕ)
-    [∀ security, NeZero (q security)]
-    (noise : (security : ℕ) → PMF (Fin (n security) → ZMod (q security))) : Prop :=
-  ComputationallyIndistinguishable
-    (ModuleLWE.realEnsemble m d n q noise)
-    (ModuleLWE.uniformEnsemble m d n q)
 
 end Cslib.Crypto

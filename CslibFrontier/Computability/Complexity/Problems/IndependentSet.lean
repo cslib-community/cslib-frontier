@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Foundations.Data.List.OfFn
 
 /-!
 # Independent sets
@@ -57,6 +58,8 @@ first-order interpretations.
 * `Cslib.Complexity.mem_IndependentSet_iff`: independent sets as subsets of `ℕ` contained in the
   declared vertices.
 * `Cslib.Complexity.SAT.toIndependentSet_mem_iff`: `toIndependentSet φ ∈ IndependentSet ↔ φ ∈ SAT`.
+* `Cslib.Complexity.SAT.le_indepNum_toIndependentSet_iff`: the independence number of Karp's
+  graph is the maximum number of clauses satisfied by one assignment.
 * `Cslib.Complexity.SAT.exists_card_add_countUnsat_le`: an independent set of Karp's graph gives an
   assignment satisfying as many clauses.
 * `Cslib.Complexity.Graph.le_indepNum_iff`: the independence number is the largest target of
@@ -124,11 +127,11 @@ namespace SAT
 /-! ### Karp's reduction -/
 
 /-- The vertex of an occurrence. -/
-def _root_.Cslib.Logic.PL.Occurrence.vertex (o : Occurrence ℕ) : ℕ := Nat.pair o.1 o.2.1
+def _root_.Cslib.Logic.PL.Occurrence.vertex (o : Occurrence ℕ) : ℕ := Nat.pair o.clause o.pos
 
 /-- Two occurrences conflict when they are in the same clause or are complementary. -/
 def _root_.Cslib.Logic.PL.Occurrence.Conflict (o o' : Occurrence ℕ) : Prop :=
-  (o.1 = o'.1 ∧ o.2.1 ≠ o'.2.1) ∨ (o.2.2.1 = o'.2.2.1 ∧ o.2.2.2 ≠ o'.2.2.2)
+  (o.clause = o'.clause ∧ o.pos ≠ o'.pos) ∨ (o.lit.1 = o'.lit.1 ∧ o.lit.2 ≠ o'.lit.2)
 
 instance : DecidableRel Occurrence.Conflict := fun _ _ => by
   unfold Occurrence.Conflict; infer_instance
@@ -203,17 +206,17 @@ theorem exists_card_add_countUnsat_le {φ : CNF ℕ} {S : Finset ℕ}
     rw [hocc_vertex u hu, hocc_vertex v hv] at this
     exact hS hu hv huv this
   -- Distinct chosen occurrences lie in distinct clauses.
-  have hinj : Set.InjOn (fun v => (occ v).1) S := by
+  have hinj : Set.InjOn (fun v => (occ v).clause) S := by
     intro u hu v hv h
     by_contra huv
     refine hadj u hu v hv huv (Or.inl ⟨h, fun hj => huv ?_⟩)
     rw [← hocc_vertex u hu, ← hocc_vertex v hv]
     simp [Occurrence.vertex, h, hj]
   -- The assignment making the chosen positive literals true.
-  let σ : ℕ → Bool := fun x => decide (∃ v ∈ S, (occ v).2.2 = (x, true))
+  let σ : ℕ → Bool := fun x => decide (∃ v ∈ S, (occ v).lit = (x, true))
   -- It satisfies the clause of every chosen occurrence.
   have hsat : ∀ v ∈ S, ((φ.zipIdx.filter fun c => c.1.eval σ).map Prod.snd).contains
-      (occ v).1 = true := by
+      (occ v).clause = true := by
     intro v hv
     have hov := hocc_mem v hv
     rcases hocc : occ v with ⟨i, j, x, b⟩
@@ -239,7 +242,7 @@ theorem exists_card_add_countUnsat_le {φ : CNF ℕ} {S : Finset ℕ}
     exact ⟨(φ[i], i), ⟨List.mem_zipIdx_iff_getElem?.2 (by simp [hi]), heval⟩, rfl⟩
   refine ⟨σ, ?_⟩
   have hcard : S.card ≤ φ.countP fun c => c.eval σ := by
-    calc S.card = (S.image fun v => (occ v).1).card := (Finset.card_image_of_injOn hinj).symm
+    calc S.card = (S.image fun v => (occ v).clause).card := (Finset.card_image_of_injOn hinj).symm
       _ ≤ ((φ.zipIdx.filter fun c => c.1.eval σ).map Prod.snd).toFinset.card := by
           refine Finset.card_le_card fun i hi => ?_
           obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hi
@@ -257,46 +260,55 @@ theorem exists_card_add_countUnsat_le {φ : CNF ℕ} {S : Finset ℕ}
     exact List.countP_congr fun c _ => by simp
   omega
 
-/-- **Correctness of Karp's reduction.** A formula is satisfiable exactly when its graph has an
-independent set with as many vertices as the formula has clauses. -/
-theorem toIndependentSet_mem_iff (φ : CNF ℕ) : toIndependentSet φ ∈ IndependentSet ↔ φ ∈ SAT := by
+private theorem countSat_mem_IndependentSet (φ : CNF ℕ) (σ : ℕ → Bool) :
+    (⟨(toIndependentSet φ).graph, φ.countP (Clause.eval σ)⟩ : IndependentSetInstance) ∈
+      IndependentSet := by
+  classical
+  let I := Finset.univ.filter fun i : Fin φ.length => φ[i].eval σ = true
+  have hcl (i : I) : ∃ j : Fin φ[i.val].length, σ φ[i.val][j].1 = φ[i.val][j].2 := by
+    obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1 (Finset.mem_filter.1 i.2).2
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hl
+    exact ⟨⟨j, hj⟩, hσl⟩
+  choose J hJ using hcl
+  let o : I → Occurrence ℕ := fun i => ⟨i.val, J i, φ[i.val][J i]⟩
+  have ho (i : I) : o i ∈ occurrences φ := mem_occurrences.2 ⟨i.val.2, (J i).2, rfl⟩
+  have hoinj : Function.Injective fun i => (o i).vertex := by
+    intro i i' h
+    simp only [o, Occurrence.vertex, Nat.pair_eq_pair] at h
+    exact Subtype.ext (Fin.ext h.1)
   rw [mem_IndependentSet_iff]
+  refine ⟨Finset.univ.image fun i => (o i).vertex, fun v hv => ?_, ⟨?_, ?_⟩⟩
+  · obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
+    simp only [toIndependentSet, List.mem_map]
+    exact ⟨o i, ho i, rfl⟩
+  · intro u hu w hw huw hadj
+    obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hu
+    obtain ⟨i', -, rfl⟩ := Finset.mem_image.1 hw
+    have hii' : i ≠ i' := fun h => huw (by rw [h])
+    rcases (adj_toIndependentSet_iff (ho i) (ho i')).1 hadj with ⟨h, -⟩ | ⟨hx, hb⟩
+    · exact hii' (Subtype.ext (Fin.ext h))
+    · have h₁ := hJ i
+      have h₂ := hJ i'
+      simp only [o] at hx hb
+      rw [hx] at h₁
+      exact hb (h₁.symm.trans h₂)
+  · rw [Finset.card_image_of_injective _ hoinj, Finset.card_univ, Fintype.card_coe,
+      List.countP_eq_card_filter_getElem]
+
+/-- **Correctness of Karp's reduction.** A formula is satisfiable exactly when its graph has an
+independent set as large as the number of clauses. -/
+theorem toIndependentSet_mem_iff (φ : CNF ℕ) : toIndependentSet φ ∈ IndependentSet ↔ φ ∈ SAT := by
   constructor
-  · rintro ⟨S, hSV, hS⟩
+  · rw [mem_IndependentSet_iff]
+    rintro ⟨S, hSV, hS⟩
     obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
     have hcard : S.card = φ.length := hS.card_eq
     exact ⟨σ, CNF.countUnsat_eq_zero_iff.1 (by omega)⟩
   · rintro ⟨σ, hσ⟩
-    have hcl : ∀ i : Fin φ.length, ∃ j : Fin φ[i].length, σ φ[i][j].1 = φ[i][j].2 := by
-      intro i
-      obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1
-        ((CNF.eval_eq_true_iff _ _).1 hσ φ[i] (List.getElem_mem i.2))
-      obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hl
-      exact ⟨⟨j, hj⟩, hσl⟩
-    choose J hJ using hcl
-    let o : Fin φ.length → Occurrence ℕ := fun i => (i, J i, φ[i][J i])
-    have ho : ∀ i, o i ∈ occurrences φ := fun i => mem_occurrences.2 ⟨i.2, (J i).2, rfl⟩
-    have hoinj : Function.Injective fun i => (o i).vertex := by
-      intro i i' h
-      simp only [o, Occurrence.vertex, Nat.pair_eq_pair] at h
-      exact Fin.ext h.1
-    refine ⟨Finset.univ.image fun i => (o i).vertex, fun v hv => ?_, ⟨?_, ?_⟩⟩
-    · obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
-      simp only [toIndependentSet, List.mem_map]
-      exact ⟨o i, ho i, rfl⟩
-    · intro u hu w hw huw hadj
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hu
-      obtain ⟨i', -, rfl⟩ := Finset.mem_image.1 hw
-      have hii' : i ≠ i' := fun h => huw (by rw [h])
-      rcases (adj_toIndependentSet_iff (ho i) (ho i')).1 hadj with ⟨h, -⟩ | ⟨hx, hb⟩
-      · exact hii' (Fin.ext h)
-      · have h₁ := hJ i
-        have h₂ := hJ i'
-        simp only [o] at hx hb
-        rw [hx] at h₁
-        exact hb (h₁.symm.trans h₂)
-    · rw [Finset.card_image_of_injective _ hoinj, Finset.card_univ, Fintype.card_fin]
-      rfl
+    have hc := List.countP_eq_length.2 ((CNF.eval_eq_true_iff _ _).1 hσ)
+    have hs := countSat_mem_IndependentSet φ σ
+    rw [hc] at hs
+    exact hs
 
 /-! ### Polynomial-time reduction -/
 
@@ -304,7 +316,7 @@ theorem toIndependentSet_mem_iff (φ : CNF ℕ) : toIndependentSet φ ∈ Indepe
 @[fun_prop]
 theorem _root_.Cslib.Logic.PL.Occurrence.computableInPolyTime_vertex :
     ComputableInPolyTime Occurrence.vertex encOccurrence encNat := by
-  unfold Occurrence.vertex encOccurrence Cslib.Logic.PL.encOccurrence
+  unfold Occurrence.vertex
   exact unary_to_binary.comp (by fun_prop)
 
 /-- Testing whether two occurrences conflict is polynomial-time. -/
@@ -312,17 +324,14 @@ theorem _root_.Cslib.Logic.PL.Occurrence.computableInPolyTime_vertex :
 theorem _root_.Cslib.Logic.PL.Occurrence.computableInPolyTime_conflict :
     ComputableInPolyTime (fun p : Occurrence ℕ × Occurrence ℕ => decide (p.1.Conflict p.2))
       (encPair encOccurrence encOccurrence) encBool := by
-  unfold Occurrence.Conflict encOccurrence Cslib.Logic.PL.encOccurrence
+  unfold Occurrence.Conflict
   fun_prop
 
 /-- Karp's reduction `toIndependentSet` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toIndependentSet :
     ComputableInPolyTime toIndependentSet encCNF encIndependentSetInstance := by
-  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encNat :=
-    length_list_binary _
-  unfold toIndependentSet
-  fun_prop
+  fun_prop [toIndependentSet]
 
 end SAT
 
@@ -351,12 +360,7 @@ theorem isVerifier :
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier
       (encPair encIndependentSetInstance encBits) encBool := by
-  have h1 : ComputableInPolyTime
-      (fun p : IndependentSetInstance × List Bool => ((p.1.graph, p.1.m), p.2))
-      (encPair encIndependentSetInstance encBits)
-      (encPair (encPair encGraph encNat) encBits) := by
-    fun_prop
-  exact (Graph.computableInPolyTime_verifySubset (by fun_prop)).comp h1
+  fun_prop [verifier]
 
 /-- `IndependentSet` belongs to `NP`. -/
 theorem mem_NP : IndependentSet ∈ NP encIndependentSetInstance :=
@@ -416,5 +420,22 @@ theorem le_card_of_mem_IndependentSet (h : (⟨G, k⟩ : IndependentSetInstance)
   (le_indepNum_iff.2 h).trans G.indepNum_le_card
 
 end Graph
+
+/-- The graph in Karp's reduction has an independent set of size at least `k` exactly when one
+assignment leaves at most `φ.length - k` clauses unsatisfied and `k ≤ φ.length`. -/
+theorem SAT.le_indepNum_toIndependentSet_iff (φ : CNF ℕ) (k : ℕ) :
+    k ≤ (toIndependentSet φ).graph.indepNum ↔
+      ∃ σ : ℕ → Bool, k + φ.countUnsat σ ≤ φ.length := by
+  rw [Graph.le_indepNum_iff, mem_IndependentSet_iff]
+  constructor
+  · rintro ⟨S, hSV, hS⟩
+    obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le hSV hS.isIndepSet
+    have hs : S.card = k := hS.card_eq
+    exact ⟨σ, by rwa [← hs]⟩
+  · rintro ⟨σ, hσ⟩
+    have hsplit : φ.length = φ.countP (Clause.eval σ) + φ.countUnsat σ :=
+      List.length_eq_countP_add_countP (Clause.eval σ)
+    exact mem_IndependentSet_iff.1
+      (Graph.mem_IndependentSet_of_le (countSat_mem_IndependentSet φ σ) (by omega))
 
 end Cslib.Complexity

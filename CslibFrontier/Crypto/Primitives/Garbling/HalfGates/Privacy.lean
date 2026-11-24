@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth
+Authors: Karn Seth, Mayank Rathee
 -/
 
 module
@@ -28,22 +28,22 @@ Security rests on *circular correlation robustness* of the hash `H` [ZahurRosule
 a uniform offset `Δ = (R, true)`, the oracle `(a, t, b) ↦ H(a + Δ, t) + bΔ` must be
 indistinguishable from a random function by adversaries that never query both `(a, t, 0)` and
 `(a, t, 1)`. This is `Cslib.Crypto.Garbling.CCR` with a hash that reads the whole label and both
-offsets `offset R`: the oracle is `CCR.keyed H offset offset R` and the advantage is
-`CCR.advantage H offset offset`.
+offsets `CCR.offset R`: the oracle is `CCR.keyed H CCR.offset CCR.offset R` and the advantage is
+`CCR.advantage H CCR.offset CCR.offset`.
 
-The main theorem `advantage_realGame_simGame` states that the advantage of every distinguisher
-`D` between the real and the simulated view, for a circuit `C` and an input `x`, *equals* the
-advantage `CCR.advantage H offset offset` of an explicit reduction `reduction C H tw x D`,
-provided the
-tweaks of distinct slots are distinct. The reduction knows `x`, so it knows the bit `v_w` every
-wire carries; it samples the input labels the evaluator holds and builds the table gate by gate
-in wire order. For an AND gate whose arguments carry labels `A_a`, `A_b` it queries
-`(A_a, t, p_b)` for the generator half, where `p_b = col(A_b) + v_b` is the colour of the zero
-label of `b`, and `(A_b, t', v_a)` for the evaluator half, and adds the parts of the two
-ciphertexts the evaluator can compute itself (`slotKnown`). With the CCR oracle this is the real
-table, by the half-gates identity; with a random function every query has a distinct tweak, so
-the table is uniform. Each slot is queried exactly once, at its own tweak, so the reduction never
-queries both `(a, t, 0)` and `(a, t, 1)`; that legality condition is not formalized.
+The main theorem `advantage_realGame_simGame` states that the advantage of every distinguisher `D`
+between the real and the simulated view, for a circuit `C` and an input `x`, *equals* the advantage
+`CCR.advantage H CCR.offset CCR.offset` of an explicit reduction `reduction C H tw x D`, provided
+the tweaks of distinct slots are distinct. The reduction knows `x`, so it knows the bit `v_w` every
+wire carries; it samples the input labels the evaluator holds and builds the table gate by gate in
+wire order. For an AND gate whose arguments carry labels `A_a`, `A_b` it queries `(A_a, t, p_b)` for
+the generator half, where `p_b = col(A_b) + v_b` is the colour of the zero label of `b`, and
+`(A_b, t', v_a)` for the evaluator half, and adds the parts of the two ciphertexts the evaluator
+can compute itself (`slotKnown`). With the CCR oracle this is the real table, by the half-gates
+identity; with a random function every query has a distinct tweak, so the table is uniform. Each
+slot is queried once (`isQueryBounded_reduction`), at its own tweak, so when distinct slots have
+distinct tweaks the reduction never queries both `(a, t, 0)` and `(a, t, 1)`
+(`isTweakUnique_reduction`).
 
 This is the single-instance form of simulation privacy: the circuit, the input and the
 distinguisher are fixed, and the simulator receives the whole circuit `C`, the side information
@@ -61,6 +61,9 @@ distinguisher are fixed, and the simulator receives the whole circuit `C`, the s
 ## Main results
 
 * `Cslib.Crypto.Garbling.HalfGates.View.run_simulateWith`: simulated views decode to the output.
+* `Cslib.Crypto.Garbling.HalfGates.isQueryBounded_reduction`,
+  `Cslib.Crypto.Garbling.HalfGates.isTweakUnique_reduction`: query budget and tweak uniqueness of
+  the reduction.
 * `Cslib.Crypto.Garbling.HalfGates.map_oracleTable`: against a random function the reduction's
   table is uniform.
 * `Cslib.Crypto.Garbling.HalfGates.advantage_realGame_simGame`: privacy, as an equality with the
@@ -124,14 +127,6 @@ theorem View.run_simulateWith (H : K × Bool → T → K × Bool) (tw : Slot C �
   funext o
   simp only [View.run, simulateWith]
   rw [← add_assoc, BooleanRing.add_self, zero_add]
-
-/-- The circular correlation robustness oracle with offset key `R` in this file's notation: on
-`(a, t, b)` it returns `H(a + Δ, t) + bΔ` for `Δ = offset R`. -/
-private theorem keyed_eq (H : K × Bool → T → K × Bool) (R : K) (q : CCR.Query (K × Bool) T) :
-    CCR.keyed H offset offset R q = H (q.label + offset R) q.tweak + sel q.bit (offset R) := by
-  obtain ⟨a, t, b⟩ := q
-  cases b <;> simp only [CCR.keyed, CCR.oracle_apply, bitOffset_true, bitOffset_false, sel_true,
-    sel_false]
 
 /-! ### The reduction's table -/
 
@@ -251,37 +246,37 @@ include hK
 the real half-gates ciphertext. -/
 theorem entry_keyed_activeLabel (H : K × Bool → T → K × Bool) (tw : Slot C → T)
     (x : Fin n → Bool) (R : K) (W : Wire n C.size → K × Bool) (s : Slot C) :
-    entry C H tw x (CCR.keyed H offset offset R) (activeLabel C W (offset R) x) s =
-      garbleTable C H tw (offset R) W s := by
+    entry C H tw x (CCR.keyed H CCR.offset CCR.offset R) (activeLabel C W (CCR.offset R) x) s =
+      garbleTable C H tw (CCR.offset R) W s := by
   have hc := add_add_cancel_label hK
-  have hz := add_self_label hK
   have hb : ∀ c d : Bool, c + d + d = c := by decide
   obtain ⟨⟨g, h⟩, b⟩ := s
   simp only [entry, slotKnown, slotQuery, garbleTable, activeLabel, Slot.gate]
   generalize C.program.trace interpretation x (left C g) = vl
   generalize C.program.trace interpretation x (right C g) = vr
   cases b <;>
-    simp only [Bool.false_eq_true, ↓reduceIte, keyed_eq, genCt, evCt, snd_add_sel_offset,
-      hb] <;>
-    cases vl <;> cases vr <;> simp only [sel_false, sel_true, add_zero] <;>
-    simp only [add_assoc, add_comm, add_left_comm, hc, hz, zero_add]
+    simp only [Bool.false_eq_true, ↓reduceIte, CCR.keyed, CCR.oracle_apply, genCt, evCt,
+      snd_add_bitOffset_offset, hb] <;>
+    cases vl <;> cases vr <;> simp only [bitOffset_false, bitOffset_true, add_zero] <;>
+    simp only [add_assoc, add_comm, add_left_comm, hc]
 
 /-- With the CCR oracle for offset key `R`, the reduction's table on the labels `Z + x Δ` the
 evaluator holds is the real garbled table for input zero labels `Z`. -/
 theorem oracleTable_keyed (H : K × Bool → T → K × Bool) (tw : Slot C → T) (x : Fin n → Bool)
     (R : K) (Z : Fin n → K × Bool) :
-    oracleTable C H tw x (CCR.keyed H offset offset R) (fun i => Z i + sel (x i) (offset R)) =
-      garbleTable C H tw (offset R) (zeroLabels C H tw (offset R) Z) := by
-  have hent : entry C H tw x (CCR.keyed H offset offset R)
-      (activeLabel C (zeroLabels C H tw (offset R) Z) (offset R) x) =
-      garbleTable C H tw (offset R) (zeroLabels C H tw (offset R) Z) :=
+    oracleTable C H tw x (CCR.keyed H CCR.offset CCR.offset R)
+        (fun i => Z i + bitOffset (CCR.offset R) (x i)) =
+      garbleTable C H tw (CCR.offset R) (zeroLabels C H tw (CCR.offset R) Z) := by
+  have hent : entry C H tw x (CCR.keyed H CCR.offset CCR.offset R)
+      (activeLabel C (zeroLabels C H tw (CCR.offset R) Z) (CCR.offset R) x) =
+      garbleTable C H tw (CCR.offset R) (zeroLabels C H tw (CCR.offset R) Z) :=
     funext (entry_keyed_activeLabel C hK H tw x R _)
-  have hL : oracleLabels C H tw x (CCR.keyed H offset offset R)
-      (fun i => Z i + sel (x i) (offset R)) =
-      activeLabel C (zeroLabels C H tw (offset R) Z) (offset R) x :=
+  have hL : oracleLabels C H tw x (CCR.keyed H CCR.offset CCR.offset R)
+      (fun i => Z i + bitOffset (CCR.offset R) (x i)) =
+      activeLabel C (zeroLabels C H tw (CCR.offset R) Z) (CCR.offset R) x :=
     (isLocal_entry C H tw x _ _).iterate_eq_of_isFixed 0 (by
       rw [hent]
-      exact evalStep_activeLabel C hK H tw R Z x _ (zeroLabels_isFixed C H tw (offset R) Z))
+      exact evalStep_activeLabel C hK H tw R Z x _ (zeroLabels_isFixed C H tw (CCR.offset R) Z))
   rw [oracleTable, hL, hent]
 
 /-- The real view is the simulated view built from the evaluator's input labels and the
@@ -289,15 +284,15 @@ reduction's table with the CCR oracle. -/
 theorem view_garbleWith (H : K × Bool → T → K × Bool) (tw : Slot C → T) (x : Fin n → Bool)
     (R : K) (Z : Fin n → K × Bool) :
     (garbleWith C H tw R Z).view x = simulateWith C H tw (C.eval interpretation x)
-      (fun i => Z i + sel (x i) (offset R))
-      (oracleTable C H tw x (CCR.keyed H offset offset R)
-        (fun i => Z i + sel (x i) (offset R))) := by
+      (fun i => Z i + bitOffset (CCR.offset R) (x i))
+      (oracleTable C H tw x (CCR.keyed H CCR.offset CCR.offset R)
+        (fun i => Z i + bitOffset (CCR.offset R) (x i))) := by
   have hA := (isLocal_evalStep_const C H tw _ _).iterate_eq_of_isFixed 0
-    (evalStep_activeLabel C hK H tw R Z x _ (zeroLabels_isFixed C H tw (offset R) Z))
+    (evalStep_activeLabel C hK H tw R Z x _ (zeroLabels_isFixed C H tw (CCR.offset R) Z))
   rw [oracleTable_keyed C hK]
   refine View.ext rfl rfl (funext fun o => ?_)
   simp only [Garbled.view, garbleWith, simulateWith, evaluate, evalLabels, hA, activeLabel,
-    snd_add_sel_offset, Circuit.eval, Function.comp_apply]
+    snd_add_bitOffset_offset, Circuit.eval, Function.comp_apply]
   rw [add_assoc, BooleanRing.add_self, add_zero]
 
 end Real
@@ -364,6 +359,84 @@ theorem detRun_eq (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → K �
       · exact ih s (by omega)
   exact funext fun s => key _ s s.gate.isLt
 
+private theorem card_filter_gate_lt_succ (k : ℕ) :
+    (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) < k + 1).card =
+      (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) < k).card +
+        (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).card := by
+  rw [← Finset.card_union_of_disjoint (Finset.disjoint_filter.mpr fun _ _ hlt heq => by omega)]
+  congr 1
+  ext s
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]
+  omega
+
+/-- Building the ciphertexts of gate `k` makes at most one query per slot of gate `k`. -/
+theorem isQueryBounded_gateStep (X : Fin n → K × Bool) (k : ℕ) (ct : Slot C → K × Bool) :
+    (gateStep C H tw x X k ct).IsQueryBounded
+      (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).card := by
+  refine ((ProbOracleComp.isQueryBounded_tabulate (R := K × Bool)
+    (slotQuery C tw x (evalLabels C H tw ct X))
+    (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).toList).bind fun O =>
+    OracleComp.IsCostBounded.pure
+      (fun s => if (s.gate : ℕ) = k then slotKnown C H tw (evalLabels C H tw ct X) s + O s
+        else ct s) 0).mono ?_
+  simp [Finset.length_toList]
+
+/-- Building the table up to gate `k` makes at most one query per slot below `k`. -/
+theorem isQueryBounded_tableRun (X : Fin n → K × Bool) (k : ℕ) :
+    (tableRun C H tw x X k).IsQueryBounded
+      (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) < k).card := by
+  induction k with
+  | zero => exact OracleComp.IsCostBounded.pure _ _
+  | succ k ih =>
+    rw [card_filter_gate_lt_succ]
+    exact ih.bind fun ct => isQueryBounded_gateStep C H tw x X k ct
+
+private theorem isCostBounded_gateStep_tweak [DecidableEq T] (htw : Function.Injective tw)
+    (X : Fin n → K × Bool) (k : ℕ) (ct : Slot C → K × Bool) (t : T) :
+    OracleComp.IsCostBounded
+      (Sum.elim (fun _ => 0) fun q : CCR.Query (K × Bool) T => if q.tweak = t then 1 else 0)
+      (gateStep C H tw x X k ct)
+      (if ∃ s : Slot C, (s.gate : ℕ) = k ∧ tw s = t then 1 else 0) := by
+  classical
+  refine ((ProbOracleComp.isCostBounded_tabulate_eq (R := K × Bool) CCR.Query.tweak
+    (slotQuery C tw x (evalLabels C H tw ct X))
+    (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).nodup_toList
+    (by simpa [Function.comp_def, slotQuery_tweak] using htw) t).bind fun O =>
+    OracleComp.IsCostBounded.pure
+      (fun s => if (s.gate : ℕ) = k then slotKnown C H tw (evalLabels C H tw ct X) s + O s
+        else ct s) 0).mono ?_
+  simp only [Finset.mem_toList, Finset.mem_filter, Finset.mem_univ, true_and, slotQuery_tweak,
+    Nat.add_zero, le_refl]
+
+private theorem isCostBounded_tableRun_tweak [DecidableEq T] (htw : Function.Injective tw)
+    (X : Fin n → K × Bool) (k : ℕ) (t : T) :
+    OracleComp.IsCostBounded
+      (Sum.elim (fun _ => 0) fun q : CCR.Query (K × Bool) T => if q.tweak = t then 1 else 0)
+      (tableRun C H tw x X k)
+      (if ∃ s : Slot C, (s.gate : ℕ) < k ∧ tw s = t then 1 else 0) := by
+  classical
+  induction k with
+  | zero => exact OracleComp.IsCostBounded.pure _ _
+  | succ k ih =>
+    refine OracleComp.IsCostBounded.mono
+      (ih.bind fun ct => isCostBounded_gateStep_tweak C H tw x htw X k ct t) ?_
+    by_cases h1 : ∃ s : Slot C, (s.gate : ℕ) < k ∧ tw s = t
+    · obtain ⟨s, hs, hst⟩ := h1
+      have h1' : ∃ s : Slot C, (s.gate : ℕ) < k ∧ tw s = t := ⟨s, hs, hst⟩
+      have h2 : ¬ ∃ s' : Slot C, (s'.gate : ℕ) = k ∧ tw s' = t := by
+        rintro ⟨s', hs', hs't⟩
+        have hss' : s = s' := htw (hst.trans hs't.symm)
+        subst hss'
+        omega
+      have h3 : ∃ s' : Slot C, (s'.gate : ℕ) < k + 1 ∧ tw s' = t := ⟨s, by omega, hst⟩
+      simp only [h1', h2, h3, ↓reduceIte, Nat.add_zero, le_refl]
+    · by_cases h2 : ∃ s : Slot C, (s.gate : ℕ) = k ∧ tw s = t
+      · obtain ⟨s, hs, hst⟩ := h2
+        have h2' : ∃ s : Slot C, (s.gate : ℕ) = k ∧ tw s = t := ⟨s, hs, hst⟩
+        have h3 : ∃ s' : Slot C, (s'.gate : ℕ) < k + 1 ∧ tw s' = t := ⟨s, by omega, hst⟩
+        simp only [h1, h2', h3, ↓reduceIte, zero_add, le_refl]
+      · simp only [h1, h2, ↓reduceIte, Nat.add_zero, Nat.zero_le]
+
 end Table
 
 /-! ### Experiments -/
@@ -372,7 +445,8 @@ variable [Fintype K] [Nonempty K]
 
 /-- The simulator: uniform input labels and a uniform table. It sees the circuit and the output
 `y`, but not the input. -/
-noncomputable def simulate (H : K × Bool → T → K × Bool) (tw : Slot C → T) (y : Fin m → Bool) :
+@[expose] noncomputable def simulate (H : K × Bool → T → K × Bool) (tw : Slot C → T)
+    (y : Fin m → Bool) :
     ProbComp (View C K) := do
   let X ← ProbComp.uniform (Fin n → K × Bool)
   let ct ← ProbComp.uniform (Slot C → K × Bool)
@@ -408,6 +482,34 @@ noncomputable def reduction (D : View C K → ProbComp Bool) :
   let ct ← tableRun C H tw x X C.size
   ProbOracleComp.sample (D (simulateWith C H tw (C.eval interpretation x) X ct))
 
+/-- The reduction asks at most one query per slot of the garbled table. -/
+theorem isQueryBounded_reduction (D : View C K → ProbComp Bool) :
+    (reduction C H tw x D).IsQueryBounded (Fintype.card (Slot C)) := by
+  have h := (ProbOracleComp.IsQueryBounded.sample
+    (spec := fun _ : CCR.Query (K × Bool) T => K × Bool)
+    (ProbComp.uniform (Fin n → K × Bool))).bind fun X =>
+    (isQueryBounded_tableRun C H tw x X C.size).bind fun ct =>
+    ProbOracleComp.IsQueryBounded.sample
+      (D (simulateWith C H tw (C.eval interpretation x) X ct))
+  have hcard : (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) < C.size).card =
+      Fintype.card (Slot C) := by
+    rw [Finset.filter_true_of_mem fun s _ => s.gate.isLt, Finset.card_univ]
+  simpa only [reduction, hcard, Nat.zero_add, Nat.add_zero] using h
+
+/-- When distinct slots have distinct tweaks, the reduction makes at most one query with each
+tweak. -/
+theorem isTweakUnique_reduction [DecidableEq T] (htw : Function.Injective tw)
+    (D : View C K → ProbComp Bool) :
+    CCR.IsTweakUnique (reduction C H tw x D) := by
+  classical
+  intro t
+  refine ((ProbOracleComp.isCostBounded_sample _
+    (ProbComp.uniform (Fin n → K × Bool))).bind fun X =>
+    (isCostBounded_tableRun_tweak C H tw x htw X C.size t).bind fun ct =>
+    ProbOracleComp.isCostBounded_sample _
+      (D (simulateWith C H tw (C.eval interpretation x) X ct))).mono ?_
+  split_ifs <;> omega
+
 theorem eval_run_reduction (D : View C K → ProbComp Bool)
     (f : CCR.Query (K × Bool) T → K × Bool) :
     ProbComp.eval ((reduction C H tw x D).run fun q => pure (f q)) =
@@ -419,7 +521,7 @@ theorem eval_run_reduction (D : View C K → ProbComp Bool)
 
 /-- The real experiment is the CCR game with the reduction and the keyed oracle. -/
 theorem realGame_reduction (hK : ∀ k : K, k + k = 0) (D : View C K → ProbComp Bool) :
-    ProbComp.eval (PRF.realExperiment (CCR.keyed H offset offset) (reduction C H tw x D)) =
+    ProbComp.eval (PRF.realExperiment (CCR.keyed H CCR.offset CCR.offset) (reduction C H tw x D)) =
       realGame C H tw x D := by
   simp only [PRF.realExperiment, realGame, garble, ProbComp.eval_bind, ProbComp.eval_uniform,
     eval_run_reduction, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
@@ -431,7 +533,7 @@ theorem realGame_reduction (hK : ∀ k : K, k + k = 0) (D : View C K → ProbCom
     rfl
   congr 1
   funext R
-  refine (hshift (fun i => sel (x i) (offset R)) _).symm.trans ?_
+  refine (hshift (fun i => bitOffset (CCR.offset R) (x i)) _).symm.trans ?_
   congr 1
   funext Z
   exact congrArg (fun V => ProbComp.eval (D V)) (view_garbleWith C hK H tw x R Z).symm
@@ -469,12 +571,12 @@ theorem simGame_reduction (htw : Function.Injective tw) (D : View C K → ProbCo
 /-- **Simulation privacy of half-gates garbling.** For every circuit `C`, input `x` and
 distinguisher `D`, if distinct slots have distinct tweaks and every element of `K` is its own
 negative, the advantage of `D` between the real and the simulated view equals the circular
-correlation robustness advantage `CCR.advantage H offset offset` of the reduction. The
+correlation robustness advantage `CCR.advantage H CCR.offset CCR.offset` of the reduction. The
 identity tweak map, with `T = Slot C`, has distinct tweaks. -/
 theorem advantage_realGame_simGame (hK : ∀ k : K, k + k = 0) (htw : Function.Injective tw)
     (D : View C K → ProbComp Bool) :
     Game.advantage (realGame C H tw x D) (simGame C H tw x D) =
-      CCR.advantage H offset offset (reduction C H tw x D) := by
+      CCR.advantage H CCR.offset CCR.offset (reduction C H tw x D) := by
   rw [CCR.advantage, PRF.advantage, realGame_reduction C H tw x hK,
     simGame_reduction C H tw x htw]
 

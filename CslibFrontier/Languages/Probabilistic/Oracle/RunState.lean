@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
 # Running an oracle program against a stateful or logging oracle
@@ -48,9 +49,13 @@ the oracle state by at most its cost, a run raises it by at most the program's c
   the cost budget, when each query raises it by at most its cost
   (`OracleComp.IsCostBounded.measure_le` for this handler).
 * `Cslib.ProbOracleComp.logOracle_run`: one call of the logging oracle.
+* `Cslib.ProbOracleComp.runLog_sample`: a private sample leaves the log empty.
+* `Cslib.ProbOracleComp.runLogWith_map`: mapping the program's result keeps the log.
 * `Cslib.ProbOracleComp.IsQueryBounded.length_runLogWith_le`,
   `Cslib.ProbOracleComp.IsQueryBounded.length_runLog_le`: a program with at most `n` queries
   leaves a log of length at most `n`.
+* `Cslib.ProbOracleComp.forall_mem_runLogWith`: every logged pair is a reply that the oracle's
+  answering program can produce.
 -/
 
 public section
@@ -129,6 +134,7 @@ theorem measure_runState_le {cost : Query → ℕ} {A : ProbOracleComp spec α} 
     ∀ z ∈ (ProbComp.eval ((A.runState O).run s)).support, μ z.2 ≤ μ s + n := by
   rintro ⟨result, s'⟩ hz
   rw [eval_runState] at hz
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hz
   change (result, s') ∈ ((OracleComp.interpret (sumHandler
     (fun n => StateT.lift (ProbComp.unifOracle n)) fun q t => ProbComp.eval (O q t)) A).run
       s).support at hz
@@ -175,9 +181,21 @@ replies, oldest first. -/
     ProbComp (α × List (Q × R)) :=
   (A.runState fun q log => (fun r => (r, log ++ [(q, r)])) <$> O q).run []
 
+/-- A program that only samples asks nothing: its log is empty. -/
+@[simp] theorem runLog_sample (p : ProbComp α) (O : Q → ProbComp R) :
+    (sample p : ProbOracleComp (fun _ : Q => R) α).runLog O = (fun a => (a, [])) <$> p := by
+  simp [runLog, bind_pure_comp]
+
 /-- An oracle that never refuses and ignores the log is `runLog`. -/
 theorem runLogWith_some [Inhabited R] (A : ProbOracleComp (fun _ : Q => R) α)
     (O : Q → ProbComp R) : A.runLogWith (fun _ q => some (O q)) = A.runLog O := rfl
+
+/-- Mapping the program's result maps the result of the logged run and keeps the log. -/
+theorem runLogWith_map [Inhabited R] (f : α → β) (A : ProbOracleComp (fun _ : Q => R) α)
+    (O : List (Q × R) → Q → Option (ProbComp R)) :
+    (f <$> A).runLogWith O = Prod.map f id <$> A.runLogWith O := by
+  simp only [runLogWith, runState_map, StateT.run_map]
+  rfl
 
 /-- On every supported run, a program with at most `n` queries leaves a log of length at most
 `n`. -/
@@ -210,5 +228,29 @@ theorem IsQueryBounded.length_runLog_le {A : ProbOracleComp (fun _ : Q => R) α}
   · simp only [StateT.run, ProbComp.eval_map, PMF.support_map, Set.mem_image] at hz
     obtain ⟨r, -, rfl⟩ := hz
     simp
+
+/-- **Every logged pair is a possible reply**: a property of query-reply pairs that holds for
+every reply of every program the oracle runs holds for every pair in the log of `runLogWith`. -/
+theorem forall_mem_runLogWith [Inhabited R] {O : List (Q × R) → Q → Option (ProbComp R)}
+    {P : Q × R → Prop}
+    (hO : ∀ log q program, O log q = some program →
+      ∀ r ∈ (ProbComp.eval program).support, P (q, r))
+    (A : ProbOracleComp (fun _ : Q => R) α) {z : α × List (Q × R)}
+    (hz : z ∈ (ProbComp.eval (A.runLogWith O)).support) : ∀ p ∈ z.2, P p := by
+  rw [runLogWith, runState, eval_run_interpret] at hz
+  refine run_interpret_invariant _ (fun log => ∀ p ∈ log, P p) ?_ A [] (by simp) z.1 z.2 hz
+  intro q log hlog r log' hstep
+  simp only [logOracle] at hstep
+  cases hprog : O log q with
+  | none =>
+    simp only [hprog, ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+    exact hstep.2 ▸ hlog
+  | some program =>
+    simp only [hprog, ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hstep
+    obtain ⟨r', hr', rfl, rfl⟩ := hstep
+    intro p hp
+    rcases List.mem_append.mp hp with hp | hp
+    · exact hlog p hp
+    · exact List.mem_singleton.mp hp ▸ hO log q program hprog r' hr'
 
 end Cslib.ProbOracleComp

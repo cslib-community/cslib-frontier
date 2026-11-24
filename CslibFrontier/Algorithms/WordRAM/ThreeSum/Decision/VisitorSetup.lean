@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Width
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Scalar
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Registers
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Actual polynomial-envelope initialization for the fused visitor
@@ -47,27 +48,16 @@ theorem exec_prepareEnvelope {r κ n w : ℕ} (x : Data (registerCount r))
       y.regs (controllerRegisters r answer) = x.regs (controllerRegisters r answer) ∧
       (∀ i, y.regs (preprocessingRegisters r i) = x.regs (preprocessingRegisters r i)) ∧
       y.mem = x.mem := by
-  let m := controllerRegisters r
-  let y := x.set (m one) 1 |>.set (m two) 2 |>.set (m zero) 0
-    |>.set (m scale) (n + 2) |>.set (m envelope) 1
-    |>.set (m remaining) (envelopeExponent κ)
-  have h1 : Fits w 1 := hB.of_le (by omega)
-  have h2 : Fits w 2 := hB.of_le (by omega)
-  have hne (i j : Fin 16) : m i = m j ↔ i = j := (controller_injective r).eq_iff
-  have hp (i : Fin 128) (j : Fin 16) : preprocessingRegisters r i ≠ m j :=
+  have hne {i j : Fin 16} : controllerRegisters r i = controllerRegisters r j ↔ i = j :=
+    (controller_injective r).eq_iff
+  have hp (i : Fin 128) (j : Fin 16) : preprocessingRegisters r i ≠ controllerRegisters r j :=
     (controller_ne_preprocessing j i).symm
-  have he : ExecWithin w (prepareEnvelope κ) x y 6 := by
-    ram_eval [prepareEnvelope, y, m, hn, hB, hE, h1, h2, hne,
-      one, two, zero, scale, inputLength, envelope, remaining, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rfl⟩
-  · simp +decide [y, m, hne, scale, one, two, zero, envelope, remaining]
-  · simp +decide [y, m, hne, envelope, one, two, zero, scale, remaining]
-  · simp [y, m]
-  · simp +decide [y, m, hne, one, two, zero, scale, envelope, remaining]
-  · simp +decide [y, m, hne, zero, one, two, scale, envelope, remaining]
-  · simp +decide [y, m, hne, answer, one, two, zero, scale, envelope, remaining]
-  · intro i
-    simp only [y, Data.set_regs, Function.update_apply, hp, ↓reduceIte]
+  refine WP.exists_execWithin ?_
+  unfold prepareEnvelope
+  wram_exec (disch := (
+    (try simp +decide only [Data.set_regs, Function.update_apply, hne, hn, ↓reduceIte])
+    fits))
+  simp +decide [Data.set_regs, Data.set_mem, hne, hp, hn]
 
 /-- Compute the actual envelope at the same uniform width used by every native node call. -/
 theorem exec_initializeEnvelope {r κ n w d : ℕ} (x : Data (registerCount r))

@@ -32,9 +32,10 @@ The [automation reference](../design-and-assurance/automation.md) explains regis
 
 For binary sign-magnitude integers, import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary`.
-The plain `ComputableInPolyTime.intBin_*` rules (sign and magnitude, ring operations,
-comparisons, list sums and products, unary powers) compose through `fun_prop`; `intBin_pow'` accepts computed
-base and unary exponent certificates. The complete
+The plain `ComputableInPolyTime.intBin_*` rules (sign and magnitude, binary and unary natural casts,
+ring operations, comparisons, list sums and products, unary powers) compose through `fun_prop`;
+`intBin_pow'` accepts computed base and unary exponent certificates, and `intBin_signMagnitude'`
+assembles a computed sign and binary magnitude. The complete
 [IntBinary client](../../CslibFrontierTests/RationalHitting/IntBinary.lean) checks composed ring operations, products, powers,
 magnitudes and signs. A binary exponent has a different output-size obligation: do not replace
 the unary exponent encoding merely to make a goal match.
@@ -43,8 +44,10 @@ For rational numbers `ℚ` encoded as `(q.num, q.den)` under
 `Turing.MultiTapeTM.encRat` ([Encodings/Rat.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Rat.lean)),
 import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat`
-for `ComputableInPolyTime.rat_num`, `rat_den`, `rat_intCast`, `rat_divInt`, `rat_neg`, `rat_inv`,
-`rat_add`, `rat_sub`, `rat_mul`, `rat_div`, `rat_lt`, and `rat_le`.
+for `ComputableInPolyTime.rat_num`, `rat_den`, `rat_intCast`, `rat_natCast`, `rat_divInt`,
+`rat_neg`, `rat_inv`, `rat_add`, `rat_sub`, `rat_mul`, `rat_div`, `rat_pow`, `rat_isZero`,
+`rat_eq`, `rat_lt`, `rat_le`, `rat_floor`, and their primed `fun_prop` composition rules
+([PolyTimeRat client](../../CslibFrontierTests/PolyTimeRat.lean)).
 
 For a padded integer dot product, import
 [PolyTime/Int/DotProduct.lean](../../CslibFrontier/Computability/PolyTime/Int/DotProduct.lean)
@@ -98,7 +101,7 @@ Unused elements of a longer `right` are ignored, and retained outputs keep their
 
 Supply one joint certificate for `(p, a, b?) ↦ f p a b?`, with the parameter, left element
 and optional right element encoded together. Both cost rules require `Inhabited` for the
-right-element and output types. They also require a bound on **every encoded output prefix**:
+right-element type. They also require a bound on **every encoded output prefix**:
 the result of `zipFold f p (left.take i) right` for every `i`, not only the final list.
 Keep the parameter and element encodings explicit when applying the rule.
 
@@ -118,7 +121,18 @@ Supply three computation certificates: the iteration count in unary, the initial
 
 The result has two projections: polynomial-time computability of the iterated function, and the invariant at termination. [Ladner’s shrink-loop client](../../CslibFrontier/Computability/Complexity/Classes/Ladner.lean) obtains `hreduce` and `hinv` this way: its invariant preserves satisfiability and bounds the current formula's encoded length. That use is inside the theorem's stated reduction and growth hypotheses, not an unconditional SAT algorithm.
 
+The same separation applies to list folds: `ComputableInPolyTime.foldlWith_spec` accepts
+plain certificates for the input list, initial state and joint step, while a prefix invariant
+supplies the encoded accumulator bound. The denominator-product and Bareiss-column folds in
+[RationalElimination.lean](../../CslibFrontier/Computability/PolyTime/LinearAlgebra/RationalElimination.lean)
+are representative callers: their numerical invariants justify the size bound directly, without
+converting the surrounding proof to tidy certificates. For a fold with a direct bound on each
+reachable prefix state, the [binary square-root certificate](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Sqrt.lean)
+uses `foldlWith` instead.
+
 For a step capturing a parameter, use `iterateWith_spec` and certify the joint `(parameter, state)` operation. `iterateWith_of_bounded_growth` handles additive encoded-state growth bounded polynomially in the original input. A separate efficient procedure for each fixed parameter does not provide the required uniform joint certificate. A polynomial number of efficient steps also does not bound a state that doubles each time. The [plain loop regression client](../../CslibFrontierTests/Machines/Turing/MultiTape/Internal/PolyTimeLoops.lean) exercises both positive contracts and a failed constant-state bound. When the size obligation fails, inspect the representation and growth argument before changing tactics.
+
+At the machine layer, [the sequential plumbing](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Plumbing/Sequential.lean) provides `MultiTapeTM.relabel` and `TransformsTapes.relabel` for changing control-state names along an equivalence. This retains each instruction and both resource bounds, including the visited cells; it adds no handoff step. [Iterate-while preparation](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelIterateWhile.lean) uses this to share clear/copy/clear preparation with the probabilistic round while retaining the deterministic round's nested sum of states. Use this bridge when only the state association differs, rather than rebuilding the tape certificates.
 
 For a space bound on a loop whose number of rounds is not computable, or would cost too much to compute, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.IterateUntil` and apply [ComputableInSpace.iterateUntil](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/IterateUntil.lean). Supply space certificates for the initial state, the step and a Boolean `done` test, and give the number of rounds `n x` as a function with no certificate. Show that `done` holds after `n x` rounds and fails before. Then bound the space of the step and the test, and the encoded state, at every round up to `n x`. The loop stops when the test first holds, and its space is that of the start, the rounds and the states, with no counter. `ComputableInSpace.iterate` instead charges a binary counter, and it needs a certificate for the count. The [BitGame client](../../CslibFrontierTests/BitGame.lean) counts down from `n` in `n` rounds within `O(|encNat n|)` space.
 
@@ -161,26 +175,45 @@ uses the fact that setting a variable does not lengthen the encoded formula. The
 instance and a formula with an empty clause, where the `1 / 2` bound fails without its
 hypothesis. Build it with `scripts/build.sh CslibFrontierTests.JohnsonMaxSAT`.
 
-To charge estimator and branch evaluations explicitly or package the Turing-machine transfer once,
-use [Algorithms/Lean/PessimisticEstimator.lean](../../CslibFrontier/Algorithms/Lean/PessimisticEstimator.lean)
-and [Computability/PolyTime/PessimisticEstimator.lean](../../CslibFrontier/Computability/PolyTime/PessimisticEstimator.lean).
-`CostedGreedy` runs binary greedy rounds in `TimeM ℕ`, proving agreement with `greedy` (`ret_runM`)
-together with `runM_spec` and `runM_spec_of_add_le` (`2 * branchBound r + 2 * estBound r + compareCost`
-ticks per round); `CostedProductDerandomizer` extends this to general finite product distributions
-`PMF.pi p` (`derandomizeM_spec`, via `PMF.condExpect` in
-[Product/ConditionalExpectation.lean](../../CslibFrontier/Probability/Product/ConditionalExpectation.lean)).
-On multi-tape Turing machines, `PolyTimeGreedyInput` (`computableInPolyTime_run`,
-`computableInPolyTime_run_nat`, `run_polyTime_spec`) discharges `foldlWithInput_of_bounded_growth`
-from polynomial-time `rounds`, `init`, `branch` (on `encBranchInput`), `estimate`, order comparison
-on estimator values `M` (`hle`, supplied automatically for binary `ℕ` by
-`computableInPolyTime_run_nat`), and an additive per-round encoded-state growth bound. Weighted
-`MaxCut` instantiates both layers in
-[MaxCut/Derandomized.lean](../../CslibFrontier/Algorithms/Lean/MaxCut/Derandomized.lean) and
+For a fold with a captured parameter and a known bound on reachable states, use
+`ComputableInPolyTime.foldlWith` from
+[`PolyTime/Fold.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Fold.lean).
+Certify the step jointly on `(parameter, accumulator, element)` with encoding
+`encPair (encPair encP encB) encA`; separate certificates for each fixed parameter do not
+supply this uniform callback. Then bound the encoded accumulator after every consumed prefix.
+The size bound may depend on the original input and need only be polynomially bounded, not
+computable. In
+[`computableInPolyTime_naorYungCascade`](../../CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean),
+the accumulator contains a state word and an unconsumed suffix. The state length is at most
+its initial length plus `n + 1`, and the suffix never grows. This handles arbitrary initial
+words, including ones longer than the final width; replacing the prefix bound by the final
+output length would miss those inputs. The compression and adversary certificates consume
+this plain fold certificate directly. Existing concrete clients are in
+[`Crypto/NaorYungUOWHF.lean`](../../CslibFrontierTests/Crypto/NaorYungUOWHF.lean); check them with
+`scripts/build.sh CslibFrontierTests.Crypto.NaorYungUOWHF`.
+
+To package the Turing-machine transfer once across rounds, use `PolyTimeGreedyInput` in
+[Computability/PolyTime/PessimisticEstimator.lean](../../CslibFrontier/Computability/PolyTime/PessimisticEstimator.lean).
+`computableInPolyTime_run`, `computableInPolyTime_run_nat` and `run_polyTime_spec` discharge
+`foldlWithInput_of_bounded_growth` from polynomial-time `rounds`, `init`, `branch` (on
+`encBranchInput`), `estimate`, order comparison on estimator values `M` (`hle`, supplied
+automatically for binary `ℕ` by `computableInPolyTime_run_nat`), and an additive per-round
+encoded-state growth bound; `PolyTimeChoiceGreedyInput` (`computableInPolyTime_run`, `run_spec`,
+`run_polyTime_spec`) extends the same transfer to variable-length per-round candidate lists
+`choices x r : List A` (`encChoiceInput`). Weighted `MaxCut` instantiates the greedy construction in
+[MaxCut/Derandomized.lean](../../CslibFrontier/Algorithms/Lean/MaxCut/Derandomized.lean),
+`PolyTimeGreedyInput` in
 [Problems/MaxCut/Derandomized.lean](../../CslibFrontier/Computability/Complexity/Problems/MaxCut/Derandomized.lean),
-proving the deterministic `1 / 2`-approximation `cutWeight_le_two_mul_derandomizedCutSide`, the
-`(distinctVertices edges).length * (2 * edges.length + 3)` `TimeM` bound (`derandomizedCutM_spec`),
-and `computableInPolyTime_derandomizedCut`; see
-[FairBitRejectionAndCondExp.lean](../../CslibFrontierTests/FairBitRejectionAndCondExp.lean).
+and an explicit `O(|V| |E| + |V|)` word-RAM implementation (`maxCutCode_spec`,
+`maxCutProgram_spec`) in [WordRAM/MaxCut.lean](../../CslibFrontier/Algorithms/WordRAM/MaxCut.lean),
+proving the deterministic `1 / 2`-approximation `cutWeight_le_two_mul_derandomizedCutSide` and
+`computableInPolyTime_derandomizedCut`; see
+[FairBitRejectionAndCondExp.lean](../../CslibFrontierTests/FairBitRejectionAndCondExp.lean). For
+conditional expectations over general finite product distributions `PMF.pi p`, use `PMF.condExpect`
+in
+[Product/ConditionalExpectation.lean](../../CslibFrontier/Probability/Product/ConditionalExpectation.lean)
+together with the pure coordinate-fixing combinator `ProductDerandomizer` (`derandomize_spec`) in
+[Algorithms/Lean/PessimisticEstimator.lean](../../CslibFrontier/Algorithms/Lean/PessimisticEstimator.lean).
 
 When the averaging argument uses only `k`-wise independence, you can search a small sample
 space instead of fixing bits one by one. For satisfiability,
@@ -300,6 +333,17 @@ example (f : List Bool → Bool) (hf : ComputableInLogSpace f encBits encBool) :
 <!-- /worked-example -->
 
 This conclusion is different from `ComputableInO`, which additionally charges encoded output against its space bound. A long output is compatible with logarithmic *workspace*. For sharper independent bounds, state `ComputableInTimeAndSpace` or `ComputableInBigO` directly and retain both functions. When only polynomial time is needed downstream, use `ComputableInLogSpace.computableInPolyTime`; the same client demonstrates that transition. See the [resource table](../machines-and-classes/native-and-resources.md).
+
+The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
+registers `ComputableInTimeAndSpace` for `fun_prop` directly, without a mixed streaming import.
+It provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
+`getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
+`reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
+machines; the transducer witness includes input rewind. Workspace excludes emitted output:
+map and reverse therefore need a separate linear output bound for output-charged space,
+while last-bit extraction has constant output size. The
+[plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
+and the obstruction to charging arbitrary map output to constant space.
 
 ## Turn computation into P, NP and hardness
 

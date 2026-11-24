@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.VOLE.Circuit
 public import CslibFrontier.Crypto.Protocols.VOLE.AdaptiveMulCheck
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -130,19 +131,6 @@ noncomputable def circuitReceiverSimulate (C : Circuit (arithSignature F) (p + k
       (circuitReceiverAdapter C statement V) z
 
 
-omit [CommRing F] [Fintype F] [DecidableEq F] in
-private theorem interpret_liftVerifier {n : ℕ} {α : Type} (c : VOLECorrelation F n)
-    (program : ProbOracleComp (voleReceiverSpec F n) α) :
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-      (OracleComp.sumHandler (fun _ => PMF.pure (c.u, c.v))
-        (fun _ => PMF.pure c.receiverView)))
-      (liftVerifier (oP := voleSenderSpec F n) program) =
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-      (fun _ => PMF.pure c.receiverView)) program := by
-  rw [liftVerifier, OracleComp.interpret_interpret]
-  congr 1 with q : 1
-  cases q <;> simp [OracleComp.sumHandler, ProbOracleComp.query]
-
 /-- The circuit interaction is the existing masked-batch interaction with reconstructed linear
 openings, including the entire receiver state and transcript. The prover remains role-local. -/
 theorem circuitReceiverView_eq_expand (C : Circuit (arithSignature F) (p + k) m)
@@ -163,14 +151,12 @@ theorem circuitReceiverView_eq_expand (C : Circuit (arithSignature F) (p + k) m)
   intro c hc
   have hfirst := circuitPublicFirst_correct C statement.1 w statement.2 hy c
     (valid_of_mem_support_voleIdealDist hc)
-  simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_query, OracleComp.sumHandler, VOLECorrelation.senderView,
-    interpret_liftVerifier]
-  simp only [pmf_norm, circuitReceiverAdapter, OracleComp.interpret_bind, OracleComp.interpret_pure]
+  simp only [interp_norm, pmf_norm, VOLECorrelation.senderView, interpret_liftVerifier]
+  simp only [interp_norm, pmf_norm, circuitReceiverAdapter]
   congr 1 with verifier : 1
   simp [circuitCheck, maskedMulCheck, liftProver, ProbOracleComp.query,
     OracleComp.sumHandler, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
-    circuitCheckSpec, maskedMulCheckSpec, SigmaProtocol.sigmaSpec,
+    circuitCheckSpec, maskedMulCheckSpec, threeMoveSpec,
     interpret_liftVerifier, PMF.map, Function.comp_def, circuitExpandView,
     hfirst]
 

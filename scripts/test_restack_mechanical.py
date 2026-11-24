@@ -143,7 +143,9 @@ class RestackMechanicalTests(unittest.TestCase):
         self.assertNotEqual(new, old)
         self.assertEqual(self.git("rev-parse", f"{new}^1", f"{new}^2").split(),
                          [old, self.remote("refs/heads/main")])
-        self.assertIn("Restack check: identical to the approved change", out)
+        verdict = "Restack check: identical to the approved change"
+        self.assertIn(f"restack_mechanical: approval pre-check: {verdict}", out)
+        self.assertEqual(sum(line.startswith(verdict) for line in out.splitlines()), 1, out)
         self.assertIn(f"python3 scripts/queue_pr.py 7 {new}", out)
         self.assertEqual(self.git("worktree", "list").count("\n"), 0, "a worktree was left behind")
         return new
@@ -164,7 +166,16 @@ class RestackMechanicalTests(unittest.TestCase):
     def test_bibliography_conflict_is_merged_by_key_and_pushed(self) -> None:
         approved = self.feature({"references.bib": bib(entry("a"), entry("b"), entry("c"),
                                                        entry("e"))})
-        self.on_main({"references.bib": bib(entry("a"), entry("bb"), entry("c"), entry("e"))})
+        resolver = "scripts/resolve_bib_conflict.py"
+        code = (self.root / resolver).read_text()
+        main_guard = 'if __name__ == "__main__":'
+        self.assertIn(main_guard, code)
+        code = code.replace(main_guard, "if pathlib.Path.cwd().resolve() != "
+                            "pathlib.Path(__file__).resolve().parents[1]:\n"
+                            "    raise SystemExit('resolver invoked outside its checkout')\n\n"
+                            + main_guard)
+        self.on_main({"references.bib": bib(entry("a"), entry("bb"), entry("c"), entry("e")),
+                      resolver: code})
         code, out = self.run_script(approved, "--push")
         new = self.assert_restacked(approved, code, out)
         self.assertIn("in: references.bib", out)
@@ -197,6 +208,7 @@ class RestackMechanicalTests(unittest.TestCase):
         code, out = self.run_script(approved, "--push")
         self.assertEqual((code, self.remote()), (0, approved), out)
         self.assertIn("already contains origin/main", out)
+        self.assertNotRegex(out, r"(?m)^Restack check:")
         self.on_main({"Other.lean": "def o := 0\n"})
         code, out = self.run_script(approved, "--push")
         self.assertEqual((code, self.remote()), (0, approved), out)
@@ -265,9 +277,7 @@ class RestackMechanicalTests(unittest.TestCase):
 
     def test_failed_final_check_is_not_pushed(self) -> None:
         approved = self.aggregate_conflict()
-        checks = iter((0, 1))
-        with mock.patch.object(restack_mechanical, "run_check",
-                               side_effect=lambda *_: next(checks)):
+        with mock.patch.object(restack_mechanical, "run_check", side_effect=[0, 1]):
             code, out = self.run_script(approved, "--push")
         self.assertEqual((code, self.remote()), (1, approved), out)
         self.assertIn("check_restack.py did not pass, so nothing is pushed", out)

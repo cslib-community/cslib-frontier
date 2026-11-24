@@ -14,6 +14,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Con
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -32,6 +34,8 @@ on inputs long enough to pay for it.
   `2 ^ (k * Nat.size (n + 1) + s)` of a binary natural in unary in time `O((n + 1) ^ (k + 1))`.
 * `Turing.MultiTapeTM.computableInO_roundedPolynomialPadding`: round the padding length up to
   `2 ^ (k * Nat.size (n + 1))` and write it in time `O((n + 1) ^ (k + 1))`.
+* `Turing.MultiTapeTM.ComputableInO.unframe`: read the word framed at the start of a word, in
+  linear time and space.
 * `Turing.MultiTapeTM.computableInO_polynomialPaddingGuard`: compare the `k`th power of the
   decoded word length plus one with the full input length in quadratic time and linear space.
 
@@ -51,8 +55,8 @@ private theorem computableInO_length_succ_pow (k : ℕ) :
       (fun x => (x.length + 1) ^ 2) (fun x => x.length + 1) := by
   have hp : ComputableInPolyTime (fun n : ℕ => (n + 1) ^ k) encNat encNat :=
     ComputableInPolyTime.binary_pow' (by fun_prop) (.const k)
-  have h := hp.nat_inO.tidy.comp ComputableInO.lengthNat.tidy
-  refine .of_tidy (h.mono 2 (fun x => ?_) fun x => ?_)
+  have h := hp.nat_inO.comp ComputableInO.lengthNat
+  refine h.mono 2 (fun x => ?_) fun x => ?_
   · nlinarith
   · omega
 
@@ -63,12 +67,10 @@ theorem computableInO_polynomialPadding {k : ℕ} (hk : 1 ≤ k) :
       (fun x : List Bool => frame x ++ List.replicate ((x.length + 1) ^ k) true)
       encBits encBits (fun x => (x.length + 1) ^ (2 * k))
       (fun x => (x.length + 1) ^ k) := by
-  have hu := ComputableInO.natToUnary.tidy.comp (computableInO_length_succ_pow k).tidy
-  have h := (ComputableTidilyInO.of_linear
-    (.of_frame (f := id) (encOut := encFramed encBits) fun _ => rfl)).append hu
-      (g := fun x : List Bool => frame x ++ List.replicate ((x.length + 1) ^ k) true)
-      (encOut := encBits) fun _ => rfl
-  refine .of_tidy (h.mono 8 (fun x => ?_) fun x => ?_)
+  have hu : ComputableInO (fun x : List Bool => List.replicate ((x.length + 1) ^ k) true)
+      encBits encBits _ _ :=
+    (ComputableInO.natToUnary.comp (computableInO_length_succ_pow k)).of_enc_eq fun _ => rfl
+  refine .mono (by fun_prop) 8 (fun x => ?_) fun x => ?_
   all_goals
     have hp : x.length + 1 ≤ (x.length + 1) ^ k := Nat.le_self_pow (by omega) _
     dsimp only [Function.comp_apply, id_eq, encBits_apply]
@@ -139,13 +141,11 @@ theorem computableInO_roundedPolynomialPadding {k : ℕ} (hk : 1 ≤ k) :
         List.replicate (2 ^ (k * Nat.size (x.length + 1))) true)
       encBits encBits (fun x => (x.length + 1) ^ (k + 1))
       (fun x => (x.length + 1) ^ k) := by
-  have h := (ComputableInO.of_linear
-    (.of_frame (f := id) (encMid := encFramed encBits) fun _ => rfl)).append
-      ((computableInO_unary_roundedPower hk 0).comp ComputableInO.lengthNat)
-      (g := fun x : List Bool => frame x ++
-        List.replicate (2 ^ (k * Nat.size (x.length + 1))) true)
-      (encOut := encBits) fun _ => by simp
-  refine h.mono 3 (fun x => ?_) fun x => ?_
+  have hu : ComputableInO
+      (fun x : List Bool => List.replicate (2 ^ (k * Nat.size (x.length + 1))) true)
+      encBits encBits _ _ :=
+    ((computableInO_unary_roundedPower hk 0).comp ComputableInO.lengthNat).of_enc_eq fun _ => rfl
+  refine .mono (by fun_prop) 3 (fun x => ?_) fun x => ?_
   all_goals
     have hp : x.length + 1 ≤ (x.length + 1) ^ k := Nat.le_self_pow (by omega) _
     dsimp only [Function.comp_apply, id_eq, encBits_apply]
@@ -154,6 +154,13 @@ theorem computableInO_roundedPolynomialPadding {k : ℕ} (hk : 1 ≤ k) :
     have hl : x.length + 1 ≤ (x.length + 1) ^ (k + 1) := Nat.le_self_pow (by omega) _
     omega
   · omega
+
+/-- **Unframing is linear**: the word framed at the start of a word is read in linear time and
+space. -/
+theorem ComputableInO.unframe :
+    ComputableInO Turing.MultiTapeTM.unframe encBits encBits (fun x => x.length)
+      fun x => x.length := by
+  fun_prop
 
 /-- Testing whether a framed word has polynomially sufficient padding takes quadratic time and
 linear space in the full input length, independently of the fixed exponent. -/
@@ -167,12 +174,10 @@ theorem computableInO_polynomialPaddingGuard (k : ℕ) :
     ComputableInPolyTime.binary_le'
       (ComputableInPolyTime.binary_pow' (by fun_prop) (.const k))
       (.snd encNat encNat)
-  have hu : ComputableTidilyInO unframe encBits encBits
-      (fun x => x.length) (fun x => x.length) :=
-    .of_linear (.of_unframe fun _ => rfl)
-  have h := hp.natPair_inO.tidy.comp
-    ((ComputableInO.lengthNat.tidy.comp hu).prod ComputableInO.lengthNat.tidy)
-  refine .of_tidy (h.mono 12 (fun x => ?_) fun x => ?_)
+  have hu := ComputableInO.unframe
+  have h := hp.natPair_inO.comp
+    ((ComputableInO.lengthNat.comp hu).prod ComputableInO.lengthNat)
+  refine h.mono 12 (fun x => ?_) fun x => ?_
   all_goals
     have hu := length_unframe_le x
     have h₁ := Universal.length_encNat_le (unframe x).length

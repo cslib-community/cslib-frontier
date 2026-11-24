@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Data.Fin.Tuple.Basic
 
 /-!
@@ -105,9 +106,7 @@ theorem step_liftAction (cfg : Config k Bool State Oracle input) (tape : ℤ →
     (symbol : Oracle → Option Bool) (direction : Oracle → SignType) :
     (config cfg tape position before).step (liftAction after action) symbol direction =
       config (cfg.step action symbol direction) tape position after := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.lastCases <;>
-    simp [config, liftAction, Config.step, Turing.Action.apply]
+  tm_step [config, liftAction, Config.step]
 
 /-- Receiving a reply changes exactly the source channel and control. -/
 theorem receive_config [DecidableEq Oracle] (cfg : Config k Bool State Oracle input)
@@ -122,11 +121,7 @@ theorem step_move (cfg : Config k Bool State Oracle input) (tape : ℤ → Optio
     (config cfg tape position before).step (move (some (after, cfg.tapes.state)) direction)
         (fun _ => none) (fun _ => 0) =
       config cfg tape (position + direction) after := by
-  refine Config.ext ?_ (by simp [Config.step, config])
-  refine Cfg.ext rfl (by simp [config, move, Config.step, Turing.Action.apply]) ?_ ?_
-    (by simp [config, move, Config.step, Turing.Action.apply]) <;>
-    funext i <;> induction i using Fin.lastCases <;>
-    simp [config, move, Config.step, Turing.Action.apply]
+  tm_step [config, move, Config.step]
 
 /-- Halt the controller without changing its data or channels. -/
 def stopped (cfg : Config k Bool State Oracle input) (tape : ℤ → Option Bool) (position : ℤ) :
@@ -151,10 +146,6 @@ theorem step_stop (cfg : Config k Bool State Oracle input) (tape : ℤ → Optio
     (position : ℤ) (phase : Phase) :
     (config cfg tape position phase).step (move none 0) (fun _ => none) (fun _ => 0) =
       stopped cfg tape position := by
-  refine Config.ext ?_ (by simp [Config.step, config, stopped])
-  refine Cfg.ext rfl (by simp [config, stopped, move, Config.step, Turing.Action.apply]) ?_ ?_
-    (by simp [config, stopped, move, Config.step, Turing.Action.apply]) <;>
-    funext i <;> induction i using Fin.lastCases <;>
-    simp [config, stopped, move, Config.step, Turing.Action.apply]
+  tm_step [config, stopped, move, Config.step]
 
 end Turing.MultiTapeMachine.AuxiliaryTape

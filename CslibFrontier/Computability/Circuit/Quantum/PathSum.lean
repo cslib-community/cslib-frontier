@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Quantum.Code
+public import CslibFrontier.Computability.Circuit.Quantum.Input
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
@@ -49,7 +49,6 @@ the acceptance operator of a quantum verifier on its witness space.
 
 ## Main results
 
-* `Cslib.Quantum.ofFn_inputState`: the input basis state is the input word padded with zeros.
 * `Cslib.Quantum.run_ofCodes_apply`: amplitudes are path sums.
 * `Cslib.Quantum.onesProb_eq_onesGap`, `Cslib.Quantum.acceptProb_eq_acceptGap`: probabilities are
   projected gaps over `2^h`.
@@ -70,16 +69,6 @@ namespace Cslib.Quantum
 open Finset
 
 variable {m : ℕ}
-
-/-- The input basis state as a bit string: the input word padded with zeros. -/
-theorem ofFn_inputState {x : List Bool} (hx : x.length ≤ m) :
-    List.ofFn (inputState m x) = x ++ List.replicate (m - x.length) false := by
-  apply List.ext_getElem (by simp; omega)
-  intro i h₁ h₂
-  simp only [List.getElem_ofFn, inputState, List.getElem_append, List.getElem_replicate]
-  split_ifs with h
-  · simp [List.getD_eq_getElem?_getD, h]
-  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (Nat.le_of_not_lt h)]
 
 /-! ### The path simulation -/
 
@@ -208,14 +197,6 @@ private theorem sgn_xor (σ τ : Bool) : sgn (σ ^^ τ) = sgn σ * sgn τ := by
 private def term (gs : List GateCode) (x y : List Bool) (σ : Bool) (π : List Bool) : ℤ :=
   if (gs.foldl pathStep (x, π, σ)).1 = y then
     (if (gs.foldl pathStep (x, π, σ)).2.2 then -1 else 1) else 0
-
-private theorem pathRun_eq (gs : List GateCode) (x π : List Bool) :
-    pathRun gs x π = ((gs.foldl pathStep (x, π, false)).1, (gs.foldl pathStep (x, π, false)).2.2) :=
-  rfl
-
-private theorem pathTerm_eq_term (gs : List GateCode) (x y π : List Bool) :
-    pathTerm gs x y π = term gs x y false π :=
-  rfl
 
 /-- **Amplitudes are path sums** (generalized over the initial sign). -/
 private theorem sgn_mul_run_ofCodes_apply (gs : List GateCode)

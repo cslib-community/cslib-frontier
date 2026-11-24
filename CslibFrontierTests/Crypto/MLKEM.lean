@@ -4,8 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
-import CslibFrontier.Crypto.Protocols.KEM.MLKEM
+import CslibFrontierTests.Crypto.MLKEMFixture
 
 /-!
 # Tests for ML-KEM and K-PKE
@@ -18,7 +20,13 @@ import CslibFrontier.Crypto.Protocols.KEM.MLKEM
 4. The ML-KEM wrapper on the toy instance: honest decapsulation returns the encapsulated key, a
    tampered ciphertext is implicitly rejected, and the hypotheses of
    `kemDecaps_encrypt_of_noise_le` are satisfiable.
+5. The two-stage IND-CPA bound `cpaAdvantage_le` for an adversary whose challenge messages depend
+   on the public key, and the ciphertext-hop reduction running that adversary's first stage on
+   the key it reads from its sample.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.MLKEM
 
@@ -48,7 +56,7 @@ example : compress 3329 1 832 = 0 ∧ compress 3329 1 833 = 1 ∧ compress 3329 
 example : decompress 3329 1 1 = 1665 := by decide
 
 example : compress 3329 4 (decompress 3329 4 11) = 11 :=
-  compress_decompress (by norm_num) 11
+  compress_decompress (by decide) 11
 
 /-- The rounding error bound `⌈3329 / 32⌋ = 104` for `d = 4` is attained at `x = 104`. -/
 example : roundDiv 3329 (2 ^ (4 + 1)) = 104 ∧
@@ -59,7 +67,7 @@ example : (decompress 3329 4 (compress 3329 4 2000) - 2000).valMinAbs.natAbs ≤
 
 /-- One-bit decoding tolerates the error `831`, the largest `B` with `4 * B + 2 < 3329` ... -/
 example : compress 3329 1 (decompress 3329 1 1 + 831) = 1 :=
-  compress_one_decompress_one_add (B := 831) (by norm_num) 1 (by decide)
+  compress_one_decompress_one_add (B := 831) (by decide) 1 (by decide)
 
 /-- ... and fails for the errors `832` and `-833`, so the hypothesis cannot be relaxed to
 `4 * B < q + 2` at `q = 3329`. -/
@@ -68,32 +76,10 @@ example : compress 3329 1 (decompress 3329 1 1 + 832) = 0 ∧
 
 /-! ### 3. A toy K-PKE instance -/
 
-/-- Toy parameters: `n = 2`, `q = 17`, `k = 1`, `d_u = 4`, `d_v = 3`. -/
-def toy : Params := { n := 2, q := 17, k := 1, η₁ := 1, η₂ := 1, du := 4, dv := 3 }
-
-instance : NeZero toy.q := ⟨by decide⟩
-
-def toyA : Matrix (Fin toy.k) (Fin toy.k) (Fin toy.n → ZMod toy.q) := fun _ _ => ![3, 2]
-def toyS : SecretKey toy := fun _ => ![1, 0]
-def toyE : Fin toy.k → Fin toy.n → ZMod toy.q := fun _ => ![0, 1]
-def toyR : Fin toy.k → Fin toy.n → ZMod toy.q := fun _ => ![1, 0]
-def toyE₁ : Fin toy.k → Fin toy.n → ZMod toy.q := fun _ => ![0, 1]
-def toyE₂ : Fin toy.n → ZMod toy.q := ![1, 0]
-def toyPK : PublicKey toy := moduleLWEKeyGen toyA toyS toyE
-
-/-- The noise hypothesis of `decrypt_encrypt_eq_of_noise_le` holds with `B = 3`
-(`4 * 3 + 2 < 17`) for both messages. -/
-theorem toy_noise_le (m : Fin toy.n → Bool) (i : Fin toy.n) :
-    (decryptionNoise toy toyA toyS toyE toyR toyE₁ toyE₂ m i).valMinAbs.natAbs ≤ 3 := by
-  revert m i
-  decide
-
 example (m : Fin toy.n → Bool) :
     decrypt toy toyS (encrypt toy toyPK m (toyR, toyE₁, toyE₂)) = m :=
   decrypt_encrypt_eq_of_noise_le toy (B := 3) (by decide) toyA toyS toyE toyR toyE₁ toyE₂ m
     (toy_noise_le m)
-
-def toyM : Fin toy.n → Bool := ![true, false]
 
 /-- The same round trip, checked by evaluation. -/
 example : ∀ i, decrypt toy toyS (encrypt toy toyPK toyM (toyR, toyE₁, toyE₂)) i = toyM i := by
@@ -106,18 +92,6 @@ example : ¬ ∀ i, decrypt toy (fun _ => ![0, 1]) (encrypt toy toyPK toyM (toyR
 
 /-! ### 4. The ML-KEM wrapper on the toy instance -/
 
-/-- A toy `G` that ignores its input apart from the message and returns fixed coins. -/
-def toyG : (Fin toy.n → Bool) × (Fin 256 → Bool) → (Fin 256 → Bool) × Coins toy :=
-  fun x => (fun i => decide (i.val < 2) && x.1 ⟨i.val % 2, Nat.mod_lt _ (by decide)⟩,
-    (toyR, toyE₁, toyE₂))
-
-def toyH : PublicKey toy → Fin 256 → Bool := fun _ _ => false
-
-def toyJ : (Fin 256 → Bool) × Ciphertext toy → Fin 256 → Bool := fun x => x.1
-
-def toyDK : MLKEM.DecapsKey toy :=
-  { sk := toyS, pk := toyPK, pkHash := toyH toyPK, seed := fun _ => true }
-
 /-- Honest decapsulation returns the encapsulated key. -/
 example (m : Fin toy.n → Bool) :
     kemDecaps toy toyG toyJ toyDK (encrypt toy toyPK m (toyG (m, toyH toyPK)).2) =
@@ -126,13 +100,48 @@ example (m : Fin toy.n → Bool) :
     (fun _ => true) m toyR toyE₁ toyE₂ rfl (toy_noise_le m)
 
 /-- A tampered ciphertext fails the re-encryption check and decapsulates to `J(z ‖ c)`. -/
-example :
-    let c : Ciphertext toy := (fun _ => ![0, 0], ![0, 0])
-    kemDecaps toy toyG toyJ toyDK c = toyJ (toyDK.seed, c) := by
-  intro c
+example : kemDecaps toy toyG toyJ toyDK toyTampered = toyJ (toyDK.seed, toyTampered) := by
   refine MLKEMTransform.decapsWith_of_reencrypt_ne _ _ _ _ _ ?_
   intro m' _
-  revert m'
-  decide
+  exact toy_encrypt_ne_tampered m'
+
+/-! ### 5. The two-stage IND-CPA bound -/
+
+/-- The parity bits of the first polynomial of `b` in a toy public key `(A, b)`. -/
+def keyParity (pk : PublicKey toy) : Fin toy.n → Bool :=
+  fun i => decide ((pk.2 ⟨0, by decide⟩ i).val % 2 = 1)
+
+/-- A two-stage adversary whose challenge messages depend on the public key: it asks for the
+parity bits of `b`'s first polynomial against their complement, and guesses from the first
+coefficient of the compressed `v`. -/
+def keyDependentAdversary : CpaAdversary toy Unit where
+  choose pk := pure (⟨keyParity pk, fun i => !keyParity pk i⟩, ())
+  guess _ ct := pure (decide (ct.2 ⟨0, by decide⟩ = 0))
+
+/-- `cpaAdvantage_le` applies to it: four Module-LWE terms, two for each challenge bit. -/
+example : (toExplicitCoinPKE toy).cpaAdvantage keyDependentAdversary ≤
+    (ModuleLWE.advantage (ProbComp.eval (sampleVecCBD toy.k toy.n toy.q toy.η₁))
+        (ProbComp.eval (sampleVecCBD toy.k toy.n toy.q toy.η₁))
+        (mlweKeyReduction toy keyDependentAdversary false) +
+      ModuleLWE.advantage (ProbComp.eval (sampleVecCBD toy.k toy.n toy.q toy.η₁))
+        (ProbComp.eval (sampleVecCBD (toy.k + 1) toy.n toy.q toy.η₂))
+        (mlweReduction toy keyDependentAdversary false)) +
+    (ModuleLWE.advantage (ProbComp.eval (sampleVecCBD toy.k toy.n toy.q toy.η₁))
+        (ProbComp.eval (sampleVecCBD toy.k toy.n toy.q toy.η₁))
+        (mlweKeyReduction toy keyDependentAdversary true) +
+      ModuleLWE.advantage (ProbComp.eval (sampleVecCBD toy.k toy.n toy.q toy.η₁))
+        (ProbComp.eval (sampleVecCBD (toy.k + 1) toy.n toy.q toy.η₂))
+        (mlweReduction toy keyDependentAdversary true)) :=
+  cpaAdvantage_le toy keyDependentAdversary
+
+/-- The ciphertext hop reads the public key from rows of its sample and encrypts the message the
+adversary chose for that key, here the complement of the key's parity bits for `b = true`. -/
+example (M : Matrix (Fin (toy.k + 1)) (Fin toy.k) (Fin toy.n → ZMod toy.q))
+    (w : Fin (toy.k + 1) → Fin toy.n → ZMod toy.q) :
+    mlweReduction toy keyDependentAdversary true M w =
+      pure (decide ((compressCiphertext toy (unextendCiphertext w +
+        (0, messagePoly toy fun i => !keyParity (unextendPublicKeyMatrix M) i))).2 ⟨0, by decide⟩ =
+          0)) :=
+  rfl
 
 end CslibFrontierTests.Crypto.MLKEM

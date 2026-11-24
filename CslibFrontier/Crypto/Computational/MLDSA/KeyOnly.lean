@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.LWE.Module
 public import CslibFrontier.Crypto.Computational.MLDSA.Basic
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Probability.Product
@@ -17,13 +18,13 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.LinearCombination
 
 /-!
-# ML-DSA forgeries, self-target MSIS and Module-LWE: the key-only reduction
+# A finite forgery bound for uncompressed keys and polynomial challenges
 
-The security argument for Dilithium ([DucasEtAl2018]) replaces the public key `t = A s₁ + s₂`
-by a uniform vector, which costs a Module-LWE distinguishing advantage, and then turns a forgery
-against a *uniform* key into a solution of the *self-target* Module-SIS problem for the matrix
-`[I_k | A | -t]`. This module formalizes both steps for key-only attacks (no signing queries,
-fixed hash function), with explicit reductions:
+The model publishes the full matrix and vector `(A, t)` and verifies a response and a challenge
+polynomial `(z, c)` using a fixed hash. Following the algebraic argument of [DucasEtAl2018], the
+proof changes `t = A s₁ + s₂` to a uniform vector at a Module-LWE distinguishing cost, then
+extracts a self-target solution for `[I_k | A | -t]`. The FIPS 204 byte verifier and its
+seeded key-only game are in `CslibFrontier.Crypto.Computational.MLDSA.FIPS204`.
 
 * **Self-target MSIS.** `IsSelfTargetSolution G ζ pk s` says that the candidate
   `s = (M, u, z, c)` (a `SelfTargetCandidate`) is a solution: `‖u‖_∞, ‖z‖_∞ ≤ ζ`, `c ∈ B_τ`, and
@@ -35,23 +36,23 @@ fixed hash function), with explicit reductions:
   `G(v, M) = H(HighBits(v), M)` with `ζ = max γ₁ γ₂` (`isSelfTargetSolution_of_verify`). This step
   is deterministic and holds for every key.
 * **Experiments.** For a fixed public key, `koaExperiment` and `selfTargetExperiment` are
-  `ProbComp Bool` programs. The games `koaGame`, `keyDistinguishGame` and `selfTargetGame` draw
-  the key from a key distribution and run the experiment on it.
-* **Key-only unforgeability.** For honest keys (`keyLaw`), the success probability of any
-  key-only forger is at most the advantage of the explicit distinguisher `forgeryDistinguisher`
-  between honest and uniform keys (`uniformKeyLaw`), plus the success probability of the explicit
-  solver `selfTargetReduction` against self-target MSIS for a uniform matrix `[A | t]`
-  (`succProbability_koaGame_le`). The honest key `(A, A s₁ + s₂)` is a Module-LWE sample with
-  short secret `s₁` and error `s₂` (`SecretKey.publicKey_t`); the uniform-secret
-  `Cslib.Crypto.DecisionModuleLWE` of `SIS.Module` is a different secret distribution, so the
-  distinguishing term is stated concretely rather than through that hypothesis.
+  `ProbComp Bool` programs. The games `koaGame` and `selfTargetGame` draw the key from a key
+  distribution and run the experiment on it.
+* **Finite key-only bound.** The honest key `(A, A s₁ + s₂)` is a Module-LWE sample with short
+  secret `s₁` and error `s₂` (`SecretKey.publicKey_t`), so the forgery game for honest keys
+  (`keyLaw`) is the real Module-LWE game of the explicit distinguisher `forgeryDistinguisher`
+  (`koaGame_keyLaw`), and for uniform keys (`uniformKeyLaw`) it is the random one
+  (`koaGame_uniformKeyLaw`). The success probability of any key-only forger is therefore at most
+  the Module-LWE advantage `ModuleLWE.advantage` of `forgeryDistinguisher` for these short laws,
+  plus the success probability of the explicit solver `selfTargetReduction` against self-target
+  MSIS for a uniform matrix `[A | t]` (`succProbability_koaGame_le`). That advantage is the
+  quantity of the short-secret assumption `Cslib.Crypto.DecisionModuleLWEWith` for these laws, not
+  of the uniform-secret `Cslib.Crypto.DecisionModuleLWE`. The bound here is for one parameter set,
+  and no efficiency certificate for `forgeryDistinguisher` is proved.
 
-Hardness of self-target MSIS for the hash `H(HighBits(·), ·)` is the assumption, as in
-[DucasEtAl2018]; it is neither proved nor reduced to standard Module-SIS here.
-
-This is the key-only core of the reduction. Chosen-message security additionally simulates the
-signing oracle (zero knowledge of the aborting identification scheme, in the random-oracle
-model); that step, and the asymptotic packaging, are not formalized here.
+The bound leaves the self-target success probability as an explicit term. Applying hardness
+assumptions to efficient reductions and simulating signing queries are further steps in a
+chosen-message security proof.
 
 ## Main definitions
 
@@ -63,9 +64,8 @@ model); that step, and the asymptotic packaging, are not formalized here.
 * `Cslib.Crypto.MLDSA.keyLaw`, `Cslib.Crypto.MLDSA.uniformKeyLaw`: honest and uniform keys.
 * `Cslib.Crypto.MLDSA.koaExperiment`, `Cslib.Crypto.MLDSA.selfTargetExperiment`: the key-only
   forgery and self-target experiments for a fixed public key.
-* `Cslib.Crypto.MLDSA.koaGame`, `Cslib.Crypto.MLDSA.keyDistinguishGame`,
-  `Cslib.Crypto.MLDSA.selfTargetGame`: the same experiments, and key distinguishing, with the key
-  drawn from a key distribution.
+* `Cslib.Crypto.MLDSA.koaGame`, `Cslib.Crypto.MLDSA.selfTargetGame`: the same experiments with
+  the key drawn from a key distribution.
 * `Cslib.Crypto.MLDSA.forgeryDistinguisher`, `Cslib.Crypto.MLDSA.selfTargetReduction`: the
   explicit reductions.
 
@@ -75,6 +75,8 @@ model); that step, and the asymptotic packaging, are not formalized here.
   solution.
 * `Cslib.Crypto.MLDSA.succProbability_koaGame_le_selfTargetGame`: forging is at most as likely as
   solving self-target MSIS through `selfTargetReduction`, for every key distribution.
+* `Cslib.Crypto.MLDSA.koaGame_keyLaw`, `Cslib.Crypto.MLDSA.koaGame_uniformKeyLaw`: the forgery
+  games for honest and uniform keys are the Module-LWE games of `forgeryDistinguisher`.
 * `Cslib.Crypto.MLDSA.succProbability_koaGame_le`: the key-only bound by Module-LWE and
   self-target MSIS.
 
@@ -237,22 +239,17 @@ noncomputable def koaGame (keys : PMF (PublicKey P)) (H : Hash P)
     (adv : PublicKey P → ProbComp (List Bool × Signature P)) : Game :=
   keys.bind fun pk => (koaExperiment P H pk adv).eval
 
-/-- The key-distinguishing game: draw a public key from `keys` and output the distinguisher's
-bit. -/
-noncomputable def keyDistinguishGame (keys : PMF (PublicKey P))
-    (D : PublicKey P → ProbComp Bool) : Game :=
-  keys.bind fun pk => (D pk).eval
-
 /-- The self-target MSIS game: draw a public key from `keys` and run `selfTargetExperiment`. -/
 noncomputable def selfTargetGame (keys : PMF (PublicKey P)) (G : SelfTargetHash P) (ζ : ℕ)
     (B : PublicKey P → ProbComp (SelfTargetCandidate P)) : Game :=
   keys.bind fun pk => (selfTargetExperiment P G ζ pk B).eval
 
-/-- The Module-LWE reduction: run the forger and output whether its forgery verifies, that is,
-run `koaExperiment` on the given key. -/
+/-- The Module-LWE reduction: read the sample `(A, t)` as a public key, run the forger and output
+whether its forgery verifies, that is, run `koaExperiment` on `(A, t)`. -/
 def forgeryDistinguisher (H : Hash P) (adv : PublicKey P → ProbComp (List Bool × Signature P))
-    (pk : PublicKey P) : ProbComp Bool :=
-  koaExperiment P H pk adv
+    (A : Matrix (Fin P.k) (Fin P.ℓ) (Fin P.n → ZMod P.q)) (t : Fin P.k → Fin P.n → ZMod P.q) :
+    ProbComp Bool :=
+  koaExperiment P H ⟨A, t⟩ adv
 
 /-- The self-target MSIS reduction: run the forger on `(A, t)` and read its forgery as a
 self-target candidate. -/
@@ -263,11 +260,26 @@ def selfTargetReduction (adv : PublicKey P → ProbComp (List Bool × Signature 
 
 variable {P}
 
-/-- The forgery game is the key-distinguishing game of `forgeryDistinguisher`. -/
-theorem koaGame_eq_keyDistinguishGame (keys : PMF (PublicKey P)) (H : Hash P)
+/-- The forgery game for honest keys is the real Module-LWE game of `forgeryDistinguisher`, with
+secret `s₁` and error `s₂` drawn coefficientwise from `secret`. -/
+theorem koaGame_keyLaw [NeZero P.q] (secret : PMF (ZMod P.q)) (H : Hash P)
     (adv : PublicKey P → ProbComp (List Bool × Signature P)) :
-    koaGame P keys H adv = keyDistinguishGame P keys (forgeryDistinguisher P H adv) :=
+    koaGame P (keyLaw P secret) H adv =
+      ModuleLWE.realGame (PMF.pi fun _ : Fin P.ℓ => PMF.pi fun _ : Fin P.n => secret)
+        (PMF.pi fun _ : Fin P.k => PMF.pi fun _ : Fin P.n => secret)
+        (forgeryDistinguisher P H adv) := by
+  rw [ModuleLWE.realGame_eq_uniform_bind]
+  simp only [koaGame, keyLaw, forgeryDistinguisher, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
   rfl
+
+/-- The forgery game for uniform keys is the random Module-LWE game of `forgeryDistinguisher`. -/
+theorem koaGame_uniformKeyLaw [NeZero P.q] (H : Hash P)
+    (adv : PublicKey P → ProbComp (List Bool × Signature P)) :
+    koaGame P (uniformKeyLaw P) H adv = ModuleLWE.randomGame (forgeryDistinguisher P H adv) := by
+  simp only [koaGame, uniformKeyLaw, ModuleLWE.randomGame, ModuleLWE.eval_randomExperiment,
+    forgeryDistinguisher, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
+    PMF.pure_bind]
 
 /-- **Forging reduces to self-target MSIS.** For every key distribution, a key-only forger
 succeeds at most as often as `selfTargetReduction` solves self-target MSIS for the hash
@@ -287,20 +299,21 @@ theorem succProbability_koaGame_le_selfTargetGame (hP : P.Valid) (keys : PMF (Pu
   · rw [Bool.not_eq_true] at hv
     simp [hv]
 
-/-- **Key-only unforgeability from Module-LWE and self-target MSIS.** Against honest keys, the
-success probability of a key-only forger is at most the advantage of `forgeryDistinguisher` in
-distinguishing honest from uniform keys, plus the success probability of `selfTargetReduction`
-against self-target MSIS for a uniform matrix `[A | t]`. -/
+/-- **Finite key-only bound in the uncompressed, fixed-hash model.** Against its honest keys, the
+success probability of a key-only forger is at most the Module-LWE advantage of
+`forgeryDistinguisher`, with secret and error drawn coefficientwise from `secret`, plus the success
+probability of `selfTargetReduction` against self-target MSIS for a uniform matrix `[A | t]`. -/
 theorem succProbability_koaGame_le (hP : P.Valid) [NeZero P.q] (secret : PMF (ZMod P.q))
     (H : Hash P) (adv : PublicKey P → ProbComp (List Bool × Signature P)) :
     (koaGame P (keyLaw P secret) H adv).succProbability ≤
-      Game.advantage (keyDistinguishGame P (keyLaw P secret) (forgeryDistinguisher P H adv))
-          (keyDistinguishGame P (uniformKeyLaw P) (forgeryDistinguisher P H adv)) +
+      ModuleLWE.advantage (PMF.pi fun _ : Fin P.ℓ => PMF.pi fun _ : Fin P.n => secret)
+          (PMF.pi fun _ : Fin P.k => PMF.pi fun _ : Fin P.n => secret)
+          (forgeryDistinguisher P H adv) +
         (selfTargetGame P (uniformKeyLaw P) (selfTargetHash P H) (max P.γ₁ P.γ₂)
           (selfTargetReduction P adv)).succProbability := by
   have hst := succProbability_koaGame_le_selfTargetGame hP (uniformKeyLaw P) H adv
-  rw [koaGame_eq_keyDistinguishGame] at hst ⊢
-  rw [add_comm]
+  rw [koaGame_uniformKeyLaw] at hst
+  rw [koaGame_keyLaw, ModuleLWE.advantage, add_comm]
   exact (Game.succProbability_le_add_of_advantage_le le_rfl).trans (add_le_add hst le_rfl)
 
 end Cslib.Crypto.MLDSA

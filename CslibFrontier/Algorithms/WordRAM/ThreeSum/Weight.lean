@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.ThreeSum.Convolution
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Native weight selection for the Convolution-3SUM reduction
@@ -76,51 +78,35 @@ def store (negate : Bool) : Code .standard 14 :=
   .seq (.seq select (.op (.const left 0)))
     (.seq (if negate then subtract else .op (.copy result right)) (.op (.store dest result)))
 
-private def selected (x : Data 14) (z : ℤ) (N b : ℕ) : Data 14 :=
-  let y := ((((x.set two 2).set zero 0).set magA z.natAbs).set signA
-    (if z < 0 then 1 else 0)).set right (x.regs filler)
-  if 0 ≤ z ∧ z < N then
-    (y.set magA (b + z.toNat)).set right (x.mem (b + z.toNat)) else y
-
 private theorem exec_select {w N b : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (x : Data 14)
     (hindex : x.regs index = encode z) (hlen : x.regs len = N)
     (hbase : x.regs base = b) (hfiller : x.regs filler = encode fill)
     (hmem : ∀ i < N, x.mem (b + i) = encode (μ i))
     (hz : GenericRAM.Signed.Fits w z) (haddr : Fits (w + 2) (b + N)) :
-    ExecWithin (w + 2) select x (selected x z N b) 9 ∧
-      (selected x z N b).regs right = encode (pick N μ fill z) ∧
-      (selected x z N b).mem = x.mem := by
+    ∃ y, ExecWithin (w + 2) select x y 9 ∧
+      y.regs right = encode (pick N μ fill z) ∧ y.mem = x.mem := by
   have h2 : Fits (w + 2) 2 := (show Fits 2 2 from by decide).mono (by omega)
-  have h1 : Fits (w + 2) 1 := h2.of_le (by decide)
+  have hsign : Fits (w + 2) (if z < 0 then 1 else 0) := by
+    split_ifs <;> exact (show Fits 2 _ from by decide).mono (by omega)
   have hmag : Fits (w + 2) z.natAbs :=
     ((encode_fits hz).mono (by omega)).of_le (by unfold encode; split_ifs <;> omega)
-  by_cases hn : z < 0
-  · refine ⟨?_, ?_, by dsimp only [selected]; split_ifs <;> rfl⟩
-    · have hnonneg : ¬0 ≤ z := by omega
-      simp only [selected, hnonneg, false_and, ↓reduceIte]
-      ram_eval [select, hn, hindex, hlen, hbase, hfiller,
-        encode_div_two, encode_mod_two, h2, h1, hmag, left, right, two, zero, magA, signA,
-        index, len, base, filler, Fin.mk.injEq, WordRAM.Data.set, Function.update_idem]
-    · simp [selected, pick, hn, show ¬0 ≤ z by omega, hfiller]
-  · have hnonneg : 0 ≤ z := by omega
-    have habs : z.natAbs = z.toNat := by omega
-    have hmagNat : Fits (w + 2) z.toNat := by simpa only [habs] using hmag
-    by_cases hi : z < N
-    · have hfit : Fits (w + 2) (b + z.toNat) := haddr.of_le (by omega)
-      refine ⟨?_, ?_, by dsimp only [selected]; split_ifs <;> rfl⟩
-      · simp only [selected, hnonneg, hi, true_and, ↓reduceIte]
-        ram_eval [select, hn, hnonneg, hi, hindex, hlen, hbase, hfiller,
-          encode_div_two, encode_mod_two, h2, h1, hmagNat, hfit, habs,
-          show z.toNat < N by omega, left, right, two, zero, magA, signA,
-          index, len, base, filler, Fin.mk.injEq, WordRAM.Data.set, Function.update_idem]
-      · simp [selected, pick, hnonneg, hi, hmem z.toNat (by omega)]
-    · refine ⟨?_, ?_, by dsimp only [selected]; split_ifs <;> rfl⟩
-      · simp only [selected, hnonneg, hi, true_and, ↓reduceIte]
-        ram_eval [select, hn, hnonneg, hi, hindex, hlen, hbase, hfiller,
-          encode_div_two, encode_mod_two, h2, h1, hmagNat, habs,
-          show ¬z.toNat < N by omega, left, right, two, zero, magA, signA,
-          index, len, base, filler, Fin.mk.injEq, WordRAM.Data.set, Function.update_idem]
-      · simp [selected, pick, hnonneg, hi, hfiller]
+  refine WP.exists_execWithin ?_
+  unfold select
+  wram_exec [hindex, hlen, hbase, hfiller, encode_div_two, encode_mod_two]
+  · have hnn : 0 ≤ z := by
+      by_contra h
+      rw [not_le] at h
+      simp only [h, ↓reduceIte, one_ne_zero] at *
+    have hlt : z < N := by omega
+    have heq : z.natAbs = z.toNat := by omega
+    wram_simp [heq, hmem z.toNat (by omega)]
+    simp [pick, hnn, hlt]
+  · have hnot : ¬(0 ≤ z ∧ z < N) := fun ⟨hnn, hlt⟩ => hc (by omega)
+    wram_simp [hfiller]
+    simp [pick, hnot]
+  · have hneg : ¬0 ≤ z := by split_ifs at hc <;> omega
+    wram_simp [hfiller]
+    simp [pick, hneg]
 
 /-- A selected signed weight is stored within twenty-eight unsigned instructions. All address
 arithmetic is charged, but computing the signed index and preparing arguments are caller costs.
@@ -135,51 +121,30 @@ theorem exec_store {w N b d : ℕ} {μ : ℕ → ℤ} {fill z : ℤ} (negate : B
       y.mem = Function.update x.mem d
         (encode (if negate then -pick N μ fill z else pick N μ fill z)) ∧
       ∀ i : Fin 14, 9 ≤ i.val → y.regs i = x.regs i := by
-  obtain ⟨hs, hv, hm⟩ := exec_select x hindex hlen hbase hfiller hmem hz haddr
-  let q := (selected x z N b).set left 0
-  have hq : q.regs right = encode (pick N μ fill z) := by simpa [q, right, left] using hv
-  have hqr : q.regs left = encode 0 := by simp [q, encode]
   have hval : GenericRAM.Signed.Fits w (pick N μ fill z) := by
     unfold pick
     split_ifs with h
     · exact hμ _ (by omega)
     · exact hfill
-  have hpre : ExecWithin (w + 2) (.seq select (.op (.const left 0))) x q 10 :=
-    hs.seq (Exec.const (fits_zero (w + 2))).within
   have hpres : ∀ i : Fin 14, 9 ≤ i.val → (store negate).Preserves i := by
-    intro i hi
-    cases negate <;> simp only [store, Bool.false_eq_true, ↓reduceIte] <;>
-      simp only [not_false_eq_true, and_true, reduceCtorEq, select, subtract, unpack,
-        flipRightSign, addCore, addMagnitudes, finish,
-        Code.Preserves, Op.bin, Op.dest, ne_eq, Option.some.injEq, left, right, result, two,
-        zero, magA, magB, signA, signB, index, len, base, filler, Fin.ext_iff] <;> omega
-  have hqd : q.regs dest = d := (hpre.regs_eq (by decide)).trans hdest
-  cases negate with
-  | false =>
-    have hc : Exec (B := .standard) (w + 2) (.op (.copy result right)) q
-        (q.set result (encode (pick N μ fill z))) 1 := by
-      simpa only [hq] using
-        (Exec.copy (B := .standard) (w := w + 2) (x := q) (d := result) (s := right))
-    have hd : (q.set result (encode (pick N μ fill z))).regs dest = d := by
-      simpa [result, dest, Fin.mk.injEq] using hqd
-    have he := (hpre.seq (hc.within.seq (Exec.store (B := .standard) (w := w + 2)
-      (x := q.set result (encode (pick N μ fill z))) (a := dest) (s := result)).within)).mono
-      (by decide : 10 + (1 + 1) ≤ 28)
-    refine ⟨_, by simpa only [store, Bool.false_eq_true, ↓reduceIte] using he, ?_,
-      fun i hi => he.regs_eq (by
-        simpa only [store, Bool.false_eq_true, ↓reduceIte] using hpres i hi)⟩
-    simp only [WordRAM.Data.write_mem, hd, WordRAM.Data.set_regs, Function.update_self,
-      WordRAM.Data.set_mem, q, hm, Bool.false_eq_true, ↓reduceIte]
-  | true =>
-    obtain ⟨y, hy, hyr, hym, hyreg⟩ := exec_subtract (GenericRAM.Signed.fits_zero hz.1)
-      hval q hqr hq
-    have hyd : y.regs dest = d := (hyreg dest (Or.inr (by decide))).trans hqd
-    have hlast := (Exec.store (B := .standard) (w := w + 2) (x := y)
-      (a := dest) (s := result)).within
-    have he := hpre.seq (hy.seq hlast)
-    refine ⟨_, by simpa only [store, ↓reduceIte] using he, ?_,
-      fun i hi => he.regs_eq (by simpa only [store, ↓reduceIte] using hpres i hi)⟩
-    simp [WordRAM.Data.write, hyr, hyd, GenericRAM.Signed.Arithmetic.eval,
-      hym, q, hm]
+    cases negate <;> decide
+  obtain ⟨y, he, hym⟩ : ∃ y, ExecWithin (w + 2) (store negate) x y 28 ∧
+      y.mem = Function.update x.mem d
+        (encode (if negate then -pick N μ fill z else pick N μ fill z)) := by
+    refine WP.exists_execWithin ?_
+    unfold store
+    wram_exec
+    wram_call (exec_select x hindex hlen hbase hfiller hmem hz haddr) framed
+      with v m ⟨hvr, hvm⟩
+    cases negate <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · wram_exec [hvr, hvm, hdest]
+      wram_simp [hvm]
+    · wram_exec
+      wram_call (exec_subtract (GenericRAM.Signed.fits_zero hz.1) hval _
+        (by wram_simp [encode]; decide) (by wram_simp [hvr])) framed with v₁ m₁ ⟨hyr, hym, _⟩
+      wram_simp at hym
+      wram_exec [hyr, hym, hvm, hdest]
+      wram_simp [GenericRAM.Signed.Arithmetic.eval, zero_sub, hym, hvm]
+  exact ⟨y, he, hym, fun i hi => he.regs_eq (hpres i hi)⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Weight

@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Switch.Garble
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Obliviousness of garbled switch systems from circular correlation robustness
@@ -29,8 +30,9 @@ label. It never uses the input, the affine constants or the offset `Δ`.
 oracle keyed by a uniform offset `Δ` of colour `1` answers `(k, t, s)` with `H (k - Δ) t + s • Δ`
 (`CCR.Arithmetic.oracle`). It must be indistinguishable from an oracle answering every query with a
 fresh uniform label, for adversaries that never repeat a tweak (`CCR.Arithmetic.IsTweakUnique`); for
-such adversaries the fresh oracle is, by inspection, a random function of the query (this
-equivalence is not formalized).
+such adversaries the fresh oracle has the same law as a lazily memoized random function of the
+query (`CCR.Arithmetic.idealGame_eq_runWith_memoize_of_isTweakUnique`, specialized to the reduction
+in `simGame_eq_runWith_memoize_reduction`).
 
 This is an arithmetic variant of the assumption Heath uses, which is the Boolean circular
 correlation robustness of Zahur, Rosulek and Evans [ZahurRosulekEvans2015]: there labels are bit
@@ -74,6 +76,9 @@ as the adaptations stated above.
 ## Main results
 
 * `Cslib.Crypto.Garbling.Switch.isTweakUnique_reduction`: the reduction never repeats a tweak.
+* `Cslib.Crypto.Garbling.Switch.idealGame_reduction`,
+  `Cslib.Crypto.Garbling.Switch.simGame_eq_runWith_memoize_reduction`: against either the fresh
+  uniform oracle or a lazily memoized random function, the reduction plays the simulated view.
 * `Cslib.Crypto.Garbling.Switch.advantage_realGame_simGame`: the view is simulatable from the
   control bits, with advantage the CCR advantage of the reduction.
 
@@ -258,19 +263,29 @@ private theorem interpret_reduceGates_ideal [DecidableEq R] [Fintype L] (H : L �
         (reduceGates H col σ i gs A) = simGates H col i gs (gs.map (SwitchGate.isOpen σ)) A
   | _, [], _ => rfl
   | i, g :: gs, A => by
-    simp only [reduceGates, simGates, List.map_cons, OracleComp.interpret_bind,
-      interpret_reduceGate_ideal, interpret_reduceGates_ideal, OracleComp.interpret_pure]
+    simp only [reduceGates, simGates, List.map_cons, interp_norm, interpret_reduceGate_ideal,
+      interpret_reduceGates_ideal]
 
 /-- With the fresh oracle the reduction runs `D` on the simulated view. -/
-private theorem idealGame_reduction [DecidableEq R] [Fintype L] (S : SwitchSystem n m N R)
+theorem idealGame_reduction [DecidableEq R] [Fintype L] (S : SwitchSystem n m N R)
     (H : L → ℕ → L) (col : L →+ ZMod 2) (σ : Fin n ⊕ Fin N → R)
     (D : SwitchView L n → ProbComp Bool) :
     CCR.Arithmetic.idealGame (reduction S H col σ D) = simGame S H col (S.controls σ) D := by
-  have hself : ∀ {α : Type} (p : ProbComp α), OracleComp.interpret ProbComp.unifFin p = p :=
-    fun p => OracleComp.interpret_query_eq_self p
   simp only [CCR.Arithmetic.idealGame, ProbOracleComp.run, simGame, simulate, reduction,
-    SwitchSystem.controls, OracleComp.interpret_bind, ProbOracleComp.interpret_sample, hself,
-    interpret_reduceGates_ideal, bind_assoc, pure_bind]
+    SwitchSystem.controls, interp_norm, interpret_reduceGates_ideal, bind_assoc, pure_bind]
+
+/-- Because `reduction S H col σ D` is tweak-unique (`isTweakUnique_reduction`), running it against
+a lazily memoized uniform random function on `CCR.Arithmetic.Query L R` also produces the simulated
+view `simGame`. -/
+theorem simGame_eq_runWith_memoize_reduction [DecidableEq R] [Fintype L] [DecidableEq L]
+    (S : SwitchSystem n m N R) (H : L → ℕ → L) (col : L →+ ZMod 2)
+    (σ : Fin n ⊕ Fin N → R) (D : SwitchView L n → ProbComp Bool) :
+    (ProbOracleComp.runWith
+        (memoize fun _ : CCR.Arithmetic.Query L R => PMF.uniformOfFintype L)
+        (reduction S H col σ D) []).map Prod.fst =
+      simGame S H col (S.controls σ) D := by
+  rw [← CCR.Arithmetic.idealGame_eq_runWith_memoize_of_isTweakUnique
+    (isTweakUnique_reduction S H col σ D), idealGame_reduction]
 
 /-! ### The real side -/
 
@@ -336,8 +351,7 @@ private theorem interpret_reduceGate_real [DecidableEq R] (H : L → ℕ → L)
           add_zero]
       refine ⟨Function.update A (.inr y)
           (A x + CCR.Arithmetic.oracle H Δ ⟨A c, i, σ (.inr y) - σ x⟩),
-        by simp only [reduceGate, hc0, ite_false, OracleComp.interpret_bind,
-          ProbOracleComp.interpret_query, pure_bind, OracleComp.interpret_pure, garbleGate, hcol],
+        by simp only [reduceGate, hc0, ite_false, interp_norm, pure_bind, garbleGate, hcol],
         hnew y _ _ ?_ hg.2.2⟩
       rw [CCR.Arithmetic.oracle_apply, hAc, hx, wireLabel, wireLabel, sub_smul]
       abel
@@ -360,9 +374,9 @@ private theorem interpret_reduceGates_real [DecidableEq R] (H : L → ℕ → L)
   | i, g :: gs, D, K, A, hA, ⟨hg, hgs⟩, hσ => by
     obtain ⟨A', hstep, hA'⟩ :=
       interpret_reduceGate_real H col hΔ i K A hA hg (hσ g List.mem_cons_self)
-    simp only [reduceGates, garbleGates, OracleComp.interpret_bind, hstep, pure_bind,
+    simp only [reduceGates, garbleGates, interp_norm, hstep, pure_bind,
       interpret_reduceGates_real H col hΔ (i + 1) gs (g.define D) _ A' hA' hgs
-        (fun g' hg' => hσ g' (List.mem_cons_of_mem _ hg')), OracleComp.interpret_pure]
+        (fun g' hg' => hσ g' (List.mem_cons_of_mem _ hg'))]
 
 /-- With the keyed oracle the reduction runs `D` on the real view. -/
 private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem n m N R}
@@ -385,11 +399,8 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
   have hshift : ∀ Δ : L, (PMF.uniformOfFintype (Fin n → L)).map (fun K i => K i + x i • Δ) =
       PMF.uniformOfFintype (Fin n → L) := fun Δ =>
     PMF.uniformOfFintype_map_equiv (Equiv.addRight fun i => x i • Δ)
-  have hself : ∀ {α : Type} (p : ProbComp α), OracleComp.interpret ProbComp.unifFin p = p :=
-    fun p => OracleComp.interpret_query_eq_self p
   simp only [CCR.Arithmetic.realGame, PRF.realExperiment, ProbOracleComp.run, realGame, garble,
-    reduction, OracleComp.interpret_bind, ProbOracleComp.interpret_sample, hself, hmat, pure_bind,
-    bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
+    reduction, interp_norm, hmat, pure_bind, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
   congr 1
   funext Δ
   conv_lhs => rw [← hshift Δ.1]

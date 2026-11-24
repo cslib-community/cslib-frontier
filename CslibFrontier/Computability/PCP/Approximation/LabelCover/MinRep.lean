@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import Mathlib.Data.List.GetD
 
@@ -437,8 +438,7 @@ private theorem card_div_le_sum_one_div {ι : Type} [Fintype ι] {a b : ι → �
     three_div_sub_le_one_div_mul (ha i) (hb i) hg
   rw [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
     ← Finset.sum_div] at hle
-  have hdiv : (∑ i, (a i + b i)) / g ^ 3 ≤ g * (2 * Fintype.card ι) / g ^ 3 :=
-    div_le_div_of_nonneg_right hsum (by positivity)
+  have hdiv : (∑ i, (a i + b i)) / g ^ 3 ≤ g * (2 * Fintype.card ι) / g ^ 3 := by gcongr
   have hcalc : g * (2 * Fintype.card ι) / g ^ 3 = 2 * (Fintype.card ι / g ^ 2) := by
     field_simp
   have hcalc' : (Fintype.card ι : ℝ) * (3 / g ^ 2) = 3 * (Fintype.card ι / g ^ 2) := by ring
@@ -650,8 +650,7 @@ theorem isPolyTime_minRep :
       (isPolyTime_blockWeights hdsts)
   have hthreshold : ComputableInPolyTime (fun G : Graph (β → γ) => max (2 * G.edges.length) 1)
       (Graph.encoding encC) encUnary :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_max).comp
-      ((ComputableInPolyTime.unary_mul' (.const 2) hlen).prod (.const 1))
+    ComputableInPolyTime.unary_max' (.unary_mul' (.const 2) hlen) (.const 1)
   have hformulas : ComputableInPolyTime (fun G : Graph (β → γ) => G.edges.map (formula eβ eγ G))
       (Graph.encoding encC) (encList (encDNFOver encNat)) :=
     ComputableInPolyTime.mapWithInput hedges

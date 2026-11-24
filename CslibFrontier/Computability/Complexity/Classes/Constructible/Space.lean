@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Constructible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Closure of space-constructible bounds
@@ -50,8 +51,7 @@ theorem SpaceConstructible.add {s₁ s₂ : ℕ → ℕ} (h₁ : SpaceConstructi
     fun x => ?_
   have e₁ := length_encNat_le_self (s₁ x.length)
   have e₂ := length_encNat_le_self (s₂ x.length)
-  simp only [length_encPair]
-  omega
+  enc_len
 
 /-- **Constant multiples of space-constructible bounds are space-constructible.** -/
 theorem SpaceConstructible.const_mul {s : ℕ → ℕ} (hs : SpaceConstructible s) (c : ℕ) :
@@ -76,14 +76,9 @@ theorem SpaceConstructible.of_computableInLogSpace {s : ℕ → ℕ}
 /-- **`⌊log₂ n⌋ ^ (k + 1)` is space-constructible**: compute `⌊log₂ n⌋` in unary from the length,
 multiply in unary and convert to binary, in logarithmic space. -/
 theorem spaceConstructible_log2_pow (k : ℕ) :
-    SpaceConstructible fun n => Nat.log2 n ^ (k + 1) := by
-  have hlog : ComputableInLogSpace (fun x : List Bool => Nat.log2 x.length) encBits encUnary :=
-    ComputableInLogSpace.unaryLog2 ComputableInLogSpace.bitsLength
-  refine SpaceConstructible.of_computableInLogSpace (ComputableInLogSpace.unaryToBinary ?_)
+    SpaceConstructible fun n => Nat.log2 n ^ (k + 1) :=
+  SpaceConstructible.of_computableInLogSpace (.unaryToBinary (by fun_prop))
     fun n => Nat.le_self_pow (by omega) _
-  induction k with
-  | zero => simpa using hlog
-  | succ k ih => simpa only [pow_succ] using ComputableInLogSpace.unaryMul ih hlog
 
 /-- **`⌊log₂ n⌋` is space-constructible.** -/
 theorem spaceConstructible_log2 : SpaceConstructible Nat.log2 := by

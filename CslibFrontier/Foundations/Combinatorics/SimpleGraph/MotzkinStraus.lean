@@ -160,12 +160,6 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
     {x : V → K} (hx0 : ∀ v, 0 ≤ x v) (hx1 : ∑ v, x v = 1) :
     x ⬝ᵥ G.adjMatrix K *ᵥ x ≤ 1 - 1 / (G.cliqueNum : K) := by
   classical
-  suffices h : ∀ k (x : V → K), #{v | x v ≠ 0} = k → (∀ v, 0 ≤ x v) → ∑ v, x v = 1 →
-      x ⬝ᵥ G.adjMatrix K *ᵥ x ≤ 1 - 1 / (G.cliqueNum : K) from h _ x rfl hx0 hx1
-  intro k
-  induction k using Nat.strong_induction_on with
-  | _ k ih =>
-  intro x hk hx0 hx1
   set S : Finset V := {v | x v ≠ 0}
   have hSne : S.Nonempty := by
     by_contra hemp
@@ -223,8 +217,7 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
       · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
           ← Finset.mul_sum, hdsum, mul_zero, add_zero, hx1]
     have hlt_supp (t : K) (hzero : (x + t • d) u = 0 ∨ (x + t • d) v = 0) :
-        #{w | (x + t • d) w ≠ 0} < k := by
-      rw [← hk]
+        #{w | (x + t • d) w ≠ 0} < #S := by
       apply Finset.card_lt_card
       refine ⟨fun w hw => ?_, fun hsub => ?_⟩
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw ⊢
@@ -244,7 +237,7 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
     rcases le_total ((G.adjMatrix K *ᵥ x) v) ((G.adjMatrix K *ᵥ x) u) with hle | hle
     · have ht := hstep (x v) (by linarith) (by linarith)
       have hlt := hlt_supp (x v) (Or.inr (by simp [d, Ne.symm huv]))
-      have hih := ih _ hlt (x + x v • d) rfl ht.1 ht.2
+      have hih := quadraticForm_adjMatrix_le_aux G ht.1 ht.2
       have hlin := dotProduct_adjMatrix_add_smul G hadj x (x v)
       dsimp only at hlin
       have hnonneg : 0 ≤ 2 * x v * ((G.adjMatrix K *ᵥ x) u - (G.adjMatrix K *ᵥ x) v) :=
@@ -252,7 +245,7 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
       linarith
     · have ht := hstep (-x u) (by linarith) (by linarith)
       have hlt := hlt_supp (-x u) (Or.inl (by simp [d, huv]))
-      have hih := ih _ hlt (x + (-x u) • d) rfl ht.1 ht.2
+      have hih := quadraticForm_adjMatrix_le_aux G ht.1 ht.2
       have hlin := dotProduct_adjMatrix_add_smul G hadj x (-x u)
       dsimp only at hlin
       have hnonneg : 0 ≤ 2 * (-x u) * ((G.adjMatrix K *ᵥ x) u - (G.adjMatrix K *ᵥ x) v) := by
@@ -261,6 +254,8 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
         rw [this]
         exact mul_nonneg (mul_nonneg (by norm_num) hxu_pos.le) (sub_nonneg.2 hle)
       linarith
+termination_by #{v | x v ≠ 0}
+decreasing_by all_goals assumption
 
 /-- **Motzkin–Straus upper bound**: on `Convexity.StdSimplex K V`, `x ⬝ᵥ G.adjMatrix K *ᵥ x`
 is at most `1 - 1 / G.cliqueNum` (library generalization over arbitrary linearly ordered fields `K`;

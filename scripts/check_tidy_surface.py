@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop tidy computability from spreading into public statements (S3 of #456).
+"""Stop tidy computability from spreading into public statements (tracked by #862).
 
 Usage: python3 scripts/check_tidy_surface.py [--update [--allow-increase]] [--no-build-check]
 
@@ -11,7 +11,7 @@ Proofs, bodies that are not exposed and private declarations do not count, and n
 machine constructions listed in `scripts/tidy_allowlist.txt` (#608).
 
 The check counts tidy statements per module and compares the counts with
-`scripts/tidy_surface_baseline.json`, which records those that #456's sweep has yet to restate.
+`scripts/tidy_surface_baseline.json`, which records those that #862 has yet to remove.
 Every count must equal its baseline entry (a module without an entry, such as a new one, has
 none). A count above its entry is a new tidy statement. A count below it fails too, until the
 baseline is lowered in the same change: otherwise the unused allowance would let a removed
@@ -21,8 +21,8 @@ statements is moved.
 
 Declarations written in source come from the `.ilean` files and statements from the `.olean`
 files, read by `scripts/lean_outputs.py` and `scripts/LeanOutputs.lean`. The check needs the
-build outputs of `lake build CslibFrontier CslibFrontierTests` (`lake build` and `lake test`), and
-refuses stale ones unless `--no-build-check` is given.
+build outputs of `lake build CslibFrontier` (`lake build`), and refuses stale ones unless
+`--no-build-check` is given.
 This is a post-build audit; the default freshness probe invokes Lake and may materialize
 dependencies.
 """
@@ -41,6 +41,7 @@ import lean_outputs as lo  # noqa: E402
 
 ALLOWLIST = ROOT / "scripts/tidy_allowlist.txt"
 BASELINE = ROOT / "scripts/tidy_surface_baseline.json"
+LIBRARY_ROOTS = ("CslibFrontier",)
 UPDATE = "python3 scripts/check_tidy_surface.py --update"
 
 # A tidy statement: the declaration, its line, and the tidy constants it mentions.
@@ -96,7 +97,7 @@ def compare(counts: dict[str, int], baseline: dict[str, int]
 
 
 def over_report(over: dict[str, tuple[int, int]], found: dict[str, list[Statement]]) -> str:
-    out = ["Public statements may not mention tidy computability, only proofs may (#456). Restate "
+    out = ["Public statements may not mention tidy computability, only proofs may (#862). Restate "
            "these with plain computability (`ComputableInPolyTime`, `ComputableInTimeAndSpace`, "
            "…) and switch inside the proofs (`.tidy`, `.of_tidy`).", ""]
     for path, (count, entry) in over.items():
@@ -120,8 +121,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.allow_increase and not args.update:
         parser.error("--allow-increase needs --update")
-    lo.check_outputs(lo.DEFAULT_BUILD_DIR, args.no_build_check)
-    found = tidy_statements(lo.Library(lo.DEFAULT_BUILD_DIR), load_allowlist(args.allowlist))
+    lo.check_outputs(lo.DEFAULT_BUILD_DIR, args.no_build_check, roots=LIBRARY_ROOTS)
+    lib = lo.Library(lo.DEFAULT_BUILD_DIR, roots=LIBRARY_ROOTS, exported_only=True)
+    found = tidy_statements(lib, load_allowlist(args.allowlist))
     counts = {path: len(rows) for path, rows in found.items()}
     baseline = load_baseline(args.baseline) if args.baseline.exists() else {}
     over, under = compare(counts, baseline)

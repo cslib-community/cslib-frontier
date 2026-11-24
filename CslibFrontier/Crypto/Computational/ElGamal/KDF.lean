@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Padding
 public import CslibFrontier.Crypto.Computational.DiffieHellman.EncodingBounds
+public import CslibFrontier.Crypto.Computational.DiscreteLog.Decodable
 public import CslibFrontier.Crypto.Computational.ElGamal
 public import CslibFrontier.Languages.Probabilistic.LinearHash
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -32,7 +33,8 @@ via the Leftover Hash Lemma, without any computational assumptions on the hash f
 * **Paraphrase of [BonehShoup2023], Section 8.10.4, Theorem 8.11 (p. 334, Leftover Hash Lemma):**
   for a $(1 + \alpha)/N$-universal keyed hash function $H$ over $(\mathcal{K}, \mathcal{S},
   \mathcal{T})$ with $N = |\mathcal{T}|$, if $k$ is uniform on $\mathcal{K}$ and $s_1, \dots, s_m$
-  are independent of $k$ and of each other with guessing/collision probability at most $\gamma$,
+  are independent of $k$ and of each other, each with guessing probability (maximum point
+  probability $\max_x \Pr[s_i = x]$) at most $\gamma$,
   the statistical distance $\delta$ between $(k, H(k, s_1), \dots, H(k, s_m))$ and the uniform
   distribution on $\mathcal{K} \times \mathcal{T}^m$ satisfies
   $\delta \le \frac{1}{2} m \sqrt{N \gamma + \alpha}$.
@@ -59,16 +61,18 @@ To formalize this over an arbitrary `PrimeOrderGroupFamily`:
    Because `padWord` is injective on words of length at most `bound d`
    (`Cslib.BitString.word_eq_of_paddedBits_eq`) and `F.encode d` is injective on `F.Carrier d`, a
    uniform group element `γ • g` maps injectively into `BitString (2 * bound d + 1)` with collision
-   probability `(F.order d)⁻¹`.
+   probability `(F.order d)⁻¹`, which for this uniform element equals its maximum point
+   probability, Theorem 8.11's `γ`.
 3. Applying the Leftover Hash Lemma for two-universal binary matrix hashing
    (`Cslib.BitString.LinearHash.isTwoUniversal_flat` and `IsTwoUniversal.leftover_hash`),
    `advantage_kdfGame_linearHashKDF_le` bounds the distinguishing advantage between `kdfRealGame`
    and `kdfIdealGame` for *every* (even computationally unbounded) distinguisher by
    `NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin : ℝ≥0)) / 2`. Consequently,
-   `secureKDF_linearHashKDF`, `secureKDF_linearHashKDF_const`, `exists_secureKDF_withSeed`, and
-   `DDH.negligible_hashedElGamalCPAGame_linearHashKDF` yield non-degenerate `SecureKDF` and Hashed
-   ElGamal instantiations for arbitrary positive key lengths `msgLen n > 0` whenever
-   `2 ^ (msgLen n) / q` is negligible.
+   `secureKDF_linearHashKDF`, `secureKDF_linearHashKDF_const` and `exists_secureKDF_withSeed`
+   yield non-degenerate `SecureKDF` instantiations for arbitrary positive key lengths
+   `msgLen n > 0` whenever `2 ^ (msgLen n) / q` is negligible, and
+   `DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF` applies them to the ideal-sampling
+   Hashed ElGamal game.
 
 ## Main definitions
 
@@ -82,6 +86,8 @@ To formalize this over an arbitrary `PrimeOrderGroupFamily`:
   from `Cslib.BitString.padWord` and `Cslib.BitString.LinearHash.wordHash`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.linearHashSeedLen`: seed length
   `msgLen n * (2 * bound d + 1)` for `linearHashKDF`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.LinearHashKDFConditions`: the support, length, group-order
+  and negligible-loss conditions under which `linearHashKDF` is a `SecureKDF`.
 
 ## Main results
 
@@ -94,9 +100,15 @@ To formalize this over an arbitrary `PrimeOrderGroupFamily`:
   ([BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, p. 449).
 * `Cslib.Crypto.PrimeOrderGroupFamily.secureKDF_linearHashKDF`,
   `Cslib.Crypto.PrimeOrderGroupFamily.secureKDF_linearHashKDF_const`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.exists_secureKDF_withSeed`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCPAGame_linearHashKDF`:
-  non-degenerate `SecureKDF` and Hashed ElGamal IND-CPA instantiations via `linearHashKDF`.
+  `Cslib.Crypto.PrimeOrderGroupFamily.exists_secureKDF_withSeed`: non-degenerate `SecureKDF`
+  instantiations via `linearHashKDF`.
+
+## Ideal-sampling step
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF`:
+  `DDH.negligible_hashedElGamalCPAGame_ideal` with `linearHashKDF`, so that `F.DDH setup` is the
+  only assumption. Its game `hashedElGamalCPAGame` draws exponents exactly uniformly at the `PMF`
+  level, so it is a step and not the cited result.
 
 ## References
 
@@ -189,8 +201,8 @@ noncomputable def seededDDHDistinguisher (seedLen : ℕ → F.Desc → ℕ)
     (seedLen : ℕ → F.Desc → ℕ) (distinguisher : F.withSeed.DDHDistinguisher) (n : ℕ) :
     F.ddhRealGame setup (F.seededDDHDistinguisher seedLen distinguisher) n =
       F.withSeed.ddhRealGame (F.seededSetup setup seedLen) distinguisher n := by
-  simp only [pmf_norm, ddhRealGame, eval_ddhRealExperiment, seededDDHDistinguisher, seededSetup,
-    withSeed, Cslib.BitString.eval_sampleList]
+  simp only [pmf_norm, ddhRealGame, Game.withSetup, eval_ddhRealExperiment,
+    seededDDHDistinguisher, seededSetup, withSeed, Cslib.BitString.eval_sampleList]
   pmf_swap
 
 /-- In `ddhRandomGame`, `seededDDHDistinguisher` simulates `F.withSeed.ddhRandomGame` under
@@ -199,8 +211,8 @@ noncomputable def seededDDHDistinguisher (seedLen : ℕ → F.Desc → ℕ)
     (seedLen : ℕ → F.Desc → ℕ) (distinguisher : F.withSeed.DDHDistinguisher) (n : ℕ) :
     F.ddhRandomGame setup (F.seededDDHDistinguisher seedLen distinguisher) n =
       F.withSeed.ddhRandomGame (F.seededSetup setup seedLen) distinguisher n := by
-  simp only [pmf_norm, ddhRandomGame, eval_ddhRandomExperiment, seededDDHDistinguisher,
-    seededSetup, withSeed, Cslib.BitString.eval_sampleList]
+  simp only [pmf_norm, ddhRandomGame, Game.withSetup, eval_ddhRandomExperiment,
+    seededDDHDistinguisher, seededSetup, withSeed, Cslib.BitString.eval_sampleList]
   pmf_swap
 
 /-- `seededDDHDistinguisher` is uniform strict PPT whenever `seedLen` is polynomial-time computable
@@ -266,21 +278,7 @@ theorem computableInPolyTime_linearHashKDF {keyLen bound : F.Desc → ℕ}
     (hbound : ComputableInPolyTime bound F.encDesc encUnary) :
     ComputableInPolyTime (F.linearHashKDF keyLen bound)
       (encPair F.withSeed.encDesc encBits) encBits := by
-  let EIn := encPair (encPair F.encDesc encBits) encBits
-  have hd : ComputableInPolyTime
-      (fun input : (F.Desc × List Bool) × List Bool => input.1.1) EIn F.encDesc := by fun_prop
-  have hkeyIn : ComputableInPolyTime
-      (fun input : (F.Desc × List Bool) × List Bool => keyLen input.1.1) EIn encUnary :=
-    hkey.comp hd
-  have hboundIn : ComputableInPolyTime
-      (fun input : (F.Desc × List Bool) × List Bool => bound input.1.1) EIn encUnary :=
-    hbound.comp hd
-  change ComputableInPolyTime
-    (fun input : (F.Desc × List Bool) × List Bool =>
-      Cslib.BitString.LinearHash.wordHash (keyLen input.1.1) input.1.2
-        (Cslib.BitString.padWord (bound input.1.1) input.2))
-    EIn encBits
-  fun_prop
+  fun_prop [PrimeOrderGroupFamily.linearHashKDF]
 
 /-- The matrix seed length required by `linearHashKDF` for output length `msgLen n` and encoding
 length bound `bound d`: `msgLen n * (2 * bound d + 1)` bits. -/
@@ -294,12 +292,7 @@ theorem computableInPolyTime_linearHashSeedLen {msgLen : ℕ → ℕ} {bound : F
     (hbound : ComputableInPolyTime bound F.encDesc encUnary) :
     ComputableInPolyTime (fun p : ℕ × F.Desc => F.linearHashSeedLen msgLen bound p.1 p.2)
       (encPair encUnary F.encDesc) encUnary := by
-  have hmsgIn : ComputableInPolyTime (fun p : ℕ × F.Desc => msgLen p.1)
-      (encPair encUnary F.encDesc) encUnary := hmsg.comp (by fun_prop)
-  have hboundIn : ComputableInPolyTime (fun p : ℕ × F.Desc => bound p.2)
-      (encPair encUnary F.encDesc) encUnary := hbound.comp (by fun_prop)
-  unfold linearHashSeedLen
-  fun_prop
+  fun_prop [linearHashSeedLen]
 
 /-- Self-delimiting padded bit-string encoding of `γ • g` in `BitString (2 * bound d + 1)`. -/
 def paddedGeneratorMultiple (bound : F.Desc → ℕ) (d : F.Desc)
@@ -443,29 +436,42 @@ theorem advantage_kdfGame_linearHashKDF_le (setup : ℕ → PMF F.Desc)
         push_cast
         rw [← div_eq_mul_inv]
 
+/-- Statistical conditions under which `linearHashKDF keyLen bound` is a `SecureKDF` with output
+length `msgLen` over `setup` ([BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334): on every
+supported description `d` of `setup n`, the derived key has length `msgLen n`, `bound d` bounds the
+encoded group elements, and the group order is at least `qMin n > 0`, while the Leftover Hash Lemma
+loss `2 ^ (msgLen n) / qMin n` is negligible. -/
+structure LinearHashKDFConditions (setup : ℕ → PMF F.Desc) (keyLen bound : F.Desc → ℕ)
+    (msgLen qMin : ℕ → ℕ) : Prop where
+  /-- The group-order lower bound is positive. -/
+  qMin_pos : ∀ n, 0 < qMin n
+  /-- Supported descriptions derive keys of length `msgLen n`. -/
+  keyLen_eq : ∀ n, ∀ d ∈ (setup n).support, keyLen d = msgLen n
+  /-- `bound d` bounds the encoded length of every group element of a supported description. -/
+  length_encode_le : ∀ n, ∀ d ∈ (setup n).support, ∀ x : F.Carrier d,
+    (F.encode d x).length ≤ bound d
+  /-- Supported descriptions have group order at least `qMin n`. -/
+  qMin_le_order : ∀ n, ∀ d ∈ (setup n).support, qMin n ≤ F.order d
+  /-- The Leftover Hash Lemma loss `2 ^ (msgLen n) / qMin n` is negligible. -/
+  negligible : Negligible fun n => (2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)
+
 /-- **Unconditional `SecureKDF` instantiation via `linearHashKDF`** ([BonehShoup2023],
-Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, Definition 11.5, p. 449): when `keyLen`
-matches `msgLen n` on `(setup n).support`, `bound` bounds the encoded group element length, and
-`2 ^ (msgLen n) / qMin n` is negligible, `linearHashKDF keyLen bound` satisfies `SecureKDF` over
-`F.withSeed` and `F.seededSetup setup (F.linearHashSeedLen msgLen bound)`. -/
-theorem secureKDF_linearHashKDF (setup : ℕ → PMF F.Desc)
-    (keyLen bound : F.Desc → ℕ) (msgLen : ℕ → ℕ) {qMin : ℕ → ℕ}
-    (hq0 : ∀ n, 0 < qMin n)
-    (hkey : ∀ n, ∀ d ∈ (setup n).support, keyLen d = msgLen n)
-    (hbound : ∀ n, ∀ d ∈ (setup n).support, ∀ x : F.Carrier d, (F.encode d x).length ≤ bound d)
-    (hq : ∀ n, ∀ d ∈ (setup n).support, qMin n ≤ F.order d)
-    (hneg : Negligible fun n => (2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)) :
+Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, Definition 11.5, p. 449): under
+`LinearHashKDFConditions`, `linearHashKDF keyLen bound` satisfies `SecureKDF` over `F.withSeed` and
+`F.seededSetup setup (F.linearHashSeedLen msgLen bound)`. -/
+theorem secureKDF_linearHashKDF {setup : ℕ → PMF F.Desc} {keyLen bound : F.Desc → ℕ}
+    {msgLen qMin : ℕ → ℕ} (h : F.LinearHashKDFConditions setup keyLen bound msgLen qMin) :
     F.withSeed.SecureKDF (F.seededSetup setup (F.linearHashSeedLen msgLen bound))
       (F.linearHashKDF keyLen bound) msgLen := by
   intro distinguisher _
   have hsqrt : Negligible fun n => NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)) / 2 := by
     have h1 : Negligible fun n =>
         (2⁻¹ : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)) :=
-      (Negligible.sqrt hneg).const_mul (2⁻¹ : ℝ≥0)
+      (Negligible.sqrt h.negligible).const_mul (2⁻¹ : ℝ≥0)
     simpa only [div_eq_inv_mul] using h1
   exact negligible_of_le hsqrt fun n =>
     F.advantage_kdfGame_linearHashKDF_le setup keyLen bound msgLen distinguisher n (qMin n)
-      (hq0 n) (hkey n) (hbound n) (hq n)
+      (h.qMin_pos n) (h.keyLen_eq n) (h.length_encode_le n) (h.qMin_le_order n)
 
 /-- **Unconditional `SecureKDF` instantiation for any constant key length `k : ℕ`** (including all
 non-degenerate `k > 0`, e.g., `k = 128` as in [BonehShoup2023], Section 8.10.4, p. 334): when
@@ -479,8 +485,7 @@ theorem secureKDF_linearHashKDF_const (setup : ℕ → PMF F.Desc)
     (hneg : Negligible fun n => (1 / qMin n : ℝ≥0)) :
     F.withSeed.SecureKDF (F.seededSetup setup (F.linearHashSeedLen (fun _ => k) bound))
       (F.linearHashKDF (fun _ => k) bound) (fun _ => k) := by
-  refine F.secureKDF_linearHashKDF setup (fun _ => k) bound (fun _ => k) hq0
-    (fun _ _ _ => rfl) hbound hq ?_
+  refine F.secureKDF_linearHashKDF ⟨hq0, fun _ _ _ => rfl, hbound, hq, ?_⟩
   have hk : Negligible fun n => (2 : ℝ≥0) ^ k * (1 / qMin n : ℝ≥0) :=
     hneg.const_mul ((2 : ℝ≥0) ^ k)
   simpa only [div_eq_mul_inv, one_mul] using hk
@@ -514,22 +519,19 @@ theorem exists_secureKDF_withSeed (setup : ℕ → PMF F.Desc) (k : ℕ) {qMin :
     fun ds w => F.length_linearHashKDF (fun _ => k) bound (ds, w),
     F.secureKDF_linearHashKDF_const setup bound k hq0 (fun _ d _ x => hce d x) hq hneg⟩
 
-/-- **Hashed ElGamal with `linearHashKDF` is IND-CPA secure under `F.DDH setup` alone**
-([BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, Theorem 11.5,
-pp. 449–451): combining `DDH.withSeed`, `secureKDF_linearHashKDF`, and
-`DDH.negligible_hashedElGamalCPAGame`, no computational hypothesis on the key-derivation hash is
-needed when `2 ^ (msgLen n) / qMin n` is negligible. -/
-theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFamily}
+/-- Ideal-sampling step, not the cited result: under `F.DDH setup` alone, every uniform strict PPT
+`Encryption.WordAdversary` has negligible advantage in the one-time-pad Hashed ElGamal game
+`hashedElGamalCPAGame` with `linearHashKDF`, whose exponents are drawn exactly uniformly at the
+`PMF` level (after [BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2,
+Theorem 11.5, pp. 449–451). Combining `DDH.withSeed`, `secureKDF_linearHashKDF`, and
+`DDH.negligible_hashedElGamalCPAGame_ideal`, no computational hypothesis on the key-derivation hash
+is needed under `LinearHashKDFConditions`. -/
+theorem DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {keyLen bound : F.Desc → ℕ} {msgLen qMin : ℕ → ℕ}
-    (hDDH : F.DDH setup)
+    (hDDH : F.DDH setup) (hKDF : F.LinearHashKDFConditions setup keyLen bound msgLen qMin)
     (hkey_poly : ComputableInPolyTime keyLen F.encDesc encUnary)
     (hbound_poly : ComputableInPolyTime bound F.encDesc encUnary)
     (hmsg_poly : ComputableInPolyTime msgLen encUnary encUnary)
-    (hq0 : ∀ n, 0 < qMin n)
-    (hkey : ∀ n, ∀ d ∈ (setup n).support, keyLen d = msgLen n)
-    (hbound : ∀ n, ∀ d ∈ (setup n).support, ∀ x : F.Carrier d, (F.encode d x).length ≤ bound d)
-    (hq : ∀ n, ∀ d ∈ (setup n).support, qMin n ≤ F.order d)
-    (hneg : Negligible fun n => (2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0))
     {adversary : Encryption.WordAdversary} (hA : adversary.IsPPT) :
     Negligible fun n =>
       Game.advantage
@@ -540,8 +542,31 @@ theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFa
           (F.seededSetup setup (F.linearHashSeedLen msgLen bound))
           (F.linearHashKDF keyLen bound) adversary true n) :=
   (hDDH.withSeed (F.computableInPolyTime_linearHashSeedLen hmsg_poly hbound_poly))
-    |>.negligible_hashedElGamalCPAGame
-      (F.secureKDF_linearHashKDF setup keyLen bound msgLen hq0 hkey hbound hq hneg)
+    |>.negligible_hashedElGamalCPAGame_ideal (F.secureKDF_linearHashKDF hKDF)
       (F.computableInPolyTime_linearHashKDF hkey_poly hbound_poly) hA
 
 end Cslib.Crypto.PrimeOrderGroupFamily
+
+namespace Cslib.Crypto.DecodablePrimeOrderGroupFamily
+
+open Turing.MultiTapeTM
+
+/-- Augment a `DecodablePrimeOrderGroupFamily` with a public bit-string seed in its description
+(`Desc := F.Desc × List Bool`), mirroring `PrimeOrderGroupFamily.withSeed`. Decoding and
+membership testing delegate to the underlying family description `d.1 : F.Desc`. -/
+abbrev withSeed (F : DecodablePrimeOrderGroupFamily) : DecodablePrimeOrderGroupFamily where
+  toPrimeOrderGroupFamily := F.toPrimeOrderGroupFamily.withSeed
+  decode d w := F.decode d.1 w
+  decode_encode d x := F.decode_encode d.1 x
+  encode_eq_of_decode_eq_some h := F.encode_eq_of_decode_eq_some h
+  computableInPolyTime_isElem :=
+    (F.computableInPolyTime_isElem.comp
+      (((ComputableInPolyTime.fst F.encDesc encBits).comp
+        (ComputableInPolyTime.fst (encPair F.encDesc encBits) encBits)).prod
+        (ComputableInPolyTime.snd (encPair F.encDesc encBits) encBits))).of_enc_eq
+      fun _ => rfl
+
+@[simp] theorem isElem_withSeed (F : DecodablePrimeOrderGroupFamily) (d : F.Desc)
+    (s w : List Bool) : F.withSeed.isElem ((d, s), w) = F.isElem (d, w) := rfl
+
+end Cslib.Crypto.DecodablePrimeOrderGroupFamily

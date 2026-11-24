@@ -573,10 +573,8 @@ theorem dist_glauberColoringOn_frozen_le_of_le (hq : 2 * G.maxDegree < q) {U : F
           field_simp
       _ ≤ c * t := this
   calc (1 - c / U.card) ^ t * U.card
-      ≤ Real.exp (-(c / U.card)) ^ t * U.card :=
-        mul_le_mul_of_nonneg_right
-          (pow_le_pow_left₀ (by linarith) (by linarith [Real.add_one_le_exp (-(c / U.card))]) t)
-          hk.le
+      ≤ Real.exp (-(c / U.card)) ^ t * U.card := by
+        gcongr; linarith [Real.add_one_le_exp (-(c / U.card))]
     _ = Real.exp (-(c * t / U.card)) * U.card := by
         rw [← Real.exp_nat_mul]
         ring_nf

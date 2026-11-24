@@ -184,6 +184,14 @@ example :
   · rw [eval_andreevCircuit_eq_evalInt]
     exact andreevCircuitEvalInt_two_two_mixed.2
 
+-- Named `AndreevWindowedBottomIndex` fields (`subset`, `staircase`, `step`) and exact cardinality.
+example :
+    let idx : AndreevWindowedBottomIndex 2 1 4 :=
+      { subset := {0}, mem := by decide, staircase := true, step := 3 }
+    idx.subset = {0} ∧ idx.staircase = true ∧ idx.step = 3 ∧
+      Fintype.card (AndreevWindowedBottomIndex 2 1 4) = 32 :=
+  ⟨rfl, rfl, rfl, by rw [card_andreevWindowedBottomIndex_of_le (by decide)]; rfl⟩
+
 -- Windowed depth-two weighted threshold circuit and subcube correlation at `b = 2, m = 2, r = 1`:
 -- `andreevWindowedCircuit 2 2 1 4` uses `33` gates (`≤ 288` active wires) at depth at most `2`
 -- and matches `Boolean.andreev 2 2` on the mixed concrete truth-table inputs; at `B = 5` (`41`

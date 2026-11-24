@@ -10,10 +10,10 @@ module
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Program
 import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.AncestryPolyTime
 import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.LiftingPolyTime
-import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 
 /-!
 # Native machine certificate for one solver stack step
@@ -48,8 +48,14 @@ private theorem poly_blossomCycle : ComputableInPolyTime NativeForest.BlossomCod
     NativeForest.encBlossomCode encWalkCode :=
   NativeForest.encBlossomCode_cycle_deg.computableInPolyTime
 private theorem poly_flatten : ComputableInPolyTime (List.flatten (α := Bool))
-    (encList (encList encBool)) (encList encBool) :=
-  .of_tidy (ComputableTidilyInPolyTime.flatten encBool)
+    (encList (encList encBool)) (encList encBool) := by
+  change ComputableInPolyTime (fun xs : List (List Bool) => xs.flatten)
+    (encList (encList encBool)) (encList encBool)
+  simpa only [List.flatten_eq_flatMap] using
+    ComputableInPolyTime.flatMapWithInput
+      (f := fun (_ : List (List Bool)) => (id : List Bool → List Bool))
+      (ComputableInPolyTime.id' (encIn := encList (encList encBool)))
+      (ComputableInPolyTime.snd _ _)
 
 attribute [local fun_prop] EdgeForest.encInput_body_polyTime EdgeForest.encInput_labels_polyTime
   poly_parent poly_cycle poly_inputMk poly_frameMk
@@ -129,18 +135,9 @@ private theorem poly_stateMk : ComputableInPolyTime
 
 private def stopped (state : State) (budget : ℕ) : State :=
   ⟨state.current, [], budget, some none⟩
-private def emptyState : State := ⟨⟨[], []⟩, [], 0, some none⟩
-
-private theorem poly_sumState {α β γ : Type} {ea : α ↪ List Bool} {eb : β ↪ List Bool}
-    {eg : γ ↪ List Bool} {value : γ → α ⊕ β} {left : γ → α → State} {right : γ → β → State}
-    (hv : ComputableInPolyTime value eg (encSum ea eb))
-    (hl : ComputableInPolyTime (fun p : γ × α => left p.1 p.2) (encPair eg ea) encState)
-    (hr : ComputableInPolyTime (fun p : γ × β => right p.1 p.2) (encPair eg eb) encState) :
-    ComputableInPolyTime (fun a => (value a).elim (left a) (right a)) eg encState :=
-  NativeCases.sumElimWithInput emptyState hv hl hr
 
 attribute [local fun_prop] poly_current poly_frames poly_budget poly_status poly_stateMk
-  poly_pushWith poly_augmentWith poly_liftWith poly_sumState
+  poly_pushWith poly_augmentWith poly_liftWith
 
 private def eventStep (state : State) (result : EdgeForest.ResultCode) : State :=
   result.elim (fun _ => stopped state (state.budget - 1)) fun event =>

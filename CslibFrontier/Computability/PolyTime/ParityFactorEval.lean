@@ -16,9 +16,11 @@ public import CslibFrontier.Computability.PolyTime.JetArray
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseEquations
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 public import Mathlib.Algebra.Field.Rat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Int.Order
@@ -1016,6 +1018,8 @@ section PolyTime
 
 open Turing MultiTapeTM MultiTapeTM.ComputableInPolyTime
 
+attribute [local irreducible] ComputableInPolyTime encIntBin encNat encUnary
+
 variable {α : Type} {encIn : α ↪ List Bool}
 
 @[local fun_prop]
@@ -1041,10 +1045,7 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     (hp : ComputableInPolyTime p encIn (encList encIntBin))
     (hq : ComputableInPolyTime q encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => polyAdd (p x) (q x)) encIn (encList encIntBin) := by
-  have hp1 := fst encIn encUnary; have hi := snd encIn encUnary
-  exact mapWithInput (range.comp' ((of_tidy ComputableTidilyInPolyTime.unary_max).comp'
-      ((length_listIntBin hp).prod (length_listIntBin hq))))
-    (intBin_add' (listGetDWithInput (hp.comp' hp1) hi 0) (listGetDWithInput (hq.comp' hp1) hi 0))
+  fun_prop [polyAdd]
 
 /-- Polynomial-time certificate for `cauchyCoeff`. -/
 @[fun_prop] theorem computableInPolyTime_cauchyCoeff {p q : α → List ℤ} {k : α → ℕ}
@@ -1052,11 +1053,7 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     (hq : ComputableInPolyTime q encIn (encList encIntBin))
     (hk : ComputableInPolyTime k encIn encUnary) :
     ComputableInPolyTime (fun x => cauchyCoeff (p x) (q x) (k x)) encIn encIntBin := by
-  have hp1 := fst encIn encUnary; have hi := snd encIn encUnary
-  exact ComputableInPolyTime.intBin_sum.comp'
-    (mapWithInput (range.comp' (unary_add' hk (const 1)))
-      (intBin_mul' (listGetDWithInput (hp.comp' hp1) hi 0)
-        (listGetDWithInput (hq.comp' hp1) (unary_sub.comp' ((hk.comp' hp1).prod hi)) 0)))
+  fun_prop [cauchyCoeff]
 
 /-- Compositional plain polynomial-time certificate for `mulZJet`. -/
 @[fun_prop] theorem computableInPolyTime_mulZJet {J : α → ℕ} {u v : α → List ℤ}
@@ -1080,16 +1077,12 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     ComputableInPolyTime (fun x => divModByH (p x))
       encIn (encPair (encList encIntBin) (encPair encIntBin encIntBin)) := by
   have hrev : ComputableInPolyTime (fun x => (p x).reverse) encIn (encList encIntBin) :=
-    .of_tidy (ComputableTidilyInPolyTime.listReverseWithInput hp.tidy)
+    (ComputableInPolyTime.listReverseWithInput hp)
   have hstep : ComputableInPolyTime
       (fun p : (List ℤ × (ℤ × ℤ)) × ℤ => ParityFactorEval.divModByHStep p.1 p.2)
       (encPair (encPair (encList encIntBin) (encPair encIntBin encIntBin)) encIntBin)
       (encPair (encList encIntBin) (encPair encIntBin encIntBin)) := by
-    have h1 := fst (encPair (encList encIntBin) (encPair encIntBin encIntBin)) encIntBin
-    have hab := h1.snd'
-    exact (cons' hab.snd' h1.fst').prod
-      ((snd _ _).prod
-        (intBin_add' hab.fst' hab.snd'))
+    fun_prop [ParityFactorEval.divModByHStep]
   let bound (L : ℕ) : ℕ := 2 * (L * (4 * L + 5)) + 6 * L + 8
   have hpoly : PolyBounded (fun x => (encIn x).length)
       (fun x => bound (encList encIntBin (p x)).length) := by growth_poly
@@ -1121,10 +1114,8 @@ private theorem taylorInvOneSubPow_polytime {ℓ : α → ℕ}
   have hinit : ComputableInPolyTime (fun x => List.replicate (ℓ x) (1 : ℤ))
       encIn (encList encIntBin) := replicate hℓ (const 1)
   have hstep : ComputableInPolyTime ParityFactorEval.prefixSumPoly
-      (encList encIntBin) (encList encIntBin) :=
-    mapWithInput (range.comp' (length_listIntBin id'))
-      (intBin_sum.comp (of_tidy (ComputableTidilyInPolyTime.listTakeWithInput (fst _ _).tidy
-        (unary_add' (snd _ _) (const 1)).tidy)))
+      (encList encIntBin) (encList encIntBin) := by
+    fun_prop [ParityFactorEval.prefixSumPoly]
   let bound (k : ℕ) : ℕ := k * (4 * k + 5)
   have hpoly : PolyBounded (fun x => (encIn x).length) (fun x => bound (ℓ x)) := by growth_poly
   refine (iterate hcnt hinit hstep hpoly fun x i hi => ?_).of_enc_eq fun _ => rfl
@@ -1270,9 +1261,8 @@ private theorem parityFactorCols_polytime {J ℓ : α → ℕ} {Δ : α → ℤ}
       encIn (encList (encList encIntBin)) := by
   have hcoeffs := computableInPolyTime_parityLinearCoeffs hℓ
   have hyT := computableInPolyTime_truncZJet hJ hyJet
-  have hnegΔ := intBin_neg.comp' hΔ
   have hhJet := computableInPolyTime_mulZJet hJ hyT
-    (computableInPolyTime_polyAdd hyT (singleton_intBin_polytime hnegΔ))
+    (computableInPolyTime_polyAdd hyT (q := fun x => [-Δ x]) (by fun_prop))
   have hp1 : ComputableInPolyTime (Prod.fst (α := α) (β := ℕ))
       (encPair encIn encUnary) encIn := fst _ _
   have hstep := parityFactorColJet_polytime

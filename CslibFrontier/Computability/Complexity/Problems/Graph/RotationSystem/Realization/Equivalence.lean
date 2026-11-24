@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Converse
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
 
 /-!
 # Numerical genus zero is equivalent to polygonal realization
@@ -20,12 +21,16 @@ complex numbers and contacts quantify over all real segment parameters. Loops, i
 parallel occurrences, arbitrary degree, disconnected components, repeated declarations,
 isolates and empty graphs are included.
 
+Without a supplied rotation, existence is also equivalent: every polygonal embedding supplies
+its own literal clockwise rotation from its outgoing geometric rays.
+
 This finite PL equivalence does not prove topological taming, a source-model comparison,
 Hanani–Tutte, recognition, coordinate-bit or runtime bounds, or a planar CSP dichotomy.
 
 ## Main results
 
 * `Cslib.Complexity.Graph.RotationSystem.numericalGenusZero_iff_exists_polygonalDrawing`.
+* `Cslib.Complexity.Graph.RotationSystem.exists_numericalGenusZero_iff_exists_polygonalDrawing`.
 -/
 
 public section
@@ -41,5 +46,19 @@ theorem numericalGenusZero_iff_exists_polygonalDrawing {G : Graph} (r : Rotation
   · exact r.exists_polygonalDrawing hG
   · rintro ⟨D, hD, hR⟩
     exact hD.numericalGenusZero hG hR
+
+/-- A listed graph admits a numerical genus-zero rotation exactly when it has a genuine
+finite polygonal embedding. The rotation in the reverse implication is read from the drawing
+itself, rather than supplied with it. -/
+theorem exists_numericalGenusZero_iff_exists_polygonalDrawing {G : Graph}
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
+    (∃ r : RotationSystem G, r.NumericalGenusZero) ↔
+      ∃ D : PolygonalDrawing G, D.IsEmbedding := by
+  constructor
+  · rintro ⟨r, hr⟩
+    obtain ⟨D, hD, -⟩ := r.exists_polygonalDrawing hG hr
+    exact ⟨D, hD⟩
+  · rintro ⟨D, hD⟩
+    exact ⟨hD.rotation, hD.numericalGenusZero hG hD.realizes_rotation⟩
 
 end Cslib.Complexity.Graph.RotationSystem

@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamir
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrIdentification
@@ -62,9 +63,8 @@ theorem succProbability_knower : Game.succProbability (eufCmaGame scheme knower)
   have hrel := mem_support_schnorrKeyGen hkey
   refine PMF.le_bind_apply_on_support _ fun (r : ZMod 11) _ => ?_
   refine PMF.le_bind_apply_on_support _ fun forged hforged => ?_
-  simp only [knower, OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-    OracleComp.interpret_pure, PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff,
-    StateT.run_pure, PMF.monad_pure_eq_pure, _root_.PMF.mem_support_pure_iff] at hforged
+  simp only [knower, interp_norm, pmf_norm, PMF.mem_support_bind_iff,
+    _root_.PMF.mem_support_pure_iff] at hforged
   obtain ⟨answer, hanswer, rfl⟩ := hforged
   change answer ∈ ((memoize (fun _ => PMF.uniformOfFintype (ZMod 11)) (true, r • (2 : ZMod 11))
     []).bind fun a => PMF.pure (a.1, a.2, ([] : List Bool))).support at hanswer
@@ -73,8 +73,8 @@ theorem succProbability_knower : Game.succProbability (eufCmaGame scheme knower)
     PMF.mem_support_bind_iff, _root_.PMF.mem_support_pure_iff] at hanswer
   obtain ⟨c, -, rfl⟩ := hanswer
   refine PMF.le_bind_apply_on_support _ fun verified hverified => ?_
-  simp only [scheme, fiatShamir, OracleComp.interpret_map, OracleComp.interpret_query,
-    StateT.run_map, PMF.monad_map_eq_map, _root_.PMF.mem_support_map_iff] at hverified
+  simp only [scheme, fiatShamir, interp_norm, PMF.monad_map_eq_map,
+    _root_.PMF.mem_support_map_iff] at hverified
   obtain ⟨v, hv, rfl⟩ := hverified
   change v ∈ (memoize (fun _ => PMF.uniformOfFintype (ZMod 11)) (true, r • (2 : ZMod 11))
     [((true, r • 2), c)]).support at hv
@@ -103,7 +103,7 @@ example : (81 / 242 : ℝ) ≤ Game.succProbability (oneWayGame (schnorrKeyGen (
     (FiatShamir.reduction (Function.Embedding.refl _) (schnorr ι (2 : ZMod 11))
       (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod 11) (ZMod 11) 2) id ι)
       (linearExtract ι) 0 knower 0 1)) := by
-  have h := schnorr_succProbability_eufCmaGame_le (ι := ι) (g := (2 : ZMod 11)) (by decide)
+  have h := schnorr_succProbability_eufCmaGame_le_ideal (ι := ι) (g := (2 : ZMod 11)) (by decide)
     knower knower_callBounded
   have hknower : Game.succProbability (eufCmaGame (fiatShamir (M := Bool)
     (Function.Embedding.refl _)
@@ -143,7 +143,7 @@ private def mixedHashQueries :
 -- Four adversary hash calls induce three fresh queries; distinct junk keys are never collapsed.
 example :
     OracleComp.runWithAnswers (0 : ZMod 11)
-      ((OracleComp.interpret (FiatShamir.reductionHandler extendedHashPoint)
+      ((OracleComp.interpret (ForkingReduction.handler (FiatShamir.signer extendedHashPoint))
         mixedHashQueries).run ⟨[], [], 0, []⟩) [3, 7, 9] =
       (((3, 7, 9, 3),
         ⟨[(.inr true, 9, some 2), (.inl (true, 0), 7, some 1), (.inr false, 3, some 0)],
@@ -152,7 +152,7 @@ example :
 -- Programming a signature retains a previously cached junk key and records only its own message.
 example :
     OracleComp.runWithAnswers (0 : ZMod 11)
-      ((FiatShamir.reductionHandler extendedHashPoint (.inl false)).run
+      ((ForkingReduction.handler (FiatShamir.signer extendedHashPoint) (.inl false)).run
         ⟨[(.inr false, 3, some 0)], [], 1, [(0, 5, 9)]⟩) [] =
       (((0, 9), ⟨[(.inl (false, 0), 5, none), (.inr false, 3, some 0)], [false], 1, []⟩),
         []) := by rfl
@@ -216,8 +216,10 @@ private theorem reduction_rejecting (fallback : ℕ) :
     FiatShamir.reduction (Function.Embedding.refl _) rejecting
       (fun _ _ => PMF.pure ((), ())) (fun _ _ _ _ _ _ => 0) fallback emptyForger 0 0 () =
       PMF.pure fallback := by
-  simp [FiatShamir.reduction, FiatShamir.coins, Forking.fork, OracleComp.forkingAlgorithm,
-    FiatShamir.forkingProgram, FiatShamir.finish, FiatShamir.verdict, emptyForger,
+  simp [FiatShamir.reduction, FiatShamir.coins, Forking.fork, Forking.onTapes,
+    OracleComp.forkingAlgorithm,
+    FiatShamir.forkingProgram, ForkingReduction.program, ForkingReduction.finish,
+    ForkingReduction.verdict, FiatShamir.check, emptyForger,
     rejecting, OracleComp.validIndex, OracleComp.forkNamedPosition,
     OracleComp.runWithAnswersOutput, PMF.iid]
 

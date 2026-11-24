@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.Seed
+public import CslibFrontier.Crypto.Computational.Pseudoentropy.SeedSchedule
 public import CslibFrontier.Probability.UniformNat
 import CslibFrontier.Crypto.Computational.Pseudoentropy.DenseMask
 import CslibFrontier.Crypto.Computational.Pseudoentropy.MaskedExtraction
@@ -21,18 +22,22 @@ The dense-mask theorem supplies a comparison experiment for each efficient seque
 Extraction makes that experiment statistically uniform. Its information budget is the sampler's
 seed length plus `n + 2`, independently of the test's polynomial running-time degree.
 
-The theorem retains all observations and the hash seed. `HasGapWithAdvice.extract_indexed_labels`
-instantiates
-a polynomial repetition schedule and proves its error negligible, leaving only the entropy budget
-and admissible density conditions. A valid index may be chosen arbitrarily at each parameter;
-the efficient reduction handles all indices. The generator must still combine the candidates.
+The theorem retains all observations and the hash seed.
+`HasGapWithAdvice.extract_indexed_labels_of_isPPTOn` instantiates a polynomial repetition schedule
+and proves its error negligible, leaving only the entropy budget and admissible density conditions.
+A valid index may be chosen arbitrarily at each parameter; the efficient reduction handles all
+indices. The generator must still combine the candidates.
 
 ## Main results
 
-* `HasGapWithAdvice.indexed_extracted_advantage_negligible`: dense masks give negligible
-  extraction advantage for any valid choices from a uniformly efficient indexed family.
-* `HasGapWithAdvice.extract_indexed_labels`: the fixed polynomial schedule pays the full
+* `HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn`: dense masks give
+  negligible extraction advantage for any valid choices from a uniformly efficient indexed family.
+* `HasGapWithAdvice.extract_indexed_labels_of_isPPTOn`: the fixed polynomial schedule pays the full
   statistical loss.
+
+Both are algebraic helpers, generic in the seed sampler and hash: they assume that the extracted
+test is efficient. `HasGapWithAdvice.extract_indexed_word_labels` discharges that premise with
+`isPPTOn_extractedWordTest`.
 
 ## References
 
@@ -56,8 +61,8 @@ open scoped NNReal
 /-- Label extraction is computationally uniform relative to fixed advice along any valid choices
 from an efficient polynomial-size family. The choices need not be computable: the reduction handles
 all indices uniformly, and only the proof uses the chosen index. Observations and hash seeds stay
-public. -/
-theorem HasGapWithAdvice.indexed_extracted_advantage_negligible {pair : SamplablePair}
+public. An algebraic helper: `htest` assumes that the extracted test is efficient. -/
+theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair : SamplablePair}
     {gap : ℕ → ℝ} {advice : ℕ → List Bool} (hpair : pair.HasGapWithAdvice gap advice)
     (realization : pair.SeedRealization) (choose : ℕ → ℕ)
     {Seed Output : ℕ → ℕ → Type} [∀ n i, Finite (Seed n i)] [∀ n i, Fintype (Output n i)]
@@ -89,14 +94,13 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible {pair : Samplabl
           (-(count n * ((numerator n (choose n) : ℝ) / dyadicSize (densityBound n)) -
             slack n)))) / 2))) :
     Negligible (fun n => Game.advantage
-      (ProbComp.eval (do
-        let samples ← OracleComp.replicate (count n) (pair.sample n)
-        let result ← extractLabels (seed n (choose n)) (hash n (choose n)) samples
-        test (n, advice n) (choose n) result))
+      (ProbComp.eval (extractLabelsReal (pair.sample n) (count n) (seed n (choose n))
+        (hash n (choose n)) >>= test (n, advice n) (choose n)))
       ((extractLabelsIdeal ((fun value => pair.encode n value.1) <$>
         pair.latentSample n) (count n) (seed n (choose n))).bind
           (fun output => ProbComp.eval (test (n, advice n) (choose n) output)))) := by
   classical
+  simp only [extractLabelsReal, bind_assoc]
   let error := fun n =>
     2 * Real.exp (-2 * slack n ^ 2 / (count n * (realization.length n + n + 2 : ℕ) ^ 2)) +
       Real.sqrt (Fintype.card (Output n (choose n)) * (2 * (2 : ℝ) ^
@@ -123,8 +127,8 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible {pair : Samplabl
     hnumerator hdensity hinverseGap hgap
   have hbound : PolynomiallyBounded
       (fun n => 2 * inverseGap n * dyadicSize (densityBound n)) :=
-    ((PolynomiallyBounded.const 2).mul hinverseGap.tidy.polynomiallyBounded).mul
-      (hdensity.trans .unary_dyadicSize).tidy.polynomiallyBounded
+    ((PolynomiallyBounded.const 2).mul hinverseGap.polynomiallyBounded).mul
+      (hdensity.trans .unary_dyadicSize).polynomiallyBounded
   have hmass := maskedSample_dyadic_mass_ge_eventually
     (fun n => pair.latentSample n) (fun _ => id) (fun _ => Prod.snd)
     realization.length (fun n => 2 * inverseGap n * dyadicSize (densityBound n)) hbound
@@ -141,7 +145,7 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible {pair : Samplabl
     (hhash n (choose n)) hdense (hslack n)
     (fun output => ProbComp.eval (test (n, advice n) (choose n) output))
   rw [← coe_nndist, ← Game.advantage_eq_nndist] at hclose
-  have hcompare := extractLabels_sequence_gap (pair.sample n)
+  have hcompare := extractLabels_sequence_gap_of_extraction_le (pair.sample n)
     (maskedSample (pair.latentSample n)
       (fun value => pair.encode n value.1) Prod.snd mask)
     (count n) (seed n (choose n)) (hash n (choose n)) (test (n, advice n) (choose n)) _ hclose
@@ -171,8 +175,9 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible {pair : Samplabl
 /-- The explicit repetition schedule makes any valid indexed label extractor computationally
 uniform relative to fixed advice. Only the proof uses the chosen indices; the sampler, hash, and
 test form one uniformly efficient family. The entropy budget discharges the complete statistical
-error. -/
-theorem HasGapWithAdvice.extract_indexed_labels {pair : SamplablePair} {gap : ℕ → ℝ}
+error. An algebraic helper: `htest` assumes that the extracted test is efficient, and
+`extract_indexed_word_labels` discharges it with `isPPTOn_extractedWordTest`. -/
+theorem HasGapWithAdvice.extract_indexed_labels_of_isPPTOn {pair : SamplablePair} {gap : ℕ → ℝ}
     {advice : ℕ → List Bool} (hpair : pair.HasGapWithAdvice gap advice)
     (realization : pair.SeedRealization) (choose : ℕ → ℕ)
     {Seed : ℕ → ℕ → Type} [∀ n i, Finite (Seed n i)]
@@ -198,29 +203,26 @@ theorem HasGapWithAdvice.extract_indexed_labels {pair : SamplablePair} {gap : �
         PMF.conditionalEntropy (pair.joint n) + gap n)
     (hhash : ∀ n i, IsTwoUniversal (ProbComp.eval (seed n i))
       (fun s (bits : BitString
-        (ExtractionSchedule.count n (realization.length n) (inverseSlack n))) =>
+        (realization.sampleCount inverseSlack n)) =>
           hash n i s (List.ofFn bits)))
     (hbudget : ∀ᶠ n in atTop,
       outputBits n (choose n) +
-        2 * (ExtractionSchedule.slack n (realization.length n) (inverseSlack n) : ℝ) ≤
-        ExtractionSchedule.count n (realization.length n) (inverseSlack n) *
+        2 * (realization.sampleSlack inverseSlack n : ℝ) ≤
+        realization.sampleCount inverseSlack n *
           ((numerator n (choose n) : ℝ) / dyadicSize (densityBound n))) :
     Negligible (fun n => Game.advantage
-      (ProbComp.eval (do
-        let samples ← OracleComp.replicate
-          (ExtractionSchedule.count n (realization.length n) (inverseSlack n)) (pair.sample n)
-        let result ← extractLabels (seed n (choose n)) (hash n (choose n)) samples
-        test (n, advice n) (choose n) result))
+      (ProbComp.eval (extractLabelsReal (pair.sample n) (realization.sampleCount inverseSlack n)
+        (seed n (choose n)) (hash n (choose n)) >>= test (n, advice n) (choose n)))
       ((extractLabelsIdeal ((fun value => pair.encode n value.1) <$>
         pair.latentSample n)
-          (ExtractionSchedule.count n (realization.length n) (inverseSlack n))
+          (realization.sampleCount inverseSlack n)
           (seed n (choose n))).bind
             (fun output => ProbComp.eval (test (n, advice n) (choose n) output)))) := by
-  apply hpair.indexed_extracted_advantage_negligible realization choose seed hash test htest
-    hcandidates
-    (ExtractionSchedule.isPolyTime_count .id' realization.length_isPolyTime hslack)
+  apply hpair.indexed_extracted_advantage_negligible_of_isPPTOn realization choose seed hash test
+    htest hcandidates
+    (realization.isPolyTime_sampleCount hslack)
     hnumerator hdensity hchoose hvalid hhash
-    (slack := fun n => ExtractionSchedule.slack n (realization.length n) (inverseSlack n))
+    (slack := fun n => realization.sampleSlack inverseSlack n)
     (fun _ => Nat.cast_nonneg _)
   apply negligible_of_eventually_le ExtractionSchedule.error_negligible
   filter_upwards [hbudget] with n hn

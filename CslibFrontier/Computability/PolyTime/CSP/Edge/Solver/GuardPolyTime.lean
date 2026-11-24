@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Guard
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -34,13 +35,12 @@ private theorem poly_parity :
     ComputableInPolyTime wordParity (encList encBool) encBool := by
   unfold wordParity
   simp only [List.foldr_eq_foldl]
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.foldl_of_bounded_growth
+  apply ComputableInPolyTime.foldl_of_bounded_growth
     (encA := encBool) (encL := encList encBool) (encB := encBool)
-    (ComputableInPolyTime.id' (encIn := encList encBool)).tidy
-    (ComputableInPolyTime.const false).tidy
+    (ComputableInPolyTime.id' (encIn := encList encBool))
+    (ComputableInPolyTime.const false)
     (show ComputableInPolyTime (fun p : Bool × Bool => p.1 ^^ p.2)
-      (encPair encBool encBool) encBool from by fun_prop).tidy
+      (encPair encBool encBool) encBool from by fun_prop)
     (growth := 0)
   intro state value
   cases state <;> cases value <;> decide
@@ -75,37 +75,7 @@ private abbrev encPairInput := encPair encTable
 private theorem poly_checkPair : ComputableInPolyTime
     (fun p : Table × List Bool × List Bool => checkPair p.1 p.2.1 p.2.2)
     encPairInput encBool := by
-  unfold checkPair
-  have hp : ComputableInPolyTime
-      (fun p : Table × List Bool × List Bool => decide (wordParity p.2.1 = wordParity p.2.2))
-      encPairInput encBool := by fun_prop
-  have he : ComputableInPolyTime
-      (fun p : (Table × List Bool × List Bool) × (Bool × ℕ) =>
-        p.1.2.1.zipIdx.any fun (b, j) => b != p.1.2.2.getD j false &&
-          p.1.1.sem (EdgeAugmenting.flip p.1.2.1 [p.2.2, j]))
-      (encPair encPairInput (encPair encBool encUnary)) encBool := by
-    apply ComputableInPolyTime.anyWithInput
-      (show ComputableInPolyTime
-        (fun p : (Table × List Bool × List Bool) × (Bool × ℕ) => p.1.2.1.zipIdx)
-        (encPair encPairInput (encPair encBool encUnary))
-        (encList (encPair encBool encUnary)) from by fun_prop)
-    fun_prop
-  have hs : ComputableInPolyTime
-      (fun p : (Table × List Bool × List Bool) × (Bool × ℕ) =>
-        p.2.1 == p.1.2.2.getD p.2.2 false ||
-        p.1.2.1.zipIdx.any fun (b, j) => b != p.1.2.2.getD j false &&
-          p.1.1.sem (EdgeAugmenting.flip p.1.2.1 [p.2.2, j]))
-      (encPair encPairInput (encPair encBool encUnary)) encBool := by fun_prop
-  have ha : ComputableInPolyTime
-      (fun p : Table × List Bool × List Bool => p.2.1.zipIdx.all fun (a, i) =>
-        a == p.2.2.getD i false || p.2.1.zipIdx.any fun (b, j) =>
-          b != p.2.2.getD j false && p.1.sem (EdgeAugmenting.flip p.2.1 [i, j]))
-      encPairInput encBool := by
-    apply ComputableInPolyTime.allWithInput
-      (show ComputableInPolyTime (fun p : Table × List Bool × List Bool => p.2.1.zipIdx)
-        encPairInput (encList (encPair encBool encUnary)) from by fun_prop)
-    exact hs
-  exact ComputableInPolyTime.bool_and.comp (hp.prod ha)
+  fun_prop [checkPair]
 
 private theorem poly_checkPairWith {α : Type} {e : α ↪ List Bool}
     {t : α → Table} {x y : α → List Bool}
@@ -142,10 +112,10 @@ binary names. Its count results are unary and bounded by the explicit occurrence
   have hcount : ComputableInPolyTime
       (fun p : CSP Table ℕ × ℕ => p.1.vars.count p.2)
       (encPair (encCSP encTable encNat) encNat) encUnary :=
-    .of_tidy (ComputableTidilyInPolyTime.countWithInput
+    (ComputableInPolyTime.countWithInput
       (show ComputableInPolyTime (fun p : CSP Table ℕ × ℕ => p.1.vars)
-        (encPair (encCSP encTable encNat) encNat) (encList encNat) from by fun_prop).tidy
-      (ComputableInPolyTime.snd _ _).tidy)
+        (encPair (encCSP encTable encNat) encNat) (encList encNat) from by fun_prop)
+      (ComputableInPolyTime.snd _ _))
   fun_prop
 
 /-- Every check in the full model guard is supplied internally by native machines.

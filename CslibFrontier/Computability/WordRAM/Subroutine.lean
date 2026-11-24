@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Composable Word-RAM subroutine infrastructure
@@ -34,7 +36,8 @@ State-transition data-structure implementations built on `SubroutineBase` live i
 * `Cslib.WordRAM.SubroutineCode.initFresh`, `Cslib.WordRAM.SubroutineCode.initClear`: fresh
   initialization on zeroed memory, with no zero-fill pass, and generic dirty-memory
   re-initialization, which zero-fills the block before setup.
-* `Cslib.WordRAM.SubroutineCode.toDynamicProgram`: standalone `DynamicProgram` projection.
+* `Cslib.WordRAM.SubroutineCode.toDynamicProgram`: standalone canonical `DynamicProgram` projection
+  with a checked, paid result-conversion suffix.
 * `Cslib.WordRAM.SubroutineCode.initFreshProg`, `Cslib.WordRAM.SubroutineCode.initClearProg`,
   `Cslib.WordRAM.SubroutineCode.opProg`: compiled flat programs.
 
@@ -57,6 +60,28 @@ State-transition data-structure implementations built on `SubroutineBase` live i
 @[expose] public section
 
 namespace Cslib.WordRAM
+
+namespace NativeResultRecoding
+
+/-- Transport an actual result-conversion body along a defined-evaluation basis simulation.
+Canonical result words, frame guarantees, and the paid budget are unchanged. -/
+def mapSimulates {State : Type*} {O : Type*} {Result : O → Type}
+    {B B' : Basis} {r w : ℕ}
+    {decode : (o : O) → (Fin r → ℕ) → Option (Result o)}
+    {rep : State → Data r → Prop} {potential : Data r → ℕ}
+    (φ : B.Simulates B') (R : NativeResultRecoding Result B r w decode rep potential) :
+    NativeResultRecoding Result B' r w decode rep potential where
+  code := R.code.mapSimulates φ
+  resultBank := R.resultBank
+  resultType := R.resultType
+  resultType_eq := R.resultType_eq
+  ready := R.ready
+  time := R.time
+  execute o a hr hb hready hd := by
+    obtain ⟨y, he, ha, hr', hp, hm⟩ := R.execute o a hr hb hready hd
+    exact ⟨y, he.mapSimulates φ, ha, hr', hp, hm⟩
+
+end NativeResultRecoding
 
 /-! ## Potential-retaining loop rule and general helpers -/
 
@@ -85,14 +110,12 @@ theorem ExecWithin.loop_potential_retain {B : Basis} {r w : ℕ} {cond : Cond r}
       ∃ y T, ExecWithin w body x y T ∧ I y ∧ T + 2 + Φ y ≤ Φ x)
     {x : Data r} (hx : I x) :
     ∃ z T, ExecWithin w (.loop cond body) x z T ∧ I z ∧ ¬cond.Holds z ∧ T + Φ z ≤ Φ x + 2 := by
-  induction hm : Φ x using Nat.strong_induction_on generalizing x with
-  | _ m ih =>
-    subst hm
-    by_cases hc : cond.Holds x
-    · obtain ⟨y, T₁, hy, hIy, hΦ⟩ := hbody x hx hc
-      obtain ⟨z, T₂, hz, hIz, hcz, hΦz⟩ := ih (Φ y) (by omega) hIy rfl
-      exact ⟨z, T₁ + T₂ + 2, .loop_iter hc hy hz, hIz, hcz, by omega⟩
-    · exact ⟨x, 2, .loop_exit hc, hx, hc, by omega⟩
+  by_cases hc : cond.Holds x
+  · obtain ⟨y, T₁, hy, hIy, hΦ⟩ := hbody x hx hc
+    obtain ⟨z, T₂, hz, hIz, hcz, hΦz⟩ := ExecWithin.loop_potential_retain I Φ hbody hIy
+    exact ⟨z, T₁ + T₂ + 2, .loop_iter hc hy hz, hIz, hcz, by omega⟩
+  · exact ⟨x, 2, .loop_exit hc, hx, hc, by omega⟩
+termination_by Φ x
 
 /-- `Data.comap` preserves `Bounded w`. -/
 theorem Data.Bounded.comap {r r' w : ℕ} {x : Data r'} (hx : x.Bounded w) (f : Fin r → Fin r') :
@@ -188,16 +211,46 @@ def mapSimulates (φ : B.Simulates B') (P : SubroutineCode B r_ds k_init) :
 abbrev toStandard (P : SubroutineCode .exact r_ds k_init) : SubroutineCode .standard r_ds k_init :=
   P.mapSimulates .exactStandard
 
-/-- Project subroutine code and its calling convention to the same operation signature.
-The basis is retained, so this projection does not translate instructions or resource claims. -/
-def toDynamicProgram (P : SubroutineCode B r_ds k_init) {O : Type*} {Result : O → Type*}
-    (encode : O → Fin r_ds → ℕ) (decode : (o : O) → (Fin r_ds → ℕ) → Option (Result o)) :
+/-- Deliver generic subroutine arguments directly, preserving maintained memory. Argument
+preparation does not require constructing a native typed output interface. -/
+def prepare (P : SubroutineCode B r_ds k_init) {O : Type*}
+    (encode : O → Fin r_ds → ℕ) (o : O) (x : Data r_ds) : Data r_ds :=
+  x.prepare P.input (encode o)
+
+/-- Register-only argument delivery preserves every memory cell. -/
+@[simp] theorem prepare_mem (P : SubroutineCode B r_ds k_init) {O : Type*}
+    (encode : O → Fin r_ds → ℕ) (o : O) (x : Data r_ds) :
+    (P.prepare encode o x).mem = x.mem := rfl
+
+/-- Argument delivery preserves each register outside the input mask. -/
+theorem prepare_regs_of_not_input (P : SubroutineCode B r_ds k_init) {O : Type*}
+    (encode : O → Fin r_ds → ℕ) {i : Fin r_ds} (hi : P.input i = false)
+    (o : O) (x : Data r_ds) :
+    (P.prepare encode o x).regs i = x.regs i :=
+  Data.prepare_regs_of_not_input hi (encode o) x
+
+/-- Direct argument delivery preserves word bounds when all delivered arguments fit. -/
+theorem prepare_bounded (P : SubroutineCode B r_ds k_init) {O : Type*}
+    (encode : O → Fin r_ds → ℕ) {w : ℕ} {o : O} {x : Data r_ds} (hx : x.Bounded w)
+    (ho : ∀ i, P.input i = true → Fits w (encode o i)) : (P.prepare encode o x).Bounded w :=
+  Data.prepare_bounded hx ho
+
+/-- Project generic subroutine code to canonical native observations by appending a checked,
+paid conversion body. All conversion instructions are part of the returned program. -/
+def toDynamicProgram (P : SubroutineCode B r_ds k_init) {O : Type*} {Result : O → Type}
+    {State : Type*} {w : ℕ}
+    (encode : O → Fin r_ds → ℕ)
+    {decode : (o : O) → (Fin r_ds → ℕ) → Option (Result o)}
+    {rep : State → Data r_ds → Prop} {potential : Data r_ds → ℕ}
+    (R : NativeResultRecoding Result B r_ds w decode rep potential) :
     DynamicProgram ⟨O, Result⟩ r_ds B where
-  code := P.code
+  code := .seq P.code R.code
   output := P.output
   input := P.input
   encode := encode
-  decode := decode
+  resultBank := R.resultBank
+  resultType := R.resultType
+  resultType_eq := R.resultType_eq
 
 /-- Generic execution of `P.zeroFillCode` clearing `[base, base + space)` in `4 * space + 6`
 instructions over any basis `B`. -/
@@ -342,6 +395,7 @@ variable {B B' : Basis} {r_ds r_caller k_init w base : ℕ}
   {Result : O → Type z} {valid : State → O → Prop} {params : Fin k_init → ℕ} {s₀ : State}
 
 /-- Total instruction bound for `P.initFresh`. -/
+@[wram_arith]
 def initTime (C : SubroutineBase P Result valid w base params s₀) : ℕ :=
   C.spanTime + C.setupTime
 
@@ -378,10 +432,13 @@ def mapSimulates (φ : B.Simulates B') (C : SubroutineBase P Result valid w base
     let ⟨y, he, hfr', hrep, hpot, hmod⟩ := C.setup_exec hx₁ hb hfr hpar hz
     ⟨y, he.mapSimulates φ, hfr', hrep, hpot, hmod⟩
 
-/-- Project a subroutine bundle to its signature-level program, retaining the instruction basis. -/
-def toDynamicProgram (C : SubroutineBase P Result valid w base params s₀) :
+/-- Project a representation-relative subroutine to a native program only with an actual,
+paid result conversion preserving its persistent representation, potential, and memory. -/
+def toDynamicProgram {Result : O → Type}
+    (C : SubroutineBase P Result valid w base params s₀)
+    (R : NativeResultRecoding Result B r_ds w C.decode C.rep C.potential) :
     DynamicProgram ⟨O, Result⟩ r_ds B :=
-  P.toDynamicProgram C.encode C.decode
+  P.toDynamicProgram C.encode R
 
 /-- Execute `P.initFresh` on zeroed `[base, base + C.space)` in `C.initTime` instructions. -/
 theorem initFresh_exec (C : SubroutineBase P Result valid w base params s₀) {x : Data r_ds}
@@ -445,7 +502,7 @@ theorem initClear_exec (C : SubroutineBase P Result valid w base params s₀) {x
   rw [hm₁] at hmod₂
   have hmod : Modifies (Block.mk base C.space).footprint x.mem y.mem := by
     simpa only [Finset.union_idempotent] using hmod₂.trans hmod₃
-  exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by unfold initTime; omega), hfr₃, hrep, hpot, hmod⟩
+  exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by wram_omega), hfr₃, hrep, hpot, hmod⟩
 
 /-- Relocated dirty-memory initialization along any injective register embedding `f`, in
 `C.initTime + 4 * C.space + 6` instructions. -/

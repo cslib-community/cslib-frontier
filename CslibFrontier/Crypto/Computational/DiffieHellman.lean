@@ -54,18 +54,19 @@ A distinguisher outputs a bit, so `DDH` is the same assumption as its word-level
 distinguishers that read the encoded tuple (`ddh_iff_encoded`). A CDH adversary must output a group
 element, whereas a word-level adversary may output any word. `CDH`, and hence the conclusion of
 `DDH.cdh`, is therefore the textbook assumption, which is weaker than the word-level CDH assumption;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks restoring the
-word-level form for families with decodable encodings.
+`CslibFrontier.Crypto.Computational.DiffieHellman.Decodable` restores the word-level form and
+equivalence `CDH ↔ WordCDH` for `DecodablePrimeOrderGroupFamily` (`#4783`).
 
 We prove the implications `DDH ⇒ CDH ⇒ DiscreteLog` between the assumptions from the fixed-group
 bounds `Cslib.Crypto.dlAdvantage_le_cdhAdvantage_dlToCDH` and
-`Cslib.Crypto.ddhRandomExperiment_cdhToDDH_apply_true_le`. We also prove the random
+`Cslib.Crypto.probability_ddhRandomExperiment_cdhToDDH_le`. We also prove the random
 self-reducibility of DDH ([BonehShoup2023], Section 10.11, Exercises 10.8–10.10, pp. 425–426): the
 distributional rerandomisation lemma (`ddhRerandomizeLaw_real`, `ddhRerandomizeLaw_random`), its
-efficient form `ddhSelfReduceDistinguisher`, the equivalence of average-case and worst-case DDH
-(`ddh_of_worstCase`), and a Chernoff-amplified decider `ddhAmplifiedDecider` that turns a
-distinguisher with inverse-polynomial advantage into one that decides every triple except with
-negligible error. The Diffie–Hellman assumptions are hypotheses, not theorems.
+efficient form `ddhSelfReduceDistinguisher`, average-case DDH from worst-case DDH with instances
+that may depend on the distinguisher (`ddh_of_worstCase`), and a Chernoff-amplified decider
+`ddhAmplifiedDecider` that turns a distinguisher with inverse-polynomial advantage into one that
+decides every triple except with negligible error. The Diffie–Hellman assumptions are hypotheses,
+not theorems.
 
 ## Main definitions
 
@@ -114,9 +115,11 @@ negligible error. The Diffie–Hellman assumptions are hypotheses, not theorems.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhSelfReduceDistinguisher`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhRerandomizeLaw_ddhSelfReduceDistinguisher_le`:
   the self-reduction is PPT and loses at most `3 / 2 ^ n` against exact rerandomisation.
-* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhRerandomizeGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhRealGame_le_ddhWorstCaseGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_worstCase`: average-case and worst-case DDH agree.
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhRerandomizeGame`: under `DDH`, rerandomised real and
+  non-DDH triple families are indistinguishable.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhRealGame_le_ddhWorstCaseGame`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_worstCase`: worst-case DDH implies `DDH` with loss
+  `6 / 2 ^ n`, where the hard instances may depend on the distinguisher.
 * `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_ddhAmplifiedDecider`,
   `Cslib.Crypto.PrimeOrderGroupFamily.ddhAmplifiedDecider_error_le_pow`,
   `Cslib.Crypto.PrimeOrderGroupFamily.negligible_ddhAmplifiedDecider_error`: the amplified
@@ -169,27 +172,12 @@ enc_structure encCDHInput (F : PrimeOrderGroupFamily) : CDHInput F where
 
 /-- The encoding of a DDH input: the fields of its CDH input followed by the word of the candidate
 shared element, each framed except the last (`encDDHInput_apply`). -/
-enc_structure encDDHInput (F : PrimeOrderGroupFamily) : DDHInput F where
+enc_structure encDDHInput (F : PrimeOrderGroupFamily) : DDHInput F
+    flattened toCDHInput : (F.encCDHInput) where
   secParam : encUnary, groupParameters : F.encDesc,
   leftPublic : (F.encode groupParameters) using (F.encode_injective groupParameters),
   rightPublic : (F.encode groupParameters) using (F.encode_injective groupParameters),
   candidateShared : (F.encode groupParameters) using (F.encode_injective groupParameters)
-
-variable {F} in
-/-- Dropping the candidate shared element of a computed DDH input. -/
-@[fun_prop] theorem DDHInput.computableInPolyTime_toCDHInput {α : Type} {enc : α ↪ List Bool}
-    {g : α → F.DDHInput} (h : ComputableInPolyTime g enc F.encDDHInput) :
-    ComputableInPolyTime (fun a => (g a).toCDHInput) enc F.encCDHInput :=
-  F.encCDHInput_mk_polyTime (F.encDDHInput_secParam_polyTime h)
-    (F.encDDHInput_groupParameters_polyTime h) (F.encDDHInput_leftPublic_polyTime h)
-    (F.encDDHInput_rightPublic_polyTime h)
-
-variable {F} in
-/-- The encoded generator of computed group parameters. -/
-@[fun_prop] theorem computableInPolyTime_encode_generator {α : Type} {enc : α ↪ List Bool}
-    {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
-    ComputableInPolyTime (fun a => F.encode (d a) (F.generator (d a))) enc encBits :=
-  F.computableInPolyTime_generator.comp hd
 
 variable {F} in
 /-- The encoded identity of computed group parameters, computed as `0 • g`. -/
@@ -240,12 +228,16 @@ def CDHAdversary.IsPPT (adversary : F.CDHAdversary) : Prop :=
 group parameters `d` using the arbitrary setup law, then run `Cslib.Crypto.cdhExperiment` in the
 group `F.Carrier d`. No efficient sampler for setup is required. -/
 noncomputable def cdhGame (setup : ℕ → PMF F.Desc) (adversary : F.CDHAdversary) (n : ℕ) :
-    Game := do
-  let d ← setup n
-  ProbComp.eval (cdhExperiment (F.order d) (F.generator d) (adversary n d))
+    Game :=
+  Game.withSetup (setup n) fun d => cdhExperiment (F.order d) (F.generator d) (adversary n d)
 
 /-- The Computational Diffie–Hellman assumption for a family and a setup law: every PPT CDH
-adversary wins `cdhGame` with negligible probability. -/
+adversary wins `cdhGame` with negligible probability. It is [BonehShoup2023], Attack Game 10.5 and
+Definition 10.7 (pp. 409–410), read asymptotically as in Section 10.5.2 (pp. 413–414). The group
+parameters are drawn from `setup`, which need not be efficiently samplable, whereas the source
+draws them with an efficient system parameterization algorithm (Definition 10.9, p. 413); the
+assumption is the source's only for setup laws that an efficient algorithm samples, as for
+`DiscreteLog`. -/
 def CDH (setup : ℕ → PMF F.Desc) : Prop :=
   ∀ adversary : F.CDHAdversary, adversary.IsPPT →
     Negligible fun n => Game.succProbability (F.cdhGame setup adversary n)
@@ -262,11 +254,10 @@ noncomputable def discreteLogAdversary
 setup law. -/
 theorem discreteLogGame_eq (setup : ℕ → PMF F.Desc)
     (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (n : ℕ) :
-    F.discreteLogGame setup adversary n = (do
-      let d ← setup n
-      ProbComp.eval
-        (dlExperiment (F.order d) (F.generator d) (F.discreteLogAdversary adversary n d))) := by
-  simp [discreteLogGame, dlExperiment, discreteLogAdversary, PMF.map, Function.comp_def]
+    F.discreteLogGame setup adversary n = Game.withSetup (setup n) fun d =>
+      dlExperiment (F.order d) (F.generator d) (F.discreteLogAdversary adversary n d) := by
+  simp [discreteLogGame, Game.withSetup, dlExperiment, discreteLogAdversary, PMF.map,
+    Function.comp_def]
 
 /-- Turn a word-level discrete-logarithm adversary into a CDH adversary: run
 `Cslib.Crypto.dlToCDH` on its `discreteLogAdversary`. -/
@@ -281,8 +272,7 @@ theorem succProbability_discreteLogGame_le_cdhGame (setup : ℕ → PMF F.Desc)
     Game.succProbability (F.discreteLogGame setup adversary n) ≤
       Game.succProbability (F.cdhGame setup (F.dlToCDHAdversary adversary) n) := by
   rw [discreteLogGame_eq]
-  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun d _ => ?_
+  refine Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ => ?_)
   exact (ENNReal.toNNReal_le_toNNReal (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
     (dlAdvantage_le_cdhAdvantage_dlToCDH _ _ _)
 
@@ -298,7 +288,7 @@ theorem isPPT_dlToCDHAdversary
       (by fun_prop)).map_with
     (f := fun x guess => F.smul (x.groupParameters, ofBits guess,
       F.encode x.groupParameters x.rightPublic))
-    (F.computableInPolyTime_smul.comp (by fun_prop))).congr fun x => ?_
+    (by fun_prop)).congr fun x => ?_
   simp [dlToCDHAdversary, dlToCDH, discreteLogAdversary, F.smul_encode]
 
 /-- **CDH implies the discrete-logarithm assumption**. -/
@@ -326,20 +316,25 @@ def DDHDistinguisher.IsPPT (distinguisher : F.DDHDistinguisher) : Prop :=
 /-- The real DDH game ([BonehShoup2023], Attack Game 10.6, Experiment 0): choose group parameters
 `d` using the arbitrary setup law, then run `Cslib.Crypto.ddhRealExperiment` in `F.Carrier d`. -/
 noncomputable def ddhRealGame (setup : ℕ → PMF F.Desc) (distinguisher : F.DDHDistinguisher)
-    (n : ℕ) : Game := do
-  let d ← setup n
-  ProbComp.eval (ddhRealExperiment (F.order d) (F.generator d) (distinguisher n d))
+    (n : ℕ) : Game :=
+  Game.withSetup (setup n) fun d =>
+    ddhRealExperiment (F.order d) (F.generator d) (distinguisher n d)
 
 /-- The random DDH game ([BonehShoup2023], Attack Game 10.6, Experiment 1): choose group
 parameters `d` using the arbitrary setup law, then run `Cslib.Crypto.ddhRandomExperiment` in
 `F.Carrier d`. -/
 noncomputable def ddhRandomGame (setup : ℕ → PMF F.Desc) (distinguisher : F.DDHDistinguisher)
-    (n : ℕ) : Game := do
-  let d ← setup n
-  ProbComp.eval (ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d))
+    (n : ℕ) : Game :=
+  Game.withSetup (setup n) fun d =>
+    ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d)
 
 /-- The Decisional Diffie–Hellman assumption for a family and a setup law: every PPT DDH
-distinguisher has negligible advantage between `ddhRealGame` and `ddhRandomGame`. -/
+distinguisher has negligible advantage between `ddhRealGame` and `ddhRandomGame`. It is
+[BonehShoup2023], Attack Game 10.6 and Definition 10.8 (pp. 410–411), read asymptotically as in
+Section 10.5.2 (pp. 413–414). The group parameters are drawn from `setup`, which need not be
+efficiently samplable, whereas the source draws them with an efficient system parameterization
+algorithm (Definition 10.9, p. 413); the assumption is the source's only for setup laws that an
+efficient algorithm samples, as for `DiscreteLog`. -/
 def DDH (setup : ℕ → PMF F.Desc) : Prop :=
   Game.Indistinguishable (F.ddhRealGame setup) (F.ddhRandomGame setup)
     DDHDistinguisher.IsPPT
@@ -361,8 +356,8 @@ theorem DDHDistinguisher.IsPPT.comp {distinguisher : F.DDHDistinguisher}
 encoded tuple `(1ⁿ, d, encode u, encode v, encode w)` as words, each with one uniform strict PPT
 machine on its flat layout, gives the same assumption as quantifying over typed distinguishers.
 A typed distinguisher's machine reads exactly that layout; conversely, a word distinguisher is
-typed by encoding its elements, and a typed one extends to all words by rerunning its machine
-(`IsPPTOn.exists_bool_extension`), since its output is a single bit. -/
+typed by encoding its elements, and a typed one is a word distinguisher on that layout run on the
+encoded elements (`IsPPTOn.exists_bool_factor`), since its output is a single bit. -/
 theorem ddh_iff_encoded (setup : ℕ → PMF F.Desc) :
     F.DDH setup ↔ ∀ W : ℕ → F.Desc × List Bool × List Bool × List Bool → ProbComp Bool,
       IsPPTOn (encPair encUnary (encPair F.encDesc (encPair encBits (encPair encBits encBits))))
@@ -371,21 +366,16 @@ theorem ddh_iff_encoded (setup : ℕ → PMF F.Desc) :
         (F.ddhRealGame setup (fun n d u v w => W n (d, F.encode d u, F.encode d v, F.encode d w)) n)
         (F.ddhRandomGame setup
           (fun n d u v w => W n (d, F.encode d u, F.encode d v, F.encode d w)) n) := by
-  set E := encPair encUnary (encPair F.encDesc (encPair encBits (encPair encBits encBits)))
   constructor
   · intro h W hW
     exact h _ (hW.preprocess (prepare := fun x : F.DDHInput => (x.secParam, x.groupParameters,
       F.encode _ x.leftPublic, F.encode _ x.rightPublic, F.encode _ x.candidateShared))
       (by fun_prop))
   · intro h D hD
-    obtain ⟨W, hWppt, hW⟩ := hD.exists_bool_extension
-    have := h (fun n t => W (E (n, t))) (hWppt.preprocess ComputableInPolyTime.id'.encoding_comp)
-    have hgame (n : ℕ) (d : F.Desc) (u v w : F.Carrier d) :
-        ProbComp.eval (W (E (n, d, F.encode d u, F.encode d v, F.encode d w))) =
-          ProbComp.eval (D n d u v w) :=
-      hW ⟨⟨n, d, u, v⟩, w⟩
-    simpa only [ddhRealGame, ddhRandomGame, eval_ddhRealExperiment, eval_ddhRandomExperiment,
-      hgame] using this
+    obtain ⟨W, hW, hWD⟩ := hD.exists_bool_factor F.encDDHInput_apply
+    obtain rfl : D = fun n d u v w => W (n, d, F.encode d u, F.encode d v, F.encode d w) :=
+      funext₂ fun n d => funext₃ fun u v w => hWD ⟨⟨n, d, u, v⟩, w⟩
+    exact h (fun n t => W (n, t)) hW
 
 /-- Turn a CDH adversary into a DDH distinguisher by running `Cslib.Crypto.cdhToDDH` in each
 group. -/
@@ -399,13 +389,16 @@ def cdhToDDHDistinguisher (adversary : F.CDHAdversary) : F.DDHDistinguisher :=
   rfl
 
 /-- In the random DDH game, `cdhToDDHDistinguisher` accepts with probability at most `1 / m`
-whenever every supported group order is at least `m`. -/
-theorem ddhRandomGame_cdhToDDHDistinguisher_true_le (setup : ℕ → PMF F.Desc)
-    (adversary : F.CDHAdversary) (n m : ℕ) (hm : ∀ d ∈ (setup n).support, m ≤ F.order d) :
-    F.ddhRandomGame setup (F.cdhToDDHDistinguisher adversary) n true ≤ (m : ℝ≥0∞)⁻¹ :=
-  PMF.bind_apply_le_on_support _ fun d hd =>
-    (ddhRandomExperiment_cdhToDDH_apply_true_le _ _ (F.smul_generator_injective d) _).trans
-      (ENNReal.inv_le_inv.mpr (Nat.cast_le.mpr (hm d hd)))
+whenever every supported group order is at least `m > 0`. -/
+theorem succProbability_ddhRandomGame_cdhToDDHDistinguisher_le (setup : ℕ → PMF F.Desc)
+    (adversary : F.CDHAdversary) (n m : ℕ) (hm0 : 0 < m)
+    (hm : ∀ d ∈ (setup n).support, m ≤ F.order d) :
+    Game.succProbability (F.ddhRandomGame setup (F.cdhToDDHDistinguisher adversary) n) ≤ 1 / m :=
+  Game.succProbability_withSetup_le _ _ fun d hd => by
+    rw [← NNReal.coe_le_coe]
+    push_cast
+    exact (probability_ddhRandomExperiment_cdhToDDH_le _ _ (F.smul_generator_injective d) _).trans
+      (one_div_le_one_div_of_le (by exact_mod_cast hm0) (by exact_mod_cast hm d hd))
 
 /-- **Quantitative reduction from CDH to DDH**: when every supported group at parameter `n` has
 order at least `m > 0`, any CDH adversary's success probability is at most the DDH distinguishing
@@ -416,17 +409,11 @@ theorem succProbability_cdhGame_le_advantage_ddh_add (setup : ℕ → PMF F.Desc
     Game.succProbability (F.cdhGame setup adversary n) ≤
       Game.advantage (F.ddhRealGame setup (F.cdhToDDHDistinguisher adversary) n)
         (F.ddhRandomGame setup (F.cdhToDDHDistinguisher adversary) n) + 1 / m := by
-  have hrandom :
-      Game.succProbability (F.ddhRandomGame setup (F.cdhToDDHDistinguisher adversary) n) ≤
-        1 / m := by
-    have htop : (m : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr hm0.ne')
-    simpa only [one_div, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast] using
-      ENNReal.toNNReal_mono htop
-        (F.ddhRandomGame_cdhToDDHDistinguisher_true_le setup adversary n m hm)
   game_trans
     [F.ddhRealGame setup (F.cdhToDDHDistinguisher adversary) n,
      F.ddhRandomGame setup (F.cdhToDDHDistinguisher adversary) n]
-    using [F.ddhRealGame_cdhToDDHDistinguisher setup adversary n, le_rfl, hrandom]
+    using [F.ddhRealGame_cdhToDDHDistinguisher setup adversary n, le_rfl,
+      F.succProbability_ddhRandomGame_cdhToDDHDistinguisher_le setup adversary n m hm0 hm]
 
 /-- The CDH-to-DDH reduction is uniform strict PPT when the CDH adversary is. -/
 theorem isPPT_cdhToDDHDistinguisher {adversary : F.CDHAdversary} (hA : adversary.IsPPT) :
@@ -438,9 +425,9 @@ theorem isPPT_cdhToDDHDistinguisher {adversary : F.CDHAdversary} (hA : adversary
 
 /-- **DDH implies CDH** when every supported group at parameter `n` has order at least `m n > 0`
 and `1 / m n` is negligible. The conclusion is the textbook CDH assumption against adversaries that
-output group elements, which is weaker than the word-level CDH assumption;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks the word-level
-form. -/
+output group elements, which is weaker than the word-level CDH assumption in general; see
+`DecodablePrimeOrderGroupFamily.DDH.wordCDH` in
+`CslibFrontier.Crypto.Computational.DiffieHellman.Decodable` for decodable families. -/
 theorem DDH.cdh {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc} (hDDH : F.DDH setup)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) : F.CDH setup := by
@@ -581,7 +568,7 @@ noncomputable def sampleExp (n : ℕ) (d : F.Desc) : ProbComp ℕ :=
   ProbComp.sampleModNat (n + (encNat (F.order d)).length) (F.order d)
 
 /-- `sampleExp` is uniform strict PPT whenever `n` and `d` are computable in polynomial time. -/
-theorem isPPTOn_sampleExp {γ : Type} {encIn : γ ↪ List Bool}
+@[program_certificate] theorem isPPTOn_sampleExp {γ : Type} {encIn : γ ↪ List Bool}
     {n : γ → ℕ} {d : γ → F.Desc}
     (hn : ComputableInPolyTime n encIn encUnary)
     (hd : ComputableInPolyTime d encIn F.encDesc) :
@@ -810,9 +797,8 @@ noncomputable def ddhRerandomizeGame (setup : ℕ → PMF F.Desc) (u v w : ∀ d
 /-- The worst-case DDH game: draw group parameters `d` and run `distinguisher` on the fixed triple
 `(u d, v d, w d)`. -/
 noncomputable def ddhWorstCaseGame (setup : ℕ → PMF F.Desc) (u v w : ∀ d : F.Desc, F.Carrier d)
-    (distinguisher : F.DDHDistinguisher) (n : ℕ) : Game := do
-  let d ← setup n
-  ProbComp.eval (distinguisher n d (u d) (v d) (w d))
+    (distinguisher : F.DDHDistinguisher) (n : ℕ) : Game :=
+  Game.withSetup (setup n) fun d => distinguisher n d (u d) (v d) (w d)
 
 /-- Re-randomizing any family of real DDH triples `(α d • g, β d • g, (α d * β d) • g)` gives the
 average-case `ddhRealGame` ([BonehShoup2023], Exercises 10.8–10.9, pp. 425–426). -/
@@ -821,8 +807,8 @@ average-case `ddhRealGame` ([BonehShoup2023], Exercises 10.8–10.9, pp. 425–4
     F.ddhRerandomizeGame setup (fun d => α d • F.generator d) (fun d => β d • F.generator d)
       (fun d => (α d * β d) • F.generator d) distinguisher n =
       F.ddhRealGame setup distinguisher n := by
-  simp only [ddhRerandomizeGame, ddhRealGame, PMF.monad_bind_eq_bind, ddhRerandomizeLaw_real,
-    ddhRealTupleLaw_bind_eq]
+  simp only [ddhRerandomizeGame, ddhRealGame, Game.withSetup, PMF.monad_bind_eq_bind,
+    ddhRerandomizeLaw_real, ddhRealTupleLaw_bind_eq]
 
 /-- Re-randomizing any family of non-DDH triples `(α d • g, β d • g, γ d • g)` with
 `γ d ≠ α d * β d` on the support of `setup n` gives the average-case `ddhRandomGame`
@@ -832,7 +818,7 @@ theorem ddhRerandomizeGame_random (setup : ℕ → PMF F.Desc)
     (hγ : ∀ d ∈ (setup n).support, γ d ≠ α d * β d) :
     F.ddhRerandomizeGame setup (fun d => α d • F.generator d) (fun d => β d • F.generator d)
       (fun d => γ d • F.generator d) distinguisher n = F.ddhRandomGame setup distinguisher n := by
-  simp only [ddhRerandomizeGame, ddhRandomGame, PMF.monad_bind_eq_bind]
+  simp only [ddhRerandomizeGame, ddhRandomGame, Game.withSetup, PMF.monad_bind_eq_bind]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun d hd => ?_
   rw [ddhRerandomizeLaw_random _ _ (hγ d hd), ddhRandomTupleLaw_bind_eq]
 
@@ -906,21 +892,26 @@ theorem advantage_ddhRealGame_le_ddhWorstCaseGame (setup : ℕ → PMF F.Desc)
   exact hhops (F.advantage_ddhRerandomizeGame_ddhWorstCaseGame_le setup _ _ _ distinguisher n)
     (F.advantage_ddhRerandomizeGame_ddhWorstCaseGame_le setup _ _ _ distinguisher n)
 
-/-- **Average-case DDH from worst-case DDH**: if every PPT distinguisher has negligible advantage
-between a fixed real triple family and a fixed non-DDH triple family, then `DDH` holds. -/
+/-- **Average-case DDH from worst-case DDH**: if for every PPT distinguisher there are a real
+triple family `(α d • g, β d • g, (α d * β d) • g)` and a non-DDH triple family
+`(α' d • g, β' d • g, γ' d • g)`, with `γ' d ≠ α' d * β' d` on the support of `setup n` for all
+sufficiently large `n`, between which it has negligible advantage, then `DDH` holds. The families
+may depend on the distinguisher: the premise says that for every distinguisher there are families,
+so fixed families that work for every PPT distinguisher (`Game.Indistinguishable` of the two
+`ddhWorstCaseGame`s) also satisfy it. This formulation and `ddhWorstCaseGame` are this library's. -/
 theorem ddh_of_worstCase {setup : ℕ → PMF F.Desc}
-    (α β α' β' γ' : ∀ d : F.Desc, ZMod (F.order d))
-    (hγ' : ∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, γ' d ≠ α' d * β' d)
-    (hworst : Game.Indistinguishable
-      (F.ddhWorstCaseGame setup (fun d => α d • F.generator d) (fun d => β d • F.generator d)
-        (fun d => (α d * β d) • F.generator d))
-      (F.ddhWorstCaseGame setup (fun d => α' d • F.generator d) (fun d => β' d • F.generator d)
-        (fun d => γ' d • F.generator d))
-      DDHDistinguisher.IsPPT) :
+    (hworst : ∀ distinguisher : F.DDHDistinguisher, distinguisher.IsPPT →
+      ∃ α β α' β' γ' : ∀ d : F.Desc, ZMod (F.order d),
+        (∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, γ' d ≠ α' d * β' d) ∧
+        Negligible fun n => Game.advantage
+          (F.ddhWorstCaseGame setup (fun d => α d • F.generator d) (fun d => β d • F.generator d)
+            (fun d => (α d * β d) • F.generator d) distinguisher n)
+          (F.ddhWorstCaseGame setup (fun d => α' d • F.generator d)
+            (fun d => β' d • F.generator d) (fun d => γ' d • F.generator d) distinguisher n)) :
     F.DDH setup := by
   intro distinguisher hD
-  have hworstNeg := hworst (F.ddhSelfReduceDistinguisher distinguisher)
-    (F.isPPT_ddhSelfReduceDistinguisher hD)
+  obtain ⟨α, β, α', β', γ', hγ', hworstNeg⟩ :=
+    hworst (F.ddhSelfReduceDistinguisher distinguisher) (F.isPPT_ddhSelfReduceDistinguisher hD)
   negligible eventually (hγ'.mono fun n hn =>
     F.advantage_ddhRealGame_le_ddhWorstCaseGame setup α β α' β' γ' distinguisher n hn)
 
@@ -1168,7 +1159,7 @@ theorem negligible_ddhAmplifiedDecider_error {distinguisher : F.DDHDistinguisher
         {b | b ≠ decide (γ n = α n * β n)}).toNNReal := by
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 36 * invEps n + 1 :=
-    ((PolynomiallyBounded.const 36).mul hinvEps.tidy.polynomiallyBounded).add (.const 1)
+    ((PolynomiallyBounded.const 36).mul hinvEps.polynomiallyBounded).add (.const 1)
   have hmod_ev : ∀ᶠ n in Filter.atTop, 3 / (2 ^ n : ℝ) ≤ 1 / (12 * (invEps n : ℝ)) := by
     filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
       with n hn hlt

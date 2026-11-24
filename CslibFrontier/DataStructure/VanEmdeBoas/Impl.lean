@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.VanEmdeBoas.Elements
 public import CslibFrontier.DataStructure.OrderedSet.Spec
 public import CslibFrontier.DataStructure.StateTransition.Resource
+public import CslibFrontier.DataStructure.StateTransition.StepFunction
 public import Mathlib.Data.Fintype.Fin
 public import Mathlib.Order.Fin.Basic
 
@@ -51,7 +52,7 @@ operation). In particular:
 * `Tree.finElements`, `Tree.finMinimum`, `Tree.finSuccessor`, `Tree.finPredecessor`: typed
   `Fin (universeSize d)` observations and queries.
 * `step`, `Exec`, `run`: concrete `OrderedSet.Op (Fin (universeSize d))` step, native execution
-  relation, and executable client interpreter.
+  relation, and executable client interpreter, built with `Cslib.DataStructure.Execution.ofStep`.
 * `Rep`, `impl`, `callDepthBound`: representation relation, semantic realization of
   `OrderedSet.spec (Fin (universeSize d))`, and uniform `d + 1` per-operation resource bound.
 
@@ -248,7 +249,7 @@ theorem eraseVisits_of_bounds_eq {t : Tree d} {m : ℕ} (hb : t.bounds = some (m
   | node b s c =>
     simp only [bounds] at hb
     subst b
-    simp [eraseVisits]
+    simp only [eraseVisits, ↓reduceIte, ite_self]
 
 /-- `erase` performs at most `d + 1` active recursive calls. -/
 theorem eraseVisits_le (t : Tree d) (x : ℕ) : t.eraseVisits x ≤ d + 1 :=
@@ -347,11 +348,11 @@ theorem finMinimum_spec {t : Tree d} (ht : t.Valid) :
     exact not_contains_of_bounds_none hb x.val
   | some b =>
     obtain ⟨m, M⟩ := b
-    have he := ht.extrema_of_bounds hb
-    have hm : m < universeSize d := ht.contains_lt he.2.2.1
+    obtain ⟨_, _, hm_mem, _, hbounds⟩ := ht.extrema_of_bounds hb
+    have hm : m < universeSize d := ht.contains_lt hm_mem
     simp only [finMinimum, minimum, hb, Option.map_some, dite_eq_left hm, LeastResult,
       mem_finElements_iff ht]
-    exact ⟨he.2.2.1, fun z hz => (he.2.2.2.2 z.val hz).1⟩
+    exact ⟨hm_mem, fun z hz => (hbounds z.val hz).1⟩
 
 /-- `finSuccessor` satisfies the optional-minimum contract for keys strictly above `x`. -/
 theorem finSuccessor_spec {t : Tree d} (ht : t.Valid) (x : Fin (universeSize d)) :
@@ -418,17 +419,17 @@ variable {d : ℕ}
 /-- Execute a single `OrderedSet.Op (Fin (universeSize d))` on `t : Tree d`, returning the updated
 tree, result, and active recursive-call count. -/
 @[expose] def step (t : Tree d) (o : Op (Fin (universeSize d))) :
-    Tree d × (spec (Fin (universeSize d))).Result o × ℕ :=
+    StepResult (Tree d) ℕ ((spec (Fin (universeSize d))).Result o) :=
   match o with
-  | .contains x => (t, t.member x.val, t.memberVisits x.val)
-  | .insert x => (t.insert x.val, (), t.insertVisits x.val)
-  | .delete x => (t.erase x.val, (), t.eraseVisits x.val)
-  | .minimum => (t, t.finMinimum, t.minimumVisits)
-  | .successor x => (t, t.finSuccessor x, t.successorVisits x.val)
+  | .contains x => ⟨t, t.member x.val, t.memberVisits x.val⟩
+  | .insert x => ⟨t.insert x.val, (), t.insertVisits x.val⟩
+  | .delete x => ⟨t.erase x.val, (), t.eraseVisits x.val⟩
+  | .minimum => ⟨t, t.finMinimum, t.minimumVisits⟩
+  | .successor x => ⟨t, t.finSuccessor x, t.successorVisits x.val⟩
 
 /-- Native execution relation for `OrderedSet.spec (Fin (universeSize d))` over `Tree d`. -/
-@[expose] def Exec (d : ℕ) : Execution (spec (Fin (universeSize d))) (Tree d) ℕ :=
-  fun t o a t' n => step t o = (t', a, n)
+abbrev Exec (d : ℕ) : Execution (spec (Fin (universeSize d))) (Tree d) ℕ :=
+  Execution.ofStep (step (d := d))
 
 /-- Representation relation coupling a finite set `s : Finset (Fin (universeSize d))` with a valid
 van Emde Boas tree `t : Tree d`. -/
@@ -450,32 +451,16 @@ theorem rep_empty (d : ℕ) : Rep (∅ : Finset (Fin (universeSize d))) (Tree.em
 /-- Semantic realization of `OrderedSet.spec (Fin (universeSize d))` by `Tree d`. -/
 @[expose] def impl (d : ℕ) :
     StateTransitionImpl (spec (Fin (universeSize d))) (Exec d) :=
-  StateTransitionImpl.ofFn
-    (rep := Rep)
-    (total := fun {_ t} o _ _ =>
-      match h : step t o with
-      | (t', a, n) => ⟨a, t', n, h⟩)
-    (correct := by
-      intro s t o a t' n hr _ he
-      obtain ⟨ht, rfl⟩ := hr
-      cases o with
-      | contains x =>
-        cases he
-        refine ⟨?_, ht, rfl⟩
-        have h := (Tree.member_iff_contains ht x.val).trans (Tree.mem_finElements_iff ht x).symm
-        by_cases hx : x ∈ t.finElements <;> simp_all
-      | insert x =>
-        cases he
-        exact ⟨rfl, Tree.valid_insert ht x.isLt, Tree.finElements_insert ht x⟩
-      | delete x =>
-        cases he
-        exact ⟨rfl, Tree.valid_erase ht x.val, Tree.finElements_erase ht x⟩
-      | minimum =>
-        cases he
-        exact ⟨(Tree.finMinimum_spec ht).eq_least, ht, rfl⟩
-      | successor x =>
-        cases he
-        exact ⟨(Tree.finSuccessor_spec ht x).eq_least, ht, rfl⟩)
+  StateTransitionImpl.ofStep (D := spec (Fin (universeSize d))) Rep step fun {_ t} o hr _ => by
+    obtain ⟨ht, rfl⟩ := hr
+    cases o with
+    | contains x =>
+      exact ⟨Bool.eq_iff_iff.mpr ((Tree.member_iff_contains ht x.val).trans
+        ((Tree.mem_finElements_iff ht x).symm.trans decide_eq_true_iff.symm)), ht, rfl⟩
+    | insert x => exact ⟨rfl, Tree.valid_insert ht x.isLt, Tree.finElements_insert ht x⟩
+    | delete x => exact ⟨rfl, Tree.valid_erase ht x.val, Tree.finElements_erase ht x⟩
+    | minimum => exact ⟨(Tree.finMinimum_spec ht).eq_least, ht, rfl⟩
+    | successor x => exact ⟨(Tree.finSuccessor_spec ht x).eq_least, ht, rfl⟩
 
 /-- `(impl d).rep` is definitionally `Rep`. -/
 @[simp] theorem impl_rep (d : ℕ) : (impl d).rep = Rep := rfl
@@ -494,49 +479,35 @@ theorem exec_visits_le {t t' : Tree d} {o : Op (Fin (universeSize d))}
 
 /-- Uniform `d + 1` active-call depth bound (`O(log log U)` since `universeSize d = 2 ^ (2 ^ d)`)
 for `VanEmdeBoas.impl d`. -/
-theorem callDepthBound (d : ℕ) : Bound (impl d) id (fun _ _ => d + 1) := by
-  intro _ _ _ _ _ _ _ _ he
-  exact exec_visits_le he
+theorem callDepthBound (d : ℕ) : Bound (impl d) id (fun _ _ => d + 1) :=
+  fun _ _ he => exec_visits_le he
 
 /-- Every adaptive `OrderedSet` client over `Fin (universeSize d)` executes on `Tree d` with
 finite-set correctness and total active recursive calls at most `history.length * (d + 1)`. -/
 theorem realized_client {β : Type} (p : (spec (Fin (universeSize d))).Client β)
     {s : Finset (Fin (universeSize d))} {t : Tree d} (hr : Rep s t) :
-    ∃ t' ns, Executes (Exec d) p t ((spec (Fin (universeSize d))).runClient s p).1 t' ns ∧
-      Rep ((spec (Fin (universeSize d))).runClient s p).2.1 t' ∧
-      total id ns ≤ ((spec (Fin (universeSize d))).runClient s p).2.2.length * (d + 1) := by
-  have hv := (spec (Fin (universeSize d))).validHistory_of_forall_valid (fun _ _ => trivial)
-    s ((spec (Fin (universeSize d))).runClient s p).2.2
-  exact Bound.exists_executes_const (callDepthBound d) p hr hv
+    let (value, finalState, history) := (spec (Fin (universeSize d))).runClient s p
+    ∃ t' ns, Executes (Exec d) p t value t' ns ∧ Rep finalState t' ∧
+      total id ns ≤ history.length * (d + 1) :=
+  Bound.exists_executes_const (callDepthBound d) p hr
+    ((spec (Fin (universeSize d))).validHistory_of_forall_valid (fun _ _ => trivial) s _)
 
 /-- Execute an `OrderedSet` client concretely on `Tree d`, recording active recursive-call counts
 per operation. -/
-@[expose] def run {β : Type} (t : Tree d) :
-    (spec (Fin (universeSize d))).Client β → β × Tree d × List ℕ
-  | .pure a => (a, t, [])
-  | .liftBind o k =>
-      let (t', a, c) := step t o
-      let (res, t'', cs) := run t' (k a)
-      (res, t'', c :: cs)
-
-/-- The concrete runner produces a valid `Executes (Exec d)` derivation. -/
-theorem run_exec {β : Type} (p : (spec (Fin (universeSize d))).Client β) (t : Tree d) :
-    Executes (Exec d) p t (run t p).1 (run t p).2.1 (run t p).2.2 := by
-  induction p generalizing t with
-  | pure a => exact .pure a t
-  | liftBind o k ih => exact .call rfl (ih _ _)
+abbrev run {β : Type} (t : Tree d) (p : (spec (Fin (universeSize d))).Client β) :
+    RunResult (Tree d) ℕ β :=
+  Execution.run step t p
 
 /-- Running the concrete vEB interpreter agrees with abstract `Finset (Fin (universeSize d))`
 semantics, preserves `Rep`, and satisfies the `history.length * (d + 1)` active-call bound. -/
 theorem run_correct {β : Type} (p : (spec (Fin (universeSize d))).Client β)
     {s : Finset (Fin (universeSize d))} {t : Tree d} (hr : Rep s t) :
-    (run t p).1 = ((spec (Fin (universeSize d))).runClient s p).1 ∧
-      Rep ((spec (Fin (universeSize d))).runClient s p).2.1 (run t p).2.1 ∧
-      total id (run t p).2.2 ≤
-        ((spec (Fin (universeSize d))).runClient s p).2.2.length * (d + 1) := by
-  have hv := (spec (Fin (universeSize d))).validHistory_of_forall_valid (fun _ _ => trivial)
-    s ((spec (Fin (universeSize d))).runClient s p).2.2
-  have hexec := run_exec p t
+    let (value, finalState, history) := (spec (Fin (universeSize d))).runClient s p
+    (run t p).value = value ∧ Rep finalState (run t p).state ∧
+      total id (run t p).traces ≤ history.length * (d + 1) := by
+  have hv := (spec (Fin (universeSize d))).validHistory_of_forall_valid (fun _ _ => trivial) s
+    ((spec (Fin (universeSize d))).clientHistory s p)
+  have hexec := Execution.executes_run step p t
   have hc := (impl d).correct_client hr hv hexec
   exact ⟨hc.1, hc.2, Bound.client_const (callDepthBound d) hr hv hexec⟩
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 public import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -28,6 +29,44 @@ namespace CslibFrontierTests.PolyTimeCaptured
 open Turing.MultiTapeTM
 
 variable {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
+
+-- `bool_and'` and `bool_or'` discharge captured Boolean conjunctions and disjunctions in both
+-- `fun_prop` and `polytime`.
+example (p q r : α → Bool)
+    (hp : ComputableInPolyTime p enc encBool)
+    (hq : ComputableInPolyTime q enc encBool)
+    (hr : ComputableInPolyTime r enc encBool) :
+    ComputableInPolyTime (fun a => (p a && q a) || !(r a)) enc encBool := by
+  fail_if_success (clear hp; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hq; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hr; fun_prop (config := { maxTransitionDepth := 0 }))
+  fun_prop (config := { maxTransitionDepth := 0 })
+
+example (p q : α → Bool)
+    (hp : ComputableInPolyTime p enc encBool)
+    (hq : ComputableInPolyTime q enc encBool) :
+    ComputableInPolyTime (fun a => !(p a) && (q a || p a)) enc encBool := by
+  fail_if_success (clear hp; polytime)
+  fail_if_success (clear hq; polytime)
+  polytime
+
+-- `bitsHeadDWithInput` resolves `encBits` and `encBool` without `ListEncoding` synthesis,
+-- including inside Boolean `if` guards with unconstrained `?encC`.
+example (w : α → List Bool) (d : α → Bool)
+    (hw : ComputableInPolyTime w enc encBits)
+    (hd : ComputableInPolyTime d enc encBool) :
+    ComputableInPolyTime (fun a => (w a).headD (d a)) enc encBool := by
+  fail_if_success (clear hw; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hd; fun_prop (config := { maxTransitionDepth := 0 }))
+  fun_prop (config := { maxTransitionDepth := 0 })
+
+example (w t e : α → List Bool)
+    (hw : ComputableInPolyTime w enc encBits)
+    (ht : ComputableInPolyTime t enc encBits)
+    (he : ComputableInPolyTime e enc encBits) :
+    ComputableInPolyTime (fun a => if (w a).headD false then t a else e a) enc encBits := by
+  fail_if_success (clear hw; polytime)
+  polytime
 
 -- `cond'` works in both `fun_prop` and `polytime`, with arbitrary Boolean guard encoding.
 example {encC : Bool ↪ List Bool} (c : α → Bool) (t e : α → β)
@@ -131,5 +170,21 @@ example (x y : α → ℕ)
 example (x : α → ℕ) (hx : ComputableInPolyTime x enc encUnary) :
     ComputableInPolyTime (fun a => x a % 2) enc encUnary := by
   polytime
+
+-- `unary_min`, `unary_max`, and `unary_max'` discharge plain unary min/max goals without
+-- `.of_tidy` transitions, and `unary_min'` is available explicitly alongside `binary_min_unary'`.
+example (x y : α → ℕ)
+    (hx : ComputableInPolyTime x enc encUnary)
+    (hy : ComputableInPolyTime y enc encUnary) :
+    ComputableInPolyTime (fun a => max (x a) (y a)) enc encUnary := by
+  fail_if_success (clear hx; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hy; fun_prop (config := { maxTransitionDepth := 0 }))
+  fun_prop (config := { maxTransitionDepth := 0 })
+
+example (x y : α → ℕ)
+    (hx : ComputableInPolyTime x enc encUnary)
+    (hy : ComputableInPolyTime y enc encUnary) :
+    ComputableInPolyTime (fun a => min (max (x a) 1) (y a)) enc encUnary :=
+  ComputableInPolyTime.unary_min' (by polytime) hy
 
 end CslibFrontierTests.PolyTimeCaptured

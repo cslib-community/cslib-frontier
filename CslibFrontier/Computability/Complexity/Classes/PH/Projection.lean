@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -32,13 +32,18 @@ change the quantifiers (`Cslib.Complexity.alternation_takeBlocks`).
 
 * `Cslib.Complexity.takeBlocks`: cut consecutive blocks of a word to their prefixes.
 * `Cslib.Complexity.truncateBlocks`: cut blocks of polynomial lengths to shorter blocks.
+* `Cslib.Complexity.trimUniformBlocks`: cut uniform-length blocks to polynomial lengths.
 
 ## Main results
 
-* `Cslib.Complexity.alternation_takeBlocks`, `Cslib.Complexity.alternation_truncateBlocks`: cutting
-  longer blocks does not change alternating quantifiers.
+* `Cslib.Complexity.alternation_takeBlocks`, `Cslib.Complexity.alternation_truncateBlocks`,
+  `Cslib.Complexity.alternation_trimUniformBlocks`: cutting longer blocks does not change
+  alternating quantifiers.
 * `Cslib.Complexity.computableInPolyTime_takeBlocks`,
-  `Cslib.Complexity.computableInPolyTime_truncateBlocks`: cutting blocks is polynomial-time.
+  `Cslib.Complexity.computableInPolyTime_truncateBlocks`,
+  `Cslib.Complexity.computableInPolyTime_trimUniformBlocks`: cutting blocks is polynomial-time.
+* `Cslib.Complexity.exists_replicate_of_mem_SigmaP`: every `Σₖ` problem has a verifier with a
+  single polynomial bound for all `k` certificate blocks.
 * `Cslib.Complexity.exists_mem_PiP_of_mem_SigmaP_succ`: a problem in `Σₖ₊₁` is the projection of
   a problem in `Πₖ` on pairs.
 
@@ -137,9 +142,91 @@ theorem computableInPolyTime_truncateBlocks {γ : Type} {encIn : γ ↪ List Boo
         exact ⟨(ComputableInPolyTime.unary_eval p).comp hN,
           (ComputableInPolyTime.unary_eval p).comp hM⟩) hW
 
-/-! ### Peeling off the first quantifier -/
+/-- Cut consecutive blocks of uniform length `M` to lengths `p.eval n` for `p ∈ ps`. -/
+def trimUniformBlocks (ps : List (Polynomial ℕ)) (n M : ℕ) : List Bool → List Bool :=
+  takeBlocks (ps.map fun p => (p.eval n, M))
+
+/-- Quantifying over `ps.length` blocks of uniform length `M` and cutting each to `p.eval n ≤ M`
+bits quantifies over blocks of lengths `p.eval n`. -/
+theorem alternation_trimUniformBlocks {ps : List (Polynomial ℕ)} {n M : ℕ}
+    (hle : ∀ p ∈ ps, p.eval n ≤ M) {q : Bool} {P : List Bool → Prop} :
+    Alternation q (List.replicate ps.length M) (fun w => P (trimUniformBlocks ps n M w)) ↔
+      Alternation q (ps.map fun p => p.eval n) P := by
+  simpa only [trimUniformBlocks, List.map_map, Function.comp_def, List.map_const',
+    List.length_map] using
+    alternation_takeBlocks (ls := ps.map fun p => (p.eval n, M)) (q := q) (P := P)
+      (by simpa only [List.forall_mem_map] using hle)
+
+/-- Cutting uniform-length blocks is polynomial-time, for a fixed list of polynomials and lengths
+`N`, `M` computed in unary. -/
+theorem computableInPolyTime_trimUniformBlocks {γ : Type} {encIn : γ ↪ List Bool}
+    (ps : List (Polynomial ℕ)) {N M : γ → ℕ}
+    (hN : ComputableInPolyTime N encIn encUnary)
+    (hM : ComputableInPolyTime M encIn encUnary) {W : γ → List Bool}
+    (hW : ComputableInPolyTime W encIn encBits) :
+    ComputableInPolyTime (fun x => trimUniformBlocks ps (N x) (M x) (W x)) encIn encBits := by
+  simpa only [trimUniformBlocks, List.map_map, Function.comp_def] using
+    computableInPolyTime_takeBlocks
+      (ps.map fun p => (fun x => p.eval (N x), M))
+      (fun l hl => by
+        obtain ⟨p, -, rfl⟩ := List.mem_map.mp hl
+        exact ⟨(ComputableInPolyTime.unary_eval p).comp hN, hM⟩) hW
+
+/-! ### Uniform block lengths and peeling off the first quantifier -/
 
 variable {α : Type} {enc : α ↪ List Bool}
+
+/-- **Uniform block-length normal form for `Σₖ`:** every `A ∈ SigmaP k enc` can be verified using a
+single polynomial `p` for all `k` certificate blocks (`List.replicate k p`), matching
+[Arora and Barak, Definition 5.3][AroraBarak09]. -/
+theorem exists_replicate_of_mem_SigmaP {k : ℕ} {A : Set α} (hA : A ∈ SigmaP k enc) :
+    ∃ (p : Polynomial ℕ) (V : α × List Bool → Bool),
+      ComputableInPolyTime V (encPair enc encBits) encBool ∧
+        IsAlternatingVerifier enc true (List.replicate k p) V A := by
+  obtain ⟨ps, V, hps, hV, hAV⟩ := hA
+  have hlen : ComputableInPolyTime (fun x : α × List Bool => (enc x.1).length)
+      (encPair enc encBits) encUnary :=
+    (ComputableInPolyTime.encoding_length enc).comp (.fst _ _)
+  refine ⟨ps.sum, fun x =>
+    V (x.1, trimUniformBlocks ps (enc x.1).length (ps.sum.eval (enc x.1).length) x.2),
+    hV.comp ((ComputableInPolyTime.fst _ _).prod
+      (computableInPolyTime_trimUniformBlocks ps hlen
+        ((ComputableInPolyTime.unary_eval ps.sum).comp hlen) (.snd _ _))),
+    fun a => ?_⟩
+  rw [hAV a, List.map_replicate, ← hps]
+  exact (alternation_trimUniformBlocks fun p hp => by
+    rw [Polynomial.eval_listSum]
+    exact List.le_sum_of_mem (List.mem_map_of_mem hp)).symm
+
+/-- Peel the first quantifier by passing its certificate as part of the instance. The preprocessing
+pads the remaining block lengths to polynomials in the length of the encoded pair. This works for
+both ordinary and oracle verifiers since it only transforms the input of the final verifier. -/
+theorem IsAlternatingVerifier.peel {q : Bool} {p : Polynomial ℕ} {ps : List (Polynomial ℕ)}
+    {V : α × List Bool → Bool} {A : Set α} (hA : IsAlternatingVerifier enc q (p :: ps) V A) :
+    ∃ (B : Set (α × List Bool)) (g : (α × List Bool) × List Bool → α × List Bool),
+      ComputableInPolyTime g (encPair (encPair enc encBits) encBits) (encPair enc encBits) ∧
+      IsAlternatingVerifier (encPair enc encBits) (!q) ps (V ∘ g) B ∧
+      ∀ a, a ∈ A ↔ if q then
+        ∃ w : List Bool, w.length = p.eval (enc a).length ∧ (a, w) ∈ B
+      else
+        ∀ w : List Bool, w.length = p.eval (enc a).length → (a, w) ∈ B := by
+  let B : Set (α × List Bool) := {y | Alternation (!q)
+    (ps.map fun r => r.eval (enc y.1).length) fun w => V (y.1, y.2 ++ w) = true}
+  have hle (y : α × List Bool) : (enc y.1).length ≤ (encPair enc encBits y).length := by
+    enc_len
+  refine ⟨B, fun z =>
+    let y := z.1
+    (y.1, y.2 ++ truncateBlocks ps (enc y.1).length (encPair enc encBits y).length z.2),
+    ?_, fun y => ?_, fun a => ?_⟩
+  · have hfst := ComputableInPolyTime.fst (encPair enc encBits) encBits
+    exact ((ComputableInPolyTime.fst _ _).comp hfst).prod
+      (ComputableInPolyTime.bitsAppend ((ComputableInPolyTime.snd _ _).comp hfst)
+        (computableInPolyTime_truncateBlocks ps
+          ((ComputableInPolyTime.encoding_length enc).comp
+            ((ComputableInPolyTime.fst _ _).comp hfst))
+          ((ComputableInPolyTime.encoding_length _).comp hfst) (.snd _ _)))
+  · exact (alternation_truncateBlocks (hle y) (P := fun w => V (y.1, y.2 ++ w) = true)).symm
+  · cases q <;> exact hA a
 
 /-- **A problem in `Σₖ₊₁` is the projection of a problem in `Πₖ`**, as in the proof of
 [Arora and Barak, Theorem 5.4][AroraBarak09]: there are a polynomial `p` and a problem `B` in `Πₖ`
@@ -150,22 +237,7 @@ theorem exists_mem_PiP_of_mem_SigmaP_succ {k : ℕ} {A : Set α} (hA : A ∈ Sig
       ∀ a, a ∈ A ↔ ∃ w : List Bool, w.length = p.eval (enc a).length ∧ (a, w) ∈ B := by
   obtain ⟨ps, V, hlen, hV, hA⟩ := hA
   obtain ⟨p, ps, rfl⟩ := List.exists_cons_of_length_eq_add_one hlen
-  have hlen' : ps.length = k := by simpa using hlen
-  -- the pairs `(a, w₁)` from which the last `k` quantifiers accept
-  let B : Set (α × List Bool) := {y | Alternation false
-    (ps.map fun r => r.eval (enc y.1).length) fun w => V (y.1, y.2 ++ w) = true}
-  have hle (y : α × List Bool) : (enc y.1).length ≤ (encPair enc encBits y).length := by
-    enc_len
-  refine ⟨p, B, ⟨ps, fun z => V (z.1.1, z.1.2 ++ truncateBlocks ps (enc z.1.1).length
-      (encPair enc encBits z.1).length z.2), hlen', ?_, fun y => ?_⟩, hA⟩
-  · have hfst := (ComputableInPolyTime.fst (encPair enc encBits) encBits)
-    exact hV.comp (((ComputableInPolyTime.fst _ _).comp hfst).prod
-      (ComputableInPolyTime.bitsAppend ((ComputableInPolyTime.snd _ _).comp hfst)
-        (computableInPolyTime_truncateBlocks ps
-          (((ComputableInPolyTime.encoding_length enc).comp
-            ((ComputableInPolyTime.fst _ _).comp hfst)))
-          (((ComputableInPolyTime.encoding_length _).comp hfst))
-            (.snd _ _))))
-  · exact (alternation_truncateBlocks (hle y) (P := fun w => V (y.1, y.2 ++ w) = true)).symm
+  obtain ⟨B, g, hg, hB, hAB⟩ := hA.peel
+  exact ⟨p, B, ⟨ps, V ∘ g, by simpa using hlen, hV.comp hg, hB⟩, hAB⟩
 
 end Cslib.Complexity

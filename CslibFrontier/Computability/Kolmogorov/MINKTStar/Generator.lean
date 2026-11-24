@@ -15,6 +15,7 @@ import CslibFrontier.Computability.MCSP.PartialHardness.Completeness
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.GetD
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The `MINKT*` generator for the CMMSA table
@@ -170,8 +171,7 @@ private theorem length_enc_ofSat_le (hwf : I.WellFormed Δ) (hlam : 1 ≤ lam) {
     obtain ⟨j, hj, rfl⟩ := List.mem_map.1 ha
     have hj' := List.mem_range.1 hj
     have := (hτ j hj').trans_le (hwf.length_le (List.getD_mem [] hj'))
-    simp only [Function.comp_apply, encUnary_apply, List.length_replicate]
-    omega
+    enc_len [Function.comp_apply]
   -- the tables: `2 ∑_{v ∈ S} 2 ^ ℓ v + n ≤ 4 w(S) λ + n`
   have hsum : ∑ v ∈ Finset.range I.weights.length,
       (if v ∈ S then varTable f v else []).length = ∑ v ∈ S, 2 ^ varLength I lam v := by
@@ -188,8 +188,7 @@ private theorem length_enc_ofSat_le (hwf : I.WellFormed Δ) (hlam : 1 ≤ lam) {
     omega
   have hm := CMMSAInstance.length_formulas_le I
   have hn := CMMSAInstance.length_weights_le I
-  have hΔm : I.formulas.length * Δ ≤ (CMMSAInstance.encoding I).length * Δ :=
-    Nat.mul_le_mul_right _ hm
+  have hΔm : I.formulas.length * Δ ≤ (CMMSAInstance.encoding I).length * Δ := by gcongr
   have hwl : I.weight S * lam ≤ I.threshold * lam := Nat.mul_le_mul_right _ hw
   simp only [enc_apply, encFields, length_encPair, encUnary_apply, List.length_replicate, ofSat]
   unfold sizeBound

@@ -84,7 +84,14 @@ theorem computableInPolyTime_complementClause :
       (fun p : (CNF ℕ × List Bool) × Clause ℕ =>
         p.2.eval (fun v => !SAT.assignment p.1.1 p.1.2 v))
       (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encBool := by
-  fun_prop [SAT.assignment]
+  apply Clause.computableInPolyTime_eval (encV := encNat) (by fun_prop)
+  have hinput : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × Clause ℕ) × ℕ => (p.1.1, p.2))
+      (encPair (encPair (encPair encCNF encBits) (encClause encNat)) encNat)
+      (encPair (encPair encCNF encBits) encNat) := by fun_prop
+  exact ComputableInPolyTime.bool_not.comp
+    (SAT.computableInPolyTime_assignment.comp
+      (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat)) encNat) hinput)
 
 /-- NAE evaluation of an arbitrary certificate takes native polynomial time. -/
 @[fun_prop]

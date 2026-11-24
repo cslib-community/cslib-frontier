@@ -117,9 +117,8 @@ private theorem length_encList_spec_le (vs : List (List ℕ × T)) (d : ℕ × �
   induction vs with
   | nil => simp
   | cons v vs ih =>
-    simp only [length_encList, List.map_cons, List.map_map, List.sum_cons, List.length_cons,
-      Function.comp_def, length_encPair, add_one_mul] at ih ⊢
-    omega
+    enc_len [length_encList, List.map_cons, List.map_map, List.sum_cons, Function.comp_def,
+      add_one_mul] at ih ⊢
 
 /-- **The size of a call.** The input of the contraction at a digit point is at most
 `9 (n + 1) ^ 2` bits for an input of the reduction of length `n`: the specialized network copies
@@ -490,7 +489,7 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
     have hout := hcS ((v.2, P, ℓ, fl, ζ), bs)
     have hZ' : ES ≤ Z := by omega
     refine ⟨ht, hs, hout.trans (Nat.mul_le_mul_left _ ?_)⟩
-    exact Nat.add_le_add_right (hs.trans (Nat.add_le_add_right hZ' _)) 1
+    omega
   have hr : ∀ z, SumOps.galois.Reduced (P, fl) z → (encList encNat z).length ≤ Z * (2 * Z + 3) :=
     fun z hz => (SumOps.length_encList_le_of_galois_reduced hz).trans (by
       have hfl := length_le_length_encList encNat fl

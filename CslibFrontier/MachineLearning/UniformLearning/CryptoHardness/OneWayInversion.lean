@@ -149,8 +149,13 @@ theorem uniformList_inputLength (n : ℕ) :
         (PMF.uniformOfFintype (Fin (samples n) → Fin n → Bool)).bind fun x =>
           (BitString.uniformList (n + 1)).map fun rest =>
             List.ofFn K ++ ((List.ofFn fun i => List.ofFn (x i)).flatten ++ rest) := by
+  have hpoints : (PMF.uniformOfFintype (Fin (samples n) → BitString n)).map
+      (fun x => (List.ofFn fun i => List.ofFn (x i)).flatten) =
+        BitString.uniformList (samples n * n) := by
+    simpa [List.take_of_length_le] using
+      BitString.uniformOfFintype_map_flatten_take (fun _ : Fin (samples n) => n) fun _ => le_rfl
   rw [inputLength, add_assoc, BitString.uniformList_add (keyBits n),
-    BitString.uniformList_add (samples n * n), ← BitString.uniformOfFintype_map_flatten]
+    BitString.uniformList_add (samples n * n), ← hpoints]
   simp only [BitString.uniformList, PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def]
 
 /-- The learner obtained from an inverter `A` for the labelling map: run `A` on the encoded sample
@@ -226,8 +231,16 @@ theorem computableInPolyTime_labelMap
       encBool) :
     ComputableInPolyTime (fun p : ℕ × List Bool => labelMap keyBits samples F p.1 p.2)
       (encPair encUnary encBits) encBits := by
-  unfold labelMap
-  fun_prop
+  have hrows : ComputableInPolyTime
+      (fun p : ℕ × List Bool => BitString.listRows (samples p.1) p.1 (p.2.drop (keyBits p.1)))
+      (encPair encUnary encBits) (encList encBits) := by
+    fun_prop
+  have hword : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool =>
+        (p.1.1, BitString.listRow (keyBits p.1.1) 0 p.1.2 ++ p.2))
+      (encPair (encPair encUnary encBits) encBits) (encPair encUnary encBits) := by
+    fun_prop
+  exact hrows.bitsFlatten.bitsAppend (.mapToBitsWithInput hrows (hF.comp hword))
 
 /-! ### Learning from the absence of weak one-way functions -/
 

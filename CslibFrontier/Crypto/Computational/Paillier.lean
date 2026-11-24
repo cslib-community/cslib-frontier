@@ -73,8 +73,9 @@ part of this file.
   encryptions of the sum), which is generally false for the implemented dyadic sampler plus
   `unitOrOne`: at `N = 143`, `n = 0`, and `m₁ = m₂ = 0`, a fresh ciphertext `encNat 1` has mass
   `44 / 256 = 11 / 64`, while multiplying two independent encryptions gives mass
-  `2316 / 65536 = 579 / 16384`. The full definition of an additively homomorphic scheme remains a
-  separate objective; the IND-CPA reduction ([KatzLindell2020], Theorem 15.13) is in
+  `2316 / 65536 = 579 / 16384`. The scheme at a fixed modulus with exactly uniform randomness,
+  in `CslibFrontier.Crypto.Computational.Paillier.Finite`, satisfies both conditions. The IND-CPA
+  reduction ([KatzLindell2020], Theorem 15.13) is in
   `CslibFrontier.Crypto.Computational.Paillier.Security`.
 
 ## References
@@ -117,13 +118,8 @@ theorem decryptNat_eq {N c m r : ℕ} (hN : 1 < N) (hcop : N.Coprime N.totient)
   have hN2 : N ^ 2 ≠ 0 := pow_ne_zero 2 hN0
   -- Raising `c` to the power `φ(N)` leaves `1 + (m * φ(N) mod N) * N`.
   have hpow : c ^ N.totient % N ^ 2 = 1 + m * N.totient % N * N := by
-    have hmod : m * N.totient % N < N := Nat.mod_lt _ (by lia)
-    have hlt : 1 + m * N.totient % N * N < N ^ 2 := by nlinarith
-    rw [← Nat.mod_eq_of_lt hlt, ← ZMod.natCast_eq_natCast_iff', Nat.cast_pow, hc,
-      one_add_pow_mul_pow_pow_totient m hr]
-    conv_lhs => rw [← Nat.mod_add_div (m * N.totient) N]
-    push_cast
-    linear_combination ((m * N.totient / N : ℕ) : ZMod (N ^ 2)) * ZMod.natCast_mul_self_eq_zero N
+    rw [← ZMod.val_one_add_natCast_mul hN, ← one_add_pow_mul_pow_pow_totient m hr, ← hc,
+      ← Nat.cast_pow, ZMod.val_natCast]
   -- `φ(N) ^ (φ(N) - 1)` inverts `φ(N)` modulo `N`, by Euler's theorem.
   have heuler : (N.totient : ZMod N) ^ N.totient = 1 := by
     have := congrArg Units.val (ZMod.pow_totient (ZMod.unitOfCoprime N.totient hcop.symm))
@@ -255,8 +251,15 @@ theorem computableInPolyTime_addCiphertexts :
     ComputableInPolyTime
       (fun ⟨pk, ct₁, ct₂⟩ => addCiphertexts pk ct₁ ct₂)
       (encPair encBits (encPair encBits encBits)) encBits := by
-  unfold addCiphertexts
-  fun_prop
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encBits (encPair encBits encBits))
+  have hN := ComputableInPolyTime.bitsToNat.comp hp.fst'
+  have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
+  have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
+  simpa only [addCiphertexts, encNat_apply, pow_two, Function.comp_def] using
+    (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hx hy)
+      (ComputableInPolyTime.binary_mul' hN hN)).encoding_comp
 
 /-! ### Correctness and the additive homomorphism -/
 
@@ -293,10 +296,10 @@ theorem decrypt_encrypt {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : List Boo
     (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support) {m : ℕ} (hm : m < ofBits keys.1)
     {ct : List Bool} (hct : ct ∈ (ProbComp.eval (encrypt n keys.1 m)).support) :
     decrypt keys.2 ct = encNat m := by
-  obtain ⟨d, rfl⟩ := exists_of_mem_support_keyGen hkeys
-  rw [ofBits_encNat] at hm
-  obtain ⟨r, hr, rfl⟩ := exists_of_mem_support_encrypt hct
-  rw [decrypt_encPair, decryptNat_eq d.one_lt_modulus d.coprime_totient hr
+  obtain ⟨d, hkeys_eq⟩ := exists_of_mem_support_keyGen hkeys
+  simp only [hkeys_eq, ofBits_encNat] at hm hct ⊢
+  obtain ⟨r, hr, hct_eq⟩ := exists_of_mem_support_encrypt hct
+  rw [hct_eq, decrypt_encPair, decryptNat_eq d.one_lt_modulus d.coprime_totient hr
     (natCast_ciphertext (NeZero.ne _) m r), Nat.mod_eq_of_lt hm]
 
 /-- **Preservation of plaintext addition under decryption** ([KatzLindell2020], Definition 15.14
@@ -308,16 +311,19 @@ Note: [KatzLindell2020], Definition 15.14 additionally requires equality of the
 multiplied-ciphertext distribution with fresh encryptions of the sum. That distribution clause is
 not established here (and fails for the dyadic sampler plus `unitOrOne`: at `N = 143`, `n = 0`, and
 `m₁ = m₂ = 0`, fresh `encNat 1` has probability mass `44 / 256 = 11 / 64`, whereas multiplying two
-independent encryptions yields mass `2316 / 65536 = 579 / 16384`). The full source definition
-remains a separate objective. -/
+independent encryptions yields mass `2316 / 65536 = 579 / 16384`). The fixed-modulus scheme in
+`CslibFrontier.Crypto.Computational.Paillier.Finite` satisfies it
+(`Cslib.Crypto.eval_mul_paillierEncrypt`). -/
 theorem decrypt_addCiphertexts {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : List Bool × List Bool}
     (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support) {m₁ m₂ : ℕ} {ct₁ ct₂ : List Bool}
     (hct₁ : ct₁ ∈ (ProbComp.eval (encrypt n keys.1 m₁)).support)
     (hct₂ : ct₂ ∈ (ProbComp.eval (encrypt n keys.1 m₂)).support) :
     decrypt keys.2 (addCiphertexts keys.1 ct₁ ct₂) = encNat ((m₁ + m₂) % ofBits keys.1) := by
-  obtain ⟨d, rfl⟩ := exists_of_mem_support_keyGen hkeys
-  obtain ⟨r₁, hr₁, rfl⟩ := exists_of_mem_support_encrypt hct₁
-  obtain ⟨r₂, hr₂, rfl⟩ := exists_of_mem_support_encrypt hct₂
+  obtain ⟨d, hkeys_eq⟩ := exists_of_mem_support_keyGen hkeys
+  simp only [hkeys_eq] at hct₁ hct₂ ⊢
+  obtain ⟨r₁, hr₁, hct₁_eq⟩ := exists_of_mem_support_encrypt hct₁
+  obtain ⟨r₂, hr₂, hct₂_eq⟩ := exists_of_mem_support_encrypt hct₂
+  rw [hct₁_eq, hct₂_eq]
   have hN : d.modulus ≠ 0 := NeZero.ne _
   have hc : ((ciphertext d.modulus m₁ r₁ * ciphertext d.modulus m₂ r₂ % d.modulus ^ 2 : ℕ) :
       ZMod (d.modulus ^ 2)) = (1 + d.modulus) ^ (m₁ + m₂) *

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.DiscreteLog
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -36,6 +37,8 @@ Theorem 3.1; [BonehShoup2023], Section 10.6.1, Fact 10.3); the discrete-logarith
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_cast`: modulo a prime `q`, `extractNat` is
   `(c - c')⁻¹ (z - z')` whenever `c` and `c'` are distinct modulo `q`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_zmod_val`: canonical `ZMod q` form of
+  `extractNat_cast` for `c ≠ c'`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_extractNat`: the witness is computable
   in polynomial time from the group description and the four binary numbers.
 
@@ -74,6 +77,14 @@ theorem extractNat_cast {q : ℕ} [Fact q.Prime] {c z c' z' : ℕ}
     ZMod.pow_card_sub_two_eq_inv hne
   simp only [extractNat, Nat.cast_mul, ZMod.natCast_mod, Nat.cast_pow, hsub, hinv]
 
+/-- Modulo a prime `q`, `extractNat` on canonical `ZMod q` representatives computes
+`(c - c')⁻¹ * (z - z')` whenever `c ≠ c'`. -/
+theorem extractNat_zmod_val {q : ℕ} [Fact q.Prime] {c z c' z' : ZMod q} (hc : c ≠ c') :
+    (extractNat q c.val z.val c'.val z'.val : ZMod q) = (c - c')⁻¹ * (z - z') := by
+  have hcast : ((c.val : ℕ) : ZMod q) ≠ (c'.val : ℕ) := by
+    simpa only [ZMod.natCast_zmod_val] using hc
+  simpa only [ZMod.natCast_zmod_val] using extractNat_cast (z := z.val) (z' := z'.val) hcast
+
 variable {F : PrimeOrderGroupFamily}
 
 /-- The witness `extractNat` is computable in polynomial time from the group description and the
@@ -85,19 +96,18 @@ theorem computableInPolyTime_extractNat {α : Type} {input : α ↪ List Bool}
     (hc' : ComputableInPolyTime c' input encNat) (hz' : ComputableInPolyTime z' input encNat) :
     ComputableInPolyTime (fun a => extractNat (F.order (d a)) (c a) (z a) (c' a) (z' a))
       input encNat := by
-  refine .of_tidy ?_
-  have hq : ComputableTidilyInPolyTime (fun a => F.order (d a)) input encNat :=
-    F.computableInPolyTime_order.tidy.comp hd.tidy
-  have hdiff {x y : α → ℕ} (hx : ComputableTidilyInPolyTime x input encNat)
-      (hy : ComputableTidilyInPolyTime y input encNat) :
-      ComputableTidilyInPolyTime
+  have hq : ComputableInPolyTime (fun a => F.order (d a)) input encNat :=
+    F.computableInPolyTime_order.comp hd
+  have hdiff {x y : α → ℕ} (hx : ComputableInPolyTime x input encNat)
+      (hy : ComputableInPolyTime y input encNat) :
+      ComputableInPolyTime
         (fun a => (x a % F.order (d a) + F.order (d a) - y a % F.order (d a)) % F.order (d a))
         input encNat :=
     .binary_mod' (.binary_sub' (.binary_add' (.binary_mod' hx hq) hq) (.binary_mod' hy hq)) hq
   have hpow := (ComputableInPolyTime.binary_powMod
-    (ComputableInPolyTime.of_tidy (hdiff hc.tidy hc'.tidy))
-    (ComputableInPolyTime.of_tidy (.binary_sub' hq (.const 2)))
-    (ComputableInPolyTime.of_tidy hq) fun a => (F.prime_order (d a)).pos).tidy
-  exact .binary_mod' (.binary_mul' hpow (hdiff hz.tidy hz'.tidy)) hq
+    (hdiff hc hc')
+    (.binary_sub' hq (.const 2))
+    hq fun a => (F.prime_order (d a)).pos)
+  exact .binary_mod' (.binary_mul' hpow (hdiff hz hz')) hq
 
 end Cslib.Crypto.PrimeOrderGroupFamily

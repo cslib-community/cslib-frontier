@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 """Add a pull request to the merge queue at exactly the approved head.
 
-Usage: python3 scripts/queue_pr.py PR SHA [--wait MINUTES] [--repo OWNER/NAME]
+Usage: python3 scripts/queue_pr.py PR SHA [--wait MINUTES] [--hold-hubs] [--repo OWNER/NAME]
 
 This is the queueing half of approve-and-queue (AGENTS.md, "Approve and queue"). It refuses
 unless the pull request is open, not a draft, based on `main`, has head SHA, and merges cleanly
 into its base, and the required check (`REQUIRED_CHECKS`) has succeeded at SHA. All pages of check
 contexts are read from the same commit before selecting each required check's latest attempt.
 While that check is still running it waits up to `--wait` minutes (default 0: report and stop);
-it always waits briefly for GitHub to compute mergeability. It then enqueues with
-`expectedHeadOid` = SHA, so a push after the approval can never be queued in its place.
+it always waits briefly for GitHub to compute mergeability. Just before enqueueing, if other pull
+requests are already ahead in the merge queue, it replays that queue prefix in a full local Git
+repository (supporting `GIT_DIR`, including bare repositories) and refuses on a textual conflict or
+when automatic replay is unavailable. When active queue entries are ahead and the PR modifies
+high-fan-in `CslibFrontier/` hub modules (`>= 500` transitive importers), it prints an advisory
+rebuild notice after enqueueing, or refuses before enqueueing when `--hold-hubs` is passed. It then
+enqueues with `expectedHeadOid` = SHA, so a push after the approval can never be queued in its
+place.
+Whenever it sleeps or replays a non-empty queue prefix, it snapshots the PR discussion beforehand
+and rereads it on the mutation side just before enqueueing. A changed body, comment, submitted
+review or inline thread stops the enqueue so the reviewer can reread and rerun. Check events and
+reactions are not discussion changes.
 
 It does not judge the approval itself, a hold named in it, or a request for human review in the
-PR or its issue; the reviewer checks those before running it. Its retarget check (a base change
-newer than the head's commit date) only catches the common mistake of queueing a stacked PR before
-it merges `main`; `scripts/check_restack.py` is what verifies a restacked head.
+PR or its issue; the reviewer checks those before running it. The discussion read is not atomic
+with enqueue and does not inspect linked issues. Its retarget check (a base change
+newer than the head's commit date when current `main` is not already an ancestor of the head) only
+catches the common mistake of queueing a stacked PR before it merges `main`;
+`scripts/check_restack.py` is what verifies a restacked head.
 
 Exit status: 0 when the PR is queued (or already was), 1 when it is refused or the check is still
 running, 2 on a `gh` error. Requires an authenticated `gh` with write access to the repository.
@@ -23,12 +35,21 @@ running, 2 on a `gh` error. Requires an authenticated `gh` with write access to 
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
+import contextlib
+import io
 import json
+import os
+from pathlib import Path
 import re
 import subprocess
 import sys
 import time
 
+if __name__ == "__main__":
+    sys.modules.setdefault("queue_pr", sys.modules[__name__])
+
+ROOT = Path(__file__).resolve().parents[1]
 REPO = "cslib-community/cslib-frontier"
 # The checks the `main` ruleset requires (Settings → Rules → main), each with the GitHub App that
 # must report it (15368 is GitHub Actions), as the ruleset pins them; keep in sync with it.
@@ -41,7 +62,7 @@ QUERY = """
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      id state isDraft baseRefName headRefOid mergeable
+      id state isDraft baseRefName baseRefOid headRefOid mergeable
       mergeQueueEntry { position state }
       timelineItems(last: 1, itemTypes: [BASE_REF_CHANGED_EVENT,
                                          AUTOMATIC_BASE_CHANGE_SUCCEEDED_EVENT]) {
@@ -75,6 +96,23 @@ query($id: ID!, $after: String!) {
   }
 }"""
 
+PAGE_INFO = "pageInfo { endCursor hasNextPage }"
+COMMENT_FIELDS = "id body updatedAt"
+INLINE_FIELDS = f"{COMMENT_FIELDS} state"
+REVIEW_FIELDS = f"{COMMENT_FIELDS} state submittedAt"
+THREAD_FIELDS = (f"id isResolved comments(first: 100) {{ nodes {{ {INLINE_FIELDS} }} "
+                 f"{PAGE_INFO} }}")
+DISCUSSION_QUERY = f"""
+query($id: ID!) {{
+  node(id: $id) {{
+    ... on PullRequest {{ id body
+      comments(first: 100) {{ nodes {{ {COMMENT_FIELDS} }} {PAGE_INFO} }}
+      reviews(first: 100) {{ nodes {{ {REVIEW_FIELDS} }} {PAGE_INFO} }}
+      reviewThreads(first: 100) {{ nodes {{ {THREAD_FIELDS} }} {PAGE_INFO} }}
+    }}
+  }}
+}}"""
+
 ENQUEUE = """
 mutation($id: ID!, $sha: GitObjectID!) {
   enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $sha}) {
@@ -107,6 +145,30 @@ def gh_graphql(query: str, **variables: str | int) -> dict:
     return data["data"]
 
 
+def is_ancestor(owner: str, name: str, base: str, head: str) -> bool:
+    """Return True when GitHub reports `base` is an ancestor of `head` (fail-closed on error)."""
+    if base == head:
+        return True
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{name}/compare/{base}...{head}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        data = json.loads(result.stdout)
+    except ValueError:
+        return False
+    return (
+        isinstance(data, dict)
+        and data.get("status") in {"ahead", "identical"}
+        and data.get("behind_by") == 0
+        and isinstance(data.get("merge_base_commit"), dict)
+        and data["merge_base_commit"].get("sha") == base
+    )
+
+
 def fetch_pr(owner: str, name: str, number: int) -> dict:
     """Read the PR and every check page, pinned to its initial commit's node ID and OID.
 
@@ -126,6 +188,20 @@ def fetch_pr(owner: str, name: str, number: int) -> dict:
     commit = (commits[0] or {}).get("commit")
     if not isinstance(commit, dict) or not commit.get("id") or not commit.get("oid"):
         raise GhError("GitHub returned no latest commit identity")
+    retargets = [
+        e["createdAt"] for e in ((pr.get("timelineItems") or {}).get("nodes") or [])
+        if isinstance(e, dict) and isinstance(e.get("createdAt"), str) and e["createdAt"]
+    ]
+    committed = commit.get("committedDate")
+    base_oid = pr.get("baseRefOid")
+    if (pr.get("state") == "OPEN"
+            and not pr.get("mergeQueueEntry")
+            and pr.get("baseRefName") == "main"
+            and isinstance(committed, str) and committed
+            and retargets and retargets[-1] > committed
+            and isinstance(base_oid, str) and re.fullmatch(r"[0-9a-f]{40}", base_oid)
+            and isinstance(commit["oid"], str) and re.fullmatch(r"[0-9a-f]{40}", commit["oid"])):
+        pr["baseIsAncestor"] = is_ancestor(owner, name, base_oid, commit["oid"])
     if commit.get("statusCheckRollup") is None:
         return pr  # No checks have been reported yet.
     page, contexts, seen = commit, [], set()
@@ -148,6 +224,91 @@ def fetch_pr(owner: str, name: str, number: int) -> dict:
             raise GhError("GitHub returned no matching commit for the next check-context page")
     commit["statusCheckRollup"]["contexts"] = {"nodes": contexts, "pageInfo": info}
     return pr
+
+
+def discussion_nodes(owner: dict, kind: str, field: str, fields: str) -> list[dict]:
+    """Read every page of one discussion connection, pinned to its owning node ID."""
+    page, nodes, cursors, identities = owner, [], set(), set()
+    while True:
+        connection = page.get(field)
+        batch = connection.get("nodes") if isinstance(connection, dict) else None
+        info = connection.get("pageInfo") if isinstance(connection, dict) else None
+        if (not isinstance(batch, list) or any(not isinstance(n, dict) for n in batch)
+                or not isinstance(info, dict) or not isinstance(info.get("hasNextPage"), bool)):
+            raise GhError(f"GitHub returned an incomplete discussion {field} page")
+        for node in batch:
+            identity = node.get("id")
+            if not isinstance(identity, str) or not identity or identity in identities:
+                raise GhError(f"GitHub returned a missing or repeated discussion {field} ID")
+            identities.add(identity)
+        nodes.extend(batch)
+        if not info["hasNextPage"]:
+            return nodes
+        cursor = info.get("endCursor")
+        if not isinstance(cursor, str) or not cursor or cursor in cursors:
+            raise GhError(f"GitHub returned a missing or repeated discussion {field} cursor")
+        cursors.add(cursor)
+        query = f"""
+query($id: ID!, $after: String!) {{
+  node(id: $id) {{
+    ... on {kind} {{ id
+      {field}(first: 100, after: $after) {{ nodes {{ {fields} }} {PAGE_INFO} }}
+    }}
+  }}
+}}"""
+        page = gh_graphql(query, id=owner["id"], after=cursor).get("node")
+        if not isinstance(page, dict) or page.get("id") != owner["id"]:
+            raise GhError(f"GitHub returned no matching node for discussion {field} pagination")
+
+
+def discussion_text(node: dict) -> tuple[str, str, str]:
+    """Keep exact text as well as its edit time, including edits within the same second."""
+    if (not isinstance(node.get("body"), str) or not isinstance(node.get("updatedAt"), str)
+            or not node["updatedAt"]):
+        raise GhError("GitHub returned incomplete discussion text")
+    return node["id"], node["body"], node["updatedAt"]
+
+
+def fetch_discussion(pr_id: str) -> tuple:
+    """Snapshot visible discussion, without interpreting approvals or hold prose.
+
+    Use explicit reviewThreads: timelineItems does not reliably return inline threads. Read
+    all comments, not just the newest, so edits/deletions of older holds are observable. Draft
+    reviews and unpublished inline comments do not change the submitted discussion. GitHub has
+    no expected-discussion lease; this read and the enqueue mutation still have a bounded race.
+    """
+    pr = gh_graphql(DISCUSSION_QUERY, id=pr_id).get("node")
+    if not isinstance(pr, dict) or pr.get("id") != pr_id or not isinstance(pr.get("body"), str):
+        raise GhError("GitHub returned no matching pull request discussion")
+    comments = [discussion_text(c) for c in discussion_nodes(
+        pr, "PullRequest", "comments", COMMENT_FIELDS)]
+    reviews = []
+    for review in discussion_nodes(pr, "PullRequest", "reviews", REVIEW_FIELDS):
+        text = discussion_text(review)
+        state, submitted = review.get("state"), review.get("submittedAt")
+        if (not isinstance(state, str)
+                or state not in {"PENDING", "APPROVED", "CHANGES_REQUESTED", "COMMENTED",
+                                 "DISMISSED"}):
+            raise GhError("GitHub returned an incomplete discussion review state")
+        if state != "PENDING":
+            if not isinstance(submitted, str) or not submitted:
+                raise GhError("GitHub returned no submitted discussion review time")
+            reviews.append((*text, state, submitted))
+    threads = []
+    for thread in discussion_nodes(pr, "PullRequest", "reviewThreads", THREAD_FIELDS):
+        if not isinstance(thread.get("isResolved"), bool):
+            raise GhError("GitHub returned an incomplete discussion thread state")
+        inline = []
+        for comment in discussion_nodes(
+                thread, "PullRequestReviewThread", "comments", INLINE_FIELDS):
+            text = discussion_text(comment)
+            if comment.get("state") not in ("PENDING", "SUBMITTED"):
+                raise GhError("GitHub returned an incomplete inline discussion comment state")
+            if comment["state"] == "SUBMITTED":
+                inline.append(text)
+        if inline:
+            threads.append((thread["id"], thread["isResolved"], tuple(sorted(inline))))
+    return pr["body"], tuple(sorted(comments)), tuple(sorted(reviews)), tuple(sorted(threads))
 
 
 def check_state(pr: dict) -> tuple[str, list[str]]:
@@ -192,7 +353,8 @@ def assess(pr: dict, sha: str) -> tuple[str, list[str]]:
         return "refused", ["GitHub's latest commit for it is not the approved head; retry shortly"]
     reasons = []
     retargets = [e["createdAt"] for e in pr["timelineItems"]["nodes"] if e.get("createdAt")]
-    if retargets and retargets[-1] > commits[0]["commit"]["committedDate"]:
+    if (retargets and retargets[-1] > commits[0]["commit"]["committedDate"]
+            and not pr.get("baseIsAncestor")):
         reasons.append("its base changed after the approved head was committed (a stacked PR "
                        "retargeted when its lower PR landed); merge `main` into it, run "
                        "scripts/check_restack.py, and queue the new head")
@@ -216,12 +378,312 @@ def assess(pr: dict, sha: str) -> tuple[str, list[str]]:
     return ("pending", waiting) if waiting else ("ready", [])
 
 
+QUEUE_PREFIX_QUERY = """
+query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    ref(qualifiedName: "refs/heads/main") { target { oid } }
+    pullRequest(number: $number) { headRefOid baseRefName state }
+    mergeQueue { entries(first: 100, after: $cursor) {
+      totalCount nodes { position pullRequest { number headRefOid } }
+      pageInfo { endCursor hasNextPage }
+    } }
+  }
+}"""
+
+
+def _oid(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise ValueError("expected a full lowercase commit SHA")
+    return value
+
+
+def snapshot_queue_prefix(
+    owner: str,
+    name: str,
+    number: int,
+    approved: str,
+    *,
+    graphql: Callable[..., dict] | None = None,
+) -> tuple[str, list[tuple[int, str]]]:
+    """Snapshot the merge-queue entries ahead of `number`, or the whole queue for a new entry."""
+    call = gh_graphql if graphql is None else graphql
+    entries: list[tuple[int, str]] = []
+    numbers: set[int] = set()
+    cursors: set[str] = set()
+    variables: dict[str, object] = dict(owner=owner, name=name, number=number)
+    while True:
+        repo = call(QUEUE_PREFIX_QUERY, **variables)["repository"]
+        pr = repo["pullRequest"]
+        if not pr or (pr["state"], pr["baseRefName"], pr["headRefOid"]) != ("OPEN", "main", approved):
+            raise ValueError(f"#{number} is not an open PR targeting main at {approved}")
+        page = repo["mergeQueue"]["entries"]
+        snapshot = (_oid(repo["ref"]["target"]["oid"]), page["totalCount"])
+        if not entries:
+            main_oid, count = snapshot
+        elif (main_oid, count) != snapshot:
+            raise ValueError("the queue changed during pagination; retry")
+        for entry in page["nodes"]:
+            queued = entry["pullRequest"]
+            n = queued["number"]
+            if entry["position"] != len(entries) + 1 or n in numbers:
+                raise ValueError("queue positions changed during pagination; retry")
+            if n == number:
+                return main_oid, entries
+            numbers.add(n)
+            entries.append((n, _oid(queued["headRefOid"])))
+        if not page["pageInfo"]["hasNextPage"]:
+            if len(entries) != count:
+                raise ValueError("incomplete queue listing; retry")
+            return main_oid, entries
+        cursor = page["pageInfo"]["endCursor"]
+        if not cursor or cursor in cursors:
+            raise ValueError("incomplete queue listing; retry")
+        variables["cursor"] = cursor
+        cursors.add(cursor)
+
+
+def replay_repository(root: Path | None = None) -> Path | None:
+    """Locate a non-shallow Git repository for prefix replay, honoring `GIT_DIR` (including bare
+    repositories), `ROOT`, and the current working directory."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("GIT_ATTR_SOURCE", "GIT_CONFIG", "GIT_SHALLOW_FILE")
+           and not k.startswith("GIT_TEST_")}
+    if env.get("GIT_DIR"):
+        git_dir = Path(env["GIT_DIR"])
+        if not git_dir.is_absolute():
+            env["GIT_DIR"] = str((Path.cwd() / git_dir).resolve())
+        candidates = [root] if root is not None else [Path.cwd()]
+    elif root is not None:
+        candidates = [root]
+    else:
+        candidates = [ROOT, Path.cwd()]
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen or not candidate.exists():
+            continue
+        seen.add(key)
+        probe = subprocess.run(
+            ["git", "-c", "core.commitGraph=false", "-C", key,
+             "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True, env=env,
+        )
+        if probe.returncode == 0 and probe.stdout.strip() == "false":
+            return candidate
+    return None
+
+
+def _format_hub_hits(hits: list[tuple[str, int]], limit: int = 3) -> str:
+    shown = [f"`{rel}` ({trans:,} transitive importers)" for rel, trans in hits[:limit]]
+    if len(hits) > limit:
+        shown.append(f"and {len(hits) - limit} more")
+    return ", ".join(shown)
+
+
+def _evaluate_hub_impact(
+    repo_dir: Path,
+    base: str,
+    sha: str,
+    ahead: str,
+    number: int,
+    *,
+    cr_mod,
+    root: Path | None = None,
+    hold_hubs: bool = False,
+) -> tuple[str | None, str | None]:
+    """Check whether `sha` modifies high-fan-in `CslibFrontier/` modules behind active queue entries.
+
+    Returns `(refusal, notice)`. Advisory mode (`hold_hubs=False`) skips quietly when commits or a
+    local `CslibFrontier/` source tree are unavailable; `--hold-hubs` fails closed whenever `sha`
+    modifies existing `CslibFrontier/*.lean` modules and fan-in cannot be verified.
+    """
+    for oid in (base, sha):
+        if cr_mod.git(repo_dir, "cat-file", "-e", f"{oid}^{{commit}}", ok=(0, 1, 128)).returncode:
+            if hold_hubs:
+                return (
+                    f"--hold-hubs could not inspect commit {oid[:12]} in {repo_dir}; "
+                    "run from a full clone or omit --hold-hubs.",
+                    None,
+                )
+            return None, None
+    try:
+        mb = cr_mod.merge_base(repo_dir, base, sha)
+        diff = cr_mod.git(
+            repo_dir, "diff", "--no-ext-diff", "--no-renames", "--diff-filter=MD",
+            "--name-only", "-z", mb, sha, "--", "CslibFrontier/",
+        )
+    except cr_mod.GitError as error:
+        if hold_hubs:
+            return f"--hold-hubs could not diff {sha[:12]} against {base[:12]}: {error}", None
+        return None, None
+    modified = sorted(
+        p for p in diff.stdout.decode("utf-8", "surrogateescape").split("\0")
+        if p.endswith(".lean")
+    )
+    if not modified:
+        return None, None
+    scan_root = (
+        repo_dir if (repo_dir / "CslibFrontier").is_dir()
+        else (ROOT if root is None and (ROOT / "CslibFrontier").is_dir() else None)
+    )
+    try:
+        import check_hub_impact
+    except ImportError:
+        check_hub_impact = None
+    if scan_root is None or check_hub_impact is None:
+        if hold_hubs:
+            return (
+                "modifies `CslibFrontier/*.lean` while merge queue has entries ahead "
+                f"({ahead}) and `--hold-hubs` needs a local `CslibFrontier/` checkout and "
+                "`scripts/check_hub_impact.py`; run from a full checkout of `main` or omit "
+                "--hold-hubs.",
+                None,
+            )
+        return None, None
+    try:
+        graph, _total = check_hub_impact.build_reverse_graph(scan_root)
+    except OSError as error:
+        if hold_hubs:
+            return f"--hold-hubs could not scan `CslibFrontier/` imports: {error}", None
+        return None, None
+    threshold = check_hub_impact.DEFAULT_THRESHOLD
+    high_threshold = getattr(check_hub_impact, "HIGH_THRESHOLD", 2000)
+    hits: list[tuple[str, int]] = []
+    for rel in modified:
+        target = scan_root / rel
+        if not target.is_file() or target.is_symlink():
+            if hold_hubs and not cr_mod.git(
+                repo_dir, "cat-file", "-e", f"{base}:{rel}", ok=(0, 1, 128)
+            ).returncode:
+                return (
+                    f"--hold-hubs needs `{scan_root}` updated to current `main` "
+                    f"(`{rel}` is missing or symlinked locally); sync `main` or omit --hold-hubs.",
+                    None,
+                )
+            continue
+        mod = ".".join(Path(rel).with_suffix("").parts)
+        trans = check_hub_impact.transitive_importers(graph, mod)
+        if trans >= threshold:
+            hits.append((rel, trans))
+    if not hits:
+        return None, None
+    hits.sort(key=lambda item: (-item[1], item[0]))
+    summary = _format_hub_hits(hits)
+    if hold_hubs:
+        return (
+            f"modifies high-fan-in hub module(s) ({summary}) while merge queue has entries ahead "
+            f"({ahead}); wait for the queue to clear or omit --hold-hubs.",
+            None,
+        )
+    severity = "Warning" if hits[0][1] >= high_threshold else "Note"
+    notice = (
+        f"{severity}: #{number} modifies high-fan-in hub module(s) ({summary}) with active queue "
+        f"entries ahead ({ahead}); sequence broad hub refactors so trailing PRs do not stall "
+        "behind cold rebuilds."
+    )
+    return None, notice
+
+
+def check_queue_prefix(
+    owner: str,
+    name: str,
+    number: int,
+    sha: str,
+    root: Path | None = None,
+    before_replay: Callable[[], None] | None = None,
+    hold_hubs: bool = False,
+    on_hub_notice: Callable[[str], None] | None = None,
+) -> str | None:
+    """Replay any merge-queue entries ahead of `number`.
+
+    Returns `None` when the queue ahead of `number` is empty or merges cleanly, and returns a
+    refusal description when the replay conflicts, when `--hold-hubs` blocks a high-fan-in hub PR
+    behind active queue entries, or when non-empty queue entries cannot be replayed automatically
+    (missing helper scripts or no full local Git repository).
+    """
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        import queue_status
+    except ImportError:
+        queue_status = None
+    imported_gh_error = (
+        getattr(getattr(queue_status, "queue_pr", None), "GhError", GhError)
+        if queue_status is not None else GhError
+    )
+    git_error = queue_status.cr.GitError if queue_status is not None else ()
+    try:
+        if queue_status is not None:
+            base, entries = queue_status.prefix(owner, name, number, sha, graphql=gh_graphql)
+        else:
+            base, entries = snapshot_queue_prefix(owner, name, number, sha, graphql=gh_graphql)
+        if not entries:
+            return None
+        if before_replay is not None:
+            before_replay()
+        ahead = ", ".join(f"#{n}" for n, _ in entries)
+        repo_dir = replay_repository(root)
+        if queue_status is None or repo_dir is None:
+            return (f"merge queue has entries ahead ({ahead}) and automatic prefix replay needs "
+                    "`scripts/queue_status.py` and a full Git repository (or `GIT_DIR`); run "
+                    f"`python3 scripts/queue_status.py prefix {number} {sha}` from a full clone "
+                    "or wait for the queue to clear.")
+        env_patch = {}
+        if os.environ.get("GIT_DIR") and not Path(os.environ["GIT_DIR"]).is_absolute():
+            env_patch["GIT_DIR"] = str((Path.cwd() / os.environ["GIT_DIR"]).resolve())
+        old_git_dir = os.environ.get("GIT_DIR")
+        hub_refusal, hub_notice = None, None
+        try:
+            if env_patch:
+                os.environ["GIT_DIR"] = env_patch["GIT_DIR"]
+            queue_status.fetch_objects(
+                repo_dir, f"{owner}/{name}", [base, sha, *(queued_sha for _, queued_sha in entries)]
+            )
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                rc = queue_status.check_prefix(repo_dir, base, entries, sha)
+            if rc == 0:
+                hub_refusal, hub_notice = _evaluate_hub_impact(
+                    repo_dir, base, sha, ahead, number,
+                    cr_mod=queue_status.cr, root=root, hold_hubs=hold_hubs,
+                )
+        finally:
+            if env_patch:
+                if old_git_dir is None:
+                    os.environ.pop("GIT_DIR", None)
+                else:
+                    os.environ["GIT_DIR"] = old_git_dir
+        if rc == 0 and hub_refusal is not None:
+            return hub_refusal
+        if rc == 0 and queue_status.prefix(owner, name, number, sha,
+                                           graphql=gh_graphql) != (base, entries):
+            return "the merge queue changed during prefix replay; rerun the helper."
+    except GhError:
+        raise
+    except imported_gh_error as error:
+        raise GhError(str(error)) from error
+    except (KeyError, TypeError, OSError, ValueError, subprocess.SubprocessError,
+            git_error) as error:
+        raise GhError(f"merge-queue prefix check failed: {error}") from error
+    if rc == 0:
+        if hub_notice is not None and on_hub_notice is not None:
+            on_hub_notice(hub_notice)
+        return None
+    details = " ".join(line.strip() for line in output.getvalue().splitlines() if line.strip())
+    return (f"{details}; wait for the conflicting queue entry to land or leave the queue, "
+            "then rerun.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("pr", type=int, help="pull request number")
     parser.add_argument("sha", help="the full approved head commit")
     parser.add_argument("--wait", type=float, default=0, metavar="MINUTES",
                         help="wait this long for running required checks (default 0)")
+    parser.add_argument("--hold-hubs", action="store_true",
+                        help="refuse to enqueue when active queue entries are ahead and the PR "
+                             "modifies a high-fan-in CslibFrontier hub (>= 500 importers)")
     parser.add_argument("--repo", default=REPO, help=f"OWNER/NAME (default {REPO})")
     args = parser.parse_args(argv)
     if not re.fullmatch(r"[0-9a-f]{40}", args.sha):
@@ -231,6 +693,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, name = args.repo.split("/", 1)
     deadline = time.monotonic() + 60 * args.wait
     retries = MERGEABLE_RETRIES
+    discussion = None
     try:
         while True:
             pr = fetch_pr(owner, name, args.pr)
@@ -239,11 +702,14 @@ def main(argv: list[str] | None = None) -> int:
                 break
             if pr["mergeable"] == "UNKNOWN" and retries > 0:
                 retries -= 1
-                time.sleep(MERGEABLE_SECONDS)
+                delay = MERGEABLE_SECONDS
             elif time.monotonic() < deadline:
-                time.sleep(POLL_SECONDS)
+                delay = POLL_SECONDS
             else:
                 break
+            if discussion is None:
+                discussion = fetch_discussion(pr["id"])
+            time.sleep(delay)
         if status == "queued":
             entry = pr["mergeQueueEntry"]
             print(f"#{args.pr} is already queued at {args.sha[:12]} "
@@ -252,6 +718,24 @@ def main(argv: list[str] | None = None) -> int:
         if status != "ready":
             verb = "not queued yet" if status == "pending" else "not queued"
             print(f"#{args.pr} {verb}: " + "; ".join(reasons) + ".")
+            return 1
+
+        def snapshot_before_replay() -> None:
+            nonlocal discussion
+            if discussion is None:
+                discussion = fetch_discussion(pr["id"])
+
+        notices: list[str] = []
+        conflict = check_queue_prefix(owner, name, args.pr, args.sha,
+                                      before_replay=snapshot_before_replay,
+                                      hold_hubs=args.hold_hubs,
+                                      on_hub_notice=notices.append)
+        if conflict is not None:
+            print(f"#{args.pr} not queued: {conflict}")
+            return 1
+        if discussion is not None and fetch_discussion(pr["id"]) != discussion:
+            print(f"#{args.pr} not queued: its review discussion changed while waiting; "
+                  "reread the PR and any review holds, then rerun the helper.")
             return 1
         entry = (gh_graphql(ENQUEUE, id=pr["id"], sha=args.sha).get("enqueuePullRequest")
                  or {}).get("mergeQueueEntry")
@@ -263,6 +747,8 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
     print(f"#{args.pr} queued at {args.sha[:12]} (position {entry['position']}).")
+    for notice in notices:
+        print(notice)
     return 0
 
 

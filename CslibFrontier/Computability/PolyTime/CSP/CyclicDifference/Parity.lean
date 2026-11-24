@@ -108,7 +108,7 @@ theorem computableInPolyTime_parityChainTail :
       (fun p : (ℕ × ℕ × List ℕ) × ℕ => chainScope p.1.1 p.1.2.1 p.1.2.2 p.2)
       (encPair encParityTail encUnary) (encList encNat) := by
     unfold chainScope encParityTail
-    have hconv := ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary
+    have hconv := ComputableInPolyTime.unary_to_binary
     have hname : ComputableInPolyTime (fun p : (ℕ × ℕ × List ℕ) × ℕ =>
         if p.2 = 0 then p.1.2.1 else p.1.1 + (p.2 - 1))
         (encPair (encPair encUnary (encPair encNat (encList encNat))) encUnary) encNat := by
@@ -120,7 +120,13 @@ theorem computableInPolyTime_parityChainTail :
         if p.2 + 2 = p.1.2.2.length then p.1.2.2.getD (p.2 + 1) 0 else p.1.1 + p.2)
         (encPair (encPair encUnary (encPair encNat (encList encNat))) encUnary) encNat := by
       apply ComputableInPolyTime.ite_decide
-      · fun_prop
+      · exact ComputableInPolyTime.decide_eq'
+          (show ComputableInPolyTime
+            (fun p : (ℕ × ℕ × List ℕ) × ℕ => p.2 + 2)
+            (encPair encParityTail encUnary) encUnary by unfold encParityTail; fun_prop)
+          (show ComputableInPolyTime
+            (fun p : (ℕ × ℕ × List ℕ) × ℕ => p.1.2.2.length)
+            (encPair encParityTail encUnary) encUnary by unfold encParityTail; fun_prop)
       · fun_prop
       · exact hconv.comp (by fun_prop)
     fun_prop

@@ -13,7 +13,7 @@ import CslibFrontier.Tactic.PolyTime
 namespace CslibFrontierTests.PCPEncodedEnumeration
 
 open Cslib Cslib.PCP Cslib.PCP.Encoded Cslib.PCP.HadamardTester Turing.MultiTapeTM
-open ComputableTidilyInPolyTime
+open ComputableInPolyTime
 
 -- Only these small enumerations are evaluated, not the complete tester's truth-table output.
 example : (FinEnum.toList (Graph.PowerLabel Unit 1 2)).length = 8 := by decide
@@ -45,13 +45,13 @@ private theorem rotateLoops_eq (n : ℕ) (v : Fin n) (d : Unit) :
         ((RotationMap.loops (Fin n) Unit).rot (v, d)).2) := rfl
 
 private theorem polytime_rotateLoops :
-    ComputableTidilyInPolyTime rotateLoops
+    ComputableInPolyTime rotateLoops
       (encPair encUnary (encPair encUnary (encFinEnum Unit)))
       (encPair encUnary (encFinEnum Unit)) := by
   unfold rotateLoops
   fun_prop
 
-private theorem polytime_unitEval : ComputableTidilyInPolyTime
+private theorem polytime_unitEval : ComputableInPolyTime
     (fun p : Bool × (Unit × Unit) => unitEval p.1 p.2.1 p.2.2)
       (encPair encBool (encPair (encFinEnum Unit) (encFinEnum Unit))) encBool := by
   unfold unitEval
@@ -87,10 +87,10 @@ variable {C α D Input : Type} [FinEnum α] [FinEnum D]
   {alphabet : α ↪ List Bool} {labels : D ↪ List Bool}
   (graph : Input → Graph C) (eval : C → α → α → Bool)
   (rotate : ℕ × (ℕ × D) → ℕ × D) (fallback : C) (T q : ℕ) [NeZero q]
-  (hg : ComputableTidilyInPolyTime graph input (Graph.encoding enc))
-  (hr : ComputableTidilyInPolyTime rotate
+  (hg : ComputableInPolyTime graph input (Graph.encoding enc))
+  (hr : ComputableInPolyTime rotate
     (encPair encUnary (encPair encUnary labels)) (encPair encUnary labels))
-  (he : ComputableTidilyInPolyTime (fun p : C × (α × α) => eval p.1 p.2.1 p.2.2)
+  (he : ComputableInPolyTime (fun p : C × (α × α) => eval p.1 p.2.1 p.2.2)
     (encPair enc (encPair alphabet alphabet)) encBool)
 
 example : ComputableInPolyTime

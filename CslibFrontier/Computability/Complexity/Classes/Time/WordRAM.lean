@@ -78,7 +78,7 @@ theorem RAMTIME_mono {B : Basis} {T₁ T₂ : ℕ → ℕ} (h : ∀ n, T₁ n �
     RAMTIME B enc T₁ ⊆ RAMTIME B enc T₂ := by
   rintro A ⟨c, k, hk, hd⟩
   exact ⟨c, k, hk, hd.mono (fun a _ => Nat.add_le_add_right (Nat.mul_le_mul_left _ (h _)) _)
-    fun _ _ hw => hw⟩
+    (fun _ _ hw => hw) hd.inputAdmissible⟩
 
 /-- `RAMTIME` grows with the basis. -/
 theorem RAMTIME_subset_of_hom {B B' : Basis} (φ : B.Hom B') {T : ℕ → ℕ} :
@@ -95,7 +95,7 @@ fixed program over `Basis.additive` in time `O(T n)` at logarithmic word sizes i
 theorem RAMTIME_additive_subset_DTIME {T : ℕ → ℕ} (hT : TimeConstructible T) :
     RAMTIME .additive enc T ⊆
       DTIME enc fun n => (n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3 := by
-  rintro A ⟨c, k, hk, r, p, hp⟩
+  rintro A ⟨c, k, hk, r, p, hp, _⟩
   -- Run the simulation on the clock `(c + 1) * (T n + 1)`, which dominates `c * T n + c`.
   have hg : Turing.MultiTapeTM.ComputableInPolyTime (fun m : ℕ => (c + 1) * (m + 1)) encNat
       encNat :=
@@ -124,8 +124,7 @@ theorem RAMTIME_additive_subset_DTIME {T : ℕ → ℕ} (hT : TimeConstructible 
       _ = _ := by ring
   calc (c + 1) * (T n + 1) + (n + (c + 1) * (T n + 1) + 1) ^ 4 * (k * (Nat.size n + 1) + 1) ^ 3
       ≤ (c + 1) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) +
-          (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) :=
-        Nat.add_le_add h₁ h₂
+          (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by gcongr
     _ = ((c + 1) + (c + 2) ^ 4 * (k + 1) ^ 3) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by
         ring
     _ ≤ _ := Nat.le_add_right _ _
@@ -151,7 +150,9 @@ theorem DTIME_subset_RAMTIME_additive {g : ℕ → ℕ} (hg : PolynomiallyBounde
     fun_prop
   obtain ⟨D, e, hD⟩ := polynomiallyBounded_iff_le.1 hS
   refine ⟨(c₁ + c₂) * (stepCost K (Fintype.card Q) + 2) + 2 * K + 13, D + e + 2, by omega,
-    regs K, simProgram tm.tr tm.q₀ (Fintype.equivFin Q), fun a w hw _ => ?_⟩
+    regs K, simProgram tm.tr tm.q₀ (Fintype.equivFin Q), ?_,
+    inputAdmissible_of_widthIndependent _ _⟩
+  intro a w hw _
   obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
   have hb : simBound K (Fintype.card Q) (enc a).length (c₁ * g (enc a).length + c₂) < 2 ^ w :=
     calc _ ≤ D * ((enc a).length + 1) ^ e := hD _

@@ -58,6 +58,23 @@ have total fallback zero; acceptance is checked separately. -/
       Graph.RotationCertificate.walk c.successor (k + 1) i).find?
         (fun j => decide (j < darts))).getD 0⟩
 
+/-- Every retained successor is below the requested prefix, even on malformed tables.
+At zero darts the successor list is empty; no positivity hypothesis is required. -/
+theorem entries_restrictPrefix_lt (darts : ℕ) (c : Graph.RotationCertificate) :
+    ∀ v ∈ (restrictPrefix darts c).successor, v < darts := by
+  intro v hv
+  obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hv
+  have hi' := List.mem_range.mp hi
+  generalize hfind : (((List.range c.successor.length).map fun k =>
+    Graph.RotationCertificate.walk c.successor (k + 1) i).find?
+      (fun j => decide (j < darts))) = found
+  cases found with
+  | none => simpa using (show 0 < darts from by omega)
+  | some j =>
+    change j < darts
+    have hj := List.find?_some hfind
+    simpa only [decide_eq_true_eq] using hj
+
 /-- The canonical body restriction retains exactly its original number of indexed darts. -/
 theorem length_restrictPrefix (darts : ℕ) (c : Graph.RotationCertificate) :
     (restrictPrefix darts c).successor.length = darts := by

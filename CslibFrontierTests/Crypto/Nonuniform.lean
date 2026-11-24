@@ -16,9 +16,9 @@ import CslibFrontier.Tactic.PPT
 
 /-! Checked clients of the nonuniform security notions. Existence of a nonuniform one-way
 function or generator is open, so these checks show that the notions are not trivially true
-(constant functions, fixed words and length-wise constant generators fail them) and that the
-indistinguishability notion is not trivially false. They do not separate the nonuniform notions
-from the uniform ones. -/
+(constant functions, fixed words and length-wise constant generators fail them, and a generator
+with a constant first bit fails the GMW advice premise) and that the indistinguishability notion
+is not trivially false. They do not separate the nonuniform notions from the uniform ones. -/
 
 namespace CslibFrontierTests.Crypto.Nonuniform
 
@@ -66,6 +66,36 @@ example {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (h : NonuniformPRG generator length) :
     GMW.AdvicePRG Complexity.encCNF generator length :=
   h.advicePRG _
+
+open Turing.MultiTapeTM in
+/-- **`GMW.AdvicePRG` is not vacuous**: prefixing the seed with a zero bit gives a generator whose
+first output bit is constant, so the test returning that bit has advantage `1 / 2`, whatever the
+instance encoding and with constant instance, witness and auxiliary-input families. Only the
+security clause is used. -/
+theorem not_advicePRG_cons_false {α : Type} (enc : α ↪ List Bool) (a : α) :
+    ¬ GMW.AdvicePRG enc (false :: ·) (· + 1) := by
+  rintro ⟨-, -, h⟩
+  have htest : IsPPTOn (encPair (encInstanceWitnessAuxInput enc) encBits) encBool
+      fun x : (ℕ × (α × (List Bool × List Bool))) × List Bool => pure (x.2.headD false) :=
+    ((ComputableInPolyTime.headD false).comp (ComputableInPolyTime.snd _ _)).isPPTOn
+  have hneg := h _ htest (fun _ => a) (fun _ => []) (fun _ => [])
+    (PolynomiallyBounded.const _) (PolynomiallyBounded.const _) (PolynomiallyBounded.const _)
+  refine not_negligible_const (c := 2⁻¹) (by norm_num) (hneg.congr fun n => ?_)
+  have hreal : ProbComp.eval ((List.cons false <$> BitString.sampleList (n + 7)) >>=
+      fun challenge : List Bool => (pure (challenge.headD false) : ProbComp Bool)) =
+        PMF.pure false := by
+    simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map,
+      Function.comp_def, List.headD_cons]
+    exact PMF.bind_const _ _
+  have hideal : ProbComp.eval (BitString.sampleList (n + 7 + 1) >>=
+      fun challenge : List Bool => (pure (challenge.headD false) : ProbComp Bool)) =
+        PMF.uniformOfFintype Bool := by
+    rw [ProbComp.eval_bind, BitString.eval_sampleList, BitString.uniformList_succ]
+    simp only [ProbComp.eval_pure, PMF.bind_bind, PMF.bind_map, Function.comp_def,
+      List.headD_cons, PMF.bind_const, PMF.bind_pure]
+  rw [hreal, hideal]
+  norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
+    ENNReal.toNNReal_ofNat]
 
 /-- With empty advice, indistinguishability with advice is uniform indistinguishability, so the
 uniform first-bit separation transfers. -/
@@ -191,11 +221,11 @@ example (n : ℕ) :
 
 /-- Concrete exercised client of `HasGapWithAdvice.extract_three` on `fairPair` with nonempty
 advice `nonemptyAdvice`, positive extracted label output
-`ExtractionSchedule.slack n (saved.length n) 0`, and the advice-dependent distinguisher
+`saved.sampleSlack (fun _ => 0) n`, and the advice-dependent distinguisher
 `advisedWordDistinguisher`. -/
 example :
-    let count := fun n => Pseudoentropy.ExtractionSchedule.count n (saved.length n) 0
-    let bits := fun n => Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0
+    let count := saved.sampleCount (fun _ => 0)
+    let bits := saved.sampleSlack (fun _ => 0)
     Negligible (fun n => Game.advantage
       (distinguishingGame
         (ProbComp.eval
@@ -210,19 +240,19 @@ example :
   have hind : IndistinguishableWithAdvice nonemptyAdvice
       (fun n => ProbComp.eval
         (Pseudoentropy.ThreeSource.extract
-          (Pseudoentropy.ExtractionSchedule.count n (saved.length n) 0)
+          (saved.sampleCount (fun _ => 0) n)
           (saved.length n) 2 0
-          (Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0) 0
+          (saved.sampleSlack (fun _ => 0) n) 0
           (saved.sampleWithSeed n)))
       (fun n => BitString.uniformList
         (Pseudoentropy.ThreeSource.outputLength
-          (Pseudoentropy.ExtractionSchedule.count n (saved.length n) 0)
+          (saved.sampleCount (fun _ => 0) n)
           (saved.length n) 2 0
-          (Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0) 0)) := by
+          (saved.sampleSlack (fun _ => 0) n) 0)) := by
     apply (fairPair_gapWithAdvice nonemptyAdvice).extract_three saved
       (bound := fun _ => 2) (inverseSlack := fun _ => 0)
       (observationBits := fun _ => 0) (remainingBits := fun _ => 0)
-      (labelBits := fun n => Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0)
+      (labelBits := fun n => saved.sampleSlack (fun _ => 0) n)
       (numerator := fun _ => 2) (densityBound := fun _ => 0)
       (by constructor <;> fun_prop)
       (by intro n observation _; exact Nat.le_refl 2)
@@ -234,14 +264,14 @@ example :
     have h := Pseudoentropy.ExtractionSchedule.two_slack_eq n (saved.length n) 0
     norm_num [dyadicSize] at h ⊢
     linarith [Nat.cast_nonneg (α := ℝ)
-      (Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0)]
+      (saved.sampleSlack (fun _ => 0) n)]
   exact hind advisedWordDistinguisher (by unfold advisedWordDistinguisher; fun_prop)
 
 /-- Concrete exercised client of `HasGapWithAdvice.extract_indexed_word_labels` on `fairPair` with
 nonempty advice `nonemptyAdvice` and an advice-dependent indexed test. -/
 example (choose : ℕ → ℕ) (hchoose : ∀ n, choose n < n + 1) :
-    let count := fun n => Pseudoentropy.ExtractionSchedule.count n (saved.length n) 0
-    let bits := fun n => Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0
+    let count := saved.sampleCount (fun _ => 0)
+    let bits := saved.sampleSlack (fun _ => 0)
     let test : ℕ × List Bool → ℕ → List (List Bool) × List Bool × List Bool → ProbComp Bool :=
       fun a i result => pure (a.2.headD false && (result.2.2.headD false ^^ decide (i < a.1)))
     Negligible (fun n => Game.advantage
@@ -256,7 +286,7 @@ example (choose : ℕ → ℕ) (hchoose : ∀ n, choose n < n + 1) :
   have hlength := saved.length_isPolyTime
   apply (fairPair_gapWithAdvice nonemptyAdvice).extract_indexed_word_labels saved choose
     (candidates := fun n => n + 1) (inverseSlack := fun _ => 0)
-    (outputBits := fun n _ => Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0)
+    (outputBits := fun n _ => saved.sampleSlack (fun _ => 0) n)
     (numerator := fun _ _ => 2) (densityBound := fun _ => 0)
     (by fun_prop)
     (Pseudoentropy.ExtractionSchedule.isPolyTime_slack (by fun_prop) (by fun_prop) (by fun_prop))
@@ -270,7 +300,7 @@ example (choose : ℕ → ℕ) (hchoose : ∀ n, choose n < n + 1) :
   intro n
   have h := Pseudoentropy.ExtractionSchedule.two_slack_eq n (saved.length n) 0
   norm_num [dyadicSize] at h ⊢
-  linarith [Nat.cast_nonneg (α := ℝ) (Pseudoentropy.ExtractionSchedule.slack n (saved.length n) 0)]
+  linarith [Nat.cast_nonneg (α := ℝ) (saved.sampleSlack (fun _ => 0) n)]
 
 /-- Conditional client of `EntropyGrid.exists_secure_padded_choice_withAdvice` assuming a
 nonuniform one-way function `hf : NonuniformOneWay f` (which supplies a pseudoentropy pair with

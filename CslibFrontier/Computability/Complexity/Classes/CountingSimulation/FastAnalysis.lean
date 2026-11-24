@@ -69,7 +69,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 
 /-! ### The clock -/
@@ -189,8 +189,7 @@ theorem numEdges_lt_length_encInput (P : ℕ) (G : ℕ × ExplicitTensorNetwork 
     G.2.numEdges < (FastContraction.encInput (P, G)).length := by
   simp only [FastContraction.encInput, length_encPair, ExplicitTensorNetwork.encExplicitNetwork,
     encOfEquiv, Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
-  simp only [DescribedNetwork.equivProd, Equiv.coe_fn_mk, encUnary_apply, List.length_replicate]
-  omega
+  enc_len [DescribedNetwork.equivProd, Equiv.coe_fn_mk]
 
 /-! ### The analysis from the sizes and the leaves -/
 

@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.CollisionResistant
-import CslibFrontier.Crypto.Computational.Encryption.CCA
+import CslibFrontier.Crypto.Computational.Encryption.CCA.Multi
 import CslibFrontierTests.Crypto.Encryption
 import Mathlib.Algebra.Field.ZMod
 
@@ -56,8 +56,8 @@ theorem indcca2_const : INDCCA2 constKeyGen constEncrypt constDecrypt := by
   intro adversary _
   simpa only [cca2Game, cca2GameOn, constEncrypt, Game.advantage_self] using negligible_zero
 
-/-- By `INDCCA2.indcca2Multi` (Theorem 12.1), `constKeyGen`/`constEncrypt`/`constDecrypt` also
-satisfies multi-challenge `INDCCA2Multi`. -/
+/-- By `INDCCA2.indcca2Multi` (the batch-challenge step toward Theorem 12.1),
+`constKeyGen`/`constEncrypt`/`constDecrypt` also satisfies batch-challenge `INDCCA2Multi`. -/
 theorem indcca2Multi_const : INDCCA2Multi constKeyGen constEncrypt constDecrypt :=
   indcca2_const.indcca2Multi
     ((ComputableInPolyTime.const ([], [])).isPPTOn)
@@ -134,9 +134,9 @@ theorem not_indcca2Of_lenEncrypt {Out : Type} (encOut : Out ↪ List Bool)
     ¬ INDCCA2Of encBits encOut constKeyGen lenEncrypt decrypt :=
   fun hCCA => not_indcpaOf_lenEncrypt hCCA.indcpaOf
 
-/-- By `WordINDCCA2.wordINDCCA2Multi` (Theorem 12.1), `lenEncrypt` satisfies multi-challenge
-`WordINDCCA2Multi`, while by `INDCCA2MultiOf.indcca2Of` it violates unrestricted
-`INDCCA2MultiOf encBits encOut`. -/
+/-- By `WordINDCCA2.wordINDCCA2Multi` (the batch-challenge step toward Theorem 12.1),
+`lenEncrypt` satisfies batch-challenge `WordINDCCA2Multi`, while by `INDCCA2MultiOf.indcca2Of` it
+violates unrestricted `INDCCA2MultiOf encBits encOut`. -/
 theorem wordINDCCA2Multi_lenEncrypt : WordINDCCA2Multi constKeyGen lenEncrypt lenDecrypt :=
   wordINDCCA2_lenEncrypt.wordINDCCA2Multi
     ((ComputableInPolyTime.const ([], [])).isPPTOn)
@@ -320,7 +320,7 @@ theorem not_collisionResistantFor_constZModHash :
       collisionGameFor (Param := Unit) (Digest := fun _ => ZMod 11)
         (fun _ => PMF.pure ()) constZModHash (fun _ _ _ => true) constZModFinder n =
         PMF.pure true := by
-    simp [collisionGameFor, constZModFinder, constZModHash, isCollisionFor]
+    simp [collisionGameFor, collisionExperiment, constZModFinder, constZModHash, isCollisionFor]
     rfl
   simp [heval, Game.succProbability]
 
