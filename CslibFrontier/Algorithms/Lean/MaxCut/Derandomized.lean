@@ -181,120 +181,26 @@ private theorem edgeScaledUncut_assignVertex_add {s : PartialCut} {z : ℕ}
     edgeScaledUncut (assignVertex z true s) e + edgeScaledUncut (assignVertex z false s) e =
       2 * edgeScaledUncut s e := by
   by_cases huv : e.u = e.v
-  · have hT : edgeScaledUncut (assignVertex z true s) e = 2 * e.weight := by
-      simp [edgeScaledUncut, huv]
-    have hF : edgeScaledUncut (assignVertex z false s) e = 2 * e.weight := by
-      simp [edgeScaledUncut, huv]
-    have h0 : edgeScaledUncut s e = 2 * e.weight := by
-      simp [edgeScaledUncut, huv]
-    omega
-  · by_cases huT : e.u ∈ s.trueSide
-    · have huF : e.u ∉ s.falseSide := hdisj e.u huT
-      have huz : e.u ≠ z := fun h => hzT (h ▸ huT)
-      by_cases hvT : e.v ∈ s.trueSide
-      · have hvz : e.v ≠ z := fun h => hzT (h ▸ hvT)
-        have hT : edgeScaledUncut (assignVertex z true s) e = 2 * e.weight := by
-          simp [assignVertex, edgeScaledUncut, huv, huT, hvT]
-        have hF : edgeScaledUncut (assignVertex z false s) e = 2 * e.weight := by
-          simp [assignVertex, edgeScaledUncut, huv, huT, hvT]
-        have h0 : edgeScaledUncut s e = 2 * e.weight := by
-          simp [edgeScaledUncut, huv, huT, hvT]
-        omega
-      · by_cases hvF : e.v ∈ s.falseSide
-        · have hvz : e.v ≠ z := fun h => hzF (h ▸ hvF)
-          have hT : edgeScaledUncut (assignVertex z true s) e = 0 := by
-            simp [assignVertex, edgeScaledUncut, huv, huT, hvT, hvF, hvz]
-          have hF : edgeScaledUncut (assignVertex z false s) e = 0 := by
-            simp [assignVertex, edgeScaledUncut, huv, huT, hvT, hvF]
-          have h0 : edgeScaledUncut s e = 0 := by
-            simp [edgeScaledUncut, huv, huT, hvT, hvF]
-          omega
-        · by_cases hvz : e.v = z
-          · subst hvz
-            have hT : edgeScaledUncut (assignVertex e.v true s) e = 2 * e.weight := by
-              simp [assignVertex, edgeScaledUncut, huT]
-            have hF : edgeScaledUncut (assignVertex e.v false s) e = 0 := by
-              simp [assignVertex, edgeScaledUncut, huv, huT, hvT]
-            have h0 : edgeScaledUncut s e = e.weight := by
-              simp [edgeScaledUncut, huv, huT, hvT, hvF]
-            omega
-          · have hT : edgeScaledUncut (assignVertex z true s) e = e.weight := by
-              simp [assignVertex, edgeScaledUncut, huv, huT, hvT, hvF, hvz]
-            have hF : edgeScaledUncut (assignVertex z false s) e = e.weight := by
-              simp [assignVertex, edgeScaledUncut, huv, huT, hvT, hvF, hvz]
-            have h0 : edgeScaledUncut s e = e.weight := by
-              simp [edgeScaledUncut, huv, huT, hvT, hvF]
-            omega
+  · simp [edgeScaledUncut, huv]; omega
+  by_cases huz : e.u = z
+  · subst huz
+    have hvz : e.v ≠ e.u := Ne.symm huv
+    by_cases hvT : e.v ∈ s.trueSide
+    · have hvF : e.v ∉ s.falseSide := hdisj e.v hvT
+      simp [edgeScaledUncut, assignVertex, huv, hvT, hvz, hzT, hzF]
+    · by_cases hvF : e.v ∈ s.falseSide
+      · simp [edgeScaledUncut, assignVertex, huv, hvT, hvF, hvz, hzT, hzF]
+      · simp [edgeScaledUncut, assignVertex, huv, hvT, hvF, hvz, hzT, hzF]; omega
+  by_cases hvz : e.v = z
+  · subst hvz
+    by_cases huT : e.u ∈ s.trueSide
+    · simp [edgeScaledUncut, assignVertex, huv, huT, hzT, hzF]
     · by_cases huF : e.u ∈ s.falseSide
-      · have huz : e.u ≠ z := fun h => hzF (h ▸ huF)
-        by_cases hvT : e.v ∈ s.trueSide
-        · have hvz : e.v ≠ z := fun h => hzT (h ▸ hvT)
-          have hT : edgeScaledUncut (assignVertex z true s) e = 0 := by
-            simp [assignVertex, edgeScaledUncut, huv, huT, huF, huz, hvT]
-          have hF : edgeScaledUncut (assignVertex z false s) e = 0 := by
-            simp [assignVertex, edgeScaledUncut, huv, huT, huF, hvT]
-          have h0 : edgeScaledUncut s e = 0 := by
-            simp [edgeScaledUncut, huv, huT, huF, hvT]
-          omega
-        · by_cases hvF : e.v ∈ s.falseSide
-          · have hvz : e.v ≠ z := fun h => hzF (h ▸ hvF)
-            have hT : edgeScaledUncut (assignVertex z true s) e = 2 * e.weight := by
-              simp [assignVertex, edgeScaledUncut, huv, huT, huF, huz, hvT, hvF, hvz]
-            have hF : edgeScaledUncut (assignVertex z false s) e = 2 * e.weight := by
-              simp [assignVertex, edgeScaledUncut, huv, huT, huF, hvT, hvF]
-            have h0 : edgeScaledUncut s e = 2 * e.weight := by
-              simp [edgeScaledUncut, huv, huT, huF, hvT, hvF]
-            omega
-          · by_cases hvz : e.v = z
-            · subst hvz
-              have hT : edgeScaledUncut (assignVertex e.v true s) e = 0 := by
-                simp [assignVertex, edgeScaledUncut, huv, huT, huF]
-              have hF : edgeScaledUncut (assignVertex e.v false s) e = 2 * e.weight := by
-                simp [assignVertex, edgeScaledUncut, huv, huT, huF, hvT]
-              have h0 : edgeScaledUncut s e = e.weight := by
-                simp [edgeScaledUncut, huv, huT, huF, hvT, hvF]
-              omega
-            · have hT : edgeScaledUncut (assignVertex z true s) e = e.weight := by
-                simp [assignVertex, edgeScaledUncut, huv, huT, huF, huz, hvT, hvF, hvz]
-              have hF : edgeScaledUncut (assignVertex z false s) e = e.weight := by
-                simp [assignVertex, edgeScaledUncut, huv, huT, huF, hvT, hvF, hvz]
-              have h0 : edgeScaledUncut s e = e.weight := by
-                simp [edgeScaledUncut, huv, huT, huF, hvT, hvF]
-              omega
-      · by_cases huz : e.u = z
-        · subst huz
-          have hvz : e.v ≠ e.u := Ne.symm huv
-          by_cases hvT : e.v ∈ s.trueSide
-          · have hvF : e.v ∉ s.falseSide := hdisj e.v hvT
-            have hT : edgeScaledUncut (assignVertex e.u true s) e = 2 * e.weight := by
-              simp [assignVertex, edgeScaledUncut, huv, hvT]
-            have hF : edgeScaledUncut (assignVertex e.u false s) e = 0 := by
-              simp [assignVertex, edgeScaledUncut, huv, huT, hvT]
-            have h0 : edgeScaledUncut s e = e.weight := by
-              simp [edgeScaledUncut, huv, huT, huF]
-            omega
-          · by_cases hvF : e.v ∈ s.falseSide
-            · have hT : edgeScaledUncut (assignVertex e.u true s) e = 0 := by
-                simp [assignVertex, edgeScaledUncut, huv, hvT, hvF, hvz]
-              have hF : edgeScaledUncut (assignVertex e.u false s) e = 2 * e.weight := by
-                simp [assignVertex, edgeScaledUncut, huv, huT, hvT, hvF]
-              have h0 : edgeScaledUncut s e = e.weight := by
-                simp [edgeScaledUncut, huv, huT, huF]
-              omega
-            · have hT : edgeScaledUncut (assignVertex e.u true s) e = e.weight := by
-                simp [assignVertex, edgeScaledUncut, huv, hvT, hvF, hvz]
-              have hF : edgeScaledUncut (assignVertex e.u false s) e = e.weight := by
-                simp [assignVertex, edgeScaledUncut, huv, huT, hvT, hvF, hvz]
-              have h0 : edgeScaledUncut s e = e.weight := by
-                simp [edgeScaledUncut, huv, huT, huF]
-              omega
-        · have hT : edgeScaledUncut (assignVertex z true s) e = e.weight := by
-            simp [assignVertex, edgeScaledUncut, huv, huT, huF, huz]
-          have hF : edgeScaledUncut (assignVertex z false s) e = e.weight := by
-            simp [assignVertex, edgeScaledUncut, huv, huT, huF, huz]
-          have h0 : edgeScaledUncut s e = e.weight := by
-            simp [edgeScaledUncut, huv, huT, huF]
-          omega
+      · simp [edgeScaledUncut, assignVertex, huv, huT, huF, hzT, hzF]
+      · simp [edgeScaledUncut, assignVertex, huv, huT, huF]; omega
+  have hmem : ∀ b, edgeScaledUncut (assignVertex z b s) e = edgeScaledUncut s e := fun b => by
+    cases b <;> simp [edgeScaledUncut, assignVertex, huv, huz, hvz]
+  rw [hmem true, hmem false]; omega
 
 /-- Exact conditional-expectation averaging law for `scaledUncut`: assigning an unfixed vertex `z`
 to `true` and `false` sums to twice `scaledUncut edges s`. -/

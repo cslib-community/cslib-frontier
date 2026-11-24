@@ -7,10 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.Finset.Median
 public import CslibFrontier.Probability.MedianTrick
 public import Mathlib.Algebra.BigOperators.Expect
-public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Foundations.Data.Finset.Expect.Chebyshev
 import CslibFrontier.Probability.KWiseIndependent.SecondMoment
 import Mathlib.Algebra.BigOperators.Field
