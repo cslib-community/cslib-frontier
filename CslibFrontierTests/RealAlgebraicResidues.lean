@@ -8,11 +8,12 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
-/-! # Uniform modular traces, empty systems and a repeated-root quotient -/
+/-! # Modular traces, retained parameters, empty systems and a repeated-root quotient -/
 
 public section
 
@@ -43,6 +44,26 @@ example : (residueValue 5 0 2 0 (fun _ => 3) (fun _ _ => 0) : ZMod 5) = 3 := by
     Subsingleton.elim _ _
   rw [he]
   simp
+
+-- Retain two independent parameters in the relation and the multiplier.
+example :
+    let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) := fun _ => C (X 0)
+    let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) := C (X 1)
+    (((multiplicationMatrix (by decide : 1 ≤ 2) r (by intro i; simp [r]) v) ^ 2).trace).coeffNorm1
+      ≤ 64 := by
+  let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) := fun _ => C (X 0)
+  let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) := C (X 1)
+  have hr (i : Fin 1) : (r i).totalDegree ≤ 1 := by simp [r]
+  have hR (i : Fin 1) : (r i).coeff.sum (fun _ a => a.coeffNorm1) ≤ 1 := by
+    dsimp only [r]
+    rw [sum_C coeffNorm1_zero, coeffNorm1_X]
+  have hdeg : v.totalDegree ≤ 0 := (totalDegree_C _).le
+  have hV : v.coeff.sum (fun _ a => a.coeffNorm1) ≤ 1 := by
+    dsimp only [v]
+    rw [sum_C coeffNorm1_zero, coeffNorm1_X]
+  exact multiplicationMatrix_trace_pow_weight_le coeffNorm1_zero coeffNorm1_one.le
+    coeffNorm1_add_le coeffNorm1_mul_le coeffNorm1_neg (by decide : 1 ≤ 1) r hr hR
+    (by decide) v hdeg hV 2 (by decide) (by decide)
 
 -- One machine accepts a binary modulus and power, including their total off-domain defaults.
 theorem uniform_empty_trace_mem : (fun w : ℕ × ℕ => quotientTraceValue w.1 0 2 0 w.2

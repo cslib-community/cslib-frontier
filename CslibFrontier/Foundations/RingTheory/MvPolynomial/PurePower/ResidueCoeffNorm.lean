@@ -53,12 +53,6 @@ theorem residue_weight_le {S : Type*} [CommRing S] {w : S → ℕ}
     change (C (1 : S) : MvPolynomial (Fin n) S).coeff.sum (fun _ a => w a) ≤ 1
     rw [sum_C hzero]
     exact hone
-  have hnorm_pow (p : MvPolynomial (Fin n) S) (j : ℕ) : norm (p ^ j) ≤ norm p ^ j := by
-    induction j with
-    | zero => simpa only [pow_zero] using hnorm_one
-    | succ j ih =>
-      rw [pow_succ, pow_succ]
-      exact (hnorm_mul _ _).trans (Nat.mul_le_mul_right _ ih)
   have hcoeff (p : MvPolynomial (Fin n) S) (m : Fin n →₀ ℕ) : w (p.coeff m) ≤ norm p :=
     Finsupp.single_eval_le_sum p.coeff (g := w) hzero (fun _ => Nat.zero_le _) m
   change w (residue ell r v) ≤ (B + 1) ^ n * (norm v * R ^ B)
@@ -72,7 +66,8 @@ theorem residue_weight_le {S : Type*} [CommRing S] {w : S → ℕ}
       refine (Finset.le_prod_of_submultiplicative norm hnorm_one hnorm_mul _ _).trans ?_
       calc
         _ ≤ ∏ i : Fin n, R ^ j i := Finset.prod_le_prod fun i _ =>
-          (hnorm_pow _ _).trans (Nat.pow_le_pow_left (hM i) _)
+          (sum_pow_le_of_submultiplicative hzero hone hadd hmul (r i) (j i)).trans
+            (Nat.pow_le_pow_left (hM i) _)
         _ = R ^ (∑ i, j i) := by rw [Finset.prod_pow_eq_pow_sum]
         _ ≤ R ^ B := Nat.pow_le_pow_right hR hj
     · rw [term_eq_zero_of_degree_lt hell r hr v j (by omega), hzero]

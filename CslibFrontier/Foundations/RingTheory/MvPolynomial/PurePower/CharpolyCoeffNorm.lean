@@ -11,6 +11,8 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 public import Mathlib.Data.Nat.Size
+import CslibFrontier.Foundations.Data.MvPolynomial.CoeffSumBounds
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.CoeffNorm
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.DeterminantWeight
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
@@ -21,9 +23,12 @@ import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 
 The Jacobian norm follows from the norms of the lower relations. The finite residue formula
 then bounds the positive power traces, and Newton's identity bounds the characteristic
-polynomial of multiplication in the quotient. All coefficients lie in `ℤ[X]`.
+polynomial of multiplication in the quotient. The Jacobian and trace estimates permit
+any subadditive, submultiplicative coefficient weight invariant under negation. The
+characteristic norm bounds below specialize these estimates to `ℤ[X]`.
 
-Adapted from `LeanCanny.CountingHierarchy.QuotientMassBounds` at lean-canny commit
+Adapted from `LeanCanny.CountingHierarchy.QuotientMassBounds` and
+`LeanCanny.CountingHierarchy.MultivariateQuotientMass` at lean-canny commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`. The bounds keep their natural-number factors
 explicit, use the sharper residue bound, and retain the power of the multiplier's norm.
 -/
@@ -32,28 +37,103 @@ public section
 
 namespace MvPolynomial.PurePower
 
+private theorem jacobian_weight_sum_le {S : Type*} [CommRing S] {w : S → ℕ}
+    (hzero : w 0 = 0) (hone : w 1 ≤ 1)
+    (hadd : ∀ a b, w (a + b) ≤ w a + w b) (hmul : ∀ a b, w (a * b) ≤ w a * w b)
+    (hneg : ∀ a, w (-a) = w a) {n d R : ℕ}
+    (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree ≤ d)
+    (hR : ∀ i, (r i).coeff.sum (fun _ a => w a) ≤ R) :
+    (jacobian (d + 1) r).coeff.sum (fun _ a => w a) ≤ n.factorial * ((d + 1) * (1 + R)) ^ n := by
+  classical
+  let norm (p : MvPolynomial (Fin n) S) := p.coeff.sum (fun _ a => w a)
+  have hnorm_zero : norm 0 = 0 := by simp [norm]
+  have hnorm_one : norm 1 ≤ 1 := by
+    change (C (1 : S) : MvPolynomial (Fin n) S).coeff.sum (fun _ a => w a) ≤ 1
+    rw [sum_C hzero]
+    exact hone
+  have hnorm_add (p q : MvPolynomial (Fin n) S) : norm (p + q) ≤ norm p + norm q :=
+    sum_add_le_of_subadditive hzero hadd p q
+  have hnorm_mul (p q : MvPolynomial (Fin n) S) : norm (p * q) ≤ norm p * norm q :=
+    sum_mul_le_of_submultiplicative hzero hadd hmul p q
+  have hnorm_neg (p : MvPolynomial (Fin n) S) : norm (-p) = norm p := by
+    simp only [norm, sum_def, support_neg, coeff_neg, hneg]
+  have hvar (i : Fin n) : norm (X i) ≤ 1 := by
+    change (monomial (Finsupp.single i 1) (1 : S)).coeff.sum (fun _ a => w a) ≤ 1
+    rw [sum_monomial_eq hzero]
+    exact hone
+  have hentry (i j : Fin n) : norm (pderiv j (X i ^ (d + 1) - r i)) ≤ (d + 1) * (1 + R) := by
+    have hdeg : (X i ^ (d + 1) - r i).totalDegree ≤ d + 1 := by
+      refine (totalDegree_sub _ _).trans (max_le ?_ ((hr i).trans (Nat.le_succ d)))
+      exact (totalDegree_pow _ _).trans
+        ((Nat.mul_le_mul_left _ (totalDegree_X_le i)).trans_eq (mul_one _))
+    have hx : norm (X i ^ (d + 1)) ≤ 1 := by
+      simpa only [one_pow] using
+        (sum_pow_le_of_submultiplicative hzero hone hadd hmul
+          (X i : MvPolynomial (Fin n) S) (d + 1)).trans (Nat.pow_le_pow_left (hvar i) _)
+    have hnorm : norm (X i ^ (d + 1) - r i) ≤ 1 + R := by
+      rw [sub_eq_add_neg]
+      refine (hnorm_add _ _).trans ?_
+      rw [hnorm_neg]
+      exact Nat.add_le_add hx (hR i)
+    exact (sum_pderiv_le_of_subadditive hzero hadd _ j).trans (Nat.mul_le_mul hdeg hnorm)
+  unfold jacobian
+  have h := Matrix.det_weight_le hnorm_zero hnorm_one hnorm_add hnorm_mul hnorm_neg
+    (Matrix.of (fun i j => pderiv j (X i ^ (d + 1) - r i)))
+    (fun i j => by simpa only [Matrix.of_apply] using hentry i j)
+  rwa [Fintype.card_fin] at h
+
 /-- Bound the parameter coefficient norm of the Jacobian of the actual pure-power relations. -/
 theorem parameterCoeffNorm_jacobian_le {n d R : ℕ}
     (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
     (hr : ∀ i, (r i).totalDegree ≤ d) (hR : ∀ i, ParameterCoeffNorm.norm (r i) ≤ R) :
     ParameterCoeffNorm.norm (jacobian (d + 1) r) ≤ n.factorial * ((d + 1) * (1 + R)) ^ n := by
-  classical
-  have hentry (i j : Fin n) :
-      ParameterCoeffNorm.norm (pderiv j (X i ^ (d + 1) - r i)) ≤ (d + 1) * (1 + R) := by
-    have hdeg : (X i ^ (d + 1) - r i).totalDegree ≤ d + 1 := by
-      refine (totalDegree_sub _ _).trans (max_le ?_ ((hr i).trans (Nat.le_succ d)))
-      rw [totalDegree_X_pow]
-    have hnorm : ParameterCoeffNorm.norm (X i ^ (d + 1) - r i) ≤ 1 + R := by
-      refine (ParameterCoeffNorm.sub_le _ _).trans (Nat.add_le_add ?_ (hR i))
-      simpa only [ParameterCoeffNorm.X, one_pow] using
-        ParameterCoeffNorm.pow_le (X i : MvPolynomial (Fin n) (Polynomial ℤ)) (d + 1)
-    exact (ParameterCoeffNorm.pderiv_le _ j).trans (Nat.mul_le_mul hdeg hnorm)
-  unfold jacobian
-  have h := Matrix.det_weight_le ParameterCoeffNorm.zero ParameterCoeffNorm.one.le
-    ParameterCoeffNorm.add_le ParameterCoeffNorm.mul_le ParameterCoeffNorm.neg
-    (Matrix.of (fun i j => pderiv j (X i ^ (d + 1) - r i)))
-    (fun i j => by simpa only [Matrix.of_apply] using hentry i j)
-  rwa [Fintype.card_fin] at h
+  simpa only [sum_def, ParameterCoeffNorm.norm] using
+    jacobian_weight_sum_le Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le
+      Polynomial.coeffNorm1_add_le Polynomial.coeffNorm1_mul_le Polynomial.coeffNorm1_neg r hr
+      (fun i => by simpa only [sum_def, ParameterCoeffNorm.norm] using hR i)
+
+/-- Bound the coefficient weight of the trace of the $k$th power of multiplication by
+$v$ in the pure-power quotient with relations $X_i^{d+1} - r_i$. Here $D$ is the
+quotient dimension, $B$ bounds the residue numerator degree through $D$, and $A$
+bounds the geometric growth of the positive power traces. -/
+theorem multiplicationMatrix_trace_pow_weight_le {S : Type*} [CommRing S] {w : S → ℕ}
+    (hzero : w 0 = 0) (hone : w 1 ≤ 1)
+    (hadd : ∀ a b, w (a + b) ≤ w a + w b) (hmul : ∀ a b, w (a * b) ≤ w a * w b)
+    (hneg : ∀ a, w (-a) = w a) {n d Ω V R : ℕ} (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree ≤ d)
+    (hR : ∀ i, (r i).coeff.sum (fun _ a => w a) ≤ R) (hR1 : 1 ≤ R)
+    (v : MvPolynomial (Fin n) S) (hdeg : v.totalDegree ≤ Ω)
+    (hV : v.coeff.sum (fun _ a => w a) ≤ V) (k : ℕ) (hk : 1 ≤ k) (hkD : k ≤ (d + 1) ^ n) :
+    let D := (d + 1) ^ n
+    let B := D * Ω + n * d
+    let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + R)) ^ n) * R ^ B * V
+    w (((multiplicationMatrix (by omega : 1 ≤ d + 1) r
+      (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v) ^ k).trace) ≤ A ^ k := by
+  let D := (d + 1) ^ n
+  let B := D * Ω + n * d
+  let J := n.factorial * ((d + 1) * (1 + R)) ^ n
+  let C := (B + 1) ^ n * J * R ^ B
+  let norm (p : MvPolynomial (Fin n) S) := p.coeff.sum (fun _ a => w a)
+  change _ ≤ (C * V) ^ k
+  rw [multiplicationMatrix_trace_pow d hd r hr v k]
+  have hB : (v ^ k * jacobian (d + 1) r).totalDegree ≤ B :=
+    (totalDegree_mul _ _).trans (Nat.add_le_add ((totalDegree_pow _ _).trans
+      (Nat.mul_le_mul hkD hdeg)) (totalDegree_jacobian_le d r hr))
+  have hnum : norm (v ^ k * jacobian (d + 1) r) ≤ V ^ k * J :=
+    (sum_mul_le_of_submultiplicative hzero hadd hmul _ _).trans (Nat.mul_le_mul
+      ((sum_pow_le_of_submultiplicative hzero hone hadd hmul v k).trans
+        (Nat.pow_le_pow_left hV _))
+      (jacobian_weight_sum_le hzero hone hadd hmul hneg r hr hR))
+  calc
+    _ ≤ (B + 1) ^ n * (norm (v ^ k * jacobian (d + 1) r) * R ^ B) :=
+      residue_weight_le hzero hone hadd hmul (by omega) hR1 r
+        (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) hR _ hB
+    _ ≤ (B + 1) ^ n * ((V ^ k * J) * R ^ B) :=
+      Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hnum)
+    _ = C * V ^ k := by dsimp only [C]; ac_rfl
+    _ ≤ (C * V) ^ k := by
+      rw [mul_pow]
+      exact Nat.mul_le_mul_right _ (Nat.le_pow (by omega))
 
 /-- Bound the bivariate coefficient norm of the actual quotient characteristic polynomial.
 Here `D` is the quotient dimension, `B` bounds the residue numerator degrees through `D`,
@@ -90,23 +170,9 @@ theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le {n d Ω V R : ℕ} 
   refine Matrix.bivariateCoeffNorm1_charpoly_le_of_trace_pow _ (by simpa only [one_mul] using hA) ?_
   intro k hk hkD
   rw [hcard] at hkD
-  rw [multiplicationMatrix_trace_pow d hd r hr v k]
-  have hB : (v ^ k * jacobian (d + 1) r).totalDegree ≤ B :=
-    (totalDegree_mul _ _).trans (Nat.add_le_add ((totalDegree_pow _ _).trans
-      (Nat.mul_le_mul hkD hdeg)) (totalDegree_jacobian_le d r hr))
-  have hnum : ParameterCoeffNorm.norm (v ^ k * jacobian (d + 1) r) ≤ V ^ k * J :=
-    (ParameterCoeffNorm.mul_le _ _).trans (Nat.mul_le_mul
-      ((ParameterCoeffNorm.pow_le _ _).trans (Nat.pow_le_pow_left hV _))
-      (parameterCoeffNorm_jacobian_le r hr hR))
-  calc
-    _ ≤ (B + 1) ^ n * (ParameterCoeffNorm.norm (v ^ k * jacobian (d + 1) r) * R ^ B) :=
-      coeffNorm1_residue_le (by omega) hR1 r (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) hR _ hB
-    _ ≤ (B + 1) ^ n * ((V ^ k * J) * R ^ B) :=
-      Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hnum)
-    _ = C * V ^ k := by dsimp only [C]; ac_rfl
-    _ ≤ (C * V) ^ k := by
-      rw [mul_pow]
-      exact Nat.mul_le_mul_right _ (Nat.le_pow (by omega))
+  exact multiplicationMatrix_trace_pow_weight_le
+    Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le Polynomial.coeffNorm1_add_le
+    Polynomial.coeffNorm1_mul_le Polynomial.coeffNorm1_neg hd r hr hR hR1 v hdeg hV k hk hkD
 
 /-- A binary norm budget for quotient characteristic polynomials, with multiplier degree
 at most `Ω`, multiplier norm at most `2 ^ bv` and relation norms at most `2 ^ br`. -/

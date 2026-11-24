@@ -111,12 +111,9 @@ theorem coeffNorm1_mul_le (p q : MvPolynomial ι ℤ) :
 
 /-- Powers satisfy the corresponding coefficient-norm bound. -/
 theorem coeffNorm1_pow_le (p : MvPolynomial ι ℤ) (n : ℕ) :
-    coeffNorm1 (p ^ n) ≤ coeffNorm1 p ^ n := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [pow_succ, pow_succ]
-    exact (coeffNorm1_mul_le _ _).trans (Nat.mul_le_mul_right _ ih)
+    coeffNorm1 (p ^ n) ≤ coeffNorm1 p ^ n :=
+  sum_pow_le_of_submultiplicative Int.natAbs_zero (by decide) Int.natAbs_add_le
+    (fun a b => (Int.natAbs_mul a b).le) p n
 
 /-- Finite products satisfy the corresponding coefficient-norm bound. -/
 theorem coeffNorm1_prod_le {J : Type*} (s : Finset J) (p : J → MvPolynomial ι ℤ) :
