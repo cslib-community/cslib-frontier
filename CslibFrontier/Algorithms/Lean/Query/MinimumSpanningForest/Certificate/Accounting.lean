@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Correctness
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Errors
 import Mathlib.Analysis.SpecificLimits.Normed
 
 /-!
@@ -17,8 +17,10 @@ The accounting of §3.6 of [Khanna, Putterman and Song][KhannaPuttermanSong2026]
 the program `Cslib.Query.Certificate.certificate`: the comparisons it makes outside its exact
 minimum spanning forest calls, and the total size of those calls. With the correctness results
 of `Cslib.Query.Certificate.card_unsupported_add_sum_absorbed_le` (Lemma 3.7), this proves their
-Lemma 3.1 (§3.1, p. 12) for any schedule and estimator satisfying two hypotheses, which a separate
-step discharges for the paper's schedule (Lemma 3.11) and estimator (§3.5):
+Lemma 3.1 (§3.1, p. 12) for any schedule and estimator satisfying two hypotheses, which M7b's
+`Cslib.Query.Certificate.card_errors_le` and `Cslib.Query.Certificate.sum_countQueries_estimator_le`
+discharge for the paper's schedule (Lemma 3.11) and estimator (§3.5),
+`Cslib.Query.Certificate.Config.derandomized`:
 
 * (i) `Cslib.Query.Certificate.ErrorBound`: every call `c` has at most
   `A t_c² √(m_c n_c) + 4 m_c / t_c` edges with an error (§3.6, p. 23);
@@ -33,7 +35,8 @@ results are steps in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325).
 `Cslib.Query.Certificate.countQueries_certificate` and
 `Cslib.Query.Certificate.countQueries_roundStep` decompose the comparisons of a call into those
 of its rounds: the estimator (`Cslib.Query.Certificate.estCost`), the child call, the exact call
-of line 19 and, at the end of a block, the batch of M6 and the recomputation of the first invalid levels of the rejected edges.
+of line 19 and, at the end of a block, the batch of M6 and the recomputation of the first invalid
+levels of the rejected edges.
 M6's `Cslib.Query.Certificate.countQueries_batch_le` bounds the batch by `468 |B| + n`, at most
 `2 (d - 1)` comparisons for each of at most `r² √(8 n |B|)` successful tests, and `2 (k + 1)` for
 the failed test of an edge whose first invalid index is `k`; the recomputation costs another
@@ -77,7 +80,11 @@ ones.
 
 ## Main results
 
-* `Cslib.Query.Certificate.certificate_root_accounting`: **Lemma 3.1** under (i) and (ii): on a
+* `Cslib.Query.Certificate.certificate_derandomized_accounting`: **Lemma 3.1** for the
+  derandomized configuration, and
+  `Cslib.Query.Certificate.countQueries_certificate_derandomized_le`, the form used for
+  Theorem 4.1 (§4, pp. 25–26).
+* `Cslib.Query.Certificate.certificate_root_accounting`: Lemma 3.1 under (i) and (ii): on a
   root instance with `n ≤ 2 m`, `|F| + |U(F)| + ∑ |E_i| ≤ 8 m / γ + C √(m n)`, the comparisons
   are at most `C' m` plus those of the exact calls, and the exact calls work on root edges.
 * `Cslib.Query.Certificate.countQueries_certificate_root_le`: the form used for Theorem 4.1: each
@@ -760,6 +767,12 @@ private theorem countQueries_certificate_le_aux (hw : Function.Injective w)
     simp only [sum_add_distrib] at hsum hpot' ⊢
     linarith
 
+/-- Every call of the recursion rooted at a well-formed instance is well formed. -/
+theorem wellFormed_of_mem_calls (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
+    {inst : Instance V E} (hwf : inst.WellFormed) :
+    ∀ c ∈ calls cfg (LEQuery.keyOracle w) inst, c.WellFormed :=
+  forall_mem_calls cfg _ (fun _ hc _ i => wellFormed_child hw hmsf hc i) hwf
+
 /-- **The absorbed edges of a call have errors in it** (Lemma 3.7, second claim, p. 18), and the
 sets `R''` of its rounds are disjoint: `∑_i |R''_i| ≤ |errors|`. -/
 theorem sum_card_absorbed_le_card_errors (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
@@ -987,8 +1000,9 @@ variable {W : Type} [LinearOrder W]
 /-- **Hypothesis (i)**, the error bound of each call (§3.6, p. 23, from Lemmas 3.10 and 3.11 and
 §3.5): every call `c` of the recursion rooted at `inst` has at most
 `A t_c² √(m_c n_c) + 4 m_c / t_c` edges with an error (`Cslib.Query.Certificate.errors`), where
-`t_c = γ d_c³`. It is a property of the schedule and the estimator of `cfg`, proved for the
-schedule of Lemma 3.11 and the estimator of §3.5 elsewhere (#8325, M7b). -/
+`t_c = γ d_c³`. It is a property of the schedule and the estimator of `cfg`; it holds with
+`A = 11` for the schedule of Lemma 3.11 and the estimator of §3.5
+(`Cslib.Query.Certificate.errorBound_derandomized`). -/
 def ErrorBound (cfg : Config V E) (w : E → W) (inst : Instance V E) (A : ℝ) : Prop :=
   ∀ c ∈ calls cfg (LEQuery.keyOracle w) inst,
     (#(errors cfg w c) : ℝ) ≤ A * (levelT cfg.γ c.level : ℝ) ^ 2 * √(#c.edges * #c.vertices) +
@@ -996,8 +1010,9 @@ def ErrorBound (cfg : Config V E) (w : E → W) (inst : Instance V E) (A : ℝ) 
 
 /-- **Hypothesis (ii)**, the cost of the estimator (§3.5, p. 22): every call `c` with an edge of
 the recursion rooted at `inst` spends at most `B (t_c² n_c + t_c² √(m_c n_c))` comparisons in its
-estimator (`Cslib.Query.Certificate.estCost`). It is a property of the estimator of `cfg`, proved
-for the estimator of §3.5 elsewhere (#8325, M7b). -/
+estimator (`Cslib.Query.Certificate.estCost`). It is a property of the estimator of `cfg`; it
+holds with `B = 49` for the estimator of §3.5 (`Cslib.Query.Certificate.estCostBound_derandomized`).
+-/
 def EstCostBound (cfg : Config V E) (w : E → W) (inst : Instance V E) (B : ℝ) : Prop :=
   ∀ c ∈ calls cfg (LEQuery.keyOracle w) inst, c.edges ≠ ∅ →
     (estCost cfg (LEQuery.keyOracle w) c : ℝ) ≤
@@ -1097,8 +1112,8 @@ private theorem sum_card_msfInputs_add_card_errors_le (hw : Function.Injective w
 /-- **Lemma 3.1** ([KhannaPuttermanSong2026], §3.1, p. 12, proved in §3.6, pp. 22–24), for the
 certificate procedure with any schedule and estimator satisfying hypotheses (i)
 (`Cslib.Query.Certificate.ErrorBound`) and (ii) (`Cslib.Query.Certificate.EstCostBound`). A step
-in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325), not the paper's lemma itself: the
-hypotheses are discharged for the paper's schedule and estimator by a separate step.
+in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325); the paper's schedule and estimator
+are `Cslib.Query.Certificate.certificate_derandomized_accounting`.
 
 For every `γ` and constants `A, B ≥ 0` there are `C, C'` such that on a root instance with `n`
 vertices, `m` edges and `n ≤ 2 m` (no isolated vertices), with injective weights and exact
@@ -1137,8 +1152,7 @@ theorem certificate_root_accounting (γ : ℕ) {A B : ℝ} (hA : 0 ≤ A) (hB : 
   intro V E W _ _ _ cfg w X ends S hγ hw hmsf hS hn hi hii
   subst hγ
   have hwf := Instance.wellFormed_root hS
-  have hwfc : ∀ c ∈ calls cfg (LEQuery.keyOracle w) (Instance.root X ends S), c.WellFormed :=
-    forall_mem_calls cfg _ (fun c hc _ i => wellFormed_child hw hmsf hc i) hwf
+  have hwfc := wellFormed_of_mem_calls hw hmsf hwf
   -- the root quantities
   have hm0 : (0 : ℝ) ≤ #S := Nat.cast_nonneg _
   have hn0 : (0 : ℝ) ≤ #X := Nat.cast_nonneg _
@@ -1275,6 +1289,104 @@ theorem countQueries_certificate_root_le (γ : ℕ) {A B : ℝ} (hA : 0 ≤ A) (
       exact List.sum_le_sum fun S' hS' => hK c hc S' hS'
     have := mul_le_mul_of_nonneg_left hsum hκ
     linarith
+
+/-- **Hypothesis (i) holds for the derandomized configuration** (Lemma 3.11, Claim 3.12, §3.6,
+p. 23), with `A = 11`, by `Cslib.Query.Certificate.card_errors_le` at every call. -/
+theorem errorBound_derandomized (γ : ℕ) (hγ : 0 < γ)
+    (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) {w : E → W}
+    (hw : Function.Injective w) (hmsf : (Config.derandomized γ hγ msfSub).ExactMsf w)
+    {inst : Instance V E} (hwf : inst.WellFormed) :
+    ErrorBound (Config.derandomized γ hγ msfSub) w inst 11 := fun c hc =>
+  card_errors_le γ hγ msfSub hw hmsf (wellFormed_of_mem_calls hw hmsf hwf c hc)
+
+/-- **Hypothesis (ii) holds for the derandomized configuration** (§3.5, p. 22), with `B = 49`, by
+`Cslib.Query.Certificate.sum_countQueries_estimator_le` at every call. -/
+theorem estCostBound_derandomized (γ : ℕ) (hγ : 0 < γ)
+    (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) {w : E → W}
+    (hw : Function.Injective w) (hmsf : (Config.derandomized γ hγ msfSub).ExactMsf w)
+    {inst : Instance V E} (hwf : inst.WellFormed) :
+    EstCostBound (Config.derandomized γ hγ msfSub) w inst 49 := fun c hc _ => by
+  have h := sum_countQueries_estimator_le _ w hw hmsf (wellFormed_of_mem_calls hw hmsf hwf c hc)
+  have h0 : (0 : ℝ) ≤ (levelT (Config.derandomized γ hγ msfSub).γ c.level : ℝ) ^ 2 *
+      #c.vertices := by positivity
+  rw [estCost]
+  push_cast
+  exact h.trans (by linarith)
+
+/-- **Lemma 3.1** ([KhannaPuttermanSong2026], §3.1, p. 12, proved in §3.6, pp. 22–24): the
+certificate procedure with the schedule of Lemma 3.11 and the estimator of §3.5
+(`Cslib.Query.Certificate.Config.derandomized`). For every `γ > 0` there are `C, C'` such that on
+a root instance with `n` vertices, `m` edges and `n ≤ 2 m` (no isolated vertices), with injective
+weights and exact minimum spanning forest calls,
+
+* `|F| + |U(F)| + ∑ |E_i| ≤ 8 m / γ + C √(m n)` (the paper has `16 m / γ`; taking `γ ≥ 8 / ε`
+  gives the paper's `ε m + C_ε √(m n)`),
+* the comparisons are at most `C' m` plus those of the exact calls,
+* every exact call works on root edges.
+
+A step in the proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325). The paper's lemma assumes
+no isolated vertices, which gives `n ≤ 2 m`; only `n ≤ 2 m` is used. -/
+theorem certificate_derandomized_accounting (γ : ℕ) (hγ : 0 < γ) :
+    ∃ C C' : ℝ, ∀ {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
+      (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) (w : E → W)
+      (X : Finset V) (ends : E → Sym2 V) (S : Finset E),
+      Function.Injective w → (Config.derandomized γ hγ msfSub).ExactMsf w →
+      (∀ e ∈ S, ∀ v ∈ ends e, v ∈ X) → #X ≤ 2 * #S →
+      (#((certificate (Config.derandomized γ hγ msfSub) (Instance.root X ends S)).eval
+            (LEQuery.keyOracle w)).forest +
+          #(unsupported ends w ↑((certificate (Config.derandomized γ hγ msfSub)
+            (Instance.root X ends S)).eval (LEQuery.keyOracle w)).forest S) +
+          ((calls (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w)
+            (Instance.root X ends S)).map fun c =>
+            ((msfInputs (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w) c).map
+              fun S' => (#S' : ℝ)).sum).sum ≤
+        8 * #S / γ + C * √(#S * #X)) ∧
+      ((certificate (Config.derandomized γ hγ msfSub) (Instance.root X ends S)).countQueries
+          (LEQuery.keyOracle w) : ℝ) ≤
+        C' * #S + ((calls (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w)
+          (Instance.root X ends S)).map fun c =>
+          ((msfInputs (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w) c).map fun S' =>
+            ((msfSub c.ends S').countQueries (LEQuery.keyOracle w) : ℝ)).sum).sum ∧
+      ∀ c ∈ calls (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w)
+          (Instance.root X ends S),
+        ∀ S' ∈ msfInputs (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w) c, S' ⊆ S := by
+  obtain ⟨C, C', h⟩ := certificate_root_accounting γ (A := 11) (B := 49) (by norm_num)
+    (by norm_num)
+  refine ⟨C, C', fun msfSub w X ends S hw hmsf hS hn => ?_⟩
+  have hwf := Instance.wellFormed_root hS
+  exact h _ w X ends S rfl hw hmsf hS hn (errorBound_derandomized γ hγ msfSub hw hmsf hwf)
+    (estCostBound_derandomized γ hγ msfSub hw hmsf hwf)
+
+/-- **The cost of the certificate procedure with a linear exact subroutine**, for the
+derandomized configuration: the form of Lemma 3.1 ([KhannaPuttermanSong2026], p. 12) used in the
+proof of Theorem 4.1 (§4, pp. 25–26) by strong induction on the number of edges. Every exact call
+works on at most `8 m / γ + C √(m n)` root edges, and if each costs at most `κ` comparisons per
+input edge, the procedure makes at most `C' m + κ (8 m / γ + C √(m n))` comparisons. A step in the
+proof of [KhannaPuttermanSong2026] Theorem 4.1 (#8325). -/
+theorem countQueries_certificate_derandomized_le (γ : ℕ) (hγ : 0 < γ) :
+    ∃ C C' : ℝ, ∀ {V E W : Type} [DecidableEq V] [DecidableEq E] [LinearOrder W]
+      (msfSub : (E → Sym2 V) → Finset E → FreeM (LEQuery E) (Finset E)) (w : E → W)
+      (X : Finset V) (ends : E → Sym2 V) (S : Finset E),
+      Function.Injective w → (Config.derandomized γ hγ msfSub).ExactMsf w →
+      (∀ e ∈ S, ∀ v ∈ ends e, v ∈ X) → #X ≤ 2 * #S →
+      (∀ c ∈ calls (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w)
+          (Instance.root X ends S),
+        ∀ S' ∈ msfInputs (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w) c,
+          S' ⊆ S ∧ (#S' : ℝ) ≤ 8 * #S / γ + C * √(#S * #X)) ∧
+      ∀ κ : ℝ, 0 ≤ κ →
+        (∀ c ∈ calls (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w)
+            (Instance.root X ends S),
+          ∀ S' ∈ msfInputs (Config.derandomized γ hγ msfSub) (LEQuery.keyOracle w) c,
+            ((msfSub c.ends S').countQueries (LEQuery.keyOracle w) : ℝ) ≤ κ * #S') →
+        ((certificate (Config.derandomized γ hγ msfSub) (Instance.root X ends S)).countQueries
+            (LEQuery.keyOracle w) : ℝ) ≤
+          C' * #S + κ * (8 * #S / γ + C * √(#S * #X)) := by
+  obtain ⟨C, C', h⟩ := countQueries_certificate_root_le γ (A := 11) (B := 49) (by norm_num)
+    (by norm_num)
+  refine ⟨C, C', fun msfSub w X ends S hw hmsf hS hn => ?_⟩
+  have hwf := Instance.wellFormed_root hS
+  exact h _ w X ends S rfl hw hmsf hS hn (errorBound_derandomized γ hγ msfSub hw hmsf hwf)
+    (estCostBound_derandomized γ hγ msfSub hw hmsf hwf)
 
 end Lemma31
 

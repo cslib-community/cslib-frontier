@@ -14,7 +14,9 @@ On the triangle with a self-loop of `CslibFrontierTests.MSFCertificateProcedure`
 schedule and estimator and an exact minimum spanning forest call, both hypotheses of Lemma 3.1 as
 formalized hold: the estimator makes no comparison (hypothesis (ii) with `B = 0`), and every call
 has at most `4 m / t` errors (hypothesis (i) with `A = 0`), since only the root has edges and its
-`t` is `1`. So `Cslib.Query.Certificate.certificate_root_accounting` applies.
+`t` is `1`. So `Cslib.Query.Certificate.certificate_root_accounting` applies. So does Lemma 3.1
+for the derandomized configuration
+(`Cslib.Query.Certificate.certificate_derandomized_accounting`), with the same exact call.
 -/
 
 namespace CslibFrontierTests.MSFCertificateAccounting
@@ -38,7 +40,7 @@ theorem eq_root_or_edges_eq_empty (o : {ι : Type} → LEQuery (Fin 4) ι → ι
 /-- **Hypothesis (i)** holds with `A = 0`. -/
 theorem errorBound : ErrorBound cfg w root 0 := fun c hc => by
   have hle : (#(errors cfg w c) : ℝ) ≤ #c.edges := by
-    exact_mod_cast card_le_card (filter_subset _ _)
+    exact_mod_cast card_le_card fun e he => (mem_errors.1 he).1
   rcases eq_root_or_edges_eq_empty _ c hc with rfl | h
   · have ht : levelT cfg.γ root.level = 1 := by simp [cfg, levelT]
     rw [ht]
@@ -60,7 +62,19 @@ example : ∃ C : ℝ,
           ((msfInputs cfg (LEQuery.keyOracle w) c).map fun S' => (#S' : ℝ)).sum).sum ≤
       8 * #(univ : Finset (Fin 4)) / (1 : ℕ) + C * √(#(univ : Finset (Fin 4)) *
         #(univ : Finset (Fin 3)))) := by
-  obtain ⟨C, -, h⟩ := certificate_root_accounting 1 le_rfl le_rfl
+  obtain ⟨C, _, h⟩ := certificate_root_accounting 1 le_rfl le_rfl
   exact ⟨C, (h cfg w univ ends univ rfl hw hmsf hS (by simp) errorBound estCostBound).1⟩
+
+/-- **Lemma 3.1** applies to the derandomized configuration (`γ = 1`) on the triangle. -/
+example : ∃ C : ℝ,
+    let cfg' := Config.derandomized (V := Fin 3) 1 one_pos fun ends S => pure (msf ends w S)
+    (#((certificate cfg' root).eval (LEQuery.keyOracle w)).forest +
+        #(unsupported ends w ↑((certificate cfg' root).eval (LEQuery.keyOracle w)).forest univ) +
+        ((calls cfg' (LEQuery.keyOracle w) root).map fun c =>
+          ((msfInputs cfg' (LEQuery.keyOracle w) c).map fun S' => (#S' : ℝ)).sum).sum ≤
+      8 * #(univ : Finset (Fin 4)) / (1 : ℕ) + C * √(#(univ : Finset (Fin 4)) *
+        #(univ : Finset (Fin 3)))) := by
+  obtain ⟨C, _, h⟩ := certificate_derandomized_accounting 1 one_pos
+  exact ⟨C, (h _ w univ ends univ hw (fun _ _ => rfl) hS (by simp)).1⟩
 
 end CslibFrontierTests.MSFCertificateAccounting
