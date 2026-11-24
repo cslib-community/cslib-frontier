@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.GameTheory.Mechanism.Domains
+public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
@@ -35,14 +35,15 @@ representation separates two notions of dominant-strategy truthfulness on valuat
 Whenever expected utilities are summable on `V` (`RandomizedMechanism.HasSummableUtilityOn`, which
 holds automatically whenever `R.dist.support` is finite or utilities are bounded across the
 support), universal truthfulness implies truthfulness in expectation
-(`RandomizedMechanism.IsUniversallyDSICOn.isTruthfulInExpectationOn`).
+(`RandomizedMechanism.IsUniversallyDSICOn.isTruthfulInExpectationOn`, [Nisan2007], §9.5.6, p. 232).
 
-The converse fails (`exists_isTruthfulInExpectation_not_isUniversallyDSIC`): the concrete 1-agent,
-2-outcome coin-flip mechanism `coinFlipMechanism` (`Ω = Bool`) outputs `true` and `false` with
-probability `1/2` each and pairs opposite report-dependent payments (`2` vs `0`) on the two
-branches so that expected payment is identically `1` and expected utility is `(v true + v false)/2
-- 1` regardless of the report, making it truthful in expectation on every valuation domain while
-neither deterministic branch in its support is DSIC even on nonnegative valuations.
+The converse fails (`exists_isTruthfulInExpectation_not_isUniversallyDSIC`, original separation not
+in [Nisan2007]): the concrete 1-agent, 2-outcome coin-flip mechanism `coinFlipMechanism`
+(`Ω = Bool`) outputs `true` and `false` with probability `1/2` each and pairs opposite
+report-dependent payments (`2` vs `0`) on the two branches so that expected payment is identically
+`1` and expected utility is `(v true + v false)/2 - 1` regardless of the report, making it truthful
+in expectation on every valuation domain while neither deterministic branch in its support is DSIC
+even on nonnegative valuations.
 
 ## Main definitions
 
@@ -56,7 +57,7 @@ neither deterministic branch in its support is DSIC even on nonnegative valuatio
 * `RandomizedMechanism.IsTruthfulInExpectationOn`, `RandomizedMechanism.IsTruthfulInExpectation`:
   incentive compatibility in expectation ([Nisan2007], Definition 9.38).
 * `RandomizedMechanism.coinFlipBranch`, `RandomizedMechanism.coinFlipMechanism`: concrete 2-outcome
-  randomized mechanism separating the two notions.
+  randomized mechanism separating the two notions (original).
 
 ## Main results
 
@@ -70,7 +71,7 @@ neither deterministic branch in its support is DSIC even on nonnegative valuatio
   `RandomizedMechanism.not_isUniversallyDSICOn_coinFlipMechanism`,
   `RandomizedMechanism.exists_isTruthfulInExpectation_not_isUniversallyDSIC`: truthfulness in
   expectation does not imply universal truthfulness, even with two outcomes and nonnegative
-  valuations.
+  valuations (original).
 
 ## References
 
@@ -94,14 +95,21 @@ namespace RandomizedMechanism
 variable {ι Ω : Type*}
 
 /-- Embed a deterministic mechanism `M` as a point-mass randomized mechanism `PMF.pure M`. -/
-@[expose] noncomputable def deterministic (M : Mechanism ι Ω) : RandomizedMechanism ι Ω :=
+noncomputable def deterministic (M : Mechanism ι Ω) : RandomizedMechanism ι Ω :=
   ⟨PMF.pure M⟩
+
+@[simp] theorem deterministic_dist (M : Mechanism ι Ω) : (deterministic M).dist = PMF.pure M := by
+  rfl
 
 /-- The expected quasilinear utility `E_{M ∼ R}[v(M.outcome b) − M.payment b i]` of agent `i` with
 true valuation `v` on reported valuations `b` ([Nisan2007], Definition 9.38). -/
-@[expose] noncomputable def expectedUtility (R : RandomizedMechanism ι Ω) (i : ι) (v : Ω → ℝ)
+noncomputable def expectedUtility (R : RandomizedMechanism ι Ω) (i : ι) (v : Ω → ℝ)
     (b : ι → Ω → ℝ) : ℝ :=
   ∑' M : Mechanism ι Ω, (R.dist M).toReal * M.utility i v b
+
+theorem expectedUtility_def (R : RandomizedMechanism ι Ω) (i : ι) (v : Ω → ℝ) (b : ι → Ω → ℝ) :
+    R.expectedUtility i v b = ∑' M : Mechanism ι Ω, (R.dist M).toReal * M.utility i v b := by
+  rfl
 
 /-- Summability of the utility series defining `expectedUtility R i v b`. -/
 @[expose] def SummableUtility (R : RandomizedMechanism ι Ω) (i : ι) (v : Ω → ℝ)
@@ -120,7 +128,7 @@ deterministic mechanism in the support of `R` is DSIC on `V`. -/
   ∀ M ∈ R.dist.support, M.IsDSICOn V
 
 /-- Unrestricted universal incentive compatibility (`V i = Set.univ`). -/
-@[expose] def IsUniversallyDSIC [DecidableEq ι] (R : RandomizedMechanism ι Ω) : Prop :=
+abbrev IsUniversallyDSIC [DecidableEq ι] (R : RandomizedMechanism ι Ω) : Prop :=
   R.IsUniversallyDSICOn fun _ => Set.univ
 
 /-- **Incentive compatibility in expectation** on `V` ([Nisan2007], Definition 9.38): truthful
@@ -131,16 +139,8 @@ reporting maximizes expected quasilinear utility on `V`. -/
     R.expectedUtility i v b ≤ R.expectedUtility i v (Function.update b i v)
 
 /-- Unrestricted incentive compatibility in expectation (`V i = Set.univ`). -/
-@[expose] def IsTruthfulInExpectation [DecidableEq ι] (R : RandomizedMechanism ι Ω) : Prop :=
+abbrev IsTruthfulInExpectation [DecidableEq ι] (R : RandomizedMechanism ι Ω) : Prop :=
   R.IsTruthfulInExpectationOn fun _ => Set.univ
-
-@[simp] theorem isUniversallyDSICOn_univ_iff [DecidableEq ι] (R : RandomizedMechanism ι Ω) :
-    R.IsUniversallyDSICOn (fun _ => Set.univ) ↔ R.IsUniversallyDSIC :=
-  Iff.rfl
-
-@[simp] theorem isTruthfulInExpectationOn_univ_iff [DecidableEq ι] (R : RandomizedMechanism ι Ω) :
-    R.IsTruthfulInExpectationOn (fun _ => Set.univ) ↔ R.IsTruthfulInExpectation :=
-  Iff.rfl
 
 @[simp] theorem expectedUtility_deterministic (M : Mechanism ι Ω) (i : ι) (v : Ω → ℝ)
     (b : ι → Ω → ℝ) :
@@ -208,7 +208,8 @@ theorem IsUniversallyDSICOn.isTruthfulInExpectationOn [DecidableEq ι]
   intro i b v hb hv
   have hs1 : R.SummableUtility i v b := hsum i b v hb hv
   have hs2 : R.SummableUtility i v (Function.update b i v) :=
-    hsum i (Function.update b i v) v (Mechanism.update_mem_domain hb i hv) hv
+    hsum i (Function.update b i v) v
+      ((Function.forall_update_iff b fun j u => u ∈ V j).2 ⟨hv, fun j _ => hb j⟩) hv
   refine hs1.tsum_le_tsum (fun M => ?_) hs2
   by_cases hM : M ∈ R.dist.support
   · exact mul_le_mul_of_nonneg_left (hR M hM i b v hb hv) ENNReal.toReal_nonneg
@@ -234,21 +235,32 @@ open Classical in
 branch `true` always selects `true` and charges `2` when `b () false ≤ b () true` (else `0`),
 while branch `false` always selects `false` and charges `0` when `b () false ≤ b () true` (else
 `2`). -/
-@[expose] noncomputable def coinFlipBranch (c : Bool) : Mechanism Unit Bool where
+noncomputable def coinFlipBranch (c : Bool) : Mechanism Unit Bool where
   outcome _ := c
   payment b _ :=
     if c then (if b () false ≤ b () true then 2 else 0)
     else (if b () false ≤ b () true then 0 else 2)
 
-theorem coinFlipBranch_injective : Function.Injective coinFlipBranch := by
+@[simp] theorem coinFlipBranch_outcome (c : Bool) (b : Unit → Bool → ℝ) :
+    (coinFlipBranch c).outcome b = c := by
+  rfl
+
+open Classical in
+theorem coinFlipBranch_payment (c : Bool) (b : Unit → Bool → ℝ) (i : Unit) :
+    (coinFlipBranch c).payment b i =
+      if c then (if b () false ≤ b () true then 2 else 0)
+      else (if b () false ≤ b () true then 0 else 2) := by
+  rfl
+
+private theorem coinFlipBranch_injective : Function.Injective coinFlipBranch := by
   intro c₁ c₂ h
   exact congrArg (fun M => M.outcome 0) h
 
-/-- A 2-outcome randomized mechanism (`Ω = Bool`) tossing a fair coin between `coinFlipBranch true`
-and `coinFlipBranch false`. Its expected payment is identically `1` and its expected outcome is
-uniform on `Bool` regardless of the report, so it is truthful in expectation everywhere while
-neither deterministic branch in its support is DSIC. -/
-@[expose] noncomputable def coinFlipMechanism : RandomizedMechanism Unit Bool :=
+/-- A 2-outcome randomized mechanism (`Ω = Bool`, original; not in [Nisan2007]) tossing a fair coin
+between `coinFlipBranch true` and `coinFlipBranch false`. Its expected payment is identically `1`
+and its expected outcome is uniform on `Bool` regardless of the report, so it is truthful in
+expectation everywhere while neither deterministic branch in its support is DSIC. -/
+noncomputable def coinFlipMechanism : RandomizedMechanism Unit Bool :=
   ⟨(Cslib.Probability.PMF.uniformOfFintype Bool).map coinFlipBranch⟩
 
 theorem coinFlipMechanism_support :
@@ -314,23 +326,18 @@ theorem not_isUniversallyDSICOn_coinFlipMechanism :
   simp only [Mechanism.utility, coinFlipBranch, Function.update_self, v, w] at hineq
   norm_num at hineq
 
-theorem not_isUniversallyDSIC_coinFlipMechanism : ¬ coinFlipMechanism.IsUniversallyDSIC :=
-  fun h => not_isUniversallyDSICOn_coinFlipMechanism
-    (fun M hM => (h M hM).mono fun _ => Set.subset_univ _)
-
-/-- **Truthfulness in expectation does not imply universal truthfulness**, even with one agent,
-two outcomes (`Bool`), finite support, and nonnegative valuations. -/
+/-- **Truthfulness in expectation does not imply universal truthfulness** (original; not in
+[Nisan2007]), even with one agent, two outcomes (`Bool`), finite support, and nonnegative
+valuations. -/
 theorem exists_isTruthfulInExpectation_not_isUniversallyDSIC :
     ∃ R : RandomizedMechanism Unit Bool,
       R.dist.support.Finite ∧
       R.IsTruthfulInExpectation ∧
-      ¬ R.IsUniversallyDSICOn (fun _ => {v : Bool → ℝ | 0 ≤ v}) ∧
-      ¬ R.IsUniversallyDSIC :=
+      ¬ R.IsUniversallyDSICOn (fun _ => {v : Bool → ℝ | 0 ≤ v}) :=
   ⟨coinFlipMechanism,
     by rw [coinFlipMechanism_support]; exact (Set.finite_singleton _).insert _,
     coinFlipMechanism_isTruthfulInExpectation,
-    not_isUniversallyDSICOn_coinFlipMechanism,
-    not_isUniversallyDSIC_coinFlipMechanism⟩
+    not_isUniversallyDSICOn_coinFlipMechanism⟩
 
 end RandomizedMechanism
 

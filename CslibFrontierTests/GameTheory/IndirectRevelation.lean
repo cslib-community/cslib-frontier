@@ -5,40 +5,45 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: local-only (test driver)
 
-public import CslibFrontier.GameTheory.Mechanism.Domains
-public import CslibFrontier.GameTheory.Mechanism.Indirect
-public import CslibFrontier.GameTheory.Mechanism.MultiUnit
-public import CslibFrontier.GameTheory.Mechanism.Randomized
-public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction
-public import CslibFrontier.Probability.PMF.Uniform
-public import Mathlib.Data.Fin.VecNotation
+import CslibFrontier.GameTheory.Mechanism.Domains
+import CslibFrontier.GameTheory.Mechanism.Indirect
+import CslibFrontier.GameTheory.Mechanism.MultiUnit
+import CslibFrontier.GameTheory.Mechanism.Randomized
+import CslibFrontier.GameTheory.Mechanism.VickreyVCG
+import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction
+import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.Uniform
+import Mathlib.Data.Fin.VecNotation
+import Mathlib.MeasureTheory.Integral.Bochner.Set
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
 /-!
 # Indirect mechanisms, revelation principles, and multi-unit auctions: client checks
 
-This `module` tests the public surface of:
+This `module` tests the public surface (without unfolding unexposed bodies) of:
 * `CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction` (single-voter monotonicity
   and Nisan's induced social welfare function on 3-voter majority rule over `Bool`, plus failure of
   single-voter monotonicity for anti-majority rule);
-* `CslibFrontier.GameTheory.Mechanism.Domains` (VCG run directly on `Vickrey.singleItemFeasible`
-  agreeing with `Vickrey.mechanism` on `![3, 5, 4]`, `toMechanismOn` subtype embedding, and
-  separation between `IsIROn` on nonnegative valuations vs `Set.univ`);
+* `CslibFrontier.GameTheory.Mechanism.VCG`, `VickreyVCG`, and `Domains` (VCG run directly on
+  `Vickrey.singleItemFeasible` agreeing with `Vickrey.mechanism` on `![3, 5, 4]`, `toMechanismOn`
+  subtype embedding, and separation between `IsIROn` on nonnegative valuations vs `Set.univ`);
 * `CslibFrontier.GameTheory.Mechanism.Randomized` (explicit expected-utility and branch-manipulation
   check on `coinFlipMechanism`, plus universal-to-expected truthfulness on a uniform mixture of two
-  distinct VCG rules);
+  distinct constant zero-payment mechanisms);
 * `CslibFrontier.GameTheory.Mechanism.Indirect` (a 2-player incomplete-information game whose
   ex-post Nash equilibrium is not dominant until restricted to `Set.range` via Proposition 9.23,
-  dominant-strategy revelation simulation of a proxy/scaled-bid auction, and discrete Bayesian
-  revelation simulation via `BayesianGame.ofPMF` and `BayesianMechanism.revelation`);
+  dominant-strategy revelation simulation of a scaled-bid auction, discrete 1-player and 2-player
+  Bayesian checks exercising `BayesianGame.ofPMF`, `BayesianMechanism.revelation`,
+  `SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`, and
+  `IndirectMechanism.toMechanism_isBICOn`);
 * `CslibFrontier.GameTheory.Mechanism.MultiUnit` (2-unit, 3-bidder `(k + 1)`-st price vs
   discriminatory `(j + 1)`-st price shading on `![10, 8, 5]`, plus excess supply `k > |ι|`).
 -/
 
-@[expose] public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GameTheory.IndirectRevelation
 
@@ -185,10 +190,10 @@ example :
     F.IsPareto ∧ F.IsIIA ∧ ¬ F.IsDictatorial ∧
       ∀ P a b, (F P).AtLeast a b → (F P).AtLeast b a → a = b := by
   intro hf F
-  obtain ⟨hPar, hIIA, hND⟩ :=
-    nisanSWF_isPareto_and_isIIA_and_not_isDictatorial hf surjective_boolMajority
-      not_isDictatorial_boolMajority
-  exact ⟨hPar, hIIA, hND, fun P _ _ => nisanSWF_antisymm hf surjective_boolMajority P⟩
+  exact ⟨nisanSWF_isPareto hf surjective_boolMajority,
+    nisanSWF_isIIA hf surjective_boolMajority,
+    mt (nisanSWF_isDictatorial_iff hf surjective_boolMajority).1 not_isDictatorial_boolMajority,
+    fun P _ _ => nisanSWF_antisymm hf surjective_boolMajority P⟩
 
 /-- Anti-majority rule (`fun P => !(boolMajority P)`) fails single-voter monotonicity: switching one
 voter on a unanimous `false` profile still chooses `true`, and switching a second voter flips the
@@ -245,7 +250,7 @@ example : ¬ (SocialChoiceFunction.IsSingleMonotone fun P => !(boolMajority P)) 
 
 end NisanSWF
 
-/-! ### 2. Restricted domains and `singleItemFeasible` VCG bridge (`Domains`) -/
+/-! ### 2. Restricted domains and `singleItemFeasible` VCG (`VCG`, `VickreyVCG`, `Domains`) -/
 
 section DomainsBridge
 
@@ -345,7 +350,8 @@ example :
   intro v misreport
   rw [RandomizedMechanism.coinFlipMechanism_expectedUtility,
     RandomizedMechanism.coinFlipMechanism_expectedUtility]
-  simp only [Cslib.GameTheory.Mechanism.utility, RandomizedMechanism.coinFlipBranch, v, misreport]
+  simp only [Cslib.GameTheory.Mechanism.utility, RandomizedMechanism.coinFlipBranch_outcome,
+    RandomizedMechanism.coinFlipBranch_payment, v, misreport]
   norm_num
 
 /-- Constant outcome mechanism with zero payment on `Bool` for testing randomized mixtures. -/
@@ -447,13 +453,13 @@ theorem doubledSignalAuction_equilibrium :
   dsimp only at x
   fin_cases i
   · have h10 : (1 : Fin 2) - 0 = 1 := by decide
-    simp only [Fin.zero_eta, IndirectMechanism.toIncompleteInfoGame, doubledSignalAuction,
+    simp only [Fin.zero_eta, IndirectMechanism.toIncompleteInfoGame_utility, doubledSignalAuction,
       twoBidderSingleItemVal, h10, Function.update_self,
       Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)]
     by_cases h1 : x 1 ≤ x 0 <;> by_cases h2 : x 1 ≤ 2 * v <;>
       simp only [h1, h2, ↓reduceIte, Fin.reduceEq] <;> linarith
   · have h11 : (1 : Fin 2) - 1 = 0 := by decide
-    simp only [Fin.mk_one, IndirectMechanism.toIncompleteInfoGame, doubledSignalAuction,
+    simp only [Fin.mk_one, IndirectMechanism.toIncompleteInfoGame_utility, doubledSignalAuction,
       twoBidderSingleItemVal, h11, Function.update_self,
       Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
     by_cases h1 : x 1 ≤ x 0 <;> by_cases h2 : 2 * v ≤ x 0 <;>
@@ -474,17 +480,17 @@ example :
     -- and pays `4 / 2 = 2` (so player `0` gets `0`), whereas if player `0` bids `6`, player `0`
     -- wins at price `5 / 2 = 2.5` for utility `4 - 2.5 = 1.5 > 0`!
     have h := hEx 0 ![4, 5] 6
-    simp only [IndirectMechanism.toIncompleteInfoGame, doubledSignalAuction,
+    simp only [IndirectMechanism.toIncompleteInfoGame_utility, doubledSignalAuction,
       twoBidderSingleItemVal, Function.update_self,
       Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0), id_eq] at h
     norm_num at h
   refine ⟨hNotId, doubledSignalAuction.revelation_isTruthful doubledSignalAuction_equilibrium,
     ?_, ?_, ?_⟩
-  · simp only [D, IndirectMechanism.revelation, doubledSignalAuction, s]
+  · simp only [D, IndirectMechanism.revelation_outcome, doubledSignalAuction, s]
     norm_num
-  · simp only [D, IndirectMechanism.revelation, doubledSignalAuction, s]
+  · simp only [D, IndirectMechanism.revelation_payment, doubledSignalAuction, s]
     norm_num
-  · simp only [D, IndirectMechanism.revelation, doubledSignalAuction, s]
+  · simp only [D, IndirectMechanism.revelation_payment, doubledSignalAuction, s]
     norm_num
 
 /-- **Bayesian Revelation Principle (Proposition 9.44)** on a discrete `BayesianMechanism` built
@@ -515,9 +521,10 @@ example :
       invertedPostedPrice.toBayesianGame.interimUtility σ () ti xi =
         (if ti && !xi then 4 else 0) - (if !xi then 1 else 0) := by
     intro σ ti xi
-    simp only [BayesianGame.interimUtility, BayesianMechanism.toBayesianGame,
-      IndirectMechanism.toIncompleteInfoGame, invertedPostedPrice, Function.update_self,
-      MeasureTheory.integral_const, MeasureTheory.probReal_univ, one_smul]
+    rw [BayesianGame.interimUtility_def]
+    simp only [BayesianMechanism.toBayesianGame_utility, BayesianMechanism.toBayesianGame_prior,
+      invertedPostedPrice, Function.update_self, MeasureTheory.integral_const,
+      MeasureTheory.probReal_univ, one_smul]
   have hBN : invertedPostedPrice.toBayesianGame.IsBayesNash s := by
     rw [BayesianGame.isBayesNash_iff]
     intro i ti xi'
@@ -532,6 +539,221 @@ example :
     norm_num [id_eq] at this
   exact ⟨hBN, hNotId, BayesianMechanism.revelation_isTruthful hBN,
     BayesianMechanism.revelation_interimPayment_eq invertedPostedPrice s () true⟩
+
+/-- Any function on a measurable space with measurable singletons is integrable against a finite
+measure supported almost everywhere on a finite set. -/
+theorem integrable_of_ae_mem_finite {α : Type*} [MeasurableSpace α] [MeasurableSingletonClass α]
+    {ν : MeasureTheory.Measure α} [MeasureTheory.IsFiniteMeasure ν] {S : Set α} (hfin : S.Finite)
+    (hae : ∀ᵐ x ∂ν, x ∈ S) (f : α → ℝ) : MeasureTheory.Integrable f ν := by
+  have hres : ν.restrict S = ν := MeasureTheory.Measure.restrict_eq_self_of_ae_mem hae
+  rw [← hres]
+  change MeasureTheory.IntegrableOn f S ν
+  have hI : ∀ s : Finset α, MeasureTheory.IntegrableOn f (s : Set α) ν := by
+    intro s
+    induction s using Finset.cons_induction with
+    | empty => simp only [Finset.coe_empty, MeasureTheory.integrableOn_empty]
+    | cons a s ha ih =>
+      rw [Finset.coe_cons]
+      have h1 : MeasureTheory.IntegrableOn f {a} ν := by
+        refine (MeasureTheory.integrable_const (f a)).congr ?_
+        filter_upwards [MeasureTheory.ae_restrict_mem (measurableSet_singleton a)] with x hx
+        rw [Set.mem_singleton_iff.1 hx]
+      exact h1.union ih
+  simpa only [Set.Finite.coe_toFinset] using hI hfin.toFinset
+
+/-- **2-player Bayesian client check** exercising `BayesianGame.ofPMF`,
+`SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`, and
+`IndirectMechanism.toMechanism_isBICOn` with independent uniform priors on `{1, 2} ⊆ [0, 2]`:
+1. `BayesianGame.ofPMF` turns `doubledSignalAuction` into a 2-player Bayesian game in which
+   `fun _ v => 2 * v` is a Bayes–Nash equilibrium.
+2. `SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame` transfers 2-player Vickrey DSIC
+   (with integrability only required on `0 ≤ z`) to `Vickrey.mechanism.IsBayesNash μ (fun _ => 2)
+   (fun _ v => v)` and `(Vickrey.mechanism.toBayesianGame μ).IsBayesNashOn`, while refuting
+   `IsBayesNash` for constant zero bidding `fun _ _ => 0` via the 2-player interim utility.
+3. `IndirectMechanism.toMechanism_isBICOn` produces a Bayesian incentive-compatible direct
+   `Mechanism (Fin 2) (Fin 2)` on the 2-point single-item valuation domains `V i`. -/
+example :
+    let d : Fin 2 → PMF ℝ :=
+      fun _ => (Cslib.Probability.PMF.uniformOfFintype Bool).map fun c => if c then 2 else 1
+    let μ : Fin 2 → MeasureTheory.Measure ℝ := fun i => (d i).toMeasure
+    let G := doubledSignalAuction.toIncompleteInfoGame twoBidderSingleItemVal
+    let B := BayesianGame.ofPMF G d
+    let V : Fin 2 → Set (Fin 2 → ℝ) :=
+      fun i => {twoBidderSingleItemVal i 1, twoBidderSingleItemVal i 2}
+    let dVal : Fin 2 → PMF (Fin 2 → ℝ) :=
+      fun i => (Cslib.Probability.PMF.uniformOfFintype Bool).map
+        fun c => twoBidderSingleItemVal i (if c then 2 else 1)
+    let μVal : Fin 2 → MeasureTheory.Measure (Fin 2 → ℝ) := fun i => (dVal i).toMeasure
+    let sVal : Fin 2 → (Fin 2 → ℝ) → ℝ := fun i v => 2 * v i
+    B.IsBayesNash (fun _ v => 2 * v) ∧
+      Vickrey.mechanism.IsBayesNash μ (fun _ => 2) (fun _ v => v) ∧
+      (Vickrey.mechanism.toBayesianGame μ).IsBayesNashOn (fun _ => Set.Icc 0 2)
+        (fun _ v => ⟨max 0 v, Set.mem_Ici.2 (le_max_left 0 v)⟩) ∧
+      ¬ Vickrey.mechanism.IsBayesNash μ (fun _ => 2) (fun _ _ => 0) ∧
+      (doubledSignalAuction.toMechanism sVal).IsBICOn μVal V ∧
+      (doubledSignalAuction.toMechanism sVal).payment
+        ![twoBidderSingleItemVal 0 1, twoBidderSingleItemVal 1 2] 1 = 1 := by
+  intro d μ G B V dVal μVal sVal
+  have hd_supp : ∀ j : Fin 2, (d j).support = ({1, 2} : Set ℝ) := fun j => by
+    ext x
+    simp only [d, PMF.support_map, Set.mem_image,
+      Cslib.Probability.PMF.mem_support_uniformOfFintype, true_and, Bool.exists_bool,
+      Set.mem_insert_iff, Set.mem_singleton_iff]
+    tauto
+  have hμ_ae : ∀ j : Fin 2, ∀ᵐ t ∂μ j, t ∈ ({1, 2} : Set ℝ) := fun j => by
+    rw [MeasureTheory.ae_iff]
+    change (d j).toMeasure {t | t ∉ ({1, 2} : Set ℝ)} = 0
+    rw [PMF.toMeasure_apply_eq_zero_iff _ (by measurability), hd_supp j]
+    exact Set.disjoint_left.2 fun _ h1 h2 => h2 h1
+  have hpi_ae : ∀ᵐ v ∂MeasureTheory.Measure.pi μ,
+      v ∈ Set.pi Set.univ (fun _ : Fin 2 => ({1, 2} : Set ℝ)) := by
+    have hall : ∀ᵐ v ∂MeasureTheory.Measure.pi μ, ∀ j : Fin 2, v j ∈ ({1, 2} : Set ℝ) := by
+      rw [MeasureTheory.ae_all_iff]
+      intro j
+      exact (MeasureTheory.Measure.quasiMeasurePreserving_eval μ j).ae (hμ_ae j)
+    filter_upwards [hall] with v hv j _
+    exact hv j
+  have hpi_fin : (Set.pi Set.univ (fun _ : Fin 2 => ({1, 2} : Set ℝ))).Finite :=
+    Set.Finite.pi fun _ => (Set.finite_singleton _).insert _
+  have hint_pi : ∀ f : (Fin 2 → ℝ) → ℝ,
+      MeasureTheory.Integrable f (MeasureTheory.Measure.pi μ) :=
+    integrable_of_ae_mem_finite hpi_fin hpi_ae
+  -- 1. `BayesianGame.ofPMF` on 2-player `doubledSignalAuction`.
+  have hB_eq : B.IsBayesNash (fun _ v => 2 * v) := by
+    refine BayesianGame.isBayesNash_of_isExPostNash ?_ (fun i ti xi => ?_)
+    · rw [BayesianGame.ofPMF_toIncompleteInfoGame]
+      exact doubledSignalAuction_equilibrium.isExPostNash
+    · have hpr : B.prior = μ := funext fun j => BayesianGame.ofPMF_prior G d j
+      rw [hpr]
+      exact hint_pi _
+  -- 2. `SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame` on 2-player `Vickrey.mechanism`.
+  have hsupp : ∀ j : Fin 2, ∀ᵐ t ∂μ j, t ∈ Set.Icc (0 : ℝ) 2 := fun j => by
+    filter_upwards [hμ_ae j] with t ht
+    rcases ht with rfl | rfl <;> constructor <;> norm_num
+  have hVickrey_BN_on :
+      (Vickrey.mechanism.toBayesianGame μ).IsBayesNashOn (fun _ => Set.Icc 0 2)
+        (fun _ v => ⟨max 0 v, Set.mem_Ici.2 (le_max_left 0 v)⟩) := by
+    intro i v hv z
+    rw [BayesianGame.interimUtility_def, BayesianGame.interimUtility_def,
+      SingleParameter.Mechanism.toBayesianGame_prior]
+    refine MeasureTheory.integral_mono_ae (hint_pi _) (hint_pi _) ?_
+    filter_upwards [hpi_ae] with t ht
+    simp only [SingleParameter.Mechanism.toBayesianGame_utility]
+    have hnonneg_t : ∀ j : Fin 2, 0 ≤ t j := fun j => by
+      rcases ht j (Set.mem_univ j) with h1 | h2
+      · rw [h1]; norm_num
+      · rw [Set.mem_singleton_iff.1 h2]; norm_num
+    have hcoe_eq : ∀ w : Set.Ici (0 : ℝ),
+        (fun j : Fin 2 => ((Function.update
+          (fun k => (⟨max 0 (t k), Set.mem_Ici.2 (le_max_left 0 (t k))⟩ : Set.Ici (0 : ℝ)))
+          i w j : Set.Ici (0 : ℝ)) : ℝ)) = Function.update t i (w : ℝ) := fun w => by
+      funext j
+      rcases eq_or_ne j i with rfl | hj
+      · simp only [Function.update_self]
+      · simp only [Function.update_of_ne hj, max_eq_right (hnonneg_t j)]
+    rw [hcoe_eq z, hcoe_eq ⟨max 0 v, Set.mem_Ici.2 (le_max_left 0 v)⟩]
+    have hupd : Function.update (Function.update t i (z : ℝ)) i v =
+        Function.update t i (max 0 v) := by
+      rw [Function.update_idem, max_eq_right hv.1]
+    rw [← hupd]
+    refine Vickrey.mechanism_isDSIC i (Function.update t i (z : ℝ)) v ?_ hv.1
+    intro j
+    rcases eq_or_ne j i with rfl | hj
+    · simpa only [Function.update_self, Pi.zero_apply] using Set.mem_Ici.1 z.2
+    · simpa only [Function.update_of_ne hj, Pi.zero_apply] using hnonneg_t j
+  have hVickrey_BN : Vickrey.mechanism.IsBayesNash μ (fun _ => 2) (fun _ v => v) :=
+    (Vickrey.mechanism.isBayesNash_iff_toBayesianGame μ (fun _ => 2) (fun _ v => v) hsupp
+      (fun _ _ _ => hint_pi _) (fun _ _ _ => hint_pi _)).2
+      ⟨fun _ _ hv => hv.1, hVickrey_BN_on⟩
+  -- Non-vacuity: constant zero bidding is NOT Bayes–Nash in 2-player Vickrey (bidder 1 with value
+  -- 2 loses tie-breaks at bid 0 for utility 0, whereas bidding 1 wins against 0 at price 0 for 2).
+  have hNotZero : ¬ Vickrey.mechanism.IsBayesNash μ (fun _ => 2) (fun _ _ => 0) := by
+    intro h0
+    have hdev := (h0 1 2 ⟨by norm_num, le_rfl⟩).2 1 (by norm_num)
+    have hupd0 : Function.update (fun _ : Fin 2 => (0 : ℝ)) 1 0 = fun _ => 0 :=
+      Function.update_eq_self 1 (fun _ : Fin 2 => (0 : ℝ))
+    have hw0 : Vickrey.Wins (fun _ : Fin 2 => (0 : ℝ)) 0 := fun j hj => by
+      fin_cases j
+      · exact absurd rfl hj
+      · exact ⟨le_rfl, fun h => absurd h (by decide)⟩
+    have hA0 : Vickrey.mechanism.interimAllocation μ (fun _ _ => 0) 1 0 = 0 := by
+      have hall0 : Vickrey.mechanism.allocation (fun _ : Fin 2 => (0 : ℝ)) 1 = 0 :=
+        Vickrey.allocation_eq_zero_iff.2 fun h => absurd (h.unique hw0) (by decide)
+      simp only [SingleParameter.Mechanism.interimAllocation, hupd0, hall0,
+        MeasureTheory.integral_zero]
+    have hP0 : Vickrey.mechanism.interimPayment μ (fun _ _ => 0) 1 0 = 0 := by
+      have hpay0 : Vickrey.mechanism.payment (fun _ : Fin 2 => (0 : ℝ)) 1 = 0 := by
+        change Vickrey.highestOtherBid _ 1 * Vickrey.allocation _ 1 = 0
+        rw [Vickrey.allocation_eq_zero_iff.2 fun h => absurd (h.unique hw0) (by decide), mul_zero]
+      simp only [SingleParameter.Mechanism.interimPayment, hupd0, hpay0,
+        MeasureTheory.integral_zero]
+    have hA1 : Vickrey.mechanism.interimAllocation μ (fun _ _ => 0) 1 1 = 1 := by
+      have hw1 : Vickrey.Wins (Function.update (fun _ : Fin 2 => (0 : ℝ)) 1 1) 1 := by
+        intro j hj
+        have hne : j ≠ 1 := hj
+        rw [Function.update_self, Function.update_of_ne hne]
+        exact ⟨by norm_num, fun _ => by norm_num⟩
+      have hall1 : Vickrey.mechanism.allocation (Function.update (fun _ : Fin 2 => (0 : ℝ)) 1 1) 1 =
+          1 := Vickrey.allocation_eq_one_iff.2 hw1
+      simp only [SingleParameter.Mechanism.interimAllocation, hall1, MeasureTheory.integral_const,
+        MeasureTheory.probReal_univ, one_smul]
+    have hP1 : Vickrey.mechanism.interimPayment μ (fun _ _ => 0) 1 1 = 0 := by
+      have hhob : Vickrey.highestOtherBid (Function.update (fun _ : Fin 2 => (0 : ℝ)) 1 1) 1 = 0 :=
+        le_antisymm (Vickrey.highestOtherBid_le_iff.2 ⟨le_rfl, fun j hj => by
+          simp only [Function.update_of_ne hj, le_rfl]⟩) (Vickrey.highestOtherBid_nonneg _ 1)
+      have hpay1 : Vickrey.mechanism.payment (Function.update (fun _ : Fin 2 => (0 : ℝ)) 1 1) 1 =
+          0 := by
+        change Vickrey.highestOtherBid _ 1 * Vickrey.allocation _ 1 = 0
+        rw [hhob, zero_mul]
+      simp only [SingleParameter.Mechanism.interimPayment, hpay1, MeasureTheory.integral_zero]
+    rw [hA0, hP0, hA1, hP1] at hdev
+    norm_num at hdev
+  -- 3. `IndirectMechanism.toMechanism_isBICOn` on 2-player `doubledSignalAuction`.
+  have hVal_ae : ∀ j : Fin 2, ∀ᵐ v ∂μVal j, v ∈ V j := fun j => by
+    have hsuppVal : (dVal j).support = V j := by
+      ext v
+      simp only [dVal, V, PMF.support_map, Set.mem_image,
+        Cslib.Probability.PMF.mem_support_uniformOfFintype, true_and, Bool.exists_bool,
+        Set.mem_insert_iff, Set.mem_singleton_iff]
+      tauto
+    rw [MeasureTheory.ae_iff]
+    change (dVal j).toMeasure {v | v ∉ V j} = 0
+    rw [PMF.toMeasure_apply_eq_zero_iff _ (by measurability), hsuppVal]
+    exact Set.disjoint_left.2 fun _ h1 h2 => h2 h1
+  have hpiVal_ae : ∀ᵐ b ∂MeasureTheory.Measure.pi μVal, b ∈ Set.pi Set.univ V := by
+    have hall : ∀ᵐ b ∂MeasureTheory.Measure.pi μVal, ∀ j : Fin 2, b j ∈ V j := by
+      rw [MeasureTheory.ae_all_iff]
+      intro j
+      exact (MeasureTheory.Measure.quasiMeasurePreserving_eval μVal j).ae (hVal_ae j)
+    filter_upwards [hall] with b hb j _
+    exact hb j
+  have hpiVal_fin : (Set.pi Set.univ V).Finite :=
+    Set.Finite.pi fun _ => (Set.finite_singleton _).insert _
+  have hint_piVal : ∀ f : (Fin 2 → Fin 2 → ℝ) → ℝ,
+      MeasureTheory.Integrable f (MeasureTheory.Measure.pi μVal) :=
+    integrable_of_ae_mem_finite hpiVal_fin hpiVal_ae
+  have hBIC : (doubledSignalAuction.toMechanism sVal).IsBICOn μVal V := by
+    refine doubledSignalAuction.toMechanism_isBICOn μVal V ?_
+    intro i v hv xi'
+    rw [BayesianGame.interimUtility_def, BayesianGame.interimUtility_def]
+    refine MeasureTheory.integral_mono (hint_piVal _) (hint_piVal _) fun b => ?_
+    simp only [IndirectMechanism.toIncompleteInfoGame_utility]
+    -- Every `v ∈ V i` has the form `twoBidderSingleItemVal i c` with `v i = c`.
+    have hv_eq : v = twoBidderSingleItemVal i (v i) := by
+      rcases hv with rfl | rfl <;>
+        funext w <;> simp only [twoBidderSingleItemVal, ↓reduceIte]
+    have hdom := doubledSignalAuction_equilibrium i (v i)
+      (Function.update (fun j => sVal j (b j)) i xi')
+    simp only [IndirectMechanism.toIncompleteInfoGame_utility, Function.update_idem] at hdom
+    simpa only [← hv_eq, sVal] using hdom
+  have hpay_val : (doubledSignalAuction.toMechanism sVal).payment
+      ![twoBidderSingleItemVal 0 1, twoBidderSingleItemVal 1 2] 1 = 1 := by
+    have h11 : (1 : Fin 2) - 1 = 0 := by decide
+    simp only [IndirectMechanism.toMechanism_payment, doubledSignalAuction, sVal, h11,
+      Matrix.cons_val_zero, Matrix.cons_val_one]
+    simp only [twoBidderSingleItemVal, ↓reduceIte]
+    norm_num
+  exact ⟨hB_eq, hVickrey_BN, hVickrey_BN_on, hNotZero, hBIC, hpay_val⟩
 
 end RevelationChecks
 
@@ -575,7 +797,7 @@ example :
         Finset.mem_singleton]
       fin_cases j <;> simp only [Beats, b, Matrix.cons_val_zero, Matrix.cons_val_one,
         Matrix.cons_val, Fin.zero_eta, Fin.mk_one, Fin.reduceEq] <;> norm_num
-    rw [rank, hset]
+    rw [rank_def, hset]
     decide
   have hrS0 : rank bShaded 0 = 1 :=
     rank_eq_one_of_between (top := 1) (by norm_num [bShaded]) fun j hj0 hj1 => by
@@ -587,7 +809,7 @@ example :
         Finset.mem_singleton]
       fin_cases j <;> simp only [Beats, bShaded, Matrix.cons_val_zero, Matrix.cons_val_one,
         Matrix.cons_val, Fin.zero_eta, Fin.mk_one, Fin.reduceEq] <;> norm_num
-    rw [rank, hset]
+    rw [rank_def, hset]
     decide
   have ha0 : allocation 2 b 0 = 1 := allocation_eq_one_iff.2 (by rw [Wins, hr0]; omega)
   have ha1 : allocation 2 b 1 = 1 := allocation_eq_one_iff.2 (by rw [Wins, hr1]; omega)
@@ -604,12 +826,14 @@ example :
     norm_num [bShaded]
   refine ⟨ha0, ha1, ha2, ?_, ?_, ?_, mechanism_isDSIC 2, mechanism_isIR 2, ?_, ?_,
     not_isDSIC_nextBidMechanism (by omega) (by rw [Fintype.card_fin]; omega)⟩
-  · simp only [mechanism, hbRank2, ha0, mul_one]
-  · simp only [mechanism, hbRank2, ha1, mul_one]
-  · simp only [mechanism, ha2, mul_zero]
-  · simp only [SingleParameter.Mechanism.utility, nextBidMechanism, hr0, zero_add, hbRank1, ha0]
+  · simp only [mechanism_payment, hbRank2, ha0, mul_one]
+  · simp only [mechanism_payment, hbRank2, ha1, mul_one]
+  · simp only [mechanism_payment, ha2, mul_zero]
+  · simp only [SingleParameter.Mechanism.utility, nextBidMechanism_allocation,
+      nextBidMechanism_payment, hr0, zero_add, hbRank1, ha0]
     norm_num
-  · simp only [SingleParameter.Mechanism.utility, nextBidMechanism, hrS0, hbSRank2, haS0]
+  · simp only [SingleParameter.Mechanism.utility, nextBidMechanism_allocation,
+      nextBidMechanism_payment, hrS0, hbSRank2, haS0]
     norm_num
 
 /-- Excess-supply edge case (`Fintype.card ι ≤ k`): with `3` identical items and `2` bidders bidding
@@ -622,8 +846,8 @@ example :
   have ha : ∀ i : Fin 2, allocation 3 b i = 1 := fun i =>
     allocation_eq_one_iff.2 ((rank_lt_card b i).trans_le (by rw [Fintype.card_fin]; omega))
   have hp : bidAtRank 3 b = 0 := bidAtRank_of_card_le b (by rw [Fintype.card_fin]; omega)
-  exact ⟨ha 0, ha 1, by simp only [mechanism, hp, zero_mul],
-    by simp only [mechanism, hp, zero_mul]⟩
+  exact ⟨ha 0, ha 1, by simp only [mechanism_payment, hp, zero_mul],
+    by simp only [mechanism_payment, hp, zero_mul]⟩
 
 end MultiUnitChecks
 

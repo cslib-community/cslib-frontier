@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
-public import CslibFrontier.GameTheory.Mechanism.Domains
+public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.GameTheory.Strategic.Basic
 public import Mathlib.MeasureTheory.Constructions.BorelSpace.Real
 public import Mathlib.MeasureTheory.Integral.Pi
@@ -133,8 +133,12 @@ variable {ι : Type*} {T X : ι → Type*} (G : IncompleteInfoGame ι T X)
 
 /-- At a fixed type profile `t`, `G` induces a full-information strategic `CostGame` with costs
 `-G.utility i (t i) x`. -/
-@[expose] def fullInfoCostGame (t : ∀ i, T i) : CostGame ι X where
+def fullInfoCostGame (t : ∀ i, T i) : CostGame ι X where
   cost i x := -G.utility i (t i) x
+
+@[simp] theorem fullInfoCostGame_cost (t : ∀ i, T i) (i : ι) (x : ∀ j, X j) :
+    (G.fullInfoCostGame t).cost i x = -G.utility i (t i) x := by
+  rfl
 
 section Equilibrium
 
@@ -186,9 +190,15 @@ theorem IsDominantStrategyEquilibrium.isExPostNash {s : ∀ i, T i → X i}
 
 /-- Restrict each player's action space to the actual range `Set.range (s i)` of its strategy
 `s i` ([Nisan2007], Proposition 9.23). -/
-@[expose] def restrictRange (G : IncompleteInfoGame ι T X) (s : ∀ i, T i → X i) :
+def restrictRange (G : IncompleteInfoGame ι T X) (s : ∀ i, T i → X i) :
     IncompleteInfoGame ι T (fun i => Set.range (s i)) where
   utility i ti x := G.utility i ti fun j => (x j : X j)
+
+omit [DecidableEq ι] in
+@[simp] theorem restrictRange_utility (G : IncompleteInfoGame ι T X) (s : ∀ i, T i → X i)
+    (i : ι) (ti : T i) (x : ∀ j, Set.range (s j)) :
+    (G.restrictRange s).utility i ti x = G.utility i ti fun j => (x j : X j) := by
+  rfl
 
 /-- **Proposition 9.23** of [Nisan2007]: if `s` is an ex-post Nash equilibrium of `G`, then
 restricting each action space `X i` to `Set.range (s i)` makes `s` (viewed via
@@ -237,23 +247,44 @@ variable {ι Ω : Type*} {T X : ι → Type*}
 
 /-- The game with strict incomplete information induced by `M` under private-value valuations
 `val : ∀ i, T i → Ω → ℝ` ([Nisan2007], Definition 9.24): `uᵢ(tᵢ, x) = vᵢ(tᵢ, a(x)) − pᵢ(x)`. -/
-@[expose] def toIncompleteInfoGame (M : IndirectMechanism ι X Ω) (val : ∀ i, T i → Ω → ℝ) :
+def toIncompleteInfoGame (M : IndirectMechanism ι X Ω) (val : ∀ i, T i → Ω → ℝ) :
     IncompleteInfoGame ι T X where
   utility i ti x := val i ti (M.outcome x) - M.payment x i
 
+@[simp] theorem toIncompleteInfoGame_utility (M : IndirectMechanism ι X Ω)
+    (val : ∀ i, T i → Ω → ℝ) (i : ι) (ti : T i) (x : ∀ j, X j) :
+    (M.toIncompleteInfoGame val).utility i ti x = val i ti (M.outcome x) - M.payment x i := by
+  rfl
+
 /-- Simulate strategies `s : ∀ i, T i → X i` inside `M` to obtain a direct-revelation mechanism
 (`X' = T`, [Nisan2007], proof of Proposition 9.25). -/
-@[expose] def revelation (M : IndirectMechanism ι X Ω) (s : ∀ i, T i → X i) :
+def revelation (M : IndirectMechanism ι X Ω) (s : ∀ i, T i → X i) :
     IndirectMechanism ι T Ω where
   outcome t := M.outcome fun j => s j (t j)
   payment t := M.payment fun j => s j (t j)
 
+@[simp] theorem revelation_outcome (M : IndirectMechanism ι X Ω) (s : ∀ i, T i → X i)
+    (t : ∀ i, T i) : (M.revelation s).outcome t = M.outcome fun j => s j (t j) := by
+  rfl
+
+@[simp] theorem revelation_payment (M : IndirectMechanism ι X Ω) (s : ∀ i, T i → X i)
+    (t : ∀ i, T i) : (M.revelation s).payment t = M.payment fun j => s j (t j) := by
+  rfl
+
 /-- Convert an indirect mechanism `M` and valuation-indexed strategies `s : ∀ i, (Ω → ℝ) → X i`
 into a `Cslib.GameTheory.Mechanism ι Ω`. -/
-@[expose] def toMechanism (M : IndirectMechanism ι X Ω) (s : ∀ i, (Ω → ℝ) → X i) :
+def toMechanism (M : IndirectMechanism ι X Ω) (s : ∀ i, (Ω → ℝ) → X i) :
     Mechanism ι Ω where
   outcome b := M.outcome fun j => s j (b j)
   payment b := M.payment fun j => s j (b j)
+
+@[simp] theorem toMechanism_outcome (M : IndirectMechanism ι X Ω) (s : ∀ i, (Ω → ℝ) → X i)
+    (b : ι → Ω → ℝ) : (M.toMechanism s).outcome b = M.outcome fun j => s j (b j) := by
+  rfl
+
+@[simp] theorem toMechanism_payment (M : IndirectMechanism ι X Ω) (s : ∀ i, (Ω → ℝ) → X i)
+    (b : ι → Ω → ℝ) : (M.toMechanism s).payment b = M.payment fun j => s j (b j) := by
+  rfl
 
 section Implementation
 
@@ -282,12 +313,6 @@ equilibrium `s` of `M.toIncompleteInfoGame val` satisfies `M.outcome (s t) = f t
 equilibrium. -/
 @[expose] def IsTruthful (D : IndirectMechanism ι T Ω) (val : ∀ i, T i → Ω → ℝ) : Prop :=
   (D.toIncompleteInfoGame val).IsDominantStrategyEquilibrium fun _ => id
-
-theorem ImplementsInDominantStrategies.implementsInExPostNash {M : IndirectMechanism ι X Ω}
-    {val : ∀ i, T i → Ω → ℝ} {f : (∀ i, T i) → Ω}
-    (h : M.ImplementsInDominantStrategies val f) : M.ImplementsInExPostNash val f := by
-  obtain ⟨s, hs, hf⟩ := h
-  exact ⟨s, hs.isExPostNash, hf⟩
 
 /-- **Corollary 9.26 (Ex-Post-Nash Revelation Principle, direct form)** ([Nisan2007], p. 225):
 if `s` is an ex-post Nash equilibrium of `M` under `val`, then restricting action spaces to
@@ -373,17 +398,13 @@ end Implementation
 
 end IndirectMechanism
 
-/-- View a direct `Mechanism ι Ω` as an `IndirectMechanism` with action space `Ω → ℝ`. -/
-@[expose] def Mechanism.toIndirectMechanism {ι Ω : Type*} (M : Mechanism ι Ω) :
-    IndirectMechanism ι (fun _ => Ω → ℝ) Ω where
-  outcome := M.outcome
-  payment := M.payment
-
 /-! ### Bayesian games and the Bayesian revelation principle (§9.6.1, Defs 9.40–9.43, Prop 9.44) -/
 
 /-- A game with independent private values and **Bayesian incomplete information** ([Nisan2007],
 Definition 9.40; [Harsanyi1967]): extends `IncompleteInfoGame ι T X` with an independent prior
-measure `prior i` on each player's type space `T i`. -/
+measure `prior i` on each player's type space `T i`. Each `prior i` is intended to carry
+`IsProbabilityMeasure` (as in `SingleParameter.Mechanism.IsBayesNash`); if `prior j = 0` for some
+`j`, then `Measure.pi prior = 0` and all interim utilities vanish identically. -/
 structure BayesianGame (ι : Type*) (T X : ι → Type*) [∀ i, MeasurableSpace (T i)]
     extends IncompleteInfoGame ι T X where
   /-- Player `i`'s prior type distribution `Dᵢ`. -/
@@ -394,10 +415,23 @@ namespace BayesianGame
 variable {ι : Type*} {T X : ι → Type*} [∀ i, MeasurableSpace (T i)]
 
 /-- Construct a `BayesianGame` from discrete `PMF` priors via `PMF.toMeasure`. -/
-@[expose] noncomputable def ofPMF (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) :
+noncomputable def ofPMF (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) :
     BayesianGame ι T X where
   toIncompleteInfoGame := G
   prior i := (d i).toMeasure
+
+@[simp] theorem ofPMF_toIncompleteInfoGame (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) :
+    (ofPMF G d).toIncompleteInfoGame = G := by
+  rfl
+
+@[simp] theorem ofPMF_utility (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i))
+    (i : ι) (ti : T i) (x : ∀ j, X j) :
+    (ofPMF G d).utility i ti x = G.utility i ti x := by
+  rfl
+
+@[simp] theorem ofPMF_prior (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) (i : ι) :
+    (ofPMF G d).prior i = (d i).toMeasure := by
+  rfl
 
 instance isProbabilityMeasure_ofPMF (G : IncompleteInfoGame ι T X) (d : ∀ i, PMF (T i)) (i : ι) :
     IsProbabilityMeasure ((ofPMF G d).prior i) := by
@@ -413,27 +447,31 @@ other player `j ≠ i` plays `s j (t j)` for `t ∼ Measure.pi B.prior` ([Nisan2
 Definition 9.41). Overwriting coordinate `i` with `xi` makes the integrand independent of `t i`;
 when `B.prior i` is a probability measure, integrating over `Measure.pi B.prior` agrees with the
 expectation over `D₋ᵢ` (matching `SingleParameter.Mechanism.interimAllocation`). -/
-@[expose] noncomputable def interimUtility (B : BayesianGame ι T X) (s : ∀ i, T i → X i)
+noncomputable def interimUtility (B : BayesianGame ι T X) (s : ∀ i, T i → X i)
     (i : ι) (ti : T i) (xi : X i) : ℝ :=
   ∫ t, B.utility i ti (Function.update (fun j => s j (t j)) i xi) ∂Measure.pi B.prior
 
+theorem interimUtility_def (B : BayesianGame ι T X) (s : ∀ i, T i → X i) (i : ι) (ti : T i)
+    (xi : X i) :
+    B.interimUtility s i ti xi =
+      ∫ t, B.utility i ti (Function.update (fun j => s j (t j)) i xi) ∂Measure.pi B.prior := by
+  rfl
+
 /-- Strategy profile `s` is a **Bayes–Nash equilibrium on type supports `S`** if for every player
 `i`, every type `ti ∈ S i`, and every deviation `xi' : X i`, playing `s i ti` maximizes interim
-expected utility. -/
+expected utility. Each `B.prior i` is intended to carry `IsProbabilityMeasure`: if `B.prior j = 0`
+for some `j`, then `Measure.pi B.prior = 0` and every interim utility is `0`. -/
 @[expose] def IsBayesNashOn (B : BayesianGame ι T X) (S : ∀ i, Set (T i))
     (s : ∀ i, T i → X i) : Prop :=
   ∀ (i : ι) (ti : T i), ti ∈ S i → ∀ (xi' : X i),
     B.interimUtility s i ti xi' ≤ B.interimUtility s i ti (s i ti)
 
 /-- Strategy profile `s` is a **Bayes–Nash equilibrium** ([Nisan2007], Definition 9.41): for every
-player `i`, type `ti : T i`, and action `xi' : X i`, `s i ti` maximizes
-`B.interimUtility s i ti`. -/
-@[expose] def IsBayesNash (B : BayesianGame ι T X) (s : ∀ i, T i → X i) : Prop :=
+player `i`, type `ti : T i`, and action `xi' : X i`, `s i ti` maximizes `B.interimUtility s i ti`.
+Each `B.prior i` is intended to carry `IsProbabilityMeasure`: without it, `B.prior j = 0` makes
+`Measure.pi B.prior = 0` and the condition holds vacuously. -/
+abbrev IsBayesNash (B : BayesianGame ι T X) (s : ∀ i, T i → X i) : Prop :=
   B.IsBayesNashOn (fun _ => Set.univ) s
-
-@[simp] theorem isBayesNashOn_univ_iff (B : BayesianGame ι T X) (s : ∀ i, T i → X i) :
-    B.IsBayesNashOn (fun _ => Set.univ) s ↔ B.IsBayesNash s :=
-  Iff.rfl
 
 theorem isBayesNash_iff (B : BayesianGame ι T X) (s : ∀ i, T i → X i) :
     B.IsBayesNash s ↔
@@ -479,23 +517,32 @@ variable {ι : Type*}
 
 /-- View a single-parameter sealed-bid mechanism `M` with independent priors `μ : ι → Measure ℝ`
 as a `BayesianGame` with type spaces `ℝ` and legal nonnegative bid spaces `Set.Ici (0 : ℝ)`. -/
-@[expose] def toBayesianGame (M : Mechanism ι) (μ : ι → Measure ℝ) :
+def toBayesianGame (M : Mechanism ι) (μ : ι → Measure ℝ) :
     BayesianGame ι (fun _ => ℝ) (fun _ => Set.Ici (0 : ℝ)) where
   utility i v x := M.utility i v fun j => (x j : ℝ)
   prior := μ
 
+@[simp] theorem toBayesianGame_utility (M : Mechanism ι) (μ : ι → Measure ℝ) (i : ι) (v : ℝ)
+    (x : ι → Set.Ici (0 : ℝ)) :
+    (M.toBayesianGame μ).utility i v x = M.utility i v fun j => (x j : ℝ) := by
+  rfl
+
+@[simp] theorem toBayesianGame_prior (M : Mechanism ι) (μ : ι → Measure ℝ) :
+    (M.toBayesianGame μ).prior = μ := by
+  rfl
+
 /-- **Bridge between `SingleParameter.Mechanism.IsBayesNash` and `BayesianGame.IsBayesNashOn`**:
-when allocations and payments under `β` are integrable against `Measure.pi μ` for probability
-measures `μ j` supported on `Icc 0 (h j)`, `M.IsBayesNash μ h β` is equivalent to legal bidding on
-`Icc 0 (h i)` together with `(M.toBayesianGame μ).IsBayesNashOn`. -/
+when allocations and payments at nonnegative bids under `β` are integrable against `Measure.pi μ`
+for probability measures `μ j` supported on `Icc 0 (h j)`, `M.IsBayesNash μ h β` is equivalent to
+legal bidding on `Icc 0 (h i)` together with `(M.toBayesianGame μ).IsBayesNashOn`. -/
 theorem isBayesNash_iff_toBayesianGame [Fintype ι] [DecidableEq ι]
     (M : Mechanism ι) (μ : ι → Measure ℝ) [∀ i, IsProbabilityMeasure (μ i)]
     (h : ι → ℝ) (β : ι → ℝ → ℝ)
     (hsupp : ∀ j, ∀ᵐ t ∂μ j, t ∈ Icc 0 (h j))
-    (hintA : ∀ i (z : ℝ), Integrable
+    (hintA : ∀ i (z : ℝ), 0 ≤ z → Integrable
       (fun v => M.allocation (Function.update (fun j => max 0 (β j (v j))) i z) i)
       (Measure.pi μ))
-    (hintP : ∀ i (z : ℝ), Integrable
+    (hintP : ∀ i (z : ℝ), 0 ≤ z → Integrable
       (fun v => M.payment (Function.update (fun j => max 0 (β j (v j))) i z) i)
       (Measure.pi μ)) :
     M.IsBayesNash μ h β ↔
@@ -530,7 +577,7 @@ theorem isBayesNash_iff_toBayesianGame [Fintype ι] [DecidableEq ι]
       · simp only [Function.update_self]
       · simp only [Function.update_of_ne hj, max_eq_right (hβ j (t j) (ht j))]
     simp only [BayesianGame.interimUtility, toBayesianGame, Mechanism.utility, hcoe]
-    rw [integral_sub ((hintA i z.1).const_mul v) (hintP i z.1), integral_const_mul]
+    rw [integral_sub ((hintA i z.1 z.2).const_mul v) (hintP i z.1 z.2), integral_const_mul]
     have hA : ∫ t, M.allocation (Function.update (fun j => max 0 (β j (t j))) i z.1) i
         ∂Measure.pi μ = M.interimAllocation μ β i z.1 :=
       integral_congr_ae (hae_eq.mono fun t ht => by dsimp only; rw [ht])
@@ -557,7 +604,9 @@ end SingleParameter.Mechanism
 
 /-- A **Bayesian mechanism** ([Nisan2007], Definition 9.42): players have type spaces `T i` with
 independent priors `prior i`, action spaces `X i`, valuations `valuation i : T i → Ω → ℝ`, an
-outcome rule `outcome : (∀ i, X i) → Ω`, and payment rules `payment : (∀ i, X i) → ι → ℝ`. -/
+outcome rule `outcome : (∀ i, X i) → Ω`, and payment rules `payment : (∀ i, X i) → ι → ℝ`.
+Each `prior i` is intended to carry `IsProbabilityMeasure`: if `prior j = 0` for some `j`, then
+`Measure.pi prior = 0`, making interim utilities and interim payments identically `0`. -/
 structure BayesianMechanism (ι : Type*) (T X : ι → Type*) (Ω : Type*)
     [∀ i, MeasurableSpace (T i)] extends IndirectMechanism ι X Ω where
   /-- Player `i`'s prior distribution `Dᵢ` on `T i`. -/
@@ -570,17 +619,47 @@ namespace BayesianMechanism
 variable {ι Ω : Type*} {T X : ι → Type*} [∀ i, MeasurableSpace (T i)]
 
 /-- The Bayesian game induced by `M` ([Nisan2007], Definition 9.42). -/
-@[expose] def toBayesianGame (M : BayesianMechanism ι T X Ω) : BayesianGame ι T X where
+def toBayesianGame (M : BayesianMechanism ι T X Ω) : BayesianGame ι T X where
   toIncompleteInfoGame := M.toIndirectMechanism.toIncompleteInfoGame M.valuation
   prior := M.prior
 
+@[simp] theorem toBayesianGame_utility (M : BayesianMechanism ι T X Ω) (i : ι) (ti : T i)
+    (x : ∀ j, X j) :
+    M.toBayesianGame.utility i ti x = M.valuation i ti (M.outcome x) - M.payment x i := by
+  rfl
+
+@[simp] theorem toBayesianGame_prior (M : BayesianMechanism ι T X Ω) :
+    M.toBayesianGame.prior = M.prior := by
+  rfl
+
 /-- Simulate strategies `s : ∀ i, T i → X i` inside `M` to obtain a direct-revelation
 `BayesianMechanism` (`X' = T`, [Nisan2007], Proposition 9.44). -/
-@[expose] def revelation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
+def revelation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
     BayesianMechanism ι T T Ω where
   toIndirectMechanism := M.toIndirectMechanism.revelation s
   prior := M.prior
   valuation := M.valuation
+
+@[simp] theorem revelation_toIndirectMechanism (M : BayesianMechanism ι T X Ω)
+    (s : ∀ i, T i → X i) :
+    (M.revelation s).toIndirectMechanism = M.toIndirectMechanism.revelation s := by
+  rfl
+
+@[simp] theorem revelation_outcome (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
+    (t : ∀ i, T i) : (M.revelation s).outcome t = M.outcome fun j => s j (t j) := by
+  rfl
+
+@[simp] theorem revelation_payment (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
+    (t : ∀ i, T i) : (M.revelation s).payment t = M.payment fun j => s j (t j) := by
+  rfl
+
+@[simp] theorem revelation_prior (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
+    (M.revelation s).prior = M.prior := by
+  rfl
+
+@[simp] theorem revelation_valuation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
+    (M.revelation s).valuation = M.valuation := by
+  rfl
 
 section Implementation
 
@@ -599,9 +678,15 @@ strategies `fun _ => id` form a Bayes–Nash equilibrium ([Nisan2007], Definitio
   D.toBayesianGame.IsBayesNash fun _ => id
 
 /-- Interim expected payment of player `i` at action `xi` when other players follow `s`. -/
-@[expose] noncomputable def interimPayment (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
+noncomputable def interimPayment (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
     (i : ι) (xi : X i) : ℝ :=
   ∫ t, M.payment (Function.update (fun j => s j (t j)) i xi) i ∂Measure.pi M.prior
+
+theorem interimPayment_def (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) (i : ι)
+    (xi : X i) :
+    M.interimPayment s i xi =
+      ∫ t, M.payment (Function.update (fun j => s j (t j)) i xi) i ∂Measure.pi M.prior := by
+  rfl
 
 /-- In `M.revelation s`, truthful interim utility at report `ti'` equals `M`'s interim utility at
 action `s i ti'`. -/
@@ -662,27 +747,28 @@ variable {ι Ω : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- Interim expected utility of agent `i` with true valuation `v` reporting `w` in direct
 `Mechanism ι Ω` when other agents draw truthful valuations from `Measure.pi μ`. -/
-@[expose] noncomputable def interimUtility [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
+noncomputable def interimUtility [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
     (μ : ι → Measure (Ω → ℝ)) (i : ι) (v w : Ω → ℝ) : ℝ :=
   ∫ b, M.utility i v (Function.update b i w) ∂Measure.pi μ
 
+theorem interimUtility_def [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
+    (μ : ι → Measure (Ω → ℝ)) (i : ι) (v w : Ω → ℝ) :
+    M.interimUtility μ i v w = ∫ b, M.utility i v (Function.update b i w) ∂Measure.pi μ := by
+  rfl
+
 /-- **Bayesian incentive compatibility on valuation domains `V`** (`IsBICOn`, [Nisan2007],
 Definition 9.43): for every agent `i` and valuations `v, w ∈ V i`, reporting `v` maximizes interim
-expected utility against independent priors `μ`. -/
+expected utility against independent priors `μ`. Each `μ i` is intended to carry
+`IsProbabilityMeasure`. -/
 @[expose] def IsBICOn [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
     (μ : ι → Measure (Ω → ℝ)) (V : ι → Set (Ω → ℝ)) : Prop :=
   ∀ (i : ι) (v w : Ω → ℝ), v ∈ V i → w ∈ V i →
     M.interimUtility μ i v w ≤ M.interimUtility μ i v v
 
 /-- Unrestricted Bayesian incentive compatibility (`V i = Set.univ`). -/
-@[expose] def IsBIC [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
+abbrev IsBIC [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
     (μ : ι → Measure (Ω → ℝ)) : Prop :=
   M.IsBICOn μ fun _ => Set.univ
-
-@[simp] theorem isBICOn_univ_iff [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
-    (μ : ι → Measure (Ω → ℝ)) :
-    M.IsBICOn μ (fun _ => Set.univ) ↔ M.IsBIC μ :=
-  Iff.rfl
 
 end Mechanism
 

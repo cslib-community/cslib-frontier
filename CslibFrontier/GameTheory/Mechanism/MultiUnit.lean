@@ -30,25 +30,25 @@ top-`k` allocation rule (`allocation k`) awards one item to each bidder with 0-i
    (`criticalBidMechanism_eq_on_nonneg`, `mechanism_payment_eq_myersonPayment`). Consequently
    `MultiUnit.mechanism k` is DSIC, individually rational, and normalized (`mechanism_isDSIC`,
    `mechanism_isIR`, `mechanism_isNormalized`), generalizing `Vickrey.mechanism` (`k = 1`).
-2. **Failure of DSIC for discriminatory `(j + 1)`-st price auctions**: as a standard counterexample
-   contrasting with the uniform `(k + 1)`-st price rule, charging the `j`-th highest bidder
-   (`1 ≤ j ≤ k`, 0-indexed `rank = j - 1`) the `(j + 1)`-st highest bid (`nextBidMechanism k`) is
-   **not** DSIC whenever `2 ≤ k` and `2 ≤ Fintype.card ι` (`not_isDSIC_nextBidMechanism`): when
-   bidder `i₀` has value `3`, bidder `i₁` bids `2`, and any remaining bidders bid `0`, truthful
-   bidding `3` gives `i₀` rank `0` at price `2` (utility `1`), whereas shading to `1` drops `i₀`
-   to rank `1 < k` (still winning!) at price `0` (utility `3 > 1`). Both bounds `2 ≤ k` and
-   `2 ≤ Fintype.card ι` are tight (`nextBidMechanism_one_eq_mechanism`,
-   `nextBidMechanism_isDSIC_of_card_le_one`).
+2. **Failure of DSIC for discriminatory `(j + 1)`-st price auctions** (original contrast, not in
+   [Nisan2007]): contrasting with the uniform `(k + 1)`-st price rule, charging the `j`-th highest
+   bidder (`1 ≤ j ≤ k`, 0-indexed `rank = j - 1`) the `(j + 1)`-st highest bid
+   (`nextBidMechanism k`) is **not** DSIC whenever `2 ≤ k` and `2 ≤ Fintype.card ι`
+   (`not_isDSIC_nextBidMechanism`): when bidder `i₀` has value `3`, bidder `i₁` bids `2`, and any
+   remaining bidders bid `0`, truthful bidding `3` gives `i₀` rank `0` at price `2` (utility `1`),
+   whereas shading to `1` drops `i₀` to rank `1 < k` (still winning!) at price `0` (utility
+   `3 > 1`). Both bounds `2 ≤ k` and `2 ≤ Fintype.card ι` are tight
+   (`nextBidMechanism_one_eq_mechanism`, `nextBidMechanism_isDSIC_of_card_le_one`).
 
 **Source locator note.** The unit-demand `(k + 1)`-st price multi-unit auction appears directly in
 [Nisan2007], §9.3.5.4 (p. 221). Note that Chapter 1, Exercise 1.2 of the edited volume (Nisan et
 al., 2007, p. 26) instead concerns pure Nash equilibria in random two-player matrix games; the
-contrasting `nextBidMechanism` counterexample is not taken from that exercise.
+contrasting `nextBidMechanism` counterexample is original and not taken from that exercise.
 
 ## Main definitions
 
 * `SingleParameter.MultiUnit.multiUnitFeasible`:
-  `{x : ι → ℝ | (∀ i, x i ∈ ({0, 1} : Set ℝ)) ∧ ∑ i, x i ≤ k}`.
+  `{x : ι → ℝ | (∀ i, x i = 0 ∨ x i = 1) ∧ ∑ i, x i ≤ k}`.
 * `SingleParameter.MultiUnit.Beats`, `SingleParameter.MultiUnit.rank`: tie-broken strict comparison
   and 0-indexed rank from the top.
 * `SingleParameter.MultiUnit.Wins`, `SingleParameter.MultiUnit.allocation`: top-`k` winning
@@ -57,7 +57,7 @@ contrasting `nextBidMechanism` counterexample is not taken from that exercise.
   `Fintype.card ι ≤ r`).
 * `SingleParameter.MultiUnit.mechanism`: uniform `(k + 1)`-st price `k`-unit auction.
 * `SingleParameter.MultiUnit.nextBidMechanism`: discriminatory auction charging the `j`-th highest
-  bidder (`1 ≤ j ≤ k`) the `(j + 1)`-st highest bid.
+  bidder (`1 ≤ j ≤ k`) the `(j + 1)`-st highest bid (original).
 
 ## Main results
 
@@ -73,10 +73,10 @@ contrasting `nextBidMechanism` counterexample is not taken from that exercise.
 * `SingleParameter.MultiUnit.mechanism_one_eq_vickrey`: for `k = 1`, `MultiUnit.mechanism 1` agrees
   with `Vickrey.mechanism` on nonnegative bids.
 * `SingleParameter.MultiUnit.not_isDSIC_nextBidMechanism`: for `2 ≤ k` and `2 ≤ Fintype.card ι`,
-  `nextBidMechanism k` is not DSIC.
+  `nextBidMechanism k` is not DSIC (original).
 * `SingleParameter.MultiUnit.nextBidMechanism_one_eq_mechanism`,
   `SingleParameter.MultiUnit.nextBidMechanism_isDSIC_of_card_le_one`: tightness of `2 ≤ k` and
-  `2 ≤ Fintype.card ι`.
+  `2 ≤ Fintype.card ι` (original).
 
 ## References
 
@@ -92,14 +92,12 @@ variable {ι : Type*}
 
 /-- Feasible allocations of `k` identical items to unit-demand bidders: 0-1 vectors summing to at
 most `k` ([Nisan2007], §9.3.5.4). -/
-@[expose] def multiUnitFeasible [Fintype ι] (k : ℕ) : Set (ι → ℝ) :=
-  {x : ι → ℝ | (∀ i, x i ∈ ({0, 1} : Set ℝ)) ∧ ∑ i, x i ≤ k}
+def multiUnitFeasible [Fintype ι] (k : ℕ) : Set (ι → ℝ) :=
+  {x | (∀ i, x i = 0 ∨ x i = 1) ∧ ∑ i, x i ≤ k}
 
-theorem multiUnitFeasible_one_eq [Fintype ι] :
-    multiUnitFeasible (ι := ι) 1 = Vickrey.singleItemFeasible := by
-  ext x
-  simp only [multiUnitFeasible, Vickrey.singleItemFeasible, Set.mem_ofPred_eq, Set.mem_insert_iff,
-    Set.mem_singleton_iff, Nat.cast_one]
+theorem mem_multiUnitFeasible [Fintype ι] {k : ℕ} {x : ι → ℝ} :
+    x ∈ multiUnitFeasible k ↔ (∀ i, x i = 0 ∨ x i = 1) ∧ ∑ i, x i ≤ k :=
+  Iff.rfl
 
 section Order
 
@@ -130,9 +128,6 @@ theorem beats_trichotomous {b : ι → ℝ} {i j : ι} (hij : i ≠ j) :
     · exact Or.inr (Or.inr ⟨heq, h⟩)
   · exact Or.inl (Or.inl hgt)
 
-theorem beats_asymm {b : ι → ℝ} {i j : ι} (h : Beats b i j) : ¬ Beats b j i :=
-  fun h' => beats_irrefl b i (beats_trans h h')
-
 theorem le_of_beats {b : ι → ℝ} {j i : ι} (h : Beats b j i) : b i ≤ b j := by
   rcases h with hlt | ⟨heq, -⟩
   · exact hlt.le
@@ -147,8 +142,13 @@ variable [Fintype ι]
 open Classical in
 /-- The 0-indexed rank of bidder `i` from the top on bid profile `b`: the number of bidders `j`
 with `Beats b j i`. -/
-@[expose] noncomputable def rank (b : ι → ℝ) (i : ι) : ℕ :=
+noncomputable def rank (b : ι → ℝ) (i : ι) : ℕ :=
   (Finset.univ.filter fun j => Beats b j i).card
+
+open Classical in
+theorem rank_def (b : ι → ℝ) (i : ι) :
+    rank b i = (Finset.univ.filter fun j => Beats b j i).card := by
+  rfl
 
 open Classical in
 theorem rank_lt_card (b : ι → ℝ) (i : ι) : rank b i < Fintype.card ι := by
@@ -218,7 +218,7 @@ theorem wins_one_iff {b : ι → ℝ} {i : ι} : Wins 1 b i ↔ Vickrey.Wins b i
 open Classical in
 /-- Top-`k` allocation rule: each of the `k` highest-ranked bidders receives `1` item, and all
 other bidders receive `0`. -/
-@[expose] noncomputable def allocation (k : ℕ) (b : ι → ℝ) (i : ι) : ℝ :=
+noncomputable def allocation (k : ℕ) (b : ι → ℝ) (i : ι) : ℝ :=
   if Wins k b i then 1 else 0
 
 theorem allocation_one : allocation (ι := ι) 1 = Vickrey.allocation := by
@@ -275,11 +275,9 @@ theorem sum_allocation (k : ℕ) (b : ι → ℝ) :
 
 theorem allocation_mem_multiUnitFeasible (k : ℕ) (b : ι → ℝ) :
     allocation k b ∈ multiUnitFeasible k := by
-  refine ⟨fun i => ?_, ?_⟩
-  · simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
-    exact allocation_binary k b i
-  · rw [sum_allocation]
-    exact_mod_cast min_le_left k (Fintype.card ι)
+  refine mem_multiUnitFeasible.2 ⟨allocation_binary k b, ?_⟩
+  rw [sum_allocation]
+  exact_mod_cast min_le_left k (Fintype.card ι)
 
 /-- **Top-`k` allocation maximizes welfare** ([Nisan2007], §9.3.5.4): on nonnegative bids,
 `allocation k` maximizes `∑ᵢ bᵢ yᵢ` over `multiUnitFeasible k`. -/
@@ -287,10 +285,9 @@ theorem isWelfareMaximizing_allocation (k : ℕ) :
     IsWelfareMaximizing (multiUnitFeasible (ι := ι) k) (allocation k) := by
   intro b hb
   refine ⟨allocation_mem_multiUnitFeasible k b, fun y hy => ?_⟩
+  rw [mem_multiUnitFeasible] at hy
   have hy01 : ∀ i, 0 ≤ y i ∧ y i ≤ 1 := fun i => by
-    have hi := hy.1 i
-    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hi
-    rcases hi with h | h <;> rw [h] <;> exact ⟨by norm_num, by norm_num⟩
+    rcases hy.1 i with h | h <;> rw [h] <;> exact ⟨by norm_num, by norm_num⟩
   rcases le_or_gt (Fintype.card ι) k with hnk | hkn
   · have hall : ∀ i, allocation k b i = 1 := fun i =>
       allocation_eq_one_iff.2 ((rank_lt_card b i).trans_le hnk)
@@ -333,14 +330,8 @@ theorem isMonotone_allocation (k : ℕ) : IsMonotone (allocation (ι := ι) k) :
 open Classical in
 /-- The `(r + 1)`-st highest bid (`0`-indexed rank `r`), clamped below at `0`, or `0` when
 `Fintype.card ι ≤ r`. -/
-@[expose] noncomputable def bidAtRank (r : ℕ) (b : ι → ℝ) : ℝ :=
+noncomputable def bidAtRank (r : ℕ) (b : ι → ℝ) : ℝ :=
   if h : ∃ i, rank b i = r then max 0 (b (Classical.choose h)) else 0
-
-theorem bidAtRank_nonneg (r : ℕ) (b : ι → ℝ) : 0 ≤ bidAtRank r b := by
-  unfold bidAtRank
-  split_ifs
-  · exact le_max_left 0 _
-  · exact le_rfl
 
 theorem bidAtRank_eq_of_rank {r : ℕ} {b : ι → ℝ} {i : ι} (hi : rank b i = r) :
     bidAtRank r b = max 0 (b i) := by
@@ -364,9 +355,17 @@ theorem bidAtRank_of_card_le {r : ℕ} (b : ι → ℝ) (hr : Fintype.card ι �
 /-- **Uniform `(k + 1)`-st price multi-unit auction** ([Nisan2007], §9.3.5.4, p. 221): the top `k`
 bidders win one item each and every winner pays `bidAtRank k b` (the `(k + 1)`-st highest bid, or
 `0` when `Fintype.card ι ≤ k`); losers pay `0`. -/
-@[expose] noncomputable def mechanism (k : ℕ) : Mechanism ι where
+noncomputable def mechanism (k : ℕ) : Mechanism ι where
   allocation := allocation k
   payment b i := bidAtRank k b * allocation k b i
+
+@[simp] theorem mechanism_allocation (k : ℕ) :
+    (mechanism (ι := ι) k).allocation = allocation k := by
+  rfl
+
+@[simp] theorem mechanism_payment (k : ℕ) (b : ι → ℝ) (i : ι) :
+    (mechanism k).payment b i = bidAtRank k b * allocation k b i := by
+  rfl
 
 open Classical in
 /-- For every winning bidder `i` on a nonnegative profile `b`, `criticalBid (allocation k) b i`
@@ -474,12 +473,21 @@ theorem mechanism_one_eq_vickrey {b : ι → ℝ} (hb : 0 ≤ b) :
 
 /-! ### Discriminatory `(j + 1)`-st price auction is not DSIC -/
 
-/-- **Discriminatory `(j + 1)`-st price multi-unit auction**: the `j`-th highest bidder
-(`1 ≤ j ≤ k`, 0-indexed `rank b i = j - 1`) wins one item and pays the `(j + 1)`-st highest bid
-`bidAtRank (rank b i + 1) b` (`0` if `Fintype.card ι ≤ j`); losers pay `0`. -/
-@[expose] noncomputable def nextBidMechanism (k : ℕ) : Mechanism ι where
+/-- **Discriminatory `(j + 1)`-st price multi-unit auction** (original; not in [Nisan2007]): the
+`j`-th highest bidder (`1 ≤ j ≤ k`, 0-indexed `rank b i = j - 1`) wins one item and pays the
+`(j + 1)`-st highest bid `bidAtRank (rank b i + 1) b` (`0` if `Fintype.card ι ≤ j`); losers pay
+`0`. -/
+noncomputable def nextBidMechanism (k : ℕ) : Mechanism ι where
   allocation := allocation k
   payment b i := bidAtRank (rank b i + 1) b * allocation k b i
+
+@[simp] theorem nextBidMechanism_allocation (k : ℕ) :
+    (nextBidMechanism (ι := ι) k).allocation = allocation k := by
+  rfl
+
+@[simp] theorem nextBidMechanism_payment (k : ℕ) (b : ι → ℝ) (i : ι) :
+    (nextBidMechanism k).payment b i = bidAtRank (rank b i + 1) b * allocation k b i := by
+  rfl
 
 /-- For `k = 1`, `nextBidMechanism 1` coincides with `mechanism 1` (since the unique winner has
 `rank b i = 0`, paying `bidAtRank 1 b`). -/
@@ -534,10 +542,10 @@ theorem rank_eq_one_of_between {b : ι → ℝ} {top second : ι} (htop : b seco
   rw [rank, hfilt, Finset.card_singleton]
 
 open Classical in
-/-- **Charging the `j`-th highest bidder the `(j + 1)`-st highest bid is not DSIC** whenever
-`2 ≤ k` and `2 ≤ Fintype.card ι`: when `i₀` has true value `3`, `i₁ ≠ i₀` bids `2`, and any
-remaining bidders bid `0`, bidding truthfully gives `i₀` rank `0` at price `2` (utility `1`),
-whereas shading to `1` gives `i₀` rank `1 < k` (still winning one item) at price `0`
+/-- **Charging the `j`-th highest bidder the `(j + 1)`-st highest bid is not DSIC** (original; not
+in [Nisan2007]) whenever `2 ≤ k` and `2 ≤ Fintype.card ι`: when `i₀` has true value `3`, `i₁ ≠ i₀`
+bids `2`, and any remaining bidders bid `0`, bidding truthfully gives `i₀` rank `0` at price `2`
+(utility `1`), whereas shading to `1` gives `i₀` rank `1 < k` (still winning one item) at price `0`
 (utility `3 > 1`). -/
 theorem not_isDSIC_nextBidMechanism {k : ℕ} (hk : 2 ≤ k) (hn : 2 ≤ Fintype.card ι) :
     ¬ (nextBidMechanism (ι := ι) k).IsDSIC := by

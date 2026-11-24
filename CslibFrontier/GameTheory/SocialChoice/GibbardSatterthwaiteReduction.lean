@@ -37,8 +37,7 @@ function of [Nisan2007]:
   assuming a nonempty electorate `[Nonempty V]`, or `[Nontrivial A]`, which forces `Nonempty V`
   when `f` is onto) as well as constant-profile unanimity (`nisanSWF_const`, Definition 9.2),
   satisfies independence of irrelevant alternatives (`nisanSWF_isIIA`), and preserves
-  dictators (`nisanSWF_isDictator_iff`, `nisanSWF_isDictatorial_iff`), so it is non-dictatorial
-  whenever `f` is non-dictatorial (`nisanSWF_isPareto_and_isIIA_and_not_isDictatorial`).
+  dictators (`nisanSWF_isDictator_iff`, `nisanSWF_isDictatorial_iff`).
 
 **Implicit nonemptiness in Lemma 9.11.** [Nisan2007] (§9.2.2, p. 212) assumes an electorate of `n`
 voters with `n ≥ 1` implicit (and `|A| ≥ 3` in Theorem 9.8, where surjectivity of `f` already
@@ -68,9 +67,8 @@ preference `(F P).Prefers a a` is irreflexive. Thus `nisanSWF_isPareto` takes `[
 * `SocialChoiceFunction.nisanSWF_isIIA`: independence of irrelevant alternatives ([Nisan2007],
   Lemma 9.11).
 * `SocialChoiceFunction.nisanSWF_isDictator_iff`,
-  `SocialChoiceFunction.nisanSWF_isDictatorial_iff`: `nisanSWF` has the same dictators as `f`.
-* `SocialChoiceFunction.nisanSWF_isPareto_and_isIIA_and_not_isDictatorial`: full statement of
-  [Nisan2007], Lemma 9.11.
+  `SocialChoiceFunction.nisanSWF_isDictatorial_iff`: `nisanSWF` has the same dictators as `f`
+  ([Nisan2007], Lemma 9.11).
 
 ## References
 
@@ -122,7 +120,7 @@ given a strategy-proof social choice function `f` onto `A`, society ranks `a` at
 `b` on profile `P` iff `f (P.toTopSet {a, b}) = a`, where `P.toTopSet {a, b}` moves `a` and `b`
 to the top of every voter's ranking. Completeness and transitivity are proved by moving two- and
 three-element sets to the top ([Nisan2007], Lemma 9.10). -/
-@[expose] def nisanSWF (f : SocialChoiceFunction V A) (hf : f.IsStrategyProof)
+def nisanSWF (f : SocialChoiceFunction V A) (hf : f.IsStrategyProof)
     (hs : Function.Surjective f) : SocialWelfareFunction V A :=
   fun P =>
   { AtLeast := fun a b => f (P.toTopSet {a, b}) = a
@@ -165,7 +163,7 @@ theorem nisanSWF_prefers (hf : f.IsStrategyProof) (hs : Function.Surjective f)
 /-- **Strict-ranking form of Nisan's extension** ([Nisan2007], Definition 9.9 and Lemma 9.10):
 for every profile `P`, `nisanRanking` produces a strict linear order (`Ranking A`), matching
 [Nisan2007]'s `L`-valued definition of a social welfare function (Definition 9.1). -/
-@[expose] def nisanRanking (f : SocialChoiceFunction V A) (hf : f.IsStrategyProof)
+def nisanRanking (f : SocialChoiceFunction V A) (hf : f.IsStrategyProof)
     (hs : Function.Surjective f) (P : Profile V A) : Ranking A where
   Prefers a b := (f.nisanSWF hf hs P).Prefers a b
   irrefl := (f.nisanSWF hf hs P).prefers_irrefl
@@ -174,6 +172,11 @@ for every profile `P`, `nisanRanking` produces a strict linear order (`Ranking A
     rcases (f.nisanSWF hf hs P).total a b with h | h
     · exact Or.inl ((f.nisanSWF_prefers hf hs P a b).2 ⟨hab, h⟩)
     · exact Or.inr ((f.nisanSWF_prefers hf hs P b a).2 ⟨hab.symm, h⟩)
+
+@[simp] theorem nisanRanking_prefers (hf : f.IsStrategyProof) (hs : Function.Surjective f)
+    (P : Profile V A) (a b : A) :
+    (f.nisanRanking hf hs P).Prefers a b ↔ (f.nisanSWF hf hs P).Prefers a b :=
+  Iff.rfl
 
 /-- Viewing `nisanRanking` as a weak ranking recovers `nisanSWF`. -/
 @[simp] theorem toWeakRanking_nisanRanking (hf : f.IsStrategyProof) (hs : Function.Surjective f)
@@ -267,20 +270,10 @@ theorem nisanSWF_isDictator_iff (hf : f.IsStrategyProof) (hs : Function.Surjecti
       (Set.mem_insert_of_mem b rfl)).1 htop
     exact (P i).asymm hab hab'
 
-/-- `nisanSWF` is dictatorial if and only if `f` is dictatorial. -/
+/-- `nisanSWF` is dictatorial if and only if `f` is dictatorial ([Nisan2007], Lemma 9.11). -/
 theorem nisanSWF_isDictatorial_iff (hf : f.IsStrategyProof) (hs : Function.Surjective f) :
     (f.nisanSWF hf hs).IsDictatorial ↔ f.IsDictatorial :=
   exists_congr fun _ => f.nisanSWF_isDictator_iff hf hs
-
-/-- **Lemma 9.11** of [Nisan2007]: if `f` is a strategy-proof social choice function onto `A`
-that is not a dictatorship (over a finite nonempty electorate), then `nisanSWF` satisfies weak
-Pareto (unanimity), independence of irrelevant alternatives, and is not a dictatorship. -/
-theorem nisanSWF_isPareto_and_isIIA_and_not_isDictatorial [Nonempty V] (hf : f.IsStrategyProof)
-    (hs : Function.Surjective f) (hd : ¬ f.IsDictatorial) :
-    (f.nisanSWF hf hs).IsPareto ∧ (f.nisanSWF hf hs).IsIIA ∧
-      ¬ (f.nisanSWF hf hs).IsDictatorial :=
-  ⟨f.nisanSWF_isPareto hf hs, f.nisanSWF_isIIA hf hs,
-    mt (f.nisanSWF_isDictatorial_iff hf hs).1 hd⟩
 
 end NisanSWF
 
