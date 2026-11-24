@@ -100,37 +100,16 @@ example (p : ℝ) :
   simp [Fin.sum_univ_two, derivative_zero_signVal_dictator, derivative_one_signVal_dictator,
     bernoulliAverage_const]
 
-/-- The dictator read as a sign is `1` or `-1`, so its centered sign has expectation `σ² = 4pq`:
-`𝔼_p[x₀ (x₀ - μ)] = 1 - μ² = 4p(1 - p)`. -/
-example (p : ℝ) : (bernoulliAverage p fun x : Fin 2 → Bool =>
-    signVal (x 0) * (signVal (x 0) - (1 - 2 * p))) = 4 * p * (1 - p) := by
-  rw [bernoulliAverage_mul_signVal_sub, derivative_zero_signVal_dictator, bernoulliAverage_const,
-    mul_one]
-
 /-- The book's form of (8.8) for the dictator read as a sign: its `p`-biased expectation is the
 mean `μ` itself, so the slope in `μ` is `1`; its `p`-biased Fourier coefficient on `{0}` is `σ`,
 and on `{1}` it is `0`. -/
 example {p : ℝ} (hp : 0 < p) (hp' : p < 1) :
     HasDerivAt (fun m => bernoulliAverage ((1 - m) / 2) fun x : Fin 2 → Bool => signVal (x 0))
       1 (1 - 2 * p) := by
+  have hσ := biasedStd_ne_zero hp hp'
   refine (hasDerivAt_bernoulliAverage_one_sub_div_two _ hp hp').congr_deriv ?_
-  have hσ : (2 * √(p * (1 - p))) ^ 2 = 4 * p * (1 - p) := by
-    rw [mul_pow, Real.sq_sqrt (mul_pos hp (by linarith)).le]
-    ring
-  have hσ0 : 2 * √(p * (1 - p)) ≠ 0 :=
-    (mul_pos two_pos (Real.sqrt_pos.2 (mul_pos hp (by linarith)))).ne'
-  have hc (i : Fin 2) : (bernoulliAverage p fun x : Fin 2 → Bool =>
-      signVal (x 0) * ((signVal (x i) - (1 - 2 * p)) / (2 * √(p * (1 - p))))) =
-      (2 * √(p * (1 - p)))⁻¹ * (4 * p * (1 - p) *
-        bernoulliAverage p (derivative i fun x : Fin 2 → Bool => signVal (x 0))) := by
-    rw [← bernoulliAverage_mul_signVal_sub, ← bernoulliAverage_const_mul]
-    congr 1
-    funext x
-    ring
-  simp only [hc, Fin.sum_univ_two, derivative_zero_signVal_dictator,
-    derivative_one_signVal_dictator, bernoulliAverage_const, mul_one, mul_zero, add_zero]
-  rw [← hσ]
-  field_simp
+  simp only [Fin.sum_univ_two, biasedFourierCoeff_dictator hp hp']
+  simp [hσ]
 
 /-- The influence form of (8.9) for a dictator: its own bit has squared derivative `1` and the
 other `0`, so the slope of its `p`-biased probability is `1`. -/

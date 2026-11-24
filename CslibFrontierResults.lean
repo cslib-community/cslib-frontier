@@ -38,6 +38,7 @@ import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.NetworkContagion
 import CslibFrontierResults.Entries.NetworkFormation
+import CslibFrontierResults.Entries.ODonnellBiasedFourier
 import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLevelK
