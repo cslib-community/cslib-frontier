@@ -117,11 +117,33 @@ theorem numMicroPerBucket_le_totalMicroBuckets (n_max : ℕ) :
   rw [totalMicroBuckets_eq_mul]
   exact Nat.le_mul_of_pos_left _ (numBuckets_pos n_max)
 
+/-- Base address `base` in a `LocalMeta` read input `(dp, ((base, b), idx))`. -/
+abbrev lmReadBase (d : DictParams × ((ℕ × ℕ) × ℕ)) : ℕ := d.2.1.1
+
+/-- Bucket index `b` in a `LocalMeta` read input `(dp, ((base, b), idx))`. -/
+abbrev lmReadBucket (d : DictParams × ((ℕ × ℕ) × ℕ)) : ℕ := d.2.1.2
+
+/-- Micro-bucket or slot index `idx` in a `LocalMeta` read input `(dp, ((base, b), idx))`. -/
+abbrev lmReadIdx (d : DictParams × ((ℕ × ℕ) × ℕ)) : ℕ := d.2.2
+
+/-- Base address `base` in a `LocalMeta` write input `(dp, (((base, b), idx), val))`. -/
+abbrev lmWriteBase (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : ℕ := d.2.1.1.1
+
+/-- Bucket index `b` in a `LocalMeta` write input `(dp, (((base, b), idx), val))`. -/
+abbrev lmWriteBucket (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : ℕ := d.2.1.1.2
+
+/-- Micro-bucket or slot index `idx` in a `LocalMeta` write input
+`(dp, (((base, b), idx), val))`. -/
+abbrev lmWriteIdx (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : ℕ := d.2.1.2
+
 /-- Parameter-free `Memory.Prog` operation reading `lmHead n_max lm b m` at
 `d = (dp, ((base, b), m))`. -/
 @[expose]
 def readLMHeadGenProg (d : DictParams × ((ℕ × ℕ) × ℕ)) : Memory.Prog ℕ :=
-  readLMGenProg ⟨0, by decide⟩ (d.1, (d.2.1.1, d.2.1.2 * dpNumMicro d.1 + d.2.2))
+  let read (bucketLoc : ℕ × ℕ) (m : ℕ) : Memory.Prog ℕ :=
+    readLMGenProg ⟨0, by decide⟩ (d.1, (bucketLoc.1, bucketLoc.2 * dpNumMicro d.1 + m))
+  let go (arg : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := read arg.1 arg.2
+  go d.2
 
 /-- Read `lmHead n_max lm b m` at `d = ((base, b), m)` in `Memory.Prog`. -/
 @[expose]
@@ -137,7 +159,12 @@ def readLMHeadProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) : Memor
 `d = (dp, (((base, b), m), val))`. -/
 @[expose]
 def writeLMHeadGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit :=
-  writeLMGenProg ⟨0, by decide⟩ (d.1, ((d.2.1.1.1, d.2.1.1.2 * dpNumMicro d.1 + d.2.1.2), d.2.2))
+  let write (bucketLoc : ℕ × ℕ) (m val : ℕ) : Memory.Prog Unit :=
+    writeLMGenProg ⟨0, by decide⟩ (d.1, ((bucketLoc.1, bucketLoc.2 * dpNumMicro d.1 + m), val))
+  let writeEntry (entry : (ℕ × ℕ) × ℕ) (val : ℕ) : Memory.Prog Unit :=
+    write entry.1 entry.2 val
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := writeEntry arg.1 arg.2
+  go d.2
 
 /-- Write `val = d.2` to `lmHead n_max lm b m` at `d = (((base, b), m), val)` in `Memory.Prog`. -/
 @[expose]
@@ -171,11 +198,12 @@ theorem clientResult_readLMHeadProg {U V w n_max h_space base b m : ℕ} (s : Me
 theorem realizes_readLMHeadGen :
     Realizes .exact readLMHeadGenProg
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := ℕ))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1 ∧
-        d.2.1.2 < numBuckets (dpNMax d.1) ∧ d.2.2 < numMicroPerBucket (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmReadBase d) ∧
+        lmReadBucket d < numBuckets (dpNMax d.1) ∧
+        lmReadIdx d < numMicroPerBucket (dpNMax d.1))
       (fun _ _ => 0) := by
   have hrl := realizes_readLMGen ⟨0, by decide⟩
-  realizeDict
+  realizeDictWith [p_w_mk, lmReadBase, lmReadBucket, lmReadIdx]
   · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmHeadIdx_lt h.2.1 h.2.2))
   · exact h.1
   · exact lmHeadIdx_lt h.2.1 h.2.2
@@ -184,11 +212,12 @@ theorem realizes_writeLMHeadGen :
     Realizes .exact writeLMHeadGenProg
       (WordEncoding.encode (α := DictParams × (((ℕ × ℕ) × ℕ) × ℕ)))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1.1 ∧
-        d.2.1.1.2 < numBuckets (dpNMax d.1) ∧ d.2.1.2 < numMicroPerBucket (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmWriteBase d) ∧
+        lmWriteBucket d < numBuckets (dpNMax d.1) ∧
+        lmWriteIdx d < numMicroPerBucket (dpNMax d.1))
       (fun _ _ => 0) := by
   have hwl := realizes_writeLMGen ⟨0, by decide⟩
-  realizeDict
+  realizeDictWith [p_w_mk, lmWriteBase, lmWriteBucket, lmWriteIdx]
   · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmHeadIdx_lt h.2.1 h.2.2))
   · exact h.1
   · exact lmHeadIdx_lt h.2.1 h.2.2
@@ -196,31 +225,36 @@ theorem realizes_writeLMHeadGen :
 /-- Parameter-free `Memory.Prog` operation reading
 `lmAt (c_base + j % 4, b * numMicroPerBucket n_max + j / 4)` at `d = (dp, ((base, b), j))`. -/
 def readLMMod4GenProg (c_base : ℕ) (hc : c_base + 3 < 9)
-    (d : DictParams × ((ℕ × ℕ) × ℕ)) : Memory.Prog ℕ := do
-  let idx ← pure (d.2.1.2 * dpNumMicro d.1 + d.2.2 / 4)
-  let r ← pure (d.2.2 % 4)
-  if r = 0 then
-    readLMGenProg ⟨c_base, by omega⟩ (d.1, (d.2.1.1, idx))
-  else if r = 1 then
-    readLMGenProg ⟨c_base + 1, by omega⟩ (d.1, (d.2.1.1, idx))
-  else if r = 2 then
-    readLMGenProg ⟨c_base + 2, by omega⟩ (d.1, (d.2.1.1, idx))
-  else
-    readLMGenProg ⟨c_base + 3, by omega⟩ (d.1, (d.2.1.1, idx))
+    (d : DictParams × ((ℕ × ℕ) × ℕ)) : Memory.Prog ℕ :=
+  let read (bucketLoc : ℕ × ℕ) (j : ℕ) : Memory.Prog ℕ := do
+    let idx ← pure (bucketLoc.2 * dpNumMicro d.1 + j / 4)
+    let r ← pure (j % 4)
+    if r = 0 then
+      readLMGenProg ⟨c_base, by omega⟩ (d.1, (bucketLoc.1, idx))
+    else if r = 1 then
+      readLMGenProg ⟨c_base + 1, by omega⟩ (d.1, (bucketLoc.1, idx))
+    else if r = 2 then
+      readLMGenProg ⟨c_base + 2, by omega⟩ (d.1, (bucketLoc.1, idx))
+    else
+      readLMGenProg ⟨c_base + 3, by omega⟩ (d.1, (bucketLoc.1, idx))
+  let go (arg : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := read arg.1 arg.2
+  go d.2
 
 /-- Read `lmAt (c_base + j % 4, b * numMicroPerBucket n_max + j / 4)` at `d = ((base, b), j)`. -/
 @[expose]
-def readLMMod4Prog (U V w n_max h_space c_base : ℕ) (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let idx ← pure (d.1.2 * numMicroPerBucket n_max + d.2 / 4)
-  let r ← pure (d.2 % 4)
-  if r = 0 then
-    readLMProg U V w n_max h_space c_base (d.1.1, idx)
-  else if r = 1 then
-    readLMProg U V w n_max h_space (c_base + 1) (d.1.1, idx)
-  else if r = 2 then
-    readLMProg U V w n_max h_space (c_base + 2) (d.1.1, idx)
-  else
-    readLMProg U V w n_max h_space (c_base + 3) (d.1.1, idx)
+def readLMMod4Prog (U V w n_max h_space c_base : ℕ) (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ :=
+  let read (bucketLoc : ℕ × ℕ) (j : ℕ) : Memory.Prog ℕ := do
+    let idx ← pure (bucketLoc.2 * numMicroPerBucket n_max + j / 4)
+    let r ← pure (j % 4)
+    if r = 0 then
+      readLMProg U V w n_max h_space c_base (bucketLoc.1, idx)
+    else if r = 1 then
+      readLMProg U V w n_max h_space (c_base + 1) (bucketLoc.1, idx)
+    else if r = 2 then
+      readLMProg U V w n_max h_space (c_base + 2) (bucketLoc.1, idx)
+    else
+      readLMProg U V w n_max h_space (c_base + 3) (bucketLoc.1, idx)
+  read d.1 d.2
 
 @[simp] theorem readLMMod4GenProg_mk (U V w n_max h_space c_base : ℕ) (hc : c_base + 3 < 9)
     (d : (ℕ × ℕ) × ℕ) :
@@ -232,33 +266,41 @@ def readLMMod4Prog (U V w n_max h_space c_base : ℕ) (d : (ℕ × ℕ) × ℕ) 
 `lmAt (c_base + j % 4, b * numMicroPerBucket n_max + j / 4)` at
 `d = (dp, (((base, b), j), val))`. -/
 def writeLMMod4GenProg (c_base : ℕ) (hc : c_base + 3 < 9)
-    (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
-  let idx ← pure (d.2.1.1.2 * dpNumMicro d.1 + d.2.1.2 / 4)
-  let r ← pure (d.2.1.2 % 4)
-  if r = 0 then
-    writeLMGenProg ⟨c_base, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-  else if r = 1 then
-    writeLMGenProg ⟨c_base + 1, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-  else if r = 2 then
-    writeLMGenProg ⟨c_base + 2, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-  else
-    writeLMGenProg ⟨c_base + 3, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
+    (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit :=
+  let write (bucketLoc : ℕ × ℕ) (j val : ℕ) : Memory.Prog Unit := do
+    let idx ← pure (bucketLoc.2 * dpNumMicro d.1 + j / 4)
+    let r ← pure (j % 4)
+    if r = 0 then
+      writeLMGenProg ⟨c_base, by omega⟩ (d.1, ((bucketLoc.1, idx), val))
+    else if r = 1 then
+      writeLMGenProg ⟨c_base + 1, by omega⟩ (d.1, ((bucketLoc.1, idx), val))
+    else if r = 2 then
+      writeLMGenProg ⟨c_base + 2, by omega⟩ (d.1, ((bucketLoc.1, idx), val))
+    else
+      writeLMGenProg ⟨c_base + 3, by omega⟩ (d.1, ((bucketLoc.1, idx), val))
+  let writeEntry (entry : (ℕ × ℕ) × ℕ) (val : ℕ) : Memory.Prog Unit :=
+    write entry.1 entry.2 val
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := writeEntry arg.1 arg.2
+  go d.2
 
 /-- Write `val = d.2` to `lmAt (c_base + j % 4, b * numMicroPerBucket n_max + j / 4)` at
 `d = (((base, b), j), val)`. -/
 @[expose]
 def writeLMMod4Prog (U V w n_max h_space c_base : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
-    Memory.Prog Unit := do
-  let idx ← pure (d.1.1.2 * numMicroPerBucket n_max + d.1.2 / 4)
-  let r ← pure (d.1.2 % 4)
-  if r = 0 then
-    writeLMProg U V w n_max h_space c_base ((d.1.1.1, idx), d.2)
-  else if r = 1 then
-    writeLMProg U V w n_max h_space (c_base + 1) ((d.1.1.1, idx), d.2)
-  else if r = 2 then
-    writeLMProg U V w n_max h_space (c_base + 2) ((d.1.1.1, idx), d.2)
-  else
-    writeLMProg U V w n_max h_space (c_base + 3) ((d.1.1.1, idx), d.2)
+    Memory.Prog Unit :=
+  let write (bucketLoc : ℕ × ℕ) (j val : ℕ) : Memory.Prog Unit := do
+    let idx ← pure (bucketLoc.2 * numMicroPerBucket n_max + j / 4)
+    let r ← pure (j % 4)
+    if r = 0 then
+      writeLMProg U V w n_max h_space c_base ((bucketLoc.1, idx), val)
+    else if r = 1 then
+      writeLMProg U V w n_max h_space (c_base + 1) ((bucketLoc.1, idx), val)
+    else if r = 2 then
+      writeLMProg U V w n_max h_space (c_base + 2) ((bucketLoc.1, idx), val)
+    else
+      writeLMProg U V w n_max h_space (c_base + 3) ((bucketLoc.1, idx), val)
+  let go (entry : (ℕ × ℕ) × ℕ) (val : ℕ) : Memory.Prog Unit := write entry.1 entry.2 val
+  go d.1 d.2
 
 @[simp] theorem writeLMMod4GenProg_mk (U V w n_max h_space c_base : ℕ) (hc : c_base + 3 < 9)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
@@ -408,7 +450,8 @@ theorem clientResult_readLMNextProg {U V w n_max h_space base b j : ℕ} (s : Me
   clientResult_readLMMod4Prog s (by decide) hb hj
 
 local macro "lmMod4Side" : tactic => `(tactic| (
-  realizeDict
+  realizeDictWith [p_w_mk, lmReadBase, lmReadBucket, lmReadIdx,
+    lmWriteBase, lmWriteBucket, lmWriteIdx]
   all_goals
     have hpre : DictEnvGen _ _ _ ∧ _ < numBuckets _ ∧ _ < effBucketCap _ := ‹_›
     first
@@ -422,8 +465,8 @@ local macro "lmMod4Side" : tactic => `(tactic| (
 theorem realizes_readLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
     Realizes .exact (readLMMod4GenProg c_base hc)
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := ℕ))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1 ∧
-        d.2.1.2 < numBuckets (dpNMax d.1) ∧ d.2.2 < effBucketCap (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmReadBase d) ∧
+        lmReadBucket d < numBuckets (dpNMax d.1) ∧ lmReadIdx d < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) := by
   have hrl0 := realizes_readLMGen ⟨c_base, by omega⟩
   have hrl1 := realizes_readLMGen ⟨c_base + 1, by omega⟩
@@ -435,8 +478,8 @@ theorem realizes_writeLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
     Realizes .exact (writeLMMod4GenProg c_base hc)
       (WordEncoding.encode (α := DictParams × (((ℕ × ℕ) × ℕ) × ℕ)))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1.1 ∧
-        d.2.1.1.2 < numBuckets (dpNMax d.1) ∧ d.2.1.2 < effBucketCap (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmWriteBase d) ∧
+        lmWriteBucket d < numBuckets (dpNMax d.1) ∧ lmWriteIdx d < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) := by
   have hwl0 := realizes_writeLMGen ⟨c_base, by omega⟩
   have hwl1 := realizes_writeLMGen ⟨c_base + 1, by omega⟩
@@ -447,8 +490,8 @@ theorem realizes_writeLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
 theorem realizes_readLMPrevGen :
     Realizes .exact readLMPrevGenProg
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := ℕ))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1 ∧
-        d.2.1.2 < numBuckets (dpNMax d.1) ∧ d.2.2 < effBucketCap (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmReadBase d) ∧
+        lmReadBucket d < numBuckets (dpNMax d.1) ∧ lmReadIdx d < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) :=
   realizes_readLMMod4Gen (by decide)
 
@@ -456,16 +499,16 @@ theorem realizes_writeLMPrevGen :
     Realizes .exact writeLMPrevGenProg
       (WordEncoding.encode (α := DictParams × (((ℕ × ℕ) × ℕ) × ℕ)))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1.1 ∧
-        d.2.1.1.2 < numBuckets (dpNMax d.1) ∧ d.2.1.2 < effBucketCap (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmWriteBase d) ∧
+        lmWriteBucket d < numBuckets (dpNMax d.1) ∧ lmWriteIdx d < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) :=
   realizes_writeLMMod4Gen (by decide)
 
 theorem realizes_readLMNextGen :
     Realizes .exact readLMNextGenProg
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := ℕ))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1 ∧
-        d.2.1.2 < numBuckets (dpNMax d.1) ∧ d.2.2 < effBucketCap (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmReadBase d) ∧
+        lmReadBucket d < numBuckets (dpNMax d.1) ∧ lmReadIdx d < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) :=
   realizes_readLMMod4Gen (by decide)
 
@@ -473,8 +516,8 @@ theorem realizes_writeLMNextGen :
     Realizes .exact writeLMNextGenProg
       (WordEncoding.encode (α := DictParams × (((ℕ × ℕ) × ℕ) × ℕ)))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => DictEnvGen w d.1 d.2.1.1.1 ∧
-        d.2.1.1.2 < numBuckets (dpNMax d.1) ∧ d.2.1.2 < effBucketCap (dpNMax d.1))
+      (fun w d _ => DictEnvGen w d.1 (lmWriteBase d) ∧
+        lmWriteBucket d < numBuckets (dpNMax d.1) ∧ lmWriteIdx d < effBucketCap (dpNMax d.1))
       (fun _ _ => 0) :=
   realizes_writeLMMod4Gen (by decide)
 
@@ -1000,18 +1043,21 @@ theorem isDLChain_unlink {n_max head j_del : ℕ} {prev next : ℕ → ℕ} {L :
 /-- Parameter-free `Memory.Prog` operation prepending local slot `j_new = d.2.2` to micro-bucket
 chain `(b, m) = (d.2.1.1.2, d.2.1.2)` at `base = d.2.1.1.1`. -/
 @[expose]
-def lmPrependGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
-  let old_h ← readLMHeadGenProg (d.1, d.2.1)
-  let z ← pure 0
-  let ptr_new ← pure (d.2.2 + 1)
-  writeLMPrevGenProg (d.1, ((d.2.1.1, d.2.2), z))
-  writeLMNextGenProg (d.1, ((d.2.1.1, d.2.2), old_h))
-  if z < old_h then do
-    let old_idx ← pure (old_h - 1)
-    writeLMPrevGenProg (d.1, ((d.2.1.1, old_idx), ptr_new))
-    writeLMHeadGenProg (d.1, (d.2.1, ptr_new))
-  else
-    writeLMHeadGenProg (d.1, (d.2.1, ptr_new))
+def lmPrependGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit :=
+  let run (headArg : (ℕ × ℕ) × ℕ) (j_new : ℕ) : Memory.Prog Unit := do
+    let old_h ← readLMHeadGenProg (d.1, headArg)
+    let z ← pure 0
+    let ptr_new ← pure (j_new + 1)
+    writeLMPrevGenProg (d.1, ((headArg.1, j_new), z))
+    writeLMNextGenProg (d.1, ((headArg.1, j_new), old_h))
+    if z < old_h then do
+      let old_idx ← pure (old_h - 1)
+      writeLMPrevGenProg (d.1, ((headArg.1, old_idx), ptr_new))
+      writeLMHeadGenProg (d.1, (headArg, ptr_new))
+    else
+      writeLMHeadGenProg (d.1, (headArg, ptr_new))
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := run arg.1 arg.2
+  go d.2
 
 /-- `Memory.Prog` operation prepending local slot `j_new = d.2` to micro-bucket chain
 `(b, m) = (d.1.1.2, d.1.2)` at `base = d.1.1.1`. -/
@@ -1042,24 +1088,31 @@ theorem memoryCost_lmPrependProg_le (U V w n_max h_space : ℕ) (d : ((ℕ × �
 /-- Precondition for `lmPrependProg` in `Realizes`. -/
 @[expose]
 def LMPrependPre (U V w₀ n_max h_space w : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1 ∧
-  d.1.1.2 < numBuckets n_max ∧
-  d.1.2 < numMicroPerBucket n_max ∧
-  d.2 < effBucketCap n_max ∧
-  d.2 < n_max ∧
-  lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.1.2 ≤ effBucketCap n_max
+  let preLoc (bucketLoc : ℕ × ℕ) (m j_new : ℕ) : Prop :=
+    DictEnvGen w (mkDictParams U V w₀ n_max h_space) bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets n_max ∧
+    m < numMicroPerBucket n_max ∧
+    j_new < effBucketCap n_max ∧
+    j_new < n_max ∧
+    lmHead n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 m ≤ effBucketCap n_max
+  let pre (headArg : (ℕ × ℕ) × ℕ) (j_new : ℕ) : Prop := preLoc headArg.1 headArg.2 j_new
+  pre d.1 d.2
 
 /-- Parameter-free precondition for `lmPrependGenProg`. -/
 @[expose]
 def LMPrependGenPre (w : ℕ) (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w d.1 d.2.1.1.1 ∧
-  d.2.1.1.2 < numBuckets (dpNMax d.1) ∧
-  d.2.1.2 < numMicroPerBucket (dpNMax d.1) ∧
-  d.2.2 < effBucketCap (dpNMax d.1) ∧
-  d.2.2 < dpNMax d.1 ∧
-  lmHead (dpNMax d.1)
-    (lmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-    d.2.1.1.2 d.2.1.2 ≤ effBucketCap (dpNMax d.1)
+  let preLoc (bucketLoc : ℕ × ℕ) (m j_new : ℕ) : Prop :=
+    DictEnvGen w d.1 bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets (dpNMax d.1) ∧
+    m < numMicroPerBucket (dpNMax d.1) ∧
+    j_new < effBucketCap (dpNMax d.1) ∧
+    j_new < dpNMax d.1 ∧
+    lmHead (dpNMax d.1)
+      (lmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+      bucketLoc.2 m ≤ effBucketCap (dpNMax d.1)
+  let preHead (headArg : (ℕ × ℕ) × ℕ) (j_new : ℕ) : Prop := preLoc headArg.1 headArg.2 j_new
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Prop := preHead arg.1 arg.2
+  go d.2
 
 @[simp]
 theorem lmPrependGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -1092,7 +1145,8 @@ theorem realizes_lmPrependGen :
   have hwp := realizes_writeLMPrevGen
   have hwn := realizes_writeLMNextGen
   realizeDictWith [lmPrependGenPre_mk, LMPrependPre, readLMHeadGenProg_mk, writeLMHeadGenProg_mk,
-    writeLMPrevGenProg_mk, writeLMNextGenProg_mk]
+    writeLMPrevGenProg_mk, writeLMNextGenProg_mk, lmReadBase, lmReadBucket, lmReadIdx,
+    lmWriteBase, lmWriteBucket, lmWriteIdx]
   all_goals first
     | exact h.1
     | exact h.2.1
@@ -1273,20 +1327,23 @@ theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
 /-- Parameter-free `Memory.Prog` operation unlinking local slot `j_del = d.2.2` from micro-bucket
 chain `(b, m) = (d.2.1.1.2, d.2.1.2)` at `base = d.2.1.1.1`. -/
 @[expose]
-def lmUnlinkGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
-  let p ← readLMPrevGenProg (d.1, (d.2.1.1, d.2.2))
-  let n ← readLMNextGenProg (d.1, (d.2.1.1, d.2.2))
-  let z ← pure 0
-  if z < p then do
-    let p_idx ← pure (p - 1)
-    writeLMNextGenProg (d.1, ((d.2.1.1, p_idx), n))
-  else
-    writeLMHeadGenProg (d.1, (d.2.1, n))
-  if z < n then do
-    let n_idx ← pure (n - 1)
-    writeLMPrevGenProg (d.1, ((d.2.1.1, n_idx), p))
-  else
-    pure ()
+def lmUnlinkGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit :=
+  let run (headArg : (ℕ × ℕ) × ℕ) (j_del : ℕ) : Memory.Prog Unit := do
+    let p ← readLMPrevGenProg (d.1, (headArg.1, j_del))
+    let n ← readLMNextGenProg (d.1, (headArg.1, j_del))
+    let z ← pure 0
+    if z < p then do
+      let p_idx ← pure (p - 1)
+      writeLMNextGenProg (d.1, ((headArg.1, p_idx), n))
+    else
+      writeLMHeadGenProg (d.1, (headArg, n))
+    if z < n then do
+      let n_idx ← pure (n - 1)
+      writeLMPrevGenProg (d.1, ((headArg.1, n_idx), p))
+    else
+      pure ()
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := run arg.1 arg.2
+  go d.2
 
 /-- `Memory.Prog` operation unlinking local slot `j_del = d.2` from micro-bucket chain
 `(b, m) = (d.1.1.2, d.1.2)` at `base = d.1.1.1`. -/
@@ -1316,26 +1373,35 @@ theorem memoryCost_lmUnlinkProg_le (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ
 /-- Precondition for `lmUnlinkProg` in `Realizes`. -/
 @[expose]
 def LMUnlinkPre (U V w₀ n_max h_space w : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1 ∧
-  d.1.1.2 < numBuckets n_max ∧
-  d.1.2 < numMicroPerBucket n_max ∧
-  d.2 < effBucketCap n_max ∧
-  lmPrev n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 ≤ effBucketCap n_max ∧
-  lmNext n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 ≤ effBucketCap n_max
+  let preLoc (bucketLoc : ℕ × ℕ) (m j_del : ℕ) : Prop :=
+    DictEnvGen w (mkDictParams U V w₀ n_max h_space) bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets n_max ∧
+    m < numMicroPerBucket n_max ∧
+    j_del < effBucketCap n_max ∧
+    lmPrev n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 j_del ≤
+      effBucketCap n_max ∧
+    lmNext n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 j_del ≤
+      effBucketCap n_max
+  let pre (headArg : (ℕ × ℕ) × ℕ) (j_del : ℕ) : Prop := preLoc headArg.1 headArg.2 j_del
+  pre d.1 d.2
 
 /-- Parameter-free precondition for `lmUnlinkGenProg`. -/
 @[expose]
 def LMUnlinkGenPre (w : ℕ) (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w d.1 d.2.1.1.1 ∧
-  d.2.1.1.2 < numBuckets (dpNMax d.1) ∧
-  d.2.1.2 < numMicroPerBucket (dpNMax d.1) ∧
-  d.2.2 < effBucketCap (dpNMax d.1) ∧
-  lmPrev (dpNMax d.1)
-    (lmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-    d.2.1.1.2 d.2.2 ≤ effBucketCap (dpNMax d.1) ∧
-  lmNext (dpNMax d.1)
-    (lmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-    d.2.1.1.2 d.2.2 ≤ effBucketCap (dpNMax d.1)
+  let preLoc (bucketLoc : ℕ × ℕ) (m j_del : ℕ) : Prop :=
+    DictEnvGen w d.1 bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets (dpNMax d.1) ∧
+    m < numMicroPerBucket (dpNMax d.1) ∧
+    j_del < effBucketCap (dpNMax d.1) ∧
+    lmPrev (dpNMax d.1)
+      (lmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+      bucketLoc.2 j_del ≤ effBucketCap (dpNMax d.1) ∧
+    lmNext (dpNMax d.1)
+      (lmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+      bucketLoc.2 j_del ≤ effBucketCap (dpNMax d.1)
+  let preHead (headArg : (ℕ × ℕ) × ℕ) (j_del : ℕ) : Prop := preLoc headArg.1 headArg.2 j_del
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Prop := preHead arg.1 arg.2
+  go d.2
 
 @[simp]
 theorem lmUnlinkGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -1355,7 +1421,8 @@ theorem realizes_lmUnlinkGen :
   have hwp := realizes_writeLMPrevGen
   have hwn := realizes_writeLMNextGen
   realizeDictWith [lmUnlinkGenPre_mk, LMUnlinkPre, readLMPrevGenProg_mk, readLMNextGenProg_mk,
-    writeLMHeadGenProg_mk, writeLMPrevGenProg_mk, writeLMNextGenProg_mk]
+    writeLMHeadGenProg_mk, writeLMPrevGenProg_mk, writeLMNextGenProg_mk,
+    lmReadBase, lmReadBucket, lmReadIdx, lmWriteBase, lmWriteBucket, lmWriteIdx]
   · exact h.1
   · exact h.2.1
   · exact h.2.2.2.1
@@ -1542,6 +1609,24 @@ theorem lmUnlinkProg_effect {U V w n_max h_space base b m j_del : ℕ}
 
 /-! ## Section 4: Phase 1 micro-chain search (`searchMicroChainProg`) -/
 
+/-- Base address `base` in a Phase 1 micro-chain query `(((base, b), q_target), extra)`. -/
+abbrev microChainBase (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1
+
+/-- Bucket index `b` in a Phase 1 micro-chain query `(((base, b), q_target), extra)`. -/
+abbrev microChainBucket (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- 1-based cursor pointer `ptr` in a Phase 1 micro-chain accumulator
+`(((ptr, found), j_found), phys_found)`. -/
+abbrev microAccPtr (acc : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := acc.1.1.1
+
+@[simp]
+theorem microAccPtr_mk (ptr found j_found phys_found : ℕ) :
+    microAccPtr (((ptr, found), j_found), phys_found) = ptr := rfl
+
+/-- Dictionary parameters `dp` in a parameter-free Phase 1 loop context
+`((dp, ((base, b), q_target)), z0)`. -/
+abbrev microLoopCtxParams (d : (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) : DictParams := d.1.1
+
 /-- Parameter-free single step of Phase 1 micro-chain traversal:
 given `x.1.1 = (dp, ((base, b), q_target))`, `x.1.2 = z0`, and
 `x.2 = (((ptr, found), j_found), phys_found)` with `0 < ptr`, inspects `j = ptr - 1`,
@@ -1550,17 +1635,29 @@ resolves its physical slot `phys`, reads `quotAt phys`, and either stops with
 @[expose]
 def microStepGenProg
     (x : ((DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
-    Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
-  let j ← pure (x.2.1.1.1 - 1)
-  let next_ptr ← readLMNextGenProg (x.1.1.1, (x.1.1.2.1, j))
-  let phys ← resolveIndexedSlotGenProg (x.1.1.1, (x.1.1.2.1, j))
-  let q_val ← readQuotGenProg (x.1.1.1, (x.1.1.2.1.1, phys))
-  let z0 ← pure 0
-  let one ← pure 1
-  if q_val = x.1.1.2.2 then
-    return (((z0, one), j), phys)
-  else
-    return (((next_ptr, z0), x.2.1.2), x.2.2)
+    Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+  let step (dp : DictParams) (bucketLoc : ℕ × ℕ) (q_target : ℕ)
+      (ptrState : ℕ × ℕ) (j_found phys_found : ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
+    let j ← pure (ptrState.1 - 1)
+    let next_ptr ← readLMNextGenProg (dp, (bucketLoc, j))
+    let phys ← resolveIndexedSlotGenProg (dp, (bucketLoc, j))
+    let q_val ← readQuotGenProg (dp, (bucketLoc.1, phys))
+    let z0 ← pure 0
+    let one ← pure 1
+    if q_val = q_target then
+      return (((z0, one), j), phys)
+    else
+      return (((next_ptr, z0), j_found), phys_found)
+  let stepCore (dp : DictParams) (query : (ℕ × ℕ) × ℕ)
+      (accCore : (ℕ × ℕ) × ℕ) (phys_found : ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+    step dp query.1 query.2 accCore.1 accCore.2 phys_found
+  let stepCtx (ctx : DictParams × ((ℕ × ℕ) × ℕ)) (acc : ((ℕ × ℕ) × ℕ) × ℕ) :
+      Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+    stepCore ctx.1 ctx.2 acc.1 acc.2
+  let go (env : (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) (acc : ((ℕ × ℕ) × ℕ) × ℕ) :
+      Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+    stepCtx env.1 acc
+  go x.1 x.2
 
 /-- Single step of Phase 1 micro-chain traversal:
 given `x.1 = (((base, b), q_target), z0)` and `x.2 = (((ptr, found), j_found), phys_found)`
@@ -1570,7 +1667,10 @@ and either stops with `(((0, 1), j), phys)` on match or advances to `next_ptr`. 
 def microStepProg (U V w n_max h_space : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
     Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
-  microStepGenProg (((mkDictParams U V w n_max h_space, x.1.1), x.1.2), x.2)
+  let go (env : ((ℕ × ℕ) × ℕ) × ℕ) (acc : ((ℕ × ℕ) × ℕ) × ℕ) :
+      Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+    microStepGenProg (((mkDictParams U V w n_max h_space, env.1), env.2), acc)
+  go x.1 x.2
 
 @[simp]
 theorem microStepGenProg_mk (U V w n_max h_space : ℕ)
@@ -1615,17 +1715,27 @@ theorem memoryCost_microStepProg_le (U V w n_max h_space : ℕ)
 
 theorem clientResult_microStepProg {U V w n_max h_space : ℕ}
     {x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)} (s : Memory.State)
-    (hinv : SlotStoreInv n_max (gmAt x.1.1.1.1 U V w n_max h_space s.mem))
-    (hb : x.1.1.1.2 < numBuckets n_max)
-    (hj_bc : x.2.1.1.1 - 1 < bCount n_max (gmAt x.1.1.1.1 U V w n_max h_space s.mem) x.1.1.1.2)
-    (hj_cap : x.2.1.1.1 - 1 < effBucketCap n_max) :
-    (Memory.spec 0).clientResult s (microStepProg U V w n_max h_space x) =
-      let j := x.2.1.1.1 - 1
-      let next_ptr := lmNext n_max (lmAt x.1.1.1.1 U V w n_max h_space s.mem) x.1.1.1.2 j
-      let phys := slotOf n_max (gmAt x.1.1.1.1 U V w n_max h_space s.mem) x.1.1.1.2 j
-      let q_val := quotAt x.1.1.1.1 U w n_max h_space s.mem phys
-      if q_val = x.1.1.2 then (((0, 1), j), phys)
-      else (((next_ptr, 0), x.2.1.2), x.2.2) := by
+    (hinv : SlotStoreInv n_max (gmAt (microChainBase x.1) U V w n_max h_space s.mem))
+    (hb : microChainBucket x.1 < numBuckets n_max)
+    (hj_bc : microAccPtr x.2 - 1 <
+      bCount n_max (gmAt (microChainBase x.1) U V w n_max h_space s.mem) (microChainBucket x.1))
+    (hj_cap : microAccPtr x.2 - 1 < effBucketCap n_max) :
+    let postStep (bucketLoc : ℕ × ℕ) (q_target : ℕ)
+        (ptrState : ℕ × ℕ) (j_found phys_found : ℕ) : Prop :=
+      (Memory.spec 0).clientResult s (microStepProg U V w n_max h_space x) =
+        let j := ptrState.1 - 1
+        let next_ptr := lmNext n_max (lmAt bucketLoc.1 U V w n_max h_space s.mem) bucketLoc.2 j
+        let phys := slotOf n_max (gmAt bucketLoc.1 U V w n_max h_space s.mem) bucketLoc.2 j
+        let q_val := quotAt bucketLoc.1 U w n_max h_space s.mem phys
+        if q_val = q_target then (((0, 1), j), phys)
+        else (((next_ptr, 0), j_found), phys_found)
+    let postCore (query : (ℕ × ℕ) × ℕ) (accCore : (ℕ × ℕ) × ℕ) (phys_found : ℕ) : Prop :=
+      postStep query.1 query.2 accCore.1 accCore.2 phys_found
+    let post (env : ((ℕ × ℕ) × ℕ) × ℕ) (acc : ((ℕ × ℕ) × ℕ) × ℕ) : Prop :=
+      postCore env.1 acc.1 acc.2
+    post x.1 x.2 := by
+  intro postStep postCore post
+  dsimp only [post, postCore, postStep, microChainBase, microChainBucket, microAccPtr] at *
   have hphys : slotOf n_max (gmAt x.1.1.1.1 U V w n_max h_space s.mem)
       x.1.1.1.2 (x.2.1.1.1 - 1) < n_max :=
     (slotOf_lt_and_injective hinv).1 x.1.1.1.2 hb (x.2.1.1.1 - 1) hj_bc
@@ -1644,27 +1754,39 @@ theorem clientResult_microStepProg {U V w n_max h_space : ℕ}
 @[expose]
 def MicroStepPre (U V w₀ n_max h_space w : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) x.1.1.1.1 ∧
-  x.1.1.1.2 < numBuckets n_max ∧
-  0 < x.2.1.1.1 ∧
-  x.2.1.1.1 - 1 < effBucketCap n_max ∧
-  x.2.1.1.1 - 1 < bCount n_max (gmAt x.1.1.1.1 U V w₀ n_max h_space s.mem) x.1.1.1.2 ∧
-  SlotStoreInv n_max (gmAt x.1.1.1.1 U V w₀ n_max h_space s.mem)
+  let preStep (bucketLoc : ℕ × ℕ) (ptrState : ℕ × ℕ) : Prop :=
+    DictEnvGen w (mkDictParams U V w₀ n_max h_space) bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets n_max ∧
+    0 < ptrState.1 ∧
+    ptrState.1 - 1 < effBucketCap n_max ∧
+    ptrState.1 - 1 < bCount n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 ∧
+    SlotStoreInv n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem)
+  let preCore (query : (ℕ × ℕ) × ℕ) (accCore : (ℕ × ℕ) × ℕ) : Prop :=
+    preStep query.1 accCore.1
+  let pre (env : ((ℕ × ℕ) × ℕ) × ℕ) (acc : ((ℕ × ℕ) × ℕ) × ℕ) : Prop :=
+    preCore env.1 acc.1
+  pre x.1 x.2
 
 /-- Parameter-free step precondition for `microStepGenProg`. -/
 @[expose]
 def MicroStepGenPre (w : ℕ)
     (x : ((DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w x.1.1.1 x.1.1.2.1.1 ∧
-  x.1.1.2.1.2 < numBuckets (dpNMax x.1.1.1) ∧
-  0 < x.2.1.1.1 ∧
-  x.2.1.1.1 - 1 < effBucketCap (dpNMax x.1.1.1) ∧
-  x.2.1.1.1 - 1 < bCount (dpNMax x.1.1.1)
-    (gmAt x.1.1.2.1.1 (dpU x.1.1.1) (dpV x.1.1.1) (dpW x.1.1.1) (dpNMax x.1.1.1)
-      (dpHSpace x.1.1.1) s.mem) x.1.1.2.1.2 ∧
-  SlotStoreInv (dpNMax x.1.1.1)
-    (gmAt x.1.1.2.1.1 (dpU x.1.1.1) (dpV x.1.1.1) (dpW x.1.1.1) (dpNMax x.1.1.1)
-      (dpHSpace x.1.1.1) s.mem)
+  let preStep (dp : DictParams) (bucketLoc : ℕ × ℕ) (ptrState : ℕ × ℕ) : Prop :=
+    DictEnvGen w dp bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets (dpNMax dp) ∧
+    0 < ptrState.1 ∧
+    ptrState.1 - 1 < effBucketCap (dpNMax dp) ∧
+    ptrState.1 - 1 < bCount (dpNMax dp)
+      (gmAt bucketLoc.1 (dpU dp) (dpV dp) (dpW dp) (dpNMax dp) (dpHSpace dp) s.mem) bucketLoc.2 ∧
+    SlotStoreInv (dpNMax dp)
+      (gmAt bucketLoc.1 (dpU dp) (dpV dp) (dpW dp) (dpNMax dp) (dpHSpace dp) s.mem)
+  let preCore (dp : DictParams) (query : (ℕ × ℕ) × ℕ) (accCore : (ℕ × ℕ) × ℕ) : Prop :=
+    preStep dp query.1 accCore.1
+  let preCtx (ctx : DictParams × ((ℕ × ℕ) × ℕ)) (acc : ((ℕ × ℕ) × ℕ) × ℕ) : Prop :=
+    preCore ctx.1 ctx.2 acc.1
+  let pre (env : (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) (acc : ((ℕ × ℕ) × ℕ) × ℕ) : Prop :=
+    preCtx env.1 acc
+  pre x.1 x.2
 
 @[simp]
 theorem microStepGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -1684,19 +1806,21 @@ theorem realizes_microStepGen :
     rcases d with ⟨⟨⟨dp, d1⟩, z0⟩, a⟩
     let d := ((d1, z0), a)
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
-    simpDictParamsWith [microStepGenPre_mk, MicroStepPre, readLMNextGenProg_mk]
+    simpDictParamsWith [microStepGenPre_mk, MicroStepPre, readLMNextGenProg_mk,
+      lmReadBase, lmReadBucket, lmReadIdx]
+    try rw [clientState_readLMNextProg]
   )
-  · have := h.2.2.1; omega
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.2.1
-  · rw [clientState_readLMNextProg]; exact h.2.2.2.2.2
-  · rw [clientState_readLMNextProg]; exact h.2.2.2.2.1
-  · rw [clientState_readLMNextProg,
-      clientResult_resolveIndexedSlotProg (d1.1, a.1.1.1 - 1) s
-        h.2.2.2.2.2 h.2.1 h.2.2.2.2.1 h.2.2.2.1]
-    exact (slotOf_lt_and_injective h.2.2.2.2.2).1 d1.1.2 h.2.1 (a.1.1.1 - 1) h.2.2.2.2.1
-  · exact fits_const_of_dictEnv h.1 (by decide)
+  all_goals first
+    | exact h.1
+    | exact h.2.1
+    | exact h.2.2.2.1
+    | exact h.2.2.2.2.1
+    | exact h.2.2.2.2.2
+    | (have := h.2.2.1; omega)
+    | (rw [clientResult_resolveIndexedSlotProg (d1.1, a.1.1.1 - 1) s
+         h.2.2.2.2.2 h.2.1 h.2.2.2.2.1 h.2.2.2.1]
+       exact (slotOf_lt_and_injective h.2.2.2.2.2).1 d1.1.2 h.2.1 (a.1.1.1 - 1) h.2.2.2.2.1)
+    | exact fits_const_of_dictEnv h.1 (by decide)
 
 /-- Native loop guard for `microLoopGenProg`: tests `d.2 < a.1.1.1` (`z0 < ptr`). -/
 @[expose]
@@ -1712,7 +1836,7 @@ instance (d : (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) (a : ((ℕ × ℕ) �
 
 @[simp]
 theorem microLoopGenGuard_iff (d : (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
-    microLoopGenGuard d a ↔ d.2 < a.1.1.1 := Iff.rfl
+    microLoopGenGuard d a ↔ d.2 < microAccPtr a := Iff.rfl
 
 /-- Native loop guard for `microLoopProg`: tests `d.2 < a.1.1.1` (`z0 < ptr`). -/
 @[expose]
@@ -1727,7 +1851,7 @@ instance (d : ((ℕ × ℕ) × ℕ) × ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
 
 @[simp]
 theorem microLoopGuard_iff (d : ((ℕ × ℕ) × ℕ) × ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
-    microLoopGuard d a ↔ d.2 < a.1.1.1 := Iff.rfl
+    microLoopGuard d a ↔ d.2 < microAccPtr a := Iff.rfl
 
 /-- Parameter-free Phase 1 bounded while loop over a micro-bucket chain with ghost cutoff
 `effBucketCap (dpNMax x.1.1.1)`. -/
@@ -1735,15 +1859,21 @@ theorem microLoopGuard_iff (d : ((ℕ × ℕ) × ℕ) × ℕ) (a : ((ℕ × ℕ)
 def microLoopGenProg
     (x : ((DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
     Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
-  boundedWhile microLoopGenGuard microStepGenProg
-    x.1 (effBucketCap (dpNMax x.1.1.1)) x.2
+  let loop (env : (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ)
+      (acc : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+    let cutoff (ctx : DictParams × ((ℕ × ℕ) × ℕ)) : ℕ := effBucketCap (dpNMax ctx.1)
+    boundedWhile microLoopGenGuard microStepGenProg env (cutoff env.1) acc
+  loop x.1 x.2
 
 /-- Phase 1 bounded while loop over a micro-bucket chain with ghost cutoff `effBucketCap n_max`. -/
 @[expose]
 def microLoopProg (U V w n_max h_space : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
     Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
-  microLoopGenProg (((mkDictParams U V w n_max h_space, x.1.1), x.1.2), x.2)
+  let loop (env : ((ℕ × ℕ) × ℕ) × ℕ)
+      (acc : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+    microLoopGenProg (((mkDictParams U V w n_max h_space, env.1), env.2), acc)
+  loop x.1 x.2
 
 theorem boundedWhile_microStepGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : (ℕ × ℕ) × ℕ) (z0 : ℕ) (k : ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
@@ -1787,13 +1917,13 @@ theorem realizes_microLoopGen :
       (WordEncoding.encode (α := ((DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)))
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
       (fun w x s => whileSafe microLoopGenGuard microStepGenProg
-        MicroStepGenPre w x.1 (effBucketCap (dpNMax x.1.1.1)) x.2 s)
+        MicroStepGenPre w x.1 (effBucketCap (dpNMax (microLoopCtxParams x.1))) x.2 s)
       (fun _ _ => 0) :=
   Realizes.while₀
     (WordEncoding.encode (α := (DictParams × ((ℕ × ℕ) × ℕ)) × ℕ))
     (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
     (Cond.lt (39 : Fin 44) (40 : Fin 44))
-    (fun d => effBucketCap (dpNMax d.1.1.1))
+    (fun d => effBucketCap (dpNMax (microLoopCtxParams d.1)))
     realizes_microStepGen
     memoryCost_microStepGenProg_pos
 
@@ -1813,29 +1943,33 @@ theorem boundedWhile_microStep_spec {U V w₀ n_max h_space w base b q_target pr
     let d := (((base, b), q_target), 0)
     let a := (((ptr, found), j_found), phys_found)
     let prog := boundedWhile microLoopGuard (microStepProg U V w₀ n_max h_space) d n a
+    let postRes (resHead : (ℕ × ℕ) × ℕ) (resPhys : ℕ) : Prop :=
+      if ∃ j ∈ L, quotAt base U w₀ n_max h_space s.mem
+          (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j) = q_target then
+        resHead.1 = (0, 1) ∧ resHead.2 ∈ L ∧
+        quotAt base U w₀ n_max h_space s.mem
+          (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b resHead.2) = q_target ∧
+        resPhys = slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b resHead.2
+      else
+        resHead.1 = (0, if L = [] then found else 0)
     (Memory.spec 0).clientState s prog = s ∧
     memoryCost prog s ≤ 8 * L.length ∧
     whileSafe microLoopGuard (microStepProg U V w₀ n_max h_space)
       (MicroStepPre U V w₀ n_max h_space) w d n a s ∧
     (let res := (Memory.spec 0).clientResult s prog
-     if ∃ j ∈ L, quotAt base U w₀ n_max h_space s.mem
-         (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j) = q_target then
-       res.1.1 = (0, 1) ∧ res.1.2 ∈ L ∧
-       quotAt base U w₀ n_max h_space s.mem
-         (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b res.1.2) = q_target ∧
-       res.2 = slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b res.1.2
-     else
-       res.1.1 = (0, if L = [] then found else 0)) := by
+     postRes res.1 res.2) := by
   induction L generalizing n prev_ptr ptr found j_found phys_found with
   | nil =>
-    intro d a prog
+    intro d a prog postRes
+    dsimp only [postRes]
     simp only [List.head?_nil, Option.map_none, Option.getD_none] at hptr
     subst hptr
     rcases n with _ | n' <;>
       refine ⟨by simp [prog, boundedWhile, d, a]; rfl, by simp [prog, boundedWhile, d, a],
         by simp [whileSafe, d, a], by simp [prog, boundedWhile, d, a]; rfl⟩
   | cons j rest ih =>
-    intro d a prog
+    intro d a prog postRes
+    dsimp only [postRes]
     rcases n with _ | n'
     · simp at hn
     · simp only [List.head?_cons, Option.map_some, Option.getD_some] at hptr
@@ -1906,10 +2040,13 @@ reads `h0 = lmHead b m` (`d = (dp, (((base, b), q_target), m))`) and runs `micro
 from `h0`. -/
 @[expose]
 def searchMicroChainGenProg
-    (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
-  let h0 ← readLMHeadGenProg (d.1, (d.2.1.1, d.2.2))
-  let z0 ← pure 0
-  microLoopGenProg (((d.1, d.2.1), z0), (((h0, z0), z0), z0))
+    (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+  let run (query : (ℕ × ℕ) × ℕ) (m : ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
+    let h0 ← readLMHeadGenProg (d.1, (query.1, m))
+    let z0 ← pure 0
+    microLoopGenProg (((d.1, query), z0), (((h0, z0), z0), z0))
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := run arg.1 arg.2
+  go d.2
 
 /-- Phase 1 micro-chain search `searchMicroChainProg`:
 reads `h0 = lmHead b m` (`d = (((base, b), q_target), m)`) and runs `microLoopProg` from `h0`. -/
@@ -1930,39 +2067,47 @@ doubly-linked micro-bucket chain `L` at `(b, m)` whose slots are all `< bCount b
 @[expose]
 def SearchMicroChainPre (U V w₀ n_max h_space w : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1 ∧
-  d.1.1.2 < numBuckets n_max ∧
-  d.2 < numMicroPerBucket n_max ∧
-  SlotStoreInv n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) ∧
-  ∃ L : List ℕ,
-    IsDLChain n_max (lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2)
-      (lmPrev n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2)
-      (lmNext n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2) L ∧
-    ∀ j ∈ L, j < bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2
+  let preLoc (bucketLoc : ℕ × ℕ) (m : ℕ) : Prop :=
+    DictEnvGen w (mkDictParams U V w₀ n_max h_space) bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets n_max ∧
+    m < numMicroPerBucket n_max ∧
+    SlotStoreInv n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem) ∧
+    ∃ L : List ℕ,
+      IsDLChain n_max
+        (lmHead n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 m)
+        (lmPrev n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2)
+        (lmNext n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2) L ∧
+      ∀ j ∈ L, j < bCount n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2
+  let pre (query : (ℕ × ℕ) × ℕ) (m : ℕ) : Prop := preLoc query.1 m
+  pre d.1 d.2
 
 /-- Parameter-free precondition for `searchMicroChainGenProg`. -/
 @[expose]
 def SearchMicroChainGenPre (w : ℕ)
     (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w d.1 d.2.1.1.1 ∧
-  d.2.1.1.2 < numBuckets (dpNMax d.1) ∧
-  d.2.2 < numMicroPerBucket (dpNMax d.1) ∧
-  SlotStoreInv (dpNMax d.1)
-    (gmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem) ∧
-  ∃ L : List ℕ,
-    IsDLChain (dpNMax d.1)
-      (lmHead (dpNMax d.1)
-        (lmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-        d.2.1.1.2 d.2.2)
-      (lmPrev (dpNMax d.1)
-        (lmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-        d.2.1.1.2)
-      (lmNext (dpNMax d.1)
-        (lmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-        d.2.1.1.2) L ∧
-    ∀ j ∈ L, j < bCount (dpNMax d.1)
-      (gmAt d.2.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-      d.2.1.1.2
+  let preLoc (bucketLoc : ℕ × ℕ) (m : ℕ) : Prop :=
+    DictEnvGen w d.1 bucketLoc.1 ∧
+    bucketLoc.2 < numBuckets (dpNMax d.1) ∧
+    m < numMicroPerBucket (dpNMax d.1) ∧
+    SlotStoreInv (dpNMax d.1)
+      (gmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem) ∧
+    ∃ L : List ℕ,
+      IsDLChain (dpNMax d.1)
+        (lmHead (dpNMax d.1)
+          (lmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+          bucketLoc.2 m)
+        (lmPrev (dpNMax d.1)
+          (lmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+          bucketLoc.2)
+        (lmNext (dpNMax d.1)
+          (lmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+          bucketLoc.2) L ∧
+      ∀ j ∈ L, j < bCount (dpNMax d.1)
+        (gmAt bucketLoc.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+        bucketLoc.2
+  let preQuery (query : (ℕ × ℕ) × ℕ) (m : ℕ) : Prop := preLoc query.1 m
+  let go (arg : ((ℕ × ℕ) × ℕ) × ℕ) : Prop := preQuery arg.1 arg.2
+  go d.2
 
 @[simp]
 theorem searchMicroChainGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -1972,32 +2117,45 @@ theorem searchMicroChainGenPre_mk (U V w₀ n_max h_space w : ℕ)
 
 theorem searchMicroChainProg_spec {U V w₀ n_max h_space w : ℕ}
     {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State} {L : List ℕ}
-    (henv : DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1)
-    (hb : d.1.1.2 < numBuckets n_max)
+    (henv : DictEnvGen w (mkDictParams U V w₀ n_max h_space) (microChainBase d))
+    (hb : microChainBucket d < numBuckets n_max)
     (hm : d.2 < numMicroPerBucket n_max)
-    (hinv : SlotStoreInv n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem))
-    (hchain : IsDLChain n_max (lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2)
-      (lmPrev n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2)
-      (lmNext n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2) L)
-    (hc_lt : ∀ j ∈ L, j < bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2) :
-    let prog := searchMicroChainProg U V w₀ n_max h_space d
-    (Memory.spec 0).clientState s prog = s ∧
-    memoryCost prog s ≤ 2 + 8 * L.length ∧
-    whileSafe microLoopGuard (microStepProg U V w₀ n_max h_space)
-      (MicroStepPre U V w₀ n_max h_space) w
-      (d.1, 0) (effBucketCap n_max)
-      (((lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2, 0), 0), 0) s ∧
-    (let res := (Memory.spec 0).clientResult s prog
-     if ∃ j ∈ L, quotAt d.1.1.1 U w₀ n_max h_space s.mem
-         (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2 then
-       res.1.1 = (0, 1) ∧ res.1.2 ∈ L ∧
-       quotAt d.1.1.1 U w₀ n_max h_space s.mem
-         (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 res.1.2) = d.1.2 ∧
-       res.2 = slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 res.1.2
-     else
-       res.1.1 = (0, 0)) := by
+    (hinv : SlotStoreInv n_max (gmAt (microChainBase d) U V w₀ n_max h_space s.mem))
+    (hchain : IsDLChain n_max
+      (lmHead n_max (lmAt (microChainBase d) U V w₀ n_max h_space s.mem) (microChainBucket d) d.2)
+      (lmPrev n_max (lmAt (microChainBase d) U V w₀ n_max h_space s.mem) (microChainBucket d))
+      (lmNext n_max (lmAt (microChainBase d) U V w₀ n_max h_space s.mem) (microChainBucket d)) L)
+    (hc_lt : ∀ j ∈ L,
+      j < bCount n_max (gmAt (microChainBase d) U V w₀ n_max h_space s.mem) (microChainBucket d)) :
+    let postRes (bucketLoc : ℕ × ℕ) (q_target : ℕ)
+        (resHead : (ℕ × ℕ) × ℕ) (resPhys : ℕ) : Prop :=
+      if ∃ j ∈ L, quotAt bucketLoc.1 U w₀ n_max h_space s.mem
+          (slotOf n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 j) =
+          q_target then
+        resHead.1 = (0, 1) ∧ resHead.2 ∈ L ∧
+        quotAt bucketLoc.1 U w₀ n_max h_space s.mem
+          (slotOf n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 resHead.2) =
+          q_target ∧
+        resPhys = slotOf n_max (gmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 resHead.2
+      else
+        resHead.1 = (0, 0)
+    let postLoc (bucketLoc : ℕ × ℕ) (q_target m : ℕ) : Prop :=
+      let prog := searchMicroChainProg U V w₀ n_max h_space d
+      (Memory.spec 0).clientState s prog = s ∧
+      memoryCost prog s ≤ 2 + 8 * L.length ∧
+      whileSafe microLoopGuard (microStepProg U V w₀ n_max h_space)
+        (MicroStepPre U V w₀ n_max h_space) w
+        (d.1, 0) (effBucketCap n_max)
+        (((lmHead n_max (lmAt bucketLoc.1 U V w₀ n_max h_space s.mem) bucketLoc.2 m, 0), 0), 0)
+        s ∧
+      (let res := (Memory.spec 0).clientResult s prog
+       postRes bucketLoc q_target res.1 res.2)
+    let postQuery (query : (ℕ × ℕ) × ℕ) (m : ℕ) : Prop :=
+      postLoc query.1 query.2 m
+    postQuery d.1 d.2 := by
   rcases d with ⟨⟨⟨base, b⟩, q_target⟩, m⟩
-  dsimp only at henv hb hm hinv hchain hc_lt ⊢
+  intro postRes postLoc postQuery
+  dsimp only [postQuery, postLoc, postRes, microChainBase, microChainBucket] at *
   let prog := searchMicroChainProg U V w₀ n_max h_space (((base, b), q_target), m)
   have hbw := boundedWhile_microStep_spec (q_target := q_target)
     (found := 0) (j_found := 0) (phys_found := 0)
@@ -2046,7 +2204,8 @@ theorem realizes_searchMicroChainGen :
   have hrh := realizes_readLMHeadGen
   have hloop := realizes_microLoopGen
   realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre,
-    readLMHeadGenProg_mk, microLoopGenProg_mk, whileSafe_microStepGenProg_mk]
+    readLMHeadGenProg_mk, microLoopGenProg_mk, whileSafe_microStepGenProg_mk,
+    lmReadBase, lmReadBucket, lmReadIdx, microLoopCtxParams]
   · exact h.1
   · exact h.2.1
   · exact h.2.2.1
