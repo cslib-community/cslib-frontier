@@ -34,7 +34,7 @@ ORDER = [
       'graph-paths-and-traversal', 'dynamic-programming-and-strings',
       'dictionaries-hashing-and-randomized', 'flows-cuts-and-matching',
       'three-sum-and-exact-triangle', 'approximation-algorithms', 'optimization-and-duality',
-      'mechanism-design', 'cooperative-games']),
+      'mechanism-design']),
     ('history', ['index', 'survey', 'development', 'methods', 'timings', 'case-studies',
       'transcripts', 'study-design']),
 ]
