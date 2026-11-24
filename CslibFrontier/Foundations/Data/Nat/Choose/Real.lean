@@ -44,8 +44,9 @@ generating-function bound, motivated by the geometric thresholds in Appendix A.3
 * `Cslib.mul_rpow_le_of_two_pow_le_sum_choose_sq`: the rearranged size lower bound.
 * `Cslib.div_pow_le_choose`, `Cslib.mul_logb_div_le_logb_choose`,
   `Cslib.logb_choose_le_mul_logb_exp_mul_div`, `Cslib.logb_add_choose_le`,
-  `Cslib.logb_choose_sub_logb_choose_sub_le`: power and base-2 logarithm bounds for individual
-  binomial coefficients and binomial differences.
+  `Cslib.logb_choose_sub_logb_choose_sub_le`,
+  `Cslib.logb_choose_sub_logb_sub_three_mul_choose_sub_le`: power and base-2 logarithm bounds for
+  individual binomial coefficients and binomial differences.
 * `Real.exists_one_le_and_mul_pow_le_pow`: a polynomial is eventually below an exponential with base
   `r > 1`.
 
@@ -313,6 +314,77 @@ theorem logb_choose_sub_logb_choose_sub_le {U d k : ℕ} (hk : k ≤ U - d) (h :
       exact_mod_cast Nat.choose_le_two_pow_mul_choose_sub hk h)
   rw [Real.logb_mul (by positivity) hp2.ne', Real.logb_pow,
     Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hlog; linarith
+
+/-- Binomial difference estimate for simultaneously shrinking ground set by `3 * m` and subset size
+by `m` ([LiLiangYuZhou2023], Section 8, p. 30 / PDF p. 31): for `3 * n ≤ U` and `1 ≤ m ≤ n`,
+`log₂ C(U, n) - log₂ C(U - 3 * m, n - m) ≤ m * log₂ (U / n) + 5 * m`. -/
+theorem logb_choose_sub_logb_sub_three_mul_choose_sub_le {U n m : ℕ}
+    (hU : 3 * n ≤ U) (hm1 : 1 ≤ m) (hmn : m ≤ n) :
+    Real.logb 2 (U.choose n) - Real.logb 2 ((U - 3 * m).choose (n - m)) ≤
+      (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) + 5 * (m : ℝ) := by
+  have hm_pos : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hm1
+  have hn_pos : (0 : ℝ) < (n : ℝ) := lt_of_lt_of_le hm_pos (by exact_mod_cast hmn)
+  have hU_pos : (0 : ℝ) < (U : ℝ) := lt_of_lt_of_le hn_pos (by exact_mod_cast (by omega : n ≤ U))
+  have h1_nat := Nat.choose_le_two_pow_mul_choose_sub_of_two_mul_le
+    (N := U) (d := 3 * m) (k := n - m) (by omega) (by omega)
+  have hc_sub_pos : (0 : ℝ) < ((U - 3 * m).choose (n - m) : ℝ) := by
+    exact_mod_cast Nat.choose_pos (by omega)
+  have hc_Unm_pos : (0 : ℝ) < (U.choose (n - m) : ℝ) := by
+    exact_mod_cast Nat.choose_pos (by omega)
+  have hstep1 : Real.logb 2 (U.choose (n - m)) - Real.logb 2 ((U - 3 * m).choose (n - m)) ≤
+      3 * (m : ℝ) := by
+    have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hc_Unm_pos
+      (show (U.choose (n - m) : ℝ) ≤ (2 : ℝ) ^ (3 * m) * ((U - 3 * m).choose (n - m) : ℝ) by
+        exact_mod_cast h1_nat)
+    rw [Real.logb_mul (by positivity) hc_sub_pos.ne', Real.logb_pow,
+      Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one, Nat.cast_mul,
+      Nat.cast_ofNat] at hlog
+    linarith
+  have habs_nat : U.choose n * n.choose (n - m) =
+      U.choose (n - m) * (U - (n - m)).choose (n - (n - m)) :=
+    @Nat.choose_mul U n (n - m) (by omega)
+  rw [← Nat.choose_symm (Nat.sub_le n m), Nat.sub_sub_self hmn] at habs_nat
+  have hc_nm_ge : ((n : ℝ) / (m : ℝ)) ^ m ≤ (n.choose m : ℝ) := div_pow_le_choose hmn
+  have hc_Um_le : (((U - (n - m)).choose m : ℕ) : ℝ) ≤ (4 * (U : ℝ) / (m : ℝ)) ^ m := by
+    have hle1 : ((U - (n - m)).choose m : ℝ) ≤ (U.choose m : ℝ) := by
+      exact_mod_cast Nat.choose_le_choose m (Nat.sub_le U _)
+    have hle2 := Nat.choose_le_exp_mul_div_pow U m
+    have he4 : Real.exp 1 * (U : ℝ) / (m : ℝ) ≤ 4 * (U : ℝ) / (m : ℝ) := by
+      apply div_le_div_of_nonneg_right _ hm_pos.le
+      nlinarith [Real.exp_one_lt_d9]
+    exact hle1.trans (hle2.trans (pow_le_pow_left₀ (by positivity) he4 m))
+  have hratio : (U.choose n : ℝ) ≤ (4 * ((U : ℝ) / (n : ℝ))) ^ m * (U.choose (n - m) : ℝ) := by
+    have hpow_pos : 0 < ((n : ℝ) / (m : ℝ)) ^ m := pow_pos (div_pos hn_pos hm_pos) m
+    have habs_real : (U.choose n : ℝ) * (n.choose m : ℝ) =
+        (U.choose (n - m) : ℝ) * (((U - (n - m)).choose m : ℕ) : ℝ) := by exact_mod_cast habs_nat
+    have hmul_ineq : (U.choose n : ℝ) * ((n : ℝ) / (m : ℝ)) ^ m ≤
+        ((4 * ((U : ℝ) / (n : ℝ))) ^ m * (U.choose (n - m) : ℝ)) *
+          ((n : ℝ) / (m : ℝ)) ^ m := by
+      calc (U.choose n : ℝ) * ((n : ℝ) / (m : ℝ)) ^ m
+          ≤ (U.choose n : ℝ) * (n.choose m : ℝ) :=
+            mul_le_mul_of_nonneg_left hc_nm_ge (Nat.cast_nonneg _)
+        _ = (U.choose (n - m) : ℝ) * (((U - (n - m)).choose m : ℕ) : ℝ) := habs_real
+        _ ≤ (U.choose (n - m) : ℝ) * (4 * (U : ℝ) / (m : ℝ)) ^ m :=
+            mul_le_mul_of_nonneg_left hc_Um_le (Nat.cast_nonneg _)
+        _ = ((4 * ((U : ℝ) / (n : ℝ))) ^ m * (U.choose (n - m) : ℝ)) *
+              ((n : ℝ) / (m : ℝ)) ^ m := by
+            rw [mul_comm _ (U.choose (n - m) : ℝ), mul_assoc]
+            congr 1
+            rw [← mul_pow]
+            congr 1
+            field_simp
+    exact le_of_mul_le_mul_right hmul_ineq hpow_pos
+  have hc_Un_pos : (0 : ℝ) < (U.choose n : ℝ) := by exact_mod_cast Nat.choose_pos (by omega)
+  have hstep2 : Real.logb 2 (U.choose n) - Real.logb 2 (U.choose (n - m)) ≤
+      (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) + 2 * (m : ℝ) := by
+    have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hc_Un_pos hratio
+    rw [Real.logb_mul (by positivity) hc_Unm_pos.ne', Real.logb_pow,
+      show (4 : ℝ) * ((U : ℝ) / (n : ℝ)) = (2 : ℝ) ^ (2 : ℕ) * ((U : ℝ) / (n : ℝ)) by ring,
+      Real.logb_mul (by positivity) (div_pos hU_pos hn_pos).ne', Real.logb_pow,
+      Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hlog
+    push_cast at hlog
+    nlinarith
+  linarith
 
 end Cslib
 
