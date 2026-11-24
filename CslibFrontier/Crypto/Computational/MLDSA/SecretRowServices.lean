@@ -8,17 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
+-- Reads private `queryWrites` and unexposed `publicPairQueryAddress` and `hitsExpansionInput`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
-import all CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import CslibFrontier.Probability.IID.FirstSome
 import Batteries.Data.Fin.Lemmas
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
 # Private expansion rows in the adaptive public-pair signing experiment

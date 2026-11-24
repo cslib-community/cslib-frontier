@@ -49,11 +49,11 @@ theorem finishResult_inSpace {τ : Type} (encT : τ ↪ List Bool) :
       (fun q => (encMachineState encT q).length) := by
   have hid := of_inO (ComputableInDegree.id' (enc := encState)).inO_one
   have hresult := budget_ite (encState_rejected_budget hid)
-    (budget_const (encB := encCountResult) none (.refl _))
+    (budget_const (encB := encCountResult) none)
     (budget_optionSome (encState_count_budget hid))
   have hleft : ComputableInSpace (fun q => encCountResult (result q)) encState encBits
       (fun q => (encState q).length) := hresult.of_enc_eq fun _ => rfl
-  exact (sumElim hleft (budget_const [] (.refl _))).of_enc_eq fun q => by cases q <;> rfl
+  exact (sumElim hleft (budget_const [])).of_enc_eq fun q => by cases q <;> rfl
 
 /-- The result word is produced at finish, with no step emissions. -/
 theorem computingMachine_emit_eq_nil {τ : Type} (ctx : Context) (N : QueryMachine τ)

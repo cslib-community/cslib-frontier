@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import Mathlib.Topology.Connected.PathConnected
+import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
 import CslibFrontier.Foundations.Geometry.PuncturedPaths
 import Mathlib.Algebra.BigOperators.Fin
@@ -19,6 +20,7 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
+import Mathlib.Topology.Algebra.GroupWithZero
 
 /-!
 # Indexed endpoint and observation parity of polygonal routes
@@ -458,20 +460,62 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
           simp [hc, hqc, Bool.add_eq_xor]
         · simp [Finset.mem_insert, heq, hqRest z hz heq, Bool.add_eq_xor]
 
-/-- Insert a closed excursion at a join to add the prescribed ray-parity bits on the
-observations. The new support stays in the union of the original support and the punctured
-region. Both outer endpoints and their outgoing segment vectors are preserved. -/
+/-- Insert a closed excursion at a join to add the prescribed ray-parity bits in a
+nonzero complex coordinate factor. The new support stays in the union of the original
+support and the punctured region. Both outer endpoints and germs are preserved. -/
 theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     (hconn : IsPathConnected U) (points odd : Finset ℂ) (hodd : odd ⊆ points)
     (hUodd : ∀ z ∈ odd, z ∈ U) (p q : Route) (hjoin : p.finish = q.start)
-    (ha : p.finish ∈ U) (haPoints : p.finish ∉ points) :
+    (ha : p.finish ∈ U) (haPoints : p.finish ∉ points) {u : ℂ} (hu : u ≠ 0) :
     ∃ r : Route, (∀ b, r.endpoint b = (p.concat q).endpoint b) ∧
       (∀ b, r.germ b = (p.concat q).germ b) ∧
       (p.concat q).support ⊆ r.support ∧
       r.support ⊆ (p.concat q).support ∪ (U \ (↑points : Set ℂ)) ∧
-      ∀ z ∈ points, r.rayParity 1 z = (p.concat q).rayParity 1 z + decide (z ∈ odd) := by
-  obtain ⟨e, hstart, hfinish, hsupport, hparity⟩ :=
-    exists_rayParity_excursion_of_subset hU hconn points odd hodd hUodd ha haPoints
+      ∀ z ∈ points, r.rayParity u z = (p.concat q).rayParity u z + decide (z ∈ odd) := by
+  classical
+  let f := Homeomorph.mulLeft₀ u hu
+  have hf (z : ℂ) : f z = u * z := rfl
+  let embedding := f.toEquiv.toEmbedding
+  let points' := points.map embedding
+  let odd' := odd.map embedding
+  have hsub : odd' ⊆ points' := Finset.map_subset_map.mpr hodd
+  have huodd : ∀ z ∈ odd', z ∈ f '' U := by
+    intro z hz
+    obtain ⟨w, hw, rfl⟩ := Finset.mem_map.mp hz
+    exact ⟨w, hUodd w hw, rfl⟩
+  obtain ⟨l, hls, hlf, hl, hpar⟩ :=
+    exists_rayParity_excursion_of_subset (f.isOpenMap _ hU)
+      (hconn.image f.continuous) points' odd' hsub huodd
+      (Set.mem_image_of_mem f ha) (fun h => haPoints ((Finset.mem_map' embedding).mp h))
+  let e := mulComplex u⁻¹ l
+  have hstart : e.start = p.finish := by
+    change e.endpoint false = _
+    rw [endpoint_mulComplex]
+    change u⁻¹ * l.start = _
+    rw [hls, hf, inv_mul_cancel_left₀ hu]
+  have hfinish : e.finish = p.finish := by
+    change e.endpoint true = _
+    rw [endpoint_mulComplex]
+    change u⁻¹ * l.finish = _
+    rw [hlf, hf, inv_mul_cancel_left₀ hu]
+  have hsupport : e.support ⊆ U \ (↑points : Set ℂ) := by
+    intro z hz
+    change z ∈ (mulComplex u⁻¹ l).support at hz
+    rw [support_mulComplex] at hz
+    obtain ⟨w, hw, rfl⟩ := hz
+    obtain ⟨⟨v, hv, heq⟩, hn⟩ := hl hw
+    have heq' : w = u * v := heq.symm
+    change u⁻¹ * w ∈ U \ (↑points : Set ℂ)
+    rw [heq', inv_mul_cancel_left₀ hu]
+    exact ⟨hv, fun h => hn (heq ▸ Finset.mem_map_of_mem embedding h)⟩
+  have hparity (z : ℂ) (hz : z ∈ points) : e.rayParity u z = decide (z ∈ odd) := by
+    have h : e.rayParity u z = l.rayParity 1 (f z) := by
+      unfold Route.rayParity Cslib.Polygonal.rayParity
+      simp only [e, mulComplex, mul_inv_cancel_left₀ hu, one_mul, hf]
+      rfl
+    rw [h, hpar (f z) (Finset.mem_map_of_mem embedding hz)]
+    change decide (embedding z ∈ odd.map embedding) = decide (z ∈ odd)
+    exact Bool.decide_congr (Finset.mem_map' embedding)
   have he : p.finish = e.start := hstart.symm
   have hq : (p.concat e).finish = q.start := by
     change (p.concat e).endpoint true = q.start
