@@ -6398,6 +6398,7 @@ public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin
 public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.Basic
+public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.LigeroProximity
 public import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
 public import CslibFrontier.Crypto.Protocols.SSP.Hybrid
@@ -7543,6 +7544,7 @@ public import CslibFrontier.Foundations.Data.Code.Hadamard
 public import CslibFrontier.Foundations.Data.Code.HammingBound
 public import CslibFrontier.Foundations.Data.Code.HammingCode
 public import CslibFrontier.Foundations.Data.Code.HintDecoding
+public import CslibFrontier.Foundations.Data.Code.Interleaved
 public import CslibFrontier.Foundations.Data.Code.Johnson
 public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
