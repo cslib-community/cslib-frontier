@@ -237,6 +237,24 @@ private theorem ae_pos_thresholdMeasure (V : Type*) [Fintype V] :
   have hp := MeasureTheory.measurePreserving_eval (fun _ : V => unitMeasure) v
   exact hp.quasiMeasurePreserving.ae hae_unit
 
+private theorem ae_le_one_thresholdMeasure (V : Type*) [Fintype V] :
+    ∀ᵐ θ ∂thresholdMeasure V, ∀ v : V, θ v ≤ 1 := by
+  have hae_unit : ∀ᵐ z ∂unitMeasure, z ≤ 1 := by
+    rw [ae_iff]
+    have hmeas : MeasurableSet {z : ℝ | ¬ z ≤ 1} := by
+      simp_rw [not_le]
+      exact measurableSet_Ioi
+    have hsub : {z : ℝ | ¬ z ≤ 1} ∩ Icc (0 : ℝ) 1 = ∅ := by
+      ext z
+      simp only [mem_inter_iff, mem_ofPred_eq, not_le, mem_Icc, mem_empty_iff_false, iff_false]
+      rintro ⟨hgt, _, hle⟩
+      exact hgt.not_ge hle
+    rw [unitMeasure, Measure.restrict_apply hmeas, hsub, measure_empty]
+  rw [ae_all_iff]
+  intro v
+  have hp := MeasureTheory.measurePreserving_eval (fun _ : V => unitMeasure) v
+  exact hp.quasiMeasurePreserving.ae hae_unit
+
 /-! ## Progressive Threshold Dynamics and Outcome Distribution -/
 
 namespace GeneralThresholdModel
@@ -583,11 +601,53 @@ theorem monotone_influence : Monotone M.influence := by
     (M.integrable_of_finset B fun X => (X.card : ℝ)) fun θ =>
     Nat.cast_le.mpr (Finset.card_le_card (M.thresholdFinal_mono_seed θ hAB))
 
+/-- If every inactive vertex outside `S` has zero threshold value `g_v(S) = 0`, no additional
+vertices activate almost surely and `M.influence S = S.card`. -/
+theorem influence_eq_card_of_forall_eq_zero {S : Finset V}
+    (hzero : ∀ v ∉ S, M.thresholdFn v S = 0) :
+    M.influence S = (S.card : ℝ) := by
+  unfold influence
+  have hae : ∀ᵐ θ ∂thresholdMeasure V, ((M.thresholdFinal θ S).card : ℝ) = (S.card : ℝ) := by
+    filter_upwards [ae_pos_thresholdMeasure V] with θ hθ
+    have heq : M.thresholdFinal θ S = S :=
+      Finset.Subset.antisymm
+        (M.thresholdFinal_subset_of_lt (Finset.Subset.refl S) fun v hv => by
+          rw [hzero v hv]
+          exact hθ v)
+        (M.subset_thresholdFinal θ S)
+    rw [heq]
+  rw [integral_congr_ae hae, integral_const, probReal_univ, one_smul]
+
+/-- If every inactive vertex outside `S` already has saturated threshold `g_v(S) = 1`, the entire
+vertex set activates in one step almost surely and `M.influence S = Fintype.card V`. -/
+theorem influence_eq_card_univ_of_forall_eq_one {S : Finset V}
+    (hone : ∀ v ∉ S, M.thresholdFn v S = 1) :
+    M.influence S = (Fintype.card V : ℝ) := by
+  unfold influence
+  have hae : ∀ᵐ θ ∂thresholdMeasure V,
+      ((M.thresholdFinal θ S).card : ℝ) = (Fintype.card V : ℝ) := by
+    filter_upwards [ae_le_one_thresholdMeasure V] with θ hθ
+    have hstep_univ : M.thresholdStep θ S = Finset.univ := by
+      ext v
+      simp only [M.mem_thresholdStep, Finset.mem_univ, iff_true]
+      by_cases hv : v ∈ S
+      · exact Or.inl hv
+      · exact Or.inr ((hθ v).trans (hone v hv).symm.le)
+    have hfin_univ : M.thresholdFinal θ S = Finset.univ := by
+      rcases isEmpty_or_nonempty V with hE | hNE
+      · exact Subsingleton.elim _ _
+      · have hpos : 1 ≤ Fintype.card V := Fintype.card_pos
+        obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le hpos
+        unfold thresholdFinal
+        rw [hk, Nat.add_comm 1 k, Function.iterate_add_apply, Function.iterate_one, hstep_univ]
+        refine Finset.eq_univ_of_forall fun v => ?_
+        exact M.subset_thresholdStep_iterate θ Finset.univ k (Finset.mem_univ v)
+    rw [hfin_univ, Finset.card_univ]
+  rw [integral_congr_ae hae, integral_const, probReal_univ, one_smul]
+
 @[simp]
 theorem influence_empty : M.influence ∅ = 0 := by
-  unfold influence
-  refine integral_eq_zero_of_ae ((ae_pos_thresholdMeasure V).mono fun θ hθ => ?_)
-  simp [M.thresholdFinal_empty_of_pos hθ]
+  simpa using M.influence_eq_card_of_forall_eq_zero fun v _ => M.thresholdFn_empty v
 
 theorem influence_nonneg (S : Finset V) : 0 ≤ M.influence S :=
   M.influence_empty ▸ M.monotone_influence (Finset.empty_subset S)
@@ -1545,11 +1605,9 @@ theorem toTimeLayered_thresholdFn (T : ℕ) (vt : V × Fin (T + 1))
           (Finset.univ.filter fun u => (u, (⟨(vt.2 : ℕ) - 1, by omega⟩ : Fin (T + 1))) ∈ X) := by
   rfl
 
-/-- `T`-step synchronous **nonprogressive** active set at step `t : Fin (T + 1)` under threshold
-realizations `θ : V × Fin (T + 1) → ℝ`: step `0` is `S`, and at step `t + 1` vertex `v` is active
-iff `θ (v, t + 1) ≤ g_v(active_t)` (vertices may switch back from active to inactive in later
-steps, [Kleinberg2007], Section 24.3, p. 622). -/
-noncomputable def nonprogActiveAux {T : ℕ} (θ : V × Fin (T + 1) → ℝ) (S : Finset V) :
+/-- `T`-step synchronous **nonprogressive** active set helper under threshold realizations
+`θ : V × Fin (T + 1) → ℝ`. -/
+private noncomputable def nonprogActiveAux {T : ℕ} (θ : V × Fin (T + 1) → ℝ) (S : Finset V) :
     ∀ k : ℕ, k ≤ T → Finset V
   | 0, _ => S
   | k + 1, hk =>
