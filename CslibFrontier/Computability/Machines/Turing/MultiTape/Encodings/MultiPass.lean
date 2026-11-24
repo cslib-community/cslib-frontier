@@ -160,12 +160,18 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold {α σ : Type u} {γ
   have ⟨hVN, hVF, hNF, hVC⟩ : V ≠ N ∧ V ≠ F ∧ N ≠ F ∧ V ≠ C := by
     simp [V, N, F, C, Fin.ext_iff]
   obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 4) (by omega) (Fin.last kI) V
-  obtain ⟨eE, hE⟩ := exists_inputFromWord_extendTapes (K := M + 4) true tmE htmE (by omega) V
-  obtain ⟨eN, hN⟩ := exists_onWords_extendTapes (K := M + 4) true tmN htmN (by omega) hVN
-  obtain ⟨eF, hF⟩ := exists_inputFromWord_extendTapes (K := M + 4) true tmF htmF (by omega) V
-  obtain ⟨ePE, hPE⟩ := exists_inputFromWord_extendTapes (K := M + 4) true tmPE htmPE (by omega) V
-  obtain ⟨ePN, hPN⟩ := exists_onWords_extendTapes (K := M + 4) true tmPN htmPN (by omega) hVN
-  obtain ⟨eC, hC⟩ := exists_onWords_extendTapes (K := M + 4) true tmC htmC (by omega) hVC
+  obtain ⟨eE, hE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmE.inputFromWord true) (by omega) V fun a => (htmE a).inputFromWord true
+  obtain ⟨eN, hN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmN a).onWords true
+  obtain ⟨eF, hF⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmF.inputFromWord true) (by omega) V fun a => (htmF a).inputFromWord true
+  obtain ⟨ePE, hPE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 4)
+    (tmPE.inputFromWord true) (by omega) V fun a => (htmPE a).inputFromWord true
+  obtain ⟨ePN, hPN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmPN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmPN a).onWords true
+  obtain ⟨eC, hC⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 4)
+    (tmC.onWords true) (by simp [Fin.ext_iff]) (by omega) hVC fun a => (htmC a).onWords true
   -- the machines on the common tapes
   have hI := fun a => (htmI a).outputToWord_onTape heI
   set D := cfr + cuf + cfl + cI + cN + cF + cPE + cPN₁ + cPN + cC₁ + cC + M + 100 with hD

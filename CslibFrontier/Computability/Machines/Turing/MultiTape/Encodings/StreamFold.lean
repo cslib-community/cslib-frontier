@@ -415,9 +415,12 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
   let F : Fin (M + 3) := ⟨M + 2, by omega⟩
   have ⟨hVN, hVF, hNF⟩ : V ≠ N ∧ V ≠ F ∧ N ≠ F := by simp [V, N, F, Fin.ext_iff]
   obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega) (Fin.last kI) V
-  obtain ⟨eE, hE⟩ := exists_inputFromWord_extendTapes (K := M + 3) true tmE htmE (by omega) V
-  obtain ⟨eN, hN⟩ := exists_onWords_extendTapes (K := M + 3) true tmN htmN (by omega) hVN
-  obtain ⟨eF, hF⟩ := exists_inputFromWord_extendTapes (K := M + 3) true tmF htmF (by omega) V
+  obtain ⟨eE, hE⟩ := TransformsTapes.exists_extendTapes_self (K := M + 3)
+    (tmE.inputFromWord true) (by omega) V fun a => (htmE a).inputFromWord true
+  obtain ⟨eN, hN⟩ := TransformsTapes.exists_extendTapes_pair (K := M + 3)
+    (tmN.onWords true) (by simp [Fin.ext_iff]) (by omega) hVN fun a => (htmN a).onWords true
+  obtain ⟨eF, hF⟩ := TransformsTapes.exists_extendTapes_self (K := M + 3)
+    (tmF.inputFromWord true) (by omega) V fun a => (htmF a).inputFromWord true
   refine ⟨(40 * M + 200) * (cfr + cN + cuf + cF + M + 100), _, _, inferInstance,
     streamTM r (I eI) ((tmE.inputFromWord true).extendTapes eE)
       ((tmN.onWords true).extendTapes eN) ((tmF.inputFromWord true).extendTapes eF)
