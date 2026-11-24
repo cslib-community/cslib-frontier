@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
@@ -129,8 +130,7 @@ private theorem eval_oneTimeExperiment_messageRecoveryReduction_true (E : Cipher
         (messageRecoveryReduction (ProbComp.uniform M) A) true) =
       ProbComp.eval (messageRecoveryExperiment E sampleKey A) := by
   simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, messageRecoveryExperiment,
-    lrExperiment, MessagePair.select_true, hvalid, ↓reduceIte, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+    lrExperiment, MessagePair.select_true, hvalid, ↓reduceIte, ProbComp.eval_uniform, pmf_norm]
   pmf_swap with m₀
   simp only [PMF.bind_const]
 
@@ -154,8 +154,7 @@ private theorem succProbability_oneTimeExperiment_messageRecoveryReduction_false
             (ProbComp.eval (A c)).bind fun mHat =>
             (PMF.uniformOfFintype M).map fun m₁ => (mHat == m₁)) := by
       simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, lrExperiment,
-        MessagePair.select_false, hvalid, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-        ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+        MessagePair.select_false, hvalid, ↓reduceIte, ProbComp.eval_uniform, pmf_norm]
       pmf_swap
     rw [hrewrite]
     apply Probability.PMF.bind_apply_of_forall; intro k
@@ -268,8 +267,7 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
   have hmr : ProbComp.eval (messageRecoveryExperiment E sampleKey A') =
       ProbComp.eval (messageRecoveryWordExperiment msgLen keyLen encryptSym A n) := by
     simp only [messageRecoveryExperiment, messageRecoveryWordExperiment, E, sampleKey, A',
-      ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, BitString.eval_sampleList,
-      BitString.uniformList, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+      ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList, pmf_norm]
     congr 1; funext m; congr 1; funext k; congr 1; funext c
     exact hdecode c m
   have hcard : (Fintype.card (BitString (msgLen n)) : ℝ≥0) = 2 ^ msgLen n := by
@@ -282,10 +280,9 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
         keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) bit n) := by
     intro bit
     simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, demKeyGameOn,
-      messageRecoveryWordToDEMAdversary, lrExperiment, ChoiceOut.msg₀, ChoiceOut.msg₁,
-      E, sampleKey, A', ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-      BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, PMF.bind_bind,
-      PMF.pure_bind, Function.comp_def, List.length_ofFn, beq_self_eq_true, Bool.and_self]
+      messageRecoveryWordToDEMAdversary, lrExperiment, ChoiceOut.msg₀, ChoiceOut.msg₁, E, sampleKey,
+      A', ↓reduceIte, ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList,
+      List.length_ofFn, beq_self_eq_true, Bool.and_self, pmf_norm]
     congr 1; funext k; congr 1; funext m₀; congr 1; funext m₁
     cases bit <;> simp only [MessagePair.select_false, MessagePair.select_true,
       Bool.false_eq_true, ↓reduceIte]

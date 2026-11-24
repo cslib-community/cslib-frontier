@@ -39,7 +39,7 @@ theorem start_sumState {p r m : ℕ} (e : Q ≃ Fin s) (N b σ i chunk stride : 
     ⟨N, b, σ, i, (2 ^ m) ^ ((k * 3 + 1) * r),
       (QueryGate.sumState
         (QueryGate.gateParams (s := 2 ^ m)
-            (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j).2.1,
+            (⟨N, b, σ, i, m, chunk, stride⟩ : Context) x) table j).counter,
       stride⟩) = _
   rw [QueryGate.sumState_counter]
 
