@@ -1300,6 +1300,10 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpre
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.EvalThm
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Interp
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Machine
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.BitLaw
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.Cross
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.Law
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.Norm
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadget
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
