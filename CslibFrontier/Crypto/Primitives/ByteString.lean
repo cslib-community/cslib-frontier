@@ -26,12 +26,12 @@ with a different within-byte convention, such as FIPS 202's Keccak, keep that co
 
 * `Cslib.Crypto.Byte`: one unsigned byte.
 * `Cslib.Crypto.FixedBytes`: a byte string whose length is part of its type.
+* `Cslib.Crypto.FixedBytes.ofListExact`: turn a list with a proved length into typed bytes.
 * `Cslib.Crypto.bytesToBitsBE`: big-endian serialization of a list of bytes.
 * `Cslib.Crypto.bitsToFixedBytesBE`: split a bit list into typed big-endian bytes.
 
 ## Main results
 
-* `Cslib.Crypto.FixedBytes.ofListExact`: turn a list with a proved length into typed bytes.
 * `Cslib.Crypto.length_bytesToBitsBE`: byte serialization has eight bits per byte.
 * `Cslib.Crypto.byteOfBitsBE_byteBitsBE`, `Cslib.Crypto.byteBitsBE_byteOfBitsBE`: converting one
   byte to bits and back is exact in either direction.
