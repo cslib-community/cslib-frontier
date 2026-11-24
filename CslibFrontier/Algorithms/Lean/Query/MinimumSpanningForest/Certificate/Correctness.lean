@@ -140,13 +140,6 @@ theorem Result.sound_empty (inst : Instance V E) : Result.Sound w inst Result.em
   rejected_subset := by simp
   firstInvalid_rejected := by simp
 
-omit [DecidableEq V] [DecidableEq E] in
-private theorem supported_mono {ends : E → Sym2 V} {S T : Set E} (hST : S ⊆ T) {e : E}
-    (h : Supported ends w S e) : Supported ends w T e := by
-  obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
-  rw [supported_iff w hab.symm] at h ⊢
-  exact h.mono (by rintro f ⟨hf1, hf2⟩; exact ⟨hST hf1, hf2⟩)
-
 /-- **The child is well formed**: its vertices are the portals, and the projected ends of a
 projectable edge are portals. -/
 theorem wellFormed_instanceChild {inst : Instance V E} (hwf : inst.WellFormed)
@@ -248,7 +241,7 @@ theorem invariant_afterRound (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
     rw [supported_msf_iff]
     have hsub : (s.state.forest : Set E) ⊆ ↑(roundInput cfg (LEQuery.keyOracle w) inst i) :=
       fun f hf => mem_union_left _ (mem_union_left _ hf)
-    exact supported_mono hsub h
+    exact h.mono hsub
   · simp only [afterRound]
     refine union_subset hs.batch_subset ?_
     exact (filter_subset _ _).trans (filter_subset _ _)
