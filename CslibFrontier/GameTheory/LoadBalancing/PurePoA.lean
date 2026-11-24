@@ -714,6 +714,114 @@ section GeneralRelatedPurePoA
 
 variable {ι M : Type*} [Fintype ι] [DecidableEq ι] [Fintype M] [DecidableEq M] [Nonempty M]
 
+/-- Weight of jobs assigned by an optimal schedule `Aopt` to a subset `S` of machines is at most
+`optMakespan * ∑_{j ∈ S} speed j`. -/
+theorem sum_weight_Aopt_mem_le (G : LoadBalancingGame ι M) {Aopt : ι → M}
+    (hAopt : G.makespan Aopt = G.optMakespan) (S : Finset M) :
+    ∑ i with Aopt i ∈ S, G.weight i ≤ G.optMakespan * ∑ j ∈ S, G.speed j := by
+  have hfib : ∑ i with Aopt i ∈ S, G.weight i = ∑ j ∈ S, G.speed j * G.load Aopt j := by
+    simp_rw [G.speed_mul_load]
+    rw [← sum_fiberwise_of_maps_to (s := univ.filter fun i => Aopt i ∈ S)
+      (t := S) (g := Aopt) (fun i hi => (mem_filter.mp hi).2)]
+    refine sum_congr rfl fun j hj => sum_congr ?_ fun _ _ => rfl
+    ext i
+    simp only [mem_filter, mem_univ, true_and]
+    exact ⟨fun h => h.2, fun h => ⟨h ▸ hj, h⟩⟩
+  rw [hfib, mul_sum]
+  refine sum_le_sum fun j _ => ?_
+  have hl : G.load Aopt j ≤ G.optMakespan := by
+    rw [← hAopt]
+    exact G.load_le_makespan Aopt j
+  nlinarith [(G.speed_pos j).le]
+
+/-- General speed-prefix cardinality step over any machine-load map `L : M → ℝ`: for prefixes
+`P k = {j | ∀ j', speed j ≤ speed j' → k * optMakespan ≤ L j'}`, if `(k + 1) * ∑_{P(k+1)} speed ≤
+∑_{P k} speed` whenever `P (k + 1)` is nonempty, then `(k + 1) * #(P (k + 1)) ≤ #(P k)`. -/
+theorem card_speedPrefix_step_of_sum_speed_le (G : LoadBalancingGame ι M) (L : M → ℝ)
+    (P : ℕ → Finset M)
+    (hP : ∀ r j, j ∈ P r ↔ ∀ j' : M, G.speed j ≤ G.speed j' → (r : ℝ) * G.optMakespan ≤ L j')
+    (hopt_nn : 0 ≤ G.optMakespan) (k : ℕ)
+    (hspeed_sum : (P (k + 1)).Nonempty →
+      ((k + 1 : ℕ) : ℝ) * ∑ j ∈ P (k + 1), G.speed j ≤ ∑ j ∈ P k, G.speed j) :
+    (k + 1) * #(P (k + 1)) ≤ #(P k) := by
+  classical
+  by_cases hne : (P (k + 1)).Nonempty
+  · have hsub : P (k + 1) ⊆ P k := by
+      intro j hj
+      rw [hP] at hj ⊢
+      intro j' hj'
+      have := hj j' hj'
+      push_cast at this
+      linarith
+    have hsum := hspeed_sum hne
+    obtain ⟨jmin, hjmin, hmin⟩ := exists_min_image (P (k + 1)) G.speed hne
+    set smin : ℝ := G.speed jmin
+    have hsmin_pos : 0 < smin := G.speed_pos jmin
+    have hsdiff_lt : ∀ j ∈ P k \ P (k + 1), G.speed j ≤ smin := by
+      intro j hj
+      rw [mem_sdiff] at hj
+      by_contra hgt
+      push Not at hgt
+      exact hj.2 ((hP (k + 1) j).mpr fun j' hj' => (hP (k + 1) jmin).mp hjmin j' (hgt.le.trans hj'))
+    have hsplit_sum : ∑ j ∈ P k, G.speed j =
+        (∑ j ∈ P (k + 1), G.speed j) + (∑ j ∈ P k \ P (k + 1), G.speed j) := by
+      rw [← sum_union disjoint_sdiff, union_sdiff_of_subset hsub]
+    have hlhs : (k : ℝ) * (#(P (k + 1)) : ℝ) * smin ≤
+        (k : ℝ) * ∑ j ∈ P (k + 1), G.speed j := by
+      rw [mul_assoc]
+      refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg k)
+      calc (#(P (k + 1)) : ℝ) * smin = ∑ _j ∈ P (k + 1), smin := by simp
+        _ ≤ ∑ j ∈ P (k + 1), G.speed j := sum_le_sum fun j hj => hmin j hj
+    have hrhs : ∑ j ∈ P k \ P (k + 1), G.speed j ≤ (#(P k \ P (k + 1)) : ℝ) * smin := by
+      calc ∑ j ∈ P k \ P (k + 1), G.speed j
+          ≤ ∑ _j ∈ P k \ P (k + 1), smin := sum_le_sum fun j hj => hsdiff_lt j hj
+        _ = (#(P k \ P (k + 1)) : ℝ) * smin := by simp
+    have hnat_real : (k : ℝ) * (#(P (k + 1)) : ℝ) ≤ (#(P k \ P (k + 1)) : ℝ) := by
+      rw [hsplit_sum] at hsum
+      push_cast at hsum
+      nlinarith
+    have hnat : k * #(P (k + 1)) ≤ #(P k \ P (k + 1)) := by exact_mod_cast hnat_real
+    rw [card_sdiff_of_subset hsub] at hnat
+    have hcard_le : #(P (k + 1)) ≤ #(P k) := card_le_card hsub
+    have hdist : (k + 1) * #(P (k + 1)) = k * #(P (k + 1)) + #(P (k + 1)) := by ring
+    omega
+  · rw [not_nonempty_iff_eq_empty] at hne
+    simp [hne]
+
+omit [Fintype ι] [DecidableEq ι] [DecidableEq M] [Nonempty M] in
+/-- Downward factorial induction along a family `P : ℕ → Finset M` satisfying
+`(k + 1) * #(P (k + 1)) ≤ #(P k)`: if `1 ≤ #(P c)`, then `c! ≤ |M|`. -/
+theorem factorial_le_card_of_prefix_step (P : ℕ → Finset M)
+    (hrec_step : ∀ k : ℕ, (k + 1) * #(P (k + 1)) ≤ #(P k)) {c : ℕ} (hPc : 1 ≤ #(P c)) :
+    c.factorial ≤ Fintype.card M := by
+  have hstep : ∀ d ≤ c, (∏ r ∈ range d, (c - r)) * #(P c) ≤ #(P (c - d)) := by
+    intro d
+    induction d with
+    | zero => intro _; simp
+    | succ d ih =>
+      intro hd
+      rw [prod_range_succ, mul_right_comm, mul_comm _ (c - d)]
+      have hcd : c - d = (c - (d + 1)) + 1 := by omega
+      have hrec := hrec_step (c - (d + 1))
+      rw [← hcd] at hrec
+      calc (c - d) * ((∏ r ∈ range d, (c - r)) * #(P c))
+          ≤ (c - d) * #(P (c - d)) := Nat.mul_le_mul_left _ (ih (by omega))
+        _ ≤ #(P (c - (d + 1))) := hrec
+  have hprod_eq : ∏ r ∈ range c, (c - r) = c.factorial := by
+    rw [Nat.factorial_eq_prod_range_add_one]
+    rw [← Finset.prod_range_reflect (fun r => r + 1) c]
+    refine prod_congr rfl fun r hr => ?_
+    rw [mem_range] at hr
+    omega
+  have hc_le : c.factorial ≤ #(P 0) := by
+    calc c.factorial = c.factorial * 1 := (mul_one _).symm
+      _ ≤ (∏ r ∈ range c, (c - r)) * #(P c) := by
+          rw [hprod_eq]
+          exact Nat.mul_le_mul_left _ hPc
+      _ ≤ #(P (c - c)) := hstep c le_rfl
+      _ = #(P 0) := by rw [Nat.sub_self]
+  exact hc_le.trans (card_le_univ _)
+
 /-- The **speed-sorted prefix** `L_k` of machines all of whose at-least-as-fast peers have load at
 least `k * optMakespan` under `A` ([CzumajVocking2002]; [Vocking2007]). -/
 @[expose] noncomputable def speedPrefix (G : LoadBalancingGame ι M) (A : ι → M) (k : ℕ) :
@@ -728,24 +836,36 @@ private theorem mul_optMakespan_le_load_of_mem_speedPrefix (G : LoadBalancingGam
   classical
   exact (mem_filter.mp hj).2 j le_rfl
 
+/-- Shared inclusion criteria into any load-threshold speed prefix `P k`: if job `i` has optimal
+machine `Aopt i`, load lower bound `(k + 1) * optMakespan ≤ Lj` on a machine whose equilibrium
+comparison gives `Lj ≤ L j' + weight i / speed j'` for every `j'`, then `Aopt i ∈ P k`. -/
+theorem mem_prefix_of_nash_load_ge (G : LoadBalancingGame ι M) {Aopt : ι → M}
+    (hAopt : G.makespan Aopt = G.optMakespan) {L : M → ℝ} {P : Finset M} {k : ℕ}
+    (hP : ∀ j, j ∈ P ↔ ∀ j' : M, G.speed j ≤ G.speed j' → (k : ℝ) * G.optMakespan ≤ L j')
+    {i : ι} {Lj : ℝ} (hge : ((k + 1 : ℕ) : ℝ) * G.optMakespan ≤ Lj)
+    (hNE : ∀ j' : M, Lj ≤ L j' + G.weight i / G.speed j') :
+    Aopt i ∈ P := by
+  rw [hP]
+  intro j' hj'
+  have h1 := hNE j'
+  have hdiv : G.weight i / G.speed j' ≤ G.weight i / G.speed (Aopt i) :=
+    div_le_div_of_nonneg_left (G.weight_nonneg i) (G.speed_pos (Aopt i)) hj'
+  have hopt : G.weight i / G.speed (Aopt i) ≤ G.optMakespan := by
+    rw [← hAopt]
+    exact G.weight_div_speed_le_makespan Aopt i
+  push_cast at hge
+  linarith
+
 /-- **Prefix-list inclusion lemma** ([CzumajVocking2002]; [Vocking2007]): if `A` is a
 pure Nash equilibrium and `Aopt` is an optimal assignment, then any job whose `A`-machine has load
 at least `(k + 1) * optMakespan` is assigned by `Aopt` to a machine in `speedPrefix G A k`. -/
 theorem mem_speedPrefix_of_load_ge (G : LoadBalancingGame ι M) {A Aopt : ι → M}
     (hA : G.toCostGame.IsPureNash A) (hAopt : G.makespan Aopt = G.optMakespan)
     {k : ℕ} {i : ι} (hi : ((k + 1 : ℕ) : ℝ) * G.optMakespan ≤ G.load A (A i)) :
-    Aopt i ∈ G.speedPrefix A k := by
-  classical
-  rw [speedPrefix, mem_filter]
-  refine ⟨mem_univ _, fun j' hj' => ?_⟩
-  have hNE := G.isPureNash_load_le hA i j'
-  have hdiv : G.weight i / G.speed j' ≤ G.weight i / G.speed (Aopt i) :=
-    div_le_div_of_nonneg_left (G.weight_nonneg i) (G.speed_pos (Aopt i)) hj'
-  have hopt : G.weight i / G.speed (Aopt i) ≤ G.optMakespan := by
-    rw [← hAopt]
-    exact G.weight_div_speed_le_makespan Aopt i
-  push_cast at hi
-  linarith
+    Aopt i ∈ G.speedPrefix A k :=
+  G.mem_prefix_of_nash_load_ge hAopt
+    (fun j => by simp only [speedPrefix, mem_filter, mem_univ, true_and]) hi
+    (G.isPureNash_load_le hA i)
 
 /-- **Speed-prefix cardinality growth** ([CzumajVocking2002]; [Vocking2007]): for
 every pure Nash equilibrium `A` with `0 < optMakespan` and every `k : ℕ`,
@@ -754,111 +874,40 @@ theorem card_speedPrefix_ge (G : LoadBalancingGame ι M) {A : ι → M}
     (hA : G.toCostGame.IsPureNash A) (hopt : 0 < G.optMakespan) (k : ℕ) :
     (k + 1) * #(G.speedPrefix A (k + 1)) ≤ #(G.speedPrefix A k) := by
   classical
-  by_cases hne : (G.speedPrefix A (k + 1)).Nonempty
-  · obtain ⟨Aopt, hAopt⟩ := G.exists_makespan_eq_optMakespan
-    have hsub : G.speedPrefix A (k + 1) ⊆ G.speedPrefix A k := by
-      intro j hj
-      simp only [speedPrefix, mem_filter, mem_univ, true_and] at hj ⊢
-      intro j' hj'
-      have := hj j' hj'
-      push_cast at this
-      linarith [G.optMakespan_nonneg]
-    -- Every job assigned by `A` to `L_{k+1}` is assigned by `Aopt` to `L_k`.
-    have hjob_map : (univ.filter fun i => A i ∈ G.speedPrefix A (k + 1)) ⊆
-        univ.filter fun i => Aopt i ∈ G.speedPrefix A k := by
-      intro i hi
-      simp only [mem_filter, mem_univ, true_and] at hi ⊢
-      exact G.mem_speedPrefix_of_load_ge hA hAopt
-        (G.mul_optMakespan_le_load_of_mem_speedPrefix A (k + 1) hi)
-    -- Total speed comparison: `(k + 1) * ∑_{L_{k+1}} speed ≤ ∑_{L_k} speed`.
-    have hspeed_sum : ((k + 1 : ℕ) : ℝ) * ∑ j ∈ G.speedPrefix A (k + 1), G.speed j ≤
-        ∑ j ∈ G.speedPrefix A k, G.speed j := by
-      have h1 : ((k + 1 : ℕ) : ℝ) * G.optMakespan * ∑ j ∈ G.speedPrefix A (k + 1), G.speed j ≤
-          ∑ j ∈ G.speedPrefix A (k + 1), G.speed j * G.load A j := by
-        rw [mul_sum]
-        refine sum_le_sum fun j hj => ?_
-        have hl := G.mul_optMakespan_le_load_of_mem_speedPrefix A (k + 1) hj
-        have hs := (G.speed_pos j).le
-        nlinarith
-      have h2 : ∑ j ∈ G.speedPrefix A (k + 1), G.speed j * G.load A j =
-          ∑ i with A i ∈ G.speedPrefix A (k + 1), G.weight i := by
-        simp_rw [G.speed_mul_load]
-        rw [← sum_fiberwise_of_maps_to (s := univ.filter fun i => A i ∈ G.speedPrefix A (k + 1))
-          (t := G.speedPrefix A (k + 1)) (g := A) (fun i hi => (mem_filter.mp hi).2)]
-        refine sum_congr rfl fun j hj => sum_congr ?_ fun _ _ => rfl
-        ext i
-        simp only [mem_filter, mem_univ, true_and]
-        exact ⟨fun h => ⟨h ▸ hj, h⟩, fun h => h.2⟩
-      have h3 : ∑ i with A i ∈ G.speedPrefix A (k + 1), G.weight i ≤
-          ∑ i with Aopt i ∈ G.speedPrefix A k, G.weight i :=
-        sum_le_sum_of_subset_of_nonneg hjob_map fun i _ _ => G.weight_nonneg i
-      have h4 : ∑ i with Aopt i ∈ G.speedPrefix A k, G.weight i ≤
-          G.optMakespan * ∑ j ∈ G.speedPrefix A k, G.speed j := by
-        have h4a : ∑ i with Aopt i ∈ G.speedPrefix A k, G.weight i =
-            ∑ j ∈ G.speedPrefix A k, G.speed j * G.load Aopt j := by
-          simp_rw [G.speed_mul_load]
-          rw [← sum_fiberwise_of_maps_to (s := univ.filter fun i => Aopt i ∈ G.speedPrefix A k)
-            (t := G.speedPrefix A k) (g := Aopt) (fun i hi => (mem_filter.mp hi).2)]
-          refine sum_congr rfl fun j hj => sum_congr ?_ fun _ _ => rfl
-          ext i
-          simp only [mem_filter, mem_univ, true_and]
-          exact ⟨fun h => h.2, fun h => ⟨h ▸ hj, h⟩⟩
-        rw [h4a, mul_sum]
-        refine sum_le_sum fun j _ => ?_
-        have hl : G.load Aopt j ≤ G.optMakespan := by
-          rw [← hAopt]
-          exact G.load_le_makespan Aopt j
-        nlinarith [(G.speed_pos j).le]
-      have hcomb :
-          G.optMakespan * (((k + 1 : ℕ) : ℝ) * ∑ j ∈ G.speedPrefix A (k + 1), G.speed j) ≤
-          G.optMakespan * ∑ j ∈ G.speedPrefix A k, G.speed j := by
-        linarith
-      exact le_of_mul_le_mul_left hcomb hopt
-    -- Split `L_k = L_{k+1} ∪ (L_k \ L_{k+1})` and compare with `smin = min_{L_{k+1}} speed`.
-    obtain ⟨jmin, hjmin, hmin⟩ := exists_min_image (G.speedPrefix A (k + 1)) G.speed hne
-    set smin : ℝ := G.speed jmin
-    have hsmin_pos : 0 < smin := G.speed_pos jmin
-    have hsdiff_lt : ∀ j ∈ G.speedPrefix A k \ G.speedPrefix A (k + 1), G.speed j ≤ smin := by
-      intro j hj
-      rw [mem_sdiff] at hj
-      by_contra hgt
-      push Not at hgt
-      apply hj.2
-      rw [speedPrefix, mem_filter]
-      refine ⟨mem_univ j, fun j' hj' => ?_⟩
-      exact (mem_filter.mp hjmin).2 j' (hgt.le.trans hj')
-    have hsplit_sum : ∑ j ∈ G.speedPrefix A k, G.speed j =
-        (∑ j ∈ G.speedPrefix A (k + 1), G.speed j) +
-        (∑ j ∈ G.speedPrefix A k \ G.speedPrefix A (k + 1), G.speed j) := by
-      rw [← sum_union disjoint_sdiff, union_sdiff_of_subset hsub]
-    have hlhs : (k : ℝ) * (#(G.speedPrefix A (k + 1)) : ℝ) * smin ≤
-        (k : ℝ) * ∑ j ∈ G.speedPrefix A (k + 1), G.speed j := by
-      rw [mul_assoc]
-      refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg k)
-      calc (#(G.speedPrefix A (k + 1)) : ℝ) * smin = ∑ _j ∈ G.speedPrefix A (k + 1), smin := by
-            simp
-        _ ≤ ∑ j ∈ G.speedPrefix A (k + 1), G.speed j := sum_le_sum fun j hj => hmin j hj
-    have hrhs : ∑ j ∈ G.speedPrefix A k \ G.speedPrefix A (k + 1), G.speed j ≤
-        (#(G.speedPrefix A k \ G.speedPrefix A (k + 1)) : ℝ) * smin := by
-      calc ∑ j ∈ G.speedPrefix A k \ G.speedPrefix A (k + 1), G.speed j
-          ≤ ∑ _j ∈ G.speedPrefix A k \ G.speedPrefix A (k + 1), smin :=
-            sum_le_sum fun j hj => hsdiff_lt j hj
-        _ = (#(G.speedPrefix A k \ G.speedPrefix A (k + 1)) : ℝ) * smin := by simp
-    have hnat_real : (k : ℝ) * (#(G.speedPrefix A (k + 1)) : ℝ) ≤
-        (#(G.speedPrefix A k \ G.speedPrefix A (k + 1)) : ℝ) := by
-      rw [hsplit_sum] at hspeed_sum
-      push_cast at hspeed_sum
-      nlinarith
-    have hnat :
-        k * #(G.speedPrefix A (k + 1)) ≤ #(G.speedPrefix A k \ G.speedPrefix A (k + 1)) := by
-      exact_mod_cast hnat_real
-    rw [card_sdiff_of_subset hsub] at hnat
-    have hcard_le : #(G.speedPrefix A (k + 1)) ≤ #(G.speedPrefix A k) := card_le_card hsub
-    have hdist : (k + 1) * #(G.speedPrefix A (k + 1)) =
-        k * #(G.speedPrefix A (k + 1)) + #(G.speedPrefix A (k + 1)) := by ring
-    omega
-  · rw [not_nonempty_iff_eq_empty] at hne
-    simp [hne]
+  refine G.card_speedPrefix_step_of_sum_speed_le (G.load A) (G.speedPrefix A)
+    (fun r j => by simp only [speedPrefix, mem_filter, mem_univ, true_and])
+    G.optMakespan_nonneg k fun _ => ?_
+  obtain ⟨Aopt, hAopt⟩ := G.exists_makespan_eq_optMakespan
+  have hjob_map : (univ.filter fun i => A i ∈ G.speedPrefix A (k + 1)) ⊆
+      univ.filter fun i => Aopt i ∈ G.speedPrefix A k := by
+    intro i hi
+    simp only [mem_filter, mem_univ, true_and] at hi ⊢
+    exact G.mem_speedPrefix_of_load_ge hA hAopt
+      (G.mul_optMakespan_le_load_of_mem_speedPrefix A (k + 1) hi)
+  have h1 : ((k + 1 : ℕ) : ℝ) * G.optMakespan * ∑ j ∈ G.speedPrefix A (k + 1), G.speed j ≤
+      ∑ j ∈ G.speedPrefix A (k + 1), G.speed j * G.load A j := by
+    rw [mul_sum]
+    refine sum_le_sum fun j hj => ?_
+    have hl := G.mul_optMakespan_le_load_of_mem_speedPrefix A (k + 1) hj
+    nlinarith [(G.speed_pos j).le]
+  have h2 : ∑ j ∈ G.speedPrefix A (k + 1), G.speed j * G.load A j =
+      ∑ i with A i ∈ G.speedPrefix A (k + 1), G.weight i := by
+    simp_rw [G.speed_mul_load]
+    rw [← sum_fiberwise_of_maps_to (s := univ.filter fun i => A i ∈ G.speedPrefix A (k + 1))
+      (t := G.speedPrefix A (k + 1)) (g := A) (fun i hi => (mem_filter.mp hi).2)]
+    refine sum_congr rfl fun j hj => sum_congr ?_ fun _ _ => rfl
+    ext i
+    simp only [mem_filter, mem_univ, true_and]
+    exact ⟨fun h => ⟨h ▸ hj, h⟩, fun h => h.2⟩
+  have h3 : ∑ i with A i ∈ G.speedPrefix A (k + 1), G.weight i ≤
+      ∑ i with Aopt i ∈ G.speedPrefix A k, G.weight i :=
+    sum_le_sum_of_subset_of_nonneg hjob_map fun i _ _ => G.weight_nonneg i
+  have h4 := G.sum_weight_Aopt_mem_le hAopt (G.speedPrefix A k)
+  have hcomb :
+      G.optMakespan * (((k + 1 : ℕ) : ℝ) * ∑ j ∈ G.speedPrefix A (k + 1), G.speed j) ≤
+      G.optMakespan * ∑ j ∈ G.speedPrefix A k, G.speed j := by
+    linarith
+  exact le_of_mul_le_mul_left hcomb hopt
 
 /-- **Factorial pure PoA bound for uniformly related machines** ([CzumajVocking2002];
 [Vocking2007]): if `A` is a pure Nash equilibrium with `0 < optMakespan` and
@@ -871,7 +920,6 @@ theorem factorial_le_card_of_makespan_ge (G : LoadBalancingGame ι M) {A : ι �
   classical
   obtain ⟨Aopt, hAopt⟩ := G.exists_makespan_eq_optMakespan
   obtain ⟨jstar, hjstar⟩ := G.exists_load_eq_makespan A
-  -- `jstar` has positive load, so it holds at least one job `i₀`.
   have hpos_load : 0 < G.load A jstar := by
     rw [hjstar]
     have : (1 : ℝ) ≤ ((c + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_pos c
@@ -890,36 +938,7 @@ theorem factorial_le_card_of_makespan_ge (G : LoadBalancingGame ι M) {A : ι �
     refine card_pos.mpr ⟨Aopt i₀, G.mem_speedPrefix_of_load_ge hA hAopt ?_⟩
     rw [hi₀, hjstar]
     exact hge
-  -- Induct downward from `c` to `0`: `c! ≤ (c - k)! * #(L_{c - k})`, giving `c! ≤ #(L_0)`.
-  have hstep : ∀ d ≤ c, (∏ r ∈ range d, (c - r)) * #(G.speedPrefix A c) ≤
-      #(G.speedPrefix A (c - d)) := by
-    intro d
-    induction d with
-    | zero => intro _; simp
-    | succ d ih =>
-      intro hd
-      rw [prod_range_succ, mul_right_comm, mul_comm _ (c - d)]
-      have hcd : c - d = (c - (d + 1)) + 1 := by omega
-      have hrec := G.card_speedPrefix_ge hA hopt (c - (d + 1))
-      rw [← hcd] at hrec
-      calc (c - d) * ((∏ r ∈ range d, (c - r)) * #(G.speedPrefix A c))
-          ≤ (c - d) * #(G.speedPrefix A (c - d)) := Nat.mul_le_mul_left _ (ih (by omega))
-        _ ≤ #(G.speedPrefix A (c - (d + 1))) := hrec
-  have hprod_eq : ∏ r ∈ range c, (c - r) = c.factorial := by
-    rw [Nat.factorial_eq_prod_range_add_one]
-    have hrev := Finset.prod_range_reflect (fun r => r + 1) c
-    rw [← hrev]
-    refine prod_congr rfl fun r hr => ?_
-    rw [mem_range] at hr
-    omega
-  have hc_le : c.factorial ≤ #(G.speedPrefix A 0) := by
-    calc c.factorial = c.factorial * 1 := (mul_one _).symm
-      _ ≤ (∏ r ∈ range c, (c - r)) * #(G.speedPrefix A c) := by
-          rw [hprod_eq]
-          exact Nat.mul_le_mul_left _ hLc_ne
-      _ ≤ #(G.speedPrefix A (c - c)) := hstep c le_rfl
-      _ = #(G.speedPrefix A 0) := by rw [Nat.sub_self]
-  exact hc_le.trans (card_le_univ _)
+  exact factorial_le_card_of_prefix_step (G.speedPrefix A) (G.card_speedPrefix_ge hA hopt) hLc_ne
 
 private theorem pow_le_factorial_two_mul (r : ℕ) : r ^ r ≤ (2 * r).factorial := by
   rw [Nat.factorial_eq_prod_range_add_one, two_mul, prod_range_add]
@@ -931,6 +950,78 @@ private theorem pow_le_factorial_two_mul (r : ℕ) : r ^ r ≤ (2 * r).factorial
   calc r ^ r = 1 * r ^ r := (one_mul _).symm
     _ ≤ (∏ i ∈ range r, (i + 1)) * (∏ i ∈ range r, (r + i + 1)) := Nat.mul_le_mul h1 h2
 
+/-- If `m ≥ 3`, `0 < opt`, `0 ≤ val`, and every integer `c` with `(c + 1) * opt ≤ val` satisfies
+`c! ≤ m`, then `val ≤ (4 * log m / log (log m) + 3) * opt`. Shared between the uniformly related
+pure makespan bound and mixed expected-load bound. -/
+theorem le_log_div_log_log_add_three_mul_of_factorial_le {m : ℕ} (hm : 3 ≤ m) {val opt : ℝ}
+    (hopt : 0 < opt) (hval : 0 ≤ val)
+    (hfac : ∀ c : ℕ, ((c + 1 : ℕ) : ℝ) * opt ≤ val → c.factorial ≤ m) :
+    val ≤ (4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) + 3) * opt := by
+  have hm3 : (3 : ℝ) ≤ m := by exact_mod_cast hm
+  have hlogm_gt1 : 1 < Real.log (m : ℝ) := Real.one_lt_log_of_three_le hm3
+  have hloglog_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
+  have hratio_pos : 0 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
+  by_cases hsmall : val ≤ 2 * opt
+  · nlinarith
+  · push Not at hsmall
+    set q : ℕ := ⌊val / opt⌋₊
+    have hq_ge2 : 2 ≤ q := by
+      rw [Nat.le_floor_iff (div_nonneg hval hopt.le), le_div_iff₀ hopt]
+      push_cast
+      linarith
+    set c : ℕ := q - 1
+    have hge : ((c + 1 : ℕ) : ℝ) * opt ≤ val := by
+      have hcq : c + 1 = q := by omega
+      rw [hcq]
+      exact (le_div_iff₀ hopt).mp (Nat.floor_le (div_nonneg hval hopt.le))
+    have hc_fac : c.factorial ≤ m := hfac c hge
+    set r : ℕ := c / 2
+    have hpow : r ^ r ≤ m :=
+      (pow_le_factorial_two_mul r).trans ((Nat.factorial_le (by omega)).trans hc_fac)
+    have hr_lt : (r : ℝ) < 2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by
+      by_contra hge_r
+      push Not at hge_r
+      set x : ℝ := Real.log (m : ℝ)
+      have hlogx_lt : Real.log x < 2 * √x := by
+        have h1 : Real.log (√x) ≤ √x - 1 :=
+          Real.log_le_sub_one_of_pos (Real.sqrt_pos.mpr (by linarith))
+        have h2 : Real.log (√x) = Real.log x / 2 := Real.log_sqrt (by linarith)
+        linarith
+      have hsqrt_lt : √x < 2 * x / Real.log x := by
+        rw [lt_div_iff₀ hloglog_pos]
+        have hsq : √x * √x = x := Real.mul_self_sqrt (by linarith)
+        nlinarith [Real.sqrt_pos.mpr (show 0 < x by linarith)]
+      have hr_gt_sqrt : √x < (r : ℝ) := hsqrt_lt.trans_le hge_r
+      have hsqrt_gt1 : 1 < √x := by
+        rw [← Real.sqrt_one]
+        exact Real.sqrt_lt_sqrt (by norm_num) hlogm_gt1
+      have hr_pos : (0 : ℝ) < r := by linarith
+      have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) := by
+        rw [← Real.log_sqrt (by linarith)]
+        exact Real.log_lt_log (by linarith) hr_gt_sqrt
+      have hmul_gt : x < (r : ℝ) * Real.log (r : ℝ) := by
+        have h1 : (2 * x / Real.log x) * (Real.log x / 2) = x := by
+          field_simp [hloglog_pos.ne']
+        have h3 : (2 * x / Real.log x) * (Real.log x / 2) ≤ (r : ℝ) * (Real.log x / 2) :=
+          mul_le_mul_of_nonneg_right hge_r (by positivity)
+        have h4 : (r : ℝ) * (Real.log x / 2) < (r : ℝ) * Real.log (r : ℝ) :=
+          mul_lt_mul_of_pos_left hlogr_gt hr_pos
+        linarith
+      have hpow_real : ((r : ℝ) ^ r) ≤ (m : ℝ) := by exact_mod_cast hpow
+      have hlog_pow : (r : ℝ) * Real.log (r : ℝ) ≤ x := by
+        rw [← Real.log_pow]
+        exact Real.log_le_log (pow_pos hr_pos r) hpow_real
+      linarith
+    have hq_lt : val / opt < (q : ℝ) + 1 := Nat.lt_floor_add_one _
+    have hq_le_r : q ≤ 2 * r + 2 := by omega
+    have hq_real : (q : ℝ) ≤ 2 * (r : ℝ) + 2 := by exact_mod_cast hq_le_r
+    have hval_lt : val < ((q : ℝ) + 1) * opt := (div_lt_iff₀ hopt).mp hq_lt
+    have hcoef : (q : ℝ) + 1 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) + 3 := by
+      have h2 : 2 * (2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) =
+          4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by ring
+      linarith
+    nlinarith
+
 /-- **Asymptotic pure PoA for uniformly related machines** ([CzumajVocking2002]; [Vocking2007]):
 for every load-balancing game on `m = |M| ≥ 3` uniformly related machines and every
 pure Nash equilibrium `A`,
@@ -941,80 +1032,10 @@ theorem makespan_le_log_div_log_log_mul_optMakespan (G : LoadBalancingGame ι M)
     G.makespan A ≤
       (4 * Real.log (Fintype.card M) / Real.log (Real.log (Fintype.card M)) + 3) *
         G.optMakespan := by
-  set m : ℕ := Fintype.card M
-  have hm3 : (3 : ℝ) ≤ m := by exact_mod_cast hm
-  have hlogm_gt1 : 1 < Real.log (m : ℝ) := Real.one_lt_log_of_three_le hm3
-  have hloglog_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
-  have hratio_pos : 0 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
   rcases G.optMakespan_nonneg.eq_or_lt with hopt0 | hopt_pos
   · rw [G.makespan_eq_zero_of_optMakespan_eq_zero hopt0.symm A, ← hopt0, mul_zero]
-  · have hms_nn : 0 ≤ G.makespan A := G.makespan_nonneg A
-    by_cases hsmall : G.makespan A ≤ 2 * G.optMakespan
-    · nlinarith
-    · push Not at hsmall
-      set q : ℕ := ⌊G.makespan A / G.optMakespan⌋₊
-      have hq_ge2 : 2 ≤ q := by
-        rw [Nat.le_floor_iff (div_nonneg hms_nn hopt_pos.le)]
-        rw [le_div_iff₀ hopt_pos]
-        push_cast
-        linarith
-      set c : ℕ := q - 1
-      have hc_ge1 : 1 ≤ c := by omega
-      have hge : ((c + 1 : ℕ) : ℝ) * G.optMakespan ≤ G.makespan A := by
-        have hcq : c + 1 = q := by omega
-        rw [hcq]
-        exact (le_div_iff₀ hopt_pos).mp (Nat.floor_le (div_nonneg hms_nn hopt_pos.le))
-      have hfac : c.factorial ≤ m := G.factorial_le_card_of_makespan_ge hA hopt_pos hge
-      set r : ℕ := c / 2
-      have hpow : r ^ r ≤ m :=
-        (pow_le_factorial_two_mul r).trans ((Nat.factorial_le (by omega)).trans hfac)
-      have hr_lt : (r : ℝ) < 2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by
-        by_contra hge_r
-        push Not at hge_r
-        set x : ℝ := Real.log (m : ℝ)
-        have hlogx_lt : Real.log x < 2 * √x := by
-          have h1 : Real.log (√x) ≤ √x - 1 :=
-            Real.log_le_sub_one_of_pos (Real.sqrt_pos.mpr (by linarith))
-          have h2 : Real.log (√x) = Real.log x / 2 := Real.log_sqrt (by linarith)
-          linarith
-        have hsqrt_lt : √x < 2 * x / Real.log x := by
-          rw [lt_div_iff₀ hloglog_pos]
-          have hsq : √x * √x = x := Real.mul_self_sqrt (by linarith)
-          nlinarith [Real.sqrt_pos.mpr (show 0 < x by linarith)]
-        have hr_gt_sqrt : √x < (r : ℝ) := hsqrt_lt.trans_le hge_r
-        have hsqrt_gt1 : 1 < √x := by
-          rw [← Real.sqrt_one]
-          exact Real.sqrt_lt_sqrt (by norm_num) hlogm_gt1
-        have hr_pos : (0 : ℝ) < r := by linarith
-        have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) := by
-          rw [← Real.log_sqrt (by linarith)]
-          exact Real.log_lt_log (by linarith) hr_gt_sqrt
-        have hmul_gt : x < (r : ℝ) * Real.log (r : ℝ) := by
-          have h1 : (2 * x / Real.log x) * (Real.log x / 2) = x := by
-            field_simp [hloglog_pos.ne']
-          have h2 : (2 * x / Real.log x) * (Real.log x / 2) < (r : ℝ) * Real.log (r : ℝ) := by
-            have h3 : (2 * x / Real.log x) * (Real.log x / 2) ≤ (r : ℝ) * (Real.log x / 2) :=
-              mul_le_mul_of_nonneg_right hge_r (by positivity)
-            have h4 : (r : ℝ) * (Real.log x / 2) < (r : ℝ) * Real.log (r : ℝ) :=
-              mul_lt_mul_of_pos_left hlogr_gt hr_pos
-            linarith
-          linarith
-        have hpow_real : ((r : ℝ) ^ r) ≤ (m : ℝ) := by exact_mod_cast hpow
-        have hlog_pow : (r : ℝ) * Real.log (r : ℝ) ≤ x := by
-          rw [← Real.log_pow]
-          exact Real.log_le_log (pow_pos hr_pos r) hpow_real
-        linarith
-      have hq_lt : G.makespan A / G.optMakespan < (q : ℝ) + 1 := Nat.lt_floor_add_one _
-      have hq_le_r : q ≤ 2 * r + 2 := by omega
-      have hq_real : (q : ℝ) ≤ 2 * (r : ℝ) + 2 := by exact_mod_cast hq_le_r
-      have hms_lt : G.makespan A < ((q : ℝ) + 1) * G.optMakespan :=
-        (div_lt_iff₀ hopt_pos).mp hq_lt
-      have hcoef : (q : ℝ) + 1 <
-          4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) + 3 := by
-        have h2 : 2 * (2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) =
-            4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by ring
-        linarith
-      nlinarith
+  · exact le_log_div_log_log_add_three_mul_of_factorial_le hm hopt_pos (G.makespan_nonneg A)
+      fun _ hge => G.factorial_le_card_of_makespan_ge hA hopt_pos hge
 
 end GeneralRelatedPurePoA
 

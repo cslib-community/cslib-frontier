@@ -70,10 +70,12 @@ bins receiving exact load `k`:
 * `Cslib.GameTheory.LoadBalancingGame.isTotallyMixedNash_uniformMixedProfile`,
   `Cslib.GameTheory.LoadBalancingGame.isMixedNash_uniformMixedProfile`: the uniform profile is a
   totally mixed Nash equilibrium.
-* `Cslib.GameTheory.LoadBalancingGame.ballsIntoBins_tail_ge_half`,
+* `Cslib.GameTheory.LoadBalancingGame.ballsIntoBins_mul_tail_ge_half`,
+  `Cslib.GameTheory.LoadBalancingGame.ballsIntoBins_tail_ge_half`,
   `Cslib.GameTheory.LoadBalancingGame.ballsIntoBins_expectedMakespan_ge_half_of_factorial`
-  ([Vocking2007], Proposition 20.11): lower tail `Pr[max_j L_j ≥ k] ≥ 1 / 2` and expectation bound
-  `E[max_j L_j] ≥ k / 2` whenever `2 ≤ k` and `3 * 2 ^ k * k! ≤ m`.
+  ([Vocking2007], Proposition 20.11): lower tail `Pr[max_j L_j ≥ d] ≥ 1 / 2` for `n = a * B` balls
+  into `B` bins (when `3 ^ a * 2 ^ d * d! ≤ B * a ^ d`), specialized to `n = m` bins and
+  expectation bound `E[max_j L_j] ≥ k / 2`.
 * `Cslib.GameTheory.LoadBalancingGame.expectedMakespan_uniformMixedProfile_ge_log_div_log_log`
   ([KoutsoupiasPapadimitriou1999]; [CzumajVocking2002]; [Vocking2007], Proposition 20.11 and
   Theorem 20.12): for every `m ≥ 3`,
@@ -160,23 +162,23 @@ private theorem load_unitIdenticalGame_eq_card (m : ℕ) (A : Fin m → Fin m) (
   rw [LoadBalancingGame.load_eq_sum_div]
   simp only [unitIdenticalGame, identical, div_one, sum_const, nsmul_eq_mul, mul_one]
 
-/-- Exact count of assignments `Fin m → Fin m` sending exactly `k` balls to bin `j`. -/
-private theorem card_filter_binLoad_eq (m k : ℕ) (j : Fin m) :
-    #(univ.filter fun A : Fin m → Fin m => #(univ.filter fun i : Fin m => A i = j) = k) =
-      m.choose k * (m - 1) ^ (m - k) := by
+/-- Exact count of assignments `Fin n → Fin B` sending exactly `d` balls to bin `j`. -/
+private theorem card_filter_binLoad_eq (n B d : ℕ) (j : Fin B) :
+    #(univ.filter fun A : Fin n → Fin B => #(univ.filter fun i : Fin n => A i = j) = d) =
+      n.choose d * (B - 1) ^ (n - d) := by
   classical
-  let fibre (S : Finset (Fin m)) : Finset (Fin m → Fin m) :=
+  let fibre (S : Finset (Fin n)) : Finset (Fin n → Fin B) :=
     univ.filter fun A => (univ.filter fun i => A i = j) = S
   have hpart :
-      (univ.filter fun A : Fin m → Fin m => #(univ.filter fun i : Fin m => A i = j) = k) =
-        (univ.powersetCard k).biUnion fibre := by
+      (univ.filter fun A : Fin n → Fin B => #(univ.filter fun i : Fin n => A i = j) = d) =
+        (univ.powersetCard d).biUnion fibre := by
     ext A
     simp only [mem_filter, mem_univ, true_and, mem_biUnion, mem_powersetCard, subset_univ,
       fibre]
-    exact ⟨fun h => ⟨_, h, rfl⟩, fun ⟨S, hSk, hAS⟩ => hAS ▸ hSk⟩
+    exact ⟨fun h => ⟨_, h, rfl⟩, fun ⟨S, hSd, hAS⟩ => hAS ▸ hSd⟩
   have hdisj :
       Set.PairwiseDisjoint
-        ((univ.powersetCard k : Finset (Finset (Fin m))) : Set (Finset (Fin m))) fibre := by
+        ((univ.powersetCard d : Finset (Finset (Fin n))) : Set (Finset (Fin n))) fibre := by
     intro S₁ _ S₂ _ hne
     dsimp only [Function.onFun]
     rw [Finset.disjoint_left]
@@ -184,11 +186,11 @@ private theorem card_filter_binLoad_eq (m k : ℕ) (j : Fin m) :
     simp only [fibre, mem_filter, mem_univ, true_and] at h1 h2
     exact hne (h1.symm.trans h2)
   rw [hpart, card_biUnion hdisj]
-  have hfib_card : ∀ S ∈ univ.powersetCard k, #(fibre S) = (m - 1) ^ (m - k) := by
+  have hfib_card : ∀ S ∈ univ.powersetCard d, #(fibre S) = (B - 1) ^ (n - d) := by
     intro S hS
-    have hSk : #S = k := (mem_powersetCard.mp hS).2
-    let e : {A : Fin m → Fin m // A ∈ fibre S} ≃
-        ({i : Fin m // i ∉ S} → {x : Fin m // x ≠ j}) :=
+    have hSd : #S = d := (mem_powersetCard.mp hS).2
+    let e : {A : Fin n → Fin B // A ∈ fibre S} ≃
+        ({i : Fin n // i ∉ S} → {x : Fin B // x ≠ j}) :=
       { toFun := fun ⟨A, hA⟩ ⟨i, hi⟩ =>
           ⟨A i, fun hij => hi <| by
             have hA' : (univ.filter fun r => A r = j) = S := (mem_filter.mp hA).2
@@ -218,40 +220,40 @@ private theorem card_filter_binLoad_eq (m k : ℕ) (j : Fin m) :
           apply Subtype.ext
           dsimp only
           simp only [dite_eq_right hi] }
-    have hcard_dom : Fintype.card {i : Fin m // i ∉ S} = m - k := by
-      rw [Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_coe, hSk]
-    have hcard_cod : Fintype.card {x : Fin m // x ≠ j} = m - 1 := by
-      have heq : (univ.filter fun x : Fin m => x ≠ j) = univ.erase j := by
+    have hcard_dom : Fintype.card {i : Fin n // i ∉ S} = n - d := by
+      rw [Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_coe, hSd]
+    have hcard_cod : Fintype.card {x : Fin B // x ≠ j} = B - 1 := by
+      have heq : (univ.filter fun x : Fin B => x ≠ j) = univ.erase j := by
         ext x
         simp [mem_erase]
       rw [Fintype.card_subtype, heq, card_erase_of_mem (mem_univ j), card_univ, Fintype.card_fin]
-    calc #(fibre S) = Fintype.card {A : Fin m → Fin m // A ∈ fibre S} :=
+    calc #(fibre S) = Fintype.card {A : Fin n → Fin B // A ∈ fibre S} :=
           (Fintype.card_coe (fibre S)).symm
-      _ = Fintype.card ({i : Fin m // i ∉ S} → {x : Fin m // x ≠ j}) := Fintype.card_congr e
-      _ = (Fintype.card {x : Fin m // x ≠ j}) ^ (Fintype.card {i : Fin m // i ∉ S}) :=
+      _ = Fintype.card ({i : Fin n // i ∉ S} → {x : Fin B // x ≠ j}) := Fintype.card_congr e
+      _ = (Fintype.card {x : Fin B // x ≠ j}) ^ (Fintype.card {i : Fin n // i ∉ S}) :=
           Fintype.card_fun
-      _ = (m - 1) ^ (m - k) := by rw [hcard_dom, hcard_cod]
+      _ = (B - 1) ^ (n - d) := by rw [hcard_dom, hcard_cod]
   rw [sum_congr rfl hfib_card, sum_const, card_powersetCard, card_univ, Fintype.card_fin,
     smul_eq_mul]
 
-/-- Exact count of assignments `Fin m → Fin m` sending `k` balls to `j₁` and `k` balls to `j₂`
+/-- Exact count of assignments `Fin n → Fin B` sending `d` balls to `j₁` and `d` balls to `j₂`
 (`j₁ ≠ j₂`). -/
-private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne : j₁ ≠ j₂) :
-    #(univ.filter fun A : Fin m → Fin m =>
-        #(univ.filter fun i : Fin m => A i = j₁) = k ∧
-        #(univ.filter fun i : Fin m => A i = j₂) = k) =
-      m.choose k * (m - k).choose k * (m - 2) ^ (m - 2 * k) := by
+private theorem card_filter_binLoad_pair_eq (n B d : ℕ) {j₁ j₂ : Fin B} (hne : j₁ ≠ j₂) :
+    #(univ.filter fun A : Fin n → Fin B =>
+        #(univ.filter fun i : Fin n => A i = j₁) = d ∧
+        #(univ.filter fun i : Fin n => A i = j₂) = d) =
+      n.choose d * (n - d).choose d * (B - 2) ^ (n - 2 * d) := by
   classical
-  let pairs : Finset (Finset (Fin m) × Finset (Fin m)) :=
-    (univ.powersetCard k).biUnion fun S₁ =>
-      ((univ \ S₁).powersetCard k).image fun S₂ => (S₁, S₂)
-  let fibre (P : Finset (Fin m) × Finset (Fin m)) : Finset (Fin m → Fin m) :=
+  let pairs : Finset (Finset (Fin n) × Finset (Fin n)) :=
+    (univ.powersetCard d).biUnion fun S₁ =>
+      ((univ \ S₁).powersetCard d).image fun S₂ => (S₁, S₂)
+  let fibre (P : Finset (Fin n) × Finset (Fin n)) : Finset (Fin n → Fin B) :=
     univ.filter fun A =>
       (univ.filter fun i => A i = j₁) = P.1 ∧ (univ.filter fun i => A i = j₂) = P.2
   have hpart :
-      (univ.filter fun A : Fin m → Fin m =>
-          #(univ.filter fun i : Fin m => A i = j₁) = k ∧
-          #(univ.filter fun i : Fin m => A i = j₂) = k) =
+      (univ.filter fun A : Fin n → Fin B =>
+          #(univ.filter fun i : Fin n => A i = j₁) = d ∧
+          #(univ.filter fun i : Fin n => A i = j₂) = d) =
         pairs.biUnion fibre := by
     ext A
     simp only [mem_filter, mem_univ, true_and, mem_biUnion, pairs, mem_image, mem_powersetCard,
@@ -269,7 +271,7 @@ private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne
       have h2 : S₂' = S₂ := congrArg Prod.snd hpair
       rw [hA1, hA2, ← h1, ← h2]
       exact ⟨hS₁', hS₂'⟩
-  have hdisj : Set.PairwiseDisjoint (pairs : Set (Finset (Fin m) × Finset (Fin m))) fibre := by
+  have hdisj : Set.PairwiseDisjoint (pairs : Set (Finset (Fin n) × Finset (Fin n))) fibre := by
     intro P₁ _ P₂ _ hPne
     dsimp only [Function.onFun]
     rw [Finset.disjoint_left]
@@ -277,7 +279,7 @@ private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne
     simp only [fibre, mem_filter, mem_univ, true_and] at h1 h2
     exact hPne (Prod.ext (h1.1.symm.trans h2.1) (h1.2.symm.trans h2.2))
   rw [hpart, card_biUnion hdisj]
-  have hfib_card : ∀ P ∈ pairs, #(fibre P) = (m - 2) ^ (m - 2 * k) := by
+  have hfib_card : ∀ P ∈ pairs, #(fibre P) = (B - 2) ^ (n - 2 * d) := by
     intro ⟨S₁, S₂⟩ hP
     simp only [pairs, mem_biUnion, mem_powersetCard, subset_univ, true_and, mem_image,
       Prod.mk.injEq] at hP
@@ -286,8 +288,8 @@ private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne
       rw [Finset.disjoint_left]
       intro i hi1 hi2
       exact (mem_sdiff.mp (hsub hi2)).2 hi1
-    let e : {A : Fin m → Fin m // A ∈ fibre (S₁', S₂')} ≃
-        ({i : Fin m // i ∉ S₁' ∪ S₂'} → {x : Fin m // x ≠ j₁ ∧ x ≠ j₂}) :=
+    let e : {A : Fin n → Fin B // A ∈ fibre (S₁', S₂')} ≃
+        ({i : Fin n // i ∉ S₁' ∪ S₂'} → {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) :=
       { toFun := fun ⟨A, hA⟩ ⟨i, hi⟩ =>
           ⟨A i, by
             obtain ⟨hA1, hA2⟩ := (mem_filter.mp hA).2
@@ -342,29 +344,29 @@ private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne
           dsimp only
           have hnot : i ∉ S₁' ∧ i ∉ S₂' := by simpa [mem_union] using hi
           simp only [dite_eq_right hnot.1, dite_eq_right hnot.2] }
-    have hcard_union : #(S₁' ∪ S₂') = 2 * k := by
+    have hcard_union : #(S₁' ∪ S₂') = 2 * d := by
       rw [card_union_of_disjoint hdisjS, hS₁', hS₂']
       ring
-    have hcard_dom : Fintype.card {i : Fin m // i ∉ S₁' ∪ S₂'} = m - 2 * k := by
+    have hcard_dom : Fintype.card {i : Fin n // i ∉ S₁' ∪ S₂'} = n - 2 * d := by
       rw [Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_coe, hcard_union]
-    have hcard_cod : Fintype.card {x : Fin m // x ≠ j₁ ∧ x ≠ j₂} = m - 2 := by
-      have heq : (univ.filter fun x : Fin m => x ≠ j₁ ∧ x ≠ j₂) = univ \ {j₁, j₂} := by
+    have hcard_cod : Fintype.card {x : Fin B // x ≠ j₁ ∧ x ≠ j₂} = B - 2 := by
+      have heq : (univ.filter fun x : Fin B => x ≠ j₁ ∧ x ≠ j₂) = univ \ {j₁, j₂} := by
         ext x
         simp [mem_sdiff, mem_insert, mem_singleton, not_or]
       rw [Fintype.card_subtype, heq, card_sdiff_of_subset (subset_univ _), card_univ,
         Fintype.card_fin, card_pair hne]
-    calc #(fibre (S₁', S₂')) = Fintype.card {A : Fin m → Fin m // A ∈ fibre (S₁', S₂')} :=
+    calc #(fibre (S₁', S₂')) = Fintype.card {A : Fin n → Fin B // A ∈ fibre (S₁', S₂')} :=
           (Fintype.card_coe _).symm
-      _ = Fintype.card ({i : Fin m // i ∉ S₁' ∪ S₂'} → {x : Fin m // x ≠ j₁ ∧ x ≠ j₂}) :=
+      _ = Fintype.card ({i : Fin n // i ∉ S₁' ∪ S₂'} → {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) :=
           Fintype.card_congr e
-      _ = (Fintype.card {x : Fin m // x ≠ j₁ ∧ x ≠ j₂}) ^
-            (Fintype.card {i : Fin m // i ∉ S₁' ∪ S₂'}) := Fintype.card_fun
-      _ = (m - 2) ^ (m - 2 * k) := by rw [hcard_dom, hcard_cod]
-  have hcard_pairs : #pairs = m.choose k * (m - k).choose k := by
+      _ = (Fintype.card {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) ^
+            (Fintype.card {i : Fin n // i ∉ S₁' ∪ S₂'}) := Fintype.card_fun
+      _ = (B - 2) ^ (n - 2 * d) := by rw [hcard_dom, hcard_cod]
+  have hcard_pairs : #pairs = n.choose d * (n - d).choose d := by
     have hdisjP :
         Set.PairwiseDisjoint
-          ((univ.powersetCard k : Finset (Finset (Fin m))) : Set (Finset (Fin m)))
-          (fun S₁ => ((univ \ S₁).powersetCard k).image fun S₂ => (S₁, S₂)) := by
+          ((univ.powersetCard d : Finset (Finset (Fin n))) : Set (Finset (Fin n)))
+          (fun S₁ => ((univ \ S₁).powersetCard d).image fun S₂ => (S₁, S₂)) := by
       intro S₁ _ S₁' _ hneS
       dsimp only [Function.onFun]
       rw [Finset.disjoint_left]
@@ -375,8 +377,8 @@ private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne
       exact hneS (congrArg Prod.fst hEq).symm
     dsimp only [pairs]
     rw [card_biUnion hdisjP]
-    have hinner : ∀ S₁ ∈ (univ : Finset (Fin m)).powersetCard k,
-        #(((univ \ S₁).powersetCard k).image fun S₂ => (S₁, S₂)) = (m - k).choose k := by
+    have hinner : ∀ S₁ ∈ (univ : Finset (Fin n)).powersetCard d,
+        #(((univ \ S₁).powersetCard d).image fun S₂ => (S₁, S₂)) = (n - d).choose d := by
       intro S₁ hS₁
       rw [card_image_of_injective _ (fun _ _ h => congrArg Prod.snd h), card_powersetCard,
         card_sdiff_of_subset (subset_univ S₁), card_univ, Fintype.card_fin,
@@ -385,229 +387,236 @@ private theorem card_filter_binLoad_pair_eq (m k : ℕ) {j₁ j₂ : Fin m} (hne
       smul_eq_mul]
   rw [sum_congr rfl hfib_card, sum_const, smul_eq_mul, hcard_pairs]
 
-/-- Negative correlation of exact-load events for two distinct bins: for `2 ≤ k` and `2 * k ≤ m`,
-`Pr[L_{j₁} = k ∧ L_{j₂} = k] ≤ Pr[L_j = k] ^ 2`. -/
-private theorem pair_prob_le_sq_single_prob {m k : ℕ} (hk : 2 ≤ k) (h2k : 2 * k ≤ m) :
-    ((m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k)) /
-        (m : ℝ) ^ m ≤
-      (((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (m - k)) / (m : ℝ) ^ m) ^ 2 := by
-  have hm4 : 4 ≤ m := by omega
-  have hm_pos : (0 : ℝ) < (m : ℝ) := by exact_mod_cast (by omega : 0 < m)
-  have hm1_pos : (0 : ℝ) < (m : ℝ) - 1 := by
-    have : (4 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm4
-    linarith
-  have hm2_nn : (0 : ℝ) ≤ (m : ℝ) - 2 := by
-    have : (4 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm4
-    linarith
-  -- Step 1: `(m - 2) * m ≤ (m - 1) ^ 2` gives `(m - 2)^(m - 2k) * m^(m - 2k) ≤ (m - 1)^(2m - 4k)`.
-  have hquad : ((m - 2 : ℕ) : ℝ) * (m : ℝ) ≤ ((m - 1 : ℕ) : ℝ) ^ 2 := by
-    rw [Nat.cast_sub (by omega : 2 ≤ m), Nat.cast_sub (by omega : 1 ≤ m)]
+/-- Negative correlation of exact-load events for two distinct bins when `n = a * B` balls are
+thrown uniformly into `B ≥ 2` bins, with `2 * a ≤ d` and `2 * d ≤ n`:
+`Pr[L_{j₁} = d ∧ L_{j₂} = d] ≤ Pr[L_j = d] ^ 2`. -/
+private theorem pair_prob_le_sq_single_prob {n a B d : ℕ} (hn : n = a * B)
+    (hB : 2 ≤ B) (hd : 2 * a ≤ d) (h2d : 2 * d ≤ n) :
+    ((n.choose d : ℝ) * ((n - d).choose d : ℝ) * ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d)) /
+        (B : ℝ) ^ n ≤
+      (((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (n - d)) / (B : ℝ) ^ n) ^ 2 := by
+  have hB_pos : (0 : ℝ) < (B : ℝ) := by exact_mod_cast (by omega : 0 < B)
+  -- Step 1: `(B - 2) * B ≤ (B - 1) ^ 2`.
+  have hquad : ((B - 2 : ℕ) : ℝ) * (B : ℝ) ≤ ((B - 1 : ℕ) : ℝ) ^ 2 := by
+    rw [Nat.cast_sub hB, Nat.cast_sub (by omega : 1 ≤ B)]
     push_cast
     nlinarith
-  have hpow1 : (((m - 2 : ℕ) : ℝ) * (m : ℝ)) ^ (m - 2 * k) ≤
-      (((m - 1 : ℕ) : ℝ) ^ 2) ^ (m - 2 * k) :=
-    pow_le_pow_left₀ (by positivity) hquad (m - 2 * k)
-  -- Step 2: `C(m - k, k) * m^(2k) ≤ C(m, k) * (m - 1)^(2k)`.
-  have hchoose : ((m - k).choose k : ℝ) * (m : ℝ) ^ (2 * k) ≤
-      (m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (2 * k) := by
-    have hfac_pos : (0 : ℝ) < (k.factorial : ℝ) := Nat.cast_pos.mpr (Nat.factorial_pos k)
-    suffices hdesc : ((m - k).descFactorial k : ℝ) * (m : ℝ) ^ (2 * k) ≤
-        (m.descFactorial k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (2 * k) by
-      have h1 : (k.factorial : ℝ) * ((m - k).choose k : ℝ) = ((m - k).descFactorial k : ℝ) := by
-        exact_mod_cast (Nat.descFactorial_eq_factorial_mul_choose (m - k) k).symm
-      have h2 : (k.factorial : ℝ) * (m.choose k : ℝ) = (m.descFactorial k : ℝ) := by
-        exact_mod_cast (Nat.descFactorial_eq_factorial_mul_choose m k).symm
+  have hpow1 : (((B - 2 : ℕ) : ℝ) * (B : ℝ)) ^ (n - 2 * d) ≤
+      (((B - 1 : ℕ) : ℝ) ^ 2) ^ (n - 2 * d) :=
+    pow_le_pow_left₀ (by positivity) hquad (n - 2 * d)
+  -- Step 2: `C(n - d, d) * B^(2d) ≤ C(n, d) * (B - 1)^(2d)`.
+  have hchoose : ((n - d).choose d : ℝ) * (B : ℝ) ^ (2 * d) ≤
+      (n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (2 * d) := by
+    have hfac_pos : (0 : ℝ) < (d.factorial : ℝ) := Nat.cast_pos.mpr (Nat.factorial_pos d)
+    suffices hdesc : ((n - d).descFactorial d : ℝ) * (B : ℝ) ^ (2 * d) ≤
+        (n.descFactorial d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (2 * d) by
+      have h1 : (d.factorial : ℝ) * ((n - d).choose d : ℝ) = ((n - d).descFactorial d : ℝ) := by
+        exact_mod_cast (Nat.descFactorial_eq_factorial_mul_choose (n - d) d).symm
+      have h2 : (d.factorial : ℝ) * (n.choose d : ℝ) = (n.descFactorial d : ℝ) := by
+        exact_mod_cast (Nat.descFactorial_eq_factorial_mul_choose n d).symm
       rw [← h1, ← h2] at hdesc
       exact le_of_mul_le_mul_left (by linarith :
-        (k.factorial : ℝ) * (((m - k).choose k : ℝ) * (m : ℝ) ^ (2 * k)) ≤
-        (k.factorial : ℝ) * ((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (2 * k))) hfac_pos
+        (d.factorial : ℝ) * (((n - d).choose d : ℝ) * (B : ℝ) ^ (2 * d)) ≤
+        (d.factorial : ℝ) * ((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (2 * d))) hfac_pos
     rw [Nat.descFactorial_eq_prod_range, Nat.descFactorial_eq_prod_range, Nat.cast_prod,
       Nat.cast_prod]
-    have hpow_m : (m : ℝ) ^ (2 * k) = ∏ _i ∈ range k, ((m : ℝ) ^ 2) := by
+    have hpow_B : (B : ℝ) ^ (2 * d) = ∏ _i ∈ range d, ((B : ℝ) ^ 2) := by
       rw [prod_const, card_range, ← pow_mul]
-    have hpow_m1 : ((m - 1 : ℕ) : ℝ) ^ (2 * k) = ∏ _i ∈ range k, (((m - 1 : ℕ) : ℝ) ^ 2) := by
+    have hpow_B1 : ((B - 1 : ℕ) : ℝ) ^ (2 * d) = ∏ _i ∈ range d, (((B - 1 : ℕ) : ℝ) ^ 2) := by
       rw [prod_const, card_range, ← pow_mul]
-    rw [hpow_m, hpow_m1, ← prod_mul_distrib, ← prod_mul_distrib]
+    rw [hpow_B, hpow_B1, ← prod_mul_distrib, ← prod_mul_distrib]
     refine Finset.prod_le_prod₀ (fun i _ => by positivity) fun i hi => ?_
     rw [mem_range] at hi
-    rw [Nat.cast_sub (by omega : i ≤ m - k), Nat.cast_sub (by omega : k ≤ m),
-      Nat.cast_sub (by omega : i ≤ m), Nat.cast_sub (by omega : 1 ≤ m)]
+    rw [Nat.cast_sub (by omega : i ≤ n - d), Nat.cast_sub (by omega : d ≤ n),
+      Nat.cast_sub (by omega : i ≤ n), Nat.cast_sub (by omega : 1 ≤ B)]
     push_cast
-    have hk_r : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
+    have h2a_r : (2 : ℝ) * (a : ℝ) ≤ (d : ℝ) := by exact_mod_cast hd
+    have hn_r : (n : ℝ) = (a : ℝ) * (B : ℝ) := by exact_mod_cast hn
+    have hB_r : (2 : ℝ) ≤ (B : ℝ) := by exact_mod_cast hB
     have hi_nn : (0 : ℝ) ≤ (i : ℝ) := Nat.cast_nonneg i
-    have hi_le : (i : ℝ) ≤ (m : ℝ) := by exact_mod_cast (by omega : i ≤ m)
-    -- Show `(m - k - i) * m^2 ≤ (m - i) * (m - 1)^2`:
-    -- RHS - LHS = (k - 2) * m^2 + (m + 2i) * m - i ≥ 0 since `k ≥ 2` and `i ≤ m`.
+    -- RHS - LHS = (d - 2a) * B^2 + n + i * (2B - 1) ≥ 0.
     nlinarith
   -- Combine Step 1 and Step 2.
-  have hexp_m : m - 2 * k + 2 * k = m := by omega
-  have hexp_m1 : 2 * (m - 2 * k) + 2 * k = 2 * (m - k) := by omega
+  have hexp_n : n - 2 * d + 2 * d = n := by omega
+  have hexp_B1 : 2 * (n - 2 * d) + 2 * d = 2 * (n - d) := by omega
   have hnum :
-      (m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) * (m : ℝ) ^ m ≤
-      (m.choose k : ℝ) ^ 2 * ((m - 1 : ℕ) : ℝ) ^ (2 * (m - k)) := by
-    have h1 : ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) * (m : ℝ) ^ (m - 2 * k) ≤
-        ((m - 1 : ℕ) : ℝ) ^ (2 * (m - 2 * k)) := by
+      (n.choose d : ℝ) * ((n - d).choose d : ℝ) * ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) * (B : ℝ) ^ n ≤
+      (n.choose d : ℝ) ^ 2 * ((B - 1 : ℕ) : ℝ) ^ (2 * (n - d)) := by
+    have h1 : ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) * (B : ℝ) ^ (n - 2 * d) ≤
+        ((B - 1 : ℕ) : ℝ) ^ (2 * (n - 2 * d)) := by
       simpa only [mul_pow, ← pow_mul] using hpow1
     have hprod :
-        (((m - k).choose k : ℝ) * (m : ℝ) ^ (2 * k)) *
-          (((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) * (m : ℝ) ^ (m - 2 * k)) ≤
-        ((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (2 * k)) *
-          ((m - 1 : ℕ) : ℝ) ^ (2 * (m - 2 * k)) :=
+        (((n - d).choose d : ℝ) * (B : ℝ) ^ (2 * d)) *
+          (((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) * (B : ℝ) ^ (n - 2 * d)) ≤
+        ((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (2 * d)) *
+          ((B - 1 : ℕ) : ℝ) ^ (2 * (n - 2 * d)) :=
       mul_le_mul hchoose h1 (by positivity) (by positivity)
     have hlhs :
-        (m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) *
-          (m : ℝ) ^ m =
-        (m.choose k : ℝ) *
-          ((((m - k).choose k : ℝ) * (m : ℝ) ^ (2 * k)) *
-            (((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) * (m : ℝ) ^ (m - 2 * k))) := by
-      have hm_split : (m : ℝ) ^ m = (m : ℝ) ^ (2 * k) * (m : ℝ) ^ (m - 2 * k) := by
-        rw [← pow_add, add_comm, hexp_m]
-      rw [hm_split]
+        (n.choose d : ℝ) * ((n - d).choose d : ℝ) * ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) *
+          (B : ℝ) ^ n =
+        (n.choose d : ℝ) *
+          ((((n - d).choose d : ℝ) * (B : ℝ) ^ (2 * d)) *
+            (((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) * (B : ℝ) ^ (n - 2 * d))) := by
+      have hB_split : (B : ℝ) ^ n = (B : ℝ) ^ (2 * d) * (B : ℝ) ^ (n - 2 * d) := by
+        rw [← pow_add, add_comm, hexp_n]
+      rw [hB_split]
       ring
     have hrhs :
-        (m.choose k : ℝ) ^ 2 * ((m - 1 : ℕ) : ℝ) ^ (2 * (m - k)) =
-        (m.choose k : ℝ) *
-          (((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (2 * k)) *
-            ((m - 1 : ℕ) : ℝ) ^ (2 * (m - 2 * k))) := by
-      have hm1_split : ((m - 1 : ℕ) : ℝ) ^ (2 * (m - k)) =
-          ((m - 1 : ℕ) : ℝ) ^ (2 * k) * ((m - 1 : ℕ) : ℝ) ^ (2 * (m - 2 * k)) := by
-        rw [← pow_add, add_comm, hexp_m1]
-      rw [hm1_split]
+        (n.choose d : ℝ) ^ 2 * ((B - 1 : ℕ) : ℝ) ^ (2 * (n - d)) =
+        (n.choose d : ℝ) *
+          (((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (2 * d)) *
+            ((B - 1 : ℕ) : ℝ) ^ (2 * (n - 2 * d))) := by
+      have hB1_split : ((B - 1 : ℕ) : ℝ) ^ (2 * (n - d)) =
+          ((B - 1 : ℕ) : ℝ) ^ (2 * d) * ((B - 1 : ℕ) : ℝ) ^ (2 * (n - 2 * d)) := by
+        rw [← pow_add, add_comm, hexp_B1]
+      rw [hB1_split]
       ring
     rw [hlhs, hrhs]
     exact mul_le_mul_of_nonneg_left hprod (Nat.cast_nonneg _)
-  rw [div_pow, mul_pow, ← pow_mul, mul_comm (m - k) 2]
-  rw [div_le_div_iff₀ (pow_pos hm_pos m) (pow_pos (pow_pos hm_pos m) 2)]
+  rw [div_pow, mul_pow, ← pow_mul, mul_comm (n - d) 2]
+  rw [div_le_div_iff₀ (pow_pos hB_pos n) (pow_pos (pow_pos hB_pos n) 2)]
   have hcancel :
-      (m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) *
-        ((m : ℝ) ^ m) ^ 2 =
-      ((m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k) *
-        (m : ℝ) ^ m) * (m : ℝ) ^ m := by ring
+      (n.choose d : ℝ) * ((n - d).choose d : ℝ) * ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) *
+        ((B : ℝ) ^ n) ^ 2 =
+      ((n.choose d : ℝ) * ((n - d).choose d : ℝ) * ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d) *
+        (B : ℝ) ^ n) * (B : ℝ) ^ n := by ring
   rw [hcancel]
   exact mul_le_mul_of_nonneg_right hnum (by positivity)
 
-/-- Lower bound on `m * p_k`: when `2 ≤ k` and `3 * 2 ^ k * k! ≤ m`, the expected number of bins
-receiving exact load `k` is at least `1`. -/
-private theorem one_le_expected_count_exact {m k : ℕ} (hk : 2 ≤ k)
-    (hm : 3 * 2 ^ k * k.factorial ≤ m) :
-    1 ≤ (m : ℝ) * (((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (m - k)) / (m : ℝ) ^ m) := by
-  have h2k : 2 * k ≤ m := by
-    have h1 : 2 * k ≤ 2 ^ k * k.factorial := by
-      have hk_le : k ≤ 2 ^ k := Nat.lt_two_pow_self.le
-      have hfac : 2 ≤ k.factorial := by
-        have := Nat.factorial_le hk
-        norm_num [Nat.factorial] at this
-        exact this
-      nlinarith
-    have h3 : 2 ^ k * k.factorial ≤ 3 * 2 ^ k * k.factorial := by nlinarith
-    omega
-  have hm_pos : (0 : ℝ) < (m : ℝ) := by exact_mod_cast (by omega : 0 < m)
-  -- `(m - 1)^(m - k) / m^(m - k) = (1 - m⁻¹)^(m - k) ≥ e⁻¹ > 1 / 3`.
-  have hpow_ge : (1 / 3 : ℝ) ≤ (((m - 1 : ℕ) : ℝ) / (m : ℝ)) ^ (m - k) := by
-    have hdiv_eq : ((m - 1 : ℕ) : ℝ) / (m : ℝ) = 1 - (m : ℝ)⁻¹ := by
-      rw [Nat.cast_sub (by omega : 1 ≤ m), Nat.cast_one, sub_div, div_self hm_pos.ne', one_div]
+/-- Lower bound on `B * p_d` for `n = a * B` balls thrown uniformly into `B ≥ 2` bins: whenever
+`1 ≤ a`, `2 * a ≤ d`, `2 * d ≤ n`, and `3 ^ a * 2 ^ d * d! ≤ B * a ^ d`, the expected number of
+bins receiving exact load `d` is at least `1`. -/
+private theorem one_le_expected_count_exact {n a B d : ℕ} (hn : n = a * B)
+    (ha : 1 ≤ a) (hB : 2 ≤ B) (hd : 2 * a ≤ d) (h2d : 2 * d ≤ n)
+    (hcond : 3 ^ a * 2 ^ d * d.factorial ≤ B * a ^ d) :
+    1 ≤ (B : ℝ) * (((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (n - d)) / (B : ℝ) ^ n) := by
+  have hB_pos : (0 : ℝ) < (B : ℝ) := by exact_mod_cast (by omega : 0 < B)
+  have ha_pos : (0 : ℝ) < (a : ℝ) := by exact_mod_cast (by omega : 0 < a)
+  have hn_pos : (0 : ℝ) < (n : ℝ) := by
+    have : 0 < n := by rw [hn]; exact Nat.mul_pos (by omega) (by omega)
+    exact_mod_cast this
+  -- `((B - 1) / B)^(n - d) ≥ ((B - 1) / B)^(a * (B - 1)) = ((1 - B⁻¹)^(B - 1))^a ≥ (1 / 3)^a`.
+  have hpow_ge : (1 / 3 : ℝ) ^ a ≤ (((B - 1 : ℕ) : ℝ) / (B : ℝ)) ^ (n - d) := by
+    have hdiv_eq : ((B - 1 : ℕ) : ℝ) / (B : ℝ) = 1 - (B : ℝ)⁻¹ := by
+      rw [Nat.cast_sub (by omega : 1 ≤ B), Nat.cast_one, sub_div, div_self hB_pos.ne', one_div]
     rw [hdiv_eq]
-    have ha : ((m - k : ℕ) : ℝ) + 1 ≤ (m : ℝ) := by
-      exact_mod_cast (by omega : m - k + 1 ≤ m)
-    have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
-    have heinv : (1 / 3 : ℝ) ≤ Real.exp (-1) := by
-      rw [Real.exp_neg, one_div]
-      exact inv_anti₀ (Real.exp_pos 1) hexp1.le
-    exact heinv.trans (Real.exp_neg_one_le_one_sub_inv_pow ha)
-  -- `(m)_k / m^k ≥ (1 / 2)^k`, since each factor `(m - i) / m ≥ 1 / 2` for `i < k ≤ m / 2`.
-  have hdesc_ge : (1 / 2 : ℝ) ^ k ≤ (m.descFactorial k : ℝ) / (m : ℝ) ^ k := by
+    have hbase_nn : 0 ≤ 1 - (B : ℝ)⁻¹ := by
+      rw [sub_nonneg, inv_le_one_iff₀]
+      right
+      exact_mod_cast (by omega : 1 ≤ B)
+    have hbase_le1 : 1 - (B : ℝ)⁻¹ ≤ 1 := by
+      have : 0 ≤ (B : ℝ)⁻¹ := inv_nonneg.mpr hB_pos.le
+      linarith
+    have hexp_le : n - d ≤ a * (B - 1) := by
+      have hmul : a * B = a * (B - 1) + a := by
+        cases B with
+        | zero => omega
+        | succ B' => simp [Nat.mul_succ]
+      omega
+    have hmono : (1 - (B : ℝ)⁻¹) ^ (a * (B - 1)) ≤ (1 - (B : ℝ)⁻¹) ^ (n - d) :=
+      pow_le_pow_of_le_one hbase_nn hbase_le1 hexp_le
+    have hstep : (1 / 3 : ℝ) ≤ (1 - (B : ℝ)⁻¹) ^ (B - 1) := by
+      have hB1 : ((B - 1 : ℕ) : ℝ) + 1 ≤ (B : ℝ) := by
+        exact_mod_cast (by omega : B - 1 + 1 ≤ B)
+      have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
+      have heinv : (1 / 3 : ℝ) ≤ Real.exp (-1) := by
+        rw [Real.exp_neg, one_div]
+        exact inv_anti₀ (Real.exp_pos 1) hexp1.le
+      exact heinv.trans (Real.exp_neg_one_le_one_sub_inv_pow hB1)
+    calc (1 / 3 : ℝ) ^ a
+        ≤ ((1 - (B : ℝ)⁻¹) ^ (B - 1)) ^ a := pow_le_pow_left₀ (by norm_num) hstep a
+      _ = (1 - (B : ℝ)⁻¹) ^ (a * (B - 1)) := by rw [← pow_mul, mul_comm]
+      _ ≤ (1 - (B : ℝ)⁻¹) ^ (n - d) := hmono
+  -- `(n)_d / n^d ≥ (1 / 2)^d`, since `i < d ≤ n / 2`.
+  have hdesc_ge : (1 / 2 : ℝ) ^ d ≤ (n.descFactorial d : ℝ) / (n : ℝ) ^ d := by
     rw [Nat.descFactorial_eq_prod_range, Nat.cast_prod]
-    have hhalf : (1 / 2 : ℝ) ^ k = ∏ _i ∈ range k, (1 / 2 : ℝ) := by rw [prod_const, card_range]
-    have hpow_m : (m : ℝ) ^ k = ∏ _i ∈ range k, (m : ℝ) := by rw [prod_const, card_range]
-    rw [hhalf, hpow_m, ← Finset.prod_div_distrib]
+    have hhalf : (1 / 2 : ℝ) ^ d = ∏ _i ∈ range d, (1 / 2 : ℝ) := by rw [prod_const, card_range]
+    have hpow_n : (n : ℝ) ^ d = ∏ _i ∈ range d, (n : ℝ) := by rw [prod_const, card_range]
+    rw [hhalf, hpow_n, ← Finset.prod_div_distrib]
     refine Finset.prod_le_prod₀ (fun _ _ => by positivity) fun i hi => ?_
     rw [mem_range] at hi
-    rw [div_le_div_iff₀ (by norm_num) hm_pos, Nat.cast_sub (by omega : i ≤ m)]
-    have h2i : (2 : ℝ) * (i : ℝ) ≤ (m : ℝ) := by exact_mod_cast (by omega : 2 * i ≤ m)
+    rw [div_le_div_iff₀ (by norm_num) hn_pos, Nat.cast_sub (by omega : i ≤ n)]
+    have h2i : (2 : ℝ) * (i : ℝ) ≤ (n : ℝ) := by exact_mod_cast (by omega : 2 * i ≤ n)
     linarith
-  have hchoose_eq : (m.choose k : ℝ) = (m.descFactorial k : ℝ) / (k.factorial : ℝ) := by
-    rw [eq_div_iff (Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero k)), mul_comm]
-    exact_mod_cast (Nat.descFactorial_eq_factorial_mul_choose m k).symm
-  have hm_split : (m : ℝ) ^ m = (m : ℝ) ^ k * (m : ℝ) ^ (m - k) := by
-    rw [← pow_add, Nat.add_sub_of_le (by omega : k ≤ m)]
+  have hchoose_eq : (n.choose d : ℝ) = (n.descFactorial d : ℝ) / (d.factorial : ℝ) := by
+    rw [eq_div_iff (Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero d)), mul_comm]
+    exact_mod_cast (Nat.descFactorial_eq_factorial_mul_choose n d).symm
+  have hB_split : (B : ℝ) ^ n = (B : ℝ) ^ d * (B : ℝ) ^ (n - d) := by
+    rw [← pow_add, Nat.add_sub_of_le (by omega : d ≤ n)]
+  have hn_cast : (n : ℝ) = (a : ℝ) * (B : ℝ) := by exact_mod_cast hn
   have hrew :
-      ((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (m - k)) / (m : ℝ) ^ m =
-        ((m.descFactorial k : ℝ) / (m : ℝ) ^ k) / (k.factorial : ℝ) *
-          (((m - 1 : ℕ) : ℝ) / (m : ℝ)) ^ (m - k) := by
-    rw [hchoose_eq, hm_split, div_pow]
-    field_simp
+      ((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (n - d)) / (B : ℝ) ^ n =
+        ((n.descFactorial d : ℝ) / (n : ℝ) ^ d) * ((a : ℝ) ^ d / (d.factorial : ℝ)) *
+          (((B - 1 : ℕ) : ℝ) / (B : ℝ)) ^ (n - d) := by
+    rw [hchoose_eq, hB_split, div_pow, hn_cast, mul_pow]
+    field_simp [hB_pos.ne', ha_pos.ne', Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero d)]
   rw [hrew]
-  have hfac_pos : (0 : ℝ) < (k.factorial : ℝ) := Nat.cast_pos.mpr (Nat.factorial_pos k)
-  have hm_ge : (3 : ℝ) * (2 : ℝ) ^ k * (k.factorial : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
+  have hfac_pos : (0 : ℝ) < (d.factorial : ℝ) := Nat.cast_pos.mpr (Nat.factorial_pos d)
+  have hcond_r : (3 : ℝ) ^ a * (2 : ℝ) ^ d * (d.factorial : ℝ) ≤ (B : ℝ) * (a : ℝ) ^ d := by
+    exact_mod_cast hcond
   have hprod_ge :
-      (1 / 2 : ℝ) ^ k / (k.factorial : ℝ) * (1 / 3 : ℝ) ≤
-        ((m.descFactorial k : ℝ) / (m : ℝ) ^ k) / (k.factorial : ℝ) *
-          (((m - 1 : ℕ) : ℝ) / (m : ℝ)) ^ (m - k) :=
-    mul_le_mul (div_le_div_of_nonneg_right hdesc_ge hfac_pos.le) hpow_ge (by positivity)
-      (by positivity)
-  have hsimp : (m : ℝ) * ((1 / 2 : ℝ) ^ k / (k.factorial : ℝ) * (1 / 3 : ℝ)) =
-      (m : ℝ) / ((3 : ℝ) * (2 : ℝ) ^ k * (k.factorial : ℝ)) := by
-    rw [one_div_pow]
+      (1 / 2 : ℝ) ^ d * ((a : ℝ) ^ d / (d.factorial : ℝ)) * (1 / 3 : ℝ) ^ a ≤
+        ((n.descFactorial d : ℝ) / (n : ℝ) ^ d) * ((a : ℝ) ^ d / (d.factorial : ℝ)) *
+          (((B - 1 : ℕ) : ℝ) / (B : ℝ)) ^ (n - d) := by
+    refine mul_le_mul (mul_le_mul_of_nonneg_right hdesc_ge (by positivity)) hpow_ge
+      (by positivity) (by positivity)
+  have hsimp :
+      (B : ℝ) * ((1 / 2 : ℝ) ^ d * ((a : ℝ) ^ d / (d.factorial : ℝ)) * (1 / 3 : ℝ) ^ a) =
+        ((B : ℝ) * (a : ℝ) ^ d) / ((3 : ℝ) ^ a * (2 : ℝ) ^ d * (d.factorial : ℝ)) := by
+    rw [one_div_pow, one_div_pow]
     field_simp
-  have hge1 : 1 ≤ (m : ℝ) / ((3 : ℝ) * (2 : ℝ) ^ k * (k.factorial : ℝ)) :=
-    (one_le_div (by positivity)).mpr hm_ge
-  calc (1 : ℝ) ≤ (m : ℝ) * ((1 / 2 : ℝ) ^ k / (k.factorial : ℝ) * (1 / 3 : ℝ)) := by
+  have hge1 : 1 ≤ ((B : ℝ) * (a : ℝ) ^ d) / ((3 : ℝ) ^ a * (2 : ℝ) ^ d * (d.factorial : ℝ)) :=
+    (one_le_div (by positivity)).mpr hcond_r
+  calc (1 : ℝ) ≤ (B : ℝ) * ((1 / 2 : ℝ) ^ d * ((a : ℝ) ^ d / (d.factorial : ℝ)) *
+          (1 / 3 : ℝ) ^ a) := by
         rw [hsimp]; exact hge1
-    _ ≤ (m : ℝ) * (((m.descFactorial k : ℝ) / (m : ℝ) ^ k) / (k.factorial : ℝ) *
-          (((m - 1 : ℕ) : ℝ) / (m : ℝ)) ^ (m - k)) :=
-        mul_le_mul_of_nonneg_left hprod_ge hm_pos.le
+    _ ≤ (B : ℝ) * (((n.descFactorial d : ℝ) / (n : ℝ) ^ d) * ((a : ℝ) ^ d / (d.factorial : ℝ)) *
+          (((B - 1 : ℕ) : ℝ) / (B : ℝ)) ^ (n - d)) :=
+        mul_le_mul_of_nonneg_left hprod_ge hB_pos.le
 
-/-- **Balls-into-bins lower tail** ([Vocking2007], Proposition 20.11; locator not re-verified
-against primary PDF): when `m` balls are thrown uniformly and independently into `m` bins, if
-`2 ≤ k` and `3 * 2 ^ k * k! ≤ m`, then the maximum bin load is at least `k` with probability at
+/-- **General balls-into-bins lower tail for `n = a * B` balls in `B` bins** ([Vocking2007],
+Proposition 20.11; locator not re-verified against primary PDF): when `n = a * B` balls (`a ≥ 1`)
+are thrown independently and uniformly into `B ≥ 2` bins, if `2 * a ≤ d`, `2 * d ≤ n`, and
+`3 ^ a * 2 ^ d * d! ≤ B * a ^ d`, then some bin receives at least `d` balls with probability at
 least `1 / 2`. -/
-theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
-    (hm : 3 * 2 ^ k * k.factorial ≤ m) :
+theorem ballsIntoBins_mul_tail_ge_half {n a B d : ℕ} [NeZero B] (hn : n = a * B)
+    (ha : 1 ≤ a) (hB : 2 ≤ B) (hd : 2 * a ≤ d) (h2d : 2 * d ≤ n)
+    (hcond : 3 ^ a * 2 ^ d * d.factorial ≤ B * a ^ d) :
     (1 / 2 : ℝ) ≤
-      ∑ A : Fin m → Fin m,
-        if (k : ℝ) ≤ (unitIdenticalGame m).makespan A then
-          productWeight (uniformMixedProfile m) A
+      ∑ A : Fin n → Fin B,
+        if ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) then
+          (1 / (B : ℝ)) ^ n
         else 0 := by
-  have hm_pos : (0 : ℝ) < (m : ℝ) := Nat.cast_pos.mpr (NeZero.pos m)
-  have h2k : 2 * k ≤ m := by
-    have hk_le : k ≤ 2 ^ k := Nat.lt_two_pow_self.le
-    have hfac : 2 ≤ k.factorial := by
-      have := Nat.factorial_le hk
-      norm_num [Nat.factorial] at this
-      exact this
-    nlinarith
-  set w : ℝ := (1 / (m : ℝ)) ^ m
+  have hB_pos : (0 : ℝ) < (B : ℝ) := Nat.cast_pos.mpr (NeZero.pos B)
+  set w : ℝ := (1 / (B : ℝ)) ^ n
   have hw_nn : 0 ≤ w := by positivity
-  -- Indicator of `load A j = k` and count `Y A = #{j | load A j = k}`.
-  let ind (A : Fin m → Fin m) (j : Fin m) : ℝ :=
-    if #(univ.filter fun i : Fin m => A i = j) = k then 1 else 0
-  let Y (A : Fin m → Fin m) : ℝ := ∑ j : Fin m, ind A j
-  let good : Finset (Fin m → Fin m) := univ.filter fun A => 0 < Y A
-  set p : ℝ := ((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (m - k)) / (m : ℝ) ^ m
+  let ind (A : Fin n → Fin B) (j : Fin B) : ℝ :=
+    if #(univ.filter fun i : Fin n => A i = j) = d then 1 else 0
+  let Y (A : Fin n → Fin B) : ℝ := ∑ j : Fin B, ind A j
+  let good : Finset (Fin n → Fin B) := univ.filter fun A => 0 < Y A
+  set p : ℝ := ((n.choose d : ℝ) * ((B - 1 : ℕ) : ℝ) ^ (n - d)) / (B : ℝ) ^ n
   set q : ℝ :=
-    ((m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k)) / (m : ℝ) ^ m
-  have hbin : ∀ j : Fin m, ∑ A : Fin m → Fin m, w * ind A j = p := fun j => by
+    ((n.choose d : ℝ) * ((n - d).choose d : ℝ) * ((B - 2 : ℕ) : ℝ) ^ (n - 2 * d)) / (B : ℝ) ^ n
+  have hbin : ∀ j : Fin B, ∑ A : Fin n → Fin B, w * ind A j = p := fun j => by
     simp only [ind, mul_ite, mul_one, mul_zero, ← sum_filter, sum_const, nsmul_eq_mul,
       card_filter_binLoad_eq]
     simp only [w, p, one_div_pow, Nat.cast_mul, Nat.cast_pow]
     ring
-  -- Compute `E[Y] = m * p`.
-  have hEY : ∑ A : Fin m → Fin m, w * Y A = (m : ℝ) * p := by
+  have hEY : ∑ A : Fin n → Fin B, w * Y A = (B : ℝ) * p := by
     simp only [Y, mul_sum]
     rw [sum_comm]
     simp only [hbin, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-  -- Compute `E[Y^2] = m * p + m * (m - 1) * q`.
-  have hEY2 : ∑ A : Fin m → Fin m, w * (Y A) ^ 2 =
-      (m : ℝ) * p + (m : ℝ) * ((m : ℝ) - 1) * q := by
-    have hsq : ∀ A : Fin m → Fin m,
+  have hEY2 : ∑ A : Fin n → Fin B, w * (Y A) ^ 2 =
+      (B : ℝ) * p + (B : ℝ) * ((B : ℝ) - 1) * q := by
+    have hsq : ∀ A : Fin n → Fin B,
         w * (Y A) ^ 2 =
-          (∑ j : Fin m, w * ind A j) +
-          ∑ j₁ : Fin m, ∑ j₂ ∈ univ.erase j₁, w * (ind A j₁ * ind A j₂) := fun A => by
-      have h1 : (Y A) ^ 2 = ∑ j₁ : Fin m, ∑ j₂ : Fin m, ind A j₁ * ind A j₂ := by
+          (∑ j : Fin B, w * ind A j) +
+          ∑ j₁ : Fin B, ∑ j₂ ∈ univ.erase j₁, w * (ind A j₁ * ind A j₂) := fun A => by
+      have h1 : (Y A) ^ 2 = ∑ j₁ : Fin B, ∑ j₂ : Fin B, ind A j₁ * ind A j₂ := by
         simp only [Y, sq, sum_mul_sum]
       rw [h1, mul_sum]
-      have hsplit : ∀ j₁ : Fin m,
-          w * ∑ j₂ : Fin m, ind A j₁ * ind A j₂ =
+      have hsplit : ∀ j₁ : Fin B,
+          w * ∑ j₂ : Fin B, ind A j₁ * ind A j₂ =
             w * ind A j₁ + ∑ j₂ ∈ univ.erase j₁, w * (ind A j₁ * ind A j₂) := fun j₁ => by
         rw [← add_sum_erase _ _ (mem_univ j₁), mul_add, mul_sum]
         congr 1
@@ -619,30 +628,29 @@ theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
     · rw [sum_comm]
       simp only [hbin, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
     · rw [sum_comm]
-      have houter : ∀ j₁ : Fin m,
-          ∑ A : Fin m → Fin m, ∑ j₂ ∈ univ.erase j₁, w * (ind A j₁ * ind A j₂) =
-            ((m : ℝ) - 1) * q := fun j₁ => by
+      have houter : ∀ j₁ : Fin B,
+          ∑ A : Fin n → Fin B, ∑ j₂ ∈ univ.erase j₁, w * (ind A j₁ * ind A j₂) =
+            ((B : ℝ) - 1) * q := fun j₁ => by
         rw [sum_comm]
         have hpair : ∀ j₂ ∈ univ.erase j₁,
-            ∑ A : Fin m → Fin m, w * (ind A j₁ * ind A j₂) = q := fun j₂ hj₂ => by
+            ∑ A : Fin n → Fin B, w * (ind A j₁ * ind A j₂) = q := fun j₂ hj₂ => by
           have hne : j₁ ≠ j₂ := (ne_of_mem_erase hj₂).symm
-          have hind : ∀ A : Fin m → Fin m,
+          have hind : ∀ A : Fin n → Fin B,
               w * (ind A j₁ * ind A j₂) =
-                if #(univ.filter fun i : Fin m => A i = j₁) = k ∧
-                   #(univ.filter fun i : Fin m => A i = j₂) = k then w else 0 := fun A => by
+                if #(univ.filter fun i : Fin n => A i = j₁) = d ∧
+                   #(univ.filter fun i : Fin n => A i = j₂) = d then w else 0 := fun A => by
             simp only [ind]
             split_ifs <;> simp_all
           simp_rw [hind]
-          rw [← sum_filter, sum_const, nsmul_eq_mul, card_filter_binLoad_pair_eq m k hne]
+          rw [← sum_filter, sum_const, nsmul_eq_mul, card_filter_binLoad_pair_eq n B d hne]
           simp only [w, q, one_div_pow, Nat.cast_mul, Nat.cast_pow]
           ring
         rw [sum_congr rfl hpair, sum_const, card_erase_of_mem (mem_univ j₁), card_univ,
-          Fintype.card_fin, nsmul_eq_mul, Nat.cast_sub (NeZero.pos m), Nat.cast_one]
+          Fintype.card_fin, nsmul_eq_mul, Nat.cast_sub (NeZero.pos B), Nat.cast_one]
       simp only [houter, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_assoc]
-  -- Paley–Zygmund via Cauchy–Schwarz: `(E[Y])^2 ≤ E[Y^2] * Pr[Y > 0]`.
   have hY_nn : ∀ A, 0 ≤ Y A := fun A =>
     sum_nonneg fun j _ => by simp only [ind]; split_ifs <;> norm_num
-  have hEY_good : ∑ A ∈ good, w * Y A = ∑ A : Fin m → Fin m, w * Y A := by
+  have hEY_good : ∑ A ∈ good, w * Y A = ∑ A : Fin n → Fin B, w * Y A := by
     refine sum_subset (subset_univ good) fun A _ hA => ?_
     simp only [good, mem_filter, mem_univ, true_and, not_lt] at hA
     have h0 : Y A = 0 := le_antisymm hA (hY_nn A)
@@ -660,69 +668,95 @@ theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
       sum_congr rfl fun A _ => by rw [mul_pow, Real.sq_sqrt hw_nn]
     rw [hlhs, hrhs1, hrhs2] at h1
     exact h1
-  have hEY2_mono : ∑ A ∈ good, w * (Y A) ^ 2 ≤ ∑ A : Fin m → Fin m, w * (Y A) ^ 2 :=
+  have hEY2_mono : ∑ A ∈ good, w * (Y A) ^ 2 ≤ ∑ A : Fin n → Fin B, w * (Y A) ^ 2 :=
     sum_le_univ_sum_of_nonneg fun A => mul_nonneg hw_nn (sq_nonneg _)
-  have hPZ : ((m : ℝ) * p) ^ 2 ≤
-      (∑ A ∈ good, w) * ((m : ℝ) * p + (m : ℝ) * ((m : ℝ) - 1) * q) := by
-    calc ((m : ℝ) * p) ^ 2
+  have hPZ : ((B : ℝ) * p) ^ 2 ≤
+      (∑ A ∈ good, w) * ((B : ℝ) * p + (B : ℝ) * ((B : ℝ) - 1) * q) := by
+    calc ((B : ℝ) * p) ^ 2
         = (∑ A ∈ good, w * Y A) ^ 2 := by rw [hEY_good, hEY]
       _ ≤ (∑ A ∈ good, w) * (∑ A ∈ good, w * (Y A) ^ 2) := hCS
-      _ ≤ (∑ A ∈ good, w) * (∑ A : Fin m → Fin m, w * (Y A) ^ 2) :=
+      _ ≤ (∑ A ∈ good, w) * (∑ A : Fin n → Fin B, w * (Y A) ^ 2) :=
           mul_le_mul_of_nonneg_left hEY2_mono (sum_nonneg fun _ _ => hw_nn)
-      _ = (∑ A ∈ good, w) * ((m : ℝ) * p + (m : ℝ) * ((m : ℝ) - 1) * q) := by rw [hEY2]
-  -- Apply negative correlation `q ≤ p^2` and `1 ≤ m * p`.
-  have hq_le : q ≤ p ^ 2 := pair_prob_le_sq_single_prob hk h2k
-  have hmp_ge1 : 1 ≤ (m : ℝ) * p := one_le_expected_count_exact hk hm
-  have hEY2_le : (m : ℝ) * p + (m : ℝ) * ((m : ℝ) - 1) * q ≤ 2 * ((m : ℝ) * p) ^ 2 := by
-    have hm1_nn : 0 ≤ (m : ℝ) - 1 := by
-      have : (1 : ℝ) ≤ (m : ℝ) := Nat.one_le_cast.mpr (NeZero.pos m)
+      _ = (∑ A ∈ good, w) * ((B : ℝ) * p + (B : ℝ) * ((B : ℝ) - 1) * q) := by rw [hEY2]
+  have hq_le : q ≤ p ^ 2 := pair_prob_le_sq_single_prob hn hB hd h2d
+  have hBp_ge1 : 1 ≤ (B : ℝ) * p := one_le_expected_count_exact hn ha hB hd h2d hcond
+  have hEY2_le : (B : ℝ) * p + (B : ℝ) * ((B : ℝ) - 1) * q ≤ 2 * ((B : ℝ) * p) ^ 2 := by
+    have hB1_nn : 0 ≤ (B : ℝ) - 1 := by
+      have : (1 : ℝ) ≤ (B : ℝ) := Nat.one_le_cast.mpr (NeZero.pos B)
       linarith
-    have hq_term : (m : ℝ) * ((m : ℝ) - 1) * q ≤ ((m : ℝ) * p) ^ 2 := by
-      calc (m : ℝ) * ((m : ℝ) - 1) * q
-          ≤ (m : ℝ) * ((m : ℝ) - 1) * p ^ 2 :=
-            mul_le_mul_of_nonneg_left hq_le (mul_nonneg hm_pos.le hm1_nn)
-        _ ≤ (m : ℝ) * (m : ℝ) * p ^ 2 := by nlinarith [sq_nonneg p]
-        _ = ((m : ℝ) * p) ^ 2 := by ring
+    have hq_term : (B : ℝ) * ((B : ℝ) - 1) * q ≤ ((B : ℝ) * p) ^ 2 := by
+      calc (B : ℝ) * ((B : ℝ) - 1) * q
+          ≤ (B : ℝ) * ((B : ℝ) - 1) * p ^ 2 :=
+            mul_le_mul_of_nonneg_left hq_le (mul_nonneg hB_pos.le hB1_nn)
+        _ ≤ (B : ℝ) * (B : ℝ) * p ^ 2 := by nlinarith [sq_nonneg p]
+        _ = ((B : ℝ) * p) ^ 2 := by ring
     nlinarith
   have hprob_good : (1 / 2 : ℝ) ≤ ∑ A ∈ good, w := by
     have hsum_nn : 0 ≤ ∑ A ∈ good, w := sum_nonneg fun _ _ => hw_nn
-    have hcomb : ((m : ℝ) * p) ^ 2 ≤ (∑ A ∈ good, w) * (2 * ((m : ℝ) * p) ^ 2) :=
+    have hcomb : ((B : ℝ) * p) ^ 2 ≤ (∑ A ∈ good, w) * (2 * ((B : ℝ) * p) ^ 2) :=
       hPZ.trans (mul_le_mul_of_nonneg_left hEY2_le hsum_nn)
-    have hpos_sq : 0 < ((m : ℝ) * p) ^ 2 := by nlinarith
+    have hpos_sq : 0 < ((B : ℝ) * p) ^ 2 := by nlinarith
     nlinarith
-  -- Every `A ∈ good` has some bin of load `k`, so `k ≤ makespan A`.
-  have hgood_sub : ∀ A ∈ good, (k : ℝ) ≤ (unitIdenticalGame m).makespan A := by
+  have hgood_sub : ∀ A ∈ good, ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) := by
     intro A hA
     simp only [good, mem_filter, mem_univ, true_and] at hA
-    have hex : ∃ j : Fin m, 0 < ind A j := by
+    have hex : ∃ j : Fin B, 0 < ind A j := by
       by_contra hall
       push Not at hall
       have h0 : Y A = 0 := sum_eq_zero fun j _ =>
         le_antisymm (hall j) (by simp only [ind]; split_ifs <;> norm_num)
       linarith
     obtain ⟨j, hj⟩ := hex
-    have hload_k : #(univ.filter fun i : Fin m => A i = j) = k := by
+    have hload_d : #(univ.filter fun i : Fin n => A i = j) = d := by
       by_contra hne
       simp only [ind, ite_eq_right hne] at hj
       exact lt_irrefl 0 hj
-    calc (k : ℝ) = (unitIdenticalGame m).load A j := by
-          rw [load_unitIdenticalGame_eq_card, hload_k]
-      _ ≤ (unitIdenticalGame m).makespan A := (unitIdenticalGame m).load_le_makespan A j
+    exact ⟨j, hload_d.ge⟩
   calc (1 / 2 : ℝ) ≤ ∑ A ∈ good, w := hprob_good
     _ = ∑ A ∈ good,
-          if (k : ℝ) ≤ (unitIdenticalGame m).makespan A then
-            productWeight (uniformMixedProfile m) A
-          else 0 := by
+          if ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) then w else 0 := by
         refine sum_congr rfl fun A hA => ?_
-        rw [ite_eq_left (hgood_sub A hA), productWeight_uniformMixedProfile]
-    _ ≤ ∑ A : Fin m → Fin m,
-          if (k : ℝ) ≤ (unitIdenticalGame m).makespan A then
-            productWeight (uniformMixedProfile m) A
-          else 0 := by
+        rw [ite_eq_left (hgood_sub A hA)]
+    _ ≤ ∑ A : Fin n → Fin B,
+          if ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) then w else 0 := by
         refine sum_le_univ_sum_of_nonneg fun A => ?_
         split_ifs
-        · rw [productWeight_uniformMixedProfile]; exact hw_nn
+        · exact hw_nn
         · exact le_rfl
+
+/-- **Balls-into-bins lower tail** ([Vocking2007], Proposition 20.11; locator not re-verified
+against primary PDF): when `m` balls are thrown uniformly and independently into `m` bins, if
+`2 ≤ k` and `3 * 2 ^ k * k! ≤ m`, then the maximum bin load is at least `k` with probability at
+least `1 / 2`. -/
+theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
+    (hm : 3 * 2 ^ k * k.factorial ≤ m) :
+    (1 / 2 : ℝ) ≤
+      ∑ A : Fin m → Fin m,
+        if (k : ℝ) ≤ (unitIdenticalGame m).makespan A then
+          productWeight (uniformMixedProfile m) A
+        else 0 := by
+  have h2k : 2 * k ≤ m := by
+    have hk_le : k ≤ 2 ^ k := Nat.lt_two_pow_self.le
+    have hfac : 2 ≤ k.factorial := by
+      have := Nat.factorial_le hk
+      norm_num [Nat.factorial] at this
+      exact this
+    nlinarith
+  have hm2 : 2 ≤ m := by omega
+  have hmul := ballsIntoBins_mul_tail_ge_half (n := m) (a := 1) (B := m) (d := k)
+    (one_mul m).symm le_rfl hm2 (by omega) h2k (by simpa using hm)
+  refine hmul.trans (sum_le_sum fun A _ => ?_)
+  rw [productWeight_uniformMixedProfile]
+  split_ifs with h1 h2
+  · exact le_rfl
+  · exfalso
+    obtain ⟨j, hj⟩ := h1
+    apply h2
+    calc (k : ℝ) ≤ (#(univ.filter fun i : Fin m => A i = j) : ℝ) := by exact_mod_cast hj
+      _ = (unitIdenticalGame m).load A j := (load_unitIdenticalGame_eq_card m A j).symm
+      _ ≤ (unitIdenticalGame m).makespan A := (unitIdenticalGame m).load_le_makespan A j
+  · positivity
+  · exact le_rfl
 
 /-- Expectation consequence of the balls-into-bins lower tail: if `2 ≤ k` and `3 * 2 ^ k * k! ≤ m`,
 then `expectedMakespan ≥ k / 2`. -/

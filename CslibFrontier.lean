@@ -9020,6 +9020,8 @@ public import CslibFrontier.GameTheory.LoadBalancing.MixedNash
 public import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
 public import CslibFrontier.GameTheory.LoadBalancing.PureNash
 public import CslibFrontier.GameTheory.LoadBalancing.PurePoA
+public import CslibFrontier.GameTheory.LoadBalancing.RelatedMixedLower
+public import CslibFrontier.GameTheory.LoadBalancing.RelatedMixedPoA
 public import CslibFrontier.GameTheory.LoadBalancing.RelatedPureLower
 public import CslibFrontier.GameTheory.Market.Basic
 public import CslibFrontier.GameTheory.Market.EisenbergGale
