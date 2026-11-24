@@ -183,20 +183,6 @@ theorem zero_ne_last (h2 : 2 ≤ h) : last h ≠ 0 := by
   simp [last] at this
   omega
 
-omit [NeZero h] in
-theorem exists_third (h3 : 3 ≤ h) (i j : Fin h) : ∃ k, i ≠ k ∧ k ≠ j := by
-  by_contra hc
-  push Not at hc
-  have h1 : (univ : Finset (Fin h)) ⊆ {i, j} := by
-    intro k _
-    by_cases e : i = k
-    · simp [e]
-    · simp [hc k e]
-  have h4 := Finset.card_le_card h1
-  rw [Finset.card_univ, Fintype.card_fin] at h4
-  have h5 : ({i, j} : Finset (Fin h)).card ≤ 2 := Finset.card_le_two
-  omega
-
 /-- All elementary matrices with entry t. -/
 theorem WL.el_t (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
     WL h2 (El i j hij (t (n + 1)) : G h n) (4 ^ (h + 3)) := by
@@ -232,7 +218,8 @@ theorem WL.el_t (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
     exact (c2 j hij).mono (by omega)
   · by_cases hj : j = last h
     · subst hj
-      obtain ⟨k, hk1, hk2⟩ := exists_third h3 i (last h)
+      obtain ⟨k, hk1, hk2⟩ := Fin.exists_ne_and_ne_of_two_lt i (last h) (by omega)
+      replace hk1 := Ne.symm hk1
       have h4 :=
           (c3 i k hk1 hi hk2).comm hij (WL.upper' (n := n) (h2 := h2) k (last h) (lt_last hk2))
       rw [mul_one] at h4
@@ -249,7 +236,8 @@ theorem WL.el_pow (h3 : 3 ≤ h)
     rcases Nat.eq_or_lt_of_le hm with h1 | h1
     · subst h1
       simpa using hy i j hij
-    · obtain ⟨k, hk1, hk2⟩ := exists_third h3 i j
+    · obtain ⟨k, hk1, hk2⟩ := Fin.exists_ne_and_ne_of_two_lt i j (by omega)
+      replace hk1 := Ne.symm hk1
       have hab : m / 2 + (m - m / 2) = m := by omega
       have p1 := ih (m / 2) (by omega) (by omega) i k hk1
       have p2 := ih (m - m / 2) (by omega) (by omega) k j hk2
