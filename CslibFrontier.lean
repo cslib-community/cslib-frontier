@@ -4729,7 +4729,9 @@ public import CslibFrontier.Computability.PCP.Approximation.FGLSS
 public import CslibFrontier.Computability.PCP.Approximation.FGLSSRuntime
 public import CslibFrontier.Computability.PCP.Approximation.GapLin
 public import CslibFrontier.Computability.PCP.Approximation.Hastad
+public import CslibFrontier.Computability.PCP.Approximation.Hastad.Hardness
 public import CslibFrontier.Computability.PCP.Approximation.Hastad.LinearTest
+public import CslibFrontier.Computability.PCP.Approximation.Hastad.Reduction
 public import CslibFrontier.Computability.PCP.Approximation.IndependentSet
 public import CslibFrontier.Computability.PCP.Approximation.Johnson
 public import CslibFrontier.Computability.PCP.Approximation.KCenter
@@ -8984,6 +8986,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Table.ParityChain
 public import CslibFrontier.Logics.Propositional.CSP.ToBoolean
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF.Count
+public import CslibFrontier.Logics.Propositional.CSP.UnsatVal
 public import CslibFrontier.Logics.Propositional.CSP.Vars
 public import CslibFrontier.Logics.Propositional.ClauseSet.Basic
 public import CslibFrontier.Logics.Propositional.ClauseSet.Satisfiable
