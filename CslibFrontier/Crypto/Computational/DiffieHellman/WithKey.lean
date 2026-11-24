@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.DiffieHellman
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Group parameters with an attached public key
@@ -124,20 +125,10 @@ theorem isPPT_ddhSampleKey {keyLen : ℕ → ℕ}
     (F.ddhSampleKey keyLen distinguisher).IsPPT := by
   have hn : ComputableInPolyTime (fun x : F.DDHInput => x.secParam) F.encDDHInput encUnary := by
     fun_prop
-  have hp := ComputableInPolyTime.id' (encIn := encPair F.encDDHInput encBits)
   have hsecond : IsPPTOn (encPair F.encDDHInput encBits) encBool
       (fun p : F.DDHInput × List Bool => distinguisher p.1.secParam (p.1.groupParameters, p.2)
-        p.1.leftPublic p.1.rightPublic p.1.candidateShared) :=
-    hD.comp (F := F.withKey) (hn.comp hp.fst')
-      ((show ComputableInPolyTime (fun x : F.DDHInput => x.groupParameters) F.encDDHInput
-        F.encDesc by fun_prop).comp hp.fst' |>.prod hp.snd')
-      ((show ComputableInPolyTime (fun x : F.DDHInput => F.encode x.groupParameters x.leftPublic)
-        F.encDDHInput encBits by fun_prop).comp hp.fst')
-      ((show ComputableInPolyTime (fun x : F.DDHInput => F.encode x.groupParameters x.rightPublic)
-        F.encDDHInput encBits by fun_prop).comp hp.fst')
-      ((show ComputableInPolyTime
-        (fun x : F.DDHInput => F.encode x.groupParameters x.candidateShared)
-        F.encDDHInput encBits by fun_prop).comp hp.fst')
+        p.1.leftPublic p.1.rightPublic p.1.candidateShared) := by
+    apply hD.comp (F := F.withKey) <;> fun_prop
   exact (hkeyLen.comp hn).sampleList.bind_with hsecond
 
 /-- In the real DDH game, `ddhSampleKey` plays the real DDH game of `F.withKey` under
@@ -147,12 +138,8 @@ theorem ddhRealGame_ddhSampleKey (setup : ℕ → PMF F.Desc) (keyLen : ℕ → 
     F.ddhRealGame setup (F.ddhSampleKey keyLen distinguisher) n =
       F.withKey.ddhRealGame (F.withKeySetup setup keyLen) distinguisher n := by
   simp only [ddhRealGame, withKeySetup, Game.withSetup, PMF.bind_bind, ddhRealExperiment,
-    ddhSampleKey, ProbComp.eval_bind]
-  refine congrArg _ (funext fun d => ?_)
-  rw [PMF.bind_map]
-  conv_lhs => arg 2; ext a; rw [PMF.bind_comm]
-  rw [PMF.bind_comm]
-  rfl
+    ddhSampleKey, ProbComp.eval_bind, PMF.bind_map]
+  pmf_swap
 
 /-- In the random DDH game, `ddhSampleKey` plays the random DDH game of `F.withKey` under
 `withKeySetup`. -/
@@ -161,13 +148,8 @@ theorem ddhRandomGame_ddhSampleKey (setup : ℕ → PMF F.Desc) (keyLen : ℕ �
     F.ddhRandomGame setup (F.ddhSampleKey keyLen distinguisher) n =
       F.withKey.ddhRandomGame (F.withKeySetup setup keyLen) distinguisher n := by
   simp only [ddhRandomGame, withKeySetup, Game.withSetup, PMF.bind_bind, ddhRandomExperiment,
-    ddhSampleKey, ProbComp.eval_bind]
-  refine congrArg _ (funext fun d => ?_)
-  rw [PMF.bind_map]
-  conv_lhs => arg 2; ext a; arg 2; ext b; rw [PMF.bind_comm]
-  conv_lhs => arg 2; ext a; rw [PMF.bind_comm]
-  rw [PMF.bind_comm]
-  rfl
+    ddhSampleKey, ProbComp.eval_bind, PMF.bind_map]
+  pmf_swap
 
 /-- **DDH ignores an attached key**: DDH for `F` under `setup` gives DDH for `F.withKey` under
 `withKeySetup setup keyLen`, through the explicit reduction `ddhSampleKey` and its certificate

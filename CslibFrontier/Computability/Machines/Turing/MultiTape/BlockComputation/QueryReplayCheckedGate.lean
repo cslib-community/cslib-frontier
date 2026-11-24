@@ -61,12 +61,12 @@ theorem blank_inSpace : ComputableInSpace (List.map (fun _ : Bool => false)) enc
     (fun word => (encBits word).length) := by
   have hid : ComputableInSpace (fun word : List Bool => word) encBits encBits
       (fun word => (encBits word).length) := of_inO (ComputableInO.of_eq fun _ => rfl)
-  have hinit := budget_const (encB := encBits) []
-    (show (fun word => (encBits word).length) ≼ fun word => (encBits word).length from .refl _)
+  have hinit :=
+    budget_const (encIn := encBits) (Bs := fun word => (encBits word).length) (encB := encBits) []
   have hstep : ComputableInSpace (fun q : List Bool × Bool => q.1 ++ [false])
       (encPair encBits encBool) encBits (fun q => (encPair encBits encBool q).length) := by
     exact ((fst encBits encBool).append
-      (budget_const (encB := encBits) [false] (.refl _)) (fun _ => rfl)).weaken
+      (budget_const (encB := encBits) [false]) (fun _ => rfl)).weaken
       (.add (.refl _) (.refl _))
   have hstate (word : List Bool) (i : ℕ) (hi : i ≤ word.length) :
       (encBits ((word.take i).foldl (fun acc _ => acc ++ [false]) [])).length ≤
@@ -84,7 +84,7 @@ theorem blank_inSpace : ComputableInSpace (List.map (fun _ : Bool => false)) enc
 /-- Queries preserve the active gate's original-input interface. -/
 theorem machine_query_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).query encState encNat (fun a => (encState a).length) :=
-  sumElim (budget_const (encIn := encBits) (encB := encNat) 0 (.refl _))
+  sumElim (budget_const (encIn := encBits) (encB := encNat) 0)
     (Gate.machine_query_inSpace M e)
 
 /-- A transition preserves its sum tag and charges the complete actual active state. -/
@@ -103,12 +103,12 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
 theorem machine_emit_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).emit (encPair encState (encOption encBool)) encBits
       (fun a => (encPair encState (encOption encBool) a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Rejection is immediately halted; accepted calls use the replay counter. -/
 theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).halted encState encBool (fun a => (encState a).length) :=
-  sumElim (budget_const (encIn := encBits) (encB := encBool) true (.refl _))
+  sumElim (budget_const (encIn := encBits) (encB := encBool) true)
     (Gate.machine_halted_inSpace M e)
 
 /-- Both final branches are paid by their actual stored words/windows. -/

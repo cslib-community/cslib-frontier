@@ -343,7 +343,7 @@ example : semOutput GI none GO .equienumerable :=
 
 -- So `G` and `GO` have the same projected solutions.
 example : projections G [1] = projections GO.constraints [1] :=
-  projections_eq_of_checkRedOutput checkRedOutput_outProof rfl rfl
+  projections_eq_of_checkRedOutput checkRedOutput_outProof rfl rfl (by simp [outProof])
 
 -- `x0` is not preserved in the input, so `EQUIENUMERABLE` with `x0` preserved is rejected.
 example : checkRedOutput G none outProof (some [1])

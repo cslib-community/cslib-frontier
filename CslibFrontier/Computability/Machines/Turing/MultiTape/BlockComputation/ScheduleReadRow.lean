@@ -54,7 +54,7 @@ theorem suffix_inSpace (k : ℕ) :
       (fun n => (encNat n).length) :=
     of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hnext := budget_natDiv hid
-    (budget_const (encB := encNat) (3 ^ (k + 1)) (.refl _))
+    (budget_const (encB := encNat) (3 ^ (k + 1)))
   have hstates (a : ℕ × ℕ) (j : ℕ) (_hj : j ≤ a.2) :
       (encNat ((fun n : ℕ => n / 3 ^ (k + 1))^[j] a.1)).length ≤
         (encState a).length := by
@@ -74,8 +74,8 @@ theorem row_inSpace (k c : ℕ) :
     ComputableInSpace (row k c) encState (encFinite SignType)
       (fun a => (encState a).length) := by
   have hquot := budget_natDiv (suffix_inSpace k)
-    (budget_const (encB := encNat) (3 ^ c) (.refl _))
-  have hfin := budget_finMod (by decide : 0 < 3) hquot (.refl _)
+    (budget_const (encB := encNat) (3 ^ c))
+  have hfin := budget_finMod (by decide : 0 < 3) hquot
   exact (budget_finite (encC := encFinite SignType) signEquiv.symm hfin).of_enc_eq
     fun _ => rfl
 
