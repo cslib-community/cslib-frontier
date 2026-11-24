@@ -229,7 +229,7 @@ theorem symbol_inSpace (enc : σ ↪ List Bool)
   have ha := budget_comp_linear answer_inSpace
     (budget_prod (encData_mk_budget (encData_cut_budget hd) (encData_suffix_budget hd) hquery) hb)
   simpa only [symbol, decide_eq_true_eq] using budget_ite (budget_natLt hquery hwidth)
-    (budget_finite (encC := encOption encBool) some ha) (budget_const none (.refl _))
+    (budget_finite (encC := encOption encBool) some ha) (budget_const none)
 
 /-- Native certificates for every simulator component; all outer continuations are arbitrary.
 Only ordinary native outer component certificates are premises, never substitution certificates. -/
@@ -267,7 +267,7 @@ theorem components_inSpace (enc : σ ↪ List Bool)
   have hnext := budget_ite hready
     (encState_mk_budget enc hrt (budget_comp_linear hn harg))
     (encState_mk_budget enc (budget_comp_linear Runtime.next_inSpace (budget_prod hrt hb)) hout)
-  have hemit := budget_ite hready (budget_comp_linear he harg) (budget_const [] (.refl _))
+  have hemit := budget_ite hready (budget_comp_linear he harg) (budget_const [])
   have hfinish := budget_comp_linear hf ho
   exact ⟨hquery, hnext, hemit,
     budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)

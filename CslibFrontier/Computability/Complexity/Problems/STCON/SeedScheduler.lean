@@ -163,10 +163,10 @@ theorem seedSchedulerCandidate_budget {α : Type} {enc : α ↪ List Bool} {S : 
   have hsource := encSeedSearchSetup_sourceID_budget hsetup
   have hrequest := encSeedScanRequest_mk_budget hsetup hseed hsource
   have hframe := encSeedSchedulerFrame_mk_budget hrequest
-    ((constZero (encB := encNat) 0).mono_le fun _ => Nat.zero_le _)
-    ((constZero (encB := encOption encBool) none).mono_le fun _ => Nat.zero_le _)
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encOption encBool) none)
   exact budget_iteProp (budget_natLt hseed hlimit) (budget_optionSome hframe)
-    ((constZero (encB := encOption encSeedSchedulerFrame) none).mono_le fun _ => Nat.zero_le _)
+    (budget_const (encB := encOption encSeedSchedulerFrame) none)
 
 /-- Testing whether a frame needs a scan uses the budget of the frame producer. -/
 theorem SeedSchedulerFrame.needsScan_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
@@ -257,9 +257,11 @@ theorem seedSchedulerStep_noReply_inSpace :
         if p.1.needsScan then none else some (seedSchedulerRoot p.1 (p.1.cursor + 1) p.2))
       E encSeedSchedulerStepResult (fun p => (E p).length) :=
     budget_ite (SeedSchedulerFrame.needsScan_budget hframe)
-      (budget_const none (.refl _)) (budget_optionSome hroot)
-  have hnone := budget_const (encIn := encSeedSchedulerFrame) (encB := encSeedSchedulerStepResult)
-    none (.refl _)
+      (budget_const none) (budget_optionSome hroot)
+  have hnone :=
+    budget_const (Bs := fun a => (encSeedSchedulerFrame a).length) (encIn := encSeedSchedulerFrame)
+      (encB := encSeedSchedulerStepResult)
+    none
   have hid := budget_id (enc := encSeedSchedulerFrame) (.refl _)
   have hinput := budget_prod hid (encSeedSchedulerFrame_answer_budget hid)
   exact (budget_comp_linear (optionElimSnd hnone hsome) hinput).of_enc_eq fun f => by
@@ -293,7 +295,7 @@ private theorem seedSchedulerStep_decided_inSpace :
       E encSeedSchedulerStepResult (fun p => (E p).length) := by
   let E := encPair encSeedSchedulerFrame encBool
   have hframe := fst encSeedSchedulerFrame encBool
-  have hfirst := seedSchedulerRoot_budget hframe (budget_const 0 (.refl _))
+  have hfirst := seedSchedulerRoot_budget hframe (budget_const 0)
     (snd encSeedSchedulerFrame encBool)
   have hretained := fst E encBool
   have hindexedFrame := budget_comp_linear hframe hretained
