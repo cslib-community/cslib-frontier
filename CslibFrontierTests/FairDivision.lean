@@ -20,13 +20,14 @@ import Mathlib.Tactic.NormNum
 Representative ordinary-`module` client (`import` without `import all`) exercising
 `CslibFrontier.GameTheory.FairDivision.{Basic,Proportional,SelfridgeConway}` on concrete affine and
 piecewise-uniform valuations (including zero-density regions), explicit closed-form Robertson–Webb
-oracles, all execution branches of Cut-and-Choose and Selfridge–Conway, `O(n²)` vs. `O(n log n)`
-query bounds for Dubins–Spanier and Even–Paz, and negative fairness/separation counterexamples.
+oracles, Cut-and-Choose, the `2`-cut untrimmed and `5`-cut trimmed regimes of Selfridge–Conway,
+`O(n²)` vs. `O(n log n)` query bounds for Dubins–Spanier and Even–Paz, and negative
+fairness/separation counterexamples.
 -/
 
 public section
 
-namespace CslibFrontierTests.FairDivisionNRTV
+namespace CslibFrontierTests.FairDivision
 
 open Cslib (FreeM)
 open Cslib.GameTheory.FairDivision
@@ -275,13 +276,21 @@ example :
     let v : Fin 2 → CakeValuation := fun i => if i = 0 then incLinear else decLinear
     (cutAndChoose v).IsValidPartition ∧
       (cutAndChoose v).numCuts = 1 ∧
+      (cutAndChoose v).IsContiguous ∧
       (cutAndChoose v).IsEnvyFree v ∧
       (cutAndChoose v).IsProportional v := by
   intro v
-  obtain ⟨hP, hC, _, hEF, hProp⟩ := cutAndChoose_spec v
-  exact ⟨hP, hC, hEF, hProp⟩
+  exact ⟨isValidPartition_cutAndChooseQ _, numCuts_cutAndChooseQ _, isContiguous_cutAndChooseQ _,
+    isEnvyFree_cutAndChooseQ (RWQuery.isValidOracle_oracleOf v),
+    isProportional_cutAndChooseQ (RWQuery.isValidOracle_oracleOf v)⟩
 
 /-! ### 5. Checked Dubins–Spanier (`O(n²)`) and Even–Paz (`O(n log n)`) Witnesses -/
+
+-- Proportionality holds at `n = 0` without requiring `1 ≤ n`.
+example (v : Fin 0 → CakeValuation) :
+    (dubinsSpanier v).IsProportional v ∧ (evenPaz v).IsProportional v :=
+  ⟨isProportional_dubinsSpanierQ (RWQuery.isValidOracle_oracleOf v),
+    isProportional_evenPazQ (RWQuery.isValidOracle_oracleOf v)⟩
 
 noncomputable def fourAgentProfile : Fin 4 → CakeValuation
   | 0 => CakeValuation.uniform
@@ -297,9 +306,12 @@ example (oracle : {ι : Type} → RWQuery (Fin 4) ι → ι) :
       (∀ i : Fin 4, 1 / 4 ≤ (fourAgentProfile i).bundleVal
         ((dubinsSpanier fourAgentProfile).pieces i)) ∧
       (dubinsSpanierQ 4).countQueries oracle = 9 := by
-  obtain ⟨hP, hC, hCont, hProp⟩ := dubinsSpanier_spec (by omega : 1 ≤ 4) fourAgentProfile
+  obtain ⟨hP, hC, hCont⟩ :=
+    isValidPartition_dubinsSpanierQ (by omega : 1 ≤ 4) (RWQuery.oracleOf fourAgentProfile)
+  have hProp := isProportional_dubinsSpanierQ (RWQuery.isValidOracle_oracleOf fourAgentProfile)
   refine ⟨hP, hC, hCont, fun i => ?_, ?_⟩
-  · simpa only [Nat.cast_ofNat] using hProp i
+  · dsimp only [dubinsSpanier]
+    simpa only [Nat.cast_ofNat] using hProp i
   · rw [countQueries_dubinsSpanierQ (by omega : 1 ≤ 4) oracle]
 
 -- Four-agent Even–Paz: 3 cuts, contiguous, every agent receives ≥ 1 / 4, at most 16 queries;
@@ -313,7 +325,9 @@ example (o4 : {ι : Type} → RWQuery (Fin 4) ι → ι)
         ((evenPaz fourAgentProfile).pieces i)) ∧
       (evenPazQ 4).countQueries o4 ≤ 16 ∧
       (evenPazQ 16).countQueries o16 < (dubinsSpanierQ 16).countQueries o16 := by
-  obtain ⟨hP, hC, hCont, hProp⟩ := evenPaz_spec (by omega : 1 ≤ 4) fourAgentProfile
+  obtain ⟨hP, hC, hCont⟩ :=
+    isValidPartition_evenPazQ (by omega : 1 ≤ 4) (RWQuery.oracleOf fourAgentProfile)
+  have hProp := isProportional_evenPazQ (RWQuery.isValidOracle_oracleOf fourAgentProfile)
   have hq4 : (evenPazQ 4).countQueries o4 ≤ 2 * 4 * Nat.clog 2 4 := countQueries_evenPazQ_le 4 o4
   have hclog4 : Nat.clog 2 4 = 2 := by decide
   have hq16 : (evenPazQ 16).countQueries o16 ≤ 2 * 16 * Nat.clog 2 16 :=
@@ -322,9 +336,10 @@ example (o4 : {ι : Type} → RWQuery (Fin 4) ι → ι)
   have hds16 : (dubinsSpanierQ 16).countQueries o16 = 135 := by
     rw [countQueries_dubinsSpanierQ (by omega : 1 ≤ 16) o16]
   refine ⟨hP, hC, hCont, fun i => ?_, by omega, by omega⟩
+  dsimp only [evenPaz]
   simpa only [Nat.cast_ofNat] using hProp i
 
-/-! ### 6. Checked Three-Player Selfridge–Conway Witnesses across All Protocol Branches -/
+/-! ### 6. Checked Three-Player Selfridge–Conway Witnesses (`2`-Cut and `5`-Cut Regimes) -/
 
 -- Mixed affine + piecewise-uniform 3-player profile (`twoStepPiecewise`, `incLinear`,
 -- `mildAffine`).
@@ -339,14 +354,19 @@ example :
       (∀ i : Fin 3, ((selfridgeConway mixedThreeProfile).pieces i).length ≤ 2) ∧
       (selfridgeConway mixedThreeProfile).IsEnvyFree mixedThreeProfile ∧
       (selfridgeConway mixedThreeProfile).IsProportional mixedThreeProfile :=
-  selfridgeConway_spec mixedThreeProfile
+  ⟨isValidPartition_selfridgeConwayQ _,
+    numCuts_selfridgeConwayQ_le _,
+    length_pieces_selfridgeConwayQ_le _,
+    isEnvyFree_selfridgeConwayQ (RWQuery.isValidOracle_oracleOf mixedThreeProfile),
+    isProportional_selfridgeConwayQ (RWQuery.isValidOracle_oracleOf mixedThreeProfile)⟩
 
--- Explicit closed-form checks exercising:
---   (a) the 2-cut untrimmed branch on `(uniform, uniform, uniform)`,
---   (b) the 5-cut trimmed branch Subcase B2 (`q2 ≠ p0`: Player 1 takes trimmed piece) on
---       `(uniform, leftHalf, rightHalf)`, and
---   (c) the 5-cut trimmed branch Subcase B1 (`q2 = p0`: Player 2 takes trimmed piece) on
---       `(uniform, leftHalf, firstSixth)`.
+-- Explicit closed-form checks verifying:
+--   (a) `numCuts = 2` (untrimmed branch) on `(uniform, uniform, uniform)`, and
+--   (b) `numCuts = 5` (trimmed regime via `numCuts_selfridgeConwayQ_eq_five_of_strict_max`),
+--       partition validity, envy-freeness, and Player `2`'s `≥ 1 / 3` support share on two
+--       piecewise-uniform profiles (`trimmedB2Profile` where `v₂ = rightHalf` is supported on
+--       `[1/2, 1]`, and `trimmedB1Profile` where `v₂ = firstSixth` is supported on `[0, 1/6]`;
+--       internal Phase 1 branch state of `selfridgeConwayQ` remains `private`).
 noncomputable def uniformThreeProfile : Fin 3 → CakeValuation :=
   fun _ => CakeValuation.uniform
 
@@ -355,8 +375,8 @@ example :
       (selfridgeConway uniformThreeProfile).IsEnvyFree uniformThreeProfile ∧
       (selfridgeConway uniformThreeProfile).IsProportional uniformThreeProfile :=
   ⟨numCuts_selfridgeConwayQ_eq_two_of_eq (RWQuery.isValidOracle_oracleOf uniformThreeProfile) rfl,
-    (selfridgeConway_spec uniformThreeProfile).2.2.2.1,
-    (selfridgeConway_spec uniformThreeProfile).2.2.2.2⟩
+    isEnvyFree_selfridgeConwayQ (RWQuery.isValidOracle_oracleOf uniformThreeProfile),
+    isProportional_selfridgeConwayQ (RWQuery.isValidOracle_oracleOf uniformThreeProfile)⟩
 
 noncomputable def trimmedB2Profile : Fin 3 → CakeValuation
   | 0 => CakeValuation.uniform
@@ -385,16 +405,19 @@ theorem isValidOracle_trimmedB2Oracle :
 example :
     (selfridgeConwayQ.eval trimmedB2Oracle).numCuts = 5 ∧
       (selfridgeConwayQ.eval trimmedB2Oracle).IsValidPartition ∧
-      (selfridgeConwayQ.eval trimmedB2Oracle).IsEnvyFree trimmedB2Profile := by
+      (selfridgeConwayQ.eval trimmedB2Oracle).IsEnvyFree trimmedB2Profile ∧
+      1 / 3 ≤ rightHalf.bundleVal ((selfridgeConwayQ.eval trimmedB2Oracle).pieces 2) := by
   have hc1 : (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval trimmedB2Oracle = 1 / 3 := by
     simp only [RWQuery.cutIn, FreeM.eval_map, FreeM.eval_lift, trimmedB2Oracle]
     norm_num
   have hc2 : (RWQuery.cutIn (0 : Fin 3) (1 / 3) 1 (1 / 3)).eval trimmedB2Oracle = 2 / 3 := by
     simp only [RWQuery.cutIn, FreeM.eval_map, FreeM.eval_lift, trimmedB2Oracle]
     norm_num
+  have hprop2 := isProportional_selfridgeConwayQ isValidOracle_trimmedB2Oracle 2
   refine ⟨numCuts_selfridgeConwayQ_eq_five_of_strict_max isValidOracle_trimmedB2Oracle 0 ?_,
     isValidPartition_selfridgeConwayQ _,
-    isEnvyFree_selfridgeConwayQ isValidOracle_trimmedB2Oracle⟩
+    isEnvyFree_selfridgeConwayQ isValidOracle_trimmedB2Oracle,
+    by simpa only [Nat.cast_ofNat, trimmedB2Profile] using hprop2⟩
   intro j hj
   dsimp only
   rw [hc1, hc2]
@@ -436,16 +459,19 @@ theorem isValidOracle_trimmedB1Oracle :
 example :
     (selfridgeConwayQ.eval trimmedB1Oracle).numCuts = 5 ∧
       (selfridgeConwayQ.eval trimmedB1Oracle).IsValidPartition ∧
-      (selfridgeConwayQ.eval trimmedB1Oracle).IsEnvyFree trimmedB1Profile := by
+      (selfridgeConwayQ.eval trimmedB1Oracle).IsEnvyFree trimmedB1Profile ∧
+      1 / 3 ≤ firstSixth.bundleVal ((selfridgeConwayQ.eval trimmedB1Oracle).pieces 2) := by
   have hc1 : (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval trimmedB1Oracle = 1 / 3 := by
     simp only [RWQuery.cutIn, FreeM.eval_map, FreeM.eval_lift, trimmedB1Oracle]
     norm_num
   have hc2 : (RWQuery.cutIn (0 : Fin 3) (1 / 3) 1 (1 / 3)).eval trimmedB1Oracle = 2 / 3 := by
     simp only [RWQuery.cutIn, FreeM.eval_map, FreeM.eval_lift, trimmedB1Oracle]
     norm_num
+  have hprop2 := isProportional_selfridgeConwayQ isValidOracle_trimmedB1Oracle 2
   refine ⟨numCuts_selfridgeConwayQ_eq_five_of_strict_max isValidOracle_trimmedB1Oracle 0 ?_,
     isValidPartition_selfridgeConwayQ _,
-    isEnvyFree_selfridgeConwayQ isValidOracle_trimmedB1Oracle⟩
+    isEnvyFree_selfridgeConwayQ isValidOracle_trimmedB1Oracle,
+    by simpa only [Nat.cast_ofNat, trimmedB1Profile] using hprop2⟩
   intro j hj
   dsimp only
   rw [hc1, hc2]
@@ -460,4 +486,4 @@ example :
       CakeValuation.uniformOn_apply_of_le _ _ _ _ _ (by norm_num : (2 / 3 : ℝ) ≤ 1)]
     norm_num
 
-end CslibFrontierTests.FairDivisionNRTV
+end CslibFrontierTests.FairDivision

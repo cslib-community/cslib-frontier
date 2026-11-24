@@ -189,20 +189,6 @@ theorem isProportional_cutAndChooseQ {v : Fin 2 → CakeValuation}
     (cutAndChooseQ.eval oracle).IsProportional v :=
   (isEnvyFree_cutAndChooseQ ho).isProportional (isValidPartition_cutAndChooseQ oracle)
 
-/-- Pure `cutAndChoose` returns a valid, `1`-cut, contiguous, envy-free, and proportional
-two-player division. -/
-theorem cutAndChoose_spec (v : Fin 2 → CakeValuation) :
-    (cutAndChoose v).IsValidPartition ∧
-      (cutAndChoose v).numCuts = 1 ∧
-      (cutAndChoose v).IsContiguous ∧
-      (cutAndChoose v).IsEnvyFree v ∧
-      (cutAndChoose v).IsProportional v :=
-  ⟨isValidPartition_cutAndChooseQ _,
-    numCuts_cutAndChooseQ _,
-    isContiguous_cutAndChooseQ _,
-    isEnvyFree_cutAndChooseQ (RWQuery.isValidOracle_oracleOf v),
-    isProportional_cutAndChooseQ (RWQuery.isValidOracle_oracleOf v)⟩
-
 /-! ### Shared contiguous-subdivision assembly and agent-index query lifting -/
 
 /-- Recursive subinterval division output for `m` active agents: interior cuts `cuts` and one
@@ -457,16 +443,6 @@ theorem isProportional_dubinsSpanierQ {n : ℕ} {v : Fin n → CakeValuation}
     have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr r.pos.ne'
     rw [div_self hn_ne, (v r).apply_zero_one]
   exact dubinsSpanierAux_proportional ho n le_rfl (by norm_num) id hrem i
-
-/-- Pure `dubinsSpanier` produces a valid, `(n - 1)`-cut, contiguous, proportional division for
-`1 ≤ n`. -/
-theorem dubinsSpanier_spec {n : ℕ} (hn : 1 ≤ n) (v : Fin n → CakeValuation) :
-    (dubinsSpanier v).IsValidPartition ∧
-      (dubinsSpanier v).numCuts = n - 1 ∧
-      (dubinsSpanier v).IsContiguous ∧
-      (dubinsSpanier v).IsProportional v := by
-  obtain ⟨hP, hCuts, hCont⟩ := isValidPartition_dubinsSpanierQ hn (RWQuery.oracleOf v)
-  exact ⟨hP, hCuts, hCont, isProportional_dubinsSpanierQ (RWQuery.isValidOracle_oracleOf v)⟩
 
 /-! ### 3. Even–Paz Divide-and-Conquer Proportional Division (`n` Agents, `O(n log n)` Queries) -/
 
@@ -836,15 +812,5 @@ theorem isProportional_evenPazQ {n : ℕ} {v : Fin n → CakeValuation}
   have h := evenPazAux_proportional ho n le_rfl (by norm_num) le_rfl id i
   dsimp only [id] at h
   rwa [(v i).apply_zero_one] at h
-
-/-- Pure `evenPaz` produces a valid, `(n - 1)`-cut, contiguous, proportional division for
-`1 ≤ n`. -/
-theorem evenPaz_spec {n : ℕ} (hn : 1 ≤ n) (v : Fin n → CakeValuation) :
-    (evenPaz v).IsValidPartition ∧
-      (evenPaz v).numCuts = n - 1 ∧
-      (evenPaz v).IsContiguous ∧
-      (evenPaz v).IsProportional v := by
-  obtain ⟨hP, hCuts, hCont⟩ := isValidPartition_evenPazQ hn (RWQuery.oracleOf v)
-  exact ⟨hP, hCuts, hCont, isProportional_evenPazQ (RWQuery.isValidOracle_oracleOf v)⟩
 
 end Cslib.GameTheory.FairDivision

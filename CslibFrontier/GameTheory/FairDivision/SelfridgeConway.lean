@@ -65,9 +65,8 @@ physical cuts.
 * `Cslib.GameTheory.FairDivision.countQueries_selfridgeConwayQ_le`: `selfridgeConwayQ` makes at
   most `18` Robertson–Webb queries.
 * `Cslib.GameTheory.FairDivision.isEnvyFree_selfridgeConwayQ`,
-  `Cslib.GameTheory.FairDivision.isProportional_selfridgeConwayQ`,
-  `Cslib.GameTheory.FairDivision.selfridgeConway_spec`: complete case analysis proving all three
-  players are envy-free (and hence receive `≥ 1 / 3`) for every valuation profile.
+  `Cslib.GameTheory.FairDivision.isProportional_selfridgeConwayQ`: complete case analysis proving
+  all three players are envy-free (and hence receive `≥ 1 / 3`) for every valuation profile.
 
 ## References
 
@@ -823,19 +822,5 @@ theorem isProportional_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     {oracle : {ι : Type} → RWQuery (Fin 3) ι → ι} (ho : RWQuery.IsValidOracle v oracle) :
     (selfridgeConwayQ.eval oracle).IsProportional v :=
   (isEnvyFree_selfridgeConwayQ ho).isProportional (isValidPartition_selfridgeConwayQ oracle)
-
-/-- Complete specification of pure `selfridgeConway v`: valid partition of `[0, 1]`, at most `5`
-cuts, at most `2` pieces per player, envy-free, and proportional (`≥ 1 / 3`). -/
-theorem selfridgeConway_spec (v : Fin 3 → CakeValuation) :
-    (selfridgeConway v).IsValidPartition ∧
-      (selfridgeConway v).numCuts ≤ 5 ∧
-      (∀ i : Fin 3, ((selfridgeConway v).pieces i).length ≤ 2) ∧
-      (selfridgeConway v).IsEnvyFree v ∧
-      (selfridgeConway v).IsProportional v :=
-  ⟨isValidPartition_selfridgeConwayQ _,
-    numCuts_selfridgeConwayQ_le _,
-    length_pieces_selfridgeConwayQ_le _,
-    isEnvyFree_selfridgeConwayQ (RWQuery.isValidOracle_oracleOf v),
-    isProportional_selfridgeConwayQ (RWQuery.isValidOracle_oracleOf v)⟩
 
 end Cslib.GameTheory.FairDivision
