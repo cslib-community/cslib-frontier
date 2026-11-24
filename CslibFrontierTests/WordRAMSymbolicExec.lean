@@ -14,7 +14,8 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 Regressions for `wram_exec` and `wram_simp`: a concrete program runs to its exact result and
 instruction count; registers and memory hold symbolic values, reads after writes to other addresses
 reduce, and a conditional the facts do not decide splits; instructions `Op.alu` of other bases, such
-as `Basis.additive`, run too, as does an instruction defined through another; a program named
+as `Basis.additive`, run too, and an instruction given by a definition is unfolded to the
+instruction it is defined through; a program named
 among the hints is opened and its callees are not; execution stops at a subprogram, continues from
 its specification and resumes; a loop proved by induction takes one iteration at a time with
 `WP.loop_iter` and `WP.Exact.loop_iter`; and goals of the wrong form, or programs with nothing to
@@ -142,14 +143,49 @@ example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (h : 
   wram_exec [ha, hb]
   wram_simp
 
-/-- An instruction defined through another one runs by the rule of the instruction it unfolds to,
-here exact addition. -/
-private def customAdd (dst i j : Fin 4) : Op .exact 4 := .exactBin .add dst i j
+/-- An instruction given by a definition is unfolded to the instruction it is defined through, and
+no further: these run by the rules of `Op.exactBin`, not by `WP.alu`. -/
+private def customBin (o : BinOp) (dst i j : Fin 4) : Op .exact 4 := .exactBin o dst i j
+
+/-- An instruction two definitions away from `Op.exactBin`. -/
+private def customSub (dst i j : Fin 4) : Op .exact 4 := customBin .sub dst i j
 
 example (w : ℕ) (x : Data 4) (h : Fits w (x.regs a + x.regs b)) :
-    ∃ y, Exec w (.op (customAdd c a b)) x y 1 ∧ y.regs c = x.regs a + x.regs b := by
+    ∃ y, Exec w (.op (customBin .add c a b)) x y 1 ∧ y.regs c = x.regs a + x.regs b := by
   wram_exec
   wram_simp
+
+example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hle : v ≤ u)
+    (hf : Fits w (u - v)) :
+    ∃ y, Exec w (.op (customSub c a b)) x y 1 ∧ y.regs c = u - v := by
+  wram_exec [ha, hb]
+  wram_simp
+
+example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hv : v ≠ 0)
+    (hf : Fits w (u / v)) :
+    ∃ y, Exec w (.op (customBin .div c a b)) x y 1 ∧ y.regs c = u / v := by
+  wram_exec [ha, hb]
+  wram_simp
+
+example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hv : v ≠ 0)
+    (hf : Fits w (u % v)) :
+    ∃ y, Exec w (.op (customBin .mod c a b)) x y 1 ∧ y.regs c = u % v := by
+  wram_exec [ha, hb]
+  wram_simp
+
+/-- An instruction whose definition does not unfold has no rule. -/
+@[irreducible] private def sealedAdd (dst i j : Fin 4) : Op .exact 4 := .exactBin .add dst i j
+
+/-- error: wram_exec: nothing to execute in
+  WP.Exact w (Code.op (sealedAdd c a b)) x fun y t => t = 1 ∧ y.regs c = x.regs a + x.regs b
+The program starts with a loop, a random sample, an instruction without a rule or a program given by
+name. Apply its specification with `WP.of_execWithin`, or name the program among the hints. A
+program already named there has a definition that does not unfold, or starts with one of these
+itself. -/
+#guard_msgs (whitespace := lax) in
+example (w : ℕ) (x : Data 4) (h : Fits w (x.regs a + x.regs b)) :
+    ∃ y, Exec w (.op (sealedAdd c a b)) x y 1 ∧ y.regs c = x.regs a + x.regs b := by
+  wram_exec
 
 -- Exact subtraction written as `Op.alu`: its value depends on comparing the operands, so it does
 -- not unfold to `some v`; `Op.exactBin` instructions have their own rules.
@@ -412,8 +448,10 @@ example (x : Data 4) (ha : x.regs a = 0) (hd : x.regs d = 0) :
 
 /-- error: wram_exec: nothing to execute in
   WP 8 callDouble x fun y t => t ≤ 3 ∧ y.regs c = 6
-The program starts with a loop, a random sample or a program given by name. Apply its
-specification with `WP.of_execWithin`, or name the program among the hints. -/
+The program starts with a loop, a random sample, an instruction without a rule or a program given by
+name. Apply its specification with `WP.of_execWithin`, or name the program among the hints. A
+program already named there has a definition that does not unfold, or starts with one of these
+itself. -/
 #guard_msgs (whitespace := lax) in
 example (x : Data 4) : ∃ y, ExecWithin 8 callDouble x y 3 ∧ y.regs c = 6 := by
   wram_exec

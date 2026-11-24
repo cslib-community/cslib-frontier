@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests of randomized symbolic execution)
 
+public import CslibFrontier.Computability.WordRAM.Allocation
 public import CslibFrontier.Computability.WordRAM.ExactNotation
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
@@ -55,6 +56,29 @@ example {w a base : ℕ} {x : Data 4} (ha : x.regs regA = a) (hptr : x.regs regC
         let k ← ProbComp.unifFin a
         pure (((x.set regB k.val).write base k.val).set regC (base + 1), 3)) := by
   wram_rand_exec [ha, hptr, hone]
+
+/-! ## An instruction given by a definition (`Op.addAdditive`, over `Basis.additive`) -/
+
+example {w a : ℕ} {x : Data 4} (ha : x.regs regA = a) (hfit : Fits w (a + 1))
+    (hsum : Fits w (a + a)) :
+    ExecRand (B := .additive) w (.seq (.op (.addAdditive regB regA regA)) (.rand regC regA)) x
+      (do
+        let k ← ProbComp.unifFin a
+        pure ((x.set regB (a + a)).set regC k.val, 2)) := by
+  wram_rand_exec [ha]
+
+example {w a : ℕ} {x : Data 4} (ha : x.regs regA = a) (hfit : Fits w (a + 1))
+    (hsum : Fits w (a + a)) :
+    ExecRand (B := .additive) w (.seq (.rand regC regA) (.op (.addAdditive regB regA regA))) x
+      (do
+        let k ← ProbComp.unifFin a
+        pure ((x.set regC k.val).set regB (a + a), 2)) := by
+  wram_rand_exec [ha]
+
+example {w a : ℕ} {x : Data 4} (ha : x.regs regA = a) (hsum : Fits w (a + a)) :
+    ExecRand (B := .additive) w (.op (.addAdditive regB regA regA)) x
+      (pure (x.set regB (a + a), 1)) := by
+  wram_rand_exec [ha]
 
 /-! ## Left-nested `.seq` reassociation (`seq_assoc`) -/
 
