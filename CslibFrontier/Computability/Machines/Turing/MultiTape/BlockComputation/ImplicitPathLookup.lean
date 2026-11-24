@@ -48,13 +48,13 @@ private theorem all_inSpace (k : ℕ) :
       encWalkArgs encBool (fun a => (encWalkArgs a).length) := by
   have hpath := (snd encNat (encPair encNat (encList encNat))).snd'
   have hinit : ComputableInSpace (fun _ : WalkArgs => true) encWalkArgs encBool
-      (fun a => (encWalkArgs a).length) := budget_const true (.refl _)
+      (fun a => (encWalkArgs a).length) := budget_const true
   have hstep : ComputableInSpace (fun p : Bool × ℕ => p.1 && decide (p.2 < k * 3 + 1))
       (encPair encBool encNat) encBool (fun p => (encPair encBool encNat p).length) :=
     budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
       (budget_prod (fst encBool encNat)
         (budget_natLt (snd encBool encNat)
-          (budget_const (encB := encNat) (k * 3 + 1) (.refl _))))
+          (budget_const (encB := encNat) (k * 3 + 1))))
   have hspace (a : WalkArgs) (i : ℕ) (hi : i < a.2.2.length) :
       (encPair encBool encNat
         ((a.2.2.take i).foldl (fun good j => good && decide (j < k * 3 + 1)) true,
@@ -100,7 +100,7 @@ theorem lookupIndex_inSpace (k : ℕ) :
       (fun a => (encWalkArgs a).length) := by
   have hsome := budget_optionSome (walk_inSpace k)
   exact (budget_ite (valid_inSpace k) hsome
-    (budget_const (encB := encOption encNat) none (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const (encB := encOption encNat) none)).of_enc_eq fun _ => rfl
 
 private theorem next_eq_child {k q : ℕ} (σ : ℕ) :
     Descending.next (BlockComputation.child (scheduleOfNat k q σ)) =
