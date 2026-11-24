@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
@@ -554,5 +555,26 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     simp [evaluation, List.getD_eq_getElem?_getD, sub_eq_add_neg]
   · rw [rows.evaluate_eq (w, 2) p z hp (hcut 2), positivityEquation_of_le _ (by decide : 1 ≤ 2)]
     simp [evaluation]
+
+-- The system x = 0, 1 > 0 has a real zero and one-level modular evaluation.
+example :
+    let CP : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let CQ : Controlled (fun _ : ℕ × ℕ => (1 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.constant (.const 1) (fun _ => 1) (.const 1)
+    let system := CP.indexedFeasibility CQ Decoder.nat (.const 1) (fun _ => 1) (fun _ => 1)
+      (fun _ => 1) (fun _ => 0) (fun _ => 0) (.const 1) (.const 1) (.const 1) (.const 0)
+      (.const 0) (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp)
+      (fun _ _ _ => by simp) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl)
+    system.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+        (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+          (fun _ => 1) 1 1) = 0 := by
+  intro CP CQ system
+  refine ⟨system.evaluate_mem, ?_⟩
+  apply (exists_indexedFeasibilityPolynomial_zero_iff (n := 1) (fun _ => X 0) (fun _ => 1) 1 1).mpr
+  exact ⟨fun _ => 0, fun _ _ => by simp, fun _ _ => by simp⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

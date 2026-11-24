@@ -3287,6 +3287,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBou
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
