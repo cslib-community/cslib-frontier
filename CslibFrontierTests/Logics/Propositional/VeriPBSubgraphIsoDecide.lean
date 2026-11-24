@@ -34,13 +34,13 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
   the empty target. Each is accepted against the LAD texts and the first three against Mathlib's
   graphs.
 
-VeriPB 3.0.2 accepts the five client proofs against the printed encoding, and
-`veripb --elaborate` returns them unchanged up to spacing. CakePB's `cake_pb_iso` accepts the same
-five against the LAD texts, reporting `SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the at-most-one rows
-without a literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1` (empty pattern)
-and `<= 1` for its `@am10` (empty target). The empty target's at-least-one row `@al10` has no
-literal either but is `>= 1` in both; it is the constraint `1` of the `UNSAT` proof. Proofs of
-the Glasgow Subgraph Solver, elaborated by VeriPB and accepted by CakePB, are checked in
+VeriPB 3.0.2 accepts the five client proofs against the printed encoding, and `veripb --elaborate`
+returns them unchanged up to spacing. CakePB's `cake_pb_iso` accepts the same five against the LAD
+texts, reporting `SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the
+at-most-one rows without a literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1`
+(empty pattern) and `<= 1` for its `@am10` (empty target). The empty target's at-least-one row
+`@al10` has no literal either but is `>= 1` in both; it is the constraint `1` of the `UNSAT` proof.
+Proofs of the Glasgow Subgraph Solver, elaborated by VeriPB and accepted by CakePB, are checked in
 `CslibFrontierTests.Logics.Propositional.VeriPBGlasgowDecide`.
 -/
 
