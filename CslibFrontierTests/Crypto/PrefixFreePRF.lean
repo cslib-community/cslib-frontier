@@ -15,7 +15,8 @@ import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
 
 Use a proper-prefix pair in the CBC word domain with a two-block cap. Its queries use the
 three-block domain. The advantage bound uses the CBC chaining identity for its real game.
-A repeated valid guess makes no external query.
+A repeated valid guess makes no external query. The batch wrapper also skips repeated and
+malformed guesses and respects a cap on the batch.
 -/
 
 set_option linter.privateModule false
@@ -95,6 +96,34 @@ example (family : List Bool → List Bool → List Bool) :
       ((2 : ℝ≥0) ^ 2)⁻¹ := by
   exact succProbability_collisionGame_le_prefixFreeCollisionReduction
     (cbcMacFamily family) _ _ cbcBlockValid_append (cbcMacFamily_extend family)
+
+private def batchGuesses : List (List Bool) :=
+  [[false, false], [false, false], [false, true], [true], [true, true]]
+
+example : IsOraclePPT encBool
+    (prefixFreeBatchReduction id id (fun _ => 4) (cbcBlockValid (fun _ => 2))
+      (fun _ => pure batchGuesses)) :=
+  isOraclePPT_prefixFreeBatchReduction ComputableInPolyTime.id' ComputableInPolyTime.id'
+    (ComputableInPolyTime.const 4)
+    (computableInPolyTime_cbcBlockValid (ComputableInPolyTime.const 2))
+    (ComputableInPolyTime.const batchGuesses).isPPTOn
+
+example :
+    wordQueryRunDist id
+      (prefixFreeBatchReduction id (fun _ => 1) (fun _ => 4) (cbcBlockValid (fun _ => 2))
+        (fun _ => pure batchGuesses) 2 []) =
+    PMF.pure (true, [[false, false, true, false], [false, true, true, false]]) := by
+  have hqueries : prefixFreeBatchQueries 2 4 (cbcBlockValid (fun _ => 2) 2) batchGuesses =
+      [[false, false, true, false], [false, true, true, false]] := by
+    unfold prefixFreeBatchQueries
+    dsimp only
+    rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
+    decide
+  simp only [prefixFreeBatchReduction, wordQueryRunDist_sample_bind, ProbComp.eval_pure,
+    PMF.pure_bind, id_eq, hqueries, List.mapM_cons, List.mapM_nil, map_eq_bind_pure_comp,
+    bind_assoc, pure_bind, Function.comp_def, wordQueryRunDist_query_bind, wordQueryRunDist_pure,
+    PMF.pure_map]
+  rfl
 
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {cap : ℕ → ℕ} (hcap : ComputableInPolyTime cap encUnary encUnary) :

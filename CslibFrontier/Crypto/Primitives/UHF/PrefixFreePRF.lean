@@ -11,12 +11,16 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Primitives.UHF.Computational
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.EraseDupsBy
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Foundations.Data.List.EraseDupsBy
 import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 
@@ -33,11 +37,16 @@ The certificate uses the library's domain-relative prefix condition. Definition 
 the wrapper to that game requires showing that the extended messages fit the oracle domain.
 Theorem 7.3 provides this room by giving the PRF domain one extra block of capacity.
 
+For the direct multi-query reduction in Theorem 7.4, a bounded batch uses one block absent
+from all its messages. The wrapper queries each retained distinct message once after extension.
+
 ## Main definitions
 
 * `Cslib.Crypto.UHF.prefixFreeCollisionReduction`: compare oracle replies on extended queries.
 * `Cslib.Crypto.UHF.prefixFreeCollisionReductionWithCap`: the shared program with a cap computed
   from the first extended query.
+* `Cslib.Crypto.UHF.prefixFreeBatchQueries`: prepare a bounded list of extended words.
+* `Cslib.Crypto.UHF.prefixFreeBatchReduction`: compare oracle replies on the prepared words.
 
 ## Main results
 
@@ -53,6 +62,8 @@ Theorem 7.3 provides this room by giving the PRF domain one extra block of capac
   the concrete advantage inequality (7.6) in the word model.
 * `Cslib.Crypto.UHF.isComputationalUHF_of_extendable_prefixFreePRF`:
   the single-query security theorem for an extendable prefix-free PRF.
+* `Cslib.Crypto.UHF.isQueryBounded_prefixFreeBatchReduction`: at most one query per retained word.
+* `Cslib.Crypto.UHF.isOraclePPT_prefixFreeBatchReduction`: strict oracle PPT for the batch wrapper.
 -/
 
 public section
@@ -411,5 +422,98 @@ theorem isComputationalUHF_of_extendable_prefixFreePRF
   exact negligible_of_le ((hPRF.secure _ hred).add hout) fun n =>
     succProbability_collisionGame_le_prefixFreeCollisionReduction family guessPair n hDomain
       hExtend
+
+/-- Take at most `count` guesses, keep the first occurrence of each valid word, and extend each
+with the same fresh block. An exhausted block search produces no queries. This prepares the batch
+for the wrapper in [BonehShoup2023], v0.6, Theorem 7.4 (printed pp. 259–260). -/
+@[expose] def prefixFreeBatchQueries (width count : ℕ) (valid : List Bool → Bool)
+    (guesses : List (List Bool)) : List (List Bool) :=
+  let messages := ((guesses.take count).filter valid).eraseDupsBy fun a b => decide (a = b)
+  let block := PRF.freshBatchWordBlock width messages
+  if block.isSome then messages.map (fun word => word ++ block.getD []) else []
+
+/-- Run the multi-query guesser on the public unary parameter, query the extended words, and
+accept if two capped replies coincide. The reply cap bounds the reading time for any oracle. -/
+@[expose] def prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) :
+    OracleDistinguisher := fun n _ => do
+  let guesses ← ProbOracleComp.sample (guessBatch (n, n))
+  let queries := prefixFreeBatchQueries (width n) (Q n) (valid n) guesses
+  let replies ← queries.mapM fun query =>
+    List.take (outLen n) <$> ProbOracleComp.query ((), query)
+  return !decide replies.Nodup
+
+/-- The batch wrapper makes at most `Q n` external queries for every oracle and guess list. -/
+theorem isQueryBounded_prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (guessBatch : ℕ × ℕ → ProbComp (List (List Bool)))
+    (n : ℕ) (aux : List Bool) :
+    (prefixFreeBatchReduction width outLen Q valid guessBatch n aux).IsQueryBounded (Q n) := by
+  rw [prefixFreeBatchReduction]
+  nth_rw 2 [← Nat.zero_add (Q n)]
+  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guesses => ?_
+  let queries := prefixFreeBatchQueries (width n) (Q n) (valid n) guesses
+  have hquery (word : List Bool) :
+      (List.take (outLen n) <$> ProbOracleComp.query
+        (spec := fun _ : Unit × List Bool => List Bool) ((), word)).IsQueryBounded 1 :=
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query _)
+  have htraverse := OracleComp.IsCostBounded.mapM (inputs := queries) fun word _ => hquery word
+  refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+  simp only [Nat.mul_one, Nat.add_zero]
+  unfold queries prefixFreeBatchQueries
+  dsimp only
+  split
+  · rw [List.length_map]
+    exact ((List.eraseDupsBy_sublist _).length_le.trans (List.length_filter_le _ _)).trans
+      (List.length_take_le _ _)
+  · simp
+
+open ComputableInPolyTime in
+private theorem computableInPolyTime_prefixFreeBatchQueries {α : Type}
+    {input : α ↪ List Bool} {width count : α → ℕ} {valid : α → List Bool → Bool}
+    {guesses : α → List (List Bool)}
+    (hwidth : ComputableInPolyTime width input encUnary)
+    (hcount : ComputableInPolyTime count input encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair input encBits) encBool)
+    (hguesses : ComputableInPolyTime guesses input (encList encBits)) :
+    ComputableInPolyTime (fun a => prefixFreeBatchQueries (width a) (count a) (valid a) (guesses a))
+      input (encList encBits) := by
+  have hfiltered := filterWithInput (test := valid) (listTakeWithInput hguesses hcount) hvalid
+  have hmessages := eraseDupsByWithInput (r := fun _ a b => decide (a = b)) hfiltered
+    (decide_eq' (fst _ _).snd' (snd _ _))
+  let block (a : α) := PRF.freshBatchWordBlock (width a)
+    ((((guesses a).take (count a)).filter (valid a)).eraseDupsBy fun u v => decide (u = v))
+  have hchoice : ComputableInPolyTime block input (encOption encBits) :=
+    PRF.computableInPolyTime_freshBatchWordBlock.comp (hwidth.prod hmessages)
+  have hblock := hchoice.optionGetDWithInput (const [])
+  have hqueries := mapWithInput (f := fun a word => word ++ (block a).getD []) hmessages
+    (bitsAppend (snd _ _) (hblock.comp (fst _ _)))
+  simpa only [prefixFreeBatchQueries, Function.comp_def, block] using
+    ite' hchoice.optionIsSome hqueries (const [])
+
+open ComputableInPolyTime in
+/-- The bounded batch wrapper is strict oracle PPT for a strict PPT guesser and
+polynomial-time width, reply cap, query cap, and validity check. -/
+theorem isOraclePPT_prefixFreeBatchReduction {width outLen Q : ℕ → ℕ}
+    {valid : ℕ → List Bool → Bool} {guessBatch : ℕ × ℕ → ProbComp (List (List Bool))}
+    (hwidth : ComputableInPolyTime width encUnary encUnary)
+    (hout : ComputableInPolyTime outLen encUnary encUnary)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
+    (hguess : IsPPTOn (encPair encUnary encUnary) (encList encBits) guessBatch) :
+    IsOraclePPT encBool (prefixFreeBatchReduction width outLen Q valid guessBatch) := by
+  let encInput := encPair encUnary encBits
+  let encWords := encList encBits
+  let encStage := encPair encInput encWords
+  have hn := fst encUnary encBits
+  have hrun := hguess.preprocess (hn.prod hn)
+  have hn' := hn.comp (fst encInput encWords)
+  have hvalid' := hvalid.comp ((hn'.comp (fst encStage encBits)).prod (snd encStage encBits))
+  have hqueries := computableInPolyTime_prefixFreeBatchQueries
+    (valid := fun (p : (ℕ × List Bool) × List (List Bool)) word => valid p.1.1 word)
+    (hwidth.comp hn') (hQ.comp hn') hvalid' (snd encInput encWords)
+  have htraverse := IsOraclePPTOn.mapM_query_take () hqueries (hout.comp hn')
+  have hcollision := bool_not.comp (decide_nodup_bits (id' (encIn := encWords)))
+  apply hrun.isOraclePPTOn.bind_with
+  simpa only [map_eq_bind_pure_comp, Function.comp_def] using htraverse.map hcollision
 
 end Cslib.Crypto.UHF
