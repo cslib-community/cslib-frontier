@@ -9095,6 +9095,8 @@ public import CslibFrontier.GameTheory.Strategic.Universality.DattaThree
 public import CslibFrontier.GameTheory.Strategic.Universality.Realize
 public import CslibFrontier.GameTheory.Strategic.Universality.SimplexGame
 public import CslibFrontier.GameTheory.Strategic.Universality.StableUniversality
+public import CslibFrontier.GameTheory.UtilityGame.Basic
+public import CslibFrontier.GameTheory.UtilityGame.CompetitiveFacilityLocation
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString

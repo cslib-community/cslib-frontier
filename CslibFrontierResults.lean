@@ -52,6 +52,7 @@ import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.TwoSATWordRAM
+import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Registry
