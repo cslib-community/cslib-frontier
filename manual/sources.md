@@ -1182,6 +1182,11 @@ Sariel Har-Peled, Piotr Indyk, Rajeev Motwani. “Approximate Nearest Neighbor: 
 
 Jason D. Hartline. *Mechanism Design and Approximation*, book manuscript; chapters 1–7 revised 20 September 2021. http://jasonhartline.com/MDnA/ . The author-hosted Chapter 2, "Equilibrium", was consulted on 2026-11-08 for Definitions 2.3.2 and 2.4.1, §2.3, §2.4, Proposition 2.4.1, Theorem 2.5.1, §2.7 (Corollaries 2.7.1 and 2.7.2, Example 2.7.1), §2.8 (Example 2.8.1) and §2.9; locators follow that version.
 
+<a id="hartlinekarlin07"></a>
+## hartlinekarlin07
+
+Jason D. Hartline and Anna R. Karlin. "Profit Maximization in Mechanism Design." Chapter 13 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 331–361 (bibliography key `HartlineKarlin2007`, ISBN `978-0-521-87282-9`; page 362 is a blank verso before Chapter 14 on page 363). A university-hosted PDF of the book (non-printable online edition, SHA-256 `83084d9996024ca92f313c5ae55fec7b3b379f06172a4c24b62229da9c558543`) was consulted via rendered page images on 2026-11-24 for the table of contents (pp. viii–ix), §13.1 (pp. 331–334: Example 13.2 digital goods auctions, §13.1.2 preliminaries, Definition 13.5 truthful in expectation, Theorem 13.6, Observation 13.1.1), §13.4 (pp. 344–349: §13.4.1 Definition 13.33 competitive ratio, §13.4.2 Definition 13.34 `ℱ⁽²⁾` and two-bid `($1, $2)` tightness example, §13.4.4 Definition 13.39 decision problem and `ℱ`, Definition 13.40 `ProfitExtract_R`, §13.4.5 Definition 13.41 `RSPE` and Theorem 13.42), and Exercises (pp. 360–361: Exercise 13.10). Two printed slips on p. 348 are noted and repaired in `ProfitExtraction.lean`: the informal intuition paragraph after Definition 13.41 writes `ℱ⁽²⁾` instead of `ℱ` for `R'` and `R''` (Definition 13.41(ii) uses `ℱ`), and the prose and proof of Theorem 13.42 claim that the realized profit of `RSPE` equals `min(R', R'')`, whereas when `R' = R'' > 0` both profit extractions succeed and yield `2 * R'` (counterexample `b = (1, 1)` checked in `CslibFrontierTests/GameTheory/DigitalGoods.lean`). The original papers cited in Chapter 13 were not inspected directly.
+
 <a id="hartmanis1968"></a>
 ## hartmanis1968
 
