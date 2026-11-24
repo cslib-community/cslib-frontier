@@ -58,11 +58,12 @@ Definition 6 of [Canetti2020]. In particular:
   parameters `(secParam, replyBound, aux)` for a UC environment and their encoding.
 * `Cslib.Crypto.Protocols.UC.WordCodec`, `Cslib.Crypto.Protocols.UC.StateCodec`: injective binary
   state presentation with total left-inverse decoder for a UC machine or ideal functionality.
-* `Cslib.Crypto.Protocols.UC.wordHandle`, `Cslib.Crypto.Protocols.UC.wordRunFromWith`,
-  `Cslib.Crypto.Protocols.UC.wordRunWith`, `Cslib.Crypto.Protocols.UC.wordRunFrom`,
+* `Cslib.Crypto.Protocols.UC.wordHandle`, `Cslib.Crypto.Protocols.UC.wordRunFrom`,
   `Cslib.Crypto.Protocols.UC.wordRun`: one word-level activation of a typed UC machine family, its
-  parameterized and fixed-corruption state-passing executions from an encoded state, and the full
-  word-level execution of a lowered environment against `wordHandle` from sampled initial state.
+  parameterized state-passing execution from an encoded state, and the full word-level execution
+  of a lowered environment against `wordHandle` from sampled initial state.
+* `Cslib.Crypto.Protocols.UC.punitWordCodec`: canonical `WordCodec PUnit` encoding `PUnit.unit` as
+  `[]`.
 * `Cslib.Crypto.Protocols.UC.PPTCertificate`: strict-PPT certificate for a UC machine family
   (`init`, `handle`, and polynomially bounded additive state growth `preserve`).
 * `Cslib.Crypto.Protocols.UC.Machine.IsPPTFamily`, `Cslib.Crypto.Protocols.UC.Protocol.IsPPT`,
@@ -76,11 +77,9 @@ Definition 6 of [Canetti2020]. In particular:
 
 * `Cslib.Crypto.Protocols.UC.PPTCertificate.preserve_wordHandle`: invariant-and-growth bridge
   from `PPTCertificate` to `IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`.
-* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_runWith_wordHandle` and
-  `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_run_wordHandle`: running a
-  strict-PPT environment against any machine family equipped with a `PPTCertificate` (with
-  general polynomial-time parameter maps or fixed corruption set) yields a uniform strict
-  oracle-PPT program.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_run_wordHandle`: running a
+  strict-PPT environment against any machine family equipped with a `PPTCertificate` under
+  polynomial-time parameter maps yields a uniform strict oracle-PPT program.
 * `Cslib.Crypto.Protocols.UC.Machine.isPPTFamily_id`: the forwarding machine `Machine.id` is
   strict PPT over any `WordInterface`.
 * `Cslib.Crypto.Protocols.UC.Adversary.isPPT_dummyAdversary`: the dummy adversary is strict PPT
@@ -362,7 +361,7 @@ in this library's word model for party port `party` and backdoor port `back` whe
 /-- Library construction (no cited definition): state-passing word-level execution of a lowered
 UC environment `Z` evaluated at `envParam e` against `wordHandle` at `param e`, starting from an
 already-encoded machine state `state`. -/
-@[expose] def wordRunFromWith
+@[expose] def wordRunFrom
     {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
     (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
     (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
@@ -383,7 +382,7 @@ already-encoded machine state `state`. -/
 `Z` evaluated at `envParam e` against a machine family `M` at `param e` equipped with a
 `StateCodec`, sampling the encoded initial state of `M (param e).secParam (param e).corrupted` and
 interpreting the lowered environment through `wordHandle`. -/
-@[expose] def wordRunWith
+@[expose] def wordRun
     {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
     (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
     (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
@@ -394,39 +393,14 @@ interpreting the lowered environment through `wordHandle`. -/
   let p := param e
   let s0 ← ProbOracleComp.sample
     ((codec p.secParam p.corrupted).enc <$> (M p.secParam p.corrupted).init)
-  Prod.fst <$> wordRunFromWith M iI party adv codec Z param envParam e s0
-
-/-- Library construction (no cited definition): state-passing word-level execution of a lowered
-UC environment `Z` against `wordHandle` starting from an already-encoded machine state `state`. -/
-abbrev wordRunFrom
-    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
-    (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
-    (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
-    (adv : WordPort AdvQ AdvR) (codec : StateCodec M)
-    (Z : Environment n In Out AdvQ AdvR)
-    (C : Finset (Fin n)) (e : EnvParam) (state : List Bool) :
-    WordOracleComp iI.Channel (Bool × List Bool) :=
-  wordRunFromWith M iI party adv codec Z (fun e => ⟨e.secParam, e.replyBound, C⟩) id e state
-
-/-- Library construction (no cited definition): word-level execution of a lowered UC environment
-`Z` against a machine family `M` equipped with a `StateCodec`, sampling the encoded initial state
-of `M e.secParam C` and interpreting `Z e.secParam e.aux` (lowered with reply bound `e.replyBound`)
-through `wordHandle`. -/
-abbrev wordRun
-    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
-    (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
-    (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
-    (adv : WordPort AdvQ AdvR) (codec : StateCodec M)
-    (Z : Environment n In Out AdvQ AdvR) (C : Finset (Fin n)) (e : EnvParam) :
-    WordOracleComp iI.Channel Bool :=
-  wordRunWith M iI party adv codec Z (fun e => ⟨e.secParam, e.replyBound, C⟩) id e
+  Prod.fst <$> wordRunFrom M iI party adv codec Z param envParam e s0
 
 /-- Library infrastructure (no cited result): running a strict-PPT environment at `envParam e`
-against any machine family equipped with a `PPTCertificate` at `param e` via `wordRunWith`
+against any machine family equipped with a `PPTCertificate` at `param e` via `wordRun`
 (sampling the initial encoded state via `cert.init` and interpreting lowered queries via
 `cert.handle` with polynomially bounded additive state growth `cert.preserve_wordHandle`) yields a
 uniform strict oracle-PPT program over `iI.Channel`. -/
-theorem Environment.IsPPT.isOraclePPTOn_runWith_wordHandle
+theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
     {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
     {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
     {Z : Environment n In Out AdvQ AdvR}
@@ -438,7 +412,7 @@ theorem Environment.IsPPT.isOraclePPTOn_runWith_wordHandle
     (hparam : ComputableInPolyTime param encEnvParam (encPPTParam n))
     (henv : ComputableInPolyTime envParam encEnvParam encEnvParam) :
     IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool
-      (wordRunWith M iI party adv cert.codec Z param envParam) := by
+      (wordRun M iI party adv cert.codec Z param envParam) := by
   let iE := WordInterface.exec party adv
   let ValidState : Type :=
     { x : EnvParam × List Bool //
@@ -464,7 +438,7 @@ theorem Environment.IsPPT.isOraclePPTOn_runWith_wordHandle
     rfl
   have hstep : IsOraclePPTOn (Operation := iI.Channel)
       encValid (encPair encBool encBits) fun x =>
-        wordRunFromWith M iI party adv cert.codec Z param envParam x.1.1 x.1.2 := by
+        wordRunFrom M iI party adv cert.codec Z param envParam x.1.1 x.1.2 := by
     have hbase : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
       (ComputableInPolyTime.fst encEnvParam encBits).comp hval
     have hprepare : ComputableInPolyTime (fun x : ValidState => envParam x.1.1)
@@ -511,49 +485,28 @@ theorem Environment.IsPPT.isOraclePPTOn_runWith_wordHandle
           ((fun s => (⟨(e, (cert.codec (param e).secParam (param e).corrupted).enc s),
             ⟨s, rfl⟩⟩ : ValidState)) <$>
             (M (param e).secParam (param e).corrupted).init) >>= fun x =>
-          wordRunFromWith M iI party adv cert.codec Z param envParam x.1.1 x.1.2) :=
+          wordRunFrom M iI party adv cert.codec Z param envParam x.1.1 x.1.2) :=
     (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
   refine hcombined.congr fun e State oracle s => ?_
-  simp only [wordRunWith, ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind,
+  simp only [wordRun, ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_sample, ProbComp.eval_map, PMF.bind_map, PMF.map_bind,
     Function.comp_def]
 
-/-- Library infrastructure (no cited result): running a strict-PPT environment against any machine
-family equipped with a `PPTCertificate` via `wordRun` (sampling the initial encoded state via
-`cert.init` and interpreting lowered queries via `cert.handle` with polynomially bounded additive
-state growth `cert.preserve_wordHandle`) yields a uniform strict oracle-PPT program over
-`iI.Channel`. -/
-theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
-    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
-    {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
-    {Z : Environment n In Out AdvQ AdvR}
-    (hZ : Z.IsPPT party adv)
-    {iI : WordInterface I}
-    {M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR)}
-    (cert : PPTCertificate M iI (WordInterface.exec party adv))
-    (C : Finset (Fin n)) :
-    IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool
-      (wordRun M iI party adv cert.codec Z C) := by
-  have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
-      encEnvParam (encFinite (Finset (Fin n))) :=
-    ComputableInPolyTime.const C
-  exact hZ.isOraclePPTOn_runWith_wordHandle cert (by fun_prop)
-    (ComputableInPolyTime.of_eq fun _ => rfl)
-
 /-! ### Baseline certificates -/
 
-private def punitStateCodec {n : ℕ} {ι : Type} (E : ι → Type) :
-    StateCodec (fun (_ : ℕ) (_ : Finset (Fin n)) => Machine.id E) := fun _ _ =>
-  { enc := ⟨fun _ => [], fun a b _ => by cases a; cases b; rfl⟩
-    decode := fun _ => PUnit.unit
-    decode_enc := fun _ => rfl }
+/-- Library construction (no cited definition): canonical `WordCodec` for `PUnit` states,
+encoding `PUnit.unit` as `[]`. -/
+@[expose] def punitWordCodec : WordCodec PUnit where
+  enc := ⟨fun _ => [], fun a b _ => by cases a; cases b; rfl⟩
+  decode := fun _ => PUnit.unit
+  decode_enc := fun _ => rfl
 
 /-- Library infrastructure (no cited result): the stateless forwarding machine `Machine.id E` has
 a strict-PPT certificate over any `WordInterface E`. -/
 theorem Machine.isPPTFamily_id {n : ℕ} {ι : Type} {E : ι → Type} (I : WordInterface E) :
     Machine.IsPPTFamily (fun (_ : ℕ) (_ : Finset (Fin n)) => Machine.id E) I I := by
   refine ⟨{
-    codec := punitStateCodec E
+    codec := fun _ _ => punitWordCodec
     init := by
       change IsPPTOn (encPPTParam n) encBits (fun _ => pure [])
       exact (ComputableInPolyTime.const (encIn := encPPTParam n) (encOut := encBits) []).isPPTOn
@@ -583,12 +536,13 @@ theorem Machine.isPPTFamily_id {n : ℕ} {ι : Type} {E : ι → Type} (I : Word
       refine hquery.map ?_
       fun_prop
     refine hpair.congr fun x State oracle s => ?_
-    simp only [wordHandle, Machine.id, punitStateCodec, StateT.run, StateT.lift,
+    simp only [wordHandle, Machine.id, punitWordCodec, StateT.run, StateT.lift,
       ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_pure,
       map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_apply]
     rfl
   · intro p request s result hresult
-    rw [wordHandle, OracleComp.mem_supportWith_map_iff] at hresult
+    dsimp only [wordHandle] at hresult
+    rw [OracleComp.mem_supportWith_map_iff] at hresult
     rcases hresult with ⟨x, _, rfl⟩
     exact Nat.le_refl 0
 
