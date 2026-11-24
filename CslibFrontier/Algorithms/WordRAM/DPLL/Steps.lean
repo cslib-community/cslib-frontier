@@ -298,13 +298,15 @@ variable {w : ℕ}
 
 attribute [local wram_simps] StateAt ScanAt Bool.toNat_false Bool.toNat_true
 
-/-- **Branching** pushes the literal `l` given by the scan registers. -/
+/-- **Branching** pushes the literal `l` given by the scan registers, and changes no cell from
+`T + 4 N + 2` on. -/
 theorem push_spec (φ : CNF ℕ) (N T : ℕ) (x : Data 32) (t : Trail) (l : Literal ℕ)
     (hs : StateAt φ N T x t)
     (hcode : (if x.regs uf = 0 then x.regs ov + x.regs ov + 1 else x.regs unit) = litCode l)
     (hl : l.1 ∈ φ.vars) (ha : Assigned (Trail.lits t) l.1 = false)
     (hfit : Fits w (T + 5 * N + 2)) :
-    ∃ y, ExecWithin w push x y 12 ∧ StateAt φ N T y (⟨l, false⟩ :: t) := by
+    ∃ y, ExecWithin w push x y 12 ∧ StateAt φ N T y (⟨l, false⟩ :: t) ∧
+      ∀ a, T + 4 * N + 2 ≤ a → y.mem a = x.mem a := by
   obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := hs
   have hpush := hmem.push hl ha
   have hlen := hpush.ok.length_le fun v hv => mem_vars_lt hmem hv
@@ -312,13 +314,15 @@ theorem push_spec (φ : CNF ℕ) (N T : ℕ) (x : Data 32) (t : Trail) (l : Lite
   have hc := litCode_lt (mem_vars_lt hmem hl)
   refine WP.exists_execWithin ?_
   unfold push
-  split_ifs at hcode with hu <;> wram_exec [*] <;> wram_simp [*, List.length_cons] <;> omega
+  split_ifs at hcode with hu <;> wram_exec [*] <;> refine ⟨?_, fun a ha => ?_⟩ <;>
+    wram_simp [*, List.length_cons] <;> omega
 
-/-- **The pop loop** drops the second branches on top of the trail. -/
+/-- **The pop loop** drops the second branches on top of the trail, and changes no cell from
+`T + 4 N + 2` on. -/
 theorem popLoop_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : StateAt φ N T x t)
     (haux : x.regs aux = 1) (hfit : Fits w (T + 5 * N + 2)) :
     ∃ y, ExecWithin w popLoop x y (14 * t.length + 14) ∧ StateAt φ N T y (dropSecond t) ∧
-      y.regs aux = 0 := by
+      y.regs aux = 0 ∧ ∀ a, T + 4 * N + 2 ≤ a → y.mem a = x.mem a := by
   induction t generalizing x with
   | nil =>
     obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := hs
@@ -328,6 +332,7 @@ theorem popLoop_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : 
     wram_exec [hst]
     refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_eq, h1, hz])) ?_
     wram_simp [*, dropSecond]
+    exact fun _ _ => trivial
   | cons e t ih =>
     obtain ⟨l, b⟩ := e
     obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := hs
@@ -346,24 +351,29 @@ theorem popLoop_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : 
     · wram_exec [*]
       refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_eq, h1, hz])) ?_
       wram_simp [*, dropSecond_cons_false, List.length_cons]
-      omega
+      exact ⟨by omega, fun _ _ => trivial⟩
     · wram_exec [*]
-      wram_call (ih _ ..) framed [*] with v m ⟨⟨htp', hm'⟩, ha'⟩
-      exact ⟨by simp only [List.length_cons]; omega, ⟨htp', hm'⟩, ha'⟩
+      wram_call (ih _ ..) framed [*] with v m ⟨⟨htp', hm'⟩, ha', hfr⟩
+      refine ⟨by simp only [List.length_cons]; omega, ⟨htp', hm'⟩, ha', fun a ha => ?_⟩
+      rw [hfr a ha]
+      simp only [Data.write_mem, Data.set_mem]
+      exact Function.update_of_ne (by omega) _ _
 
-/-- **Backtracking**: the state of the backtracked trail, or the output `[0]` at `T + 4 N`. -/
+/-- **Backtracking**: the state of the backtracked trail, or the output `[0]` at `T + 4 N`; no
+cell from `T + 4 N + 2` on changes. -/
 theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : StateAt φ N T x t)
     (hfit : Fits w (T + 5 * N + 2)) :
     ∃ y, ExecWithin w backtrack x y (14 * t.length + 40) ∧
-      match Trail.backtrack t with
+      (match Trail.backtrack t with
       | some t' => StateAt φ N T y t'
       | none => y.regs go = 0 ∧ y.regs out = T + 4 * N ∧
-          outputList y.mem (T + 4 * N) = [0] := by
+          outputList y.mem (T + 4 * N) = [0]) ∧
+      ∀ a, T + 4 * N + 2 ≤ a → y.mem a = x.mem a := by
   obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := id hs
   refine WP.exists_execWithin ?_
   unfold backtrack
   wram_exec [h1]
-  wram_call (popLoop_spec (w := w) φ N T t _ ..) framed [*] with v m ⟨⟨htp', hm'⟩, ha'⟩
+  wram_call (popLoop_spec (w := w) φ N T t _ ..) framed [*] with v m ⟨⟨htp', hm'⟩, ha', hfr⟩
   have hdl := length_dropSecond_le t
   rw [backtrack_eq]
   cases hd : dropSecond t with
@@ -372,10 +382,12 @@ theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs 
     have hst : ¬T + 2 * N < v tp := by rw [htp']; simp
     unfold outUnsat
     wram_exec [*]
-    refine ⟨by wram_simp [*], by wram_simp [*], ?_⟩
-    rw [outputList_eq_iff]
-    wram_simp [*]
-    exact ⟨by simp, holdsList_cons_iff.mpr ⟨by simp, fun i => i.elim0⟩⟩
+    refine ⟨⟨by wram_simp [*], by wram_simp [*], ?_⟩, fun a ha => ?_⟩
+    · rw [outputList_eq_iff]
+      wram_simp [*]
+      exact ⟨by simp, holdsList_cons_iff.mpr ⟨by simp, fun i => i.elim0⟩⟩
+    · wram_simp
+      simpa using hfr a ha
   | cons e t' =>
     obtain ⟨l, b⟩ := e
     obtain rfl := dropSecond_eq_cons hd
@@ -393,8 +405,11 @@ theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs 
     have e2 : T + 2 * N + 2 * t'.length + 2 - 2 = T + 2 * N + 2 * t'.length := by omega
     have hflip := hm'.flip
     wram_exec [*]
-    wram_simp [*, List.length_cons]
-    omega
+    refine ⟨?_, fun a ha => ?_⟩
+    · wram_simp [*, List.length_cons]
+      omega
+    · wram_simp
+      simpa using hfr a ha
 
 /-- **The model loop** writes the bits of the true literals of `π` for the variables below `N`
 at `T + 4 N + 2`, and changes no cell below. -/
@@ -492,7 +507,7 @@ theorem stepBody_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs :
     wram_exec [hconf, h1]
     wram_call (backtrack_spec (w := w) φ N T t _ hs' hfit) framed with v₂ m₂ hz₂
     rw [hstep]
-    cases hb : Trail.backtrack t <;> rw [hb] at hz₂ <;> exact ⟨by simp only; omega, hz₂⟩
+    cases hb : Trail.backtrack t <;> rw [hb] at hz₂ <;> exact ⟨by simp only; omega, hz₂.1⟩
   · rw [Bool.not_eq_true] at hc
     rw [hc, Bool.toNat_false] at hconf
     by_cases ha : (φ.all fun c => c.any (Holds π)) = true
@@ -522,7 +537,7 @@ theorem stepBody_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs :
       wram_call (push_spec (w := w) φ N T _ t _ hs' (by wram_simp; exact hcode) hv hun hfit) framed
         with v₂ m₂ hz₂
       rw [hstep]
-      exact ⟨by simp only; omega, hz₂⟩
+      exact ⟨by simp only; omega, hz₂.1⟩
 
 end Specs
 
