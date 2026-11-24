@@ -29,7 +29,6 @@ private def encLiftedBits : ULift.{1} (List Bool) ↪ List Bool :=
 
 private def liftedAccounting : OnlineAccounting (ULift.{1} (List Bool)) where
   time := fun _ _ => 0
-  workspace := fun _ _ => 0
 
 example (input : ULift.{1} (List Bool)) : liftedAccounting.totalTime input = 0 := by
   simp [liftedAccounting, OnlineAccounting.totalTime]
@@ -148,7 +147,6 @@ noncomputable def discardBit :=
 
 def discardBitOnline : OnlineAccounting Unit where
   time := fun phase _ => if phase = .localStep then 1 else 0
-  workspace := fun _ _ => 0
 
 theorem discardBit_resource_bound (input : Unit) (OracleState : Type)
     (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
@@ -157,13 +155,9 @@ theorem discardBit_resource_bound (input : Unit) (OracleState : Type)
       (ProbOracleComp.runWith oracle
         (ProbOracleComp.sample (ProbComp.uniform Bool)) state).support)
     (phase : OnlinePhase) :
-    discardBit.online.time phase middle ≤ discardBitOnline.time phase input ∧
-      discardBit.online.workspace phase middle ≤ discardBitOnline.workspace phase input := by
-  constructor <;>
-    simp [discardBit, discardBitCompiler, discardBitOnline, ClassifiedCompiler.inPhase,
-      ClassifiedCompiler.ofAccounting, ClassifiedCompiler.finishCompilerAccounting,
-      OnlineAccounting.withWorkspaceFloor,
-      Turing.MultiTapeTM.Internal.NativeCompiler.const]
+    discardBit.online.time phase middle ≤ discardBitOnline.time phase input := by
+  simp [discardBit, discardBitCompiler, discardBitOnline, ClassifiedCompiler.inPhase,
+    Turing.MultiTapeTM.Internal.NativeCompiler.const]
 
 noncomputable def typedPostArtifact := NativeOracleProgram.postprocess
   (NativeOracleProgram.fairBit (r := 2) encUnit) discardBit discardBitOnline
@@ -184,7 +178,6 @@ noncomputable def typedContinuation := NativeOracleProgram.ofCompiler (r := 2)
 
 def typedContinuationOnline : OnlineAccounting Unit where
   time := fun phase _ => if phase = .localStep then 1 else 0
-  workspace := fun _ _ => 0
 
 theorem typedContinuation_resource_bound (input : Unit) (OracleState : Type)
     (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
@@ -194,14 +187,10 @@ theorem typedContinuation_resource_bound (input : Unit) (OracleState : Type)
         (ProbOracleComp.sample (ProbComp.uniform Bool)) state).support)
     (phase : OnlinePhase) :
     typedContinuation.online.time phase (input, middle) ≤
-        typedContinuationOnline.time phase input ∧
-      typedContinuation.online.workspace phase (input, middle) ≤
-        typedContinuationOnline.workspace phase input := by
-  constructor <;>
-    simp [typedContinuation, typedContinuationCompiler, typedContinuationOnline,
-      NativeOracleProgram.ofCompiler, ClassifiedCompiler.inPhase, ClassifiedCompiler.ofAccounting,
-      ClassifiedCompiler.finishCompilerAccounting, OnlineAccounting.withWorkspaceFloor,
-      Turing.MultiTapeTM.Internal.NativeCompiler.const]
+      typedContinuationOnline.time phase input := by
+  simp [typedContinuation, typedContinuationCompiler, typedContinuationOnline,
+    NativeOracleProgram.ofCompiler, ClassifiedCompiler.inPhase,
+    Turing.MultiTapeTM.Internal.NativeCompiler.const]
 
 noncomputable def typedCapturedArtifact := NativeOracleProgram.sequenceCaptured
   (NativeOracleProgram.fairBit (r := 2) encUnit) typedContinuation typedContinuationOnline
@@ -251,7 +240,6 @@ theorem secondRequestCompiler_time (input : Unit × List Bool) :
   cases inputUnit
   simp only [secondRequest, ClassifiedCompiler.pair,
     secondRequestProjection, secondRequestLimit, ClassifiedCompiler.inPhase,
-    ClassifiedCompiler.ofAccounting,
     Turing.MultiTapeTM.Internal.NativeCompiler.pair,
     Turing.MultiTapeTM.Internal.NativeCompiler.comp,
     Turing.MultiTapeTM.Internal.NativeCompiler.encodeFrame,
@@ -264,16 +252,8 @@ theorem secondRequestCompiler_time (input : Unit × List Bool) :
   omega
 
 /-- A uniform phase schedule for the second artifact on the first query's one-bit reply prefix. -/
-def secondClock (_ : OnlinePhase) (_ : Unit) : ℕ := 1000
-
-/-- The finite one-bit continuation range retains the second artifact's phase-local workspace
-instead of replacing it by zero. -/
-noncomputable def secondOnline : OnlineAccounting Unit where
-  time := secondClock
-  workspace := fun phase input =>
-    max (secondPrepared.online.workspace phase (input, []))
-      (max (secondPrepared.online.workspace phase (input, [false]))
-        (secondPrepared.online.workspace phase (input, [true])))
+def secondOnline : OnlineAccounting Unit where
+  time := fun _ _ => 1000
 
 theorem secondPrepared_resource_bound (input : Unit) (OracleState : Type)
     (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
@@ -282,41 +262,28 @@ theorem secondPrepared_resource_bound (input : Unit) (OracleState : Type)
       (ProbOracleComp.runWith oracle
         (NativeOracleProgram.queryTakeProgram (0 : Operation) ([false], 1)) state).support)
     (phase : OnlinePhase) :
-    secondPrepared.online.time phase (input, middle) ≤ secondOnline.time phase input ∧
-      secondPrepared.online.workspace phase (input, middle) ≤
-        secondOnline.workspace phase input := by
+    secondPrepared.online.time phase (input, middle) ≤ secondOnline.time phase input := by
   have hlength : middle.length ≤ 1 := by
     rw [NativeOracleProgram.queryTakeProgram, ProbOracleComp.runWith_map] at hmiddle
     obtain ⟨⟨reply, replyState⟩, _, heq⟩ :=
       (PMF.mem_support_map_iff _ _ _).mp hmiddle
     rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
     exact List.length_take_le 1 reply
-  constructor
-  · refine (OnlineAccounting.time_le_totalTime secondPrepared.online phase
-      (input, middle)).trans ?_
-    change secondPrepared.time (input, middle) ≤ secondOnline.time phase input
-    rw [show secondPrepared.time (input, middle) =
-        5 * secondRequest.compiler.time (input, middle) +
-          secondArtifact.time (middle, 2) + 9 by
-      simpa only [secondPrepared, Function.const_apply] using
-        (NativeOracleProgram.time_preprocess secondRequest secondArtifact (input, middle)),
-      secondRequestCompiler_time,
-      show secondArtifact.time (middle, 2) = 4 * middle.length + 2 * 2 + 6 by
-        simpa only [secondArtifact, NativeOracleProgram.queryTake,
-          NativeOracleProgram.time] using
-          (NativeOracleProgram.totalTime_queryTakeOnline (middle, 2))]
-    simp only [secondOnline, secondClock]
-    omega
-  · rcases middle with _ | ⟨bit, rest⟩
-    · exact le_max_left _ _
-    · have hrest : rest = [] := by
-        exact List.eq_nil_of_length_eq_zero (by
-          simp only [List.length_cons] at hlength
-          omega)
-      subst rest
-      cases bit
-      · exact (le_max_left _ _).trans (le_max_right _ _)
-      · exact (le_max_right _ _).trans (le_max_right _ _)
+  refine (OnlineAccounting.time_le_totalTime secondPrepared.online phase
+    (input, middle)).trans ?_
+  change secondPrepared.time (input, middle) ≤ secondOnline.time phase input
+  rw [show secondPrepared.time (input, middle) =
+      5 * secondRequest.compiler.time (input, middle) +
+        secondArtifact.time (middle, 2) + 9 by
+    simpa only [secondPrepared, Function.const_apply] using
+      (NativeOracleProgram.time_preprocess secondRequest secondArtifact (input, middle)),
+    secondRequestCompiler_time,
+    show secondArtifact.time (middle, 2) = 4 * middle.length + 2 * 2 + 6 by
+      simpa only [secondArtifact, NativeOracleProgram.queryTake,
+        NativeOracleProgram.time] using
+        (NativeOracleProgram.totalTime_queryTakeOnline (middle, 2))]
+  simp only [secondOnline]
+  omega
 
 /-- The concrete two-call client is the retained captured-input machine, not merely semantic bind.
 Its second request is the first reply prefix. -/
@@ -366,22 +333,5 @@ example : handler ((0 : Operation), [false]) 0 ≠
     (PMF.mem_support_pure_iff _ _).mpr rfl
   rw [h, PMF.mem_support_pure_iff] at hmem
   simp at hmem
-
-/-- Regression witness: iteration preserves a nonzero query-phase workspace peak instead of
-zeroing it and recovering only a generic controller bound. -/
-def loopRoundOnline : OnlineAccounting Unit where
-  time := fun _ _ => 3
-  workspace
-    | .lookup, _ => 7
-    | _, _ => 0
-
-example : (NativeOracleProgram.boundedIterationAccountingOn
-    (fun _ : Unit => 2) (fun _ => 5) loopRoundOnline 4).workspace .lookup () = 7 :=
-  rfl
-
-example : 7 ≤ (NativeOracleProgram.boundedIterationAccountingOn
-    (fun _ : Unit => 2) (fun _ => 5) loopRoundOnline 4).totalWorkspace () :=
-  NativeOracleProgram.workspace_le_boundedIterationAccountingOn
-    (fun _ : Unit => 2) (fun _ => 5) loopRoundOnline 4 .lookup ()
 
 end CslibFrontierTests.Internal.NativeOracleWitness
