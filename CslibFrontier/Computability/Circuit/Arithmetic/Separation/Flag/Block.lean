@@ -65,7 +65,8 @@ def up (M : Matrix (Fin a) (Fin b) F2) : U (a + b) :=
         · simp [h2]
       · simp [h1])
 
-theorem mat_up (M : Matrix (Fin a) (Fin b) F2) : mat (up M) = 1 + wl a b * M * (wr a b)ᵀ := by rfl
+theorem mat_up (M : Matrix (Fin a) (Fin b) F2) : mat (up M) = 1 + wl a b * M * (wr a b)ᵀ := by
+  rw [up, mat_mk]
 
 theorem up_add (M N : Matrix (Fin a) (Fin b) F2) : up (M + N) = up M * up N := by
   apply mat_inj

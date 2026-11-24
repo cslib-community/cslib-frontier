@@ -39,7 +39,7 @@ theorem mat_lt {h : ℕ} (A : U h) {i j : Fin h} (hij : j < i) : mat A i j = 0 :
 theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 := (Cslib.SLTower.mem_U.mp A.2 i i).2
 
 /-- An element from its matrix. -/
-def mk {h : ℕ} (M : Matrix (Fin h) (Fin h) F2) (h0 : ∀ i j, j < i → M i j = 0)
+@[expose] def mk {h : ℕ} (M : Matrix (Fin h) (Fin h) F2) (h0 : ∀ i j, j < i → M i j = 0)
     (h1 : ∀ i, M i i = 1) : U h :=
   ⟨⟨M, by
     rw [Matrix.det_of_isUpperTriangular]
@@ -154,7 +154,7 @@ def win : U n →* U h where
 theorem mat_win (A : U n) : mat (win hp A) = wm hp (mat A) := by rfl
 
 /-- The place of a type of a window. -/
-def wt (j : Fin (n - 1)) : Fin (h - 1) := ⟨p + j.1, by omega⟩
+@[expose] def wt (j : Fin (n - 1)) : Fin (h - 1) := ⟨p + j.1, by omega⟩
 
 theorem win_x (j : Fin (n - 1)) : win hp (x n j) = x h (wt hp j) := by
   apply mat_inj

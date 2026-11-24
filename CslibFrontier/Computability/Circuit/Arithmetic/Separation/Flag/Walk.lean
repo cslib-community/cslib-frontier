@@ -32,7 +32,7 @@ theorem three_le {T : Type*} [Fintype T] (c f g k : T → ℝ) (hc : ∀ t, 0 �
   linarith
 
 /-- Pull-back of a length along a homomorphism. -/
-def Len.comap {G H : Type*} [Group G] [Group H] (l : Len H) (φ : G →* H) : Len G where
+@[expose] def Len.comap {G H : Type*} [Group G] [Group H] (l : Len H) (φ : G →* H) : Len G where
   val g := l.val (φ g)
   one' := by rw [map_one, l.one']
   inv' g := by rw [map_inv, l.inv']
@@ -152,7 +152,7 @@ def tr {n n' : ℕ} (h : n ≤ n') : U n' →* U n where
     exact ⟨⟨k.1, hkn⟩, mem_univ _, hk, rfl⟩
 
 theorem tr_apply {n n' : ℕ} (h : n ≤ n') (A : U n') (i j : Fin n) :
-    mat (tr h A) i j = mat A (Fin.castLE h i) (Fin.castLE h j) := rfl
+    mat (tr h A) i j = mat A (Fin.castLE h i) (Fin.castLE h j) := by rfl
 
 theorem tr_surjective {n n' : ℕ} (h : n ≤ n') : Function.Surjective (tr h) := by
   intro A
@@ -190,7 +190,7 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
         have : ¬ (j.1 = a.1 ∧ j.1 + 1 = b.1) := by
           have := b.2
           omega
-        simp [Matrix.one_apply, Matrix.single_apply, lo, hi, Fin.ext_iff, this]
+        simp [Matrix.one_apply, lo, hi, Fin.ext_iff, this]
       rw [this, l.one']
   rw [sum_congr rfl fun j _ => e j]
   rw [← Finset.sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.1 < n - 1)]

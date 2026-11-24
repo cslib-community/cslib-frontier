@@ -25,7 +25,7 @@ open Cslib.SLTower (U SL2 lo hi x)
 variable {n : ℕ}
 
 /-- The total length of the generators. -/
-noncomputable def Len.S (l : Len (U n)) : ℝ := ∑ j : Fin (n - 1), l.val (x n j)
+@[expose] noncomputable def Len.S (l : Len (U n)) : ℝ := ∑ j : Fin (n - 1), l.val (x n j)
 
 theorem Len.S_nonneg (l : Len (U n)) : 0 ≤ l.S := sum_nonneg fun _ _ => l.nonneg _
 
@@ -39,8 +39,8 @@ theorem x_mul_apply (j : Fin (n - 1)) (A : U n) (i k : Fin n) :
   by_cases h : i = lo j
   · subst h
     simp
-  · rw [if_neg h]
-    simp [Matrix.mul_apply, Matrix.single_apply, Ne.symm h]
+  · rw [ite_eq_right h]
+    simp [Matrix.mul_apply, Ne.symm h]
 
 theorem mul_x_apply (j : Fin (n - 1)) (A : U n) (i k : Fin n) :
     mat (A * x n j) i k = mat A i k + if k = hi j then mat A i (lo j) else 0 := by
@@ -49,8 +49,8 @@ theorem mul_x_apply (j : Fin (n - 1)) (A : U n) (i k : Fin n) :
   by_cases h : k = hi j
   · subst h
     simp
-  · rw [if_neg h]
-    simp [Matrix.mul_apply, Matrix.single_apply, Ne.symm h]
+  · rw [ite_eq_right h]
+    simp [Matrix.mul_apply, Ne.symm h]
 
 theorem f2_add_self (a : F2) : a + a = 0 := CharTwo.add_self_eq_zero a
 
@@ -62,12 +62,12 @@ theorem x_mul_x (j : Fin (n - 1)) : x n j * x n j = 1 := by
   rw [x_mul_apply, mat_x, mat_one]
   by_cases h : i = lo j
   · subst h
-    simp only [Matrix.add_apply, if_true, Matrix.single_apply]
+    simp only [Matrix.add_apply, ite_true, Matrix.single_apply]
     by_cases h2 : hi j = k
     · subst h2
-      simp [lo_ne_hi', f2_add_self, (lo_ne_hi' j).symm]
+      simp [f2_add_self, (lo_ne_hi' j).symm]
     · simp [h2, (lo_ne_hi' j).symm, Matrix.one_apply]
-  · simp [h, Matrix.single_apply, Ne.symm h]
+  · simp [h, Ne.symm h]
 
 /-- The sum of the lengths of the generators of types ≥ p. -/
 noncomputable def Len.T (l : Len (U n)) (p : ℕ) : ℝ :=
@@ -100,15 +100,15 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       by_cases h : i = a
       · subst h
         simp; omega
-      · rw [if_neg h, if_neg]
+      · rw [ite_eq_right h, ite_eq_right]
         rintro ⟨h1, h2⟩
         exact h (le_antisymm h2 (Fin.le_def.2 (by omega)))
     · rw [mul_one, mat_one, Matrix.one_apply]
       rcases lt_trichotomy i a with h | h | h
-      · rw [if_neg h.ne, hu2 i (by rw [Fin.lt_def] at h; omega)]
+      · rw [ite_eq_right h.ne, hu2 i (by rw [Fin.lt_def] at h; omega)]
       · subst h
-        rw [if_pos rfl, hua]
-      · rw [if_neg h.ne', hu1 i h]
+        rw [ite_eq_left rfl, hua]
+      · rw [ite_eq_right h.ne', hu1 i h]
     · rw [l.one']; exact hT
     · rw [l.one']; exact hT
   | succ k ih =>
@@ -154,16 +154,16 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       · right; exact h
     have hd' : ∀ i k : Fin n, (i.1 < p ∨ a ≤ i) → mat (x n j * d) i k = (1 : Matrix _ _ F2) i k := by
       intro i k hi
-      rw [x_mul_apply, if_neg (hrow i hi), add_zero, hd i k (hrow' i hi)]
+      rw [x_mul_apply, ite_eq_right (hrow i hi), add_zero, hd i k (hrow' i hi)]
     have hda' : ∀ i : Fin n, mat (x n j * d) i a = if p ≤ i.1 ∧ i ≤ a then 1 else 0 := by
       intro i
       rw [x_mul_apply, hda, hda]
       by_cases h : i = lo j
       · subst h
-        rw [if_neg (by rw [hlo]; omega), if_pos rfl, if_pos, if_pos, zero_add]
+        rw [ite_eq_right (by rw [hlo]; omega), ite_eq_left rfl, ite_eq_left, ite_eq_left, zero_add]
         · exact ⟨hlo.ge, Fin.le_def.2 (by omega)⟩
         · exact ⟨hhi.ge, Fin.le_def.2 (by omega)⟩
-      · rw [if_neg h, add_zero]
+      · rw [ite_eq_right h, add_zero]
         have : i.1 ≠ p := fun h2 => h (Fin.ext h2)
         congr 1
         apply propext
@@ -191,7 +191,7 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
           rw [mat_mul c (x n j * d), mat_mul c d, Matrix.mul_apply, Matrix.mul_apply]
           simp only [x_mul_apply, mul_add, sum_add_distrib]
           simp
-        rw [e, hcd, hclo, hda, if_pos ⟨hhi.ge, Fin.le_def.2 (by omega)⟩, mul_one]
+        rw [e, hcd, hclo, hda, ite_eq_left ⟨hhi.ge, Fin.le_def.2 (by omega)⟩, mul_one]
         by_cases h : i = lo j
         · rw [h, Function.update_self, hu', Matrix.one_apply_eq, zero_add]
         · rw [Function.update_of_ne h, Matrix.one_apply_ne h, add_zero]
@@ -216,7 +216,7 @@ def refl (A : U n) : U n :=
   mk (Matrix.of fun i j => mat A (Fin.rev j) (Fin.rev i))
     (fun i j hij => mat_lt A (Fin.rev_lt_rev.2 hij)) (fun i => mat_diag A _)
 
-theorem refl_apply (A : U n) (i j : Fin n) : mat (refl A) i j = mat A (Fin.rev j) (Fin.rev i) := rfl
+theorem refl_apply (A : U n) (i j : Fin n) : mat (refl A) i j = mat A (Fin.rev j) (Fin.rev i) := by rfl
 
 theorem refl_mul (A B : U n) : refl (A * B) = refl B * refl A := by
   apply mat_inj

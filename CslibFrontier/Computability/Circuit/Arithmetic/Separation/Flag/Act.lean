@@ -35,7 +35,7 @@ namespace IsoAct
 variable {G H Z : Type*} [Group G] [Group H] [MetricSpace Z] (A : IsoAct G Z)
 
 /-- Pull-back along a homomorphism. -/
-def comap (φ : H →* G) : IsoAct H Z where
+@[expose] def comap (φ : H →* G) : IsoAct H Z where
   act g := A.act (φ g)
   one' z := by rw [map_one, A.one']
   mul' g h z := by rw [map_mul, A.mul']
@@ -57,10 +57,10 @@ def len (z : Z) : Len G where
     refine (dist_triangle z (A.act g z) _).trans ?_
     rw [A.iso']
 
-theorem len_val (z : Z) (g : G) : (A.len z).val g = dist z (A.act g z) := rfl
+theorem len_val (z : Z) (g : G) : (A.len z).val g = dist z (A.act g z) := by rfl
 
 /-- Fixed points. -/
-def Fix (z : Z) : Prop := ∀ g, A.act g z = z
+@[expose] def Fix (z : Z) : Prop := ∀ g, A.act g z = z
 
 section proj
 variable [CompleteCAT0Space Z] [Fintype G]

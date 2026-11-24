@@ -126,7 +126,7 @@ theorem blowU_mul (e : μ × κ ↪ ι) (p q : GLM μ) (M : Matrix μ μ F2) :
 
 /-- The contraction hypothesis of the contracting case for a function on a group: along every additive map
 from μ×μ matrices, full rank is only `s²` times as far as rank one. -/
-def Contr {G : Type*} [Group G] (l : Len G) (μ : ℕ) (s : ℝ) : Prop :=
+@[expose] def Contr {G : Type*} [Group G] (l : Len G) (μ : ℕ) (s : ℝ) : Prop :=
   ∀ τ : Matrix (Fin μ) (Fin μ) F2 → G, (∀ M N, τ (M + N) = τ M * τ N) →
     ∀ i, DM (fun M => l.val (τ M)) (dg univ) ≤ s ^ 2 * DM (fun M => l.val (τ M)) (dg {i})
 

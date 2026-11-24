@@ -86,16 +86,16 @@ theorem win_comm {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ h) (hd 
   abel
 
 /-- The homomorphism of a window (trivial if it doesn't fit). -/
-def wh (h p n : ℕ) : U n →* U h := if hp : p + n ≤ h then win hp else 1
+@[expose] def wh (h p n : ℕ) : U n →* U h := if hp : p + n ≤ h then win hp else 1
 
-theorem wh_eq {p n : ℕ} (hp : p + n ≤ h) : wh h p n = win hp := dif_pos hp
+theorem wh_eq {p n : ℕ} (hp : p + n ≤ h) : wh h p n = win hp := dite_eq_left hp
 
 variable {Z : Type*} [MetricSpace Z] (A : IsoAct (U h) Z)
 
 namespace IsoAct
 
 /-- The action of a window. -/
-def W (p n : ℕ) : IsoAct (U n) Z := A.comap (wh h p n)
+@[expose] def W (p n : ℕ) : IsoAct (U n) Z := A.comap (wh h p n)
 
 /-- The displacement by a generator. -/
 noncomputable def e (j : ℕ) (z : Z) : ℝ :=
@@ -132,7 +132,7 @@ theorem e_zero {p n j : ℕ} {z : Z} (hz : (A.W p n).Fix z) (h1 : p ≤ j) (h2 :
   have hj : j < h - 1 := by omega
   have h4 := hz.sub A h1 h2 h3
   unfold e
-  rw [dif_pos hj, ← wh_x hj]
+  rw [dite_eq_left hj, ← wh_x hj]
   have := h4 (x 2 ⟨0, by omega⟩)
   rw [show A.act (wh h j 2 (x 2 ⟨0, by omega⟩)) z = z from this, dist_self]
 
@@ -142,7 +142,7 @@ theorem e_le {p n j : ℕ} {y : Z} (hy : (A.W p n).Fix y) (h1 : p ≤ j) (h2 : j
   have h4 := hy.sub A h1 h2 h3 (x 2 ⟨0, by omega⟩)
   have h5 : A.act (x h ⟨j, hj⟩) y = y := by rw [← wh_x hj]; exact h4
   unfold e
-  rw [dif_pos hj]
+  rw [dite_eq_left hj]
   refine (dist_triangle z y _).trans ?_
   conv_lhs => rw [← h5]
   rw [A.iso', h5, dist_comm y z]
