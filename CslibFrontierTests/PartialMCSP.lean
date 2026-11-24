@@ -270,8 +270,10 @@ example : ComputableInPolyTime id PartialMCSP.enc PartialMCSP.encBinary :=
 The transfer applies to each of the three circuit and formula models, through the correctness
 theorem for that model. -/
 
-/-- A $2^{o(m \log m)}$ decider for `PartialMCSP` gives a $2^{o(n \log n)}$ decider for
-`BipartitePermutationIndependentSet`, and hence a $2^{o(|V|)}$ decider for `ThreeColoring`. -/
+/-- Composing the two rate-by-rate transfers: if for every $\delta > 0$ `PartialMCSP` is decidable
+within time $2^{\delta m \log_2 m}$ times a polynomial, then so is
+`BipartitePermutationIndependentSet` in $n \log_2 n$, and hence `ThreeColoring` in $|V|$. The
+machine and the polynomial degree may depend on $\delta$. -/
 example (h : DecidableInSubexpTime PartialMCSP PartialMCSP.enc
       (fun I => I.arity * Nat.log 2 I.arity)) :
     DecidableInSubexpTime ThreeColoring encGraph fun H => H.vertices.length :=

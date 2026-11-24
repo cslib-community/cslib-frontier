@@ -1632,7 +1632,7 @@ theorem exists_computableInO_ilangoReduction :
   rw [enc_apply, ← ilangoRawFromFuel_eq]
   rfl
 
-/-! ## Section 7: Subexponential-Time Transfer and Ilango's ETH Lower Bounds -/
+/-! ## Section 7: Truth-Table Size and the Subexponential-Time Transfer -/
 
 /-- The truth-table size $N = 2^m$ of a `PartialMCSP.Instance` of arity $m$
 [Ilango2020FOCS, Theorem I.3, p. 424; ECCC TR20-183, Section 1.2.2, Theorem 3, p. 6]. -/
@@ -1672,8 +1672,8 @@ the library variants `PartialMCSP` and `PartialMCSP.MonotoneReadOnce`
 (`mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem` and its `_binaryGate` and
 `_monotoneReadOnce` variants). For `PartialMCSP.BinaryGate`, Ilango's Theorem I.3
 [Ilango2020FOCS, pp. 424, 427–428; ECCC TR20-183, Section 1.2.2, Theorem 3, p. 6, and Section 3,
-Theorem 11, pp. 20–21] is the contrapositive of this transfer, composed with the
-Lokshtanov–Marx–Saurabh lower bound, under the exponential time hypothesis, which
+Theorem 11, pp. 20–21] uses this reduction, together with the Lokshtanov–Marx–Saurabh lower bound,
+to prove a lower bound under the exponential time hypothesis, which
 `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes. -/
 theorem decidableInSubexpTime_bpis_of_ilangoReduction
     {B : Set Instance}

@@ -33,9 +33,9 @@ times a polynomial, then for every $\delta > 0$ `ThreeColoring` is decidable wit
 $2^{\delta |V|}$ times a polynomial
 (`DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet`). As in
 `DecidableInSubexpTime`, the machine and the polynomial may depend on $\delta$.
-The source states the contrapositive under the exponential time hypothesis, which
-`Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes; this module states only the transfer
-and proves no lower bound.
+The source uses this reduction to prove a lower bound under the exponential time hypothesis,
+which `Cslib.Complexity.CountingNativeEndpoint.not_ETH` refutes; this module states only the
+transfer and proves no lower bound.
 
 ## Formulations and faithfulness
 
@@ -298,7 +298,7 @@ theorem BipartitePermutationIndependentSet.mem_iff_exists_satisfiesUndirected
       ∃ π : Equiv.Perm (Fin (2 * G.1)), G.SatisfiesUndirected π :=
   G.exists_satisfies_iff_exists_satisfiesUndirected
 
-/-! ### Three-coloring indexed by vertex positions and ETH lower bound in `|V|` -/
+/-! ### Three-coloring indexed by vertex positions -/
 
 /-- Membership in `ThreeColoring` is equivalent to a proper 3-coloring of the vertex positions
 `Fin G.1.length` with respect to `G.adjBool`. -/
@@ -1064,8 +1064,8 @@ along the block-sorting reduction behind [LokshtanovMarxSaurabh2018, Theorem 2.1
 $\delta > 0$ `BipartitePermutationIndependentSet` is decidable within time $2^{\delta n \log_2 n}$
 times a polynomial, then for every $\delta > 0$ `ThreeColoring` is decidable within time
 $2^{\delta |V|}$ times a polynomial; the machine and the polynomial may depend on $\delta$. This
-transfers an upper bound and proves no lower bound; the source's statement is the contrapositive
-under the exponential time hypothesis. -/
+transfers an upper bound and proves no lower bound; the source uses the reduction to prove a lower
+bound under the exponential time hypothesis. -/
 theorem DecidableInSubexpTime.threeColoring_of_bipartitePermutationIndependentSet
     (h : DecidableInSubexpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
       fun G => G.1 * Nat.log 2 G.1) :

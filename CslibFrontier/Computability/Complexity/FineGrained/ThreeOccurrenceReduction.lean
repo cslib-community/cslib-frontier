@@ -185,7 +185,7 @@ theorem computableInPolyTime_toThreeOccurrenceDense :
   (CNF.computableInPolyTime_denseRelabel (encPair encNat (encPair encUnary encUnary))).comp
     (CNF.computableInPolyTime_toThreeOccurrence encNat)
 
-/-! ### 2. Fine-grained `ThreeSATThree` reductions and `ETH` consequences -/
+/-! ### 2. Fine-grained `ThreeSATThree` reductions -/
 
 /-- For every `φ : CNF ℕ`, `toThreeSATThree φ` has at most `3 * φ.length` distinct variables. -/
 theorem numVars_toThreeSATThree_le_mul_length (φ : CNF ℕ) :
