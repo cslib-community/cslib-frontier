@@ -32,8 +32,9 @@ programs, including `OracleComp.support` and `ProbComp`. Membership in the suppo
   `∃ a, a ∈ p.support ∧ f a = x`;
 * `pure a`, `PMF.pure a`: `x = a`;
 * `if c then p else q`: `c ∧ x ∈ p.support ∨ ¬c ∧ x ∈ q.support`;
-* `if h : c then p h else q h`: `(∃ h, x ∈ (p h).support) ∨ ∃ h, x ∈ (q h).support`,
-  keeping the condition proof that the selected branch uses;
+* `if h : c then p h else q h` of `PMF`s:
+  `(∃ h, x ∈ (p h).support) ∨ ∃ h, x ∈ (q h).support`, keeping the condition proof that the
+  selected branch uses (a dependent `if` of oracle programs is not rewritten);
 * a uniform draw (`ProbComp.unifFin`, `ProbComp.uniform`, `PMF.uniformOfFintype`) or a query
   answered from `Set.univ`: `True`, so the drawn value has no membership hypothesis;
 * the law `ProbComp.eval m` of a program: as for `m`, through `PMF.bind`, `PMF.map` and
@@ -52,9 +53,9 @@ the existentials is the order of the program, so `rcases` patterns follow its bi
 
 ## Support normalization lemmas
 
-* `Cslib.Probability.PMF.mem_support_ite_iff`, `Cslib.OracleComp.mem_supportWith_ite_iff`,
-  and their `dite` variants: membership in the support of a conditional, as a disjunction over
-  the condition.
+* `Cslib.Probability.PMF.mem_support_ite_iff`, `Cslib.Probability.PMF.mem_support_dite_iff`,
+  `Cslib.OracleComp.mem_supportWith_ite_iff`: membership in the support of a conditional, as a
+  disjunction over the condition.
 -/
 
 public section
@@ -83,14 +84,6 @@ theorem OracleComp.mem_supportWith_ite_iff {ι : Type*} {spec : OracleSpec ι} {
       c ∧ x ∈ supportWith possible p ∨ ¬c ∧ x ∈ supportWith possible q := by
   by_cases hc : c <;> simp [hc]
 
-/-- A possible result of a dependent conditional keeps the proof selecting its branch. -/
-theorem OracleComp.mem_supportWith_dite_iff {ι : Type*} {spec : OracleSpec ι} {α : Type*}
-    {possible : (q : ι) → Set (spec q)} (c : Prop) [Decidable c]
-    (p : c → OracleComp spec α) (q : ¬c → OracleComp spec α) (x : α) :
-    x ∈ supportWith possible (if h : c then p h else q h) ↔
-      (∃ h, x ∈ supportWith possible (p h)) ∨ ∃ h, x ∈ supportWith possible (q h) := by
-  rw [apply_dite (fun p : OracleComp spec α => x ∈ supportWith possible p), dite_prop_iff_or]
-
 attribute [supp_norm]
   -- monad notation on `PMF`, and the law of a closed program
   Probability.PMF.monad_bind_eq_bind Probability.PMF.monad_pure_eq_pure PMF.monad_map_eq_map
@@ -104,7 +97,6 @@ attribute [supp_norm]
   OracleComp.mem_supportWith_bind_iff OracleComp.mem_supportWith_freeMBind_iff
   OracleComp.mem_supportWith_map_iff OracleComp.mem_supportWith_freeMMap_iff
   OracleComp.supportWith_pure OracleComp.supportWith_query OracleComp.mem_supportWith_ite_iff
-  OracleComp.mem_supportWith_dite_iff
   ProbComp.mem_support_unifFin
   -- the shape of the result
   Set.mem_singleton_iff Set.mem_univ true_and and_true exists_eq_left Prod.mk.injEq
@@ -183,9 +175,9 @@ private partial def destruct (g : MVarId) : List Name → MetaM (List MVarId)
 
 /-- `supp_cases h` inverts a hypothesis `h : x ∈ m.support`, where `m` is a `PMF` or an
 `OracleComp` program (`OracleComp.supportWith`, `OracleComp.support`, `ProbComp`) built from
-`bind`, `map`, `pure`, ordinary or dependent `if` and uniform draws. It rewrites `h` with the
-simp set `supp_norm` into existentials over the supports of the parts of `m` and equations for its
-returned values, in the order of the program, then destructures it:
+`bind`, `map`, `pure`, `if` and uniform draws; between `PMF`s the `if` may be dependent. It
+rewrites `h` with the simp set `supp_norm` into existentials over the supports of the parts of
+`m` and equations for its returned values, in the order of the program, then destructures it:
 
 * `supp_cases h` destructures completely: each intermediate result and each support hypothesis
   is introduced with an inaccessible name, conditionals split into one goal per branch, and every

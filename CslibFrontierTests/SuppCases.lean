@@ -143,15 +143,6 @@ example {ι : Type} {spec : OracleSpec ι} (possible : (q : ι) → Set (spec q)
   supp_cases h with ⟨a, ha, rfl⟩
   exact ⟨a, ha, rfl⟩
 
--- A dependent query retains both its condition proof and its restricted reply membership.
-example (c : Prop) [Decidable c] (q : c → ℕ) (possible : ℕ → Set ℕ) (x : ℕ)
-    (hbound : ∀ hc a, a ∈ possible (q hc) → a ≤ 7)
-    (h : x ∈ OracleComp.supportWith possible
-      (if hc : c then OracleComp.query (q hc) else pure 0)) : x ≤ 7 := by
-  supp_cases h with ⟨hc, hx⟩ | ⟨-, rfl⟩
-  · exact hbound hc x hx
-  · decide
-
 -- Stateful normalization stops at an opaque subprogram and preserves its joint support witness.
 example {State : Type} (oracle : Unit → StateT State PMF ℕ)
     (program : ProbOracleComp (fun _ : Unit => ℕ) ℕ) (initial final : State) (x : ℕ)

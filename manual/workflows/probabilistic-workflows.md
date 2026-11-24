@@ -1600,9 +1600,10 @@ A proof that starts from `h : x ∈ m.support` usually needs the intermediate re
 `OracleComp.support` (so `ProbComp`), into existentials in program order, then applies the
 `rcases` pattern. A uniform draw contributes only its witness, a returned pair is split into its
 components, and a conditional becomes a disjunction, so a pattern such as `⟨-, h⟩ | ⟨-, h⟩` splits
-it. A dependent conditional `if hc : c then p hc else q hc` also splits: the first witness of
-each branch is the proof of its condition, so `⟨hc, h⟩ | ⟨hc, h⟩` keeps the proof used by the
-selected program. Without `with`, `supp_cases h` destructures completely, substitutes every
+it. A dependent conditional `if hc : c then p hc else q hc` of `PMF`s also splits: the first
+witness of each branch is the proof of its condition, so `⟨hc, h⟩ | ⟨hc, h⟩` keeps the proof used
+by the selected distribution. A dependent conditional of oracle programs is not covered; use
+`split_ifs at h` first. Without `with`, `supp_cases h` destructures completely, substitutes every
 equation that has a local variable on one side and closes the goal when two different
 constructors are equated, such as `false = true`; the names it introduces are inaccessible, so
 use this form when the rest of the proof refers to hypotheses only by type, through `‹_›`,
