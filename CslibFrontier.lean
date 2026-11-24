@@ -7493,6 +7493,7 @@ public import CslibFrontier.Foundations.Computability.KleenePost
 public import CslibFrontier.Foundations.Computability.KleenePostJump
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
+public import CslibFrontier.Foundations.Computability.RecursiveInSmn
 public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.Clock
 public import CslibFrontier.Foundations.Control.Monad.FilterM
