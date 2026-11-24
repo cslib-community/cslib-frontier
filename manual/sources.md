@@ -926,8 +926,6 @@ National Institute of Standards and Technology. *Stateless Hash-Based Digital Si
 
 FIPS 205 Section 11.2 additionally incorporates FIPS 198-1 HMAC and RFC 8017 MGF1 into the SHA-2 definitions of `PRF_msg` and `H_msg`. `CslibFrontier.Crypto.Primitives.Hash.HMAC` and `CslibFrontier.Crypto.Primitives.Hash.MGF1` supply those shared primitives, including the full HMAC key preprocessing and MGF1's four-byte counters. `CslibFrontier.Crypto.Primitives.SLHDSA.MessageCalls` builds the FIPS 205 `PRF_msg` and `H_msg` calls on them, with the parameter-set truncation and message packaging of Sections 11.1--11.2.2; it proves nothing about those calls beyond the lengths of their byte packages.
 
-FIPS 205 Section 11.2 additionally incorporates FIPS 198-1 HMAC and RFC 8017 MGF1 into the SHA-2 definitions of `PRF_msg` and `H_msg`. `CslibFrontier.Crypto.Primitives.Hash.HMAC` and `CslibFrontier.Crypto.Primitives.Hash.MGF1` supply those shared primitives, including the full HMAC key preprocessing and MGF1's four-byte counters. They are prerequisites only: the FIPS 205 `PRF_msg` and `H_msg` wrappers, their parameter-set truncation and message packaging remain unimplemented.
-
 <a id="fischerlynch1982"></a>
 ## fischerlynch1982
 
