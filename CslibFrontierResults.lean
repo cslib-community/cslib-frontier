@@ -21,6 +21,8 @@ import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.IndirectRevelation
+import CslibFrontierResults.Entries.LoadBalancing
+import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.LocallyDecodable
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
@@ -29,6 +31,7 @@ import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.NetworkContagion
+import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
@@ -50,6 +53,7 @@ import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SamplableNotComputable
+import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.SergeevMonotoneShift
@@ -59,6 +63,7 @@ import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.TwoSATWordRAM
+import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Registry
