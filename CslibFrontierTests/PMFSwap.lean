@@ -45,14 +45,13 @@ example (p : PMF α) (q : PMF β) (f g : α → β → PMF γ) (h : ∀ a b, f a
   pmf_swap with b a
   exact h a b
 
--- Hoisting x crosses a mapped source. The remaining goal keeps that source and the map over
--- the nested bind in its continuation, so the caller can use the original pointwise equality.
-example (p : PMF α) (q : PMF β) (g : α → γ) (s : γ → PMF δ) (t : δ → PMF α)
-    (f : β → α → β) (r : β → PMF β)
-    (h : ∀ x, ((p.map g).bind fun y => ((s y).bind t).map (f x)) = r x) :
-    ((p.map g).bind fun y => q.bind fun x => ((s y).bind t).map (f x)) = q.bind r := by
+-- Only the path to a stripped sample is normalized: the map and the nested bind in the remaining
+-- continuation stay as written, so the caller's pointwise equation applies to the goal directly.
+example (p : PMF α) (q : PMF β) (s : α → PMF δ) (t : δ → PMF α) (f : β → α → β)
+    (r : β → PMF β) (h : ∀ x, (p.bind fun y => ((s y).bind t).map (f x)) = r x) :
+    (p.bind fun y => q.bind fun x => ((s y).bind t).map (f x)) = q.bind r := by
   pmf_swap with x
-  guard_target =ₐ (((p.map g).bind fun y => ((s y).bind t).map (f x)) = r x)
+  guard_target =ₐ ((p.bind fun y => ((s y).bind t).map (f x)) = r x)
   exact h x
 
 -- `with x` strips exactly one sample. A sample whose distribution occurs once on each side, here
