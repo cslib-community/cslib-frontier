@@ -18,7 +18,7 @@ import CslibFrontier.Foundations.Algebra.Covering.Gauge
 The tensor forms of Proposition A.5 (prop:gauge) and Theorem A.6 (thm:duality) of *VP ≠ VNP over
 every field* [AnthropicVPVNP2026]. Both are proved in the monoid of classes of tensors with its
 covering relation (`Cslib.PartyTensor.tensorCovering`), with the results of
-`Cslib.Covering.IsUpperFunctional.exists_map_mul_le` and
+`Cslib.Covering.IsUpperFunctional.exists_map_mul` and
 `Cslib.Covering.exists_coveredBy_pow_of_certificate`.
 
 * Below every upper functional `P` there is a spectral point that respects every triple
@@ -43,14 +43,14 @@ open Finset Covering
 
 variable {K : Type} [Field K] {I : Type} [Fintype I] [DecidableEq I]
 
-/-- **Paper: Proposition A.5 (prop:gauge).** "Below every gauge there is a spectral point that
-keeps every triple which the gauge keeps." A gauge is an upper functional; it keeps `(x, y, c)` if
+/-- **Paper: Proposition A.5 (prop:gauge).** Every upper functional `P` dominates a spectral point
+that respects every triple which `P` respects. `P` respects `(x, y, c)` if
 `P (t * x) ≤ c * P (t * y)` for all `t`. -/
 theorem UpperFunctional.exists_spectralPoint_le (P : UpperFunctional K I) :
     ∃ F : SpectralPoint K I, (∀ t, F t ≤ P t) ∧
       ∀ (x y : PartyTensor K I) (c : ℝ), 0 ≤ c → (∀ t, P (t * x) ≤ c * P (t * y)) →
         ∀ t, F (t * x) ≤ c * F (t * y) := by
-  obtain ⟨F, hF, hmul, hle, hk⟩ := P.isUpperFunctional_lift.exists_map_mul_le
+  obtain ⟨F, hF, hmul, hle, hk⟩ := P.isUpperFunctional_lift.exists_map_mul
   let G : SpectralPoint K I :=
     { toFun t := F (toAntisymmetrization (· ≤ ·) t)
       nonneg _ := hF.nonneg _
@@ -68,11 +68,10 @@ private theorem exists_coveredBy_copies [Nonempty I] (t : PartyTensor K I) {s : 
       (fun _ : Fin r => toAntisymmetrization (· ≤ ·) s) :=
   ⟨_, tensorCovering_coveredBy.2 ((coveredBy_one_of_le_unit (le_unit_card t)).mono fun _ => hs)⟩
 
-/-- **Paper: Theorem A.6 (thm:duality).** "Let `C ≠ 0` and `A_1, …, A_r` be tensors on `I`, not all
-`A_β` zero, and suppose that every spectral point satisfies `φ(C) ≤ max φ(A_β)`. Then for every
-`ε > 0` and all large `N`, the power `C^N` is covered by at most `2^(εN)` products of `N` factors
-from
-`A_1, …, A_r`." The family is indexed by any finite type `B`. -/
+/-- **Paper: Theorem A.6 (thm:duality).** Let `C ≠ 0` and `A β` be tensors on `I`, not all zero,
+such that every spectral point satisfies `F C ≤ max_β F (A β)`. Then for every `ε > 0` and all
+large `N`, the power `C ^ N` is covered by at most `2 ^ (ε N)` products of `N` factors from the
+`A β`. The family is indexed by any finite type `B`. -/
 theorem exists_coveredBy_pow_of_forall_le [Nonempty I] {B : Type} [Fintype B] [DecidableEq B]
     {C : PartyTensor K I} {A : B → PartyTensor K I} (hC : ∃ x, C.entry x ≠ 0)
     (hA : ∃ β x, (A β).entry x ≠ 0) (h : ∀ F : SpectralPoint K I, ∃ β, F C ≤ F (A β)) {ε : ℝ}

@@ -23,9 +23,8 @@ a spectral point on `I` and `C` a tensor on `I`. Then there is a spectral point 
 
 The proof follows the paper. The infimum of `∑ f (b j)` over the covers `(b j)` of `t`, where `f` is
 the product on the right, is an upper functional `p ≤ f` with `p (ι A) = F A` for all `A`.
-Localizing
-it at `ι C` (`Cslib.Covering.IsUpperFunctional.exists_localize`) and taking a spectral point below
-the result (`Cslib.PartyTensor.UpperFunctional.exists_spectralPoint_le`) gives `F'`.
+Localizing it at `ι C` (`Cslib.Covering.IsUpperFunctional.exists_localize`) and taking a spectral
+point below the result (`Cslib.PartyTensor.UpperFunctional.exists_spectralPoint_le`) gives `F'`.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Paper.Extension`.
 
@@ -50,8 +49,7 @@ private noncomputable def extendProduct (π : L → I' → I) (θ : L → ℝ) (
     (t : PartyTensor K I') : ℝ :=
   ∏ l, F (push (π l) t) ^ θ l
 
-/-- "Call the product on the right `f(t)`; it is multiplicative and monotone." Also `f ≥ 0` and
-`f 1 = 1`. -/
+/-- The product `f` is multiplicative and monotone, `f ≥ 0` and `f 1 = 1`. -/
 private theorem extendProduct_spec (π : L → I' → I) (θ : L → ℝ) (hθ : ∀ l, 0 ≤ θ l)
     (F : SpectralPoint K I) :
     (∀ t, 0 ≤ extendProduct π θ F t) ∧ extendProduct π θ F 1 = 1 ∧
@@ -67,9 +65,9 @@ private theorem extendProduct_spec (π : L → I' → I) (θ : L → ℝ) (hθ :
   · exact Finset.prod_le_prod₀ (fun l _ => Real.rpow_nonneg (F.nonneg _) _) fun l _ =>
       Real.rpow_le_rpow (F.nonneg _) (F.monotone (push_le_push _ h)) (hθ l)
 
-/-- "Suppose that `ιA = ∑ s_j`, each `s_j` a restriction of `b_j`. As `ιA` has trivial index sets
-outside `ι(I)`, so has every `s_j`; so `s_j = ιa_j` with `∑ a_j = A`. Push-forwards preserve
-restrictions, so `a_j = π_l s_j` is a restriction of `π_l b_j` for every `l`." -/
+/-- A cover of `ιA` by `b_j` gives a cover of `A` by `a_j` with `a_j ≤ π_l b_j` for every `l`. As in
+the paper: if `ιA = ∑ s_j` with `s_j ≤ b_j`, then every `s_j` has trivial index sets outside
+`ι(I)`, like `ιA`, so `s_j = ιa_j` with `∑ a_j = A`; and push-forwards preserve restrictions. -/
 private theorem exists_cover_of_coveredBy_push (ι : I → I') {A : PartyTensor K I} {κ : Type}
     [Fintype κ] {b : κ → PartyTensor K I'} (h : (push ι A).CoveredBy b) :
     ∃ c : κ → PartyTensor K I, A.CoveredBy c ∧
@@ -92,7 +90,7 @@ private theorem exists_cover_of_coveredBy_push (ι : I → I') {A : PartyTensor 
   rw [h3] at h4
   exact (h4.trans (antisymmRel_push_id _)).ge.trans h2
 
-/-- "So `φ(A) ≤ ∑ φ(a_j) ≤ ∑ f(b_j)`", for every cover `(b_j)` of `ιA`. -/
+/-- `φ(A) ≤ ∑ φ(a_j) ≤ ∑ f(b_j)` for every cover `(b_j)` of `ιA`. -/
 private theorem le_sum_extendProduct (ι : I → I') (π : L → I' → I) (hπ : ∀ l i, π l (ι i) = i)
     (θ : L → ℝ) (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1) (F : SpectralPoint K I)
     (A : PartyTensor K I) {κ : Type} [Fintype κ] (b : κ → PartyTensor K I')
@@ -109,7 +107,7 @@ private theorem le_sum_extendProduct (ι : I → I') (π : L → I' → I) (hπ 
         (fun l _ => Real.rpow_nonneg h0.le _) fun l _ =>
           Real.rpow_le_rpow h0.le (F.monotone (hr k _ (hπ l))) (hθ l)
 
-/-- "`f(ιA) = φ(A)`, as `π_l ι = id`." -/
+/-- `f(ιA) = φ(A)`, as `π_l ι = id`. -/
 private theorem extendProduct_push (ι : I → I') (π : L → I' → I) (hπ : ∀ l i, π l (ι i) = i)
     (θ : L → ℝ) (hθ1 : ∑ l, θ l = 1) (F : SpectralPoint K I) (A : PartyTensor K I) :
     extendProduct π θ F (push ι A) = F A := by
@@ -130,8 +128,8 @@ private theorem extendProduct_push (ι : I → I') (π : L → I' → I) (hπ : 
     exact Finset.prod_eq_zero (Finset.mem_univ l) (Real.zero_rpow hl)
   · rw [← Real.rpow_sum_of_pos h0, hθ1, Real.rpow_one]
 
-/-- There is "a gauge with `p ≤ f` and `p(ιA) = φ(A)` for all `A`": "Let `p(t)` be the infimum of
-`∑ f(b_j)` over the covers `(b_j)` of `t`." -/
+/-- There is an upper functional `p ≤ f` with `p(ιA) = φ(A)` for all `A`: the infimum `p(t)` of
+`∑ f(b_j)` over the covers `(b_j)` of `t`. -/
 private theorem exists_upperFunctional_extend (ι : I → I') (π : L → I' → I)
     (hπ : ∀ l i, π l (ι i) = i) (θ : L → ℝ) (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1)
     (F : SpectralPoint K I) :
@@ -191,9 +189,9 @@ private theorem exists_upperFunctional_extend (ι : I → I') (π : L → I' →
   rw [UpperFunctional.ofIsUpperFunctional_apply]
   exact le_csInf (hne _) (hlow A)
 
-/-- "Let `c = φ(C)` and `q(t) = inf p(t ιCⁿ)/cⁿ`. As `p(ιCⁿ) = cⁿ`, this is a gauge below `p` that
-keeps `(1, ιC, 1/c)`." Stated for any upper functional `p` and tensor `f` with `p f > 0` and
-`p (f ^ n) = p f ^ n`. -/
+/-- Localization: with `c = φ(C)` and `p(ιCⁿ) = cⁿ`, the function `q(t) = inf p(t ιCⁿ)/cⁿ` is an
+upper functional below `p` that respects `(1, ιC, 1/c)`. Stated for any upper functional `p` and
+tensor `f` with `p f > 0` and `p (f ^ n) = p f ^ n`. -/
 private theorem exists_localize (p : UpperFunctional K I) (f : PartyTensor K I) (hf : 0 < p f)
     (hpow : ∀ n, p (f ^ n) = p f ^ n) :
     ∃ q : UpperFunctional K I, (∀ t, q t ≤ p t) ∧ ∀ t, q (t * 1) ≤ (p f)⁻¹ * q (t * f) := by
@@ -210,10 +208,10 @@ private theorem exists_localize (p : UpperFunctional K I) (f : PartyTensor K I) 
     toAntisymmetrization_mul, toAntisymmetrization_mul]
   exact this
 
-/-- **Paper: Proposition A.7 (prop:extend).** "Let `ι : I → I′` and `π_l : I′ → I`, `l ≤ L`, be maps
-with `π_l ι = id`, let `θ_l ≥ 0` add up to `1`, let `φ` be a spectral point on `I`, and let `C` be a
-tensor on `I`. There is a spectral point `φ′` on `I′` with `φ′(t) ≤ ∏ φ(π_l t)^θ_l` for all `t`, and
-`φ′(ιC) = φ(C)`." The maps are indexed by any finite type `L`. -/
+/-- **Paper: Proposition A.7 (prop:extend).** Let `ι : I → I'` and `π l : I' → I` be maps with
+`π l ∘ ι = id`, let `θ l ≥ 0` add up to `1`, let `F` be a spectral point on `I` and `C` a tensor on
+`I`. Then some spectral point `F'` on `I'` satisfies `F' t ≤ ∏ l, F (π l t) ^ θ l` for all `t`, and
+`F' (ι C) = F C`. The maps are indexed by any finite type `L`. -/
 theorem exists_extend (ι : I → I') (π : L → I' → I) (hπ : ∀ l i, π l (ι i) = i) (θ : L → ℝ)
     (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1) (F : SpectralPoint K I) (C : PartyTensor K I) :
     ∃ F' : SpectralPoint K I', (∀ t, F' t ≤ ∏ l, F (push (π l) t) ^ θ l) ∧
@@ -226,7 +224,7 @@ theorem exists_extend (ι : I → I') (π : L → I' → I) (hπ : ∀ l i, π l
       le_antisymm ((hF' _).trans (pA C).le) (by rw [← hC]; exact F'.nonneg _)⟩
   · obtain ⟨q, hq, hqk⟩ := exists_localize p (push ι C) (by rwa [pA]) (fun n => by
       rw [← p.congr (antisymmRel_push_pow ι C n), pA, pA, F.map_pow])
-    -- "A spectral point `φ′ ≤ q` that keeps this triple has `c ≤ φ′(ιC) ≤ f(ιC) = c`."
+    -- a spectral point `F' ≤ q` that respects this triple has `c ≤ F' (ι C) ≤ f (ι C) = c`
     obtain ⟨F', hF', hk⟩ := q.exists_spectralPoint_le
     refine ⟨F', fun t => (hF' t).trans ((hq t).trans (pf t)),
       le_antisymm ((hF' _).trans ((hq _).trans (pA C).le)) ?_⟩
