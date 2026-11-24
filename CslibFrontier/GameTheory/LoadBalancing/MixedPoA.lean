@@ -113,28 +113,6 @@ private theorem pi_mixedStrategyToPMF_toReal {ι M : Type*} [Fintype ι] [Fintyp
 
 variable {ι M : Type*} [Fintype ι] [DecidableEq ι] [Fintype M] [DecidableEq M]
 
-/-- When `optMakespan = 0`, every job has weight `0`. -/
-theorem weight_eq_zero_of_optMakespan_eq_zero [Nonempty M]
-    (G : LoadBalancingGame ι M) (hopt0 : G.optMakespan = 0) (i : ι) :
-    G.weight i = 0 := by
-  have hsum0 : ∑ r, G.weight r = 0 := by
-    have h1 := G.sum_weight_le_sum_speed_mul_optMakespan
-    rw [hopt0, mul_zero] at h1
-    exact le_antisymm h1 (sum_nonneg fun r _ => G.weight_nonneg r)
-  exact (sum_eq_zero_iff_of_nonneg fun k _ => G.weight_nonneg k).mp hsum0 i (mem_univ i)
-
-/-- When `optMakespan = 0`, every job has weight `0`, so every profile has zero expected makespan.
--/
-theorem expectedMakespan_eq_zero_of_optMakespan_eq_zero [Nonempty M]
-    (G : LoadBalancingGame ι M) (hopt0 : G.optMakespan = 0) (p : ι → M → ℝ) :
-    G.expectedMakespan p = 0 := by
-  have hw0 : ∀ i, G.weight i = 0 := G.weight_eq_zero_of_optMakespan_eq_zero hopt0
-  have hms0 : ∀ A, G.makespan A = 0 := fun A => by
-    refine le_antisymm ((G.makespan_le_iff A).mpr fun j => ?_) (G.makespan_nonneg A)
-    rw [G.load_eq_sum_div]
-    simp [hw0]
-  simp [expectedMakespan, hms0]
-
 /-- **Weighted Chernoff upper tail on a subset of jobs** ([Vocking2007], Lemma 20.14; locator not
 re-verified against primary PDF): under a product of mixed strategies `p`, for any machine `j`,
 subset of jobs `S`, per-job load cap `z > 0` on jobs in `S` with positive probability on `j`,
@@ -466,10 +444,7 @@ theorem IsIdentical.expectedMakespan_le_seven_mul_optMakespan_of_weight_le
   have hlogm_pos : 0 < Real.log (m : ℝ) := Real.log_pos (by linarith)
   rcases G.optMakespan_nonneg.eq_or_lt with hopt0 | hopt_pos
   · rw [G.expectedMakespan_eq_zero_of_optMakespan_eq_zero hopt0.symm p, ← hopt0, mul_zero]
-  · have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
-    have hlog3_gt1 : 1 < Real.log 3 := by
-      rw [← Real.log_exp 1]
-      exact Real.log_lt_log (Real.exp_pos 1) hexp1
+  · have hlog3_gt1 : 1 < Real.log 3 := Real.one_lt_log_of_three_le le_rfl
     have h7 : (7 : ℝ) = 6 + 1 := by norm_num
     rw [h7]
     refine hId.expectedMakespan_le_add_one_of_machine_tail hp.1 (by norm_num) fun j => ?_
