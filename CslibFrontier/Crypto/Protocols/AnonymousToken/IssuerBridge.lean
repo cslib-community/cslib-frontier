@@ -217,7 +217,10 @@ def acceptDraftSpendPre [DecidableEq Nullifier] [DecidableEq Context] [Decidable
     Conservation.acceptRequest com tag S pk st.accepted (.spend (req.toSpendRequest 0))
 
 /-- Draft-style stateful issuer oracle implementing out-of-band `T` agreement, issuer-chosen `x'`,
-`T ≥ 1` and `< bound` `(V4)` range checks, `(V1)`–`(V3)`, and nullifier-uniqueness rejections. -/
+`T ≥ 1` and `< bound` `(V4)` range checks, `(V1)`–`(V3)`, and nullifier-uniqueness rejections.
+Rejected `.issue` calls leave `st.consumed` and `st.policyState` unchanged; `.spend` calls failing
+`acceptDraftSpendPre` return `none` without calling `policy.chooseRefund`, whereas `chooseRefund`
+returning `none` or `x' ≥ bound` updates `policyState` before returning `none`. -/
 def draftIssuerOracle [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
