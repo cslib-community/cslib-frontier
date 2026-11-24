@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.Algorithms.Lean.StableMatching.Core
 import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Incentives
 import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Lattice
@@ -30,6 +33,8 @@ Exercises:
   `2 × 2` market strictly improves a proposer's partner and strictly worsens an original receiver's
   partner under deferred acceptance.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.StableMatchingIncentivesLattice
 

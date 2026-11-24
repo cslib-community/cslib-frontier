@@ -581,14 +581,10 @@ theorem deferredAcceptance_recvRank_le {I : IncompleteInstance m n}
     {I' : IncompleteInstance m (n + 1)} (hE : ExtendsByReceiver I I') (r : Fin n) :
     I.recvRank r (I.deferredAcceptance.symm r) ≤
       I.recvRank r (I'.deferredAcceptance.symm r.castSucc) := by
-  by_contra hlt
-  push Not at hlt
   cases h : I'.deferredAcceptance.symm r.castSucc with
-  | none =>
-    rw [h] at hlt
-    exact absurd hlt (not_lt.2 (I.recvRank_le_recvRank_none r _))
+  | none => exact I.recvRank_le_recvRank_none r _
   | some p =>
-    rw [h] at hlt
+    refine not_lt.1 fun hlt => ?_
     have hD'p : I'.deferredAcceptance p = some r.castSucc :=
       I'.deferredAcceptance.eq_some_iff.1 h
     have hacc' : r.castSucc ∈ I'.propPref p :=
@@ -748,6 +744,52 @@ its two stable matchings into the unique stable matching of the truncated market
     else if r.val = 1 then [⟨0, by omega⟩, ⟨1, by omega⟩]
     else []
 
+private theorem ne_none_of_two_by_two_cycle {m n : ℕ} {K : IncompleteInstance m n}
+    {μ : PartialMatching m n} (hK : K.IsStable μ) {p0 p1 : Fin m} {r0 r1 : Fin n}
+    (hrne : r0 ≠ r1) (hp0 : r0 ∈ K.propPref p0) (hp1 : K.propPref p1 = [r1, r0])
+    (hr0 : K.recvPref r0 = [p1, p0]) (hr1 : K.recvPref r1 = [p0, p1]) :
+    μ p0 ≠ none := by
+  intro h0
+  cases hsym0 : μ.symm r0 with
+  | none =>
+    refine hK.2 p0 r0 ⟨?_, ?_⟩
+    · rw [h0, K.propRank_some_lt_none_iff]
+      exact hp0
+    · rw [hsym0, K.recvRank_some_lt_none_iff, hr0]
+      simp
+  | some q =>
+    have hq_mem : q = p1 ∨ q = p0 := by
+      have hacc := (hK.1 q r0 (μ.eq_some_iff.1 hsym0)).2
+      simpa [hr0] using hacc
+    rcases hq_mem with hqp1 | hqp0
+    · subst q
+      have hp1_eq : μ p1 = some r0 := μ.eq_some_iff.1 hsym0
+      have hsym1 : μ.symm r1 = none := by
+        cases hr1_eq : μ.symm r1 with
+        | none => rfl
+        | some x =>
+          have hx_mem : x = p0 ∨ x = p1 := by
+            have hacc := (hK.1 x r1 (μ.eq_some_iff.1 hr1_eq)).2
+            simpa [hr1] using hacc
+          rcases hx_mem with hxp0 | hxp1
+          · subst x
+            have hx0 := μ.eq_some_iff.1 hr1_eq
+            rw [h0] at hx0
+            exact absurd hx0 (by simp)
+          · subst x
+            have hx1 := μ.eq_some_iff.1 hr1_eq
+            rw [hp1_eq] at hx1
+            exact absurd (Option.some_injective _ hx1) hrne
+      refine hK.2 p1 r1 ⟨?_, ?_⟩
+      · rw [hp1_eq]
+        simp [IncompleteInstance.propRank, hp1, hrne.symm]
+      · rw [hsym1, K.recvRank_some_lt_none_iff, hr1]
+        simp
+    · subst q
+      have hp0_eq := μ.eq_some_iff.1 hsym0
+      rw [h0] at hp0_eq
+      exact absurd hp0_eq (by simp)
+
 /-- With incomplete preference lists (where truncation is permitted), **Roth's impossibility**
 holds already at **`m ≥ 2, n ≥ 2`** (compare with `n ≥ 3` for complete lists in
 `RothImpossibility.lean`). -/
@@ -763,84 +805,38 @@ theorem not_isStable_and_strategyProof {m n : ℕ} (hm : 2 ≤ m) (hn : 2 ≤ n)
   have hrne : r0 ≠ r1 := fun h => by have := congrArg Fin.val h; simp [r0, r1] at this
   let I := truncationWitness m n hm hn
   have hM := hs I
-  have hM0_mem : ∀ r, M I p0 = some r → r = r0 ∨ r = r1 := fun r hr' => by
-    have hmem := (hM.1 p0 r hr').1
-    simpa [I, truncationWitness, p0] using hmem
+  have hM0_ne : M I p0 ≠ none :=
+    ne_none_of_two_by_two_cycle hM hrne (p1 := p1)
+      (by simp [I, truncationWitness, p0, r0])
+      (by simp [I, truncationWitness, p1, r0, r1])
+      (by simp [I, truncationWitness, p0, p1, r0])
+      (by simp [I, truncationWitness, p0, p1, r1])
+  obtain ⟨r_init, h0_init⟩ := Option.ne_none_iff_exists'.1 hM0_ne
   have hM_r0_eq : M I p0 = some r0 ∨ M I p0 = some r1 := by
-    cases h0 : M I p0 with
-    | some r =>
-      rcases hM0_mem r h0 with rfl | rfl
-      · exact Or.inl rfl
-      · exact Or.inr rfl
-    | none =>
-      exfalso
-      cases hr0 : (M I).symm r0 with
-      | none =>
-        refine hM.2 p0 r0 ⟨?_, ?_⟩
-        · rw [h0]; simp [I, truncationWitness, p0, r0]
-        · rw [hr0]; simp [I, truncationWitness, p0, r0]
-      | some q =>
-        have hq_mem : q = p1 ∨ q = p0 := by
-          have := (hM.1 q r0 ((M I).eq_some_iff.1 hr0)).2
-          simpa [I, truncationWitness, r0] using this
-        rcases hq_mem with rfl | rfl
-        · have hM1_r1 : (M I).symm r1 = none := by
-            cases hr1 : (M I).symm r1 with
-            | none => rfl
-            | some x =>
-              have hx := (hM.1 x r1 ((M I).eq_some_iff.1 hr1)).2
-              have hxe : x = p0 ∨ x = p1 := by simpa [I, truncationWitness, r1] using hx
-              rcases hxe with rfl | rfl
-              · have := (M I).eq_some_iff.1 hr1; rw [h0] at this; exact absurd this (by simp)
-              · have hx0 := (M I).eq_some_iff.1 hr0
-                have hx1 := (M I).eq_some_iff.1 hr1
-                rw [hx0] at hx1; exact absurd (Option.some_injective _ hx1) hrne
-          refine hM.2 p0 r1 ⟨?_, ?_⟩
-          · rw [h0]; simp [I, truncationWitness, p0, r0, r1, hrne]
-          · rw [hM1_r1]; simp [I, truncationWitness, p0, r1]
-        · have := (M I).eq_some_iff.1 hr0; rw [h0] at this; exact absurd this (by simp)
+    have hmem := (hM.1 p0 r_init h0_init).1
+    rcases (by simpa [I, truncationWitness, p0, r0, r1] using hmem : r_init = r0 ∨ r_init = r1)
+      with rfl | rfl
+    · exact Or.inl h0_init
+    · exact Or.inr h0_init
   rcases hM_r0_eq with h0 | h0
   · -- Receiver `r0` truncates from `[p1, p0]` to `[p1]`, forcing `p1` as its partner.
     let J := I.updateRecvPref r0 [p1]
     have hJ := hs J
     have hM_symm0 : (M I).symm r0 = some p0 := (M I).eq_some_iff.2 h0
+    have hJ_ne : (M J).symm r0 ≠ none :=
+      ne_none_of_two_by_two_cycle ((J.isStable_swap_iff (M J)).2 hJ) hpne.symm (p1 := r1)
+        (by simp [J, IncompleteInstance.updateRecvPref, IncompleteInstance.swap])
+        (by simp [J, IncompleteInstance.updateRecvPref, IncompleteInstance.swap,
+          Function.update_of_ne hrne.symm, I, truncationWitness, p0, p1, r1])
+        (by simp [J, IncompleteInstance.updateRecvPref, IncompleteInstance.swap, I,
+          truncationWitness, p1, r0, r1])
+        (by simp [J, IncompleteInstance.updateRecvPref, IncompleteInstance.swap, I,
+          truncationWitness, p0, r0, r1])
+    obtain ⟨x, hx⟩ := Option.ne_none_iff_exists'.1 hJ_ne
     have hJ_symm0 : (M J).symm r0 = some p1 := by
-      cases h : (M J).symm r0 with
-      | some x =>
-        have hx := (hJ.1 x r0 ((M J).eq_some_iff.1 h)).2
-        have : x = p1 := by simpa [J, IncompleteInstance.updateRecvPref] using hx
-        exact this ▸ rfl
-      | none =>
-        exfalso
-        cases h1 : M J p1 with
-        | none =>
-          refine hJ.2 p1 r0 ⟨?_, ?_⟩
-          · rw [h1]; simp [J, IncompleteInstance.updateRecvPref, I, truncationWitness, p1, r0, r1,
-              hrne.symm]
-          · rw [h]; simp [J, IncompleteInstance.updateRecvPref, p1]
-        | some s =>
-          have hs_mem : s = r1 ∨ s = r0 := by
-            have := (hJ.1 p1 s h1).1
-            simpa [J, IncompleteInstance.updateRecvPref, I, truncationWitness, p1] using this
-          rcases hs_mem with rfl | rfl
-          · have hp0_none : M J p0 = none := by
-              cases hp0_eq : M J p0 with
-              | none => rfl
-              | some t =>
-                have ht := (hJ.1 p0 t hp0_eq).1
-                have hte : t = r0 ∨ t = r1 := by
-                  simpa [J, IncompleteInstance.updateRecvPref, I, truncationWitness, p0] using ht
-                rcases hte with rfl | rfl
-                · have := (M J).eq_some_iff.2 hp0_eq; rw [h] at this; exact absurd this (by simp)
-                · exact absurd ((M J).inj hp0_eq h1) hpne
-            refine hJ.2 p0 r1 ⟨?_, ?_⟩
-            · rw [hp0_none]
-              simp [J, IncompleteInstance.updateRecvPref, I, truncationWitness, p0, r0, r1, hrne]
-            · have hs1 : (M J).symm r1 = some p1 := (M J).eq_some_iff.2 h1
-              rw [hs1]
-              simp [J, IncompleteInstance.updateRecvPref, Function.update_of_ne hrne.symm, I,
-                truncationWitness, p0, p1, r1, hpne]
-          · have := (M J).eq_some_iff.2 h1; rw [h] at this; exact absurd this (by simp)
+      have hx_acc := (hJ.1 x r0 ((M J).eq_some_iff.1 hx)).2
+      have hxp1 : x = p1 := by simpa [J, IncompleteInstance.updateRecvPref] using hx_acc
+      exact hxp1 ▸ hx
     have hsp := hr I r0 [p1]
     rw [hM_symm0, hJ_symm0] at hsp
     have hrank_lt : I.recvRank r0 (some p1) < I.recvRank r0 (some p0) := by
@@ -849,44 +845,18 @@ theorem not_isStable_and_strategyProof {m n : ℕ} (hm : 2 ≤ m) (hn : 2 ≤ n)
   · -- Proposer `p0` truncates from `[r0, r1]` to `[r0]`, forcing `r0` as its partner.
     let J := I.updatePropPref p0 [r0]
     have hJ := hs J
+    have hJ_ne : M J p0 ≠ none :=
+      ne_none_of_two_by_two_cycle hJ hrne (p1 := p1)
+        (by simp [J, IncompleteInstance.updatePropPref])
+        (by simp [J, IncompleteInstance.updatePropPref, Function.update_of_ne hpne.symm, I,
+          truncationWitness, p1, r0, r1])
+        (by simp [J, IncompleteInstance.updatePropPref, I, truncationWitness, p0, p1, r0])
+        (by simp [J, IncompleteInstance.updatePropPref, I, truncationWitness, p0, p1, r1])
+    obtain ⟨s, hs_eq⟩ := Option.ne_none_iff_exists'.1 hJ_ne
     have hJ_0 : M J p0 = some r0 := by
-      cases h : M J p0 with
-      | some s =>
-        have hs' := (hJ.1 p0 s h).1
-        have : s = r0 := by simpa [J, IncompleteInstance.updatePropPref] using hs'
-        exact this ▸ rfl
-      | none =>
-        exfalso
-        cases hr0 : (M J).symm r0 with
-        | none =>
-          refine hJ.2 p0 r0 ⟨?_, ?_⟩
-          · rw [h]; simp [J, IncompleteInstance.updatePropPref, r0]
-          · rw [hr0]
-            simp [J, IncompleteInstance.updatePropPref, I, truncationWitness, p0, r0]
-        | some q =>
-          have hq_mem : q = p1 ∨ q = p0 := by
-            have := (hJ.1 q r0 ((M J).eq_some_iff.1 hr0)).2
-            simpa [J, IncompleteInstance.updatePropPref, I, truncationWitness, r0] using this
-          rcases hq_mem with rfl | rfl
-          · have hr1_none : (M J).symm r1 = none := by
-              cases hr1 : (M J).symm r1 with
-              | none => rfl
-              | some x =>
-                have hx := (hJ.1 x r1 ((M J).eq_some_iff.1 hr1)).2
-                have hxe : x = p0 ∨ x = p1 := by
-                  simpa [J, IncompleteInstance.updatePropPref, I, truncationWitness, r1] using hx
-                rcases hxe with rfl | rfl
-                · have := (M J).eq_some_iff.1 hr1; rw [h] at this; exact absurd this (by simp)
-                · have hx0 := (M J).eq_some_iff.1 hr0
-                  have hx1 := (M J).eq_some_iff.1 hr1
-                  rw [hx0] at hx1; exact absurd (Option.some_injective _ hx1) hrne
-            refine hJ.2 p1 r1 ⟨?_, ?_⟩
-            · rw [(M J).eq_some_iff.1 hr0]
-              simp [J, IncompleteInstance.updatePropPref, Function.update_of_ne hpne.symm, I,
-                truncationWitness, p1, r0, r1, hrne.symm]
-            · rw [hr1_none]
-              simp [J, IncompleteInstance.updatePropPref, I, truncationWitness, p0, p1, r1, hpne]
-          · have := (M J).eq_some_iff.1 hr0; rw [h] at this; exact absurd this (by simp)
+      have hs_acc := (hJ.1 p0 s hs_eq).1
+      have hsr0 : s = r0 := by simpa [J, IncompleteInstance.updatePropPref] using hs_acc
+      exact hsr0 ▸ hs_eq
     have hsp := hp I p0 [r0]
     rw [h0, hJ_0] at hsp
     have hrank_lt : I.propRank p0 (some r0) < I.propRank p0 (some r1) := by
@@ -973,13 +943,10 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_one {m n : ℕ} (h : m 
           K.deferredAcceptance = K.receiverDeferredAcceptance := fun K => by
         refine K.isProposerOptimal_deferredAcceptance.unique
           ⟨K.isStable_receiverDeferredAcceptance, fun ν hν p => ?_⟩
-        by_contra hlt
-        push Not at hlt
         cases hνp : ν p with
-        | none =>
-          rw [hνp] at hlt
-          exact absurd hlt (not_lt.2 (K.propRank_le_propRank_none p _))
+        | none => exact K.propRank_le_propRank_none p _
         | some s =>
+          refine not_lt.1 fun hlt => ?_
           have hs : s = 0 := Subsingleton.elim s 0
           subst hs
           have hmem : p ∈ K.recvPref 0 := (hν.1 p 0 hνp).2
@@ -995,7 +962,7 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_one {m n : ℕ} (h : m 
             by_cases hqp : q = p
             · subst hqp
               have := K.receiverDeferredAcceptance.eq_some_iff.1 hR
-              rw [hνp, this] at hlt; exact lt_irrefl _ hlt
+              rw [this] at hlt; exact lt_irrefl _ hlt
             · have hnone : K.receiverDeferredAcceptance p = none := by
                 cases hRp : K.receiverDeferredAcceptance p with
                 | none => rfl
