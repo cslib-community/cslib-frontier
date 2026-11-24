@@ -276,8 +276,8 @@ theorem encodes (hG : Acyclic fun u v => ∃ e, src e = u ∧ dst e = v) (c : Fi
 
 /-! ### The proof-logging dynamic program -/
 
-/-- The fixed data of a run: the instance, the topological order, the position of each vertex in
-it and the position of `t`, and the longest walk found to each vertex, as its length and its
+/-- The fixed data of a run: the instance, the position of each vertex in the order and the
+position of `t`, and the longest walk found to each vertex, as its length and its
 edges. -/
 private structure Ctx (m n : ℕ) where
   src : Fin n → Fin m
@@ -285,7 +285,6 @@ private structure Ctx (m n : ℕ) where
   c : Fin n → ℕ
   s : Fin m
   t : Fin m
-  ord : List (Fin m)
   pos : List ℕ
   posT : ℕ
   dist : List (Option (ℕ × List ℕ))
@@ -422,7 +421,7 @@ def certify (src dst : Fin n → Fin m) (c : Fin n → ℕ) (s t : Fin m) : Cert
     (fun u => ((List.finRange n).filter fun e => src e = u).map dst) (List.finRange m)
   let pos := (List.finRange m).map ord.idxOf
   let dist := longest src dst c s ord
-  let C : Ctx m n := ⟨src, dst, c, s, t, ord, pos, pos.getD t.val 0, dist⟩
+  let C : Ctx m n := ⟨src, dst, c, s, t, pos, pos.getD t.val 0, dist⟩
   let T : Tail := match dist.getD t.val none with
     | some (k, path) =>
       -- The solution is logged first, so its improving constraint is `2 m + 1`.
