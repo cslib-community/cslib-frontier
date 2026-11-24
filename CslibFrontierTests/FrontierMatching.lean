@@ -16,7 +16,7 @@ Verifies:
    straddling count bound, not a comparison of full layout widths).
 3. Concrete theta multigraph (2 vertices, 3 parallel edges) confirming the loopless multigraph
    theory handles parallel edges directly.
-4. Non-vacuous instantiation of `layoutBound_of_matching_mean` via `M = ∅`.
+4. The expected vector cost of the empty matching on `K₄` counts only straddling vertices.
 -/
 
 open Cslib.Circuits.Frontier
@@ -171,18 +171,13 @@ example : thetaGraph.IsMatching ({0} : Set (Fin 3)) ∧
   have hM : thetaGraph.IsMatching ({0} : Set (Fin 3)) := Set.pairwise_singleton _ _
   exact ⟨hM, thetaGraph.ncard_edgeCut_threshold_le_matchingCost hloop h3 hM thetaScore 0⟩
 
-/-! ### 4. Non-vacuous instantiation of `layoutBound_of_matching_mean` via `M = ∅` -/
+/-! ### 4. Expected vector cost of the empty matching on `K₄` -/
 
-example : LayoutBound 3 (2 * Gaussian.straddleBound 0) := by
-  have hsb : 0 ≤ Gaussian.straddleBound 0 := by
-    unfold Gaussian.straddleBound
-    exact mul_nonneg (by positivity) (Real.arccos_nonneg _)
-  refine Gaussian.layoutBound_of_matching_mean hsb 0 le_rfl 1
-    (by norm_num : (-1 : ℝ) < 0) (by norm_num) ?_
-  intro V E _ _ G hloop _ h3
-  refine ⟨∅, G.isMatching_empty, fun t => ?_⟩
-  rw [Gaussian.expectedMatchingCost_empty]
-  have hle := Finset.sum_le_sum (s := Finset.univ) fun v _ =>
-    Gaussian.measureReal_straddleEvent_le hloop h3 (q := 0) le_rfl (R := 1)
-      (ρ₀ := 0) le_rfl (by norm_num) t v
-  simpa [Finset.sum_const, nsmul_eq_mul] using hle
+open Gaussian MeasureTheory ProbabilityTheory in
+example (q : ℝ) (R : ℕ) (t : ℝ) :
+    expectedMatchingCostVec k4Graph ∅ (edgeVector k4Graph q R) t =
+      ∑ v : Fin 4, (Measure.pi fun _ : Fin 4 => gaussianReal 0 1).real
+        (straddleEvent k4Graph q R t v) := by
+  simp [expectedMatchingCostVec, unmatchedVecStraddleEvent, pairAnyVecEvent, pairBothVecEvent,
+    Multigraph.matchedVertices_empty, straddleEvent]
+  rfl

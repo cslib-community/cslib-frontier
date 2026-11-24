@@ -41,10 +41,7 @@ threshold** `-T + i * δ` (`0 ≤ i < K`), each window edge count `[-T + i * δ,
 and both tail edge counts (`< -T` and `≥ T`) (`exists_good_matching_sample_of_vec_mean`).
 
 Thus *any* uniform per-vertex expectation bound `μ ≥ 0` on `expectedMatchingCostVec` over cubic
-graphs implies `CubicLayoutBound μ` (`cubicLayoutBound_of_matching_vec_mean`) and therefore
-`LayoutBound 3 (2 * μ)` (`layoutBound_of_matching_vec_mean`), with specializations to
-`edgeVector G q R` (`exists_good_matching_sample_of_mean`, `cubicLayoutBound_of_matching_mean`,
-`layoutBound_of_matching_mean`).
+graphs gives `CubicLayoutBound μ` (`cubicLayoutBound_of_matching_vec_mean`).
 
 ## Main definitions
 
@@ -55,20 +52,15 @@ graphs implies `CubicLayoutBound μ` (`cubicLayoutBound_of_matching_vec_mean`) a
   `Cslib.Circuits.Frontier.Gaussian.pairAnyVecEvent`,
   `Cslib.Circuits.Frontier.Gaussian.pairBothVecEvent`: local indicator events for `vecScore` (and
   their `edgeVector G q R` specializations `unmatchedStraddleEvent`, `pairAnyEvent`,
-  `pairBothEvent`, `expectedMatchingCost`).
+  `pairBothEvent`).
 * `Cslib.Circuits.Frontier.Gaussian.matchingBoundOfMean`: per-vertex width bound of a good sample.
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Gaussian.exists_good_matching_sample_of_vec_mean`,
-  `Cslib.Circuits.Frontier.Gaussian.exists_good_matching_sample_of_mean`: finite-graph concentration
-  producing a matched-edge layout of width `≤ |V| * matchingBoundOfMean μ T ε K`.
-* `Cslib.Circuits.Frontier.Gaussian.cubicLayoutBound_of_matching_vec_mean`,
-  `Cslib.Circuits.Frontier.Gaussian.cubicLayoutBound_of_matching_mean`: uniform expectation bound
-  `μ` implies `CubicLayoutBound μ`.
-* `Cslib.Circuits.Frontier.Gaussian.layoutBound_of_matching_vec_mean`,
-  `Cslib.Circuits.Frontier.Gaussian.layoutBound_of_matching_mean`: uniform expectation bound `μ`
-  implies `LayoutBound 3 (2 * μ)`.
+* `Cslib.Circuits.Frontier.Gaussian.exists_good_matching_sample_of_vec_mean` produces a layout
+  of width at most `|V| * matchingBoundOfMean μ T ε K`.
+* `Cslib.Circuits.Frontier.Gaussian.cubicLayoutBound_of_matching_vec_mean` turns the uniform
+  expectation bound into a cubic layout bound.
 -/
 
 public section
@@ -93,7 +85,7 @@ variable {V E : Type*} [Fintype V] (G : Multigraph V E)
   ⟪vec e, WithLp.toLp 2 ω⟫
 
 /-- Local event that `vecScore vec ω e` satisfies predicate `p`. -/
-@[expose] def vecScoreEvent (vec : E → EuclideanSpace ℝ V) (p : ℝ → Prop) (e : E) : Set (V → ℝ) :=
+private def vecScoreEvent (vec : E → EuclideanSpace ℝ V) (p : ℝ → Prop) (e : E) : Set (V → ℝ) :=
   {ω | p (vecScore vec ω e)}
 
 /-- Local event that an unpaired vertex `v ∉ G.matchedVertices M` straddles threshold `t` under
@@ -146,21 +138,6 @@ threshold `t` (`Multigraph.PairStraddlesBoth`) under `edgeScore G q R`. -/
     Set (V → ℝ) :=
   letI := Classical.propDecidable
   if e ∈ M then {ω | G.PairStraddlesBoth (edgeScore G q R ω) t e} else ∅
-
-/-- Expected value of `G.matchingCost M (edgeScore G q R ·) t` under `Measure.pi (fun _ =>
-gaussianReal 0 1)`. -/
-@[expose] noncomputable def expectedMatchingCost [Fintype E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) :
-    ℝ :=
-  expectedMatchingCostVec G M (edgeVector G q R) t
-
-/-- On the empty matching, `expectedMatchingCost` equals the sum of the single-vertex
-straddling probabilities from `Straddle`. -/
-theorem expectedMatchingCost_empty [Fintype E] (q : ℝ) (R : ℕ) (t : ℝ) :
-    expectedMatchingCost G ∅ q R t =
-      ∑ v : V, (Measure.pi fun _ : V => gaussianReal 0 1).real (straddleEvent G q R t v) := by
-  simp [expectedMatchingCost, expectedMatchingCostVec, unmatchedVecStraddleEvent, pairAnyVecEvent,
-    pairBothVecEvent, Multigraph.matchedVertices_empty, straddleEvent]
-  rfl
 
 variable {G}
 
@@ -299,12 +276,6 @@ theorem dependsOn_unmatchedStraddleEvent (M : Set E) (q : ℝ) (R : ℕ) (t : �
     DependsOn (· ∈ unmatchedStraddleEvent G M q R t v)
       (closedBall G.toSimpleGraph v (R + 1)) :=
   dependsOn_unmatchedVecStraddleEvent M (fun {_ _} he {_} hz => edgeVector_apply_eq_zero he hz) t v
-
-theorem edgeScore_congr_of_outer (hloop : G.Loopless) (q : ℝ) (R : ℕ) {e f : E}
-    (hf : f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}))
-    {ω ω' : V → ℝ} (hω : ∀ z ∈ closedBall G.toSimpleGraph (G.src e) (R + 2), ω z = ω' z) :
-    edgeScore G q R ω f = edgeScore G q R ω' f :=
-  vecScore_congr_of_outer hloop (fun {_ _} he {_} hz => edgeVector_apply_eq_zero he hz) hf hω
 
 theorem measurableSet_pairAnyEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
     (e : E) : MeasurableSet (pairAnyEvent G M q R t e) :=
@@ -559,19 +530,6 @@ theorem exists_good_matching_sample_of_vec_mean [Fintype E] (hloop : G.Loopless)
   refine le_trans ?_ hB2
   nlinarith
 
-/-- **A good matching sample from a mean bound (`edgeScore G q R`).** -/
-theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
-    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) {M : Set E} (hM : G.IsMatching M)
-    {q : ℝ} (hq : 0 ≤ q) (R : ℕ) {ρ₀ : ℝ} (hρ₀ : -1 < ρ₀)
-    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R)
-    {T ε : ℝ} (hT : 0 < T) (hε : 0 < ε) {K : ℕ} (hK : 0 < K)
-    (large : (6 * K + 3) * (vertexOverlap 3 (R + 1) : ℝ) / ε ^ 2 < Fintype.card V)
-    {μ : ℝ} (hmean : ∀ t, expectedMatchingCost G M q R t ≤ Fintype.card V * μ) :
-    ∃ σ : Layout V, (G.width σ : ℝ) ≤ Fintype.card V * matchingBoundOfMean μ T ε K :=
-  exists_good_matching_sample_of_vec_mean hloop h3 hM R
-    (fun e => norm_edgeVector hloop (fun v => (h3 v).le) hq hρ₀ hρ e)
-    (fun {_ _} he {_} hz => edgeVector_apply_eq_zero he hz) hT hε hK large hmean
-
 /-- Explicit cutoff `T > 0` and grid subdivision `K > 0` keeping both the Gaussian tail contribution
 `18 / T ^ 2` and the window contribution `18 (2 T / K) / √(2 π)` within `ξ / 2`. -/
 theorem exists_tail_window_grid {ξ : ℝ} (hξ : 0 < ξ) :
@@ -645,51 +603,6 @@ theorem cubicLayoutBound_of_matching_vec_mean {μ : ℝ} (hμ : 0 ≤ μ)
   refine ⟨σ, hσ.trans ?_⟩
   rw [Nat.card_eq_fintype_card, mul_comm]
   exact mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
-
-/-- **Layout bound `LayoutBound 3 (2 * μ)` from local unit edge vectors.** -/
-theorem layoutBound_of_matching_vec_mean {μ : ℝ} (hμ : 0 ≤ μ)
-    (hmean : ∀ {ξ : ℝ}, 0 < ξ → ∃ R : ℕ,
-      ∀ (V E : Type) [Fintype V] [Fintype E] (G : Multigraph V E),
-        G.Loopless → G.ends.Injective → (∀ v, (G.incidenceSet v).ncard = 3) →
-        ∃ (M : Set E) (vec : E → EuclideanSpace ℝ V),
-          G.IsMatching M ∧ (∀ e, ‖vec e‖ = 1) ∧
-          (∀ {v : V} {e : E}, e ∈ G.incidenceSet v →
-            ∀ {z : V}, z ∉ closedBall G.toSimpleGraph v (R + 1) → vec e z = 0) ∧
-          ∀ t, expectedMatchingCostVec G M vec t ≤ Fintype.card V * (μ + ξ / 2)) :
-    LayoutBound 3 (2 * μ) :=
-  LayoutBound.of_cubic hμ (cubicLayoutBound_of_matching_vec_mean hμ hmean)
-
-/-- **Conditional cubic layout reduction.** Any uniform bound `μ ≥ 0` on the per-vertex expected
-`matchingCost` of cubic graphs under Gaussian edge scores `edgeScore G q R` gives
-`CubicLayoutBound μ`. -/
-theorem cubicLayoutBound_of_matching_mean {μ : ℝ} (hμ : 0 ≤ μ)
-    (q : ℝ) (hq : 0 ≤ q) (R : ℕ) {ρ₀ : ℝ} (hρ₀ : -1 < ρ₀)
-    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R)
-    (hmean : ∀ (V E : Type) [Fintype V] [Fintype E] (G : Multigraph V E),
-      G.Loopless → G.ends.Injective → (∀ v, (G.incidenceSet v).ncard = 3) →
-      ∃ M : Set E, G.IsMatching M ∧
-        ∀ t, expectedMatchingCost G M q R t ≤ Fintype.card V * μ) :
-    CubicLayoutBound μ := by
-  refine cubicLayoutBound_of_matching_vec_mean hμ fun {ξ} hξ => ⟨R, ?_⟩
-  intro V E _ _ G hloop hinj h3
-  obtain ⟨M, hM, hm⟩ := hmean V E G hloop hinj h3
-  refine ⟨M, edgeVector G q R, hM,
-    fun e => norm_edgeVector hloop (fun v => (h3 v).le) hq hρ₀ hρ e,
-    fun {_ _} he {_} hz => edgeVector_apply_eq_zero he hz, fun t => (hm t).trans ?_⟩
-  exact mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)
-
-/-- **Conditional `LayoutBound 3` reduction.** Any uniform cubic matching-cost expectation bound
-`μ ≥ 0` implies `LayoutBound 3 (2 * μ)`, plugging directly into the frontier circuit lower-bound
-endpoints (`FanInTwo`, `Nondeterministic`, `Ledger`, `Correlation`, `Linear`). -/
-theorem layoutBound_of_matching_mean {μ : ℝ} (hμ : 0 ≤ μ)
-    (q : ℝ) (hq : 0 ≤ q) (R : ℕ) {ρ₀ : ℝ} (hρ₀ : -1 < ρ₀)
-    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R)
-    (hmean : ∀ (V E : Type) [Fintype V] [Fintype E] (G : Multigraph V E),
-      G.Loopless → G.ends.Injective → (∀ v, (G.incidenceSet v).ncard = 3) →
-      ∃ M : Set E, G.IsMatching M ∧
-        ∀ t, expectedMatchingCost G M q R t ≤ Fintype.card V * μ) :
-    LayoutBound 3 (2 * μ) :=
-  LayoutBound.of_cubic hμ (cubicLayoutBound_of_matching_mean hμ q hq R hρ₀ hρ hmean)
 
 end Events
 
