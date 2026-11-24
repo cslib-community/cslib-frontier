@@ -28,6 +28,8 @@ With a symbolic integer parameter, evaluating the coefficients gives the charact
 polynomial of the corresponding normalized quotient over the target ring.
 The relative construction retains a whole parameter block in the coefficients, so
 specialization gives the critical-value polynomial for an individual witness fiber.
+The lower relations and deformed objective have parameter degree at most the source degree
+plus one in each coefficient of the witness variables.
 
 Adapted from `ParametricCriticalPolynomial` and `ParametricCriticalSpecialization` in
 lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. Specialization uses the coefficient-map
@@ -147,6 +149,48 @@ theorem coeffNorm1_relativeSource_le (F : MvPolynomial (Fin n ⊕ κ) ℤ) :
   change sumRingEquiv ℤ (Fin n) (Option κ) (rename relabel F) = relativeSource F at h
   rw [← h, RingEquiv.symm_apply_apply]
   exact coeffNorm1_rename_le relabel F
+
+/-- Each coefficient of a zero-centered relative lower relation has parameter degree at
+most the source degree plus one. The extra degree is from the penalty variable.
+Adapted from `relativeLower_parameterDegree` in lean-canny's `RelativeCriticalPolynomial.lean`
+at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. -/
+theorem totalDegree_coeff_relativeCriticalLower_le (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (i : Fin n) (s : Fin n →₀ ℕ) :
+    ((criticalLower ell (fun _ => 0) (X none) (relativeSource F) i).coeff s).totalDegree ≤
+      F.totalDegree + 1 := by
+  rw [criticalLower, zero_pow (by omega : ell ≠ 0), C_0, zero_sub, coeff_neg,
+    totalDegree_neg, coeff_C_mul, coeff_pderiv]
+  apply (totalDegree_mul _ _).trans
+  rw [totalDegree_X, Nat.add_comm 1]
+  apply Nat.add_le_add_right _ 1
+  apply (totalDegree_mul _ _).trans
+  rw [← Nat.cast_succ, ← C_eq_natCast, totalDegree_C, add_zero]
+  exact totalDegree_coeff_relativeSource_le F _
+
+/-- Each coefficient of the zero-centered relative deformed objective has parameter degree
+at most the source degree plus one. The separated potential has constant coefficients.
+Adapted from `relativeObjective_parameterDegree` in lean-canny's `RelativeCriticalPolynomial.lean`
+at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. -/
+theorem totalDegree_coeff_relativeDeformedPolynomial_le (ell : ℕ)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (s : Fin n →₀ ℕ) :
+    ((deformedPolynomial ell (fun _ => 0) (X none) (relativeSource F)).coeff s).totalDegree ≤
+      F.totalDegree + 1 := by
+  have hpotential :
+      potentialPolynomial ell (fun _ : Fin n => (0 : MvPolynomial (Option κ) ℤ)) =
+        (potentialPolynomial ell (fun _ : Fin n => (0 : ℤ))).map C := by
+    simpa only [map_zero] using (potentialPolynomial_map C ell (fun _ : Fin n => (0 : ℤ))).symm
+  simp only [deformedPolynomial, AddMonoidAlgebra.coeff_add, Finsupp.add_apply,
+    hpotential, coeff_map, coeff_C_mul]
+  apply (totalDegree_add _ _).trans
+  rw [totalDegree_C, zero_max]
+  apply (totalDegree_mul _ _).trans
+  have hscale : (((ell + 1 : ℕ) : MvPolynomial (Option κ) ℤ) * X none).totalDegree ≤ 1 := by
+    apply (totalDegree_mul _ _).trans
+    rw [← C_eq_natCast, totalDegree_C, totalDegree_X, zero_add]
+  calc
+    _ ≤ 1 + F.totalDegree :=
+      Nat.add_le_add hscale (totalDegree_coeff_relativeSource_le F s)
+    _ = _ := Nat.add_comm _ _
 
 /-- The relative critical-value polynomial with zero centers. Its coefficients retain
 the penalty variable at `none` and the original parameters at `some i`. -/

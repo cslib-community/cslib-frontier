@@ -92,4 +92,18 @@ example :
   · simp [F, relativeSource]
   · simpa [F] using coeffNorm1_relativeSource_le F
 
+-- One witness variable and one retained parameter give a parameter degree bound of two.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inl 0) + X (.inr 0)
+    ((criticalLower 2 (fun _ => 0) (X none) (relativeSource F) 0).coeff 0).totalDegree ≤ 2 ∧
+      ((deformedPolynomial 2 (fun _ => 0) (X none)
+        (relativeSource F)).coeff 0).totalDegree ≤ 2 := by
+  intro F
+  have hF : F.totalDegree ≤ 1 := (totalDegree_add _ _).trans (by simp)
+  exact ⟨(totalDegree_coeff_relativeCriticalLower_le (by decide) F 0 0).trans
+      (Nat.add_le_add_right hF 1),
+    (totalDegree_coeff_relativeDeformedPolynomial_le 2 F 0).trans (Nat.add_le_add_right hF 1)⟩
+
 end CslibFrontierTests.RealAlgebraicCharacteristic
