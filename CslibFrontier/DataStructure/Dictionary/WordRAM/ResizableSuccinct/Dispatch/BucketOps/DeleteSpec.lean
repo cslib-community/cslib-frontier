@@ -9,18 +9,12 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.DeletePrep
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.DeleteFinish
+-- Reads private `compDispatch_spec` and unfolds `compFeistelCoordsProg`.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.CoordsDelta
+-- Reads private `compDeletePrepBodyGenProg_spec` and unfolds `compDeletePrepWithHashGenProg`.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.DeletePrep
+-- Reads private `compDeleteFinishGenProg` and `compDeleteFoundGenProg_effect`, and unfolds finish.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.DeleteFinish
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.MetaSync
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctChainOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctBucketOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctDeleteOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 

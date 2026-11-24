@@ -8,16 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.CoordsDelta
+-- Reads private `fcBucket` and `gmAt_prependIfIndexedProg`, and unfolds `compFeistelCoordsProg`.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.CoordsDelta
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.MetaSync
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctChainOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctBucketOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctDeleteOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -429,7 +421,7 @@ theorem validProg_compInsertAppendNewGen {w : ℕ}
     (Nat.shiftRight_eq_div_pow u (bucketBits N)).symm
   have hq_lt' : keyQuotient (bucketBits N) u < 2 ^ quotientBits U N := by rwa [hq_eq]
   dsimp only [compInsertAppendNewGenProg]
-  refine validProg_bind (fun _ => trivial) ?_
+  refine validProg_bind (validProg_compExtractQuotGen _ _) ?_
   rw [clientState_compExtractQuotGenProg, clientResult_compExtractQuotGenProg]
   refine validProg_bind
     (validProg_readCompBucketCountGen

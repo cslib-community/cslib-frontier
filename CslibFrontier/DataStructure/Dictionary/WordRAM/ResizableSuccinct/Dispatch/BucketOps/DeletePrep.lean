@@ -8,16 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.CoordsDelta
+-- Reads private `fcBucket` and unfolds `compFeistelCoordsProg` in `DeletePrep` obligations.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.CoordsDelta
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.MetaSync
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctChainOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctBucketOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctDeleteOps
-import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
