@@ -218,8 +218,7 @@ private theorem realizes_writeSliceHeaderGen :
       (WordEncoding.encode (α := Unit))
       (fun w (((cp, base), sIdx), _) _ => WhpLargeEnvGen w cp base ∧ sIdx < 3 * wpM cp)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨newA, newR⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
@@ -487,10 +486,7 @@ private theorem realizes_descendStepGen :
       DescendStepGenPre
       (fun _ _ => 0) := by
   unfold descendStepGenProg
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hlg := realizes_laneGetGen
-  realize
+  realize [realizes_readBTreeNodeGen, realizes_swarRankGen, realizes_laneGetGen]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, cur⟩
     dsimp only [DescendStepGenPre] at h
@@ -1008,12 +1004,8 @@ private theorem realizes_btreeLocateHitGen :
       BTreeQueryGenPre
       (fun _ _ => 0) := by
   unfold btreeLocateHitGenProg
-  have hrh := realizes_readSliceHeaderGen
-  have hdl := realizes_descendLoopGen
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hlg := realizes_laneGetGen
-  realize
+  realize [realizes_readSliceHeaderGen, realizes_descendLoopGen, realizes_readBTreeNodeGen,
+      realizes_swarRankGen, realizes_laneGetGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, q⟩
     dsimp only at *
@@ -1180,9 +1172,7 @@ theorem realizes_btreeLookupGen :
       BTreeQueryGenPre
       (fun _ _ => 0) := by
   unfold btreeLookupGenProg
-  have hloc := realizes_btreeLocateHitGen
-  have hlg := realizes_laneGetGen
-  realize
+  realize [realizes_btreeLocateHitGen, realizes_laneGetGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, q⟩
     dsimp only [BTreeQueryGenPre] at *
@@ -1338,10 +1328,7 @@ theorem realizes_btreeDeleteGen :
       BTreeQueryGenPre
       (fun _ _ => 0) := by
   unfold btreeDeleteGenProg
-  have hloc := realizes_btreeLocateHitGen
-  have hwd := realizes_wordDeleteAtGen
-  have hwn := realizes_writeBTreeNodeGen
-  realize
+  realize [realizes_btreeLocateHitGen, realizes_wordDeleteAtGen, realizes_writeBTreeNodeGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, q⟩
     dsimp only [BTreeQueryGenPre] at *
@@ -1507,10 +1494,7 @@ theorem realizes_btreeUpdateGen :
       BTreeModGenPre
       (fun _ _ => 0) := by
   unfold btreeUpdateGenProg
-  have hloc := realizes_btreeLocateHitGen
-  have hwu := realizes_wordUpdateAtGen
-  have hwn := realizes_writeBTreeNodeGen
-  realize
+  realize [realizes_btreeLocateHitGen, realizes_wordUpdateAtGen, realizes_writeBTreeNodeGen]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, newVal⟩
     dsimp only [BTreeModGenPre] at *
@@ -1836,8 +1820,7 @@ private theorem realizes_writeSplitFourBody :
         d.2.1.2.1 < wpNSlice d.1.1.1 ∧
         d.2.2.1.1 < wpNSlice d.1.1.1)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨⟨⟨u1, nd1⟩, ⟨u2, nd2⟩⟩, ⟨⟨u3, nd3⟩, newA⟩⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu1, hu2, hu3⟩ := h
@@ -1958,9 +1941,7 @@ private theorem realizes_initEmptyRootBody :
       (WordEncoding.encode (α := ℕ × ℕ))
       (fun w d _ => WhpLargeEnvGen w d.1.1 d.1.2 ∧ d.2 < 3 * wpM d.1.1)
       (fun _ _ => 0) := by
-  have hwn := realizes_writeNodeOp
-  have hwh := realizes_writeSliceHeaderGen
-  realize
+  realize [realizes_writeNodeOp, realizes_writeSliceHeaderGen]
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
@@ -2013,9 +1994,7 @@ private theorem realizes_splitFullRootBody :
       (WordEncoding.encode (α := ℕ × ℕ))
       SplitFullRootPre
       (fun _ _ => 0) := by
-  have hsp := realizes_splitNodeOp
-  have hsf := realizes_writeSplitFourOp
-  realize
+  realize [realizes_splitNodeOp, realizes_writeSplitFourOp]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨⟨alloc, root⟩, ⟨mW, ⟨kW, vW⟩⟩⟩⟩
     dsimp only [SplitFullRootPre] at h
@@ -2417,11 +2396,8 @@ private theorem realizes_ensureAndSplitRootGen :
       EnsureRootGenPre
       (fun _ _ => 0) := by
   unfold ensureAndSplitRootGenProg
-  have hrh := realizes_readSliceHeaderGen
-  have hie := realizes_initEmptyRootOp
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_splitFullRootOp
-  realize
+  realize [realizes_readSliceHeaderGen, realizes_initEmptyRootOp, realizes_readBTreeNodeGen,
+      realizes_splitFullRootOp]
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
     dsimp only [EnsureRootGenPre] at h
@@ -2504,10 +2480,7 @@ private theorem realizes_splitFullChildBody :
       (WordEncoding.encode (α := ℕ × ℕ))
       SplitFullChildPre
       (fun _ _ => 0) := by
-  have hsp := realizes_splitNodeOp
-  have hwi := realizes_wordInsertOp
-  have hsf := realizes_writeSplitFourOp
-  realize
+  realize [realizes_splitNodeOp, realizes_wordInsertOp, realizes_writeSplitFourOp]
   all_goals
     rcases d with ⟨⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, ⟨alloc, cur⟩⟩, ⟨⟨⟨c0, r0⟩, ⟨pKW, pVW⟩⟩,
       ⟨childIdx, ⟨cmW, ⟨ckW, cvW⟩⟩⟩⟩⟩
@@ -2618,11 +2591,8 @@ private theorem realizes_descendSplitStepGen :
       DescendSplitStepGenPre
       (fun _ _ => 0) := by
   unfold descendSplitStepGenProg
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hlg := realizes_laneGetGen
-  have hsfc := realizes_splitFullChildOp
-  realize
+  realize [realizes_readBTreeNodeGen, realizes_swarRankGen, realizes_laneGetGen,
+      realizes_splitFullChildOp]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, ⟨alloc, cur⟩⟩
     dsimp only [DescendSplitStepGenPre] at h
@@ -3248,8 +3218,7 @@ private theorem realizes_checkLeafHitBody :
       (WordEncoding.encode (α := ℕ))
       (fun w d _ => 1 < w ∧ d.1.1.1 < w ∧ Fits w (d.1.2.1 * d.1.1.1))
       (fun _ _ => 0) := by
-  have hlg := realizes_laneGetGen
-  realize
+  realize [realizes_laneGetGen]
   all_goals obtain ⟨hw1, h1, h2⟩ := h
   · exact Nat.one_lt_two_pow (by omega)
   · exact h1
@@ -3609,13 +3578,8 @@ private theorem realizes_finishLeafInsertGen :
       FinishLeafGenPre
       (fun _ _ => 0) := by
   unfold finishLeafInsertGenProg
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hch := realizes_checkLeafHitGen
-  have hwu := realizes_wordUpdateAtGen
-  have hwi := realizes_wordInsertOp
-  have hwn := realizes_writeNodeOp
-  realize
+  realize [realizes_readBTreeNodeGen, realizes_swarRankGen, realizes_checkLeafHitGen,
+      realizes_wordUpdateAtGen, realizes_wordInsertOp, realizes_writeNodeOp]
   all_goals
     rcases d with ⟨⟨⟨⟨⟨cp, base⟩, sIdx⟩, leafIdx⟩, q⟩, val⟩
     dsimp only [FinishLeafGenPre] at h
@@ -3794,10 +3758,8 @@ theorem realizes_btreeInsertGen :
       BTreeModGenPre
       (fun _ _ => 0) := by
   unfold btreeInsertGenProg
-  have her := realizes_ensureAndSplitRootGen
-  have hdsl := realizes_descendSplitLoopGen
-  have hfl := realizes_finishLeafInsertGen
-  realize
+  realize [realizes_ensureAndSplitRootGen, realizes_descendSplitLoopGen,
+      realizes_finishLeafInsertGen]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, val⟩
     dsimp only [BTreeModGenPre] at h
