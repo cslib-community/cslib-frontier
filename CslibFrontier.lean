@@ -6329,6 +6329,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.BGW
 public import CslibFrontier.Crypto.Protocols.MPC.Basic
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT.Sequential
+public import CslibFrontier.Crypto.Protocols.MPC.BatchOT.SequentialProg
 public import CslibFrontier.Crypto.Protocols.MPC.Beaver
 public import CslibFrontier.Crypto.Protocols.MPC.Broadcast
 public import CslibFrontier.Crypto.Protocols.MPC.CircuitEval
@@ -6336,7 +6337,9 @@ public import CslibFrontier.Crypto.Protocols.MPC.Composition
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Cost
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Hybrid
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridChallenge
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridGame
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridProg
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
@@ -6346,6 +6349,8 @@ public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDH
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDHProb
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
+public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDFDDHProb
+public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.Mixture
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender.PolyTime
@@ -6376,9 +6381,12 @@ public import CslibFrontier.Crypto.Protocols.MPC.SharedMul
 public import CslibFrontier.Crypto.Protocols.MPC.Yao
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.KDF
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Setup
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
 public import CslibFrontier.Crypto.Protocols.MQOM.CorrelatedTree
 public import CslibFrontier.Crypto.Protocols.OPRF.DiffieHellman

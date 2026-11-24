@@ -44,14 +44,27 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
   `maskedOTReceiverSim` that fills the unchosen component with a uniform `msgLen n`-bit word,
   *equals* the key-derivation advantage of `F.maskedOTReceiverToKDFDistinguisher H x D` under the
   setup that returns `d` (`semiHonestAdvantage_kdfMaskedOT_receiver_eq_kdf`).
+* For every setup law and every sampled environment `E` of the masked transfer, a program that
+  either decides a bit or stops at a `Composition.RoundChallenge`, whose challenges corrupt the
+  receiver: the game `Composition.roundGame` on the ideal joint distribution, under the sampled
+  setup and environment, *is* `F.kdfIdealGame` of the one distinguisher
+  `F.roundEnvToKDFDistinguisher H E` (`bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame`),
+  and, when the keys and the receiver's outputs have length `msgLen n` on the support of the
+  setup, the game on the real joint distribution *is* its `F.kdfRealGame`
+  (`bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame`). Hence the two advantages are equal,
+  with the absolute value outside the expectation over the setup and the environment
+  (`advantage_bind_roundGame_kdfMaskedOT_eq_kdf`).
 
 ## What is not proved
 
-* No efficiency statement: `F.maskedOTReceiverToKDFDistinguisher H x D` is not shown to be
-  uniform strict PPT (`KDFDistinguisher.IsPPT`) when `x` and `D` are efficient, so `F.SecureKDF` is
-  not applied and no negligible bound is derived.
-* No asymptotic statement (`ProtocolFamily.SemiHonestSecure`) is made, and the per-instance
-  equality is for the point setup at a fixed `d`; averaging it over a setup law is not done here.
+* No efficiency statement: neither `F.maskedOTReceiverToKDFDistinguisher H x D` nor
+  `F.roundEnvToKDFDistinguisher H E` is shown to be uniform strict PPT
+  (`KDFDistinguisher.IsPPT`) when `x`, `D` and `E` are efficient, so `F.SecureKDF` is not applied
+  and no negligible bound is derived.
+* No asymptotic statement (`ProtocolFamily.SemiHonestSecure`) is made. The equality of semi-honest
+  advantages is for the point setup at a fixed `d`; under a setup law only the round games of a
+  sampled environment are identified; they are used for a composed protocol in
+  `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Games.lean`.
 * The pads are sampled with exactly uniform exponents (`ProbComp.uniform`), not by a fair-coin
   sampler such as `F.sampleExp`.
 * The pad transfer is ideal. Substituting a protocol for it, for one distinguisher, is
@@ -67,6 +80,9 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
 * `Cslib.Crypto.PrimeOrderGroupFamily.kdfPads`: two pads with independent uniform exponents.
 * `Cslib.Crypto.PrimeOrderGroupFamily.maskedOTReceiverToKDFDistinguisher`: the reduction from a
   distinguisher of a corrupted receiver's view to a key-derivation distinguisher.
+* `Cslib.Crypto.PrimeOrderGroupFamily.roundEnvToKDFDistinguisher`: the key-derivation
+  distinguisher that samples an environment of the masked transfer and runs the reduction on its
+  challenge.
 
 ## Main results
 
@@ -76,6 +92,12 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
 * `Cslib.Crypto.PrimeOrderGroupFamily.semiHonestAdvantage_kdfMaskedOT_receiver_eq_kdf`: at fixed
   group parameters, the advantage against a corrupted receiver is the key-derivation advantage of
   the reduction.
+* `Cslib.Crypto.PrimeOrderGroupFamily.bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame`: under
+  a sampled setup, the two round games of a sampled environment are the key-derivation games of
+  `roundEnvToKDFDistinguisher`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_roundGame_kdfMaskedOT_eq_kdf`: hence the
+  round-game advantage of the environment is the key-derivation advantage of that distinguisher.
 
 ## References
 
@@ -135,6 +157,67 @@ the masked unchosen value, the sender's unchosen value xored with `key` via
 
 /-! ### The key-derivation games of the reduction -/
 
+/-- At fixed group parameters, the pad test on a uniform pad and the xor of a uniform key with the
+sender's unchosen value is the ideal pad-hiding experiment. -/
+private theorem bind_eval_maskedOTPadTest_uniformList (H : F.Desc × List Bool → List Bool)
+    (len : ℕ) (d : F.Desc) (x : (i : Fin 2) → OTIn (List Bool) i)
+    (D : ((i : ({1} : Finset (Fin 2))) → PartyView (OTIn (List Bool)) (MaskedOTCoins (F.Carrier d))
+        (maskedOTSchedule (F.Carrier d) (List Bool)) i) ×
+      ((i : Fin 2) → OTOut (List Bool) i) → ProbComp Bool) :
+    ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
+      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun _ =>
+        (Cslib.BitString.uniformList len).bind fun key =>
+          ProbComp.eval (
+            let σ : Bool := x 1
+            maskedOTPadTest (F.kdfMask H d) x D (a • F.generator d)
+              (Cslib.BitString.listXor key.length [key, if σ then (x 0).1 else (x 0).2]))) =
+      ProbComp.eval (do
+        let r ← F.kdfPads d
+        let u ← Cslib.BitString.sampleList len
+        let σ : Bool := x 1
+        maskedOTPadTest (F.kdfMask H d) x D (if σ then r.2 else r.1) u) := by
+  have hpad (w : List Bool) (f : List Bool → PMF Bool) :
+      ((Cslib.BitString.uniformList len).bind fun key =>
+        f (Cslib.BitString.listXor key.length [key, w])) =
+        (Cslib.BitString.uniformList len).bind f := by
+    simpa only [PMF.bind_map, Function.comp_def] using
+      congrArg (·.bind f) (Cslib.BitString.uniformList_map_listXor_length len w)
+  simp only [kdfPads, bind_assoc, pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform,
+    Cslib.BitString.eval_sampleList]
+  cases hσ : (x 1 : Bool)
+  · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
+    exact congrArg (PMF.bind _) (funext fun a => hpad _ fun u => ProbComp.eval
+      (maskedOTPadTest (F.kdfMask H d) x D (a • F.generator d) u))
+  · simp only [↓reduceIte, PMF.bind_const]
+    exact congrArg (PMF.bind _) (funext fun a => hpad _ fun u => ProbComp.eval
+      (maskedOTPadTest (F.kdfMask H d) x D (a • F.generator d) u))
+
+/-- At fixed group parameters, the pad test on a uniform pad and the xor of the key derived from
+an independent uniform pad with the sender's unchosen value is the real pad-hiding experiment. -/
+private theorem bind_eval_maskedOTPadTest_key (H : F.Desc × List Bool → List Bool)
+    (d : F.Desc) (x : (i : Fin 2) → OTIn (List Bool) i)
+    (D : ((i : ({1} : Finset (Fin 2))) → PartyView (OTIn (List Bool)) (MaskedOTCoins (F.Carrier d))
+        (maskedOTSchedule (F.Carrier d) (List Bool)) i) ×
+      ((i : Fin 2) → OTOut (List Bool) i) → ProbComp Bool) :
+    ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
+      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun _ =>
+        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun c =>
+          ProbComp.eval (
+            let σ : Bool := x 1
+            maskedOTPadTest (F.kdfMask H d) x D (a • F.generator d)
+              (Cslib.BitString.listXor (H (d, F.encode d (c • F.generator d))).length
+                [H (d, F.encode d (c • F.generator d)), if σ then (x 0).1 else (x 0).2]))) =
+      ProbComp.eval (do
+        let r ← F.kdfPads d
+        let σ : Bool := x 1
+        maskedOTPadTest (F.kdfMask H d) x D (if σ then r.2 else r.1)
+          (if σ then F.kdfMask H d r.1 (x 0).1 else F.kdfMask H d r.2 (x 0).2)) := by
+  simp only [kdfPads, bind_assoc, pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform]
+  cases hσ : (x 1 : Bool)
+  · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const, kdfMask]
+  · simp only [↓reduceIte, PMF.bind_const, kdfMask]
+    exact PMF.bind_comm _ _ _
+
 /-- **The real key-derivation game of the reduction is the real pad-hiding experiment.** For
 every setup law, `F.kdfRealGame` run with `F.maskedOTReceiverToKDFDistinguisher H x D` draws
 `d ← setup n` and the pads `r ← F.kdfPads d`, and gives the pad test the receiver's pad and the
@@ -158,13 +241,9 @@ theorem kdfRealGame_maskedOTReceiverToKDFDistinguisher (setup : ℕ → PMF F.De
           maskedOTPadTest (F.kdfMask H d) (x n d) (D n d) (if σ then r.2 else r.1)
             (if σ then F.kdfMask H d r.1 (x n d 0).1 else F.kdfMask H d r.2 (x n d 0).2)) :
         Game) := by
-  simp only [kdfRealGame, maskedOTReceiverToKDFDistinguisher, kdfPads, bind_assoc, pure_bind,
-    ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind]
-  refine congrArg (PMF.bind _) (funext fun d => ?_)
-  cases hσ : (x n d 1 : Bool)
-  · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const, kdfMask]
-  · simp only [↓reduceIte, PMF.bind_const, kdfMask]
-    exact PMF.bind_comm _ _ _
+  simp only [kdfRealGame, maskedOTReceiverToKDFDistinguisher, PMF.monad_bind_eq_bind]
+  exact congrArg (PMF.bind _) (funext fun d =>
+    F.bind_eval_maskedOTPadTest_key H d (x n d) (D n d))
 
 /-- **The ideal key-derivation game of the reduction is the ideal pad-hiding experiment.** For
 every setup law, `F.kdfIdealGame` run with `F.maskedOTReceiverToKDFDistinguisher H x D` draws
@@ -189,23 +268,9 @@ theorem kdfIdealGame_maskedOTReceiverToKDFDistinguisher (setup : ℕ → PMF F.D
           let σ : Bool := x n d 1
           maskedOTPadTest (F.kdfMask H d) (x n d) (D n d) (if σ then r.2 else r.1) u) :
         Game) := by
-  have hpad (w : List Bool) (f : List Bool → PMF Bool) :
-      ((Cslib.BitString.uniformList (msgLen n)).bind fun key =>
-        f (Cslib.BitString.listXor key.length [key, w])) =
-        (Cslib.BitString.uniformList (msgLen n)).bind f := by
-    simpa only [PMF.bind_map, Function.comp_def] using
-      congrArg (·.bind f) (Cslib.BitString.uniformList_map_listXor_length (msgLen n) w)
-  simp only [kdfIdealGame, maskedOTReceiverToKDFDistinguisher, kdfPads, bind_assoc, pure_bind,
-    ProbComp.eval_bind, ProbComp.eval_uniform, Cslib.BitString.eval_sampleList,
-    PMF.monad_bind_eq_bind]
-  refine congrArg (PMF.bind _) (funext fun d => ?_)
-  cases hσ : (x n d 1 : Bool)
-  · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
-    exact congrArg (PMF.bind _) (funext fun a => hpad _ fun u => ProbComp.eval
-      (maskedOTPadTest (F.kdfMask H d) (x n d) (D n d) (a • F.generator d) u))
-  · simp only [↓reduceIte, PMF.bind_const]
-    exact congrArg (PMF.bind _) (funext fun a => hpad _ fun u => ProbComp.eval
-      (maskedOTPadTest (F.kdfMask H d) (x n d) (D n d) (a • F.generator d) u))
+  simp only [kdfIdealGame, maskedOTReceiverToKDFDistinguisher, PMF.monad_bind_eq_bind]
+  exact congrArg (PMF.bind _) (funext fun d =>
+    F.bind_eval_maskedOTPadTest_uniformList H (msgLen n) d (x n d) (D n d))
 
 /-! ### A corrupted receiver at fixed group parameters -/
 
@@ -244,5 +309,164 @@ theorem semiHonestAdvantage_kdfMaskedOT_receiver_eq_kdf (H : F.Desc × List Bool
     F.kdfIdealGame_maskedOTReceiverToKDFDistinguisher,
     F.kdfRealGame_maskedOTReceiverToKDFDistinguisher]
   simp only [PMF.monad_bind_eq_bind, PMF.pure_bind]
+
+/-! ### The key-derivation games of a sampled environment -/
+
+section RoundEnv
+
+open Cslib.Crypto.Protocols.MPC.Composition
+
+/-- A draw commutes past three earlier independent draws. -/
+private theorem bind_bind_bind_comm {α β γ δ ε : Type} (p₁ : PMF α) (p₂ : PMF β) (p₃ : PMF γ)
+    (q : PMF δ) (f : α → β → γ → δ → PMF ε) :
+    (p₁.bind fun a => p₂.bind fun b => p₃.bind fun c => q.bind fun e => f a b c e) =
+      q.bind fun e => p₁.bind fun a => p₂.bind fun b => p₃.bind fun c => f a b c e :=
+  (congrArg p₁.bind (funext fun _ => (congrArg p₂.bind (funext fun _ =>
+    PMF.bind_comm p₃ q _)).trans (PMF.bind_comm p₂ q _))).trans (PMF.bind_comm p₁ q _)
+
+/-- **The key-derivation distinguisher of a sampled environment of the masked transfer.** Step
+toward #6045; original bookkeeping, not a cited construction, and no efficiency certificate
+(`KDFDistinguisher.IsPPT`) is proved for it. Given the group parameters `d`, a group element `u`
+and a candidate key `key` (its second group element is ignored), it samples the environment
+`E n d`. If the environment has already decided a bit, it returns that bit. If the environment
+stops at a challenged transfer `c` whose corrupted slots are the receiver `{1}`, it runs the pad
+test `maskedOTPadTest` of the query `c.query` and the guessing stage `c.guess` with `u` as the
+receiver's pad and, as the candidate for the masked unchosen value, the sender's unchosen value
+xored with `key` via `Cslib.BitString.listXor key.length [key, _]`: the program
+`F.maskedOTReceiverToKDFDistinguisher` on the sampled challenge. On every other coalition it
+returns `false`. -/
+@[expose] def roundEnvToKDFDistinguisher (H : F.Desc × List Bool → List Bool)
+    (E : (n : ℕ) → (d : F.Desc) → ProbComp (Bool ⊕ RoundChallenge (spec₁ := otSpec (List Bool))
+      (fun _ => maskedOTSchedule (F.Carrier d) (List Bool))
+      (fun _ => MaskedOTCoins (F.Carrier d)))) : F.KDFDistinguisher :=
+  fun n d u _ key => do
+    match ← E n d with
+    | .inl b => pure b
+    | .inr c =>
+      if h : c.coalition = ({1} : Finset (Fin 2)) then
+        let σ : Bool := c.query 1
+        maskedOTPadTest (F.kdfMask H d) c.query
+          (fun r => c.guess (fun s => r.1 ⟨s.1, h ▸ s.2⟩, r.2)) u
+          (Cslib.BitString.listXor key.length [key, if σ then (c.query 0).1 else (c.query 0).2])
+      else pure false
+
+/-- **The ideal round game of a sampled environment is its ideal key-derivation game.** Step
+toward #6045; original bookkeeping, not a cited result. Draw `d ← setup n` and a challenge from
+the environment `E n d`, and play `Composition.roundGame` on the ideal joint distribution of the
+single transfer `otWorld (List Bool)` with the simulators `Sm d`. When `Sm d {1}` is
+`maskedOTReceiverSim` with the key-derivation mask `F.kdfMask H d`, the pads `F.kdfPads d`
+(exactly uniform exponents, not fair coins) and a uniform `msgLen n`-bit word in the unchosen
+component, and every challenge of the environment corrupts the receiver `{1}`, this game *is*
+`F.kdfIdealGame setup msgLen` of the one distinguisher `F.roundEnvToKDFDistinguisher H E`. No
+length hypothesis is needed, and no efficiency of the distinguisher is claimed. -/
+theorem bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) (n : ℕ)
+    (Sm : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (hSm : ∀ d, Sm d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+      (Cslib.BitString.sampleList (msgLen n)))
+    (E : (n : ℕ) → (d : F.Desc) → ProbComp (Bool ⊕ RoundChallenge (spec₁ := otSpec (List Bool))
+      (fun _ => maskedOTSchedule (F.Carrier d) (List Bool))
+      (fun _ => MaskedOTCoins (F.Carrier d))))
+    (hE : ∀ d ∈ (setup n).support, ∀ c, Sum.inr c ∈ (ProbComp.eval (E n d)).support →
+      c.coalition = ({1} : Finset (Fin 2))) :
+    ((setup n).bind fun d => (ProbComp.eval (E n d)).bind
+      (roundGame fun op J q =>
+        ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm d J) q))) =
+      F.kdfIdealGame setup msgLen (F.roundEnvToKDFDistinguisher H E) n := by
+  simp only [kdfIdealGame, roundEnvToKDFDistinguisher, ProbComp.eval_bind,
+    PMF.monad_bind_eq_bind]
+  refine PMF.bind_congr_on_support _ _ _ fun d hd => ?_
+  rw [bind_bind_bind_comm]
+  refine PMF.bind_congr_on_support _ _ _ fun e he => ?_
+  cases e with
+  | inl b => simp only [roundGame, Sum.elim_inl, ProbComp.eval_pure, PMF.bind_const]
+  | inr c =>
+    obtain ⟨op, J, q, g⟩ := c
+    obtain rfl : J = ({1} : Finset (Fin 2)) := hE d hd _ he
+    simp only [roundGame, Sum.elim_inr, hSm d, ↓reduceDIte]
+    exact (bind_eval_idealJoint_maskedOT_receiver _ _ _ q g).trans
+      (F.bind_eval_maskedOTPadTest_uniformList H (msgLen n) d q g).symm
+
+/-- **The real round game of a sampled environment is its real key-derivation game.** Step toward
+#6045; original bookkeeping, not a cited result. Draw `d ← setup n` and a challenge from the
+environment `E n d`, and play `Composition.roundGame` on the real joint distribution of `maskedOT`
+with the key-derivation mask `F.kdfMask H d` and the pads `F.kdfPads d` (exactly uniform
+exponents, not fair coins), with the ideal pad transfer `otWorld (F.Carrier d)`. When, for every
+`d` in the support of the setup, every key `H (d, F.encode d r)` has length `msgLen n` and every
+challenge of the environment corrupts the receiver `{1}` and has a receiver's output of length
+`msgLen n`, this game *is* `F.kdfRealGame setup H` of the one distinguisher
+`F.roundEnvToKDFDistinguisher H E`. No efficiency of the distinguisher is claimed. -/
+theorem bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) (n : ℕ)
+    (E : (n : ℕ) → (d : F.Desc) → ProbComp (Bool ⊕ RoundChallenge (spec₁ := otSpec (List Bool))
+      (fun _ => maskedOTSchedule (F.Carrier d) (List Bool))
+      (fun _ => MaskedOTCoins (F.Carrier d))))
+    (hH : ∀ d ∈ (setup n).support, ∀ r : F.Carrier d, (H (d, F.encode d r)).length = msgLen n)
+    (hE : ∀ d ∈ (setup n).support, ∀ c, Sum.inr c ∈ (ProbComp.eval (E n d)).support →
+      c.coalition = ({1} : Finset (Fin 2)) ∧
+        (otOutputs (M := List Bool) c.query 1 : List Bool).length = msgLen n) :
+    ((setup n).bind fun d => (ProbComp.eval (E n d)).bind
+      (roundGame fun _ J q =>
+        (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)).realJoint
+          (otWorld (F.Carrier d)) J q)) =
+      F.kdfRealGame setup H (F.roundEnvToKDFDistinguisher H E) n := by
+  simp only [kdfRealGame, roundEnvToKDFDistinguisher, ProbComp.eval_bind,
+    PMF.monad_bind_eq_bind]
+  refine PMF.bind_congr_on_support _ _ _ fun d hd => ?_
+  rw [bind_bind_bind_comm]
+  refine PMF.bind_congr_on_support _ _ _ fun e he => ?_
+  cases e with
+  | inl b => simp only [roundGame, Sum.elim_inl, ProbComp.eval_pure, PMF.bind_const]
+  | inr c =>
+    obtain ⟨op, J, q, g⟩ := c
+    obtain ⟨rfl, hout⟩ : J = ({1} : Finset (Fin 2)) ∧
+        (otOutputs (M := List Bool) q 1 : List Bool).length = msgLen n := hE d hd _ he
+    simp only [roundGame, Sum.elim_inr, ↓reduceDIte]
+    exact (bind_realJoint_maskedOT_receiver _ _ _ q
+      (fun r => F.kdfMask_kdfMask H d r (hout.trans (hH d hd r).symm)) g).trans
+      (F.bind_eval_maskedOTPadTest_key H d q g).symm
+
+/-- **The round-game advantage of a sampled environment is its key-derivation advantage.** Step
+toward #6045; original bookkeeping, not a cited result and not a security theorem: the right-hand
+side is not bounded, and no efficiency of `F.roundEnvToKDFDistinguisher H E` is claimed. Under the
+hypotheses of `bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame` and
+`bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame`, the advantage between the ideal and the
+real round game of the masked transfer with the ideal pad transfer, under the sampled setup and
+the sampled environment `E`, *equals* the advantage of the one distinguisher
+`F.roundEnvToKDFDistinguisher H E` between `F.kdfIdealGame setup msgLen` and
+`F.kdfRealGame setup H`. The absolute value is outside the expectation over the setup and the
+environment on both sides. -/
+theorem advantage_bind_roundGame_kdfMaskedOT_eq_kdf (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) (n : ℕ)
+    (Sm : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (hSm : ∀ d, Sm d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+      (Cslib.BitString.sampleList (msgLen n)))
+    (E : (n : ℕ) → (d : F.Desc) → ProbComp (Bool ⊕ RoundChallenge (spec₁ := otSpec (List Bool))
+      (fun _ => maskedOTSchedule (F.Carrier d) (List Bool))
+      (fun _ => MaskedOTCoins (F.Carrier d))))
+    (hH : ∀ d ∈ (setup n).support, ∀ r : F.Carrier d, (H (d, F.encode d r)).length = msgLen n)
+    (hE : ∀ d ∈ (setup n).support, ∀ c, Sum.inr c ∈ (ProbComp.eval (E n d)).support →
+      c.coalition = ({1} : Finset (Fin 2)) ∧
+        (otOutputs (M := List Bool) c.query 1 : List Bool).length = msgLen n) :
+    Game.advantage
+        ((setup n).bind fun d => (ProbComp.eval (E n d)).bind
+          (roundGame fun op J q =>
+            ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm d J) q)))
+        ((setup n).bind fun d => (ProbComp.eval (E n d)).bind
+          (roundGame fun _ J q =>
+            (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)).realJoint
+              (otWorld (F.Carrier d)) J q)) =
+      Game.advantage (F.kdfIdealGame setup msgLen (F.roundEnvToKDFDistinguisher H E) n)
+        (F.kdfRealGame setup H (F.roundEnvToKDFDistinguisher H E) n) :=
+  congrArg₂ Game.advantage
+    (F.bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame setup H msgLen n Sm hSm E
+      fun d hd c hc => (hE d hd c hc).1)
+    (F.bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame setup H msgLen n E hH hE)
+
+end RoundEnv
 
 end Cslib.Crypto.PrimeOrderGroupFamily
