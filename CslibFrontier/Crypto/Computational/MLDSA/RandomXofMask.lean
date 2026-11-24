@@ -10,10 +10,15 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 public import CslibFrontier.Probability.IID.FirstSome
+-- Reads private `Table`, `RawWord`, `install`, and `byteAt_install`, plus `uniformPrefixes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+-- Reads private `verified_programmedTrial` and unexposed `matrixTrial` and `programmedTrial`.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `AttemptCommitment`, `expandMaskFrom`, `firstAccepted`, and `Xofs.expandMask`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Unfolds unexposed `packSigned`, `unpackSigned`, `Level.params`, and `commitmentDigest`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+-- Reads private `maskSet`, `mask_nonempty`, and `mem_intervalVectors`, plus `signingMaskLaw`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Probability.PMF.Support

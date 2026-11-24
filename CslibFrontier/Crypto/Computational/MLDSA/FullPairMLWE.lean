@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+-- Reads private `vectors`, `uniform_vector_pair`, and `uniformPrefixes_secretRows`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import CslibFrontier.Probability.PMF.Bool

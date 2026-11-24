@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
+-- Reads private `fixedHedgeGame` and `scoreWithSetup`, plus unexposed `distinctHedgeGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
+-- Reads private `Table`, `RawWord`, `install`, and `byteAt_install`, plus `uniformPrefixes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event

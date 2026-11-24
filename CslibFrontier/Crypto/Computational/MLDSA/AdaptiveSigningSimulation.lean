@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.ProgrammedContinuation
+-- Reads private `simulated`, `simulated_eq_run`, `simulated_gap`, and `prefixRun` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.ProgrammedContinuation
 import CslibFrontier.Foundations.Data.Finset.Expect
 

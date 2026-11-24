@@ -9,8 +9,11 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
+-- Reads private `initial` and unexposed `Device` and `Width` definitions.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `Xofs.attempt` and unexposed `finishSigningAttempt`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Reads private `parsed_of_verifyWithExpansion`, `Xofs.keyGen`, and `Xofs.expandS` defs.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.Bind
 

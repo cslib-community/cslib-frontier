@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
+-- Reads private `queryWrites` and unexposed `publicPairQueryAddress` and `hitsExpansionInput`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
 import CslibFrontier.Probability.IID.FirstSome
 import Batteries.Data.Fin.Lemmas

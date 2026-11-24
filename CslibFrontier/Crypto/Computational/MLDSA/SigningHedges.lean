@@ -11,7 +11,9 @@ public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Crypto.Primitives.ByteString.Uniform
+-- Reads private `State`, `commands`, `deviceCommand`, `runAtSetup`, and unexposed `matrixTrial`.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `Xofs.signAndLog` and unexposed `Xofs.signingOracle` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Probability.UniformEmbedding

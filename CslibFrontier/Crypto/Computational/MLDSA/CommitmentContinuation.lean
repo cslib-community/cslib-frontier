@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
 public import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+-- Reads private `prob_response_changes` and unexposed `maskCommitmentAddress`.
 import all CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+-- Reads private `ExpansionRow`, `freshExpansionTranscript`, and unexposed `freshExpansionGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
 import CslibFrontier.Probability.PMF.Expect

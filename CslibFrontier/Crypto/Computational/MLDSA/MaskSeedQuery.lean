@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
+-- Reads private `representativeBad`, `rowCommand`, and `run_eq_rows`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
 import CslibFrontier.Probability.PMF.DensityBounds
 import CslibFrontier.Tactic.PMFSwap

@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
+-- Reads private `Address`, `addressLaw`, and unexposed `signingSeedPredictionGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
+-- Reads private `PrivateKey.encode`, `Xofs.secretPoly`, `tabulate`, and `Xofs.keyGen`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.UniformPoint
 

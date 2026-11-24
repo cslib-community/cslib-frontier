@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowServices
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
+-- Reads private `RowAgreement.replay`, `queryChanged`, and unexposed `secretRowDeviceGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretRowServices
+-- Reads private `Test`, `addressTest_law`, `changed`, `changedAt`, and `finite_gap`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
 
 /-!

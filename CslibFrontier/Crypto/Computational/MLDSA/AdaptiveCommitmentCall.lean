@@ -11,7 +11,9 @@ public import CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.PMF.Bind
 public import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
+-- Reads private `installedAttempt`, `retryCall`, and `freshDigestSigningCall` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
+-- Reads private `prefixRun`, `prefixRun_eq`, and `expansionTrialGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 
 /-!

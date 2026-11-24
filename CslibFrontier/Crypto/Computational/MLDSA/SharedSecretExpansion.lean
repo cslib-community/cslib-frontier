@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
+-- Reads private `PostKey`, `observePair`, `separate_secret`, and `Xofs.withExpandSStream`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 import CslibFrontier.Probability.PMF.UniformExtend
 

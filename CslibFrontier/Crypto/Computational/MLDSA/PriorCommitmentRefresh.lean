@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
+-- Reads private `prob`, `meanGap_of_agree`, `mean_query_sqrt_le`, and `expansionContinuation`.
 import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
 import CslibFrontier.Probability.PMF.Uniform
 

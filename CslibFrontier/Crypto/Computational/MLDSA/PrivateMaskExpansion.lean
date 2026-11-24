@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
+-- Reads private `Test`, `hit`, `changed`, `gap`, and `gap_bind_le`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Tactic.PMFSwap

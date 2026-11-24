@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
+-- Reads private `withMaskSeedOracles` and `read_ne_maskSeed_length`, plus `maskSeedGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
 import CslibFrontier.Crypto.Game.CloseTo.UntilBad
 import CslibFrontier.Crypto.Game.Order
