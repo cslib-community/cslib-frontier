@@ -34,11 +34,12 @@ quasilinear Groves mechanisms (`Cslib.GameTheory.Mechanism.groves`), and the two
 deterministic results of Nisan and Ronen ([NisanRonen2001]):
 
 1. **The `MinWork` (VCG / Groves) `n`-approximation mechanism** ([NisanRonen2001], Theorem 4.1,
-   Claims 4.2 and 4.3):
+   Claims 4.2 and 4.3; polynomial-time computability in Theorem 4.1 is not modeled here since
+   `minWorkAlloc` and `minWorkMechanism` are `noncomputable` over `ℝ`):
    - `minWorkAlloc` assigns each job `j` independently to the machine minimizing `t i j` (breaking
-     ties in favor of the smallest machine index via `SingleParameter.Vickrey.Wins`), and
-     `minWorkMechanism` pays each machine `i` the second-lowest processing time
-     `secondLowestTime t i j` (`min_{k ≠ i} t k j`) for every job `j` assigned to `i`.
+     ties in favor of the smallest machine index), and `minWorkMechanism` pays each machine `i` the
+     second-lowest processing time `secondLowestTime t i j` (`min_{k ≠ i} t k j`) for every job `j`
+     assigned to `i`.
    - `minWorkMechanism` is a Groves mechanism (`GameTheory.Mechanism.groves`) on negated-load
      valuations with the machine-excluding Clarke pivot `- ∑ j, secondLowestTime t i j`
      (`groves_payment_schedulingProfile`, `exists_groves_eq_minWorkMechanism`), is
@@ -78,7 +79,7 @@ deterministic results of Nisan and Ronen ([NisanRonen2001]):
   with `utility`, `IsDSIC`, `IsDSICOn`, `IsIR`, and `HasApproxRatioOn`.
 * `Cslib.GameTheory.Scheduling.schedulingVal`, `Cslib.GameTheory.Scheduling.schedulingProfile`,
   `Cslib.GameTheory.Scheduling.ofGeneralMechanism`: embedding into `Cslib.GameTheory.Mechanism`.
-* `Cslib.GameTheory.Scheduling.WinsJob`, `Cslib.GameTheory.Scheduling.minWorkAlloc`,
+* `Cslib.GameTheory.Scheduling.minWorkAlloc`,
   `Cslib.GameTheory.Scheduling.secondLowestTime`, `Cslib.GameTheory.Scheduling.minWorkMechanism`:
   Nisan–Ronen's `MinWork` VCG mechanism.
 
@@ -131,6 +132,14 @@ section Objective
 theorem IsPositiveProfile.isNonnegProfile {Machine Job : Type*} {t : Machine → Job → ℝ}
     (ht : IsPositiveProfile t) : IsNonnegProfile t :=
   fun i j => (ht i j).le
+
+private theorem IsPositiveProfile.update {Machine Job : Type*} [DecidableEq Machine]
+    {t : Machine → Job → ℝ} (ht : IsPositiveProfile t) {i : Machine} {r : Job → ℝ}
+    (hr : ∀ j, 0 < r j) :
+    IsPositiveProfile (Function.update t i r) := fun k j => by
+  rcases eq_or_ne k i with rfl | hne
+  · simpa using hr j
+  · simpa [Function.update_of_ne hne] using ht k j
 
 variable {Machine Job : Type*} [Fintype Job]
 
@@ -186,6 +195,12 @@ variable [Nonempty Machine]
 theorem load_le_makespan (t : Machine → Job → ℝ) (σ : Job → Machine) (i : Machine) :
     load t σ i ≤ makespan t σ :=
   Finset.le_sup' (load t σ) (Finset.mem_univ i)
+
+private theorem entry_le_makespan {t : Machine → Job → ℝ} (ht : IsNonnegProfile t)
+    (σ : Job → Machine) (j : Job) : t (σ j) j ≤ makespan t σ := by
+  refine le_trans ?_ (load_le_makespan t σ (σ j))
+  unfold load rowLoad
+  exact Finset.single_le_sum (fun l _ => ht (σ j) l) (by simp)
 
 theorem makespan_le_iff {t : Machine → Job → ℝ} {σ : Job → Machine} {B : ℝ} :
     makespan t σ ≤ B ↔ ∀ i, load t σ i ≤ B := by
@@ -287,14 +302,6 @@ profiles ([NisanRonen2001], Section 2). -/
 theorem IsDSIC.isDSICOn {M : Mechanism Machine Job} (h : M.IsDSIC)
     (D : Machine → Set (Job → ℝ)) : M.IsDSICOn D :=
   fun i b r _ _ => h i b r
-
-theorem IsDSICOn.mono {M : Mechanism Machine Job} {D₁ D₂ : Machine → Set (Job → ℝ)}
-    (h : M.IsDSICOn D₂) (hsub : ∀ i, D₁ i ⊆ D₂ i) : M.IsDSICOn D₁ :=
-  fun i b r hb hr => h i b r (fun k => hsub k (hb k)) (hsub i hr)
-
-theorem isDSICOn_univ_iff {M : Mechanism Machine Job} :
-    M.IsDSICOn (fun _ => Set.univ) ↔ M.IsDSIC :=
-  ⟨fun h i b r => h i b r (fun _ => Set.mem_univ _) (Set.mem_univ _), fun h => h.isDSICOn _⟩
 
 /-- **Individual rationality (voluntary participation)**: every truthful machine receives
 nonnegative net utility `0 ≤ pay t i - load t (alloc t) i`. -/
@@ -477,41 +484,41 @@ section MinWork
 
 variable {Machine Job : Type*}
 
-/-- Machine `i` wins job `j` under `MinWork` if no machine has strictly smaller processing time on
-`j` and smaller-indexed machines have strictly larger processing time (reusing
-`SingleParameter.Vickrey.Wins` on negated processing times `-t k j`). -/
-@[expose] def WinsJob [LinearOrder Machine] (t : Machine → Job → ℝ) (j : Job) (i : Machine) :
+/-- Internal wrapper reusing `SingleParameter.Vickrey.Wins` on negated processing times. -/
+private def WinsJob [LinearOrder Machine] (t : Machine → Job → ℝ) (j : Job) (i : Machine) :
     Prop :=
   SingleParameter.Vickrey.Wins (fun k => -t k j) i
 
-theorem winsJob_iff [LinearOrder Machine] {t : Machine → Job → ℝ} {j : Job} {i : Machine} :
+private theorem winsJob_iff [LinearOrder Machine] {t : Machine → Job → ℝ} {j : Job} {i : Machine} :
     WinsJob t j i ↔ ∀ k, k ≠ i → t i j ≤ t k j ∧ (k < i → t i j < t k j) := by
   simp only [WinsJob, SingleParameter.Vickrey.Wins, neg_le_neg_iff, neg_lt_neg_iff]
 
-theorem exists_winsJob [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
+private theorem exists_winsJob [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
     (t : Machine → Job → ℝ) (j : Job) : ∃ i, WinsJob t j i :=
   SingleParameter.Vickrey.exists_wins fun k => -t k j
 
-theorem WinsJob.unique [LinearOrder Machine] {t : Machine → Job → ℝ} {j : Job} {i₁ i₂ : Machine}
-    (h₁ : WinsJob t j i₁) (h₂ : WinsJob t j i₂) : i₁ = i₂ :=
+private theorem WinsJob.unique [LinearOrder Machine] {t : Machine → Job → ℝ} {j : Job}
+    {i₁ i₂ : Machine} (h₁ : WinsJob t j i₁) (h₂ : WinsJob t j i₂) : i₁ = i₂ :=
   SingleParameter.Vickrey.Wins.unique h₁ h₂
 
 open Classical in
 /-- The **`MinWork` allocation rule** ([NisanRonen2001], Section 4): assign each job `j`
-independently to the unique `WinsJob` machine minimizing `t i j` (with smallest-index
-tie-breaking). -/
-@[expose] noncomputable def minWorkAlloc [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
+independently to the unique machine minimizing `t i j` (with smallest-index tie-breaking). -/
+noncomputable def minWorkAlloc [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
     (t : Machine → Job → ℝ) (j : Job) : Machine :=
   (exists_winsJob t j).choose
 
-theorem winsJob_minWorkAlloc [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
+private theorem winsJob_minWorkAlloc [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
     (t : Machine → Job → ℝ) (j : Job) : WinsJob t j (minWorkAlloc t j) :=
   (exists_winsJob t j).choose_spec
 
+/-- Characterization of `minWorkAlloc t j = i`: machine `i` minimizes `t k j` with smallest-index
+tie-breaking (`t i j ≤ t k j`, strictly when `k < i`). -/
 theorem minWorkAlloc_eq_iff [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
     {t : Machine → Job → ℝ} {j : Job} {i : Machine} :
-    minWorkAlloc t j = i ↔ WinsJob t j i :=
-  ⟨fun h => h ▸ winsJob_minWorkAlloc t j, fun h => (winsJob_minWorkAlloc t j).unique h⟩
+    minWorkAlloc t j = i ↔ ∀ k, k ≠ i → t i j ≤ t k j ∧ (k < i → t i j < t k j) :=
+  ⟨fun h => winsJob_iff.mp (h ▸ winsJob_minWorkAlloc t j),
+    fun h => (winsJob_minWorkAlloc t j).unique (winsJob_iff.mpr h)⟩
 
 theorem minWorkAlloc_le [LinearOrder Machine] [Finite Machine] [Nonempty Machine]
     (t : Machine → Job → ℝ) (j : Job) (k : Machine) :
@@ -841,8 +848,10 @@ theorem makespan_minWorkAlloc_le_card_mul_optMakespan [LinearOrder Machine] [Fin
     _ ≤ (Fintype.card Machine : ℝ) * makespan t σ := totalWork_le_card_mul_makespan t σ
     _ = (Fintype.card Machine : ℝ) * optMakespan t := by rw [hσ]
 
-/-- **Theorem 4.1 of [NisanRonen2001]**: `minWorkMechanism` is a DSIC `|Machine|`-approximation
-mechanism on nonnegative processing-time profiles. -/
+/-- **Approximation bound in Theorem 4.1 of [NisanRonen2001]**: `minWorkMechanism` is a DSIC
+`|Machine|`-approximation mechanism on nonnegative processing-time profiles (polynomial-time
+runtime / computability in Theorem 4.1 is not modeled here; `minWorkAlloc` and `minWorkMechanism`
+are `noncomputable` over `ℝ`). -/
 theorem minWorkMechanism_hasApproxRatioOn_nonneg [LinearOrder Machine] [Fintype Machine]
     [Nonempty Machine] [Fintype Job] :
     (minWorkMechanism (Machine := Machine) (Job := Job)).HasApproxRatioOn IsNonnegProfile
@@ -885,7 +894,7 @@ theorem card_le_of_minWorkMechanism_hasApproxRatioOn [LinearOrder Machine] [Fint
     split_ifs <;> linarith
   have hall_i₀ : ∀ j : Job, minWorkAlloc t j = i₀ := by
     intro j
-    rw [minWorkAlloc_eq_iff, winsJob_iff]
+    rw [minWorkAlloc_eq_iff]
     intro k hki
     have hle : t i₀ j < t k j := by
       have hη_lt : η < 1 + ε := by
@@ -1134,13 +1143,7 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
     intro j
     by_contra hnot
     have h10 : (10 : ℝ) ≤ makespan t x := by
-      refine le_trans ?_ (load_le_makespan t x (x j))
-      unfold load rowLoad
-      have hmem : j ∈ Finset.univ.filter (fun l => x l = x j) := by simp
-      calc
-        (10 : ℝ) = t (x j) j := by simp [t, hnot]
-        _ ≤ ∑ l with x l = x j, t (x j) l :=
-          Finset.single_le_sum (fun l _ => (ht_pos (x j) l).le) hmem
+      simpa [t, hnot] using entry_le_makespan ht_pos.isNonnegProfile x j
     have := happrox' t ht_pos
     have := mul_le_mul_of_nonneg_left hopt_t hc'_nonneg
     linarith
@@ -1174,10 +1177,7 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
     if x j = iStar then (if j = a ∨ j = b then 1 - ε else ε / 2) else 10
   let t₁ : Machine → Job → ℝ := Function.update t iStar row₁
   have hrow₁_pos : ∀ j, 0 < row₁ j := fun j => by dsimp only [row₁]; split_ifs <;> linarith
-  have ht₁_pos : IsPositiveProfile t₁ := fun i j => by
-    rcases eq_or_ne i iStar with rfl | hne
-    · simpa [t₁] using hrow₁_pos j
-    · simpa [t₁, Function.update_of_ne hne] using ht_pos i j
+  have ht₁_pos : IsPositiveProfile t₁ := ht_pos.update hrow₁_pos
   have hdec₁ : ∀ j, M.alloc (Function.update t iStar (t iStar)) j = iStar →
       row₁ j < t iStar j := by
     simp only [Function.update_eq_self]
@@ -1261,13 +1261,8 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
     have hnot01 : ¬ (x₁ j = i₀ ∨ x₁ j = i₁) := mt (hi_pair (x₁ j)).mpr (by tauto)
     have hneS : x₁ j ≠ iStar := hnot.1
     have h10 : (10 : ℝ) ≤ makespan t₁ x₁ := by
-      refine le_trans ?_ (load_le_makespan t₁ x₁ (x₁ j))
-      unfold load rowLoad
-      have hmem : j ∈ Finset.univ.filter (fun l => x₁ l = x₁ j) := by simp
-      calc
-        (10 : ℝ) = t₁ (x₁ j) j := by simp [t₁, Function.update_of_ne hneS, t, hnot01]
-        _ ≤ ∑ l with x₁ l = x₁ j, t₁ (x₁ j) l :=
-          Finset.single_le_sum (fun l _ => (ht₁_pos (x₁ j) l).le) hmem
+      simpa [t₁, Function.update_of_ne hneS, t, hnot01] using
+        entry_le_makespan ht₁_pos.isNonnegProfile x₁ j
     have := happrox' t₁ ht₁_pos
     have := mul_le_mul_of_nonneg_left hopt_t₁ hc'_nonneg
     linarith
@@ -1282,10 +1277,7 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
     if x₁ j = iOther then ε / 2 else (if j = a then 1 + ε else 10)
   let t₂ : Machine → Job → ℝ := Function.update t₁ iOther row₂
   have hrow₂_pos : ∀ j, 0 < row₂ j := fun j => by dsimp only [row₂]; split_ifs <;> linarith
-  have ht₂_pos : IsPositiveProfile t₂ := fun i j => by
-    rcases eq_or_ne i iOther with rfl | hne
-    · simpa [t₂] using hrow₂_pos j
-    · simpa [t₂, Function.update_of_ne hne] using ht₁_pos i j
+  have ht₂_pos : IsPositiveProfile t₂ := ht₁_pos.update hrow₂_pos
   have ht₁_iOther : t₁ iOther = t iOther := Function.update_of_ne hi_ne.symm _ _
   have hdec₂ : ∀ j, M.alloc (Function.update t₁ iOther (t₁ iOther)) j = iOther →
       row₂ j < t₁ iOther j := by
@@ -1385,6 +1377,12 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
   have hx₂b_ne_other : x₂ b ≠ iOther :=
     mt (hx₂_iOther b).mp (by rw [hx₁_eq_x b, hxb]; exact hi_ne)
   have hmake_t₂ : 2 - 2 * ε ≤ makespan t₂ x₂ := by
+    have hnot_pair : ∀ z : Job, x₂ z ≠ iStar → x₂ z ≠ iOther → 2 - 2 * ε ≤ makespan t₂ x₂ := by
+      intro z hzS hzO
+      refine le_trans (show 2 - 2 * ε ≤ 10 by linarith) ?_
+      have hnot01 : ¬ (x₂ z = i₀ ∨ x₂ z = i₁) := mt (hi_pair (x₂ z)).mpr (by tauto)
+      simpa [t₂, Function.update_of_ne hzO, t₁, Function.update_of_ne hzS, t, hnot01] using
+        entry_le_makespan ht₂_pos.isNonnegProfile x₂ z
     by_cases hxa2 : x₂ a = iStar
     · by_cases hxb2 : x₂ b = iStar
       · refine le_trans ?_ (load_le_makespan t₂ x₂ iStar)
@@ -1401,30 +1399,8 @@ theorem two_le_of_isDSICOn_positive_of_hasApproxRatioOn [Nonempty Machine]
           _ = ∑ j ∈ ({a, b} : Finset Job), row₁ j := (Finset.sum_pair hab).symm
           _ ≤ ∑ j with x₂ j = iStar, row₁ j :=
             Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (hrow₁_pos j).le
-      · refine le_trans (show 2 - 2 * ε ≤ 10 by linarith)
-          (le_trans ?_ (load_le_makespan t₂ x₂ (x₂ b)))
-        unfold load rowLoad
-        have hnot01 : ¬ (x₂ b = i₀ ∨ x₂ b = i₁) :=
-          mt (hi_pair (x₂ b)).mpr (by tauto)
-        have hmem : b ∈ Finset.univ.filter (fun l => x₂ l = x₂ b) := by simp
-        calc
-          (10 : ℝ) = t₂ (x₂ b) b := by
-            simp [t₂, Function.update_of_ne hx₂b_ne_other, t₁, Function.update_of_ne hxb2, t,
-              hnot01]
-          _ ≤ ∑ l with x₂ l = x₂ b, t₂ (x₂ b) l :=
-            Finset.single_le_sum (fun l _ => (ht₂_pos (x₂ b) l).le) hmem
-    · refine le_trans (show 2 - 2 * ε ≤ 10 by linarith)
-        (le_trans ?_ (load_le_makespan t₂ x₂ (x₂ a)))
-      unfold load rowLoad
-      have hnot01 : ¬ (x₂ a = i₀ ∨ x₂ a = i₁) :=
-        mt (hi_pair (x₂ a)).mpr (by tauto)
-      have hmem : a ∈ Finset.univ.filter (fun l => x₂ l = x₂ a) := by simp
-      calc
-        (10 : ℝ) = t₂ (x₂ a) a := by
-          simp [t₂, Function.update_of_ne hx₂a_ne_other, t₁, Function.update_of_ne hxa2, t,
-            hnot01]
-        _ ≤ ∑ l with x₂ l = x₂ a, t₂ (x₂ a) l :=
-          Finset.single_le_sum (fun l _ => (ht₂_pos (x₂ a) l).le) hmem
+      · exact hnot_pair b hxb2 hx₂b_ne_other
+    · exact hnot_pair a hxa2 hx₂a_ne_other
   have hbound2 := happrox' t₂ ht₂_pos
   have := mul_le_mul_of_nonneg_left hopt_t₂ hc'_nonneg
   linarith
@@ -1464,13 +1440,7 @@ theorem makespan_minWorkAlloc_eq_optMakespan_of_subsingleton_job {Machine Job : 
       simp [Subsingleton.elim j j₀]
     have htot1 : totalWork t (minWorkAlloc t) = t (minWorkAlloc t j₀) j₀ := by
       simp [totalWork, huniv]
-    have hload : t (σ j₀) j₀ ≤ load t σ (σ j₀) := by
-      unfold load rowLoad
-      have hflt : (Finset.univ.filter fun j => σ j = σ j₀) = {j₀} := by
-        ext j
-        simp [Subsingleton.elim j j₀]
-      rw [hflt, Finset.sum_singleton]
     rw [htot1]
-    exact (minWorkAlloc_le t j₀ (σ j₀)).trans (hload.trans (load_le_makespan t σ (σ j₀)))
+    exact (minWorkAlloc_le t j₀ (σ j₀)).trans (entry_le_makespan ht σ j₀)
 
 end Cslib.GameTheory.Scheduling

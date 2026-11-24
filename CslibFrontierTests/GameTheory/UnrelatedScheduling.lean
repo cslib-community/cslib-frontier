@@ -5,8 +5,9 @@ Authors: Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test driver)
 
-public import CslibFrontier.GameTheory.Mechanism.Scheduling.UnrelatedMachines
+import CslibFrontier.GameTheory.Mechanism.Scheduling.UnrelatedMachines
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
@@ -29,12 +30,12 @@ Concrete finite witnesses and boundary checks for `Cslib.GameTheory.Scheduling`:
    machines and `Fin 4` jobs at ratio `7 / 4 < 2`).
 4. Sharpness of both cardinality hypotheses (`2 ≤ |Machine|` and `|Job| > 1`): `minWorkMechanism` is
    DSIC and achieves exact `1`-approximation (`c = 1 < 2`) on `Fin 1` machine (`Fin 4` jobs) and on
-   `Fin 3` machines with `Fin 1` job.
+   `Fin 3` machines with `Fin 1` / `Fin 0` jobs, while `[Nontrivial Machine]` is needed for `IsIR`.
 -/
 
-public section
+set_option linter.privateModule false
 
-namespace CslibFrontierTests.UnrelatedScheduling
+namespace CslibFrontierTests.GameTheory.UnrelatedScheduling
 
 open Cslib.GameTheory
 open Cslib.GameTheory.Scheduling
@@ -55,7 +56,7 @@ example : IsPositiveProfile sample3x4 := by
 of index `0 < 2`) and job `3` to machine `1`. -/
 example : minWorkAlloc sample3x4 = ![0, 0, 0, 1] := by
   funext j
-  rw [minWorkAlloc_eq_iff, winsJob_iff]
+  rw [minWorkAlloc_eq_iff]
   fin_cases j <;>
     · intro k hne
       fin_cases k <;> simp_all [sample3x4] <;> norm_num
@@ -73,7 +74,7 @@ example :
       makespan sample3x4 (M.alloc sample3x4) ≤ 3 * optMakespan sample3x4 := by
   have halloc : minWorkAlloc sample3x4 = ![0, 0, 0, 1] := by
     funext j
-    rw [minWorkAlloc_eq_iff, winsJob_iff]
+    rw [minWorkAlloc_eq_iff]
     fin_cases j <;>
       · intro k hne
         fin_cases k <;> simp_all [sample3x4] <;> norm_num
@@ -158,7 +159,7 @@ example :
         IsPositiveProfile (5 / 2) := by
   have hall0 : minWorkAlloc tight3x3 = fun _ => 0 := by
     funext j
-    rw [minWorkAlloc_eq_iff, winsJob_iff]
+    rw [minWorkAlloc_eq_iff]
     intro k hk
     fin_cases k
     · exact absurd rfl hk
@@ -215,6 +216,20 @@ example :
   refine ⟨minWorkMechanism_isDSIC, fun t _ => ?_⟩
   rw [one_mul, makespan_eq_optMakespan_of_subsingleton_machine]
 
+/-- Identical-machine compatibility (`load_const_eq`), `minWorkMechanism_pay_nonneg`, and
+`ofGeneralMechanism_isDSIC` on `sample3x4` / VCG pullback. -/
+example :
+    load (fun _ => (![2, 5, 3, 7] : Fin 4 → ℝ)) (![0, 0, 0, 1] : Fin 4 → Fin 3) 0 =
+      Cslib.Algorithms.Lean.Scheduling.load (![2, 5, 3, 7] : Fin 4 → ℝ)
+        (![0, 0, 0, 1] : Fin 4 → Fin 3) 0 ∧
+    (∀ i : Fin 3, 0 ≤ (minWorkMechanism (Machine := Fin 3) (Job := Fin 4)).pay sample3x4 i) ∧
+    (∀ (G : Cslib.GameTheory.Mechanism (Fin 3) (Fin 4 → Fin 3)),
+      G.IsDSIC → (ofGeneralMechanism G).IsDSIC) := by
+  have hnn : IsNonnegProfile sample3x4 := fun i j => by
+    fin_cases i <;> fin_cases j <;> norm_num [sample3x4]
+  exact ⟨load_const_eq _ _ _, fun i => minWorkMechanism_pay_nonneg hnn i,
+    fun _ hG => ofGeneralMechanism_isDSIC hG⟩
+
 /-- Single-job boundary (`Fin 3`, `Fin 1`): `minWorkMechanism` is DSIC, IR, and achieves exact
 `1`-approximation (`c = 1 < 2`) on all nonnegative profiles. -/
 example :
@@ -225,4 +240,38 @@ example :
   rw [one_mul]
   exact (makespan_minWorkAlloc_eq_optMakespan_of_subsingleton_job ht).le
 
-end CslibFrontierTests.UnrelatedScheduling
+/-- Empty-job boundary (`Fin 3`, `Fin 0`): zero makespan, zero payment, and exact `1`-approx. -/
+example (t : Fin 3 → Fin 0 → ℝ) :
+    makespan t (minWorkAlloc t) = optMakespan t ∧
+      (∀ i : Fin 3, (minWorkMechanism (Machine := Fin 3) (Job := Fin 0)).pay t i = 0) := by
+  have hnn : IsNonnegProfile t := fun _ j => j.elim0
+  exact ⟨makespan_minWorkAlloc_eq_optMakespan_of_subsingleton_job hnn,
+    fun i => by simp [minWorkMechanism]⟩
+
+/-- With a single machine (`[Subsingleton (Fin 1)]`), `minWorkMechanism` pays `0` and violates IR
+on strictly positive processing times, showing `[Nontrivial Machine]` is necessary in
+`minWorkMechanism_isIR`. -/
+example :
+    let t : Fin 1 → Fin 1 → ℝ := fun _ _ => 1
+    (minWorkMechanism (Machine := Fin 1) (Job := Fin 1)).utility 0 (t 0) t = -1 ∧
+      ¬ (minWorkMechanism (Machine := Fin 1) (Job := Fin 1)).IsIR := by
+  dsimp only
+  let t : Fin 1 → Fin 1 → ℝ := fun _ _ => 1
+  have hpay : (minWorkMechanism (Machine := Fin 1) (Job := Fin 1)).pay t 0 = 0 := by
+    simp [minWorkMechanism, secondLowestTime]
+  have hload : rowLoad (0 : Fin 1) (t 0) (minWorkAlloc t) = 1 := by
+    have hflt : (Finset.univ.filter fun j : Fin 1 => minWorkAlloc t j = 0) = {0} := by
+      ext j
+      fin_cases j
+      simp [Subsingleton.elim (minWorkAlloc t 0) 0]
+    rw [rowLoad, hflt, Finset.sum_singleton]
+  have hut : (minWorkMechanism (Machine := Fin 1) (Job := Fin 1)).utility 0 (t 0) t = -1 := by
+    rw [Scheduling.Mechanism.utility, hpay]
+    change 0 - rowLoad 0 (t 0) (minWorkAlloc t) = -1
+    rw [hload]
+    ring
+  refine ⟨hut, fun hir => ?_⟩
+  have hle := hir 0 t
+  linarith
+
+end CslibFrontierTests.GameTheory.UnrelatedScheduling
