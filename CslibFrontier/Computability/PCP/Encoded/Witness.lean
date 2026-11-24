@@ -634,9 +634,10 @@ def powerPreprocessLabels (fallback : C) (default : α) (rotate : ℕ × (ℕ ×
   let rot := fun p : Graph C × ((ℕ × Bool) × PreprocessLabel D) =>
     p.1.preprocessRotation fallback rotate p.2
   (List.range (2 * g.edges.length)).map fun u w =>
-    let next := (RotationMap.powRotWithInput rot w.1.val (g, halfEdgeOfNumber u, w.2)).1
-    let edge := g.edgeAt fallback next.1
-    labels.getD (if next.2 then edge.dst else edge.src) default
+    let ((nextIdx, nextDir), _) :=
+      RotationMap.powRotWithInput rot w.1.val (g, halfEdgeOfNumber u, w.2)
+    let edge := g.edgeAt fallback nextIdx
+    labels.getD (if nextDir then edge.dst else edge.src) default
 
 /-- The powered label list has one entry per half-edge of `g`. -/
 @[simp]
@@ -721,9 +722,7 @@ theorem satisfies_powerPreprocessLabels [DecidableEq α] (g : Graph C)
         p.1.preprocessRotation fallback rotate p.2)
       g R.graph (fun p => (p.1.val, p.2))
       (g.preprocessRotation_eq eval fallback family rotate hrotate) w.1.val v w.2
-    have hfst := congrArg Prod.fst hrotEq
-    dsimp only at hfst
-    rw [hfst]
+    rw [hrotEq]
     rcases hpair : ((R.graph.pow w.1.val).rot (v, w.2)).1 with ⟨idx, side⟩
     have hed : idx.val < g.edges.length := idx.isLt
     have hedge : g.edgeAt fallback idx.val = g.edges[idx.val] := by
