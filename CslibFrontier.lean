@@ -6379,6 +6379,14 @@ public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.Interactive
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.Extract
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.KnowledgeSoundness
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.PolyTime
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.Protocol
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.Soundness
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.State
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.StickyBad
+public import CslibFrontier.Crypto.Protocols.BCS.ROM.VerifyBounds
 public import CslibFrontier.Crypto.Protocols.Cipher.EvenMansour
 public import CslibFrontier.Crypto.Protocols.Cipher.FeistelNetworks
 public import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
