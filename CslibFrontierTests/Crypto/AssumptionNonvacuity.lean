@@ -210,10 +210,8 @@ theorem eval_prfIdealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 <
   have h2 : (PMF.uniformOfFintype (BitString (outLen (n + 1)))).map
       (fun word => word ⟨0, hout n⟩) = PMF.uniformOfFintype Bool := by
     rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
-  have h3 : (PMF.uniformOfFintype Bool).map Bool.not = PMF.uniformOfFintype Bool := by
-    ext b
-    cases b <;> simp [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply]
-  rw [← h3, ← h2, ← h1, PMF.map_comp, PMF.map_comp]
+  rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv Bool.involutive_not.toPerm, ← h2, ← h1,
+    PMF.map_comp, PMF.map_comp]
   rfl
 
 private theorem not_negligible_advantage_firstBitZero {outLen : ℕ → ℕ}
@@ -536,11 +534,6 @@ theorem not_multiDDH_const :
 
 /-! ### Boolean PRFs, weak PRFs, and block ciphers (`PRP` / `StrongPRP`) -/
 
-private theorem uniformOfFintype_bool_map_not :
-    (PMF.uniformOfFintype Bool).map Bool.not = PMF.uniformOfFintype Bool := by
-  ext b
-  cases b <;> simp [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply]
-
 /-- The constant-false Boolean function ensemble on `n` bits. -/
 noncomputable def constFalseBooleanEnsemble : ∀ n, PMF (BooleanFunction n) :=
   fun _ => PMF.pure (fun _ => false)
@@ -574,7 +567,8 @@ theorem not_booleanPRF_constFalse : ¬ BooleanPRF constFalseBooleanEnsemble := b
       rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
     change (PMF.uniformOfFintype (BooleanFunction (n + 1))).map
         (fun f => !(f (BitString.ofList (n + 1) (List.replicate (n + 1) false)))) = _
-    rw [← uniformOfFintype_bool_map_not, ← h1, PMF.map_comp]
+    rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv Bool.involutive_not.toPerm, ← h1,
+      PMF.map_comp]
     rfl
   simp only [hreal, hideal] at hshift
   refine not_negligible_const ?_ hshift
@@ -655,7 +649,8 @@ theorem not_weakPseudorandomFunction_zeroFamily :
     simp only [Function.comp_apply, randomFunctionOracle, hplen, ↓reduceIte, hbit point hplen]
     change (PMF.uniformOfFintype (BitString (n + 1) → BitString (n + 1))).map
       (fun table => !(table (BitString.ofList (n + 1) point) ⟨0, Nat.succ_pos n⟩)) = _
-    rw [← uniformOfFintype_bool_map_not, ← h2, ← h1, PMF.map_comp, PMF.map_comp]
+    rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv Bool.involutive_not.toPerm, ← h2, ← h1,
+      PMF.map_comp, PMF.map_comp]
     rfl
   simp only [hreal, hideal] at hshift
   refine not_negligible_const ?_ hshift
