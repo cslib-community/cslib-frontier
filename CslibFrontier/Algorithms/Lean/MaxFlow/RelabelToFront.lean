@@ -15,12 +15,12 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Ring
 
 /-!
-# Goldberg–Tarjan Relabel-to-Front Maximum-Flow Algorithm
+# Goldberg–Tarjan Relabel-to-Front Scheduler and Operation Bounds
 
 Formalizes the **relabel-to-front** (discharge with current-arc pointers) push–relabel maximum-flow
-algorithm of Goldberg and Tarjan ([GoldbergTarjan1988], Sections 3–4, locator not re-verified
-against primary PDF; [CLRS2009], Sections 26.4–26.5, locator not re-verified against primary PDF)
-on the integral networks of `CslibFrontier.Algorithms.Lean.MaxFlow.Basic`.
+scheduler of Goldberg and Tarjan ([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Sections
+26.4–26.5), with its `O(|V|³)` push/relabel operation, discharge, and current-arc pointer-advance
+count bounds, on the integral networks of `CslibFrontier.Algorithms.Lean.MaxFlow.Basic`.
 
 ## Model and source mapping
 
@@ -64,14 +64,15 @@ on the integral networks of `CslibFrontier.Algorithms.Lean.MaxFlow.Basic`.
   `S = (univ.erase N.s).erase N.t`.
 * `Cslib.Algorithms.Lean.MaxFlow.relabelToFrontWith_bounds`,
   `relabelToFrontWith_totalSteps_le`: the `O(|V|²)` relabel (`≤ 2|V|²`), `O(|V||E|)`
-  saturating-push (`≤ 2|V||E|`), and `O(|V|³)` discharge / nonsaturating-push / operation /
-  total-step bounds (`≤ 2|V|³ ≤ 4|V|³` discharges and nonsaturating pushes, `≤ 4|V|³`
-  operations, and `≤ 6|V|³ + 2|V| ∑ v, (adj v).length` total steps, or `≤ 8|V|³` when `adj` has
-  no duplicates).
+  saturating-push (`≤ 2|V||E|`), and `O(|V|³)` discharge, nonsaturating-push, push/relabel
+  operation, and combined operation/discharge/advance count bounds (`≤ 2|V|³ ≤ 4|V|³` discharges
+  and nonsaturating pushes, `≤ 4|V|³` push/relabel operations, and
+  `≤ 6|V|³ + 2|V| ∑ v, (adj v).length` combined `discharges + ops.length + advances`, or `≤ 8|V|³`
+  when `adj` has no duplicates).
 * `Cslib.Algorithms.Lean.MaxFlow.relabelToFront_correct`, `relabelToFrontDense_correct`,
   `relabelToFrontExact_correct`: executable `Fin n` endpoints (`relabelToFrontExact` also bounds
-  current-arc advances by `2 * n * N.symArcs.card ≤ 4 * n * N.posArcs.card` and total steps by
-  `8 * n ^ 3`).
+  current-arc advances by `2 * n * N.symArcs.card ≤ 4 * n * N.posArcs.card` and combined
+  `discharges + ops.length + advances` by `8 * n ^ 3`).
 
 ## Limitations
 
@@ -365,8 +366,7 @@ while `u` is active, push along `cur u`'s head if admissible, advance `cur u` ot
             ⟨r.ops, r.ca, r.advances + 1, r.relabeled⟩
     else ⟨[], s, 0, false⟩
 
-/-- Discharge `u` with fuel `dischargeFuel adj u` ([CLRS2009], Section 26.5, `DISCHARGE`, locator
-not re-verified against primary PDF). -/
+/-- Discharge `u` with fuel `dischargeFuel adj u` ([CLRS2009], Section 26.5, `DISCHARGE`). -/
 @[expose] def discharge (adj : V → List V) (norm : CAState N → CAState N) (u : V)
     (s : CAState N) : DischargeOutput N :=
   dischargeLoop adj norm u (dischargeFuel adj u) s
@@ -676,11 +676,11 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
         fun _ => rfl, fun _ _ _ h => h, fun _ _ _ _ => rfl, fun h => by simp at h,
         fun _ _ _ _ => rfl⟩
 
-/-- **Specification of `discharge`** ([CLRS2009], Section 26.5, locator not re-verified against
-primary PDF): discharging `u` from any `CAInv` state executes a valid run of `PushRelabel`
-operations, preserves `CAInv`, renders `u` inactive, performs at most one nonsaturating push,
-tracks relabels and current-arc pointer advances, preserves heights and admissible arcs when not
-relabeling, and leaves no incoming admissible arcs at `u` when relabeling. -/
+/-- **Specification of `discharge`** ([CLRS2009], Section 26.5): discharging `u` from any `CAInv`
+state executes a valid run of `PushRelabel` operations, preserves `CAInv`, renders `u` inactive,
+performs at most one nonsaturating push, tracks relabels and current-arc pointer advances, preserves
+heights and admissible arcs when not relabeling, and leaves no incoming admissible arcs at `u` when
+relabeling. -/
 theorem discharge_spec {adj : V → List V} (hadj : IsAdjacency N adj)
     {norm : CAState N → CAState N} (hnorm : ∀ s, norm s = s) (u : V) {s : CAState N}
     (hs : CAInv adj s) :
@@ -767,8 +767,7 @@ private theorem before_erase_cons {α : Type*} {x y u : α} (hx : x ≠ u) (hy :
 variable {V : Type*} [Fintype V] [DecidableEq V] {N : Network V}
 
 /-- Topological order of a vertex list `L` with respect to the admissible network of `σ`
-([CLRS2009], Section 26.5, locator not re-verified against primary PDF): every admissible arc
-between vertices of `L` points forward in `L`. -/
+([CLRS2009], Section 26.5): every admissible arc between vertices of `L` points forward in `L`. -/
 @[expose] def TopoOrder (σ : PushRelabel.State N) (L : List V) : Prop :=
   ∀ u ∈ L, ∀ v ∈ L, 0 < σ.flow.resCap u v → σ.height u = σ.height v + 1 → Before u v L
 
@@ -792,9 +791,9 @@ variable (N) in
 @[expose] def RTFState.init (adj : V → List V) (vs : List V) : RTFState N :=
   ⟨CAState.init N adj, [], vs, 0, 0⟩
 
-/-- Invariant of `RTFState` ([CLRS2009], Section 26.5, locator not re-verified against primary
-PDF): `CAInv`, `done ++ todo` is a duplicate-free enumeration of `V \ {N.s, N.t}` in topological
-order of the admissible network, and every vertex in `done` is inactive. -/
+/-- Invariant of `RTFState` ([CLRS2009], Section 26.5): `CAInv`, `done ++ todo` is a duplicate-free
+enumeration of `V \ {N.s, N.t}` in topological order of the admissible network, and every vertex in
+`done` is inactive. -/
 structure RTFInv (adj : V → List V) (st : RTFState N) : Prop where
   /-- Current-arc invariant. -/
   caInv : CAInv adj st.ca
@@ -916,25 +915,6 @@ private theorem list_nodup_length_eq_card_sub_two {ls : List V} (hnodup : ls.Nod
     Finset.card_erase_of_mem (Finset.mem_erase.mpr ⟨hst.symm, Finset.mem_univ _⟩),
     Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ]
   omega
-
-private theorem isRun_append {σ : State N} :
-    ∀ {os₁ os₂ : List (Op V)}, σ.IsRun os₁ → (σ.run os₁).IsRun os₂ → σ.IsRun (os₁ ++ os₂)
-  | [], _, _, h₂ => h₂
-  | _ :: _, _, h₁, h₂ => ⟨h₁.1, isRun_append h₁.2 h₂⟩
-
-private theorem run_append (σ : State N) :
-    ∀ (os₁ os₂ : List (Op V)), σ.run (os₁ ++ os₂) = (σ.run os₁).run os₂
-  | [], _ => rfl
-  | o :: os₁, os₂ => run_append (σ.apply o) os₁ os₂
-
-private theorem numNonsatPushes_append (σ : State N) :
-    ∀ (os₁ os₂ : List (Op V)),
-      σ.numNonsatPushes (os₁ ++ os₂) = σ.numNonsatPushes os₁ + (σ.run os₁).numNonsatPushes os₂
-  | [], _ => by simp [State.numNonsatPushes, State.countOps]
-  | o :: os₁, os₂ => by
-    simp only [List.cons_append, State.numNonsatPushes_cons, State.run_cons,
-      numNonsatPushes_append (σ.apply o) os₁ os₂]
-    omega
 
 omit [DecidableEq V] in
 private theorem rtfInv_relabel {adj : V → List V} {st : RTFState N} (hinv : RTFInv adj st)
@@ -1184,10 +1164,10 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
         dsimp only
         obtain ⟨ihInv, ihTodo, ihRun, ihPr, ihNs, ihDisLe, ihDis, ihAdv⟩ := ih
         rw [hca_eq, hdPr] at ihRun ihPr ihNs
-        refine ⟨ihInv, ihTodo, isRun_append hdRun ihRun, ?_, ?_, ?_, ?_, ?_⟩
-        · rw [run_append]
+        refine ⟨ihInv, ihTodo, State.isRun_append hdRun ihRun, ?_, ?_, ?_, ?_, ?_⟩
+        · rw [State.run_append]
           exact ihPr
-        · rw [numNonsatPushes_append]
+        · rw [State.numNonsatPushes_append]
           omega
         · omega
         · omega
@@ -1200,7 +1180,7 @@ end RelabelToFront
 
 end Network
 
-/-! ### Executable relabel-to-front solver and `O(|V|³)` bounds -/
+/-! ### Relabel-to-front scheduler, operation/advance count bounds, and `Fin n` solvers -/
 
 section Executable
 
@@ -1233,10 +1213,9 @@ structure RelabelToFrontOutput (N : Network V) where
   discharges := st.discharges
   advances := st.advances
 
-/-- The **relabel-to-front** maximum-flow algorithm ([GoldbergTarjan1988], Sections 3–4, locator
-not re-verified against primary PDF; [CLRS2009], Section 26.5, locator not re-verified against
-primary PDF), with initial vertex order `vs`, neighbor lists `adj`, and normalizers `caNorm` /
-`stNorm`. -/
+/-- The **relabel-to-front** maximum-flow scheduler ([GoldbergTarjan1988], Sections 3–4;
+[CLRS2009], Section 26.5), with initial vertex order `vs`, neighbor lists `adj`, and normalizers
+`caNorm` / `stNorm`. -/
 @[expose] def relabelToFrontWith (N : Network V) (vs : List V) (adj : V → List V)
     (caNorm : CAState N → CAState N) (stNorm : RTFState N → RTFState N) :
     RelabelToFrontOutput N :=
@@ -1244,13 +1223,13 @@ primary PDF), with initial vertex order `vs`, neighbor lists `adj`, and normaliz
     let r := rtfLoop adj caNorm stNorm (rtfFuel V) (RTFState.init N adj vs)
     RelabelToFrontOutput.ofState r.1 r.2
 
-/-- **Correctness and sharp discharge/advance bounds for `relabelToFrontWith`**
-([GoldbergTarjan1988], Sections 3–4, locator not re-verified against primary PDF; [CLRS2009],
-Section 26.5, locator not re-verified against primary PDF): for `N.s ≠ N.t`, valid neighbor lists
-`adj`, a duplicate-free list `vs` of `V \ {N.s, N.t}`, and identity normalizers,
-`relabelToFrontWith` performs a valid run of `PushRelabel` operations ending in a maximum flow and
-a minimum cut of equal value, with at most `(|V| - 2) * ((|V| - 2) * (2 * |V| - 1) + 1)`
-discharge calls, at most `out.discharges` nonsaturating pushes, and at most
+/-- **Correctness and sharp discharge and current-arc advance count bounds for
+`relabelToFrontWith`** ([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Section 26.5): for
+`N.s ≠ N.t`, valid neighbor lists `adj`, a duplicate-free list `vs` of `V \ {N.s, N.t}`, and
+identity normalizers, `relabelToFrontWith` performs a valid run of `PushRelabel` operations ending
+in a maximum flow and a minimum cut of equal value, with at most
+`(|V| - 2) * ((|V| - 2) * (2 * |V| - 1) + 1)` discharge calls, at most `out.discharges`
+nonsaturating pushes, and at most
 `2 * |V| * ∑ v ∈ (Finset.univ.erase N.s).erase N.t, (adj v).length` current-arc advances. -/
 theorem relabelToFrontWith_correct {vs : List V} (hnodup : vs.Nodup)
     (hmem : ∀ v, v ∈ vs ↔ v ≠ N.s ∧ v ≠ N.t) {adj : V → List V} (hadj : IsAdjacency N adj)
@@ -1345,42 +1324,10 @@ private theorem ops_sum_bound (n : ℕ) (hn : 2 ≤ n) :
           (k ^ 3 + 14 * k ^ 2 + 36 * k + 28) := by ring
   omega
 
-private theorem card_symArcs_le_mul_pred (N : Network V) :
-    N.symArcs.card ≤ Fintype.card V * (Fintype.card V - 1) := by
-  have hsub : N.symArcs ⊆ Finset.univ.filter (fun e : V × V => e.1 ≠ e.2) := fun e he => by
-    simp only [Network.symArcs, Finset.mem_filter, Finset.mem_univ, true_and] at he ⊢
-    exact he.1
-  have hcard : (Finset.univ.filter (fun e : V × V => e.1 ≠ e.2)).card =
-      Fintype.card V * (Fintype.card V - 1) := by
-    have hpart :
-        (Finset.univ.filter (fun e : V × V => e.1 ≠ e.2)) =
-          Finset.univ.biUnion fun u : V => (Finset.univ.erase u).image (Prod.mk u) := by
-      ext ⟨u, v⟩
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion,
-        Finset.mem_image, Finset.mem_erase]
-      constructor
-      · intro h
-        exact ⟨u, v, ⟨h.symm, trivial⟩, rfl⟩
-      · rintro ⟨a, b, ⟨hne, _⟩, hab⟩
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj hab
-        exact hne.symm
-    rw [hpart, Finset.card_biUnion (fun a _ b _ hab =>
-      Finset.disjoint_left.mpr fun x hx hy => by
-        simp only [Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true] at hx hy
-        obtain ⟨_, _, rfl⟩ := hx
-        obtain ⟨_, _, heq⟩ := hy
-        exact hab (Prod.mk.inj heq).1.symm)]
-    have himg (u : V) : ((Finset.univ.erase u).image (Prod.mk u)).card = Fintype.card V - 1 := by
-      rw [Finset.card_image_of_injective _ (fun _ _ h => (Prod.mk.inj h).2),
-        Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ]
-    simp only [himg, Finset.sum_const, Finset.card_univ, Nat.nsmul_eq_mul]
-  exact (Finset.card_le_card hsub).trans_eq hcard
-
-/-- **`O(|V|³)` operation-count bounds for `relabelToFrontWith`** ([GoldbergTarjan1988], Sections
-3–4, locator not re-verified against primary PDF; [CLRS2009], Sections 26.4–26.5, locator not
-re-verified against primary PDF): at most `2|V|²` relabels, `2|V||E|` saturating pushes, `2|V|³`
-discharge calls, `2|V|³` (hence `≤ 4|V|³`) nonsaturating pushes, and `4|V|³` total push/relabel
-operations. -/
+/-- **`O(|V|³)` push/relabel and discharge count bounds for `relabelToFrontWith`**
+([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Sections 26.4–26.5): at most `2|V|²` relabels,
+`2|V||E|` saturating pushes, `2|V|³` discharge calls, `2|V|³` (hence `≤ 4|V|³`) nonsaturating
+pushes, and `4|V|³` total push/relabel operations. -/
 theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
     (hmem : ∀ v, v ∈ vs ↔ v ≠ N.s ∧ v ≠ N.t) {adj : V → List V} (hadj : IsAdjacency N adj)
     {caNorm : CAState N → CAState N} (hcaNorm : ∀ s, caNorm s = s)
@@ -1412,14 +1359,15 @@ theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
     rw [State.length_eq (PushRelabel.init N)]
     have hsat_v : Fintype.card V * N.symArcs.card ≤
         Fintype.card V * (Fintype.card V * (Fintype.card V - 1)) :=
-      Nat.mul_le_mul_left _ (card_symArcs_le_mul_pred N)
+      Nat.mul_le_mul_left _ N.card_symArcs_le_mul_pred
     have hsum := ops_sum_bound (Fintype.card V) h2n
     omega
   exact ⟨hrel.le, hsat, hdis_cube, hns_cube, hlen⟩
 
-/-- **Total elementary work bound (`discharges + ops.length + advances`):**
-at most `6|V|³ + 2|V| ∑ v, (adj v).length` in general, and at most `8|V|³` whenever every
-neighbor list `adj v` is duplicate-free (hence `∑ v, (adj v).length ≤ |V|²`). -/
+/-- **Combined discharge, push/relabel operation, and current-arc advance count bound
+(`discharges + ops.length + advances`):** at most `6|V|³ + 2|V| ∑ v, (adj v).length` in general,
+and at most `8|V|³` whenever every neighbor list `adj v` is duplicate-free (hence
+`∑ v, (adj v).length ≤ |V|²`). -/
 theorem relabelToFrontWith_totalSteps_le {vs : List V} (hnodup : vs.Nodup)
     (hmem : ∀ v, v ∈ vs ↔ v ≠ N.s ∧ v ≠ N.t) {adj : V → List V} (hadj : IsAdjacency N adj)
     {caNorm : CAState N → CAState N} (hcaNorm : ∀ s, caNorm s = s)
@@ -1497,13 +1445,13 @@ at every vertex. -/
   relabelToFront N (defaultAdj n)
 
 /-- Exact-adjacency relabel-to-front solver on `Network (Fin n)` scanning `exactAdj N` at every
-vertex, achieving `O(n |E|)` current-arc advances and `O(n³)` total steps. -/
+vertex, achieving `O(n |E|)` current-arc advances and `O(n³)` push/relabel operations, discharges,
+and current-arc advances. -/
 @[expose] def relabelToFrontExact {n : ℕ} (N : Network (Fin n)) : RelabelToFrontOutput N :=
   relabelToFront N (exactAdj N)
 
-/-- **Correctness and `O(n³)` bounds for `relabelToFront`** ([GoldbergTarjan1988], Sections 3–4,
-locator not re-verified against primary PDF; [CLRS2009], Section 26.5, locator not re-verified
-against primary PDF). -/
+/-- **Correctness and `O(n³)` push/relabel operation, discharge, and current-arc advance count
+bounds for `relabelToFront`** ([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Section 26.5). -/
 theorem relabelToFront_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) (hst : N.s ≠ N.t) :
     let out := relabelToFront N adj
@@ -1529,7 +1477,8 @@ theorem relabelToFront_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → 
   exact ⟨h1.1, h1.2.1, h1.2.2.1, h1.2.2.2.1, h2.1, h2.2.1, h2.2.2.1, h2.2.2.2.1, h2.2.2.2.2,
     h1.2.2.2.2.2.2.trans (Nat.mul_le_mul_left _ hsub), ht⟩
 
-/-- **Correctness and `O(n³)` total-step bound for `relabelToFrontDense`.** -/
+/-- **Correctness and `O(n³)` push/relabel operation, discharge, and current-arc advance count
+bounds for `relabelToFrontDense`.** -/
 theorem relabelToFrontDense_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :
     let out := relabelToFrontDense N
     out.flow.IsMaxFlow ∧ N.IsMinCut out.cut ∧ out.flow.value = (N.cutCapacity out.cut : ℤ) ∧
@@ -1544,7 +1493,8 @@ theorem relabelToFrontDense_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s �
     relabelToFront_correct (adjValid_defaultAdj N) hst
   exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h11 fun _ => List.nodup_finRange n⟩
 
-/-- **Correctness and `O(n³)` total-step / `O(n |E|)` advance bounds for `relabelToFrontExact`.** -/
+/-- **Correctness, `O(n |E|)` current-arc advance count bound, and `O(n³)`
+operation/discharge/advance count bounds for `relabelToFrontExact`.** -/
 theorem relabelToFrontExact_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :
     let out := relabelToFrontExact N
     out.flow.IsMaxFlow ∧ N.IsMinCut out.cut ∧ out.flow.value = (N.cutCapacity out.cut : ℤ) ∧

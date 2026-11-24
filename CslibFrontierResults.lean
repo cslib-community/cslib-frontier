@@ -29,6 +29,7 @@ import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
+import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.SergeevMonotoneShift
