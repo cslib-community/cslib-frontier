@@ -43,7 +43,6 @@ open Classical in
 example :
     ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).intersectionParity
       (Route.line (-Complex.I) Complex.I) = true := by
-  have hab : (-1 : ℂ) ≠ 1 := by norm_num [Complex.ext_iff]
   have hstart : ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).start = (-1 / 2 : ℂ) := by
     rw [show ((Route.line (-1) 1).cutEnds (1 / 4) (1 / 4)).start =
       (Route.line (-1) 1).eval 0 (1 / 4) from rfl, Route.eval_line]
@@ -56,8 +55,7 @@ example :
     rw [Route.support_line, segment_eq_image_lineMap] at hz
     obtain ⟨u, _, rfl⟩ := hz
     simp [AffineMap.lineMap_apply_module']
-  rw [Route.intersectionParity_cutEnds_left (Route.isSimple_line hab)
-    (by norm_num) (by norm_num) (by norm_num)]
+  rw [Route.intersectionParity_cutEnds_left (by norm_num) (by norm_num) (by norm_num)]
   · unfold Route.intersectionParity
     change (∑ i : Fin 1, ∑ j : Fin 1, _) = _
     rw [Fin.sum_univ_one, Fin.sum_univ_one]
@@ -79,6 +77,29 @@ example :
     have h := hre hq
     norm_num [AffineMap.lineMap_apply_module', Complex.smul_re] at h
     linarith [hu.1]
+
+-- A one-sided cut retains the incidence even when the entire segment is constant.
+open Classical in
+example : ((Route.line 0 0).cutEnds 0 (1 / 4)).intersectionParity (Route.line 0 0) = true := by
+  have hstart : ((Route.line 0 0).cutEnds 0 (1 / 4)).start = 0 := by
+    change (Route.line 0 0).eval 0 0 = 0
+    rw [Route.eval_line, AffineMap.lineMap_same_apply]
+  have hfinish : ((Route.line 0 0).cutEnds 0 (1 / 4)).finish = 0 := by
+    change (Route.line 0 0).eval 0 (1 - 1 / 4) = 0
+    rw [Route.eval_line, AffineMap.lineMap_same_apply]
+  rw [Route.intersectionParity_cutEnds_left (by norm_num) (by norm_num) (by norm_num)]
+  · unfold Route.intersectionParity
+    change (∑ i : Fin 1, ∑ j : Fin 1, _) = _
+    rw [Fin.sum_univ_one, Fin.sum_univ_one]
+    change decide ((openSegment ℝ (0 : ℂ) 0 ∩ openSegment ℝ (0 : ℂ) 0).Nonempty) = true
+    apply decide_eq_true
+    have h : (0 : ℂ) ∈ openSegment ℝ (0 : ℂ) 0 := by
+      simpa only [midpoint_self] using midpoint_mem_openSegment (𝕜 := ℝ) (0 : ℂ) 0
+    exact ⟨0, h, h⟩
+  · intro z hz _
+    simpa only [Route.start_line, hstart, segment_same, Set.mem_singleton_iff] using hz
+  · intro z hz _
+    simpa only [Route.finish_line, hfinish, segment_same, Set.mem_singleton_iff] using hz
 
 open Classical in
 /-- The ordinary vertical-segment example consumes the public intersection-parity law. -/

@@ -9,13 +9,13 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.LocalSplitRestriction
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
-import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 
 /-!
 # Intersection parity after cutting route ends
 
-Cutting a simple route preserves its indexed open intersections with a second route
+Cutting a route preserves its indexed open-segment incidence with a second route
 when the removed end segments meet the second route only at the original endpoints.
+The cuts may have length zero, and constant segments retain their singleton incidence.
 -/
 
 public section
@@ -29,10 +29,10 @@ private theorem eval_mem_segment_eval (p : Route) (i : Fin p.segments) {a b v : 
   rw [← image_segment ℝ f, segment_eq_Icc (hav.trans hvb)]
   exact ⟨v, ⟨hav, hvb⟩, rfl⟩
 
-/-- Cutting both ends of a simple route preserves the parity of its indexed open
+/-- Cutting either or both ends of a route preserves the parity of its indexed open
 intersections with any route that meets the removed end segments only at the original ends. -/
-theorem intersectionParity_cutEnds_left {p q : Route} (hp : p.IsSimple)
-    {s t : ℝ} (hs : 0 < s) (ht : 0 < t) (hst : s + t < 1)
+theorem intersectionParity_cutEnds_left {p q : Route}
+    {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
     (hstart : ∀ z ∈ segment ℝ p.start (p.cutEnds s t).start, z ∈ q.support → z = p.start)
     (hfinish : ∀ z ∈ segment ℝ (p.cutEnds s t).finish p.finish, z ∈ q.support → z = p.finish) :
     (p.cutEnds s t).intersectionParity q = p.intersectionParity q := by
@@ -44,7 +44,7 @@ theorem intersectionParity_cutEnds_left {p q : Route} (hp : p.IsSimple)
   apply Finset.sum_congr rfl
   intro j _
   apply decide_eq_decide.mpr
-  obtain ⟨hl, hlu, hh⟩ := p.cut_bounds hs.le ht.le hst i
+  obtain ⟨hl, hlu, hh⟩ := p.cut_bounds hs ht hst i
   constructor
   · rintro ⟨z, hz, hzq⟩
     rw [openSegment_eq_image_lineMap] at hz
@@ -60,11 +60,15 @@ theorem intersectionParity_cutEnds_left {p q : Route} (hp : p.IsSimple)
     rw [openSegment_eq_image_lineMap] at hz
     obtain ⟨v, hv, he⟩ := hz
     change p.eval i v = z at he
+    by_cases hdeg : p.point i.castSucc = p.point i.succ
+    · have hcut : (p.cutEnds s t).eval i v = z := by
+        rw [p.eval_cutEnds]
+        simpa only [eval, hdeg, AffineMap.lineMap_same_apply] using he
+      exact ⟨z, hcut ▸ lineMap_mem_openSegment ℝ _ _ hv, hzq⟩
+    have hinj : Function.Injective (p.eval i) := AffineMap.lineMap_injective ℝ hdeg
     have hqz : z ∈ q.support :=
       Set.mem_iUnion.mpr ⟨j, openSegment_subset_segment ℝ _ _ hzq⟩
-    have hne (b : Bool) : z ≠ p.endpoint b := fun h =>
-      hp.eval_notMem_range_endpoint_of_mem_Ioo i hv ⟨b, h.symm.trans he.symm⟩
-    -- A crossing cannot lie in either removed interval of the original segment.
+    -- In a nonconstant segment, an interior parameter cannot equal the endpoint's parameter.
     have hlow : p.cutLower s i < v := by
       by_cases hi : i.val = 0
       · have hi' : i = 0 := Fin.ext hi
@@ -76,7 +80,7 @@ theorem intersectionParity_cutEnds_left {p q : Route} (hp : p.IsSimple)
           simp only [eval, AffineMap.lineMap_apply_zero, start, Fin.castSucc_zero]
         have hcut : (p.cutEnds s t).start = p.eval 0 s := p.endpoint_cutEnds s t false
         rw [hzero, ← hcut, he] at hm
-        exact hne false (hstart z hm hqz)
+        exact hv.1.ne' (hinj (he.trans ((hstart z hm hqz).trans hzero.symm)))
       · simpa only [cutLower, ite_eq_right hi] using hv.1
     have hhigh : v < p.cutUpper t i := by
       by_cases hi : i.val + 1 = p.segments
@@ -90,7 +94,7 @@ theorem intersectionParity_cutEnds_left {p q : Route} (hp : p.IsSimple)
         have hcut : (p.cutEnds s t).finish = p.eval (Fin.last p.bends) (1 - t) :=
           p.endpoint_cutEnds s t true
         rw [← hcut, hone, he] at hm
-        exact hne true (hfinish z hm hqz)
+        exact hv.2.ne (hinj (he.trans ((hfinish z hm hqz).trans hone.symm)))
       · simpa only [cutUpper, ite_eq_right hi] using hv.2
     have hv' : v ∈ openSegment ℝ (p.cutLower s i) (p.cutUpper t i) := by
       rw [openSegment_eq_Ioo hlu]
