@@ -196,31 +196,6 @@ private theorem exists_computableInO_accepts : ∃ D, ComputableInO
   exact ⟨D, (h.mono_le (fun q => le_of_eq (e q).symm)
     (fun q => le_of_eq (e q).symm)).of_enc_eq fun _ => rfl⟩
 
-/-- The numeric facts behind the bound of the brute force: the encoded pair of length `N`, the
-certificate length `c`, the unary certificate length and the search. -/
-private theorem brute_bound_aux (C K₀ N c : ℕ) (hc : 1 ≤ c) :
-    N + (C * 2 ^ N + c * c) + 2 ^ (K₀ * (2 * N + 1 + c + c)) ≤
-      (C + 3) * (2 ^ ((3 * K₀ + 4) * (N + c)) + 1) := by
-  set B := 2 ^ ((3 * K₀ + 4) * (N + c))
-  have hN : 2 ^ N ≤ B :=
-    Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((Nat.le_add_right N c).trans (Nat.le_mul_of_pos_left _ (by omega)))
-  have hN' : N < 2 ^ N := Nat.lt_two_pow_self
-  have hcc : c * c ≤ B := by
-    have h₁ : c * c ≤ 2 ^ (c + c) := by
-      rw [pow_add]
-      exact Nat.mul_le_mul Nat.lt_two_pow_self.le Nat.lt_two_pow_self.le
-    exact h₁.trans (Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((by omega : c + c ≤ 4 * (N + c)).trans (Nat.mul_le_mul_right _ (by omega))))
-  have hs : 2 ^ (K₀ * (2 * N + 1 + c + c)) ≤ B :=
-    Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((Nat.mul_le_mul_left K₀ (by omega : 2 * N + 1 + c + c ≤ 3 * (N + c))).trans
-        ((le_of_eq (by ring : K₀ * (3 * (N + c)) = 3 * K₀ * (N + c))).trans
-          (Nat.mul_le_mul_right _ (by omega))))
-  have hC : C * 2 ^ N ≤ C * B := Nat.mul_le_mul_left _ hN
-  have e : (C + 3) * (B + 1) = C * B + 3 * B + (C + 3) := by ring
-  omega
-
 /-- The brute force at the end of an interval runs within time exponential in the description,
 the input and the certificate length. The certificate length is first written in unary, and every
 certificate of that length is tried with the polynomial-time simulation. -/
@@ -261,7 +236,7 @@ private theorem exists_computableInO_brute (k : ℕ) : ∃ K, ComputableInO
       rw [← mul_pow]
       norm_num
     have hc : 1 ≤ 2 ^ ((k + 1) * (q.2.length + 1)) := Nat.one_le_two_pow
-    have h := brute_bound_aux C K₀ (encQ q).length _ hc
+    have h := LazyDiagonal.brute_bound_aux C K₀ (encQ q).length _ hc
     have hcc := Nat.le_mul_of_pos_left (2 ^ ((k + 1) * (q.2.length + 1))) hc
     simp only [e₁, e₂, certLen] at h ⊢
     omega
