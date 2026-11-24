@@ -34,9 +34,9 @@ strict-PPT environment) preserves `Environment.IsPPT`, under a polynomial reply-
   parameter `PPTParam` alone (not in the request word or state). This gives a state-independent
   internal truncation cap `L(e)` at which the outer environment's `PPT` certificate is instantiated
   via `Environment.IsPPT.isOraclePPTOn_runWith_wordHandle`, ensuring no internal reply is truncated.
-  Protocols that relay payloads of unbounded environment-chosen length back to an outer caller are
-  excluded; the test module `CslibFrontierTests.Crypto.UCPPTLink` gives a concrete PPT relay
-  witnessing `¬ Machine.IsReplyBounded`.
+  Protocols that export payloads of unbounded environment-chosen length back to an outer caller are
+  excluded; the test module `CslibFrontierTests.Crypto.UCPPTLink` gives concrete PPT machines
+  (`coinStore` and `doubleMachine`) witnessing `¬ Machine.IsReplyBounded`.
 * **Request-length bound (`Machine.IsRequestBounded`).** Bounds every outgoing request word emitted
   by `M` on its imported interface by a polynomial in `(PPTParam, request)` (not in the state).
   Together with a call budget, this supports sequential composition (`Machine.comp`) under the
