@@ -36,6 +36,11 @@ private theorem aligned_of_cbcBlockValid {cap : ℕ → ℕ} {n : ℕ} {word : L
   | zero => exact False.elim (Nat.not_le_of_gt hNonempty (by simpa using hCap))
   | succ n => exact Nat.zero_lt_succ n
 
+private theorem blockCount_le_of_cbcBlockValid {cap : ℕ → ℕ} {n : ℕ} {word : List Bool}
+    (hWord : cbcBlockValid cap n word = true) : word.length / n ≤ cap n := by
+  simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hWord
+  exact Nat.div_le_of_le_mul (by simpa only [Nat.mul_comm] using hWord.2)
+
 private theorem cbcBlockValid_append {cap : ℕ → ℕ} {n : ℕ} {word block : List Bool}
     (hWord : cbcBlockValid cap n word = true) (hBlock : block.length = n) :
     cbcBlockValid (fun k => cap k + 1) n (word ++ block) = true := by
@@ -132,26 +137,26 @@ example : InformationTheory.IsPrefixFree
     rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
     decide)
 
-/-- The real comparison applies to the CBC domain with a proper-prefix pair and extra block. -/
+/-- The combined bound applies to the CBC domain with a proper-prefix pair and extra block. -/
 example (family : List Bool → List Bool → List Bool) :
     let guessBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
       fun _ => pure [[false, false, false], [false, false, false, true, false, false]]
+    let wrapper := prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2))
+      guessBatch
     Game.succProbability (multiQueryGame pure (fun _ d => cbcBlockValid (fun _ => 2) d)
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guessBatch 3) ≤
-    Game.succProbability (ProbComp.eval
-      (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family)
-        (prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2)) guessBatch)
-        3)) := by
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family) wrapper 3))
+      (ProbComp.eval (prfIdealGameOn (cbcBlockValid (fun _ => 3)) id wrapper 3)) +
+      (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ 3 := by
   dsimp only
-  refine succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+  refine succProbability_multiQueryGame_le_prefixFreeBatchReduction
     (cbcMacFamily family) _ 3 2 ?_ ?_ (by decide) cbcBlockValid_append (cbcMacFamily_extend family)
   · intro guesses hguesses
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hguesses
     subst guesses
     decide
-  · intro word hw
-    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hw
-    exact Nat.div_le_of_le_mul hw.2
+  · exact fun _ => blockCount_le_of_cbcBlockValid
 
 /-- The ideal bound allows repeated and malformed guesses before batch preparation. -/
 example :
@@ -172,3 +177,18 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
   exact isComputationalUHF_of_extendable_prefixFreePRF hPRF ComputableInPolyTime.id'
     (computableInPolyTime_cbcBlockValid hcap) (fun _ _ => aligned_of_cbcBlockValid)
     cbcBlockValid_append (cbcMacFamily_extend family) negligible_inv_two_pow
+
+/-- The two-block CBC domain meets the asymptotic hypotheses, including the eventual probe. -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
+    IsMultiQueryUHF encUnary encBits pure (fun _ d => cbcBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
+  have hPRF := hF.prefixFreePRF_cbcMac (ComputableInPolyTime.const 3)
+  refine isMultiQueryUHF_of_extendable_prefixFreePRF (maxBlocks := fun _ => 2)
+    hPRF ComputableInPolyTime.id' (computableInPolyTime_cbcBlockValid (.const 2))
+    (fun _ _ => aligned_of_cbcBlockValid) ?_ (.const 2) cbcBlockValid_append ?_
+    (cbcMacFamily_extend family) negligible_inv_two_pow negligible_inv_two_pow
+  · exact fun _ _ => blockCount_le_of_cbcBlockValid
+  · filter_upwards [Filter.eventually_ge_atTop (1 : ℕ)] with n hn
+    have hPos : 0 < n := hn
+    have hCap : n ≤ 3 * n := by omega
+    simp [cbcBlockValid, hPos, hCap]

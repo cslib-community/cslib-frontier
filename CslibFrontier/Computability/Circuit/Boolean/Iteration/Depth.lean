@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Scan
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.Projection
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -261,8 +262,6 @@ theorem checkpoint_depth_optimized (c : Circuit signature n n) :
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := checkpoint_depth_circuit c L hL hLN
   refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 50000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration
