@@ -152,14 +152,14 @@ theorem next_inSpace (d : Desc) :
       fun p => (QueryMachine.encStateRead encState p).length :=
     (hacc.append (budget_comp_linear he hin) fun _ => rfl).weaken (.add (.refl _) (.refl _))
   have hrun := encState_mk_budget hreg hpre happ (budget_comp_linear hn hin)
-    (budget_const false (.refl _))
-  have hstop := encState_mk_budget hreg hpre hacc hcfg (budget_const true (.refl _))
+    (budget_const false)
+  have hstop := encState_mk_budget hreg hpre hacc hcfg (budget_const true)
   have htail := budget_comp_linear
     (of_inO (.of_linear (ListEncoding.tail encBool)) :
       ComputableInSpace List.tail encBits encBits fun w => (encBits w).length) hacc
   have hrestart := encState_mk_budget htail
-    (budget_comp_linear (ComputableInSpace.frame encBits) htail) (budget_const [] (.refl _))
-    (budget_const (init d) (.refl _)) (budget_const false (.refl _))
+    (budget_comp_linear (ComputableInSpace.frame encBits) htail) (budget_const [])
+    (budget_const (init d)) (budget_const false)
   have hempty := budget_comp_linear
     (of_inO (ComputableInDegree.isEmpty (enc₁ := encBool) (enc := encBits)).inO_one) hacc
   exact (budget_ite (budget_comp_linear hh hcfg) (budget_ite hempty hstop hrestart) hrun).of_enc_eq
@@ -433,7 +433,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {enc
     (hinit.of_enc_eq fun _ => rfl).mono_le fun a => Nat.le_add_right _ _
   have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
       ComputableInSpace (fun _ : α => b) encA encB fun a => S a + B a :=
-    (ComputableInSpace.constZero b).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const b
   have hstart := encState_mk_budget hreg
     (ComputableInSpace.budget_comp_linear (ComputableInSpace.frame encBits) hreg)
     (hconst encBits [])

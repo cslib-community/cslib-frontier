@@ -73,6 +73,6 @@ example : ComputableInSpace
   have hr₃ := budget_comp_linear (snd _ _) hr₂
   exact edgeWithSymbol_budget acceptMachine (fst _ _) (budget_comp_linear (fst _ _) hr₁)
     (budget_comp_linear (fst _ _) hr₂) (budget_comp_linear (fst _ _) hr₃)
-    (budget_comp_linear (snd _ _) hr₃) (.refl _)
+    (budget_comp_linear (snd _ _) hr₃)
 
 end CslibFrontierTests.ConfigurationGraph
