@@ -39,6 +39,7 @@ import CslibFrontier.Foundations.Data.List.EraseDupsBy
 import CslibFrontier.Foundations.Data.Polynomial.ParityAmplifier
 import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 import CslibFrontier.Tactic.EncLen
+import Mathlib.Algebra.BigOperators.ModEq
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Sort
 import Mathlib.Tactic.Linarith
@@ -251,8 +252,9 @@ theorem computableInO_pow2_unary :
 
 /-! ### 3. Polynomial-time circuit depth over `Unbounded.extSignature` -/
 
-/-- `min` of a binary natural (left) and a unary natural (right), output in unary. -/
-private theorem binary_min_unary_left' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
+/-- `min` of a computed binary natural (left) and a computed unary natural (right), output in unary.
+Kept explicit so `Min.min` search on `encUnary` does not branch against `binary_min_unary'`. -/
+theorem binary_min_unary_left' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
     (hleft : ComputableInPolyTime left input encNat)
     (hright : ComputableInPolyTime right input encUnary) :
     ComputableInPolyTime (fun a => min (left a) (right a)) input encUnary :=
@@ -267,6 +269,13 @@ private theorem posMod_pos (M : ℕ) : 0 < posMod M := by
 
 private theorem posMod_eq_of_pos {M : ℕ} (hM : 0 < M) : posMod M = M := by
   unfold posMod; simp [hM.ne']
+
+private theorem foldl_mod_posMod_le {α : Type*} (M : ℕ) (step : ℕ → α → ℕ)
+    (l : List α) {init : ℕ} (hi : init ≤ posMod M) :
+    l.foldl (fun acc x => step acc x % posMod M) init ≤ posMod M := by
+  induction l generalizing init with
+  | nil => exact hi
+  | cons _ _ ih => exact ih (Nat.mod_lt _ (posMod_pos M)).le
 
 private theorem size_le_size_add_one_of_le_posMod {a M : ℕ} (h : a ≤ posMod M) :
     a.size ≤ M.size + 1 := by
@@ -820,31 +829,6 @@ private theorem two_pow_w_le (nWire : ℕ) :
   rw [h1, h2]
   exact ⟨Nat.mul_le_mul_left 16 hsq, Nat.mul_le_mul_left 32 hsq⟩
 
-private theorem computableInPolyTime_powerMulTable :
-    ComputableInPolyTime powerMulTable encBits encTable := by
-  have hp := BinaryField.computableInPolyTime_powerTable
-  have hlen : ComputableInPolyTime (fun modBits : List Bool => modBits.length - 1)
-      encBits encUnary :=
-    ComputableInPolyTime.unary_sub.comp
-      (ComputableInPolyTime.length_bits.prod (ComputableInPolyTime.const 1))
-  have hinner : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × ℕ => (powerTable p.1.1).getD (p.1.2 + p.2) [])
-      (encPair (encPair encBits encUnary) encUnary) encBits :=
-    ComputableInPolyTime.listGetDWithInput
-      (hp.comp (ComputableInPolyTime.fst (encPair encBits encUnary) encUnary).fst')
-      (ComputableInPolyTime.unary_add.comp
-        ((ComputableInPolyTime.fst (encPair encBits encUnary) encUnary).snd'.prod
-          (ComputableInPolyTime.snd (encPair encBits encUnary) encUnary))) []
-  have hrow := ComputableInPolyTime.mapWithInput
-    (f := fun (q : List Bool × ℕ) (j : ℕ) => (powerTable q.1).getD (q.2 + j) [])
-    (ComputableInPolyTime.range.comp (hlen.comp (ComputableInPolyTime.fst encBits encUnary)))
-    hinner
-  exact (ComputableInPolyTime.mapWithInput
-    (f := fun modBits i => (List.range (modBits.length - 1)).map fun j =>
-      (powerTable modBits).getD (i + j) [])
-    (ComputableInPolyTime.range.comp hlen) hrow).of_enc_eq fun modBits =>
-      congrArg encTable <| by unfold powerMulTable; rfl
-
 private def buildCtxCore (nWire : ℕ) : (ℕ × ℕ) × List (List (List Bool)) :=
   let ℓ := Nat.log 2 nWire + 1
   let w := 2 * ℓ + 2
@@ -898,7 +882,7 @@ private theorem computableInPolyTime_buildCtxCore :
           (min (2 ^ (2 * (Nat.log 2 nWire + 1) + 2 + 1)) (32 * (nWire + 1) ^ 2))
           (2 * (Nat.log 2 nWire + 1) + 2)).bits)
       encUnary encTable :=
-    (computableInPolyTime_powerMulTable.comp hmodBits).of_enc_eq fun nWire =>
+    (BinaryField.computableInPolyTime_powerMulTable.comp hmodBits).of_enc_eq fun nWire =>
       congrArg encTable (by simp only [Function.comp_apply])
   exact ((hw.prod hnSeed).prod htab).of_enc_eq fun nWire =>
     congrArg (encPair (encPair encUnary encUnary) encTable) (by unfold buildCtxCore; rfl)
@@ -1225,28 +1209,20 @@ private def evalOneSubParityAmpMod (k M y : ℕ) : ℕ :=
     ((k - 1 + j).choose j % M) * powMod M y j % M).sum % M
   (M + 1 - fac * kern % M) % M
 
-private theorem int_modEq_finset_sum {ι : Type*} (s : Finset ι) {M : ℤ}
-    {f g : ι → ℤ} (h : ∀ i ∈ s, f i ≡ g i [ZMOD M]) :
-    ∑ i ∈ s, f i ≡ ∑ i ∈ s, g i [ZMOD M] := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | insert a s ha ih =>
-    rw [Finset.sum_insert ha, Finset.sum_insert ha]
-    exact (h a (Finset.mem_insert_self a s)).add
-      (ih fun i hi => h i (Finset.mem_insert_of_mem hi))
+private theorem one_sub_modEq_of_pos {M : ℕ} (hM : 0 < M) (a : ℕ) :
+    (((M + 1 - a % M) % M : ℕ) : ℤ) ≡ 1 - (a : ℤ) [ZMOD (M : ℤ)] := by
+  have hlt : a % M < M := Nat.mod_lt a hM
+  rw [Int.natCast_mod, Int.natCast_sub (by omega : a % M ≤ M + 1)]
+  push_cast
+  have hmod : (a : ℤ) % (M : ℤ) ≡ (a : ℤ) [ZMOD (M : ℤ)] := Int.mod_modEq _ _
+  have h1 : (M : ℤ) + 1 - (a : ℤ) % (M : ℤ) ≡ 0 + 1 - (a : ℤ) [ZMOD (M : ℤ)] :=
+    (Int.ModEq.add_right 1 (Int.modEq_zero_iff_dvd.2 dvd_rfl)).sub hmod
+  simpa only [zero_add] using (Int.mod_modEq _ _).trans h1
 
 private theorem evalOneSubParityAmpMod_modEq {k M y : ℕ} (hM : 0 < M) :
     ((evalOneSubParityAmpMod k M y : ℕ) : ℤ) ≡
       1 - (parityAmplifier k).eval (y : ℤ) [ZMOD (M : ℤ)] := by
-  have hsub : ∀ a : ℕ, (((M + 1 - a % M) % M : ℕ) : ℤ) ≡ 1 - (a : ℤ) [ZMOD (M : ℤ)] := fun a => by
-    have hlt : a % M < M := Nat.mod_lt a hM
-    rw [Int.natCast_mod, Int.natCast_sub (by omega : a % M ≤ M + 1)]
-    push_cast
-    have hmod : (a : ℤ) % (M : ℤ) ≡ (a : ℤ) [ZMOD (M : ℤ)] := Int.mod_modEq _ _
-    have h1 : (M : ℤ) + 1 - (a : ℤ) % (M : ℤ) ≡ 0 + 1 - (a : ℤ) [ZMOD (M : ℤ)] :=
-      (Int.ModEq.add_right 1 (Int.modEq_zero_iff_dvd.2 dvd_rfl)).sub hmod
-    simpa only [zero_add] using (Int.mod_modEq _ _).trans h1
+  have hsub := one_sub_modEq_of_pos hM
   have hpow : ∀ (a e : ℕ), ((powMod M a e : ℕ) : ℤ) ≡ (a : ℤ) ^ e [ZMOD (M : ℤ)] := fun a e => by
     rw [powMod_of_ne_zero hM.ne', Int.natCast_mod, Int.natCast_pow]
     exact Int.mod_modEq _ _
@@ -1268,7 +1244,7 @@ private theorem evalOneSubParityAmpMod_modEq {k M y : ℕ} (hM : 0 < M) :
         List.toFinset_range]
       simp
     rw [hsum]
-    refine int_modEq_finset_sum (Finset.range k) fun j _ => ?_
+    refine Int.ModEq.sum fun j _ => ?_
     simp only [Polynomial.coe_evalRingHom, eval_mul, eval_natCast, eval_pow, eval_X,
       Int.natCast_mod, Nat.cast_mul]
     refine (Int.mod_modEq _ _).trans ?_
@@ -1348,18 +1324,6 @@ private def orTestProdMod (w M : ℕ) (pows : List (List Bool)) (ws : List ℕ)
       ((pows.getD wire []).getD j false) &&
         xor negate (uSub.any fun x => decide (x = rOff + wire))
     acc * ((M' + 1 - cnt % M') % M') % M') (1 % M')
-
-private theorem foldl_orTestProdMod_lt (M : ℕ) (pows : List (List Bool)) (ws : List ℕ)
-    (rOff : ℕ) (uSub : List ℕ) (negate : Bool) (l : List ℕ) (init : ℕ)
-    (hi : init ≤ posMod M) :
-    l.foldl (fun acc j =>
-      let cnt := ws.countP fun wire =>
-        ((pows.getD wire []).getD j false) &&
-          xor negate (uSub.any fun x => decide (x = rOff + wire))
-      acc * ((posMod M + 1 - cnt % posMod M) % posMod M) % posMod M) init ≤ posMod M := by
-  induction l generalizing init with
-  | nil => exact hi
-  | cons j js ih => exact ih _ (Nat.mod_lt _ (posMod_pos M)).le
 
 private theorem computableInPolyTime_orTestProdMod :
     ComputableInPolyTime
@@ -1451,8 +1415,13 @@ private theorem computableInPolyTime_orTestProdMod :
   have hMle : (encNat q.1.1.2).length ≤ (encQ q).length := by
     dsimp only [encQ]; enc_len
   refine le_trans ?_ (Nat.add_le_add_right hMle 1)
-  have hle := foldl_orTestProdMod_lt q.1.1.2 q.1.2.1 q.1.2.2 q.2.1.1 q.2.1.2 q.2.2
-    ((List.range q.1.1.1).take i) (1 % posMod q.1.1.2)
+  have hle := foldl_mod_posMod_le q.1.1.2
+    (fun acc j =>
+      let cnt := q.1.2.2.countP fun wire =>
+        ((q.1.2.1.getD wire []).getD j false) &&
+          xor q.2.2 (q.2.1.2.any fun x => decide (x = q.2.1.1 + wire))
+      acc * ((posMod q.1.1.2 + 1 - cnt % posMod q.1.1.2) % posMod q.1.1.2))
+    ((List.range q.1.1.1).take i)
     (Nat.mod_lt 1 (posMod_pos q.1.1.2)).le
   change (Nat.bits _).length ≤ q.1.1.2.bits.length + 1
   simpa only [← Nat.size_eq_bits_len] using size_le_size_add_one_of_le_posMod hle
@@ -1704,20 +1673,6 @@ private def amplifiedCountMod (m : ℕ) (layer : Option ℕ) (ctx : CompileCtx)
     let prod := ampGateProdMod m layer ctx k M' uSub entry.1
     (acc + entry.2 % M' * prod % M') % M') 0
 
-private theorem foldl_mod_inner_le (f : ℕ → ℕ) (M : ℕ) (l : List ℕ) (init : ℕ)
-    (hi : init ≤ posMod M) :
-    l.foldl (fun pacc t => pacc * f t % posMod M) init ≤ posMod M := by
-  induction l generalizing init with
-  | nil => exact hi
-  | cons _ ts ih => exact ih _ (Nat.mod_lt _ (posMod_pos M)).le
-
-private theorem foldl_mod_outer_le (f : WGate → ℕ) (M : ℕ) (W : List WGate) (init : ℕ)
-    (hi : init ≤ posMod M) :
-    W.foldl (fun acc e => (acc + f e) % posMod M) init ≤ posMod M := by
-  induction W generalizing init with
-  | nil => exact hi
-  | cons _ es ih => exact ih _ (Nat.mod_lt _ (posMod_pos M)).le
-
 private theorem computableInPolyTime_ampGateProdMod (m : ℕ) (layer : Option ℕ) :
     ComputableInPolyTime
       (fun q : ((CompileCtx × ℕ) × (ℕ × List ℕ)) × List ℕ =>
@@ -1777,11 +1732,11 @@ private theorem computableInPolyTime_ampGateProdMod (m : ℕ) (layer : Option �
     have hMle : (encNat q.1.2.1).length ≤ (encQ q).length := by
       dsimp only [encQ, encP]; enc_len
     refine le_trans ?_ (Nat.add_le_add_right hMle 1)
-    have hle := foldl_mod_inner_le
-      (fun t => evalOneSubParityAmpMod q.1.1.2 (posMod q.1.2.1)
+    have hle := foldl_mod_posMod_le q.1.2.1
+      (fun pacc t => pacc * evalOneSubParityAmpMod q.1.1.2 (posMod q.1.2.1)
         (powMod (posMod q.1.2.1) (evalLayerQMod m layer q.1.1.1 (posMod q.1.2.1) q.1.2.2 t)
           (pVal - 1)))
-      q.1.2.1 (q.2.take i) (1 % posMod q.1.2.1) (Nat.mod_lt 1 (posMod_pos q.1.2.1)).le
+      (q.2.take i) (Nat.mod_lt 1 (posMod_pos q.1.2.1)).le
     change (Nat.bits _).length ≤ q.1.2.1.bits.length + 1
     simpa only [← Nat.size_eq_bits_len] using size_le_size_add_one_of_le_posMod hle
   exact hfold.of_enc_eq fun q => congrArg encNat <| by unfold ampGateProdMod; rfl
@@ -1839,10 +1794,10 @@ private theorem computableInPolyTime_amplifiedCountMod (m : ℕ) (layer : Option
     have hMle : (encNat q.1.2).length ≤ (encQ q).length := by
       dsimp only [encQ]; enc_len
     refine le_trans ?_ (Nat.add_le_add_right hMle 1)
-    have hle := foldl_mod_outer_le
-      (fun entry => entry.2 % posMod q.1.2 *
+    have hle := foldl_mod_posMod_le q.1.2
+      (fun acc entry => acc + entry.2 % posMod q.1.2 *
         ampGateProdMod m layer q.1.1.1 q.1.1.2 (posMod q.1.2) q.2.2 entry.1 % posMod q.1.2)
-      q.1.2 (q.2.1.take i) 0 (Nat.zero_le _)
+      (q.2.1.take i) (Nat.zero_le _)
     change (Nat.bits _).length ≤ q.1.2.bits.length + 1
     simpa only [← Nat.size_eq_bits_len] using size_le_size_add_one_of_le_posMod hle
   exact hfold.of_enc_eq fun q => congrArg encNat <| by unfold amplifiedCountMod; rfl
@@ -1925,16 +1880,13 @@ private theorem computableInPolyTime_mobiusCoeffMod (m : ℕ) (layer : Option �
     have hMle : (encNat q.1.1.2.1).length ≤ (encQ q).length := by
       dsimp only [encQ, encL]; enc_len
     refine le_trans ?_ (Nat.add_le_add_right hMle 1)
-    have hle : ∀ (l : List (List ℕ)) (init : ℕ), init ≤ posMod q.1.1.2.1 →
-        l.foldl (fun acc uSub =>
-          let M' := posMod q.1.1.2.1
-          let val := amplifiedCountMod m layer q.1.1.1.1 q.1.1.1.2 M' q.1.2 uSub
-          let term := if (q.2.length - uSub.length) % 2 = 0 then val % M' else (M' - val % M') % M'
-          (acc + term) % M') init ≤ posMod q.1.1.2.1 := by
-      intro l; induction l with
-      | nil => intro init hi; exact hi
-      | cons _ ls ih => intro init _; exact ih _ (Nat.mod_lt _ (posMod_pos _)).le
-    have hres := hle ((allSubsetsCapped q.2 q.1.1.2.2).take i) 0 (Nat.zero_le _)
+    have hres := foldl_mod_posMod_le q.1.1.2.1
+      (fun acc uSub =>
+        let M' := posMod q.1.1.2.1
+        let val := amplifiedCountMod m layer q.1.1.1.1 q.1.1.1.2 M' q.1.2 uSub
+        let term := if (q.2.length - uSub.length) % 2 = 0 then val % M' else (M' - val % M') % M'
+        acc + term)
+      ((allSubsetsCapped q.2 q.1.1.2.2).take i) (Nat.zero_le _)
     change (Nat.bits _).length ≤ q.1.1.2.1.bits.length + 1
     simpa only [← Nat.size_eq_bits_len] using size_le_size_add_one_of_le_posMod hres
   exact hfold.of_enc_eq fun q => congrArg encNat <| by unfold mobiusCoeffMod; rfl
@@ -2135,25 +2087,15 @@ private theorem computableInPolyTime_restrictAndExpand :
   have hkeepPred : ComputableInPolyTime
       (fun p : ((CompileCtx × ℕ) × List WGate) × WGate =>
         p.2.1.all fun t => decide (t % p.1.1.1.nSlot < p.1.1.1.n))
-      (encPair encQ encWGate) encBool := by
-    have hnotAny : ComputableInPolyTime
-        (fun p : ((CompileCtx × ℕ) × List WGate) × WGate =>
-          !(p.2.1.any fun t => !decide (t % p.1.1.1.nSlot < p.1.1.1.n)))
-        (encPair encQ encWGate) encBool := by
-      have hp1 := ComputableInPolyTime.fst encQ encWGate
-      have hp2 := ComputableInPolyTime.snd encQ encWGate
-      have hany := ComputableInPolyTime.anyWithInput
-        (test := fun (p : ((CompileCtx × ℕ) × List WGate) × WGate) (t : ℕ) =>
-          !decide (t % p.1.1.1.nSlot < p.1.1.1.n))
-        hp2.fst'
-        (ComputableInPolyTime.bool_not.comp
-          (ComputableInPolyTime.unary_lt'
-            (ComputableInPolyTime.unary_mod'
-              (ComputableInPolyTime.snd (encPair encQ encWGate) encUnary)
-              (hnSlot.comp (ComputableInPolyTime.fst (encPair encQ encWGate) encUnary).fst'))
-            (hn.comp (ComputableInPolyTime.fst (encPair encQ encWGate) encUnary).fst')))
-      exact ComputableInPolyTime.bool_not.comp hany
-    exact hnotAny.of_enc_eq fun p => congrArg encBool (by simp [List.all_eq_not_any_not])
+      (encPair encQ encWGate) encBool :=
+    ComputableInPolyTime.allWith
+      (ComputableInPolyTime.unary_lt'
+        (ComputableInPolyTime.unary_mod'
+          (ComputableInPolyTime.snd encQ encUnary)
+          (hnSlot.comp (ComputableInPolyTime.fst encQ encUnary)))
+        (hn.comp (ComputableInPolyTime.fst encQ encUnary)))
+      (ComputableInPolyTime.fst encQ encWGate)
+      (ComputableInPolyTime.snd encQ encWGate).fst'
   have hkept := ComputableInPolyTime.filterWithInput
     (test := fun (q : (CompileCtx × ℕ) × List WGate) (e : WGate) =>
       e.1.all fun t => decide (t % q.1.1.nSlot < q.1.1.n)) hW hkeepPred
@@ -2318,6 +2260,20 @@ section Equivalence
 
 variable {n g m ℓ : ℕ}
 
+private def slotOffset (s : Slot n g m) : ℕ :=
+  match s with
+  | .inl (.input i) => i.val
+  | .inl (.gate k) => n + k.val
+  | .inr (k, pi) => n + g + (k.val * ((m + 1) * (m + 1)) + pi.1.val * (m + 1) + pi.2.val)
+
+private theorem slotOffset_lt (s : Slot n g m) :
+    slotOffset s < n + g + g * ((m + 1) * (m + 1)) := by
+  rcases s with (i | k) | ⟨k, p, i⟩
+  · have := i.isLt; simp only [slotOffset]; omega
+  · have := k.isLt; simp only [slotOffset]; omega
+  · have hk := k.isLt; have hp := p.isLt; have hi := i.isLt
+    simp only [slotOffset]; nlinarith
+
 /-- Slot bijection between `Seed ℓ × Slot n g m` and
 `Fin (2 ^ (2 * ℓ + 2) * (n + g + g * (m + 1) ^ 2))`. -/
 private noncomputable def slotToNat (t : Seed ℓ × Slot n g m) : ℕ :=
@@ -2325,29 +2281,13 @@ private noncomputable def slotToNat (t : Seed ℓ × Slot n g m) : ℕ :=
   let hw : w ≠ 0 := by omega
   let r := (BinaryField.equivFin hw t.1).val
   let nSlot := n + g + g * ((m + 1) * (m + 1))
-  let s := match t.2 with
-    | .inl (.input i) => i.val
-    | .inl (.gate k) => n + k.val
-    | .inr (k, pi) => n + g + (k.val * ((m + 1) * (m + 1)) + pi.1.val * (m + 1) + pi.2.val)
-  r * nSlot + s
+  r * nSlot + slotOffset t.2
 
 private theorem slotToNat_lt (t : Seed ℓ × Slot n g m) :
     slotToNat t < 2 ^ (2 * ℓ + 2) * (n + g + g * ((m + 1) * (m + 1))) := by
   set nSlot := n + g + g * ((m + 1) * (m + 1))
   have hr := (BinaryField.equivFin (show 2 * ℓ + 2 ≠ 0 by omega) t.1).isLt
-  have hs : (match t.2 with
-      | .inl (.input i) => i.val
-      | .inl (.gate k) => n + k.val
-      | .inr (k, pi) => n + g + (k.val * ((m + 1) * (m + 1)) + pi.1.val * (m + 1) + pi.2.val)) <
-      nSlot := by
-    rcases t.2 with (i | k) | ⟨k, p, i⟩
-    · have := i.isLt; simp only [nSlot]; omega
-    · have := k.isLt; simp only [nSlot]; omega
-    · have hk := k.isLt; have hp := p.isLt; have hi := i.isLt
-      have h1 : p.1 * (m + 1) + i.1 < (m + 1) * (m + 1) := by nlinarith
-      have h2 : k.1 * ((m + 1) * (m + 1)) + (p.1 * (m + 1) + i.1) < g * ((m + 1) * (m + 1)) := by
-        nlinarith
-      simp only [nSlot]; omega
+  have hs := slotOffset_lt t.2
   dsimp only [slotToNat]
   calc _ < (BinaryField.equivFin (show 2 * ℓ + 2 ≠ 0 by omega) t.1).val * nSlot + nSlot :=
         Nat.add_lt_add_left hs _
@@ -2358,15 +2298,7 @@ private theorem slotToNat_div (t : Seed ℓ × Slot n g m) :
     slotToNat t / (n + g + g * ((m + 1) * (m + 1))) =
       (BinaryField.equivFin (show 2 * ℓ + 2 ≠ 0 by omega) t.1).val := by
   set nSlot := n + g + g * ((m + 1) * (m + 1))
-  have hs : (match t.2 with
-      | .inl (.input i) => i.val
-      | .inl (.gate k) => n + k.val
-      | .inr (k, pi) => n + g + (k.val * ((m + 1) * (m + 1)) + pi.1.val * (m + 1) + pi.2.val)) <
-      nSlot := by
-    rcases t.2 with (i | k) | ⟨k, p, i⟩
-    · have := i.isLt; simp only [nSlot]; omega
-    · have := k.isLt; simp only [nSlot]; omega
-    · have hk := k.isLt; have hp := p.isLt; have hi := i.isLt; simp only [nSlot]; nlinarith
+  have hs := slotOffset_lt t.2
   have hnPos : 0 < nSlot := (Nat.zero_le _).trans_lt hs
   dsimp only [slotToNat]
   rw [Nat.mul_comm _ nSlot, Nat.mul_add_div hnPos, Nat.div_eq_of_lt hs, Nat.add_zero]
@@ -2378,17 +2310,10 @@ private theorem slotToNat_mod (t : Seed ℓ × Slot n g m) :
       | .inl (.gate k) => n + k.val
       | .inr (k, pi) => n + g + (k.val * ((m + 1) * (m + 1)) + pi.1.val * (m + 1) + pi.2.val) := by
   set nSlot := n + g + g * ((m + 1) * (m + 1))
-  have hs : (match t.2 with
-      | .inl (.input i) => i.val
-      | .inl (.gate k) => n + k.val
-      | .inr (k, pi) => n + g + (k.val * ((m + 1) * (m + 1)) + pi.1.val * (m + 1) + pi.2.val)) <
-      nSlot := by
-    rcases t.2 with (i | k) | ⟨k, p, i⟩
-    · have := i.isLt; simp only [nSlot]; omega
-    · have := k.isLt; simp only [nSlot]; omega
-    · have hk := k.isLt; have hp := p.isLt; have hi := i.isLt; simp only [nSlot]; nlinarith
+  have hs := slotOffset_lt t.2
   dsimp only [slotToNat]
   rw [Nat.mul_comm _ nSlot, Nat.mul_add_mod, Nat.mod_eq_of_lt hs]
+  rfl
 
 private theorem slotToNat_injective :
     Function.Injective (slotToNat (n := n) (g := g) (m := m) (ℓ := ℓ)) := by
@@ -2809,15 +2734,7 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
     refine Prod.ext rfl (List.ext_getElem (by simp [P]) fun a ha1 ha2 => ?_)
     simp only [List.getElem_ofFn]
     exact Nat.min_eq_left (Wire.toNat_lt _).le
-  have hsub_mod : ∀ a : ℕ,
-      (((M + 1 - a % M) % M : ℕ) : ℤ) ≡ 1 - (a : ℤ) [ZMOD (M : ℤ)] := fun a => by
-    have hlt : a % M < M := Nat.mod_lt a hM
-    rw [Int.natCast_mod, Int.natCast_sub (by omega : a % M ≤ M + 1)]
-    push_cast
-    have hmod' : (a : ℤ) % (M : ℤ) ≡ (a : ℤ) [ZMOD (M : ℤ)] := Int.mod_modEq _ _
-    have h1 : (M : ℤ) + 1 - (a : ℤ) % (M : ℤ) ≡ 0 + 1 - (a : ℤ) [ZMOD (M : ℤ)] :=
-      (Int.ModEq.add_right 1 (Int.modEq_zero_iff_dvd.2 dvd_rfl)).sub hmod'
-    simpa only [zero_add] using (Int.mod_modEq _ _).trans h1
+  have hsub_mod := one_sub_modEq_of_pos hM
   cases layer with
   | none =>
     simp only [evalLayerQMod, hctx_n, hctx_g, hctx_nSlot, hctx_w, hdiv, hmod, SLayer.lift]
@@ -3011,10 +2928,10 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
             · rintro ⟨⟨p, i⟩, hpi, hmem⟩
               obtain ⟨hp, hi, hprime, hdvd⟩ := mem_relList_iff.1 hpi
               exact ⟨(⟨p, hp⟩, ⟨i, hi⟩), ⟨hprime, hdvd⟩, by
-                simpa only [slotToNat, rIdx, nSlot, Nat.add_assoc] using hmem⟩
+                simpa only [slotToNat, slotOffset, rIdx, nSlot, Nat.add_assoc] using hmem⟩
             · rintro ⟨⟨p, i⟩, ⟨hprime, hdvd⟩, hmem⟩
               exact ⟨(p.1, i.1), mem_relList_iff.2 ⟨p.isLt, i.isLt, hprime, hdvd⟩, by
-                simpa only [slotToNat, rIdx, nSlot, Nat.add_assoc] using hmem⟩
+                simpa only [slotToNat, slotOffset, rIdx, nSlot, Nat.add_assoc] using hmem⟩
           have hprod : (1 - ∏ pi ∈ rel m,
               (1 - bitVal ℤ (decide ((r, Sum.inr (k, pi)) ∈
                 decodeIdxSet c.1 c.2.size m (Nat.log 2 (c.1 + c.2.size) + 1) uSub)))) =
@@ -3146,7 +3063,7 @@ private theorem amplifiedCountMod_modEq {m M k : ℕ} (hm : 0 < m) (hM : 0 < M)
             (layer.getD 2 - 1) : ℕ) : ℤ) ≡
         (parityAmplifier k).eval (L.lift.q t v ^ (L.lift.p - 1)) [ZMOD (M : ℤ)] := by
       rw [Polynomial.eval_eq_sum_range, Polynomial.eval_eq_sum_range]
-      exact int_modEq_finset_sum _ fun i _ => Int.ModEq.mul_left _ (hpow.pow i)
+      exact Int.ModEq.sum fun i _ => Int.ModEq.mul_left _ (hpow.pow i)
     exact hamp.trans (Int.ModEq.sub_left 1 heval)
   have hprod_mod : ∀ (S : List ℕ), S.Nodup →
       (∀ a ∈ S, a < 2 ^ (2 * ℓ + 2) * (c.1 + c.2.size + c.2.size * ((m + 1) * (m + 1)))) →
@@ -3382,7 +3299,7 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
             rw [card_decodeIdxSet hSnd hSlt,
               card_decodeIdxSet hsub.1 fun a ha => hSlt a (hsub.2 ha)]
         rw [hbij_eq]
-        refine int_modEq_finset_sum _ fun uSub _ => Int.ModEq.mul_left _ ?_
+        refine Int.ModEq.sum fun uSub _ => Int.ModEq.mul_left _ ?_
         exact amplifiedCountMod_modEq (k := B + 1) hm hM c layer W C hW uSub
       simpa only [zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one] using hsum_bij
     have hmod_eq : ((mobiusCoeffMod m layer (buildCtx m c) (B + 1) M U W S : ℕ) : ℤ) =
@@ -3822,6 +3739,29 @@ theorem compileSymAndFixed_n (d m : ℕ) (c : Σ n, Circuit Unbounded.extSignatu
   unfold compileSymAndFixed compileWithBudget restrictAndExpand buildCtx
   rfl
 
+private theorem towerS_lift_bounds (d : ℕ) {m : ℕ} (hm : 0 < m)
+    (c : Σ n, Circuit Unbounded.extSignature n 1) :
+    let ℓ := Nat.log 2 (c.1 + c.2.size) + 1
+    let B₀ := 3 * ((m + 1) ^ 2 + ℓ + 1)
+    (∀ L ∈ (towerS c.2.program m ℓ d).map SLayer.lift,
+      L.p.Prime ∧ L.p ≤ B₀ ∧ ∀ t, L.q t ∈ lowDegree ℤ (Seed ℓ × Slot c.1 c.2.size m) B₀) ∧
+    Fintype.card (Seed ℓ × Slot c.1 c.2.size m) + 1 ≤ 2 ^ B₀ ∧
+    (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)).fanIn ≤ B₀ ∧
+    (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)).size ≤ 2 ^ B₀ := by
+  set ℓ := Nat.log 2 (c.1 + c.2.size) + 1
+  set B₀ := 3 * ((m + 1) ^ 2 + ℓ + 1)
+  have hN : c.1 + c.2.size < 2 ^ ℓ := Nat.lt_pow_succ_log_self one_lt_two _
+  refine ⟨fun L hL => ?_,
+    (card_seed_slot_lt (m := m) hN).trans_le (Nat.pow_le_pow_right (by decide) (by omega)),
+    (fanIn_top_le _).trans (by omega), ?_⟩
+  · obtain ⟨L₀, hL₀, rfl⟩ := List.mem_map.1 hL
+    obtain ⟨hp, hpB, hq⟩ := layer_ok c.2.program hm (mem_macroS_of_mem_towerS c.2.program hL₀)
+    have hm1 : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
+    exact ⟨hp, by change L₀.p ≤ B₀; omega, SLayer.lift_mem_lowDegree L₀ fun r s =>
+      lowDegree_mono (by omega) (hq r s)⟩
+  · rw [size_top, BinaryField.card (by omega)]
+    exact Nat.pow_le_pow_right (by decide) (by omega)
+
 private theorem compileSymAndFixed_spec (d : ℕ) {m : ℕ} (hm : 0 < m)
     (c : Σ n, Circuit Unbounded.extSignature n 1) :
     let ℓ := Nat.log 2 (c.1 + c.2.size) + 1
@@ -3876,7 +3816,7 @@ private theorem compileSymAndFixed_spec (d : ℕ) {m : ℕ} (hm : 0 < m)
           (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)) =
         r * (c.1 + c.2.size + c.2.size * ((m + 1) * (m + 1))) + (c.2.outputs 0).toNat := by
       intro r hr
-      simp only [slotToNat, Equiv.apply_symm_apply]
+      simp only [slotToNat, slotOffset, Equiv.apply_symm_apply]
       cases c.2.outputs 0 <;> rfl
     refine ⟨?_, ?_⟩
     · rw [decodeWList, top]
@@ -3936,23 +3876,10 @@ private theorem compileSymAndFixed_spec (d : ℕ) {m : ℕ} (hm : 0 < m)
     have hm1 : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
     rw [hpeq]
     exact ⟨hp, by omega⟩
+  obtain ⟨hLs_tower, hT, hf, hs⟩ := towerS_lift_bounds d hm c
   have hLs_deg : ∀ L ∈ (layersOfSpec c.2.program m ℓ (layerSpec d m)).map SLayer.lift,
       L.p.Prime ∧ L.p ≤ B₀ ∧ ∀ t, L.q t ∈ lowDegree ℤ (Seed ℓ × Slot c.1 c.2.size m) B₀ := by
-    rw [layersOfSpec_layerSpec]
-    intro L hL
-    obtain ⟨L₀, hL₀, rfl⟩ := List.mem_map.1 hL
-    obtain ⟨hp, hpB, hq⟩ := layer_ok c.2.program hm (mem_macroS_of_mem_towerS c.2.program hL₀)
-    have hm1 : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
-    exact ⟨hp, by change L₀.p ≤ B₀; omega, SLayer.lift_mem_lowDegree L₀ fun r s =>
-      lowDegree_mono (by omega) (hq r s)⟩
-  have hT : Fintype.card (Seed ℓ × Slot c.1 c.2.size m) + 1 ≤ 2 ^ B₀ := by
-    have := card_seed_slot_lt (m := m) hN
-    exact this.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
-  have hf : (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)).fanIn ≤ B₀ :=
-    (fanIn_top_le _).trans (by omega)
-  have hs : (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)).size ≤ 2 ^ B₀ := by
-    rw [size_top, BinaryField.card (by omega)]
-    exact Nat.pow_le_pow_right (by decide) (by omega)
+    rwa [layersOfSpec_layerSpec]
   obtain ⟨hRep, hOut, hLen, hMods, hE⟩ := collapseRunExec_spec hm c (layerSpec d m) W₀
     (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)) hW₀_rep le_rfl hLs_ok hLs_deg
     hT hf hs hU_ge
@@ -4063,24 +3990,9 @@ theorem eval_compileSymAndFixed (d : ℕ) {m : ℕ} (hm : 0 < m)
       (compileSymAndFixed d m c).1.toSymAnd (compileSymAndFixed d m c).2.eval).eval =
       fun x => c.2.eval (Unbounded.extInterpretation (modGate m)) x 0 := by
   rw [compileSymAndFixed_eq_compile d hm c]
-  set ℓ := Nat.log 2 (c.1 + c.2.size) + 1
-  set B₀ := 3 * ((m + 1) ^ 2 + ℓ + 1)
+  let ℓ := Nat.log 2 (c.1 + c.2.size) + 1
   have hN : c.1 + c.2.size < 2 ^ ℓ := Nat.lt_pow_succ_log_self one_lt_two _
-  have hLs : ∀ L ∈ (towerS c.2.program m ℓ d).map SLayer.lift,
-      L.p.Prime ∧ L.p ≤ B₀ ∧ ∀ t, L.q t ∈ lowDegree ℤ (Seed ℓ × Slot c.1 c.2.size m) B₀ := by
-    intro L hL
-    obtain ⟨L₀, hL₀, rfl⟩ := List.mem_map.1 hL
-    obtain ⟨hp, hpB, hq⟩ := layer_ok c.2.program hm (mem_macroS_of_mem_towerS c.2.program hL₀)
-    have hm1 : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
-    exact ⟨hp, by change L₀.p ≤ B₀; omega, SLayer.lift_mem_lowDegree L₀ fun r s =>
-      lowDegree_mono (by omega) (hq r s)⟩
-  have hT : Fintype.card (Seed ℓ × Slot c.1 c.2.size m) + 1 ≤ 2 ^ B₀ :=
-    (card_seed_slot_lt (m := m) hN).trans_le (Nat.pow_le_pow_right (by decide) (by omega))
-  have hf : (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)).fanIn ≤ B₀ :=
-    (fanIn_top_le _).trans (by omega)
-  have hs : (top ℓ (Sum.inl (c.2.outputs 0) : Slot c.1 c.2.size m)).size ≤ 2 ^ B₀ := by
-    rw [size_top, BinaryField.card (by omega)]
-    exact Nat.pow_le_pow_right (by decide) (by omega)
+  obtain ⟨hLs, hT, hf, hs⟩ := towerS_lift_bounds d hm c
   funext x
   rw [ACC0ToSymAnd.compile, SymAnd.eval_restrict, SymAnd.eval_collapseRun _ _ hLs hT hf hs,
     eval_top]
@@ -4091,6 +4003,7 @@ theorem eval_compileSymAndFixed (d : ℕ) {m : ℕ} (hm : 0 < m)
   · have h1 := card_not_good_le (ℓ := ℓ) c.2.program m x
     have h2 := four_mul_lt_card_seed (ℓ := ℓ) (g := c.2.size) hN
     have h3 : c.2.size * (2 * (c.1 + c.2.size)) = 2 * (c.2.size * (c.1 + c.2.size)) := by ring
+    dsimp only [ℓ] at h1 h2
     omega
 
 /-- Explicit shape and size bounds on the output of `compileSymAndFixed d m c`. -/

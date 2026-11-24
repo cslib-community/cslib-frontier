@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streamin
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.NthRoot
 import Mathlib.Analysis.Complex.Exponential
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
@@ -71,7 +72,8 @@ In `Unbounded.encExtCircuit 1`, the encoding length `|enc c|` bounds input count
 total wire count (matching the circuit description size `s = |C|` in [Williams2014], Theorem 4.1).
 We also provide a `Cslib.Complexity.DecidableInTimeO` language corollary
 (`decidableInTimeO_ACC0SAT`) for the exact polynomial-time-guarded language `ACC0SAT d m q`, which
-contains all circuits of depth at most `d` and encoding length at most `2 ^ (n ^ (1 / q))`.
+contains all satisfiable circuits of depth at most `d` and encoding length at most
+`2 ^ (n ^ (1 / q))`.
 
 ## Main definitions
 
@@ -86,6 +88,7 @@ contains all circuits of depth at most `d` and encoding length at most `2 ^ (n ^
   satisfiability.
 * `Cslib.Circuits.Boolean.SymAnd.depth_orExpand_le`: `orExpand` increases depth by at most `2`.
 * `Cslib.Circuits.Boolean.SymAnd.computableInO_orExpand`: multi-tape TM complexity of `orExpand`.
+* `Cslib.Circuits.Boolean.SymAnd.symAndSAT_eq_true_iff`: correctness of `symAndSAT`.
 * `Cslib.Circuits.Boolean.SymAnd.computableInO_symAndSAT`: multi-tape TM complexity of `symAndSAT`.
 * `Cslib.Circuits.Boolean.SymAnd.exists_acc0SAT_decider`: Williams's Theorem 4.1 (promise form).
 * `Cslib.Circuits.Boolean.SymAnd.decidableInTimeO_ACC0SAT`: `DecidableInTimeO` language corollary.
@@ -504,13 +507,6 @@ section OrExpandPolyTime
 
 attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
 
-private theorem computableInPolyTime_min_bin_unary {α : Type} {encIn : α ↪ List Bool}
-    {b u : α → ℕ} (hb : ComputableInPolyTime b encIn encNat)
-    (hu : ComputableInPolyTime u encIn encUnary) :
-    ComputableInPolyTime (fun x => min (b x) (u x)) encIn encUnary :=
-  (ComputableInPolyTime.binary_min_unary' hu hb).of_enc_eq fun x =>
-    congrArg encUnary (Nat.min_comm (b x) (u x))
-
 private theorem computableInPolyTime_orExpandWire :
     ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ => orExpandWire q.1.1.1 q.1.1.2 q.1.2.1 q.1.2.2 q.2)
@@ -528,7 +524,7 @@ private theorem computableInPolyTime_orExpandWire :
   have hnB := ComputableInPolyTime.unary_to_binary.comp hn
   have hlt1 := ComputableInPolyTime.binary_lt' hw hn'B
   have hlt2 := ComputableInPolyTime.binary_lt' hw hnB
-  have hdiffU := computableInPolyTime_min_bin_unary (ComputableInPolyTime.binary_sub' hw hn'B) hn
+  have hdiffU := binary_min_unary_left' (ComputableInPolyTime.binary_sub' hw hn'B) hn
   have hbit := ComputableInPolyTime.unary_testBit' ha hdiffU
   have hconst := ComputableInPolyTime.ite hbit
     (ComputableInPolyTime.binary_add' hn'B (ComputableInPolyTime.const 1)) hn'B
@@ -1073,20 +1069,6 @@ theorem computableInO_symAndSAT :
 
 /-! ### 3. Elementary real-analysis dominance helpers -/
 
-private theorem nthRoot_le_rpow (r n : ℕ) (hr : r ≠ 0) :
-    (Nat.nthRoot r n : ℝ) ≤ (n : ℝ) ^ ((r : ℝ)⁻¹) := by
-  have h : (Nat.nthRoot r n : ℝ) ^ r ≤ (n : ℝ) := by
-    exact_mod_cast Nat.pow_nthRoot_le (n := r) (a := n) (Or.inl hr)
-  have h' := Real.rpow_le_rpow (by positivity) h (by positivity : (0 : ℝ) ≤ (r : ℝ)⁻¹)
-  rwa [Real.pow_rpow_inv_natCast (by positivity) hr] at h'
-
-private theorem rpow_lt_nthRoot_add_one (r n : ℕ) (hr : r ≠ 0) :
-    (n : ℝ) ^ ((r : ℝ)⁻¹) < (Nat.nthRoot r n : ℝ) + 1 := by
-  have h : (n : ℝ) < ((Nat.nthRoot r n + 1 : ℕ) : ℝ) ^ r := by
-    exact_mod_cast Nat.lt_pow_nthRoot_add_one hr n
-  have h' := Real.rpow_lt_rpow (by positivity) h (by positivity : (0 : ℝ) < (r : ℝ)⁻¹)
-  rwa [Real.pow_rpow_inv_natCast (by positivity) hr, Nat.cast_add, Nat.cast_one] at h'
-
 private theorem nthRoot_le_self {r : ℕ} (hr : 0 < r) (n : ℕ) : Nat.nthRoot r n ≤ n := by
   have hpow := Nat.pow_nthRoot_le (n := r) (a := n) (Or.inl hr.ne')
   exact (Nat.le_self_pow hr.ne' _).trans hpow
@@ -1239,7 +1221,7 @@ private theorem acc0Guard_of_rpow {d q : ℕ} (hq : q ≠ 0)
     acc0Guard d q c = true := by
   rw [acc0Guard_eq_true_iff]
   refine ⟨hd, ?_⟩
-  have hlt := rpow_lt_nthRoot_add_one q c.1 hq
+  have hlt := Real.rpow_lt_natCast_nthRoot_add_one q c.1 hq
   have hpow : (2 : ℝ) ^ ((c.1 : ℝ) ^ ((q : ℝ)⁻¹)) ≤
       ((2 ^ (Nat.nthRoot q c.1 + 1) : ℕ) : ℝ) := by
     rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
@@ -1696,7 +1678,7 @@ private theorem acc0_guarded_real_combine (K p_root C_sat E_sum E_all C_raw P_co
   have hpow2_ell : ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) *
       (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹)) ≤ M_sub * target := by
     have hℓ_rpow : (ℓ : ℝ) ≤ (n : ℝ) ^ ((p_root : ℝ)⁻¹) :=
-      nthRoot_le_rpow p_root n hp_pos.ne'
+      Nat.cast_nthRoot_le_rpow p_root n hp_pos.ne'
     have hℓ1_pow : ((ℓ : ℝ) + 1) ^ K ≤
         (2 : ℝ) ^ K * (((n : ℝ) ^ ((p_root : ℝ)⁻¹)) ^ K + 1) := by
       have h1 : ((ℓ : ℝ) + 1) ^ K ≤ ((n : ℝ) ^ ((p_root : ℝ)⁻¹) + 1) ^ K :=
@@ -1750,7 +1732,7 @@ private theorem acc0_guarded_real_combine (K p_root C_sat E_sum E_all C_raw P_co
     exact h1.trans (hM_poly n)
   have h2sub_real : ((2 ^ (n - ℓ) : ℕ) : ℝ) ≤
       2 * (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹)) := by
-    have hlt := rpow_lt_nthRoot_add_one p_root n hp_pos.ne'
+    have hlt := Real.rpow_lt_natCast_nthRoot_add_one p_root n hp_pos.ne'
     have hsub : ((n - ℓ : ℕ) : ℝ) ≤ (n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹) + 1 := by
       rw [Nat.cast_sub hℓ_le_n]
       linarith
@@ -2095,6 +2077,21 @@ private theorem computableInO_acc0Decider (d : ℕ) {m : ℕ} (hm : 0 < m) :
     push_cast
     nlinarith only [h1, h2, hM2', pow_nonneg (by positivity : (0 : ℝ) ≤ (E : ℝ) + 1) (dg + 1)]
 
+private abbrev acc0RootP (d m : ℕ) : ℕ := 2 * (5 ^ ((d + 2) * (m + 2)) + 1) + 2
+private abbrev acc0RootQ (d m : ℕ) : ℕ := 4 * (5 ^ ((d + 2) * (m + 2)) + 1) + 4
+
+private theorem acc0RootParams_spec (d m : ℕ) :
+    0 < acc0RootQ d m ∧ (0 : ℝ) < acc0RootQ d m ∧
+      (acc0RootQ d m : ℝ)⁻¹ < (acc0RootP d m : ℝ)⁻¹ ∧ (acc0RootP d m : ℝ)⁻¹ < 1 := by
+  have hp_pos : (0 : ℝ) < acc0RootP d m := by positivity
+  have hq_pos : (0 : ℝ) < acc0RootQ d m := by positivity
+  have hp_lt_q : (acc0RootP d m : ℝ) < acc0RootQ d m := by
+    exact_mod_cast (by unfold acc0RootP acc0RootQ; omega : acc0RootP d m < acc0RootQ d m)
+  have hp_gt1 : (1 : ℝ) < acc0RootP d m := by
+    exact_mod_cast (by unfold acc0RootP; omega : 1 < acc0RootP d m)
+  exact ⟨by unfold acc0RootQ; omega, hq_pos, inv_strictAnti₀ hp_pos hp_lt_q,
+    inv_lt_one_of_one_lt₀ hp_gt1⟩
+
 /-- **Williams's Theorem 4.1 (promise form)** ([Williams2014], Theorem 4.1, Section 4.2, p. 17):
 for every constant depth `d` and modulus `m > 0`, there exist `0 < ε < δ < 1` and `c₀ > 0` and a
 native multi-tape Turing machine decider `decideSAT` (running in time and space `O(T)`) such that
@@ -2113,66 +2110,52 @@ theorem exists_acc0SAT_decider (d : ℕ) {m : ℕ} (hm : 0 < m) :
         ∃ M : ℕ, ∀ c, c.2.depth ≤ d →
           ((Unbounded.encExtCircuit 1 c).length : ℝ) ≤ (2 : ℝ) ^ ((c.1 : ℝ) ^ ε) →
           (T c : ℝ) ≤ M * (2 : ℝ) ^ ((c.1 : ℝ) - c₀ * (c.1 : ℝ) ^ δ) + M := by
-  set K := 5 ^ ((d + 2) * (m + 2)) + 1
-  set p_root := 2 * K + 2
-  set q_root := 4 * K + 4
-  have hK2 : 2 ≤ K := by
-    have : 1 ≤ 5 ^ ((d + 2) * (m + 2)) := Nat.one_le_pow _ _ (by decide)
-    omega
-  have hp_pos : (0 : ℝ) < p_root := by positivity
-  have hq_pos : (0 : ℝ) < q_root := by positivity
-  have hp_lt_q : (p_root : ℝ) < q_root := by exact_mod_cast (by omega : p_root < q_root)
-  have hp_gt1 : (1 : ℝ) < p_root := by exact_mod_cast (by omega : 1 < p_root)
+  obtain ⟨hq_nat, hq_pos, hpq_inv, hp_inv_lt1⟩ := acc0RootParams_spec d m
   obtain ⟨T, _, M, hcomp, hT_guard, _⟩ := computableInO_acc0Decider d hm
-  refine ⟨(q_root : ℝ)⁻¹, (p_root : ℝ)⁻¹, 1 / 2,
-    inv_pos.2 hq_pos, inv_strictAnti₀ hp_pos hp_lt_q, inv_lt_one_of_one_lt₀ hp_gt1, by norm_num,
-    acc0Decider d m p_root q_root, T, hcomp, fun c hd hsize => ?_, M, fun c hd hsize => ?_⟩
-  · have hguard := acc0Guard_of_rpow (by omega : q_root ≠ 0) c hd hsize
-    rw [acc0Decider_eq_true_iff d hm p_root q_root c]
-    have hL := (acc0Guard_eq_true_iff d q_root c).1 hguard
+  refine ⟨(acc0RootQ d m : ℝ)⁻¹, (acc0RootP d m : ℝ)⁻¹, 1 / 2,
+    inv_pos.2 hq_pos, hpq_inv, hp_inv_lt1, by norm_num,
+    acc0Decider d m (acc0RootP d m) (acc0RootQ d m), T, hcomp,
+    fun c hd hsize => ?_, M, fun c hd hsize => ?_⟩
+  · have hguard := acc0Guard_of_rpow hq_nat.ne' c hd hsize
+    rw [acc0Decider_eq_true_iff d hm (acc0RootP d m) (acc0RootQ d m) c]
+    have hL := (acc0Guard_eq_true_iff d (acc0RootQ d m) c).1 hguard
     simp only [ACC0SAT, Set.mem_ofPred_eq]
     exact ⟨fun h => h.1, fun h => ⟨h, hd, hL.2⟩⟩
-  · exact hT_guard c (acc0Guard_of_rpow (by omega : q_root ≠ 0) c hd hsize)
+  · exact hT_guard c (acc0Guard_of_rpow hq_nat.ne' c hd hsize)
 
 /-- **Williams's Theorem 4.1 (`DecidableInTimeO` language form)**: for every constant depth `d` and
 modulus `m > 0`, there exist `q > 0`, `0 < δ < 1`, `c₀ > 0`, and `e` such that `ACC0SAT d m q`
-(which contains all depth-`≤ d` `ACC⁰[m]` circuits of encoding length at most `2 ^ (n ^ (1 / q))`)
-is decidable in time `O(2 ^ (n - c₀ * n ^ δ))` on guarded instances plus `O((|enc c| + 1) ^ e)`. -/
+(which contains all satisfiable depth-`≤ d` `ACC⁰[m]` circuits of encoding length at most
+`2 ^ (n ^ (1 / q))`) is decidable in time `O(2 ^ (n - c₀ * n ^ δ))` on guarded instances plus
+`O((|enc c| + 1) ^ e)`. -/
 theorem decidableInTimeO_ACC0SAT (d : ℕ) {m : ℕ} (hm : 0 < m) :
     ∃ (q : ℕ) (δ c₀ : ℝ) (e : ℕ), 0 < q ∧ (q : ℝ)⁻¹ < δ ∧ δ < 1 ∧ 0 < c₀ ∧
       DecidableInTimeO (ACC0SAT d m q) (Unbounded.encExtCircuit 1) fun c =>
         (if c.2.depth ≤ d ∧ (Unbounded.encExtCircuit 1 c).length ≤ 2 ^ (Nat.nthRoot q c.1 + 1)
           then (2 : ℝ) ^ ((c.1 : ℝ) - c₀ * (c.1 : ℝ) ^ δ) else 0) +
         ((Unbounded.encExtCircuit 1 c).length + 1 : ℝ) ^ e := by
-  set K := 5 ^ ((d + 2) * (m + 2)) + 1
-  set p_root := 2 * K + 2
-  set q_root := 4 * K + 4
-  have hK2 : 2 ≤ K := by
-    have : 1 ≤ 5 ^ ((d + 2) * (m + 2)) := Nat.one_le_pow _ _ (by decide)
-    omega
-  have hp_pos : (0 : ℝ) < p_root := by positivity
-  have hp_lt_q : (p_root : ℝ) < q_root := by exact_mod_cast (by omega : p_root < q_root)
-  have hp_gt1 : (1 : ℝ) < p_root := by exact_mod_cast (by omega : 1 < p_root)
+  obtain ⟨hq_nat, _, hpq_inv, hp_inv_lt1⟩ := acc0RootParams_spec d m
   obtain ⟨T, e, M, hcomp, hT_guard, hT_noguard⟩ := computableInO_acc0Decider d hm
-  refine ⟨q_root, (p_root : ℝ)⁻¹, 1 / 2, e, by omega,
-    inv_strictAnti₀ hp_pos hp_lt_q, inv_lt_one_of_one_lt₀ hp_gt1, by norm_num, ?_⟩
-  have hbase : DecidableInTimeO (ACC0SAT d m q_root) (Unbounded.encExtCircuit 1)
+  refine ⟨acc0RootQ d m, (acc0RootP d m : ℝ)⁻¹, 1 / 2, e, hq_nat,
+    hpq_inv, hp_inv_lt1, by norm_num, ?_⟩
+  have hbase : DecidableInTimeO (ACC0SAT d m (acc0RootQ d m)) (Unbounded.encExtCircuit 1)
       (fun c => (T c : ℝ)) :=
     DecidableInTimeO.of_computableInO hcomp
-      (fun c => (acc0Decider_eq_true_iff d hm p_root q_root c).symm)
+      (fun c => (acc0Decider_eq_true_iff d hm (acc0RootP d m) (acc0RootQ d m) c).symm)
       (fun _ => le_rfl)
   refine hbase.mono M (fun c => ?_) (fun c => by split_ifs <;> positivity)
   by_cases hg : c.2.depth ≤ d ∧
-      (Unbounded.encExtCircuit 1 c).length ≤ 2 ^ (Nat.nthRoot q_root c.1 + 1)
-  · have htrue : acc0Guard d q_root c = true := (acc0Guard_eq_true_iff d q_root c).2 hg
+      (Unbounded.encExtCircuit 1 c).length ≤ 2 ^ (Nat.nthRoot (acc0RootQ d m) c.1 + 1)
+  · have htrue : acc0Guard d (acc0RootQ d m) c = true :=
+      (acc0Guard_eq_true_iff d (acc0RootQ d m) c).2 hg
     have hle := hT_guard c htrue
     simp only [hg, and_self, ↓reduceIte]
     have hpos : (0 : ℝ) ≤ ((Unbounded.encExtCircuit 1 c).length + 1 : ℝ) ^ e := by positivity
     nlinarith only [hle, hpos, (Nat.cast_nonneg M : (0 : ℝ) ≤ M)]
-  · have hfalse : acc0Guard d q_root c = false := by
-      cases h : acc0Guard d q_root c
+  · have hfalse : acc0Guard d (acc0RootQ d m) c = false := by
+      cases h : acc0Guard d (acc0RootQ d m) c
       · rfl
-      · exact absurd ((acc0Guard_eq_true_iff d q_root c).1 h) hg
+      · exact absurd ((acc0Guard_eq_true_iff d (acc0RootQ d m) c).1 h) hg
     have hle := hT_noguard c hfalse
     simp only [hg, ↓reduceIte, zero_add]
     exact hle

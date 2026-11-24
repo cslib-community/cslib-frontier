@@ -76,12 +76,17 @@ number of AND gates satisfied by the input with true positions `T` is
   evaluation.
 * `Cslib.Circuits.Boolean.SymAnd.SymAndInstance`, `.encSymAndInstance`: circuit instance and
   binary-tape encoding.
+* `Cslib.Circuits.Boolean.SymAnd.SymAndInstance.countList`: the satisfied-AND counts across all
+  `2 ^ x.n` inputs, independent of `out`.
 * `Cslib.Circuits.Boolean.SymAnd.SymAndInstance.truthTableList`: the truth table as a `List Bool`.
 
 ## Main results
 
 * `Cslib.Circuits.Boolean.SymAnd.count_eq_subsetZeta`: the AND count is a zeta transform.
 * `Cslib.Circuits.Boolean.SymAnd.truthTable_eq`: correctness of pure `truthTable`.
+* `Cslib.Circuits.Boolean.SymAnd.computableInO_countList`: multi-tape Turing machine Yates zeta
+  evaluation of `SymAndInstance.countList` in time and space
+  `O((2 ^ n + (|enc x| + 1) ^ c) * (n + 1) ^ c)`.
 * `Cslib.Circuits.Boolean.SymAnd.computableInO_truthTableList_of_computableInO`: Williams's
   Evaluation Lemma on multi-tape Turing machines, parametric in a `ComputableInO` evaluator `out`.
 * `Cslib.Circuits.Boolean.SymAnd.computableInO_truthTableList`: Williams's Evaluation Lemma for any

@@ -7268,6 +7268,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.MulMonotonePow
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.NthRoot
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.OneAddRpow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.PolynomialSwitch
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.RationalRamp
