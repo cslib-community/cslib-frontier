@@ -101,19 +101,32 @@ theorem wordRankType_append_cons {n : ℕ} {u₁ u₂ v₁ v₂ : List α} (c : 
   wordRankType_eq_iff.2 <|
     WordDuplicatorWins.append_cons c (wordRankType_eq_iff.1 h₁) (wordRankType_eq_iff.1 h₂)
 
+/-- Middle symbol `t.2.1` of a splitting triple `(T₁, c, T₂)`. -/
+abbrev splitSym {n : ℕ}
+    (t : FO.RankType (wordLanguage α) n 0 × α × FO.RankType (wordLanguage α) n 0) : α :=
+  t.2.1
+
+/-- Right rank-`n` type `t.2.2` of a splitting triple `(T₁, c, T₂)`. -/
+abbrev splitRight {n : ℕ}
+    (t : FO.RankType (wordLanguage α) n 0 × α × FO.RankType (wordLanguage α) n 0) :
+    FO.RankType (wordLanguage α) n 0 :=
+  t.2.2
+
 /-- The triples `(T₁, c, T₂)` that produce the one-pebble type `τ`: some (equivalently, every)
 words `u₁` of type `T₁` and `u₂` of type `T₂` give `(u₁ · c · u₂, |u₁|)` the type `τ`. -/
 def ProducesType (n : ℕ) (τ : FO.RankType (wordLanguage α) n 1)
     (t : FO.RankType (wordLanguage α) n 0 × α × FO.RankType (wordLanguage α) n 0) : Prop :=
-  ∃ u₁ u₂ : List α, wordRankType n u₁ Fin.elim0 = t.1 ∧ wordRankType n u₂ Fin.elim0 = t.2.2 ∧
-    wordRankType n (u₁ ++ t.2.1 :: u₂) ![⟨u₁.length, by simp⟩] = τ
+  ∃ u₁ u₂ : List α,
+    wordRankType n u₁ Fin.elim0 = t.1 ∧ wordRankType n u₂ Fin.elim0 = splitRight t ∧
+      wordRankType n (u₁ ++ splitSym t :: u₂) ![⟨u₁.length, by simp⟩] = τ
 
 /-- **Splitting at the pebbled position.** The words with a position of one-pebble type `τ` are
 the union of the products `L(T₁) · {c} · L(T₂)` over the triples producing `τ`. -/
 theorem pointedRankTypeLanguage_eq (n : ℕ) (τ : FO.RankType (wordLanguage α) n 1) :
     pointedRankTypeLanguage n τ =
       ⨆ t : {t // ProducesType n τ t},
-        rankTypeLanguage n t.1.1 * {[t.1.2.1]} * rankTypeLanguage n t.1.2.2 := by
+        rankTypeLanguage n t.val.1 * {[splitSym t.val]} *
+          rankTypeLanguage n (splitRight t.val) := by
   ext x
   rw [Language.mem_iSup]
   constructor

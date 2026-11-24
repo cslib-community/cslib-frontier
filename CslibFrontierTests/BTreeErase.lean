@@ -83,4 +83,29 @@ example :
       [(1, "a", .leaf), (3, "c", .leaf)])).map fun p => (p.1, p.2.toList)) =
       some ((1, "a"), [(3, "c")]) := by decide
 
+/-- Erasing the greatest key along the rightmost branch reduces with `decide` and preserves
+well-formedness. -/
+example :
+    let tr := BTree.node (.node .leaf [(1, "a", .leaf)])
+      [(2, "b", .node .leaf [(3, "c", .leaf)]), (4, "d", .node .leaf [(5, "e", .leaf)])]
+    let tr' := erase 2 5 tr
+    tr'.toList = [(1, "a"), (2, "b"), (3, "c"), (4, "d")] ∧ IsWF 2 tr' := by decide
+
+/-- `eraseMax?` returns the greatest entry and erases it along the rightmost path. -/
+example :
+    let tr := BTree.node (.node .leaf [(1, "a", .leaf)])
+      [(2, "b", .node .leaf [(3, "c", .leaf)]), (4, "d", .node .leaf [(5, "e", .leaf)])]
+    ((eraseMax? 2 tr).map fun p => (p.1, p.2.toList)) =
+      some ((5, "e"), [(1, "a"), (2, "b"), (3, "c"), (4, "d")]) := by
+  dsimp only
+  rw [eraseMax?_eq]
+  decide
+
+example {m n : Type → Type} [Monad m] [Monad n] {f : {γ : Type} → m γ → n γ}
+    (hf : Cslib.IsMonadHom m n f) (le : ℕ → ℕ → m Bool) (visit : m Unit) :
+    f (eraseRestM 2 le visit 5 .leaf (fun _ => pure .leaf) [(1, (), .leaf)]) =
+      eraseRestM 2 (fun a b => f (le a b)) (f visit) 5 .leaf
+        (fun _ => f (pure .leaf)) [(1, (), .leaf)] :=
+  hf.map_eraseRestM 2 le visit 5 .leaf _ [(1, (), .leaf)]
+
 end CslibFrontierTests.BTreeErase

@@ -43,9 +43,6 @@ namespace CslibFrontierTests.Crypto.UCPPTWrappers
 open Cslib Cslib.Crypto.Protocols.UC Cslib.Probability Turing.MultiTapeTM
 open CslibFrontierTests.Crypto.UCPPT
 
-private def msgPort : WordPort (List Bool) (List Bool) :=
-  ⟨encBits, Decoder.bits, encBits, Decoder.bits⟩
-
 private def unaryCodec : WordCodec ℕ where
   enc := encUnary
   decode := Decoder.unary.decode
