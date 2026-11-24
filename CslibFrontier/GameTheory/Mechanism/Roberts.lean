@@ -123,13 +123,30 @@ repairs the omission in [Lavi2007], Definition 12.23. -/
 /-- The **weighted Groves** (weighted VCG) mechanism ([Nisan2007], Proposition 9.31, p. 228):
 for agent `i`, with `w i ≠ 0` the payment is
 `h i b - ∑ j ≠ i, (w j / w i) * b j (f b) - c (f b) / w i`; when `w i = 0`, it is `h i b`. -/
-@[expose] noncomputable def weightedGroves [Fintype ι] [DecidableEq ι]
+noncomputable def weightedGroves [Fintype ι] [DecidableEq ι]
     (f : (ι → Ω → ℝ) → Ω) (w : ι → ℝ) (c : Ω → ℝ) (h : ι → (ι → Ω → ℝ) → ℝ) :
     Mechanism ι Ω where
   outcome := f
   payment b i :=
     if w i = 0 then h i b
     else h i b - (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j (f b) + c (f b) / w i)
+
+/-- The outcome rule of `weightedGroves f w c h` is `f`. -/
+@[simp] theorem weightedGroves_outcome [Fintype ι] [DecidableEq ι]
+    (f : (ι → Ω → ℝ) → Ω) (w : ι → ℝ) (c : Ω → ℝ) (h : ι → (ι → Ω → ℝ) → ℝ) :
+    (weightedGroves f w c h).outcome = f := by
+  unfold weightedGroves
+  rfl
+
+/-- Payment charged to agent `i` on reports `b` under `weightedGroves f w c h`. -/
+@[simp] theorem weightedGroves_payment [Fintype ι] [DecidableEq ι]
+    (f : (ι → Ω → ℝ) → Ω) (w : ι → ℝ) (c : Ω → ℝ) (h : ι → (ι → Ω → ℝ) → ℝ)
+    (b : ι → Ω → ℝ) (i : ι) :
+    (weightedGroves f w c h).payment b i =
+      if w i = 0 then h i b
+      else h i b - (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j (f b) + c (f b) / w i) := by
+  unfold weightedGroves
+  rfl
 
 private theorem affineScore_eq_add [Fintype ι] [DecidableEq ι] (w : ι → ℝ) (c : Ω → ℝ)
     (b : ι → Ω → ℝ) (i : ι) (ω : Ω) :

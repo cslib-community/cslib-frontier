@@ -118,30 +118,21 @@ theorem weightedMech21_spec :
     simp [affineScore, weights21, boosts012, b, Fin.sum_univ_two]; norm_num
   have h2 : affineScore weights21 boosts012 b 2 = 6 := by
     simp [affineScore, weights21, boosts012, b, Fin.sum_univ_two]; norm_num
-  have hout : weightedMech21.outcome b = 2 := by
-    change argmax3 (affineScore weights21 boosts012 b) = 2
-    exact argmax3_eq_of_strict fun y hy => by
+  have hr : weightedRule21 b = 2 :=
+    argmax3_eq_of_strict fun y hy => by
       fin_cases y
       · dsimp only [Fin.zero_eta, Fin.isValue]; linarith
       · dsimp only [Fin.mk_one, Fin.isValue]; linarith
       · exact absurd rfl hy
+  have hout : weightedMech21.outcome b = 2 := by
+    simp [weightedMech21, hr]
   have hp0 : weightedMech21.payment b 0 = -1 := by
-    change (if weights21 0 = 0 then (0 : ℝ) else
-      0 - (∑ j ∈ Finset.univ.erase 0, (weights21 j / weights21 0) * b j (weightedRule21 b) +
-        boosts012 (weightedRule21 b) / weights21 0)) = -1
-    have hr : weightedRule21 b = 2 := hout
-    rw [hr]
     have her : Finset.univ.erase (0 : Fin 2) = {1} := by decide
-    rw [her, Finset.sum_singleton]
+    simp only [weightedMech21, weightedGroves_payment, hr, her, Finset.sum_singleton]
     norm_num [weights21, boosts012, b]
   have hp1 : weightedMech21.payment b 1 = -6 := by
-    change (if weights21 1 = 0 then (0 : ℝ) else
-      0 - (∑ j ∈ Finset.univ.erase 1, (weights21 j / weights21 1) * b j (weightedRule21 b) +
-        boosts012 (weightedRule21 b) / weights21 1)) = -6
-    have hr : weightedRule21 b = 2 := hout
-    rw [hr]
     have her : Finset.univ.erase (1 : Fin 2) = {0} := by decide
-    rw [her, Finset.sum_singleton]
+    simp only [weightedMech21, weightedGroves_payment, hr, her, Finset.sum_singleton]
     norm_num [weights21, boosts012, b]
   exact ⟨hout, hp0, hp1⟩
 
@@ -576,8 +567,9 @@ theorem dictatorRule_roberts_nonvacuous :
     (∃ w : Fin 2 → ℝ, (∀ i, 0 ≤ w i) ∧ (∑ i, w i = 1) ∧
       ∀ (b : Fin 2 → Fin 3 → ℝ) (ω : Fin 3),
         ∑ i, w i * b i ω ≤ ∑ i, w i * b i (dictatorRule b)) := by
-  have himp : IsImplementable dictatorRule :=
-    ⟨(weightedGroves dictatorRule ![1, 0] 0 (fun _ _ => 0)).payment,
+  have himp : IsImplementable dictatorRule := by
+    rw [← weightedGroves_outcome dictatorRule ![1, 0] 0 (fun _ _ => 0)]
+    exact ⟨(weightedGroves dictatorRule ![1, 0] 0 (fun _ _ => 0)).payment,
       dictatorRule_no_positive_weights.2.2.1⟩
   exact ⟨exists_isAffineMaximizerFor_of_isImplementable (by decide)
       dictatorRule_no_positive_weights.2.1 himp,
