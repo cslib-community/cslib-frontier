@@ -21,7 +21,7 @@ with tests that answer correctly at no cost and an exact minimum spanning forest
 `msf`, so every hypothesis of Lemma 3.2 and of the invariant holds. Since `|P'| r ≤ 2n` forces
 `P' = ∅`, no vertex can get a spoke, and Lemma 3.2 then says that every edge of `B \ R'` is
 supported by the new forest: the heavier parallel edge `1`, the self-loop `3`, and edge `2` unless
-it failed its test. The comparison bound is instantiated with `cs = cf = 0`.
+it failed its test. The comparison bound is instantiated with `cs = 0` and `cf = fun _ => 0`.
 
 A second batch, with `r = 1` (`k = 1`), exercises the spoke branch. On the path `2 — 0 — 1 — 3`
 with edges `0 = {0, 2}`, `1 = {1, 3}` and `2 = {0, 1}`, weighted by their index, each vertex
@@ -117,13 +117,14 @@ example : 2 ∈ res.rejected ∨ Supported ends w ↑res.state.forest 2 := by
   · exact Or.inl h
   · exact Or.inr (supported_of_notMem_rejected h rfl)
 
-/-- The comparison bound, with tests free of comparisons (`cs = cf = 0`). -/
+/-- The comparison bound, with tests free of comparisons (`cs = 0`, `cf = fun _ => 0`). -/
 example : ((batch test msfSub 7 st univ).countQueries (LEQuery.keyOracle w) : ℝ) ≤
     468 * #(univ : Finset (Fin 4)) + #st.vertices +
       ((0 : ℕ) : ℝ) * (7 ^ 2 * √(8 * #st.vertices * #(univ : Finset (Fin 4)))) +
-      ((0 : ℕ) : ℝ) * #res.rejected +
+      ∑ _e ∈ res.rejected, ((0 : ℕ) : ℝ) +
       (msfSub (st.forest ∪ res.declared)).countQueries (LEQuery.keyOracle w) :=
-  countQueries_batch_le hw htest (fun _ _ => le_of_eq rfl) (fun _ _ => le_of_eq rfl)
+  countQueries_batch_le (cf := fun _ => 0) hw htest (fun _ _ => le_of_eq rfl)
+    (fun _ _ => le_of_eq rfl)
 
 /-! ### A batch with `k = 1`, where vertices get spokes -/
 

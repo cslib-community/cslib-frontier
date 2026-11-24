@@ -17,7 +17,7 @@ Algorithm 1 of [Khanna, Putterman and Song][KhannaPuttermanSong2026] (§3.1, p. 
 `Cslib.Query.Certificate.certificate cfg inst` in `FreeM (LEQuery E)`, generic over the schedule,
 the preference estimator and the exact minimum spanning forest subroutine bundled in
 `cfg : Cslib.Query.Certificate.Config V E`, and over the constant `γ` of the parameters
-`t = γ d³`, `r = 8 t³` (p. 12).
+`t = γ d³`, `r = 8 t³` (p. 13).
 
 A call on an instance with edges runs `t²` rounds (`Cslib.Query.Certificate.runRounds`), threading
 a `Cslib.Query.Certificate.Snapshot`: the state of M6 (`Cslib.Query.Certificate.State`: portals,
