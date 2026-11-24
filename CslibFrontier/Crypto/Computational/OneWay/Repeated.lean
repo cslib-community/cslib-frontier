@@ -19,10 +19,13 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Repeated one-way functions
@@ -178,6 +181,17 @@ private theorem slotInverter_toTyped_one_eq_interpret {f : List Bool → List Bo
     ProbComp.eval_pure] using
     hr (front ++ [] :: back) (front.map f ++ y :: back.map f)
 
+private structure InverterCtx where
+  secParam : ℕ
+  challenge : List Bool
+  slot : ℕ
+  front : List (List Bool)
+  back : List (List Bool)
+
+private enc_structure encInverterCtx : InverterCtx where
+  secParam : encUnary, challenge : encBits, slot : encUnary,
+  front : (encList encBits), back : (encList encBits)
+
 /-- `repeatedInverter` runs in strict uniform PPT whenever `f`, `t`, and `adversary` are
 polynomial-time. -/
 theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
@@ -187,79 +201,60 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
   let encNY := encPair encUnary encBits
   let encNYG := encPair encNY encUnary
   let encF := encPair encNYG (encList encBits)
-  let encAll := encPair encF (encList encBits)
+  let encAll := encInverterCtx
   have ht_ny : ComputableInPolyTime (fun p : ℕ × List Bool => t p.1) encNY encUnary :=
-    ht.comp (ComputableInPolyTime.fst encUnary encBits)
+    ht.comp (by polytime)
   have hg : IsPPTOn encNY encUnary (fun p : ℕ × List Bool => ProbComp.sampleDyadicIndex (t p.1)) :=
     isPPTOn_sampleDyadicIndex ht_ny
-  have hfront_count : ComputableInPolyTime (fun p : (ℕ × List Bool) × ℕ => p.2) encNYG encUnary :=
-    ComputableInPolyTime.snd encNY encUnary
-  have hn_nyg : ComputableInPolyTime (fun p : (ℕ × List Bool) × ℕ => p.1.1) encNYG encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp (ComputableInPolyTime.fst encNY encUnary)
   have hfront : IsPPTOn encNYG (encList encBits)
       (fun p => OracleComp.replicate p.2 (BitString.sampleList p.1.1)) :=
-    (isPPTOn_sampleList.preprocess hn_nyg).replicate hfront_count
+    (isPPTOn_sampleList.preprocess (by polytime)).replicate (by polytime)
   have hback_count : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × ℕ) × List (List Bool) => t p.1.1.1 - p.1.2 - 1) encF encUnary :=
     ComputableInPolyTime.unary_sub'
-      (ComputableInPolyTime.unary_sub'
-        (ht.comp ((ComputableInPolyTime.fst encUnary encBits).comp
-          ((ComputableInPolyTime.fst encNY encUnary).comp
-            (ComputableInPolyTime.fst encNYG (encList encBits)))))
-        ((ComputableInPolyTime.snd encNY encUnary).comp
-          (ComputableInPolyTime.fst encNYG (encList encBits))))
-      (.const 1)
-  have hn_f : ComputableInPolyTime
-      (fun p : ((ℕ × List Bool) × ℕ) × List (List Bool) => p.1.1.1) encF encUnary :=
-    hn_nyg.comp (ComputableInPolyTime.fst encNYG (encList encBits))
+      (ComputableInPolyTime.unary_sub' (ht.comp (by polytime)) (by polytime)) (.const 1)
   have hback : IsPPTOn encF (encList encBits)
       (fun p => OracleComp.replicate (t p.1.1.1 - p.1.2 - 1) (BitString.sampleList p.1.1.1)) :=
-    (isPPTOn_sampleList.preprocess hn_f).replicate hback_count
-  let prepare (a : (((ℕ × List Bool) × ℕ) × List (List Bool)) × List (List Bool)) :
-      ℕ × List Bool :=
-    (a.1.1.1.1, encList encBits (a.1.2.map f ++ a.1.1.1.2 :: a.2.map f))
-  have ha_nyg := (ComputableInPolyTime.fst encNYG (encList encBits)).comp
-    (ComputableInPolyTime.fst encF (encList encBits))
-  have ha_n : ComputableInPolyTime (fun a => a.1.1.1.1) encAll encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp
-      ((ComputableInPolyTime.fst encNY encUnary).comp ha_nyg)
-  have ha_y : ComputableInPolyTime (fun a => a.1.1.1.2) encAll encBits :=
-    (ComputableInPolyTime.snd encUnary encBits).comp
-      ((ComputableInPolyTime.fst encNY encUnary).comp ha_nyg)
-  have ha_g : ComputableInPolyTime (fun a => a.1.1.2) encAll encUnary :=
-    (ComputableInPolyTime.snd encNY encUnary).comp ha_nyg
-  have ha_front : ComputableInPolyTime (fun a => a.1.2) encAll (encList encBits) :=
-    (ComputableInPolyTime.snd encNYG (encList encBits)).comp
-      (ComputableInPolyTime.fst encF (encList encBits))
-  have ha_back : ComputableInPolyTime (fun a => a.2) encAll (encList encBits) :=
-    ComputableInPolyTime.snd encF (encList encBits)
-  have hmap_f : ∀ {l : _ → List (List Bool)},
+    (isPPTOn_sampleList.preprocess (by polytime)).replicate hback_count
+  let sampleCtx (p : (ℕ × List Bool) × ℕ) : ProbComp InverterCtx := do
+    let front ← OracleComp.replicate p.2 (BitString.sampleList p.1.1)
+    let back ← OracleComp.replicate (t p.1.1 - p.2 - 1) (BitString.sampleList p.1.1)
+    return ⟨p.1.1, p.1.2, p.2, front, back⟩
+  have hctx : IsPPTOn encNYG encAll sampleCtx := by
+    refine IsPPTOn.bind_with hfront ?_
+    refine IsPPTOn.bind_with hback ?_
+    exact (encInverterCtx_mk_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+      (by fun_prop)).isPPTOn
+  let prepare (ctx : InverterCtx) : ℕ × List Bool :=
+    (ctx.secParam, encList encBits (ctx.front.map f ++ ctx.challenge :: ctx.back.map f))
+  have ha_n : ComputableInPolyTime InverterCtx.secParam encAll encUnary := by fun_prop
+  have ha_y : ComputableInPolyTime InverterCtx.challenge encAll encBits := by fun_prop
+  have ha_g : ComputableInPolyTime InverterCtx.slot encAll encUnary := by fun_prop
+  have ha_front : ComputableInPolyTime InverterCtx.front encAll (encList encBits) := by fun_prop
+  have ha_back : ComputableInPolyTime InverterCtx.back encAll (encList encBits) := by fun_prop
+  have hmap_f : ∀ {l : InverterCtx → List (List Bool)},
       ComputableInPolyTime l encAll (encList encBits) →
-      ComputableInPolyTime (fun a => (l a).map f) encAll (encList encBits) := fun hl =>
+      ComputableInPolyTime (fun ctx => (l ctx).map f) encAll (encList encBits) := fun hl =>
     ComputableInPolyTime.mapWithInput hl (hf.comp (ComputableInPolyTime.snd encAll encBits))
   have hprepare : ComputableInPolyTime prepare encAll (encPair encUnary encBits) :=
     ha_n.prod (ComputableInPolyTime.encoding_comp (ComputableInPolyTime.listAppend'
       (hmap_f ha_front) (ComputableInPolyTime.cons' ha_y (hmap_f ha_back))))
-  let seeds (a : (((ℕ × List Bool) × ℕ) × List (List Bool)) × List (List Bool)) :
-      List (List Bool) :=
-    a.1.2 ++ [] :: a.2
+  let seeds (ctx : InverterCtx) : List (List Bool) :=
+    ctx.front ++ [] :: ctx.back
   have hseeds : ComputableInPolyTime seeds encAll (encList encBits) :=
     ComputableInPolyTime.listAppend' ha_front (ComputableInPolyTime.cons' (.const []) ha_back)
-  let handler (a : (((ℕ × List Bool) × ℕ) × List (List Bool)) × List (List Bool))
+  let handler (ctx : InverterCtx)
       (request : Unit × List Bool) (_ : Unit) : ProbComp (List Bool × Unit) :=
-    pure (if request.2.length = a.1.1.2 then []
-      else (seeds a).getD request.2.length [], ())
+    pure (if request.2.length = ctx.slot then []
+      else (seeds ctx).getD request.2.length [], ())
   have hhandler : IsPPTOn (encHandlerCall encAll encUnit encUnit) (encPair encBits encUnit)
-      (fun ⟨a, request, s⟩ => handler a request s) := by
+      (fun ⟨ctx, request, s⟩ => handler ctx request s) := by
     let encCall := encHandlerCall encAll encUnit encUnit
     have hca : ComputableInPolyTime (fun q : _ => q.1) encCall encAll :=
       ComputableInPolyTime.fst encAll (encPair (encPair encUnit encBits) encUnit)
-    have hcreq : ComputableInPolyTime (fun q : _ => q.2.1.2) encCall encBits :=
-      (ComputableInPolyTime.snd encUnit encBits).comp
-        ((ComputableInPolyTime.fst (encPair encUnit encBits) encUnit).comp
-          (ComputableInPolyTime.snd encAll (encPair (encPair encUnit encBits) encUnit)))
+    have hcreq : ComputableInPolyTime (fun q : _ => q.2.1.2) encCall encBits := by polytime
     have hans : ComputableInPolyTime
-        (fun q : _ => if q.2.1.2.length = q.1.1.1.2 then []
+        (fun q : _ => if q.2.1.2.length = q.1.slot then []
           else (seeds q.1).getD q.2.1.2.length []) encCall encBits :=
       ComputableInPolyTime.ite_decide
         (ComputableInPolyTime.unary_eq' (ComputableInPolyTime.length_bits_comp hcreq)
@@ -269,17 +264,16 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
           (ComputableInPolyTime.length_bits_comp hcreq) [])
     exact (hans.prod (.const ())).isPPTOn
   have hresources : ComputableInPolyTime
-      (fun pair : ((((ℕ × List Bool) × ℕ) × List (List Bool)) × List (List Bool)) × List Bool =>
-        (encList encBits (seeds pair.1)).length)
+      (fun pair : InverterCtx × List Bool => (encList encBits (seeds pair.1)).length)
       (encPair encAll encBits) encUnary :=
     ComputableInPolyTime.length_bits_comp
       (ComputableInPolyTime.encoding_comp
         (hseeds.comp (ComputableInPolyTime.fst encAll encBits)))
   have hrun := hadversary.run_interpret_preprocess
     (operationEncoding := encUnit) (stateEncoding := encUnit)
-    (handler := handler) (resources := fun a _ => (encList encBits (seeds a)).length)
+    (handler := handler) (resources := fun ctx _ => (encList encBits (seeds ctx)).length)
     hprepare hhandler (.const ()) (fun _ _ => True) (fun _ => trivial) hresources
-    (fun a request _ _ result hres => by
+    (fun ctx request _ _ result hres => by
       dsimp only [handler] at hres
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hres
       subst hres
@@ -288,47 +282,45 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
       split_ifs with heq
       · simp
       · rw [List.getD_eq_getElem?_getD]
-        cases hget : (seeds a)[request.2.length]? with
+        cases hget : (seeds ctx)[request.2.length]? with
         | none => simp
         | some v =>
           simpa using length_le_encList_of_mem encBits (List.mem_of_getElem? hget))
   have hpost : ComputableInPolyTime
-      (fun q : ((((ℕ × List Bool) × ℕ) × List (List Bool)) × List (List Bool)) ×
-          ((List Bool × List Bool) × Unit) =>
-        if q.2.1.1.length = q.1.1.1.2 then q.2.1.2 else [])
+      (fun q : InverterCtx × ((List Bool × List Bool) × Unit) =>
+        if q.2.1.1.length = q.1.slot then q.2.1.2 else [])
       (encPair encAll (encPair (encPair encBits encBits) encUnit)) encBits := by
     have hq_all := ComputableInPolyTime.fst encAll (encPair (encPair encBits encBits) encUnit)
-    have hq_out := (ComputableInPolyTime.fst (encPair encBits encBits) encUnit).comp
-      (ComputableInPolyTime.snd encAll (encPair (encPair encBits encBits) encUnit))
     exact ComputableInPolyTime.ite_decide
       (ComputableInPolyTime.unary_eq'
-        (ComputableInPolyTime.length_bits_comp
-          ((ComputableInPolyTime.fst encBits encBits).comp hq_out))
+        (ComputableInPolyTime.length_bits_comp (by polytime))
         (ha_g.comp hq_all))
-      ((ComputableInPolyTime.snd encBits encBits).comp hq_out)
+      (by polytime)
       (.const [])
   let body : ℕ → List Bool → ProbComp (List Bool) := fun n y => do
     let g ← ProbComp.sampleDyadicIndex (t n)
     if g < t n then do
-      let front ← OracleComp.replicate g (BitString.sampleList n)
-      let back ← OracleComp.replicate (t n - g - 1) (BitString.sampleList n)
+      let ctx ← sampleCtx ((n, y), g)
       let res ← (OracleComp.interpret
-        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-          (handler ((((n, y), g), front), back)))
-        (adversary n (encList encBits (front.map f ++ y :: back.map f)))).run ()
-      return if res.1.1.length = g then res.1.2 else []
+        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k)) (handler ctx))
+        (adversary (prepare ctx).1 (prepare ctx).2)).run ()
+      return if res.1.1.length = ctx.slot then res.1.2 else []
     else return []
-  have hbody : IsPPT encBits body := by
-    refine (hg.bind_with (IsPPTOn.ite
-      (ComputableInPolyTime.unary_lt' (ComputableInPolyTime.snd encNY encUnary)
-        (ht_ny.comp (ComputableInPolyTime.fst encNY encUnary)))
-      (hfront.bind_with (hback.bind_with (hrun.bind_with hpost.isPPTOn)))
+  have hbody : IsPPT encBits body :=
+    (hg.bind_with (IsPPTOn.ite
+      (ComputableInPolyTime.unary_lt' (by polytime) (ht_ny.comp (by polytime)))
+      (hctx.bind (hrun.bind_with
+        (second := fun ctx res => pure (if res.1.1.length = ctx.slot then res.1.2 else []))
+        hpost.isPPTOn))
       (ComputableInPolyTime.const []).isPPTOn)).isPPT
   refine hbody.congr fun n y => ?_
   simp only [body, repeatedInverter, ProbComp.eval_bind]
   refine PMF.bind_congr_on_support _ _ _ fun g _ => ?_
   split_ifs with hg
-  · exact slotInverter_toTyped_one_eq_interpret.symm
+  · simp only [sampleCtx, prepare, handler, seeds, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.bind_bind, PMF.pure_bind]
+    simpa only [ProbComp.eval_bind, ProbComp.eval_pure] using
+      slotInverter_toTyped_one_eq_interpret.symm
   · rfl
 
 /-- Tag each image with the validity bit of its argument. Two tagged images of words, one of which
@@ -352,7 +344,7 @@ private theorem eval_repeatedInversionGameOn_eq {f : List Bool → List Bool}
     (BitString.length_of_mem_support_uniformList (by
       simpa using ((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).2 y hy))
   have hmap : (xs.map (tagValid valid f n)).map List.tail = xs.map f := by
-    simp [List.map_map, Function.comp_def, tagValid]
+    simp only [List.map_map, Function.comp_def, tagValid, List.tail_cons]
   simp only [hmap]
   congr 1
   funext z
@@ -437,9 +429,6 @@ theorem OneWayOn.repeatedInversion_negligible {f : List Bool → List Bool}
       Game.succProbability (ProbComp.eval (repeatedInversionGameOn f valid t adversary n)) := by
   have hinv_neg := hf.negligible (repeatedInverter f t adversary)
     (isPPT_repeatedInverter hf.polyTime ht hadversary)
-  have hpoly : PolynomiallyBounded fun n => dyadicSize (t n) :=
-    dyadicSize_polynomiallyBounded.comp ht.polynomiallyBounded
-  exact negligible_of_le (hinv_neg.polynomiallyBounded_mul hpoly) fun n =>
-    succProbability_repeatedInversionGameOn_le f t adversary (hvalid n)
+  negligible using fun n => succProbability_repeatedInversionGameOn_le f t adversary (hvalid n)
 
 end Cslib.Crypto

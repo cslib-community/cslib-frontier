@@ -84,8 +84,7 @@ def encVariable : Variable ↪ List Bool :=
 def encPlacedClause : PlacedClause ↪ List Bool :=
   encPair (encList (encPair encVariable encBool)) (encPair encPoint (encList encRoute))
 
-attribute [local fun_prop] PlanarCompile.computable_intAdd
-  PlanarCompile.computable_natCast PlanarCompile.computable_layoutCenter
+attribute [local fun_prop] PlanarCompile.computable_layoutCenter
 
 private theorem computable_side :
     ComputableInPolyTime (fun p : Point × Point => side p.1 p.2)

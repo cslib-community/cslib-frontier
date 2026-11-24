@@ -51,25 +51,37 @@ private theorem mem_extra_union_image {X Y : Type*} [Fintype X] [DecidableEq Y]
     (extra : Finset Y) (f : X → Y) (x : X) : f x ∈ extra ∪ univ.image f :=
   mem_union_right _ (mem_image_of_mem f (mem_univ x))
 
-private def encodedAddress (extra : Finset (List Bool)) (μ : BitString 512)
+/-- The single raw oracle address queried for this representative and ring commitment. -/
+def commitmentAddress (extra : Finset (List Bool)) (μ : BitString 512)
     (r : Fin s.params.k → Poly) : commitmentAddresses s extra :=
   ⟨rawCommitment s (μ, r), mem_extra_union_image extra (rawCommitment s) (μ, r)⟩
+
+/-- The coherent and classical signers use the same raw message and packed high bits. -/
+theorem val_commitmentAddress (extra : Finset (List Bool)) (μ : BitString 512)
+    (w : Fin s.params.k → Poly) :
+    (commitmentAddress s extra μ w).val =
+      commitmentInput s (highBitsVec s.params w) (List.ofFn μ) := by
+  unfold commitmentAddress rawCommitment
+  rfl
 
 private theorem gamma_pos : 0 < s.params.γ₁ := by cases s <;> decide
 
 /-- The actual SHAKE input for a fresh ideal signing mask at a chosen message representative. -/
-noncomputable def signingAddressLaw (extra : Finset (List Bool))
+@[expose] noncomputable def signingAddressLaw (extra : Finset (List Bool))
     (A : PublicMatrix s) (μ : BitString 512) :
     PMF (commitmentAddresses s extra) :=
-  (signingMaskLaw s.params (gamma_pos s)).map fun y => encodedAddress s extra μ (moduleSISMap A y)
+  (signingMaskLaw s.params (by cases s <;> decide)).map fun y =>
+    commitmentAddress s extra μ (moduleSISMap A y)
 
-private theorem signingAddressLaw_le (extra : Finset (List Bool)) (A : PublicMatrix s)
+/-- Every encoded address has mass at most the largest rounded commitment atom. -/
+theorem signingAddressLaw_le (extra : Finset (List Bool)) (A : PublicMatrix s)
     (μ : BitString 512) (i : commitmentAddresses s extra) :
-    signingAddressLaw s extra A μ i ≤ commitmentGuessProbability s.params (gamma_pos s) A := by
+    signingAddressLaw s extra A μ i ≤
+      commitmentGuessProbability s.params (by cases s <;> decide) A := by
   classical
   let d := signingMaskLaw s.params (gamma_pos s)
   let f (y : Fin s.params.ℓ → Poly) := highBitsVec s.params (moduleSISMap A y)
-  let addr (y : Fin s.params.ℓ → Poly) := encodedAddress s extra μ (moduleSISMap A y)
+  let addr (y : Fin s.params.ℓ → Poly) := commitmentAddress s extra μ (moduleSISMap A y)
   change d.map addr i ≤ _
   by_cases hi : i ∈ (d.map addr).support
   · obtain ⟨y, _, rfl⟩ := (PMF.mem_support_map_iff ..).1 hi

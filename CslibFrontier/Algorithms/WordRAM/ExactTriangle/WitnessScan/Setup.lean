@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.StrideOmega
 
 /-!
 # Native interval-verifier initialization
@@ -37,51 +39,17 @@ theorem exec_setup {W : ℕ} (A : Args) (x : Data 32) (v : ℤ)
       y.regs Reg.rowA = A.ac + A.a * A.n + A.first ∧
       y.regs Reg.wab = Signed.encode v := by
   obtain ⟨hab, hbc, hac, hn, ha', hb', hf, hl⟩ := hx
-  have hstepA : A.a * A.n + A.n ≤ A.n * A.n := by
-    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right A.n (Nat.succ_le_of_lt ha)
-  have hstepB : A.b * A.n + A.n ≤ A.n * A.n := by
-    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right A.n (Nat.succ_le_of_lt hb)
-  have hiab : A.a * A.n + A.b < A.n * A.n := by omega
-  have hrowB : A.b * A.n + A.first ≤ A.n * A.n := by omega
-  have hrowA : A.a * A.n + A.first ≤ A.n * A.n := by omega
-  have hmulA : A.a * A.n ≤ A.n * A.n := Nat.mul_le_mul_right _ ha.le
-  have hmulB : A.b * A.n ≤ A.n * A.n := Nat.mul_le_mul_right _ hb.le
-  have h1 : Fits W 1 := hfit.of_le (by unfold Args.addressBound; omega)
-  have hfirst : Fits W A.first := hfit.of_le (by unfold Args.addressBound; omega)
-  have hmA : Fits W (A.a * A.n) := hfit.of_le (by unfold Args.addressBound; omega)
-  have hmB : Fits W (A.b * A.n) := hfit.of_le (by unfold Args.addressBound; omega)
-  have hpair : Fits W (A.a * A.n + A.b) := hfit.of_le (by unfold Args.addressBound; omega)
-  have hpaddr : Fits W (A.a * A.n + A.b + A.ab) :=
-    hfit.of_le (by unfold Args.addressBound; omega)
-  have hrB : Fits W (A.b * A.n + A.first) :=
-    hfit.of_le (by unfold Args.addressBound; omega)
-  have hrA : Fits W (A.a * A.n + A.first) :=
-    hfit.of_le (by unfold Args.addressBound; omega)
-  have hpB : Fits W (A.b * A.n + A.first + A.bc) :=
-    hfit.of_le (by unfold Args.addressBound; omega)
-  have hpA : Fits W (A.a * A.n + A.first + A.ac) :=
-    hfit.of_le (by unfold Args.addressBound; omega)
+  have hiab : A.a * A.n + A.b < A.n * A.n := by stride_omega
+  have hrowB : A.b * A.n + A.first ≤ A.n * A.n := by stride_omega
+  have hrowA : A.a * A.n + A.first ≤ A.n * A.n := by stride_omega
   have hread' : x.mem (A.a * A.n + A.b + A.ab) = Signed.encode v := by
     simpa only [Nat.add_comm] using hread
-  let y := x.set Reg.one 1 |>.set Reg.zero 0 |>.set Reg.found 0 |>.set Reg.index 0
-    |>.set Reg.witness A.first |>.set Reg.address (A.a * A.n)
-    |>.set Reg.address (A.a * A.n + A.b) |>.set Reg.address (A.a * A.n + A.b + A.ab)
-    |>.set Reg.wab (Signed.encode v) |>.set Reg.rowB (A.b * A.n)
-    |>.set Reg.rowB (A.b * A.n + A.first) |>.set Reg.rowB (A.b * A.n + A.first + A.bc)
-    |>.set Reg.rowA (A.a * A.n) |>.set Reg.rowA (A.a * A.n + A.first)
-    |>.set Reg.rowA (A.a * A.n + A.first + A.ac)
-  have he : ExecWithin W setup x y 15 := by
-    ram_eval [setup, y, hab, hbc, hac, hn, ha', hb', hf, hl, hread',
-      h1, hfirst, hmA, hmB, hpair, hpaddr, hrA, hrB, hpA, hpB,
-      Reg.one, Reg.zero, Reg.found, Reg.index, Reg.witness, Reg.address, Reg.ab, Reg.bc,
-      Reg.ac, Reg.a, Reg.b, Reg.size, Reg.first, Reg.rowA, Reg.rowB, Reg.wab, Reg.length,
-      Fin.mk.injEq]
-  refine ⟨y, he, ?_, rfl, ?_⟩
-  · simpa +decide [Args.InRegisters, y, Reg.one, Reg.zero, Reg.found, Reg.index, Reg.witness,
-      Reg.address, Reg.ab, Reg.bc, Reg.ac, Reg.a, Reg.b, Reg.size, Reg.first, Reg.rowA,
-      Reg.rowB, Reg.wab, Reg.length] using
-      (show Args.InRegisters A x from ⟨hab, hbc, hac, hn, ha', hb', hf, hl⟩)
-  · simp +decide [y, Reg.one, Reg.zero, Reg.found, Reg.index, Reg.witness, Reg.address,
-      Reg.rowA, Reg.rowB, Reg.wab, Nat.add_comm, Nat.add_left_comm]
+  dsimp only [Args.addressBound] at hfit
+  refine WP.exists_execWithin ?_
+  unfold setup
+  wram_exec [hab, hbc, hac, hn, ha', hb', hf, hl, hread']
+  unfold Args.InRegisters
+  wram_simp [hab, hbc, hac, hn, ha', hb', hf, hl]
+  exact ⟨by omega, by omega⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.WitnessScan

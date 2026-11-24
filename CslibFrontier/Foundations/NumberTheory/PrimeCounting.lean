@@ -142,51 +142,48 @@ theorem lcmUpto_add_le {m n : ℕ} (h : n ≤ m) :
 /-- Elementary upper bound `2 * lcm(1, …, n) ≤ 4 ^ n` for all `n ≥ 1`. -/
 theorem two_mul_lcmUpto_le_four_pow (n : ℕ) (hn : 1 ≤ n) :
     2 * Nat.lcmUpto n ≤ 4 ^ n := by
-  induction n using Nat.strong_induction_on with
-  | ind n ihn =>
-    rcases le_or_gt n 2 with hn2 | hn2
-    · interval_cases n <;> decide
-    · rcases n.even_or_odd with ⟨m, rfl⟩ | ⟨m, rfl⟩
-      · have hm : 1 ≤ m := by omega
-        have hlt : m < m + m := by omega
-        have hih := ihn m hlt hm
-        have hdvd := lcmUpto_add_le (le_rfl : m ≤ m)
-        have hbin : (m + m).choose m ≤ 4 ^ m := by
-          calc
-            (m + m).choose m ≤ ∑ i ∈ Finset.range (m + m + 1), (m + m).choose i :=
-              Finset.single_le_sum (fun _ _ => Nat.zero_le _)
-                (Finset.mem_range.mpr (by omega))
-            _ = 2 ^ (m + m) := Nat.sum_range_choose (m + m)
-            _ = 4 ^ m := by rw [← two_mul, pow_mul]; norm_num
+  rcases le_or_gt n 2 with hn2 | hn2
+  · interval_cases n <;> decide
+  · rcases n.even_or_odd with ⟨m, rfl⟩ | ⟨m, rfl⟩
+    · have hm : 1 ≤ m := by omega
+      have hih := two_mul_lcmUpto_le_four_pow m hm
+      have hdvd := lcmUpto_add_le (le_rfl : m ≤ m)
+      have hbin : (m + m).choose m ≤ 4 ^ m := by
         calc
-          2 * Nat.lcmUpto (m + m) ≤ 2 * (Nat.lcmUpto m * (m + m).choose m) :=
-            Nat.mul_le_mul_left 2 hdvd
-          _ = (2 * Nat.lcmUpto m) * (m + m).choose m := by ring
-          _ ≤ 4 ^ m * 4 ^ m := Nat.mul_le_mul hih hbin
-          _ = 4 ^ (m + m) := by rw [← pow_add]
-      · have hm1 : 1 ≤ m + 1 := by omega
-        have hlt : m + 1 < 2 * m + 1 := by omega
-        have hih := ihn (m + 1) hlt hm1
-        have hdvd : Nat.lcmUpto (2 * m + 1) ≤ Nat.lcmUpto (m + 1) * (2 * m + 1).choose m := by
-          have h1 : Nat.lcmUpto ((m + 1) + m) ≤
-              Nat.lcmUpto (m + 1) * ((m + 1) + m).choose (m + 1) :=
-            lcmUpto_add_le (Nat.le_succ m)
-          have hchoose : ((m + 1) + m).choose (m + 1) = (2 * m + 1).choose m := by
-            rw [Nat.choose_symm_add]
-            congr 1
-            omega
-          have h2 : (m + 1) + m = 2 * m + 1 := by omega
-          rwa [hchoose, h2] at h1
-        have hbin : (2 * m + 1).choose m ≤ 4 ^ m := Nat.choose_middle_le_pow m
-        calc
-          2 * Nat.lcmUpto (2 * m + 1) ≤ 2 * (Nat.lcmUpto (m + 1) * (2 * m + 1).choose m) :=
-            Nat.mul_le_mul_left 2 hdvd
-          _ = (2 * Nat.lcmUpto (m + 1)) * (2 * m + 1).choose m := by ring
-          _ ≤ 4 ^ (m + 1) * 4 ^ m := Nat.mul_le_mul hih hbin
-          _ = 4 ^ (2 * m + 1) := by
-            rw [← pow_add]
-            congr 1
-            omega
+          (m + m).choose m ≤ ∑ i ∈ Finset.range (m + m + 1), (m + m).choose i :=
+            Finset.single_le_sum (fun _ _ => Nat.zero_le _)
+              (Finset.mem_range.mpr (by omega))
+          _ = 2 ^ (m + m) := Nat.sum_range_choose (m + m)
+          _ = 4 ^ m := by rw [← two_mul, pow_mul]; norm_num
+      calc
+        2 * Nat.lcmUpto (m + m) ≤ 2 * (Nat.lcmUpto m * (m + m).choose m) :=
+          Nat.mul_le_mul_left 2 hdvd
+        _ = (2 * Nat.lcmUpto m) * (m + m).choose m := by ring
+        _ ≤ 4 ^ m * 4 ^ m := Nat.mul_le_mul hih hbin
+        _ = 4 ^ (m + m) := by rw [← pow_add]
+    · have hm1 : 1 ≤ m + 1 := by omega
+      have hih := two_mul_lcmUpto_le_four_pow (m + 1) hm1
+      have hdvd : Nat.lcmUpto (2 * m + 1) ≤ Nat.lcmUpto (m + 1) * (2 * m + 1).choose m := by
+        have h1 : Nat.lcmUpto ((m + 1) + m) ≤
+            Nat.lcmUpto (m + 1) * ((m + 1) + m).choose (m + 1) :=
+          lcmUpto_add_le (Nat.le_succ m)
+        have hchoose : ((m + 1) + m).choose (m + 1) = (2 * m + 1).choose m := by
+          rw [Nat.choose_symm_add]
+          congr 1
+          omega
+        have h2 : (m + 1) + m = 2 * m + 1 := by omega
+        rwa [hchoose, h2] at h1
+      have hbin : (2 * m + 1).choose m ≤ 4 ^ m := Nat.choose_middle_le_pow m
+      calc
+        2 * Nat.lcmUpto (2 * m + 1) ≤ 2 * (Nat.lcmUpto (m + 1) * (2 * m + 1).choose m) :=
+          Nat.mul_le_mul_left 2 hdvd
+        _ = (2 * Nat.lcmUpto (m + 1)) * (2 * m + 1).choose m := by ring
+        _ ≤ 4 ^ (m + 1) * 4 ^ m := Nat.mul_le_mul hih hbin
+        _ = 4 ^ (2 * m + 1) := by
+          rw [← pow_add]
+          congr 1
+          omega
+termination_by n
 
 /-- For every `n ≥ 1`, `lcm(1, …, n) < 4 ^ n`. -/
 theorem lcmUpto_lt_four_pow (n : ℕ) (hn : 1 ≤ n) :

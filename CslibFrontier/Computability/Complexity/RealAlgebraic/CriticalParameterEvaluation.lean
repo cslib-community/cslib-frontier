@@ -31,6 +31,7 @@ namespace Cslib.Complexity.RealAlgebraic
 
 open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 open MvPolynomial MvPolynomial.CriticalSystem
+open MvPolynomial.PurePower (multiplicationMatrixCharpolyCoeffNormExponent)
 
 variable {α : Type} {enc : α ↪ List Bool}
 
@@ -38,27 +39,50 @@ private theorem binarySize_polyTime {f : α → ℕ} (hf : ComputableInPolyTime 
     ComputableInPolyTime (fun w => (f w).size) enc encNat :=
   unary_to_binary.comp (binary_size.comp hf)
 
+/-- The critical-system norm budget is computable from binary arity, degree and norm data. -/
+theorem criticalSystemCoeffNormExponent_polyTime {n ell b : α → ℕ}
+    (hn : ComputableInPolyTime n enc encNat) (hell : ComputableInPolyTime ell enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => criticalSystemCoeffNormExponent (n w) (ell w) (b w))
+      enc encNat := by
+  have he := binary_add' hell (.const 1)
+  have ha := binary_mul' hn (binarySize_polyTime (binary_mul' (.const 4) hell))
+  simpa only [criticalSystemCoeffNormExponent, Function.comp_apply] using
+    binary_add' (binarySize_polyTime (binary_add' (binary_mul' (.const 3) hn) (.const 1)))
+      (binary_add' (binarySize_polyTime he) (binary_max' (binary_mul' he ha) hb))
+
+/-- The quotient characteristic-polynomial norm budget is computable in binary when
+the arity is given in unary. -/
+theorem multiplicationMatrixCharpolyCoeffNormExponent_polyTime
+    {n ell degree multiplier relations : α → ℕ}
+    (hn : ComputableInPolyTime n enc encUnary) (hell : ComputableInPolyTime ell enc encNat)
+    (hdegree : ComputableInPolyTime degree enc encNat)
+    (hmultiplier : ComputableInPolyTime multiplier enc encNat)
+    (hrelations : ComputableInPolyTime relations enc encNat) :
+    ComputableInPolyTime (fun w => multiplicationMatrixCharpolyCoeffNormExponent
+      (n w) (ell w) (degree w) (multiplier w) (relations w)) enc encNat := by
+  have hn' := unary_to_binary.comp hn
+  have hD := binary_pow' (hbase := hell) (hexponent := hn)
+  have hB := binary_add' (binary_mul' hD hdegree)
+    (binary_mul' hn' (binary_sub' hell (.const 1)))
+  have hJ := binary_mul' (binary_add' (binary_add' (binarySize_polyTime hn')
+    (binarySize_polyTime hell)) (binary_add' hrelations (.const 1))) hn'
+  have hA := binary_add' (binary_add' (binary_add'
+    (binary_mul' (binarySize_polyTime (binary_add' hB (.const 1))) hn') hJ)
+    (binary_mul' hrelations hB)) hmultiplier
+  simpa only [multiplicationMatrixCharpolyCoeffNormExponent, Function.comp_apply] using
+    binary_add' (binarySize_polyTime (binary_add' hD (.const 1))) (binary_mul' hA hD)
+
 /-- The symbolic norm exponent is polynomial-time computable with unary arity. -/
 @[fun_prop] theorem parametricValueCoeffNormExponent_polyTime {n ell b : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary) (hell : ComputableInPolyTime ell enc encNat)
     (hb : ComputableInPolyTime b enc encNat) :
     ComputableInPolyTime (fun w => parametricValueCoeffNormExponent (n w) (ell w) (b w))
       enc encNat := by
-  have hn' := unary_to_binary.comp hn
-  have he := binary_add' hell (.const 1)
-  have hD := binary_pow' (hbase := hell) (hexponent := hn)
-  have hB := binary_add' (binary_mul' hD he) (binary_mul' hn' (binary_sub' hell (.const 1)))
-  have ha := binary_mul' hn' (binarySize_polyTime (binary_mul' (.const 4) hell))
-  have hR := binary_add' (binarySize_polyTime (binary_add' (binary_mul' (.const 3) hn') (.const 1)))
-    (binary_add' (binarySize_polyTime he) (binary_max' (binary_mul' he ha) hb))
-  have hJ := binary_mul' (binary_add' (binary_add' (binarySize_polyTime hn')
-    (binarySize_polyTime hell)) (binary_add' hR (.const 1))) hn'
-  have hA := binary_add' (binary_add' (binary_add'
-    (binary_mul' (binarySize_polyTime (binary_add' hB (.const 1))) hn') hJ)
-    (binary_mul' hR hB)) hR
-  simpa only [parametricValueCoeffNormExponent, criticalSystemCoeffNormExponent,
-    Function.comp_apply] using binary_add'
-      (binarySize_polyTime (binary_add' hD (.const 1))) (binary_mul' hA hD)
+  have hnorm := criticalSystemCoeffNormExponent_polyTime (unary_to_binary.comp hn) hell hb
+  simpa only [parametricValueCoeffNormExponent, Function.comp_apply] using
+    multiplicationMatrixCharpolyCoeffNormExponent_polyTime hn hell (binary_add' hell (.const 1))
+      hnorm hnorm
 
 /-- The exponent that avoids the value-section and derivative-resultant roots is
 polynomial-time computable from binary degree and norm bounds. -/
@@ -73,21 +97,29 @@ polynomial-time computable from binary degree and norm bounds. -/
   simpa only [Polynomial.parameterExclusionExponent] using binary_add' (binary_max' hres hcut)
     (.const 1)
 
+/-- The chosen parameter's exponent is polynomial-time computable from the source bounds. -/
+@[fun_prop] theorem criticalParameterExponent_polyTime {n ell b : α → ℕ}
+    (hn : ComputableInPolyTime n enc encUnary) (hell : ComputableInPolyTime ell enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => criticalParameterExponent (n w) (ell w) (b w))
+      enc encNat := by
+  simpa only [criticalParameterExponent] using
+    parameterExclusionExponent_polyTime (binary_pow' (hbase := hell) (hexponent := hn))
+      (parametricValueCoeffNormExponent_polyTime hn hell hb)
+
 /-- Compute the chosen parameter as a residue without expanding the integer power of two. -/
 @[expose] def criticalParameterResidue (p n ell b : ℕ) : ℕ :=
   powMod p 2 (criticalParameterExponent n ell b)
 
-/-- The chosen parameter modulo `p) is polynomial-time computable from unary arity and the
+/-- The chosen parameter modulo `p` is polynomial-time computable from unary arity and the
 binary modulus, pure-power degree and input norm exponent. -/
 @[fun_prop] theorem criticalParameterResidue_polyTime {p n ell b : α → ℕ}
     (hp : ComputableInPolyTime p enc encNat) (hn : ComputableInPolyTime n enc encUnary)
     (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
     ComputableInPolyTime (fun w => criticalParameterResidue (p w) (n w) (ell w) (b w))
       enc encNat := by
-  simpa only [criticalParameterResidue, criticalParameterExponent] using
-    computableInPolyTime_powMod hp (.const 2)
-      (parameterExclusionExponent_polyTime (binary_pow' (hbase := hell) (hexponent := hn))
-        (parametricValueCoeffNormExponent_polyTime hn hell hb))
+  simpa only [criticalParameterResidue] using
+    computableInPolyTime_powMod hp (.const 2) (criticalParameterExponent_polyTime hn hell hb)
 
 /-- For a nonzero modulus, the computed residue represents the chosen integer parameter. -/
 theorem criticalParameterResidue_cast {p : ℕ} (hp : p ≠ 0) (n ell b : ℕ) :

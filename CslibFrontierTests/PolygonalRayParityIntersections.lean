@@ -8,7 +8,10 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
+import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
+import Mathlib.Analysis.Convex.PathConnected
 import Mathlib.Logic.Equiv.Fin.Rotate
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -526,5 +529,140 @@ example : (openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
     apply Complex.ext <;> simp [AffineMap.lineMap_apply_module']
     ring
   exact ⟨0, hzero 2, hzero 1⟩
+
+private def excursionStem : Route := Route.line ⟨4, 2⟩ 0
+
+private def excursionSquare : Route where
+  bends := 3
+  point i := if i.val = 1 then ⟨2, 0⟩ else if i.val = 2 then ⟨2, 2⟩ else
+    if i.val = 3 then ⟨0, 2⟩ else 0
+
+-- The connector contributes at the interior observation, but its retracing cancels it.
+example :
+    let p := (excursionStem.concat excursionSquare).concat excursionStem.reverse
+    excursionStem.rayParity 1 ⟨1, 1⟩ = true ∧
+      p.rayParity 1 ⟨1, 1⟩ = true ∧ p.rayParity 1 ⟨3, 1⟩ = false := by
+  classical
+  dsimp only
+  simp only [Route.rayParity_closed_excursion excursionStem excursionSquare rfl rfl]
+  let bit (a b z : ℂ) : Bool := if RayCrosses a b z then true else 0
+  have stemBit (z : ℂ) : excursionStem.rayParity 1 z = bit ⟨4, 2⟩ 0 z := by
+    unfold Route.rayParity rayParity
+    change (∑ i : Fin 1, if RayCrosses (1 * excursionStem.point i.castSucc)
+      (1 * excursionStem.point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_one, one_mul]
+    rfl
+  have squareBits (z : ℂ) : excursionSquare.rayParity 1 z =
+      bit 0 ⟨2, 0⟩ z + bit ⟨2, 0⟩ ⟨2, 2⟩ z + bit ⟨2, 2⟩ ⟨0, 2⟩ z + bit ⟨0, 2⟩ 0 z := by
+    unfold Route.rayParity rayParity
+    change (∑ i : Fin 4, if RayCrosses (1 * excursionSquare.point i.castSucc)
+      (1 * excursionSquare.point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_four, one_mul]
+    rfl
+  norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept]
+  exact Bool.zero_eq_false
+
+-- Distinct observations can have the same height and lie on opposite sides.
+example :
+    ∃ p : Route, p.finish = p.start ∧ p.rayParity 1 ⟨2, 3⟩ = true ∧
+      p.rayParity 1 ⟨1, 3⟩ = false ∧ p.rayParity 1 ⟨3, 3⟩ = false := by
+  classical
+  let points : Finset ℂ := {⟨1, 3⟩, ⟨2, 3⟩, ⟨3, 3⟩}
+  obtain ⟨p, -, hclosed, -, -, -, -, hcenter, houtside⟩ :=
+    Route.exists_rayParity_isolating_loop points ⟨2, 3⟩ (ε := 1) (by norm_num)
+  refine ⟨p, hclosed, hcenter, houtside _ (by simp [points]) ?_,
+    houtside _ (by simp [points]) ?_⟩
+  all_goals
+    intro h
+    have hre := congrArg Complex.re h
+    norm_num at hre
+
+-- A closed excursion based away from the observations gives the specified parity
+-- and avoids all three marked points, including the one whose bit it flips.
+example :
+    ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
+      (⟨2, 3⟩ : ℂ) ∉ p.support ∧ (⟨1, 3⟩ : ℂ) ∉ p.support ∧
+      (⟨3, 3⟩ : ℂ) ∉ p.support ∧
+      p.rayParity 1 ⟨2, 3⟩ = true ∧ p.rayParity 1 ⟨1, 3⟩ = false ∧
+      p.rayParity 1 ⟨3, 3⟩ = false := by
+  classical
+  let points : Finset ℂ := {⟨1, 3⟩, ⟨3, 3⟩}
+  have hne₀ : ∀ z ∈ points, (0 : ℂ) ≠ z := by
+    intro z hz heq
+    have hre := congrArg Complex.im heq
+    simp only [points, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with rfl | rfl <;> norm_num at hre
+  have ha : (0 : ℂ) ∉ points := fun h => hne₀ _ h rfl
+  have hac : (0 : ℂ) ≠ ⟨2, 3⟩ := by
+    intro h
+    have hre := congrArg Complex.im h
+    norm_num at hre
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  obtain ⟨p, hstart, hfinish, hs, hodd, heven⟩ :=
+    Route.exists_rayParity_isolating_excursion isOpen_univ hconn points
+      (Set.mem_univ 0) (Set.mem_univ ⟨2, 3⟩) ha hac
+  have avoids (z : ℂ) (hz : z ∈ insert ⟨2, 3⟩ points) : z ∉ p.support :=
+    fun h => (hs h).2 hz
+  refine ⟨p, hstart, hfinish, avoids _ (by simp), avoids _ (by simp [points]),
+    avoids _ (by simp [points]), hodd, heven _ (by simp [points]) ?_,
+    heven _ (by simp [points]) ?_⟩
+  all_goals
+    intro h
+    have hre := congrArg Complex.re h
+    norm_num at hre
+
+-- Two points have odd parity, while the third marked point has even parity.
+example : ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
+    p.rayParity 1 ⟨1, 1⟩ = true ∧ p.rayParity 1 ⟨3, 1⟩ = true ∧
+    p.rayParity 1 ⟨2, 1⟩ = false := by
+  classical
+  let odd : Finset ℂ := {⟨1, 1⟩, ⟨3, 1⟩}
+  let points : Finset ℂ := insert ⟨2, 1⟩ odd
+  have ha : (0 : ℂ) ∉ points := by
+    intro hz
+    simp only [points, odd, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with h | h | h <;> have hi := congrArg Complex.im h <;> norm_num at hi
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have hsub : odd ⊆ points := fun _ hz => Finset.mem_insert_of_mem hz
+  obtain ⟨p, hs, hf, -, hparity⟩ :=
+    Route.exists_rayParity_excursion_of_subset isOpen_univ hconn points odd hsub
+      (fun z _ => Set.mem_univ z) (Set.mem_univ 0) ha
+  have heven : (⟨2, 1⟩ : ℂ) ∉ odd := by
+    intro hz
+    simp only [odd, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with h | h <;> have hr := congrArg Complex.re h <;> norm_num at hr
+  refine ⟨p, hs, hf, ?_, ?_, ?_⟩
+  · rw [hparity _ (hsub (by simp [odd]))]
+    simp [odd]
+  · rw [hparity _ (hsub (by simp [odd]))]
+    simp [odd]
+  · rw [hparity _ (by simp [points])]
+    exact decide_eq_false heven
+
+-- Inserting an excursion on a two-leg route preserves its endpoint germs.
+example :
+    let p := Route.line 0 ⟨0, 1⟩
+    let q := Route.line ⟨0, 1⟩ ⟨0, 2⟩
+    ∃ r : Route, (∀ b, r.germ b = (p.concat q).germ b) ∧
+      r.rayParity 1 ⟨1, 1⟩ = (p.concat q).rayParity 1 ⟨1, 1⟩ + true := by
+  classical
+  dsimp only
+  let p := Route.line 0 ⟨0, 1⟩
+  let q := Route.line ⟨0, 1⟩ ⟨0, 2⟩
+  let c : ℂ := ⟨1, 1⟩
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have ha : p.finish ∉ ({c} : Finset ℂ) := by
+    intro h
+    have he : p.finish = c := Finset.mem_singleton.mp h
+    have hr := congrArg Complex.re he
+    norm_num [p, c] at hr
+  obtain ⟨r, -, hgerm, -, -, hray⟩ :=
+    Route.exists_concat_add_rayParity isOpen_univ hconn {c} {c} (fun _ h => h)
+      (fun z _ => Set.mem_univ z) p q rfl (Set.mem_univ p.finish) ha
+  have h := hray c (Finset.mem_singleton_self c)
+  exact ⟨r, hgerm, by simpa only [Finset.mem_singleton_self, decide_true] using h⟩
 
 end CslibFrontierTests.PolygonalRayParityIntersections

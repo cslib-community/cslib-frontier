@@ -19,6 +19,7 @@ is at most `m · ⌈log_b n⌉` (`Nat.clog_pow_le_mul`), the cost of encoding ea
 ## Main results
 
 * `Nat.clog_pow_le_mul`: `⌈log_b (n ^ m)⌉ ≤ m · ⌈log_b n⌉`.
+* `Nat.clog_le_self`: `⌈log_b n⌉ ≤ n`.
 -/
 
 public section
@@ -32,5 +33,13 @@ theorem clog_pow_le_mul (b n m : ℕ) : clog b (n ^ m) ≤ m * clog b n := by
   · refine clog_le_of_le_pow ?_
     calc n ^ m ≤ (b ^ clog b n) ^ m := Nat.pow_le_pow_left (le_pow_clog hb n) m
       _ = b ^ (m * clog b n) := by rw [← Nat.pow_mul, Nat.mul_comm]
+
+/-- Ceiling logarithm is bounded by its argument: `⌈log_b n⌉ ≤ n`. -/
+theorem clog_le_self (b n : ℕ) : clog b n ≤ n := by
+  rcases le_or_gt b 1 with hb | hb
+  · rw [clog_of_left_le_one hb]
+    exact Nat.zero_le n
+  · refine (clog_le_iff_le_pow hb).mpr ?_
+    exact n.lt_two_pow_self.le.trans (Nat.pow_le_pow_left hb n)
 
 end Nat

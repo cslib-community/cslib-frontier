@@ -72,6 +72,14 @@ def Xofs.readDigestRegister (H : Xofs) (s : Level) (x : BitString s.commitmentIn
     BitString (8 * digestBytes s) :=
   Keccak.fixedBytesEquivBitsLE _ (fun j => H.h256.byteAt (List.ofFn x) j)
 
+/-- Evaluating `Xofs.readDigestRegister` packs the first `digestBytes s` SHAKE256 bytes at `x`
+in little-endian bit order. -/
+theorem Xofs.readDigestRegister_apply (H : Xofs) (s : Level)
+    (x : BitString s.commitmentInputBits) :
+    H.readDigestRegister s x =
+      Keccak.fixedBytesEquivBitsLE _ (fun j => H.h256.byteAt (List.ofFn x) j) := by
+  rfl
+
 /-- Reading all commitment prefixes from the current streams and reinstalling them preserves every
 raw query, including SHAKE256 output beyond the digest. -/
 theorem Xofs.withDigestRegister_readDigestRegister (H : Xofs) (s : Level) :

@@ -114,6 +114,38 @@ namespace MvPolynomial.CriticalSystem
 
 open PurePower
 
+/-- Critical lower relations with constant centers are affine in the deformation parameter. -/
+theorem criticalLower_hasParameterDegree {n : ℕ} (ell : ℕ) (a : Fin n → ℤ)
+    (F : MvPolynomial (Fin n) ℤ) (i : Fin n) :
+    HasParameterDegree
+      (criticalLower ell (fun j => Polynomial.C (a j)) Polynomial.X (F.map Polynomial.C) i) 1 := by
+  have hc := HasParameterDegree.C (ι := Fin n) (Polynomial.C (a i) ^ ell) (h := 0) (by
+    rw [← map_pow, Polynomial.natDegree_C])
+  have hx := HasParameterDegree.C (ι := Fin n) (Polynomial.X : Polynomial ℤ)
+    (h := 1) Polynomial.natDegree_X.le
+  simpa only [criticalLower, Nat.add_zero, Nat.zero_max] using
+    hc.sub (hx.mul ((HasParameterDegree.map_C F).pderiv i))
+
+/-- The symbolic critical relations and objective are affine in the coefficient parameter. -/
+theorem criticalSystem_hasParameterDegree {n : ℕ} (ell : ℕ)
+    (F : MvPolynomial (Fin n) ℤ) :
+    let a (i : Fin n) := Polynomial.C (separatedCenters ell i : ℤ)
+    let G := F.map Polynomial.C
+    (∀ i, HasParameterDegree (criticalLower ell a Polynomial.X G i) 1) ∧
+      HasParameterDegree (deformedPolynomial ell a Polynomial.X G) 1 := by
+  intro a G
+  have hFparam : HasParameterDegree G 0 := HasParameterDegree.map_C F
+  constructor
+  · exact criticalLower_hasParameterDegree ell (fun i => (separatedCenters ell i : ℤ)) F
+  · have hp := HasParameterDegree.map_C
+      (potentialPolynomial ell (fun i : Fin n => (separatedCenters ell i : ℤ)))
+    rw [potentialPolynomial_map] at hp
+    have hx := HasParameterDegree.C (ι := Fin n)
+      (((ell + 1 : ℕ) : Polynomial ℤ) * Polynomial.X) (h := 1) (by
+        rw [← Polynomial.C_eq_natCast]
+        exact (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X.le)
+    simpa only [deformedPolynomial, Nat.add_zero, Nat.zero_max] using hp.add (hx.mul hFparam)
+
 /-- A symbolic critical-value coefficient has parameter degree at most
 `(ell ^ n - k) * (ell + 2 + n * ell)`. This bounds the powers of the parameter needed
 to evaluate that coefficient. -/
@@ -129,25 +161,7 @@ theorem natDegree_parametricValuePolynomial_coeff_le {n ell : ℕ} (hell : 2 ≤
   have hG : G.totalDegree ≤ d + 1 := (totalDegree_map_le Polynomial.C F).trans hF
   have hr (i : Fin n) : (r i).totalDegree ≤ d :=
     Nat.le_of_lt_succ (criticalLower_degree _ (by omega) a Polynomial.X G hG i)
-  have hFparam : HasParameterDegree G 0 := HasParameterDegree.map_C F
-  have hrparam (i : Fin n) : HasParameterDegree (r i) 1 := by
-    have hc := HasParameterDegree.C (ι := Fin n) (a i ^ (d + 1)) (h := 0) (by
-      change (Polynomial.C (separatedCenters (d + 1) i : ℤ) ^ (d + 1)).natDegree ≤ 0
-      rw [← map_pow, Polynomial.natDegree_C])
-    have hx := HasParameterDegree.C (ι := Fin n) (Polynomial.X : Polynomial ℤ)
-      (h := 1) Polynomial.natDegree_X.le
-    simpa only [r, criticalLower, Nat.add_zero, Nat.zero_max] using
-      hc.sub (hx.mul (hFparam.pderiv i))
-  have hvparam : HasParameterDegree v 1 := by
-    have hp := HasParameterDegree.map_C
-      (potentialPolynomial (d + 1) (fun i : Fin n => (separatedCenters (d + 1) i : ℤ)))
-    rw [potentialPolynomial_map] at hp
-    have hx := HasParameterDegree.C (ι := Fin n)
-      (((d + 1 + 1 : ℕ) : Polynomial ℤ) * Polynomial.X) (h := 1) (by
-        rw [← Polynomial.C_eq_natCast]
-        exact (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X.le)
-    simpa only [v, deformedPolynomial, Nat.add_zero, Nat.zero_max] using
-      hp.add (hx.mul hFparam)
+  obtain ⟨hrparam, hvparam⟩ := criticalSystem_hasParameterDegree (d + 1) F
   calc
     _ ≤ ((d + 1) ^ n - k) * (1 + ((d + 1 + 1) + n * (d + 1)) * 1) :=
       natDegree_multiplicationMatrix_charpoly_coeff_le (by omega) r hr hrparam v

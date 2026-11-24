@@ -101,12 +101,6 @@ def prefixBitT (tag : Bool) : Transducer Bool Bool where
   length_step_le state bit := by cases state <;> cases bit <;> simp
   length_final_le state := by cases state <;> simp
 
-private lemma prefixBitT_step_false (tag bit : Bool) :
-    (prefixBitT tag).step false bit = (true, [tag, bit]) := rfl
-
-private lemma prefixBitT_step_true (tag bit : Bool) :
-    (prefixBitT tag).step true bit = (true, [bit]) := rfl
-
 /-- The prefix transducer emits exactly the fixed tag followed by the input. -/
 theorem prefixBitT_run (tag : Bool) (input : List Bool) :
     (prefixBitT tag).run (prefixBitT tag).q₀ input = tag :: input := by
@@ -114,15 +108,10 @@ theorem prefixBitT_run (tag : Bool) (input : List Bool) :
     intro word
     induction word with
     | nil => rfl
-    | cons bit word ih =>
-        rw [Transducer.run_cons, prefixBitT_step_true, ih]
-        rfl
+    | cons bit word ih => exact congrArg (bit :: ·) ih
   cases input with
   | nil => rfl
-  | cons bit input =>
-      change (prefixBitT tag).run false (bit :: input) = _
-      rw [Transducer.run_cons, prefixBitT_step_false, copy]
-      rfl
+  | cons bit input => exact congrArg (tag :: bit :: ·) (copy input)
 
 /-- Retained raw-word prefix operation. -/
 @[expose] def prefixBit (tag : Bool) :

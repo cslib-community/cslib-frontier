@@ -31,7 +31,7 @@ open Cslib Cslib.Complexity Turing.MultiTapeTM MvPolynomial MvPolynomial.Critica
 
 /-- All three access programs are constructed from the same source evaluator.
 The Jacobian and lower relations require only one additional function level. -/
-private theorem criticalEvaluationAccess_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+theorem criticalEvaluationAccess_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (E : Decoder enc) {p n ell u : α → ℕ} {value : α × List ℕ → ℕ}
     (hp : ComputableInPolyTime p enc encNat) (hn : ComputableInPolyTime n enc encUnary)
     (hell : ComputableInPolyTime ell enc encNat) (hu : ComputableInPolyTime u enc encNat)
@@ -41,8 +41,9 @@ private theorem criticalEvaluationAccess_mem {α : Type} {enc : α ↪ List Bool
     ((fun q : α × List ℕ => criticalJacobianValue (p q.1) (n q.1) (ell q.1) (u q.1)
       q.2 (fun y => value (q.1, y))) ∈
       CountingFunction (a + 1) (encPair enc (encList encNat)) encNat) ∧
-    ((fun q : α × (ℕ × List ℕ) => criticalLowerValue (p q.1) (n q.1) (ell q.1) (u q.1)
-      q.2.1 q.2.2 (fun y => value (q.1, y))) ∈
+    ((fun q : α × (ℕ × List ℕ) =>
+      let (w, i, z) := q
+      criticalLowerValue (p w) (n w) (ell w) (u w) i z (fun y => value (w, y))) ∈
         CountingFunction (a + 1) (encPair enc (encPair encNat (encList encNat))) encNat) := by
   have hf := ComputableInPolyTime.fst enc (encList encNat)
   have hz := ComputableInPolyTime.snd enc (encList encNat)
@@ -142,7 +143,7 @@ theorem criticalCoefficientValue_eq {p n m : ℕ} [Fact p.Prime]
   · intro s _
     exact criticalObjectiveValue_cast F (d + 1) u _ value hv
   · intro s _
-    exact criticalJacobianValue_cast F (d + 1) u _ value hFp hp hv
+    exact criticalJacobianValue_cast F centers (d + 1) u _ value hFp hp hv
   · intro i s _
     exact criticalLowerValue_cast F (d + 1) u i _ value hFp (by omega) hv
 

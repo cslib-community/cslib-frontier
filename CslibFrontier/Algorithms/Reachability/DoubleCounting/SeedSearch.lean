@@ -61,6 +61,7 @@ controller contracts, so it covers rejection and repeated outcomes as well.
 
 * `runSeedSearchIndexed_eq`: indexed and list traversal have identical monadic outcomes.
 * `runSeedSearchIndexed_clock`: bounds the controller clock, including a rejecting call.
+* `runSeedSchedulerFrom`: resume at a seed rank and, after a designated scan, an indexed cursor.
 * `testSeed_correct`: the tested sources have one exact outcome under the controller contract.
 * `runSeedSearch_correct`: a good seed exists, so search returns the least passing seed and
   its correct Boolean, with one successful branch in the list interpretation.
@@ -161,11 +162,14 @@ private theorem findSeedFrom_eq {N : ℕ} (test : Fin N → m (Option (SeedAnswe
     funext answer
     cases answer <;> rfl
 
+private def rankedSeedTest (test : Fin (2 ^ length) → m (Option Bool)) (i : Fin (2 ^ length)) :
+    m (Option (SeedAnswer length)) := do
+  let answer ← test i
+  pure (answer.map fun b => ⟨i, b⟩)
+
 private def runSeedSearchWith
     (test : Fin (2 ^ length) → m (Option Bool)) : m (Option (SeedAnswer length)) :=
-  findSeedFrom (fun i => do
-    let answer ← test i
-    pure (answer.map fun b => ⟨i, b⟩)) (2 ^ length) 0 (by simp)
+  findSeedFrom (rankedSeedTest test) (2 ^ length) 0 (by simp)
 
 /-- Enumerate every bit seed by increasing binary value, stopping at the first seed whose
 designated and listed source controllers all pass. A successful negative answer also stops
@@ -176,16 +180,146 @@ def runSeedSearch
   runSeedSearchWith fun i =>
     testSeed (controller ((BitString.equivFin length).symm i)) sources source
 
+private def testScheduledSeed {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) (i : Fin (2 ^ length)) :
+    m (Option Bool) :=
+  testSeedWith (scan i none) source fun answer =>
+    checkSourcesFrom (fun position => scan i (some (position, answer))) source sourceAt count 0
+      (by simp)
+
 /-- Run the seed and source counters with a callback on the binary seed number, the
 optional source position and retained designated answer, and the source ID. The absent
 position denotes the designated scan. The callback's effects preserve branch multiplicity. -/
 def runSeedScheduler {count : ℕ}
     (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
     (sourceAt : Fin count → Fin n) (source : Fin n) : m (Option (SeedAnswer length)) :=
-  runSeedSearchWith fun i =>
-    testSeedWith (scan i none) source fun answer =>
-      checkSourcesFrom (fun position => scan i (some (position, answer))) source sourceAt count 0
-        (by simp)
+  runSeedSearchWith (testScheduledSeed scan sourceAt source)
+
+private def findSeedFromRank {N : ℕ} (test : Fin N → m (Option (SeedAnswer length)))
+    (seed : ℕ) : m (Option (SeedAnswer length)) :=
+  if hs : seed ≤ N then findSeedFrom test (N - seed) seed (by omega) else pure none
+
+private theorem findSeedFromRank_step {N : ℕ} (test : Fin N → m (Option (SeedAnswer length)))
+    {seed : ℕ} (hs : seed < N) :
+    findSeedFromRank test seed = (do
+      match ← test ⟨seed, hs⟩ with
+      | some answer => pure (some answer)
+      | none => findSeedFromRank test (seed + 1)) := by
+  have hcount : N - seed = (N - (seed + 1)) + 1 := by omega
+  simp only [findSeedFromRank, dite_eq_left hs.le,
+    dite_eq_left (Nat.succ_le_of_lt hs), hcount, findSeedFrom]
+
+private def checkScheduledFrom {count : ℕ}
+    (controller : Fin count → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) (cursor : ℕ) : m Bool :=
+  if hc : cursor ≤ count then
+    checkSourcesFrom controller source sourceAt (count - cursor) cursor (by omega)
+  else pure true
+
+private theorem checkScheduledFrom_step {count : ℕ}
+    (controller : Fin count → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) {cursor : ℕ} (hc : cursor < count) :
+    checkScheduledFrom controller sourceAt source cursor =
+      if sourceAt ⟨cursor, hc⟩ = source then
+        checkScheduledFrom controller sourceAt source (cursor + 1)
+      else (do
+        if ← sourceGood (controller ⟨cursor, hc⟩) (sourceAt ⟨cursor, hc⟩) then
+          checkScheduledFrom controller sourceAt source (cursor + 1)
+        else pure false) := by
+  have hcount : count - cursor = (count - (cursor + 1)) + 1 := by omega
+  simp only [checkScheduledFrom, dite_eq_left hc.le,
+    dite_eq_left (Nat.succ_le_of_lt hc), hcount, checkSourcesFrom, beq_iff_eq]
+
+/-- Resume the same monadic seed search at a binary rank. With no retained answer, start with
+the designated scan. A pair of cursor and answer resumes the indexed roots for that seed,
+after which later seeds still start with their designated scan. -/
+def runSeedSchedulerFrom {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) (seed : ℕ)
+    (phase : Option (ℕ × Bool)) : m (Option (SeedAnswer length)) :=
+  let later := findSeedFromRank (rankedSeedTest (testScheduledSeed scan sourceAt source))
+  match phase with
+  | none => later seed
+  | some (cursor, answer) =>
+    if hs : seed < 2 ^ length then do
+      let i := (⟨seed, hs⟩ : Fin (2 ^ length))
+      let others ← checkScheduledFrom (fun j => scan i (some (j, answer))) sourceAt source cursor
+      if others then pure (some ⟨i, answer⟩) else later (seed + 1)
+    else pure none
+
+/-- Starting at the designated scan of rank zero gives the original seed search. -/
+theorem runSeedSchedulerFrom_start {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) :
+    runSeedSchedulerFrom scan sourceAt source 0 none = runSeedScheduler scan sourceAt source := by
+  simp [runSeedSchedulerFrom, runSeedScheduler, findSeedFromRank, runSeedSearchWith]
+
+/-- A rank at or above the exclusive limit exhausts the seed search. -/
+theorem runSeedSchedulerFrom_exhausted {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) {seed : ℕ} (hs : 2 ^ length ≤ seed)
+    (phase : Option (ℕ × Bool)) :
+    runSeedSchedulerFrom scan sourceAt source seed phase = pure none := by
+  cases phase with
+  | none =>
+    simp only [runSeedSchedulerFrom, findSeedFromRank, Nat.sub_eq_zero_of_le hs, findSeedFrom]
+    split_ifs <;> rfl
+  | some p =>
+    rcases p with ⟨cursor, answer⟩
+    simp [runSeedSchedulerFrom, Nat.not_lt.mpr hs]
+
+/-- A designated scan's pure verdict advances the seed on a tie, or starts the indexed roots
+with the designated answer. -/
+theorem runSeedSchedulerFrom_designated [LawfulMonad m] {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) {seed : ℕ} (hs : seed < 2 ^ length)
+    (verdict : ControllerVerdict) (hscan : scan ⟨seed, hs⟩ none source = pure (some verdict)) :
+    runSeedSchedulerFrom scan sourceAt source seed none =
+      match verdict with
+      | .bad _ => runSeedSchedulerFrom scan sourceAt source (seed + 1) none
+      | .decided b => runSeedSchedulerFrom scan sourceAt source seed (some (0, b)) := by
+  simp only [runSeedSchedulerFrom, findSeedFromRank_step _ hs]
+  cases verdict with
+  | bad _ => simp [rankedSeedTest, testScheduledSeed, testSeedWith, hscan]
+  | decided answer =>
+    simp only [rankedSeedTest, testScheduledSeed, testSeedWith, hscan, pure_bind, bind_assoc,
+      checkScheduledFrom, dite_eq_left hs, dite_eq_left (Nat.zero_le _), Nat.sub_zero]
+    congr 1
+    funext passes
+    cases passes <;> simp
+
+/-- Once all indexed roots have passed, the retained designated answer is returned at the
+current seed. -/
+theorem runSeedSchedulerFrom_indexed_done [LawfulMonad m] {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) {seed cursor : ℕ}
+    (hs : seed < 2 ^ length) (hc : count ≤ cursor) (answer : Bool) :
+    runSeedSchedulerFrom scan sourceAt source seed (some (cursor, answer)) =
+      pure (some ⟨⟨seed, hs⟩, answer⟩) := by
+  simp [runSeedSchedulerFrom, hs, checkScheduledFrom, Nat.sub_eq_zero_of_le hc, checkSourcesFrom]
+
+/-- An indexed step skips the designated source or consumes its own pure verdict. A tie
+advances to the next seed. A skip or decided verdict advances the cursor with the retained
+designated answer. -/
+theorem runSeedSchedulerFrom_indexed [LawfulMonad m] {count : ℕ}
+    (scan : Fin (2 ^ length) → Option (Fin count × Bool) → Fin n → m (Option ControllerVerdict))
+    (sourceAt : Fin count → Fin n) (source : Fin n) {seed cursor : ℕ}
+    (hs : seed < 2 ^ length) (hc : cursor < count) (answer : Bool)
+    (reply : Option ControllerVerdict) (hskip : reply.isNone ↔ sourceAt ⟨cursor, hc⟩ = source)
+    (hscan : ∀ value, reply = some value →
+      scan ⟨seed, hs⟩ (some (⟨cursor, hc⟩, answer)) (sourceAt ⟨cursor, hc⟩) = pure (some value)) :
+    runSeedSchedulerFrom scan sourceAt source seed (some (cursor, answer)) =
+      match reply with
+      | some (.bad _) => runSeedSchedulerFrom scan sourceAt source (seed + 1) none
+      | _ => runSeedSchedulerFrom scan sourceAt source seed (some (cursor + 1, answer)) := by
+  simp only [runSeedSchedulerFrom, dite_eq_left hs, checkScheduledFrom_step _ _ _ hc]
+  cases reply with
+  | none => simp [hskip.mp rfl]
+  | some value =>
+    have hne : sourceAt ⟨cursor, hc⟩ ≠ source := fun he => by simpa using hskip.mpr he
+    cases value <;> simp [hne, sourceGood, hscan _ rfl]
+
 
 /-- Search with sources supplied by their positions. The traversal keeps a cursor and
 remaining count, requesting each source only after the preceding checks have passed. -/
@@ -284,14 +418,10 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
         apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
         intro good t
         cases good <;> exact Nat.le_refl _
-  let test (i : Fin (2 ^ length)) : OptionT (StateM σ) (Option (SeedAnswer length)) := do
-    let answer ← testSeedWith (scan i none) source (fun answer =>
-      checkSourcesFrom (fun position => scan i (some (position, answer)))
-        source sourceAt count 0 (by simp))
-    pure (answer.map fun b => ⟨i, b⟩)
+  let test := rankedSeedTest (testScheduledSeed scan sourceAt source)
   let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
-    unfold test
+    unfold test rankedSeedTest
     rw [← Nat.add_zero budget]
     exact bind_optionT_clock clock budget 0 _ _ (htest _) (fun _ _ => Nat.le_refl _) t
   have hloop (remaining cursor : ℕ) (h : cursor + remaining ≤ 2 ^ length) (t : σ) :
@@ -419,16 +549,13 @@ theorem runSeedSearch_correct (sources : List (Fin n))
         (show (⟨j, by omega⟩ : Fin (2 ^ length)) < i from hj)
       simpa using hn
   have htest (j : Fin (2 ^ length)) :
-      (do
-        let answer ← testSeed (controller (bits j)) sources source
-        pure (answer.map fun b => (⟨j, b⟩ : SeedAnswer length))) =
-      pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer) := by
-    rw [testSeed_correct sources (hc (bits j))]
+      rankedSeedTest (fun k => testSeed (controller (bits k)) sources source) j =
+        pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer) := by
+    rw [rankedSeedTest, testSeed_correct sources (hc (bits j))]
     by_cases h : good j <;> simp [Option.guard, good, makeAnswer, h]
   have hscan : runSeedSearch controller sources source =
-      (List.finRange (2 ^ length)).findSomeM? (fun i => do
-        let answer ← testSeed (controller (bits i)) sources source
-        pure (answer.map fun b => ⟨i, b⟩)) := by
+      (List.finRange (2 ^ length)).findSomeM?
+        (rankedSeedTest (fun j => testSeed (controller (bits j)) sources source)) := by
     simp only [runSeedSearch, runSeedSearchWith, findSeedFrom_eq, Nat.zero_add, List.finRange, bits]
   have hrun : runSeedSearch controller sources source =
       pure (((List.finRange (2 ^ length)).find? (fun j => decide (good j))).map makeAnswer) := by

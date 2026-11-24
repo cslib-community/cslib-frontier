@@ -56,6 +56,12 @@ RATCHET_ROOT = "CslibFrontier/"
 # `lake lint` runs this driver; quick mode passes it flags that only Batteries' runLinter accepts.
 LINT_DRIVER = "batteries/runLinter"
 
+# Default thresholds for `--lint-only`: each scoped target runs its own `runLinter` process, so
+# wide/high-fan-out plans fall back to a single whole-library `lake lint` when scoped linting would
+# launch too many processes or cover too many modules.
+DEFAULT_LINT_MAX_TARGETS = 8
+DEFAULT_LINT_MAX_MODULES = 200
+
 # Exit status for `--no-full-fallback` when the change needs the full check; argparse uses 2.
 NO_FALLBACK_STATUS = 3
 
@@ -260,21 +266,47 @@ def mixed_prose(path: str) -> bool:
                 and path != "manual/programs-crypto-and-probability/assumptions.md"))
 
 
-def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *, focused=False) -> Plan:
+def _recorded_head_parents(root: Path) -> set[str]:
+    """Commit SHAs recorded in `HEAD`'s `parent` headers (ignoring `.git/shallow` grafts)."""
+    parents: set[str] = set()
+    for line in git(root, "cat-file", "-p", "HEAD").splitlines():
+        if not line:
+            break
+        if line.startswith("parent "):
+            parents.add(line.split(" ", 1)[1].strip())
+    return parents
+
+
+def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *,
+              focused: bool = False, allow_prose_only: bool = False) -> Plan:
     if git(root, "ls-files", "--unmerged", "-z"):
         raise FullCheck("unresolved merge entries")
     reference = git(root, "rev-parse", "--verify", "--end-of-options", f"{base_ref}^{{commit}}").strip()
-    bases = git(root, "merge-base", "--all", reference, "HEAD").splitlines()
-    if len(bases) != 1:
-        raise FullCheck("comparison needs exactly one merge base")
-    base = bases[0]
+    merge_base = subprocess.run(
+        ["git", "merge-base", "--all", reference, "HEAD"],
+        cwd=root, capture_output=True, text=True,
+    )
+    if merge_base.returncode == 0 and "ambiguous" not in merge_base.stderr.lower():
+        bases = merge_base.stdout.splitlines()
+        if len(bases) != 1:
+            raise FullCheck("comparison needs exactly one merge base")
+        base = bases[0]
+    elif (merge_base.returncode == 1
+          and git(root, "rev-parse", "--is-shallow-repository").strip() == "true"
+          and reference in _recorded_head_parents(root)):
+        # In a shallow `depth=1` CI checkout (`actions/checkout`), `HEAD` and its fetched parent
+        # are both grafted in `.git/shallow`, so `git merge-base` returns 1 even though `reference`
+        # is literally a direct parent recorded in `HEAD`'s commit header.
+        base = reference
+    else:
+        raise FullCheck(f"Git cannot resolve merge-base safely: {merge_base.stderr.strip()}")
     fields = git(root, "diff", "--no-ext-diff", "--no-renames", "--name-status", "-z", base, "--").split("\0")
     fields = fields[:-1] if fields[-1] == "" else fields
     if len(fields) % 2:
         raise FullCheck("unexpected Git change-list format")
     changes = list(zip(fields[::2], fields[1::2]))
     changes += [("A", p) for p in git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0") if p]
-    mixed = any(path.endswith(".lean") for _, path in changes)
+    mixed = allow_prose_only or any(path.endswith(".lean") for _, path in changes)
     prose = {path for _, path in changes if mixed_prose(path)} if mixed else set()
     for status, path in changes:
         if status not in {"A", "M"}:
@@ -286,7 +318,7 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *, focused
             raise FullCheck(f"non-Lean change: {path}")
     checks = [(label, [base if part == "{base}" else part for part in command])
               for path, (label, command) in DATA_CHECKS.items() if path in {p for _, p in changes}]
-    if "references.bib" in prose:
+    if "references.bib" in prose and not allow_prose_only:
         # Removed or edited entries can break existing compiled inventories. Limit the local
         # route to inserting lines, the common case when a paper is cited for the first time.
         new_lines = iter((root / "references.bib").read_text().splitlines())
@@ -335,20 +367,12 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *, focused
                                  (root / modules[aggregate]).read_text(), added - aggregates):
             raise FullCheck(f"library import aggregate {aggregate} changed beyond imports of "
                             "modules this change adds")
+    if allow_prose_only and not changed:
+        lint = lint_scope(root, aggregates, set(), defaultdict(set))
+        return Plan(base, [], checks, lint)
     executables = executable_sources(root)
     imports = (parser or imports_from_lean)(
         root, list(dict.fromkeys([*by_path, *(exe.path for exe in executables)])))
-    executable_targets: set[str] = set()
-    if changed:
-        for exe in executables:
-            # A helper outside the library graph may import a changed module indirectly.
-            # Build its executable conservatively instead of silently omitting that client.
-            if by_path.get(exe.path) in changed or any(
-                    any(dependency == r or dependency.startswith(r + ".") for r in roots) or any(
-                        (directory / Path(*dependency.split(".")).with_suffix(".lean")).exists()
-                        for directory in (exe.source, root))
-                    for dependency in imports[exe.path]):
-                executable_targets.add(exe.target)
     reverse: dict[str, set[str]] = defaultdict(set)
     for path, dependencies in imports.items():
         if path not in by_path:
@@ -366,21 +390,47 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *, focused
             if consumer not in affected:
                 affected.add(consumer)
                 queue.append(consumer)
+    executable_targets: set[str] = set()
+    executable_local_imports: set[str] = set()
+    unindexed_executable_helper = False
+    for exe in executables:
+        exe_affected = by_path.get(exe.path) in affected
+        for dependency in imports[exe.path]:
+            if any(dependency == r or dependency.startswith(r + ".") for r in roots):
+                if dependency not in modules:
+                    raise FullCheck(f"missing local import {dependency} in {exe.path}")
+                executable_local_imports.add(dependency)
+                if dependency in affected:
+                    exe_affected = True
+            elif changed and any(
+                    (directory / Path(*dependency.split(".")).with_suffix(".lean")).exists()
+                    for directory in (exe.source, root)):
+                # A helper outside the library graph may import a changed module indirectly.
+                # Build its executable conservatively instead of silently omitting that client.
+                unindexed_executable_helper = True
+                exe_affected = True
+        if changed and exe_affected:
+            executable_targets.add(exe.target)
     # Only named whole-library tests with no importing client may be deferred. Keep directly
     # edited tests and every ordinary client, including clients that import the aggregate.
     deferred = set()
-    # Executable helpers can import further local modules outside this graph.
-    if focused and not executable_targets:
+    # Unindexed executable helpers can import further local modules outside this graph; indexed
+    # library imports of executables are checked explicitly via `executable_local_imports`.
+    if focused and not unindexed_executable_helper:
         global_tests = {"CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"}
-        deferred = {test for test in (affected & global_tests) - changed if not reverse[test]}
+        deferred = {test for test in (affected & global_tests) - changed - executable_local_imports
+                    if not reverse[test]}
         affected -= deferred
     # Traverse aggregates above: a real client importing one must never disappear from the plan.
     selected_executables = [exe for exe in executables if exe.target in executable_targets]
     # An aggregate may warn on an import even when its importing client elaborates silently.
     # Audit aggregates on built clients' import paths, not every root aggregate touched by the
-    # change. Executable helpers are outside this graph; include their built aggregates
+    # change. Unindexed executable helpers are outside this graph; include their built aggregates
     # conservatively.
-    needed = affected - aggregates
+    needed = (affected - aggregates) | {
+        dependency for exe in selected_executables
+        for dependency in imports[exe.path] if dependency in modules
+    }
     queue = deque(sorted(needed))
     while queue:
         for dependency in imports[modules[queue.popleft()]]:
@@ -388,7 +438,7 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *, focused
                 needed.add(dependency)
                 queue.append(dependency)
     aggregate_checks = affected & aggregates & needed
-    if selected_executables:
+    if unindexed_executable_helper:
         aggregate_checks |= affected & aggregates
     return Plan(base, sorted((affected - aggregates) | executable_targets), checks,
                 lint_scope(root, aggregates, affected, reverse),
@@ -418,6 +468,39 @@ def run_check(root: Path, command: list[str], label: str, *, progress: bool = Fa
     return result.returncode
 
 
+def run_lint_only(root: Path, base_ref: str, *,
+                  max_targets: int = DEFAULT_LINT_MAX_TARGETS,
+                  max_modules: int = DEFAULT_LINT_MAX_MODULES,
+                  no_full_fallback: bool = False,
+                  parser=None) -> int:
+    """Run declaration linting scoped to affected library modules, falling back to `lake lint`."""
+    try:
+        plan = make_plan(root, base_ref, parser=parser, allow_prose_only=True)
+    except (FullCheck, OSError, ValueError, TypeError) as error:
+        if no_full_fallback:
+            print(f"Scoped lint cannot plan this change: {error}.", flush=True)
+            return NO_FALLBACK_STATUS
+        print(f"Scoped lint falls back to whole-library `lake lint`: {error}", flush=True)
+        return subprocess.run(["lake", "lint"], cwd=root).returncode
+    if not plan.lint:
+        print(f"Scoped lint against merge base {plan.base}: no affected library modules to lint.",
+              flush=True)
+        return 0
+    target_count = len(plan.lint)
+    module_count = sum(map(len, plan.lint.values()))
+    if target_count > max_targets or module_count > max_modules:
+        reason = (f"scope has {target_count} runLinter target(s) / {module_count} affected library "
+                  f"module(s) (thresholds: {max_targets} targets, {max_modules} modules)")
+        if no_full_fallback:
+            print(f"Scoped lint exceeds threshold: {reason}.", flush=True)
+            return NO_FALLBACK_STATUS
+        print(f"Scoped lint falls back to whole-library `lake lint`: {reason}", flush=True)
+        return subprocess.run(["lake", "lint"], cwd=root).returncode
+    print(f"Scoped lint against merge base {plan.base}: {module_count} affected library module(s) "
+          f"across {target_count} target(s).", flush=True)
+    return run_lint(root, plan)
+
+
 def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     args = argparse.ArgumentParser(description=__doc__)
     args.add_argument("--base", default="origin/main", help="comparison ref; use its merge base with HEAD")
@@ -426,8 +509,28 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
                            f"{NO_FALLBACK_STATUS} instead of running the full check")
     args.add_argument("--focused", action="store_true",
                       help="defer unedited global test leaves to CI and exit 3 on unsupported changes")
+    args.add_argument("--lint-only", action="store_true",
+                      help="run only Batteries declaration linting for the affected library modules, "
+                           "falling back to whole-library `lake lint` when unsupported or too broad")
+    args.add_argument("--lint-max-targets", type=int, default=DEFAULT_LINT_MAX_TARGETS,
+                      help="fall back to full `lake lint` when `--lint-only` would launch more than "
+                           f"N runLinter processes (default: {DEFAULT_LINT_MAX_TARGETS})")
+    args.add_argument("--lint-max-modules", type=int, default=DEFAULT_LINT_MAX_MODULES,
+                      help="fall back to full `lake lint` when `--lint-only` covers more than N "
+                           f"library modules (default: {DEFAULT_LINT_MAX_MODULES})")
     options = args.parse_args(argv)
+    if options.lint_only and options.focused:
+        args.error("--lint-only cannot be combined with --focused")
+    if options.lint_max_targets < 0 or options.lint_max_modules < 0:
+        args.error("--lint-max-targets and --lint-max-modules must be non-negative")
     root = root or Path(__file__).resolve().parent.parent
+    if options.lint_only:
+        return run_lint_only(
+            root, options.base,
+            max_targets=options.lint_max_targets,
+            max_modules=options.lint_max_modules,
+            no_full_fallback=options.no_full_fallback,
+        )
     try:
         plan = make_plan(root, options.base, focused=options.focused)
     except (FullCheck, OSError, ValueError, TypeError) as error:

@@ -26,7 +26,6 @@ on, in post-order.
 
 ## Main definitions
 
-* `Cslib.Logic.PL.Clause.toDIMACS`: a clause as DIMACS integers.
 * `Cslib.Logic.PL.CNF.Derivation.lratSteps`, `Cslib.Logic.PL.CNF.Derivation.toLRAT`: the
   certificate of a tree-like derivation.
 
@@ -43,29 +42,6 @@ on, in post-order.
 namespace Cslib.Logic.PL
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
-
-/-- The DIMACS integer of a literal: `v + 1` for the variable `v`, `-(v + 1)` for its negation. -/
-def Literal.toDIMACS (l : Literal ℕ) : Int :=
-  if l.2 then (l.1 : Int) + 1 else -((l.1 : Int) + 1)
-
-/-- A clause as DIMACS integers. -/
-def Clause.toDIMACS (c : Clause ℕ) : Array Int :=
-  (c.map Literal.toDIMACS).toArray
-
-@[simp] theorem Literal.ofDIMACS_toDIMACS (l : Literal ℕ) :
-    Literal.ofDIMACS l.toDIMACS = some l := by
-  obtain ⟨v, b⟩ := l
-  cases b
-  · rw [show Literal.toDIMACS (v, false) = Int.negSucc v by
-      simp only [Literal.toDIMACS, Int.negSucc_eq]; rfl]
-    simp [Literal.ofDIMACS, Int.negSucc_lt_zero, Int.natAbs_negSucc]
-  · rw [show Literal.toDIMACS (v, true) = ((v + 1 : ℕ) : Int) by simp [Literal.toDIMACS]]
-    simp only [Literal.ofDIMACS, Int.natAbs_natCast, Nat.add_sub_cancel]
-    simp
-
-@[simp] theorem Clause.ofDIMACS_toDIMACS (c : Clause ℕ) :
-    Clause.ofDIMACS c.toDIMACS.toList = c := by
-  simp [Clause.ofDIMACS, Clause.toDIMACS, List.filterMap_map]
 
 namespace CNF
 
@@ -123,42 +99,19 @@ end Derivation
 
 /-! ### The checker accepts the certificate -/
 
-/-- Unit propagation from the negation of a resolvent, hinting its two premises, succeeds. -/
+/-- Unit propagation from the negation of a resolvent, hinting its two premises, succeeds: the
+first premise propagates `v`, and then every literal of the second is false. -/
 theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
     (h₁ : db.find? (·.1 == i₁) = some (i₁, c₁)) (h₂ : db.find? (·.1 == i₂) = some (i₂, c₂)) :
     propagateHints db ((c₁.resolvent c₂ v).map Std.Sat.Literal.negate) [i₁, i₂] = true := by
-  set T := (c₁.resolvent c₂ v).map Std.Sat.Literal.negate
-  have hT : ∀ l, l ∈ c₁.resolvent c₂ v → Std.Sat.Literal.negate l ∈ T := fun l hl =>
-    List.mem_map.2 ⟨l, hl, rfl⟩
-  -- the literals of `c₁` that the negated resolvent leaves open are all `(v, true)`
-  have hopen : ∀ l ∈ c₁.filter (fun l => !T.contains (Std.Sat.Literal.negate l)),
-      l = (v, true) := by
-    intro l hl
-    obtain ⟨hl, hT'⟩ := List.mem_filter.1 hl
-    by_contra hne
-    have := hT l (Clause.mem_resolvent.2 (.inl ⟨hl, hne⟩))
-    simp [this] at hT'
-  -- every literal of `c₂` is false once `v` holds
-  have hclosed :
-      c₂.filter (fun l => !((v, true) :: T).contains (Std.Sat.Literal.negate l)) = [] := by
-    refine List.filter_eq_nil_iff.2 fun l hl => ?_
-    simp only [Bool.not_eq_true', Bool.not_eq_false]
-    by_cases hlv : l = (v, false)
-    · subst hlv
-      simp [Std.Sat.Literal.negate]
-    · simp [hT l (Clause.mem_resolvent.2 (.inr ⟨hl, hlv⟩))]
-  rw [propagateHints_cons]
-  simp only [h₁]
-  split
-  · rfl
-  · rename_i l ls hls
-    have hl : l = (v, true) := hopen l (hls ▸ List.mem_cons_self)
-    have hall : ls.all (· == l) = true := List.all_eq_true.2 fun l' hl' => by
-      simp [hl, hopen l' (hls ▸ List.mem_cons_of_mem _ hl')]
-    subst hl
-    simp only [hall, ↓reduceIte]
-    rw [propagateHints_cons]
-    simp only [h₂, hclosed]
+  have hT : ∀ l ∈ c₁.resolvent c₂ v,
+      Std.Sat.Literal.negate l ∈ (c₁.resolvent c₂ v).map Std.Sat.Literal.negate :=
+    fun l hl => List.mem_map.2 ⟨l, hl, rfl⟩
+  refine propagateHints_cons_of_forall_ne (l := (v, true)) h₁
+    (fun m hm hne => hT m (Clause.mem_resolvent.2 (.inl ⟨hm, hne⟩))) fun _ _ => ?_
+  exact propagateHints_cons_of_forall_ne (l := (v, false)) h₂
+    (fun m hm hne => List.mem_cons_of_mem _ (hT m (Clause.mem_resolvent.2 (.inr ⟨hm, hne⟩))))
+    fun _ h => (h (by simp [Std.Sat.Literal.negate])).elim
 
 /-- A database that numbers every clause of the formula as `checkLRAT` does, and every other
 entry below `k`. -/

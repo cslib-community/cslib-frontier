@@ -77,9 +77,8 @@ theorem realize_multiply {d m : ℕ} (B : (language L).Term α)
         Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((z i).realize v).val) := by
   have ha (w : ((Fin (m + 1) ⊕ Fin m) × Fin d) → Fin n) b' x' y' z' :=
     realize_affine (d := d) (B.relabel Sum.inl) b' x' y' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
-  fo_simp [multiply, ha, Function.comp_def, Fin.ext_iff, List.ofFn_const,
+      (by fo_simp; exact hB) (by fo_simp; exact hBn)
+  fo_simp [multiply, ha, Fin.ext_iff, List.ofFn_const,
     Nat.ofDigits_replicate_zero, Nat.add_zero, and_assoc]
   constructor
   · rintro ⟨hx, hy, hz, w, hw0, hwe, hs⟩

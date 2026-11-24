@@ -25,6 +25,12 @@ Copyright 2026 Anthropic, PBC
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
+CslibFrontier/Languages/Probabilistic/QueryCount/Demand.lean adapts the vector-charge laws in
+PolyFun/PFunctor/Handler/CertifiedVec.lean from Verified-zkEVM/PolyFun, revision
+ae1b2a3b9cb5f28f43c4b41138481f68b901838d. The source is by Bas Spitters, copyright (c) 2026
+PolyFun Contributors, and licensed under the Apache License, Version 2.0. The adapted
+module credits Bas Spitters and Devon Tuma.
+
 The prime-window proof also adapts Mathlib/NumberTheory/Bertrand.lean,
 Copyright (c) 2020 Patrick Stevens; authors Patrick Stevens, Bolton Bailey,
 under the Apache License, Version 2.0.
@@ -40,6 +46,13 @@ above; no source machine or instruction-cost contract supplies its native execut
 The native shared-band preparation selectively adapts the band-array and all-band
 organization from that same pinned source. Anthropic, PBC credit is retained in
 BandProgram.lean; its native mask scans, dense inverse table and execution proofs are new.
+
+The equivalence and evaluation laws in
+CslibFrontier/Computability/DecisionTree/FreeM.lean are adapted from
+PolyFunFrontier/PolyFunFrontier/PFunctor/Free/DecisionTree.lean in Verified-zkEVM/PolyFun,
+revision 713d8857e49d20927c1447b3ba7397acc5537319.
+Copyright (c) 2026 PolyFun Contributors. Author: Devon Tuma. Licensed under the Apache
+License, Version 2.0.
 
 The SQL semantics in CslibFrontier/Languages/SQL/, its tests in CslibFrontierTests/Languages/SQL/
 and its guide chapter guide/CslibFrontierGuide/SQL.lean adapt and redesign evelynmitchell/sql_equiv
@@ -75,3 +88,41 @@ thick-layer boundary lanes retained. The figures are from Jeandel and Vanier,
 The Undecidability of the Domino Problem (2020), authors' manuscript pp. 25–26,
 presenting Ollinger's 104-tile construction (2008). Agreement of the Lean data
 with the printed figures is not checked in Lean.
+
+The median-switched Gaussian vertex-sweep geometry, bipartite level-zero connector,
+and switched interval-bag layout in
+CslibFrontier/Computability/Circuit/Frontier/Layouts/Switched/
+({Sheppard,Disintegration,Planar,Triangle,IdealStar,MinBound,IdealBounds,StarFrontier,
+GramLaw,RotBase,RotForm,RotSign,RotIBP,RotMono,RotClosed,EqMin,Switch,Connector,
+SwitchedLayout}.lean and the rank helpers in Pathwidth.lean) adapt the Lean 4 companion
+of "Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster Exponential
+Algorithms" (arXiv:2611.05146, Zenodo release v1, doi:10.5281/zenodo.23883489,
+`CubicPathwidth/C3/` and polar helpers from `CubicPathwidth/GaussianPlanar.lean`).
+The module docstrings record what was adapted and updated to use `cslib-frontier`'s
+Gaussian and kernel infrastructure. The numerical coefficient bounds in
+`Coefficient.lean`, the cubic multigraph interval-to-cutwidth conversion
+`exists_width_le_of_intervals` in `Pathwidth.lean`, the concentration proof in
+`Sample.lean`, the assembly in `Layouts/Switched.lean`, and the downstream frontier
+lower-bound instantiations are original to this library.
+
+MIT License
+
+Copyright (c) 2026 Serge Gaspers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

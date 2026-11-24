@@ -14,7 +14,10 @@ import Mathlib.Tactic.NormNum
 
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.PreservesMask
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Native least-prime collision searches
@@ -100,8 +103,8 @@ def program : Code .standard 64 :=
     stop ← limit + one; answer ← one; found ← zero ]) (.loop (.lt cursor stop) body)
 
 /-- The five upper caller registers survive the complete native search. -/
-theorem preserves_caller (i : Fin 64) (hi : 59 ≤ i.val) : program.Preserves i := by
-  fin_cases i <;> norm_num at hi <;> decide
+theorem preserves_caller (i : Fin 64) (hi : 59 ≤ i.val) : program.Preserves i :=
+  Code.preserves_of_writeEnd (by decide) hi
 
 private abbrev Fixed (i : Fin 64) : Prop := (28 ≤ i.val ∧ i.val ≤ 35) ∨ (40 ≤ i.val ∧ i.val ≤ 46)
 
@@ -116,29 +119,6 @@ private def Status (A : ℕ → Prop) (k : ℕ) (y : Data 64) : Prop :=
   (y.regs found = 0 ∧ y.regs answer = 1 ∧ ∀ q < k, ¬(q.Prime ∧ A q)) ∨
   (y.regs found = 1 ∧ y.regs answer < k ∧ (y.regs answer).Prime ∧ A (y.regs answer) ∧
     ∀ q < y.regs answer, ¬(q.Prime ∧ A q))
-
-private theorem exec_nop {w : ℕ} (x : Data 64) : ExecWithin w nop x x 1 := by
-  have hx : x.set answer (x.regs answer) = x := Data.ext (Function.update_eq_self _ _) rfl
-  simpa only [nop, hx] using (ExecWithin.copy (B := .standard) (w := w)
-    (x := x) (d := answer) (s := answer))
-
-private theorem exec_pick {w : ℕ} (x : Data 64) (A : Prop) [Decidable A]
-    (ho : x.regs one = 1) (hg : x.regs good = if A then 1 else 0) :
-    ∃ y, ExecWithin w pick x y 3 ∧ y.mem = x.mem ∧
-      y.regs answer = (if A then x.regs cursor else x.regs answer) ∧
-      y.regs found = (if A then 1 else x.regs found) ∧
-      ∀ i, i ≠ answer → i ≠ found → y.regs i = x.regs i := by
-  by_cases hA : A
-  · let y := (x.set answer (x.regs cursor)).set found 1
-    refine ⟨y, ?_, rfl, ?_, ?_, ?_⟩
-    · ram_eval [pick, y, ho, hg, hA, good, one, cursor, answer, found, Fin.mk.injEq]
-    · simp +decide [y, hA, answer, found]
-    · simp [y, hA]
-    · intro i ha hf
-      simp only [y, Data.set_regs, Function.update_of_ne ha, Function.update_of_ne hf]
-  · refine ⟨x, ?_, rfl, by simp [hA], by simp [hA], fun _ _ _ => rfl⟩
-    have hc : ¬(Cond.eq good one).Holds x := by simp [hg, hA, ho]
-    exact ExecWithin.branch_neg hc (exec_nop x)
 
 private theorem status_min {A : ℕ → Prop} [DecidablePred A] {m : ℕ} {y : Data 64}
     (h : Status A (m + 1) y) :
@@ -171,36 +151,6 @@ private theorem status_min {A : ℕ → Prop} [DecidablePred A] {m : ℕ} {y : D
     change y.regs answer = minOrOne S
     simp only [minOrOne, dite_eq_left hs, hmin]
 
-
-private theorem fixed_ne_high {i j : Fin 64} (hi : Fixed i) (hj : 47 ≤ j.val) : i ≠ j := by
-  intro h
-  have := congrArg Fin.val h
-  dsimp [Fixed] at hi
-  omega
-
-private theorem stable_set_high {x y : Data 64} (h : Stable x y) (i : Fin 64)
-    (hi : 47 ≤ i.val) (v : ℕ) : Stable x (y.set i v) := by
-  exact ⟨fun j hj => by
-    simpa only [Data.set_regs, Function.update_of_ne (fixed_ne_high hj hi)] using h.1 j hj,
-    h.2⟩
-
-private theorem status_of_regs {A : ℕ → Prop} {k : ℕ} {x y : Data 64}
-    (hf : y.regs found = x.regs found) (ha : y.regs answer = x.regs answer)
-    (h : Status A k x) : Status A k y := by
-  simpa only [Status, hf, ha] using h
-
-private theorem status_extend {A : ℕ → Prop} {k : ℕ} {y : Data 64}
-    (h : Status A k y) (hnew : y.regs found = 0 → ¬(k.Prime ∧ A k)) :
-    Status A (k + 1) y := by
-  rcases h with ⟨hf, ha, hn⟩ | ⟨hf, hk, hp, hA, hn⟩
-  · exact Or.inl ⟨hf, ha, fun q hq => by
-      by_cases hqk : q < k
-      · exact hn q hqk
-      · have : q = k := by omega
-        subst q
-        exact hnew hf⟩
-  · exact Or.inr ⟨hf, by omega, hp, hA, hn⟩
-
 private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [DecidablePred A]
     (hfit : Fits w (x.regs limit + 3))
     (haddr : Fits w (x.regs primes + (x.regs limit + 1)))
@@ -220,140 +170,107 @@ private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [Decida
       ∃ z, ExecWithin w body y z (T + 13) ∧ P (y.regs cursor + 1) z ∧
         z.regs cursor = y.regs cursor + 1 := by
     obtain ⟨hstable, hstop, ho, hz, ht, hstatus⟩ := hy
-    have hinner : ∃ z, ExecWithin w inner y z (T + 12) ∧ Stable x z ∧
-        z.regs stop = m + 1 ∧ z.regs one = 1 ∧ z.regs zero = 0 ∧ z.regs two = 2 ∧
-        z.regs cursor = y.regs cursor ∧ Status A (y.regs cursor + 1) z := by
-      rcases hstatus with hnone | hsome
-      · obtain ⟨hf, ha, hn⟩ := hnone
-        have hfound : (Cond.eq found zero).Holds y := by simp [hf, hz]
-        have hpr : y.regs primes = x.regs primes := hstable.1 _ (by decide)
-        have hread : y.mem (y.regs primes + y.regs cursor) =
-            if (y.regs cursor).Prime then 1 else 0 := by
-          rw [hpr, hstable.2 (x.regs primes + y.regs cursor) (by omega)]
-          exact hbitmap _ (by change y.regs cursor ≤ m; omega)
-        have had : Fits w (y.regs primes + y.regs cursor) := haddr.of_le (by rw [hpr]; omega)
-        let u := (y.set addr (y.regs primes + y.regs cursor)).set bit
-          (if (y.regs cursor).Prime then 1 else 0)
-        have hload : ExecWithin w load y u 2 := by
-          ram_eval [load, u, had, hread, addr, bit, primes, cursor, Fin.mk.injEq]
-        have hu (i : Fin 64) (hC : Control i) : u.regs i = y.regs i := by
-          have hia : i ≠ addr := by intro h; subst i; norm_num [Control, addr] at hC
-          have hib : i ≠ bit := by intro h; subst i; norm_num [Control, bit] at hC
-          simp only [u, Data.set_regs, Function.update_of_ne hia, Function.update_of_ne hib]
-        have hus : Stable x u := stable_set_high
-          (stable_set_high hstable addr (by decide) _) bit (by decide) _
-        have huo : u.regs one = 1 := by regs_frame
-        have huz : u.regs zero = 0 := by regs_frame
-        have hut : u.regs two = 2 := by regs_frame
-        have hui : u.regs cursor = y.regs cursor := hu cursor (by decide)
-        have husp : u.regs stop = m + 1 := by regs_frame
-        have huf : u.regs found = 0 := by regs_frame
-        have hua : u.regs answer = 1 := by regs_frame
-        by_cases hp : (y.regs cursor).Prime
-        · have hbit : (Cond.eq bit one).Holds u := by
-            simp only [Cond.holds_eq, huo]
-            simp +decide [u, bit, addr, hp]
-          obtain ⟨v, hv, hvs, hvg, hvr⟩ := hquery u hus (by rw [hui]; change _ ≤ m; omega)
-            huo huz hut (by simpa only [hui] using hp)
-          have hvo : v.regs one = 1 := by regs_frame
-          obtain ⟨z, hpick, hzm, hza, hzf, hzr⟩ := exec_pick v (A (y.regs cursor)) hvo
-            (by simpa only [hui] using hvg)
-          have hzctrl (i : Fin 64) (hC : Control i) (hia : i ≠ answer) (hif : i ≠ found) :
-              z.regs i = y.regs i :=
-            (hzr i hia hif).trans ((hvr i hC).trans (hu i hC))
-          have hzs : Stable x z := ⟨fun i hF =>
-            (hzr i (fixed_ne_high hF (by decide)) (fixed_ne_high hF (by decide))).trans
-              (hvs.1 i hF), fun a ha => by rw [hzm]; exact hvs.2 a ha⟩
-          have hvi : v.regs cursor = y.regs cursor := by regs_frame
-          have hvf : v.regs found = 0 := by regs_frame
-          have hva : v.regs answer = 1 := by regs_frame
-          refine ⟨z, ?_, hzs, ?_, ?_, ?_, ?_, hzctrl cursor (by decide) (by decide) (by decide), ?_⟩
-          · exact (ExecWithin.branch_pos hfound
-              (hload.seq (ExecWithin.branch_pos hbit (hv.seq hpick)))).mono (by omega)
-          · regs_frame
-          · regs_frame
-          · regs_frame
-          · regs_frame
-          · by_cases hA : A (y.regs cursor)
-            · have hanswer : z.regs answer = y.regs cursor := by
-                simpa only [hA, ↓reduceIte, hvi] using hza
-              refine Or.inr ⟨by simpa only [hA, ↓reduceIte] using hzf, ?_, ?_, ?_, ?_⟩
-              · rw [hanswer]; omega
-              · simpa only [hanswer] using hp
-              · simpa only [hanswer] using hA
-              · simpa only [hanswer] using hn
-            · have hanswer : z.regs answer = 1 := by simpa only [hA, ↓reduceIte, hva] using hza
-              refine Or.inl ⟨by simpa only [hA, ↓reduceIte, hvf] using hzf, hanswer, ?_⟩
-              intro q hq hqA
-              by_cases hqk : q < y.regs cursor
-              · exact hn q hqk hqA
-              · have hqeq : q = y.regs cursor := by omega
-                subst q
-                exact hA hqA.2
-        · have hbit : ¬(Cond.eq bit one).Holds u := by
-            simp only [Cond.holds_eq, huo]
-            simp +decide [u, bit, addr, hp]
-          have hnop := exec_nop (w := w) u
-          refine ⟨u, ?_, hus, husp, huo, huz, hut, hui, Or.inl ⟨huf, hua, ?_⟩⟩
-          · exact (ExecWithin.branch_pos hfound
-              (hload.seq (ExecWithin.branch_neg hbit hnop))).mono (by omega)
-          · intro q hq hqA
-            by_cases hqk : q < y.regs cursor
+    have hinc : Fits w (y.regs cursor + 1) := hfit.of_le (by change _ ≤ m + 3; omega)
+    unfold body inner load pick nop
+    rcases hstatus with ⟨hf, ha, hn⟩ | hsome
+    · have hpr : y.regs primes = x.regs primes := hstable.1 _ (by decide)
+      have had : Fits w (x.regs primes + y.regs cursor) := haddr.of_le (by omega)
+      have hread : y.mem (x.regs primes + y.regs cursor) =
+          if (y.regs cursor).Prime then 1 else 0 := by
+        rw [hstable.2 (x.regs primes + y.regs cursor) (by omega)]
+        exact hbitmap _ (by change y.regs cursor ≤ m; omega)
+      by_cases hp : (y.regs cursor).Prime
+      · wram_exec [hf, hz, ho, hpr, had, hread, hp]
+        refine WP.name fun u hu => ?_
+        have hucur : u.regs cursor = y.regs cursor := by subst hu; wram_simp
+        have hus : Stable x u :=
+          ⟨fun i hF => (by
+              subst hu; dsimp only [Fixed] at hF
+              update_simp [addr, bit] : u.regs i = y.regs i).trans (hstable.1 i hF),
+            by subst hu; exact hstable.2⟩
+        wram_call (hquery u hus (by rw [hucur]; change _ ≤ m; omega)
+            (by subst hu; regs_frame) (by subst hu; regs_frame) (by subst hu; regs_frame)
+            (by rwa [hucur]))
+          with v ⟨hvs, hvg, hvr⟩
+        have hvcur : v.regs cursor = y.regs cursor := (hvr cursor (by decide)).trans hucur
+        have hvo : v.regs one = 1 :=
+          (hvr one (by decide)).trans (by subst hu; regs_frame)
+        have hvf : v.regs found = 0 :=
+          (hvr found (by decide)).trans (by subst hu; regs_frame)
+        have hva : v.regs answer = 1 :=
+          (hvr answer (by decide)).trans (by subst hu; regs_frame)
+        have hvsp : v.regs stop = m + 1 :=
+          (hvr stop (by decide)).trans (by subst hu; regs_frame)
+        have hvz : v.regs zero = 0 :=
+          (hvr zero (by decide)).trans (by subst hu; regs_frame)
+        have hvt : v.regs two = 2 :=
+          (hvr two (by decide)).trans (by subst hu; regs_frame)
+        rw [hucur] at hvg
+        by_cases hA : A (y.regs cursor)
+        · wram_exec [hvg, hvo, hvcur, hA, hinc]
+          refine ⟨⟨⟨fun i hF => ?_, hvs.2⟩,
+            by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+            Or.inr ⟨by wram_simp, ?_, ?_, ?_, ?_⟩⟩, by wram_simp⟩
+          · dsimp only [Fixed] at hF
+            exact (by update_simp [answer, found, cursor] : _ = v.regs i).trans (hvs.1 i hF)
+          · wram_simp; omega
+          · wram_simp; exact hp
+          · wram_simp; exact hA
+          · wram_simp; exact hn
+        · wram_exec [hvg, hvo, hvcur, hA, hinc]
+          refine ⟨⟨⟨fun i hF => ?_, hvs.2⟩,
+            by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+            Or.inl ⟨by wram_simp [hvf], by wram_simp [hva], fun q hq hqA => ?_⟩⟩,
+            by wram_simp⟩
+          · dsimp only [Fixed] at hF
+            exact (by update_simp [answer, cursor] : _ = v.regs i).trans (hvs.1 i hF)
+          · by_cases hqk : q < y.regs cursor
             · exact hn q hqk hqA
-            · have hqeq : q = y.regs cursor := by omega
-              subst q
-              exact hp hqA.1
-      · have hfound : ¬(Cond.eq found zero).Holds y := by
-          simp only [Cond.holds_eq, hsome.1, hz]; omega
-        refine ⟨y, (ExecWithin.branch_neg hfound (exec_nop y)).mono (by omega),
-          hstable, hstop, ho, hz, ht, rfl, ?_⟩
-        exact status_extend (Or.inr hsome) (fun h0 => by rw [hsome.1] at h0; omega)
-    obtain ⟨z, he, hs, hsp, hzo, hzz, hzt, hzi, hstat⟩ := hinner
-    have hinc : Fits w (z.regs cursor + z.regs one) :=
-      hfit.of_le (by rw [hzi, hzo]; change _ ≤ m + 3; omega)
-    have hstep : ExecWithin w (Code.op (.bin .add cursor cursor one)) z
-        (z.set cursor (z.regs cursor + 1)) 1 := by
-      simpa only [BinOp.eval, hzo] using (ExecWithin.bin (f := .add) (d := cursor) (i := cursor)
-        (j := one) hinc)
-    refine ⟨z.set cursor (z.regs cursor + 1), he.seq hstep, ?_, ?_⟩
-    · refine ⟨stable_set_high hs cursor (by decide) _, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [stop, cursor] using hsp
-      · simpa +decide [one, cursor] using hzo
-      · simpa +decide [zero, cursor] using hzz
-      · simpa +decide [two, cursor] using hzt
-      · exact status_of_regs (x := z) (y := z.set cursor (z.regs cursor + 1))
-            (by simp +decide [found, cursor])
-            (by simp +decide [answer, cursor]) hstat
-    · simp only [Data.set_regs, Function.update_self, hzi]
-  let x₀ := ((((((x.set one 1).set zero 0).set two 2).set cursor 0).set stop (m + 1)).set
-    answer 1).set found 0
-  have hinit : ExecWithin w (ram[
-      one ← #1; zero ← #0; two ← #2; cursor ← #0; stop ← limit + one;
-      answer ← one; found ← zero]) x x₀ 7 := by
-    have h0 : Fits w 0 := hfit.of_le (by omega)
-    have hm : Fits w (m + 1) := hfit.of_le (by change m + 1 ≤ m + 3; omega)
-    ram_eval [x₀, m, one, zero, two, cursor, stop, limit, answer, found,
-      h0, hm, Fin.mk.injEq]
+            · obtain rfl : q = y.regs cursor := by omega
+              exact hA hqA.2
+      · wram_exec [hf, hz, ho, hpr, had, hread, hp, hinc]
+        refine ⟨⟨⟨fun i hF => ?_, hstable.2⟩,
+          by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+          Or.inl ⟨by regs_frame, by regs_frame, fun q hq hqA => ?_⟩⟩, by wram_simp⟩
+        · dsimp only [Fixed] at hF
+          exact (by update_simp [addr, bit, answer, cursor] : _ = y.regs i).trans (hstable.1 i hF)
+        · by_cases hqk : q < y.regs cursor
+          · exact hn q hqk hqA
+          · obtain rfl : q = y.regs cursor := by omega
+            exact hp hqA.1
+    · have hne : y.regs found ≠ y.regs zero := by rw [hsome.1, hz]; decide
+      wram_exec [hne, ho, hinc]
+      refine ⟨⟨⟨fun i hF => ?_, hstable.2⟩,
+        by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+        Or.inr ⟨by wram_simp [hsome.1], ?_, ?_, ?_, ?_⟩⟩, by wram_simp⟩
+      · dsimp only [Fixed] at hF
+        exact (by update_simp [answer, cursor] : _ = y.regs i).trans (hstable.1 i hF)
+      · wram_simp; exact lt_trans hsome.2.1 (Nat.lt_succ_self _)
+      · wram_simp; exact hsome.2.2.1
+      · wram_simp; exact hsome.2.2.2.1
+      · wram_simp; exact hsome.2.2.2.2
+  have hm1 : Fits w (m + 1) := hfit.of_le (by change m + 1 ≤ m + 3; omega)
+  unfold program
+  wram_exec [hm1]
+  refine WP.name fun x₀ hx₀ => ?_
   have hi : P (x₀.regs cursor) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, Or.inl ⟨?_, ?_, ?_⟩⟩
-    · exact stable_set_high (stable_set_high (stable_set_high (stable_set_high
-        (stable_set_high (stable_set_high (stable_set_high ⟨fun _ _ => rfl,
-          fun _ _ => rfl⟩ one (by decide) _) zero (by decide) _) two (by decide) _)
-            cursor (by decide) _) stop (by decide) _) answer (by decide) _) found (by decide) _
-    all_goals simp +decide [x₀, stop, one, zero, two, cursor, answer, found]
-  obtain ⟨y, he, ⟨hs, _, _, _, _, hstat⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.2.1) hbody
-    (by simp +decide [x₀, cursor, found, answer, stop]) hi
-  refine ⟨y, (hinit.seq he).mono ?_, hs, ?_⟩
-  · have hcur₀ : x₀.regs cursor = 0 := by
-      simp +decide [x₀, cursor, found, answer, stop]
-    rw [hcur₀]
-    simp only [Nat.sub_zero]
-    change 7 + ((m + 1) * (T + 13 + 2) + 2) ≤ (m + 1) * (T + 15) + 9
-    have hcost : T + 13 + 2 = T + 15 := by omega
-    rw [hcost]
-    omega
-  · exact status_min hstat
+    subst hx₀
+    refine ⟨⟨fun i hF => by
+        dsimp only [Fixed] at hF
+        update_simp [one, zero, two, cursor, stop, answer, found],
+      fun _ _ => rfl⟩,
+      by wram_simp [m], by wram_simp, by wram_simp, by wram_simp,
+      Or.inl ⟨by wram_simp, by wram_simp, fun _ hq => absurd hq (Nat.not_lt_zero _)⟩⟩
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.2.1) hbody
+      (by subst hx₀; wram_simp [m]) hi)
+    with y ⟨⟨hs, _, _, _, _, hstat⟩, _⟩
+  refine ⟨?_, hs, status_min hstat⟩
+  have hcur₀ : x₀.regs cursor = 0 := by subst hx₀; wram_simp
+  dsimp only [m] at *
+  have hmul : (x.regs limit + 1 - x₀.regs cursor) * (T + 13 + 2) =
+      (x.regs limit + 1) * (T + 15) := by
+    rw [hcur₀, Nat.sub_zero, show T + 13 + 2 = T + 15 by omega]
+  omega
 
 /-- The least prime whose three actual collision counts satisfy the supplied thresholds.
 Every candidate query is executed by `Query.program`; the hypotheses only constrain native
@@ -414,16 +331,12 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
       exact (encode_fits hMf).mono (by omega)
     have hraw : Fits (w + 2) M := hencoded.of_le (by omega)
     have hyf : y.regs factor = x.regs factor := hy.1 _ (by decide)
-    let u := (y.set rawModulus M).set modulus (2 * M)
-    have hprep : ExecWithin (w + 2)
-        (ram[ rawModulus ← factor * cursor; modulus ← rawModulus * two ]) y u 2 := by
-      ram_eval [u, M, hyf, htwo, hraw, hencoded, rawModulus, modulus, factor, cursor, two,
-        CountCall.modulus, Fin.mk.injEq, Nat.mul_comm]
+    unfold query
+    wram_exec [hyf, htwo, hraw, hencoded, Nat.mul_comm]
+    refine WP.name fun u hu => ?_
     have huc (i : Fin 64) (hi : Control i) : u.regs i = y.regs i := by
-      have hr : i ≠ rawModulus := by intro h; subst i; norm_num [Control, rawModulus] at hi
-      have hm : i ≠ modulus := by
-        intro h; subst i; norm_num [Control, modulus, CountCall.modulus] at hi
-      simp only [u, Data.set_regs, Function.update_of_ne hr, Function.update_of_ne hm]
+      subst hu; dsimp only [Control] at hi
+      update_simp [rawModulus, modulus, CountCall.modulus]
     have huf (i : Fin 64) (hi : Fixed i) : u.regs i = x.regs i :=
       (huc i (by unfold Control Fixed at *; omega)).trans (hy.1 i hi)
     have hlen (j : Fin 3) : u.regs (CountCall.length j) = x.regs (CountCall.length j) :=
@@ -437,30 +350,31 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
         x.regs (CollisionTest.threshold j) :=
       huf _ (by dsimp [Fixed, CollisionTest.threshold]; omega)
     have hmodreg : u.regs CountCall.modulus = encode (M : ℤ) := by
-      simpa only [henc] using (show u.regs modulus = 2 * M from by simp [u])
+      subst hu; wram_simp [henc, M]
     have huinput : ∀ j i, i < u.regs (CountCall.length j) →
         u.mem (u.regs (CountCall.source j) + i) = encode (values j i) := by
       intro j i hi
       rw [hlen] at hi
-      change y.mem (u.regs (CountCall.source j) + i) = _
-      rw [hsrc, hy.2 _ (by have := hsk j; omega)]
+      have humem : u.mem = y.mem := by subst hu; rfl
+      rw [humem, hsrc, hy.2 _ (by have := hsk j; omega)]
       exact hinput j i hi
-    obtain ⟨z, he, hgood, hreg, hmem⟩ := Query.exec u values hM hMf hmodreg
-      (by simpa only [hlen] using hvalues) (by simpa only [hsrc, hlen] using hs)
-      (by simpa only [hscratch, hlen] using hk)
-      (by rw [hhist]; exact hd.of_le (Nat.add_le_add_left hMle _))
-      (by simpa only [hlen] using ht) (by simpa only [hlen, hcard] using hproduct)
-      (by regs_frame)
-      (by simpa only [hsrc, hlen, hscratch] using hsk)
-      (by simpa only [hscratch, hlen, hhist] using hkd) huinput
-      (by simpa only [hlen] using hinj)
+    wram_call (Query.exec u values hM hMf hmodreg
+        (by simpa only [hlen] using hvalues) (by simpa only [hsrc, hlen] using hs)
+        (by simpa only [hscratch, hlen] using hk)
+        (by rw [hhist]; exact hd.of_le (Nat.add_le_add_left hMle _))
+        (by simpa only [hlen] using ht) (by simpa only [hlen, hcard] using hproduct)
+        (by subst hu; regs_frame)
+        (by simpa only [hsrc, hlen, hscratch] using hsk)
+        (by simpa only [hscratch, hlen, hhist] using hkd) huinput
+        (by simpa only [hlen] using hinj))
+      with z ⟨hgood, hreg, hmem⟩
     have hcontrol (i : Fin 64) (hi : Control i) : z.regs i = y.regs i := by
       have hscl : i ≠ CollisionTest.scaled := by
         intro h; subst i; norm_num [Control, CollisionTest.scaled] at hi
       have hg : i ≠ CollisionTest.good := by
         intro h; subst i; norm_num [Control, CollisionTest.good] at hi
       exact (hreg i (by unfold Control at hi; omega) hscl hg).trans (huc i hi)
-    refine ⟨z, (hprep.seq he).mono ?_, ?_, ?_, hcontrol⟩
+    refine ⟨?_, ?_, ?_, hcontrol⟩
     · dsimp only [T]
       rw [hlen 0, hlen 1, hlen 2]
       have := Nat.mul_le_mul_left 15 hMle
@@ -468,7 +382,8 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     · refine ⟨fun i hi => (hcontrol i (by unfold Fixed Control at *; omega)).trans
           (hy.1 i hi), ?_⟩
       intro a ha
-      rw [hmem a (by simpa only [hscratch] using ha)]
+      have humem : u.mem = y.mem := by subst hu; rfl
+      rw [hmem a (by simpa only [hscratch] using ha), humem]
       exact hy.2 a ha
     · have hA : A (y.regs cursor) ↔
           coll ((Finset.range (x.regs (CountCall.length 0))).image (values 0)) M *

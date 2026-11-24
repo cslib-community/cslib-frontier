@@ -84,6 +84,25 @@ namespace Controlled
 variable {α : Type} {n : α → ℕ} {enc : α ↪ List Bool} {a b : ℕ}
   {P Q : (w : α) → MvPolynomial (Fin (n w)) ℤ}
 
+/-- Reindex a controlled family along a polynomial-time map, keeping the source's
+arity, bounds and modular evaluator at the same counting level. -/
+@[expose] noncomputable def preprocess {β : Type} {enc' : β ↪ List Bool}
+    (C : Controlled P enc a) (g : β → α) (hg : ComputableInPolyTime g enc' enc) :
+    Controlled (fun w => P (g w)) enc' a where
+  arity_computable := C.arity_computable.comp hg
+  degreeBound := C.degreeBound ∘ g
+  degree_computable := C.degree_computable.comp hg
+  degree_le w := C.degree_le (g w)
+  massExponent := C.massExponent ∘ g
+  mass_computable := C.mass_computable.comp hg
+  mass_le w := C.mass_le (g w)
+  cutoff := C.cutoff ∘ g
+  cutoff_computable := C.cutoff_computable.comp hg
+  evaluate := fun q => C.evaluate (g q.1, q.2)
+  evaluate_mem := CountingFunction.preprocess C.evaluate_mem
+    ((hg.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _))
+  evaluate_eq w p z hp hcut := C.evaluate_eq (g w) p z hp hcut
+
 /-- Increasing the fixed counting level retains the same bounds and evaluator. -/
 @[expose] def mono (C : Controlled P enc a) (hab : a ≤ b) : Controlled P enc b :=
   { C with evaluate_mem := CountingFunction.mono hab C.evaluate_mem }

@@ -88,8 +88,7 @@ open ComputableInDegree
 /-- The symbol under the head. -/
 @[local fun_prop]
 public lemma read_deg : ComputableInDegree Tape.read eTape eSym 1 1 := by
-  unfold Tape.read
-  degree
+  degree [Tape.read]
 
 /-- A right move. -/
 @[local fun_prop]
@@ -123,8 +122,7 @@ lemma move_deg : ComputableInDegree (fun p : Tape × SignType => p.1.move p.2)
 @[local fun_prop]
 lemma apply_deg : ComputableInDegree (fun p : Tape × TapeAct =>
     p.1.apply p.2) (encPair eTape eTA) eTape 1 1 := by
-  unfold Tape.apply Tape.write
-  degree
+  degree [Tape.apply, Tape.write]
 
 /-! ### Applying actions to all work tapes -/
 
@@ -147,8 +145,7 @@ lemma zipFold_applyOne (ts : List Tape) (as : List TapeAct) :
 lemma applyOne_deg : ComputableInDegree (fun q : Unit × Tape × Option TapeAct =>
     applyOne q.1 q.2.1 q.2.2) (encPair encUnit (encPair eTape (encOption eTA)))
     (encOption eTape) 1 1 := by
-  unfold applyOne
-  degree
+  degree [applyOne]
 
 end Tape
 
