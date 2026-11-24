@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Tree
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Interval
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Convex
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -453,7 +454,7 @@ private lemma pareto_branch [MeasurableSpace (MetricGraph W)] [OpensMeasurableSp
     exists_mem_interval_dist_eq y v₀ ⟨hr_pos.le, hr_le_r0.trans hr₀_le⟩
   have hp_ne_y : p ≠ y := fun h => by rw [h, _root_.dist_self] at hp_dist; linarith
   have hfp : f (fun _ => p) = y := by
-    refine profile_update_induction (P := fun z => f z = y) (y := fun _ => p) rfl ?_
+    refine Function.update_induction (P := fun z => f z = y) (y := fun _ => p) rfl ?_
     intro z _ hfz i₀ hi₀_eq _
     let z' := Function.update z i₀ p
     have hle_p : dist p (f z') ≤ dist y p := by
