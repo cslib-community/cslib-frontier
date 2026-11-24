@@ -81,23 +81,15 @@ private theorem reaches_digitLoop {l l' e p : ℕ}
     (hB : ∀ r ∈ regs, r ≤ B) (hend : pos + 8 * v.bits.length + 10 ≤ B) :
     ∀ k ≤ v.bits.length, P.Reaches w (P.Oblivious B) (l, regs.set p (pos + 8 * k))
       (e, regs.set p (pos + 8 * v.bits.length)) := by
-  have hBk : ∀ k ≤ v.bits.length, ∀ r ∈ regs.set p (pos + 8 * k), r ≤ B := fun k hk =>
-    List.forall_mem_set_of_forall_mem hB (by omega)
   intro k hk
   induction h : v.bits.length - k generalizing k with
   | zero =>
     obtain rfl : k = v.bits.length := by omega
-    refine Reaches.oread hl (by simp [Expr.readsChoice, hp]) (hBk _ le_rfl) ?_
-    simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen,
-      hlit.literal_end.2.1, readLabel]
-    exact Reaches.refl _
+    cp_step [List.getD_set_self hlen, hlit.literal_end.2.1]
   | succ n ih =>
     have hk' : k < v.bits.length := by omega
-    refine Reaches.oread hl (by simp [Expr.readsChoice, hp]) (hBk _ hk) ?_
-    simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen,
-      (hlit.literal_digit hk').2.1, readLabel]
-    refine Reaches.oassign hl' hp (by simp [Expr.readsChoice, hp]) (hBk _ hk) ?_
-    simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen, List.set_set]
+    cp_step [List.getD_set_self hlen, (hlit.literal_digit hk').2.1]
+    cp_step [List.getD_set_self hlen, List.set_set]
     rw [show pos + 8 * k + 8 = pos + 8 * (k + 1) by ring]
     exact ih (k + 1) (by omega) (by omega)
 
@@ -115,11 +107,8 @@ theorem reaches_skipLitCode {b p exit : ℕ} (hcode : P.CodeAt b (skipLitCode b 
   have := reaches_digitLoop h₀ h₁ hp hlen hlit hB (by omega) 0 (Nat.zero_le _)
   rw [Nat.mul_zero, Nat.add_zero, show regs.set p pos = regs by
     rw [← hpos, set_getD_self hlen]] at this
-  refine this.trans (Reaches.oassign h₂ hp (by simp [Expr.readsChoice, hp])
-    (List.forall_mem_set_of_forall_mem hB (by omega)) ?_)
-  simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen, List.set_set]
-  rw [Nat.add_assoc]
-  exact Reaches.refl _
+  refine this.trans ?_
+  cp_step [List.getD_set_self hlen, List.set_set, Nat.add_assoc]
 
 /-! ### Skipping a clause -/
 
@@ -143,19 +132,14 @@ theorem reaches_skipClauseCode {b p exit : ℕ} (hcode : P.CodeAt b (skipClauseC
     simpa [skipLitCode] using (codeAt_cons.mp hc.2).1
   induction ls generalizing pos regs with
   | nil =>
-    refine Reaches.oread h₀ (by simp [Expr.readsChoice, hp]) hB ?_
-    simp only [eval_reg, hpos, hls.getElem?_nil, readLabel]
-    refine Reaches.oassign h₄ hp (by simp [Expr.readsChoice, hp]) hB ?_
-    simp only [eval_add, eval_reg, eval_const, hpos, List.flatMap_nil, List.length_nil,
-      Nat.add_zero]
-    exact Reaches.refl _
+    cp_step [hpos, hls.getElem?_nil]
+    cp_step [hpos, List.flatMap_nil, List.length_nil, Nat.add_zero]
   | cons l ls ih =>
     obtain ⟨hl, hrest⟩ := hls.cons
     have hlB : pos + (literalBits l.1 l.2).length ≤ B := by
       simp only [List.flatMap_cons, List.length_append] at hend
       omega
-    refine Reaches.oread h₀ (by simp [Expr.readsChoice, hp]) hB ?_
-    simp only [eval_reg, hpos, hl.literal_start, readLabel]
+    cp_step [hpos, hl.literal_start]
     refine (reaches_skipLitCode hskip hp hlen hl hpos hB hlB).trans ?_
     have := ih (regs := regs.set p (pos + (literalBits l.1 l.2).length)) (by simpa using hlen)
       hrest (List.getD_set_self hlen) (List.forall_mem_set_of_forall_mem hB hlB)
@@ -242,30 +226,19 @@ private theorem reaches_cmpVarCode_end (hk₁ : k ≤ v₁.bits.length) (hk₂ :
       (if v₁ = v₂ then eq else ne, cmpCur regs t₁ t₂ pos₁ pos₂ k) := by
   have hi (i : ℕ) (h : i < 10) := hcode i (by simp [cmpVarCode]; omega)
   have hB' := forall_mem_cmpCur hB hend₁ hend₂ t₁ t₂ hk₁ hk₂
-  refine Reaches.oread (hi 2 (by omega)) (by simp [Expr.readsChoice, ht₁]) hB' ?_
   rcases lt_or_eq_of_le hk₁ with hk₁' | rfl
   · -- the first variable has more digits
     have hk₂' : k = v₂.bits.length := by omega
-    simp only [eval_add, eval_reg, eval_const, getD_cmpCur_left htt hlen₁,
-      (hl₁.literal_digit hk₁').2.1, readLabel]
-    refine Reaches.oread (hi 3 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
     have hne : v₁ ≠ v₂ := fun h => by rw [h] at hk₁'; omega
-    simp only [eval_add, eval_reg, eval_const, getD_cmpCur_right hlen₂, hk₂',
-      hl₂.literal_end.2.1, readLabel, hne, ↓reduceIte]
-    exact Reaches.refl _
-  · simp only [eval_add, eval_reg, eval_const, getD_cmpCur_left htt hlen₁, hl₁.literal_end.2.1,
-      readLabel]
-    refine Reaches.oread (hi 4 (by omega)) (by simp [Expr.readsChoice, ht₂]) hB' ?_
-    simp only [eval_add, eval_reg, eval_const, getD_cmpCur_right hlen₂]
+    cp_step [getD_cmpCur_left htt hlen₁, (hl₁.literal_digit hk₁').2.1] using hi 2 (by omega)
+    cp_step [getD_cmpCur_right hlen₂, hk₂', hl₂.literal_end.2.1, hne] using hi 3 (by omega)
+  · cp_step [getD_cmpCur_left htt hlen₁, hl₁.literal_end.2.1] using hi 2 (by omega)
     rcases lt_or_eq_of_le hk₂ with hk₂' | hk₂'
     · have hne : v₁ ≠ v₂ := fun h => by rw [h] at hk₂'; omega
-      simp only [(hl₂.literal_digit hk₂').2.1, readLabel, hne, ↓reduceIte]
-      exact Reaches.refl _
-    · rw [show pos₂ + 8 * v₁.bits.length + 3 = pos₂ + 8 * v₂.bits.length + 3 by rw [hk₂']]
-      have heq : v₁ = v₂ := Turing.MultiTapeTM.encNat.injective
+      cp_step [getD_cmpCur_right hlen₂, (hl₂.literal_digit hk₂').2.1, hne] using hi 4 (by omega)
+    · have heq : v₁ = v₂ := Turing.MultiTapeTM.encNat.injective
         (by simpa using List.ext_getElem hk₂' fun k' h₁ h₂ => hpre k' h₁ h₂ h₁)
-      simp only [hl₂.literal_end.2.1, readLabel, heq, ↓reduceIte]
-      exact Reaches.refl _
+      cp_step [getD_cmpCur_right hlen₂, heq, hl₂.literal_end.2.1] using hi 4 (by omega)
 
 /-- Comparing the `k`-th digits of the two variables when both have a `k`-th digit. -/
 private theorem reaches_cmpVarCode_digit (hk₁ : k < v₁.bits.length) (hk₂ : k < v₂.bits.length) :
@@ -372,13 +345,11 @@ theorem reaches_signCode {b p t yes no : ℕ} (hcode : P.CodeAt b (signCode b p 
   rw [show b + 1 + 1 = b + 2 by omega] at h₂
   rw [show b + 1 + 1 + 1 = b + 3 by omega] at h₃
   rw [length_literalBits] at hend
-  refine Reaches.oassign h₀ ht (by simp [Expr.readsChoice, hp]) hB ?_
   have := reaches_digitLoop h₁ h₂ ht hlen hlit hB hend 0 (Nat.zero_le _)
-  simp only [eval_reg, hpos, Nat.mul_zero, Nat.add_zero] at this ⊢
-  refine this.trans (Reaches.oread h₃ (by simp [Expr.readsChoice, ht])
-    (List.forall_mem_set_of_forall_mem hB (by omega)) ?_)
-  simp only [eval_add, eval_reg, eval_const, List.getD_set_self hlen, hlit.literal_end.2.2,
-    readLabel]
+  rw [Nat.mul_zero, Nat.add_zero] at this
+  cp_step [hpos]
+  refine this.trans ?_
+  cp_step [List.getD_set_self hlen, hlit.literal_end.2.2]
   cases sgn <;> exact Reaches.refl _
 
 end TwoSAT

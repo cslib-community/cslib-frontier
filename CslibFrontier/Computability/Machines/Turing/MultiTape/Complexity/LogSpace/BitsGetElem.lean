@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Step
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -110,23 +111,14 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
     induction h : w.length - j generalizing j with
     | zero =>
       obtain rfl : j = w.length := by omega
-      refine CounterProgram.Reaches.read (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-      simpa [getElem?_frame_append_length, readLabel] using
-        CounterProgram.Reaches.refl (2, [w.length, 0, 0, 0])
+      cp_step [getElem?_frame_append_length]
     | succ _ ih =>
-      refine CounterProgram.Reaches.read (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-      simp only [eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-        (getElem?_frame_append w i.bits (show j < w.length by omega)).1, readLabel]
-      refine CounterProgram.Reaches.assign (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
+      cp_step [(getElem?_frame_append w i.bits (show j < w.length by omega)).1]
+      cp_step
       simpa using ih (j + 1) (by omega) (by omega)
   have setPow : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
       (2, [w.length, 0, 0, 0]) (3, [w.length, 0, 2 ^ 0, valBits (i.bits.take 0)]) := by
-    refine CounterProgram.Reaches.assign (by rfl)
-      (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
-    simpa [valBits] using CounterProgram.Reaches.refl (3, [w.length, 0, 1, 0])
+    cp_step [valBits, List.take_zero, pow_zero]
   have loop : ∀ j ≤ i.bits.length, 2 ^ j ≤ 2 * w.length + 1 →
       valBits (i.bits.take j) ≤ 2 * w.length →
       ∃ s, bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
@@ -146,26 +138,20 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
       have h3 : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
           (3, [w.length, i.bits.length, 2 ^ i.bits.length, i])
           (9, [w.length, i.bits.length, 2 ^ i.bits.length, i]) := by
-        refine CounterProgram.Reaches.read (by rfl) hb ?_
-        simpa [getElem?_frame_append_boundary, readLabel] using
-          CounterProgram.Reaches.refl (9, [w.length, i.bits.length, 2 ^ i.bits.length, i])
+        cp_step [getElem?_frame_append_boundary, List.getElem?_length]
       by_cases hiw : i < w.length
       · have h9 : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
             (9, [w.length, i.bits.length, 2 ^ i.bits.length, i])
             (10, [w.length, i.bits.length, 2 ^ i.bits.length, i]) := by
-          refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simpa [hiw] using CounterProgram.Reaches.refl _
+          cp_step [hiw]
         refine ⟨(if w[i] then 11 else 12, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
           (h3.trans h9).trans ?_, ?_, hb⟩
-        · refine CounterProgram.Reaches.read (by rfl) hb ?_
-          cases hbit : w[i] <;>
-            simpa [(getElem?_frame_append w i.bits hiw).2, hbit, readLabel] using
-              CounterProgram.Reaches.refl _
+        · cp_step [(getElem?_frame_append w i.bits hiw).2]
+          cases w[i] <;> exact CounterProgram.Reaches.refl _
         · cases hbit : w[i] <;>
             simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
       · refine ⟨(13, [w.length, i.bits.length, 2 ^ i.bits.length, i]), h3.trans ?_, ?_, hb⟩
-        · refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simpa [hiw] using CounterProgram.Reaches.refl _
+        · cp_step [hiw]
         · simp [List.getElem?_eq_none (by omega : w.length ≤ i), bitsGetElemProgram, instr]
     | succ _ ih =>
       intro hpow hrem
@@ -177,12 +163,8 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
         have hi_ge : 2 ^ j ≤ i := Nat.lt_size.mp hj_sz
         have hnone : w[i]? = none := List.getElem?_eq_none (by omega)
         refine ⟨(13, [w.length, j, 2 ^ j, valBits (i.bits.take j)]), ?_, ?_, hb⟩
-        · refine CounterProgram.Reaches.read (by rfl) hb ?_
-          simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-            List.getD_cons_succ, getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
-          cases i.bits[j] <;> dsimp only [readLabel] <;>
-            exact CounterProgram.Reaches.lt (by rfl) hb
-              (by simpa [hgt] using CounterProgram.Reaches.refl _)
+        · cp_step [getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
+          cases i.bits[j] <;> cp_step [hgt]
         · simp [hnone, bitsGetElemProgram, instr]
       · have hpow_le_w : 2 ^ j ≤ w.length := by omega
         have hnext_pow : 2 ^ (j + 1) ≤ 2 * w.length + 1 := by
@@ -196,36 +178,20 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
           omega
         obtain ⟨s, hs, hout, hsB⟩ := ih (j + 1) (by omega) (by omega) hnext_pow hnext_rem
         refine ⟨s, ?_, hout, hsB⟩
-        have hb7 := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
-          (a₃ := valBits (i.bits.take (j + 1))) (by omega) (by omega) (by omega) (by omega)
-        have hb8 := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ (j + 1))
-          (a₃ := valBits (i.bits.take (j + 1))) (by omega) (by omega) (by omega) (by omega)
         have htail7 : bitsGetElemProgram.Reaches (frame w ++ i.bits)
             (bitsGetElemProgram.Running B) (7, [w.length, j, 2 ^ j, valBits (i.bits.take (j + 1))])
             s := by
-          refine CounterProgram.Reaches.assign (by rfl) hb7 ?_
           have hmul : 2 * 2 ^ j = 2 ^ (j + 1) := by rw [pow_succ]; ring
-          simp only [eval_mul, eval_const, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-            List.set_cons_succ, List.set_cons_zero, hmul]
-          refine CounterProgram.Reaches.assign (by rfl) hb8 ?_
-          simpa using hs
-        refine CounterProgram.Reaches.read (by rfl) hb ?_
-        simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-          List.getD_cons_succ, getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
+          cp_step [hmul]
+          cp_step
+        cp_step [getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
         have hstep_val := (valBits_take_succ i.bits j hj_lt).symm
         cases htb : i.bits[j]
         · simp only [htb, Bool.false_eq_true, ↓reduceIte, Nat.add_zero] at hstep_val
-          dsimp only [readLabel]
-          refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, hgt, ↓reduceIte]
-          rwa [hstep_val]
+          cp_step [hgt, hstep_val]
         · simp only [htb, ↓reduceIte] at hstep_val
-          dsimp only [readLabel]
-          refine CounterProgram.Reaches.lt (by rfl) hb ?_
-          simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, hgt, ↓reduceIte]
-          refine CounterProgram.Reaches.assign (by rfl) hb ?_
-          simpa only [eval_add, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-            List.set_cons_succ, List.set_cons_zero, hstep_val] using htail7
+          cp_step [hgt]
+          cp_step [hstep_val]
   obtain ⟨s, hs, hout, hsB⟩ := loop 0 (Nat.zero_le _) (by simp) (by simp [valBits])
   dsimp only [CounterProgram.init, bitsGetElemProgram, List.replicate]
   exact ⟨s, ((scan 0 (Nat.zero_le _)).trans setPow).trans hs, hout, hsB⟩

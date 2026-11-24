@@ -31,6 +31,8 @@ imports neither `CounterProgram.AllBranches` nor `CounterProgram.Block`.
 
 * `cp_step`, `cp_step [h₁, h₂]`: take one step, simplifying with the simp set `cp_simps` and the
   given lemmas, and deciding conditional labels by a hypothesis or `omega`.
+* `cp_step using h`, `cp_step [h₁, h₂] using h`: take the instruction at the label from the proof
+  `h`, such as an instance `hcode 8 (by omega)` of a block certificate, and from nothing else.
 -/
 
 public section
@@ -115,7 +117,8 @@ private partial def closeBound (g : MVarId) : TacticM Bool := do
     return false
 
 /-- Prove a side condition of a stepping rule: a bound on the registers, `c ≤ B` or `i ≠ 0` by a
-hypothesis, `Nat.zero_le` or `omega`, or `e.readsChoice = false` by evaluation. -/
+hypothesis, `Nat.zero_le` or `omega`, or `e.readsChoice = false` by evaluation, with `r ≠ 0` for
+each register `r` of `e` that is not a numeral by `omega`. -/
 private def closeSide (g : MVarId) : TacticM Bool := do
   if ← g.isAssigned then return true
   if (boundList? (← instantiateMVars (← g.getType))).isSome then return ← closeBound g
@@ -128,10 +131,22 @@ private def closeSide (g : MVarId) : TacticM Bool := do
     | (simp only [$readsChoice:ident, Bool.or_eq_false_iff,
         beq_eq_false_iff_ne, ne_eq, and_true, true_and] <;> omega))) g
 
-/-- Apply the rule `rule` to `g` if the instruction at the label of `g` is that of the rule: by a
-hypothesis, or, when `eval` is set, by evaluation. Returns the side conditions and the goal after
-the step. -/
-private def tryRule (g : MVarId) (eval : Bool) (instr? : Option Term) (rule : Name) :
+/-- Close the goal `g` by evaluation. -/
+private def byRefl (g : MVarId) : TacticM Bool :=
+  attempt do
+    g.refl
+    return true
+
+/-- Close the goal `g` with the proof `h`, when the type of `h` unfolds to that of `g`. -/
+private def byProof (h : Lean.Expr) (g : MVarId) : TacticM Bool :=
+  attempt do
+    unless ← isDefEq (← g.getType) (← inferType h) do return false
+    g.assign h
+    return true
+
+/-- Apply the rule `rule` to `g` if `closeInstr` proves that the instruction at the label of `g` is
+that of the rule. Returns the side conditions and the goal after the step. -/
+private def tryRule (g : MVarId) (closeInstr : MVarId → TacticM Bool) (rule : Name) :
     TacticM (Option (Array MVarId × MVarId)) := do
   unless (← getEnv).contains rule do return none
   let s ← saveState
@@ -144,15 +159,7 @@ private def tryRule (g : MVarId) (eval : Bool) (instr? : Option Term) (rule : Na
     let explicit := (args.zip binfos).filterMap fun (a, b) => if b.isExplicit then some a else none
     let some hinstr := explicit[0]? | s.restore; return none
     let some next := explicit.back? | s.restore; return none
-    let closed ← match instr? with
-      | some h => closesWith (← `(tactic| exact $h)) hinstr.mvarId!
-      | none =>
-        if eval then
-          attempt do
-            hinstr.mvarId!.refl
-            return true
-        else byAssumption hinstr.mvarId!
-    unless closed do
+    unless ← closeInstr hinstr.mvarId! do
       s.restore
       return none
     g.assign (mkAppN c args)
@@ -259,6 +266,21 @@ private def close (g : MVarId) : TacticM Bool := do
     return true
   byAssumption g
 
+/-- The proof after `using` of the instruction at the label of `g`: the term `h` elaborated against
+`P.instr l = ?i` for the program `P` and the label `l` of `g`, when the source of `g` is a
+configuration `(l, regs)`. An error of the elaboration is reported with this premise. -/
+private def elabInstr (g : MVarId) (h : Term) : TacticM (Option Lean.Expr) := g.withContext do
+  let tgt ← whnfR (← instantiateMVars (← g.getType))
+  let some l := labelAt? tgt 3 | return none
+  let i ← mkFreshExprMVar (some (mkConst ``Turing.CounterProgram.Instr)) (userName := `i)
+  let premise ← mkEq (← mkAppM ``Turing.CounterProgram.instr #[tgt.getArg! 0, l]) i
+  try
+    return some (← withoutRecover <| elabTermEnsuringType h premise)
+  catch ex =>
+    if ex matches .internal .. then throw ex
+    throwErrorAt h "cp_step: the term after `using` does not prove the instruction at the label \
+      of the goal. The step needs a proof of{indentExpr premise}\n{ex.toMessageData}"
+
 /-- `cp_step` takes one step of a counter program in a goal `P.Reaches w Q (l, regs) s'`. It
 applies the stepping rule of the instruction at `l`, given by a hypothesis `P.instr l = i` or by
 evaluation of `P.instr l`, then simplifies the configuration after the step and closes the goal by
@@ -270,11 +292,13 @@ conditionals.
   (`regs.getD 0 0 = n`) and the input bit read (`w[k]? = some true`), or simprocs such as
   `Nat.reduceDiv`. A fact about expressions that `cp_simps` evaluates, such as
   `(const 0).eval regs < e.eval regs ↔ p`, is passed as `↓h`, to apply before they are evaluated.
-* `cp_step [h₁, h₂] using instr` supplies the instruction equation directly, for example an
-  instance `hcode 8 (by omega)` of a block certificate. It is elaborated against the rule's
-  instruction premise, so its arguments can be inferred from the current configuration.
-* `cp_step (disch := tac)` tries `tac` on side conditions the standard bound and arithmetic
-  procedures cannot prove. The step still fails if any side condition remains unproved.
+* `cp_step using h` and `cp_step [h₁, h₂] using h` take the instruction from the proof `h` of
+  `P.instr l = i`, for example an instance `hcode 8 (by omega)` of a block certificate
+  `P.CodeAt b code`. The term `h` is elaborated once, against `P.instr l = ?i` for the label `l` of
+  the goal, and is the only evidence used: when it does not prove the instruction at `l`,
+  `cp_step` fails with the error of the elaboration, also when a hypothesis states the instruction.
+  The label is compared up to evaluation, so `match some true with | some true => l₁ | …`, as a
+  case split on the bit read leaves it, is `l₁`.
 
 A conditional label `if c then l₁ else l₂` is decided when `c` or `¬c` is a hypothesis or, for a
 comparison of natural numbers or integers, follows by `omega`: that of the configuration before
@@ -284,13 +308,14 @@ the step, and after the step that of either configuration when the label of the 
 The side conditions of the rule must be proved automatically: a bound `∀ r ∈ regs, r ≤ B` on the
 registers by a hypothesis, or entry by entry for `regs'.set i x` (from a bound on `regs'`) and for
 a list written out, with the bounds on the entries by a hypothesis or `omega`; `c ≤ B` and `i ≠ 0`
-by a hypothesis, `decide` or `omega`; and `e.readsChoice = false` by evaluation. Otherwise
+by a hypothesis, `decide` or `omega`; and `e.readsChoice = false` by evaluation, where a register
+`r` of `e` that is not a numeral needs `r ≠ 0` to follow from the hypotheses by `omega`. Otherwise
 `cp_step` fails and names the rule and the condition. The rules are those of running
 configurations (`Reaches.assign`, `Reaches.lt`, `Reaches.read`), and, when their modules are
 imported, of oblivious configurations (`Reaches.oassign`, `Reaches.olt`, `Reaches.oread`) and of
 shifted instructions (`Reaches.sassign`, `Reaches.slt`). A label left undecided, or as a `match`
 on the bit read, stops `cp_step` with a diagnostic: split into cases first. -/
-syntax (name := cpStep) "cp_step" (Lean.Parser.Tactic.discharger)?
+syntax (name := cpStep) "cp_step"
   (" [" (Lean.Parser.Tactic.simpStar <|> Lean.Parser.Tactic.simpErase <|>
     Lean.Parser.Tactic.simpLemma),* "]")? (" using " term)? : tactic
 
@@ -302,7 +327,7 @@ private def simpNext (g : MVarId) (args : Array Syntax) : TacticM (List MVarId) 
     Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, $args,*])) g
 
 elab_rules : tactic
-  | `(tactic| cp_step $[$disch?:discharger]? $[[$args,*]]? $[using $instr?]?) => withMainContext do
+  | `(tactic| cp_step $[[$args,*]]? $[using $instr?]?) => withMainContext do
     let args := args.map (·.getElems.map (·.raw)) |>.getD #[]
     let g ← getMainGoal
     unless (← whnfR (← instantiateMVars (← g.getType))).isAppOf ``Turing.CounterProgram.Reaches do
@@ -311,32 +336,38 @@ elab_rules : tactic
     let g ← decideLabel g false
     replaceMainGoal [g]
     let tgt ← instantiateMVars (← g.getType)
+    let undecided? ← undecidedLabel? (← whnfR tgt)
+    -- The evidence for the instruction: the term after `using` and nothing else, or a hypothesis
+    -- and then evaluation. A term that does not elaborate against an undecided label is reported
+    -- below as that label.
+    let evidence : List (MVarId → TacticM Bool) ← match instr? with
+      | none => pure [byAssumption, byRefl]
+      | some h => do
+        let pf? ← try elabInstr g h catch ex => if undecided?.isSome then pure none else throw ex
+        pure (pf?.toList.map byProof)
     let mut found : Option (Name × Array MVarId × MVarId) := none
-    for eval in [false, true] do
+    for closeInstr in evidence do
       for rule in rules do
-        if let some r ← tryRule g eval instr? rule then
+        if let some r ← tryRule g closeInstr rule then
           found := some (rule, r)
           break
       if found.isSome then break
     if found.isNone then
-      if let some l ← undecidedLabel? (← whnfR tgt) then
+      if let some l := undecided? then
         throwError "cp_step: the label{indentExpr l}\nis not decided. Split into cases on its \
           condition, which `cp_step` then decides by a hypothesis or `omega`, or pass the bit read \
           (`w[i]? = some b`) as a simp lemma."
     let some (rule, sides, next) := found
-      | throwError "cp_step: no stepping rule applies to{indentExpr tgt}\nIt needs a hypothesis \
+      | if instr?.isSome then
+          throwError "cp_step: no stepping rule applies to{indentExpr tgt}\nIt needs the term \
+            after `using` to prove `P.instr l = i` for the label `l` of a configuration \
+            `(l, regs)` and an assignment, comparison or read `i` with its rule imported."
+        throwError "cp_step: no stepping rule applies to{indentExpr tgt}\nIt needs a hypothesis \
           `P.instr l = i` for the label `l`, or a program `P` whose instruction at `l` evaluates, \
           an assignment, comparison or read `i` with its rule imported, and a label that is not a \
           conditional."
     for side in sides do
-      let closed ← closeSide side
-      let closed ← if closed then pure true else
-        match disch? with
-        | some d => do
-          let tac : TSyntax ``Lean.Parser.Tactic.tacticSeq := ⟨d.raw[3]⟩
-          closesWith (← `(tactic| ($tac))) side
-        | none => pure false
-      unless closed do
+      unless ← closeSide side do
         throwError "cp_step: could not prove the side condition{indentExpr (← instantiateMVars
           (← side.getType))}\nof `{rule}`. Add it as a hypothesis."
     let gs ← simpNext next args
