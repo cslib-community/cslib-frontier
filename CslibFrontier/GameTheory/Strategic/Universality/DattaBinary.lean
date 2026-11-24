@@ -187,7 +187,7 @@ theorem notMem_vars_chainEq_source (hN : 3 ≤ n * d) (c : Fin n × Fin d) :
     simp only [source, Equiv.apply_symm_apply]
   have hval := congrArg Fin.val hrot
   rw [val_finRotate] at hval
-  have hlt := (finProdFinEquiv (source c)).2
+  have hlt := (finProdFinEquiv (source c)).isLt
   rcases vars_chainEq hv with h | h | ⟨h0, h⟩
   · simp only [chain, Sum.inr.injEq, Sum.inl.injEq] at h
     rw [← h] at hval
@@ -305,7 +305,7 @@ theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
     rw [← eval_encode (hF j) hpow]
     by_cases hj : j.val < n
     · have := h (var ⟨j, hj⟩)
-      simpa [equation, j.2] using this
+      simpa [equation, j.isLt] using this
     · have := h (extra ⟨j - n, by omega⟩)
       simp only [equation] at this
       have hj' : (⟨n + (j.val - n), by omega⟩ : Fin m) = j := Fin.ext (by simp only; omega)

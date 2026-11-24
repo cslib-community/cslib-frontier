@@ -117,9 +117,9 @@ private theorem choose_mul_inv_pow_le_exp {n r : ℕ} (hn : 0 < n)
     (n.choose r : ℝ) * ((2 : ℝ) ^ r.choose 2)⁻¹ ≤ exp (-(r : ℝ)) := by
   have hnR : (0 : ℝ) < n := by exact_mod_cast hn
   have hnpow : (n : ℝ) ^ r = exp ((r : ℝ) * log n) := by
-    rw [exp_nat_mul, exp_log hnR]
+    rw [exp_natCast_mul, exp_log hnR]
   have htwo : (2 : ℝ) ^ r.choose 2 = exp ((r.choose 2 : ℝ) * log 2) := by
-    rw [exp_nat_mul, exp_log (by norm_num : (0 : ℝ) < 2)]
+    rw [exp_natCast_mul, exp_log (by norm_num : (0 : ℝ) < 2)]
   calc
     _ ≤ (n : ℝ) ^ r * ((2 : ℝ) ^ r.choose 2)⁻¹ := by
       apply mul_le_mul_of_nonneg_right _ (by positivity)

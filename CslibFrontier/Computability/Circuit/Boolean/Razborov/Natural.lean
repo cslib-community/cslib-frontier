@@ -81,7 +81,7 @@ private theorem rank_truthTableMatrix (n a : ℕ) (T : BitString (2 ^ n)) :
 private theorem bitEquiv_truthTableMatrix (n a : ℕ) (T : BitString (2 ^ n))
     (i j : Fin (n.choose a)) :
     bitEquiv (truthTableMatrix n a T i j) =
-      ∑ x with ∀ k ∈ ((subsetEquiv n a).symm i).1 ∪ ((subsetEquiv n a).symm j).1, x k = false,
+      ∑ x with ∀ k ∈ ((subsetEquiv n a).symm i).val ∪ ((subsetEquiv n a).symm j).val, x k = false,
         T (BitString.equivFin n x) := by
   simp only [truthTableMatrix, reindex_apply, submatrix_apply, zeroSumMatrix_apply, map_sum,
     ← bitEquiv_symm_apply, RingEquiv.apply_symm_apply, truthTable_symm_apply]
@@ -93,7 +93,7 @@ private theorem synthesis_entryBits_truthTableMatrix (n a : ℕ) :
       (n.choose a * n.choose a * (4 * 2 ^ n + 1)) := by
   set e := subsetEquiv n a
   let S : Fin (n.choose a) × Fin (n.choose a) → Finset (BitString n) := fun p =>
-    univ.filter fun x => ∀ k ∈ (e.symm p.1).1 ∪ (e.symm p.2).1, x k = false
+    univ.filter fun x => ∀ k ∈ (e.symm p.1).val ∪ (e.symm p.2).val, x k = false
   have h := Synthesis.family (I := interpretation) (s := inputs (2 ^ n))
     (fun p (T : BitString (2 ^ n)) => ∑ x ∈ S p, T (BitString.equivFin n x))
     (fun _ => 4 * 2 ^ n + 1) fun p => by

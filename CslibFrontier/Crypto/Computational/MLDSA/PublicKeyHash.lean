@@ -53,7 +53,7 @@ private theorem short_read {s : Level} {a b : ℕ} (t : Table a b) (g : KeyCell 
     · next h =>
         apply Function.extend_apply'
         rintro ⟨p, hp⟩
-        have len := p.2
+        have len := p.property
         rw [hp] at len
         change x.length = keyBits s at len
         have large : 528 < keyBits s := by cases s <;> decide

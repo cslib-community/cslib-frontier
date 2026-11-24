@@ -93,8 +93,8 @@ theorem hammingNorm_eq_sum_chunks {chunks chunkSize : ℕ}
   let e :
       {p : Fin chunks × Fin chunkSize // x p ≠ 0} ≃
         Σ i : Fin chunks, {j : Fin chunkSize // x (i, j) ≠ 0} :=
-    { toFun := fun p => ⟨p.1.1, ⟨p.1.2, p.2⟩⟩
-      invFun := fun p => ⟨(p.1, p.2.1), p.2.2⟩
+    { toFun := fun p => ⟨p.val.1, ⟨p.val.2, p.property⟩⟩
+      invFun := fun p => ⟨(p.1, p.2.val), p.2.property⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   rw [hammingNorm, ← Fintype.card_subtype]

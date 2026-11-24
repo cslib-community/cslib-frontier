@@ -53,7 +53,7 @@ variable {n k : ℕ}
 @[expose] noncomputable def instanceDistribution
     (prior : PMF {S : Finset (Fin n) // S.card = k}) : PMF (PlantedInstance n) :=
   prior.bind fun S => (PMF.uniformOfFintype (Coins n)).map fun ω =>
-    ⟨S.1, sample S.1 ω⟩
+    ⟨S.val, sample S.val ω⟩
 
 /-- Exact planted-set recovery: the solver observes the graph and must return the hidden set. -/
 @[expose] noncomputable def searchProblem
@@ -75,11 +75,11 @@ theorem searchProblem_failure_le_of_fixedSet
   rw [DistributionalSearchProblem.experiment_pure_false]
   have h := PMF.toOuterMeasure_bind_failure_toReal_le prior
     (fun S => (PMF.uniformOfFintype (Coins n)).map fun ω =>
-      (⟨S.1, sample S.1 ω⟩ : PlantedInstance n)) Set.univ
+      (⟨S.val, sample S.val ω⟩ : PlantedInstance n)) Set.univ
     {state : PlantedInstance n | solve state.graph ≠ state.planted} herror
     (fun S _ _ => by
       rw [PMF.toOuterMeasure_map_apply]
-      exact hsolve S.1 S.property)
+      exact hsolve S.val S.property)
   simpa only [Set.compl_univ, MeasureTheory.measure_empty, ENNReal.toReal_zero, zero_add,
     searchProblem, instanceDistribution] using h
 

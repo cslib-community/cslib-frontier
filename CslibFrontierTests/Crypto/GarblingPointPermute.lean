@@ -174,10 +174,10 @@ def simCoins : List Bool := List.ofFn fun i : Fin 28 => decide (i.val % 3 = 1)
 /-- The simulated view at `k = 2` for the output `[y]` and the AND gate's topology on the coins
 `r`. -/
 def simView (r : List Bool) (y : Bool) : PrvView :=
-  PointPermute.simViewWord xorFamily 2 [y] (phiTopo.phi validAndGate).1 r
+  PointPermute.simViewWord xorFamily 2 [y] (phiTopo.phi validAndGate).val r
 
 /-- The coins have the length that the simulator samples. -/
-example : simCoins.length = PointPermute.simCoinLen 2 validAndGate.1.n validAndGate.1.q := by
+example : simCoins.length = PointPermute.simCoinLen 2 validAndGate.val.n validAndGate.val.q := by
   decide
 
 /-- A simulated view has the lengths of the real view: a garbled function as long as the 49 bits of

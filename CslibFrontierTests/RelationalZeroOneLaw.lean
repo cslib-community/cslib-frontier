@@ -119,7 +119,7 @@ theorem sentenceProb_irreflexive (n : ℕ) :
     Nat.card_subtype_comp_injective_div ι hι (fun h : Fin n → Bool => ∀ a, h a = false)]
   have h1 : Nat.card {h : Fin n → Bool // ∀ a, h a = false} = 1 :=
     Nat.card_eq_one_iff_unique.2 ⟨⟨fun a b => Subtype.ext (funext fun u => by
-      rw [a.2, b.2])⟩, ⟨⟨fun _ => false, fun _ => rfl⟩⟩⟩
+      rw [a.property, b.property])⟩, ⟨⟨fun _ => false, fun _ => rfl⟩⟩⟩
   rw [h1, Nat.card_fun, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool, Nat.card_fin]
   push_cast
   rw [one_div]

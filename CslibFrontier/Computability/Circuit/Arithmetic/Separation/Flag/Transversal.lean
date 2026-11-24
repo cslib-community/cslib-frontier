@@ -166,7 +166,7 @@ theorem linearIndependent_sigma {ι : Type} {W : ι → Mt m} (h : iSupIndep fun
     rw [hW k, colSpace_X]
     refine span_mono ?_
     rintro _ ⟨i, rfl⟩
-    exact Set.mem_image_of_mem _ i.2
+    exact Set.mem_image_of_mem _ i.property
   refine linearIndependent_iUnion_finite (f := fun k (i : S k) => (p k : Mt m).col i)
     (fun k => (linearIndependent_col (p k)).comp _ Subtype.val_injective) fun k t _ hk => ?_
   refine (h k).mono (hle k) (iSup₂_le fun j hj => ?_)

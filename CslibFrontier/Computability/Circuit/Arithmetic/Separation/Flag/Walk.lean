@@ -152,8 +152,8 @@ def tr {n n' : ℕ} (h : n ≤ n') : U n' →* U n where
       by_contra hlt
       rw [mat_lt B (not_le.1 hlt), mul_zero] at hk
       exact hk rfl
-    have hkn : k.1 < n := lt_of_le_of_lt (Fin.le_def.1 hkj) j.2
-    exact ⟨⟨k.1, hkn⟩, mem_univ _, hk, rfl⟩
+    have hkn : k.val < n := lt_of_le_of_lt (Fin.le_def.1 hkj) j.isLt
+    exact ⟨⟨k.val, hkn⟩, mem_univ _, hk, rfl⟩
 
 theorem tr_apply {n n' : ℕ} (h : n ≤ n') (A : U n') (i j : Fin n) :
     mat (tr h A) i j = mat A (Fin.castLE h i) (Fin.castLE h j) := by rfl
@@ -178,7 +178,7 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
   refine h1.trans (mul_le_mul_of_nonneg_left ?_ hκ)
   unfold Len.S
   have e : ∀ j : Fin (n' - 1), (l.comp (tr h)) (x n' j) =
-      if hj : j.1 < n - 1 then l (x n ⟨j.1, hj⟩) else 0 := by
+      if hj : j.val < n - 1 then l (x n ⟨j.val, hj⟩) else 0 := by
     intro j
     change l (tr h (x n' j)) = _
     split_ifs with hj
@@ -191,17 +191,17 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
         apply mat_inj
         ext a b
         rw [tr_apply, mat_x, mat_one]
-        have : ¬ (j.1 = a.1 ∧ j.1 + 1 = b.1) := by
-          have := b.2
+        have : ¬ (j.val = a.val ∧ j.val + 1 = b.val) := by
+          have := b.isLt
           omega
         simp [Matrix.one_apply, lo, hi, Fin.ext_iff, this]
       rw [this, map_one_eq_zero l]
   rw [sum_congr rfl fun j _ => e j]
-  rw [← Finset.sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.1 < n - 1)]
-  rw [Finset.sum_eq_zero (s := univ.filter fun j : Fin (n' - 1) => ¬ j.1 < n - 1), add_zero]
+  rw [← Finset.sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.val < n - 1)]
+  rw [Finset.sum_eq_zero (s := univ.filter fun j : Fin (n' - 1) => ¬ j.val < n - 1), add_zero]
   · refine le_of_eq ?_
-    refine sum_bij' (fun j hj => ⟨j.1, by simpa using hj⟩)
-      (fun j _ => ⟨j.1, by have := j.2; omega⟩) ?_ ?_ ?_ ?_ ?_
+    refine sum_bij' (fun j hj => ⟨j.val, by simpa using hj⟩)
+      (fun j _ => ⟨j.val, by have := j.isLt; omega⟩) ?_ ?_ ?_ ?_ ?_
     · intro j _
       exact mem_univ _
     · intro j _
@@ -211,10 +211,10 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
     · intro j _
       rfl
     · intro j hj
-      have : j.1 < n - 1 := by simpa using hj
+      have : j.val < n - 1 := by simpa using hj
       simp [this]
   · intro j hj
-    have : ¬ j.1 < n - 1 := by simpa using hj
+    have : ¬ j.val < n - 1 := by simpa using hj
     simp [this]
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

@@ -961,10 +961,10 @@ private theorem exists_shifts_params {m B : ℕ} [NeZero (dG m B)] (hB : 1 ≤ B
         _ ≤ (2 : ℝ) ^ (3 * mu m) := pow_le_pow_right₀ (by norm_num) (by omega)
         _ = (8 : ℝ) ^ mu m := by rw [pow_mul]; norm_num
     have he4 : (8 : ℝ) < Real.exp 4 := by
-      rw [show Real.exp 4 = Real.exp 1 ^ 4 by rw [← Real.exp_nat_mul]; norm_num]
+      rw [show Real.exp 4 = Real.exp 1 ^ 4 by rw [← Real.exp_natCast_mul]; norm_num]
       exact (by norm_num : (8 : ℝ) < 2 ^ 4).trans
         (pow_lt_pow_left₀ Real.exp_one_gt_two (by norm_num) (by decide : (4 : ℕ) ≠ 0))
-    rw [show (4 : ℝ) * (mu m : ℝ) = (mu m : ℝ) * 4 by ring, Real.exp_nat_mul]
+    rw [show (4 : ℝ) * (mu m : ℝ) = (mu m : ℝ) * 4 by ring, Real.exp_natCast_mul]
     exact h8.trans_lt (pow_lt_pow_left₀ he4 (by norm_num) (by omega))
 private theorem exists_localMatrix_params {m B : ℕ} (hm : 1 ≤ m) (hB : 1 ≤ B) :
     ∃ A : Fin (cG m B) → Fin (dG m B) → Bool,

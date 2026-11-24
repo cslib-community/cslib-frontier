@@ -81,8 +81,8 @@ theorem CircularCorrelationRobust.negligible_prvSimAdvantage_simWord
       query.fn.circuit.q ≤ P k := by
     intro k query state hmem
     have h₁ := hlen (k, ()) (query, state) hmem
-    have h₂ := n_add_q_le_length_encValidCircuit query.fn.1
-    have h₃ : (encValidCircuit query.fn.1).length ≤
+    have h₂ := n_add_q_le_length_encValidCircuit query.fn.val
+    have h₃ : (encValidCircuit query.fn.val).length ≤
         (encPair (encQuery XorAndCircuit encXorAndCircuit) encσ (query, state)).length := by
       simp only [length_encPair, encQuery_apply, encXorAndCircuit_apply]
       omega

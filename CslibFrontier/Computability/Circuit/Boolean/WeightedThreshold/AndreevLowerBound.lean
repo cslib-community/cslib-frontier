@@ -424,7 +424,7 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
       linarith only [mul_nonneg (mul_nonneg hα0 (Real.sqrt_nonneg q)) hβ0]
     have hexp : Real.exp (-(2 * (α * Real.sqrt q + β) ^ 2 / x)) ≤
         Real.exp (-(2 * A)) ^ q * K := by
-      rw [hK, ← Real.exp_nat_mul, ← Real.exp_add]
+      rw [hK, ← Real.exp_natCast_mul, ← Real.exp_add]
       refine Real.exp_le_exp.mpr ?_
       have hval : 2 * (α ^ 2 * q + β ^ 2) / x = 2 * A * q + 2 * ((b : ℝ) + 2) ^ 2 := by
         rw [hα_sq, hβ_sq]; field_simp
@@ -448,7 +448,7 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
   have hr_le : r ≤ 1 / 4 := by
     have hexpA : Real.exp (-(2 * A)) * (M : ℝ) ^ 2 = Real.exp (-(2 * ((b : ℝ) + 2))) := by
       have hlog2 : Real.exp (2 * Real.log M) = (M : ℝ) ^ 2 := by
-        rw [show (2 : ℝ) * Real.log M = ((2 : ℕ) : ℝ) * Real.log M by norm_num, Real.exp_nat_mul,
+        rw [show (2 : ℝ) * Real.log M = ((2 : ℕ) : ℝ) * Real.log M by norm_num, Real.exp_natCast_mul,
           Real.exp_log (by linarith only [hM1])]
       rw [← hlog2, ← Real.exp_add, hA]; congr 1; ring
     have hx1' : x + 1 ≤ 2 * x := by linarith only [hx1]
@@ -459,7 +459,7 @@ theorem andreevWeightTail_scale_le (b : ℕ) {M : ℕ} (hM : 1 ≤ M) :
         exact mul_le_mul h1 h1 (by norm_num) (Real.exp_nonneg 1)
       calc (4 : ℝ) ^ (b + 2) ≤ Real.exp 2 ^ (b + 2) := pow_le_pow_left₀ (by norm_num) h4 _
         _ = Real.exp (2 * ((b : ℝ) + 2)) := by
-          rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+          rw [← Real.exp_natCast_mul]; congr 1; push_cast; ring
     have hx4 : 4 * (x + 1) ^ 2 ≤ (4 : ℝ) ^ (b + 2) := by
       calc 4 * (x + 1) ^ 2 ≤ 4 * (2 * x) ^ 2 := by gcongr
         _ = (4 : ℝ) ^ (b + 2) := by

@@ -935,7 +935,7 @@ theorem closeTo_eval_sampleZ_discreteGaussian
       have hlog : 4 * Real.log 2 < 3 := by linarith only [Real.log_two_lt_d9]
       have hval : Real.exp (-4 * Real.log 2) = 1 / 16 := by
         rw [show (-4 : ℝ) * Real.log 2 = -((4 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-          Real.exp_nat_mul, Real.exp_log two_pos]
+          Real.exp_natCast_mul, Real.exp_log two_pos]
         norm_num
       exact (Real.exp_le_exp.mpr h1).trans
         ((Real.exp_lt_exp.mpr (by linarith only [hlog])).le.trans hval.le)

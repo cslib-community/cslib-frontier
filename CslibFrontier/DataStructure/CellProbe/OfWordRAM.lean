@@ -423,7 +423,7 @@ private theorem haltedOutputPMF_eq_of_execProgramDist {B : Basis} {r w : ℕ} {p
     (h : ExecProgramDist w p_op x μ T) :
     haltedOutputPMF w p_op x = μ := by
   have heq : haltedLim w p_op x = μ := funext h.haltedLim_eq
-  have hsum : HasSum (haltedLim w p_op x) 1 := heq ▸ μ.2
+  have hsum : HasSum (haltedLim w p_op x) 1 := heq ▸ μ.property
   dsimp only [haltedOutputPMF]
   cases Classical.propDecidable (HasSum (haltedLim w p_op x) 1) with
   | isTrue _ => exact PMF.ext h.haltedLim_eq

@@ -51,7 +51,7 @@ def emptyCNFEquiv (n b₀ : ℕ) :
     ↥(univ \ heavyVars univ
       (univ : Finset (Fin ([] : List (Fin (emptyCNF n).length → Bool)).length))
       (fun j => equationScope ((emptyCNF n).parityRowSystem [] j)) b₀) ≃ Fin n where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by
     have h0 :
         heavyVars (univ : Finset (Fin n))

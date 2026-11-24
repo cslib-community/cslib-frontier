@@ -326,7 +326,7 @@ private theorem measured_readout {α : Type}
       let p := sign ask st
       obtain ⟨r, law⟩ := support_law p
       let _ := (finiteSign ask st).fintype
-      refine ⟨POVM.mixture r (fun z => M z.1.1 z.1.2), fun d => ?_⟩
+      refine ⟨POVM.mixture r (fun z => M z.val.1 z.val.2), fun d => ?_⟩
       simp only [eq, POVM.measureDensity_mixture]
       change p.bind _ = _
       conv_lhs => rw [← law, PMF.bind_map]

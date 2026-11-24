@@ -165,12 +165,12 @@ theorem sum_decide_succ_le {q L : ℕ} (h : q ≤ L) :
 
 /-- Unit staircase with natural-number guards. -/
 theorem sum_decide_succ_le_nat {q L : ℕ} (h : q ≤ L) :
-    ∑ j : Fin L, (decide (j.1 + 1 ≤ q)).toNat = q := by
+    ∑ j : Fin L, (decide (j.val + 1 ≤ q)).toNat = q := by
   have hc : ∑ j : Fin L, ((decide ((j : ℤ) + 1 ≤ q)).toNat : ℤ) =
-      ((∑ j : Fin L, (decide (j.1 + 1 ≤ q)).toNat : ℕ) : ℤ) := by
+      ((∑ j : Fin L, (decide (j.val + 1 ≤ q)).toNat : ℕ) : ℤ) := by
     push_cast
     exact sum_congr rfl fun j _ => by
-      rw [decide_eq_decide.mpr (by omega : (j : ℤ) + 1 ≤ q ↔ j.1 + 1 ≤ q)]
+      rw [decide_eq_decide.mpr (by omega : (j : ℤ) + 1 ≤ q ↔ j.val + 1 ≤ q)]
   exact_mod_cast hc.symm.trans (sum_decide_succ_le h)
 
 /-- Square staircase: `∑_{j < L} (2 j + 1) [j + 1 ≤ u] = u ^ 2` for `u ≤ L`. -/
@@ -207,7 +207,7 @@ theorem sum_decide_big_le_add_mul {B t : ℤ} (x : Bool) {q L : ℕ} (lev : ℕ 
   · simp [show ∀ j : Fin L, ¬ B + lev j ≤ t from fun j => by have := hlev j; omega]
   · simp only [Bool.toNat_true, Nat.cast_one, mul_one, one_mul]
     have h : ∑ j : Fin L, (decide (B + lev j ≤ t + B)).toNat =
-        ∑ j : Fin L, (decide (j.1 + 1 ≤ q)).toNat :=
+        ∑ j : Fin L, (decide (j.val + 1 ≤ q)).toNat :=
       sum_congr rfl fun j _ => congrArg Bool.toNat (decide_eq_decide.mpr (by have := hiff j; omega))
     exact_mod_cast h.trans (sum_decide_succ_le_nat hq)
 
@@ -701,7 +701,7 @@ private theorem two_mul_ridgeLen_add_half (b m : ℕ) (S : Finset (Fin b)) :
   rw [andreevSharpRidgeLen]
   split_ifs with hS
   · subst hS; simp
-  · obtain ⟨i, -⟩ := nonempty_iff_ne_empty.mpr hS
+  · obtain ⟨i, -⟩ := ne_empty_iff_nonempty.mp hS
     have hb : 2 ^ b = 2 * 2 ^ (b - 1) := by rw [← pow_succ', Nat.sub_add_cancel i.pos]
     have hmul : (2 * andreevSharpAmp m + m) * #S = 2 * (andreevSharpAmp m * #S) + m * #S ∧
         2 * (andreevSharpAmp m + m) * #S = 2 * (andreevSharpAmp m * #S) + 2 * (m * #S) := by
@@ -954,7 +954,7 @@ private theorem abs_andreevSharpTopWeight_ridge_le (S : Finset (Fin b))
   split_ifs at hj
   · omega
   have hJ : 2 * (j : ℤ) + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S := by
-    exact_mod_cast (by omega : 2 * j.1 + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S)
+    exact_mod_cast (by omega : 2 * j.val + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S)
   have hbN : (b : ℤ) ≤ 2 ^ b := by exact_mod_cast Nat.lt_two_pow_self.le
   have hS : (#S : ℤ) ≤ b := by exact_mod_cast (card_le_univ S).trans_eq (Fintype.card_fin b)
   have hα : 2 * (andreevSharpAmp m : ℤ) ≤ m := by exact_mod_cast two_mul_andreevSharpAmp_le m

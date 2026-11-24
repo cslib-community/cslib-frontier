@@ -30,7 +30,7 @@ private theorem exp_neg_three_pi_lt_one_sixteenth : Real.exp (-3 * Real.pi) < 1 
     Real.exp_lt_exp.mpr (by linarith)
   have hval : Real.exp (-4 * Real.log 2) = 1 / 16 := by
     rw [show (-4 : ℝ) * Real.log 2 = -((4 : ℕ) * Real.log 2) by norm_num, Real.exp_neg,
-      Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+      Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
     norm_num
   rwa [hval] at hlt
 
@@ -61,13 +61,13 @@ private theorem concrete_sampleZ_err_le_quarter :
     have hpow : (1 - 1 / (16 * (2 * (2 : ℕ) + 6 : ℝ))) ^ 340 ≤
         (Real.exp (-1 / 160)) ^ 340 := pow_le_pow_left₀ hnn h1 340
     have hexp_mul : (Real.exp (-1 / 160)) ^ 340 = Real.exp (-340 / 160) := by
-      rw [← Real.exp_nat_mul]; congr 1; norm_num
+      rw [← Real.exp_natCast_mul]; congr 1; norm_num
     have hlog : 3 * Real.log 2 < 340 / 160 := by linarith [Real.log_two_lt_d9]
     have hlt : Real.exp (-340 / 160) < Real.exp (-3 * Real.log 2) :=
       Real.exp_lt_exp.mpr (by linarith)
     have hval : Real.exp (-3 * Real.log 2) = 1 / 8 := by
       rw [show (-3 : ℝ) * Real.log 2 = -((3 : ℕ) * Real.log 2) by norm_num, Real.exp_neg,
-        Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+        Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
       norm_num
     rw [hexp_mul] at hpow
     rw [hval] at hlt
@@ -81,7 +81,7 @@ private theorem concrete_sampleZ_err_le_quarter :
       push_cast; linarith
     have hval : Real.exp (-7 * Real.log 2) = 1 / 128 := by
       rw [show (-7 : ℝ) * Real.log 2 = -((7 : ℕ) * Real.log 2) by norm_num, Real.exp_neg,
-        Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+        Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
       norm_num
     have hcoef : (1 + (1 / 2 : ℝ)) / (1 - 1 / 2) = 3 := by norm_num
     rw [hcoef]

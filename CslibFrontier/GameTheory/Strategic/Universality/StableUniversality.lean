@@ -498,16 +498,16 @@ theorem one_sub_sum_critter {G : Fin m → MvPolynomial (Fin n) ℝ} {q : Coord 
     (h2 : ∀ j : Fin m, j.val < n → q (cCoord (.inr j)) = critterWeight G) :
     1 - ∑ s, q (cCoord s) =
       (Fintype.card (Extra n m) + 1) * critterWeight G -
-        ∑ j : Extra n m, q (cCoord (.inr j.1)) := by
+        ∑ j : Extra n m, q (cCoord (.inr j.val)) := by
   rw [Fintype.sum_sum_type,
     ← Fintype.sum_subtype_add_sum_subtype (fun j : Fin m => n ≤ j.val) fun j => q (cCoord (.inr j))]
   have hcard := Fintype.sum_subtype_add_sum_subtype (fun j : Fin m => n ≤ j.val) fun _ => (1 : ℝ)
   simp only [sum_const, card_univ, nsmul_eq_mul, mul_one, Fintype.card_fin] at hcard
   have e1 : ∑ ν : bobNodes G, q (cCoord (.inl ν)) = ∑ _ν : bobNodes G, critterWeight G :=
     sum_congr rfl fun ν _ => h1 ν
-  have e2 : ∑ j : {j : Fin m // ¬ n ≤ j.val}, q (cCoord (.inr j.1)) =
+  have e2 : ∑ j : {j : Fin m // ¬ n ≤ j.val}, q (cCoord (.inr j.val)) =
       ∑ _j : {j : Fin m // ¬ n ≤ j.val}, critterWeight G :=
-    sum_congr rfl fun j _ => h2 j.1 (not_le.1 j.2)
+    sum_congr rfl fun j _ => h2 j.val (not_le.1 j.property)
   rw [e1, e2]
   simp only [sum_const, card_univ, nsmul_eq_mul, Fintype.card_coe]
   have hw : critterWeight G * (#(bobNodes G) + m + 1) = 1 := by
@@ -520,7 +520,7 @@ probability, and Critter's free probabilities against its reference probability.
 @[expose] def hornerNum (F : Fin m → MvPolynomial (Fin n) ℝ) :
     Fin n ⊕ Extra n m → Σ w, Option (Strat (clearSimplex F) w)
   | .inl i => ⟨.alice, some i⟩
-  | .inr j => ⟨.critter, some (.inr j.1)⟩
+  | .inr j => ⟨.critter, some (.inr j.val)⟩
 
 /-- The reference coordinates against which `hornerNum` is read. -/
 @[expose] def hornerDen (F : Fin m → MvPolynomial (Fin n) ℝ) :
@@ -550,7 +550,7 @@ theorem ratioMap_simplexProfile_inl {F : Fin m → MvPolynomial (Fin n) ℝ}
 theorem ratioMap_simplexProfile_inr {F : Fin m → MvPolynomial (Fin n) ℝ}
     (q : Coord (clearSimplex F) → ℝ) (j : Extra n m) :
     ratioMap (hornerNum F) (hornerDen F) (Sigma.uncurry (simplexProfile q)) (.inr j) =
-      ratioCoord (q (cCoord (.inr j.1))) (1 - ∑ s, q (cCoord s)) :=
+      ratioCoord (q (cCoord (.inr j.val))) (1 - ∑ s, q (cCoord s)) :=
   rfl
 
 private theorem exists_eq_uncurry_simplexProfile {P : Type*} {T : P → Type*} [Fintype P]
@@ -570,7 +570,7 @@ theorem one_sub_sum_hornerPoint (F : Fin m → MvPolynomial (Fin n) ℝ)
     mul_sub, mul_one, mul_sum]
   congr 1
   refine sum_congr rfl fun j _ => ?_
-  simp only [hornerPoint, dite_eq_left j.2, freeBudget]
+  simp only [hornerPoint, dite_eq_left j.property, freeBudget]
 
 /-- **The three-player change of variables.** `V × ℝ^{Extra n m}` is semialgebraically
 isomorphic to the set of totally mixed Nash equilibria of `hornerGame F`. The map is
@@ -619,7 +619,7 @@ noncomputable def hornerHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) :
         simp only [one_mul] at this
         exact this
       · rw [ratioMap_simplexProfile_inr, one_sub_sum_hornerPoint]
-        simp only [hornerPoint, dite_eq_left j.2, freeBudget]
+        simp only [hornerPoint, dite_eq_left j.property, freeBudget]
         exact ratioCoord_simplexPoint (freeBudget_pos F).ne' _ _)
     (fun y hy => by
       obtain ⟨q, rfl⟩ := exists_eq_uncurry_simplexProfile hy
@@ -644,10 +644,10 @@ noncomputable def hornerHomeomorph (F : Fin m → MvPolynomial (Fin n) ℝ) :
         · exact (hc1 ν).symm
         · by_cases h : n ≤ j.val
           · simp only [hornerPoint, dite_eq_left h, freeBudget]
-            have hs : ∑ j : Extra n m, q (cCoord (.inr j.1)) <
+            have hs : ∑ j : Extra n m, q (cCoord (.inr j.val)) <
                 (Fintype.card (Extra n m) + 1) * critterWeight (clearSimplex F) := by
               linarith
-            convert mul_simplexPoint_ratioCoord (fun j : Extra n m => hcpos j.1) hs ⟨j, h⟩
+            convert mul_simplexPoint_ratioCoord (fun j : Extra n m => hcpos j.val) hs ⟨j, h⟩
               using 3
             funext j'
             rw [Function.comp_apply, ratioMap_simplexProfile_inr, hC]
