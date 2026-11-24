@@ -63,6 +63,17 @@ example (c : Prop) [Decidable c] (hc : c) (μ ν : PMF ℕ) (x : ℕ)
   supp_cases h [hc]
   assumption
 
+-- A decided dependent conditional selects its branch too, directly under `.support`.
+example (c : Prop) [Decidable c] (hc : c) (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
+    (h : x ∈ (if hc' : c then μ hc' else ν hc').support) : x ∈ (μ hc).support := by
+  supp_cases h [hc]
+  assumption
+
+example (c : Prop) [Decidable c] (hc : ¬c) (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
+    (h : x ∈ (if hc' : c then μ hc' else ν hc').support) : x ∈ (ν hc).support := by
+  supp_cases h [hc]
+  assumption
+
 -- An undecided dependent conditional keeps the proof needed by its selected distribution.
 example (c : Prop) [Decidable c] (μ : c → PMF ℕ) (ν : ¬c → PMF ℕ) (x : ℕ)
     (hμ : ∀ hc a, a ∈ (μ hc).support → a < 5)
