@@ -653,6 +653,17 @@ public import CslibFrontier.Algorithms.WordRAM.Histogram
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
 public import CslibFrontier.Algorithms.WordRAM.Huffman
 public import CslibFrontier.Algorithms.WordRAM.Hungarian
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Argmin
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Augment
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Core
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Dual
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Extend
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Init
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.InputSteps
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Instance
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.MemLayout
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Programs
+public import CslibFrontier.Algorithms.WordRAM.Hungarian.Regs
 public import CslibFrontier.Algorithms.WordRAM.KMP
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
