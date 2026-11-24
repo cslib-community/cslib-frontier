@@ -7596,6 +7596,7 @@ public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.Data.Code.JustesenFamily
 public import CslibFrontier.Foundations.Data.Code.Linear
 public import CslibFrontier.Foundations.Data.Code.ListDecoding
+public import CslibFrontier.Foundations.Data.Code.ListDecoding.JohnsonBound
 public import CslibFrontier.Foundations.Data.Code.LocalDecoding
 public import CslibFrontier.Foundations.Data.Code.LocalListDecoding
 public import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
