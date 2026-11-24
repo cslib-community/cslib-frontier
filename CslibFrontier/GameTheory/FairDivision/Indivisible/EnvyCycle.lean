@@ -7,9 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
 public import CslibFrontier.GameTheory.FairDivision.Indivisible.Basic
-public import Mathlib.Dynamics.PeriodicPts.Lemmas
-import Mathlib.Data.Fintype.Pigeonhole
 
 /-!
 # Lipton–Markakis–Mossel–Saberi envy-graph cycle elimination
@@ -92,24 +91,6 @@ structure LMMSResult (n m : ℕ) where
   /-- Total number of envy-cycle rotations executed across all processed items. -/
   totalCycleSwaps : ℕ
   deriving DecidableEq
-
-/-- Computable construction of `Equiv.Perm (Fin n)` from an injective endomap `f : Fin n → Fin n`.
--/
-@[expose] def permOfInjectiveFin {n : ℕ} (f : Fin n → Fin n) (hf : Injective f) :
-    Equiv.Perm (Fin n) :=
-  let hsurj : Surjective f := (Finite.injective_iff_bijective.1 hf).2
-  let inv (y : Fin n) : Fin n :=
-    (Finset.univ.filter fun x => f x = y).min' <| by
-      obtain ⟨x, hx⟩ := hsurj y
-      exact ⟨x, Finset.mem_filter.2 ⟨Finset.mem_univ x, hx⟩⟩
-  have hright : RightInverse inv f := fun y =>
-    (Finset.mem_filter.1 ((Finset.univ.filter fun x => f x = y).min'_mem (by
-      obtain ⟨x, hx⟩ := hsurj y
-      exact ⟨x, Finset.mem_filter.2 ⟨Finset.mem_univ x, hx⟩⟩))).2
-  { toFun := f
-    invFun := inv
-    left_inv := fun x => hf (hright (f x))
-    right_inv := hright }
 
 namespace MonotoneValuation
 
@@ -240,31 +221,6 @@ theorem envyEdgeCount_relabel_lt {A : BundleAllocation n m} {σ : Equiv.Perm (Fi
     rw [← hEq] at hmemA
     exact lt_irrefl _ (Finset.mem_filter.1 hmemA).2
 
-theorem iterate_card_mem_periodicPts {n : ℕ} (f : Fin n → Fin n) (x₀ : Fin n) :
-    f^[n] x₀ ∈ periodicPts f := by
-  have hlt : Fintype.card (Fin n) < Fintype.card (Fin (n + 1)) := by simp
-  obtain ⟨a, b, hab, heq⟩ :=
-    Fintype.exists_ne_map_eq_of_card_lt (fun k : Fin (n + 1) => f^[k.val] x₀) hlt
-  have hord : ∃ u v : ℕ, u < v ∧ v ≤ n ∧ f^[u] x₀ = f^[v] x₀ := by
-    rcases lt_trichotomy a b with hlt_ab | rfl | hgt_ab
-    · exact ⟨a.val, b.val, hlt_ab, Nat.lt_succ_iff.1 b.isLt, heq⟩
-    · exact absurd rfl hab
-    · exact ⟨b.val, a.val, hgt_ab, Nat.lt_succ_iff.1 a.isLt, heq.symm⟩
-  obtain ⟨u, v, huv, hvn, huv_eq⟩ := hord
-  refine ⟨v - u, by omega, ?_⟩
-  have hnu : n = (n - u) + u := by omega
-  have hvu : (v - u) + u = v := by omega
-  have hn_it : f^[n] x₀ = f^[(n - u) + u] x₀ := congrArg (fun k => f^[k] x₀) hnu
-  change f^[v - u] (f^[n] x₀) = f^[n] x₀
-  calc
-    f^[v - u] (f^[n] x₀) = f^[v - u] (f^[(n - u) + u] x₀) := by rw [hn_it]
-    _ = f^[(v - u) + ((n - u) + u)] x₀ := (iterate_add_apply f (v - u) ((n - u) + u) x₀).symm
-    _ = f^[(n - u) + ((v - u) + u)] x₀ := congrArg (fun k => f^[k] x₀) (by omega)
-    _ = f^[n - u] (f^[(v - u) + u] x₀) := iterate_add_apply f (n - u) ((v - u) + u) x₀
-    _ = f^[n - u] (f^[u] x₀) := by rw [hvu, huv_eq.symm]
-    _ = f^[(n - u) + u] x₀ := (iterate_add_apply f (n - u) u x₀).symm
-    _ = f^[n] x₀ := hn_it.symm
-
 /-- Computable directed envy-cycle permutation when every agent in `A` is envied by someone:
 each agent on the chosen directed cycle receives the bundle it envied, and all other agents keep
 their bundles. -/
@@ -280,8 +236,12 @@ their bundles. -/
   let pred (j : Fin n) : Fin n := (Finset.univ.filter fun i => V.envies A i j).min' (hEnv j)
   let j₀ : Fin n := pred^[n] ⟨0, hn⟩
   let O : Finset (Fin n) := (Finset.range n).image fun k => pred^[k] j₀
-  have hf_inj : Injective (fun y : Fin n => if y ∈ O then pred y else y) := by
-    have hper : j₀ ∈ periodicPts pred := iterate_card_mem_periodicPts pred ⟨0, hn⟩
+  let g (y : Fin n) : Fin n := if y ∈ O then pred y else y
+  have hf_inj : Injective g := by
+    have hper : j₀ ∈ periodicPts pred :=
+      (Cslib.FunctionalGraph.iterate_mem_periodicPts_iff pred ⟨0, hn⟩ n).2
+        ((Cslib.FunctionalGraph.transientDepth_lt_card pred ⟨0, hn⟩).le.trans_eq
+          (Fintype.card_fin n))
     let p := minimalPeriod pred j₀
     have hp_pos : 0 < p := minimalPeriod_pos_of_mem_periodicPts hper
     have hp_le : p ≤ n := by
@@ -297,7 +257,7 @@ their bundles. -/
       have hfp : pred^[p] j₀ = j₀ := iterate_minimalPeriod (f := pred) (x := j₀)
       rw [← iterate_add_apply, Nat.add_comm, iterate_add_apply, hfp]
     intro y₁ y₂ hy
-    dsimp only at hy
+    dsimp only [g] at hy
     by_cases h₁ : y₁ ∈ O <;> by_cases h₂ : y₂ ∈ O
     · rw [ite_eq_left h₁, ite_eq_left h₂] at hy
       have hp1 : (p - 1).succ = p := by omega
@@ -310,7 +270,19 @@ their bundles. -/
     · rw [ite_eq_right h₁, ite_eq_left h₂] at hy
       exact absurd (hy.symm ▸ hO_closed y₂ h₂) h₁
     · rwa [ite_eq_right h₁, ite_eq_right h₂] at hy
-  (permOfInjectiveFin (fun y => if y ∈ O then pred y else y) hf_inj).symm
+  let hsurj : Surjective g := (Finite.injective_iff_bijective.1 hf_inj).2
+  let inv (y : Fin n) : Fin n :=
+    (Finset.univ.filter fun x => g x = y).min' <| by
+      obtain ⟨x, hx⟩ := hsurj y
+      exact ⟨x, Finset.mem_filter.2 ⟨Finset.mem_univ x, hx⟩⟩
+  have hright : RightInverse inv g := fun y =>
+    (Finset.mem_filter.1 ((Finset.univ.filter fun x => g x = y).min'_mem (by
+      obtain ⟨x, hx⟩ := hsurj y
+      exact ⟨x, Finset.mem_filter.2 ⟨Finset.mem_univ x, hx⟩⟩))).2
+  { toFun := inv
+    invFun := g
+    left_inv := hright
+    right_inv := fun x => hf_inj (hright (g x)) }
 
 private theorem envyCyclePerm_spec (hn : 0 < n) (A : BundleAllocation n m)
     (hno : ¬ (Finset.univ.filter fun s => V.IsUnenvied A s).Nonempty) :

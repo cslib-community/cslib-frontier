@@ -10,6 +10,7 @@ module
 public import CslibFrontier.GameTheory.FairDivision.Indivisible.Basic
 public import Mathlib.Algebra.Order.Ring.Defs
 import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -269,54 +270,6 @@ private theorem bundleVal_transfer_source (W : AdditiveValuation n m R) {A : Bun
       W.bundleVal j (A.bundle j) - W.weight j g := by
   rw [BundleAllocation.transferGood_bundle_source A g hg hji, W.bundleVal_sdiff_singleton hg]
 
-private theorem prod_pos_of_pos (S : Finset (Fin n)) {f : Fin n → R}
-    (hf : ∀ x ∈ S, 0 < f x) : 0 < ∏ x ∈ S, f x := by
-  induction S using Finset.induction_on with
-  | empty => exact zero_lt_one
-  | insert a s ha ih =>
-    rw [Finset.prod_insert ha]
-    exact mul_pos (hf a (Finset.mem_insert_self a s))
-      (ih fun x hx => hf x (Finset.mem_insert_of_mem hx))
-
-private theorem prod_nonneg_of_nonneg (S : Finset (Fin n)) {f : Fin n → R}
-    (hf : ∀ x ∈ S, 0 ≤ f x) : 0 ≤ ∏ x ∈ S, f x := by
-  induction S using Finset.induction_on with
-  | empty => exact zero_le_one
-  | insert a s ha ih =>
-    rw [Finset.prod_insert ha]
-    exact mul_nonneg (hf a (Finset.mem_insert_self a s))
-      (ih fun x hx => hf x (Finset.mem_insert_of_mem hx))
-
-private theorem prod_le_prod_of_nonneg (S : Finset (Fin n)) {f g : Fin n → R}
-    (hf : ∀ x ∈ S, 0 ≤ f x) (hle : ∀ x ∈ S, f x ≤ g x) :
-    ∏ x ∈ S, f x ≤ ∏ x ∈ S, g x := by
-  induction S using Finset.induction_on with
-  | empty => exact le_rfl
-  | insert a s ha ih =>
-    rw [Finset.prod_insert ha, Finset.prod_insert ha]
-    have ha_mem := Finset.mem_insert_self a s
-    have hs_nonneg : ∀ x ∈ s, 0 ≤ f x := fun x hx => hf x (Finset.mem_insert_of_mem hx)
-    exact mul_le_mul (hle a ha_mem)
-      (ih hs_nonneg fun x hx => hle x (Finset.mem_insert_of_mem hx))
-      (prod_nonneg_of_nonneg s hs_nonneg)
-      ((hf a ha_mem).trans (hle a ha_mem))
-
-private theorem prod_lt_prod_of_lt_at {S : Finset (Fin n)} {f g : Fin n → R} {i₀ : Fin n}
-    (hi₀ : i₀ ∈ S) (hf_pos : ∀ i ∈ S, 0 < f i) (hle : ∀ i ∈ S, f i ≤ g i)
-    (hlt : f i₀ < g i₀) :
-    ∏ i ∈ S, f i < ∏ i ∈ S, g i := by
-  rw [← Finset.mul_prod_erase S f hi₀, ← Finset.mul_prod_erase S g hi₀]
-  have hP₁_pos : 0 < ∏ i ∈ S.erase i₀, f i :=
-    prod_pos_of_pos _ fun i hi => hf_pos i (Finset.mem_of_mem_erase hi)
-  have hP_le : ∏ i ∈ S.erase i₀, f i ≤ ∏ i ∈ S.erase i₀, g i :=
-    prod_le_prod_of_nonneg _ (fun i hi => (hf_pos i (Finset.mem_of_mem_erase hi)).le)
-      (fun i hi => hle i (Finset.mem_of_mem_erase hi))
-  have h₁ : f i₀ * ∏ i ∈ S.erase i₀, f i < g i₀ * ∏ i ∈ S.erase i₀, f i :=
-    mul_lt_mul_of_pos_right hlt hP₁_pos
-  have h₂ : g i₀ * ∏ i ∈ S.erase i₀, f i ≤ g i₀ * ∏ i ∈ S.erase i₀, g i :=
-    mul_le_mul_of_nonneg_left hP_le ((hf_pos i₀ hi₀).trans hlt).le
-  exact lt_of_lt_of_le h₁ h₂
-
 private theorem nashProduct_lt_of_pair_lt {A B : BundleAllocation n m} {i j : Fin n}
     (hji : j ≠ i) (hi : i ∈ W.posAgents A) (hj : j ∈ W.posAgents A)
     (hpos_eq : W.posAgents B = W.posAgents A)
@@ -342,7 +295,7 @@ private theorem nashProduct_lt_of_pair_lt {A B : BundleAllocation n m} {i j : Fi
     dsimp only [uA, uB]
     rw [hother k hki hkj]
   have hrest_pos : 0 < ∏ k ∈ (S.erase i).erase j, uA k :=
-    prod_pos_of_pos _ fun k hk =>
+    Finset.prod_pos fun k hk =>
       W.mem_posAgents.1 (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hk))
   rw [hexpA, hexpB, hrest_eq]
   exact mul_lt_mul_of_pos_right hpair hrest_pos
@@ -366,7 +319,8 @@ theorem IsMaxNashWelfare.isParetoOptimal {A : BundleAllocation n m}
   have hi₀A : i₀ ∈ W.posAgents A := hpos_eq ▸ hi₀B
   have hprod_lt : W.nashProduct A < W.nashProduct B := by
     rw [nashProduct, nashProduct, hpos_eq]
-    exact prod_lt_prod_of_lt_at hi₀A (fun i hi => W.mem_posAgents.1 hi) (fun i _ => hle i) hlt₀
+    exact Finset.prod_lt_prod₀ (fun i hi => W.mem_posAgents.1 hi) (fun i _ => hle i)
+      ⟨i₀, hi₀A, hlt₀⟩
   exact not_lt_of_ge (hprod_max B hcompB hcard_eq) hprod_lt
 
 /-- **The Unreasonable Fairness of Maximum Nash Welfare (`MNW → EF1`)**
