@@ -1736,8 +1736,6 @@ public import CslibFrontier.Computability.Circuit.Encoding.PolyTime
 public import CslibFrontier.Computability.Circuit.Erase
 public import CslibFrontier.Computability.Circuit.Evaluation
 public import CslibFrontier.Computability.Circuit.FanIn
-public import CslibFrontier.Computability.Circuit.SlpStep
-public import CslibFrontier.Computability.Circuit.SlpCost
 public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Circuit.Formula.NodeCount
 public import CslibFrontier.Computability.Circuit.Frontier.Arborescence
@@ -2109,6 +2107,8 @@ public import CslibFrontier.Computability.Circuit.Simps
 public import CslibFrontier.Computability.Circuit.Simulation
 public import CslibFrontier.Computability.Circuit.SimulationContext
 public import CslibFrontier.Computability.Circuit.SimulationDepth
+public import CslibFrontier.Computability.Circuit.SlpCost
+public import CslibFrontier.Computability.Circuit.SlpStep
 public import CslibFrontier.Computability.Circuit.SourceComplexity
 public import CslibFrontier.Computability.Circuit.SpanProgram.Basic
 public import CslibFrontier.Computability.Circuit.SpanProgram.ChangeOfBasis
