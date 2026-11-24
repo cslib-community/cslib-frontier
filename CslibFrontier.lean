@@ -9262,8 +9262,10 @@ public import CslibFrontier.MachineLearning.PACBayes.KL
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticFiniteClass
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticVC
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticVCSharp
+public import CslibFrontier.MachineLearning.PACLearning.Compression.Agnostic
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Basic
 public import CslibFrontier.MachineLearning.PACLearning.Compression.MistakeBound
+public import CslibFrontier.MachineLearning.PACLearning.Compression.MoranYehudayoff
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Order
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Shattering
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Thresholds
