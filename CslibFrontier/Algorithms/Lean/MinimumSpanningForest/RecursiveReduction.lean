@@ -38,15 +38,11 @@ theorem mem_nonloops {ends : E → Sym2 V} {S : Finset E} {e : E} :
 
 @[simp] theorem support_nonloops (ends : E → Sym2 V) (S : Finset E) :
     support ends (nonloops ends S) = support ends S := by
-  ext x
-  simp only [mem_support, mem_nonloops]
-  exact ⟨fun ⟨e, he, hd, hx⟩ => ⟨e, he.1, hd, hx⟩,
-    fun ⟨e, he, hd, hx⟩ => ⟨e, ⟨he, hd⟩, hd, hx⟩⟩
+  classical exact support_filter_not_isDiag ends S
 
 theorem msf_nonloops (ends : E → Sym2 V) (w : E → W) (S : Finset E) :
-    msf ends w (nonloops ends S) = msf ends w S :=
-  msf_eq_of_subset w (fun _ he => mem_nonloops.2
-    ⟨msf_subset w he, fun hd => notMem_msf_of_isDiag w hd he⟩) (fun _ he => (mem_nonloops.1 he).1)
+    msf ends w (nonloops ends S) = msf ends w S := by
+  classical exact msf_filter_not_isDiag w ends S
 
 /-- A simultaneous Borůvka pass selects the minimum-weight leaving edge at every vertex with
 a nonempty singleton cut. Distinct weights ensure each such choice is unique. -/
