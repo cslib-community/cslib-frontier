@@ -26,7 +26,6 @@ Internal delivery-sweep construction used only by `SoleLeaderWitness`; never re-
 ## Main results
 
 * `Cslib.Distributed.Paxos.soleLeaderSweep_pos`,
-  `Cslib.Distributed.Paxos.mem_soleLeaderSweep_cases`,
   `Cslib.Distributed.Paxos.isSweepAct_of_mem_soleLeaderSweep`,
   `Cslib.Distributed.Paxos.synodStep_preserve_of_delivery`,
   `Cslib.Distributed.Paxos.soleLeaderSweep_mTr`: sweep invariants and multi-step soundness.
@@ -71,7 +70,7 @@ lemma soleLeaderSweep_pos (b : Ballot Proposer) (p : Proposer)
 
 omit [DecidableEq Learner] [DecidableEq V] in
 /-- Membership characterization for `soleLeaderSweep`. -/
-lemma mem_soleLeaderSweep_cases {b : Ballot Proposer} {p : Proposer}
+private lemma mem_soleLeaderSweep_cases {b : Ballot Proposer} {p : Proposer}
     {Q : Finset Acceptor} {l : Learner}
     {u : SynodState Proposer Acceptor Learner V}
     {act : SynodAction Proposer Acceptor Learner V}

@@ -21,8 +21,7 @@ Internal refinement invariant used only by `SynodProtocolCohort`; never re-expor
 
 ## Main results
 
-* `Cslib.Distributed.Paxos.netToSynod_step`, `Cslib.Distributed.Paxos.netToSynod_reach`: single-step
-  and reachability simulation into `synodLts`.
+* `Cslib.Distributed.Paxos.netToSynod_reach`: reachability simulation into `synodLts`.
 -/
 
 public section
@@ -40,7 +39,7 @@ open Cslib
   learners l := (s.proc l).state.learn
 
 /-- Body-projection identity for uniform all-node broadcast packets. -/
-lemma union_image_broadcastPairs {P M : Type*} [Fintype P] [DecidableEq P] [DecidableEq M]
+private lemma union_image_broadcastPairs {P M : Type*} [Fintype P] [DecidableEq P] [DecidableEq M]
     (pkts : Finset (Packet P M)) (p : P) (m : M) :
     (pkts ∪ (Finset.univ.image fun q : P => (q, m)).image fun db => ⟨p, db.1, db.2⟩).image
         Packet.body =
@@ -56,7 +55,7 @@ lemma union_image_broadcastPairs {P M : Type*} [Fintype P] [DecidableEq P] [Deci
     · exact ⟨pkt, Or.inl hold, rfl⟩
 
 /-- Body-projection identity for singleton-destination outgoing packets. -/
-lemma union_image_singleton_pair {P M : Type*} [DecidableEq P] [DecidableEq M]
+private lemma union_image_singleton_pair {P M : Type*} [DecidableEq P] [DecidableEq M]
     (pkts : Finset (Packet P M)) (p q : P) (m : M) :
     (pkts ∪ ({(q, m)} : Finset (P × M)).image fun db => ⟨p, db.1, db.2⟩).image Packet.body =
       insert m (pkts.image Packet.body) := by
@@ -72,14 +71,14 @@ lemma union_image_singleton_pair {P M : Type*} [DecidableEq P] [DecidableEq M]
     · exact ⟨pkt, Or.inl hold, rfl⟩
 
 /-- Decision output preservation across non-learning steps. -/
-lemma out_eq_after_nonlearn {V : Type*} (out learned : Option V)
+private lemma out_eq_after_nonlearn {V : Type*} (out learned : Option V)
     (h : out = learned) :
     (if out.isNone then none else out) = learned := by
   subst h
   cases out <;> rfl
 
 /-- Preserves `out = state.learn.learned` across non-learning `applyResult` updates. -/
-lemma out_preserved_of_nonlearn {P V : Type*} [DecidableEq P] [DecidableEq V]
+private lemma out_preserved_of_nonlearn {P V : Type*} [DecidableEq P] [DecidableEq V]
     {s : NetState P (SynodNodeState P V) (Msg P P V) V}
     (hout : ∀ q, (s.proc q).out = (s.proc q).state.learn.learned)
     {dest : P} {nst : SynodNodeState P V} {out : Finset (P × Msg P P V)}
@@ -98,7 +97,7 @@ lemma out_preserved_of_nonlearn {P V : Type*} [DecidableEq P] [DecidableEq V]
     exact hout q
 
 /-- Commutation of `netToSynod` with `AsyncQuorumProtocol.applyResult`. -/
-lemma netToSynod_applyResult {P V : Type*} [DecidableEq P] [DecidableEq V]
+private lemma netToSynod_applyResult {P V : Type*} [DecidableEq P] [DecidableEq V]
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
     (dest : P) (res : StepResult P (SynodNodeState P V) (Msg P P V) V)
     (msgs' : Finset (Msg P P V))
@@ -117,13 +116,13 @@ lemma netToSynod_applyResult {P V : Type*} [DecidableEq P] [DecidableEq V]
       by_cases hxd : x = dest <;> simp only [hxd, ↓reduceIte])
 
 /-- Pointwise `if`-update simplification when the updated value equals the prior value. -/
-lemma ite_self_field {P α : Type*} [DecidableEq P] (f : P → α) (dest : P) {val : α}
+private lemma ite_self_field {P α : Type*} [DecidableEq P] (f : P → α) (dest : P) {val : α}
     (hval : val = f dest) :
     (fun x => if x = dest then val else f x) = f := by
   funext x; by_cases h : x = dest <;> simp only [h, ↓reduceIte, hval]
 
 /-- Projection and output invariance under no-op `applyResult`. -/
-lemma applyResult_noop_sim {P V : Type*} [DecidableEq P] [DecidableEq V]
+private lemma applyResult_noop_sim {P V : Type*} [DecidableEq P] [DecidableEq V]
     {s : NetState P (SynodNodeState P V) (Msg P P V) V}
     (hout : ∀ q, (s.proc q).out = (s.proc q).state.learn.learned) (dest : P) :
     let u := AsyncQuorumProtocol.applyResult dest
@@ -137,7 +136,7 @@ lemma applyResult_noop_sim {P V : Type*} [DecidableEq P] [DecidableEq V]
       (ite_self_field _ dest rfl))
 
 /-- Projection equation for an acceptor-only state update. -/
-lemma netToSynod_acc_update {P V : Type*} [DecidableEq P] [DecidableEq V]
+private lemma netToSynod_acc_update {P V : Type*} [DecidableEq P] [DecidableEq V]
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
     (dest : P) (ast : AcceptorState P V) (out : Finset (P × Msg P P V))
     (msgs' : Finset (Msg P P V))
@@ -152,7 +151,7 @@ lemma netToSynod_acc_update {P V : Type*} [DecidableEq P] [DecidableEq V]
     (SynodState.ext rfl (ite_self_field _ dest rfl) rfl (ite_self_field _ dest rfl))
 
 /-- Projection equation for a proposer-only state update. -/
-lemma netToSynod_prop_update {P V : Type*} [DecidableEq P] [DecidableEq V]
+private lemma netToSynod_prop_update {P V : Type*} [DecidableEq P] [DecidableEq V]
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
     (dest : P) (pst : ProposerState P P V) (out : Finset (P × Msg P P V))
     (msgs' : Finset (Msg P P V))
@@ -167,7 +166,7 @@ lemma netToSynod_prop_update {P V : Type*} [DecidableEq P] [DecidableEq V]
     (SynodState.ext rfl rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl))
 
 /-- Step simulation for incoming acceptor packets (`Phase1a` and `Phase2a`). -/
-lemma netToSynod_acc_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
+private lemma netToSynod_acc_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
     (qs : QuorumSystem P)
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
     (hout : ∀ q, (s.proc q).out = (s.proc q).state.learn.learned)
@@ -206,7 +205,7 @@ lemma netToSynod_acc_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
     · exact ⟨ho, Or.inl heq⟩
 
 /-- Step simulation for incoming proposer/learner packets (`Phase1b` and `Phase2b`). -/
-lemma netToSynod_prop_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
+private lemma netToSynod_prop_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
     (qs : QuorumSystem P)
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
     (hout : ∀ q, (s.proc q).out = (s.proc q).state.learn.learned)
@@ -235,7 +234,7 @@ lemma netToSynod_prop_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
     exact ⟨ho, Or.inl heq⟩
 
 /-- Single-step simulation from `synodQuorumProtocol` to `synodLts`. -/
-lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
+private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
     (qs : QuorumSystem P)
     {s s' : NetState P (SynodNodeState P V) (Msg P P V) V}
     {act : NetAction P ℕ (Msg P P V)}

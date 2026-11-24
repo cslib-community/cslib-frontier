@@ -21,7 +21,6 @@ through `Liveness`.
 
 ## Main results
 
-* `Cslib.Distributed.Paxos.AsyncQuorumProtocol.mTr_map_deliver`: delivery trace builder.
 * `Cslib.Distributed.Paxos.deliver_fanout_acc`, `Cslib.Distributed.Paxos.deliver_fanin_leader`:
   cohort fanout and leader fan-in multi-step lemmas.
 -/
@@ -42,7 +41,7 @@ variable {P S L M V : Type*} [DecidableEq P] [DecidableEq M]
   applyResult pkt.dest (π.onRecv pkt.src pkt.dest pkt.body (s.proc pkt.dest)) s
 
 /-- Multi-step transition along a list of available packet deliveries. -/
-lemma mTr_map_deliver {α : Type*} (f : α → Packet P M) {u : NetState P S M V}
+private lemma mTr_map_deliver {α : Type*} (f : α → Packet P M) {u : NetState P S M V}
     {as : List α} (hmem : ∀ a ∈ as, f a ∈ u.msgs) :
     let u' := as.foldl (fun w a => π.deliverStep w (f a)) u
     π.lts.MTr u (as.map fun a => .deliver (f a)) u' ∧ u.msgs ⊆ u'.msgs := by
