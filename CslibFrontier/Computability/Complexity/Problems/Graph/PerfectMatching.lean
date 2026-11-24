@@ -32,6 +32,8 @@ at most as many variables as the vertex has neighbours
 
 * `Cslib.Complexity.Graph.edgeList`: the edges of `G.induced`, each listed once.
 * `Cslib.Complexity.Graph.perfectMatchingInstance`: the perfect-matching instance.
+* `Cslib.Complexity.Graph.perfectMatchingPositionsEquiv`: explicit bijection between perfect
+  matchings of `G.induced` and exact-one edge-position subsets of `G.edgeList`.
 
 ## Main results
 
@@ -79,28 +81,20 @@ private theorem forall_mem_perfectMatchingInstance_iff {S : Finset ℕ} :
     List.filter_filter, List.length_filter_range_eq_one_iff, Bool.and_eq_true, decide_eq_true_eq]
   exact forall₂_congr fun v _ => existsUnique_congr fun i => by tauto
 
-/-- **The exactly-one partition function of the perfect-matching instance is the number of
-perfect matchings** of `G.induced`. -/
-theorem partitionFunction_perfectMatchingInstance (G : Graph) :
-    G.perfectMatchingInstance.partitionFunction CSP.exactlyOneWeight =
-      Nat.card {M : G.induced.Subgraph // M.IsPerfectMatching} := by
-  classical
-  rw [CSP.partitionFunction_exactlyOne,
-    Finset.filter_congr fun S _ => forall_mem_perfectMatchingInstance_iff, ← Nat.card_eq_finsetCard]
-  have hsub : ∀ {S : Finset ℕ}, S ⊆ G.perfectMatchingInstance.vars.toFinset ↔
-      ∀ i ∈ S, i < G.edgeList.length := fun {S} => by
-    simp only [Finset.subset_iff, List.mem_toFinset, mem_vars_perfectMatchingInstance]
-  symm
-  refine Nat.card_congr
-    { toFun := fun M => ⟨positions M.1, Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr
-        (hsub.mpr fun i hi => (mem_positions.mp hi).1),
-        (fun v hv => cover_positions M.2.1 v hv (M.2.2 _))⟩⟩
-      invFun := fun S => ⟨ofPositions G S.1, isPerfectMatching_ofPositions
-        (hsub.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp S.2).1))
-        (Finset.mem_filter.mp S.2).2⟩
-      left_inv := fun M => ?_
-      right_inv := fun S => ?_ }
-  · -- the subgraph of the positions of a perfect matching is the matching
+/-- Explicit bijection between perfect matchings of `G.induced` and exact-one edge-position
+subsets of `G.edgeList`. -/
+noncomputable def perfectMatchingPositionsEquiv (G : Graph) :
+    {M : G.induced.Subgraph // M.IsPerfectMatching} ≃
+      {S : Finset ℕ // (∀ i ∈ S, i < G.edgeList.length) ∧
+        ∀ v ∈ G.vertices, ∃! i, i < G.edgeList.length ∧
+          incident (G.edgeList.getD i (0, 0)) v = true ∧ i ∈ S} where
+  toFun := fun ⟨M, hmatch, hspan⟩ =>
+    ⟨positions M, fun i hi => (mem_positions.mp hi).1,
+      fun v hv => cover_positions hmatch v hv (hspan _)⟩
+  invFun S :=
+    let ⟨s, hs1, hs2⟩ := S
+    ⟨ofPositions G s, isPerfectMatching_ofPositions hs1 hs2⟩
+  left_inv M := by
     obtain ⟨M, hM⟩ := M
     refine Subtype.ext (SimpleGraph.Subgraph.ext ?_ ?_)
     · exact (Set.eq_univ_of_forall hM.2).symm
@@ -117,21 +111,40 @@ theorem partitionFunction_perfectMatchingInstance (G : Graph) :
           exact ⟨u.2, w.2, h⟩
         · rw [hie]
           exact ⟨w.2, u.2, h.symm⟩
-  · -- the positions of the subgraph spanned by a set of positions are that set
-    obtain ⟨S, hS⟩ := S
-    have hS' := hsub.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp hS).1)
+  right_inv S := by
+    obtain ⟨S, hS1, _⟩ := S
     refine Subtype.ext (Finset.ext fun i => ⟨fun hi => ?_, fun hi => ?_⟩)
-    · obtain ⟨hi, hu, hw, ⟨-, j, hj, he⟩⟩ := mem_positions.mp hi
-      have := eq_of_getD_edgeList (hS' j hj) hi (by
+    · obtain ⟨hi, _, _, ⟨-, j, hj, he⟩⟩ := mem_positions.mp hi
+      have := eq_of_getD_edgeList (hS1 j hj) hi (by
         rcases he with he | he
         · exact Or.inl (by rw [he])
         · exact Or.inr (by rw [he]; rfl))
       exact this ▸ hj
-    · have hlt := hS' i hi
+    · have hlt := hS1 i hi
       obtain ⟨hG, hne, h1, h2⟩ := of_mem_edgeList (getD_edgeList_mem hlt)
       refine mem_positions.mpr ⟨hlt, h1, h2, ?_, i, hi, Or.inl rfl⟩
       rw [induced_adj, toSimpleGraph_adj]
       exact ⟨hne, Or.inl hG⟩
+
+/-- **The exactly-one partition function of the perfect-matching instance is the number of
+perfect matchings** of `G.induced`. -/
+theorem partitionFunction_perfectMatchingInstance (G : Graph) :
+    G.perfectMatchingInstance.partitionFunction CSP.exactlyOneWeight =
+      Nat.card {M : G.induced.Subgraph // M.IsPerfectMatching} := by
+  classical
+  rw [CSP.partitionFunction_exactlyOne,
+    Finset.filter_congr fun S _ => forall_mem_perfectMatchingInstance_iff, ← Nat.card_eq_finsetCard]
+  have hsub : ∀ {S : Finset ℕ}, S ⊆ G.perfectMatchingInstance.vars.toFinset ↔
+      ∀ i ∈ S, i < G.edgeList.length := fun {S} => by
+    simp only [Finset.subset_iff, List.mem_toFinset, mem_vars_perfectMatchingInstance]
+  symm
+  refine Nat.card_congr ((perfectMatchingPositionsEquiv G).trans
+    { toFun := fun S => ⟨S.1, Finset.mem_filter.mpr
+        ⟨Finset.mem_powerset.mpr (hsub.mpr S.2.1), S.2.2⟩⟩
+      invFun := fun S => ⟨S.1, hsub.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp S.2).1),
+        (Finset.mem_filter.mp S.2).2⟩
+      left_inv := fun _ => rfl
+      right_inv := fun _ => rfl })
 
 /-! ### Occurrences and arities -/
 

@@ -11,7 +11,8 @@ import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 /-!
 # Tests for common block extension on word queries
 
-Exercise a proper-prefix pair at width two, with the longer query first.
+Exercise a proper-prefix pair at width two, with the longer query first, and check
+that the flat batch search agrees with block search for repeated and exhausted blocks.
 -/
 
 open Cslib.Crypto.PRF
@@ -25,3 +26,11 @@ example :
     let c := separatingWordBlock 2 u v
     (¬ u ++ c <+: v ++ c) ∧ (¬ v ++ c <+: u ++ c) :=
   separatingWordBlock_prefix_incomparable (by decide) (by decide) (by decide) (by decide)
+
+example : freshBatchWordBlock 1 [[false], [false, false]] = some [true] := by
+  rw [freshBatchWordBlock_eq_map_freshBatchBlock]
+  decide
+
+example : freshBatchWordBlock 1 [[false], [true]] = none := by
+  rw [freshBatchWordBlock_eq_map_freshBatchBlock]
+  decide
