@@ -8492,6 +8492,7 @@ public import CslibFrontier.GameTheory.Congestion.PLS
 public import CslibFrontier.GameTheory.Congestion.PigouBound
 public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
+public import CslibFrontier.GameTheory.Contract.CombinatorialAgency
 public import CslibFrontier.GameTheory.Cooperative.Basic
 public import CslibFrontier.GameTheory.Cooperative.Core
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
@@ -8516,6 +8517,7 @@ public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
 public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
+public import CslibFrontier.GameTheory.P2P.Generosity
 public import CslibFrontier.GameTheory.PerfectInformation
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
