@@ -6155,6 +6155,7 @@ public import CslibFrontier.Crypto.Computational.Kilian
 public import CslibFrontier.Crypto.Computational.Kilian.Extraction
 public import CslibFrontier.Crypto.Computational.Kilian.Knowledge
 public import CslibFrontier.Crypto.Computational.Kilian.Micali
+public import CslibFrontier.Crypto.Computational.Kilian.MicaliRaw
 public import CslibFrontier.Crypto.Computational.Kilian.MicaliSoundness
 public import CslibFrontier.Crypto.Computational.Kilian.NP
 public import CslibFrontier.Crypto.Computational.Kilian.RawVerifier
