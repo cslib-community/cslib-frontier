@@ -81,8 +81,12 @@ oracle and single-query strict oracle PPT certificate.
 * `Cslib.Crypto.Protocols.UC.WordInterface.runWith_lowerQuery` and
   `Cslib.ProbOracleComp.runWith_lowerWith`: lowered execution agrees with typed execution when
   every supported reply fits within `limit` bits.
-* `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_query`: a lowered, re-encoded
-  query is uniform strict oracle PPT when its channel, request, and reply bound are polynomial time.
+* `Cslib.Crypto.Protocols.UC.WordPort.computable_partyIndex`: `WordPort.party` exposes the decoded
+  party index in polynomial time.
+* `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_query` and
+  `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_decodeQuery`: lowered, re-encoded
+  queries (and decoded `(channel, word)` queries) are uniform strict oracle PPT when their channel,
+  request/word, and reply bound are polynomial time.
 -/
 
 @[expose] public section
@@ -388,21 +392,35 @@ def sum {Q₁ R₁ Q₂ R₂ : Type} (p₁ : WordPort Q₁ R₁) (p₂ : WordPor
 -/
 def party {n : ℕ} [NeZero n] {In Out : Type} (input : WordPort In Out) :
     WordPort (Fin n × In) (Option Out) :=
-  let encFin : Fin n ↪ List Bool :=
-    ⟨fun i => encUnary i.val, fun _ _ h => Fin.val_injective (encUnary.injective h)⟩
-  let finDecoder : Decoder encFin :=
+  let finDecoder : Decoder (encFinEnum (Fin n)) :=
     { decode := fun w => ⟨Decoder.unary.decode w % n, Nat.mod_lt _ (NeZero.pos n)⟩
       decode_enc := fun i => Fin.ext (by
-        change Decoder.unary.decode (encUnary i.val) % n = i.val
-        rw [Decoder.unary.decode_enc i.val]
+        change Decoder.unary.decode (encFinEnum (Fin n) i) % n = i.val
+        rw [encFinEnum_fin_apply, Decoder.unary.decode_enc i.val]
         exact Nat.mod_eq_of_lt i.isLt)
-      computable := by
-        exact ((ComputableInPolyTime.unary_finMod (NeZero.pos n) encFin).comp
+      computable :=
+        ((ComputableInPolyTime.unary_finMod (NeZero.pos n) (encFinEnum (Fin n))).comp
           Decoder.unary.computableInPolyTime).exists_degree }
-  { query := encPair encFin input.query
+  { query := encPair (encFinEnum (Fin n)) input.query
     queryDecoder := Decoder.pair finDecoder input.queryDecoder
     reply := encOption input.reply
     replyDecoder := Decoder.option input.replyDecoder }
+
+/-- Library infrastructure (no cited result): `WordPort.party input` exposes the decoded party
+index `Fin n` in polynomial time. -/
+theorem computable_partyIndex {n : ℕ} [NeZero n] {In Out : Type}
+    (input : WordPort In Out) :
+    ComputableInPolyTime (fun w => ((WordPort.party (n := n) input).queryDecoder.decode w).1)
+      encBits (encFinite (Fin n)) := by
+  have hdec : ComputableInPolyTime (WordPort.party (n := n) input).queryDecoder.decode
+      encBits (encPair (encFinEnum (Fin n)) input.query) :=
+    (WordPort.party (n := n) input).queryDecoder.computableInPolyTime
+  have hfst : ComputableInPolyTime
+      (fun w => ((WordPort.party (n := n) input).queryDecoder.decode w).1)
+      encBits (encFinEnum (Fin n)) :=
+    (ComputableInPolyTime.fst (encFinEnum (Fin n)) input.query).comp hdec
+  exact (ComputableInPolyTime.of_finite (id : Fin n → Fin n)
+    (encIn := encFinEnum (Fin n)) (encOut := encFinite (Fin n))).comp hfst
 
 end WordPort
 
@@ -466,17 +484,35 @@ theorem isOraclePPTOn_lowerWith_query {ι α : Type} {E : ι → Type}
     simp only [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, lowerQuery,
       Functor.map_map, I.reply_decodeReply]
   rw [heq]
-  refine IsOraclePPTOn.finite_cases (tagEncoding := encFinite I.Channel)
-    (tag := fun a => I.channel (query a))
-    (branch := fun c a => I.replyNormalize c <$>
-      (List.take (limit a) <$>
-        ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool)
-          (c, I.request (query a))))
-    hchannel fun c => ?_
-  refine (IsOraclePPTOn.query_take c hrequest hlimit).map ?_
+  refine (IsOraclePPTOn.query_take_with hchannel hrequest hlimit).map_with
+    (f := fun a reply => I.replyNormalize (I.channel (query a)) reply) ?_
   exact I.computable_replyNormalize.comp
-    ((ComputableInPolyTime.const (encIn := encBits) (encOut := encFinite I.Channel) c).prod
-      ComputableInPolyTime.id')
+    ((hchannel.comp (ComputableInPolyTime.fst input encBits)).prod
+      (ComputableInPolyTime.snd input encBits))
+
+/-- Library infrastructure (no cited result): a lowered, re-encoded decoded query
+`I.decodeQuery (ch a) (word a)` is uniform strict oracle PPT when its channel, request word, and
+reply bound are computable in polynomial time. -/
+theorem isOraclePPTOn_lowerWith_decodeQuery {ι α : Type} {E : ι → Type}
+    (I : WordInterface E) {input : α ↪ List Bool}
+    {ch : α → I.Channel} {word : α → List Bool} {limit : α → ℕ}
+    (hch : ComputableInPolyTime ch input (encFinite I.Channel))
+    (hword : ComputableInPolyTime word input encBits)
+    (hlimit : ComputableInPolyTime limit input encUnary) :
+    IsOraclePPTOn input encBits (fun a =>
+      I.reply (I.decodeQuery (ch a) (word a)) <$>
+        ProbOracleComp.lowerWith I (limit a)
+          (ProbOracleComp.query (I.decodeQuery (ch a) (word a)))) := by
+  refine I.isOraclePPTOn_lowerWith_query
+    (query := fun a => I.decodeQuery (ch a) (word a)) (limit := limit) ?_ ?_ hlimit
+  · have heq : (fun a => I.channel (I.decodeQuery (ch a) (word a))) = ch :=
+      funext fun a => (I.request_decodeQuery (ch a) (word a)).1
+    rwa [heq]
+  · have heq : (fun a => I.request (I.decodeQuery (ch a) (word a))) =
+        fun a => I.requestNormalize (ch a) (word a) :=
+      funext fun a => (I.request_decodeQuery (ch a) (word a)).2
+    rw [heq]
+    exact I.computable_requestNormalize.comp (hch.prod hword)
 
 end Crypto.Protocols.UC.WordInterface
 
