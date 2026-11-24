@@ -8,13 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.TM2.PartrecToTM2
-public import CslibFrontier.Computability.Machines.Turing.TM2.Simulation
+public import CslibFrontier.Computability.Machines.Turing.TM2.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 public import Mathlib.Computability.Partrec
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
 import CslibFrontier.Computability.Machines.Turing.TM2.PolyTime
+import CslibFrontier.Computability.Machines.Turing.TM2.Simulation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeFinitePrimitives
@@ -207,7 +208,8 @@ theorem Computable.isComputable {α β : Type} [Primcodable α] [Primcodable β]
     refine TM2.cfg_mk (ComputableInPolyTime.const _) (ComputableInPolyTime.const none)
       (ComputableInPolyTime.dpi fun k => ?_)
     cases k
-    · simpa [finInit, trList, trNat_eq_map_bits, Function.comp_def] using hmain
+    · simpa [finInit, init, TM2.Cfg.mapLabel, trList, trNat_eq_map_bits, Function.comp_def]
+        using hmain
     all_goals exact ComputableInPolyTime.const []
   · have hstack := (ComputableInPolyTime.dpi_apply _ K'.main).comp
       (TM2.cfg_stacks (Γ := fun _ : K' => Γ') (Λ := Label c) (σ := Option Γ'))

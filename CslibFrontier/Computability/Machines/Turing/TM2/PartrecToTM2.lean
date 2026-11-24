@@ -19,15 +19,14 @@ whose labels `Λ'` form an infinite type, and shows that a run from `PartrecToTM
 visits the finite set `codeSupp c Cont'.halt` (`PartrecToTM2.tr_supports`). This file turns the
 compiled program into a program on that finite set of labels, with the same runs.
 
-Restriction is a renaming of jump targets (`Turing.TM2.Stmt.mapLabel`). A target outside the
+Restriction renames the jump targets of each statement. A target outside the
 support goes to a fixed label of the support, so the restricted program is defined without proofs,
 and the support hypothesis is used only to show that a run is unchanged
 (`Turing.TM2.eval_restrict`).
 
 ## Main definitions
 
-* `Turing.TM2.Stmt.mapLabel`, `Turing.TM2.Cfg.mapLabel`: rename the labels of a statement or a
-  configuration.
+* `Turing.TM2.Cfg.mapLabel`: rename the label of a configuration.
 * `Turing.TM2.restrict`: the program on a finite set of labels.
 * `Turing.PartrecToTM2.finProgram`, `Turing.PartrecToTM2.finInit`: the compiled program of a code
   on its finite support, and its initial configuration on an input list.
@@ -52,7 +51,7 @@ namespace TM2
 variable {K : Type*} {Γ : K → Type*} {Λ Λ₂ σ : Type*}
 
 /-- Rename the jump targets of a statement. -/
-@[expose] def Stmt.mapLabel (f : Λ → Λ₂) : Stmt Γ Λ σ → Stmt Γ Λ₂ σ
+private def Stmt.mapLabel (f : Λ → Λ₂) : Stmt Γ Λ σ → Stmt Γ Λ₂ σ
   | .push k g q => .push k g (q.mapLabel f)
   | .peek k g q => .peek k g (q.mapLabel f)
   | .pop k g q => .pop k g (q.mapLabel f)
@@ -86,7 +85,7 @@ private theorem stepAux_mapLabel (f : Λ → Λ₂) (q : Stmt Γ Λ σ) (v : σ)
 variable [DecidableEq Λ] {M : Λ → Stmt Γ Λ σ} {S : Finset Λ}
 
 /-- The program on the labels in `S`. A jump to a label outside `S` goes to `d`. -/
-@[expose] def restrict (M : Λ → Stmt Γ Λ σ) (S : Finset Λ) (d : S) : S → Stmt Γ S σ :=
+def restrict (M : Λ → Stmt Γ Λ σ) (S : Finset Λ) (d : S) : S → Stmt Γ S σ :=
   fun l => (M l).mapLabel fun l' => if h : l' ∈ S then ⟨l', h⟩ else d
 
 /-- On a configuration in `S`, a step of the restricted program is a step of the program. -/
@@ -224,10 +223,11 @@ abbrev Label (c : Code) : Type := (codeSupp c Cont'.halt : Finset Λ')
     Label c → TM2.Stmt (fun _ : K' => Γ') (Label c) (Option Γ') :=
   TM2.restrict tr _ (Label.start c)
 
-/-- The initial configuration of `finProgram c` on the input list `v`, on the main stack. -/
+/-- The initial configuration of `finProgram c` on the input list `v`: Mathlib's `init c v`, at the
+start label. -/
 @[expose] def finInit (c : Code) (v : List ℕ) :
     TM2.Cfg (fun _ : K' => Γ') (Label c) (Option Γ') :=
-  ⟨some (Label.start c), none, K'.elim (trList v) [] [] []⟩
+  (init c v).mapLabel fun _ => Label.start c
 
 /-- **The finite program evaluates the code**: it halts on `v` exactly when `c` does, and then
 holds the encoded output list on the main stack and nothing on the others. -/
