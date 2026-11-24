@@ -178,9 +178,11 @@ theorem two_notMem_declared : (2 : Fin 3) ∉ res.declared := by
   obtain ⟨v, hv, hT⟩ := exists_end_card_lt_of_mem_declared_batch hw htest h
   have hv' : v = 0 ∨ v = 1 := by simpa [st, ends] using hv
   rcases hv' with rfl | rfl
-  · have := hT {0} (subset_univ _) (by simp [st, ends, adm, w]) (by rw [coe_singleton]; exact Set.injOn_singleton _ _)
+  · have := hT {0} (subset_univ _) (by simp [st, ends, adm, w])
+      (by rw [coe_singleton]; exact Set.injOn_singleton _ _)
     simp at this
-  · have := hT {1} (subset_univ _) (by simp [st, ends, adm, w]) (by rw [coe_singleton]; exact Set.injOn_singleton _ _)
+  · have := hT {1} (subset_univ _) (by simp [st, ends, adm, w])
+      (by rw [coe_singleton]; exact Set.injOn_singleton _ _)
     simp at this
 
 /-- So edge `2` is not supported by the new forest: no other edge crosses between `{0, 2}` and

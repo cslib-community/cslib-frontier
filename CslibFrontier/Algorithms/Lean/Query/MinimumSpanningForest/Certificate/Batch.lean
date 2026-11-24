@@ -978,22 +978,6 @@ theorem supported_or_spokes_batch (hw : Function.Injective w)
   · exact Or.inl (hsupp c hc (hcvu.trans Sym2.eq_swap) hce)
   · exact Or.inr ⟨su, sv, hsu, hsv, max_le hsue hsve⟩
 
-omit [DecidableEq V] [DecidableEq E] in
-private theorem supported_mono {ends : E → Sym2 V} {S T : Set E} (hST : S ⊆ T) {e : E}
-    (h : Supported ends w S e) : Supported ends w T e := by
-  obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
-  rw [supported_iff w hab.symm] at h ⊢
-  refine h.mono ?_
-  rintro f ⟨hf, hfe⟩
-  exact ⟨hST hf, hfe⟩
-
-omit [DecidableEq V] [DecidableEq E] in
-private theorem supported_of_mem {ends : E → Sym2 V} {S : Set E} {e : E} (he : e ∈ S) :
-    Supported ends w S e := by
-  obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (ends e)
-  rw [supported_iff w hab.symm]
-  exact Joins.of_mem ⟨he, le_rfl⟩ hab.symm
-
 /-- **The batch preserves the invariant of the state** (§3.3, pp. 17–18). The new forest
 `MSF(F ∪ D)` is an acyclic set of admissible edges, since declared edges passed their tests; the
 new portals are vertices; a new spoke is a declared edge from its vertex to a new portal; and
@@ -1041,11 +1025,11 @@ theorem State.Invariant.batch (h : st.Invariant w adm) (hw : Function.Injective 
       exact mem_union_left _ this
     · exact mem_union_right _ (candidate_some hc).2
   · simp only [hmsf]
-    rw [supported_msf_iff]
+    rw [supported_msf_iff w]
     rcases spokesOf_cases hs with h' | ⟨-, hc⟩
-    · exact supported_mono (fun f hf' => mem_union_left _ hf') (h.spoke_supported v s h')
+    · exact (h.spoke_supported v s h').mono fun f hf' => mem_union_left _ hf'
     · obtain ⟨-, hne, -⟩ := sel_spec hw htest r st B
-      exact supported_of_mem (mem_union_right _ (mem_declOf (candidate_some hc).1 hne))
+      exact supported_of_mem w (mem_union_right _ (mem_declOf (candidate_some hc).1 hne))
 
 /-- **Comparisons of the batch**, a step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026]
 (the accounting after the paper's Lemma 3.3, §3.2, p. 16). Let each test cost at most `cs`
