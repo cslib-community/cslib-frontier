@@ -7,14 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Frontier.Correlation
-public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound.Majorant
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.WeightedMatching
-public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Unconditional
-public import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
-public import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Coefficient
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
@@ -25,7 +21,7 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
-# Unconditional matched-pair Gaussian layout bound (`< 5 / 36`) and `4.60n` / `2.80n` lower bounds
+# Unconditional matched-pair Gaussian layout bound below `5 / 36`
 
 Combines the `7 / 8` vertex-coverage matching theorem on simple cubic multigraphs
 (`Multigraph.exists_isMatching_seven_eighths`), the simultaneous Gaussian concentration framework
@@ -44,14 +40,7 @@ all-threshold Gaussian majorants on `rawEdgeVector` stars and matched pairs
   giving `CubicLayoutBound (277773 / 2000000)` (`cubicLayoutBound_pairBound`) and hence
   `CubicLayoutBound (5 / 36)` and `LayoutBound 3 (5 / 18)` (`layoutBound_five_div_eighteen`).
 
-Plugging `layoutBound_pairBound` (`A = 277773 / 1000000 < 5 / 18`) into the general frontier
-reductions yields unconditional fan-in-two lower bounds with gate-count coefficient
-`1 + 1 / A = 1277773 / 277773 > 23 / 5 = 4.60` (`≈ 4.600062`) across deterministic, average-case,
-nondeterministic, ledger/aggregate, and totally regular linear-map circuits, and quadratic-form /
-`hardForm` correlation bounds below `(1 + L) / 2 = 777773 / 277773 > 14 / 5 = 2.80` (`≈ 2.800031`).
-The matched-pair Gaussian layout bound and all resulting `4.60n` and `2.80n` lower bounds are
-original to this library (note that `hardForm` selects a submatrix-robust matrix via
-`Classical.choose`).
+The matched-pair layout bound is original to this library.
 
 ## Main definitions
 
@@ -68,23 +57,6 @@ original to this library (note that `hardForm` selects a submatrix-robust matrix
   `Cslib.Circuits.Frontier.layoutBound_pairBound`,
   `Cslib.Circuits.Frontier.layoutBound_five_div_eighteen`: unconditional cubic and degree-`3`
   layout bounds.
-* `Cslib.Circuits.Frontier.multiaryLowerBound_pairBound`,
-  `Cslib.Circuits.Frontier.multiaryLowerBound_23_div_5`,
-  `Cslib.Circuits.Frontier.circuitLowerBound_pairBound`,
-  `Cslib.Circuits.Frontier.circuitLowerBound_23_div_5`,
-  `Cslib.Circuits.Frontier.multiaryAverageCaseBound_pairBound`,
-  `Cslib.Circuits.Frontier.multiaryAverageCaseBound_23_div_5`,
-  `Cslib.Circuits.Frontier.averageCaseBound_pairBound`,
-  `Cslib.Circuits.Frontier.averageCaseBound_23_div_5`: bundled worst-case and average-case bounds
-  above `4.60n`.
-* `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_innerSize_of_nondeterministicDecides`,
-  `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_card_of_ledger`,
-  `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_card_of_aggregates`,
-  `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular`:
-  unconditional nondeterministic, ledger, aggregate, and linear-map bounds above `4.60n`.
-* `Cslib.Circuits.Frontier.eventually_abs_correlation_quadForm_le_pairBound_multiarySize`,
-  `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_14_div_5_multiarySize`:
-  unconditional quadratic-form and `hardForm` correlation bounds below `2.80n`.
 
 ## References
 
@@ -94,7 +66,7 @@ original to this library (note that `hardForm` selects a submatrix-robust matrix
 
 public section
 
-open Filter Asymptotics MeasureTheory ProbabilityTheory Real Set Matrix
+open MeasureTheory ProbabilityTheory Real Set
 open scoped RealInnerProductSpace
 
 namespace Cslib.Circuits.Frontier.Gaussian.PairBound
@@ -146,20 +118,6 @@ theorem pairBoundCoefficient_lt_switchedCoefficient :
 theorem one_add_inv_two_mul_pairBoundCoefficient :
     1 + 1 / (2 * pairBoundCoefficient) = 1277773 / 277773 := by
   norm_num [pairBoundCoefficient]
-
-/-- The matched-pair gate-count coefficient `1277773 / 277773 ≈ 4.600062` strictly exceeds
-`23 / 5 = 4.60`. -/
-theorem circuitCoefficient_gt_23_div_5 : (23 / 5 : ℝ) < 1277773 / 277773 := by
-  norm_num
-
-theorem correlationThreshold_eq :
-    1 + 1 / (2 * (2 * pairBoundCoefficient)) = 777773 / 277773 := by
-  norm_num [pairBoundCoefficient]
-
-/-- The matched-pair correlation threshold `777773 / 277773 ≈ 2.800031` strictly exceeds
-`14 / 5 = 2.80`. -/
-theorem correlationThreshold_gt_14_div_5 : (14 / 5 : ℝ) < 777773 / 277773 := by
-  norm_num
 
 /-! ### Expected matching cost on simple cubic multigraphs -/
 
@@ -397,429 +355,5 @@ theorem layoutBound_five_div_eighteen : LayoutBound 3 (5 / 18) := by
   have h := LayoutBound.of_cubic (by norm_num) cubicLayoutBound_five_div_thirty_six
   norm_num at h
   exact h
-
-/-! ### Fan-in-two worst-case and average-case circuit lower bounds (`> 4.60n`) -/
-
-section FanInTwo
-
-universe u v
-
-variable {U : Type u} [Finite U] [Nontrivial U] {S : ∀ n, Set (Fin n → U)} {K : ℕ → ℕ}
-
-/-- **Matched-pair Gaussian frontier lower bound for fan-in two (`> 4.60006n` multiary gates).**
-Every circuit of fan-in at most two deciding a dense rectangle-free family `S_n ⊆ U^n` has more
-than `(1277773 / 277773 - ε) n` multiary gates (`arity = 2`; constant and unary gates are free) for
-all large `n`. -/
-theorem eventually_pairBound_sub_mul_lt_multiarySize
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
-        (1277773 / 277773 - ε) * n < c.multiarySize := by
-  have h := eventually_lt_multiarySize
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hε
-  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-
-/-- **Matched-pair Gaussian frontier lower bound for fan-in two (`> 4.60006n` inner gates).** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
-        (1277773 / 277773 - ε) * n < c.innerSize := by
-  filter_upwards [eventually_pairBound_sub_mul_lt_multiarySize.{u, v} hSK hε] with n hn
-  intro σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
-
-/-- **The `(23 / 5 - ε) n = (4.60 - ε) n` multiary gate lower bound for fan-in two.** -/
-theorem eventually_23_div_5_sub_mul_lt_multiarySize
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
-        (23 / 5 - ε) * n < c.multiarySize := by
-  filter_upwards [eventually_pairBound_sub_mul_lt_multiarySize.{u, v} hSK hε] with n hn
-  intro σ I Acc c hfan hS
-  refine lt_of_le_of_lt ?_ (hn σ I Acc c hfan hS)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg n)
-
-/-- **The `(23 / 5 - ε) n = (4.60 - ε) n` inner gate lower bound for fan-in two.** -/
-theorem eventually_23_div_5_sub_mul_lt_innerSize
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
-        (23 / 5 - ε) * n < c.innerSize := by
-  filter_upwards [eventually_23_div_5_sub_mul_lt_multiarySize.{u, v} hSK hε] with n hn
-  intro σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
-
-/-- **Bundled worst-case multiary claim at `1277773 / 277773 ≈ 4.600062`.** -/
-theorem multiaryLowerBound_pairBound : MultiaryLowerBound.{u, v} (1277773 / 277773) := by
-  have h := multiaryLowerBound_of_layoutBound.{u, v}
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound
-  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-
-/-- **Bundled worst-case multiary claim at `23 / 5 = 4.60`.** -/
-theorem multiaryLowerBound_23_div_5 : MultiaryLowerBound.{u, v} (23 / 5) :=
-  multiaryLowerBound_pairBound.mono Gaussian.PairBound.circuitCoefficient_gt_23_div_5.le
-
-/-- **Bundled worst-case inner-gate claim at `1277773 / 277773 ≈ 4.600062`.** -/
-theorem circuitLowerBound_pairBound : CircuitLowerBound.{u, v} (1277773 / 277773) :=
-  multiaryLowerBound_pairBound.circuitLowerBound
-
-/-- **Bundled worst-case inner-gate claim at `23 / 5 = 4.60`.** -/
-theorem circuitLowerBound_23_div_5 : CircuitLowerBound.{u, v} (23 / 5) :=
-  multiaryLowerBound_23_div_5.circuitLowerBound
-
-/-- **Bundled average-case multiary claim at `1277773 / 277773 ≈ 4.600062`.** -/
-theorem multiaryAverageCaseBound_pairBound :
-    MultiaryAverageCaseBound.{u, v} (1277773 / 277773) := by
-  have h := multiaryAverageCaseBound_of_layoutBound.{u, v}
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound
-  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-
-/-- **Bundled average-case multiary claim at `23 / 5 = 4.60`.** -/
-theorem multiaryAverageCaseBound_23_div_5 : MultiaryAverageCaseBound.{u, v} (23 / 5) :=
-  multiaryAverageCaseBound_pairBound.mono Gaussian.PairBound.circuitCoefficient_gt_23_div_5.le
-
-/-- **Bundled average-case inner-gate claim at `1277773 / 277773 ≈ 4.600062`.** -/
-theorem averageCaseBound_pairBound : AverageCaseBound.{u, v} (1277773 / 277773) :=
-  multiaryAverageCaseBound_pairBound.averageCaseBound
-
-/-- **Bundled average-case inner-gate claim at `23 / 5 = 4.60`.** -/
-theorem averageCaseBound_23_div_5 : AverageCaseBound.{u, v} (23 / 5) :=
-  multiaryAverageCaseBound_23_div_5.averageCaseBound
-
-/-! ### Nondeterministic fan-in-two circuit lower bounds (`> 4.60n`) -/
-
-/-- **Matched-pair Gaussian lower bound for nondeterministic circuits of fan-in two.** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize_of_nondeterministicDecides
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
-        (1277773 / 277773 - ε) * n < c.innerSize := by
-  have h := eventually_lt_innerSize_of_nondeterministicDecides
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hε
-  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-
-/-- **The `(23 / 5 - ε) n = (4.60 - ε) n` lower bound for nondeterministic circuits of fan-in
-two.** -/
-theorem eventually_23_div_5_sub_mul_lt_innerSize_of_nondeterministicDecides
-    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
-        (23 / 5 - ε) * n < c.innerSize := by
-  filter_upwards
-    [eventually_pairBound_sub_mul_lt_innerSize_of_nondeterministicDecides.{u, v} hSK hε] with n hn
-  intro k σ I Acc c hfan hS
-  refine lt_of_le_of_lt ?_ (hn k σ I Acc c hfan hS)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg n)
-
-end FanInTwo
-
-/-! ### Quadratic-form and `hardForm` correlation bounds (`< 2.80n`) -/
-
-section Correlation
-
-universe v
-
-private theorem pairBound_rate_eq (c : ℝ) :
-    (1 + 1 / (2 * (2 * Gaussian.PairBound.pairBoundCoefficient)) - c) /
-        (2 * (1 + 1 / (2 * Gaussian.PairBound.pairBoundCoefficient))) =
-      (777773 / 277773 - c) / (2 * (1277773 / 277773)) := by
-  rw [Gaussian.PairBound.correlationThreshold_eq,
-    Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient]
-
-/-- **Exponentially small quadratic-form correlation below `(777773 / 277773) n` (`≈ 2.800031n`)
-multiary gates.** -/
-theorem eventually_abs_correlation_quadForm_le_pairBound_multiarySize {c γ : ℝ} (hc : 1 / 2 ≤ c)
-    (hγ : γ < (777773 / 277773 - c) / (2 * (1277773 / 277773)))
-    (Q : ∀ n, Matrix (Fin n) (Fin n) (ZMod 2)) (e : ℕ → ℝ)
-    (he : e =o[atTop] fun n => (n : ℝ))
-    (hQ : ∀ᶠ n in atTop, ∀ U : Set (Fin n), U.ncard = n / 2 →
-      ((n / 2 : ℕ) : ℝ) ≤ (Q n + (Q n)ᵀ).cutRank U + e n) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.multiarySize : ℝ) ≤ c * n →
-        |correlation {x | BitString.quadForm (Q n) x} {x | C.eval I x 0 ∈ Acc}| ≤
-          (2 : ℝ) ^ (-γ * n) :=
-  eventually_abs_correlation_quadForm_le_of_isLittleO_multiarySize
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hc
-    (by rwa [pairBound_rate_eq]) Q e he hQ
-
-/-- **Exponentially small quadratic-form correlation below `(777773 / 277773) n` inner gates.** -/
-theorem eventually_abs_correlation_quadForm_le_pairBound {c γ : ℝ} (hc : 1 / 2 ≤ c)
-    (hγ : γ < (777773 / 277773 - c) / (2 * (1277773 / 277773)))
-    (Q : ∀ n, Matrix (Fin n) (Fin n) (ZMod 2)) (e : ℕ → ℝ)
-    (he : e =o[atTop] fun n => (n : ℝ))
-    (hQ : ∀ᶠ n in atTop, ∀ U : Set (Fin n), U.ncard = n / 2 →
-      ((n / 2 : ℕ) : ℝ) ≤ (Q n + (Q n)ᵀ).cutRank U + e n) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
-        |correlation {x | BitString.quadForm (Q n) x} {x | C.eval I x 0 ∈ Acc}| ≤
-          (2 : ℝ) ^ (-γ * n) := by
-  filter_upwards
-    [eventually_abs_correlation_quadForm_le_pairBound_multiarySize.{v} hc hγ Q e he hQ]
-    with n hn σ I Acc C hfan hsize
-  exact hn σ I Acc C hfan ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hsize)
-
-/-- **Exponentially small correlation with `hardForm n` (chosen via `Classical.choose`) below
-`(777773 / 277773) n` multiary gates.** -/
-theorem eventually_abs_correlation_hardForm_le_pairBound_multiarySize {c γ : ℝ} (hc : 1 / 2 ≤ c)
-    (hγ : γ < (777773 / 277773 - c) / (2 * (1277773 / 277773))) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.multiarySize : ℝ) ≤ c * n →
-        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
-  eventually_abs_correlation_quadForm_le_pairBound_multiarySize hc hγ hardMatrix _
-    isLittleO_hardDeficiency (Eventually.of_forall half_le_cutRank_hardMatrix_add)
-
-/-- **Exponentially small correlation with `hardForm n` (chosen via `Classical.choose`) below
-`(777773 / 277773) n` inner gates.** -/
-theorem eventually_abs_correlation_hardForm_le_pairBound {c γ : ℝ} (hc : 1 / 2 ≤ c)
-    (hγ : γ < (777773 / 277773 - c) / (2 * (1277773 / 277773))) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
-        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
-  filter_upwards [eventually_abs_correlation_hardForm_le_pairBound_multiarySize.{v} hc hγ]
-    with n hn σ I Acc C hfan hsize
-  exact hn σ I Acc C hfan ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hsize)
-
-/-- **Every multiary gate coefficient `c < 777773 / 277773` (`≈ 2.800031`).** -/
-theorem exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound_multiarySize {c : ℝ}
-    (hc : c < 777773 / 277773) :
-    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
-      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 → (C.multiarySize : ℝ) ≤ c * n →
-        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
-  set c' := max c (1 / 2)
-  have hc' : c' < 777773 / 277773 := max_lt hc (by norm_num)
-  have hc'_lo : 1 / 2 ≤ c' := le_max_right c (1 / 2)
-  set r := (777773 / 277773 - c') / (2 * (1277773 / 277773))
-  have hr : 0 < r := div_pos (by linarith) (by norm_num)
-  refine ⟨r / 2, by positivity, ?_⟩
-  filter_upwards [eventually_abs_correlation_hardForm_le_pairBound_multiarySize.{v}
-    hc'_lo (γ := r / 2) (half_lt_self hr)] with n hn σ I Acc C hfan hsize
-  exact hn σ I Acc C hfan
-    (hsize.trans (mul_le_mul_of_nonneg_right (le_max_left c _) (Nat.cast_nonneg n)))
-
-/-- **Every inner-gate coefficient `c < 777773 / 277773` (`≈ 2.800031`).** -/
-theorem exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound {c : ℝ}
-    (hc : c < 777773 / 277773) :
-    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
-      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
-        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
-  obtain ⟨γ, hγ, hn⟩ :=
-    exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound_multiarySize.{v} hc
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hn] with n hn' σ I Acc C hfan hsize
-  exact hn' σ I Acc C hfan ((Nat.cast_le.mpr C.multiarySize_le_innerSize).trans hsize)
-
-/-- **Exponentially small correlation with `hardForm n` at `14 / 5 * n = 2.80 n` multiary gates.**
--/
-theorem exists_eventually_abs_correlation_hardForm_le_14_div_5_multiarySize :
-    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
-      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 →
-        (C.multiarySize : ℝ) ≤ 14 / 5 * n →
-          |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
-  exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound_multiarySize
-    Gaussian.PairBound.correlationThreshold_gt_14_div_5
-
-/-- **Exponentially small correlation with `hardForm n` at `14 / 5 * n = 2.80 n` inner gates.** -/
-theorem exists_eventually_abs_correlation_hardForm_le_14_div_5 :
-    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
-      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 →
-        (C.innerSize : ℝ) ≤ 14 / 5 * n →
-          |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
-  exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound
-    Gaussian.PairBound.correlationThreshold_gt_14_div_5
-
-end Correlation
-
-/-! ### Ledger and aggregate circuit lower bounds (`> 4.60n`) -/
-
-section Ledger
-
-universe u v w
-
-variable {U : Type u} [Finite U] [Nontrivial U] {S : ∀ n, Set (Fin n → U)} {K : ℕ → ℕ}
-
-/-- **Matched-pair Gaussian frontier lower bound with a ledger (`> 4.60006n`).** -/
-theorem eventually_pairBound_sub_mul_lt_card_of_ledger
-    (hSK : DenseRectangleFree S K)
-    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (M : Type w)
-      [CommMonoid M] [Finite M],
-        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
-        Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
-          (1277773 / 277773 - ε) * n <
-            (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hβ hε
-  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ M _ _ hfan hled hM hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special M hfan hled hM hdec
-
-/-- **Matched-pair Gaussian frontier lower bound with aggregate gates (`> 4.60006n`).** -/
-theorem eventually_pairBound_sub_mul_lt_card_of_aggregates
-    (hSK : DenseRectangleFree S K)
-    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (T : Type w)
-      [CommMonoid T] [Finite T],
-        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
-        (∀ g, special g → Aggregates (I (c.program.lines g).op) T) →
-        Nat.card {g // special g} * Real.log (Nat.card T) ≤ β n →
-        c.Decides I Acc (S n) →
-          (1277773 / 277773 - ε) * n <
-            (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hβ hε
-  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ T _ _ hfan hagg hT hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special T hfan hagg hT hdec
-
-/-- **The `(23 / 5 - ε) n = (4.60 - ε) n` frontier lower bound with a ledger.** -/
-theorem eventually_23_div_5_sub_mul_lt_card_of_ledger
-    (hSK : DenseRectangleFree S K)
-    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (M : Type w)
-      [CommMonoid M] [Finite M],
-        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
-        Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
-          (23 / 5 - ε) * n < (c.program.innerGates.filter fun g => ¬special g).card := by
-  filter_upwards [eventually_pairBound_sub_mul_lt_card_of_ledger.{u, v, w} hSK hβ hε] with
-    n hn σ I Acc c special _ M _ _ hfan hled hM hdec
-  refine lt_of_le_of_lt ?_ (hn σ I Acc c special M hfan hled hM hdec)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg n)
-
-/-- **The `(23 / 5 - ε) n = (4.60 - ε) n` frontier lower bound with aggregate gates.** -/
-theorem eventually_23_div_5_sub_mul_lt_card_of_aggregates
-    (hSK : DenseRectangleFree S K)
-    {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
-      (c : Circuit σ n 1) (special : Fin c.size → Prop) [DecidablePred special] (T : Type w)
-      [CommMonoid T] [Finite T],
-        (∀ g, ¬special g → σ.Arity (c.program.lines g).op ≤ 2) →
-        (∀ g, special g → Aggregates (I (c.program.lines g).op) T) →
-        Nat.card {g // special g} * Real.log (Nat.card T) ≤ β n →
-        c.Decides I Acc (S n) →
-          (23 / 5 - ε) * n < (c.program.innerGates.filter fun g => ¬special g).card := by
-  filter_upwards [eventually_pairBound_sub_mul_lt_card_of_aggregates.{u, v, w} hSK hβ hε] with
-    n hn σ I Acc c special _ T _ _ hfan hagg hT hdec
-  refine lt_of_le_of_lt ?_ (hn σ I Acc c special T hfan hagg hT hdec)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg n)
-
-end Ledger
-
-/-! ### Linear maps and Cauchy matrices (`> 4.60 N`) -/
-
-section Linear
-
-universe u v
-
-/-- **Matched-pair Gaussian lower bound for totally regular linear maps (`> 4.60006 N`).** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
-      (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
-        c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) → c.LinearCapacity I →
-          (1277773 / 277773 - ε) * N < c.innerSize := by
-  have h := eventually_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hε
-  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-  filter_upwards [h] with N hN F _ σ I M c hM hfan hc hcap
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hN F σ I M c hM hfan hc hcap
-
-/-- **Matched-pair Gaussian lower bound for linear maps over finite fields (`> 4.60006 N`).** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_finite {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Finite F] (σ : Signature.{v})
-      (I : Interpretation σ F) (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N),
-        M.IsTotallyRegular → c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) →
-          (1277773 / 277773 - ε) * N < c.innerSize := by
-  have h := eventually_lt_mul_innerSize_of_isTotallyRegular_finite.{u, v} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hε
-  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-  filter_upwards [h] with N hN F _ _ σ I M c hM hfan hc
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hN F σ I M c hM hfan hc
-
-/-- **Matched-pair Gaussian lower bound for linear maps over infinite fields (`> 4.60006 N`).** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Infinite F] (σ : Signature.{v})
-      (I : Interpretation σ F), I.IsPolynomial → ∀ (M : Matrix (Fin N) (Fin N) F)
-        (c : Circuit σ N N), M.IsTotallyRegular → c.FanInAtMost 2 →
-          c.Computes I (fun x => M *ᵥ x) →
-            (1277773 / 277773 - ε) * N < c.innerSize := by
-  have h := eventually_lt_mul_innerSize_of_isTotallyRegular_isPolynomial.{u, v} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hε
-  rw [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
-  filter_upwards [h] with N hN F _ _ σ I hpoly M c hM hfan hc
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hN F σ I hpoly M c hM hfan hc
-
-/-- **Arithmetic circuits for the Cauchy maps (`> 4.60006 N`).** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize_arith_cauchyNat {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [CharZero F] (c : Circuit (arithSignature F) N N),
-      c.Computes (arithInterpretation F) (fun x => cauchyNat F N *ᵥ x) →
-        (1277773 / 277773 - ε) * N < c.innerSize := by
-  filter_upwards
-    [eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial.{u, u} hε] with
-    N hN F _ _ c hc
-  exact hN F _ _ isPolynomial_arithInterpretation _ c (isTotallyRegular_cauchyNat N)
-    c.fanInAtMost_two_arith hc
-
-/-- **The Cauchy maps over prime fields (`> 4.60006 N`).** -/
-theorem eventually_pairBound_sub_mul_lt_innerSize_cauchyNat_zmod {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (q : ℕ) [Fact q.Prime], 2 * N ≤ q → ∀ (σ : Signature.{v})
-      (I : Interpretation σ (ZMod q)) (c : Circuit σ N N), c.FanInAtMost 2 →
-        c.Computes I (fun x => cauchyNat (ZMod q) N *ᵥ x) →
-          (1277773 / 277773 - ε) * N < c.innerSize := by
-  filter_upwards
-    [eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_finite.{0, v} hε] with
-    N hN q _ hq σ I c hfan hc
-  have : NeZero q := ⟨(Fact.out : q.Prime).ne_zero⟩
-  exact hN (ZMod q) σ I _ c (isTotallyRegular_cauchyNat_zmod hq) hfan hc
-
-/-- **The `(23 / 5 - ε) N = (4.60 - ε) N` lower bound for linear maps over finite fields.** -/
-theorem eventually_23_div_5_sub_mul_lt_innerSize_of_isTotallyRegular_finite {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Finite F] (σ : Signature.{v})
-      (I : Interpretation σ F) (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N),
-        M.IsTotallyRegular → c.FanInAtMost 2 → c.Computes I (fun x => M *ᵥ x) →
-          (23 / 5 - ε) * N < c.innerSize := by
-  filter_upwards
-    [eventually_pairBound_sub_mul_lt_innerSize_of_isTotallyRegular_finite.{u, v} hε] with
-    N hN F _ _ σ I M c hM hfan hc
-  refine lt_of_le_of_lt ?_ (hN F σ I M c hM hfan hc)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg N)
-
-/-- **Arithmetic circuits for the Cauchy maps (`4.60 N`).** -/
-theorem eventually_23_div_5_sub_mul_lt_innerSize_arith_cauchyNat {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [CharZero F] (c : Circuit (arithSignature F) N N),
-      c.Computes (arithInterpretation F) (fun x => cauchyNat F N *ᵥ x) →
-        (23 / 5 - ε) * N < c.innerSize := by
-  filter_upwards [eventually_pairBound_sub_mul_lt_innerSize_arith_cauchyNat.{u} hε] with
-    N hN F _ _ c hc
-  refine lt_of_le_of_lt ?_ (hN F c hc)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg N)
-
-/-- **The Cauchy maps over prime fields (`4.60 N`).** -/
-theorem eventually_23_div_5_sub_mul_lt_innerSize_cauchyNat_zmod {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ N in atTop, ∀ (q : ℕ) [Fact q.Prime], 2 * N ≤ q → ∀ (σ : Signature.{v})
-      (I : Interpretation σ (ZMod q)) (c : Circuit σ N N), c.FanInAtMost 2 →
-        c.Computes I (fun x => cauchyNat (ZMod q) N *ᵥ x) →
-          (23 / 5 - ε) * N < c.innerSize := by
-  filter_upwards [eventually_pairBound_sub_mul_lt_innerSize_cauchyNat_zmod.{v} hε] with
-    N hN q _ hq σ I c hfan hc
-  refine lt_of_le_of_lt ?_ (hN q hq σ I c hfan hc)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [Gaussian.PairBound.circuitCoefficient_gt_23_div_5]) (Nat.cast_nonneg N)
-
-end Linear
 
 end Cslib.Circuits.Frontier

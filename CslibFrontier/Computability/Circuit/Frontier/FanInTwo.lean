@@ -12,14 +12,18 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
 public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound
 
 /-!
 # Frontier lower bounds for fan-in two
 
 The frontier lower bound for fan-in two (`Cslib.Circuits.Frontier.eventually_lt_multiarySize`) is
 conditional on the layout hypothesis `LayoutBound 3 A`, and gives `s > (1 + 1/A - ε) n` multiary
-gates (`arity = 2`; constant and unary gates are free). Three layout bounds remove the hypothesis:
+gates (`arity = 2`; constant and unary gates are free). Four layout bounds remove the hypothesis:
 
+* matched-pair Gaussian edge-score layouts give `A = 277773 / 1000000`
+  (`Cslib.Circuits.Frontier.layoutBound_pairBound`), so
+  `1 + 1/A = 1277773 / 277773 ≈ 4.600062`;
 * median-switched Gaussian vertex-score layouts [Gaspers2026] give `A = 2 c₃` with
   `c₃ = (3 / (4π)) arccos (5 / 6)` (`Cslib.Circuits.Frontier.layoutBound_switched`), so
   `1 + 1/A = L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`;
@@ -33,6 +37,8 @@ symbols, with `log K_n = o(n)` and `n log |U| - log |S_n| = o(n)`. Then for ever
 large `n`, every circuit of fan-in at most two deciding `S_n`, over any basis and interpretation
 on `U`, has more than
 
+* `(1277773 / 277773 - ε) n` multiary gates, with `1277773 / 277773 ≈ 4.600062`
+  (`Cslib.Circuits.Frontier.multiaryLowerBound_pairBound`);
 * `(L₃ - ε) n` multiary gates (`arity = 2`; constant and unary gates are free), with
   `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`
   (`Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_multiarySize`,
@@ -46,7 +52,8 @@ on `U`, has more than
 * `(4 - ε) n` inner gates (`Cslib.Circuits.Frontier.eventually_four_sub_mul_lt_innerSize`).
 
 The Gaussian layout bound and the `(L - ε) n` and `(114/25 - ε) n` lower bounds derived from it
-are original to this library.
+are original to this library, as are the matched-pair layout bound and the
+`(1277773 / 277773 - ε) n` lower bounds derived from it.
 
 Constant and unary gates (`arity ≤ 1`) are not counted in `multiarySize`; the `innerSize`
 companions follow via `c.multiarySize ≤ c.innerSize`. The hypotheses are those of
@@ -55,11 +62,17 @@ of dense rectangle-free sets, and to a particular family once it is shown to be 
 
 The same coefficients hold for the bundled worst-case claims (`MultiaryLowerBound`,
 `CircuitLowerBound`) and average-case claims (`MultiaryAverageCaseBound`, `AverageCaseBound`):
-circuits of fan-in two with at most `(L₃ - ε) n` multiary gates agree with a set of bias at most
-`b_n` on large rectangles on at most a `1/2 + b_n + exp (-γ n)` fraction of the inputs.
+circuits of fan-in two with at most `(1277773 / 277773 - ε) n` multiary gates agree with a set of
+bias at most `b_n` on large rectangles on at most a `1/2 + b_n + exp (-γ n)` fraction of the inputs
+(`Cslib.Circuits.Frontier.multiaryAverageCaseBound_pairBound`). The matched-pair `innerSize`
+claims follow by `MultiaryLowerBound.circuitLowerBound` and
+`MultiaryAverageCaseBound.averageCaseBound`.
 
 ## Main results
 
+* `Cslib.Circuits.Frontier.multiaryLowerBound_pairBound`,
+  `Cslib.Circuits.Frontier.multiaryAverageCaseBound_pairBound`: the matched-pair bundled
+  worst-case and average-case claims with coefficient `1277773 / 277773 ≈ 4.600062`.
 * `Cslib.Circuits.Frontier.eventually_gaussian_sub_mul_lt_innerSize`: `s > (L - ε) n`.
 * `Cslib.Circuits.Frontier.eventually_114_div_25_sub_mul_lt_innerSize`: `s > (114/25 - ε) n`.
 * `Cslib.Circuits.Frontier.eventually_four_sub_mul_lt_innerSize`: `s > (4 - ε) n`.
@@ -301,5 +314,22 @@ theorem averageCaseBound_457597_div_100000 : AverageCaseBound.{u, v} (457597 / 1
 /-- **Circuits of fan-in two below `(4.575 - ε) n` gates barely beat guessing**. -/
 theorem averageCaseBound_183_div_40 : AverageCaseBound.{u, v} (183 / 40) :=
   averageCaseBound_switched.mono Switched.circuitCoefficient_ge_183_div_40
+
+/-- **Circuits of fan-in two deciding dense rectangle-free sets need
+`(1277773 / 277773 - ε) n` multiary gates** (`1277773 / 277773 ≈ 4.600062`), by matched-pair
+Gaussian edge-score layouts (`layoutBound_pairBound`). Original to this library. -/
+theorem multiaryLowerBound_pairBound : MultiaryLowerBound.{u, v} (1277773 / 277773) := by
+  have h := multiaryLowerBound_of_layoutBound.{u, v}
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound
+  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
+
+/-- **Circuits of fan-in two below `(1277773 / 277773 - ε) n` multiary gates barely beat
+guessing** on sets of small bias on large rectangles, by `layoutBound_pairBound`. Original to this
+library. -/
+theorem multiaryAverageCaseBound_pairBound :
+    MultiaryAverageCaseBound.{u, v} (1277773 / 277773) := by
+  have h := multiaryAverageCaseBound_of_layoutBound.{u, v}
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound
+  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
 
 end Cslib.Circuits.Frontier
