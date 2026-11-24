@@ -10,7 +10,11 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.Game
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuessVerify
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Bounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -38,6 +42,12 @@ polynomial time, and it accepts `enc a` exactly when the existential player wins
 that every problem with a polynomial-time game verifier is in `AP`
 (`Cslib.Complexity.IsGameVerifier.mem_AP`).
 
+The same machine works at any time bound: a game of `L a` moves whose number of moves is
+computable in unary, and whose verifier runs, within time `O(t n)`, with `n + L a = O(t n)`, is in
+`ATIME t` (`Cslib.Complexity.mem_ATIME_of_alternation`). The term `n` pays for copying the instance
+next to the moves, since the input head is sequential. Both results come from one private bound on
+the time of the guess-then-verify machine in terms of the times of its two deterministic phases.
+
 ## Main results
 
 * `Turing.MultiTapeATM.GuessVerify.acceptsWithin_lift_tag`: the guessing phase is a game.
@@ -45,6 +55,8 @@ that every problem with a polynomial-time game verifier is in `AP`
   time of `prep`, plus `4 * L + 3`, plus the time of `verify`.
 * `Cslib.Complexity.IsGameVerifier.mem_AP`: every problem with a polynomial-time game verifier is
   in `AP`.
+* `Cslib.Complexity.mem_ATIME_of_alternation`: a game of `O(t n)` moves with a verifier within time
+  `O(t n)` is in `ATIME t`.
 
 ## References
 
@@ -173,14 +185,68 @@ namespace Cslib.Complexity
 
 open _root_.Turing _root_.Turing.MultiTapeTM
 
-variable {α : Type} {enc : α ↪ List Bool} {p : Polynomial ℕ} {V : α × List Bool → Bool}
-  {A : Set α}
+variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
+
+/-- **The guess-then-verify machine decides a game within the time of its phases.** Suppose that
+`Tg` writes the frame of `L a` bits `true` followed by `enc a` within `tg a` steps, and that `Tv`
+computes `W (z, a)` from the frame of any `L a` moves `z` followed by `enc a` within `tv a` steps.
+Then the guess-then-verify machine decides, within `tg a + ℓ + 4 * L a + tv a + 9` steps for the
+length `ℓ` of the prepared word, the problem won by the existential player in the game of `L a`
+alternate moves with winning condition `W`. -/
+private theorem decidableInTime_guessVerify {L : α → ℕ} {W : List Bool × α → Bool}
+    {k₁ k₂ : ℕ} {S₁ S₂ : Type} [Finite S₁] [Finite S₂] {Tg : MultiTapeTM k₁ Bool S₁}
+    {Tv : MultiTapeTM k₂ Bool S₂} {tg tv : α → ℕ}
+    (hTg : ∀ a, ∃ s, Tg.ComputesTidilyInTimeAndSpace (enc a)
+      (encBits (frame (List.replicate (L a) true) ++ enc a)) (tg a) s)
+    (hTv : ∀ a (z : List Bool), z.length = L a →
+      ∃ s, Tv.ComputesTidilyInTimeAndSpace (encPair encBits enc (z, a)) (encBool (W (z, a)))
+        (tv a) s)
+    (hA : ∀ a, a ∈ A ↔ Alternation true (List.replicate (L a) 1) fun z => W (z, a) = true) :
+    MultiTapeATM.DecidableInTime A enc fun a =>
+      tg a + (frame (List.replicate (L a) true) ++ enc a).length + 2 +
+        (4 * L a + 3 + (tv a + 4)) := by
+  have hk₁ : k₁ + 1 ≤ k₁ + 1 + (k₂ + 2) := by omega
+  have hk₂ : k₂ + 2 ≤ k₁ + 1 + (k₂ + 2) := by omega
+  let B : Fin (k₁ + 1 + (k₂ + 2)) := ⟨0, by omega⟩
+  let prep := Tg.outputToWord.extendTapes (Fin.embeddingAt hk₁ (Fin.last k₁) B)
+  let verify := (Tv.inputFromWord true).extendTapes (Fin.embeddingAt hk₂ (Fin.natAdd k₂ 0) B)
+  have hprep (a : α) : prep.runFrom (Cfg.init prep.q₀ (enc a))
+      (tg a + (frame (List.replicate (L a) true) ++ enc a).length + 2) =
+      wordsCfg (enc a) none (Function.update (fun _ => []) B
+        (frame (List.replicate (L a) true) ++ enc a)) [] := by
+    obtain ⟨s, hs⟩ := hTg a
+    obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
+      (hs.outputToWord_onTape (Fin.embeddingAt_source hk₁ (Fin.last k₁) B))
+        (enc a) (fun _ => []) [] ⟨rfl, rfl⟩
+    rw [Cfg.init_eq_wordsCfg]
+    exact hrun
+  have hverify (a : α) (z : List Bool) (hz : z.length = L a) :
+      (verify.runFrom (wordsCfg (enc a) (some verify.q₀)
+        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4)).state = none ∧
+      (verify.runFrom (wordsCfg (enc a) (some verify.q₀)
+        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4)).output =
+        [W (z, a)] := by
+    obtain ⟨s, hs⟩ := hTv a z hz
+    obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
+      (hs.inputFromWord_extendTapes true (Fin.embeddingAt_source hk₂ (Fin.natAdd k₂ 0) B))
+      (enc a) _ [] rfl
+    have hrun' : verify.runFrom (wordsCfg (enc a) (some verify.q₀)
+        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4) = _ := hrun
+    rw [hrun']
+    exact ⟨rfl, rfl⟩
+  refine ⟨k₁ + 1 + (k₂ + 2), _, inferInstance, MultiTapeATM.guessVerify B prep verify,
+    fun a => ?_⟩
+  obtain ⟨T, hT, hhalt, hacc⟩ := MultiTapeATM.guessVerify_spec (hprep a) (hverify a)
+  have hrun : (MultiTapeATM.guessVerify B prep verify).toPTM.toNTM.RunsInTime (enc a) T :=
+    MultiTapeATM.runsInTime_iff_haltsWithin.mpr hhalt
+  refine ⟨hrun.mono hT, ?_⟩
+  rw [hA a, MultiTapeATM.accepts_iff_acceptsWithin hrun, hacc]
 
 /-- **Games of polynomially many moves are in `AP`** [Chandra, Kozen and
 Stockmeyer][ChandraKozenStockmeyer1981]: a problem with a polynomial-time game verifier is decided
 in polynomial time by the guess-then-verify machine, which writes the moves of the two players,
 alternately, and then runs the verifier. -/
-theorem IsGameVerifier.mem_AP
+theorem IsGameVerifier.mem_AP {p : Polynomial ℕ} {V : α × List Bool → Bool}
     (hV : Turing.MultiTapeTM.ComputableInPolyTime V (encPair enc encBits) encBool)
     (h : IsGameVerifier enc p V A) : A ∈ AP enc := by
   -- the number of moves, and the word prepared on tape `B`
@@ -197,54 +263,74 @@ theorem IsGameVerifier.mem_AP
       (ComputableInPolyTime.fst encBits enc))
   obtain ⟨cg, dg, k₁, S₁, _, Tg, hTg⟩ := Internal.NormalForm.polyTime hg
   obtain ⟨cv, dv, k₂, S₂, _, Tv, hTv⟩ := Internal.NormalForm.polyTime hV'
-  let tg : α → ℕ := fun a => cg * ((enc a).length + 1) ^ dg
-  have htg : PolyBounded (fun a => (enc a).length) tg := by growth_poly
-  -- the machine
-  have hk₁ : k₁ + 1 ≤ k₁ + 1 + (k₂ + 2) := by omega
-  have hk₂ : k₂ + 2 ≤ k₁ + 1 + (k₂ + 2) := by omega
-  let B : Fin (k₁ + 1 + (k₂ + 2)) := ⟨0, by omega⟩
-  let prep := Tg.outputToWord.extendTapes (Fin.embeddingAt hk₁ (Fin.last k₁) B)
-  let verify := (Tv.inputFromWord true).extendTapes
-    (Fin.embeddingAt hk₂ (Fin.natAdd k₂ 0) B)
-  -- the time bound
-  let t₂ : α → ℕ := fun a => cv * ((g a).length + 1) ^ dv + 4
-  let t : α → ℕ := fun a => tg a + (g a).length + 2 + (4 * L a + 3 + t₂ a)
-  have hprep (a : α) : prep.runFrom (Cfg.init prep.q₀ (enc a)) (tg a + (g a).length + 2) =
-      wordsCfg (enc a) none (Function.update (fun _ => []) B
-        (frame (List.replicate (L a) true) ++ enc a)) [] := by
-    obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
-      ((hTg a).outputToWord_onTape (Fin.embeddingAt_source hk₁ (Fin.last k₁) B))
-        (enc a) (fun _ => [])
-      [] ⟨rfl, rfl⟩
-    rw [Cfg.init_eq_wordsCfg]
-    exact hrun
-  have hverify (a : α) (z : List Bool) (hz : z.length = L a) :
-      (verify.runFrom (wordsCfg (enc a) (some verify.q₀)
-        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (t₂ a)).state = none ∧
-      (verify.runFrom (wordsCfg (enc a) (some verify.q₀)
-        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (t₂ a)).output = [V (a, z)] := by
-    have hlen : (encPair encBits enc (z, a)).length = (g a).length := by
-      simp [hg_def, hz]
-    obtain ⟨ws, em, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
-      (((hTv (z, a)).inputFromWord_extendTapes true
-        (Fin.embeddingAt_source hk₂ (Fin.natAdd k₂ 0) B)).mono
-        (by rw [hlen]) le_rfl)
-      (enc a) _ [] rfl
-    have hrun' : verify.runFrom (wordsCfg (enc a) (some verify.q₀)
-        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (t₂ a) = _ := hrun
-    rw [hrun']
-    exact ⟨rfl, rfl⟩
-  have hspec (a : α) := MultiTapeATM.guessVerify_spec (hprep a) (hverify a)
-  refine ⟨t, ?_, k₁ + 1 + (k₂ + 2), _, inferInstance, MultiTapeATM.guessVerify B prep verify,
-    fun a => ?_⟩
-  · have hpow : PolyBounded (fun a => (enc a).length) fun a => cv * ((g a).length + 1) ^ dv :=
-      (PolyBounded.of_forall_le (size := id) cv dv fun _ => le_rfl).comp hgl
-    exact ((htg.add hgl).add (.const 2)).add ((((PolyBounded.const 4).mul hLb).add
-      (.const 3)).add (hpow.add (.const 4)))
-  · obtain ⟨T, hT, hhalt, hacc⟩ := hspec a
-    have hrun : (MultiTapeATM.guessVerify B prep verify).toPTM.toNTM.RunsInTime (enc a) T :=
-      MultiTapeATM.runsInTime_iff_haltsWithin.mpr hhalt
-    refine ⟨hrun.mono hT, ?_⟩
-    rw [h a, MultiTapeATM.accepts_iff_acceptsWithin hrun, hacc]
+  -- the time bounds of the two deterministic phases
+  have htg : PolyBounded (fun a => (enc a).length) fun a => cg * ((enc a).length + 1) ^ dg := by
+    growth_poly
+  have htv : PolyBounded (fun a => (enc a).length) fun a => cv * ((g a).length + 1) ^ dv :=
+    (PolyBounded.of_forall_le (size := id) cv dv fun _ => le_rfl).comp hgl
+  have hdec := decidableInTime_guessVerify (A := A) (L := L) (W := fun x => V (x.2, x.1))
+    (tg := fun a => cg * ((enc a).length + 1) ^ dg) (tv := fun a => cv * ((g a).length + 1) ^ dv)
+    (fun a => ⟨_, hTg a⟩) (fun a z hz => ⟨_, (hTv (z, a)).mono (le_of_eq (by
+      have hlen : (encPair encBits enc (z, a)).length = (g a).length := by simp [hg_def, hz]
+      rw [hlen])) le_rfl⟩) h
+  exact ⟨_, ((htg.add hgl).add (.const 2)).add ((((PolyBounded.const 4).mul hLb).add
+    (.const 3)).add (htv.add (.const 4))), hdec⟩
+
+/-- **Games of `O(t n)` moves with an `O(t n)`-time verifier are in `ATIME t`** [Chandra, Kozen
+and Stockmeyer][ChandraKozenStockmeyer1981] [Arora and Barak, Section 5.3][AroraBarak09]:
+let `a ∈ A` exactly when the existential player wins the game of `L a` alternate single-bit moves,
+the existential player first, with winning condition `V`. If `L` is computable in unary within
+time `O(TL a)`, the verifier `V` is computable within time `O(TV (a, z))`, and, for a constant `C`,
+`n + L a + TL a` and `TV (a, z)` (for every `z` of length `L a`) are at most `C * t n + C`, where
+`n` is the length of `enc a`, then the guess-then-verify machine decides `A` within time
+`O(t n)`.
+
+This is the time-parametric form of `Cslib.Complexity.IsGameVerifier.mem_AP`; it is not a
+Chandra–Kozen–Stockmeyer simulation theorem by itself. The term `n` in the hypothesis pays for
+copying the instance next to the moves on a work tape, since the input head is sequential, so
+the statement only applies to time bounds `t n ≥ n` up to constants. -/
+theorem mem_ATIME_of_alternation {L : α → ℕ} {V : α × List Bool → Bool} {t : ℕ → ℕ}
+    {TL SL : α → ℕ} {TV SV : α × List Bool → ℕ} {C : ℕ}
+    (hL : ComputableInO L enc encUnary TL SL)
+    (hV : ComputableInO V (encPair enc encBits) encBool TV SV)
+    (hA : ∀ a, a ∈ A ↔ Alternation true (List.replicate (L a) 1) fun z => V (a, z) = true)
+    (hTL : ∀ a, (enc a).length + L a + TL a ≤ C * t (enc a).length + C)
+    (hTV : ∀ a z, z.length = L a → TV (a, z) ≤ C * t (enc a).length + C) :
+    A ∈ ATIME enc t := by
+  have hg : ComputableInO (fun a => (L a, a)) enc (encPair encUnary enc)
+      (fun a => TL a + (enc a).length) (fun a => SL a + (enc a).length) :=
+    hL.prod ComputableInO.id'
+  have hV' : ComputableInO (fun x : List Bool × α => V (x.2, x.1)) (encPair encBits enc) encBool
+      (fun x => (encPair encBits enc x).length + (encPair encBits enc x).length + TV (x.2, x.1))
+      (fun x => (encPair encBits enc x).length + (encPair encBits enc x).length +
+        SV (x.2, x.1)) :=
+    hV.comp' ((ComputableInO.snd encBits enc).prod (ComputableInO.fst encBits enc))
+  obtain ⟨cg, k₁, S₁, _, Tg, hTg⟩ := Internal.NormalForm.bigO hg.computableInBigO
+  obtain ⟨cv, k₂, S₂, _, Tv, hTv⟩ := Internal.NormalForm.bigO hV'.computableInBigO
+  have hℓ (a : α) : (frame (List.replicate (L a) true) ++ enc a).length =
+      2 * L a + 1 + (enc a).length := by
+    simp
+  have hdec := decidableInTime_guessVerify (A := A) (L := L) (W := fun x => V (x.2, x.1))
+    (tg := fun a => cg * (TL a + (enc a).length + 1))
+    (tv := fun a => cv * (2 * (2 * L a + 1 + (enc a).length) + (C * t (enc a).length + C) + 1))
+    (fun a => ⟨_, hTg a⟩) (fun a z hz => ⟨_, (hTv (z, a)).mono (Nat.mul_le_mul_left cv (by
+      have hlen := length_encPair (enc₁ := encBits) (enc₂ := enc) (z, a)
+      have hT := hTV a z hz
+      simp only [encBits_apply] at hlen
+      dsimp only
+      omega)) le_rfl⟩) hA
+  obtain ⟨k, State, hfin, atm, hatm⟩ := hdec
+  refine ⟨(cg + 5 * cv + 11) * C, (cg + 5 * cv + 11) * C + (cg + 5 * cv + 11), k, State, hfin,
+    atm, hatm.mono fun a => ?_⟩
+  have h₁ := hTL a
+  have h₂ := hℓ a
+  have e₁ : cg * (TL a + (enc a).length + 1) ≤ cg * (C * t (enc a).length + C + 1) :=
+    Nat.mul_le_mul_left cg (by omega)
+  have e₂ : cv * (2 * (2 * L a + 1 + (enc a).length) + (C * t (enc a).length + C) + 1) ≤
+      cv * (5 * (C * t (enc a).length + C + 1)) :=
+    Nat.mul_le_mul_left cv (by omega)
+  have hC := Nat.zero_le (C * t (enc a).length)
+  rw [h₂]
+  nlinarith [e₁, e₂, hC]
 
 end Cslib.Complexity

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Translation
 public import Mathlib.Topology.Homeomorph.Lemmas
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Topology.Algebra.Group.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -562,10 +563,9 @@ private theorem rawShear_germ {h r : ℝ} (hr : 0 < r) (p : Route) (d : ℝ) (b 
     rw [heval, hdif, hp1]
     simp only [Route.endpoint, Bool.false_eq_true, ↓reduceIte, add_sub_cancel_left]
   · have hβ1 : β = 1 := by
-      have hjbound : (j.val : ℝ) + 1 ≤ p.segments := by exact_mod_cast j.isLt
       simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,
         Route.position] at hpzero
-      linarith
+      cast_linarith [j.isLt]
     have hjlast : j = Fin.last p.bends := by
       apply Fin.ext
       simp only [Route.endTime, ↓reduceIte, sub_zero, AffineMap.lineMap_apply_one,

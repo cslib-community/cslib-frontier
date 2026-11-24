@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.GeneralLowerBound
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecificLimits.Normed
 
 /-!
@@ -167,16 +168,13 @@ private theorem SPFormula.pow_lt_nodeCount_of_imm {K : Type*} [Field K] {n d N :
     rw [hqR, one_div, ← Real.pow_rpow_inv_natCast (by positivity : (0 : ℝ) ≤ 20 * A + 11) hq]
     refine Real.rpow_le_rpow (by positivity) ?_ (by positivity)
     exact_mod_cast hdq
-  have hLpos : (1 : ℝ) ≤ L := by exact_mod_cast hL1
   have hexp : ((L * A : ℕ) : ℝ) < (L : ℝ) * ((d : ℝ) ^ (1 / (4 ^ Δ - 1 : ℝ)) / 20 - 1 / 2) := by
-    push_cast
-    nlinarith
+    cast_nlinarith [hL1]
   have hlt := Real.rpow_lt_rpow_of_exponent_lt one_lt_two hexp
   rw [Real.rpow_natCast] at hlt
   have hR' : ((SPFormula.smCost d ^ Δ * F.nodeCount : ℕ) : ℝ) ≤ 2 ^ (L * A) := by
     exact_mod_cast hR
-  push_cast at hR'
-  linarith
+  cast_linarith
 
 /-- **Superpolynomial lower bound for constant-depth formulas computing IMM over any field**
 (LST Corollary 4, p. 4, at constant product-depth and `d = ⌊log₂ ⌊log₂ n⌋⌋`, over any field by

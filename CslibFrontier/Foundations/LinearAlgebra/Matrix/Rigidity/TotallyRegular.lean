@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.Matrix.TotallyRegular
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Combinatorics.KovariSosTuran
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
 /-!
@@ -258,8 +259,7 @@ theorem IsTotallyRegular.le_rigidity_of_le_two_pow {A : Matrix n n K} (hA : A.Is
       exact_mod_cast hrN.le
     have hNr : (N : ℝ) / 2 ≤ (N - r : ℕ) := by
       rw [Nat.cast_sub hrN.le, div_le_iff₀ (by norm_num)]
-      have : (2 * r : ℝ) ≤ N := by exact_mod_cast hr
-      linarith
+      cast_linarith [hr]
     calc (N : ℝ) ^ 2 / (4 * (r + 1)) * Real.logb 2 (N / r)
         = N * (N / 2) / (2 * (r + 1)) * Real.logb 2 (N / r) := by
           rw [show (4 : ℝ) * (r + 1) = 2 * (2 * (r + 1)) by ring, ← div_div]; ring

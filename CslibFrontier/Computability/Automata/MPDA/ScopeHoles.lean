@@ -110,6 +110,12 @@ private theorem wellNested_of_isContextOf {M : MPDA n State α Γ} {c c' : Confi
     simp only [Op.stack, reduceCtorEq, false_or, Option.some.injEq] at h₁ h₂
     exact hij (h₁.trans h₂.symm)
 
+private theorem IsContextOf.eq_of_isPushOn {w : List (α × Op n Γ)} {i j : Fin n} {a b q : ℕ}
+    (hctx : IsContextOf i (w.extract a b)) (haq : a ≤ q) (hqb : q < b) (hj : IsPushOn w j q) :
+    j = i := by
+  obtain ⟨a', γ, hj'⟩ := hj
+  simpa [Op.stack] using hctx _ (List.mem_extract_iff_getElem?.mpr ⟨q, haq, hqb, hj'⟩)
+
 /-- A push matched inside a single context is closed by a well-nested continuation. -/
 private theorem wellMatched_of_isContextOf {M : MPDA n State α Γ} {c c' : Config n State Γ}
     {w : List (α × Op n Γ)} (hrun : M.configLTS.MTr c w c') {i : Fin n} {p m : ℕ}
@@ -206,11 +212,7 @@ private theorem not_isContext_extract_pop {M : MPDA n State α Γ} {c c' : Confi
   have hctx' : IsContextOf i (w.extract a (m₁ + 1)) :=
     hctx.isContextOf (List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hpop⟩) rfl
   obtain ⟨⟨j, hj⟩, hnwm⟩ := ha
-  have hji : j = i := by
-    obtain ⟨a', γ, hj'⟩ := hj
-    have := hctx' _ (List.mem_extract_iff_getElem?.mpr ⟨_, le_rfl, by omega, hj'⟩)
-    simpa [Op.stack] using this
-  subst hji
+  obtain rfl := hctx'.eq_of_isPushOn le_rfl (by omega) hj
   apply hnwm
   rcases Nat.eq_or_lt_of_le hr₁a with rfl | hlt
   · exact wellMatched_of_isContextOf hrun hm₁ hj hctx'
@@ -244,10 +246,7 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   have hctx' : IsContextOf i (w.extract a (b + 1)) :=
     hctx.isContextOf (List.mem_extract_iff_getElem?.mpr ⟨_, le_rfl, by omega, hai'⟩) rfl
   obtain ⟨b', δ, hbj'⟩ := id hbj
-  have hji : j = i := by
-    have := hctx' _ (List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hbj'⟩)
-    simpa [Op.stack] using this
-  subst hji
+  obtain rfl := hctx'.eq_of_isPushOn (by omega) (by omega) hbj
   -- The last open hole push on stack `j` before `b`.
   let P := (Finset.range b).filter fun p => a ≤ p ∧ OpenHolePush w x p ∧ IsPushOn w j p
   have hPne : P.Nonempty := ⟨a, by simp [P, hab, ha, hai]⟩
@@ -361,6 +360,13 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     have := hge b hb
     simp only at hab
     omega
+  have hle_m₁ : ∀ a ∈ insert m₁ T, a ≤ m₁ := by
+    intro a ha
+    rcases Finset.mem_insert.mp ha with rfl | ha
+    · exact le_rfl
+    · have := (Finset.mem_filter.mp ha).1
+      simp only [Finset.mem_range] at this
+      omega
   have hcard := List.Splits.card_le (fun _ _ huv hv => IsContext.of_isInfix huv hv) (h r₁ m₁ hm₁)
     ((insert m₁ T).image (· - r₁)) ?hT ?hTP
   · rw [Finset.card_image_of_injOn hinj, Finset.card_insert_of_notMem (by
@@ -372,12 +378,7 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     intro t ht
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
     have := hge a ha
-    have : a ≤ m₁ := by
-      rcases Finset.mem_insert.mp ha with rfl | ha
-      · exact le_rfl
-      · have := (Finset.mem_filter.mp ha).1
-        simp only [Finset.mem_range] at this
-        omega
+    have := hle_m₁ a ha
     simp
     omega
   case hTP =>
@@ -387,19 +388,10 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     have hra := hge a ha
     have hrb := hge b hb
     have hab : a < b := by omega
-    have hbm : b ≤ m₁ := by
-      rcases Finset.mem_insert.mp hb with rfl | hb
-      · exact le_rfl
-      · have := (Finset.mem_filter.mp hb).1
-        simp only [Finset.mem_range] at this
-        omega
+    have hbm := hle_m₁ b hb
     rw [List.extract_extract _ (by omega), Nat.add_sub_cancel' hra,
       show r₁ + (b - r₁ + 1) = b + 1 by omega]
-    have haT : a ∈ T := by
-      rcases Finset.mem_insert.mp ha with rfl | ha
-      · omega
-      · exact ha
-    have haR := (Finset.mem_filter.mp haT).2
+    have haR := (Finset.mem_filter.mp ((Finset.mem_insert.mp ha).resolve_left (by omega))).2
     rcases Finset.mem_insert.mp hb with rfl | hbT
     · exact not_isContext_extract_pop hrun hm₁ hr₁i haR.1.1 hra (by omega)
     · exact not_isContext_extract_holes hrun haR.1 (Finset.mem_filter.mp hbT).2.1
