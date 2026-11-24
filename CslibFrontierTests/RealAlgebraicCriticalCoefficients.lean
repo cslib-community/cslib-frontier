@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDetermi
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FingerprintRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ShiftedCriticalObjectiveEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
@@ -32,7 +33,6 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLa
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
-import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.FingerprintIntegerRootLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
@@ -193,6 +193,26 @@ example : (fun m : ℕ => fingerprintLabelResidue 17 0 1 m (fun _ => 3) (fun _ =
   fingerprintLabelResidue_mem (a := 0) Decoder.nat (.const 17) (.const 0) (.const 1)
     ComputableInPolyTime.id' (CountingFunction.of_polyTime (.const 3))
     (CountingFunction.of_polyTime (.const 1)) (CountingFunction.of_polyTime (.const 16))
+
+-- The derivative slot number and the test count are both binary.
+example : (fun D : ℕ => fingerprintRootLabelResidue 17 D 0 5 2 (-1) 2 id) ∈
+    CountingFunction 7 encNat encNat :=
+  fingerprintRootLabelResidue_mem (a := 0) Decoder.nat (.const 17) ComputableInPolyTime.id'
+    (.const 0) (.const 5) (.const 2) (.const (-1))
+    (CountingFunction.of_polyTime (.const 2))
+    (CountingFunction.of_polyTime (ComputableInPolyTime.snd encNat encNat))
+
+-- Modulo 17 the qualifying constant and the positive derivative have distinct values.
+example : (fingerprintRootLabelResidue 17 1 0 5 2 (-1) 2 id : ZMod 17) =
+    (Polynomial.fingerprintIntegerRootLabel Polynomial.X (Polynomial.C 2) 1 0 5 2 (-1)).eval₂
+      (Int.castRingHom (ZMod 17)) 0 := by
+  let : Fact (Nat.Prime 17) := ⟨by decide⟩
+  apply fingerprintRootLabelResidue_cast _ _ _ _ _ _ (by decide)
+  · simp
+  · intro i
+    fin_cases i
+    simp only [zero_add, Function.iterate_one, Polynomial.derivative_X,
+      Polynomial.eval₂_one, Nat.cast_one, id]
 
 -- The weighted test has zero denominator modulo 17, but its cleared numerator survives.
 example : (fingerprintLabelResidue 17 0 1 1 (fun i => if i = 0 then 0 else 3)

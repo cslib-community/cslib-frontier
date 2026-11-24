@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -754,35 +755,28 @@ private theorem claimInput_eq (claims : List (ℕ × Bool)) (i : ℕ) :
       else if decide ((i, false) ∈ claims) then some false else none := by
   simp only [claimInput, decide_eq_true_eq]
 
+@[local fun_prop]
 private theorem computableInPolyTime_claimInputs
     (hn : ComputableInPolyTime nf encIn encUnary)
     (hc : ComputableInPolyTime cf encIn (encList (encPair encUnary encBool))) :
     ComputableInPolyTime (fun a => claimInputs (nf a) (cf a)) encIn
       (encList (encOption encBool)) := by
-  unfold claimInputs
-  refine ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hn) ?_
+  refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
   simp only [claimInput_eq]
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn encUnary)
-  have hcl := hc.comp hp.fst'
-  have ht := ComputableInPolyTime.decide_mem hcl (hp.snd'.prod (ComputableInPolyTime.const true))
-  have hf := ComputableInPolyTime.decide_mem hcl (hp.snd'.prod (ComputableInPolyTime.const false))
-  exact ComputableInPolyTime.ite' ht (ComputableInPolyTime.const _)
-    (ComputableInPolyTime.ite' hf (ComputableInPolyTime.const _) (ComputableInPolyTime.const _))
+  polytime
 
 private theorem computableInPolyTime_opNat :
     ComputableInPolyTime (fun g : Op × List ℕ => g.1.toNat) (Circuit.encGate encOp) encUnary :=
-  (ComputableInPolyTime.id' (encIn := Circuit.encGate encOp)).fst'.of_enc_eq fun _ => rfl
+  (ComputableInPolyTime.fst _ _).of_enc_eq fun _ => rfl
 
+@[local fun_prop]
 private theorem computableInPolyTime_claimFlag {f : γ → Op × List ℕ} {b : γ → Bool}
     (hf : ComputableInPolyTime f encIn (Circuit.encGate encOp))
     (hb : ComputableInPolyTime b encIn encBool) :
     ComputableInPolyTime (fun a => claimFlag (f a).1 (b a)) encIn encBool := by
   have hop := computableInPolyTime_opNat.comp hf
   unfold claimFlag
-  have h0 := ComputableInPolyTime.unary_beq' hop (ComputableInPolyTime.const 0)
-  have h1 := ComputableInPolyTime.unary_beq' (ComputableInPolyTime.unary_mod.comp
-    (hop.prod (ComputableInPolyTime.const 2))) (ComputableInPolyTime.const 1)
-  fun_prop
+  polytime
 
 private theorem overrideGate_eq (n : ℕ) (claims : List (ℕ × Bool)) (g : Op × List ℕ) (j : ℕ) :
     overrideGate n claims g j =
@@ -791,6 +785,7 @@ private theorem overrideGate_eq (n : ℕ) (claims : List (ℕ × Bool)) (g : Op 
       else g := by
   simp only [overrideGate, claimFlag_eq g.1 _ g.2, Bool.and_eq_true, decide_eq_true_eq]
 
+@[local fun_prop]
 private theorem computableInPolyTime_overrideGates
     (hn : ComputableInPolyTime nf encIn encUnary)
     (hg : ComputableInPolyTime gf encIn (encList (Circuit.encGate encOp)))
@@ -798,20 +793,7 @@ private theorem computableInPolyTime_overrideGates
     ComputableInPolyTime (fun a => overrideGates (nf a) (cf a) (gf a)) encIn
       (encList (Circuit.encGate encOp)) := by
   simp only [overrideGates, overrideGate_eq]
-  refine ComputableInPolyTime.mapWithInput
-    (((ComputableInPolyTime.zipIdx _)).comp hg) ?_
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair encIn (encPair (Circuit.encGate encOp) encUnary))
-  have hcl := hc.comp hp.fst'
-  have hw := ComputableInPolyTime.unary_add' (hn.comp hp.fst') hp.snd'.snd'
-  have ht := ComputableInPolyTime.bool_and'
-    (computableInPolyTime_claimFlag hp.snd'.fst' (ComputableInPolyTime.const true))
-    (ComputableInPolyTime.decide_mem hcl (hw.prod (ComputableInPolyTime.const true)))
-  have hf := ComputableInPolyTime.bool_and'
-    (computableInPolyTime_claimFlag hp.snd'.fst' (ComputableInPolyTime.const false))
-    (ComputableInPolyTime.decide_mem hcl (hw.prod (ComputableInPolyTime.const false)))
-  exact ComputableInPolyTime.ite' ht (ComputableInPolyTime.const _)
-    (ComputableInPolyTime.ite' hf (ComputableInPolyTime.const _) hp.snd'.fst')
+  polytime
 
 private theorem claimChecks_eq (n : ℕ) (gates : List (Op × List ℕ)) (c : ℕ × Bool) :
     claimChecks n gates c = if decide (c.1 < n) then [c]
@@ -821,6 +803,7 @@ private theorem claimChecks_eq (n : ℕ) (gates : List (Op × List ℕ)) (c : �
 
 /-- **The checks of claims are polynomial-time**, for inputs, gates and claims computed in
 polynomial time. -/
+@[fun_prop]
 theorem computableInPolyTime_checks
     (hn : ComputableInPolyTime nf encIn encUnary)
     (hg : ComputableInPolyTime gf encIn (encList (Circuit.encGate encOp)))
@@ -828,28 +811,14 @@ theorem computableInPolyTime_checks
     ComputableInPolyTime (fun a => (cf a).flatMap (claimChecks (nf a) (gf a))) encIn
       (encList (encPair encNat encBool)) := by
   refine ComputableInPolyTime.flatMapWithInput hc ?_
-  simp only [claimChecks_eq]
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encUnary encBool))
-  have hb := ComputableInPolyTime.unary_to_binary
   have hgate : ComputableInPolyTime (fun p : γ × (ℕ × Bool) => gateAt (nf p.1) (gf p.1) p.2.1)
-      (encPair encIn (encPair encUnary encBool)) (Circuit.encGate encOp) := by
-    unfold gateAt
-    exact ComputableInPolyTime.listGetDWithInput (hg.comp hp.fst')
-      (ComputableInPolyTime.unary_sub' hp.snd'.fst' (hn.comp hp.fst')) _
-  have hlt := ComputableInPolyTime.unary_lt' hp.snd'.fst' (hn.comp hp.fst')
-  have hself : ComputableInPolyTime (fun p : γ × (ℕ × Bool) => [p.2])
-      (encPair encIn (encPair encUnary encBool)) (encList (encPair encNat encBool)) :=
-    ComputableInPolyTime.cons' ((hb.comp hp.snd'.fst').prod hp.snd'.snd')
-      (ComputableInPolyTime.const [])
-  have hmap : ComputableInPolyTime
-      (fun p : γ × (ℕ × Bool) => (gateAt (nf p.1) (gf p.1) p.2.1).2.map (·, p.2.2))
-      (encPair encIn (encPair encUnary encBool)) (encList (encPair encNat encBool)) := by
-    refine ComputableInPolyTime.mapWithInput hgate.snd' ?_
-    have hq := ComputableInPolyTime.id'
-      (encIn := encPair (encPair encIn (encPair encUnary encBool)) encNat)
-    exact hq.snd'.prod hq.fst'.snd'.snd'
-  exact ComputableInPolyTime.ite' hlt hself (ComputableInPolyTime.ite'
-    (computableInPolyTime_claimFlag hgate hp.snd'.snd') hmap (ComputableInPolyTime.const []))
+      (encPair encIn (encPair encUnary encBool)) (Circuit.encGate encOp) :=
+    ComputableInPolyTime.listGetDWithInput (hg.comp (by fun_prop)) (by fun_prop) _
+  simp only [claimChecks_eq]
+  exact ComputableInPolyTime.ite' (by fun_prop)
+    (ComputableInPolyTime.cons'
+      ((ComputableInPolyTime.unary_to_binary.comp (by fun_prop)).prod (by fun_prop)) (.const []))
+    (by polytime)
 
 private theorem computableInPolyTime_smallDepthOp (d : ℕ) :
     ComputableInPolyTime (fun l : List ℕ => smallDepthOp d Op.not l) (encList encUnary)
@@ -871,17 +840,11 @@ private theorem computableInPolyTime_smallDepths (d : ℕ)
       (fun p : List ℕ × (Op × List ℕ) =>
         p.1 ++ [smallDepthOp d p.2.1 (p.2.2.map (p.1.getD · (d + 1)))])
       (encPair (encList encUnary) (Circuit.encGate encOp)) (encList encUnary) := by
-    have hp := ComputableInPolyTime.id' (encIn :=
-      encPair (encList encUnary) (Circuit.encGate encOp))
-    have hargs : ComputableInPolyTime
-        (fun p : List ℕ × (Op × List ℕ) => p.2.2.map (p.1.getD · (d + 1)))
-        (encPair (encList encUnary) (Circuit.encGate encOp)) (encList encUnary) := by
-      refine ComputableInPolyTime.mapWithInput hp.snd'.snd' ?_
-      have hq := ComputableInPolyTime.id' (encIn :=
-        encPair (encPair (encList encUnary) (Circuit.encGate encOp)) encNat)
-      exact ComputableInPolyTime.listGetD_binary (encA := encUnary) (d + 1) hq.fst'.fst' hq.snd'
-    exact ComputableInPolyTime.listAppend' hp.fst' (ComputableInPolyTime.cons'
-      ((computableInPolyTime_smallDepthOp d).comp hargs) (ComputableInPolyTime.const []))
+    refine ComputableInPolyTime.listAppend' (by fun_prop)
+      (ComputableInPolyTime.cons' ((computableInPolyTime_smallDepthOp d).comp
+        (ComputableInPolyTime.mapWithInput (by fun_prop) ?_)) (by fun_prop))
+    exact ComputableInPolyTime.listGetD_binary (encA := encUnary) (encL := encList encUnary)
+      (d + 1) (by fun_prop) (by fun_prop)
   unfold smallDepths
   exact ComputableInPolyTime.foldl_of_bounded_growth hg
     (ComputableInPolyTime.replicate hn (ComputableInPolyTime.const 0)) hstep
@@ -899,21 +862,16 @@ theorem computableInPolyTime_claimsValid (d : ℕ)
     (ho : ComputableInPolyTime of encIn encNat)
     (hc : ComputableInPolyTime cf encIn (encList (encPair encUnary encBool))) :
     ComputableInPolyTime (fun a => claimsValid d (nf a) (gf a) (of a) (cf a)) encIn encBool := by
-  have hk := computableInPolyTime_kleeneEval (computableInPolyTime_claimInputs hn hc)
-    (computableInPolyTime_overrideGates hn hg hc)
-  have hval := ComputableInPolyTime.listGetD_binary (encA := encOption encBool) none hk ho
-  have hfirst := ComputableInPolyTime.decide_eq' hval
-    (ComputableInPolyTime.const (some true) (encOut := encOption encBool))
-  have hsd := computableInPolyTime_smallDepths d hn hg
-  have hall : ComputableInPolyTime
-      (fun a => ((cf a).flatMap (claimChecks (nf a) (gf a))).all fun e =>
-        decide ((smallDepths d (nf a) (gf a)).getD e.1 (d + 1) ≤ d)) encIn encBool := by
-    refine ComputableInPolyTime.allWithInput (computableInPolyTime_checks hn hg hc) ?_
-    have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encNat encBool))
-    exact ComputableInPolyTime.unary_le'
-      (ComputableInPolyTime.listGetD_binary (encA := encUnary) (d + 1) (hsd.comp hp.fst')
-        hp.snd'.fst') (ComputableInPolyTime.const d)
-  exact ComputableInPolyTime.bool_and' hfirst hall
+  have hval := ComputableInPolyTime.listGetD_binary (encA := encOption encBool)
+    (encL := encList (encOption encBool)) none
+    (computableInPolyTime_kleeneEval (computableInPolyTime_claimInputs hn hc)
+      (computableInPolyTime_overrideGates hn hg hc)) ho
+  refine ComputableInPolyTime.bool_and' (by polytime)
+    (ComputableInPolyTime.allWithInput (computableInPolyTime_checks hn hg hc) ?_)
+  exact ComputableInPolyTime.unary_le'
+    (ComputableInPolyTime.listGetD_binary (encA := encUnary) (encL := encList encUnary) (d + 1)
+      ((computableInPolyTime_smallDepths d hn hg).comp (by fun_prop)) (by fun_prop))
+    (by fun_prop)
 
 end PolyTime
 

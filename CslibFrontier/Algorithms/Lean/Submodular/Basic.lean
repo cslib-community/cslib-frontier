@@ -12,7 +12,6 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Algebra.Order.Monoid.Defs
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Group.Defs
-import Mathlib.Data.Finset.Lattice.Fold
 
 /-!
 # Submodular Set Functions and Marginal Gains
