@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.CompositeResiduosity.Finite
 public import CslibFrontier.Crypto.Computational.TwoStage
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -141,10 +142,8 @@ theorem eval_mul_paillierEncrypt {m₁ : ZMod N} {c₁ : (ZMod (N ^ 2))ˣ}
       ProbComp.eval (paillierEncrypt N (m₁ + m₂)) := by
   obtain ⟨r₁, rfl⟩ := mem_support_paillierEncrypt.1 hc₁
   simp only [paillierEncrypt, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  conv_rhs => rw [← PMF.uniformOfFintype_map_equiv (Equiv.mulLeft r₁), PMF.bind_map]
-  rw [PMF.map_bind]
-  congr 1 with r
-  simp only [Function.comp_apply, PMF.pure_map, Equiv.coe_mulLeft, ofAdd_add, map_mul]
+  relabel_uniform (Equiv.mulLeft r₁) with r
+  simp only [Equiv.coe_mulLeft, ofAdd_add, map_mul]
   rw [mul_mul_mul_comm]
 
 /-- The product of two independent encryptions of `m₁` and `m₂` is distributed as an encryption of
@@ -213,11 +212,8 @@ theorem eval_dcrRandomExperiment_paillierToDCR {σ : Type}
     simp only [dcrRandomExperiment, paillierToDCR, eval_lrExperiment, ite_true,
       ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind]
     rw [PMF.bind_comm]
-    congr 1
-    funext p
-    conv_rhs => rw [← PMF.uniformOfFintype_map_equiv
-      (Equiv.mulLeft (oneAddPowHom N (.ofAdd (p.1.select b)))), PMF.bind_map]
-    rfl
+    congr 1 with p : 1
+    relabel_uniform (Equiv.mulLeft (oneAddPowHom N (.ofAdd (p.1.select b))))
   rw [key, key]
 
 /-- **Theorem 15.13** ([KatzLindell2020]) at modulus `N`: the chosen-plaintext advantage of `A`

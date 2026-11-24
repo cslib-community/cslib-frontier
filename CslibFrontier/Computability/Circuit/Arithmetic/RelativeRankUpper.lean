@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRank
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.Word
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.NumberTheory.Real.Irrational
 
 /-!
@@ -410,8 +411,7 @@ theorem relRank_polynomial_le_nodeCount_mul (A B : Finset (Fin d)) (Δ : ℕ)
           exact (relRank_smul_le _ _ _ _ _).trans (ih j (hΔ j (Finset.mem_univ j)))
       _ ≤ (((∑ j, (F j).nodeCount) + 1 : ℕ) : ℝ) * β S := by
           rw [← Finset.sum_mul]
-          push_cast
-          nlinarith [hβ S]
+          cast_nlinarith [hβ S]
   | mul F T hT hF _ =>
     rw [productDepth_mul] at hΔ
     exact hmul _ F T hT hF fun j =>
@@ -559,10 +559,7 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
               rw [Nat.cast_two, div_mul_eq_mul_div, div_le_one hv0]
               linarith
           _ = M := Real.rpow_one M
-      have hk' : 10 * τ ^ 2 ≤ k := by
-        have h1 := hcard U
-        have h2 : (10 : ℝ) * d ≤ k := by exact_mod_cast hk
-        linarith
+      have hk' : 10 * τ ^ 2 ≤ k := by cast_linarith [hcard U, hk]
       refine (relRank_prod_le_two_rpow _ _ Finset.univ T _ hdisj hGp ((k : ℝ) / (20 * τ ^ 2))
         fun j _ => relRank_le_two_rpow_of_card_le hblk hw (htype j) (by positivity) hk' _).trans ?_
       have hMv : M / τ ^ 2 = M ^ (1 / v) := by

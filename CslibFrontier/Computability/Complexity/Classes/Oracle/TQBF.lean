@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # The words of `TQBF`
@@ -329,10 +330,7 @@ theorem image_TQBF_mem_PSPACE : encQBF '' TQBF ∈ PSPACE encBits := by
     have := Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) e
     simp only [encBits_apply]
     split_ifs <;> omega
-  · exact PolyBounded.mono (PolyBounded.of_polynomiallyBounded
-      (fun w : List Bool => (encBits w).length)
-      (bound := fun L => (L + 1) ^ dc + ((L + 1) ^ dd + (L + (encQBF .bot).length + 1) ^ e + L))
-      (by fun_prop)) fun w => le_rfl
+  · growth_poly
   · rw [mem_image_TQBF_iff]
     cases isCode w <;> rfl
 

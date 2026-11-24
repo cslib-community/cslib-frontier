@@ -116,7 +116,8 @@ theorem exists_isChain_and_antichain_coloring :
     exact_mod_cast this
   cases isEmpty_or_nonempty α with
   | inl _ =>
-    exact ⟨∅, fun a => isEmptyElim a, by simp, fun i x => isEmptyElim x⟩
+    exact ⟨∅, fun a => isEmptyElim a, by simp only [Finset.coe_empty, IsChain.empty],
+      fun i x => isEmptyElim x⟩
   | inr hne =>
     obtain ⟨a, -, ha⟩ := Finset.exists_max_image Finset.univ h Finset.univ_nonempty
     obtain ⟨p, -, hp⟩ := Order.exists_series_of_height_eq_coe a (hh a).symm
@@ -145,7 +146,7 @@ theorem exists_antichain_coloring_iff {k : ℕ} :
       ∀ C : Finset α, IsChain (· ≤ ·) (C : Set α) → C.card ≤ k := by
   constructor
   · rintro ⟨f, hf⟩ C hC
-    simpa using hC.card_le_of_isAntichain_fibre hf
+    simpa only [Fintype.card_fin] using hC.card_le_of_isAntichain_fibre hf
   · intro hk
     obtain ⟨C, f, hC, hf⟩ := exists_isChain_and_antichain_coloring (α := α)
     refine ⟨fun x => Fin.castLE (hk C hC) (f x), fun i x hx y hy => ?_⟩

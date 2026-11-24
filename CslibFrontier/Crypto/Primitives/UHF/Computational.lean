@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Crypto.Game.Experiment
 public import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF.SupportTsum
@@ -24,7 +26,8 @@ messages. The message encoding is shared across setup descriptions.
 
 The computational security implication follows by running the certified collision-pair sampler
 on the multi-query adversary's list. The list length bound follows from the strict PPT
-certificates for the setup and adversary. The sampler uses only that list and its own coins.
+certificates for the setup and adversary. The converse submits a pair as a two-message batch
+and preserves the success probability.
 
 ## Main definitions
 
@@ -32,6 +35,7 @@ certificates for the setup and adversary. The sampler uses only that list and it
   public setup and private keys.
 * `Cslib.Crypto.UHF.IsComputationalUHF` and `Cslib.Crypto.UHF.IsMultiQueryUHF`: negligible
   success in the respective games against every uniform strict PPT adversary.
+* `Cslib.Crypto.UHF.collisionPairToBatch`: present a single guess as a two-message batch.
 
 ## Main results
 
@@ -39,6 +43,7 @@ certificates for the setup and adversary. The sampler uses only that list and it
   `Q ^ 2 / 2` bound for the certified sampler, averaged over setup.
 * `Cslib.Crypto.UHF.IsComputationalUHF.isMultiQueryUHF`: the asymptotic implication for a
   strict PPT setup.
+* `Cslib.Crypto.UHF.IsMultiQueryUHF.isComputationalUHF`: the converse via a two-message batch.
 
 ## References
 
@@ -64,6 +69,29 @@ private theorem valid_collision_iff_hashOn_eq {T : Type} (valid : M → Bool) (f
     m ≠ m' ∧ valid m = true ∧ valid m' = true ∧ f m = f m' ↔
       m ≠ m' ∧ hashOn valid f m = hashOn valid f m' := by
   cases hm : valid m <;> cases hm' : valid m' <;> simp [hashOn, hm, hm']
+
+/-- Run a collision guesser and submit its two messages in order, including repeated guesses. -/
+def collisionPairToBatch (guess : ProbComp (CollisionGuess M)) : ProbComp (List M) :=
+  (fun pair => [pair.first, pair.second]) <$> guess
+
+/-- Every supported output of the wrapper contains exactly two messages. -/
+theorem length_of_mem_support_collisionPairToBatch {guess : ProbComp (CollisionGuess M)}
+    {batch : List M} (hbatch : batch ∈ (ProbComp.eval (collisionPairToBatch guess)).support) :
+    batch.length = 2 := by
+  rw [collisionPairToBatch, ProbComp.eval_map, PMF.mem_support_map_iff] at hbatch
+  obtain ⟨_, _, rfl⟩ := hbatch
+  rfl
+
+/-- The batch wrapper adds only the cost of writing a two-element framed list. -/
+theorem isPPTOn_collisionPairToBatch {I : Type} {encI : I ↪ List Bool} {encM : M ↪ List Bool}
+    {A : I → ProbComp (CollisionGuess M)} (hA : IsPPTOn encI (encCollisionGuess encM) A) :
+    IsPPTOn encI (encList encM) (fun i => collisionPairToBatch (A i)) := by
+  have hId : ComputableInPolyTime id (encCollisionGuess encM) (encCollisionGuess encM) :=
+    ComputableInPolyTime.id'
+  have hFirst := encCollisionGuess_first_polyTime encM hId
+  have hSecond := encCollisionGuess_second_polyTime encM hId
+  have hCons := ComputableInPolyTime.cons encM
+  exact hA.map (hCons.comp (hFirst.prod (hCons.comp (hSecond.prod (.const [])))))
 
 variable [∀ d, Fintype (K d)] [∀ d, Nonempty (K d)] [DecidableEq M] [∀ d, DecidableEq (Y d)]
 
@@ -109,6 +137,44 @@ arbitrary runtime. `IsComputationalUHF.isMultiQueryUHF` requires strict PPT setu
     (H : ℕ → (d : D) → K d → M → Y d) : Prop :=
   Game.Indistinguishable (multiQueryGame setup valid H) (fun _ _ => PMF.pure false)
     (IsPPTOn (encPair encUnary encD) (encList encM))
+
+/-- The two-message batch and the original pair win on exactly the same guesses and keys. -/
+theorem multiQueryGame_collisionPairToBatch (setup : ℕ → ProbComp D)
+    (valid : ℕ → D → M → Bool) (H : ℕ → (d : D) → K d → M → Y d)
+    (A : ℕ × D → ProbComp (CollisionGuess M)) (n : ℕ) :
+    multiQueryGame setup valid H (fun p => collisionPairToBatch (A p)) n =
+      collisionGame setup valid H A n := by
+  simp only [multiQueryGame, collisionGame, Game.withSetup, collisionPairToBatch,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+  congr 1
+  funext d
+  congr 1
+  funext pair
+  congr 1
+  funext k
+  apply congrArg PMF.pure
+  apply decide_eq_decide.mpr
+  simp only [List.mem_cons, List.not_mem_nil, or_false]
+  constructor
+  · rintro ⟨m, hm, m', hm', hne, hv, hv', hc⟩
+    rcases hm with rfl | rfl <;> rcases hm' with rfl | rfl
+    · exact (hne rfl).elim
+    · exact ⟨hne, hv, hv', hc⟩
+    · exact ⟨hne.symm, hv', hv, hc.symm⟩
+    · exact (hne rfl).elim
+  · rintro ⟨hne, hv, hv', hc⟩
+    exact ⟨pair.first, .inl rfl, pair.second, .inr rfl, hne, hv, hv', hc⟩
+
+/-- Multi-query UHF security implies single-pair UHF security by submitting both messages in
+one batch. The wrapper leaves the public setup program unchanged. -/
+theorem IsMultiQueryUHF.isComputationalUHF {encD : D ↪ List Bool} {encM : M ↪ List Bool}
+    {setup : ℕ → ProbComp D} {valid : ℕ → D → M → Bool} {H : ℕ → (d : D) → K d → M → Y d}
+    (hH : IsMultiQueryUHF encD encM setup valid H) :
+    IsComputationalUHF encD encM setup valid H := by
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro A hA
+  simpa only [multiQueryGame_collisionPairToBatch] using
+    hH.negligible_succProbability _ (isPPTOn_collisionPairToBatch hA)
 
 /-- With at most `Q` messages at each supported setup, the multi-query success probability is
 at most `Q ^ 2 / 2` times the success probability of the collision-pair sampler. -/

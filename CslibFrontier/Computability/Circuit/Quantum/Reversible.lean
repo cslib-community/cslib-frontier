@@ -219,9 +219,9 @@ theorem readBit_classicalRun_gateCodes {z t : ℕ} (htz : t < z) (hz : z < W)
       simp only [gateCodes]
       split_ifs with h
       · simp [interpretation, ← h]
-      · simp only [List.foldl_cons, List.foldl_nil, List.all_cons, List.all_nil,
-          decide_true, Bool.true_and, Bool.and_true, Bool.false_xor, interpretation,
-          Fin.val_zero, Fin.val_one]
+      · simp only [List.foldl_cons, List.foldl_nil, GateCode.target_mk, GateCode.controls_mk,
+          List.all_cons, List.all_nil, decide_true, Bool.true_and, Bool.and_true, Bool.false_xor,
+          interpretation, Fin.val_zero, Fin.val_one]
         cases readBit Y (argQubit z t args 0) <;> cases readBit Y (argQubit z t args 1) <;> rfl
   · rw [ite_eq_right hp]
     cases op with
