@@ -14,6 +14,7 @@ import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.NCLBandwidth
+import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
@@ -26,6 +27,7 @@ import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.ODonnellStableInfluenceBound
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
+import CslibFrontierResults.Entries.PlantedClique
 import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF

@@ -76,7 +76,7 @@ private theorem untilStep_inSpace {step : β → β} {done : β → Bool} {Ss Sd
   have hs := budget_optionSome (budget_comp hstep hget (.of_le fun _ => by omega))
   have hc := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && !p.2)
     (budget_prod (budget_optionIsSome (budget_id hl)) hd)
-  exact budget_ite hc hs (budget_const none hl)
+  exact budget_ite hc hs (budget_const none)
 
 end Round
 

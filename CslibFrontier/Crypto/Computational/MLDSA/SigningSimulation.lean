@@ -145,6 +145,15 @@ noncomputable def simulateFreshSigningAttempt (d ω : ℕ) (hβ : P.β < P.γ₁
   (PMF.sampleWithRatio z ((2 * (P.γ₁ - P.β) - 1) ^ m) ((2 * P.γ₁) ^ m)
     (pow_pos (by lia) _)).map fun oz => oz.bind (finishSimulated P d ω pk c)
 
+/-- The simulated attempt transcript distribution has finite support. -/
+theorem simulateFreshSigningAttempt_support_finite [NeZero P.q] (d ω : ℕ) (hβ : P.β < P.γ₁)
+    (pk : PublicKey P) (c : Fin P.n → ZMod P.q) :
+    (simulateFreshSigningAttempt P d ω hβ pk c).support.Finite := by
+  classical
+  unfold simulateFreshSigningAttempt
+  rw [PMF.support_map]
+  exact (Set.toFinite _).image _
+
 /-- Every accepted public simulation has the requested challenge, a short response, an
 encodable hint, and the very commitment that the verifier recovers. This holds for every full
 public key, including a uniformly sampled vector in the Module-LWE hybrid. -/

@@ -76,7 +76,7 @@ theorem addVertex_inSpace :
   have hargs := snd encRoundUpdate (encPair encNat encNat)
   have hk := hargs.fst'
   have hp := hargs.snd'
-  have hOne := budget_const (encIn := encIn) (encB := encNat) 1 (.refl _)
+  have hOne := budget_const (Bs := fun a => (encIn a).length) (encIn := encIn) (encB := encNat) 1
   have ht := encRoundUpdate_tally_budget ha
   have hnew := encTally_mk_budget
     (budget_natAdd (encTally_count_budget ht) hOne)
