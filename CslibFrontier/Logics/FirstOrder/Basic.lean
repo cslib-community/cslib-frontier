@@ -81,10 +81,6 @@ free variables. -/
 theorem realize_closeAll {M : Type w} [L.Structure M] (V : Type) [Finite V] (φ : L.Formula V) :
     (closeAll V φ).Realize M ↔ ∀ v : V → M, φ.Realize v := by
   fo_simp [closeAll, Sentence.Realize]
-  refine forall_congr' fun v => ?_
-  have h : (Sum.elim (default : Empty → M) v ∘ Sum.inr) = v := by
-    funext x; rfl
-  rw [h]
 
 /-- The existential closure holds exactly when the formula holds under some assignment of its
 free variables. -/
@@ -92,10 +88,6 @@ free variables. -/
 theorem realize_closeEx {M : Type w} [L.Structure M] (V : Type) [Finite V] (φ : L.Formula V) :
     (closeEx V φ).Realize M ↔ ∃ v : V → M, φ.Realize v := by
   fo_simp [closeEx, Sentence.Realize]
-  refine exists_congr fun v => ?_
-  have h : (Sum.elim (default : Empty → M) v ∘ Sum.inr) = v := by
-    funext x; rfl
-  rw [h]
 
 /-- Relabel a single-variable formula `φ : L.Formula (Fin 1)` to free variable `u : V`. -/
 def atVar (φ : L.Formula (Fin 1)) {V : Type*} (u : V) : L.Formula V :=
@@ -217,9 +209,7 @@ theorem realize_le {V : Type*} (v : V → Fin B) (u w : V) :
 @[fo_realize]
 theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
     (isZero r u).Realize v ↔ (v u : ℕ) = 0 := by
-  have h1 : (isZero r u).Realize v ↔ ∀ z : Fin B, ¬ (z < v u) := by
-    simp [isZero, Formula.Realize, hlt, Fin.snoc]
-  rw [h1]
+  fo_simp [isZero, hlt]
   constructor
   · intro h
     by_contra hne
@@ -233,9 +223,7 @@ theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
 @[fo_realize]
 theorem realize_isMax {V : Type*} (v : V → Fin B) (u : V) :
     (isMax r u).Realize v ↔ (v u : ℕ) = B - 1 := by
-  have h1 : (isMax r u).Realize v ↔ ∀ z : Fin B, ¬ (v u < z) := by
-    simp [isMax, Formula.Realize, hlt, Fin.snoc]
-  rw [h1]
+  fo_simp [isMax, hlt]
   have hu := (v u).2
   constructor
   · intro h
@@ -250,11 +238,7 @@ successor of the value of `u`. -/
 @[fo_realize]
 theorem realize_succ {V : Type*} (v : V → Fin B) (u w : V) :
     (succ r u w).Realize v ↔ (v w : ℕ) = (v u : ℕ) + 1 := by
-  have h1 : (succ r u w).Realize v ↔
-      v u < v w ∧ ∀ z : Fin B, ¬ (v u < z) ∨ ¬ (z < v w) := by
-    rw [succ, Formula.realize_inf, realize_lt hlt]
-    simp [Formula.Realize, hlt, Fin.snoc]
-  rw [h1]
+  fo_simp [succ, realize_lt hlt, hlt]
   have hu := (v u).2
   have hw := (v w).2
   constructor
@@ -309,8 +293,7 @@ elements. -/
 @[simp, fo_realize]
 theorem realize_cardEqSentence [Finite M] (n : ℕ) :
     M ⊨ cardEqSentence L n ↔ Nat.card M = n := by
-  rw [cardEqSentence, Sentence.realize_inf, Sentence.realize_not, realize_cardGe_iff_le_card,
-    realize_cardGe_iff_le_card]
+  fo_simp [cardEqSentence, realize_cardGe_iff_le_card]
   omega
 
 /-- Given `m` sentences `φ` and a predicate `P` on bit vectors `Fin m → Bool`, the first-order

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Straddle
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # One sample controls every frontier of the median layout
@@ -74,22 +75,21 @@ private theorem measurableSet_edgeScoreEvent (q : ℝ) (R : ℕ) {p : ℝ → Pr
 
 /-- An event about the score of `e` depends only on the coordinates of the sample in the closed
 ball of radius `R + 1` around the source of `e`. -/
-private theorem dependsOn_edgeScoreEvent (q : ℝ) (R : ℕ) (p : ℝ → Prop) (e : E) :
+theorem dependsOn_edgeScoreEvent (q : ℝ) (R : ℕ) (p : ℝ → Prop) (e : E) :
     DependsOn (· ∈ edgeScoreEvent G q R p e) (closedBall G.toSimpleGraph (G.src e) (R + 1)) := by
   intro ω ω' hω
   simp only [edgeScoreEvent, mem_ofPred_eq, edgeScore_congr (Or.inl rfl) hω]
 
 /-- The handshake lemma for a loopless multigraph whose vertices have three edges:
 `|E| = 3 |V| / 2`. -/
-private theorem card_edges_eq [Fintype E] (hloop : G.Loopless)
+theorem card_edges_eq [Fintype E] (hloop : G.Loopless)
     (h3 : ∀ v, (G.incidenceSet v).ncard = 3) :
     (Fintype.card E : ℝ) = 3 / 2 * Fintype.card V := by
   have hsum := G.sum_ncard_incidenceSet hloop
   simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
   have : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
   rw [← Nat.card_eq_fintype_card (α := E)]
-  push_cast at this
-  linarith
+  cast_linarith
 
 /-- **Concentration.** For a large loopless multigraph whose vertices have three edges, some
 sample keeps the four families of counts of the median layout within `ε |V|` of their means. -/

@@ -12,6 +12,7 @@ public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Combinatorics.SimpleGraph.Finite
 public import Mathlib.Combinatorics.SimpleGraph.Metric
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 
 /-!
@@ -111,7 +112,7 @@ private theorem edist_eq_dist_of_le {v z : V} {n : ℕ} (h : G.edist v z ≤ n) 
     (ne_top_of_le_ne_top (ENat.natCast_ne_top n) h)).coe_dist_eq_edist.symm
 
 /-- `κ = 2 q / (1 + q ^ 2)` is at most one. -/
-private theorem two_mul_div_one_add_sq_le_one (q : ℝ) : 2 * q / (1 + q ^ 2) ≤ 1 := by
+theorem two_mul_div_one_add_sq_le_one (q : ℝ) : 2 * q / (1 + q ^ 2) ≤ 1 := by
   rw [div_le_one (by positivity)]
   nlinarith [sq_nonneg (q - 1)]
 
@@ -272,9 +273,7 @@ theorem le_inner_unitKernelRow {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degree 
   generalize ‖kernelRow G q R u‖ = s at hs hC ⊢
   generalize ‖kernelRow G q R v‖ = t at ht hC ⊢
   have hκ : 0 ≤ 2 * q / (1 + q ^ 2) := by positivity
-  have hD1 : (0 : ℝ) ≤ D - 1 := by
-    have : (2 : ℝ) ≤ D := by exact_mod_cast hD
-    linarith
+  have hD1 : (0 : ℝ) ≤ D - 1 := by cast_linarith [hD]
   have he : 0 ≤ (D : ℝ) * ((D - 1) * q ^ 2) ^ R := by positivity
   have hamgm : 2 * (s * t) ≤ s ^ 2 + t ^ 2 := by nlinarith [sq_nonneg (s - t)]
   have h1 : 1 ≤ s * t := by nlinarith

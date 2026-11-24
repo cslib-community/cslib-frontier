@@ -23,8 +23,8 @@ most one comparison per triple passed and a second at the triple where the scan 
 `rebalanceRightM` and `rebalanceLastM` and the removal `popMinM` of the successor of an interior
 key take no comparator, and neither do `minM` and `maxM`, which find the entry that `eraseMinM`
 and `eraseMaxM` remove. The comparison bound of all three operations is therefore that of
-insertion, `2 * t * height`, and not the node-visit bounds `2 * height` and `3 * height` of
-`Cslib.DataStructure.BTree.Cost.Erase` times the per-node bound `2 * t`: the siblings that a
+insertion, `2 * t * height`, and not the node-visit counts `2 * height` and `3 * height`
+times the per-node bound `2 * t`: the siblings that a
 repair visits, the path to the successor and the pass to the extreme entry are visited without
 comparing keys.
 
@@ -142,8 +142,8 @@ termination_by sizeOf tr
 stops, and erases from at most one child: at most `rest.length + 1` comparisons beyond a bound
 `B` on the erasure from each child. -/
 private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Triple α β))
-    (prev : BTree α β) (prevErased : FreeM (LEQuery α) (BTree α β))
-    (hpe : prevErased.countQueries oracle ≤ B)
+    (prev : BTree α β) (prevErased : Unit → FreeM (LEQuery α) (BTree α β))
+    (hpe : (prevErased ()).countQueries oracle ≤ B)
     (hc : ∀ e ∈ rest,
       (eraseSubtreeM t LEQuery.ask (pure ()) k e.child).countQueries oracle ≤ B) :
     (eraseRestM t LEQuery.ask (pure ()) k prev prevErased rest).countQueries oracle
@@ -173,7 +173,7 @@ private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Trip
         simp [LEQuery.ask, hk, countQueries_rebalanceLastM]
         omega
       | cons e tail' =>
-        have := ih c (eraseSubtreeM t LEQuery.ask (pure ()) k c) hcc
+        have := ih c (fun _ => eraseSubtreeM t LEQuery.ask (pure ()) k c) hcc
           fun e he => hc e (List.mem_cons_of_mem _ he)
         simp only [List.length_cons] at this
         simp [LEQuery.ask, hk]
@@ -204,7 +204,7 @@ private theorem countQueries_eraseSubtreeM_le (h : IsWF t tr) :
     (by have := h.two_le; omega) (by simp)
     (fun first rest B hB => by
       have := countQueries_eraseRestM_le oracle k B rest first
-        (eraseSubtreeM t LEQuery.ask (pure ()) k first) (hB first (by simp [children]))
+        (fun _ => eraseSubtreeM t LEQuery.ask (pure ()) k first) (hB first (by simp [children]))
         fun e he => hB e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
       simp only [eraseSubtreeM_node, FreeM.countQueries_bind, FreeM.countQueries_pure]
       omega)

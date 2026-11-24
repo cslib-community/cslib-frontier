@@ -263,12 +263,10 @@ private theorem two_pow_succ_mul_slack_mul_le {m r : ℕ} {b : ℝ} (hr : 48 * r
     ring
   have hE : (2 : ℝ) ^ (m + 1) * (8 * ((m : ℝ) + 1) * (27 / 32) ^ r +
       (12 * (r : ℝ) + 1) * 2 ^ (12 * r) * (3 / 4) ^ (m + 1)) ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) :=
-    mul_le_mul_of_nonneg_left hsl (by positivity)
+      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) := by gcongr
   have h1 := mul_le_mul_of_nonneg_right hE hb0
   have h2 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * b ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m :=
-    mul_le_mul_of_nonneg_left hb (by positivity)
+      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m := by gcongr
   have h3 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m =
       18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
     rw [mul_comm _ ((2 : ℝ) ^ m), ← mul_assoc, mul_comm ((2 : ℝ) ^ m), hpow]

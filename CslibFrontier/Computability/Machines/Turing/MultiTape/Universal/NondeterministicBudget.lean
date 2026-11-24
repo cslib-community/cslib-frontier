@@ -364,8 +364,7 @@ private lemma keepTwo_budget {o : γ → List ℕ} {a : γ → Option ℕ}
   exact budget_comp_linear (f := fun x => (o x, a x)) hk (budget_prod ho ha)
 
 private lemma nuNext_budget {p : γ → NUState × Option Bool × Bool}
-    (hp : ComputableInSpace p encIn (encPair eNU (encPair (encOption encBool) encBool)) Bs)
-    (hin : (fun x => (encIn x).length) ≼ Bs) :
+    (hp : ComputableInSpace p encIn (encPair eNU (encPair (encOption encBool) encBool)) Bs) :
     ComputableInSpace (fun x => nuNext (p x)) encIn eNU Bs := by
   have hs := hp.fst'
   have hans := hp.snd'.fst'
@@ -392,7 +391,7 @@ private lemma nuNext_budget {p : γ → NUState × Option Bool × Bool}
       encBool fun q => (encPair eKey eKey q).length := of_inO (ComputableInO.eq eKey)
   have hmatch := budget_comp_linear heq (budget_prod hE.fst' (nuKey_budget hC hsym))
   have hfits := fits_budget (nuApply_budget hE.snd' hC hsym) hB
-  have hrej := budget_const (encB := eNU) nuReject hin
+  have hrej := budget_const (encIn := encIn) (Bs := Bs) (encB := eNU) nuReject
   exact (budget_ite (budget_isEmpty hR) hrej
     (budget_ite (budget_finite (encC := encBool) Bool.not hch) hskip
       (budget_ite hmatch (budget_ite hfits hfire hrej) hrej))).of_enc_eq fun _ => rfl
@@ -407,7 +406,7 @@ public theorem budgetedNUniversal_query_inSpace :
 public theorem budgetedNUniversal_next_inSpace :
     ComputableInSpace budgetedNUniversal.next (encPair eNU (encPair (encOption encBool) encBool))
       eNU fun p => (encPair eNU (encPair (encOption encBool) encBool) p).length :=
-  nuNext_budget (of_inO (ComputableInO.of_eq fun _ => rfl)) (.refl _)
+  nuNext_budget (of_inO (ComputableInO.of_eq fun _ => rfl))
 
 public theorem budgetedNUniversal_halted_inSpace :
     ComputableInSpace budgetedNUniversal.halted eNU encBool fun s => (eNU s).length :=
@@ -421,7 +420,7 @@ public theorem budgetedNUniversal_accept_inSpace :
       fun q => (encPair (encList encUnary) (encList encUnary) q).length :=
     of_inO (ComputableInO.eq (encList encUnary))
   exact (budget_comp_linear (f := fun s : NUState => (s.out, [eBit true])) heq
-    (budget_prod (eNU_out_budget nu_id) (budget_const [eBit true] (.refl _)))).of_enc_eq
+    (budget_prod (eNU_out_budget nu_id) (budget_const [eBit true]))).of_enc_eq
     fun _ => rfl
 
 end Certificates
@@ -520,7 +519,7 @@ public theorem nuStart_budget {α : Type} {enc : α ↪ List Bool} {D : α → D
   have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
     budget_comp_lin (of_inO init_inO) linear_succ hD
   have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
-    (constZero []).mono_le fun _ => Nat.zero_le _
+    budget_const []
   exact eNU_mk_budget hT hT hB hI hO
 
 /-! ### Machines within a space bound -/

@@ -156,8 +156,11 @@ Two places keep projections, as standing exceptions:
   or bind the hypothesis in the theorem's own signature.
 
 `scripts/check_projection_chains.py` counts the chains of depth 2 or more in each module's public
-statements and public definition bodies, leaving out proofs, these two exceptions and named
-accessors. CI fails a pull request when a module it changes has more chains than its entry in
+statements and public definition bodies — dotted chains (`c.1.2`), nested or mixed
+`Prod.fst`/`Prod.snd` applications (`Prod.fst (Prod.snd p)`), and projections chained through a
+`let`-bound projection alias (`let rest := p.2; rest.1`) — leaving out proofs, these two
+exceptions, point-free composition (`Prod.fst ∘ Prod.snd`), and named accessors. CI fails a pull
+request when a module it changes has more chains than its entry in
 `scripts/projection_chains_baseline.json`, or than it had at the merge base unless the pull request
 raises the entry; a new module starts at 0. Removing chains needs no baseline edit, which keeps
 pull requests from colliding on neighbouring lines of the baseline in the merge queue; a periodic
@@ -211,7 +214,7 @@ experiments, advantages, ideal laws, encodings and the theorem's own variables n
 The scan is advisory. It points a reviewer at premises about a constructed object, and a hit is a
 prompt to open the statement, not a debt. On a pull request CI prints, without failing, the hits
 in the changed modules that `scripts/security_premises_baseline.json` does not record and the
-entries there that no longer match; merge groups and pushes print every difference. A baseline
+entries there that no longer match; pushes to `main` print every difference. A baseline
 entry is a note that a hit is known (an algebraic helper whose name and docstring say so, a
 premise that the rule allows but the scan cannot tell apart, or a misformalization tracked under
 #5293). It is not a clearance, and the number of entries does not measure progress.
@@ -437,7 +440,14 @@ enforces its baseline and the `local notation` rule only in the modules a pull r
 and merge groups only report,
 so `main` can drift above the baseline; the next change to a drifted module names the encoding
 or records it with `--update-baseline --allow-increase`. Its docstring gives the rule and the
-options. On pull requests CI also runs
+options. CI's source checks also run `python3 scripts/check_timem.py`, which unconditionally
+forbids all uses of the removed `TimeM` cost monad
+([policy/statements.md](policy/statements.md#running-time-claims),
+[#7636](https://github.com/cslib-community/cslib-frontier/issues/7636),
+[#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)): any occurrence in
+masked Lean syntax of `TimeM`, tick notation `✓`, `time_simps`, `time_spec`, or
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` fails the check (`Cslib.Algorithms.Lean.Query.*`
+remains allowed). On pull requests CI also runs
 `python3 scripts/parallel_defs.py`, an advisory notice (it never fails) that lists new or changed
 public definitions sharing a large anonymized subterm with an existing one, or merely renaming one.
 With `--theorems` it lists new or changed theorems, private ones included, whose statement another

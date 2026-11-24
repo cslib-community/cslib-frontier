@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.QuantifierFree
 import CslibFrontier.Tactic.FirstOrder.Simp
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # First-order projection formulas
@@ -189,7 +190,7 @@ theorem realize_toFormula [N.Structure M] [L.Structure M] (p : ProjectionFormula
   | leaf l => simp [toFormula, select]
   | branch guard yes no ihy ihn =>
     fo_simp [toFormula, ihy, ihn, select]
-    split_ifs <;> tauto
+    split_ifs <;> lrat_tauto
 
 /-- A leaf is realized as its literal. -/
 @[fo_realize]

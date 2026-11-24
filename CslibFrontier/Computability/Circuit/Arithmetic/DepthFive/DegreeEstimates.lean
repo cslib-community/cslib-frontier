@@ -115,8 +115,7 @@ theorem Good.H_le_of_mid (hp : p.Good) {e i₀ : ℕ} (h₀ : i₀ + 3 / 8 ≤ p
     Real.rpow_le_rpow_of_exponent_ge hq hp.q_le_one (by linarith)
   have h8 := Real.rpow_pos_of_pos hq (1 / 8)
   have h4 := hp.q_rpow_quarter_le
-  have hmul : p.q ^ (1 / 8 : ℝ) * p.q ^ (1 / 4 : ℝ) ≤ p.q ^ (1 / 8 : ℝ) * (1 / 4) :=
-    mul_le_mul_of_nonneg_left h4 h8.le
+  have hmul : p.q ^ (1 / 8 : ℝ) * p.q ^ (1 / 4 : ℝ) ≤ p.q ^ (1 / 8 : ℝ) * (1 / 4) := by gcongr
   refine h.trans ?_
   have h2 : 1 + 2 * p.q ≤ 2 := by linarith [hp.q_le_half]
   calc (1 + 2 * p.q) * (p.q ^ (p.lam * e - i₀) + p.q ^ (i₀ + 1 - p.lam * e))

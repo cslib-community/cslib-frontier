@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Deletion
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Normal form and Cases 1–5a of Lemma 4.2 for `4n - 9d` gate elimination
@@ -872,7 +873,7 @@ private theorem step_andOnPair_some_ne {S : State n} {f : BooleanFunction n} (hS
       exact ⟨fun h => by
         rcases h with (h | h) | (h | h) <;>
           [exact (hw_w' (Or.inl h)).imp Or.inl Or.inl; exact Or.inl h;
-           exact (hw_w' (Or.inr h)).imp Or.inl Or.inl; exact Or.inr h], by tauto⟩
+           exact (hw_w' (Or.inr h)).imp Or.inl Or.inl; exact Or.inr h], by lrat_tauto⟩
     have hp_w'_r : ¬ S.IsPartner w' r := fun h => hpw' (hS.isPartner_unique_right h hpr_part)
     rw [hmeet, hS.card_pairsMeeting_insert (Finset.notMem_singleton.2 hrw') (fun y hy => by
         rw [Finset.mem_singleton.1 hy]; exact hp_w'_r),

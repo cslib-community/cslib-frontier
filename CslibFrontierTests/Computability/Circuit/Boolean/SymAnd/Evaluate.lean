@@ -4,7 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
 # Tests for the `SYM ∘ AND` evaluation algorithm
@@ -12,21 +16,21 @@ import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate
 Concrete instances of `CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate`:
 
 * the AND count as a zeta transform on one input;
-* the truth table of `x₀ ⊕ x₁` as a `SYM ∘ AND` circuit with three AND gates and a costed
-  symmetric gate, computed by the kernel together with its exact tick count, and the Evaluation
-  Lemma `truthTableM_spec` applied to it (the circuit takes both values, so the conclusion is not
-  vacuous);
-* the truth table of the three-input majority with three fan-in-one gates;
-* edge cases: a circuit without AND gates, and an evaluator that is wrong above the circuit size,
-  which `truthTableM_spec` allows.
+* the pure truth table of `x₀ ⊕ x₁` and three-input majority (`truthTable`, `truthTable_eq`),
+  plus edge cases (empty gates, evaluator wrong above circuit size);
+* multi-tape Turing-machine encoding `SymAndInstance` / `encSymAndInstance`, `truthTableList`,
+  boundary witness for gate masks longer than `n`, and Williams's Evaluation Lemma
+  `computableInO_truthTableList` instantiated on parity and threshold-majority symmetric gates.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Computability.Circuit.Boolean.SymAnd.Evaluate
 
 open Cslib Cslib.BitString Cslib.Circuits.Boolean Cslib.Circuits.Boolean.SymAnd
-  Cslib.Algorithms.Lean
+  Cslib.Algorithms.Lean Turing.MultiTapeTM
 
-/-! ### Parity of two bits -/
+/-! ### Parity of two bits (pure specification) -/
 
 /-- The AND gates `x₀`, `x₀ ∧ x₁`, `x₁`. -/
 def xorGates : List (Finset (Fin 2)) := [{0}, {0, 1}, {1}]
@@ -36,64 +40,109 @@ def xorCircuit : SymAnd (Fin 2) where
   gates := xorGates
   out j := j == 1
 
-/-- The symmetric gate of `xorCircuit`, charged `3` ticks per value. -/
-def xorOutM (j : ℕ) : TimeM ℕ Bool := do ✓[3] pure (j == 1)
-
 /-- At `x = (1, 1)` all three AND gates are satisfied: `∑_{S ⊆ {0, 1}} f S = 1 + 1 + 1`. -/
 example : xorCircuit.count (fun i => decide (i ∈ ({0, 1} : Finset (Fin 2)))) = 3 := by
   rw [count_eq_subsetZeta]
   decide +kernel
 
-/-- The truth table, in the order `00, 10, 01, 11` (coordinate `0` first). -/
-example : (truthTableM xorGates xorOutM).ret = #v[false, true, true, false] := by decide +kernel
+/-- The pure truth table, in the order `00, 10, 01, 11` (coordinate `0` first). -/
+example : truthTable xorGates (fun j => j == 1) = #v[false, true, true, false] := by
+  decide +kernel
 
-/-- The exact cost `13 + 8 + 16 + 4`: multiplicities, two passes, the gate table, the lookups. -/
-example : (truthTableM xorGates xorOutM).time = 41 := by decide +kernel
-
-theorem time_xorOutM (j : ℕ) : (xorOutM j).time = 3 := rfl
-
-/-- ... as `time_truthTableM` computes it. -/
-example : (truthTableM xorGates xorOutM).time = (2 + 2) * 2 ^ 2 + (2 + 2) * 3 + 1 + 4 * 3 := by
-  simp only [time_truthTableM, time_xorOutM, Finset.sum_const, Finset.card_range, smul_eq_mul,
-    xorGates, List.length_cons, List.length_nil]
-
-/-- **The Evaluation Lemma, applied.** The truth table of `xorCircuit` within
-`4 * (4 + 4 * 4) = 80` ticks. -/
-theorem xor_spec :
-    (truthTableM xorGates xorOutM).ret =
-        Vector.ofFn (fun k => xorCircuit.eval ((BitString.equivFin 2).symm k)) ∧
-      (truthTableM xorGates xorOutM).time ≤ (2 + 2) * (2 ^ 2 + (xorCircuit.size + 1) * (3 + 1)) :=
-  truthTableM_spec xorCircuit xorGates rfl xorOutM (fun _ _ => rfl)
-    (fun j _ => (time_xorOutM j).le)
+/-- Correctness of `truthTable` on `xorCircuit`. -/
+theorem xor_pure_spec :
+    truthTable xorGates (fun j => j == 1) =
+      Vector.ofFn (fun k => xorCircuit.eval ((BitString.equivFin 2).symm k)) :=
+  truthTable_eq xorCircuit xorGates rfl _ (fun _ _ => rfl)
 
 /-- Non-vacuity: the circuit takes both values. -/
 example : xorCircuit.eval ![true, false] = true ∧ xorCircuit.eval ![true, true] = false := by
   decide +kernel
 
-/-! ### Majority of three bits -/
+/-! ### Majority of three bits (pure specification) -/
 
 /-- Three fan-in-one gates below the threshold `≥ 2`. -/
 def majGates : List (Finset (Fin 3)) := [{0}, {1}, {2}]
 
 /-- Majority of three bits; cells in the order of `BitString.equivFin` (coordinate `0` first). -/
-example : (truthTableM majGates fun j => do ✓ pure (decide (2 ≤ j))).ret =
+example : truthTable majGates (fun j => decide (2 ≤ j)) =
     #v[false, false, false, true, false, true, true, true] := by decide +kernel
 
-/-! ### Edge cases -/
+/-! ### Edge cases (pure specification) -/
 
 /-- No AND gates: every count is `0`, so the table is constant `out 0`. -/
-example : (truthTableM ([] : List (Finset (Fin 2))) fun j => pure (j == 0)).ret =
+example : truthTable ([] : List (Finset (Fin 2))) (fun j => j == 0) =
     #v[true, true, true, true] := by decide +kernel
 
 /-- An evaluator agreeing with the symmetric gate only on `0, …, 3` (the circuit has `3` AND
 gates) still yields the truth table. -/
-example : (truthTableM xorGates fun j => pure (if j ≤ 3 then j == 1 else true)).ret =
+example : truthTable xorGates (fun j => if j ≤ 3 then j == 1 else true) =
     Vector.ofFn (fun k => xorCircuit.eval ((BitString.equivFin 2).symm k)) :=
-  (truthTableM_spec xorCircuit xorGates rfl _ (T := 0)
-    (fun j hj => by
-      have : j ≤ 3 := hj
-      simp only [TimeM.ret_pure, this, ite_true]
-      rfl)
-    (fun _ _ => le_rfl)).1
+  truthTable_eq xorCircuit xorGates rfl _ fun j hj => by
+    have : j ≤ 3 := hj
+    simp only [this, ite_true]
+    rfl
+
+/-! ### Multi-tape Turing-machine instances and Williams's Evaluation Lemma -/
+
+/-- `SymAndInstance` for two-bit parity `x₀ ⊕ x₁`. -/
+def xorInst : SymAndInstance where
+  n := 2
+  gates := [[true, false], [true, true], [false, true]]
+
+/-- `SymAndInstance` for three-input majority. -/
+def majInst : SymAndInstance where
+  n := 3
+  gates := [[true, false, false], [false, true, false], [false, false, true]]
+
+/-- Edge case: circuit with no AND gates. -/
+def emptyInst : SymAndInstance where
+  n := 2
+  gates := []
+
+/-- Boundary witness: gate masks longer than `n = 2` (trailing bits at index `≥ n` are ignored). -/
+def paddedInst : SymAndInstance where
+  n := 2
+  gates := [[true, false, true], [true, true, true], [false, true, false]]
+
+example : xorInst.truthTableList (· == 1) = [false, true, true, false] := by decide +kernel
+
+example : majInst.truthTableList (fun j => decide (2 ≤ j)) =
+    [false, false, false, true, false, true, true, true] := by decide +kernel
+
+example : emptyInst.truthTableList (· == 0) = [true, true, true, true] := by decide +kernel
+
+example : paddedInst.truthTableList (· == 1) = xorInst.truthTableList (· == 1) := by
+  decide +kernel
+
+example : (encSymAndInstance xorInst).length ≤ (xorInst.gates.length + 2) * (2 * xorInst.n + 2) :=
+  length_encSymAndInstance_le xorInst (by decide)
+
+/-- The symmetric gate `j == 1` is polynomial-time on binary naturals. -/
+theorem computableInPolyTime_xorOut :
+    ComputableInPolyTime (fun j : ℕ => j == 1) encNat encBool := by
+  fun_prop
+
+/-- The symmetric threshold gate `decide (2 ≤ j)` is polynomial-time on binary naturals. -/
+theorem computableInPolyTime_majOut :
+    ComputableInPolyTime (fun j : ℕ => decide (2 ≤ j)) encNat encBool := by
+  fun_prop
+
+/-- **Williams's Evaluation Lemma instantiated on parity**: evaluating `x.truthTableList (· == 1)`
+runs in multi-tape Turing-machine time and space `O((2 ^ n + (|enc x| + 1) ^ c) * (n + 1) ^ c)`. -/
+theorem xor_tm_eval :
+    ∃ c, ComputableInO (fun x : SymAndInstance => x.truthTableList (· == 1))
+      encSymAndInstance encBits
+      (fun x => (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c)
+      (fun x => (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c) :=
+  computableInO_truthTableList computableInPolyTime_xorOut
+
+/-- **Williams's Evaluation Lemma instantiated on threshold majority**. -/
+theorem maj_tm_eval :
+    ∃ c, ComputableInO (fun x : SymAndInstance => x.truthTableList (fun j => decide (2 ≤ j)))
+      encSymAndInstance encBits
+      (fun x => (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c)
+      (fun x => (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c) * (x.n + 1) ^ c) :=
+  computableInO_truthTableList computableInPolyTime_majOut
 
 end CslibFrontierTests.Computability.Circuit.Boolean.SymAnd.Evaluate

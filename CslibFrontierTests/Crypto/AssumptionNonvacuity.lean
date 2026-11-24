@@ -10,6 +10,7 @@ import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
 import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
 import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 import CslibFrontier.Crypto.Computational.RabinFactoring
 import CslibFrontier.Crypto.Computational.RSAAttacks
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
@@ -201,14 +202,12 @@ theorem eval_prfIdealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 <
   rw [← h3, ← h2, ← h1, PMF.map_comp, PMF.map_comp]
   rfl
 
-/-- **The all-zero family is not a pseudorandom function over `n`-bit inputs**, for any output
-length that is positive at positive parameters: at every positive parameter the real experiment
-always accepts and the ideal one accepts with probability `1 / 2`. -/
-theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
+private theorem not_negligible_advantage_firstBitZero {outLen : ℕ → ℕ}
     (hout : ∀ n, 0 < outLen (n + 1)) :
-    ¬ PseudorandomFunctionOver id outLen (zeroFamily outLen) := by
-  intro h
-  have hneg := h.secure firstBitZero firstBitZero_isOraclePPT
+    ¬ Negligible (fun n => Game.advantage
+      (ProbComp.eval (prfRealGame id (zeroFamily outLen) firstBitZero n))
+      (ProbComp.eval (prfIdealGame id outLen firstBitZero n))) := by
+  intro hneg
   have hshift : Negligible fun n => Game.advantage
       (ProbComp.eval (prfRealGame id (zeroFamily outLen) firstBitZero (n + 1)))
       (ProbComp.eval (prfIdealGame id outLen firstBitZero (n + 1))) :=
@@ -219,10 +218,32 @@ theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
   norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
     ENNReal.toNNReal_ofNat]
 
+/-- **The all-zero family is not a pseudorandom function over `n`-bit inputs**, for any output
+length that is positive at positive parameters: at every positive parameter the real experiment
+always accepts and the ideal one accepts with probability `1 / 2`. -/
+theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
+    (hout : ∀ n, 0 < outLen (n + 1)) :
+    ¬ PseudorandomFunctionOver id outLen (zeroFamily outLen) :=
+  fun h => not_negligible_advantage_firstBitZero hout
+    (h.secure firstBitZero firstBitZero_isOraclePPT)
+
 /-- **The all-zero family is not a pseudorandom function.** `PseudorandomFunction` is the case
 `inLen = outLen = id` of `PseudorandomFunctionOver`, where the attack above applies. -/
 theorem not_pseudorandomFunction_zeroFamily : ¬ PseudorandomFunction (zeroFamily id) :=
   not_pseudorandomFunctionOver_zeroFamily Nat.succ_pos
+
+/-- The same one-query test refutes prefix-free PRF security on the domain of `n`-bit words.
+Its query is nonempty at every positive parameter, where its advantage is `1 / 2`. -/
+theorem not_prefixFreePseudorandomFunctionOn_zeroFamily :
+    ¬ PrefixFreePseudorandomFunctionOn (fun n word => word.length == id n) id (zeroFamily id) := by
+  intro h
+  have hpf : IsPrefixFreeOraclePPT (fun n word => word.length == id n) id firstBitZero := by
+    refine ⟨firstBitZero_isOraclePPT, fun n => isPrefixFreeOn_of_fixedLength ?_ _⟩
+    intro u v hu hv
+    exact (beq_iff_eq.mp hu).trans (beq_iff_eq.mp hv).symm
+  apply not_negligible_advantage_firstBitZero (outLen := id) Nat.succ_pos
+  simpa only [eval_prfRealGameOn_length_eq, eval_prfIdealGameOn_length_eq] using
+    h.secure firstBitZero hpf
 
 /-! ### Factoring, Rabin, quadratic residuosity, composite residuosity, and RSA -/
 

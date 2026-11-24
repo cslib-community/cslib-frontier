@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Target
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Circuits for eventual behaviour
@@ -88,13 +89,11 @@ theorem synchronous_coalescence_optimized (c : Circuit signature n n) :
       (∀ z, out.eval interpretation z 0 = true ↔
         ∃ t, (c.eval interpretation)^[t] (fun i => z (Fin.castAdd n i)) =
           (c.eval interpretation)^[t] (fun i => z (Fin.natAdd n i))) ∧
-      (out.size : ℝ) ≤ 240000 * optimizedBudget n c.size (2 ^ n) + 6 * n + 1 := by
+      (out.size : ℝ) ≤ 160000 * optimizedBudget n c.size (2 ^ n) + 6 * n + 1 := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := synchronous_coalescence c L hL hLN
   refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 80000 * (powerBudget n c.size (2 ^ n) L : ℝ) + 6 * n + 1 := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 /-- **Recurring targets.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
 `80000 * powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L + p.size` decides whether the orbit of
@@ -158,15 +157,12 @@ theorem recurring_target_optimized (c : Circuit signature n n) (p : Circuit sign
       (∀ x, out.eval interpretation x 0 = true ↔
         ∀ a, ∃ t, a ≤ t ∧ p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true) ∧
       (out.size : ℝ) ≤
-        240000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size := by
+        160000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size := by
   obtain ⟨L, hL, hLN, hopt⟩ :=
     exists_powerBudget_le_optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := recurring_target_circuit c p L hL hLN
   refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤
-      80000 * (powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L : ℝ) + p.size := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 /-- **Square-root eventually permanent targets.** -/
 theorem eventually_always_target_optimized (c : Circuit signature n n)
@@ -175,14 +171,11 @@ theorem eventually_always_target_optimized (c : Circuit signature n n)
       (∀ x, out.eval interpretation x 0 = true ↔
         ∃ a, ∀ t, a ≤ t → p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true) ∧
       (out.size : ℝ) ≤
-        240000 * optimizedBudget n (c.size + (p.size + 1) + 4 * n) (2 ^ n) + p.size + 2 := by
+        160000 * optimizedBudget n (c.size + (p.size + 1) + 4 * n) (2 ^ n) + p.size + 2 := by
   obtain ⟨L, hL, hLN, hopt⟩ :=
     exists_powerBudget_le_optimizedBudget n (c.size + (p.size + 1) + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := eventually_always_target_circuit c p L hL hLN
   refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤
-      80000 * (powerBudget n (c.size + (p.size + 1) + 4 * n) (2 ^ n) L : ℝ) + p.size + 2 := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration

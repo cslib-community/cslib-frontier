@@ -8,15 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
+-- Reads private `Test`, `hit`, `changed`, `gap`, and `gap_bind_le`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Tactic.PMFSwap
 
@@ -111,8 +104,8 @@ private theorem prefixSeed_append (r : FixedBytes 64) (y : List Bool) :
       Keccak.bytesToBitsLE r.toList ++ y := ⟨r, y, rfl⟩
   rw [prefixSeed, dite_eq_left h]
   obtain ⟨rest, eq⟩ := h.choose_spec
-  exact List.ofFn_inj.mp (Keccak.bytesToBitsLE_injective
-    (List.append_inj eq (by simp [Keccak.length_bytesToBitsLE, FixedBytes.toList])).1)
+  exact List.ofFn_inj.mp (Keccak.bytesToBitsLE_injective (List.append_inj eq
+    (by simp only [Keccak.length_bytesToBitsLE, FixedBytes.toList, List.length_ofFn])).1)
 
 private theorem maskStreams_off_prefix {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (t : Fin n ↪ FixedBytes 64) (T₁ T₂ : Table a b) (rows : MaskInput n × Fin b → Byte)
@@ -139,18 +132,17 @@ private theorem keyGen_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (s : Level) (seed : FixedBytes 32) (miss : ∀ i, (t i).toList ≠
       secretSeed (streams base T₁ T₂) s seed) :
     (maskStreams base ha t T₁ T₂ rows).keyGen s seed = (streams base T₁ T₂).keyGen s seed := by
-  let H := streams base T₁ T₂
-  let G := maskStreams base ha t T₁ T₂ rows
   have raw := maskStreams_off_length base ha t T₁ T₂ rows
-  apply Xofs.keyGen_congr_of_reads (H := H) (G := G) s seed rfl
-  · apply raw
-    rw [length_keySeedInput]
-    decide
+  apply Xofs.keyGen_congr_of_reads (H := streams base T₁ T₂)
+    (G := maskStreams base ha t T₁ T₂ rows) s seed rfl
+  · rw [Xofs.expandKeySeed, Xofs.expandKeySeed]
+    exact raw _ (by rw [length_keySeedInput]; decide) _
   · intro nonce
+    dsimp only [ExtendableOutput.readBytes]
     apply maskStreams_off
     rintro ⟨i, suf⟩ eq
-    have bs : (t i).toList ++ suf.toList = nonceInput (secretSeed H s seed) nonce :=
-      Keccak.bytesToBitsLE_injective eq
+    have bs : (t i).toList ++ suf.toList = nonceInput (secretSeed (streams base T₁ T₂) s seed)
+        nonce := Keccak.bytesToBitsLE_injective eq
     exact miss i (List.append_inj bs (by rw [FixedBytes.length_toList, secretSeed_length])).1
   · intro pk len
     apply raw
@@ -289,9 +281,7 @@ private theorem verify_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
       H.h256.readBytes keys.publicKey 64 := by
     apply raw
     obtain ⟨rho, sk, _, enc, _, _⟩ := privateKey_of_keyGen hk
-    rw [Keccak.length_bytesToBitsLE, enc]
-    simp only [encodePublic, List.length_append]
-    rw [FixedBytes.length_toList, length_packCoeffs]
+    rw [Keccak.length_bytesToBitsLE, enc, length_encodePublic, FixedBytes.length_toList]
     cases s <;> decide
   refine verify_eq_of_reads (G := maskStreams base ha t T₁ T₂ rows) (H := H) s keys.publicKey
     rfl raw (by decide) (nonce_commitment_ne s) ?_ f
@@ -770,8 +760,7 @@ theorem randomPrefixGame_forgery_le_freshExpansionGame (C : QuantumSigningForger
     C.privateMaskSeedGame_le_freshExpansionGame s base ((by decide : 528 ≤ 1024).trans ha)
       (width.trans hb) hn seedSize hm
   apply (C.randomPrefixGame_forgery_le_of_query_budget s base ha hb hn hsize hm).trans
-  exact add_le_add (add_le_add (add_le_add (pow_le_pow_left₀ (by positivity)
-    (add_le_add (Real.sqrt_le_sqrt (add_le_add fresh le_rfl)) le_rfl) 2) le_rfl) le_rfl) le_rfl
+  gcongr
 
 end QuantumSigningForger
 
