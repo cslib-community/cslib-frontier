@@ -709,6 +709,11 @@ Thomas M. Cover and Joy A. Thomas. *Elements of Information Theory*, second edit
 
 Chapter 13 (universal source coding): the Lempel–Ziv tree-structured (incremental) parsing, its example `ABBABBABBBAABABAA`, and the distinct-parsing lemma `c(n) ≤ n / ((1 - ε_n) log n)` with `ε_n = min(1, (log log n + 4) / log n)` in §13.5. The library cites only the section; secondary sources disagree on the lemma's number. The section, the lemma's statement and the example were taken from secondary course material and search summaries and were not checked against the printed book.
 
+<a id="cremermclean88"></a>
+## cremermclean88
+
+Jacques Crémer and Richard P. McLean. "Full Extraction of the Surplus in Bayesian and Dominant Strategy Auctions." *Econometrica* 56(6), 1247–1257, 1988. https://doi.org/10.2307/1913096 . Bibliographic metadata and DOI only; the paywalled 1988 *Econometrica* PDF was not directly inspected firsthand, so internal page, equation, and numbered theorem locators are not claimed, and no `CslibFrontierResults/` entries are registered. Cited in [CremerMcLean.lean](../CslibFrontier/GameTheory/Mechanism/CremerMcLean.lean) for full surplus extraction in correlated finite-type quasilinear environments under row linear independence (`IsExPostDSIC`) and convex independence (`IsBIC`) of conditional belief matrices.
+
 <a id="cs03"></a>
 ## cs03
 
