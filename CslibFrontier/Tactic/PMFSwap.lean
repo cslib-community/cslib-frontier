@@ -20,8 +20,8 @@ swap (`conv_lhs => enter [2, a, 2, b]`) and stripping the common samples one at 
 The tactics here match samples by their distributions instead of their positions.
 
 `pmf_swap` proves an equation `lhs = rhs` of distributions whose sides are sampling chains.
-It normalizes visible monadic notation, nested binds, maps, and `ProbComp.eval` before matching;
-named program bodies stay opaque until explicitly unfolded.
+It normalizes visible monadic notation, nested binds, maps, and `ProbComp.eval` as it matches
+draws. An unpeeled continuation keeps its original form.
 It brings a sample of the right side that the left side draws independently of its earlier samples
 to the front of both sides, by `PMF.bind_comm`, strips it, and continues with the continuations.
 Samples of the same distribution may be matched in any order: the tactic searches for an order in
@@ -121,9 +121,13 @@ private partial def search (ctx : BindChain.Context) (fuel : IO.Ref Nat) (lhs rh
     MetaM (Option Expr) := do
   if (← fuel.get) == 0 then return none
   fuel.modify (· - 1)
-  if ← withNewMCtxDepth <| withReducible <| isDefEq lhs rhs then
-    return some (← mkExpectedTypeHint (← mkEqRefl lhs) (← mkEq lhs rhs))
-  for a in ← alignments ctx lhs rhs do
+  let (l, hl?) ← normalizeBindHead lhs
+  let (r, hr?) ← normalizeBindHead rhs
+  if ← withNewMCtxDepth <| withReducible <| isDefEq l r then
+    let hl ← hl?.elim (mkEqRefl l) pure
+    let hr ← hr?.elim (mkEqRefl r) pure
+    return some (← castEqProof lhs rhs (← mkEqTrans hl (← mkEqSymm hr)))
+  for a in ← alignments ctx l r do
     let some (q, f, g, hl, hr) ←
         if ctx.comms.isEmpty && ctx.swapSamplers?.isNone then some <$> realize ctx lhs rhs a
         else observing? (realize ctx lhs rhs a) | continue
@@ -261,15 +265,6 @@ elab_rules : tactic
       unless (← whnfR ty).isAppOf ``PMF do
         throwError "pmf_swap: the goal is an equation in{indentExpr ty}\n\
           not an equation of distributions `PMF α`"
-      let (lhs, hl?) ← normalize ctx lhs
-      let (rhs, hr?) ← normalize ctx rhs
-      let goal ← if hl?.isSome || hr?.isSome then do
-          let next ← mkFreshExprSyntheticOpaqueMVar (← mkEq lhs rhs) (← goal.getTag)
-          let hl ← match hl? with | some h => pure h | none => mkEqRefl lhs
-          let hr ← match hr? with | some h => pure h | none => mkEqRefl rhs
-          goal.assign (← mkEqTrans hl (← mkEqTrans next (← mkEqSymm hr)))
-          pure next.mvarId!
-        else pure goal
       if names.isEmpty then
         match ← close ctx goal with
         | .closed => replaceMainGoal []; return

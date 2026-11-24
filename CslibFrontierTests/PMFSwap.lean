@@ -45,6 +45,16 @@ example (p : PMF α) (q : PMF β) (f g : α → β → PMF γ) (h : ∀ a b, f a
   pmf_swap with b a
   exact h a b
 
+-- Hoisting x crosses a mapped source. The remaining goal keeps that source and the map over
+-- the nested bind in its continuation, so the caller can use the original pointwise equality.
+example (p : PMF α) (q : PMF β) (g : α → γ) (s : γ → PMF δ) (t : δ → PMF α)
+    (f : β → α → β) (r : β → PMF β)
+    (h : ∀ x, ((p.map g).bind fun y => ((s y).bind t).map (f x)) = r x) :
+    ((p.map g).bind fun y => q.bind fun x => ((s y).bind t).map (f x)) = q.bind r := by
+  pmf_swap with x
+  guard_target =ₐ (((p.map g).bind fun y => ((s y).bind t).map (f x)) = r x)
+  exact h x
+
 -- `with x` strips exactly one sample. A sample whose distribution occurs once on each side, here
 -- `r`, has only one possible partner and is stripped before the ambiguous samples of `p`.
 example (p : PMF α) (r : PMF β) (t : PMF γ) (f : α → α → β → PMF δ) (g : α → β → γ → PMF δ)
@@ -101,6 +111,10 @@ example (p : PMF α) (q : PMF β) (f : α → β → γ) :
 example (p : PMF α) (q : PMF β) (r : PMF γ) (f : α → β → γ → δ) :
     ((p.bind fun a => q.map fun b => (a, b)).bind fun ab => r.map fun c => f ab.1 ab.2 c) =
       r.bind fun c => q.bind fun b => p.map fun a => f a b c := by
+  pmf_swap
+
+-- A terminal head reduction can close the equation without peeling another sample.
+example (x : α) (f : α → PMF β) : (PMF.pure x).bind f = f x := by
   pmf_swap
 
 -- Named peeling retains right-side binder order after monadic normalization.

@@ -51,22 +51,20 @@ def chainEqOpt (e₀ e₂ : Expr) (h₁? h₂? : Option Expr) : MetaM (Option Ex
   | none, some h₂ => return some (← castEqProof e₀ e₂ h₂)
   | some h₁, some h₂ => return some (← castEqProof e₀ e₂ (← mkEqTrans h₁ h₂))
 
+/-- Expose a monadic `PMF.bind`, keeping the sampled distribution and continuation intact. -/
+private def explicitBindHead (e : Expr) : MetaM Expr := do
+  let e ← stripSpineLetsM e
+  if e.isAppOfArity ``Bind.bind 6 then
+    let args := e.getAppArgs
+    if args[0]!.cleanupAnnotations.isConstOf ``PMF then
+      return ← mkAppM ``PMF.bind #[args[4]!, args[5]!]
+  return e
+
 /-- Normalize only the outer head of a `PMF` expression into `PMF.bind`
 without unfolding named user definitions or traversing continuation bodies. Keep a source map
 intact with `preserveMap` so its enclosing bind can apply `PMF.bind_map` directly. -/
 partial def normalizeBindHead (e : Expr) (preserveMap := false) : MetaM (Expr × Option Expr) := do
-  let e0 ← stripSpineLetsM e
-  if e0.isAppOfArity ``Bind.bind 6 then
-    let args := e0.getAppArgs
-    if args[0]!.cleanupAnnotations.isConstOf ``PMF then
-      let eBind ← mkAppM ``PMF.bind #[args[4]!, args[5]!]
-      let (eFinal, h?) ← normalizeBindHead eBind preserveMap
-      let h? ← match h? with
-        | some h => pure (some (← castEqProof e eFinal h))
-        | none =>
-          if e == eFinal then pure none
-          else pure (some (← castEqProof e eFinal (← mkEqRefl eFinal)))
-      return (eFinal, h?)
+  let e0 ← explicitBindHead e
   if e0.isAppOfArity ``Pure.pure 4 then
     let args := e0.getAppArgs
     if args[0]!.cleanupAnnotations.isConstOf ``PMF then
@@ -308,18 +306,16 @@ private def customSample? (ctx : Context) (e : Expr) : MetaM (Option Sample) := 
   let some p ← samplerPat? ctx F | return none
   return some { p with cont := k }
 
-/-- The first sample of `e`: `p.bind f` samples `p` and continues with `f`, `p.map g`, which
-is `p.bind (pure ∘ g)`, samples `p` and returns `g` of the sample, and `F k`, for the sampler `F`
-of one of the commutation lemmas `comms`, samples `F` and continues with `k`. -/
-def sample? (ctx : Context) (e : Expr) : MetaM (Option Sample) := do
+/-- Read a sampling stage after its outer notation has been exposed. -/
+private def parseSample? (ctx : Context) (e : Expr) : MetaM (Option Sample) := do
   match_expr e with
   | PMF.bind _ _ p f => return some { head := p, cont := f }
-  | PMF.map α _ g p =>
-    let n := if let .lam m .. := g then m else `x
-    let cont ← withLocalDeclD n α fun x => do
-      mkLambdaFVars #[x] (← mkAppM ``PMF.pure #[g.beta #[x]])
-    return some { head := p, cont }
   | _ => customSample? ctx e
+
+/-- The first sample of a chain, including a map or a bind exposed by head normalization. -/
+def sample? (ctx : Context) (e : Expr) : MetaM (Option Sample) := do
+  let (head, _) ← normalizeBindHead e
+  parseSample? ctx head
 
 /-- Run `k x b` with a new variable `x` for the argument of the function `f`, where `b` is `f x`
 reduced. -/
@@ -368,8 +364,7 @@ custom sampler stops at the first custom sampler unless the context supplies the
 rule. Heads are normalized as the search descends into the chain. -/
 partial def findDepths (ctx : Context) (q : Pat) (e : Expr) (depth : Nat := 0) :
     MetaM (Array Nat) := do
-  let (head, _) ← normalizeBindHead e
-  let some s ← sample? ctx head | return #[]
+  let some s ← sample? ctx e | return #[]
   let here ← sameHead s.toPat q
   if q.comm?.isSome && s.comm?.isSome && ctx.swapSamplers?.isNone then
     return if here then #[depth] else #[]
@@ -410,19 +405,40 @@ private def swapProof (ctx : Context) (p q : Pat) (G lhs rhs : Expr) : MetaM Exp
       | throwError "pmf_swap: no commutation rule for two custom samplers"
     swap p.head q.head G
 
+/-- The depth left after crossing `p` as the source of a bind. A pure source contributes no
+draw, an opaque source contributes one, and a bind contributes its draw and its continuation. -/
+private partial def depthAfterSource? (p : Expr) (depth : Nat) : MetaM (Option Nat) := do
+  let (head, _) ← normalizeBindHead p
+  if head.isAppOfArity ``PMF.pure 2 then return some depth
+  let k + 1 := depth | return none
+  let some (_, _, _, f) := head.app4? ``PMF.bind | return some k
+  withBody f fun _ body => depthAfterSource? body k
+
 /-- Move the sample at depth `k` of the chain `e`, which samples `q` independently of the earlier
 samples, to the front. Normalize only the path to that sample, preserving the remaining
 continuation. Returns `q.front g` and a proof of `e = q.front g`. -/
 partial def hoistAt (ctx : Context) (q : Pat) (e : Expr) (k : Nat) :
     MetaM (Expr × Expr) := do
-  let (head, hNorm?) ← normalizeBindHead e
+  let (head, hNorm?, k) ← do
+    let (head, h?) ← normalizeBindHead e
+    let normalized := (head, h?, k)
+    if k == 0 || h?.isNone then return normalized
+    let raw ← explicitBindHead e
+    if raw == head then return normalized
+    let some (_, _, p, f) := raw.app4? ``PMF.bind | return normalized
+    let some rest ← depthAfterSource? p k | return normalized
+    -- When the draw is visible under a generic outcome of p, commute across p as a unit.
+    -- In particular a crossed (p.map g).bind retains its original source.
+    let depths ← withBody f fun _ body => findDepths ctx q body
+    if depths.contains rest then return (raw, none, rest + 1)
+    return normalized
   let (result, hMove) ← match k with
     | 0 => do
-      let some s ← sample? ctx head | throwError "pmf_swap: internal error: no sample to move"
+      let some s ← parseSample? ctx head | throwError "pmf_swap: internal error: no sample to move"
       let result ← q.front s.cont
       return (result, ← castEqProof head result (← mkEqRefl head))
     | k + 1 => do
-      let some s ← sample? ctx head | throwError "pmf_swap: internal error: no sample to move"
+      let some s ← parseSample? ctx head | throwError "pmf_swap: internal error: no sample to move"
       let p := s.toPat
       -- Inside the continuation, `fun x => q.front (G x)`.
       let (hcont, G) ← withBody s.cont fun x body => do
@@ -451,7 +467,7 @@ partial def hoistAt (ctx : Context) (q : Pat) (e : Expr) (k : Nat) :
 equality proof. Named program bodies and expressions inside terminal results stay opaque. -/
 partial def normalize (ctx : Context) (e : Expr) : MetaM (Expr × Option Expr) := do
   let (head, hHead?) ← normalizeBindHead e
-  let some s ← sample? ctx head | return (head, hHead?)
+  let some s ← parseSample? ctx head | return (head, hHead?)
   let cont? : Option (Expr × Expr) ← withBody s.cont fun x body => do
     let (body', h?) ← normalize ctx body
     let some h := h? | return none
