@@ -11,6 +11,7 @@ public import CslibFrontier.GameTheory.Congestion.Basic
 public import Mathlib.NumberTheory.Harmonic.Defs
 import CslibFrontier.Foundations.NumberTheory.Harmonic
 import CslibFrontier.GameTheory.Strategic.Stability
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -398,10 +399,9 @@ theorem exists_one_div_lt_cost_optOut (hε : 0 < ε) {s : Fin k → Bool}
   rw [optOut_cost, hj, ← hF]
   simp only [Bool.false_eq_true, ↓reduceIte]
   have hFR : (0 : ℝ) < F.card := by exact_mod_cast Finset.card_pos.2 hFne
-  have hcardR : (F.card : ℝ) ≤ (j : ℕ) + 1 := by exact_mod_cast hcard
   have hj1 : (0 : ℝ) < (j : ℕ) + 1 := by positivity
   rw [div_lt_div_iff₀ hj1 hFR]
-  nlinarith [mul_pos hε hj1]
+  cast_nlinarith [hcard, mul_pos hε hj1]
 
 /-- **The opt-out game has a unique pure Nash equilibrium** for `ε > 0`: every player opts out
 ([Roughgarden2013CS364A], Lecture #15, Section 1.4). If some players share, the one among them
