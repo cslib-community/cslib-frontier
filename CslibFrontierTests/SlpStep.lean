@@ -14,6 +14,8 @@ import CslibFrontier.Computability.Circuit.SlpCost
 * a list of steps computing the sum of two bits becomes a program over `fullSignature 2 (Fin 2)`;
 * the cost calculus computes the parity of two inputs in one gate after the inputs. -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.SlpStep
 
 open Cslib.Circuits
