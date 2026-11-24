@@ -82,7 +82,7 @@ section BlockRank
 variable (M : Matrix m n K)
 
 /-- Block ranks are ranks of submatrices. -/
-theorem blockRank_eq_rank [Finite m] (S : Set m) (T : Set n) [Fintype T] :
+theorem blockRank_eq_rank [Finite m] (S : Set m) (T : Set n) [Finite T] :
     M.blockRank S T = (M.submatrix ((↑) : S → m) ((↑) : T → n)).rank :=
   finrank_span_range_row _
 
@@ -221,7 +221,7 @@ section CutRank
 variable (M : Matrix ι ι K)
 
 /-- Cut ranks are ranks of submatrices. -/
-theorem cutRank_eq_rank [Finite ι] (X : Set ι) [Fintype ↥Xᶜ] :
+theorem cutRank_eq_rank [Finite ι] (X : Set ι) :
     M.cutRank X = (M.submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι)).rank :=
   M.blockRank_eq_rank X Xᶜ
 

@@ -45,7 +45,7 @@ public section
 
 namespace Matrix
 
-variable {m n K : Type*} [Fintype n]
+variable {m n K : Type*} [Finite n]
 
 /-- Negation does not change the rank of a matrix. -/
 @[simp] theorem rank_neg {R : Type*} [CommRing R] (A : Matrix m n R) : (-A).rank = A.rank := by
@@ -57,6 +57,7 @@ condition, such as a nontrivial commutative ring: `c • A = A (c • 1)`. -/
 theorem rank_smul_le {R : Type*} [CommSemiring R] [StrongRankCondition R] (c : R)
     (A : Matrix m n R) : (c • A).rank ≤ A.rank := by
   classical
+  have := Fintype.ofFinite n
   simpa [Matrix.mul_smul] using rank_mul_le_left A (c • (1 : Matrix n n R))
 
 variable [Field K]
@@ -64,6 +65,7 @@ variable [Field K]
 /-- **Subadditivity of rank**: the rank of a sum of matrices over a field is at most the sum of
 their ranks. -/
 theorem rank_add_le (A B : Matrix m n K) : (A + B).rank ≤ A.rank + B.rank := by
+  have := Fintype.ofFinite n
   rw [← finrank_range_mulVecLin, ← finrank_range_mulVecLin, ← finrank_range_mulVecLin,
     mulVecLin_add]
   exact (Submodule.finrank_mono (LinearMap.range_add_le _ _)).trans
@@ -92,8 +94,9 @@ theorem exists_eq_mul_rank (A : Matrix m n K) :
     smul_eq_mul] at h
   simpa [Matrix.mul_apply, col, mul_comm] using h.symm
 
+omit [Finite n] in
 /-- A matrix over a field whose rank is its number of rows has a right inverse. -/
-theorem exists_mul_eq_one_of_rank_eq_card [Fintype m] [DecidableEq m] {A : Matrix m n K}
+theorem exists_mul_eq_one_of_rank_eq_card [Fintype n] [Fintype m] [DecidableEq m] {A : Matrix m n K}
     (h : A.rank = Fintype.card m) : ∃ B : Matrix n m K, A * B = 1 := by
   refine mulVec_surjective_iff_exists_right_inverse.1 fun y => ?_
   have hA : LinearMap.range A.mulVecLin = ⊤ :=
@@ -109,6 +112,7 @@ theorem rank_map_of_field [Finite m] {L : Type*} [CommSemiring L] [StrongRankCon
     (f : K →+* L) (A : Matrix m n K) : (A.map f).rank = A.rank := by
   classical
   have := Fintype.ofFinite m
+  have := Fintype.ofFinite n
   obtain ⟨r, hr, C, D, hA⟩ : ∃ r, r = A.rank ∧ ∃ (C : Matrix m (Fin r) K)
       (D : Matrix (Fin r) n K), A = C * D := ⟨_, rfl, A.exists_eq_mul_rank⟩
   have hmap : A.map f = C.map f * D.map f := by rw [hA, Matrix.map_mul]
@@ -138,8 +142,9 @@ theorem rank_map_of_field [Finite m] {L : Type*} [CommSemiring L] [StrongRankCon
       _ ≤ (Eᵀ.map f * A.map f).rank := rank_mul_le_left _ _
       _ ≤ (A.map f).rank := rank_mul_le_right _ _
 
+omit [Finite n] in
 /-- The natural rank of a finite matrix agrees with the cardinal rank of its linear map. -/
-theorem natCast_rank_eq_rank_toLin' [DecidableEq n] (M : Matrix m n K) :
+theorem natCast_rank_eq_rank_toLin' [Fintype n] [DecidableEq n] (M : Matrix m n K) :
     (M.rank : Cardinal) = M.toLin'.rank := by
   rw [← finrank_range_mulVecLin, Matrix.toLin'_apply']
   exact Module.finrank_eq_rank _ _
@@ -147,6 +152,7 @@ theorem natCast_rank_eq_rank_toLin' [DecidableEq n] (M : Matrix m n K) :
 /-- A matrix over a field has rank zero exactly when it is zero. -/
 theorem rank_eq_zero_iff {C : Matrix m n K} : C.rank = 0 ↔ C = 0 := by
   classical
+  have := Fintype.ofFinite n
   refine ⟨fun h => ?_, fun h => h ▸ rank_zero⟩
   rw [← finrank_range_mulVecLin, Submodule.finrank_eq_zero, LinearMap.range_eq_bot] at h
   ext i j

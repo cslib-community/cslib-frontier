@@ -47,7 +47,7 @@ namespace Cslib.Communication
 
 open Finset
 
-variable {X Y : Type*} [Fintype Y]
+variable {X Y : Type*} [Finite Y]
 
 /-- **A zero/one matrix of rank `r` has at most `2 ^ r` distinct rows** over any field `K`
 [AroraBarak07, Chapter 12, Exercises 4 and 6]: the rows `f x` of a Boolean function `f` take at
@@ -111,7 +111,7 @@ theorem ecomplexityFun_le_rank_add_one [Finite X] (K : Type*) [Field K] (f : X �
 
 /-- If a Boolean function on `n`-bit inputs has pairwise distinct rows, its communication matrix
 has rank at least `n` over every field. -/
-theorem le_rank_of_injective (K : Type*) [Field K] {n : ℕ} {Y : Type*} [Fintype Y]
+theorem le_rank_of_injective (K : Type*) [Field K] {n : ℕ} {Y : Type*} [Finite Y]
     {f : BitString n → Y → Bool} (hf : Function.Injective f) :
     n ≤ (communicationMatrix K f).rank := by
   classical

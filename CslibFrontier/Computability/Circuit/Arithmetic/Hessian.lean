@@ -115,17 +115,18 @@ private theorem Program.hessian_trace_mem (p : Program (arithSignature C) n g)
   · rw [p.trace_gate]
     exact step _ _ ih (hgate k)
 
-omit [DecidableEq ι] in
+omit [Fintype ι] [DecidableEq ι] in
 /-- For arbitrary supplied polynomial inputs, subtracting a linear combination of their
 Hessians leaves rank at most twice the multiplication count. Coefficients may depend on the
 program, selected wire and evaluation point; no cost is charged for supplying the inputs. -/
-theorem Program.exists_hessian_residual (p : Program (arithSignature C) n g)
+theorem Program.exists_hessian_residual [Finite ι] (p : Program (arithSignature C) n g)
     (constant : C → K) (point : ι → K) (input : Fin n → MvPolynomial ι K) (w : Wire n g) :
     ∃ coefficients : Fin n → K,
       (hessian point
           (p.trace (arithInterpretationWith C (MvPolynomial.C ∘ constant)) input w) -
         ∑ i, coefficients i • hessian point (input i)).rank ≤ 2 * p.cost ArithOp.mulCost := by
   classical
+  have := Fintype.ofFinite ι
   let family := fun k => hessianInteraction point (p.lines k).op
     (fun a => p.trace (arithInterpretationWith C (MvPolynomial.C ∘ constant)) input
       ((p.lines k).wires a))
@@ -149,10 +150,10 @@ theorem Program.exists_hessian_residual (p : Program (arithSignature C) n g)
     ← p.cost_eq_sum] at h
   exact ⟨coefficients, by exact_mod_cast h⟩
 
-omit [DecidableEq ι] in
+omit [Fintype ι] [DecidableEq ι] in
 /-- With input Hessians zero at the chosen point, every wire's Hessian rank is at most twice
 the number of multiplication gates. Inputs may be arbitrary affine polynomials. -/
-theorem Program.rank_hessian_trace_le (p : Program (arithSignature C) n g)
+theorem Program.rank_hessian_trace_le [Finite ι] (p : Program (arithSignature C) n g)
     (constant : C → K) (point : ι → K) (input : Fin n → MvPolynomial ι K)
     (hinput : ∀ i, hessian point (input i) = 0) (w : Wire n g) :
     (hessian point
@@ -162,10 +163,10 @@ theorem Program.rank_hessian_trace_le (p : Program (arithSignature C) n g)
   obtain ⟨coefficients, h⟩ := p.exists_hessian_residual constant point input w
   simpa [hinput] using h
 
-omit [DecidableEq ι] in
+omit [Fintype ι] [DecidableEq ι] in
 /-- A circuit computing a formal polynomial from arbitrary supplied polynomials has a
 source-adjusted Hessian of rank at most twice its multiplication count. -/
-theorem Circuit.exists_hessian_residual (c : Circuit (arithSignature C) n m)
+theorem Circuit.exists_hessian_residual [Finite ι] (c : Circuit (arithSignature C) n m)
     (constant : C → K) (point : ι → K) (input : Fin n → MvPolynomial ι K)
     (j : Fin m) (polynomial : MvPolynomial ι K)
     (hcompute : c.eval (arithInterpretationWith C (MvPolynomial.C ∘ constant)) input j =

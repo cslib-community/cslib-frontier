@@ -50,8 +50,7 @@ Partitions are `Setoid α` rather than `Finpartition`, since Mathlib's complete 
 `Setoid α` provides the join, and the proof works with quotients and kernels (`Setoid.ker`). The
 number of blocks `blocks s` and the `Finite (Setoid α)` instance come from
 `CslibFrontier.Foundations.Combinatorics.SetPartition.Basic`; statements that sum over the
-partitions
-or take ranks assume `[Fintype (Setoid α)]`, which `Fintype.ofFinite` provides, and counts are
+partitions assume `[Fintype (Setoid α)]`, which `Fintype.ofFinite` provides, and counts are
 stated with `Nat.card`.
 
 ## Main definitions
@@ -331,11 +330,13 @@ theorem det_zetaMatrix [CommRing R] : (zetaMatrix R α).det = 1 := by
       simp [h, hne]
   rw [this, Matrix.det_one]
 
+omit [Fintype (Setoid α)] in
 /-- **Dowling–Wilson for the partition lattice**: over a field of characteristic zero, the join
 matrix has full rank, the number of partitions [DowlingWilson1975, Lemma 1 and the proof of
 Theorem 2]. -/
 theorem rank_joinMatrix [Field R] [CharZero R] : (joinMatrix R α).rank = Nat.card (Setoid α) := by
   classical
+  have := Fintype.ofFinite (Setoid α)
   rw [Nat.card_eq_fintype_card]
   rcases isEmpty_or_nonempty α with hα | hα
   · have : Subsingleton (Setoid α) := ⟨fun _ _ => Setoid.ext fun a => isEmptyElim a⟩

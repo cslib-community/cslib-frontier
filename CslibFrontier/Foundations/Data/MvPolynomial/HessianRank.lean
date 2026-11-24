@@ -38,7 +38,7 @@ The coefficients are chosen at the given point, not uniformly over all points.
 
 namespace MvPolynomial
 
-variable {ι κ K : Type*} [Field K] [Fintype ι] [Fintype κ]
+variable {ι κ K : Type*} [Field K] [Fintype κ]
 
 /-- The minimum residual Hessian rank at a fixed point after subtracting a linear combination
 of the supplied Hessians. The result lies in `ℕ∞` to compare with extended computational costs. -/

@@ -173,7 +173,7 @@ theorem HasNonnegFactorization.transpose {ρ : Type*} [Fintype ρ]
 
 /-- **Rank is at most nonnegative rank**: a nonnegative factorization with inner dimension `r` is
 in particular a factorization through `R ^ r`. -/
-theorem rank_le_nonnegRank [StrongRankCondition R] [Fintype n] :
+theorem rank_le_nonnegRank [StrongRankCondition R] [Finite n] :
     (M.rank : ℕ∞) ≤ M.nonnegRank :=
   le_nonnegRank_iff.2 fun r ⟨T, U, _, _, hTU⟩ => by
     rw [← hTU]

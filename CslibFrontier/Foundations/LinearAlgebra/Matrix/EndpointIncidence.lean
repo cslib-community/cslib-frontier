@@ -67,11 +67,9 @@ noncomputable def endpointIncidenceKernelEquiv (u v : E → V) (root : V)
   map_add' _ _ := rfl
   map_smul' _ _ := rfl
 
-variable [Fintype E] [Fintype F]
-
 /-- A connected indexed incidence matrix has rank one less than its number of vertices.
 This counts endpoint names and indexed columns separately. -/
-theorem rank_endpointIncidence_add_one (u v : E → V) (root : V)
+theorem rank_endpointIncidence_add_one [Finite E] (u v : E → V) (root : V)
     (hconn : ∀ s : V → ZMod 2, (∀ e, s (u e) = s (v e)) → ∀ a b, s a = s b) :
     (endpointIncidence u v).rank + 1 = Fintype.card V := by
   have hk : Module.finrank (ZMod 2) (endpointIncidence u v).transpose.mulVecLin.ker = 1 := by
@@ -80,6 +78,8 @@ theorem rank_endpointIncidence_add_one (u v : E → V) (root : V)
   have h := (endpointIncidence u v).transpose.mulVecLin.finrank_range_add_finrank_ker
   rw [finrank_range_mulVecLin] at h
   simpa only [rank_transpose, hk, Module.finrank_pi, Module.finrank_self, mul_one] using h
+
+variable [Fintype E] [Fintype F]
 
 omit [DecidableEq V] in
 /-- A zero matrix product and the connected Euler dimension equation force exactness.

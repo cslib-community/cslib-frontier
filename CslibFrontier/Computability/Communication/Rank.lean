@@ -112,7 +112,7 @@ and Bob's inputs and a relabelling `g` of the outputs, the matrix with entry `g 
 at `x` and `y` has rank at most the size of any set `T` of pieces outside which `g` vanishes on the
 labels: it is the sum, over the pieces in `T`, of matrices of rank at most one supported on their
 rectangles. -/
-theorem rank_comp_run_le {X' Y' : Type*} [Fintype Y'] (p : RectanglePartition X Y Z) (a : X' → X)
+theorem rank_comp_run_le {X' Y' : Type*} [Finite Y'] (p : RectanglePartition X Y Z) (a : X' → X)
     (b : Y' → Y) (g : Z → R) {T : Finset (Fin p.size)}
     (hT : ∀ i ∉ T, g (p.output i) = 0) :
     (Matrix.of fun x y => g (p.run (a x) (b y))).rank ≤ #T := by
@@ -134,7 +134,7 @@ theorem rank_comp_run_le {X' Y' : Type*} [Fintype Y'] (p : RectanglePartition X 
     (Fintype.card_coe T))
 
 /-- The zero/one communication matrix has rank at most the number of true-labelled pieces. -/
-theorem rank_communicationMatrix_le [Fintype Y] {p : RectanglePartition X Y Bool}
+theorem rank_communicationMatrix_le [Finite Y] {p : RectanglePartition X Y Bool}
     {f : X → Y → Bool} (hp : p.run = f) :
     (communicationMatrix R f).rank ≤ #{i | p.output i = true} := by
   subst hp
@@ -145,7 +145,7 @@ end RectanglePartition
 
 /-- The rank of the zero/one matrix bounds the minimum arbitrary tiling number
 [AroraBarak07, Theorem 12.10]. -/
-theorem rank_communicationMatrix_le_tilingNumber [Fintype Y] (R : Type*) [CommSemiring R]
+theorem rank_communicationMatrix_le_tilingNumber [Finite Y] (R : Type*) [CommSemiring R]
     [StrongRankCondition R] (f : X → Y → Bool) :
     ((communicationMatrix R f).rank : ℕ∞) ≤ tilingNumber f := by
   classical
@@ -162,7 +162,7 @@ and Bob's inputs and a relabelling `g` of the outputs, the matrix with entry `g 
 at `x` and `y` has rank at most the size of any set `T` of leaves outside which `g` vanishes on the
 labels: it is the sum, over the leaves in `T`, of rank-one matrices supported on their
 rectangles. -/
-theorem rank_comp_run_le {X' Y' : Type*} [Fintype Y'] (p : Protocol X Y Z) (a : X' → X)
+theorem rank_comp_run_le {X' Y' : Type*} [Finite Y'] (p : Protocol X Y Z) (a : X' → X)
     (b : Y' → Y) (g : Z → R) {T : Finset (Fin p.leafCount)}
     (hT : ∀ i ∉ T, g (p.leafOutput i) = 0) :
     (Matrix.of fun x y => g (p.run (a x) (b y))).rank ≤ #T := by
@@ -174,7 +174,7 @@ theorem rank_comp_run_le {X' Y' : Type*} [Fintype Y'] (p : Protocol X Y Z) (a : 
 communication matrix of `f` restricted to `A × B` is at most the number of leaves labelled
 `true`. -/
 theorem Solves.rank_communicationMatrix_le {p : Protocol X Y Bool}
-    {f : X → Y → Bool} {A : Set X} {B : Set Y} [Fintype B]
+    {f : X → Y → Bool} {A : Set X} {B : Set Y} [Finite B]
     (hp : p.Solves (fun x y b => f x y = b) A B) :
     (communicationMatrix R fun (x : A) (y : B) => f x y).rank ≤
       #{i | p.leafOutput i = true} := by
@@ -186,7 +186,7 @@ theorem Solves.rank_communicationMatrix_le {p : Protocol X Y Bool}
   exact rank_comp_run_le p Subtype.val Subtype.val (fun b => if b then (1 : R) else 0)
     fun i hi => by simpa using hi
 
-variable [Fintype Y]
+variable [Finite Y]
 
 /-- If a protocol computes `f`, then for every set of outputs, given by its indicator `g`, the rank
 of the communication matrix of `g ∘ f` is at most the number of leaves labelled in the set. -/
@@ -262,7 +262,7 @@ end Protocol
 /-- **The rank bound** [Mehlhorn and Schmidt][MehlhornSchmidt1982]: the communication complexity
 of a Boolean function is at least `⌈log₂ r⌉`, for `r` the rank of its communication matrix over any
 commutative ring with the strong rank condition, such as `ℝ`. -/
-theorem clog_rank_le_ecomplexity [Fintype Y] (R : Type*) [CommSemiring R]
+theorem clog_rank_le_ecomplexity [Finite Y] (R : Type*) [CommSemiring R]
     [StrongRankCondition R] (f : X → Y → Bool) :
     (Nat.clog 2 (communicationMatrix R f).rank : ℕ∞) ≤
       Protocol.ecomplexity (fun x y b => f x y = b) Set.univ Set.univ :=
@@ -304,18 +304,19 @@ theorem signMatrix_eq_sub (R : Type*) [Ring R] (f : X → Y → Bool) :
   by_cases h : f x y <;> norm_num [h]
 
 /-- The all-ones matrix has rank at most one. -/
-private theorem rank_of_one_le [Fintype Y] (R : Type*) [CommSemiring R] [StrongRankCondition R] :
+private theorem rank_of_one_le [Finite Y] (R : Type*) [CommSemiring R] [StrongRankCondition R] :
     (Matrix.of fun (_ : X) (_ : Y) => (1 : R)).rank ≤ 1 := by
   simpa [Matrix.vecMulVec] using Matrix.rank_vecMulVec_le (fun _ : X => (1 : R)) fun _ : Y => 1
 
 section Field
 
-variable [Fintype Y] {R : Type*} [Field R]
+variable [Finite Y] {R : Type*} [Field R]
 
 /-- The rank of the sign matrix exceeds that of the communication matrix by at most one, over any
 field. -/
 theorem rank_signMatrix_le (f : X → Y → Bool) :
     (signMatrix R f).rank ≤ (communicationMatrix R f).rank + 1 := by
+  have := Fintype.ofFinite Y
   rw [signMatrix_eq_sub, add_comm]
   exact (Matrix.rank_sub_le _ _).trans
     (add_le_add (rank_of_one_le R) (Matrix.rank_smul_le _ _))
@@ -325,6 +326,7 @@ one, since `M_f = (J - S_f) / 2`. In characteristic two this fails: the sign mat
 matrix. -/
 theorem rank_communicationMatrix_le_rank_signMatrix [NeZero (2 : R)] (f : X → Y → Bool) :
     (communicationMatrix R f).rank ≤ (signMatrix R f).rank + 1 := by
+  have := Fintype.ofFinite Y
   have h : communicationMatrix R f = (2 : R)⁻¹ • (Matrix.of (fun _ _ => 1) - signMatrix R f) := by
     rw [signMatrix_eq_sub, sub_sub_cancel, smul_smul, inv_mul_cancel₀ two_ne_zero, one_smul]
   rw [h, add_comm]
@@ -335,7 +337,7 @@ end Field
 
 namespace Protocol
 
-variable [Fintype Y] {R : Type*} [CommRing R] [StrongRankCondition R] {f : X → Y → Bool}
+variable [Finite Y] {R : Type*} [CommRing R] [StrongRankCondition R] {f : X → Y → Bool}
   {p : Protocol X Y Bool}
 
 /-- The rank of the sign matrix of a function computed by a protocol is at most the number of

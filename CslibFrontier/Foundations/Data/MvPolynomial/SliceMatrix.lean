@@ -53,8 +53,7 @@ noncomputable def sliceMatrix (T : Module.End R (MvPolynomial σ R)) :
 
 /-- The rank of the matrix of an operator that maps weight `m` to weight `m'` is the dimension
 of the image of the slice of weight `m`. -/
-theorem rank_sliceMatrix [Fintype {d : σ →₀ ℕ // weight w d = m}]
-    (T : Module.End K (MvPolynomial σ K))
+theorem rank_sliceMatrix (T : Module.End K (MvPolynomial σ K))
     (hT : ∀ p ∈ weightedHomogeneousSubmodule K w m, T p ∈ weightedHomogeneousSubmodule K w m') :
     (sliceMatrix w m' m T).rank =
       Module.finrank K ((weightedHomogeneousSubmodule K w m).map T) := by

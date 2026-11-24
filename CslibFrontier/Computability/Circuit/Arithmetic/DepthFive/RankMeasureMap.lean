@@ -41,8 +41,7 @@ namespace MvPolynomial
 variable {K L σ : Type*} [Field K] [Field L] {s : σ → Prop} [DecidablePred s]
 
 /-- The rank measure is the rank of the matrix of the operator in the monomial bases. -/
-theorem rankMeasure_eq_rank_sliceMatrix (i j a b : ℕ)
-    [Fintype {d : σ →₀ ℕ // weight (bidegWeight s) d = (a + i, b)}] (g : MvPolynomial σ K) :
+theorem rankMeasure_eq_rank_sliceMatrix (i j a b : ℕ) (g : MvPolynomial σ K) :
     rankMeasure s (i, j) (a + i, b) g =
       (sliceMatrix (bidegWeight s) (a, b + j) (a + i, b)
         (mixedOp s (weightedHomogeneousComponent (bidegWeight s) (i, j) g))).rank :=

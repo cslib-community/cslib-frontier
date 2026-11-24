@@ -122,7 +122,7 @@ theorem apply_eq_zero_of_mem_nisanRowSpace {f : FreeAlgebra K X} {d k : ℕ}
 
 /-- For `f` homogeneous of degree `k + m`, `rank M_k(f)` is the dimension of the span of the rows
 of the words of length `k`. -/
-theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K X}
+theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Finite X] {f : FreeAlgebra K X}
     {k m : ℕ} (hf : f.IsHomogeneous (k + m)) :
     (nisanMatrix k m f).rank = Module.finrank K (nisanRowSpace f k) := by
   let restr : (FreeMonoid X → K) →ₗ[K] ((Fin m → X) → K) :=
@@ -180,7 +180,7 @@ theorem finrank_nisanRowSpace_deg [Finite X] {f : FreeAlgebra K X} {d : ℕ}
 
 /-- For nonzero `f` homogeneous of degree `k + m`, `rank M_k(f) ≥ 1`: the row of the first `k`
 letters of a word with nonzero coefficient is nonzero. -/
-theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
+theorem one_le_rank_nisanMatrix [Finite X] {f : FreeAlgebra K X} {k m : ℕ}
     (hf : f.IsHomogeneous (k + m)) (hf0 : f ≠ 0) : 1 ≤ (nisanMatrix k m f).rank := by
   rw [rank_nisanMatrix_eq_finrank_nisanRowSpace hf]
   refine Nat.one_le_iff_ne_zero.mpr (Module.finrank_pos_iff_exists_ne_zero.mpr ?_).ne'
@@ -195,15 +195,17 @@ theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
 
 /-- For nonzero `f` homogeneous of degree `d`, the first Nisan matrix has rank `1`:
 `rank M_0(f) = 1`. -/
-theorem rank_nisanMatrix_zero_left [Fintype X] {f : FreeAlgebra K X} {d : ℕ}
+theorem rank_nisanMatrix_zero_left [Finite X] {f : FreeAlgebra K X} {d : ℕ}
     (hd : f.IsHomogeneous d) (hf : f ≠ 0) : (nisanMatrix 0 d f).rank = 1 :=
+  have := Fintype.ofFinite X
   le_antisymm ((Matrix.rank_le_card_height _).trans (by simp))
     (one_le_rank_nisanMatrix (by rwa [zero_add]) hf)
 
 /-- For nonzero `f` homogeneous of degree `d`, the last Nisan matrix has rank `1`:
 `rank M_d(f) = 1`. -/
-theorem rank_nisanMatrix_zero_right [Fintype X] {f : FreeAlgebra K X} {d : ℕ}
+theorem rank_nisanMatrix_zero_right [Finite X] {f : FreeAlgebra K X} {d : ℕ}
     (hd : f.IsHomogeneous d) (hf : f ≠ 0) : (nisanMatrix d 0 f).rank = 1 :=
+  have := Fintype.ofFinite X
   le_antisymm ((Matrix.rank_le_card_width _).trans (by simp)) (one_le_rank_nisanMatrix hd hf)
 
 /-- The row space of layer `0` is spanned by the row of the empty word. -/
