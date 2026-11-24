@@ -39,37 +39,44 @@ extracted-model single-issuer VOLE-ACT credit conservation
   `ProbOracleComp` or `ROMSignature.Forger` programs with explicit signing-query budget `q_S` and
   hash-query budget `q_H`. Every reduction is an explicit program with a proved query bound; no
   Turing-machine / PPT runtime certificate is claimed (tracked in #7068). No quantum random-oracle
-  (QROM) bound is proved here: Kosuge–Xagawa (ePrint 2022/1359, Proposition 3) motivates the salted
-  variant in the QROM, while the theorems proved here are classical ROM reductions matching
-  Kosuge–Xagawa Theorem 1 and Figure 4.
+  (QROM) bound is proved here: `[KosugeXagawa2022]` (Theorem 1 and Appendix B.2 Proposition 3)
+  motivates the salted variant in the QROM, while the salted theorems proved here are finite
+  classical-ROM reductions **after** `[KosugeXagawa2022]` (Theorem 1, classical-ROM specialization
+  on p. 18, and Section 2.3, Figure 4 / Definition 7 on p. 10), with explicit deviations: no retry
+  (`Option Preimage` failure retained so `q'_sign = q_sign`, omitting retry failure slack),
+  classical ROM queries (`(q_H + 1) * INV` rather than QROM `(2 q_qro + 1)^2 * INV`), and explicit
+  salt-collision slack `(q_S * q_H + q_S.choose 2) / |Salt|`.
 * **Abstract trapdoor preimage systems (`TrapdoorPreimageSystem`).** A system bundles key
   generation, public evaluation `eval : PK → Preimage → Target`, a total finite preimage sampler
   `invert : SK → Target → ProbComp (Option Preimage)` retaining explicit failure (`none`) without
   conditioning, and a secret-free simulated preimage sampler `samplePreimage : PK → ProbComp
   Preimage`. `idealUOVSystem` instantiates this interface with `UOV.idealKeyGen` and uniform
-  preimage sampling so that `(idealUOVSystem derive).toRawScheme = UOV.idealRawScheme derive`.
-  Concrete round-3 UOV signing and vinegar-retry bounds remain tracked in #4987 and #5219.
+  preimage sampling so that `(idealUOVSystem F v o derive).toRawScheme = UOV.idealRawScheme derive`
+  (`idealUOVSystem_toRawScheme`). Concrete round-3 UOV signing and vinegar-retry bounds remain
+  tracked in #4987 and #5219.
 * **Programmable ROM `Tag`, starting after vinegar derandomization.** `detScheme` models
   deterministic unsalted hash-and-sign (`Σ_Tag` of [VOLEACT2026], Protocol Specification / Tag)
-  after per-target derandomization: key generation draws `invTable ← PMF.pi (eval ∘ invert sk)` so
-  repeated signatures on the same target return the same preimage while distinct targets are
-  inverted independently, and `Tag` is modeled as a lazy uniform random oracle rather than concrete
-  `Keccak-p[800, 12]`. `saltedScheme` models salted hash-and-sign (`SignCoins := Salt × (Target →
-  Option Preimage)`), drawing a fresh uniform salt and independent preimage on every signing call.
+  after per-target derandomization: key generation draws `invTable ← PMF.pi (eval ∘ invert sk)` and
+  stores that full `Target → Option Preimage` table in `sk` (replacing it by a PRF or PRG seed is
+  outside this model), so repeated signatures on the same target return the same preimage while
+  distinct targets are inverted independently, and `Tag` is modeled as a lazy uniform random
+  oracle rather than concrete `Keccak-p[800, 12]`. `saltedScheme` models salted hash-and-sign
+  (`SignCoins := Salt × (Target → Option Preimage)`), drawing a fresh uniform salt and independent
+  preimage on every signing call.
 * **Concrete game bounds.** Preimage resistance (`INV`) reuses `Signature.targetExperiment` on
   `sys.toRawScheme` with uniform targets. Preimage simulatability (`PS`) compares
   `psExperimentReal` (sampling uniform `y` and `x ← invert sk y`) against `psExperimentSim`
-  (sampling `s ← samplePreimage pk` and returning `(eval pk s, some s)`), following Kosuge–Xagawa
-  (ePrint 2022/1359, Figure 4) with explicit failure retained. All bounds are concrete inequalities
-  relating explicit games; no new asymptotic hardness-assumption `Prop` is introduced.
+  (sampling `s ← samplePreimage pk` and returning `(eval pk s, some s)`), adapted from Figure 4 of
+  `[KosugeXagawa2022]` with explicit failure retained. All bounds are concrete inequalities relating
+  explicit games; no new asymptotic hardness-assumption `Prop` is introduced.
 
 ## Main definitions
 
 * `TrapdoorPreimageSystem`, `TrapdoorPreimageSystem.check`, `TrapdoorPreimageSystem.toRawScheme`,
   `idealUOVSystem`: abstract trapdoor-preimage signature core and ideal UOV instantiation.
 * `TrapdoorPreimageSystem.sampleRealPair`, `TrapdoorPreimageSystem.sampleSimPair`,
-  `PSDistinguisher`, `psExperimentReal`, `psExperimentSim`: Kosuge–Xagawa Figure 4 preimage
-  simulatability (`PS`) experiments.
+  `PSDistinguisher`, `psExperimentReal`, `psExperimentSim`: preimage simulatability (`PS`)
+  experiments after `[KosugeXagawa2022]`, Figure 4.
 * `detScheme`, `saltedScheme`: deterministic unsalted and salted hash-and-sign
   `ROMSignature.Scheme` constructions.
 * `detPSDistinguisher`, `detPSOneDistinguisher`, `detInverter`: explicit multi-query `PS`,
@@ -78,27 +85,31 @@ extracted-model single-issuer VOLE-ACT credit conservation
   `saltedScheme`.
 * `ROMExtractedAdversary`, `ROMExtractedCallBounded`, `romExtractedConservationExperiment`,
   `romTargetForger`, `detCommitmentBindingReduction`, `saltedCommitmentBindingReduction`:
-  lazy-ROM extracted VOLE-ACT credit-conservation game at `tag = Prod.mk` and its explicit
-  target-forgery and commitment-binding reductions.
+  lazy-ROM extracted VOLE-ACT credit-conservation game at `tag = Prod.mk` (original to this
+  library) and its explicit target-forgery and commitment-binding reductions.
 
 ## Main results
 
+* `idealUOVSystem_toRawScheme`: equality between `(idealUOVSystem F v o derive).toRawScheme` and
+  `UOV.idealRawScheme derive`.
 * `detScheme_correct`, `saltedScheme_correct`: completeness of both ROM schemes when `invert`
   succeeds with valid preimages.
 * `detPSDistinguisher_queryBound`, `detPSOneDistinguisher_queryBound`,
   `saltedPSDistinguisher_queryBound`, `romTargetForger_callBounded`: exact query budgets for the
   `PS` and credit-conservation reductions.
-* `saltedWorldEufCma_succProbability_le`, `eufCmaGame_saltedScheme_succProbability_le`: classical
-  ROM EUF-CMA bound for salted hash-and-sign with `(q_H + 1)` `INV` loss, `q_S`-query `PS`
-  advantage, and `(q_S * q_H + q_S.choose 2) / |Salt|` salt-collision slack.
-* `detWorldEufCma_succProbability_le`, `eufCmaGame_detScheme_succProbability_le`: classical ROM
-  EUF-CMA bound for deterministic unsalted hash-and-sign with `(q_H + 1)` loss on `INV + PS_1`,
-  `(q_S + q_H)`-query `PS` advantage, and `(q_S + q_H).choose 2 / |Target|` target birthday slack.
+* `saltedRomWorldEufCma_succProbability_le`, `eufCmaGame_saltedScheme_succProbability_le`: classical
+  ROM EUF-CMA bounds for salted hash-and-sign after `[KosugeXagawa2022]` Theorem 1 (without
+  retry), with `(q_H + 1)` `INV` loss, `q_S`-query `PS` advantage, and
+  `(q_S * q_H + q_S.choose 2) / |Salt|` salt-collision slack.
+* `detRomWorldEufCma_succProbability_le`, `eufCmaGame_detScheme_succProbability_le`: classical ROM
+  EUF-CMA bounds for deterministic unsalted hash-and-sign (original to this library, adapting the
+  `(q_H + 1)` programming argument) with `(q_H + 1)` loss on `INV + PS_1`, `(q_S + q_H)`-query
+  `PS` advantage, and `(q_S + q_H).choose 2 / |Target|` target birthday slack.
 * `romExtractedConservationExperiment_succProbability_le`,
   `romExtractedConservationExperiment_detScheme_succProbability_le`,
-  `romExtractedConservationExperiment_saltedScheme_succProbability_le`: end-to-end extracted+ROM
-  credit-conservation bounds composing the lazy-ROM EUF-CMA bounds with keyless commitment binding
-  at `tag = Prod.mk`.
+  `romExtractedConservationExperiment_saltedScheme_succProbability_le`: original end-to-end
+  extracted+ROM credit-conservation bounds composing the lazy-ROM EUF-CMA bounds with keyless
+  commitment binding at `tag = Prod.mk`.
 
 ## References
 
@@ -106,8 +117,8 @@ extracted-model single-issuer VOLE-ACT credit conservation
   Documentation*, v3.0, Appendix A, Definition 2, p. 49][UOV2026].
 * [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Parameters / Tag and Spending.
 * [Baum et al., *PoMFRIT*, USENIX prepublication, Definition 3.1][PoMFRIT2026].
-* H. Kosuge, K. Xagawa, *Probabilistic Hash-and-Sign with Retry in the Quantum Random Oracle
-  Model*, ePrint 2022/1359, Theorem 1 and Figure 4.
+* [H. Kosuge and K. Xagawa, *Probabilistic Hash-and-Sign with Retry in the Quantum Random Oracle
+  Model*, ePrint 2022/1359, Figure 4, Theorem 1, and Proposition 3][KosugeXagawa2022].
 -/
 
 public section
@@ -162,7 +173,8 @@ to the requested target on all supported key pairs. -/
 
 /-- Ideal UOV instantiation of `TrapdoorPreimageSystem`: uses `UOV.idealKeyGen`, the public
 multivariate quadratic map, the caller's finite preimage derivation program, and uniform preimage
-sampling on `Fin (v + o) → F`. Its `.toRawScheme` is definitionally `UOV.idealRawScheme`. -/
+sampling on `Fin (v + o) → F`. Its `.toRawScheme` equals `UOV.idealRawScheme`
+(`idealUOVSystem_toRawScheme`). -/
 @[expose] noncomputable def idealUOVSystem (F : Type) [Field F] [Fintype F] [DecidableEq F]
     (v o : ℕ)
     (derivePreimage : IdealKeyMaterial F v o → (Fin o → F) →
@@ -173,6 +185,17 @@ sampling on `Fin (v + o) → F`. Its `.toRawScheme` is definitionally `UOV.ideal
   eval P s := P s
   invert := derivePreimage
   samplePreimage _ := ProbComp.uniform (Fin (v + o) → F)
+
+/-- `(idealUOVSystem F v o derive).toRawScheme` agrees with `UOV.idealRawScheme derive`. -/
+theorem idealUOVSystem_toRawScheme (F : Type) [Field F] [Fintype F] [DecidableEq F]
+    (v o : ℕ)
+    (derivePreimage : IdealKeyMaterial F v o → (Fin o → F) →
+      ProbComp (Option (Fin (v + o) → F))) :
+    (idealUOVSystem F v o derivePreimage).toRawScheme = UOV.idealRawScheme derivePreimage := by
+  simp only [TrapdoorPreimageSystem.toRawScheme, idealUOVSystem, UOV.idealRawScheme]
+  congr 1
+  funext P y sig
+  cases sig <;> rfl
 
 /-- Real preimage-simulatability sample: draw a uniform target `y` and invert it with `sk`. -/
 @[expose] noncomputable def TrapdoorPreimageSystem.sampleRealPair [Fintype Target] [Nonempty Target]
@@ -202,9 +225,10 @@ theorem TrapdoorPreimageSystem.eval_sampleRealPair_map_fst [Fintype Target] [Non
     simpa only [PMF.map, Function.comp_def, Function.const_apply] using this
   simp [hconst]
 
-/-- An adaptive distinguisher in the preimage-simulatability (`PS`) game (Kosuge–Xagawa,
-ePrint 2022/1359, Figure 4): given `pk`, it queries a sampling oracle returning `(y, x)` pairs
-and outputs a bit. -/
+/-- An adaptive distinguisher in the preimage-simulatability (`PS`) game (after
+`[KosugeXagawa2022]`, Section 2.3, Figure 4 and Definition 7, adapted to retain `Option Preimage`
+failure without retry): given `pk`, it queries a sampling oracle returning `(y, x)` pairs and
+outputs a bit. -/
 abbrev PSDistinguisher (PK Target Preimage : Type) :=
   PK → ProbOracleComp (fun _ : Unit => Target × Option Preimage) Bool
 
@@ -266,8 +290,9 @@ forged message was never submitted to the signing oracle. -/
   verified && !(pairs.map Prod.fst).contains msig.1
 
 /-- **Deterministic unsalted hash-and-sign scheme (`Σ_Tag`)** in the classical ROM, after
-per-target derandomization: `keyGen` draws `invTable ← PMF.pi (eval ∘ invert sk)`, `sign` hashes
-`m` and returns `invTable (H m)`, and `verify` checks `sys.check pk (H m) sig`. -/
+per-target derandomization: `keyGen` draws `invTable ← PMF.pi (eval ∘ invert sk)` and stores the
+full `Target → Option Preimage` table in `sk` (replacing it by a PRF or seed is outside this model),
+`sign` hashes `m` and returns `invTable (H m)`, and `verify` checks `sys.check pk (H m) sig`. -/
 @[expose] noncomputable def detScheme [DecidableEq Target] [Fintype Target] [Finite Preimage]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage) :
     ROMSignature.Scheme PK (SK × (Target → Option Preimage)) M (Option Preimage) M Target where
@@ -1368,14 +1393,16 @@ private theorem saltedSim_le_mul_targetExperiment {Salt : Type} [DecidableEq M] 
       rw [hzero]
       exact zero_le
 
-/-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ProbOracleComp` form)**
-(Kosuge–Xagawa, ePrint 2022/1359, Theorem 1): for any probabilistic ROM forger making at most
-`q_S` signing queries and `q_H` direct hash queries,
+/-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ProbOracleComp` form)**,
+after `[KosugeXagawa2022]`, Theorem 1 (classical-ROM specialization, p. 18) and Figure 4, adapted
+for finite classical adversaries with explicit `Option Preimage` failure (no retry, so `q'_sign =
+q_sign`) and concrete salt-collision slack: for any probabilistic ROM forger making at most `q_S`
+signing queries and `q_H` direct hash queries,
 `Pr[EUF-CMA] ≤ (q_H + 1) * Pr[INV(saltedInverter)] + Adv^PS(saltedPSDistinguisher) +`
 `(q_S * q_H + q_S.choose 2) / |Salt|`.
 Every reduction is an explicit finite program with query bounds (no runtime certificate claimed;
 tracked in #7068). -/
-theorem saltedWorldEufCma_succProbability_le {Salt : Type} [DecidableEq M] [DecidableEq Salt]
+theorem saltedRomWorldEufCma_succProbability_le {Salt : Type} [DecidableEq M] [DecidableEq Salt]
     [DecidableEq Target] [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
     [Finite Preimage]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage)
@@ -1532,8 +1559,10 @@ theorem eufCmaGame_eq_worldGame_liftForger {PK SK M Sig Query Digest : Type}
   simp only [PMF.monad_bind_eq_bind, PMF.bind_bind]
   rfl
 
-/-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ROMSignature.eufCmaGame` form)**
-(Kosuge–Xagawa, ePrint 2022/1359, Theorem 1). -/
+/-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ROMSignature.eufCmaGame` form)**,
+after `[KosugeXagawa2022]`, Theorem 1 (classical-ROM specialization, p. 18), without retry.
+Applies to `ROMSignature.Forger` adversaries whose coin distribution `A.coins` is realized by a
+finite `ProbComp A.Coins` sampler (`hcoins : A.coins = ProbComp.eval coinSampler`). -/
 theorem eufCmaGame_saltedScheme_succProbability_le {Salt : Type} [DecidableEq M] [DecidableEq Salt]
     [DecidableEq Target] [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
     [Finite Preimage]
@@ -1551,7 +1580,7 @@ theorem eufCmaGame_saltedScheme_succProbability_le {Salt : Type} [DecidableEq M]
         (psExperimentSim sys (saltedPSDistinguisher sys Salt (liftForger A coinSampler))) +
       ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0) * (Fintype.card Salt : ℝ≥0)⁻¹ := by
   rw [eufCmaGame_eq_worldGame_liftForger (saltedScheme sys Salt) A coinSampler hcoins]
-  exact saltedWorldEufCma_succProbability_le sys (liftForger A coinSampler)
+  exact saltedRomWorldEufCma_succProbability_le sys (liftForger A coinSampler)
     (probForgerCallBounded_liftForger coinSampler hA)
 
 end SaltedReduction
@@ -3360,6 +3389,87 @@ private theorem lookup_map_det_strip {K A B : Type} [BEq K]
     simp only [List.map_cons, List.lookup_cons]
     cases (q == k) <;> simp [ih]
 
+private theorem detOneEmbedHandler_yStar_step [DecidableEq M]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ) (yStar : Target)
+    (q : M ⊕ M) (s : DetOneState M Target Preimage × Target) (hyS : s.2 = yStar)
+    (a : ROMSignature.ForgerSpec M M (Option Preimage) Target q)
+    (s' : DetOneState M Target Preimage × Target)
+    (hstep : (a, s') ∈ (detOneEmbedHandler sys pk jStar q s).support) :
+    s'.2 = yStar := by
+  rcases s with ⟨st, yS⟩
+  rcases s' with ⟨st', yS'⟩
+  dsimp only at hyS ⊢
+  subst hyS
+  cases q with
+  | inl m =>
+    dsimp only [detOneEmbedHandler] at hstep
+    cases hlu : st.cache.lookup m with
+    | some yxk =>
+      rcases yxk with ⟨y, xOpt, idxOpt⟩
+      cases xOpt <;>
+        (rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep;
+          obtain ⟨-, -, rfl⟩ := hstep; rfl)
+    | none =>
+      rw [hlu, PMF.mem_support_map_iff] at hstep
+      obtain ⟨_, -, heq⟩ := hstep
+      rw [Prod.mk.injEq, Prod.mk.injEq] at heq
+      obtain ⟨-, -, rfl⟩ := heq; rfl
+  | inr m =>
+    dsimp only [detOneEmbedHandler] at hstep
+    cases hlu : st.cache.lookup m with
+    | some yxk =>
+      rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
+      obtain ⟨-, -, rfl⟩ := hstep; rfl
+    | none =>
+      rw [hlu] at hstep
+      split_ifs at hstep with heq
+      · rw [PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
+        obtain ⟨-, -, rfl⟩ := hstep; rfl
+      · rw [PMF.mem_support_map_iff] at hstep
+        obtain ⟨_, -, heq2⟩ := hstep
+        rw [Prod.mk.injEq, Prod.mk.injEq] at heq2
+        obtain ⟨-, -, rfl⟩ := heq2; rfl
+
+private theorem detOneEmbed_map_eq_detPSOneSim [DecidableEq M]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ) (yStar : Target)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M M (Option Preimage) Target) (M × Option Preimage)) :
+    (ProbOracleComp.runWith (detOneEmbedHandler sys pk jStar) (forger pk)
+      (⟨[], [], 0, none⟩, yStar)).map
+      (fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount))) =
+    ProbComp.eval (((forger pk).runState
+      (detPSOneSimHandler sys pk jStar yStar)).run ([], [], 0)) := by
+  rw [ProbOracleComp.eval_runState]
+  refine ProbOracleComp.runWith_map_state_of_invariant
+    (detOneEmbedHandler sys pk jStar)
+    (fun q s => ProbComp.eval (detPSOneSimHandler sys pk jStar yStar q s))
+    (fun (st, _) => (st.cache, st.signed, st.hCount))
+    (fun (_, yS) => yS = yStar)
+    (detOneEmbedHandler_yStar_step sys pk jStar yStar) ?_ (forger pk)
+    (⟨[], [], 0, none⟩, yStar) rfl
+  rintro q ⟨st, yS⟩ hyS
+  subst hyS
+  cases q with
+  | inl m =>
+    dsimp only [detOneEmbedHandler, detPSOneSimHandler]
+    cases st.cache.lookup m with
+    | some yxk =>
+      rcases yxk with ⟨y, xOpt, idxOpt⟩
+      cases xOpt <;> simp [ProbComp.eval_pure, PMF.pure_map]
+    | none =>
+      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp, Function.comp_def]
+      exact (PMF.bind_pure_comp _ _).symm
+  | inr m =>
+    dsimp only [detOneEmbedHandler, detPSOneSimHandler]
+    cases st.cache.lookup m with
+    | some yxk => simp [ProbComp.eval_pure, PMF.pure_map]
+    | none =>
+      by_cases heq : st.hCount = jStar
+      · simp [heq, ProbComp.eval_pure, PMF.pure_map]
+      · simp only [heq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp,
+          Function.comp_def]
+        exact (PMF.bind_pure_comp _ _).symm
+
 /-- Hop 2→3 for `detScheme`: Bellare–Rogaway guessing over `Fin (q_H + 1)` fresh direct-hash
 indices + zero-loss abort on `Sign(m_{jStar})` bounds `G2` (`psExperimentSim` on
 `detPSDistinguisher`) by `(q_H + 1)` times `psExperimentSim` on 1-query `detPSOneDistinguisher`. -/
@@ -3785,66 +3895,7 @@ private theorem detSim_le_mul_detPSOneSim [DecidableEq M] [DecidableEq Target]
     rw [hL_simp, PMF.map_bind] at hsim
     rw [hsim]
     refine PMF.bind_congr_on_support _ _ _ fun yStar _ => ?_
-    rw [ProbOracleComp.eval_runState]
-    refine ProbOracleComp.runWith_map_state_of_invariant
-      (detOneEmbedHandler sys pk jStar.val)
-      (fun q s => ProbComp.eval (detPSOneSimHandler sys pk jStar.val yStar q s))
-      (fun (st, _) => (st.cache, st.signed, st.hCount))
-      (fun (_, yS) => yS = yStar)
-      ?_ ?_ (forger pk) (⟨[], [], 0, none⟩, yStar) rfl
-    · rintro q ⟨st, yS⟩ hyS a ⟨st', yS'⟩ hstep
-      subst hyS
-      cases q with
-      | inl m =>
-        dsimp only [detOneEmbedHandler] at hstep
-        cases hlu : st.cache.lookup m with
-        | some yxk =>
-          rcases yxk with ⟨y, xOpt, idxOpt⟩
-          cases xOpt <;>
-            (rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep;
-              obtain ⟨-, -, rfl⟩ := hstep; rfl)
-        | none =>
-          rw [hlu, PMF.mem_support_map_iff] at hstep
-          obtain ⟨_, -, heq⟩ := hstep
-          rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-          obtain ⟨-, -, rfl⟩ := heq; rfl
-      | inr m =>
-        dsimp only [detOneEmbedHandler] at hstep
-        cases hlu : st.cache.lookup m with
-        | some yxk =>
-          rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-          obtain ⟨-, -, rfl⟩ := hstep; rfl
-        | none =>
-          rw [hlu] at hstep
-          split_ifs at hstep with heq
-          · rw [PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-            obtain ⟨-, -, rfl⟩ := hstep; rfl
-          · rw [PMF.mem_support_map_iff] at hstep
-            obtain ⟨_, -, heq2⟩ := hstep
-            rw [Prod.mk.injEq, Prod.mk.injEq] at heq2
-            obtain ⟨-, -, rfl⟩ := heq2; rfl
-    · rintro q ⟨st, yS⟩ hyS
-      subst hyS
-      cases q with
-      | inl m =>
-        dsimp only [detOneEmbedHandler, detPSOneSimHandler]
-        cases st.cache.lookup m with
-        | some yxk =>
-          rcases yxk with ⟨y, xOpt, idxOpt⟩
-          cases xOpt <;> simp [ProbComp.eval_pure, PMF.pure_map]
-        | none =>
-          simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp, Function.comp_def]
-          exact (PMF.bind_pure_comp _ _).symm
-      | inr m =>
-        dsimp only [detOneEmbedHandler, detPSOneSimHandler]
-        cases st.cache.lookup m with
-        | some yxk => simp [ProbComp.eval_pure, PMF.pure_map]
-        | none =>
-          by_cases heq : st.hCount = jStar.val
-          · simp [heq, ProbComp.eval_pure, PMF.pure_map]
-          · simp only [heq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp,
-              Function.comp_def]
-            exact (PMF.bind_pure_comp _ _).symm
+    exact detOneEmbed_map_eq_detPSOneSim sys pk jStar.val yStar forger
   let postOne : (M × Option Preimage) ×
       (List (M × (Target × Option (Option Preimage) × Option ℕ)) × List M × ℕ) → PMF Bool :=
     fun ((mStar, sigStar), (cache, signed, hCount)) =>
@@ -4001,67 +4052,8 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
         (⟨[], [], 0, none⟩, yStar)).map
         (fun (out, (st, _)) => (out, (st.cache, st.signed, st.hCount))) =
       ProbComp.eval (((forger pk).runState
-        (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0)) := by
-    rw [ProbOracleComp.eval_runState]
-    refine ProbOracleComp.runWith_map_state_of_invariant
-      (detOneEmbedHandler sys pk jStar.val)
-      (fun q s => ProbComp.eval (detPSOneSimHandler sys pk jStar.val yStar q s))
-      (fun (st, _) => (st.cache, st.signed, st.hCount))
-      (fun (_, yS) => yS = yStar)
-      ?_ ?_ (forger pk) (⟨[], [], 0, none⟩, yStar) rfl
-    · rintro q ⟨st, yS⟩ hyS a ⟨st', yS'⟩ hstep
-      subst hyS
-      cases q with
-      | inl m =>
-        dsimp only [detOneEmbedHandler] at hstep
-        cases hlu : st.cache.lookup m with
-        | some yxk =>
-          rcases yxk with ⟨y, xOpt, idxOpt⟩
-          cases xOpt <;>
-            (rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep;
-              obtain ⟨-, -, rfl⟩ := hstep; rfl)
-        | none =>
-          rw [hlu, PMF.mem_support_map_iff] at hstep
-          obtain ⟨_, -, heq⟩ := hstep
-          rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-          obtain ⟨-, -, rfl⟩ := heq; rfl
-      | inr m =>
-        dsimp only [detOneEmbedHandler] at hstep
-        cases hlu : st.cache.lookup m with
-        | some yxk =>
-          rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-          obtain ⟨-, -, rfl⟩ := hstep; rfl
-        | none =>
-          rw [hlu] at hstep
-          split_ifs at hstep with heq
-          · rw [PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-            obtain ⟨-, -, rfl⟩ := hstep; rfl
-          · rw [PMF.mem_support_map_iff] at hstep
-            obtain ⟨_, -, heq2⟩ := hstep
-            rw [Prod.mk.injEq, Prod.mk.injEq] at heq2
-            obtain ⟨-, -, rfl⟩ := heq2; rfl
-    · rintro q ⟨st, yS⟩ hyS
-      subst hyS
-      cases q with
-      | inl m =>
-        dsimp only [detOneEmbedHandler, detPSOneSimHandler]
-        cases st.cache.lookup m with
-        | some yxk =>
-          rcases yxk with ⟨y, xOpt, idxOpt⟩
-          cases xOpt <;> simp [ProbComp.eval_pure, PMF.pure_map]
-        | none =>
-          simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp, Function.comp_def]
-          exact (PMF.bind_pure_comp _ _).symm
-      | inr m =>
-        dsimp only [detOneEmbedHandler, detPSOneSimHandler]
-        cases st.cache.lookup m with
-        | some yxk => simp [ProbComp.eval_pure, PMF.pure_map]
-        | none =>
-          by_cases heq : st.hCount = jStar.val
-          · simp [heq, ProbComp.eval_pure, PMF.pure_map]
-          · simp only [heq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp,
-              Function.comp_def]
-            exact (PMF.bind_pure_comp _ _).symm
+        (detPSOneSimHandler sys pk jStar.val yStar)).run ([], [], 0)) :=
+    detOneEmbed_map_eq_detPSOneSim sys pk jStar.val yStar forger
   have hinv_from_embed (yStar : Target) :
       (ProbOracleComp.runWith (detOneEmbedHandler sys pk jStar.val) (forger pk)
         (⟨[], [], 0, none⟩, yStar)).map (fun ((_, sigStar), _) => sigStar) =
@@ -4074,40 +4066,10 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
       (fun q s => ProbComp.eval (detInvHandler sys pk jStar.val yStar q s))
       (fun (st, _) => (st.cache.map fun (m, y, xOpt, _) => (m, (y, xOpt)), st.hCount))
       (fun (_, yS) => yS = yStar)
-      ?_ ?_ (forger pk) (⟨[], [], 0, none⟩, yStar) rfl
+      (detOneEmbedHandler_yStar_step sys pk jStar.val yStar) ?_ (forger pk)
+      (⟨[], [], 0, none⟩, yStar) rfl
     · have hcongr := congrArg (PMF.map fun ((_, sigStar), _) => sigStar) hproj
       simpa only [PMF.map_comp, Function.comp_def, List.map_nil] using hcongr
-    · rintro q ⟨st, yS⟩ hyS a ⟨st', yS'⟩ hstep
-      subst hyS
-      cases q with
-      | inl m =>
-        dsimp only [detOneEmbedHandler] at hstep
-        cases hlu : st.cache.lookup m with
-        | some yxk =>
-          rcases yxk with ⟨y, xOpt, idxOpt⟩
-          cases xOpt <;>
-            (rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep;
-              obtain ⟨-, -, rfl⟩ := hstep; rfl)
-        | none =>
-          rw [hlu, PMF.mem_support_map_iff] at hstep
-          obtain ⟨_, -, heq⟩ := hstep
-          rw [Prod.mk.injEq, Prod.mk.injEq] at heq
-          obtain ⟨-, -, rfl⟩ := heq; rfl
-      | inr m =>
-        dsimp only [detOneEmbedHandler] at hstep
-        cases hlu : st.cache.lookup m with
-        | some yxk =>
-          rw [hlu, PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-          obtain ⟨-, -, rfl⟩ := hstep; rfl
-        | none =>
-          rw [hlu] at hstep
-          split_ifs at hstep with heq
-          · rw [PMF.mem_support_pure_iff, Prod.mk.injEq, Prod.mk.injEq] at hstep
-            obtain ⟨-, -, rfl⟩ := hstep; rfl
-          · rw [PMF.mem_support_map_iff] at hstep
-            obtain ⟨_, -, heq2⟩ := hstep
-            rw [Prod.mk.injEq, Prod.mk.injEq] at heq2
-            obtain ⟨-, -, rfl⟩ := heq2; rfl
     · rintro q ⟨st, yS⟩ hyS
       subst hyS
       cases q with
@@ -4364,14 +4326,15 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
       exact zero_le
 
 /-- **Classical ROM EUF-CMA reduction for deterministic unsalted hash-and-sign
-(`ProbOracleComp` form)**: for any probabilistic ROM forger making at most `q_S` signing queries
-and `q_H` direct hash queries,
+(`ProbOracleComp` form)**, original to this library (adapting the `(q_H + 1)` programming
+argument after `[KosugeXagawa2022]` to unsalted `detScheme`): for any probabilistic ROM forger
+making at most `q_S` signing queries and `q_H` direct hash queries,
 `Pr[EUF-CMA] ≤ (q_H + 1) * (Pr[INV(detInverter)] + Adv^PS(detPSOneDistinguisher)) +`
 `Adv^PS(detPSDistinguisher) + (q_S + q_H).choose 2 / |Target|`.
 Every reduction is an explicit finite program with proved query bounds (`detPSDistinguisher`
 makes at most `q_S + q_H` `PS` queries, `detPSOneDistinguisher` makes at most `1` `PS` query;
 no runtime certificate claimed, tracked in #7068). -/
-theorem detWorldEufCma_succProbability_le [DecidableEq M] [DecidableEq Target]
+theorem detRomWorldEufCma_succProbability_le [DecidableEq M] [DecidableEq Target]
     [Fintype Target] [Nonempty Target] [Finite Preimage]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage)
     (forger : PK → ProbOracleComp
@@ -4500,7 +4463,9 @@ theorem detWorldEufCma_succProbability_le [DecidableEq M] [DecidableEq Target]
         add_le_add (add_le_add h24_nn le_rfl) le_rfl
 
 /-- **Classical ROM EUF-CMA reduction for deterministic unsalted hash-and-sign
-(`ROMSignature.eufCmaGame` form)**. -/
+(`ROMSignature.eufCmaGame` form)**, original to this library. Applies to `ROMSignature.Forger`
+adversaries whose coin distribution `A.coins` is realized by a finite `ProbComp A.Coins` sampler
+(`hcoins : A.coins = ProbComp.eval coinSampler`). -/
 theorem eufCmaGame_detScheme_succProbability_le [DecidableEq M] [DecidableEq Target]
     [Fintype Target] [Nonempty Target] [Finite Preimage]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage)
@@ -4520,7 +4485,7 @@ theorem eufCmaGame_detScheme_succProbability_le [DecidableEq M] [DecidableEq Tar
         (psExperimentSim sys (detPSDistinguisher sys (liftForger A coinSampler))) +
       ((q_S + q_H).choose 2 : ℝ≥0) * (Fintype.card Target : ℝ≥0)⁻¹ := by
   rw [eufCmaGame_eq_worldGame_liftForger (detScheme sys) A coinSampler hcoins]
-  exact detWorldEufCma_succProbability_le sys (liftForger A coinSampler)
+  exact detRomWorldEufCma_succProbability_le sys (liftForger A coinSampler)
     (probForgerCallBounded_liftForger coinSampler hA)
 
 end DetReduction
@@ -4628,10 +4593,10 @@ returning the target context, final RO cache, and oldest-first list of accepted 
   ProbOracleComp.runWith (romExtractedIssuerHandler com scheme keys) (A keys.1) ([], [])
 
 /-- Extracted-model single-issuer VOLE-ACT credit-conservation experiment in the lazy classical
-ROM at `tag = Prod.mk`: the adversary wins if, in its chosen context `targetCtx`, total accepted
-spend debits strictly exceed total accepted issued credit plus granted refunds. As in
-`AnonymousToken.Conservation`, VOLEitH witness extraction error and `(V4)` range checks are outside
-this extracted-model game. -/
+ROM at `tag = Prod.mk`, original to this library: the adversary wins if, in its chosen context
+`targetCtx`, total accepted spend debits strictly exceed total accepted issued credit plus granted
+refunds. As in `AnonymousToken.Conservation`, VOLEitH witness extraction error and `(V4)` range
+checks are outside this extracted-model game. -/
 @[expose] noncomputable def romExtractedConservationExperiment
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
@@ -5406,11 +5371,12 @@ private theorem rom_worldGame_targetForger_eq
     simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, hcont]
     exact (PMF.bind_pure_comp _ _).symm
 
-/-- **Generic lazy-ROM extracted credit-conservation reduction** at `tag = Prod.mk`:
-for any ROM signature scheme `scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest`,
-any keyless commitment scheme `CS` whose verifier checks `com nf ctx t o = c` under every key, and
-any `ROMExtractedAdversary A`, overspending in `romExtractedConservationExperiment` is bounded by
-the ROM EUF-CMA success of `romTargetForger com scheme A` plus the commitment-binding probability
+/-- **Generic lazy-ROM extracted credit-conservation reduction** at `tag = Prod.mk`, original to
+this library: for any ROM signature scheme
+`scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest`, any keyless commitment
+scheme `CS` whose verifier checks `com nf ctx t o = c` under every key, and any
+`ROMExtractedAdversary A`, overspending in `romExtractedConservationExperiment` is bounded by the
+ROM EUF-CMA success of `romTargetForger com scheme A` plus the commitment-binding probability
 `romBindingExperiment com CS scheme A`. -/
 theorem romExtractedConservationExperiment_succProbability_le
     {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
@@ -6068,9 +6034,12 @@ private theorem romBindingExperiment_saltedScheme_eq
   simp only [PMF.pure_bind]
 
 /-- **End-to-end extracted+ROM credit conservation for deterministic unsalted hash-and-sign
-(`detScheme sys`)**: combines `romExtractedConservationExperiment_succProbability_le` with
-`detWorldEufCma_succProbability_le` and `detCommitmentBindingReduction` for any
-`TrapdoorPreimageSystem` (including `idealUOVSystem`) and keyless commitment scheme `CS`. -/
+(`detScheme sys`)**, original to this library: combines
+`romExtractedConservationExperiment_succProbability_le` with `detRomWorldEufCma_succProbability_le`
+and `detCommitmentBindingReduction` for any `TrapdoorPreimageSystem` (including `idealUOVSystem`)
+and keyless commitment scheme `CS`, substituting `q_S ↦ q_R` and `q_H ↦ q_H + q_R` to obtain loss
+`(q_H + q_R + 1)` on `INV + PS_1`, `(q_H + 2 * q_R)`-query `PS` advantage,
+`(q_R + (q_H + q_R)).choose 2 / |Target|` birthday slack, and `CS` binding error. -/
 theorem romExtractedConservationExperiment_detScheme_succProbability_le
     {K Target Preimage : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
@@ -6104,7 +6073,7 @@ theorem romExtractedConservationExperiment_detScheme_succProbability_le
       romTargetForger_callBounded com (detScheme sys) A hA (detScheme_verify_isQueryBounded sys)
   have hcons := romExtractedConservationExperiment_succProbability_le com CS hverify
     (detScheme sys) A
-  have heuf := detWorldEufCma_succProbability_le sys (romTargetForger com (detScheme sys) A) hcb
+  have heuf := detRomWorldEufCma_succProbability_le sys (romTargetForger com (detScheme sys) A) hcb
   push_cast at heuf
   have hbind :
       Game.succProbability (romBindingExperiment com CS (detScheme sys) A) =
@@ -6115,14 +6084,18 @@ theorem romExtractedConservationExperiment_detScheme_succProbability_le
   exact hcons.trans (add_le_add heuf le_rfl)
 
 /-- **End-to-end extracted+ROM credit conservation for salted hash-and-sign
-(`saltedScheme sys Salt`)**: combines `romExtractedConservationExperiment_succProbability_le` with
-`saltedWorldEufCma_succProbability_le` and `saltedCommitmentBindingReduction` for any
-`TrapdoorPreimageSystem` (including `idealUOVSystem`) and keyless commitment scheme `CS`. -/
+(`saltedScheme sys Salt`)**, original to this library: combines
+`romExtractedConservationExperiment_succProbability_le` with
+`saltedRomWorldEufCma_succProbability_le` and `saltedCommitmentBindingReduction` for any
+`TrapdoorPreimageSystem` (including `idealUOVSystem`) and keyless commitment scheme `CS`,
+substituting `q_S ↦ q_R` and `q_H ↦ q_H + q_R` to obtain `(q_H + q_R + 1)` `INV` loss, `q_R`-query
+`PS` advantage, `(q_R * (q_H + q_R) + q_R.choose 2) / |Salt|` salt-collision slack, and `CS`
+binding error. -/
 theorem romExtractedConservationExperiment_saltedScheme_succProbability_le
     {K Salt Target Preimage : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [DecidableEq Salt] [DecidableEq Target]
-    [Fintype Salt] [Nonempty Salt] [Inhabited Salt]
+    [Fintype Salt] [Inhabited Salt]
     [Fintype Target] [Nonempty Target] [Finite Preimage]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
@@ -6157,7 +6130,7 @@ theorem romExtractedConservationExperiment_saltedScheme_succProbability_le
         (saltedScheme_verify_isQueryBounded (Salt := Salt) sys)
   have hcons := romExtractedConservationExperiment_succProbability_le com CS hverify
     (saltedScheme sys Salt) A
-  have heuf := saltedWorldEufCma_succProbability_le (Salt := Salt) sys
+  have heuf := saltedRomWorldEufCma_succProbability_le (Salt := Salt) sys
     (romTargetForger com (saltedScheme sys Salt) A) hcb
   rw [Nat.cast_add (m := q_H) (n := q_R)] at heuf
   have hbind :

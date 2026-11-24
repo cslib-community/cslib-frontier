@@ -1770,6 +1770,11 @@ János Kollár, Lajos Rónyai and Tibor Szabó. "Norm-Graphs and Bipartite Turá
 
 Bernhard Korte and Jens Vygen. *Combinatorial Optimization: Theory and Algorithms*, sixth edition. Springer, Algorithms and Combinatorics 21, 2018. https://doi.org/10.1007/978-3-662-56039-6 . Cited for Section 2.4 (Eulerian and bipartite graphs), which characterizes connected graphs with a closed Eulerian walk by even degrees (Euler, Hierholzer). The section was located from secondary sources and not checked against the printed book; its theorem number is not cited.
 
+<a id="kosugexagawa2022"></a>
+## kosugexagawa2022
+
+Haruhisa Kosuge and Keita Xagawa. *Probabilistic Hash-and-Sign with Retry in the Quantum Random Oracle Model*. IACR Cryptology ePrint Archive Report 2022/1359 (bibliography key `KosugeXagawa2022`). https://eprint.iacr.org/2022/1359 . Checked on 2026-11-24 UTC against the archived 53-page PDF (ModDate 2024-02-08, SHA-256 `60cb3368f368beeaec030cc9446e6fe1d4151106299b3f2984245a9ac6d5e031`): Section 2.3 (p. 10, Figure 4 and Definition 7) defines the preimage-sampling (`PS`) game comparing `x ← I(y)` on uniform `y` (with retry until `x ≠ ⊥` in `Sample_0`) against `x ← SampDom(F)`; Section 4, Theorem 1 (pp. 17–18) proves `INV ⇒ EUF-CMA` for `HaS[T_wpsf, H]`, including the classical-ROM specialization on p. 18 with `(q_ro + 1) Adv^{INV} + Adv^{PS} + q'_sign (q'_sign + q_ro + 1) / |R| + (q_ro + 1)(q'_sign - q_sign) / |R|`; and Appendix B.2, Proposition 3 (p. 36) applies Theorem 1 to original UOV. [UOV/HashAndSign.lean](../CslibFrontier/Crypto/Protocols/UOV/HashAndSign.lean) proves finite classical-ROM reductions without retry (`Option Preimage` failure retained so `q'_sign = q_sign`, exact `Salt` collision slack `(q_S * q_H + q_S.choose 2) / |Salt|`, and an unsalted deterministic counterpart with explicit `PS_1` and target-birthday slack); QROM bounds remain unformalized.
+
 <a id="kov17"></a>
 ## kov17
 

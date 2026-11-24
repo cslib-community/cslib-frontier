@@ -14,8 +14,9 @@ import Mathlib.Algebra.Field.ZMod
 # Clients and boundary regressions for classical ROM hash-and-sign UOV
 
 Exercises `Cslib.Crypto.UOV.HashAndSign` through an ordinary module import:
-* `idealUOVSystem` over `ZMod 5` (`v = 1, o = 1`), verifying exact equality of `.toRawScheme` with
-  `UOV.idealRawScheme` and explicit rejection of `none` preimages;
+* `idealUOVSystem` over arbitrary finite fields (`idealUOVSystem_toRawScheme`) and `ZMod 5`
+  (`v = 1, o = 1`), verifying equality of `.toRawScheme` with `UOV.idealRawScheme` and explicit
+  rejection of `none` preimages;
 * a concrete invertible `TrapdoorPreimageSystem` (`bijectiveSys` over `ZMod 5`) demonstrating
   completeness (`detScheme_correct`, `saltedScheme_correct`) together with probability-one
   acceptance/winnability witnesses for `detScheme`, `saltedScheme`, and
@@ -23,13 +24,13 @@ Exercises `Cslib.Crypto.UOV.HashAndSign` through an ordinary module import:
 * negative boundary 1: without the random-oracle `Tag` layer, raw `idealUOVSystem.toRawScheme` is
   broken with probability `1` by `UOV.eval_rawZeroForger` (zero queries) and unhashed quadratic
   maps are broken by `UOV.rescaleAttack_freshTarget` (one query);
-* negative boundary 2: with `Salt = Unit` (`|Salt| = 1`), a `1`-sign, `1`-hash forger hits the
-  salt-collision slack `(q_S * q_H + q_S.choose 2) / |Salt| = 1` tightly, whereas `Salt = Fin 64`
-  reduces the slack to `1 / 64`;
-* generic clients instantiating `eufCmaGame_detScheme_succProbability_le`,
-  `eufCmaGame_saltedScheme_succProbability_le`,
+* negative boundary 2: with `Salt = Unit` (`|Salt| = 1`), `unitSaltForger` instantiates
+  `saltedRomWorldEufCma_succProbability_le` with salt-collision slack `1` (making the bound
+  trivial at `|Salt| = 1`), whereas `Salt = Fin 64` reduces the slack term to `1 / 64`;
+* concrete `idealUOVSystem` (`ZMod 5`, `v = 1, o = 1`) clients instantiating
+  `eufCmaGame_detScheme_succProbability_le`, `eufCmaGame_saltedScheme_succProbability_le`,
   `romExtractedConservationExperiment_detScheme_succProbability_le`, and
-  `romExtractedConservationExperiment_saltedScheme_succProbability_le` on `idealUOVSystem`.
+  `romExtractedConservationExperiment_saltedScheme_succProbability_le`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -46,13 +47,15 @@ private instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 
 /-! ### 1. `idealUOVSystem` bridge and explicit failure -/
 
+example {F : Type} [Field F] [Fintype F] [DecidableEq F] (v o : ℕ)
+    (derive : IdealKeyMaterial F v o → (Fin o → F) → ProbComp (Option (Fin (v + o) → F))) :
+    (idealUOVSystem F v o derive).toRawScheme = UOV.idealRawScheme derive :=
+  idealUOVSystem_toRawScheme F v o derive
+
 example (derive : IdealKeyMaterial (ZMod 5) 1 1 → (Fin 1 → ZMod 5) →
     ProbComp (Option (Fin (1 + 1) → ZMod 5))) :
-    (idealUOVSystem (ZMod 5) 1 1 derive).toRawScheme = UOV.idealRawScheme derive := by
-  simp only [TrapdoorPreimageSystem.toRawScheme, idealUOVSystem, UOV.idealRawScheme]
-  congr 1
-  funext P y sig
-  cases sig <;> rfl
+    (idealUOVSystem (ZMod 5) 1 1 derive).toRawScheme = UOV.idealRawScheme derive :=
+  idealUOVSystem_toRawScheme (ZMod 5) 1 1 derive
 
 example (derive : IdealKeyMaterial (ZMod 5) 1 1 → (Fin 1 → ZMod 5) →
     ProbComp (Option (Fin (1 + 1) → ZMod 5)))
@@ -347,7 +350,7 @@ example :
   norm_num [testSquare, QuadraticMap.sq_apply, smul_eq_mul]
   exact (inv_eq_of_mul_eq_one_left (by decide : (4 : ZMod 5) * 4 = 1)).symm
 
-/-! ### 4. Negative boundary 2: small salt space `Salt = Unit` hits salt-collision slack tightly -/
+/-! ### 4. Negative boundary 2: small salt space `Salt = Unit` makes the slack trivial (`1`) -/
 
 /-- A `1`-sign, `1`-hash forger against `saltedScheme sys Unit`: every signing call uses the sole
 salt `() : Unit`, colliding with its prior `H (0, ())` query with probability `1`. -/
@@ -361,7 +364,7 @@ private def unitSaltForger {PK Preimage Target : Type} :
     (spec := ROMSignature.ForgerSpec ℕ (ℕ × Unit) (Unit × Option Preimage) Target) (.inl 0)
   return (1, sig)
 
-example {PK Preimage Target : Type} :
+private theorem unitSaltForger_callBounded {PK Preimage Target : Type} :
     ProbForgerCallBounded (unitSaltForger (PK := PK) (Preimage := Preimage) (Target := Target))
       1 1 := by
   intro _
@@ -377,56 +380,99 @@ example {PK Preimage Target : Type} :
         (cost := Sum.elim (fun _ => 0) ROMSignature.hashCost) (Sum.inr (.inl 0))).bind
         fun _ => OracleComp.IsCostBounded.pure _ 0
 
-/-- At `|Salt| = 1` (`Salt = Unit`) and `q_S = 1, q_H = 1`, the salt-collision slack equals `1`
-tightly. -/
-example : (((1 * 1 + (1 : ℕ).choose 2 : ℕ) : ℝ≥0) * (Fintype.card Unit : ℝ≥0)⁻¹) = 1 := by
-  norm_num
+/-- At `|Salt| = 1` (`Salt = Unit`) and `q_S = 1, q_H = 1`, the slack term equals `1`, so the
+bound is trivial at `|Salt| = 1`. -/
+example {PK SK Preimage Target : Type} [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    [Finite Preimage] (sys : TrapdoorPreimageSystem PK SK Target Preimage) :
+    Game.succProbability
+        (ROMSignature.worldGame (saltedScheme sys Unit) unitSaltForger eufCmaAccept) ≤
+      (1 + 1 : ℝ≥0) *
+        Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (saltedInverter sys Unit 1 unitSaltForger)) +
+      Experiment.advantage
+        (psExperimentReal sys (saltedPSDistinguisher sys Unit unitSaltForger))
+        (psExperimentSim sys (saltedPSDistinguisher sys Unit unitSaltForger)) + 1 := by
+  have := saltedRomWorldEufCma_succProbability_le sys unitSaltForger unitSaltForger_callBounded
+  simpa using this
 
-/-- Increasing the salt space to `Fin 64` reduces the same `(q_S = 1, q_H = 1)` slack to `1 / 64`.
--/
-example : (((1 * 1 + (1 : ℕ).choose 2 : ℕ) : ℝ≥0) * (Fintype.card (Fin 64) : ℝ≥0)⁻¹) =
-    (64 : ℝ≥0)⁻¹ := by
-  norm_num
+/-- Increasing the salt space to `Fin 64` reduces the same `(q_S = 1, q_H = 1)` slack term to
+`1 / 64`. -/
+example {PK SK M Preimage Target : Type} [DecidableEq M] [DecidableEq Target] [Fintype Target]
+    [Nonempty Target] [Finite Preimage] (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (forger : PK → ProbOracleComp
+      (ROMSignature.ForgerSpec M (M × Fin 64) (Fin 64 × Option Preimage) Target)
+      (M × (Fin 64 × Option Preimage)))
+    (h : ProbForgerCallBounded forger 1 1) :
+    Game.succProbability
+        (ROMSignature.worldGame (saltedScheme sys (Fin 64)) forger eufCmaAccept) ≤
+      (1 + 1 : ℝ≥0) *
+        Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (saltedInverter sys (Fin 64) 1 forger)) +
+      Experiment.advantage
+        (psExperimentReal sys (saltedPSDistinguisher sys (Fin 64) forger))
+        (psExperimentSim sys (saltedPSDistinguisher sys (Fin 64) forger)) + (64 : ℝ≥0)⁻¹ := by
+  have := saltedRomWorldEufCma_succProbability_le sys forger h
+  simpa using this
 
 /-! ### 5. End-to-end ROM EUF-CMA and extracted+ROM credit-conservation clients -/
 
-example {PK SK M Target Preimage Salt : Type}
-    [DecidableEq M] [DecidableEq Target] [Fintype Target] [Nonempty Target] [Finite Preimage]
-    [DecidableEq Salt] [Fintype Salt] [Nonempty Salt]
-    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
-    (A : ROMSignature.Forger PK M (Salt × Option Preimage) (M × Salt) Target)
+example (derive : IdealKeyMaterial (ZMod 5) 1 1 → (Fin 1 → ZMod 5) →
+      ProbComp (Option (Fin (1 + 1) → ZMod 5)))
+    (A : ROMSignature.Forger
+      (MultivariateQuadraticMap (ZMod 5) (Fin (1 + 1)) (Fin 1))
+      ℕ (Fin 64 × Option (Fin (1 + 1) → ZMod 5)) (ℕ × Fin 64) (Fin 1 → ZMod 5))
     (coinSampler : ProbComp A.Coins) (hcoins : A.coins = ProbComp.eval coinSampler)
     {q_S q_H : ℕ} (hA : A.CallBounded q_S q_H) :
-    Game.succProbability (ROMSignature.eufCmaGame (saltedScheme sys Salt) A) ≤
+    Game.succProbability
+        (ROMSignature.eufCmaGame (saltedScheme (idealUOVSystem (ZMod 5) 1 1 derive) (Fin 64)) A) ≤
       (q_H + 1 : ℝ≥0) *
         Experiment.succProbability
-          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
-            (saltedInverter sys Salt q_H (liftForger A coinSampler))) +
+          (Signature.targetExperiment (idealUOVSystem (ZMod 5) 1 1 derive).toRawScheme
+            (fun _ => ProbComp.uniform (Fin 1 → ZMod 5))
+            (saltedInverter (idealUOVSystem (ZMod 5) 1 1 derive) (Fin 64) q_H
+              (liftForger A coinSampler))) +
       Experiment.advantage
-        (psExperimentReal sys (saltedPSDistinguisher sys Salt (liftForger A coinSampler)))
-        (psExperimentSim sys (saltedPSDistinguisher sys Salt (liftForger A coinSampler))) +
-      ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0) * (Fintype.card Salt : ℝ≥0)⁻¹ :=
-  eufCmaGame_saltedScheme_succProbability_le sys A coinSampler hcoins hA
+        (psExperimentReal (idealUOVSystem (ZMod 5) 1 1 derive)
+          (saltedPSDistinguisher (idealUOVSystem (ZMod 5) 1 1 derive) (Fin 64)
+            (liftForger A coinSampler)))
+        (psExperimentSim (idealUOVSystem (ZMod 5) 1 1 derive)
+          (saltedPSDistinguisher (idealUOVSystem (ZMod 5) 1 1 derive) (Fin 64)
+            (liftForger A coinSampler))) +
+      ((q_S * q_H + q_S.choose 2 : ℕ) : ℝ≥0) * (Fintype.card (Fin 64) : ℝ≥0)⁻¹ :=
+  eufCmaGame_saltedScheme_succProbability_le (idealUOVSystem (ZMod 5) 1 1 derive)
+    A coinSampler hcoins hA
 
-example {PK SK M Target Preimage : Type}
-    [DecidableEq M] [DecidableEq Target] [Fintype Target] [Nonempty Target] [Finite Preimage]
-    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
-    (A : ROMSignature.Forger PK M (Option Preimage) M Target)
+example (derive : IdealKeyMaterial (ZMod 5) 1 1 → (Fin 1 → ZMod 5) →
+      ProbComp (Option (Fin (1 + 1) → ZMod 5)))
+    (A : ROMSignature.Forger
+      (MultivariateQuadraticMap (ZMod 5) (Fin (1 + 1)) (Fin 1))
+      ℕ (Option (Fin (1 + 1) → ZMod 5)) ℕ (Fin 1 → ZMod 5))
     (coinSampler : ProbComp A.Coins) (hcoins : A.coins = ProbComp.eval coinSampler)
     {q_S q_H : ℕ} (hA : A.CallBounded q_S q_H) :
-    Game.succProbability (ROMSignature.eufCmaGame (detScheme sys) A) ≤
+    Game.succProbability
+        (ROMSignature.eufCmaGame (detScheme (idealUOVSystem (ZMod 5) 1 1 derive)) A) ≤
       (q_H + 1 : ℝ≥0) *
         (Experiment.succProbability
-          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
-            (detInverter sys q_H (liftForger A coinSampler))) +
+          (Signature.targetExperiment (idealUOVSystem (ZMod 5) 1 1 derive).toRawScheme
+            (fun _ => ProbComp.uniform (Fin 1 → ZMod 5))
+            (detInverter (idealUOVSystem (ZMod 5) 1 1 derive) q_H (liftForger A coinSampler))) +
         Experiment.advantage
-          (psExperimentReal sys (detPSOneDistinguisher sys q_H (liftForger A coinSampler)))
-          (psExperimentSim sys (detPSOneDistinguisher sys q_H (liftForger A coinSampler)))) +
+          (psExperimentReal (idealUOVSystem (ZMod 5) 1 1 derive)
+            (detPSOneDistinguisher (idealUOVSystem (ZMod 5) 1 1 derive) q_H
+              (liftForger A coinSampler)))
+          (psExperimentSim (idealUOVSystem (ZMod 5) 1 1 derive)
+            (detPSOneDistinguisher (idealUOVSystem (ZMod 5) 1 1 derive) q_H
+              (liftForger A coinSampler)))) +
       Experiment.advantage
-        (psExperimentReal sys (detPSDistinguisher sys (liftForger A coinSampler)))
-        (psExperimentSim sys (detPSDistinguisher sys (liftForger A coinSampler))) +
-      ((q_S + q_H).choose 2 : ℝ≥0) * (Fintype.card Target : ℝ≥0)⁻¹ :=
-  eufCmaGame_detScheme_succProbability_le sys A coinSampler hcoins hA
+        (psExperimentReal (idealUOVSystem (ZMod 5) 1 1 derive)
+          (detPSDistinguisher (idealUOVSystem (ZMod 5) 1 1 derive) (liftForger A coinSampler)))
+        (psExperimentSim (idealUOVSystem (ZMod 5) 1 1 derive)
+          (detPSDistinguisher (idealUOVSystem (ZMod 5) 1 1 derive) (liftForger A coinSampler))) +
+      ((q_S + q_H).choose 2 : ℝ≥0) * (Fintype.card (Fin 1 → ZMod 5) : ℝ≥0)⁻¹ :=
+  eufCmaGame_detScheme_succProbability_le (idealUOVSystem (ZMod 5) 1 1 derive)
+    A coinSampler hcoins hA
 
 /-- End-to-end extracted+ROM credit conservation instantiated on `idealUOVSystem` (deterministic
 unsalted `Tag`) and keyless `testComScheme`. -/
