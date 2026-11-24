@@ -15,17 +15,14 @@ import CslibFrontier.GameTheory.Market.EisenbergGale
 
 register_result "walras-law-and-first-welfare-theorem" where
   title := "Walras's law, the First Welfare Theorem, and Fisher-to-exchange market reduction"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := CodenottiVaradarajan2007,
-      theorem := "Section 6.1.1 and Section 6.2",
-      locator := "Section 6.1.1, pp. 135–137, and Section 6.2, p. 141" },
+      theorem := "Section 6.1.1, Section 6.1.7, and Section 6.2",
+      locator := "Section 6.1.1, pp. 136–137; Section 6.1.7, p. 140; Section 6.2, p. 141" },
     { paper := ArrowDebreu1954,
-      theorem := "Section 1 (competitive equilibrium and optimality)",
-      locator := "pp. 265–270" },
-    { paper := Vazirani2007,
-      theorem := "Section 5.11 and Exercise 5.7",
-      locator := "Section 5.11, p. 122, and Section 5.15, p. 132" }
+      theorem := unverified,
+      locator := unverified }
   ]
   theorems := [
     Cslib.GameTheory.Market.ExchangeMarket.walras_law,
@@ -39,23 +36,27 @@ register_result "walras-law-and-first-welfare-theorem" where
     over ℝ, with nonnegative endowments or supplies/budgets and free-disposal market clearing \
     (excessDemand x g ≤ 0 with p g * excessDemand x g = 0). Under local nonsatiation on \
     nonnegative bundles (IsLocallyNonsatiated), every optimal demand profile satisfies Walras's \
-    law expenditure p (excessDemand x) = 0, and every competitive equilibrium of an \
-    ExchangeMarket or FisherMarket is Pareto optimal (First Welfare Theorem, without convexity \
-    or continuity hypotheses). Positive-budget Fisher markets embed into ExchangeMarket by \
-    budget-proportional endowment shares (toExchangeMarket), preserving equilibria up to positive \
-    price rescaling (Exercise 5.7); machine-level complexity of the reduction is not modeled."
+    law expenditure p (excessDemand x) = 0 (CodenottiVaradarajan2007, §6.1.1, p. 137), and every \
+    competitive equilibrium of an ExchangeMarket or FisherMarket is Pareto optimal (First Welfare \
+    Theorem, without convexity or continuity hypotheses). Positive-budget Fisher markets embed \
+    into ExchangeMarket by budget-proportional endowment shares (toExchangeMarket; \
+    CodenottiVaradarajan2007, §6.1.7, p. 140), preserving equilibria up to positive price \
+    rescaling; machine-level complexity of the reduction is not modeled."
 
 register_result "eisenberg-gale-linear-fisher-equilibria" where
   title := "Eisenberg–Gale convex program, KKT equivalence, and linear Fisher market equilibria"
-  topic := "algorithmic game theory"
+  topic := "game theory"
   sources := [
     { paper := Vazirani2007,
-      theorem := "Theorem 5.1, Exercise 5.1, Section 5.2, Section 5.11, and Exercise 5.7",
-      locator := "Section 5.2, Program (5.1) and Theorem 5.1, pp. 105–107; Section 5.11, p. 122; \
-        and Section 5.15, p. 132" },
+      theorem := "Section 5.2, Program (5.1), and Theorem 5.1",
+      locator := "Section 5.2, pp. 105–107 \
+        (KKT conditions (i)–(iv) on p. 106; Theorem 5.1, p. 107)" },
+    { paper := CodenottiVaradarajan2007,
+      theorem := "Section 6.1.7 (proportional-endowment Fisher-to-exchange embedding)",
+      locator := "Section 6.1.7, p. 140" },
     { paper := EisenbergGale1959,
-      theorem := "Theorems 1 and 2, and Corollaries 1 and 2",
-      locator := "pp. 165–168" }
+      theorem := unverified,
+      locator := unverified }
   ]
   theorems := [
     Cslib.GameTheory.Market.LinearFisherMarket.isEquilibrium_iff_bangPerBuck,
@@ -74,9 +75,11 @@ register_result "eisenberg-gale-linear-fisher-equilibria" where
     supply g = 1). Under IsNonDegenerate (positive budgets and supplies, every buyer desires at \
     least one good, and every good is desired by at least one buyer), proves the three-way \
     equivalence between market equilibria, maximum bang-per-buck / Eisenberg–Gale KKT conditions \
-    (IsEisenbergGaleKKT), and maximizers of ∑_i budget_i * log(buyerUtility_i) over \
-    IsPositiveUtilityAllocation (with explicit dual prices eisenbergGaleDualPrice), together \
-    with Theorem 5.1 parts 1–3: equilibrium existence, convexity of equilibrium allocations, and \
-    uniqueness of equilibrium utilities and prices. Polynomial-bit rationality of rational \
-    instances (Theorem 5.1 part 4, proved in Vazirani Section 5.9–5.10 via DPSV / Lemma 5.20) \
-    remains open under #7789."
+    (IsEisenbergGaleKKT; Vazirani2007, §5.2, p. 106), and maximizers of \
+    ∑_i budget_i * log(buyerUtility_i) over IsPositiveUtilityAllocation (with explicit dual \
+    prices eisenbergGaleDualPrice), together with Theorem 5.1 parts 1–3 (p. 107): equilibrium \
+    existence, convexity of equilibrium allocations, and uniqueness of equilibrium utilities and \
+    prices, plus the proportional-endowment embedding toLinearExchangeMarket \
+    (CodenottiVaradarajan2007, §6.1.7, p. 140). Polynomial-bit rationality of rational instances \
+    (Theorem 5.1 part 4, proved in Vazirani Section 5.9–5.10 via DPSV / Lemma 5.20) remains open \
+    under #7789."

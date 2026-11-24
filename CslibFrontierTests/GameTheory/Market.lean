@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: local-only (test driver)
 
 public import CslibFrontier.GameTheory.Market.EisenbergGale
 public import Mathlib.Algebra.BigOperators.Fin
@@ -41,7 +41,7 @@ construct markets, certify equilibria, and apply the headline theorems without `
 
 public section
 
-namespace CslibTests.GameTheory.Market
+namespace CslibFrontierTests.GameTheory.Market
 
 open Cslib.GameTheory.Market
 
@@ -55,12 +55,12 @@ noncomputable def splitFisher : LinearFisherMarket (Fin 2) (Fin 2) :=
     (by simp [Fin.forall_fin_two])
 
 theorem splitFisher_isNonDegenerate : splitFisher.IsNonDegenerate where
-  budget_pos := by simp [splitFisher, LinearFisherMarket.unitSupply, Fin.forall_fin_two]
-  supply_pos := by simp [splitFisher, LinearFisherMarket.unitSupply]
+  budget_pos := by simp [splitFisher, Fin.forall_fin_two]
+  supply_pos := by simp [splitFisher]
   buyer_nonsatiated := by
-    simp [splitFisher, LinearFisherMarket.unitSupply, Fin.forall_fin_two, Fin.exists_fin_two]
+    simp [splitFisher, Fin.forall_fin_two, Fin.exists_fin_two]
   good_desired := by
-    simp [splitFisher, LinearFisherMarket.unitSupply, Fin.forall_fin_two, Fin.exists_fin_two]
+    simp [splitFisher, Fin.forall_fin_two, Fin.exists_fin_two]
 
 /-- Unique equilibrium allocation of `splitFisher`, splitting good `0` as `3/5 + 2/5 = 1`. -/
 noncomputable def splitAlloc : Fin 2 → Fin 2 → ℝ :=
@@ -77,14 +77,13 @@ theorem splitFisher_isEquilibrium : splitFisher.IsEquilibrium splitAlloc splitPr
   · simp [splitPrices, Fin.forall_fin_two]
   · simp [splitAlloc, Fin.forall_fin_two]
     norm_num
-  · simp [splitFisher, LinearFisherMarket.unitSupply, splitAlloc, Fin.forall_fin_two,
-      Fin.sum_univ_two]
+  · simp [splitFisher, splitAlloc, Fin.forall_fin_two, Fin.sum_univ_two]
     norm_num
-  · simp [splitFisher, LinearFisherMarket.unitSupply, expenditure, splitAlloc, splitPrices,
+  · simp [splitFisher, expenditure_eq_sum, splitAlloc, splitPrices,
       Fin.forall_fin_two, Fin.sum_univ_two]
     norm_num
-  · simp [splitFisher, LinearFisherMarket.unitSupply, LinearFisherMarket.bangPerBuck,
-      splitAlloc, splitPrices, Fin.forall_fin_two]
+  · simp [splitFisher, LinearFisherMarket.bangPerBuck_eq, splitAlloc, splitPrices,
+      Fin.forall_fin_two]
     norm_num
 
 theorem splitFisher_isEisenbergGaleKKT :
@@ -100,6 +99,77 @@ theorem splitFisher_toLinearExchange_equilibrium :
   ((LinearFisherMarket.isEquilibrium_iff_toLinearExchangeMarket
     splitFisher_isNonDegenerate).1 splitFisher_isEquilibrium).2
 
+theorem splitFisher_isMaxOn_eisenbergGaleObjective :
+    splitFisher.IsPositiveUtilityAllocation splitAlloc ∧
+      IsMaxOn splitFisher.eisenbergGaleObjective
+        {y | splitFisher.IsPositiveUtilityAllocation y} splitAlloc :=
+  (LinearFisherMarket.isEquilibrium_iff_isMaxOn_eisenbergGaleObjective
+    splitFisher_isNonDegenerate splitAlloc).1 ⟨splitPrices, splitFisher_isEquilibrium⟩
+
+theorem splitFisher_eisenbergGaleDualPrice :
+    splitFisher.eisenbergGaleDualPrice splitAlloc = splitPrices := by
+  funext g
+  have hbu0 : splitFisher.buyerUtility splitAlloc 0 = 12 / 5 := by
+    simp only [LinearFisherMarket.buyerUtility_eq, linearUtility_eq_sum, splitFisher,
+      LinearFisherMarket.unitSupply_utility, splitAlloc, Fin.sum_univ_two,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one]
+    norm_num
+  have hbu1 : splitFisher.buyerUtility splitAlloc 1 = 14 / 5 := by
+    simp only [LinearFisherMarket.buyerUtility_eq, linearUtility_eq_sum, splitFisher,
+      LinearFisherMarket.unitSupply_utility, splitAlloc, Fin.sum_univ_two,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one]
+    norm_num
+  rw [LinearFisherMarket.eisenbergGaleDualPrice_of_nonempty]
+  fin_cases g
+  · apply le_antisymm
+    · refine Finset.sup'_le _ _ fun i _ => ?_
+      fin_cases i
+      · change splitFisher.budget 0 * splitFisher.utility 0 0 /
+            splitFisher.buyerUtility splitAlloc 0 ≤ splitPrices 0
+        rw [hbu0]
+        simp [splitFisher, splitPrices]
+        norm_num
+      · change splitFisher.budget 1 * splitFisher.utility 1 0 /
+            splitFisher.buyerUtility splitAlloc 1 ≤ splitPrices 0
+        rw [hbu1]
+        simp [splitFisher, splitPrices]
+        norm_num
+    · refine le_trans ?_ (Finset.le_sup' (f := fun i =>
+        splitFisher.budget i * splitFisher.utility i 0 / splitFisher.buyerUtility splitAlloc i)
+        (Finset.mem_univ 0))
+      rw [hbu0]
+      simp [splitFisher, splitPrices]
+      norm_num
+  · apply le_antisymm
+    · refine Finset.sup'_le _ _ fun i _ => ?_
+      fin_cases i
+      · change splitFisher.budget 0 * splitFisher.utility 0 1 /
+            splitFisher.buyerUtility splitAlloc 0 ≤ splitPrices 1
+        rw [hbu0]
+        simp [splitFisher, splitPrices]
+        norm_num
+      · change splitFisher.budget 1 * splitFisher.utility 1 1 /
+            splitFisher.buyerUtility splitAlloc 1 ≤ splitPrices 1
+        rw [hbu1]
+        simp [splitFisher, splitPrices]
+        norm_num
+    · refine le_trans ?_ (Finset.le_sup' (f := fun i =>
+        splitFisher.budget i * splitFisher.utility i 1 / splitFisher.buyerUtility splitAlloc i)
+        (Finset.mem_univ 1))
+      rw [hbu1]
+      simp [splitFisher, splitPrices]
+      norm_num
+
+theorem splitFisher_price_unique (x : Fin 2 → Fin 2 → ℝ) (p : Fin 2 → ℝ)
+    (heq : splitFisher.IsEquilibrium x p) : p = splitPrices :=
+  LinearFisherMarket.price_eq_of_isEquilibrium splitFisher_isNonDegenerate
+    heq splitFisher_isEquilibrium
+
+theorem splitFisher_exists_isEquilibrium :
+    ∃ x p, splitFisher.IsEquilibrium x p ∧ p = splitPrices := by
+  obtain ⟨x, p, heq⟩ := splitFisher_isNonDegenerate.exists_isEquilibrium
+  exact ⟨x, p, heq, splitFisher_price_unique x p heq⟩
+
 /-! ### 2. Distinct equilibrium allocations with unique utilities, unique prices, and convexity -/
 
 /-- Symmetric `2 × 2` unit-supply Fisher market with budgets `![2, 2]` and all utilities `1`. -/
@@ -109,12 +179,12 @@ noncomputable def symFisher : LinearFisherMarket (Fin 2) (Fin 2) :=
     (by simp [Fin.forall_fin_two])
 
 theorem symFisher_isNonDegenerate : symFisher.IsNonDegenerate where
-  budget_pos := by simp [symFisher, LinearFisherMarket.unitSupply, Fin.forall_fin_two]
-  supply_pos := by simp [symFisher, LinearFisherMarket.unitSupply]
+  budget_pos := by simp [symFisher, Fin.forall_fin_two]
+  supply_pos := by simp [symFisher]
   buyer_nonsatiated := by
-    simp [symFisher, LinearFisherMarket.unitSupply, Fin.forall_fin_two, Fin.exists_fin_two]
+    simp [symFisher, Fin.forall_fin_two, Fin.exists_fin_two]
   good_desired := by
-    simp [symFisher, LinearFisherMarket.unitSupply, Fin.forall_fin_two, Fin.exists_fin_two]
+    simp [symFisher, Fin.forall_fin_two, Fin.exists_fin_two]
 
 def symAlloc₁ : Fin 2 → Fin 2 → ℝ := ![![1, 0], ![0, 1]]
 def symAlloc₂ : Fin 2 → Fin 2 → ℝ := ![![0, 1], ![1, 0]]
@@ -128,13 +198,13 @@ theorem symAlloc₁_ne_symAlloc₂ : symAlloc₁ ≠ symAlloc₂ := by
 theorem symFisher_isEquilibrium₁ : symFisher.IsEquilibrium symAlloc₁ symPrices := by
   rw [LinearFisherMarket.isEquilibrium_iff_bangPerBuck
     symFisher_isNonDegenerate.buyer_nonsatiated symFisher_isNonDegenerate.good_desired]
-  simp [symFisher, LinearFisherMarket.unitSupply, LinearFisherMarket.bangPerBuck, expenditure,
+  simp [symFisher, LinearFisherMarket.bangPerBuck_eq, expenditure_eq_sum,
     symAlloc₁, symPrices, Fin.forall_fin_two, Fin.sum_univ_two]
 
 theorem symFisher_isEquilibrium₂ : symFisher.IsEquilibrium symAlloc₂ symPrices := by
   rw [LinearFisherMarket.isEquilibrium_iff_bangPerBuck
     symFisher_isNonDegenerate.buyer_nonsatiated symFisher_isNonDegenerate.good_desired]
-  simp [symFisher, LinearFisherMarket.unitSupply, LinearFisherMarket.bangPerBuck, expenditure,
+  simp [symFisher, LinearFisherMarket.bangPerBuck_eq, expenditure_eq_sum,
     symAlloc₂, symPrices, Fin.forall_fin_two, Fin.sum_univ_two]
 
 /-- Both distinct equilibrium allocations yield identical utilities and their midpoint is an
@@ -168,8 +238,8 @@ theorem edgeworthBox_equilibrium_and_pareto :
   have heq : edgeworthBox.IsCompetitiveEquilibrium ![![0, 2], ![2, 0]] ![1, 1] := by
     rw [edgeworthBox.isCompetitiveEquilibrium_iff_bangPerBuck
       (by simp [Fin.forall_fin_two]) edgeworthBox_nonsatiated]
-    simp [edgeworthBox, LinearExchangeMarket.toExchangeMarket, ExchangeMarket.totalSupply,
-      ExchangeMarket.income, expenditure, Fin.forall_fin_two, Fin.sum_univ_two]
+    simp [edgeworthBox, ExchangeMarket.totalSupply_eq_sum,
+      ExchangeMarket.income_eq, expenditure_eq_sum, Fin.forall_fin_two, Fin.sum_univ_two]
   exact ⟨heq, heq.isParetoOptimal edgeworthBox_nonsatiated⟩
 
 /-- At non-equilibrium prices `p' = ![1, 2]`, optimal demands `![![0, 1], ![4, 0]]` produce nonzero
@@ -188,18 +258,19 @@ theorem edgeworthBox_offEquilibrium_walras :
     intro i
     have hp' : ∀ g : Fin 2, 0 < (![1, 2] : Fin 2 → ℝ) g := by simp [Fin.forall_fin_two]
     have hp'_nn : ∀ g : Fin 2, 0 ≤ (![1, 2] : Fin 2 → ℝ) g := fun g => (hp' g).le
+    rw [ExchangeMarket.mem_demandSet, LinearExchangeMarket.toExchangeMarket_utility]
     refine (mem_demandSet_linearUtility_iff (edgeworthBox.utility_nonneg i)
       (edgeworthBox.toExchangeMarket.income_nonneg hp'_nn i) hp' (edgeworthBox_nonsatiated i)).2 ?_
     fin_cases i <;>
-      · simp [edgeworthBox, LinearExchangeMarket.toExchangeMarket, ExchangeMarket.income,
-          expenditure, Fin.forall_fin_two, Fin.sum_univ_two]
+      · simp [edgeworthBox, ExchangeMarket.income_eq,
+          expenditure_eq_sum, Fin.forall_fin_two, Fin.sum_univ_two]
         norm_num
   refine ⟨hdem, ?_, ?_, edgeworthBox.walras_law edgeworthBox_nonsatiated hdem⟩
-  · simp [edgeworthBox, LinearExchangeMarket.toExchangeMarket, ExchangeMarket.excessDemand,
-      ExchangeMarket.totalSupply, Fin.sum_univ_two]
+  · simp [edgeworthBox, ExchangeMarket.excessDemand_eq,
+      ExchangeMarket.totalSupply_eq_sum, Fin.sum_univ_two]
     norm_num
-  · simp [edgeworthBox, LinearExchangeMarket.toExchangeMarket, ExchangeMarket.excessDemand,
-      ExchangeMarket.totalSupply, Fin.sum_univ_two]
+  · simp [edgeworthBox, ExchangeMarket.excessDemand_eq,
+      ExchangeMarket.totalSupply_eq_sum, Fin.sum_univ_two]
     norm_num
 
 /-! ### 4. Counterexample without local nonsatiation: Walras's law and Welfare fail -/
@@ -224,15 +295,17 @@ theorem satiatedMarket_walras_counterexample :
       expenditure (fun _ : Unit => (1 : ℝ)) (satiatedMarket.excessDemand (fun _ _ => 0)) = -1 := by
   refine ⟨?_, ?_⟩
   · intro i
+    rw [ExchangeMarket.mem_demandSet, mem_demandSet]
     fin_cases i
     · refine ⟨⟨fun _ => le_rfl, ?_⟩, fun _ _ => le_rfl⟩
-      simp [satiatedMarket, ExchangeMarket.income, expenditure]
+      simp [satiatedMarket, ExchangeMarket.income_eq, expenditure_eq_sum]
     · refine ⟨⟨fun _ => le_rfl, ?_⟩, fun b' hb' => ?_⟩
-      · simp [satiatedMarket, ExchangeMarket.income, expenditure]
+      · simp [satiatedMarket, ExchangeMarket.income_eq, expenditure_eq_sum]
       · have hle : b' () ≤ 0 := by
-          simpa [satiatedMarket, ExchangeMarket.income, expenditure] using hb'.2
+          simpa [satiatedMarket, ExchangeMarket.income_eq, expenditure_eq_sum] using hb'.2
         simpa [satiatedMarket] using hle
-  · simp [satiatedMarket, ExchangeMarket.excessDemand, ExchangeMarket.totalSupply, expenditure]
+  · simp [satiatedMarket, ExchangeMarket.excessDemand_eq, ExchangeMarket.totalSupply_eq_sum,
+      expenditure_eq_sum]
 
 /-- Without local nonsatiation, the no-trade allocation `x = satiatedMarket.endowment` is a
 competitive equilibrium at price `1`, yet fails Pareto optimality (`¬ IsParetoOptimal`). -/
@@ -241,20 +314,22 @@ theorem satiatedMarket_firstWelfare_counterexample :
       ¬ satiatedMarket.IsParetoOptimal satiatedMarket.endowment := by
   refine ⟨⟨fun _ => zero_le_one, ?_, ?_, ?_⟩, ?_⟩
   · intro i
+    rw [ExchangeMarket.mem_demandSet, mem_demandSet]
     fin_cases i
-    · refine ⟨⟨by simp [satiatedMarket], le_rfl⟩, fun _ _ => le_rfl⟩
-    · refine ⟨⟨by simp [satiatedMarket], le_rfl⟩, fun b' hb' => ?_⟩
+    · refine ⟨⟨by simp [satiatedMarket], by simp [ExchangeMarket.income_eq]⟩,
+        fun _ _ => le_rfl⟩
+    · refine ⟨⟨by simp [satiatedMarket], by simp [ExchangeMarket.income_eq]⟩, fun b' hb' => ?_⟩
       have hle : b' () ≤ 0 := by
-        simpa [satiatedMarket, ExchangeMarket.income, expenditure] using hb'.2
+        simpa [satiatedMarket, ExchangeMarket.income_eq, expenditure_eq_sum] using hb'.2
       simpa [satiatedMarket] using hle
   · intro _
-    simp [ExchangeMarket.excessDemand, ExchangeMarket.totalSupply]
+    simp [ExchangeMarket.excessDemand_eq, ExchangeMarket.totalSupply_eq_sum]
   · intro _
-    simp [ExchangeMarket.excessDemand, ExchangeMarket.totalSupply]
+    simp [ExchangeMarket.excessDemand_eq, ExchangeMarket.totalSupply_eq_sum]
   · rintro ⟨-, hno_dom⟩
     refine hno_dom ⟨fun i _ => if i = 0 then 0 else 1, ?_, ?_, ⟨1, ?_⟩⟩
     · refine ⟨by simp [Fin.forall_fin_two], fun _ => ?_⟩
-      simp [satiatedMarket, ExchangeMarket.totalSupply, Fin.sum_univ_two]
+      simp [satiatedMarket, ExchangeMarket.totalSupply_eq_sum, Fin.sum_univ_two]
     · simp [satiatedMarket, Fin.forall_fin_two]
     · simp [satiatedMarket]
 
@@ -273,58 +348,64 @@ theorem undesiredGoodMarket_equilibrium_zero_price :
       ∀ (x : Unit → Fin 2 → ℝ) (p : Fin 2 → ℝ),
         undesiredGoodMarket.IsEquilibrium x p → p 1 = 0 := by
   refine ⟨?_, ?_, ?_⟩
-  · refine ⟨by simp [Fin.forall_fin_two], fun _ => ⟨⟨by simp [Fin.forall_fin_two], ?_⟩, ?_⟩,
-      by simp [undesiredGoodMarket, LinearFisherMarket.unitSupply, Fin.forall_fin_two],
-      by simp [undesiredGoodMarket, LinearFisherMarket.unitSupply, Fin.forall_fin_two]⟩
-    · simp [undesiredGoodMarket, LinearFisherMarket.unitSupply, expenditure, Fin.sum_univ_two]
+  · refine ⟨by simp [Fin.forall_fin_two], fun _ => ?_,
+      by simp [undesiredGoodMarket, Fin.forall_fin_two],
+      by simp [undesiredGoodMarket, Fin.forall_fin_two]⟩
+    rw [FisherMarket.mem_demandSet, mem_demandSet]
+    refine ⟨⟨by simp [Fin.forall_fin_two], ?_⟩, ?_⟩
+    · simp [undesiredGoodMarket, expenditure_eq_sum, Fin.sum_univ_two]
     · intro b' hb'
       have hb'0 : 2 * b' 0 ≤ 2 := by
-        simpa [undesiredGoodMarket, LinearFisherMarket.unitSupply, expenditure, Fin.sum_univ_two]
-          using hb'.2
-      simp only [undesiredGoodMarket, LinearFisherMarket.toFisherMarket,
-        LinearFisherMarket.unitSupply, linearUtility, Fin.sum_univ_two, Matrix.cons_val_zero,
-        Matrix.cons_val_one, Matrix.cons_val_fin_one]
+        simpa [undesiredGoodMarket, expenditure_eq_sum, Fin.sum_univ_two] using hb'.2
+      simp only [undesiredGoodMarket, LinearFisherMarket.toFisherMarket_utility,
+        LinearFisherMarket.unitSupply_utility, linearUtility_eq_sum, Fin.sum_univ_two,
+        Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one]
       linarith
-  · refine ⟨by simp [Fin.forall_fin_two], fun _ => ⟨⟨by simp [Fin.forall_fin_two], ?_⟩, ?_⟩,
-      by simp [undesiredGoodMarket, LinearFisherMarket.unitSupply, Fin.forall_fin_two],
-      by simp [undesiredGoodMarket, LinearFisherMarket.unitSupply, Fin.forall_fin_two]⟩
-    · simp [undesiredGoodMarket, LinearFisherMarket.unitSupply, expenditure, Fin.sum_univ_two]
+  · refine ⟨by simp [Fin.forall_fin_two], fun _ => ?_,
+      by simp [undesiredGoodMarket, Fin.forall_fin_two],
+      by simp [undesiredGoodMarket, Fin.forall_fin_two]⟩
+    rw [FisherMarket.mem_demandSet, mem_demandSet]
+    refine ⟨⟨by simp [Fin.forall_fin_two], ?_⟩, ?_⟩
+    · simp [undesiredGoodMarket, expenditure_eq_sum, Fin.sum_univ_two]
     · intro b' hb'
       have hb'0 : 2 * b' 0 ≤ 2 := by
-        simpa [undesiredGoodMarket, LinearFisherMarket.unitSupply, expenditure, Fin.sum_univ_two]
-          using hb'.2
-      simp only [undesiredGoodMarket, LinearFisherMarket.toFisherMarket,
-        LinearFisherMarket.unitSupply, linearUtility, Fin.sum_univ_two, Matrix.cons_val_zero,
-        Matrix.cons_val_one, Matrix.cons_val_fin_one]
+        simpa [undesiredGoodMarket, expenditure_eq_sum, Fin.sum_univ_two] using hb'.2
+      simp only [undesiredGoodMarket, LinearFisherMarket.toFisherMarket_utility,
+        LinearFisherMarket.unitSupply_utility, linearUtility_eq_sum, Fin.sum_univ_two,
+        Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one]
       linarith
   · intro x p heq
     by_contra hp1_ne
+    have hdem_x := mem_demandSet.1 (undesiredGoodMarket.toFisherMarket.mem_demandSet.1 (heq.2.1 ()))
     have hp1_pos : 0 < p 1 := lt_of_le_of_ne (heq.1 1) (Ne.symm hp1_ne)
+    have hmem_x : x () ∈ demandSet (linearUtility (undesiredGoodMarket.utility ())) p
+        (undesiredGoodMarket.budget ()) := by
+      simpa only [LinearFisherMarket.toFisherMarket_utility,
+        LinearFisherMarket.toFisherMarket_budget] using
+        undesiredGoodMarket.toFisherMarket.mem_demandSet.1 (heq.2.1 ())
     have hp0_pos : 0 < p 0 :=
-      price_pos_of_mem_demandSet_linearUtility heq.1 (heq.2.1 ())
-        (by simp [undesiredGoodMarket, LinearFisherMarket.unitSupply])
+      price_pos_of_mem_demandSet_linearUtility heq.1 hmem_x
+        (by simp [undesiredGoodMarket])
     have hx1_eq : x () 1 = 1 := by
-      simpa [undesiredGoodMarket, LinearFisherMarket.unitSupply] using
-        heq.sum_eq_supply_of_price_pos hp1_pos
+      simpa [undesiredGoodMarket] using heq.sum_eq_supply_of_price_pos hp1_pos
     let b' : Fin 2 → ℝ := ![x () 0 + p 1 / p 0, 0]
     have hb'_nn : ∀ g : Fin 2, 0 ≤ b' g := by
       simp only [b', Fin.forall_fin_two, Matrix.cons_val_zero, Matrix.cons_val_one,
         Matrix.cons_val_fin_one, le_refl, and_true]
-      exact add_nonneg ((heq.2.1 ()).1.1 0) (div_nonneg hp1_pos.le hp0_pos.le)
+      exact add_nonneg (hdem_x.1.1 0) (div_nonneg hp1_pos.le hp0_pos.le)
     have hb'_exp : expenditure p b' ≤ 2 := by
       have hexp_x : p 0 * x () 0 + p 1 * 1 ≤ 2 := by
-        have h := (heq.2.1 ()).1.2
-        simpa [undesiredGoodMarket, LinearFisherMarket.unitSupply, expenditure, Fin.sum_univ_two,
-          hx1_eq] using h
+        have h := hdem_x.1.2
+        simpa [undesiredGoodMarket, expenditure_eq_sum, Fin.sum_univ_two, hx1_eq] using h
       have hexp_b' : expenditure p b' = p 0 * x () 0 + p 1 := by
-        simp only [expenditure, b', Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one,
-          Matrix.cons_val_fin_one, mul_zero, add_zero, mul_add]
+        simp only [expenditure_eq_sum, b', Fin.sum_univ_two, Matrix.cons_val_zero,
+          Matrix.cons_val_one, Matrix.cons_val_fin_one, mul_zero, add_zero, mul_add]
         rw [mul_div_cancel₀ _ hp0_pos.ne']
       linarith
-    have hopt := (heq.2.1 ()).2 b' ⟨hb'_nn, hb'_exp⟩
-    simp only [undesiredGoodMarket, LinearFisherMarket.toFisherMarket,
-      LinearFisherMarket.unitSupply, linearUtility, b', Fin.sum_univ_two, Matrix.cons_val_zero,
-      Matrix.cons_val_one, Matrix.cons_val_fin_one] at hopt
+    have hopt := hdem_x.2 b' ⟨hb'_nn, by simpa [undesiredGoodMarket] using hb'_exp⟩
+    simp only [undesiredGoodMarket, LinearFisherMarket.toFisherMarket_utility,
+      LinearFisherMarket.unitSupply_utility, linearUtility_eq_sum, b', Fin.sum_univ_two,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one] at hopt
     linarith [div_pos hp1_pos hp0_pos]
 
-end CslibTests.GameTheory.Market
+end CslibFrontierTests.GameTheory.Market

@@ -23,7 +23,7 @@ import Mathlib.Tactic.Positivity
 
 In an **Arrow–Debreu exchange market** (`ExchangeMarket`) a finite set `I` of traders exchanges a
 finite set `G` of infinitely divisible goods ([ArrowDebreu1954]; [CodenottiVaradarajan2007],
-Section 6.1.1, pp. 135–137). Each trader `i` holds a nonnegative initial endowment bundle
+Section 6.1.1, pp. 136–137). Each trader `i` holds a nonnegative initial endowment bundle
 `endowment i : G → ℝ` and evaluates nonnegative consumption bundles by `utility i : (G → ℝ) → ℝ`.
 At a price vector `p : G → ℝ`, trader `i`'s budget is the market value `expenditure p (endowment i)`
 of their endowment, and their Marshallian **demand set** (`demandSet`) consists of the nonnegative
@@ -39,7 +39,7 @@ Section 5.1, pp. 103–104; [CodenottiVaradarajan2007], Section 6.2, p. 141). Bo
 underlying consumer-choice primitives (`expenditure`, `IsBudgetFeasible`, `demandSet`,
 `IsLocallyNonsatiated`, `linearUtility`), and every positive-budget Fisher market embeds into an
 exchange market where each buyer holds a budget-proportional share of every good
-(`FisherMarket.toExchangeMarket`; [Vazirani2007], Section 5.11, p. 122, and Exercise 5.7, p. 132).
+(`FisherMarket.toExchangeMarket`; [CodenottiVaradarajan2007], Section 6.1.7, p. 140).
 
 ## Main definitions
 
@@ -66,22 +66,21 @@ exchange market where each buyer holds a budget-proportional share of every good
   nonsatiated linear consumer demands precisely the budget-exhausting bundles supported on goods of
   maximum bang-per-buck `v g / p g`.
 * `Cslib.GameTheory.Market.ExchangeMarket.walras_law`: **Walras's law**
-  ([CodenottiVaradarajan2007], Section 6.1.1, p. 136): under local nonsatiation, the market value
+  ([CodenottiVaradarajan2007], Section 6.1.1, p. 137): under local nonsatiation, the market value
   of aggregate excess demand vanishes (`expenditure p (E.excessDemand x) = 0`).
 * `Cslib.GameTheory.Market.ExchangeMarket.IsCompetitiveEquilibrium.isParetoOptimal`: **First
-  Welfare Theorem** ([ArrowDebreu1954]; [CodenottiVaradarajan2007], Section 6.1.1, p. 136): under
-  local nonsatiation, every competitive equilibrium allocation is Pareto optimal.
+  Welfare Theorem** ([ArrowDebreu1954]): under local nonsatiation, every competitive equilibrium
+  allocation is Pareto optimal.
 * `Cslib.GameTheory.Market.FisherMarket.IsEquilibrium.isParetoOptimal`: every Fisher market
   equilibrium under local nonsatiation is Pareto optimal.
 * `Cslib.GameTheory.Market.FisherMarket.isEquilibrium_iff_toExchangeMarket`,
   `Cslib.GameTheory.Market.FisherMarket.isEquilibrium_smul_of_toExchangeMarket`: exact reduction
-  from Fisher market equilibrium to Arrow–Debreu competitive equilibrium ([Vazirani2007],
-  Section 5.11, p. 122, and Exercise 5.7, p. 132).
+  from Fisher market equilibrium to Arrow–Debreu competitive equilibrium
+  ([CodenottiVaradarajan2007], Section 6.1.7, p. 140).
 
 ## References
 
 * [ArrowDebreu1954]
-* [CodenottiPemmarajuVaradarajan2004]
 * [CodenottiVaradarajan2007]
 * [Vazirani2007]
 -/
@@ -97,8 +96,10 @@ section Consumer
 variable {G : Type*} [Fintype G]
 
 /-- Total expenditure `∑ g, p g * b g` of consumption bundle `b` at price vector `p`. -/
-@[expose] def expenditure (p b : G → ℝ) : ℝ :=
+def expenditure (p b : G → ℝ) : ℝ :=
   ∑ g : G, p g * b g
+
+theorem expenditure_eq_sum (p b : G → ℝ) : expenditure p b = ∑ g : G, p g * b g := by rfl
 
 @[simp] theorem expenditure_zero_right (p : G → ℝ) : expenditure p 0 = 0 := by
   simp [expenditure]
@@ -139,7 +140,7 @@ theorem IsBudgetFeasible.smul_price_budget {p : G → ℝ} {m c : ℝ} {b : G �
 /-- The **Marshallian demand set** of a consumer with utility `u` and budget `m` at prices `p`:
 the set of budget-feasible bundles maximizing `u` ([CodenottiVaradarajan2007], Section 6.1.1,
 p. 136). -/
-@[expose] def demandSet (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) : Set (G → ℝ) :=
+def demandSet (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) : Set (G → ℝ) :=
   {b | IsBudgetFeasible p m b ∧ ∀ b', IsBudgetFeasible p m b' → u b' ≤ u b}
 
 @[simp] theorem mem_demandSet {u : (G → ℝ) → ℝ} {p : G → ℝ} {m : ℝ} {b : G → ℝ} :
@@ -148,7 +149,7 @@ p. 136). -/
   Iff.rfl
 
 /-- Marshallian demand is homogeneous of degree zero in `(p, m)` for positive scalars `c > 0`
-([CodenottiVaradarajan2007], Section 6.1.1, p. 136). -/
+([CodenottiVaradarajan2007], Section 6.1.1, p. 137). -/
 theorem demandSet_smul (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) {c : ℝ} (hc : 0 < c) :
     demandSet u (c • p) (c * m) = demandSet u p m := by
   ext b
@@ -156,7 +157,9 @@ theorem demandSet_smul (u : (G → ℝ) → ℝ) (p : G → ℝ) (m : ℝ) {c : 
 
 /-- A utility function `u : (G → ℝ) → ℝ` is **locally nonsatiated** on nonnegative consumption
 bundles if every `ℓ_∞`-neighborhood of every nonnegative bundle contains a strictly preferred
-nonnegative bundle ([ArrowDebreu1954]; [CodenottiVaradarajan2007], Section 6.1.1, p. 136). -/
+nonnegative bundle ([ArrowDebreu1954]). Note that [CodenottiVaradarajan2007], Section 6.1.1,
+p. 136 assumes concavity, global nonsatiation, and monotonicity, whereas we assume local
+nonsatiation directly. -/
 @[expose] def IsLocallyNonsatiated (u : (G → ℝ) → ℝ) : Prop :=
   ∀ b : G → ℝ, (∀ g, 0 ≤ b g) → ∀ ε : ℝ, 0 < ε →
     ∃ b' : G → ℝ, (∀ g, 0 ≤ b' g) ∧ (∀ g, |b' g - b g| < ε) ∧ u b < u b'
@@ -232,8 +235,10 @@ theorem IsLocallyNonsatiated.exists_price_pos_of_mem_demandSet {u : (G → ℝ) 
 
 /-- Additive **linear utility** `∑ g, v g * b g` with marginal utility vector `v : G → ℝ`
 ([Vazirani2007], Section 5.2, p. 105; [CodenottiVaradarajan2007], Section 6.1.5, p. 139). -/
-@[expose] def linearUtility (v : G → ℝ) (b : G → ℝ) : ℝ :=
+def linearUtility (v : G → ℝ) (b : G → ℝ) : ℝ :=
   ∑ g : G, v g * b g
+
+theorem linearUtility_eq_sum (v b : G → ℝ) : linearUtility v b = ∑ g : G, v g * b g := by rfl
 
 /-- A linear utility function `linearUtility v` is locally nonsatiated on nonnegative bundles if
 and only if at least one good has strictly positive marginal utility. -/
@@ -437,14 +442,47 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
         _ ≤ α * m := mul_le_mul_of_nonneg_left hb'.2 hα_nn
         _ = linearUtility v b := hub_eq.symm
 
+/-- Shared consumer-level First Welfare Theorem expenditure argument: if every agent `i` is locally
+nonsatiated and chooses an optimal bundle `x i ∈ demandSet (u i) p (budget i)` at nonnegative prices
+`p`, and total budget equals the market value of total supply (`∑ i, budget i = expenditure p
+supply`), then no nonnegative allocation `y` respecting `supply` can Pareto-dominate `x`. -/
+theorem not_exists_paretoImprovement {I : Type*} [Fintype I]
+    {u : I → (G → ℝ) → ℝ} {budget : I → ℝ} {supply p : G → ℝ} {x : I → G → ℝ}
+    (hp : ∀ g, 0 ≤ p g)
+    (hdem : ∀ i, x i ∈ demandSet (u i) p (budget i))
+    (hlns : ∀ i, IsLocallyNonsatiated (u i))
+    (hbudget : ∑ i : I, budget i = expenditure p supply) :
+    ¬ ∃ y : I → G → ℝ,
+      ((∀ i g, 0 ≤ y i g) ∧ ∀ g : G, ∑ i : I, y i g ≤ supply g) ∧
+      (∀ i, u i (x i) ≤ u i (y i)) ∧
+      ∃ i, u i (x i) < u i (y i) := by
+  rintro ⟨y, hy_feas, hy_le, ⟨i₀, hi₀⟩⟩
+  have h_all : ∀ i ∈ (Finset.univ : Finset I), budget i ≤ expenditure p (y i) :=
+    fun i _ => (hlns i).le_expenditure_of_mem_demandSet (hdem i) (hy_feas.1 i) (hy_le i)
+  have h_strict : budget i₀ < expenditure p (y i₀) :=
+    lt_expenditure_of_mem_demandSet (hdem i₀) (hy_feas.1 i₀) hi₀
+  have hsum_lt : ∑ i : I, budget i < ∑ i : I, expenditure p (y i) :=
+    Finset.sum_lt_sum h_all ⟨i₀, Finset.mem_univ i₀, h_strict⟩
+  have hsum_le : ∑ i : I, expenditure p (y i) ≤ expenditure p supply := by
+    calc
+      ∑ i : I, expenditure p (y i)
+        = ∑ g : G, p g * ∑ i : I, y i g := by
+            simp only [expenditure, Finset.mul_sum]
+            exact Finset.sum_comm
+      _ ≤ ∑ g : G, p g * supply g :=
+            Finset.sum_le_sum fun g _ => mul_le_mul_of_nonneg_left (hy_feas.2 g) (hp g)
+      _ = expenditure p supply := rfl
+  linarith
+
 end Consumer
 
 /-! ### Arrow–Debreu exchange markets -/
 
 /-- An **Arrow–Debreu exchange market** ([ArrowDebreu1954]; [CodenottiVaradarajan2007],
-Section 6.1.1, pp. 135–137) with traders `I` and divisible goods `G`: each trader `i` starts with a
+Section 6.1.1, pp. 136–137) with traders `I` and divisible goods `G`: each trader `i` starts with a
 nonnegative endowment `endowment i : G → ℝ` and evaluates consumption bundles via
 `utility i : (G → ℝ) → ℝ`. -/
+@[ext]
 structure ExchangeMarket (I G : Type*) where
   /-- Initial endowment `endowment i g` of good `g` held by trader `i`. -/
   endowment : I → G → ℝ
@@ -460,16 +498,22 @@ section Basic
 variable {I G : Type*} [Fintype I] [Fintype G] (E : ExchangeMarket I G)
 
 /-- Aggregate market supply `∑ i, endowment i g` of good `g`. -/
-@[expose] def totalSupply (g : G) : ℝ :=
+def totalSupply (g : G) : ℝ :=
   ∑ i : I, E.endowment i g
+
+omit [Fintype G] in
+theorem totalSupply_eq_sum (g : G) : E.totalSupply g = ∑ i : I, E.endowment i g := by rfl
 
 omit [Fintype G] in
 theorem totalSupply_nonneg (g : G) : 0 ≤ E.totalSupply g :=
   Finset.sum_nonneg fun i _ => E.endowment_nonneg i g
 
 /-- Trader `i`'s endowment income `expenditure p (E.endowment i)` at prices `p`. -/
-@[expose] def income (p : G → ℝ) (i : I) : ℝ :=
+def income (p : G → ℝ) (i : I) : ℝ :=
   expenditure p (E.endowment i)
+
+omit [Fintype I] in
+theorem income_eq (p : G → ℝ) (i : I) : E.income p i = expenditure p (E.endowment i) := by rfl
 
 omit [Fintype I] in
 theorem income_nonneg {p : G → ℝ} (hp : ∀ g, 0 ≤ p g) (i : I) : 0 ≤ E.income p i :=
@@ -484,8 +528,13 @@ theorem sum_income (p : G → ℝ) : ∑ i : I, E.income p i = expenditure p E.t
   Market.IsBudgetFeasible p (E.income p i) b
 
 /-- Trader `i`'s Marshallian demand set at prices `p`. -/
-@[expose] def demandSet (p : G → ℝ) (i : I) : Set (G → ℝ) :=
+def demandSet (p : G → ℝ) (i : I) : Set (G → ℝ) :=
   Market.demandSet (E.utility i) p (E.income p i)
+
+omit [Fintype I] in
+@[simp] theorem mem_demandSet {p : G → ℝ} {i : I} {b : G → ℝ} :
+    b ∈ E.demandSet p i ↔ b ∈ Market.demandSet (E.utility i) p (E.income p i) :=
+  Iff.rfl
 
 omit [Fintype I] in
 theorem demandSet_smul (p : G → ℝ) (i : I) {c : ℝ} (hc : 0 < c) :
@@ -499,9 +548,13 @@ nonnegative and aggregate consumption of each good does not exceed `E.totalSuppl
   (∀ (i : I) (g : G), 0 ≤ x i g) ∧ ∀ g : G, ∑ i : I, x i g ≤ E.totalSupply g
 
 /-- Aggregate **excess demand** `(∑ i, x i g) - E.totalSupply g` for good `g` under allocation `x`
-([CodenottiVaradarajan2007], Section 6.1.1, p. 136). -/
-@[expose] def excessDemand (x : I → G → ℝ) (g : G) : ℝ :=
+([CodenottiVaradarajan2007], Section 6.1.1, p. 137). -/
+def excessDemand (x : I → G → ℝ) (g : G) : ℝ :=
   (∑ i : I, x i g) - E.totalSupply g
+
+omit [Fintype G] in
+theorem excessDemand_eq (x : I → G → ℝ) (g : G) :
+    E.excessDemand x g = (∑ i : I, x i g) - E.totalSupply g := by rfl
 
 theorem expenditure_excessDemand (p : G → ℝ) (x : I → G → ℝ) :
     expenditure p (E.excessDemand x) = ∑ i : I, (expenditure p (x i) - E.income p i) := by
@@ -525,7 +578,7 @@ theorem expenditure_excessDemand_le_zero {p : G → ℝ} {x : I → G → ℝ}
   rw [E.expenditure_excessDemand]
   exact Finset.sum_nonpos fun i _ => sub_nonpos.2 (hfeas i).2
 
-/-- **Walras's law** ([CodenottiVaradarajan2007], Section 6.1.1, p. 136): if every trader is
+/-- **Walras's law** ([CodenottiVaradarajan2007], Section 6.1.1, p. 137): if every trader is
 locally nonsatiated and selects an optimal bundle `x i ∈ E.demandSet p i`, then the total value of
 excess demand vanishes (`expenditure p (E.excessDemand x) = 0`) at any price vector `p`. -/
 theorem walras_law {p : G → ℝ} {x : I → G → ℝ}
@@ -605,41 +658,23 @@ theorem IsCompetitiveEquilibrium.sum_eq_totalSupply_of_price_pos {E : ExchangeMa
   linarith [show E.excessDemand x g = (∑ i : I, x i g) - E.totalSupply g from rfl]
 
 /-- A feasible allocation `x` is **Pareto optimal** if no feasible allocation `y` makes every
-trader weakly better off and at least one trader strictly better off ([ArrowDebreu1954];
-[CodenottiVaradarajan2007], Section 6.1.1, p. 136). -/
+trader weakly better off and at least one trader strictly better off ([ArrowDebreu1954]). -/
 @[expose] def IsParetoOptimal (x : I → G → ℝ) : Prop :=
   E.IsFeasibleAllocation x ∧
     ¬ ∃ y : I → G → ℝ, E.IsFeasibleAllocation y ∧
       (∀ i, E.utility i (x i) ≤ E.utility i (y i)) ∧
       ∃ i, E.utility i (x i) < E.utility i (y i)
 
-/-- **First Welfare Theorem** ([ArrowDebreu1954]; [CodenottiVaradarajan2007], Section 6.1.1,
-p. 136): in an exchange market where every trader's utility function is locally nonsatiated, every
-competitive equilibrium allocation is Pareto optimal. -/
+/-- **First Welfare Theorem** ([ArrowDebreu1954]): in an exchange market where every trader's
+utility function is locally nonsatiated, every competitive equilibrium allocation is Pareto
+optimal. -/
 theorem IsCompetitiveEquilibrium.isParetoOptimal {E : ExchangeMarket I G}
     {x : I → G → ℝ} {p : G → ℝ}
     (heq : E.IsCompetitiveEquilibrium x p)
     (hlns : ∀ i, IsLocallyNonsatiated (E.utility i)) :
-    E.IsParetoOptimal x := by
-  refine ⟨heq.isFeasibleAllocation, ?_⟩
-  rintro ⟨y, hy_feas, hy_le, ⟨i₀, hi₀⟩⟩
-  have h_all : ∀ i ∈ (Finset.univ : Finset I), E.income p i ≤ expenditure p (y i) :=
-    fun i _ => (hlns i).le_expenditure_of_mem_demandSet (heq.2.1 i) (hy_feas.1 i) (hy_le i)
-  have h_strict : E.income p i₀ < expenditure p (y i₀) :=
-    lt_expenditure_of_mem_demandSet (heq.2.1 i₀) (hy_feas.1 i₀) hi₀
-  have hsum_lt : ∑ i : I, E.income p i < ∑ i : I, expenditure p (y i) :=
-    Finset.sum_lt_sum h_all ⟨i₀, Finset.mem_univ i₀, h_strict⟩
-  have hsum_le : ∑ i : I, expenditure p (y i) ≤ ∑ i : I, E.income p i := by
-    rw [E.sum_income p]
-    calc
-      ∑ i : I, expenditure p (y i)
-        = ∑ g : G, p g * ∑ i : I, y i g := by
-            simp only [expenditure, Finset.mul_sum]
-            exact Finset.sum_comm
-      _ ≤ ∑ g : G, p g * E.totalSupply g :=
-            Finset.sum_le_sum fun g _ => mul_le_mul_of_nonneg_left (hy_feas.2 g) (heq.1 g)
-      _ = expenditure p E.totalSupply := rfl
-  linarith
+    E.IsParetoOptimal x :=
+  ⟨heq.isFeasibleAllocation,
+    not_exists_paretoImprovement heq.1 heq.2.1 hlns (E.sum_income p)⟩
 
 end Basic
 
@@ -666,10 +701,17 @@ namespace LinearExchangeMarket
 variable {I G : Type*} [Fintype I] [Fintype G] (E : LinearExchangeMarket I G)
 
 /-- View a `LinearExchangeMarket` as a general `ExchangeMarket` with `linearUtility`. -/
-@[expose] def toExchangeMarket : ExchangeMarket I G where
+def toExchangeMarket : ExchangeMarket I G where
   endowment := E.endowment
   utility i := linearUtility (E.utility i)
   endowment_nonneg := E.endowment_nonneg
+
+omit [Fintype I] in
+@[simp] theorem toExchangeMarket_endowment : E.toExchangeMarket.endowment = E.endowment := by rfl
+
+omit [Fintype I] in
+@[simp] theorem toExchangeMarket_utility (i : I) :
+    E.toExchangeMarket.utility i = linearUtility (E.utility i) := by rfl
 
 /-- Competitive equilibrium of a linear exchange market. -/
 @[expose] def IsCompetitiveEquilibrium (x : I → G → ℝ) (p : G → ℝ) : Prop :=
@@ -754,25 +796,29 @@ namespace FisherMarket
 variable {I G : Type*} [Fintype I] [Fintype G] (M : FisherMarket I G)
 
 /-- Aggregate money budget `∑ i, M.budget i` of all buyers. -/
-@[expose] def totalBudget : ℝ :=
+def totalBudget : ℝ :=
   ∑ i : I, M.budget i
+
+omit [Fintype G] in
+theorem totalBudget_eq_sum : M.totalBudget = ∑ i : I, M.budget i := by rfl
 
 omit [Fintype G] in
 theorem totalBudget_nonneg : 0 ≤ M.totalBudget :=
   Finset.sum_nonneg fun i _ => M.budget_nonneg i
 
 /-- Buyer `i`'s Marshallian demand set at prices `p`. -/
-@[expose] def demandSet (p : G → ℝ) (i : I) : Set (G → ℝ) :=
+def demandSet (p : G → ℝ) (i : I) : Set (G → ℝ) :=
   Market.demandSet (M.utility i) p (M.budget i)
+
+omit [Fintype I] in
+@[simp] theorem mem_demandSet {p : G → ℝ} {i : I} {b : G → ℝ} :
+    b ∈ M.demandSet p i ↔ b ∈ Market.demandSet (M.utility i) p (M.budget i) :=
+  Iff.rfl
 
 /-- An allocation `x : I → G → ℝ` is **feasible** in Fisher market `M` if bundles are nonnegative
 and aggregate consumption of each good `g` is at most `M.supply g`. -/
 @[expose] def IsFeasibleAllocation (x : I → G → ℝ) : Prop :=
   (∀ (i : I) (g : G), 0 ≤ x i g) ∧ ∀ g : G, ∑ i : I, x i g ≤ M.supply g
-
-/-- Aggregate excess demand `(∑ i, x i g) - M.supply g` of good `g`. -/
-@[expose] def excessDemand (x : I → G → ℝ) (g : G) : ℝ :=
-  (∑ i : I, x i g) - M.supply g
 
 /-- A **market equilibrium** of Fisher market `M` ([Vazirani2007], Section 5.1, p. 104;
 [CodenottiVaradarajan2007], Section 6.2, p. 141): nonnegative prices `p` and an allocation `x`
@@ -822,35 +868,27 @@ makes every buyer weakly better off and at least one buyer strictly better off. 
 equilibrium allocation is Pareto optimal. -/
 theorem IsEquilibrium.isParetoOptimal {M : FisherMarket I G} {x : I → G → ℝ} {p : G → ℝ}
     (heq : M.IsEquilibrium x p) (hlns : ∀ i, IsLocallyNonsatiated (M.utility i)) :
-    M.IsParetoOptimal x := by
-  refine ⟨heq.isFeasibleAllocation, ?_⟩
-  rintro ⟨y, hy_feas, hy_le, ⟨i₀, hi₀⟩⟩
-  have h_all : ∀ i ∈ (Finset.univ : Finset I), M.budget i ≤ expenditure p (y i) :=
-    fun i _ => (hlns i).le_expenditure_of_mem_demandSet (heq.2.1 i) (hy_feas.1 i) (hy_le i)
-  have h_strict : M.budget i₀ < expenditure p (y i₀) :=
-    lt_expenditure_of_mem_demandSet (heq.2.1 i₀) (hy_feas.1 i₀) hi₀
-  have hsum_lt : M.totalBudget < ∑ i : I, expenditure p (y i) :=
-    Finset.sum_lt_sum h_all ⟨i₀, Finset.mem_univ i₀, h_strict⟩
-  have hsum_le : ∑ i : I, expenditure p (y i) ≤ expenditure p M.supply := by
-    calc
-      ∑ i : I, expenditure p (y i)
-        = ∑ g : G, p g * ∑ i : I, y i g := by
-            simp only [expenditure, Finset.mul_sum]
-            exact Finset.sum_comm
-      _ ≤ ∑ g : G, p g * M.supply g :=
-            Finset.sum_le_sum fun g _ => mul_le_mul_of_nonneg_left (hy_feas.2 g) (heq.1 g)
-      _ = expenditure p M.supply := rfl
-  linarith [heq.expenditure_supply_eq_totalBudget hlns]
+    M.IsParetoOptimal x :=
+  ⟨heq.isFeasibleAllocation,
+    not_exists_paretoImprovement heq.1 heq.2.1 hlns
+      (heq.expenditure_supply_eq_totalBudget hlns).symm⟩
 
-/-- **Fisher-to-Arrow–Debreu exchange reduction** ([Vazirani2007], Section 5.11, p. 122, and
-Exercise 5.7, p. 132; [CodenottiVaradarajan2007], Section 6.2, p. 141): embed Fisher market `M` into
-an `ExchangeMarket` by giving each buyer `i` fraction `M.budget i / M.totalBudget` of the supply of
+/-- **Fisher-to-Arrow–Debreu proportional-endowment embedding** ([CodenottiVaradarajan2007],
+Section 6.1.7, p. 140; see also Section 6.2, p. 141): embed Fisher market `M` into an
+`ExchangeMarket` by giving each buyer `i` fraction `M.budget i / M.totalBudget` of the supply of
 every good `g`. -/
-@[expose] noncomputable def toExchangeMarket : ExchangeMarket I G where
+noncomputable def toExchangeMarket : ExchangeMarket I G where
   endowment i g := (M.budget i / M.totalBudget) * M.supply g
   utility := M.utility
   endowment_nonneg i g :=
     mul_nonneg (div_nonneg (M.budget_nonneg i) M.totalBudget_nonneg) (M.supply_nonneg g)
+
+omit [Fintype G] in
+@[simp] theorem toExchangeMarket_endowment (i : I) (g : G) :
+    M.toExchangeMarket.endowment i g = (M.budget i / M.totalBudget) * M.supply g := by rfl
+
+omit [Fintype G] in
+@[simp] theorem toExchangeMarket_utility : M.toExchangeMarket.utility = M.utility := by rfl
 
 omit [Fintype G] in
 theorem toExchangeMarket_totalSupply (hB : 0 < M.totalBudget) (g : G) :
@@ -866,7 +904,8 @@ theorem toExchangeMarket_income (p : G → ℝ) (i : I) :
 
 /-- Under local nonsatiation and positive aggregate budget `0 < M.totalBudget`, `(x, p)` is a
 Fisher equilibrium of `M` if and only if `expenditure p M.supply = M.totalBudget` and `(x, p)` is a
-competitive equilibrium of `M.toExchangeMarket` ([Vazirani2007], Section 5.11, p. 122). -/
+competitive equilibrium of `M.toExchangeMarket` ([CodenottiVaradarajan2007], Section 6.1.7,
+p. 140). -/
 theorem isEquilibrium_iff_toExchangeMarket {x : I → G → ℝ} {p : G → ℝ}
     (hB : 0 < M.totalBudget) (hlns : ∀ i, IsLocallyNonsatiated (M.utility i)) :
     M.IsEquilibrium x p ↔
@@ -904,9 +943,10 @@ theorem isEquilibrium_iff_toExchangeMarket {x : I → G → ℝ} {p : G → ℝ}
       simp only [ExchangeMarket.excessDemand, hsup g] at hz
       linarith
 
-/-- **Exercise 5.7 recovery** ([Vazirani2007], p. 132): any competitive equilibrium `(x, p)` of
-`M.toExchangeMarket` with positive aggregate supply value `0 < expenditure p M.supply` rescales to
-an exact Fisher market equilibrium `(x, (M.totalBudget / expenditure p M.supply) • p)` of `M`. -/
+/-- **Rescaling recovery** ([CodenottiVaradarajan2007], Section 6.1.7, p. 140): any competitive
+equilibrium `(x, p)` of `M.toExchangeMarket` with positive aggregate supply value
+`0 < expenditure p M.supply` rescales to an exact Fisher market equilibrium
+`(x, (M.totalBudget / expenditure p M.supply) • p)` of `M`. -/
 theorem isEquilibrium_smul_of_toExchangeMarket {x : I → G → ℝ} {p : G → ℝ}
     (hB : 0 < M.totalBudget) (hlns : ∀ i, IsLocallyNonsatiated (M.utility i))
     (heq : M.toExchangeMarket.IsCompetitiveEquilibrium x p)

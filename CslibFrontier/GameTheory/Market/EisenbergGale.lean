@@ -31,9 +31,10 @@ Fisher market are captured by maximizing the budget-weighted logarithmic Nash so
 
 This module establishes the three-way equivalence between linear Fisher market equilibria, the
 Karush–Kuhn–Tucker / maximum bang-per-buck conditions (`IsEisenbergGaleKKT` and `bangPerBuck`), and
-global maximizers of `eisenbergGaleObjective` ([Vazirani2007], Section 5.2 and Exercise 5.1,
-pp. 105–107, 132), together with existence of equilibrium, convexity of the equilibrium allocation
-set, and uniqueness of equilibrium utilities and prices ([Vazirani2007], Theorem 5.1, p. 107).
+global maximizers of `eisenbergGaleObjective` ([Vazirani2007], Section 5.2, pp. 105–107; KKT
+conditions `(i)`–`(iv)` on p. 106), together with existence of equilibrium, convexity of the
+equilibrium allocation set, and uniqueness of equilibrium utilities and prices ([Vazirani2007],
+Theorem 5.1, p. 107).
 
 ## Main definitions
 
@@ -57,7 +58,7 @@ set, and uniqueness of equilibrium utilities and prices ([Vazirani2007], Theorem
   budgets are exhausted, and buyers purchase only maximum bang-per-buck goods (`utility i g / p g`).
 * `Cslib.GameTheory.Market.LinearFisherMarket.isEquilibrium_iff_isEisenbergGaleKKT`: market
   equilibrium is equivalent to the Eisenberg–Gale KKT optimality conditions ([Vazirani2007],
-  Section 5.2, pp. 105–107, and Exercise 5.1, p. 132).
+  Section 5.2, p. 106).
 * `Cslib.GameTheory.Market.LinearFisherMarket.IsEisenbergGaleKKT.eisenbergGaleObjective_le`,
   `Cslib.GameTheory.Market.LinearFisherMarket.isEquilibrium_iff_isMaxOn_eisenbergGaleObjective`:
   an allocation participates in a market equilibrium if and only if it maximizes the Eisenberg–Gale
@@ -75,11 +76,10 @@ set, and uniqueness of equilibrium utilities and prices ([Vazirani2007], Theorem
 * `Cslib.GameTheory.Market.LinearFisherMarket.isEquilibrium_iff_toLinearExchangeMarket`,
   `Cslib.GameTheory.Market.LinearFisherMarket.isEquilibrium_smul_of_toLinearExchangeMarket`:
   reduction of linear Fisher market equilibrium to linear Arrow–Debreu exchange equilibrium
-  ([Vazirani2007], Section 5.11, p. 122, and Exercise 5.7, p. 132).
+  ([CodenottiVaradarajan2007], Section 6.1.7, p. 140).
 
 ## References
 
-* [CodenottiPemmarajuVaradarajan2004]
 * [CodenottiVaradarajan2007]
 * [EisenbergGale1959]
 * [Vazirani2007]
@@ -114,7 +114,7 @@ variable {I G : Type*}
 
 /-- Construct a linear Fisher market with unit supply (`supply g = 1`) of every good, the
 normalization used throughout [Vazirani2007], Section 5.2, Program `(5.1)`, p. 105. -/
-@[expose] def unitSupply (budget : I → ℝ) (utility : I → G → ℝ)
+def unitSupply (budget : I → ℝ) (utility : I → G → ℝ)
     (budget_nonneg : ∀ i, 0 ≤ budget i) (utility_nonneg : ∀ i g, 0 ≤ utility i g) :
     LinearFisherMarket I G where
   budget := budget
@@ -124,8 +124,20 @@ normalization used throughout [Vazirani2007], Section 5.2, Program `(5.1)`, p. 1
   supply_nonneg _ := zero_le_one
   utility_nonneg := utility_nonneg
 
+@[simp] theorem unitSupply_budget (budget : I → ℝ) (utility : I → G → ℝ)
+    (hb : ∀ i, 0 ≤ budget i) (hu : ∀ i g, 0 ≤ utility i g) :
+    (unitSupply budget utility hb hu).budget = budget := by rfl
+
+@[simp] theorem unitSupply_supply (budget : I → ℝ) (utility : I → G → ℝ)
+    (hb : ∀ i, 0 ≤ budget i) (hu : ∀ i g, 0 ≤ utility i g) (g : G) :
+    (unitSupply budget utility hb hu).supply g = 1 := by rfl
+
+@[simp] theorem unitSupply_utility (budget : I → ℝ) (utility : I → G → ℝ)
+    (hb : ∀ i, 0 ≤ budget i) (hu : ∀ i g, 0 ≤ utility i g) :
+    (unitSupply budget utility hb hu).utility = utility := by rfl
+
 /-- View a `LinearFisherMarket` as a general `FisherMarket` with `linearUtility` [Fintype G]. -/
-@[expose] def toFisherMarket [Fintype G] (M : LinearFisherMarket I G) : FisherMarket I G where
+def toFisherMarket [Fintype G] (M : LinearFisherMarket I G) : FisherMarket I G where
   budget := M.budget
   supply := M.supply
   utility i := linearUtility (M.utility i)
@@ -133,15 +145,18 @@ normalization used throughout [Vazirani2007], Section 5.2, Program `(5.1)`, p. 1
   supply_nonneg := M.supply_nonneg
 
 @[simp] theorem toFisherMarket_budget [Fintype G] (M : LinearFisherMarket I G) :
-    M.toFisherMarket.budget = M.budget := rfl
+    M.toFisherMarket.budget = M.budget := by rfl
 
 @[simp] theorem toFisherMarket_supply [Fintype G] (M : LinearFisherMarket I G) :
-    M.toFisherMarket.supply = M.supply := rfl
+    M.toFisherMarket.supply = M.supply := by rfl
+
+@[simp] theorem toFisherMarket_utility [Fintype G] (M : LinearFisherMarket I G) (i : I) :
+    M.toFisherMarket.utility i = linearUtility (M.utility i) := by rfl
 
 /-- Embed a linear Fisher market into a `LinearExchangeMarket` by giving buyer `i` fraction
-`budget i / totalBudget` of every good's supply ([Vazirani2007], Section 5.11, p. 122, and
-Exercise 5.7, p. 132). -/
-@[expose] noncomputable def toLinearExchangeMarket [Fintype I] (M : LinearFisherMarket I G) :
+`budget i / totalBudget` of every good's supply ([CodenottiVaradarajan2007], Section 6.1.7,
+p. 140). -/
+noncomputable def toLinearExchangeMarket [Fintype I] (M : LinearFisherMarket I G) :
     LinearExchangeMarket I G where
   endowment i g := (M.budget i / ∑ k : I, M.budget k) * M.supply g
   utility := M.utility
@@ -151,15 +166,29 @@ Exercise 5.7, p. 132). -/
       (M.supply_nonneg g)
   utility_nonneg := M.utility_nonneg
 
+@[simp] theorem toLinearExchangeMarket_endowment [Fintype I] (M : LinearFisherMarket I G)
+    (i : I) (g : G) :
+    M.toLinearExchangeMarket.endowment i g =
+      (M.budget i / ∑ k : I, M.budget k) * M.supply g := by rfl
+
+@[simp] theorem toLinearExchangeMarket_utility [Fintype I] (M : LinearFisherMarket I G) :
+    M.toLinearExchangeMarket.utility = M.utility := by rfl
+
 /-- Buyer `i`'s additive linear utility `∑ g, utility i g * x i g` under allocation `x`. -/
-@[expose] def buyerUtility [Fintype G] (M : LinearFisherMarket I G) (x : I → G → ℝ) (i : I) : ℝ :=
+def buyerUtility [Fintype G] (M : LinearFisherMarket I G) (x : I → G → ℝ) (i : I) : ℝ :=
   linearUtility (M.utility i) (x i)
+
+theorem buyerUtility_eq [Fintype G] (M : LinearFisherMarket I G) (x : I → G → ℝ) (i : I) :
+    M.buyerUtility x i = linearUtility (M.utility i) (x i) := by rfl
 
 /-- Buyer `i`'s **bang-per-buck** (marginal utility per unit money) `utility i g / p g` on good `g`
 at price vector `p` ([Vazirani2007], Section 5.2, p. 106). -/
-@[expose] noncomputable def bangPerBuck (M : LinearFisherMarket I G)
+noncomputable def bangPerBuck (M : LinearFisherMarket I G)
     (p : G → ℝ) (i : I) (g : G) : ℝ :=
   M.utility i g / p g
+
+theorem bangPerBuck_eq (M : LinearFisherMarket I G) (p : G → ℝ) (i : I) (g : G) :
+    M.bangPerBuck p i g = M.utility i g / p g := by rfl
 
 /-- Market equilibrium `(x, p)` of linear Fisher market `M`. -/
 @[expose] def IsEquilibrium [Fintype I] [Fintype G] (M : LinearFisherMarket I G)
@@ -173,7 +202,9 @@ at price vector `p` ([Vazirani2007], Section 5.2, p. 106). -/
 
 /-- Standard non-degeneracy conditions for Fisher's linear market model ([Vazirani2007],
 Section 5.2, Theorem 5.1, pp. 105–107): positive buyer budgets, positive good supplies, every buyer
-desires at least one good, and every good has at least one interested buyer. -/
+desires at least one good, and every good has at least one interested buyer. Note that
+[Vazirani2007], Section 5.2 writes "if each good has a potential buyer" (`good_desired`) explicitly
+while leaving `budget_pos`, `supply_pos`, and `buyer_nonsatiated` implicit. -/
 structure IsNonDegenerate (M : LinearFisherMarket I G) : Prop where
   /-- Every buyer has a strictly positive budget. -/
   budget_pos : ∀ i : I, 0 < M.budget i
@@ -186,9 +217,13 @@ structure IsNonDegenerate (M : LinearFisherMarket I G) : Prop where
 
 /-- The **Eisenberg–Gale objective** `∑ i, budget i * log (buyerUtility x i)` ([EisenbergGale1959];
 [Vazirani2007], Section 5.2, Program `(5.1)`, p. 105). -/
-@[expose] noncomputable def eisenbergGaleObjective [Fintype I] [Fintype G]
+noncomputable def eisenbergGaleObjective [Fintype I] [Fintype G]
     (M : LinearFisherMarket I G) (x : I → G → ℝ) : ℝ :=
   ∑ i : I, M.budget i * Real.log (M.buyerUtility x i)
+
+theorem eisenbergGaleObjective_eq [Fintype I] [Fintype G]
+    (M : LinearFisherMarket I G) (x : I → G → ℝ) :
+    M.eisenbergGaleObjective x = ∑ i : I, M.budget i * Real.log (M.buyerUtility x i) := by rfl
 
 /-- A feasible allocation giving every buyer strictly positive utility, forming the effective domain
 of the logarithmic Eisenberg–Gale objective `(5.1)`. -/
@@ -197,7 +232,7 @@ of the logarithmic Eisenberg–Gale objective `(5.1)`. -/
   M.toFisherMarket.IsFeasibleAllocation x ∧ ∀ i : I, 0 < M.buyerUtility x i
 
 /-- **Karush–Kuhn–Tucker optimality conditions** for the Eisenberg–Gale convex program `(5.1)`
-([Vazirani2007], Section 5.2, p. 106, and Exercise 5.1, p. 132) with primal allocation `x` and dual
+([Vazirani2007], Section 5.2, p. 106, conditions `(i)`–`(iv)`) with primal allocation `x` and dual
 supply multipliers (prices) `p`. -/
 structure IsEisenbergGaleKKT [Fintype I] [Fintype G] (M : LinearFisherMarket I G)
     (x : I → G → ℝ) (p : G → ℝ) : Prop where
@@ -216,11 +251,18 @@ structure IsEisenbergGaleKKT [Fintype I] [Fintype G] (M : LinearFisherMarket I G
 
 /-- Explicit **Eisenberg–Gale dual price** of good `g` induced by a positive-utility allocation `x`:
 `max_i (budget i * utility i g / buyerUtility x i)` (`0` when `I` is empty). -/
-@[expose] noncomputable def eisenbergGaleDualPrice [Fintype I] [Fintype G]
+noncomputable def eisenbergGaleDualPrice [Fintype I] [Fintype G]
     (M : LinearFisherMarket I G) (x : I → G → ℝ) (g : G) : ℝ :=
   if hI : (Finset.univ : Finset I).Nonempty then
     Finset.univ.sup' hI fun i => M.budget i * M.utility i g / M.buyerUtility x i
   else 0
+
+theorem eisenbergGaleDualPrice_of_nonempty [Fintype I] [Fintype G] [Nonempty I]
+    (M : LinearFisherMarket I G) (x : I → G → ℝ) (g : G) :
+    M.eisenbergGaleDualPrice x g =
+      Finset.univ.sup' Finset.univ_nonempty
+        (fun i : I => M.budget i * M.utility i g / M.buyerUtility x i) := by
+  simp [eisenbergGaleDualPrice]
 
 end Definitions
 
@@ -328,7 +370,9 @@ theorem IsEquilibrium.price_pos {M : LinearFisherMarket I G} {x : I → G → �
     (heq : M.IsEquilibrium x p) (hgood : ∀ g, ∃ i, 0 < M.utility i g) (g : G) :
     0 < p g := by
   obtain ⟨i, hi⟩ := hgood g
-  exact price_pos_of_mem_demandSet_linearUtility heq.1 (heq.2.1 i) hi
+  have hmem := M.toFisherMarket.mem_demandSet.1 (heq.2.1 i)
+  rw [toFisherMarket_utility, toFisherMarket_budget] at hmem
+  exact price_pos_of_mem_demandSet_linearUtility heq.1 hmem hi
 
 /-- **Bang-per-buck characterization of linear Fisher equilibrium** ([Vazirani2007], Section 5.2,
 pp. 105–106): when every buyer desires some good and every good is desired by some buyer, `(x, p)`
@@ -349,14 +393,17 @@ theorem isEquilibrium_iff_bangPerBuck {M : LinearFisherMarket I G} {x : I → G 
     have hclear : ∀ g, ∑ i : I, x i g = M.supply g :=
       fun g => heq.sum_eq_supply_of_price_pos (hp_pos g)
     have hdem : ∀ i, (∀ g, 0 ≤ x i g) ∧ expenditure p (x i) = M.budget i ∧
-        ∀ g, 0 < x i g → ∀ g', M.utility i g' / p g' ≤ M.utility i g / p g := fun i =>
-      (mem_demandSet_linearUtility_iff (M.utility_nonneg i) (M.budget_nonneg i) hp_pos
-        (hbuyer i)).1 (heq.2.1 i)
+        ∀ g, 0 < x i g → ∀ g', M.utility i g' / p g' ≤ M.utility i g / p g := fun i => by
+      have hmem := M.toFisherMarket.mem_demandSet.1 (heq.2.1 i)
+      rw [toFisherMarket_utility, toFisherMarket_budget] at hmem
+      exact (mem_demandSet_linearUtility_iff (M.utility_nonneg i) (M.budget_nonneg i) hp_pos
+        (hbuyer i)).1 hmem
     exact ⟨hp_pos, fun i g => (hdem i).1 g, hclear, fun i => (hdem i).2.1,
       fun i g hxg g' => (hdem i).2.2 g hxg g'⟩
   · rintro ⟨hp_pos, hx_nn, hclear, hexp, hmax⟩
     refine ⟨fun g => (hp_pos g).le, fun i => ?_, fun g => ?_, fun g => ?_⟩
-    · exact (mem_demandSet_linearUtility_iff (M.utility_nonneg i) (M.budget_nonneg i) hp_pos
+    · rw [FisherMarket.mem_demandSet, toFisherMarket_utility, toFisherMarket_budget]
+      exact (mem_demandSet_linearUtility_iff (M.utility_nonneg i) (M.budget_nonneg i) hp_pos
         (hbuyer i)).2 ⟨hx_nn i, hexp i, hmax i⟩
     · simp only [toFisherMarket_supply, hclear g, le_rfl]
     · simp only [toFisherMarket_supply, hclear g, sub_self, mul_zero]
@@ -379,10 +426,12 @@ theorem IsEisenbergGaleKKT.expenditure_eq_budget {M : LinearFisherMarket I G}
   have hsum : expenditure p (x i) * M.buyerUtility x i = M.budget i * M.buyerUtility x i := by
     calc
       expenditure p (x i) * M.buyerUtility x i
-        = ∑ g : G, (p g * x i g) * M.buyerUtility x i := Finset.sum_mul _ _ _
+        = ∑ g : G, (p g * x i g) * M.buyerUtility x i := by
+            rw [expenditure_eq_sum, Finset.sum_mul]
       _ = ∑ g : G, M.budget i * (M.utility i g * x i g) :=
           Finset.sum_congr rfl fun g _ => hterm g
-      _ = M.budget i * M.buyerUtility x i := (Finset.mul_sum _ _ _).symm
+      _ = M.budget i * M.buyerUtility x i := by
+            rw [← Finset.mul_sum, buyerUtility_eq, linearUtility_eq_sum]
   exact mul_right_cancel₀ hUi.ne' hsum
 
 theorem IsEisenbergGaleKKT.expenditure_supply_eq_totalBudget {M : LinearFisherMarket I G}
@@ -391,13 +440,15 @@ theorem IsEisenbergGaleKKT.expenditure_supply_eq_totalBudget {M : LinearFisherMa
   calc
     expenditure p M.supply
       = ∑ g : G, p g * ∑ i : I, x i g := by
+          rw [expenditure_eq_sum]
           refine Finset.sum_congr rfl fun g _ => ?_
           linarith [hkkt.dual_slackness g]
     _ = ∑ i : I, expenditure p (x i) := by
-          simp only [expenditure, Finset.mul_sum]
+          simp only [expenditure_eq_sum, Finset.mul_sum]
           exact Finset.sum_comm
-    _ = M.toFisherMarket.totalBudget :=
-          Finset.sum_congr rfl fun i _ => hkkt.expenditure_eq_budget i
+    _ = M.toFisherMarket.totalBudget := by
+          rw [FisherMarket.totalBudget_eq_sum]
+          exact Finset.sum_congr rfl fun i _ => hkkt.expenditure_eq_budget i
 
 /-- **KKT sufficiency for market equilibrium** ([Vazirani2007], Section 5.2, p. 106): when every
 buyer has a positive budget, any pair `(x, p)` satisfying the Eisenberg–Gale KKT conditions is a
@@ -408,6 +459,8 @@ theorem IsEisenbergGaleKKT.isEquilibrium {M : LinearFisherMarket I G}
   refine ⟨hkkt.price_nonneg, fun i => ?_, hkkt.pos_alloc.1.2, hkkt.dual_slackness⟩
   have hUi : 0 < M.buyerUtility x i := hkkt.pos_alloc.2 i
   have hmi : 0 < M.budget i := hbudget i
+  rw [FisherMarket.mem_demandSet, Market.mem_demandSet, toFisherMarket_utility,
+    toFisherMarket_budget]
   refine ⟨⟨hkkt.pos_alloc.1.1 i, (hkkt.expenditure_eq_budget i).le⟩, fun b' hb' => ?_⟩
   have hstat : ∀ g : G, M.budget i * M.utility i g ≤ p g * M.buyerUtility x i := fun g =>
     (div_le_iff₀ hUi).1 (hkkt.stationarity i g)
@@ -416,11 +469,11 @@ theorem IsEisenbergGaleKKT.isEquilibrium {M : LinearFisherMarket I G}
     calc
       M.budget i * linearUtility (M.utility i) b'
         = ∑ g : G, (M.budget i * M.utility i g) * b' g := by
-            simp only [linearUtility, mul_assoc, Finset.mul_sum]
+            simp only [linearUtility_eq_sum, mul_assoc, Finset.mul_sum]
       _ ≤ ∑ g : G, (p g * M.buyerUtility x i) * b' g :=
             Finset.sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hstat g) (hb'.1 g)
       _ = expenditure p b' * M.buyerUtility x i := by
-            simp only [expenditure, Finset.sum_mul]
+            simp only [expenditure_eq_sum, Finset.sum_mul]
             exact Finset.sum_congr rfl fun g _ => by ring
       _ ≤ M.budget i * M.buyerUtility x i :=
             mul_le_mul_of_nonneg_right hb'.2 hUi.le
@@ -442,7 +495,7 @@ theorem IsEquilibrium.isEisenbergGaleKKT {M : LinearFisherMarket I G}
     by_contra hall0
     push Not at hall0
     have hx0 : ∀ g, x i g = 0 := fun g => le_antisymm (hall0 g) (hx_nn i g)
-    have hexp0 : expenditure p (x i) = 0 := by simp [expenditure, hx0]
+    have hexp0 : expenditure p (x i) = 0 := by simp [expenditure_eq_sum, hx0]
     linarith [hbudget i, hexp i]
   have hUi_eq : ∀ (i : I) {g₀ : G}, 0 < x i g₀ →
       M.buyerUtility x i = (M.utility i g₀ / p g₀) * M.budget i := by
@@ -460,9 +513,11 @@ theorem IsEquilibrium.isEisenbergGaleKKT {M : LinearFisherMarket I G}
             field_simp [(hp_pos g).ne']
           _ = (M.utility i g₀ / p g₀) * (p g * x i g) := by rw [hratio]
     calc
-      M.buyerUtility x i = ∑ g : G, (M.utility i g₀ / p g₀) * (p g * x i g) :=
-        Finset.sum_congr rfl fun g _ => hterm g
-      _ = (M.utility i g₀ / p g₀) * expenditure p (x i) := (Finset.mul_sum _ _ _).symm
+      M.buyerUtility x i = ∑ g : G, (M.utility i g₀ / p g₀) * (p g * x i g) := by
+          rw [buyerUtility_eq, linearUtility_eq_sum]
+          exact Finset.sum_congr rfl fun g _ => hterm g
+      _ = (M.utility i g₀ / p g₀) * expenditure p (x i) := by
+          rw [expenditure_eq_sum, Finset.mul_sum]
       _ = (M.utility i g₀ / p g₀) * M.budget i := by rw [hexp i]
   have hUi_pos : ∀ i : I, 0 < M.buyerUtility x i := by
     intro i
@@ -485,9 +540,10 @@ theorem IsEquilibrium.isEisenbergGaleKKT {M : LinearFisherMarket I G}
     rw [div_eq_iff (hUi_pos i).ne', hUi_val]
     field_simp [(hp_pos g).ne']
 
-/-- **Eisenberg–Gale KKT equivalence** ([Vazirani2007], Section 5.2, pp. 105–107, and Exercise 5.1,
-p. 132): under `M.IsNonDegenerate` (in fact without needing `supply_pos`), `(x, p)` is a linear
-Fisher market equilibrium if and only if `(x, p)` satisfies `M.IsEisenbergGaleKKT x p`. -/
+/-- **Eisenberg–Gale KKT equivalence** ([Vazirani2007], Section 5.2, p. 106,
+conditions `(i)`–`(iv)`): under `M.IsNonDegenerate` (in fact without needing `supply_pos`),
+`(x, p)` is a linear Fisher market equilibrium if and only if `(x, p)` satisfies
+`M.IsEisenbergGaleKKT x p`. -/
 theorem isEquilibrium_iff_isEisenbergGaleKKT {M : LinearFisherMarket I G}
     (hnd : M.IsNonDegenerate) (x : I → G → ℝ) (p : G → ℝ) :
     M.IsEquilibrium x p ↔ M.IsEisenbergGaleKKT x p :=
@@ -503,13 +559,14 @@ private theorem IsEisenbergGaleKKT.sum_budget_mul_div_sub_one_le_zero
   have hexpand : ∀ i : I, M.budget i * (M.buyerUtility y i / M.buyerUtility x i) =
       ∑ g : G, (M.budget i * M.utility i g / M.buyerUtility x i) * y i g := by
     intro i
-    simp only [buyerUtility, linearUtility, div_eq_mul_inv, Finset.sum_mul, Finset.mul_sum]
+    simp only [buyerUtility_eq, linearUtility_eq_sum, div_eq_mul_inv, Finset.sum_mul,
+      Finset.mul_sum]
     exact Finset.sum_congr rfl fun g _ => by ring
   calc
     ∑ i : I, M.budget i * (M.buyerUtility y i / M.buyerUtility x i - 1)
       = (∑ i : I, ∑ g : G, (M.budget i * M.utility i g / M.buyerUtility x i) * y i g) -
           M.toFisherMarket.totalBudget := by
-            simp only [FisherMarket.totalBudget, toFisherMarket_budget, mul_sub, mul_one,
+            simp only [FisherMarket.totalBudget_eq_sum, toFisherMarket_budget, mul_sub, mul_one,
               Finset.sum_sub_distrib]
             congr 1
             exact Finset.sum_congr rfl fun i _ => hexpand i
@@ -521,6 +578,7 @@ private theorem IsEisenbergGaleKKT.sum_budget_mul_div_sub_one_le_zero
           simp only [Finset.mul_sum]
           exact Finset.sum_comm
     _ ≤ expenditure p M.supply - M.toFisherMarket.totalBudget := by
+          rw [expenditure_eq_sum]
           refine sub_le_sub_right (Finset.sum_le_sum fun g _ => ?_) _
           exact mul_le_mul_of_nonneg_left (by simpa only [toFisherMarket_supply] using hy.2 g)
             (hkkt.price_nonneg g)
@@ -657,8 +715,8 @@ theorem convex_setOf_exists_isEquilibrium {M : LinearFisherMarket I G}
     intro i
     have hlin : M.buyerUtility (a • x + b • y) i =
         a * M.buyerUtility x i + b * M.buyerUtility y i := by
-      simp only [buyerUtility, linearUtility, Pi.add_apply, Pi.smul_apply, smul_eq_mul, mul_add,
-        Finset.sum_add_distrib, Finset.mul_sum]
+      simp only [buyerUtility_eq, linearUtility_eq_sum, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
+        mul_add, Finset.sum_add_distrib, Finset.mul_sum]
       exact congrArg₂ (· + ·)
         (Finset.sum_congr rfl fun g _ => by ring)
         (Finset.sum_congr rfl fun g _ => by ring)
@@ -704,7 +762,7 @@ theorem convex_setOf_exists_isEquilibrium {M : LinearFisherMarket I G}
             rw [hkkt_x.dual_slackness g, hkkt_y.dual_slackness g, mul_zero, mul_zero, add_zero]
 
 /-- **Primal optimality implies Eisenberg–Gale KKT** ([EisenbergGale1959]; [Vazirani2007],
-Section 5.2, p. 106, and Exercise 5.1, p. 132): in a non-degenerate linear Fisher market, any
+Section 5.2, p. 106): in a non-degenerate linear Fisher market, any
 maximizer `x` of `M.eisenbergGaleObjective` on `{y | M.IsPositiveUtilityAllocation y}` pairs with
 the explicit price vector `M.eisenbergGaleDualPrice x` to satisfy `M.IsEisenbergGaleKKT`. -/
 theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMarket I G}
@@ -785,7 +843,7 @@ theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMa
         M.buyerUtility y i' = M.buyerUtility x i' + M.utility i' g * δg := by
       intro i' δg hother hself
       have hdiff : M.buyerUtility y i' - M.buyerUtility x i' = M.utility i' g * δg := by
-        simp only [buyerUtility, linearUtility, ← Finset.sum_sub_distrib, ← mul_sub]
+        simp only [buyerUtility_eq, linearUtility_eq_sum, ← Finset.sum_sub_distrib, ← mul_sub]
         rw [Finset.sum_eq_single g]
         · rw [hself, add_sub_cancel_left]
         · intro g' _ hg'
@@ -801,6 +859,7 @@ theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMa
       hU_single_change i₂ ε (fun g' hg' => by simp [y, hg']) (by simp [y, Ne.symm hne_i])
     have hy_U_other : ∀ i', i' ≠ i₁ → i' ≠ i₂ → M.buyerUtility y i' = M.buyerUtility x i' := by
       intro i' hi₁' hi₂'
+      simp only [buyerUtility_eq, linearUtility_eq_sum]
       refine Finset.sum_congr rfl fun g' _ => ?_
       by_cases hg' : g' = g
       · subst hg'
@@ -878,7 +937,7 @@ theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMa
           rw [hsame]
           simpa only [toFisherMarket_supply] using hx.1.2 g'
       have hy_Ui₀ : M.buyerUtility y i₀ = M.buyerUtility x i₀ + M.utility i₀ g * δ := by
-        simp only [buyerUtility, linearUtility, y, Function.update_self]
+        simp only [buyerUtility_eq, linearUtility_eq_sum, y, Function.update_self]
         rw [← Finset.add_sum_erase _ _ (Finset.mem_univ g)]
         symm
         rw [← Finset.add_sum_erase _ _ (Finset.mem_univ g)]
@@ -953,8 +1012,9 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
       obtain ⟨g₀, hg₀⟩ := hnd.buyer_nonsatiated i
       have hterm_pos : 0 < M.utility i g₀ * x₀ i g₀ :=
         mul_pos hg₀ (div_pos (hnd.supply_pos g₀) hcard_pos)
-      have hle : M.utility i g₀ * x₀ i g₀ ≤ M.buyerUtility x₀ i :=
-        Finset.single_le_sum
+      have hle : M.utility i g₀ * x₀ i g₀ ≤ M.buyerUtility x₀ i := by
+        rw [buyerUtility_eq, linearUtility_eq_sum]
+        exact Finset.single_le_sum
           (fun g _ => mul_nonneg (M.utility_nonneg i g) (hx₀_feas.1 i g))
           (Finset.mem_univ g₀)
       exact hterm_pos.trans_le hle
@@ -963,6 +1023,7 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
     have hU_le_max : ∀ {y : I → G → ℝ}, M.toFisherMarket.IsFeasibleAllocation y →
         ∀ i : I, M.buyerUtility y i ≤ Umax i := by
       intro y hy i
+      rw [buyerUtility_eq, linearUtility_eq_sum]
       refine Finset.sum_le_sum fun g _ => ?_
       have hy_le : y i g ≤ M.supply g :=
         (Finset.single_le_sum (fun k _ => hy.1 k g) (Finset.mem_univ i)).trans (hy.2 g)
@@ -995,8 +1056,7 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
         simp only [Set.ofPred_forall]
         exact isClosed_iInter fun g => isClosed_le (by fun_prop) continuous_const
       have hc₃ : IsClosed {y : I → G → ℝ | ∀ i : I, δ i ≤ M.buyerUtility y i} := by
-        change IsClosed {y : I → G → ℝ | ∀ i : I, δ i ≤ ∑ g : G, M.utility i g * y i g}
-        simp only [Set.ofPred_forall]
+        simp only [buyerUtility_eq, linearUtility_eq_sum, Set.ofPred_forall]
         exact isClosed_iInter fun i => isClosed_le continuous_const (by fun_prop)
       exact hc₁.inter (hc₂.inter hc₃)
     have hK_compact : IsCompact K := hBox_compact.of_isClosed_subset hK_closed hK_sub
@@ -1004,9 +1064,15 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
       have hterm : ∀ i : I, ContinuousOn
           (fun y : I → G → ℝ => M.budget i * Real.log (∑ g : G, M.utility i g * y i g)) K :=
         fun i => continuousOn_const.mul
-          (ContinuousOn.log (by fun_prop) fun y hy => ((hδ_pos i).trans_le (hy.2.2 i)).ne')
-      change ContinuousOn (fun y : I → G → ℝ =>
-        ∑ i : I, M.budget i * Real.log (∑ g : G, M.utility i g * y i g)) K
+          (ContinuousOn.log (by fun_prop) fun y hy => by
+            have hpos := (hδ_pos i).trans_le (hy.2.2 i)
+            rw [buyerUtility_eq, linearUtility_eq_sum] at hpos
+            exact hpos.ne')
+      have heq_obj : M.eisenbergGaleObjective = fun y : I → G → ℝ =>
+          ∑ i : I, M.budget i * Real.log (∑ g : G, M.utility i g * y i g) := by
+        ext y
+        simp only [eisenbergGaleObjective_eq, buyerUtility_eq, linearUtility_eq_sum]
+      rw [heq_obj]
       fun_prop
     obtain ⟨xStar, hxStar_K, hxStar_max⟩ :=
       hK_compact.exists_isMaxOn ⟨x₀, hx₀_mem⟩ hf_cont
@@ -1056,32 +1122,43 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
     refine ⟨isEmptyElim, isEmptyElim, fun g => isEmptyElim g, fun i => isEmptyElim i,
       fun g => isEmptyElim g, fun g => isEmptyElim g⟩
 
-/-! ### Linear Fisher-to-Arrow–Debreu reduction ([Vazirani2007], Section 5.11 and Exercise 5.7) -/
+/-! ### Linear Fisher-to-Arrow–Debreu reduction ([CodenottiVaradarajan2007], Section 6.1.7) -/
 
 private theorem IsNonDegenerate.totalBudget_pos [Nonempty I] {M : LinearFisherMarket I G}
     (hnd : M.IsNonDegenerate) : 0 < M.toFisherMarket.totalBudget := by
   obtain ⟨i₀⟩ := ‹Nonempty I›
+  rw [FisherMarket.totalBudget_eq_sum]
   exact (hnd.budget_pos i₀).trans_le
     (Finset.single_le_sum (fun i _ => M.budget_nonneg i) (Finset.mem_univ i₀))
 
+private theorem toLinearExchangeMarket_toExchangeMarket_eq (M : LinearFisherMarket I G) :
+    M.toLinearExchangeMarket.toExchangeMarket = M.toFisherMarket.toExchangeMarket := by
+  ext i g
+  · simp [FisherMarket.totalBudget_eq_sum]
+  · simp
+
 omit [Fintype I] in
 private theorem IsNonDegenerate.buyer_locallyNonsatiated {M : LinearFisherMarket I G}
-    (hnd : M.IsNonDegenerate) (i : I) : IsLocallyNonsatiated (M.toFisherMarket.utility i) :=
-  (isLocallyNonsatiated_linearUtility_iff (M.utility i)).2 (hnd.buyer_nonsatiated i)
+    (hnd : M.IsNonDegenerate) (i : I) : IsLocallyNonsatiated (M.toFisherMarket.utility i) := by
+  rw [toFisherMarket_utility]
+  exact (isLocallyNonsatiated_linearUtility_iff (M.utility i)).2 (hnd.buyer_nonsatiated i)
 
 /-- Under `M.IsNonDegenerate` with `[Nonempty I]`, `(x, p)` is a linear Fisher equilibrium of `M`
 if and only if `expenditure p M.supply = M.toFisherMarket.totalBudget` and `(x, p)` is a
-competitive equilibrium of `M.toLinearExchangeMarket` ([Vazirani2007], Section 5.11, p. 122). -/
+competitive equilibrium of `M.toLinearExchangeMarket` ([CodenottiVaradarajan2007], Section 6.1.7,
+p. 140). -/
 theorem isEquilibrium_iff_toLinearExchangeMarket [Nonempty I] {M : LinearFisherMarket I G}
     (hnd : M.IsNonDegenerate) {x : I → G → ℝ} {p : G → ℝ} :
     M.IsEquilibrium x p ↔
       expenditure p M.supply = M.toFisherMarket.totalBudget ∧
-        M.toLinearExchangeMarket.IsCompetitiveEquilibrium x p :=
-  M.toFisherMarket.isEquilibrium_iff_toExchangeMarket hnd.totalBudget_pos
-    hnd.buyer_locallyNonsatiated
+        M.toLinearExchangeMarket.IsCompetitiveEquilibrium x p := by
+  simpa only [IsEquilibrium, LinearExchangeMarket.IsCompetitiveEquilibrium, toFisherMarket_supply,
+    toLinearExchangeMarket_toExchangeMarket_eq] using
+    M.toFisherMarket.isEquilibrium_iff_toExchangeMarket hnd.totalBudget_pos
+      hnd.buyer_locallyNonsatiated
 
-/-- **Exercise 5.7** ([Vazirani2007], Section 5.11, p. 122, and p. 132): in a non-degenerate linear
-Fisher market with `[Nonempty I]`, any competitive equilibrium `(x, p)` of
+/-- **Rescaling recovery** ([CodenottiVaradarajan2007], Section 6.1.7, p. 140): in a non-degenerate
+linear Fisher market with `[Nonempty I]`, any competitive equilibrium `(x, p)` of
 `M.toLinearExchangeMarket` rescales directly to a linear Fisher market equilibrium of `M`. -/
 theorem isEquilibrium_smul_of_toLinearExchangeMarket [Nonempty I] {M : LinearFisherMarket I G}
     (hnd : M.IsNonDegenerate) {x : I → G → ℝ} {p : G → ℝ}
@@ -1091,13 +1168,19 @@ theorem isEquilibrium_smul_of_toLinearExchangeMarket [Nonempty I] {M : LinearFis
   obtain ⟨g₀, _⟩ := hnd.buyer_nonsatiated i₀
   have hp_pos : ∀ g : G, 0 < p g := fun g => by
     obtain ⟨i, hi⟩ := hnd.good_desired g
-    exact price_pos_of_mem_demandSet_linearUtility heq.1 (heq.2.1 i) hi
-  have hval : 0 < expenditure p M.supply :=
-    (mul_pos (hp_pos g₀) (hnd.supply_pos g₀)).trans_le
+    have hmem := M.toLinearExchangeMarket.toExchangeMarket.mem_demandSet.1 (heq.2.1 i)
+    simp only [LinearExchangeMarket.toExchangeMarket_utility,
+      toLinearExchangeMarket_utility] at hmem
+    exact price_pos_of_mem_demandSet_linearUtility heq.1 hmem hi
+  have hval : 0 < expenditure p M.supply := by
+    rw [expenditure_eq_sum]
+    exact (mul_pos (hp_pos g₀) (hnd.supply_pos g₀)).trans_le
       (Finset.single_le_sum (fun g _ => mul_nonneg (hp_pos g).le (M.supply_nonneg g))
         (Finset.mem_univ g₀))
+  have heq' : M.toFisherMarket.toExchangeMarket.IsCompetitiveEquilibrium x p := by
+    rwa [← toLinearExchangeMarket_toExchangeMarket_eq]
   exact M.toFisherMarket.isEquilibrium_smul_of_toExchangeMarket hnd.totalBudget_pos
-    hnd.buyer_locallyNonsatiated heq hval
+    hnd.buyer_locallyNonsatiated heq' hval
 
 end Equivalence
 
