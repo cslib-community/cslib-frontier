@@ -8768,6 +8768,7 @@ public import CslibFrontier.Foundations.Order.FiniteFixedPoint
 public import CslibFrontier.Foundations.Order.Mirsky
 public import CslibFrontier.Foundations.Order.UpperLower
 public import CslibFrontier.Foundations.Probability.AzumaPi
+public import CslibFrontier.Foundations.Probability.BernsteinPi
 public import CslibFrontier.Foundations.Probability.Bonferroni
 public import CslibFrontier.Foundations.Probability.CDF
 public import CslibFrontier.Foundations.Probability.Cauchy
@@ -9755,6 +9756,7 @@ public import CslibFrontier.MachineLearning.LossMinimization.Squared
 public import CslibFrontier.MachineLearning.LossMinimization.Stability
 public import CslibFrontier.MachineLearning.LossMinimization.StochasticGradientDescent
 public import CslibFrontier.MachineLearning.OnlineLearning.AdaGrad
+public import CslibFrontier.MachineLearning.OnlineLearning.BernsteinOnlineToBatch
 public import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
 public import CslibFrontier.MachineLearning.OnlineLearning.Calibration
 public import CslibFrontier.MachineLearning.OnlineLearning.ConvexOnlineToBatch
@@ -9896,6 +9898,7 @@ public import CslibFrontier.Probability.ApproxEq
 public import CslibFrontier.Probability.ApproximateCounting
 public import CslibFrontier.Probability.ApproximateCounting.Relative
 public import CslibFrontier.Probability.Azuma
+public import CslibFrontier.Probability.BennettStep
 public import CslibFrontier.Probability.BernoulliComparison
 public import CslibFrontier.Probability.BilinearFingerprint
 public import CslibFrontier.Probability.BinaryKL
@@ -9968,6 +9971,7 @@ public import CslibFrontier.Probability.Fooling.DecisionTree
 public import CslibFrontier.Probability.Fooling.DecisionTree.Separation
 public import CslibFrontier.Probability.Fooling.OneSided
 public import CslibFrontier.Probability.Forking
+public import CslibFrontier.Probability.Freedman
 public import CslibFrontier.Probability.Freivalds
 public import CslibFrontier.Probability.Guessing
 public import CslibFrontier.Probability.Guessing.Leakage
