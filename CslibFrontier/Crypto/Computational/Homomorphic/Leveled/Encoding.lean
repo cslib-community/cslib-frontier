@@ -23,6 +23,8 @@ framed encodings and total polynomial-time decoders; no private key is part of t
 * `Cslib.Crypto.Homomorphic.Leveled.publicKeyDecoder`: total public-artifact decoding.
 * `Cslib.Crypto.Homomorphic.Leveled.encSecretKey`: the two endpoint secrets.
 * `Cslib.Crypto.Homomorphic.Leveled.secretKeyDecoder`: total private-artifact decoding.
+* `Cslib.Crypto.Homomorphic.Leveled.encChooseCoinsInput`: seeded message-selection input
+  `((1ⁿ, pk), tape)`.
 
 ## References
 
@@ -64,5 +66,11 @@ def secretKeyDecoder : Decoder encSecretKey := Decoder.bits.pair Decoder.bits
 @[simp] theorem length_encSecretKey (first last : List Bool) :
     (encSecretKey (first, last)).length = 2 * first.length + 1 + last.length := by
   simp [encSecretKey]
+
+/-- Seeded input `((1ⁿ, pk), tape)` of a message-selection evaluator: the unary security parameter
+`n` is framed before the public-key word `pk`, the pair `(1ⁿ, pk)` is framed again, and the raw
+coin tape `tape` follows unframed, with no tag bits. -/
+abbrev encChooseCoinsInput : (ℕ × List Bool) × List Bool ↪ List Bool :=
+  encPair (encPair encUnary encBits) encBits
 
 end Cslib.Crypto.Homomorphic.Leveled

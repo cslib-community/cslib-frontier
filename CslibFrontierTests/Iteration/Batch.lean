@@ -84,7 +84,7 @@ example (m : ℕ) : ∃ out : Circuit signature (2 * (1 + m)) (2 * 1),
 -- The balanced batched bounds.
 example (c : Circuit signature 3 3) (T : ℕ) : ∃ out : Circuit signature (2 * 3) (2 * 3),
     out.Computes interpretation (blockMap (c.eval interpretation)^[T] 2) ∧
-      (out.size : ℝ) ≤ 300000 * optimizedBatchBudget 3 c.size 8 2 :=
+      (out.size : ℝ) ≤ 200000 * optimizedBatchBudget 3 c.size 8 2 :=
   batched_fixed_power_optimized c 2 T two_pos (by decide)
 
 /-! ### Batches on a promised set of states -/
@@ -140,7 +140,7 @@ example (T : ℕ) : ∃ out : Circuit signature 6 6,
     out.ComputesOn interpretation
       {x | ∀ member : Fin 3, BitString.block x member ∈ leftHalf}
       (blockMap (flipTail.eval interpretation)^[T] 3) ∧
-    (out.size : ℝ) ≤ 300000 * optimizedBatchBudget 2 1 2 3 := by
+    (out.size : ℝ) ≤ 200000 * optimizedBatchBudget 2 1 2 3 := by
   simpa [leftHalf, flipTail] using
     batched_fixed_power_on_optimized flipTail leftHalf 3 T flipTail_invariant
       (by decide) (by decide)

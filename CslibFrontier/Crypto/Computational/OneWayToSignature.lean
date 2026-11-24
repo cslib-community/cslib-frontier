@@ -32,6 +32,7 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Equivalence between one-way functions and one-time digital signatures, and necessity for EUF-CMA
@@ -901,9 +902,7 @@ theorem OneWayOn.oneTimeEUFCMA_lamport {f : List Bool → List Bool}
   refine SignatureScheme.OneTimeEUFCMA.of_negligible fun adversary hadversary => ?_
   have hinv_neg := hf.negligible (lamportInverter f hf.polyTime adversary)
     (isPPT_lamportInverter hf.polyTime hadversary)
-  have hpoly : PolynomiallyBounded fun n => dyadicSize (2 * n) :=
-    dyadicSize_polynomiallyBounded.comp ((PolynomiallyBounded.const 2).mul .id)
-  exact negligible_of_le (hinv_neg.polynomiallyBounded_mul hpoly) fun n =>
+  negligible using fun n =>
     succProbability_eufOneTimeGame_lamport_le hf.polyTime (hvalid n) adversary
 
 /-- Any function one-way on a domain containing every `n`-bit word implies the existence of a

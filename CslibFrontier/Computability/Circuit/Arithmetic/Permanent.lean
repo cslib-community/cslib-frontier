@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
 public import CslibFrontier.Computability.Circuit.Arithmetic.VNP
 import CslibFrontier.Foundations.Data.Matrix.Ryser
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 
 /-!
@@ -70,10 +71,6 @@ noncomputable def ryserPoly (R : Type u) [CommRing R] (n : ℕ) :
     ∏ i : Fin n, ∑ j : Fin n,
       X (Fin.natAdd (n * n) j) * X (Fin.castAdd n (finProdFinEquiv (i, j)))
 
-private theorem totalDegree_X_le' {σ : Type*} (i : σ) :
-    (X i : MvPolynomial σ R).totalDegree ≤ 1 :=
-  (totalDegree_monomial_le _ _).trans (by simp)
-
 /-- The Ryser inner polynomial has total degree at most `3 * n`. -/
 theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 * n := by
   rw [ryserPoly]
@@ -85,7 +82,7 @@ theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 *
       _ = n := by simp
     rw [sub_eq_add_neg, show (2 : MvPolynomial (Fin (n * n + n)) R) = C 2 from (map_ofNat C 2).symm]
     refine (totalDegree_add _ _).trans (max_le ?_ ?_)
-    · exact (totalDegree_mul _ _).trans (by simpa using totalDegree_X_le' _)
+    · exact (totalDegree_mul _ _).trans (by simpa using totalDegree_X_le _)
     · rw [← map_one C, ← map_neg C, totalDegree_C]
       omega
   have h2 : (∏ i : Fin n, ∑ j : Fin n,
@@ -96,7 +93,7 @@ theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 *
       _ = 2 * n := by simp [mul_comm]
     refine totalDegree_finsetSum_le fun j _ => ?_
     refine (totalDegree_mul _ _).trans ?_
-    exact Nat.add_le_add (totalDegree_X_le' _) (totalDegree_X_le' _)
+    exact Nat.add_le_add (totalDegree_X_le _) (totalDegree_X_le _)
   omega
 
 /-- The polynomial family of Ryser inner polynomials over `R`. -/

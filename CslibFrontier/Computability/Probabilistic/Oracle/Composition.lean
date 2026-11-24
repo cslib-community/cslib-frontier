@@ -31,7 +31,8 @@ unbounded reply is not oracle PPT (`CslibFrontierTests.OraclePPT`).
 
 ## Main results
 
-* `Cslib.Probability.IsOraclePPTOn.query_take`: one external call returning a reply prefix.
+* `Cslib.Probability.IsOraclePPTOn.query_take`, `.query_take_with`: one external call returning a
+  reply prefix (constant or computed channel).
 * `Cslib.Probability.IsPPTOn.isOraclePPTOn`: closed PPT programs are oracle PPT via `sample`.
 * `Cslib.Probability.IsOraclePPTOn.isPPTOn`: conversely, a sampled closed program certified
   without external channels is closed PPT.
@@ -77,6 +78,21 @@ theorem query_take [Finite Operation] (op : Operation) {request : α → List Bo
         (op, request a)) :=
   ((Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn.query_take op).preprocess
     (hrequest.prod hlimit)).isOraclePPTOn
+
+/-- One external call on a plain computed finite channel, request word, and unary reply limit.
+Building the channel tag, request word, and reading the prefix are charged; the rest of an
+arbitrarily long reply is never read. -/
+@[fun_prop]
+theorem query_take_with [Finite Operation] {opEncoding : Operation ↪ List Bool}
+    {op : α → Operation} {request : α → List Bool} {limit : α → ℕ}
+    (hop : ComputableInPolyTime op input opEncoding)
+    (hrequest : ComputableInPolyTime request input encBits)
+    (hlimit : ComputableInPolyTime limit input encUnary) :
+    IsOraclePPTOn input encBits (fun a => List.take (limit a) <$>
+      ProbOracleComp.query (spec := fun _ : Operation × List Bool => List Bool)
+        (op a, request a)) :=
+  (Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn.finite_cases hop fun choice =>
+    (query_take choice hrequest hlimit).oraclePhase).isOraclePPTOn
 
 /-- Sequence two strict oracle PPT programs. The intermediate output length bounds the
 continuation's clock, and every effect of both phases on the shared oracle is retained. -/

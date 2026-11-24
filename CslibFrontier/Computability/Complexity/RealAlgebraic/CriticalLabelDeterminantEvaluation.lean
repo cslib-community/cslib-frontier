@@ -224,7 +224,8 @@ theorem criticalLabelDeterminantResidue_cast {p n : ℕ} [Fact p.Prime]
     exact criticalShiftedObjectiveResidue_cast d hd b e F hF hinner (by omega) _ data value hv
   · intro s _
     rw [jacobian_map, show (fun i => (r i).map φ) = rmod from funext hrmap]
-    exact criticalJacobianValue_cast (F.map φ) ell ur _ value hFp (by omega) hv
+    exact criticalJacobianValue_cast (F.map φ)
+      (fun i => (separatedCenters ell i : ℕ)) ell ur _ value hFp (by omega) hv
   · intro i s _
     rw [hrmap]
     exact criticalLowerValue_cast (F.map φ) ell ur i _ value hFp (by omega) hv

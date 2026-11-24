@@ -103,13 +103,8 @@ variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
 theorem _root_.Cslib.IsMonadHom.map_rankM (hf : IsMonadHom m n f) (le : α → α → m Bool)
     (visit : m Unit) (k : α) (tr : BTree α β) :
     f (rankM le visit k tr) = rankM (fun a b => f (le a b)) (f visit) k tr := by
-  match tr with
-  | .leaf => simp [rankM_leaf, hf.map_pure]
-  | .node first [] => simp [rankM_node_nil, hf.map_bind, hf.map_rankM le visit k first]
-  | .node first ((k', v, c) :: rest) =>
-    simp [rankM_node_cons, hf.map_bind, hf.map_pure, apply_ite f, hf.map_rankM le visit k first,
-      hf.map_rankM le visit k (.node c rest)]
-termination_by sizeOf tr
+  fun_induction rankM le visit k tr <;>
+    simp [rankM, hf.map_bind, hf.map_pure, apply_ite f, *]
 
 end Transfer
 
@@ -144,21 +139,19 @@ contributes its preceding child's size plus one before the scan continues. -/
 `toList` whose keys are strictly below the query. -/
 theorem rank_eq_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k : α) :
     rank k tr = SortedAssoc.rank k tr.toList := by
-  fun_induction rankM (m := Id) leI (pure ()) k tr with
-  | case1 => simp
-  | case2 first ih => simpa using ih (by simpa using h)
-  | case3 first k' v c rest ih₁ ih₂ =>
-    rw [toList_node, toListRest_cons, List.cons_append] at h ⊢
-    rw [toList_node] at ih₂
-    obtain ⟨h₁, h₂, hlt, hgt⟩ := List.isSortedAssoc_append_cons_iff.1 h
-    rw [rank_node_cons, SortedAssoc.rank_append, SortedAssoc.rank_cons]
+  induction h using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil _ _ ih => simpa using ih
+  | node_cons first k' v c rest _ _ hlt hgt ih₁ ih₂ =>
+    rw [rank_node_cons, toList_node_cons, SortedAssoc.rank_append, SortedAssoc.rank_cons,
+      ih₁, ih₂]
     by_cases hk : k ≤ k'
-    · have hn : SortedAssoc.rank k (c.toList ++ toListRest rest) = 0 :=
-        SortedAssoc.rank_eq_zero_iff.2 fun p hp => hk.trans (hgt p hp).le
-      simp only [hk, not_lt.2 hk, ↓reduceIte, hn, Nat.add_zero, ih₁ h₁]
-    · have hall : SortedAssoc.rank k first.toList = first.toList.length :=
-        SortedAssoc.rank_eq_length_iff.2 fun p hp => (hlt p hp).trans (lt_of_not_ge hk)
-      simp only [hk, lt_of_not_ge hk, ↓reduceIte, hall, ih₂ h₂, length_toList]
+    · rw [SortedAssoc.rank_eq_zero_iff.2 fun p hp => hk.trans (hgt p hp).le]
+      simp [hk, not_lt.2 hk]
+    · have hall : SortedAssoc.rank k first.toList = first.size := by
+        rw [← length_toList, SortedAssoc.rank_eq_length_iff]
+        exact fun p hp => (hlt p hp).trans (lt_of_not_ge hk)
+      simp [hk, lt_of_not_ge hk, hall]
       omega
 
 /-- Model equation for rank on well-formed trees. -/

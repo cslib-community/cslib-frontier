@@ -71,7 +71,7 @@ theorem realize_packedBit {B : ℕ} (h : (language L).Term α)
     (packedBit L h w a).Realize v ↔ ∃ r : Fin B, ∃ b : Fin n,
       r.val * (h.realize v).val + b.val = (a.realize v).val ∧
         b.val < (h.realize v).val ∧ ((w r).realize v).val.testBit b.val = true := by
-  fo_simp [packedBit, Function.comp_def, not_le, and_assoc]
+  fo_simp [packedBit, not_le, and_assoc]
   constructor
   · rintro ⟨r, u, h0, h1, h2, h3⟩
     exact ⟨r, u 1, by lia, h2, h3⟩
@@ -88,7 +88,7 @@ theorem realize_packedField {B : ℕ} (h : (language L).Term α)
     (packedField L h w a s z).Realize v ↔ (z.realize v).val =
       BitString.readPackedField (h.realize v).val (fun r => ((w r).realize v).val)
         (a.realize v).val (s.realize v).val := by
-  fo_simp [packedField, Function.comp_def, not_le]
+  fo_simp [packedField, not_le]
   constructor
   · intro hf
     apply Nat.eq_of_testBit_eq

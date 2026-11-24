@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.FirstOrder.Ordered.BitArithmetic
+import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
 # Bounds, quotients and remainders by fixed literals
@@ -69,7 +70,7 @@ variable {L : Language} {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)] {α : T
 @[simp, fo_realize]
 theorem realize_ltNat (k : ℕ) (x : (language L).Term α) (v : α → Fin n) :
     (ltNat L k x).Realize v ↔ (x.realize v).val < k := by
-  simp only [ltNat, Formula.realize_iSup, realize_natEq]
+  fo_simp [ltNat]
   exact ⟨fun ⟨j, hj⟩ => hj ▸ j.isLt, fun h => ⟨⟨_, h⟩, rfl⟩⟩
 
 /-- `scaleAddEq L d x y z` holds exactly when `d * x + y = z`. -/
@@ -77,9 +78,7 @@ theorem realize_ltNat (k : ℕ) (x : (language L).Term α) (v : α → Fin n) :
 theorem realize_scaleAddEq (d : ℕ) (x y z : (language L).Term α) (v : α → Fin n) :
     (scaleAddEq L d x y z).Realize v ↔
       d * (x.realize v).val + (y.realize v).val = (z.realize v).val := by
-  simp only [scaleAddEq, Formula.realize_iExs, Formula.realize_inf, realize_scaleEq,
-    realize_addEq, Term.realize_relabel, Term.realize_var, Sum.elim_comp_inl,
-    Sum.elim_inr]
+  fo_simp [scaleAddEq]
   constructor
   · rintro ⟨t, ht, he⟩
     omega
@@ -90,9 +89,7 @@ theorem realize_scaleAddEq (d : ℕ) (x y z : (language L).Term α) (v : α → 
 @[simp, fo_realize]
 theorem realize_divNatEq {d : ℕ} (hd : 0 < d) (x y : (language L).Term α) (v : α → Fin n) :
     (divNatEq L d x y).Realize v ↔ (y.realize v).val = (x.realize v).val / d := by
-  simp only [divNatEq, Formula.realize_iExs, Formula.realize_inf, realize_ltNat,
-    realize_scaleAddEq, Term.realize_relabel, Term.realize_var, Sum.elim_comp_inl,
-    Sum.elim_inr]
+  fo_simp [divNatEq]
   constructor
   · rintro ⟨m, hm, he⟩
     rw [← he, Nat.add_comm, Nat.add_mul_div_left _ _ hd, Nat.div_eq_of_lt hm, Nat.zero_add]
@@ -106,9 +103,7 @@ theorem realize_divNatEq {d : ℕ} (hd : 0 < d) (x y : (language L).Term α) (v 
 @[simp, fo_realize]
 theorem realize_modNatEq {d : ℕ} (hd : 0 < d) (x y : (language L).Term α) (v : α → Fin n) :
     (modNatEq L d x y).Realize v ↔ (y.realize v).val = (x.realize v).val % d := by
-  simp only [modNatEq, Formula.realize_iExs, Formula.realize_inf, realize_ltNat,
-    realize_scaleAddEq, Term.realize_relabel, Term.realize_var, Sum.elim_comp_inl,
-    Sum.elim_inr]
+  fo_simp [modNatEq]
   constructor
   · rintro ⟨hy, q, he⟩
     rw [← he, Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hy]
