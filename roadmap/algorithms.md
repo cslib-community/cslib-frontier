@@ -153,6 +153,11 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ### Constructive probabilistic methods
 
+- **Planted-clique recovery** ([#6238](https://github.com/cslib-community/cslib-frontier/issues/6238)):
+  certify a finite-precision realization of the raw-adjacency
+  second-eigenvector algorithm in the native computation model, and sharpen its constants to
+  match Alon–Krivelevich–Sudakov. See the
+  [proof and module guide](../CslibFrontier/Algorithms/PlantedClique/README.md).
 - **Moser–Tardos resampling** ([#3096](https://github.com/cslib-community/cslib-frontier/issues/3096)): extend the formalized variable-form, symmetric `e p (d + 1) ≤ 1`, Section 6 lopsided and constructive `k`-SAT resampling bounds with parallel and derandomized versions (Theorems 1.3–1.4) and native sampling and event-detection costs.
   Build the Kolmogorov form's decoder ([#3043](https://github.com/cslib-community/cslib-frontier/issues/3043)) as a multi-tape machine taking the formula, transferring it to `condPlain`.
 - **Conditional expectations and pessimistic estimators:** algorithmic alteration, and coloring, MAX-CUT or combinatorial-construction clients of the certified greedy choice rule for pessimistic estimators.

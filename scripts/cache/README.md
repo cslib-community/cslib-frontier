@@ -155,6 +155,32 @@ producer run ID and attempt, so a successful rerun whose optional backup failed 
 an earlier attempt's artifact. The runner reports that identity. Set `DISABLE_GUIDE_ARTIFACT=1`
 to turn off this backup independently.
 
+## Documentation database cache
+
+Nightly API documentation runs (`.github/workflows/docs.yml`) cache `docbuild/.lake/build/api-docs.db`
+and `docbuild/.lake/build/doc-data` across runs so `doc-gen4` skips unchanged `docInfo` passes.
+Generated HTML under `docbuild/.lake/build/doc` is not cached and is rebuilt on every run. Only
+`main` writes to the Actions cache, and only when the restore was not already an exact key hit;
+non-`main` `workflow_dispatch` runs read without creating branch-scoped entries that would consume
+the 10 GB repository Actions cache limit.
+
+The cache key includes `CACHE_RECOVERY_GENERATION`, `lean-toolchain`, `lakefile.toml`,
+`lake-manifest.json`, `docbuild/lakefile.toml`, and `docbuild/lake-manifest.json`, plus the commit
+and run ID for exact hits. Increment `CACHE_RECOVERY_GENERATION` to invalidate cached entries without
+a commit, or set `DISABLE_CACHE_RESTORE=true` (or `1`) to bypass both restore and save. Failed or
+missed restores discard any partial `api-docs.db*` and `doc-data` outputs before generation.
+
+Before running `lake -d docbuild build CslibFrontier:docs`, `scripts/check_docs.py --prepare-cache --discard-corrupt`
+removes non-marker files from `doc-data` (bibliography outputs, `.docs_built`, per-module search
+JSON), deletes obsolete local `CslibFrontier*` markers, cascades deleted/renamed `CslibFrontier*`
+module rows out of `api-docs.db` with `PRAGMA foreign_keys = ON` (so stale `tactics` and
+`name_info` rows cannot leak into HTML or trigger `check_docs.py`'s obsolete-module check), and
+runs `PRAGMA wal_checkpoint(TRUNCATE)`. After generation, `scripts/check_docs.py --checkpoint-cache`
+checkpoints WAL before `actions/cache/save` archives `api-docs.db` without sidecars. Monitor
+compressed cache usage on `main`: if retaining multiple nightly generations threatens `.lake`/`elan`
+eviction within the 10 GB repository budget, move persistence to an `actions/upload-artifact` backup
+following the Guide dependency pattern above.
+
 ## Hosted-runner disk space
 
 Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to report available disk

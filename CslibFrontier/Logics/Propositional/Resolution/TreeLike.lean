@@ -64,8 +64,9 @@ nodes, so by induction its restriction is refutable in width `k + b - 1`, and th
 * `Cslib.Logic.PL.CNF.Derivation.exists_size_eq_of_relabel`: a tree-like refutation of a formula
   relabelled along an injective map gives one of the formula with the same number of nodes.
 * `Cslib.Logic.PL.CNF.Derivation.findsFalsifiedClause_toDecisionTree`,
-  `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation`: tree-like refutations and decision
-  trees finding falsified clauses convert into each other;
+  `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation`,
+  `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation_leafCount_le`: tree-like refutations
+  and decision trees finding falsified clauses convert into each other;
   `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation_rank_le` also bounds the rank.
 * `Cslib.Logic.PL.CNF.RefutableInWidth.of_derivation`: short tree-like refutations are narrow.
 
@@ -434,6 +435,13 @@ theorem _root_.Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation {φ : C
     {t : DecisionTree V (Clause V)} (ht : t.FindsFalsifiedClause φ) :
     ∃ d : φ.Derivation [], d.size + 1 ≤ 2 * t.leafCount :=
   ht.exists_derivation_rank_le.imp fun _ h => h.1
+
+/-- **A DPLL tree has as many leaves as a tree-like refutation**: a decision tree finding a
+falsified clause of `φ` gives a tree-like refutation of `φ` with at most as many leaves. -/
+theorem _root_.Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation_leafCount_le
+    {φ : CNF V} {t : DecisionTree V (Clause V)} (ht : t.FindsFalsifiedClause φ) :
+    ∃ d : φ.Derivation [], d.toDecisionTree.leafCount ≤ t.leafCount :=
+  ht.exists_derivation.imp fun d h => by have := d.two_mul_leafCount_toDecisionTree; omega
 
 namespace CNF
 
