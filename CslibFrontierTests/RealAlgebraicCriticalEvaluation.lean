@@ -472,8 +472,10 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let C : Controlled (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ)) encNat 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
     let lifted := C.onCoordinate (n := fun _ => 2) (.const 2) (fun _ => 1) (.const 1)
-    lifted.cutoff w < p → lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
-  intro C lifted hcut
+    lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
+  intro C lifted
+  have hcut : lifted.cutoff w < p := by
+    simpa only [lifted, Controlled.cutoff_onCoordinate, C, Controlled.coordinate] using hp.pos
   rw [lifted.evaluate_eq w p z hp hcut]
   simp only [evaluation, MvPolynomial.rename_X, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_one]
@@ -533,17 +535,24 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   rw [Finset.sum_const, Finset.card_range, two_nsmul, ← Nat.cast_pow, ← Nat.cast_add,
     ZMod.val_natCast]
 
--- An out-of-range auxiliary address gives the same residue even with extra coordinates.
+-- The in-range row reads the appended coordinate. Extra list entries do not extend the arity.
 example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let CQ : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
         (encPair encNat encNat) 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
     let rows := CQ.positivityEquations (n := fun _ : ℕ => 1) (fun _ => 1) (.const 1)
     rows.evaluate ∈ CountingFunction 0 (encEvaluation (encPair encNat encNat)) encNat ∧
-      (rows.cutoff (w, 2) < p → rows.evaluate ((w, 2), p, z) = (-1 : ZMod p).val) := by
+      rows.evaluate ((w, 0), p, z) =
+        ((z.getD 0 0 : ZMod p) * (z.getD 1 0 : ZMod p) ^ 2 - 1).val ∧
+      rows.evaluate ((w, 2), p, z) = (-1 : ZMod p).val := by
   intro CQ rows
-  refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
-  rw [rows.evaluate_eq (w, 2) p z hp hcut, positivityEquation_of_le _ (by decide : 1 ≤ 2)]
-  simp [evaluation]
+  have hcut (j : ℕ) : rows.cutoff (w, j) < p := by
+    simpa only [rows, Controlled.cutoff_positivityEquations, CQ, Controlled.coordinate]
+      using hp.pos
+  refine ⟨rows.evaluate_mem, ?_, ?_⟩
+  · rw [rows.evaluate_eq (w, 0) p z hp (hcut 0), positivityEquation_of_lt _ (by decide : 0 < 1)]
+    simp [evaluation, List.getD_eq_getElem?_getD, sub_eq_add_neg]
+  · rw [rows.evaluate_eq (w, 2) p z hp (hcut 2), positivityEquation_of_le _ (by decide : 1 ≤ 2)]
+    simp [evaluation]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

@@ -34,7 +34,7 @@ open Turing.MultiTapeTM ComputableInPolyTime MvPolynomial
 
 /-- Rename the variables using a polynomial-time map on zero-padded evaluation points.
 The realizing map must agree with the renaming on each original coordinate. -/
-@[expose] noncomputable def rename {α : Type} {n m : α → ℕ}
+noncomputable def rename {α : Type} {n m : α → ℕ}
     {enc : α ↪ List Bool} {a : ℕ} {P : (w : α) → MvPolynomial (Fin (n w)) ℤ}
     (C : Controlled P enc a) (hm : ComputableInPolyTime m enc encUnary)
     (f : (w : α) → Fin (n w) → Fin (m w)) (point : α × List ℕ → List ℕ)
@@ -81,13 +81,60 @@ noncomputable def onCoordinate {α : Type} {n : α → ℕ} {enc : α ↪ List B
     {P : α → MvPolynomial (Fin 1) ℤ} (C : Controlled P enc a)
     (hn : ComputableInPolyTime n enc encUnary) (i : (w : α) → Fin (n w))
     (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat) :
-    Controlled (fun w => MvPolynomial.rename (fun _ : Fin 1 => i w) (P w)) enc a := by
-  have hread := listGetD_binary (encA := encNat) 0 (snd enc (encList encNat))
+    Controlled (fun w => MvPolynomial.rename (fun _ : Fin 1 => i w) (P w)) enc a :=
+  let hread := listGetD_binary (encA := encNat) 0 (snd enc (encList encNat))
     (hi.comp (fst enc (encList encNat)))
-  refine C.rename hn (fun w _ => i w) (fun (w, z) => [z.getD (i w).val 0])
-    ((cons encNat).comp (hread.prod (.const []))) ?_
-  intro w z j
-  rw [Fin.eq_zero j]
-  rfl
+  C.rename hn (fun w _ => i w) (fun (w, z) => [z.getD (i w).val 0])
+    ((cons encNat).comp (hread.prod (.const []))) (by
+      intro w z j
+      rw [Fin.eq_zero j]
+      rfl)
+
+section AppendVariables
+
+variable {α : Type} {n : α → ℕ} {enc : α ↪ List Bool} {a : ℕ}
+  {P : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+  (C : Controlled P enc a) (k : α → ℕ) (hk : ComputableInPolyTime k enc encUnary)
+
+/-- Appending variables preserves the degree bound. -/
+@[simp] theorem degreeBound_appendVariables :
+    (C.appendVariables k hk).degreeBound = C.degreeBound := by
+  simp only [appendVariables, rename]
+
+/-- Appending variables preserves the coefficient norm exponent. -/
+@[simp] theorem massExponent_appendVariables :
+    (C.appendVariables k hk).massExponent = C.massExponent := by
+  simp only [appendVariables, rename]
+
+/-- Appending variables preserves the prime cutoff. -/
+@[simp] theorem cutoff_appendVariables :
+    (C.appendVariables k hk).cutoff = C.cutoff := by
+  simp only [appendVariables, rename]
+
+end AppendVariables
+
+section OnCoordinate
+
+variable {α : Type} {n : α → ℕ} {enc : α ↪ List Bool} {a : ℕ}
+  {P : α → MvPolynomial (Fin 1) ℤ} (C : Controlled P enc a)
+  (hn : ComputableInPolyTime n enc encUnary) (i : (w : α) → Fin (n w))
+  (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat)
+
+/-- Lifting to one coordinate preserves the degree bound. -/
+@[simp] theorem degreeBound_onCoordinate :
+    (C.onCoordinate hn i hi).degreeBound = C.degreeBound := by
+  simp only [onCoordinate, rename]
+
+/-- Lifting to one coordinate preserves the coefficient norm exponent. -/
+@[simp] theorem massExponent_onCoordinate :
+    (C.onCoordinate hn i hi).massExponent = C.massExponent := by
+  simp only [onCoordinate, rename]
+
+/-- Lifting to one coordinate preserves the prime cutoff. -/
+@[simp] theorem cutoff_onCoordinate :
+    (C.onCoordinate hn i hi).cutoff = C.cutoff := by
+  simp only [onCoordinate, rename]
+
+end OnCoordinate
 
 end Cslib.Complexity.RealAlgebraic.Controlled

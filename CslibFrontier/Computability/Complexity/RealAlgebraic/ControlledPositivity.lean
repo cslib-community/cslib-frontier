@@ -32,6 +32,11 @@ open Turing.MultiTapeTM ComputableInPolyTime MvPolynomial
 private noncomputable def coordinateOrZero (n i : ℕ) : MvPolynomial (Fin n) ℤ :=
   if h : i < n then X ⟨i, h⟩ else 0
 
+private theorem coordinateOrZero_bounds (n j : ℕ) :
+    (coordinateOrZero n j).totalDegree ≤ 1 ∧ (coordinateOrZero n j).coeffNorm1 ≤ 1 := by
+  unfold coordinateOrZero
+  split <;> simp
+
 private noncomputable def controlledCoordinateOrZero {α : Type} {n i : α → ℕ}
     {enc : α ↪ List Bool} {a : ℕ}
     (hn : ComputableInPolyTime n enc encUnary) (hi : ComputableInPolyTime i enc encNat) :
@@ -39,14 +44,10 @@ private noncomputable def controlledCoordinateOrZero {α : Type} {n i : α → �
   arity_computable := hn
   degreeBound _ := 1
   degree_computable := .const 1
-  degree_le w := by
-    unfold coordinateOrZero
-    split <;> simp
+  degree_le w := (coordinateOrZero_bounds _ _).1
   massExponent _ := 0
   mass_computable := .const 0
-  mass_le w := by
-    unfold coordinateOrZero
-    split <;> simp
+  mass_le w := (coordinateOrZero_bounds _ _).2
   cutoff _ := 0
   cutoff_computable := .const 0
   evaluate := fun (w, p, z) => (if i w < n w then z.getD (i w) 0 else 0) % p
@@ -72,10 +73,35 @@ noncomputable def positivityEquation {n : ℕ} (Q : MvPolynomial (Fin n) ℤ) (k
     MvPolynomial (Fin (n + k)) ℤ :=
   MvPolynomial.rename (Fin.castAdd k) Q * coordinateOrZero (n + k) (n + j) ^ 2 + C (-1)
 
+/-- At a valid address the auxiliary variable belongs to the appended block. -/
+theorem positivityEquation_of_lt {n k j : ℕ} (Q : MvPolynomial (Fin n) ℤ) (hj : j < k) :
+    positivityEquation Q k j =
+      MvPolynomial.rename (Fin.castAdd k) Q * X (Fin.natAdd n ⟨j, hj⟩) ^ 2 + C (-1) := by
+  rw [positivityEquation, coordinateOrZero, dite_eq_left (Nat.add_lt_add_left hj n)]
+  rfl
+
 /-- Outside the auxiliary block the row is the impossible constant equation. -/
 theorem positivityEquation_of_le {n k j : ℕ} (Q : MvPolynomial (Fin n) ℤ) (hj : k ≤ j) :
     positivityEquation Q k j = C (-1) := by
   simp [positivityEquation, coordinateOrZero, Nat.not_lt_of_ge (Nat.add_le_add_left hj n)]
+
+/-- An auxiliary equation adds at most two to the original total degree. -/
+theorem totalDegree_positivityEquation_le {n : ℕ} (Q : MvPolynomial (Fin n) ℤ) (k j : ℕ) :
+    (positivityEquation Q k j).totalDegree ≤ Q.totalDegree + 2 := by
+  unfold positivityEquation
+  refine (totalDegree_add _ _).trans (max_le ?_ (by simp))
+  exact (totalDegree_mul _ _).trans (Nat.add_le_add (totalDegree_rename_le _ _)
+    ((totalDegree_pow _ _).trans (Nat.mul_le_mul_left 2 (coordinateOrZero_bounds _ _).1)))
+
+/-- An auxiliary equation adds at most one to the original coefficient norm. -/
+theorem coeffNorm1_positivityEquation_le {n : ℕ} (Q : MvPolynomial (Fin n) ℤ) (k j : ℕ) :
+    (positivityEquation Q k j).coeffNorm1 ≤ Q.coeffNorm1 + 1 := by
+  unfold positivityEquation
+  refine (coeffNorm1_add_le _ _).trans (Nat.add_le_add ?_ (by simp))
+  have hs := (coeffNorm1_pow_le (coordinateOrZero (n + k) (n + j)) 2).trans
+    (Nat.pow_le_pow_left (coordinateOrZero_bounds _ _).2 2)
+  exact (coeffNorm1_mul_le _ _).trans ((Nat.mul_le_mul (coeffNorm1_rename_le _ _) hs).trans_eq
+    (Nat.mul_one _))
 
 /-- Turn indexed strict inequalities into equations using one auxiliary variable per
 in-range index. The modular evaluator preserves the input counting level. -/
@@ -84,23 +110,50 @@ noncomputable def Controlled.positivityEquations {α : Type} {n : α → ℕ}
     (CQ : Controlled Q (encPair enc encNat) a)
     (k : α → ℕ) (hk : ComputableInPolyTime k enc encUnary) :
     Controlled (fun q : α × ℕ => positivityEquation (Q q) (k q.1) q.2)
-      (encPair enc encNat) a := by
-  have hw := fst enc encNat
-  have hi := binary_add' (unary_to_binary.comp CQ.arity_computable) (snd enc encNat)
+      (encPair enc encNat) a :=
+  let hw := fst enc encNat
+  let hi := binary_add' (unary_to_binary.comp CQ.arity_computable) (snd enc encNat)
   let CQ' := CQ.appendVariables (fun q => k q.1) (hk.comp hw)
   let CS := controlledCoordinateOrZero (a := a) CQ'.arity_computable hi
   let CM := Controlled.constant (a := a) CQ'.arity_computable (fun _ => -1) (.const (-1))
-  exact (CQ'.mul (CS.pow (fun _ => 2) (.const 2))).add CM
+  (CQ'.mul (CS.pow (fun _ => 2) (.const 2))).add CM
+
+section PositivityBounds
+
+variable {α : Type} {n : α → ℕ} {enc : α ↪ List Bool} {a : ℕ}
+  {Q : (q : α × ℕ) → MvPolynomial (Fin (n q.1)) ℤ}
+  (CQ : Controlled Q (encPair enc encNat) a) (k : α → ℕ)
+  (hk : ComputableInPolyTime k enc encUnary)
+
+/-- The controlled equations increase the certified degree bound by two. -/
+@[simp] theorem Controlled.degreeBound_positivityEquations :
+    (CQ.positivityEquations k hk).degreeBound = fun q => CQ.degreeBound q + 2 := by
+  funext q
+  simp [Controlled.positivityEquations, Controlled.add, Controlled.mul, Controlled.pow,
+    Controlled.constant, controlledCoordinateOrZero]
+
+/-- The controlled equations increase the certified coefficient norm exponent by two. -/
+@[simp] theorem Controlled.massExponent_positivityEquations :
+    (CQ.positivityEquations k hk).massExponent = fun q => CQ.massExponent q + 2 := by
+  funext q
+  simp [Controlled.positivityEquations, Controlled.add, Controlled.mul, Controlled.pow,
+    Controlled.constant, controlledCoordinateOrZero, Nat.add_assoc]
+
+/-- The controlled equations preserve the input prime cutoff. -/
+@[simp] theorem Controlled.cutoff_positivityEquations :
+    (CQ.positivityEquations k hk).cutoff = CQ.cutoff := by
+  funext q
+  simp [Controlled.positivityEquations, Controlled.add, Controlled.mul, Controlled.pow,
+    Controlled.constant, controlledCoordinateOrZero]
+
+end PositivityBounds
 
 /-- At a valid index the appended coordinate multiplies the original test by its square. -/
 theorem eval₂_positivityEquation {n k : ℕ} {R : Type*} [CommRing R] (f : ℤ →+* R)
     (Q : MvPolynomial (Fin n) ℤ) (x : Fin n → R) (s : Fin k → R) (i : Fin k) :
     MvPolynomial.eval₂ f (Fin.addCases x s) (positivityEquation Q k i.val) =
       MvPolynomial.eval₂ f x Q * s i ^ 2 - 1 := by
-  have hcoord : coordinateOrZero (n + k) (n + i.val) = X (Fin.natAdd n i) := by
-    rw [coordinateOrZero, dite_eq_left (Nat.add_lt_add_left i.isLt n)]
-    rfl
-  simp only [positivityEquation, hcoord, eval₂_add, eval₂_mul, eval₂_pow, eval₂_X,
+  simp only [positivityEquation_of_lt Q i.isLt, eval₂_add, eval₂_mul, eval₂_pow, eval₂_X,
     eval₂_neg, eval₂_one, eval₂_rename, Function.comp_def, Fin.addCases_left, Fin.addCases_right,
     map_neg, map_one, sub_eq_add_neg]
 
