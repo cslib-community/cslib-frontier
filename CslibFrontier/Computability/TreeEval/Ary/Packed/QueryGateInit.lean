@@ -110,7 +110,7 @@ theorem initial_prepare_inSpace {γ : Type} (encG : γ ↪ List Bool) :
   have hin : (fun q : Input γ => (encInput encG q).length) ≼ initializationSpace encG :=
     .of_le fun q => by simp only [initializationSpace]; omega
   exact budget_prod (prepare_inSpace encG)
-    (budget_prod (budget_const 0 hin) (budget_const 0 hin))
+    (budget_prod (budget_const 0) (budget_const 0))
 
 /-- Preparing parameters sets the assignment limit to `s ^ n`. -/
 @[simp] theorem prepare_limit {γ : Type} (q : Input γ) :

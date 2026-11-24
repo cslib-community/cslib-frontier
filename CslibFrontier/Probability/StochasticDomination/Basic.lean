@@ -7,19 +7,16 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF
 public import Mathlib.MeasureTheory.Integral.Bochner.Basic
 public import Mathlib.MeasureTheory.Measure.Prod
 public import Mathlib.Probability.CDF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToMeasure
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.MeasureTheory.Constructions.BorelSpace.Order
-import Mathlib.MeasureTheory.Integral.Lebesgue.Basic
 import Mathlib.MeasureTheory.Integral.Lebesgue.Countable
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
@@ -774,13 +771,11 @@ theorem tsum_toReal_mul_le (h : StochasticallyDominates p q) {f : α → ℝ} (h
 theorem tsum_toReal_mul_le_of_bdd (h : StochasticallyDominates p q) {f : α → ℝ} (hf : Monotone f)
     {C : ℝ} (hC : ∀ x, |f x| ≤ C) :
     ∑' x, (q x).toReal * f x ≤ ∑' x, (p x).toReal * f x := by
-  refine h.tsum_toReal_mul_le hf ?_ ?_
-  · refine Summable.of_nonneg_of_le (fun x => mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _))
-      (fun x => mul_le_mul_of_nonneg_left (hC x) ENNReal.toReal_nonneg) ?_
-    exact (PMF.summable_toReal p).mul_right C
-  · refine Summable.of_nonneg_of_le (fun x => mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _))
-      (fun x => mul_le_mul_of_nonneg_left (hC x) ENNReal.toReal_nonneg) ?_
-    exact (PMF.summable_toReal q).mul_right C
+  have hsum (r : PMF α) : Summable fun x => (r x).toReal * |f x| :=
+    Summable.of_nonneg_of_le (fun _ => mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _))
+      (fun x => mul_le_mul_of_nonneg_left (hC x) ENNReal.toReal_nonneg)
+      ((PMF.summable_toReal r).mul_right C)
+  exact h.tsum_toReal_mul_le hf (hsum p) (hsum q)
 
 /-- Finite-sum expectation inequality for monotone functions on `[Fintype α]`. -/
 theorem sum_toReal_mul_le [Fintype α] (h : StochasticallyDominates p q) {f : α → ℝ}
@@ -903,13 +898,10 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
     · by_cases hf : false ∈ U
       · have hUuniv : U = Set.univ :=
           Set.eq_univ_iff_forall.mpr fun b => by cases b <;> assumption
-        have hp : p.toOuterMeasure Set.univ = 1 := by
+        have huniv (r : PMF Bool) : r.toOuterMeasure Set.univ = 1 := by
           let _ : MeasurableSpace Bool := ⊤
-          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply p MeasurableSet.univ, measure_univ]
-        have hq : q.toOuterMeasure Set.univ = 1 := by
-          let _ : MeasurableSpace Bool := ⊤
-          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply q MeasurableSet.univ, measure_univ]
-        rw [hUuniv, hp, hq]
+          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply r MeasurableSet.univ, measure_univ]
+        rw [hUuniv, huniv p, huniv q]
       · have hUs : U = {true} := by
           ext b
           cases b <;> simp [ht, hf]

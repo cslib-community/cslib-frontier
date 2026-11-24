@@ -1261,10 +1261,9 @@ theorem realizes_gmPopSlabGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
       GmPopSlabGenPre
       (fun _ _ => 0) := by
-  have hunl := realizes_gmUnlinkTopSlabGen
-  have hcmp := realizes_gmCompactSlabGen
   unfold gmPopSlabGenProg
   realizeDictWith [gmPopSlabGenPre_mk, gmCompactSlabGenPre_mk, gmUnlinkTopSlabGenProg_mk]
+    using [realizes_gmUnlinkTopSlabGen, realizes_gmCompactSlabGen]
   · exact h
   · exact gmCompactSlabPre_of_gmPopSlabPre hw h
 

@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Derandomization by enumerating the seeds of a generator
@@ -202,13 +203,8 @@ theorem exists_computableInO_seedDecider {V : α × List Bool → Bool}
       (encPair encP encBits) encBool := hV.comp (hfst.prod (snd encP encBits))
   have hlog : ComputableInPolyTime (fun q : α × ℕ => Nat.log 2 q.2) encP encUnary :=
     binary_log_two.comp (unary_to_binary.comp (snd enc encUnary))
-  have hbudget : PolyBounded (fun q : α × ℕ => (encP q).length) fun q => 2 ^ Nat.log 2 q.2 :=
-    (PolyBounded.self.add (.const 1)).mono fun q => by
-      have hN : q.2 ≤ (encP q).length := by
-        simp only [encP, length_encPair, encUnary_apply, List.length_replicate]; omega
-      rcases Nat.eq_zero_or_pos q.2 with h0 | h0
-      · simp [h0]
-      · exact (Nat.pow_log_le_self 2 h0.ne').trans (hN.trans (Nat.le_succ _))
+  have hbudget : PolyBounded (fun q : α × ℕ => (encP q).length) fun q => 2 ^ Nat.log 2 q.2 := by
+    growth_poly
   obtain ⟨C, D, h⟩ := ComputableInPolyTime.exists_computableInO_pad
     (computableInPolyTime_seedDecider hV' hgen hlog hbudget) hseed
   have heq : (fun x => seedDecider (fun p : (α × ℕ) × List Bool => V (p.1.1, p.2))

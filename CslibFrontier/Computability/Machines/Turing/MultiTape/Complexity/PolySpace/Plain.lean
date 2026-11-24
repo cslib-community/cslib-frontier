@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transdu
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Polynomial space on plain machines
@@ -106,10 +107,7 @@ theorem iterate [Inhabited β] {n : α → ℕ} {init : α → β} {step : β �
   obtain ⟨Si, hSi, hiS⟩ := hinit.exists_inSpace
   obtain ⟨Ss, hSs, hsS⟩ := hstep.exists_inSpace
   obtain ⟨cs, ds, hSs_le⟩ := hSs.exists_le
-  have hQ : PolyBounded (fun a => (encIn a).length) fun a => cs * (B a + 1) ^ ds :=
-    PolyBounded.comp (size' := id) (v := fun m => cs * (m + 1) ^ ds)
-      (PolyBounded.of_forall_le cs ds fun _ => le_rfl) hB
-  exact of_inSpace ((((hSn.add hSi).add hQ).add hB).add hnPS.polyBounded_length)
+  exact of_inSpace (by growth_poly)
     (ComputableInSpace.iterate hnS hiS hsS
       (Q := fun a => cs * (B a + 1) ^ ds)
       (fun a k hk => (hSs_le _).trans (Nat.mul_le_mul_left cs

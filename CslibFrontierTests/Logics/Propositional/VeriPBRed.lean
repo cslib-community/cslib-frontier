@@ -12,6 +12,9 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBFast
+-- `#guard` evaluates the agreement of the compiled checker at compile time.
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBFast
 
 /-! The VeriPB checker with redundance-based strengthening: a `red` step on a satisfiable
 database whose witness repairs a solution violating the new constraint; a symmetry-breaking `red`
@@ -349,5 +352,20 @@ example : projections G [1] = projections GO.constraints [1] :=
 example : checkRedOutput G none outProof (some [1])
     ⟨.equienumerable, some { GO with preserved := some [0, 1] }⟩ = none := by
   decide
+
+
+/-! ### The compiled checker agrees -/
+
+open CslibFrontierTests.Logics.Propositional.VeriPBFast in
+section
+
+set_option linter.hashCommand false
+
+#guard agree F none none proof
+#guard agree S (some fSym) none domProof
+#guard agree S (some fSym) none ⟨domProof.steps.drop 2, domProof.conclusion⟩
+#guard agree G none (some [1]) outProof
+
+end
 
 end CslibFrontierTests.Logics.Propositional.VeriPBRed
