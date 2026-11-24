@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import Mathlib.Basic.Sign.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -560,11 +561,21 @@ theorem encTerm_formulaWordGateTerm_polyTime :
     (hterm.comp (snd (encPair encBits encNat) encFormulaComparisonRequest))
   exact h.of_enc_eq fun p => congrArg encBits (encTerm_formulaWordGateTerm p.1 p.2)
 
-/-- The term word at any gate fits within the formula word length or the constant zero
-encoding length, whichever is larger. -/
+/-- The common length budget for gate terms, including the encoded constant zero in unused
+slots. -/
+@[expose] def formulaWordGateTermBudget (word : List Bool) : ℕ :=
+  max word.length (encTerm 0 (.const 0)).length
+
+/-- Compute the gate-term budget in binary from the raw formula word. -/
+theorem formulaWordGateTermBudget_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} (hword : ComputableInPolyTime word input encBits) :
+    ComputableInPolyTime (fun a => formulaWordGateTermBudget (word a)) input encNat :=
+  binary_max' (unary_to_binary.comp (length_bits.comp hword)) (const _)
+
+/-- The term word at every gate fits within the common length budget. -/
 theorem formulaWordGateTermWord_length_le (word : List Bool) (index : ℕ) :
-    (formulaWordGateTermWord word index).length ≤
-      max word.length (encTerm 0 (.const 0)).length := by
+    (formulaWordGateTermWord word index).length ≤ formulaWordGateTermBudget word := by
+  unfold formulaWordGateTermBudget
   cases h : formulaWordComparisonRequest word index with
   | none =>
     simpa only [formulaWordGateTermWord, h, Option.elim_none] using le_max_right
@@ -576,7 +587,7 @@ theorem formulaWordGateTermWord_length_le (word : List Bool) (index : ℕ) :
 /-- The formula word gives a single degree and coefficient norm budget for all of its gate
 polynomials, including the zero padding at unused slots. -/
 theorem formulaWordGateTerm_toPolynomial_bounds (word : List Bool) (index : ℕ) :
-    let budget := max word.length (encTerm 0 (.const 0)).length
+    let budget := formulaWordGateTermBudget word
     (formulaWordGateTerm word index).toPolynomial.totalDegree ≤ budget ∧
       (formulaWordGateTerm word index).toPolynomial.coeffNorm1 ≤ 2 ^ budget := by
   have hsize := formulaWordGateTermWord_length_le word index
@@ -631,6 +642,44 @@ theorem formulaWordComparisonResidue_polyTime {α : Type} {input : α ↪ List B
   exact hrequest.optionElimWithInput (const none)
     (Term.evalTermWord_polyTime (hp.comp hcontext) (fun a => hpos a.1)
       (hpoint.comp hcontext) (hterm.comp (snd input encFormulaComparisonRequest)))
+
+/-- Evaluate the indexed gate's arithmetic term at the supplied residues. Unused slots
+give zero, and missing coordinates are read as zero. -/
+@[expose] def formulaWordGateResidue (word : List Bool) (index p : ℕ) (point : List ℕ) : ℕ :=
+  (formulaWordComparisonResidue word index p point).getD 0
+
+/-- For a positive modulus, the executable gate query returns the canonical residue
+of the indexed term polynomial at the zero-padded coordinates. -/
+theorem formulaWordGateResidue_eq (word : List Bool) (index : ℕ) {p : ℕ}
+    (hp : 0 < p) (point : List ℕ) :
+    formulaWordGateResidue word index p point =
+      (MvPolynomial.aeval (fun k : Fin word.length =>
+        ((point[k.val]?.getD 0 : ℕ) : ZMod p))
+        (formulaWordGateTerm word index).toPolynomial).val := by
+  rw [MvPolynomial.aeval_def, algebraMap_int_eq, ← Term.evalResidue_eq hp]
+  have hterm := Term.evalTermWord_encTerm p point (formulaWordGateTerm word index)
+  rw [encTerm_formulaWordGateTerm, formulaWordGateTermWord] at hterm
+  rw [formulaWordGateResidue, formulaWordComparisonResidue]
+  cases hrequest : formulaWordComparisonRequest word index with
+  | none =>
+    rw [hrequest, Option.elim_none, Term.evalTermWord_encTerm, Option.some.injEq] at hterm
+    simpa only [Option.elim_none, Option.getD_none, Term.evalResidue,
+      Int.zero_emod, Int.toNat_zero] using hterm
+  | some request =>
+    rw [hrequest, Option.elim_some] at hterm
+    rw [Option.elim_some, hterm, Option.getD_some]
+
+/-- The total residue query is polynomial time in the raw formula word, binary gate index
+and positive binary modulus, and framed list of binary coordinate values. -/
+theorem formulaWordGateResidue_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index modulus : α → ℕ} {point : α → List ℕ}
+    (hword : ComputableInPolyTime word input encBits)
+    (hindex : ComputableInPolyTime index input encNat)
+    (hp : ComputableInPolyTime modulus input encNat) (hpos : ∀ a, 0 < modulus a)
+    (hpoint : ComputableInPolyTime point input (encList encNat)) :
+    ComputableInPolyTime (fun a => formulaWordGateResidue (word a) (index a)
+      (modulus a) (point a)) input encNat :=
+  optionGetDWithInput (formulaWordComparisonResidue_polyTime hword hindex hp hpos hpoint) (const 0)
 
 /-- Test a supplied sign against the comparison requested at a gate. Gates without a
 comparison request return `false`. -/

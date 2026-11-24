@@ -13,6 +13,7 @@ import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.List.MinMax
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -1298,11 +1299,6 @@ private theorem exec_weightedSetup {w : ℕ} (I : WeightedInstance)
     by wram_simp *, by wram_simp *, by wram_simp *, ?_⟩
   wram_simp *; omega
 
-private theorem mul_add_lt_sq {σ a b : ℕ} (ha : a < σ) (hb : b < σ) :
-    a * σ + b < σ * σ := by
-  have ha1 : a + 1 ≤ σ := ha
-  nlinarith
-
 private theorem mul_lt_sq {σ a : ℕ} (ha : a < σ) : a * σ < σ * σ := by
   have ha1 : a + 1 ≤ σ := ha
   nlinarith
@@ -1427,7 +1423,7 @@ private theorem exec_weightedInnerCell {w : ℕ} (I : WeightedInstance) (x₀ : 
     (I.tgt[I.tgt.length - 1 - t]).isLt
   have hprod_lt : (I.src[I.src.length - 1 - s]).val * I.sigma +
       (I.tgt[I.tgt.length - 1 - t]).val < I.sigma * I.sigma :=
-    mul_add_lt_sq (I.src[I.src.length - 1 - s]).isLt hb_lt
+    List.mul_add_lt_sq (I.src[I.src.length - 1 - s]).isLt hb_lt
   have hread_sub :
       st.mem (4 + I.src.length + I.tgt.length + 2 * I.sigma +
         (I.src[I.src.length - 1 - s]).val * I.sigma +

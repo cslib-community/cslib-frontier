@@ -215,9 +215,9 @@ and rejected by `F`. -/
 /-- One pluck makes at most `pluckErrorCap n r p w` negative errors. -/
 private theorem card_stepExceptions_le_of_pluck {F G : Finset (Finset (Fin n))} (h : Pluck p F G)
     (hF : ∀ s ∈ F, s.card ≤ w) : (stepExceptions r F G).card ≤ pluckErrorCap n r p w := by
-  obtain ⟨S, hSF, hSp, K, hSK, rfl⟩ := h
+  obtain ⟨-, S, hSF, hSp, K, hSK, rfl⟩ := h
   refine (card_le_card fun c hc => ?_).trans
-    (card_sunflowerBad_le hSp (hSK.imp fun _ _ h => h.subset) fun s hs => hF s (hSF hs))
+    (card_sunflowerBad_le hSp (hSK.2.imp fun _ _ h => h.subset) fun s hs => hF s (hSF hs))
   obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
   refine mem_filter.2 ⟨mem_univ _, ?_, fun s hs hcs =>
     hF' ⟨s, hSF hs, contains_ofColoring_iff.2 hcs⟩⟩
@@ -235,7 +235,7 @@ theorem stepExceptions_subset (r : ℕ) (F G H : Finset (Finset (Fin n))) :
   · exact mem_union_right _ (mem_stepExceptions.2 ⟨hH, hG⟩)
 
 /-- `m` plucks make at most `m` times `pluckErrorCap n r p w` negative errors. -/
-private theorem card_stepExceptions_le_of_relatesInSteps (hp : 2 ≤ p)
+private theorem card_stepExceptions_le_of_relatesInSteps
     {F G : Finset (Finset (Fin n))}
     {m : ℕ} (h : RelatesInSteps (Pluck p) F G m) (hF : ∀ s ∈ F, s.card ≤ w) :
     (stepExceptions r F G).card ≤ m * pluckErrorCap n r p w := by
@@ -247,16 +247,16 @@ private theorem card_stepExceptions_le_of_relatesInSteps (hp : 2 ≤ p)
           card_le_card (stepExceptions_subset r F G H)
       _ ≤ m * pluckErrorCap n r p w + pluckErrorCap n r p w :=
           (card_union_le _ _).trans (Nat.add_le_add ih (card_stepExceptions_le_of_pluck hGH
-            (forall_card_le_of_relatesInSteps_pluck hp hFG hF)))
+            (forall_card_le_of_relatesInSteps_pluck hFG hF)))
       _ = (m + 1) * pluckErrorCap n r p w := (Nat.succ_mul _ _).symm
 
 /-- A plucking normalisation makes at most as many errors as `pluckErrorCap n r p w` times the
 number of sets of the family. -/
-theorem card_stepExceptions_pluckNormalForm_le (hp : 2 ≤ p) {F : Finset (Finset (Fin n))}
+theorem card_stepExceptions_pluckNormalForm_le {F : Finset (Finset (Fin n))}
     (hF : ∀ s ∈ F, s.card ≤ w) :
     (stepExceptions r F (pluckNormalForm p F)).card ≤ F.card * pluckErrorCap n r p w :=
-  let ⟨_, hm, h⟩ := relatesInSteps_pluckNormalForm hp F
-  (card_stepExceptions_le_of_relatesInSteps hp h hF).trans (Nat.mul_le_mul_right _ hm)
+  let ⟨_, hm, h⟩ := relatesInSteps_pluckNormalForm (p := p) F
+  (card_stepExceptions_le_of_relatesInSteps h hF).trans (Nat.mul_le_mul_right _ hm)
 
 /-! ### The approximation scheme -/
 
@@ -333,7 +333,7 @@ noncomputable def scheme (hw : 2 ≤ w) :
   exceptions := exceptions r
   input_correct c i := by rw [decode_input hw]
   gate_correct := gate_correct
-  exceptions_card_le op A := (card_stepExceptions_pluckNormalForm_le Fact.out
+  exceptions_card_le op A := (card_stepExceptions_pluckNormalForm_le
     fun _ => card_le_of_mem_gateTerms).trans (card_gateTerms_le op A)
 
 /-! ### Approximators accept many colourings -/

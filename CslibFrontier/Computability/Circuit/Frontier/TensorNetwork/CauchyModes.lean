@@ -100,9 +100,7 @@ public section
 namespace Cslib.Circuits.Frontier
 
 open Polynomial Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-! ### Local kernels over `ℤ_(2)` -/
 

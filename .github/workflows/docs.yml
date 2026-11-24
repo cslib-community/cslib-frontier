@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # the codebase views read pull request metadata
 
 env:
   CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
@@ -27,7 +28,10 @@ jobs:
   docs:
     # ubuntu-latest moved to Ubuntu 26.04 on 2026-10-30, and doc-gen4 has run out of memory there
     # ("resource exhausted (error code: 12)") on every run since; upstream cslib#1191 pins the same.
-    runs-on: ubuntu-24.04
+    # Scheduled and manual runs on `main` use the runner named by DOCS_BUILD_RUNNER when set; larger
+    # runners are billed even in public repositories. Other branches and unset runs use the standard
+    # `ubuntu-24.04` runner. Delete the variable to fall back without a commit (scripts/cache/README.md).
+    runs-on: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DOCS_BUILD_RUNNER || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,12 +76,16 @@ jobs:
       # as the API docs. The Lean census extends the series published by the previous run. The
       # results registry is exported from the built CslibFrontierResults.
       - name: Build codebase visualizations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           lake build CslibFrontierResults
           "$RUNNER_TEMP/viz-venv/bin/python" -m unittest discover -s tools/viz -p 'test_*.py'
           "$RUNNER_TEMP/viz-venv/bin/python" tools/viz/build.py \
             --lean-lib .lake/build/lib/lean \
             --require-registry \
+            --fetch-prs \
+            --prs-previous https://www.cslib.io/cslib-frontier/viz/prs.json \
             --lean-history https://www.cslib.io/cslib-frontier/viz/lean-history.json
       - name: Restore Guide dependencies
         id: guide-deps
