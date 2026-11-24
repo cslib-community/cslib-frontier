@@ -37,13 +37,14 @@ probabilities factor as the product of the chance-node probability (`z.chanceWei
 player-wise sequence realization probabilities (`terminalProbMixed_eq`, `terminalProbBehavior_eq`).
 Two strategies of player `i` are *realization-equivalent* if they induce the same terminal-node
 distribution against every pure strategy profile of the other players (`RealizationEquivMixed`,
-`RealizationEquivMixedBehavior`, `RealizationEquivBehavior`), which implies identical distributions
-and expected payoffs against arbitrary mixed and behavior opponent profiles as well.
+`RealizationEquivMixedBehavior`), which implies identical distributions and expected payoffs
+against arbitrary mixed and behavior opponent profiles as well.
 
 An extensive game satisfies *perfect recall* for player `i` (`PerfectRecall T i`,
-[vonStengel2007], Section 3.7) if all decision nodes of player `i` in the same information set `h`
-are preceded by the same sequence of player-`i` choices. In particular, no root-to-leaf path visits
-any information set of player `i` more than once (`PerfectRecall.noRepeatedInfoSet`).
+[vonStengel2007], Section 3.10, p. 70) if all decision nodes of player `i` in the same
+information set `h` are preceded by the same sequence of player-`i` choices. In particular, no
+root-to-leaf path visits any information set of player `i` more than once
+(`PerfectRecall.noRepeatedInfoSet`).
 
 ## Main definitions
 
@@ -57,8 +58,7 @@ any information set of player `i` more than once (`PerfectRecall.noRepeatedInfoS
 * `Cslib.GameTheory.Extensive.Node`: internal and leaf nodes in an extensive game tree.
 * `Cslib.GameTheory.Extensive.ExtensiveTree.toCostGame`: induced strategic game in cost form.
 * `Cslib.GameTheory.Extensive.ExtensiveTree.RealizationEquivMixed`,
-  `Cslib.GameTheory.Extensive.ExtensiveTree.RealizationEquivMixedBehavior`,
-  `Cslib.GameTheory.Extensive.ExtensiveTree.RealizationEquivBehavior`: realization equivalence.
+  `Cslib.GameTheory.Extensive.ExtensiveTree.RealizationEquivMixedBehavior`: realization equivalence.
 * `Cslib.GameTheory.Extensive.ExtensiveTree.PerfectRecall`: perfect recall for player `i`.
 * `Cslib.GameTheory.Extensive.ExtensiveTree.NoRepeatedInfoSet`: no absent-mindedness along any
   play.
@@ -80,7 +80,7 @@ any information set of player `i` more than once (`PerfectRecall.noRepeatedInfoS
 ## References
 
 * [B. von Stengel, *Equilibrium Computation for Two-Player Games in Strategic and Extensive
-  Form*][vonStengel2007], Section 3.7.
+  Form*][vonStengel2007], Sections 3.7 and 3.10.
 -/
 
 public section
@@ -124,9 +124,15 @@ set `h : H i`. -/
   ∀ h, IsMixedStrategy (β h)
 
 /-- View a pure strategy of player `i` as a deterministic behavior strategy. -/
-@[expose] def pureToBehavior {i : ι} [∀ h, DecidableEq (Act i h)]
+def pureToBehavior {i : ι} [∀ h, DecidableEq (Act i h)]
     (s : PureStrategy H Act i) (h : H i) : Act i h → ℝ :=
   Pi.single (s h) 1
+
+@[simp]
+theorem pureToBehavior_apply {i : ι} [∀ h, DecidableEq (Act i h)]
+    (s : PureStrategy H Act i) (h : H i) (a : Act i h) :
+    pureToBehavior s h a = Pi.single (M := fun _ => ℝ) (s h) (1 : ℝ) a := by
+  simp [pureToBehavior]
 
 theorem isBehaviorStrategy_pureToBehavior {i : ι} [∀ h, Fintype (Act i h)]
     [∀ h, DecidableEq (Act i h)] (s : PureStrategy H Act i) :
@@ -135,9 +141,15 @@ theorem isBehaviorStrategy_pureToBehavior {i : ι} [∀ h, Fintype (Act i h)]
 
 /-- The product mixed strategy induced by a behavior strategy `β`: independently sample `s h`
 from `β h` at each information set `h : H i`. -/
-@[expose] def behaviorToMixed {i : ι} [Fintype (H i)] (β : ∀ h : H i, Act i h → ℝ)
+def behaviorToMixed {i : ι} [Fintype (H i)] (β : ∀ h : H i, Act i h → ℝ)
     (s : PureStrategy H Act i) : ℝ :=
   ∏ h : H i, β h (s h)
+
+@[simp]
+theorem behaviorToMixed_apply {i : ι} [Fintype (H i)] (β : ∀ h : H i, Act i h → ℝ)
+    (s : PureStrategy H Act i) :
+    behaviorToMixed β s = ∏ h : H i, β h (s h) := by
+  simp [behaviorToMixed]
 
 theorem isMixedStrategy_behaviorToMixed {i : ι} [Fintype (H i)] [DecidableEq (H i)]
     [∀ h, Fintype (Act i h)] {β : ∀ h : H i, Act i h → ℝ} (hβ : IsBehaviorStrategy β) :
@@ -184,20 +196,20 @@ theorem realizationProbMixed_def {i : ι} [Fintype (H i)] [DecidableEq (H i)]
 
 /-- The realization probability of sequence `σ` under behavior strategy `β`: the product of
 `β h a` along `(h, a) ∈ σ`. -/
-@[expose] def realizationProbBehavior {i : ι} (β : ∀ h : H i, Act i h → ℝ)
+def realizationProbBehavior {i : ι} (β : ∀ h : H i, Act i h → ℝ)
     (σ : Seq H Act i) : ℝ :=
   (σ.map fun p => β p.1 p.2).prod
 
 @[simp]
 theorem realizationProbBehavior_nil {i : ι} (β : ∀ h : H i, Act i h → ℝ) :
-    realizationProbBehavior β [] = 1 :=
-  rfl
+    realizationProbBehavior β [] = 1 := by
+  simp [realizationProbBehavior]
 
 @[simp]
 theorem realizationProbBehavior_cons {i : ι} (β : ∀ h : H i, Act i h → ℝ)
     (p : Choice H Act i) (σ : Seq H Act i) :
-    realizationProbBehavior β (p :: σ) = β p.1 p.2 * realizationProbBehavior β σ :=
-  rfl
+    realizationProbBehavior β (p :: σ) = β p.1 p.2 * realizationProbBehavior β σ := by
+  simp [realizationProbBehavior]
 
 theorem realizationProbBehavior_append {i : ι} (β : ∀ h : H i, Act i h → ℝ)
     (σ₁ σ₂ : Seq H Act i) :
@@ -415,16 +427,53 @@ noncomputable instance instFintype [∀ i h, Fintype (Act i h)] :
       Fintype.ofEquiv _ e
 
 /-- Payoff vector at terminal node `z`. -/
-@[expose] def payoff : {T : ExtensiveTree ι H Act} → Terminal T → ι → ℝ
+def payoff : {T : ExtensiveTree ι H Act} → Terminal T → ι → ℝ
   | .leaf w, .leaf => w
   | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance _ sub => sub.payoff
   | .decision _ _ _, .decision _ sub => sub.payoff
 
+@[simp]
+theorem payoff_leaf (w : ι → ℝ) :
+    (Terminal.leaf (H := H) (Act := Act) (w := w)).payoff = w := by
+  simp [payoff]
+
+@[simp]
+theorem payoff_chance {C : Type} {instF : Fintype C} {prob : C → ℝ}
+    {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act} (c : C)
+    (sub : Terminal (next c)) :
+    (Terminal.chance (prob := prob) (hprob := hprob) c sub).payoff = sub.payoff := by
+  simp [payoff]
+
+@[simp]
+theorem payoff_decision {i : ι} {h : H i} {next : Act i h → ExtensiveTree ι H Act}
+    (a : Act i h) (sub : Terminal (next a)) :
+    (Terminal.decision a sub).payoff = sub.payoff := by
+  simp [payoff]
+
 /-- Product of chance-node probabilities along terminal path `z`. -/
-@[expose] def chanceWeight : {T : ExtensiveTree ι H Act} → Terminal T → ℝ
+def chanceWeight : {T : ExtensiveTree ι H Act} → Terminal T → ℝ
   | .leaf _, .leaf => 1
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => prob c * sub.chanceWeight
   | .decision _ _ _, .decision _ sub => sub.chanceWeight
+
+@[simp]
+theorem chanceWeight_leaf (w : ι → ℝ) :
+    (Terminal.leaf (H := H) (Act := Act) (w := w)).chanceWeight = 1 := by
+  simp [chanceWeight]
+
+@[simp]
+theorem chanceWeight_chance {C : Type} {instF : Fintype C} {prob : C → ℝ}
+    {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act} (c : C)
+    (sub : Terminal (next c)) :
+    (Terminal.chance (prob := prob) (hprob := hprob) c sub).chanceWeight =
+      prob c * sub.chanceWeight := by
+  simp [chanceWeight]
+
+@[simp]
+theorem chanceWeight_decision {i : ι} {h : H i} {next : Act i h → ExtensiveTree ι H Act}
+    (a : Act i h) (sub : Terminal (next a)) :
+    (Terminal.decision a sub).chanceWeight = sub.chanceWeight := by
+  simp [chanceWeight]
 
 theorem chanceWeight_nonneg : ∀ {T : ExtensiveTree ι H Act} (z : Terminal T), 0 ≤ z.chanceWeight
   | .leaf _, .leaf => zero_le_one
@@ -434,7 +483,7 @@ theorem chanceWeight_nonneg : ∀ {T : ExtensiveTree ι H Act} (z : Terminal T),
 
 /-- Ordered sequence of `(information set, choice)` pairs made by player `i` along terminal path
 `z`. -/
-@[expose] def seq [DecidableEq ι] (i : ι) :
+def seq [DecidableEq ι] (i : ι) :
     {T : ExtensiveTree ι H Act} → Terminal T → Seq H Act i
   | .leaf _, .leaf => []
   | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance _ sub => sub.seq i
@@ -443,15 +492,15 @@ theorem chanceWeight_nonneg : ∀ {T : ExtensiveTree ι H Act} (z : Terminal T),
 
 @[simp]
 theorem seq_leaf [DecidableEq ι] (i : ι) (w : ι → ℝ) :
-    (Terminal.leaf (H := H) (Act := Act) (w := w)).seq i = [] :=
-  rfl
+    (Terminal.leaf (H := H) (Act := Act) (w := w)).seq i = [] := by
+  simp [seq]
 
 @[simp]
 theorem seq_chance [DecidableEq ι] (i : ι) {C : Type} {instF : Fintype C}
     {prob : C → ℝ} {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act}
     (c : C) (sub : Terminal (next c)) :
-    (Terminal.chance (prob := prob) (hprob := hprob) c sub).seq i = sub.seq i :=
-  rfl
+    (Terminal.chance (prob := prob) (hprob := hprob) c sub).seq i = sub.seq i := by
+  simp [seq]
 
 @[simp]
 theorem seq_decision_self [DecidableEq ι] (i : ι) {h : H i}
@@ -468,19 +517,62 @@ theorem seq_decision_ne [DecidableEq ι] {i j : ι} (hij : j ≠ i) {h : H j}
 end Terminal
 
 /-- Probability of reaching terminal path `z` under pure strategy profile `s`. -/
-@[expose] def terminalProbPure [∀ i h, DecidableEq (Act i h)]
+def terminalProbPure [∀ i h, DecidableEq (Act i h)]
     (s : ∀ i, PureStrategy H Act i) : {T : ExtensiveTree ι H Act} → Terminal T → ℝ
   | .leaf _, .leaf => 1
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => prob c * terminalProbPure s sub
   | .decision i h _, .decision a sub => if s i h = a then terminalProbPure s sub else 0
 
+@[simp]
+theorem terminalProbPure_leaf [∀ i h, DecidableEq (Act i h)]
+    (s : ∀ i, PureStrategy H Act i) (w : ι → ℝ) :
+    terminalProbPure s (Terminal.leaf (H := H) (Act := Act) (w := w)) = 1 := by
+  simp [terminalProbPure]
+
+@[simp]
+theorem terminalProbPure_chance [∀ i h, DecidableEq (Act i h)]
+    (s : ∀ i, PureStrategy H Act i) {C : Type} {instF : Fintype C} {prob : C → ℝ}
+    {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act} (c : C)
+    (sub : Terminal (next c)) :
+    terminalProbPure s (Terminal.chance (prob := prob) (hprob := hprob) c sub) =
+      prob c * terminalProbPure s sub := by
+  simp [terminalProbPure]
+
+@[simp]
+theorem terminalProbPure_decision [∀ i h, DecidableEq (Act i h)]
+    (s : ∀ i, PureStrategy H Act i) {i : ι} {h : H i}
+    {next : Act i h → ExtensiveTree ι H Act} (a : Act i h) (sub : Terminal (next a)) :
+    terminalProbPure s (Terminal.decision a sub) =
+      if s i h = a then terminalProbPure s sub else 0 := by
+  simp [terminalProbPure]
+
 /-- Probability of reaching terminal path `z` under behavior strategy profile `β`. -/
-@[expose] def terminalProbBehavior (β : ∀ i, ∀ h : H i, Act i h → ℝ) :
+def terminalProbBehavior (β : ∀ i, ∀ h : H i, Act i h → ℝ) :
     {T : ExtensiveTree ι H Act} → Terminal T → ℝ
   | .leaf _, .leaf => 1
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub =>
       prob c * terminalProbBehavior β sub
   | .decision i h _, .decision a sub => β i h a * terminalProbBehavior β sub
+
+@[simp]
+theorem terminalProbBehavior_leaf (β : ∀ i, ∀ h : H i, Act i h → ℝ) (w : ι → ℝ) :
+    terminalProbBehavior β (Terminal.leaf (H := H) (Act := Act) (w := w)) = 1 := by
+  simp [terminalProbBehavior]
+
+@[simp]
+theorem terminalProbBehavior_chance (β : ∀ i, ∀ h : H i, Act i h → ℝ) {C : Type}
+    {instF : Fintype C} {prob : C → ℝ} {hprob : IsMixedStrategy prob}
+    {next : C → ExtensiveTree ι H Act} (c : C) (sub : Terminal (next c)) :
+    terminalProbBehavior β (Terminal.chance (prob := prob) (hprob := hprob) c sub) =
+      prob c * terminalProbBehavior β sub := by
+  simp [terminalProbBehavior]
+
+@[simp]
+theorem terminalProbBehavior_decision (β : ∀ i, ∀ h : H i, Act i h → ℝ) {i : ι} {h : H i}
+    {next : Act i h → ExtensiveTree ι H Act} (a : Act i h) (sub : Terminal (next a)) :
+    terminalProbBehavior β (Terminal.decision a sub) =
+      β i h a * terminalProbBehavior β sub := by
+  simp [terminalProbBehavior]
 
 open Classical in
 /-- Probability of reaching terminal path `z` under mixed strategy profile `μ`. -/
@@ -505,14 +597,12 @@ theorem terminalProbPure_eq [Fintype ι] [DecidableEq ι] [∀ i h, DecidableEq 
     ∀ {T : ExtensiveTree ι H Act} (z : Terminal T),
       terminalProbPure s z =
         z.chanceWeight * ∏ i, if MatchesSeq (s i) (z.seq i) then 1 else 0
-  | .leaf _, .leaf => by simp [terminalProbPure, Terminal.chanceWeight]
+  | .leaf _, .leaf => by simp
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => by
-    rw [terminalProbPure, terminalProbPure_eq s sub, Terminal.chanceWeight]
+    rw [terminalProbPure_chance, terminalProbPure_eq s sub, Terminal.chanceWeight_chance, mul_assoc]
     simp only [Terminal.seq_chance]
-    rw [← mul_assoc]
-    congr 1
   | .decision j h _, .decision a sub => by
-    rw [terminalProbPure, terminalProbPure_eq s sub, Terminal.chanceWeight]
+    rw [terminalProbPure_decision, terminalProbPure_eq s sub, Terminal.chanceWeight_decision]
     rw [← mul_prod_erase univ _ (mem_univ j)]
     rw [← mul_prod_erase univ (fun k =>
       if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) (mem_univ j)]
@@ -533,11 +623,11 @@ theorem terminalProbBehavior_eq [Fintype ι] [DecidableEq ι]
     ∀ {T : ExtensiveTree ι H Act} (z : Terminal T),
       terminalProbBehavior β z =
         z.chanceWeight * ∏ i, realizationProbBehavior (β i) (z.seq i)
-  | .leaf _, .leaf => by simp [terminalProbBehavior, Terminal.chanceWeight]
+  | .leaf _, .leaf => by simp
   | @ExtensiveTree.chance _ _ _ _ _ prob _ _, .chance c sub => by
-    rw [terminalProbBehavior, terminalProbBehavior_eq β sub, Terminal.chanceWeight]
+    rw [terminalProbBehavior_chance, terminalProbBehavior_eq β sub, Terminal.chanceWeight_chance,
+      mul_assoc]
     simp only [Terminal.seq_chance]
-    ring
   | .decision j h _, .decision a sub => by
     rw [terminalProbBehavior, terminalProbBehavior_eq β sub, Terminal.chanceWeight]
     rw [← mul_prod_erase univ _ (mem_univ j)]
@@ -579,7 +669,7 @@ theorem terminalProbMixed_eq [Fintype ι] [DecidableEq ι] [∀ i, Fintype (H i)
       if MatchesSeq s_i (z.seq i) then μ i s_i else 0).symm
 
 /-- Expected payoff vector of tree `T` under pure profile `s`. -/
-@[expose] def ExtensiveTree.evalPure (s : ∀ i, PureStrategy H Act i) :
+def ExtensiveTree.evalPure (s : ∀ i, PureStrategy H Act i) :
     ExtensiveTree ι H Act → ι → ℝ
   | .leaf w => w
   | @ExtensiveTree.chance _ _ _ _ instF prob _ next =>
@@ -587,14 +677,55 @@ theorem terminalProbMixed_eq [Fintype ι] [DecidableEq ι] [∀ i, Fintype (H i)
       fun j => ∑ c, prob c * ExtensiveTree.evalPure s (next c) j
   | .decision i h next => ExtensiveTree.evalPure s (next (s i h))
 
+@[simp]
+theorem ExtensiveTree.evalPure_leaf (s : ∀ i, PureStrategy H Act i) (w : ι → ℝ) :
+    (@ExtensiveTree.leaf ι H Act w).evalPure s = w := by
+  simp [ExtensiveTree.evalPure]
+
+@[simp]
+theorem ExtensiveTree.evalPure_chance (s : ∀ i, PureStrategy H Act i) {C : Type}
+    {instF : Fintype C} {prob : C → ℝ} {hprob : IsMixedStrategy prob}
+    {next : C → ExtensiveTree ι H Act} (j : ι) :
+    (@ExtensiveTree.chance ι H Act C instF prob hprob next).evalPure s j =
+      ∑ c, prob c * (next c).evalPure s j := by
+  simp [ExtensiveTree.evalPure]
+
+@[simp]
+theorem ExtensiveTree.evalPure_decision (s : ∀ i, PureStrategy H Act i) (i : ι) (h : H i)
+    (next : Act i h → ExtensiveTree ι H Act) :
+    (ExtensiveTree.decision i h next).evalPure s = (next (s i h)).evalPure s := by
+  simp [ExtensiveTree.evalPure]
+
 /-- Expected payoff vector of tree `T` under behavior profile `β`. -/
-@[expose] def ExtensiveTree.evalBehavior [∀ i h, Fintype (Act i h)]
+def ExtensiveTree.evalBehavior [∀ i h, Fintype (Act i h)]
     (β : ∀ i, ∀ h : H i, Act i h → ℝ) : ExtensiveTree ι H Act → ι → ℝ
   | .leaf w => w
   | @ExtensiveTree.chance _ _ _ _ instF prob _ next =>
       letI := instF
       fun j => ∑ c, prob c * ExtensiveTree.evalBehavior β (next c) j
   | .decision i h next => fun j => ∑ a, β i h a * ExtensiveTree.evalBehavior β (next a) j
+
+@[simp]
+theorem ExtensiveTree.evalBehavior_leaf [∀ i h, Fintype (Act i h)]
+    (β : ∀ i, ∀ h : H i, Act i h → ℝ) (w : ι → ℝ) :
+    (@ExtensiveTree.leaf ι H Act w).evalBehavior β = w := by
+  simp [ExtensiveTree.evalBehavior]
+
+@[simp]
+theorem ExtensiveTree.evalBehavior_chance [∀ i h, Fintype (Act i h)]
+    (β : ∀ i, ∀ h : H i, Act i h → ℝ) {C : Type} {instF : Fintype C} {prob : C → ℝ}
+    {hprob : IsMixedStrategy prob} {next : C → ExtensiveTree ι H Act} (j : ι) :
+    (@ExtensiveTree.chance ι H Act C instF prob hprob next).evalBehavior β j =
+      ∑ c, prob c * (next c).evalBehavior β j := by
+  simp [ExtensiveTree.evalBehavior]
+
+@[simp]
+theorem ExtensiveTree.evalBehavior_decision [∀ i h, Fintype (Act i h)]
+    (β : ∀ i, ∀ h : H i, Act i h → ℝ) (i : ι) (h : H i)
+    (next : Act i h → ExtensiveTree ι H Act) (j : ι) :
+    (ExtensiveTree.decision i h next).evalBehavior β j =
+      ∑ a, β i h a * (next a).evalBehavior β j := by
+  simp [ExtensiveTree.evalBehavior]
 
 /-- Expected payoff vector of tree `T` under mixed profile `μ`. -/
 noncomputable def ExtensiveTree.evalMixed [Fintype ι] [DecidableEq ι] [∀ i, Fintype (H i)]
@@ -621,7 +752,7 @@ theorem ExtensiveTree.evalPure_eq_sum_terminal [∀ i h, Fintype (Act i h)]
         left_inv := fun _ => rfl
         right_inv := fun z => by cases z; rfl }
     rw [← e.sum_comp]
-    simp [e, ExtensiveTree.evalPure, terminalProbPure, Terminal.payoff]
+    simp [e]
   | @ExtensiveTree.chance _ _ _ C instF prob hprob next, j => by
     let _ := instF
     let _ := Classical.decEq C
@@ -665,7 +796,7 @@ theorem ExtensiveTree.evalBehavior_eq_sum_terminal [∀ i h, Fintype (Act i h)]
         left_inv := fun _ => rfl
         right_inv := fun z => by cases z; rfl }
     rw [← e.sum_comp]
-    simp [e, ExtensiveTree.evalBehavior, terminalProbBehavior, Terminal.payoff]
+    simp [e]
   | @ExtensiveTree.chance _ _ _ C instF prob hprob next, j => by
     let _ := instF
     let _ := Classical.decEq C
@@ -710,9 +841,15 @@ theorem ExtensiveTree.evalMixed_eq_sum_terminal [Fintype ι] [DecidableEq ι]
   ring
 
 /-- The strategic game in cost-minimization form induced by `T`. -/
-@[expose] def ExtensiveTree.toCostGame (T : ExtensiveTree ι H Act) :
+def ExtensiveTree.toCostGame (T : ExtensiveTree ι H Act) :
     CostGame ι (fun i => PureStrategy H Act i) where
   cost i s := -T.evalPure s i
+
+@[simp]
+theorem ExtensiveTree.toCostGame_cost (T : ExtensiveTree ι H Act) (i : ι)
+    (s : ∀ j, PureStrategy H Act j) :
+    T.toCostGame.cost i s = -T.evalPure s i := by
+  simp [ExtensiveTree.toCostGame]
 
 /-- Under the induced strategic game `T.toCostGame`, `CostGame.expectedCost` equals the negated
 extensive-form mixed payoff. -/
@@ -797,8 +934,10 @@ theorem terminalProbWithFactor_realizationProbBehavior [Fintype ι] [DecidableEq
 namespace ExtensiveTree
 
 /-- Two sequence-factor functions `r₁, r₂` of player `i` are **realization-equivalent**
-([vonStengel2007], Section 3.7) if they induce identical terminal-node probabilities against every
-pure strategy profile of the remaining players. -/
+([vonStengel2007], Section 3.10, p. 71) if they induce identical terminal-node probabilities against
+every pure strategy profile of the remaining players. Note that [vonStengel2007] (p. 71) phrases
+realization equivalence via node-reach probabilities, which coincides with equality of
+terminal-leaf reach probabilities on nonempty-action finite trees. -/
 @[expose] def RealizationEquivFactor [Fintype ι] [DecidableEq ι]
     (T : ExtensiveTree ι H Act) (i : ι) (r₁ r₂ : Seq H Act i → ℝ) : Prop :=
   ∀ (s : ∀ j, PureStrategy H Act j) (z : Terminal T),
@@ -817,12 +956,6 @@ pure strategy profile of the remaining players. -/
     (T : ExtensiveTree ι H Act) (i : ι)
     (μ : PureStrategy H Act i → ℝ) (β : ∀ h : H i, Act i h → ℝ) : Prop :=
   T.RealizationEquivFactor i (realizationProbMixed μ) (realizationProbBehavior β)
-
-/-- Realization equivalence between two behavior strategies of player `i`. -/
-@[expose] def RealizationEquivBehavior [Fintype ι] [DecidableEq ι]
-    (T : ExtensiveTree ι H Act) (i : ι)
-    (β₁ β₂ : ∀ h : H i, Act i h → ℝ) : Prop :=
-  T.RealizationEquivFactor i (realizationProbBehavior β₁) (realizationProbBehavior β₂)
 
 theorem RealizationEquivFactor.of_forall_terminal_eq [Fintype ι] [DecidableEq ι]
     {T : ExtensiveTree ι H Act} {i : ι} {r₁ r₂ : Seq H Act i → ℝ}
@@ -962,12 +1095,6 @@ inductive Node : ExtensiveTree ι H Act → Type (max u v 1)
 
 namespace Node
 
-/-- The subtree rooted at node `v`. -/
-@[expose] def subtree : {T : ExtensiveTree ι H Act} → Node T → ExtensiveTree ι H Act
-  | T, .here => T
-  | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance _ sub => sub.subtree
-  | .decision _ _ _, .decision _ sub => sub.subtree
-
 /-- Ordered sequence of `(information set, choice)` pairs made by player `i` strictly before
 node `v`. -/
 @[expose] def playerSeq [DecidableEq ι] (i : ι) :
@@ -1052,7 +1179,7 @@ namespace ExtensiveTree
 @[expose] def OccursInfoSet (T : ExtensiveTree ι H Act) (i : ι) (h : H i) : Prop :=
   ∃ v : Node T, v.IsDecisionOf i h
 
-/-- **Perfect recall** for player `i` ([vonStengel2007], Section 3.7): all decision nodes of
+/-- **Perfect recall** for player `i` ([vonStengel2007], Section 3.10, p. 70): all decision nodes of
 player `i` in the same information set `h : H i` are preceded by the same sequence of player-`i`
 choices. -/
 @[expose] def PerfectRecall [DecidableEq ι] (T : ExtensiveTree ι H Act) (i : ι) : Prop :=
