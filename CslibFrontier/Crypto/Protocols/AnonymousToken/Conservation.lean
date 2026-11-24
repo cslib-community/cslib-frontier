@@ -43,9 +43,10 @@ and semantic notes reuse `Credit.Note`. The KP800 and MQ instantiations are the 
 are not formalized here. The game is a permissive modeling choice. It omits the range checks (V4,
 and `T ≥ 1` at issuance), and every amount `T`, debit `d` and refund `x'` comes from the
 adversary's request. In the draft, `T` is agreed out of band and is the issuer's own input, and the
-issuer chooses `x'`. The bounds below hold for this game as stated. Transferring them to the
-draft's issuer would need a simulation of issuer-selected amounts, range rejections and their
-replies; that bridge is left open.
+issuer chooses `x'`. The bounds below hold for this game as stated. `IssuerBridge`
+(`CslibFrontier/Crypto/Protocols/AnonymousToken/IssuerBridge.lean`) transfers them without
+probability loss to a stateful, probabilistic draft-style issuer with issuer-agreed initial
+balances, issuer-chosen refunds, and range rejections.
 
 In the extracted model, every request carries the witness that a knowledge extractor for its
 VOLEitH proof would output, next to its public statement, and the issuer checks the relation on
@@ -225,8 +226,8 @@ def Request.outputPayload :
 for issuance, `com nf ctx T r = c`; for spend, `(V1)` verification on
 `Credit.target com tag inputNote oldOpening`, `(V2)` change commitment opening
 `com nf' ctx t' r' = c'`, and `(V3)` natural-number balance conservation `t + x = t' + d` (no
-modular wraparound). The draft's `(V4)` range bounds are omitted, a permissive modeling choice
-described in the module docstring. -/
+modular wraparound). The draft's `(V4)` range bounds are omitted here and enforced in
+`Cslib.Crypto.AnonymousToken.IssuerBridge` (`acceptDraftIssue`, `acceptDraftSpendPre`). -/
 def acceptLocal [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)

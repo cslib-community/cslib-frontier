@@ -21,46 +21,65 @@ import CslibFrontier.Probability.PMF.Bool
 adversary supplies the initial balance `T` and the spend refund `x'` directly, and range checks
 (`V4`, plus `T ≥ 1`) are omitted. In the draft specification ([VOLEACT2026], Protocol
 Specification), `T` is agreed out of band via the issuer's issuance policy (`T ∈ [1..2^(8*L)]`),
-`x'` is chosen by the issuer in `SpendResponse`, and range checks are enforced on `T`, `d`, `x'`,
-`t`, `x`, and `t'` with rejection replies.
+`x'` is chosen by the issuer in `SpendResponse`, and range checks are enforced (`T_init ≠ 0` at
+issuance; `t', x, d < 2^(8*L)` in SpendRelation `(V4)`, `t < 2^(8*L)` from witness size, and
+`d, x' < 2^(8*L)` in `SpendResponse`) with rejection replies.
 
 This module formalizes that stateful, probabilistic draft-style issuer within the extracted-witness
 model and proves an exact, zero-loss simulation reduction (`bridgeAdversary`,
-`eval_draftConservationExperiment_eq`) into `Conservation.extractedConservationExperiment`.
-Composing with `Conservation` yields concrete EUF-CMA and target/keyless-commitment binding bounds
-for `draftConservationExperiment`, while `bridgeAdversary_queryBound` preserves query budgets.
+`eval_extractedDraftConservationExperiment_eq`) into `Conservation.extractedConservationExperiment`.
+Because `Conservation`'s bound already holds for the permissive issuer and the conservation win
+predicate depends only on the log of accepted requests, the range checks, `T ≥ 1` guard, and
+ticket single-use serve faithfulness to the draft rather than slackening the inequality; composing
+with `Conservation` directly transfers the concrete EUF-CMA and target/keyless-commitment binding
+bounds to `extractedDraftConservationExperiment`, while `bridgeAdversary_queryBound` preserves query
+budgets.
+
+This draft-style game, the ticket-allocation device (`agreeIssue`/`consumed`), and the simulation
+reduction are original to this library. Modeling choices relative to the draft pseudocode:
+* `IssuerPolicy` is fixed before `keyGen` and has no access to `(pk, sk)`.
+* Out-of-band issuance agreement is modeled by `.agreeIssue` returning a sequential ticket index,
+  and `.issue` enforces `amt < bound` alongside `1 ≤ amt` (representing the draft's input-domain
+  bound `T_init < 2^(8*L)`).
+* `acceptDraftSpendPre` enforces `(V1)`–`(V4)` and nullifier freshness before invoking
+  `policy.chooseRefund` (matching the draft's Overview order rather than `SpendResponse` input
+  order), so policies whose state depends on rejected spends are excluded.
+* A spend's `ctx` is read from `DraftSpendRequest.ctx` and matched against the certified input note,
+  allowing multi-context requests under one oracle.
 
 This bridge stays in the extracted-witness model and bounds oracle queries rather than runtime:
 VOLEitH proof extraction, zero-knowledge, random-oracle or ideal-permutation arguments for `Com`
 and `Tag`, multi-issuer selection, and polynomial-time machine certificates remain tracked under
 #7068.
 
-It also establishes the arithmetic carry-bit boundary explaining why `(V3)` requires full integer
-equality `t + x = t' + d` rather than equality modulo `2 ^ w`: under `(V4)` bounds `< 2 ^ w`,
-integer equality is equivalent to modular equality together with matching top carry bit
-`Nat.testBit · w` (`eq_iff_mod_eq_and_testBit_eq`), and any modular collision that violates integer
-`(V3)` under `< bound` creates an exact `bound`-credit gap (`wraparound_gap_of_mod_eq_ne`).
+It also establishes the standalone arithmetic carry-bit boundary explaining why `(V3)` uses full
+integer equality rather than equality modulo `2 ^ w`: for `w`-bit sums `< 2 ^ (w + 1)` (as implied
+by `(V4)` `< 2 ^ w`), equality holds if and only if modular equality modulo `2 ^ w` holds together
+with matching top carry bit `Nat.testBit · w` (`eq_iff_mod_eq_and_testBit_eq`), and any modular
+collision between sums under `2 * bound` forces an exact `bound`-credit wraparound discrepancy
+(`wraparound_gap_of_mod_eq_ne`).
 
 ## Main definitions
 
-* `IssuerPolicy`: stateful, probabilistic issuer policy supplying agreed issuance amounts and spend
-  refunds from public spend metadata only.
+* `IssuerPolicy`: stateful, probabilistic key-independent issuer policy supplying agreed issuance
+  amounts and spend refunds from public spend metadata only.
 * `DraftIssueRequest`, `DraftSpendRequest`, `DraftQuery`, `draftReply`, `IssuerState`: draft-style
   queries and stateful issuer bookkeeping, without adversary-chosen `T` or `x'`.
-* `draftIssuerOracle`, `DraftAdversary`, `DraftConservationExecution`, `runDraftConservation`,
-  `draftConservationAccept`, `draftConservationExperiment`: the draft-style extracted conservation
-  game with range and policy rejections.
+* `draftIssuerOracle`, `DraftAdversary`, `ExtractedDraftConservationExecution`,
+  `runExtractedDraftConservation`, `extractedDraftConservationAccept`,
+  `extractedDraftConservationExperiment`: the draft-style extracted conservation game with range and
+  policy rejections.
 * `bridgeAdversary`: explicit simulation reduction to `Conservation.ExtractedAdversary`.
 
 ## Main results
 
 * `bridgeAdversary_queryBound`: `bridgeAdversary` preserves query budgets (`≤ q`).
-* `eval_draftConservationExperiment_eq`: exact zero-loss distribution equality between
-  `draftConservationExperiment` and `Conservation.extractedConservationExperiment` on
+* `eval_extractedDraftConservationExperiment_eq`: exact zero-loss distribution equality between
+  `extractedDraftConservationExperiment` and `Conservation.extractedConservationExperiment` on
   `bridgeAdversary`.
-* `draftConservationExperiment_succProbability_le`,
-  `draftConservationExperiment_succProbability_le_prod_mk`: concrete EUF-CMA plus binding bounds
-  against the draft-style issuer.
+* `extractedDraftConservationExperiment_succProbability_le`,
+  `extractedDraftConservationExperiment_succProbability_le_prod_mk`: concrete EUF-CMA plus binding
+  bounds against the draft-style issuer.
 * `eq_iff_mod_eq_and_testBit_eq`, `wraparound_gap_of_mod_eq_ne`: exact carry-bit equivalence and
   `bound`-credit wraparound separation under `(V4)` range limits.
 
@@ -82,10 +101,10 @@ variable {PolicyState Nullifier Context Opening Commitment Target PK SK Sig Issu
 
 /-! ### Issuer policy, draft-style requests, and range checks -/
 
-/-- Stateful, probabilistic policy driving a draft-style issuer: `agreeIssue` chooses (or declines)
-the initial credit balance `T` during out-of-band issuance agreement, and `chooseRefund` chooses
-(or declines) the spend refund `x'` from public spend metadata `(ctx, nf, d, c')` without seeing
-private witnesses. -/
+/-- Stateful, probabilistic policy driving a draft-style issuer: fixed independently of the
+certification keys `(pk, sk)`, `agreeIssue` chooses (or declines) the initial credit balance `T`
+during out-of-band issuance agreement, and `chooseRefund` chooses (or declines) the spend refund
+`x'` from public spend metadata `(ctx, nf, d, c')` without seeing private witnesses. -/
 structure IssuerPolicy (PolicyState Context Nullifier Commitment IssueHint : Type) where
   /-- Initial private state of the issuer policy. -/
   init : ProbComp PolicyState
@@ -94,8 +113,9 @@ structure IssuerPolicy (PolicyState Context Nullifier Commitment IssueHint : Typ
   /-- Stateful, probabilistic refund selection (`x'`) given public spend request data. -/
   chooseRefund : Context → Nullifier → ℕ → Commitment → StateT PolicyState ProbComp (Option ℕ)
 
-/-- An extracted draft-style issuance submission referencing a previously agreed issuance ticket.
-Neither `ctx` nor `amount` is chosen in this message; both come from the issuer's ticket. -/
+/-- An extracted draft-style issuance submission referencing an agreed ticket (a library-specific
+representation of out-of-band `T_init` agreement). Neither `ctx` nor `amount` is chosen in this
+message; both come from the issuer's ticket. -/
 structure DraftIssueRequest (Nullifier Opening Commitment : Type) where
   /-- Identifier returned by an earlier `.agreeIssue` query. -/
   ticket : ℕ
@@ -105,7 +125,6 @@ structure DraftIssueRequest (Nullifier Opening Commitment : Type) where
   nullifier : Nullifier
   /-- Extracted opening randomness `r`. -/
   opening : Opening
-  deriving DecidableEq
 
 /-- An extracted draft-style spend submission: identical to `Conservation.SpendRequest` except that
 the refund `x'` is omitted because the issuer chooses it in `SpendResponse`. -/
@@ -132,7 +151,6 @@ structure DraftSpendRequest (Nullifier Context Opening Commitment Sig : Type) wh
   newCredit : ℕ
   /-- Extracted opening randomness `r'` of the change token. -/
   newOpening : Opening
-  deriving DecidableEq
 
 /-- Promote a `DraftSpendRequest` to `Conservation.SpendRequest` using issuer-chosen `refund`. -/
 def DraftSpendRequest.toSpendRequest
@@ -151,8 +169,9 @@ def DraftSpendRequest.toSpendRequest
     newCredit := req.newCredit
     newOpening := req.newOpening }
 
-/-- Check `(V4)` upper bounds `< bound` on the client-supplied debit and extracted credit fields
-`t`, `x`, and `t'` ([VOLEACT2026], SpendRelation `V4` and `SpendResponse` step 2). -/
+/-- Check upper bounds `< bound` on the client-supplied debit `d`, extracted witness balance `t`
+(bounded implicitly by the draft's witness field `2^(8*L)`), and `(V4)` fields `x, t'`
+([VOLEACT2026], SpendRelation `V4` and `SpendResponse` step 2). -/
 def DraftSpendRequest.withinRange (bound : ℕ)
     (req : DraftSpendRequest Nullifier Context Opening Commitment Sig) : Bool :=
   decide (req.debit < bound ∧ req.oldCredit < bound ∧ req.oldRefund < bound ∧ req.newCredit < bound)
@@ -166,7 +185,6 @@ inductive DraftQuery (Nullifier Context Opening Commitment Sig IssueHint : Type)
   | issue (req : DraftIssueRequest Nullifier Opening Commitment)
   /-- Submit a spend request and extracted witness; the issuer supplies any refund `x'`. -/
   | spend (req : DraftSpendRequest Nullifier Context Opening Commitment Sig)
-  deriving DecidableEq
 
 /-- Reply type of each `DraftQuery`: `(ticket, T)` (or `none`) for `.agreeIssue`, `some σ` (or
 `none`) for `.issue`, and `some (x', σ)` (or `none`) for `.spend`. -/
@@ -188,9 +206,10 @@ structure IssuerState (Nullifier Context Opening Commitment Sig PolicyState : Ty
   /-- Accepted requests recorded in `Conservation.Request` format, oldest first. -/
   accepted : List (Conservation.Request Nullifier Context Opening Commitment Sig)
 
-/-- Validate a `.issue` submission against `st.pending`, single-use `st.consumed`, the draft
-range guard `1 ≤ T < bound`, and the `IssueRelation` commitment check. A rejected `.issue` leaves
-`st.consumed` unchanged; once accepted, the ticket is marked consumed. -/
+/-- Validate a `.issue` submission against `st.pending`, single-use `st.consumed`, `1 ≤ amt`
+(`T_init ≠ 0` in `IssueResponse`) and `amt < bound` (the draft's `[1..2^(8*L)]` input domain),
+plus the `IssueRelation` commitment check. A rejected `.issue` leaves `st.consumed` unchanged; once
+accepted, the ticket is marked consumed. -/
 def acceptDraftIssue [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment) (bound : ℕ)
     (req : DraftIssueRequest Nullifier Opening Commitment)
@@ -274,8 +293,9 @@ abbrev DraftAdversary (Nullifier Context Opening Commitment PK Sig IssueHint : T
       (Commitment := Commitment) (IssueHint := IssueHint) Sig)
     Context
 
-/-- The public key, target context, and accepted request log of a draft conservation execution. -/
-structure DraftConservationExecution
+/-- The public key, target context, and accepted request log of an extracted draft conservation
+execution. -/
+structure ExtractedDraftConservationExecution
     (Nullifier Context Opening Commitment PK Sig : Type) where
   /-- Public verification key sampled by the experiment. -/
   publicKey : PK
@@ -284,15 +304,16 @@ structure DraftConservationExecution
   /-- Accepted requests recorded in `Conservation.Request` format, oldest first. -/
   accepted : List (Conservation.Request Nullifier Context Opening Commitment Sig)
 
-/-- Execute `A` against the draft-style stateful issuer. -/
-def runDraftConservation [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+/-- Execute `A` against the draft-style stateful issuer in the extracted-witness model. -/
+def runExtractedDraftConservation
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig)
     (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
     (bound : ℕ)
     (A : DraftAdversary Nullifier Context Opening Commitment PK Sig IssueHint) :
-    ProbComp (DraftConservationExecution Nullifier Context Opening Commitment PK Sig) := do
+    ProbComp (ExtractedDraftConservationExecution Nullifier Context Opening Commitment PK Sig) := do
   let keys ← S.keyGen
   let pst₀ ← policy.init
   let st₀ : IssuerState Nullifier Context Opening Commitment Sig PolicyState := ⟨pst₀, [], [], []⟩
@@ -300,20 +321,21 @@ def runDraftConservation [DecidableEq Nullifier] [DecidableEq Context] [Decidabl
     ((A keys.1).runState (draftIssuerOracle com tag S policy bound keys)).run st₀
   return ⟨keys.1, targetCtx, finalSt.accepted⟩
 
-/-- Acceptance predicate of the draft conservation game: total debits in `run.targetCtx` strictly
-exceed total issued credit plus total granted refunds. -/
-def draftConservationAccept [DecidableEq Context]
-    (run : DraftConservationExecution Nullifier Context Opening Commitment PK Sig) : Bool :=
-  decide (Conservation.issuedAmount run.accepted run.targetCtx +
-      Conservation.grantedRefund run.accepted run.targetCtx <
-    Conservation.spentDebit run.accepted run.targetCtx)
+/-- Acceptance predicate of the extracted draft conservation game, delegating directly to
+`Conservation.extractedConservationAccept`. -/
+def extractedDraftConservationAccept [DecidableEq Context]
+    (run : ExtractedDraftConservationExecution Nullifier Context Opening Commitment PK Sig) :
+    Bool :=
+  Conservation.extractedConservationAccept
+    ⟨run.publicKey, run.targetCtx, run.accepted.map (·, none)⟩
 
-/-- Draft-style extracted VOLE-ACT credit-conservation experiment ([VOLEACT2026], Protocol
+/-- Extracted draft-style VOLE-ACT credit-conservation experiment ([VOLEACT2026], Protocol
 Specification). Unlike `Conservation.extractedConservationExperiment`, initial amounts `T` are
 agreed via `policy.agreeIssue`, spend refunds `x'` are chosen by `policy.chooseRefund`, and `(V4)`
-plus `T ≥ 1` range checks are enforced with `none` rejection replies. Extraction from VOLEitH
-proofs and runtime efficiency certificates remain outside this model (#7068). -/
-def draftConservationExperiment
+plus `1 ≤ T < bound` range checks are enforced with `none` rejection replies. Because this game is
+still in the extracted-witness model, extraction from VOLEitH proofs, zero-knowledge, RO/ideal-
+permutation arguments, and runtime efficiency certificates remain outside this model (#7068). -/
+def extractedDraftConservationExperiment
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -321,7 +343,7 @@ def draftConservationExperiment
     (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
     (bound : ℕ)
     (A : DraftAdversary Nullifier Context Opening Commitment PK Sig IssueHint) : Experiment :=
-  draftConservationAccept <$> runDraftConservation com tag S policy bound A
+  extractedDraftConservationAccept <$> runExtractedDraftConservation com tag S policy bound A
 
 /-! ### Simulation reduction to `Conservation` -/
 
@@ -555,12 +577,13 @@ private theorem acceptRequest_of_acceptDraftSpendPre
   rw [acceptRequest_toSpendRequest]
   exact (Bool.and_eq_true_iff.mp h).2
 
-/-- Exact simulation equality: the draft-style conservation experiment has the exact same Boolean
-distribution as `Conservation.extractedConservationExperiment` on `bridgeAdversary`, with zero
-probability loss. This bridges #8102's permissive game to the draft's stateful issuer within the
-extracted-witness model (extraction, zero-knowledge, RO/ideal-permutation realization, and PPT
-runtime certificates remain outside this model, #7068). -/
-theorem eval_draftConservationExperiment_eq
+/-- Exact simulation equality in the extracted-witness model: the draft-style conservation
+experiment has the exact same Boolean distribution as
+`Conservation.extractedConservationExperiment` on `bridgeAdversary`, with zero probability loss.
+This bridges `Conservation.extractedConservationExperiment`'s permissive game to the draft's
+stateful issuer within the extracted-witness model (extraction, zero-knowledge, RO/ideal-permutation
+realization, and PPT runtime certificates remain outside this model, #7068). -/
+theorem eval_extractedDraftConservationExperiment_eq
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -568,11 +591,11 @@ theorem eval_draftConservationExperiment_eq
     (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
     (bound : ℕ)
     (A : DraftAdversary Nullifier Context Opening Commitment PK Sig IssueHint) :
-    ProbComp.eval (draftConservationExperiment com tag S policy bound A) =
+    ProbComp.eval (extractedDraftConservationExperiment com tag S policy bound A) =
       ProbComp.eval (Conservation.extractedConservationExperiment com tag S
         (bridgeAdversary com tag S policy bound A)) := by
-  simp only [draftConservationExperiment, Conservation.extractedConservationExperiment,
-    runDraftConservation, Conservation.runExtractedConservation, ProbComp.eval_map,
+  simp only [extractedDraftConservationExperiment, Conservation.extractedConservationExperiment,
+    runExtractedDraftConservation, Conservation.runExtractedConservation, ProbComp.eval_map,
     ProbComp.eval_bind, PMF.map_bind]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
   dsimp only
@@ -754,7 +777,7 @@ theorem eval_draftConservationExperiment_eq
         · simp [hpre]
   have hcongr :
       (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
-          (fun ⟨ctx, st, _⟩ => draftConservationAccept ⟨pk, ctx, st.accepted⟩) =
+          (fun ⟨ctx, st, _⟩ => extractedDraftConservationAccept ⟨pk, ctx, st.accepted⟩) =
         (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
           (fun ⟨ctx, _, log⟩ => Conservation.extractedConservationAccept ⟨pk, ctx, log⟩) := by
     apply PMF.ext
@@ -764,34 +787,49 @@ theorem eval_draftConservationExperiment_eq
     by_cases hmem : (ctx, st, log) ∈ (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).support
     · have heq : st.accepted = log.map Prod.fst := hinv ctx st log hmem
       have heq' :
-          draftConservationAccept ⟨pk, ctx, st.accepted⟩ =
+          extractedDraftConservationAccept ⟨pk, ctx, st.accepted⟩ =
             Conservation.extractedConservationAccept ⟨pk, ctx, log⟩ := by
-        dsimp only [draftConservationAccept, Conservation.extractedConservationAccept]
-        rw [heq]
+        dsimp only [extractedDraftConservationAccept, Conservation.extractedConservationAccept]
+        simp only [heq, List.map_map, Function.comp_def]
       rw [heq']
     · simp [(PMF.apply_eq_zero_iff _ _).mpr hmem]
   have hd :
       ((ProbComp.eval (((A pk).runState (draftIssuerOracle com tag S policy bound (pk, sk))).run
-          st₀)).map fun p => draftConservationAccept ⟨pk, p.1, p.2.accepted⟩) =
+          st₀)).map fun p => extractedDraftConservationAccept ⟨pk, p.1, p.2.accepted⟩) =
         (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
-          (fun ⟨ctx, st, _⟩ => draftConservationAccept ⟨pk, ctx, st.accepted⟩) := by
+          (fun ⟨ctx, st, _⟩ => extractedDraftConservationAccept ⟨pk, ctx, st.accepted⟩) := by
     rw [ProbOracleComp.eval_runState, ← hproj, PMF.map_comp]
     rfl
   change
       ((ProbComp.eval (((A pk).runState (draftIssuerOracle com tag S policy bound (pk, sk))).run
-          st₀)).map fun p => draftConservationAccept ⟨pk, p.1, p.2.accepted⟩) =
+          st₀)).map fun p => extractedDraftConservationAccept ⟨pk, p.1, p.2.accepted⟩) =
         ((ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
           fun ⟨ctx, _, log⟩ => (ctx, log)).map
             (fun p => Conservation.extractedConservationAccept ⟨pk, p.1, p.2⟩)
   rw [hd, hcongr, PMF.map_comp]
   rfl
 
-/-- Concrete extracted-model bound for the draft-style issuer: winning `draftConservationExperiment`
-yields either a `targetForger` existential forgery against `S` or a target collision in
-`noteForger`'s run, each with coefficient one. Not a credit-conservation theorem for the unextracted
-protocol; VOLEitH extraction, zero-knowledge, RO/ideal-permutation realization, and PPT machine
-witnesses remain outside this model (#7068). -/
-theorem draftConservationExperiment_succProbability_le
+private theorem succProbability_extractedDraftConservationExperiment_eq
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
+    (bound : ℕ)
+    (A : DraftAdversary Nullifier Context Opening Commitment PK Sig IssueHint) :
+    Experiment.succProbability (extractedDraftConservationExperiment com tag S policy bound A) =
+      Experiment.succProbability
+        (Conservation.extractedConservationExperiment com tag S
+          (bridgeAdversary com tag S policy bound A)) := by
+  simp only [Experiment.succProbability, Game.succProbability,
+    eval_extractedDraftConservationExperiment_eq]
+
+/-- Concrete extracted-model bound for the draft-style issuer: winning
+`extractedDraftConservationExperiment` yields either a `targetForger` existential forgery against
+`S` or a target collision in `noteForger`'s run, each with coefficient one. Not a
+credit-conservation theorem for the unextracted protocol; VOLEitH extraction, zero-knowledge,
+RO/ideal-permutation realization, and PPT machine witnesses remain outside this model (#7068). -/
+theorem extractedDraftConservationExperiment_succProbability_le
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment] [DecidableEq Target]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
@@ -800,7 +838,7 @@ theorem draftConservationExperiment_succProbability_le
     (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
     (bound : ℕ)
     (A : DraftAdversary Nullifier Context Opening Commitment PK Sig IssueHint) :
-    Experiment.succProbability (draftConservationExperiment com tag S policy bound A) ≤
+    Experiment.succProbability (extractedDraftConservationExperiment com tag S policy bound A) ≤
       Experiment.succProbability
           (S.eufCmaExperiment
             (targetForger (Credit.target com tag)
@@ -808,22 +846,17 @@ theorem draftConservationExperiment_succProbability_le
         Experiment.succProbability
           (bindingExperiment S (Credit.target com tag)
             (Conservation.noteForger com tag S (bridgeAdversary com tag S policy bound A))) := by
-  have heq :
-      Experiment.succProbability (draftConservationExperiment com tag S policy bound A) =
-        Experiment.succProbability
-          (Conservation.extractedConservationExperiment com tag S
-            (bridgeAdversary com tag S policy bound A)) := by
-    simp only [Experiment.succProbability, Game.succProbability,
-      eval_draftConservationExperiment_eq]
-  rw [heq]
+  rw [succProbability_extractedDraftConservationExperiment_eq]
   exact Conservation.extractedConservationExperiment_succProbability_le com tag S
     (bridgeAdversary com tag S policy bound A)
 
-/-- Concrete keyless-commitment specialization for `tag = Prod.mk`: winning
-`draftConservationExperiment` yields either a `targetForger` EUF-CMA forgery against `S` or a
-binding collision for the keyless commitment scheme `CS` via
-`Conservation.commitmentBindingReduction`, each with coefficient one (#7068). -/
-theorem draftConservationExperiment_succProbability_le_prod_mk
+/-- Concrete extracted-model keyless-commitment specialization at `tag = Prod.mk`: winning
+`extractedDraftConservationExperiment` yields either a `targetForger` EUF-CMA forgery against `S`
+or a binding collision for a keyless commitment scheme `CS` whose verifier accepts exactly when
+`com nf ctx t o = c` under every key (`hverify`), via `Conservation.commitmentBindingReduction`,
+each with coefficient one. VOLEitH extraction, zero-knowledge, RO/ideal-permutation realization,
+and PPT machine witnesses remain outside this model (#7068). -/
+theorem extractedDraftConservationExperiment_succProbability_le_prod_mk
     {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
@@ -833,7 +866,8 @@ theorem draftConservationExperiment_succProbability_le_prod_mk
     (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
     (bound : ℕ)
     (A : DraftAdversary Nullifier Context Opening Commitment PK Sig IssueHint) :
-    Experiment.succProbability (draftConservationExperiment com Prod.mk S policy bound A) ≤
+    Experiment.succProbability
+        (extractedDraftConservationExperiment com Prod.mk S policy bound A) ≤
       Experiment.succProbability
           (S.eufCmaExperiment
             (targetForger (Credit.target com Prod.mk)
@@ -843,30 +877,11 @@ theorem draftConservationExperiment_succProbability_le_prod_mk
           (CS.bindingExperiment
             (Conservation.commitmentBindingReduction com S
               (bridgeAdversary com Prod.mk S policy bound A))) := by
-  have heq :
-      Experiment.succProbability (draftConservationExperiment com Prod.mk S policy bound A) =
-        Experiment.succProbability
-          (Conservation.extractedConservationExperiment com Prod.mk S
-            (bridgeAdversary com Prod.mk S policy bound A)) := by
-    simp only [Experiment.succProbability, Game.succProbability,
-      eval_draftConservationExperiment_eq]
-  rw [heq]
+  rw [succProbability_extractedDraftConservationExperiment_eq]
   exact Conservation.extractedConservationExperiment_succProbability_le_prod_mk com CS hverify S
     (bridgeAdversary com Prod.mk S policy bound A)
 
 /-! ### Carry-bit vs modular arithmetic boundary under `(V4)` -/
-
-private theorem testBit_eq_decide_le_of_lt_two_pow {a b w : ℕ}
-    (ha : a < 2 ^ w) (hb : b < 2 ^ w) :
-    (a + b).testBit w = decide (2 ^ w ≤ a + b) := by
-  have hlt : a + b < 2 * 2 ^ w := by omega
-  rw [Nat.testBit_eq_decide_div_mod_eq]
-  by_cases hle : 2 ^ w ≤ a + b
-  · have hdiv : (a + b) / 2 ^ w = 1 :=
-      Nat.div_eq_of_lt_le (by simpa using hle) (by simpa using hlt)
-    simp [hle, hdiv]
-  · have hdiv : (a + b) / 2 ^ w = 0 := Nat.div_eq_of_lt (Nat.lt_of_not_le hle)
-    simp [hle, hdiv]
 
 private theorem add_lt_two_mul_decomp {a bound : ℕ} (ha : a < 2 * bound) :
     (a < bound ∧ a % bound = a) ∨ (bound ≤ a ∧ a = bound + a % bound) := by
@@ -880,41 +895,37 @@ private theorem add_lt_two_mul_decomp {a bound : ℕ} (ha : a < 2 * bound) :
     have hlt := Nat.lt_of_not_le hle
     exact ⟨hlt, Nat.mod_eq_of_lt hlt⟩
 
-/-- Under `(V4)` `w`-bit range bounds (`t, x, t', d < 2 ^ w`, where the draft sets `w = 8 * L`),
-integer `(V3)` conservation `t + x = t' + d` holds if and only if modular equality modulo `2 ^ w`
-holds together with equality of the `(w + 1)`-st carry bit `Nat.testBit · w` ([VOLEACT2026],
-Spending `V3` and `V4`). -/
-theorem eq_iff_mod_eq_and_testBit_eq {t x t' d w : ℕ}
-    (ht : t < 2 ^ w) (hx : x < 2 ^ w) (ht' : t' < 2 ^ w) (hd : d < 2 ^ w) :
-    t + x = t' + d ↔
-      (t + x) % 2 ^ w = (t' + d) % 2 ^ w ∧ (t + x).testBit w = (t' + d).testBit w := by
-  rw [testBit_eq_decide_le_of_lt_two_pow ht hx, testBit_eq_decide_le_of_lt_two_pow ht' hd]
-  constructor
-  · intro h
-    simp [h]
-  · rintro ⟨hmod, hcarry⟩
-    rcases add_lt_two_mul_decomp (by omega : t + x < 2 * 2 ^ w) with ⟨h1, hm1⟩ | ⟨h1, hm1⟩ <;>
-      rcases add_lt_two_mul_decomp (by omega : t' + d < 2 * 2 ^ w) with ⟨h2, hm2⟩ | ⟨h2, hm2⟩
-    · omega
-    · exfalso; simp [Nat.not_le.mpr h1, h2] at hcarry
-    · exfalso; simp [h1, Nat.not_le.mpr h2] at hcarry
-    · omega
+/-- Arithmetic carry-bit boundary for sums `< 2 ^ (w + 1)` (in particular `t + x` and `t' + d`
+under `w`-bit `(V4)` bounds `< 2 ^ w`, where the draft sets `w = 8 * L`): integer equality
+`a = b` holds if and only if modular equality modulo `2 ^ w` holds together with equality of the
+`(w + 1)`-st carry bit `Nat.testBit · w` ([VOLEACT2026], Spending `V3` and `V4`). -/
+theorem eq_iff_mod_eq_and_testBit_eq {a b w : ℕ}
+    (ha : a < 2 ^ (w + 1)) (hb : b < 2 ^ (w + 1)) :
+    a = b ↔ a % 2 ^ w = b % 2 ^ w ∧ a.testBit w = b.testBit w := by
+  refine ⟨fun h => by simp [h], fun ⟨hm, hbit⟩ => ?_⟩
+  have ha2 : a / 2 ^ w < 2 := Nat.div_lt_of_lt_mul (by rw [← Nat.pow_succ]; exact ha)
+  have hb2 : b / 2 ^ w < 2 := Nat.div_lt_of_lt_mul (by rw [← Nat.pow_succ]; exact hb)
+  rw [Nat.testBit_eq_decide_div_mod_eq, Nat.testBit_eq_decide_div_mod_eq,
+    Nat.mod_eq_of_lt ha2, Nat.mod_eq_of_lt hb2] at hbit
+  have hq : a / 2 ^ w = b / 2 ^ w := by
+    have := decide_eq_decide.mp hbit
+    generalize a / 2 ^ w = p at ha2 this ⊢
+    generalize b / 2 ^ w = q at hb2 this ⊢
+    omega
+  exact (Nat.div_add_mod a _).symm.trans (by rw [hq, hm]; exact Nat.div_add_mod b _)
 
 /-- Under `(V4)` bounds `< bound`, any pair of sums `(t + x)` and `(t' + d)` that agree modulo
-`bound` yet violate integer `(V3)` (`t + x ≠ t' + d`) must disagree on whether they reach `bound`,
-forcing an exact `bound`-credit wraparound discrepancy (`t' + d = t + x + bound` or conversely). -/
+`bound` yet violate integer `(V3)` (`t + x ≠ t' + d`) differs by an exact `bound`-credit wraparound
+(`t' + d = t + x + bound ∨ t + x = t' + d + bound`). -/
 theorem wraparound_gap_of_mod_eq_ne {t x t' d bound : ℕ}
     (ht : t < bound) (hx : x < bound) (ht' : t' < bound) (hd : d < bound)
     (hmod : (t + x) % bound = (t' + d) % bound) (hne : t + x ≠ t' + d) :
-    (decide (bound ≤ t + x) = false ∧ decide (bound ≤ t' + d) = true ∧
-        t' + d = t + x + bound) ∨
-      (decide (bound ≤ t + x) = true ∧ decide (bound ≤ t' + d) = false ∧
-        t + x = t' + d + bound) := by
+    t' + d = t + x + bound ∨ t + x = t' + d + bound := by
   rcases add_lt_two_mul_decomp (by omega : t + x < 2 * bound) with ⟨h1, hm1⟩ | ⟨h1, hm1⟩ <;>
     rcases add_lt_two_mul_decomp (by omega : t' + d < 2 * bound) with ⟨h2, hm2⟩ | ⟨h2, hm2⟩
   · omega
-  · left; exact ⟨decide_eq_false (Nat.not_le.mpr h1), decide_eq_true h2, by omega⟩
-  · right; exact ⟨decide_eq_true h1, decide_eq_false (Nat.not_le.mpr h2), by omega⟩
+  · left; omega
+  · right; omega
   · omega
 
 end Cslib.Crypto.AnonymousToken.IssuerBridge
