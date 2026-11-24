@@ -3325,6 +3325,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.TraceExponent
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.TranslatedCoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.TranslatedPoint
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Reduction.Autoreducibility
 public import CslibFrontier.Computability.Complexity.Reduction.BoundedOracle
