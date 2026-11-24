@@ -109,26 +109,11 @@ the formula rather than inferred from the component schedules. -/
   structuralBitsBound (tapeCount n) (stateTagCount n) (operationCount n) (initialTag n)
     (observationRowCount (stateCard n) (tapeCount n) (operationCount n)) (maxRowBits n)
 
-/-- Polynomial structural coordinates, exhaustive row schedule and maximum encoded row schedule
-give a polynomial description-size schedule. The row hypothesis is intentionally separate: it
-cannot be inferred from polynomial `tapeCount` and `operationCount`. -/
-theorem scheduledBitsBound_polynomiallyBounded
-    {stateCard tapeCount stateTagCount operationCount initialTag maxRowBits : ℕ → ℕ}
-    (htapes : Cslib.PolynomiallyBounded tapeCount)
-    (hstates : Cslib.PolynomiallyBounded stateTagCount)
-    (hoperations : Cslib.PolynomiallyBounded operationCount)
-    (hinitial : Cslib.PolynomiallyBounded initialTag)
-    (hrows : Cslib.PolynomiallyBounded (fun n =>
-      observationRowCount (stateCard n) (tapeCount n) (operationCount n)))
-    (hmaxRow : Cslib.PolynomiallyBounded maxRowBits) :
-    Cslib.PolynomiallyBounded (scheduledBitsBound stateCard tapeCount stateTagCount operationCount
-      initialTag maxRowBits) := by
-  unfold scheduledBitsBound structuralBitsBound
-  fun_prop
-
-/-- Any concrete static-size schedule pointwise bounded by the structural schedule is polynomially
-bounded under the same explicit component and exhaustive-row premises. This formulation applies
-directly to indexed native witnesses without packaging their dependent state types. -/
+/-- A static-size schedule pointwise bounded by the structural schedule is polynomially bounded
+when the structural coordinates, the exhaustive row schedule and the maximum encoded row schedule
+are. The row hypothesis is separate because it does not follow from polynomial `tapeCount` and
+`operationCount`. The statement takes plain schedules, so it applies to an indexed family of
+witnesses without packaging their dependent state types. -/
 theorem staticBits_polynomiallyBounded_of_le
     {staticBits stateCard tapeCount stateTagCount operationCount initialTag maxRowBits : ℕ → ℕ}
     (htapes : Cslib.PolynomiallyBounded tapeCount)
@@ -140,9 +125,12 @@ theorem staticBits_polynomiallyBounded_of_le
     (hmaxRow : Cslib.PolynomiallyBounded maxRowBits)
     (hle : ∀ n, staticBits n ≤
       scheduledBitsBound stateCard tapeCount stateTagCount operationCount initialTag maxRowBits n) :
-    Cslib.PolynomiallyBounded staticBits :=
-  (scheduledBitsBound_polynomiallyBounded htapes hstates hoperations hinitial hrows
-    hmaxRow).mono_of_le hle
+    Cslib.PolynomiallyBounded staticBits := by
+  have hbound : Cslib.PolynomiallyBounded (scheduledBitsBound stateCard tapeCount stateTagCount
+      operationCount initialTag maxRowBits) := by
+    unfold scheduledBitsBound structuralBitsBound
+    fun_prop
+  exact hbound.mono_of_le hle
 
 end Description
 
@@ -158,20 +146,15 @@ variable {r : ℕ} {Alpha : Type u} {Beta : Type}
 
 /-- Cardinality of the retained native control type. -/
 @[expose] noncomputable def stateCard
-    (witness : NativeOracleProgram r program encIn encOut) : ℕ := by
-  let _ := witness.stateFintype
-  exact Fintype.card witness.State
+    (witness : NativeOracleProgram r program encIn encOut) : ℕ :=
+  letI := witness.stateFintype
+  Fintype.card witness.State
 
 /-- Declared natural-tag control count of the retained first-order description. -/
 @[expose] noncomputable def stateTagCount
-    (witness : NativeOracleProgram r program encIn encOut) : ℕ := by
-  let _ := witness.stateFintype
-  exact Turing.MultiTapeTM.Internal.NativeCompiler.stateEncodingBound witness.stateEncoding
-
-/-- Number of fixed oracle-operation channels of the retained witness. -/
-@[expose] def operationCount
-    (_witness : NativeOracleProgram r program encIn encOut) : ℕ :=
-  r
+    (witness : NativeOracleProgram r program encIn encOut) : ℕ :=
+  letI := witness.stateFintype
+  Turing.MultiTapeTM.Internal.NativeCompiler.stateEncodingBound witness.stateEncoding
 
 /-- Natural tag of the retained machine's initial control. -/
 @[expose] def initialStateTag
@@ -181,19 +164,19 @@ variable {r : ℕ} {Alpha : Type u} {Beta : Type}
 /-- Exact number of rows exhaustively stored by the retained witness description. -/
 @[expose] noncomputable def observationRowCount
     (witness : NativeOracleProgram r program encIn encOut) : ℕ :=
-  Description.observationRowCount witness.stateCard witness.tapeCount witness.operationCount
+  Description.observationRowCount witness.stateCard witness.tapeCount r
 
 /-- Maximum encoded generated row of the retained witness description. -/
 @[expose] noncomputable def maxEncodedRowBits
-    (witness : NativeOracleProgram r program encIn encOut) : ℕ := by
+    (witness : NativeOracleProgram r program encIn encOut) : ℕ :=
   letI := witness.stateFintype
-  exact Description.maxEncodedRowBits witness.stateEncoding witness.machine
+  Description.maxEncodedRowBits witness.stateEncoding witness.machine
 
 /-- Construction-derived static upper bound exposing tapes, channels, finite-state coordinates,
 the exhaustive row count and maximum encoded row length. -/
 @[expose] noncomputable def staticBitsBound
     (witness : NativeOracleProgram r program encIn encOut) : ℕ :=
-  Description.structuralBitsBound witness.tapeCount witness.stateTagCount witness.operationCount
+  Description.structuralBitsBound witness.tapeCount witness.stateTagCount r
     witness.initialStateTag witness.observationRowCount witness.maxEncodedRowBits
 
 /-- The retained artifact's exact `descLen` static charge fits its structural upper bound. -/

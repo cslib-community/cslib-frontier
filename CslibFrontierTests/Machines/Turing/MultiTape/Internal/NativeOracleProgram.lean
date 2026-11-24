@@ -126,15 +126,6 @@ example : localArtifact.machine.ComputesTidily (encUnit ())
     (localArtifact.time ()) (encPair encBits encUnary <$> pure ([false], 1)) :=
   localArtifact.computes ()
 
-/-- Emitted pair size exposes both the framing of the dynamic first component and the encoded
-second component; it is separate from the final artifact's static charge. -/
-example (request : List Bool × ℕ) :
-    localArtifact.outputBits request =
-      2 * (encBits request.1).length + 1 + (encUnary request.2).length := by
-  change (encPair encBits encUnary request).length =
-    2 * (encBits request.1).length + 1 + (encUnary request.2).length
-  exact length_encPair request
-
 /-! #### Typed retained composition -/
 
 /-- A genuinely typed postprocessor discards a `Bool`; its constant machine has an
@@ -215,6 +206,149 @@ example : typedDispatchArtifact.machine.ComputesTidily (encUnit ())
     (typedDispatchArtifact.time ())
     (encBool <$> ProbOracleComp.sample (ProbComp.uniform Bool)) :=
   typedDispatchArtifact.computes ()
+
+/-! #### Finite dispatch -/
+
+/-- A test that never selects its case. -/
+noncomputable def emptyCondition := ClassifiedCompiler.inPhase .dispatch
+  (Turing.MultiTapeTM.Internal.NativeCompiler.const encUnit encBits [])
+
+/-- A deterministic branch that emits a fixed bit. -/
+noncomputable def constBitArtifact (bit : Bool) := NativeOracleProgram.ofCompiler (r := 2)
+  (ClassifiedCompiler.inPhase .localStep
+    (Turing.MultiTapeTM.Internal.NativeCompiler.const encUnit encBool bit))
+
+/-- Two retained cases. The first test emits the empty word, so its case is skipped; the second
+selects the fair-bit sampler. -/
+noncomputable def dispatchCases :
+    List (NativeOracleProgram.DispatchCase 2 Unit Bool encUnit encBool) :=
+  [{ test := fun _ => []
+     condition := emptyCondition
+     program := fun _ => pure true
+     branch := constBitArtifact true },
+   { test := fun _ => [true]
+     condition := trueCondition
+     program := fun _ => ProbOracleComp.sample (ProbComp.uniform Bool)
+     branch := NativeOracleProgram.fairBit (r := 2) encUnit }]
+
+noncomputable def finiteDispatchArtifact :=
+  NativeOracleProgram.finiteDispatch dispatchCases (constBitArtifact false)
+
+/-- First-match selection skips the first case and does not reach the fallback. -/
+example : NativeOracleProgram.dispatchProgram dispatchCases (fun _ : Unit => pure false) () =
+    ProbOracleComp.sample (ProbComp.uniform Bool) := by
+  simp [NativeOracleProgram.dispatchProgram, dispatchCases]
+
+example : finiteDispatchArtifact.machine.ComputesTidily (encUnit ())
+    (finiteDispatchArtifact.time ())
+    (encBool <$>
+      NativeOracleProgram.dispatchProgram dispatchCases (fun _ : Unit => pure false) ()) :=
+  finiteDispatchArtifact.computes ()
+
+/-! #### Bounded iteration -/
+
+/-- One loop round as a program: drop the first bit of the word. -/
+def dropBitStep (word : List Bool) :
+    ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool) :=
+  pure word.tail
+
+/-- The loop body is the retained one-pass transducer for `List.tail`. -/
+noncomputable def dropBit := NativeOracleProgram.ofCompiler (r := 2)
+  (ClassifiedCompiler.inPhase .localStep Turing.MultiTapeTM.Internal.NativeCompiler.tailDecoder)
+
+/-- A round on any suffix of the initial word is charged the body's clock on the whole word. -/
+def dropBitOnline : OnlineAccounting (List Bool) where
+  time := fun phase word => if phase = .localStep then 4 * word.length + 8 else 0
+
+theorem dropBit_clock (initial : List Bool) (n : ℕ) (_hn : n ≤ initial.length - 1)
+    (current : List Bool) (hcurrent : current = initial.drop n) (phase : OnlinePhase) :
+    dropBit.online.time phase current ≤ dropBitOnline.time phase initial := by
+  subst hcurrent
+  have hdrop : (initial.drop n).length ≤ initial.length := by
+    rw [List.length_drop]
+    exact Nat.sub_le _ _
+  by_cases hphase : phase = .localStep
+  · simp only [dropBit, dropBitOnline, NativeOracleProgram.ofCompiler, ClassifiedCompiler.inPhase,
+      Turing.MultiTapeTM.Internal.NativeCompiler.tailDecoder,
+      Turing.MultiTapeTM.Internal.NativeCompiler.ofTransducer, encBits_apply, hphase, ↓reduceIte]
+    omega
+  · simp [dropBit, dropBitOnline, NativeOracleProgram.ofCompiler, ClassifiedCompiler.inPhase,
+      hphase]
+
+/-- Before the last ordinary round the next word is the next suffix, and it is nonempty. -/
+theorem dropBit_preserve (initial : List Bool) (n : ℕ) (hn : n < initial.length - 1)
+    (current : List Bool) (hcurrent : current = initial.drop n) (OracleState : Type)
+    (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
+    (state state' : OracleState) (next : List Bool)
+    (hnext : (next, state') ∈
+      (ProbOracleComp.runWith oracle (dropBitStep current) state).support) :
+    next = initial.drop (n + 1) ∧ encBits next ≠ [] := by
+  simp only [dropBitStep, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff] at hnext
+  rcases Prod.mk.inj hnext with ⟨rfl, rfl⟩
+  subst hcurrent
+  have htail : (initial.drop n).tail = initial.drop (n + 1) := by rw [List.tail_drop]
+  refine ⟨htail, ?_⟩
+  rw [htail, encBits_apply]
+  intro hempty
+  have hlength := congrArg List.length hempty
+  rw [List.length_drop, List.length_nil] at hlength
+  omega
+
+/-- The stopping round drops the last bit and emits the empty word. -/
+theorem dropBit_last (initial current : List Bool)
+    (hcurrent : current = initial.drop (initial.length - 1)) (OracleState : Type)
+    (oracle : Operation × List Bool → StateT OracleState PMF (List Bool)) (state : OracleState) :
+    ProbOracleComp.runWith oracle (encBits <$> dropBitStep current) state =
+      ProbOracleComp.runWith oracle (pure []) state := by
+  have htail : current.tail = [] := by
+    subst hcurrent
+    rw [List.tail_drop]
+    exact List.drop_eq_nil_of_le (by omega)
+  simp only [dropBitStep, htail, map_pure, encBits_apply]
+
+theorem dropBit_length (initial : List Bool) (n : ℕ) (_hn : n ≤ initial.length - 1)
+    (current : List Bool) (hcurrent : current = initial.drop n) :
+    (encBits current).length ≤ initial.length := by
+  subst hcurrent
+  rw [encBits_apply, List.length_drop]
+  exact Nat.sub_le _ _
+
+/-- A loop whose number of rounds depends on the input: it drops one bit per round until the word
+is empty. On `word` it runs `word.length - 1` ordinary rounds, each leaving a nonempty word, and
+the stopping round drops the last bit, which `iterateWhile` reads as its terminator. -/
+noncomputable def dropBitsArtifact :=
+  NativeOracleProgram.boundedIterationEncodedOn Turing.MultiTapeTM.Decoder.bits dropBit
+    (fun word => word.length - 1) (fun word => word.length) dropBitOnline
+    (fun initial n current => current = initial.drop n)
+    (fun _ => rfl) dropBit_clock dropBit_preserve dropBit_last dropBit_length
+
+example (word : List Bool) : dropBitsArtifact.machine.ComputesTidily (encBits word)
+    (dropBitsArtifact.time word)
+    (encBits <$> OracleComp.iterate (word.length - 1) dropBitStep word) :=
+  dropBitsArtifact.computes word
+
+/-- The recorded clock of the loop: `word.length` body rounds and the loop scaffolding. -/
+example (word : List Bool) : dropBitsArtifact.time word =
+    (word.length - 1 + 1) * (dropBitOnline.totalTime word + 10 * word.length + 23) +
+      8 * word.length + 17 :=
+  NativeOracleProgram.time_boundedIterationEncodedOn _ _ _ _ _ _ _ _ _ _ _ word
+
+/-- On a two-bit word the loop runs one ordinary round and returns the last bit. -/
+example : OracleComp.iterate ([true, false].length - 1) dropBitStep [true, false] =
+    pure [false] := by
+  simp [OracleComp.iterate_succ, dropBitStep]
+
+/-! #### Forgetting to the existential predicate -/
+
+/-- The one-step sampler has the constant clock `1`, so the forgetful theorem applies to it. -/
+example : IsOraclePPTOn encUnit encBool
+    (fun _ : Unit => (ProbOracleComp.sample (ProbComp.uniform Bool) :
+      ProbOracleComp (fun _ : Operation × List Bool => List Bool) Bool)) :=
+  (NativeOracleProgram.fairBit (r := 2) encUnit).isOraclePPTOn
+    ⟨fun _ => 1, Cslib.PolynomiallyBounded.const 1,
+      fun input => (NativeOracleProgram.totalTime_fairBitOnline input).le⟩
+
+/-! #### An adaptive two-query client -/
 
 noncomputable def firstPrepared := NativeOracleProgram.preprocess
   (ClassifiedCompiler.inPhase .marshalling firstRequestCompiler) firstArtifact

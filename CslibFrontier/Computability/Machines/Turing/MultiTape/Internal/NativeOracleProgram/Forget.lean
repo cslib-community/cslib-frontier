@@ -14,18 +14,14 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Pha
 /-!
 # Forgetting named native oracle programs
 
-This bridge packages a retained `NativeOracleProgram` into the existing existential oracle-machine
-calculus when its explicit clock is polynomially bounded. The low-level named witness therefore
-does not need to import the higher-level polynomial API.
-
-## Main definitions
-
-This bridge introduces no new data type.
+A retained `NativeOracleProgram` whose recorded clock is polynomially bounded gives the existential
+oracle-machine predicate `IsOraclePPTOn`. The theorem lives in its own module so that the witness
+module imports only the machine layer.
 
 ## Main results
 
-* `Turing.MultiTapePTM.Internal.NativeOracleProgram.isOraclePPTOn`: the forward forgetful
-  theorem. It does not extract construction data from an existential certificate.
+* `Turing.MultiTapePTM.Internal.NativeOracleProgram.isOraclePPTOn`: a witness with a polynomially
+  bounded clock gives `IsOraclePPTOn`.
 
 ## References
 
@@ -42,9 +38,8 @@ variable {r : ℕ} {Alpha Beta : Type}
   {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Beta}
   {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
 
-/-- Forget a named witness into the existing existential oracle-machine calculus when its recorded
-clock is polynomially bounded. This direction packages `witness.machine`; it does not extract a
-machine from `IsOraclePPTOn`. -/
+/-- A named witness whose recorded clock is polynomially bounded in the length of the encoded
+input gives `IsOraclePPTOn`; the machine it packages is `witness.machine`. -/
 theorem isOraclePPTOn (witness : NativeOracleProgram r program encIn encOut)
     (htime : Turing.MultiTapeTM.PolyBounded
       (fun input => (encIn input).length) witness.time) :

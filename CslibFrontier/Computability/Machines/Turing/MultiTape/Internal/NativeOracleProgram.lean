@@ -23,8 +23,7 @@ import Mathlib.Data.List.Lex
 
 This internal module retains an actual finite-control `MultiTapePTM` for a word-oracle program,
 together with a numbering of its states, its first-order description and a componentwise clock. It
-is the open-oracle analogue of `Turing.MultiTapeTM.Internal.NativeCompiler`, not a replacement
-public computability calculus.
+is the open-oracle analogue of the internal `Turing.MultiTapeTM.Internal.NativeCompiler`.
 
 A witness certifies time only: `computes` bounds the machine's tidy run by the total of its clock
 ledger, and a workspace coordinate is open in #5467.
@@ -47,9 +46,8 @@ A witness is a mathematical object, not an executable generator. `Description.of
 rows of a given machine in increasing order of encoded key and does not use choice, but only the
 deterministic leaves installed by `ofCompiler` carry an explicit transition table
 (`NativeCompiler.table`). The composing constructors store the `noncomputable` machines `tidyComp`,
-`itePTM` and `iterateWhile`, and `queryTake` takes its finite-state instance from
-`Fintype.ofFinite`, which depends on choice. The field `computes`, `runWith_descriptionRun` and the
-`descLen` bounds are therefore statements about the retained machine in the model. An effective,
+`itePTM` and `iterateWhile`. The field `computes`, `runWith_descriptionRun` and the `descLen`
+bounds are therefore statements about the retained machine in the model. An effective,
 table-backed generator for the composed machines is not provided; it is tracked in #5467.
 
 ## Main definitions
@@ -74,8 +72,6 @@ table-backed generator for the composed machines is not provided; it is tracked 
   description preserves the retained machine's exact law under every stateful oracle handler.
 * `Turing.MultiTapePTM.Internal.Description.table_length_ofMachine`: the description has exactly
   one row for every control, input-head symbol, work-head observation and answer-head observation.
-* `Turing.MultiTapePTM.Internal.NativeOracleProgram.outputBits_le_time`: every emitted result fits
-  in the charged online clock.
 
 ## References
 
@@ -475,8 +471,8 @@ end Description
 
 /-! ### Componentwise online accounting -/
 
-/-- Mutually exclusive parts of an online native-oracle execution. These are accounting labels,
-not callbacks or additional machine states. -/
+/-- The labels under which a constructor files the clock charges of an online native-oracle
+execution. -/
 inductive OnlinePhase where
   /-- Copy or scan the presented encoded input. -/
   | inputCopy
@@ -559,11 +555,11 @@ theorem totalTime_select (condition : Alpha → Prop) [DecidablePred condition]
   by_cases h : condition input <;> simp [totalTime, select, h]
 
 /-- Repeat every phase charge an input-indexed number of times. -/
-@[expose] def scaleBy (count : Alpha → ℕ) (accounting : OnlineAccounting Alpha) :
+private def scaleBy (count : Alpha → ℕ) (accounting : OnlineAccounting Alpha) :
     OnlineAccounting Alpha where
   time := fun phase input => count input * accounting.time phase input
 
-theorem totalTime_scaleBy (count : Alpha → ℕ) (accounting : OnlineAccounting Alpha)
+private theorem totalTime_scaleBy (count : Alpha → ℕ) (accounting : OnlineAccounting Alpha)
     (input : Alpha) :
     (accounting.scaleBy count).totalTime input = count input * accounting.totalTime input := by
   change (∑ phase, count input * accounting.time phase input) =
@@ -692,27 +688,19 @@ variable {r : ℕ} {Alpha : Type u} {Beta : Type}
   {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Beta}
   {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
 
-/-- Exact size of one emitted result. This is indexed by the actual probabilistic result rather
-than hidden in the input-indexed clock. -/
-@[expose] def outputBits (_witness : NativeOracleProgram r program encIn encOut)
-    (output : Beta) : ℕ :=
-  (encOut output).length
-
 /-- Native online clock, excluding static artifact size and the external handler's work. -/
 @[expose] def time (witness : NativeOracleProgram r program encIn encOut) (input : Alpha) : ℕ :=
   witness.online.totalTime input
 
 /-- Lift a retained deterministic compiler to a named oracle artifact with pure semantics. The
-actual machine is `ofDeterministic classified.compiler.table.toTM`: it ignores private coins and all
-oracle channels, retains the compiler state encoding, and uses exactly the classified online
-record. No dummy query or semantic callback is introduced. -/
+machine is `ofDeterministic classified.compiler.table.toTM`: it ignores private coins and all
+oracle channels, keeps the compiler's state numbering and uses the classified clock. -/
 @[expose] noncomputable def ofCompiler {Alpha : Type u} {Beta : Type} {f : Alpha → Beta}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (classified : ClassifiedCompiler f encIn encOut) :
-    NativeOracleProgram r (fun input => pure (f input)) encIn encOut := by
+    NativeOracleProgram r (fun input => pure (f input)) encIn encOut :=
   letI := classified.compiler.stateFintype
-  exact {
-    tapeCount := classified.compiler.tapeCount
+  { tapeCount := classified.compiler.tapeCount
     State := classified.compiler.State
     machine := ofDeterministic classified.compiler.table.toTM
     stateEncoding := classified.compiler.stateEncoding
@@ -721,13 +709,12 @@ record. No dummy query or semantic callback is introduced. -/
       rw [classified.time_eq]
       simpa only [map_pure] using
         (ComputesTidily.of_deterministic (Operation := Fin r)
-          (classified.compiler.computes input))
-  }
+          (classified.compiler.computes input)) }
 
 /-! #### State encodings for retained machine combinators -/
 
 /-- Explicit control tags for tidy sequential composition. -/
-@[expose] def tidyCompStateEncoding {Inner Outer : Type}
+private def tidyCompStateEncoding {Inner Outer : Type}
     (inner : Inner ↪ ℕ) (outer : Outer ↪ ℕ) :
     ((Inner ⊕ RewindWorkState) ⊕
       (MarkWorkState ⊕ Outer ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState) ↪ ℕ :=
@@ -744,7 +731,7 @@ record. No dummy query or semantic callback is introduced. -/
         Turing.MultiTapeTM.Internal.NativeCompiler.rewindWorkStateEncoding))
 
 /-- Explicit control tags for conditional finite dispatch. -/
-@[expose] def dispatchStateEncoding {Test Yes No : Type}
+private def dispatchStateEncoding {Test Yes No : Type}
     (test : Test ↪ ℕ) (yes : Yes ↪ ℕ) (no : No ↪ ℕ) :
     ((Test ⊕ RewindWorkState) ⊕
       Option (Yes ⊕ No) ⊕ Unit ⊕ RewindWorkState) ↪ ℕ :=
@@ -759,7 +746,7 @@ record. No dummy query or semantic callback is introduced. -/
         Turing.MultiTapeTM.Internal.NativeCompiler.rewindWorkStateEncoding))
 
 /-- Explicit tags for the deterministic preparation phase of `iterateWhile`. -/
-@[expose] def iteratePrepareStateEncoding :
+private def iteratePrepareStateEncoding :
     Turing.MultiTapePTM.IterateWhile.PrepareState ↪ ℕ :=
   Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
     (Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
@@ -780,7 +767,7 @@ record. No dummy query or semantic callback is introduced. -/
         Turing.MultiTapeTM.Internal.NativeCompiler.rewindWorkStateEncoding))
 
 /-- Explicit tags for the deterministic finishing phase of `iterateWhile`. -/
-@[expose] def iterateFinishStateEncoding :
+private def iterateFinishStateEncoding :
     Turing.MultiTapePTM.IterateWhile.FinishState ↪ ℕ :=
   Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
     (Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
@@ -795,7 +782,7 @@ record. No dummy query or semantic callback is introduced. -/
       Turing.MultiTapeTM.Internal.NativeCompiler.rewindWorkStateEncoding)
 
 /-- Explicit control tags for the retained bounded-iteration machine. -/
-@[expose] def iterateStateEncoding {State : Type} (state : State ↪ ℕ) :
+private def iterateStateEncoding {State : Type} (state : State ↪ ℕ) :
     Turing.MultiTapePTM.IterateWhile.MachineState State ↪ ℕ :=
   let round : Turing.MultiTapePTM.IterateWhile.RoundState State ↪ ℕ :=
     Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding iteratePrepareStateEncoding
@@ -818,8 +805,7 @@ record. No dummy query or semantic callback is introduced. -/
 
 /-! #### Primitive artifacts -/
 
-/-- The fair-bit primitive charges its single output-emitting native step to output copying. It has
-no separate controller, dispatch or interpreter phase. -/
+/-- The fair-bit primitive charges its single output-emitting native step to output copying. -/
 @[expose] def fairBitOnline : OnlineAccounting Alpha where
   time
     | .outputCopy, _ => 1
@@ -829,21 +815,23 @@ theorem totalTime_fairBitOnline (input : Alpha) :
     (fairBitOnline (Alpha := Alpha)).totalTime input = 1 := by
   simp [OnlineAccounting.totalTime, fairBitOnline]
 
-/-- A named one-step fair-bit artifact. The presented input is ignored by the actual machine. -/
+/-- A named one-step fair-bit artifact. The machine ignores the presented input. -/
 @[expose] noncomputable def fairBit (encIn : Alpha ↪ List Bool) :
     NativeOracleProgram r
-      (fun _ : Alpha => ProbOracleComp.sample (ProbComp.uniform Bool)) encIn encBool := by
-  letI : Fintype Unit := inferInstance
-  exact {
-    tapeCount := 0
-    State := Unit
-    machine := coinMachine
-    stateEncoding := Turing.MultiTapeTM.Internal.NativeCompiler.unitStateEncoding
-    online := fairBitOnline
-    computes := fun input => by
-      rw [totalTime_fairBitOnline]
-      exact computesTidily_coinMachine (encIn input)
-  }
+      (fun _ : Alpha => ProbOracleComp.sample (ProbComp.uniform Bool)) encIn encBool where
+  tapeCount := 0
+  State := Unit
+  machine := coinMachine
+  stateEncoding := Turing.MultiTapeTM.Internal.NativeCompiler.unitStateEncoding
+  online := fairBitOnline
+  computes := fun input => by
+    rw [totalTime_fairBitOnline]
+    exact computesTidily_coinMachine (encIn input)
+
+/-- Explicit enumeration of the four native states of the bounded-prefix query primitive. -/
+instance : Fintype QueryTakeState where
+  elems := {.marker, .bit, .submit, .copyReply}
+  complete state := by cases state <;> simp
 
 /-- Explicit tags for the four native states of the bounded-prefix query primitive. -/
 @[expose] def queryTakeStateEncoding : QueryTakeState ↪ ℕ :=
@@ -859,9 +847,10 @@ theorem totalTime_fairBitOnline (input : Alpha) :
     ProbOracleComp (fun _ : Fin r × List Bool => List Bool) (List Bool) :=
   List.take input.2 <$> ProbOracleComp.query (operation, input.1)
 
-/-- Exact phase split of `queryTakePTM`. Request unframing costs `2 * q.length + 1`, submitting
-the query costs one step, reply-prefix copying costs `limit + 1`, and rewinding the complete
-encoded input costs `2 * q.length + limit + 3`. -/
+/-- The phase split assigned to the clock of `queryTakePTM`: `2 * q.length + 1` to unframing the
+request, one step to submitting the query, `limit + 1` to copying the reply prefix and
+`2 * q.length + limit + 3` to rewinding the encoded input. Only the sum is proved
+(`totalTime_queryTakeOnline` with the certificate of `queryTake`). -/
 @[expose] def queryTakeOnline : OnlineAccounting (List Bool × ℕ) where
   time
     | .inputCopy, (q, limit) => 2 * q.length + limit + 3
@@ -876,30 +865,26 @@ theorem totalTime_queryTakeOnline (input : List Bool × ℕ) :
   norm_num [OnlineAccounting.totalTime, queryTakeOnline]
   omega
 
-/-- A named fixed-operation bounded-prefix query artifact. The operation is part of the retained
-machine term; no operation callback is supplied at runtime. -/
+/-- The named bounded-prefix query artifact for one fixed operation, which is part of the retained
+machine term. -/
 @[expose] noncomputable def queryTake (operation : Fin r) :
     NativeOracleProgram r (queryTakeProgram operation)
-      (encPair encBits encUnary) encBits := by
-  letI : Fintype QueryTakeState := Fintype.ofFinite QueryTakeState
-  letI : Fintype (QueryTakeState ⊕ RewindState) := inferInstance
-  exact {
-    tapeCount := 0
-    State := QueryTakeState ⊕ RewindState
-    machine := queryTakePTM operation
-    stateEncoding := Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
-      queryTakeStateEncoding Turing.MultiTapeTM.Internal.NativeCompiler.rewindStateEncoding
-    online := queryTakeOnline
-    computes := fun input => by
-      rw [totalTime_queryTakeOnline]
-      exact computesTidily_queryTakePTM operation input.1 input.2
-  }
+      (encPair encBits encUnary) encBits where
+  tapeCount := 0
+  State := QueryTakeState ⊕ RewindState
+  machine := queryTakePTM operation
+  stateEncoding := Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
+    queryTakeStateEncoding Turing.MultiTapeTM.Internal.NativeCompiler.rewindStateEncoding
+  online := queryTakeOnline
+  computes := fun input => by
+    rw [totalTime_queryTakeOnline]
+    exact computesTidily_queryTakePTM operation input.1 input.2
 
 /-! #### Retained preprocessing and postprocessing -/
 
-/-- Exact construction-assigned accounting for deterministic preprocessing followed by a named
-oracle program. The deterministic compiler is executed; it is not a semantic callback. -/
-@[expose] def preprocessAccounting {Alpha : Type u} {Middle : Type v} {Output : Type}
+/-- Construction-assigned accounting for deterministic preprocessing followed by a named oracle
+program: both ledgers phase by phase, with the `tidyComp` overhead charged to marshalling. -/
+private def preprocessAccounting {Alpha : Type u} {Middle : Type v} {Output : Type}
     {f : Alpha → Middle}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     {encOutput : Output ↪ List Bool}
@@ -909,7 +894,7 @@ oracle program. The deterministic compiler is executed; it is not a semantic cal
   (prepare.online.seq (source.online.reindex f)).addTime .marshalling
     fun input => 4 * prepare.online.totalTime input + 9
 
-theorem totalTime_preprocessAccounting {Alpha : Type u} {Middle : Type v} {Output : Type}
+private theorem totalTime_preprocessAccounting {Alpha : Type u} {Middle : Type v} {Output : Type}
     {f : Alpha → Middle}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     {encOutput : Output ↪ List Bool}
@@ -954,25 +939,17 @@ noncomputable def preprocess {Alpha : Type u} {Middle : Type v} {Output : Type}
     (prepare : ClassifiedCompiler f encIn encMiddle)
     {program : Middle → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Output}
     (source : NativeOracleProgram r program encMiddle encOutput) :
-    NativeOracleProgram r (fun input => program (f input)) encIn encOutput := by
+    NativeOracleProgram r (fun input => program (f input)) encIn encOutput :=
   letI := prepare.compiler.stateFintype
   letI := source.stateFintype
-  let State :=
-    ((prepare.compiler.State ⊕ RewindWorkState) ⊕
-      (MarkWorkState ⊕ source.State ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState)
-  letI : Fintype State := inferInstance
-  let tapes := max prepare.compiler.tapeCount source.tapeCount + 2
-  let online := preprocessAccounting prepare source
-  let machine := source.machine.tidyComp
-    (ofDeterministic (Oracle := Fin r) prepare.compiler.table.toTM) true
-  exact {
-    tapeCount := tapes
-    State := State
-    machine := machine
+  { tapeCount := max prepare.compiler.tapeCount source.tapeCount + 2
+    State := (prepare.compiler.State ⊕ RewindWorkState) ⊕
+      (MarkWorkState ⊕ source.State ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState
+    machine := source.machine.tidyComp
+      (ofDeterministic (Oracle := Fin r) prepare.compiler.table.toTM) true
     stateEncoding := tidyCompStateEncoding prepare.compiler.stateEncoding source.stateEncoding
-    online := online
-    computes := computes_preprocess prepare source
-  }
+    online := preprocessAccounting prepare source
+    computes := computes_preprocess prepare source }
 
 theorem time_preprocess {Alpha : Type u} {Middle : Type v} {Output : Type}
     {f : Alpha → Middle}
@@ -988,14 +965,14 @@ theorem time_preprocess {Alpha : Type u} {Middle : Type v} {Output : Type}
 /-- Construction-assigned accounting for a named oracle computation followed by a named
 deterministic typed postprocessor. `postOnline` bounds the postprocessor's time phase by phase on
 the source's supported outputs. -/
-@[expose] def postprocessAccounting {Alpha : Type u} {Middle : Type}
+private def postprocessAccounting {Alpha : Type u} {Middle : Type}
     {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Middle}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     (source : NativeOracleProgram r program encIn encMiddle)
     (postOnline : OnlineAccounting Alpha) : OnlineAccounting Alpha :=
   (source.online.seq postOnline).addTime .marshalling fun input => 4 * source.time input + 9
 
-theorem totalTime_postprocessAccounting {Alpha : Type u} {Middle : Type}
+private theorem totalTime_postprocessAccounting {Alpha : Type u} {Middle : Type}
     {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Middle}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     (source : NativeOracleProgram r program encIn encMiddle)
@@ -1039,8 +1016,8 @@ private theorem computes_postprocess {Alpha : Type u} {Middle Beta : Type}
     OnlineAccounting.totalTime] using hcomp
 
 /-- Execute a named oracle artifact and then a named deterministic typed postprocessor. The caller
-supplies a phasewise bound on the postprocessor for every supported intermediate result. The
-machine passes its encoding directly, avoiding any decoding choice or hidden semantic callback. -/
+supplies a phasewise bound on the postprocessor for every supported intermediate result, which the
+machine passes on in its encoding `encMiddle`. -/
 noncomputable def postprocess {Alpha : Type u} {Middle Beta : Type}
     {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Middle}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
@@ -1053,25 +1030,17 @@ noncomputable def postprocess {Alpha : Type u} {Middle Beta : Type}
       (state : OracleState) (middle : Middle) (state' : OracleState),
       (middle, state') ∈ (ProbOracleComp.runWith oracle (program input) state).support →
       ∀ phase, post.online.time phase middle ≤ postOnline.time phase input) :
-    NativeOracleProgram r (fun input => f <$> program input) encIn encOut := by
+    NativeOracleProgram r (fun input => f <$> program input) encIn encOut :=
   letI := source.stateFintype
   letI := post.compiler.stateFintype
-  let State :=
-    ((source.State ⊕ RewindWorkState) ⊕
-      (MarkWorkState ⊕ post.compiler.State ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState)
-  letI : Fintype State := inferInstance
-  let tapes := max source.tapeCount post.compiler.tapeCount + 2
-  let online := postprocessAccounting source postOnline
-  let machine := (ofDeterministic (Oracle := Fin r) post.compiler.table.toTM).tidyComp
-    source.machine true
-  exact {
-    tapeCount := tapes
-    State := State
-    machine := machine
+  { tapeCount := max source.tapeCount post.compiler.tapeCount + 2
+    State := (source.State ⊕ RewindWorkState) ⊕
+      (MarkWorkState ⊕ post.compiler.State ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState
+    machine := (ofDeterministic (Oracle := Fin r) post.compiler.table.toTM).tidyComp
+      source.machine true
     stateEncoding := tidyCompStateEncoding source.stateEncoding post.compiler.stateEncoding
-    online := online
-    computes := computes_postprocess source post postOnline hpost
-  }
+    online := postprocessAccounting source postOnline
+    computes := computes_postprocess source post postOnline hpost }
 
 theorem time_postprocess {Alpha : Type u} {Middle Beta : Type}
     {program : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Middle}
@@ -1092,8 +1061,8 @@ theorem time_postprocess {Alpha : Type u} {Middle Beta : Type}
 
 /-! #### Retained finite dispatch -/
 
-/-- Exact accounting for a retained binary dispatch node. The test compiler and selected branch
-are charged phasewise; the fixed `itePTM` scaffolding is charged to dispatch. -/
+/-- Construction-assigned accounting for a retained binary dispatch node. The test compiler and
+selected branch are charged phasewise; the fixed `itePTM` scaffolding is charged to dispatch. -/
 @[expose] def dispatchAccounting {Alpha : Type u} {Beta : Type}
     {test : Alpha → List Bool}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
@@ -1145,9 +1114,8 @@ private theorem computes_dispatch {Alpha : Type u} {Beta : Type}
     split <;> rfl]
   convert hbranch using 1 <;> simp only [time, encBits_apply] <;> rfl
 
-/-- Branch on the nonemptiness of a word produced by an actual named compiler. Only the selected
-native branch is executed. This is the binary node used by `finiteDispatch`; it performs no
-runtime whole-description scan. -/
+/-- Branch on the nonemptiness of a word produced by a named compiler; only the selected native
+branch is executed. This is the binary node of `finiteDispatch`. -/
 noncomputable def dispatch {Alpha : Type u} {Beta : Type}
     {test : Alpha → List Bool}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
@@ -1158,27 +1126,19 @@ noncomputable def dispatch {Alpha : Type u} {Beta : Type}
     (no : NativeOracleProgram r noProgram encIn encOut) :
     NativeOracleProgram r
       (fun input => if test input = [] then noProgram input else yesProgram input)
-      encIn encOut := by
+      encIn encOut :=
   letI := condition.compiler.stateFintype
   letI := yes.stateFintype
   letI := no.stateFintype
-  let State :=
-    ((condition.compiler.State ⊕ RewindWorkState) ⊕
-      Option (yes.State ⊕ no.State) ⊕ Unit ⊕ RewindWorkState)
-  letI : Fintype State := inferInstance
-  let tapes := max condition.compiler.tapeCount (max yes.tapeCount no.tapeCount) + 1
-  let online := dispatchAccounting condition yes no
-  let machine := itePTM
-    (ofDeterministic (Oracle := Fin r) condition.compiler.table.toTM) yes.machine no.machine
-  exact {
-    tapeCount := tapes
-    State := State
-    machine := machine
+  { tapeCount := max condition.compiler.tapeCount (max yes.tapeCount no.tapeCount) + 1
+    State := (condition.compiler.State ⊕ RewindWorkState) ⊕
+      Option (yes.State ⊕ no.State) ⊕ Unit ⊕ RewindWorkState
+    machine := itePTM
+      (ofDeterministic (Oracle := Fin r) condition.compiler.table.toTM) yes.machine no.machine
     stateEncoding := dispatchStateEncoding condition.compiler.stateEncoding
       yes.stateEncoding no.stateEncoding
-    online := online
-    computes := computes_dispatch condition yes no
-  }
+    online := dispatchAccounting condition yes no
+    computes := computes_dispatch condition yes no }
 
 theorem time_dispatch {Alpha : Type u} {Beta : Type} {test : Alpha → List Bool}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
@@ -1216,8 +1176,8 @@ structure DispatchCase (r : ℕ) (Alpha : Type u) (Beta : Type)
     | head :: tail =>
         if head.test input = [] then dispatchProgram tail fallback input else head.program input
 
-/-- Fold finitely many named tests into nested retained conditional machines. The resulting
-artifact contains every test and branch control table; selection does not invoke a callback. -/
+/-- Fold finitely many named tests into nested `dispatch` nodes. The resulting machine contains
+the controls of every test and every branch. -/
 @[expose] noncomputable def finiteDispatch {Alpha : Type u} {Beta : Type}
     {encIn : Alpha ↪ List Bool}
     {encOut : Beta ↪ List Bool} (cases : List (DispatchCase r Alpha Beta encIn encOut))
@@ -1240,8 +1200,8 @@ artifact contains every test and branch control table; selection does not invoke
   let middle ← first input
   second (input, middle)
 
-/-- Exact accounting for capturing the input by an actual framing compiler, appending the first
-native result, and running the continuation. -/
+/-- Construction-assigned accounting for capturing the input by a framing compiler, appending the
+first native result, and running the continuation. -/
 @[expose] noncomputable def capturedAccounting {Alpha Middle : Type}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
     {firstProgram : Alpha →
@@ -1337,34 +1297,22 @@ noncomputable def sequenceCaptured {Alpha Middle Beta : Type}
       (middle, state') ∈
         (ProbOracleComp.runWith oracle (firstProgram input) state).support →
       ∀ phase, second.online.time phase (input, middle) ≤ secondOnline.time phase input) :
-    NativeOracleProgram r (capturedProgram firstProgram secondProgram) encIn encOut := by
-  let framing := Turing.MultiTapeTM.Internal.NativeCompiler.encodeFrame encIn
+    NativeOracleProgram r (capturedProgram firstProgram secondProgram) encIn encOut :=
+  letI framing := Turing.MultiTapeTM.Internal.NativeCompiler.encodeFrame encIn
   letI := framing.stateFintype
   letI := first.stateFintype
   letI := second.stateFintype
-  let CaptureState := framing.State ⊕ first.State
-  let State :=
-    ((CaptureState ⊕ RewindWorkState) ⊕
-      (MarkWorkState ⊕ second.State ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState)
-  letI : Fintype CaptureState := inferInstance
-  letI : Fintype State := inferInstance
-  let captureTapes := max framing.tapeCount first.tapeCount
-  let tapes := max captureTapes second.tapeCount + 2
-  let captureMachine := appendPTM
-    (ofDeterministic (Oracle := Fin r) framing.table.toTM) first.machine
-  let machine := second.machine.tidyComp captureMachine true
-  let online := capturedAccounting first secondOnline
-  exact {
-    tapeCount := tapes
-    State := State
-    machine := machine
+  { tapeCount := max (max framing.tapeCount first.tapeCount) second.tapeCount + 2
+    State := ((framing.State ⊕ first.State) ⊕ RewindWorkState) ⊕
+      (MarkWorkState ⊕ second.State ⊕ MarkWorkState) ⊕ Unit ⊕ RewindWorkState
+    machine := second.machine.tidyComp
+      (appendPTM (ofDeterministic (Oracle := Fin r) framing.table.toTM) first.machine) true
     stateEncoding := tidyCompStateEncoding
       (Turing.MultiTapeTM.Internal.NativeCompiler.sumStateEncoding
         framing.stateEncoding first.stateEncoding)
       second.stateEncoding
-    online := online
-    computes := computes_sequenceCaptured first second secondOnline hsecond
-  }
+    online := capturedAccounting first secondOnline
+    computes := computes_sequenceCaptured first second secondOnline hsecond }
 
 theorem time_sequenceCaptured {Alpha Middle Beta : Type}
     {encIn : Alpha ↪ List Bool} {encMiddle : Middle ↪ List Bool}
@@ -1394,14 +1342,14 @@ theorem time_sequenceCaptured {Alpha Middle Beta : Type}
 fixed loop machine does not depend on `rounds input`; the schedule only certifies its per-input
 stopping point. Each body phase time is charged once per round and once more for the final stopping
 round, and the tape-loop scaffolding is charged to the controller. -/
-@[expose] def boundedIterationAccountingOn
+private def boundedIterationAccountingOn
     (rounds lengthBound : Alpha → ℕ)
     (roundOnline : OnlineAccounting Alpha) :
     OnlineAccounting Alpha :=
   (roundOnline.scaleBy fun input => rounds input + 1).addTime .controller fun input =>
     (rounds input + 1) * (10 * lengthBound input + 23) + 8 * lengthBound input + 17
 
-theorem totalTime_boundedIterationAccountingOn
+private theorem totalTime_boundedIterationAccountingOn
     (rounds lengthBound : Alpha → ℕ)
     (roundOnline : OnlineAccounting Alpha)
     (input : Alpha) :
@@ -1481,15 +1429,15 @@ private theorem computes_boundedIterationEncodedOn
   rw [OracleComp.iterate_map (rounds input) step rawStep enc
     (fun current => by simp only [rawStep, decoder.decode_enc]) input]
 
-/-- Run one fixed named loop machine over typed encoded states under runtime input-indexed round,
-encoded-length and phase bounds. `decoder` is used only as a proof retraction that relates the raw
-kernel theorem to reachable encoded states; it is not executed by the retained machine and adds no
-semantic callback. The body machine must implement and charge all parsing and output encoding.
+/-- Run one fixed named loop machine over typed encoded states under input-indexed round,
+encoded-length and phase bounds. The retained machine is `body.machine.iterateWhile true`; the body
+machine does all parsing and output encoding, and `decoder` is used only in the proof, to relate
+the raw-word loop theorem to reachable encoded states.
 
-Changing the encoded fuel changes the certified clock and semantics, not the installed machine or
-its description. Normal rounds produce a nonempty encoded next state. The additional stopping
-round maps the typed body result to the empty word, which `iterateWhile` treats as its
-terminator. -/
+The machine and its description are independent of `rounds`, which enters only the certified clock
+and the semantics. Normal rounds produce a nonempty encoded next state (`hpreserve`). In the
+additional stopping round the body's encoded result is the empty word (`hlast`), which
+`iterateWhile` treats as its terminator. -/
 noncomputable def boundedIterationEncodedOn
     {Alpha : Type} {enc : Alpha ↪ List Bool} (decoder : Turing.MultiTapeTM.Decoder enc)
     {step : Alpha → ProbOracleComp (fun _ : Fin r × List Bool => List Bool) Alpha}
@@ -1516,22 +1464,15 @@ noncomputable def boundedIterationEncodedOn
     (hlength : ∀ initial n, n ≤ rounds initial → ∀ current,
       invariant initial n current → (enc current).length ≤ lengthBound initial) :
     NativeOracleProgram r
-      (fun input => OracleComp.iterate (rounds input) step input) enc enc := by
+      (fun input => OracleComp.iterate (rounds input) step input) enc enc :=
   letI := body.stateFintype
-  let State := Turing.MultiTapePTM.IterateWhile.MachineState body.State
-  letI : Fintype State := inferInstance
-  let tapes := body.tapeCount + 1 + 2
-  let online := boundedIterationAccountingOn rounds lengthBound roundOnline
-  let machine := body.machine.iterateWhile true
-  exact {
-    tapeCount := tapes
-    State := State
-    machine := machine
+  { tapeCount := body.tapeCount + 1 + 2
+    State := Turing.MultiTapePTM.IterateWhile.MachineState body.State
+    machine := body.machine.iterateWhile true
     stateEncoding := iterateStateEncoding body.stateEncoding
-    online := online
+    online := boundedIterationAccountingOn rounds lengthBound roundOnline
     computes := computes_boundedIterationEncodedOn decoder body rounds lengthBound roundOnline
-      invariant hbase hclock hpreserve hlast hlength
-  }
+      invariant hbase hclock hpreserve hlast hlength }
 
 /-- Exact clock of typed runtime-indexed iteration, including its final stopping round. -/
 theorem time_boundedIterationEncodedOn
@@ -1549,27 +1490,12 @@ theorem time_boundedIterationEncodedOn
           8 * lengthBound input + 17 :=
   totalTime_boundedIterationAccountingOn rounds lengthBound roundOnline input
 
-/-- Every supported emitted result fits in the charged online clock. This follows from the actual
-machine certificate; `outputBits` is not an uncharged semantic-size annotation. -/
-theorem outputBits_le_time (witness : NativeOracleProgram r program encIn encOut)
-    {OracleState : Type}
-    (oracle : Fin r × List Bool → StateT OracleState PMF (List Bool))
-    (input : Alpha) (state : OracleState) {output : Beta} {finalState : OracleState}
-    (houtput : (output, finalState) ∈
-      (ProbOracleComp.runWith oracle (program input) state).support) :
-    witness.outputBits output ≤ witness.time input := by
-  have hencoded : (encOut output, finalState) ∈
-      (ProbOracleComp.runWith oracle (encOut <$> program input) state).support := by
-    rw [ProbOracleComp.runWith_map]
-    exact (PMF.mem_support_map_iff _ _ _).mpr
-      ⟨(output, finalState), houtput, rfl⟩
-  exact (witness.computes input).length_output_le oracle state hencoded
-
-/-- The exact first-order description of the recorded native machine. -/
+/-- The first-order description of the recorded native machine under its recorded state
+numbering. -/
 noncomputable abbrev description (witness : NativeOracleProgram r program encIn encOut) :
-    Turing.MultiTapePTM.Universal.Desc := by
-  let _ := witness.stateFintype
-  exact Description.ofMachine witness.stateEncoding witness.machine
+    Turing.MultiTapePTM.Universal.Desc :=
+  letI := witness.stateFintype
+  Description.ofMachine witness.stateEncoding witness.machine
 
 /-- Execute the generated natural-symbol description through the explicit Boolean-word query
 adapter, retaining its whole clocked output program. -/
@@ -1582,9 +1508,9 @@ adapter, retaining its whole clocked output program. -/
     (witness.description.toMachine.initialConfig
       ((encIn input).map Turing.MultiTapeTM.Universal.eBit))
 
-/-- The generated description realizes the same complete output/external-state law as the named
-Boolean machine, modulo the explicit symbol encoding. This is the run-level link missing from
-mere transition-table correspondence. -/
+/-- Run for the recorded clock under any stateful handler, the generated description has the law
+of `encOut <$> program input`, joint in the output and the handler's final state, up to the symbol
+encoding `eBit`. -/
 theorem runWith_descriptionRun (witness : NativeOracleProgram r program encIn encOut)
     {OracleState : Type}
     (handler : Fin r × List Bool → StateT OracleState PMF (List Bool))
