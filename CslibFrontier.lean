@@ -6672,6 +6672,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Broadcast
 public import CslibFrontier.Crypto.Protocols.MPC.CircuitEval
 public import CslibFrontier.Crypto.Protocols.MPC.Composition
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.Cost
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Hybrid
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
@@ -6679,6 +6680,8 @@ public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
 public import CslibFrontier.Crypto.Protocols.MPC.IKNP
 public import CslibFrontier.Crypto.Protocols.MPC.IKNP.Family
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT
+public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDH
+public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender.PolyTime
@@ -6710,6 +6713,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Yao
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
 public import CslibFrontier.Crypto.Protocols.MQOM.CorrelatedTree
 public import CslibFrontier.Crypto.Protocols.OPRF.DiffieHellman
