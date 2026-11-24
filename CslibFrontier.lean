@@ -2363,6 +2363,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Alternation.GuessVe
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.NP
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.SavitchEndpoints
+public import CslibFrontier.Computability.Complexity.Classes.Alternation.SavitchTime
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.Space
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.SpaceGame
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
