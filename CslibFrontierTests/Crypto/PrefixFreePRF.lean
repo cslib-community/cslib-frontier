@@ -6,9 +6,8 @@ Authors: Samuel Schlesinger, Erik Demaine
 
 module
 
-import CslibFrontier.Crypto.Computational.CBCMAC
 import CslibFrontier.Crypto.Negligible.Dyadic
-import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
+import CslibFrontier.Crypto.Primitives.UHF.CBCMAC
 
 /-!
 # Tests for the prefix-free collision wrapper
@@ -35,6 +34,11 @@ private theorem aligned_of_cbcBlockValid {cap : ℕ → ℕ} {n : ℕ} {word : L
   cases n with
   | zero => exact False.elim (Nat.not_le_of_gt hNonempty (by simpa using hCap))
   | succ n => exact Nat.zero_lt_succ n
+
+private theorem blockCount_le_of_cbcBlockValid {cap : ℕ → ℕ} {n : ℕ} {word : List Bool}
+    (hWord : cbcBlockValid cap n word = true) : word.length / n ≤ cap n := by
+  simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hWord
+  exact Nat.div_le_of_le_mul (by simpa only [Nat.mul_comm] using hWord.2)
 
 private theorem cbcBlockValid_append {cap : ℕ → ℕ} {n : ℕ} {word block : List Bool}
     (hWord : cbcBlockValid cap n word = true) (hBlock : block.length = n) :
@@ -132,26 +136,26 @@ example : InformationTheory.IsPrefixFree
     rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
     decide)
 
-/-- The real comparison applies to the CBC domain with a proper-prefix pair and extra block. -/
+/-- The combined bound applies to the CBC domain with a proper-prefix pair and extra block. -/
 example (family : List Bool → List Bool → List Bool) :
     let guessBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
       fun _ => pure [[false, false, false], [false, false, false, true, false, false]]
+    let wrapper := prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2))
+      guessBatch
     Game.succProbability (multiQueryGame pure (fun _ d => cbcBlockValid (fun _ => 2) d)
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guessBatch 3) ≤
-    Game.succProbability (ProbComp.eval
-      (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family)
-        (prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2)) guessBatch)
-        3)) := by
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family) wrapper 3))
+      (ProbComp.eval (prfIdealGameOn (cbcBlockValid (fun _ => 3)) id wrapper 3)) +
+      (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ 3 := by
   dsimp only
-  refine succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+  refine succProbability_multiQueryGame_le_prefixFreeBatchReduction
     (cbcMacFamily family) _ 3 2 ?_ ?_ (by decide) cbcBlockValid_append (cbcMacFamily_extend family)
   · intro guesses hguesses
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hguesses
     subst guesses
     decide
-  · intro word hw
-    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hw
-    exact Nat.div_le_of_le_mul hw.2
+  · exact fun _ => blockCount_le_of_cbcBlockValid
 
 /-- The ideal bound allows repeated and malformed guesses before batch preparation. -/
 example :
@@ -172,3 +176,75 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
   exact isComputationalUHF_of_extendable_prefixFreePRF hPRF ComputableInPolyTime.id'
     (computableInPolyTime_cbcBlockValid hcap) (fun _ _ => aligned_of_cbcBlockValid)
     cbcBlockValid_append (cbcMacFamily_extend family) negligible_inv_two_pow
+
+/-- The CBC-MAC application allows empty messages in the hash domain. -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
+    IsMultiQueryUHF encUnary encBits pure (fun _ d => lpBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
+  exact hF.isMultiQueryUHF_cbcMac (.const 2)
+
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
+    IsComputationalUHF encUnary encBits pure (fun _ d => lpBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) :=
+  hF.isComputationalUHF_cbcMac (.const 2)
+
+private def emptyWordPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool)) :=
+  fun _ => pure ⟨[], [false, false, false]⟩
+
+example : IsOraclePPT encBool
+    (cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2)
+      (fun p => collisionPairToBatch (emptyWordPair p))) :=
+  isOraclePPT_cbcMacMultiQueryReduction (.const 4) (.const 2)
+    (isPPTOn_collisionPairToBatch
+      (ComputableInPolyTime.const
+        (⟨[], [false, false, false]⟩ : CollisionGuess (List Bool))).isPPTOn)
+
+/-- The pair bound specializes (7.10) to two messages, one of which can be empty. -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) (n : ℕ) :
+    let reduction := cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2)
+      (fun p => collisionPairToBatch (emptyWordPair p))
+    Game.succProbability (collisionGame pure (fun _ d => lpBlockValid (fun _ => 4) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) emptyWordPair n) ≤
+    Game.advantage (ProbComp.eval (prfRealGame id family reduction n))
+      (ProbComp.eval (prfIdealGame id id reduction n)) +
+      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / (2 * 2 ^ n) + 1 / (2 : ℝ≥0) ^ n :=
+  succProbability_collisionGame_cbcMac_le hF.length_eq (fun _ => 4) emptyWordPair n
+
+private def emptyWordBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
+  fun _ => pure [[], [false, false, false]]
+
+example : IsOraclePPT encBool
+    (cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2) emptyWordBatch) :=
+  isOraclePPT_cbcMacMultiQueryReduction (.const 4) (.const 2)
+    (ComputableInPolyTime.const [[], [false, false, false]]).isPPTOn
+
+/-- The concrete CBC bound applies at zero and at an exhausted alphabet budget (width three). -/
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) (n : ℕ) :
+    let reduction := cbcMacMultiQueryReduction (fun _ => 4) (fun _ => 2) emptyWordBatch
+    Game.succProbability (multiQueryGame pure (fun _ d => lpBlockValid (fun _ => 4) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) emptyWordBatch n) ≤
+    Game.advantage (ProbComp.eval (prfRealGame id family reduction n))
+      (ProbComp.eval (prfIdealGame id id reduction n)) +
+      (2 : ℝ≥0) ^ 2 * (4 + 1) ^ 2 / (2 * 2 ^ n) + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ n := by
+  dsimp only
+  refine succProbability_multiQueryGame_cbcMac_le hF.length_eq (fun _ => 4) (fun _ => 2)
+    emptyWordBatch ?_
+  intro guesses hGuesses
+  simp only [emptyWordBatch, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hGuesses
+  subst guesses
+  decide
+
+example : lpBlockValid (fun _ => 2) 3 [] = true ∧
+    (prefixFreeBatchQueries 3 2 (lpBlockValid (fun _ => 2) 3) [[], [false, false, false]]).length =
+      2 := by
+  constructor
+  · decide
+  · have hFresh : PRF.freshBatchWordBlock 3 [[], [false, false, false]] =
+        some [true, false, false] := by
+      rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
+      decide
+    change (if (PRF.freshBatchWordBlock 3 [[], [false, false, false]]).isSome then
+      [[], [false, false, false]].map (fun w => w ++
+        (PRF.freshBatchWordBlock 3 [[], [false, false, false]]).getD []) else []).length = 2
+    rw [hFresh]
+    rfl

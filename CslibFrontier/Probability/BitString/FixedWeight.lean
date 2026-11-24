@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.BitString.Support.Weight
 public import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Uniform fixed-weight bit strings
@@ -37,18 +38,7 @@ theorem uniformOfFinset_map_indicatorVector {n w : ℕ} (hw : w ≤ n) :
   have : Nonempty ↥((range n).powersetCard w) :=
     (powersetCard_nonempty.mpr (by simp [hw])).coe_sort
   have : Nonempty ↥(weightLayer n w) := (weightLayer_nonempty hw).coe_sort
-  have hindicator : indicatorVector n ∘ Subtype.val =
-      Subtype.val ∘ (fixedSupportEquiv n w) := by
-    funext S
-    simp
-  rw [← uniformOfFintype_finset_map_val, PMF.map_comp]
-  calc
-    (uniformOfFintype ↥((range n).powersetCard w)).map
-        (indicatorVector n ∘ Subtype.val) =
-      (uniformOfFintype ↥(weightLayer n w)).map Subtype.val := by
-        rw [← uniformOfFintype_map_equiv (fixedSupportEquiv n w), PMF.map_comp]
-        rw [hindicator]
-    _ = uniformOfFinset (weightLayer n w) (weightLayer_nonempty hw) :=
-      uniformOfFintype_finset_map_val _
+  rw [← uniformOfFintype_finset_map_val, ← uniformOfFintype_finset_map_val (weightLayer n w)]
+  relabel_uniform (fixedSupportEquiv n w)
 
 end Cslib.Probability.PMF

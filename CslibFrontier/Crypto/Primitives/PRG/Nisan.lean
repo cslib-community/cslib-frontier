@@ -76,8 +76,12 @@ the same hash seeds, so the induction runs over all start distributions with the
 
 ## Main results
 
+* `Cslib.Crypto.PRG.Nisan.blocks_apply_eq_foldl`: one block of the generator, from the binary
+  digits of its index.
 * `Cslib.Crypto.PRG.Nisan.abs_dens_foldlIdx_blocks_sub_le`: Nisan's generator fools time-dependent
   transition functions with `w` states.
+* `Cslib.Crypto.PRG.Nisan.dens_hashSeeds_far_le`: for most hash seeds, the generated blocks fool
+  the transition function from every start state, in `ℓ¹`.
 * `Cslib.Crypto.PRG.Nisan.abs_dens_eval_blocks_sub_le`: Nisan's generator fools read-once branching
   programs of width `w`.
 * `Cslib.Crypto.PRG.Nisan.secure_generator`: it is secure against read-once branching programs.
@@ -134,6 +138,46 @@ theorem ofFn_blocks_succ (h : ι → X → X) (k : ℕ) (x : X) (hs : Fin (k + 1
   rw [List.ofFn_congr (by rw [pow_succ, mul_two] : 2 ^ (k + 1) = 2 ^ k + 2 ^ k), ←
     List.ofFn_fin_append]
   simp only [blocks, Fin.cast_cast, Fin.cast_eq_self]
+
+/-- **A block of Nisan's generator on its own**: block `j` applies, in order of the hash seeds, the
+hash `h (hs ℓ)` exactly at the levels `ℓ` for which bit `k - 1 - ℓ` of `j` is set, the first seed
+choosing the most significant bit. So one block costs `k` hash evaluations, not `2 ^ k`. -/
+theorem blocks_apply_eq_foldl (h : ι → X → X) (k : ℕ) (x : X) (hs : Fin k → ι)
+    (j : Fin (2 ^ k)) :
+    blocks h k x hs j = (List.finRange k).foldl
+      (fun y (ℓ : Fin k) => if (j : ℕ).testBit (k - 1 - ℓ) then h (hs ℓ) y else y) x := by
+  induction k generalizing x with
+  | zero => rfl
+  | succ k ih =>
+    rw [List.finRange_succ, List.foldl_cons, List.foldl_map, Fin.val_zero, Nat.sub_zero,
+      Nat.add_sub_cancel, blocks]
+    dsimp only
+    by_cases hj : (j : ℕ) < 2 ^ k
+    · have hcast : j.cast (by rw [pow_succ, mul_two]) =
+          Fin.castAdd (2 ^ k) (⟨j, hj⟩ : Fin (2 ^ k)) := Fin.ext rfl
+      rw [hcast, Fin.append_left, ih, Nat.testBit_lt_two_pow hj]
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      congr 1
+      funext y ℓ
+      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega]
+      rfl
+    · have hj' : (j : ℕ) - 2 ^ k < 2 ^ k := by
+        have := j.isLt
+        have h2 : 2 ^ (k + 1) = 2 ^ k * 2 := pow_succ 2 k
+        omega
+      have hcast : j.cast (by rw [pow_succ, mul_two]) =
+          Fin.natAdd (2 ^ k) (⟨j - 2 ^ k, hj'⟩ : Fin (2 ^ k)) := Fin.ext (by simp; omega)
+      have hjeq : (j : ℕ) = 2 ^ k + (j - 2 ^ k) := by omega
+      have htop : (j : ℕ).testBit k = true := by
+        rw [hjeq, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj', Bool.not_false]
+      have hlow (m : ℕ) (hm : m < k) : (j : ℕ).testBit m = ((j : ℕ) - 2 ^ k).testBit m := by
+        have := Nat.testBit_two_pow_add_gt hm ((j : ℕ) - 2 ^ k)
+        rwa [← hjeq] at this
+      rw [hcast, Fin.append_right, ih, htop, ite_eq_left rfl]
+      congr 1
+      funext y ℓ
+      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega, hlow _ (by omega)]
+      rfl
 
 /-- Nisan's generator with the hash family `h` and `k` hash seeds: the seed is a block and `k` hash
 seeds, the output is `2 ^ k` blocks. -/
@@ -498,6 +542,51 @@ theorem abs_dens_foldlIdx_blocks_sub_le [Fintype ι] [Fintype X] [DecidableEq X]
         gcongr
     _ = (2 ^ k - 1) * Fintype.card S / (2 * √(Fintype.card X)) := by
         rw [mul_div_assoc', div_div, mul_comm (√_) 2]
+
+/-- **Most hash seeds of Nisan's generator are good**: for a pairwise independent family
+`h i : X → X` and every transition function `δ` with states `S`, the fraction of the hash seeds
+`hs` for which, from some start state `s`, the distribution of the end state of the run on the
+generated blocks (for a uniform block `x`, with the hash seeds `hs` fixed) is `ε`-far in `ℓ¹` from
+the distribution of the end state of the run on `2 ^ k` uniform letters is at most
+`|S| ((2 ^ k - 1) |S| / √|X|) / ε`. This is Markov's inequality and a union bound over the start
+states, applied to the expectation bound of the proof of
+`Cslib.Crypto.PRG.Nisan.abs_dens_foldlIdx_blocks_sub_le`. It is the form of the generator that the
+Saks–Zhou iteration consumes, with the hash seeds fixed and the block averaged
+(`Cslib.Probability.SaksZhou.dens_entryFarSet_nisanPow_le`). -/
+theorem dens_hashSeeds_far_le [Fintype ι] [Fintype X] [DecidableEq X] [Fintype S] [DecidableEq S]
+    {h : ι → X → X} (hh : IsPairwiseIndependentHash h) (δ : ℕ → S → X → S) (k : ℕ) {ε : ℝ}
+    (hε : 0 < ε) :
+    (dens {hs : Fin k → ι | ∃ s, ε < ∑ s', |(dens {x : X |
+        (List.ofFn (blocks h k x hs)).foldlIdx δ s = s'} : ℝ) -
+        dens {u : Fin (2 ^ k) → X | (List.ofFn u).foldlIdx δ s = s'}|} : ℝ) ≤
+      Fintype.card S * ((2 ^ k - 1) * Fintype.card S / √(Fintype.card X)) / ε := by
+  rcases isEmpty_or_nonempty X with hX | hX
+  · have : IsEmpty (Fin (2 ^ k) → X) := ⟨fun u => IsEmpty.false (u ⟨0, by positivity⟩)⟩
+    simp [dens, Fintype.card_eq_zero, not_lt.2 hε.le]
+  have hbound (s : S) := expect_sum_abs_le hh δ k 0 (fun s₀ => if s = s₀ then (1 : ℝ) else 0)
+    (fun _ => ite_nonneg zero_le_one le_rfl) (by simp only [sum_ite_eq, mem_univ, ite_true])
+  simp only [boole_mul, sum_ite_eq, mem_univ, ite_true] at hbound
+  rw [← Fintype.expect_boole]
+  calc 𝔼 hs : Fin k → ι, (if ∃ s, ε < ∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|
+        then (1 : ℝ) else 0)
+      ≤ 𝔼 hs : Fin k → ι, ∑ s, (∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε := by
+        refine expect_le_expect fun hs _ => ?_
+        have hnonneg (s : S) :
+            0 ≤ (∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε :=
+          div_nonneg (sum_nonneg fun _ _ => abs_nonneg _) hε.le
+        split_ifs with hfar
+        · obtain ⟨s, hs⟩ := hfar
+          exact ((one_le_div hε).2 hs.le).trans
+            (single_le_sum (fun s _ => hnonneg s) (mem_univ s))
+        · exact sum_nonneg fun s _ => hnonneg s
+    _ = ∑ s, (𝔼 hs : Fin k → ι, ∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε := by
+        rw [expect_sum_comm]
+        simp only [expect_div]
+    _ ≤ ∑ _s : S, (2 ^ k - 1) * (Fintype.card S / √(Fintype.card X)) / ε :=
+        sum_le_sum fun s _ => div_le_div_of_nonneg_right (hbound s) hε.le
+    _ = Fintype.card S * ((2 ^ k - 1) * Fintype.card S / √(Fintype.card X)) / ε := by
+        rw [sum_const, card_univ, nsmul_eq_mul]
+        ring
 
 /-- **Nisan's generator fools read-once branching programs** [Nisan1992]: for a pairwise independent
 family `h i : X → X` and every read-once branching program `P` of length `2 ^ k` over `X` with
