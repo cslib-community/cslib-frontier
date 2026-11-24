@@ -7766,7 +7766,6 @@ public import CslibFrontier.Probability.UniversalHash
 public import CslibFrontier.Probability.UniversalHash.MultiSample
 public import CslibFrontier.Tactic.Degree
 public import CslibFrontier.Tactic.EncLen
-public import CslibFrontier.Tactic.EncLen.Init
 public import CslibFrontier.Tactic.FOOperator
 public import CslibFrontier.Tactic.FOOperator.Init
 public import CslibFrontier.Tactic.FailureNote

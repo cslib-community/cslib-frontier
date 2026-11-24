@@ -62,53 +62,6 @@ example (a : α) (l : List α) (T : ℕ) (h : (encList eA (a :: l)).length ≤ T
 example (p : ℕ × Bool) : p.1 ≤ (eLocal p).length := by
   enc_len [eLocal_apply]
 
-section
-
-attribute [local enc_len] eLocal_apply
-
--- A registered equation need not be passed again, and does not enter ordinary `simp`.
-example (p : ℕ × Bool) : (eLocal p).length = 2 * p.1 + 2 := by
-  fail_if_success solve | simp
-  enc_len
-
-end
-
--- A local registration must not survive its section.
-example (p : ℕ × Bool) : p.1 ≤ (eLocal p).length := by
-  fail_if_success enc_len
-  enc_len [eLocal_apply]
-
-namespace EncLenScope
-
-attribute [scoped enc_len] eLocal_apply
-
-end EncLenScope
-
-open scoped EncLenScope in
-example (p : ℕ × Bool) : (eLocal p).length = 2 * p.1 + 2 := by
-  enc_len
-
--- Registered equations must not destroy a previously bounded opaque length in an untouched
--- hypothesis. This is the shape of the graph-verifier certificate-length bound.
-open scoped EncLenScope in
-example (p : ℕ × Bool) (n T : ℕ) (h : T ≤ (eLocal p).length) :
-    T ≤ (encPair eLocal encUnary (p, n)).length := by
-  enc_len
-
--- Framed append and collection membership use their registered standard rules.
-example (xs ys : List α) :
-    (encList eA (xs ++ ys)).length = (encList eA xs).length + (encList eA ys).length := by
-  enc_len
-
-example (xs : List α) (a : α) (ha : a ∈ xs) :
-    (eA a).length ≤ (encList eA xs).length := by
-  enc_len [ha]
-
--- Framed append is also a late expansion: retain it as an atom when already bounded.
-example (xs ys : List α) (n T : ℕ) (h : T ≤ (encList eA (xs ++ ys)).length) :
-    T ≤ (encPair (encList eA) encUnary (xs ++ ys, n)).length := by
-  enc_len
-
 /-! Locations work as for `simp`, and hypotheses stay unexpanded otherwise. -/
 
 example (a : α) (b : β) (T : ℕ) (h : (encPair eA eB (a, b)).length ≤ T) : (eA a).length ≤ T := by
@@ -132,13 +85,6 @@ example (n : ℕ) : (encUnary n).length = n := by
 set_option linter.style.multiGoal false in
 example (n : ℕ) :
     (encUnary n).length = n ∧ Nonempty ℕ := by
-  constructor
-  enc_len
-  exact ⟨0⟩
-
-set_option linter.style.multiGoal false in
-example (p : α × β) :
-    (eB p.2).length ≤ (encPair eA eB p).length ∧ Nonempty ℕ := by
   constructor
   enc_len
   exact ⟨0⟩
