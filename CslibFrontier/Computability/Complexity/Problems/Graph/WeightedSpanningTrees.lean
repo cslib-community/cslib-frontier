@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ReducedLaplacian
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MatrixTree
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Foundations.Data.List.OfFn
 
 /-!
@@ -186,149 +187,60 @@ theorem weightedSpanningTreeCount_eq_finsum (WG : WeightedGraph) :
       have : v.1 ∈ WG.vertices := v.2
       simp [h1] at this
     simp [weightedSpanningTreeCount, hempty, hno]
-  · have hne : WG.toGraph.distinctVertices ≠ [] := List.isEmpty_iff.not.1 hempty
-    cases hd : WG.toGraph.distinctVertices with
-    | nil => exact absurd hd hne
-    | cons r tail =>
-      have hr : r ∈ WG.toGraph.distinctVertices := by simp [hd]
-      simp only [weightedSpanningTreeCount, hd, List.isEmpty_cons, List.headD_cons,
-        Bool.false_eq_true, ↓reduceIte]
-      have hdet := detRows_filter_ne_equiv_eq WG.toGraph.nodup_distinctVertices
-        (Equiv.subtypeEquivRight fun _ => Graph.mem_distinctVertices) hr
-        (WG.toGraph.induced.weightedAdjMatrix fun e => WG.symWeight (e.map Subtype.val)).laplacian
-        WG.weightedLaplacianEntry
-        fun u v _ _ => weightedLaplacianEntry_eq ⟨u.1, Graph.mem_distinctVertices.1 u.2⟩
-          ⟨v.1, Graph.mem_distinctVertices.1 v.2⟩
-      simp only [← hd] at hdet ⊢
-      rw [hdet]
-      exact SimpleGraph.det_laplacian_weightedAdjMatrix_submatrix_eq_finsum_isTree
-        (G := WG.toGraph.induced) (fun e => WG.symWeight (e.map Subtype.val))
-        ⟨r, Graph.mem_distinctVertices.1 hr⟩
+  · obtain ⟨r, tail, hd⟩ := List.exists_cons_of_ne_nil (List.isEmpty_iff.not.1 hempty)
+    have hr : r ∈ WG.toGraph.distinctVertices := by simp [hd]
+    simp only [weightedSpanningTreeCount, hd, List.isEmpty_cons, List.headD_cons,
+      Bool.false_eq_true, ↓reduceIte]
+    have hdet := detRows_filter_ne_equiv_eq WG.toGraph.nodup_distinctVertices
+      (Equiv.subtypeEquivRight fun _ => Graph.mem_distinctVertices) hr
+      (WG.toGraph.induced.weightedAdjMatrix fun e => WG.symWeight (e.map Subtype.val)).laplacian
+      WG.weightedLaplacianEntry
+      fun u v _ _ => weightedLaplacianEntry_eq ⟨u.1, Graph.mem_distinctVertices.1 u.2⟩
+        ⟨v.1, Graph.mem_distinctVertices.1 v.2⟩
+    simp only [← hd] at hdet ⊢
+    rw [hdet]
+    exact SimpleGraph.det_laplacian_weightedAdjMatrix_submatrix_eq_finsum_isTree
+      (G := WG.toGraph.induced) (fun e => WG.symWeight (e.map Subtype.val))
+      ⟨r, Graph.mem_distinctVertices.1 hr⟩
 
 /-! ### Polynomial-time computability -/
 
 @[fun_prop]
 theorem computableInPolyTime_toGraph :
     ComputableInPolyTime toGraph encWeightedGraph encGraph := by
-  have h1 : ComputableInPolyTime WeightedGraph.vertices encWeightedGraph (encList encNat) := by
-    fun_prop
-  have h2 : ComputableInPolyTime (fun WG : WeightedGraph => WG.edges.map fun e => (e.u, e.v))
-      encWeightedGraph (encList (encPair encNat encNat)) := by
-    refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
-    fun_prop
-  exact encGraph_mk_polyTime h1 h2
+  unfold toGraph
+  fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_pairWeight :
     ComputableInPolyTime (fun p : (WeightedGraph × ℕ) × ℕ => p.1.1.pairWeight p.1.2 p.2)
       (encPair (encPair encWeightedGraph encNat) encNat) encIntBin := by
-  have hsum : ComputableInPolyTime
-      (fun p : (WeightedGraph × ℕ) × ℕ =>
-        ((p.1.1.edges.filter fun e =>
-            decide ((e.u = p.1.2 ∧ e.v = p.2) ∨ (e.u = p.2 ∧ e.v = p.1.2))).map
-          WeightedEdge.weight).sum)
-      (encPair (encPair encWeightedGraph encNat) encNat) encIntBin := by
-    have hfilt : ComputableInPolyTime
-        (fun p : (WeightedGraph × ℕ) × ℕ =>
-          p.1.1.edges.filter fun e =>
-            decide ((e.u = p.1.2 ∧ e.v = p.2) ∨ (e.u = p.2 ∧ e.v = p.1.2)))
-        (encPair (encPair encWeightedGraph encNat) encNat)
-        (encList encWeightedEdge) := by
-      refine ComputableInPolyTime.filterWithInput (by fun_prop) ?_
-      fun_prop
-    have hmap : ComputableInPolyTime
-        (fun p : (WeightedGraph × ℕ) × ℕ =>
-          ((p.1.1.edges.filter fun e =>
-              decide ((e.u = p.1.2 ∧ e.v = p.2) ∨ (e.u = p.2 ∧ e.v = p.1.2))).map
-            WeightedEdge.weight))
-        (encPair (encPair encWeightedGraph encNat) encNat) (encList encIntBin) := by
-      refine ComputableInPolyTime.mapWithInput hfilt ?_
-      fun_prop
-    exact Turing.MultiTapeTM.ComputableInPolyTime.intBin_sum.comp hmap
-  have heq : ComputableInPolyTime (fun p : (WeightedGraph × ℕ) × ℕ => decide (p.1.2 = p.2))
-      (encPair (encPair encWeightedGraph encNat) encNat) encBool :=
-    ((ComputableInPolyTime.snd encWeightedGraph encNat).comp
-      (ComputableInPolyTime.fst (encPair encWeightedGraph encNat) encNat)).decide_eq'
-      (ComputableInPolyTime.snd (encPair encWeightedGraph encNat) encNat)
-  have hite : ComputableInPolyTime
-      (fun p : (WeightedGraph × ℕ) × ℕ =>
-        if decide (p.1.2 = p.2) then (0 : ℤ)
-        else ((p.1.1.edges.filter fun e =>
-            decide ((e.u = p.1.2 ∧ e.v = p.2) ∨ (e.u = p.2 ∧ e.v = p.1.2))).map
-          WeightedEdge.weight).sum)
-      (encPair (encPair encWeightedGraph encNat) encNat) encIntBin :=
-    ComputableInPolyTime.ite' heq (ComputableInPolyTime.const 0) hsum
-  refine hite.of_enc_eq fun p => ?_
-  simp [pairWeight]
+  unfold pairWeight
+  fun_prop
+
+@[local fun_prop]
+private theorem computableInPolyTime_pairWeight_comp {γ : Type} {enc : γ ↪ List Bool}
+    {WG : γ → WeightedGraph} {u v : γ → ℕ}
+    (hWG : ComputableInPolyTime WG enc encWeightedGraph)
+    (hu : ComputableInPolyTime u enc encNat) (hv : ComputableInPolyTime v enc encNat) :
+    ComputableInPolyTime (fun x => (WG x).pairWeight (u x) (v x)) enc encIntBin :=
+  computableInPolyTime_pairWeight.comp ((hWG.prod hu).prod hv)
 
 @[fun_prop]
 theorem computableInPolyTime_weightedLaplacianEntry :
     ComputableInPolyTime
       (fun p : (WeightedGraph × ℕ) × ℕ => p.1.1.weightedLaplacianEntry p.1.2 p.2)
       (encPair (encPair encWeightedGraph encNat) encNat) encIntBin := by
-  have hverts : ComputableInPolyTime
-      (fun p : (WeightedGraph × ℕ) × ℕ => p.1.1.toGraph.distinctVertices)
-      (encPair (encPair encWeightedGraph encNat) encNat) (encList encNat) :=
-    (Graph.computableInPolyTime_distinctVertices.comp computableInPolyTime_toGraph).comp
-      ((ComputableInPolyTime.fst encWeightedGraph encNat).comp
-        (ComputableInPolyTime.fst (encPair encWeightedGraph encNat) encNat))
-  have hdiag : ComputableInPolyTime
-      (fun p : (WeightedGraph × ℕ) × ℕ =>
-        (p.1.1.toGraph.distinctVertices.map fun w => p.1.1.pairWeight p.1.2 w).sum)
-      (encPair (encPair encWeightedGraph encNat) encNat) encIntBin := by
-    refine Turing.MultiTapeTM.ComputableInPolyTime.intBin_sum.comp
-      (ComputableInPolyTime.mapWithInput hverts ?_)
-    have hreassoc : ComputableInPolyTime
-        (fun q : ((WeightedGraph × ℕ) × ℕ) × ℕ => ((q.1.1.1, q.1.1.2), q.2))
-        (encPair (encPair (encPair encWeightedGraph encNat) encNat) encNat)
-        (encPair (encPair encWeightedGraph encNat) encNat) := by fun_prop
-    exact computableInPolyTime_pairWeight.comp hreassoc
-  have hoff : ComputableInPolyTime
-      (fun p : (WeightedGraph × ℕ) × ℕ => (0 : ℤ) - p.1.1.pairWeight p.1.2 p.2)
-      (encPair (encPair encWeightedGraph encNat) encNat) encIntBin :=
-    Turing.MultiTapeTM.ComputableInPolyTime.intBin_sub'
-      (ComputableInPolyTime.const 0) computableInPolyTime_pairWeight
-  have heq : ComputableInPolyTime (fun p : (WeightedGraph × ℕ) × ℕ => decide (p.1.2 = p.2))
-      (encPair (encPair encWeightedGraph encNat) encNat) encBool :=
-    ((ComputableInPolyTime.snd encWeightedGraph encNat).comp
-      (ComputableInPolyTime.fst (encPair encWeightedGraph encNat) encNat)).decide_eq'
-      (ComputableInPolyTime.snd (encPair encWeightedGraph encNat) encNat)
-  refine (ComputableInPolyTime.ite' heq hdiag hoff).of_enc_eq fun p => ?_
-  simp [weightedLaplacianEntry]
+  unfold weightedLaplacianEntry
+  fun_prop
 
 /-- `WeightedGraph.weightedSpanningTreeCount` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_weightedSpanningTreeCount :
     ComputableInPolyTime weightedSpanningTreeCount encWeightedGraph encIntBin := by
-  have hverts : ComputableInPolyTime (fun WG : WeightedGraph => WG.toGraph.distinctVertices)
-      encWeightedGraph (encList encNat) :=
-    Graph.computableInPolyTime_distinctVertices.comp computableInPolyTime_toGraph
-  have hhead : ComputableInPolyTime (fun WG : WeightedGraph => WG.toGraph.distinctVertices.headD 0)
-      encWeightedGraph encNat := (ComputableInPolyTime.headD 0).comp hverts
-  have hrest : ComputableInPolyTime
-      (fun WG : WeightedGraph =>
-        WG.toGraph.distinctVertices.filter fun v =>
-          decide (v ≠ WG.toGraph.distinctVertices.headD 0))
-      encWeightedGraph (encList encNat) :=
-    computableInPolyTime_filter_ne hverts hhead
-  have hdet : ComputableInPolyTime
-      (fun WG : WeightedGraph =>
-        let rest := WG.toGraph.distinctVertices.filter fun v =>
-          decide (v ≠ WG.toGraph.distinctVertices.headD 0)
-        Cslib.Circuits.Rational.detRows
-          (rest.map fun u => rest.map fun v => WG.weightedLaplacianEntry u v))
-      encWeightedGraph encIntBin :=
-    computableInPolyTime_detRows_map hrest computableInPolyTime_weightedLaplacianEntry
-  have hempty : ComputableInPolyTime
-      (fun WG : WeightedGraph => WG.toGraph.distinctVertices.isEmpty)
-      encWeightedGraph encBool := by
-    have hall : ComputableInPolyTime
-        (fun WG : WeightedGraph => WG.toGraph.distinctVertices.all fun _ => false)
-        encWeightedGraph encBool :=
-      ComputableInPolyTime.allWithInput hverts (ComputableInPolyTime.const false)
-    refine hall.of_enc_eq fun WG => ?_
-    cases WG.toGraph.distinctVertices <;> rfl
-  exact ComputableInPolyTime.ite' hempty (ComputableInPolyTime.const 0) hdet
+  unfold weightedSpanningTreeCount
+  exact ComputableInPolyTime.ite' (by fun_prop) (ComputableInPolyTime.const 0)
+    (computableInPolyTime_detRows_map (by fun_prop) computableInPolyTime_weightedLaplacianEntry)
 
 /-- The weighted spanning-tree sum of a finite integer-weighted graph is computable in polynomial
 time on `encWeightedGraph`. -/

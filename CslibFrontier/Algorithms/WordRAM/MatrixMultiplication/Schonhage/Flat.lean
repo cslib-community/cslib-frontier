@@ -29,11 +29,10 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-set_option maxRecDepth 4096 in
--- Kernel reduction flattens the finite instruction list, including each signed arithmetic block.
 /-- A single code-size bound for both fixed encoders, including the final halt. -/
 theorem program_length_le (side : Bool) : ((program side).program output).length ≤ 4096 := by
-  cases side <;> decide
+  simp only [Code.program, List.length_append, Code.length_assemble, List.length_singleton]
+  cases side <;> decide +kernel
 
 /-- Every one of the `10^L` flat output cells corresponds to exactly one original leaf. -/
 theorem leafIndex_bijective (L : ℕ) : Function.Bijective (leafIndex (L := L)) := by

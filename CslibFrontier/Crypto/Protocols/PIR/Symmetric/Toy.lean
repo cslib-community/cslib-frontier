@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Protocols.PIR.Symmetric.Preprocessing
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Random-permutation toy SPIR scheme with client preprocessing
@@ -280,12 +281,8 @@ theorem toyScheme_not_isPerfectlyPrivate {n k : ℕ} (hn : 2 ≤ n) (hk : 2 ≤ 
       PMF.mem_support_pure_iff] at hv
     rcases hv with ⟨r, _, π, _, rfl⟩
     have hj : j₁ ≠ j₀ := by
-      intro h
-      simp only [j₀, j₁, Fin.ext_iff] at h
-      omega
+      fin_index [j₀, j₁]
     have hi : i₀ ≠ i₁ := by
-      intro h
-      simp only [i₀, i₁, Fin.ext_iff] at h
       omega
     simp [obs, Q₁, hj, π.injective.eq_iff, hi]
   exact Cslib.Probability.PMF.ne_of_map_eq_pure hmap₀ hmap₁ (by decide) (hpriv D Q₀ Q₁)

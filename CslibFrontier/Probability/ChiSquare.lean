@@ -18,7 +18,10 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.Renyi
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
+import Mathlib.Analysis.Convex.Jensen
+import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
 /-!
 # Chi-square divergence for discrete distributions
@@ -53,6 +56,8 @@ Note that the reference/denominator distribution `q` is the **second** argument,
   data processing under Markov kernels and deterministic maps.
 * `Cslib.Probability.PMF.one_add_chiSquare_bind_eq`, `one_add_chiSquare_bind_iid_eq`:
   the mixture second-moment identity (`Ingster` / `Le Cam`).
+* `Cslib.Probability.PMF.exp_neg_half_sum_mul_log_div_le_bhattacharyya`:
+  the classical overlap bounds the exponential of minus half the divergence.
 * `Cslib.Probability.PMF.two_mul_hellingerSq_le_toReal_klDiv`,
   `toReal_klDiv_le_log_one_add_chiSquare`, `toReal_klDiv_le_chiSquare`,
   `two_mul_hellingerSq_le_chiSquare`: comparison hierarchy `2 h² ≤ KL ≤ log(1 + χ²) ≤ χ²`.
@@ -389,90 +394,25 @@ theorem tvDist_le_sqrt_chiSquare [Finite α] [MeasurableSpace α] [MeasurableSin
   rw [dist_eq_tvDist_toMeasure_div_two] at hd
   linarith
 
-private lemma support_bind_subset {μ ν : PMF α} (h : μ.support ⊆ ν.support)
-    (kernel : α → PMF β) :
-    (μ.bind kernel).support ⊆ (ν.bind kernel).support := by
-  intro b hb
-  rw [PMF.support_bind, Set.mem_iUnion₂] at hb ⊢
-  rcases hb with ⟨a, ha, hba⟩
-  exact ⟨a, h ha, hba⟩
+private lemma one_add_echiSquare_eq_renyiMoment {γ : Type*} [Finite γ] (μ ν : PMF γ) :
+    1 + echiSquare μ ν = renyiMoment 2 μ ν := by
+  rw [one_add_echiSquare_eq_tsum, renyiMoment, show (2 : ℝ) - 1 = 1 by norm_num]
+  refine tsum_congr fun c => ?_
+  simp only [ENNReal.rpow_one, div_eq_mul_inv, sq, mul_assoc]
+
+/-- Unconditional data processing inequality for extended `χ²` divergence under a Markov kernel,
+specialized from `renyiMoment_bind_le` at order `α = 2` (`1 + χ²(p ‖ q) = renyiMoment 2 p q`). -/
+theorem echiSquare_bind_le [Finite α] [Finite β] (p q : PMF α) (kernel : α → PMF β) :
+    echiSquare (p.bind kernel) (q.bind kernel) ≤ echiSquare p q := by
+  have hle := renyiMoment_bind_le (by norm_num : (1 : ℝ) ≤ 2) p q kernel
+  rw [← one_add_echiSquare_eq_renyiMoment, ← one_add_echiSquare_eq_renyiMoment] at hle
+  exact (ENNReal.add_le_add_iff_left ENNReal.one_ne_top).mp hle
 
 /-- Data processing inequality for `χ²` divergence under a Markov kernel (real-valued). -/
 theorem chiSquare_bind_le [Finite α] [Finite β] {p q : PMF α} (h : p.support ⊆ q.support)
     (kernel : α → PMF β) :
-    chiSquare (p.bind kernel) (q.bind kernel) ≤ chiSquare p q := by
-  let := Fintype.ofFinite α
-  let := Fintype.ofFinite β
-  have hbind : (p.bind kernel).support ⊆ (q.bind kernel).support :=
-    support_bind_subset h kernel
-  suffices hsum : 1 + chiSquare (p.bind kernel) (q.bind kernel) ≤ 1 + chiSquare p q by linarith
-  rw [one_add_chiSquare_eq_sum hbind, one_add_chiSquare_eq_sum h]
-  have hpt (b : β) :
-      ((p.bind kernel b).toReal) ^ 2 / (q.bind kernel b).toReal ≤
-        ∑ a, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal := by
-    by_cases hqb : q.bind kernel b = 0
-    · have hpb : p.bind kernel b = 0 := (PMF.apply_eq_zero_iff (p.bind kernel) b).mpr
-        (fun hmem => (PMF.apply_eq_zero_iff (q.bind kernel) b).mp hqb (hbind hmem))
-      rw [hqb, hpb]
-      simp only [ENNReal.toReal_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-        zero_div]
-      exact Finset.sum_nonneg fun a _ =>
-        mul_nonneg (div_nonneg (sq_nonneg _) ENNReal.toReal_nonneg) ENNReal.toReal_nonneg
-    · have hqb_pos : 0 < (q.bind kernel b).toReal :=
-        ENNReal.toReal_pos hqb ((q.bind kernel).apply_ne_top b)
-      have hrewrite : (p.bind kernel b).toReal =
-          ∑ a, ((p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal) *
-            Real.sqrt ((q a).toReal * (kernel a b).toReal) := by
-        rw [bind_apply_toReal]
-        refine Finset.sum_congr rfl fun a _ => ?_
-        by_cases hqa : q a = 0
-        · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-            (fun hap => (PMF.apply_eq_zero_iff q a).mp hqa (h hap))
-          simp [hqa, hpa]
-        · have hqapos : 0 < Real.sqrt (q a).toReal :=
-            Real.sqrt_pos.mpr (ENNReal.toReal_pos hqa (q.apply_ne_top a))
-          calc (p a).toReal * ((kernel a b).toReal)
-            _ = (p a).toReal * (Real.sqrt (kernel a b).toReal * Real.sqrt (kernel a b).toReal) *
-                  (Real.sqrt (q a).toReal / Real.sqrt (q a).toReal) := by
-                rw [Real.mul_self_sqrt ENNReal.toReal_nonneg, div_self hqapos.ne', mul_one]
-            _ = (p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal *
-                  Real.sqrt ((q a).toReal * (kernel a b).toReal) := by
-                rw [Real.sqrt_mul ENNReal.toReal_nonneg]
-                ring
-      have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α)
-        (fun a => (p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal)
-        (fun a => Real.sqrt ((q a).toReal * (kernel a b).toReal))
-      rw [← hrewrite] at hcs
-      have hleft :
-          ∑ a, ((p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal) ^ 2 =
-          ∑ a, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal := by
-        refine Finset.sum_congr rfl fun a _ => ?_
-        rw [div_pow, mul_pow, Real.sq_sqrt ENNReal.toReal_nonneg,
-          Real.sq_sqrt ENNReal.toReal_nonneg]
-        ring
-      have hright : ∑ a, Real.sqrt ((q a).toReal * (kernel a b).toReal) ^ 2 =
-          (q.bind kernel b).toReal := by
-        rw [bind_apply_toReal]
-        exact Finset.sum_congr rfl fun a _ =>
-          Real.sq_sqrt (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-      rw [hleft, hright] at hcs
-      exact (div_le_iff₀ hqb_pos).mpr hcs
-  calc ∑ b, ((p.bind kernel b).toReal) ^ 2 / (q.bind kernel b).toReal
-    _ ≤ ∑ b, ∑ a, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal :=
-        Finset.sum_le_sum fun b _ => hpt b
-    _ = ∑ a, ∑ b, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal := Finset.sum_comm
-    _ = ∑ a, (p a).toReal ^ 2 / (q a).toReal := by
-        refine Finset.sum_congr rfl fun a _ => ?_
-        rw [← Finset.mul_sum, sum_toReal, mul_one]
-
-/-- Unconditional data processing inequality for extended `χ²` divergence under a Markov kernel. -/
-theorem echiSquare_bind_le [Finite α] [Finite β] (p q : PMF α) (kernel : α → PMF β) :
-    echiSquare (p.bind kernel) (q.bind kernel) ≤ echiSquare p q := by
-  by_cases h : p.support ⊆ q.support
-  · rw [echiSquare_eq_ofReal (support_bind_subset h kernel), echiSquare_eq_ofReal h]
-    exact ENNReal.ofReal_le_ofReal (chiSquare_bind_le h kernel)
-  · rw [echiSquare_eq_top_iff.mpr h]
-    exact le_top
+    chiSquare (p.bind kernel) (q.bind kernel) ≤ chiSquare p q :=
+  ENNReal.toReal_mono (echiSquare_ne_top_iff.mpr h) (echiSquare_bind_le p q kernel)
 
 /-- Data processing inequality for `χ²` divergence under a deterministic map. -/
 theorem chiSquare_map_le [Finite α] [Finite β] {p q : PMF α} (h : p.support ⊆ q.support)
@@ -568,46 +508,45 @@ private lemma support_toReal_pos {p q : PMF α} (h : p.support ⊆ q.support) {a
       (fun ha => (PMF.apply_eq_zero_iff q a).mp ha (h ((PMF.mem_support_iff p a).mpr hpa)))
       (q.apply_ne_top a)⟩
 
+/-- The Bhattacharyya coefficient bounds the exponential of minus half the KL divergence. -/
+theorem exp_neg_half_sum_mul_log_div_le_bhattacharyya [Fintype α] {p q : PMF α}
+    (h : p.support ⊆ q.support) :
+    Real.exp (-(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2) ≤
+      bhattacharyya p q := by
+  have hj := convexOn_exp.map_sum_le
+    (t := (Finset.univ : Finset α)) (w := fun a => (p a).toReal)
+    (p := fun a => -Real.log ((p a).toReal / (q a).toReal) / 2)
+    (fun _ _ => ENNReal.toReal_nonneg) (sum_toReal p) (fun _ _ => Set.mem_univ _)
+  simp only [smul_eq_mul] at hj
+  have hexp : (∑ a, (p a).toReal * (-Real.log ((p a).toReal / (q a).toReal) / 2)) =
+      -(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2 := by
+    rw [← Finset.sum_neg_distrib, Finset.sum_div]
+    exact Finset.sum_congr rfl fun a _ => by ring
+  rw [hexp] at hj
+  rw [bhattacharyya_eq_sum]
+  refine hj.trans_eq (Finset.sum_congr rfl fun a _ => ?_)
+  by_cases hpa : p a = 0
+  · simp [hpa]
+  · obtain ⟨hp, hq⟩ := support_toReal_pos h hpa
+    rw [Real.exp_half, Real.exp_neg, Real.exp_log (div_pos hp hq), inv_div]
+    calc
+      (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal) =
+          Real.sqrt ((p a).toReal ^ 2) * Real.sqrt ((q a).toReal / (p a).toReal) := by
+        rw [Real.sqrt_sq hp.le]
+      _ = Real.sqrt ((p a).toReal * (q a).toReal) := by
+        rw [← Real.sqrt_mul (sq_nonneg _)]
+        congr 1
+        field_simp
+
 /-- Comparison between squared Hellinger distance and KL divergence (natural log):
 `2 * hellingerSq p q ≤ (klDiv p.toMeasure q.toMeasure).toReal` when `p.support ⊆ q.support`. -/
 theorem two_mul_hellingerSq_le_toReal_klDiv [Finite α] [MeasurableSpace α]
     [MeasurableSingletonClass α] {p q : PMF α} (h : p.support ⊆ q.support) :
     2 * hellingerSq p q ≤ (klDiv p.toMeasure q.toMeasure).toReal := by
   let := Fintype.ofFinite α
-  rw [toReal_klDiv_toMeasure h, hellingerSq_eq_one_sub_bhattacharyya, bhattacharyya_eq_sum]
-  have hsum : 2 * (1 - ∑ a, Real.sqrt ((p a).toReal * (q a).toReal)) =
-      ∑ a, 2 * ((p a).toReal - Real.sqrt ((p a).toReal * (q a).toReal)) := by
-    rw [← Finset.mul_sum, Finset.sum_sub_distrib, sum_toReal]
-  rw [hsum]
-  refine Finset.sum_le_sum fun a _ => ?_
-  by_cases hpa : p a = 0
-  · simp [hpa]
-  · obtain ⟨hppos, hqpos⟩ := support_toReal_pos h hpa
-    have hrpos : 0 < Real.sqrt ((q a).toReal / (p a).toReal) :=
-      Real.sqrt_pos.mpr (div_pos hqpos hppos)
-    have hlog := Real.log_le_sub_one_of_pos hrpos
-    rw [Real.sqrt_eq_rpow, Real.log_rpow (div_pos hqpos hppos),
-      Real.log_div hqpos.ne' hppos.ne'] at hlog
-    rw [← Real.sqrt_eq_rpow] at hlog
-    have hmul : 2 * ((p a).toReal * (1 - Real.sqrt ((q a).toReal / (p a).toReal))) =
-        2 * ((p a).toReal - Real.sqrt ((p a).toReal * (q a).toReal)) := by
-      have hsq : (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal) =
-          Real.sqrt ((p a).toReal * (q a).toReal) := by
-        rw [Real.sqrt_div ENNReal.toReal_nonneg, Real.sqrt_mul ENNReal.toReal_nonneg]
-        have hs : Real.sqrt (p a).toReal ≠ 0 := (Real.sqrt_pos.mpr hppos).ne'
-        calc (p a).toReal * (Real.sqrt (q a).toReal / Real.sqrt (p a).toReal)
-          _ = (Real.sqrt (p a).toReal * Real.sqrt (p a).toReal) *
-                (Real.sqrt (q a).toReal / Real.sqrt (p a).toReal) := by
-              rw [Real.mul_self_sqrt ENNReal.toReal_nonneg]
-          _ = Real.sqrt (p a).toReal * Real.sqrt (q a).toReal := by
-              field_simp [hs]
-      linarith
-    have hmul2 :
-        2 * ((p a).toReal * ((1 / 2 : ℝ) * (Real.log (q a).toReal - Real.log (p a).toReal))) =
-          -((p a).toReal * Real.log ((p a).toReal / (q a).toReal)) := by
-      rw [Real.log_div hppos.ne' hqpos.ne']
-      ring
-    nlinarith [hppos]
+  rw [toReal_klDiv_toMeasure h, hellingerSq_eq_one_sub_bhattacharyya]
+  linarith [exp_neg_half_sum_mul_log_div_le_bhattacharyya h,
+    Real.add_one_le_exp (-(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2)]
 
 /-- KL divergence is bounded by `log (1 + χ²)`:
 `(klDiv p.toMeasure q.toMeasure).toReal ≤ Real.log (1 + chiSquare p q)`. -/

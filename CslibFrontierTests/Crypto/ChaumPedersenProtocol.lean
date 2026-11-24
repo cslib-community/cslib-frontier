@@ -10,16 +10,19 @@ module
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
+import CslibFrontier.Crypto.Protocols.SigmaProtocol.Interactive
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
 # Tests for the Chaum–Pedersen family
 
-Checks of `PrimeOrderGroupFamily.chaumPedersenFamily` and its efficiency certificates: the
-headline statements in Schnorr groups (including `efficientVerifier_chaumPedersen`), the word
-verifier agreeing with `Accepts`, concrete verifier evaluations in the Schnorr group of order `11`
-modulo `23`, the extractor on two accepting conversations, the simulator's exact acceptance, and the
-word encodings on a statement.
+Checks of `PrimeOrderGroupFamily.chaumPedersenProbFamily`, `chaumPedersenFamily` and their
+efficiency certificates: completeness, efficient verifier, efficient special soundness, prover word
+realizations, `2 / 2 ^ n` statistical closeness and `ComputationalSpecialHVZK` in Schnorr groups and
+over an arbitrary `PrimeOrderGroupFamily`, the word verifier agreeing with `Accepts`, concrete
+verifier evaluations in the Schnorr group of order `11` modulo `23`, the extractor on two accepting
+conversations, the simulator's exact acceptance on a non-Diffie–Hellman triple, and the word
+encodings on a statement.
 -/
 
 public section
@@ -32,22 +35,35 @@ open scoped ENNReal NNReal
 
 /-! ### The certificates in Schnorr groups -/
 
-/-- Efficient verifier holds in Schnorr groups. -/
+/-- Efficient verifier holds in Schnorr groups for both the fair-coin and ideal-nonce families. -/
 example :
-    EfficientVerifier schnorrGroups.chaumPedersenFamily schnorrGroups.chaumPedersenEncoding :=
-  schnorrGroups.efficientVerifier_chaumPedersen
+    EfficientVerifier schnorrGroups.chaumPedersenProbFamily schnorrGroups.chaumPedersenEncoding ∧
+      EfficientVerifier schnorrGroups.chaumPedersenFamily schnorrGroups.chaumPedersenEncoding :=
+  ⟨schnorrGroups.efficientVerifier_chaumPedersenProb,
+    schnorrGroups.efficientVerifier_chaumPedersen⟩
 
-/-- Efficient special soundness (Definition 19.4) holds in Schnorr groups. -/
+/-- Completeness (Definition 19.3) and `CommitRealizedBy` hold for `chaumPedersenProbFamily` in
+Schnorr groups. -/
+example (i : ℕ × schnorrGroups.Desc) :
+    (schnorrGroups.chaumPedersenProbFamily i).Complete
+        (fun β (u, v, w) => β • schnorrGroups.generator i.2 = v ∧ β • u = w) ∧
+      (schnorrGroups.chaumPedersenProbFamily i).CommitRealizedBy
+        (schnorrGroups.chaumPedersenCommit i) :=
+  ⟨schnorrGroups.chaumPedersenProbFamily_complete i, fun _ _ => rfl⟩
+
+/-- Efficient special soundness (Definition 19.4) holds in Schnorr groups for
+`chaumPedersenProbFamily`. -/
 example :
-    EfficientSpecialSoundness schnorrGroups.chaumPedersenFamily
+    EfficientSpecialSoundness schnorrGroups.chaumPedersenProbFamily
       (fun i β (u, v, w) => β • schnorrGroups.generator i.2 = v ∧ β • u = w)
       schnorrGroups.chaumPedersenEncoding (fun i => schnorrGroups.encScalar i.2)
       schnorrGroups.chaumPedersenExtract :=
-  schnorrGroups.efficientSpecialSoundness_chaumPedersen
+  schnorrGroups.efficientSpecialSoundness_chaumPedersenProb
 
-/-- Definition 20.6 holds in Schnorr groups with zero acceptance error, for any setup. -/
+/-- Computational special HVZK (Definition 20.6) holds for the fair-coin `chaumPedersenProbFamily`
+in Schnorr groups with exact zero acceptance error, for any setup. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) :
-    ComputationalSpecialHVZK schnorrGroups.chaumPedersenFamily
+    ComputationalSpecialHVZK schnorrGroups.chaumPedersenProbFamily
       (fun i β (u, v, w) => β • schnorrGroups.generator i.2 = v ∧ β • u = w)
       schnorrGroups.chaumPedersenEncoding (fun i => schnorrGroups.encScalar i.2)
       (fun n => (setup n).map (n, ·)) schnorrGroups.chaumPedersenSimulator (fun _ => 0) :=
@@ -72,13 +88,33 @@ example (i : ℕ × F.Desc) (y y' : F.Carrier i.2 × F.Carrier i.2 × F.Carrier 
     (t t' : F.Carrier i.2 × F.Carrier i.2) (c z c' z' : ZMod (F.order i.2)) :
     F.chaumPedersenExtract i y t c z c' z' = F.chaumPedersenExtract i y' t' c z c' z' := rfl
 
-/-- The simulator is within `1 / 2 ^ n` of the honest prover on every Diffie–Hellman triple. -/
+/-- The simulator is within `2 / 2 ^ n` of the fair-coin honest prover (and within `1 / 2 ^ n` of
+the ideal-sampling honest prover) on every Diffie–Hellman triple. -/
 example (n : ℕ) (d : F.Desc) (β : ZMod (F.order d)) (u : F.Carrier d) (c : ZMod (F.order d)) :
-    CloseTo ((F.chaumPedersenFamily (n, d)).transcript β (u, β • F.generator d, β • u) c)
-      (ProbComp.eval (F.chaumPedersenSimulator (n, d) (u, β • F.generator d, β • u) c))
-      (1 / 2 ^ n) :=
-  F.simulatorRealizedBy_chaumPedersenSimulator.closeTo_transcript
-    F.efficientSpecialHVZK_chaumPedersen.specialHVZK (i := (n, d)) ⟨rfl, rfl⟩ c
+    CloseTo ((F.chaumPedersenProbFamily (n, d)).transcript β (u, β • F.generator d, β • u) c)
+        (ProbComp.eval (F.chaumPedersenSimulator (n, d) (u, β • F.generator d, β • u) c))
+        (2 / 2 ^ n) ∧
+      CloseTo ((F.chaumPedersenFamily (n, d)).transcript β (u, β • F.generator d, β • u) c)
+        (ProbComp.eval (F.chaumPedersenSimulator (n, d) (u, β • F.generator d, β • u) c))
+        (1 / 2 ^ n) :=
+  ⟨F.closeTo_transcript_chaumPedersenProbFamily_simulator (n, d) ⟨rfl, rfl⟩ c,
+    F.simulatorRealizedBy_chaumPedersenSimulator.closeTo_transcript
+      F.efficientSpecialHVZK_chaumPedersen_ideal.specialHVZK (i := (n, d)) ⟨rfl, rfl⟩ c⟩
+
+/-- The fair-coin prover's commitment and response word realizations are uniform strict PPT and
+agree with `chaumPedersenCommit` and `respond` on encodings. -/
+example (i : ℕ × F.Desc) (β r c : ZMod (F.order i.2))
+    (y : F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2) :
+    IsPPTOn (encPair F.chaumPedersenEncoding.index encBits) (encPair encBits encBits)
+        F.chaumPedersenCommitWord ∧
+      ProbComp.eval (F.chaumPedersenCommitWord (i, F.chaumPedersenEncoding.statement i y)) =
+        (ProbComp.eval (F.chaumPedersenCommit i β y)).map
+          (Prod.map (F.chaumPedersenEncoding.commitment i) (F.encScalar i.2)) ∧
+      F.schnorrRespondBits
+          (i.2, F.encScalar i.2 β, F.encScalar i.2 r, F.chaumPedersenEncoding.challenge i c) =
+        F.chaumPedersenEncoding.response i ((F.chaumPedersenProbFamily i).respond β y r c) :=
+  ⟨F.isPPTOn_chaumPedersenCommitWord, F.eval_chaumPedersenCommitWord i β y,
+    F.schnorrRespondBits_chaumPedersen i β y r c⟩
 
 /-! ### The encodings -/
 

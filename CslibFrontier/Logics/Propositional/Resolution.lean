@@ -132,6 +132,17 @@ theorem Clause.eval_resolvent {σ : V → Bool} {c₁ c₂ : Clause V} (v : V)
     rintro rfl
     simp [hv] at he₂
 
+/-- Relabelling along an injective map commutes with resolution. -/
+theorem Clause.relabel_resolvent {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : Function.Injective f) (c₁ c₂ : Clause V) (v : V) :
+    (c₁.resolvent c₂ v).relabel f = (c₁.relabel f).resolvent (c₂.relabel f) (f v) := by
+  have key : ∀ b : Bool, ∀ l : Literal V, (Prod.map f id l ≠ (f v, b)) ↔ (l ≠ (v, b)) :=
+    fun b ⟨u, a⟩ => by simp [hf.eq_iff]
+  simp only [resolvent, relabel, List.map_append, List.filter_map]
+  congr 2 <;> exact List.filter_congr fun l _ => by
+    simp only [Function.comp_apply, decide_eq_decide]
+    exact (key _ l).symm
+
 /-! ### Derivations and soundness -/
 
 /-- The clauses derivable from `φ` by resolution: the clauses of `φ`, and the resolvents of
@@ -284,9 +295,7 @@ theorem derives_nil_of_not_satisfiable {φ : CNF V} (h : ¬ φ.Satisfiable) : φ
   · convert hd₀ using 1
     exact (List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₀ (h₀' l hl ▸ hl)).symm
 termination_by φ.vars.toFinset.card
-decreasing_by
-  · exact hlt false
-  · exact hlt true
+decreasing_by all_goals exact hlt _
 
 /-- **Resolution refutes exactly the unsatisfiable formulas.** -/
 theorem derives_nil_iff_not_satisfiable : φ.Derives [] ↔ ¬ φ.Satisfiable :=

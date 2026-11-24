@@ -135,7 +135,6 @@ noncomputable def test (generator : List Bool → List Bool) (seedBits count : �
     (adversary : List Bool → ProbComp Bool) (challenge : List Bool) : ProbComp Bool :=
   reduction generator (fun _ => count) (fun _ => adversary) seedBits challenge
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Captured parameters, generator code, and the adversary compose through the public tactics. -/
 @[program_certificate]
 theorem isPPT_test {α : Type} {input : α ↪ List Bool}
@@ -185,7 +184,7 @@ theorem isPPT_test {α : Type} {input : α ↪ List Bool}
   have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
   have hfalse : IsPPTOn pairEncoding encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond.tidy hyes hfalse
+  have hbranch := IsPPTOn.ite hcond hyes hfalse
   have hindex := isPPTOn_sampleBoundedIndex hcount
   simpa only [test, reduction, hop, pairEncoding, fullEncoding, Function.comp_def] using
     hindex.bind_with hbranch
@@ -324,7 +323,6 @@ theorem advantage_le (generator : List Bool → List Bool) (count : ℕ → ℕ)
 theorem loss_polynomial {count : ℕ → ℕ}
     (hcount : ComputableInPolyTime count encUnary encUnary) :
     PolynomiallyBounded (fun n => 2 ^ (Nat.log 2 (count n) + 1)) := by
-  have hcount := hcount.tidy
   exact dyadicSize_polynomiallyBounded.comp hcount.polynomiallyBounded
 
 /-- Polynomially many expansions preserve the secure choice in a uniformly efficient family.
@@ -416,10 +414,9 @@ theorem pseudorandomGenerator {generator : List Bool → List Bool} {count : ℕ
     (hcount : ComputableInPolyTime count encUnary encUnary)
     (hpositive : ∀ n, 0 < count n) :
     PseudorandomGenerator (stretch generator count) (fun n => n + count n) := by
-  have hcount := hcount.tidy
   refine PseudorandomGenerator.of_indistinguishable
-    (polyTime_stretch hgenerator.polyTime (.of_tidy hcount)) ?_ ?_
-    (indistinguishable hgenerator (.of_tidy hcount))
+    (polyTime_stretch hgenerator.polyTime (hcount)) ?_ ?_
+    (indistinguishable hgenerator (hcount))
   · intro seed
     exact length_iterate hgenerator.length_eq _ _ _
   · intro n
@@ -450,9 +447,8 @@ theorem PseudorandomGenerator.amplify {generator : List Bool → List Bool}
     (target : ℕ → ℕ) (htarget : ComputableInPolyTime target encUnary encUnary)
     (hstretch : ∀ n, n < target n) :
     PseudorandomGenerator (PRGStretch.stretch generator (fun n => target n - n)) target := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at htarget
-  have hcount : ComputableTidilyInPolyTime (fun n => target n - n) encUnary encUnary := by polytime
-  have h := PRGStretch.pseudorandomGenerator hgenerator (.of_tidy hcount) (fun n => by
+  have hcount : ComputableInPolyTime (fun n => target n - n) encUnary encUnary := by polytime
+  have h := PRGStretch.pseudorandomGenerator hgenerator (hcount) (fun n => by
     have := hstretch n
     lia)
   convert h using 1
@@ -467,9 +463,8 @@ theorem PseudorandomGenerator.truncate {generator : List Bool → List Bool} {le
     (htarget : ComputableInPolyTime target encUnary encUnary)
     (hle : ∀ n, target n ≤ length n) (hstretch : ∀ n, n < target n) :
     PseudorandomGenerator (fun seed => (generator seed).take (target seed.length)) target := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at htarget
-  have hpoly := hgenerator.polyTime.tidy
-  refine PseudorandomGenerator.of_indistinguishable (.of_tidy (by polytime)) ?_ hstretch ?_
+  have hpoly := hgenerator.polyTime
+  refine PseudorandomGenerator.of_indistinguishable ((by polytime)) ?_ hstretch ?_
   · intro seed
     simp only [List.length_take, hgenerator.length_eq, Nat.min_eq_left (hle _)]
   · have h := hgenerator.indistinguishable.map

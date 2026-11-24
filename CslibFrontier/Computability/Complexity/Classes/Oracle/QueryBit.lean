@@ -65,8 +65,8 @@ theorem isOraclePPTOn_queryBit {req : α → List Bool} {input : α ↪ List Boo
     IsOraclePPTOn input encBool
       (fun a => OracleComp.interpret ProbOracleComp.query (queryBit (req a))) := by
   simp only [queryBit, OracleComp.interpret_map, OracleComp.interpret_query]
-  exact (IsOraclePPTOn.query_take' () hreq (limit := fun _ => 1)
-    (ComputableInPolyTime.const 1)).map'
+  exact (IsOraclePPTOn.query_take () hreq (limit := fun _ => 1)
+    (ComputableInPolyTime.const 1)).map
     (ComputableInPolyTime.id'.decide_eq' (ComputableInPolyTime.const [true]))
 
 end Cslib.Complexity

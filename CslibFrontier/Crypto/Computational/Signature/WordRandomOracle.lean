@@ -330,10 +330,10 @@ including the security parameter, public key, and arbitrary saved tape. -/
     savedWordReplay machine (fun op word => ProbOracleComp.query (op, word)) c d keyC keyD
       (p.1, p.2.1, p.2.2)
   simp only [savedWordReplay]
-  apply IsOraclePPTOn.ite'
+  apply IsOraclePPTOn.ite
   · fun_prop
-  · apply IsOraclePPTOn.map' _ (Decoder.bits.pair Decoder.bits).computableInPolyTime
-    apply machine.isOraclePPTOn_runCoins.preprocess'
+  · apply IsOraclePPTOn.map _ (Decoder.bits.pair Decoder.bits).computableInPolyTime
+    apply machine.isOraclePPTOn_runCoins.preprocess
       (prepare := fun p : ℕ × List Bool × List Bool =>
       (p.2.2.take (c * ((encPair encUnary encBits (p.1, p.2.1)).length + 1) ^ d),
         encPair encUnary encBits (p.1, p.2.1)))

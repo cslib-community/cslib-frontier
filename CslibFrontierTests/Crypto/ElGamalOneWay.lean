@@ -16,8 +16,10 @@ Checks of `CslibFrontier/Crypto/Computational/ElGamal/OneWay.lean` as an ordinar
 `γ • g` for uniform `γ` is uniform when `g` generates the group, which holds at every member of a
 group family and transfers the fixed-group equality to the book's literal draws `x ←R 𝔾` and
 `y ←R 𝔾`; one value of the advantage, at `g = 0`, in the one-way game and in the CDH game of `ℬ`;
-with a point setup law the family game is `PKE.owAdvantage` at that group; and
-`CDH.elGamal_oneWay` applies to a named adversary with its efficiency proof.
+with a point setup law the fair-coin family game is `PKE.owAdvantage` on
+`elGamalProbExplicitCoinPKE` and `sampleGroupElem`; `elGamalProbExplicitCoinPKE` is `PKE.Correct`
+and realized on words by `elGamalKeyGenProb` and `elGamalEncryptProb`; and `CDH.elGamal_oneWay`
+applies to a named adversary with its efficiency proof.
 -/
 
 public section
@@ -83,13 +85,30 @@ example {G : Type} [AddCommGroup G] [DecidableEq G] (q : ℕ) [NeZero q] [Module
 
 /-! ### The family game -/
 
-/-- With a point setup law, the game of `CDH.elGamal_oneWay` is Attack Game 12.6 on the scheme of
-that group: its success probability is `PKE.owAdvantage`. -/
+/-- `elGamalProbExplicitCoinPKE n d` is `PKE.Correct`, and its public-key and ciphertext laws on
+encoded group elements agree with `elGamalKeyGenProb` and `elGamalEncryptProb`. -/
+example (F : PrimeOrderGroupFamily) (d : ℕ → F.Desc) (n : ℕ) (u x : F.Carrier (d n)) :
+    (F.elGamalProbExplicitCoinPKE n (d n)).toPKE.Correct ∧
+      ProbComp.eval (Prod.fst <$> F.elGamalKeyGenProb d n) =
+        ProbComp.eval ((fun keys =>
+          encPair F.encDesc encBits (d n, F.encode (d n) keys.1)) <$>
+            (F.elGamalProbExplicitCoinPKE n (d n)).keyGen) ∧
+      ProbComp.eval (F.elGamalEncryptProb (fun _ w => w) d n
+          (encPair F.encDesc encBits (d n, F.encode (d n) u)) (F.encode (d n) x)) =
+        ProbComp.eval ((fun ct =>
+          encPair encBits encBits (F.encode (d n) ct.1, F.encode (d n) ct.2)) <$>
+            (F.elGamalProbExplicitCoinPKE n (d n)).encrypt u x) :=
+  ⟨elGamalExplicitCoinPKEWith_correct (F.order (d n)) (F.generator (d n)) _,
+    F.eval_fst_elGamalKeyGenProb d n,
+    F.eval_elGamalEncryptProb_encode d n u x⟩
+
+/-- With a point setup law, the game of `CDH.elGamal_oneWay` is Attack Game 12.6 on the fair-coin
+scheme of that group: its success probability is `PKE.owAdvantage`. -/
 example (F : PrimeOrderGroupFamily) (d : F.Desc) (A : F.ElGamalOWAdversary) (n : ℕ) :
-    Game.succProbability (F.elGamalOWGame (fun _ => PMF.pure d) A n) =
-      PKE.owAdvantage (elGamalExplicitCoinPKE (F.order d) (F.generator d)).toPKE
-        ((fun γ : ZMod (F.order d) => γ • F.generator d) <$> ($ᵗ ZMod (F.order d))) (A n d) := by
-  rw [PrimeOrderGroupFamily.elGamalOWGame, Game.withSetup_pure]
+    Game.succProbability (F.elGamalOWProbGame (fun _ => PMF.pure d) A n) =
+      PKE.owAdvantage (F.elGamalProbExplicitCoinPKE n d).toPKE
+        (F.sampleGroupElem n d) (A n d) := by
+  rw [PrimeOrderGroupFamily.elGamalOWProbGame, Game.withSetup_pure]
   rfl
 
 /-- The adversary that guesses the second ciphertext component as the message. -/
@@ -102,9 +121,10 @@ theorem isPPT_guessSecond (F : PrimeOrderGroupFamily) : (guessSecond F).IsPPT :=
     (F.encDDHInput_candidateShared_polyTime .id')).congr fun x => by
       simp [guessSecond]
 
-/-- Under CDH, `guessSecond` wins Attack Game 12.6 with negligible probability. -/
+/-- Under CDH, `guessSecond` wins the fair-coin Attack Game 12.6 (`elGamalOWProbGame`) with
+negligible probability. -/
 example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (hCDH : F.CDH setup) :
-    Negligible fun n => Game.succProbability (F.elGamalOWGame setup (guessSecond F) n) :=
+    Negligible fun n => Game.succProbability (F.elGamalOWProbGame setup (guessSecond F) n) :=
   PrimeOrderGroupFamily.CDH.elGamal_oneWay hCDH (guessSecond F) (isPPT_guessSecond F)
 
 end CslibFrontierTests.Crypto.ElGamalOneWay

@@ -161,7 +161,7 @@ example : ComputableInPolyTime (fun p : (ℕ × ℕ) × (ℤ × ℤ) =>
 example : ComputableInPolyTime
     (fun p : ℕ × ℕ => (liftRows p.1 p.2 p.1 p.2 p.1 p.2 p.1).length)
     (encPair encUnary encUnary) encUnary :=
-  (ComputableInPolyTime.of_tidy (.length_list (encList (encList encIntBin)))).comp
+  (ComputableInPolyTime.length_list (encList (encList encIntBin))).comp
     (by fun_prop)
 
 end CslibFrontierTests.RationalHitting.Lift

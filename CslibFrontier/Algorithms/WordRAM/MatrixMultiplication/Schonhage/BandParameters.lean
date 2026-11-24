@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCount
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandRoot
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.BandBounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete computed scalar parameters for native bands
@@ -36,23 +37,7 @@ def headerRegisters : Finset (Fin 96) :=
 /-- The concrete layout survives any native execution that preserves its scalar registers. -/
 theorem headerPost_reframe {L m N : ℕ} {x y : Data 96} (hx : HeaderPost L m N x)
     (h : ∀ i ∈ headerRegisters, y.regs i = x.regs i) : HeaderPost L m N y := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact ⟨(h _ (by decide)).trans hx.fixed.levels, (h _ (by decide)).trans hx.fixed.inner,
-      (h _ (by decide)).trans hx.fixed.rows, (h _ (by decide)).trans hx.fixed.zero,
-      (h _ (by decide)).trans hx.fixed.one, (h _ (by decide)).trans hx.fixed.two,
-      (h _ (by decide)).trans hx.fixed.three, (h _ (by decide)).trans hx.fixed.four,
-      (h _ (by decide)).trans hx.fixed.seven, (h _ (by decide)).trans hx.fixed.ten⟩
-  all_goals first
-    | exact (h _ (by decide)).trans hx.columns
-    | exact (h _ (by decide)).trans hx.outerSize
-    | exact (h _ (by decide)).trans hx.masks
-    | exact (h _ (by decide)).trans hx.cells
-    | exact (h _ (by decide)).trans hx.leaves
-    | exact (h _ (by decide)).trans hx.prefixSize
-    | exact (h _ (by decide)).trans hx.snapshot
-    | exact (h _ (by decide)).trans hx.inverse
-    | exact (h _ (by decide)).trans hx.table
-    | exact (h _ (by decide)).trans hx.catalogue
+  regs_frame
 
 /-- Persistent concrete layout and the additional scalar results actually computed by
 the mask-count/root/band-count code. No fit or execution bound is bundled here. -/
@@ -70,9 +55,7 @@ def parameterRegisters : Finset (Fin 96) := headerRegisters ∪ {root, square, b
 /-- Preserve the computed parameters by preserving their actual registers. -/
 theorem parameters_reframe {L m N : ℕ} {x y : Data 96} (hx : BandParameters L m N x)
     (h : ∀ i ∈ parameterRegisters, y.regs i = x.regs i) : BandParameters L m N y := by
-  refine ⟨headerPost_reframe hx.toHeaderPost (fun i hi => h i (Finset.mem_union_left _ hi)),
-    (h _ (by decide)).trans hx.root, (h _ (by decide)).trans hx.square,
-    (h _ (by decide)).trans hx.bands⟩
+  regs_frame
 
 /-- A convenient local numerical bound, derived from the original global word budget. -/
 theorem local_fits {w L m N : ℕ} (hfit : Fits w (wordBudget L m N)) :
@@ -90,61 +73,21 @@ theorem exec_countCode {w L m N : ℕ} (x : Data 96)
       BandParameters L m N y ∧ y.mem = x.mem := by
   have hl := local_fits hfit
   have hK : K L m ≤ 2 ^ L := Nat.choose_le_two_pow _ _
-  obtain ⟨c, hc, hcount, _, hcmem, _⟩ := exec_countMasks L m x hx.fixed.levels hx.fixed.inner
-    hx.masks hx.fixed.one hx.fixed.two (hl.of_le (by
-      nlinarith only [Nat.zero_le L, Nat.zero_le N, Nat.zero_le (N * D m),
-        Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)]))
-  have hcp : HeaderPost L m N c := headerPost_reframe hx (by
-    intro i hi
-    apply hc.regs_eq
-    have hp : ∀ i ∈ headerRegisters, countMasks.Preserves i := by
-      simp only [countMasks, countBody, populationCode, Code.Preserves, Op.dest, Op.bin]
-      decide
-    exact hp i hi)
-  obtain ⟨r, hr, hroot, hsquare, hrmem, hrframe⟩ := exec_root (K L m) c hcount hcp.fixed.one
-    (hl.of_le (by
-      nlinarith only [hK, Nat.zero_le L, Nat.zero_le N,
-        Nat.zero_le (N * D m), Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)]))
-  have hrp : HeaderPost L m N r := headerPost_reframe hcp (by
-    intro i hi
-    have hdisj : ∀ i ∈ headerRegisters,
-        i ≠ root ∧ i ≠ square ∧ i ≠ temporary ∧ i ≠ limit := by decide
-    obtain ⟨h1, h2, h3, h4⟩ := hdisj i hi
-    exact hrframe i h1 h2 h3 h4)
-  have hB : bandSize L m ≤ 7 ^ L := bandSize_le_seven_pow L m
+  have hsqrt : Nat.sqrt (K L m) ≤ 2 ^ L := (Nat.sqrt_le_self _).trans hK
+  have hB : K0 L m * N0 L m ≤ 7 ^ L := bandSize_le_seven_pow L m
   have h7 : 7 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
-  have hbfit : Fits w (bandSize L m) := hl.of_le (by
-    nlinarith only [hB, h7, Nat.zero_le L, Nat.zero_le N,
-      Nat.zero_le (N * D m), Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)])
-  have hnfit : Fits w (N + bandSize L m) := hl.of_le (by
-    nlinarith only [hB, h7, Nat.zero_le L, Nat.zero_le N,
-      Nat.zero_le (N * D m), Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)])
-  have hnsubfit : Fits w (N + bandSize L m - 1) :=
-    hnfit.of_le (Nat.sub_le _ _)
-  have hdivfit : Fits w ((N + bandSize L m - 1) / bandSize L m) :=
-    hnsubfit.of_le (Nat.div_le_self _ _)
-  let y := (((r.set temporary (bandSize L m)).set bands (N + bandSize L m)).set
-    bands (N + bandSize L m - 1)).set bands (numBands L m N)
+  refine WP.exists_execWithin ?_
+  unfold countCode bandCount
+  wram_call (exec_countMasks L m x hx.fixed.levels hx.fixed.inner hx.masks hx.fixed.one
+    hx.fixed.two (by fits)) with c ⟨hcount, _, hcmem, _⟩
+  wram_call (exec_root (K L m)) with r ⟨hroot, hsquare, hrmem, _⟩
   have hroot0 : r.regs root = K0 L m := by simpa only [K0] using hroot
-  simp only [bandSize] at hbfit hnfit hnsubfit hdivfit
-  have hy : ExecWithin w bandCount r y 4 := by
-    ram_eval [bandCount, y, hroot0, hrp.outerSize, hrp.fixed.rows, hrp.fixed.one,
-      bandSize, numBands, hbfit, hnfit, hnsubfit, hdivfit,
-      temporary, root, outerSize, bands, rows, one, Fin.mk.injEq]
-  have he : ExecWithin w countCode x y ((6 * L + 16) * 2 ^ L + 16) := by
-    apply (hc.seq (hr.seq hy)).mono
-    have hsqrt : Nat.sqrt (K L m) ≤ 2 ^ L := (Nat.sqrt_le_self _).trans hK
-    nlinarith
-  have hyp : HeaderPost L m N y := headerPost_reframe hrp (by
-    intro i hi
-    apply hy.regs_eq
-    have hp : ∀ i ∈ headerRegisters, bandCount.Preserves i := by
-      simp only [bandCount, Code.Preserves, Op.dest, Op.bin]
-      decide
-    exact hp i hi)
-  refine ⟨y, he, ⟨hyp, ?_, ?_, ?_⟩, hrmem.trans hcmem⟩
-  · simpa [y, temporary, bands, root] using hroot0
-  · simpa [y, temporary, bands, square, K0] using hsquare
-  · simp [y]
+  have hdivle : (N + K0 L m * N0 L m - 1) / (K0 L m * N0 L m) ≤ N + K0 L m * N0 L m :=
+    (Nat.div_le_self _ _).trans (Nat.sub_le _ _)
+  wram_exec *
+  refine ⟨by nlinarith, ⟨by regs_frame, ?_, ?_, ?_⟩, hrmem.trans hcmem⟩
+  · wram_simp [hroot0]
+  · wram_simp [hsquare, K0]
+  · wram_simp [numBands, bandSize]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

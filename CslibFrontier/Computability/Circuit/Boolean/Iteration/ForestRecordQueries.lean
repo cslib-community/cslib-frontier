@@ -153,7 +153,7 @@ theorem synthesis_selected_anchor {Q : ℕ} (f : BitString n → BitString n)
       Synthesis interpretation s {fun z => elig z j} (5 * (n + 3) + 4) := by
     have hda (bit : Fin (n + 3)) :
         (fun z => (forestAnchorDepth (edgeRecords z j)).getLsbD bit.val) ∈ s := by
-      simpa only [forestAnchorDepth, getLsbD_word] using
+      simpa only [forestAnchorDepth, BitString.getLsbD_equivBitVec] using
         heRec j ⟨Fin.natAdd (n + (n + 1 + (n + 1))) bit, rfl⟩
     have hult := Synthesis.word_ult (s := s)
       (fun z => forestAnchorDepth (edgeRecords z j))
@@ -283,13 +283,16 @@ theorem synthesis_interval_containment {a : ℕ} (s : Set (BooleanFunction a))
       (24 * n + 27) := by
   have hmLow (bit : Fin (n + 1)) :
       (fun z => (forestLowWord (markLabels z)).getLsbD bit.val) ∈ s := by
-    simpa only [forestLowWord, getLsbD_word] using hmark ⟨Fin.castAdd (n + 1) bit, rfl⟩
+    simpa only [forestLowWord, BitString.getLsbD_equivBitVec] using
+      hmark ⟨Fin.castAdd (n + 1) bit, rfl⟩
   have haLow (bit : Fin (n + 1)) :
       (fun z => (forestLowWord (anchorLabels z)).getLsbD bit.val) ∈ s := by
-    simpa only [forestLowWord, getLsbD_word] using hanchor ⟨Fin.castAdd (n + 1) bit, rfl⟩
+    simpa only [forestLowWord, BitString.getLsbD_equivBitVec] using
+      hanchor ⟨Fin.castAdd (n + 1) bit, rfl⟩
   have haHigh (bit : Fin (n + 1)) :
       (fun z => (forestHighWord (anchorLabels z)).getLsbD bit.val) ∈ s := by
-    simpa only [forestHighWord, getLsbD_word] using hanchor ⟨Fin.natAdd (n + 1) bit, rfl⟩
+    simpa only [forestHighWord, BitString.getLsbD_equivBitVec] using
+      hanchor ⟨Fin.natAdd (n + 1) bit, rfl⟩
   have h1 := (Synthesis.word_ult (s := s) (fun z => forestLowWord (markLabels z))
     (fun z => forestLowWord (anchorLabels z)) hmLow haLow).not
   have h2 := (Synthesis.word_ult (s := s) (fun z => forestHighWord (anchorLabels z))

@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.PrefixSums.Spec
 public import Mathlib.Data.List.TakeDrop
 public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Data.Nat.Log
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Balanced aggregation trees for dynamic prefix sums
@@ -151,6 +152,7 @@ theorem leaves_add (t : Tree h) (i δ : ℕ) (hi : i < 2 ^ h) :
       simp only [leaves, ihr (i - 2 ^ h) hi']
 
 /-- Number of words occupied by a complete aggregation tree. -/
+@[wram_arith]
 def words (h : ℕ) : ℕ := 2 * 2 ^ h - 1
 
 /-- A leaf tree of height zero occupies one word. -/

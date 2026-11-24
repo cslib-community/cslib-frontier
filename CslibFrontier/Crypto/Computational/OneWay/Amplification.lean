@@ -322,13 +322,7 @@ private theorem computable_pickPreimage {α : Type} {input : α ↪ List Bool}
     (hy : ComputableInPolyTime y input encBits)
     (hcands : ComputableInPolyTime cands input (encList encBits)) :
     ComputableInPolyTime (fun a => pickPreimage f (y a) (cands a)) input encBits := by
-  unfold pickPreimage
-  have hfilt : ComputableInPolyTime
-      (fun a => (cands a).filter (fun z => f z == y a)) input (encList encBits) := by
-    apply ComputableInPolyTime.filterWithInput hcands
-    exact (hf.comp (ComputableInPolyTime.snd input encBits)).beq
-      (hy.comp (ComputableInPolyTime.fst input encBits))
-  exact (ComputableInPolyTime.headD []).comp hfilt
+  fun_prop [pickPreimage]
 
 private theorem computable_plantedImage {α : Type} {input : α ↪ List Bool}
     {k w : ℕ → ℕ} {f : List Bool → List Bool}

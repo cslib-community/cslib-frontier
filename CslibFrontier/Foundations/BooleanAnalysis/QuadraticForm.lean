@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.BitString.Sign
+public import CslibFrontier.Foundations.Data.BitString.ZModSpace
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.CutRank
 public import Mathlib.Data.ZMod.Defs
 import Mathlib.Data.ZMod.Basic
@@ -15,13 +16,13 @@ import Mathlib.Data.ZMod.Basic
 /-!
 # Quadratic forms over `𝔽₂` on bit strings
 
-Reading the bits of `x : ι → Bool` as a vector `v` over `𝔽₂ = ZMod 2` (`BitString.bitVal`), a
-square matrix `Q` over `𝔽₂` defines the Boolean function `x ↦ v ⬝ᵥ Q *ᵥ v`
-(`BitString.quadForm`), the quadratic form of `Q` as in `Matrix.toQuadraticForm'`. Every
-quadratic form over `𝔽₂` in the variables `x` arises so. The inner product function
-`x ↦ ∑ᵢ xᵢ yᵢ` is the quadratic form of the matrix with the identity in the block of rows `x` and
-columns `y`; more generally, a matrix carrying `R` on a block of rows `x` and columns `y` and
-vanishing elsewhere has the bilinear form `xᵀ R y` as its quadratic form
+Reading the bits of `x : ι → Bool` as a vector `v = toZModSpace ι x` over `𝔽₂ = ZMod 2`
+(`BitString.bitVal`), a square matrix `Q` over `𝔽₂` defines the Boolean function
+`x ↦ bitEquiv (v ⬝ᵥ Q *ᵥ v)` (`BitString.quadForm`), the quadratic form of `Q` as in
+`Matrix.toQuadraticForm'`. Every quadratic form over `𝔽₂` in the variables `x` arises so. The inner
+product function `x ↦ ∑ᵢ xᵢ yᵢ` is the quadratic form of the matrix with the identity in the block
+of rows `x` and columns `y`; more generally, a matrix carrying `R` on a block of rows `x` and
+columns `y` and vanishing elsewhere has the bilinear form `xᵀ R y` as its quadratic form
 (`BitString.quadForm_eq_of_submatrix`).
 
 ## Main definitions
@@ -30,6 +31,8 @@ vanishing elsewhere has the bilinear form `xᵀ R y` as its quadratic form
 
 ## Main results
 
+* `Cslib.BitString.quadForm_eq_bitEquiv`:
+  `quadForm Q x = bitEquiv (toZModSpace ι x ⬝ᵥ Q *ᵥ toZModSpace ι x)`.
 * `Cslib.BitString.neg_one_pow_val_eq`: the sign `(-1) ^ (v ⬝ᵥ Q *ᵥ v)` of a quadratic form.
 * `Cslib.BitString.quadForm_eq_of_submatrix`: bilinear forms are quadratic forms.
 -/
@@ -42,18 +45,29 @@ open Matrix
 
 variable {ι : Type*} [Fintype ι]
 
+private theorem bitVal_zmod_two_eq_bitEquiv_symm : bitVal (ZMod 2) = bitEquiv.symm :=
+  funext fun b => (bitEquiv_symm_apply b).symm
+
 /-- Reading bits in `𝔽₂` is injective. -/
-theorem bitVal_zmod_two_injective : Function.Injective (bitVal (ZMod 2)) := by
-  decide
+theorem bitVal_zmod_two_injective : Function.Injective (bitVal (ZMod 2)) :=
+  bitVal_zmod_two_eq_bitEquiv_symm ▸ bitEquiv.symm.injective
 
 /-- Every element of `𝔽₂` is a bit. -/
-theorem bitVal_zmod_two_surjective : Function.Surjective (bitVal (ZMod 2)) := by
-  decide
+theorem bitVal_zmod_two_surjective : Function.Surjective (bitVal (ZMod 2)) :=
+  bitVal_zmod_two_eq_bitEquiv_symm ▸ bitEquiv.symm.surjective
 
 /-- The *quadratic form* of a square matrix `Q` over `𝔽₂` as a Boolean function: reading the bits
 of `x` as a vector `v` over `𝔽₂`, it is true when `v ⬝ᵥ Q *ᵥ v = 1`. -/
 def quadForm (Q : Matrix ι ι (ZMod 2)) (x : ι → Bool) : Bool :=
   decide ((fun i => bitVal (ZMod 2) (x i)) ⬝ᵥ Q *ᵥ (fun i => bitVal (ZMod 2) (x i)) = 1)
+
+/-- `quadForm Q x` evaluates `v ⬝ᵥ Q *ᵥ v` on `v = toZModSpace ι x` and maps back via `bitEquiv`. -/
+theorem quadForm_eq_bitEquiv (Q : Matrix ι ι (ZMod 2)) (x : ι → Bool) :
+    quadForm Q x = bitEquiv (toZModSpace ι x ⬝ᵥ Q *ᵥ toZModSpace ι x) := by
+  have hv : (fun i => bitVal (ZMod 2) (x i)) = toZModSpace ι x :=
+    funext fun i => (bitEquiv_symm_apply (x i)).symm
+  rw [quadForm, hv]
+  rfl
 
 /-- The quadratic form of `Q` is true at `x` exactly when `v ⬝ᵥ Q *ᵥ v = 1` for the vector `v`
 over `𝔽₂` of the bits of `x`. -/

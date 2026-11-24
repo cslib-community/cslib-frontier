@@ -29,14 +29,13 @@ efficient deterministic concatenation.
 * `Cslib.Probability.IsPPTOn.pair`: retain efficiently computed data alongside a sampled result.
 * `Cslib.Probability.IsPPTOn.bind_with`: a monadic continuation may capture the original input.
 * `Cslib.Probability.IsPPTOn.map_with`: a deterministic callback may capture the original input.
-* `Cslib.Probability.IsPPTOn.cond`, `Cslib.Probability.IsPPTOn.cond'`,
-  `Cslib.Probability.IsPPTOn.ite`, `Cslib.Probability.IsPPTOn.ite'`: efficient branch selection.
+* `Cslib.Probability.IsPPTOn.cond`, `Cslib.Probability.IsPPTOn.ite`: plain branch selection.
 
 ## References
 
 Adapted from Computability/Probabilistic/{Realization/Composition,Composition}.lean on the cslib
-`crypto` branch at `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using the existing tidy calculus
-and framed pair encoding.
+`crypto` branch at `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using plain numerical certificates
+and the framed pair encoding.
 -/
 
 public section
@@ -48,13 +47,13 @@ open Turing.MultiTapeTM
 /-- Write efficiently computed input data before a probabilistic output, charging preparation. -/
 theorem IsPPTOn.prefix {α : Type} {input : α ↪ List Bool} {pre : α → List Bool}
     {program : α → ProbComp (List Bool)} (hprogram : IsPPTOn input encBits program)
-    (hprefix : ComputableTidilyInPolyTime pre input encBits) :
+    (hprefix : ComputableInPolyTime pre input encBits) :
     IsPPTOn input encBits (fun a => (pre a ++ ·) <$> program a) := by
   apply IsOraclePPTOn.isPPTOn
   have happend := ComputableInPolyTime.bitsAppend
     (ComputableInPolyTime.fst encBits encBits) (ComputableInPolyTime.snd encBits encBits)
   simpa only [ProbOracleComp.sample_map, Functor.map_map, Function.comp_def] using
-    ((hprogram.isOraclePPTOn (Operation := Empty)).pair' (.of_tidy hprefix)).map' happend
+    ((hprogram.isOraclePPTOn (Operation := Empty)).pair' hprefix).map happend
 
 variable {α β γ : Type} {input : α ↪ List Bool} {left : β ↪ List Bool}
   {right : γ ↪ List Bool}
@@ -62,17 +61,17 @@ variable {α β γ : Type} {input : α ↪ List Bool} {left : β ↪ List Bool}
 /-- Retain efficiently computed input data beside a sampled result, using the existing encoding. -/
 @[fun_prop]
 theorem IsPPTOn.pair {program : α → ProbComp γ} {f : α → β}
-    (hprogram : IsPPTOn input right program) (hf : ComputableTidilyInPolyTime f input left) :
+    (hprogram : IsPPTOn input right program) (hf : ComputableInPolyTime f input left) :
     IsPPTOn input (encPair left right) (fun a => (fun b => (f a, b)) <$> program a) := by
   apply IsOraclePPTOn.isPPTOn
   simpa only [ProbOracleComp.sample_map] using
-    (hprogram.isOraclePPTOn (Operation := Empty)).pair' (.of_tidy hf)
+    (hprogram.isOraclePPTOn (Operation := Empty)).pair' hf
 
 /-- Keep the original argument available to a later computation, charging its encoded copy. -/
 theorem IsPPTOn.keep_input {program : α → ProbComp β}
     (hprogram : IsPPTOn input left program) :
     IsPPTOn input (encPair input left) (fun a => (fun b => (a, b)) <$> program a) :=
-  hprogram.pair ComputableTidilyInPolyTime.id'
+  hprogram.pair ComputableInPolyTime.id'
 
 /-- A monadic continuation may use both the caller's input and the sampled result. -/
 @[fun_prop]
@@ -91,43 +90,25 @@ theorem IsPPTOn.map_with {program : α → ProbComp β} {f : α → β → γ}
     (hf : ComputableInPolyTime (fun pair => f pair.1 pair.2) (encPair input left) right) :
     IsPPTOn input right (fun a => f a <$> program a) := by
   simpa only [bind_pure_comp] using
-    hprogram.bind_with (right := right) (second := fun a b => pure (f a b)) hf.tidy.isPPTOn
+    hprogram.bind_with (right := right) (second := fun a b => pure (f a b)) hf.isPPTOn
 
-/-- `Cslib.Probability.IsPPTOn.cond` with a plain polynomial-time condition. -/
+/-- Select a closed branch with a plain polynomial-time Boolean condition. -/
 @[fun_prop]
-theorem IsPPTOn.cond' {condition : α → Bool} {yes no : α → ProbComp β}
+theorem IsPPTOn.cond {condition : α → Bool} {yes no : α → ProbComp β}
     (hcondition : ComputableInPolyTime condition input encBool)
     (hyes : IsPPTOn input left yes) (hno : IsPPTOn input left no) :
     IsPPTOn input left (fun a => if condition a then yes a else no a) := by
   apply IsOraclePPTOn.isPPTOn
-  simpa only [apply_ite] using IsOraclePPTOn.cond' hcondition
+  simpa only [apply_ite] using IsOraclePPTOn.cond hcondition
     (hyes.isOraclePPTOn (Operation := Empty)) (hno.isOraclePPTOn (Operation := Empty))
 
-/-- Select a closed probabilistic branch with an efficient Boolean condition, using the
-empty-channel specialization of oracle branch selection. -/
-@[fun_prop]
-theorem IsPPTOn.cond {condition : α → Bool} {yes no : α → ProbComp β}
-    (hcondition : ComputableTidilyInPolyTime condition input encBool)
-    (hyes : IsPPTOn input left yes) (hno : IsPPTOn input left no) :
-    IsPPTOn input left (fun a => if condition a then yes a else no a) :=
-  hyes.cond' (.of_tidy hcondition) hno
-
-/-- Select a closed probabilistic branch with an efficiently decidable condition. -/
+/-- Select a closed branch with a plain polynomial-time decision. -/
 @[fun_prop]
 theorem IsPPTOn.ite {condition : α → Prop} [∀ a, Decidable (condition a)]
-    {yes no : α → ProbComp β}
-    (hcondition : ComputableTidilyInPolyTime (fun a => decide (condition a)) input encBool)
-    (hyes : IsPPTOn input left yes) (hno : IsPPTOn input left no) :
-    IsPPTOn input left (fun a => if condition a then yes a else no a) := by
-  simpa only [decide_eq_true_eq] using hyes.cond hcondition hno
-
-/-- `Cslib.Probability.IsPPTOn.ite` with a plain polynomial-time decision. -/
-@[fun_prop]
-theorem IsPPTOn.ite' {condition : α → Prop} [∀ a, Decidable (condition a)]
     {yes no : α → ProbComp β}
     (hcondition : ComputableInPolyTime (fun a => decide (condition a)) input encBool)
     (hyes : IsPPTOn input left yes) (hno : IsPPTOn input left no) :
     IsPPTOn input left (fun a => if condition a then yes a else no a) := by
-  simpa only [decide_eq_true_eq] using hyes.cond' hcondition hno
+  simpa only [decide_eq_true_eq] using hyes.cond hcondition hno
 
 end Cslib.Probability

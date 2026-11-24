@@ -13,12 +13,18 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNorma
 import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Data.List.GetD
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyZeroSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+
 /-!
 # Framed native routines for nondeterministic query machines
 
-The abstract state is framed on a work tape. The initializer writes the start state of the input,
-which may depend on the input. Each deterministic pass reads the input in place, performs one
-selected transition, and writes the continuation flag. Only the finalizer emits.
+The abstract state is framed on a work tape. Initialization writes the input-dependent start
+and runs the same continuation evaluator used after each pass. The initial transformation time
+is the sum of these two phases; dispatch adds one deterministic check. An initially halted state
+therefore takes no binary choice. Each deterministic pass reads the input in place, performs one
+selected transition, and writes the continuation flag. Only the finalizer emits. State framing
+and the existing common space coefficient are unchanged.
 
 ## Main definitions
 
@@ -36,6 +42,9 @@ selected transition, and writes the continuation flag. Only the finalizer emits.
 namespace Turing.NondeterministicQueryMachine
 
 open MultiTapeTM QueryMachine.Simulation
+
+/-- Encode the framed optional read bit followed by the unframed binary selector. -/
+abbrev encReadChoice := encPair (encOption encBool) encBool
 
 private theorem le_of_add_le8 {a₁ a₂ a₃ a₄ a₅ a₆ a₇ : ℕ} {m : ℕ}
     (h : a₁ + a₂ + a₃ + a₄ + a₅ + a₆ + a₇ ≤ m) :
@@ -77,7 +86,8 @@ structure Routines {α σ : Type} (M : NondeterministicQueryMachine σ) (start :
   finiteI : Finite SI
   finiteP : ∀ b, Finite (SP b)
   finiteF : Finite SF
-  /-- The initialization machine. -/
+  /-- The initialization machine writes the encoded start and reuses the continuation evaluator
+  to set its halt flag before dispatch. -/
   I : MultiTapeTM k Bool SI
   /-- The pass machine selected by one nondeterministic bit. -/
   P : (b : Bool) → MultiTapeTM k Bool (SP b)
@@ -93,7 +103,7 @@ structure Routines {α σ : Type} (M : NondeterministicQueryMachine σ) (start :
   c : ℕ
   initial_spec : ∀ a, ∃ t, TransformsTapes I
     (fun inp ws => inp = enc a ∧ ws = fun _ => [])
-    (fun _ _ ws' e => ws' = boundary (start a) false ∧ e = []) t (c * S a)
+    (fun _ _ ws' e => ws' = boundary (start a) (!M.halted (start a)) ∧ e = []) t (c * S a)
   pass_spec : ∀ a s, (M.withInit (start a)).Reachable (enc a) s → ∀ choice flag, ∃ t,
     TransformsTapes (P choice)
     (fun inp ws => inp = enc a ∧ ws = boundary s flag)
@@ -110,8 +120,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     (M : NondeterministicQueryMachine σ)
     (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
     (hnext : ComputableInSpace M.next
-      (encPair encS (encPair (encOption encBool) encBool)) encS
-      fun p => (encPair encS (encPair (encOption encBool) encBool) p).length)
+      (encPair encS encReadChoice) encS
+      fun p => (encPair encS encReadChoice p).length)
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
     (haccept : ComputableInSpace M.accept encS encBool fun s => (encS s).length)
     (start : α → σ) (S : α → ℕ) (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)
@@ -149,7 +159,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cN', hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hN
   obtain ⟨cF', hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hF huf
   obtain ⟨cPE', hPE'⟩ := ComputableTidilyInTimeAndSpace.comp_linear
-    hPE.computableTidilyInTimeAndSpace huf
+    (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hPE) huf
   have hpn₁ (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear (hPN b) huf
   choose cPN₁ hPN₁ using hpn₁
   have hpn' (b : Bool) := ComputableTidilyInTimeAndSpace.comp_linear hfr (hPN₁ b)
@@ -157,7 +167,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cC₁, hC₁⟩ := ComputableTidilyInTimeAndSpace.comp_linear hC huf
   obtain ⟨cC', hC'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfl hC₁
   obtain ⟨kI, SI, _, tmI, htmI⟩ := hI'
-  obtain ⟨kE, SE, _, tmE, htmE⟩ := hE.computableTidilyInTimeAndSpace
+  obtain ⟨kE, SE, _, tmE, htmE⟩ := (ComputableInTimeAndSpace.computableTidilyInTimeAndSpace hE)
   obtain ⟨kN, SN, _, tmN, htmN⟩ := hN'
   obtain ⟨kF, SF, _, tmF, htmF⟩ := hF'
   obtain ⟨kPE, SPE, _, tmPE, htmPE⟩ := hPE'
@@ -260,7 +270,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
             finiteP := fun b => by
               set_option synthInstance.maxSize 1024 in infer_instance
             finiteF := inferInstance
-            I := tmI.outputToWord.extendTapes eI
+            I := (tmI.outputToWord.extendTapes eI).seq
+              ((tmC.onWords true).extendTapes eC)
             P := fun b => passTM
               (⟨(), fun _ bit => (none, some bit)⟩ : InputReader Bool Unit)
               ((tmE.inputFromWord true).extendTapes eE) ((tmN.onWords true).extendTapes eN)
@@ -287,14 +298,22 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     have hlen := hscan a (start a) ((M.withInit (start a)).reachable_init _) false 0
       (Nat.zero_le _)
     simp only [streamState_zero] at hlen
-    refine ⟨_, (hI₀ a).imp (fun _ _ h => h)
-      (fun _ _ _ _ _ ⟨hw, he⟩ => ⟨by simpa [B, flagWord, passTapes_nil hVC] using hw, he⟩)
-      le_rfl (le_trans ?_ (hG a (k := 10) (by omega)))⟩
+    have hcont := (hC₀ ((start a, 0, none) : PassState σ)).imp
+      (Q' := fun _ _ ws' e => ws' = B (start a) (!M.halted (start a)) ∧ e = [])
+      (fun _ _ h => h)
+      (fun _ _ _ _ hw ⟨hw', he⟩ => ⟨by rw [hw', hw]; rfl, he⟩) le_rfl le_rfl
+    refine ⟨_, ((hI₀ a).seq_eq hcont).imp (fun _ _ h => h)
+      (fun _ _ _ _ _ h => by simpa [B, passTapes] using h)
+      le_rfl (le_trans ?_ (hG a (k := 50) (by omega)))⟩
     have := hU_bounds hlen false
+    have := hU_bounds (hL1 a) false
+    have : (encBits (flagWord (passCont (M.withChoice false)
+        ((start a, 0, none) : PassState σ)))).length ≤ 1 := hflag _
     have := hsmall a
     have := hk false
     have := hcIU a
-    simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame]
+    simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame,
+      encBool_apply, List.length_singleton]
     omega
   · intro a s hs b flag
     let q (j : ℕ) := streamState ((s, 0, none) : PassState σ)

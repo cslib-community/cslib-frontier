@@ -5,6 +5,8 @@ Authors: Erik Demaine
 -/
 
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Flat
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 Actual native constructor/lookup regressions. These execute code from State.init and

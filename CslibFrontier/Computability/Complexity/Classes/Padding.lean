@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.EXP
 public import CslibFrontier.Computability.Complexity.Classes.NP.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.NP.GuessVerify
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -288,8 +289,7 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
       _ ≤ (c' + 2) ^ d * X ^ (d + 1) :=
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hX (Nat.le_succ d))
   have h₂ : n + T n ≤ X ^ (d + 1) := (Nat.le_succ _).trans (Nat.le_self_pow (by omega) X)
-  calc n + T n + (2 * n + 1 + t n) ^ d ≤ X ^ (d + 1) + (c' + 2) ^ d * X ^ (d + 1) :=
-        Nat.add_le_add h₂ h₁
+  calc n + T n + (2 * n + 1 + t n) ^ d ≤ X ^ (d + 1) + (c' + 2) ^ d * X ^ (d + 1) := by gcongr
     _ = ((c' + 2) ^ d + 1) * X ^ (d + 1) := by ring
     _ ≤ _ := Nat.le_add_right _ _
 
@@ -407,8 +407,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
     {S : α → ℕ} (hB : B ∈ NP encBits)
     (hg : Turing.MultiTapeTM.ComputableInO g enc encBits (fun a => T₀ (enc a).length) S) :
     ∃ d, g ⁻¹' B ∈ NTIME enc fun n => (T₀ n + 1) ^ d := by
-  have hg := hg.tidy
-  obtain ⟨c₀, ⟨k₀, State₀, hfinite₀, tm, htm⟩, -⟩ := hg
+  obtain ⟨c₀, ⟨k₀, State₀, hfinite₀, tm, htm⟩, -⟩ := Turing.MultiTapeTM.Internal.NormalForm.inO hg
   set t₁ : α → ℕ := fun a => c₀ * (T₀ (enc a).length + 1)
   have htm_run (a : α) :
       tm.runFrom (tm.initCfg (enc a)) (t₁ a) = wordsCfg (enc a) none (fun _ => []) (g a) :=

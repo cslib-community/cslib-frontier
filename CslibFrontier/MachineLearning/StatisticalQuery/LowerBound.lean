@@ -420,8 +420,7 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul_add_one {κ : Type} [Fint
       _ = _ := by ring
   have h3 : d * (τ ^ 2 - 1 / d) ≤ (2 * q + 1) * (1 - 1 / d) := by
     calc d * (τ ^ 2 - 1 / d)
-        ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) * (τ ^ 2 - 1 / d) :=
-          mul_le_mul_of_nonneg_right h' hpos.le
+        ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) * (τ ^ 2 - 1 / d) := by gcongr
       _ = _ := by rw [mul_assoc, div_mul_cancel₀ _ hpos.ne']
   have h4 : d * (τ ^ 2 - 1 / d) = d * τ ^ 2 - 1 := by
     field_simp

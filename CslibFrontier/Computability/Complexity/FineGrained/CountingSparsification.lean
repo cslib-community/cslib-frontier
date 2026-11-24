@@ -128,14 +128,6 @@ namespace CountingSparsify
 open ClauseSet.Sparsification (CountingBranchingRule)
 open Sparsify (rounds computableInPolyTime_rounds length_encNat_rounds rounds_add_one_le)
 
-/-! ### Auxiliary binary-encoding bound -/
-
-theorem length_encNat_le_of_le_two_pow {acc n : ℕ} (h : acc ≤ 2 ^ n) :
-    (encNat acc).length ≤ n + 1 := by
-  refine (show (encNat acc).length ≤ (encNat (2 ^ n)).length by
-    simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size h).trans ?_
-  rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
-
 /-! ### The counting-sparsification search -/
 
 /-- The states of the counting-sparsification search: the declared variable count `n` (in unary),
@@ -227,12 +219,9 @@ private theorem iterate_step_map (g : CNF ℕ → ℕ) (r n : ℕ)
         (stk, acc)
     exact ih stk' acc'
 
-private theorem step_nil (g : CNF ℕ → ℕ) (n acc : ℕ) :
-    step M K g (n, ([], acc)) = (n, ([], acc)) := rfl
-
 private theorem iterate_step_nil (g : CNF ℕ → ℕ) (r n acc : ℕ) :
     (step M K g)^[r] (n, ([], acc)) = (n, ([], acc)) :=
-  Function.iterate_fixed (step_nil g n acc) r
+  Function.iterate_fixed rfl r
 
 /-! ### The root -/
 

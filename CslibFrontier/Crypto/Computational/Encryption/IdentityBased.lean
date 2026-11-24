@@ -366,7 +366,7 @@ theorem IBEAdversaryOf.IsPPT.toPrivate {Msg : Type} {encMsg : Msg ↪ List Bool}
           fun c => (((c.1.1, c.1.2.1), (c.1.1, c.1.2.2)), c.2) := rfl
       rw [h]
       fun_prop
-    exact (hA.choose.on.map' hpost).isOraclePPT
+    exact (hA.choose.on.map hpost).isOraclePPT
   guess := hA.guess
 
 /-- `toAdaptive` preserves the efficiency predicate: its first stage samples the target stage and
@@ -383,7 +383,7 @@ theorem SelectiveIBEAdversaryOf.IsPPT.toAdaptive {Msg : Type} {encMsg : Msg ↪ 
         (encPair (encPair encUnary encBits) (encPair encBits encBits)) (encChoiceOut encMsg)
         (fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
           adversary.choose p.1.1 p.2.2 p.1.2) :=
-      hA.choose.preprocess'
+      hA.choose.preprocess
         (prepare := fun p : (ℕ × List Bool) × (List Bool × List Bool) => (p.1.1, p.2.2, p.1.2))
         (by fun_prop)
     have hpost : ComputableInPolyTime

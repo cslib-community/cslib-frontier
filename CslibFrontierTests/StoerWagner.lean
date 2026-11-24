@@ -4,13 +4,23 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
+module
+-- upstream: local-only (test driver)
+
+-- `import all` is used only so the brute-force `decide` checks below can unfold the unexposed
+-- definitions `attachWeight` and `IsMAOrderingFrom` (`WeightedCut.MAOrdering`) and `run` and
+-- `lastTwo` (`StoerWagner.Basic`); `WeightedCut`, `WeightedCut.Contraction`, and the tested
+-- `WordRAM.StoerWagner` API are imported ordinarily.
+import all CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
+import all CslibFrontier.Algorithms.Lean.StoerWagner.Basic
+import CslibFrontier.Algorithms.WordRAM.StoerWagner
 
 /-!
 # Stoer–Wagner minimum cut tests
 
-Exercise maximum adjacency orderings and the Stoer–Wagner algorithm on small multigraphs, checked
-against brute force over all vertex sets:
+Exercise maximum adjacency orderings, the pure Stoer–Wagner algorithm, and the uniform `O(n³)`
+width-blind standard-basis Word-RAM solver (`exists_stoerWagner_program`) on small and medium
+multigraphs, checked against brute force over all vertex sets:
 
 * a 4-cycle with weights `3, 1, 4, 2`, minimum cut `3`;
 * the 8-vertex example graph of [StoerWagner1997], as reproduced in secondary sources, minimum
@@ -19,8 +29,12 @@ against brute force over all vertex sets:
   weight `5`;
 * an ordering that is not a maximum adjacency ordering, whose last vertex does not give a minimum
   cut between its last two vertices;
-* a disconnected graph and the degenerate sizes `n = 0, 1, 2`.
+* the Boost Graph Library 8-vertex example, minimum cut `7`;
+* a disconnected graph, a 12-vertex cycle witness at `w = 64`, and the degenerate sizes
+  `n = 0, 1, 2`.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.StoerWagner
 
@@ -159,12 +173,113 @@ example (W : Fin 1 → Fin 1 → ℕ) : stoerWagner W = ⟨∅, 0⟩ := rfl
 
 example (W : Fin 0 → Fin 0 → ℕ) : stoerWagner W = ⟨∅, 0⟩ := rfl
 
-/-! ### Cost -/
+/-! ### Word-RAM `O(n³)` execution witnesses -/
 
-/-- The charged time on the 8-vertex example, pinned so that a change of the cost model shows up
-here: `509`, against the bound `8 ^ 3 + 4 * 8 ^ 2 = 768`. -/
-example : (stoerWagnerM G8).time = 509 := by decide
+section WordRAMTests
 
-example : (stoerWagnerM G8).time ≤ 768 := time_stoerWagnerM_le G8
+open Cslib.Algorithms.WordRAM.StoerWagner
+open Cslib.WordRAM
+
+private def G4Input : StoerWagnerInput := ⟨4, G4, isMultigraph_G4⟩
+
+private def G8Input : StoerWagnerInput := ⟨8, G8, isMultigraph_G8⟩
+
+private def boostInput : StoerWagnerInput := ⟨8, boost, isMultigraph_boost⟩
+
+private def disconnectedInput : StoerWagnerInput :=
+  ⟨4, disconnected, by unfold IsMultigraph; decide⟩
+
+private def edgeInput : StoerWagnerInput := ⟨2, edge, by unfold IsMultigraph; decide⟩
+
+private def singletonInput : StoerWagnerInput :=
+  ⟨1, fun _ _ => 0, ⟨fun _ _ => rfl, fun _ => rfl⟩⟩
+
+private def emptyInput : StoerWagnerInput :=
+  ⟨0, fun i _ => Fin.elim0 i, ⟨fun i => Fin.elim0 i, fun i => Fin.elim0 i⟩⟩
+
+/-- A 12-vertex cycle with unit weights except one weight-3 edge (`minCut = 2`). -/
+private def cycle12 : Fin 12 → Fin 12 → ℕ := sym fun i j =>
+  if j.val = i.val + 1 ∨ (i.val = 0 ∧ j.val = 11) then
+    if i.val = 0 ∧ j.val = 1 then 3 else 1
+  else 0
+
+private theorem isMultigraph_cycle12 : IsMultigraph cycle12 := by
+  refine ⟨fun i j => ?_, fun i => ?_⟩
+  · unfold cycle12 sym
+    by_cases h1 : i < j
+    · have h2 : ¬ j < i := not_lt.mpr (le_of_lt h1)
+      simp [h1, h2]
+    · by_cases h2 : j < i
+      · simp [h1, h2]
+      · simp [h1, h2]
+  · simp [cycle12, sym]
+
+private def cycle12Input : StoerWagnerInput := ⟨12, cycle12, isMultigraph_cycle12⟩
+
+example : G4Input.expectedOutput = [3, 0, 0, 1, 1] := by decide
+
+example : G8Input.expectedOutput = [4, 0, 0, 1, 1, 0, 0, 1, 1] := by decide
+
+example : edgeInput.expectedOutput = [6, 0, 1] := by decide
+
+example : singletonInput.expectedOutput = [0, 0] := by decide
+
+example : emptyInput.expectedOutput = [0] := by decide
+
+example :
+    let out := G8Input.expectedOutput
+    let side : Finset (Fin 8) := Finset.univ.filter fun v : Fin 8 => out[v.1 + 1]? = some 1
+    out.length = 9 ∧
+      out.head? = some (minCut G8Input.W) ∧
+      IsNonTrivialCut side ∧
+      cutWeight G8Input.W side = minCut G8Input.W :=
+  G8Input.expectedOutput_spec (by decide)
+
+example : ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
+    (∃ t₁, ExecutesList 64 prog (State.init G4Input.encode) [3, 0, 0, 1, 1] t₁ ∧
+      t₁ ≤ C * 125) ∧
+    (∃ t₂, ExecutesList 64 prog (State.init G8Input.encode) [4, 0, 0, 1, 1, 0, 0, 1, 1] t₂ ∧
+      t₂ ≤ C * 729) ∧
+    (∃ t₃, ExecutesList 64 prog (State.init boostInput.encode) boostInput.expectedOutput t₃ ∧
+      t₃ ≤ C * 729) ∧
+    (∃ t₄, ExecutesList 64 prog (State.init disconnectedInput.encode)
+      disconnectedInput.expectedOutput t₄ ∧ t₄ ≤ C * 125) ∧
+    (∃ t₅, ExecutesList 64 prog (State.init edgeInput.encode) [6, 0, 1] t₅ ∧
+      t₅ ≤ C * 27) ∧
+    (∃ t₆, ExecutesList 64 prog (State.init singletonInput.encode) [0, 0] t₆ ∧
+      t₆ ≤ C * 8) ∧
+    (∃ t₇, ExecutesList 64 prog (State.init emptyInput.encode) [0] t₇ ∧
+      t₇ ≤ C) ∧
+    (∃ t₈, ExecutesList 64 prog (State.init cycle12Input.encode) cycle12Input.expectedOutput t₈ ∧
+      t₈ ≤ C * 2197) := by
+  obtain ⟨r, C, prog, hnw, hprog⟩ := exists_stoerWagner_program
+  have h1 : Fits 64 G4Input.wordBound := by decide
+  have h2 : Fits 64 G8Input.wordBound := by decide
+  have h3 : Fits 64 boostInput.wordBound := by decide
+  have h4 : Fits 64 disconnectedInput.wordBound := by decide
+  have h5 : Fits 64 edgeInput.wordBound := by decide
+  have h6 : Fits 64 singletonInput.wordBound := by decide
+  have h7 : Fits 64 emptyInput.wordBound := by decide
+  have h8 : Fits 64 cycle12Input.wordBound := by decide
+  obtain ⟨t₁, he₁, hl₁⟩ := hprog G4Input 64 h1 (G4Input.inputFits_encode h1)
+  obtain ⟨t₂, he₂, hl₂⟩ := hprog G8Input 64 h2 (G8Input.inputFits_encode h2)
+  obtain ⟨t₃, he₃, hl₃⟩ := hprog boostInput 64 h3 (boostInput.inputFits_encode h3)
+  obtain ⟨t₄, he₄, hl₄⟩ := hprog disconnectedInput 64 h4 (disconnectedInput.inputFits_encode h4)
+  obtain ⟨t₅, he₅, hl₅⟩ := hprog edgeInput 64 h5 (edgeInput.inputFits_encode h5)
+  obtain ⟨t₆, he₆, hl₆⟩ := hprog singletonInput 64 h6 (singletonInput.inputFits_encode h6)
+  obtain ⟨t₇, he₇, hl₇⟩ := hprog emptyInput 64 h7 (emptyInput.inputFits_encode h7)
+  obtain ⟨t₈, he₈, hl₈⟩ := hprog cycle12Input 64 h8 (cycle12Input.inputFits_encode h8)
+  exact ⟨r, C, prog, hnw,
+    ⟨t₁, (show G4Input.expectedOutput = [3, 0, 0, 1, 1] by decide) ▸ he₁, hl₁⟩,
+    ⟨t₂, (show G8Input.expectedOutput = [4, 0, 0, 1, 1, 0, 0, 1, 1] by decide) ▸ he₂, hl₂⟩,
+    ⟨t₃, he₃, hl₃⟩,
+    ⟨t₄, he₄, hl₄⟩,
+    ⟨t₅, (show edgeInput.expectedOutput = [6, 0, 1] by decide) ▸ he₅, hl₅⟩,
+    ⟨t₆, (show singletonInput.expectedOutput = [0, 0] by decide) ▸ he₆, hl₆⟩,
+    ⟨t₇, (show emptyInput.expectedOutput = [0] by decide) ▸ he₇,
+      by simpa [emptyInput] using hl₇⟩,
+    ⟨t₈, he₈, hl₈⟩⟩
+
+end WordRAMTests
 
 end CslibFrontierTests.StoerWagner

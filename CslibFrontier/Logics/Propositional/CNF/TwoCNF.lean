@@ -59,11 +59,6 @@ unit clause `a` the arc `¬a → a`. -/
 def CNF.Implies (φ : CNF V) (ℓ ℓ' : Literal V) : Prop :=
   ∃ c ∈ φ, ℓ.negate ∈ c ∧ ℓ' ∈ c ∧ ∀ m ∈ c, m = ℓ.negate ∨ m = ℓ'
 
-@[simp]
-theorem negate_negate (ℓ : Literal V) : ℓ.negate.negate = ℓ := by
-  obtain ⟨v, b⟩ := ℓ
-  simp [Std.Sat.Literal.negate]
-
 /-- The negation of a literal holds exactly when the literal does not. -/
 theorem holds_negate (σ : V → Bool) (ℓ : Literal V) :
     σ ℓ.negate.1 = ℓ.negate.2 ↔ ¬ σ ℓ.1 = ℓ.2 := by

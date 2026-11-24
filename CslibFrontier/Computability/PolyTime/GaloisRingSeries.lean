@@ -364,10 +364,7 @@ theorem computableInPolyTime_tmul {p J : α → ℕ} {fl : α → List ℕ} {P R
     (hR : ComputableInPolyTime R encIn (encList (encList encNat))) :
     ComputableInPolyTime (fun x => tmul (p x) (fl x) (J x) (P x) (R x)) encIn
       (encList (encList encNat)) := by
-  have h1 := ComputableInPolyTime.fst encIn encUnary
-  have h2 := ComputableInPolyTime.snd encIn encUnary
-  exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hJ)
-    (computableInPolyTime_cauchyCoeff (hp.comp h1) (hfl.comp h1) (hP.comp h1) (hR.comp h1) h2)
+  fun_prop [tmul]
 
 /-- Every coefficient of a truncated product is small. -/
 theorem small_of_mem_tmul {J : ℕ} {P R : List (List ℕ)} {c : List ℕ}

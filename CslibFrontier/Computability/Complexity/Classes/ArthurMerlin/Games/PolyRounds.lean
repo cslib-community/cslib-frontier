@@ -63,7 +63,7 @@ public section
 
 namespace Cslib.Complexity
 
-open Finset Turing.MultiTapeTM
+open Finset Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 variable {α : Type}
 
@@ -136,11 +136,24 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
   have hstep : ComputableInPolyTime
       (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
         copyStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary encUnary) (encPair encBits encBits)
+      (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
         (encPair encAMMove encUnary))
       (encPair encBits encBits) := by
-    unfold copyStep
-    fun_prop
+    have hp : ComputableInPolyTime
+        (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) => p.1.1)
+        (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+          (encPair encAMMove encUnary)) (encPair encUnary encUnary) := (fst _ _).fst'
+    have hs := (fst (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+      (encPair encAMMove encUnary)).snd'
+    have hn := (snd (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+      (encPair encAMMove encUnary)).snd'
+    have hrow : ComputableInPolyTime
+        (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
+          BitString.listRow p.2.2 p.1.1.2 p.1.2.1)
+        (encPair (encPair (encPair encUnary encUnary) (encPair encBits encBits))
+          (encPair encAMMove encUnary)) encBits := by fun_prop
+    exact (bitsDropWithInput hs.fst' (unary_mul' hp.fst' hn)).prod
+      (bitsAppend hs.snd' hrow)
   obtain ⟨c₁, d₁, hwlen⟩ := (show PolyBounded (fun x => (encIn x).length) (fun x => (w x).length)
     from by simpa only [encBits_apply] using hw.polyBounded_length).exists_le
   obtain ⟨c₂, d₂, hglen⟩ := hg.polyBounded_length.exists_le
@@ -194,45 +207,21 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
 /-- `mergeMerlin` preserves `arthurBits`. -/
 theorem arthurBits_mergeMerlin (g : List (AMMove × ℕ)) :
     arthurBits (mergeMerlin g) = arthurBits g := by
-  induction g with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp [mergeMerlin, arthurBits, ih]
-    · simp only [mergeMerlin]
-      cases h : mergeMerlin g with
-      | nil => simp [arthurBits, ← ih, h]
-      | cons y g' =>
-        obtain ⟨_ | _, n'⟩ := y <;> simp [arthurBits, ← ih, h]
+  fun_induction mergeMerlin g <;> simp_all [arthurBits]
 
 /-- `mergeMerlin` preserves `AMGame.value true`. -/
 theorem value_mergeMerlin (g : List (AMMove × ℕ)) (f : List Bool → ℚ) :
     value true (mergeMerlin g) f = value true g f := by
-  induction g generalizing f with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [mergeMerlin, value_arthur]
-      congr 1
-      exact sum_congr rfl fun _ _ => ih _
-    · simp only [mergeMerlin]
-      have hsame : value true ((.merlin, n) :: mergeMerlin g) f =
-          value true ((.merlin, n) :: g) f :=
-        sup'_congr univ_nonempty rfl fun y _ => ih _
-      cases h : mergeMerlin g with
-      | nil => simpa [h] using hsame
-      | cons y g' =>
-        obtain ⟨_ | _, n'⟩ := y
-        · simpa [h] using hsame
-        · dsimp only
-          exact (value_merge_merlin [] g' n n' f).symm.trans (by simpa [h] using hsame)
+  fun_induction mergeMerlin g generalizing f with
+  | case3 n g n' g' hmerged ih => -- (.merlin, n) :: g, merged tail starts with Merlin
+    refine (value_merge_merlin [] g' n n' f).symm.trans ?_
+    simp only [List.nil_append, ← hmerged, value_merlin_true, ih]
+  | _ => simp only [value_arthur, value_merlin_true, *] -- [], Arthur move, unmerged Merlin
 
 /-- Appending a zero-bit Arthur move preserves `arthurBits`. -/
 theorem arthurBits_append_arthur_zero (g : List (AMMove × ℕ)) :
     arthurBits (g ++ [(.arthur, 0)]) = arthurBits g := by
-  induction g with
-  | nil => rfl
-  | cons x g ih => obtain ⟨_ | _, n⟩ := x <;> simp [arthurBits, ih]
+  fun_induction arthurBits g <;> simp [arthurBits, *]
 
 /-- Appending a zero-bit Arthur move preserves `AMGame.value true`. -/
 theorem value_append_arthur_zero (g : List (AMMove × ℕ)) (f : List Bool → ℚ) :

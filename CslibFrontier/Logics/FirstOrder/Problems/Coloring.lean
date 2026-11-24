@@ -62,6 +62,11 @@ def ThreeColorable : Set (Bundled.{w} Language.graph.Structure) :=
 def SimpleThreeColorable : Set (Bundled.{w} Language.graph.Structure) :=
   {M | M ⊨ Theory.simpleGraph ∧ Colorable 3 M}
 
+/-- In a palette of three colors, excluding two distinct colors determines the third. -/
+theorem eq_third_color {x y z w : Fin 3} (hx : x ≠ w) (hy : y ≠ w) (hxy : x ≠ y)
+    (hzx : z ≠ x) (hzy : z ≠ y) : z = w := by
+  lia
+
 variable {J M N : Type*} [Language.graph.Structure M] [Language.graph.Structure N] {n : ℕ}
 
 /-- Colorability is invariant under isomorphism. -/

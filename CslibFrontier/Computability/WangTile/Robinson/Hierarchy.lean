@@ -226,13 +226,80 @@ private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
   rw [congrFun (congrFun patch i) j]
   exact iterateRefine_eq_of_root_eq (by simp) depth i j hi hj
 
-private theorem zero_descends :
-    ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 := by
+/-- Every tile reaches tile `0` along the same path: its southwest child is a phase-`a` tile,
+whose northeast child is tile `4`, whose southwest child is tile `0`. -/
+private theorem zero_descends_cert :
+    ∀ p : Index, childBlock (childBlock (childBlock p 0 0) 1 1) 0 0 = 0 := by
   decide +kernel
+
+private theorem zero_descends :
+    ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 :=
+  fun p => ⟨2, 2, zero_descends_cert p⟩
+
+/-- The parent of `p` in a spanning tree of the child relation rooted at tile `0`; every tile
+reaches `0` within five steps (`fromZero_ok`). -/
+private def fromZeroParent (p : Index) : Index :=
+  if p.val == 0 then 0
+  else if h1 : p.val < 4 then ⟨p.val + 4, by omega⟩
+  else if h2 : p.val < 32 then
+    match p.val with
+    | 4 => 0 | 5 => 22 | 6 => 57 | 7 => 4
+    | 8 => 18 | 9 => 14 | 10 => 19 | 11 => 15
+    | 12 => 57 | 13 => 70 | 14 => 60 | 15 => 61
+    | 16 => 5 | 17 => 4 | 18 => 7 | 19 => 6
+    | 20 => 1 | 21 => 81 | 22 => 0 | 23 => 94
+    | 24 => 3 | 25 => 84 | 26 => 2 | 27 => 85
+    | 28 => 16 | 29 => 12 | 30 => 22 | _ => 13
+  else if h3 : p.val < 56 then ⟨p.val - 24, by omega⟩
+  else if h4 : p.val < 80 then
+    match p.val with
+    | 56 => 36 | 57 => 0 | 58 => 12 | 59 => 58
+    | 60 => 57 | 61 => 4 | 62 => 41 | 63 => 1
+    | 64 => 17 | 65 => 64 | 66 => 67 | 67 => 5
+    | 68 => 46 | 69 => 2 | 70 => 22 | 71 => 70
+    | 72 => 73 | 73 => 6 | 74 => 54 | 75 => 3
+    | 76 => 30 | 77 => 76 | 78 => 79 | _ => 7
+  else ⟨p.val - 24, by omega⟩
+
+/-- The column of `p` among the children of `fromZeroParent p`. -/
+private def fromZeroDx (p : Index) : Fin 2 :=
+  if 4 ≤ p.val && p.val < 32 then 1 else 0
+
+/-- The row of `p` among the children of `fromZeroParent p`. -/
+private def fromZeroDy (p : Index) : Fin 2 :=
+  if (4 ≤ p.val && p.val < 8) || (56 ≤ p.val && p.val < 80) then 1 else 0
+
+private theorem fromZero_ok :
+    ((List.finRange 104).all fun p =>
+      (childBlock (fromZeroParent p) (fromZeroDx p) (fromZeroDy p) == p) &&
+      (fromZeroParent^[5] p == 0)) = true := by
+  decide +kernel
+
+private theorem fromZero_child (p : Index) :
+    childBlock (fromZeroParent p) (fromZeroDx p) (fromZeroDy p) = p := by
+  have h := List.all_eq_true.mp fromZero_ok p (List.mem_finRange p)
+  exact beq_iff_eq.mp (Bool.and_eq_true_iff.mp h).1
+
+private theorem fromZero_root (p : Index) : fromZeroParent^[5] p = 0 := by
+  have h := List.all_eq_true.mp fromZero_ok p (List.mem_finRange p)
+  exact beq_iff_eq.mp (Bool.and_eq_true_iff.mp h).2
+
+private theorem descends_step (n : ℕ) (p : Index) :
+    ∃ i j : Fin (2 ^ n), iterateRefine n (fun _ _ => fromZeroParent^[n] p) i j = p := by
+  induction n generalizing p with
+  | zero => exact ⟨0, 0, rfl⟩
+  | succ n ih =>
+    obtain ⟨i, j, hij⟩ := ih (fromZeroParent p)
+    refine ⟨⟨2 * i.val + (fromZeroDx p).val, by rw [pow_succ]; omega⟩,
+      ⟨2 * j.val + (fromZeroDy p).val, by rw [pow_succ]; omega⟩, ?_⟩
+    simpa only [Function.iterate_succ_apply, iterateRefine, refineIndexGrid_child, hij] using
+      fromZero_child p
 
 private theorem descends_zero :
     ∀ p : Index, ∃ i j : Fin 32, iterateRefine 5 (fun _ _ => 0) i j = p := by
-  decide +kernel
+  intro p
+  obtain ⟨i, j, hij⟩ := descends_step 5 p
+  exact ⟨⟨i.val, i.isLt⟩, ⟨j.val, j.isLt⟩, by simpa only [fromZero_root p] using hij⟩
 
 /-- Every corrected tile type occurs at every level of every parent tower. -/
 theorem Tower.every_tile {base : IndexPlane} (t : Tower base) (level : ℕ) (target : Index) :
