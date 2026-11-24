@@ -25,8 +25,8 @@ import Mathlib.Tactic.Ring
 
 Vande Vate [VandeVate1989] and Rothblum [Rothblum1992] gave an explicit linear-inequality
 description of the convex hull of stable matchings of a one-to-one market `I : Instance n`,
-presented in [SchummerVohra2007], Section 10.4, Theorem 10.15 (p. 260), with a short geometric
-threshold rounding proof due to Teo and Sethuraman [TeoSethuraman1998].
+presented in [SchummerVohra2007], Section 10.4.2, pp. 260–261 (Theorem 10.15, p. 261), with a short
+geometric threshold rounding proof due to Teo and Sethuraman [TeoSethuraman1998].
 
 A real `n × n` matrix `x : Fin n → Fin n → ℝ` lies in `I.stablePolytope` (`I.IsFractionalStable x`)
 when it is doubly stochastic (`0 ≤ x p r`, row sums `1`, column sums `1`) and satisfies the
@@ -34,13 +34,16 @@ fractional blocking inequalities
 
 `1 ≤ x p r + (∑ r' with I.PropPrefers p r' r, x p r') + (∑ p' with I.RecvPrefers r p' p, x p' r)`
 
-for every proposer `p` and receiver `r`. We prove:
+for every proposer `p` and receiver `r` (under `∑ r', x p r' = 1` and `∑ p', x p' r = 1`, this
+*better-partner* inequality is algebraically equivalent to the complementary *worse-partner*
+inequality `(∑ r' with I.PropPrefers p r r', x p r') + (∑ p' with I.RecvPrefers r p p', x p' r) +
+x p r ≤ 1` printed on p. 261 of [SchummerVohra2007]). We prove:
 
 1. Integral `{0, 1}` incidence matrices in `I.stablePolytope` are precisely the stable matchings
    (`matchingMatrix_mem_stablePolytope_iff`).
 2. Every positive entry `0 < x p r` of `x ∈ I.stablePolytope` satisfies the fractional blocking
    inequality with equality (`eq_one_of_mem_stablePolytope_of_pos`).
-3. **Theorem 10.15** ([SchummerVohra2007], p. 260; [VandeVate1989]; [Rothblum1992];
+3. **Theorem 10.15** ([SchummerVohra2007], Section 10.4.2, p. 261; [VandeVate1989]; [Rothblum1992];
    [TeoSethuraman1998]): `I.stablePolytope` equals the convex hull of the incidence matrices of
    stable matchings (`stablePolytope_eq_convexHull`), and its extreme points are precisely the
    incidence matrices of stable matchings (`extremePoints_stablePolytope`).
@@ -65,10 +68,10 @@ for every proposer `p` and receiver `r`. We prove:
 
 ## References
 
-* [VandeVate1989] (primary PDF page locators unverified; cited via [SchummerVohra2007])
-* [Rothblum1992] (primary PDF page locators unverified; cited via [SchummerVohra2007])
-* [TeoSethuraman1998] (lemma numbering from secondary sources; primary PDF unverified)
-* [SchummerVohra2007], Section 10.4, Theorem 10.15, p. 260
+* [VandeVate1989] (primary PDF unverified; cited via [SchummerVohra2007])
+* [Rothblum1992] (primary PDF unverified)
+* [TeoSethuraman1998] (primary PDF unverified; cited via [SchummerVohra2007])
+* [SchummerVohra2007], Section 10.4.2, Theorem 10.15, pp. 260–261
 -/
 
 public section
@@ -107,8 +110,10 @@ variable {n : ℕ} (I : Instance n)
   ∑ p' with I.recvRank r p' < I.recvRank r p, x p' r
 
 /-- A matrix `x : Fin n → Fin n → ℝ` is a **fractional stable matching** ([VandeVate1989];
-[Rothblum1992]; [SchummerVohra2007], Section 10.4, p. 260) if it is doubly stochastic and satisfies
-the fractional non-blocking inequality at every pair `(p, r)`. -/
+[Rothblum1992]; [SchummerVohra2007], Section 10.4.2, p. 261) if it is doubly stochastic and
+satisfies the fractional non-blocking inequality at every pair `(p, r)` (equivalent under row and
+column sums `1` to the complementary worse-partner inequality `≤ 1` on p. 261 of
+[SchummerVohra2007]). -/
 @[expose] def IsFractionalStable (x : Fin n → Fin n → ℝ) : Prop :=
   (∀ p r, 0 ≤ x p r) ∧
   (∀ p, ∑ r, x p r = 1) ∧
@@ -116,7 +121,7 @@ the fractional non-blocking inequality at every pair `(p, r)`. -/
   (∀ p r, 1 ≤ x p r + I.propBetterMass x p r + I.recvBetterMass x r p)
 
 /-- The **fractional stable matching polytope** of `I` ([VandeVate1989]; [Rothblum1992];
-[SchummerVohra2007], Theorem 10.15, p. 260). -/
+[SchummerVohra2007], Section 10.4.2, Theorem 10.15, p. 261). -/
 @[expose] def stablePolytope : Set (Fin n → Fin n → ℝ) :=
   {x | I.IsFractionalStable x}
 
@@ -307,7 +312,7 @@ private theorem sum_mul_strictLower_eq {α : Type*} [Fintype α]
         ring
   linarith
 
-/-- Complementary-slackness identity ([Rothblum1992]; [TeoSethuraman1998], Lemma 1): for any
+/-- Complementary-slackness identity ([Rothblum1992]; [TeoSethuraman1998]): for any
 `x ∈ I.stablePolytope` and any pair `(p, r)` with `0 < x p r`, the fractional blocking inequality at
 `(p, r)` holds with equality. -/
 theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : x ∈ I.stablePolytope)
@@ -544,7 +549,7 @@ private theorem sum_fin_sub_telescope :
       rw [hsucc, hcast]
     linarith
 
-/-- **Theorem 10.15** ([SchummerVohra2007], Section 10.4, p. 260; [VandeVate1989]; [Rothblum1992];
+/-- **Theorem 10.15** ([SchummerVohra2007], Section 10.4.2, p. 261; [VandeVate1989]; [Rothblum1992];
 [TeoSethuraman1998]): the fractional stable matching polytope `I.stablePolytope` equals the convex
 hull of the `{0, 1}` incidence matrices of stable matchings of `I`. -/
 theorem stablePolytope_eq_convexHull :
@@ -772,7 +777,7 @@ theorem stablePolytope_eq_convexHull :
     rintro x ⟨μ, hstab, rfl⟩
     exact (I.matchingMatrix_mem_stablePolytope_iff μ).2 hstab
 
-/-- **Theorem 10.15 (Extreme-point integrality)** ([SchummerVohra2007], Section 10.4, p. 260;
+/-- **Theorem 10.15 (Extreme-point integrality)** ([SchummerVohra2007], Section 10.4.2, p. 261;
 [VandeVate1989]; [Rothblum1992]; [TeoSethuraman1998]): the extreme points of `I.stablePolytope` are
 precisely the `{0, 1}` incidence matrices of stable matchings of `I`. -/
 theorem extremePoints_stablePolytope :

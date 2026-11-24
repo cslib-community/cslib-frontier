@@ -21,12 +21,13 @@ import Mathlib.Tactic.NormNum
 # Stable matching extensions and TTC pre-trade manipulation: checked instances
 
 Public-surface client tests (`module`, no `import all`, no `native_decide`) exercising the NRTV
-Chapter 10 (§10.3–10.4) extensions:
+Chapter 10 (§10.4 and Exercise 10.7) extensions:
 
-1. **Adachi's pre-matching operator (`Adachi.lean`, NRTV Theorem 10.14):** on Roth's `3 × 3`
-   market, `adachiMap` fixes the two embedded stable matchings, moves the unstable identity
-   matching, and has distinct greatest and least fixed points `adachiMap.gfp ≠ adachiMap.lfp`.
-2. **Fractional stable matching polytope (`Polytope.lean`, NRTV Theorem 10.15):**
+1. **Adachi's pre-matching operator (`Adachi.lean`, NRTV §10.4.1, Theorem 10.14, pp. 259–260):** on
+   Roth's `3 × 3` market, `adachiMap` fixes the two embedded stable matchings, moves the unstable
+   identity matching, and has distinct greatest and least fixed points `adachiMap.gfp ≠
+   adachiMap.lfp`.
+2. **Fractional stable matching polytope (`Polytope.lean`, NRTV §10.4.2, Theorem 10.15, p. 261):**
    * On Roth's `3 × 3` market, the non-integral midpoint
      `1/2 • matchingMatrix μa + 1/2 • matchingMatrix μb` belongs to `stablePolytope`, satisfies
      tight positive-support slackness, and is **not** an extreme point, whereas both
@@ -34,20 +35,20 @@ Chapter 10 (§10.3–10.4) extensions:
    * On a `2 × 2` market where proposer `0` and receiver `0` rank each other first, the uniform
      doubly-stochastic matrix `(fun _ _ => 1/2)` violates Vande Vate's inequality at `(0, 0)` and
      lies strictly outside `stablePolytope`.
-3. **Many-to-one Hospitals–Residents & Roth's Rural Hospitals Theorem (`ManyToOne.lean`,
-   NRTV §10.4.3):** a `4`-resident, `3`-hospital market (`quota = ![2, 1, 2]`) with two distinct
-   stable matchings `M₁ ≠ M₂` in which:
+3. **Many-to-one Hospitals–Residents & Roth's Rural Hospitals Theorem (`ManyToOne.lean`, NRTV
+   §10.4.3 quota model, p. 261; [Roth1986]):** a `4`-resident, `3`-hospital market
+   (`quota = ![2, 1, 2]`) with two distinct stable matchings `M₁ ≠ M₂` in which:
    * Full hospitals `0` (`card = 2 = quota 0`) and `1` (`card = 1 = quota 1`) change their assigned
      resident sets (`M₁.residents 0 ≠ M₂.residents 0`), demonstrating tightness of the
      `card < quota` hypothesis;
    * Under-subscribed rural hospital `2` (`card = 1 < 2 = quota 2`) receives the exact same
      resident set `{3}` in every stable matching (`residents_eq_of_card_lt_quota`).
-4. **Stable Roommates nonexistence (`NRTV §10.4.3`):** Gale–Shapley's `4`-agent cyclic roommates
-   profile admits no fixed-point-free involution without a blocking pair.
-5. **TTC pre-trade endowment manipulation (`EndowmentManipulation.lean`, NRTV Exercise 10.7):**
-   on `weakPreTradeInstance` (`n = 3`), swapping endowments inside `S = {0, 2}` changes TTC from
-   `![1, 0, 2]` to `![1, 2, 0]`, giving weak coalitional improvement while confirming that strict
-   coalitional improvement for all members of `S` is impossible.
+4. **Stable Roommates nonexistence (NRTV §10.4.3, pp. 261–262):** Gale–Shapley's `4`-agent cyclic
+   roommates profile admits no fixed-point-free involution without a blocking pair.
+5. **TTC pre-trade endowment manipulation (`EndowmentManipulation.lean`, NRTV Exercise 10.7,
+   p. 265):** on `weakPreTradeInstance` (`n = 3`), swapping endowments inside `S = {0, 2}` changes
+   TTC from `![1, 0, 2]` to `![1, 2, 0]`, giving weak coalitional improvement while confirming that
+   strict coalitional improvement for all members of `S` is impossible.
 -/
 
 public section
@@ -219,10 +220,12 @@ example : ruralMarket.deferredAcceptance.residents 2 = {3} ∧
 
 /-! ### 4. Stable Roommates nonexistence witness (NRTV §10.4.3) -/
 
-/-- Gale and Shapley's `4`-agent roommates preference profile ([GaleShapley1962], Example 3;
-[SchummerVohra2007], Section 10.4.3, p. 261): agents `0, 1, 2` rank each other cyclically (`0`
-prefers `1 > 2`, `1` prefers `2 > 0`, `2` prefers `0 > 1`) and everyone ranks agent `3` last. No
-fixed-point-free involution `μ : Equiv.Perm (Fin 4)` is free of blocking pairs. -/
+/-- Gale and Shapley's `4`-agent roommates preference profile ([GaleShapley1962];
+[SchummerVohra2007], Section 10.4.3, pp. 261–262, prose on p. 261 and table on p. 262): agents
+`0, 1, 2` rank each other cyclically (`0` prefers `1 > 2`, `1` prefers `2 > 0`, `2` prefers `0 > 1`;
+the printed table on p. 262 uses the opposite cyclic orientation and prints a typo `2, 1, 4` in
+column `≻_4`) and everyone ranks agent `3` last. No fixed-point-free involution
+`μ : Equiv.Perm (Fin 4)` is free of blocking pairs. -/
 def roommatesRank : Fin 4 → Fin 4 → Nat
   | 0 => ![3, 0, 1, 2]
   | 1 => ![1, 3, 0, 2]

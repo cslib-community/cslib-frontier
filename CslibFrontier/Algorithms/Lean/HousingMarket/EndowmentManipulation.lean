@@ -50,8 +50,8 @@ third parties.
 
 ## References
 
-* [ShapleyScarf1974]
-* [SchummerVohra2007]
+* [ShapleyScarf1974] (primary PDF unverified)
+* [SchummerVohra2007], Exercise 10.7, p. 265
 -/
 
 public section
@@ -221,8 +221,10 @@ possible:
 
 Under honest TTC (`weakPreTradeInstance.ttc`), agents `0` and `1` trade with each other (`0 ↦ 1`,
 `1 ↦ 0`) and agent `2` keeps house `2`. If coalition `S = {0, 2}` swaps endowments (`σ = swap 0 2`)
-before TTC, agent `1` points to house `0` (now held by agent `2`), forming a `3`-cycle that gives
-`0 ↦ 1` (unchanged top choice) and `2 ↦ 0` (strictly better than `2`). -/
+before TTC, in Round 1 house-slot `0` (now held by agent `2`) points to itself (a `1`-cycle `{0}`),
+so agent `2` exits immediately with house `0` (strictly better than `2`), and in Round 2 the
+remaining slots `{1, 2}` form a `2`-cycle giving `1 ↦ 2` and `0 ↦ 1` (agent `0` keeps its top
+choice `1`). -/
 @[expose] def weakPreTradeInstance : Instance 3 where
   pref := ![
     StableMatching.permOfInjective ![1, 0, 2],

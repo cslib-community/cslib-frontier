@@ -7,23 +7,24 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.RuralHospitals
-public import Mathlib.Logic.Equiv.Fin.Basic
-import Mathlib.Data.Fintype.Card
+public import CslibFrontier.Init
+public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.RuralHospitals
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Many-to-one Hospitals–Residents markets and Roth's Rural Hospitals Theorem
 
 In the **Hospitals–Residents** (or **college admissions**) model ([GaleShapley1962]; [Roth1986];
-[RothSotomayor1990], Chapter 5; [SchummerVohra2007], Section 10.4.3, pp. 260–261), `m` residents
-indexed by `Fin m` apply to `n` hospitals indexed by `Fin n`, where hospital `h` can admit up to
-`I.quota h` residents. Preferences are strict and possibly incomplete lists (`I.resPref r` and
-`I.hospPref h`), and hospital preferences over sets of residents are responsive to their strict
-ranking of individual residents via individual acceptability, quota bounds, and pairwise blocking:
-a resident–hospital pair `(r, h)` blocks a matching `M` when `r` strictly prefers `h` to its
-assigned outcome `M.hospital r`, `h` finds `r` acceptable, and either `h` has an unfilled seat
-(`(M.residents h).card < I.quota h`) or `h` strictly prefers `r` to some currently assigned
-resident `r' ∈ M.residents h`.
+[RothSotomayor1990]; see also [SchummerVohra2007], Section 10.4.3, p. 261 for the quota-extension
+background), `m` residents indexed by `Fin m` apply to `n` hospitals indexed by `Fin n`, where
+hospital `h` can admit up to `I.quota h` residents. Preferences are strict and possibly incomplete
+lists (`I.resPref r` and `I.hospPref h`), and hospital preferences over sets of residents are
+responsive to their strict ranking of individual residents via individual acceptability, quota
+bounds, and pairwise blocking: a resident–hospital pair `(r, h)` blocks a matching `M` when `r`
+strictly prefers `h` to its assigned outcome `M.hospital r`, `h` finds `r` acceptable, and either
+`h` has an unfilled seat (`(M.residents h).card < I.quota h`) or `h` strictly prefers `r` to some
+currently assigned resident `r' ∈ M.residents h`.
 
 Via a computable seat-cloning reduction to `IncompleteInstance` (kept internal to the proofs and
 algorithm implementation so all public statements speak purely in terms of `ManyToOneInstance` and
@@ -51,24 +52,22 @@ its stability and resident-optimality, and establish **Roth's (1986) Rural Hospi
 ## Main results
 
 * `ManyToOneInstance.isStable_deferredAcceptance`, `ManyToOneInstance.exists_isStable`: existence of
-  a stable many-to-one matching ([GaleShapley1962]; [RothSotomayor1990], Theorem 5.7).
+  a stable many-to-one matching ([GaleShapley1962]; [RothSotomayor1990]).
 * `ManyToOneInstance.resRank_deferredAcceptance_le_of_isStable`: resident-optimality of resident-
-  proposing deferred acceptance ([RothSotomayor1990], Theorem 5.9).
+  proposing deferred acceptance ([RothSotomayor1990]).
 * `ManyToOneInstance.matchedResidents_eq_of_isStable`,
   `ManyToOneInstance.card_residents_eq_of_isStable`: equal matched residents and hospital headcounts
-  across all stable matchings ([Roth1986], Theorem 1; [RothSotomayor1990], Theorem 5.12;
-  [SchummerVohra2007], Section 10.4.3, pp. 260–261; exact page numbers within [RothSotomayor1990]
-  unverified).
-* `ManyToOneInstance.residents_eq_of_card_lt_quota`: **Rural Hospitals Theorem** ([Roth1986],
-  Theorem 2; [RothSotomayor1990], Theorem 5.13; [SchummerVohra2007], Section 10.4.3, p. 261): any
-  hospital with unfilled capacity receives the exact same set of residents in every stable matching.
+  across all stable matchings ([Roth1986]; [RothSotomayor1990]).
+* `ManyToOneInstance.residents_eq_of_card_lt_quota`: **Rural Hospitals Theorem** ([Roth1986];
+  [RothSotomayor1990]): any hospital with unfilled capacity receives the exact same set of residents
+  in every stable matching.
 
 ## References
 
-* [GaleShapley1962]
-* [Roth1986] (theorem numbering from secondary sources; primary PDF unverified)
-* [RothSotomayor1990] (Chapter 5 theorem numbering from secondary sources; pages unverified)
-* [SchummerVohra2007], Section 10.4.3, pp. 260–261
+* [GaleShapley1962] (primary PDF unverified)
+* [Roth1986] (primary PDF unverified)
+* [RothSotomayor1990] (primary PDF unverified)
+* [SchummerVohra2007], Section 10.4.3, p. 261 (college-admissions quota model background)
 -/
 
 public section
@@ -169,9 +168,9 @@ theorem eq_of_resRank_eq {r : Fin m} {h : Fin n} (hh : h ∈ I.resPref r) {o : O
   ∀ r h, M.hospital r = some h → h ∈ I.resPref r ∧ r ∈ I.hospPref h
 
 /-- Resident `r` and hospital `h` form a **blocking pair** for `M` ([Roth1986];
-[RothSotomayor1990], Definition 5.3; [SchummerVohra2007], Section 10.4.3) when `r` strictly prefers
-`h` to `M.hospital r`, `h` finds `r` acceptable, and either `h` has an unfilled position or `h`
-strictly prefers `r` to some resident currently in `M.residents h`. -/
+[RothSotomayor1990]) when `r` strictly prefers `h` to `M.hospital r`, `h` finds `r` acceptable, and
+either `h` has an unfilled position or `h` strictly prefers `r` to some resident currently in
+`M.residents h`. -/
 @[expose] def IsBlockingPair (M : ManyToOneMatching m n) (r : Fin m) (h : Fin n) : Prop :=
   I.resRank r (some h) < I.resRank r (M.hospital r) ∧
   r ∈ I.hospPref h ∧
@@ -202,7 +201,7 @@ instance (M : ManyToOneMatching m n) : Decidable (I.IsStable M) :=
 /-! ### Seat-cloning reduction to `IncompleteInstance` -/
 
 /-- Maximum hospital quota, computed over `List.finRange n` so kernel reduction is fast. -/
-@[expose] def maxQuota : ℕ :=
+private def maxQuota : ℕ :=
   ((List.finRange n).map I.quota).foldr max 0
 
 private theorem le_foldr_max : ∀ {l : List ℕ} {a : ℕ}, a ∈ l → a ≤ l.foldr max 0
@@ -213,11 +212,11 @@ private theorem le_foldr_max : ∀ {l : List ℕ} {a : ℕ}, a ∈ l → a ≤ l
     · exact Nat.le_max_left _ _
     · exact (le_foldr_max hmem).trans (Nat.le_max_right _ _)
 
-theorem quota_le_maxQuota (h : Fin n) : I.quota h ≤ I.maxQuota :=
+private theorem quota_le_maxQuota (h : Fin n) : I.quota h ≤ I.maxQuota :=
   le_foldr_max (List.mem_map_of_mem (List.mem_finRange h))
 
 /-- Active cloned seat `j : Fin (I.quota h)` of hospital `h` in `Fin (n * I.maxQuota)`. -/
-@[expose] def seat (h : Fin n) (j : Fin (I.quota h)) : Fin (n * I.maxQuota) :=
+private def seat (h : Fin n) (j : Fin (I.quota h)) : Fin (n * I.maxQuota) :=
   finProdFinEquiv (h, ⟨j.val, Nat.lt_of_lt_of_le j.isLt (I.quota_le_maxQuota h)⟩)
 
 private theorem seat_symm (h : Fin n) (j : Fin (I.quota h)) :
@@ -249,7 +248,7 @@ private theorem eq_seat_of_lt_quota (s : Fin (n * I.maxQuota)) {h : Fin n}
   exact Prod.ext hfst (Fin.ext rfl)
 
 /-- Ordered list of active seats of hospital `h`. -/
-@[expose] def seats (h : Fin n) : List (Fin (n * I.maxQuota)) :=
+private def seats (h : Fin n) : List (Fin (n * I.maxQuota)) :=
   (List.finRange (I.quota h)).map (I.seat h)
 
 private theorem length_seats (h : Fin n) : (I.seats h).length = I.quota h := by
@@ -275,7 +274,7 @@ private theorem idxOf_seats (h : Fin n) (j : Fin (I.quota h)) :
   exact congrArg Fin.val (I.seat_inj_same (hget_map.symm.trans hget))
 
 /-- Cloned one-to-one `IncompleteInstance` associated to `I`. -/
-@[expose] def cloneInstance : IncompleteInstance m (n * I.maxQuota) where
+private def cloneInstance : IncompleteInstance m (n * I.maxQuota) where
   propPref r := (I.resPref r).flatMap I.seats
   recvPref s :=
     let p := finProdFinEquiv.symm s
@@ -418,7 +417,7 @@ private theorem clone_propRank_seat_lt_of_resRank_lt {r : Fin m} {h₁ h₂ : Fi
     omega
 
 /-- Project a cloned one-to-one partial matching down to a many-to-one matching. -/
-@[expose] def projectClone (μ : PartialMatching m (n * I.maxQuota)) : ManyToOneMatching m n where
+private def projectClone (μ : PartialMatching m (n * I.maxQuota)) : ManyToOneMatching m n where
   hospital r := (μ r).map (fun s => (finProdFinEquiv.symm s).fst)
 
 private theorem matchedResidents_projectClone (μ : PartialMatching m (n * I.maxQuota)) :
@@ -789,12 +788,12 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
 /-! ### Resident-proposing deferred acceptance and Roth's Rural Hospitals Theorem -/
 
 /-- Computable resident-proposing **deferred acceptance** for a many-to-one Hospitals–Residents
-market ([GaleShapley1962]; [RothSotomayor1990], Section 5.3). -/
-@[expose] def deferredAcceptance : ManyToOneMatching m n :=
+market ([GaleShapley1962]; [RothSotomayor1990]). -/
+def deferredAcceptance : ManyToOneMatching m n :=
   I.projectClone I.cloneInstance.deferredAcceptance
 
 /-- Resident-proposing deferred acceptance produces a stable many-to-one matching
-([GaleShapley1962]; [RothSotomayor1990], Theorem 5.7). -/
+([GaleShapley1962]; [RothSotomayor1990]). -/
 theorem isStable_deferredAcceptance : I.IsStable I.deferredAcceptance :=
   I.isStable_projectClone I.cloneInstance.isStable_deferredAcceptance
 
@@ -802,8 +801,8 @@ theorem isStable_deferredAcceptance : I.IsStable I.deferredAcceptance :=
 theorem exists_isStable : ∃ M : ManyToOneMatching m n, I.IsStable M :=
   ⟨I.deferredAcceptance, I.isStable_deferredAcceptance⟩
 
-/-- Resident-optimality ([RothSotomayor1990], Theorem 5.9): every resident weakly prefers its
-outcome under `I.deferredAcceptance` to its outcome in any stable matching `M`. -/
+/-- Resident-optimality ([RothSotomayor1990]): every resident weakly prefers its outcome under
+`I.deferredAcceptance` to its outcome in any stable matching `M`. -/
 theorem resRank_deferredAcceptance_le_of_isStable {M : ManyToOneMatching m n} (hM : I.IsStable M)
     (r : Fin m) : I.resRank r (I.deferredAcceptance.hospital r) ≤ I.resRank r (M.hospital r) := by
   obtain ⟨hM_feas, hM_ir, hM_nb⟩ := hM
@@ -844,9 +843,8 @@ theorem resRank_deferredAcceptance_le_of_isStable {M : ManyToOneMatching m n} (h
 theorem isResidentOptimal_deferredAcceptance : I.IsResidentOptimal I.deferredAcceptance :=
   ⟨I.isStable_deferredAcceptance, fun _ hM r => I.resRank_deferredAcceptance_le_of_isStable hM r⟩
 
-/-- **Rural Hospitals Theorem, Part 1** ([Roth1986], Theorem 1; [RothSotomayor1990], Theorem 5.12;
-[SchummerVohra2007], Section 10.4.3, p. 260): the set of matched residents is the same across all
-stable matchings. -/
+/-- **Rural Hospitals Theorem, Part 1** ([Roth1986]; [RothSotomayor1990]): the set of matched
+residents is the same across all stable matchings. -/
 theorem matchedResidents_eq_of_isStable {M₁ M₂ : ManyToOneMatching m n} (hM₁ : I.IsStable M₁)
     (hM₂ : I.IsStable M₂) : M₁.matchedResidents = M₂.matchedResidents := by
   rw [← I.projectClone_liftClone hM₁, ← I.projectClone_liftClone hM₂,
@@ -865,9 +863,8 @@ theorem unmatchedResidents_eq_of_isStable {M₁ M₂ : ManyToOneMatching m n} (h
     not_iff_not] at hr
   exact hr
 
-/-- **Rural Hospitals Theorem, Part 2** ([Roth1986], Theorem 1; [RothSotomayor1990], Theorem 5.12;
-[SchummerVohra2007], Section 10.4.3, pp. 260–261): every hospital fills the exact same number of
-positions across all stable matchings. -/
+/-- **Rural Hospitals Theorem, Part 2** ([Roth1986]; [RothSotomayor1990]): every hospital fills the
+exact same number of positions across all stable matchings. -/
 theorem card_residents_eq_of_isStable {M₁ M₂ : ManyToOneMatching m n} (hM₁ : I.IsStable M₁)
     (hM₂ : I.IsStable M₂) (h : Fin n) : (M₁.residents h).card = (M₂.residents h).card := by
   conv_lhs => rw [← I.projectClone_liftClone hM₁]
@@ -893,9 +890,9 @@ private theorem deferredAcceptance_residents_eq_of_card_lt_quota {M : ManyToOneM
     lt_of_le_of_ne hle fun heq => hne (I.eq_of_resRank_eq hda_ir.1 heq)
   exact hM_nb r h ⟨hstrict, hda_ir.2, Or.inl hlt⟩
 
-/-- **Rural Hospitals Theorem, Part 3** ([Roth1986], Theorem 2; [RothSotomayor1990], Theorem 5.13;
-[SchummerVohra2007], Section 10.4.3, p. 261): any hospital `h` that does not fill its quota in some
-stable matching is assigned the **exact same set of residents** in every stable matching. -/
+/-- **Rural Hospitals Theorem, Part 3** ([Roth1986]; [RothSotomayor1990]): any hospital `h` that
+does not fill its quota in some stable matching is assigned the **exact same set of residents** in
+every stable matching. -/
 theorem residents_eq_of_card_lt_quota {M₁ M₂ : ManyToOneMatching m n} (hM₁ : I.IsStable M₁)
     (hM₂ : I.IsStable M₂) {h : Fin n} (hlt : (M₁.residents h).card < I.quota h) :
     M₁.residents h = M₂.residents h := by

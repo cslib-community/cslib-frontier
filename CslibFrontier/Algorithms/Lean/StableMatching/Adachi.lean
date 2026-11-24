@@ -20,14 +20,15 @@ import Mathlib.Data.Finset.Lattice.Fold
 
 Adachi [Adachi2000] observed that stable matchings can be characterized as the fixed points of a
 monotone operator on the complete lattice of **pre-matchings** (called *semi-matchings* in
-[SchummerVohra2007], Section 10.4, Theorem 10.14, p. 260). A pre-matching `ν : I.PreMatching`
-assigns each proposer `p` a tentative outcome `ν.propPartner p : Option (Fin n)` and each receiver
-`r` an independent tentative outcome `ν.recvPartner r : Option (Fin n)` (`none` representing
-remaining single, ranked strictly below every acceptable partner).
+[SchummerVohra2007], Section 10.4.1, pp. 259–260). A pre-matching `ν : I.PreMatching` assigns each
+proposer `p` a tentative outcome `ν.propPartner p : Option (Fin n)` and each receiver `r` an
+independent tentative outcome `ν.recvPartner r : Option (Fin n)` (`none` representing remaining
+single, ranked strictly below every acceptable partner).
 
 Ordering `I.PreMatching` by opposing preferences (`ν ≤ ν'` when every proposer weakly prefers `ν'`
-to `ν` and every receiver weakly prefers `ν` to `ν'`) makes `I.PreMatching` a finite complete
-lattice. Adachi's operator `I.adachiMap : I.PreMatching →o I.PreMatching` maps `ν` to the
+to `ν` and every receiver weakly prefers `ν` to `ν'`; note the printed typo `μ(m) = μ(m)` for
+`μ(m) = ν(m)` in item `(i)` on p. 259 of [SchummerVohra2007]) makes `I.PreMatching` a finite
+complete lattice. Adachi's operator `I.adachiMap : I.PreMatching →o I.PreMatching` maps `ν` to the
 pre-matching in which each proposer chooses its favourite receiver willing to accept it over
 `ν.recvPartner`, and symmetrically for receivers against `ν.propPartner`.
 
@@ -50,15 +51,15 @@ and receiver-proposing deferred acceptance (`adachiMap_gfp`, `adachiMap_lfp`).
 ## Main results
 
 * `Instance.isFixedPt_ofMatching_iff`, `Instance.isFixedPt_adachiMap_iff`: **Adachi's
-  characterization** ([Adachi2000], Theorem 1; [SchummerVohra2007], Section 10.4, Theorem 10.14,
-  p. 260): the fixed points of `I.adachiMap` are precisely the stable matchings of `I`.
+  characterization** ([Adachi2000]; [SchummerVohra2007], Section 10.4.1, Theorem 10.14, p. 260):
+  the fixed points of `I.adachiMap` are precisely the stable matchings of `I`.
 * `Instance.adachiMap_gfp`, `Instance.adachiMap_lfp`: Tarski's greatest and least fixed points of
   `I.adachiMap` equal `I.deferredAcceptance` and `I.receiverDeferredAcceptance`.
 
 ## References
 
-* [Adachi2000] (theorem/remark numbering from secondary sources; primary PDF unverified)
-* [SchummerVohra2007], Section 10.4, Theorem 10.14, p. 260
+* [Adachi2000] (primary PDF unverified; cited via [SchummerVohra2007])
+* [SchummerVohra2007], Section 10.4.1, Theorem 10.14, pp. 259–260
 -/
 
 public section
@@ -131,8 +132,8 @@ rank `(I.recvRank r p).castSucc < n`, and remaining single (`none`) has worst ra
 @[simp] theorem recvOptRank_none (r : Fin n) :
     I.recvOptRank r none = Fin.last n := rfl
 
-/-- A **pre-matching** (or *semi-matching*, [Adachi2000]; [SchummerVohra2007], Section 10.4,
-p. 260) assigns each proposer and each receiver an independent tentative partner in
+/-- A **pre-matching** (or *semi-matching*, [Adachi2000]; [SchummerVohra2007], Section 10.4.1,
+p. 259) assigns each proposer and each receiver an independent tentative partner in
 `Option (Fin n)`. -/
 @[ext]
 structure PreMatching (I : Instance n) where
@@ -271,8 +272,8 @@ private theorem recvOptRank_bestWillingProposer_le {ν : I.PreMatching} {r p : F
     Fin.castSucc_le_castSucc_iff]
   exact Finset.min'_le _ _ (Finset.mem_image_of_mem _ hp)
 
-/-- **Adachi's monotone pre-matching operator** ([Adachi2000], Section 2; [SchummerVohra2007],
-Section 10.4, Theorem 10.14, p. 260). -/
+/-- **Adachi's monotone pre-matching operator** ([Adachi2000]; [SchummerVohra2007], Section 10.4.1,
+p. 260). -/
 @[expose] def adachiMap : I.PreMatching →o I.PreMatching where
   toFun ν :=
     { propPartner := I.bestWillingReceiver ν
@@ -311,7 +312,7 @@ Section 10.4, Theorem 10.14, p. 260). -/
 /-! ### Fixed-point characterization of stable matchings (Theorem 10.14) -/
 
 /-- For any one-to-one matching `μ`, its pre-matching `PreMatching.ofMatching I μ` is a fixed point
-of `I.adachiMap` if and only if `μ` is stable ([Adachi2000], Theorem 1; [SchummerVohra2007],
+of `I.adachiMap` if and only if `μ` is stable ([Adachi2000]; [SchummerVohra2007], Section 10.4.1,
 Theorem 10.14, p. 260). -/
 theorem isFixedPt_ofMatching_iff (μ : Matching n) :
     Function.IsFixedPt I.adachiMap (PreMatching.ofMatching I μ) ↔ I.IsStable μ := by
@@ -415,9 +416,9 @@ private theorem fixedPt_mutual {ν : I.PreMatching} (hfix : Function.IsFixedPt I
     rw [hprop] at hle
     exact (I.propOptRank p).injective (le_antisymm hle hp_will)
 
-/-- **Theorem 10.14** ([SchummerVohra2007], Section 10.4, p. 260; [Adachi2000], Theorem 1): a
-pre-matching `ν` is a fixed point of `I.adachiMap` if and only if `ν = PreMatching.ofMatching I μ`
-for a stable matching `μ`. -/
+/-- **Theorem 10.14** ([SchummerVohra2007], Section 10.4.1, p. 260; [Adachi2000]): a pre-matching
+`ν` is a fixed point of `I.adachiMap` if and only if `ν = PreMatching.ofMatching I μ` for a stable
+matching `μ`. -/
 theorem isFixedPt_adachiMap_iff (ν : I.PreMatching) :
     Function.IsFixedPt I.adachiMap ν ↔
       ∃ μ : Matching n, I.IsStable μ ∧ ν = PreMatching.ofMatching I μ := by
@@ -475,7 +476,7 @@ theorem isFixedPt_adachiMap_iff (ν : I.PreMatching) :
     exact (I.isFixedPt_ofMatching_iff μ).2 hstab
 
 /-- Order isomorphism between Tarski's fixed-point set `Function.fixedPoints I.adachiMap` and the
-lattice `I.Stable` of stable matchings ([Adachi2000], Theorem 2; [SchummerVohra2007],
+lattice `I.Stable` of stable matchings ([Adachi2000]; [SchummerVohra2007], Section 10.4.1,
 Theorem 10.14, p. 260). -/
 noncomputable def fixedPointsOrderIsoStable :
     Function.fixedPoints I.adachiMap ≃o I.Stable where
@@ -508,7 +509,7 @@ noncomputable def fixedPointsOrderIsoStable :
     exact ⟨fun h => ⟨h, I.recvRank_le_of_propRank_le hstab₁ h⟩, fun h => h.1⟩
 
 /-- Tarski's greatest fixed point `I.adachiMap.gfp` is the proposer-optimal deferred-acceptance
-matching ([Adachi2000], Remark 2; [SchummerVohra2007], Theorem 10.14, p. 260). -/
+matching ([Adachi2000]; [SchummerVohra2007], Section 10.4.1, Theorem 10.14, p. 260). -/
 theorem adachiMap_gfp :
     I.adachiMap.gfp = PreMatching.ofMatching I I.deferredAcceptance := by
   have hgfp := I.adachiMap.isGreatest_gfp
@@ -528,7 +529,7 @@ theorem adachiMap_gfp :
   exact h_eq.trans (le_antisymm hle₂ hle₁)
 
 /-- Tarski's least fixed point `I.adachiMap.lfp` is the receiver-optimal deferred-acceptance
-matching ([Adachi2000], Remark 2; [SchummerVohra2007], Theorem 10.14, p. 260). -/
+matching ([Adachi2000]; [SchummerVohra2007], Section 10.4.1, Theorem 10.14, p. 260). -/
 theorem adachiMap_lfp :
     I.adachiMap.lfp = PreMatching.ofMatching I I.receiverDeferredAcceptance := by
   have hlfp := I.adachiMap.isLeast_lfp
