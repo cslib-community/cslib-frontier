@@ -58,10 +58,12 @@ combination of mixed Nash product distributions is a correlated equilibrium
 * `Cslib.GameTheory.CostGame.exists_isCorrelatedEquilibrium`: every finite game has a correlated
   equilibrium.
 * `Cslib.GameTheory.CostGame.IsCorrelatedEquilibrium.convexCombPair`,
+  `Cslib.GameTheory.CostGame.IsPureNash.isCorrelatedEquilibrium_duple`,
   `Cslib.GameTheory.CostGame.isConvexSet_isCorrelatedEquilibrium`,
   `Cslib.GameTheory.CostGame.isCorrelatedEquilibrium_iConvexComb_mixedNash`,
   `Cslib.GameTheory.CostGame.convex_correlatedEquilibriumPolytope`: convexity of correlated
-  equilibria and of the correlated-equilibrium polytope.
+  equilibria (including two-point public-signal mixtures of pure Nash equilibria) and of the
+  correlated-equilibrium polytope.
 
 ## References
 
@@ -295,6 +297,19 @@ theorem IsCorrelatedEquilibrium.convexCombPair {G : CostGame ι S}
   intro i δ
   rw [sum_convexCombPair_weights, sum_convexCombPair_weights]
   linarith [mul_le_mul_of_nonneg_left (h₁ i δ) ha, mul_le_mul_of_nonneg_left (h₂ i δ) hb]
+
+/-- A two-point convex combination (public-signal mixture) of two pure Nash equilibria is a
+correlated equilibrium. -/
+theorem IsPureNash.isCorrelatedEquilibrium_duple {G : CostGame ι S} {s₁ s₂ : ∀ i, S i}
+    (h₁ : G.IsPureNash s₁) (h₂ : G.IsPureNash s₂)
+    {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1) :
+    G.IsCorrelatedEquilibrium (Convexity.StdSimplex.duple s₁ s₂ ha hb hab) := by
+  have heq : Convexity.StdSimplex.duple s₁ s₂ ha hb hab =
+      Convexity.convexCombPair a b ha hb hab (.single s₁) (.single s₂) := by
+    ext s
+    simp [Convexity.StdSimplex.weights_duple, Convexity.StdSimplex.weights_convexCombPair]
+  rw [heq]
+  exact h₁.isCorrelatedEquilibrium.convexCombPair h₂.isCorrelatedEquilibrium ha hb hab
 
 /-- **The set of correlated equilibria is convex** ([TardosVazirani2007], Section 1.3.6, pp. 14–15;
 [Papadimitriou2007], Section 2.7, pp. 45–47): `{σ | G.IsCorrelatedEquilibrium σ}` is a convex set
