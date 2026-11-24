@@ -44,9 +44,8 @@ The compiled circuit:
 * feeds directly into Work Package 1's `exists_generatedGateWeight_isMinIsolating` and Work
   Package 2's `WeightGenerator.generatedGateWeight_certified` with zero stand-in hypotheses
   (`compileAuxPDA_exists_minIsolating_seed`, `LogCFL.exists_normalForm_circuit_family_certified`);
-* exposes a computable Boolean query interface (`CircuitInterface`, `compileAuxPDAInterface`)
-  supplying `layer`, `andLevel`, `isAndGate`, `kind`, `orChild`, `WeightGenerator.Header`, and
-  `WeightGenerator.GateRequest`.
+* provides a computable `DecidableRel` instance (`instDecidableOrChildCompileAuxPDA`) on the
+  compiled circuit's `orChild` relation whenever `M.Tr` is decidable.
 
 This is original formalization for Work Package 4 of cslib-frontier #7920 (not a registered cited
 result). Native `ComputableInSpace` multi-tape Turing-machine witnesses for the gate-query
@@ -61,9 +60,6 @@ callback, unambiguous double-counting scans (`WeightCheck`/`WeightEval`), and th
 * `Cslib.Circuits.Boolean.AuxPDACompiler.compileAuxPDA`,
   `Cslib.Circuits.Boolean.AuxPDACompiler.compiledOutputGate`: the compiled normal-form circuit on
   `Fin N` and its output gate.
-* `Cslib.Circuits.Boolean.AuxPDACompiler.CircuitInterface`,
-  `Cslib.Circuits.Boolean.AuxPDACompiler.compileAuxPDAInterface`: decidable gate-query and
-  weight-request callback interface for Work Package 5.
 
 ## Main results
 
@@ -296,6 +292,21 @@ private lemma computationPath_mem_fitsIn {M : AuxPDA k Bool StackSym State}
   rw [← hlast]
   exact hfit
 
+private lemma accepts_of_boundedRealTree {M : AuxPDA k Bool StackSym State}
+    {v : BoundedSurfaceCfg k StackSym (Option State) input s}
+    (hv : v.IsAcceptingEmpty)
+    (T : RealTree (M.withEmptyStackHalt.BoundedStayStep (input := input) (s := s))
+      (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
+      (initBoundedSurface M.withEmptyStackHalt input s) v) :
+    M.Accepts input := by
+  rcases hv with ⟨hacc, htop⟩
+  obtain ⟨d, hd⟩ := realTree_toRealizable T
+  rw [toSurface_initBoundedSurface] at hd
+  exact withEmptyStackHalt_accepts_iff.mp <|
+    (accepts_iff_exists_realizable_of_emptyStackHalt
+      (fun p hhalt => withEmptyStackHalt_halted_stack_nil p hhalt)).mpr
+      ⟨v.toSurface, d, hacc, htop, hd⟩
+
 /-- **Bounded realizability tree characterization of `AuxPDA` acceptance**: under work space `s`
 and all-branches time `t`, `M` accepts `input` iff `M.withEmptyStackHalt` has a bounded
 realizability tree of size at most `4 * t + 3` from `initBoundedSurface` to an empty-stack
@@ -309,9 +320,10 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
             (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
             (initBoundedSurface M.withEmptyStackHalt input s) v,
           T.size ≤ 4 * t + 3 := by
-  rw [← withEmptyStackHalt_accepts_iff]
   constructor
-  · rintro ⟨p, hhalt, hout⟩
+  · intro hacc
+    rw [← withEmptyStackHalt_accepts_iff] at hacc
+    rcases hacc with ⟨p, hhalt, hout⟩
     have hs' := withEmptyStackHalt_runsInSpace hs
     have ht' := withEmptyStackHalt_runsInTime ht
     -- Truncate `p` at `2 * t + 1` if it ran longer (post-halting steps stay constant).
@@ -354,17 +366,14 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
       BoundedSurfaceCfg.toSurface_ofSurface _ _
     have hvAcc : v.IsAcceptingEmpty := by
       refine ⟨?_, ?_⟩
-      · rw [BoundedSurfaceCfg.isAccepting_iff, hvSurf, Cfg.isAccepting_surface_iff]
+      · change v.toSurface.IsAccepting
+        rw [hvSurf, Cfg.isAccepting_surface_iff]
         exact ⟨hqHalt, hqOut⟩
       · change q.last.stack.head? = none
         simp [hstack]
     exact ⟨v, hvAcc, T', by omega⟩
-  · rintro ⟨v, ⟨hacc, htop⟩, T, -⟩
-    obtain ⟨d, hd⟩ := realTree_toRealizable T
-    rw [toSurface_initBoundedSurface] at hd
-    exact (accepts_iff_exists_realizable_of_emptyStackHalt
-      (fun p hhalt => withEmptyStackHalt_halted_stack_nil p hhalt)).mpr
-      ⟨v.toSurface, d, hacc, htop, hd⟩
+  · rintro ⟨v, hvAcc, T, -⟩
+    exact accepts_of_boundedRealTree hvAcc T
 
 end BoundedRealTree
 
@@ -393,7 +402,8 @@ def drainSurfaceEquivFin (eStack : StackSym ≃ Fin mStack) (eState : State ≃ 
     (input : List Bool) (s : ℕ) :
     BoundedSurfaceCfg k StackSym (Option State) input s ≃
       Fin (compiledSurfaceCount mStack mState k input.length s) :=
-  boundedSurfaceEquivFin eStack (optionEquivFin eState) input s
+  boundedSurfaceEquivFin eStack ((Equiv.optionCongr eState).trans (finSuccEquiv mState).symm)
+    input s
 
 /-- Compile an `AuxPDA` (together with finite encodings of its stack alphabet and state set, input
 word, work-space bound `s`, and time bound `t`) into an alternating AND-first-layer normal-form
@@ -434,18 +444,13 @@ theorem compileAuxPDA_eval_sound (M : AuxPDA k Bool StackSym State)
       (compiledOutputGate mStack mState k input.length s t)) :
     M.Accepts input := by
   let e := drainSurfaceEquivFin (k := k) eStack eState input s
-  obtain ⟨v, ⟨hacc, htop⟩, ⟨T⟩⟩ := balancedCircuitFin_eval_output_sound h
+  obtain ⟨v, hvAcc, ⟨T⟩⟩ := balancedCircuitFin_eval_output_sound h
   have Tsurf : RealTree (M.withEmptyStackHalt.BoundedStayStep (input := input) (s := s))
       (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
       (e.symm (e (initBoundedSurface M.withEmptyStackHalt input s))) (e.symm v) :=
     realTreeMap e.symm (fun h => h) (fun h => h) T
   rw [Equiv.symm_apply_apply] at Tsurf
-  obtain ⟨d, hd⟩ := realTree_toRealizable Tsurf
-  rw [toSurface_initBoundedSurface] at hd
-  exact withEmptyStackHalt_accepts_iff.mp <|
-    (accepts_iff_exists_realizable_of_emptyStackHalt
-      (fun p hhalt => withEmptyStackHalt_halted_stack_nil p hhalt)).mpr
-      ⟨(e.symm v).toSurface, d, hacc, htop, hd⟩
+  exact accepts_of_boundedRealTree hvAcc Tsurf
 
 /-- **Exact acceptance equivalence for `compileAuxPDA`**: under `M.RunsInSpace input s` and
 `M.RunsInTime input t`, the compiled normal-form circuit evaluates to `true` at its output gate
@@ -652,102 +657,28 @@ theorem LogCFL.exists_normalForm_circuit_family_certified {α : Type} {enc : α 
   obtain ⟨hs, ht, hacc⟩ := hdec a
   exact hacc.trans (compileAuxPDA_eval_iff M eStack eState (enc a) hs (ht.mono (htLe a))).symm
 
-/-! ### Decidable circuit query callback interface (Work Package 5 readiness) -/
+/-! ### Computable `orChild` decidability on `compileAuxPDA` -/
 
-/-- Decidable gate-query callback interface for a `Fin gateCount`-indexed layered semi-unbounded
-circuit, exposing the metadata consumed by `WeightGenerator.Header`,
-`WeightGenerator.gateWeightRank`, and Work Package 5's unambiguous proof-tree scans. -/
-structure CircuitInterface where
-  /-- Number of gates `N`. -/
-  gateCount : ℕ
-  /-- Upper bound on `andLevel g` across all gates. -/
-  maxAndLevel : ℕ
-  /-- Index of the circuit's output gate. -/
-  outputGate : Fin gateCount
-  /-- Layer of each gate. -/
-  layer : Fin gateCount → ℕ
-  /-- Zero-based AND-level of each gate (`layer g / 2`). -/
-  andLevel : Fin gateCount → ℕ
-  /-- Whether a gate is an AND gate (`true`) or a leaf / OR gate (`false`). -/
-  isAndGate : Fin gateCount → Bool
-  /-- Gate kind and (for leaves / AND gates) truth value or children. -/
-  kind : Fin gateCount → GateKind (Fin gateCount)
-  /-- Decidable OR-gate child query (`true` iff `c` is a child of OR gate `g`). -/
-  orChild : Fin gateCount → Fin gateCount → Bool
-
-namespace CircuitInterface
-
-/-- Standalone `WeightGenerator.Header` for a gate query. -/
-def weightHeader (I : CircuitInterface) (g : Fin I.gateCount) : WeightGenerator.Header :=
-  ⟨I.gateCount, I.andLevel g, I.isAndGate g, g.val⟩
-
-/-- Retained-rank `WeightGenerator.GateRequest` feeding `WeightGenerator.gateWeightRank` with the
-table-free Justesen field context. -/
-def gateRequest (I : CircuitInterface) (rank : ℕ) (g : Fin I.gateCount) :
-    WeightGenerator.GateRequest (FieldContext × ℕ) :=
-  ⟨⟨(fieldContext I.gateCount 0, g.val), rank, codeLength I.gateCount 0⟩,
-    I.andLevel g, I.isAndGate g⟩
-
-end CircuitInterface
-
-/-- Build the computable Boolean `CircuitInterface` for a compiled `AuxPDA` circuit when `M.Tr`
-is decidable over finite `StackSym` and `State`. -/
-def compileAuxPDAInterface [Fintype StackSym] [Fintype State]
-    [DecidableEq StackSym] [DecidableEq State]
+/-- Computable decidability of the `orChild` relation of `compileAuxPDA` whenever `M.Tr` is
+decidable over finite `StackSym` and `State`. -/
+instance instDecidableOrChildCompileAuxPDA {StackSym State : Type}
+    [Fintype StackSym] [Fintype State] [DecidableEq StackSym] [DecidableEq State]
     (M : AuxPDA k Bool StackSym State)
     [∀ q inp work top act, Decidable (M.Tr q inp work top act)]
     (eStack : StackSym ≃ Fin mStack) (eState : State ≃ Fin mState)
-    (input : List Bool) (s t : ℕ) : CircuitInterface :=
-  let C := compileAuxPDA M eStack eState input s t
-  let eSurf := drainSurfaceEquivFin (k := k) eStack eState input s
-  let eGate := balancedGateEquivFin (compiledSurfaceCount mStack mState k input.length s)
+    (input : List Bool) (s t : ℕ) :
+    DecidableRel (compileAuxPDA M eStack eState input s t).orChild :=
+  let e := drainSurfaceEquivFin (k := k) eStack eState input s
+  let M' := M.withEmptyStackHalt
+  letI : ∀ q inp work top act, Decidable (M'.Tr q inp work top act) := inferInstance
+  letI : ∀ u v, Decidable (M'.BoundedStayStep (input := input) (s := s) u v) := inferInstance
+  letI : ∀ u u' v' v, Decidable (M'.BoundedPushPopStep (input := input) (s := s) u u' v' v) :=
+    inferInstance
+  instDecidableOrChildBalancedCircuitFin (e (initBoundedSurface M' input s))
+    (fun v => (e.symm v).IsAcceptingEmpty)
+    (fun u v => M'.BoundedStayStep (e.symm u) (e.symm v))
+    (fun u u' v' v => M'.BoundedPushPopStep (e.symm u) (e.symm u') (e.symm v') (e.symm v))
     (compiledRounds t)
-  { gateCount := compiledGateCount mStack mState k input.length s t
-    maxAndLevel := compiledRounds t + 2
-    outputGate := compiledOutputGate mStack mState k input.length s t
-    layer := C.layer
-    andLevel := C.andLevel
-    isAndGate := C.isAndGate
-    kind := C.kind
-    orChild := fun g c =>
-      @decide _ (BalancedGate.instDecidableOrChild
-        (accept := fun v => (eSurf.symm v).IsAcceptingEmpty)
-        (stay := fun u v => M.withEmptyStackHalt.BoundedStayStep (eSurf.symm u) (eSurf.symm v))
-        (pushPop := fun u u' v' v =>
-          M.withEmptyStackHalt.BoundedPushPopStep (eSurf.symm u) (eSurf.symm u')
-            (eSurf.symm v') (eSurf.symm v))
-        (eGate.symm g) (eGate.symm c)) }
-
-/-- The computable Boolean `orChild` query of `compileAuxPDAInterface` agrees identically with the
-compiled circuit's `orChild` relation. -/
-theorem compileAuxPDAInterface_orChild_iff [Fintype StackSym] [Fintype State]
-    [DecidableEq StackSym] [DecidableEq State]
-    (M : AuxPDA k Bool StackSym State)
-    [∀ q inp work top act, Decidable (M.Tr q inp work top act)]
-    (eStack : StackSym ≃ Fin mStack) (eState : State ≃ Fin mState)
-    (input : List Bool) (s t : ℕ)
-    (g c : Fin (compiledGateCount mStack mState k input.length s t)) :
-    (compileAuxPDAInterface M eStack eState input s t).orChild g c = true ↔
-      (compileAuxPDA M eStack eState input s t).orChild g c := by
-  simp [compileAuxPDAInterface, compileAuxPDA, balancedCircuitFin, balancedCircuit,
-    LayeredSemiUnboundedCircuit.reindex]
-
-/-- Feeding `compileAuxPDAInterface.gateRequest` into Work Package 2's retained-rank evaluator
-`WeightGenerator.gateWeightRank justesenCodeBit` produces the compiled circuit's exact
-`generatedGateWeight`. -/
-theorem compileAuxPDAInterface_gateWeightRank_eq [Fintype StackSym] [Fintype State]
-    [DecidableEq StackSym] [DecidableEq State]
-    (M : AuxPDA k Bool StackSym State)
-    [∀ q inp work top act, Decidable (M.Tr q inp work top act)]
-    (eStack : StackSym ≃ Fin mStack) (eState : State ≃ Fin mState)
-    (input : List Bool) (s t : ℕ)
-    (rank : Fin (2 ^ codeLength (compiledGateCount mStack mState k input.length s t) 0))
-    (g : Fin (compiledGateCount mStack mState k input.length s t)) :
-    WeightGenerator.gateWeightRank WeightGenerator.justesenCodeBit
-        ((compileAuxPDAInterface M eStack eState input s t).gateRequest rank.val g) =
-      (compileAuxPDA M eStack eState input s t).generatedGateWeight
-        ((Cslib.BitString.equivFin _).symm rank) g :=
-  WeightGenerator.gateWeightRank_justesen_eq (compileAuxPDA M eStack eState input s t) rank g
 
 end Compiler
 

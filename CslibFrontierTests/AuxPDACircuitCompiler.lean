@@ -26,7 +26,7 @@ Checked witnesses exercising:
    * `compileAuxPDA_exists_minIsolating_seed` (Work Package 1) and
      `WeightGenerator.generatedGateWeight_certified` (Work Package 2) instantiated directly on
      the compiled circuit,
-   * computable `compileAuxPDAInterface` checked for `orChild` and `gateWeightRank` agreement.
+   * computable `DecidableRel (compileAuxPDA …).orChild` exercised directly on `dyck1Circuit`.
 3. End-to-end `LogCFL.exists_normalForm_circuit_family_certified` instantiated on `dyck1`.
 4. Choice-free axiom guard (`#print axioms`) on `balancedCircuit_eval_output_sound`.
 -/
@@ -117,8 +117,6 @@ private instance (q : Unit) (inp : Option Bool) (work : Fin 0 → Option Bool)
     (top : Option Unit) (act : AuxPDA.Action 0 Bool Unit Unit) :
     Decidable (dyck1AuxPDA.Tr q inp work top act) := by
   change Decidable (act ∈ dyck1Tr inp top)
-  haveI : DecidableEq (AuxPDA.Action 0 Bool Unit Unit) :=
-    Equiv.decidableEq (auxPDAActionEquiv 0 Unit Unit)
   infer_instance
 
 private def dyck1Cfg (w : List Bool) (pos : Fin (w.length + 2)) (stack : List Unit) :
@@ -290,18 +288,12 @@ example :
   · intro h; exact absurd ((dyck1Circuit_spec [false]).2.2.1.mp h) (by decide)
   · intro h; exact absurd ((dyck1Circuit_spec [true, false]).2.2.1.mp h) (by decide)
 
-/-- Computable `CircuitInterface` agrees with `dyck1Circuit` on `orChild` and `gateWeightRank`. -/
+/-- Computable `DecidableRel` on `(dyck1Circuit w).orChild` synthesizes cleanly and agrees with
+`(dyck1Circuit w).orChild`. -/
 example (w : List Bool)
-    (rank : Fin (2 ^ codeLength (compiledGateCount 1 1 0 w.length 0 (w.length + 1)) 0))
     (g c : Fin (compiledGateCount 1 1 0 w.length 0 (w.length + 1))) :
-    let iface := compileAuxPDAInterface dyck1AuxPDA unitEquivFin1 unitEquivFin1 w 0 (w.length + 1)
-    (iface.orChild g c = true ↔ (dyck1Circuit w).orChild g c) ∧
-    WeightGenerator.gateWeightRank WeightGenerator.justesenCodeBit (iface.gateRequest rank.val g) =
-      (dyck1Circuit w).generatedGateWeight ((Cslib.BitString.equivFin _).symm rank) g :=
-  ⟨compileAuxPDAInterface_orChild_iff dyck1AuxPDA unitEquivFin1 unitEquivFin1 w 0
-     (w.length + 1) g c,
-   compileAuxPDAInterface_gateWeightRank_eq dyck1AuxPDA unitEquivFin1 unitEquivFin1 w 0
-     (w.length + 1) rank g⟩
+    decide ((dyck1Circuit w).orChild g c) = true ↔ (dyck1Circuit w).orChild g c :=
+  decide_eq_true_iff
 
 /-! ## 3. End-to-end `LogCFL` certification witness on `dyck1` -/
 

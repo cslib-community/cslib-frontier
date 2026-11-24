@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.AuxPDA.Surface
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.Basic
 public import Mathlib.Logic.Equiv.Fin.Basic
 
 import Mathlib.Data.Fin.Tuple.Basic
@@ -185,9 +186,6 @@ lemma workTapeSymbols_eq_toSurface (b : BoundedSurfaceCfg k StackSym State input
 abbrev IsAccepting (b : BoundedSurfaceCfg k StackSym State input s) : Prop :=
   b.state = none ∧ b.outputSummary = .accept
 
-lemma isAccepting_iff (b : BoundedSurfaceCfg k StackSym State input s) :
-    b.IsAccepting ↔ b.toSurface.IsAccepting := Iff.rfl
-
 /-- An accepting bounded surface configuration with an empty stack (`topSym = none`). -/
 abbrev IsAcceptingEmpty (b : BoundedSurfaceCfg k StackSym State input s) : Prop :=
   b.IsAccepting ∧ b.topSym = none
@@ -220,7 +218,7 @@ theorem toSurface_initBoundedSurface {k : ℕ} {StackSym State : Type*}
 /-! ### Computable mixed-radix `Fin` indexing and polynomial cardinality bounds -/
 
 /-- Explicit computable bijection between the symmetric window `[-s, s]` and `Fin (2 * s + 1)`. -/
-def windowEquivFin (s : ℕ) : Turing.window s ≃ Fin (2 * s + 1) where
+private def windowEquivFin (s : ℕ) : Turing.window s ≃ Fin (2 * s + 1) where
   toFun z := ⟨(z.val + s).toNat, by
     have hz := Finset.mem_Icc.mp z.property
     omega⟩
@@ -236,7 +234,7 @@ def windowEquivFin (s : ℕ) : Turing.window s ≃ Fin (2 * s + 1) where
     omega
 
 /-- Explicit computable bijection between `OutputSummary` and `Fin 3`. -/
-def outputSummaryEquivFin : OutputSummary ≃ Fin 3 where
+private def outputSummaryEquivFin : OutputSummary ≃ Fin 3 where
   toFun
     | .empty => ⟨0, by decide⟩
     | .accept => ⟨1, by decide⟩
@@ -249,7 +247,7 @@ def outputSummaryEquivFin : OutputSummary ≃ Fin 3 where
   right_inv i := by fin_cases i <;> rfl
 
 /-- Explicit computable bijection between `Option α` and `Fin (m + 1)` from `α ≃ Fin m`. -/
-def optionEquivFin {α : Type*} {m : ℕ} (e : α ≃ Fin m) : Option α ≃ Fin (m + 1) where
+private def optionEquivFin {α : Type*} {m : ℕ} (e : α ≃ Fin m) : Option α ≃ Fin (m + 1) where
   toFun
     | none => ⟨0, Nat.succ_pos m⟩
     | some a => ⟨(e a).val + 1, Nat.succ_lt_succ (e a).isLt⟩
@@ -268,7 +266,7 @@ def optionEquivFin {α : Type*} {m : ℕ} (e : α ≃ Fin m) : Option α ≃ Fin
     | succ n => simp
 
 /-- Explicit computable bijection between `Option Bool` and `Fin 3`. -/
-def optionBoolEquivFin : Option Bool ≃ Fin 3 :=
+private def optionBoolEquivFin : Option Bool ≃ Fin 3 :=
   optionEquivFin
     { toFun := fun b => if b then ⟨1, by decide⟩ else ⟨0, by decide⟩
       invFun := fun i => i.val == 1
@@ -276,7 +274,7 @@ def optionBoolEquivFin : Option Bool ≃ Fin 3 :=
       right_inv := fun i => by fin_cases i <;> rfl }
 
 /-- Explicit computable mixed-radix bijection `(Fin k → Fin m) ≃ Fin (m ^ k)`. -/
-def finFunEquivFin : (k m : ℕ) → (Fin k → Fin m) ≃ Fin (m ^ k)
+private def finFunEquivFin : (k m : ℕ) → (Fin k → Fin m) ≃ Fin (m ^ k)
   | 0, _ =>
     { toFun := fun _ => ⟨0, by simp⟩
       invFun := fun _ => Fin.elim0
@@ -513,66 +511,52 @@ theorem applyBoundedTapes?_eq_some_iff (act : Turing.Action k Bool State)
     (u u' v' v : BoundedSurfaceCfg k StackSym State input s) : Prop :=
   ∃ γ : StackSym, M.BoundedPushStep u γ u' ∧ M.BoundedPopStep v' γ u.topSym v
 
+end Transitions
+
 /-! ### Computable finiteness of actions and decidability of bounded surface steps -/
 
-/-- Explicit bijection decomposing `StackOp StackSym` into `Unit ⊕ StackSym ⊕ Unit`. -/
-def stackOpEquiv (StackSym : Type*) :
-    StackOp StackSym ≃ Unit ⊕ StackSym ⊕ Unit where
-  toFun
-    | .stay => .inl ()
-    | .push γ => .inr (.inl γ)
-    | .pop => .inr (.inr ())
-  invFun
-    | .inl () => .stay
-    | .inr (.inl γ) => .push γ
-    | .inr (.inr ()) => .pop
-  left_inv x := by cases x <;> rfl
-  right_inv x := by rcases x with ⟨⟩ | γ | ⟨⟩ <;> rfl
+section DecidableTransitions
+
+variable {k : ℕ} {StackSym State : Type} {input : List Bool} {s : ℕ}
 
 instance instFintypeStackOp [Fintype StackSym] : Fintype (StackOp StackSym) :=
-  Fintype.ofEquiv _ (stackOpEquiv StackSym).symm
-
-/-- Explicit tuple decomposition of `Turing.Action k Bool State`. -/
-def turingActionEquiv (k : ℕ) (State : Type*) :
-    Turing.Action k Bool State ≃
-      SignType × (Fin k → Option (Option Bool) × SignType) × Option Bool × Option State where
-  toFun a := (a.inputTape, a.workTapes, a.output, a.state)
-  invFun
-    | (inp, work, out, st) => ⟨inp, work, out, st⟩
-  left_inv a := by cases a; rfl
-  right_inv
-    | (_, _, _, _) => rfl
+  Fintype.ofEquiv (Unit ⊕ StackSym ⊕ Unit)
+    { toFun
+        | .inl () => .stay
+        | .inr (.inl γ) => .push γ
+        | .inr (.inr ()) => .pop
+      invFun
+        | .stay => .inl ()
+        | .push γ => .inr (.inl γ)
+        | .pop => .inr (.inr ())
+      left_inv x := by rcases x with ⟨⟩ | γ | ⟨⟩ <;> rfl
+      right_inv x := by cases x <;> rfl }
 
 instance instFintypeTuringAction [Fintype State] :
     Fintype (Turing.Action k Bool State) :=
-  Fintype.ofEquiv _ (turingActionEquiv k State).symm
-
-/-- Explicit pair decomposition of `AuxPDA.Action k Bool StackSym State`. -/
-def auxPDAActionEquiv (k : ℕ) (StackSym State : Type*) :
-    AuxPDA.Action k Bool StackSym State ≃
-      Turing.Action k Bool State × StackOp StackSym where
-  toFun a := (a.tape, a.stackOp)
-  invFun
-    | (t, op) => ⟨t, op⟩
-  left_inv a := by cases a; rfl
-  right_inv
-    | (_, _) => rfl
+  Fintype.ofEquiv _
+    (Turing.MultiTapeNTM.ConfigurationGraph.actionEquiv (k := k) (State := State)).symm
 
 instance instFintypeAuxPDAAction [Fintype StackSym] [Fintype State] :
     Fintype (AuxPDA.Action k Bool StackSym State) :=
-  Fintype.ofEquiv _ (auxPDAActionEquiv k StackSym State).symm
+  Fintype.ofEquiv (Turing.Action k Bool State × StackOp StackSym)
+    { toFun
+        | (t, op) => ⟨t, op⟩
+      invFun a := (a.tape, a.stackOp)
+      left_inv
+        | (_, _) => rfl
+      right_inv a := by cases a; rfl }
 
 instance instDecidableEqTuringAction [DecidableEq State] :
-    DecidableEq (Turing.Action k Bool State) := fun a b =>
-  if h1 : a.inputTape = b.inputTape then
-    if h2 : a.workTapes = b.workTapes then
-      if h3 : a.output = b.output then
-        if h4 : a.state = b.state then
-          isTrue (by cases a; cases b; simp only at h1 h2 h3 h4; subst h1 h2 h3 h4; rfl)
-        else isFalse fun h => h4 (congrArg Turing.Action.state h)
-      else isFalse fun h => h3 (congrArg Turing.Action.output h)
-    else isFalse fun h => h2 (congrArg Turing.Action.workTapes h)
-  else isFalse fun h => h1 (congrArg Turing.Action.inputTape h)
+    DecidableEq (Turing.Action k Bool State) :=
+  letI : DecidableEq (Fin k → Option (Option Bool) × SignType) := inferInstance
+  Equiv.decidableEq (Turing.MultiTapeNTM.ConfigurationGraph.actionEquiv (k := k) (State := State))
+
+instance instDecidableEqAuxPDAAction [DecidableEq StackSym] [DecidableEq State] :
+    DecidableEq (AuxPDA.Action k Bool StackSym State) := fun a b =>
+  decidable_of_iff (a.tape = b.tape ∧ a.stackOp = b.stackOp)
+    ⟨fun ⟨h1, h2⟩ => by cases a; cases b; cases h1; cases h2; rfl,
+     fun h => by subst h; exact ⟨rfl, rfl⟩⟩
 
 /-- `withEmptyStackHalt.Tr` is decidable whenever `M.Tr` is decidable over finite `StackSym` and
 `State`. -/
@@ -681,6 +665,6 @@ instance instDecidableBoundedPushPopStep [Fintype StackSym] [Fintype State]
     Decidable (M.BoundedPushPopStep u u' v' v) :=
   Fintype.decidableExistsFintype
 
-end Transitions
+end DecidableTransitions
 
 end Turing.AuxPDA
