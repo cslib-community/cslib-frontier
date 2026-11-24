@@ -6174,6 +6174,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator
 public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
 public import CslibFrontier.Crypto.Primitives.Garbling.MixedModulus
 public import CslibFrontier.Crypto.Primitives.Garbling.OneHot
+public import CslibFrontier.Crypto.Primitives.Garbling.OutputSimulatable
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
