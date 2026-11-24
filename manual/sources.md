@@ -617,6 +617,11 @@ Eshan Chattopadhyay and Jyun-Jie Liao. *Optimal Error Pseudodistributions for Re
 
 Xi Chen and Xiaotie Deng. "On the Complexity of 2D Discrete Fixed Point Problem." *Automata, Languages and Programming (ICALP 2006)*, LNCS 4051, 489–500, Springer, 2006. https://doi.org/10.1007/11786986_43 ; journal version in *Theoretical Computer Science* 410(44), 4448–4456, 2009, https://doi.org/10.1016/j.tcs.2009.07.052 . Bibliographic metadata as recorded in `references.bib`; the paper's full text was not inspected directly, so no internal theorem number or page locator is cited. The library cites it for the `PPAD`-completeness of two-dimensional discrete Sperner (`Sperner2D`) proved in [SpernerHardness.lean](../CslibFrontier/Computability/Complexity/Classes/TFNP/Subclasses/SpernerHardness.lean) via an explicit polynomial-time circuit reduction from `EndOfLine` on a `2 ^ (n + 5) × 2 ^ (n + 5)` grid tiled by `16 × 16` crossing and turning cells.
 
+<a id="chengfriedman05"></a>
+## chengfriedman05
+
+Alice Cheng and Eric Friedman. "Sybilproof Reputation Mechanisms." *Proceedings of the 2005 ACM SIGCOMM Workshop on Economics of Peer-to-Peer Systems (P2PECON '05)*, 128–132, ACM, 2005 (bibliography key `ChengFriedman2005`). https://doi.org/10.1145/1080192.1080202 . Checked against the 5-page ACM workshop PDF (printed pp. 128–132) on 2026-11-24: §3 Definitions 1–5 (pp. 129–130: reputation functions, contraction-based Sybil strategies, rank-sybilproofness, `K`-sybilproofness, and value-sybilproofness), §4.1 Definition 6 and Theorems 1–2 (p. 130: symmetric reputation functions and impossibility of nontrivial symmetric rank-sybilproof or `k`-sybilproof mechanisms), and §4.2 Theorems 4–5 (pp. 130–131: value-sybilproofness of capacity/flow-based propagation and rank-sybilproofness of single-path `max`-aggregation / Pathrank). Note that Definition 4 of `ChengFriedman2005` indexes `k`-sybilproofness by total Sybil cluster size `|U'| ≤ k` (`k ≥ 2` in Theorem 2), whereas [friedmanresnicksami07](#friedmanresnicksami07) Definition 27.6 indexes `K`-rank-sybilproofness by additional fake identities `|U'| ≤ K + 1` (`K > 0` in Theorem 27.7); [Sybilproof.lean](../CslibFrontier/GameTheory/Reputation/Sybilproof.lean) follows the NRTV `|U'| ≤ K + 1` convention.
+
 <a id="chenhiraharaoliveirapichrajgopalsanthanam2020"></a>
 ## chenhiraharaoliveirapichrajgopalsanthanam2020
 
@@ -995,6 +1000,16 @@ Peter Frankl and Richard M. Wilson. “Intersection Theorems with Geometric Cons
 ## freivalds79
 
 Rūsiņš Freivalds. "Fast Probabilistic Algorithms." *Mathematical Foundations of Computer Science 1979*, Lecture Notes in Computer Science 74, 57–69. https://doi.org/10.1007/3-540-09526-8_5 . Bibliographic data from the DOI record, checked 2026-11-07; the full text was not inspected. The manual attributes only the random-vector matrix-product check to this paper.
+
+<a id="friedmanresnick01"></a>
+## friedmanresnick01
+
+Eric J. Friedman and Paul Resnick. "The Social Cost of Cheap Pseudonyms." *Journal of Economics & Management Strategy* 10(2), 173–199, 2001 (bibliography key `FriedmanResnick2001`). https://doi.org/10.1111/j.1430-9134.2001.00173.x . Bibliographic metadata from the DOI record and [friedmanresnicksami07](#friedmanresnicksami07); the 2001 journal PDF was not directly inspected, so [RepeatedPD.lean](../CslibFrontier/GameTheory/Reputation/RepeatedPD.lean) cites it at paper level as the origin of the cheap-pseudonym whitewashing and Pay-Your-Dues (`PYD`) model presented in [friedmanresnicksami07](#friedmanresnicksami07), §27.3 (pp. 682–683) and Exercise 27.4 (p. 697).
+
+<a id="friedmanresnicksami07"></a>
+## friedmanresnicksami07
+
+Eric Friedman, Paul Resnick and Rahul Sami. "Manipulation-Resistant Reputation Systems." Chapter 27 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 677–698 (bibliography key `FriedmanResnickSami2007`). https://doi.org/10.1017/CBO9780511800481.029 . Checked against the 2007 Cambridge University Press book text (printed pp. 677–697) on 2026-11-24: §27.2 (pp. 680–682: infinitely repeated Prisoner's Dilemma with stage payoffs `(1, 2, 0, -1)`, normalized discounted payoff, Grim trigger `δ ≥ 1/2`, Reputational-Grim, and Personalized-Grim, noting on p. 681 that uniform random pairing among `N` potential opponents yields threshold `δ ≥ N / (N + 1)` rather than `1 - 1 / (2N)`), §27.3 (pp. 682–683: whitewashing entry-fee deterrence `f ≥ 1 / δ`, Pay-Your-Dues `PYD`, and newcomer welfare loss), §27.4 (pp. 684–688: simultaneous peer-rating game Eq. `(27.1)`, logarithmic peer-prediction transfer Eq. `(27.2)`, Proposition 1 on p. 687, and uninformative constant equilibria in Footnote 2 on p. 688), §27.5 (pp. 689–693: transitive trust graphs, monotonicity, symmetry, rank-strategyproofness in §27.5.1, Definitions 27.2–27.4 and 27.6, Theorems 27.5 and 27.7–27.9, and Figure 27.2 on p. 692), and Exercises 27.1–27.6 and 27.8 (pp. 696–697, noting in Exercise 27.2 that under `(1, 2, 0, -1)` stage payoffs `(TFT, TFT)` is an SPNE at the unique knife-edge discount factor `δ = 1 / 2` and fails for every `δ ≠ 1 / 2`).
 
 <a id="friezekaronski2016"></a>
 ## friezekaronski2016
@@ -1964,6 +1979,11 @@ Thierry Mignon and Nicolas Ressayre. *A quadratic bound for the determinant and 
 ## mignotte82
 
 Maurice Mignotte. "Some Useful Bounds." In Bruno Buchberger, George E. Collins and Rüdiger Loos (eds.), *Computer Algebra: Symbolic and Algebraic Computation*, Computing Supplementum 4, 259–263, Springer, 1982. https://doi.org/10.1007/978-3-7091-7551-4_16 ; copy inspected in outside-fleet review ([#7735](https://github.com/cslib-community/cslib-frontier/pull/7735#pullrequestreview-6016516231)): https://web.dm.unipi.it/gianni/TC%26C/Mignotte.pdf . Theorem 3 (printed pp. 260–261) and Theorem 5 together with its integral corollary (printed p. 262) supply the Landau norm comparison and root-separation ingredients (`Polynomial.mignotte_sep_sqNorm_real`, `Polynomial.mignotte_sep_sqNorm_rat` in [`RootBound.lean`](../CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/RootBound.lean)), paired with [`mahler64`](#mahler64) (pp. 257–262, internal equation locator unverified). These root-separation ingredients govern `mignotteBisectionDepth` and are distinct from the library's own end-to-end `List ℚ` Sturm-bisection implementation and polynomial-time Turing-machine certification ([`TotalIsolation.lean`](../CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/TotalIsolation.lean), [`RootIsolation.lean`](../CslibFrontier/Computability/Complexity/RealAlgebraic/RootIsolation.lean)).
+
+<a id="millerresnickzeckhauser05"></a>
+## millerresnickzeckhauser05
+
+Nolan Miller, Paul Resnick and Richard Zeckhauser. "Eliciting Informative Feedback: The Peer-Prediction Method." *Management Science* 51(9), 1359–1373, 2005 (bibliography key `MillerResnickZeckhauser2005`). https://doi.org/10.1287/mnsc.1050.0379 . Checked against the June 15, 2004 working-paper PDF (pp. 4–11) together with [friedmanresnicksami07](#friedmanresnicksami07), §27.4 (pp. 685–688) on 2026-11-24: §2 Eq. `(1)` (Bayes–Nash reporting condition), §2.1 stochastic relevance definition and Proposition 1 (truthful reporting as a strict Bayes–Nash equilibrium under peer-prediction scoring), §2.2 Proposition 2 (positive affine scaling `α > 0` to overcome fixed signal-acquisition effort cost `c > 0`), and §2.3 Eq. `(4)` (ex-post budget-balanced net transfers `τ_i(a) = τ_i^*(a_i, a_{r(i)}) - τ_{b(i)}^*(a_{b(i)}, a_{r(b(i))})` for `b(i) ≠ i` and `r(b(i)) ≠ i` when `|I| ≥ 3`); journal pagination from the DOI record. Cited in [PeerPrediction.lean](../CslibFrontier/GameTheory/Reputation/PeerPrediction.lean).
 
 <a id="mironov17"></a>
 ## mironov17

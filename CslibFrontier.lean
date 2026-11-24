@@ -8517,6 +8517,9 @@ public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
 public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
 public import CslibFrontier.GameTheory.PerfectInformation
+public import CslibFrontier.GameTheory.Reputation.PeerPrediction
+public import CslibFrontier.GameTheory.Reputation.RepeatedPD
+public import CslibFrontier.GameTheory.Reputation.Sybilproof
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
 public import CslibFrontier.GameTheory.SocialChoice.Ranking
