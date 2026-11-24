@@ -7,7 +7,6 @@ Authors: Christian Reitwiessner
 import CslibFrontier.Computability.Communication.OneOutLargeRectangle
 import CslibFrontier.Computability.Communication.Announce
 import Cslib.Probability.PMF
-import Mathlib.Tactic
 
 /-! Lemma 5.2 of submission 865 on actual one-out protocols: equality on two distinct bits
 (a heavy-atom instance) and a light-atom instance with uniform inputs on `Fin 4`. -/

@@ -243,8 +243,6 @@ theorem initialPilotScore_allocated
     nlinarith
   have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
-  have hm : 0 ≤ rowNormPow 4 P (rate ks) X Y input :=
-    rowNormPow_nonneg (by positivity) input
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
     (show 0 ≤ (P : ℝ) * (L / rate kt) ^ 4 * 32 * rowNormPow 4 P (rate ks) X Y input by
       positivity) hε 0 steps (Nat.le_max_right _ _)

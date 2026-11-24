@@ -617,18 +617,10 @@ noncomputable def PairedTimeLayerFamily.ofMachine {k : ℕ} {State : Type} [Fint
     (timeLayerEquiv (polyClock d (enc a).length)
       (vertexBound (k := k) (radix D (enc a).length))).symm
       (toLex (0, compactStart M c (hs a)))
-  have henc : ComputableInLogSpace (fun a : α => enc a) enc encBits :=
-    ComputableInLogSpace.id.congr fun _ => rfl
-  have hmap2 : ComputableInLogSpace (fun (a, u) => (enc a, u))
-      (encPair enc encNat) (encPair encBits encNat) :=
-    (ComputableInLogSpace.pair
-      (henc.comp (ComputableInLogSpace.fst enc encNat))
-      (ComputableInLogSpace.snd enc encNat)).congr_fun fun ⟨_, _⟩ => rfl
-  have hmap3 : ComputableInLogSpace (fun (a, u, p) => (enc a, u, p))
-      (encPair enc (encPair encNat encNat)) (encPair encBits (encPair encNat encNat)) :=
-    (ComputableInLogSpace.pair
-      (henc.comp (ComputableInLogSpace.fst enc (encPair encNat encNat)))
-      (ComputableInLogSpace.snd enc (encPair encNat encNat))).congr_fun fun ⟨_, _, _⟩ => rfl
+  have hmap2 : ComputableInLogSpace (fun x : α × ℕ => (enc x.1, x.2))
+      (encPair enc encNat) (encPair encBits encNat) := by fun_prop
+  have hmap3 : ComputableInLogSpace (fun x : α × ℕ × ℕ => (enc x.1, x.2))
+      (encPortQuery enc) (encPair encBits (encPair encNat encNat)) := by fun_prop
   { dIn := inPortBound M
     dIn_pos := inPortBound_pos M
     dimExp := D * Fintype.card (Register k) + d + 2
@@ -686,9 +678,9 @@ noncomputable def PairedTimeLayerFamily.ofMachine {k : ℕ} {State : Type} [Fint
     inPortNat_eq_none_of_ge_dim := fun _ {_} q hv => clockedInPort_eq_none_of_ge_bound M hv q
     inPortNat_eq_none_of_port_ge := fun _ v {_} hq => clockedInPort_eq_none_of_port_ge M v hq
     computableInLogSpace_dim :=
-      ((computableInLogSpace_clockedVertexBound (k := k) D d).comp henc).congr_fun fun _ => rfl
+      (computableInLogSpace_clockedVertexBound (k := k) D d).comp' (by fun_prop)
     computableInLogSpace_startNat :=
-      ((computableInLogSpace_startID M.toNTM D).comp henc).congr_fun fun _ => rfl
+      (computableInLogSpace_startID M.toNTM D).comp' (by fun_prop)
     computableInLogSpace_acceptBool :=
       ((computableInLogSpace_clockedAccept (k := k) (State := State) D d).comp hmap2).congr_fun
         fun ⟨_, _⟩ => rfl

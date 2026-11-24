@@ -37,7 +37,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeRa
 # The components of the native contraction recursion in polynomial time
 
 The scheme `Cslib.Circuits.Frontier.FastContraction.scheme ev mk` of the contraction recursion of
-[OpenAI2026ETH] has polynomial-time components (`Cslib.GenericRAM.StackRecursion.Scheme.PolyTime`)
+[OpenAI2026ETH] has polynomial-time components (`Cslib.Algorithms.StackRecursion.Scheme.PolyTime`)
 for the encodings `FastContraction.encCall encT`, `encFrame` and `encValue` whenever the child
 builder `mk` is polynomial-time (`FastContraction.scheme_polyTime`), for every type `T` of root
 descriptors with an encoding `encT` and every entry procedure `ev`: the leaf test does not
@@ -185,7 +185,7 @@ end Cslib.Circuits.Frontier.ContractionSchedule
 namespace Cslib.Circuits.Frontier.FastContraction
 
 open GaloisRingArith ChildCursor NativeRecovery ContractionSchedule NativeChild
-  Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.GenericRAM Cslib.Algorithms.StackRecursion
 
 variable {T : Type} {encT : T ↪ List Bool}
 

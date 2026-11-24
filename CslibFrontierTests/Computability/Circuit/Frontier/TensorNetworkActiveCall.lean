@@ -27,9 +27,6 @@ namespace CslibFrontierTests.Computability.Circuit.Frontier.TensorNetwork.Active
 
 open Cslib.Circuits.Frontier TensorNetwork
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 /-! ### The packing bridge -/
 
 /-- Edge `e` runs from row `e` to column `e + 2`, with the all-one tensors. -/

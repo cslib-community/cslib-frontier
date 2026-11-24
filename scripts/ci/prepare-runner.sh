@@ -13,10 +13,13 @@ fi
 
 df -h / || true
 # Operators can calibrate this against the peak disk samples in completed job summaries.
-minimum_gib=${SDK_CLEANUP_MIN_GIB:-100}
+# Standard ubuntu-24.04 runners start with ~88-89 GiB free on `/`, while `.lake`, the Lean
+# toolchain and temporary handoff/publication staging peak under 30 GiB; 60 GiB skips the 60-85s
+# SDK wipe on standard runners while retaining >30 GiB headroom and cleaning smaller images.
+minimum_gib=${SDK_CLEANUP_MIN_GIB:-60}
 if [[ ! "$minimum_gib" =~ ^[1-9][0-9]{0,3}$ ]]; then
-  echo "Invalid SDK_CLEANUP_MIN_GIB; using 100 GiB."
-  minimum_gib=100
+  echo "Invalid SDK_CLEANUP_MIN_GIB; using 60 GiB."
+  minimum_gib=60
 fi
 available_kib=
 if disk_report=$(df -Pk /); then

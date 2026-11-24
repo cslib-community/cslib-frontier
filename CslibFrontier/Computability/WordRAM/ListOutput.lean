@@ -39,6 +39,7 @@ therefore read the output from its final state.
 ## Main results
 
 * `Cslib.WordRAM.outputList_eq_iff`: the convention in terms of `Block.HoldsList`.
+* `Cslib.WordRAM.Block.holdsList_init`: `Data.init input` stores `input` starting at address `1`.
 * `Cslib.WordRAM.Exec.executesList`, `Cslib.WordRAM.Code.computesListInTime_program`:
   structured certificates, charging the final halt.
 * `Cslib.WordRAM.ExecutesList.runs_parkHalts`: a halting run of `n ≤ N` instructions gives an
@@ -86,6 +87,11 @@ theorem outputList_init (input : List ℕ) :
   change (Data.init input : Data r).mem (0 + 1 + i.val) = input[i.val]
   rw [Nat.zero_add, Nat.add_comm, Data.init_mem_succ]
   simp [List.getD_eq_getElem?_getD]
+
+/-- In `Data.init input`, the slice starting at address `1` holds `input`. -/
+theorem Block.holdsList_init (input : List ℕ) :
+    Block.HoldsList 1 input (Data.init input : Data r).mem :=
+  (outputList_eq_iff.mp (outputList_init input)).2
 
 /-- `ExecutesList w p s l n`: running `p` at word size `w` from `s` halts after exactly `n`
 instructions, the final `halt` included, returning an address at which the memory just before

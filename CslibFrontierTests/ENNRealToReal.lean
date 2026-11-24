@@ -11,7 +11,7 @@ namespace CslibFrontierTests.ENNRealToReal
 
 open scoped ENNReal
 
-variable {α β : Type*}
+variable {α β ι : Type*}
 
 /-! ### The goal -/
 
@@ -24,6 +24,30 @@ example : (2 : ℝ≥0∞)⁻¹ + 4⁻¹ = 3 / 4 := by
 example : (1 / 2 : ℝ≥0∞) < 2 / 3 := by
   ennreal_to_real
   norm_num
+
+-- Disequality (`≠`).
+example : (1 / 2 : ℝ≥0∞) ≠ 2 / 3 := by
+  ennreal_to_real
+  norm_num
+
+-- Finite products, real powers, and conditionals under `toReal`.
+example (p : ι → PMF α) (x : ι → α) (s : Finset ι) :
+    (∏ i ∈ s, p i (x i)).toReal = ∏ i ∈ s, (p i (x i)).toReal := by
+  ennreal_to_real
+
+example (p q : PMF α) (a : α) (z : ℝ) :
+    ((p a / q a) ^ z).toReal = ((p a).toReal / (q a).toReal) ^ z := by
+  ennreal_to_real
+
+example (P : ι → Prop) [DecidablePred P] (p : PMF ι) (s : Finset ι) :
+    (∑ i ∈ s, if P i then p i else 0).toReal =
+      ∑ i ∈ s, if P i then (p i).toReal else 0 := by
+  ennreal_to_real
+
+-- Quantified nonnegativity hypotheses discharge `ENNReal.ofReal` side conditions under binders.
+example (p : PMF α) (f : α → ℝ) (hf : ∀ a, 0 ≤ f a) (hf1 : ∀ a, p a * ENNReal.ofReal (f a) ≠ ∞) :
+    (∑' a, p a * ENNReal.ofReal (f a)).toReal = ∑' a, (p a).toReal * f a := by
+  ennreal_to_real
 
 -- A goal that is already real: `toReal` is pushed through `∑'` and `*`.
 example (p : PMF α) (f : α → PMF β) (s : Set β) :
@@ -42,10 +66,29 @@ example (p q : PMF α) (s : Set α) {ε : ℝ} (hε : 0 ≤ ε)
   rw [abs_le]
   constructor <;> linarith
 
--- A hypothesis `a ≤ b` needs only `b` finite: `x` is arbitrary here.
+-- A hypothesis `a ≤ b` needs only the upper bound finite: `x` is arbitrary here.
 example (x : ℝ≥0∞) (p : PMF α) (a : α) (h : x ≤ 2 * p a) : x.toReal ≤ 2 * (p a).toReal := by
   ennreal_to_real at h
   exact h
+
+-- A disequality hypothesis (or `¬ a = b`) transfers when both sides are finite.
+example (p : PMF α) (a : α) (h : p a ≠ 0) : (p a).toReal ≠ 0 := by
+  ennreal_to_real using h
+
+example (p : PMF α) (a : α) (h : ¬p a = 0) : (p a).toReal ≠ 0 := by
+  ennreal_to_real using h
+
+-- Finite measures work directly via `finiteness`.
+example [MeasurableSpace α] (μ ν : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (s : Set α) (h : ν s ≤ μ s) : (ν s).toReal ≤ (μ s).toReal := by
+  ennreal_to_real using h
+
+-- One-sided `ENNReal.ofReal r ≤ b` bounds need no `0 ≤ r` premise.
+example (p : PMF α) (a : α) (r : ℝ) (h : r ≤ (p a).toReal) : ENNReal.ofReal r ≤ p a := by
+  ennreal_to_real using h
+
+example (p : PMF α) (a : α) (r : ℝ) (h : ENNReal.ofReal r ≤ p a) : r ≤ (p a).toReal := by
+  ennreal_to_real using h
 
 -- A strict hypothesis, with a bound `δ : ℝ≥0`.
 example (p : PMF α) (s t : Set α) (δ : NNReal) (h : p.toOuterMeasure s + δ < p.toOuterMeasure t) :
@@ -155,5 +198,17 @@ example (x y : ℝ) (h : x ≤ y) : x ≤ y := by
 #guard_msgs in
 example (x y : ℝ≥0∞) (h : x ≤ y) : x ≤ y := by
   ennreal_to_real at *
+
+-- Boundary check: `h : x ≠ 0` needs `x ≠ ∞`, because `∞ ≠ 0` while `∞.toReal = 0`.
+/--
+error: ennreal_to_real: could not show that
+  x
+is finite. `finiteness` is left with
+  x ≠ ∞
+Add the missing fact as a hypothesis, or register it as a `finiteness` rule.
+-/
+#guard_msgs in
+example (x : ℝ≥0∞) (h : x ≠ 0) : x.toReal ≠ 0 := by
+  ennreal_to_real at h
 
 end CslibFrontierTests.ENNRealToReal

@@ -7,6 +7,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantSign
@@ -19,6 +20,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
@@ -29,7 +31,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
-import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
@@ -60,6 +62,12 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- A constant source in zero variables has a real zero exactly when its input coefficient is zero.
+example : {z : ℤ | z = 0} ∈ CountingLevel 26 encIntBin := by
+  let C : Controlled (fun z : ℤ => (MvPolynomial.C z : MvPolynomial (Fin 0) ℤ)) encIntBin 0 :=
+    Controlled.constant (ComputableInPolyTime.const 0) id ComputableInPolyTime.id'
+  simpa using C.feasibility_mem Decoder.intBin
 
 -- A cubic degree bound gives a fixed-width witness for the zero source.
 example :
@@ -349,15 +357,12 @@ example :
     let x : MvPolynomial (Fin 1) (Polynomial ℤ) := X 0
     residue 2 r (x ^ 3) = U ∧ Polynomial.coeffNorm1 (residue 2 r (x ^ 3)) ≤ 4 := by
   intro U r x
-  have hU : Polynomial.coeffNorm1 U = 1 := by
-    simpa only [U, mul_one, Polynomial.coeffNorm1_one] using
-      Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
   have hr (i : Fin 1) : (r i).totalDegree < 2 := by
     simp only [r, totalDegree_C]
     decide
   have hdeg : (x ^ 3).totalDegree ≤ 3 := (totalDegree_pow _ _).trans (by simp [x])
   have h := coeffNorm1_residue_le (B := 3) (R := 1) (by decide : 1 ≤ 2) (by decide)
-    r hr (fun _ => by simp [r, hU]) _ hdeg
+    r hr (fun _ => by simp [r, U]) _ hdeg
   have hv := ParameterCoeffNorm.pow_le x 3
   simp only [x, ParameterCoeffNorm.X, one_pow] at hv
   refine ⟨?_, h.trans (by simpa using Nat.mul_le_mul_left 4 hv)⟩
@@ -541,11 +546,9 @@ example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
     simp [P]
   have hR : (P.leadingCoeff.coeffNorm1 : ℝ) + 1 ≤ ((2 : ℤ) : ℝ) := by
     norm_num [hlead, Polynomial.coeffNorm1_one]
-  have hX : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
-    simpa using Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
   have hU : ((P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 : ℝ) + 1 ≤ 4 := by
     have hbound := Polynomial.coeffNorm1_sub_le Polynomial.X (Polynomial.C (2 : ℤ))
-    rw [hX, Polynomial.coeffNorm1_C] at hbound
+    rw [Polynomial.coeffNorm1_X, Polynomial.coeffNorm1_C] at hbound
     have hnorm : (P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 ≤ 3 := by
       simpa [P] using hbound
     exact_mod_cast (Nat.add_le_add_right hnorm 1)
@@ -600,13 +603,15 @@ example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1)
     simpa only [r, aeval_C, Algebra.algebraMap_self_apply, pow_one] using (hx 0).symm
   exact ⟨x, hx₀, hv⟩
 
--- One derivative sign test suffices to select one of the two roots of x² − 1.
+-- A single test selects one root of x² − 1. The fingerprint distinguishes both.
 open scoped Classical in
 example :
     let p : Polynomial ℝ := Polynomial.X ^ 2 - 1
     let S : Finset ℝ := {-1, 1}
-    ∃ L : List (Fin 2 × SignType), L.length ≤ 1 ∧
-      ∃ x ∈ S, ∀ y ∈ S, (∀ c ∈ L, p.derivativeSign y (c.1.val + 1) = c.2) ↔ y = x := by
+    (∃ L : List (Fin 2 × SignType), L.length ≤ 1 ∧
+      ∃ x ∈ S, ∀ y ∈ S, (∀ c ∈ L, p.derivativeSign y (c.1.val + 1) = c.2) ↔ y = x) ∧
+    ∃ m t : ℕ, m.Prime ∧ 2 < m ∧ m ≤ 20 ∧ t < m ∧
+      p.derivativeFingerprint 2 m t (-1) ≠ p.derivativeFingerprint 2 m t 1 := by
   intro p S
   have hc : p.coeff 2 = 1 := by
     simp [p, Polynomial.coeff_X_pow, Polynomial.coeff_one]
@@ -616,7 +621,11 @@ example :
   have hroots (x : ℝ) (hx : x ∈ S) : p.IsRoot x := by
     simp only [S, Finset.mem_insert, Finset.mem_singleton] at hx
     rcases hx with rfl | rfl <;> norm_num [p, Polynomial.IsRoot.def]
-  exact p.exists_short_derivativeSign_selector hp hD (by decide) hS hroots
+  refine ⟨p.exists_short_derivativeSign_selector hp hD (by decide) hS hroots, ?_⟩
+  obtain ⟨m, t, hm, hmlo, hmhi, ht, hinj⟩ := p.exists_derivativeFingerprint_injOn_roots hp hD
+  refine ⟨m, t, hm, hmlo, hmhi, ht, fun he => ?_⟩
+  have h := hinj (hroots (-1) (by simp [S])) (hroots 1 (by simp [S])) he
+  norm_num at h
 
 -- A nonmonic source with a double root at 1 gives a degree-two resultant with root 3.
 example :
@@ -649,17 +658,15 @@ example :
   have hp : p ≠ 0 := fun h => by simp [h] at hp₁
   have hD : p.natDegree ≤ 1 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
   have hE : g.natDegree ≤ 1 := by simp [g]
-  have hg : g.coeffNorm1 = 1 := by
-    simpa only [g, mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
   have hb : p.coeffNorm1 ≤ 2 ^ 2 := by
     change (Polynomial.C 2 * g - 1).coeffNorm1 ≤ 2 ^ 2
     refine (Polynomial.coeffNorm1_sub_le _ _).trans ?_
     have h := Polynomial.coeffNorm1_C_mul_le 2 g
-    rw [hg] at h
+    rw [show g.coeffNorm1 = 1 from Polynomial.coeffNorm1_X] at h
     rw [Polynomial.coeffNorm1_one]
     omega
   have hx : p.eval₂ (Int.castRingHom ℝ) (1 / 2) = 0 := by norm_num [p]
-  have h := Polynomial.eval₂_eq_zero_or_dyadic_bounds hp hD hE hb (c := 0) (by simp [hg]) hx
+  have h := Polynomial.eval₂_eq_zero_or_dyadic_bounds hp hD hE hb (c := 0) (by simp [g]) hx
   rcases h with hzero | hbounds
   · norm_num [g] at hzero
   · simpa only [R, g, Polynomial.eval₂_X, abs_of_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2)]
@@ -709,6 +716,29 @@ example :
     norm_num [s] at hsign
   exact ⟨hmatch.resolve_right (by linarith), hmiss.resolve_left (by linarith)⟩
 
+-- Weight two amplifies the sign error. The score still separates consecutive targets.
+example :
+    (1 : ℝ) / 2 ≤ SignType.fingerprintScore (-(11 / 6)) (3 / 4) (-2) ∧
+      SignType.fingerprintScore (-(11 / 6)) (3 / 4) (-1) ≤ -((1 : ℝ) / 2) := by
+  have h (target : ℤ) :
+      let score := SignType.fingerprintScore (-(11 / 6)) (3 / 4) target
+      ((1 : ℝ) / 2 ≤ score ∨ score ≤ -((1 : ℝ) / 2)) ∧ (0 < score ↔ (-2 : ℤ) = target) := by
+    have result := SignType.fingerprintScore_margin (m := 1) (M := 2) (fun _ => 2)
+      (fun _ => -(11 / 12)) (fun _ => -1) (3 / 4) 1 target
+      (by simp) (fun _ => by norm_num) (by norm_num)
+    norm_num [Fin.sum_univ_one] at result
+    exact result
+  have hyes := (h (-2)).2.mpr rfl
+  have hno := (h (-1)).2.not.mpr (by decide : ¬(-2 : ℤ) = -1)
+  exact ⟨(h (-2)).1.resolve_right (by linarith), (h (-1)).1.resolve_left (by linarith)⟩
+
+-- Zero total weight gives a constant fingerprint and still tests the qualifying sign.
+example : (1 : ℝ) / 2 ≤ SignType.fingerprintScore 0 (3 / 4) 0 := by
+  have h := SignType.fingerprintScore_margin (m := 0) (M := 0)
+    Fin.elim0 Fin.elim0 Fin.elim0 (3 / 4) 1 0 (by simp) (fun i => i.elim0) (by norm_num)
+  simp only [Finset.univ_eq_empty, Finset.sum_empty] at h
+  exact h.1.resolve_right (by linarith [h.2.mpr (by simp)])
+
 -- Clearing the denominators gives an integer polynomial that distinguishes the two targets.
 example :
     let g : Fin 1 → Polynomial ℤ := fun _ => Polynomial.X
@@ -739,12 +769,10 @@ example :
     q.natDegree ≤ 12 ∧ q.coeffNorm1 ≤ 2 ^ 24 := by
   intro g q
   have hD : g.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
-  have hx : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
-    simpa only [mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
   have hg : g.coeffNorm1 ≤ 2 ^ 1 := by
     refine (Polynomial.coeffNorm1_sub_le _ _).trans ?_
     have h := Polynomial.coeffNorm1_pow_le (Polynomial.X : Polynomial ℤ) 2
-    rw [hx, one_pow] at h
+    rw [Polynomial.coeffNorm1_X, one_pow] at h
     rw [Polynomial.coeffNorm1_one]
     omega
   exact Polynomial.dyadicSignProduct_comp_bounds 1 1 g hD hg
@@ -755,9 +783,7 @@ example :
     let p := Polynomial.signLabelPolynomial 1 g (fun _ => 1)
     p.natDegree ≤ 48 ∧ p.coeffNorm1 ≤ 2 ^ 156 := by
   intro g p
-  have hb (i : Fin 1) : (g i).coeffNorm1 ≤ 2 ^ 0 := by
-    simpa only [g, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
-      (Polynomial.coeffNorm1_X_mul 1).le
+  have hb (i : Fin 1) : (g i).coeffNorm1 ≤ 2 ^ 0 := by simp [g]
   have hDegree : Polynomial.signLabelDegreeBound 1 1 1 = 48 := by decide
   have hNorm : Polynomial.signLabelNormExponent 1 1 0 = 156 := by decide
   simpa only [hDegree, hNorm] using
@@ -875,9 +901,7 @@ example (a : ℤ) (ha : a.natAbs ≤ 1) :
           (Polynomial.sparseIntegerRootLabel p q 0 0 ([] : List (Fin 1 × SignType))))).re < 0) ↔
       0 < a := by
   intro p q
-  have hp : p.coeffNorm1 ≤ 2 ^ 0 := by
-    simpa only [p, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
-      (Polynomial.coeffNorm1_X_mul 1).le
+  have hp : p.coeffNorm1 ≤ 2 ^ 0 := by simp [p]
   have hq : q.coeffNorm1 ≤ 2 ^ 0 := by
     simpa only [q, Polynomial.coeffNorm1_C, pow_zero] using ha
   have h := Polynomial.exists_eval₂_pos_at_root_iff_neg_shiftedRootLabel_prod
@@ -955,9 +979,7 @@ example :
   have hcard : Fintype.card (NormalIndex 0 1) = 1 := Fintype.card_unique
   have hchar : M.charpoly = Polynomial.X := by
     simp only [M, map_zero, Matrix.charpoly_zero, hcard, pow_one]
-  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ 0 := by
-    simpa only [hchar, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
-      (Polynomial.coeffNorm1_X_mul 1).le
+  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ 0 := by simp [hchar]
   have hsep : (M.charpoly.map (algebraMap ℤ ℂ)).Separable := by
     rw [hchar, Polynomial.map_X]
     exact Polynomial.separable_X

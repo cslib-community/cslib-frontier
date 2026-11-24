@@ -53,22 +53,12 @@ theorem exec_power {w B E : ℕ} (x : Data 16)
       rw [← pow_succ]
       exact hfit.of_le (Nat.pow_le_pow_right hB (by omega))
     have hdec : Fits w (y.regs remaining - 1) := hcount.of_le (by omega)
-    let z := y.set envelope (B ^ (E - y.regs remaining) * B)
-      |>.set remaining (y.regs remaining - 1)
-    have he : ExecWithin w powerBody y z 2 := by
-      ram_eval [powerBody, z, hyv, hys, hyo, hmul, hdec,
-        envelope, scale, remaining, one, Fin.mk.injEq]
-    refine ⟨z, he, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
-    · simpa +decide [z, envelope, remaining] using (show y.regs remaining - 1 ≤ E by omega)
-    · simp +decide only [z, Data.set_regs, Function.update_apply, envelope, remaining,
-        ↓reduceIte]
-      rw [← pow_succ, hexp]
-    · intro i hie hir
-      exact (by simp only [z, Data.set_regs, Function.update_of_ne hir,
-        Function.update_of_ne hie] : z.regs i = y.regs i).trans (hyr i hie hir)
-    · exact hym
-    · have hlt : y.regs remaining - 1 < y.regs remaining := by omega
-      simpa +decide [z, envelope, remaining] using hlt
+    refine WP.exists_execWithin ?_
+    unfold powerBody
+    wram_exec [hyv, hys, hyo, hmul, hdec]
+    exact ⟨⟨by wram_simp; omega, by wram_simp; rw [← pow_succ, hexp],
+      fun i hie hir => by wram_simp [hie, hir]; exact hyr i hie hir, by wram_simp [hym]⟩,
+      by wram_simp; omega⟩
   have hx : I x := ⟨by omega, by simp only [hc, hv, Nat.sub_self, pow_zero],
     fun _ _ _ => rfl, rfl⟩
   obtain ⟨y, he, hy, hstop⟩ := ExecWithin.loop_invariant I

@@ -100,9 +100,9 @@ theorem multiply_natAbs_le {p A B : ℕ} (k : ℕ) (a b : ℕ → ℤ)
     have hb₂ (j : ℕ) (hj : j < q) := hqb 2 (by decide) j hj
     have hb₃ (j : ℕ) (hj : j < q) := hqb 3 (by decide) j hj
     have hsum {C : ℕ} {u v : ℤ} (hu : u.natAbs ≤ C) (hv : v.natAbs ≤ C) :
-        (u + v).natAbs ≤ 2 * C := (Int.natAbs_add_le _ _).trans (by omega)
+        (u + v).natAbs ≤ 2 * C := by omega
     have hsub {C : ℕ} {u v : ℤ} (hu : u.natAbs ≤ C) (hv : v.natAbs ≤ C) :
-        (u - v).natAbs ≤ 2 * C := (Int.natAbs_sub_le _ _).trans (by omega)
+        (u - v).natAbs ≤ 2 * C := by omega
     have h₁ := hchild (quarter q 0 a + quarter q 3 a) (quarter q 0 b + quarter q 3 b)
       (fun j hj => hsum (ha₀ j hj) (ha₃ j hj)) (fun j hj => hsum (hb₀ j hj) (hb₃ j hj))
     have h₂ := hchild (quarter q 2 a + quarter q 3 a) (quarter q 0 b)

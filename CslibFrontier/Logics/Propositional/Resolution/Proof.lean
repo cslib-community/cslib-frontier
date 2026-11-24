@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.LineProof
 public import CslibFrontier.Logics.Propositional.Resolution
 
 /-!
@@ -44,13 +45,16 @@ clauses of `ψ` (`Cslib.Logic.PL.CNF.IsProof.comp`).
 ## Main definitions
 
 * `Cslib.Logic.PL.Clause.width`: the number of distinct literals of a clause.
-* `Cslib.Logic.PL.CNF.IsProof`: resolution proofs.
+* `Cslib.Logic.PL.CNF.IsProof`, `Cslib.Logic.PL.CNF.resolutionRules`: resolution proofs and
+  inference rules.
 * `Cslib.Logic.PL.CNF.RefutableInSize`, `Cslib.Logic.PL.CNF.RefutableInWidth`: refutability by a
   refutation with a bounded number of lines, or with lines of bounded width.
 * `Cslib.Logic.PL.CNF.restrictBy`: restricting a formula by a partial assignment.
 
 ## Main results
 
+* `Cslib.Logic.PL.CNF.isProof_iff_lineProof`: resolution proofs as `Cslib.Logic.PL.LineProof`
+  derivations.
 * `Cslib.Logic.PL.CNF.derives_iff_exists_isProof`: derivable clauses are the lines of proofs.
 * `Cslib.Logic.PL.CNF.exists_refutableInSize_iff_not_satisfiable`: resolution refutes exactly the
   unsatisfiable formulas.
@@ -132,6 +136,45 @@ namespace CNF
 
 variable {φ ψ : CNF V} {ls ls' : List (Clause V)} {c : Clause V}
 
+/-- The inference rules of propositional resolution: from `c₁` containing `(v, true)` and `c₂`
+containing `(v, false)`, infer `c₁.resolvent c₂ v`. -/
+def resolutionRules (V : Type*) [DecidableEq V] : Set (LineRule (Clause V)) :=
+  {r | ∃ c₁ c₂ v, (v, true) ∈ c₁ ∧ (v, false) ∈ c₂ ∧ r = ⟨[c₁, c₂], c₁.resolvent c₂ v⟩}
+
+/-- Every resolution rule has two premises. -/
+theorem resolutionRules_premises_length_le {r : LineRule (Clause V)}
+    (hr : r ∈ resolutionRules V) : r.premises.length ≤ 2 := by
+  obtain ⟨_, _, _, -, -, rfl⟩ := hr
+  simp
+
+/-- Every resolution rule preserves clause satisfaction. -/
+theorem resolutionRules_sound {r : LineRule (Clause V)} (hr : r ∈ resolutionRules V)
+    {σ : V → Bool} (hp : ∀ c ∈ r.premises, c.eval σ = true) : r.concl.eval σ = true := by
+  obtain ⟨c₁, c₂, v, -, -, rfl⟩ := hr
+  exact Clause.eval_resolvent v (hp c₁ (by simp)) (hp c₂ (by simp))
+
+/-- **Resolution proofs as `LineProof` derivations.** -/
+theorem isProof_iff_lineProof : φ.IsProof ls ↔ LineProof (resolutionRules V) {c | c ∈ φ} ls := by
+  constructor
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | mem _ hc ih => exact ih.hyp hc
+    | @resolvent _ c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
+      refine ih.step ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩ fun c hc => ?_
+      rcases List.mem_cons.1 hc with rfl | hc
+      · exact h₁
+      · rcases List.mem_cons.1 hc with rfl | hc
+        exacts [h₂, nomatch hc]
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | hyp _ hc ih => exact ih.mem hc
+    | step _ hr hp ih =>
+      obtain ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩ := hr
+      exact ih.resolvent v (hp c₁ List.mem_cons_self)
+        (hp c₂ (List.mem_cons_of_mem _ List.mem_cons_self)) hv₁ hv₂
+
 namespace IsProof
 
 /-- Every line of a proof is derivable. -/
@@ -146,19 +189,12 @@ theorem derives (h : φ.IsProof ls) (hc : c ∈ ls) : φ.Derives c := by
     exacts [.resolvent v (ih h₁) (ih h₂) hv₁ hv₂, ih hc]
 
 /-- A proof placed above another proof from the same formula gives a proof. -/
-theorem append (h : φ.IsProof ls) (h' : φ.IsProof ls') : φ.IsProof (ls ++ ls') := by
-  induction h with
-  | nil => exact h'
-  | mem _ hc ih => exact ih.mem hc
-  | resolvent v _ h₁ h₂ hv₁ hv₂ ih =>
-    exact ih.resolvent v (List.mem_append_left _ h₁) (List.mem_append_left _ h₂) hv₁ hv₂
+theorem append (h : φ.IsProof ls) (h' : φ.IsProof ls') : φ.IsProof (ls ++ ls') :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).append (isProof_iff_lineProof.1 h'))
 
 /-- Proofs survive adding clauses to the formula. -/
-theorem mono (h : φ.IsProof ls) (hφψ : φ ⊆ ψ) : ψ.IsProof ls := by
-  induction h with
-  | nil => exact .nil
-  | mem _ hc ih => exact ih.mem (hφψ hc)
-  | resolvent v _ h₁ h₂ hv₁ hv₂ ih => exact ih.resolvent v h₁ h₂ hv₁ hv₂
+theorem mono (h : φ.IsProof ls) (hφψ : φ ⊆ ψ) : ψ.IsProof ls :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).mono_hyp fun _ hc => hφψ hc)
 
 /-- The lines of a proof only mention variables of the formula. -/
 theorem fst_mem_vars (h : φ.IsProof ls) (hc : c ∈ ls) {l : Literal V} (hl : l ∈ c) :
@@ -403,21 +439,9 @@ all clauses of `ψ`. The lines added are lines of the proof from `ψ`, and every
 from `ψ` is a line of the result. -/
 theorem IsProof.comp (hψ : ψ.IsProof ls') (h : φ.IsProof ls) (hψφ : ∀ c ∈ ψ, c ∈ ls) :
     ∃ ls'', φ.IsProof (ls'' ++ ls) ∧ (∀ c ∈ ls', c ∈ ls'' ++ ls) ∧ ∀ c ∈ ls'', c ∈ ls' := by
-  induction hψ with
-  | nil => exact ⟨[], h, by simp, by simp⟩
-  | @mem ls' c _ hc ih =>
-    obtain ⟨ls'', h'', hup, hdown⟩ := ih
-    refine ⟨ls'', h'', fun e he => ?_, fun e he => List.mem_cons_of_mem _ (hdown e he)⟩
-    rcases List.mem_cons.1 he with rfl | he
-    exacts [List.mem_append_right _ (hψφ _ hc), hup e he]
-  | @resolvent ls' c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
-    obtain ⟨ls'', h'', hup, hdown⟩ := ih
-    refine ⟨_ :: ls'', h''.resolvent v (hup _ h₁) (hup _ h₂) hv₁ hv₂, fun e he => ?_,
-      fun e he => ?_⟩
-    · rcases List.mem_cons.1 he with rfl | he
-      exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hup e he)]
-    · rcases List.mem_cons.1 he with rfl | he
-      exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hdown e he)]
+  obtain ⟨ls'', h'', hup, hsub, -, -⟩ := (isProof_iff_lineProof.1 hψ).comp
+    (isProof_iff_lineProof.1 h) fun c hc => Or.inr (hψφ c hc)
+  exact ⟨ls'', isProof_iff_lineProof.2 h'', hup, fun _ hc => hsub.subset hc⟩
 
 /-! ### Restricting proofs by partial assignments -/
 

@@ -112,7 +112,7 @@ example : (CDCL.solveWith { restarts := false } php).2.restarts = 0 := by decide
 by the clause; the saved phase of `x₁` is still `false`. -/
 private def beforeRestart : CDCL.WExec [[(0, true), (1, true)]] :=
   let S₀ := CDCL.WExec.init [[(0, true), (1, true)]] {}
-  let S := S₀.decide 0 S₀.order S₀.inOrder
+  let S := S₀.decide 0 S₀.order
   { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
 
 /-- The decision is `¬x₀`, and the clause `x₀ ∨ x₁` then forces `x₁`. -/

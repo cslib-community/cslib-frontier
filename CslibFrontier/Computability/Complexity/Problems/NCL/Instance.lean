@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.AndOr
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.WellFormed
+public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.Simulation
 public import Mathlib.Data.List.OfFn
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Basic
@@ -67,6 +68,22 @@ def graph (g : AndOrGraph) : ConstraintGraph (Fin g.vertices.length) (Fin g.edge
         some (⟨⟨⟨p.port.edge, h⟩, p.port.dir⟩, p.weight⟩ : WeightedPort (Fin g.edgeCount))
       else none
     minInflow := v.minInflow }
+
+/-- A finite port occurs exactly when its natural-numbered port occurs in the input vertex. -/
+theorem mem_graph_ports_iff (g : AndOrGraph) (i : Fin g.vertices.length)
+    (p : WeightedPort (Fin g.edgeCount)) :
+    p ∈ (g.graph i).ports ↔ p.map Fin.val ∈ (g.vertices.get i).ports := by
+  change p ∈ ((g.vertices.get i).ports.filterMap _) ↔ _
+  rw [List.mem_filterMap]
+  constructor
+  · rintro ⟨q, hq, he⟩
+    split at he
+    · cases Option.some.inj he
+      exact hq
+    · cases he
+  · intro hp
+    refine ⟨p.map Fin.val, hp, ?_⟩
+    simp only [WeightedPort.map, Port.map, p.port.edge.isLt, ↓reduceDIte]
 
 /-- Erasing finite bounds recovers the original port data when all names are bounded. -/
 theorem graph_map_val (g : AndOrGraph) (h : g.Bounded) :
@@ -135,6 +152,49 @@ theorem ofFn_config (g : AndOrGraph) (s : List Bool) (hs : s.length = g.edgeCoun
   intro i _ hi
   simp only [List.getElem_ofFn, config]
   exact List.getD_eq_getElem s false hi
+
+/-- Serialize a graph on finite vertex and edge intervals. -/
+@[expose] def ofFinite {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) : AndOrGraph :=
+  ⟨List.ofFn (fun i => (G i).map Fin.val), m⟩
+
+/-- Serialization keeps every edge name in the declared interval. -/
+theorem ofFinite_bounded {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) :
+    (ofFinite G).Bounded := by
+  intro v hv p hp
+  obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hv
+  obtain ⟨q, _, rfl⟩ := List.mem_map.1 hp
+  exact q.port.edge.isLt
+
+/-- Reading finite graph data recovers each original vertex. -/
+theorem graph_ofFinite {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
+    (i : Fin (ofFinite G).vertices.length) :
+    (ofFinite G).graph i = G (i.cast (by simp [ofFinite])) := by
+  apply Vertex.map_injective Fin.val_injective
+  exact (congrFun (graph_map_val _ (ofFinite_bounded G)) i).trans (List.get_ofFn _ i)
+
+private def vertexEquiv {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) :
+    Fin (ofFinite G).vertices.length ≃ Fin n := finCongr (by simp [ofFinite])
+
+private theorem graph_ofFinite_eq {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) :
+    (ofFinite G).graph = G ∘ vertexEquiv G := funext (graph_ofFinite G)
+
+/-- Serialization preserves the structural conditions of an AND/OR instance. -/
+theorem ofFinite_valid {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m))
+    (ha : G.IsAndOr) (hw : G.WellFormed) : (ofFinite G).Valid := by
+  refine ⟨ofFinite_bounded G, ?_, ?_⟩
+  · intro i
+    rw [graph_ofFinite]
+    exact ha _
+  · rw [graph_ofFinite_eq]
+    exact hw.reindex (vertexEquiv G)
+
+/-- Serialized finite graph data have exactly the original legality and reachability semantics. -/
+@[expose] def ofFiniteSimulation {n m : ℕ} (G : ConstraintGraph (Fin n) (Fin m)) :
+    ConstraintGraph.Simulation G (ofFinite G).graph :=
+  ConstraintGraph.Simulation.ofLegalEquiv _ _ (Equiv.refl _) fun s => by
+    change (ofFinite G).graph.Legal s ↔ G.Legal s
+    rw [graph_ofFinite_eq]
+    exact ConstraintGraph.legal_comp G (vertexEquiv G).surjective s
 
 end AndOrGraph
 
