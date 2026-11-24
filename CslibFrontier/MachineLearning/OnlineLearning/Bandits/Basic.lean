@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.PMF
 public import Mathlib.MeasureTheory.Constructions.Pi
 public import Mathlib.MeasureTheory.Integral.Bochner.Basic
 import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
+import CslibFrontier.Probability.Azuma
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
@@ -122,16 +123,6 @@ from previous rounds to a discrete probability distribution over arms. -/
 structure RandomizedPolicy (ι : Type*) where
   /-- Distribution over the next arm after observing `hist`. -/
   play : List (BanditStep ι) → PMF ι
-
-/-- View a deterministic bandit policy as a randomized policy via `PMF.pure`. -/
-noncomputable def DeterministicPolicy.toRandomized {ι : Type*}
-    (pol : DeterministicPolicy ι) : RandomizedPolicy ι where
-  play hist := PMF.pure (pol.choose hist)
-
-@[simp]
-theorem DeterministicPolicy.toRandomized_play {ι : Type*} (pol : DeterministicPolicy ι)
-    (hist : List (BanditStep ι)) : pol.toRandomized.play hist = PMF.pure (pol.choose hist) := by
-  rw [toRandomized]
 
 /-- A deterministic bandit policy is Borel-measurable if, for every history length `t` and past arm
 sequence `arms : Fin t → ι`, each decision fiber `{vals : Fin t → ℝ | pol.choose ... = i}` is
@@ -287,26 +278,22 @@ theorem length_historyOfArms {ι : Type*} (env : ℕ → ι → ℝ) {T : ℕ} (
   simp [historyOfArms]
 
 /-- Sequential arm-trajectory distribution induced by `pol : RandomizedPolicy ι` over `T` rounds
-against an oblivious feedback table `env : ℕ → ι → ℝ`. -/
-noncomputable def trajectoryPMF {ι : Type*} (pol : RandomizedPolicy ι) (env : ℕ → ι → ℝ) :
-    (T : ℕ) → PMF (Fin T → ι)
-  | 0 => pure Fin.elim0
-  | T + 1 => do
-      let prev ← trajectoryPMF pol env T
-      let a ← pol.play (historyOfArms env prev)
-      pure (Fin.snoc (α := fun _ => ι) prev a)
+against an oblivious feedback table `env : ℕ → ι → ℝ`, defined via
+`Cslib.Probability.PMF.seqProcess`. -/
+noncomputable def trajectoryPMF {ι : Type*} (pol : RandomizedPolicy ι) (env : ℕ → ι → ℝ)
+    (T : ℕ) : PMF (Fin T → ι) :=
+  Cslib.Probability.PMF.seqProcess (fun _ prev => pol.play (historyOfArms env prev)) T
 
 @[simp]
 theorem trajectoryPMF_zero {ι : Type*} (pol : RandomizedPolicy ι) (env : ℕ → ι → ℝ) :
     trajectoryPMF pol env 0 = PMF.pure Fin.elim0 := by
-  rw [trajectoryPMF, Cslib.Probability.PMF.monad_pure_eq_pure]
+  rw [trajectoryPMF, Cslib.Probability.PMF.seqProcess]
 
 theorem trajectoryPMF_succ {ι : Type*} (pol : RandomizedPolicy ι) (env : ℕ → ι → ℝ) (T : ℕ) :
     trajectoryPMF pol env (T + 1) =
       (trajectoryPMF pol env T).bind fun prev =>
         (pol.play (historyOfArms env prev)).map (Fin.snoc (α := fun _ => ι) prev) := by
-  simp only [trajectoryPMF, Cslib.Probability.PMF.monad_bind_eq_bind,
-    Cslib.Probability.PMF.monad_pure_eq_pure]
+  rw [trajectoryPMF, Cslib.Probability.PMF.seqProcess]
   rfl
 
 /-- Expected cumulative feedback collected by `pol` over `T` rounds on `env`. -/
@@ -358,15 +345,6 @@ theorem expectedTotal_nonneg {ι : Type*} [Fintype ι] (pol : RandomizedPolicy �
   sum_nonneg fun traj _ => mul_nonneg ENNReal.toReal_nonneg
     (sum_nonneg fun t _ => h0 t t.isLt (traj t))
 
-theorem expectedTotal_le_mul {ι : Type*} [Fintype ι] (pol : RandomizedPolicy ι)
-    {env : ℕ → ι → ℝ} {T : ℕ} {c : ℝ} (hc : ∀ t < T, ∀ i, env t i ≤ c) :
-    expectedTotal pol env T ≤ T * c := by
-  unfold expectedTotal
-  refine Cslib.Probability.PMF.sum_mul_le (trajectoryPMF pol env T) _ _ fun traj => ?_
-  calc ∑ t : Fin T, env t (traj t)
-      ≤ ∑ _t : Fin T, c := sum_le_sum fun t _ => hc t t.isLt (traj t)
-    _ = T * c := by simp
-
 /-- An oblivious adversarial `K`-armed bandit environment with `[0, 1]`-bounded losses
 ([BubeckCesaBianchi2012, §1.1, §3], locator not re-verified against primary PDF). -/
 structure ObliviousBandit (ι : Type*) where
@@ -382,9 +360,6 @@ variable {ι : Type*} (E : ObliviousBandit ι)
 /-- Cumulative loss of fixed arm `i` over the first `T` rounds. -/
 def cumLoss (T : ℕ) (i : ι) : ℝ :=
   ∑ t ∈ range T, E.loss t i
-
-theorem cumLoss_def (T : ℕ) (i : ι) : E.cumLoss T i = ∑ t ∈ range T, E.loss t i := by
-  rw [cumLoss]
 
 /-- Minimum cumulative loss of any single fixed arm in hindsight over `T` rounds. -/
 noncomputable def bestCumLoss [Fintype ι] [Nonempty ι] (T : ℕ) : ℝ :=

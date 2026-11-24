@@ -65,6 +65,9 @@ This module formalizes both standard presentations of **EXP3** as genuine partia
   `Cslib.MachineLearning.OnlineLearning.Bandits.exp3GammaPolicy`,
   `Cslib.MachineLearning.OnlineLearning.Bandits.exp3GammaRate`: reward-based `γ`-mixed `Exp3` and
   its tuned exploration parameter `min 1 √(K ln K / ((e - 1) T))`.
+* `Cslib.MachineLearning.OnlineLearning.Bandits.bestCumReward`,
+  `Cslib.MachineLearning.OnlineLearning.Bandits.obliviousRewardRegret`: hindsight maximum cumulative
+  reward and expected weak regret on oblivious reward tables.
 
 ## Main results
 
@@ -170,7 +173,7 @@ section LossEXP3
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- One-round multiplicative weight update of loss-based `EXP3` from a bandit observation `step`. -/
-noncomputable def exp3Step (η : ℝ) (w : ι → ℝ) (step : BanditStep ι) (i : ι) : ℝ :=
+private noncomputable def exp3Step (η : ℝ) (w : ι → ℝ) (step : BanditStep ι) (i : ι) : ℝ :=
   w i * Experts.hedgeFactor η (importanceWeightedEst (fun j => w j / ∑ k, w k) step i)
 
 /-- Cumulative exponential weights of loss-based `EXP3` after observing transcript `hist`. -/
@@ -224,13 +227,12 @@ theorem sum_exp3Prob [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) :
   exact div_self (sum_exp3Weight_pos η hist).ne'
 
 /-- Discrete `PMF` over arms played by loss-based `EXP3`. -/
-noncomputable def exp3PMF [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) : PMF ι :=
+private noncomputable def exp3PMF [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) : PMF ι :=
   PMF.ofFintype (fun i => ENNReal.ofReal (exp3Prob η hist i)) (by
     rw [← ENNReal.ofReal_sum_of_nonneg fun i _ => exp3Prob_nonneg η hist i,
       sum_exp3Prob η hist, ENNReal.ofReal_one])
 
-@[simp]
-theorem toReal_exp3PMF_apply [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) (i : ι) :
+private theorem toReal_exp3PMF_apply [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) (i : ι) :
     (exp3PMF η hist i).toReal = exp3Prob η hist i := by
   rw [exp3PMF, PMF.ofFintype_apply, ENNReal.toReal_ofReal (exp3Prob_nonneg η hist i)]
 
@@ -239,8 +241,7 @@ theorem toReal_exp3PMF_apply [Nonempty ι] (η : ℝ) (hist : List (BanditStep �
 noncomputable def exp3Policy [Nonempty ι] (η : ℝ) : RandomizedPolicy ι where
   play := exp3PMF η
 
-@[simp]
-theorem exp3Policy_play [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) :
+private theorem exp3Policy_play [Nonempty ι] (η : ℝ) (hist : List (BanditStep ι)) :
     (exp3Policy η).play hist = exp3PMF η hist := by
   rw [exp3Policy]
 
@@ -261,11 +262,7 @@ theorem exp3Weight_eq_experts_weight (η : ℝ) (ℓ : ℕ → ι → ℝ) (I : 
     simp [Experts.weight_zero]
   | succ t ih =>
     funext i
-    have hsnoc : (List.ofFn fun r : Fin (t + 1) => (⟨I r, ℓ r (I r)⟩ : BanditStep ι)) =
-        (List.ofFn fun r : Fin t => ⟨I r, ℓ r (I r)⟩) ++ [⟨I t, ℓ t (I t)⟩] := by
-      rw [List.ofFn_succ', List.concat_eq_append]
-      rfl
-    rw [hsnoc, exp3Weight_append_singleton, Experts.weight_succ, ← ih]
+    rw [List.ofFn_succ_last, exp3Weight_append_singleton, Experts.weight_succ, ← ih]
     rfl
 
 /-- Along every realized arm sequence `I`, `exp3Prob` equals `Experts.prob` for `hedgeFactor η` on
@@ -276,44 +273,53 @@ theorem exp3Prob_eq_experts_prob (η : ℝ) (ℓ : ℕ → ι → ℝ) (I : ℕ 
   funext i
   simp only [exp3Prob, Experts.prob, Experts.potential, exp3Weight_eq_experts_weight]
 
-/-- Prefix of a finite trajectory `traj : Fin T → ι` up to round `t` (`t ≤ T`). -/
-private def prefixHistory (ℓ : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) (t : Fin T) :
+/-- Prefix of a finite trajectory `traj : Fin T → ι` of length `s ≤ T`. -/
+private def prefixHistory (ℓ : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) (s : ℕ) (hs : s ≤ T) :
     List (BanditStep ι) :=
-  List.ofFn fun r : Fin t.1 => ⟨traj ⟨r.1, r.isLt.trans t.isLt⟩,
-    ℓ r.1 (traj ⟨r.1, r.isLt.trans t.isLt⟩)⟩
+  List.ofFn fun r : Fin s => ⟨traj ⟨r.1, r.isLt.trans_le hs⟩,
+    ℓ r.1 (traj ⟨r.1, r.isLt.trans_le hs⟩)⟩
 
 omit [Fintype ι] [DecidableEq ι] in
-private theorem prefixHistory_snoc_castSucc (ℓ : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) (a : ι)
-    (t : Fin T) :
-    prefixHistory ℓ (Fin.snoc (α := fun _ => ι) traj a) t.castSucc = prefixHistory ℓ traj t := by
+private theorem prefixHistory_succ (ℓ : ℕ → ι → ℝ) {T s : ℕ} (traj : Fin T → ι)
+    (hs : s + 1 ≤ T) :
+    prefixHistory ℓ traj (s + 1) hs =
+      prefixHistory ℓ traj s (Nat.le_of_succ_le hs) ++
+        [⟨traj ⟨s, hs⟩, ℓ s (traj ⟨s, hs⟩)⟩] :=
+  List.ofFn_succ_last
+
+omit [Fintype ι] [DecidableEq ι] in
+private theorem prefixHistory_snoc_of_le (ℓ : ℕ → ι → ℝ) {T s : ℕ} (traj : Fin T → ι) (a : ι)
+    {hs : s ≤ T} (hs' : s ≤ T + 1) :
+    prefixHistory ℓ (Fin.snoc (α := fun _ => ι) traj a) s hs' = prefixHistory ℓ traj s hs := by
   unfold prefixHistory
   congr 1
   funext r
-  have hcast : (⟨r.1, r.isLt.trans t.castSucc.isLt⟩ : Fin (T + 1)) =
-      (⟨r.1, r.isLt.trans t.isLt⟩ : Fin T).castSucc := rfl
+  have hcast : (⟨r.1, r.isLt.trans_le hs'⟩ : Fin (T + 1)) =
+      (⟨r.1, r.isLt.trans_le hs⟩ : Fin T).castSucc := rfl
   rw [hcast, Fin.snoc_castSucc]
 
 omit [Fintype ι] [DecidableEq ι] in
-private theorem prefixHistory_snoc_last (ℓ : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) (a : ι) :
-    prefixHistory ℓ (Fin.snoc (α := fun _ => ι) traj a) (Fin.last T) = historyOfArms ℓ traj := by
+private theorem prefixHistory_snoc_last (ℓ : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) (a : ι)
+    (hT : T ≤ T + 1) :
+    prefixHistory ℓ (Fin.snoc (α := fun _ => ι) traj a) T hT = historyOfArms ℓ traj := by
   rw [prefixHistory, historyOfArms_def]
   congr 1
   funext r
-  have hcast : (⟨r.1, r.isLt.trans (Fin.last T).isLt⟩ : Fin (T + 1)) = r.castSucc := rfl
+  have hcast : (⟨r.1, r.isLt.trans_le hT⟩ : Fin (T + 1)) = r.castSucc := rfl
   rw [hcast, Fin.snoc_castSucc]
 
-/-- Tower-property unbiasedness of cumulative importance-weighted estimates along `trajectoryPMF`
-for any randomized policy `pol` with strictly positive arm probabilities `probFn`. -/
-private theorem expected_sum_importanceWeightedEst_eq (pol : RandomizedPolicy ι)
-    (probFn : List (BanditStep ι) → ι → ℝ)
-    (hplay : ∀ hist a, (pol.play hist a).toReal = probFn hist a)
-    (hsum : ∀ hist, ∑ a, probFn hist a = 1)
-    (hne : ∀ hist a, probFn hist a ≠ 0)
-    (env : ℕ → ι → ℝ) (T : ℕ) (i : ι) :
+omit [DecidableEq ι] in
+/-- General tower-property expectation along `trajectoryPMF`: if each round's observable
+`f t hist a` has constant conditional expectation `c t` under `pol.play hist`, then the expected
+cumulative sum of `f t (prefixHistory env traj t) (traj t)` equals `∑ t < T, c t`. -/
+private theorem expected_sum_prefix_eq (pol : RandomizedPolicy ι) (env : ℕ → ι → ℝ)
+    (f : ℕ → List (BanditStep ι) → ι → ℝ) (c : ℕ → ℝ)
+    (hcond : ∀ (t : ℕ) (hist : List (BanditStep ι)),
+      ∑ a : ι, (pol.play hist a).toReal * f t hist a = c t)
+    (T : ℕ) :
     (∑ traj : Fin T → ι, (trajectoryPMF pol env T traj).toReal *
-      ∑ t : Fin T, importanceWeightedEst (probFn (prefixHistory env traj t))
-        ⟨traj t, env t (traj t)⟩ i) =
-      ∑ t ∈ range T, env t i := by
+      ∑ t : Fin T, f t (prefixHistory env traj t.1 t.isLt.le) (traj t)) =
+      ∑ t ∈ range T, c t := by
   induction T with
   | zero => simp
   | succ T ih =>
@@ -322,27 +328,44 @@ private theorem expected_sum_importanceWeightedEst_eq (pol : RandomizedPolicy ι
         (∑ b : Fin (T + 1) → ι,
           (((pol.play (historyOfArms env prev)).map
             (Fin.snoc (α := fun _ => ι) prev)) b).toReal *
-            ∑ t : Fin (T + 1), importanceWeightedEst (probFn (prefixHistory env b t))
-              ⟨b t, env t (b t)⟩ i) =
-          (∑ t : Fin T, importanceWeightedEst (probFn (prefixHistory env prev t))
-            ⟨prev t, env t (prev t)⟩ i) + env T i := by
+            ∑ t : Fin (T + 1), f t (prefixHistory env b t.1 t.isLt.le) (b t)) =
+          (∑ t : Fin T, f t (prefixHistory env prev t.1 t.isLt.le) (prev t)) + c T := by
       intro prev
       rw [Cslib.Probability.PMF.sum_map_mul]
       have hsnoc : ∀ a : ι,
-          (∑ t : Fin (T + 1), importanceWeightedEst
-            (probFn (prefixHistory env (Fin.snoc (α := fun _ => ι) prev a) t))
-            ⟨Fin.snoc (α := fun _ => ι) prev a t,
-              env t (Fin.snoc (α := fun _ => ι) prev a t)⟩ i) =
-            (∑ t : Fin T, importanceWeightedEst (probFn (prefixHistory env prev t))
-              ⟨prev t, env t (prev t)⟩ i) +
-              importanceWeightedEst (probFn (historyOfArms env prev)) ⟨a, env T a⟩ i := fun a => by
+          (∑ t : Fin (T + 1), f t
+            (prefixHistory env (Fin.snoc (α := fun _ => ι) prev a) t.1 t.isLt.le)
+            (Fin.snoc (α := fun _ => ι) prev a t)) =
+            (∑ t : Fin T, f t (prefixHistory env prev t.1 t.isLt.le) (prev t)) +
+              f T (historyOfArms env prev) a := fun a => by
         rw [Fin.sum_univ_castSucc]
-        simp only [prefixHistory_snoc_castSucc, Fin.snoc_castSucc, Fin.val_castSucc,
-          prefixHistory_snoc_last, Fin.snoc_last, Fin.val_last]
-      simp only [hsnoc, mul_add, sum_add_distrib, ← sum_mul, hplay, hsum, one_mul]
-      rw [sum_importanceWeightedEst (env T) (hne (historyOfArms env prev) i)]
+        simp only [Fin.snoc_castSucc, Fin.val_castSucc, Fin.snoc_last, Fin.val_last]
+        rw [prefixHistory_snoc_last]
+        congr 1
+        exact sum_congr rfl fun t _ => by rw [prefixHistory_snoc_of_le env prev a (hs := t.isLt.le)]
+      simp only [hsnoc, mul_add, sum_add_distrib, ← sum_mul,
+        Cslib.Probability.PMF.sum_toReal, one_mul, hcond T (historyOfArms env prev)]
     simp only [hstep, mul_add, sum_add_distrib, ← sum_mul,
       Cslib.Probability.PMF.sum_toReal, one_mul]
+
+/-- Tower-property unbiasedness of cumulative importance-weighted estimates along `trajectoryPMF`
+for any randomized policy `pol` with strictly positive arm probabilities `probFn`. -/
+private theorem expected_sum_importanceWeightedEst_eq (pol : RandomizedPolicy ι)
+    (probFn : List (BanditStep ι) → ι → ℝ)
+    (hplay : ∀ hist a, (pol.play hist a).toReal = probFn hist a)
+    (hne : ∀ hist a, probFn hist a ≠ 0)
+    (env : ℕ → ι → ℝ) (T : ℕ) (i : ι) :
+    (∑ traj : Fin T → ι, (trajectoryPMF pol env T traj).toReal *
+      ∑ t : Fin T, importanceWeightedEst (probFn (prefixHistory env traj t.1 t.isLt.le))
+        ⟨traj t, env t (traj t)⟩ i) =
+      ∑ t ∈ range T, env t i :=
+  expected_sum_prefix_eq pol env
+    (fun t hist a => importanceWeightedEst (probFn hist) ⟨a, env t a⟩ i)
+    (fun t => env t i)
+    (fun t hist => by
+      simp_rw [hplay]
+      exact sum_importanceWeightedEst (env t) (hne hist i))
+    T
 
 omit [DecidableEq ι] in
 /-- Tower-property second-moment identity `𝔼[∑_t v_t(I_t)² / p_t(I_t)] = ∑_{t < T} ∑_a v_t(a)²`
@@ -350,58 +373,51 @@ for any randomized policy `pol` with strictly positive arm probabilities `probFn
 private theorem expected_sum_sq_div_probFn_eq (pol : RandomizedPolicy ι)
     (probFn : List (BanditStep ι) → ι → ℝ)
     (hplay : ∀ hist a, (pol.play hist a).toReal = probFn hist a)
-    (hsum : ∀ hist, ∑ a, probFn hist a = 1)
     (hne : ∀ hist a, probFn hist a ≠ 0)
     (env : ℕ → ι → ℝ) (T : ℕ) :
     (∑ traj : Fin T → ι, (trajectoryPMF pol env T traj).toReal *
-      ∑ t : Fin T, env t (traj t) ^ 2 / probFn (prefixHistory env traj t) (traj t)) =
-      ∑ t ∈ range T, ∑ a : ι, env t a ^ 2 := by
-  induction T with
-  | zero => simp
-  | succ T ih =>
-    rw [trajectoryPMF_succ, Cslib.Probability.PMF.sum_bind_mul, sum_range_succ, ← ih]
-    have hstep : ∀ prev : Fin T → ι,
-        (∑ b : Fin (T + 1) → ι,
-          (((pol.play (historyOfArms env prev)).map
-            (Fin.snoc (α := fun _ => ι) prev)) b).toReal *
-            ∑ t : Fin (T + 1), env t (b t) ^ 2 / probFn (prefixHistory env b t) (b t)) =
-          (∑ t : Fin T, env t (prev t) ^ 2 / probFn (prefixHistory env prev t) (prev t)) +
-            ∑ a : ι, env T a ^ 2 := by
-      intro prev
-      rw [Cslib.Probability.PMF.sum_map_mul]
-      have hsnoc : ∀ a : ι,
-          (∑ t : Fin (T + 1),
-            env t (Fin.snoc (α := fun _ => ι) prev a t) ^ 2 /
-              probFn (prefixHistory env (Fin.snoc (α := fun _ => ι) prev a) t)
-                (Fin.snoc (α := fun _ => ι) prev a t)) =
-            (∑ t : Fin T, env t (prev t) ^ 2 / probFn (prefixHistory env prev t) (prev t)) +
-              env T a ^ 2 / probFn (historyOfArms env prev) a := fun a => by
-        rw [Fin.sum_univ_castSucc]
-        simp only [prefixHistory_snoc_castSucc, Fin.snoc_castSucc, Fin.val_castSucc,
-          prefixHistory_snoc_last, Fin.snoc_last, Fin.val_last]
-      simp only [hsnoc, mul_add, sum_add_distrib, ← sum_mul, hplay, hsum, one_mul]
-      rw [add_right_inj]
-      exact sum_congr rfl fun a _ => mul_div_cancel₀ _ (hne (historyOfArms env prev) a)
-    simp only [hstep, mul_add, sum_add_distrib, ← sum_mul,
-      Cslib.Probability.PMF.sum_toReal, one_mul]
+      ∑ t : Fin T, env t (traj t) ^ 2 / probFn (prefixHistory env traj t.1 t.isLt.le) (traj t)) =
+      ∑ t ∈ range T, ∑ a : ι, env t a ^ 2 :=
+  expected_sum_prefix_eq pol env
+    (fun t hist a => env t a ^ 2 / probFn hist a)
+    (fun t => ∑ a : ι, env t a ^ 2)
+    (fun t hist => by
+      simp_rw [hplay]
+      exact sum_congr rfl fun a _ => mul_div_cancel₀ _ (hne hist a))
+    T
+
+omit [DecidableEq ι] in
+/-- With a single arm (`Subsingleton ι`), every trajectory picks that arm, so `expectedTotal`
+equals the arm's cumulative feedback. -/
+private theorem expectedTotal_eq_sum_of_subsingleton [Subsingleton ι]
+    (pol : RandomizedPolicy ι) (env : ℕ → ι → ℝ) (T : ℕ) (i : ι) :
+    expectedTotal pol env T = ∑ t ∈ range T, env t i := by
+  have htraj : ∀ traj : Fin T → ι,
+      (∑ t : Fin T, env t (traj t)) = ∑ t ∈ range T, env t i := fun traj => by
+    rw [← Fin.sum_univ_eq_sum_range]
+    exact sum_congr rfl fun t _ => by rw [Subsingleton.elim (traj t) i]
+  simp only [expectedTotal_def, htraj, ← sum_mul, Cslib.Probability.PMF.sum_toReal, one_mul]
 
 /-- Expected cumulative estimated loss of arm `i` equals its true cumulative loss
 `∑_{t < T} ℓ t i`. -/
 private theorem expected_sum_estLoss_eq [Nonempty ι] (η : ℝ) (ℓ : ℕ → ι → ℝ) (T : ℕ) (i : ι) :
     (∑ traj : Fin T → ι, (trajectoryPMF (exp3Policy η) ℓ T traj).toReal *
-      ∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t))
+      ∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le))
         ⟨traj t, ℓ t (traj t)⟩ i) =
       ∑ t ∈ range T, ℓ t i :=
   expected_sum_importanceWeightedEst_eq (exp3Policy η) (exp3Prob η)
-    (fun hist a => by simp) (sum_exp3Prob η) (fun hist a => (exp3Prob_pos η hist a).ne') ℓ T i
+    (fun hist a => by rw [exp3Policy_play, toReal_exp3PMF_apply])
+    (fun hist a => (exp3Prob_pos η hist a).ne') ℓ T i
 
 /-- Expected cumulative variance proxy `∑_t ℓ_t(I_t)² / p_t(I_t)` equals `∑_{t < T} ∑_a ℓ_t(a)²`. -/
 private theorem expected_sum_sq_div_prob_eq [Nonempty ι] (η : ℝ) (ℓ : ℕ → ι → ℝ) (T : ℕ) :
     (∑ traj : Fin T → ι, (trajectoryPMF (exp3Policy η) ℓ T traj).toReal *
-      ∑ t : Fin T, ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t) (traj t)) =
+      ∑ t : Fin T,
+        ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le) (traj t)) =
       ∑ t ∈ range T, ∑ a : ι, ℓ t a ^ 2 :=
   expected_sum_sq_div_probFn_eq (exp3Policy η) (exp3Prob η)
-    (fun hist a => by simp) (sum_exp3Prob η) (fun hist a => (exp3Prob_pos η hist a).ne') ℓ T
+    (fun hist a => by rw [exp3Policy_play, toReal_exp3PMF_apply])
+    (fun hist a => (exp3Prob_pos η hist a).ne') ℓ T
 
 /-- **Second-order regret of `EXP3`** (step of [BubeckCesaBianchi2012, Theorem 3.1], locator not
 re-verified against primary PDF): for any `η > 0`, nonnegative losses `ℓ`, and arm `i`,
@@ -416,16 +432,16 @@ theorem exp3_regret_le_sq {η : ℝ} (hη : 0 < η) {ℓ : ℕ → ι → ℝ} {
   -- Pathwise Hedge inequality along each realized trajectory `traj : Fin T → ι`.
   have hpath : ∀ traj : Fin T → ι,
       (∑ t : Fin T, ℓ t (traj t)) ≤
-        (∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t))
+        (∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le))
           ⟨traj t, ℓ t (traj t)⟩ i) +
           (η / 2) * (∑ t : Fin T,
-            ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t) (traj t)) +
+            ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le) (traj t)) +
           log (Fintype.card ι) / η := by
     intro traj
     let I : ℕ → ι := fun s => if hs : s < T then traj ⟨s, hs⟩ else i
     have hpre : ∀ t : Fin T,
         (List.ofFn fun r : Fin t.1 => (⟨I r, ℓ r (I r)⟩ : BanditStep ι)) =
-          prefixHistory ℓ traj t := by
+          prefixHistory ℓ traj t.1 t.isLt.le := by
       intro t
       unfold prefixHistory
       congr 1
@@ -450,7 +466,7 @@ theorem exp3_regret_le_sq {η : ℝ} (hη : 0 < η) {ℓ : ℕ → ι → ℝ} {
       rw [hIt]
       exact sum_mul_importanceWeightedEst (exp3Prob_pos η _ _).ne'
     have hcomp : (∑ t ∈ range T, exp3EstLossSeq η ℓ I t i) =
-        ∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t))
+        ∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le))
           ⟨traj t, ℓ t (traj t)⟩ i := by
       rw [← Fin.sum_univ_eq_sum_range]
       refine sum_congr rfl fun t _ => ?_
@@ -461,7 +477,8 @@ theorem exp3_regret_le_sq {η : ℝ} (hη : 0 < η) {ℓ : ℕ → ι → ℝ} {
     have hvar : (∑ t ∈ range T,
         ∑ j, Experts.prob (Experts.hedgeFactor η) (exp3EstLossSeq η ℓ I) t j *
           exp3EstLossSeq η ℓ I t j ^ 2) =
-        ∑ t : Fin T, ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t) (traj t) := by
+      ∑ t : Fin T,
+        ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le) (traj t) := by
       rw [← Fin.sum_univ_eq_sum_range]
       refine sum_congr rfl fun t _ => ?_
       rw [← exp3Prob_eq_experts_prob, hpre t]
@@ -476,10 +493,10 @@ theorem exp3_regret_le_sq {η : ℝ} (hη : 0 < η) {ℓ : ℕ → ι → ℝ} {
   calc ∑ traj : Fin T → ι, (trajectoryPMF (exp3Policy η) ℓ T traj).toReal *
         ∑ t : Fin T, ℓ t (traj t)
       ≤ ∑ traj : Fin T → ι, (trajectoryPMF (exp3Policy η) ℓ T traj).toReal *
-          ((∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t))
+          ((∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le))
             ⟨traj t, ℓ t (traj t)⟩ i) +
             (η / 2) * (∑ t : Fin T,
-              ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t) (traj t)) +
+              ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le) (traj t)) +
             log (Fintype.card ι) / η) :=
         sum_le_sum fun traj _ => mul_le_mul_of_nonneg_left (hpath traj) ENNReal.toReal_nonneg
     _ = ∑ t ∈ range T, ℓ t i + (η / 2) * ∑ t ∈ range T, ∑ a : ι, ℓ t a ^ 2 +
@@ -519,7 +536,7 @@ theorem exp3_pseudoRegret_le [Nonempty ι] (E : ObliviousBandit ι) {η : ℝ} (
 noncomputable def exp3Rate (K T : ℕ) : ℝ :=
   if K ≤ 1 ∨ T = 0 then 1 else √(2 * log K / (T * K))
 
-theorem exp3Rate_of_two_le {K T : ℕ} (hK : 2 ≤ K) (hT : 0 < T) :
+private theorem exp3Rate_of_two_le {K T : ℕ} (hK : 2 ≤ K) (hT : 0 < T) :
     exp3Rate K T = √(2 * log K / (T * K)) := by
   have hnot : ¬ (K ≤ 1 ∨ T = 0) := by omega
   simp [exp3Rate, hnot]
@@ -537,15 +554,9 @@ theorem exp3_pseudoRegret_le_sqrt [Nonempty ι] (E : ObliviousBandit ι) (T : �
     simp [E.regretAt_def]
   by_cases hK : K ≤ 1
   · -- With a single arm, every trajectory plays that arm, so regret is identically `0`.
-    have hsub : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hK
+    have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hK
     refine (E.pseudoRegret_le_of_forall fun i => ?_).trans (sqrt_nonneg _)
-    rw [E.regretAt_def]
-    have htraj : ∀ traj : Fin T → ι,
-        (∑ t : Fin T, E.loss t (traj t)) = ∑ t ∈ range T, E.loss t i := fun traj => by
-      rw [← Fin.sum_univ_eq_sum_range]
-      exact sum_congr rfl fun t _ => by rw [Subsingleton.elim (traj t) i]
-    simp only [expectedTotal_def, htraj, ← sum_mul, Cslib.Probability.PMF.sum_toReal, one_mul,
-      sub_self, le_rfl]
+    rw [E.regretAt_def, expectedTotal_eq_sum_of_subsingleton, sub_self]
   · have hK2 : 2 ≤ K := by omega
     have hL : 0 < log K := log_pos (by exact_mod_cast hK2)
     have hTK : (0 : ℝ) < T * K := by positivity
@@ -606,13 +617,13 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- Mixing distribution `(1 - γ) * (w_i / ∑_k w_k) + γ / K` of reward-based `Exp3`, clamped to
 `[0, 1]` outside `γ ∈ [0, 1]` so `exp3GammaPMF` is total without precondition proofs. -/
-noncomputable def exp3GammaMix (γ : ℝ) (w : ι → ℝ) (i : ι) : ℝ :=
+private noncomputable def exp3GammaMix (γ : ℝ) (w : ι → ℝ) (i : ι) : ℝ :=
   let γ' := max 0 (min 1 γ)
   (1 - γ') * (w i / ∑ k, w k) + γ' / Fintype.card ι
 
 /-- One-round multiplicative weight update `w_i * exp ((γ / K) * ĝ_i)` of reward-based `Exp3`
 ([AuerCesaBianchiFreundSchapire2002, §3], locator not re-verified against primary PDF). -/
-noncomputable def exp3GammaStep (γ : ℝ) (w : ι → ℝ) (step : BanditStep ι) (i : ι) : ℝ :=
+private noncomputable def exp3GammaStep (γ : ℝ) (w : ι → ℝ) (step : BanditStep ι) (i : ι) : ℝ :=
   let γ' := max 0 (min 1 γ)
   w i * exp ((γ' / Fintype.card ι) * importanceWeightedEst (exp3GammaMix γ w) step i)
 
@@ -624,7 +635,7 @@ noncomputable def exp3GammaWeight (γ : ℝ) (hist : List (BanditStep ι)) : ι 
 noncomputable def exp3GammaProb (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) : ℝ :=
   exp3GammaMix γ (exp3GammaWeight γ hist) i
 
-theorem exp3GammaWeight_pos (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
+private theorem exp3GammaWeight_pos (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
     0 < exp3GammaWeight γ hist i := by
   induction hist using List.reverseRecOn with
   | nil => simp [exp3GammaWeight]
@@ -632,11 +643,11 @@ theorem exp3GammaWeight_pos (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
     simp only [exp3GammaWeight, List.foldl_append, List.foldl_cons, List.foldl_nil]
     exact mul_pos ih (exp_pos _)
 
-theorem sum_exp3GammaWeight_pos [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
+private theorem sum_exp3GammaWeight_pos [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
     0 < ∑ k, exp3GammaWeight γ hist k :=
   sum_pos (fun k _ => exp3GammaWeight_pos γ hist k) univ_nonempty
 
-theorem exp3GammaProb_nonneg [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
+private theorem exp3GammaProb_nonneg [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
     0 ≤ exp3GammaProb γ hist i := by
   unfold exp3GammaProb exp3GammaMix
   set γ' := max 0 (min 1 γ)
@@ -646,7 +657,7 @@ theorem exp3GammaProb_nonneg [Nonempty ι] (γ : ℝ) (hist : List (BanditStep �
     div_nonneg (exp3GammaWeight_pos γ hist i).le (sum_exp3GammaWeight_pos γ hist).le
   exact add_nonneg (mul_nonneg (sub_nonneg.mpr hγ1) hw0) (div_nonneg hγ0 (Nat.cast_nonneg _))
 
-theorem exp3GammaProb_pos_of_pos [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ)
+private theorem exp3GammaProb_pos_of_pos [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ)
     (hist : List (BanditStep ι)) (i : ι) :
     0 < exp3GammaProb γ hist i := by
   unfold exp3GammaProb exp3GammaMix
@@ -658,7 +669,7 @@ theorem exp3GammaProb_pos_of_pos [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ)
   have hK : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr Fintype.card_pos
   exact add_pos_of_nonneg_of_pos (mul_nonneg (sub_nonneg.mpr hγ1) hw0) (div_pos hγ' hK)
 
-theorem exp3GammaProb_ge_div_card [Nonempty ι] {γ : ℝ} (hγ0 : 0 ≤ γ) (hγ1 : γ ≤ 1)
+private theorem exp3GammaProb_ge_div_card [Nonempty ι] {γ : ℝ} (hγ0 : 0 ≤ γ) (hγ1 : γ ≤ 1)
     (hist : List (BanditStep ι)) (i : ι) :
     γ / Fintype.card ι ≤ exp3GammaProb γ hist i := by
   unfold exp3GammaProb exp3GammaMix
@@ -668,7 +679,7 @@ theorem exp3GammaProb_ge_div_card [Nonempty ι] {γ : ℝ} (hγ0 : 0 ≤ γ) (h�
     div_nonneg (exp3GammaWeight_pos γ hist i).le (sum_exp3GammaWeight_pos γ hist).le
   linarith [mul_nonneg (sub_nonneg.mpr hγ1) hw0]
 
-theorem sum_exp3GammaProb [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
+private theorem sum_exp3GammaProb [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
     ∑ i, exp3GammaProb γ hist i = 1 := by
   unfold exp3GammaProb exp3GammaMix
   set γ' := max 0 (min 1 γ)
@@ -680,13 +691,13 @@ theorem sum_exp3GammaProb [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι))
   ring
 
 /-- Discrete `PMF` over arms played by reward-based `Exp3`. -/
-noncomputable def exp3GammaPMF [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) : PMF ι :=
+private noncomputable def exp3GammaPMF [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) : PMF ι :=
   PMF.ofFintype (fun i => ENNReal.ofReal (exp3GammaProb γ hist i)) (by
     rw [← ENNReal.ofReal_sum_of_nonneg fun i _ => exp3GammaProb_nonneg γ hist i,
       sum_exp3GammaProb γ hist, ENNReal.ofReal_one])
 
-@[simp]
-theorem toReal_exp3GammaPMF_apply [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
+private theorem toReal_exp3GammaPMF_apply [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι))
+    (i : ι) :
     (exp3GammaPMF γ hist i).toReal = exp3GammaProb γ hist i := by
   rw [exp3GammaPMF, PMF.ofFintype_apply, ENNReal.toReal_ofReal (exp3GammaProb_nonneg γ hist i)]
 
@@ -695,8 +706,7 @@ theorem toReal_exp3GammaPMF_apply [Nonempty ι] (γ : ℝ) (hist : List (BanditS
 noncomputable def exp3GammaPolicy [Nonempty ι] (γ : ℝ) : RandomizedPolicy ι where
   play := exp3GammaPMF γ
 
-@[simp]
-theorem exp3GammaPolicy_play [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
+private theorem exp3GammaPolicy_play [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
     (exp3GammaPolicy γ).play hist = exp3GammaPMF γ hist := by
   rw [exp3GammaPolicy]
 
@@ -712,20 +722,21 @@ noncomputable def obliviousRewardRegret [Nonempty ι] (pol : RandomizedPolicy ι
 private theorem expected_sum_gammaEst_eq [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ)
     (g : ℕ → ι → ℝ) (T : ℕ) (i : ι) :
     (∑ traj : Fin T → ι, (trajectoryPMF (exp3GammaPolicy γ) g T traj).toReal *
-      ∑ t : Fin T, importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t))
+      ∑ t : Fin T, importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
         ⟨traj t, g t (traj t)⟩ i) =
       ∑ t ∈ range T, g t i :=
   expected_sum_importanceWeightedEst_eq (exp3GammaPolicy γ) (exp3GammaProb γ)
-    (fun hist a => by simp) (sum_exp3GammaProb γ)
+    (fun hist a => by rw [exp3GammaPolicy_play, toReal_exp3GammaPMF_apply])
     (fun hist a => (exp3GammaProb_pos_of_pos hγ0 hist a).ne') g T i
 
 private theorem expected_sum_sq_div_gammaProb_eq [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ)
     (g : ℕ → ι → ℝ) (T : ℕ) :
     (∑ traj : Fin T → ι, (trajectoryPMF (exp3GammaPolicy γ) g T traj).toReal *
-      ∑ t : Fin T, g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t) (traj t)) =
+      ∑ t : Fin T,
+        g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t)) =
       ∑ t ∈ range T, ∑ a : ι, g t a ^ 2 :=
   expected_sum_sq_div_probFn_eq (exp3GammaPolicy γ) (exp3GammaProb γ)
-    (fun hist a => by simp) (sum_exp3GammaProb γ)
+    (fun hist a => by rw [exp3GammaPolicy_play, toReal_exp3GammaPMF_apply])
     (fun hist a => (exp3GammaProb_pos_of_pos hγ0 hist a).ne') g T
 
 /-- Pathwise log-potential inequality for `exp3GammaWeight` when `0 < γ < 1` and `g ∈ [0, 1]`. -/
@@ -733,34 +744,30 @@ private theorem exp3Gamma_pathwise_bound [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ
     {g : ℕ → ι → ℝ} {T : ℕ} (hg : ∀ s < T, ∀ a, g s a ∈ Set.Icc (0 : ℝ) 1)
     (traj : Fin T → ι) (i : ι) :
     (1 - γ) * (∑ t : Fin T,
-      importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t)) ⟨traj t, g t (traj t)⟩ i) -
+      importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
+        ⟨traj t, g t (traj t)⟩ i) -
       (1 - γ) * Fintype.card ι * log (Fintype.card ι) / γ ≤
       (∑ t : Fin T, g t (traj t)) +
         (exp 1 - 2) * (γ / Fintype.card ι) *
-          ∑ t : Fin T, g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t) (traj t) := by
+          ∑ t : Fin T,
+            g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t) := by
   set K : ℝ := (Fintype.card ι : ℝ)
   have hK : 0 < K := Nat.cast_pos.mpr Fintype.card_pos
   have hclamp : max 0 (min 1 γ) = γ := by rw [min_eq_right hγ1.le, max_eq_right hγ0.le]
   have h1γ : 0 < 1 - γ := sub_pos.mpr hγ1
-  -- Telescoping potential `W_s = ∑_j exp3GammaWeight γ (prefix s) j`.
-  let pref (s : ℕ) (hs : s ≤ T) : List (BanditStep ι) :=
-    List.ofFn fun r : Fin s => ⟨traj ⟨r.1, r.isLt.trans_le hs⟩,
-      g r.1 (traj ⟨r.1, r.isLt.trans_le hs⟩)⟩
-  have hpref_eq : ∀ t : Fin T, pref t.1 t.isLt.le = prefixHistory g traj t := fun _ => rfl
+  -- Telescoping potential `W_s = ∑_j exp3GammaWeight γ (prefixHistory g traj s _) j`.
   have hstep_pot : ∀ t : Fin T,
-      log (∑ j, exp3GammaWeight γ (pref (t.1 + 1) t.isLt) j) -
-        log (∑ j, exp3GammaWeight γ (pref t.1 t.isLt.le) j) ≤
+      log (∑ j, exp3GammaWeight γ (prefixHistory g traj (t.1 + 1) t.isLt) j) -
+        log (∑ j, exp3GammaWeight γ (prefixHistory g traj t.1 t.isLt.le) j) ≤
         ((γ / K) / (1 - γ)) * g t (traj t) +
           ((exp 1 - 2) * (γ / K) ^ 2 / (1 - γ)) *
-            (g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t) (traj t)) := by
+            (g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t)) := by
     intro t
-    set hist := pref t.1 t.isLt.le
+    set hist := prefixHistory g traj t.1 t.isLt.le
     set step : BanditStep ι := ⟨traj t, g t (traj t)⟩
-    have hsucc : pref (t.1 + 1) t.isLt = hist ++ [step] := by
-      unfold pref
-      rw [List.ofFn_succ', List.concat_eq_append]
-      rfl
-    rw [hsucc]
+    rw [prefixHistory_succ g traj t.isLt]
+    change log (∑ j, exp3GammaWeight γ (hist ++ [step]) j) - log (∑ j, exp3GammaWeight γ hist j) ≤
+      _
     set W := ∑ k, exp3GammaWeight γ hist k
     have hW : 0 < W := sum_exp3GammaWeight_pos γ hist
     have hW1 : 0 < ∑ j, exp3GammaWeight γ (hist ++ [step]) j :=
@@ -847,54 +854,47 @@ private theorem exp3Gamma_pathwise_bound [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ
             dsimp only [step]
             ring
     have hlog := (log_le_sub_one_of_pos (div_pos hW1 hW)).trans (sub_le_sub_right hratio 1)
-    have hprob_eq : exp3GammaProb γ hist (traj t) =
-        exp3GammaProb γ (prefixHistory g traj t) (traj t) := by
-      rw [show hist = prefixHistory g traj t from hpref_eq t]
-    rw [hprob_eq] at hlog
     linarith
   -- Sum the telescoping log-potential bound across `t : Fin T`.
-  have htel : log (∑ j, exp3GammaWeight γ (pref T le_rfl) j) - log K =
-      ∑ t : Fin T, (log (∑ j, exp3GammaWeight γ (pref (t.1 + 1) t.isLt) j) -
-        log (∑ j, exp3GammaWeight γ (pref t.1 t.isLt.le) j)) := by
+  have htel : log (∑ j, exp3GammaWeight γ (prefixHistory g traj T le_rfl) j) - log K =
+      ∑ t : Fin T, (log (∑ j, exp3GammaWeight γ (prefixHistory g traj (t.1 + 1) t.isLt) j) -
+        log (∑ j, exp3GammaWeight γ (prefixHistory g traj t.1 t.isLt.le) j)) := by
     let pot (s : ℕ) : ℝ :=
-      if hs : s ≤ T then log (∑ j, exp3GammaWeight γ (pref s hs) j) else 0
-    have hpot0 : pot 0 = log K := by simp [pot, pref, exp3GammaWeight, K]
-    have hpotT : pot T = log (∑ j, exp3GammaWeight γ (pref T le_rfl) j) := by simp [pot]
+      if hs : s ≤ T then log (∑ j, exp3GammaWeight γ (prefixHistory g traj s hs) j) else 0
+    have hpot0 : pot 0 = log K := by simp [pot, prefixHistory, exp3GammaWeight, K]
+    have hpotT : pot T = log (∑ j, exp3GammaWeight γ (prefixHistory g traj T le_rfl) j) := by
+      simp [pot]
     have hterm_eq : ∀ t : Fin T,
-        log (∑ j, exp3GammaWeight γ (pref (t.1 + 1) t.isLt) j) -
-          log (∑ j, exp3GammaWeight γ (pref t.1 t.isLt.le) j) =
+        log (∑ j, exp3GammaWeight γ (prefixHistory g traj (t.1 + 1) t.isLt) j) -
+          log (∑ j, exp3GammaWeight γ (prefixHistory g traj t.1 t.isLt.le) j) =
           pot (t.1 + 1) - pot t.1 := fun t => by
       simp [pot, t.isLt, t.isLt.le]
     simp_rw [hterm_eq]
     rw [Fin.sum_univ_eq_sum_range (fun s => pot (s + 1) - pot s) T, sum_range_sub, hpotT, hpot0]
   -- Lower bound `log (∑_j w_T(j))` by `log w_T(i) = (γ / K) * ∑_t ĝ_t(i)`.
   have hlow : (γ / K) * (∑ t : Fin T,
-      importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t)) ⟨traj t, g t (traj t)⟩ i) ≤
-      log (∑ j, exp3GammaWeight γ (pref T le_rfl) j) := by
-    have hle_sum : exp3GammaWeight γ (pref T le_rfl) i ≤
-        ∑ j, exp3GammaWeight γ (pref T le_rfl) j :=
+      importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
+        ⟨traj t, g t (traj t)⟩ i) ≤
+      log (∑ j, exp3GammaWeight γ (prefixHistory g traj T le_rfl) j) := by
+    have hle_sum : exp3GammaWeight γ (prefixHistory g traj T le_rfl) i ≤
+        ∑ j, exp3GammaWeight γ (prefixHistory g traj T le_rfl) j :=
       single_le_sum (fun j _ => (exp3GammaWeight_pos γ _ j).le) (mem_univ i)
     refine le_trans ?_ (log_le_log (exp3GammaWeight_pos γ _ i) hle_sum)
     have hlog_w : ∀ (s : ℕ) (hs : s ≤ T),
-        log (exp3GammaWeight γ (pref s hs) i) =
+        log (exp3GammaWeight γ (prefixHistory g traj s hs) i) =
           (γ / K) * ∑ r : Fin s,
-            importanceWeightedEst (exp3GammaProb γ (pref r.1 (r.isLt.le.trans hs)))
+            importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj r.1 (r.isLt.le.trans hs)))
               ⟨traj ⟨r.1, r.isLt.trans_le hs⟩, g r.1 (traj ⟨r.1, r.isLt.trans_le hs⟩)⟩ i := by
       intro s hs
       induction s with
-      | zero => simp [pref, exp3GammaWeight]
+      | zero => simp [prefixHistory, exp3GammaWeight]
       | succ s ihs =>
-        have hsucc : pref (s + 1) hs = pref s ( Nat.le_of_succ_le hs) ++
-            [⟨traj ⟨s, hs⟩, g s (traj ⟨s, hs⟩)⟩] := by
-          unfold pref
-          rw [List.ofFn_succ', List.concat_eq_append]
-          rfl
-        rw [hsucc]
-        have hrec : exp3GammaWeight γ (pref s (Nat.le_of_succ_le hs) ++
+        rw [prefixHistory_succ g traj hs]
+        have hrec : exp3GammaWeight γ (prefixHistory g traj s (Nat.le_of_succ_le hs) ++
             [⟨traj ⟨s, hs⟩, g s (traj ⟨s, hs⟩)⟩]) i =
-            exp3GammaWeight γ (pref s (Nat.le_of_succ_le hs)) i *
+            exp3GammaWeight γ (prefixHistory g traj s (Nat.le_of_succ_le hs)) i *
               exp ((γ / K) * importanceWeightedEst
-                (exp3GammaProb γ (pref s (Nat.le_of_succ_le hs)))
+                (exp3GammaProb γ (prefixHistory g traj s (Nat.le_of_succ_le hs)))
                 ⟨traj ⟨s, hs⟩, g s (traj ⟨s, hs⟩)⟩ i) := by
           simp [exp3GammaWeight, exp3GammaStep, exp3GammaProb, hclamp, K]
         rw [hrec, log_mul (exp3GammaWeight_pos γ _ i).ne' (exp_pos _).ne', log_exp,
@@ -902,31 +902,36 @@ private theorem exp3Gamma_pathwise_bound [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ
         simp only [Fin.val_castSucc, Fin.val_last]
         ring
     rw [hlog_w T le_rfl]
-    rfl
   have hsum_step := sum_le_sum (s := (univ : Finset (Fin T))) fun t _ => hstep_pot t
   simp only [sum_add_distrib, ← mul_sum] at hsum_step
   have hcomb : (γ / K) * (∑ t : Fin T,
-      importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t)) ⟨traj t, g t (traj t)⟩ i) -
+      importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
+        ⟨traj t, g t (traj t)⟩ i) -
       log K ≤
       ((γ / K) / (1 - γ)) * (∑ t : Fin T, g t (traj t)) +
         ((exp 1 - 2) * (γ / K) ^ 2 / (1 - γ)) *
-          ∑ t : Fin T, g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t) (traj t) :=
+          ∑ t : Fin T,
+            g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t) :=
     by linarith
   have hfac : 0 < K * (1 - γ) / γ := div_pos (mul_pos hK h1γ) hγ0
   have hmul := mul_le_mul_of_nonneg_left hcomb hfac.le
   have hsimp1 : (K * (1 - γ) / γ) *
-      ((γ / K) * (∑ t : Fin T, importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t))
-        ⟨traj t, g t (traj t)⟩ i) - log K) =
-      (1 - γ) * (∑ t : Fin T, importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t))
-        ⟨traj t, g t (traj t)⟩ i) - (1 - γ) * K * log K / γ := by
+      ((γ / K) * (∑ t : Fin T,
+        importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
+          ⟨traj t, g t (traj t)⟩ i) - log K) =
+      (1 - γ) * (∑ t : Fin T,
+        importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
+          ⟨traj t, g t (traj t)⟩ i) - (1 - γ) * K * log K / γ := by
     field_simp
   have hsimp2 : (K * (1 - γ) / γ) *
       (((γ / K) / (1 - γ)) * (∑ t : Fin T, g t (traj t)) +
         ((exp 1 - 2) * (γ / K) ^ 2 / (1 - γ)) *
-          ∑ t : Fin T, g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t) (traj t)) =
+          ∑ t : Fin T,
+            g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t)) =
       (∑ t : Fin T, g t (traj t)) +
         (exp 1 - 2) * (γ / K) *
-          ∑ t : Fin T, g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t) (traj t) := by
+          ∑ t : Fin T,
+            g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t) := by
     field_simp
   linarith
 
@@ -971,13 +976,15 @@ theorem exp3Gamma_rewardRegret_le [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ) (hγ1
       simp only [mul_sub, mul_add, sum_sub_distrib, sum_add_distrib, ← sum_mul,
         Cslib.Probability.PMF.sum_toReal, one_mul] at hsum
       have hest : (∑ x : Fin T → ι, (trajectoryPMF (exp3GammaPolicy γ) g T x).toReal *
-          ((1 - γ) * ∑ t : Fin T, importanceWeightedEst (exp3GammaProb γ (prefixHistory g x t))
-            ⟨x t, g t (x t)⟩ iStar)) = (1 - γ) * ∑ t ∈ range T, g t iStar := by
+          ((1 - γ) * ∑ t : Fin T,
+            importanceWeightedEst (exp3GammaProb γ (prefixHistory g x t.1 t.isLt.le))
+              ⟨x t, g t (x t)⟩ iStar)) = (1 - γ) * ∑ t ∈ range T, g t iStar := by
         rw [← expected_sum_gammaEst_eq hγ0 g T iStar, mul_sum]
         exact sum_congr rfl fun x _ => by ring
       have hvar : (∑ x : Fin T → ι, (trajectoryPMF (exp3GammaPolicy γ) g T x).toReal *
           ((exp 1 - 2) * (γ / K) *
-            ∑ t : Fin T, g t (x t) ^ 2 / exp3GammaProb γ (prefixHistory g x t) (x t))) =
+            ∑ t : Fin T,
+              g t (x t) ^ 2 / exp3GammaProb γ (prefixHistory g x t.1 t.isLt.le) (x t))) =
           (exp 1 - 2) * (γ / K) * ∑ t ∈ range T, ∑ a : ι, g t a ^ 2 := by
         rw [← expected_sum_sq_div_gammaProb_eq hγ0 g T, mul_sum]
         exact sum_congr rfl fun x _ => by ring
@@ -1029,17 +1036,12 @@ theorem exp3Gamma_rewardRegret_le_sqrt [Nonempty ι] {g : ℕ → ι → ℝ} (T
   rcases Nat.eq_zero_or_pos T with rfl | hT
   · simp [obliviousRewardRegret, bestCumReward]
   by_cases hK : K ≤ 1
-  · have hsub : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hK
+  · have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hK
     refine le_trans ?_ (mul_nonneg zero_le_two (sqrt_nonneg _))
     unfold obliviousRewardRegret bestCumReward
     rw [sub_nonpos, Finset.sup'_le_iff]
     intro i _
-    have htraj : ∀ traj : Fin T → ι,
-        (∑ t : Fin T, g t (traj t)) = ∑ t ∈ range T, g t i := fun traj => by
-      rw [← Fin.sum_univ_eq_sum_range]
-      exact sum_congr rfl fun t _ => by rw [Subsingleton.elim (traj t) i]
-    simp only [expectedTotal_def, htraj, ← sum_mul, Cslib.Probability.PMF.sum_toReal, one_mul,
-      le_rfl]
+    rw [expectedTotal_eq_sum_of_subsingleton _ g T i]
   · have hK2 : 2 ≤ K := by omega
     have hKL : 0 < (K : ℝ) * log K := mul_pos (by positivity) (log_pos (by exact_mod_cast hK2))
     have hTr : (0 : ℝ) < T := Nat.cast_pos.mpr hT

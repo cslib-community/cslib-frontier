@@ -34,8 +34,7 @@ horizon-free index policy for `[0, 1]`-bounded stochastic `K`-armed bandits (`St
   has been pulled once (`one_le_pullCount_ucb1`).
 * **Upper-confidence loop:** once every arm has been pulled at least once (`t = hist.length ≥ K`),
   pull an arm maximizing the upper confidence index (`ucb1Index`) `x̄_i + √(2 ln t / n_i)`,
-  breaking ties deterministically toward the least arm in `[LinearOrder ι]` (`ucb1Choose`,
-  `ucb1Policy`).
+  breaking ties deterministically toward the least arm in `[LinearOrder ι]` (`ucb1Policy`).
 
 Because `ucb1Policy` is a `DeterministicPolicy ι`, it accesses only the observed `(arm, value)`
 pairs of previous pulls, and its deterministic tie-breaking makes it Borel-measurable
@@ -43,12 +42,11 @@ pairs of previous pulls, and its deterministic tie-breaking makes it Borel-measu
 
 ## Proof overview
 
-1. **Hoeffding sub-Gaussian tails on the reward stack** (`measureReal_sum_sub_mean_ge_le`,
-   `measureReal_mean_sub_sum_ge_le`): under `B.sampleMeasure T`, the first `m` entries of arm `i`'s
-   reward stack are independent `[0, 1]` a.e. random variables with mean `B.mean i`. Mathlib's
-   `ProbabilityTheory.hasSubgaussianMGF_of_mem_Icc` and `HasSubgaussianMGF.sum_of_iIndepFun` yield
-   one-sided sub-Gaussian tails `≤ exp (-2 m c²)`; at the UCB radius `c = √(2 ln t / m)` (`t ≥ 2`),
-   each tail is at most `1 / t ^ 4`.
+1. **Hoeffding sub-Gaussian tails on the reward stack**: under `B.sampleMeasure T`, the first `m`
+   entries of arm `i`'s reward stack are independent `[0, 1]` a.e. random variables with mean
+   `B.mean i`. Mathlib's `ProbabilityTheory.hasSubgaussianMGF_of_mem_Icc` and
+   `HasSubgaussianMGF.sum_of_iIndepFun` yield one-sided sub-Gaussian tails `≤ exp (-2 m c²)`; at
+   the UCB radius `c = √(2 ln t / m)` (`t ≥ 2`), each tail is at most `1 / t ^ 4`.
 2. **Expected pulls of suboptimal arms** (`ucb1_expectedPulls_le_add_two`): for any arm `i` with
    `Δ_i = B.gap i > 0`, partitioning the pulls of `i` before and after `ℓ = ⌈8 ln T / Δ_i²⌉₊` leaves
    only rounds `t ∈ [K, T)` where either the optimal arm `i*` under-performs by `√(2 ln t / s)` for
@@ -74,8 +72,7 @@ pairs of previous pulls, and its deterministic tie-breaking makes it Borel-measu
 
 * `Cslib.MachineLearning.OnlineLearning.Bandits.ucb1Index`: upper confidence index
   `empiricalMean hist i + √(2 * log hist.length / pullCount hist i)`.
-* `Cslib.MachineLearning.OnlineLearning.Bandits.ucb1Choose`,
-  `Cslib.MachineLearning.OnlineLearning.Bandits.ucb1Policy`: deterministic `UCB1` policy.
+* `Cslib.MachineLearning.OnlineLearning.Bandits.ucb1Policy`: deterministic `UCB1` policy.
 
 ## Main results
 
@@ -133,7 +130,7 @@ theorem mem_unpulledArms (hist : List (BanditStep ι)) (i : ι) :
 
 /-- Deterministic arm selection of `UCB1`: pull the least unpulled arm if any exists; otherwise pull
 the least arm maximizing `ucb1Index hist`. -/
-noncomputable def ucb1Choose [Nonempty ι] (hist : List (BanditStep ι)) : ι :=
+private noncomputable def ucb1Choose [Nonempty ι] (hist : List (BanditStep ι)) : ι :=
   if h : (unpulledArms hist).Nonempty then
     (unpulledArms hist).min' h
   else
@@ -147,16 +144,15 @@ noncomputable def ucb1Choose [Nonempty ι] (hist : List (BanditStep ι)) : ι :=
 noncomputable def ucb1Policy [Nonempty ι] : DeterministicPolicy ι where
   choose := ucb1Choose
 
-@[simp]
-theorem ucb1Policy_choose [Nonempty ι] (hist : List (BanditStep ι)) :
+private theorem ucb1Policy_choose [Nonempty ι] (hist : List (BanditStep ι)) :
     ucb1Policy.choose hist = ucb1Choose hist := by
   rw [ucb1Policy]
 
 /-- While any arm is unpulled, `UCB1` selects the least unpulled arm. -/
-theorem ucb1Choose_of_nonempty [Nonempty ι] {hist : List (BanditStep ι)}
+theorem ucb1Policy_choose_of_nonempty [Nonempty ι] {hist : List (BanditStep ι)}
     (h : (unpulledArms hist).Nonempty) :
-    ucb1Choose hist = (unpulledArms hist).min' h := by
-  simp only [ucb1Choose, h, ↓reduceDIte]
+    ucb1Policy.choose hist = (unpulledArms hist).min' h := by
+  simp only [ucb1Policy_choose, ucb1Choose, h, ↓reduceDIte]
 
 /-- When all arms have been pulled (`unpulledArms hist = ∅`), the arm chosen by `UCB1` maximizes
 `ucb1Index hist` across all arms. -/
@@ -170,13 +166,13 @@ theorem ucb1Index_le_choose_of_unpulled_empty [Nonempty ι] {hist : List (Bandit
     exact ⟨i, mem_filter.mpr ⟨mem_univ i, fun k => hi k (mem_univ k)⟩⟩
   exact (mem_filter.mp (min'_mem M hM)).2 j
 
-/-- Deterministic tie-breaking of `UCB1`: when all arms have been pulled, `ucb1Choose hist ≤ i`
-for every arm `i` maximizing `ucb1Index hist`. -/
-theorem ucb1Choose_le_of_unpulled_empty [Nonempty ι] {hist : List (BanditStep ι)}
+/-- Deterministic tie-breaking of `UCB1`: when all arms have been pulled,
+`ucb1Policy.choose hist ≤ i` for every arm `i` maximizing `ucb1Index hist`. -/
+theorem ucb1Policy_choose_le_of_unpulled_empty [Nonempty ι] {hist : List (BanditStep ι)}
     (h : ¬ (unpulledArms hist).Nonempty) {i : ι}
     (hi : ∀ j : ι, ucb1Index hist j ≤ ucb1Index hist i) :
-    ucb1Choose hist ≤ i := by
-  simp only [ucb1Choose, h, ↓reduceDIte]
+    ucb1Policy.choose hist ≤ i := by
+  simp only [ucb1Policy_choose, ucb1Choose, h, ↓reduceDIte]
   set M := univ.filter fun k : ι => ∀ j : ι, ucb1Index hist j ≤ ucb1Index hist k
   have hM : M.Nonempty := ⟨i, mem_filter.mpr ⟨mem_univ i, hi⟩⟩
   exact min'_le M i (mem_filter.mpr ⟨mem_univ i, hi⟩)

@@ -55,6 +55,8 @@ rate `η = √(ln n / T)` gives regret at most `2 √(T ln n)` once `T ≥ ln n`
 
 * [S. Arora, E. Hazan, S. Kale, *The Multiplicative Weights Update Method: a Meta-Algorithm and
   Applications*][AroraHazanKale2012]
+* [S. Bubeck, N. Cesa-Bianchi, *Regret Analysis of Stochastic and Nonstochastic Multi-Armed Bandit
+  Problems*][BubeckCesaBianchi2012]
 * [Y. Freund, R. E. Schapire, *A decision-theoretic generalization of on-line learning and an
   application to boosting*][FreundSchapire1997]
 -/

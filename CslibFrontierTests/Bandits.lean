@@ -169,11 +169,11 @@ example :
       ucb1Policy.choose ([⟨false, 0⟩, ⟨true, 1⟩] : List (BanditStep Bool)) = true := by
   refine ⟨?_, ?_, ?_, ?_⟩
   · have hmem : false ∈ unpulledArms ([] : List (BanditStep Bool)) := by simp
-    rw [ucb1Policy_choose, ucb1Choose_of_nonempty ⟨false, hmem⟩]
+    rw [ucb1Policy_choose_of_nonempty ⟨false, hmem⟩]
     exact le_antisymm (min'_le _ false hmem) (Bool.false_le _)
   · have hmem_t : true ∈ unpulledArms ([⟨false, 1 / 2⟩] : List (BanditStep Bool)) := by simp
     have hnot_f : false ∉ unpulledArms ([⟨false, 1 / 2⟩] : List (BanditStep Bool)) := by simp
-    rw [ucb1Policy_choose, ucb1Choose_of_nonempty ⟨true, hmem_t⟩]
+    rw [ucb1Policy_choose_of_nonempty ⟨true, hmem_t⟩]
     have hmin := min'_mem (unpulledArms ([⟨false, 1 / 2⟩] : List (BanditStep Bool))) ⟨true, hmem_t⟩
     cases h : (unpulledArms ([⟨false, 1 / 2⟩] : List (BanditStep Bool))).min' ⟨true, hmem_t⟩
     · rw [h] at hmin
@@ -186,8 +186,7 @@ example :
       cases b <;> simp [hist] at hb
     have heq_idx : ucb1Index hist true = ucb1Index hist false := by
       simp [hist, ucb1Index_def, empiricalMean_def]
-    rw [ucb1Policy_choose]
-    refine le_antisymm (ucb1Choose_le_of_unpulled_empty hun fun j => ?_) (Bool.false_le _)
+    refine le_antisymm (ucb1Policy_choose_le_of_unpulled_empty hun fun j => ?_) (Bool.false_le _)
     cases j <;> simp [heq_idx]
   · let hist : List (BanditStep Bool) := [⟨false, 0⟩, ⟨true, 1⟩]
     have hun : ¬ (unpulledArms hist).Nonempty := by
@@ -239,5 +238,65 @@ example :
     simpa [Fintype.card_bool, show (3 : ℝ) * 2 * 2 = 12 by norm_num] using h
   · have h := ucb1_stochasticRegret_le_sqrt twoArmStochastic (T := 10) (by omega)
     simpa [Fintype.card_bool, show (3 : ℝ) * 2 * 10 = 60 by norm_num] using h
+
+/-! ### Boundary checks: `T = 0`, `K = 1` (`Unit`), and `γ = 1` -/
+
+/-- `T = 0` boundary check for both loss-based `EXP3` and reward-based `Exp3`. -/
+example :
+    twoArmOblivious.pseudoRegret (exp3Policy (exp3Rate 2 0)) 0 ≤ 0 ∧
+      obliviousRewardRegret (exp3GammaPolicy (exp3GammaRate 2 0))
+        (fun t b => 1 - twoArmOblivious.loss t b) 0 ≤ 0 := by
+  constructor
+  · simpa [Fintype.card_bool] using exp3_pseudoRegret_le_sqrt twoArmOblivious 0
+  · have hg : ∀ s < 0, ∀ a : Bool, 1 - twoArmOblivious.loss s a ∈ Set.Icc (0 : ℝ) 1 :=
+      fun s hs => absurd hs (Nat.not_lt_zero s)
+    simpa [Fintype.card_bool] using exp3Gamma_rewardRegret_le_sqrt (ι := Bool) 0 hg
+
+/-- `γ = 1` pure-exploration boundary check for reward-based `Exp3`
+(`exp3Gamma_rewardRegret_le`). -/
+example :
+    let g : ℕ → Bool → ℝ := fun t b => 1 - twoArmOblivious.loss t b
+    obliviousRewardRegret (exp3GammaPolicy 1) g 4 ≤
+      (exp 1 - 1) * bestCumReward g 4 + 2 * log 2 := by
+  intro g
+  have hg : ∀ s < 4, ∀ a : Bool, g s a ∈ Set.Icc (0 : ℝ) 1 := fun s _ a => by
+    have h01 := twoArmOblivious.mem_unitInterval s a
+    exact ⟨by linarith [h01.2], by linarith [h01.1]⟩
+  simpa [Fintype.card_bool] using
+    exp3Gamma_rewardRegret_le (ι := Bool) (γ := 1) zero_lt_one le_rfl 4 hg
+
+/-- `K = 1` (`Unit`) boundary check for loss-based `EXP3` and reward-based `Exp3`:
+single-arm regret is bounded by `0`. -/
+example (T : ℕ) :
+    let E : ObliviousBandit Unit := ⟨fun _ _ => 1 / 2, fun _ _ => by norm_num⟩
+    E.pseudoRegret (exp3Policy (exp3Rate 1 T)) T ≤ 0 ∧
+      obliviousRewardRegret (exp3GammaPolicy (exp3GammaRate 1 T))
+        (fun _ (_ : Unit) => (1 / 2 : ℝ)) T ≤ 0 := by
+  intro E
+  constructor
+  · simpa using exp3_pseudoRegret_le_sqrt E T
+  · simpa using exp3Gamma_rewardRegret_le_sqrt (ι := Unit) (g := fun _ _ => 1 / 2) T
+      fun _ _ _ => by norm_num
+
+/-- `K = 1` (`Unit`) boundary check for `UCB1` on a deterministic single-arm stochastic bandit
+(for any horizon `T : ℕ`, including `T = 0`). -/
+example (T : ℕ) :
+    let B : StochasticBandit Unit :=
+      ⟨fun _ => Measure.dirac (1 / 2 : ℝ), fun _ => inferInstance,
+        fun _ => (ae_dirac_iff (p := (· ∈ Set.Icc (0 : ℝ) 1)) measurableSet_Icc).mpr
+          (by norm_num)⟩
+    B.stochasticRegret ucb1Policy T = 0 := by
+  intro B
+  rw [B.stochasticRegret_eq_pseudoRegret ucb1Policy_isMeasurable T, B.pseudoRegret_def,
+    Fintype.sum_unique]
+  obtain ⟨a, _, ha⟩ := B.exists_optimal_arm
+  have h0 : B.gap () = 0 := by simpa [Subsingleton.elim a ()] using ha
+  simp [h0]
+
+/-- `T = 0` boundary check for `StochasticBandit.stochasticRegret` on `twoArmStochastic`. -/
+example : twoArmStochastic.stochasticRegret ucb1Policy 0 = 0 := by
+  rw [twoArmStochastic.stochasticRegret_eq_pseudoRegret ucb1Policy_isMeasurable 0,
+    twoArmStochastic.pseudoRegret_def]
+  simp [StochasticBandit.expectedPulls_def]
 
 end CslibFrontierTests.Bandits
