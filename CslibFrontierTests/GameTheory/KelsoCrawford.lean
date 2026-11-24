@@ -60,7 +60,8 @@ private theorem erratumVal_isGrossSubstitutes (i : Unit) : IsGrossSubstitutes (e
 private theorem erratumVal_init_demand (i : Unit) :
     IsDemand (erratumVal i) (fun _ => (1 : ℝ)) ∅ := by
   intro S
-  simp only [erratumVal, additiveValuation, sum_const, card_empty, nsmul_eq_mul]
+  simp only [erratumVal, Cslib.Algorithms.Lean.Submodular.modularSum, sum_const, card_empty,
+    nsmul_eq_mul]
   have hnn : (0 : ℝ) ≤ (S.card : ℝ) := Nat.cast_nonneg _
   norm_num
   linarith
@@ -87,9 +88,9 @@ example :
   let bFull : Allocation Unit Bool :=
     ⟨fun _ => univ, fun i₁ i₂ hne => (hne (Subsingleton.elim i₁ i₂)).elim⟩
   have hw0 : welfare erratumVal (kelsoCrawford erratumVal 1).alloc = 0 := by
-    simp [hkc, welfare, erratumVal, additiveValuation]
+    simp [hkc, welfare, erratumVal]
   have hwFull : welfare erratumVal bFull = 3 / 2 := by
-    simp [welfare, bFull, erratumVal, additiveValuation]
+    simp [welfare, bFull, erratumVal, Cslib.Algorithms.Lean.Submodular.modularSum]
     norm_num
   refine ⟨hkc, heps, ⟨bFull, ?_, heps.welfare_le (by norm_num) bFull⟩,
     fun b₁ hb₁ => heps.welfare_le_of_card_le_one (by norm_num) hb₁⟩
@@ -123,7 +124,7 @@ private theorem hetVal_isGrossSubstitutes (i : Fin 3) : IsGrossSubstitutes (hetV
   · exact isGrossSubstitutes_additiveValuation _
 
 private theorem hetVal_empty_nonneg (i : Fin 3) : 0 ≤ hetVal i ∅ := by
-  fin_cases i <;> simp [hetVal, additiveValuation]
+  fin_cases i <;> simp [hetVal]
 
 /-- Nonvacuous instantiation of exact Walrasian equilibrium existence, zero `LPR` integrality gap,
 finite-step `1 / 10`-equilibrium via `kelsoCrawford`, and strict submodularity on `{0, 1}` vs
@@ -133,15 +134,15 @@ example :
     (∃ x : Fin 3 → Finset (Fin 3) → ℝ, IsLPROptimal hetVal x ∧ IsIntegral x) ∧
     IsEpsWalrasianEquilibrium hetVal (1 / 10) (kelsoCrawford hetVal (1 / 10)).price
       (kelsoCrawford hetVal (1 / 10)).alloc ∧
+    Cslib.Algorithms.Lean.Submodular.IsSubmodular (hetVal 1) ∧
     hetVal 1 (({0, 1} : Finset (Fin 3)) ∪ {1, 2}) +
       hetVal 1 (({0, 1} : Finset (Fin 3)) ∩ {1, 2}) <
         hetVal 1 {0, 1} + hetVal 1 {1, 2} := by
-  have hsub := (hetVal_isGrossSubstitutes 1).submodular ({0, 1} : Finset (Fin 3)) {1, 2}
-  have _ := hsub
   refine ⟨exists_isWalrasianEquilibrium_of_isGrossSubstitutes hetVal_isGrossSubstitutes,
     exists_isIntegral_isLPROptimal_of_isGrossSubstitutes hetVal_empty_nonneg
       hetVal_isGrossSubstitutes,
-    (kelsoCrawford_isEpsWalrasianEquilibrium hetVal_isGrossSubstitutes (by norm_num)).1, ?_⟩
+    (kelsoCrawford_isEpsWalrasianEquilibrium hetVal_isGrossSubstitutes (by norm_num)).1,
+    (hetVal_isGrossSubstitutes 1).submodular, ?_⟩
   have hu : (({0, 1} : Finset (Fin 3)) ∪ {1, 2}).card = 3 := by decide
   have hi : (({0, 1} : Finset (Fin 3)) ∩ {1, 2}).card = 1 := by decide
   have h01 : ({0, 1} : Finset (Fin 3)).card = 2 := by decide

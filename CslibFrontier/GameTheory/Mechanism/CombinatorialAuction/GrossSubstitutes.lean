@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Walrasian
+public import CslibFrontier.Algorithms.Lean.Submodular.Basic
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Floor.Ring
 import Mathlib.Analysis.SpecificLimits.Basic
@@ -144,15 +145,6 @@ a demand bundle `D` at `q` containing all items `j ∈ A` whose price remained u
   ∀ ⦃p q : M → ℝ⦄, (∀ j, p j ≤ q j) → ∀ ⦃A : Finset M⦄, IsDemand v p A →
     ∃ D : Finset M, IsDemand v q D ∧ ∀ j ∈ A, p j = q j → j ∈ D
 
-/-- Equivalent `Finset.filter` form matching the printed notation `D ⊇ {j ∈ A | p_j = q_j}` of
-[BlumrosenNisan2007], Definition 11.28 (p. 290). -/
-theorem IsGrossSubstitutes.exists_isDemand_filter_subset {M : Type*} {v : Finset M → ℝ}
-    (hgs : IsGrossSubstitutes v) {p q : M → ℝ} (hpq : ∀ j, p j ≤ q j)
-    [DecidablePred fun j => p j = q j] {A : Finset M} (hA : IsDemand v p A) :
-    ∃ D : Finset M, IsDemand v q D ∧ A.filter (fun j => p j = q j) ⊆ D := by
-  obtain ⟨D, hD, hsub⟩ := hgs hpq hA
-  exact ⟨D, hD, fun j hj => hsub j (mem_filter.1 hj).1 (mem_filter.1 hj).2⟩
-
 /-- On a finite item set `M`, for any valuation `v`, prices `q`, and target subset `S₀`, there
 exists a demand bundle `D₀` at `q` maximizing `(D₀ ∩ S₀).card` among all demand bundles at `q`. -/
 private theorem exists_isDemand_max_inter {M : Type*} [Finite M] [DecidableEq M]
@@ -186,9 +178,10 @@ theorem IsDemand.sub_insert_le_price {M : Type*} [DecidableEq M] {v : Finset M �
   rw [sum_insert hj] at h
   linarith
 
-/-- **Additive valuation** `S ↦ ∑ j ∈ S, w j` ([BlumrosenNisan2007], Definition 11.17, p. 280). -/
-@[expose] def additiveValuation {M : Type*} (w : M → ℝ) (S : Finset M) : ℝ :=
-  ∑ j ∈ S, w j
+/-- **Additive valuation** `S ↦ ∑ j ∈ S, w j` ([BlumrosenNisan2007], Definition 11.17, p. 280),
+reducible alias of `Cslib.Algorithms.Lean.Submodular.modularSum`. -/
+abbrev additiveValuation {M : Type*} (w : M → ℝ) : Finset M → ℝ :=
+  Cslib.Algorithms.Lean.Submodular.modularSum w
 
 /-- Every additive valuation satisfies `IsGrossSubstitutes` ([BlumrosenNisan2007], §11.7.1,
 p. 291). -/
@@ -201,7 +194,7 @@ theorem isGrossSubstitutes_additiveValuation {M : Type*} [Finite M] (w : M → �
     intro j hj
     have h := hA.price_le_sub_erase hj
     have hsub : additiveValuation w A - additiveValuation w (A.erase j) = w j := by
-      unfold additiveValuation
+      simp only [Cslib.Algorithms.Lean.Submodular.modularSum]
       rw [← add_sum_erase _ _ hj]
       ring
     linarith
@@ -219,7 +212,7 @@ theorem isGrossSubstitutes_additiveValuation {M : Type*} [Finite M] (w : M → �
     push Not at hnot
     exact hnot.2
   refine ⟨D, fun S => ?_, fun j hjA hpq_eq => mem_filter.2 ⟨mem_univ j, Or.inl ⟨hjA, hpq_eq⟩⟩⟩
-  unfold additiveValuation
+  simp only [Cslib.Algorithms.Lean.Submodular.modularSum]
   rw [← sum_sub_distrib, ← sum_sub_distrib]
   have hsplit_S : ∑ j ∈ S, (w j - q j) =
       ∑ j ∈ S \ D, (w j - q j) + ∑ j ∈ S ∩ D, (w j - q j) := by
@@ -300,6 +293,14 @@ theorem exists_mem_unitDemandValuation_eq {M : Type*} {w : M → ℝ} (hw : ∀ 
       · exact ⟨a, mem_insert_self a T, max_eq_left hba⟩
       · exact ⟨b, mem_insert_of_mem hbT, max_eq_right hab⟩
 
+private theorem card_inter_lt_of_subset_of_mem {M : Type*} [DecidableEq M]
+    {D₀ D' S₀ : Finset M} {j₀ : M} (hj₀S₀ : j₀ ∈ S₀) (hj₀D₀ : j₀ ∉ D₀)
+    (hj₀' : j₀ ∈ D') (hsub : ∀ x ∈ D₀ ∩ S₀, x ∈ D') :
+    (D₀ ∩ S₀).card < (D' ∩ S₀).card := by
+  refine card_lt_card ⟨fun x hx => mem_inter.2 ⟨hsub x hx, (mem_inter.1 hx).2⟩, ?_⟩
+  intro hrev
+  exact hj₀D₀ (mem_inter.1 (hrev (mem_inter.2 ⟨hj₀', hj₀S₀⟩))).1
+
 /-- Every nonnegative unit-demand valuation satisfies `IsGrossSubstitutes`
 ([BlumrosenNisan2007], §11.7.1, p. 291). -/
 theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M → ℝ}
@@ -311,13 +312,6 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
   refine ⟨D₀, hD₀, fun j₀ hj₀A hpq₀ => ?_⟩
   have hj₀S₀ : j₀ ∈ S₀ := mem_filter.2 ⟨hj₀A, hpq₀⟩
   by_contra hj₀D₀
-  have hcard_strict : ∀ D' : Finset M, j₀ ∈ D' → (∀ x ∈ D₀ ∩ S₀, x ∈ D') →
-      (D₀ ∩ S₀).card < (D' ∩ S₀).card := by
-    intro D' hj₀' hsub
-    refine card_lt_card ⟨fun x hx => mem_inter.2 ⟨hsub x hx, (mem_inter.1 hx).2⟩, ?_⟩
-    intro hrev
-    have := hrev (mem_inter.2 ⟨hj₀', hj₀S₀⟩)
-    exact hj₀D₀ (mem_inter.1 this).1
   rcases le_or_gt (q j₀) 0 with hq_nonpos | hq_pos
   · -- Nonpositive price `q j₀ ≤ 0`: inserting `j₀` into `D₀` preserves optimality at `q`.
     let D' := insert j₀ D₀
@@ -327,7 +321,7 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
         unitDemandValuation_monotone w (subset_insert j₀ D₀)
       have hsum_eq : ∑ x ∈ D', q x = q j₀ + ∑ x ∈ D₀, q x := sum_insert hj₀D₀
       linarith [hD₀ S]
-    exact (hcard_strict D' (mem_insert_self j₀ D₀)
+    exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ D₀)
       fun x hx => mem_insert_of_mem (mem_inter.1 hx).1).not_ge (hD₀_max D' hD'_dem)
   · -- Positive price `0 < p j₀ = q j₀`: `j₀` uniquely attains `unitDemandValuation w A = w j₀`.
     have hp_pos : 0 < p j₀ := hpq₀.symm ▸ hq_pos
@@ -353,7 +347,7 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
         simp only [unitDemandValuation_empty, sum_empty, sub_zero] at h0
         rw [hval, sum_singleton, ← hpq₀]
         linarith
-      exact (hcard_strict {j₀} (mem_singleton_self j₀)
+      exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_singleton_self j₀)
         fun _ hx => (notMem_empty _ (mem_inter.1 hx).1).elim).not_ge (hD₀_max {j₀} hsingle_dem)
     · obtain ⟨m, hmD₀, hm_eq⟩ := exists_mem_unitDemandValuation_eq hw hD₀_ne
       by_cases hmA : m ∈ A
@@ -370,7 +364,7 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
             rw [unitDemandValuation_insert, hm_eq, max_eq_left (by linarith)]
           rw [hvD', sum_insert hj₀D₀]
           linarith [hD₀ S, hm_eq]
-        exact (hcard_strict D' (mem_insert_self j₀ D₀)
+        exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ D₀)
           fun x hx => mem_insert_of_mem (mem_inter.1 hx).1).not_ge (hD₀_max D' hD'_dem)
       · -- `m ∉ A`: swapping `m` for `j₀` in `A` at `p` yields `w m - q m ≤ w j₀ - q j₀`, so
         -- swapping `m` out for `j₀` in `D₀` preserves optimality at `q` and grows `D₀ ∩ S₀`!
@@ -399,7 +393,8 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
           have hxA : x ∈ A := (mem_filter.1 (mem_inter.1 hx).2).1
           have hxm : x ≠ m := fun h => hmA (h ▸ hxA)
           exact mem_insert_of_mem (mem_erase.2 ⟨hxm, hxD₀⟩)
-        exact (hcard_strict D' (mem_insert_self j₀ _) hsub).not_ge (hD₀_max D' hD'_dem)
+        exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ _) hsub).not_ge
+          (hD₀_max D' hD'_dem)
 
 /-- **Downward-sloping symmetric valuation** `S ↦ ∑ k ∈ range S.card, w k`
 ([BlumrosenNisan2007], Definition 11.19, p. 281, indexing marginal values `0 .. |S| - 1`). -/
@@ -421,12 +416,6 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
   refine ⟨D₀, hD₀, fun j₀ hj₀A hpq₀ => ?_⟩
   have hj₀S₀ : j₀ ∈ S₀ := mem_filter.2 ⟨hj₀A, hpq₀⟩
   by_contra hj₀D₀
-  have hcard_strict : ∀ D' : Finset M, j₀ ∈ D' → (∀ x ∈ D₀ ∩ S₀, x ∈ D') →
-      (D₀ ∩ S₀).card < (D' ∩ S₀).card := by
-    intro D' hj₀' hsub
-    refine card_lt_card ⟨fun x hx => mem_inter.2 ⟨hsub x hx, (mem_inter.1 hx).2⟩, ?_⟩
-    intro hrev
-    exact hj₀D₀ (mem_inter.1 (hrev (mem_inter.2 ⟨hj₀', hj₀S₀⟩))).1
   by_cases hsubA : D₀ ⊆ A
   · -- `D₀ ⊆ A` and `j₀ ∈ A \ D₀`, so `D₀.card ≤ A.card - 1` and `q j₀ = p j₀ ≤ w (A.card - 1) ≤
     -- w D₀.card`: inserting `j₀` into `D₀` preserves optimality at `q`!
@@ -451,7 +440,7 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
         rw [card_insert_of_notMem hj₀D₀, sum_range_succ]
       rw [hvD', sum_insert hj₀D₀]
       linarith [hD₀ S]
-    exact (hcard_strict D' (mem_insert_self j₀ D₀)
+    exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ D₀)
       fun x hx => mem_insert_of_mem (mem_inter.1 hx).1).not_ge (hD₀_max D' hD'_dem)
   · -- Pick `b ∈ D₀ \ A`: swapping `j₀ ∈ A` with `b ∉ A` preserves cardinality and gives
     -- `p j₀ ≤ p b`, hence `q j₀ = p j₀ ≤ p b ≤ q b`!
@@ -486,7 +475,8 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
       have hxD₀ : x ∈ D₀ := (mem_inter.1 hx).1
       have hxA : x ∈ A := (mem_filter.1 (mem_inter.1 hx).2).1
       exact mem_insert_of_mem (mem_erase.2 ⟨fun h => hbA (h ▸ hxA), hxD₀⟩)
-    exact (hcard_strict D' (mem_insert_self j₀ _) hsub).not_ge (hD₀_max D' hD'_dem)
+    exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ _) hsub).not_ge
+      (hD₀_max D' hD'_dem)
 
 /-! ### Exercise 11.6 (Gul–Stacchetti): every gross-substitutes valuation is submodular -/
 
@@ -764,26 +754,10 @@ theorem IsGrossSubstitutes.marginal_le_of_subset {M : Type*} [Finite M] [Decidab
 /-- **Exercise 11.6 ([BlumrosenNisan2007], p. 299; [GulStacchetti1999]):** every gross-substitutes
 valuation on a finite item set is **submodular**. -/
 theorem IsGrossSubstitutes.submodular {M : Type*} [Finite M] [DecidableEq M]
-    {v : Finset M → ℝ} (hgs : IsGrossSubstitutes v) (A B : Finset M) :
-    v (A ∪ B) + v (A ∩ B) ≤ v A + v B := by
-  suffices h : ∀ K : Finset M, Disjoint A K →
-      v (A ∪ K) + v (A ∩ B) ≤ v A + v ((A ∩ B) ∪ K) by
-    have hAB : (A ∩ B) ∪ (B \ A) = B := by
-      rw [union_comm, inter_comm, sdiff_union_inter]
-    have hAUB : A ∪ (B \ A) = A ∪ B := union_sdiff_self_eq_union
-    simpa only [hAB, hAUB] using h (B \ A) disjoint_sdiff_self_right
-  intro K
-  induction K using Finset.induction with
-  | empty => simp
-  | insert x K hxK ih =>
-    intro hAK
-    rw [disjoint_insert_right] at hAK
-    have hstep := ih hAK.2
-    have hsub : (A ∩ B) ∪ K ⊆ A ∪ K := union_subset_union inter_subset_left Subset.rfl
-    have hx_not : x ∉ A ∪ K := by simp [hAK.1, hxK]
-    have hmarg := hgs.marginal_le_of_subset hsub hx_not
-    rw [union_insert, union_insert]
-    linarith
+    {v : Finset M → ℝ} (hgs : IsGrossSubstitutes v) :
+    Cslib.Algorithms.Lean.Submodular.IsSubmodular v :=
+  Cslib.Algorithms.Lean.Submodular.isSubmodular_of_insert_add_le fun _ _ _ hAB hx => by
+    linarith [hgs.marginal_le_of_subset hAB hx]
 
 end Substitutes
 
@@ -1141,7 +1115,7 @@ noncomputable def kelsoCrawford {N M : Type*} [Fintype N] [Fintype M]
 open Classical in
 /-- Any state `st` in which every bidder already demands their tentative bundle at personalized
 prices is a fixed point of `kelsoCrawfordLoop`. -/
-theorem kelsoCrawfordLoop_eq_self {N M : Type*} [Fintype N] [Fintype M]
+private theorem kelsoCrawfordLoop_eq_self {N M : Type*} [Fintype N] [Fintype M]
     [DecidableEq N] [DecidableEq M] {v : N → Finset M → ℝ} {ε : ℝ} (fuel : ℕ)
     {st : AuctionState N M}
     (hdem : ∀ i : N, IsDemand (v i) (personalizedPrice ε st.price (st.alloc.bundle i))
@@ -1385,7 +1359,8 @@ theorem demandReductionVal_truthful_equilibrium :
       rw [hb_eq, sum_const, nsmul_eq_mul]
       linarith
   · -- Bob (`true`): `5 * |S| - 4 * |S| = |S| ≤ 2 = 10 - 8`.
-    simp only [demandReductionVal, ↓reduceIte, additiveValuation, sum_const, nsmul_eq_mul]
+    simp only [demandReductionVal, ↓reduceIte, Cslib.Algorithms.Lean.Submodular.modularSum,
+      sum_const, nsmul_eq_mul]
     have hcard : (S.card : ℝ) ≤ ((univ : Finset Bool).card : ℝ) := by
       exact_mod_cast card_le_univ S
     have huniv : ((univ : Finset Bool).card : ℝ) = 2 := by simp
@@ -1419,7 +1394,7 @@ theorem demandReduction_manipulation :
         · exact (hne rfl).elim⟩
     have hw_ge := heq.welfare_le aOpt
     have hwOpt : welfare demandReductionVal aOpt = 10 := by
-      simp [welfare, aOpt, demandReductionVal, additiveValuation]
+      simp [welfare, aOpt, demandReductionVal, Cslib.Algorithms.Lean.Submodular.modularSum]
       norm_num
     have ha_empty : a.bundle false = ∅ := by
       by_contra hne_emp
@@ -1435,7 +1410,8 @@ theorem demandReduction_manipulation :
           (fun _ => by norm_num) ⟨j, hj⟩
         simpa [demandReductionVal] using hb_eq
       have hbob_val : demandReductionVal true (a.bundle true) ≤ 5 := by
-        simp only [demandReductionVal, ↓reduceIte, additiveValuation, sum_const, nsmul_eq_mul]
+        simp only [demandReductionVal, ↓reduceIte, Cslib.Algorithms.Lean.Submodular.modularSum,
+          sum_const, nsmul_eq_mul]
         have : ((a.bundle true).card : ℝ) ≤ 1 := by exact_mod_cast hbob_le
         linarith
       rw [hwOpt] at hw_ge
@@ -1452,11 +1428,12 @@ theorem demandReduction_manipulation :
       exact hd
     by_cases hb_univ : a.bundle true = univ
     · rw [hb_univ, Fintype.sum_bool]
-      simp only [demandReductionVal, ↓reduceIte, additiveValuation, sum_const, card_univ,
-        Fintype.card_bool, nsmul_eq_mul]
+      simp only [demandReductionVal, ↓reduceIte, Cslib.Algorithms.Lean.Submodular.modularSum,
+        sum_const, card_univ, Fintype.card_bool, nsmul_eq_mul]
       norm_num
       linarith [hp_ge_4 false, hp_ge_4 true]
-    · simp only [demandReductionVal, ↓reduceIte, additiveValuation, ← sum_sub_distrib]
+    · simp only [demandReductionVal, ↓reduceIte, Cslib.Algorithms.Lean.Submodular.modularSum,
+        ← sum_sub_distrib]
       calc
         ∑ j ∈ a.bundle true, (5 - p j) ≤ ∑ _j ∈ a.bundle true, (1 : ℝ) :=
           sum_le_sum fun j _ => by linarith [hp_ge_4 j]
@@ -1494,7 +1471,7 @@ theorem demandReduction_manipulation :
             (w := wMis) (fun j => by cases j <;> simp [wMis]) hS
           rw [hb_eq]
           cases b <;> simp [wMis]
-    · simp [aMis, demandReductionVal, additiveValuation]
+    · simp [aMis, demandReductionVal, Cslib.Algorithms.Lean.Submodular.modularSum]
 
 end KelsoCrawford
 
