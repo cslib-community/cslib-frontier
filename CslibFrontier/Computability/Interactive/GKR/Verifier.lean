@@ -41,21 +41,25 @@ import Mathlib.Data.Nat.Prime.Basic
 public import Mathlib.Algebra.Field.ZMod
 
 /-!
-# Doubly-efficient uniform GKR verifier
+# Polynomial-time word verifier from polynomial-time wiring extensions
 
-Given a `UniformGKRFamily I encI`, this module constructs the executable word-level interactive
-verifier `UniformGKRFamily.verifier` for evaluating `F.circuit ι` over prime fields `ZMod p` with
-`p` and field coordinates encoded in **binary** (`encNat`), and establishes its verifier runtime,
-completeness, and soundness ([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015]
-Theorem 1.1 / Section 3; [Thaler, §4.6][Thaler2022]):
+A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
+[Thaler, §4.6][Thaler2022]): given a `UniformGKRFamily I encI` (which pairs `IsLogSpaceUniform`
+with a caller-supplied `HasPolyTimeWiringMLE` oracle; compiling general `IsLogSpaceUniform` wiring
+without `HasPolyTimeWiringMLE` and `poly(S)` prover word-TM runtime remain open on `#892`), this
+module constructs the executable word-level interactive verifier `UniformGKRFamily.verifier` over
+prime fields `ZMod p` with `p` and field coordinates encoded in **binary** (`encNat`), and
+establishes its verifier runtime, completeness, and soundness:
 
-* **Doubly-efficient verifier runtime** (`UniformGKRFamily.isOraclePPTOn_verifier`,
+* **Polynomial-time word verifier runtime** (`UniformGKRFamily.isOraclePPTOn_verifier`,
   `UniformGKRFamily.exists_computesOracleInTimeOn_verifier`): `F.verifier` is realized by a
   strict oracle PPT multi-tape Turing machine running in time polynomial in
   `|encI ι| + log p + |input| log p + |claimedOutput| log p` — independent of the internal layer
   widths `2 ^ width i` and total circuit size `S` whenever `|encI ι| = O(d + log S)`.
-  No `TimeM` charges are used; the runtime bound comes from the native multi-tape Turing machine
-  semantics (`IsOraclePPTOn` / `ComputesOracleInTimeOn`).
+  (Note: `F.verifier` uses `F.uniform.depth_polyTime`, `F.uniform.width_polyTime`, and
+  `F.wiringMLE`.) No `TimeM` charges are used; the runtime bound comes from the native multi-tape
+  Turing machine semantics (`IsOraclePPTOn` / `ComputesOracleInTimeOn`).
 * **Exact completeness** (`UniformGKRFamily.acceptProb_verifier_complete`): when `p` is prime,
   `minModulus (F.circuit ι) ≤ p`, and the claimed output matches `C.output` on the input table,
   an honest word prover is accepted with probability `1`.
@@ -66,37 +70,41 @@ Theorem 1.1 / Section 3; [Thaler, §4.6][Thaler2022]):
   with `< 1 / p` total variation distance from fair-coin modular sampling.
 * **`IP` membership on prime-modulus instances** (`UniformGKRFamily.mem_IP_primeInstance`):
   since binary-input deterministic primality checking (AKS) is not yet available in the library,
-  `Cslib.Complexity.IP` membership is stated on the prime-modulus subtype `PrimeInstance I`,
+  `Cslib.Complexity.IP` membership is stated on the prime-modulus promise subtype `PrimeInstance I`,
   while all verifier runtime, completeness, and soundness theorems are proved directly on the
   general `Instance I` type and encoding `encInstance I encI`.
 
 Note: primary-source page/theorem locators in `[GoldwasserKalaiRothblum2015]` and `[Thaler2022]`
-are from recorded repository documentation (locator not re-verified against primary PDF). The
-prover's `poly(S)` word-TM accounting under `#892` M3 and `CslibFrontierResults` registration remain
-open for follow-up.
+are from recorded repository documentation (locator not re-verified against primary PDF). General
+`IsLogSpaceUniform` wiring compilation without `HasPolyTimeWiringMLE`, the prover's `poly(S)`
+word-TM accounting under `#892`, and `CslibFrontierResults` registration remain open for follow-up.
 
 ## Main definitions
 
 * `Cslib.Interactive.GKR.Instance`, `Cslib.Interactive.GKR.encInstance`: instance record `(ι, p,
   input, claimedOutput)` with binary field modulus and coordinate lists.
-* `Cslib.Interactive.GKR.tableFn`, `Cslib.Interactive.GKR.evalTableMLEMod`: input/output table
-  representation on `{0, 1}^k` and sparse binary-time multilinear extension evaluator (enumerating
-  only `vals.length` entries without `2 ^ k` blowup).
+* `Cslib.Interactive.GKR.tableFn`, `Cslib.Interactive.GKR.Instance.CorrectOutput`: input/output
+  table representation on `{0, 1}^k` and output-correctness predicate.
+* `Cslib.Interactive.GKR.layerCost`, `Cslib.Interactive.GKR.minModulus`: soundness error numerator
+  and `3 * layerCost C` modulus threshold for soundness error `≤ 1 / 3`.
 * `Cslib.Interactive.GKR.UniformGKRFamily.verifier`: executable word-oracle verifier iterating
   sumcheck and line-reduction steps from the output layer down to the input layer.
 * `Cslib.Interactive.GKR.PrimeInstance`, `Cslib.Interactive.GKR.encPrimeInstance`: prime-modulus
-  domain for `Cslib.Complexity.IP`.
+  promise domain for `Cslib.Complexity.IP`.
 
 ## Main results
 
+* `Cslib.Interactive.GKR.UniformGKRFamily.verifier_of_lt_minModulus`: immediate rejection below
+  `minModulus`.
 * `Cslib.Interactive.GKR.UniformGKRFamily.isOraclePPTOn_verifier`,
   `Cslib.Interactive.GKR.UniformGKRFamily.exists_computesOracleInTimeOn_verifier`: native Turing
-  machine polynomial-time runtime for the uniform GKR verifier.
+  machine polynomial-time runtime for the `HasPolyTimeWiringMLE` word verifier (step toward `#892`).
 * `Cslib.Interactive.GKR.UniformGKRFamily.acceptProb_verifier_complete`: exact `= 1` completeness.
 * `Cslib.Interactive.GKR.UniformGKRFamily.acceptProb_verifier_sound`: soundness against all
   stateful randomized word provers `Cslib.Complexity.Prover Unit`.
 * `Cslib.Interactive.GKR.UniformGKRFamily.isInteractiveProof_primeInstance`,
-  `Cslib.Interactive.GKR.UniformGKRFamily.mem_IP_primeInstance`: `IP` membership on prime moduli.
+  `Cslib.Interactive.GKR.UniformGKRFamily.mem_IP_primeInstance`: `IP` membership on the
+  `PrimeInstance` promise domain.
 
 ## References
 
@@ -162,8 +170,7 @@ def Instance.CorrectOutput {I : Type} {encI : I ↪ List Bool}
 
 /-- Total number of scalar challenges drawn across the GKR protocol on `C`:
 `width depth` coordinates in the output step plus `2 * width i + 1` in each layer `i < depth`. -/
-@[expose]
-def challengeCount (C : LayeredCircuit) : ℕ :=
+private def challengeCount (C : LayeredCircuit) : ℕ :=
   C.width C.depth + ((List.range C.depth).map fun i => 2 * C.width i + 1).sum
 
 /-- Total soundness numerator `1 + width depth + ∑ i < depth, 5 * width i` (including `1` for
@@ -178,50 +185,42 @@ def minModulus (C : LayeredCircuit) : ℕ :=
   3 * layerCost C
 
 /-- Fair-coin bit width `2 * (log₂ p + 1) + (log₂ (M + 1) + 1)` per modular field sample. -/
-@[expose]
-def coinBits (p M : ℕ) : ℕ :=
+private def coinBits (p M : ℕ) : ℕ :=
   2 * (Nat.log 2 p + 1) + (Nat.log 2 (M + 1) + 1)
 
 /-- Binary bit width `Nat.log 2 p + 1` of one residue modulo `p`. -/
-@[expose]
-def elemWidth (p : ℕ) : ℕ :=
+private def elemWidth (p : ℕ) : ℕ :=
   Nat.log 2 p + 1
 
 /-- Bit-length limit `(D + 1) * elemWidth p` read from each prover message of degree at most `D`. -/
-@[expose]
-def polyLimit (p D : ℕ) : ℕ :=
+private def polyLimit (p D : ℕ) : ℕ :=
   (D + 1) * elemWidth p
 
 /-- Modular line point `y + t * (w - y) mod p` on `Fin k` coordinates represented as a `k`-element
 list of residues below `p`. -/
-@[expose]
-def lineMod (p k : ℕ) (y w : List ℕ) (t : ℕ) : List ℕ :=
+private def lineMod (p k : ℕ) (y w : List ℕ) (t : ℕ) : List ℕ :=
   if p = 0 then List.replicate k 0
   else (List.range k).map fun j =>
     (y.getD j 0 + t * subModNat p (w.getD j 0) (y.getD j 0)) % p
 
 /-- Modular Horner evaluation of coefficient list `l` (constant term first) at `z` modulo `p`,
 returning `0` when `p = 0`. -/
-@[expose]
-def hornerModBin (p z : ℕ) (l : List ℕ) : ℕ :=
+private def hornerModBin (p z : ℕ) (l : List ℕ) : ℕ :=
   if p = 0 then 0 else l.reverse.foldl (fun acc a => (a + z * acc) % max p 1) 0
 
 /-- Decode a prover bit word as `D + 1` binary residues modulo `p` (`[]` when `p = 0`). -/
-@[expose]
-def decodeResidues (p D : ℕ) (word : List Bool) : List ℕ :=
+private def decodeResidues (p D : ℕ) (word : List Bool) : List ℕ :=
   if p = 0 then []
   else (listRows (D + 1) (elemWidth p) word).map fun row => binaryValue row % p
 
 /-- Encode a list of residues `< p` into concatenated `elemWidth p`-bit big-endian words. -/
-@[expose]
-def encodeResidues (p : ℕ) (l : List ℕ) : List Bool :=
+private def encodeResidues (p : ℕ) (l : List ℕ) : List Bool :=
   l.flatMap (binaryWord (elemWidth p))
 
 /-- Sparse polynomial-time evaluator for `eval (vecOfList p k r) (multilinearExtension
 (tableFn p k vals))` modulo `p`: loops only over `idx < vals.length` with `idx.bits.length ≤ k`
 (i.e. `idx < 2 ^ k`), avoiding `2 ^ k` blowup when `k` is large. -/
-@[expose]
-def evalTableMLEMod (p k : ℕ) (vals r : List ℕ) : ℕ :=
+private def evalTableMLEMod (p k : ℕ) (vals r : List ℕ) : ℕ :=
   if p = 0 then 0
   else
     ((List.range vals.length).map fun idx =>
@@ -699,10 +698,10 @@ private lemma evalTableMLEMod_pt {γ : Type} {encIn : γ ↪ List Bool}
 
 end PolyTime
 
-/-! ### Executable doubly-efficient GKR verifier -/
+/-! ### Executable polynomial-time word GKR verifier -/
 
 /-- State tracked across the `2 * width i` sumcheck rounds of one GKR layer. -/
-structure SumcheckState where
+private structure SumcheckState where
   /-- Accumulated sumcheck challenges `(y, w)` (length `j ≤ 2 * width i`). -/
   challenges : List ℕ
   /-- Current claimed partial sum modulo `p`. -/
@@ -711,13 +710,13 @@ structure SumcheckState where
   ok : Bool
 
 /-- Tuple encoding of `SumcheckState`, keeping `challenges` and `claim` in binary. -/
-enc_structure encSumcheckState : SumcheckState where
+private enc_structure encSumcheckState : SumcheckState where
   challenges : encNatList,
   claim : encNat,
   ok : encBool
 
 /-- State tracked across the layer-by-layer GKR descent (`depth` down to `0`). -/
-structure LayerState where
+private structure LayerState where
   /-- Number of layers still to descend (`depth` initially, `0` before the input step). -/
   remaining : ℕ
   /-- Claimed evaluation point at layer `remaining`. -/
@@ -728,7 +727,7 @@ structure LayerState where
   ok : Bool
 
 /-- Tuple encoding of `LayerState`, with `remaining` in unary and coordinates/value in binary. -/
-enc_structure encLayerState : LayerState where
+private enc_structure encLayerState : LayerState where
   remaining : encUnary,
   point : encNatList,
   value : encNat,
@@ -737,8 +736,7 @@ enc_structure encLayerState : LayerState where
 /-- One sumcheck round of GKR on binary modulus `p` and coin width `coinWidth`: read the degree-`2`
 prover polynomial `g`, draw a challenge `r ← sampleModNat coinWidth p`, send `encNat r`, verify
 `g(0) + g(1) ≡ sc.claim (mod p)`, and update the challenge list and claim. -/
-@[expose]
-noncomputable def sumcheckStep (p coinWidth : ℕ) (sc : SumcheckState) :
+private noncomputable def sumcheckStep (p coinWidth : ℕ) (sc : SumcheckState) :
     WordOracleComp Unit SumcheckState := do
   let raw ← List.take (polyLimit p 2) <$> ProbOracleComp.query ((), [])
   let r ← ProbOracleComp.sample (sampleModNat coinWidth p)
@@ -751,8 +749,7 @@ noncomputable def sumcheckStep (p coinWidth : ℕ) (sc : SumcheckState) :
 degree-`width i` line polynomial `q`, evaluate `F.evalWiring` for `.add` and `.mul` at `(z, y, w)`,
 draw `t ← sampleModNat coinWidth p`, send `encNat t`, check
 `sc.claim ≡ ãdd*(q 0 + q 1) + m̃ult*(q 0 * q 1)`, and output the reduced claim on `line y w t`. -/
-@[expose]
-noncomputable def lineStepExec {I : Type} {encI : I ↪ List Bool}
+private noncomputable def lineStepExec {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) (coinWidth : ℕ)
     (st : LayerState) (sc : SumcheckState) : WordOracleComp Unit LayerState := do
   let p := inst.modulus
@@ -774,8 +771,7 @@ noncomputable def lineStepExec {I : Type} {encI : I ↪ List Bool}
 
 /-- One complete GKR layer reduction (`sumcheckStage` followed by `lineStepExec`) descending from
 layer `st.remaining` to `st.remaining - 1`. -/
-@[expose]
-noncomputable def layerExec {I : Type} {encI : I ↪ List Bool}
+private noncomputable def layerExec {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) (coinWidth : ℕ)
     (st : LayerState) : WordOracleComp Unit LayerState := do
   let i := st.remaining - 1
@@ -784,12 +780,13 @@ noncomputable def layerExec {I : Type} {encI : I ↪ List Bool}
     ⟨[], st.value, st.ok⟩
   lineStepExec F inst coinWidth st sc
 
-/-- **Executable doubly-efficient uniform GKR verifier** for a `UniformGKRFamily I encI`.
-Rejects whenever `inst.modulus < minModulus (F.circuit inst.index)`. Otherwise draws a random
-output point `r` with `coinBits` bits per coordinate, evaluates the claimed-output multilinear
-extension sparsely via `evalTableMLEMod`, descends `depth` layers via `layerExec`, and checks the
-final input-layer evaluation against `inst.input`. -/
-@[expose]
+/-- **Executable polynomial-time word GKR verifier** for a `UniformGKRFamily I encI`
+(a verifier-side, `HasPolyTimeWiringMLE` step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] §3 / [Thaler, §4.6][Thaler2022]).
+Rejects immediately whenever `inst.modulus < minModulus (F.circuit inst.index)`. Otherwise samples a
+random output evaluation point, evaluates the claimed-output multilinear extension sparsely,
+descends `depth` layers of sumcheck and line reduction using `F.evalWiring`, and checks the final
+input-layer evaluation against `inst.input`. -/
 noncomputable def UniformGKRFamily.verifier {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) : WordOracleComp Unit Bool :=
   let C := F.circuit inst.index
@@ -808,6 +805,15 @@ noncomputable def UniformGKRFamily.verifier {I : Type} {encI : I ↪ List Bool}
       (evalTableMLEMod inst.modulus kIn inst.input final.point = final.value % inst.modulus)
   else
     pure false
+
+/-- `UniformGKRFamily.verifier` rejects immediately whenever `inst.modulus` is below
+`minModulus (F.circuit inst.index)`. -/
+theorem UniformGKRFamily.verifier_of_lt_minModulus {I : Type} {encI : I ↪ List Bool}
+    (F : UniformGKRFamily I encI) {inst : Instance I}
+    (hlt : inst.modulus < minModulus (F.circuit inst.index)) :
+    F.verifier inst = pure false := by
+  have hnot : ¬ minModulus (F.circuit inst.index) ≤ inst.modulus := not_le.mpr hlt
+  simp [UniformGKRFamily.verifier, hnot]
 
 /-! ### Native multi-tape Turing-machine polynomial-time runtime -/
 
@@ -1317,12 +1323,14 @@ private lemma verifier_layerLoop_ppt {I : Type} {encI : I ↪ List Bool}
       dsimp only [layerSizeFun]
       enc_len [encLayerState_apply, encLayerStateFields])).1
 
-/-- **Strict polynomial-time randomized oracle verifier runtime**
-([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 / Section 3;
-[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF):
-`F.verifier` is realized by a strict oracle PPT multi-tape Turing machine relative to
-`encInstance I encI`, running in time polynomial in
-`|encI ι| + log p + |input| log p + |claimedOutput| log p`. -/
+/-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
+[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF): `F.verifier` is realized
+by a strict oracle PPT multi-tape Turing machine relative to `encInstance I encI`, running in time
+polynomial in `|encI ι| + log p + |input| log p + |claimedOutput| log p` using `F.uniform` for
+`depth`/`width` and `F.wiringMLE` for `ãdd_i`/`m̃ult_i`. Compiling arbitrary `IsLogSpaceUniform`
+wiring without a supplied `HasPolyTimeWiringMLE` oracle and `poly(S)` prover word-TM runtime remain
+open on `#892`. -/
 theorem UniformGKRFamily.isOraclePPTOn_verifier {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     IsOraclePPTOn (encInstance I encI) encBool F.verifier := by
@@ -1409,10 +1417,12 @@ theorem UniformGKRFamily.isOraclePPTOn_verifier {I : Type} {encI : I ↪ List Bo
   exact IsOraclePPTOn.cond hCond hBody
     (ComputableInPolyTime.isOraclePPTOn (f := fun _ : Instance I => false) (const false))
 
-/-- **Explicit halting Turing-machine runtime for `UniformGKRFamily.verifier`**:
-there exists a polynomial-time step schedule `t` and a halting probabilistic multi-tape Turing
-machine realizing `F.verifier` on every `Instance I` within `t inst` steps across every stateful
-prover oracle. -/
+/-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3): there exists a
+polynomial-time step schedule `t` and a halting probabilistic multi-tape Turing machine realizing
+`F.verifier` on every `Instance I` within `t inst` steps across every stateful prover oracle
+(general `IsLogSpaceUniform` wiring compilation without `HasPolyTimeWiringMLE` and `poly(S)` prover
+runtime remain open on `#892`). -/
 theorem UniformGKRFamily.exists_computesOracleInTimeOn_verifier {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     ∃ t : Instance I → ℕ,
@@ -1664,7 +1674,7 @@ private theorem runWith_map_bind_eq {α β γ₁ γ₂ δ State : Type}
   rw [hleft, ← hp, PMF.bind_map]
   rfl
 
-private theorem vecOfList_append_singleton {p j : ℕ} [NeZero p] {xs : List ℕ}
+private theorem vecOfList_append_singleton {p j : ℕ} {xs : List ℕ}
     (hlen : xs.length = j) (r : ℕ) :
     vecOfList p (j + 1) (xs ++ [r]) = Fin.snoc (vecOfList p j xs) (r : ZMod p) := by
   funext k
@@ -2469,12 +2479,14 @@ private theorem closeTo_gkrSamplers (C : LayeredCircuit) {p cw : ℕ} [Fact p.Pr
   refine closeTo_perChallenge_append ⟨?_, trivial⟩ (closeTo_descendSamplers C x C.depth)
   exact closeTo_replicateFin_sampleModNat (C.width C.depth)
 
-/-- **Soundness of `UniformGKRFamily.verifier`**
-([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 / Section 3;
-[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF):
-whenever `inst.modulus` is prime and the claimed output disagrees with `C.output` on the input
-table, every stateful randomized word prover `P : Cslib.Complexity.Prover Unit` is accepted with
-probability at most `(1 + width depth + ∑ i < depth, 5 * width i) / inst.modulus`. -/
+/-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
+[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF): whenever `inst.modulus`
+is prime and the claimed output disagrees with `C.output` on the input table, every stateful
+randomized word prover `P : Cslib.Complexity.Prover Unit` is accepted by `F.verifier inst` with
+probability at most `(1 + width depth + ∑ i < depth, 5 * width i) / inst.modulus` (general
+`IsLogSpaceUniform` wiring compilation without `HasPolyTimeWiringMLE` and `poly(S)` prover runtime
+remain open on `#892`). -/
 theorem UniformGKRFamily.acceptProb_verifier_sound {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) (hp : Nat.Prime inst.modulus)
     (hbad : ¬ inst.CorrectOutput F) (P : Cslib.Complexity.Prover Unit) :
@@ -2942,12 +2954,13 @@ private theorem validStrat_protocol (C : LayeredCircuit) {p : ℕ} [Fact p.Prime
       trivial)
     (fun ⟨nextClaim, _⟩ _ st₂ hst₂ => hDesc C.depth nextClaim st₂ hst₂) st hst'
 
-/-- **Exact completeness of `UniformGKRFamily.verifier`**
-([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 / Section 3;
-[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF):
-whenever `inst.modulus` is prime, `minModulus (F.circuit inst.index) ≤ inst.modulus`, and the
-claimed output matches `C.output` on the input table, there exists a stateful word prover accepted
-by `F.verifier inst` with probability `1`. -/
+/-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
+[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF): whenever `inst.modulus`
+is prime, `minModulus (F.circuit inst.index) ≤ inst.modulus`, and the claimed output matches
+`C.output` on the input table, there exists a stateful word prover accepted by `F.verifier inst`
+with probability `1` (general `IsLogSpaceUniform` wiring compilation without `HasPolyTimeWiringMLE`
+and `poly(S)` prover runtime remain open on `#892`). -/
 theorem UniformGKRFamily.acceptProb_verifier_complete {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) (inst : Instance I) (hp : Nat.Prime inst.modulus)
     (hmin : minModulus (F.circuit inst.index) ≤ inst.modulus)
@@ -3015,10 +3028,13 @@ theorem UniformGKRFamily.acceptProb_verifier_complete {I : Type} {encI : I ↪ L
   rw [hFalse, zero_add] at hSum
   exact hSum
 
-/-- **Interactive proof on prime moduli (`PrimeInstance I`)**: `F.verifier` is an interactive
-proof with completeness `1` and soundness error `1 / 3` for the language of prime-modulus instances
-whose modulus is at least `minModulus (F.circuit inst.index)` and whose claimed output matches
-`C.output`. -/
+/-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3) on the prime-modulus
+promise domain `PrimeInstance I`: `F.verifier` is an interactive proof with completeness `1` and
+soundness error `1 / 3` for prime-modulus instances with `minModulus (F.circuit inst.index) ≤
+inst.modulus` and `inst.CorrectOutput F` (general `IsLogSpaceUniform` wiring compilation without
+`HasPolyTimeWiringMLE`, unconditional primality checking, and `poly(S)` prover runtime remain open
+on `#892`). -/
 theorem UniformGKRFamily.isInteractiveProof_primeInstance {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     IsInteractiveProof (fun a : PrimeInstance I => F.verifier a.1)
@@ -3047,11 +3063,13 @@ theorem UniformGKRFamily.isInteractiveProof_primeInstance {I : Type} {encI : I �
       rw [hzero]
       exact zero_le
 
-/-- **`IP` membership on prime moduli**
-([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1; [Thaler, §4.6][Thaler2022]
-— locator not re-verified against primary PDF): for any `UniformGKRFamily I encI`, verifying
-circuit output on `PrimeInstance I` (encoded via `encPrimeInstance I encI`) belongs to
-`Cslib.Complexity.IP`. -/
+/-- A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
+[Thaler, §4.6][Thaler2022] — locator not re-verified against primary PDF) on the prime-modulus
+promise domain `PrimeInstance I` (used because binary-input deterministic primality testing is not
+yet formalized): for any `UniformGKRFamily I encI`, verifying circuit output on `PrimeInstance I`
+belongs to `Cslib.Complexity.IP` (general `IsLogSpaceUniform` wiring compilation without
+`HasPolyTimeWiringMLE` and `poly(S)` prover runtime remain open on `#892`). -/
 theorem UniformGKRFamily.mem_IP_primeInstance {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     {a : PrimeInstance I |

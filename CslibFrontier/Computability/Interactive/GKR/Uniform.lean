@@ -29,15 +29,17 @@ import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.Data.List.OfFn
 
 /-!
-# Uniform layered arithmetic circuits and efficient wiring extensions
+# Uniform layered arithmetic circuits and polynomial-time wiring extensions
 
-The GKR protocol [Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015],
-[Thaler, §4.6][Thaler2022] delegates the evaluation of a layered arithmetic circuit `C` of depth `d`
-and gate counts `2 ^ width i` with verifier work proportional to the input/output sizes plus `d`
-rounds of sumcheck and wiring-extension evaluation. For the verifier to run in time polynomial in
-`d`, `max_i width i = O(log S)` and `log |F|` (plus reading the input and claimed output), the
-circuit family must be uniform and its wiring predicates `add_i` and `mult_i` must have
-efficiently evaluable multilinear extensions.
+A verifier-side, efficient-wiring-MLE (`HasPolyTimeWiringMLE`) step toward
+[Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] Theorem 1.1 (§3; see also
+[Thaler, §4.6][Thaler2022]): the GKR protocol delegates the evaluation of a layered arithmetic
+circuit `C` of depth `d` and gate counts `2 ^ width i` with verifier work proportional to the
+input/output sizes plus `d` rounds of sumcheck and wiring-extension evaluation. Here
+`UniformGKRFamily` pairs `LayeredCircuit.IsLogSpaceUniform` with an explicit caller-supplied
+`HasPolyTimeWiringMLE` oracle evaluating `ãdd_i` and `m̃ult_i` in polynomial time; compiling
+arbitrary `IsLogSpaceUniform` wiring without a supplied `HasPolyTimeWiringMLE` oracle and `poly(S)`
+prover multi-tape word-TM runtime remain open on `#892`.
 
 This module formalizes:
 
@@ -57,11 +59,11 @@ This module formalizes:
    `wiringPred` factors into a sum of coordinate products
    (`eval_multilinearExtension_wiringPred_ofClauses`) computable in polynomial time
    (`hasPolyTimeWiringMLE_ofClauses`).
-4. **Concrete doubly-efficient circuit family** (`powerSumFamily`): a parameterized family with
+4. **Concrete exponential-width circuit family** (`powerSumGKRFamily`): a parameterized family with
    `2 ^ inWidth` inputs, an internal fan-out and `sqDepth` repeated-squaring layers of width
    `midWidth` (`2 ^ midWidth` gates per layer, exponentially larger than the unary parameter length
    `inWidth + midWidth + sqDepth`), and `midWidth` binary-tree addition layers reducing to one
-   output gate, proved both `IsLogSpaceUniform` and `HasPolyTimeWiringMLE` (`powerSumGKRFamily`).
+   output gate, proved both `IsLogSpaceUniform` and `HasPolyTimeWiringMLE`.
 
 Note: primary-source page/theorem locators in `[GoldwasserKalaiRothblum2015]` (§3 / Theorem 1.1) and
 `[Thaler2022]` (§4.6) are from recorded repository documentation (locator not re-verified against
@@ -104,7 +106,7 @@ primary PDF).
   re-verified against primary PDF)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Interactive.GKR
 
@@ -120,6 +122,8 @@ enc_inductive encGate : Gate where
   | add
   | mul
 
+attribute [nolint defsWithUnderscore] encGate_toSum encGate_elim
+
 /-- Framed list of binary naturals, used for field-element vectors over `ZMod p`. -/
 abbrev encNatList : List ℕ ↪ List Bool := encList encNat
 
@@ -129,6 +133,7 @@ abbrev encMask : List (Option Bool) ↪ List Bool := encList (encOption encBool)
 
 /-- Read a list of natural numbers as a `Fin k`-indexed vector in `ZMod p`, padding missing entries
 with `0`. -/
+@[expose]
 def vecOfList (p k : ℕ) (xs : List ℕ) : Fin k → ZMod p :=
   fun j => ((xs.getD j.val 0 : ℕ) : ZMod p)
 
@@ -156,6 +161,7 @@ namespace LayeredCircuit
 
 /-- Boolean wiring relation of layer `i + 1`: `true` iff gate `a` has kind `g` and in-neighbours
 `b` and `c` in layer `i`. -/
+@[expose]
 def isWiring (C : LayeredCircuit) (g : Gate) (i : ℕ)
     (a : Fin (C.width (i + 1)) → Bool) (b c : Fin (C.width i) → Bool) : Bool :=
   decide (C.gate i a = g ∧ C.left i a = b ∧ C.right i a = c)
@@ -355,9 +361,12 @@ structure LayeredCircuit.HasPolyTimeWiringMLE {I : Type} (encI : I ↪ List Bool
             (Sum.elim (vecOfList p ((C ι).width i) ys) (vecOfList p ((C ι).width i) ws)))
           (multilinearExtension ((C ι).wiringPred (R := ZMod p) g i))
 
-/-- A **uniform GKR circuit family**: a log-space uniform family of layered arithmetic circuits
-equipped with a certified polynomial-time evaluator for its wiring multilinear extensions
-([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] §3; [Thaler, §4.6][Thaler2022]). -/
+/-- A step toward unconditional `IsLogSpaceUniform` GKR Theorem 1.1
+([Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015] §3; [Thaler, §4.6][Thaler2022]): a
+log-space uniform family of layered arithmetic circuits paired with an explicit caller-supplied
+`HasPolyTimeWiringMLE` polynomial-time evaluator for its wiring multilinear extensions (compiling
+arbitrary `IsLogSpaceUniform` wiring without `HasPolyTimeWiringMLE` and `poly(S)` prover runtime
+remain open on `#892`). -/
 structure UniformGKRFamily (I : Type) (encI : I ↪ List Bool) where
   /-- The layered circuit at each index. -/
   circuit : I → LayeredCircuit
@@ -384,16 +393,20 @@ enc_inductive encWireLit : WireLit where
   | const : encBool
   | var : encNat, encBool
 
+attribute [nolint defsWithUnderscore] encWireLit_toSum encWireLit_elim
+
 namespace WireLit
 
 /-- Evaluate a coordinate literal on a `Fin kOut`-indexed gate label `a`. Out-of-range variable
 indices read `false`, so `.var idx neg` evaluates to `neg`. -/
+@[expose]
 def eval {kOut : ℕ} (lit : WireLit) (a : Fin kOut → Bool) : Bool :=
   match lit with
   | .const b => b
   | .var idx neg => if h : idx < kOut then xor (a ⟨idx, h⟩) neg else neg
 
 /-- Multilinear indicator factor `b ? r : 1 - r` in a commutative ring `R`. -/
+@[expose]
 def litFactor {R : Type*} [CommRing R] (b : Bool) (r : R) : R :=
   if b then r else 1 - r
 
@@ -457,19 +470,23 @@ enc_structure encWiringClause : WiringClause where
 namespace WiringClause
 
 /-- Whether bit `b` satisfies optional bit constraint `m`. -/
+@[expose]
 def matchOpt : Option Bool → Bool → Bool
   | none, _ => true
   | some b₀, b => b == b₀
 
 /-- Whether gate label `a : Fin kOut → Bool` lies in the subcube specified by `cl.mask`. -/
+@[expose]
 def matchesVec {kOut : ℕ} (cl : WiringClause) (a : Fin kOut → Bool) : Bool :=
   (List.finRange kOut).all fun j => matchOpt (cl.mask.getD j.val none) (a j)
 
 /-- Left in-neighbour assigned by `cl` to `a`. -/
+@[expose]
 def evalLeft {kOut : ℕ} (kIn : ℕ) (cl : WiringClause) (a : Fin kOut → Bool) : Fin kIn → Bool :=
   fun ℓ => (cl.leftLits.getD ℓ.val (.const false)).eval a
 
 /-- Right in-neighbour assigned by `cl` to `a`. -/
+@[expose]
 def evalRight {kOut : ℕ} (kIn : ℕ) (cl : WiringClause) (a : Fin kOut → Bool) : Fin kIn → Bool :=
   fun ℓ => (cl.rightLits.getD ℓ.val (.const false)).eval a
 
@@ -585,11 +602,13 @@ private theorem sum_matchesVec_eq_evalFactor {R : Type*} [CommRing R] {kOut kIn 
 end WiringClause
 
 /-- A list of clauses partitions `{0, 1}^kOut` when every gate label matches exactly one clause. -/
+@[expose]
 def ClausesPartition (kOut : ℕ) (clauses : List WiringClause) : Prop :=
   ∀ a : Fin kOut → Bool, clauses.countP (fun cl => cl.matchesVec a) = 1
 
 /-- Build a `LayeredCircuit` whose layer-`i` gate kinds and in-neighbours are given by the first
 matching clause in `clauses i` (defaulting to an addition of gate `0` if none matches). -/
+@[expose]
 def LayeredCircuit.ofClauses (depth : ℕ) (width : ℕ → ℕ) (clauses : ℕ → List WiringClause) :
     LayeredCircuit where
   depth := depth
@@ -722,7 +741,7 @@ theorem natCast_litFactorNat {p : ℕ} [NeZero p] (b : Bool) (r : ℕ) :
   · simp [litFactorNat, WireLit.litFactor, ZMod.natCast_mod]
 
 /-- Natural representative of `WireLit.constWeight` modulo `p`. -/
-def constWeightNat (p kOut : ℕ) (lit : WireLit) (r : ℕ) : ℕ :=
+private def constWeightNat (p kOut : ℕ) (lit : WireLit) (r : ℕ) : ℕ :=
   encWireLit_elim lit
     (fun b => litFactorNat p b r)
     (fun q => if q.1 < kOut then 1 else litFactorNat p q.2 r)
@@ -737,7 +756,7 @@ private theorem natCast_constWeightNat {p : ℕ} [NeZero p] (kOut : ℕ) (lit : 
     · exact natCast_litFactorNat _ _
 
 /-- Natural representative of `WireLit.varWeight` modulo `p`. -/
-def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) : ℕ :=
+private def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) : ℕ :=
   encWireLit_elim lit
     (fun _ => 1)
     (fun q => if q.1 = j then litFactorNat p (xor b q.2) r else 1)
@@ -752,16 +771,16 @@ private theorem natCast_varWeightNat {p : ℕ} [NeZero p] (lit : WireLit) (j : �
     · simp
 
 /-- Natural representative of `WiringClause.maskWeight`. -/
-def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
+private def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
   if WiringClause.matchOpt m b then 1 else 0
 
-private theorem natCast_maskWeightNat {p : ℕ} [NeZero p] (m : Option Bool) (b : Bool) :
+private theorem natCast_maskWeightNat {p : ℕ} (m : Option Bool) (b : Bool) :
     ((maskWeightNat m b : ℕ) : ZMod p) = WiringClause.maskWeight m b := by
   unfold maskWeightNat WiringClause.maskWeight
   split_ifs <;> simp
 
 /-- Modular coordinate-`j` bit term of a `WiringClause`. -/
-def bitTermNat (p kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) (j : ℕ) (b : Bool) : ℕ :=
+private def bitTermNat (p kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) (j : ℕ) (b : Bool) : ℕ :=
   let m := maskWeightNat ((cl.mask[j]?).getD none) b
   let zf := litFactorNat p b (zs.getD j 0)
   let lf := ((List.range kIn).map fun ℓ =>
@@ -771,7 +790,7 @@ def bitTermNat (p kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) (j : ℕ)
   (m * zf * (lf * rf)) % p
 
 /-- Modular evaluation of one `WiringClause` at `(zs, ys, ws)` modulo `p`. -/
-def evalClauseNat (p kOut kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) : ℕ :=
+private def evalClauseNat (p kOut kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) : ℕ :=
   let lc := ((List.range kIn).map fun ℓ =>
     constWeightNat p kOut (cl.leftLits.getD ℓ (.const false)) (ys.getD ℓ 0)).prod % p
   let rc := ((List.range kIn).map fun ℓ =>
@@ -1107,10 +1126,12 @@ namespace PowerSumParams
 
 /-- Total depth of `powerSumCircuit P`: 1 fan-out addition layer (`x[prefix] + x[prefix]`),
 `sqDepth` squaring layers, and `midWidth` binary-tree addition layers. -/
+@[expose]
 def depth (P : PowerSumParams) : ℕ :=
   1 + P.sqDepth + P.midWidth
 
 /-- Bit-width of layer `i` in `powerSumCircuit P`. -/
+@[expose]
 def width (P : PowerSumParams) (i : ℕ) : ℕ :=
   if i = 0 then P.inWidth
   else if i ≤ 1 + P.sqDepth then P.midWidth
@@ -1122,6 +1143,7 @@ def width (P : PowerSumParams) (i : ℕ) : ℕ :=
 * layers `1 .. sqDepth`: elementwise squaring (`mul`, `left a = a`, `right a = a`);
 * layers `1 + sqDepth .. depth - 1`: binary-tree sum (`add`, `left a = snoc a false`,
   `right a = snoc a true`). -/
+@[expose]
 def layerClauses (P : PowerSumParams) (i : ℕ) : List WiringClause :=
   if i = 0 then
     let lits := (List.range P.inWidth).map fun j =>
@@ -1139,6 +1161,7 @@ end PowerSumParams
 
 /-- Concrete layered circuit for `P : PowerSumParams`, with `2 ^ P.midWidth` gates per internal
 layer. -/
+@[expose]
 def powerSumCircuit (P : PowerSumParams) : LayeredCircuit :=
   LayeredCircuit.ofClauses P.depth P.width P.layerClauses
 
@@ -1433,6 +1456,7 @@ theorem hasPolyTimeWiringMLE_powerSumCircuit :
 
 /-- Concrete `UniformGKRFamily` for `powerSumCircuit`: internal layers have `2 ^ midWidth` gates
 while parameter descriptions and wiring-MLE queries have size `O(inWidth + midWidth + sqDepth)`. -/
+@[expose]
 def powerSumGKRFamily : UniformGKRFamily PowerSumParams encPowerSumParams where
   circuit := powerSumCircuit
   evalWiring := evalPowerSumWiring

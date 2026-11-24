@@ -4,17 +4,21 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Interactive.GKR.Verifier
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Computability.Interactive.GKR.Verifier
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+import Mathlib.Data.List.OfFn
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
-# Checked witnesses for the doubly-efficient uniform GKR verifier
+# Checked witnesses for the polynomial-time GKR word verifier
 
-Non-vacuous test instances exercising `UniformGKRFamily.isOraclePPTOn_verifier`,
+Non-vacuous `module`-client test instances exercising `UniformGKRFamily.isOraclePPTOn_verifier`,
 `UniformGKRFamily.exists_computesOracleInTimeOn_verifier`,
 `UniformGKRFamily.acceptProb_verifier_complete`, `UniformGKRFamily.acceptProb_verifier_sound`,
-and `UniformGKRFamily.mem_IP_primeInstance` on:
+`UniformGKRFamily.verifier_of_lt_minModulus`, and `UniformGKRFamily.mem_IP_primeInstance` on:
 
 1. An exponential-width `powerSumGKRFamily` instance (`midWidth = 60`, `2 ^ 60` gates per internal
    layer, depth `65`) over `ZMod 1000003`.
@@ -23,6 +27,8 @@ and `UniformGKRFamily.mem_IP_primeInstance` on:
    `IsLogSpaceUniform.of_neighbours`, and `hasPolyTimeWiringMLE_ofClauses`.
 4. Small- and zero-modulus boundary instances rejected immediately below `minModulus`.
 -/
+
+public section
 
 namespace CslibFrontierTests.GKRUniformVerifier
 
@@ -69,7 +75,7 @@ theorem expZeroInst_correct : expZeroInst.CorrectOutput powerSumGKRFamily := by
   have hzero : tableFn 1000003 ((powerSumCircuit expPS).width 0) [] = fun _ => 0 := by
     funext b
     simp [tableFn]
-  change tableFn 1000003 ((powerSumCircuit expPS).width (powerSumCircuit expPS).depth) [0]
+  change tableFn 1000003 0 [0]
       (fun j => j.elim0) =
     (powerSumCircuit expPS).output (tableFn 1000003 ((powerSumCircuit expPS).width 0) [])
       (fun j => j.elim0)
@@ -311,17 +317,12 @@ def zeroModInst : Instance PowerSumParams :=
   { smallInst with modulus := 0 }
 
 theorem verifier_smallModInst_eq_pure_false :
-    powerSumGKRFamily.verifier smallModInst = pure false := by
-  have hlt :
-      ¬ minModulus (powerSumGKRFamily.circuit smallModInst.index) ≤ smallModInst.modulus := by
-    decide
-  simp [UniformGKRFamily.verifier, hlt]
+    powerSumGKRFamily.verifier smallModInst = pure false :=
+  powerSumGKRFamily.verifier_of_lt_minModulus (by decide)
 
 theorem verifier_zeroModInst_eq_pure_false :
-    powerSumGKRFamily.verifier zeroModInst = pure false := by
-  have hlt : ¬ minModulus (powerSumGKRFamily.circuit zeroModInst.index) ≤ zeroModInst.modulus := by
-    decide
-  simp [UniformGKRFamily.verifier, hlt]
+    powerSumGKRFamily.verifier zeroModInst = pure false :=
+  powerSumGKRFamily.verifier_of_lt_minModulus (by decide)
 
 theorem acceptProb_smallModInst_eq_zero (P : Cslib.Complexity.Prover Unit) :
     Complexity.acceptProb (powerSumGKRFamily.verifier smallModInst) P = 0 := by
