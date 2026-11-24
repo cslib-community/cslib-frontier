@@ -281,12 +281,15 @@ theorem gates_of_two_le {w : ℕ} (hw : 2 ≤ w) :
 
 /-! ### The synthesis bound -/
 
--- Keep the arithmetic stages named and compose only free rewiring rules to find their inputs.
--- The availability search sees the builder's unions without unfolding the word operations.
+-- Each stage stores its output family under its name and finds its inputs by composing free
+-- rewiring rules through the builder's union. The availability premises here all use the rule-list
+-- form of `synthesis_available`, which never unfolds a word operation and never runs the general
+-- search, so a premise that leaves this shape fails at once instead of exhausting the heartbeat
+-- budget on this chain.
 local macro "karatsuba_step " b:ident " to " targets:term:max " using " rule:term : tactic =>
-  `(tactic| synthesis_step (disch := synthesis_available [wordWires_subset_iff.mp,
-      wordWires_setWidth_subset, wordWires_shiftLeft_subset, wordWires_ofBool])
-    $b to $targets using $rule)
+  `(tactic| let $b := ($b).add (t := $targets) (by apply $rule <;> synthesis_available
+      [wordWires_subset_iff.mp, wordWires_setWidth_subset, wordWires_shiftLeft_subset,
+        wordWires_ofBool]))
 
 private theorem synthesis_wideMul {n : ℕ} (w : ℕ) : ∀ (s : Set (BooleanFunction n))
     (a b : BitString n → BitVec w), wordWires a ⊆ s → wordWires b ⊆ s →
@@ -357,8 +360,8 @@ private theorem synthesis_wideMul {n : ℕ} (w : ℕ) : ∀ (s : Set (BooleanFun
     karatsuba_step build to (wordWires fun x => mask m (b x) (a x)) using
       Synthesis.word_mask (f := fun x => midCarry m (b x)) (b := fun x => midRem m (a x))
     let build := build.add ((Synthesis.of_mem (I := interpretation)
-      (f := fun x => midCarry m (a x)) (by synthesis_available)).and
-      (Synthesis.of_mem (f := fun x => midCarry m (b x)) (by synthesis_available)))
+      (f := fun x => midCarry m (a x)) (by synthesis_available [])).and
+      (Synthesis.of_mem (f := fun x => midCarry m (b x)) (by synthesis_available [])))
     karatsuba_step build to (wordWires fun x => p1 m (a x) (b x)) using
       Synthesis.word_add (fun x => (z1 m (a x) (b x)).setWidth (w + w))
         (fun x => (mask m (a x) (b x)).setWidth (w + w) <<< m)
@@ -384,7 +387,7 @@ private theorem synthesis_wideMul {n : ℕ} (w : ℕ) : ∀ (s : Set (BooleanFun
     have hr : (fun x => wideMul (a x) (b x)) = fun x => r m (a x) (b x) :=
       funext fun x => (r_eq m (a x) (b x) hw2 hmW).symm
     rw [hr]
-    refine build.finish (by synthesis_available) ?_
+    refine build.finish (by synthesis_available []) ?_
     dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]
     rw [gates_of_two_le hw, ← hm]
     omega
