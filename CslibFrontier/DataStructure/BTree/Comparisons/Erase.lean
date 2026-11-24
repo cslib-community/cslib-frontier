@@ -23,8 +23,8 @@ most one comparison per triple passed and a second at the triple where the scan 
 `rebalanceRightM` and `rebalanceLastM` and the removal `popMinM` of the successor of an interior
 key take no comparator, and neither do `minM` and `maxM`, which find the entry that `eraseMinM`
 and `eraseMaxM` remove. The comparison bound of all three operations is therefore that of
-insertion, `2 * t * height`, and not the node-visit bounds `2 * height` and `3 * height` of
-`Cslib.DataStructure.BTree.Cost.Erase` times the per-node bound `2 * t`: the siblings that a
+insertion, `2 * t * height`, and not the node-visit counts `2 * height` and `3 * height`
+times the per-node bound `2 * t`: the siblings that a
 repair visits, the path to the successor and the pass to the extreme entry are visited without
 comparing keys.
 

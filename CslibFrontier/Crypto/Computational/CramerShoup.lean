@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Crypto.Computational.Encryption.CCA.Multi
 import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF

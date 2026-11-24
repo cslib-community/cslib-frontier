@@ -98,12 +98,7 @@ theorem fourierCoeff_cond (i : ι) (f₀ f₁ : (ι → Bool) → ℝ) (S : Fins
 equal to `false` and to `true` gives twice the average of `φ`. -/
 theorem expect_update_false_add_update_true (φ : (ι → Bool) → ℝ) (i : ι) :
     𝔼 x, (φ (update x i false) + φ (update x i true)) = 2 * 𝔼 x, φ x := by
-  have hpt (x : ι → Bool) : φ (update x i false) + φ (update x i true) =
-      φ x + φ (update x i (!x i)) := by
-    cases hx : x i
-    · rw [show update x i false = x from update_eq_self_iff.2 hx.symm, Bool.not_false]
-    · rw [show update x i true = x from update_eq_self_iff.2 hx.symm, Bool.not_true, add_comm]
-  simp only [hpt, expect_add_distrib, expect_update_not]
+  simp only [Fintype.expect_eq_sum_div_card, sum_update_false_add_update_true]
   ring
 
 /-- The Fourier coefficient of `f` on `{i}` is the average of the derivative of `f` in `i`. -/
