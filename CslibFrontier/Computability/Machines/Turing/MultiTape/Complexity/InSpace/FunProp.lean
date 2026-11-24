@@ -20,9 +20,9 @@ argument. No rule infers a bound on the states of an iteration.
 
 Constants and the identity require the input encoding length to fit the requested budget.
 That side condition is explicit, including when the budget is not the input length.
-Indexed lookup and replacement of lists of binary naturals charge the complete list, index and
-replacement value through their supplied certificates; neither an out-of-range index nor an
-empty list is assumed.
+Indexed lookup and replacement in a list of binary naturals (`budget_getD`, `budget_set`) take
+certificates for the list, the index and the replacement value at the same budget. The index need
+not be in range: lookup then returns zero and replacement leaves the list unchanged.
 -/
 
 public section
@@ -56,19 +56,17 @@ theorem budget_getD {α : Type} {encIn : α ↪ List Bool} {S : α → ℕ}
     {l : α → List ℕ} {i : α → ℕ}
     (hl : ComputableInSpace l encIn (encList encNat) S)
     (hi : ComputableInSpace i encIn encNat S) :
-    ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat S := by
-  have harg := budget_prod hl hi
-  exact budget_comp getD harg (.const_mul 8 (.add harg.length_le (.const 1 _)))
+    ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat S :=
+  budget_comp_lin getD (linear_mul 8) (budget_prod hl hi)
 
-/-- Replace an indexed binary natural, retaining the complete argument and output charge. -/
+/-- Replace an indexed binary natural within the caller's budget. -/
 @[fun_prop]
 theorem budget_set {α : Type} {encIn : α ↪ List Bool} {S : α → ℕ}
     {l : α → List ℕ} {i v : α → ℕ}
     (hl : ComputableInSpace l encIn (encList encNat) S)
     (hi : ComputableInSpace i encIn encNat S)
     (hv : ComputableInSpace v encIn encNat S) :
-    ComputableInSpace (fun x => (l x).set (i x) (v x)) encIn (encList encNat) S := by
-  have harg := budget_prod hl (budget_prod hi hv)
-  exact budget_comp set harg (.const_mul 128 (.add harg.length_le (.const 1 _)))
+    ComputableInSpace (fun x => (l x).set (i x) (v x)) encIn (encList encNat) S :=
+  budget_comp_lin set (linear_mul 128) (budget_prod hl (budget_prod hi hv))
 
 end Turing.MultiTapeTM.ComputableInSpace
