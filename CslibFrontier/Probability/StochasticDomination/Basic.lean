@@ -7,18 +7,16 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF
 public import Mathlib.MeasureTheory.Integral.Bochner.Basic
 public import Mathlib.MeasureTheory.Measure.Prod
 public import Mathlib.Probability.CDF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToMeasure
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.MeasureTheory.Constructions.BorelSpace.Order
-import Mathlib.MeasureTheory.Integral.Lebesgue.Basic
 import Mathlib.MeasureTheory.Integral.Lebesgue.Countable
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
@@ -173,8 +171,8 @@ theorem Ioi_le {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSp
 /-- Finite-measure `.real` inequality on any measurable upper set. -/
 theorem real_le [IsFiniteMeasure μ] (h : StochasticallyDominates μ ν) {U : Set α}
     (hUm : MeasurableSet U) (hU : IsUpperSet U) :
-    ν.real U ≤ μ.real U :=
-  ENNReal.toReal_mono (measure_ne_top μ U) (h U hUm hU)
+    ν.real U ≤ μ.real U := by
+  ennreal_to_real using h U hUm hU
 
 /-- Finite-measure `.real` inequality on `Set.Ici a`. -/
 theorem real_Ici_le [TopologicalSpace α] [OrderClosedTopology α] [OpensMeasurableSpace α]
@@ -226,8 +224,8 @@ theorem le_real_Iic {α : Type*} [MeasurableSpace α] [LinearOrder α] [Topologi
     [OrderClosedTopology α] [OpensMeasurableSpace α] {μ ν : Measure α}
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] (h : StochasticallyDominates μ ν)
     (a : α) :
-    μ.real (Set.Iic a) ≤ ν.real (Set.Iic a) :=
-  ENNReal.toReal_mono (measure_ne_top ν (Set.Iic a)) (h.le_Iic a)
+    μ.real (Set.Iic a) ≤ ν.real (Set.Iic a) := by
+  ennreal_to_real using h.le_Iic a
 
 private theorem measure_compl_le_of_le {α : Type*} [MeasurableSpace α] {μ ν : Measure α}
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] {s : Set α} (hs : MeasurableSet s)
@@ -250,8 +248,8 @@ theorem le_real_Iio {α : Type*} [MeasurableSpace α] [LinearOrder α] [Topologi
     [OrderClosedTopology α] [OpensMeasurableSpace α] {μ ν : Measure α}
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] (h : StochasticallyDominates μ ν)
     (a : α) :
-    μ.real (Set.Iio a) ≤ ν.real (Set.Iio a) :=
-  ENNReal.toReal_mono (measure_ne_top ν (Set.Iio a)) (h.le_Iio a)
+    μ.real (Set.Iio a) ≤ ν.real (Set.Iio a) := by
+  ennreal_to_real using h.le_Iio a
 
 /-- First-order stochastic domination implies `∫⁻ x, f x ∂ν ≤ ∫⁻ x, f x ∂μ` for every
 measurable monotone function `f : α → ℝ≥0∞`. -/
@@ -307,9 +305,9 @@ theorem integral_le [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
     h.lintegral_le (ENNReal.measurable_ofReal.comp hf) hpos_mono
   have hneg : ∫⁻ x, ENNReal.ofReal (-f x) ∂μ ≤ ∫⁻ x, ENNReal.ofReal (-f x) ∂ν :=
     h.lintegral_le_of_antitone (by simp) (ENNReal.measurable_ofReal.comp hf.neg) hneg_anti
-  exact sub_le_sub
-    (ENNReal.toReal_mono (lintegral_ofReal_ne_top hfiμ) hpos)
-    (ENNReal.toReal_mono (lintegral_ofReal_ne_top hfiν.neg) hneg)
+  have hfiμ_top := lintegral_ofReal_ne_top hfiμ
+  have hfiν_top := lintegral_ofReal_ne_top hfiν.neg
+  exact sub_le_sub (by ennreal_to_real using hpos) (by ennreal_to_real using hneg)
 
 /-- Nonnegative measurable monotone functions satisfy `∫ x, f x ∂ν ≤ ∫ x, f x ∂μ` under
 `SFinite` measures without requiring `μ univ = ν univ`. -/
@@ -322,9 +320,9 @@ theorem integral_le_of_nonneg [SFinite μ] [SFinite ν] (h : StochasticallyDomin
   have hneg_zero (x : α) : ENNReal.ofReal (-f x) = 0 :=
     ENNReal.ofReal_of_nonpos (neg_nonpos.mpr (hf0 x))
   simp only [hneg_zero, lintegral_zero, ENNReal.toReal_zero, sub_zero]
-  exact ENNReal.toReal_mono (lintegral_ofReal_ne_top hfiμ)
-    (h.lintegral_le (ENNReal.measurable_ofReal.comp hf)
-      (fun _ _ hxy => ENNReal.ofReal_le_ofReal (hf_mono hxy)))
+  have hfiμ_top := lintegral_ofReal_ne_top hfiμ
+  ennreal_to_real using h.lintegral_le (ENNReal.measurable_ofReal.comp hf)
+    (fun _ _ hxy => ENNReal.ofReal_le_ofReal (hf_mono hxy))
 
 /-- Pointwise a.e. ordering `Y ≤ᵐ[π] X` induces stochastic domination of pushforward laws. -/
 theorem of_ae_le {γ : Type*} [MeasurableSpace γ] {π : Measure γ} {X Y : γ → α}
@@ -456,9 +454,7 @@ theorem stochasticallyDominates_iff_integral {α : Type*} [MeasurableSpace α] [
   have hreal : ν.real U ≤ μ.real U := by
     simpa [integral_indicator_one hUm] using
       h (U.indicator 1) (measurable_one.indicator hUm) hind_mono (hint μ) (hint ν)
-  rw [← ENNReal.ofReal_toReal (measure_ne_top ν U),
-    ← ENNReal.ofReal_toReal (measure_ne_top μ U)]
-  exact ENNReal.ofReal_le_ofReal hreal
+  ennreal_to_real using hreal
 
 /-- Stochastic domination on `ℕ` is equivalent to upper-tail comparison on `Set.Ici n`. -/
 theorem stochasticallyDominates_nat_iff_Ici {μ ν : Measure ℕ} :
@@ -631,7 +627,7 @@ theorem stochasticallyDominates_real_iff_cdf {μ ν : Measure ℝ}
   rw [stochasticallyDominates_real_iff_Iic]
   refine ⟨fun h x => ?_, fun h x => ?_⟩
   · rw [ProbabilityTheory.cdf_eq_real, ProbabilityTheory.cdf_eq_real]
-    exact ENNReal.toReal_mono (measure_ne_top ν (Set.Iic x)) (h x)
+    ennreal_to_real using h x
   · rw [← ProbabilityTheory.ofReal_cdf μ x, ← ProbabilityTheory.ofReal_cdf ν x]
     exact ENNReal.ofReal_le_ofReal (h x)
 
@@ -775,13 +771,11 @@ theorem tsum_toReal_mul_le (h : StochasticallyDominates p q) {f : α → ℝ} (h
 theorem tsum_toReal_mul_le_of_bdd (h : StochasticallyDominates p q) {f : α → ℝ} (hf : Monotone f)
     {C : ℝ} (hC : ∀ x, |f x| ≤ C) :
     ∑' x, (q x).toReal * f x ≤ ∑' x, (p x).toReal * f x := by
-  refine h.tsum_toReal_mul_le hf ?_ ?_
-  · refine Summable.of_nonneg_of_le (fun x => mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _))
-      (fun x => mul_le_mul_of_nonneg_left (hC x) ENNReal.toReal_nonneg) ?_
-    exact (PMF.summable_toReal p).mul_right C
-  · refine Summable.of_nonneg_of_le (fun x => mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _))
-      (fun x => mul_le_mul_of_nonneg_left (hC x) ENNReal.toReal_nonneg) ?_
-    exact (PMF.summable_toReal q).mul_right C
+  have hsum (r : PMF α) : Summable fun x => (r x).toReal * |f x| :=
+    Summable.of_nonneg_of_le (fun _ => mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _))
+      (fun x => mul_le_mul_of_nonneg_left (hC x) ENNReal.toReal_nonneg)
+      ((PMF.summable_toReal r).mul_right C)
+  exact h.tsum_toReal_mul_le hf (hsum p) (hsum q)
 
 /-- Finite-sum expectation inequality for monotone functions on `[Fintype α]`. -/
 theorem sum_toReal_mul_le [Fintype α] (h : StochasticallyDominates p q) {f : α → ℝ}
@@ -904,13 +898,10 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
     · by_cases hf : false ∈ U
       · have hUuniv : U = Set.univ :=
           Set.eq_univ_iff_forall.mpr fun b => by cases b <;> assumption
-        have hp : p.toOuterMeasure Set.univ = 1 := by
+        have huniv (r : PMF Bool) : r.toOuterMeasure Set.univ = 1 := by
           let _ : MeasurableSpace Bool := ⊤
-          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply p MeasurableSet.univ, measure_univ]
-        have hq : q.toOuterMeasure Set.univ = 1 := by
-          let _ : MeasurableSpace Bool := ⊤
-          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply q MeasurableSet.univ, measure_univ]
-        rw [hUuniv, hp, hq]
+          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply r MeasurableSet.univ, measure_univ]
+        rw [hUuniv, huniv p, huniv q]
       · have hUs : U = {true} := by
           ext b
           cases b <;> simp [ht, hf]

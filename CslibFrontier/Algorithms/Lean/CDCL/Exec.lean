@@ -270,8 +270,8 @@ structure Marks where
   /-- The variables seen, newest first. -/
   vars : List ℕ
 
-/-- Nothing seen. -/
-def Marks.empty : Marks := ⟨⟨#[]⟩, [], 0, []⟩
+/-- Nothing seen, in an array of `n` slots, so that seeing a variable below `n` does not grow it. -/
+def Marks.start (n : ℕ) : Marks := ⟨⟨Array.replicate n 0⟩, [], 0, []⟩
 
 /-- **The analysed clause** of the state `m`, with the entries `Cur` of the current level still to
 pass: the literals of `out`, and the negations of the literals of `Cur` whose variables are seen.
@@ -279,16 +279,32 @@ It is never built; the hints of the learned clause refute it (`Cslib.Logic.PL.CN
 def Marks.clause (m : Marks) (Cur : Trail) (y : Literal ℕ) : Prop :=
   y ∈ m.out ∨ (m.seen.assigned y.1 = true ∧ y.negate ∈ Trail.lits Cur)
 
+/-- The loop of `Marks.absorb`, with the four parts of the state as arguments, so that compiled
+code builds no state per literal. -/
+def Marks.absorbGo (cur : Assign) (seen : Assign) (out : Clause ℕ) (path : ℕ) (vars : List ℕ) :
+    Clause ℕ → Marks
+  | [] => ⟨seen, out, path, vars⟩
+  | y :: R =>
+    if seen.assigned y.1 then Marks.absorbGo cur seen out path vars R
+    else if cur.isFalse y then
+      Marks.absorbGo cur (seen.set y.1 (some true)) out (path + 1) (y.1 :: vars) R
+    else Marks.absorbGo cur (seen.set y.1 (some true)) (y :: out) path (y.1 :: vars) R
+
 /-- **Adding the literals of a clause** to the analysis: each literal on a variable not yet seen is
-seen; it counts on the path if its negation is on the current level, whose literals `cur` holds,
-and goes to `out` otherwise. -/
-def Marks.absorb (cur : Assign) : Marks → Clause ℕ → Marks
-  | m, [] => m
-  | m, y :: R =>
-    if m.seen.assigned y.1 then Marks.absorb cur m R
-    else if cur.holds y.negate then
-      Marks.absorb cur ⟨m.seen.set y.1 (some true), m.out, m.path + 1, y.1 :: m.vars⟩ R
-    else Marks.absorb cur ⟨m.seen.set y.1 (some true), y :: m.out, m.path, y.1 :: m.vars⟩ R
+seen; it counts on the path if it is false on the current level, whose literals `cur` holds, and
+goes to `out` otherwise. -/
+def Marks.absorb (cur : Assign) (m : Marks) (R : Clause ℕ) : Marks :=
+  Marks.absorbGo cur m.seen m.out m.path m.vars R
+
+theorem Marks.absorb_nil (cur : Assign) (m : Marks) : m.absorb cur [] = m := rfl
+
+theorem Marks.absorb_cons (cur : Assign) (m : Marks) (y : Literal ℕ) (R : Clause ℕ) :
+    m.absorb cur (y :: R) =
+      if m.seen.assigned y.1 then m.absorb cur R
+      else if cur.isFalse y then
+        Marks.absorb cur ⟨m.seen.set y.1 (some true), m.out, m.path + 1, y.1 :: m.vars⟩ R
+      else Marks.absorb cur ⟨m.seen.set y.1 (some true), y :: m.out, m.path, y.1 :: m.vars⟩ R :=
+  rfl
 
 /-- The invariant of the analysis, with the entries `Cur` of the current level still to pass, the
 trail `M₀` below it, and the variables `V` of the formula: the literals of `out` are false below the
@@ -301,15 +317,24 @@ structure Marks.Inv (m : Marks) (Cur M₀ : Trail) (V : List ℕ) : Prop where
   path_eq : m.path = Cur.countP fun e => m.seen.assigned e.lit.1
   seen_iff : ∀ v, m.seen.assigned v = true ↔ v ∈ m.vars
   vars_mem : ∀ v ∈ m.vars, v ∈ V
+  vars_nodup : m.vars.Nodup
+  out_nodup : m.out.Nodup
 
-theorem Marks.inv_empty (Cur M₀ : Trail) (V : List ℕ) : Marks.empty.Inv Cur M₀ V where
-  out_below := by simp [Marks.empty]
-  out_seen := by simp [Marks.empty]
-  below_out _ _ h := by simp [Marks.empty, Assign.assigned] at h
+private theorem assigned_replicate (n v : ℕ) :
+    (⟨Array.replicate n 0⟩ : Assign).assigned v = false := by
+  simp only [Assign.assigned, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> simp
+
+theorem Marks.inv_start (n : ℕ) (Cur M₀ : Trail) (V : List ℕ) : (Marks.start n).Inv Cur M₀ V where
+  out_below := by simp [Marks.start]
+  out_seen := by simp [Marks.start]
+  below_out _ _ h := by simp [Marks.start, assigned_replicate] at h
   path_eq := by
-    simp [Marks.empty, Assign.assigned]
-  seen_iff _ := by simp [Marks.empty, Assign.assigned]
-  vars_mem := by simp [Marks.empty]
+    simp [Marks.start, assigned_replicate]
+  seen_iff _ := by simp [Marks.start, assigned_replicate]
+  vars_mem := by simp [Marks.start]
+  vars_nodup := List.nodup_nil
+  out_nodup := List.nodup_nil
 
 /-- Seeing the variable `v` adds one to the count of the seen variables of a trail assigning each
 variable once, if it is one of its variables. -/
@@ -347,7 +372,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
       (m.absorb cur R).Inv Cur M₀ V ∧ (∀ y ∈ R, (m.absorb cur R).seen.assigned y.1 = true) ∧
       (∀ v, m.seen.assigned v = true → (m.absorb cur R).seen.assigned v = true) ∧
       (∀ y ∈ m.out, y ∈ (m.absorb cur R).out)
-  | m, [], hm, _, _ => ⟨hm, by simp, fun _ h => h, fun _ h => h⟩
+  | m, [], hm, _, _ => by rw [Marks.absorb_nil]; exact ⟨hm, by simp, fun _ h => h, fun _ h => h⟩
   | m, y :: R, hm, hV, hR => by
     rw [vars_append] at hnd
     have hdisj := List.disjoint_of_nodup_append hnd
@@ -355,7 +380,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
     have hndC : (Trail.vars Cur).Nodup := hnd.of_append_left
     rw [← vars_append] at hnd
     have hV' : ∀ z ∈ R, z.1 ∈ V := fun z hz => hV z (List.mem_cons_of_mem _ hz)
-    simp only [Marks.absorb]
+    rw [Marks.absorb_cons]
     split
     · rename_i hs
       obtain ⟨h₁, h₂, h₃, h₄⟩ := Marks.absorb_spec hcur hnd m R hm hV'
@@ -384,6 +409,9 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
         rcases List.mem_cons.1 hv with rfl | hv
         · exact hV y List.mem_cons_self
         · exact hm.vars_mem v hv
+      have hvnd : (y.1 :: m.vars).Nodup :=
+        List.nodup_cons.2 ⟨fun h => by rw [← hm.seen_iff, hs'] at h; exact absurd h (by simp),
+          hm.vars_nodup⟩
       have hfin : ∀ (m' : Marks), m'.seen = m.seen.set y.1 (some true) →
           (∀ z ∈ m.out, z ∈ m'.out) → m'.Inv Cur M₀ V →
           (m'.absorb cur R).Inv Cur M₀ V ∧
@@ -398,11 +426,11 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
         · exact h₂ z hz
       split
       · rename_i hc
-        have hyc : y.negate ∈ Trail.lits Cur := (hcur.holds_iff _).1 hc
+        have hyc : y.negate ∈ Trail.lits Cur := (hcur.isFalse_iff _).1 hc
         have hyv : y.1 ∈ Trail.vars Cur := by
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hyc
         refine hfin _ rfl (fun z hz => hz) ⟨hm.out_below, fun z hz => hmono _ (hm.out_seen z hz),
-          fun z hz hzs => ?_, ?_, hseen_iff, hvars⟩
+          fun z hz hzs => ?_, ?_, hseen_iff, hvars, hvnd, hm.out_nodup⟩
         · rw [Assign.assigned_set] at hzs
           split at hzs
           · rename_i hzy
@@ -414,11 +442,13 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
           rw [countP_set_seen hs' hndC, ← hm.path_eq, ite_eq_left hyv]
       · rename_i hc
         have hyM : y.negate ∈ Trail.lits M₀ :=
-          hy.resolve_left fun h => hc ((hcur.holds_iff _).2 h)
+          hy.resolve_left fun h => hc ((hcur.isFalse_iff _).2 h)
         have hyv : y.1 ∉ Trail.vars Cur := fun h => hdisj h (by
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hyM)
         refine hfin _ rfl (fun z hz => List.mem_cons_of_mem _ hz) ⟨fun z hz => ?_,
-          fun z hz => ?_, fun z hz hzs => ?_, ?_, hseen_iff, hvars⟩
+          fun z hz => ?_, fun z hz hzs => ?_, ?_, hseen_iff, hvars, hvnd,
+          List.nodup_cons.2 ⟨fun h => by rw [hm.out_seen y h] at hs'; exact absurd hs' (by simp),
+            hm.out_nodup⟩⟩
         · rcases List.mem_cons.1 hz with rfl | hz
           · exact hyM
           · exact hm.out_below z hz
@@ -483,6 +513,12 @@ structure Learned (log : LRATLog φ) (A M₀ : Trail) where
   can clear it and use it again: it has values only for variables of `A`. -/
   marks : Assign
   marks_none : ∀ v, v ∉ Trail.vars A → marks.value v = none
+  /-- The learned clause has no repeated literal, so that the solver need not remove repetitions. -/
+  nodup : clause.Nodup
+  /-- The asserting literal comes first, the literal the watch store watches first. -/
+  head : clause.head? = some lit
+  /-- The variables met are listed once each, so that bumping them need not remove repetitions. -/
+  seen_nodup : seen.Nodup
 
 namespace Learned
 
@@ -540,6 +576,11 @@ def Marks.learned (log : LRATLog φ) {A M₀ Cur : Trail} (m : Marks) (l : Liter
   above := by simpa using hlA
   marks := cur
   marks_none := hcur
+  nodup := List.nodup_cons.2 ⟨fun h => hlM (by
+      simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits (hm.out_below _ h)),
+    hm.out_nodup⟩
+  head := rfl
+  seen_nodup := hm.vars_nodup
 
 /-- The trail split at a decision, the current level first. -/
 theorem trail_level (N M₀ : XTrail) (d : Literal ℕ) :
@@ -612,9 +653,11 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
       hl₀ (by rw [trail_level, vars_append]; exact List.mem_append_left _ h)
     have hlM : l.1 ∉ Trail.vars (XTrail.trail M₀) := fun h =>
       hl₀ (by rw [trail_level, vars_append]; exact List.mem_append_right _ h)
-    have hcurA' : (cur.unassign [l.1]).Agrees (XTrail.trail N' ++ [⟨d, true⟩]) :=
-      Assign.Agrees.drop (N := [⟨l, false⟩]) hcurA fun v hv => by
-        rw [show v = l.1 by simpa [Trail.vars] using hv]; exact hl
+    -- `cur.clear l.1` is `cur.unassign [l.1]`, with no list built
+    have hcurA' : (cur.clear l.1).Agrees (XTrail.trail N' ++ [⟨d, true⟩]) :=
+      (Assign.Agrees.drop (N := [⟨l, false⟩]) hcurA fun v hv => by
+        rw [show v = l.1 by simpa [Trail.vars] using hv]; exact hl :
+        (cur.unassign [l.1]).Agrees (XTrail.trail N' ++ [⟨d, true⟩]))
     if hs : m.seen.assigned l.1 = true then
       if hp : m.path = 1 then
         m.learned log l false hm hs hp hints hh (hA (mem_lits_cons.2 (.inl rfl))) hlM
@@ -633,8 +676,8 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
                 hRfalse y hy hne
               rw [trail_level, lits_append, List.mem_append] at this
               exact this
-          analyzeGo log d M₀ A N' hA' (cur.unassign [l.1]) hcurA'
-            (Marks.absorb (cur.unassign [l.1]) ⟨m.seen, m.out, m.path - 1, m.vars⟩ R) hspec.1
+          analyzeGo log d M₀ A N' hA' (cur.clear l.1) hcurA'
+            (Marks.absorb (cur.clear l.1) ⟨m.seen, m.out, m.path - 1, m.vars⟩ R) hspec.1
             (by
               rw [hspec.1.path_eq]
               calc 1 ≤ m.path - 1 := by omega
@@ -655,7 +698,7 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
                 · exact .inr (.inr ⟨hspec.2.2.1 _ hys, hy⟩))
             hreasons.tail hdec' hnd'
     else
-      analyzeGo log d M₀ A N' hA' (cur.unassign [l.1]) hcurA' m
+      analyzeGo log d M₀ A N' hA' (cur.clear l.1) hcurA' m
         (hm.pass (e := ⟨l, false⟩) (by simpa using hs)) hpath hints
         (hh.mono fun y hy => by
           rcases hy with hy | ⟨hys, hy⟩
@@ -674,10 +717,11 @@ analysis walks down the level, adding the reasons of the entries whose variables
 one seen variable is left on the level, its first unique implication point, which is reached at
 the latest at the decision. The learned clause is never false at the current level elsewhere, and
 the hints, the reasons added, oldest first, and then the clause `i`, refute it by unit
-propagation. -/
+propagation. The variables seen are marked in an array of `n` slots, which grows only for
+variables beyond it: `n` affects the cost, not the result. -/
 def analyze (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) (N : XTrail)
     (hA : Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A) (cur : Assign)
-    (hcurA : cur.Agrees (XTrail.trail N ++ [⟨d, true⟩])) (i : ℕ) (C : Clause ℕ)
+    (hcurA : cur.Agrees (XTrail.trail N ++ [⟨d, true⟩])) (n : ℕ) (i : ℕ) (C : Clause ℕ)
     (hC : log.clause? i = some C) (hreasons : Reasons log (N ++ XEntry.decision d :: M₀))
     (hdec : ∀ x ∈ N, x.entry.decision = false)
     (hfalse : ∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail (N ++ XEntry.decision d :: M₀)))
@@ -689,9 +733,9 @@ def analyze (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) (N 
     have := hfalse y hy
     rw [trail_level, lits_append, List.mem_append] at this
     exact this
-  have hspec := Marks.absorb_spec hcurA (by rw [← trail_level]; exact hnd) Marks.empty C
-    (Marks.inv_empty _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ => hfalse' y hy
-  analyzeGo log d M₀ A N hA cur hcurA (Marks.empty.absorb cur C) hspec.1
+  have hspec := Marks.absorb_spec hcurA (by rw [← trail_level]; exact hnd) (Marks.start n) C
+    (Marks.inv_start _ _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ => hfalse' y hy
+  analyzeGo log d M₀ A N hA cur hcurA ((Marks.start n).absorb cur C) hspec.1
     (by
       obtain ⟨y, hy, hyc⟩ := hcur
       rw [hspec.1.path_eq]

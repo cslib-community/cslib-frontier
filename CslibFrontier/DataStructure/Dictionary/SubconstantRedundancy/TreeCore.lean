@@ -715,7 +715,6 @@ def dfsSubtreeMeta (st : P.TreeState) (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ �
   else
     [head]
 termination_by P.depth - ℓ
-decreasing_by omega
 
 /-- **`dfsSubtreeMeta` covers every descendant in `InSubtree ℓ u` (`Section 5.6`)**: an item
 appears in `st.dfsSubtreeMeta ℓ h1 hℓ u` iff it is `st.nodeMeta j hj1 hjd v` for some node `(j, v)`

@@ -61,7 +61,7 @@ open Set Filter Asymptotics Matrix
 universe v
 
 /-- From a squared bound to an absolute bound with half the exponent. -/
-private theorem abs_le_two_rpow_of_sq_le {y γ : ℝ} {n : ℕ}
+theorem abs_le_two_rpow_of_sq_le {y γ : ℝ} {n : ℕ}
     (h : y ^ 2 ≤ (2 : ℝ) ^ (-(2 * γ) * n)) : |y| ≤ (2 : ℝ) ^ (-γ * n) := by
   apply abs_le_of_sq_le_sq _ (by positivity)
   have hsq : ((2 : ℝ) ^ (-γ * n)) ^ 2 = (2 : ℝ) ^ (-(2 * γ) * n) := by

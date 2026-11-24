@@ -204,11 +204,7 @@ theorem phaseBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
         tauto
       · simp
-    rcases hx' with rfl | rfl | rfl
-    · simp [kind] at hi
-    · simp [kind] at hi
-    · simp only [kind, OpKind.pop.injEq] at hi
-      exact hi.symm
+    rcases hx' with rfl | rfl | rfl <;> simp_all [kind]
   · refine hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
     rw [hw₂] at hx
     obtain ⟨-, rfl⟩ := List.mem_replicate.mp hx
@@ -268,6 +264,9 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hsub : ∀ μ ∈ w, μ.2.kind = kind μ.1 := hkind
   have hkext : ∀ a b, ∀ μ ∈ w.extract a b, μ.2.kind = kind μ.1 := fun a b μ hμ =>
     hkind μ ((List.extract_isInfix w a b).subset hμ)
+  have hlt {t} {μ : Letter × Op 2 Γ} (ht : t < 2 * n) (hμ : w[t]? = some μ) :
+      μ.1 = if t % 2 = 0 then .a else .b := by
+    rcases phaseWord_cases (hlet hμ) with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩ <;> [exact h; omega; omega]
   -- The entry at a position, with its letter.
   have hentry : ∀ t < 4 * n, ∃ μ, w[t]? = some μ ∧ (phaseWord n)[t]? = some μ.1 := by
     intro t ht
@@ -277,22 +276,16 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hmem : ∀ i < n, OpenHolePush w (2 * n - 1) (2 * i) ∧
       ¬∃ p, SameHole w (2 * n - 1) p (2 * i) := by
     intro i hi
-    obtain ⟨μ, hμ, hμl⟩ := hentry (2 * i) (by omega)
+    obtain ⟨μ, hμ, -⟩ := hentry (2 * i) (by omega)
     have hμa : μ.1 = .a := by
-      rcases phaseWord_cases hμl with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩
-      · simpa [show 2 * i % 2 = 0 by omega] using h
-      · omega
-      · omega
+      simpa [show 2 * i % 2 = 0 by omega] using hlt (by omega) hμ
     obtain ⟨γ, hγ⟩ := Op.kind_eq_push.mp ((hkind μ (List.mem_of_getElem? hμ)).trans
       (by rw [hμa]; rfl))
     have hpush : w[2 * i]? = some (μ.1, .push 0 γ) := by rw [hμ, ← hγ]
     -- The `b` right after it.
-    obtain ⟨ν, hν, hνl⟩ := hentry (2 * i + 1) (by omega)
+    obtain ⟨ν, hν, -⟩ := hentry (2 * i + 1) (by omega)
     have hνb : ν.1 = .b := by
-      rcases phaseWord_cases hνl with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩
-      · simpa [show (2 * i + 1) % 2 = 1 by omega] using h
-      · omega
-      · omega
+      simpa [show (2 * i + 1) % 2 = 1 by omega] using hlt (by omega) hν
     have hpend : PendingAt w (2 * i) (2 * n - 1) := by
       refine ⟨by omega, by omega, 0, ⟨μ.1, γ, hpush⟩, fun k => ?_⟩
       refine (net_of_ab (fun μ hμ => hkext _ _ μ (List.mem_of_mem_take hμ))
@@ -309,12 +302,9 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       simp only [Op.kind] at hmk
       have hm2 : 2 * n ≤ m ∧ m < 3 * n := by
         rcases phaseWord_cases hm with ⟨-, h⟩ | ⟨h₁, h₂, -⟩ | ⟨-, -, h⟩
-        · exfalso
-          split_ifs at h <;> subst h <;> simp [kind] at hmk
+        · split_ifs at h <;> subst h <;> simp [kind] at hmk
         · exact ⟨h₁, h₂⟩
-        · exfalso
-          subst h
-          simp [kind] at hmk
+        · subst h; simp [kind] at hmk
       have hnet := hwn.net_eq_zero 1
       rw [← w.extract_append_extract (show 2 * i ≤ 2 * n by omega) (show 2 * n ≤ m + 1 by omega),
         net_append] at hnet
@@ -344,18 +334,12 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
         rcases phaseWord_cases hpl with ⟨-, h⟩ | ⟨-, -, h⟩ | ⟨-, -, h⟩
         · by_contra hodd
           simp only [hodd, ↓reduceIte] at h
-          subst h
-          simp [kind, Op.kind] at hpk
-        · subst h
-          simp [kind, Op.kind] at hpk
-        · subst h
-          simp [kind, Op.kind] at hpk
-      obtain ⟨ν', hν', hν'l⟩ := hentry (2 * i - 1) (by omega)
+          subst h; simp [kind, Op.kind] at hpk
+        · subst h; simp [kind, Op.kind] at hpk
+        · subst h; simp [kind, Op.kind] at hpk
+      obtain ⟨ν', hν', -⟩ := hentry (2 * i - 1) (by omega)
       have hν'b : ν'.1 = .b := by
-        rcases phaseWord_cases hν'l with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩
-        · simpa [show (2 * i - 1) % 2 = 1 by omega] using h
-        · omega
-        · omega
+        simpa [show (2 * i - 1) % 2 = 1 by omega] using hlt (by omega) hν'
       have hν'mem : ν' ∈ w.extract (p + 1) (2 * i) :=
         List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hν'⟩
       have h₁ := (net_of_ab (u := w.extract (p + 1) (2 * i)) (hkext _ _)

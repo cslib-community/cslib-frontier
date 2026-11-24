@@ -11,6 +11,7 @@ public import CslibFrontier.Privacy.DifferentialPrivacy.Reconstruction
 public import CslibFrontier.Foundations.Data.BitString.Sign
 import CslibFrontier.Foundations.Combinatorics.LittlewoodOfford
 import CslibFrontier.Probability.Chernoff
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Reconstruction from random `±1` queries
@@ -315,10 +316,7 @@ private theorem patternBad_diffPattern {A : κ → ι → Bool} {y : κ → ℝ}
   set Sc : Finset κ := {j | |y j - signDot (A j) c| ≤ α}
   set Sd : Finset κ := {j | |y j - signDot (A j) d| ≤ α}
   have hinter : (#Sc : ℝ) + #Sd ≤ #(Sc ∩ Sd) + Fintype.card κ := by
-    have h1 := card_union_add_card_inter Sc Sd
-    have h2 : #(Sc ∪ Sd) ≤ Fintype.card κ := card_le_univ _
-    have : #Sc + #Sd ≤ #(Sc ∩ Sd) + Fintype.card κ := by omega
-    exact_mod_cast this
+    exact_mod_cast (show #Sc + #Sd ≤ #(Sc ∩ Sd) + Fintype.card κ by finset_card)
   have hsub : Sc ∩ Sd ⊆
       ({j | |∑ i, signVal (A j i) * (diffPattern c d i : ℝ)| ≤ α} : Finset κ) := by
     intro j hj
@@ -544,21 +542,17 @@ private theorem exists_answersWithin_zero_of_le_two_mul {A : κ → ι → Bool}
   set T : Finset κ := {j | signDot (A j) c = signDot (A j) d} with hTdef
   obtain ⟨W, hWU, hW⟩ := exists_subset_card_eq (s := Tᶜ) (n := #Tᶜ / 2) (Nat.div_le_self _ _)
   set y : κ → ℝ := fun j => if j ∈ W then signDot (A j) d else signDot (A j) c with hy
-  have hTc := card_compl T
-  have hTm : #T ≤ Fintype.card κ := card_le_univ T
   refine ⟨y, ?_, ?_⟩
   · unfold AnswersWithin
     have hsub : Wᶜ ⊆ ({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) := by
       intro j hj
       rw [mem_compl] at hj
       simp only [mem_filter, mem_univ, true_and, y, hj, ↓reduceIte, sub_self, abs_zero, le_refl]
-    have h1 := card_le_card hsub
-    rw [card_compl] at h1
-    have h7 : 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) := by
-      omega
     have h7' : (7 : ℝ) * Fintype.card κ ≤
         10 * #({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) := by
-      exact_mod_cast h7
+      exact_mod_cast
+        (show 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) c| ≤ 0} : Finset κ) by
+          finset_card)
     linarith
   · unfold AnswersWithin
     have hsub : T ∪ W ⊆ ({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) := by
@@ -569,14 +563,11 @@ private theorem exists_answersWithin_zero_of_le_two_mul {A : κ → ι → Bool}
       · have hjT : j ∈ T := (mem_union.1 hj).resolve_right hjW
         simp only [T, mem_filter, mem_univ, true_and] at hjT
         simp only [y, hjW, ↓reduceIte, hjT, sub_self, abs_zero, le_refl]
-    have hdisj : Disjoint T W := disjoint_of_subset_right hWU disjoint_compl_right
-    have h1 := card_le_card hsub
-    rw [card_union_of_disjoint hdisj] at h1
-    have h7 : 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) := by
-      omega
     have h7' : (7 : ℝ) * Fintype.card κ ≤
         10 * #({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) := by
-      exact_mod_cast h7
+      exact_mod_cast
+        (show 7 * Fintype.card κ ≤ 10 * #({j | |y j - signDot (A j) d| ≤ 0} : Finset κ) by
+          finset_card)
     linarith
 
 /-- **The constant `(2 α / η) ^ 2` of [DworkRoth2014, Theorem 8.2] fails at `α = 0`.** Whatever
@@ -590,9 +581,6 @@ theorem exists_answersWithin_answersWithin_hammingDist_eq_two {i₁ i₂ : ι}
     ∃ (y : κ → ℝ) (c d : ι → Bool), AnswersWithin A y c 0 (1 / 5) ∧
       AnswersWithin A y d 0 (1 / 5) ∧ hammingDist c d = 2 := by
   classical
-  have hsplit := card_filter_add_card_filter_not (s := (univ : Finset κ))
-    (fun j => A j i₁ = A j i₂)
-  rw [card_univ] at hsplit
   by_cases hS : Fintype.card κ ≤ 2 * #{j | A j i₁ = A j i₂}
   · -- Where the two query bits agree, moving the one `true` from `i₁` to `i₂` keeps the answer.
     have hcd : ∀ i, i ≠ i₁ ∧ i ≠ i₂ →
@@ -626,7 +614,7 @@ theorem exists_answersWithin_answersWithin_hammingDist_eq_two {i₁ i₂ : ι}
       revert hj
       cases A j i₁ <;> cases A j i₂ <;> simp only [signVal_true, signVal_false] <;> norm_num
     obtain ⟨y, hc, hd⟩ := exists_answersWithin_zero_of_le_two_mul hm
-      ((show Fintype.card κ ≤ 2 * #({j | ¬ A j i₁ = A j i₂} : Finset κ) by omega).trans
+      ((show Fintype.card κ ≤ 2 * #({j | ¬ A j i₁ = A j i₂} : Finset κ) by finset_card).trans
         (Nat.mul_le_mul_left 2 (card_le_card hsub)))
     refine ⟨y, fun i => decide (i = i₁ ∨ i = i₂), fun _ => false, hc, hd, ?_⟩
     rw [hammingDist, card_eq_two]

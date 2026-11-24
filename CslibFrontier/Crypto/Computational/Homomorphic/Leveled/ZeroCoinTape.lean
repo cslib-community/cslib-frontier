@@ -197,9 +197,9 @@ It retains the original head-default behavior on an empty generated key list. -/
     (hkey : ComputableInPolyTime (fun (n, tape) => evaluateKey n tape)
       (encPair encUnary encBits) (encPair encBits encBits))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     {α : Type} {input : α ↪ List Bool} {n depth capacity keyCoins encCoins : α → ℕ}
     {challengePk tape : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary)
@@ -211,7 +211,7 @@ It retains the original head-default behavior on an empty generated key list. -/
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => zeroLinkChooseCoins evaluateKey evaluateEncrypt evaluateChoose
       (n a) (depth a) (capacity a) (keyCoins a) (encCoins a) (challengePk a) (tape a))
-      input (encPair (encPair encBool encBool) encBits) := by
+      input (Encryption.encChoiceOut encBool) := by
   fun_prop [zeroLinkChooseCoins]
 
 end Cslib.Crypto.Homomorphic.Leveled

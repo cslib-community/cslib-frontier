@@ -29,11 +29,16 @@ open Cslib.DataStructure.ApproximateMembership.QuotientFilter
 private abbrev word : ℕ ↪ (Fin 1 → ℕ) := WordEncoding.encode
 private abbrev pairWords : ℕ × ℕ ↪ (Fin 2 → ℕ) := WordEncoding.encode
 
--- Importing `Cluster` keeps the canonical bind-cost theorem available to bare `simp`.
+-- Importing `Cluster` does not leak `memoryCost_bind'` into the global `simp` set.
 example {α β : Type} (p : Memory.Prog α) (q : α → Memory.Prog β) (s : Memory.State) :
     memoryCost (p >>= q) s = memoryCost p s +
       memoryCost (q ((Memory.spec 0).clientResult s p)) ((Memory.spec 0).clientState s p) := by
-  simp
+  fail_if_success
+    have _ : memoryCost (p >>= q) s = memoryCost p s +
+        memoryCost (q ((Memory.spec 0).clientResult s p))
+          ((Memory.spec 0).clientState s p) := by
+      simp
+  exact memoryCost_bind' p q s
 
 private def selectedWords (P : ℕ → Prop) [DecidablePred P] : ℕ ↪ (Fin 2 → ℕ) where
   toFun n := ![if ¬P n then 0 else 1, n]
@@ -158,11 +163,11 @@ example : RealizesBounded .exact
 
 -- Both migrated helpers accept a comparison bound at the largest two-bit word.
 example : (Memory.spec 2).clientResult (Memory.State.init [])
-    (scanStepTargetProg ⟨⟨fun _ => 0, 0, 0, 0, 3, 3⟩, ⟨0, 0, 0, 0, 0, 0, 0⟩, 3, 0⟩) = (1, 1) := by
+    (scanStepTargetProg ⟨⟨default, 0, 0, 0, 3, 3⟩, ⟨0, 0, 0, 0, 0, 0, 0⟩, 3, 0⟩) = (1, 1) := by
   decide
 
 example : (Memory.spec 2).clientResult (Memory.State.init [])
-    (scanStepQueryProg ⟨⟨fun _ => 0, 0, 0, 0, 0, 3⟩, ⟨0, 0, 0, 0, 0, 0, 0⟩, 3, 0⟩) = 1 := by
+    (scanStepQueryProg ⟨⟨default, 0, 0, 0, 0, 3⟩, ⟨0, 0, 0, 0, 0, 0, 0⟩, 3, 0⟩) = 1 := by
   decide
 
 /-- The migrated query really executes at width two with an encoded cutoff of three. The
@@ -199,7 +204,7 @@ theorem maximum_cutoff_executes : ∃ r C, ∃ code : Code .exact r,
     dsimp only [src, frontier] at this
     omega
   -- `runs = 3` (word 27) is compared with `occA1 = 3` (word 19).
-  let d : ScanStepCtx := ⟨⟨fun _ => 0, 0, 0, 0, 0, 3⟩, ⟨0, 0, 0, 0, 0, 0, 0⟩, 3, 0⟩
+  let d : ScanStepCtx := ⟨⟨default, 0, 0, 0, 0, 3⟩, ⟨0, 0, 0, 0, 0, 0, 0⟩, 3, 0⟩
   let x : Data r := ⟨fun i => if i.val = 20 ∨ i.val = 28 then 3 else 0, fun _ => 0⟩
   have hx : x.Bounded 2 := by
     constructor

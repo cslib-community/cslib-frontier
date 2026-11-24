@@ -53,9 +53,7 @@ public section
 namespace Cslib.Circuits.Frontier
 
 open Polynomial Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-- An integer is `2 ^ v₂(n)` times its odd part `n / 2 ^ v₂(n)`. -/
 theorem two_pow_mul_ediv (n : ℤ) : 2 ^ padicValInt 2 n * (n / 2 ^ padicValInt 2 n) = n :=

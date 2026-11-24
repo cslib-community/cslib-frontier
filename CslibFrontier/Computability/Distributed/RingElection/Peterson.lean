@@ -235,14 +235,15 @@ private theorem twoHopStep_node_of_cons {n : ℕ} [NeZero n] {U : Type*} [Linear
       Function.update cfg.node target (twoHopRecv (cfg.node target) msg).nextNode := by
   simp only [twoHopStep, hq]
 
-private theorem twoHopStep_chan_of_cons {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem twoHopStep_chan_apply {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {target : Fin n} {cfg : TwoHopConfig n U} {msg : TwoHopMsg U} {rest : List (TwoHopMsg U)}
-    (hq : cfg.chan (target - 1) = msg :: rest) :
-    (twoHopStep target cfg).chan =
-      Function.update (Function.update cfg.chan (target - 1) rest) target
-        (Function.update cfg.chan (target - 1) rest target ++
-          (twoHopRecv (cfg.node target) msg).sent) := by
-  simp only [twoHopStep, hq]
+    (hq : cfg.chan (target - 1) = msg :: rest) (e : Fin n) :
+    (twoHopStep target cfg).chan e =
+      (if e = target - 1 then rest else cfg.chan e) ++
+        (if e = target then (twoHopRecv (cfg.node target) msg).sent else []) := by
+  rcases eq_or_ne e target with rfl | het
+  · simp only [twoHopStep, hq, Function.update_apply, ↓reduceIte]
+  · simp only [twoHopStep, hq, Function.update_apply, het, ↓reduceIte, List.append_nil]
 
 private theorem twoHopStep_two_of_ne {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {cfg : TwoHopConfig n U} {i j : Fin n} (hne : i ≠ j)
@@ -259,80 +260,31 @@ private theorem twoHopStep_two_of_ne {n : ℕ} [NeZero n] {U : Type*} [LinearOrd
       else cfg.chan e) ++
       (if e = i then (twoHopRecv (cfg.node i) ((cfg.chan (i - 1)).head hi)).sent else []) ++
       (if e = j then (twoHopRecv (cfg.node j) ((cfg.chan (j - 1)).head hj)).sent else []) := by
-  have hpred_ne : i - 1 ≠ j - 1 := fun h => hne (sub_left_injective h)
-  have hself_ne_pred : ∀ x : Fin n, x ≠ x - 1 := by
-    intro x hx
-    have h10 : (1 : Fin n) = 0 := sub_eq_self.mp hx.symm
-    have hn1 : n ≤ 1 := by
-      by_contra hgt
-      have h1val : (1 : Fin n).val = 1 := by
-        rw [Fin.val_one']
-        exact Nat.mod_eq_of_lt (by omega)
-      have hv := congrArg Fin.val h10
-      rw [h1val, Fin.val_zero] at hv
-      omega
-    have := i.isLt
-    have := j.isLt
-    exact hne (Fin.ext (by omega))
-  let mi := (cfg.chan (i - 1)).head hi
-  let ti := (cfg.chan (i - 1)).tail
-  have hqi : cfg.chan (i - 1) = mi :: ti := (List.cons_head_tail hi).symm
-  let mj := (cfg.chan (j - 1)).head hj
-  let tj := (cfg.chan (j - 1)).tail
-  have hqj : cfg.chan (j - 1) = mj :: tj := (List.cons_head_tail hj).symm
-  let outi := twoHopRecv (cfg.node i) mi
-  let outj := twoHopRecv (cfg.node j) mj
-  have houti : twoHopRecv (cfg.node i) mi = outi := rfl
-  have houtj : twoHopRecv (cfg.node j) mj = outj := rfl
+  have hpred_ne : j - 1 ≠ i - 1 := fun h => hne.symm (sub_left_injective h)
+  have hqi : cfg.chan (i - 1) = (cfg.chan (i - 1)).head hi :: (cfg.chan (i - 1)).tail :=
+    (List.cons_head_tail hi).symm
+  have hqj : cfg.chan (j - 1) = (cfg.chan (j - 1)).head hj :: (cfg.chan (j - 1)).tail :=
+    (List.cons_head_tail hj).symm
   have hstep_i_at_jpred :
       (twoHopStep i cfg).chan (j - 1) =
-        mj :: (if j - 1 = i then tj ++ outi.sent else tj) := by
-    rw [twoHopStep_chan_of_cons hqi, houti]
-    by_cases hji : j - 1 = i
-    · rw [hji, Function.update_self, Function.update_of_ne (hself_ne_pred i), ← hji, hqj]
-      simp only [↓reduceIte, List.cons_append]
-    · rw [Function.update_of_ne hji, Function.update_of_ne (Ne.symm hpred_ne), hqj]
-      simp only [hji, ↓reduceIte]
+        (cfg.chan (j - 1)).head hj ::
+          (if j - 1 = i then
+            (cfg.chan (j - 1)).tail ++ (twoHopRecv (cfg.node i) ((cfg.chan (i - 1)).head hi)).sent
+          else (cfg.chan (j - 1)).tail) := by
+    rw [twoHopStep_chan_apply hqi, ite_eq_right hpred_ne]
+    conv_lhs => rw [hqj]
+    by_cases hji : j - 1 = i <;> simp only [hji, ↓reduceIte, List.cons_append, List.append_nil]
   have hnode_i_at_j : (twoHopStep i cfg).node j = cfg.node j := by
     rw [twoHopStep_node_of_cons hqi]
     exact Function.update_of_ne (Ne.symm hne) _ _
   refine ⟨hstep_i_at_jpred, hnode_i_at_j, fun e => ?_⟩
-  change (twoHopStep j (twoHopStep i cfg)).chan e =
-    (if e = i - 1 then ti else if e = j - 1 then tj else cfg.chan e) ++
-      (if e = i then outi.sent else []) ++ (if e = j then outj.sent else [])
-  rw [twoHopStep_chan_of_cons hstep_i_at_jpred, hnode_i_at_j, houtj,
-    twoHopStep_chan_of_cons hqi, houti]
-  by_cases hej : e = j
-  · rw [hej, Function.update_self, Function.update_of_ne (hself_ne_pred j),
-      Function.update_of_ne (Ne.symm hne)]
-    by_cases hj_ipred : j = i - 1
-    · rw [hj_ipred, Function.update_self]
-      have hipred_ne_i : i - 1 ≠ i := Ne.symm (hself_ne_pred i)
-      simp only [↓reduceIte, hipred_ne_i, List.append_nil]
-    · rw [Function.update_of_ne hj_ipred]
-      simp only [hj_ipred, hself_ne_pred j, Ne.symm hne, ↓reduceIte, List.append_nil]
-  · rw [Function.update_of_ne hej]
-    by_cases he_jpred : e = j - 1
-    · rw [he_jpred, Function.update_self]
-      have hne_ipred : j - 1 ≠ i - 1 := Ne.symm hpred_ne
-      have hne_j : j - 1 ≠ j := Ne.symm (hself_ne_pred j)
-      simp only [hne_ipred, hne_j, ↓reduceIte, List.append_nil]
-      by_cases hji : j - 1 = i
-      · simp only [hji, ↓reduceIte]
-      · simp only [hji, ↓reduceIte, List.append_nil]
-    · rw [Function.update_of_ne he_jpred]
-      by_cases hei : e = i
-      · rw [hei, Function.update_self, Function.update_of_ne (hself_ne_pred i)]
-        have hi_ne_jpred : i ≠ j - 1 := fun h => he_jpred (hei.trans h)
-        simp only [hself_ne_pred i, hi_ne_jpred, hne, ↓reduceIte, List.append_nil]
-      · rw [Function.update_of_ne hei]
-        by_cases he_ipred : e = i - 1
-        · rw [he_ipred, Function.update_self]
-          have hipred_ne_i : i - 1 ≠ i := he_ipred ▸ hei
-          have hipred_ne_j : i - 1 ≠ j := he_ipred ▸ hej
-          simp only [↓reduceIte, hipred_ne_i, hipred_ne_j, List.append_nil]
-        · rw [Function.update_of_ne he_ipred]
-          simp only [he_ipred, he_jpred, hei, hej, ↓reduceIte, List.append_nil]
+  rw [twoHopStep_chan_apply hstep_i_at_jpred e, hnode_i_at_j]
+  by_cases hej : e = j - 1
+  · subst hej
+    simp only [↓reduceIte, hpred_ne]
+    by_cases hji : j - 1 = i <;> simp only [hji, ↓reduceIte, List.append_nil]
+  · rw [ite_eq_right hej, twoHopStep_chan_apply hqi e]
+    by_cases hei : e = i - 1 <;> simp only [hei, hej, ↓reduceIte]
 
 /-- A one-step FIFO confluence step for the basic two-hop unidirectional ring protocol (a step
 towards [Peterson][Peterson1982], not the cited endpoint): whenever two distinct processors `i ≠ j`
@@ -1029,43 +981,34 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         · simp only [prog', Function.update_of_ne hxp]; exact hprog_le x hx
       have hchan'_at : ∀ x ∈ A, cfg'.chan (x + Fin.ofNat n (prog' x)) = [payload x] := by
         intro x hx
-        simp only [cfg', twoHopStep, hchan_pred, htarget_node, twoHopRecv]
         by_cases hxp : x = p
-        · rw [hxp]
-          simp only [prog', Function.update_self]
-          change Function.update (Function.update cfg.chan (target - 1) []) target
-            (Function.update cfg.chan (target - 1) [] target ++ [payload p]) target = [payload p]
-          rw [Function.update_self, Function.update_of_ne ht_ne_pred, htarget_empty,
-            List.nil_append]
-        · simp only [prog', Function.update_of_ne hxp]
-          have hne_t : x + Fin.ofNat n (prog x) ≠ target := fun h => by
-            have hx_lt : prog x < arcLen A x := by
-              have := hprog_le x hx; have := (arcLen_bounds_and_mem hx).1; omega
-            exact hxp (arc_point_inj hx hpA hx_lt (by omega) h).1
-          have hne_tp : x + Fin.ofNat n (prog x) ≠ target - 1 := fun h => by
-            rw [htarget_pred] at h
-            have hx_lt : prog x < arcLen A x := by
-              have := hprog_le x hx; have := (arcLen_bounds_and_mem hx).1; omega
-            exact hxp (arc_point_inj hx hpA hx_lt (by omega) h).1
-          rw [Function.update_of_ne hne_t, Function.update_of_ne hne_tp, hchan_at x hx]
+        · subst hxp
+          simp only [cfg', prog', Function.update_self]
+          rw [twoHopStep_chan_apply hchan_pred, ite_eq_right ht_ne_pred, ite_eq_left rfl,
+            htarget_empty, htarget_node, twoHopRecv, List.nil_append]
+        · simp only [cfg', prog', Function.update_of_ne hxp]
+          have hx_lt : prog x < arcLen A x := by
+            have := hprog_le x hx; have := (arcLen_bounds_and_mem hx).1; omega
+          have hne_t : x + Fin.ofNat n (prog x) ≠ target := fun h =>
+            hxp (arc_point_inj hx hpA hx_lt (by omega) h).1
+          have hne_tp : x + Fin.ofNat n (prog x) ≠ target - 1 := fun h =>
+            hxp (arc_point_inj hx hpA hx_lt (by omega) (h.trans htarget_pred)).1
+          rw [twoHopStep_chan_apply hchan_pred, ite_eq_right hne_tp, ite_eq_right hne_t,
+            List.append_nil, hchan_at x hx]
       have hchan'_else : ∀ e : Fin n,
           (∀ x ∈ A, e ≠ x + Fin.ofNat n (prog' x)) → cfg'.chan e = [] := by
         intro e he_all
-        simp only [cfg', twoHopStep, hchan_pred, htarget_node, twoHopRecv]
         have he_ne_t : e ≠ target := by
-          have := he_all p hpA
-          simpa only [prog', Function.update_self] using this
-        rw [Function.update_of_ne he_ne_t]
+          simpa only [prog', Function.update_self] using he_all p hpA
+        rw [show cfg'.chan e = (twoHopStep target cfg).chan e from rfl,
+          twoHopStep_chan_apply hchan_pred, ite_eq_right he_ne_t, List.append_nil]
         by_cases he_tp : e = target - 1
-        · rw [he_tp, Function.update_self]
-        · rw [Function.update_of_ne he_tp]
+        · simp [he_tp]
+        · rw [ite_eq_right he_tp]
           refine hchan_else e fun x hx hx_eq => ?_
           by_cases hxp : x = p
-          · rw [hxp, ← htarget_pred] at hx_eq
-            exact he_tp hx_eq
-          · have hne := he_all x hx
-            simp only [prog', Function.update_of_ne hxp] at hne
-            exact hne hx_eq
+          · exact he_tp (hx_eq.trans (hxp ▸ htarget_pred.symm))
+          · exact he_all x hx (by simpa only [prog', Function.update_of_ne hxp] using hx_eq)
       obtain ⟨s_rest, cfg₁, hmtr_rest, hmsgs_rest, hnode₁, hchan₁⟩ :=
         ih prog' cfg' hrem' hprog'_le hnode' hchan'_at hchan'_else
       refine ⟨target :: s_rest, cfg₁, LTS.MTr.stepL htr hmtr_rest, ?_, hnode₁, hchan₁⟩
@@ -1162,47 +1105,30 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
           (if e + 1 ∈ A \ Done' then [payload (prevActive A (e + 1))] else []) ++
             (if e ∈ Done' then (outAt e).sent else []) := by
         intro e
-        simp only [cfg', twoHopStep, hq_pred_chan, hq_node]
-        by_cases heq_q : e = q
-        · rw [heq_q, Function.update_self]
-          by_cases hq_self : q = q - 1
-          · -- `n = 1` case: `q - 1 = q`, `q + 1 = q ∉ A \ Done'`!
-            have hq1 : q + 1 = q := by
-              have h := congrArg (· + 1) hq_self
-              simpa only [sub_add_cancel] using h
-            have hnot_sdiff' : q + 1 ∉ A \ Done' := by
-              rw [hq1]
-              simp only [Done', Finset.mem_sdiff, Finset.mem_insert_self, not_true_eq_false,
-                and_false, not_false_eq_true]
-            have hqp : q - 1 = q := hq_self.symm
-            rw [hqp, Function.update_self]
-            simp only [hq_notDone, ↓reduceIte, List.nil_append, hnot_sdiff', Done',
-              Finset.mem_insert_self, outAt]
-          · rw [Function.update_of_ne hq_self, hchan_d q]
-            have hq1_ne : q + 1 ≠ q := fun h => hq_self (eq_sub_of_add_eq h)
-            have hsdiff_iff : (q + 1 ∈ A \ Done') ↔ (q + 1 ∈ A \ Done) := by
-              rw [hsdiff_erase, Finset.mem_erase]
-              exact ⟨fun h => h.2, fun h => ⟨hq1_ne, h⟩⟩
-            simp only [hq_notDone, ↓reduceIte, List.append_nil, hsdiff_iff, Done',
-              Finset.mem_insert_self, outAt]
-        · rw [Function.update_of_ne heq_q]
-          by_cases he_pred : e = q - 1
-          · rw [he_pred, Function.update_self]
-            have he1_not : (q - 1) + 1 ∉ A \ Done' := by
-              rw [sub_add_cancel]
-              simp only [Done', Finset.mem_sdiff, Finset.mem_insert_self, not_true_eq_false,
-                and_false, not_false_eq_true]
-            have hmem_iff : (q - 1 ∈ Done') ↔ (q - 1 ∈ Done) := by
-              simp only [Done', Finset.mem_insert, show q - 1 ≠ q from he_pred ▸ heq_q, false_or]
-            simp only [he1_not, ↓reduceIte, List.nil_append, hmem_iff]
-          · rw [Function.update_of_ne he_pred, hchan_d e]
-            have he1_ne_q : e + 1 ≠ q := fun h => he_pred (eq_sub_of_add_eq h)
-            have hsdiff_iff : (e + 1 ∈ A \ Done') ↔ (e + 1 ∈ A \ Done) := by
-              rw [hsdiff_erase, Finset.mem_erase]
-              exact ⟨fun h => h.2, fun h => ⟨he1_ne_q, h⟩⟩
-            have hmem_iff : (e ∈ Done') ↔ (e ∈ Done) := by
-              simp only [Done', Finset.mem_insert, heq_q, false_or]
-            simp only [hsdiff_iff, hmem_iff]
+        rw [show cfg'.chan e = (twoHopStep q cfg).chan e from rfl,
+          twoHopStep_chan_apply hq_pred_chan e, hq_node]
+        have hsent_eq :
+            (if e ∈ Done then (outAt e).sent else []) ++
+              (if e = q then (outAt q).sent else []) =
+            (if e ∈ Done' then (outAt e).sent else []) := by
+          by_cases heq_q : e = q
+          · subst heq_q
+            simp only [hq_notDone, ↓reduceIte, List.nil_append, Done', Finset.mem_insert_self]
+          · simp only [Done', Finset.mem_insert, heq_q, false_or, ↓reduceIte, List.append_nil]
+        by_cases he_pred : e = q - 1
+        · subst he_pred
+          have he1_not : (q - 1) + 1 ∉ A \ Done' := by
+            rw [sub_add_cancel]
+            simp only [Done', Finset.mem_sdiff, Finset.mem_insert_self, not_true_eq_false,
+              and_false, not_false_eq_true]
+          simpa only [↓reduceIte, he1_not, List.nil_append, outAt] using hsent_eq
+        · rw [ite_eq_right he_pred, hchan_d e, List.append_assoc]
+          have he1_ne_q : e + 1 ≠ q := fun h => he_pred (eq_sub_of_add_eq h)
+          have hsdiff_iff : (e + 1 ∈ A \ Done') ↔ (e + 1 ∈ A \ Done) := by
+            rw [hsdiff_erase, Finset.mem_erase]
+            exact ⟨fun h => h.2, fun h => ⟨he1_ne_q, h⟩⟩
+          simp only [hsdiff_iff, outAt] at hsent_eq ⊢
+          rw [hsent_eq]
       obtain ⟨s_rest, cfg₂, hmtr_rest, hmsgs_rest, hnode₂, hchan₂⟩ :=
         ih Done' cfg' hsub' hcard' hnode' hchan'
       refine ⟨q :: s_rest, cfg₂, LTS.MTr.stepL htr hmtr_rest, ?_, hnode₂, hchan₂⟩
