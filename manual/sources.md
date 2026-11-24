@@ -477,6 +477,11 @@ Dan Boneh and Victor Shoup. *A Graduate Course in Applied Cryptography*, version
 
 Andrej Bogdanov and Luca Trevisan. *Average-Case Complexity*. Foundations and Trends in Theoretical Computer Science 2(1), 1–106, 2006. https://doi.org/10.1561/0400000004 ; arXiv:cs/0606037. Definition, lemma and theorem numbers (Definitions 1, 2, 6, 8–11 and 17, Proposition 7, Lemma 18, Theorem 19, Claim 20) were checked against the arXiv text on 2026-11-07.
 
+<a id="budish11"></a>
+## budish11
+
+Eric Budish. "The Combinatorial Assignment Problem: Approximate Competitive Equilibrium from Equal Incomes." *Journal of Political Economy* 119(6), 1061–1103, 2011. https://doi.org/10.1086/664613 . Bibliographic metadata checked via DOI/search records on 2026-11-24 UTC; the journal text was not inspected on disk, so no internal page or theorem locator is claimed. Cited (`Budish2011`) for the `EF1` (envy-free up to one good) fairness notion (`MonotoneValuation.IsEF1`).
+
 <a id="bunsteinke16"></a>
 ## bunsteinke16
 
@@ -651,6 +656,11 @@ Vašek Chvátal. *Linear Programming*. W. H. Freeman, New York, 1983. Bibliograp
 ## ckkz12
 
 Seung Geol Choi, Jonathan Katz, Ranjit Kumaresan and Hong-Sheng Zhou. "On the Security of the 'Free-XOR' Technique." *Theory of Cryptography (TCC 2012)*, 39–53, 2012. https://doi.org/10.1007/978-3-642-28914-9_3 ; full version: Cryptology ePrint Archive, Report 2011/510, https://eprint.iacr.org/2011/510 . Checked on 2026-11-15 against the ePrint PDF of October 5, 2011 (14 pages, SHA-256 `3a8fe73ee05f8abb9d1079da877d1d6a0f42346d05f3a41e7ed630f616ab3897`); locators use its printed page numbers, which are also its PDF page numbers; this is the author's check, which no reviewer has yet repeated at the source, so the library cites these locators as not verified. §4, p. 9: the oracle `Circ_R(w, w′, g, b₁, b₂, b₃) = H(w ⊕ b₁R ‖ w′ ⊕ b₂R ‖ g) ⊕ b₃R`, the random oracle `Rand` and the legal queries. P. 10: Definition 4, circular 2-correlation robustness against non-uniform polynomial-time distinguishers, and Theorem 3, security of the free-XOR protocol against a semi-honest adversary in the OT-hybrid model. Cited for the origin of circular correlation robustness; the library formalizes no dual-key notion.
+
+<a id="ckmpsw19"></a>
+## ckmpsw19
+
+Ioannis Caragiannis, David Kurokawa, Hervé Moulin, Ariel D. Procaccia, Nisarg Shah and Junxing Wang. "The Unreasonable Fairness of Maximum Nash Welfare." *ACM Transactions on Economics and Computation* 7(3), Article 12, 12:1–12:32, 2019. https://doi.org/10.1145/3355902 . Bibliographic metadata checked via DOI/search records on 2026-11-24 UTC; the journal PDF was not inspected on disk, so no internal theorem or page locator is claimed. Cited (`CaragiannisKurokawaMoulinProcacciaShahWang2019`) for Round-Robin `EF1` (`AdditiveValuation.isEF1_roundRobin`) and the simultaneous `EF1` and Pareto optimality of two-stage Maximum Nash Welfare allocations (`AdditiveValuation.IsMaxNashWelfare`, `AdditiveValuation.IsMaxNashWelfare.isEF1`, `AdditiveValuation.IsMaxNashWelfare.isParetoOptimal`).
 
 <a id="cks20"></a>
 ## cks20
@@ -1835,6 +1845,11 @@ Hanjun Li, Tianren Liu. "How to Garble Mixed Circuits that Combine Boolean and A
 
 Arjen K. Lenstra, Hendrik W. Lenstra Jr. and László Lovász. "Factoring Polynomials with Rational Coefficients." *Mathematische Annalen* 261, 515–534, 1982. https://doi.org/10.1007/BF01457454 . Inspected the author-hosted scan https://www.math.leidenuniv.nl/~hwl/PUBLICATIONS/1982f/art.pdf on 2026-11-08: §1, conditions (1.4)–(1.5) and the remark after (1.5), Proposition (1.6) and the remark after it, Proposition (1.11), the algorithm (1.15)–(1.21), the swap formulas (1.22) and the termination argument (1.23)–(1.26).
 
+<a id="lmms04"></a>
+## lmms04
+
+Richard J. Lipton, Evangelos Markakis, Elchanan Mossel and Amin Saberi. "On Approximately Fair Allocations of Indivisible Goods." *Proceedings of the 5th ACM Conference on Electronic Commerce (EC 2004)*, 125–131, ACM, 2004. https://doi.org/10.1145/988772.988792 . Bibliographic metadata checked via DOI/search records on 2026-11-24 UTC; the conference PDF was not inspected on disk, so no internal theorem or page locator is claimed. Cited (`LiptonMarkakisMosselSaberi2004`) for envy-graph cycle elimination and the maximum-marginal-utility envy bound (`MonotoneValuation.lmmsAllocate`, `MonotoneValuation.isEF1_lmmsAllocate`, `MonotoneValuation.lmmsAllocate_val_le_add_maxMarginal`).
+
 <a id="lokam09"></a>
 ## lokam09
 
@@ -2216,6 +2231,11 @@ Gary L. Peterson. "An $O(n \log n)$ Unidirectional Algorithm for the Circular Ex
 ## pighizzini2009
 
 Giovanni Pighizzini. "Nondeterministic One-Tape Off-Line Turing Machines and Their Time CslibFrontier." arXiv:0905.1271v1 [cs.FL], 2009. https://arxiv.org/abs/0905.1271v1 . The v1 text was read for §1, Theorem 1 (§3: crossing sequences of bounded length imply regularity, stated for nondeterministic machines under the weak measure), and the opening of §4 with Theorem 3 (attribution of the deterministic `n log n` bound to Trakhtenbrot, Hartmanis and Kobayashi). The arXiv record says the paper was to appear in the *Journal of Automata, Languages and Combinatorics*; secondary indexes place it in volume 14 (2009), pp. 107–124. The journal version was not inspected.
+
+<a id="plautroughgarden20"></a>
+## plautroughgarden20
+
+Benjamin Plaut and Tim Roughgarden. "Almost Envy-Freeness with General Valuations." *SIAM Journal on Discrete Mathematics* 34(2), 1039–1068, 2020. https://doi.org/10.1137/19M124397X . Bibliographic metadata checked via DOI/search records on 2026-11-24 UTC; the journal PDF was not inspected on disk, so no internal theorem or page locator is claimed. Cited (`PlautRoughgarden2020`) for strong envy-freeness up to any good (`MonotoneValuation.IsEFX`).
 
 <a id="pohl72"></a>
 ## pohl72
