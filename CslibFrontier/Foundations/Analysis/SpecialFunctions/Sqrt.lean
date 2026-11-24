@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Christian Reitwiessner
+Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 module
@@ -23,10 +23,11 @@ bounds to time averages. `Real.natCeil_sqrt_eq` writes `⌈√m⌉₊` with the 
 ceiling counterpart of Mathlib's `Real.nat_floor_real_sqrt_eq_nat_sqrt`.
 
 `Real.log_add_one_le_sqrt` is the bound `log (x + 1) ≤ √x` for `x ≥ 0`, which turns a product of
-`deg v + 1` choices into a sum of square roots of degrees. It is the inequality cited in the proof
-of Lemma 3.10 (§3.4, p. 20) of [KhannaPuttermanSong2026]; the paper's `log` is the natural
-logarithm (§2, p. 11). Mathlib's Cauchy–Schwarz inequality `Real.sum_sqrt_mul_sqrt_le` with one
-factor constant then gives `∑ v ∈ s, √(d v) ≤ √#s * √(∑ v ∈ s, d v)`.
+`deg v + 1` choices into a sum of square roots of degrees. [KhannaPuttermanSong2026] uses it in
+the count of successful admissibility tests in batch processing (§3.2, p. 16) and in the proof of
+Lemma 3.10 (§3.4, p. 20); the paper's `log` is the natural logarithm (§2, p. 11). Mathlib's
+Cauchy–Schwarz inequality `Real.sum_sqrt_mul_sqrt_le` with one factor constant then gives
+`∑ v ∈ s, √(d v) ≤ √#s * √(∑ v ∈ s, d v)`.
 
 ## References
 
@@ -60,8 +61,9 @@ theorem Real.sqrt_mul_div_self {T L : ℝ} (hT : 0 < T) : √(T * L) / T = √(L
   rw [Real.sqrt_mul hT.le, Real.sqrt_div' L hT.le, div_eq_div_iff hT.ne' hs0.ne']
   linear_combination √L * hs
 
-/-- `log (x + 1) ≤ √x` for `x ≥ 0`, the bound used in the proof of Lemma 3.10 (§3.4, p. 20) of
-[KhannaPuttermanSong2026]. With `s = √x`, the cubic Taylor polynomial
+/-- `log (x + 1) ≤ √x` for `x ≥ 0`, the bound used in [KhannaPuttermanSong2026] for the count of
+successful admissibility tests in batch processing (§3.2, p. 16) and in the proof of Lemma 3.10
+(§3.4, p. 20). With `s = √x`, the cubic Taylor polynomial
 `1 + s + s² / 2 + s³ / 6 ≤ exp s` already dominates `1 + s²`. -/
 theorem Real.log_add_one_le_sqrt {x : ℝ} (hx : 0 ≤ x) : Real.log (x + 1) ≤ √x := by
   have hs : 0 ≤ √x := Real.sqrt_nonneg x
