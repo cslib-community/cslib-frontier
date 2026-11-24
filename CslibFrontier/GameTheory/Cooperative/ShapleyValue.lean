@@ -39,9 +39,10 @@ Exercise 15.2; Shapley 1953; Nash 1950):
    `∑_{S ⊆ A \ {i}} (|S|! (n - 1 - |S|)! / n!) (c(S ∪ {i}) - c(S))` ([JainMahdian2007], Section
    15.6.1, p. 403) and the uniform permutation-average formula `permShapleyValue`
    ([TardosVazirani2007], Example 1.14, p. 22), proved equal (`shapleyValue_eq_permShapleyValue`).
-2. **Example 15.24** (`example15_24_shapleyValue`, `example15_24_not_inCore`): on `example15_2`,
-   `shapleyValue` evaluates to `(23 / 6, 11 / 6, 7 / 3)` and does *not* lie in the core (`25 / 6 >
-   4 = c({b, c})`), even though the core is nonempty.
+2. **Example 15.24** (`example15_24_nonemptyCore`, `example15_24_shapleyValue`,
+   `example15_24_not_inCore`): on `example15_2`, the core is nonempty (Example 15.4,
+   pp. 387–388), while `shapleyValue` evaluates to `(23 / 6, 11 / 6, 7 / 3)` and does *not* lie in
+   the core (`25 / 6 > 4 = c({b, c})`).
 3. **Theorem 15.26 (Shapley's uniqueness theorem)** (`eq_shapleyValue_of_axioms`,
    `existsUnique_shapleyValue`): `shapleyValue` is the unique value operator satisfying
    **Efficiency** (`∑_i φ_i(c) = c(univ)`), **Symmetry** (or **Anonymity**, Definition 15.25),
@@ -55,11 +56,13 @@ Exercise 15.2; Shapley 1953; Nash 1950):
    - In the Dummy axiom on p. 404, `S ⊂ A \ {i}` is a typographical slip for `S ⊆ A \ {i}` (i.e.
      `i ∉ S`); excluding `S = A \ {i}` would treat an agent whose sole nonzero marginal cost is at
      the grand coalition as a dummy, contradicting Efficiency.
-4. **Exercise 15.2** (`CostSharingGame.IsSubmodular.shapleyScheme_isCrossMonotone`,
+4. **Exercise 15.2 and Section 15.6.1**
+   (`CostSharingGame.IsSubmodular.shapleyScheme_isCrossMonotone`,
    `CostSharingGame.IsSubmodular.shapleyValue_inCore`): for submodular cost-sharing games, the
-   Shapley cost-sharing scheme `shapleyScheme` is cross-monotone (hence `shapleyValue` lies in the
-   core, and `moulinMechanism` on `shapleyScheme` is group-strategyproof and `1`-budget-balanced
-   by composing with `moulinMechanism_isGroupStrategyproof` and `moulinMechanism_isBudgetBalanced`).
+   Shapley cost-sharing scheme `shapleyScheme` is cross-monotone (Exercise 15.2, p. 410), hence
+   `shapleyValue` lies in the core (Section 15.6.1, p. 403), and `moulinMechanism` on
+   `shapleyScheme` is group-strategyproof and `1`-budget-balanced by composing with
+   `moulinMechanism_isGroupStrategyproof` and `moulinMechanism_isBudgetBalanced`.
 5. **Nash bargaining solution** (`BargainingProblem`, `nashBargainingSolution`,
    `eq_nashBargainingSolution_of_axioms`, `existsUnique_nashBargainingSolution`,
    [JainMahdian2007], Definition 15.27 and **Theorem 15.28**; Nash 1950): on compact convex
@@ -97,8 +100,10 @@ Exercise 15.2; Shapley 1953; Nash 1950):
 * `Cslib.GameTheory.shapleyValue_eq_sum_card`,
   `Cslib.GameTheory.shapleyValue_eq_permShapleyValue`: grouped-cardinality and permutation-average
   characterizations of `shapleyValue`.
-* `Cslib.GameTheory.example15_24_shapleyValue`,
-  `Cslib.GameTheory.example15_24_not_inCore`: **Example 15.24** of [JainMahdian2007].
+* `Cslib.GameTheory.example15_24_nonemptyCore`,
+  `Cslib.GameTheory.example15_24_shapleyValue`,
+  `Cslib.GameTheory.example15_24_not_inCore`: **Example 15.24** (with **Example 15.4** core
+  nonemptiness) of [JainMahdian2007].
 * `Cslib.GameTheory.shapleyValue_isEfficient`,
   `Cslib.GameTheory.shapleyValue_isAnonymous`,
   `Cslib.GameTheory.shapleyValue_isSymmetric`,
@@ -109,7 +114,7 @@ Exercise 15.2; Shapley 1953; Nash 1950):
   [JainMahdian2007].
 * `Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyScheme_isCrossMonotone`,
   `Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyValue_inCore`:
-  **Exercise 15.2** of [JainMahdian2007].
+  **Exercise 15.2** (p. 410) and **Section 15.6.1** (p. 403) of [JainMahdian2007].
 * `Cslib.GameTheory.isGreatest_nashBargainingSolution`,
   `Cslib.GameTheory.nashBargainingSolution_unique_maximizer`,
   `Cslib.GameTheory.eq_nashBargainingSolution_of_axioms`,
@@ -399,8 +404,9 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
   rw [← Fintype.card_subtype, Fintype.card_congr bij, Fintype.card_prod,
     Fintype.card_equiv hequivL, Fintype.card_equiv hequivG, hcard_LIdx, hcard_GIdx]
 
-/-- Equivalence of the subset-size formula `shapleyValue` ([JainMahdian2007], p. 403) and the
-uniform permutation-average formula `permShapleyValue` ([TardosVazirani2007], Example 1.14). -/
+/-- Equivalence of the subset-size formula `shapleyValue` ([JainMahdian2007], Section 15.6.1,
+p. 403) and the uniform permutation-average formula `permShapleyValue` ([TardosVazirani2007],
+Example 1.14, p. 22). -/
 theorem shapleyValue_eq_permShapleyValue (G : CostSharingGame A) (i : A) :
     shapleyValue G i = permShapleyValue G i := by
   have hmem : ∀ σ : Fin (Fintype.card A) ≃ A,
@@ -445,6 +451,13 @@ theorem shapleyValue_eq_permShapleyValue (G : CostSharingGame A) (i : A) :
 end PermEquivalence
 
 /-! ## Example 15.24: Shapley value outside a nonempty core -/
+
+/-- **Examples 15.4 and 15.24** ([JainMahdian2007], Section 15.2, pp. 387–388, and Section 15.6.1,
+p. 403): the 3-agent metric facility location game `example15_2` has a nonempty core, witnessed by
+`![4, 2, 2]` (`FacilityLocationInstance.example15_2_inCore_four_two_two`). -/
+theorem example15_24_nonemptyCore :
+    FacilityLocationInstance.example15_2.toCostSharingGame.NonemptyCore :=
+  ⟨![4, 2, 2], FacilityLocationInstance.example15_2_inCore_four_two_two⟩
 
 /-- **Example 15.24** ([JainMahdian2007], p. 403): on the 3-agent facility location game
 `example15_2`, the Shapley values are `(23 / 6, 11 / 6, 7 / 3)`. -/

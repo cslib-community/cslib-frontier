@@ -31,11 +31,11 @@ Ray 1989):
    `IsCrossMonotone`, [JainMahdian2007], Definitions 15.12 and 15.13) and **Proposition 15.14**
    (`CostSharingScheme.inApproxCore_univ`, `CostSharingScheme.inCore_univ`): every `γ`-budget-
    balanced cross-monotonic scheme induces an allocation in the `γ`-core on the grand coalition.
-2. **Moulin's mechanism `moulinMechanism`** (Figure 15.2) and **Proposition 15.15**: iterative
-   pruning `S_{k+1} = {i ∈ S_k | ξ(S_k, i) ≤ b_i}` reaches the unique largest willing coalition
-   `S*` (`IsGreatest {S | ∀ i ∈ S, ξ(S, i) ≤ b_i}`), and any asynchronous/arbitrary-order valid
-   pruning path terminating at a willing coalition reaches the exact same `S*`
-   (`moulinServiced_eq_of_validPruning`).
+2. **Moulin's mechanism `moulinMechanism`** (Figure 15.2) and **Proposition 15.15**: synchronous
+   iterative pruning `S_{k+1} = {i ∈ S_k | ξ(S_k, i) ≤ b_i}` reaches the unique largest willing
+   coalition `S*` (`IsGreatest {S | ∀ i ∈ S, ξ(S, i) ≤ b_i}`); as a derived order-independence
+   result (`moulinServiced_eq_of_validPruning`), any finite path of valid partial deletions
+   terminating at a willing coalition reaches the same `S*`.
 3. **Theorem 15.16 (Moulin 1999)**: if `ξ` is cross-monotone and `γ`-budget-balanced (with
    nonnegative shares for No Positive Transfers), `moulinMechanism ξ` is **group-strategyproof**
    (`moulinMechanism_isGroupStrategyproof`), `γ`-budget-balanced, and satisfies Voluntary
@@ -81,7 +81,7 @@ Ray 1989):
   `Cslib.GameTheory.CostSharingScheme.inCore_univ`: **Proposition 15.14** of [JainMahdian2007].
 * `Cslib.GameTheory.CostSharingScheme.isGreatest_isWilling_moulinServiced`,
   `Cslib.GameTheory.CostSharingScheme.moulinServiced_eq_of_validPruning`: **Proposition 15.15** of
-  [JainMahdian2007] and pruning-order invariance.
+  [JainMahdian2007] and derived order-independence of valid pruning paths.
 * `Cslib.GameTheory.CostSharingScheme.moulinMechanism_isGroupStrategyproof`,
   `Cslib.GameTheory.CostSharingScheme.moulinMechanism_isBudgetBalanced`,
   `Cslib.GameTheory.CostSharingScheme.moulinMechanism_voluntaryParticipation`,
@@ -90,8 +90,8 @@ Ray 1989):
   [JainMahdian2007] (Moulin 1999).
 * `Cslib.GameTheory.CostSharingGame.IsTight.union`,
   `Cslib.GameTheory.CostSharingGame.IsTight.inter`,
-  `Cslib.GameTheory.CostSharingGame.isGreatest_maximalTightSet`: **Lemma 15.18** and
-  **Corollary 15.19** of [JainMahdian2007].
+  `Cslib.GameTheory.CostSharingGame.isGreatest_maximalTightSet`: **Lemma 15.18** (with derived
+  intersection companion `IsTight.inter`) and **Corollary 15.19** of [JainMahdian2007].
 * `Cslib.GameTheory.CostSharingGame.submodularCostShareScheme_isCrossMonotone`,
   `Cslib.GameTheory.CostSharingGame.submodularCostShareScheme_isBudgetBalanced`,
   `Cslib.GameTheory.CostSharingGame.submodularCostShareScheme_isNonneg`: **Theorem 15.20** of
@@ -421,10 +421,10 @@ theorem isGreatest_isWilling_moulinServiced [Fintype A] {ξ : CostSharingScheme 
       exact ih.tail (ξ.validPruningStep_moulinStep b _)
   exact subset_of_isWilling_reflTransGen hcm hS (Finset.subset_univ S) (hiter (Fintype.card A))
 
-/-- **Order-independence of iterative pruning** ([JainMahdian2007], Proposition 15.15): for a
-cross-monotone scheme `ξ`, *any* sequence of valid pruning steps from `Finset.univ` (removing one
-unwilling agent at a time in any order, or batches of unwilling agents) that terminates at a
-willing coalition `Q` reaches `ξ.moulinServiced b`. -/
+/-- Derived order-independence result for iterative pruning (extending [JainMahdian2007],
+Proposition 15.15 and Figure 15.2, p. 393, which analyze synchronous rounds): for a cross-monotone
+scheme `ξ`, any finite path of valid partial deletions (`ValidPruningStep`) from `Finset.univ` that
+terminates at a willing coalition `Q` reaches `ξ.moulinServiced b`. -/
 theorem moulinServiced_eq_of_validPruning [Fintype A] {ξ : CostSharingScheme A}
     (hcm : ξ.IsCrossMonotone) {b : A → ℝ} {Q : Finset A}
     (hpath : Relation.ReflTransGen (ξ.ValidPruningStep b) Finset.univ Q)
@@ -575,8 +575,9 @@ omit [DecidableEq A] in
 theorem isTight_empty (G : CostSharingGame A) (α : A → ℝ) : G.IsTight α ∅ := by
   simp [IsTight]
 
-/-- **Lemma 15.18** ([JainMahdian2007], p. 396): in a submodular game, if `α` is core-feasible on
-`T` and `S₁, S₂ ⊆ T` are tight, then both `S₁ ∪ S₂` and `S₁ ∩ S₂` are tight. -/
+/-- Uncrossing step for **Lemma 15.18** ([JainMahdian2007], p. 396) and its derived intersection
+companion: in a submodular game, if `α` is core-feasible on `T` and `S₁, S₂ ⊆ T` are tight, then
+both `S₁ ∪ S₂` and `S₁ ∩ S₂` are tight. -/
 private theorem isTight_union_and_inter {G : CostSharingGame A} {T S₁ S₂ : Finset A} {α : A → ℝ}
     (hsub : G.IsSubmodular) (hfeas : G.IsCoreFeasibleOn T α)
     (hS₁ : S₁ ⊆ T) (hS₂ : S₂ ⊆ T)
@@ -600,7 +601,8 @@ theorem IsTight.union {G : CostSharingGame A} {T S₁ S₂ : Finset A} {α : A �
     G.IsTight α (S₁ ∪ S₂) :=
   (isTight_union_and_inter hsub hfeas hS₁ hS₂ ht₁ ht₂).1
 
-/-- Dual half of **Lemma 15.18**: under the same hypotheses, `S₁ ∩ S₂` is also tight. -/
+/-- Derived companion to **Lemma 15.18** ([JainMahdian2007], p. 396): under the same hypotheses,
+`S₁ ∩ S₂` is also tight. -/
 theorem IsTight.inter {G : CostSharingGame A} {T S₁ S₂ : Finset A} {α : A → ℝ}
     (hsub : G.IsSubmodular) (hfeas : G.IsCoreFeasibleOn T α)
     (hS₁ : S₁ ⊆ T) (hS₂ : S₂ ⊆ T)

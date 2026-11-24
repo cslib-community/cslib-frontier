@@ -370,12 +370,13 @@ example :
 /-! ### Shapley value: Example 15.24, unanimity game, and 3-player glove game -/
 
 example :
+    FacilityLocationInstance.example15_2.toCostSharingGame.NonemptyCore ∧
     shapleyValue FacilityLocationInstance.example15_2.toCostSharingGame 0 = 23 / 6 ∧
     shapleyValue FacilityLocationInstance.example15_2.toCostSharingGame 1 = 11 / 6 ∧
     shapleyValue FacilityLocationInstance.example15_2.toCostSharingGame 2 = 7 / 3 ∧
     ¬ FacilityLocationInstance.example15_2.toCostSharingGame.InCore
         (shapleyValue FacilityLocationInstance.example15_2.toCostSharingGame) :=
-  ⟨example15_24_shapleyValue.1, example15_24_shapleyValue.2.1,
+  ⟨example15_24_nonemptyCore, example15_24_shapleyValue.1, example15_24_shapleyValue.2.1,
    example15_24_shapleyValue.2.2, example15_24_not_inCore⟩
 
 /-- Unanimity game on `{0, 1} ⊆ Fin 3` with weight `6`: players `0, 1` split `6` equally `(3, 3)`
