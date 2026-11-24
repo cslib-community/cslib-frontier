@@ -64,6 +64,8 @@ game nor a security reduction.
   to `clawExperiment` and `gCollisionExperiment`.
 * `actCom`, `actTag`, `actEmbed`: affine-homomorphic VOLE-ACT-MQ commitment and tag encoders
   matching `UOV.structuredTarget`.
+* `gCollisionForger`, `zeroOpeningClawAttack`: concrete one-query structural adversaries for
+  `G`-collisions and zero-opening homogeneous scaling.
 
 ## Main results
 
@@ -77,6 +79,13 @@ game nor a security reduction.
 * `actMQConservation_succProbability_le`: extracted-model VOLE-ACT-MQ credit conservation from
   structured-target one-more claw-freeness and `G`-collision resistance (plus `invalidReply`
   which vanishes under `Signature.Scheme.Correct`).
+* `gCollisionForger_extractedExperiment_eq`,
+  `clawExperiment_clawReduction_gCollisionForger_eq_pure_false`: formal separation showing a
+  `G`-collision wins `extractedExperiment` without winning `clawExperiment`, proving the binding
+  term cannot be dropped.
+* `zeroOpeningClawAttack_eval_eq_pure_true`, `clawExperiment_zeroOpeningClawAttack_eq_false`:
+  zero-opening scaling breaks `clawExperiment` with probability `1` when `F 0 = 0` and
+  `G 0 = 0`, and fails identically (`PMF.pure false`) when `G 0 ≠ 0`.
 
 ## References
 
@@ -812,6 +821,353 @@ theorem actMQClawReduction_queryBound
   clawReduction_queryBound S (UOV.structuredTarget F G) (actEmbed encodeState refundEmbed)
     (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S A) pk
     (Conservation.noteForger_queryBound (actCom F G encodeState) (actTag refundEmbed) S A pk hA)
+
+/-! ### Structural adversaries and separations -/
+
+section StructuralAttacks
+
+@[expose] section
+
+/-- One-query forgery exploiting a `G`-collision (`r₁ ≠ r₂`, `G r₁ = G r₂`): queries `(μ, r₁)`
+once and outputs a fresh semantic message `μ + F r₁ - F r₂` under opening `r₂` with the same
+signature. Since both payloads map to the same `UOV.structuredTarget`, it wins
+`Basic.extractedExperiment` whenever `F r₁ ≠ F r₂` and the single reply verifies, while
+producing no extra distinct-target claw in `clawExperiment`. -/
+def gCollisionForger [AddCommGroup Message]
+    (F : R → Message) (r₁ r₂ : R) (μ : Message) :
+    ExtractedForger PK Message R Sig := fun _ => do
+  let σ ← ProbOracleComp.query ⟨μ, r₁⟩
+  return ⟨⟨μ + F r₁ - F r₂, r₂⟩, σ⟩
+
+/-- One-query zero-opening scaling adversary against `clawExperiment` ([VOLEACT2026],
+`#mq-zero-opening-forgery`): queries `(μ, 0)` once and emits one candidate claw
+`⟨(a * a) • μ, 0, scaleSig a σ⟩` for each scalar `a ∈ scalars`. `scaleSig` handles both raw
+preimages (`fun a s => a • s`) and optional preimages (`fun a => Option.map (a • ·)`). -/
+def zeroOpeningClawAttack {K : Type} [Mul K] [SMul K Message] [Zero R]
+    (scaleSig : K → Sig → Sig) (scalars : List K) (μ : Message) :
+    ClawAdversary PK Message R Sig := fun _ => do
+  let σ ← ProbOracleComp.query (μ, (0 : R))
+  return scalars.map fun a => ⟨(a * a) • μ, 0, scaleSig a σ⟩
+
+end
+
+/-- `gCollisionForger` makes exactly one oracle call. -/
+theorem gCollisionForger_queryBound [AddCommGroup Message]
+    (F : R → Message) (r₁ r₂ : R) (μ : Message) (pk : PK) :
+    (gCollisionForger (PK := PK) (Sig := Sig) F r₁ r₂ μ pk).IsQueryBounded 1 :=
+  ProbOracleComp.IsQueryBounded.query_bind_pure (⟨μ, r₁⟩ : Payload Message R)
+    (fun σ => (⟨⟨μ + F r₁ - F r₂, r₂⟩, σ⟩ : Token Message R Sig))
+
+/-- Given a `G`-collision `G r₁ = G r₂` with `F r₁ ≠ F r₂`, `gCollisionForger`'s success in
+`Basic.extractedExperiment` equals the signer's reply-validity rate at `UOV.structuredTarget F G μ
+r₁` (probability `1` when `S.Correct` holds). -/
+theorem gCollisionForger_extractedExperiment_eq [DecidableEq Message] [AddCommGroup Message]
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (F : R → Message) (G : R → Tail) {r₁ r₂ : R} (μ : Message)
+    (hG : G r₁ = G r₂) (hF : F r₁ ≠ F r₂) :
+    ProbComp.eval
+        (extractedExperiment S (UOV.structuredTarget F G) (gCollisionForger F r₁ r₂ μ)) =
+      ProbComp.eval
+        (Signature.signingCorrectnessExperiment S
+          (fun _ => pure (UOV.structuredTarget F G μ r₁))) := by
+  have htarg : UOV.structuredTarget F G (μ + F r₁ - F r₂) r₂ = UOV.structuredTarget F G μ r₁ := by
+    simp only [UOV.structuredTarget, Prod.mk.injEq, hG, and_true]
+    abel
+  have hmsg : μ + F r₁ - F r₂ ≠ μ := by
+    intro h
+    apply hF
+    have h' : μ + (F r₁ - F r₂) = μ + 0 := by simpa [add_sub_assoc] using h
+    exact sub_eq_zero.mp (add_left_cancel h')
+  simp only [extractedExperiment, Signature.signingCorrectnessExperiment, runExtracted,
+    gCollisionForger, ProbOracleComp.runLog_query_bind_pure, ProbComp.eval_map,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_map, PMF.pure_bind]
+  rw [PMF.map_bind]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun keys _ => ?_
+  rw [PMF.map_bind]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun σ _ => ?_
+  dsimp only [Function.comp_def]
+  rw [PMF.pure_map]
+  simp [extractedAccept, Token.valid, htarg, hmsg]
+
+/-- Corollary: when `S.Correct` holds, a `G`-collision with `F r₁ ≠ F r₂` breaks
+`Basic.extractedExperiment` with probability `1`. -/
+theorem gCollisionForger_extractedExperiment_eq_pure_true
+    [DecidableEq Message] [AddCommGroup Message]
+    {S : Signature.Scheme PK SK (Message × Tail) Sig} (hS : S.Correct)
+    (F : R → Message) (G : R → Tail) {r₁ r₂ : R} (μ : Message)
+    (hG : G r₁ = G r₂) (hF : F r₁ ≠ F r₂) :
+    ProbComp.eval
+        (extractedExperiment S (UOV.structuredTarget F G) (gCollisionForger F r₁ r₂ μ)) =
+      PMF.pure true := by
+  rw [gCollisionForger_extractedExperiment_eq S F G μ hG hF]
+  simp only [Signature.signingCorrectnessExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.pure_bind]
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys => ?_
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun σ hσ => ?_
+  simp [hS keys hkeys (UOV.structuredTarget F G μ r₁) σ hσ]
+
+/-- Separation witness for the `gCollisionExperiment` term: for any `G`-collision `G r₁ = G r₂`,
+forwarding `gCollisionForger` through `clawReduction` returns `[]` on every execution and wins
+`clawExperiment` with probability `0`. Thus `gCollisionExperiment` cannot be dropped from
+`extractedExperiment_succProbability_le_structuredClaw` or `actMQConservation_succProbability_le`.
+-/
+theorem clawExperiment_clawReduction_gCollisionForger_eq_pure_false
+    [DecidableEq Message] [DecidableEq Tail] [AddCommGroup Message]
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (F : R → Message) (G : R → Tail) {r₁ r₂ : R} (μ : Message) (hG : G r₁ = G r₂) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (clawReduction S (UOV.structuredTarget F G) id (gCollisionForger F r₁ r₂ μ))) =
+      PMF.pure false := by
+  have htarg : UOV.structuredTarget F G (μ + F r₁ - F r₂) r₂ = UOV.structuredTarget F G μ r₁ := by
+    simp only [UOV.structuredTarget, Prod.mk.injEq, hG, and_true]
+    abel
+  simp only [clawExperiment, ProbComp.eval_map]
+  apply Probability.PMF.map_eq_pure_iff.mpr
+  intro run' hrun'
+  rw [eval_runClaw_clawReduction_eq S (UOV.structuredTarget F G) id (UOV.structuredTarget F G)
+    (fun _ _ => rfl)] at hrun'
+  obtain ⟨run, hrun, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hrun'
+  simp only [runExtracted, gCollisionForger, ProbOracleComp.runLog_query_bind_pure,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
+  obtain ⟨keys, -, _, ⟨σ, -, rfl⟩, rfl⟩ := hrun
+  dsimp only [clawAccept, clawExecutionOfExtracted, id_eq]
+  rw [Bool.and_eq_false_iff, decide_eq_false_iff_not]
+  left
+  simp only [htarg, List.foldl_cons, List.foldl_nil, stepValidClaim]
+  by_cases hv : S.verify keys.1 (UOV.structuredTarget F G μ r₁) σ = true <;> simp [hv]
+
+/-- `zeroOpeningClawAttack` makes at most one oracle call on every execution path. -/
+theorem zeroOpeningClawAttack_queryBound {K : Type} [Mul K] [SMul K Message] [Zero R]
+    (scaleSig : K → Sig → Sig) (scalars : List K) (μ : Message) (pk : PK) :
+    (zeroOpeningClawAttack (PK := PK) (R := R) scaleSig scalars μ pk).IsQueryBounded 1 :=
+  ProbOracleComp.IsQueryBounded.query_bind_pure ((μ, (0 : R)) : Message × R) fun σ =>
+    scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ : ClawClaim Message R Sig)
+
+/-- Scaling a valid raw preimage under a homogeneous quadratic map when `F 0 = 0` and `G 0 = 0`
+yields a valid preimage for `(a * a) • μ` at opening `0`. -/
+theorem verify_scale_of_quadratic {K X : Type} [Field K] [AddCommGroup X] [Module K X]
+    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
+    [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) X)
+    (hver : ∀ pk target s, S.verify pk target s = decide (pubMap pk s = target))
+    (F : R → Message) (G : R → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
+    {pk : PK} {μ : Message} {s : X} (hs : S.verify pk (UOV.structuredTarget F G μ 0) s = true)
+    (a : K) :
+    S.verify pk (UOV.structuredTarget F G ((a * a) • μ) 0) (a • s) = true := by
+  rw [hver] at hs ⊢
+  have hs' := of_decide_eq_true hs
+  apply decide_eq_true
+  rw [(pubMap pk).map_smul, hs']
+  simp [UOV.structuredTarget, hF, hG, mul_smul]
+
+/-- Optional-preimage (`Option X`) scaling helper matching `UOV.idealRawScheme`: scaling with
+`Option.map (a • ·)` preserves validity under a homogeneous quadratic verifier when `F 0 = 0` and
+`G 0 = 0`. -/
+theorem verify_scale_option_of_quadratic {K X : Type} [Field K] [AddCommGroup X] [Module K X]
+    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
+    [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) (Option X))
+    (hver : ∀ pk target opt, S.verify pk target opt =
+      match opt with | none => false | some s => decide (pubMap pk s = target))
+    (F : R → Message) (G : R → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
+    {pk : PK} {μ : Message} {opt : Option X}
+    (hopt : S.verify pk (UOV.structuredTarget F G μ 0) opt = true) (a : K) :
+    S.verify pk (UOV.structuredTarget F G ((a * a) • μ) 0) (Option.map (a • ·) opt) = true := by
+  cases opt with
+  | none =>
+    rw [hver] at hopt
+    simp at hopt
+  | some s =>
+    rw [hver] at hopt ⊢
+    dsimp only [Option.map_some]
+    have hs' := of_decide_eq_true hopt
+    apply decide_eq_true
+    rw [(pubMap pk).map_smul, hs']
+    simp [UOV.structuredTarget, hF, hG, mul_smul]
+
+/-- When `F 0 = 0`, `μ ≠ 0`, and `scalars` contains at least two elements with pairwise distinct
+squares whose scaled oracle replies verify (as furnished by `verify_scale_of_quadratic` /
+`verify_scale_option_of_quadratic` whenever `F 0 = 0` and `G 0 = 0`), `zeroOpeningClawAttack` wins
+`clawExperiment` with probability `1` using a single query ([VOLEACT2026],
+`#mq-zero-opening-forgery`). -/
+theorem zeroOpeningClawAttack_eval_eq_pure_true {K : Type} [Field K]
+    [AddCommGroup Message] [Module K Message] [DecidableEq Message] [DecidableEq Tail] [Zero R]
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (F : R → Message) (G : R → Tail) (hF : F 0 = 0)
+    (scaleSig : K → Sig → Sig) (scalars : List K)
+    (hlen : 2 ≤ scalars.length) (hnodup : (scalars.map fun a => a * a).Nodup)
+    (μ : Message) (hμ : μ ≠ 0)
+    (hverify : ∀ keys ∈ (ProbComp.eval S.keyGen).support,
+      ∀ σ ∈ (ProbComp.eval (S.sign keys.2 (UOV.structuredTarget F G μ 0))).support,
+        ∀ a ∈ scalars,
+          S.verify keys.1 (UOV.structuredTarget F G ((a * a) • μ) 0) (scaleSig a σ) = true) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack scaleSig scalars μ)) =
+      PMF.pure true := by
+  simp only [clawExperiment, runClaw, zeroOpeningClawAttack, ProbComp.eval_map,
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.runLog_query_bind_pure, PMF.bind_map]
+  rw [PMF.map_bind]
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys => ?_
+  rw [PMF.map_bind]
+  refine Probability.PMF.bind_eq_pure_of_forall_mem_support fun σ hσ => ?_
+  dsimp only [Function.comp_def]
+  rw [PMF.pure_map]
+  dsimp only [clawAccept]
+  have hlen_lt : 1 < scalars.length := by omega
+  have hinj : Function.Injective fun b : K => ((b • μ, G 0) : Message × Tail) := by
+    intro b₁ b₂ heq
+    exact smul_left_injective K hμ (congrArg Prod.fst heq)
+  have hclaims_nodup :
+      ((scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
+          ClawClaim Message R Sig)).map
+            fun c => UOV.structuredTarget F G c.message c.opening).Nodup := by
+    have hmap :
+        (scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
+            ClawClaim Message R Sig)).map (fun c => UOV.structuredTarget F G c.message c.opening) =
+          (scalars.map fun a => a * a).map fun b => (b • μ, G 0) := by
+      simp [UOV.structuredTarget, hF, List.map_map, Function.comp_def]
+    rw [hmap]
+    exact hnodup.map hinj
+  have hclaims_verify :
+      (scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ :
+          ClawClaim Message R Sig)).all
+        (fun c =>
+          S.verify keys.1 (UOV.structuredTarget F G c.message c.opening) c.preimage) = true := by
+    rw [List.all_map, List.all_eq_true]
+    intro a ha
+    exact hverify keys hkeys σ hσ a ha
+  refine congrArg PMF.pure ?_
+  simp only [hclaims_nodup, hclaims_verify, and_true, Bool.and_true, decide_eq_true_eq]
+  rw [List.length_map]
+  simp [hlen_lt]
+
+/-- Corollary: `zeroOpeningClawAttack` achieves `Experiment.succProbability = 1` under the same
+hypotheses. -/
+theorem zeroOpeningClawAttack_succProbability_eq_one {K : Type} [Field K]
+    [AddCommGroup Message] [Module K Message] [DecidableEq Message] [DecidableEq Tail] [Zero R]
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (F : R → Message) (G : R → Tail) (hF : F 0 = 0)
+    (scaleSig : K → Sig → Sig) (scalars : List K)
+    (hlen : 2 ≤ scalars.length) (hnodup : (scalars.map fun a => a * a).Nodup)
+    (μ : Message) (hμ : μ ≠ 0)
+    (hverify : ∀ keys ∈ (ProbComp.eval S.keyGen).support,
+      ∀ σ ∈ (ProbComp.eval (S.sign keys.2 (UOV.structuredTarget F G μ 0))).support,
+        ∀ a ∈ scalars,
+          S.verify keys.1 (UOV.structuredTarget F G ((a * a) • μ) 0) (scaleSig a σ) = true) :
+    Experiment.succProbability
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack scaleSig scalars μ)) = 1 := by
+  have hev := zeroOpeningClawAttack_eval_eq_pure_true S F G hF scaleSig scalars hlen hnodup μ
+    hμ hverify
+  simp [Experiment.succProbability, Game.succProbability, hev]
+
+private theorem exists_sq_ne_one_of_nodup {K : Type} [Mul K] [One K]
+    {scalars : List K} (hlen : 2 ≤ scalars.length) (hnodup : (scalars.map fun a => a * a).Nodup) :
+    ∃ a ∈ scalars, a * a ≠ 1 := by
+  rcases scalars with _ | ⟨a, _ | ⟨b, rest⟩⟩
+  · simp at hlen
+  · simp at hlen
+  · by_cases ha : a * a = 1
+    · refine ⟨b, List.mem_cons_of_mem _ List.mem_cons_self, fun hb => ?_⟩
+      simp only [List.map_cons, List.nodup_cons, List.mem_cons] at hnodup
+      exact hnodup.1 (Or.inl (ha.trans hb.symm))
+    · exact ⟨a, List.mem_cons_self, ha⟩
+
+/-- A nonzero constant tail `G 0 ≠ 0` defeats `zeroOpeningClawAttack` for every scalar list of
+length at least two with distinct squares, over optional-preimage (`Option X`) homogeneous
+quadratic verifiers: any answer returned by the signer either is `none` (failing verification) or
+verifies at `J μ 0` and triggers `UOV.rescale_ne_zeroOpening_of_tail_ne_zero` on some `a` with
+`a * a ≠ 1`. -/
+theorem clawExperiment_zeroOpeningClawAttack_option_eq_false_of_tail_ne_zero
+    {K X : Type} [Field K] [AddCommGroup X] [Module K X]
+    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
+    [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) (Option X))
+    (hver : ∀ pk target opt,
+      S.verify pk target opt =
+        match opt with | none => false | some s => decide (pubMap pk s = target))
+    (F : R → Message) (G : R → Tail) (htail : G 0 ≠ 0)
+    (scalars : List K) (hlen : 2 ≤ scalars.length)
+    (hnodup : (scalars.map fun a => a * a).Nodup) (μ : Message)
+    (hsign : ∀ keys ∈ (ProbComp.eval S.keyGen).support,
+      ∀ opt ∈ (ProbComp.eval (S.sign keys.2 (UOV.structuredTarget F G μ 0))).support,
+        ∀ s, opt = some s → pubMap keys.1 s = UOV.structuredTarget F G μ 0) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack (fun a => Option.map (a • ·)) scalars μ)) =
+      PMF.pure false := by
+  obtain ⟨a, ha, hasq⟩ := exists_sq_ne_one_of_nodup hlen hnodup
+  simp only [clawExperiment, ProbComp.eval_map]
+  apply Probability.PMF.map_eq_pure_iff.mpr
+  intro run hrun
+  simp only [runClaw, zeroOpeningClawAttack, ProbOracleComp.runLog_query_bind_pure,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
+  obtain ⟨keys, hkeys, _, ⟨opt, hopt, rfl⟩, rfl⟩ := hrun
+  dsimp only [clawAccept]
+  rw [Bool.and_eq_false_iff]
+  right
+  rw [Bool.eq_false_iff]
+  intro h
+  rw [List.all_map, List.all_eq_true] at h
+  have ha' := h a ha
+  dsimp only [Function.comp_def] at ha'
+  cases opt with
+  | none =>
+    simp [hver] at ha'
+  | some s =>
+    have hanswer := hsign keys hkeys (some s) hopt s rfl
+    have hne := UOV.rescale_ne_zeroOpening_of_tail_ne_zero (pubMap keys.1) F G htail a hasq
+      hanswer ((a * a) • μ)
+    simp [hver, hne] at ha'
+
+/-- Raw-preimage (`Sig = X`) counterpart of
+`clawExperiment_zeroOpeningClawAttack_option_eq_false_of_tail_ne_zero`. -/
+theorem clawExperiment_zeroOpeningClawAttack_eq_false_of_tail_ne_zero
+    {K X : Type} [Field K] [AddCommGroup X] [Module K X]
+    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
+    [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) X)
+    (hver : ∀ pk target s, S.verify pk target s = decide (pubMap pk s = target))
+    (F : R → Message) (G : R → Tail) (htail : G 0 ≠ 0)
+    (scalars : List K) (hlen : 2 ≤ scalars.length)
+    (hnodup : (scalars.map fun a => a * a).Nodup) (μ : Message)
+    (hsign : ∀ keys ∈ (ProbComp.eval S.keyGen).support,
+      ∀ s ∈ (ProbComp.eval (S.sign keys.2 (UOV.structuredTarget F G μ 0))).support,
+        pubMap keys.1 s = UOV.structuredTarget F G μ 0) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack (fun a s => a • s) scalars μ)) =
+      PMF.pure false := by
+  obtain ⟨a, ha, hasq⟩ := exists_sq_ne_one_of_nodup hlen hnodup
+  simp only [clawExperiment, ProbComp.eval_map]
+  apply Probability.PMF.map_eq_pure_iff.mpr
+  intro run hrun
+  simp only [runClaw, zeroOpeningClawAttack, ProbOracleComp.runLog_query_bind_pure,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
+  obtain ⟨keys, hkeys, _, ⟨s, hs, rfl⟩, rfl⟩ := hrun
+  dsimp only [clawAccept]
+  rw [Bool.and_eq_false_iff]
+  right
+  rw [Bool.eq_false_iff]
+  intro h
+  rw [List.all_map, List.all_eq_true] at h
+  have ha' := h a ha
+  dsimp only [Function.comp_def] at ha'
+  have hanswer := hsign keys hkeys s hs
+  have hne := UOV.rescale_ne_zeroOpening_of_tail_ne_zero (pubMap keys.1) F G htail a hasq
+    hanswer ((a * a) • μ)
+  simp [hver, hne] at ha'
+
+end StructuralAttacks
 
 end
 
