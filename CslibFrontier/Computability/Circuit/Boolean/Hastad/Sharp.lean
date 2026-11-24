@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Depth
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Logics.Propositional.Parity
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Positivity
 
 /-!
@@ -388,12 +389,11 @@ private theorem two_rpow_le_two_mul_of_forall {d m : ℕ} (hd₂ : 2 ≤ d) (hn 
       pow_le_pow_left₀ (by positivity) (by exact_mod_cast hsr) _
     rw [hr] at this
     exact_mod_cast this
-  have hsize : (2 : ℝ) ^ s ≤ m := by exact_mod_cast h s hs hsn
   calc (2 : ℝ) ^ (r / 17) ≤ 2 ^ ((s + 1 : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num)
           (by push_cast; exact (Nat.lt_floor_add_one _).le)
     _ = 2 * 2 ^ s := by rw [Real.rpow_natCast, pow_succ']
-    _ ≤ 2 * m := by linarith
+    _ ≤ 2 * m := by cast_linarith [h s hs hsn]
 
 /-- **Håstad's theorem with the sharp exponent**, in round numbers. A circuit of negations and
 unbounded fan-in conjunctions and disjunctions of AND/OR depth at most `d ≥ 2` computing the

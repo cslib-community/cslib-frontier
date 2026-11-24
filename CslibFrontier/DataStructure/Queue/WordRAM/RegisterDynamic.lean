@@ -58,12 +58,12 @@ retained. This sums calls of the fixed program, without charging a host controll
 theorem run_client {w base capacity : ℕ} (h1 : Fits w 1) {α : Type}
     (p : (spec w capacity).Client α) {q : List ℕ} {x : Data registers}
     (hr : QueueRep w base capacity q x)
-    (hv : (spec w capacity).ValidHistory q ((spec w capacity).runClient q p).2.2) :
+    (hv : (spec w capacity).ValidHistory q ((spec w capacity).clientHistory q p)) :
     ∃ y traces, DataStructure.Executes ((implementation w capacity).ExecOp w) p x
-        ((spec w capacity).runClient q p).1 y traces ∧
-      QueueRep w base capacity ((spec w capacity).runClient q p).2.1 y ∧
+        ((spec w capacity).clientResult q p) y traces ∧
+      QueueRep w base capacity ((spec w capacity).clientState q p) y ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces + potential y ≤
-        ((spec w capacity).runClient q p).2.2.length * (4 * Backend.factor family + 6) +
+        ((spec w capacity).clientHistory q p).length * (4 * Backend.factor family + 6) +
           potential x :=
   (amortized h1).exists_executes_const p hr hv
 
@@ -73,13 +73,13 @@ No clearing, installed frontier or zero-memory premise is needed. -/
 theorem run_initialized {w base capacity : ℕ} (h1 : Fits w 1)
     (hc : Fits w (base + 2 * capacity)) {α : Type} (p : (spec w capacity).Client α)
     {x : Data registers} (hx : x.Bounded w)
-    (hv : (spec w capacity).ValidHistory [] ((spec w capacity).runClient [] p).2.2) :
+    (hv : (spec w capacity).ValidHistory [] ((spec w capacity).clientHistory [] p)) :
     ∃ ready y traces, Exec w (initializeCode base capacity) x ready 6 ∧
       DataStructure.Executes ((implementation w capacity).ExecOp w) p ready
-        ((spec w capacity).runClient [] p).1 y traces ∧
-      QueueRep w base capacity ((spec w capacity).runClient [] p).2.1 y ∧
+        ((spec w capacity).clientResult [] p) y traces ∧
+      QueueRep w base capacity ((spec w capacity).clientState [] p) y ∧
       6 + DataStructure.total DynamicProgram.OperationTrace.instructions traces + potential y ≤
-        6 + ((spec w capacity).runClient [] p).2.2.length * (4 * Backend.factor family + 6) := by
+        6 + ((spec w capacity).clientHistory [] p).length * (4 * Backend.factor family + 6) := by
   have hr := initialized_rep hx hc
   have hp : potential (initialized base capacity x) = 0 := by
     simp only [potential, hr.backLen_eq, List.length_nil, Nat.mul_zero]

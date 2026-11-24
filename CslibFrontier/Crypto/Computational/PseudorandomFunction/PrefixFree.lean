@@ -88,6 +88,22 @@ theorem wordQueryRunDist_query_bind {α : Type} (oracle : List Bool → List Boo
         (fun (a, log) => (a, word :: log)) :=
   rfl
 
+/-- Querying a fixed list of words records exactly that list. Against a deterministic oracle,
+processing the replies and then returning a value is also deterministic. -/
+theorem wordQueryRunDist_mapM_query_pure {α β : Type} (oracle : List Bool → List Bool)
+    (queries : List (List Bool)) (read : List Bool → β) (finish : List β → α) :
+    wordQueryRunDist oracle (do
+      let replies ← queries.mapM fun word => read <$> ProbOracleComp.query ((), word)
+      return finish replies) =
+    PMF.pure (finish (queries.map (read ∘ oracle)), queries) := by
+  induction queries generalizing finish with
+  | nil => simp only [List.mapM_nil, pure_bind, List.map_nil, wordQueryRunDist_pure]
+  | cons query queries ih =>
+    have htail := ih (fun replies => finish (read (oracle query) :: replies))
+    simp only [map_eq_bind_pure_comp, Function.comp_def] at htail
+    simp only [List.mapM_cons, map_eq_bind_pure_comp, bind_assoc, pure_bind,
+      Function.comp_def, wordQueryRunDist_query_bind, htail, PMF.pure_map, List.map_cons]
+
 /-- `IsPrefixFreeOn valid outLen program` holds when, against every deterministic word oracle that
 maps valid words to `outLen`-bit replies and invalid words to `[]`, every supported query log of
 `program` satisfies `WordPrefixFree valid`. This is the domain-relative prefix condition from

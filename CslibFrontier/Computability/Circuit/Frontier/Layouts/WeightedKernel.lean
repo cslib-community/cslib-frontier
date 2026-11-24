@@ -189,16 +189,9 @@ private theorem edgeWeight_sq_le_half {deg : V → ℕ} {θ : ℝ} {u v : V} (hu
           mul_le_mul hsu hsv hs2.le (hs2.le.trans hsu)
   exact div_le_div_of_nonneg_left (sq_nonneg θ) (by norm_num) hprod
 
-private theorem edgeWeight_lt_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ < 1) {u v : V}
+private theorem edgeWeight_lt_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) {u v : V}
     (hu : 3 ≤ deg u) (hv : 3 ≤ deg v) : edgeWeight deg θ u v < 1 := by
   have hsq : edgeWeight deg θ u v ^ 2 < 1 := by
-    have hθsq : θ ^ 2 < 1 := by nlinarith
-    linarith [edgeWeight_sq_le_half (θ := θ) hu hv]
-  nlinarith [edgeWeight_nonneg deg hθ0 u v]
-
-private theorem edgeWeight_le_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) {u v : V}
-    (hu : 3 ≤ deg u) (hv : 3 ≤ deg v) : edgeWeight deg θ u v ≤ 1 := by
-  have hsq : edgeWeight deg θ u v ^ 2 ≤ 1 := by
     have hθsq : θ ^ 2 ≤ 1 := by nlinarith
     linarith [edgeWeight_sq_le_half (θ := θ) hu hv]
   nlinarith [edgeWeight_nonneg deg hθ0 u v]
@@ -287,7 +280,7 @@ private theorem bestWalkWeight_le_one (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hlo :
   | succ r ih =>
     rw [bestWalkWeight_succ]
     refine max_le (ih u) (finsetMaxZero_le zero_le_one fun w _ => ?_)
-    have hq := edgeWeight_le_one hθ0 hθ1 (hlo u) (hlo w)
+    have hq := (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo w)).le
     have hq0 := edgeWeight_nonneg deg hθ0 u w
     have hr0 := bestWalkWeight_nonneg (H := H) (deg := deg) (θ := θ) r w z
     nlinarith [ih w]
@@ -358,7 +351,7 @@ private theorem weightedKernelRow_defect_le (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) 
   have hb0 : 0 ≤ b := bestWalkWeight_nonneg (r + 1) v z
   have ha0 : 0 ≤ a := hb0.trans hba
   have hq0 : 0 ≤ q := edgeWeight_nonneg deg hθ0 u v
-  have hq1 : q ≤ 1 := edgeWeight_le_one hθ0 hθ1 (hlo u) (hlo v)
+  have hq1 : q ≤ 1 := (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo v)).le
   have hκ1 : 2 * q / (1 + q ^ 2) ≤ 1 := two_mul_div_one_add_sq_le_one q
   have hIv : 0 ≤ if bestWalkWeight H deg θ r v z < b then b ^ 2 else 0 := by
     split_ifs <;> positivity
@@ -551,7 +544,7 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
       have hca : c ≠ a := by
         intro hca_eq
         subst c
-        have hq1 := edgeWeight_lt_one hθ0 hθ1 (hlo a) (hlo b)
+        have hq1 := edgeWeight_lt_one hθ0 hθ1.le (hlo a) (hlo b)
         have hsymm := edgeWeight_comm deg θ b a
         have hra := bestWalkWeight_nonneg (H := H) (deg := deg) (θ := θ) r a z
         have hmono := bestWalkWeight_le_succ (H := H) (deg := deg) (θ := θ) r a z
@@ -790,9 +783,10 @@ private theorem pairWeight_nonneg (d₁ d₂ : ℕ) : 0 ≤ pairWeight d₁ d₂
   unfold pairWeight
   positivity
 
-private theorem sub_two_mul_div_le {q₀ θ : ℝ} (hq0 : 0 ≤ q₀) (hq1 : q₀ ≤ 1) (hθ0 : 0 ≤ θ)
+private theorem sub_two_mul_div_bounds {q₀ θ : ℝ} (hq0 : 0 ≤ q₀) (hq1 : q₀ ≤ 1) (hθ0 : 0 ≤ θ)
     (hθ1 : θ ≤ 1) :
-    2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) := by
+    0 ≤ 2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ∧
+      2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) := by
   set q := θ * q₀
   have hqq₀ : q ≤ q₀ := mul_le_of_le_one_left hq0 hθ1
   have hq_nonneg : 0 ≤ q := mul_nonneg hθ0 hq0
@@ -802,13 +796,14 @@ private theorem sub_two_mul_div_le {q₀ θ : ℝ} (hq0 : 0 ≤ q₀) (hq1 : q�
       2 * (q₀ - q) * (1 - q₀ * q) := by ring
   have h1 : 1 - q₀ * q ≤ 1 := by nlinarith
   have h2 : 0 ≤ 1 - q₀ * q := by nlinarith
+  have hnn : 0 ≤ 2 * (q₀ - q) * (1 - q₀ * q) := mul_nonneg (by linarith) h2
   have hprod : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) * ((1 + q₀ ^ 2) * (1 + q ^ 2)) := by
     have ha : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) * 1 := by nlinarith
     have hb : (1 : ℝ) ≤ (1 + q₀ ^ 2) * (1 + q ^ 2) := by
       nlinarith [sq_nonneg q₀, sq_nonneg q, mul_nonneg (sq_nonneg q₀) (sq_nonneg q)]
     nlinarith
-  rw [div_sub_div _ _ (by positivity) (by positivity), div_le_iff₀ hden, hnum]
-  exact hprod
+  rw [div_sub_div _ _ (by positivity) (by positivity), hnum]
+  exact ⟨div_nonneg hnn hden.le, (div_le_iff₀ hden).mpr hprod⟩
 
 private theorem exists_delta_arccos {α : Type*} (s : Finset α) (g : α → ℝ) {ε : ℝ} (hε : 0 < ε) :
     ∃ δ > 0, ∀ p ∈ s, ∀ x, dist x (g p) < δ → dist (arccos x) (arccos (g p)) < ε := by
@@ -921,21 +916,10 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     have hq_eq : edgeWeight degH θ (H.src e) (H.tgt e) = θ * q₀ := by
       simp only [edgeWeight, q₀, pairWeight, d₁, d₂]
       ring
-    have hsub1 : pairCorrelation d₁ d₂ -
-        2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) :=
-      sub_two_mul_div_le hq₀0 hq₀1 hθ0 hθ1.le
-    have hsub1_nonneg : 0 ≤ pairCorrelation d₁ d₂ -
-        2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) := by
-      unfold pairCorrelation
-      change 0 ≤ 2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2)
-      rw [div_sub_div _ _ (by positivity) (by positivity)]
-      refine div_nonneg ?_ (by positivity)
-      have hnum : 2 * q₀ * (1 + (θ * q₀) ^ 2) - (1 + q₀ ^ 2) * (2 * (θ * q₀)) =
-          2 * q₀ * (1 - θ) * (1 - θ * q₀ ^ 2) := by ring
-      rw [hnum]
-      have h1 : 0 ≤ 1 - θ := by linarith
-      have h2 : 0 ≤ 1 - θ * q₀ ^ 2 := by nlinarith [sq_nonneg q₀]
-      positivity
+    obtain ⟨hsub1_nonneg, hsub1⟩ :
+        0 ≤ pairCorrelation d₁ d₂ - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ∧
+          pairCorrelation d₁ d₂ - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) :=
+      sub_two_mul_div_bounds hq₀0 hq₀1 hθ0 hθ1.le
     have hρ_le : ρ e ≤ pairCorrelation d₁ d₂ := by
       dsimp only [ρ]
       rw [hq_eq]
@@ -1001,13 +985,48 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
 
 namespace WeightedKernel
 
-/-- Double-angle lower bound for `cos`: if `0 ≤ u ≤ cos x` and `v ≤ 2 u ^ 2 - 1`, then
-`v ≤ cos (2 x)`. -/
-private theorem le_cos_two_mul {x u v : ℝ} (hu0 : 0 ≤ u) (hu : u ≤ cos x)
-    (hv : v ≤ 2 * u ^ 2 - 1) : v ≤ cos (2 * x) := by
-  have hsq : u ^ 2 ≤ cos x ^ 2 := pow_le_pow_left₀ hu0 hu 2
-  rw [cos_two_mul]
-  linarith
+private noncomputable def cosOctUpper (x : ℝ) : ℝ :=
+  let t := x / 8
+  let c := 1 - 2 * (t - t ^ 3 / 6) ^ 2
+  2 * (2 * c ^ 2 - 1) ^ 2 - 1
+
+private theorem arccos_le_of_cosOctUpper {r x : ℝ} (hx0 : 0 ≤ x) (hx2 : x ≤ 2)
+    (hr : cosOctUpper x ≤ r) : arccos r ≤ x := by
+  have ht0 : 0 ≤ x / 8 - (x / 8) ^ 3 / 6 := by
+    have : x / 8 - (x / 8) ^ 3 / 6 = (x / 8) * (1 - (x / 8) ^ 2 / 6) := by ring
+    rw [this]; exact mul_nonneg (by linarith) (by nlinarith)
+  have hsin := sin_ge_sub_cube (show 0 ≤ x / 8 by linarith)
+  have hc0 : cos (2 * (x / 8)) ≤ 1 - 2 * (x / 8 - (x / 8) ^ 3 / 6) ^ 2 := by
+    rw [cos_two_mul']
+    linarith [pow_le_pow_left₀ ht0 hsin 2, sin_sq_add_cos_sq (x / 8)]
+  have hc1 := cos_two_mul_le (by nlinarith) hc0 le_rfl
+  have hc2 : cos x ≤ cosOctUpper x := by
+    conv_lhs => rw [show x = 2 * (2 * (2 * (x / 8))) by ring]
+    exact cos_two_mul_le (by nlinarith) hc1 le_rfl
+  exact (arccos_le_arccos (hc2.trans hr)).trans_eq (arccos_cos hx0 (by linarith [pi_gt_three]))
+
+private noncomputable def cosQuarLower (x : ℝ) : ℝ :=
+  let t := x / 4
+  let c := 1 - 2 * (t - t ^ 3 / 6 + t ^ 5 / 100) ^ 2
+  2 * c ^ 2 - 1
+
+private theorem le_arccos_of_cosQuarLower {r x : ℝ} (hx0 : 0 ≤ x) (hx3 : x ≤ 3)
+    (hc0 : 0 ≤ 1 - 2 * ((x / 4) - (x / 4) ^ 3 / 6 + (x / 4) ^ 5 / 100) ^ 2)
+    (hr : r ≤ cosQuarLower x) : x ≤ arccos r := by
+  have ht0 : 0 ≤ x / 4 := by linarith
+  have hb := sin_bound (x := x / 4) (by rw [abs_of_nonneg ht0]; linarith)
+  rw [abs_of_nonneg ht0] at hb
+  have hsin : sin (x / 4) ≤ x / 4 - (x / 4) ^ 3 / 6 + (x / 4) ^ 5 / 100 := by
+    linarith [(abs_le.mp hb).2]
+  have hsin0 : 0 ≤ sin (x / 4) := sin_nonneg_of_nonneg_of_le_pi ht0 (by linarith [pi_gt_three])
+  have hc1 : 1 - 2 * (x / 4 - (x / 4) ^ 3 / 6 + (x / 4) ^ 5 / 100) ^ 2 ≤ cos (2 * (x / 4)) := by
+    rw [cos_two_mul']
+    linarith [pow_le_pow_left₀ hsin0 hsin 2, sin_sq_add_cos_sq (x / 4)]
+  have hc2 : cosQuarLower x ≤ cos x := by
+    dsimp only [cosQuarLower]
+    conv_rhs => rw [show x = 2 * (2 * (x / 4)) by ring, cos_two_mul]
+    linarith [pow_le_pow_left₀ hc0 hc1 2]
+  exact (arccos_cos hx0 (by linarith [pi_gt_three])).symm.trans_le (arccos_le_arccos (hr.trans hc2))
 
 /-- Rational lower-bound certificate for `pairCorrelation d₁ d₂ = 2 √(√p) / (√p + 1)` where
 `p = (d₁ - 1)(d₂ - 1)`. -/
@@ -1049,6 +1068,17 @@ private theorem lt_pairCorrelation_of_bounds {d₁ d₂ : ℕ} (hd₁ : 3 ≤ d�
     linarith
   · have : u * (√p + 1) < 0 := mul_neg_of_neg_of_pos (not_le.mp hu0) (by positivity)
     linarith
+
+private theorem arccos_pairCorrelation_le {d₁ d₂ : ℕ} (hd₁ : 3 ≤ d₁) (hd₂ : 3 ≤ d₂)
+    {x r_hi s_lo : ℝ}
+    (hcert : 0 ≤ x ∧ x ≤ 2 ∧ 0 < s_lo ∧ 0 < r_hi ∧
+      ((d₁ : ℝ) - 1) * ((d₂ : ℝ) - 1) < r_hi ^ 2 ∧
+      s_lo ^ 4 < ((d₁ : ℝ) - 1) * ((d₂ : ℝ) - 1) ∧
+      cosOctUpper x * (r_hi + 1) < 2 * s_lo) :
+    arccos (pairCorrelation d₁ d₂) ≤ x := by
+  rcases hcert with ⟨hx0, hx2, hs, hr, h1, h2, h3⟩
+  exact arccos_le_of_cosOctUpper hx0 hx2
+    (lt_pairCorrelation_of_bounds hd₁ hd₂ hs hr h1 h2 h3).le
 
 /-- Diagonal evaluation: `pairCorrelation d d = Gaussian.vertexCorrelation d` for `d ≥ 1`. -/
 theorem pairCorrelation_self {d : ℕ} (hd : 1 ≤ d) :
@@ -1094,97 +1124,28 @@ theorem pairCorrelation_six_six : pairCorrelation 6 6 = √5 / 3 := by
 
 private theorem arccos_pairCorrelation_three_four_le :
     arccos (pairCorrelation 3 4) / π ≤ 5 / 36 := by
-  have hpi_lo := pi_gt_d4
-  have hpi_hi := pi_lt_d4
-  set α := 5 * π / 36 with hα
-  have hα0 : 0 ≤ α := by positivity
-  have hα_lo : 157075 / 360000 ≤ α := by rw [hα]; linarith
-  have hα_hi : α ≤ 157080 / 360000 := by rw [hα]; linarith
-  have hcos : cos α ≤ 907 / 1000 := by
-    have hb := cos_bound (x := α) (by rw [abs_of_nonneg hα0]; linarith)
-    rw [abs_of_nonneg hα0] at hb
-    have h2 : (157075 / 360000 : ℝ) ^ 2 ≤ α ^ 2 := by gcongr
-    have h4 : α ^ 4 ≤ (157080 / 360000 : ℝ) ^ 4 := by gcongr
-    have h5 := (abs_le.mp hb).2
-    nlinarith
-  have hρ : (907 / 1000 : ℝ) < pairCorrelation 3 4 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 39127 / 25000) (r_hi := 244949 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have harc : arccos (pairCorrelation 3 4) ≤ α :=
-    (arccos_le_arccos (hcos.trans hρ.le)).trans_eq
-      (arccos_cos hα0 (by rw [hα]; linarith))
+  have harc : arccos (pairCorrelation 3 4) ≤ 157075 / 360000 :=
+    arccos_pairCorrelation_le (by norm_num) (by norm_num)
+      (s_lo := 39127 / 25000) (r_hi := 244949 / 100000) (by dsimp only [cosOctUpper]; norm_num)
   rw [div_le_iff₀ pi_pos]
-  linarith
+  linarith [pi_gt_d4]
 
-private theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) := by
-  have hb := cos_bound (x := 3217 / 160000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 3217 / 160000)] at hb
-  have h0 : (49989893 / 50000000 : ℝ) ≤ cos (3217 / 160000) := by linarith [(abs_le.mp hb).1]
-  have h1 := le_cos_two_mul (by norm_num) h0 (v := 999191521 / 1000000000) (by norm_num)
-  have h2 := le_cos_two_mul (by norm_num) h1 (v := 996767391 / 1000000000) (by norm_num)
-  have h3 := le_cos_two_mul (by norm_num) h2 (v := 987090463 / 1000000000) (by norm_num)
-  have h4 := le_cos_two_mul (by norm_num) h3 (v := 237173791 / 250000000) (by norm_num)
-  have h5 := le_cos_two_mul (by norm_num) h4 (v := 200011257 / 250000000) (by norm_num)
-  have hcos : (4 / 5 : ℝ) ≤ cos (3217 / 5000) := by
-    have hval : (3217 / 5000 : ℝ) = 2 * (2 * (2 * (2 * (2 * (3217 / 160000))))) := by norm_num
-    rw [hval]
-    exact le_trans (by norm_num) h5
-  calc (3217 / 5000 : ℝ) = arccos (cos (3217 / 5000)) :=
-        (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
-    _ ≤ arccos (4 / 5) := arccos_le_arccos hcos
+private theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) :=
+  le_arccos_of_cosQuarLower (by norm_num) (by norm_num) (by norm_num)
+    (by dsimp only [cosQuarLower]; norm_num)
 
-private theorem arccos_four_fifths_le : arccos (4 / 5) ≤ 64351 / 100000 := by
-  have hb := cos_bound (x := 64351 / 3200000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 64351 / 3200000)] at hb
-  have h0 : cos (64351 / 3200000) ≤ 999797809 / 1000000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 499595659 / 500000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 49838329 / 50000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 987087231 / 1000000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 237170601 / 250000000) (by norm_num)
-  have h5 := cos_two_mul_le (by norm_num) h4 (v := 12499947 / 15625000) (by norm_num)
-  have hcos : cos (64351 / 100000) ≤ 4 / 5 := by
-    have hval : (64351 / 100000 : ℝ) = 2 * (2 * (2 * (2 * (2 * (64351 / 3200000))))) := by
-      norm_num
-    rw [hval]
-    exact h5.trans (by norm_num)
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+private theorem arccos_four_fifths_le : arccos (4 / 5) ≤ 64351 / 100000 :=
+  arccos_le_of_cosOctUpper (by norm_num) (by norm_num) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_four_five_le :
-    arccos (pairCorrelation 4 5) ≤ 35387 / 60000 := by
-  have hb := cos_bound (x := 35387 / 480000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 35387 / 480000)] at hb
-  have h0 : cos (35387 / 480000) ≤ 9972841 / 10000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 1236439 / 1250000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 4784201 / 5000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 519429 / 625000) (by norm_num)
-  have hρ : (519429 / 625000 : ℝ) < pairCorrelation 4 5 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 4653 / 2500) (r_hi := 346411 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (35387 / 60000) ≤ pairCorrelation 4 5 := by
-    have hval : (35387 / 60000 : ℝ) = 2 * (2 * (2 * (35387 / 480000))) := by norm_num
-    rw [hval]
-    exact h3.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 4 5) ≤ 35387 / 60000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 4653 / 2500) (r_hi := 346411 / 100000) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_three_five_le :
-    arccos (pairCorrelation 3 5) ≤ 22519 / 45000 := by
-  have hb := cos_bound (x := 22519 / 360000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 22519 / 360000)] at hb
-  have h0 : cos (22519 / 360000) ≤ 2495111 / 2500000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 9921853 / 10000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 4844317 / 5000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 4386963 / 5000000) (by norm_num)
-  have hρ : (4386963 / 5000000 : ℝ) < pairCorrelation 3 5 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 168179 / 100000) (r_hi := 282843 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (22519 / 45000) ≤ pairCorrelation 3 5 := by
-    have hval : (22519 / 45000 : ℝ) = 2 * (2 * (2 * (22519 / 360000))) := by norm_num
-    rw [hval]
-    exact h3.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 3 5) ≤ 22519 / 45000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 168179 / 100000) (r_hi := 282843 / 100000) (by dsimp only [cosOctUpper]; norm_num)
 
 /-- The exact degree-five layout coefficient `(5 / 3) arccos (4 / 5) / π ≈ 0.341388`. -/
 @[expose] noncomputable def fiveCoefficient : ℝ :=
@@ -1213,103 +1174,35 @@ theorem fiveCircuitCoefficient_ge_3929 :
   linarith
 
 private theorem le_arccos_sqrt_five_div_three : (7297 / 10000 : ℝ) ≤ arccos (√5 / 3) := by
-  have hb := cos_bound (x := 7297 / 640000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 7297 / 640000)] at hb
-  have h0 : (9999350013 / 10000000000 : ℝ) ≤ cos (7297 / 640000) := by
-    linarith [(abs_le.mp hb).1]
-  have h1 := le_cos_two_mul (by norm_num) h0 (v := 1249675017 / 1250000000) (by norm_num)
-  have h2 := le_cos_two_mul (by norm_num) h1 (v := 1997920379 / 2000000000) (by norm_num)
-  have h3 := le_cos_two_mul (by norm_num) h2 (v := 2489607301 / 2500000000) (by norm_num)
-  have h4 := le_cos_two_mul (by norm_num) h3 (v := 4917031221 / 5000000000) (by norm_num)
-  have h5 := le_cos_two_mul (by norm_num) h4 (v := 4670878411 / 5000000000) (by norm_num)
-  have h6 := le_cos_two_mul (by norm_num) h5 (v := 931710513 / 1250000000) (by norm_num)
   have hs5 : √5 < 3 * (931710513 / 1250000000 : ℝ) :=
     (sqrt_lt' (by norm_num)).mpr (by norm_num)
-  have hcos : √5 / 3 ≤ cos (7297 / 10000) := by
-    have hval : (7297 / 10000 : ℝ) = 2 * (2 * (2 * (2 * (2 * (2 * (7297 / 640000)))))) := by
-      norm_num
-    rw [hval]
-    linarith
-  calc (7297 / 10000 : ℝ) = arccos (cos (7297 / 10000)) :=
-        (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
-    _ ≤ arccos (√5 / 3) := arccos_le_arccos hcos
+  refine le_arccos_of_cosQuarLower (by norm_num) (by norm_num) (by norm_num) ?_
+  have hnum : (931710513 / 1250000000 : ℝ) ≤ cosQuarLower (7297 / 10000) := by
+    dsimp only [cosQuarLower]; norm_num
+  linarith
 
 private theorem arccos_sqrt_five_div_three_le : arccos (√5 / 3) ≤ 72973 / 100000 := by
-  have hb := cos_bound (x := 72973 / 6400000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 72973 / 6400000)] at hb
-  have h0 : cos (72973 / 6400000) ≤ 4999674989 / 5000000000 := by
-    linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 9997399997 / 10000000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 9989601341 / 10000000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 9958426991 / 10000000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 2458513407 / 2500000000) (by norm_num)
-  have h5 := cos_two_mul_le (by norm_num) h4 (v := 1167715269 / 1250000000) (by norm_num)
-  have h6 := cos_two_mul_le (by norm_num) h5 (v := 3726777277 / 5000000000) (by norm_num)
   have hs5 : 3 * (3726777277 / 5000000000 : ℝ) < √5 :=
     (lt_sqrt (by norm_num)).mpr (by norm_num)
-  have hcos : cos (72973 / 100000) ≤ √5 / 3 := by
-    have hval : (72973 / 100000 : ℝ) =
-        2 * (2 * (2 * (2 * (2 * (2 * (72973 / 6400000)))))) := by norm_num
-    rw [hval]
-    linarith
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+  refine arccos_le_of_cosOctUpper (by norm_num) (by norm_num) ?_
+  have hnum : cosOctUpper (72973 / 100000) ≤ 3726777277 / 5000000000 := by
+    dsimp only [cosOctUpper]; norm_num
+  linarith
 
 private theorem arccos_pairCorrelation_five_six_le :
-    arccos (pairCorrelation 5 6) ≤ 138643 / 200000 := by
-  have hb := cos_bound (x := 138643 / 3200000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 138643 / 3200000)] at hb
-  have h0 : cos (138643 / 3200000) ≤ 49953081 / 50000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 3984993 / 4000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 24625529 / 25000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 47026669 / 50000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 2403769 / 3125000) (by norm_num)
-  have hρ : (2403769 / 3125000 : ℝ) < pairCorrelation 5 6 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 105737 / 50000) (r_hi := 223607 / 50000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (138643 / 200000) ≤ pairCorrelation 5 6 := by
-    have hval : (138643 / 200000 : ℝ) = 2 * (2 * (2 * (2 * (138643 / 3200000)))) := by norm_num
-    rw [hval]
-    exact h4.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 5 6) ≤ 138643 / 200000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 105737 / 50000) (r_hi := 223607 / 50000) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_four_six_le :
-    arccos (pairCorrelation 4 6) ≤ 51079 / 80000 := by
-  have hb := cos_bound (x := 51079 / 1280000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 51079 / 1280000)] at hb
-  have h0 : cos (51079 / 1280000) ≤ 99920391 / 100000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 99681691 / 100000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 98728791 / 100000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 23736871 / 25000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 16060099 / 20000000) (by norm_num)
-  have hρ : (16060099 / 20000000 : ℝ) < pairCorrelation 4 6 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 98399 / 50000) (r_hi := 387299 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (51079 / 80000) ≤ pairCorrelation 4 6 := by
-    have hval : (51079 / 80000 : ℝ) = 2 * (2 * (2 * (2 * (51079 / 1280000)))) := by norm_num
-    rw [hval]
-    exact h4.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 4 6) ≤ 51079 / 80000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 98399 / 50000) (r_hi := 387299 / 100000) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_three_six_le :
-    arccos (pairCorrelation 3 6) ≤ 21891 / 40000 := by
-  have hb := cos_bound (x := 21891 / 640000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 21891 / 640000)] at hb
-  have h0 : cos (21891 / 640000) ≤ 9994151 / 10000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 99766109 / 100000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 99065531 / 100000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 96279589 / 100000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 42697593 / 50000000) (by norm_num)
-  have hρ : (42697593 / 50000000 : ℝ) < pairCorrelation 3 6 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 177827 / 100000) (r_hi := 79057 / 25000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (21891 / 40000) ≤ pairCorrelation 3 6 := by
-    have hval : (21891 / 40000 : ℝ) = 2 * (2 * (2 * (2 * (21891 / 640000)))) := by norm_num
-    rw [hval]
-    exact h4.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 3 6) ≤ 21891 / 40000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 177827 / 100000) (r_hi := 79057 / 25000) (by dsimp only [cosOctUpper]; norm_num)
 
 /-- The exact degree-six layout coefficient `(3 / 2) arccos (√5 / 3) / π ≈ 0.348419`. -/
 @[expose] noncomputable def sixCoefficient : ℝ :=
@@ -1351,13 +1244,9 @@ theorem layoutBound_four_one_third : LayoutBound 4 (1 / 3) := by
   refine layoutBound_of_weightedKernel (by norm_num) (by norm_num) fun d₁ d₂ h1 h12 h2 hsum => ?_
   have hcases : (d₁ = 3 ∧ d₂ = 4) ∨ (d₁ = 4 ∧ d₂ = 4) := by omega
   rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · refine arccos_pairCorrelation_three_four_le.trans_eq ?_
-    push_cast
-    norm_num
+  · exact arccos_pairCorrelation_three_four_le.trans_eq (by push_cast; norm_num)
   · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos])]
-    push_cast
-    field_simp
-    norm_num
+    push_cast; field_simp; norm_num
 
 /-- **Degree-five weighted layout bound.** Connected loopless multigraphs of maximum degree five
 have layouts of width `(fiveCoefficient + o(1)) β₁ + o(|V|)`, where
@@ -1369,37 +1258,15 @@ theorem layoutBound_five_weighted : LayoutBound 5 WeightedKernel.fiveCoefficient
       (d₁ = 4 ∧ d₂ = 4) ∨ (d₁ = 3 ∧ d₂ = 5) ∨ (d₁ = 4 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 5) := by
     omega
   unfold WeightedKernel.fiveCoefficient
+  rw [div_mul_eq_mul_div]
+  refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha5 := WeightedKernel.le_arccos_four_fifths
   rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos]),
-      div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 5 / 3 * arccos (4 / 5) / π * (1 - 1 / (4 : ℝ) - 1 / (4 : ℝ)) * π =
-        5 / 6 * arccos (4 / 5) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [pi_lt_d4]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 5 / 3 * arccos (4 / 5) / π * (1 - 1 / (3 : ℝ) - 1 / (5 : ℝ)) * π =
-        7 / 9 * arccos (4 / 5) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_three_five_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 5 / 3 * arccos (4 / 5) / π * (1 - 1 / (4 : ℝ) - 1 / (5 : ℝ)) * π =
-        11 / 12 * arccos (4 / 5) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
-  · rw [pairCorrelation_five_five]
-    refine le_of_eq ?_
-    push_cast
-    ring
+  · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos])]
+    push_cast; linarith [pi_lt_d4]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_three_five_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
+  · rw [pairCorrelation_five_five]; push_cast; linarith
 
 /-- **Degree-six weighted layout bound.** Connected loopless multigraphs of maximum degree six
 have layouts of width `(sixCoefficient + o(1)) β₁ + o(|V|)`, where
@@ -1411,51 +1278,15 @@ theorem layoutBound_six_weighted : LayoutBound 6 WeightedKernel.sixCoefficient :
       (d₁ = 5 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 6) ∨ (d₁ = 6 ∧ d₂ = 6) := by
     omega
   unfold WeightedKernel.sixCoefficient
+  rw [div_mul_eq_mul_div]
+  refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha6 := WeightedKernel.le_arccos_sqrt_five_div_three
   rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (4 : ℝ) - 1 / (5 : ℝ)) * π =
-        33 / 40 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (3 : ℝ) - 1 / (6 : ℝ)) * π =
-        3 / 4 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_three_six_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (4 : ℝ) - 1 / (6 : ℝ)) * π =
-        7 / 8 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_four_six_le]
-  · rw [pairCorrelation_five_five, div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (5 : ℝ) - 1 / (5 : ℝ)) * π =
-        9 / 10 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_four_fifths_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (5 : ℝ) - 1 / (6 : ℝ)) * π =
-        19 / 20 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_five_six_le]
-  · rw [pairCorrelation_six_six]
-    refine le_of_eq ?_
-    push_cast
-    ring
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_three_six_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_six_le]
+  · rw [pairCorrelation_five_five]; push_cast; linarith [WeightedKernel.arccos_four_fifths_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_five_six_le]
+  · rw [pairCorrelation_six_six]; push_cast; linarith
 
 end Cslib.Circuits.Frontier

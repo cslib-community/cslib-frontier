@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Finset.Card
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -463,9 +464,7 @@ theorem card_cover_le {h r : ℕ} {S : Finset (Fin (2 ^ h))}
       rw [hLuniv, cover_univ, Finset.card_singleton]
       have ih2 := ih hr (hr2eq ▸ hS2)
       rw [hlog_half r hr] at ih2
-      have hr_ge1 : (1 : ℝ) ≤ r := by exact_mod_cast hr
-      push_cast
-      linarith
+      cast_linarith [hr]
     · rcases Nat.eq_zero_or_pos r2 with hr20 | hr2pos
       · have hr1eq : r1 = r := by omega
         have hRuniv : rightPart S = Finset.univ := by
@@ -475,9 +474,7 @@ theorem card_cover_le {h r : ℕ} {S : Finset (Fin (2 ^ h))}
         rw [hRuniv, cover_univ, Finset.card_singleton]
         have ih1 := ih hr (hr1eq ▸ hS1)
         rw [hlog_half r hr] at ih1
-        have hr_ge1 : (1 : ℝ) ≤ r := by exact_mod_cast hr
-        push_cast
-        linarith
+        cast_linarith [hr]
       · have ih1 := ih hr1pos hS1
         have ih2 := ih hr2pos hS2
         have hconv := add_mul_logb_two_le (a := (r1 : ℝ)) (b := (r2 : ℝ))
@@ -505,8 +502,7 @@ theorem card_cover_le {h r : ℕ} {S : Finset (Fin (2 ^ h))}
         rw [hsplit_half r2 hr2pos] at ih2
         rw [hsumR] at hconv
         rw [hsplit]
-        push_cast
-        linarith
+        cast_linarith
 
 end Cslib.CompleteBinaryTree
 

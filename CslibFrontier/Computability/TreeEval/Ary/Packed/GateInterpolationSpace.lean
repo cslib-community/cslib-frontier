@@ -85,7 +85,7 @@ private theorem gridWeightStateStep_inSpace :
     (budget_prod hp (budget_prod hs (budget_prod hdigit hcell)))
   have hmul := budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod ha hfactor))
   have hacc := budget_ite (budget_natIsZero hp)
-    (budget_const (encB := encNat) 0 (.refl _)) hmul
+    (budget_const (encB := encNat) 0) hmul
   have hnext := budget_prod hpar (budget_prod (budget_natSucc hj)
     (budget_prod (budget_natDiv hq hs) hacc))
   exact hnext.of_enc_eq fun q => by
@@ -114,9 +114,9 @@ theorem gridWeight_inSpace :
   have hk := snd' hnk
   have hx := snd encBasisArgs (encList encNat)
   have hpar := budget_prod (budget_prod hp hs) hx
-  have hone := budget_natMod (budget_const (encB := encNat) 1 (.refl _)) hp
+  have hone := budget_natMod (budget_const (encB := encNat) 1) hp
   have hinit := budget_prod hpar
-    (budget_prod (budget_const (encB := encNat) 0 (.refl _)) (budget_prod hk hone))
+    (budget_prod (budget_const (encB := encNat) 0) (budget_prod hk hone))
   have hstates (q : (ℕ × ℕ × ℕ × ℕ) × List ℕ) (j : ℕ) (hj : j ≤ q.1.2.2.1) :
       (encGridWeightState (gridWeightStateStep^[j]
         (((q.1.1, q.1.2.1), q.2), 0, q.1.2.2.2, 1 % q.1.1))).length ≤
