@@ -119,16 +119,16 @@ register_result "marginal-cost-pricing" where
       locator := "Section 18.3.1, pp. 468–469 (with Proposition 18.9)" }
   ]
   theorems := [
-    NonatomicCongestionGame.isOptimal_iff_isWardrop_withMarginalCost
+    NonatomicCongestionGame.isOptimal_iff_isWardrop_of_hasDerivWithinAt_mul
   ]
-  scope := "Finite-path, finite-resource multicommodity nonatomic congestion games. When x ↦ \
-    x * c_e(x) is convex on [0, ∞) and c_e has derivative c'_e within [0, ∞), a feasible flow \
-    minimizes total latency iff it is a Wardrop equilibrium with respect to marginal cost \
-    c_e(x) + x * c'_e(x). Precision note relative to Proposition 18.9: the source assumes x ↦ \
-    x * c_e(x) is convex and C¹ on [0, ∞) (which admits e.g. c_e(x) = √x, where x * √x = x^(3/2) \
-    is C¹ at 0 even though c_e is not differentiable at 0), whereas HasDerivWithinAt \
-    (G.latency e) (c' e x) (Ici 0) x requires right-differentiability of c_e itself at x = 0 as \
-    well."
+  scope := "Finite-path, finite-resource multicommodity nonatomic congestion games. When each \
+    edge cost contribution x ↦ x * c_e(x) is convex on [0, ∞) and has derivative mc e within \
+    [0, ∞) (without requiring c_e itself to be differentiable at 0, so latencies such as c_e(x) \
+    = √x with unused edges f_e = 0 are admitted), a flow minimizes total latency iff it is a \
+    Wardrop equilibrium of G.withLatency mc (and unfolding IsWardrop gives the path-sum \
+    characterization of Proposition 18.9). The companion theorem \
+    isOptimal_iff_isWardrop_withMarginalCost specializes mc e(x) = c_e(x) + x * c'_e(x) by the \
+    product rule when c_e itself has derivative c'_e within [0, ∞)."
 
 register_result "pigouvian-marginal-cost-taxes" where
   title := "Pigouvian marginal-cost taxes induce socially optimal flows as Wardrop equilibria"
