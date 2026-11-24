@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.ManinTwist
 public import Mathlib.Analysis.Real.Sqrt
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Hasse's bound via Manin's proof
@@ -562,11 +563,9 @@ theorem hasse_bound_zmod {p : ℕ} [Fact p.Prime] (W : WeierstrassCurve (ZMod p)
       (Nat.card W.toAffine.Point : ℝ) ≤ p + 1 + 2 * Real.sqrt p := by
   rcases eq_or_ne p 2 with rfl | hp
   · obtain ⟨h1, h5⟩ := natCard_point_zmod_two W
-    have h1' : (1 : ℝ) ≤ Nat.card W.toAffine.Point := by exact_mod_cast h1
-    have h5' : (Nat.card W.toAffine.Point : ℝ) ≤ 5 := by exact_mod_cast h5
     have hs : 1 ≤ Real.sqrt 2 := Real.one_le_sqrt.2 (by norm_num)
     simp only [Nat.cast_ofNat]
-    exact ⟨by linarith, by linarith⟩
+    exact ⟨by cast_linarith [h5, h1], by cast_linarith⟩
   · have hF : ringChar (ZMod p) ≠ 2 := by rwa [ZMod.ringChar_zmod_n]
     have h := abs_natCard_point_sub_le hF W
     rw [ZMod.card] at h

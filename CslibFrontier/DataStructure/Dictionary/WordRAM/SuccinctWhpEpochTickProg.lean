@@ -8,11 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSmallCsrProg
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Common
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Tick
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.CheckOk
+import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg
 import CslibFrontier.Tactic.Realize
 
 /-!
