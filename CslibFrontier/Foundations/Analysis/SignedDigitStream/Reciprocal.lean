@@ -10,10 +10,6 @@ module
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Multiplication
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.PolynomialSwitch
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.RationalRamp
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Early-word reciprocal and normalized smooth estimators on signed-digit streams
