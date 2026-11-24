@@ -58,13 +58,13 @@ theorem modulusBitsScan_inSpace_of_irreducible
   have hin : (fun w => (encNat w).length) ≼ fun w => w + 1 :=
     .of_le fun w => (length_encNat_le_self w).trans (Nat.le_succ w)
   have hw := budget_id hin
-  have hcount := budget_natPow_variable (budget_const (encB := encNat) 2 hin)
+  have hcount := budget_natPow_variable (budget_const (encB := encNat) 2)
     (budget_natSucc hw) (.of_le_linear 6 0 fun w => by
       have hlen := length_encNat_le_self (w + 1)
       have htwo : (encNat 2).length = 2 := rfl
       rw [htwo]
       omega)
-  have harg := budget_prod hw (budget_prod (budget_const (encB := encNat) 0 hin) hcount)
+  have harg := budget_prod hw (budget_prod (budget_const (encB := encNat) 0) hcount)
   have hscan := budget_comp_linear (ComputableInSpace.findCode (modulusTest_inSpace ht)) harg
   exact (budget_optionGetD 0 hscan).of_enc_eq fun w => by
     rw [modulusBitsScan_eq_findCode]

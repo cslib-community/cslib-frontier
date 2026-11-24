@@ -165,8 +165,8 @@ theorem blockWidth_inSpace : ComputableInSpace blockWidth encNat encNat
   have hsize := budget_comp_linear natSize hid
   have hsizeSize := budget_comp_linear natSize hsize
   have hexp := budget_natDiv (budget_natAdd hsize hsizeSize)
-    (budget_const (encB := encNat) 2 (.refl _))
-  refine (budget_natPow_variable (budget_const (encB := encNat) 2 (.refl _)) hexp
+    (budget_const (encB := encNat) 2)
+  refine (budget_natPow_variable (budget_const (encB := encNat) 2) hexp
     (.of_le_linear 4 4 fun T => ?_)).of_enc_eq fun _ => rfl
   have hsize_le := length_encNat_le_self T.size
   have hexp_le : (T.size + T.size.size) / 2 ≤ T.size := by grind [length_encNat_eq_size]

@@ -8,14 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
+-- Reads private `matrixSeed`, `generatedPair`, and unexposed `Xofs.sampleSecretExpansionViews`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
+-- Reads private `publicDraw` and `runSigningProgram` from `PublicPairSigning`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
+-- Reads private `plant_off` and `uniform_plant`, plus unexposed `Xofs.withKeySeedExpansion`.
 import all CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Crypto.Primitives.ByteString.Uniform
 
 /-!

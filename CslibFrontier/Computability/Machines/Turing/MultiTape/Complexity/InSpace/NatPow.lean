@@ -56,7 +56,7 @@ theorem natPow :
       nlinarith
   have hbase := (fst encNat encNat).weaken hin
   have hn := (snd encNat encNat).weaken hin
-  have hinit := budget_prod hbase (budget_const (encB := encNat) 1 hin)
+  have hinit := budget_prod hbase (budget_const (encB := encNat) 1)
   have hstates (q : ℕ × ℕ) (j : ℕ) (hj : j ≤ q.2) :
       (encPair encNat encNat (powStep^[j] (q.1, 1))).length ≤ 2 * B q := by
     rw [iterate_powStep, length_encPair]

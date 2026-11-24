@@ -78,7 +78,7 @@ private theorem finishWeight_inSpace :
   have hctx := SeedDigits.encState_context_budget Context encContext hid
   have hlayer := encContext_layer_budget hctx
   have hacc := SeedDigits.encState_accumulator_budget Context encContext hid
-  have hzero := budget_const (encB := encNat) 0 (.refl fun s => (e s).length)
+  have hzero := budget_const (encIn := e) (Bs := fun s => (e s).length) (encB := encNat) 0
   have hscaled := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hlayer hacc)
   exact (budget_ite (budget_natEq hlayer hzero) hzero hscaled).of_enc_eq fun s => by
     by_cases h : s.context.layer = 0 <;> simp [finishWeight, h]
@@ -244,9 +244,9 @@ private theorem enter_budget {α : Type} {enc : α ↪ List Bool}
     (h : ComputableInSpace loc enc (encLocated Context encContext) budget) :
     ComputableInSpace (fun x => enter (loc x)) enc encRuntimeState budget := by
   have hzero : ComputableInSpace (fun _ : α => 0) enc encNat budget :=
-    (constZero 0).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const 0
   have hflag : ComputableInSpace (fun _ : α => false) enc encBool budget :=
-    (constZero false).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const false
   exact encLocated_mk_budget ScanState encScanState
     (QueryMachine.encLocated_offset_budget Context encContext h)
     (SeedDigits.encState_mk_budget Context encContext
