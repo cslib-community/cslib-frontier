@@ -58,7 +58,10 @@ public section
 
 namespace Mathlib.Tactic.Linarith
 
-/-! ### Casting lemmas used by `castToField` -/
+/-! ### Casting lemmas used by `castToField`
+
+These lemmas stay public: the proof terms that `castToField` builds in a client module name them,
+and a private declaration is not visible from a module that imports this one. -/
 
 variable (K : Type*)
 
@@ -68,8 +71,8 @@ theorem natCast_le_of_le [Semiring K] [PartialOrder K] [IsStrictOrderedRing K] {
   Nat.cast_le.mpr h
 
 /-- A strict comparison `a < b` of natural numbers, cast into `K` as `a + 1 ≤ b`. -/
-theorem natCast_add_one_le_of_lt [Semiring K] [PartialOrder K] [IsStrictOrderedRing K] {a b : ℕ}
-    (h : a < b) : (a : K) + 1 ≤ b := by
+theorem natCast_add_one_le_of_lt [Semiring K] [PartialOrder K] [IsStrictOrderedRing K]
+    {a b : ℕ} (h : a < b) : (a : K) + 1 ≤ b := by
   exact_mod_cast h
 
 /-- An equation `a = b` of natural numbers, cast into `K`. -/
@@ -182,7 +185,8 @@ def castToField : GlobalPreprocessor where
 
 /-- Inserts `castToField` before `natToInt` in a list of preprocessors, or at its front when
 `natToInt` is absent. -/
-def addCastToField (pps : List GlobalBranchingPreprocessor) : List GlobalBranchingPreprocessor :=
+private def addCastToField (pps : List GlobalBranchingPreprocessor) :
+    List GlobalBranchingPreprocessor :=
   if pps.any (·.name == natToInt.name) then
     pps.flatMap fun pp => if pp.name == natToInt.name then [castToField.branching, pp] else [pp]
   else
@@ -217,8 +221,9 @@ syntax (name := castNlinarith) "cast_nlinarith" "!"? linarithArgsRest : tactic
 
 /-- Runs `linarith`, or `nlinarith` when `nonlinear`, with `castToField` among its
 preprocessors. The other arguments are those of the `linarith` syntax. -/
-def evalCastLinarith (nonlinear : Bool) (bang : Bool) (cfg : TSyntax ``Parser.Tactic.optConfig)
-    (only : Bool) (args : Array Term) : TacticM Unit := withMainContext do
+private def evalCastLinarith (nonlinear : Bool) (bang : Bool)
+    (cfg : TSyntax ``Parser.Tactic.optConfig) (only : Bool) (args : Array Term) :
+    TacticM Unit := withMainContext do
   let args ← args.mapM (elabTermWithoutNewMVars `cast_linarith)
   let cfg := (← elabLinarithConfig cfg).updateReducibility bang
   let pps := addCastToField cfg.preprocessors
