@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.Forall2
 import Mathlib.Data.List.GetD
 
@@ -341,11 +342,13 @@ private theorem kleeneOp_eq_ite (op : Op) (l : List (Option Bool)) :
   | and m => simp [Op.toNat, kleeneOp]
   | or m => simp [Op.toNat, kleeneOp]
 
+@[local fun_prop]
 private theorem computableInPolyTime_kleeneAnd :
     ComputableInPolyTime kleeneAnd (encList (encOption encBool)) (encOption encBool) := by
   unfold kleeneAnd
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_kleeneOr :
     ComputableInPolyTime kleeneOr (encList (encOption encBool)) (encOption encBool) := by
   unfold kleeneOr
@@ -355,23 +358,15 @@ private theorem computableInPolyTime_kleeneStep :
     ComputableInPolyTime (fun p : List (Option Bool) × (Op × List ℕ) => kleeneStep p.1 p.2)
       (encPair (encList (encOption encBool)) (Circuit.encGate encOp))
       (encList (encOption encBool)) := by
-  have hp := ComputableInPolyTime.id' (encIn :=
-    encPair (encList (encOption encBool)) (Circuit.encGate encOp))
-  have hvals := hp.fst'
-  have hop : ComputableInPolyTime (fun p : List (Option Bool) × (Op × List ℕ) => p.2.1.toNat)
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encUnary :=
-    hp.snd'.fst'.of_enc_eq fun _ => rfl
+  have hop : ComputableInPolyTime Op.toNat encOp encUnary :=
+    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
   have hargs : ComputableInPolyTime
       (fun p : List (Option Bool) × (Op × List ℕ) => p.2.2.map (p.1.getD · none))
       (encPair (encList (encOption encBool)) (Circuit.encGate encOp))
       (encList (encOption encBool)) := by
-    refine ComputableInPolyTime.mapWithInput hp.snd'.snd' ?_
-    have hq := ComputableInPolyTime.id' (encIn :=
-      encPair (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encNat)
-    exact ComputableInPolyTime.listGetD_binary (encA := encOption encBool) none hq.fst'.fst'
-      hq.snd'
-  have hand := computableInPolyTime_kleeneAnd.comp hargs
-  have hor := computableInPolyTime_kleeneOr.comp hargs
+    refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
+    exact ComputableInPolyTime.listGetD_binary (encA := encOption encBool)
+      (encL := encList (encOption encBool)) none (by fun_prop) (by fun_prop)
   have hnot : ComputableInPolyTime
       (fun p : List (Option Bool) × (Op × List ℕ) =>
         ((p.2.2.map (p.1.getD · none)).headD none).map (!·))
@@ -379,22 +374,8 @@ private theorem computableInPolyTime_kleeneStep :
     (ComputableInPolyTime.of_finite (fun a : Option Bool => a.map (!·))).comp
       ((ComputableInPolyTime.headD (encA := encOption encBool)
         (encL := encList (encOption encBool)) none).comp hargs)
-  have hzero : ComputableInPolyTime
-      (fun p : List (Option Bool) × (Op × List ℕ) => p.2.1.toNat == 0)
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encBool :=
-    ComputableInPolyTime.unary_beq' hop (ComputableInPolyTime.const 0)
-  have hodd : ComputableInPolyTime
-      (fun p : List (Option Bool) × (Op × List ℕ) => p.2.1.toNat % 2 == 1)
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) encBool :=
-    ComputableInPolyTime.unary_beq' (ComputableInPolyTime.unary_mod.comp
-      (hop.prod (ComputableInPolyTime.const 2))) (ComputableInPolyTime.const 1)
-  have hval : ComputableInPolyTime
-      (fun p : List (Option Bool) × (Op × List ℕ) => kleeneOp p.2.1 (p.2.2.map (p.1.getD · none)))
-      (encPair (encList (encOption encBool)) (Circuit.encGate encOp)) (encOption encBool) := by
-    simp only [kleeneOp_eq_ite]
-    exact ComputableInPolyTime.ite' hzero hnot (ComputableInPolyTime.ite' hodd hand hor)
-  exact ComputableInPolyTime.listAppend' hvals
-    (ComputableInPolyTime.cons' hval (ComputableInPolyTime.const []))
+  simp only [kleeneStep, kleeneOp_eq_ite]
+  polytime
 
 /-- **Kleene evaluation is polynomial-time**, for input values and gates computed in polynomial
 time. -/

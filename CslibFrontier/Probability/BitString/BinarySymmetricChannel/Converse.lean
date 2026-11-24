@@ -10,13 +10,11 @@ module
 public import CslibFrontier.Probability.BitString.BinarySymmetricChannel
 public import CslibFrontier.Probability.Entropy.Fano
 public import CslibFrontier.Probability.MutualInformation
-public import Mathlib.Algebra.Order.BigOperators.Expect
 public import Mathlib.Order.Filter.AtTopBot.Defs
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Probability.Entropy.Pi
 import CslibFrontier.Probability.PMF.Event
-import CslibFrontier.Probability.PMF.Map
 import Mathlib.Order.Filter.AtTopBot.Basic
 
 /-!
