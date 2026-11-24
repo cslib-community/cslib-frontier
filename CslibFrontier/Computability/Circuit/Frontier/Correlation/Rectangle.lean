@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
 public import CslibFrontier.Foundations.BooleanAnalysis.QuadraticForm
 public import Mathlib.Algebra.Field.ZMod
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Lindsey
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Chebyshev
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -120,8 +121,7 @@ theorem sq_signedCount_quadForm_rectangle_mul_le (Q : Matrix ι ι (ZMod 2)) (X 
       Nat.card_coe_set_eq, Nat.card_coe_set_eq]
     exact ncard_add_ncard_compl X
   rw [hsum, neg_sq, ncard_rectangle, ← hn, pow_add]
-  push_cast
-  linarith
+  cast_linarith
 
 /-- **Correlation through rectangle classes.** Let `S` be the set where the quadratic form of `Q`
 over `𝔽₂` is true. Let membership in `T` be constant on the classes of `msg`, and let every class

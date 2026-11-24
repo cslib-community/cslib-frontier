@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Convolution
-public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
 public import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Map
 public import Mathlib.MeasureTheory.Group.AddCircle
