@@ -24,7 +24,7 @@ register_result "gibbard-satterthwaite-nisan-reduction" where
   sources := [
     { paper := Nisan2007,
       theorem := "Proposition 9.6, Lemma 9.10, and Lemma 9.11",
-      locator := "§9.2.3–9.2.4, pp. 214–215" }
+      locator := "§9.2.4, pp. 214–215" }
   ]
   theorems := [
     SocialChoice.SocialChoiceFunction.isSingleMonotone_iff_isStrategyProof,
@@ -36,7 +36,7 @@ register_result "gibbard-satterthwaite-nisan-reduction" where
   scope := "Single-voter monotonicity (Definition 9.5) is equivalent to strategy-proofness on \
     arbitrary voter and alternative types, and for finite electorates [Finite V] also to Maskin \
     monotonicity. For finite V and any strategy-proof social choice function f onto A, Nisan's \
-    extension nisanSWF (a ≤_P b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) defines an \
+    extension nisanSWF (a ≽ b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) defines an \
     antisymmetric weak ranking (equivalently strict Ranking A via nisanRanking, Lemma 9.10) \
     satisfying weak Pareto (under [Nonempty V] or [Nontrivial A], discharging the implicit \
     n ≥ 1 assumption when |A| = 1), IIA, and preservation of dictators (Lemma 9.11). Note that \
@@ -48,7 +48,7 @@ register_result "vcg-restricted-domains-and-feasible-bridge" where
   sources := [
     { paper := Nisan2007,
       theorem := "Theorem 9.17, Lemma 9.20, and §9.3.5.1",
-      locator := "§9.3.4–9.3.5.1, pp. 219–220" },
+      locator := "§9.3.3–9.3.5.1, pp. 219–220" },
     { paper := Groves1973, theorem := unverified, locator := unverified },
     { paper := Clarke1971, theorem := unverified, locator := unverified }
   ]
@@ -96,7 +96,7 @@ register_result "revelation-principle-dominant" where
   sources := [
     { paper := Nisan2007,
       theorem := "Proposition 9.23, Proposition 9.25, and Corollary 9.26",
-      locator := "§9.4.1–9.4.2, pp. 223–225" },
+      locator := "§9.4.1–9.4.3, pp. 223–225" },
     { paper := DasguptaHammondMaskin1979, theorem := unverified, locator := unverified }
   ]
   theorems := [
