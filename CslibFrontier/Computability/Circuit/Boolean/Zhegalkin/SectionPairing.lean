@@ -47,25 +47,25 @@ theorem div_lt_ceilDiv {j m p : ℕ} (hj : j < m) (hp : 0 < p) :
 
 /-- Block `q` of width `width` in `Fin k`. -/
 @[expose] def blockIndices (k width q : ℕ) : Finset (Fin k) :=
-  univ.filter fun j : Fin k => j.1 / width = q
+  univ.filter fun j : Fin k => j.val / width = q
 
 theorem sum_card_blockIndices (k width : ℕ) (hw : 0 < width) :
     ∑ q ∈ range (k ⌈/⌉ width), #(blockIndices k width q) = k := by
   simpa only [blockIndices, card_univ, Fintype.card_fin] using
     (card_eq_sum_card_fiberwise (s := univ) (t := range (k ⌈/⌉ width))
-      (f := fun j : Fin k => j.1 / width) fun j _ =>
+      (f := fun j : Fin k => j.val / width) fun j _ =>
         mem_range.mpr (div_lt_ceilDiv j.isLt hw)).symm
 
 theorem card_blockIndices_le (k width q : ℕ) (hw : 0 < width) :
     #(blockIndices k width q) ≤ width := by
-  have hinj : Set.InjOn (fun j : Fin k => (⟨j.1 % width, Nat.mod_lt _ hw⟩ : Fin width))
+  have hinj : Set.InjOn (fun j : Fin k => (⟨j.val % width, Nat.mod_lt _ hw⟩ : Fin width))
       (blockIndices k width q) := by
     intro j₁ hj₁ j₂ hj₂ heq
-    have hq₁ : j₁.1 / width = q := (mem_filter.mp hj₁).2
-    have hq₂ : j₂.1 / width = q := (mem_filter.mp hj₂).2
-    have hm : j₁.1 % width = j₂.1 % width := congrArg Fin.val heq
+    have hq₁ : j₁.val / width = q := (mem_filter.mp hj₁).2
+    have hq₂ : j₂.val / width = q := (mem_filter.mp hj₂).2
+    have hm : j₁.val % width = j₂.val % width := congrArg Fin.val heq
     apply Fin.ext
-    rw [← Nat.div_add_mod j₁.1 width, ← Nat.div_add_mod j₂.1 width, hq₁, hq₂, hm]
+    rw [← Nat.div_add_mod j₁.val width, ← Nat.div_add_mod j₂.val width, hq₁, hq₂, hm]
   exact (card_le_card_of_injOn _ (fun _ _ => mem_univ _) hinj).trans_eq (by simp)
 
 
@@ -87,33 +87,33 @@ variable {Col : Type*} [Fintype Col] {m : ℕ}
 
 /-- Rows in horizontal section `u` that have `true` in column `c`. -/
 @[expose] def activeRows (hasCol : Fin m → Col → Bool) (p u : ℕ) (c : Col) : Finset (Fin m) :=
-  univ.filter fun r : Fin m => r.1 / p = u ∧ hasCol r c = true
+  univ.filter fun r : Fin m => r.val / p = u ∧ hasCol r c = true
 
 /-- Columns in which rows `r₁ < r₂` of section `u` form one of the consecutive pairs of `1`s. -/
 @[expose] def pairedCols (hasCol : Fin m → Col → Bool) (p u : ℕ) (r₁ r₂ : Fin m) : Finset Col :=
   univ.filter fun c : Col =>
     ∃ t : Fin (#(activeRows hasCol p u c) / 2),
       (activeRows hasCol p u c).orderEmbOfFin rfl
-        ⟨2 * t.1, by have := t.isLt; omega⟩ = r₁ ∧
+        ⟨2 * t.val, by have := t.isLt; omega⟩ = r₁ ∧
       (activeRows hasCol p u c).orderEmbOfFin rfl
-        ⟨2 * t.1 + 1, by have := t.isLt; omega⟩ = r₂
+        ⟨2 * t.val + 1, by have := t.isLt; omega⟩ = r₂
 
 /-- Columns in which row `r` is the unique unpaired leftover `1` in its section `r.1 / p`. -/
 @[expose] def oddCols (hasCol : Fin m → Col → Bool) (p : ℕ) (r : Fin m) : Finset Col :=
   univ.filter fun c : Col =>
-    ∃ h : 2 * (#(activeRows hasCol p (r.1 / p) c) / 2) < #(activeRows hasCol p (r.1 / p) c),
-      (activeRows hasCol p (r.1 / p) c).orderEmbOfFin rfl
-        ⟨2 * (#(activeRows hasCol p (r.1 / p) c) / 2), h⟩ = r
+    ∃ h : 2 * (#(activeRows hasCol p (r.val / p) c) / 2) < #(activeRows hasCol p (r.val / p) c),
+      (activeRows hasCol p (r.val / p) c).orderEmbOfFin rfl
+        ⟨2 * (#(activeRows hasCol p (r.val / p) c) / 2), h⟩ = r
 
 theorem mem_pairedCols_imp {hasCol : Fin m → Col → Bool} {p u : ℕ} {r₁ r₂ : Fin m}
     {c : Col} (hc : c ∈ pairedCols hasCol p u r₁ r₂) :
-    r₁ < r₂ ∧ r₁.1 / p = u ∧ r₂.1 / p = u ∧ hasCol r₁ c = true ∧ hasCol r₂ c = true := by
+    r₁ < r₂ ∧ r₁.val / p = u ∧ r₂.val / p = u ∧ hasCol r₁ c = true ∧ hasCol r₂ c = true := by
   unfold pairedCols at hc
   rw [mem_filter] at hc
   obtain ⟨_, t, hr₁, hr₂⟩ := hc
   let S := activeRows hasCol p u c
-  have ht_lt : t.1 < #S / 2 := t.isLt
-  have hlt : (⟨2 * t.1, by omega⟩ : Fin #S) < ⟨2 * t.1 + 1, by omega⟩ := by simp
+  have ht_lt : t.val < #S / 2 := t.isLt
+  have hlt : (⟨2 * t.val, by omega⟩ : Fin #S) < ⟨2 * t.val + 1, by omega⟩ := by simp
   have hord : r₁ < r₂ := hr₁ ▸ hr₂ ▸ (S.orderEmbOfFin rfl).strictMono hlt
   have hm₁ : r₁ ∈ S := hr₁ ▸ S.orderEmbOfFin_mem rfl _
   have hm₂ : r₂ ∈ S := hr₂ ▸ S.orderEmbOfFin_mem rfl _
@@ -124,24 +124,24 @@ theorem mem_pairedCols_imp {hasCol : Fin m → Col → Bool} {p u : ℕ} {r₁ r
 theorem mem_oddCols_imp {hasCol : Fin m → Col → Bool} {p : ℕ} {r : Fin m} {c : Col}
     (hc : c ∈ oddCols hasCol p r) : hasCol r c = true := by
   obtain ⟨_, h, hr⟩ := mem_filter.mp hc
-  set S := activeRows hasCol p (r.1 / p) c
+  set S := activeRows hasCol p (r.val / p) c
   have hm : S.orderEmbOfFin rfl ⟨2 * (#S / 2), h⟩ ∈ S := S.orderEmbOfFin_mem rfl _
   rw [hr] at hm
   exact (mem_filter.mp hm).2.2
 
 /-- Other rows in the same horizontal section of height `p` as row `r`. -/
 @[expose] def sectionPeers (p : ℕ) (r : Fin m) : Finset (Fin m) :=
-  univ.filter fun r' : Fin m => r'.1 / p = r.1 / p ∧ r' ≠ r
+  univ.filter fun r' : Fin m => r'.val / p = r.val / p ∧ r' ≠ r
 
 theorem card_sectionPeers_le {p : ℕ} (hp : 0 < p) (r : Fin m) :
     #(sectionPeers p r) ≤ p - 1 := by
-  have hpeers_eq : sectionPeers p r = (blockIndices m p (r.1 / p)).erase r := by
+  have hpeers_eq : sectionPeers p r = (blockIndices m p (r.val / p)).erase r := by
     ext r'
     simp only [sectionPeers, blockIndices, mem_filter, mem_univ, true_and, mem_erase]
     tauto
-  have hr_mem : r ∈ blockIndices m p (r.1 / p) := mem_filter.mpr ⟨mem_univ r, rfl⟩
+  have hr_mem : r ∈ blockIndices m p (r.val / p) := mem_filter.mpr ⟨mem_univ r, rfl⟩
   rw [hpeers_eq, card_erase_of_mem hr_mem]
-  exact Nat.sub_le_sub_right (card_blockIndices_le m p (r.1 / p) hp) 1
+  exact Nat.sub_le_sub_right (card_blockIndices_le m p (r.val / p) hp) 1
 
 /-- Every row's active columns partition into its paired columns with peers in the same section and
 its odd-leftover columns. This holds in any additive commutative monoid, without cancellation. -/
@@ -149,11 +149,11 @@ theorem sum_filter_hasCol_eq {G : Type*} [AddCommMonoid G]
     (hasCol : Fin m → Col → Bool) (p : ℕ) (val : Col → G) (r : Fin m) :
     (∑ c with hasCol r c = true, val c) =
       (∑ r' ∈ sectionPeers p r,
-        ∑ c ∈ pairedCols hasCol p (r.1 / p) (min r r') (max r r'), val c) +
+        ∑ c ∈ pairedCols hasCol p (r.val / p) (min r r') (max r r'), val c) +
       ∑ c ∈ oddCols hasCol p r, val c := by
   classical
   let peerSet (r' : Fin m) : Finset Col :=
-    pairedCols hasCol p (r.1 / p) (min r r') (max r r')
+    pairedCols hasCol p (r.val / p) (min r r') (max r r')
   have hdisj_peers : (sectionPeers p r : Set (Fin m)).PairwiseDisjoint peerSet := by
     intro r₁ hr₁ r₂ hr₂ hne
     change Disjoint (peerSet r₁) (peerSet r₂)
@@ -163,20 +163,20 @@ theorem sum_filter_hasCol_eq {G : Type*} [AddCommMonoid G]
     rw [mem_filter] at hc₁ hc₂
     obtain ⟨_, t₁, ha₁, hb₁⟩ := hc₁
     obtain ⟨_, t₂, ha₂, hb₂⟩ := hc₂
-    let S := activeRows hasCol p (r.1 / p) c
+    let S := activeRows hasCol p (r.val / p) c
     let emb := S.orderEmbOfFin rfl
-    have ht₁_lt : t₁.1 < #S / 2 := t₁.isLt
-    have ht₂_lt : t₂.1 < #S / 2 := t₂.isLt
-    have ha₁' : emb ⟨2 * t₁.1, by omega⟩ = min r r₁ := ha₁
-    have hb₁' : emb ⟨2 * t₁.1 + 1, by omega⟩ = max r r₁ := hb₁
-    have ha₂' : emb ⟨2 * t₂.1, by omega⟩ = min r r₂ := ha₂
-    have hb₂' : emb ⟨2 * t₂.1 + 1, by omega⟩ = max r r₂ := hb₂
-    have h₁ : r = emb ⟨2 * t₁.1, by omega⟩ ∨ r = emb ⟨2 * t₁.1 + 1, by omega⟩ := by
+    have ht₁_lt : t₁.val < #S / 2 := t₁.isLt
+    have ht₂_lt : t₂.val < #S / 2 := t₂.isLt
+    have ha₁' : emb ⟨2 * t₁.val, by omega⟩ = min r r₁ := ha₁
+    have hb₁' : emb ⟨2 * t₁.val + 1, by omega⟩ = max r r₁ := hb₁
+    have ha₂' : emb ⟨2 * t₂.val, by omega⟩ = min r r₂ := ha₂
+    have hb₂' : emb ⟨2 * t₂.val + 1, by omega⟩ = max r r₂ := hb₂
+    have h₁ : r = emb ⟨2 * t₁.val, by omega⟩ ∨ r = emb ⟨2 * t₁.val + 1, by omega⟩ := by
       rcases min_cases r r₁ with ⟨hm, _⟩ | ⟨hm, _⟩
       · exact Or.inl (ha₁'.trans hm).symm
       · have hM : max r r₁ = r := max_eq_left (min_eq_right_iff.mp hm)
         exact Or.inr (hb₁'.trans hM).symm
-    have h₂ : r = emb ⟨2 * t₂.1, by omega⟩ ∨ r = emb ⟨2 * t₂.1 + 1, by omega⟩ := by
+    have h₂ : r = emb ⟨2 * t₂.val, by omega⟩ ∨ r = emb ⟨2 * t₂.val + 1, by omega⟩ := by
       rcases min_cases r r₂ with ⟨hm, _⟩ | ⟨hm, _⟩
       · exact Or.inl (ha₂'.trans hm).symm
       · have hM : max r r₂ = r := max_eq_left (min_eq_right_iff.mp hm)
@@ -228,17 +228,17 @@ theorem sum_filter_hasCol_eq {G : Type*} [AddCommMonoid G]
     rw [mem_filter] at hc_p hc_odd
     obtain ⟨_, t, ha, hb⟩ := hc_p
     obtain ⟨_, hodd_lt, hodd_eq⟩ := hc_odd
-    let S := activeRows hasCol p (r.1 / p) c
+    let S := activeRows hasCol p (r.val / p) c
     let emb := S.orderEmbOfFin rfl
-    have ht_lt : t.1 < #S / 2 := t.isLt
+    have ht_lt : t.val < #S / 2 := t.isLt
     rcases min_cases r r' with ⟨hm, _⟩ | ⟨hm, _⟩
-    · have heq : emb ⟨2 * t.1, by omega⟩ = emb ⟨2 * (#S / 2), hodd_lt⟩ :=
+    · have heq : emb ⟨2 * t.val, by omega⟩ = emb ⟨2 * (#S / 2), hodd_lt⟩ :=
         (ha.trans hm).trans hodd_eq.symm
       have hv := congrArg Fin.val (emb.injective heq)
       dsimp only at hv
       omega
     · have hM : max r r' = r := max_eq_left (min_eq_right_iff.mp hm)
-      have heq : emb ⟨2 * t.1 + 1, by omega⟩ = emb ⟨2 * (#S / 2), hodd_lt⟩ :=
+      have heq : emb ⟨2 * t.val + 1, by omega⟩ = emb ⟨2 * (#S / 2), hodd_lt⟩ :=
         (hb.trans hM).trans hodd_eq.symm
       have hv := congrArg Fin.val (emb.injective heq)
       dsimp only at hv
@@ -249,41 +249,41 @@ theorem sum_filter_hasCol_eq {G : Type*} [AddCommMonoid G]
   simp only [mem_filter, mem_univ, true_and, mem_union, mem_biUnion]
   constructor
   · intro hc
-    set S := activeRows hasCol p (r.1 / p) c with hS_def
+    set S := activeRows hasCol p (r.val / p) c with hS_def
     let emb := S.orderEmbOfFin rfl
     have hrS : r ∈ S := mem_filter.mpr ⟨mem_univ r, rfl, hc⟩
     have hrRange : r ∈ Set.range emb := by rwa [range_orderEmbOfFin]
     obtain ⟨idx, hidx⟩ := hrRange
-    by_cases hlt : idx.1 < 2 * (#S / 2)
+    by_cases hlt : idx.val < 2 * (#S / 2)
     · refine Or.inl ?_
-      let t : Fin (#S / 2) := ⟨idx.1 / 2, by omega⟩
-      by_cases heven : idx.1 % 2 = 0
-      · let r' := emb ⟨2 * t.1 + 1, by have := t.isLt; omega⟩
-        have hr_eq : emb ⟨2 * t.1, by have := t.isLt; omega⟩ = r := by
+      let t : Fin (#S / 2) := ⟨idx.val / 2, by omega⟩
+      by_cases heven : idx.val % 2 = 0
+      · let r' := emb ⟨2 * t.val + 1, by have := t.isLt; omega⟩
+        have hr_eq : emb ⟨2 * t.val, by have := t.isLt; omega⟩ = r := by
           refine (congrArg emb ?_).trans hidx
           exact Fin.ext (by dsimp [t]; omega)
         have hlt_rr' : r < r' := by
           rw [← hr_eq]
-          exact emb.strictMono (by simp : (⟨2 * t.1, _⟩ : Fin #S) < ⟨2 * t.1 + 1, _⟩)
+          exact emb.strictMono (by simp : (⟨2 * t.val, _⟩ : Fin #S) < ⟨2 * t.val + 1, _⟩)
         have hr'S : r' ∈ S := S.orderEmbOfFin_mem rfl _
         refine ⟨r', mem_filter.mpr ⟨mem_univ r', (mem_filter.mp hr'S).2.1, hlt_rr'.ne'⟩, ?_⟩
         dsimp only [peerSet]
         rw [min_eq_left hlt_rr'.le, max_eq_right hlt_rr'.le]
         exact mem_filter.mpr ⟨mem_univ c, t, hr_eq, rfl⟩
-      · let r' := emb ⟨2 * t.1, by have := t.isLt; omega⟩
-        have hr_eq : emb ⟨2 * t.1 + 1, by have := t.isLt; omega⟩ = r := by
+      · let r' := emb ⟨2 * t.val, by have := t.isLt; omega⟩
+        have hr_eq : emb ⟨2 * t.val + 1, by have := t.isLt; omega⟩ = r := by
           refine (congrArg emb ?_).trans hidx
           exact Fin.ext (by dsimp [t]; omega)
         have hlt_r'r : r' < r := by
           rw [← hr_eq]
-          exact emb.strictMono (by simp : (⟨2 * t.1, _⟩ : Fin #S) < ⟨2 * t.1 + 1, _⟩)
+          exact emb.strictMono (by simp : (⟨2 * t.val, _⟩ : Fin #S) < ⟨2 * t.val + 1, _⟩)
         have hr'S : r' ∈ S := S.orderEmbOfFin_mem rfl _
         refine ⟨r', mem_filter.mpr ⟨mem_univ r', (mem_filter.mp hr'S).2.1, hlt_r'r.ne⟩, ?_⟩
         dsimp only [peerSet]
         rw [min_eq_right hlt_r'r.le, max_eq_left hlt_r'r.le]
         exact mem_filter.mpr ⟨mem_univ c, t, rfl, hr_eq⟩
     · refine Or.inr ?_
-      have hidx_eq : idx.1 = 2 * (#S / 2) := by
+      have hidx_eq : idx.val = 2 * (#S / 2) := by
         have := idx.isLt
         omega
       have hodd_lt : 2 * (#S / 2) < #S := hidx_eq ▸ idx.isLt
@@ -313,8 +313,8 @@ theorem two_mul_sum_card_pairedCols_le (hasCol : Fin m → Col → Bool) {p : �
     refine sum_congr rfl fun c _ => ?_
     set S := activeRows hasCol p u c
     let f : Fin (#S / 2) → Fin m × Fin m := fun t =>
-      (S.orderEmbOfFin rfl ⟨2 * t.1, by have := t.isLt; omega⟩,
-        S.orderEmbOfFin rfl ⟨2 * t.1 + 1, by have := t.isLt; omega⟩)
+      (S.orderEmbOfFin rfl ⟨2 * t.val, by have := t.isLt; omega⟩,
+        S.orderEmbOfFin rfl ⟨2 * t.val + 1, by have := t.isLt; omega⟩)
     have hf_inj : Function.Injective f := by
       intro t₁ t₂ heq
       have h₁ := congrArg Prod.fst heq
@@ -325,8 +325,8 @@ theorem two_mul_sum_card_pairedCols_le (hasCol : Fin m → Col → Bool) {p : �
     have hsum_img :
         (∑ pair : Fin m × Fin m,
           if ∃ t : Fin (#S / 2),
-            S.orderEmbOfFin rfl ⟨2 * t.1, by have := t.isLt; omega⟩ = pair.1 ∧
-            S.orderEmbOfFin rfl ⟨2 * t.1 + 1, by have := t.isLt; omega⟩ = pair.2
+            S.orderEmbOfFin rfl ⟨2 * t.val, by have := t.isLt; omega⟩ = pair.1 ∧
+            S.orderEmbOfFin rfl ⟨2 * t.val + 1, by have := t.isLt; omega⟩ = pair.2
           then 1 else 0) = #(univ.image f) := by
       rw [sum_boole, Nat.cast_id]
       congr 1
@@ -347,7 +347,7 @@ theorem two_mul_sum_card_pairedCols_le (hasCol : Fin m → Col → Bool) {p : �
         refine sum_congr rfl fun c _ => ?_
         have hpart := card_eq_sum_card_fiberwise
           (s := univ.filter fun r : Fin m => hasCol r c = true)
-          (t := range (m ⌈/⌉ p)) (f := fun r : Fin m => r.1 / p)
+          (t := range (m ⌈/⌉ p)) (f := fun r : Fin m => r.val / p)
           fun r _ => mem_range.mpr (div_lt_ceilDiv r.isLt hp)
         rw [hpart]
         refine sum_congr rfl fun u _ => congrArg card ?_
@@ -364,28 +364,28 @@ theorem sum_card_oddCols_le (hasCol : Fin m → Col → Bool) {p : ℕ} (hp : 0 
   rw [← sum_fiberwise_of_maps_to (t := range (m ⌈/⌉ p))
     fun r _ => mem_range.mpr (div_lt_ceilDiv r.isLt hp)]
   calc ∑ u ∈ range (m ⌈/⌉ p),
-        ∑ r ∈ univ.filter (fun r : Fin m => r.1 / p = u), #(oddCols hasCol p r)
+        ∑ r ∈ univ.filter (fun r : Fin m => r.val / p = u), #(oddCols hasCol p r)
       ≤ ∑ _u ∈ range (m ⌈/⌉ p), Fintype.card Col := by
         refine sum_le_sum fun u _ => ?_
         simp only [oddCols, card_filter]
         rw [sum_comm]
-        calc ∑ c : Col, ∑ r ∈ univ.filter (fun r : Fin m => r.1 / p = u),
-              (if ∃ h : 2 * (#(activeRows hasCol p (r.1 / p) c) / 2) <
-                  #(activeRows hasCol p (r.1 / p) c),
-                (activeRows hasCol p (r.1 / p) c).orderEmbOfFin rfl ⟨_, h⟩ = r then 1 else 0)
+        calc ∑ c : Col, ∑ r ∈ univ.filter (fun r : Fin m => r.val / p = u),
+              (if ∃ h : 2 * (#(activeRows hasCol p (r.val / p) c) / 2) <
+                  #(activeRows hasCol p (r.val / p) c),
+                (activeRows hasCol p (r.val / p) c).orderEmbOfFin rfl ⟨_, h⟩ = r then 1 else 0)
             ≤ ∑ _c : Col, 1 := by
               refine sum_le_sum fun c _ => ?_
               let S := activeRows hasCol p u c
               by_cases hlt : 2 * (#S / 2) < #S
               · let r₀ := S.orderEmbOfFin rfl ⟨2 * (#S / 2), hlt⟩
-                have hr₀_sec : r₀.1 / p = u := (mem_filter.mp (S.orderEmbOfFin_mem rfl _)).2.1
+                have hr₀_sec : r₀.val / p = u := (mem_filter.mp (S.orderEmbOfFin_mem rfl _)).2.1
                 rw [sum_eq_single r₀]
                 · simp only [hr₀_sec]
                   split_ifs
                   · exact le_rfl
                   · exact Nat.zero_le 1
                 · intro r hr hne
-                  have hr_u : r.1 / p = u := (mem_filter.mp hr).2
+                  have hr_u : r.val / p = u := (mem_filter.mp hr).2
                   rw [ite_eq_right]
                   rintro ⟨h', heq⟩
                   simp only [hr_u] at h' heq
@@ -395,7 +395,7 @@ theorem sum_card_oddCols_le (hasCol : Fin m → Col → Bool) {p : ℕ} (hp : 0 
               · rw [sum_eq_zero]
                 · exact Nat.zero_le 1
                 · intro r hr
-                  have hr_u : r.1 / p = u := (mem_filter.mp hr).2
+                  have hr_u : r.val / p = u := (mem_filter.mp hr).2
                   rw [ite_eq_right]
                   rintro ⟨h', _⟩
                   simp only [hr_u] at h'

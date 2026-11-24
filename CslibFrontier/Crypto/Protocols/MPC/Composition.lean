@@ -746,8 +746,8 @@ theorem Protocol.realJoint_compose {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
     (P.compose Sub).realJoint W₂ I x =
       (P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
         (ProbComp.eval (expandSimSteps S₂ I P.steps
-          (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
-            (fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
+          (fun i => (x i.val, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
+            (fun i : I => ⟨x i.val, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
   symm
   simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
     Protocol.compose, eval_pi_pair, Steps.evalWith_mapState, Steps.outputAt_mapState,

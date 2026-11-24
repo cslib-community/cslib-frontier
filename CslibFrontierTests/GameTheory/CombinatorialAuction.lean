@@ -318,7 +318,7 @@ example : let v : Unit → Finset Unit → ℝ := fun _ S => if S = ∅ then -5 
   have hdem := hp.demand () {()}
   rw [hbundle] at hdem
   simp only [Finset.sum_singleton, Finset.sum_empty, sub_zero, hp0, v, ↓reduceIte,
-    Finset.singleton_ne_empty] at hdem
+    (Finset.singleton_nonempty _).ne_empty] at hdem
   linarith
 
 /-- **Counterexample 3 (backward Corollary 11.16)**: shifting `noEquilibriumVal` by `-10` yields a

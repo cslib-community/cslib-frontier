@@ -80,8 +80,8 @@ simulators `S₂` (`expandSimSteps`) and runs `D` on the result. -/
       (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool)
     (r : ((i : I) → PartyView In Coins₁ sc₁ i) × ((i : Fin m) → Out i)) : ProbComp Bool := do
   let sub ← expandSimSteps S₂ I P.steps
-    (fun i => (x i.1, (r.1 i).coins)) (fun i => (r.1 i).received)
-  D (fun i => ⟨x i.1, ((r.1 i).coins, (sub i).1), (sub i).2⟩, r.2)
+    (fun i => (x i.val, (r.1 i).coins)) (fun i => (r.1 i).received)
+  D (fun i => ⟨x i.val, ((r.1 i).coins, (sub i).1), (sub i).2⟩, r.2)
 
 /-- **Ideal to hybrid.** The ideal game of a composed protocol with the composed simulator
 `composeSim P S₁ S₂` against `D` is the ideal game of the outer protocol with `S₁` against the

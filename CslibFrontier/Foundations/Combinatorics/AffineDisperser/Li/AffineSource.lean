@@ -458,7 +458,7 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
     fun c i => ⟨finrank Bool (W i), blockSlice_codim_le V_flat eB (hdim_flat ▸ hr) i,
       _, _, by rw [AffineSubspace.direction_mk'], rfl⟩, ?_⟩
   have hpi (c : C_flat) : PMF.pi (P c) = (PMF.uniformOfFintype (∀ i : Fin t, W i)).map
-      fun w i => x₀ i + piBlocksLinearEquiv b c.1 i + (w i).1 := by
+      fun w i => x₀ i + piBlocksLinearEquiv b c.val i + (w i).val := by
     have : P c = fun i => (PMF.uniformOfFintype (W i)).map
         fun w => x₀ i + piBlocksLinearEquiv b c.val i + w.val :=
       funext fun i => uniformAffine_mk'_eq_map _ (W i)
@@ -469,7 +469,7 @@ theorem affineBlockDecomposition {t r k : ℕ} {b : Fin t → ℕ}
   funext i
   symm
   change (piBlocksLinearEquiv b
-    (x₀_flat + (cw.1.1 + (piBlocksLinearEquiv b).symm fun j => (cw.2 j).1))) i = _
+    (x₀_flat + (cw.1.val + (piBlocksLinearEquiv b).symm fun j => (cw.2 j).val))) i = _
   simp only [map_add, (piBlocksLinearEquiv b).apply_symm_apply, Pi.add_apply, x₀, add_assoc]
 
 /-! ### Bridges from affine and sumset extractors to `IsAffineDisperser` ([Li2023, Cor. 7.14]) -/

@@ -295,8 +295,8 @@ private def points11 : Fin 11 → ZMod 11 := fun i => (i : ℕ)
 
 private theorem points11_injective : Function.Injective points11 := by
   intro i j h
-  have : (i.1 : ZMod 11).val = (j.1 : ZMod 11).val := congrArg ZMod.val h
-  rw [ZMod.val_natCast_of_lt i.2, ZMod.val_natCast_of_lt j.2] at this
+  have : (i.val : ZMod 11).val = (j.val : ZMod 11).val := congrArg ZMod.val h
+  rw [ZMod.val_natCast_of_lt i.isLt, ZMod.val_natCast_of_lt j.isLt] at this
   exact Fin.ext this
 
 /-- Over `ZMod 11`, the `[11, 3, 9]` Reed–Solomon code uniquely decodes up to `e = 4` errors, and

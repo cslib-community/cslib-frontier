@@ -981,7 +981,7 @@ theorem IsOligopolyEquilibrium.price_le_mul_deriv_add_markup {d R : ℝ}
     obtain ⟨t, ht0, _, hteq, htsmall⟩ := exists_pos_step_sub_eq
       (h.zero_at_zero q) (h.monotoneOn q) (h.continuousOn q) hxq hμ0 hμ_lt_lq
     exact ⟨t, ht0, htsmall (rStep q) (hrStep_pos q hq) (hrStep_lt_x q hq).le hμ_lt_r, hteq⟩
-  choose dq hdq using fun q : compSet => hex_dq q.1 q.2
+  choose dq hdq using fun q : compSet => hex_dq q.val q.property
   let step : Link → ℝ := fun k => if hk : k ∈ compSet then dq ⟨k, hk⟩ else 0
   have hstep_pos : ∀ q ∈ compSet, 0 < step q := fun q hq => by
     simp only [step, hq, ↓reduceDIte]; exact (hdq ⟨q, hq⟩).1
@@ -1191,7 +1191,7 @@ theorem IsOligopolyEquilibrium.price_eq_min_markup {d R : ℝ}
           obtain ⟨t, ht0, _, hteq, htsmall⟩ := exists_pos_step_add_eq
             (h.monotoneOn q) (h.continuousOn q) (hoe.2.1.1.1 q) hμ0 (by linarith)
           exact ⟨t, ht0, htsmall rStep hrStep_pos hμ_lt_q, hteq⟩
-        choose dq hdq using fun q : compSet => hex_dq q.1 q.2
+        choose dq hdq using fun q : compSet => hex_dq q.val q.property
         let step : Link → ℝ := fun k => if hk : k ∈ compSet then dq ⟨k, hk⟩ else 0
         have hstep_pos : ∀ q ∈ compSet, 0 < step q := fun q hq => by
           simp only [step, hq, ↓reduceDIte]; exact (hdq ⟨q, hq⟩).1
@@ -2715,7 +2715,7 @@ theorem IsElasticOligopolyEquilibrium.mul_latencyDeriv_le_price {Link : Type*} [
     obtain ⟨t, ht0, _, hteq, htsmall⟩ := exists_pos_step_add_eq
       (hl.monotoneOn q) (hl.continuousOn q) (hoe.2.1.1 q) hμ0 (by linarith [hμ_Q q hq])
     exact ⟨t, ht0, htsmall rStep hrStep_pos (hμ_Q q hq), hteq⟩
-  choose dq hdq using fun q : Q0 => hex_dq q.1 q.2
+  choose dq hdq using fun q : Q0 => hex_dq q.val q.property
   let step : Link → ℝ := fun k => if hk : k ∈ Q0 then dq ⟨k, hk⟩ else 0
   have hstep_pos : ∀ q ∈ Q0, 0 < step q := fun q hq => by
     simp only [step, hq, ↓reduceDIte]; exact (hdq ⟨q, hq⟩).1
@@ -3251,7 +3251,7 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
     obtain ⟨t, ht0, _, hteq, htsmall⟩ := exists_pos_step_sub_eq
       (hl.zero_at_zero q) (hl.monotoneOn q) (hl.continuousOn q) hxq hμ0 hμ_lt_lq
     exact ⟨t, ht0, htsmall (rStep q) (hrStep_pos q hq) (hrStep_lt_x q hq).le (hμ_Q q hq), hteq⟩
-  choose dq hdq using fun q : compSet => hex_dq q.1 q.2
+  choose dq hdq using fun q : compSet => hex_dq q.val q.property
   let step : Link → ℝ := fun k => if hk : k ∈ compSet then dq ⟨k, hk⟩ else 0
   have hstep_pos : ∀ q ∈ compSet, 0 < step q := fun q hq => by
     simp only [step, hq, ↓reduceDIte]; exact (hdq ⟨q, hq⟩).1

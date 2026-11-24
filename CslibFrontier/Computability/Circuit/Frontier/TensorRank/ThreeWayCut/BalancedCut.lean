@@ -370,11 +370,11 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       dsimp [h]; exact_mod_cast (Nat.zero_lt_of_lt hM_lt_V)
     set thr : ℝ := η * h
     have hthr_pos : 0 < thr := by positivity
-    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.1}).ncard : ℝ)
+    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.val}).ncard : ℝ)
     have haWt_bounds (B : cmp.blocks) : 0 ≤ aWt B ∧ aWt B ≤ M := by
       refine ⟨Nat.cast_nonneg _, ?_⟩
-      have hsub : A ∩ {v : V | v ∈ B.1} ⊆ {v : V | v ∈ B.1} := inter_subset_right
-      have hle_len : (A ∩ {v : V | v ∈ B.1}).ncard ≤ cmp.blockWeight B := by
+      have hsub : A ∩ {v : V | v ∈ B.val} ⊆ {v : V | v ∈ B.val} := inter_subset_right
+      have hle_len : (A ∩ {v : V | v ∈ B.val}).ncard ≤ cmp.blockWeight B := by
         refine (ncard_le_ncard hsub (toFinite _)).trans ?_
         rw [cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
         simp

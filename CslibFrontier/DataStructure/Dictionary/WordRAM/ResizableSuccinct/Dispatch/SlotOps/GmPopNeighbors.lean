@@ -250,7 +250,7 @@ private theorem realizesBounded_compGmReadMovedMeta :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, p_last⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hp_last_cap⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     have hownB_last_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
     have hownS_last_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
       gmSlabOwnerSIdx_lt hb_pos hp_last_cap

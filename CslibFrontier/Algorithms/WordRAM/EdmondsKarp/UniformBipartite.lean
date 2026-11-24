@@ -93,34 +93,34 @@ private theorem length_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r →
 
 private theorem getElem_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r → Bool)
     (u : Fin m) (v : Fin r) :
-    (encodeBipartiteMatrix G)[u.1 * r + v.1]'(by
+    (encodeBipartiteMatrix G)[u.val * r + v.val]'(by
       rw [length_encodeBipartiteMatrix]
-      exact Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2) =
+      exact Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt) =
       if G (u, v) then 1 else 0 := by
   have hlen : ∀ x ∈ List.finRange m,
       ((List.finRange r).map fun w => if G (x, w) then 1 else 0).length = r := fun _ _ => by
     simp
   have hq := List.getElem?_flatMap_mul_add (List.finRange m)
     (fun x => (List.finRange r).map fun w => if G (x, w) then 1 else 0) r hlen
-    (i := u.1) (j := v.1) (by simp [u.2]) v.2
-  have hlt : u.1 * r + v.1 < (encodeBipartiteMatrix G).length := by
+    (i := u.val) (j := v.val) (by simp [u.isLt]) v.isLt
+  have hlt : u.val * r + v.val < (encodeBipartiteMatrix G).length := by
     rw [length_encodeBipartiteMatrix]
-    exact Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
-  have h1 : (encodeBipartiteMatrix G)[u.1 * r + v.1]? = some (if G (u, v) then 1 else 0) := by
+    exact Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
+  have h1 : (encodeBipartiteMatrix G)[u.val * r + v.val]? = some (if G (u, v) then 1 else 0) := by
     simpa [encodeBipartiteMatrix] using hq
   rw [List.getElem?_eq_getElem hlt] at h1
   exact Option.some.inj h1
 
 private theorem bmInit_mem_edge {m r : ℕ} (G : Fin m × Fin r → Bool) (u : Fin m) (v : Fin r) :
-    (Memory.State.init (encodeBipartiteInput G)).mem (3 + u.1 * r + v.1) =
+    (Memory.State.init (encodeBipartiteInput G)).mem (3 + u.val * r + v.val) =
       if G (u, v) then 1 else 0 := by
-  have hlt : u.1 * r + v.1 < (encodeBipartiteMatrix G).length := by
+  have hlt : u.val * r + v.val < (encodeBipartiteMatrix G).length := by
     rw [length_encodeBipartiteMatrix]
-    exact Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
-  change (if 3 + u.1 * r + v.1 = 0 then (encodeBipartiteInput G).length
-    else (encodeBipartiteInput G).getD (3 + u.1 * r + v.1 - 1) 0) = _
-  rw [ite_eq_right (by omega), show 3 + u.1 * r + v.1 - 1 = (u.1 * r + v.1) + 2 by omega]
-  change (encodeBipartiteMatrix G).getD (u.1 * r + v.1) 0 = _
+    exact Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
+  change (if 3 + u.val * r + v.val = 0 then (encodeBipartiteInput G).length
+    else (encodeBipartiteInput G).getD (3 + u.val * r + v.val - 1) 0) = _
+  rw [ite_eq_right (by omega), show 3 + u.val * r + v.val - 1 = (u.val * r + v.val) + 2 by omega]
+  change (encodeBipartiteMatrix G).getD (u.val * r + v.val) 0 = _
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some]
   exact getElem_encodeBipartiteMatrix G u v
 
@@ -587,104 +587,107 @@ private theorem validHistory_bmMain {w m r : ℕ} {st : Memory.State}
   exact validHistory_bind_step hcl (validHistory_pure _ _ _)
 
 private theorem bipartiteFinEquiv_val {m r : ℕ} :
-    (bipartiteFinEquiv m r .source).1 = 0 ∧
-    (bipartiteFinEquiv m r .sink).1 = 1 ∧
-    (∀ u : Fin m, (bipartiteFinEquiv m r (.left u)).1 = 2 + u.1) ∧
-    (∀ v : Fin r, (bipartiteFinEquiv m r (.right v)).1 = 2 + m + v.1) := by
+    (bipartiteFinEquiv m r .source).val = 0 ∧
+    (bipartiteFinEquiv m r .sink).val = 1 ∧
+    (∀ u : Fin m, (bipartiteFinEquiv m r (.left u)).val = 2 + u.val) ∧
+    (∀ v : Fin r, (bipartiteFinEquiv m r (.right v)).val = 2 + m + v.val) := by
   refine ⟨rfl, rfl, fun u => ?_, fun v => ?_⟩
   · simp [bipartiteFinEquiv, bipartiteVertexEquiv]
   · simp [bipartiteFinEquiv, bipartiteVertexEquiv]; omega
 
 private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memory.State}
-    (hG : ∀ u : Fin m, ∀ v : Fin r, st.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0) :
+    (hG : ∀ u : Fin m, ∀ v : Fin r, st.mem (3 + u.val * r + v.val) = if G (u, v) then 1 else 0) :
     let st1 := (Memory.spec 0).clientState st
       (fillRange ((bmMatBase m r, 0), bmNodes m r * bmNodes m r))
     let st2 := (Memory.spec 0).clientState st1 (iterate bmSrcStep (m, r) m 0)
     let st3 := (Memory.spec 0).clientState st2 (iterate bmSnkStep (m, r) r 0)
     let st4 := (Memory.spec 0).clientState st3 (iterate bmEdgeOuter (m, r) m 0)
-    (∀ u : Fin m, ∀ v : Fin r, st4.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0) ∧
+    (∀ u : Fin m, ∀ v : Fin r, st4.mem (3 + u.val * r + v.val) = if G (u, v) then 1 else 0) ∧
       ∀ x y : Fin (bmNodes m r),
-        st4.mem (bmMatBase m r + x.1 * bmNodes m r + y.1) = (bipartiteFinNetwork G).cap x y := by
+        st4.mem (bmMatBase m r + x.val * bmNodes m r + y.val) =
+            (bipartiteFinNetwork G).cap x y := by
   intro st1 st2 st3 st4
   have h1 := fillRange_spec (bmMatBase m r) 0 (bmNodes m r * bmNodes m r) st
-  have hG1 : ∀ u : Fin m, ∀ v : Fin r, st1.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
+  have hG1 : ∀ u : Fin m, ∀ v : Fin r, st1.mem (3 + u.val * r + v.val) =
+      if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
+    have hlt : u.val * r + v.val < m * r :=
+        Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
     rw [h1.2 _ (Or.inl (by dsimp only [bmMatBase]; omega))]
     exact hG u v
   have hM1 : ∀ a < bmNodes m r * bmNodes m r, st1.mem (bmMatBase m r + a) = 0 := h1.1
   have h2 := iterate_invariant_of bmSrcStep (m, r)
     (fun rem (k : ℕ) t => k + rem = m ∧
       (∀ a < bmMatBase m r, t.mem a = st1.mem a) ∧
-      (∀ x y : Fin (bmNodes m r), t.mem (bmMatBase m r + x.1 * bmNodes m r + y.1) =
-        if x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + k then 1 else 0))
+      (∀ x y : Fin (bmNodes m r), t.mem (bmMatBase m r + x.val * bmNodes m r + y.val) =
+        if x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + k then 1 else 0))
     (fun rem k t ⟨hsum, hlo, hmat⟩ => by
       unfold bmSrcStep
       rw [clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
       dsimp only
       refine ⟨by omega, fun a ha => ?_, fun x y => ?_⟩
       · rw [Function.update_of_ne (by omega)]; exact hlo a ha
-      · by_cases heq : bmMatBase m r + x.1 * bmNodes m r + y.1 = bmMatBase m r + (2 + k)
+      · by_cases heq : bmMatBase m r + x.val * bmNodes m r + y.val = bmMatBase m r + (2 + k)
         · rw [heq, Function.update_self]
           have hxy := List.fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
             (x₂ := ⟨0, by dsimp only [bmNodes]; omega⟩)
             (y₂ := ⟨2 + k, by dsimp only [bmNodes]; omega⟩) (by dsimp only; omega)
-          have hx0 : x.1 = 0 := congrArg Fin.val hxy.1
-          have hyk : y.1 = 2 + k := congrArg Fin.val hxy.2
+          have hx0 : x.val = 0 := congrArg Fin.val hxy.1
+          have hyk : y.val = 2 + k := congrArg Fin.val hxy.2
           rw [ite_eq_left (by omega)]
         · rw [Function.update_of_ne heq, hmat x y]
-          by_cases hcond : x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + k
+          by_cases hcond : x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + k
           · rw [ite_eq_left hcond, ite_eq_left (by omega)]
           · rw [ite_eq_right hcond, ite_eq_right]
             intro ⟨hx0, hy2, hylt⟩
             apply hcond
             refine ⟨hx0, hy2, ?_⟩
-            by_cases hyk : y.1 = 2 + k
+            by_cases hyk : y.val = 2 + k
             · exfalso; apply heq; rw [hx0, hyk]; simp
             · omega)
     (n := m) (a := 0) (s := st1) ⟨Nat.zero_add _, fun _ _ => rfl, fun x y => by
       rw [ite_eq_right (by omega), Nat.add_assoc]
-      exact hM1 _ (List.mul_add_lt_sq x.2 y.2)⟩
+      exact hM1 _ (List.mul_add_lt_sq x.isLt y.isLt)⟩
   have h2r : (Memory.spec 0).clientResult st1 (iterate bmSrcStep (m, r) m 0) = m := by
     have := h2.1; omega
   have h3 := iterate_invariant_of bmSnkStep (m, r)
     (fun rem (k : ℕ) t => k + rem = r ∧
       (∀ a < bmMatBase m r, t.mem a = st1.mem a) ∧
-      (∀ x y : Fin (bmNodes m r), t.mem (bmMatBase m r + x.1 * bmNodes m r + y.1) =
-        if (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-           (2 + m ≤ x.1 ∧ x.1 < 2 + m + k ∧ y.1 = 1) then 1 else 0))
+      (∀ x y : Fin (bmNodes m r), t.mem (bmMatBase m r + x.val * bmNodes m r + y.val) =
+        if (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+           (2 + m ≤ x.val ∧ x.val < 2 + m + k ∧ y.val = 1) then 1 else 0))
     (fun rem k t ⟨hsum, hlo, hmat⟩ => by
       unfold bmSnkStep
       rw [clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
       dsimp only
       refine ⟨by omega, fun a ha => ?_, fun x y => ?_⟩
       · rw [Function.update_of_ne (by omega)]; exact hlo a ha
-      · by_cases heq : bmMatBase m r + x.1 * bmNodes m r + y.1 =
+      · by_cases heq : bmMatBase m r + x.val * bmNodes m r + y.val =
             bmMatBase m r + (2 + m + k) * bmNodes m r + 1
         · rw [heq, Function.update_self]
           have hxy := List.fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
             (x₂ := ⟨2 + m + k, by dsimp only [bmNodes]; omega⟩)
             (y₂ := ⟨1, by dsimp only [bmNodes]; omega⟩) (by dsimp only; omega)
-          have hxk : x.1 = 2 + m + k := congrArg Fin.val hxy.1
-          have hy1 : y.1 = 1 := congrArg Fin.val hxy.2
+          have hxk : x.val = 2 + m + k := congrArg Fin.val hxy.1
+          have hy1 : y.val = 1 := congrArg Fin.val hxy.2
           rw [ite_eq_left (Or.inr (by omega))]
         · rw [Function.update_of_ne heq, hmat x y]
-          by_cases hcond : (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-              (2 + m ≤ x.1 ∧ x.1 < 2 + m + k ∧ y.1 = 1)
+          by_cases hcond : (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+              (2 + m ≤ x.val ∧ x.val < 2 + m + k ∧ y.val = 1)
           · rw [ite_eq_left hcond, ite_eq_left (hcond.imp id (by omega))]
           · rw [ite_eq_right hcond, ite_eq_right]
             intro hnew
             rcases hnew with hL | ⟨h1, h2, hy1⟩
             · exact hcond (Or.inl hL)
             · apply hcond; right
-              by_cases hxk : x.1 = 2 + m + k
+              by_cases hxk : x.val = 2 + m + k
               · exfalso; apply heq; rw [hxk, hy1]
               · omega)
     (n := r) (a := 0) (s := st2) ⟨Nat.zero_add _, h2.2.1, fun x y => by
       have := h2.2.2 x y
       rw [h2r] at this
       rw [this]
-      by_cases hp : x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m
+      by_cases hp : x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m
       · rw [ite_eq_left hp, ite_eq_left (Or.inl hp)]
       · rw [ite_eq_right hp, ite_eq_right (by omega)]⟩
   have h3r : (Memory.spec 0).clientResult st2 (iterate bmSnkStep (m, r) r 0) = r := by
@@ -692,12 +695,12 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
   have h4 := iterate_invariant_of bmEdgeOuter (m, r)
     (fun rem (ku : ℕ) t => ku + rem = m ∧
       (∀ a < bmMatBase m r, t.mem a = st1.mem a) ∧
-      (∀ x y : Fin (bmNodes m r), t.mem (bmMatBase m r + x.1 * bmNodes m r + y.1) =
-        if (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-           (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1) then 1
-        else if hx : 2 ≤ x.1 ∧ x.1 < 2 + ku ∧ x.1 < 2 + m then
-          if hy : 2 + m ≤ y.1 ∧ y.1 < 2 + m + r then
-            if G (⟨x.1 - 2, by omega⟩, ⟨y.1 - (2 + m), by omega⟩) then 1 else 0
+      (∀ x y : Fin (bmNodes m r), t.mem (bmMatBase m r + x.val * bmNodes m r + y.val) =
+        if (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+           (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1) then 1
+        else if hx : 2 ≤ x.val ∧ x.val < 2 + ku ∧ x.val < 2 + m then
+          if hy : 2 + m ≤ y.val ∧ y.val < 2 + m + r then
+            if G (⟨x.val - 2, by omega⟩, ⟨y.val - (2 + m), by omega⟩) then 1 else 0
           else 0
         else 0))
     (fun rem ku t ⟨hsum, hlo, hmat⟩ => by
@@ -705,15 +708,16 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
       have hinner := iterate_invariant_of bmEdgeInner ((m, r), ku)
         (fun remv (kv : ℕ) t' => kv + remv = r ∧
           (∀ a < bmMatBase m r, t'.mem a = st1.mem a) ∧
-          (∀ x y : Fin (bmNodes m r), t'.mem (bmMatBase m r + x.1 * bmNodes m r + y.1) =
-            if (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-               (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1) then 1
-            else if hx : 2 ≤ x.1 ∧ x.1 < 2 + ku ∧ x.1 < 2 + m then
-              if hy : 2 + m ≤ y.1 ∧ y.1 < 2 + m + r then
-                if G (⟨x.1 - 2, by omega⟩, ⟨y.1 - (2 + m), by omega⟩) then 1 else 0
+          (∀ x y : Fin (bmNodes m r), t'.mem (bmMatBase m r + x.val * bmNodes m r + y.val) =
+            if (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+               (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1) then 1
+            else if hx : 2 ≤ x.val ∧ x.val < 2 + ku ∧ x.val < 2 + m then
+              if hy : 2 + m ≤ y.val ∧ y.val < 2 + m + r then
+                if G (⟨x.val - 2, by omega⟩, ⟨y.val - (2 + m), by omega⟩) then 1 else 0
               else 0
-            else if hx' : x.1 = 2 + ku ∧ 2 + m ≤ y.1 ∧ y.1 < 2 + m + kv ∧ y.1 < 2 + m + r then
-              if G (⟨ku, hku⟩, ⟨y.1 - (2 + m), by omega⟩) then 1 else 0
+            else if hx' : x.val = 2 + ku ∧ 2 + m ≤ y.val ∧ y.val < 2 + m + kv ∧
+                y.val < 2 + m + r then
+              if G (⟨ku, hku⟩, ⟨y.val - (2 + m), by omega⟩) then 1 else 0
             else 0))
         (fun remv kv t' ⟨hsumv, hlo', hmat'⟩ => by
           have hkv : kv < r := by omega
@@ -728,47 +732,49 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
           dsimp only
           refine ⟨by omega, fun a ha => ?_, fun x y => ?_⟩
           · rw [Function.update_of_ne (by omega)]; exact hlo' a ha
-          · by_cases heq : bmMatBase m r + x.1 * bmNodes m r + y.1 =
+          · by_cases heq : bmMatBase m r + x.val * bmNodes m r + y.val =
                 bmMatBase m r + (2 + ku) * bmNodes m r + (2 + m + kv)
             · rw [heq, Function.update_self, hgread]
               have hxy := List.fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
                 (x₂ := ⟨2 + ku, by dsimp only [bmNodes]; omega⟩)
                 (y₂ := ⟨2 + m + kv, by dsimp only [bmNodes]; omega⟩) (by dsimp only; omega)
-              have hxu : x.1 = 2 + ku := congrArg Fin.val hxy.1
-              have hyv : y.1 = 2 + m + kv := congrArg Fin.val hxy.2
-              have h1 : ¬ ((x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-                  (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1)) := by omega
-              have h2 : ¬ (2 ≤ x.1 ∧ x.1 < 2 + ku ∧ x.1 < 2 + m) := by omega
-              have h3 : x.1 = 2 + ku ∧ 2 + m ≤ y.1 ∧ y.1 < 2 + m + (kv + 1) ∧ y.1 < 2 + m + r :=
+              have hxu : x.val = 2 + ku := congrArg Fin.val hxy.1
+              have hyv : y.val = 2 + m + kv := congrArg Fin.val hxy.2
+              have h1 : ¬ ((x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+                  (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1)) := by omega
+              have h2 : ¬ (2 ≤ x.val ∧ x.val < 2 + ku ∧ x.val < 2 + m) := by omega
+              have h3 : x.val = 2 + ku ∧ 2 + m ≤ y.val ∧ y.val < 2 + m + (kv + 1) ∧
+                  y.val < 2 + m + r :=
                 by omega
               rw [ite_eq_right h1, dite_eq_right h2, dite_eq_left h3]
-              have hfin : (⟨y.1 - (2 + m), by omega⟩ : Fin r) = ⟨kv, hkv⟩ :=
+              have hfin : (⟨y.val - (2 + m), by omega⟩ : Fin r) = ⟨kv, hkv⟩ :=
                 Fin.ext (by dsimp only; omega)
               rw [hfin]
               cases G (⟨ku, hku⟩, ⟨kv, hkv⟩) <;> rfl
             · rw [Function.update_of_ne heq, hmat' x y]
-              by_cases h1 : (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-                  (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1)
+              by_cases h1 : (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+                  (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1)
               · rw [ite_eq_left h1, ite_eq_left h1]
               · rw [ite_eq_right h1, ite_eq_right h1]
-                by_cases h2 : 2 ≤ x.1 ∧ x.1 < 2 + ku ∧ x.1 < 2 + m
+                by_cases h2 : 2 ≤ x.val ∧ x.val < 2 + ku ∧ x.val < 2 + m
                 · rw [dite_eq_left h2, dite_eq_left h2]
                 · rw [dite_eq_right h2, dite_eq_right h2]
-                  by_cases h3 : x.1 = 2 + ku ∧ 2 + m ≤ y.1 ∧ y.1 < 2 + m + kv ∧ y.1 < 2 + m + r
+                  by_cases h3 : x.val = 2 + ku ∧ 2 + m ≤ y.val ∧ y.val < 2 + m + kv ∧
+                      y.val < 2 + m + r
                   · rw [dite_eq_left h3, dite_eq_left (by omega)]
                   · rw [dite_eq_right h3, dite_eq_right]
                     intro ⟨hxu, hy1, hy2, hy3⟩
                     apply h3; refine ⟨hxu, hy1, ?_, hy3⟩
-                    by_cases hyv : y.1 = 2 + m + kv
+                    by_cases hyv : y.val = 2 + m + kv
                     · exfalso; apply heq; rw [hxu, hyv]
                     · omega)
         (n := r) (a := 0) (s := t) ⟨Nat.zero_add _, hlo, fun x y => by
           rw [hmat x y]
-          by_cases h1 : (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-              (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1)
+          by_cases h1 : (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+              (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1)
           · rw [ite_eq_left h1, ite_eq_left h1]
           · rw [ite_eq_right h1, ite_eq_right h1]
-            by_cases h2 : 2 ≤ x.1 ∧ x.1 < 2 + ku ∧ x.1 < 2 + m
+            by_cases h2 : 2 ≤ x.val ∧ x.val < 2 + ku ∧ x.val < 2 + m
             · rw [dite_eq_left h2, dite_eq_left h2]
             · rw [dite_eq_right h2, dite_eq_right h2, dite_eq_right (by omega)]⟩
       have hinner_r :
@@ -782,19 +788,19 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
       have hmat_i := hinner.2.2 x y
       rw [hinner_r] at hmat_i
       rw [hmat_i]
-      by_cases h1 : (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-          (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1)
+      by_cases h1 : (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+          (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1)
       · rw [ite_eq_left h1, ite_eq_left h1]
       · rw [ite_eq_right h1, ite_eq_right h1]
-        by_cases h2 : 2 ≤ x.1 ∧ x.1 < 2 + ku ∧ x.1 < 2 + m
+        by_cases h2 : 2 ≤ x.val ∧ x.val < 2 + ku ∧ x.val < 2 + m
         · rw [dite_eq_left h2,
-            dite_eq_left (by omega : 2 ≤ x.1 ∧ x.1 < 2 + (ku + 1) ∧ x.1 < 2 + m)]
+            dite_eq_left (by omega : 2 ≤ x.val ∧ x.val < 2 + (ku + 1) ∧ x.val < 2 + m)]
         · rw [dite_eq_right h2]
-          by_cases hxu : x.1 = 2 + ku
-          · rw [dite_eq_left (by omega : 2 ≤ x.1 ∧ x.1 < 2 + (ku + 1) ∧ x.1 < 2 + m)]
-            by_cases hy : 2 + m ≤ y.1 ∧ y.1 < 2 + m + r
+          by_cases hxu : x.val = 2 + ku
+          · rw [dite_eq_left (by omega : 2 ≤ x.val ∧ x.val < 2 + (ku + 1) ∧ x.val < 2 + m)]
+            by_cases hy : 2 + m ≤ y.val ∧ y.val < 2 + m + r
             · rw [dite_eq_left ⟨hxu, hy.1, hy.2, hy.2⟩, dite_eq_left hy]
-              have hfin : (⟨x.1 - 2, by omega⟩ : Fin m) = ⟨ku, hku⟩ :=
+              have hfin : (⟨x.val - 2, by omega⟩ : Fin m) = ⟨ku, hku⟩ :=
                 Fin.ext (by dsimp only; omega)
               rw [hfin]
             · rw [dite_eq_right (fun h => hy ⟨h.2.1, h.2.2.1⟩), dite_eq_right hy]
@@ -803,14 +809,15 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
       have := h3.2.2 x y
       rw [h3r] at this
       rw [this]
-      by_cases h1 : (x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-          (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1)
+      by_cases h1 : (x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+          (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1)
       · rw [ite_eq_left h1, ite_eq_left h1]
       · rw [ite_eq_right h1, ite_eq_right h1, dite_eq_right (by omega)]⟩
   have h4r : (Memory.spec 0).clientResult st3 (iterate bmEdgeOuter (m, r) m 0) = m := by
     have := h4.1; omega
   refine ⟨fun u v => ?_, fun x y => ?_⟩
-  · have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
+  · have hlt : u.val * r + v.val < m * r :=
+      Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
     rw [h4.2.1 _ (by dsimp only [bmMatBase]; omega)]
     exact hG1 u v
   · have hm4 := h4.2.2 x y
@@ -825,8 +832,8 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
         ((bipartiteFinEquiv m r).symm y)
     generalize hbx : (bipartiteFinEquiv m r).symm x = bx at hx_eq
     generalize hby : (bipartiteFinEquiv m r).symm y = by_ at hy_eq
-    have hxval : x.1 = (bipartiteFinEquiv m r bx).1 := congrArg Fin.val hx_eq
-    have hyval : y.1 = (bipartiteFinEquiv m r by_).1 := congrArg Fin.val hy_eq
+    have hxval : x.val = (bipartiteFinEquiv m r bx).val := congrArg Fin.val hx_eq
+    have hyval : y.val = (bipartiteFinEquiv m r by_).val := congrArg Fin.val hy_eq
     cases bx <;> cases by_ <;>
       simp only [hsrc0, hsnk1, hleft, hright, bipartiteNetwork] at hxval hyval ⊢
     all_goals
@@ -835,26 +842,26 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
       try (rw [ite_eq_right (by omega), dite_eq_left (by omega), dite_eq_right (by omega)])
     -- Remaining case: left u, right v
     rename_i u v
-    have h1 : ¬ ((x.1 = 0 ∧ 2 ≤ y.1 ∧ y.1 < 2 + m) ∨
-        (2 + m ≤ x.1 ∧ x.1 < 2 + m + r ∧ y.1 = 1)) := by omega
-    have h2 : 2 ≤ x.1 ∧ x.1 < 2 + m ∧ x.1 < 2 + m := by have := u.2; omega
-    have h3 : 2 + m ≤ y.1 ∧ y.1 < 2 + m + r := by have := v.2; omega
+    have h1 : ¬ ((x.val = 0 ∧ 2 ≤ y.val ∧ y.val < 2 + m) ∨
+        (2 + m ≤ x.val ∧ x.val < 2 + m + r ∧ y.val = 1)) := by omega
+    have h2 : 2 ≤ x.val ∧ x.val < 2 + m ∧ x.val < 2 + m := by have := u.isLt; omega
+    have h3 : 2 + m ≤ y.val ∧ y.val < 2 + m + r := by have := v.isLt; omega
     rw [ite_eq_right h1, dite_eq_left h2, dite_eq_left h3]
-    have hu : (⟨x.1 - 2, by omega⟩ : Fin m) = u := Fin.ext (by dsimp only; omega)
-    have hv : (⟨y.1 - (2 + m), by omega⟩ : Fin r) = v := Fin.ext (by dsimp only; omega)
+    have hu : (⟨x.val - 2, by omega⟩ : Fin m) = u := Fin.ext (by dsimp only; omega)
+    have hv : (⟨y.val - (2 + m), by omega⟩ : Fin r) = v := Fin.ext (by dsimp only; omega)
     rw [hu, hv]
 
 private theorem bmCovR_spec {m r : ℕ} (st : Memory.State) :
     let st' := (Memory.spec 0).clientState st (iterate bmCovRStep (m, r) r 0)
     (∀ a < bmCovRBase m r, st'.mem a = st.mem a) ∧
-      (∀ v : Fin r, st'.mem (bmCovRBase m r + v.1) =
-        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) < bmNodes m r
+      (∀ v : Fin r, st'.mem (bmCovRBase m r + v.val) =
+        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) < bmNodes m r
         then 1 else 0) := by
   have h := iterate_invariant_of bmCovRStep (m, r)
     (fun rem (k : ℕ) t => k + rem = r ∧
       (∀ a < bmCovRBase m r, t.mem a = st.mem a) ∧
-      (∀ v : Fin r, v.1 < k → t.mem (bmCovRBase m r + v.1) =
-        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) < bmNodes m r
+      (∀ v : Fin r, v.val < k → t.mem (bmCovRBase m r + v.val) =
+        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) < bmNodes m r
         then 1 else 0))
     (fun rem k t ⟨hsum, hlo, hcov⟩ => by
       unfold bmCovRStep
@@ -866,7 +873,7 @@ private theorem bmCovR_spec {m r : ℕ} (st : Memory.State) :
         hlo _ (by bm_omega)
       refine ⟨by omega, fun a ha => ?_, fun v hv => ?_⟩
       · rw [Function.update_of_ne (by omega)]; exact hlo a ha
-      · by_cases hvk : v.1 = k
+      · by_cases hvk : v.val = k
         · rw [hvk, Function.update_self, hread]
         · rw [Function.update_of_ne (by omega)]; exact hcov v (by omega))
     (n := r) (a := 0) (s := st)
@@ -874,21 +881,21 @@ private theorem bmCovR_spec {m r : ℕ} (st : Memory.State) :
   exact ⟨h.2.1, fun v => h.2.2 v (by omega)⟩
 
 private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memory.State}
-    (hG : ∀ u : Fin m, ∀ v : Fin r, st.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0) :
+    (hG : ∀ u : Fin m, ∀ v : Fin r, st.mem (3 + u.val * r + v.val) = if G (u, v) then 1 else 0) :
     let st' := (Memory.spec 0).clientState st (iterate bmCovLOuter (m, r) m 0)
     (∀ a, (a < bmCovLBase m r ∨ bmCovRBase m r ≤ a) → st'.mem a = st.mem a) ∧
-      (∀ u : Fin m, st'.mem (bmCovLBase m r + u.1) =
-        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.1)) = bmNodes m r ∨
+      (∀ u : Fin m, st'.mem (bmCovLBase m r + u.val) =
+        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.val)) = bmNodes m r ∨
            ∃ v : Fin r, G (u, v) = true ∧
-             st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r
+             st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) = bmNodes m r
         then 1 else 0) := by
   have h := iterate_invariant_of bmCovLOuter (m, r)
     (fun rem (ku : ℕ) t => ku + rem = m ∧
       (∀ a, (a < bmCovLBase m r ∨ bmCovRBase m r ≤ a) → t.mem a = st.mem a) ∧
-      (∀ u : Fin m, u.1 < ku → t.mem (bmCovLBase m r + u.1) =
-        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.1)) = bmNodes m r ∨
+      (∀ u : Fin m, u.val < ku → t.mem (bmCovLBase m r + u.val) =
+        if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.val)) = bmNodes m r ∨
            ∃ v : Fin r, G (u, v) = true ∧
-             st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r
+             st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) = bmNodes m r
         then 1 else 0))
     (fun rem ku t ⟨hsum, hfr, hcov⟩ => by
       have hku : ku < m := by omega
@@ -903,8 +910,8 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
           (∀ a, a ≠ bmCovLBase m r + ku → t'.mem a = t.mem a) ∧
           t'.mem (bmCovLBase m r + ku) =
             if st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + ku)) = bmNodes m r ∨
-               ∃ v : Fin r, v.1 < kv ∧ G (⟨ku, hku⟩, v) = true ∧
-                 st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r
+               ∃ v : Fin r, v.val < kv ∧ G (⟨ku, hku⟩, v) = true ∧
+                 st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) = bmNodes m r
             then 1 else 0)
         (fun remv kv t' ⟨hsumv, hne, hcur⟩ => by
           have hkv : kv < r := by omega
@@ -936,12 +943,12 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
             rw [hcur]
             have hiff :
                 (st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + ku)) = bmNodes m r ∨
-                  ∃ v : Fin r, v.1 < kv ∧ G (⟨ku, hku⟩, v) = true ∧
-                    st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) =
+                  ∃ v : Fin r, v.val < kv ∧ G (⟨ku, hku⟩, v) = true ∧
+                    st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) =
                       bmNodes m r) ↔
                 (st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + ku)) = bmNodes m r ∨
-                  ∃ v : Fin r, v.1 < kv + 1 ∧ G (⟨ku, hku⟩, v) = true ∧
-                    st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) =
+                  ∃ v : Fin r, v.val < kv + 1 ∧ G (⟨ku, hku⟩, v) = true ∧
+                    st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) =
                       bmNodes m r) := by
               constructor
               · rintro (h | ⟨v, hv, h1, h2⟩)
@@ -949,7 +956,7 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
                 · exact Or.inr ⟨v, by omega, h1, h2⟩
               · rintro (h | ⟨v, hv, h1, h2⟩)
                 · exact Or.inl h
-                · by_cases hvk : v.1 = kv
+                · by_cases hvk : v.val = kv
                   · exfalso; apply hcond
                     have hv_eq : v = ⟨kv, hkv⟩ := Fin.ext hvk
                     rw [hv_eq] at h1 h2
@@ -957,15 +964,16 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
                   · exact Or.inr ⟨v, by omega, h1, h2⟩
             by_cases hp : st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + ku)) =
                 bmNodes m r ∨
-                ∃ v : Fin r, v.1 < kv ∧ G (⟨ku, hku⟩, v) = true ∧
-                  st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r
+                ∃ v : Fin r, v.val < kv ∧ G (⟨ku, hku⟩, v) = true ∧
+                  st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) = bmNodes m r
             · rw [ite_eq_left hp, ite_eq_left (hiff.mp hp)]
             · rw [ite_eq_right hp, ite_eq_right (fun h => hp (hiff.mpr h))])
         (n := r) (a := 0) (s := t1) ⟨Nat.zero_add _, fun a ha => by
           dsimp only [t1]; rw [Function.update_of_ne ha], by
           dsimp only [t1]; rw [Function.update_self, hdu]
-          have : ¬ ∃ v : Fin r, v.1 < 0 ∧ G (⟨ku, hku⟩, v) = true ∧
-              st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r := by
+          have : ¬ ∃ v : Fin r, v.val < 0 ∧ G (⟨ku, hku⟩, v) = true ∧
+              st.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) =
+                  bmNodes m r := by
             rintro ⟨_, hv, _⟩; omega
           simp only [this, or_false]⟩
       unfold bmCovLOuter
@@ -974,7 +982,7 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
       refine ⟨by omega, fun a ha => ?_, fun u hu => ?_⟩
       · rw [hinner.2.1 a (by rcases ha with ha | ha <;> bm_omega)]
         exact hfr a ha
-      · by_cases huk : u.1 = ku
+      · by_cases huk : u.val = ku
         · have hu_eq : u = ⟨ku, hku⟩ := Fin.ext huk
           have hin_r :
               (Memory.spec 0).clientResult t1 (iterate bmCovLInner ((m, r), ku) r 0) = r := by
@@ -988,7 +996,7 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
             · exact Or.inr ⟨v, h1, h2⟩
           · rintro (h | ⟨v, h1, h2⟩)
             · exact Or.inl h
-            · exact Or.inr ⟨v, by have := v.2; omega, h1, h2⟩
+            · exact Or.inr ⟨v, by have := v.isLt; omega, h1, h2⟩
         · rw [hinner.2.1 _ (by omega)]
           exact hcov u (by omega))
     (n := m) (a := 0) (s := st)
@@ -996,19 +1004,22 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
   exact ⟨h.2.1, fun u => h.2.2 u (by omega)⟩
 
 private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memory.State}
-    (hG : ∀ u : Fin m, ∀ v : Fin r, st.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0)
+    (hG : ∀ u : Fin m, ∀ v : Fin r, st.mem (3 + u.val * r + v.val) = if G (u, v) then 1 else 0)
     (hfr : st.frontier = 3 + m * r) :
     let st' := (Memory.spec 0).clientState st (bmMain (m, r))
     let res := (Memory.spec 0).clientResult st (bmMain (m, r))
     ∃ (M : Finset (Fin m × Fin r)) (C : VertexCover (Fin m) (Fin r)),
       IsMaxMatching G M ∧ IsMinVertexCover G C ∧ M.card = C.size ∧ res = M.card ∧
-      (∀ u : Fin m, ∀ v : Fin r, st'.mem (bmMatchAddr m r u.1 v.1) = if (u, v) ∈ M then 1 else 0) ∧
-      (∀ u : Fin m, st'.mem (bmCovLAddr m r u.1) = if u ∈ C.left then 1 else 0) ∧
-      (∀ v : Fin r, st'.mem (bmCovRAddr m r v.1) = if v ∈ C.right then 1 else 0) := by
+      (∀ u : Fin m, ∀ v : Fin r,
+        st'.mem (bmMatchAddr m r u.val v.val) = if (u, v) ∈ M then 1 else 0) ∧
+      (∀ u : Fin m, st'.mem (bmCovLAddr m r u.val) = if u ∈ C.left then 1 else 0) ∧
+      (∀ v : Fin r, st'.mem (bmCovRAddr m r v.val) = if v ∈ C.right then 1 else 0) := by
   set st0 := (Memory.spec 0).clientState st (Memory.alloc (bmScratch m r))
-  have hG0 : ∀ u : Fin m, ∀ v : Fin r, st0.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
+  have hG0 : ∀ u : Fin m, ∀ v : Fin r, st0.mem (3 + u.val * r + v.val) =
+      if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
+    have hlt : u.val * r + v.val < m * r :=
+        Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
     exact (Memory.mem_step_of_lt_frontier st (.alloc (bmScratch m r)) (by rw [hfr]; omega)
       (by simp)).trans (hG u v)
   obtain ⟨hG4, hmat4⟩ := bmBuild_spec G hG0
@@ -1025,7 +1036,7 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
     cases (bipartiteFinEquiv m r).symm x <;> cases (bipartiteFinEquiv m r).symm y <;>
       simp [bipartiteNetwork]
     split_ifs <;> omega
-  have hst0_eq : (bipartiteFinNetwork G).s.1 = 0 ∧ (bipartiteFinNetwork G).t.1 = 1 :=
+  have hst0_eq : (bipartiteFinNetwork G).s.val = 0 ∧ (bipartiteFinNetwork G).t.val = 1 :=
     ⟨bipartiteFinEquiv_val.1, bipartiteFinEquiv_val.2.1⟩
   have hEk := ekProg_flow_spec (mb := bmMatBase m r) (sb := bmScrBase m r) (B := 1)
     (bipartiteFinNetwork G) hst_ne hcap_le1 (le_refl _) hmat4
@@ -1035,17 +1046,21 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
     (ekProg (⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩, (0, 1)))
   set CFin : Finset (Fin (bmNodes m r)) :=
     Finset.univ.filter fun x =>
-      st5.mem (distAddr ⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩ x.1) < bmNodes m r
-  have hG5 : ∀ u : Fin m, ∀ v : Fin r, st5.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
+      st5.mem (distAddr ⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩ x.val) < bmNodes m r
+  have hG5 : ∀ u : Fin m, ∀ v : Fin r, st5.mem (3 + u.val * r + v.val) =
+      if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
+    have hlt : u.val * r + v.val < m * r :=
+        Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
     rw [hEk_frame _ (Or.inl (by bm_omega))]
     exact hG4 u v
   obtain ⟨hR_fr, hR_cov⟩ := bmCovR_spec (m := m) (r := r) st5
   set st6 := (Memory.spec 0).clientState st5 (iterate bmCovRStep (m, r) r 0)
-  have hG6 : ∀ u : Fin m, ∀ v : Fin r, st6.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
+  have hG6 : ∀ u : Fin m, ∀ v : Fin r, st6.mem (3 + u.val * r + v.val) =
+      if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
+    have hlt : u.val * r + v.val < m * r :=
+        Nat.mul_comm r u.val ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.isLt v.isLt
     rw [hR_fr _ (by bm_omega)]
     exact hG5 u v
   obtain ⟨hL_fr, hL_cov⟩ := bmCovL_spec G hG6
@@ -1075,16 +1090,16 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
     omega
   · intro u v
     rw [hst_main]
-    have h1 : (2 + u.1) * bmNodes m r + (2 + m + v.1) < bmNodes m r * bmNodes m r :=
-      List.mul_add_lt_sq (by have := u.2; dsimp only [bmNodes]; omega)
-        (by have := v.2; dsimp only [bmNodes]; omega)
+    have h1 : (2 + u.val) * bmNodes m r + (2 + m + v.val) < bmNodes m r * bmNodes m r :=
+      List.mul_add_lt_sq (by have := u.isLt; dsimp only [bmNodes]; omega)
+        (by have := v.isLt; dsimp only [bmNodes]; omega)
     rw [hL_fr _ (Or.inl (by dsimp only [bmMatchAddr]; bm_omega)),
       hR_fr _ (by dsimp only [bmMatchAddr]; bm_omega)]
     have hfl := hflow (bipartiteFinEquiv m r (.left u)) (bipartiteFinEquiv m r (.right v))
     obtain ⟨_, _, hleft, hright⟩ := bipartiteFinEquiv_val (m := m) (r := r)
     rw [hleft u, hright v] at hfl
-    have haddr_m : bmMatchAddr m r u.1 v.1 =
-        flowAddr ⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩ (2 + u.1) (2 + m + v.1) := rfl
+    have haddr_m : bmMatchAddr m r u.val v.val =
+        flowAddr ⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩ (2 + u.val) (2 + m + v.val) := rfl
     rw [haddr_m, hfl]
     have hf_eq : fFin (bipartiteFinEquiv m r (.left u)) (bipartiteFinEquiv m r (.right v)) =
         f (.left u) (.right v) := rfl
@@ -1099,31 +1114,31 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
     · rw [ite_eq_right hpos]; omega
   · intro u
     rw [hst_main]
-    have haddr_l : bmCovLAddr m r u.1 = bmCovLBase m r + u.1 := by
+    have haddr_l : bmCovLAddr m r u.val = bmCovLBase m r + u.val := by
       dsimp only [bmCovLAddr, bmCovLBase, bmScrBase, bmMatBase, bmNodes, ekScratch]; ring
     rw [haddr_l, hL_cov u]
     have hdist_iff : ∀ x : Fin (bmNodes m r),
-        st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + x.1) = bmNodes m r ↔ x ∉ CFin := by
+        st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + x.val) = bmNodes m r ↔ x ∉ CFin := by
       intro x
-      rw [hR_fr _ (by have := x.2; bm_omega)]
+      rw [hR_fr _ (by have := x.isLt; bm_omega)]
       have hl := hdist_le x
       dsimp only [distAddr, bmNodes] at hl ⊢
       simp only [CFin, Finset.mem_filter, Finset.mem_univ, true_and, distAddr, bmNodes]
       omega
     obtain ⟨_, _, hleft, hright⟩ := bipartiteFinEquiv_val (m := m) (r := r)
-    have hlu : st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.1)) = bmNodes m r ↔
+    have hlu : st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.val)) = bmNodes m r ↔
         BipartiteVertex.left u ∉ S := by
       rw [← hleft u, hdist_iff]
       simp [S, Network.cutOfReindex]
     have hrv : ∀ v : Fin r,
-        st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r ↔
+        st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) = bmNodes m r ↔
           BipartiteVertex.right v ∉ S := fun v => by
       rw [← hright v, hdist_iff]
       simp [S, Network.cutOfReindex]
     simp only [cutToVertexCover, Finset.mem_filter, Finset.mem_univ, true_and]
-    have hiff : (st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.1)) = bmNodes m r ∨
+    have hiff : (st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + u.val)) = bmNodes m r ∨
         ∃ v : Fin r, G (u, v) = true ∧
-          st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) = bmNodes m r) ↔
+          st6.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) = bmNodes m r) ↔
         (BipartiteVertex.left u ∉ S ∨ ∃ v : Fin r, G (u, v) = true ∧ BipartiteVertex.right v ∉ S) :=
       or_congr hlu (exists_congr fun v => and_congr_right fun _ => hrv v)
     by_cases hp : BipartiteVertex.left u ∉ S ∨
@@ -1132,12 +1147,12 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
     · rw [ite_eq_right (fun h => hp (hiff.mp h)), ite_eq_right hp]
   · intro v
     rw [hst_main]
-    have haddr_r : bmCovRAddr m r v.1 = bmCovRBase m r + v.1 := by
+    have haddr_r : bmCovRAddr m r v.val = bmCovRBase m r + v.val := by
       dsimp only [bmCovRAddr, bmCovRBase, bmCovLBase, bmScrBase, bmMatBase, bmNodes, ekScratch]
       ring
     rw [haddr_r, hL_fr _ (Or.inr (by omega)), hR_cov v]
     obtain ⟨_, _, _, hright⟩ := bipartiteFinEquiv_val (m := m) (r := r)
-    have hrv : st5.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.1)) < bmNodes m r ↔
+    have hrv : st5.mem (bmScrBase m r + bmNodes m r * bmNodes m r + (2 + m + v.val)) < bmNodes m r ↔
         BipartiteVertex.right v ∈ S := by
       rw [← hright v]
       simp [S, Network.cutOfReindex, CFin, distAddr]
@@ -1178,9 +1193,9 @@ theorem exists_bipartiteMatching_program :
           steps + 1 ≤ C * (m + r + 1) ^ 5 ∧
           IsMaxMatching G M ∧ IsMinVertexCover G cov ∧ M.card = cov.size ∧ res = M.card ∧
           (∀ u : Fin m, ∀ v : Fin r,
-            y.mem (bmMatchAddr m r u.1 v.1) = if (u, v) ∈ M then 1 else 0) ∧
-          (∀ u : Fin m, y.mem (bmCovLAddr m r u.1) = if u ∈ cov.left then 1 else 0) ∧
-          (∀ v : Fin r, y.mem (bmCovRAddr m r v.1) = if v ∈ cov.right then 1 else 0) := by
+            y.mem (bmMatchAddr m r u.val v.val) = if (u, v) ∈ M then 1 else 0) ∧
+          (∀ u : Fin m, y.mem (bmCovLAddr m r u.val) = if u ∈ cov.left then 1 else 0) ∧
+          (∀ v : Fin r, y.mem (bmCovRAddr m r v.val) = if v ∈ cov.right then 1 else 0) := by
   obtain ⟨R, C₀, pc, prog, _, _, hprog⟩ :=
     bmProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨R, 5204 * C₀ + 2, pc, by omega, prog, ?_⟩

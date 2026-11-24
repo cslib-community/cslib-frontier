@@ -311,16 +311,16 @@ theorem map_eq_of_strictMono_surj {β γ : Type*} {src : List β} {dst : List γ
 
 private theorem exists_fin_idx_of_eq {α : Type*} {l₁ l₂ l : List α} (heq : l₁ = l₂)
     (h : ∃ idx : Fin l₂.length → Fin l.length,
-      (∀ i, l₂[i.1] = l[(idx i).1]) ∧ (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1)) :
+      (∀ i, l₂[i.val] = l[(idx i).val]) ∧ (∀ i j, i.val < j.val → (idx i).val < (idx j).val)) :
     ∃ idx : Fin l₁.length → Fin l.length,
-      (∀ i, l₁[i.1] = l[(idx i).1]) ∧ (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1) := by
+      (∀ i, l₁[i.val] = l[(idx i).val]) ∧ (∀ i j, i.val < j.val → (idx i).val < (idx j).val) := by
   subst heq; exact h
 
 /-- Every filtered sublist `l.filter pred` embeds into `l` via a strictly monotone index map. -/
 theorem filter_strictMono_indices {α : Type*} (l : List α) (pred : α → Bool) :
     ∃ idx : Fin (l.filter pred).length → Fin l.length,
-      (∀ i, (l.filter pred)[i.1] = l[(idx i).1]) ∧
-      (∀ i j, i.1 < j.1 → (idx i).1 < (idx j).1) := by
+      (∀ i, (l.filter pred)[i.val] = l[(idx i).val]) ∧
+      (∀ i j, i.val < j.val → (idx i).val < (idx j).val) := by
   induction l with
   | nil =>
     exact ⟨fun i => Fin.elim0 i, fun i => Fin.elim0 i, fun i => Fin.elim0 i⟩
@@ -329,11 +329,11 @@ theorem filter_strictMono_indices {α : Type*} (l : List α) (pred : α → Bool
     by_cases hpa : pred a = true
     · refine exists_fin_idx_of_eq (List.filter_cons_of_pos hpa) ?_
       refine ⟨fun i =>
-          if hi0 : i.1 = 0 then ⟨0, Nat.zero_lt_succ _⟩
+          if hi0 : i.val = 0 then ⟨0, Nat.zero_lt_succ _⟩
           else
             let i' : Fin (rest.filter pred).length :=
-              ⟨i.1 - 1, by have h := i.2; simp only [List.length_cons] at h; omega⟩
-            ⟨(idx' i').1 + 1, Nat.succ_lt_succ (idx' i').2⟩,
+              ⟨i.val - 1, by have h := i.isLt; simp only [List.length_cons] at h; omega⟩
+            ⟨(idx' i').val + 1, Nat.succ_lt_succ (idx' i').isLt⟩,
         ?_, ?_⟩
       · intro ⟨i, hi⟩
         cases i with
@@ -354,7 +354,7 @@ theorem filter_strictMono_indices {α : Type*} (l : List α) (pred : α → Bool
               ⟨j', by simp only [List.length_cons] at hj; omega⟩ (by dsimp only; omega)
             omega
     · refine exists_fin_idx_of_eq (List.filter_cons_of_neg hpa) ?_
-      refine ⟨fun i => ⟨(idx' i).1 + 1, Nat.succ_lt_succ (idx' i).2⟩, ?_, ?_⟩
+      refine ⟨fun i => ⟨(idx' i).val + 1, Nat.succ_lt_succ (idx' i).isLt⟩, ?_, ?_⟩
       · intro i; simp only [List.getElem_cons_succ, hval' i]
       · intro i j hij; have := hmono' i j hij; dsimp only; omega
 

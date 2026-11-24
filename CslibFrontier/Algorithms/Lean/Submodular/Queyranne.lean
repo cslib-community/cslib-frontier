@@ -735,8 +735,8 @@ private theorem blockUnion_inter {V : Type} [DecidableEq V] [Fintype V]
   · rintro ⟨⟨a, haS, hva⟩, ⟨b, hbT, hvb⟩⟩
     have hab : a = b := by
       by_contra hne
-      have hdisj := hp.disjoint.forall (List.mem_toFinset.mp a.2)
-        (List.mem_toFinset.mp b.2) (Subtype.coe_ne_coe.mpr hne)
+      have hdisj := hp.disjoint.forall (List.mem_toFinset.mp a.property)
+        (List.mem_toFinset.mp b.property) (Subtype.coe_ne_coe.mpr hne)
       exact Finset.disjoint_left.mp hdisj hva hvb
     subst hab
     exact ⟨a, ⟨haS, hbT⟩, hva⟩
@@ -772,7 +772,7 @@ private theorem blockUnion_compl {V : Type} [DecidableEq V] [Fintype V]
 
 @[simp] private theorem blockUnion_singleton {V : Type} [DecidableEq V] (blocks : List (Finset V))
     (b : {b : Finset V // b ∈ blocks.toFinset}) :
-    blockUnion blocks {b} = b.1 := by
+    blockUnion blocks {b} = b.val := by
   simp [blockUnion]
 
 @[simp] private theorem blockUnion_empty {V : Type} [DecidableEq V] (blocks : List (Finset V)) :
@@ -782,7 +782,7 @@ private theorem blockUnion_compl {V : Type} [DecidableEq V] [Fintype V]
 @[simp] private theorem blockUnion_insert {V : Type} [DecidableEq V] (blocks : List (Finset V))
     (b : {b : Finset V // b ∈ blocks.toFinset})
     (S : Finset {b : Finset V // b ∈ blocks.toFinset}) :
-    blockUnion blocks (insert b S) = blockUnion blocks S ∪ b.1 := by
+    blockUnion blocks (insert b S) = blockUnion blocks S ∪ b.val := by
   rw [Finset.insert_eq, blockUnion_union, blockUnion_singleton, Finset.union_comm]
 
 private theorem isSubmodular_blockUnion {V β : Type} [DecidableEq V] [Fintype V]
@@ -805,7 +805,7 @@ private theorem isSymmetric_blockUnion {V β : Type} [DecidableEq V] [Fintype V]
 private theorem blockUnion_filter_subset {V : Type} [DecidableEq V] [Fintype V]
     {blocks : List (Finset V)} (hp : BlockPart blocks) {C : Finset V}
     (hC : RespectsBlocks blocks C) :
-    blockUnion blocks (Finset.univ.filter fun b => b.1 ⊆ C) = C := by
+    blockUnion blocks (Finset.univ.filter fun b => b.val ⊆ C) = C := by
   ext v
   simp only [blockUnion, Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ, true_and,
     Subtype.exists]
@@ -961,26 +961,26 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
       ((c₀ :: cs).map Prod.fst).Nodup →
       (∀ p ∈ c₀ :: cs, p.1 ∈ blocks.toFinset ∧ p.2 = f p.1) →
       (∀ b : {b : Finset V // b ∈ blocks.toFinset},
-        b ∉ S_pref ↔ b.1 ∈ (c₀ :: cs).map Prod.fst) →
+        b ∉ S_pref ↔ b.val ∈ (c₀ :: cs).map Prod.fst) →
       let res := Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
-        (blockUnion blocks S_pref) prev.1 c₀ cs)
+        (blockUnion blocks S_pref) prev.val c₀ cs)
       res.fst ∈ blocks ∧ res.snd ∈ blocks ∧ res.fst ≠ res.snd ∧ res.sndVal = f res.snd ∧
         ∃ q : List {b : Finset V // b ∈ blocks.toFinset},
           q.Nodup ∧ (∀ b, b ∉ S_pref ↔ b ∈ q) ∧
           IsQOrderingFrom (fun X => f (blockUnion blocks X)) S_pref q ∧
           ((k = 0 ∧ ∃ tP : {b : Finset V // b ∈ blocks.toFinset},
-              q = [tP] ∧ res.fst = prev.1 ∧ tP.1 = res.snd) ∨
-           (1 ≤ k ∧ ∃ q₀ sP tP, q = q₀ ++ [sP, tP] ∧ sP.1 = res.fst ∧ tP.1 = res.snd))
+              q = [tP] ∧ res.fst = prev.val ∧ tP.val = res.snd) ∨
+           (1 ≤ k ∧ ∃ q₀ sP tP, q = q₀ ++ [sP, tP] ∧ sP.val = res.fst ∧ tP.val = res.snd))
   | 0, S_pref, prev, (t, st), [], _, hprevS, _, hmem, hcover => by
     have ht_mem : t ∈ blocks.toFinset := (hmem (t, st) List.mem_cons_self).1
     have ht_eq : st = f t := (hmem (t, st) List.mem_cons_self).2
     let tP : {b : Finset V // b ∈ blocks.toFinset} := ⟨t, ht_mem⟩
-    have hne : prev.1 ≠ t := by
+    have hne : prev.val ≠ t := by
       intro heq
       have hpeq : prev = tP := Subtype.ext heq
       have hnt : tP ∉ S_pref := (hcover tP).mpr (by simp [tP])
       exact hnt (hpeq ▸ hprevS)
-    refine ⟨List.mem_toFinset.mp prev.2, List.mem_toFinset.mp ht_mem, hne, ht_eq, [tP],
+    refine ⟨List.mem_toFinset.mp prev.property, List.mem_toFinset.mp ht_mem, hne, ht_eq, [tP],
       List.nodup_singleton tP, fun b => ?_, ?_, .inl ⟨rfl, tP, rfl, rfl, rfl⟩⟩
     · rw [hcover b]
       simp [tP, Subtype.ext_iff]
@@ -1016,7 +1016,7 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
       have hmem' : ∀ p ∈ d₀ :: ds, p.1 ∈ blocks.toFinset ∧ p.2 = f p.1 :=
         fun p hp' => hmem p (hsub_er p hp').1
       have hcover' : ∀ b : {b : Finset V // b ∈ blocks.toFinset},
-          b ∉ insert bP S_pref ↔ b.1 ∈ (d₀ :: ds).map Prod.fst := by
+          b ∉ insert bP S_pref ↔ b.val ∈ (d₀ :: ds).map Prod.fst := by
         intro b
         rw [Finset.mem_insert, not_or, hcover b, List.mem_map, List.mem_map]
         constructor
@@ -1033,11 +1033,11 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
         blockUnion_insert blocks bP S_pref
       have hstep :
           Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) (k + 1)
-            (blockUnion blocks S_pref) prev.1 c₀ (c₁ :: cs)) =
+            (blockUnion blocks S_pref) prev.val c₀ (c₁ :: cs)) =
           Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
-            (blockUnion blocks (insert bP S_pref)) bP.1 d₀ ds) := by
+            (blockUnion blocks (insert bP S_pref)) bP.val d₀ ds) := by
         change (match eraseBlock scanRes.best (c₀ :: c₁ :: cs) with
-          | [] => QPendentPair.mk prev.1 c₀.1 c₀.2
+          | [] => QPendentPair.mk prev.val c₀.1 c₀.2
           | d₀' :: ds' => Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
               (blockUnion blocks S_pref ∪ scanRes.best) scanRes.best d₀' ds')) = _
         rw [her]
@@ -1053,18 +1053,18 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
         by_cases hb : b = bP
         · subst hb
           refine ⟨fun _ => .inl rfl, fun _ => ?_⟩
-          have hb_in : bP.1 ∈ (c₀ :: c₁ :: cs).map Prod.fst :=
+          have hb_in : bP.val ∈ (c₀ :: c₁ :: cs).map Prod.fst :=
             List.mem_map.mpr ⟨(best, sBest), hbest_in, rfl⟩
           exact (hcover bP).mpr hb_in
         · simp [hb]
       · refine ⟨fun y hy => ?_, hq'ord⟩
         have hy' : y ∉ insert bP S_pref := (hq'cov y).mpr hy
         rw [Finset.mem_insert, not_or] at hy'
-        have hy_map : y.1 ∈ (c₀ :: c₁ :: cs).map Prod.fst := (hcover y).mp hy'.2
+        have hy_map : y.val ∈ (c₀ :: c₁ :: cs).map Prod.fst := (hcover y).mp hy'.2
         obtain ⟨c, hc_mem, hc_eq⟩ := List.mem_map.mp hy_map
         have hc_all := hscan.2.2.2 c hc_mem
-        have hc2 : c.2 = f y.1 := hc_eq ▸ (hmem c hc_mem).2
-        have hbP_eq : bP.1 = best := rfl
+        have hc2 : c.2 = f y.val := hc_eq ▸ (hmem c hc_mem).2
+        have hbP_eq : bP.val = best := rfl
         rw [hscan.2.1, hscan.2.2.1, hc2, hc_eq] at hc_all
         simpa only [blockUnion_insert, blockUnion_singleton, hbP_eq] using hc_all
       · refine .inr ?_
@@ -1080,7 +1080,7 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
     res.fst ∈ blocks ∧ res.snd ∈ blocks ∧ res.fst ≠ res.snd ∧ res.sndVal = f res.snd ∧
       ∃ (p : List {b : Finset V // b ∈ blocks.toFinset})
         (sP tP : {b : Finset V // b ∈ blocks.toFinset}),
-        sP.1 = res.fst ∧ tP.1 = res.snd ∧
+        sP.val = res.fst ∧ tP.val = res.snd ∧
         IsQOrdering (fun X => f (blockUnion blocks X)) (p ++ [sP, tP]) := by
   have hnd_list := blockPart_nodup hp
   rw [hblocks, List.nodup_cons] at hnd_list
@@ -1094,11 +1094,11 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
     obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hp'
     exact ⟨List.mem_toFinset.mpr (by simp [hblocks, hb]), rfl⟩
   have hcover : ∀ b : {b : Finset V // b ∈ blocks.toFinset},
-      b ∉ ({b₀P} : Finset _) ↔ b.1 ∈ (((b₁ :: bs).map fun x => (x, f x)).map Prod.fst) := by
+      b ∉ ({b₀P} : Finset _) ↔ b.val ∈ (((b₁ :: bs).map fun x => (x, f x)).map Prod.fst) := by
     intro b
     simp only [Finset.mem_singleton, List.map_map, Function.comp_def, List.map_id',
       Subtype.ext_iff, b₀P]
-    have hb : b.1 ∈ b₀ :: b₁ :: bs := hblocks ▸ List.mem_toFinset.mp b.2
+    have hb : b.val ∈ b₀ :: b₁ :: bs := hblocks ▸ List.mem_toFinset.mp b.property
     rw [List.mem_cons] at hb
     constructor
     · intro hne
@@ -1113,7 +1113,7 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
     (by simpa using hc_nd) (by simpa using hc_mem) (by simpa using hcover)
   have hsearch_eq : Id.run (qSearchM (m := Id) (fun S => pure (f S)) b₀ b₁ bs) =
       Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) bs.length
-        (blockUnion blocks {b₀P}) b₀P.1 (b₁, f b₁) (bs.map fun b => (b, f b))) := by
+        (blockUnion blocks {b₀P}) b₀P.val (b₁, f b₁) (bs.map fun b => (b, f b))) := by
     change (match Id.run (qSingletonsM (m := Id) (fun S => pure (f S)) (b₁ :: bs)) with
       | [] => QPendentPair.mk b₀ b₁ (f b₁)
       | c₀ :: cs => Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) bs.length b₀ b₀ c₀ cs)) =
@@ -1226,7 +1226,7 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
           (sr.fst ⊆ C ↔ ¬ sr.snd ⊆ C) → f sr.snd ≤ f C := by
         intro C hC hsep
         let X : Finset {b : Finset V // b ∈ (b₀ :: b₁ :: bs).toFinset} :=
-          Finset.univ.filter fun b => b.1 ⊆ C
+          Finset.univ.filter fun b => b.val ⊆ C
         have hX_sep : sP ∈ X ↔ tP ∉ X := by
           simp only [X, Finset.mem_filter, Finset.mem_univ, true_and, hsP, htP, hsep]
         have hp_le := pendentPair_le (isSubmodular_blockUnion hf hp)

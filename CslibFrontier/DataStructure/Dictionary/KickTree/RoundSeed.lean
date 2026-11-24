@@ -773,7 +773,7 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
         (PMF.uniformOfFintype BotA₀).bind fun botA₀ =>
           (PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)) × BotA₁₂)).map fun q (u : T) =>
             caseABucketAux hma (reducedDoubleTab c n m (a - m) p.2 p.1 botA₀)
-              (reducedDoubleTab c n (a - m) (m + b_aux) q.1 p.1 q.2) u.1 := by
+              (reducedDoubleTab c n (a - m) (m + b_aux) q.1 p.1 q.2) u.val := by
     relabel_uniform (Equiv.prodAssoc Top (Fin (2 ^ (m - 1)))
       (BotA₀ × Fin (2 ^ (a - m - 1)) × BotA₁₂)).symm
   rw [hgroup]
@@ -817,7 +817,7 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
           (PMF.uniformOfFintype (Fin (2 ^ (a - m - 1)))).bind fun α₁ =>
             (PMF.uniformOfFintype BotA₁₂).map fun botA₁₂ (u : T) =>
               caseABucketAux hma g₀
-                (reducedDoubleTab c n (a - m) (m + b_aux) α₁ p.1 botA₁₂) u.1 := by
+                (reducedDoubleTab c n (a - m) (m + b_aux) α₁ p.1 botA₁₂) u.val := by
         relabel_uniform (Equiv.refl (Fin (2 ^ (a - m - 1)) × BotA₁₂))
       rw [hprod_map]
       let Goodα₁ : Set (Fin (2 ^ (a - m - 1))) :=

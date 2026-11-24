@@ -1488,7 +1488,7 @@ theorem markup_ge_mul_deriv_of_wardrop_bestResponse {Link : Type*} [Fintype Link
         obtain ⟨t, ht0, _, hteq, htsmall⟩ := exists_pos_step_add_eq
           (hcomp_mono q hq_not_own) (hcomp_cont q hq_not_own) (hw.1.1 q) hμ0 (by linarith)
         exact ⟨t, ht0, htsmall εStep hεStep_pos hμ_lt_ε, hteq⟩
-      choose dq hdq using fun q : Q0 => hex_dq q.1 q.2
+      choose dq hdq using fun q : Q0 => hex_dq q.val q.property
       let step : Link → ℝ := fun k => if hk : k ∈ Q0 then dq ⟨k, hk⟩ else 0
       have hstep_pos : ∀ q ∈ Q0, 0 < step q := fun q hq => by
         simp only [step, hq, ↓reduceDIte]

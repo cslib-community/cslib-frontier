@@ -60,18 +60,18 @@ private theorem memoryCost_bfsInnerStep_le (d : ((Ctx × ℕ) × ℕ) × ℕ) (s
 /-- Number of `x < n` (as `Fin n`) with `lo ≤ x` satisfying `P`, split at `x = lo`. -/
 private theorem card_filter_ge_split {n lo : ℕ} (hlo : lo < n) (P : Fin n → Prop)
     [DecidablePred P] :
-    (Finset.univ.filter fun x : Fin n => lo ≤ x.1 ∧ P x).card =
-      (Finset.univ.filter fun x : Fin n => lo + 1 ≤ x.1 ∧ P x).card +
+    (Finset.univ.filter fun x : Fin n => lo ≤ x.val ∧ P x).card =
+      (Finset.univ.filter fun x : Fin n => lo + 1 ≤ x.val ∧ P x).card +
         if P ⟨lo, hlo⟩ then 1 else 0 := by
   have h := Finset.card_filter_add_card_filter_not
-    (s := Finset.univ.filter fun x : Fin n => lo ≤ x.1 ∧ P x) (fun x : Fin n => x.1 = lo)
+    (s := Finset.univ.filter fun x : Fin n => lo ≤ x.val ∧ P x) (fun x : Fin n => x.val = lo)
   rw [Finset.filter_filter, Finset.filter_filter] at h
-  have e1 : (Finset.univ.filter fun x : Fin n => (lo ≤ x.1 ∧ P x) ∧ ¬ x.1 = lo) =
-      Finset.univ.filter fun x : Fin n => lo + 1 ≤ x.1 ∧ P x := by
+  have e1 : (Finset.univ.filter fun x : Fin n => (lo ≤ x.val ∧ P x) ∧ ¬ x.val = lo) =
+      Finset.univ.filter fun x : Fin n => lo + 1 ≤ x.val ∧ P x := by
     ext x
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
     exact ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨by omega, h2⟩, fun ⟨h1, h2⟩ => ⟨⟨by omega, h2⟩, by omega⟩⟩
-  have e2 : (Finset.univ.filter fun x : Fin n => (lo ≤ x.1 ∧ P x) ∧ x.1 = lo).card =
+  have e2 : (Finset.univ.filter fun x : Fin n => (lo ≤ x.val ∧ P x) ∧ x.val = lo).card =
       if P ⟨lo, hlo⟩ then 1 else 0 := by
     split_ifs with hP
     · rw [Finset.card_eq_one]
@@ -90,9 +90,9 @@ private theorem card_filter_ge_split {n lo : ℕ} (hlo : lo < n) (P : Fin n → 
 
 /-- Number of vertices at distance at least `lo` in `t`, split at distance exactly `lo`. -/
 private theorem card_dist_ge_split (c : Ctx) (lo : ℕ) (t : Memory.State) :
-    (Finset.univ.filter fun x : Fin c.n => lo ≤ t.mem (distAddr c x.1)).card =
-      (Finset.univ.filter fun x : Fin c.n => lo + 1 ≤ t.mem (distAddr c x.1)).card +
-        (Finset.univ.filter fun x : Fin c.n => t.mem (distAddr c x.1) = lo).card := by
+    (Finset.univ.filter fun x : Fin c.n => lo ≤ t.mem (distAddr c x.val)).card =
+      (Finset.univ.filter fun x : Fin c.n => lo + 1 ≤ t.mem (distAddr c x.val)).card +
+        (Finset.univ.filter fun x : Fin c.n => t.mem (distAddr c x.val) = lo).card := by
   rw [← Finset.card_union_of_disjoint]
   · congr 1
     ext x
@@ -108,7 +108,7 @@ private theorem memoryCost_bfsLayerStep_le (c : Ctx) (layer : ℕ) (hl : layer +
     (t : Memory.State) :
     memoryCost (bfsLayerStep (c, layer)) t ≤
       1 + c.n + 6 * c.n *
-        (Finset.univ.filter fun x : Fin c.n => t.mem (distAddr c x.1) = layer).card := by
+        (Finset.univ.filter fun x : Fin c.n => t.mem (distAddr c x.val) = layer).card := by
   unfold bfsLayerStep
   dsimp only
   rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind',
@@ -116,11 +116,11 @@ private theorem memoryCost_bfsLayerStep_le (c : Ctx) (layer : ℕ) (hl : layer +
   have hmid := memoryCost_iterate_le_potential bfsMidStep (c, layer)
     (fun j (u : ℕ) t' => u + j = c.n ∧ DistRel c layer t t')
     (fun u t' => 6 * c.n *
-      (Finset.univ.filter fun x : Fin c.n => u ≤ x.1 ∧ t'.mem (distAddr c x.1) = layer).card)
+      (Finset.univ.filter fun x : Fin c.n => u ≤ x.val ∧ t'.mem (distAddr c x.val) = layer).card)
     1 ?_ c.n 0 t ⟨Nat.zero_add _, DistRel.refl c layer t⟩
   · have hcard : (Finset.univ.filter fun x : Fin c.n =>
-        0 ≤ x.1 ∧ t.mem (distAddr c x.1) = layer) =
-        Finset.univ.filter fun x : Fin c.n => t.mem (distAddr c x.1) = layer := by
+        0 ≤ x.val ∧ t.mem (distAddr c x.val) = layer) =
+        Finset.univ.filter fun x : Fin c.n => t.mem (distAddr c x.val) = layer := by
       ext x; simp
     rw [hcard] at hmid
     omega
@@ -134,13 +134,13 @@ private theorem memoryCost_bfsLayerStep_le (c : Ctx) (layer : ℕ) (hl : layer +
   refine ⟨⟨by omega, hrel.trans hstep_rel⟩, ?_⟩
   set t'' := (Memory.spec 0).clientState t' (bfsMidStep ((c, layer), u))
   have hsame : ∀ x : Fin c.n,
-      t''.mem (distAddr c x.1) = layer ↔ t'.mem (distAddr c x.1) = layer := fun x => by
-    rcases hstep_rel x.1 x.2 with h | ⟨h1, h2⟩
+      t''.mem (distAddr c x.val) = layer ↔ t'.mem (distAddr c x.val) = layer := fun x => by
+    rcases hstep_rel x.val x.isLt with h | ⟨h1, h2⟩
     · rw [h]
     · rw [h1, h2]; omega
   have hcnt : (Finset.univ.filter fun x : Fin c.n =>
-      u + 1 ≤ x.1 ∧ t''.mem (distAddr c x.1) = layer) =
-      Finset.univ.filter fun x : Fin c.n => u + 1 ≤ x.1 ∧ t'.mem (distAddr c x.1) = layer := by
+      u + 1 ≤ x.val ∧ t''.mem (distAddr c x.val) = layer) =
+      Finset.univ.filter fun x : Fin c.n => u + 1 ≤ x.val ∧ t'.mem (distAddr c x.val) = layer := by
     ext x
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, hsame x]
   have hcost : memoryCost (bfsMidStep ((c, layer), u)) t' ≤
@@ -154,7 +154,7 @@ private theorem memoryCost_bfsLayerStep_le (c : Ctx) (layer : ℕ) (hl : layer +
         (fun v t3 => memoryCost_bfsInnerStep_le _ t3) c.n 0 t'
       omega
     · rw [memoryCost_pure]
-  rw [hcnt, card_filter_ge_split hu (fun x : Fin c.n => t'.mem (distAddr c x.1) = layer)]
+  rw [hcnt, card_filter_ge_split hu (fun x : Fin c.n => t'.mem (distAddr c x.val) = layer)]
   change _ + _ ≤ 1 + 6 * c.n * (_ + if t'.mem (distAddr c u) = layer then 1 else 0)
   split_ifs at hcost ⊢ <;> rw [Nat.mul_add] <;> omega
 
@@ -172,12 +172,12 @@ private theorem memoryCost_bfsProg_le (d : Ctx × ℕ) (s : Memory.State) :
   have hlayers := memoryCost_iterate_le_potential bfsLayerStep c
     (fun j (layer : ℕ) _ => layer + j = c.n - 1)
     (fun layer t' => 6 * c.n *
-      (Finset.univ.filter fun x : Fin c.n => layer ≤ t'.mem (distAddr c x.1)).card)
+      (Finset.univ.filter fun x : Fin c.n => layer ≤ t'.mem (distAddr c x.val)).card)
     (1 + c.n) ?_ (c.n - 1) 0 t₀ (Nat.zero_add _)
-  · have hcard : (Finset.univ.filter fun x : Fin c.n => 0 ≤ t₀.mem (distAddr c x.1)).card ≤ c.n :=
+  · have hcard : (Finset.univ.filter fun x : Fin c.n => 0 ≤ t₀.mem (distAddr c x.val)).card ≤ c.n :=
       (Finset.card_le_univ _).trans (by simp)
     have h1 : 6 * c.n * (Finset.univ.filter fun x : Fin c.n =>
-        0 ≤ t₀.mem (distAddr c x.1)).card ≤ 6 * c.n * c.n := Nat.mul_le_mul_left _ hcard
+        0 ≤ t₀.mem (distAddr c x.val)).card ≤ 6 * c.n * c.n := Nat.mul_le_mul_left _ hcard
     have h2 : (1 + c.n) * (c.n - 1) ≤ (c.n + 1) * c.n := Nat.mul_le_mul (by omega) (Nat.sub_le _ _)
     have h3 : 8 * (c.n + 1) ^ 2 = 8 * (c.n * c.n) + 16 * c.n + 8 := by ring
     have h4 : (c.n + 1) * c.n = c.n * c.n + c.n := by ring
@@ -197,11 +197,11 @@ private theorem memoryCost_bfsProg_le (d : Ctx × ℕ) (s : Memory.State) :
       clientState_pure]
     exact bfsMid_iterate_rel c layer _ _ t'
   set t'' := (Memory.spec 0).clientState t' (bfsLayerStep (c, layer))
-  have hsame : (Finset.univ.filter fun x : Fin c.n => layer + 1 ≤ t''.mem (distAddr c x.1)) =
-      Finset.univ.filter fun x : Fin c.n => layer + 1 ≤ t'.mem (distAddr c x.1) := by
+  have hsame : (Finset.univ.filter fun x : Fin c.n => layer + 1 ≤ t''.mem (distAddr c x.val)) =
+      Finset.univ.filter fun x : Fin c.n => layer + 1 ≤ t'.mem (distAddr c x.val) := by
     ext x
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    rcases hrel x.1 x.2 with h | ⟨h1, h2⟩
+    rcases hrel x.val x.isLt with h | ⟨h1, h2⟩
     · rw [h]
     · rw [h1, h2]; omega
   rw [hsame, card_dist_ge_split c layer t', Nat.mul_add]

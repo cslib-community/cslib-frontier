@@ -532,7 +532,7 @@ theorem constraintDegBound_neg {F : Type*} [CommRing F] {M : ℕ}
   have hsupp : (-p).support = p.support := by
     ext μ
     rw [MvPolynomial.mem_support_iff, MvPolynomial.mem_support_iff, ← neg_one_smul F p,
-      MvPolynomial.coeff_smul, neg_one_smul, neg_ne_zero]
+      AddMonoidAlgebra.coeff_smul_apply, neg_one_smul, neg_ne_zero]
   simp only [constraintDegBound, hsupp]
 
 theorem constraintDegBound_sub_le {F : Type*} [CommRing F] {M : ℕ}

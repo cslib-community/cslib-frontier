@@ -113,11 +113,11 @@ theorem card_filter_nonempty_card_le_pow (k : ℕ) :
       · rintro ⟨i, rfl⟩
         dsimp [f]
         split_ifs with h
-        · exact (e.symm ⟨i, h⟩).2
+        · exact (e.symm ⟨i, h⟩).property
         · exact ha
       · intro hx
         let j := e ⟨x, hx⟩
-        refine ⟨⟨j.1, j.isLt.trans_le hSk⟩, ?_⟩
+        refine ⟨⟨j.val, j.isLt.trans_le hSk⟩, ?_⟩
         dsimp [f]
         simp only [j.isLt, ↓reduceIte]
         exact congrArg Subtype.val (e.symm_apply_apply ⟨x, hx⟩)

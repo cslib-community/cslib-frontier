@@ -180,7 +180,7 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
   let badI : Finset ι := Finset.univ.filter fun i => ¬ ∀ j : Fin (d + 1), u j i = v j i
   have hf_ne (i : ι) (hi : i ∈ badI) : f i ≠ 0 := fun h0 => (mem_filter.1 hi).2 fun j => by
     have hc := congrArg (fun p : F[X] => p.coeff (j : ℕ)) h0
-    simp only [f, Polynomial.ofFn_coeff_eq_val_of_lt _ j.2, coeff_zero] at hc
+    simp only [f, Polynomial.ofFn_coeff_eq_val_of_lt _ j.isLt, coeff_zero] at hc
     exact sub_eq_zero.1 hc
   have hS_sub : S ⊆ badI.biUnion fun i => (f i).roots.toFinset := fun z hz => by
     obtain ⟨i, hi_not, heq⟩ := exists_disagree_mem_unique hα hunique hμ_le hθ
