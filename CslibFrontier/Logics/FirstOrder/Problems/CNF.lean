@@ -326,7 +326,7 @@ elements related to it by the templates of that polarity. -/
 theorem relMap_lit_of_templates
     (hI : ∀ b ts, I.rel (lit b) ts = binaryRel (fun t w => Template.listFormula (temps t b) w) ts)
     (b : Bool) (c y : I.Model M) :
-    RelMap (lit b) ![c, y] ↔ ∃ τ ∈ temps c.1 b, τ.Holds c.2.1 y.toSigma := by
+    RelMap (lit b) ![c, y] ↔ ∃ τ ∈ temps c.1 b, τ.Holds c.coords y.toSigma := by
   rw [relMap_binaryRel (hI b), Template.realize_listFormula]
   rfl
 
@@ -336,10 +336,10 @@ theorem clauseSatisfied_iff_of_templates
     (hI : ∀ b ts, I.rel (lit b) ts = binaryRel (fun t w => Template.listFormula (temps t b) w) ts)
     (A : I.Model M → Prop) (c : I.Model M) :
     ClauseSatisfied A c ↔
-      (∃ τ ∈ temps c.1 true, τ.guard.Realize c.2.1 ∧
-        ∃ y hy, τ.Compat c.2.1 y ∧ A ⟨τ.target, y, hy⟩) ∨
-      (∃ τ ∈ temps c.1 false, τ.guard.Realize c.2.1 ∧
-        ∃ y hy, τ.Compat c.2.1 y ∧ ¬A ⟨τ.target, y, hy⟩) := by
+      (∃ τ ∈ temps c.1 true, τ.guard.Realize c.coords ∧
+        ∃ y hy, τ.Compat c.coords y ∧ A ⟨τ.target, y, hy⟩) ∨
+      (∃ τ ∈ temps c.1 false, τ.guard.Realize c.coords ∧
+        ∃ y hy, τ.Compat c.coords y ∧ ¬A ⟨τ.target, y, hy⟩) := by
   have hp := relMap_lit_of_templates hI true c
   have hn := relMap_lit_of_templates hI false c
   simp only [lit_true, lit_false] at hp hn
@@ -400,8 +400,8 @@ private theorem relMap_trueSym (R : Unit → Set (Fin 1 → M)) (x : Fin 1 → M
 private theorem realize_satMatrix (R : Unit → Set (Fin 1 → M)) :
     (letI := ESO.varLanguage.structure (arity := fun _ : Unit => 1) R; M ⊨ satMatrix) ↔
       Satisfies fun x => ![x] ∈ R () := by
-  simp [satMatrix, Sentence.Realize, Formula.Realize, Fin.snoc, relMap_posSym, relMap_negSym,
-    relMap_trueSym, Satisfies, ClauseSatisfied]
+  let _ := ESO.varLanguage.structure (arity := fun _ : Unit => 1) R
+  fo_simp [satMatrix, relMap_posSym, relMap_negSym, relMap_trueSym, Satisfies, ClauseSatisfied]
 
 /-- The satisfiability sentence holds exactly in the satisfiable CNF structures. -/
 theorem realize_satSentence : satSentence.Realize M ↔ Satisfiable M := by
@@ -469,14 +469,14 @@ def nonemptyClausesSentence : cnf.Sentence :=
 /-- The sentence `nonemptyClausesSentence` holds exactly when no clause is empty. -/
 theorem realize_nonemptyClausesSentence :
     M ⊨ nonemptyClausesSentence ↔ ∀ c : M, (literals c).Nonempty := by
-  fo_simp [nonemptyClausesSentence, Sentence.Realize, Formula.Realize]
+  fo_simp [nonemptyClausesSentence]
   refine forall_congr' fun c => ⟨fun ⟨x, hx⟩ => ?_, fun ⟨⟨b, x⟩, hx⟩ => ⟨x, ?_⟩⟩
   · rcases hx with hx | hx
-    · exact ⟨(true, x), by simpa [mem_literals, Fin.snoc] using hx⟩
-    · exact ⟨(false, x), by simpa [mem_literals, Fin.snoc] using hx⟩
+    · exact ⟨(true, x), hx⟩
+    · exact ⟨(false, x), hx⟩
   · cases b
-    · exact .inr (by simpa [mem_literals, Fin.snoc] using hx)
-    · exact .inl (by simpa [mem_literals, Fin.snoc] using hx)
+    · exact .inr hx
+    · exact .inl hx
 
 /-- **3-CNF structures form a first-order definable class.** -/
 theorem definable_isThreeCNF :

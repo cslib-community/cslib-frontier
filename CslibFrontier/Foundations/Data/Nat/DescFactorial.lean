@@ -72,16 +72,14 @@ theorem two_mul_pow_le_two_mul_descFactorial_add (A : ℕ) :
         have hdesc_le : A.descFactorial (m + 2) ≤ A ^ (m + 2) := Nat.descFactorial_le_pow A (m + 2)
         calc 2 * A ^ (m + 3)
             = (2 * A ^ (m + 2)) * A := by ring
-          _ ≤ (2 * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 1)) * A :=
-              Nat.mul_le_mul_right A ih
+          _ ≤ (2 * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 1)) * A := by gcongr
           _ = 2 * (A * A.descFactorial (m + 2)) + (m + 2) * (m + 1) * A ^ (m + 2) := by ring
           _ = 2 * A.descFactorial (m + 3) +
                 (2 * (m + 2) * A.descFactorial (m + 2) + (m + 2) * (m + 1) * A ^ (m + 2)) := by
               rw [hA_mul]; ring
           _ ≤ 2 * A.descFactorial (m + 3) +
                 (2 * (m + 2) * A ^ (m + 2) + (m + 2) * (m + 1) * A ^ (m + 2)) :=
-              Nat.add_le_add_left
-                (Nat.add_le_add_right (Nat.mul_le_mul_left _ hdesc_le) _) _
+              by gcongr
           _ = 2 * A.descFactorial (m + 3) + (m + 3) * (m + 2) * A ^ (m + 2) := by ring
 
 /-- Falling-factorial lower bound `A ^ r ≤ 2 * A.descFactorial r` whenever `2 * r ^ 2 ≤ A`. -/

@@ -80,16 +80,10 @@ theorem recomputeHeight_mkNode (zero maxSucc : M.Op) (encode : ℕ → M.Value)
   let value := encode (mkNode (label.data 0) left right).cachedHeight
   have height : encode (BinaryTree.node label l r).height = value := by
     simp [value, BinaryTree.height, lh, rh, Nat.add_comm]
-  have keepL : updateData l label.address field value = l := by
-    apply updateData_eq_self
-    intro p u hp eq
-    have bad := distinct (.bit0 p) .one u label hp rfl eq
-    cases bad
-  have keepR : updateData r label.address field value = r := by
-    apply updateData_eq_self
-    intro p u hp eq
-    have bad := distinct (.bit1 p) .one u label hp rfl eq
-    cases bad
+  have keepL : updateData l label.address field value = l :=
+    updateData_eq_self _ _ _ _ fun p u hp eq => nomatch distinct (.bit0 p) .one u label hp rfl eq
+  have keepR : updateData r label.address field value = r :=
+    updateData_eq_self _ _ _ _ fun p u hp eq => nomatch distinct (.bit1 p) .one u label hp rfl eq
   have shape : updateData (.node label l r) label.address field value =
       .node { label with data := Function.update label.data field value } l r := by
     simp only [updateData, BinaryTree.map, ↓reduceIte]
@@ -246,5 +240,19 @@ theorem rotate_correct (right : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.
     rw [vh, List.getElem?_modify_ne _ _ (Ne.symm hz.2.1.1), uh,
       List.getElem?_modify_ne _ _ (Ne.symm hz.1)]
     exact rf z hz.2.1.1 hz.1 fun e => hz.2.1.2.2 (root_mem_addresses e)
+
+/-! Frames of `rotate`, for the programs that call it. -/
+
+@[simp] theorem rotate_keepsSize (right : Bool) (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (rotate (regs := regs) right zero maxSucc field).KeepsSize := by
+  simp [rotate, Op.creates]
+
+theorem rotate_dataDests (right : Bool) (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (rotate (regs := regs) right zero maxSucc field).dataDests ⊆ [1, 2] := by
+  simp [rotate, Op.dataDest]
+
+@[simp] theorem rotate_fieldDests (right : Bool) (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (rotate (regs := regs) right zero maxSucc field).fieldDests = [field, field] := by
+  simp [rotate, Op.fieldDest]
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured

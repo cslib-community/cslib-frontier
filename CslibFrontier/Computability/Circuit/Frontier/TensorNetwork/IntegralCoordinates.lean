@@ -25,7 +25,8 @@ polynomial `z ↦ W_d(t + α z)` obtained from the Cauchy kernel `W_d = cauchyKe
 coefficients in `ℤ_(2)`, the rationals with odd denominator
 (`Cslib.Circuits.Frontier.cauchyKernel_comp_mem_lifts`); when `d ≠ t` it is moreover divisible by
 `2` (`Cslib.Circuits.Frontier.exists_cauchyKernel_comp_eq_two_mul`). Here `ℤ_(2)` is the valuation
-ring `(Rat.padicValuation 2).integer`, and "coefficients in `ℤ_(2)`" is membership in
+ring `(Rat.padicValuation 2).integer` (available as the scoped notation `ℤ₍₂₎` inside
+`Cslib.Circuits.Frontier.TensorNetwork`), and "coefficients in `ℤ_(2)`" is membership in
 `Polynomial.lifts` of its inclusion.
 
 The proof is the manuscript's. Since `S` is a complete residue system modulo `2 ^ (a + 1)`, the
@@ -154,8 +155,15 @@ theorem padicValuation_two_pow_le_sub {a : ℕ} {t q : ℤ} (ht : t ∈ cauchyGr
 
 /-! ### The kernel in local coordinates -/
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+namespace TensorNetwork
+
+/-- The subring `ℤ_(2)` of rationals with odd denominator,
+`Valuation.integer (Rat.padicValuation 2)`. Scoped to `Cslib.Circuits.Frontier.TensorNetwork`. -/
+scoped notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+
+end TensorNetwork
+
+open scoped TensorNetwork
 
 private theorem C_mem_lifts_of_le_one {c : ℚ} (hc : Rat.padicValuation 2 c ≤ 1) :
     C c ∈ lifts (ℤ₍₂₎).subtype :=

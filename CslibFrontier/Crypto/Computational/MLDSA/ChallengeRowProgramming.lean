@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+-- Reads private `Trace`, `parse`, `signedTail`, and `inBall_signedTail`, plus `sampleInBallBytes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Primitives.ByteString
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Fintype.Sort
 
@@ -45,18 +45,13 @@ private theorem Trace.parse_raw {i n : ℕ} (t : Trace i n) : parse i n t.raw = 
 
 private theorem raw_of_parse {i n : ℕ} {xs : List Byte} {t : Trace i n}
     (h : parse i n xs = some t) : t.raw = xs := by
-  induction xs generalizing i n with
-  | nil =>
-    cases n with
-    | zero => simp only [parse, Option.some.injEq] at h; subst t; rfl
-    | succ => simp [parse] at h
-  | cons b xs ih =>
-    cases n with
-    | zero => simp only [parse, Option.some.injEq] at h; subst t; rfl
-    | succ k =>
-      rw [parse] at h
-      split at h <;> obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h <;>
-        exact congrArg (b :: ·) (ih hu)
+  fun_induction parse i n xs with
+  | case1 => cases Option.some.inj h; rfl -- 0, tail: done
+  | case2 => cases h -- k + 1, []: out of bytes
+  -- k + 1, b :: rest: reject (`i < b`) or accept (`b ≤ i`)
+  | case3 _ _ b _ _ ih | case4 _ _ b _ _ ih =>
+    obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h
+    exact congrArg (b :: ·) (ih hu)
 
 @[ext] private structure FixedAbove (i : ℕ) where
   e : Equiv.Perm Byte

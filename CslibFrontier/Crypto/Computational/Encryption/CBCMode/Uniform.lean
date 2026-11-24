@@ -161,15 +161,6 @@ def cbcWordDecrypt (decFamily : List Bool → List Bool → List Bool) :
     ℕ → List Bool → List Bool → Option (List Bool) :=
   ivModeDecrypt (cbcWordDecBody decFamily)
 
-/-- `BitString.listRows (L / n) n x` is the word view of `BitString.padBlocks n L x`. -/
-private theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
-    BitString.listRows (L / n) n x = (BitString.padBlocks n L x).map List.ofFn := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  refine List.ext_getElem (by simp [BitString.listRows]) fun j hj₁ hj₂ => ?_
-  simp only [BitString.listRows, List.getElem_map, List.getElem_range]
-  rw [BitString.getElem_listRow (by simpa using hj₂), List.getElem_ofFn,
-    BitString.padBlocks_getElem_apply n L x i (by simpa using h₁) ⟨j, by simpa using hj₂⟩]
-
 /-- Block-list representation of the CBC encryption chain under `g`. -/
 private def cbcChainWords (g : List Bool → List Bool) (n : ℕ) :
     List Bool → List (List Bool) → List (List Bool)
@@ -646,8 +637,8 @@ private theorem cbcChainWords_randomFunction_map_ofFn {n : ℕ} (f : BitString n
 private theorem cbcWordBody_randomFunction_ofFn {n : ℕ} (f : BitString n → BitString n)
     (iv : BitString n) (m : List Bool) :
     cbcWordBody (fun _ x => randomFunctionOracle n f x) n [] (List.ofFn iv) m =
-      (cbcEncryptBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn := by
-  rw [cbcWordBody_eq_flatten_cbcChainWords, listRows_eq_map_ofFn_padBlocks,
+      (cbcEncryptBlocks f iv (BitString.toBlocks n m)).flatMap List.ofFn := by
+  rw [cbcWordBody_eq_flatten_cbcChainWords, BitString.listRows_eq_map_ofFn_toBlocks,
     cbcChainWords_randomFunction_map_ofFn, ← List.flatMap_def]
 
 /-- Running `cbcToPrfDistinguisher` against a fixed table `f` agrees in distribution with running
@@ -690,7 +681,7 @@ private theorem eval_run_cbcToPrfDistinguisher_table (adversary : OracleDistingu
   by_cases hvalid : blockPairValid n (unframe request.2) (dropFrame request.2) = true
   · have hℓ : (unframe request.2).length / n ≤ L :=
       (Nat.div_le_self _ _).trans ((length_unframe_le _).trans hrequest)
-    have hsel := blockModeSelect_padBlocks bit hvalid hℓ
+    have hsel := blockModeSelect_toBlocks bit hvalid hℓ
     simp only [hvalid, ↓reduceIte, cbcWordEncrypt, ivModeEncrypt, ProbOracleComp.run_map,
       ProbOracleComp.run_query, blockModeOracle, hsel, ProbComp.eval_bind, ProbComp.eval_map,
       ProbComp.eval_pure, ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList,

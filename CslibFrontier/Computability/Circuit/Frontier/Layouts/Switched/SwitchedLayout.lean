@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Connector
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Pathwidth
 public import Mathlib.Combinatorics.SimpleGraph.Finite
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Zify
@@ -46,41 +47,43 @@ noncomputable section
 
 namespace Cslib.Circuits.Frontier.Switched
 
+/-! ## Frontier definitions -/
+
 section FrontierDefs
 
 variable {n : ℕ} (G : SimpleGraph (Fin n))
 
+open Classical in
 /-- Inner boundary of the level set `{y ≤ t}`: its vertices with a neighbor above `t`. -/
-def innerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun u => y u ≤ t ∧ ∃ w, G.Adj u w ∧ t < y w
+def innerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun u => y u ≤ t ∧ ∃ w, G.Adj u w ∧ t < y w
 
+open Classical in
 /-- Outer boundary of the level set `{y ≤ t}`: vertices above `t` with a neighbor in `{y ≤ t}`. -/
-def outerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun w => t < y w ∧ ∃ u, G.Adj u w ∧ y u ≤ t
+def outerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun w => t < y w ∧ ∃ u, G.Adj u w ∧ y u ≤ t
 
+open Classical in
 /-- Vertices of crossing degree three at level zero: degree three, with every neighbor on the
 other side of zero. -/
-def crossFull (y : Fin n → ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun x =>
+def crossFull (y : Fin n → ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun x =>
     G.degree x = 3 ∧ ∀ z, G.Adj x z → (y x ≤ 0 ↔ 0 < y z)
 
+open Classical in
 /-- Level-zero lower connector load `|U| + |D ∩ W| = |U'| + |D|`. -/
-def lowerZero (y : Fin n → ℝ) : ℕ := by
-  classical
-  exact (innerFrontier G y 0).card + ((crossFull G y).filter fun x => 0 < y x).card
+def lowerZero (y : Fin n → ℝ) : ℕ :=
+  (innerFrontier G y 0).card + ((crossFull G y).filter fun x => 0 < y x).card
 
+open Classical in
 /-- Level-zero upper connector load `|W| + |D ∩ U| = |W'| + |D|`. -/
-def upperZero (y : Fin n → ℝ) : ℕ := by
-  classical
-  exact (outerFrontier G y 0).card + ((crossFull G y).filter fun x => y x ≤ 0).card
+def upperZero (y : Fin n → ℝ) : ℕ :=
+  (outerFrontier G y 0).card + ((crossFull G y).filter fun x => y x ≤ 0).card
 
+open Classical in
 /-- Labels in the half-open interval `(a, b]`. -/
-def cellSet (y : Fin n → ℝ) (a b : ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun z => a < y z ∧ y z ≤ b
+def cellSet (y : Fin n → ℝ) (a b : ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun z => a < y z ∧ y z ≤ b
 
 end FrontierDefs
 
@@ -95,6 +98,8 @@ namespace Cslib.Circuits.Frontier.Switched.Layout
 noncomputable section
 
 variable {n : ℕ} (G : SimpleGraph (Fin n)) (y : Fin n → ℝ)
+
+/-! ## Layout sets and connector items -/
 
 open Classical in
 /-- Number of lower vertices, `L = #{y ≤ 0}`. -/
@@ -226,6 +231,8 @@ private theorem nbr_upper_of_not_outer {v z : Fin n} (hv : 0 < y v)
   push Not at h
   exact hW ((mem_outer G y).mpr ⟨hv, z, hz.symm, h⟩)
 
+/-! ## Connector order properties -/
+
 section Order
 
 variable {G y l}
@@ -284,6 +291,8 @@ private theorem lowEnd_le (v : Fin n) (hv : y v ≤ 0) :
     omega
 
 end Order
+
+/-! ## Bag membership by phase -/
 
 section Members
 
@@ -684,9 +693,7 @@ private theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 �
       exact le_trans (by exact_mod_cast Finset.card_le_card hsubB) this
   have hc := Finset.card_le_card hsub
   have hu := Finset.card_union_le A B
-  have : ((intervalBag (start G y l) (finish G y l) t).card : ℝ) ≤ A.card + B.card := by
-    exact_mod_cast hc.trans hu
-  linarith
+  cast_linarith [hc.trans hu]
 
 open Classical in
 /-- Outer phase: at most one leaving vertex plus an outer frontier at a
@@ -703,7 +710,6 @@ private theorem outer_bag_card (hy : Function.Injective y)
     rcases mem_outer_phase hl hi hv with h | h
     · exact Finset.mem_union_left _ (by simp [A, h])
     · exact Finset.mem_union_right _ (by simp [B, h])
-  have hA : (A.card : ℝ) ≤ 1 := by exact_mod_cast card_rank_eq_le hy i
   obtain ⟨x, hx⟩ := exists_rank_eq hy hin
   have hx0 : 0 < y x := not_le.mp fun h => by
     have := (lower_iff y x).mpr h
@@ -718,10 +724,7 @@ private theorem outer_bag_card (hy : Function.Injective y)
     le_trans (by exact_mod_cast Finset.card_le_card hsubB) (hout (y x) hx0)
   have hc := Finset.card_le_card hsub
   have hu := Finset.card_union_le A B
-  have : ((intervalBag (start G y l) (finish G y l) (i + K G y + 2)).card : ℝ) ≤
-      A.card + B.card := by
-    exact_mod_cast hc.trans hu
-  linarith
+  cast_linarith [hc.trans hu, card_rank_eq_le hy i]
 
 open Classical in
 /-- Connector phase: `|D| + max(|U'|, |W'|) + 2`. -/
@@ -802,6 +805,8 @@ private theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G 
     linarith
 
 end Bags
+
+/-! ## Main theorem -/
 
 open Classical in
 /-- **L1–L3.** The median-switched layout gives a family of vertex intervals `[s v, e v]`

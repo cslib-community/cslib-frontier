@@ -27,6 +27,8 @@ simulators have no polynomial-time claim.
 
 ## Main definitions
 
+* `OTCommitment.encReceiverReceipt`: single OT receipt `(j, answer)` encoding.
+* `OTCommitment.encOpeningPairs`: explicit opening-pair list `List (Bool × Bool)` encoding.
 * `OTCommitment.extractPairs`: strict majority of the parities of an explicit pair list.
 * `OTCommitment.equivocatePairs`: opening pairs from an explicit OT receipt list.
 
@@ -43,6 +45,18 @@ public section
 namespace Cslib.Crypto.Protocols.MPC.OTCommitment
 
 open Turing.MultiTapeTM Turing.MultiTapeTM.Encodings
+
+/-- Single OT receipt `(j, answer)`: the choice index `j : Fin 4` in unary rank
+(`encFinEnum (Fin 4)`) is framed before the unframed received bit `answer : Bool`, with no tag
+bits. -/
+abbrev encReceiverReceipt : Fin 4 × Bool ↪ List Bool :=
+  encPair (encFinEnum (Fin 4)) encBool
+
+/-- Explicit list of OT opening pairs `List (Bool × Bool)`: each element pairs a framed first bit
+(`encBool`) with an unframed second bit (`encBool`), and each pair is framed inside the list
+(`encList`), with no tag bits. -/
+abbrev encOpeningPairs : List (Bool × Bool) ↪ List Bool :=
+  encList (encPair encBool encBool)
 
 /-- Strict majority of pair parities, computed by counting them in an explicitly encoded list.
 The strict comparison resolves empty lists and ties to false. -/
@@ -61,7 +75,7 @@ theorem extractPairs_ofFn {k : ℕ} (ts : Fin k → Fin 4 → Bool) :
 /-- Polynomial-time extraction from a framed list of framed pairs of single bits. This measures
 ordinary encoded input size and provides independent polynomial time and space bounds. -/
 theorem extractPairs_polyTime :
-    ComputableInPolyTime extractPairs (encList (encPair encBool encBool)) encBool := by
+    ComputableInPolyTime extractPairs encOpeningPairs encBool := by
   fun_prop [extractPairs]
 
 /-- Apply the existing equivocation operation to a list of full OT indices and received bits.
@@ -82,27 +96,27 @@ index encoding has constant size; both transcript length and every received bit 
 theorem equivocatePairs_polyTime :
     ComputableInPolyTime
       (fun input : Bool × List (Fin 4 × Bool) => equivocatePairs input.1 input.2)
-      (encPair encBool (encList (encPair (encFinEnum (Fin 4)) encBool)))
-      (encList (encPair encBool encBool)) := by
-  let encReceipt := encPair (encFinEnum (Fin 4)) encBool
-  let encInput := encPair encBool (encList encReceipt)
+      (encPair encBool (encList encReceiverReceipt))
+      encOpeningPairs := by
+  let encInput := encPair encBool (encList encReceiverReceipt)
   let op := fun p : Bool × (Fin 4 × Bool) =>
     let pair := equivocate p.1 (fun _ : Fin 1 => p.2) 0
     (pair false, pair true)
-  have hop : ComputableInPolyTime op (encPair encBool encReceipt)
+  have hop : ComputableInPolyTime op (encPair encBool encReceiverReceipt)
       (encPair encBool encBool) := ComputableInPolyTime.of_finite op
   have hparam : ComputableInPolyTime
       (fun p : (Bool × List (Fin 4 × Bool)) × (Fin 4 × Bool) => (p.1.1, p.2))
-      (encPair encInput encReceipt) (encPair encBool encReceipt) :=
-    ((ComputableInPolyTime.fst encBool (encList encReceipt)).comp
-      (ComputableInPolyTime.fst encInput encReceipt)).prod
-      (ComputableInPolyTime.snd encInput encReceipt)
+      (encPair encInput encReceiverReceipt) (encPair encBool encReceiverReceipt) :=
+    ((ComputableInPolyTime.fst encBool (encList encReceiverReceipt)).comp
+      (ComputableInPolyTime.fst encInput encReceiverReceipt)).prod
+      (ComputableInPolyTime.snd encInput encReceiverReceipt)
   change ComputableInPolyTime
-    (fun input : Bool × List (Fin 4 × Bool) => input.2.map (fun receipt => op (input.1, receipt)))
-    encInput (encList (encPair encBool encBool))
-  exact ComputableInPolyTime.mapWithInput (encA := encReceipt)
+    (fun input : Bool × List (Fin 4 × Bool) =>
+      input.2.map (fun receipt => op (input.1, receipt)))
+    encInput encOpeningPairs
+  exact ComputableInPolyTime.mapWithInput (encA := encReceiverReceipt)
     (encB := encPair encBool encBool) (encIn := encInput)
     (f := fun input receipt => op (input.1, receipt)) (list := Prod.snd)
-    (ComputableInPolyTime.snd encBool (encList encReceipt)) (hop.comp hparam)
+    (ComputableInPolyTime.snd encBool (encList encReceiverReceipt)) (hop.comp hparam)
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment

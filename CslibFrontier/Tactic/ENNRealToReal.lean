@@ -9,9 +9,11 @@ module
 
 public import CslibFrontier.Probability.PMF.Finiteness
 public import CslibFrontier.Tactic.ENNRealToReal.Init
+public import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
 public import Mathlib.Tactic.Positivity
 public import Mathlib.Topology.Algebra.InfiniteSum.ENNReal
 public meta import Lean.Elab.Tactic.Location
+public meta import Lean.Elab.Tactic.SolveByElim
 
 /-!
 # Reading a finite `ℝ≥0∞` statement in `ℝ`
@@ -19,14 +21,16 @@ public meta import Lean.Elab.Tactic.Location
 Probabilities take values in `ℝ≥0∞`, while error bounds are stated and combined in `ℝ`, where
 `linarith`, `nlinarith`, `field_simp` and `norm_num` work. Crossing over by hand takes three
 steps: choose the bridge lemma (`ENNReal.toReal_mono`, `ENNReal.toReal_le_toReal`,
-`ENNReal.toReal_eq_toReal_iff'`), prove each side finite with a term that mirrors its shape, and
-push `ENNReal.toReal` through the arithmetic with `ENNReal.toReal_add`, `ENNReal.toReal_ofReal`
-and their relatives, which ask for the same finiteness facts again.
+`ENNReal.toReal_eq_toReal_iff'`, `ENNReal.ofReal_le_iff_le_toReal`), prove each side finite with a
+term that mirrors its shape, and push `ENNReal.toReal` through the arithmetic with
+`ENNReal.toReal_add`, `ENNReal.toReal_ofReal` and their relatives, which ask for the same finiteness
+facts again.
 
 `ennreal_to_real` does the three steps. For a goal or hypothesis `a R b` in `ℝ≥0∞`, with `R` one
-of `≤`, `<`, `=`, it proves the sides finite with `finiteness`, replaces the statement by
-`a.toReal R b.toReal`, and pushes `toReal` to the leaves with the simp set `ennreal_toReal`. On a
-statement that is already real it only pushes `toReal`.
+of `≤`, `<`, `=`, `≠`, it proves the needed sides finite with `finiteness`, replaces the statement
+by `a.toReal R b.toReal` (`ENNReal.ofReal r ≤ b` drops `ofReal` directly without requiring
+`0 ≤ r`), and pushes `toReal` to the leaves with the simp set `ennreal_toReal`. On a statement that
+is already real it only pushes `toReal`.
 
 ## Main definitions
 
@@ -40,17 +44,30 @@ statement that is already real it only pushes `toReal`.
 
 A side condition that is not found leaves its `toReal` in place and the rest is still rewritten,
 so a missing fact shows in the resulting goal. Side conditions are dispatched on their shape:
-`x ≠ ∞` goes to `finiteness` and an inequality to the hypotheses and `positivity`. A failing
-`finiteness` call is the expensive case (most of a second on a term with three unknown atoms),
-which the dispatch keeps off the inequalities.
+`x ≠ ∞` goes to `finiteness` and an inequality to local hypotheses (including quantified ones via
+bounded `solve_by_elim`), `positivity` and `norm_cast`. A failing `finiteness` call is the
+expensive case (most of a second on a term with three unknown atoms), which the dispatch keeps off
+the inequalities.
 -/
 
 public section
 
+namespace Cslib.Tactic.ENNRealToReal
+
+/-- Push `ENNReal.toReal` inside `if … then … else …`. -/
+@[ennreal_toReal]
+theorem toReal_ite (p : Prop) [Decidable p] (a b : ENNReal) :
+    (if p then a else b).toReal = if p then a.toReal else b.toReal :=
+  apply_ite ENNReal.toReal p a b
+
+end Cslib.Tactic.ENNRealToReal
+
 attribute [ennreal_toReal] ENNReal.toReal_add ENNReal.toReal_mul ENNReal.toReal_sum
-  ENNReal.toReal_pow ENNReal.toReal_inv ENNReal.toReal_div ENNReal.toReal_natCast
-  ENNReal.toReal_ofNat ENNReal.toReal_one ENNReal.toReal_zero ENNReal.toReal_ofReal
-  ENNReal.toReal_sub_of_le ENNReal.tsum_toReal_eq ENNReal.coe_toReal
+  ENNReal.toReal_prod ENNReal.toReal_pow ENNReal.toReal_inv ENNReal.toReal_div
+  ENNReal.toReal_natCast ENNReal.toReal_ofNat ENNReal.toReal_one ENNReal.toReal_zero
+  ENNReal.toReal_ofReal ENNReal.toReal_sub_of_le ENNReal.tsum_toReal_eq ENNReal.coe_toReal
+
+attribute [ennreal_toReal ←] ENNReal.toReal_rpow
 
 end
 
@@ -72,7 +89,7 @@ elab_rules : tactic
     replaceMainGoal [goal]
     let type := (← instantiateMVars (← goal.getType)).cleanupAnnotations
     let tactic ← if type.isAppOf ``Ne || type.isAppOf ``Not then `(tactic| finiteness)
-      else `(tactic| first | assumption | positivity | norm_cast)
+      else `(tactic| first | assumption | solve_by_elim (maxDepth := 3) | positivity | norm_cast)
     -- `simp` runs a discharger without error recovery around it: a tactic that reports its own
     -- failure (it logs the error and admits the goal, as `done` does) would have the side
     -- condition accepted. So every failure is turned into an ordinary error here; the `catch`
@@ -85,7 +102,7 @@ elab_rules : tactic
 
 /-- The relations that `ennreal_to_real` transfers. -/
 private inductive Rel where
-  | le | lt | eq
+  | le | lt | eq | ne
 
 /-- Splits a statement `a R b` about `a b : ℝ≥0∞` into `R`, `a` and `b`. -/
 private def matchRel? (e : Expr) : MetaM (Option (Rel × Expr × Expr)) := do
@@ -96,6 +113,11 @@ private def matchRel? (e : Expr) : MetaM (Option (Rel × Expr × Expr)) := do
   | LE.le α _ a b => ifENNReal α (.le, a, b)
   | LT.lt α _ a b => ifENNReal α (.lt, a, b)
   | Eq α a b => ifENNReal α (.eq, a, b)
+  | Ne α a b => ifENNReal α (.ne, a, b)
+  | Not p =>
+    match_expr p.cleanupAnnotations with
+    | Eq α a b => ifENNReal α (.ne, a, b)
+    | _ => return none
   | _ => return none
 
 /-- Proves `e ≠ ∞` with `finiteness`. On failure, the error names what `finiteness` could not
@@ -122,19 +144,41 @@ private def proveNeTop (e : Expr) : TacticM Expr := do
       `finiteness` is left with{MessageData.joinSep left ""}\n\
       Add the missing fact as a hypothesis, or register it as a `finiteness` rule."
 
-/-- The equivalence `a.toReal R b.toReal ↔ a R b` for finite `a` and `b`. -/
-private def bridge (rel : Rel) (ha hb : Expr) : MetaM Expr :=
+/-- The equivalence between the real statement and `a R b` for finite `a` and `b`, together with
+the syntactic target type in `ℝ`. On `ENNReal.ofReal r ≤ b`, drops `ENNReal.ofReal` directly
+without requiring `0 ≤ r`. -/
+private def bridge (rel : Rel) (a b : Expr) : TacticM (Expr × Expr) := do
+  let a := a.cleanupAnnotations
+  let b := b.cleanupAnnotations
   match rel with
-  | .le => mkAppM ``ENNReal.toReal_le_toReal #[ha, hb]
-  | .lt => mkAppM ``ENNReal.toReal_lt_toReal #[ha, hb]
-  | .eq => mkAppM ``ENNReal.toReal_eq_toReal_iff' #[ha, hb]
+  | .le =>
+    let iff ← if a.isAppOfArity ``ENNReal.ofReal 1 then
+        let fwd ← mkAppOptM ``ENNReal.ofReal_le_iff_le_toReal
+          #[some a.appArg!, some b, some (← proveNeTop b)]
+        mkAppM ``Iff.symm #[fwd]
+      else
+        mkAppM ``ENNReal.toReal_le_toReal #[← proveNeTop a, ← proveNeTop b]
+    let some (real, _) := (← inferType iff).iff? | throwError "ennreal_to_real: internal error"
+    return (iff, real)
+  | .lt =>
+    let iff ← mkAppM ``ENNReal.toReal_lt_toReal #[← proveNeTop a, ← proveNeTop b]
+    let some (real, _) := (← inferType iff).iff? | throwError "ennreal_to_real: internal error"
+    return (iff, real)
+  | .eq =>
+    let iff ← mkAppM ``ENNReal.toReal_eq_toReal_iff' #[← proveNeTop a, ← proveNeTop b]
+    let some (real, _) := (← inferType iff).iff? | throwError "ennreal_to_real: internal error"
+    return (iff, real)
+  | .ne =>
+    let eqIff ← mkAppM ``ENNReal.toReal_eq_toReal_iff' #[← proveNeTop a, ← proveNeTop b]
+    let iff ← mkAppM ``not_congr #[eqIff]
+    let real ← mkAppM ``Ne #[← mkAppM ``ENNReal.toReal #[a], ← mkAppM ``ENNReal.toReal #[b]]
+    return (iff, real)
 
 /-- Replaces a goal `a R b` in `ℝ≥0∞` by `a.toReal R b.toReal`. Returns `false` on other goals. -/
 private def transferGoal : TacticM Bool := withMainContext do
   let goal ← getMainGoal
   let some (rel, a, b) ← matchRel? (← goal.getType) | return false
-  let iff ← bridge rel (← proveNeTop a) (← proveNeTop b)
-  let some (real, _) := (← inferType iff).iff? | throwError "ennreal_to_real: internal error"
+  let (iff, real) ← bridge rel a b
   let new ← mkFreshExprSyntheticOpaqueMVar real (← goal.getTag)
   goal.assign (← mkAppM ``Iff.mp #[iff, new])
   replaceMainGoal [new.mvarId!]
@@ -144,12 +188,26 @@ private def transferGoal : TacticM Bool := withMainContext do
 other hypotheses. -/
 private def transferHyp (fvarId : FVarId) : TacticM Bool := withMainContext do
   let h := mkFVar fvarId
-  let some (rel, _, b) ← matchRel? (← fvarId.getType) | return false
-  let proof ← match rel with
-    | .le => mkAppM ``ENNReal.toReal_mono #[← proveNeTop b, h]
-    | .lt => mkAppM ``ENNReal.toReal_strict_mono #[← proveNeTop b, h]
-    | .eq => mkCongrArg (mkConst ``ENNReal.toReal) h
-  replaceMainGoal [(← (← getMainGoal).replace fvarId proof).mvarId]
+  let some (rel, a, b) ← matchRel? (← fvarId.getType) | return false
+  let a := a.cleanupAnnotations
+  let b := b.cleanupAnnotations
+  let (proof, type?) ← match rel with
+    | .le =>
+      if a.isAppOfArity ``ENNReal.ofReal 1 then
+        let iff ← mkAppOptM ``ENNReal.ofReal_le_iff_le_toReal
+          #[some a.appArg!, some b, some (← proveNeTop b)]
+        pure (← mkAppM ``Iff.mp #[iff, h], none)
+      else
+        pure (← mkAppM ``ENNReal.toReal_mono #[← proveNeTop b, h], none)
+    | .lt =>
+      pure (← mkAppM ``ENNReal.toReal_strict_mono #[← proveNeTop b, h], none)
+    | .eq => pure (← mkCongrArg (mkConst ``ENNReal.toReal) h, none)
+    | .ne =>
+      let eqIff ← mkAppM ``ENNReal.toReal_eq_toReal_iff' #[← proveNeTop a, ← proveNeTop b]
+      let iff ← mkAppM ``not_congr #[eqIff]
+      let real ← mkAppM ``Ne #[← mkAppM ``ENNReal.toReal #[a], ← mkAppM ``ENNReal.toReal #[b]]
+      pure (← mkAppM ``Iff.mpr #[iff, h], some real)
+  replaceMainGoal [(← (← getMainGoal).replace fvarId proof type?).mvarId]
   return true
 
 /-- The argument of a `toReal` of a sum in `e`, the kind of term that `ennreal_toReal` rewrites
@@ -187,13 +245,15 @@ private def run (loc : Option (TSyntax ``Parser.Tactic.location)) (failIfUnchang
 
 /-- `ennreal_to_real` reads a statement about finite elements of `ℝ≥0∞` in `ℝ`.
 
-For a goal `a R b` with `a b : ℝ≥0∞` and `R` one of `≤`, `<`, `=`, it proves `a ≠ ∞` and `b ≠ ∞`
-with `finiteness`, replaces the goal by `a.toReal R b.toReal`, and pushes `toReal` to the leaves
-with the simp set `ennreal_toReal`: through `+`, `*`, `∑`, `∑'`, `^`, `⁻¹`, `/`, numerals, casts
-and `ENNReal.ofReal`. A goal that is already real only has its `toReal`s pushed.
+For a goal `a R b` with `a b : ℝ≥0∞` and `R` one of `≤`, `<`, `=`, `≠`, it proves the sides finite
+with `finiteness`, replaces the goal by `a.toReal R b.toReal` (`ENNReal.ofReal r ≤ b` drops
+`ofReal` without requiring `0 ≤ r`), and pushes `toReal` to the leaves with the simp set
+`ennreal_toReal`: through `+`, `*`, `∑`, `∏`, `∑'`, natural and real `^`, `⁻¹`, `/`,
+`if … then … else …`, numerals, casts and `ENNReal.ofReal`. A goal that is already real only has
+its `toReal`s pushed.
 
-* `ennreal_to_real at h₁ h₂ ⊢` does the same at hypotheses. A hypothesis `a ≤ b` or `a < b`
-  needs only `b` finite, and `a = b` needs nothing.
+* `ennreal_to_real at h₁ h₂ ⊢` does the same at hypotheses. A hypothesis `a ≤ b` or `a < b` needs
+  only `b` finite, `a = b` needs nothing, and `a ≠ b` needs both `a` and `b` finite.
 * `ennreal_to_real using e` transfers the goal and the fact `e`, then closes the goal with `e`.
   The term `e` is elaborated on its own, without the goal as expected type.
 
