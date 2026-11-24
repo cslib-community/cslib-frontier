@@ -4,10 +4,23 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
+module
+-- upstream: local-only (tests)
 
-/-! Regression and boundary witnesses for `Cslib.Combinatorics.beckFiala` and
-`Cslib.Combinatorics.beckFiala_rounding`. -/
+import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.Order.Field.Rat
+import Mathlib.Analysis.Real.Sqrt
+import Mathlib.Basic.Real.Basic
+import Mathlib.Data.Fintype.Fin
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
+
+/-! Regression, module-encapsulation, and boundary witnesses for
+`Cslib.Combinatorics.beckFiala` and `Cslib.Combinatorics.beckFiala_rounding`. -/
+
+set_option linter.privateModule false
 
 open Cslib.Combinatorics Finset
 
@@ -66,7 +79,7 @@ private def triWeight : Fin 3 → ℚ
   | 1 => 1 / 2
   | 2 => 1
 
--- Fractional rounding (`beckFiala_rounding`) preserves exact `0`/`1` coordinates and `< t`.
+-- Fractional rounding over `ℚ` preserves exact `0`/`1` coordinates and achieves `< t`.
 example :
     ∃ χ : Fin 3 → ℤ, (∀ v, χ v = 0 ∨ χ v = 1) ∧ χ 0 = 0 ∧ χ 2 = 1 ∧
       ∀ i : Fin 3, |∑ v ∈ triSets i, ((χ v : ℚ) - triWeight v)| < 2 := by
@@ -75,3 +88,30 @@ example :
     (fun v => by fin_cases v <;> norm_num [triWeight])
     (fun v => by fin_cases v <;> norm_num [triWeight])
   exact ⟨χ, hχ, h0 0 rfl, h1 2 rfl, hb⟩
+
+private noncomputable def triWeightReal : Fin 3 → ℝ
+  | 0 => 0
+  | 1 => Real.sqrt 2 - 1
+  | 2 => 1
+
+-- Fractional rounding over `ℝ` rounds irrational weights while fixing `0`/`1` coordinates.
+example :
+    ∃ χ : Fin 3 → ℤ, (∀ v, χ v = 0 ∨ χ v = 1) ∧ χ 0 = 0 ∧ χ 2 = 1 ∧
+      ∀ i : Fin 3, |∑ v ∈ triSets i, ((χ v : ℝ) - triWeightReal v)| < 2 := by
+  have h1 : (1 : ℝ) ≤ Real.sqrt 2 := by simp
+  have h2 : Real.sqrt 2 ≤ 2 := by simp
+  obtain ⟨χ, hχ, h0, h1', hb⟩ := beckFiala_rounding triSets (t := 2) (by decide)
+    (fun v => by fin_cases v <;> decide) triWeightReal
+    (fun v => by fin_cases v <;> dsimp only [triWeightReal] <;> linarith)
+    (fun v => by fin_cases v <;> dsimp only [triWeightReal] <;> linarith)
+  exact ⟨χ, hχ, h0 0 rfl, h1' 2 rfl, hb⟩
+
+-- Generic linearly ordered field usability under `module` encapsulation.
+example {𝕜 : Type*} [Field 𝕜] [LinearOrder 𝕜] [IsStrictOrderedRing 𝕜]
+    (x : Fin 3 → 𝕜) (hx0 : ∀ v, 0 ≤ x v) (hx1 : ∀ v, x v ≤ 1)
+    (h0eq : x 0 = 0) (h2eq : x 2 = 1) :
+    ∃ χ : Fin 3 → ℤ, (∀ v, χ v = 0 ∨ χ v = 1) ∧ χ 0 = 0 ∧ χ 2 = 1 ∧
+      ∀ i : Fin 3, |∑ v ∈ triSets i, ((χ v : 𝕜) - x v)| < 2 := by
+  obtain ⟨χ, hχ, h0, h1, hb⟩ := beckFiala_rounding triSets (t := 2) (by decide)
+    (fun v => by fin_cases v <;> decide) x hx0 hx1
+  exact ⟨χ, hχ, h0 0 h0eq, h1 2 h2eq, hb⟩

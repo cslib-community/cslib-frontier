@@ -9,12 +9,13 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
+public import Mathlib.Algebra.Field.Defs
 public import Mathlib.Algebra.Order.Group.Abs
+public import Mathlib.Algebra.Order.Ring.Defs
 public import Mathlib.Data.Finset.Card
-public import Mathlib.Data.Rat.Defs
-public import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.Rat.Cast.Order
@@ -29,10 +30,10 @@ import Mathlib.Tactic.Positivity
 Let `A : ι → Finset κ` be a finite family of subsets of a ground type `κ` in which every
 element `v : κ` belongs to at most `t` sets (`#{i : ι | v ∈ A i} ≤ t`).
 
-* **Integer-making / fractional rounding** (`Cslib.Combinatorics.beckFiala_rounding`): when `0 < t`,
-  every rational weighting `x : κ → ℚ` with `0 ≤ x v ≤ 1` can be rounded to `χ : κ → ℤ` with
-  `χ v ∈ {0, 1}`, fixing every coordinate already in `{0, 1}`, so that every set's sum changes by
-  strictly less than `t`: `|∑ v ∈ A i, ((χ v : ℚ) - x v)| < t`.
+* **Integer-making / fractional rounding** (`Cslib.Combinatorics.beckFiala_rounding`): over any
+  linearly ordered field `𝕜`, when `0 < t`, every weighting `x : κ → 𝕜` with `0 ≤ x v ≤ 1` can be
+  rounded to `χ : κ → ℤ` with `χ v ∈ {0, 1}`, fixing every coordinate already in `{0, 1}`, so that
+  every set's sum changes by strictly less than `t`: `|∑ v ∈ A i, ((χ v : 𝕜) - x v)| < t`.
 * **Combinatorial discrepancy** (`Cslib.Combinatorics.beckFiala`): there exists a two-coloring
   `χ : κ → ℤ` with `χ v ∈ {-1, 1}` such that every set satisfies
   `(∑ v ∈ A i, χ v).natAbs ≤ 2 * t - 1` (yielding `0` when `t = 0`, and
@@ -48,8 +49,8 @@ strictly bounded by `t`.
 
 ## Main results
 
-* `Cslib.Combinatorics.beckFiala_rounding`: Beck–Fiala `[0, 1] → {0, 1}` fractional rounding
-  theorem with error `< t`.
+* `Cslib.Combinatorics.beckFiala_rounding`: Beck–Fiala `[0, 1] → {0, 1}` integer-making theorem
+  over any linearly ordered field `𝕜` (in particular `ℝ` and `ℚ`) with error `< t`.
 * `Cslib.Combinatorics.beckFiala`: Beck–Fiala `2 * t - 1` signed discrepancy theorem.
 
 ## References
@@ -68,7 +69,9 @@ open Finset
 section Helpers
 
 /-- The floating coordinates `v ∈ U` with `0 < x v < 1`. -/
-private def floating {κ : Type*} (U : Finset κ) (x : κ → ℚ) : Finset κ :=
+private noncomputable def floating {κ 𝕜 : Type*} [Preorder 𝕜] [Zero 𝕜] [One 𝕜]
+    (U : Finset κ) (x : κ → 𝕜) : Finset κ :=
+  letI := Classical.decPred fun v : κ => 0 < x v ∧ x v < 1
   U.filter fun v => 0 < x v ∧ x v < 1
 
 /-- The active sets containing strictly more than `t` floating coordinates. -/
@@ -76,8 +79,10 @@ private def activeSets {ι κ : Type*} [Fintype ι] [DecidableEq κ]
     (A : ι → Finset κ) (t : ℕ) (F : Finset κ) : Finset ι :=
   univ.filter fun i => t < #(A i ∩ F)
 
-private theorem mem_floating_iff {κ : Type*} {U : Finset κ} {x : κ → ℚ} {v : κ} :
+private theorem mem_floating_iff {κ 𝕜 : Type*} [Preorder 𝕜] [Zero 𝕜] [One 𝕜]
+    {U : Finset κ} {x : κ → 𝕜} {v : κ} :
     v ∈ floating U x ↔ v ∈ U ∧ 0 < x v ∧ x v < 1 := by
+  classical
   simp [floating]
 
 private theorem mem_activeSets_iff {ι κ : Type*} [Fintype ι] [DecidableEq κ]
@@ -114,14 +119,14 @@ private theorem card_activeSets_lt {ι κ : Type*} [Fintype ι] [DecidableEq κ]
 
 /-- Since `#(activeSets A t F) < #F`, the homogeneous incidence system on `F` has a nonzero
 solution supported on `F`. -/
-private theorem exists_kernel_step {ι κ : Type*} [Fintype ι] [DecidableEq κ]
+private theorem exists_kernel_step {ι κ 𝕜 : Type*} [Fintype ι] [DecidableEq κ] [Field 𝕜]
     (A : ι → Finset κ) {t : ℕ} (hdeg : ∀ v : κ, #{i : ι | v ∈ A i} ≤ t)
     {F : Finset κ} (hF : F.Nonempty) :
-    ∃ d : κ → ℚ, d ≠ 0 ∧ (∀ v ∉ F, d v = 0) ∧
+    ∃ d : κ → 𝕜, d ≠ 0 ∧ (∀ v ∉ F, d v = 0) ∧
       ∀ i ∈ activeSets A t F, ∑ v ∈ A i, d v = 0 := by
   classical
   set S := activeSets A t F
-  let L : (F → ℚ) →ₗ[ℚ] (S → ℚ) :=
+  let L : (F → 𝕜) →ₗ[𝕜] (S → 𝕜) :=
     { toFun := fun y i => ∑ v : F, if (v : κ) ∈ A (i : ι) then y v else 0
       map_add' := fun y₁ y₂ => by
         ext i
@@ -134,12 +139,12 @@ private theorem exists_kernel_step {ι κ : Type*} [Fintype ι] [DecidableEq κ]
         simp only [Pi.smul_apply, smul_eq_mul, RingHom.id_apply, Finset.mul_sum]
         refine Finset.sum_congr rfl fun v _ => ?_
         split_ifs <;> ring }
-  have hlt : Module.finrank ℚ (S → ℚ) < Module.finrank ℚ (F → ℚ) := by
+  have hlt : Module.finrank 𝕜 (S → 𝕜) < Module.finrank 𝕜 (F → 𝕜) := by
     rw [Module.finrank_pi, Module.finrank_pi, Fintype.card_coe, Fintype.card_coe]
     exact card_activeSets_lt A hdeg hF
   obtain ⟨y, hy_ker, hy_ne⟩ :=
     (Submodule.ne_bot_iff _).1 (LinearMap.ker_ne_bot_of_finrank_lt (f := L) hlt)
-  let d : κ → ℚ := fun v => if hv : v ∈ F then y ⟨v, hv⟩ else 0
+  let d : κ → 𝕜 := fun v => if hv : v ∈ F then y ⟨v, hv⟩ else 0
   refine ⟨d, ?_, ?_, ?_⟩
   · intro hd
     apply hy_ne
@@ -162,24 +167,25 @@ private theorem exists_kernel_step {ι κ : Type*} [Fintype ι] [DecidableEq κ]
       simp [d, v.2]
     rw [hsum1, hsum2, hyi]
 
-private theorem beckFiala_rounding_aux {ι κ : Type*} [Fintype ι] [DecidableEq κ]
+private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [DecidableEq κ]
+    [Field 𝕜] [LinearOrder 𝕜] [IsStrictOrderedRing 𝕜]
     (A : ι → Finset κ) {t : ℕ} (ht : 0 < t) (hdeg : ∀ v : κ, #{i : ι | v ∈ A i} ≤ t)
-    (x : κ → ℚ) (hx0 : ∀ v, 0 ≤ x v) (hx1 : ∀ v, x v ≤ 1) :
+    (x : κ → 𝕜) (hx0 : ∀ v, 0 ≤ x v) (hx1 : ∀ v, x v ≤ 1) :
     ∃ χ : κ → ℤ, (∀ v, χ v = 0 ∨ χ v = 1) ∧
       (∀ v, x v = 0 → χ v = 0) ∧ (∀ v, x v = 1 → χ v = 1) ∧
-      ∀ i : ι, |∑ v ∈ A i, ((χ v : ℚ) - x v)| < t := by
+      ∀ i : ι, |∑ v ∈ A i, ((χ v : 𝕜) - x v)| < t := by
   classical
   let U : Finset κ := univ.biUnion A
   let F : Finset κ := floating U x
   by_cases hF : F.Nonempty
-  · obtain ⟨d, hd_ne, hd_supp, hd_active⟩ := exists_kernel_step A hdeg hF
+  · obtain ⟨d, hd_ne, hd_supp, hd_active⟩ := exists_kernel_step (𝕜 := 𝕜) A hdeg hF
     let M : Finset κ := F.filter fun v => d v ≠ 0
     have hM : M.Nonempty := by
       obtain ⟨v, hv⟩ := Function.ne_iff.1 hd_ne
       exact ⟨v, mem_filter.2 ⟨by_contra fun h => hv (hd_supp v h), hv⟩⟩
-    let ratio : κ → ℚ := fun v => if 0 < d v then (1 - x v) / d v else x v / (-d v)
+    let ratio : κ → 𝕜 := fun v => if 0 < d v then (1 - x v) / d v else x v / (-d v)
     obtain ⟨v₀, hv₀M, hv₀_min⟩ := exists_min_image M ratio hM
-    let lam : ℚ := ratio v₀
+    let lam : 𝕜 := ratio v₀
     have hratio_pos : ∀ v ∈ M, 0 < ratio v := by
       intro v hv
       obtain ⟨hvF, hdv⟩ := mem_filter.1 hv
@@ -189,7 +195,7 @@ private theorem beckFiala_rounding_aux {ι κ : Type*} [Fintype ι] [DecidableEq
       · exact div_pos (sub_pos.mpr hxlt) hpos
       · exact div_pos hxpos (neg_pos.mpr (lt_of_le_of_ne (not_lt.1 hpos) hdv))
     have hlam_pos : 0 < lam := hratio_pos v₀ hv₀M
-    let x' : κ → ℚ := fun v => x v + lam * d v
+    let x' : κ → 𝕜 := fun v => x v + lam * d v
     have hx'0 : ∀ v, 0 ≤ x' v := by
       intro v
       dsimp only [x']
@@ -219,7 +225,7 @@ private theorem beckFiala_rounding_aux {ι κ : Type*} [Fintype ι] [DecidableEq
           rw [le_div_iff₀ hpos] at hle
           linarith
         · have hneg : d v < 0 := lt_of_le_of_ne (not_lt.1 hpos) hdv
-          nlinarith
+          linarith [mul_nonpos_of_nonneg_of_nonpos hlam_pos.le hneg.le, hx1 v]
       · have hdv : d v = 0 := by
           by_contra h
           exact hv (mem_filter.2 ⟨by_contra fun hF' => h (hd_supp v hF'), h⟩)
@@ -260,12 +266,12 @@ private theorem beckFiala_rounding_aux {ι κ : Type*} [Fintype ι] [DecidableEq
       · have hx'_eq : ∑ v ∈ A i, x' v = ∑ v ∈ A i, x v := by
           simp only [x', sum_add_distrib, ← mul_sum, hd_active i hi, mul_zero, add_zero]
         have hsum_eq :
-            ∑ v ∈ A i, ((χ v : ℚ) - x v) = ∑ v ∈ A i, ((χ v : ℚ) - x' v) := by
+            ∑ v ∈ A i, ((χ v : 𝕜) - x v) = ∑ v ∈ A i, ((χ v : 𝕜) - x' v) := by
           simp only [sum_sub_distrib, hx'_eq]
         rw [hsum_eq]
         exact hχ_sum i
       · have hle_t : #(A i ∩ F) ≤ t := Nat.le_of_not_lt (mt mem_activeSets_iff.2 hi)
-        have hzero : ∀ v ∈ A i, v ∉ F → (χ v : ℚ) - x v = 0 := by
+        have hzero : ∀ v ∈ A i, v ∉ F → (χ v : 𝕜) - x v = 0 := by
           intro v hvAi hvF
           have hvU : v ∈ U := mem_biUnion.2 ⟨i, mem_univ i, hvAi⟩
           have hnot : ¬(0 < x v ∧ x v < 1) := fun h => hvF (mem_floating_iff.2 ⟨hvU, h⟩)
@@ -278,22 +284,22 @@ private theorem beckFiala_rounding_aux {ι κ : Type*} [Fintype ι] [DecidableEq
             simp [this, hv0]
           · have := hχ1 v (by simp [x', hd_supp v hvF, hv1])
             simp [this, hv1]
-        have hsplit : ∑ v ∈ A i, ((χ v : ℚ) - x v) = ∑ v ∈ A i ∩ F, ((χ v : ℚ) - x v) :=
+        have hsplit : ∑ v ∈ A i, ((χ v : 𝕜) - x v) = ∑ v ∈ A i ∩ F, ((χ v : 𝕜) - x v) :=
           (sum_subset inter_subset_left fun v hv hvn =>
             hzero v hv fun hvF => hvn (mem_inter.2 ⟨hv, hvF⟩)).symm
         rw [hsplit]
         rcases (A i ∩ F).eq_empty_or_nonempty with hempty | hne
         · rw [hempty, sum_empty, abs_zero]
           exact_mod_cast ht
-        · have hterm : ∀ v ∈ A i ∩ F, |(χ v : ℚ) - x v| < 1 := by
+        · have hterm : ∀ v ∈ A i ∩ F, |(χ v : 𝕜) - x v| < 1 := by
             intro v hv
             obtain ⟨_, hxpos, hxlt⟩ := mem_floating_iff.1 (mem_inter.1 hv).2
             rcases hχ01 v with h0 | h1
             · rw [h0, Int.cast_zero, zero_sub, abs_neg, abs_lt]; constructor <;> linarith
             · rw [h1, Int.cast_one, abs_lt]; constructor <;> linarith
-          calc |∑ v ∈ A i ∩ F, ((χ v : ℚ) - x v)|
-              ≤ ∑ v ∈ A i ∩ F, |(χ v : ℚ) - x v| := abs_sum_le_sum_abs _ _
-            _ < ∑ _v ∈ A i ∩ F, (1 : ℚ) := sum_lt_sum_of_nonempty hne hterm
+          calc |∑ v ∈ A i ∩ F, ((χ v : 𝕜) - x v)|
+              ≤ ∑ v ∈ A i ∩ F, |(χ v : 𝕜) - x v| := abs_sum_le_sum_abs _ _
+            _ < ∑ _v ∈ A i ∩ F, (1 : 𝕜) := sum_lt_sum_of_nonempty hne hterm
             _ = #(A i ∩ F) := by simp
             _ ≤ t := by exact_mod_cast hle_t
   · rw [not_nonempty_iff_eq_empty] at hF
@@ -302,7 +308,7 @@ private theorem beckFiala_rounding_aux {ι κ : Type*} [Fintype ι] [DecidableEq
     · intro v hv; simp [hv]
     · intro v hv; simp [hv]
     · intro i
-      have hzero : ∑ v ∈ A i, ((↑(if x v = 1 then (1 : ℤ) else 0) : ℚ) - x v) = 0 := by
+      have hzero : ∑ v ∈ A i, ((↑(if x v = 1 then (1 : ℤ) else 0) : 𝕜) - x v) = 0 := by
         refine sum_eq_zero fun v hvAi => ?_
         have hvU : v ∈ U := mem_biUnion.2 ⟨i, mem_univ i, hvAi⟩
         have hnot : v ∉ F := by simp [hF]
@@ -323,16 +329,17 @@ end Helpers
 
 /-- **Beck–Fiala integer-making (fractional rounding) theorem** ([AlonSpencer2016]; exact theorem
 number and page locator not verified against a primary PDF). Given a finite set family
-`A : ι → Finset κ` in which every element belongs to at most `t` sets (`0 < t`) and rational
-weights `x : κ → ℚ` in `[0, 1]`, there exists a `{0, 1}` rounding `χ : κ → ℤ` fixing all
-already-integral `0`/`1` coordinates such that every set's sum changes by strictly less than `t`:
-`|∑ v ∈ A i, ((χ v : ℚ) - x v)| < t`. -/
-theorem beckFiala_rounding {ι κ : Type*} [Fintype ι] [DecidableEq κ]
+`A : ι → Finset κ` in which every element belongs to at most `t` sets (`0 < t`) and weights
+`x : κ → 𝕜` in `[0, 1]` over a linearly ordered field `𝕜` (for example `ℝ` or `ℚ`), there exists
+a `{0, 1}` rounding `χ : κ → ℤ` fixing all already-integral `0`/`1` coordinates such that every
+set's sum changes by strictly less than `t`: `|∑ v ∈ A i, ((χ v : 𝕜) - x v)| < t`. -/
+theorem beckFiala_rounding {ι κ 𝕜 : Type*} [Fintype ι] [DecidableEq κ]
+    [Field 𝕜] [LinearOrder 𝕜] [IsStrictOrderedRing 𝕜]
     (A : ι → Finset κ) {t : ℕ} (ht : 0 < t) (hdeg : ∀ v : κ, #{i : ι | v ∈ A i} ≤ t)
-    (x : κ → ℚ) (hx0 : ∀ v, 0 ≤ x v) (hx1 : ∀ v, x v ≤ 1) :
+    (x : κ → 𝕜) (hx0 : ∀ v, 0 ≤ x v) (hx1 : ∀ v, x v ≤ 1) :
     ∃ χ : κ → ℤ, (∀ v, χ v = 0 ∨ χ v = 1) ∧
       (∀ v, x v = 0 → χ v = 0) ∧ (∀ v, x v = 1 → χ v = 1) ∧
-      ∀ i : ι, |∑ v ∈ A i, ((χ v : ℚ) - x v)| < t :=
+      ∀ i : ι, |∑ v ∈ A i, ((χ v : 𝕜) - x v)| < t :=
   beckFiala_rounding_aux A ht hdeg x hx0 hx1
 
 /-- **Beck–Fiala discrepancy theorem** ([AlonSpencer2016]; exact theorem number and page locator
