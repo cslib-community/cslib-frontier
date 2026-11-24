@@ -513,30 +513,10 @@ theorem Machine.isPPTFamily_id {n : ℕ} {ι : Type} {E : ι → Type} (I : Word
           I.reply (I.decodeQuery x.2.1.1 x.2.1.2) <$>
             ProbOracleComp.lowerWith I x.1.replyBound
               (ProbOracleComp.query (I.decodeQuery x.2.1.1 x.2.1.2))) := by
-      refine I.isOraclePPTOn_lowerWith_query
-        (query := fun x : PPTParam n × (I.Channel × List Bool) × List Bool =>
-          I.decodeQuery x.2.1.1 x.2.1.2)
-        (limit := fun x => x.1.replyBound) ?_ ?_ ?_
-      · have heq : (fun x : PPTParam n × (I.Channel × List Bool) × List Bool =>
-            I.channel (I.decodeQuery x.2.1.1 x.2.1.2)) = fun x => x.2.1.1 :=
-          funext fun x => (I.request_decodeQuery x.2.1.1 x.2.1.2).1
-        rw [heq]
-        unfold encHandlerCall
-        fun_prop
-      · have heq : (fun x : PPTParam n × (I.Channel × List Bool) × List Bool =>
-            I.request (I.decodeQuery x.2.1.1 x.2.1.2)) =
-            fun x => I.requestNormalize x.2.1.1 x.2.1.2 :=
-          funext fun x => (I.request_decodeQuery x.2.1.1 x.2.1.2).2
-        rw [heq]
-        have hproj : ComputableInPolyTime
-            (fun x : PPTParam n × (I.Channel × List Bool) × List Bool => x.2.1)
-            (encHandlerCall (encPPTParam n) (encFinite I.Channel) encBits)
-            (encPair (encFinite I.Channel) encBits) := by
-          unfold encHandlerCall
-          fun_prop
-        exact I.computable_requestNormalize.comp hproj
-      · unfold encHandlerCall
-        fun_prop
+      refine I.isOraclePPTOn_lowerWith_decodeQuery
+        (ch := fun x : PPTParam n × (I.Channel × List Bool) × List Bool => x.2.1.1)
+        (word := fun x => x.2.1.2) (limit := fun x => x.1.replyBound) ?_ ?_ ?_ <;>
+        (unfold encHandlerCall; fun_prop)
     have hpair : IsOraclePPTOn
         (encHandlerCall (encPPTParam n) (encFinite I.Channel) encBits)
         (encPair encBits encBits)
