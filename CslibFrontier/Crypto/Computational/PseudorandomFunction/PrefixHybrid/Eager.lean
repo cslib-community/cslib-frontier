@@ -77,20 +77,18 @@ theorem prefixLabelGame_eq_eager {α Q : Type} [Fintype Q] [DecidableEq Q]
   simpa only [PMF.pi_uniformOfFintype, ProbOracleComp.interpret_simulate, hstep, heval,
     PMF.monad_bind_eq_bind] using h.symm
 
-/-- Sample one independent label per bit word of length at most `cut`. A query shorter than
-the cut uses its entire word as its index, and a longer query uses its truncated prefix. -/
-theorem eval_prefixHybridGame_eq_eager (valid : ℕ → List Bool → Bool)
+/-- Use a finite index for the prefixes that valid queries can visit. -/
+theorem eval_prefixHybridGame_eq_eager_of_index {Q : Type} [Fintype Q] [DecidableEq Q]
+    (key : Q ↪ List Bool) (index : List Bool → Q) (valid : ℕ → List Bool → Bool)
     (family : List Bool → List Bool → List Bool) (adversary : OracleDistinguisher) (n cut : ℕ)
-    [Fintype {word : List Bool // word.length ≤ cut}] :
+    (hkey : ∀ query, valid n query = true → key (index query) = query.take cut) :
     ProbComp.eval (prefixHybridGame valid family adversary n cut) =
-      (PMF.uniformOfFintype ({word : List Bool // word.length ≤ cut} → BitString n)).bind
-        fun table => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+      (PMF.uniformOfFintype (Q → BitString n)).bind fun table =>
+        OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
           (fun request => PMF.pure (if valid n request.2 then
-            family (List.ofFn (table ⟨request.2.take cut, by simp⟩)) (request.2.drop cut)
+            family (List.ofFn (table (index request.2))) (request.2.drop cut)
             else []))) (adversary n []) := by
-  have h := prefixLabelGame_eq_eager
-    (Q := {word : List Bool // word.length ≤ cut}) ⟨Subtype.val, Subtype.val_injective⟩
-    (fun query => ⟨query.take cut, by simp⟩) (valid n) cut n (fun _ _ => rfl)
+  have h := prefixLabelGame_eq_eager key index (valid n) cut n hkey
     (fun query label => family label (query.drop cut)) (adversary n [])
   have hstep (query : List Bool) (cache : List (List Bool × List Bool)) :
       ProbComp.eval (prefixHybridOracle (valid n) family n cut query cache) =
@@ -102,5 +100,20 @@ theorem eval_prefixHybridGame_eq_eager (valid : ℕ → List Bool → Bool)
       simp [prefixHybridOracle, hvalid, ProbComp.eval_memoize, BitString.eval_sampleList,
         PMF.map, Function.comp_def]
   simpa only [prefixHybridGame, ProbComp.eval_map, ProbOracleComp.eval_run_interpret, hstep] using h
+
+/-- Sample one independent label per bit word of length at most `cut`. A query shorter than
+the cut uses its entire word as its index, and a longer query uses its truncated prefix. -/
+theorem eval_prefixHybridGame_eq_eager (valid : ℕ → List Bool → Bool)
+    (family : List Bool → List Bool → List Bool) (adversary : OracleDistinguisher) (n cut : ℕ)
+    [Fintype {word : List Bool // word.length ≤ cut}] :
+    ProbComp.eval (prefixHybridGame valid family adversary n cut) =
+      (PMF.uniformOfFintype ({word : List Bool // word.length ≤ cut} → BitString n)).bind
+        fun table => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+          (fun request => PMF.pure (if valid n request.2 then
+            family (List.ofFn (table ⟨request.2.take cut, by simp⟩)) (request.2.drop cut)
+            else []))) (adversary n []) :=
+  eval_prefixHybridGame_eq_eager_of_index
+    (Q := {word : List Bool // word.length ≤ cut}) ⟨Subtype.val, Subtype.val_injective⟩
+    (fun query => ⟨query.take cut, by simp⟩) valid family adversary n cut (fun _ _ => rfl)
 
 end Cslib.Crypto

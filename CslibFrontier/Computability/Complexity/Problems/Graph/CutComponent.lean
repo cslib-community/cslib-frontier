@@ -8,12 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.ComponentRestriction
+import Mathlib.Data.List.GetD
 
 /-!
 # Splitting a vertex along a component
 
 Moving the darts into a component of the vertex-deleted graph separates the two copies
 of the cut vertex and decreases the number of edges in each resulting component.
+`split_darts_endpoints_declared` preserves endpoint declarations, and
+`vertex_preimage_split_darts` identifies each redirected end with its original vertex.
 -/
 
 public section
@@ -93,5 +96,51 @@ theorem split_component_separates {G H : Graph} (a b : Dart G) (hb : b.vertex = 
   refine ⟨hsep, fun root => ?_⟩
   rw [← Fintype.card_fin G.edges.length, Fintype.card_congr E, Fintype.card_fin]
   exact componentGraph_edges_length_lt hH (a := e a) (b := e b) (by rwa [ha', hb']) root
+
+/-- Redirecting selected indexed ends to a prepended vertex preserves endpoint declarations. -/
+theorem split_darts_endpoints_declared {G H : Graph}
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (w : ℕ) (selected : Dart G → Prop) [DecidablePred selected]
+    (E : Fin G.edges.length ≃ Fin H.edges.length)
+    (hvertices : H.vertices = w :: G.vertices)
+    (hEnds : ∀ d : Dart G, Dart.vertex (G := H) (E d.1, d.2) =
+      if selected d then w else d.vertex) :
+    ∀ v ∈ H.incidenceVertices, v ∈ H.vertices := by
+  let e : Dart G ≃ Dart H := E.prodCongr (Equiv.refl Bool)
+  have hend (d : Dart G) : (e d).vertex = _ := hEnds d
+  intro v hv
+  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hv
+  change H.incidenceVertices[i.val] = v at hi
+  let j : Fin (2 * H.edges.length) := ⟨i.val, i.isLt.trans_eq (incidenceVertices_length H)⟩
+  obtain ⟨d, hd⟩ := e.surjective ((Dart.indexEquiv H).symm j)
+  have heq : (e d).index = i.val := by
+    have h := congrArg (Dart.indexEquiv H) hd
+    rw [(Dart.indexEquiv H).apply_symm_apply] at h
+    exact congrArg Fin.val h
+  rw [← hi, ← List.getD_eq_getElem _ _ i.isLt, ← heq, Dart.vertex_index, hend, hvertices]
+  split
+  · exact List.mem_cons_self
+  · exact List.mem_cons_of_mem _ (RotationSystem.vertex_mem hG d)
+
+/-- If redirected darts were all at one vertex, identifying the fresh split label with
+that vertex recovers each original indexed endpoint. -/
+theorem vertex_preimage_split_darts {G H : Graph} (v w : ℕ)
+    (hfresh : ∀ d : Dart G, d.vertex ≠ w)
+    (selected : Dart G → Prop) [DecidablePred selected]
+    (hselected : ∀ d, selected d → d.vertex = v)
+    (E : Fin G.edges.length ≃ Fin H.edges.length)
+    (hEnds : ∀ d : Dart G, Dart.vertex (G := H) (E d.1, d.2) =
+      if selected d then w else d.vertex) (i : Fin H.edges.length) (b : Bool) :
+    Dart.vertex (G := G) (E.symm i, b) =
+      Function.update id w v (Dart.vertex (G := H) (i, b)) := by
+  let d : Dart G := (E.symm i, b)
+  have hd := hEnds d
+  change Dart.vertex (G := H) (E (E.symm i), b) = _ at hd
+  rw [E.apply_symm_apply] at hd
+  change d.vertex = Function.update id w v (Dart.vertex (G := H) (i, b))
+  split at hd
+  · rename_i h
+    rw [hd, Function.update_self, hselected d h]
+  · rw [hd, Function.update_of_ne (hfresh d), id_eq]
 
 end Cslib.Complexity.Graph

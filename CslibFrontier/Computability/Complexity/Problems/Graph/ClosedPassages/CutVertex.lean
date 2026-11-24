@@ -14,16 +14,17 @@ import Mathlib.Logic.Equiv.Set
 /-!
 # Closed passages through prescribed darts at a vertex
 
-A path in the graph with one vertex removed can be closed through two specified darts at that
-vertex. The construction keeps the original edge indices, also when the path is empty and the
-two darts come from parallel edges.
-The closed passages are used to compare components at a cut vertex in
-[issue #3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+A path avoiding a vertex can be closed through two specified darts at that vertex. This
+keeps the original edge indices, also when the path is empty and the two darts come from
+parallel edges. The construction works for any induced vertex set omitting the common vertex.
+It is used to compare components in [issue #3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Main results
 
-* `Cslib.Complexity.Graph.ClosedPassages.exists_through_darts_of_reachable` constructs the passage
-  system and identifies the unique visit to the deleted vertex.
+* `Cslib.Complexity.Graph.ClosedPassages.exists_through_darts_of_induced_reachable` constructs the
+  passages and identifies the unique visit outside the induced set.
+* `Cslib.Complexity.Graph.ClosedPassages.exists_through_darts_of_reachable` specializes to
+  deleting a single vertex.
 -/
 
 public section
@@ -38,19 +39,18 @@ private theorem eq_or_eq_reverse {G : Graph} {d e : Dart G} (h : d.1 = e.1) :
   subst j
   cases b <;> cases c <;> simp [Dart.reverse]
 
-/-- Distinct nonloop darts at `v` whose opposite vertices are connected outside `v` occur
-together in a closed passage system. There is exactly one visit to `v`, and all other
-supported endpoints lie in the component of the connecting path in the vertex-deleted graph. -/
-theorem exists_through_darts_of_reachable {G : Graph} {v : ℕ} (a b : Dart G)
-    (ha : a.vertex = v) (hb : b.vertex = v) (hab : a ≠ b)
-    (ha' : a.reverse.vertex ≠ v) (hb' : b.reverse.vertex ≠ v)
-    (h : (G.toSimpleGraph.induce {w | w ≠ v}).Reachable
-      ⟨a.reverse.vertex, ha'⟩ ⟨b.reverse.vertex, hb'⟩) :
+/-- Two distinct darts at a vertex outside `S` can be closed along a path in the graph
+induced on `S`. The passages visit the common vertex exactly once; each remaining supported
+endpoint lies in the path's component of the induced graph. -/
+theorem exists_through_darts_of_induced_reachable {G : Graph} {S : Set ℕ} {v : ℕ}
+    (hv : v ∉ S) (a b : Dart G) (ha : a.vertex = v) (hb : b.vertex = v) (hab : a ≠ b)
+    (ha' : a.reverse.vertex ∈ S) (hb' : b.reverse.vertex ∈ S)
+    (h : (G.toSimpleGraph.induce S).Reachable ⟨a.reverse.vertex, ha'⟩ ⟨b.reverse.vertex, hb'⟩) :
     ∃ (x : Fin G.edges.length → Bool) (P : ClosedPassages G x) (i : Fin P.count),
       P.dart i false = a ∧ P.dart i true = b ∧
       (∀ j, (P.dart j false).vertex = v → j = i) ∧
-      ∀ (e : Dart G), x e.1 = true → ∀ he : e.vertex ≠ v,
-        (G.toSimpleGraph.induce {w | w ≠ v}).Reachable
+      ∀ (e : Dart G), x e.1 = true → e.vertex ≠ v →
+        ∃ he : e.vertex ∈ S, (G.toSimpleGraph.induce S).Reachable
           ⟨a.reverse.vertex, ha'⟩ ⟨e.vertex, he⟩ := by
   classical
   obtain ⟨p, hp⟩ := h.exists_isPath
@@ -59,12 +59,12 @@ theorem exists_through_darts_of_reachable {G : Graph} {v : ℕ} (a b : Dart G)
     intro he
     rcases eq_or_eq_reverse he with he | he
     · exact hab he
-    · exact hb' (he ▸ ha)
+    · exact hv ((he ▸ ha) ▸ hb')
   have avoid (e : Dart G) (he : e.vertex = v) (i : Fin p.length) : e.1 ≠ (d i).1 := by
     intro hi
     rcases eq_or_eq_reverse hi with hi | hi
-    · exact (p.getVert i).property ((hd i).1.symm.trans (hi ▸ he))
-    · exact (p.getVert (i.val + 1)).property ((hd i).2.symm.trans (hi ▸ he))
+    · exact hv (((hd i).1.symm.trans (hi ▸ he)) ▸ (p.getVert i).property)
+    · exact hv (((hd i).2.symm.trans (hi ▸ he)) ▸ (p.getVert (i.val + 1)).property)
   let tail : Fin (p.length + 1) → Dart G := Fin.snoc d b.reverse
   let circuit : Fin (p.length + 2) → Dart G := Fin.cons a tail
   let index (i : Fin (p.length + 2)) := (circuit i).1
@@ -129,18 +129,22 @@ theorem exists_through_darts_of_reachable {G : Graph} {v : ℕ} (a b : Dart G)
     clear hj
     revert hvertex
     refine Fin.cases (fun _ => rfl) (fun i hj => ?_) j
-    have hv : (p.getVert i).val ≠ v := (p.getVert i).property
-    exact (hv (by simpa only [circuit, Fin.cons_succ, hstart] using hj)).elim
+    have he : (p.getVert i).val = v := by
+      simpa only [circuit, Fin.cons_succ, hstart] using hj
+    exact (hv (he ▸ (p.getVert i).property)).elim
   · have hreach {z : ℕ} (hz : z ≠ v) (j : Fin (p.length + 2)) :
-        (circuit j).vertex = z → (G.toSimpleGraph.induce {w | w ≠ v}).Reachable
-          ⟨a.reverse.vertex, ha'⟩ ⟨z, hz⟩ := by
+        (circuit j).vertex = z → ∃ hz' : z ∈ S, (G.toSimpleGraph.induce S).Reachable
+          ⟨a.reverse.vertex, ha'⟩ ⟨z, hz'⟩ := by
       refine Fin.cases ?_ (fun i => ?_) j
       · intro hj
         exact (hz (hj.symm.trans ha)).elim
       · intro hj
-        have he : p.getVert i = ⟨z, hz⟩ := Subtype.ext (by
-          simpa only [circuit, Fin.cons_succ, hstart] using hj)
-        rw [← he]
+        have he : (p.getVert i).val = z := by
+          simpa only [circuit, Fin.cons_succ, hstart] using hj
+        have hzS : z ∈ S := he ▸ (p.getVert i).property
+        have heq : p.getVert i = ⟨z, hzS⟩ := Subtype.ext he
+        refine ⟨hzS, ?_⟩
+        rw [← heq]
         exact p.reachable_of_mem_support p.start_mem_support (p.getVert_mem_support i)
     intro e he hz
     obtain ⟨j, hj⟩ : e.1 ∈ Set.range index := of_decide_eq_true he
@@ -148,5 +152,24 @@ theorem exists_through_darts_of_reachable {G : Graph} {v : ℕ} (a b : Dart G)
     · exact hreach hz j (congrArg Dart.vertex hforward).symm
     · exact hreach hz (finRotate _ j) ((hnext j).symm.trans
         (congrArg Dart.vertex hreverse).symm)
+
+/-- Distinct nonloop darts at `v` whose opposite vertices are connected outside `v` occur
+together in a closed passage system. There is exactly one visit to `v`, and all other
+supported endpoints lie in the component of the connecting path in the vertex-deleted graph. -/
+theorem exists_through_darts_of_reachable {G : Graph} {v : ℕ} (a b : Dart G)
+    (ha : a.vertex = v) (hb : b.vertex = v) (hab : a ≠ b)
+    (ha' : a.reverse.vertex ≠ v) (hb' : b.reverse.vertex ≠ v)
+    (h : (G.toSimpleGraph.induce {w | w ≠ v}).Reachable
+      ⟨a.reverse.vertex, ha'⟩ ⟨b.reverse.vertex, hb'⟩) :
+    ∃ (x : Fin G.edges.length → Bool) (P : ClosedPassages G x) (i : Fin P.count),
+      P.dart i false = a ∧ P.dart i true = b ∧
+      (∀ j, (P.dart j false).vertex = v → j = i) ∧
+      ∀ (e : Dart G), x e.1 = true → ∀ he : e.vertex ≠ v,
+        (G.toSimpleGraph.induce {w | w ≠ v}).Reachable
+          ⟨a.reverse.vertex, ha'⟩ ⟨e.vertex, he⟩ := by
+  obtain ⟨x, P, i, hPa, hPb, huniq, hsupport⟩ :=
+    exists_through_darts_of_induced_reachable (S := {w | w ≠ v}) (fun h => h rfl)
+      a b ha hb hab ha' hb' h
+  exact ⟨x, P, i, hPa, hPb, huniq, fun e he hv => (hsupport e he hv).choose_spec⟩
 
 end Cslib.Complexity.Graph.ClosedPassages

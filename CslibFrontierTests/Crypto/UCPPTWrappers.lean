@@ -11,7 +11,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Protocols.UC.Execution
-import CslibFrontier.Crypto.Protocols.UC.PPT
+public import CslibFrontier.Crypto.Protocols.UC.PPT
 import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
 import CslibFrontierTests.Crypto.UCPPT
 
@@ -43,10 +43,56 @@ namespace CslibFrontierTests.Crypto.UCPPTWrappers
 open Cslib Cslib.Crypto.Protocols.UC Cslib.Probability Turing.MultiTapeTM
 open CslibFrontierTests.Crypto.UCPPT
 
-private def unaryCodec : WordCodec ℕ where
+/-- Unary `WordCodec` for `ℕ`, shared by counter-bearing test fixtures. -/
+@[expose] public def unaryCodec : WordCodec ℕ where
   enc := encUnary
   decode := Decoder.unary.decode
   decode_enc := Decoder.unary.decode_enc
+
+/-- Shared `normalize` witness for `unaryCodec`. -/
+public theorem computable_normalize_unary (n : ℕ) :
+    ComputableInPolyTime
+      (fun x : PPTParam n × List Bool => unaryCodec.enc (unaryCodec.decode x.2))
+      (encPair (encPPTParam n) encBits) encBits :=
+  (ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits) (fun _ => rfl)).comp
+    (Decoder.unary.computableInPolyTime.comp (ComputableInPolyTime.snd _ _))
+
+/-- Shared handler step for unary-counter forwarding machines (`logAdvCert`, `relayHybridCert`):
+forwards the decoded request word on channel `cN` of `iN` and increments the unary state word. -/
+public theorem isOraclePPTOn_forwardAndIncUnary {n : ℕ} {ι : Type} {I : ι → Type}
+    {chOut : Type} [Finite chOut] (iN : WordInterface I) (cN : iN.Channel) :
+    IsOraclePPTOn
+      (encHandlerCall (encPPTParam n) (encFinite chOut) encBits)
+      (encPair encBits encBits)
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool =>
+        (fun r => (r, encUnary (Decoder.unary.decode x.2.2 + 1))) <$>
+          (iN.reply (iN.decodeQuery cN x.2.1.2) <$>
+            ProbOracleComp.lowerWith iN x.1.replyBound
+              (ProbOracleComp.query (iN.decodeQuery cN x.2.1.2)))) := by
+  let EIn := encHandlerCall (encPPTParam n) (encFinite chOut) encBits
+  have hq : IsOraclePPTOn EIn encBits
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool =>
+        iN.reply (iN.decodeQuery cN x.2.1.2) <$>
+          ProbOracleComp.lowerWith iN x.1.replyBound
+            (ProbOracleComp.query (iN.decodeQuery cN x.2.1.2))) :=
+    iN.isOraclePPTOn_lowerWith_decodeQuery (ComputableInPolyTime.const cN)
+      (by unfold EIn encHandlerCall; fun_prop) (by unfold EIn encHandlerCall; fun_prop)
+  have hsucc : ComputableInPolyTime
+      (fun pair : (PPTParam n × (chOut × List Bool) × List Bool) × List Bool =>
+        (pair.2, encUnary (Decoder.unary.decode pair.1.2.2 + 1)))
+      (encPair EIn encBits) (encPair encBits encBits) := by
+    have hsw : ComputableInPolyTime
+        (fun pair : (PPTParam n × (chOut × List Bool) × List Bool) × List Bool =>
+          Decoder.unary.decode pair.1.2.2)
+        (encPair EIn encBits) encUnary := by
+      refine Decoder.unary.computableInPolyTime.comp ?_
+      unfold EIn encHandlerCall; fun_prop
+    have hinc := (ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits)
+      (fun _ => rfl)).comp
+      (ComputableInPolyTime.unary_add.comp (hsw.prod (ComputableInPolyTime.const 1)))
+    exact (ComputableInPolyTime.snd EIn encBits).prod hinc
+  exact (hq.keep_input.map hsucc).congr fun x State oracle s => by
+    simp only [ProbOracleComp.runWith_map, PMF.map_comp, Function.comp_def, Prod.map, id_eq]
 
 /-! ### 1. Length-changing `PortMap` adapter witness -/
 
@@ -193,39 +239,13 @@ private def logAdvCert :
     change IsPPTOn (encPPTParam 2) encBits (fun _ => pure (encUnary 0))
     exact (ComputableInPolyTime.const (encUnary 0)).isPPTOn
   handle := by
-    let EIn := encHandlerCall (encPPTParam 2) (encFinite (WordInterface.net msgPort).Channel)
-      encBits
-    let iN := WordInterface.net msgPort
-    have hq : IsOraclePPTOn EIn encBits
-        (fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool =>
-          iN.reply (iN.decodeQuery x.2.1.1 x.2.1.2) <$>
-            ProbOracleComp.lowerWith iN x.1.replyBound
-              (ProbOracleComp.query (iN.decodeQuery x.2.1.1 x.2.1.2))) := by
-      refine iN.isOraclePPTOn_lowerWith_decodeQuery
-        (ch := fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool => x.2.1.1)
-        (word := fun x => x.2.1.2) (limit := fun x => x.1.replyBound) ?_ ?_ ?_ <;>
-        (unfold EIn encHandlerCall; fun_prop)
-    have hsucc : ComputableInPolyTime
-        (fun pair : (PPTParam 2 × (iN.Channel × List Bool) × List Bool) × List Bool =>
-          (pair.2, encUnary (Decoder.unary.decode pair.1.2.2 + 1)))
-        (encPair EIn encBits) (encPair encBits encBits) := by
-      have hsw : ComputableInPolyTime
-          (fun pair : (PPTParam 2 × (iN.Channel × List Bool) × List Bool) × List Bool =>
-            Decoder.unary.decode pair.1.2.2)
-          (encPair EIn encBits) encUnary := by
-        refine Decoder.unary.computableInPolyTime.comp ?_
-        unfold EIn encHandlerCall; fun_prop
-      have hinc := (ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits)
-        (fun _ => rfl)).comp
-        (ComputableInPolyTime.unary_add.comp (hsw.prod (ComputableInPolyTime.const 1)))
-      exact (ComputableInPolyTime.snd EIn encBits).prod hinc
-    refine (hq.keep_input.map hsucc).congr fun x State oracle s => ?_
+    refine (isOraclePPTOn_forwardAndIncUnary (n := 2)
+        (chOut := (WordInterface.net msgPort).Channel) (WordInterface.net msgPort) ()).congr
+      fun x State oracle s => ?_
     rcases x with ⟨p, ⟨⟨⟩, w⟩, sw⟩
     rw [logAdv_wordHandle_eq]
     rfl
-  normalize :=
-    (ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits) (fun _ => rfl)).comp
-      (Decoder.unary.computableInPolyTime.comp (ComputableInPolyTime.snd _ _))
+  normalize := computable_normalize_unary 2
   growth _ _ := 1
   growth_poly := PolyBounded.const 1
   preserve p req s result hr := by

@@ -8,7 +8,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Eager
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -81,3 +81,29 @@ example :
               (List.ofFn (table ⟨request.2.take 2, by simp⟩)) (request.2.drop 2)
             else []))) (compareReplies 2 []) :=
   eval_prefixHybridGame_eq_eager boundedWords (cascadeFamily (fun _ => 1) toggle) compareReplies 2 2
+
+noncomputable local instance : Fintype {word : List Bool // word.length ≤ 1} :=
+  (List.finite_length_le Bool 1).fintype
+
+-- A word at the old cut uses its own label. Reading another bit switches to its child table.
+example :
+    let short : {word : List Bool // word.length ≤ 1} → BitString 1 := fun _ _ => true
+    let children : BitString 1 → BitString 1 → BitString 1 :=
+      fun parent block _ => parent 0 && block 0
+    prefixHybridSplitAnswer (cascadeFamily (fun _ => 1) toggle) short children [true] = [true] ∧
+      prefixHybridSplitAnswer (cascadeFamily (fun _ => 1) toggle) short children
+        [true, false] = [false] := by
+  exact ⟨(prefixHybridSplitAnswer_of_length_le (by decide)).trans rfl,
+    (prefixHybridSplitAnswer_of_lt_length (by decide)).trans rfl⟩
+
+example :
+    ProbComp.eval (cascadePrefixHybridGame boundedWords (fun _ => 1) toggle compareReplies 2 2) =
+      (PMF.uniformOfFintype
+        (({word : List Bool // word.length ≤ 1} → BitString 2) ×
+          (BitString 1 → BitString 1 → BitString 2))).bind fun tables =>
+        OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+          (fun request => PMF.pure (if boundedWords 2 request.2 then
+            prefixHybridSplitAnswer (cascadeFamily (fun _ => 1) toggle)
+              tables.1 tables.2 request.2 else []))) (compareReplies 2 []) :=
+  eval_prefixHybridGame_add_eq_split boundedWords (cascadeFamily (fun _ => 1) toggle)
+    compareReplies 2 1 1 (by decide) (cascadeFamily_nil _ _) (fun _ _ h => h)

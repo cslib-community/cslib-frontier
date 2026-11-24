@@ -27,6 +27,8 @@ analogue of the proof of `Nat.Partrec.Code.eval_part` in Mathlib, whose search r
 ## Main results
 
 * `Nat.RecursiveIn.Code.exists_universal`: a universal code for all total oracles.
+* `Nat.RecursiveIn.Code.hasUniformCode_prefixOf`: one code computes the encoded prefixes of every
+  total oracle.
 
 ## Implementation notes
 
@@ -75,8 +77,9 @@ private theorem hasUniformCode_computable {g : ℕ → ℕ} (hg : Computable g) 
   HasUniformCode.of_computable hg
 
 /-- One code computes the encoded prefix `k ↦ encode (prefixOf f k)` of every total oracle `f`. -/
-private theorem hasUniformCode_prefixOf :
-    HasUniformCode total fun f k => Part.some (encode (prefixOf f k)) := by
+theorem hasUniformCode_prefixOf :
+    HasUniformCode (fun f : ℕ → ℕ => (f : ℕ →. ℕ)) fun f k =>
+      Part.some (encode (prefixOf f k)) := by
   have hih : Computable fun q : ℕ => q.unpair.2.unpair.2 :=
     Computable.snd.comp (Computable.unpair.comp (Computable.snd.comp Computable.unpair))
   have hy : Computable fun q : ℕ => q.unpair.2.unpair.1 :=

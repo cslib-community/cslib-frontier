@@ -1384,19 +1384,25 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Psi
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.States
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Terms
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Codes
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Contract
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Groups
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Law
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.MoveIdentity
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Moves
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Play
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.PlayMoves
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Units
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Act
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Avg
@@ -3182,6 +3188,7 @@ public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProg
 public import CslibFrontier.Computability.Complexity.Problems.GeneralizedGeography
 public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Arborescences
+public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.ComponentOrder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.CutVertex
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Loop
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Polygonal
@@ -3220,6 +3227,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.FaceColorsRayParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.HorizontalTransport
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.IntersectionParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Neighborhood
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.PathTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
@@ -3242,6 +3250,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SquareMove
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Subdrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Ports
@@ -6432,6 +6441,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Eager
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
@@ -8127,6 +8137,7 @@ public import CslibFrontier.Foundations.Computability.KleenePostJump
 public import CslibFrontier.Foundations.Computability.RecursiveInClocked
 public import CslibFrontier.Foundations.Computability.RecursiveInClockedJoin
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
+public import CslibFrontier.Foundations.Computability.RecursiveInContinuous
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Computability.RecursiveInJoin
 public import CslibFrontier.Foundations.Computability.RecursiveInSmn
@@ -9353,6 +9364,7 @@ public import CslibFrontier.GameTheory.UtilityGame.CompetitiveFacilityLocation
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.CombinatoryLogic.KleeneFirstModel
 public import CslibFrontier.Languages.CombinatoryLogic.KleeneFirstModelRelative
+public import CslibFrontier.Languages.CombinatoryLogic.KleeneSecondModel
 public import CslibFrontier.Languages.CombinatoryLogic.PartialCombinatoryAlgebra
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Languages.Probabilistic.BitString
