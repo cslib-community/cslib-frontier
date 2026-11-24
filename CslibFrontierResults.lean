@@ -30,6 +30,7 @@ import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PlantedClique
 import CslibFrontierResults.Entries.PolynomialHashing
+import CslibFrontierResults.Entries.PotentialPolymatrix
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
