@@ -56,8 +56,8 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
   sampler such as `F.sampleExp`.
 * The pad transfer is ideal. Substituting a protocol for it, for one distinguisher, is
   `semiHonestAdvantage_maskedOT_compose_le_transfer` in
-  `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/DDH.lean`; it is not combined with the
-  key-derivation mask here.
+  `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/DDH.lean`; the combination with the
+  key-derivation mask is in `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/KDF.lean`.
 * The locator for [BonehShoup2023] is the one recorded in
   `CslibFrontier/Crypto/Computational/ElGamal.lean`; it was not re-verified against the source.
 

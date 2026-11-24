@@ -16,8 +16,9 @@ public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
 
 This module is a step towards the plain-model statement of Theorem 7 of Lindell and Pinkas
 [LindellPinkas2009] (#6045, criterion 2), not that theorem. It names the plain-model protocol that
-`CslibFrontier/Crypto/Protocols/MPC/Yao/PlainComposition.lean` left open, and bounds the advantage
-of one distinguisher of a corrupted evaluator by advantages of explicit reductions.
+`CslibFrontier/Crypto/Protocols/MPC/Yao/PlainComposition.lean` left open, bounds the advantage of
+one distinguisher of a corrupted evaluator by advantages of explicit reductions, and shows that a
+corrupted garbler has advantage zero.
 
 * `ddhMaskedOT g q mask unmask samplePads` is the single transfer of values in `M` without
   oracles: `maskedOT` with its pad transfer run by the three-message DDH transfer
@@ -28,7 +29,7 @@ of one distinguisher of a corrupted evaluator by advantages of explicit reductio
 
 ## What is proved
 
-One statement, concrete and per instance (a fixed parameter, input tuple, group and
+Two statements, concrete and per instance (a fixed parameter, input tuple, group and
 distinguisher). For a corrupted evaluator, the semi-honest advantage of `D` against Yao's protocol
 over `ddhMaskedBatchOT` is at most the `prv.sim` advantage of the explicit reduction
 `Yao.evaluatorDistinguisherToPrvSim`, plus the expectation over the parties' coins of
@@ -45,20 +46,33 @@ The sum over the transfers is not a sum of advantages at fixed inputs: the disti
 transfer depends on the real executions of the earlier transfers, and `Composition.replacementCost`
 takes the expectation over them.
 
+For a corrupted garbler the advantage is exactly zero when unmasking inverts masking under every
+pad (`Yao.semiHonestAdvantage_composedProtocol_ddhMaskedOT_garbler_eq_zero`), with no hypothesis on
+the group and no hardness assumption. The garbler is the sender of every transfer: the sender of
+the DDH transfer receives one message, whose distribution does not depend on the receiver's choice
+bit (`semiHonestAdvantage_ddhOT_sender`), and the sender of `maskedOT` receives nothing from the
+pad transfer (`semiHonestAdvantage_maskedOT_sender`), so the explicit simulators reproduce its
+views in one transfer (`semiHonestAdvantage_ddhMaskedOT_sender`) and in the batch
+(`semiHonestAdvantage_ddhMaskedBatchOT_sender`).
+
 ## What is not proved
 
 * The pad-hiding terms are advantages against `maskedOT` in the hybrid model, for an arbitrary
-  mask. For the mask that xors a derived key they are key-derivation advantages at fixed group
-  parameters (`CslibFrontier/Crypto/Protocols/MPC/MaskedOT/KDF.lean`), but that identification is
-  for families of distinguishers indexed by the group parameters and is not substituted into this
-  bound, whose distinguishers live at one group.
+  mask. For the mask that xors a derived key over a `PrimeOrderGroupFamily` they are replaced by
+  key-derivation advantages in `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/KDF.lean`.
 * No efficiency certificate for any reduction, and no asymptotic statement
   (`ProtocolFamily.SemiHonestSecure`). The reductions of a transfer depend on the garbler's coins,
   on the outcomes of the earlier transfers and on the sender's pads, which an asymptotic reduction
   has to sample itself or fix as advice.
-* A corrupted garbler is not treated here.
+* The statements for the two coalitions are not combined into one. The one for a corrupted garbler
+  asks that unmasking inverts masking on all values, which the key-derivation mask
+  `PrimeOrderGroupFamily.kdfMask` does only on words of the key's length, so it does not apply to
+  that mask as stated; that mask is treated in
+  `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/KDF.lean`.
 * The DDH transfer is the fixed-group protocol `ddhOTProtocol` with exponents as coins, not the
-  bit-string protocol `ddhOTProbProtocol` over a group family.
+  bit-string protocol `ddhOTProbProtocol` over a group family. One masked transfer over that
+  protocol is bounded in `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/DDHProb.lean`, which is not
+  used here.
 
 The locators for [LindellPinkas2009] are those recorded in
 `CslibFrontier/Crypto/Protocols/MPC/Yao/Family.lean`; locator not re-verified against primary PDF.
@@ -75,6 +89,8 @@ The locators for [LindellPinkas2009] are those recorded in
 
 * `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_ddhMaskedOT_evaluator_le`:
   the bound for a corrupted evaluator.
+* `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_ddhMaskedOT_garbler_eq_zero`:
+  advantage zero for a corrupted garbler.
 
 ## References
 
@@ -192,6 +208,72 @@ private theorem semiHonestAdvantage_ddhMaskedOT_le_receiverCost (g : G) (q : ℕ
       hS₂ x D
   · exact le_top
 
+/-! ### A corrupted sender -/
+
+/-- **The masked transfer over the DDH transfer is perfectly private against a corrupted sender.**
+For simulators `S₁` of `maskedOT` and `S₂` of the DDH transfer whose members at `{0}` are
+`maskedOTSenderSim samplePads` and `ddhOTSenderSim g q`, and when unmasking recovers the receiver's
+output under every pad, every test of the sender's view of `ddhMaskedOT` has advantage zero. No
+hypothesis on the group is used: the sender of the DDH transfer receives one message, whose
+distribution does not depend on the choice bit, and the sender of `maskedOT` receives nothing from
+the pad transfer. -/
+theorem semiHonestAdvantage_ddhMaskedOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
+    (mask unmask : G → M → M) (samplePads : ProbComp (G × G))
+    (S₁ : (J : Finset (Fin 2)) →
+      CoalitionSimulator (maskedOTSchedule G M) (OTIn M) (MaskedOTCoins G) (OTOut M) J)
+    (S₂ : (J : Finset (Fin 2)) →
+      CoalitionSimulator (ddhOTSchedule G) (OTIn G) (DDHOTCoins q) (OTOut G) J)
+    (hS₁ : S₁ {0} = maskedOTSenderSim samplePads) (hS₂ : S₂ {0} = ddhOTSenderSim g q)
+    (x : (i : Fin 2) → OTIn M i)
+    (hmask : ∀ r, unmask r (mask r (otOutputs x 1)) = otOutputs x 1)
+    (D : ((i : ({0} : Finset (Fin 2))) → PartyView (OTIn M)
+        (Schedule.ComposedCoins (fun _ => DDHOTCoins q) (MaskedOTCoins G) (maskedOTSchedule G M))
+        (Schedule.compose (fun _ => ddhOTSchedule G) (maskedOTSchedule G M)) i) ×
+      ((i : Fin 2) → OTOut M i) → ProbComp Bool) :
+    semiHonestAdvantage (ddhMaskedOT g q mask unmask samplePads) noOracleWorld
+      (otFunctionality M) {0} (ddhMaskedOTSim mask unmask samplePads S₁ S₂ {0}) x D = 0 := by
+  have h := semiHonestAdvantage_maskedOT_compose_le_add mask unmask samplePads noOracleWorld
+    (ddhOTProtocol g q) S₁ S₂ {0} 0 0 x
+    (fun D' => by
+      rw [hS₁, semiHonestAdvantage_maskedOT_sender mask unmask samplePads x hmask D',
+        ENNReal.coe_zero])
+    (fun q' D' => by
+      rw [hS₂, semiHonestAdvantage_ddhOT_sender g q q' D', ENNReal.coe_zero]) D
+  rwa [add_zero, nonpos_iff_eq_zero, ENNReal.coe_eq_zero] at h
+
+/-- **The batched masked transfer over the DDH transfer is perfectly private against a corrupted
+sender.** For simulators `S₁` of `maskedOT` and `S₂` of the DDH transfer whose members at `{0}` are
+`maskedOTSenderSim samplePads` and `ddhOTSenderSim g q`, and when unmasking inverts masking under
+every pad, every test of the sender's view of `ddhMaskedBatchOT k` has advantage zero, for every
+number `k` of transfers. No hypothesis on the group is used. -/
+theorem semiHonestAdvantage_ddhMaskedBatchOT_sender (k : ℕ) (g : G) (q : ℕ) [NeZero q]
+    [Module (ZMod q) G] (mask unmask : G → M → M) (hmask : ∀ r m, unmask r (mask r m) = m)
+    (samplePads : ProbComp (G × G))
+    (S₁ : (J : Finset (Fin 2)) →
+      CoalitionSimulator (maskedOTSchedule G M) (OTIn M) (MaskedOTCoins G) (OTOut M) J)
+    (S₂ : (J : Finset (Fin 2)) →
+      CoalitionSimulator (ddhOTSchedule G) (OTIn G) (DDHOTCoins q) (OTOut G) J)
+    (hS₁ : S₁ {0} = maskedOTSenderSim samplePads) (hS₂ : S₂ {0} = ddhOTSenderSim g q)
+    (x : (i : Fin 2) → (batchOTSpec k M).Query () i)
+    (D : ((i : ({0} : Finset (Fin 2))) → PartyView ((batchOTSpec k M).Query ())
+        (Schedule.ComposedCoins
+          (fun _ => Schedule.ComposedCoins (fun _ => DDHOTCoins q) (MaskedOTCoins G)
+            (maskedOTSchedule G M))
+          (fun _ => Unit) (seqBatchOTSchedule k M))
+        (Schedule.compose
+          (fun _ => Schedule.compose (fun _ => ddhOTSchedule G) (maskedOTSchedule G M))
+          (seqBatchOTSchedule k M)) i) ×
+      ((i : Fin 2) → (batchOTSpec k M).Answer () i) → ProbComp Bool) :
+    semiHonestAdvantage (ddhMaskedBatchOT k g q mask unmask samplePads) noOracleWorld
+      (batchOTFunctionality k M) {0}
+      (ddhMaskedBatchOTSim k mask unmask samplePads S₁ S₂ {0}) x D = 0 := by
+  have h := semiHonestAdvantage_seqBatchOT_compose_le_mul k M noOracleWorld
+    (ddhMaskedOT g q mask unmask samplePads) (ddhMaskedOTSim mask unmask samplePads S₁ S₂) {0} 0
+    (fun q' D' => by
+      rw [semiHonestAdvantage_ddhMaskedOT_sender g q mask unmask samplePads S₁ S₂ hS₁ hS₂ q'
+        (fun r => hmask r _) D', ENNReal.coe_zero]) x D
+  rwa [mul_zero, nonpos_iff_eq_zero, ENNReal.coe_eq_zero] at h
+
 namespace Yao
 
 open Cslib.Crypto.Garbling
@@ -284,6 +366,73 @@ theorem semiHonestAdvantage_composedProtocol_ddhMaskedOT_evaluator_le
     (cost := ddhMaskedOTReceiverCost g q mask unmask samplePads S₁ S₂)
     (fun _ J q' D' => semiHonestAdvantage_ddhMaskedOT_le_receiverCost g q hgen mask unmask
       samplePads S₁ S₂ hS₂ J q' D') _ _ _ _)
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted garbler, not the cited result
+(#6045): a concrete statement at a fixed instance and group, with no security parameter and no
+efficiency certificate for the simulator.
+
+At every parameter `n ≥ 1`, when the garbling scheme `Gs` is correct with a projective encoding and
+unmasking inverts masking under every pad, the semi-honest advantage of `D` against Yao's protocol
+over the batched masked transfer over the DDH transfer,
+`Yao.composedProtocol Gs n c (ddhMaskedBatchOT …)`, for the coalition `{0}`, is zero. The simulator
+is composed from simulators `T₁` of `Yao.protocol` whose member at `{0}` is `Yao.garblerSim Gs n c`,
+simulators `S₁` of `maskedOT` whose member at `{0}` is `maskedOTSenderSim samplePads` and
+simulators `S₂` of the DDH transfer whose member at `{0}` is `ddhOTSenderSim g q`.
+
+The advantage is zero, with no hardness assumption and no hypothesis on the group, because the
+garbler is the sender of every transfer: the transfer term of
+`Yao.semiHonestAdvantage_composedProtocol_garbler_le_transfer` vanishes by
+`semiHonestAdvantage_ddhMaskedBatchOT_sender`. -/
+theorem semiHonestAdvantage_composedProtocol_ddhMaskedOT_garbler_eq_zero
+    (hproj : Gs.encode = projectiveEncode) (hcorrect : Gs.Correct) {n : ℕ} (hn : 0 < n)
+    (c : Params Gs) (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
+    (mask unmask : G → List Bool → List Bool) (hmask : ∀ r m, unmask r (mask r m) = m)
+    (samplePads : ProbComp (G × G))
+    (T₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (schedule c) (Input c) Coins (fun _ => List Bool) I)
+    (hT₁ : T₁ {0} = garblerSim Gs n c)
+    (S₁ : (J : Finset (Fin 2)) →
+      CoalitionSimulator (maskedOTSchedule G (List Bool)) (OTIn (List Bool)) (MaskedOTCoins G)
+        (OTOut (List Bool)) J)
+    (S₂ : (J : Finset (Fin 2)) →
+      CoalitionSimulator (ddhOTSchedule G) (OTIn G) (DDHOTCoins q) (OTOut G) J)
+    (hS₁ : S₁ {0} = maskedOTSenderSim samplePads) (hS₂ : S₂ {0} = ddhOTSenderSim g q)
+    (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({0} : Finset (Fin 2))) →
+      PartyView (Input c)
+        (Schedule.ComposedCoins
+          (fun _ => Schedule.ComposedCoins
+            (fun _ => Schedule.ComposedCoins (fun _ => DDHOTCoins q) (MaskedOTCoins G)
+              (maskedOTSchedule G (List Bool)))
+            (fun _ => Unit) (seqBatchOTSchedule c.evaluatorLen (List Bool)))
+          Coins (schedule c))
+        (Schedule.compose
+          (fun _ => Schedule.compose
+            (fun _ => Schedule.compose (fun _ => ddhOTSchedule G)
+              (maskedOTSchedule G (List Bool)))
+            (seqBatchOTSchedule c.evaluatorLen (List Bool)))
+          (schedule c)) i) × ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    semiHonestAdvantage
+        (composedProtocol Gs n c (ddhMaskedBatchOT c.evaluatorLen g q mask unmask samplePads))
+        noOracleWorld (functionality Gs c) {0}
+        (composeSim (protocol Gs n c) T₁
+          (fun _ => ddhMaskedBatchOTSim c.evaluatorLen mask unmask samplePads S₁ S₂) {0})
+        x D = 0 := by
+  have h := semiHonestAdvantage_composedProtocol_garbler_le_transfer hproj hcorrect hn c
+    (ddhMaskedBatchOT c.evaluatorLen g q mask unmask samplePads) noOracleWorld T₁ hT₁
+    (fun _ => ddhMaskedBatchOTSim c.evaluatorLen mask unmask samplePads S₁ S₂) x D
+  -- The coalition of the transfer is `subCoalition _ {0}`, which is `{0}` only propositionally.
+  have h0 : ∀ J, J = ({0} : Finset (Fin 2)) → ∀ q' D',
+      (semiHonestAdvantage (ddhMaskedBatchOT c.evaluatorLen g q mask unmask samplePads)
+        noOracleWorld (batchOTFunctionality c.evaluatorLen (List Bool)) J
+        (ddhMaskedBatchOTSim c.evaluatorLen mask unmask samplePads S₁ S₂ J) q' D' : ℝ≥0∞) = 0 := by
+    rintro J rfl q' D'
+    rw [semiHonestAdvantage_ddhMaskedBatchOT_sender c.evaluatorLen g q mask unmask hmask
+      samplePads S₁ S₂ hS₁ hS₂ q' D', ENNReal.coe_zero]
+  rw [tsum_eq_zero_iff.mpr fun r => by
+    rw [h0 _ (Finset.ext fun _ => mem_subCoalition), mul_zero],
+    nonpos_iff_eq_zero, ENNReal.coe_eq_zero] at h
+  exact h
 
 end Yao
 

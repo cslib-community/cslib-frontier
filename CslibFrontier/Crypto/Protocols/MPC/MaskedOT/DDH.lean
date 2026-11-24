@@ -46,8 +46,9 @@ All statements are concrete and per instance: a fixed input pair and one disting
   `composeDistinguisher`, and no asymptotic statement (`ProtocolFamily.SemiHonestSecure`). The
   DDH term is an expectation over the sender's pads of advantages of distinguishers that depend
   on the pads, which an asymptotic reduction has to sample itself or fix as advice.
-* The DDH transfer is the fixed-group protocol `ddhOTProtocol` with exponents as coins, not the
-  bit-string protocol `ddhOTProbProtocol` over a group family.
+* The DDH transfer is the fixed-group protocol `ddhOTProtocol` with exponents as coins. The
+  bit-string protocol `ddhOTProbProtocol` over a group family is treated in
+  `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/DDHProb.lean`.
 
 ## Main definitions
 
@@ -151,7 +152,7 @@ end Transfer
 
 /-- The semi-honest advantage at a coalition `J` equal to `I` is the advantage at `I` of the test
 that reads the views of `I` as views of `J`. -/
-private theorem semiHonestAdvantage_of_coalition_eq {m : ℕ} {spec : MultiOracleSpec}
+theorem semiHonestAdvantage_of_coalition_eq {m : ℕ} {spec : MultiOracleSpec}
     {sc : Schedule m spec} {In Coins Out : Fin m → Type} (P : Protocol m spec sc In Coins Out)
     (W : MultiOracleWorld spec) (f : Functionality m In Out)
     (S : (J : Finset (Fin m)) → CoalitionSimulator sc In Coins Out J) {J I : Finset (Fin m)}

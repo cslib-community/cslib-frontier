@@ -6681,6 +6681,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.IKNP
 public import CslibFrontier.Crypto.Protocols.MPC.IKNP.Family
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDH
+public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDHProb
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender
@@ -6714,6 +6715,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.KDF
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
 public import CslibFrontier.Crypto.Protocols.MQOM.CorrelatedTree
 public import CslibFrontier.Crypto.Protocols.OPRF.DiffieHellman
