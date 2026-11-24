@@ -38,7 +38,9 @@ entropy identity alone makes no claim about computational indistinguishability.
 * `Cslib.Probability.PMF.entropy_bind_pair`, `.entropy_bind_sigma`: joint entropy decompositions.
 * `Cslib.Probability.PMF.conditionalEntropy_eq_sum`: average of conditional entropies.
 * `Cslib.Probability.PMF.conditionalEntropy_map_fst_ge`: forgetting observations increases entropy.
-* `Cslib.Probability.PMF.entropy_chain_rule_deterministic`: deterministic chain rule.
+* `Cslib.Probability.PMF.entropy_chain_rule_deterministic`,
+  `.conditionalEntropy_le_add_conditionalEntropy`: deterministic chain rule and conditional entropy
+  subadditivity along an intermediate observation.
 
 ## References
 
@@ -389,5 +391,23 @@ theorem entropy_chain_rule_deterministic [Finite α] [Finite β] [Finite γ]
     (fun a b hab => congrArg Prod.snd hab)
   simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, h]
   ring
+
+/-- Conditional entropy subadditivity along an intermediate revelation `mid`:
+`H(tgt | obs) ≤ H(mid | obs) + H(tgt | obs, mid)`. -/
+theorem conditionalEntropy_le_add_conditionalEntropy {Ω Obs Mid Tgt : Type*}
+    [Finite Obs] [Finite Mid] [Finite Tgt]
+    (p : PMF Ω) (obs : Ω → Obs) (mid : Ω → Mid) (tgt : Ω → Tgt) :
+    conditionalEntropy (p.map fun ω => (obs ω, tgt ω)) ≤
+      conditionalEntropy (p.map fun ω => (obs ω, mid ω)) +
+        conditionalEntropy (p.map fun ω => ((obs ω, mid ω), tgt ω)) := by
+  have hle : entropy (p.map fun ω => (obs ω, tgt ω)) ≤
+      entropy (p.map fun ω => ((obs ω, mid ω), tgt ω)) := by
+    have hcomp : (p.map fun ω => ((obs ω, mid ω), tgt ω)).map (fun x => (x.1.1, x.2)) =
+        p.map fun ω => (obs ω, tgt ω) := by
+      rw [_root_.PMF.map_comp]; rfl
+    rw [← hcomp]
+    exact entropy_map_le _ _
+  simp only [conditionalEntropy, _root_.PMF.map_comp, Function.comp_def] at hle ⊢
+  linarith
 
 end Cslib.Probability.PMF

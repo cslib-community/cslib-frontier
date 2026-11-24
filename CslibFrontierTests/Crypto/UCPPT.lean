@@ -9,13 +9,14 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
-import CslibFrontier.Computability.Probabilistic.Sampling
-import CslibFrontier.Crypto.Protocols.UC.PPT
+public import CslibFrontier.Computability.Probabilistic.Sampling
+public import CslibFrontier.Crypto.Protocols.UC.PPT
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
+public import Mathlib.Probability.ProbabilityMassFunction.Monad
 
 /-!
 # Tests for `UC.PPT`
@@ -48,17 +49,26 @@ namespace CslibFrontierTests.Crypto.UCPPT
 
 open Cslib Cslib.Crypto.Protocols.UC Cslib.Probability Turing.MultiTapeTM
 
-private def unitDecoder : Decoder encUnit where
+/-- Trivial polynomial-time decoder for `encUnit`. -/
+@[expose] public def unitDecoder : Decoder encUnit where
   decode _ := ()
   decode_enc _ := rfl
   computable :=
     (ComputableInPolyTime.const (encIn := encBits) (encOut := encUnit) ()).exists_degree
 
-private def unitPort : WordPort Unit Unit where
+/-- Trivial `Unit`/`Unit` word port. -/
+@[expose] public def unitPort : WordPort Unit Unit where
   query := encUnit
   queryDecoder := unitDecoder
   reply := encUnit
   replyDecoder := unitDecoder
+
+/-- Identity `List Bool` / `List Bool` word port. -/
+@[expose] public def msgPort : WordPort (List Bool) (List Bool) where
+  query := encBits
+  queryDecoder := Decoder.bits
+  reply := encBits
+  replyDecoder := Decoder.bits
 
 private def bitsPort : WordPort Unit (List Bool) where
   query := encUnit
@@ -66,17 +76,16 @@ private def bitsPort : WordPort Unit (List Bool) where
   reply := encBits
   replyDecoder := Decoder.bits
 
-private def coinInputPort : WordPort Bool (List Bool) where
+/-- Single-party `Bool`/`List Bool` word port for `coinStore`. -/
+@[expose] public def coinInputPort : WordPort Bool (List Bool) where
   query := encBool
   queryDecoder := Decoder.bool
   reply := encBits
   replyDecoder := Decoder.bits
 
-private def coinPartyPort : WordPort (Fin 2 × Bool) (Option (List Bool)) :=
+/-- Two-party indexed port for `coinStore`. -/
+@[expose] public def coinPartyPort : WordPort (Fin 2 × Bool) (Option (List Bool)) :=
   WordPort.party (n := 2) coinInputPort
-
-private def encFin2 : Fin 2 ↪ List Bool :=
-  ⟨fun i => encUnary i.val, fun _ _ h => Fin.val_injective (encUnary.injective h)⟩
 
 /-! ### 1. `coinStore` end-to-end witness -/
 
@@ -85,7 +94,8 @@ section CoinStoreWitness
 /-- Two-party functionality with growing state and real coins: party `0` samples a fresh uniform
 bit `c`, stores `(b ^^ c) :: s`, and returns `none`; party `1` polls and returns `some s`; the
 backdoor is a no-op. -/
-private noncomputable def coinStore : IdealFunctionality 2 Bool (List Bool) Unit Unit where
+@[expose] public noncomputable def coinStore :
+    IdealFunctionality 2 Bool (List Bool) Unit Unit where
   State := List Bool
   init _ _ := pure []
   onInput i b := do
@@ -113,7 +123,7 @@ private theorem coinStore_onInput_zero_eval (b : Bool) (s : List Bool) :
     PMF.bind_map]
   rfl
 
-private theorem coinStore_onInput_one_eval (b : Bool) (s : List Bool) :
+public theorem coinStore_onInput_one_eval (b : Bool) (s : List Bool) :
     ((coinStore.onInput (1 : Fin 2) b).run s).eval =
       PMF.pure ((some s : Option (List Bool)), s) := by
   have hne : (1 : Fin 2) ≠ 0 := by decide
@@ -184,20 +194,21 @@ private theorem coinStore_onInput_isPPTOn :
         fun q => coinStore.onInput q.1 q.2) := by
   have hdec : ComputableInPolyTime
       (fun p : List Bool × List Bool => coinPartyPort.queryDecoder.decode p.1)
-      (encPair encBits encBits) (encPair encFin2 encBool) :=
+      (encPair encBits encBits) (encPair (encFinEnum (Fin 2)) encBool) :=
     coinPartyPort.queryDecoder.computableInPolyTime.comp (ComputableInPolyTime.fst encBits encBits)
   have hparty : ComputableInPolyTime
       (fun p : List Bool × List Bool => (coinPartyPort.queryDecoder.decode p.1).1)
-      (encPair encBits encBits) encFin2 :=
-    (ComputableInPolyTime.fst encFin2 encBool).comp hdec
+      (encPair encBits encBits) (encFinEnum (Fin 2)) :=
+    (ComputableInPolyTime.fst (encFinEnum (Fin 2)) encBool).comp hdec
   have hbit : ComputableInPolyTime
       (fun p : List Bool × List Bool => (coinPartyPort.queryDecoder.decode p.1).2)
       (encPair encBits encBits) encBool :=
-    (ComputableInPolyTime.snd encFin2 encBool).comp hdec
+    (ComputableInPolyTime.snd (encFinEnum (Fin 2)) encBool).comp hdec
   have hcond : ComputableInPolyTime
       (fun p : List Bool × List Bool => decide ((coinPartyPort.queryDecoder.decode p.1).1 = 0))
       (encPair encBits encBits) encBool := by
-    have hfin : ComputableInPolyTime (fun i : Fin 2 => decide (i = 0)) encFin2 encBool :=
+    have hfin : ComputableInPolyTime (fun i : Fin 2 => decide (i = 0))
+        (encFinEnum (Fin 2)) encBool :=
       ComputableInPolyTime.of_finite (fun i : Fin 2 => decide (i = 0))
     exact hfin.comp hparty
   have hyes : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
@@ -309,11 +320,11 @@ private noncomputable def coinStoreCert :
     omega
 
 /-- `coinStore` is a strict-PPT ideal functionality. -/
-theorem coinStore_isPPT : coinStore.IsPPT coinPartyPort unitPort :=
+public theorem coinStore_isPPT : coinStore.IsPPT coinPartyPort unitPort :=
   ⟨coinStoreCert⟩
 
 /-- Lifting `coinStore` via `IdealFunctionality.IsPPT.toProtocol` yields a strict-PPT protocol. -/
-theorem coinStore_toProtocol_isPPT : coinStore.toProtocol.IsPPT coinPartyPort unitPort :=
+public theorem coinStore_toProtocol_isPPT : coinStore.toProtocol.IsPPT coinPartyPort unitPort :=
   coinStore_isPPT.toProtocol
 
 /-- The dummy adversary forwarding `Unit / Unit` is strict PPT. -/
@@ -493,11 +504,16 @@ theorem coinEnv_run_coinStore_wordHandle_isOraclePPTOn :
       (WordInterface.protocol coinPartyPort unitPort),
       IsOraclePPTOn (Operation := WordInterface.empty.Channel) encEnvParam encBool
         (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-          cert.codec coinEnv ∅) := by
+          cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id) := by
   rcases coinStore_toProtocol_isPPT with ⟨cert⟩
-  exact ⟨cert, coinEnv_isPPT.isOraclePPTOn_run_wordHandle cert ∅⟩
+  have hconst : ComputableInPolyTime (fun _ : EnvParam => (∅ : Finset (Fin 2)))
+      encEnvParam (encFinite (Finset (Fin 2))) :=
+    ComputableInPolyTime.const ∅
+  exact ⟨cert, coinEnv_isPPT.isOraclePPTOn_run_wordHandle cert (by fun_prop)
+    (ComputableInPolyTime.of_eq fun _ => rfl)⟩
 
-private noncomputable def emptyWordOracle :
+/-- Empty word oracle on `WordInterface.empty`. -/
+@[expose] public noncomputable def emptyWordOracle :
     WordInterface.empty.Channel × List Bool → StateT Unit PMF (List Bool)
   | cw, _ => cw.1.elim
 
@@ -517,14 +533,16 @@ theorem coinStore_wordRun_delivers_coin
     (κ : ℕ) (z : List Bool) :
     ProbOracleComp.runWith emptyWordOracle
       (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-        cert.codec coinEnv ∅ ⟨κ, 2, z⟩) () (true, ()) = (1 / 2 : ENNReal) ∧
+        cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id ⟨κ, 2, z⟩) () (true, ()) =
+      (1 / 2 : ENNReal) ∧
     ProbOracleComp.runWith emptyWordOracle
       (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-        cert.codec coinEnv ∅ ⟨κ, 1, z⟩) () (true, ()) = 0 := by
+        cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id ⟨κ, 1, z⟩) () (true, ()) =
+      0 := by
   have hrun (k : ℕ) :
       ProbOracleComp.runWith emptyWordOracle
         (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-          cert.codec coinEnv ∅ ⟨κ, k, z⟩) () =
+          cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id ⟨κ, k, z⟩) () =
         (ProbComp.uniform Bool).eval.map (fun c =>
           (match coinPartyPort.replyDecoder.decode
               (List.take k (coinPartyPort.reply (some [true ^^ c]))) with
@@ -583,8 +601,9 @@ theorem coinStore_wordRun_delivers_coin
       exact PMF.pure_map (fun x : Unit × List Bool => (x, ())) ((), s')
     let sInit : (coinStore.toProtocol κ ∅).State := ([] : List Bool)
     have hinit : (coinStore.toProtocol κ ∅).init = pure sInit := rfl
-    simp only [wordRun, hinit, map_pure, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-      ProbOracleComp.runWith_map, ProbComp.eval_pure, PMF.pure_map, PMF.pure_bind]
+    simp only [wordRun, hinit, map_pure, ProbOracleComp.runWith_bind,
+      ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, ProbComp.eval_pure, PMF.pure_map,
+      PMF.pure_bind]
     simp only [wordRunFrom, coinEnv, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,

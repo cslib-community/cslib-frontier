@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.PMF.Expect
 public import Mathlib.Data.Finset.Piecewise
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 public import Mathlib.Probability.ProbabilityMassFunction.Monad
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 import CslibFrontier.Probability.PMF.ToMeasure
 import Mathlib.MeasureTheory.Constructions.BorelSpace.Metric
 import Mathlib.MeasureTheory.Integral.Bochner.SumMeasure
@@ -101,9 +102,6 @@ location `x i` incurs distance cost `dist (x i) y` when the facility is placed a
   `Cslib.GameTheory.FacilityLocation.expectedCost_ofPMF_map_fintype`: `PMF` evaluation lemmas.
 * `Cslib.GameTheory.FacilityLocation.unanimous_of_surjective_isStrategyProof`: every deterministic,
   surjective, strategyproof mechanism on a metric space is unanimous.
-* `Cslib.GameTheory.FacilityLocation.profile_update_induction`: agent-by-agent replacement of one
-  profile by another, the induction behind unanimity and the Pareto arguments of the interval and
-  tree characterizations.
 
 ## References
 
@@ -852,37 +850,9 @@ end Mechanism
 
 end Evaluation
 
-/-! ### Profile-update induction and unanimity -/
+/-! ### Unanimity -/
 
 section Unanimity
-
-/-- Agent-by-agent replacement of a profile. A property that holds at the profile `x`, and that
-survives one agent `i` with `z i = x i ≠ y i` switching its report to `y i` from any profile `z`
-mixing `x` and `y`, holds at `y`. -/
-theorem profile_update_induction {ι α : Type*} [Finite ι] [DecidableEq ι]
-    {P : (ι → α) → Prop} {x y : ι → α} (hx : P x)
-    (step : ∀ z : ι → α, (∀ j, z j = x j ∨ z j = y j) → P z →
-      ∀ i, z i = x i → z i ≠ y i → P (Function.update z i (y i))) :
-    P y := by
-  classical
-  let _ := Fintype.ofFinite ι
-  let m : Finset ι → ι → α := fun S j => if j ∈ S then y j else x j
-  suffices h : ∀ S, P (m S) by simpa [m] using h Finset.univ
-  intro S
-  induction S using Finset.induction with
-  | empty => simpa [m] using hx
-  | insert i S hi ih =>
-    have hupd : m (insert i S) = Function.update (m S) i (y i) := by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp [m]
-      · simp [m, hj]
-    have hmi : m S i = x i := by simp [m, hi]
-    by_cases hxy : x i = y i
-    · rwa [hupd, ← hxy, ← hmi, Function.update_eq_self]
-    rw [hupd]
-    refine step _ (fun j => ?_) ih i hmi (hmi ▸ hxy)
-    by_cases hj : j ∈ S <;> simp [m, hj]
 
 /-- Every surjective, strategyproof deterministic facility-location mechanism on a metric space is
 unanimous: when all agents report the same location `y`, the mechanism places the facility at
@@ -893,7 +863,7 @@ theorem unanimous_of_surjective_isStrategyProof {ι G : Type*} [Finite ι] [Deci
     (hf_onto : Function.Surjective f) (y : G) :
     f (fun _ => y) = y := by
   obtain ⟨x, hx⟩ := hf_onto y
-  refine profile_update_induction (P := fun z => f z = y) (y := fun _ => y) hx ?_
+  refine Function.update_induction (P := fun z => f z = y) (y := fun _ => y) hx ?_
   intro z _ hz i _ _
   have h := (Mechanism.isStrategyProof_deterministic_iff f).mp hf_sp
     (Function.update z i y) i (z i)

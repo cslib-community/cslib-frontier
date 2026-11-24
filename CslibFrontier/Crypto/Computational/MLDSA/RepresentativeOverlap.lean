@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicKeyHash
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -49,7 +48,12 @@ theorem matchingRepresentativeInput_of_overlap (H : Xofs) (s : Level) (pk : List
   let tr := H.h256.readBytes pk 64
   have ht : (Keccak.bytesToBitsLE tr).length = 512 := by
     rw [Keccak.length_bytesToBitsLE, show tr.length = 64 from H.h256.length_read ..]
-  have same := (List.append_inj overlap (ht.trans (length_messageRepresentative ..).symm)).1
+  have same : Keccak.bytesToBitsLE tr = H.messageRepresentative pk (formattedMessage g) := by
+    have h := congrArg (List.take 512) overlap
+    have lg : (H.messageRepresentative pk (formattedMessage g)).length = 512 :=
+      length_messageRepresentative ..
+    rw [representativeInput, ← ht, List.take_left, ht, ← lg, take_commitmentInput] at h
+    exact h
   have hash : H.h256.read (representativeInput tr (formattedMessage g)) 64 = tr :=
     (Keccak.bytesToBitsLE_injective same).symm
   simp only [Xofs.matchingRepresentativeInput, Option.isSome_map, List.isSome_find?]

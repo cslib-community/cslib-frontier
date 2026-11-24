@@ -39,8 +39,8 @@ Coordinate native graph-algorithm work with [CSLib's graph-algorithm directions]
   Also Nagamochi–Ibaraki sparse certificates for `k`-edge-connectivity, Karger's near-linear algorithm, the `O((2n)^(2α))` bound on `α`-minimal cuts, the enumeration and cactus representation of all minimum cuts, and Queyranne's symmetric submodular minimization.
 - **Gomory–Hu trees** ([#3422](https://github.com/cslib-community/cslib-frontier/issues/3422)): existence of cut-equivalent trees, flow-equivalence, the minimum-cut triangle inequality and the `n - 1` bound on distinct minimum-cut values, and Gusfield's construction with `n - 1` Edmonds–Karp calls returning parent arrays and weights `λ(u, p u)` in `O(n^6)` Word-RAM time ([#3285](https://github.com/cslib-community/cslib-frontier/issues/3285), [#3320](https://github.com/cslib-community/cslib-frontier/issues/3320)).
   Remaining optional items: an executable flow/cut oracle over `ℚ`, and Word-RAM running times for push–relabel and Dinitz instances.
-- **Push–relabel maximum flow** ([#3373](https://github.com/cslib-community/cslib-frontier/issues/3373)): preflows, valid labelings, optimality at termination with a gap minimum cut, and the operation bounds of the generic Goldberg–Tarjan algorithm with an executable scheduler.
-  Then Word-RAM running times for current-arc scanning (`O(|V|² |E|)`), the FIFO and relabel-to-front rules (`O(|V|³)`), highest-label selection (`O(|V|² √|E|)`), gap and global-relabelling heuristics, and dynamic trees (`O(|V| |E| log(|V|² / |E|))`).
+- **Push–relabel maximum flow** ([#3373](https://github.com/cslib-community/cslib-frontier/issues/3373)): preflows, valid labelings, gap minimum cuts, and operation/advance bounds for the generic Goldberg–Tarjan and relabel-to-front schedulers.
+  Then Word-RAM running times for current-arc scanning (`O(|V|² |E|)`), FIFO and relabel-to-front (`O(|V|³)`), highest-label (`O(|V|² √|E|)`), gap and global-relabelling heuristics, and dynamic trees (`O(|V| |E| log(|V|² / |E|))`).
 - **Menger's theorem** ([#3409](https://github.com/cslib-community/cslib-frontier/issues/3409)): Menger for infinite graphs (the Erdős–Menger theorem, proved by Aharoni and Berger) and a native local or global `k`-connectivity test with a charged running-time bound.
 - **Algebraic matching** ([#3052](https://github.com/cslib-community/cslib-frontier/issues/3052)): Edmonds' and Tutte's determinant criteria with Lovász's randomized test, and the Mulmuley–Vazirani–Vazirani algorithm for bipartite and general graphs (the latter in its Pfaffian form).
   The algorithmic targets are a machine-level running-time certificate for the determinant test and an RNC implementation.
@@ -153,6 +153,11 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ### Constructive probabilistic methods
 
+- **Planted-clique recovery** ([#6238](https://github.com/cslib-community/cslib-frontier/issues/6238)):
+  certify a finite-precision realization of the raw-adjacency
+  second-eigenvector algorithm in the native computation model, and sharpen its constants to
+  match Alon–Krivelevich–Sudakov. See the
+  [proof and module guide](../CslibFrontier/Algorithms/PlantedClique/README.md).
 - **Moser–Tardos resampling** ([#3096](https://github.com/cslib-community/cslib-frontier/issues/3096)): extend the formalized variable-form, symmetric `e p (d + 1) ≤ 1`, Section 6 lopsided and constructive `k`-SAT resampling bounds with parallel and derandomized versions (Theorems 1.3–1.4) and native sampling and event-detection costs.
   Build the Kolmogorov form's decoder ([#3043](https://github.com/cslib-community/cslib-frontier/issues/3043)) as a multi-tape machine taking the formula, transferring it to `condPlain`.
 - **Conditional expectations and pessimistic estimators:** algorithmic alteration, and coloring, MAX-CUT or combinatorial-construction clients of the certified greedy choice rule for pessimistic estimators.

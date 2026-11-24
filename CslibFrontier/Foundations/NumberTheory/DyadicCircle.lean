@@ -12,10 +12,6 @@ public import Mathlib.Algebra.Order.Floor.Ring
 public import Mathlib.Data.Rat.Floor
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Positivity
 
 /-!
 # Dyadic approximation modulo one

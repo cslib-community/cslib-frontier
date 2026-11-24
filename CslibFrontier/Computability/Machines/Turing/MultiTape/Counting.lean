@@ -40,6 +40,8 @@ An empty list at a running configuration is stuck, not a rejecting halt.
 
 * `Turing.MultiTapeCTM.mem_branches_iff`: the enumeration is exactly the bounded terminal traces.
 * `Turing.MultiTapeCTM.HaltsWithin.branches_eq`: larger sufficient clocks preserve every branch.
+* `Turing.MultiTapeCTM.haltsWithin_of_paths_of_haltsWithin`: tighten a `HaltsWithin` clock via
+  unlabelled run paths.
 * `Turing.MultiTapeCTM.exists_branchBound`: finite control and alphabet bound occurrence counts.
 
 This is operational counting semantics, without a claimed polynomial-time verifier or a new
@@ -289,26 +291,53 @@ inductive HaltsWithin (machine : MultiTapeCTM k Symbol State) :
         HaltsWithin machine fuel ((machine.actions cfg)[index].apply cfg)) :
       HaltsWithin machine (fuel + 1) cfg
 
+private theorem haltsWithin_of_invariant {M : MultiTapeCTM k Symbol State}
+    (inv : Cfg k Symbol State input → Prop)
+    (hnonempty : ∀ c, inv c → ¬c.Halted → M.actions c ≠ [])
+    (hnext : ∀ c, inv c → ¬c.Halted →
+      ∀ idx : Fin (M.actions c).length, inv ((M.actions c)[idx].apply c))
+    {fuel : ℕ} {cfg : Cfg k Symbol State input} (hinv : inv cfg)
+    (h : ∀ p : M.toNTM.RunPath input, p.head = cfg → fuel ≤ p.length → p.last.Halted) :
+    M.HaltsWithin fuel cfg := by
+  induction fuel generalizing cfg with
+  | zero => exact .halt (h (RelSeries.singleton _ cfg) rfl (Nat.zero_le _))
+  | succ fuel ih =>
+    by_cases hh : cfg.Halted
+    · exact .halt hh
+    refine .step (hnonempty cfg hinv hh) fun idx =>
+      ih (hnext cfg hinv hh idx) fun p hp hlen => ?_
+    have hs : M.toNTM.Step cfg p.head := by
+      rw [hp, M.step_toNTM_iff hh]
+      exact ⟨idx.val, (M.step?_eq_some_iff _ _ _).mpr ⟨idx.isLt, rfl⟩⟩
+    have he := h (p.cons cfg hs) (RelSeries.head_cons _ _ _)
+      (by simpa only [RelSeries.cons_length] using Nat.succ_le_succ hlen)
+    simpa only [RelSeries.last_cons] using he
+
 /-- An unlabelled time bound certifies termination of a nonblocking counting machine. -/
 theorem haltsWithin_of_paths {M : MultiTapeCTM k Symbol State} (hM : M.Nonblocking)
     {fuel : ℕ} {cfg : Cfg k Symbol State input}
     (h : ∀ p : M.toNTM.RunPath input, p.head = cfg → fuel ≤ p.length → p.last.Halted) :
-    M.HaltsWithin fuel cfg := by
-  induction fuel generalizing cfg with
-  | zero =>
-    exact .halt (h (RelSeries.singleton _ cfg) rfl (Nat.zero_le _))
-  | succ fuel ih =>
-    by_cases hh : cfg.Halted
-    · exact .halt hh
-    refine .step (hM.actions_ne_nil cfg hh) fun i => ?_
-    apply ih
-    intro p hp hlen
-    have hs : M.toNTM.Step cfg p.head := by
-      rw [hp, M.step_toNTM_iff hh]
-      exact ⟨i.val, (M.step?_eq_some_iff _ _ _).mpr ⟨i.isLt, rfl⟩⟩
-    have he := h (p.cons cfg hs) (RelSeries.head_cons _ _ _)
-      (by simpa only [RelSeries.cons_length] using Nat.succ_le_succ hlen)
-    simpa only [RelSeries.last_cons] using he
+    M.HaltsWithin fuel cfg :=
+  haltsWithin_of_invariant (fun _ => True) (fun c _ hh => hM.actions_ne_nil c hh)
+    (fun _ _ _ _ => trivial) trivial h
+
+/-- If a `MultiTapeCTM` already satisfies `HaltsWithin` at some clock `t₁` (ruling out stuck
+reachable configurations) and every unlabelled run path of length at least `t₂` halts, then it
+also satisfies `HaltsWithin` at clock `t₂`. -/
+theorem haltsWithin_of_paths_of_haltsWithin {M : MultiTapeCTM k Symbol State} {t₁ t₂ : ℕ}
+    {cfg : Cfg k Symbol State input} (h₁ : M.HaltsWithin t₁ cfg)
+    (h₂ : ∀ p : M.toNTM.RunPath input, p.head = cfg → t₂ ≤ p.length → p.last.Halted) :
+    M.HaltsWithin t₂ cfg :=
+  haltsWithin_of_invariant (fun c => ∃ t, M.HaltsWithin t c)
+    (fun _ ⟨_, ht⟩ hh => by
+      cases ht with
+      | halt h => exact absurd h hh
+      | step hn _ => exact hn)
+    (fun _ ⟨_, ht⟩ hh idx => by
+      cases ht with
+      | halt h => exact absurd h hh
+      | @step t' _ _ next => exact ⟨t', next idx⟩)
+    ⟨t₁, h₁⟩ h₂
 
 /-- A counting-machine clock also bounds its unlabelled paths. Erasing the occurrence indices
 preserves the halting configuration of every path of at least that length. -/

@@ -16,7 +16,8 @@ import CslibFrontier.Foundations.Data.List.OfFn
 
 Elementary properties of finite residues `ZMod m` for `[NeZero m]`: valuation preservation
 under `ZMod.finEquiv`, residue subtraction on values without truncated subtraction below zero,
-and equivalence of list range sums with residue sums.
+equivalence of list range sums with residue sums, and recovery of a unit from its residue
+(`ZMod.unitOfCoprime_val`).
 
 ## Main results
 
@@ -57,5 +58,11 @@ lemma val_sub_eq_mod (u v : ZMod m) :
   have hv := v.val_lt
   rw [← ZMod.val_natCast, Nat.cast_sub (by omega), Nat.cast_add, ZMod.natCast_self,
     ZMod.natCast_zmod_val, ZMod.natCast_zmod_val, add_zero]
+
+/-- `ZMod.unitOfCoprime` recovers a unit from its canonical residue: the rewriting form of
+`ZMod.unitsEquivCoprime.left_inv`. -/
+lemma unitOfCoprime_val (u : (ZMod m)ˣ) :
+    unitOfCoprime (u : ZMod m).val (val_coe_unit_coprime u) = u :=
+  unitsEquivCoprime.left_inv u
 
 end ZMod

@@ -9,16 +9,11 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
+-- Reads private `Address`, `addressLaw`, and unexposed `signingSeedPredictionGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Reads private `PrivateKey.encode`, `Xofs.secretPoly`, `tabulate`, and `Xofs.keyGen`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import CslibFrontier.Probability.PMF.UniformPoint
-import all CslibFrontier.Languages.Probabilistic.Presample
 
 /-!
 # Private signing-seed prediction and the key-generation query

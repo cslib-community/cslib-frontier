@@ -14,6 +14,8 @@ import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Finset.Density
 import Mathlib.Data.Fintype.Pi
+import Mathlib.Data.List.Lex
+import Mathlib.Order.Prod.Lex.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -53,10 +55,10 @@ notes, see `manual/sources.md`).
 * `cbcMacBlocks_append`, `getLast_cbcEncryptBlocks_eq_cbcMacBlocks`: chaining composition identity
   and equivalence between the final block of `cbcEncryptBlocks` and `cbcMacBlocks`.
 * `cbcSmooth_iff`, `cbcSmooth_of_prefixFree`: counting characterization and `(q, ℓ, q^2 * ℓ^2 /
-  2^n)`-smoothness of prefix-free CBC-MAC ([KatzLindell2020], Claim 4.13).
+  (2 * 2^n))`-smoothness of prefix-free CBC-MAC, sharpening [KatzLindell2020], Claim 4.13.
 * `abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le`: information-theoretic
   uniform-random-function step
-  `|cbcUniformFunctionSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / 2^n` (#6046) toward prefix-free
+  `|cbcUniformFunctionSuccess - cbcIdealSuccess| ≤ q^2 * ℓ^2 / (2 * 2^n)` (#6046) toward prefix-free
   CBC-MAC PRF security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229;
   [KatzLindell2020], Section 4.4.2), bounding `cbcMacFinite g` for a uniform random function
   `g : BitString n → BitString n` rather than a keyed computational PRF.
@@ -287,18 +289,32 @@ private def cbcGoodFunction {q ℓ : ℕ} (inputs : Fin q → CBCInput n ℓ)
 @[simp] private theorem cbcRevLastInput_singleton (g : BitString n → BitString n)
     (c : BitString n) : cbcRevLastInput g [c] = c :=
   zero_add c
-private theorem exists_cbcNodeCollisionEvent {q ℓ : ℕ} (inputs : Fin q → CBCInput n ℓ)
+-- Break ties between nodes of the same length with their block indices.
+open Prod.Lex in
+private def cbcNodeOrderKey (blocks : List (BitString n)) : ℕ ×ₗ List (Fin (2 ^ n)) :=
+  toLex (blocks.length, blocks.map (BitString.equivFin n))
+
+private theorem cbcNodeOrderKey_injective :
+    Function.Injective (cbcNodeOrderKey (n := n)) :=
+  fun _ _ h => List.map_injective_iff.mpr (BitString.equivFin n).injective
+    (congrArg (Prod.snd ∘ ofLex) h)
+
+private theorem exists_cbcNodeCollisionEvent
+    {q ℓ : ℕ} (inputs : Fin q → CBCInput n ℓ)
     (g : BitString n → BitString n) : ∀ m : ℕ, ∀ u ∈ cbcNodeSet inputs, ∀ v ∈ cbcNodeSet inputs,
       u ≠ v → cbcRevLastInput g u = cbcRevLastInput g v → u.length ≤ m → v.length ≤ m →
-      ∃ u ∈ cbcNodeSet inputs, ∃ v ∈ cbcNodeSet inputs, cbcNodeCollisionEvent g u v := by
+      ∃ u ∈ cbcNodeSet inputs, ∃ v ∈ cbcNodeSet inputs,
+        cbcNodeOrderKey u < cbcNodeOrderKey v ∧ cbcNodeCollisionEvent g u v := by
   intro m
   induction m using Nat.strong_induction_on with
   | _ m IH =>
   have core : ∀ u ∈ cbcNodeSet inputs, ∀ v ∈ cbcNodeSet inputs,
       u ≠ v → cbcRevLastInput g u = cbcRevLastInput g v →
-      u.length ≤ v.length → v.length ≤ m →
-      ∃ u ∈ cbcNodeSet inputs, ∃ v ∈ cbcNodeSet inputs, cbcNodeCollisionEvent g u v := by
-    intro u hu v hv huv hc hle hvm
+      cbcNodeOrderKey u < cbcNodeOrderKey v → v.length ≤ m →
+      ∃ u ∈ cbcNodeSet inputs, ∃ v ∈ cbcNodeSet inputs,
+        cbcNodeOrderKey u < cbcNodeOrderKey v ∧ cbcNodeCollisionEvent g u v := by
+    intro u hu v hv huv hc hBefore hvm
+    have hle : u.length ≤ v.length := Prod.Lex.monotone_fst_ofLex hBefore.le
     have hune := ((mem_cbcNodeSet _ _).1 hu).1
     rcases v with _ | ⟨b, p⟩
     · exact absurd rfl ((mem_cbcNodeSet _ _).1 hv).1
@@ -311,7 +327,7 @@ private theorem exists_cbcNodeCollisionEvent {q ℓ : ℕ} (inputs : Fin q → C
       · simp at hle
     have hpN : p ∈ cbcNodeSet inputs := cbcNodeSet_suffix hv (List.suffix_cons b p) hp
     by_cases hF : cbcNodeFresh g u p
-    · exact ⟨u, hu, b :: p, hv, by simpa using hp, by simpa using hF, hc⟩
+    · exact ⟨u, hu, b :: p, hv, hBefore, by simpa using hp, by simpa using hF, hc⟩
     · have hsmall : ∃ a ∈ cbcNodeSet inputs, a ≠ p ∧
           cbcRevLastInput g a = cbcRevLastInput g p ∧ a.length < (b :: p).length := by
         unfold cbcNodeFresh at hF
@@ -347,48 +363,62 @@ private theorem exists_cbcNodeCollisionEvent {q ℓ : ℕ} (inputs : Fin q → C
       have hm : (b :: p).length - 1 < m := by simp at hvm ⊢; omega
       exact IH _ hm a haN p hpN hap he (by simp at hal ⊢; omega) (by simp)
   intro u hu v hv huv hc hum hvm
-  rcases le_total u.length v.length with h | h
+  rcases lt_or_gt_of_ne (fun h => huv (cbcNodeOrderKey_injective h)) with h | h
   · exact core u hu v hv huv hc h hvm
   · exact core v hv u hu (Ne.symm huv) hc.symm h hum
 open Classical in
 private theorem card_not_cbcGoodFunction {q ℓ : ℕ} (inputs : Fin q → CBCInput n ℓ) :
-    (Finset.univ.filter (fun g : BitString n → BitString n =>
+    2 * (Finset.univ.filter (fun g : BitString n → BitString n =>
       ¬ cbcGoodFunction inputs g)).card * 2 ^ n ≤
         (cbcNodeSet inputs).card ^ 2 * Fintype.card (BitString n → BitString n) := by
+  let nodeOrder := LinearOrder.lift' (cbcNodeOrderKey (n := n)) cbcNodeOrderKey_injective
+  let nodes := cbcNodeSet inputs
+  let pairs := @Finset.filter _ (fun uv => @LT.lt _ nodeOrder.toLT uv.1 uv.2)
+    (fun uv => nodeOrder.toDecidableLT uv.1 uv.2) (nodes ×ˢ nodes)
+  have hPairs : 2 * pairs.card ≤ nodes.card ^ 2 := by
+    have hCard : pairs.card = nodes.card.choose 2 :=
+      @Finset.card_product_filter_lt _ nodes nodeOrder
+    rw [hCard, Nat.choose_two_right, pow_two]
+    have hMul := Nat.mul_le_mul_left nodes.card (Nat.sub_le nodes.card 1)
+    omega
   have hsub : Finset.univ.filter
       (fun g : BitString n → BitString n => ¬ cbcGoodFunction inputs g) ⊆
-      (cbcNodeSet inputs ×ˢ cbcNodeSet inputs).biUnion
+      pairs.biUnion
         (fun uv => Finset.univ.filter
           (fun g : BitString n → BitString n => cbcNodeCollisionEvent g uv.1 uv.2)) := by
     intro g hg; rw [Finset.mem_filter] at hg; replace hg := hg.2
     simp only [cbcGoodFunction] at hg; push Not at hg
     obtain ⟨u, hu, v, hv, huv, hc⟩ := hg
-    obtain ⟨u', hu', v', hv', hE⟩ :=
+    obtain ⟨u', hu', v', hv', hBefore, hE⟩ :=
       exists_cbcNodeCollisionEvent inputs g (max u.length v.length) u hu v hv huv hc
         (le_max_left _ _) (le_max_right _ _)
-    simp only [Finset.mem_biUnion, Finset.mem_product, Finset.mem_filter, Finset.mem_univ,
+    simp only [pairs, Finset.mem_biUnion, Finset.mem_product, Finset.mem_filter, Finset.mem_univ,
       true_and]
-    exact ⟨(u', v'), ⟨hu', hv'⟩, hE⟩
-  calc (Finset.univ.filter
+    exact ⟨(u', v'), ⟨⟨hu', hv'⟩, hBefore⟩, hE⟩
+  have hCount : (Finset.univ.filter
         (fun g : BitString n → BitString n => ¬ cbcGoodFunction inputs g)).card * 2 ^ n
-      ≤ ((cbcNodeSet inputs ×ˢ cbcNodeSet inputs).biUnion
+        ≤ pairs.card * Fintype.card (BitString n → BitString n) := calc
+    _ ≤ (pairs.biUnion
         (fun uv => Finset.univ.filter
           (fun g : BitString n → BitString n =>
             cbcNodeCollisionEvent g uv.1 uv.2))).card * 2 ^ n :=
         Nat.mul_le_mul_right _ (Finset.card_le_card hsub)
-    _ ≤ (∑ uv ∈ cbcNodeSet inputs ×ˢ cbcNodeSet inputs,
+    _ ≤ (∑ uv ∈ pairs,
           (Finset.univ.filter (fun g : BitString n → BitString n =>
             cbcNodeCollisionEvent g uv.1 uv.2)).card) * 2 ^ n :=
         Nat.mul_le_mul_right _ Finset.card_biUnion_le
-    _ = ∑ uv ∈ cbcNodeSet inputs ×ˢ cbcNodeSet inputs,
+    _ = ∑ uv ∈ pairs,
           (Finset.univ.filter (fun g : BitString n → BitString n =>
             cbcNodeCollisionEvent g uv.1 uv.2)).card * 2 ^ n :=
         Finset.sum_mul _ _ _
-    _ ≤ ∑ _uv ∈ cbcNodeSet inputs ×ˢ cbcNodeSet inputs,
+    _ ≤ ∑ _uv ∈ pairs,
           Fintype.card (BitString n → BitString n) :=
         Finset.sum_le_sum (fun uv _ => card_cbcNodeCollisionEvent uv.1 uv.2)
-    _ = (cbcNodeSet inputs).card ^ 2 * Fintype.card (BitString n → BitString n) := by
-        simp [Finset.card_product, sq]
+    _ = pairs.card * Fintype.card (BitString n → BitString n) := by simp
+  rw [mul_assoc]
+  exact (Nat.mul_le_mul_left 2 hCount).trans (by
+    rw [← mul_assoc]
+    exact Nat.mul_le_mul_right _ hPairs)
 private theorem cbcLeaf_not_ancestor {q ℓ : ℕ} {inputs : Fin q → CBCInput n ℓ}
     (hpf : CBCPrefixFree (List.ofFn inputs))
     (i : Fin q) {a : List (BitString n)} (ha : a ∈ cbcNodeSet inputs) :
@@ -499,11 +529,10 @@ theorem cbcSmooth_iff (n q ℓ : ℕ) (δ : ℝ) : CBCSmooth n q ℓ δ ↔
   unfold CBCSmooth
   simp only [PMF.toReal_uniformOfFintype_map_apply_true, Finset.nnratCast_dens,
     decide_eq_true_eq]
-/-- **Prefix-Free CBC-MAC Smoothness ([KatzLindell2020], Section 4.4, Claim 4.13, p. 125)**: for
-  every block width `n` and all query parameters `q, ℓ`, random-function CBC-MAC is `(q, ℓ, q^2 *
-  ℓ^2 / 2^n)`-smooth on prefix-free queries. -/
+/-- A sharpened form of [KatzLindell2020], Section 4.4, Claim 4.13 (p. 125): random-function
+  CBC-MAC is `(q, ℓ, q^2 * ℓ^2 / (2 * 2^n))`-smooth on prefix-free queries. -/
 theorem cbcSmooth_of_prefixFree (n q ℓ : ℕ) :
-    CBCSmooth n q ℓ ((q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) := by
+    CBCSmooth n q ℓ ((q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n)) := by
   classical
   rw [cbcSmooth_iff]
   intro inputs hinj hpf tags
@@ -516,26 +545,27 @@ theorem cbcSmooth_of_prefixFree (n q ℓ : ℕ) :
     ¬ cbcGoodFunction inputs g)).card
   set M := (cbcNodeSet inputs).card
   have hGB : G + B = N := Finset.card_filter_add_card_filter_not _
-  have hB : B * 2 ^ n ≤ M ^ 2 * N := card_not_cbcGoodFunction inputs
+  have hB : 2 * B * 2 ^ n ≤ M ^ 2 * N := card_not_cbcGoodFunction inputs
   have hG : G ≤ K * (2 ^ n) ^ q := card_cbcGoodFunction_le inputs hinj hpf tags
   have hM : M ≤ q * ℓ := card_cbcNodeSet_le inputs
   have hNpos : (0 : ℝ) < N := by exact_mod_cast Fintype.card_pos
-  have hX : (0 : ℝ) < (2 : ℝ) ^ n := by positivity
+  have hX : (0 : ℝ) < 2 * (2 : ℝ) ^ n := by positivity
   have hY : (0 : ℝ) < ((2 : ℝ) ^ n) ^ q := by positivity
   have hpow : (2 : ℝ) ^ (-((n * q : ℕ) : ℤ)) = 1 / ((2 : ℝ) ^ n) ^ q := by
     rw [zpow_neg, zpow_natCast, pow_mul, one_div]
   rw [hpow, le_div_iff₀ hNpos]
   have hGBr : (G : ℝ) + B = N := by exact_mod_cast hGB
-  have hBr : (B : ℝ) * (2 : ℝ) ^ n ≤ (M : ℝ) ^ 2 * N := by exact_mod_cast hB
+  have hBr : 2 * (B : ℝ) * (2 : ℝ) ^ n ≤ (M : ℝ) ^ 2 * N := by exact_mod_cast hB
   have hGr : (G : ℝ) ≤ K * ((2 : ℝ) ^ n) ^ q := by exact_mod_cast hG
   have hMr : (M : ℝ) ≤ q * ℓ := by exact_mod_cast hM
   have hM2 : (M : ℝ) ^ 2 ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 := by
     rw [← mul_pow]; exact pow_le_pow_left₀ (Nat.cast_nonneg _) hMr 2
-  have hBd : (B : ℝ) ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n * N := by
+  have hBd : (B : ℝ) ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) * N := by
     rw [div_mul_eq_mul_div, le_div_iff₀ hX]
-    exact hBr.trans (mul_le_mul_of_nonneg_right hM2 (le_of_lt hNpos))
-  rw [show (1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) * (1 / ((2 : ℝ) ^ n) ^ q) * N =
-      ((1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) * N) / ((2 : ℝ) ^ n) ^ q by ring,
+    rw [← mul_assoc, mul_comm (B : ℝ) 2]
+    exact hBr.trans (mul_le_mul_of_nonneg_right hM2 hNpos.le)
+  rw [show (1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n)) * (1 / ((2 : ℝ) ^ n) ^ q) * N =
+      ((1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n)) * N) / ((2 : ℝ) ^ n) ^ q by ring,
     div_le_iff₀ hY]
   nlinarith
 /-! ### Section 3: Uniform-Random-Function Step Toward [KatzLindell2020], Theorem 4.12 (#6046) -/
@@ -735,7 +765,7 @@ private theorem tsum_pmf_abs_sub_le {α : Type*} (D : PMF α) (a b : α → ENNR
 private theorem cbcDecisionTrace_prob_lower_bound {ℓ : ℕ} (q : ℕ)
     (T : OracleComp (CBCOracleSpec n ℓ) Bool)
     (hT : CBCAdmissible q T) (p : List (CBCInput n ℓ × BitString n)) (hp : p ∈ reachableTraces T) :
-    (1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n) * (((Finset.univ.filter
+    (1 - (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n)) * (((Finset.univ.filter
         (fun f : CBCInput n ℓ → BitString n => cbcDecisionTrace f T = p)).card : ℝ) /
           Fintype.card (CBCInput n ℓ → BitString n)) ≤ ((Finset.univ.filter
         (fun g : BitString n → BitString n => cbcDecisionTrace (cbcMacFinite g) T = p)).card : ℝ) /
@@ -792,7 +822,7 @@ private theorem cbcDecisionTrace_prob_lower_bound {ℓ : ℕ} (q : ℕ)
   rw [hR]
   refine le_trans ?_ hsm
   rw [hI, hF]
-  have hX : (0 : ℝ) < (2 : ℝ) ^ n := by positivity
+  have hX : (0 : ℝ) < 2 * (2 : ℝ) ^ n := by positivity
   have hpow : (2 : ℝ) ^ (-((n * k : ℕ) : ℤ)) = 1 / ((2 : ℝ) ^ n) ^ k := by
     rw [zpow_neg, zpow_natCast, pow_mul, one_div]
   have hratio : (((2 ^ n) ^ (N - k) : ℕ) : ℝ) / (((2 ^ n) ^ N : ℕ) : ℝ) =
@@ -805,8 +835,8 @@ private theorem cbcDecisionTrace_prob_lower_bound {ℓ : ℕ} (q : ℕ)
   have hk2 : (k : ℝ) ^ 2 ≤ (q : ℝ) ^ 2 := by
     have : (k : ℝ) ≤ q := by exact_mod_cast hkq
     exact pow_le_pow_left₀ (Nat.cast_nonneg _) this 2
-  have hdiv : (k : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n ≤
-      (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by
+  have hdiv : (k : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) ≤
+      (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) := by
     apply div_le_div_of_nonneg_right _ hX.le
     exact mul_le_mul_of_nonneg_right hk2 (by positivity)
   linarith
@@ -818,7 +848,7 @@ private theorem cbcDecisionTree_gap {ℓ : ℕ} (q : ℕ) (T : OracleComp (CBCOr
       ((Finset.univ.filter (fun f : CBCInput n ℓ → BitString n =>
         (cbcQueryRun f T).1 = true)).card : ℝ) /
         Fintype.card (CBCInput n ℓ → BitString n)| ≤
-      (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by
+      (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) := by
   rw [card_accept_eq_sum_reachableTraces (fun g : BitString n → BitString n => cbcMacFinite g) T,
     card_accept_eq_sum_reachableTraces (fun f : CBCInput n ℓ → BitString n => f) T]
   push_cast
@@ -848,13 +878,13 @@ private theorem uniformOfFintype_bind_comm {ℓ : ℕ} {G : Type} [Fintype G] [N
   `g : BitString n → BitString n` rather than a keyed computational PRF: for every block width `n`,
   query budget `q`, maximum block length `ℓ`, and distribution `D` over `q`-admissible adaptive
   oracle programs, the distinguishing advantage between `cbcMacFinite g` and a uniform random
-  function `f : CBCInput n ℓ → BitString n` is at most `q^2 * ℓ^2 / 2^n`. -/
+  function `f : CBCInput n ℓ → BitString n` is at most `q^2 * ℓ^2 / (2 * 2^n)`. -/
 theorem abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le (n q ℓ : ℕ)
     (D : PMF (OracleComp (CBCOracleSpec n ℓ) Bool))
     (hD : ∀ tree, D tree ≠ 0 → CBCAdmissible q tree) :
     |cbcUniformFunctionSuccess n ℓ D - cbcIdealSuccess n ℓ D| ≤
-      (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by
-  have hδ : (0 : ℝ) ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 : ℝ) ^ n := by positivity
+      (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) := by
+  have hδ : (0 : ℝ) ≤ (q : ℝ) ^ 2 * (ℓ : ℝ) ^ 2 / (2 * (2 : ℝ) ^ n) := by positivity
   unfold cbcUniformFunctionSuccess cbcIdealSuccess
   rw [uniformOfFintype_bind_comm D (fun g T => (cbcQueryRun (cbcMacFinite g) T).1),
     uniformOfFintype_bind_comm D
