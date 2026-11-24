@@ -5021,7 +5021,6 @@ private theorem interpret_oracle_replay
     exact ih d h₂
 
 private def ROMAcceptedInv
-    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest) (pk : PK)
@@ -5041,7 +5040,6 @@ private def ROMAcceptedInv
   ((AnonymousToken.Conservation.spends accepted).map fun s => (s.ctx, s.nullifier)).Nodup
 
 private theorem romAcceptedInv_replay
-    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
     {com : Nullifier → Context → ℕ → Opening → Commitment}
     {scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest} {pk : PK}
@@ -5635,7 +5633,7 @@ theorem romExtractedConservationExperiment_succProbability_le
 
 /-- Verification of `detScheme` makes at most `1` random-oracle query. -/
 theorem detScheme_verify_isQueryBounded
-    {Target Preimage : Type} [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    {Target Preimage : Type} [DecidableEq Target] [Fintype Target]
     [Finite Preimage]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage)
     (pk : PK) (m : Commitment × ℕ) (sig : Option Preimage) :
@@ -5647,7 +5645,7 @@ theorem detScheme_verify_isQueryBounded
 /-- Verification of `saltedScheme` makes at most `1` random-oracle query. -/
 theorem saltedScheme_verify_isQueryBounded
     {Salt Target Preimage : Type} [DecidableEq Target]
-    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Finite Preimage]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage)
     (pk : PK) (m : Commitment × ℕ) (sig : Salt × Option Preimage) :
     ((saltedScheme (M := Commitment × ℕ) sys Salt).verify pk m sig).IsQueryBounded 1 := by
