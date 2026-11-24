@@ -52,7 +52,7 @@ example :
 /-! ### Tight `2 + 2` instance: deterministic `1/2` vs `RANKING` `3/4` -/
 
 /-- The `2 + 2` graph with arrivals `{0, 1}` followed by `{0}`. -/
-@[expose] def arrivals22 : List (Finset (Fin 2)) :=
+def arrivals22 : List (Finset (Fin 2)) :=
   [({0, 1} : Finset (Fin 2)), ({0} : Finset (Fin 2))]
 
 private def opt22 : Finset (Fin 2 × Fin arrivals22.length) :=

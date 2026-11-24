@@ -13,6 +13,7 @@ public import Mathlib.Analysis.Complex.Exponential
 public import Mathlib.Data.Fintype.Perm
 public import Mathlib.NumberTheory.Harmonic.Defs
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.TupleSampler
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Complex.LogBounds
 import Mathlib.Data.Finset.Sort
@@ -121,7 +122,7 @@ variable {L : Type*}
   | x, none => x
   | some a, some b => some (if key a ≤ key b then a else b)
 
-private theorem minOpt_comm {key : L → ℕ} (hkey : Function.Injective key) :
+theorem minOpt_comm {key : L → ℕ} (hkey : Function.Injective key) :
     Std.Commutative (minOpt key) :=
   ⟨fun x y => by
     cases x with
@@ -137,7 +138,7 @@ private theorem minOpt_comm {key : L → ℕ} (hkey : Function.Injective key) :
         · rfl
         · omega⟩
 
-private theorem minOpt_assoc (key : L → ℕ) :
+theorem minOpt_assoc (key : L → ℕ) :
     Std.Associative (minOpt key) :=
   ⟨fun x y z => by
     cases x with
@@ -156,43 +157,15 @@ private theorem minOpt_assoc (key : L → ℕ) :
 `key : L → ℕ`. Returns `none` iff `U = ∅`. -/
 @[expose] def minByKey (key : L → ℕ) (hkey : Function.Injective key)
     (U : Finset L) : Option L :=
-  haveI : Std.Commutative (minOpt key) :=
-    ⟨fun x y => by
-      cases x with
-      | none => cases y <;> rfl
-      | some a =>
-        cases y with
-        | none => rfl
-        | some b =>
-          simp only [minOpt]
-          split_ifs with h₁ h₂
-          · exact congrArg some (hkey (le_antisymm h₁ h₂))
-          · rfl
-          · rfl
-          · omega⟩
-  haveI : Std.Associative (minOpt key) :=
-    ⟨fun x y z => by
-      cases x with
-      | none => rfl
-      | some a =>
-        cases y with
-        | none => rfl
-        | some b =>
-          cases z with
-          | none => rfl
-          | some c =>
-            simp only [minOpt]
-            split_ifs <;> first | rfl | omega⟩
+  haveI : Std.Commutative (minOpt key) := minOpt_comm hkey
+  haveI : Std.Associative (minOpt key) := minOpt_assoc key
   U.fold (minOpt key) none some
 
 @[simp] theorem minByKey_empty (key : L → ℕ) (hkey : Function.Injective key) :
-    minByKey key hkey ∅ = none := by
-  have : Std.Commutative (minOpt key) := minOpt_comm hkey
-  have : Std.Associative (minOpt key) := minOpt_assoc key
-  unfold minByKey
-  exact Finset.fold_empty
+    minByKey key hkey ∅ = none :=
+  rfl
 
-theorem minByKey_insert [DecidableEq L] (key : L → ℕ) (hkey : Function.Injective key)
+private theorem minByKey_insert [DecidableEq L] (key : L → ℕ) (hkey : Function.Injective key)
     {a : L} {s : Finset L} (ha : a ∉ s) :
     minByKey key hkey (insert a s) = minOpt key (some a) (minByKey key hkey s) := by
   have : Std.Commutative (minOpt key) := minOpt_comm hkey
@@ -312,7 +285,7 @@ theorem rankingByKey_congr_order [DecidableEq L] {key₁ key₂ : L → ℕ}
 
 /-- The randomized **`RANKING`** algorithm [KarpVaziraniVazirani1990]: sample a ranking
 `π : L ≃ Fin (Fintype.card L)` uniformly at random and run `rankingDet π`. -/
-@[expose] noncomputable def rankingAlg (L : Type*) [Fintype L] [DecidableEq L] : RandAlg L :=
+noncomputable def rankingAlg (L : Type*) [Fintype L] [DecidableEq L] : RandAlg L :=
   haveI : Nonempty (L ≃ Fin (Fintype.card L)) := ⟨Fintype.equivFin L⟩
   (Cslib.Probability.PMF.uniformOfFintype (L ≃ Fin (Fintype.card L))).map rankingDet
 
@@ -568,36 +541,17 @@ theorem rankingByKey_dominance {key : L → ℕ} (hkey : Function.Injective key)
       (rankingByKey key hkey).runChoices (deleteOffline u arrivals) :=
     rankingByKey_runChoices_eq_deleteOffline_of_notMem hkey u [] [] ∅ arrivals hnot
   refine ⟨heq, ?_⟩
-  have hsplit : arrivals = arrivals.take j.1 ++ arrivals[j.1] :: arrivals.drop (j.1 + 1) := by
-    calc arrivals
-        = arrivals.take j.1 ++ arrivals.drop j.1 := (List.take_append_drop j.1 arrivals).symm
-      _ = arrivals.take j.1 ++ arrivals[j.1] :: arrivals.drop (j.1 + 1) :=
-        congrArg (arrivals.take j.1 ++ ·) (List.drop_eq_getElem_cons j.2)
   set pre := (rankingByKey key hkey).matchedLeft (arrivals.take j.1)
-  have hu_pre : u ∉ pre := by
-    intro hm
-    have hsub := (rankingByKey key hkey).subset_matchedLeftFrom (arrivals.take j.1) pre
-      (arrivals[j.1] :: arrivals.drop (j.1 + 1))
-    rw [← (rankingByKey key hkey).matchedLeft_append, ← hsplit] at hsub
-    exact hnot (hsub hm)
+  have hu_pre : u ∉ pre :=
+    fun hm => hnot ((rankingByKey key hkey).matchedLeft_take_subset arrivals j.1 hm)
   have hne : (arrivals[j.1] \ pre).Nonempty := ⟨u, Finset.mem_sdiff.mpr ⟨huj, hu_pre⟩⟩
   cases hc : minByKey key hkey (arrivals[j.1] \ pre) with
   | none => exact absurd ((minByKey_eq_none_iff key hkey _).mp hc) hne.ne_empty
   | some w =>
     obtain ⟨_, hwmin⟩ := (minByKey_eq_some_iff key hkey _ w).mp hc
     have hget : ((rankingByKey key hkey).runChoices arrivals)[j.1]'(by simp [j.2]) = some w := by
-      have hlen : ((rankingByKey key hkey).runChoices (arrivals.take j.1)).length = j.1 := by
-        rw [DetAlg.length_runChoices, List.length_take, Nat.min_eq_left j.2.le]
-      have happ : (rankingByKey key hkey).runChoices arrivals =
-          (rankingByKey key hkey).runChoices (arrivals.take j.1) ++
-            some w :: (rankingByKey key hkey).runChoicesFrom
-              (arrivals.take j.1 ++ [arrivals[j.1]]) (updateMatched pre (some w))
-              (arrivals.drop (j.1 + 1)) := by
-        conv_lhs => rw [hsplit]
-        rw [DetAlg.runChoices_append, DetAlg.runChoicesFrom, onlineStep_rankingByKey, hc]
-      have hle_j : ((rankingByKey key hkey).runChoices (arrivals.take j.1)).length ≤ j.1 := by
-        omega
-      simp only [happ, List.getElem_append_right hle_j, hlen, Nat.sub_self, List.getElem_cons_zero]
+      rw [(rankingByKey key hkey).runChoices_getElem arrivals j.2, onlineStep_rankingByKey]
+      exact hc
     have hwu : w ≠ u := by
       intro hwu
       subst hwu
@@ -705,20 +659,20 @@ variable {L : Type*} [Fintype L] [DecidableEq L]
 
 /-- Randomized `RANKING` sampling i.i.d. uniform discrete ranks `y : L → Fin K` with fixed
 tie-breaker `ord`. -/
-@[expose] noncomputable def rankingGridAlg (L : Type*) [Fintype L] [DecidableEq L]
+noncomputable def rankingGridAlg (L : Type*) [Fintype L] [DecidableEq L]
     (K : ℕ) (hK : 0 < K) (ord : L ≃ Fin (Fintype.card L)) : RandAlg L :=
   haveI : Nonempty (Fin K) := ⟨⟨0, hK⟩⟩
   (Cslib.Probability.PMF.uniformOfFintype (L → Fin K)).map fun y => rankingGridDet y ord
 
 /-- DJK dual variable `α(y, u)` for offline vertex `u`: `djkWeight K (y u)` if `u` is matched,
 else `0`. -/
-@[expose] noncomputable def djkDualLeft {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
+noncomputable def djkDualLeft {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
     (arrivals : List (Finset L)) (u : L) : ℝ :=
   if u ∈ (rankingGridDet y ord).matchedLeft arrivals then djkWeight K (y u).1 else 0
 
 /-- DJK dual variable `β(y, j)` for online vertex `j`: `1 - djkWeight K (y a)` if `j` is matched
 to `a`, else `0`. -/
-@[expose] noncomputable def djkDualRight {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
+noncomputable def djkDualRight {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
     (arrivals : List (Finset L)) (j : Fin arrivals.length) : ℝ :=
   match ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) with
   | some a => 1 - djkWeight K (y a).1
@@ -806,6 +760,19 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
       ∑ k : Fin K,
         (djkDualLeft (Function.update y u k) ord arrivals u +
           djkDualRight (Function.update y u k) ord arrivals j) := by
+  have hdom : ∀ k : Fin K,
+      u ∉ (rankingGridDet (Function.update y u k) ord).matchedLeft arrivals →
+      ∃ w', ((rankingGridDet y ord).runChoices (deleteOffline u arrivals))[j.1]'(by simp [j.2]) =
+          some w' ∧
+        gridKey (Function.update y u k) ord w' < gridKey (Function.update y u k) ord u := by
+    intro k hnot
+    obtain ⟨_, w', hw', hlt⟩ :=
+      rankingByKey_dominance (gridKey_injective (Function.update y u k) ord) u arrivals j huj hnot
+    change ((rankingGridDet (Function.update y u k) ord).runChoices
+      (deleteOffline u arrivals))[j.1]'(by simp [j.2]) = some w' at hw'
+    have hupd := rankingGridDet_deleteOffline_update y ord u k arrivals
+    simp only [hupd] at hw'
+    exact ⟨w', hw', hlt⟩
   cases hw :
       ((rankingGridDet y ord).runChoices (deleteOffline u arrivals))[j.1]'(by simp [j.2]) with
   | none =>
@@ -814,14 +781,8 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
       intro k
       have hu_matched : u ∈ (rankingGridDet (Function.update y u k) ord).matchedLeft arrivals := by
         by_contra hnot
-        obtain ⟨_, w, hw', _⟩ :=
-          rankingByKey_dominance (gridKey_injective (Function.update y u k) ord) u arrivals j huj
-            hnot
-        change ((rankingGridDet (Function.update y u k) ord).runChoices
-          (deleteOffline u arrivals))[j.1]'(by simp [j.2]) = some w at hw'
-        have hupd := rankingGridDet_deleteOffline_update y ord u k arrivals
-        simp only [hupd, hw] at hw'
-        cases hw'
+        obtain ⟨w', hw', _⟩ := hdom k hnot
+        simp [hw] at hw'
       simp [djkDualLeft, hu_matched]
     calc (K : ℝ) * (1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K)
         = ∑ k ∈ Finset.range K, djkWeight K k := by
@@ -851,14 +812,8 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
       intro k hk
       have hu_matched : u ∈ (rankingGridDet (Function.update y u k) ord).matchedLeft arrivals := by
         by_contra hnot
-        obtain ⟨_, w', hw', hlt⟩ :=
-          rankingByKey_dominance (gridKey_injective (Function.update y u k) ord) u arrivals j huj
-            hnot
-        change ((rankingGridDet (Function.update y u k) ord).runChoices
-          (deleteOffline u arrivals))[j.1]'(by simp [j.2]) = some w' at hw'
-        have hupd := rankingGridDet_deleteOffline_update y ord u k arrivals
-        simp only [hupd, hw] at hw'
-        have hww' : w' = w := Option.some.inj hw'.symm
+        obtain ⟨w', hw', hlt⟩ := hdom k hnot
+        have hww' : w' = w := Option.some.inj (hw'.symm.trans hw)
         subst hww'
         have hle := val_le_of_gridKey_le hlt.le
         simp only [Function.update_of_ne hwu, Function.update_self] at hle
@@ -918,29 +873,6 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
     rw [Finset.sum_add_distrib]
     linarith [djkWeight_balance (K := K) (t := t) htK.le]
 
-private theorem sum_update_eq_mul_sum {K : ℕ} (u : L) (f : (L → Fin K) → ℝ) :
-    ∑ y : L → Fin K, ∑ k : Fin K, f (Function.update y u k) =
-      (K : ℝ) * ∑ y : L → Fin K, f y := by
-  let swap : (L → Fin K) × Fin K ≃ (L → Fin K) × Fin K :=
-    { toFun := fun p => (Function.update p.1 u p.2, p.1 u)
-      invFun := fun p => (Function.update p.1 u p.2, p.1 u)
-      left_inv := fun ⟨y, k⟩ => by
-        ext x
-        · by_cases hx : x = u <;> simp [hx]
-        · simp
-      right_inv := fun ⟨y, k⟩ => by
-        ext x
-        · by_cases hx : x = u <;> simp [hx]
-        · simp }
-  calc ∑ y : L → Fin K, ∑ k : Fin K, f (Function.update y u k)
-      = ∑ p : (L → Fin K) × Fin K, f (swap p).1 :=
-        (Fintype.sum_prod_type fun p : (L → Fin K) × Fin K => f (swap p).1).symm
-    _ = ∑ p : (L → Fin K) × Fin K, f p.1 :=
-        Equiv.sum_comp swap fun p => f p.1
-    _ = ∑ y : L → Fin K, ∑ _k : Fin K, f y := Fintype.sum_prod_type _
-    _ = (K : ℝ) * ∑ y : L → Fin K, f y := by
-        simp [Finset.mul_sum, mul_comm]
-
 /-- **Discrete `RANKING` competitive ratio:** with uniform i.i.d. ranks in `Fin K`,
 `rankingGridAlg L K` achieves expected matching size at least `(1 - (K / (K + 1)) ^ K) * |M|` for
 every matching `M`. -/
@@ -987,8 +919,6 @@ theorem rankingGrid_competitive_ratio (K : ℕ) (hK : 0 < K)
         (K : ℝ) * ((1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) * (Fintype.card (L → Fin K) : ℝ)) ≤
           (K : ℝ) * ∑ y : L → Fin K,
             (djkDualLeft y ord arrivals u + djkDualRight y ord arrivals j) := by
-      rw [← sum_update_eq_mul_sum u
-        (fun y => djkDualLeft y ord arrivals u + djkDualRight y ord arrivals j)]
       calc (K : ℝ) * ((1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) * (Fintype.card (L → Fin K) : ℝ))
           = ∑ _y : L → Fin K, (K : ℝ) * (1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) := by
             simp [mul_left_comm, mul_comm]
@@ -996,6 +926,15 @@ theorem rankingGrid_competitive_ratio (K : ℕ) (hK : 0 < K)
               (djkDualLeft (Function.update y u k) ord arrivals u +
                 djkDualRight (Function.update y u k) ord arrivals j) :=
             Finset.sum_le_sum fun y _ => sum_djkDual_update_ge y ord arrivals u j huN
+        _ = ∑ k : Fin K, ∑ y : L → Fin K,
+              (djkDualLeft (Function.update y u k) ord arrivals u +
+                djkDualRight (Function.update y u k) ord arrivals j) := Finset.sum_comm
+        _ = (K : ℝ) * ∑ y : L → Fin K,
+              (djkDualLeft y ord arrivals u + djkDualRight y ord arrivals j) := by
+            rw [Cslib.Probability.sum_sum_update_eq_card_nsmul_sum u
+              (fun (_ : Fin K) (y : L → Fin K) =>
+                djkDualLeft y ord arrivals u + djkDualRight y ord arrivals j),
+              Fintype.card_fin, nsmul_eq_mul]
     exact le_of_mul_le_mul_left hKsum hKpos
   calc (1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) * (M.card : ℝ) * (Fintype.card (L → Fin K) : ℝ)
       = ∑ _e ∈ M, (1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) * (Fintype.card (L → Fin K) : ℝ) := by
@@ -1398,24 +1337,11 @@ private theorem triArrivals_step_split {n : ℕ} (A : DetAlg (Fin n)) (σ : Equi
       Finset.mem_filter, Finset.mem_univ, true_and, Fin.val_cast]
   have htake : arr.take (t + 1) = arr.take t ++ [activeSet n σ t] := by
     rw [List.take_succ_eq_append_getElem (by omega), hget_arr]
-  have hsplit : arr = arr.take t ++ activeSet n σ t :: arr.drop (t + 1) := by
-    calc arr = arr.take t ++ arr.drop t := (List.take_append_drop t arr).symm
-      _ = arr.take t ++ arr[t]'(by omega) :: arr.drop (t + 1) :=
-        congrArg (arr.take t ++ ·) (List.drop_eq_getElem_cons (by omega))
-      _ = arr.take t ++ activeSet n σ t :: arr.drop (t + 1) := by rw [hget_arr]
   set pre := A.matchedLeft (arr.take t)
   set c := onlineStep pre (activeSet n σ t) (A.choose (arr.take t) pre (activeSet n σ t))
   have hc_eq : (A.runChoices arr)[t]'(by simp [arr, ht]) = c := by
-    have hlen_take : (A.runChoices (arr.take t)).length = t := by
-      rw [DetAlg.length_runChoices, List.length_take, hlen, Nat.min_eq_left ht.le]
-    have happ : A.runChoices arr = A.runChoices (arr.take t) ++
-        c :: A.runChoicesFrom (arr.take t ++ [activeSet n σ t]) (updateMatched pre c)
-          (arr.drop (t + 1)) := by
-      conv_lhs => rw [hsplit]
-      rw [DetAlg.runChoices_append, DetAlg.runChoicesFrom]
-    have hle_t : (A.runChoices (arr.take t)).length ≤ t := by omega
-    simp only [happ, List.getElem_append_right hle_t, hlen_take, Nat.sub_self,
-      List.getElem_cons_zero]
+    rw [A.runChoices_getElem arr (by omega)]
+    simp only [pre, c, hget_arr]
   have hmatched_succ : A.matchedLeft (arr.take (t + 1)) = updateMatched pre c := by
     rw [htake, A.matchedLeft_append]
     rfl
@@ -1853,8 +1779,10 @@ theorem exists_rand_exp_upper_bound {n : ℕ} (hn : 1 ≤ n) (μ : RandAlg (Fin 
     linarith
 
 /-- **Tight `1 - 1/e` randomized impossibility** [KarpVaziraniVazirani1990]: no randomized online
-bipartite matching algorithm against an oblivious adversary achieves competitive ratio strictly
-above `1 - 1/e`, even with an arbitrary additive slack `b`. -/
+bipartite matching algorithm `μ : RandAlg (Fin n)` (where `RandAlg L := PMF (DetAlg L)` ranges over
+discrete, countably supported mixtures of deterministic online algorithms against an oblivious
+adversary) achieves competitive ratio strictly above `1 - 1/e`, even with an arbitrary additive
+slack `b`. -/
 theorem not_rand_competitive_of_gt_one_sub_exp_neg_one
     {c : ℝ} (hc : 1 - Real.exp (-1) < c) (b : ℝ) :
     ∃ n : ℕ, 1 ≤ n ∧ ∀ μ : RandAlg (Fin n),

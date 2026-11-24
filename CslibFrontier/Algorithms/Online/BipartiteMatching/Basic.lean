@@ -29,9 +29,7 @@ unmatched, without seeing future arrivals.
 * **Arrival sequences (`arrivals : List (Finset L)`):** the `j`-th arriving online vertex
   (`j : Fin arrivals.length`) has offline neighborhood `arrivals[j]`, inducing the bipartite graph
   `graphOfArrivals arrivals : L × Fin arrivals.length → Bool`, reusing the matching predicate
-  `Cslib.Algorithms.Lean.MaxFlow.IsMatching`. Any static bipartite graph `G : L × R → Bool`
-  together with an arrival list `order : List R` converts to an arrival sequence via
-  `arrivalsOf G order`.
+  `Cslib.Algorithms.Lean.MaxFlow.IsMatching`.
 * **Deterministic online algorithms (`DetAlg L`):** a rule `choose hist matched N : Option L`
   depending only on the prefix of revealed neighborhoods `hist`, the already-matched offline
   vertices `matched`, and the current neighborhood `N`. Admissibility is enforced by `onlineStep`
@@ -45,8 +43,8 @@ unmatched, without seeing future arrivals.
 
 ## Main definitions
 
-* `Cslib.Algorithms.Online.BipartiteMatching.graphOfArrivals`, `arrivalsOf`: conversion between
-  arrival sequences and bipartite graph indicators.
+* `Cslib.Algorithms.Online.BipartiteMatching.graphOfArrivals`: bipartite graph indicator induced
+  by an arrival sequence.
 * `Cslib.Algorithms.Online.BipartiteMatching.IsMaximalMatching`: maximal matchings in a bipartite
   graph.
 * `Cslib.Algorithms.Online.BipartiteMatching.onlineStep`, `DetAlg`, `DetAlg.runChoices`,
@@ -98,24 +96,24 @@ neighborhood `arrivals[j]`. -/
     L × Fin arrivals.length → Bool
   | (u, j) => decide (u ∈ arrivals[j.1])
 
-/-- The arrival sequence induced by a bipartite graph `G : L × R → Bool` along an arrival order
-`order : List R`. -/
-@[expose] def arrivalsOf [Fintype L] (G : L × R → Bool) (order : List R) : List (Finset L) :=
-  order.map fun r => Finset.univ.filter fun u => G (u, r) = true
-
-@[simp] theorem length_arrivalsOf [Fintype L] (G : L × R → Bool) (order : List R) :
-    (arrivalsOf G order).length = order.length :=
-  List.length_map _
-
-theorem graphOfArrivals_arrivalsOf [Fintype L] [DecidableEq L] (G : L × R → Bool)
-    (order : List R) (u : L) (j : Fin (arrivalsOf G order).length) :
-    graphOfArrivals (arrivalsOf G order) (u, j) = G (u, order[j.1]'(by simpa using j.2)) := by
-  simp [graphOfArrivals, arrivalsOf]
-
 /-- `M` is a maximal matching in `G` if `M` is a matching and every edge of `G` shares an endpoint
 with some edge in `M`. -/
 @[expose] def IsMaximalMatching (G : L × R → Bool) (M : Finset (L × R)) : Prop :=
   IsMatching G M ∧ ∀ u v, G (u, v) = true → (∃ v', (u, v') ∈ M) ∨ (∃ u', (u', v) ∈ M)
+
+private theorem card_filter_mem_image_le {α : Type*} [DecidableEq α]
+    (M M' : Finset (L × R)) (proj : L × R → α)
+    (hinj : Set.InjOn proj (M' : Set (L × R))) :
+    (M'.filter (fun e => proj e ∈ M.image proj)).card ≤ M.card := by
+  classical
+  calc (M'.filter (fun e => proj e ∈ M.image proj)).card
+      = ((M'.filter (fun e => proj e ∈ M.image proj)).image proj).card :=
+        (Finset.card_image_of_injOn (hinj.mono fun _ he => (Finset.mem_filter.mp he).1)).symm
+    _ ≤ (M.image proj).card :=
+        Finset.card_le_card fun _ hx => by
+          obtain ⟨e, he, rfl⟩ := Finset.mem_image.mp hx
+          exact (Finset.mem_filter.mp he).2
+    _ ≤ M.card := Finset.card_image_le
 
 /-- Every maximal matching in a bipartite graph has size at least half of every matching. -/
 theorem card_le_two_mul_of_isMaximalMatching
@@ -130,32 +128,16 @@ theorem card_le_two_mul_of_isMaximalMatching
     rcases hM.2 u v (hM'.1 (u, v) huv) with ⟨v', hv'⟩ | ⟨u', hu'⟩
     · exact Or.inl ⟨huv, Finset.mem_image.mpr ⟨(u, v'), hv', rfl⟩⟩
     · exact Or.inr ⟨huv, Finset.mem_image.mpr ⟨(u', v), hu', rfl⟩⟩
-  have hleft : (M'.filter (fun e => e.1 ∈ M.image Prod.fst)).card ≤ M.card := by
-    have hinj : Set.InjOn Prod.fst (M'.filter (fun e => e.1 ∈ M.image Prod.fst) : Set (L × R)) := by
+  have hleft : (M'.filter (fun e => e.1 ∈ M.image Prod.fst)).card ≤ M.card :=
+    card_filter_mem_image_le M M' Prod.fst <| by
       intro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hu : u₁ = u₂)
       subst hu
-      exact Prod.ext rfl (hM'.2.1 u₁ v₁ v₂ (Finset.mem_filter.mp h₁).1 (Finset.mem_filter.mp h₂).1)
-    calc (M'.filter (fun e => e.1 ∈ M.image Prod.fst)).card
-        = ((M'.filter (fun e => e.1 ∈ M.image Prod.fst)).image Prod.fst).card :=
-          (Finset.card_image_of_injOn hinj).symm
-      _ ≤ (M.image Prod.fst).card :=
-          Finset.card_le_card fun u hu => by
-            obtain ⟨e, he, rfl⟩ := Finset.mem_image.mp hu
-            exact (Finset.mem_filter.mp he).2
-      _ ≤ M.card := Finset.card_image_le
-  have hright : (M'.filter (fun e => e.2 ∈ M.image Prod.snd)).card ≤ M.card := by
-    have hinj : Set.InjOn Prod.snd (M'.filter (fun e => e.2 ∈ M.image Prod.snd) : Set (L × R)) := by
+      exact Prod.ext rfl (hM'.2.1 u₁ v₁ v₂ h₁ h₂)
+  have hright : (M'.filter (fun e => e.2 ∈ M.image Prod.snd)).card ≤ M.card :=
+    card_filter_mem_image_le M M' Prod.snd <| by
       intro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hv : v₁ = v₂)
       subst hv
-      exact Prod.ext (hM'.2.2 u₁ u₂ v₁ (Finset.mem_filter.mp h₁).1 (Finset.mem_filter.mp h₂).1) rfl
-    calc (M'.filter (fun e => e.2 ∈ M.image Prod.snd)).card
-        = ((M'.filter (fun e => e.2 ∈ M.image Prod.snd)).image Prod.snd).card :=
-          (Finset.card_image_of_injOn hinj).symm
-      _ ≤ (M.image Prod.snd).card :=
-          Finset.card_le_card fun v hv => by
-            obtain ⟨e, he, rfl⟩ := Finset.mem_image.mp hv
-            exact (Finset.mem_filter.mp he).2
-      _ ≤ M.card := Finset.card_image_le
+      exact Prod.ext (hM'.2.2 u₁ u₂ v₁ h₁ h₂) rfl
   have hunion := Finset.card_union_le
     (M'.filter (fun e => e.1 ∈ M.image Prod.fst))
     (M'.filter (fun e => e.2 ∈ M.image Prod.snd))
@@ -308,6 +290,37 @@ theorem mem_matchedLeftFrom_iff (hist : List (Finset L)) (matched : Finset L)
 theorem mem_matchedLeft_iff (arrivals : List (Finset L)) (u : L) :
     u ∈ A.matchedLeft arrivals ↔ some u ∈ A.runChoices arrivals := by
   simpa [matchedLeft, runChoices] using A.mem_matchedLeftFrom_iff [] ∅ arrivals u
+
+/-- Matched offline vertices grow monotonically with prefixes of the arrival sequence. -/
+theorem matchedLeft_take_subset (arrivals : List (Finset L)) (i : ℕ) :
+    A.matchedLeft (arrivals.take i) ⊆ A.matchedLeft arrivals := by
+  have hsub := A.subset_matchedLeftFrom (arrivals.take i) (A.matchedLeft (arrivals.take i))
+    (arrivals.drop i)
+  rwa [← A.matchedLeft_append, List.take_append_drop] at hsub
+
+/-- The `i`-th match choice of `A` on `arrivals` is the admissible online step from the state
+after `arrivals.take i`. -/
+theorem runChoices_getElem (arrivals : List (Finset L)) {i : ℕ} (hi : i < arrivals.length) :
+    (A.runChoices arrivals)[i]'(by simp [hi]) =
+      onlineStep (A.matchedLeft (arrivals.take i)) arrivals[i]
+        (A.choose (arrivals.take i) (A.matchedLeft (arrivals.take i)) arrivals[i]) := by
+  have hsplit : arrivals = arrivals.take i ++ arrivals[i] :: arrivals.drop (i + 1) := by
+    rw [← List.drop_eq_getElem_cons hi, List.take_append_drop]
+  have hlen : (A.runChoices (arrivals.take i)).length = i := by
+    rw [A.length_runChoices, List.length_take, Nat.min_eq_left hi.le]
+  have happ : A.runChoices arrivals =
+      A.runChoices (arrivals.take i) ++
+        onlineStep (A.matchedLeft (arrivals.take i)) arrivals[i]
+          (A.choose (arrivals.take i) (A.matchedLeft (arrivals.take i)) arrivals[i]) ::
+          A.runChoicesFrom (arrivals.take i ++ [arrivals[i]])
+            (updateMatched (A.matchedLeft (arrivals.take i))
+              (onlineStep (A.matchedLeft (arrivals.take i)) arrivals[i]
+                (A.choose (arrivals.take i) (A.matchedLeft (arrivals.take i)) arrivals[i])))
+            (arrivals.drop (i + 1)) := by
+    conv_lhs => rw [hsplit]
+    rw [A.runChoices_append, runChoicesFrom]
+  have hle : (A.runChoices (arrivals.take i)).length ≤ i := hlen.le
+  simp only [happ, List.getElem_append_right hle, hlen, Nat.sub_self, List.getElem_cons_zero]
 
 private theorem runChoicesFrom_valid (hist : List (Finset L)) (matched : Finset L)
     (rest : List (Finset L)) :
@@ -505,36 +518,13 @@ theorem isMaximalMatching_runMatching_of_isGreedy (hA : A.IsGreedy) (arrivals : 
     obtain ⟨⟨u', j'⟩, hmem, rfl⟩ := Finset.mem_image.mp hu
     exact Or.inl ⟨j', hmem⟩
   · right
-    have hsplit : arrivals = arrivals.take j.1 ++ arrivals[j.1] :: arrivals.drop (j.1 + 1) := by
-      calc arrivals
-          = arrivals.take j.1 ++ arrivals.drop j.1 := (List.take_append_drop j.1 arrivals).symm
-        _ = arrivals.take j.1 ++ arrivals[j.1] :: arrivals.drop (j.1 + 1) :=
-          congrArg (arrivals.take j.1 ++ ·) (List.drop_eq_getElem_cons j.2)
-    have hu_pre : u ∉ A.matchedLeft (arrivals.take j.1) := by
-      intro hmem
-      have hsub := A.subset_matchedLeftFrom (arrivals.take j.1)
-        (A.matchedLeft (arrivals.take j.1)) (arrivals[j.1] :: arrivals.drop (j.1 + 1))
-      rw [← A.matchedLeft_append, ← hsplit] at hsub
-      exact hu (hsub hmem)
+    have hu_pre : u ∉ A.matchedLeft (arrivals.take j.1) :=
+      fun hmem => hu (A.matchedLeft_take_subset arrivals j.1 hmem)
     obtain ⟨w, hwN, hwm, hchoose⟩ :=
       hA (arrivals.take j.1) (A.matchedLeft (arrivals.take j.1)) arrivals[j.1] ⟨u, huj, hu_pre⟩
     refine ⟨w, (A.mem_runMatching_iff arrivals w j).mpr ?_⟩
-    have hstep : onlineStep (A.matchedLeft (arrivals.take j.1)) arrivals[j.1]
-        (A.choose (arrivals.take j.1) (A.matchedLeft (arrivals.take j.1)) arrivals[j.1]) =
-        some w :=
-      onlineStep_eq_some_iff.mpr ⟨hchoose, hwN, hwm⟩
-    have hlen_take : (A.runChoices (arrivals.take j.1)).length = j.1 := by
-      rw [length_runChoices, List.length_take, Nat.min_eq_left j.2.le]
-    have happ : A.runChoices arrivals =
-        A.runChoices (arrivals.take j.1) ++
-          some w :: A.runChoicesFrom (arrivals.take j.1 ++ [arrivals[j.1]])
-            (updateMatched (A.matchedLeft (arrivals.take j.1)) (some w))
-            (arrivals.drop (j.1 + 1)) := by
-      conv_lhs => rw [hsplit]
-      rw [A.runChoices_append, runChoicesFrom, hstep]
-    have hle_j : (A.runChoices (arrivals.take j.1)).length ≤ j.1 := by omega
-    simp only [happ, List.getElem_append_right hle_j, hlen_take, Nat.sub_self,
-      List.getElem_cons_zero]
+    rw [A.runChoices_getElem arrivals j.2]
+    exact onlineStep_eq_some_iff.mpr ⟨hchoose, hwN, hwm⟩
 
 /-- **Greedy `1/2`-competitiveness:** every greedy deterministic online matching algorithm
 produces a matching of size at least half of every matching in the graph. -/
@@ -840,7 +830,7 @@ namespace RandAlg
 variable [DecidableEq L]
 
 /-- Expected matching size of `μ : RandAlg L` on a fixed arrival sequence `arrivals`. -/
-@[expose] noncomputable def expectedMatchingSize (μ : RandAlg L) (arrivals : List (Finset L)) :
+noncomputable def expectedMatchingSize (μ : RandAlg L) (arrivals : List (Finset L)) :
     ℝ :=
   ∑' A, (μ A).toReal * ((A.runMatching arrivals).card : ℝ)
 
