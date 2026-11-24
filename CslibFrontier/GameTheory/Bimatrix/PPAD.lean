@@ -10,17 +10,30 @@ module
 public import CslibFrontier.GameTheory.Bimatrix.FNP
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses
 import CslibFrontier.GameTheory.Bimatrix.RationalVertex
+import CslibFrontier.GameTheory.Bimatrix.ShapleyOrientation
+import CslibFrontier.Computability.Circuit.Rational.Runtime.Determinant
 import CslibFrontier.Computability.Circuit.Rational.Runtime.Point
 import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.Completeness
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 import CslibFrontier.Computability.PolyTime.Int.DotProduct
 import CslibFrontier.Computability.PolyTime.Int.ExactDiv
+import CslibFrontier.Computability.PolyTime.Int.Table
+import CslibFrontier.Foundations.Data.List.DotProduct
 import CslibFrontier.Foundations.Data.List.GetD
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.List.OfFnGetD
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import CslibFrontier.Foundations.Data.Rat.Basic
 import Mathlib.Data.List.GetD
 
@@ -518,7 +531,7 @@ private lemma encodeNodes_decode {c : BimatrixCode} {u : List Bool}
 private lemma decodeT₁_encodeNodes {c : BimatrixCode} (T₁ T₂ : List ℕ) {k : ℕ}
     (hk : k < c.rows + c.cols) :
     k ∈ decodeT₁ c (encodeNodes c T₁ T₂) ↔ k ∈ T₁ := by
-  have hklen : k < (encodeNodes c T₁ T₂).length := by simp only [length_encodeNodes]; omega
+  have hklen : k < (encodeNodes c T₁ T₂).length := by simp [encodeNodes]; omega
   simp only [decodeT₁, List.mem_filter, List.mem_range, hk, true_and]
   rw [List.getD_eq_getElem _ false hklen]
   simp only [encodeNodes, List.getElem_map, List.getElem_range, ite_eq_left hk]
@@ -528,7 +541,7 @@ private lemma decodeT₂_encodeNodes {c : BimatrixCode} (T₁ T₂ : List ℕ) {
     (hk : k < c.rows + c.cols) :
     k ∈ decodeT₂ c (encodeNodes c T₁ T₂) ↔ k ∈ T₂ := by
   have hklen : c.rows + c.cols + k < (encodeNodes c T₁ T₂).length := by
-    simp only [length_encodeNodes]; omega
+    simp [encodeNodes]; omega
   simp only [decodeT₂, List.mem_filter, List.mem_range, hk, true_and]
   rw [List.getD_eq_getElem _ false hklen]
   have hnotlt : ¬ c.rows + c.cols + k < c.rows + c.cols := by omega
@@ -2254,26 +2267,39 @@ private lemma abs_halfEdgeIndexExec_eq_one_of_node {c : BimatrixCode} (hc : c.We
   have hpos := abs_pos.2 hne0
   omega
 
-private lemma eq_of_pairwise_lt_mem_iff {L L' : List ℕ}
-    (hs : L.Pairwise (· < ·)) (hs' : L'.Pairwise (· < ·))
-    (hmem : ∀ k, k ∈ L ↔ k ∈ L') : L = L' :=
-  (List.perm_of_nodup_nodup_toFinset_eq hs.nodup hs'.nodup
-    (Finset.ext fun k => by simpa only [List.mem_toFinset] using hmem k)).eq_of_pairwise
-    (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) hs hs'
-
 private lemma decodeT₁_encodeNodes_eq {c : BimatrixCode} {v : List Bool} {L₁ L₂ : List ℕ}
     (hv : v = encodeNodes c L₁ L₂) (hsort : L₁.Pairwise (· < ·))
-    (hlt : ∀ k ∈ L₁, k < c.rows + c.cols) : decodeT₁ c v = L₁ :=
-  eq_of_pairwise_lt_mem_iff (decodeT₁_sorted c v) hsort fun k =>
-    ⟨fun hk => have hklt := decodeT₁_lt c v hk; (decodeT₁_encodeNodes L₁ L₂ hklt).1 (hv ▸ hk),
-     fun hk => hv ▸ (decodeT₁_encodeNodes L₁ L₂ (hlt k hk)).2 hk⟩
+    (hlt : ∀ k ∈ L₁, k < c.rows + c.cols) : decodeT₁ c v = L₁ := by
+  refine (List.perm_of_nodup_nodup_toFinset_eq (decodeT₁_sorted c v).nodup
+    hsort.nodup ?_).eq_of_pairwise
+      (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) (decodeT₁_sorted c v) hsort
+  ext k
+  simp only [List.mem_toFinset]
+  constructor
+  · intro hk
+    have hklt := decodeT₁_lt c v hk
+    rw [hv] at hk
+    exact (decodeT₁_encodeNodes L₁ L₂ hklt).1 hk
+  · intro hk
+    rw [hv]
+    exact (decodeT₁_encodeNodes L₁ L₂ (hlt k hk)).2 hk
 
 private lemma decodeT₂_encodeNodes_eq {c : BimatrixCode} {v : List Bool} {L₁ L₂ : List ℕ}
     (hv : v = encodeNodes c L₁ L₂) (hsort : L₂.Pairwise (· < ·))
-    (hlt : ∀ k ∈ L₂, k < c.rows + c.cols) : decodeT₂ c v = L₂ :=
-  eq_of_pairwise_lt_mem_iff (decodeT₂_sorted c v) hsort fun k =>
-    ⟨fun hk => have hklt := decodeT₂_lt c v hk; (decodeT₂_encodeNodes L₁ L₂ hklt).1 (hv ▸ hk),
-     fun hk => hv ▸ (decodeT₂_encodeNodes L₁ L₂ (hlt k hk)).2 hk⟩
+    (hlt : ∀ k ∈ L₂, k < c.rows + c.cols) : decodeT₂ c v = L₂ := by
+  refine (List.perm_of_nodup_nodup_toFinset_eq (decodeT₂_sorted c v).nodup
+    hsort.nodup ?_).eq_of_pairwise
+      (fun _ _ _ _ h1 h2 => False.elim (Nat.lt_asymm h1 h2)) (decodeT₂_sorted c v) hsort
+  ext k
+  simp only [List.mem_toFinset]
+  constructor
+  · intro hk
+    have hklt := decodeT₂_lt c v hk
+    rw [hv] at hk
+    exact (decodeT₂_encodeNodes L₁ L₂ hklt).1 hk
+  · intro hk
+    rw [hv]
+    exact (decodeT₂_encodeNodes L₁ L₂ (hlt k hk)).2 hk
 
 private lemma almostComplete_all_range_eq_true (m n : ℕ) (L₁ L₂ : List ℕ)
     {k₀ : Fin m ⊕ Fin n} (hk₀ : (finSumFinEquiv k₀).1 = 0)
@@ -2696,15 +2722,21 @@ private lemma endOfLineRel_wellFormed_props {c : BimatrixCode} (hc : c.WellForme
     have hA₁_neg :
         ((intMatP (posMatB c)).map Int.cast : Matrix _ _ ℚ).submatrix
           ((Equiv.refl (Fin c.rows ⊕ Fin c.cols)) ∘ Sum.inl) (Equiv.refl _) = -1 := by
-      ext i j; simp only [Matrix.submatrix_apply, Function.comp_apply, Equiv.refl_apply,
-        Matrix.map_apply, intMatP_inl, Matrix.neg_apply, Matrix.one_apply]
-      by_cases hij : i = j <;> simp [hij]
+      ext i j
+      simp only [Matrix.submatrix_apply, Function.comp_apply, Equiv.refl_apply, Matrix.map_apply,
+        intMatP_inl, Matrix.neg_apply, Matrix.one_apply]
+      by_cases hij : i = j
+      · subst hij; simp
+      · simp [hij]
     have hA₂_neg :
         ((intMatQ (posMatA c)).map Int.cast : Matrix _ _ ℚ).submatrix
           ((Equiv.refl (Fin c.rows ⊕ Fin c.cols)) ∘ Sum.inr) (Equiv.refl _) = -1 := by
-      ext i j; simp only [Matrix.submatrix_apply, Function.comp_apply, Equiv.refl_apply,
-        Matrix.map_apply, intMatQ_inr, Matrix.neg_apply, Matrix.one_apply]
-      by_cases hij : i = j <;> simp [hij]
+      ext i j
+      simp only [Matrix.submatrix_apply, Function.comp_apply, Equiv.refl_apply, Matrix.map_apply,
+        intMatQ_inr, Matrix.neg_apply, Matrix.one_apply]
+      by_cases hij : i = j
+      · subst hij; simp
+      · simp [hij]
     rw [halfEdgeIndexExec_eq c hc.1 (decodeT₁_sorted c u0) (decodeT₂_sorted c u0)
         (fun _ hr => decodeT₁_lt c u0 hr) (fun _ hr => decodeT₂_lt c u0 hr) hlen₁ hlen₂ false
         hacl (fun h => h02_0 (mem_finsetOfList.1 h)),
@@ -2758,32 +2790,31 @@ private lemma endOfLineRel_wellFormed_props {c : BimatrixCode} (hc : c.WellForme
         rcases habs1 with h1 | h1 <;> [exact .inl (by omega); exact .inr (by omega);
           exact .inr (by omega); exact .inl (by omega)]
     have hout : hasOut vertexLen pred succ c u = true := by
-      have mk_out
-          (hrt : isValidNodeExec c (stepGraph false c u) = true ∧
-            stepGraph false c u ≠ u ∧ stepGraph true c (stepGraph false c u) = u) :
-          hasOut vertexLen pred succ c u = true := by
+      rcases hidx_sq with hpos | hneg
+      · have hrt := stepGraph_roundTrip hc false hu_valid (.inl (by simp [h02, hpos]))
         have hne0 : succ (c, u) ≠ u0 := fun h0 => by
           have hpb : u = pred (c, u0) := hrt.2.2.symm.trans (congrArg (fun w => pred (c, w)) h0)
           exact hu_ne_zero (hpb.trans hpred0)
         simp only [hasOut, decide_eq_true_eq]
         exact ⟨hrt.2.2, hrt.2.1, hne0⟩
-      rcases hidx_sq with hpos | hneg
-      · exact mk_out (stepGraph_roundTrip hc false hu_valid (.inl (by simp [h02, hpos])))
       · have hposR : halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) true = targetSign c := by
           rw [hidx_opp, hneg, neg_neg]
-        exact mk_out (stepGraph_roundTrip hc false hu_valid (.inr (by simp [h01, hposR])))
+        have hrt := stepGraph_roundTrip hc false hu_valid (.inr (by simp [h01, hposR]))
+        have hne0 : succ (c, u) ≠ u0 := fun h0 => by
+          have hpb : u = pred (c, u0) := hrt.2.2.symm.trans (congrArg (fun w => pred (c, w)) h0)
+          exact hu_ne_zero (hpb.trans hpred0)
+        simp only [hasOut, decide_eq_true_eq]
+        exact ⟨hrt.2.2, hrt.2.1, hne0⟩
     have hin : hasIn vertexLen pred succ c u = true := by
-      have mk_in
-          (hrt : isValidNodeExec c (stepGraph true c u) = true ∧
-            stepGraph true c u ≠ u ∧ stepGraph false c (stepGraph true c u) = u) :
-          hasIn vertexLen pred succ c u = true := by
-        simp only [hasIn, decide_eq_true_eq]
-        exact ⟨hrt.2.2, hrt.2.1, hu_ne_zero⟩
       rcases hidx_sq with hpos | hneg
       · have hnegR : halfEdgeIndexExec c (decodeT₁ c u) (decodeT₂ c u) true = -targetSign c := by
           rw [hidx_opp, hpos]
-        exact mk_in (stepGraph_roundTrip hc true hu_valid (.inr (by simp [h01, hnegR])))
-      · exact mk_in (stepGraph_roundTrip hc true hu_valid (.inl (by simp [h02, hneg])))
+        have hrt := stepGraph_roundTrip hc true hu_valid (.inr (by simp [h01, hnegR]))
+        simp only [hasIn, decide_eq_true_eq]
+        exact ⟨hrt.2.2, hrt.2.1, hu_ne_zero⟩
+      · have hrt := stepGraph_roundTrip hc true hu_valid (.inl (by simp [h02, hneg]))
+        simp only [hasIn, decide_eq_true_eq]
+        exact ⟨hrt.2.2, hrt.2.1, hu_ne_zero⟩
     rcases hu with ⟨-, hrel⟩
     have hu_ne' : u ≠ zeroVertex (vertexLen c) := hu_ne_zero
     simp [hin, hout, hu_ne'] at hrel
