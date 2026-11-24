@@ -110,6 +110,28 @@ theorem SETH_iff_tendsto : SETH ↔ Tendsto satExponent atTop (𝓝 1) :=
   (tendsto_rateExponent_iff (P := fun k => DecidableInExpTime (KSAT k) encCNF CNF.numVars)
     (fun _ _ _ hle h => h.mono hle) KSAT_decidableInExpTime_one satExponent_mono).symm
 
+/-! ### Sanity checks on the definition of `ETH`
+
+The companion `CountingNativeEndpoint` module refutes `Cslib.Complexity.ETH`, so every implication
+from it holds vacuously. The two lemmas below are proved from the definition alone, without that
+refutation. They check that the hypothesis as defined is at least as strong as its expected
+classical consequences; they are not main results. -/
+
+/-- Sanity check on the definition of `Cslib.Complexity.ETH`, not a main result: the hypothesis
+implies that 3SAT is not in `Cslib.Complexity.P`. A polynomial-time decider has exponent `0`
+(`Cslib.Complexity.DecidableInExpTime.of_computableInPolyTime`), hence every exponent `δ > 0`
+(`Cslib.Complexity.DecidableInExpTime.mono`). -/
+theorem ETH.ThreeSAT_notMem_P (h : ETH) : ThreeSAT ∉ P encCNF := by
+  obtain ⟨δ, hδ, h⟩ := h
+  rintro ⟨p, hp, hA⟩
+  exact h ((DecidableInExpTime.of_computableInPolyTime hp hA).mono hδ.le)
+
+/-- Sanity check on the definition of `Cslib.Complexity.ETH`, not a main result: the hypothesis
+implies `P ≠ NP` for formulas encoded by `Cslib.Complexity.encCNF`, because 3SAT is in `NP`
+(`Cslib.Complexity.ThreeSAT.mem_NP`). -/
+theorem ETH.P_ne_NP (h : ETH) : P encCNF ≠ NP encCNF := fun hPNP =>
+  h.ThreeSAT_notMem_P (hPNP ▸ ThreeSAT.mem_NP)
+
 /-! ### Measuring by clauses -/
 
 /-- **From variables to clauses.** A formula of width `k` with `m` clauses has at most `k * m`

@@ -29,6 +29,7 @@ substitution follow the chain rule (`MvPolynomial.pderiv_aeval`).
   multiplies the degree by at most `k`.
 * `MvPolynomial.totalDegree_aeval_le`: substituting polynomials of degree at most `1` does not raise
   the degree.
+* `MvPolynomial.natDegree_aeval_le_of_support`: bound the degree by weighted monomial degrees.
 * `MvPolynomial.natDegree_aeval_le_mul`: substituting univariate polynomials of degree at most
   `k`, over an algebra, gives a polynomial of degree at most `k` times the total degree.
 * `MvPolynomial.eval_polynomial_aeval`: evaluating a substitution of univariate polynomials.
@@ -65,12 +66,13 @@ theorem totalDegree_aeval_le {g : τ → MvPolynomial σ R} (hg : ∀ i, (g i).t
     (P : MvPolynomial τ R) : (aeval g P).totalDegree ≤ P.totalDegree :=
   (totalDegree_aeval_le_mul hg P).trans_eq (Nat.mul_one _)
 
-/-- Substituting univariate polynomials of degree at most `k`, with coefficients in an
-`R`-algebra, for the variables gives a polynomial of degree at most `k` times the total
-degree. -/
-theorem natDegree_aeval_le_mul {A : Type*} [CommSemiring A] [Algebra R A]
-    {g : τ → Polynomial A} {k : ℕ} (hg : ∀ i, (g i).natDegree ≤ k)
-    (P : MvPolynomial τ R) : (aeval g P).natDegree ≤ P.totalDegree * k := by
+/-- Bound the degree of a univariate substitution by a weighted degree of each original
+monomial. The weight of a variable is any upper bound on the degree of its replacement. -/
+theorem natDegree_aeval_le_of_support {A : Type*} [CommSemiring A] [Algebra R A]
+    {g : τ → Polynomial A} {w : τ → ℕ} {P : MvPolynomial τ R} {d : ℕ}
+    (hg : ∀ i, (g i).natDegree ≤ w i)
+    (hP : ∀ s ∈ P.support, s.sum (fun i e => e * w i) ≤ d) :
+    (aeval g P).natDegree ≤ d := by
   conv_lhs => rw [P.as_sum]
   rw [map_sum]
   refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun s hs => ?_
@@ -78,12 +80,18 @@ theorem natDegree_aeval_le_mul {A : Type*} [CommSemiring A] [Algebra R A]
   refine Polynomial.natDegree_mul_le.trans ?_
   rw [Polynomial.algebraMap_apply, Polynomial.natDegree_C, zero_add]
   refine (Polynomial.natDegree_prod_le _ _).trans ?_
-  calc ∑ i ∈ s.support, (g i ^ s i).natDegree
-      ≤ ∑ i ∈ s.support, s i * k :=
-        Finset.sum_le_sum fun i _ =>
-          Polynomial.natDegree_pow_le.trans (Nat.mul_le_mul_left _ (hg i))
-    _ = (s.sum fun _ e => e) * k := by rw [Finsupp.sum, Finset.sum_mul]
-    _ ≤ P.totalDegree * k := Nat.mul_le_mul_right _ (le_totalDegree hs)
+  exact (Finset.sum_le_sum fun i _ =>
+    Polynomial.natDegree_pow_le.trans (Nat.mul_le_mul_left _ (hg i))).trans (hP s hs)
+
+/-- Substituting univariate polynomials of degree at most `k`, with coefficients in an
+`R`-algebra, for the variables gives a polynomial of degree at most `k` times the total
+degree. -/
+theorem natDegree_aeval_le_mul {A : Type*} [CommSemiring A] [Algebra R A]
+    {g : τ → Polynomial A} {k : ℕ} (hg : ∀ i, (g i).natDegree ≤ k)
+    (P : MvPolynomial τ R) : (aeval g P).natDegree ≤ P.totalDegree * k := by
+  refine natDegree_aeval_le_of_support hg fun s hs => ?_
+  rw [Finsupp.sum, ← Finset.sum_mul]
+  exact Nat.mul_le_mul_right _ (le_totalDegree hs)
 
 /-- Evaluating a substitution of univariate polynomials at `x` evaluates the polynomial at the
 values of the substituted polynomials at `x`. -/

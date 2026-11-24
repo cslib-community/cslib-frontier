@@ -18,6 +18,7 @@ import Mathlib.Data.Fintype.Fin
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Positivity
 import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Finite-attempt uniform interval and integer-box sampling
@@ -114,7 +115,7 @@ theorem eval_sampleBoundedIndex_lt (bound value : ℕ) (hvalue : value < bound) 
   · intro i _ hij
     have hne : min bound i.val ≠ value := by
       intro h
-      have : i = j := Fin.ext (by dsimp [j]; omega)
+      have : i = j := by fin_index [j]
       exact hij this
     simp [Ne.symm hne]
   · simp
@@ -322,9 +323,7 @@ private theorem bind_sampleBinaryNat_size (bound : ℕ) (next : PMF (Option ℕ)
   rw [sampleBoundedIndex_eq_binary, ProbComp.eval_map, PMF.bind_map,
     Nat.size_eq_log_two_add_one hbound.ne']
   refine congrArg (PMF.bind _) (funext fun value => ?_)
-  by_cases hv : value < bound
-  · simp [hv, Nat.min_eq_right hv.le]
-  · simp [hv, Nat.min_eq_left (not_lt.mp hv)]
+  grind
 
 /-- Stopping at the first accepted attempt does not change the law. -/
 theorem eval_sampleUniformIntervalRetry (bound attempts : ℕ) :
@@ -843,7 +842,6 @@ theorem integerBoxLaw_apply_index (radius dimension : ℕ)
       have hne : (v i : ℤ) - radius ≠ (j.val : ℤ) - radius := by
         intro h
         apply hj
-        apply Fin.ext
         omega
       simp [hne]
   simp_rw [hcoord]

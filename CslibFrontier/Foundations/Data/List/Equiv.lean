@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.List.NodupEquivFin
 public import Mathlib.Data.List.ProdSigma
 public import Mathlib.Logic.Equiv.Fin.Basic
+import Mathlib.Data.List.OfFn
 
 /-!
 # Enumerating list occurrences
@@ -85,6 +86,13 @@ by `left.length`. -/
 def appendIndexEquiv (left right : List α) :
     Fin left.length ⊕ Fin right.length ≃ Fin (left ++ right).length :=
   finSumFinEquiv.trans (finCongr length_append.symm)
+
+/-- Enumerating an appended index set concatenates the enumerations of its two parts. -/
+theorem ofFn_appendIndexEquiv (left right : List α) (f : Fin (left ++ right).length → β) :
+    ofFn f = ofFn (fun i => f (appendIndexEquiv left right (.inl i))) ++
+      ofFn (fun j => f (appendIndexEquiv left right (.inr j))) := by
+  rw [ofFn_congr (length_append ..), ofFn_add]
+  rfl
 
 @[simp] theorem val_appendIndexEquiv_inl (left right : List α) (i : Fin left.length) :
     (appendIndexEquiv left right (.inl i) : ℕ) = i := by

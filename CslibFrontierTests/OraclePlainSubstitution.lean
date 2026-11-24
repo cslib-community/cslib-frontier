@@ -35,7 +35,7 @@ noncomputable def requestHead (_ : List Bool) : WordOracleComp Unit (List Bool) 
   List.take 1 <$> ProbOracleComp.query ((), [])
 
 theorem requestHead_isOraclePPTOn : IsOraclePPTOn encBits encBits requestHead :=
-  IsOraclePPTOn.query_take' () (.const []) (.const 1)
+  IsOraclePPTOn.query_take () (.const []) (.const 1)
 
 noncomputable def respond (caller : List Bool) (_ : Unit × List Bool)
     (state : List Bool) : ProbComp (List Bool × List Bool) := do

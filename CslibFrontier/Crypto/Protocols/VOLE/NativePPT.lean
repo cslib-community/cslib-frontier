@@ -91,11 +91,7 @@ theorem computableInPolyTime_weights {count : α → ℕ} {r : α → List F}
     (hcount : ComputableInPolyTime count input encUnary)
     (hr : ComputableInPolyTime r input (encList eF)) :
     ComputableInPolyTime (fun a => weights (count a) (r a)) input (encList eF) := by
-  unfold weights
-  apply ComputableInPolyTime.mapWithInput
-    (ComputableInPolyTime.range.comp hcount)
-  exact (ComputableInPolyTime.listGetD (encA := eF) 0).comp
-    ((hr.comp (.fst _ _)).prod (.snd _ _))
+  fun_prop [weights]
 
 /-- List summation has fixed-size scalar accumulators. -/
 private theorem polyTime_sum

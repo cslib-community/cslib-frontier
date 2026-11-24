@@ -54,6 +54,7 @@ theorem atomCap_gt : max ((P.k : ℝ) + 1) P.θ₂ < P.atomCap := by
   linarith
 
 /-- The bounded extension is nonnegative for every real estimate. -/
+@[positivity_lemma]
 theorem atomCutoff_nonneg (d : ℝ) : 0 ≤ P.atomCutoff d := P.Q_nonneg _
 
 /-- Uniform bound on the scalar cutoff, independent of the child estimate. -/

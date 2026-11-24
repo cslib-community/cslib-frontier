@@ -480,29 +480,40 @@ class CheckOutputTests(unittest.TestCase):
 
     def test_trim_redirects_omitted_recursors_to_the_documented_type(self):
         self.index["modules"]["Init.Core"] = {}
+        self.index["modules"]["Init.Prelude"] = {}
         self.index["declarations"]["Sum"] = {
             "docLink": "./Init/Core.html#Sum", "kind": "inductive",
         }
         self.index["declarations"]["Prod"] = {
             "docLink": "./Init/Core.html#Prod", "kind": "structure",
         }
+        self.index["declarations"]["List"] = {
+            "docLink": "./Init/Prelude.html#List", "kind": "inductive",
+        }
         self.write(self.page("Init.Core"), '<div id="Sum"></div><div id="Prod"></div>')
+        self.write(self.page("Init.Prelude"), '<div id="List"></div>')
         prefixes = ("./", check_docs.API_DOCS_URL, check_docs.MATHLIB_DOCS_URL)
-        links = [f'<a href="{prefix}Init/Core.html#{name}.rec">{name}.rec</a>'
-                 for prefix in prefixes for name in ("Sum", "Prod")]
+        suffixes = ("rec", "recOn", "casesOn", "brecOn", "below", "ndrec", "noConfusion")
+        links = [f'<a href="{prefix}Init/Core.html#{name}.{suffix}">{name}.{suffix}</a>'
+                 for prefix in prefixes for name in ("Sum", "Prod") for suffix in suffixes]
+        links.append('<a href="./Init/Prelude.html#List.casesOn">List.casesOn</a>')
         self.write(self.page("CslibFrontier"), "\n".join(links))
         self.write(self.docs / "declarations/declaration-data.bmp", json.dumps(self.index))
 
         check_docs.trim_output()
         with redirect_stdout(io.StringIO()):
             check_docs.check_output()
-        expected = "\n".join(
-            f'<a href="{check_docs.MATHLIB_DOCS_URL}Init/Core.html#{name}">{name}.rec</a>'
-            for _ in prefixes for name in ("Sum", "Prod")
+        expected = [
+            f'<a href="{check_docs.MATHLIB_DOCS_URL}Init/Core.html#{name}">{name}.{suffix}</a>'
+            for _ in prefixes for name in ("Sum", "Prod") for suffix in suffixes
+        ]
+        expected.append(
+            f'<a href="{check_docs.MATHLIB_DOCS_URL}Init/Prelude.html#List">List.casesOn</a>'
         )
-        self.assertEqual(self.page("CslibFrontier").read_text(), expected)
+        expected_text = "\n".join(expected)
+        self.assertEqual(self.page("CslibFrontier").read_text(), expected_text)
         check_docs.trim_output()
-        self.assertEqual(self.page("CslibFrontier").read_text(), expected)
+        self.assertEqual(self.page("CslibFrontier").read_text(), expected_text)
 
     def test_trim_recursor_fallback_rejects_unproved_targets(self):
         for module in ("Init.Core", "Init.Other"):
@@ -515,8 +526,10 @@ class CheckOutputTests(unittest.TestCase):
             "docLink": "./Init/Core.html#ordinary", "kind": "def",
         }
         self.write(self.docs / "declarations/declaration-data.bmp", json.dumps(self.index))
-        for target in ("Init/Core.html#Missing.rec", "Init/Core.html#ordinary.rec",
-                       "Init/Core.html#Sum.missing", "Init/Other.html#Sum.rec"):
+        for target in ("Init/Core.html#Missing.rec", "Init/Core.html#Missing.casesOn",
+                       "Init/Core.html#ordinary.rec", "Init/Core.html#ordinary.casesOn",
+                       "Init/Core.html#Sum.missing", "Init/Other.html#Sum.rec",
+                       "Init/Other.html#Sum.casesOn"):
             with self.subTest(target=target):
                 self.write(self.page("CslibFrontier"), f'<a href="./{target}">bad</a>')
                 with self.assertRaisesRegex(ValueError, "Broken dependency anchor"):

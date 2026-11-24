@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -176,14 +177,14 @@ assignment, is polynomial-time. -/
 private theorem evalStepAt_pt (k : QBF.Kind) :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) =>
       QBF.evalStepAt (fun v => p.1.1.contains v) k p.2.2 p.1.2)
-      (encFoldStep (encList encNat) (encList encBool) encToken) (encList encBool) := by
+      (encPair (encPair (encList encNat) (encList encBool)) encToken) (encList encBool) := by
   cases k <;> simp only [QBF.evalStepAt] <;> fun_prop
 
 /-- A step of the scan is polynomial-time. -/
 private theorem evalStep_pt :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) =>
       QBF.evalStep (fun v => p.1.1.contains v) p.1.2 p.2)
-      (encFoldStep (encList encNat) (encList encBool) encToken) (encList encBool) :=
+      (encPair (encPair (encList encNat) (encList encBool)) encToken) (encList encBool) :=
   finite_cases (tagEncoding := encKind)
     (tag := fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) => p.2.1)
     (branch := fun k p => QBF.evalStepAt (fun v => p.1.1.contains v) k p.2.2 p.1.2)

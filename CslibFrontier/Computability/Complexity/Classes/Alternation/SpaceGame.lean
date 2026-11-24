@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePr
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 import Mathlib.Data.Set.Finite.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Foundations.Data.Fin.Embedding
 
 /-!
 # Word games in `APSPACE`, and `APSPACE = EXP`
@@ -107,8 +108,9 @@ theorem mem_APSPACE_of_wins_polySpace {π : Type} {encPos : π ↪ List Bool} {A
   have hNO : N ≠ O := by simp [N, O]
   have hNM : N ≠ M := by simp [N, M]
   have hOM : O ≠ M := by simp [O, M]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (show kI + 1 ≤ K by omega) (Fin.last kI) N
-  obtain ⟨eU, heUi, heUo⟩ := exists_embedding_eq₂ (show kU + 1 + 2 ≤ K by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (show kI + 1 ≤ K by omega) (Fin.last kI) N
+  obtain ⟨eU, heUi, heUo⟩ := Fin.exists_embedding_eq₂
+    (show kU + 1 + 2 ≤ K by omega)
     (i := Fin.natAdd (kU + 1) 0) (o := (Fin.last kU).castAdd 2) (by simp [Fin.ext_iff]) hNO
   -- the machines
   let Pm := TI.outputToWord.extendTapes eI
@@ -245,10 +247,8 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
       (budget_natMul (budget_natAdd hT (budget_const 1 hin))
         (blockSize_inSpace (k := k) (State := State) hT hin)))
   have hBs : PolyBounded (fun a => (enc a).length) Bs := by growth_poly
-  have hJ := budget_prod hx (budget_prod hT
-    (budget_prod hN (budget_const (encB := encBool) true hin)))
-  have hJM := budget_prod hx (budget_prod hT
-    (budget_prod hM (budget_const (encB := encBool) true hin)))
+  have hJ := encClaim_mk_budget hx hT hN (budget_const (encB := encBool) true hin)
+  have hJM := encClaim_mk_budget hx hT hM (budget_const (encB := encBool) true hin)
   have hI := ComputableInPolySpace.of_inSpace hBs
     (budget_comp_linear (position_inSpace tm) hJ)
   have hℓ := (ComputableInPolySpace.of_inSpace hBs hJM).polyBounded_length.add
@@ -260,12 +260,10 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
   · intro a u x r b hr
     obtain ⟨w', v, -, he⟩ := reach_position (tm := tm) encClaim (hNM a) hr
     obtain ⟨-, rfl⟩ := position_eq_cons he.symm
-    exact ⟨pos u b (enc a, T a, w', v), encPos_pos _ _ _, by rw [step_pos, update_position_cons]⟩
+    exact ⟨pos u b ⟨enc a, T a, w', v⟩, encPos_pos _ _ _, by rw [step_pos, update_position_cons]⟩
   · intro a w hr
     obtain ⟨w', v, hw', rfl⟩ := reach_position (tm := tm) encClaim (hNM a) hr
-    refine (length_position_le _).trans ?_
-    simp only [encPair_apply, Nat.add_le_add_iff_right]
-    exact length_encClaim_mono hw'.le
+    exact (length_position_le _).trans (Nat.add_le_add_right (length_encClaim_mono hw'.le) 2)
   · exact fun a => ⟨N a, ends_position (tm := tm) encClaim (enc a) (T a) (N a) (hNM a) true⟩
   · intro a
     rw [wins_position_iff (enc a) (T a) (N a) (hNM a) true]

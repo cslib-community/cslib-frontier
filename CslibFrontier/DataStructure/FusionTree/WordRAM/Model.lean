@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.FusionTree.Tree
 public import CslibFrontier.Computability.WordRAM.ListArray
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Contiguous static fusion-tree records
@@ -332,8 +333,7 @@ theorem child_access_owned (base m : ℕ) (cs : List Tree) (i : Fin cs.length) (
     (ha : a < span cs[i]) :
     (Block.mk base (span (.node m cs))).Owns (childAddress base cs i + a) := by
   have hh := child_span_le base m cs i
-  dsimp only [Block.Owns]
-  omega
+  wram_omega
 
 /-- The concrete allocation is at most nine times the structural scalar-slot count. -/
 private theorem span_le_slots (t : Tree) : span t ≤ 9 * t.slots := by

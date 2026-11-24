@@ -112,7 +112,7 @@ example : counterLen 3 3 1 = 49 := by decide
 -- On the satisfiable `φ`, the program with `k = 3` and `c = 1` fails with probability at most
 -- `e⁻¹`, already at word size `8`.
 example : ((evalRand 8 ampProgram (ampTime 3 3 1 (3 :: 1 :: encode φ).length)
-      (.init (3 :: 1 :: encode φ))).map cfgSuccess false).toReal ≤ Real.exp (-1) := by
+      (.init (3 :: 1 :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-1) := by
   have hw : Fits 8
       ((3 :: 1 :: encode φ).length + 6 * 3 + 4 * 3 + 2 * 1 + counterLen 3 3 1 + 2) := by
     decide

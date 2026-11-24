@@ -41,18 +41,18 @@ example : IsOraclePPTOn (Operation := Unit) encBits encBits (fun w : List Bool =
 
 example : IsOraclePPTOn (Operation := Unit) encBits encBool
     (fun _ : List Bool => (!·) <$> ProbOracleComp.sample (ProbComp.uniform Bool)) :=
-  (isPPTOn_uniform_bool encBits).isOraclePPTOn.map' ComputableInPolyTime.bool_not
+  (isPPTOn_uniform_bool encBits).isOraclePPTOn.map ComputableInPolyTime.bool_not
 
 example : IsOraclePPTOn (Operation := Unit) encBits encBool
     (fun w : List Bool => if w.headD false then
       ProbOracleComp.sample (ProbComp.uniform Bool) else pure false) :=
-  IsOraclePPTOn.cond' (by fun_prop) (isPPTOn_uniform_bool encBits).isOraclePPTOn
+  IsOraclePPTOn.cond (by fun_prop) (isPPTOn_uniform_bool encBits).isOraclePPTOn
     (ComputableInPolyTime.const false).isOraclePPTOn
 
 example : IsOraclePPTOn (Operation := Unit) encBits encBool
     (fun w : List Bool => OracleComp.iterate w.length
       (fun _ => ProbOracleComp.sample (ProbComp.uniform Bool)) false) :=
-  (IsOraclePPTOn.iterate_spec' (stateEncoding := encBool) (by fun_prop) (.const false)
+  (IsOraclePPTOn.iterate_spec (stateEncoding := encBool) (by fun_prop) (.const false)
     (isPPTOn_uniform_bool encBool).isOraclePPTOn (fun _ _ _ => True) (fun _ => trivial)
     (fun _ _ _ _ _ _ _ => trivial) (size := fun _ => 1) (.const 1)
     (fun _ _ _ _ _ => by simp)).1

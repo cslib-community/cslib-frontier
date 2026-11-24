@@ -113,9 +113,7 @@ open Polynomial Finset
 namespace Cslib.Circuits.Frontier
 
 open ContractionSchedule (nodePrecision)
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-! ### Node precisions -/
 
@@ -677,20 +675,15 @@ contraction modulo `2 ^ p`, for every schedule and depth. -/
 theorem exists_contractRec_eq_add (hpts : Pairwise fun k l => IsUnit (pts k - pts l)) (d n m : ℕ)
     (N : TensorNetwork B Bool (Fin n) (Fin m)) (side : Fin n → Bool) (p : ℕ) :
     ∃ c : B, contractRec B hB sched pts d n m N side p = N.contraction + 2 ^ p * c := by
-  induction m using Nat.strong_induction_on generalizing d n p with
-  | _ m ih =>
-  rw [contractRec]
-  split
-  · exact ⟨0, by simp⟩
-  · rename_i θ _
-    split_ifs with hθ
-    · obtain ⟨hu, huM, hua, hh, hh', hn⟩ := hθ.admissible
-      refine exists_callValue_eq_add B hB (fun n' m' N' side' p' => ?_) N side hθ.side_src
-        hθ.side_tgt _ hu (by simpa using huM) hua (by simpa using hh) (by simpa using hh') _
-        (fun k l hkl => hpts fun h => hkl (Fin.castLE_injective _ h)) (by simp)
-      split_ifs with hm
-      · exact ih m' hm (d + 1) n' N' side' p'
-      · exact ⟨0, by simp⟩
+  fun_induction contractRec B hB sched pts d n m N side p with
+  | case1 | case3 => exact ⟨0, by simp⟩ -- no parameters, or guard fails
+  | case2 d n m N side p θ _ hθ ih => -- active call
+    obtain ⟨hu, huM, hua, hh, hh', hn⟩ := hθ.admissible
+    refine exists_callValue_eq_add B hB (fun n' m' N' side' p' => ?_) N side hθ.side_src
+      hθ.side_tgt _ hu (by simpa using huM) hua (by simpa using hh) (by simpa using hh') _
+      (fun k l hkl => hpts fun h => hkl (Fin.castLE_injective _ h)) (by simp)
+    split_ifs with hm
+    · exact ih n' m' N' side' p' hm
     · exact ⟨0, by simp⟩
 
 /-- **The recursion computes the contraction modulo `2 ^ p`.** -/

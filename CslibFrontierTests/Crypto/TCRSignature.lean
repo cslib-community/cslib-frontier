@@ -199,7 +199,7 @@ theorem isOraclePPT_constHashForger {replyBound : ℕ → ℕ}
   have hquery : IsOraclePPTOn (Operation := Unit) encIn encBits
       (fun p : In => List.take (replyBound p.1) <$>
         ProbOracleComp.query ((), encPair encUnary encBits (0, [false]))) :=
-    IsOraclePPTOn.query_take' () (.const (encPair encUnary encBits (0, [false]))) (hn.trans hbound)
+    IsOraclePPTOn.query_take () (.const (encPair encUnary encBits (0, [false]))) (hn.trans hbound)
   have hpost : ComputableInPolyTime (fun q : In × List Bool => (0, [true], q.2))
       (encPair encIn encBits) (encPair encUnary (encPair encBits encBits)) :=
     ((ComputableInPolyTime.const 0).prod
@@ -304,6 +304,7 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
                                 TCRSignature.keyDecoder.decode_enc,
                                 TCRSignature.sigDecoder.decode_enc, beq_self_eq_true,
                                 zeroKeyedHashFamily_keyLen, zeroKeyedHashFamily_eval, hkLen, hv,
+                                TCRSignature.scheme_capacity, Nat.zero_lt_one, decide_true,
                                 Bool.and_self]
                         _ = PMF.pure true := PMF.bind_const _ _
                 _ = PMF.pure true := PMF.bind_const _ _

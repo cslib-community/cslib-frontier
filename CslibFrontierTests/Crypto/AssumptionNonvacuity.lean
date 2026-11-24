@@ -7,13 +7,14 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.DiffieHellman
 import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
+import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
 import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 import CslibFrontier.Crypto.Computational.RabinFactoring
 import CslibFrontier.Crypto.Computational.RSAAttacks
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.StrongRSA
-import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
@@ -26,9 +27,10 @@ Each security definition below fails for an obviously insecure instance, so none
 for every candidate. The negative instances for one-way functions, symmetric IND-CPA,
 pseudorandom generators and hard-core predicates are elsewhere.
 
-* **Discrete logarithm, CDH and DDH.** For every prime-order group family `F` and every fixed
-  description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of `F.DiscreteLog`,
-  `F.CDH`, `F.WordCDH` and `F.DDH`. Guessing the exponent `0` solves the discrete logarithm with
+* **Discrete logarithm, CDH, Gap-CDH and DDH.** For every prime-order group family `F` and every
+  fixed description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of
+  `F.DiscreteLog`, `F.CDH`, `F.WordCDH` and `F.DDH` (nor `F.GapCDH` when `F` is a
+  `DecodablePrimeOrderGroupFamily`). Guessing the exponent `0` solves the discrete logarithm with
   probability `1 / q`. Testing whether the first and third elements are both the identity has
   advantage `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with
   the security parameter.
@@ -77,71 +79,26 @@ theorem not_cdh_const : ¬ F.CDH fun _ => PMF.pure d :=
 theorem not_wordCDH_const : ¬ F.WordCDH fun _ => PMF.pure d :=
   fun h => not_cdh_const F d h.cdh
 
+/-- **Gap-CDH fails for a fixed decodable group**, since it implies word-level CDH. -/
+theorem not_gapCDH_const (F : DecodablePrimeOrderGroupFamily) (d : F.Desc) :
+    ¬ F.GapCDH fun _ => PMF.pure d :=
+  fun h => not_wordCDH_const F.toPrimeOrderGroupFamily d h.wordCDH
+
 /-! ### DDH -/
 
-/-- Accept when the first and third elements are both the identity. -/
-noncomputable def identityTest : F.DDHDistinguisher :=
-  fun _ _ u _ w => pure (decide (u = 0) && decide (w = 0))
-
-theorem identityTest_isPPT : (identityTest F).IsPPT := by
-  refine (ComputableInPolyTime.isPPTOn (f := fun x : F.DDHInput =>
-    decide (F.encode x.groupParameters x.leftPublic = F.encode x.groupParameters 0) &&
-      decide (F.encode x.groupParameters x.candidateShared = F.encode x.groupParameters 0))
-    (by fun_prop)).congr fun x => ?_
-  simp only [identityTest, (F.encode_injective _).eq_iff]
-
-/-- In the real game, the test succeeds exactly when `α = 0`, with probability `1 / q`. -/
-theorem succProbability_ddhRealGame_identityTest (n : ℕ) :
-    Game.succProbability (F.ddhRealGame (fun _ => PMF.pure d) (identityTest F) n) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  simp only [ddhRealGame, Game.withSetup_pure, eval_ddhRealExperiment, identityTest,
-    ProbComp.eval_pure, smul_eq_zero, F.generator_ne_zero, or_false,
-    mul_eq_zero, ← Bool.decide_and, and_or_left, and_self, or_iff_left_of_imp And.left,
-    PMF.bind_const]
-  rw [Game.succProbability, PMF.bind_pure_decide_eq_apply_true', PMF.uniformOfFintype_apply,
-    ZMod.card, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
-
-/-- In the random game, the test succeeds exactly when `α = γ = 0`, with probability `1 / q²`. -/
-theorem succProbability_ddhRandomGame_identityTest (n : ℕ) :
-    Game.succProbability (F.ddhRandomGame (fun _ => PMF.pure d) (identityTest F) n) =
-      (F.order d : ℝ≥0)⁻¹ ^ 2 := by
-  simp only [ddhRandomGame, Game.withSetup_pure, eval_ddhRandomExperiment, identityTest,
-    ProbComp.eval_pure, smul_eq_zero, F.generator_ne_zero, or_false,
-    PMF.bind_const]
-  rw [Game.succProbability, ← ENNReal.toNNReal_natCast, ← ENNReal.toNNReal_inv,
-    ← ENNReal.toNNReal_pow]
-  congr 1
-  simp [PMF.bind_apply, tsum_fintype, PMF.uniformOfFintype_apply, PMF.pure_apply, ite_and,
-    Finset.sum_ite_eq', sq]
-
-/-- The fixed-group experiments keep the distinct real and random probabilities. -/
+-- `identityTest`, its experiment/game acceptance probabilities (`1 / q` and `1 / q²`), and
+-- `not_ddh_const` are exported by `CslibFrontierTests.Crypto.PrimeOrderGroupFixture`.
 example (n : ℕ) :
     Game.succProbability (ProbComp.eval
       (ddhRealExperiment (F.order d) (F.generator d) (identityTest F n d))) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  simpa only [ddhRealGame, Game.withSetup_pure] using succProbability_ddhRealGame_identityTest F d n
-
-example (n : ℕ) :
+      (F.order d : ℝ≥0)⁻¹ ∧
     Game.succProbability (ProbComp.eval
       (ddhRandomExperiment (F.order d) (F.generator d) (identityTest F n d))) =
-      (F.order d : ℝ≥0)⁻¹ ^ 2 := by
-  simpa only [ddhRandomGame, Game.withSetup_pure] using
-    succProbability_ddhRandomGame_identityTest F d n
-
-/-- **DDH fails for a fixed group.** -/
-theorem not_ddh_const : ¬ F.DDH fun _ => PMF.pure d := by
-  intro h
-  have hneg := h (identityTest F) (identityTest_isPPT F)
-  simp only [Game.advantage, succProbability_ddhRealGame_identityTest,
-    succProbability_ddhRandomGame_identityTest] at hneg
-  refine not_negligible_const ?_ hneg
-  rw [ne_eq, nndist_eq_zero]
-  intro heq
-  have hq : (2 : ℝ) ≤ F.order d := by exact_mod_cast (F.prime_order d).two_le
-  have hr : ((F.order d : ℝ))⁻¹ = ((F.order d : ℝ))⁻¹ ^ 2 := by
-    simpa using congrArg (fun x : ℝ≥0 => (x : ℝ)) heq
-  field_simp at hr
-  nlinarith
+      (F.order d : ℝ≥0)⁻¹ ^ 2 ∧
+    ¬ F.DDH (fun _ => PMF.pure d) :=
+  ⟨succProbability_ddhRealExperiment_identityTest F d n,
+   succProbability_ddhRandomExperiment_identityTest F d n,
+   not_ddh_const F d⟩
 
 /-! ### IND-CPA and IND-CCA2 -/
 
@@ -205,7 +162,7 @@ theorem firstBitZero_isOraclePPT : IsOraclePPT encBool firstBitZero := by
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitZero
-  exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 theorem eval_prfRealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 < outLen (n + 1))
     (n : ℕ) :
@@ -245,14 +202,12 @@ theorem eval_prfIdealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 <
   rw [← h3, ← h2, ← h1, PMF.map_comp, PMF.map_comp]
   rfl
 
-/-- **The all-zero family is not a pseudorandom function over `n`-bit inputs**, for any output
-length that is positive at positive parameters: at every positive parameter the real experiment
-always accepts and the ideal one accepts with probability `1 / 2`. -/
-theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
+private theorem not_negligible_advantage_firstBitZero {outLen : ℕ → ℕ}
     (hout : ∀ n, 0 < outLen (n + 1)) :
-    ¬ PseudorandomFunctionOver id outLen (zeroFamily outLen) := by
-  intro h
-  have hneg := h.secure firstBitZero firstBitZero_isOraclePPT
+    ¬ Negligible (fun n => Game.advantage
+      (ProbComp.eval (prfRealGame id (zeroFamily outLen) firstBitZero n))
+      (ProbComp.eval (prfIdealGame id outLen firstBitZero n))) := by
+  intro hneg
   have hshift : Negligible fun n => Game.advantage
       (ProbComp.eval (prfRealGame id (zeroFamily outLen) firstBitZero (n + 1)))
       (ProbComp.eval (prfIdealGame id outLen firstBitZero (n + 1))) :=
@@ -263,10 +218,32 @@ theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
   norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
     ENNReal.toNNReal_ofNat]
 
+/-- **The all-zero family is not a pseudorandom function over `n`-bit inputs**, for any output
+length that is positive at positive parameters: at every positive parameter the real experiment
+always accepts and the ideal one accepts with probability `1 / 2`. -/
+theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
+    (hout : ∀ n, 0 < outLen (n + 1)) :
+    ¬ PseudorandomFunctionOver id outLen (zeroFamily outLen) :=
+  fun h => not_negligible_advantage_firstBitZero hout
+    (h.secure firstBitZero firstBitZero_isOraclePPT)
+
 /-- **The all-zero family is not a pseudorandom function.** `PseudorandomFunction` is the case
 `inLen = outLen = id` of `PseudorandomFunctionOver`, where the attack above applies. -/
 theorem not_pseudorandomFunction_zeroFamily : ¬ PseudorandomFunction (zeroFamily id) :=
   not_pseudorandomFunctionOver_zeroFamily Nat.succ_pos
+
+/-- The same one-query test refutes prefix-free PRF security on the domain of `n`-bit words.
+Its query is nonempty at every positive parameter, where its advantage is `1 / 2`. -/
+theorem not_prefixFreePseudorandomFunctionOn_zeroFamily :
+    ¬ PrefixFreePseudorandomFunctionOn (fun n word => word.length == id n) id (zeroFamily id) := by
+  intro h
+  have hpf : IsPrefixFreeOraclePPT (fun n word => word.length == id n) id firstBitZero := by
+    refine ⟨firstBitZero_isOraclePPT, fun n => isPrefixFreeOn_of_fixedLength ?_ _⟩
+    intro u v hu hv
+    exact (beq_iff_eq.mp hu).trans (beq_iff_eq.mp hv).symm
+  apply not_negligible_advantage_firstBitZero (outLen := id) Nat.succ_pos
+  simpa only [eval_prfRealGameOn_length_eq, eval_prfIdealGameOn_length_eq] using
+    h.secure firstBitZero hpf
 
 /-! ### Factoring, Rabin, quadratic residuosity, composite residuosity, and RSA -/
 

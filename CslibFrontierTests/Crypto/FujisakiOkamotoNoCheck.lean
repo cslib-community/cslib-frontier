@@ -77,9 +77,10 @@ example : (leakyPKE toyPKE).GammaSpread 0 :=
 example (G : (Fin 2 → Bool) → Unit)
     (H : Bool × (Fin 2 → Bool) × ((Fin 2 → Bool) × Option (Fin 2)) → Fin 8)
     (dk : ImplicitSK Unit Unit (Fin 2 → Bool)) (c : Fin 2 → Bool) (i : Fin 2) :
-    toyScheme.decapsNotBot G H dk (c, some i) = H (true, dk.fallback, (c, some i)) ∧
+    toyScheme.decapsNotBot G (fun mc => H (false, mc)) dk (c, some i) =
+      H (false, dk.fallback, (c, some i)) ∧
     toyScheme.decapsNoCheck H dk (c, some i) = H (false, fun _ => c i, (c, some i)) :=
-  ⟨decapsNotBot_leakyPKE_some toyPKE _ _ G H dk c i,
+  ⟨decapsNotBot_leakyPKE_some toyPKE _ _ G (fun mc => H (false, mc)) dk c i,
    Scheme.decapsNoCheck_of_dec_eq_some _ H dk rfl⟩
 
 /-! ### Query bounds -/

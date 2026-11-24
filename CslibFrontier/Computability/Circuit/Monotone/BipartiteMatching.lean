@@ -396,10 +396,9 @@ noncomputable def reduction (p : KWProtocol (Fin (n * n))) (h : Vertex m e ≃ F
   (PMF.uniformOfFintype (Fin k → Relabeling m e)).map (repeatedRun p h i₀)
 
 /-- The reduction sends at most `k` times one more bit than `p`. -/
-theorem depth_reduction_le : (reduction p h i₀ k).depth ≤ k * (p.depth + 1) := by
-  refine PublicCoin.depth_le_iff.mpr fun q hq => ?_
-  obtain ⟨σs, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hq
-  exact_mod_cast Protocol.depth_runAll_le fun i => depth_oneRun_le (σs i)
+theorem depth_reduction_le : (reduction p h i₀ k).depth ≤ k * (p.depth + 1) :=
+  PMF.maxCost_map_le_of_le Protocol.depth (repeatedRun p h i₀) _ fun σs _ =>
+    Protocol.depth_runAll_le fun i => depth_oneRun_le (σs i)
 
 include hp in
 /-- At most a `2 ^ (-k)` fraction of `k`-tuples of relabelings make `repeatedRun` disagree with
@@ -457,7 +456,7 @@ theorem solves_reduction (hk : 0 < k) :
       Set.univ := by
   classical
   intro x _ y _
-  rw [PublicCoin.errorProb, reduction, PMF.toOuterMeasure_map_apply,
+  rw [PublicCoin.errorProb, PMF.errorProb, reduction, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_uniformOfFintype_toReal]
   have hbad := card_filter_repeatedRun_ne_mul_two_pow_le (h := h) (i₀ := i₀) hp hk x y
   have hpos : (0 : ℝ) < Fintype.card (Relabeling m e) ^ k := by positivity

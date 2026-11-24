@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.MatrixCell
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native padded monomial matrix construction
@@ -85,25 +87,13 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
       ∃ z, ExecWithin w (matrixStep transpose) y z (7 * p + 22) ∧ I z ∧
         4 ^ k - z.regs Reg.index < 4 ^ k - y.regs Reg.index := by
     obtain ⟨hr, hi, values, memory⟩ := hy
-    have keep (r : Fin 128) (hnr : ¬MatrixLocal r)
-        (hs : r ≠ Reg.residueSource) (hd : r ≠ Reg.destination) : y.regs r = x.regs r :=
-      (hr r hnr).trans (startRegs r hnr hs hd)
-    have ysource : y.regs Reg.residueSource = source := by
-      simpa +decide [start, Reg.residueSource, Reg.destination, Reg.index] using
-        hr Reg.residueSource (by decide)
-    have ydestination : y.regs Reg.destination = destination := by
-      simpa +decide [start, Reg.destination, Reg.index] using hr Reg.destination (by decide)
-    have yarea : y.regs Reg.paddedCells = 4 ^ k :=
-      (keep _ (by decide) (by decide) (by decide)).trans harea
+    have ysource : y.regs Reg.residueSource = source := by regs_frame
+    have ydestination : y.regs Reg.destination = destination := by regs_frame
+    have yarea : y.regs Reg.paddedCells = 4 ^ k := by regs_frame
     have hlt : y.regs Reg.index < 4 ^ k := by simpa only [Cond.holds_lt, yarea] using hc
     obtain ⟨z, he, zi, newValues, cellFrame, zr⟩ := exec_matrixStep transpose y
-      ((keep _ (by decide) (by decide) (by decide)).trans hn)
-      ((keep _ (by decide) (by decide) (by decide)).trans hp)
-      ((keep _ (by decide) (by decide) (by decide)).trans hN) rfl hlt
-      ysource ydestination ((keep _ (by decide) (by decide) (by decide)).trans ht)
-      ((keep _ (by decide) (by decide) (by decide)).trans h0)
-      ((keep _ (by decide) (by decide) (by decide)).trans h1)
-      ((keep _ (by decide) (by decide) (by decide)).trans h2)
+      (by regs_frame) (by regs_frame) (by regs_frame) rfl hlt
+      ysource ydestination (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       (by
         intro j hj
         rw [memory _ (Or.inl (by omega))]
@@ -153,38 +143,17 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
       rw [cellFrame _ (by change d < destination + cellPosition N (y.regs Reg.index) * p ∨
         destination + cellPosition N (y.regs Reg.index) * p + p ≤ d; omega)]
       exact memory d hd
-  have hinit : I start := by
-    refine ⟨fun _ _ => rfl, ?_, ?_, fun _ _ => rfl⟩
-    · change 0 ≤ 4 ^ k
-      omega
-    · intro j hj
-      change j < 0 at hj
-      omega
-  obtain ⟨y, hy, hIy, hstop⟩ := ExecWithin.loop_invariant I
-    (fun y => 4 ^ k - y.regs Reg.index) body hinit
-  obtain ⟨hr, hi, values, memory⟩ := hIy
-  have harea' : y.regs Reg.paddedCells = 4 ^ k :=
-    (hr Reg.paddedCells (by decide)).trans
-      ((startRegs _ (by decide) (by decide) (by decide)).trans harea)
-  have hindex : y.regs Reg.index = 4 ^ k := by
-    simp only [Cond.holds_lt, harea'] at hstop
-    omega
-  have hargs : ExecWithin (B := .standard) w
-      (ram[ Reg.residueSource ← src; Reg.destination ← dst; Reg.index ← #0 ]) x start 3 := by
-    ram_eval [start, hsrc, hdst, hdstReg, Reg.residueSource, Reg.destination, Reg.index]
-  have he : ExecWithin w (matrix src dst transpose) x y ((7 * p + 24) * 4 ^ k + 5) := by
-    obtain ⟨m, hm, argsRun⟩ := hargs
-    obtain ⟨nSteps, hnSteps, loopRun⟩ := hy
-    cases argsRun with
-    | seq h₁ rest => cases rest with
-      | seq h₂ h₃ =>
-        refine ⟨_, ?_, .seq h₁ (.seq h₂ (.seq h₃ loopRun))⟩
-        have hstart : start.regs Reg.index = 0 := by simp [start]
-        rw [hstart, Nat.sub_zero] at hnSteps
-        nlinarith
-  refine ⟨y, he, ?_, memory, ?_⟩
-  · simpa only [hindex, cellPosition, cellKey, N] using values
-  · intro r hnr hs hd
-    exact (hr r hnr).trans (startRegs r hnr hs hd)
+  refine WP.exists_execWithin ?_
+  unfold matrix
+  wram_exec [hsrc, hdst, hdstReg]
+  change WP w _ start _
+  wram_call (ExecWithin.loop_invariant I (fun y => 4 ^ k - y.regs Reg.index) body
+    ⟨fun _ _ => rfl, Nat.zero_le _, fun _ hj => by simp [start] at hj, fun _ _ => rfl⟩)
+    with y ⟨⟨hr, hi, values, memory⟩, hstop⟩
+  have harea' : y.regs Reg.paddedCells = 4 ^ k := by regs_frame
+  have hindex : y.regs Reg.index = 4 ^ k := by simp only [Cond.holds_lt, harea'] at hstop; omega
+  refine ⟨by simp only [start, Data.set_regs, Function.update_self, Nat.sub_zero]; nlinarith,
+    by simpa only [hindex, cellPosition, cellKey, N] using values, memory,
+    fun r hnr hs hd => (hr r hnr).trans (startRegs r hnr hs hd)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

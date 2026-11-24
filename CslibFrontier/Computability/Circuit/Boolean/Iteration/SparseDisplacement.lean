@@ -170,22 +170,27 @@ private theorem displacementCuts_card (f h : BitVec n → BitVec n)
 /-- A sparse derivative gives an actual native Boolean circuit, including all selection gates. -/
 private theorem displacement_circuit (h : BitVec n → BitVec n) :
     ∃ out : Circuit Boolean.signature n n,
-      out.Computes Boolean.interpretation (fun x i => (h (word x)).getLsbD i.val) ∧
+      out.Computes Boolean.interpretation
+        (fun x i => (h (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ 2 + (displacementCuts h).card * (21 * n + 3) + (12 * n + 1) := by
   let constants : Set (BitString n → Bool) := {fun _ => false, fun _ => true}
   let src := inputs n ∪ constants
   have hc (v : Bool) : (fun _ : BitString n => v) ∈ src := by
     cases v <;> simp [src, constants]
-  have hw (i : Fin n) : (fun x : BitString n => (word x).getLsbD i.val) ∈ src := by
-    simpa only [getLsbD_word] using (show (fun x : BitString n => x i) ∈ src from Or.inl ⟨i, rfl⟩)
+  have hw (i : Fin n) : (fun x : BitString n => (BitString.equivBitVec x).getLsbD i.val) ∈ src := by
+    simpa only [BitString.getLsbD_equivBitVec] using
+      (show (fun x : BitString n => x i) ∈ src from Or.inl ⟨i, rfl⟩)
   have hs := synthesis_thresholdSum (displacementCuts h)
     (fun i => displacement h (BitVec.ofNat n (i + 1)) -
-      displacement h (BitVec.ofNat n i)) (displacement h 0) src word hw hc
+      displacement h (BitVec.ofNat n i)) (displacement h 0) src (⇑BitString.equivBitVec) hw hc
   simp only [thresholdSum_displacement] at hs
-  have hadd := Synthesis.word_add (s := src ∪ wordWires (fun x => displacement h (word x)))
-    word (fun x => displacement h (word x)) (fun i => Or.inl (hw i))
-    (fun i => Or.inr ⟨i, rfl⟩)
-  have he (x : BitString n) : word x + displacement h (word x) = h (word x) := by
+  have hadd := Synthesis.word_add
+    (s := src ∪ wordWires (fun x => displacement h (BitString.equivBitVec x)))
+    (⇑BitString.equivBitVec) (fun x => displacement h (BitString.equivBitVec x))
+    (fun i => Or.inl (hw i)) (fun i => Or.inr ⟨i, rfl⟩)
+  have he (x : BitString n) :
+      BitString.equivBitVec x + displacement h (BitString.equivBitVec x) =
+        h (BitString.equivBitVec x) := by
     simp [displacement]
   simp only [he] at hadd
   have hconst : Synthesis Boolean.interpretation (inputs n) constants 2 :=
@@ -198,7 +203,8 @@ No transition circuit or state-space enumeration is a hypothesis. -/
 theorem sparse_counter_centralizer (f h : BitVec n → BitVec n)
     (hc : Function.Commute h f) (hi : Function.Injective h) :
     ∃ out : Circuit Boolean.signature n n,
-      out.Computes Boolean.interpretation (fun x i => (h (word x)).getLsbD i.val) ∧
+      out.Computes Boolean.interpretation
+        (fun x i => (h (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ 100 * (n + 1) * ((disagreement f (fun x => x + 1)).card + 1) := by
   obtain ⟨out, hout, ho⟩ := displacement_circuit h
   refine ⟨out, hout, ho.trans ?_⟩
@@ -208,7 +214,8 @@ theorem sparse_counter_centralizer (f h : BitVec n → BitVec n)
 /-- The bound applies uniformly to all signed fixed powers of a permutation. -/
 theorem sparse_counter_power (f : Equiv.Perm (BitVec n)) (T : ℤ) :
     ∃ out : Circuit Boolean.signature n n,
-      out.Computes Boolean.interpretation (fun x i => ((f ^ T) (word x)).getLsbD i.val) ∧
+      out.Computes Boolean.interpretation
+        (fun x i => ((f ^ T) (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ 100 * (n + 1) * ((disagreement f (fun x => x + 1)).card + 1) := by
   apply sparse_counter_centralizer f (⇑(f ^ T)) ?_ (f ^ T).injective
   intro x
@@ -218,11 +225,14 @@ theorem sparse_counter_power (f : Equiv.Perm (BitVec n)) (T : ℤ) :
 theorem sparse_coordinate_power (f g e : Equiv.Perm (BitVec n))
     (hcycle : ∀ x, e (g x) = e x + 1)
     (encode decode : Circuit Boolean.signature n n)
-    (he : encode.Computes Boolean.interpretation (fun x i => (e (word x)).getLsbD i.val))
-    (hd : decode.Computes Boolean.interpretation (fun x i => (e.symm (word x)).getLsbD i.val))
+    (he : encode.Computes Boolean.interpretation
+      (fun x i => (e (BitString.equivBitVec x)).getLsbD i.val))
+    (hd : decode.Computes Boolean.interpretation
+      (fun x i => (e.symm (BitString.equivBitVec x)).getLsbD i.val))
     (T : ℤ) :
     ∃ out : Circuit Boolean.signature n n,
-      out.Computes Boolean.interpretation (fun x i => ((f ^ T) (word x)).getLsbD i.val) ∧
+      out.Computes Boolean.interpretation
+        (fun x i => ((f ^ T) (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ encode.size + decode.size + 100 * (n + 1) * ((disagreement f g).card + 1) := by
   have hr := disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle
   obtain ⟨middle, hm, hs⟩ := sparse_counter_power (e.permCongrHom f) T
@@ -231,7 +241,7 @@ theorem sparse_coordinate_power (f g e : Equiv.Perm (BitVec n))
   · intro x
     rw [Circuit.eval_comp, Circuit.eval_comp, he x, hm, hd]
     rw [hp]
-    simp only [word_getLsbD, Equiv.permCongrHom_coe, Equiv.permCongr_apply,
+    simp only [BitString.equivBitVec_getLsbD, Equiv.permCongrHom_coe, Equiv.permCongr_apply,
       Equiv.symm_apply_apply]
   · change middle.size ≤ 100 * (n + 1) *
       ((disagreement (e ∘ f ∘ e.symm) (fun x => x + 1)).card + 1) at hs

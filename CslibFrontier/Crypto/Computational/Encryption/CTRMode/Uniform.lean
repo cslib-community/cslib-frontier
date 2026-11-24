@@ -79,7 +79,9 @@ keeping at most `n` bits of the reply.
 * `Cslib.Crypto.ctrWordDecrypt_ctrWordEncrypt`: decryption inverts encryption.
 * `Cslib.Crypto.isPPTOn_ctrWordEncrypt`, `Cslib.Crypto.computableInPolyTime_ctrWordDecrypt`:
   efficiency of the honest algorithms.
-* `Cslib.Crypto.isOraclePPT_ctrToPrfDistinguisher`: the reduction is uniform strict oracle PPT.
+* `Cslib.Crypto.isOraclePPTOn_ctrKeystreamQueries`,
+  `Cslib.Crypto.isOraclePPT_ctrToPrfDistinguisher`: the keystream queries and reduction are strict
+  oracle PPT.
 * `Cslib.Crypto.eval_prfRealGame_ctrToPrfDistinguisher`: the real PRF game of the reduction is
   the CPA game.
 * `Cslib.Crypto.advantage_ctrWordCPAGame_le`: the concrete CPA bound.
@@ -167,11 +169,11 @@ theorem computableInPolyTime_ctrWordCounter {α : Type} {input : α ↪ List Boo
   have hvalue : ComputableInPolyTime (fun a => BitString.lsbValue (iv a)) input encNat := by
     simp only [BitString.lsbValue_eq_binaryValue_reverse]
     exact ComputableInPolyTime.bitsBinaryValue.comp
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.bitsReverse).comp hiv)
+      ((ComputableInPolyTime.bitsReverse).comp hiv)
   unfold ctrWordCounter
   exact ComputableInPolyTime.bitsLow hn
     (ComputableInPolyTime.binary_add' hvalue
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp hj))
+      ((ComputableInPolyTime.unary_to_binary).comp hj))
 
 /-- The keystream is computable in polynomial time from the family's evaluator. -/
 theorem computableInPolyTime_ctrWordKeystream {family : List Bool → List Bool → List Bool}
@@ -223,12 +225,14 @@ theorem computableInPolyTime_ctrWordDecrypt {family : List Bool → List Bool �
 
 /-- One keystream block from the function oracle: query the `j`-th counter block, keep at most
 `n` bits of the reply and append them to the keystream so far. -/
+@[expose]
 def ctrKeystreamStep (n : ℕ) (iv : List Bool) (state : ℕ × List Bool) :
     WordOracleComp Unit (ℕ × List Bool) :=
   (fun block => (state.1 + 1, state.2 ++ block)) <$>
     (List.take n <$> ProbOracleComp.query ((), ctrWordCounter n iv state.1))
 
 /-- The keystream of `blocks` blocks from the function oracle, with one query per block. -/
+@[expose]
 def ctrKeystreamQueries (n : ℕ) (iv : List Bool) (blocks : ℕ) : WordOracleComp Unit (List Bool) :=
   Prod.snd <$> OracleComp.iterate blocks (ctrKeystreamStep n iv) (0, [])
 
@@ -281,7 +285,7 @@ theorem eval_prfRealGame_ctrToPrfDistinguisher {family : List Bool → List Bool
 
 /-- The keystream queries are strict oracle PPT: each step makes one charged query and grows the
 encoded state by at most `n + 2` bits. -/
-private theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
+theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
     {n blocks : α → ℕ} {iv : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary) (hiv : ComputableInPolyTime iv input encBits)
     (hblocks : ComputableInPolyTime blocks input encUnary) :
@@ -294,19 +298,24 @@ private theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ Li
       (fun pair : α × (ℕ × List Bool) => List.take (n pair.1) <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
           ((), ctrWordCounter (n pair.1) (iv pair.1) pair.2.1)) :=
-    IsOraclePPTOn.query_take' ()
+    IsOraclePPTOn.query_take ()
       (computableInPolyTime_ctrWordCounter hnStep (hiv.comp (ComputableInPolyTime.fst _ _))
         (by dsimp only [EStep]; fun_prop))
       hnStep
+  have hcallbackInput := ComputableInPolyTime.id' (encIn := encPair EStep encBits)
+  have hcounter := ComputableInPolyTime.unary_add' hcallbackInput.fst'.snd'.fst'
+    (ComputableInPolyTime.const 1)
+  have houtput := ComputableInPolyTime.bitsAppend hcallbackInput.fst'.snd'.snd'
+    hcallbackInput.snd'
   have hstep : IsOraclePPTOn EStep (encPair encUnary encBits)
       (fun pair : α × (ℕ × List Bool) => ctrKeystreamStep (n pair.1) (iv pair.1) pair.2) :=
-    hquery.map_with' (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
-      (by dsimp only [EStep]; fun_prop)
+    hquery.map_with (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
+      (hcounter.prod houtput)
   have hnBound : PolyBounded (fun a => (input a).length) n := by
     simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
   have hgrowthPoly : PolyBounded (fun a => (input a).length) (fun a => n a + 2) :=
     hnBound.add (PolyBounded.const 2)
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
+  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (stateEncoding := encPair encUnary encBits)
     (initial := fun _ => ((0 : ℕ), ([] : List Bool))) (count := blocks)
     (step := fun a state => ctrKeystreamStep (n a) (iv a) state)
@@ -318,7 +327,7 @@ private theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ Li
       simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply,
         List.length_append]
       omega)
-  exact hloop.map' (ComputableInPolyTime.snd _ _)
+  exact hloop.map (ComputableInPolyTime.snd _ _)
 
 /-- **Efficiency of the reduction.** For every uniform strict oracle-PPT adversary,
 `ctrToPrfDistinguisher adversary bit` is uniform strict oracle PPT. -/
