@@ -14,6 +14,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import Mathlib.Data.List.GetD
 
 /-!
@@ -120,13 +121,9 @@ theorem clauseEvalBits_eq_eval {c : Clause ℕ} (hc : c.length ≤ 3) (σ : ℕ 
 def varBit (φ : CNF ℕ) (vec : List Bool) (v : ℕ) : Bool :=
   if φ.vars.idxOf v < φ.vars.length then vec.getD (φ.vars.idxOf v) false else false
 
-private theorem varBit_eq_assignment {φ : CNF ℕ} (vec : List Bool) {v : ℕ} (hv : v ∈ φ.vars) :
-    varBit φ vec v = SAT.assignment φ vec v := by
-  simp [varBit, SAT.assignment, List.idxOf_lt_length_iff.mpr hv]
-
 private theorem eval_varBit_eq (φ : CNF ℕ) (vec : List Bool) :
     φ.eval (varBit φ vec) = φ.eval (SAT.assignment φ vec) :=
-  CNF.eval_congr (fun _ hv => varBit_eq_assignment vec hv)
+  CNF.eval_congr fun _ hv => by simp [varBit, SAT.assignment, List.idxOf_lt_length_iff.mpr hv]
 
 @[simp] theorem varBit_listXor (φ : CNF ℕ) (w m : List Bool) (v : ℕ) :
     varBit φ (BitString.listXor φ.vars.length [w, m]) v = (varBit φ w v ^^ varBit φ m v) := by
@@ -619,19 +616,18 @@ theorem runTwoRound_bind {α β : Type} (reply1 reply2 : List Bool → List Bool
     (prog : WordOracleComp Unit α) (next : α → WordOracleComp Unit β) (s : TwoRoundState) :
     runTwoRound reply1 reply2 (prog >>= next) s =
       (runTwoRound reply1 reply2 prog s >>= fun x => runTwoRound reply1 reply2 (next x.1) x.2) := by
-  simp only [runTwoRound, OracleComp.interpret_bind, StateT.run_bind]
+  simp only [runTwoRound, interp_norm]
 
 theorem runTwoRound_map {α β : Type} (reply1 reply2 : List Bool → List Bool)
     (f : α → β) (prog : WordOracleComp Unit α) (s : TwoRoundState) :
     runTwoRound reply1 reply2 (f <$> prog) s =
       Prod.map f id <$> runTwoRound reply1 reply2 prog s := by
-  simp only [runTwoRound, OracleComp.interpret_map, StateT.run_map]; rfl
+  simp only [runTwoRound, interp_norm]; rfl
 
 @[simp] theorem runTwoRound_sample {α : Type} (reply1 reply2 : List Bool → List Bool)
     (prog : ProbComp α) (s : TwoRoundState) :
     runTwoRound reply1 reply2 (ProbOracleComp.sample prog) s = (·, s) <$> prog := by
-  simp only [runTwoRound, ProbOracleComp.interpret_sample, OracleComp.run_interpret_lift,
-    ProbComp.interpret_unifFin]
+  simp only [runTwoRound, interp_norm]
 
 @[simp] theorem runTwoRound_query (reply1 reply2 : List Bool → List Bool)
     (q : Unit × List Bool) (s : TwoRoundState) :

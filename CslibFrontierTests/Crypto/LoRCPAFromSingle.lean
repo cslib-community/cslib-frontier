@@ -38,9 +38,13 @@ private noncomputable def constWordAdv : WordLoRAdversary where
   guess _ _ tr := pure (tr.length == 3)
 
 private lemma isPPT_constWordAdv : LoRAdversaryOf.IsPPT encBits constWordAdv where
-  start := (ComputableInPolyTime.const ([] : List Bool)).tidy.isPPTOn
-  query := (ComputableInPolyTime.of_tidy (by polytime)).isPPTOn
-  guess := (ComputableInPolyTime.of_tidy (by polytime)).isPPTOn
+  start := (ComputableInPolyTime.const ([] : List Bool)).isPPTOn
+  query := by
+    apply ComputableInPolyTime.isPPTOn
+    polytime
+  guess := by
+    apply ComputableInPolyTime.isPPTOn
+    polytime
   state_growth := ⟨fun n => n, by fun_prop, fun _ _ _ r hr => by
     simp only [constWordAdv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
     subst hr; simp [ChoiceOut.state]⟩
@@ -116,9 +120,9 @@ theorem isPPT_const_lorToSingle :
         constWordEncrypt (fun _ => 3) constWordAdv).IsPPT encBits := by
   have hvalid : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool =>
       p.2.2.1.length == p.2.2.2.length) (encChallengePairInput encBits) encBool :=
-    ComputableInPolyTime.of_tidy (by polytime)
+    by polytime
   have henc : IsPPTOn (encKeyedInput encBits) encBits (fun _ => pure [false]) :=
-    (ComputableInPolyTime.const ([false] : List Bool)).tidy.isPPTOn
+    (ComputableInPolyTime.const ([false] : List Bool)).isPPTOn
   have hctB : Cslib.PolynomiallyBounded (fun _ => 1) := by fun_prop
   have hctL :
       ∀ n k msg c, c ∈ (ProbComp.eval (constWordEncrypt n k msg)).support → c.length ≤ 1 :=
@@ -156,7 +160,7 @@ theorem const_wordLoRINDCPA :
         simp [gameOn, constWordEncrypt]
       simp [Game.advantage, hconst false, hconst true]
   have henc : IsPPTOn (encKeyedInput encBits) encBits (fun _ => pure [false]) :=
-    (ComputableInPolyTime.const ([false] : List Bool)).tidy.isPPTOn
+    (ComputableInPolyTime.const ([false] : List Bool)).isPPTOn
   have hctB : Cslib.PolynomiallyBounded (fun _ => 1) := by fun_prop
   have hctL :
       ∀ n k msg c, c ∈ (ProbComp.eval (constWordEncrypt n k msg)).support → c.length ≤ 1 :=
@@ -179,7 +183,7 @@ theorem const_lorINDCPA : LoRINDCPA constKeyGen constBitEncrypt (fun _ => 3) := 
         simp [gameOn, constBitEncrypt]
       simp [Game.advantage, hconst false, hconst true]
   exact hss.lorINDCPA (ctBound := fun _ => 1)
-    ((ComputableInPolyTime.const ([false] : List Bool)).tidy.isPPTOn)
+    ((ComputableInPolyTime.const ([false] : List Bool)).isPPTOn)
     (by fun_prop)
     (fun _ _ _ c hc => by
       simp only [constBitEncrypt, ProbComp.eval_pure, PMF.support_pure,
@@ -196,10 +200,12 @@ theorem leak_not_wordLoRINDCPA :
       query := fun _ _ _ => pure (([false], [true]), [])
       guess := fun _ _ tr => pure (tr == [[true]]) }
   have hadv : LoRAdversaryOf.IsPPT encBits adv :=
-    { start := (ComputableInPolyTime.const ([] : List Bool)).tidy.isPPTOn
+    { start := (ComputableInPolyTime.const ([] : List Bool)).isPPTOn
       query := (ComputableInPolyTime.const
-        ((([false], [true]), []) : ChoiceOut (List Bool))).tidy.isPPTOn
-      guess := (ComputableInPolyTime.of_tidy (by polytime)).isPPTOn
+        ((([false], [true]), []) : ChoiceOut (List Bool))).isPPTOn
+      guess := by
+        apply ComputableInPolyTime.isPPTOn
+        polytime
       state_growth := ⟨fun n => n, by fun_prop, fun _ _ _ r hr => by
         simp only [adv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
         subst hr; simp [ChoiceOut.state]⟩ }

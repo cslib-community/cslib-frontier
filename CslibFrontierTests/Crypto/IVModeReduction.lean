@@ -60,7 +60,7 @@ example {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adve
           (ivModeEncrypt fun n k iv msg =>
             (prfOracle family n k (List.zipWith xor iv msg)).take msg.length) adversary bit n) :=
   ⟨isOraclePPT_ivModeToPrfDistinguisher
-      (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop))
+      (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
       (fun _ _ _ _ hreply => by
         obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
         exact List.length_take_le _ _)

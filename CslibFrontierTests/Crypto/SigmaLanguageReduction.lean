@@ -109,7 +109,7 @@ theorem encryptedBit_sound :
     (encryptedBit q g).toInteractiveVerifier.Sound World.plain
       (language (Function.swap (bitRel q g))) Set.univ (1 / (Fintype.card (ZMod q) : ℝ≥0∞)) :=
   (languageReduction_bit q g).sound
-    (orProof_specialSoundness chaumPedersen_specialSoundness chaumPedersen_specialSoundness)
+    (orProofWith_specialSoundness chaumPedersen_specialSoundness chaumPedersen_specialSoundness)
 
 /-- Here a witness can be mapped back (by the identity), so the protocol is special sound for the
 relation itself. -/
@@ -117,7 +117,7 @@ theorem encryptedBit_specialSoundness :
     (encryptedBit q g).SpecialSoundness (bitRel q g) fun y t c z c' z' =>
       orExtract (linearExtract (Function.Embedding.refl _))
         (linearExtract (Function.Embedding.refl _)) (bitStmt g y) t c z c' z' :=
-  ((orProof_specialSoundness chaumPedersen_specialSoundness
+  ((orProofWith_specialSoundness chaumPedersen_specialSoundness
     chaumPedersen_specialSoundness).comap (fun x _ => x) (bitStmt g)).mapWitness (fun x' _ => x')
       fun x' y h => (bitRel_iff q g x' y).mp h
 
@@ -300,15 +300,16 @@ noncomputable def schnorrSumFamily (i : ℕ × F.Desc) :
       (F.Carrier i.2) (ZMod (F.order i.2)) (ZMod (F.order i.2)) :=
   (F.schnorrFamily i).comap (fun x _ => x.1 + x.2) (F.sumStatement i)
 
-/-- Efficient special HVZK transfers, with the same error. -/
-theorem efficientSpecialHVZK_schnorrSum :
+/-- Efficient special HVZK against the ideal-sampling honest prover transfers, with the same
+error. -/
+theorem efficientSpecialHVZK_schnorrSum_ideal :
     EfficientSpecialHVZK F.schnorrSumFamily
       (fun i x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2)
       (F.schnorrEncoding.withStatement F.encSumStatement)
       (fun i y c => linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
         (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _) (F.sumStatement i y) c)
       (fun i => 1 / 2 ^ i.1) :=
-  F.efficientSpecialHVZK_schnorr.comap
+  F.efficientSpecialHVZK_schnorr_ideal.comap
     (fun i x y h => by simp only [sumStatement, add_smul, h.1, h.2])
     F.computableInPolyTime_sumStatementWord F.sumStatementWord_encSumStatement
 

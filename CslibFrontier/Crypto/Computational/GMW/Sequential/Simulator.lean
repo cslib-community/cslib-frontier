@@ -27,6 +27,7 @@ import CslibFrontier.Languages.Probabilistic.Iteration.Chain
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Multi-session zero-knowledge simulator and PRG reduction for sequentially amplified GMW
@@ -367,7 +368,7 @@ private theorem computableInPolyTime_optionOr {α β : Type}
     ComputableInPolyTime (fun a => (left a).or (right a)) encA (encOption encB) :=
   (congrArg (ComputableInPolyTime · encA (encOption encB))
     (by funext a; cases left a <;> rfl)).mp
-    ((hleft.tidy.optionIsSome.computableInPolyTime).ite' hleft hright)
+    ((hleft.optionIsSome).ite' hleft hright)
 
 private abbrev SessionCtx (α : Type) (tapes : ℕ) (Control : Type) :=
   α × (ℕ × (ℕ × FiniteConfig tapes Bool Control Unit))
@@ -390,7 +391,7 @@ private theorem isOraclePPTOn_VstarSession {α : Type} {enc : α ↪ List Bool}
   let encSt := encPair encUnary encCfg
   let encCtx := encPair enc (encPair encUnary encSt)
   have hctx := (ComputableInPolyTime.snd encUnary (encPair encCtx encBits)).fst'.snd'
-  have h := (isOraclePPTOn_sessionStep machine).preprocess'
+  have h := (isOraclePPTOn_sessionStep machine).preprocess
     (hctx.fst'.prod (hctx.snd'.fst'.prod ((ComputableInPolyTime.const 2).prod hctx.snd'.snd')))
   exact (congrArg (IsOraclePPTOn _ _) (by funext p; rfl)).mp h
 
@@ -436,7 +437,7 @@ theorem mem_support_simSessionStep {tapes : ℕ} {Control : Type}
   rcases firstSuccess_eq_or_mem st xs with h | h
   · exact Or.inl h
   · exact Or.inr (mem_support_gmwSimAttempt generator s m φ _
-      (mem_support_of_mem_replicate hxs h))
+      (((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).2 _ h))
 
 theorem isPPTOn_iterate_simSessionStep_finishSessionRun {α Param : Type}
     {enc : α ↪ List Bool} {input : Param ↪ List Bool}
@@ -482,14 +483,14 @@ theorem isPPTOn_iterate_simSessionStep_finishSessionRun {α Param : Type}
     (hn.comp' hp1) (hT.comp' hp1) (hatt.comp' hp1) (ha.comp' hp1) hp2
   have hsizePoly : PolyBounded (fun p => (input p).length)
       (fun p => (2 * cf + 3) * ((word p).length + T p + 1)) := by growth_poly
-  have hinit := hT.tidy.prod
-    (ComputableTidilyInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
-      hword.tidy machine.initial)
+  have hinit := hT.prod
+    (ComputableInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
+      hword machine.initial)
   have hiter := (IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encSt)
     (count := K) (initial := fun p => (T p, FiniteConfig.init machine.initial (word p)))
     (step := fun p => simSessionStep machine generator (n p + 7) (length (n p + 7))
       (T p) (att p) (f (a p)))
-    hK.tidy hinit hstep inv hbase hpres hsizePoly
+    hK hinit hstep inv hbase hpres hsizePoly
     (by
       intro p i st _ ⟨h1, h2⟩
       have hcfg : (encFiniteConfig st.2).length ≤ cf * (2 * ((word p).length + T p + 1)) :=
@@ -658,12 +659,12 @@ theorem isPPTOn_sessionWithPadsStep_and_support {α Param : Type}
       (fun p => 2 * (C * (limit p + (encSt (state p).1).length + 1) + 1) +
         (encList encBits (state p).2).length) := by growth_poly
   have hinit := ((ComputableInPolyTime.const (encOut := encOption encSt)
-    (none : Option (ℕ × FiniteConfig tapes Bool Control Unit))).prod hstate.snd').tidy
+    (none : Option (ℕ × FiniteConfig tapes Bool Control Unit))).prod hstate.snd')
   have hiter := IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encLoop)
     (count := att) (initial := fun p => (none, (state p).2))
     (step := fun p => attemptWithPadsStep machine generator (s p) (m p) (limit p)
       (f (a p)) (w p) (state p).1)
-    hatt.tidy hinit hstep inv hbase hpres hsizePoly
+    hatt hinit hstep inv hbase hpres hsizePoly
     (by
       intro p i cur _ ⟨h1, h2⟩
       have hcur_len : (encLoop cur).length =
@@ -676,8 +677,8 @@ theorem isPPTOn_sessionWithPadsStep_and_support {α Param : Type}
         | some v => exact hC (limit p) 2 (state p).1 v (h1 v hopt_eq)
       omega)
   refine ⟨?_, fun p next hnext => ?_⟩
-  · have hgetD := (hp2.fst'.tidy.optionGetDWithInput
-      (hstate.comp' hp1).fst'.tidy).computableInPolyTime
+  · have hgetD := (hp2.fst'.optionGetDWithInput
+      (hstate.comp' hp1).fst')
     have hpost := hgetD.prod hp2.snd'
     have hres := hiter.1.map_with
       (f := fun (p : Param)
@@ -750,16 +751,16 @@ theorem isPPTOn_runAllSessionsWithPads {α Param : Type}
   have hsizePoly : PolyBounded (fun p => (input p).length)
       (fun p => 2 * ((2 * cf + 3) * ((word p).length + T p + 1)) + 1 +
         (encList encBits (pads p)).length) := by growth_poly
-  have hinit := (hT.tidy.prod
-    (ComputableTidilyInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
-      hword.tidy machine.initial)).prod
-    hpads.tidy
+  have hinit := (hT.prod
+    (ComputableInPolyTime.finiteConfig_init (k := tapes) (Oracle := Unit)
+      hword machine.initial)).prod
+    hpads
   have hiter := (IsPPTOn.iterateWith_spec (input := input) (stateEncoding := encOuter)
     (count := K)
     (initial := fun p => ((T p, FiniteConfig.init machine.initial (word p)), pads p))
     (step := fun p => sessionWithPadsStep machine generator (s p) (m p) (T p) (att p)
       (f (a p)) (w p))
-    hK.tidy hinit hstep_and_supp.1 inv hbase hpres hsizePoly
+    hK hinit hstep_and_supp.1 inv hbase hpres hsizePoly
     (by
       intro p i cur _ ⟨h1, h2, h3⟩
       have hcfg : (encFiniteConfig cur.1.2).length ≤ cf * (2 * ((word p).length + T p + 1)) :=
@@ -1165,23 +1166,13 @@ theorem AdvicePRG.gmwSeqView_negligible {α : Type} {enc : α ↪ List Bool}
     simp only [length_encPair, encBits_apply]
     exact (((PolynomiallyBounded.const 2).mul hz).add (.const 1)).add hz'
   have hneg := hAdv.negligible_encoded hclock ha hw haux
-  have hcount : ComputableTidilyInPolyTime (fun a => totalLen (f a)) enc encUnary :=
-    (computableInPolyTime_totalLen hf).tidy
-  have hsize : PolyBounded id (fun n => (enc (a n)).length) := ⟨_, ha, fun _ => le_rfl⟩
-  have hcount_poly := (hcount.polyBounded.comp hsize).polynomiallyBounded
-  have hk_poly : PolynomiallyBounded k := hk.tidy.polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (k n * ((n + 1) * totalLen (f (a n))))) :=
-    PolynomiallyBounded.comp ComputableInPolyTime.unary_dyadicSize.tidy.polynomiallyBounded
-      (hk_poly.mul ((PolynomiallyBounded.id.add (.const 1)).mul hcount_poly))
-  have hgeom := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  have herr := hgeom.polynomiallyBounded_mul hk_poly
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [ProbComp.eval_bind] using
+  dsimp only at hneg
+  have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
+    ((computableInPolyTime_totalLen hf).polyBounded.comp
+      ⟨_, ha, fun _ => le_rfl⟩).polynomiallyBounded
+  negligible using fun n =>
     gmwSeqView_advantage_le generator length f k hV
-      (fun m a _ view => adversary m a (z' n) view)
-      n (a n) (w n) (z n) (hw_sat n)
+      (fun m a _ view => adversary m a (z' n) view) n (a n) (w n) (z n) (hw_sat n)
 
 /-- **Zero-knowledge simulation of the sequentially amplified GMW protocol.** For any uniform strict
 oracle PPT malicious verifier `Vstar` and any deterministic polynomial-time families of instances
@@ -1223,20 +1214,12 @@ theorem gmwSeqView_indistinguishable_gmwSeqSimulator {α : Type} {enc : α ↪ L
       ((hn1.prod ((ha.comp hn1).prod ((hw_comp.comp hn1).prod (hz.comp hn1)))).prod
         (.snd encUnary encBits))
   have hneg := (hG.indistinguishable.shift 7) red hred
+  simp only [pmf_norm, distinguishingGame_eq_bind, generatorEnsemble, red] at hneg
   have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
-    ((computableInPolyTime_totalLen hf).comp ha).tidy.polynomiallyBounded
-  have hk_poly : PolynomiallyBounded k := hk.tidy.polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (k n * ((n + 1) * totalLen (f (a n))))) :=
-    PolynomiallyBounded.comp ComputableInPolyTime.unary_dyadicSize.tidy.polynomiallyBounded
-      (hk_poly.mul ((PolynomiallyBounded.id.add (.const 1)).mul hcount_poly))
-  have hgeom := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  have herr := hgeom.polynomiallyBounded_mul hk_poly
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [pmf_norm, distinguishingGame_eq_bind, BitString.eval_sampleList, generatorEnsemble,
-    red] using
-    gmwSeqView_advantage_le generator length f k hV (fun n _ _ view => adversary n view)
-      n (a n) (w n) (z n) (hw_sat n)
+    ((computableInPolyTime_totalLen hf).comp ha).polynomiallyBounded
+  negligible using fun n => by
+    simpa only [pmf_norm, BitString.eval_sampleList] using
+      gmwSeqView_advantage_le generator length f k hV (fun n _ _ view => adversary n view)
+        n (a n) (w n) (z n) (hw_sat n)
 
 end Cslib.Crypto.GMW

@@ -100,9 +100,8 @@ theorem computableInPolyTime_pkeSeedDigest :
       encByteStringLE encByteStringLE := by
   have happended : ComputableInPolyTime
       (fun seed : List (Fin 256) => seed ++ [0x02]) encByteStringLE encByteStringLE :=
-    ComputableInPolyTime.of_tidy <|
-      Turing.MultiTapeTM.ComputableTidilyInPolyTime.listAppend encByteLE |>.comp
-        ((id' (encIn := encByteStringLE)).tidy.prod (const [0x02]).tidy)
+      Turing.MultiTapeTM.ComputableInPolyTime.listAppend encByteLE |>.comp
+        ((id' (encIn := encByteStringLE)).prod (const [0x02]))
   change ComputableInPolyTime (fun seed : List (Fin 256) => sha3512 (seed ++ [0x02]))
     encByteStringLE encByteStringLE
   exact computableInPolyTime_sha3512.comp happended

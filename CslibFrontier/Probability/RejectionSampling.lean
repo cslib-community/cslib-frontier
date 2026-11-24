@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import Cslib.Probability.PMF
+import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.Map
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Data.Int.Interval
 public import Mathlib.Algebra.Order.Group.Int
@@ -23,7 +26,7 @@ value is uniform on `S` (`PMF.shiftReject_apply_some`, `PMF.shiftReject_apply_no
 exact, finite form of the rejection-sampling lemma behind Lyubashevsky's identification scheme
 and signatures ([Lyubashevsky2009], [Lyubashevsky2012]).
 
-The box instance (`PMF.boxReject`) is the variant used in Dilithium ([DucasEtAl2018]):
+The symmetric box instance (`PMF.boxReject`) specializes this rejection argument:
 `y` is uniform in the integer box `[-γ, γ]^ι` and the shift `v` has sup norm at most `β ≤ γ`.
 The accepted values are then uniform on `[-(γ - β), γ - β]^ι`, the acceptance probability is
 exactly `((2 (γ - β) + 1) / (2 γ + 1)) ^ |ι|`, and the abort probability is at most
@@ -175,6 +178,38 @@ theorem shiftReject_apply_some_eq_mul (hv : ∀ z ∈ S, z - v ∈ B) (hS : S.No
   · rw [div_eq_mul_inv, mul_comm (S.card : ℝ≥0∞), mul_assoc, ENNReal.mul_inv_cancel
       (by simpa using hS.ne_empty) (ENNReal.natCast_ne_top _), mul_one]
   · rw [mul_zero]
+
+/-- With probability `min(size, keep)/size`, draw a fresh value from `p`; otherwise return
+`none`. The gate uses a uniform finite index and is independent of the returned value. -/
+noncomputable def sampleWithRatio {β : Type*} (p : PMF β) (keep size : ℕ) (hn : 0 < size) :
+    PMF (Option β) :=
+  have : NeZero size := ⟨hn.ne'⟩
+  let coin := (PMF.uniformOfFintype (Fin size)).map fun i => decide (i.val < keep)
+  coin.bind fun b => if b then p.map some else PMF.pure none
+
+/-- Translated rejection sampling factors as an independent cardinality-ratio gate and a
+fresh uniform sample from the acceptance set, including the full probability of failure. -/
+theorem shiftReject_eq_sampleWithRatio (hv : ∀ z ∈ S, z - v ∈ B) (hS : S.Nonempty) :
+    shiftReject B S hB v =
+      sampleWithRatio (uniformOfFinset S hS) S.card B.card (Finset.card_pos.mpr hB) := by
+  classical
+  have : NeZero B.card := ⟨(Finset.card_pos.mpr hB).ne'⟩
+  let coin := (PMF.uniformOfFintype (Fin B.card)).map fun i => decide (i.val < S.card)
+  have hcard : S.card ≤ B.card := Finset.card_le_card_of_injOn (fun z => z - v)
+    hv (fun _ _ _ _ h => sub_left_inj.mp h)
+  have htrue : coin true = (S.card : ℝ≥0∞) / B.card :=
+    (uniformFin_decide_lt B.card S.card).trans (by rw [min_eq_right hcard])
+  have hfalse : coin false = 1 - (S.card : ℝ≥0∞) / B.card := by
+    rw [← htrue]
+    exact ENNReal.eq_sub_of_add_eq (PMF.apply_ne_top _ _) (by
+      rw [add_comm]; exact PMF.apply_true_add_apply_false _)
+  ext o
+  change _ = (coin.bind fun b => if b then _ else _) o
+  rw [PMF.bind_apply, tsum_fintype, Fintype.sum_bool, htrue, hfalse]
+  cases o with
+  | none => simp [shiftReject_apply_none hv, PMF.map_apply]
+  | some z =>
+    simp [shiftReject_apply_some_eq_mul hv hS, map_apply_of_injective _ (Option.some_injective _)]
 
 /-- The output law of rejection sampling is the same for all admissible shifts. -/
 theorem shiftReject_eq {v' : α} (hv : ∀ z ∈ S, z - v ∈ B) (hv' : ∀ z ∈ S, z - v' ∈ B) :

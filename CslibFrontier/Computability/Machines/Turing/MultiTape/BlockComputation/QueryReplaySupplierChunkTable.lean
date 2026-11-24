@@ -37,8 +37,8 @@ theorem answer_grid_eq_codeGate {q r m : ℕ} (M : MultiTapeTM k Bool Q) (e : Q 
         (⟨Packed.gridDigit (2 ^ m) counter j, Nat.mod_lt _ (by positivity)⟩ :
           Fin (2 ^ m))) child)
     answer M e ((machine M e).runFrom w
-      (prepare e ((m, chunk), (w.length, b, σ, i,
-        (2 ^ m) ^ ((k * 3 + 1) * r), counter, r * m))) b) =
+      (prepare e ((m, chunk), ⟨w.length, b, σ, i,
+        (2 ^ m) ^ ((k * 3 + 1) * r), counter, r * m⟩)) b) =
       (Packed.packBits hb
         (codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
           (Encoding.encode e) (Encoding.decode e) (i.val + 1) children) chunk).val := by

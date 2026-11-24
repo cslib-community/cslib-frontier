@@ -2551,9 +2551,10 @@ proves that semantic security gives security against message recovery ([bs23][bs
 Game 2.2, p. 18; Theorem 2.7, p. 19). For `E : Cipher K M C` with `M` finite and nonempty,
 `messageRecoveryAdvantage E sampleKey A` is `|Pr[W] - 1 / |M||`, and
 `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction` equates it with the one-time
-advantage of `messageRecoveryReduction` when `valid` admits every pair. For a
-`DEMOneTimeKeyWordINDCPA` cipher with messages in `{0, 1}^{msgLen n}`,
-`DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` shows that
+advantage of `messageRecoveryReduction` when `valid` admits every pair. For a cipher with message
+space `{0, 1}^{msgLen n}` that is semantically secure on that space (`DEMOneTimeKeyINDCPAOn` for
+the challenge pairs of two `msgLen n`-bit messages),
+`DEMOneTimeKeyINDCPAOn.negligible_messageRecoveryWordAdvantage` shows that
 `messageRecoveryWordAdvantage` is negligible for every PPT `A` whose outputs have length
 `msgLen n`, when `msgLen` is polynomial-time computable in unary;
 `isPPT_messageRecoveryWordToDEMAdversary` certifies the reduction. The
@@ -2567,10 +2568,12 @@ Attack Game 2.3, Definition 2.4, and Theorem 2.8, pp. 20–22). On `BitString L`
 `parityAdvantage_eq_half_mul_advantage_parityReduction` equates it with `(1 / 2)` times the
 one-time advantage of `parityReduction` when `valid` admits pairs flipping the last bit via
 `flipLastBitString`. On word messages `{0, 1}^{msgLen n}` with `∀ n, 1 ≤ msgLen n` and unary
-polynomial-time `msgLen`, when `encryptSym` satisfies `DEMOneTimeKeyWordINDCPA keyLen encryptSym`,
-`DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage` shows that `parityWordAdvantage` is
+polynomial-time `msgLen`, when `encryptSym` is semantically secure on its message space, that is,
+`DEMOneTimeKeyINDCPAOn` holds for the challenge pairs of two `msgLen n`-bit messages,
+`DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage` shows that `parityWordAdvantage` is
 negligible against every PPT `A`; `isPPT_parityWordToDEMAdversary` certifies
-`parityWordToDEMAdversary`, which invokes `parityReduction`. The
+`parityWordToDEMAdversary`, which invokes `parityReduction`. The premise says nothing about
+messages of other lengths, as in the book, where the message space is `{0, 1}^L`. The
 [tests](../../CslibFrontierTests/Crypto/ParityPrediction.lean) check concrete and word-level clients
 and show that `1 ≤ L`, `hvalid`, and `1 ≤ msgLen n` are all needed.
 

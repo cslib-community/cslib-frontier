@@ -178,14 +178,13 @@ theorem computableInPolyTime_schnorrForkOutput :
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) → List Bool}
       (hf : ComputableInPolyTime f E encBits) :
       ComputableInPolyTime (fun x => ofBits (f x)) E encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hf.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hf)
   have hextract := computableInPolyTime_extractNat hd
     (hnat (f := fun x => x.2.2.2.1.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.1.2.2) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.2) (by fun_prop))
-  have hbits := ComputableInPolyTime.of_tidy
-    (ComputableTidilyInPolyTime.natBits.comp hextract.tidy)
+  have hbits := (ComputableInPolyTime.natBits.comp hextract)
   have hi : ComputableInPolyTime (fun x : F.Desc × List (List Bool) × List (List Bool) ×
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) => x.2.2.2.1.1 - 1)
       E encUnary := by
@@ -386,7 +385,8 @@ theorem map_eval_schnorrForkingAdversary {k : ℕ} {Control : Type}
   simp only [schnorrForkingAdversary, ProbComp.eval_bind, ProbComp.eval_pure,
     BitString.eval_sampleList, eval_replicate_schnorrSimulatedTranscript,
     ProbComp.eval_replicate_sampleList, PMF.bind_map]
-  simp only [FiatShamir.reduction, Probability.Forking.fork, FiatShamir.coins,
+  simp only [FiatShamir.reduction, Probability.Forking.fork, Probability.Forking.onTapes,
+    FiatShamir.coins,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
     PMF.bind_map, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun tape => congrArg _ (funext fun transcripts =>

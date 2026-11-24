@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Foundations.Data.BitString.PartialAssignment
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Restrictions of De Morgan formulas
@@ -385,8 +386,7 @@ theorem IsSimplified.one_le_leafSize {F : Formula signature n} (hF : F.IsSimplif
 theorem IsSimplified.size_add_two_le {F : Formula signature n} (hF : F.IsSimplified) :
     F.size + 2 ≤ 3 * F.leafSize := by
   induction hF <;>
-    simp only [size_input, size_not, size_and, size_or, leafSize_input, leafSize_not,
-      leafSize_and, leafSize_or] <;> omega
+    simp only [circuit_simps, leafSize_input, leafSize_not, leafSize_and, leafSize_or] <;> omega
 
 /-- A formula that is a constant or simplified. -/
 private def ConstOrSimplified (F : Formula signature n) : Prop :=

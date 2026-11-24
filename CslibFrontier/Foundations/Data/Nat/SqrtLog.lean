@@ -11,7 +11,6 @@ public import CslibFrontier.Foundations.Data.Nat.CeilDiv
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.Nat.Sqrt
 import Mathlib.Tactic.IntervalCases
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -72,13 +71,8 @@ theorem sqrt_log_two_le_sqrt_clog_two_sub_one_add_one (n : ℕ) :
   · rw [h]; exact Nat.pow_pos (succ_pos _)
   · obtain ⟨m, hm⟩ : ∃ m, clog 2 n = m + 1 := ⟨clog 2 n - 1, by omega⟩
     rw [hm, Nat.add_sub_cancel]
-    have h1 := lt_succ_sqrt' m
-    have h2 : (m.sqrt + 1) ^ 2 < (m.sqrt + 1 + 1) ^ 2 :=
-      Nat.pow_lt_pow_left (by omega) (by norm_num)
-    simp only [succ_eq_add_one] at h1 ⊢
-    generalize (m.sqrt + 1) ^ 2 = a at h1 h2
-    generalize (m.sqrt + 1 + 1) ^ 2 = b at h2 ⊢
-    omega
+    exact (Nat.succ_le_of_lt (lt_succ_sqrt' m)).trans_lt
+      (Nat.pow_lt_pow_left (Nat.lt_succ_self _) two_ne_zero)
 
 /-- `m ^ 3 ≤ 4 ^ m`. -/
 private theorem cube_le_four_pow : ∀ m : ℕ, m ^ 3 ≤ 4 ^ m
@@ -86,10 +80,9 @@ private theorem cube_le_four_pow : ∀ m : ℕ, m ^ 3 ≤ 4 ^ m
   | 1 => by decide
   | 2 => by decide
   | m + 3 => by
-    have ih := cube_le_four_pow (m + 2)
-    have h : (m + 3) ^ 3 ≤ 4 * (m + 2) ^ 3 := by ring_nf; nlinarith
+    have h : (m + 3) ^ 3 ≤ 4 * (m + 2) ^ 3 := by ring_nf; omega
     calc (m + 3) ^ 3 ≤ 4 * (m + 2) ^ 3 := h
-      _ ≤ 4 * 4 ^ (m + 2) := Nat.mul_le_mul_left 4 ih
+      _ ≤ 4 * 4 ^ (m + 2) := Nat.mul_le_mul_left 4 (cube_le_four_pow (m + 2))
       _ = 4 ^ (m + 3) := by ring
 
 /-- `⌊log₂ n⌋ * √⌊log₂ n⌋ ≤ n`: with `L = ⌊log₂ n⌋`, `(L √L) ^ 2 ≤ L ^ 3 ≤ 4 ^ L ≤ n ^ 2`. -/
@@ -182,7 +175,9 @@ theorem div_sqrt_log_two_le_of_le {m n : ℕ} (h : m ≤ n) :
         (Nat.pow_le_pow_right two_pos (lt_succ_sqrt (log 2 m)))
     have hn2 : 2 ^ (b * b) ≤ n :=
       (Nat.pow_le_pow_right two_pos (sqrt_le (log 2 n))).trans (pow_log_le_self 2 (by omega))
-    have hexp : (a + 1) * (a + 1) + b ≤ b * b := by nlinarith
+    have hexp : (a + 1) * (a + 1) + b ≤ b * b := by
+      obtain ⟨d, hd⟩ : ∃ d, b = 2 * a + 1 + d := ⟨b - (2 * a + 1), by omega⟩
+      have := Nat.one_le_pow 2 a ha; rw [hd]; ring_nf; omega
     have hmb : m * b ≤ n :=
       calc m * b ≤ 2 ^ ((a + 1) * (a + 1)) * 2 ^ b :=
             Nat.mul_le_mul hm2.le Nat.lt_two_pow_self.le
@@ -208,14 +203,13 @@ theorem exists_three_pow_mul_le_two_pow_div_sqrt_log_two (K c d e : ℕ) : ∃ C
   have hS : 1 ≤ S := one_le_div_sqrt_log_two hT
   -- the scale of `t` is at most `2 c S`
   have ht : t / sqrt (log 2 t) ≤ c * S + c := mul_div_sqrt_log_two_le c T
-  have hcS : c * S + c ≤ 2 * c * S := by nlinarith
+  have hcS : c * S + c ≤ 2 * c * S := by
+    have := Nat.le_mul_of_pos_right c hS; rw [two_mul, add_mul]; omega
   -- the number of movement schedules
   have hq : t ⌈/⌉ clog 2 (t + 2) ≤ (2 * c + 1) * S := by
-    have := ceilDiv_clog_two_le t
-    nlinarith
+    have := ceilDiv_clog_two_le t; rw [add_mul, one_mul]; omega
   have h3 : 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) ≤ 2 ^ (2 * K * ((2 * c + 1) * S)) := by
-    calc 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) ≤ 4 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) :=
-          Nat.pow_le_pow_left (by norm_num) _
+    calc 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) ≤ 4 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) := by gcongr; norm_num
       _ = 2 ^ (2 * (K * (t ⌈/⌉ clog 2 (t + 2)))) := by
           rw [show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul]
       _ ≤ 2 ^ (2 * K * ((2 * c + 1) * S)) := Nat.pow_le_pow_right (by norm_num) (by
@@ -223,8 +217,7 @@ theorem exists_three_pow_mul_le_two_pow_div_sqrt_log_two (K c d e : ℕ) : ∃ C
   -- the polynomial factor
   have hpoly : (t + 1) ^ d ≤ 2 ^ (d * ((2 * c + 1) * S)) := by
     have hlog : log 2 t + 1 ≤ (2 * c + 1) * S := by
-      have := log_two_le_div_sqrt_log_two t
-      nlinarith
+      have := log_two_le_div_sqrt_log_two t; rw [add_mul, one_mul]; omega
     calc (t + 1) ^ d ≤ (2 ^ (log 2 t + 1)) ^ d :=
           Nat.pow_le_pow_left (lt_pow_succ_log_self one_lt_two t) d
       _ = 2 ^ (d * (log 2 t + 1)) := by rw [← pow_mul, mul_comm]
@@ -234,7 +227,9 @@ theorem exists_three_pow_mul_le_two_pow_div_sqrt_log_two (K c d e : ℕ) : ∃ C
   have hcon : 2 ^ (e * t / sqrt (log 2 t)) ≤ 2 ^ (e * ((2 * c + 1) * S)) := by
     refine Nat.pow_le_pow_right (by norm_num) ?_
     have := mul_div_le_mul_div_add e t (sqrt (log 2 t))
-    nlinarith
+    have := Nat.mul_le_mul_left e (ht.trans hcS)
+    have := Nat.le_mul_of_pos_right e hS
+    rw [add_mul, one_mul, mul_add]; omega
   calc 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) * (t + 1) ^ d * 2 ^ (e * t / sqrt (log 2 t))
       ≤ 2 ^ (2 * K * ((2 * c + 1) * S)) * 2 ^ (d * ((2 * c + 1) * S)) *
           2 ^ (e * ((2 * c + 1) * S)) := Nat.mul_le_mul (Nat.mul_le_mul h3 hpoly) hcon
@@ -246,10 +241,11 @@ theorem exists_three_pow_mul_le_two_pow_div_sqrt_log_two (K c d e : ℕ) : ∃ C
 `a * 2 ^ (c * x) + b ≤ 2 ^ ((a + b + c) * x)` for `1 ≤ x`. -/
 theorem mul_two_pow_add_le_two_pow {a b c x : ℕ} (hx : 1 ≤ x) :
     a * 2 ^ (c * x) + b ≤ 2 ^ ((a + b + c) * x) := by
-  have h1 : 1 ≤ 2 ^ (c * x) := Nat.one_le_two_pow
+  have hb1 : b ≤ b * 2 ^ (c * x) := Nat.le_mul_of_pos_right b Nat.one_le_two_pow
   have hab : a + b < 2 ^ (a + b) := Nat.lt_two_pow_self
-  have hab' : 2 ^ (a + b) ≤ 2 ^ ((a + b) * x) := Nat.pow_le_pow_right (by norm_num) (by nlinarith)
-  calc a * 2 ^ (c * x) + b ≤ (a + b) * 2 ^ (c * x) := by nlinarith
+  have hab' : 2 ^ (a + b) ≤ 2 ^ ((a + b) * x) :=
+    Nat.pow_le_pow_right (by norm_num) (Nat.le_mul_of_pos_right _ hx)
+  calc a * 2 ^ (c * x) + b ≤ (a + b) * 2 ^ (c * x) := by rw [add_mul]; omega
     _ ≤ 2 ^ ((a + b) * x) * 2 ^ (c * x) := Nat.mul_le_mul_right _ (hab.le.trans hab')
     _ = 2 ^ ((a + b + c) * x) := by rw [← pow_add]; ring_nf
 
@@ -278,12 +274,13 @@ theorem mul_two_pow_div_sqrt_log_two_add_le {a b C T : ℕ} (hT : 2 ≤ T) :
 theorem mul_add_one_pow_add_le_pow {a b d n : ℕ} (hn : 2 ≤ n) :
     a * (n + 1) ^ d + b ≤ n ^ (a + b + 2 * d) := by
   have hsq : (n + 1) ^ d ≤ n ^ (2 * d) := by
-    rw [pow_mul]
-    exact Nat.pow_le_pow_left (by nlinarith) d
-  have h1 : 1 ≤ n ^ (2 * d) := Nat.one_le_pow _ _ (by omega)
+    rw [pow_mul]; refine Nat.pow_le_pow_left ?_ d
+    obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩; ring_nf; omega
+  have hb1 : b ≤ b * n ^ (2 * d) := Nat.le_mul_of_pos_right b (Nat.one_le_pow _ _ (by omega))
   have hab : a + b < 2 ^ (a + b) := Nat.lt_two_pow_self
   have hab' : 2 ^ (a + b) ≤ n ^ (a + b) := Nat.pow_le_pow_left hn _
-  calc a * (n + 1) ^ d + b ≤ (a + b) * n ^ (2 * d) := by nlinarith
+  calc a * (n + 1) ^ d + b ≤ (a + b) * n ^ (2 * d) := by
+        have := Nat.mul_le_mul_left a hsq; rw [add_mul]; omega
     _ ≤ n ^ (a + b) * n ^ (2 * d) := Nat.mul_le_mul_right _ (hab.le.trans hab')
     _ = n ^ (a + b + 2 * d) := by rw [← pow_add]
 

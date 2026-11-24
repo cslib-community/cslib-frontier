@@ -57,11 +57,17 @@ abbrev FixedBytes (n : ℕ) := Fin n → Byte
 namespace FixedBytes
 
 /-- The list view of a fixed-length byte string. -/
-def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
+@[expose] def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
 
 /-- The list view has the byte length recorded in the type. -/
 @[simp] theorem length_toList {n : ℕ} (X : FixedBytes n) : X.toList.length = n := by
   simp [toList]
+
+/-- A byte string of length `n` is the list view of a fixed-length byte string. -/
+theorem exists_toList {n : ℕ} {bytes : List Byte} (h : bytes.length = n) :
+    ∃ v : FixedBytes n, v.toList = bytes := by
+  subst n
+  exact ⟨fun i => bytes[i.val], List.ofFn_getElem⟩
 
 end FixedBytes
 

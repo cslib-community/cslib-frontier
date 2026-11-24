@@ -14,6 +14,7 @@ import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Probability.Guessing.Leakage
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -190,13 +191,8 @@ theorem succProbability_inversionExperiment_uniform_le_add_card_div
       (fun x => (uniformOfFintype_apply x).le) H Finset.univ (fun _ => Finset.mem_univ _) A).trans
       ?_
     rw [Finset.card_univ]
-  have hterm : (Fintype.card T : ℝ≥0∞) * (Fintype.card M : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (ENNReal.inv_ne_top.mpr hcard_ne)
-  have hreal := (ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _)
-    (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, hterm⟩)).mpr henn
-  simpa only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal,
-    ENNReal.toReal_add (PMF.apply_ne_top _ _) hterm, ENNReal.toReal_mul, ENNReal.toReal_natCast,
-    ENNReal.toReal_inv, div_eq_mul_inv] using hreal
+  ennreal_to_real at henn
+  simpa only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, div_eq_mul_inv] using henn
 
 /-- **Exercise 8.23(b), equation (8.22)** ([BonehShoup2023], p. 353): when `|M| ≥ s · |T|` with
 `0 < s`, the second-preimage finder `B := fun m => A (H m)` built from an inverter `A` satisfies

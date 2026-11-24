@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Defs
 public import CslibFrontier.Computability.Complexity.Classes.IP.CoinFixing
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -420,8 +421,7 @@ private theorem run_eq_bind_piPresample [Fintype ι] [DecidableEq ι]
       (piPresample P L (BitString.shortWords L).toList d s).bind fun f =>
         ((OracleComp.interpret (Prover.independent (fun _ : ι => treeProver)).respond
           (pure a)).run f).map Prod.fst
-    simp only [OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.pure_map, PMF.bind_const]
+    simp only [interp_norm, pmf_norm, PMF.bind_const]
   | @liftBind k q next hq htake _ ih =>
     obtain ⟨i₀, m⟩ := q
     have hm : m ∈ (BitString.shortWords L).toList :=
@@ -433,8 +433,7 @@ private theorem run_eq_bind_piPresample [Fintype ι] [DecidableEq ι]
       (piPresample P L (BitString.shortWords L).toList d s).bind fun f =>
         ((OracleComp.interpret (Prover.independent (fun _ : ι => treeProver)).respond
           (OracleComp.query (i₀, m) >>= next)).run f).map Prod.fst
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.map_bind]
+    simp only [interp_norm, pmf_norm]
     have hrhs (f : ι → Sigma TreeStrategy) :
         (((Prover.independent (fun _ : ι => treeProver)).respond (i₀, m)).run f).bind
           (fun x => ((OracleComp.interpret (Prover.independent (fun _ : ι => treeProver)).respond
@@ -541,17 +540,14 @@ private noncomputable def bestOfList (g : α → ℝ≥0∞) (default : α) : Li
 
 private theorem le_bestOfList (g : α → ℝ≥0∞) (default : α) (l : List α) {x : α} (hx : x ∈ l) :
     g x ≤ g (bestOfList g default l) := by
-  induction l with
-  | nil => cases hx
-  | cons a l ih =>
-    simp only [bestOfList]
+  fun_induction bestOfList g default l with
+  | case1 => cases hx -- []
+  | case2 a l _ hle ih => -- a :: l, g b ≤ g a: keep a
     rcases List.mem_cons.mp hx with rfl | hx
-    · split_ifs with h
-      · exact le_rfl
-      · exact le_of_not_ge h
-    · split_ifs with h
-      · exact (ih hx).trans h
-      · exact ih hx
+    exacts [le_rfl, (ih hx).trans hle]
+  | case3 a l _ hnle ih => -- a :: l, g a < g b: keep b
+    rcases List.mem_cons.mp hx with rfl | hx
+    exacts [le_of_not_ge hnle, ih hx]
 
 private theorem tsum_mul_le_bestOfList (μ : PMF α) (g : α → ℝ≥0∞) (default : α) (l : List α)
     (hsupp : ∀ x ∈ μ.support, x ∈ l) :
@@ -646,9 +642,8 @@ theorem acceptFrom_truncate_eq [DecidableEq ι] {p : WordQueryComp ι Bool} {L k
         (some (OracleComp.query (i₀, m) >>= next)) =
       acceptFrom (Prover.independent fun i => (D i).toProver) s
         (some (OracleComp.query (i₀, m) >>= next))
-    simp only [acceptFrom, OracleComp.interpret_bind, OracleComp.interpret_query,
-      StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-      DetProver.toProver, DetProver.truncate, StateT.run_mk, PMF.pure_map, PMF.pure_bind]
+    simp only [acceptFrom, interp_norm, pmf_norm, DetProver.toProver, DetProver.truncate,
+      StateT.run_mk]
     rw [(htake ((D i₀).respond m (s i₀)).1).symm]
     simpa only [acceptFrom, DetProver.toProver, DetProver.truncate, StateT.run_mk,
       PMF.pure_map] using
@@ -669,23 +664,12 @@ def consistentHist : List (List Bool × List Bool) → List (List Bool × List B
 theorem DetProver.ValidFrom.consistentHist {D : DetProver} {s : D.State}
     {h₁ h₂ : List (List Bool × List Bool)} (hv₁ : D.ValidFrom s h₁) (hv₂ : D.ValidFrom s h₂) :
     MIP.consistentHist h₁ h₂ = true := by
-  induction h₁ generalizing s h₂ with
-  | nil => rfl
-  | cons e₁ rest₁ ih =>
-    obtain ⟨q₁, r₁⟩ := e₁
-    cases h₂ with
-    | nil => rfl
-    | cons e₂ rest₂ =>
-      obtain ⟨q₂, r₂⟩ := e₂
-      obtain ⟨hr₁, hv₁'⟩ := hv₁
-      obtain ⟨hr₂, hv₂'⟩ := hv₂
-      simp only [MIP.consistentHist]
-      by_cases hq : q₁ = q₂
-      · subst hq
-        simp only [beq_self_eq_true, ↓reduceIte, hr₁, ← hr₂, Bool.true_and]
-        exact ih hv₁' hv₂'
-      · have hq' : (q₁ == q₂) = false := beq_false_of_ne hq
-        simp [hq']
+  fun_induction MIP.consistentHist h₁ h₂ generalizing s with
+  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => -- same query: compare replies
+    obtain rfl := beq_iff_eq.mp hq
+    simp only [hv₁.1, ← hv₂.1, beq_self_eq_true, Bool.true_and]
+    exact ih hv₁.2 hv₂.2
+  | _ => rfl -- an empty history, or different queries
 
 /-- Filter a candidate list of histories on query `q`: keep the tails of histories starting with
 `(q, r')` and emit the first matching reply `r'` (or `[]` if none match). -/

@@ -79,7 +79,7 @@ private theorem pi_sum_err_ge_toReal_le [Finite X] [Finite Y] {μ : PublicCoin X
       ext p
       simp [err]
     refine le_trans (le_of_eq ?_) (hμ x hx y hy)
-    rw [PublicCoin.errorProb, ← hev, PMF.toOuterMeasure_apply_toReal]
+    rw [PublicCoin.errorProb, PMF.errorProb, ← hev, PMF.toOuterMeasure_apply_toReal]
     refine sum_congr rfl fun s _ => ?_
     by_cases hs : s (x, y) <;> simp [hs]
   have h := PMF.pi_sum_ge_mean_add_card_mul (fun _ : BitString k => ν)

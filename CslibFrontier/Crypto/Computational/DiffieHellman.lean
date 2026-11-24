@@ -180,13 +180,6 @@ enc_structure encDDHInput (F : PrimeOrderGroupFamily) : DDHInput F
   candidateShared : (F.encode groupParameters) using (F.encode_injective groupParameters)
 
 variable {F} in
-/-- The encoded generator of computed group parameters. -/
-@[fun_prop] theorem computableInPolyTime_encode_generator {α : Type} {enc : α ↪ List Bool}
-    {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
-    ComputableInPolyTime (fun a => F.encode (d a) (F.generator (d a))) enc encBits :=
-  F.computableInPolyTime_generator.comp hd
-
-variable {F} in
 /-- The encoded identity of computed group parameters, computed as `0 • g`. -/
 @[fun_prop] theorem computableInPolyTime_encode_zero {α : Type} {enc : α ↪ List Bool}
     {d : α → F.Desc} (hd : ComputableInPolyTime d enc F.encDesc) :
@@ -295,7 +288,7 @@ theorem isPPT_dlToCDHAdversary
       (by fun_prop)).map_with
     (f := fun x guess => F.smul (x.groupParameters, ofBits guess,
       F.encode x.groupParameters x.rightPublic))
-    (F.computableInPolyTime_smul.comp (by fun_prop))).congr fun x => ?_
+    (by fun_prop)).congr fun x => ?_
   simp [dlToCDHAdversary, dlToCDH, discreteLogAdversary, F.smul_encode]
 
 /-- **CDH implies the discrete-logarithm assumption**. -/
@@ -575,7 +568,7 @@ noncomputable def sampleExp (n : ℕ) (d : F.Desc) : ProbComp ℕ :=
   ProbComp.sampleModNat (n + (encNat (F.order d)).length) (F.order d)
 
 /-- `sampleExp` is uniform strict PPT whenever `n` and `d` are computable in polynomial time. -/
-theorem isPPTOn_sampleExp {γ : Type} {encIn : γ ↪ List Bool}
+@[program_certificate] theorem isPPTOn_sampleExp {γ : Type} {encIn : γ ↪ List Bool}
     {n : γ → ℕ} {d : γ → F.Desc}
     (hn : ComputableInPolyTime n encIn encUnary)
     (hd : ComputableInPolyTime d encIn F.encDesc) :
@@ -1166,7 +1159,7 @@ theorem negligible_ddhAmplifiedDecider_error {distinguisher : F.DDHDistinguisher
         {b | b ≠ decide (γ n = α n * β n)}).toNNReal := by
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 36 * invEps n + 1 :=
-    ((PolynomiallyBounded.const 36).mul hinvEps.tidy.polynomiallyBounded).add (.const 1)
+    ((PolynomiallyBounded.const 36).mul hinvEps.polynomiallyBounded).add (.const 1)
   have hmod_ev : ∀ᶠ n in Filter.atTop, 3 / (2 ^ n : ℝ) ≤ 1 / (12 * (invEps n : ℝ)) := by
     filter_upwards [hpos, hgeom.eventually_le_inv_polynomial hpoly (fun _ => Nat.succ_pos _)]
       with n hn hlt

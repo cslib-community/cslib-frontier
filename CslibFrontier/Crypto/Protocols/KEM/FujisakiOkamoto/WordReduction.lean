@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Word
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Security
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 public import CslibFrontier.Computability.Probabilistic.Memoize
@@ -17,16 +18,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.De
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import Mathlib.Data.FinEnum
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.Sampling
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Control.Monad.StateT
+import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Tactic.PPT
 
 /-!
-# The certified IND-CPA reduction of the word-level Fujisaki–Okamoto family
+# The certified IND-CPA reductions of the word-level Fujisaki–Okamoto families
 
 The IND-CCA bounds of `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot` and `…Bot`
 reduce to the two-stage IND-CPA advantage of one explicit adversary,
@@ -45,11 +44,13 @@ is `IsOraclePPT encBool A`.
 A request in the domain is answered by the typed keyless simulator `Scheme.simFilterHandler` of
 the bundle `WordPKE.scheme P keyLen n`, on the same state `SimState`; a decapsulation answer is
 encoded with `encOption encBits`. The domain is: messages of length `msgLen n` for `G`; for `H`,
-the canonical encodings `encHQuery (b, m, c)` of a message `m` of length `msgLen n` and a
+the canonical encodings `encHQuery (false, m, c)` of a message `m` of length `msgLen n` and a
 ciphertext `c` of length at most `ctLen n` (`WordPKE.isHQuery`); and ciphertexts of length at most
 `ctLen n` for decapsulation. Any other request gets the empty reply and leaves the state
-unchanged. The filter `d pk gCache c` decides which decapsulation queries are answered; every
-query is answered for `FO-notbot` (`WordPKE.romCpaReductionWord`).
+unchanged. The filter `d n pk gCache c` decides which decapsulation queries are answered. Every
+query is answered for `FO-notbot` (`WordPKE.romCpaReductionWord`). For `FO^⊥`
+(`WordPKE.romBotCpaReductionWord`) the filter is `Scheme.simBotCheck`, which answers a query only
+when a cached `G` query re-encrypts to it under `encDet n pk`.
 
 **The reduction.** `WordPKE.romFilterCpaReductionWord d A` mirrors
 `Scheme.romFilterCpaReduction`. Its first stage draws `m₀, m₁` uniformly of length `msgLen n` and
@@ -59,18 +60,19 @@ runs `A` against the simulator from empty caches (`WordPKE.simFilterWordHit`) an
 
 **The certificate.** `WordPKE.IsEfficient.isPPT_romFilterCpaReductionWord` derives
 `Encryption.AdversaryOf.IsPPT` of the reduction from `IsOraclePPT encBool A`, the efficiency of
-the PKE family (`WordPKE.IsEfficient`), a polynomial-time key length and a polynomial-time filter.
+the PKE family (`WordPKE.IsEfficient`), a polynomial-time key length and a polynomial-time filter;
+the `FO^⊥` filter is polynomial-time whenever encryption is.
 The simulator is substituted into `A` with `IsOraclePPT.run_interpret_preprocess`. Each call is
 strict PPT in the full state (`WordPKE.IsEfficient.isPPTOn_simFilterWordHandler`), keeps every
 cached value at most `coinLen n + keyLen n` bits long, and adds at most a polynomial in the
 request length and `n` to the encoded state.
 
-The advantage of this reduction is the typed `cpaAdvantage` of `Scheme.romCpaReduction` on a typed
-view of `A` (`WordPKE.IsEfficient.exists_typedAdversary` in
+The advantages of the two instances are the typed `cpaAdvantage` of `Scheme.romCpaReduction` and
+`Scheme.romBotCpaReduction` on a typed view of `A` (`WordPKE.IsEfficient.exists_typedAdversary` in
 `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordBridge`), and the asymptotic IND-CCA
-theorem `WordPKE.INDCPA.romINDCCA` in
-`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity` applies the IND-CPA assumption
-to it.
+theorems `WordPKE.INDCPA.romINDCCA` and `WordPKE.INDCPA.romINDCCABot` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity` apply the IND-CPA assumption
+to them.
 
 ## Main definitions
 
@@ -84,9 +86,12 @@ to it.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.simFilterWordHandler`,
   `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.simFilterWordHit`: the native keyless simulator
   and its run on a challenge.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.encFilterInput`: the encoded input of a decapsulation
+  filter.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.romFilterCpaReductionWord`,
-  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.romCpaReductionWord`: the native IND-CPA
-  reduction, and its `FO-notbot` instance.
+  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.romCpaReductionWord`,
+  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.romBotCpaReductionWord`: the native IND-CPA
+  reduction, and its `FO-notbot` and `FO^⊥` instances.
 
 ## Main results
 
@@ -95,8 +100,9 @@ to it.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.isPPTOn_simFilterWordHandler`: one
   simulator call is uniform strict PPT.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.isPPT_romFilterCpaReductionWord`,
-  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.isPPT_romCpaReductionWord`: the
-  reduction is uniform strict PPT whenever the adversary is uniform strict oracle PPT.
+  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.isPPT_romCpaReductionWord`,
+  `Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.IsEfficient.isPPT_romBotCpaReductionWord`: the
+  reductions are uniform strict PPT whenever the adversary is uniform strict oracle PPT.
 
 ## References
 
@@ -139,6 +145,11 @@ abbrev encSimCall : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) ×
     SimState (List Bool) (List Bool) (List Bool) (List Bool) ↪ List Bool :=
   encHandlerCall (encPair encUnary (encPair encBits encBits)) (encFinEnum CCAOp) encSimState
 
+/-- The input `(1ⁿ, pk, gCache, c)` of a decapsulation filter of the native simulator: the
+parameter in unary, then the public key, the cached `G` queries and the ciphertext. -/
+abbrev encFilterInput : ℕ × List Bool × List (List Bool × List Bool) × List Bool ↪ List Bool :=
+  encPair encUnary (encPair encBits (encPair (encMemoCache encBits encBits) encBits))
+
 /-- The total decoder of `H` requests. -/
 def hQueryDecoder : Decoder encHQuery := Decoder.bool.pair (Decoder.bits.pair Decoder.bits)
 
@@ -147,11 +158,18 @@ namespace WordPKE
 variable (P : WordPKE) (keyLen : ℕ → ℕ)
 
 /-- Whether the `H` request `w` is in the domain at parameter `n`: it is the canonical encoding
-of a triple `(b, m, c)` with `m` of length `msgLen n` and `c` of length at most `ctLen n`. -/
+of `(false, m, c)` with `m` of length `msgLen n` and `c` of length at most `ctLen n`. -/
 def isHQuery (n : ℕ) (w : List Bool) : Bool :=
   match hQueryDecoder.decode w with
-  | (b, m, c) =>
-    encHQuery (b, m, c) == w && m.length == P.msgLen n && decide (c.length ≤ P.ctLen n)
+  | (_, m, c) =>
+    encHQuery (false, m, c) == w && m.length == P.msgLen n && decide (c.length ≤ P.ctLen n)
+
+private theorem prefix_eq_false_of_isHQuery {P : WordPKE} {n : ℕ} {w : List Bool}
+    (h : P.isHQuery n w = true) : (hQueryDecoder.decode w).1 = false := by
+  simp only [isHQuery, Bool.and_eq_true, beq_iff_eq] at h
+  have hd := congrArg hQueryDecoder.decode h.1.1
+  rw [hQueryDecoder.decode_enc] at hd
+  exact congrArg Prod.fst hd.symm
 
 /-- The native keyless simulator with decapsulation filter `d` at parameter `n`, for public key
 `pk` and challenge ciphertext `cStar`. A request in the domain is answered by the typed simulator
@@ -160,28 +178,28 @@ answer is encoded with `encOption encBits`. A request outside the domain gets th
 leaves the state unchanged: a `G` request that is not a message of length `msgLen n`, an `H`
 request that fails `isHQuery`, and a decapsulation request longer than `ctLen n`. -/
 noncomputable def simFilterWordHandler
-    (d : List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
     (n : ℕ) (pk cStar : List Bool) (request : CCAOp × List Bool) :
     StateT (SimState (List Bool) (List Bool) (List Bool) (List Bool)) ProbComp (List Bool) :=
   fun st => match request with
   | (.G, m) =>
-    if m.length = P.msgLen n then (P.scheme keyLen n).simFilterHandler (d pk) pk cStar (.G m) st
+    if m.length = P.msgLen n then (P.scheme keyLen n).simFilterHandler (d n pk) pk cStar (.G m) st
     else pure ([], st)
   | (.H, w) =>
     if P.isHQuery n w then
-      (P.scheme keyLen n).simFilterHandler (d pk) pk cStar (.H (hQueryDecoder.decode w)) st
+      (P.scheme keyLen n).simFilterHandler (d n pk) pk cStar (.H (hQueryDecoder.decode w)) st
     else pure ([], st)
   | (.decaps, c) =>
     if c.length ≤ P.ctLen n then
       (fun (k, st') => (encOption encBits k, st')) <$>
-        (P.scheme keyLen n).simFilterHandler (d pk) pk cStar (.decaps c) st
+        (P.scheme keyLen n).simFilterHandler (d n pk) pk cStar (.decaps c) st
     else pure ([], st)
 
 /-- The native keyless simulator run inside the reduction: draw nothing, run the word adversary
 `A` at parameter `n` on the challenge `(pk, kStar, cStar)` against `simFilterWordHandler d` from
 empty caches, and report whether the target `m` was queried to `G`. -/
 noncomputable def simFilterWordHit
-    (d : List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
     (A : ℕ → List Bool → WordOracleComp CCAOp Bool) (n : ℕ) (pk m cStar kStar : List Bool) :
     ProbComp Bool := do
   let (_, st) ← (OracleComp.interpret
@@ -197,7 +215,7 @@ draws the challenge key `kStar` of length `keyLen n` and runs `simFilterWordHit`
 whether `m₁` was queried to `G`. It is the word-level counterpart of
 `Scheme.romFilterCpaReduction`. -/
 noncomputable def romFilterCpaReductionWord
-    (d : List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
     (A : ℕ → List Bool → WordOracleComp CCAOp Bool) : Encryption.AdversaryOf (List Bool) where
   choose n pk := do
     let m₀ ← BitString.sampleList (P.msgLen n)
@@ -212,30 +230,32 @@ noncomputable def romFilterCpaReductionWord
 decapsulation query answered, the word-level counterpart of `Scheme.romCpaReduction`. -/
 noncomputable def romCpaReductionWord (A : ℕ → List Bool → WordOracleComp CCAOp Bool) :
     Encryption.AdversaryOf (List Bool) :=
-  P.romFilterCpaReductionWord keyLen (fun _ _ _ => true) A
+  P.romFilterCpaReductionWord keyLen (fun _ _ _ _ => true) A
+
+/-- **The native IND-CPA reduction for `FO^⊥`**: `romFilterCpaReductionWord` with the `FO^⊥`
+filter `simBotCheck`, which answers a decapsulation query only when some cached `G` query
+`(m, r)` re-encrypts to it under `encDet n pk`. It is the word-level counterpart of
+`Scheme.romBotCpaReduction`. -/
+noncomputable def romBotCpaReductionWord (A : ℕ → List Bool → WordOracleComp CCAOp Bool) :
+    Encryption.AdversaryOf (List Bool) :=
+  P.romFilterCpaReductionWord keyLen (fun n => Scheme.simBotCheck (P.toExplicitCoin n)) A
 
 /-- The domain test of `H` requests is polynomial-time on `(1ⁿ, w)`. -/
 theorem IsEfficient.computableInPolyTime_isHQuery {P : WordPKE} (hP : P.IsEfficient) :
     ComputableInPolyTime (fun (n, w) => P.isHQuery n w) (encPair encUnary encBits) encBool := by
-  have hdec : ComputableInPolyTime (fun x : ℕ × List Bool => hQueryDecoder.decode x.2)
-      (encPair encUnary encBits) encHQuery :=
-    hQueryDecoder.computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
+  change ComputableInPolyTime (fun x : ℕ × List Bool =>
+    encHQuery (false, (hQueryDecoder.decode x.2).2) == x.2 &&
+      (hQueryDecoder.decode x.2).2.1.length == P.msgLen x.1 &&
+      decide ((hQueryDecoder.decode x.2).2.2.length ≤ P.ctLen x.1))
+    (encPair encUnary encBits) encBool
+  have ⟨hmsgLen, _, hctLen, _, _, _⟩ := hP
+  have := hQueryDecoder.computableInPolyTime
   have hcanon : ComputableInPolyTime
-      (fun x : ℕ × List Bool => encHQuery (hQueryDecoder.decode x.2) == x.2)
+      (fun x : ℕ × List Bool => encHQuery (false, (hQueryDecoder.decode x.2).2) == x.2)
       (encPair encUnary encBits) encBool :=
-    ComputableInPolyTime.beq hdec.encoding_comp (ComputableInPolyTime.snd _ _)
-  have hmsg : ComputableInPolyTime
-      (fun x : ℕ × List Bool => (hQueryDecoder.decode x.2).2.1.length == P.msgLen x.1)
-      (encPair encUnary encBits) encBool :=
-    ComputableInPolyTime.beq (ComputableInPolyTime.length_bits.comp hdec.snd'.fst')
-      (hP.msgLen.comp (ComputableInPolyTime.fst _ _))
-  have hct : ComputableInPolyTime
-      (fun x : ℕ × List Bool => decide ((hQueryDecoder.decode x.2).2.2.length ≤ P.ctLen x.1))
-      (encPair encUnary encBits) encBool :=
-    ComputableInPolyTime.unary_le' (ComputableInPolyTime.length_bits.comp hdec.snd'.snd')
-      (hP.ctLen.comp (ComputableInPolyTime.fst _ _))
-  exact (ComputableTidilyInPolyTime.bool_and' (ComputableTidilyInPolyTime.bool_and' hcanon.tidy
-    hmsg.tidy) hct.tidy).computableInPolyTime
+    ComputableInPolyTime.beq
+      ((ComputableInPolyTime.prod (.const false) (by polytime)).encoding_comp) (by polytime)
+  exact (hcanon.bool_and' (by polytime)).bool_and' (by polytime)
 
 /-! ### Certificates -/
 
@@ -260,21 +280,15 @@ private theorem isPPTOn_zoomMemoize {Key : Type} [DecidableEq Key]
     IsPPTOn input (encPair encBits encSimState) (fun a =>
       RandomOracle.zoomStateT get set (memoize (fun _ => BitString.sampleList (len a)) (key a))
         (st a)) := by
-  have hmemo := IsPPTOn.memoize (compute := fun a _ => BitString.sampleList (len a))
-    (query := key) (cache := fun a => get (st a)) hlen.sampleList hkey (hget.comp hst)
-  have hpost : ComputableInPolyTime
-      (fun p : α × (List Bool × List (Key × List Bool)) => (p.2.1, set (st p.1) p.2.2))
-      (encPair input (encPair encBits (encMemoCache keyEncoding encBits)))
-      (encPair encBits encSimState) :=
-    (ComputableInPolyTime.snd _ _).fst'.prod
-      (hset.comp ((hst.comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.snd _ _).snd'))
-  refine (hmemo.map_with (f := fun a p => (p.1, set (st a) p.2)) hpost).congr fun a => ?_
+  refine ((IsPPTOn.memoize (compute := fun a _ => BitString.sampleList (len a))
+    (query := key) (cache := fun a => get (st a)) hlen.sampleList hkey (hget.comp hst)).map_with
+      (f := fun a p => (p.1, set (st a) p.2)) (by polytime)).congr fun a => ?_
   simp [RandomOracle.zoomStateT, bind_pure_comp]
 
 /-- The simulator state `SimState` over words. -/
 local notation "WState" => SimState (List Bool) (List Bool) (List Bool) (List Bool)
 
+@[local fun_prop]
 private theorem isPPTOn_simHashG {α : Type} {input : α ↪ List Bool} {len : α → ℕ}
     {m : α → List Bool} {st : α → WState}
     (hlen : ComputableInPolyTime len input encUnary) (hm : ComputableInPolyTime m input encBits)
@@ -286,6 +300,7 @@ private theorem isPPTOn_simHashG {α : Type} {input : α ↪ List Bool} {len : �
   exact isPPTOn_zoomMemoize (fun st => st.gCache) (fun st c => { st with gCache := c })
     (by fun_prop) (by fun_prop) hlen hm hst
 
+@[local fun_prop]
 private theorem isPPTOn_simHashHq {α : Type} {input : α ↪ List Bool} {len : α → ℕ}
     {c : α → List Bool} {st : α → WState}
     (hlen : ComputableInPolyTime len input encUnary) (hc : ComputableInPolyTime c input encBits)
@@ -297,6 +312,7 @@ private theorem isPPTOn_simHashHq {α : Type} {input : α ↪ List Bool} {len : 
   exact isPPTOn_zoomMemoize SimState.hqCache (fun st c' => { st with hqCache := c' })
     (by fun_prop) (by fun_prop) hlen hc hst
 
+@[local fun_prop]
 private theorem isPPTOn_simHashHRaw {α : Type} {input : α ↪ List Bool} {len : α → ℕ}
     {x : α → Bool × List Bool × List Bool} {st : α → WState}
     (hlen : ComputableInPolyTime len input encUnary) (hx : ComputableInPolyTime x input encHQuery)
@@ -310,7 +326,7 @@ private theorem isPPTOn_simHashHRaw {α : Type} {input : α ↪ List Bool} {len 
 /-- The simulator call on `x = ((n, pk, cStar), (op, w), st)` with every branch made explicit, for
 the runtime certificate. -/
 private noncomputable def simCallExplicit (P : WordPKE) (keyLen : ℕ → ℕ)
-    (d : List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
     (x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState) :
     ProbComp (List Bool × WState) :=
   if x.2.1.1 = .G then
@@ -319,25 +335,21 @@ private noncomputable def simCallExplicit (P : WordPKE) (keyLen : ℕ → ℕ)
         x.2.1.2 x.2.2
     else pure ([], x.2.2)
   else if x.2.1.1 = .H then
-    if P.isHQuery x.1.1 x.2.1.2 then
-      if (hQueryDecoder.decode x.2.1.2).1 then
+    if P.isHQuery x.1.1 x.2.1.2 then do
+      let (r, st₁) ← simHashG (CT := List Bool) (K := List Bool)
+        (BitString.sampleList (P.coinLen x.1.1)) (hQueryDecoder.decode x.2.1.2).2.1 x.2.2
+      if P.encDet x.1.1 x.1.2.1 (hQueryDecoder.decode x.2.1.2).2.1 r =
+          (hQueryDecoder.decode x.2.1.2).2.2 then
+        simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
+          (hQueryDecoder.decode x.2.1.2).2.2 st₁
+      else
         simHashHRaw (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-          (true, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) x.2.2
-      else do
-        let (r, st₁) ← simHashG (CT := List Bool) (K := List Bool)
-          (BitString.sampleList (P.coinLen x.1.1)) (hQueryDecoder.decode x.2.1.2).2.1 x.2.2
-        if P.encDet x.1.1 x.1.2.1 (hQueryDecoder.decode x.2.1.2).2.1 r =
-            (hQueryDecoder.decode x.2.1.2).2.2 then
-          simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-            (hQueryDecoder.decode x.2.1.2).2.2 st₁
-        else
-          simHashHRaw (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-            (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) st₁
+          (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) st₁
     else pure ([], x.2.2)
   else
     if x.2.1.2.length ≤ P.ctLen x.1.1 then
       if x.2.1.2 = x.1.2.2 then pure (encOption encBits none, x.2.2)
-      else if d x.1.2.1 x.2.2.gCache x.2.1.2 then
+      else if d x.1.1 x.1.2.1 x.2.2.gCache x.2.1.2 then
         (fun p => (encOption encBits (some p.1), p.2)) <$>
           simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
             x.2.1.2 x.2.2
@@ -345,7 +357,7 @@ private noncomputable def simCallExplicit (P : WordPKE) (keyLen : ℕ → ℕ)
     else pure ([], x.2.2)
 
 private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ → ℕ)
-    (d : List Bool → List (List Bool × List Bool) → List Bool → Bool)
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool)
     (x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState) :
     P.simFilterWordHandler keyLen d x.1.1 x.1.2.1 x.1.2.2 x.2.1 x.2.2 =
       simCallExplicit P keyLen d x := by
@@ -356,14 +368,14 @@ private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ →
     by_cases hq : P.isHQuery n w = true
     · simp only [hq, ↓reduceIte, Scheme.simFilterHandler, Scheme.simFilterDispatch,
         ROQuery.dispatch]
-      generalize hQueryDecoder.decode w = y
+      have hp := prefix_eq_false_of_isHQuery hq
+      generalize hQueryDecoder.decode w = y at hp ⊢
       obtain ⟨b, m, c⟩ := y
-      cases b
-      · simp only [Scheme.simHashH, StateT.bind_apply, Bool.false_eq_true, ↓reduceIte, scheme,
-          toExplicitCoin]
-        congr 1 with p
-        by_cases h : P.encDet n pk m p.1 = c <;> simp only [h, ↓reduceIte]
-      · rfl
+      change b = false at hp
+      subst b
+      simp only [Scheme.simHashH, StateT.bind_apply, scheme, toExplicitCoin]
+      congr 1 with p
+      by_cases h : P.encDet n pk m p.1 = c <;> simp only [h, ↓reduceIte]
     · simp only [hq, Bool.false_eq_true, ↓reduceIte]
   · simp only [simFilterWordHandler, simCallExplicit, reduceCtorEq, ↓reduceIte]
     by_cases hl : w.length ≤ P.ctLen n
@@ -373,7 +385,7 @@ private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ →
       · simp only [hc, ↓reduceIte]
         rfl
       · simp only [hc, ↓reduceIte, filterDecaps]
-        cases d pk st.gCache w
+        cases d n pk st.gCache w
         · rfl
         · simp only [Bool.cond_true, ↓reduceIte, StateT.bind_apply, StateT.pure_apply,
             bind_pure_comp, Functor.map_map]
@@ -385,110 +397,19 @@ charging the complete state, whenever the PKE family and the decapsulation filte
 efficient. -/
 theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficient)
     {keyLen : ℕ → ℕ} (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
-    {d : List Bool → List (List Bool × List Bool) → List Bool → Bool}
-    (hd : ComputableInPolyTime (fun (pk, cache, c) => d pk cache c)
-      (encPair encBits (encPair (encMemoCache encBits encBits) encBits)) encBool) :
+    {d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool}
+    (hd : ComputableInPolyTime (fun (n, pk, cache, c) => d n pk cache c) encFilterInput encBool) :
     IsPPTOn encSimCall (encPair encBits encSimState)
       (fun ((n, pk, cStar), request, st) =>
         P.simFilterWordHandler keyLen d n pk cStar request st) := by
   change IsPPTOn encSimCall (encPair encBits encSimState)
     (fun x => P.simFilterWordHandler keyLen d x.1.1 x.1.2.1 x.1.2.2 x.2.1 x.2.2)
-  have hn : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.1.1)
-      encSimCall encUnary := by fun_prop
-  have hpk : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.1.2.1)
-      encSimCall encBits := by fun_prop
-  have hcs : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.1.2.2)
-      encSimCall encBits := by fun_prop
-  have hop : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.2.1.1)
-      encSimCall (encFinEnum CCAOp) := by fun_prop
-  have hw : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.2.1.2)
-      encSimCall encBits := by fun_prop
-  have hst : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.2.2)
-      encSimCall encSimState := by fun_prop
-  have hdec : ComputableInPolyTime
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-        hQueryDecoder.decode x.2.1.2) encSimCall encHQuery :=
-    hQueryDecoder.computableInPolyTime.comp hw
-  have hreject : IsPPTOn encSimCall (encPair encBits encSimState)
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-        pure (([] : List Bool), x.2.2)) :=
-    ((ComputableInPolyTime.const ([] : List Bool)).prod hst).isPPTOn
-  -- `G` requests
-  have hG := IsPPTOn.ite'
-    (condition := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-      x.2.1.2.length = P.msgLen x.1.1)
-    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits.comp hw)
-      (hP.msgLen.comp hn))
-    (isPPTOn_simHashG (hP.coinLen.comp hn) hw hst) hreject
-  -- `H` requests
-  have hraw := isPPTOn_simHashHRaw (x := fun x => (true, (hQueryDecoder.decode x.2.1.2).2.1,
-      (hQueryDecoder.decode x.2.1.2).2.2)) (hkeyLen.comp hn)
-    ((ComputableInPolyTime.const true).prod hdec.snd') hst
-  let Q := encPair encSimCall (encPair encBits encSimState)
-  have hfst : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState) ×
-        (List Bool × WState) => q.1) Q encSimCall := ComputableInPolyTime.fst _ _
-  have hcheck : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState) ×
-        (List Bool × WState) =>
-        decide (P.encDet q.1.1.1 q.1.1.2.1 (hQueryDecoder.decode q.1.2.1.2).2.1 q.2.1 =
-          (hQueryDecoder.decode q.1.2.1.2).2.2)) Q encBool :=
-    ComputableInPolyTime.decide_eq' (hP.encDet.comp ((hn.comp hfst).prod ((hpk.comp hfst).prod
-      ((hdec.snd'.fst'.comp hfst).prod (ComputableInPolyTime.snd _ _).fst'))))
-      (hdec.snd'.snd'.comp hfst)
-  have hafter := IsPPTOn.ite' hcheck
-    (isPPTOn_simHashHq (hkeyLen.comp (hn.comp hfst)) (hdec.snd'.snd'.comp hfst)
-      (ComputableInPolyTime.snd _ _).snd')
-    (isPPTOn_simHashHRaw (hkeyLen.comp (hn.comp hfst))
-      ((ComputableInPolyTime.const false).prod (hdec.snd'.comp hfst))
-      (ComputableInPolyTime.snd _ _).snd')
-  have hfalse := IsPPTOn.bind_with
-    (first := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-      simHashG (CT := List Bool) (K := List Bool) (BitString.sampleList (P.coinLen x.1.1))
-        (hQueryDecoder.decode x.2.1.2).2.1 x.2.2)
-    (second := fun x p =>
-      if P.encDet x.1.1 x.1.2.1 (hQueryDecoder.decode x.2.1.2).2.1 p.1 =
-          (hQueryDecoder.decode x.2.1.2).2.2 then
-        simHashHq (M := List Bool) (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-          (hQueryDecoder.decode x.2.1.2).2.2 p.2
-      else
-        simHashHRaw (R := List Bool) (BitString.sampleList (keyLen x.1.1))
-          (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) p.2)
-    (isPPTOn_simHashG (hP.coinLen.comp hn) hdec.snd'.fst' hst) hafter
-  have hH := IsPPTOn.cond' (hP.computableInPolyTime_isHQuery.comp (hn.prod hw))
-    (IsPPTOn.cond' hdec.fst' hraw hfalse) hreject
-  -- decapsulation requests
-  have hnone : IsPPTOn encSimCall (encPair encBits encSimState)
-      (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-        pure (encOption encBits none, x.2.2)) :=
-    ((ComputableInPolyTime.const (encOption encBits none)).prod hst).isPPTOn
-  have hsome : ComputableInPolyTime (fun p : List Bool × WState => some p.1)
-      (encPair encBits encSimState) (encOption encBits) := by fun_prop
-  have hkey := (isPPTOn_simHashHq (hkeyLen.comp hn) hw hst).map
-    (f := fun p => (encOption encBits (some p.1), p.2))
-    (hsome.encoding_comp.prod (ComputableInPolyTime.snd _ _))
-  have hD := IsPPTOn.ite'
-    (condition := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
-      x.2.1.2.length ≤ P.ctLen x.1.1)
-    (ComputableInPolyTime.unary_le' (ComputableInPolyTime.length_bits.comp hw)
-      (hP.ctLen.comp hn))
-    (IsPPTOn.ite' (ComputableInPolyTime.decide_eq' hw hcs) hnone
-      (IsPPTOn.cond' (hd.comp (hpk.prod ((by fun_prop : ComputableInPolyTime
-        (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.2.2.gCache)
-        encSimCall (encMemoCache encBits encBits)).prod hw))) hkey hnone)) hreject
-  have hall := IsPPTOn.ite' (ComputableInPolyTime.decide_eq' hop
-      (ComputableInPolyTime.const CCAOp.G)) hG
-    (IsPPTOn.ite' (ComputableInPolyTime.decide_eq' hop (ComputableInPolyTime.const CCAOp.H))
-      hH hD)
-  refine hall.congr fun x => ?_
-  rw [simFilterWordHandler_eq_explicit]
-  rfl
+  have ⟨hmsgLen, hcoinLen, hctLen, _, hencDet, _⟩ := hP
+  have hisH := hP.computableInPolyTime_isHQuery
+  have := hQueryDecoder.computableInPolyTime
+  have hall : IsPPTOn encSimCall (encPair encBits encSimState) (simCallExplicit P keyLen d) := by
+    ppt [simCallExplicit]
+  exact hall.congr fun x => by rw [simFilterWordHandler_eq_explicit]
 
 /-! ### Resource bounds of one simulator call -/
 
@@ -547,7 +468,7 @@ private theorem length_le_of_isHQuery {P : WordPKE} {n : ℕ} {w : List Bool}
 `V + 1` bits, and adds at most `16 |w| + 8 V + 12` bits of encoded state for a request word `w`,
 when coins and keys have length at most `V`. -/
 private theorem simCallExplicit_support (P : WordPKE) (keyLen : ℕ → ℕ)
-    (d : List Bool → List (List Bool × List Bool) → List Bool → Bool) {V : ℕ}
+    (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) {V : ℕ}
     (x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState)
     (hcoin : P.coinLen x.1.1 ≤ V) (hkey : keyLen x.1.1 ≤ V) (hinv : CachesBounded V x.2.2)
     (result : List Bool × WState)
@@ -613,12 +534,7 @@ private theorem simCallExplicit_support (P : WordPKE) (keyLen : ℕ → ℕ)
       exact ⟨h₁, by lia, by lia⟩
     · exact hpure [] (by simp) hresult
   · simp only [simCallExplicit, reduceCtorEq, ↓reduceIte] at hresult ⊢
-    split_ifs at hresult with hvalid htag
-    · have hw := length_le_of_isHQuery hvalid
-      obtain ⟨h₁, h₂, h₃⟩ := stepHRaw _ st hinv result hresult
-      refine ⟨h₁, by lia, ?_⟩
-      rw [length_encHQuery] at h₃
-      lia
+    split_ifs at hresult with hvalid
     · have hw := length_le_of_isHQuery hvalid
       rw [ProbComp.eval_bind] at hresult
       obtain ⟨r, hr, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
@@ -662,60 +578,29 @@ uniform strict oracle PPT ROM IND-CCA adversary is a uniform strict PPT chosen-m
 The certificate covers the lazy `G`/`H` simulation and the simulated decapsulation oracle. -/
 theorem IsEfficient.isPPT_romFilterCpaReductionWord {P : WordPKE} (hP : P.IsEfficient)
     {keyLen : ℕ → ℕ} (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
-    {d : List Bool → List (List Bool × List Bool) → List Bool → Bool}
-    (hd : ComputableInPolyTime (fun (pk, cache, c) => d pk cache c)
-      (encPair encBits (encPair (encMemoCache encBits encBits) encBits)) encBool)
+    {d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool}
+    (hd : ComputableInPolyTime (fun (n, pk, cache, c) => d n pk cache c) encFilterInput encBool)
     {A : ℕ → List Bool → WordOracleComp CCAOp Bool} (hA : IsOraclePPT encBool A) :
     (P.romFilterCpaReductionWord keyLen d A).IsPPT encBits where
   choose := by
-    change IsPPTOn (encPair encUnary encBits) (Encryption.encChoiceOut encBits) (fun x =>
-      (P.romFilterCpaReductionWord keyLen d A).choose x.1 x.2)
-    have hm₀ := (hP.msgLen.comp (ComputableInPolyTime.fst encUnary encBits)).sampleList
-    have hm₁ := (hP.msgLen.comp ((ComputableInPolyTime.fst encUnary encBits).comp
-      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits))).sampleList
-    have hout : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × List Bool =>
-          ((q.1.2, q.2), encPair encBits encBits (q.1.1.2, q.2)))
-        (encPair (encPair (encPair encUnary encBits) encBits) encBits)
-        (Encryption.encChoiceOut encBits) := by
-      refine ((ComputableInPolyTime.fst _ _).snd'.prod (ComputableInPolyTime.snd _ _)).prod ?_
-      exact ((ComputableInPolyTime.fst _ _).fst'.snd'.prod
-        (ComputableInPolyTime.snd _ _)).encoding_comp
-    have hall := IsPPTOn.bind_with
-      (first := fun x : ℕ × List Bool => BitString.sampleList (P.msgLen x.1))
-      (second := fun x m₀ => BitString.sampleList (P.msgLen x.1) >>= fun m₁ =>
-        pure ((m₀, m₁), encPair encBits encBits (x.2, m₁))) hm₀
-      (IsPPTOn.bind_with (first := fun p : (ℕ × List Bool) × List Bool =>
-          BitString.sampleList (P.msgLen p.1.1))
-        (second := fun p m₁ => pure ((p.2, m₁), encPair encBits encBits (p.1.2, m₁))) hm₁
-        hout.isPPTOn)
-    exact hall.congr fun x => rfl
+    have ⟨hmsgLen, _, _, _, _, _⟩ := hP
+    ppt [romFilterCpaReductionWord]
   guess := by
     change IsPPTOn Encryption.encGuessInput encBool (fun x =>
       (P.romFilterCpaReductionWord keyLen d A).guess x.1 x.2.1 x.2.2)
     let D := Decoder.bits.pair Decoder.bits
-    have hn : ComputableInPolyTime (fun c : (ℕ × List Bool × List Bool) × List Bool => c.1.1)
-        encGuessKey encUnary := by fun_prop
-    have hstate : ComputableInPolyTime
-        (fun c : (ℕ × List Bool × List Bool) × List Bool => D.decode c.1.2.1)
-        encGuessKey (encPair encBits encBits) :=
-      D.computableInPolyTime.comp (by fun_prop)
-    have hcs : ComputableInPolyTime
-        (fun c : (ℕ × List Bool × List Bool) × List Bool => c.1.2.2) encGuessKey encBits := by
-      fun_prop
-    have hk : ComputableInPolyTime
-        (fun c : (ℕ × List Bool × List Bool) × List Bool => c.2) encGuessKey encBits := by
-      fun_prop
-    -- the simulator as a closed handler of the adversary
+    have hD := D.computableInPolyTime
+    have hcoinLen := hP.coinLen
     have hhandler : IsPPTOn (encHandlerCall encGuessKey (encFinEnum CCAOp) encSimState)
         (encPair encBits encSimState)
         (fun z : ((ℕ × List Bool × List Bool) × List Bool) × (CCAOp × List Bool) × WState =>
-          P.simFilterWordHandler keyLen d z.1.1.1 (D.decode z.1.1.2.1).1 z.1.1.2.2 z.2.1 z.2.2) :=
-      (hP.isPPTOn_simFilterWordHandler hkeyLen hd).preprocess
-        (((hn.comp (ComputableInPolyTime.fst _ _)).prod
-          ((hstate.fst'.comp (ComputableInPolyTime.fst _ _)).prod
-            (hcs.comp (ComputableInPolyTime.fst _ _)))).prod
-          (ComputableInPolyTime.snd _ _))
+          P.simFilterWordHandler keyLen d z.1.1.1 (D.decode z.1.1.2.1).1
+            z.1.1.2.2 z.2.1 z.2.2) := by
+      refine (hP.isPPTOn_simFilterWordHandler hkeyLen hd).preprocess
+        (prepare := fun z : ((ℕ × List Bool × List Bool) × List Bool) × (CCAOp × List Bool) ×
+            WState =>
+          ((z.1.1.1, (D.decode z.1.1.2.1).1, z.1.1.2.2), z.2.1, z.2.2)) ?_
+      polytime
     have hrun := hA.run_interpret_preprocess (operationEncoding := encFinEnum CCAOp)
       (stateEncoding := encSimState)
       (handler := fun (c : (ℕ × List Bool × List Bool) × List Bool) request st =>
@@ -725,17 +610,12 @@ theorem IsEfficient.isPPT_romFilterCpaReductionWord {P : WordPKE} (hP : P.IsEffi
       (initial := fun _ => {})
       (resources := fun (c : (ℕ × List Bool × List Bool) × List Bool) w =>
         16 * w.length + 8 * (P.coinLen c.1.1 + keyLen c.1.1) + 13)
-      (hn.prod (hstate.fst'.prod (hk.prod hcs)).encoding_comp)
-      hhandler (ComputableInPolyTime.const _)
+      (by polytime)
+      hhandler (.const _)
       (fun (c : (ℕ × List Bool × List Bool) × List Bool) st =>
         CachesBounded (P.coinLen c.1.1 + keyLen c.1.1) st)
       (fun _ => ⟨by simp, by simp, by simp⟩)
-      (by
-        have h₁ := hP.coinLen.comp (hn.comp (ComputableInPolyTime.fst encGuessKey encBits))
-        have h₂ := hkeyLen.comp (hn.comp (ComputableInPolyTime.fst encGuessKey encBits))
-        have h₃ := ComputableInPolyTime.length_bits.comp
-          (ComputableInPolyTime.snd encGuessKey encBits)
-        fun_prop)
+      (by polytime)
       (fun c request st hst result hresult => by
         have hx := simFilterWordHandler_eq_explicit P keyLen d
           ((c.1.1, (D.decode c.1.2.1).1, c.1.2.2), request, st)
@@ -750,11 +630,7 @@ theorem IsEfficient.isPPT_romFilterCpaReductionWord {P : WordPKE} (hP : P.IsEffi
           (q.2.2.gCache.lookup (D.decode q.1.1.2.1).2).isSome)
         (encPair encGuessKey (encPair encBool encSimState)) encBool := by
       simp only [lookup_isSome_eq_any]
-      exact ComputableInPolyTime.anyWithInput (by fun_prop)
-        (ComputableInPolyTime.beq (by fun_prop)
-          (hstate.snd'.comp ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _))))
-    have hhit := hrun.map_with (f := fun c q => (q.2.gCache.lookup (D.decode c.1.2.1).2).isSome)
-      hlookup
+      exact ComputableInPolyTime.anyWithInput (by polytime) (by polytime)
     have hall := IsPPTOn.bind_with
       (first := fun x : ℕ × List Bool × List Bool => BitString.sampleList (keyLen x.1))
       (second := fun x kStar =>
@@ -763,10 +639,54 @@ theorem IsEfficient.isPPT_romFilterCpaReductionWord {P : WordPKE} (hP : P.IsEffi
             (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifFin n)) fun request st =>
               P.simFilterWordHandler keyLen d x.1 (D.decode x.2.1).1 x.2.2 request st)
             (A x.1 (Encryption.encKEMChallenge ((D.decode x.2.1).1, kStar, x.2.2)))).run {})
-      (hkeyLen.comp (ComputableInPolyTime.fst _ _)).sampleList hhit
+      (by ppt) (hrun.map_with (f := fun c q => (q.2.gCache.lookup (D.decode c.1.2.1).2).isSome)
+        hlookup)
     refine hall.congr fun x => ?_
     simp only [romFilterCpaReductionWord, simFilterWordHit, bind_pure_comp]
     rfl
+
+/-- The input `(n, pk, gCache, c)` of a decapsulation filter. -/
+local notation "FilterInput" => ℕ × List Bool × List (List Bool × List Bool) × List Bool
+
+/-- A cached `G` query `(m, r)`. -/
+local notation "Entry" => List Bool × List Bool
+
+/-- The `FO^⊥` filter `simBotCheck` of the explicit-coin scheme at parameter `n` is polynomial-time
+on `(1ⁿ, pk, gCache, c)`. -/
+private theorem IsEfficient.computableInPolyTime_simBotCheck {P : WordPKE}
+    (hP : P.IsEfficient) :
+    ComputableInPolyTime
+      (fun (n, pk, cache, c) => Scheme.simBotCheck (P.toExplicitCoin n) pk cache c)
+      encFilterInput encBool := by
+  have hencDet := hP.encDet
+  have hfind : ComputableInPolyTime (fun p : FilterInput × Entry => p.1.2.2.1.find? fun e =>
+      decide (p.2.1 = e.1)) (encPair encFilterInput (encPair encBits encBits))
+      (encOption (encPair encBits encBits)) :=
+    ComputableInPolyTime.findWithInput (by polytime) (by polytime)
+  have htest := ComputableInPolyTime.optionElimWithInput (body := fun (p : FilterInput × Entry)
+      (e : Entry) => decide (P.encDet p.1.1 p.1.2.1 p.2.1 e.2 = p.1.2.2.2)) hfind
+    (.const false) (by polytime)
+  have heq : (fun x : FilterInput => Scheme.simBotCheck (P.toExplicitCoin x.1) x.2.1 x.2.2.1
+      x.2.2.2) = fun x => x.2.2.1.any fun p => (x.2.2.1.find? fun e => decide (p.1 = e.1)).elim
+        false fun e => decide (P.encDet x.1 x.2.1 p.1 e.2 = x.2.2.2) := by
+    funext ⟨n, pk, cache, c⟩
+    simp only [Scheme.simBotCheck, List.lookup_eq_map_find?]
+    congr 1 with p : 1
+    cases List.find? (fun e => decide (p.1 = e.1)) cache <;> rfl
+  change ComputableInPolyTime (fun x : FilterInput => Scheme.simBotCheck (P.toExplicitCoin x.1)
+    x.2.1 x.2.2.1 x.2.2.2) encFilterInput encBool
+  rw [heq]
+  exact ComputableInPolyTime.anyWithInput (by polytime) htest
+
+/-- **The `FO^⊥` reduction is uniform strict PPT.** For an efficient PKE family and a
+polynomial-time key length, the word-level IND-CPA reduction `romBotCpaReductionWord A` of every
+uniform strict oracle PPT ROM IND-CCA adversary `A` is a uniform strict PPT chosen-message
+adversary. -/
+theorem IsEfficient.isPPT_romBotCpaReductionWord {P : WordPKE} (hP : P.IsEfficient)
+    {keyLen : ℕ → ℕ} (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
+    {A : ℕ → List Bool → WordOracleComp CCAOp Bool} (hA : IsOraclePPT encBool A) :
+    (P.romBotCpaReductionWord keyLen A).IsPPT encBits :=
+  hP.isPPT_romFilterCpaReductionWord hkeyLen hP.computableInPolyTime_simBotCheck hA
 
 /-- **The `FO-notbot` reduction is uniform strict PPT.** For an efficient PKE family and a
 polynomial-time key length, the word-level IND-CPA reduction `romCpaReductionWord A` of every
@@ -776,7 +696,7 @@ theorem IsEfficient.isPPT_romCpaReductionWord {P : WordPKE} (hP : P.IsEfficient)
     {keyLen : ℕ → ℕ} (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     {A : ℕ → List Bool → WordOracleComp CCAOp Bool} (hA : IsOraclePPT encBool A) :
     (P.romCpaReductionWord keyLen A).IsPPT encBits :=
-  hP.isPPT_romFilterCpaReductionWord hkeyLen (d := fun _ _ _ => true)
+  hP.isPPT_romFilterCpaReductionWord hkeyLen (d := fun _ _ _ _ => true)
     (ComputableInPolyTime.const true) hA
 
 end Certificates

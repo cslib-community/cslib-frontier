@@ -77,9 +77,6 @@ theorem isPPTOn_selectPredictor {α : Type} {input : α ↪ List Bool}
     (hobservation : ComputableInPolyTime observation input encBits) :
     IsPPTOn input encBool (fun a =>
       selectPredictor (count a) (trials a) (source a) (predict a) (observation a)) := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at hcount
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at htrials
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime] at hobservation
   have htrial := hpredict.preprocess
     (input := encPair (encPair input encUnary) (encPair encBits encBool))
     (prepare := fun x : (α × ℕ) × (List Bool × Bool) => (x.1, x.2.1)) (by fun_prop)
@@ -87,7 +84,7 @@ theorem isPPTOn_selectPredictor {α : Type} {input : α ↪ List Bool}
     (prepare := fun x : α × ℕ => (x, observation x.1)) (by fun_prop)
   unfold selectPredictor
   apply IsPPTOn.bind_with (left := encUnary) ?_ hfinal
-  apply IsPPTOn.selectBest ?_ (.of_tidy hcount) (.of_tidy htrials)
+  apply IsPPTOn.selectBest ?_ (hcount) (htrials)
   exact (hsource.preprocess (by fun_prop)).bind_with (htrial.map_with (by fun_prop))
 
 attribute [program_certificate] isPPTOn_selectPredictor
@@ -138,8 +135,6 @@ theorem HasGapWithAdvice.eventually_indexed_error_ge {pair : SamplablePair} {gap
         (ProbComp.eval
           (predictionGame pair.sample (fun n => predict (n, advice n) i) n) false).toReal +
           1 / inverseTolerance n := by
-  have hcount := hcount.tidy
-  have htolerance := htolerance.tidy
   have hsource := pair.efficient
   have hefficient : IsPPTOn encAdvisedInput encBool
       (fun ((n, word), observation) => selectPredictor (count n)

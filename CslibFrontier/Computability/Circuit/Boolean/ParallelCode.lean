@@ -87,10 +87,9 @@ the common input and output width. -/
     ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
         parallelFamilyCodeStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary encUnary) (encPair encUnary encCode) encCode)
+      (encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode)
       (encPair encUnary encCode) := by
-  let stepEnc := encFoldStep (encPair encUnary encUnary)
-    (encPair encUnary encCode) encCode
+  let stepEnc := encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode
   have hn : ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.1.1)
       stepEnc encUnary := by fun_prop

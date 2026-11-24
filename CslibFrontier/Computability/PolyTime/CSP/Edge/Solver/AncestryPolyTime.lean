@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Ancestry
-import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -124,16 +123,15 @@ theorem computableInPolyTime_trace : ComputableInPolyTime
     (fun p : CSP Table ℕ × List ExpansionCode × TraceCode => trace p.1 p.2.1 p.2.2)
     encTraceArgs encTraceCode := by
   unfold trace
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.foldlWithInput_of_bounded_growth
+  apply ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encTimedExpansion) (encL := encList encTimedExpansion)
     (growth := fun p => (encList encTraceCode (atoms p.1 p.2.1)).length)
     (show ComputableInPolyTime (fun p : CSP Table ℕ × List ExpansionCode × TraceCode => p.2.2)
-      encTraceArgs encTraceCode from by fun_prop).tidy
-  · refine ⟨?_, poly_traceStep.tidy, inferInstance, inferInstance⟩
+      encTraceArgs encTraceCode from by fun_prop)
+  · refine ⟨?_, poly_traceStep, inferInstance, inferInstance⟩
     exact (poly_timedWith (show ComputableInPolyTime
       (fun p : CSP Table ℕ × List ExpansionCode × TraceCode => p.2.1)
-      encTraceArgs (encList encExpansionCode) from by fun_prop)).tidy
+      encTraceArgs (encList encExpansionCode) from by fun_prop))
   · exact ⟨poly_atoms.polyBounded_length, fun p s e he => traceStep_growth p.1 p.2.1 s e he⟩
 
 /-- Body and expansion log are framed, followed by the queried binary original name. -/
@@ -267,10 +265,10 @@ theorem computableInPolyTime_blossom : ComputableInPolyTime
     fun_prop
   have hgetL : ComputableInPolyTime (fun p => (left p).steps[k p]?) encMeetingArgs
       (encOption (encPair encNat encNat)) := by
-    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (poly_steps.comp hl).tidy hk.tidy)
+    exact (ComputableInPolyTime.getElem? (poly_steps.comp hl) hk)
   have hgetR : ComputableInPolyTime (fun p => (right p).steps[k p]?) encMeetingArgs
       (encOption (encPair encNat encNat)) := by
-    exact .of_tidy (ComputableTidilyInPolyTime.getElem? (poly_steps.comp hr).tidy hk.tidy)
+    exact (ComputableInPolyTime.getElem? (poly_steps.comp hr) hk)
   have hrb : ComputableInPolyTime (fun p : (CSP Table ℕ × MeetingCode) × (ℕ × ℕ) => rb p.1 p.2)
       (encPair encMeetingArgs (encPair encUnary encUnary)) (encOption encBlossomCode) := by
     dsimp only [rb]
@@ -281,7 +279,7 @@ theorem computableInPolyTime_blossom : ComputableInPolyTime
       (hgetR.comp ((ComputableInPolyTime.fst
         (encPair encMeetingArgs (encPair encUnary encUnary)) (encPair encNat encNat)).fst'))
     fun_prop
-  have hcase := NativeCases.sumElimSnd (left := lb) (right := rb) none hlb hrb
+  have hcase := ComputableInPolyTime.sumElimSnd (left := lb) (right := rb) hlb hrb
   have h := ComputableInPolyTime.optionElimWithInput
     (body := fun p a => a.elim (lb p) (rb p)) hh (ComputableInPolyTime.const none) hcase
   apply h.of_enc_eq

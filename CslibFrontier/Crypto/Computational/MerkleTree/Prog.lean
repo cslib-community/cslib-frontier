@@ -24,10 +24,12 @@ these programs.
 
 Evaluating the programs against a deterministic hash `h` with `OracleComp.evalPure h` reproduces
 the pure operations at `fun _ => h` with the empty key (`evalPure_merkleRootProg`,
-`evalPure_merklePathProg`, `evalPure_merkleVerifyProg`). Under a shared lazy random oracle, every
-honest opening verifies with probability one (`merkleVerifyProg_merklePathProg`). Under the
-memoized random oracle `memoize dist`, a verification makes at most `path.length + 1` queries and
-records every hash step of the checked path in the final trace, as straight-line extraction
+`evalPure_merklePathProg`, `evalPure_merkleVerifyProg`). Like `merkleVerify`, `merkleVerifyProg`
+accepts only paths whose labels have the length of the root. Under a shared lazy random oracle
+whose answers all have one length, every honest opening verifies with probability one
+(`merkleVerifyProg_merklePathProg`). Under the memoized random oracle `memoize dist`, a
+verification makes at most `path.length + 1` queries and records every hash step of the checked
+path in the final trace, as straight-line extraction
 (`CslibFrontier.Crypto.Computational.MerkleTree.ROMExtract`) requires.
 
 ## Main definitions
@@ -135,11 +137,13 @@ def merkleRootOfPathProg (leaf : List Bool) (i : ℕ) (path : List (List Bool)) 
   OracleComp.query (inputs.headD [])
 
 /-- Oracle-program Merkle path verification at depth `d`: checks `path.length == d`,
-`i < 2 ^ d`, and that the recomputed root equals `root`. -/
+`i < 2 ^ d`, that every label has the length of `root`, and that the recomputed root equals
+`root`, as `merkleVerify` does. -/
 def merkleVerifyProg (d : ℕ) (root : List Bool) (i : ℕ) (leaf : List Bool)
     (path : List (List Bool)) : OracleComp MerkleHashSpec Bool := do
   let cand ← merkleRootOfPathProg leaf i path
-  return path.length == d && decide (i < 2 ^ d) && cand == root
+  return path.length == d && decide (i < 2 ^ d) && path.all (fun s => s.length == root.length) &&
+    cand == root
 
 /-! ### Simulation by a pure hash -/
 
@@ -227,29 +231,31 @@ theorem evalPure_merkleVerifyProg (h : List Bool → List Bool) (d : ℕ) (root 
   simp [merkleVerifyProg, merkleVerify]
 
 /-- **Completeness of `merkleVerifyProg` against `merklePathProg` (pure simulation form)**: for any
-deterministic hash `h` and `i < 2 ^ Nat.clog 2 leaves.length`, `merkleVerifyProg` accepts
-`merkleRootProg leaves` and `merklePathProg leaves i`. -/
-theorem evalPure_merkleVerifyProg_merklePathProg (h : List Bool → List Bool)
-    (leaves : List (List Bool)) {i : ℕ} (hi : i < 2 ^ Nat.clog 2 leaves.length) :
+deterministic hash `h` whose digests all have `ℓ` bits and `i < 2 ^ Nat.clog 2 leaves.length`,
+`merkleVerifyProg` accepts `merkleRootProg leaves` and `merklePathProg leaves i`. -/
+theorem evalPure_merkleVerifyProg_merklePathProg (h : List Bool → List Bool) {ℓ : ℕ}
+    (hlen : ∀ x, (h x).length = ℓ) (leaves : List (List Bool)) {i : ℕ}
+    (hi : i < 2 ^ Nat.clog 2 leaves.length) :
     OracleComp.evalPure h (do
       let root ← merkleRootProg leaves
       let path ← merklePathProg leaves i
       merkleVerifyProg (Nat.clog 2 leaves.length) root i (leaves.getD i []) path) = true := by
-  simpa using merkleVerify_merklePath (H := fun _ => h) (k := []) leaves hi
+  simpa using merkleVerify_merklePath (H := fun _ => h) (k := []) hlen leaves hi
 
 /-- **Completeness of `merkleVerifyProg` against `merklePathProg` (lazy random-oracle form)**:
-under a shared lazy random oracle `RandomOracle.answer dist`, computing the root with
-`merkleRootProg`, opening position `i < 2 ^ Nat.clog 2 leaves.length` with `merklePathProg`, and
-verifying with `merkleVerifyProg` returns `true` with probability `1`. -/
-theorem merkleVerifyProg_merklePathProg (dist : (q : List Bool) → PMF (MerkleHashSpec q))
+under a shared lazy random oracle `RandomOracle.answer dist` whose answers all have `ℓ` bits,
+computing the root with `merkleRootProg`, opening position `i < 2 ^ Nat.clog 2 leaves.length` with
+`merklePathProg`, and verifying with `merkleVerifyProg` returns `true` with probability `1`. -/
+theorem merkleVerifyProg_merklePathProg {ℓ : ℕ} (dist : (q : List Bool) → PMF (MerkleHashSpec q))
+    (hdist : ∀ q, ∀ a ∈ (dist q).support, a.length = ℓ)
     (leaves : List (List Bool)) {i : ℕ} (hi : i < 2 ^ Nat.clog 2 leaves.length) :
     (OracleComp.runWith (RandomOracle.answer dist) (do
       let root ← merkleRootProg leaves
       let path ← merklePathProg leaves i
       merkleVerifyProg (Nat.clog 2 leaves.length) root i (leaves.getD i []) path)
         (fun _ => none)).map Prod.fst = PMF.pure true :=
-  OracleComp.map_fst_runWith_answer_eq_pure dist _ true fun h _ =>
-    evalPure_merkleVerifyProg_merklePathProg h leaves hi
+  OracleComp.map_fst_runWith_answer_eq_pure dist _ true fun _ hh =>
+    evalPure_merkleVerifyProg_merklePathProg _ (fun x => hdist x _ (hh x)) leaves hi
 
 /-! ### Query bounds and memoized traces -/
 

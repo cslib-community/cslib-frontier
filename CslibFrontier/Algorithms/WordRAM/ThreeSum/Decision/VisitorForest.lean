@@ -190,7 +190,9 @@ theorem forest_body_exec {r κ n w U : ℕ} {a : Arena} {l : Frontend.Layout}
   let one := preprocessingRegisters r ChanHe.Preprocessing.one
   let z := y.set current (s.index + 1)
   have hz : Exec (B := .standard) (w + 2) (.op (.bin .add current current one)) y z 1 := by
-    ram_eval [z, yi, yo, hfit, current, one]
+    simpa only [BinOp.eval, current, one, yi, yo, z] using
+      Exec.bin (w := w + 2) (f := .add) (d := current) (i := current) (j := one) (x := y)
+        (by simpa only [BinOp.eval, current, one, yi, yo] using hfit)
   have zreg (i : Fin 128) (hi : i ≠ ChanHe.Preprocessing.current) :
       z.regs (preprocessingRegisters r i) = y.regs (preprocessingRegisters r i) := by
     have hne : preprocessingRegisters r i ≠ current :=

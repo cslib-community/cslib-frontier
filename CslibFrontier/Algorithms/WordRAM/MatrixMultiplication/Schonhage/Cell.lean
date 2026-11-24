@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Forms
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # A native mixed-radix encoding cell
@@ -37,10 +38,6 @@ def CellLocal (i : Fin 32) : Prop :=
 instance (i : Fin 32) : Decidable (CellLocal i) :=
   inferInstanceAs (Decidable (i = cell ∨ i = block ∨ i = term ∨ i = suffix ∨
     i = address ∨ i = accumulator ∨ i = group ∨ i = temporary))
-
-private theorem cell_preserves (side : Bool) (i : Fin 32) :
-    9 ≤ i.val → ¬CellLocal i → (cellBody side).Preserves i := by
-  decide +kernel +revert
 
 /-- One output entry, with all index arithmetic and the counter increment charged. A single
 ordinary explicit natural-number bound covers the addresses and index products; no fit
@@ -82,48 +79,29 @@ theorem exec_cell {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
     haddr.of_le (by nlinarith only [hmul, hr, hPn])
   have hgroup : Fits (w + 2) (s + (p * 7 * n + r)) :=
     haddr.of_le (by nlinarith only [hmul, hr, hPn])
-  let z := ((((((((x.set temporary (10 * n)).set block p).set term (i / n)).set term t.val).set
-    suffix r).set group (p * 7)).set group (p * 7 * n)).set group (p * 7 * n + r)).set
-      group (s + (p * 7 * n + r))
-  have hz : ExecWithin (w + 2) cellSetup x z 9 := by
-    ram_eval [cellSetup, z, p, t, r, hsrc, hcell, hn, hseven, hten,
-      h10n, hpfit, hdivfit, htfit, hrfit, hp7, hp7n, hp7nr, hgroup,
-      temporary, block, term, suffix, group, src, cell, stride, seven, ten, Fin.mk.injEq]
-  have hzterm : z.regs term = t.val := by
-    simp [z, temporary, block, term, suffix, group]
-  have hzgroup : z.regs group = s + (p * 7 * n + r) := by simp [z]
-  have hzn : z.regs stride = n := by
-    simpa [z, temporary, block, term, suffix, group, stride, Fin.mk.injEq] using hn
-  have hzmem : ∀ a, z.mem (s + (p * 7 * n + r) + a.val * n) = encode (v a) := by
-    intro a
+  have hzmem (a : Fin 7) : x.mem (s + (p * 7 * n + r) + a.val * n) = encode (v a) := by
     have hidx : s + (p * 7 * n + r) + a.val * n = s + (p * 7 + a.val) * n + r := by ring
-    simpa only [z, Data.set_mem, hidx] using hmem a
+    simpa only [hidx] using hmem a
   have hspan : Fits (w + 2) (s + (p * 7 * n + r) + 7 * n) :=
     haddr.of_le (by nlinarith only [hmul, hr, hPn])
-  obtain ⟨u, hu, huacc, humem, hureg⟩ := exec_dispatch hw side (List.finRange 10) t
-    (List.mem_finRange _) z B (s + (p * 7 * n + r)) n v hzterm hzgroup hzn hzmem
-    hB hv hval hspan (haddr.of_le (by omega))
-  have zucell : u.regs cell = i := by
-    rw [hureg cell (by decide) (by decide) (by decide) (by decide)]
-    simpa [z, temporary, block, term, suffix, group, cell, Fin.mk.injEq] using hcell
-  have zudst : u.regs dst = d := by
-    rw [hureg dst (by decide) (by decide) (by decide) (by decide)]
-    simpa [z, temporary, block, term, suffix, group, dst, Fin.mk.injEq] using hdst
-  have zuone : u.regs one = 1 := by
-    rw [hureg one (by decide) (by decide) (by decide) (by decide)]
-    simpa [z, temporary, block, term, suffix, group, one, Fin.mk.injEq] using hone
   have hdfit : Fits (w + 2) (d + i) := haddr.of_le (by nlinarith only [hi])
   have hinc : Fits (w + 2) (i + 1) := haddr.of_le (by nlinarith only [hi])
-  let y := ((u.set address (d + i)).write (d + i) (u.regs accumulator)).set cell (i + 1)
-  have hy : ExecWithin (w + 2) cellFinish u y 3 := by
-    ram_eval [cellFinish, y, zucell, zudst, zuone, hdfit, hinc,
-      address, cell, accumulator, dst, one, Fin.mk.injEq]
-  have he : ExecWithin (w + 2) (cellBody side) x y 205 := by
-    simpa only [cellBody, List.length_finRange] using (hz.seq (hu.seq hy)).mono
-      (by decide : 9 + ((3 * 10 + 163) + 3) ≤ 205)
-  refine ⟨y, he, ?_, ?_, fun a ha hl => he.regs_eq (cell_preserves side a ha hl)⟩
-  · simp only [y, Data.set_mem, Data.write_mem, humem, z, huacc]
+  refine WP.exists_execWithin ?_
+  unfold cellBody cellSetup cellFinish
+  wram_exec [hsrc, hcell, hn, hseven, hten, h10n, hpfit, hdivfit, htfit, hrfit, hp7, hp7n,
+    hp7nr, hgroup]
+  wram_call (exec_dispatch hw side (List.finRange 10) t (List.mem_finRange _) _ B
+    (s + (p * 7 * n + r)) n v (by wram_simp; rfl) (by wram_simp; rfl) (by wram_simp [hn]) hzmem
+    hB hv hval hspan (haddr.of_le (by omega))) with u ⟨huacc, humem, hureg⟩
+  wram_exec * [hdfit, hinc, huacc]
+  refine ⟨?_, by wram_simp, fun a ha hl => ?_⟩
+  · wram_simp
+    rw [humem]
     rfl
-  · simp [y]
+  · simp only [CellLocal, not_or] at hl
+    rcases hl with ⟨hc, hb, ht', hs, had, hac, hg, htmp⟩
+    wram_simp
+    rw [hureg a ha had hac htmp]
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
