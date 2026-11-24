@@ -7,6 +7,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
+import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import Mathlib.Tactic.NormNum
 
@@ -105,5 +106,23 @@ example :
   exact ⟨(totalDegree_coeff_relativeCriticalLower_le (by decide) F 0 0).trans
       (Nat.add_le_add_right hF 1),
     (totalDegree_coeff_relativeDeformedPolynomial_le 2 F 0).trans (Nat.add_le_add_right hF 1)⟩
+
+-- Scaling a retained parameter records its degree and keeps it in the coefficient ring.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inr 0)
+    let p := (relativeSource F).coeff 0
+    let scaled := MvPolynomial.aeval
+      (fun i => (Polynomial.X : Polynomial (MvPolynomial (Option (Fin 1)) ℤ)) *
+        Polynomial.C (X i)) p
+    scaled.coeff 1 = X (some 0) ∧ scaled.natDegree = 1 := by
+  intro F p scaled
+  have hp : p = X (some 0) := by simp [p, F, relativeSource]
+  dsimp only [scaled]
+  constructor
+  · rw [coeff_aeval_scale_X, hp]
+    exact homogeneousComponent_eq_self (isHomogeneous_X ℤ (some 0))
+  · rw [natDegree_aeval_scale_X, hp, totalDegree_X]
 
 end CslibFrontierTests.RealAlgebraicCharacteristic

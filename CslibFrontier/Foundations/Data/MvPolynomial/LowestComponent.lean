@@ -8,8 +8,10 @@ module
 -- upstream: candidate (Mathlib, lowest homogeneous components)
 
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialDerivatives
+public import Mathlib.Algebra.Polynomial.AlgebraMap
 public import Mathlib.LinearAlgebra.LinearIndependent.Defs
 public import Mathlib.RingTheory.MvPolynomial.Homogeneous
+import Mathlib.Algebra.Polynomial.Degree.Lemmas
 
 /-!
 # Lowest homogeneous components
@@ -32,6 +34,9 @@ polynomial that starts in degree `e` gives a multiple of `c ^ e`.
   lowest components are linearly independent.
 * `MvPolynomial.aeval_mul_left_of_isHomogeneous`, `MvPolynomial.pow_dvd_aeval_mul_left`: scaling
   the point of a substitution.
+* `MvPolynomial.coeff_aeval_scale_X`, `MvPolynomial.natDegree_aeval_scale_X`:
+  scaling the variables by a fresh indeterminate records the homogeneous components as
+  its coefficients and preserves total degree as univariate degree.
 -/
 
 public section
@@ -163,6 +168,41 @@ theorem pow_dvd_aeval_mul_left {q : MvPolynomial σ R} {k : ℕ}
   exact mem_support_iff.1 hd (coeff_eq_zero_of_homogeneousComponent_eq_zero hq h)
 
 end Substitution
+
+/-- Keeping the original variables in the coefficient ring, scale them all by a fresh
+univariate indeterminate. Its coefficient at degree `j` is the original homogeneous
+component of degree `j`. -/
+theorem coeff_aeval_scale_X (p : MvPolynomial σ R) (j : ℕ) :
+    (aeval (fun i => (Polynomial.X : Polynomial (MvPolynomial σ R)) * Polynomial.C (X i))
+      p).coeff j = homogeneousComponent j p := by
+  classical
+  have hC (q : MvPolynomial σ R) :
+      aeval (fun i => Polynomial.C (X i : MvPolynomial σ R)) q = Polynomial.C q := by
+    simpa only [Polynomial.CAlgHom_apply, aeval_X_left_apply] using
+      (comp_aeval_apply (f := X) (Polynomial.CAlgHom (R := R) (A := MvPolynomial σ R)) q).symm
+  rw [homogeneousComponent_apply, Finset.sum_filter]
+  conv_lhs => rw [p.as_sum]
+  rw [map_sum, Polynomial.finsetSum_coeff]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  rw [aeval_mul_left_monomial, hC, mul_comm, Polynomial.coeff_C_mul_X_pow]
+  simp only [eq_comm]
+
+/-- After scaling the variables by a fresh indeterminate, its univariate degree equals
+the original total degree. Distinct original monomials of the same degree remain distinct
+in their common coefficient. -/
+theorem natDegree_aeval_scale_X (p : MvPolynomial σ R) :
+    (aeval (fun i => (Polynomial.X : Polynomial (MvPolynomial σ R)) * Polynomial.C (X i))
+      p).natDegree = p.totalDegree := by
+  refine le_antisymm (Polynomial.natDegree_le_iff_coeff_eq_zero.mpr fun j hj => ?_) ?_
+  · rw [coeff_aeval_scale_X]
+    exact homogeneousComponent_eq_zero j p hj
+  · refine Finset.sup_le fun m hm => ?_
+    have h : homogeneousComponent m.degree p ≠ 0 := by
+      intro hz
+      have hc : (homogeneousComponent m.degree p).coeff m = 0 := by rw [hz]; rfl
+      rw [coeff_homogeneousComponent, ite_eq_left rfl] at hc
+      exact mem_support_iff.mp hm hc
+    exact Polynomial.le_natDegree_of_ne_zero (by rwa [coeff_aeval_scale_X])
 
 end CommSemiring
 
