@@ -7,6 +7,7 @@ import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.GraphicalGames
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
