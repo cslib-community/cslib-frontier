@@ -386,7 +386,7 @@ theorem joins_msf_lt_iff {k : W} {u v : V} :
 
 omit [LinearOrder W] in
 /-- Distinct vertices are joined by a set of edges only if the set is nonempty. -/
-private theorem nonempty_of_joins {T : Finset E} {u v : V} (huv : u ≠ v)
+theorem nonempty_of_joins {T : Finset E} {u v : V} (huv : u ≠ v)
     (h : Joins ends (T : Set E) u v) : T.Nonempty := by
   rcases Relation.ReflTransGen.cases_tail h with rfl | ⟨b, -, e, he, -⟩
   · exact absurd rfl huv
