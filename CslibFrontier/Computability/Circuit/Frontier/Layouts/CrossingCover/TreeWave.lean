@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Submodular
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.CoverLifting
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.GaussianComparison
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.AR2Density
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.AlternatingSum
 public import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
@@ -60,9 +61,8 @@ asymptotic upper bound on the expected minimum crossing vertex cover of `H`.
   `Cslib.Circuits.Frontier.CrossingCover.treeOverlap`: exact covariance formula on high-girth
   cubic graphs and its `R → ∞` limit `(1 + d / 3) * 2 ^ (-d / 2)`.
 * `Cslib.Circuits.Frontier.CrossingCover.ar2StepMap`,
-  `Cslib.Circuits.Frontier.CrossingCover.ar2AltProb`,
-  `Cslib.Circuits.Frontier.CrossingCover.ar2AltWaveSum`: stationary AR(2) Gaussian realization,
-  alternating-sign orthant probability, and truncated alternating wave sum.
+  `Cslib.Circuits.Frontier.CrossingCover.ar2AltProb`: stationary AR(2) Gaussian realization and
+  its alternating-sign orthant probability.
 
 ## Main results
 
@@ -75,8 +75,9 @@ asymptotic upper bound on the expected minimum crossing vertex cover of `H`.
 * `Cslib.Circuits.Frontier.CrossingCover.tendsto_treeOverlap`,
   `Cslib.Circuits.Frontier.CrossingCover.waveRow_inner_eq_treeOverlap`: exact covariance calculation
   on high-girth cubic graphs and its `R → ∞` limit.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2AltProb_eq_integral_density`: density integral identity
-  for the stationary AR(2) alternating-sign orthant probability.
+* `Cslib.Circuits.Frontier.CrossingCover.ar2AltProb_eq_altPathProb`: the alternating-sign orthant
+  probability of the Gaussian AR(2) process is the density integral `altPathProb` of
+  `CrossingCover.AR2Density`.
 * `Cslib.Circuits.Frontier.CrossingCover.exists_degThree_star_bound`,
   `Cslib.Circuits.Frontier.CrossingCover.exists_nbWalk_prob_close`: uniform convergence lemmas for
   high-girth cubic graphs.
@@ -1772,39 +1773,6 @@ noncomputable def ar2AltProb (j : ℕ) : ℝ :=
   2 * (piGauss (Fin (j + 1))).real
     {ξ | ∀ i : Fin (j + 1), 0 < (-1 : ℝ) ^ i.val * ar2StepMap j ξ i}
 
-/-- Joint density of the alternating-sign process `Y_i = (-1)^i * X_i` on `Fin (j + 1) → ℝ`,
-matching `ar2InitDensity` and `ar2Kernel`. -/
-@[expose] noncomputable def ar2StepJointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
-  | 0, x => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(x 0) ^ 2 / 2)
-  | k + 1, x =>
-      ((3 / (2 * Real.pi)) *
-        Real.exp (-(9 / 2) * (x ⟨0, by omega⟩ ^ 2 + x ⟨1, by omega⟩ ^ 2) -
-          6 * Real.sqrt 2 * x ⟨0, by omega⟩ * x ⟨1, by omega⟩)) *
-        ∏ i : Fin k, (Real.sqrt (6 / Real.pi) *
-          Real.exp (-6 * (x ⟨i.val + 2, by omega⟩ +
-            Real.sqrt 2 * x ⟨i.val + 1, by omega⟩ + x ⟨i.val, by omega⟩ / 2) ^ 2))
-
-/-- Nonnegativity of `ar2StepJointDensity`. -/
-theorem ar2StepJointDensity_nonneg (j : ℕ) (x : Fin (j + 1) → ℝ) :
-    0 ≤ ar2StepJointDensity j x := by
-  cases j with
-  | zero => unfold ar2StepJointDensity; positivity
-  | succ k =>
-    unfold ar2StepJointDensity
-    refine mul_nonneg (by positivity) (Finset.prod_nonneg fun _ _ => by positivity)
-
-private theorem measurable_ar2StepJointDensity (j : ℕ) :
-    Measurable (ar2StepJointDensity j) := by
-  cases j with
-  | zero =>
-    unfold ar2StepJointDensity
-    exact (Continuous.measurable (by fun_prop))
-  | succ k =>
-    unfold ar2StepJointDensity
-    refine (Continuous.measurable ?_)
-    refine (continuous_const.mul (by fun_prop)).mul (continuous_finsetProd _ fun i _ => ?_)
-    exact continuous_const.mul (by fun_prop)
-
 private theorem measurePreserving_snoc_pi {n : ℕ} (ν : Measure ℝ) [SigmaFinite ν] :
     MeasurePreserving (fun p : (Fin n → ℝ) × ℝ => Fin.snoc (α := fun _ => ℝ) p.1 p.2)
       ((Measure.pi fun _ : Fin n => ν).prod ν)
@@ -1930,7 +1898,7 @@ private theorem measurable_ar2AltMap (j : ℕ) : Measurable (ar2AltMap j) := by
 
 private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ≥0∞} (hf : Measurable f) :
     ∫⁻ ξ, f (ar2AltMap j ξ) ∂(piGauss (Fin (j + 1))) =
-      ∫⁻ y, ENNReal.ofReal (ar2StepJointDensity j y) * f y
+      ∫⁻ y, ENNReal.ofReal (ar2JointDensity j y) * f y
         ∂(Measure.pi fun _ : Fin (j + 1) => volume) := by
   induction j with
   | zero =>
@@ -1948,15 +1916,15 @@ private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ
       refine lintegral_congr fun u => congrArg f (funext fun i => ?_)
       rw [huni u]
       fin_cases i; simp [ar2AltMap, ar2StepMap_zero]
-    have hr : ∫⁻ y, ENNReal.ofReal (ar2StepJointDensity 0 y) * f y
+    have hr : ∫⁻ y, ENNReal.ofReal (ar2JointDensity 0 y) * f y
         ∂(Measure.pi fun _ : Fin 1 => volume) =
         ∫⁻ u, ENNReal.ofReal ((Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(u ^ 2) / 2)) *
           f (fun _ => u) ∂volume := by
       have hm := hmp_v.lintegral_comp
-        (f := fun y => ENNReal.ofReal (ar2StepJointDensity 0 y) * f y)
-        (((measurable_ar2StepJointDensity 0).ennreal_ofReal).mul hf)
+        (f := fun y => ENNReal.ofReal (ar2JointDensity 0 y) * f y)
+        (((ar2JointDensity_continuous 0).measurable.ennreal_ofReal).mul hf)
       rw [← hm]
-      refine lintegral_congr fun u => by rw [huni u]; simp [ar2StepJointDensity]
+      refine lintegral_congr fun u => by rw [huni u]; simp [ar2JointDensity]
     have hf_const : Measurable (fun u : ℝ => f (fun _ : Fin 1 => u)) := by
       have heq : (fun u : ℝ => f (fun _ : Fin 1 => u)) =
           f ∘ (MeasurableEquiv.piUnique fun _ : Fin 1 => ℝ).symm :=
@@ -1979,16 +1947,16 @@ private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ
       rw [← hm]
       exact lintegral_prod _
         (hf.comp ((measurable_ar2AltMap (j + 1)).comp hmp_g.measurable)).aemeasurable
-    have hprod_r : ∫⁻ y, ENNReal.ofReal (ar2StepJointDensity (j + 1) y) * f y
+    have hprod_r : ∫⁻ y, ENNReal.ofReal (ar2JointDensity (j + 1) y) * f y
         ∂(Measure.pi fun _ : Fin (j + 2) => volume) =
         ∫⁻ y' : Fin (j + 1) → ℝ, ∫⁻ z : ℝ,
-          ENNReal.ofReal (ar2StepJointDensity (j + 1) (snoc y' z)) * f (snoc y' z)
+          ENNReal.ofReal (ar2JointDensity (j + 1) (snoc y' z)) * f (snoc y' z)
           ∂volume ∂(Measure.pi fun _ : Fin (j + 1) => volume) := by
       have hm := hmp_v.lintegral_comp
-        (f := fun y => ENNReal.ofReal (ar2StepJointDensity (j + 1) y) * f y)
-        (((measurable_ar2StepJointDensity (j + 1)).ennreal_ofReal).mul hf)
+        (f := fun y => ENNReal.ofReal (ar2JointDensity (j + 1) y) * f y)
+        (((ar2JointDensity_continuous (j + 1)).measurable.ennreal_ofReal).mul hf)
       rw [← hm]
-      exact lintegral_prod _ ((((measurable_ar2StepJointDensity (j + 1)).ennreal_ofReal).mul
+      exact lintegral_prod _ ((((ar2JointDensity_continuous (j + 1)).measurable.ennreal_ofReal).mul
         hf).comp hmp_v.measurable).aemeasurable
     rw [hprod_l, hprod_r]
     cases j with
@@ -2060,9 +2028,9 @@ private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ
       refine lintegral_congr fun z => ?_
       rw [← mul_assoc]
       congr 1
-      have h0 : ar2StepJointDensity 0 y' = gaussianPDFReal 0 1 (y' 0) := by
-        simp [ar2StepJointDensity, gaussianPDFReal_def]
-      change ENNReal.ofReal (ar2StepJointDensity 0 y') *
+      have h0 : ar2JointDensity 0 y' = gaussianPDFReal 0 1 (y' 0) := by
+        simp [ar2JointDensity, gaussianPDFReal_def]
+      change ENNReal.ofReal (ar2JointDensity 0 y') *
           ENNReal.ofReal (gaussianPDFReal (-(2 * Real.sqrt 2 / 3) * y' 0)
             ⟨(-1 / 3) ^ 2, sq_nonneg _⟩ z) = _
       rw [h0, ← ENNReal.ofReal_mul (gaussianPDFReal_nonneg 0 1 _), gaussianPDF_init_mul]
@@ -2186,14 +2154,14 @@ private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ
       refine lintegral_congr fun z => ?_
       rw [← mul_assoc]
       congr 1
-      change ENNReal.ofReal (ar2StepJointDensity (k + 1) y') *
+      change ENNReal.ofReal (ar2JointDensity (k + 1) y') *
           ENNReal.ofReal (gaussianPDFReal
             (-Real.sqrt 2 * y' ⟨k + 1, by omega⟩ - y' ⟨k, by omega⟩ / 2)
             ⟨((-1 : ℝ) ^ (k + 2) / Real.sqrt 12) ^ 2, sq_nonneg _⟩ z) = _
-      rw [← ENNReal.ofReal_mul (ar2StepJointDensity_nonneg (k + 1) y'),
+      rw [← ENNReal.ofReal_mul (ar2JointDensity_nonneg (k + 1) y'),
         gaussianPDF_kernel_eq k]
       congr 1
-      simp only [ar2StepJointDensity]
+      simp only [ar2JointDensity, ar2InitDensity, ar2Kernel]
       rw [Fin.prod_univ_castSucc, ← mul_assoc]
       have h0 : snoc y' z ⟨0, by omega⟩ = y' ⟨0, by omega⟩ := by
         change Fin.snoc (α := fun _ => ℝ) y' z (⟨0, by omega⟩ : Fin (k + 2)).castSucc = _
@@ -2232,12 +2200,9 @@ private theorem lintegral_ar2AltMap (j : ℕ) {f : (Fin (j + 1) → ℝ) → ℝ
       rw [h0, h1, hprod, hlast0, hlast1, hlast2]
       ring
 
-/-- Density-integral identity equating `ar2AltProb j` to twice the positive-orthant Lebesgue
-integral of `ar2StepJointDensity j`. -/
-theorem ar2AltProb_eq_integral_density (j : ℕ) :
-    ar2AltProb j =
-      2 * ∫ x in Set.pi Set.univ (fun _ : Fin (j + 1) => Set.Ioi (0 : ℝ)),
-        ar2StepJointDensity j x ∂(Measure.pi fun _ : Fin (j + 1) => volume) := by
+/-- The alternating-sign orthant probability `ar2AltProb j` of the Gaussian AR(2) process is
+`altPathProb j`, twice the positive-orthant Lebesgue integral of `ar2JointDensity j`. -/
+theorem ar2AltProb_eq_altPathProb (j : ℕ) : ar2AltProb j = altPathProb j := by
   let S : Set (Fin (j + 1) → ℝ) := Set.pi Set.univ (fun _ : Fin (j + 1) => Set.Ioi (0 : ℝ))
   have hS_meas : MeasurableSet S := MeasurableSet.univ_pi fun _ => measurableSet_Ioi
   let ind : (Fin (j + 1) → ℝ) → ℝ≥0∞ := S.indicator fun _ => 1
@@ -2253,28 +2218,24 @@ theorem ar2AltProb_eq_integral_density (j : ℕ) :
     change (ar2AltMap j ⁻¹' S).indicator (fun _ => (1 : ℝ≥0∞)) ξ =
       S.indicator (fun _ => (1 : ℝ≥0∞)) (ar2AltMap j ξ)
     by_cases h : ar2AltMap j ξ ∈ S <;> simp [h]
-  have hlin : ∫⁻ y, ENNReal.ofReal (ar2StepJointDensity j y) * ind y
+  have hlin : ∫⁻ y, ENNReal.ofReal (ar2JointDensity j y) * ind y
       ∂(Measure.pi fun _ : Fin (j + 1) => volume) =
-      ∫⁻ y in S, ENNReal.ofReal (ar2StepJointDensity j y)
+      ∫⁻ y in S, ENNReal.ofReal (ar2JointDensity j y)
         ∂(Measure.pi fun _ : Fin (j + 1) => volume) := by
     rw [← lintegral_indicator hS_meas]
     refine lintegral_congr fun y => ?_
     by_cases hy : y ∈ S <;> simp [ind, hy]
   have heq_enn : (piGauss (Fin (j + 1)))
       {ξ | ∀ i : Fin (j + 1), 0 < (-1 : ℝ) ^ i.val * ar2StepMap j ξ i} =
-      ∫⁻ y in S, ENNReal.ofReal (ar2StepJointDensity j y)
+      ∫⁻ y in S, ENNReal.ofReal (ar2JointDensity j y)
         ∂(Measure.pi fun _ : Fin (j + 1) => volume) := by
     rw [hpre, lintegral_ar2AltMap j hind_meas, hlin]
-  unfold ar2AltProb
+  unfold ar2AltProb altPathProb ar2OrthantIntegral
   congr 1
   rw [measureReal_def, heq_enn,
     ← integral_eq_lintegral_of_nonneg_ae
-      (ae_of_all _ fun y => ar2StepJointDensity_nonneg j y)
-      (measurable_ar2StepJointDensity j).aestronglyMeasurable]
-
-/-- Truncated alternating wave sum for odd order `J`. -/
-@[expose] noncomputable def ar2AltWaveSum (J : ℕ) : ℝ :=
-  ∑ j ∈ Finset.Icc 1 J, (-1 : ℝ) ^ (j + 1) * (3 / 2) * (2 : ℝ) ^ (j - 1) * ar2AltProb j
+      (ae_of_all _ fun y => ar2JointDensity_nonneg j y)
+      (ar2JointDensity_continuous j).measurable.aestronglyMeasurable]
 
 end AR2Process
 
@@ -3271,7 +3232,8 @@ theorem isSymmetricBool_simpleCrossingCover {V : Type*} [Finite V] (H : SimpleGr
 /-- **Uniform radial wave expectation upper bound:** for every odd truncation order `J ≥ 1` and
 every `η > 0`, there exist `R : ℕ` and `ε ∈ (0, 1)` such that for *every* finite cubic simple
 graph `H` and *every* real threshold `t`,
-`E[simpleCrossingCover H (thresholdVec (waveScore H R ε g) t)] ≤ (ar2AltWaveSum J + η) * |V|`. -/
+`E[simpleCrossingCover H (thresholdVec (waveScore H R ε g) t)] ≤
+(alternatingWaveSum J + η) * |V|`. -/
 theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
     (η : ℝ) (hη : 0 < η) :
     ∃ (R : ℕ) (ε : ℝ), 0 < ε ∧ ε < 1 ∧
@@ -3280,7 +3242,7 @@ theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
         ∀ t : ℝ,
           ∫ g, (simpleCrossingCover H (thresholdVec (waveScore H R ε g) t) : ℝ)
               ∂(piGauss (V ⊕ V)) ≤
-            (ar2AltWaveSum J + η) * (Fintype.card V : ℝ) := by
+            (alternatingWaveSum J + η) * (Fintype.card V : ℝ) := by
   have hJ1 : 1 ≤ J := by obtain ⟨k, rfl⟩ := hJ; omega
   let Cwalk : ℝ := ∑ j ∈ Finset.Icc 1 J, (3 / 2 : ℝ) * (2 : ℝ) ^ (j - 1)
   have hCwalk_pos : 0 < Cwalk := by
@@ -3530,7 +3492,7 @@ theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
       _ = ηdeg * (Fintype.card (V × Q) : ℝ) := by
             rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_comm]
   have hsum_bd : 2 * ∫ g', (simpleCrossingCover H' (bt g') : ℝ) ∂μ' ≤
-      (2 * ar2AltWaveSum J + 2 * η) * (Fintype.card (V × Q) : ℝ) := by
+      (2 * alternatingWaveSum J + 2 * η) * (Fintype.card (V × Q) : ℝ) := by
     have hs1 : ∑ j ∈ Finset.Icc 1 J,
           (-1 : ℝ) ^ (j + 1) * ∫ g', (dirNBCount (crossingGraph H' (bt g')) j : ℝ) ∂μ' ≤
         ∑ j ∈ Finset.Icc 1 J, ((-1 : ℝ) ^ (j + 1) * ar2AltProb j + ηwalk) *
@@ -3538,7 +3500,7 @@ theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
       Finset.sum_le_sum hE_dir
     have hs1_eq : ∑ j ∈ Finset.Icc 1 J, ((-1 : ℝ) ^ (j + 1) * ar2AltProb j + ηwalk) *
           (3 * (2 : ℝ) ^ (j - 1) * (Fintype.card (V × Q) : ℝ)) =
-        (2 * ar2AltWaveSum J + η) * (Fintype.card (V × Q) : ℝ) := by
+        (2 * alternatingWaveSum J + η) * (Fintype.card (V × Q) : ℝ) := by
       have hsep : ∀ j : ℕ, ((-1 : ℝ) ^ (j + 1) * ar2AltProb j + ηwalk) *
             (3 * (2 : ℝ) ^ (j - 1) * (Fintype.card (V × Q) : ℝ)) =
           (2 * ((-1 : ℝ) ^ (j + 1) * (3 / 2) * (2 : ℝ) ^ (j - 1) * ar2AltProb j)) *
@@ -3548,8 +3510,8 @@ theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
       simp_rw [hsep, Finset.sum_add_distrib, ← Finset.sum_mul]
       have ha1 : ∑ j ∈ Finset.Icc 1 J,
           2 * ((-1 : ℝ) ^ (j + 1) * (3 / 2) * (2 : ℝ) ^ (j - 1) * ar2AltProb j) =
-          2 * ar2AltWaveSum J := by
-        rw [← Finset.mul_sum]; rfl
+          2 * alternatingWaveSum J := by
+        rw [← Finset.mul_sum]; simp only [ar2AltProb_eq_altPathProb]; rfl
       have ha2 : ∑ j ∈ Finset.Icc 1 J,
           2 * ηwalk * ((3 / 2 : ℝ) * (2 : ℝ) ^ (j - 1)) =
           2 * ηwalk * Cwalk := by
@@ -3571,7 +3533,7 @@ theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
     rw [hs1_eq] at hs1
     linarith [hE_alt, hs1, hs2]
   have hcover_le : ∫ g', (simpleCrossingCover H' (bt g') : ℝ) ∂μ' ≤
-      (ar2AltWaveSum J + η) * ((m : ℝ) * (Fintype.card V : ℝ)) := by
+      (alternatingWaveSum J + η) * ((m : ℝ) * (Fintype.card V : ℝ)) := by
     have hcard : (Fintype.card (V × Q) : ℝ) = (m : ℝ) * (Fintype.card V : ℝ) := by
       have := cov.card_vert_eq
       exact_mod_cast this
@@ -3580,12 +3542,12 @@ theorem exists_wave_params_expected_crossingCover_le.{u} (J : ℕ) (hJ : Odd J)
   have hmul : (m : ℝ) *
       ∫ g, (simpleCrossingCover H (thresholdVec (waveScore H R ε g) t) : ℝ)
         ∂(piGauss (V ⊕ V)) ≤
-      (m : ℝ) * ((ar2AltWaveSum J + η) * (Fintype.card V : ℝ)) := by
+      (m : ℝ) * ((alternatingWaveSum J + η) * (Fintype.card V : ℝ)) := by
     calc (m : ℝ) * _ = _ := hlift
       _ ≤ _ := hcmp
       _ ≤ _ := hzero
-      _ ≤ (ar2AltWaveSum J + η) * ((m : ℝ) * (Fintype.card V : ℝ)) := hcover_le
-      _ = (m : ℝ) * ((ar2AltWaveSum J + η) * (Fintype.card V : ℝ)) := by ring
+      _ ≤ (alternatingWaveSum J + η) * ((m : ℝ) * (Fintype.card V : ℝ)) := hcover_le
+      _ = (m : ℝ) * ((alternatingWaveSum J + η) * (Fintype.card V : ℝ)) := by ring
   exact le_of_mul_le_mul_left hmul hm_pos
 
 end MainExpectation

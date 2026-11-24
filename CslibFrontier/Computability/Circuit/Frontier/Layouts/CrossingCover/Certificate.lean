@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.AR2Density
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
@@ -42,51 +43,29 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
-# Certified AR(2) orthant probabilities and alternating wave-sum bounds
+# A certified bound on the alternating wave sum at cutoff `13`
 
-This module defines the stationary reversible Gaussian AR(2) Markov chain associated with
-alternating sign paths on the infinite 3-regular tree (`ρ = -2√2 / 3`, conditional variance
-`1 / 12`), proves its foundational properties (reversibility, normalization, integrability,
-marginals, quadratic exponent decomposition), develops real-analytic Fourier derivative bounds
-and shifted Gauss–Legendre polynomial quadrature error estimates, and certifies explicit rational
-bounds on the alternating wave sum
+This module proves the single numerical inequality
 
-`alternatingWaveSum J = ∑ j ∈ Icc 1 J, (-1) ^ (j + 1) * (3 / 2) * 2 ^ (j - 1) * altPathProb j`
+`alternatingWaveSum 13 < 130649 / 1000000`
 
-through pure kernel-checked fixed-point `Nat` interval arithmetic (no `native_decide`, no `sorry`,
-no custom axioms, and no `maxHeartbeats` overrides).
-
-## Main definitions
-
-* `Cslib.Circuits.Frontier.CrossingCover.ar2InitDensity`: bivariate stationary density with
-  correlation `-2√2 / 3`.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2Kernel`: Gaussian AR(2) transition density with mean
-  `-√2 y - x / 2` and variance `1 / 12`.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2JointDensity`: joint density of length `j + 1`.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2OrthantIntegral`: positive-orthant probability of
-  `ar2JointDensity j`.
-* `Cslib.Circuits.Frontier.CrossingCover.altPathProb`: alternating-path probability
-  `2 * ar2OrthantIntegral j`.
-* `Cslib.Circuits.Frontier.CrossingCover.alternatingWaveSum`: truncated alternating wave sum.
-* `Cslib.Circuits.Frontier.CrossingCover.ar2QuadForm`,
-  `Cslib.Circuits.Frontier.CrossingCover.ar2QuadDiag`: exact positive-semidefinite quadratic
-  exponent and its diagonal precision entries `≤ 39`.
+for the alternating wave sum of the stationary Gaussian AR(2) chain defined in
+`CrossingCover.AR2Density`. The proof is by pure kernel-checked fixed-point `Nat` interval
+arithmetic (no `native_decide`, no `sorry`, no custom axioms, and no `maxHeartbeats` overrides).
 
 ## Main results
 
-* Time-reversibility, pointwise upper bounds, integrability, total mass `1`, and coordinate
-  slicing of `ar2JointDensity`.
-* Real Fourier derivative bound on `iteratedDeriv (2 * N) (fun x => exp (-q / 2 * (x - μ) ^ 2))`.
 * `Cslib.Circuits.Frontier.CrossingCover.alternatingWaveSum_13_lt`: the certified upper bound
   `alternatingWaveSum 13 < 130649 / 1000000`.
 
 ## Implementation notes
 
-The proof of `alternatingWaveSum_13_lt` is internal to this file. Its private ingredients are
-shifted Gauss–Legendre quadrature (exactness, positivity of the weights, and the Hermite
-interpolation error term via Rolle's theorem), anisotropic box truncation with tail bounds from
-exact 2- and 3-marginal reduction, and the fixed-point interval certificate itself. Only the
-AR(2) definitions and the final inequality are meant for use by other modules.
+`alternatingWaveSum_13_lt` is the only public declaration; everything else is a private step of
+its proof. The steps are: the quadratic exponent of the joint density with its diagonal precision
+entries and coordinate slices; a real Fourier bound on the even derivatives of a Gaussian; shifted
+Gauss–Legendre quadrature (exactness, positivity of the weights, and the Hermite interpolation
+error term via Rolle's theorem); anisotropic box truncation with tail bounds from exact 2- and
+3-marginal reduction; and the fixed-point interval certificate itself.
 -/
 
 public section
@@ -96,471 +75,13 @@ namespace Cslib.Circuits.Frontier.CrossingCover
 open Finset MeasureTheory Real
 open scoped BigOperators Interval
 
-/-! ### AR(2) density, Markov kernel, and basic properties -/
-
-section AR2Density
-
-/-- Stationary bivariate Gaussian density with unit marginals and correlation `-2√2 / 3`. -/
-@[expose] noncomputable def ar2InitDensity (x y : ℝ) : ℝ :=
-  (3 / (2 * Real.pi)) *
-    Real.exp (-(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y)
-
-/-- Gaussian AR(2) transition kernel with conditional mean `-√2 y - x / 2` and variance `1 / 12`. -/
-@[expose] noncomputable def ar2Kernel (x y z : ℝ) : ℝ :=
-  Real.sqrt (6 / Real.pi) *
-    Real.exp (-6 * (z + Real.sqrt 2 * y + x / 2) ^ 2)
-
-/-- Joint density of the first `j + 1` coordinates of the stationary AR(2) process. For `j = 0`
-this is the standard 1D Gaussian density; for `j ≥ 1` it is the product of `ar2InitDensity` and
-`j - 1` transition factors `ar2Kernel`. -/
-@[expose] noncomputable def ar2JointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
-  | 0, x => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(x 0) ^ 2 / 2)
-  | k + 1, x =>
-      ar2InitDensity (x ⟨0, by omega⟩) (x ⟨1, by omega⟩) *
-        ∏ i : Fin k, ar2Kernel (x ⟨i.1, by omega⟩) (x ⟨i.1 + 1, by omega⟩)
-          (x ⟨i.1 + 2, by omega⟩)
-
-/-- Positive-orthant integral `∫_{x > 0} ar2JointDensity j x dx` over `Fin (j + 1) → ℝ`. -/
-@[expose] noncomputable def ar2OrthantIntegral (j : ℕ) : ℝ :=
-  ∫ x in Set.pi Set.univ (fun _ : Fin (j + 1) => Set.Ioi (0 : ℝ)),
-    ar2JointDensity j x ∂(Measure.pi fun _ : Fin (j + 1) => volume)
-
-/-- Alternating-sign path probability `2 * ar2OrthantIntegral j` for a path of `j` edges. -/
-@[expose] noncomputable def altPathProb (j : ℕ) : ℝ :=
-  2 * ar2OrthantIntegral j
-
-/-- Truncated alternating wave sum up to path length `J`. -/
-@[expose] noncomputable def alternatingWaveSum (J : ℕ) : ℝ :=
-  ∑ j ∈ Finset.Icc 1 J,
-    (-1 : ℝ) ^ (j + 1) * (3 / 2) * (2 : ℝ) ^ (j - 1) * altPathProb j
-
-/-- `ar2InitDensity x y` is strictly positive for all `x, y : ℝ`. -/
-theorem ar2InitDensity_pos (x y : ℝ) : 0 < ar2InitDensity x y := by
-  unfold ar2InitDensity
-  positivity
-
-/-- `ar2InitDensity x y` is nonnegative for all `x, y : ℝ`. -/
-theorem ar2InitDensity_nonneg (x y : ℝ) : 0 ≤ ar2InitDensity x y :=
-  (ar2InitDensity_pos x y).le
-
-/-- `ar2Kernel x y z` is strictly positive for all `x, y, z : ℝ`. -/
-theorem ar2Kernel_pos (x y z : ℝ) : 0 < ar2Kernel x y z := by
-  unfold ar2Kernel
-  positivity
-
-/-- `ar2Kernel x y z` is nonnegative for all `x, y, z : ℝ`. -/
-theorem ar2Kernel_nonneg (x y z : ℝ) : 0 ≤ ar2Kernel x y z :=
-  (ar2Kernel_pos x y z).le
-
-/-- `ar2JointDensity j x` is strictly positive for all `j` and `x`. -/
-theorem ar2JointDensity_pos (j : ℕ) (x : Fin (j + 1) → ℝ) :
-    0 < ar2JointDensity j x := by
-  cases j with
-  | zero =>
-      unfold ar2JointDensity
-      positivity
-  | succ k =>
-      unfold ar2JointDensity
-      exact mul_pos (ar2InitDensity_pos _ _)
-        (Finset.prod_pos fun i _ => ar2Kernel_pos _ _ _)
-
-/-- `ar2JointDensity j x` is nonnegative for all `j` and `x`. -/
-theorem ar2JointDensity_nonneg (j : ℕ) (x : Fin (j + 1) → ℝ) :
-    0 ≤ ar2JointDensity j x :=
-  (ar2JointDensity_pos j x).le
-
-/-- `ar2InitDensity` is symmetric in its two arguments. -/
-theorem ar2InitDensity_symm (x y : ℝ) : ar2InitDensity x y = ar2InitDensity y x := by
-  unfold ar2InitDensity
-  congr 2
-  ring
-
-/-- `ar2InitDensity` is even under joint negation. -/
-theorem ar2InitDensity_neg (x y : ℝ) : ar2InitDensity (-x) (-y) = ar2InitDensity x y := by
-  unfold ar2InitDensity
-  congr 2
-  ring
-
-/-- `ar2Kernel` is even under joint negation. -/
-theorem ar2Kernel_neg (x y z : ℝ) : ar2Kernel (-x) (-y) (-z) = ar2Kernel x y z := by
-  unfold ar2Kernel
-  congr 2
-  ring
-
-/-- `ar2JointDensity` is even under coordinatewise negation. -/
-theorem ar2JointDensity_neg (j : ℕ) (x : Fin (j + 1) → ℝ) :
-    ar2JointDensity j (-x) = ar2JointDensity j x := by
-  cases j with
-  | zero =>
-      simp [ar2JointDensity]
-  | succ k =>
-      simp only [ar2JointDensity, Pi.neg_apply, ar2InitDensity_neg, ar2Kernel_neg]
-
-/-- Upper bound `ar2InitDensity x y ≤ 3 / (2 * π)`. -/
-theorem ar2InitDensity_le (x y : ℝ) : ar2InitDensity x y ≤ 3 / (2 * Real.pi) := by
-  unfold ar2InitDensity
-  have hsq : Real.sqrt 2 ^ 2 = 2 := Real.sq_sqrt (by norm_num)
-  have hexp : -(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y ≤ 0 := by
-    have h1 : 0 ≤ 9 / 2 * (x + 2 * Real.sqrt 2 / 3 * y) ^ 2 + y ^ 2 / 2 := by positivity
-    have h2 : -(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y =
-        -(9 / 2 * (x + 2 * Real.sqrt 2 / 3 * y) ^ 2 + y ^ 2 / 2) := by
-      linear_combination (2 * y ^ 2) * hsq
-    linarith
-  calc (3 / (2 * Real.pi)) * Real.exp (-(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y)
-      ≤ (3 / (2 * Real.pi)) * Real.exp 0 := by gcongr
-    _ = 3 / (2 * Real.pi) := by simp
-
-/-- Upper bound `ar2Kernel x y z ≤ √(6 / π)`. -/
-theorem ar2Kernel_le (x y z : ℝ) : ar2Kernel x y z ≤ Real.sqrt (6 / Real.pi) := by
-  unfold ar2Kernel
-  have hexp : -6 * (z + Real.sqrt 2 * y + x / 2) ^ 2 ≤ 0 := by
-    nlinarith [sq_nonneg (z + Real.sqrt 2 * y + x / 2)]
-  calc Real.sqrt (6 / Real.pi) * Real.exp (-6 * (z + Real.sqrt 2 * y + x / 2) ^ 2)
-      ≤ Real.sqrt (6 / Real.pi) * Real.exp 0 := by gcongr
-    _ = Real.sqrt (6 / Real.pi) := by simp
-
-/-- Global pointwise upper bound on `ar2JointDensity j x` for `j ≥ 1`. -/
-theorem ar2JointDensity_le {j : ℕ} (hj : 1 ≤ j) (x : Fin (j + 1) → ℝ) :
-    ar2JointDensity j x ≤ (3 / (2 * Real.pi)) * (Real.sqrt (6 / Real.pi)) ^ (j - 1) := by
-  cases j with
-  | zero => omega
-  | succ k =>
-      simp only [ar2JointDensity, Nat.add_sub_cancel]
-      have hprod : ∏ i : Fin k, ar2Kernel (x ⟨i.1, by omega⟩) (x ⟨i.1 + 1, by omega⟩)
-          (x ⟨i.1 + 2, by omega⟩) ≤ Real.sqrt (6 / Real.pi) ^ k := by
-        have hstep : ∀ s : Finset (Fin k),
-            ∏ i ∈ s, ar2Kernel (x ⟨i.1, by omega⟩) (x ⟨i.1 + 1, by omega⟩)
-              (x ⟨i.1 + 2, by omega⟩) ≤ Real.sqrt (6 / Real.pi) ^ s.card := by
-          intro s
-          classical
-          induction s using Finset.induction_on with
-          | empty => simp
-          | insert a s ha ih =>
-              rw [Finset.prod_insert ha, Finset.card_insert_of_notMem ha, pow_succ']
-              exact mul_le_mul (ar2Kernel_le _ _ _) ih
-                (Finset.prod_nonneg fun _ _ => ar2Kernel_nonneg _ _ _) (by positivity)
-        simpa [Fintype.card_fin] using hstep Finset.univ
-      exact mul_le_mul (ar2InitDensity_le _ _) hprod
-        (Finset.prod_nonneg fun i _ => ar2Kernel_nonneg _ _ _) (by positivity)
-
-/-- Time-reversibility of the stationary AR(2) triple density. -/
-theorem ar2InitDensity_mul_ar2Kernel_symm (x y z : ℝ) :
-    ar2InitDensity x y * ar2Kernel x y z = ar2InitDensity y z * ar2Kernel z y x := by
-  unfold ar2InitDensity ar2Kernel
-  have hL : (3 / (2 * Real.pi)) * Real.exp (-(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y) *
-      (Real.sqrt (6 / Real.pi) * Real.exp (-6 * (z + Real.sqrt 2 * y + x / 2) ^ 2)) =
-      (3 / (2 * Real.pi) * Real.sqrt (6 / Real.pi)) *
-        (Real.exp (-(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y) *
-          Real.exp (-6 * (z + Real.sqrt 2 * y + x / 2) ^ 2)) := by ring
-  have hR : (3 / (2 * Real.pi)) * Real.exp (-(9 / 2) * (y ^ 2 + z ^ 2) - 6 * Real.sqrt 2 * y * z) *
-      (Real.sqrt (6 / Real.pi) * Real.exp (-6 * (x + Real.sqrt 2 * y + z / 2) ^ 2)) =
-      (3 / (2 * Real.pi) * Real.sqrt (6 / Real.pi)) *
-        (Real.exp (-(9 / 2) * (y ^ 2 + z ^ 2) - 6 * Real.sqrt 2 * y * z) *
-          Real.exp (-6 * (x + Real.sqrt 2 * y + z / 2) ^ 2)) := by ring
-  rw [hL, hR, ← Real.exp_add, ← Real.exp_add]
-  congr 2
-  have hsq : Real.sqrt 2 ^ 2 = 2 := Real.sq_sqrt (by norm_num)
-  linear_combination 0 * hsq
-
-/-- Formula rewriting `ar2JointDensity (k + 2) x` by peeling off the last coordinate. -/
-theorem ar2JointDensity_succ (k : ℕ) (x : Fin (k + 3) → ℝ) :
-    ar2JointDensity (k + 2) x =
-      ar2JointDensity (k + 1) (fun i => x i.castSucc) *
-        ar2Kernel (x ⟨k, by omega⟩) (x ⟨k + 1, by omega⟩) (x ⟨k + 2, by omega⟩) := by
-  simp only [ar2JointDensity]
-  rw [Fin.prod_univ_castSucc, mul_assoc]
-  rfl
-
-/-- Formula rewriting `ar2JointDensity (k + 2) x` by peeling off the first coordinate using
-time-reversibility. -/
-theorem ar2JointDensity_succ_head (k : ℕ) (x : Fin (k + 3) → ℝ) :
-    ar2JointDensity (k + 2) x =
-      ar2Kernel (x ⟨2, by omega⟩) (x ⟨1, by omega⟩) (x ⟨0, by omega⟩) *
-        ar2JointDensity (k + 1) (fun i => x i.succ) := by
-  simp only [ar2JointDensity]
-  rw [Fin.prod_univ_succ]
-  have hrev : ar2InitDensity (x ⟨0, by omega⟩) (x ⟨1, by omega⟩) *
-      ar2Kernel (x ⟨(0 : Fin (k + 1)).1, by omega⟩) (x ⟨(0 : Fin (k + 1)).1 + 1, by omega⟩)
-        (x ⟨(0 : Fin (k + 1)).1 + 2, by omega⟩) =
-      ar2InitDensity (x (Fin.succ ⟨0, by omega⟩)) (x (Fin.succ ⟨1, by omega⟩)) *
-        ar2Kernel (x ⟨2, by omega⟩) (x ⟨1, by omega⟩) (x ⟨0, by omega⟩) :=
-    ar2InitDensity_mul_ar2Kernel_symm (x ⟨0, by omega⟩) (x ⟨1, by omega⟩) (x ⟨2, by omega⟩)
-  have hprod : ∏ i : Fin k, ar2Kernel (x ⟨i.succ.1, by omega⟩) (x ⟨i.succ.1 + 1, by omega⟩)
-      (x ⟨i.succ.1 + 2, by omega⟩) =
-      ∏ i : Fin k, ar2Kernel (x (Fin.succ ⟨i.1, by omega⟩))
-        (x (Fin.succ ⟨i.1 + 1, by omega⟩)) (x (Fin.succ ⟨i.1 + 2, by omega⟩)) := rfl
-  rw [hprod, ← mul_assoc, hrev]
-  ring
-
-/-- Continuity of `ar2InitDensity`. -/
-theorem ar2InitDensity_continuous : Continuous fun p : ℝ × ℝ => ar2InitDensity p.1 p.2 := by
-  unfold ar2InitDensity
-  fun_prop
-
-/-- Continuity of `ar2Kernel`. -/
-theorem ar2Kernel_continuous :
-    Continuous fun (p : ℝ × ℝ × ℝ) => let (x, y, z) := p; ar2Kernel x y z := by
-  unfold ar2Kernel
-  fun_prop
-
-/-- Continuity of `ar2JointDensity j`. -/
-theorem ar2JointDensity_continuous (j : ℕ) : Continuous (ar2JointDensity j) := by
-  cases j with
-  | zero =>
-      change Continuous fun x : Fin 1 → ℝ => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(x 0) ^ 2 / 2)
-      fun_prop
-  | succ k =>
-      change Continuous fun x : Fin (k + 2) → ℝ =>
-        ar2InitDensity (x ⟨0, by omega⟩) (x ⟨1, by omega⟩) *
-          ∏ i : Fin k, ar2Kernel (x ⟨i.1, by omega⟩) (x ⟨i.1 + 1, by omega⟩)
-            (x ⟨i.1 + 2, by omega⟩)
-      refine Continuous.mul ?_ ?_
-      · exact ar2InitDensity_continuous.comp
-          (Continuous.prodMk (continuous_apply (⟨0, by omega⟩ : Fin (k + 2)))
-            (continuous_apply (⟨1, by omega⟩ : Fin (k + 2))))
-      · refine Finset.univ.induction_on (by exact continuous_const) fun i s hi hs => ?_
-        simp only [Finset.prod_insert hi]
-        refine Continuous.mul ?_ hs
-        exact ar2Kernel_continuous.comp
-          (Continuous.prodMk (continuous_apply (⟨i.1, by omega⟩ : Fin (k + 2)))
-            (Continuous.prodMk (continuous_apply (⟨i.1 + 1, by omega⟩ : Fin (k + 2)))
-              (continuous_apply (⟨i.1 + 2, by omega⟩ : Fin (k + 2)))))
-
-/-- Factorization of `ar2InitDensity x y` as `N(0, 1)` marginal times conditional Gaussian. -/
-theorem ar2InitDensity_eq_std_mul_cond (x y : ℝ) :
-    ar2InitDensity x y =
-      ((Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-x ^ 2 / 2)) *
-        ((Real.sqrt (2 * Real.pi / 9))⁻¹ *
-          Real.exp (-(9 / 2) * (y + 2 * Real.sqrt 2 / 3 * x) ^ 2)) := by
-  unfold ar2InitDensity
-  have hpi : 0 < Real.pi := Real.pi_pos
-  have hsq : Real.sqrt 2 ^ 2 = 2 := Real.sq_sqrt (by norm_num)
-  have h9 : Real.sqrt 9 = 3 := by
-    rw [show (9 : ℝ) = 3 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  have hnorm : (Real.sqrt (2 * Real.pi))⁻¹ * (Real.sqrt (2 * Real.pi / 9))⁻¹ =
-      3 / (2 * Real.pi) := by
-    rw [Real.sqrt_div (by positivity), h9, ← mul_inv]
-    have hmul : Real.sqrt (2 * Real.pi) * (Real.sqrt (2 * Real.pi) / 3) = 2 * Real.pi / 3 := by
-      rw [← mul_div_assoc, Real.mul_self_sqrt (by positivity)]
-    rw [hmul, inv_div]
-  rw [mul_mul_mul_comm (Real.sqrt (2 * Real.pi))⁻¹, hnorm, ← Real.exp_add]
-  congr 2
-  linear_combination (2 * x ^ 2) * hsq
-
-/-- Integrability of `z ↦ ar2Kernel x y z`. -/
-theorem ar2Kernel_integrable (x y : ℝ) : Integrable (fun z => ar2Kernel x y z) := by
-  have hfn : (fun z : ℝ => ar2Kernel x y z) =
-      fun z : ℝ => Real.sqrt (6 / Real.pi) *
-        Real.exp (-6 * (z + (Real.sqrt 2 * y + x / 2)) ^ 2) := by
-    ext z; unfold ar2Kernel; congr 3; ring
-  rw [hfn]
-  exact ((integrable_exp_neg_mul_sq (by norm_num : (0 : ℝ) < 6)).comp_add_right
-    (Real.sqrt 2 * y + x / 2)).const_mul _
-
-/-- Total integral `∫ z, ar2Kernel x y z = 1`. -/
-theorem ar2Kernel_integral_eq_one (x y : ℝ) : ∫ z : ℝ, ar2Kernel x y z = 1 := by
-  unfold ar2Kernel
-  have hfn : (fun z : ℝ => Real.exp (-6 * (z + Real.sqrt 2 * y + x / 2) ^ 2)) =
-      fun z : ℝ => Real.exp (-6 * (z + (Real.sqrt 2 * y + x / 2)) ^ 2) := by
-    ext z; congr 2; ring
-  rw [integral_const_mul, hfn, integral_add_right_eq_self
-    (fun z => Real.exp (-6 * z ^ 2)) (Real.sqrt 2 * y + x / 2), integral_gaussian]
-  have hpi : 0 < Real.pi := Real.pi_pos
-  rw [← Real.sqrt_mul (by positivity)]
-  have h1 : (6 / Real.pi) * (Real.pi / 6) = 1 := by field_simp
-  rw [h1, Real.sqrt_one]
-
-/-- Marginal integral of `ar2InitDensity x y` over `y` is the standard 1D Gaussian density. -/
-theorem ar2InitDensity_integral_right (x : ℝ) :
-    ∫ y : ℝ, ar2InitDensity x y = (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-x ^ 2 / 2) := by
-  simp_rw [ar2InitDensity_eq_std_mul_cond x]
-  rw [integral_const_mul, integral_const_mul,
-    integral_add_right_eq_self (fun y => Real.exp (-(9 / 2) * y ^ 2)) (2 * Real.sqrt 2 / 3 * x),
-    integral_gaussian]
-  have hnorm : (Real.sqrt (2 * Real.pi / 9))⁻¹ * Real.sqrt (Real.pi / (9 / 2)) = 1 := by
-    have heq : Real.pi / (9 / 2) = 2 * Real.pi / 9 := by ring
-    rw [heq, inv_mul_cancel₀ (by positivity)]
-  rw [hnorm, mul_one]
-
-/-- Total integral of the standard 1D Gaussian density `ar2JointDensity 0` is `1`. -/
-theorem ar2JointDensity_zero_integrable :
-    Integrable (ar2JointDensity 0) (Measure.pi fun _ : Fin 1 => volume) := by
-  let e : (Fin 1 → ℝ) ≃ᵐ ℝ := MeasurableEquiv.funUnique (Fin 1) ℝ
-  have hmp : MeasurePreserving e (Measure.pi fun _ : Fin 1 => volume) volume :=
-    MeasureTheory.volume_preserving_funUnique (Fin 1) ℝ
-  have hint : Integrable (fun t : ℝ => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2)) := by
-    have h := (integrable_exp_neg_mul_sq (by norm_num : (0 : ℝ) < 1 / 2)).const_mul
-      (Real.sqrt (2 * Real.pi))⁻¹
-    have h2 : (fun t : ℝ => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(1 / 2) * t ^ 2)) =
-        fun t : ℝ => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2) := by
-      ext t; congr 2; ring
-    rwa [← h2]
-  exact (hmp.integrable_comp_emb e.measurableEmbedding).mpr hint
-
-/-- Total integral of `ar2JointDensity j` as a `lintegral` equals `1`. -/
-theorem lintegral_ar2JointDensity_eq_one (j : ℕ) :
-    ∫⁻ x : Fin (j + 1) → ℝ, ENNReal.ofReal (ar2JointDensity j x)
-      ∂(Measure.pi fun _ : Fin (j + 1) => volume) = 1 := by
-  induction j with
-  | zero =>
-      have hmp : MeasurePreserving (MeasurableEquiv.funUnique (Fin 1) ℝ)
-          (Measure.pi fun _ : Fin 1 => volume) volume :=
-        MeasureTheory.volume_preserving_funUnique (Fin 1) ℝ
-      have hchange : ∫⁻ x : Fin 1 → ℝ, ENNReal.ofReal (ar2JointDensity 0 x)
-          ∂(Measure.pi fun _ : Fin 1 => volume) =
-          ∫⁻ t : ℝ, ENNReal.ofReal ((Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2)) :=
-        hmp.lintegral_comp_emb (MeasurableEquiv.funUnique (Fin 1) ℝ).measurableEmbedding
-          (fun t : ℝ => ENNReal.ofReal ((Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2)))
-      rw [hchange]
-      have h2 : (fun t : ℝ => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2)) =
-          fun t => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(1 / 2) * t ^ 2) := by
-        ext t; congr 2; ring
-      have hint :
-          Integrable (fun t : ℝ => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2)) := by
-        rw [h2]; exact (integrable_exp_neg_mul_sq (by norm_num : (0 : ℝ) < 1 / 2)).const_mul _
-      rw [← ofReal_integral_eq_lintegral_ofReal hint
-        (ae_of_all _ fun t => by positivity)]
-      have hval : ∫ t : ℝ, (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2) = 1 := by
-        rw [h2, integral_const_mul, integral_gaussian]
-        have heq : Real.pi / (1 / 2 : ℝ) = 2 * Real.pi := by ring
-        rw [heq, inv_mul_cancel₀ (by positivity)]
-      rw [hval, ENNReal.ofReal_one]
-  | succ k ih =>
-      let split := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (k + 2) => ℝ) (Fin.last (k + 1))
-      have hmp : MeasurePreserving split
-          (Measure.pi fun _ : Fin (k + 2) => volume)
-          (volume.prod (Measure.pi fun _ : Fin (k + 1) => volume)) :=
-        MeasureTheory.volume_preserving_piFinSuccAbove (fun _ : Fin (k + 2) => ℝ)
-          (Fin.last (k + 1))
-      cases k with
-      | zero =>
-          have hker (t : ℝ) : ∫⁻ y : ℝ, ENNReal.ofReal (ar2InitDensity t y) =
-              ENNReal.ofReal ((Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-t ^ 2 / 2)) := by
-            have hi : Integrable (fun y : ℝ => ar2InitDensity t y) := by
-              simp_rw [ar2InitDensity_eq_std_mul_cond t]
-              exact ((integrable_exp_neg_mul_sq (by norm_num : (0 : ℝ) < 9 / 2)).comp_add_right
-                (2 * Real.sqrt 2 / 3 * t)).const_mul _ |>.const_mul _
-            rw [← ofReal_integral_eq_lintegral_ofReal hi
-              (ae_of_all _ fun y => ar2InitDensity_nonneg t y),
-              ar2InitDensity_integral_right]
-          have h1 := hmp.lintegral_comp_emb split.measurableEmbedding
-            (fun p : ℝ × (Fin 1 → ℝ) => ENNReal.ofReal (ar2InitDensity (p.2 0) p.1))
-          have hrewrite : ∫⁻ x : Fin 2 → ℝ, ENNReal.ofReal (ar2JointDensity 1 x)
-              ∂(Measure.pi fun _ : Fin 2 => volume) =
-              ∫⁻ p : ℝ × (Fin 1 → ℝ), ENNReal.ofReal (ar2InitDensity (p.2 0) p.1)
-                ∂(volume.prod (Measure.pi fun _ : Fin 1 => volume)) := by
-            rw [← h1]
-            refine lintegral_congr fun x => ?_
-            change ENNReal.ofReal (ar2InitDensity (x 0) (x 1) * 1) =
-              ENNReal.ofReal (ar2InitDensity (Fin.removeNth (Fin.last 1) x 0) (x (Fin.last 1)))
-            rw [mul_one]
-            rfl
-          rw [hrewrite, lintegral_prod_symm]
-          · simp_rw [hker]
-            exact ih
-          · have hc : Continuous fun p : ℝ × (Fin 1 → ℝ) => ar2InitDensity (p.2 0) p.1 :=
-              ar2InitDensity_continuous.comp
-                (Continuous.prodMk ((continuous_apply (0 : Fin 1)).comp continuous_snd)
-                  continuous_fst)
-            exact (ENNReal.measurable_ofReal.comp hc.measurable).aemeasurable
-      | succ m =>
-          have hkernel_l (a b : ℝ) : ∫⁻ z : ℝ, ENNReal.ofReal (ar2Kernel a b z) = 1 := by
-            rw [← ofReal_integral_eq_lintegral_ofReal (ar2Kernel_integrable a b)
-              (ae_of_all _ fun z => ar2Kernel_nonneg a b z),
-              ar2Kernel_integral_eq_one, ENNReal.ofReal_one]
-          let g : ℝ × (Fin (m + 2) → ℝ) → ℝ := fun p =>
-            ar2JointDensity (m + 1) p.2 *
-              ar2Kernel (p.2 ⟨m, by omega⟩) (p.2 ⟨m + 1, by omega⟩) p.1
-          have hg_meas : Continuous g := by
-            refine (ar2JointDensity_continuous (m + 1) |>.comp continuous_snd).mul ?_
-            exact ar2Kernel_continuous.comp
-              (Continuous.prodMk
-                ((continuous_apply (⟨m, by omega⟩ : Fin (m + 2))).comp continuous_snd)
-                (Continuous.prodMk
-                  ((continuous_apply (⟨m + 1, by omega⟩ : Fin (m + 2))).comp continuous_snd)
-                  continuous_fst))
-          have h1 := hmp.lintegral_comp_emb split.measurableEmbedding
-            (fun p : ℝ × (Fin (m + 2) → ℝ) => ENNReal.ofReal (g p))
-          have hrewrite : ∫⁻ x : Fin (m + 3) → ℝ, ENNReal.ofReal (ar2JointDensity (m + 2) x)
-              ∂(Measure.pi fun _ : Fin (m + 3) => volume) =
-              ∫⁻ p : ℝ × (Fin (m + 2) → ℝ), ENNReal.ofReal (g p)
-                ∂(volume.prod (Measure.pi fun _ : Fin (m + 2) => volume)) := by
-            rw [← h1]
-            refine lintegral_congr fun x => ?_
-            rw [ar2JointDensity_succ m x]
-            have hrem : (split x).2 = fun i : Fin (m + 2) => x i.castSucc := by
-              ext i
-              change x ((Fin.last (m + 2)).succAbove i) = x i.castSucc
-              rw [Fin.succAbove_last]
-            have hfst : (split x).1 = x ⟨m + 2, by omega⟩ := rfl
-            change ENNReal.ofReal _ = ENNReal.ofReal (g (split x))
-            simp only [g, hrem, hfst]
-            rfl
-          rw [hrewrite, lintegral_prod_symm (fun p => ENNReal.ofReal (g p))
-            (by exact (ENNReal.measurable_ofReal.comp hg_meas.measurable).aemeasurable)]
-          have hinner : ∀ y : Fin (m + 2) → ℝ,
-              ∫⁻ z : ℝ, ENNReal.ofReal (g (z, y)) = ENNReal.ofReal (ar2JointDensity (m + 1) y) := by
-            intro y
-            simp_rw [g, ENNReal.ofReal_mul (ar2JointDensity_nonneg (m + 1) y)]
-            have hm : Measurable fun z : ℝ =>
-                ENNReal.ofReal (ar2Kernel (y ⟨m, by omega⟩) (y ⟨m + 1, by omega⟩) z) :=
-              ENNReal.measurable_ofReal.comp
-                (ar2Kernel_continuous.comp (Continuous.prodMk continuous_const
-                  (Continuous.prodMk continuous_const continuous_id))).measurable
-            rw [lintegral_const_mul _ hm, hkernel_l, mul_one]
-          simp_rw [hinner]
-          exact ih
-
-/-- `ar2JointDensity j` is integrable over all of `Fin (j + 1) → ℝ`. -/
-theorem ar2JointDensity_integrable (j : ℕ) :
-    Integrable (ar2JointDensity j) (Measure.pi fun _ : Fin (j + 1) => volume) := by
-  refine ⟨(ar2JointDensity_continuous j).aestronglyMeasurable, ?_⟩
-  rw [hasFiniteIntegral_iff_norm]
-  have heq : ∫⁻ x : Fin (j + 1) → ℝ, ENNReal.ofReal ‖ar2JointDensity j x‖
-      ∂(Measure.pi fun _ : Fin (j + 1) => volume) = 1 := by
-    have hcongr : (fun x : Fin (j + 1) → ℝ => ENNReal.ofReal ‖ar2JointDensity j x‖) =
-        fun x => ENNReal.ofReal (ar2JointDensity j x) := by
-      ext x; rw [Real.norm_of_nonneg (ar2JointDensity_nonneg j x)]
-    rw [hcongr]
-    exact lintegral_ar2JointDensity_eq_one j
-  rw [heq]
-  exact ENNReal.one_lt_top
-
-/-- `ar2JointDensity j` integrates to `1` over all of `Fin (j + 1) → ℝ`. -/
-theorem ar2JointDensity_integral_eq_one (j : ℕ) :
-    ∫ x : Fin (j + 1) → ℝ, ar2JointDensity j x
-      ∂(Measure.pi fun _ : Fin (j + 1) => volume) = 1 := by
-  have h := ofReal_integral_eq_lintegral_ofReal (ar2JointDensity_integrable j)
-    (ae_of_all _ fun x => ar2JointDensity_nonneg j x)
-  rw [lintegral_ar2JointDensity_eq_one j] at h
-  exact ENNReal.ofReal_eq_one.mp h
-
-/-- Integral of `ar2InitDensity x y` over `ℝ × ℝ` equals `1`. -/
-theorem ar2InitDensity_integral_eq_one :
-    ∫ p : ℝ × ℝ, ar2InitDensity p.1 p.2 = 1 := by
-  have h := ar2JointDensity_integral_eq_one 1
-  have hmp : MeasurePreserving (MeasurableEquiv.finTwoArrow (α := ℝ))
-      (Measure.pi fun _ : Fin 2 => volume) (volume.prod volume) :=
-    volume_preserving_finTwoArrow ℝ
-  have hcomp : ∫ x : Fin 2 → ℝ, ar2InitDensity (x 0) (x 1)
-      ∂(Measure.pi fun _ : Fin 2 => volume) =
-      ∫ p : ℝ × ℝ, ar2InitDensity p.1 p.2 ∂(volume.prod volume) :=
-    hmp.integral_comp (MeasurableEquiv.finTwoArrow (α := ℝ)).measurableEmbedding
-      (fun p : ℝ × ℝ => ar2InitDensity p.1 p.2)
-  change ∫ p : ℝ × ℝ, ar2InitDensity p.1 p.2 ∂(volume.prod volume) = 1
-  rw [← hcomp, ← h]
-  refine integral_congr_ae (ae_of_all _ fun x => ?_)
-  simp [ar2JointDensity]
-
-end AR2Density
-
 /-! ### Quadratic exponent, diagonal precision entries, and coordinate slicing -/
 
 section QuadraticForm
 
 /-- Positive-semidefinite quadratic form `xᵀ Q x` such that for `j ≥ 1`,
 `ar2JointDensity j x = (3 / (2π)) * √(6 / π) ^ (j - 1) * exp (-1/2 * ar2QuadForm j x)`. -/
-noncomputable def ar2QuadForm : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
+private noncomputable def ar2QuadForm : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
   | 0, x => (x 0) ^ 2
   | k + 1, x =>
       9 * (x ⟨0, by omega⟩ + 2 * Real.sqrt 2 / 3 * x ⟨1, by omega⟩) ^ 2 +
@@ -568,17 +89,8 @@ noncomputable def ar2QuadForm : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
         ∑ i : Fin k, 12 * (x ⟨i.1 + 2, by omega⟩ + Real.sqrt 2 * x ⟨i.1 + 1, by omega⟩ +
           x ⟨i.1, by omega⟩ / 2) ^ 2
 
-/-- `ar2QuadForm j x` is nonnegative for every `x : Fin (j + 1) → ℝ`. -/
-theorem ar2QuadForm_nonneg (j : ℕ) (x : Fin (j + 1) → ℝ) : 0 ≤ ar2QuadForm j x := by
-  cases j with
-  | zero => exact sq_nonneg _
-  | succ k =>
-      unfold ar2QuadForm
-      refine add_nonneg (add_nonneg (by positivity) (sq_nonneg _)) ?_
-      exact Finset.sum_nonneg fun _ _ => by positivity
-
 /-- Exact formula expressing `ar2JointDensity j x` via `ar2QuadForm j x` for `j ≥ 1`. -/
-theorem ar2JointDensity_eq_exp_quad {j : ℕ} (hj : 1 ≤ j) (x : Fin (j + 1) → ℝ) :
+private theorem ar2JointDensity_eq_exp_quad {j : ℕ} (hj : 1 ≤ j) (x : Fin (j + 1) → ℝ) :
     ar2JointDensity j x =
       (3 / (2 * Real.pi)) * (Real.sqrt (6 / Real.pi)) ^ (j - 1) *
         Real.exp (-(1 / 2) * ar2QuadForm j x) := by
@@ -624,7 +136,7 @@ theorem ar2JointDensity_eq_exp_quad {j : ℕ} (hj : 1 ≤ j) (x : Fin (j + 1) �
                 Real.sqrt 2 * x ⟨i.1 + 1, by omega⟩ + x ⟨i.1, by omega⟩ / 2) ^ 2) := by ring
 
 /-- Exact diagonal entry `Q_{ii}` of the AR(2) precision quadratic form of order `j + 1`. -/
-def ar2QuadDiag (j : ℕ) (i : Fin (j + 1)) : ℝ :=
+private def ar2QuadDiag (j : ℕ) (i : Fin (j + 1)) : ℝ :=
   if j = 0 then 1
   else if j = 1 then 9
   else if i.1 = 0 ∨ i.1 = j then 12
@@ -633,17 +145,17 @@ def ar2QuadDiag (j : ℕ) (i : Fin (j + 1)) : ℝ :=
   else 39
 
 /-- Every diagonal precision entry `ar2QuadDiag j i` is positive. -/
-theorem ar2QuadDiag_pos (j : ℕ) (i : Fin (j + 1)) : 0 < ar2QuadDiag j i := by
+private theorem ar2QuadDiag_pos (j : ℕ) (i : Fin (j + 1)) : 0 < ar2QuadDiag j i := by
   unfold ar2QuadDiag
   repeat' split_ifs <;> norm_num
 
 /-- Every diagonal precision entry satisfies `ar2QuadDiag j i ≤ 39`. -/
-theorem ar2QuadDiag_le (j : ℕ) (i : Fin (j + 1)) : ar2QuadDiag j i ≤ 39 := by
+private theorem ar2QuadDiag_le (j : ℕ) (i : Fin (j + 1)) : ar2QuadDiag j i ≤ 39 := by
   unfold ar2QuadDiag
   repeat' split_ifs <;> norm_num
 
 /-- Endpoint diagonal precision entry satisfies `ar2QuadDiag j 0 ≤ 12`. -/
-theorem ar2QuadDiag_zero_le (j : ℕ) : ar2QuadDiag j ⟨0, by omega⟩ ≤ 12 := by
+private theorem ar2QuadDiag_zero_le (j : ℕ) : ar2QuadDiag j ⟨0, by omega⟩ ≤ 12 := by
   unfold ar2QuadDiag
   by_cases h0 : j = 0
   · simp [h0]
@@ -652,36 +164,13 @@ theorem ar2QuadDiag_zero_le (j : ℕ) : ar2QuadDiag j ⟨0, by omega⟩ ≤ 12 :
     · simp [h0, h1]
 
 /-- Final endpoint diagonal precision entry satisfies `ar2QuadDiag j (Fin.last j) ≤ 12`. -/
-theorem ar2QuadDiag_last_le (j : ℕ) : ar2QuadDiag j (Fin.last j) ≤ 12 := by
+private theorem ar2QuadDiag_last_le (j : ℕ) : ar2QuadDiag j (Fin.last j) ≤ 12 := by
   unfold ar2QuadDiag
   by_cases h0 : j = 0
   · simp [h0]
   · by_cases h1 : j = 1
     · simp [h1]; norm_num
     · simp [h0, h1]
-
-/-- Near-endpoint diagonal precision entry satisfies `ar2QuadDiag j ⟨1, _⟩ ≤ 36`. -/
-theorem ar2QuadDiag_one_le {j : ℕ} (hj : 1 ≤ j) : ar2QuadDiag j ⟨1, by omega⟩ ≤ 36 := by
-  unfold ar2QuadDiag
-  by_cases h1 : j = 1
-  · simp [h1]; norm_num
-  · by_cases h2 : j = 2
-    · simp [h2]; norm_num
-    · have h0 : j ≠ 0 := by omega
-      have hne : 1 ≠ j := by omega
-      simp [h0, h1, h2, hne]
-
-/-- Penultimate diagonal precision entry satisfies `ar2QuadDiag j ⟨j - 1, _⟩ ≤ 36`. -/
-theorem ar2QuadDiag_penult_le {j : ℕ} (hj : 1 ≤ j) : ar2QuadDiag j ⟨j - 1, by omega⟩ ≤ 36 := by
-  unfold ar2QuadDiag
-  have h0 : j ≠ 0 := by omega
-  by_cases h1 : j = 1
-  · simp [h1]; norm_num
-  · by_cases h2 : j = 2
-    · simp [h2]; norm_num
-    · have hne : j - 1 ≠ 0 := by omega
-      have hnej : j - 1 ≠ j := by omega
-      simp [h0, h1, h2, hne, hnej]
 
 /-- Completing the square for a single quadratic polynomial `q * t^2 + 2 * b * t + c`. -/
 private theorem quad_complete_sq {q b c : ℝ} (hq : q ≠ 0) :
@@ -719,7 +208,7 @@ private theorem update_kernel_sq (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k
   split_ifs <;> ring
 
 /-- Completing the square on a single coordinate slice of `ar2QuadForm (k + 1)`. -/
-theorem ar2QuadForm_update (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2)) :
+private theorem ar2QuadForm_update (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2)) :
     ∃ μ : ℝ, ∀ t : ℝ,
       ar2QuadForm (k + 1) (Function.update x i t) =
         ar2QuadForm (k + 1) (Function.update x i μ) + ar2QuadDiag (k + 1) i * (t - μ) ^ 2 := by
@@ -892,7 +381,7 @@ theorem ar2QuadForm_update (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2))
 /-- Coordinate slicing of `ar2JointDensity (k + 1)`: along any single coordinate `i`, it is a
 scaled Gaussian `c * exp (-ar2QuadDiag (k + 1) i / 2 * (t - μ) ^ 2)` where `0 < c` and
 `c ≤ (3 / (2π)) * √(6 / π) ^ k`. -/
-theorem ar2JointDensity_slice (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2)) :
+private theorem ar2JointDensity_slice (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2)) :
     ∃ μ : ℝ, ∀ t : ℝ,
       ar2JointDensity (k + 1) (Function.update x i t) =
         ar2JointDensity (k + 1) (Function.update x i μ) *
@@ -907,7 +396,7 @@ theorem ar2JointDensity_slice (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 
 
 /-- Factorization of `ar2InitDensity` into elementary decaying exponentials
 `eA(t) = exp (-3/2 * t^2)` and `eAB(x, y) = exp (-6√2 * x * y)`. -/
-theorem ar2InitDensity_eq_factor (x y : ℝ) :
+private theorem ar2InitDensity_eq_factor (x y : ℝ) :
     ar2InitDensity x y =
       (3 / (2 * Real.pi)) *
         Real.exp (-(3 / 2) * x ^ 2) ^ 3 *
@@ -921,7 +410,7 @@ theorem ar2InitDensity_eq_factor (x y : ℝ) :
   ring
 
 /-- Factorization of `ar2Kernel` into elementary decaying exponentials `eA`, `eAB`, and `eAC`. -/
-theorem ar2Kernel_eq_factor (x y z : ℝ) :
+private theorem ar2Kernel_eq_factor (x y z : ℝ) :
     ar2Kernel x y z =
       Real.sqrt (6 / Real.pi) *
         Real.exp (-(3 / 2) * x ^ 2) *
@@ -1044,7 +533,7 @@ private theorem tendsto_pow_mul_exp_neg_mul_sq_atTop {b : ℝ} (hb : 0 < b) (m :
   exact squeeze_zero_norm' hev hlim
 
 /-- Exact even moments of the unnormalized Gaussian weight `exp (-ξ ^ 2 / (2 * q))`. -/
-theorem integral_gaussian_even_moment {q : ℝ} (hq : 0 < q) (N : ℕ) :
+private theorem integral_gaussian_even_moment {q : ℝ} (hq : 0 < q) (N : ℕ) :
     ∫ ξ : ℝ, ξ ^ (2 * N) * Real.exp (-ξ ^ 2 / (2 * q)) =
       Real.sqrt (2 * Real.pi * q) * q ^ N * ((2 * N).factorial : ℝ) /
         (2 ^ N * (N.factorial : ℝ)) := by
@@ -1176,7 +665,7 @@ theorem integral_gaussian_even_moment {q : ℝ} (hq : 0 < q) (N : ℕ) :
       field_simp
 
 /-- Real cosine Fourier representation of the Gaussian `exp (-q / 2 * y ^ 2)`. -/
-theorem exp_neg_half_mul_sq_eq_cosine_integral {q : ℝ} (hq : 0 < q) (y : ℝ) :
+private theorem exp_neg_half_mul_sq_eq_cosine_integral {q : ℝ} (hq : 0 < q) (y : ℝ) :
     Real.exp (-q / 2 * y ^ 2) =
       (Real.sqrt (2 * Real.pi * q))⁻¹ *
         ∫ ξ : ℝ, Real.cos (ξ * y) * Real.exp (-ξ ^ 2 / (2 * q)) := by
@@ -1243,7 +732,7 @@ theorem exp_neg_half_mul_sq_eq_cosine_integral {q : ℝ} (hq : 0 < q) (y : ℝ) 
 
 /-- Exact formula for all derivatives `iteratedDeriv m` of `y ↦ exp (-q / 2 * y ^ 2)` obtained
 by differentiating the real cosine Fourier integral under the integral sign. -/
-theorem iteratedDeriv_exp_neg_half_mul_sq_eq {q : ℝ} (hq : 0 < q) (m : ℕ) :
+private theorem iteratedDeriv_exp_neg_half_mul_sq_eq {q : ℝ} (hq : 0 < q) (m : ℕ) :
     iteratedDeriv m (fun y : ℝ => Real.exp (-q / 2 * y ^ 2)) =
       fun y : ℝ => (Real.sqrt (2 * Real.pi * q))⁻¹ *
         ∫ ξ : ℝ, ξ ^ m * Real.cos (ξ * y + m * (Real.pi / 2)) *
@@ -1318,7 +807,8 @@ theorem iteratedDeriv_exp_neg_half_mul_sq_eq {q : ℝ} (hq : 0 < q) (m : ℕ) :
 
 /-- Uniform upper bound on the `2 * N`-th derivative of a shifted Gaussian
 `exp (-q / 2 * (x - μ)^2)`. -/
-theorem abs_iteratedDeriv_exp_neg_half_mul_sq_le {q : ℝ} (hq : 0 < q) (μ : ℝ) (N : ℕ) (x : ℝ) :
+private theorem abs_iteratedDeriv_exp_neg_half_mul_sq_le {q : ℝ} (hq : 0 < q) (μ : ℝ) (N : ℕ)
+    (x : ℝ) :
     |iteratedDeriv (2 * N) (fun t : ℝ => Real.exp (-q / 2 * (t - μ) ^ 2)) x| ≤
       q ^ N * ((2 * N).factorial : ℝ) / (2 ^ N * (N.factorial : ℝ)) := by
   have hshift : iteratedDeriv (2 * N) (fun t : ℝ => Real.exp (-q / 2 * (t - μ) ^ 2)) x =
@@ -1363,7 +853,8 @@ theorem abs_iteratedDeriv_exp_neg_half_mul_sq_le {q : ℝ} (hq : 0 < q) (μ : �
         field_simp
 
 /-- Smoothness of a single coordinate slice of `ar2JointDensity (k + 1)`. -/
-theorem ar2JointDensity_slice_contDiff (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2)) (m : ℕ) :
+private theorem ar2JointDensity_slice_contDiff (k : ℕ) (x : Fin (k + 2) → ℝ) (i : Fin (k + 2))
+    (m : ℕ) :
     ContDiff ℝ m (fun t : ℝ => ar2JointDensity (k + 1) (Function.update x i t)) := by
   obtain ⟨μ, hμ⟩ := ar2JointDensity_slice k x i
   have heq : (fun t : ℝ => ar2JointDensity (k + 1) (Function.update x i t)) =
@@ -1374,7 +865,7 @@ theorem ar2JointDensity_slice_contDiff (k : ℕ) (x : Fin (k + 2) → ℝ) (i : 
 
 /-- Uniform `2 * N`-th partial derivative bound on `ar2JointDensity (k + 1)`
 along coordinate `i`. -/
-theorem abs_iteratedDeriv_ar2JointDensity_le (k : ℕ) (x : Fin (k + 2) → ℝ)
+private theorem abs_iteratedDeriv_ar2JointDensity_le (k : ℕ) (x : Fin (k + 2) → ℝ)
     (i : Fin (k + 2)) (N : ℕ) (t : ℝ) :
     |iteratedDeriv (2 * N) (fun s : ℝ => ar2JointDensity (k + 1) (Function.update x i s)) t| ≤
       (3 / (2 * Real.pi)) * (Real.sqrt (6 / Real.pi)) ^ k *
@@ -1414,7 +905,7 @@ section TailBounds
 /-- 1D Gaussian half-line tail bound: for `a > 0` and `L > 0`,
 `∫⁻ x in Ioi L, ENNReal.ofReal (exp (-a * x ^ 2))` is at most
 `ENNReal.ofReal (exp (-a * L ^ 2) / (2 * a * L))`. -/
-theorem lintegral_Ioi_exp_neg_mul_sq_le {a L : ℝ} (ha : 0 < a) (hL : 0 < L) :
+private theorem lintegral_Ioi_exp_neg_mul_sq_le {a L : ℝ} (ha : 0 < a) (hL : 0 < L) :
     ∫⁻ x in Set.Ioi L, ENNReal.ofReal (Real.exp (-a * x ^ 2)) ≤
       ENNReal.ofReal (Real.exp (-a * L ^ 2) / (2 * a * L)) := by
   have hle : ∀ x ∈ Set.Ioi L,
@@ -1485,7 +976,7 @@ theorem lintegral_Ioi_exp_neg_mul_sq_le {a L : ℝ} (ha : 0 < a) (hL : 0 < L) :
   exact h1.trans_eq h2
 
 /-- 1D exponential half-line integral: `∫⁻ x in Ioi 0, ENNReal.ofReal (exp (-c * x)) = c⁻¹`. -/
-theorem lintegral_Ioi_exp_neg_mul {c : ℝ} (hc : 0 < c) :
+private theorem lintegral_Ioi_exp_neg_mul {c : ℝ} (hc : 0 < c) :
     ∫⁻ x in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-c * x)) =
       ENNReal.ofReal (1 / c) := by
   have hint : IntegrableOn (fun x : ℝ => Real.exp (-c * x)) (Set.Ioi 0) :=
@@ -1624,7 +1115,7 @@ private theorem lintegral_ar2JointDensity_peel_head (k : ℕ)
 
 /-- Stationarity / exact 3-marginal of `ar2JointDensity`: for any `k + 2 ≤ j`, the law of the
 consecutive triple `(x_k, x_{k+1}, x_{k+2})` equals `ar2JointDensity 2`. -/
-theorem lintegral_ar2JointDensity_triple (j k : ℕ) (hk : k + 2 ≤ j)
+private theorem lintegral_ar2JointDensity_triple (j k : ℕ) (hk : k + 2 ≤ j)
     (g : ℝ × ℝ × ℝ → ENNReal) (hg : Measurable g) :
     ∫⁻ x : Fin (j + 1) → ℝ,
         g (x ⟨k, by omega⟩, x ⟨k + 1, by omega⟩, x ⟨k + 2, by omega⟩) *
@@ -1690,7 +1181,7 @@ theorem lintegral_ar2JointDensity_triple (j k : ℕ) (hk : k + 2 ≤ j)
           exact ih (k - 1) (by omega)
 
 /-- Upper bound for the bivariate tail `∫_{x > L, y > 0} ar2InitDensity x y`. -/
-theorem ar2PairTail_le {L : ℝ} (hL : 0 < L) :
+private theorem ar2PairTail_le {L : ℝ} (hL : 0 < L) :
     ∫⁻ x : Fin 2 → ℝ,
         (Set.indicator {x : Fin 2 → ℝ | L < x 0 ∧ 0 < x 1} (fun _ => (1 : ENNReal)) x) *
           ENNReal.ofReal (ar2JointDensity 1 x)
@@ -1781,7 +1272,7 @@ theorem ar2PairTail_le {L : ℝ} (hL : 0 < L) :
         congr 1; ring
 
 /-- Exact expanded formula for the triple density `ar2JointDensity 2`. -/
-theorem ar2JointDensity_two_eq (a b c : ℝ) :
+private theorem ar2JointDensity_two_eq (a b c : ℝ) :
     ar2InitDensity a b * ar2Kernel a b c =
       (3 / (2 * Real.pi)) * Real.sqrt (6 / Real.pi) *
         Real.exp (-6 * a ^ 2 - (33 / 2) * b ^ 2 - 6 * c ^ 2 -
@@ -2940,7 +2431,7 @@ private theorem integral_monicLegendre_sq {N : ℕ} {r : Fin N → ℝ}
           field_simp
 
 /-- Factorization of a polynomial of degree `N` having `N` strictly increasing roots. -/
-theorem eq_leadingCoeff_mul_prod_of_roots {N : ℕ} {p : Polynomial ℝ}
+private theorem eq_leadingCoeff_mul_prod_of_roots {N : ℕ} {p : Polynomial ℝ}
     (hdeg : p.natDegree = N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_root : ∀ k : Fin N, p.eval (r k) = 0) :
     p = Polynomial.C p.leadingCoeff * ∏ k : Fin N, (Polynomial.X - Polynomial.C (r k)) := by
@@ -3721,7 +3212,7 @@ private theorem abs_integral_sub_gaussQuad_le {N : ℕ} (hN : 0 < N) {L : ℝ} (
         field_simp
 
 /-- Tensor-product quadrature error bound on an anisotropic box `∏ i : Fin n, (0, L i]`. -/
-theorem abs_boxIntegral_sub_tensorQuad_le {N : ℕ} :
+private theorem abs_boxIntegral_sub_tensorQuad_le {N : ℕ} :
     ∀ {n : ℕ} (L : Fin n → ℝ) (_hL : ∀ i, 0 < L i)
       (x : (i : Fin n) → Fin N → ℝ) (w : (i : Fin n) → Fin N → ℝ)
       (_hx : ∀ i k, x i k ∈ Set.Icc (0 : ℝ) (L i))

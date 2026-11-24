@@ -41,7 +41,8 @@ subcubic multigraphs (`LayoutBound 3 A`).
    counting degree-3 vertices in the crossing subgraph.
 5. **Gaussian waves on the cubic tree and AR(2) limit** (`Layouts.CrossingCover.TreeWave`):
    the radial pushed wave `waveScore H R ε g` yields expected crossing cover at most
-   `(ar2AltWaveSum J + η) * |V|` simultaneously for every threshold `t : ℝ`.
+   `(alternatingWaveSum J + η) * |V|` simultaneously for every threshold `t : ℝ`. The AR(2)
+   density and `alternatingWaveSum` are defined once, in `Layouts.CrossingCover.AR2Density`.
 6. **Efron–Stein concentration** (`Layouts.CrossingCover.Concentration`): the local support of
    `waveRow H R ε` implies `O(|V|)` variance along a uniform grid of thresholds, turning the
    expected crossing-cover bound into a vertex layout of width at most `(alternatingWaveSum J + ξ) *
@@ -72,9 +73,6 @@ vertex-cover form is taken as the definition.
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.CrossingCover.ar2AltWaveSum_eq_alternatingWaveSum`: identifies the
-  Gaussian AR(2) wave sum of `TreeWave` with the density integral `alternatingWaveSum` of
-  `Certificate`.
 * `Cslib.Circuits.Frontier.CrossingCover.cubicLayoutBound_crossingCover`:
   `CubicLayoutBound (alternatingWaveSum J)` for every odd `J`.
 * `Cslib.Circuits.Frontier.layoutBound_crossingCover_of_odd`:
@@ -94,27 +92,6 @@ namespace Cslib.Circuits.Frontier
 open Finset MeasureTheory Real
 
 namespace CrossingCover
-
-/-! ### Bridging `TreeWave` and `Certificate` densities -/
-
-/-- The AR(2) joint density in `TreeWave` is pointwise equal to `ar2JointDensity` in
-`Certificate`. -/
-theorem ar2StepJointDensity_eq_ar2JointDensity (j : ℕ) (x : Fin (j + 1) → ℝ) :
-    ar2StepJointDensity j x = ar2JointDensity j x := by
-  cases j <;> rfl
-
-/-- The AR(2) alternating-sign path probability `ar2AltProb j` equals `altPathProb j`. -/
-theorem ar2AltProb_eq_altPathProb (j : ℕ) : ar2AltProb j = altPathProb j := by
-  rw [ar2AltProb_eq_integral_density]
-  simp_rw [ar2StepJointDensity_eq_ar2JointDensity]
-  rfl
-
-/-- The truncated alternating wave sum `ar2AltWaveSum J` equals `alternatingWaveSum J`. -/
-theorem ar2AltWaveSum_eq_alternatingWaveSum (J : ℕ) :
-    ar2AltWaveSum J = alternatingWaveSum J := by
-  unfold ar2AltWaveSum alternatingWaveSum
-  refine Finset.sum_congr rfl fun j _ => ?_
-  rw [ar2AltProb_eq_altPathProb]
 
 /-! ### Simple-graph degree and locality support bounds -/
 
@@ -262,13 +239,12 @@ private theorem sum_sq_support_waveRow_le {V : Type*} [Fintype V] (H : SimpleGra
   rw [Nat.card_eq_fintype_card]
   linarith [hsum_inl, hsum_inr]
 
-/-! ### Nonnegativity and monotonicity -/
+/-! ### Nonnegativity -/
 
 /-- For every odd `J : ℕ`, `0 ≤ alternatingWaveSum J` (proved by testing the wave expectation
 bound on `K₄`). -/
 theorem alternatingWaveSum_nonneg_of_odd {J : ℕ} (hJ : Odd J) :
     0 ≤ alternatingWaveSum J := by
-  rw [← ar2AltWaveSum_eq_alternatingWaveSum]
   refine le_of_forall_pos_le_add fun η hη => ?_
   obtain ⟨R, ε, _, _, hbd⟩ := exists_wave_params_expected_crossingCover_le.{0} J hJ η hη
   have h0 : (0 : ℝ) ≤ ∫ g,
@@ -285,16 +261,6 @@ theorem alternatingWaveSum_nonneg_of_odd {J : ℕ} (hJ : Odd J) :
   have hcard : (Fintype.card (Fin 4) : ℝ) = 4 := by norm_num
   rw [hcard] at hle
   linarith
-
-/-- Monotonicity of `CubicLayoutBound` in its coefficient. -/
-theorem cubicLayoutBound_mono {c₁ c₂ : ℝ} (hle : c₁ ≤ c₂) (h : CubicLayoutBound c₁) :
-    CubicLayoutBound c₂ := by
-  intro ξ hξ
-  obtain ⟨N₀, hN₀⟩ := h ξ hξ
-  refine ⟨N₀, fun V E _ _ G hloop hinj h3 hV => ?_⟩
-  obtain ⟨lay, hlay⟩ := hN₀ V E G hloop hinj h3 hV
-  refine ⟨lay, hlay.trans ?_⟩
-  exact mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
 
 /-! ### Main cubic layout theorem -/
 
@@ -368,19 +334,13 @@ theorem cubicLayoutBound_crossingCover (J : ℕ) (hJ : Odd J) :
       rw [← simpleCrossingCover_toSimpleGraph]; rfl
     simp_rw [hpt]
     have hle := hexp_wave G.toSimpleGraph hreg t
-    rw [ar2AltWaveSum_eq_alternatingWaveSum, ← Nat.card_eq_fintype_card] at hle
+    rw [← Nat.card_eq_fintype_card] at hle
     exact hle
   obtain ⟨lay, hlay⟩ := exists_width_le_of_expected_crossingCover G h3
     (waveRow G.toSimpleGraph R ε) hunit hγ_nonneg hξ2 hsupp hexp
     hT_pos hT_bd hK_pos hK_bd hV_prob hV_six
   refine ⟨lay, hlay.trans_eq ?_⟩
   simp only [γ, ξ']; ring
-
-/-- Certified cubic layout bound at cutoff `J = 13`, from
-`alternatingWaveSum 13 < 130649 / 1000000`. -/
-theorem cubicLayoutBound_130649_div_1000000 : CubicLayoutBound (130649 / 1000000) :=
-  cubicLayoutBound_mono alternatingWaveSum_13_lt.le
-    (cubicLayoutBound_crossingCover 13 (by decide))
 
 end CrossingCover
 
@@ -399,8 +359,8 @@ three holds with coefficient `130649 / 500000`, from the crossing-cover Gaussian
 cutoff `J = 13` and the certified bound `alternatingWaveSum 13 < 130649 / 1000000`. In the
 frontier lower bound for fan-in two this gives the slope `1 + 500000 / 130649 = 630649 / 130649`,
 which exceeds `4827 / 1000`. -/
-theorem layoutBound_crossingCover : LayoutBound 3 (130649 / 500000) := by
-  have h := LayoutBound.of_cubic (by norm_num) CrossingCover.cubicLayoutBound_130649_div_1000000
-  simpa only [show (2 : ℝ) * (130649 / 1000000) = 130649 / 500000 by norm_num] using h
+theorem layoutBound_crossingCover : LayoutBound 3 (130649 / 500000) :=
+  (layoutBound_crossingCover_of_odd (J := 13) (by decide)).mono
+    (by linarith [CrossingCover.alternatingWaveSum_13_lt])
 
 end Cslib.Circuits.Frontier

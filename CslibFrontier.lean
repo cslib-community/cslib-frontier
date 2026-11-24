@@ -1674,6 +1674,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Components
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Compression
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.AR2Density
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.AlternatingSum
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Certificate
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Concentration

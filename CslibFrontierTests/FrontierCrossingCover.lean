@@ -26,9 +26,6 @@ example : 0 ≤ alternatingWaveSum 13 :=
 example : (4827 / 1000 : ℝ) < 630649 / 130649 := by norm_num
 example : (2913 / 1000 : ℝ) < 380649 / 130649 := by norm_num
 
-example : ar2AltWaveSum 13 = alternatingWaveSum 13 :=
-  ar2AltWaveSum_eq_alternatingWaveSum 13
-
 /-! ### Strict concrete check on the cubic theta multigraph (parallel edges) -/
 
 /-- The cubic theta multigraph: two vertices joined by three parallel edges. -/

@@ -120,6 +120,7 @@ uniformity.
 
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
+
 * [R. Chen, V. Kabanets, *Correlation bounds and #SAT algorithms for small linear-size
   circuits*][ChenKabanets2015]
 * [A. Golovnev, A. S. Kulikov, A. V. Smal, S. Tamaki, *Circuit size lower bounds and #SAT upper
