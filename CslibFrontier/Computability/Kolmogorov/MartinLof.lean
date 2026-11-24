@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Computability.Kolmogorov.ChaitinOmega
 public import Mathlib.Algebra.Order.BigOperators.Expect
 import CslibFrontier.Foundations.Data.BitString.Enumeration
+import CslibFrontier.Foundations.Data.BitString.Primrec
 import CslibFrontier.Foundations.Data.BitString.Sign
+import CslibFrontier.Foundations.Data.List.FoldMax
 import CslibFrontier.Foundations.Data.List.Primrec
 import CslibFrontier.Probability.BitString.CoinFlips
 import CslibFrontier.Probability.BitString.Rademacher
@@ -55,9 +57,15 @@ and [ShenUspenskyVereshchagin2017] on top of `ChaitinOmega.lean`:
 
 ## Main results
 
-* `Cslib.Kolmogorov.tendsto_reCoverMass`,
+* `Cslib.Kolmogorov.toReal_coinFlips_biUnion_list`, `Cslib.Kolmogorov.finitePrefixMass_nonneg`,
+  `Cslib.Kolmogorov.finitePrefixMass_le_one`: measure characterization and bounds for
+  `finitePrefixMass`.
+* `Cslib.Kolmogorov.reCoverMass_nonneg`, `Cslib.Kolmogorov.reCoverMass_le_one`,
+  `Cslib.Kolmogorov.reCoverMass_le_coinFlips`, `Cslib.Kolmogorov.tendsto_reCoverMass`,
   `Cslib.Kolmogorov.exists_computable_approx_coinFlips_of_rePred`: uniform left-c.e. measure of
   effectively open cylinder sets.
+* `Cslib.Kolmogorov.DescriptionMethod.isPartrec_universalPrefixBits`: partial recursive
+  evaluator for `universalPrefixBits`.
 * `Cslib.Kolmogorov.exists_subset_universalMartinLofTest`,
   `Cslib.Kolmogorov.isMartinLofRandom_iff_passes_universalMartinLofTest`,
   `Cslib.Kolmogorov.ae_isMartinLofRandom`: universality and `coinFlips`-almost-everywhere
@@ -94,29 +102,8 @@ open Encodable Denumerable Nat.Partrec Filter MeasureTheory
 
 /-! ### Left-c.e. measure of effectively open cylinder unions -/
 
-private theorem primrec_enumList_ml : Primrec Cslib.BitString.enumList := by
-  have hh : Primrec₂ fun (_ : ℕ) (IH : List (List Bool)) =>
-      IH.flatMap fun word => [false :: word, true :: word] := by
-    have hcons : Primrec₂ fun (_ : ℕ × List (List Bool)) (word : List Bool) =>
-        [false :: word, true :: word] :=
-      Primrec₂.mk <| Primrec.list_cons.comp
-        (Primrec.list_cons.comp (Primrec.const false) Primrec.snd)
-        (Primrec.list_cons.comp
-          (Primrec.list_cons.comp (Primrec.const true) Primrec.snd)
-          (Primrec.const []))
-    exact Primrec₂.mk <| Primrec.list_flatMap Primrec.snd hcons
-  refine (Primrec.nat_rec₁ [[]] hh).of_eq fun k => ?_
-  have hrec : ∀ m : ℕ, Nat.rec [[]]
-      (fun _ IH => IH.flatMap fun word => [false :: word, true :: word]) m =
-      Cslib.BitString.enumList m := by
-    intro m
-    induction m with
-    | zero => rfl
-    | succ m ih => rw [Cslib.BitString.enumList_succ, ← ih]
-  exact hrec k
-
 private def prefixUnionMaxLen (L : List (List Bool)) : ℕ :=
-  L.foldr (fun w m => max w.length m) 0
+  (L.map List.length).foldl max 0
 
 private def prefixUnionCount (L : List (List Bool)) : ℕ :=
   (Cslib.BitString.enumList (prefixUnionMaxLen L)).countP
@@ -128,20 +115,16 @@ def finitePrefixMass (L : List (List Bool)) : ℚ :=
   (prefixUnionCount L : ℚ) * (2 : ℚ)⁻¹ ^ prefixUnionMaxLen L
 
 private theorem length_le_prefixUnionMaxLen {L : List (List Bool)} {w : List Bool}
-    (hw : w ∈ L) : w.length ≤ prefixUnionMaxLen L := by
-  induction L with
-  | nil => simp at hw
-  | cons a rest ih =>
-    simp only [prefixUnionMaxLen, List.foldr_cons]
-    rcases List.mem_cons.mp hw with rfl | hw'
-    · exact le_max_left _ _
-    · exact (ih hw').trans (le_max_right _ _)
+    (hw : w ∈ L) : w.length ≤ prefixUnionMaxLen L :=
+  List.mem_le_foldl_max (List.mem_map_of_mem hw)
 
 private theorem primrec_prefixUnionMaxLen : Primrec prefixUnionMaxLen := by
-  have hh : Primrec₂ fun (_ : List (List Bool)) (wm : List Bool × ℕ) => max wm.1.length wm.2 :=
-    Primrec₂.mk <| Primrec.nat_max.comp
-      (Primrec.list_length.comp (Primrec.fst.comp Primrec.snd)) (Primrec.snd.comp Primrec.snd)
-  exact (Primrec.list_foldr Primrec.id (Primrec.const 0) hh).of_eq fun _ => rfl
+  have hmap : Primrec fun L : List (List Bool) => L.map List.length :=
+    Primrec.list_map Primrec.id (Primrec.list_length.comp Primrec.snd).to₂
+  have hmax : Primrec₂ fun (_ : List (List Bool)) (mn : ℕ × ℕ) => max mn.1 mn.2 :=
+    Primrec₂.mk <|
+      Primrec.nat_max.comp (Primrec.fst.comp Primrec.snd) (Primrec.snd.comp Primrec.snd)
+  exact (Primrec.list_foldl hmap (Primrec.const 0) hmax).of_eq fun _ => rfl
 
 private theorem primrec_prefixUnionCount : Primrec prefixUnionCount := by
   have hany : PrimrecRel fun (L : List (List Bool)) (v : List Bool) => ∃ w ∈ L, w <+: v :=
@@ -164,7 +147,7 @@ private theorem primrec_prefixUnionCount : Primrec prefixUnionCount := by
   have hfold : Primrec fun L : List (List Bool) =>
       (Cslib.BitString.enumList (prefixUnionMaxLen L)).foldr
         (fun v acc => if L.any fun w => decide (w <+: v) then acc + 1 else acc) 0 :=
-    (Primrec.list_foldr (primrec_enumList_ml.comp primrec_prefixUnionMaxLen)
+    (Primrec.list_foldr (Cslib.BitString.primrec_enumList.comp primrec_prefixUnionMaxLen)
       (Primrec.const 0) hh).of_eq fun _ => rfl
   refine hfold.of_eq fun L => ?_
   have hgen : ∀ E : List (List Bool),
@@ -230,11 +213,25 @@ private theorem coinFlips_biUnion_list (L : List (List Bool)) :
         rw [Finset.sum_const, nsmul_eq_mul]
     _ = (prefixUnionCount L : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ prefixUnionMaxLen L := by rw [hlen]
 
-private theorem toReal_coinFlips_biUnion_list (L : List (List Bool)) :
+/-- The real value of `finitePrefixMass L` equals the `coinFlips`-measure of the finite cylinder
+union `⋃ w ∈ L, prefixCylinderList w`. -/
+theorem toReal_coinFlips_biUnion_list (L : List (List Bool)) :
     (Cslib.BitString.coinFlips (⋃ w ∈ L, prefixCylinderList w)).toReal =
       (finitePrefixMass L : ℝ) := by
   rw [coinFlips_biUnion_list, ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_pow]
   simp [finitePrefixMass]
+
+/-- Every finite cylinder union mass `finitePrefixMass L` is nonnegative. -/
+theorem finitePrefixMass_nonneg (L : List (List Bool)) : 0 ≤ finitePrefixMass L := by
+  dsimp [finitePrefixMass]
+  positivity
+
+/-- Every finite cylinder union mass `finitePrefixMass L` is at most `1`. -/
+theorem finitePrefixMass_le_one (L : List (List Bool)) : finitePrefixMass L ≤ 1 := by
+  have hm := ENNReal.toReal_mono (measure_ne_top Cslib.BitString.coinFlips _)
+    (measure_mono (Set.subset_univ (⋃ w ∈ L, prefixCylinderList w)))
+  rw [toReal_coinFlips_biUnion_list, measure_univ, ENNReal.toReal_one] at hm
+  exact_mod_cast hm
 
 private def reCand (e : Code) (j : ℕ) : Option (List Bool) :=
   (decode (α := List Bool × ℕ) j).bind fun wf =>
@@ -286,9 +283,16 @@ theorem exists_mem_reWords_iff_dom {e : Code} {w : List Bool} :
       Option.isSome_iff_exists.mpr ⟨y, hf⟩⟩
 
 /-- Uniformly computable monotone rational lower approximant to the `coinFlips`-measure of the
-effectively open union `⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w`. -/
+effectively open union `⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w`.
+Because `ℚ` has no canonical Mathlib `Primcodable` instance, uniform computability of the exact
+dyadic numerator/denominator pair representing `(reCoverMass e t : ℝ)` is stated in
+`exists_computable_approx_coinFlips_of_rePred`. -/
 def reCoverMass (e : Code) (t : ℕ) : ℚ :=
   finitePrefixMass (reWords e t)
+
+/-- Each rational approximant `reCoverMass e t` is nonnegative. -/
+theorem reCoverMass_nonneg (e : Code) (t : ℕ) : 0 ≤ reCoverMass e t :=
+  finitePrefixMass_nonneg (reWords e t)
 
 theorem monotone_reCoverMass (e : Code) : Monotone (reCoverMass e) := by
   intro m n hmn
@@ -300,11 +304,8 @@ theorem monotone_reCoverMass (e : Code) : Monotone (reCoverMass e) := by
   rw [toReal_coinFlips_biUnion_list, toReal_coinFlips_biUnion_list] at hm
   exact_mod_cast hm
 
-theorem reCoverMass_le_one (e : Code) (t : ℕ) : reCoverMass e t ≤ 1 := by
-  have hm := ENNReal.toReal_mono (measure_ne_top Cslib.BitString.coinFlips _)
-    (measure_mono (Set.subset_univ (⋃ w ∈ reWords e t, prefixCylinderList w)))
-  rw [toReal_coinFlips_biUnion_list, measure_univ, ENNReal.toReal_one] at hm
-  exact_mod_cast hm
+theorem reCoverMass_le_one (e : Code) (t : ℕ) : reCoverMass e t ≤ 1 :=
+  finitePrefixMass_le_one (reWords e t)
 
 private theorem tendsto_coinFlips_reWords (e : Code) :
     Tendsto (fun t => Cslib.BitString.coinFlips (⋃ w ∈ reWords e t, prefixCylinderList w)) atTop
@@ -339,6 +340,16 @@ theorem tendsto_reCoverMass (e : Code) :
   dsimp only [Function.comp_def]
   rw [toReal_coinFlips_biUnion_list]
   rfl
+
+/-- Every approximant `reCoverMass e t` bounds
+`(Cslib.BitString.coinFlips (⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w)).toReal`
+from below. -/
+theorem reCoverMass_le_coinFlips (e : Code) (t : ℕ) :
+    (reCoverMass e t : ℝ) ≤
+      (Cslib.BitString.coinFlips
+        (⋃ w ∈ {w | (e.eval (encode w)).Dom}, prefixCylinderList w)).toReal :=
+  Monotone.ge_of_tendsto (f := fun s => (reCoverMass e s : ℝ))
+    (fun _ _ h => Rat.cast_mono (monotone_reCoverMass e h)) (tendsto_reCoverMass e) t
 
 /-- Every computably enumerable prefix set `S : Set (List Bool)` has a computable monotone rational
 sequence converging from below to `(coinFlips (⋃ w ∈ S, prefixCylinderList w)).toReal`. -/
@@ -835,22 +846,27 @@ theorem isMartinLofRandom_iff_exists_le_ecomplexity (x : ℕ → Bool) :
   rw [← DescriptionMethod.natCast_complexity_universalPrefixBits]
   exact_mod_cast Iff.rfl
 
+/-- `universalPrefixBits` has a partial recursive evaluator. -/
+theorem DescriptionMethod.isPartrec_universalPrefixBits :
+    ∃ eval : List Bool →. List Bool, Partrec eval ∧
+      ∀ p w, DescriptionMethod.universalPrefixBits.Produces p w ↔ w ∈ eval p := by
+  obtain ⟨f, hf, hfU⟩ := DescriptionMethod.isPartrec_universalPrefix
+  let evalBits : List Bool →. List Bool :=
+    fun p => (f p).map fun n => (decode (α := List Bool) n).getD []
+  refine ⟨evalBits,
+    hf.map ((Primrec.option_getD.comp Primrec.decode (Primrec.const [])).to_comp.comp
+      Computable.snd), ?_⟩
+  intro p w
+  simp only [evalBits, DescriptionMethod.universalPrefixBits, DescriptionMethod.map_produces_iff,
+    Part.mem_map_iff]
+  exact ⟨fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mp hn, hn_eq⟩,
+    fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mpr hn, hn_eq⟩⟩
+
 private theorem exists_ecomplexity_le_universalPrefixBits
     {U : DescriptionMethod (List Bool)} (hU_min : U.MinorizesPrefixPartrec) :
     ∃ c : ℕ, ∀ w : List Bool,
       U.ecomplexity w ≤ DescriptionMethod.universalPrefixBits.ecomplexity w + c := by
-  obtain ⟨f, hf, hfU⟩ := DescriptionMethod.isPartrec_universalPrefix
-  let evalBits : List Bool →. List Bool :=
-    fun p => (f p).map fun n => (decode (α := List Bool) n).getD []
-  have hevalBits : Partrec evalBits :=
-    hf.map
-      ((Primrec.option_getD.comp Primrec.decode (Primrec.const [])).to_comp.comp Computable.snd)
-  have hprodBits : ∀ p w, DescriptionMethod.universalPrefixBits.Produces p w ↔ w ∈ evalBits p := by
-    intro p w
-    simp only [evalBits, DescriptionMethod.universalPrefixBits, DescriptionMethod.map_produces_iff,
-      Part.mem_map_iff]
-    exact ⟨fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mp hn, hn_eq⟩,
-      fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mpr hn, hn_eq⟩⟩
+  obtain ⟨evalBits, hevalBits, hprodBits⟩ := DescriptionMethod.isPartrec_universalPrefixBits
   exact hU_min.exists_ecomplexity_le_of_partrec_eval
     DescriptionMethod.isPrefixFree_universalPrefixBits hevalBits hprodBits
 

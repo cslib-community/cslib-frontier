@@ -5,6 +5,7 @@ Authors: Matthew Doty, Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 import CslibFrontier.Computability.Kolmogorov.MartinLof
 import CslibFrontier.Foundations.Data.List.Primrec
@@ -24,11 +25,15 @@ open Cslib Cslib.Kolmogorov Cslib.Kolmogorov.DescriptionMethod Filter MeasureThe
 
 /-! ### Left-c.e. measure of effectively open cylinder sets -/
 
--- Disjoint finite union `{[false], [true, false]}` has approximants converging to `3 / 4`.
+-- Disjoint finite union `[[false], [true, false]]` has exact mass `3 / 4` and approximants
+-- converging to `3 / 4`.
 example :
-    ∃ (num den : ℕ → ℕ), Computable num ∧ Computable den ∧ (∀ t, 0 < den t) ∧
-      Monotone (fun t => (num t : ℝ) / (den t : ℝ)) ∧
-      Tendsto (fun t => (num t : ℝ) / (den t : ℝ)) atTop (𝓝 (3 / 4 : ℝ)) := by
+    finitePrefixMass [[false], [true, false]] = 3 / 4 ∧
+      0 ≤ finitePrefixMass [[false], [true, false]] ∧
+      finitePrefixMass [[false], [true, false]] ≤ 1 ∧
+      ∃ (num den : ℕ → ℕ), Computable num ∧ Computable den ∧ (∀ t, 0 < den t) ∧
+        Monotone (fun t => (num t : ℝ) / (den t : ℝ)) ∧
+        Tendsto (fun t => (num t : ℝ) / (den t : ℝ)) atTop (𝓝 (3 / 4 : ℝ)) := by
   let S : Set (List Bool) := {[false], [true, false]}
   have hS : REPred (· ∈ S) :=
     ((Primrec.eq.comp Primrec.id (Primrec.const [false])).or
@@ -41,18 +46,28 @@ example :
       prefixCylinderList [false] ∪ prefixCylinderList [true, false] := by
     ext x
     simp [S]
+  have huL : (⋃ w ∈ ([[false], [true, false]] : List (List Bool)), prefixCylinderList w) =
+      ⋃ w ∈ S, prefixCylinderList w := by
+    ext x
+    simp [S]
   have hm : (Cslib.BitString.coinFlips (⋃ w ∈ S, prefixCylinderList w)).toReal = (3 / 4 : ℝ) := by
     rw [hu, measure_union hdisj (measurableSet_prefixCylinderList [true, false]),
       coinFlips_prefixCylinderList, coinFlips_prefixCylinderList, ENNReal.toReal_add
         (by norm_num) (by norm_num)]
     norm_num
+  have hmass : finitePrefixMass [[false], [true, false]] = 3 / 4 :=
+    (Rat.cast_inj (α := ℝ)).mp
+      (((toReal_coinFlips_biUnion_list _).symm.trans (huL ▸ hm)).trans (by norm_num))
+  refine ⟨hmass, finitePrefixMass_nonneg _, finitePrefixMass_le_one _, ?_⟩
   simpa [hm] using exists_computable_approx_coinFlips_of_rePred hS
 
--- Overlapping union `{[false], [false, true]}` has approximants converging to `1 / 2`.
+-- Overlapping union `[[false], [false, true]]` has exact mass `1 / 2` and approximants
+-- converging to `1 / 2`.
 example :
-    ∃ (num den : ℕ → ℕ), Computable num ∧ Computable den ∧ (∀ t, 0 < den t) ∧
-      Monotone (fun t => (num t : ℝ) / (den t : ℝ)) ∧
-      Tendsto (fun t => (num t : ℝ) / (den t : ℝ)) atTop (𝓝 (1 / 2 : ℝ)) := by
+    finitePrefixMass [[false], [false, true]] = 1 / 2 ∧
+      ∃ (num den : ℕ → ℕ), Computable num ∧ Computable den ∧ (∀ t, 0 < den t) ∧
+        Monotone (fun t => (num t : ℝ) / (den t : ℝ)) ∧
+        Tendsto (fun t => (num t : ℝ) / (den t : ℝ)) atTop (𝓝 (1 / 2 : ℝ)) := by
   let S : Set (List Bool) := {[false], [false, true]}
   have hS : REPred (· ∈ S) :=
     ((Primrec.eq.comp Primrec.id (Primrec.const [false])).or
@@ -65,15 +80,27 @@ example :
     simp only [S, Set.mem_iUnion, Set.mem_insert_iff, Set.mem_singleton_iff, exists_prop]
     exact ⟨fun ⟨w, hw, hx⟩ => hw.elim (· ▸ hx) (fun h => hsub (h ▸ hx)),
       fun hx => ⟨[false], Or.inl rfl, hx⟩⟩
+  have huL : (⋃ w ∈ ([[false], [false, true]] : List (List Bool)), prefixCylinderList w) =
+      ⋃ w ∈ S, prefixCylinderList w := by
+    ext x
+    simp [S]
   have hm : (Cslib.BitString.coinFlips (⋃ w ∈ S, prefixCylinderList w)).toReal = (1 / 2 : ℝ) := by
     rw [hu, coinFlips_prefixCylinderList]
     norm_num
+  refine ⟨(Rat.cast_inj (α := ℝ)).mp
+      (((toReal_coinFlips_biUnion_list _).symm.trans (huL ▸ hm)).trans (by norm_num)), ?_⟩
   simpa [hm] using exists_computable_approx_coinFlips_of_rePred hS
 
--- Total code `Code.zero` covers `[]`, so `reCoverMass Code.zero` converges from below to `1`.
+-- Total code `Code.zero` covers `[]`, so `reCoverMass Code.zero` bounds the union from below and
+-- converges to `1`.
 example :
     Monotone (reCoverMass Nat.Partrec.Code.zero) ∧
+      (∀ t, 0 ≤ reCoverMass Nat.Partrec.Code.zero t) ∧
       (∀ t, reCoverMass Nat.Partrec.Code.zero t ≤ 1) ∧
+      (∀ t, (reCoverMass Nat.Partrec.Code.zero t : ℝ) ≤
+        (Cslib.BitString.coinFlips
+          (⋃ w ∈ {w : List Bool | (Nat.Partrec.Code.zero.eval (Encodable.encode w)).Dom},
+            prefixCylinderList w)).toReal) ∧
       Tendsto (fun t => (reCoverMass Nat.Partrec.Code.zero t : ℝ)) atTop (𝓝 (1 : ℝ)) := by
   have huniv :
       (⋃ w ∈ {w : List Bool | (Nat.Partrec.Code.zero.eval (Encodable.encode w)).Dom},
@@ -84,7 +111,8 @@ example :
       mem_prefixCylinderList.mpr fun i => Fin.elim0 i⟩
   have hten := tendsto_reCoverMass Nat.Partrec.Code.zero
   rw [huniv, measure_univ, ENNReal.toReal_one] at hten
-  exact ⟨monotone_reCoverMass _, reCoverMass_le_one _, hten⟩
+  exact ⟨monotone_reCoverMass _, reCoverMass_nonneg _, reCoverMass_le_one _,
+    reCoverMass_le_coinFlips _, hten⟩
 
 /-! ### Universal Martin-Löf test and full `coinFlips` measure -/
 
@@ -148,18 +176,7 @@ example (x : ℕ → Bool) :
     IsMartinLofRandom x ↔
       ∃ c : ℕ, ∀ n : ℕ,
         n ≤ universalPrefixBits.complexity (List.ofFn fun i : Fin n => x i) + c := by
-  obtain ⟨f, hf, hfU⟩ := isPartrec_universalPrefix
-  let evalBits : List Bool →. List Bool :=
-    fun p => (f p).map fun n => (Encodable.decode (α := List Bool) n).getD []
-  have hevalBits : Partrec evalBits :=
-    hf.map ((Primrec.option_getD.comp Primrec.decode (Primrec.const [])).to_comp.comp
-      Computable.snd)
-  have hprodBits : ∀ p w, universalPrefixBits.Produces p w ↔ w ∈ evalBits p := by
-    intro p w
-    simp only [evalBits, universalPrefixBits, DescriptionMethod.map_produces_iff,
-      Part.mem_map_iff]
-    exact ⟨fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mp hn, hn_eq⟩,
-      fun ⟨n, hn, hn_eq⟩ => ⟨n, (hfU p n).mpr hn, hn_eq⟩⟩
+  obtain ⟨evalBits, hevalBits, hprodBits⟩ := isPartrec_universalPrefixBits
   exact isMartinLofRandom_iff_exists_le_complexity_of_optimal
     minorizesPrefixPartrec_universalPrefixBits isPrefixFree_universalPrefixBits hevalBits
     hprodBits x

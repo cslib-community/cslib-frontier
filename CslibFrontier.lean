@@ -7510,6 +7510,7 @@ public import CslibFrontier.Foundations.Data.BitString.PartialAssignment.Agreeme
 public import CslibFrontier.Foundations.Data.BitString.PartialAssignment.Counting
 public import CslibFrontier.Foundations.Data.BitString.Positions
 public import CslibFrontier.Foundations.Data.BitString.Prefix
+public import CslibFrontier.Foundations.Data.BitString.Primrec
 public import CslibFrontier.Foundations.Data.BitString.Propagation
 public import CslibFrontier.Foundations.Data.BitString.ShortMembers
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
