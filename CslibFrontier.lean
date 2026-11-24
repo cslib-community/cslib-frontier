@@ -7278,6 +7278,8 @@ public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Explicit
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.IndependentSources
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AffineSource
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.SomewhereCondenser
+public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.SumsetCorrelationBreaker
+public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.SumsetExtractor
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Threshold
 public import CslibFrontier.Foundations.Combinatorics.ApproximateMajority
 public import CslibFrontier.Foundations.Combinatorics.BalancedSchedules
@@ -9512,6 +9514,7 @@ public import CslibFrontier.Probability.MarkovChain.RotationMap
 public import CslibFrontier.Probability.MedianOfMeans
 public import CslibFrontier.Probability.MedianTrick
 public import CslibFrontier.Probability.MinEntropy
+public import CslibFrontier.Probability.MinEntropy.ChainRule
 public import CslibFrontier.Probability.MinEntropy.Flat
 public import CslibFrontier.Probability.MinEntropy.LeftoverHash
 public import CslibFrontier.Probability.Minimax
