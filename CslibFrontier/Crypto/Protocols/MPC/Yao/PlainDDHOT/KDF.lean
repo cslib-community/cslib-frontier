@@ -90,8 +90,8 @@ The locators for [LindellPinkas2009] and [BonehShoup2023] are those recorded in
   bound for one transfer.
 * `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_evaluator_le`:
   the bound for a corrupted evaluator.
-* `Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_garbler_eq_zero` (in
-  `Cslib.Crypto.Protocols.MPC`): advantage zero for a corrupted garbler.
+* `Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_garbler_eq_zero`:
+  advantage zero for a corrupted garbler.
 
 ## References
 
