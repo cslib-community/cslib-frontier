@@ -107,10 +107,10 @@ theorem layeredCallback_parts_inSpace (ntm : MultiTapeNTM k Bool State) :
     ComputableInSpace (layeredCallback ntm).finish encLayeredCallback encBits
       (fun s => (encLayeredCallback s).length) := by
   have hquery := sumElim (layeredQueryIndex_inSpace (k := k))
-    (budget_const (encIn := encBool) 0 (.refl _))
+    (budget_const (encIn := encBool) 0)
   have hhalt := sumElim
-    (budget_const (encIn := encLayeredQuery) (encB := encBool) false (.refl _))
-    (budget_const (encIn := encBool) true (.refl _))
+    (budget_const (encIn := encLayeredQuery) (encB := encBool) false)
+    (budget_const (encIn := encBool) true)
   have hq := fst encLayeredQuery (encOption encBool)
   have hs := snd encLayeredQuery (encOption encBool)
   have hupdate := encLayeredQuery_mk_budget
@@ -122,6 +122,6 @@ theorem layeredCallback_parts_inSpace (ntm : MultiTapeNTM k Bool State) :
     (budget_comp_linear (layeredEdgeQuery_inSpace ntm) hupdate)
   have hright := budget_comp_linear hinr (fst encBool (encOption encBool))
   have hnext := sumElimFst hleft hright
-  exact ⟨hquery, hnext, hhalt, budget_const [] (.refl _), budget_const [] (.refl _)⟩
+  exact ⟨hquery, hnext, hhalt, budget_const [], budget_const []⟩
 
 end Cslib.Complexity.STCON

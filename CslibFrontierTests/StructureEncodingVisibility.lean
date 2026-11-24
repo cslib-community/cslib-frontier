@@ -8,6 +8,7 @@ module
 -- upstream: local-only (structure-encoding visibility regression tests)
 
 public import CslibFrontierTests.StructureEncoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-!
 # Default-public and private encodings of an applied structure
@@ -25,11 +26,11 @@ noncomputable section
 variable {n : ℕ}
 
 /-- A public encoding of the existing table, with its framed tag before its entries. -/
-enc_structure encPublicTable : TaggedTable n where
+enc_structure encPublicTable : TaggedTable n logspace where
   tag : encBool, entries : (encPi (Index := Fin n) encNat)
 
 /-- An implementation encoding with the same layout and private generated declarations. -/
-private enc_structure encPrivateTable : TaggedTable n where
+private enc_structure encPrivateTable : TaggedTable n logspace where
   tag : encBool, entries : (encPi (Index := Fin n) encNat)
 
 -- Reading both fields and rebuilding a private-encoded record uses the generated rules.
@@ -63,10 +64,15 @@ example : ComputableInPolyTime (TaggedTable.tag (n := 0)) encPrivateTable encBoo
 example (t : TaggedTable n) :
     encPrivateTable t = encPair encBool (encPi encNat) (t.tag, t.entries) := rfl
 
+-- A private logspace field rule reads a field of stored registers beside a second input.
+example : ComputableInLogSpace (fun p : TaggedTable n × List Bool => (p.1.tag, p.2))
+    (encPair encPrivateTable encBits) (encPair encBool encBits) := by
+  fun_prop
+
 end
 
 /-- A private encoding with an explicit parameter and a dependent field. -/
-private enc_structure encPrivateElement (F : Family) : Element F where
+private enc_structure encPrivateElement (F : Family) : Element F logspace where
   size : encUnary, desc : F.encDesc, elt : (F.encode desc) using (F.encode_injective desc)
 
 example (F : Family) (x : Element F) :
@@ -80,9 +86,14 @@ example (F : Family) :
       (encPrivateElement F) (encPrivateElement F) := by
   fun_prop
 
+-- The logspace rule of a dependent field reads its word.
+example (F : Family) : ComputableInLogSpace (fun x : Element F => F.encode x.desc x.elt)
+    (encPrivateElement F) encBits :=
+  encPrivateElement_elt_logSpace F
+
 /-- A private flattened encoding whose parent rule must remain local to this module. -/
 private enc_structure encPrivateElementPair (F : Family) : ElementPair F
-    flattened toElement : (eElement F) where
+    flattened toElement : (eElement F) logspace where
   size : encUnary, desc : F.encDesc, elt : (F.encode desc) using (F.encode_injective desc),
   other : (F.encode desc) using (F.encode_injective desc)
 
@@ -91,5 +102,15 @@ example (F : Family) {α : Type} {enc : α ↪ List Bool} {f : α → ElementPai
     (hf : ComputableInPolyTime f enc (encPrivateElementPair F)) :
     ComputableInPolyTime (fun a => (f a).toElement) enc (eElement F) := by
   fun_prop
+
+-- With `logspace`, the fields of a flattened parent are read through it.
+example (F : Family) : ComputableInLogSpace (fun x : ElementPair F => x.size)
+    (encPrivateElementPair F) encUnary :=
+  encPrivateElementPair_size_logSpace F
+
+/-- One slot needs neither framing nor tuple projections; its word is unchanged. -/
+enc_structure encLogSingle : Single logspace where items : (encList encNat)
+
+example (s : Single) : encLogSingle s = eSingle s := rfl
 
 end CslibFrontierTests.StructureEncodingVisibility

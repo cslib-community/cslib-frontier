@@ -134,10 +134,11 @@ def layout(H: h.History) -> dict[str, tuple[float, float]]:
 
 
 class Renderer:
-    def __init__(self, H: h.History, width: int, height: int):
+    def __init__(self, H: h.History, width: int, height: int,
+                 pos: dict[str, tuple[float, float]] | None = None):
         self.H = H
         self.W, self.Hh = width, height
-        pos = layout(H)
+        pos = layout(H) if pos is None else pos
         self.mods = sorted(pos)
         self.mid = {m: i for i, m in enumerate(self.mods)}
         self.P = np.array([pos[m] for m in self.mods])
