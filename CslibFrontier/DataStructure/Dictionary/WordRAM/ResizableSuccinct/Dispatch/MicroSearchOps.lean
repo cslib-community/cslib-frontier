@@ -1810,7 +1810,8 @@ private theorem boundedWhile_compMicroStep_spec
         rw [← hcpl.gm_eq]; exact hj_bc
       have hstep_fix := clientResult_microStepProg (x := (d_fix, a)) s_fix hslot_fix hb
         (by simpa [a] using hj_bc_fix) (by simpa [a] using hj_cap)
-      simp only [d_fix, a, Nat.add_sub_cancel] at hstep_fix
+      simp only [d_fix, a, microStepBase, microStepBucket, microStepQuot, microStepPtr,
+        microStepMatchIdx, microStepPhys, Nat.add_sub_cancel] at hstep_fix
       have hstep_st := clientState_compMicroStepGenProg (d, a) s
       have hstep_st_fix := clientState_microStepProg U V (ghostW w) N
         (epochHashSpace U (ghostW w) N) (d_fix, a) s_fix
@@ -1914,7 +1915,8 @@ private theorem compSearchMicroChainGenProg_spec
   dsimp only [prog, prog_fix, compSearchMicroChainGenProg, compMicroLoopGenProg, compMicroCutoff,
     cpN_mk]
   unfold searchMicroChainProg searchMicroChainGenProg microLoopGenProg
-  simp only [readLMHeadGenProg_mk, p_nMax_mk, pure_bind, boundedWhile_microStepGenProg_mk]
+  simp only [lmWriteLoc, lmWriteVal, lmWriteHeadArg, microLoopCtxParams, readLMHeadGenProg_mk,
+    p_nMax_mk, pure_bind, boundedWhile_microStepGenProg_mk]
   rw [StateTransitionSpec.clientState_bind, clientState_compReadLMHeadGenProg,
     clientResult_compReadLMHeadGenProg hb hm s,
     StateTransitionSpec.clientResult_bind, clientState_compReadLMHeadGenProg,

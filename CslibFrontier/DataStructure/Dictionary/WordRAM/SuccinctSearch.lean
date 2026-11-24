@@ -1097,7 +1097,7 @@ theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
   dsimp only [gm, prog] at *
   have h1 := searchMicroChainProg_spec henv hb hm hinv hchain hc_lt
   have h2 := searchOverflowProg_spec (d := d.1) henv hb hinv
-  dsimp only at h1 h2
+  dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx, microAccStatus, microAccIdx] at h1 h2
   unfold searchBucketProg
   simp only [pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
