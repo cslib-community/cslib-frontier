@@ -556,7 +556,8 @@ names. Each cast fact costs a `push_cast` call, so a call with many natural-numb
 context costs more than `linarith`; use `cast_linarith only [...]` there, or `linarith` where no
 cast is needed. The tactic derives no new facts about the naturals: products, truncated
 subtraction `a - b` and division stay atoms, so a fact such as `((a - b : ℕ) : ℝ) = (a : ℝ) - b`,
-which needs `b ≤ a`, still has to be supplied. The [checked clients](../../CslibFrontierTests/LinarithCast.lean) cover each case.
+which needs `b ≤ a`, still has to be supplied. The
+[checked clients](../../CslibFrontierTests/LinarithCast.lean) cover each case.
 
 ## Close negligibility bounds
 
