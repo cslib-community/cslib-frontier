@@ -7597,6 +7597,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Su
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Tree
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MotzkinStraus
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OddCycle
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OddCycleTransversal
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OrientedIncidence
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Pentagon

@@ -43,6 +43,7 @@ is stated directly.
 ## Main results
 
 * `SimpleGraph.indepNum_mul_le_indepNum_strongProd`: `α(G) α(H) ≤ α(G ⊠ H)`.
+* `SimpleGraph.natCard_le_indepNum_strongProd_compl`: `|V| ≤ α(G ⊠ Gᶜ)`.
 * `SimpleGraph.indepNum_strongPow_add`: `α(Gᵐ) α(Gⁿ) ≤ α(Gᵐ⁺ⁿ)`.
 * `SimpleGraph.indepNum_strongPow_le`: `α(Gᵏ) ≤ |V| ^ k`.
 
@@ -155,6 +156,22 @@ theorem indepNum_mul_le_indepNum_strongProd [Finite V] [Finite W] :
     exact hne (by rw [h₁, h₂])
   have h := hind.card_le_indepNum
   rwa [card_product, hs.card_eq, ht.card_eq] at h
+
+/-- The diagonal `{(v, v) | v : V}` is an independent set of size `|V|` in `G ⊠ Gᶜ`. -/
+theorem natCard_le_indepNum_strongProd_compl [Finite V] :
+    Nat.card V ≤ (G ⊠ Gᶜ).indepNum := by
+  classical
+  have := Fintype.ofFinite V
+  have hind : (G ⊠ Gᶜ).IsIndepSet (Finset.univ.image fun v : V => (v, v) : Finset (V × V)) := by
+    intro x hx y hy hxy ⟨_, h₁, h₂⟩
+    simp only [coe_image, coe_univ, Set.image_univ, Set.mem_range] at hx hy
+    obtain ⟨u, rfl⟩ := hx
+    obtain ⟨v, rfl⟩ := hy
+    have huv : u ≠ v := fun h => hxy (h ▸ rfl)
+    exact (h₂.resolve_left huv).2 (h₁.resolve_left huv)
+  have h := hind.card_le_indepNum
+  rwa [card_image_of_injective _ (fun _ _ h => (Prod.mk.inj h).1), card_univ,
+    ← Nat.card_eq_fintype_card] at h
 
 theorem indepNum_strongPow_zero : (G.strongPow 0).indepNum = 1 :=
   le_antisymm (by simpa using (G.strongPow 0).indepNum_le_natCard) one_le_indepNum
