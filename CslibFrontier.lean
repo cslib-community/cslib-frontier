@@ -7406,6 +7406,8 @@ public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Bits
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Explicit
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.IndependentSources
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AffineSource
+public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AltExt
+public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.LinearStrongExtractor
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.SomewhereCondenser
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.SumsetCorrelationBreaker
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.SumsetExtractor
