@@ -3,6 +3,7 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 
 /-! # Oracle substitution with private coins and shared state -/
@@ -54,9 +55,7 @@ example (initial : ℕ) :
         let bit ← ProbComp.uniform Bool
         return ((bit, initial + 3), initial + 4)) := by
   rw [ProbOracleComp.interpret_simulate]
-  simp only [adaptive, twice, OracleComp.interpret_bind, ProbOracleComp.interpret_query,
-    StateT.run_bind, OracleComp.interpret_pure, StateT.run_pure,
-    ProbOracleComp.interpret_sample, OracleComp.run_interpret_lift, ProbComp.interpret_unifFin]
+  simp only [adaptive, twice, interp_norm]
   simp [countQuery, StateT.run, Nat.add_assoc]
 
 -- External replies may depend on their query. Substitution preserves those dependent types.

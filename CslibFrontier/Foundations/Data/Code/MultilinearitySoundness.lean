@@ -166,7 +166,8 @@ theorem IsMultilinear.hammingDist_le_of_two_mul_le {f g : (Fin n → F) → F} (
     · exact mem_union_left _ (mem_sdiff.mpr ⟨hx, hxW⟩)
   have hcl' := (card_le_card hcl).trans (card_union_le W I)
   rw [← hB]
-  calc #B ≤ 2 * n * (#W + #I) + #W := by nlinarith
+  calc #B ≤ 2 * n * (#W + #I) + #W :=
+        hBS.trans (Nat.add_le_add_right (hexp.trans (Nat.mul_le_mul_left _ hcl')) _)
     _ ≤ 2 * n * (∑ i, #(wrongPoints f i) + n * Fintype.card F ^ (n - 1)) +
           ∑ i, #(wrongPoints f i) := by gcongr
     _ = _ := by ring
@@ -180,10 +181,10 @@ private theorem IsMultilinear.hammingDist_le_of_le_mul {k : ℕ} {f g : (Fin k �
     (h : (hammingDist f g : ℝ) ≤ c * (Fintype.card F : ℝ) ^ k) :
     (hammingDist f g : ℝ) ≤ (2 * (k : ℝ) + 1) * (∑ i, (#(wrongPoints f i) : ℝ)) +
       2 * (k : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ (k - 1) := by
-  have hqpow : 0 ≤ (Fintype.card F : ℝ) ^ k := by positivity
   have h2 : ((2 * hammingDist f g : ℕ) : ℝ) ≤ ((Fintype.card F ^ k : ℕ) : ℝ) := by
     push_cast
-    nlinarith
+    linarith only [h, mul_assoc (2 : ℝ) c ((Fintype.card F : ℝ) ^ k),
+      mul_le_of_le_one_left (by positivity : (0 : ℝ) ≤ (Fintype.card F : ℝ) ^ k) hc]
   exact_mod_cast hg.hammingDist_le_of_two_mul_le (by exact_mod_cast h2)
 
 /-- The wrong points of the slices `x 0 = t` add up to at most those of `f`. -/
@@ -215,13 +216,13 @@ private theorem exists_isMultilinear_hammingDist_le_mul {ε₀ γ : ℝ} (hε₀
     simp only [hammingDist_self, Nat.cast_zero, pow_zero, mul_one]
     simp only [CharP.cast_eq_zero, mul_zero, add_zero, zero_add, ne_eq, OfNat.ofNat_ne_zero,
       not_false_eq_true, zero_pow, zero_div] at hk
-    linarith
+    linarith only [hk, hε₀]
   | succ k ih =>
     intro hk f hf
     have hk' : (2 * k + 1) * ε₀ + 2 * k ^ 2 / (Fintype.card F : ℝ) ≤ γ := by
       refine le_trans ?_ hk
       push_cast
-      gcongr <;> nlinarith
+      gcongr <;> linarith only [Nat.cast_nonneg (α := ℝ) k]
     -- The threshold of the slices.
     obtain ⟨θ, hθ⟩ : ∃ θ : ℝ,
         θ = (1 - 1 / (Fintype.card F : ℝ)) ^ k * ε₀ * (Fintype.card F : ℝ) ^ k := ⟨_, rfl⟩
@@ -234,7 +235,7 @@ private theorem exists_isMultilinear_hammingDist_le_mul {ε₀ γ : ℝ} (hε₀
     have hθpos : 0 < θ := by
       have h0 : (0 : ℝ) ≤ ∑ i, (#(wrongPoints f i) : ℝ) := by positivity
       have : 0 < ((Fintype.card F : ℝ) - 1) * θ := h0.trans_lt hT
-      exact pos_of_mul_pos_right this (by linarith)
+      exact pos_of_mul_pos_right this (sub_nonneg.2 hq1)
     -- At least two slices have fewer than `θ` wrong points.
     let good : Finset F := {t | (∑ j, (#(wrongPoints (fun y => f (Fin.cons t y)) j) : ℝ)) < θ}
     have hbad : (#goodᶜ : ℝ) * θ < ((Fintype.card F : ℝ) - 1) * θ := by
@@ -249,7 +250,7 @@ private theorem exists_isMultilinear_hammingDist_le_mul {ε₀ γ : ℝ} (hε₀
         _ < _ := hT
     have hlt : (#goodᶜ : ℝ) < Fintype.card F - 1 := lt_of_mul_lt_mul_right hbad hθpos.le
     have hlt' : #goodᶜ + 1 < Fintype.card F := by
-      have : ((#goodᶜ + 1 : ℕ) : ℝ) < Fintype.card F := by push_cast; linarith
+      have : ((#goodᶜ + 1 : ℕ) : ℝ) < Fintype.card F := by push_cast; linarith only [hlt]
       exact_mod_cast this
     have hcard : #good + #goodᶜ = Fintype.card F := card_add_card_compl good
     obtain ⟨t₁, ht₁, t₂, ht₂, h12⟩ := one_lt_card.mp (by omega : 1 < #good)
@@ -259,12 +260,8 @@ private theorem exists_isMultilinear_hammingDist_le_mul {ε₀ γ : ℝ} (hε₀
     obtain ⟨g, hg, hfg⟩ := exists_isMultilinear_hammingDist_le_of_slices f h12 hg₁ hg₂
     refine ⟨g, hg, ?_⟩
     -- The wrong points of `f` are few.
-    have hpow : (1 - 1 / (Fintype.card F : ℝ)) ^ (k + 1) ≤ 1 := by
-      refine pow_le_one₀ ?_ ?_
-      · rw [sub_nonneg, div_le_one hq]
-        exact hq1
-      · have : 0 ≤ 1 / (Fintype.card F : ℝ) := by positivity
-        linarith
+    have hpow : (1 - 1 / (Fintype.card F : ℝ)) ^ (k + 1) ≤ 1 :=
+      pow_le_one₀ (sub_nonneg.2 ((div_le_one hq).2 hq1)) (sub_le_self _ (by positivity))
     have hTle : (∑ i, (#(wrongPoints f i) : ℝ)) ≤ ε₀ * (Fintype.card F : ℝ) ^ (k + 1) := by
       calc _ ≤ _ := hf.le
         _ ≤ 1 * ε₀ * (Fintype.card F : ℝ) ^ (k + 1) := by gcongr
@@ -280,10 +277,10 @@ private theorem exists_isMultilinear_hammingDist_le_mul {ε₀ γ : ℝ} (hε₀
         _ ≤ ε₀ * (Fintype.card F : ℝ) ^ (k + 1) + (Fintype.card F : ℝ) *
               (γ * (Fintype.card F : ℝ) ^ k + γ * (Fintype.card F : ℝ) ^ k) := by
             gcongr
-            linarith
+            exact hW0.trans hTle
         _ = (ε₀ + 2 * γ) * (Fintype.card F : ℝ) ^ (k + 1) := by ring
     -- Self-improvement brings it within `γ`.
-    have hself := hg.hammingDist_le_of_le_mul (by linarith) hhalf
+    have hself := hg.hammingDist_le_of_le_mul (by linarith only [hε₀, hγ]) hhalf
     rw [Nat.add_sub_cancel] at hself
     calc (hammingDist f g : ℝ) ≤ _ := hself
       _ ≤ (2 * ((k + 1 : ℕ) : ℝ) + 1) * (ε₀ * (Fintype.card F : ℝ) ^ (k + 1)) +
@@ -317,27 +314,29 @@ theorem exists_isMultilinear_hammingDist_lt (f : (Fin n → F) → F) {ε : ℝ}
           sum_lt_sum_of_nonempty ⟨⟨0, hn⟩, mem_univ _⟩ fun i _ => hW i
       _ = n * ε * (Fintype.card F : ℝ) ^ n := by simp [mul_assoc]
   -- Run the induction with `ε₀ = 2 n ε` and `γ = 1 / 5`.
-  have hn3 : (1 : ℝ) ≤ n ^ 3 := one_le_pow₀ hnr
-  have hεn : 800 * n ^ 3 * ε ≤ 1 := by
-    rw [le_div_iff₀ (by positivity)] at hε
-    linarith
-  have hqn : 2 * (n : ℝ) ^ 2 / Fintype.card F ≤ 1 / 20 := by
-    rw [div_le_iff₀ hq0]
-    nlinarith
+  have hn2 : (n : ℝ) ≤ n ^ 2 := by rw [sq]; exact le_mul_of_one_le_left (Nat.cast_nonneg n) hnr
+  have hn3 : (n : ℝ) ^ 2 ≤ n ^ 3 := pow_le_pow_right₀ hnr (by decide)
+  have hεn : (n : ℝ) ^ 2 * ε ≤ 1 / 800 := by
+    have h1 : 800 * (n : ℝ) ^ 3 * ε ≤ 1 := by rwa [le_div_iff₀' (by positivity)] at hε
+    linarith only [h1, mul_le_mul_of_nonneg_right hn3 hεpos.le,
+      mul_assoc (800 : ℝ) ((n : ℝ) ^ 3) ε]
+  have hε1 : (n : ℝ) * ε ≤ 1 / 800 := (mul_le_mul_of_nonneg_right hn2 hεpos.le).trans hεn
+  have hqn : 2 * (n : ℝ) ^ 2 / Fintype.card F ≤ 1 / 20 :=
+    (div_le_iff₀ hq0).2 (by linarith only [hqr])
   have hpow : (1 : ℝ) / 2 ≤ (1 - 1 / (Fintype.card F : ℝ)) ^ n := by
-    have h1q : 1 / (Fintype.card F : ℝ) ≤ 1 := by
-      rw [div_le_one hq0]
-      nlinarith
-    have hb := one_add_mul_le_pow (a := -(1 / (Fintype.card F : ℝ))) (by linarith) n
-    have : (n : ℝ) * (1 / (Fintype.card F : ℝ)) ≤ 1 / 2 := by
-      rw [mul_one_div, div_le_iff₀ hq0]
-      nlinarith
+    have h1q : 1 / (Fintype.card F : ℝ) ≤ 1 :=
+      (div_le_one hq0).2 (by linarith only [hqr, hnr, hn2])
+    have hb := one_add_mul_le_pow (a := -(1 / (Fintype.card F : ℝ))) (by linarith only [h1q]) n
+    have hnq : (n : ℝ) * (1 / (Fintype.card F : ℝ)) ≤ 1 / 2 := by
+      rw [mul_one_div, div_le_iff₀ hq0]; linarith only [hqr, hn2]
     rw [← sub_eq_add_neg] at hb
-    nlinarith
-  have hn2 : (n : ℝ) ≤ n ^ 2 := by nlinarith
-  have hn3' : (n : ℝ) ^ 2 ≤ n ^ 3 := by nlinarith
+    linarith only [hb, hnq, mul_neg (n : ℝ) (1 / (Fintype.card F : ℝ))]
+  have hγ2 : (2 * (n : ℝ) + 1) * (2 * n * ε) + 2 * n ^ 2 / Fintype.card F ≤ 1 / 5 := by
+    have := mul_le_mul_of_nonneg_right (show 2 * (n : ℝ) + 1 ≤ 3 * n by linarith only [hnr])
+      (by positivity : 0 ≤ 2 * (n : ℝ) * ε)
+    linarith only [this, hεn, hqn, show 3 * (n : ℝ) * (2 * n * ε) = 6 * (n ^ 2 * ε) by ring]
   obtain ⟨g, hg, hfg⟩ := exists_isMultilinear_hammingDist_le_mul (F := F) (ε₀ := 2 * n * ε)
-    (γ := 1 / 5) (by positivity) (by nlinarith) n (by nlinarith) f (by
+    (γ := 1 / 5) (by positivity) (by linarith only [hε1, mul_assoc (2 : ℝ) (n : ℝ) ε]) n hγ2 f (by
       calc (∑ i, (#(wrongPoints f i) : ℝ)) < n * ε * (Fintype.card F : ℝ) ^ n := hsum
         _ = 1 / 2 * (2 * n * ε) * (Fintype.card F : ℝ) ^ n := by ring
         _ ≤ (1 - 1 / (Fintype.card F : ℝ)) ^ n * (2 * n * ε) * (Fintype.card F : ℝ) ^ n := by
@@ -346,17 +345,16 @@ theorem exists_isMultilinear_hammingDist_lt (f : (Fin n → F) → F) {ε : ℝ}
   have hself' := hg.hammingDist_le_of_le_mul (by norm_num) hfg
   have hqn1 : (Fintype.card F : ℝ) ^ (n - 1) * Fintype.card F = (Fintype.card F : ℝ) ^ n := by
     rw [← pow_succ, Nat.sub_add_cancel hn]
-  have hqpow : 0 ≤ (Fintype.card F : ℝ) ^ (n - 1) := by positivity
   calc (hammingDist f g : ℝ) ≤ _ := hself'
     _ < (2 * n + 1) * (n * ε * (Fintype.card F : ℝ) ^ n) +
           2 * (n : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ (n - 1) := by gcongr
     _ ≤ 3 * n ^ 2 * ε * (Fintype.card F : ℝ) ^ n +
           2 * (n : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ (n - 1) := by
-        have : 0 ≤ ε * (Fintype.card F : ℝ) ^ n := by positivity
-        nlinarith
+        rw [show (3 : ℝ) * n ^ 2 * ε * (Fintype.card F : ℝ) ^ n =
+          3 * n * (n * ε * (Fintype.card F : ℝ) ^ n) by ring]
+        gcongr
+        linarith only [hnr]
     _ ≤ 3 * n ^ 2 * (ε + 1 / Fintype.card F) * (Fintype.card F : ℝ) ^ n := by
-        rw [← hqn1]
-        field_simp
-        nlinarith
+        rw [← hqn1, ← sub_nonneg]; field_simp; ring_nf; positivity
 
 end Cslib.Code

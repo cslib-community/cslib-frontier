@@ -8,11 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.CollisionResistant
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.Nat.Log
@@ -54,6 +51,12 @@ to the depth `d` and check `i < 2 ^ d`:
   `2 ^ path.length`;
 * the root does not fix the number of leaves: `[a, b, c]` and `[a, b, c, []]` have the same root.
 
+To bind under collision resistance of the hash on its domain only, the leaves and the pairs of
+digests (`isDigestPair`, [BonehShoup2023], Section 8.9), a verifier must also check that every
+label is a digest: then every hash input met while recomputing a root is the leaf or a pair of
+digests (`eq_or_isDigestPair_of_mem_merkleInputs`), and so is every collision that
+`extractMerkleCollision` finds (`mem_merkleInputs_of_extractMerkleCollision`).
+
 The root, the path, root recomputation and extraction have plain polynomial-time certificates for
 hash families whose digests have the length of the key. Positions are unary in these
 certificates, which suits trees with polynomially many leaves.
@@ -67,6 +70,7 @@ certificates, which suits trees with polynomially many leaves.
 * `Cslib.Crypto.merkleInputs`, `Cslib.Crypto.merkleRootOfPath`: the hash inputs met while
   recomputing a root from an opening, and the recomputed root.
 * `Cslib.Crypto.extractMerkleCollision`: the first differing pair of hash inputs of two openings.
+* `Cslib.Crypto.isDigestPair`: the hash inputs of internal nodes, pairs of digests.
 
 ## Main results
 
@@ -75,6 +79,9 @@ certificates, which suits trees with polynomially many leaves.
 * `Cslib.Crypto.merkleRootOfPath_merklePath`: an honest opening recomputes the root.
 * `Cslib.Crypto.isCollision_extractMerkleCollision`: a second opening of a position yields a
   collision.
+* `Cslib.Crypto.eq_or_isDigestPair_of_mem_merkleInputs`,
+  `Cslib.Crypto.mem_merkleInputs_of_extractMerkleCollision`: the hash inputs of an opening whose
+  labels are digests lie in the hash's domain, and so do the collisions extracted from it.
 * `Cslib.Crypto.computableInPolyTime_merkleRoot`, `Cslib.Crypto.computableInPolyTime_merklePath`,
   `Cslib.Crypto.computableInPolyTime_merkleInputs`,
   `Cslib.Crypto.computableInPolyTime_merkleRootOfPath`,
@@ -224,21 +231,21 @@ theorem length_merklePath (leaves : List (List Bool)) (i : ℕ) :
     (merklePath H k leaves i).length = Nat.clog 2 leaves.length := by
   simp [merklePath_eq]
 
-/-- Hashed leaves have the length of the key when the hash's digests do. -/
-theorem length_of_mem_merkleLeafLevel (hlen : ∀ k x, (H k x).length = k.length)
+/-- Hashed leaves have `ℓ` bits when every digest of `H k` does. -/
+theorem length_of_mem_merkleLeafLevel {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
     {leaves : List (List Bool)} {y : List Bool} (hy : y ∈ merkleLeafLevel H k leaves) :
-    y.length = k.length := by
+    y.length = ℓ := by
   simp only [merkleLeafLevel, List.mem_map] at hy
   obtain ⟨_, _, rfl⟩ := hy
-  exact hlen _ _
+  exact hlen _
 
-/-- Parents have the length of the key when the hash's digests do. -/
-theorem length_of_mem_merkleParents (hlen : ∀ k x, (H k x).length = k.length)
+/-- Parents have `ℓ` bits when every digest of `H k` does. -/
+theorem length_of_mem_merkleParents {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
     {level : List (List Bool)} {y : List Bool} (hy : y ∈ merkleParents H k level) :
-    y.length = k.length := by
+    y.length = ℓ := by
   simp only [merkleParents, List.mem_map] at hy
   obtain ⟨_, _, rfl⟩ := hy
-  exact hlen _ _
+  exact hlen _
 
 /-! ### Correctness of honest openings -/
 
@@ -385,6 +392,71 @@ theorem isCollision_extractMerkleCollision {leaf₁ leaf₂ : List Bool} {i : �
   rw [extractMerkleCollision, merkleInputs, merkleInputs, hfind, Option.getD_some]
   simp [isCollision, hne', hhash]
 
+/-! ### The hash inputs of a tree -/
+
+/-- `x` pairs two `ℓ`-bit words: `x = encPair encBits encBits (l, r)` with `l` and `r` of `ℓ` bits
+(`isDigestPair_eq_true_iff`). For `ℓ` the digest length, these are the hash inputs of internal
+nodes, the pairs of digests `Y²` in the domain of the hash of [BonehShoup2023], Section 8.9. -/
+def isDigestPair (ℓ : ℕ) (x : List Bool) : Bool :=
+  (unframe x).length == ℓ && (dropFrame x).length == ℓ &&
+    encPair encBits encBits (unframe x, dropFrame x) == x
+
+/-- A pairing is a digest pair exactly when both components have `ℓ` bits. -/
+theorem isDigestPair_encPair (ℓ : ℕ) (l r : List Bool) :
+    isDigestPair ℓ (encPair encBits encBits (l, r)) = (l.length == ℓ && r.length == ℓ) := by
+  simp [isDigestPair, encPair_apply]
+
+/-- The digest pairs are exactly the pairings of two `ℓ`-bit words. -/
+theorem isDigestPair_eq_true_iff {ℓ : ℕ} {x : List Bool} :
+    isDigestPair ℓ x = true ↔
+      ∃ l r, l.length = ℓ ∧ r.length = ℓ ∧ encPair encBits encBits (l, r) = x := by
+  constructor
+  · intro h
+    simp only [isDigestPair, Bool.and_eq_true, beq_iff_eq] at h
+    exact ⟨_, _, h.1.1, h.1.2, h.2⟩
+  · rintro ⟨l, r, hl, hr, rfl⟩
+    rw [isDigestPair_encPair, hl, hr, beq_self_eq_true, Bool.and_self]
+
+/-- **Every hash input of an opening lies in the hash's domain**: when every digest of `H k` and
+every label of `path` has `ℓ` bits, each hash input met while recomputing a root is the opened
+leaf or a pair of `ℓ`-bit digests. -/
+theorem eq_or_isDigestPair_of_mem_merkleInputs {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
+    {leaf : List Bool} {i : ℕ} {path : List (List Bool)} (hpath : ∀ s ∈ path, s.length = ℓ)
+    {x : List Bool} (hx : x ∈ merkleInputs H k leaf i path) :
+    x = leaf ∨ isDigestPair ℓ x = true := by
+  suffices h : ∀ (path : List (List Bool)) (state : List (List Bool) × ℕ),
+      (∀ s ∈ path, s.length = ℓ) → (∀ y ∈ state.1, y = leaf ∨ isDigestPair ℓ y = true) →
+        ∀ y ∈ (path.foldl (merkleInputsStep H k) state).1, y = leaf ∨ isDigestPair ℓ y = true from
+    h path ([leaf], i) hpath (by simp) x hx
+  intro path
+  induction path with
+  | nil => exact fun _ _ hstate => hstate
+  | cons s path ih =>
+    intro state hs hstate
+    refine ih _ (fun t ht => hs t (List.mem_cons_of_mem _ ht)) fun y hy => ?_
+    simp only [merkleInputsStep, List.mem_cons] at hy
+    rcases hy with rfl | hy
+    · right
+      split <;> rw [isDigestPair_encPair] <;> simp [hlen, hs s List.mem_cons_self]
+    · exact hstate y hy
+
+/-- The two words found by `extractMerkleCollision`, when they differ, are hash inputs of the two
+openings. -/
+theorem mem_merkleInputs_of_extractMerkleCollision {leaf₁ leaf₂ : List Bool} {i : ℕ}
+    {path₁ path₂ : List (List Bool)}
+    (hne : (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).1 ≠
+      (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).2) :
+    (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).1 ∈ merkleInputs H k leaf₁ i path₁ ∧
+      (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).2 ∈
+        merkleInputs H k leaf₂ i path₂ := by
+  unfold extractMerkleCollision at hne ⊢
+  cases hfind : ((merkleInputs H k leaf₁ i path₁).zip (merkleInputs H k leaf₂ i path₂)).find?
+      (fun p => p.1 != p.2) with
+  | none => simp [hfind] at hne
+  | some p =>
+    rw [Option.getD_some]
+    exact List.of_mem_zip (List.mem_of_find?_eq_some hfind)
+
 /-! ### Polynomial time -/
 
 section PolyTime
@@ -402,12 +474,12 @@ private def LevelInv (key : List Bool) (L : ℕ) (level : List (List Bool)) : Pr
 private theorem levelInv_merkleLeafLevel (hlen : ∀ k x, (H k x).length = k.length)
     (key : List Bool) (leaves : List (List Bool)) :
     LevelInv key leaves.length (merkleLeafLevel H key leaves) :=
-  ⟨fun _ hy => length_of_mem_merkleLeafLevel hlen hy, (length_merkleLeafLevel leaves).le⟩
+  ⟨fun _ hy => length_of_mem_merkleLeafLevel (hlen key) hy, (length_merkleLeafLevel leaves).le⟩
 
 private theorem LevelInv.merkleParents {key : List Bool} {L : ℕ} {level : List (List Bool)}
     (h : LevelInv key L level) (hlen : ∀ k x, (H k x).length = k.length) :
     LevelInv key L (Cslib.Crypto.merkleParents H key level) :=
-  ⟨fun _ hy => length_of_mem_merkleParents hlen hy,
+  ⟨fun _ hy => length_of_mem_merkleParents (hlen key) hy,
     (length_merkleParents level).le.trans ((Nat.div_le_self _ _).trans h.2)⟩
 
 private theorem length_encList_level_le {L : ℕ} {key : List Bool} {level : List (List Bool)}
@@ -415,14 +487,7 @@ private theorem length_encList_level_le {L : ℕ} {key : List Bool} {level : Lis
     (encList encBits level).length ≤ (2 * L + 1) * (2 * key.length + 1) :=
   (length_encList_le encBits _ hy).trans (Nat.mul_le_mul_right _ (hL.trans (pow_clog_two_le L)))
 
-private theorem computableInPolyTime_hash
-    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
-      (encPair encBits encBits) encBits)
-    {k x : γ → List Bool} (hk : ComputableInPolyTime k encIn encBits)
-    (hx : ComputableInPolyTime x encIn encBits) :
-    ComputableInPolyTime (fun a => H (k a) (x a)) encIn encBits :=
-  hH.comp (hk.prod hx)
-
+@[local fun_prop]
 private theorem computableInPolyTime_merkleLeafLevel
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits)
@@ -431,20 +496,9 @@ private theorem computableInPolyTime_merkleLeafLevel
     (hleaves : ComputableInPolyTime leaves encIn (encList encBits)) :
     ComputableInPolyTime (fun a => merkleLeafLevel H (k a) (leaves a)) encIn
       (encList encBits) := by
-  unfold merkleLeafLevel
-  have hcount : ComputableInPolyTime
-      (fun a => 2 ^ Nat.clog 2 (leaves a).length) encIn encUnary :=
-    ComputableInPolyTime.unary_pow_clog_const
-      ((ComputableInPolyTime.length_list encBits).comp hleaves) 2 2
-  refine ComputableInPolyTime.mapWithInput
-    (ComputableInPolyTime.range.comp hcount) ?_
-  have hget : ComputableInPolyTime (fun p : γ × ℕ => (leaves p.1).getD p.2 [])
-      (encPair encIn encUnary) encBits :=
-    (ComputableInPolyTime.listGetD (encA := encBits) []).comp
-      ((hleaves.comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.snd _ _))
-  exact computableInPolyTime_hash hH (hk.comp (ComputableInPolyTime.fst _ _)) hget
+  polytime [merkleLeafLevel]
 
+@[local fun_prop]
 private theorem computableInPolyTime_merkleParents
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits)
@@ -453,24 +507,9 @@ private theorem computableInPolyTime_merkleParents
     (hlevel : ComputableInPolyTime level encIn (encList encBits)) :
     ComputableInPolyTime (fun a => merkleParents H (k a) (level a)) encIn
       (encList encBits) := by
-  unfold merkleParents
-  have hcount : ComputableInPolyTime (fun a => (level a).length / 2) encIn encUnary :=
-    (ComputableInPolyTime.unary_div_const 2).comp
-      ((ComputableInPolyTime.length_list encBits).comp hlevel)
-  refine ComputableInPolyTime.mapWithInput
-    (ComputableInPolyTime.range.comp hcount) ?_
-  have hlevel' := hlevel.comp (ComputableInPolyTime.fst encIn encUnary)
-  have hi := ComputableInPolyTime.snd encIn encUnary
-  have hget (offset : ℕ) : ComputableInPolyTime
-      (fun p : γ × ℕ => (level p.1).getD (2 * p.2 + offset) []) (encPair encIn encUnary)
-      encBits :=
-    (ComputableInPolyTime.listGetD (encA := encBits) []).comp
-      (hlevel'.prod (by polytime))
-  have hleft : ComputableInPolyTime
-      (fun p : γ × ℕ => (level p.1).getD (2 * p.2) []) (encPair encIn encUnary) encBits := by
-    simpa using hget 0
-  exact computableInPolyTime_hash hH (hk.comp (ComputableInPolyTime.fst _ _))
-    (hleft.prod (hget 1)).encoding_comp
+  dsimp only [merkleParents]
+  apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by polytime)
+  polytime
 
 private theorem computableInPolyTime_iterate_merkleParents
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
@@ -479,17 +518,11 @@ private theorem computableInPolyTime_iterate_merkleParents
     ComputableInPolyTime (fun p : List Bool × List (List Bool) =>
       (merkleParents H p.1)^[Nat.clog 2 p.2.length] (merkleLeafLevel H p.1 p.2))
       (encPair encBits (encList encBits)) (encList encBits) := by
-  have hk := ComputableInPolyTime.fst encBits (encList encBits)
-  have hleaves := ComputableInPolyTime.snd encBits (encList encBits)
   refine (ComputableInPolyTime.iterateWith_spec
     (par := fun p : List Bool × List (List Bool) => p.1)
     (count := fun p => Nat.clog 2 p.2.length)
     (step := fun k level => merkleParents H k level)
-    hk ((ComputableInPolyTime.unary_clog_const 2).comp
-      ((ComputableInPolyTime.length_list encBits).comp hleaves))
-    (computableInPolyTime_merkleLeafLevel hH hk hleaves)
-    (computableInPolyTime_merkleParents hH (ComputableInPolyTime.fst _ _)
-      (ComputableInPolyTime.snd _ _))
+    (by polytime) (by polytime) (by polytime) (by polytime)
     (fun p _ level => LevelInv p.1 p.2.length level)
     (fun p => levelInv_merkleLeafLevel hlen p.1 p.2)
     (fun _ _ _ _ hinv => hinv.merkleParents hlen)
@@ -519,11 +552,6 @@ theorem computableInPolyTime_merkleRoot
   ComputableInPolyTime.listHeadDWithInput
     (computableInPolyTime_iterate_merkleParents hH hlen) (.const [])
 
-private theorem computableInPolyTime_merkleSibling :
-    ComputableInPolyTime merkleSibling encUnary encUnary := by
-  unfold merkleSibling
-  polytime
-
 private theorem computableInPolyTime_merklePathStep
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits) :
@@ -531,21 +559,7 @@ private theorem computableInPolyTime_merklePathStep
       (fun p : List Bool × (List (List Bool) × ℕ × List (List Bool)) => merklePathStep H p.1 p.2)
       (encPair encBits (encPair (encList encBits) (encPair encUnary (encList encBits))))
       (encPair (encList encBits) (encPair encUnary (encList encBits))) := by
-  have hk := ComputableInPolyTime.fst encBits
-    (encPair (encList encBits) (encPair encUnary (encList encBits)))
-  have hstate := ComputableInPolyTime.snd encBits
-    (encPair (encList encBits) (encPair encUnary (encList encBits)))
-  have hlevel := (ComputableInPolyTime.fst _ _).comp hstate
-  have hidx := (ComputableInPolyTime.fst _ _).comp
-    ((ComputableInPolyTime.snd _ _).comp hstate)
-  have hpath := (ComputableInPolyTime.snd _ _).comp
-    ((ComputableInPolyTime.snd _ _).comp hstate)
-  have hsib := (ComputableInPolyTime.listGetD (encA := encBits) []).comp
-    (hlevel.prod (computableInPolyTime_merkleSibling.comp hidx))
-  exact (computableInPolyTime_merkleParents hH hk hlevel).prod
-    (((ComputableInPolyTime.unary_div_const 2).comp hidx).prod
-      (ComputableInPolyTime.listAppend' hpath
-        (ComputableInPolyTime.cons' hsib (ComputableInPolyTime.const []))))
+  polytime [merklePathStep, merkleSibling]
 
 /-- Computing an authentication path is polynomial-time for a polynomial-time keyed hash whose
 digests have the length of the key. -/
@@ -557,25 +571,13 @@ theorem computableInPolyTime_merklePath
     ComputableInPolyTime
       (fun p : List Bool × List (List Bool) × ℕ => merklePath H p.1 p.2.1 p.2.2)
       (encPair encBits (encPair (encList encBits) encUnary)) (encList encBits) := by
-  have hk := ComputableInPolyTime.fst encBits (encPair (encList encBits) encUnary)
-  have hleaves := (ComputableInPolyTime.fst _ _).comp
-    (ComputableInPolyTime.snd encBits (encPair (encList encBits) encUnary))
-  have hi := (ComputableInPolyTime.snd _ _).comp
-    (ComputableInPolyTime.snd encBits (encPair (encList encBits) encUnary))
-  have hinit : ComputableInPolyTime
-      (fun p : List Bool × List (List Bool) × ℕ =>
-        (merkleLeafLevel H p.1 p.2.1, p.2.2, ([] : List (List Bool))))
-      (encPair encBits (encPair (encList encBits) encUnary))
-      (encPair (encList encBits) (encPair encUnary (encList encBits))) :=
-    (computableInPolyTime_merkleLeafLevel hH hk hleaves).prod
-      (hi.prod (ComputableInPolyTime.const []))
   have hiter := (ComputableInPolyTime.iterateWith_spec
+    (encIn := encPair encBits (encPair (encList encBits) encUnary))
     (par := fun p : List Bool × List (List Bool) × ℕ => p.1)
     (count := fun p => Nat.clog 2 p.2.1.length)
+    (init := fun p => (merkleLeafLevel H p.1 p.2.1, p.2.2, []))
     (step := fun k state => merklePathStep H k state)
-    hk ((ComputableInPolyTime.unary_clog_const 2).comp
-      ((ComputableInPolyTime.length_list encBits).comp hleaves))
-    hinit (computableInPolyTime_merklePathStep hH)
+    (by polytime) (by polytime) (by polytime) (computableInPolyTime_merklePathStep hH)
     (fun p j state => LevelInv p.1 p.2.1.length state.1 ∧ state.2.1 ≤ p.2.2 ∧
       (∀ y ∈ state.2.2, y.length ≤ p.1.length) ∧ state.2.2.length ≤ j)
     (fun p => ⟨levelInv_merkleLeafLevel hlen p.1 p.2.1, le_rfl, by simp, by simp⟩)
@@ -629,49 +631,13 @@ theorem computableInPolyTime_merkleInputs
     (hpath : ComputableInPolyTime path encIn (encList encBits)) :
     ComputableInPolyTime (fun a => merkleInputs H (k a) (leaf a) (i a) (path a)) encIn
       (encList encBits) := by
-  have hstep : ComputableInPolyTime
-      (fun p : (List Bool × (List (List Bool) × ℕ)) × List Bool =>
-        merkleInputsStep H p.1.1 p.1.2 p.2)
-      (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits)
-      (encPair (encList encBits) encUnary) := by
-    have hk' : ComputableInPolyTime
-        (fun p : (List Bool × (List (List Bool) × ℕ)) × List Bool => p.1.1)
-        (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits) encBits := by
-      polytime
-    have hinputs : ComputableInPolyTime
-        (fun p : (List Bool × (List (List Bool) × ℕ)) × List Bool => p.1.2.1)
-        (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits)
-        (encList encBits) := by
-      polytime
-    have hidx : ComputableInPolyTime
-        (fun p : (List Bool × (List (List Bool) × ℕ)) × List Bool => p.1.2.2)
-        (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits) encUnary := by
-      polytime
-    have hsib : ComputableInPolyTime
-        (fun p : (List Bool × (List (List Bool) × ℕ)) × List Bool => p.2)
-        (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits) encBits := by
-      polytime
-    have hnode := computableInPolyTime_hash hH hk'
-      (ComputableInPolyTime.listHeadDWithInput hinputs (.const []))
-    have hleft := (hnode.prod hsib).encoding_comp
-    have hright := (hsib.prod hnode).encoding_comp
-    have hnext : ComputableInPolyTime
-        (fun p : (List Bool × (List (List Bool) × ℕ)) × List Bool =>
-          if p.1.2.2 % 2 = 0 then
-            encPair encBits encBits (H p.1.1 (p.1.2.1.headD []), p.2)
-          else encPair encBits encBits (p.2, H p.1.1 (p.1.2.1.headD [])))
-        (encPair (encPair encBits (encPair (encList encBits) encUnary)) encBits) encBits := by
-      polytime
-    unfold merkleInputsStep
-    exact (ComputableInPolyTime.cons' hnext hinputs).prod
-      ((ComputableInPolyTime.unary_div_const 2).comp hidx)
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := encBits)
     (encB := encPair (encList encBits) encUnary)
+    (init := fun a => ([leaf a], i a))
     (step := fun k state sibling => merkleInputsStep H k state sibling)
-    hk hpath
-    ((ComputableInPolyTime.cons' hleaf (ComputableInPolyTime.const [])).prod hi)
-    hstep (growth := fun a => 8 * (k a).length + 8 * (encList encBits (path a)).length + 6)
+    hk hpath (by polytime) (by polytime [merkleInputsStep])
+    (growth := fun a => 8 * (k a).length + 8 * (encList encBits (path a)).length + 6)
     ((((PolyBounded.const 8).mul hk.polyBounded_length).add
       ((PolyBounded.const 8).mul hpath.polyBounded_length)).add (.const 6))
     (by
@@ -688,6 +654,8 @@ theorem computableInPolyTime_merkleInputs
         omega)
   exact (ComputableInPolyTime.fst _ _).comp hfold
 
+attribute [local fun_prop] computableInPolyTime_merkleInputs
+
 /-- Recomputing a root from an opening is polynomial-time for a polynomial-time keyed hash whose
 digests have the length of the key. -/
 @[program_certificate]
@@ -699,17 +667,7 @@ theorem computableInPolyTime_merkleRootOfPath
       (fun p : List Bool × List Bool × ℕ × List (List Bool) =>
         merkleRootOfPath H p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encBits (encPair encBits (encPair encUnary (encList encBits)))) encBits := by
-  have hk := ComputableInPolyTime.fst encBits
-    (encPair encBits (encPair encUnary (encList encBits)))
-  have hrest := ComputableInPolyTime.snd encBits
-    (encPair encBits (encPair encUnary (encList encBits)))
-  have hleaf := (ComputableInPolyTime.fst _ _).comp hrest
-  have hi := (ComputableInPolyTime.fst _ _).comp
-    ((ComputableInPolyTime.snd _ _).comp hrest)
-  have hpath := (ComputableInPolyTime.snd _ _).comp
-    ((ComputableInPolyTime.snd _ _).comp hrest)
-  exact computableInPolyTime_hash hH hk (ComputableInPolyTime.listHeadDWithInput
-    (computableInPolyTime_merkleInputs hH hlen hk hleaf hi hpath) (.const []))
+  polytime [merkleRootOfPath]
 
 /-- Extracting a collision from two openings is polynomial-time for a polynomial-time keyed hash
 whose digests have the length of the key. -/
@@ -724,24 +682,16 @@ theorem computableInPolyTime_extractMerkleCollision
       (encPair encBits (encPair (encPair encBits encBits)
         (encPair encUnary (encPair (encList encBits) (encList encBits)))))
       (encPair encBits encBits) := by
-  have hk := ComputableInPolyTime.fst encBits (encPair (encPair encBits encBits)
+  let E := encPair encBits (encPair (encPair encBits encBits)
     (encPair encUnary (encPair (encList encBits) (encList encBits))))
-  have hrest := ComputableInPolyTime.snd encBits (encPair (encPair encBits encBits)
-    (encPair encUnary (encPair (encList encBits) (encList encBits))))
-  have hleaves := (ComputableInPolyTime.fst _ _).comp hrest
-  have hleaf₁ := (ComputableInPolyTime.fst _ _).comp hleaves
-  have hleaf₂ := (ComputableInPolyTime.snd _ _).comp hleaves
-  have hopen := (ComputableInPolyTime.snd _ _).comp hrest
-  have hi := (ComputableInPolyTime.fst _ _).comp hopen
-  have hpaths := (ComputableInPolyTime.snd _ _).comp hopen
-  have hpath₁ := (ComputableInPolyTime.fst _ _).comp hpaths
-  have hpath₂ := (ComputableInPolyTime.snd _ _).comp hpaths
-  have hzip := (ComputableInPolyTime.zip encBits encBits).comp
-    ((computableInPolyTime_merkleInputs hH hlen hk hleaf₁ hi hpath₁).prod
-      (computableInPolyTime_merkleInputs hH hlen hk hleaf₂ hi hpath₂))
-  have hfind := ComputableInPolyTime.findWithInput
-    (test := fun _ p => p.1 != p.2) hzip (by polytime)
-  exact ComputableInPolyTime.optionGetDWithInput hfind (.const ([], []))
+  have hinputs₁ : ComputableInPolyTime
+      (fun p => merkleInputs H p.1 p.2.1.1 p.2.2.1 p.2.2.2.1) E (encList encBits) := by polytime
+  have hinputs₂ : ComputableInPolyTime
+      (fun p => merkleInputs H p.1 p.2.1.2 p.2.2.1 p.2.2.2.2) E (encList encBits) := by polytime
+  have hzip := (ComputableInPolyTime.zip encBits encBits).comp (hinputs₁.prod hinputs₂)
+  exact ComputableInPolyTime.optionGetDWithInput
+    (ComputableInPolyTime.findWithInput (test := fun _ p => p.1 != p.2) hzip (by polytime))
+    (.const ([], []))
 
 end PolyTime
 

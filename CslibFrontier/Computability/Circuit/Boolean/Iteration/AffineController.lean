@@ -179,18 +179,12 @@ theorem controlled_circuit (g : BitString q → BitString q)
     (Synthesis.const false).union (Synthesis.const true)
   have hflag (j : Fin (2 ^ q)) :
       Synthesis interpretation src {flags j} (2 * q + 1) := by
-    have h := Synthesis.word_eq_const (s := src) (fun x => word (u x))
+    have h := Synthesis.word_eq_const (s := src) (fun x => BitString.equivBitVec (u x))
       (fun i => by
-        simpa [u, getLsbD_word] using
+        simpa [u, BitString.getLsbD_equivBitVec] using
           (show (fun x : BitString (q + p) => x (Fin.castAdd p i)) ∈ src from Or.inl ⟨_, rfl⟩))
-      (word (e j))
-    have he (x : BitString (q + p)) : word (u x) = word (e j) ↔ u x = e j := by
-      constructor
-      · intro hh
-        funext i
-        simpa only [getLsbD_word] using congrArg (fun w : BitVec q => w.getLsbD i.val) hh
-      · exact congrArg word
-    simpa only [he] using h
+      (BitString.equivBitVec (e j))
+    simpa only [BitString.equivBitVec.apply_eq_iff_eq] using h
   have hrecord (j : Fin (2 ^ q)) :
       Synthesis interpretation src (wires (records j)) K := by
     obtain ⟨c, hc', hs⟩ := ha (e j)

@@ -369,7 +369,7 @@ theorem rowNormPow_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
       rowNormPow_fineMean_le X Ya Yb hs hNu (by positivity) hπa hπb hYaπ hYbπ hsub E hEsupport
     _ ≤ ((f / πf) ^ s * (Ca / cb) * (b / a) ^ (s - 1)) *
         rowNormPow s N u (fun σ x => X σ.1 x) (fun σ y => Yb σ.2 y) E :=
-      mul_le_mul_of_nonneg_right hscale (rowNormPow_nonneg hNu E)
+      mul_le_mul_of_nonneg_right hscale (by positivity)
     _ ≤ _ := mul_le_mul_of_nonneg_left
       (rowNormPow_product_sub_le hs hN hu hf hCF hCB hF hF' hB hB' hFbound hF'bound
         hBbound hB'bound hleft hleft' hrow hcol) (by positivity)

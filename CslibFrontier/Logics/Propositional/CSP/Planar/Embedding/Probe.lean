@@ -53,6 +53,15 @@ theorem length_occurrences_probeBody (F : CSP Rel V) (ports : List V) :
   simp only [occurrences_probeBody, List.length_append, List.length_map,
     List.length_zipIdx, List.length_reverse]
 
+/-- A checked boundary table has exactly the body darts followed by the actual probe darts.
+This counts boundary positions, including unused names, and retains closed/nullary bodies. -/
+theorem Witness.length_certificate {F : CSP Rel V} {ports : List V}
+    (w : Witness F ports) :
+    w.certificate.successor.length = 2 * (F.occurrences.length + ports.length) := by
+  have h := RotationCertificate.length_of_verifyRotation
+    (((verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted).choose)
+  simpa only [incidenceGraph_edges, List.length_map, length_occurrences_probeBody] using h
+
 /-- A source occurrence belongs to the body prefix exactly when its constraint position
 precedes the structural probe center. This concerns positions, not distinct scope records. -/
 theorem incidenceEdgeIndex_probeBody_lt_iff (F : CSP Rel V) (ports : List V)
@@ -142,8 +151,7 @@ private theorem side_probe_dart_of_body_vertex (F : CSP Rel V) (ports : List V)
   have hvo := hvar o
   have hvp := hvar p
   rw [← ho, ← hp, vertex_incidenceDart, vertex_incidenceDart] at hv
-  cases hds : d.2 <;> cases has : a.2 <;>
-    simp only [hds, has, Bool.false_eq_true, ite_false, ite_true] at hv ⊢ <;> omega
+  grind
 
 /-- At a vertex touched by a body dart, distinct boundary names leave at most one probe
 dart. Repeated body visits and cutvertices are unrestricted. The probe center is excluded
@@ -308,5 +316,14 @@ original body is unchanged, including repeated body variables and closed compone
   Witness.ofProbe hn
     (restrictPrefix (2 * (probeBody F ports).occurrences.length) w.certificate)
     (verifyRotationCertificate_restrictPrefix_probe_cons F p ports w.certificate w.probe_accepted)
+
+/-- First-marker deletion emits exactly the prefix restriction for the original body and
+remaining probe positions. The hypotheses are those of the existing constructor. -/
+theorem Witness.forgetHead_certificate {F : CSP Rel V} {p : V} {ports : List V}
+    (w : Witness F (p :: ports)) (hn : ports.Nodup) :
+    (w.forgetHead hn).certificate =
+      restrictPrefix (2 * (F.occurrences.length + ports.length)) w.certificate := by
+  change restrictPrefix (2 * (probeBody F ports).occurrences.length) w.certificate = _
+  rw [length_occurrences_probeBody]
 
 end Cslib.Complexity.CSP.OrderedBoundary

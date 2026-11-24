@@ -648,7 +648,7 @@ theorem wlHistogram_eq_of_forall_realize_countingFormula_empty_le [Nonempty V] [
 
 /-- **Cai–Fürer–Immerman theorem, sentence form** ([CaiFurerImmerman1992], Section 5, Theorem 5.2).
 Two nonempty finite simple graphs satisfy the same `C^{k+1}` sentences if and only if their `k`-WL
-histograms agree in every round. Nonemptiness is needed because `CountingFormula.Realize` takes a
+histograms agree in every round. Nonemptiness is needed because `GenFormula.Realize` takes a
 total assignment `Fin (k + 1) → V`, which does not exist when `V` or `W` is empty. -/
 theorem forall_realize_countingFormula_empty_iff_wlHistogram_eq [Nonempty V] [Nonempty W] :
     (∀ φ : FiniteVariable.CountingFormula Language.graph (k + 1),

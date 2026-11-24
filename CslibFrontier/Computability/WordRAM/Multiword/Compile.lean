@@ -74,8 +74,8 @@ theorem exec_emit {w : ℕ} (hw : 2 ≤ w) (d : Fin n) (op : Operation n)
     exact ⟨y, he.within.mono (by decide), hy, hm⟩
   | binary f a b =>
     obtain ⟨ha, hb⟩ := hearlier
-    have hda : d ≠ a := fun h => by have := congrArg Fin.val h; omega
-    have hdb : d ≠ b := fun h => by have := congrArg Fin.val h; omega
+    have hda : d ≠ a := by omega
+    have hdb : d ≠ b := by omega
     cases f with
     | and =>
       obtain ⟨y, he, hy, hm⟩ := Bank.exec_boolean hw (Or.inl rfl) a b d hda hdb x hx

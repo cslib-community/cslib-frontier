@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Memory.Spec
 public import CslibFrontier.DataStructure.StateTransition.Refinement
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Footprints, room, and products of data structures sharing one memory
@@ -146,7 +147,7 @@ theorem mem_run_of_frontier_le {s : State} {os : List Op} (hv : (spec w).ValidHi
       exact Function.update_of_ne hab v s.mem
     | alloc k =>
       simp only [step_alloc] at hf
-      exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+      exact clear_of_not_owns (by wram_omega)
     | allocDirty => rfl
 
 /-- An admissible memory program changes no cell at or above its final frontier. -/

@@ -81,10 +81,7 @@ theorem computableInPolyTime_adjIndex {γ : Type} {input : γ ↪ List Bool} {G 
     (hi : ComputableInPolyTime i input encUnary)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun x => (G x).adjIndex (i x) (j x)) input encBool := by
-  have hV := computableInPolyTime_distinctVertices.comp hG
-  exact computableInPolyTime_adjBool.comp ((hG.prod
-    ((listGetD (encA := encNat) 0).comp (hV.prod hi))).prod
-    ((listGetD (encA := encNat) 0).comp (hV.prod hj)))
+  fun_prop [adjIndex]
 
 end Graph
 

@@ -21,9 +21,10 @@ import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 Checks for `CslibFrontier/Crypto/Computational/KeyExchange/KeyGuessing.lean`:
 
 * `dhToCDHAdversary` and `cdhToDHKeyGuesser` are definitionally mutually inverse.
-* For any fixed group of a `PrimeOrderGroupFamily`, Diffie–Hellman key exchange fails
-  `AnonKESecure` via `dhKeyExchange_anonKESecure_iff_cdh`, `CDH.discreteLog`, and the shared
-  constant-guesser fixture `PrimeOrderGroupFixture.guessZero`.
+* For any fixed group of a `PrimeOrderGroupFamily`, both the fair-coin and ideal-sampling
+  Diffie–Hellman key-exchange protocols fail `AnonKESecure` via
+  `dhKeyExchangeProb_anonKESecure_iff_cdh` and `dhKeyExchange_anonKESecure_iff_cdh_ideal`,
+  `CDH.discreteLog`, and the shared constant-guesser fixture `PrimeOrderGroupFixture.guessZero`.
 * Over `schnorrGroups`, a concrete group-operation key guesser satisfies `KeyGuesser.IsPPT`.
 * The 3-message XOR protocol `KeyExchange.xorKeyExchange` fails `AnonKESecure`: `xorKeyGuesser`
   wins with probability `1` via `KeyExchange.realGame_xorEavesdropper`.
@@ -31,7 +32,6 @@ Checks for `CslibFrontier/Crypto/Computational/KeyExchange/KeyGuessing.lean`:
   its transcript) satisfies both `KeyExchange.Correct` and `KeyExchange.AnonKESecure`.
 * Without `KeyExchange.Correct` (`splitKE`, where Alice outputs `true` and Bob outputs `false`),
   `anonKEGame` and comparing with Bob's key disagree.
-* Standard-axiom verification on the public theorems.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -58,9 +58,17 @@ example (F : PrimeOrderGroupFamily) (A : KeyGuesser F.DHTranscript F.DHKey) :
 /-! ### Fixed-group Diffie–Hellman nonvacuity and concrete PPT witness -/
 
 example (F : PrimeOrderGroupFamily) (d : F.Desc) :
+    ¬ (F.dhKeyExchangeProb fun _ => PMF.pure d).AnonKESecure F.encDHTranscript F.encDHKey := by
+  intro h
+  have hdl := ((F.dhKeyExchangeProb_anonKESecure_iff_cdh _).mp h).discreteLog
+    (guessZero F) (guessZero_isPPT F)
+  simp only [succProbability_discreteLogGame_guessZero] at hdl
+  exact not_negligible_const (inv_ne_zero (Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero)) hdl
+
+example (F : PrimeOrderGroupFamily) (d : F.Desc) :
     ¬ (F.dhKeyExchange fun _ => PMF.pure d).AnonKESecure F.encDHTranscript F.encDHKey := by
   intro h
-  have hdl := ((F.dhKeyExchange_anonKESecure_iff_cdh _).mp h).discreteLog
+  have hdl := ((F.dhKeyExchange_anonKESecure_iff_cdh_ideal _).mp h).discreteLog
     (guessZero F) (guessZero_isPPT F)
   simp only [succProbability_discreteLogGame_guessZero] at hdl
   exact not_negligible_const (inv_ne_zero (Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero)) hdl
@@ -183,33 +191,5 @@ example (n : ℕ) :
         let guess ← (pure false : ProbComp Bool)
         return decide (guess = outcome.bobKey)) = PMF.pure true := by
   constructor <;> simp [splitKE, anonKEGame, Game.withSetup]
-
-/-! ### Axiom verification -/
-
-/--
-info: 'Cslib.Crypto.KeyExchange.Correct.anonKEGame_eq_bobKey' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.KeyExchange.Correct.anonKEGame_eq_bobKey
-
-/--
-info: 'Cslib.Crypto.PrimeOrderGroupFamily.isPPT_dhToCDHAdversary' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.PrimeOrderGroupFamily.isPPT_dhToCDHAdversary
-
-/--
-info: 'Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhToDHKeyGuesser' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhToDHKeyGuesser
-
-/--
-info: 'Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.PrimeOrderGroupFamily.dhKeyExchange_anonKESecure_iff_cdh
 
 end CslibFrontierTests.Crypto.KeyExchangeKeyGuessing

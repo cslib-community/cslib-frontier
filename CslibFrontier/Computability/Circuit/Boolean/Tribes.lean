@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Braverman.Resilience
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 import CslibFrontier.Computability.Circuit.FanIn
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Tribes under bounded independence
@@ -71,9 +72,7 @@ def tribesCircuit (w s : ℕ) : Circuit Unbounded.signature (s * w) 1 :=
 
 /-- `tribesCircuit w s` has depth at most two. -/
 theorem depth_tribesCircuit_le : (tribesCircuit w s).depth ≤ 2 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_oneGate]
-  exact Nat.add_le_add_left (Circuit.depth_pi_le _ fun _ => (Circuit.depth_oneGate _ _).le) 1
+  circuit_bound [tribesCircuit]
 
 /-- `tribesCircuit w s` has fan-in at most `max s w`. -/
 theorem fanInAtMost_tribesCircuit : (tribesCircuit w s).FanInAtMost (max s w) :=

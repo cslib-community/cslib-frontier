@@ -39,42 +39,53 @@ variable {M : Model} {L : Layout}
 @[expose] def State.DataValid (x : State M L) (P : M.Value → Prop) : Prop :=
   (∀ s, P (x.data s)) ∧ ∀ n ∈ x.heap, ∀ f, P (n.data f)
 
-/-- Closed predicates on data survive every instruction. -/
-theorem Instr.effect_dataValid {P : M.Value → Prop} (closed : M.Closed P) {i : Instr M L}
-    {x : State M L} (hx : x.DataValid P) : (i.effect x).DataValid P := by
+/-- An instruction transports a data predicate when old values, newly allocated values,
+and operation results all satisfy the target predicate. -/
+theorem Instr.effect_dataValid_of {P Q : M.Value → Prop}
+    (promote : ∀ a, P a → Q a) (undefined : Q M.undefined)
+    (operation : ∀ o a b, P a → P b → Q (M.evalOp o a b)) {i : Instr M L}
+    {x : State M L} (hx : x.DataValid P) : (i.effect x).DataValid Q := by
   obtain ⟨hr, hh⟩ := hx
-  have set (s : Fin L.dataRegs) {v : M.Value} (hv : P v) : (x.setData s v).DataValid P :=
-    ⟨fun s' => by simp only [State.setData, Function.update_apply]; split_ifs <;> simp_all, hh⟩
+  have old : x.DataValid Q := ⟨fun s => promote _ (hr s),
+    fun n hn f => promote _ (hh n hn f)⟩
+  have set (s : Fin L.dataRegs) {v : M.Value} (hv : Q v) : (x.setData s v).DataValid Q :=
+    ⟨fun s' => by simp only [State.setData, Function.update_apply]; split_ifs <;> simp_all,
+      old.2⟩
   cases i <;> simp only [Instr.effect]
-  case moveData s s' => exact set s (hr s')
-  case op o s s₁ s₂ => exact set s (closed.2 o _ _ (hr s₁) (hr s₂))
+  case moveData s s' => exact set s (old.1 s')
+  case op o s s₁ s₂ => exact set s (operation o _ _ (hr s₁) (hr s₂))
   case loadData s f base =>
     cases hn : x.deref base with
-    | none => exact ⟨hr, hh⟩
+    | none => exact old
     | some n =>
       obtain ⟨a, -, ha⟩ := State.deref_eq_some.mp hn
-      exact set s (hh n (List.mem_of_getElem? ha) f)
-  case loadPtr r f base => cases x.deref base <;> exact ⟨hr, hh⟩
+      exact set s (old.2 n (List.mem_of_getElem? ha) f)
+  case loadPtr r f base => cases x.deref base <;> exact old
   case storePtr f base r =>
-    refine ⟨by simpa using hr, fun n hn f' => ?_⟩
+    refine ⟨by simpa using old.1, fun n hn f' => ?_⟩
     rcases State.mem_heap_modify hn with hn | ⟨m, hm, rfl⟩
-    · exact hh n hn f'
-    · exact hh m hm f'
+    · exact old.2 n hn f'
+    · exact old.2 m hm f'
   case storeData f base s =>
-    refine ⟨by simpa using hr, fun n hn f' => ?_⟩
+    refine ⟨by simpa using old.1, fun n hn f' => ?_⟩
     rcases State.mem_heap_modify hn with hn | ⟨m, hm, rfl⟩
-    · exact hh n hn f'
+    · exact old.2 n hn f'
     · simp only [Function.update_apply]
       split_ifs
-      · exact hr s
-      · exact hh m hm f'
+      · exact old.1 s
+      · exact old.2 m hm f'
   case create r =>
-    refine ⟨hr, fun n hn f => ?_⟩
+    refine ⟨old.1, fun n hn f => ?_⟩
     rcases List.mem_append.mp hn with hn | hn
-    · exact hh n hn f
+    · exact old.2 n hn f
     · rw [List.mem_singleton.mp hn]
-      exact closed.1
-  all_goals exact ⟨hr, hh⟩
+      exact undefined
+  all_goals exact old
+
+/-- Closed predicates on data survive every instruction. -/
+theorem Instr.effect_dataValid {P : M.Value → Prop} (closed : M.Closed P) {i : Instr M L}
+    {x : State M L} (hx : x.DataValid P) : (i.effect x).DataValid P :=
+  i.effect_dataValid_of (fun _ h => h) closed.1 closed.2 hx
 
 /-- Data invariants are preserved through an entire run. -/
 theorem Runs.dataValid {P : M.Value → Prop} (closed : M.Closed P)

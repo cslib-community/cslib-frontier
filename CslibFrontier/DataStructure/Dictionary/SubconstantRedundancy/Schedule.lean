@@ -17,6 +17,8 @@ import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Multi-Level Tree Parameter Schedule and Subconstant-Redundancy Bit Budget
@@ -158,6 +160,7 @@ def treeDepthAux (U r cur : ℕ) : ℕ → ℕ
 
 /-- Tree depth `k ≥ 2`: the least `ℓ ≥ 2` (within `Nat.floorLogStar U + 2`) such that
 `Nat.iterLog ℓ U ≤ 4 * r`. -/
+@[wram_arith]
 def treeDepth (U r : ℕ) : ℕ :=
   treeDepthAux U r 2 (Nat.floorLogStar U)
 
@@ -212,7 +215,7 @@ def nHigh (n U r k ℓ : ℕ) : ℕ :=
   if ℓ = 0 then n else nFloor n U r k ℓ + delta n U r k ℓ
 
 /-- Key-ID bit width `I_ℓ = 4 * ⌈log₂(2 * nFloor ℓ)⌉` at level `1 ≤ ℓ ≤ k` (`≥ 4 log₂ n_ℓ + 4`). -/
-@[expose]
+@[expose, wram_arith]
 def idBits (n U r k ℓ : ℕ) : ℕ :=
   4 * Nat.clog 2 (2 * max (nFloor n U r k ℓ) 1)
 
@@ -275,58 +278,37 @@ theorem two_pow_logStar_le_redundancyRatio {n R : ℕ} (hn : 2 ^ Nat.logStar n �
     exact hn
 
 private theorem le_treeDepthAux (U r cur fuel : ℕ) : cur ≤ treeDepthAux U r cur fuel := by
-  induction fuel generalizing cur with
-  | zero => exact le_rfl
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs
-    · exact le_rfl
-    · exact (Nat.le_succ cur).trans (ih (cur + 1))
+  fun_induction treeDepthAux U r cur fuel <;> omega
 
 private theorem treeDepthAux_le (U r cur fuel : ℕ) :
     treeDepthAux U r cur fuel ≤ cur + fuel := by
-  induction fuel generalizing cur with
-  | zero => simp [treeDepthAux]
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs
-    · omega
-    · have := ih (cur + 1)
-      omega
+  fun_induction treeDepthAux U r cur fuel <;> omega
 
 private theorem iterLog_treeDepthAux_le {U r cur fuel : ℕ}
     (hend : Nat.iterLog (cur + fuel) U ≤ max (4 * r) 1) :
     Nat.iterLog (treeDepthAux U r cur fuel) U ≤ max (4 * r) 1 := by
-  induction fuel generalizing cur with
-  | zero => simpa [treeDepthAux] using hend
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs with h
-    · exact h.trans (le_max_left _ _)
-    · exact ih (by rwa [Nat.add_right_comm, Nat.add_assoc])
+  fun_induction treeDepthAux U r cur fuel with
+  | case1 => simpa only [Nat.add_zero] using hend -- fuel exhausted
+  | case2 _ _ hle => exact hle.trans (le_max_left _ _) -- iterLog cur U ≤ 4 * r: stop at cur
+  -- iterLog cur U > 4 * r: try cur + 1
+  | case3 _ _ _ ih => exact ih (by rwa [Nat.add_right_comm, Nat.add_assoc])
 
 private theorem lt_iterLog_of_lt_treeDepthAux {U r cur fuel ℓ : ℕ}
     (hlo : cur ≤ ℓ) (hlt : ℓ < treeDepthAux U r cur fuel) :
     4 * r < Nat.iterLog ℓ U := by
-  induction fuel generalizing cur with
-  | zero =>
-    dsimp only [treeDepthAux] at hlt
-    omega
-  | succ fuel ih =>
-    dsimp only [treeDepthAux] at hlt
-    split_ifs at hlt with h
-    · omega
-    · rcases eq_or_lt_of_le hlo with rfl | hgt
-      · exact not_le.mp h
-      · exact ih (Nat.succ_le_of_lt hgt) hlt
+  fun_induction treeDepthAux U r cur fuel with
+  | case3 cur _ hgt' ih => -- iterLog cur U > 4 * r: try cur + 1
+    rcases eq_or_lt_of_le hlo with rfl | hgt
+    · exact not_le.mp hgt'
+    · exact ih (Nat.succ_le_of_lt hgt) hlt
+  | _ => omega -- fuel exhausted, or iterLog cur U ≤ 4 * r: stop at cur
 
 theorem two_le_treeDepth (U r : ℕ) : 2 ≤ treeDepth U r :=
   le_treeDepthAux U r 2 _
 
 theorem treeDepth_le (U r : ℕ) : treeDepth U r ≤ Nat.floorLogStar U + 2 := by
   have h := treeDepthAux_le U r 2 (Nat.floorLogStar U)
-  dsimp only [treeDepth]
-  omega
+  wram_omega
 
 theorem iterLog_treeDepth_le {U r : ℕ} (hr : 1 ≤ r) :
     Nat.iterLog (treeDepth U r) U ≤ 4 * r := by
@@ -457,7 +439,7 @@ theorem nHigh_sub_nLow {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) :
   omega
 
 /-- Quotient remainder bit-shift `I_ℓ - s_ℓ - I_{ℓ + 1}` on edge `ℓ → ℓ + 1`. -/
-@[expose]
+@[expose, wram_arith]
 def remBits (ℓ : ℕ) : ℕ :=
   P.idBits ℓ - P.branchBits ℓ - P.idBits (ℓ + 1)
 
@@ -474,14 +456,9 @@ def paddedUniv : ℕ :=
   P.branchFactor 0 * 2 ^ P.idBits 1 * P.quotOne
 
 theorem quotUniv_pos (ℓ : ℕ) : 1 ≤ P.quotUniv ℓ := by
-  induction ℓ with
-  | zero => exact P.quotOne_pos
-  | succ m ih =>
-    cases m with
-    | zero => exact P.quotOne_pos
-    | succ m' =>
-      dsimp only [quotUniv]
-      exact Nat.mul_pos ih (Nat.two_pow_pos _)
+  fun_induction quotUniv P ℓ with
+  | case3 _ ih => exact Nat.mul_pos ih (Nat.two_pow_pos _) -- ℓ + 2
+  | _ => exact P.quotOne_pos -- ℓ = 0 or ℓ = 1
 
 theorem quotUniv_succ_of_pos {ℓ : ℕ} (h1 : 1 ≤ ℓ) :
     P.quotUniv (ℓ + 1) = P.quotUniv ℓ * 2 ^ P.remBits ℓ := by
@@ -502,8 +479,7 @@ theorem numNodes_mul_idUniv_mul_quotUniv {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : �
     have hd_lt : 1 + d < P.depth := by omega
     have hstep := P.idBits_step_le (1 + d) (by omega) hd_lt
     have hexp : P.idBits (1 + d + 1) + P.branchBits (1 + d) + P.remBits (1 + d) =
-        P.idBits (1 + d) := by
-      dsimp only [remBits]; omega
+        P.idBits (1 + d) := by wram_omega
     calc P.numNodes (1 + (d + 1)) * 2 ^ P.idBits (1 + (d + 1)) * P.quotUniv (1 + (d + 1))
         = (P.numNodes (1 + d) * 2 ^ P.branchBits (1 + d)) *
             2 ^ P.idBits (1 + d + 1) *
@@ -539,7 +515,7 @@ def tableCap (ℓ : ℕ) : ℕ :=
   else P.nLow P.depth
 
 /-- Capacity `cap - N_2 * nLow 2` of the shared root value pool. -/
-@[expose]
+@[expose, wram_arith]
 def rootValPoolCap : ℕ :=
   P.cap - P.numNodes 2 * P.nLow 2
 
@@ -990,7 +966,6 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
           congr 1; ring
   have hcl : Nat.clog 2 (2 * max (nFloor n U r k (ℓ - 1)) 1) ≤ 36 * s + 11 :=
     Nat.clog_le_of_le_pow h2y_le
-  dsimp only [idBits]
-  omega
+  wram_omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

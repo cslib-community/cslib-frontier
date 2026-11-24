@@ -71,7 +71,7 @@ theorem polyOfBits_modulusBits {w : ℕ} (hw : w ≠ 0) :
   rw [modulusBits, polyOfBits_bits, polyOfCode_leastIrreducibleCode hw le_rfl]
 
 /-- The coefficient list of the modulus has length `w + 1` and ends with a one. -/
-private theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
+theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
     ∃ l : List Bool, modulusBits w = l ++ [true] ∧ l.length = w := by
   have hne : leastIrreducibleCode (2 ^ (w + 1)) w ≠ 0 := by
     intro h
@@ -83,6 +83,11 @@ private theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
   have := natDegree_polyOfBits_append_true l
   rw [← hl, ← modulusBits, polyOfBits_modulusBits hw, natDegree_leastIrreducible hw] at this
   exact this.symm
+
+/-- The binary modulus word includes the monic coefficient at index `w`. -/
+theorem length_modulusBits {w : ℕ} (hw : w ≠ 0) : (modulusBits w).length = w + 1 := by
+  obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
+  rw [hl, List.length_append, List.length_singleton, hlen]
 
 /-- The basis of the explicit binary field used by the program. -/
 local notation "𝔅" => BinaryField.basis
@@ -105,6 +110,11 @@ theorem fieldOfBits_basis (hw : w ≠ 0) (a : List Bool) :
     fieldOfBits (BinaryField.basis hw) a =
       (BinaryField.equivBits hw).symm fun j => a.getD j false := by
   rw [fieldOfBits, ofBits, BinaryField.equivBits_symm_apply]
+
+/-- The element with the bits of `v` as coordinates. -/
+theorem fieldOfBits_ofFn (hw : w ≠ 0) (v : BitString w) :
+    fieldOfBits (BinaryField.basis hw) (List.ofFn v) = (equivBits hw).symm v := by
+  simp [fieldOfBits_basis]
 
 /-- The bits of the element with given coordinates. -/
 theorem equivBits_fieldOfBits (hw : w ≠ 0) (a : List Bool) (j : Fin w) :

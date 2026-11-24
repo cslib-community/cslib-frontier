@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.Kruskal.Basic
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import Mathlib.Combinatorics.SimpleGraph.Acyclic
 
 /-!
@@ -16,8 +17,8 @@ public import Mathlib.Combinatorics.SimpleGraph.Acyclic
 
 This module connects the multigraph and `DisjointSet.Partition` formulation of Kruskal's algorithm
 in `CslibFrontier.Algorithms.Lean.Kruskal.Basic` to Mathlib's `SimpleGraph`,
-`SimpleGraph.IsAcyclic`,
-maximal acyclic subgraphs (`Maximal (fun H => H ≤ G ∧ H.IsAcyclic)`), and `SimpleGraph.IsTree`.
+`SimpleGraph.IsAcyclic`, maximal acyclic subgraphs (`Maximal (fun H => H ≤ G ∧ H.IsAcyclic)`),
+`SimpleGraph.IsTree`, and `SimpleGraph.IsMST`.
 
 ## Main definitions
 
@@ -26,8 +27,7 @@ maximal acyclic subgraphs (`Maximal (fun H => H ≤ G ∧ H.IsAcyclic)`), and `S
   collapsing parallel edges).
 * `graphEdges`: canonical computable enumeration (`u < v` with `G.Adj u v`) of the undirected edges
   of `G : SimpleGraph (Fin n)` weighted by `w : Sym2 (Fin n) → W`.
-* `kruskalGraph`, `kruskalGraphM`: pure and `TimeM Cost` Kruskal runners directly on a weighted
-  `SimpleGraph (Fin n)`.
+* `kruskalGraph`: pure Kruskal runner directly on a weighted `SimpleGraph (Fin n)`.
 
 ## Main results
 
@@ -42,25 +42,15 @@ maximal acyclic subgraphs (`Maximal (fun H => H ≤ G ∧ H.IsAcyclic)`), and `S
   `SimpleGraph.IsTree` with `n - 1` edges when `toSimpleGraph es` is connected).
 * `kruskalGraph_maximal_isAcyclic`, `sum_edgeFinset_kruskalGraph_le_of_maximal_isAcyclic`:
   `toSimpleGraph (kruskalGraph G w)` is a minimum-weight Mathlib spanning forest of `G`.
-* `kruskalGraph_isTree`, `sum_edgeFinset_kruskalGraph_le_of_isTree`: when `G.Connected`,
-  `toSimpleGraph (kruskalGraph G w)` is a minimum-weight Mathlib spanning tree of `G`.
-* `eq_toSimpleGraph_kruskalGraph_of_injOn`, `eq_toSimpleGraph_kruskalGraph_of_isTree_of_injOn`:
-  when `w` is injective on `G.edgeSet` (generalizing [Kruskal, Opening paragraph, Construction A,
-  and uniqueness proof, pp. 48–50][Kruskal1956] to disconnected simple graphs and ordered
-  cancellative monoids), the minimum spanning forest (and minimum spanning tree when connected) is
-  **unique as a `SimpleGraph (Fin n)`**.
-* `kruskalGraphM_comparisons_le`, `kruskalGraphM_ufSteps_le`, `kruskalGraphM_total_le`: explicit
-  sorting comparison and disjoint-set step bounds in terms of `m = G.edgeFinset.card` and `n`.
-
-## Cost model and limitations
-
-`kruskalGraphM G w := kruskalM (graphEdges G w)` charges only the `List.mergeSortM` weight
-comparisons (`Cost.comparisons`) and post-initialization `DisjointSet.UnionFind` forest steps
-(`Cost.ufSteps`) performed on the extracted `m`-edge list. The pure `graphEdges G w` enumeration
-pass (which inspects all `n²` ordered pairs in `List.finRange n`, evaluating `decide (G.Adj u v)`
-and `w s(u, v)` on matching edges) and `DisjointSet.UnionFind.init n` (`O(n)` initialization) carry
-`0` `TimeM Cost` charge; callers that already hold an explicit edge list should invoke `kruskalM`
-directly.
+* `kruskalGraph_isTree`, `sum_edgeFinset_kruskalGraph_le_of_isTree`, `kruskalGraph_isMST`: when
+  `G.Connected`, `toSimpleGraph (kruskalGraph G w)` is a minimum-weight Mathlib spanning tree
+  (`SimpleGraph.IsMST`) of `G`.
+* `eq_toSimpleGraph_kruskalGraph_of_injOn`, `eq_toSimpleGraph_kruskalGraph_of_isTree_of_injOn`,
+  `isMST_iff_eq_toSimpleGraph_kruskalGraph_of_injOn`: when `w` is injective on `G.edgeSet`
+  (generalizing [Kruskal, Opening paragraph, Construction A, and uniqueness proof,
+  pp. 48–50][Kruskal1956] to disconnected simple graphs and ordered cancellative monoids), the
+  minimum spanning forest (and minimum spanning tree when connected) is **unique as a
+  `SimpleGraph (Fin n)`**.
 
 ## References
 
@@ -580,6 +570,19 @@ theorem sum_edgeFinset_kruskalGraph_le_of_isTree {n : ℕ} {W : Type}
   sum_edgeFinset_kruskalGraph_le_of_maximal_isAcyclic G w T
     ((hconn.maximal_le_isAcyclic_iff_isTree hle).mpr hT)
 
+/-- `toSimpleGraph (kruskalGraph G w)` is a minimum-weight spanning tree (`SimpleGraph.IsMST`) of
+any connected graph `G`. -/
+theorem kruskalGraph_isMST {n : ℕ} {W : Type}
+    [AddCommMonoid W] [LinearOrder W] [IsOrderedAddMonoid W]
+    {G : SimpleGraph (Fin n)} [DecidableRel G.Adj] (hconn : G.Connected)
+    (w : Sym2 (Fin n) → W) :
+    G.IsMST w (toSimpleGraph (kruskalGraph G w)) := by
+  classical
+  refine ⟨⟨(kruskalGraph_maximal_isAcyclic G w).prop.1, (kruskalGraph_isTree hconn w).1⟩, ?_⟩
+  rintro T' ⟨hle', hT'⟩
+  rw [SimpleGraph.edgeWeightSum_eq_sum_edgeFinset, SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
+  exact sum_edgeFinset_kruskalGraph_le_of_isTree hconn w T' hle' hT'
+
 /-- **Distinct-weight uniqueness on simple graphs** (generalizing [Kruskal, Opening paragraph,
 Construction A, and uniqueness proof, pp. 48–50][Kruskal1956]): when `w` is injective on
 `G.edgeSet`, any minimum-weight spanning forest `F` of `G` is equal as a `SimpleGraph (Fin n)` to
@@ -622,9 +625,21 @@ theorem eq_toSimpleGraph_kruskalGraph_of_injOn {n : ℕ} {W : Type}
     F = toSimpleGraph (graphEdges F w) := (toSimpleGraph_graphEdges F w).symm
     _ = toSimpleGraph (kruskalGraph G w) := Perm.toSimpleGraph_eq hperm
 
-/-- Connected specialization of `eq_toSimpleGraph_kruskalGraph_of_injOn`: when `G` is connected and
-`w` is injective on `G.edgeSet`, `toSimpleGraph (kruskalGraph G w)` is the unique minimum-weight
-spanning tree of `G`. -/
+/-- Under injective edge weights on `G.edgeSet`, a subgraph `T` of a connected graph `G` satisfies
+`G.IsMST w T` if and only if `T = toSimpleGraph (kruskalGraph G w)` (via
+`SimpleGraph.IsMST.eq_of_injOn` and `kruskalGraph_isMST`). -/
+theorem isMST_iff_eq_toSimpleGraph_kruskalGraph_of_injOn {n : ℕ} {W : Type}
+    [AddCancelCommMonoid W] [LinearOrder W] [IsOrderedCancelAddMonoid W]
+    {G : SimpleGraph (Fin n)} [DecidableRel G.Adj] (hconn : G.Connected)
+    (w : Sym2 (Fin n) → W) (hinj : Set.InjOn w G.edgeSet)
+    {T : SimpleGraph (Fin n)} :
+    G.IsMST w T ↔ T = toSimpleGraph (kruskalGraph G w) :=
+  ⟨fun hT => hT.eq_of_injOn hinj (kruskalGraph_isMST hconn w),
+    fun h => h ▸ kruskalGraph_isMST hconn w⟩
+
+/-- Connected specialization of distinct-weight uniqueness via `SimpleGraph.IsMST.eq_of_injOn` and
+`kruskalGraph_isMST`: when `G` is connected and `w` is injective on `G.edgeSet`,
+`toSimpleGraph (kruskalGraph G w)` is the unique minimum-weight spanning tree of `G`. -/
 theorem eq_toSimpleGraph_kruskalGraph_of_isTree_of_injOn {n : ℕ} {W : Type}
     [AddCancelCommMonoid W] [LinearOrder W] [IsOrderedCancelAddMonoid W]
     {G : SimpleGraph (Fin n)} [DecidableRel G.Adj] (hconn : G.Connected)
@@ -633,51 +648,13 @@ theorem eq_toSimpleGraph_kruskalGraph_of_isTree_of_injOn {n : ℕ} {W : Type}
     (hle : T ≤ G) (hT : T.IsTree)
     (hopt : (∑ z ∈ T.edgeFinset, w z) ≤
       ∑ z ∈ (toSimpleGraph (kruskalGraph G w)).edgeFinset, w z) :
-    T = toSimpleGraph (kruskalGraph G w) :=
-  eq_toSimpleGraph_kruskalGraph_of_injOn G w hinj
-    ((hconn.maximal_le_isAcyclic_iff_isTree hle).mpr hT) hopt
-
-/-! ### `TimeM Cost` Kruskal runner on `SimpleGraph (Fin n)` -/
-
-/-- Execute Kruskal's algorithm in `TimeM Cost` on the canonical edge list `graphEdges G w`.
-Note that `Cost` charges sorting comparisons and post-initialization `UnionFind` forest steps on the
-extracted `m`-edge list; the pure `graphEdges G w` enumeration (`Θ(n²)` adjacency/weight checks) and
-`DisjointSet.UnionFind.init n` carry `0` `TimeM Cost` charge. -/
-@[expose] def kruskalGraphM {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    TimeM Cost (Output n W) :=
-  kruskalM (graphEdges G w)
-
-@[simp]
-theorem kruskalGraphM_forest {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).ret.forest = kruskalGraph G w :=
-  kruskalM_forest (graphEdges G w)
-
-/-- Sorting comparison bound for `kruskalGraphM` in terms of `m = G.edgeFinset.card`: at most
-`m * ⌈log₂ m⌉` weight comparisons. -/
-theorem kruskalGraphM_comparisons_le {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).time.comparisons ≤
-      G.edgeFinset.card * Nat.clog 2 G.edgeFinset.card := by
-  simpa only [kruskalGraphM, length_graphEdges] using
-    kruskalM_comparisons_le (graphEdges G w)
-
-/-- Disjoint-set forest step bound for `kruskalGraphM` in terms of `m = G.edgeFinset.card` and `n`:
-at most `m * (2 * ⌊log₂ n⌋ + 3)` union-find steps. -/
-theorem kruskalGraphM_ufSteps_le {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).time.ufSteps ≤ G.edgeFinset.card * (2 * Nat.log 2 n + 3) := by
-  simpa only [kruskalGraphM, length_graphEdges] using
-    kruskalM_ufSteps_le (graphEdges G w)
-
-/-- Combined bound on `(kruskalGraphM G w).time.total` in terms of `m = G.edgeFinset.card` and
-`n`. -/
-theorem kruskalGraphM_total_le {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).time.total ≤
-      G.edgeFinset.card * Nat.clog 2 G.edgeFinset.card +
-        G.edgeFinset.card * (2 * Nat.log 2 n + 3) :=
-  Nat.add_le_add (kruskalGraphM_comparisons_le G w) (kruskalGraphM_ufSteps_le G w)
+    T = toSimpleGraph (kruskalGraph G w) := by
+  have hK := kruskalGraph_isMST hconn w
+  have hTMST : G.IsMST w T := ⟨⟨hle, hT⟩, fun T' hT' => by
+    rw [SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
+    exact hopt.trans (by
+      rw [← SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
+      exact hK.2 T' hT')⟩
+  exact hTMST.eq_of_injOn hinj hK
 
 end Cslib.Algorithms.Lean.Kruskal
