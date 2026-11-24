@@ -51,15 +51,17 @@ example :
   have hmc1 : ∀ i : Fin 2, marginalContrib (andTech 2 (1 / 4)) i allTrue = 3 / 8 := by
     intro i
     have ht : allTrue i = true := rfl
-    rw [anon_marginalContrib (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4)) (fun _ => rfl) ht]
+    rw [anon_marginalContrib (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4))
+      (andTech_eq 2 (1 / 4)) ht]
     have hc : countTrue allTrue = 2 := countTrue_true
     rw [hc]
-    norm_num [andProb]
+    norm_num [andProb_eq]
   have hmc0 : ∀ i : Fin 2, marginalContrib (andTech 2 (1 / 4)) i allFalse = 1 / 8 := by
     intro i
     rw [← marginalContrib_update (andTech 2 (1 / 4)) i allFalse true]
     have hupd : Function.update allFalse i true i = true := Function.update_self i true allFalse
-    rw [anon_marginalContrib (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4)) (fun _ => rfl) hupd]
+    rw [anon_marginalContrib (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4))
+      (andTech_eq 2 (1 / 4)) hupd]
     have hc1 : countTrue (Function.update allFalse i true) = 1 := by
       have himg :
           Finset.univ.filter
@@ -67,16 +69,17 @@ example :
             {i} := by
         ext j
         fin_cases i <;> fin_cases j <;> simp [allFalse]
-      simp [countTrue, himg]
+      simp [countTrue_eq, himg]
     rw [hc1]
-    norm_num [andProb]
+    norm_num [andProb_eq]
   have hct : countTrue allTrue = 2 := countTrue_true
   refine ⟨?_, ?_, ?_, ?_⟩
   · intro i
     have ht : allTrue i = true := rfl
-    simp only [optContract, ht, ↓reduceIte, hmc1 i]
+    rw [optContract_of_true _ _ ht, hmc1 i]
     norm_num
-  · rw [anon_optPayment (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4)) (fun _ => rfl) 1 allTrue,
+  · rw [anon_optPayment (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4))
+      (andTech_eq 2 (1 / 4)) 1 allTrue,
       hct, and_anonOptPayment (by norm_num) (by norm_num) 1 le_rfl]
     norm_num
   · exact isStrongNash_optContract (andTech 2 (1 / 4)) (fun _ => 1) allTrue
@@ -85,7 +88,7 @@ example :
     intro i
     refine ⟨fun h => absurd h (by simp [allFalse]), fun _ => ?_⟩
     have ht : allTrue i = true := rfl
-    simp only [optContract, ht, ↓reduceIte, hmc1 i, hmc0 i]
+    rw [optContract_of_true _ _ ht, hmc1 i, hmc0 i]
     norm_num
 
 /-- Exact Price of Unaccountability values for `n = 2` and `n = 3` at `γ = 1 / 4`. -/
@@ -128,41 +131,37 @@ example :
   have hc_tf : countTrue tfProfile = 1 := by
     have hf : Finset.univ.filter (fun i : Fin 2 => tfProfile i = true) = {0} := by
       ext i; fin_cases i <;> simp [tfProfile]
-    simp [countTrue, hf]
+    simp [countTrue_eq, hf]
   have hmc0 : marginalContrib (andTech 2 (1 / 4)) 0 tfProfile = 1 / 8 := by
     have ht0 : tfProfile 0 = true := rfl
-    rw [anon_marginalContrib (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4)) (fun _ => rfl) ht0,
-      hc_tf]
-    norm_num [andProb]
+    rw [anon_marginalContrib (t := andTech 2 (1 / 4)) (f := andProb 2 (1 / 4))
+      (andTech_eq 2 (1 / 4)) ht0, hc_tf]
+    norm_num [andProb_eq]
   have hopt0 : optContract (andTech 2 (1 / 4)) zeroSecondCost tfProfile 0 = 8 := by
     have ht0 : tfProfile 0 = true := rfl
     have hc0 : zeroSecondCost 0 = 1 := by simp [zeroSecondCost]
-    simp only [optContract, ht0, ↓reduceIte, hc0, hmc0]
+    rw [optContract_of_true _ _ ht0, hc0, hmc0]
     norm_num
   have hopt1 : optContract (andTech 2 (1 / 4)) zeroSecondCost tfProfile 1 = 0 := by
     have hf1 : tfProfile 1 = false := rfl
-    simp [optContract, hf1]
+    exact optContract_of_false _ _ hf1
   have hp : (Finset.univ : Finset (Fin 2)).piecewise allTrue tfProfile = allTrue := by
     ext i; fin_cases i <;> simp [allTrue, tfProfile]
   have ht_tf : andTech 2 (1 / 4) tfProfile = 3 / 16 := by
-    rw [andTech, hc_tf]; norm_num [andProb]
+    rw [andTech_eq, hc_tf]; norm_num [andProb_eq]
   have ht_all : andTech 2 (1 / 4) allTrue = 9 / 16 := by
     have hca : countTrue allTrue = 2 := countTrue_true
-    rw [andTech, hca]; norm_num [andProb]
+    rw [andTech_eq, hca]; norm_num [andProb_eq]
   refine hsn Finset.univ allTrue ⟨fun i _ => ?_, 0, Finset.mem_univ 0, ?_⟩
   · fin_cases i
-    · rw [hp]
-      dsimp [contractCostGame, zeroSecondCost, tfProfile, allTrue]
-      rw [hopt0, ht_all, ht_tf]
-      norm_num
-    · rw [hp]
-      dsimp [contractCostGame, zeroSecondCost, tfProfile, allTrue]
-      rw [hopt1]
-      norm_num
-  · rw [hp]
-    dsimp [contractCostGame, zeroSecondCost, tfProfile, allTrue]
-    rw [hopt0, ht_all, ht_tf]
-    norm_num
+    · simp only [Fin.zero_eta]
+      rw [hp, contractCostGame_cost, contractCostGame_cost, hopt0, ht_all, ht_tf]
+      norm_num [zeroSecondCost, tfProfile, allTrue]
+    · simp only [Fin.mk_one]
+      rw [hp, contractCostGame_cost, contractCostGame_cost, hopt1]
+      norm_num [zeroSecondCost, tfProfile, allTrue]
+  · rw [hp, contractCostGame_cost, contractCostGame_cost, hopt0, ht_all, ht_tf]
+    norm_num [zeroSecondCost, tfProfile, allTrue]
 
 /-! ### Noisy OR witnesses (`γ = 1 / 4`, `c = 1`) -/
 
@@ -176,22 +175,23 @@ example :
   have hle := le_priceOfUnaccountability (orTech 2 (1 / 4)) (fun _ => 1) htpos hc_nn
     (v := 52 / 9) (by norm_num)
   have hsw : (133 : ℝ) / 36 ≤ firstBestWelfare (orTech 2 (1 / 4)) (fun _ => 1) (52 / 9) := by
-    rw [firstBestWelfare_anon (t := orTech 2 (1 / 4)) (f := orProb 2 (1 / 4)) (fun _ => rfl)]
+    rw [firstBestWelfare_anon (t := orTech 2 (1 / 4)) (f := orProb 2 (1 / 4)) (orTech_eq 2 (1 / 4))]
     calc
       (133 : ℝ) / 36 = orProb 2 (1 / 4) 1 * (52 / 9) - ((1 : ℕ) : ℝ) * 1 := by
-        norm_num [orProb]
+        norm_num [orProb_eq]
       _ ≤ _ := Finset.le_sup'
         (fun k => orProb 2 (1 / 4) k * (52 / 9) - (k : ℝ) * 1)
         (Finset.mem_range.mpr (by decide : 1 < 2 + 1))
   have hu : agencyPrincipalUtility (orTech 2 (1 / 4)) (fun _ => 1) (52 / 9) = 91 / 36 := by
-    rw [agencyPrincipalUtility_anon (t := orTech 2 (1 / 4)) (f := orProb 2 (1 / 4)) (fun _ => rfl)]
+    rw [agencyPrincipalUtility_anon (t := orTech 2 (1 / 4)) (f := orProb 2 (1 / 4))
+      (orTech_eq 2 (1 / 4))]
     apply le_antisymm
     · refine Finset.sup'_le ⟨0, Finset.mem_range.mpr (by omega)⟩ _ fun k hk => ?_
       have hkle : k ≤ 2 := Nat.lt_succ_iff.mp (Finset.mem_range.mp hk)
-      interval_cases k <;> norm_num [orProb, anonOptPayment]
+      interval_cases k <;> norm_num [orProb_eq, anonOptPayment_eq]
     · calc
         (91 : ℝ) / 36 = orProb 2 (1 / 4) 0 * (52 / 9) - anonOptPayment (orProb 2 (1 / 4)) 1 0 := by
-          norm_num [orProb, anonOptPayment]
+          norm_num [orProb_eq, anonOptPayment_eq]
         _ ≤ _ := Finset.le_sup'
           (fun k => orProb 2 (1 / 4) k * (52 / 9) - anonOptPayment (orProb 2 (1 / 4)) 1 k)
           (Finset.mem_range.mpr (by decide : 0 < 2 + 1))
@@ -216,7 +216,7 @@ example :
     (∀ j ≤ 3, j ≠ 3 → orProb 3 (1 / 4) j * 3000 - anonOptPayment (orProb 3 (1 / 4)) 1 j <
       orProb 3 (1 / 4) 3 * 3000 - anonOptPayment (orProb 3 (1 / 4)) 1 3) := by
   refine ⟨?_, ?_, ?_, ?_⟩ <;> intro j hj hne <;> interval_cases j <;>
-    first | exact absurd rfl hne | norm_num [orProb, anonOptPayment]
+    first | exact absurd rfl hne | norm_num [orProb_eq, anonOptPayment_eq]
 
 /-! ### Exercise 23.5: First-best vs hidden-action transition divergence -/
 
@@ -246,8 +246,8 @@ example :
     simpa using (hs_all v).1
   · intro j hj hne
     interval_cases j
-    · norm_num [mismatchProb, anonOptPayment]
+    · norm_num [mismatchProb, anonOptPayment_eq]
     · exact absurd rfl hne
-    · norm_num [mismatchProb, anonOptPayment]
+    · norm_num [mismatchProb, anonOptPayment_eq]
 
 end CslibFrontierTests.GameTheory.CombinatorialAgency

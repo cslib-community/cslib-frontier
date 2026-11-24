@@ -53,8 +53,8 @@ This module formalizes the combinatorial principal-agent (moral-hazard in teams)
   the exact formula `POU = (1 / γ - 1) ^ (n - 1) + (1 - γ / (1 - γ))` (`andTech_pou_eq`), and
   unboundedness in both `n` and `1 / γ`. For `orTech n γ` (`γ ∈ (0, 1 / 2)`), proves `n`
   strictly increasing transition thresholds through all `0, 1, …, n` (`orTech_transitions`) and
-  the uniform constant upper bounds `POU ≤ 2` (`orTech_pou_le_two`) and `POU ≤ 5 / 2`
-  (`orTech_pou_le`).
+  the uniform constant upper bound `POU ≤ 2` (`orTech_pou_le_two`, sharpening Theorem 23.9's
+  `≤ 5 / 2` bound).
 
 ## References
 
@@ -75,8 +75,12 @@ variable {ι : Type*} [DecidableEq ι]
 
 /-- **Marginal contribution** (`Δ_i(a_{-i})`) of agent `i` under production technology `t` given
 the opponents' actions in `a`: `t(1, a_{-i}) - t(0, a_{-i})`. -/
-@[expose] def marginalContrib (t : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) : ℝ :=
+def marginalContrib (t : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) : ℝ :=
   t (Function.update a i true) - t (Function.update a i false)
+
+theorem marginalContrib_eq (t : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) :
+    marginalContrib t i a = t (Function.update a i true) - t (Function.update a i false) := by
+  rfl
 
 theorem marginalContrib_update (t : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) (b : Bool) :
     marginalContrib t i (Function.update a i b) = marginalContrib t i a := by
@@ -172,9 +176,15 @@ theorem isStrictlyMonotone_iff_marginalContrib_pos [Finite ι] (t : (ι → Bool
 /-- The normal-form strategic game (in cost-minimization form) induced by production technology
 `t`, effort costs `c`, and limited-liability success payments `p`: agent `i` minimizes
 `c_i a_i - p_i t(a)`. -/
-@[expose] def contractCostGame (t : (ι → Bool) → ℝ) (c p : ι → ℝ) :
+def contractCostGame (t : (ι → Bool) → ℝ) (c p : ι → ℝ) :
     CostGame ι (fun _ => Bool) where
   cost i a := (if a i then c i else 0) - p i * t a
+
+omit [DecidableEq ι] in
+@[simp]
+theorem contractCostGame_cost (t : (ι → Bool) → ℝ) (c p : ι → ℝ) (i : ι) (a : ι → Bool) :
+    (contractCostGame t c p).cost i a = (if a i then c i else 0) - p i * t a := by
+  rfl
 
 /-- **Best-response effort threshold**: exerting effort (`true`) is weakly optimal for agent `i`
 given `a_{-i}` iff `p_i ≥ c_i / Δ_i(a_{-i})`. -/
@@ -240,15 +250,33 @@ theorem isPureNash_iff_marginalContrib (t : (ι → Bool) → ℝ) (c p : ι →
 
 /-- Minimal limited-liability success-payment contract inducing profile `a`: pays
 `c_i / Δ_i(a_{-i})` to agents with `a_i = true` and `0` otherwise. -/
-@[expose] noncomputable def optContract (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool)
+noncomputable def optContract (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool)
     (i : ι) : ℝ :=
   if a i then c i / marginalContrib t i a else 0
 
+theorem optContract_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool) (i : ι) :
+    optContract t c a i = if a i then c i / marginalContrib t i a else 0 := by
+  rfl
+
+@[simp]
+theorem optContract_of_true (t : (ι → Bool) → ℝ) (c : ι → ℝ) {a : ι → Bool} {i : ι}
+    (h : a i = true) : optContract t c a i = c i / marginalContrib t i a := by
+  simp [optContract, h]
+
+@[simp]
+theorem optContract_of_false (t : (ι → Bool) → ℝ) (c : ι → ℝ) {a : ι → Bool} {i : ι}
+    (h : a i = false) : optContract t c a i = 0 := by
+  simp [optContract, h]
+
 /-- Expected total payment made by the principal under the optimal inducing contract
 `optContract t c a`: `t(a) * ∑ i, optContract t c a i`. -/
-@[expose] noncomputable def optPayment [Fintype ι] (t : (ι → Bool) → ℝ) (c : ι → ℝ)
+noncomputable def optPayment [Fintype ι] (t : (ι → Bool) → ℝ) (c : ι → ℝ)
     (a : ι → Bool) : ℝ :=
   t a * ∑ i, optContract t c a i
+
+theorem optPayment_eq [Fintype ι] (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool) :
+    optPayment t c a = t a * ∑ i, optContract t c a i := by
+  rfl
 
 theorem optPayment_false [Fintype ι] (t : (ι → Bool) → ℝ) (c : ι → ℝ) :
     optPayment t c (fun _ => false) = 0 := by
@@ -437,25 +465,49 @@ variable {ι : Type*} [DecidableEq ι] [Fintype ι]
 
 /-- Social welfare of effort profile `a` under full information when project success yields `v`
 and agent costs are `c`: `t(a) * v - ∑_{a_i} c_i`. -/
-@[expose] def profileWelfare (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool) (v : ℝ) : ℝ :=
+def profileWelfare (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool) (v : ℝ) : ℝ :=
   t a * v - ∑ i, if a i then c i else 0
+
+omit [DecidableEq ι] in
+theorem profileWelfare_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool) (v : ℝ) :
+    profileWelfare t c a v = t a * v - ∑ i, if a i then c i else 0 := by
+  rfl
 
 /-- **First-best social welfare** (`SW_ns(v)`): maximum achievable total welfare without moral
 hazard, `max_{a} (t(a) * v - ∑_{a_i} c_i)`. -/
-@[expose] noncomputable def firstBestWelfare (t : (ι → Bool) → ℝ) (c : ι → ℝ) (v : ℝ) : ℝ :=
+noncomputable def firstBestWelfare (t : (ι → Bool) → ℝ) (c : ι → ℝ) (v : ℝ) : ℝ :=
   Finset.univ.sup' Finset.univ_nonempty fun a => profileWelfare t c a v
+
+theorem firstBestWelfare_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) (v : ℝ) :
+    firstBestWelfare t c v =
+      Finset.univ.sup' Finset.univ_nonempty fun a => profileWelfare t c a v := by
+  rfl
 
 /-- Expected utility of the principal when inducing profile `a` via `optContract t c a`:
 `t(a) * v - optPayment t c a`. -/
-@[expose] noncomputable def principalUtility (t : (ι → Bool) → ℝ) (c : ι → ℝ)
+noncomputable def principalUtility (t : (ι → Bool) → ℝ) (c : ι → ℝ)
     (a : ι → Bool) (v : ℝ) : ℝ :=
   t a * v - optPayment t c a
 
-/-- **Hidden-action optimal principal utility** (`U_ag(v)`): maximum expected utility the
-principal can extract over Nash-implementable profiles `a`. -/
-@[expose] noncomputable def agencyPrincipalUtility (t : (ι → Bool) → ℝ)
+theorem principalUtility_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool) (v : ℝ) :
+    principalUtility t c a v = t a * v - optPayment t c a := by
+  rfl
+
+/-- **Hidden-action optimal principal utility** (`U_ag(v)`): maximum of
+`principalUtility t c a v = t(a) * v - optPayment t c a` over action profiles `a`.
+Under the §23.6.1 assumptions `IsStrictlyMonotone t` (`∀ i a, 0 < marginalContrib t i a`),
+`0 ≤ t a ≤ 1`, and `∀ i, 0 ≤ c i`, every profile `a` is pure-Nash implementable via
+`optContract t c a` (`isPureNash_optContract`) and no limited-liability contract implementing `a`
+achieves smaller expected payment (`optPayment_le_of_limitedLiability`), so this equals the
+maximum expected principal utility over all Nash-implementable limited-liability contracts. -/
+noncomputable def agencyPrincipalUtility (t : (ι → Bool) → ℝ)
     (c : ι → ℝ) (v : ℝ) : ℝ :=
   Finset.univ.sup' Finset.univ_nonempty fun a => principalUtility t c a v
+
+theorem agencyPrincipalUtility_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) (v : ℝ) :
+    agencyPrincipalUtility t c v =
+      Finset.univ.sup' Finset.univ_nonempty fun a => principalUtility t c a v := by
+  rfl
 
 theorem profileWelfare_le_firstBestWelfare (t : (ι → Bool) → ℝ) (c : ι → ℝ) (a : ι → Bool)
     (v : ℝ) : profileWelfare t c a v ≤ firstBestWelfare t c v :=
@@ -588,9 +640,14 @@ theorem monotonicity_agency (t : (ι → Bool) → ℝ) (c : ι → ℝ) {v₁ v
 /-- **Price of Unaccountability** (`POU(t, c)`, NRTV Definition 23.6): worst-case ratio
 `sup_{v > 0} SW_ns(v) / U_ag(v)` measuring welfare loss from hidden action under limited
 liability. -/
-@[expose] noncomputable def priceOfUnaccountability (t : (ι → Bool) → ℝ)
+noncomputable def priceOfUnaccountability (t : (ι → Bool) → ℝ)
     (c : ι → ℝ) : ℝ :=
   ⨆ v : {v : ℝ // 0 < v}, firstBestWelfare t c v.1 / agencyPrincipalUtility t c v.1
+
+theorem priceOfUnaccountability_eq (t : (ι → Bool) → ℝ) (c : ι → ℝ) :
+    priceOfUnaccountability t c =
+      ⨆ v : {v : ℝ // 0 < v}, firstBestWelfare t c v.1 / agencyPrincipalUtility t c v.1 := by
+  rfl
 
 theorem bddAbove_pou_range (t : (ι → Bool) → ℝ) (c : ι → ℝ)
     (htpos : ∀ s, 0 < t s) (hc : ∀ i, 0 ≤ c i) :
@@ -660,8 +717,12 @@ section AnonymousAndExamples
 open Finset
 
 /-- Number of agents exerting effort (`true`) in profile `a`. -/
-@[expose] def countTrue {n : ℕ} (a : Fin n → Bool) : ℕ :=
+def countTrue {n : ℕ} (a : Fin n → Bool) : ℕ :=
   (Finset.univ.filter fun i => a i = true).card
+
+theorem countTrue_eq {n : ℕ} (a : Fin n → Bool) :
+    countTrue a = (Finset.univ.filter fun i => a i = true).card := by
+  rfl
 
 theorem countTrue_le {n : ℕ} (a : Fin n → Bool) : countTrue a ≤ n := by
   calc
@@ -705,8 +766,22 @@ theorem countTrue_pos_of_true {n : ℕ} {a : Fin n → Bool} {i : Fin n} (hai : 
 
 /-- Minimal expected payment under an anonymous technology `t(a) = f (countTrue a)` and
 uniform effort cost `c` as a function of team size `k`. -/
-@[expose] noncomputable def anonOptPayment (f : ℕ → ℝ) (c : ℝ) (k : ℕ) : ℝ :=
+noncomputable def anonOptPayment (f : ℕ → ℝ) (c : ℝ) (k : ℕ) : ℝ :=
   if k = 0 then 0 else (k : ℝ) * c * f k / (f k - f (k - 1))
+
+theorem anonOptPayment_eq (f : ℕ → ℝ) (c : ℝ) (k : ℕ) :
+    anonOptPayment f c k = if k = 0 then 0 else (k : ℝ) * c * f k / (f k - f (k - 1)) := by
+  rfl
+
+@[simp]
+theorem anonOptPayment_zero (f : ℕ → ℝ) (c : ℝ) : anonOptPayment f c 0 = 0 := by
+  simp [anonOptPayment]
+
+@[simp]
+theorem anonOptPayment_succ (f : ℕ → ℝ) (c : ℝ) (k : ℕ) :
+    anonOptPayment f c (k + 1) =
+      ((k + 1 : ℕ) : ℝ) * c * f (k + 1) / (f (k + 1) - f k) := by
+  simp [anonOptPayment]
 
 theorem anon_marginalContrib {n : ℕ} {t : (Fin n → Bool) → ℝ} {f : ℕ → ℝ}
     (ht : ∀ a, t a = f (countTrue a)) {a : Fin n → Bool} {i : Fin n} (hai : a i = true) :
@@ -1008,14 +1083,22 @@ theorem strictly_increasing_slope_attains_all {n : ℕ} (hn : 1 ≤ n) (f cost :
 
 /-- Success probability as a function of `k` active agents in the noisy `n`-agent AND
 technology: `(1 - γ) ^ k * γ ^ (n - k)`. -/
-@[expose] def andProb (n : ℕ) (γ : ℝ) (k : ℕ) : ℝ :=
+def andProb (n : ℕ) (γ : ℝ) (k : ℕ) : ℝ :=
   (1 - γ) ^ k * γ ^ (n - k)
+
+theorem andProb_eq (n : ℕ) (γ : ℝ) (k : ℕ) :
+    andProb n γ k = (1 - γ) ^ k * γ ^ (n - k) := by
+  rfl
 
 /-- Noisy `n`-agent **AND technology** with parameter `γ`: each agent exerts effort with failure
 probability `γ` on effort and success probability `γ` on shirking, so all `n` signals must
 succeed with probability `(1 - γ) ^ k * γ ^ (n - k)`. -/
-@[expose] def andTech (n : ℕ) (γ : ℝ) (a : Fin n → Bool) : ℝ :=
+def andTech (n : ℕ) (γ : ℝ) (a : Fin n → Bool) : ℝ :=
   andProb n γ (countTrue a)
+
+theorem andTech_eq (n : ℕ) (γ : ℝ) (a : Fin n → Bool) :
+    andTech n γ a = andProb n γ (countTrue a) := by
+  rfl
 
 theorem andProb_pos {n : ℕ} {γ : ℝ} (hγ₀ : 0 < γ) (hγ₁ : γ < 1) (k : ℕ) :
     0 < andProb n γ k :=
@@ -1069,8 +1152,12 @@ theorem and_anonOptPayment {n : ℕ} {γ : ℝ} (hγ₀ : 0 < γ) (hγh : γ < 1
 
 /-- Exact hidden-action value threshold at which the principal transitions directly from inducing
 `0` agents to inducing all `n` agents under `andTech n γ` (NRTV Theorem 23.8). -/
-@[expose] noncomputable def andThreshold (n : ℕ) (γ c : ℝ) : ℝ :=
+noncomputable def andThreshold (n : ℕ) (γ c : ℝ) : ℝ :=
   (n : ℝ) * c * (1 - γ) / ((1 - 2 * γ) * ((1 - γ) ^ n - γ ^ n))
+
+theorem andThreshold_eq (n : ℕ) (γ c : ℝ) :
+    andThreshold n γ c = (n : ℝ) * c * (1 - γ) / ((1 - 2 * γ) * ((1 - γ) ^ n - γ ^ n)) := by
+  rfl
 
 theorem andThreshold_pos {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ) (hγh : γ < 1 / 2)
     (hc : 0 < c) : 0 < andThreshold n γ c := by
@@ -1398,13 +1485,21 @@ theorem andTech_pou_unbounded_in_gamma {n : ℕ} (hn : 2 ≤ n) {c : ℝ} (hc : 
 
 /-- Success probability as a function of `k` active agents in the noisy `n`-agent OR
 technology: `1 - γ ^ k * (1 - γ) ^ (n - k)`. -/
-@[expose] def orProb (n : ℕ) (γ : ℝ) (k : ℕ) : ℝ :=
+def orProb (n : ℕ) (γ : ℝ) (k : ℕ) : ℝ :=
   1 - γ ^ k * (1 - γ) ^ (n - k)
+
+theorem orProb_eq (n : ℕ) (γ : ℝ) (k : ℕ) :
+    orProb n γ k = 1 - γ ^ k * (1 - γ) ^ (n - k) := by
+  rfl
 
 /-- Noisy `n`-agent **OR technology** with parameter `γ`: success occurs unless all `n` signals
 fail, yielding probability `1 - γ ^ k * (1 - γ) ^ (n - k)`. -/
-@[expose] def orTech (n : ℕ) (γ : ℝ) (a : Fin n → Bool) : ℝ :=
+def orTech (n : ℕ) (γ : ℝ) (a : Fin n → Bool) : ℝ :=
   orProb n γ (countTrue a)
+
+theorem orTech_eq (n : ℕ) (γ : ℝ) (a : Fin n → Bool) :
+    orTech n γ a = orProb n γ (countTrue a) := by
+  rfl
 
 theorem orProb_pos {n : ℕ} (hn : 1 ≤ n) {γ : ℝ} (hγ₀ : 0 < γ) (hγh : γ < 1 / 2) {k : ℕ}
     (hk : k ≤ n) : 0 < orProb n γ k := by
@@ -1539,14 +1634,14 @@ theorem orTech_transitions {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < �
       field_simp [hdf₁, hdf₂]
     linarith
   have hs₀ : 0 < (P 1 - P 0) / (orProb n γ 1 - orProb n γ 0) := by
-    have hP0 : P 0 = 0 := by simp [P, anonOptPayment]
+    have hP0 : P 0 = 0 := by simp [P]
     have hP1 : 0 < P 1 := by rw [hP_eq 1 le_rfl, Nat.cast_one, one_mul]; exact hh_pos 1 le_rfl hn
     exact div_pos (by linarith) (sub_pos.mpr (orProb_strictMono hγ₀ hγh (by omega)))
   have hP_diff_lt : ∀ k, k + 1 < n → P (k + 1) - P k < P (k + 2) - P (k + 1) := by
     intro k hk
     by_cases hk0 : k = 0
     · subst hk0
-      have hP0 : P 0 = 0 := by simp [P, anonOptPayment]
+      have hP0 : P 0 = 0 := by simp [P]
       have hP1 : P 1 = h 1 := by simpa using hP_eq 1 le_rfl
       have hP2 : P 2 = 2 * (r * h 1 + c) := by
         rw [hP_eq 2 (by omega), hh_rec 1 le_rfl hk]; push_cast; ring
@@ -1585,7 +1680,7 @@ theorem orTech_transitions {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < �
       have hnonneg : 0 ≤ P (k + 1) - P k := by
         by_cases hk0 : k = 0
         · subst hk0
-          have hP0 : P 0 = 0 := by simp [P, anonOptPayment]
+          have hP0 : P 0 = 0 := by simp [P]
           have hP1 : P 1 = h 1 := by simpa using hP_eq 1 le_rfl
           rw [hP0, hP1, sub_zero]; exact (hh_pos 1 le_rfl hn).le
         · have hk1 : 1 ≤ k := Nat.pos_of_ne_zero hk0
@@ -1663,8 +1758,9 @@ private theorem orTech_pou_large_n_ineq {q : ℝ} {n : ℕ} (hn : 3 ≤ n) (hq�
       mul_le_mul_of_nonneg_right hquad (pow_nonneg hq₀ _)
 
 /-- **Price of Unaccountability bound for the noisy OR technology** (NRTV Theorem 23.9):
-`POU(orTech n γ, c) ≤ 2` uniformly across all `n ≥ 1`, `γ ∈ (0, 1 / 2)`, and `c > 0`, using only
-the `0`-agent and `1`-agent contracts. -/
+`POU(orTech n γ, c) ≤ 2` uniformly across all `n ≥ 1`, `γ ∈ (0, 1 / 2)`, and `c > 0`
+(sharpening `[BabaioffChuangFeldman2007]` Theorem 23.9's `≤ 5 / 2` bound), using only the
+`0`-agent and `1`-agent contracts. -/
 theorem orTech_pou_le_two {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ) (hγh : γ < 1 / 2)
     (hc : 0 < c) :
     priceOfUnaccountability (orTech n γ) (fun _ => c) ≤ 2 := by
@@ -1686,12 +1782,12 @@ theorem orTech_pou_le_two {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ
       (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j) :=
     Finset.le_sup' (fun j => orProb n γ j * v - anonOptPayment (orProb n γ) c j)
       (Finset.mem_range.mpr (by omega))
-  have hU0_eq : U0 = orProb n γ 0 * v := by simp [U0, anonOptPayment]
+  have hU0_eq : U0 = orProb n γ 0 * v := by simp [U0]
   let Δ₁ : ℝ := orProb n γ 1 - orProb n γ 0
   let P₁ : ℝ := anonOptPayment (orProb n γ) c 1
   let v01 : ℝ := P₁ / Δ₁
   have hΔ₁_pos : 0 < Δ₁ := sub_pos.mpr (orProb_strictMono hγ₀ hγh hn)
-  have hP₁_eq : P₁ = c * orProb n γ 1 / Δ₁ := by simp [P₁, anonOptPayment, Δ₁]
+  have hP₁_eq : P₁ = c * orProb n γ 1 / Δ₁ := by simp [P₁, Δ₁]
   have hv01_eq : v01 = c * orProb n γ 1 / Δ₁ ^ 2 := by
     dsimp [v01]
     rw [hP₁_eq, div_div, sq]
@@ -1699,7 +1795,7 @@ theorem orTech_pou_le_two {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ
   have hbal : orProb n γ 1 * v01 - P₁ = orProb n γ 0 * v01 := by
     rw [hP₁_val]; dsimp [Δ₁]; ring
   rcases Nat.eq_zero_or_pos k with rfl | hk1
-  · have hk0_eq : orProb n γ 0 * v - ((0 : ℕ) : ℝ) * c = U0 := by simp [U0, anonOptPayment]
+  · have hk0_eq : orProb n γ 0 * v - ((0 : ℕ) : ℝ) * c = U0 := by simp [U0]
     have hU0_nn : 0 ≤ U0 := by
       rw [hU0_eq]; exact mul_nonneg (orProb_pos hn hγ₀ hγh (Nat.zero_le n)).le hv.le
     rw [hk0_eq]
@@ -1821,13 +1917,6 @@ theorem orTech_pou_le_two {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ
         dsimp [U1]
         linarith
       exact hres.trans (by linarith [hU1_le])
-
-/-- **Price of Unaccountability constant bound for the noisy OR technology** (NRTV Theorem 23.9):
-`POU(orTech n γ, c) ≤ 5 / 2` (derived from `orTech_pou_le_two`). -/
-theorem orTech_pou_le {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ) (hγh : γ < 1 / 2)
-    (hc : 0 < c) :
-    priceOfUnaccountability (orTech n γ) (fun _ => c) ≤ 5 / 2 :=
-  (orTech_pou_le_two hn hγ₀ hγh hc).trans (by norm_num)
 
 end AnonymousAndExamples
 
