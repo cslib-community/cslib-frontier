@@ -294,6 +294,18 @@ example :
   exact C.relativeCoefficientValue_mem Decoder.nat (.const 1) (.const 19) (.const 1)
     (.const 1) ComputableInPolyTime.id' (.const [2])
 
+-- The relative polynomial of the empty zero source is the critical-value variable itself.
+example :
+    let C : Controlled (fun _ : ℕ => (MvPolynomial.C 0 : MvPolynomial (Fin (0 + 0)) ℤ))
+        encNat 0 := Controlled.constant (.const 0) (fun _ => 0) (.const 0)
+    C.relativeValue (n := fun _ => 0) (m := fun _ => 0) (fun _ => 1) (0, 11, [3]) = 3 := by
+  intro C
+  rw [C.relativeValue_eq (fun _ => 1) 0 11 [3] (by decide)
+    (by change 0 < 11; decide) (by decide) (by simp) (by decide) (by decide)]
+  have hresidue : (3 : ZMod 11).val = 3 := by decide
+  simp [flattenedRelativeValuePolynomial, relativeValuePolynomial, relativeSource, valuePolynomial,
+    deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero, NormalIndex, hresidue]
+
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
     ZMod 13) = 0 := by

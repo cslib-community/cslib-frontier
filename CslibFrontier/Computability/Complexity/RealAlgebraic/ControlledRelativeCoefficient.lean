@@ -9,12 +9,14 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.PolynomialEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
 import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
-# Relative critical-value coefficients from a controlled source
+# Relative critical-value evaluation from a controlled source
 
 `Controlled.relativeCoefficientValue` fixes the retained parameters in the source query and
 computes an addressed critical-value coefficient. `Controlled.relativeCoefficientValue_mem`
@@ -22,9 +24,14 @@ charges nine counting levels above the source evaluator. `Controlled.relativeCoe
 identifies the result with evaluation of the corresponding relative coefficient at the chosen
 penalty and parameters, over a prime satisfying the trace interpolation and source cutoffs.
 
+`Controlled.relativeValue` sums these coefficients at the critical-value coordinate.
+`Controlled.relativeValue_mem` charges ten counting levels above the source evaluator, and
+`Controlled.relativeValue_eq` identifies its canonical residue with the flattened polynomial.
+
 Adapted from `PointBlocks`, `FinitePolynomialBlocks`, `FrozenPolynomialEvaluation`, and
 `FrozenCriticalCoefficients` in lean-canny (`970f28a5ecefc1327402ade16c068aa4b1b2c183`).
-Evaluating the full flattened polynomial remains open under
+The full evaluator adapts `RelativeCharacteristicEvaluation` and `RelativeCharacteristicCorrectness`
+at the same commit. Packaging this evaluation into a controlled family remains open under
 [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
 
@@ -131,5 +138,75 @@ theorem relativeCoefficientValue_cast (C : Controlled P enc a) (p d u k : α →
   rw [Polynomial.coeff_map] at hk
   rw [relativeCoefficientValue, hcoeff, ZMod.natCast_zmod_val]
   exact hk.symm
+
+/-- Evaluate the relative critical-value polynomial from the controlled source. The point
+list starts with the critical value and penalty, then contains the retained parameters. -/
+noncomputable def relativeValue (C : Controlled P enc a) (d : α → ℕ)
+    (q : α × (ℕ × List ℕ)) : ℕ :=
+  let (w, p, z) := q
+  polynomialResidue p ((d w + 1) ^ n w) (z[0]?.getD 0)
+    (fun k => C.relativeCoefficientValue (fun _ => p) d (fun _ => z[1]?.getD 0)
+      (fun _ => k) (fun _ => z.drop 2) w)
+
+/-- Summing over the binary quotient dimension uses one level above relative coefficient access. -/
+theorem relativeValue_mem (C : Controlled P enc a) (E : Decoder enc)
+    (hn : ComputableInPolyTime n enc encUnary) {d : α → ℕ}
+    (hd : ComputableInPolyTime d enc encNat) :
+    C.relativeValue d ∈ CountingFunction (a + 10) (encEvaluation enc) encNat := by
+  let fields := encPair encNat (encList encNat)
+  let whole := encEvaluation enc
+  have hw := fst enc fields
+  have hp := (fst encNat (encList encNat)).comp (snd enc fields)
+  have hz := (snd encNat (encList encNat)).comp (snd enc fields)
+  have hcoord (i : ℕ) : ComputableInPolyTime (fun q : α × (ℕ × List ℕ) => q.2.2[i]?.getD 0)
+      whole encNat := by
+    simpa only [List.getD_eq_getElem?_getD, Function.comp_apply] using
+      listGetD_binary 0 hz (ComputableInPolyTime.const i)
+  have hparams := listDropWithInput hz (ComputableInPolyTime.const 2)
+  have hdim := binary_pow' (binary_add' (hd.comp hw) (.const 1)) (hn.comp hw)
+  have hquery := fst whole encNat
+  let CK := C.preprocess (fun q : (α × (ℕ × List ℕ)) × ℕ => q.1.1) (hw.comp hquery)
+  let EQ := Decoder.pair E (Decoder.pair Decoder.nat (Decoder.list Decoder.nat))
+  have hc := CK.relativeCoefficientValue_mem (Decoder.pair EQ Decoder.nat)
+    (hn.comp (hw.comp hquery)) (hp.comp hquery) (hd.comp (hw.comp hquery))
+    ((hcoord 1).comp hquery) (snd whole encNat) (hparams.comp hquery)
+  have hval := polynomialResidue_mem EQ hp hdim (hcoord 0) hc
+  change (fun q => C.relativeValue d q) ∈ _
+  simpa only [relativeValue, relativeCoefficientValue, CK, preprocess,
+    Function.comp_apply, Nat.add_assoc] using hval
+
+/-- The evaluation is the canonical residue of the actual flattened relative polynomial.
+The first two list slots are the critical value and penalty. Remaining slots are read with
+the same zero-padding convention as the source evaluator. -/
+theorem relativeValue_eq (C : Controlled P enc a) (d : α → ℕ) (w : α) (p : ℕ) (z : List ℕ)
+    (hp : p.Prime) (hcut : C.cutoff w < p) (hd : 1 ≤ d w)
+    (hdeg : (P w).totalDegree ≤ d w + 1)
+    (hgrid : (d w + 1) * ((d w + 1) ^ n w * (d w + 2) + n w * d w + 1) + 1 < p)
+    (hsize : (d w + 1) ^ n w * (d w + 1) ^ n w < p - 1) :
+    C.relativeValue d (w, p, z) =
+      (eval₂ (Int.castRingHom (ZMod p))
+        (fun i : Option (Option (Fin (m w))) => i.elim ((z[0]?.getD 0 : ℕ) : ZMod p)
+          (fun j => j.elim ((z[1]?.getD 0 : ℕ) : ZMod p)
+            (fun k => (((z.drop 2)[k.val]?.getD 0 : ℕ) : ZMod p))))
+        (flattenedRelativeValuePolynomial (by omega : 1 ≤ d w + 1)
+          (rename finSumFinEquiv.symm (P w)) ((totalDegree_rename_le _ _).trans hdeg))).val := by
+  let F := rename finSumFinEquiv.symm (P w)
+  have hF : F.totalDegree ≤ d w + 1 := (totalDegree_rename_le _ _).trans hdeg
+  let Q := relativeValuePolynomial (by omega : 1 ≤ d w + 1) F hF
+  let point : Option (Fin (m w)) → ZMod p := fun j =>
+    j.elim ((z[1]?.getD 0 : ℕ) : ZMod p) (fun k => (((z.drop 2)[k.val]?.getD 0 : ℕ) : ZMod p))
+  let φ := eval₂Hom (Int.castRingHom (ZMod p)) point
+  let coeff := fun k => C.relativeCoefficientValue (fun _ => p) d (fun _ => z[1]?.getD 0)
+    (fun _ => k) (fun _ => z.drop 2) w
+  have hD : Q.natDegree ≤ (d w + 1) ^ n w := by
+    dsimp only [Q, relativeValuePolynomial]
+    rw [valuePolynomial_natDegree]
+  have hc (k : ℕ) : (coeff k : ZMod p) = φ (Q.coeff k) :=
+    C.relativeCoefficientValue_cast (fun _ => p) d (fun _ => z[1]?.getD 0) (fun _ => k)
+      (fun _ => z.drop 2) w hp hcut hd hdeg hgrid hsize
+  rw [relativeValue, flattenedRelativeValuePolynomial, eval₂_optionEquivLeft_symm]
+  have he := polynomialResidue_cast hp.ne_zero φ Q _ (z[0]?.getD 0) hD coeff (fun k _ => hc k)
+  simpa only [ZMod.val_natCast, Nat.mod_eq_of_lt (polynomialResidue_lt hp.pos _ _ _)] using
+    congrArg ZMod.val he
 
 end Cslib.Complexity.RealAlgebraic.Controlled
