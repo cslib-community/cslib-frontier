@@ -11,11 +11,22 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Len
 
 /-!
-# Section "Flat or contracting": quadrangles in a metric on the matrices over F₂
+# Quadrangles in a metric on the matrices over `F₂`
 
-Definitions and lemmas for the proof of Theorem thm:alt (Paper/Alternative.lean). `nn w a W` is the paper's
-n_a(W) = |a, a+W|², `BB w a W W'` is its B_a(W, W'), and `X p q S` is the matrix p·dg(S)·q: the matrices `X p q S` for
-disjoint sets S, in one frame (p, q), are the transversal families (Nc/Flag/Transversal.lean).
+Definitions for the step "Flat or contracting" of the proof of Theorem thm:alt in *VP ≠ VNP over
+every field* [AnthropicVPVNP2026]
+(module `Nc.Flag.Para`): `Flag.nn w a W = |a, a + W|²`, the defect `Flag.defect`, and
+`Flag.X p q S = p · dg S · q`. The matrices `X p q S` for disjoint sets `S` in one frame `(p, q)`
+are the transversal families of `Flag.Transversal`.
+
+## Main definitions
+
+* `Flag.Mt`, `Flag.nn`, `Flag.defect`, `Flag.X`, `Flag.MD`, `Flag.BB`.
+
+## Main results
+
+* `Flag.sum_defect`, `Flag.sum_all_defect`: sums of defects.
+* `Flag.X_union`, `Flag.exists_X`: the frames.
 -/
 
 public section
@@ -50,12 +61,12 @@ theorem sum_defect (hw : ∀ a b, w a b = w b a) (M N : Mt m) :
   have h2 : ∑ a, w (a + M + N) (a + N) ^ 2 = ∑ a, nn w a M := by
     rw [← Equiv.sum_comp (Equiv.addRight N) (fun a => nn w a M)]
     refine sum_congr rfl fun a _ => ?_
-    show w (a + M + N) (a + N) ^ 2 = w (a + N) (a + N + M) ^ 2
+    change w (a + M + N) (a + N) ^ 2 = w (a + N) (a + N + M) ^ 2
     rw [hw, add_right_comm]
   have h3 : ∑ a, w (a + M) (a + N) ^ 2 = ∑ a, nn w a (M + N) := by
     rw [← Equiv.sum_comp (Equiv.addRight M) (fun a => nn w a (M + N))]
     refine sum_congr rfl fun a _ => ?_
-    show w (a + M) (a + N) ^ 2 = w (a + M) (a + M + (M + N)) ^ 2
+    change w (a + M) (a + N) ^ 2 = w (a + M) (a + M + (M + N)) ^ 2
     have : a + M + (M + N) = a + N := by
       rw [add_assoc, ← add_assoc M M N, madd_self, zero_add]
     rw [this]
@@ -65,7 +76,7 @@ theorem sum_defect (hw : ∀ a b, w a b = w b a) (M N : Mt m) :
   unfold defect
   simp only [sum_sub_distrib, sum_add_distrib]
   rw [h1, h2, h3, h4]
-  show ∑ a, nn w a M + _ + _ + ∑ a, nn w a N - _ = _
+  change ∑ a, nn w a M + _ + _ + ∑ a, nn w a N - _ = _
   ring
 
 /-- The matrix of a set of indices in a frame. -/
@@ -106,7 +117,8 @@ theorem exists_factor (M : Mt m) :
     simpa using h2 (D i)
   rw [hM, hu1, hv1, hD]
 
-theorem exists_X (M : Mt m) : ∃ (p q : GLM (Fin m)) (S : Finset (Fin m)), M = X p q S := exists_factor M
+theorem exists_X (M : Mt m) : ∃ (p q : GLM (Fin m)) (S : Finset (Fin m)),
+    M = X p q S := exists_factor M
 
 /-- The sum of |a, a + p·E·q|² over all a and all invertible p, q. -/
 noncomputable def MD (w : Mt m → Mt m → ℝ) (E : Mt m) : ℝ := ∑ a, DM (fun M => w a (a + M)) E
@@ -117,7 +129,8 @@ theorem MD_eq (S : Finset (Fin m)) : MD w (dg S) =
   rw [sum_comm]
   exact sum_congr rfl fun p _ => sum_comm
 
-/-- The defects of the quadrangles with sides W = X p q S and W' = X p q T, added over all frames and all a. -/
+/-- The defects of the quadrangles with sides W = X p q S and W' = X p q T, added over all frames
+and all a. -/
 theorem sum_all_defect (hw : ∀ a b, w a b = w b a) {S T : Finset (Fin m)} (h : Disjoint S T) :
     ∑ p : GLM (Fin m), ∑ q : GLM (Fin m), ∑ a, defect w a (X p q S) (X p q T) =
       2 * (MD w (dg S) + MD w (dg T) - MD w (dg (S ∪ T))) := by
@@ -129,7 +142,8 @@ theorem sum_all_defect (hw : ∀ a b, w a b = w b a) {S T : Finset (Fin m)} (h :
   rw [X_union p q h]
 
 /-- The scalar product B_a(M, N) = ½(n_a(M+N) − n_a(M) − n_a(N)). -/
-noncomputable def BB (w : Mt m → Mt m → ℝ) (a M N : Mt m) : ℝ := (nn w a (M + N) - nn w a M - nn w a N) / 2
+noncomputable def BB (w : Mt m → Mt m → ℝ) (a M N : Mt m) : ℝ :=
+    (nn w a (M + N) - nn w a M - nn w a N) / 2
 
 theorem BB_comm (a M N : Mt m) : BB w a M N = BB w a N M := by
   unfold BB

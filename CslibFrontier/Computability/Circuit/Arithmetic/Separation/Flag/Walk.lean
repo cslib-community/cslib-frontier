@@ -12,7 +12,17 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Blo
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Words
 
 /-!
-# Lengths on U n: quotients and the two diagonal blocks
+# Lengths on `U n`: quotients and the two diagonal blocks
+
+Pulling lengths back along homomorphisms (`Flag.Len.comap`), their root mean squares
+(`Flag.Len.rms`), and the bound of a length by its restrictions to the two diagonal blocks
+(`Flag.S_add_le`).
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Walk`.
+
+## Main results
+
+* `Flag.Contr.comap`, `Flag.Len.rms_comap`, `Flag.S_add_le`.
 -/
 
 public section
@@ -23,11 +33,11 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 
 open Cslib.SLTower (U SL2 lo hi x)
 
-theorem three_le {T : Type*} [Fintype T] (c f g k : T → ℝ) (hc : ∀ t, 0 ≤ c t) (hf : ∀ t, 0 ≤ f t)
+theorem three_le {T : Type*} [Fintype T] (c f g k : T → ℝ) (hc : ∀ t, 0 ≤ c t)
     (hg : ∀ t, 0 ≤ g t) (hk : ∀ t, 0 ≤ k t) (h : ∀ t, c t ≤ f t + (g t + k t)) :
     √(∑ t, c t ^ 2) ≤ √(∑ t, f t ^ 2) + (√(∑ t, g t ^ 2) + √(∑ t, k t ^ 2)) := by
-  have h1 := sqrt_sum_le univ f (fun t => g t + k t) c hf (fun t => add_nonneg (hg t) (hk t)) hc h
-  have h2 := sqrt_sum_le univ g k (fun t => g t + k t) hg hk
+  have h1 := sqrt_sum_le univ f (fun t => g t + k t) c hc h
+  have h2 := sqrt_sum_le univ g k (fun t => g t + k t)
     (fun t => add_nonneg (hg t) (hk t)) fun t => le_rfl
   linarith
 
@@ -77,7 +87,7 @@ theorem Len.rms_comap {G H : Type*} [Group G] [Group H] [Fintype G] [Fintype H] 
       exact sum_congr rfl fun g _ => by rw [Equiv.coe_mulLeft, map_mul]
     rw [sum_congr rfl fun h _ => this h]
     simp
-  show (∑ g : G, l.val (φ g) ^ 2) * _ = _
+  change (∑ g : G, l.val (φ g) ^ 2) * _ = _
   linarith
 
 /-- The bound of Lemma lem:first for one n with the constant κ. -/
@@ -100,11 +110,11 @@ theorem S_add_le {a b : ℕ} (l : Len (U (a + b))) :
   unfold Len.S
   have e1 : ∀ j, (l.comap (win (hl (a := a) (b := b)))).val (x a j) = l.val (x _ (wt hl j)) := by
     intro j
-    show l.val (win hl (x a j)) = _
+    change l.val (win hl (x a j)) = _
     rw [win_x]
   have e2 : ∀ j, (l.comap (win (hr (a := a) (b := b)))).val (x b j) = l.val (x _ (wt hr j)) := by
     intro j
-    show l.val (win hr (x b j)) = _
+    change l.val (win hr (x b j)) = _
     rw [win_x]
   rw [sum_congr rfl fun j _ => e1 j, sum_congr rfl fun j _ => e2 j]
   have i1 : Function.Injective (wt (hl (a := a) (b := b))) := by
@@ -133,12 +143,12 @@ def tr {n n' : ℕ} (h : n ≤ n') : U n' →* U n where
   map_one' := by
     apply mat_inj
     ext i j
-    show (1 : Matrix _ _ F2) (Fin.castLE h i) (Fin.castLE h j) = (1 : Matrix _ _ F2) i j
+    change (1 : Matrix _ _ F2) (Fin.castLE h i) (Fin.castLE h j) = (1 : Matrix _ _ F2) i j
     simp [Matrix.one_apply, Fin.ext_iff]
   map_mul' A B := by
     apply mat_inj
     ext i j
-    show mat (A * B) (Fin.castLE h i) (Fin.castLE h j) = _
+    change mat (A * B) (Fin.castLE h i) (Fin.castLE h j) = _
     rw [mat_mul, mat_mul, Matrix.mul_apply, Matrix.mul_apply]
     symm
     refine sum_bij_ne_zero (fun k _ _ => Fin.castLE h k) (fun _ _ _ => mem_univ _)
@@ -176,7 +186,7 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
   have e : ∀ j : Fin (n' - 1), (l.comap (tr h)).val (x n' j) =
       if hj : j.1 < n - 1 then l.val (x n ⟨j.1, hj⟩) else 0 := by
     intro j
-    show l.val (tr h (x n' j)) = _
+    change l.val (tr h (x n' j)) = _
     split_ifs with hj
     · congr 1
       apply mat_inj

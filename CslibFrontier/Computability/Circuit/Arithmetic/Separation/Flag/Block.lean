@@ -12,6 +12,20 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Uni
 
 /-!
 # The block decomposition of the unitriangular group
+
+`U (a + b)` decomposes into the two diagonal blocks `U a × U b` and the upper right block
+(`Flag.blk`, a bijection by `Flag.blk_bijective`); the upper right block is the abelian
+subgroup `Flag.up`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Block`.
+
+## Main definitions
+
+* `Flag.up`, `Flag.blk`.
+
+## Main results
+
+* `Flag.up_add`, `Flag.blk_bijective`.
 -/
 
 public section
@@ -125,13 +139,14 @@ theorem mat_blk (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (blk t) =
     rw [Matrix.mul_one]
   have s2 : wr a b * (wr a b)ᵀ = wr a b * (1 : Matrix (Fin b) (Fin b) F2) * (wr a b)ᵀ := by
     rw [Matrix.mul_one]
-  show mat (win (hr (a := a) (b := b)) C * up M * win (hl (a := a) (b := b)) A) = _
+  change mat (win (hr (a := a) (b := b)) C * up M * win (hl (a := a) (b := b)) A) = _
   rw [mat_mul, mat_mul, mat_win, mat_win, mat_up, wm_l, wm_r, ← wi_add (a := a) (b := b), s1, s2]
   simp only [Matrix.add_mul, Matrix.mul_add, z1, z2, e1, e2, add_zero, zero_add]
   simp only [Matrix.mul_one, Matrix.one_mul]
   abel
 
-theorem blk_injective : Function.Injective (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
+theorem blk_injective : Function.Injective
+    (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
   intro s t hst
   have h := congrArg mat hst
   rw [mat_blk, mat_blk] at h
@@ -166,7 +181,8 @@ theorem blk_injective : Function.Injective (blk : U a × Matrix (Fin a) (Fin b) 
 theorem two_mul_tri (n : ℕ) : 2 * (n * (n - 1) / 2) = n * (n - 1) :=
   Nat.mul_div_cancel' (Nat.even_mul_pred_self n).two_dvd
 
-theorem tri_add (a b : ℕ) : (a + b) * (a + b - 1) / 2 = a * (a - 1) / 2 + a * b + b * (b - 1) / 2 := by
+theorem tri_add (a b : ℕ) : (a + b) * (a + b - 1) / 2 = a * (a - 1) / 2 + a * b + b *
+    (b - 1) / 2 := by
   have h1 := two_mul_tri a
   have h2 := two_mul_tri b
   have h3 := two_mul_tri (a + b)
@@ -179,13 +195,15 @@ theorem tri_add (a b : ℕ) : (a + b) * (a + b - 1) / 2 = a * (a - 1) / 2 + a * 
         ring
   omega
 
-theorem blk_bijective : Function.Bijective (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
+theorem blk_bijective : Function.Bijective
+    (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
   rw [Fintype.bijective_iff_injective_and_card]
   refine ⟨blk_injective, ?_⟩
   have hM : Fintype.card (Matrix (Fin a) (Fin b) F2) = 2 ^ (a * b) := by
     rw [show Fintype.card (Matrix (Fin a) (Fin b) F2) = Fintype.card (Fin a → Fin b → F2) from rfl]
     simp [← pow_mul, mul_comm]
-  rw [Fintype.card_prod, Fintype.card_prod, hM, Cslib.SLTower.card_U, Cslib.SLTower.card_U, Cslib.SLTower.card_U,
+  rw [Fintype.card_prod, Fintype.card_prod, hM, Cslib.SLTower.card_U, Cslib.SLTower.card_U,
+      Cslib.SLTower.card_U,
     tri_add, pow_add, pow_add]
   ring
 

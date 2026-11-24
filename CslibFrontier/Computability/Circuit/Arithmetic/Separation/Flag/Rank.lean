@@ -11,7 +11,16 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Blow
 
 /-!
-# The growth function and what a contracting length gives along a homomorphism from matrices
+# The growth function, and contracting lengths along homomorphisms of matrices
+
+`Flag.grow` is the growth function of a length, and `Flag.Good` the property that a contracting
+length gives along a homomorphism from matrices over `F₂`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Rank`.
+
+## Main results
+
+* `Flag.grow_mono`, `Flag.good_of_contr`, `Flag.Good.dg_zero`.
 -/
 
 public section

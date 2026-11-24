@@ -13,6 +13,20 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Len
 
 /-!
 # Finite groups of isometries of complete CAT(0) spaces: projections to fixed points
+
+`Flag.IsoAct G Z`: an action of `G` on `Z` by isometries. For a finite group acting on a
+complete CAT(0) space, the barycenter of an orbit (`Flag.IsoAct.P`, from
+`Cslib.CAT0.exists_isBarycenter`) is a fixed point, and the projection commutes with the action.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Act`.
+
+## Main definitions
+
+* `Flag.IsoAct`, `Flag.IsoAct.comap`, `Flag.IsoAct.len`, `Flag.IsoAct.Fix`, `Flag.IsoAct.P`.
+
+## Main results
+
+* `Flag.IsoAct.P_spec`, `Flag.IsoAct.P_fix`, `Flag.IsoAct.P_comm`.
 -/
 
 public section
@@ -99,7 +113,8 @@ theorem P_fix (z : Z) : A.Fix (A.P z) := by
 end proj
 end IsoAct
 
-/-- The arithmetic at the end of the proof of Lemma lem:angle (a quadrangle with two right angles). -/
+/-- The arithmetic at the end of the proof of Lemma lem:angle (a quadrangle with two right angles).
+-/
 theorem angle_num {r r' α β Q A c : ℝ} (hr : 0 < r) (hr' : 0 < r') (hα : 0 < α) (hβ : 0 < β)
     (hA1 : r ^ 2 + α ^ 2 ≤ A) (hA2 : r' ^ 2 + β ^ 2 ≤ A)
     (hQ : α ^ 2 + β ^ 2 - 2 * c * (α * β) ≤ Q)
@@ -132,7 +147,7 @@ theorem angle_num {r r' α β Q A c : ℝ} (hr : 0 < r) (hr' : 0 < r') (hα : 0 
   have hA' := mul_le_mul_of_nonneg_left hA (show 0 ≤ t * (1 - t) from
     mul_nonneg ht0 (by linarith))
   have h1 : s * (1 - s) * Q ≤ (1 - t) ^ 2 * ((1 - s) * r ^ 2 + s * r' ^ 2) +
-      t ^ 2 * ((1 - s) * α ^ 2 + s * β ^ 2) := by nlinarith
+      t ^ 2 * ((1 - s) * α ^ 2 + s * β ^ 2) := by linarith
   have e1 : 1 - s = r' * β / T := by rw [hs, hT]; field_simp; ring
   have e2 : 1 - t = α * β / N := by rw [ht, hN]; field_simp; ring
   have e3 : (1 - s) * r ^ 2 + s * r' ^ 2 = r * r' * S / T := by
@@ -159,7 +174,7 @@ theorem angle_num {r r' α β Q A c : ℝ} (hr : 0 < r) (hr' : 0 < r') (hα : 0 
   have h4 : r * r' * (α ^ 2 + β ^ 2) ≤ r * r' * (Q + 2 * c * (α * β)) :=
     mul_le_mul_of_nonneg_left (by linarith) (by positivity)
   rw [e9, hN] at h3
-  have h5 : (α * β) * Q ≤ (α * β) * (r ^ 2 + r' ^ 2 + 2 * c * (r * r')) := by nlinarith
+  have h5 : (α * β) * Q ≤ (α * β) * (r ^ 2 + r' ^ 2 + 2 * c * (r * r')) := by linarith
   exact le_of_mul_le_mul_left h5 (by positivity)
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

@@ -11,7 +11,22 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Len
 
 /-!
-# Blow-ups `N ↦ N ⊗ 1` of matrices over F₂
+# Blow-ups `N ↦ N ⊗ 1` of matrices over `F₂`
+
+An embedding `e : μ × κ ↪ ι` blows a matrix over `μ` up to a block matrix over `ι`
+(`Flag.blow`), with a complement (`Flag.blowC`) and the invertible blow-ups `Flag.blowU`.
+`Flag.Contr l μ s` says that a length `l` contracts by the factor `s` under blowing up.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Blow`.
+
+## Main definitions
+
+* `Flag.inc`, `Flag.blow`, `Flag.blowC`, `Flag.blowU`, `Flag.Contr`.
+
+## Main results
+
+* `Flag.blow_mul`, `Flag.blow_dg`, `Flag.blowU_mul`: blow-ups are multiplicative.
+* `Flag.DM_blow`, `Flag.DM_digit`: averages of blown-up matrices.
 -/
 
 public section
@@ -68,8 +83,10 @@ theorem blow_add (e : μ × κ ↪ ι) (M N : Matrix μ μ F2) :
   unfold blow
   rw [Matrix.add_kronecker, Matrix.mul_add, Matrix.add_mul]
 
+omit [DecidableEq μ] in
 theorem blow_mul (e : μ × κ ↪ ι) (M N : Matrix μ μ F2) :
     blow e (M * N) = blow e M * blow e N := by
+  classical
   unfold blow
   have h : Matrix.kroneckerMap (· * ·) (M * N) (1 : Matrix κ κ F2) =
       Matrix.kroneckerMap (· * ·) M (1 : Matrix κ κ F2) *
@@ -120,11 +137,12 @@ def blowU (e : μ × κ ↪ ι) (p : GLM μ) : GLM ι where
 theorem blowU_mul (e : μ × κ ↪ ι) (p q : GLM μ) (M : Matrix μ μ F2) :
     (blowU e p : Matrix ι ι F2) * blow e M * (blowU e q : Matrix ι ι F2) =
       blow e ((p : Matrix μ μ F2) * M * (q : Matrix μ μ F2)) := by
-  show (blow e p + blowC e) * blow e M * (blow e q + blowC e) = _
+  change (blow e p + blowC e) * blow e M * (blow e q + blowC e) = _
   rw [Matrix.add_mul, blowC_mul_blow, add_zero, Matrix.mul_add, ← blow_mul, blow_mul_blowC,
     add_zero, ← blow_mul]
 
-/-- The contraction hypothesis of the contracting case for a function on a group: along every additive map
+/-- The contraction hypothesis of the contracting case for a function on a group: along every
+additive map
 from μ×μ matrices, full rank is only `s²` times as far as rank one. -/
 @[expose] def Contr {G : Type*} [Group G] (l : Len G) (μ : ℕ) (s : ℝ) : Prop :=
   ∀ τ : Matrix (Fin μ) (Fin μ) F2 → G, (∀ M N, τ (M + N) = τ M * τ N) →
@@ -161,10 +179,12 @@ theorem DM_blow (e : μ × κ ↪ ι) (f : Matrix ι ι F2 → ℝ) (M : Matrix 
 
 variable {G : Type*} [Group G]
 
+omit [DecidableEq κ] in
 theorem DM_digit (l : Len G) {m : ℕ} {s : ℝ} (hC : Contr l m s)
     (τ : Matrix ι ι F2 → G) (hτ : ∀ M N, τ (M + N) = τ M * τ N) (e : Fin m × κ ↪ ι) (i : Fin m) :
     DM (fun M => l.val (τ M)) (dg ((univ : Finset (Fin m × κ)).map e)) ≤
       s ^ 2 * DM (fun M => l.val (τ M)) (dg ((({i} : Finset (Fin m)) ×ˢ univ).map e)) := by
+  classical
   have h0 : (0 : ℝ) < (Fintype.card (GLM (Fin m)) : ℝ) ^ 2 := by
     have : 0 < Fintype.card (GLM (Fin m)) := Fintype.card_pos
     positivity

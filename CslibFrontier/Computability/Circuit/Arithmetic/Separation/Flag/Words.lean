@@ -11,7 +11,21 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Uni
 
 /-!
-# Elements `1 + uφᵀ` of the unitriangular group are short words
+# Elements `1 + u φᵀ` of the unitriangular group are short words
+
+For a length `l` on `U n`, `Flag.Len.S` is the sum of the lengths of the simple root elements;
+elements `1 + u φᵀ` have length bounded in terms of `S` (`Flag.exists_col`, `Flag.exists_row`),
+using the reflection `Flag.refl` of `U n`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Words`.
+
+## Main definitions
+
+* `Flag.Len.S`, `Flag.Len.T`, `Flag.refl`.
+
+## Main results
+
+* `Flag.exists_col`, `Flag.exists_row`, `Flag.Len.refl_S`.
 -/
 
 public section
@@ -152,7 +166,8 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       rintro i (h | h)
       · left; omega
       · right; exact h
-    have hd' : ∀ i k : Fin n, (i.1 < p ∨ a ≤ i) → mat (x n j * d) i k = (1 : Matrix _ _ F2) i k := by
+    have hd' : ∀ i k : Fin n,
+        (i.1 < p ∨ a ≤ i) → mat (x n j * d) i k = (1 : Matrix _ _ F2) i k := by
       intro i k hi
       rw [x_mul_apply, ite_eq_right (hrow i hi), add_zero, hd i k (hrow' i hi)]
     have hda' : ∀ i : Fin n, mat (x n j * d) i a = if p ≤ i.1 ∧ i ≤ a then 1 else 0 := by
@@ -214,14 +229,16 @@ theorem exists_col (l : Len (U n)) (a : Fin n) (u : Fin n → F2) (hua : u a = 1
 /-- Reflection in the antidiagonal. -/
 def refl (A : U n) : U n :=
   mk (Matrix.of fun i j => mat A (Fin.rev j) (Fin.rev i))
-    (fun i j hij => mat_lt A (Fin.rev_lt_rev.2 hij)) (fun i => mat_diag A _)
+    (fun _ _ hij => mat_lt A (Fin.rev_lt_rev.2 hij)) (fun _ => mat_diag A _)
 
-theorem refl_apply (A : U n) (i j : Fin n) : mat (refl A) i j = mat A (Fin.rev j) (Fin.rev i) := by rfl
+theorem refl_apply (A : U n) (i j : Fin n) : mat (refl A) i j = mat A (Fin.rev j) (Fin.rev i) :=
+    by rfl
 
 theorem refl_mul (A B : U n) : refl (A * B) = refl B * refl A := by
   apply mat_inj
   ext i j
-  rw [refl_apply, mat_mul, mat_mul, Matrix.mul_apply, Matrix.mul_apply, ← Equiv.sum_comp Fin.revPerm]
+  rw [refl_apply, mat_mul, mat_mul, Matrix.mul_apply, Matrix.mul_apply,
+      ← Equiv.sum_comp Fin.revPerm]
   refine sum_congr rfl fun k _ => ?_
   rw [refl_apply, refl_apply, mul_comm]
   rfl
@@ -263,7 +280,7 @@ theorem Len.refl_S (l : Len (U n)) : l.refl.S = l.S := by
   unfold Len.S
   rw [← Equiv.sum_comp Fin.revPerm]
   refine sum_congr rfl fun j _ => ?_
-  show l.val (Cslib.Circuits.Arithmetic.Separation.Flag.refl _) = _
+  change l.val (Cslib.Circuits.Arithmetic.Separation.Flag.refl _) = _
   rw [refl_x]
   simp
 

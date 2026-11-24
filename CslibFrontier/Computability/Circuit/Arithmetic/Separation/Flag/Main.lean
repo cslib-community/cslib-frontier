@@ -13,7 +13,19 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Num
 public import CslibFrontier.Foundations.Geometry.CAT0.Basic
 
 /-!
-# Translations of maps of a group into a metric space; what is used of prices
+# Translations of maps of a group into a complete CAT(0) space
+
+The action of a group by translation on the maps from the group into a finite `ℓ²` product
+(`Flag.transAct`), an isometric action, from *VP ≠ VNP over every field* [AnthropicVPVNP2026],
+module `Nc.Flag.Main`.
+
+## Main definitions
+
+* `Flag.transAct`.
+
+## Main results
+
+* `Flag.transAct_dist`.
 -/
 
 public section
@@ -50,7 +62,7 @@ theorem transAct_dist (z : PiLp 2 fun _ : G => Y) (g : G) :
     dist z ((transAct G Y).act g z) ^ 2 = ∑ k, dist (z (g * k)) (z k) ^ 2 := by
   rw [PiLp.dist_sq_eq_sum, ← Equiv.sum_comp (Equiv.mulLeft g)]
   refine sum_congr rfl fun k _ => ?_
-  show dist (z (g * k)) (z (g⁻¹ * (g * k))) ^ 2 = _
+  change dist (z (g * k)) (z (g⁻¹ * (g * k))) ^ 2 = _
   rw [inv_mul_cancel_left]
 
 end Maps

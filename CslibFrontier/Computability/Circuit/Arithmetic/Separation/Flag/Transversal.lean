@@ -11,10 +11,22 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Para
 
 /-!
-# Section "Flat or contracting": transversal matrices
+# Transversal matrices
 
-"We call W₁, W₂, … transversal if both their column spaces and their row spaces are independent." The theorem
-`transversal_iff` says that this holds if and only if, for some invertible p and q, W_k = p·dg(S_k)·q with disjoint sets S_k.
+"We call `W₁, W₂, …` transversal if both their column spaces and their row spaces are
+independent." `Flag.transversal_iff`: this holds if and only if `W_k = p · dg(S_k) · q` for some
+invertible `p`, `q` and disjoint sets `S_k`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Transversal` (step "Flat or
+contracting").
+
+## Main definitions
+
+* `Flag.colSpace`, `Flag.rowSpace`, `Flag.Transversal`.
+
+## Main results
+
+* `Flag.transversal_iff`.
 -/
 
 public section
@@ -31,7 +43,8 @@ variable {m : ℕ}
 /-- The row space of a matrix. -/
 @[expose] def rowSpace (W : Mt m) : Submodule F2 (Fin m → F2) := span F2 (Set.range W.row)
 
-/-- "We call W₁, W₂, … transversal if both their column spaces and their row spaces are independent." -/
+/-- "We call W₁, W₂, … transversal if both their column spaces and their row spaces are
+independent." -/
 @[expose] def Transversal {ι : Type} (W : ι → Mt m) : Prop :=
   iSupIndep (fun k => colSpace (W k)) ∧ iSupIndep fun k => rowSpace (W k)
 
@@ -45,13 +58,16 @@ def trU (p : GLM (Fin m)) : GLM (Fin m) where
   val_inv := by rw [← Matrix.transpose_mul, Units.inv_mul, Matrix.transpose_one]
   inv_val := by rw [← Matrix.transpose_mul, Units.mul_inv, Matrix.transpose_one]
 
-theorem X_transpose (p q : GLM (Fin m)) (S : Finset (Fin m)) : (X p q S)ᵀ = X (trU q) (trU p) S := by
-  rw [X, X, Matrix.transpose_mul, Matrix.transpose_mul, dg, Matrix.diagonal_transpose, Matrix.mul_assoc]
+theorem X_transpose (p q : GLM (Fin m)) (S : Finset (Fin m)) : (X p q S)ᵀ = X (trU q) (trU p) S :=
+    by
+  rw [X, X, Matrix.transpose_mul, Matrix.transpose_mul, dg, Matrix.diagonal_transpose,
+      Matrix.mul_assoc]
   rfl
 
 theorem X_apply (p q : GLM (Fin m)) (S : Finset (Fin m)) (a b : Fin m) :
     X p q S a b = ∑ i ∈ S, (p : Mt m) a i * (q : Mt m) i b := by
-  rw [X, Matrix.mul_apply, ← Finset.sum_filter_add_sum_filter_not univ (· ∈ S), Finset.filter_mem_eq_inter,
+  rw [X, Matrix.mul_apply, ← Finset.sum_filter_add_sum_filter_not univ (· ∈ S),
+      Finset.filter_mem_eq_inter,
     Finset.univ_inter, Finset.sum_eq_zero (s := univ.filter fun i => i ∉ S), add_zero]
   · refine Finset.sum_congr rfl fun i hi => ?_
     rw [dg, Matrix.mul_diagonal, ite_eq_left hi, mul_one]
@@ -75,7 +91,8 @@ theorem colSpace_X (p q : GLM (Fin m)) (S : Finset (Fin m)) :
     have h : (p : Mt m).col i = ∑ b, ((q⁻¹ : GLM (Fin m)) : Mt m) b i • (X p q S).col b := by
       ext a
       have h1 : (X p q S * ((q⁻¹ : GLM (Fin m)) : Mt m)) a i = (p : Mt m) a i := by
-        rw [X, Units.mul_inv_cancel_right, dg, Matrix.mul_diagonal, ite_eq_left (Finset.mem_coe.1 hi), mul_one]
+        rw [X, Units.mul_inv_cancel_right, dg, Matrix.mul_diagonal,
+            ite_eq_left (Finset.mem_coe.1 hi), mul_one]
       rw [Matrix.mul_apply] at h1
       simp only [Matrix.col, Matrix.transpose_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
       rw [← h1]
@@ -89,7 +106,10 @@ theorem iSupIndep_colSpace {ι : Type} (p q : GLM (Fin m)) (S : ι → Finset (F
   simp only [colSpace_X]
   have h1 : ⨆ (j) (_ : j ≠ k), span F2 ((p : Mt m).col '' (S j : Set (Fin m))) ≤
       span F2 ((p : Mt m).col '' ⋃ (j) (_ : j ≠ k), (S j : Set (Fin m))) :=
-    iSup₂_le fun j hj => span_mono (Set.image_mono (Set.subset_iUnion₂ (s := fun j (_ : j ≠ k) => (S j : Set (Fin m))) j hj))
+    iSup₂_le fun j hj =>
+        span_mono
+            (Set.image_mono
+                (Set.subset_iUnion₂ (s := fun j (_ : j ≠ k) => (S j : Set (Fin m))) j hj))
   refine Disjoint.mono_right h1 ((linearIndependent_col p).disjoint_span_image ?_)
   rw [Set.disjoint_iUnion₂_right]
   exact fun j hj => Finset.disjoint_coe.2 (hd k j hj.symm)
@@ -115,7 +135,8 @@ theorem exists_glm_col {α : Type} (v : α → Fin m → F2) (hv : LinearIndepen
   have hcard : Fintype.card (hs.extend (Set.subset_univ _)) = m := by
     rw [← Module.finrank_eq_card_basis b, Module.finrank_fin_fun]
   let e₀ : hs.extend (Set.subset_univ _) ≃ Fin m := Fintype.equivFinOfCardEq hcard
-  let u : α → hs.extend (Set.subset_univ _) := fun k => ⟨v k, hs.subset_extend _ (Set.mem_range_self k)⟩
+  let u : α → hs.extend (Set.subset_univ _) :=
+      fun k => ⟨v k, hs.subset_extend _ (Set.mem_range_self k)⟩
   have hu : (fun k => e₀ (u k)).Injective := fun k l h =>
     hv.injective (congrArg Subtype.val (e₀.injective h))
   obtain ⟨σ, hσ⟩ := exists_perm_comp (fun k => e₀ (u k)) ε hu hε
@@ -151,12 +172,14 @@ theorem linearIndependent_sigma {ι : Type} {W : ι → Mt m} (h : iSupIndep fun
   refine (h k).mono (hle k) (iSup₂_le fun j hj => ?_)
   exact le_iSup₂_of_le (f := fun j (_ : j ≠ k) => colSpace (W j)) j (fun e => hk (e ▸ hj)) (hle j)
 
-/-- Matrices are transversal if and only if in some frame (p, q) they are diagonal, with entries 0 and 1 and with
+/-- Matrices are transversal if and only if in some frame (p, q) they are diagonal, with entries 0
+and 1 and with
 disjoint supports. -/
-theorem transversal_iff {ι : Type} [Fintype ι] (W : ι → Mt m) :
+theorem transversal_iff {ι : Type} [Finite ι] (W : ι → Mt m) :
     Transversal W ↔ ∃ (p q : GLM (Fin m)) (S : ι → Finset (Fin m)),
       (∀ k l, k ≠ l → Disjoint (S k) (S l)) ∧ ∀ k, W k = X p q (S k) := by
   classical
+  have := Fintype.ofFinite ι
   constructor
   · rintro ⟨hc, hr⟩
     choose p q S hW using fun k => exists_X (W k)

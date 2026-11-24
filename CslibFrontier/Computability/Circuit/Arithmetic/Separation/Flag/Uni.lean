@@ -12,7 +12,20 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Ran
 public import CslibFrontier.Foundations.GroupTheory.SLTower.UT
 
 /-!
-# The unitriangular group: windows, blocks, reflections
+# The unitriangular group: matrices, windows, blocks
+
+The matrix of an element of `U h` (`Flag.mat`) and its inverse construction (`Flag.mk`), and the
+windows: the embedding `Flag.win` of `U n` into `U h` on the indices `p, …, p + n − 1`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Uni`.
+
+## Main definitions
+
+* `Flag.mat`, `Flag.mk`, `Flag.win`.
+
+## Main results
+
+* `Flag.mat_inj`, `Flag.mat_mk`, `Flag.mat_win`, `Flag.win_x`.
 -/
 
 public section
@@ -34,7 +47,8 @@ theorem mat_one {h : ℕ} : mat (1 : U h) = 1 := rfl
 
 theorem mat_x {h : ℕ} (j : Fin (h - 1)) : mat (x h j) = 1 + Matrix.single (lo j) (hi j) 1 := rfl
 
-theorem mat_lt {h : ℕ} (A : U h) {i j : Fin h} (hij : j < i) : mat A i j = 0 := (Cslib.SLTower.mem_U.mp A.2 i j).1 hij
+theorem mat_lt {h : ℕ} (A : U h) {i j : Fin h} (hij : j < i) : mat A i j = 0 :=
+    (Cslib.SLTower.mem_U.mp A.2 i j).1 hij
 
 theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 := (Cslib.SLTower.mem_U.mp A.2 i i).2
 

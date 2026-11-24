@@ -13,6 +13,19 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Wal
 
 /-!
 # Windows of the unitriangular group acting on a complete CAT(0) space
+
+The action of `U h` restricted to the windows `U n ↪ U h` (`Flag.IsoAct.W`), and the
+displacements `Flag.IsoAct.e` of points under the simple root elements of the windows.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Window`.
+
+## Main definitions
+
+* `Flag.wh`, `Flag.IsoAct.W`, `Flag.IsoAct.e`.
+
+## Main results
+
+* `Flag.win_comm`, `Flag.IsoAct.Fix.sub`, `Flag.IsoAct.e_le`.
 -/
 
 public section
@@ -115,7 +128,7 @@ theorem Fix.sub {p n p' n' : ℕ} {z : Z} (hz : (A.W p n).Fix z) (h1 : p ≤ p')
     have : p + (p' - p) = p' := by omega
     congr! 2
     exact this.symm
-  show A.act (wh h p' n' g) z = z
+  change A.act (wh h p' n' g) z = z
   rw [e1]
   exact hz _
 

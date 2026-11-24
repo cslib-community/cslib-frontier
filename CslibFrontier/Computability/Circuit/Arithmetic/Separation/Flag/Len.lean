@@ -8,10 +8,27 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Cslib.Tactic.Membership
+public import Mathlib.Analysis.Real.Sqrt
+public import Mathlib.RingTheory.WittVector.IsPoly
 
 /-!
-# Length functions on a group, matrices over F₂ and averages over pairs of invertible matrices
+# Length functions on groups, and averages over pairs of invertible matrices
+
+`Flag.Len G`: a length function on a group (`val 1 = 0`, symmetric, subadditive). Over `F₂`,
+`Flag.DM f M` sums `f (p M q)²` over all pairs of invertible matrices `p, q`, and `Flag.dg S`
+is the diagonal matrix of a set `S` of indices; `DM` depends on `dg S` only through `|S|`.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Len`.
+
+## Main definitions
+
+* `Flag.Len`, `Flag.GLM`, `Flag.DM`, `Flag.dg`, `Flag.permU`.
+
+## Main results
+
+* `Flag.Len.nonneg`, `Flag.Len.conj`; `Flag.sqrt_sum_le` (Minkowski for square sums).
+* `Flag.DM_dg_congr`, `Flag.DM_dg_le`: averages over diagonal matrices.
 -/
 
 public section
@@ -45,8 +62,8 @@ theorem conj (g h : G) : l.val (g * h * g⁻¹) ≤ 2 * l.val g + l.val h := by
 end Len
 
 /-- Minkowski for square sums. -/
-theorem sqrt_sum_le {α : Type*} (s : Finset α) (a b c : α → ℝ) (ha : ∀ i, 0 ≤ a i)
-    (hb : ∀ i, 0 ≤ b i) (hc : ∀ i, 0 ≤ c i) (h : ∀ i, c i ≤ a i + b i) :
+theorem sqrt_sum_le {α : Type*} (s : Finset α) (a b c : α → ℝ)
+    (hc : ∀ i, 0 ≤ c i) (h : ∀ i, c i ≤ a i + b i) :
     √(∑ i ∈ s, c i ^ 2) ≤ √(∑ i ∈ s, a i ^ 2) + √(∑ i ∈ s, b i ^ 2) := by
   have hA : 0 ≤ ∑ i ∈ s, a i ^ 2 := sum_nonneg fun i _ => sq_nonneg _
   have hB : 0 ≤ ∑ i ∈ s, b i ^ 2 := sum_nonneg fun i _ => sq_nonneg _
@@ -142,7 +159,7 @@ theorem DM_dg_le (f : Matrix ι ι F2 → ℝ) (hf : ∀ M, 0 ≤ f M)
     √(DM f (dg (S ∪ T))) ≤ √(DM f (dg S)) + √(DM f (dg T)) := by
   unfold DM
   simp only [← Fintype.sum_prod_type']
-  refine sqrt_sum_le univ _ _ _ (fun _ => hf _) (fun _ => hf _) (fun _ => hf _) fun x => ?_
+  refine sqrt_sum_le univ _ _ _ (fun _ => hf _) fun x => ?_
   rw [dg_union h, Matrix.mul_add, Matrix.add_mul]
   exact hadd _ _
 

@@ -12,6 +12,9 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Win
 
 /-!
 # One step of the averaging of projections: the arithmetic
+
+`Flag.step_num`: the numerical inequality behind one step of averaging projections over
+windows, from *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Avg`.
 -/
 
 public section
