@@ -6617,6 +6617,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.IssuerBridge
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.Interactive
