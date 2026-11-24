@@ -1676,6 +1676,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastCon
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueChallenge
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueCoordinates
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueInverse
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ScalarInput
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedProduct
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedRouting
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedValueGame
@@ -1717,6 +1718,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Modulus
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeCall
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChild
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildBounds
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildEndpoints
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPolyTime
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPorts
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildVertex
@@ -1735,6 +1737,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Schedul
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduleCount
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduledRecursion
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.SeededChildEndpoints
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.SeededNativeChild
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.SeededRankQuery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TaperedRecovery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncated
@@ -3595,6 +3598,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonProduct
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.OuterRootLeafRunner
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.PacketChoice
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.PacketValidity
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.PortAssignment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ProtectedWordGame
@@ -3628,6 +3632,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Game
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Tagged
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootSeedChoice.Verifier
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ScalarInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ScheduleCountPrepare
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ScheduleFields
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SeededChildCounts
@@ -3676,6 +3681,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpointCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantPorts
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantPortsInput
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantSeededAncestry
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantVertex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantVertexCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantVertexGame
@@ -3725,6 +3731,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchParameters
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PacketChoice
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PacketSourceProduct
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PacketValidity
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PortAssignment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayAccess
@@ -3853,6 +3861,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolynomialPadding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolynomialQueries
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Preprocess
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ShortInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ZipFold

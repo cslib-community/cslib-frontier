@@ -7,6 +7,8 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ShortInput
+
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Explicit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.BinarySlice
@@ -233,19 +235,14 @@ theorem exists_flags_inO : ∃ d, ComputableInO (fun a : Input => (a, flags a.co
     encInput (encPair encInput encBits)
     (fun a => a.word.length + shortSize a ^ d)
     (fun a => a.word.length + shortSize a ^ d) := by
-  obtain ⟨dF, eF, hF⟩ := flags_polyTime.exists_degree
-  have hid : ComputableInDegree (fun a : Input => a) encInput encInput 1 1 := .id'
-  have h := hid.inO_one.prod (hF.inO.comp encInput_context_deg.inO_one)
-  have hs : PolyBounded shortSize (fun a : Input => 4 * shortSize a + shortSize a ^ dF + 2) :=
-    (((PolyBounded.const 4).mul PolyBounded.self).add (PolyBounded.self.pow dF)).add (.const 2)
-  obtain ⟨c, d, hb⟩ := hs.exists_le_linear_add_pow (fun a => a.word.length) 2
-    (fun a => by simp [shortSize])
-  refine ⟨d, h.mono c (fun a => ?_) (fun a => ?_)⟩ <;>
-    refine le_trans ?_ (hb a) <;>
-    have hp := Nat.pow_le_pow_left
-      (show (encContext a.context).length + 1 ≤ shortSize a by
-        simp only [shortSize]; omega) dF <;>
-    simp only [encInput_apply, encInputFields, length_encPair, encBits_apply,
-      Function.comp_apply, shortSize] at * <;> omega
+  apply ComputableInO.exists_pair_short encInput_context_deg flags_polyTime 2
+  · intro a
+    simp [shortSize]
+  · intro a
+    simp only [encInput_apply, encInputFields, length_encPair, encBits_apply, shortSize]
+    omega
+  · intro a
+    simp only [shortSize]
+    omega
 
 end Turing.MultiTapeTM.PortAssignment

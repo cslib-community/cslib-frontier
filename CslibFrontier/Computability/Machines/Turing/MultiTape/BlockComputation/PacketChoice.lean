@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.CoeffWo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.BinarySlice
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ShortInput
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryComparison
@@ -292,69 +293,34 @@ in the terminal's native time and space bounds, even when the selected exponent 
 theorem exists_check_inO : ∃ d, ComputableInO check encChallenge encBool
     (fun x => (encList encNat x.1.exponents).length + challengeSize x ^ d)
     (fun x => (encList encNat x.1.exponents).length + challengeSize x ^ d) := by
-  obtain ⟨dS, eS, hS⟩ := summary_polyTime.exists_degree
-  obtain ⟨dB, hB⟩ := ComputableInO.exists_listGetElem?_binary encNat
   have hword : ComputableInDegree (fun x : Input × List Bool => x.1.exponents)
       encChallenge (encList encNat) 1 1 :=
     (encInput_exponents_deg.comp (ComputableInDegree.fst encInput encBits)).mono
-  have hnat : ComputableInDegree ofBits encBits encNat 1 1 :=
-    ComputableInO.bitsToNat.computableInDegree DegreeBounded.self DegreeBounded.self le_rfl
-  have hindex : ComputableInDegree (fun x : Input × List Bool => ofBits x.2)
-      encChallenge encNat 1 1 :=
-    (hnat.comp (ComputableInDegree.snd encInput encBits)).mono
-  have hread := (hB.comp (hword.inO_one.prod hindex.inO_one)).optionGetD 0
-  have h := finish_deg.inO_one.comp_linear ((hS.inO.comp data_deg.inO_one).prod hread)
-  have hdataSize : PolyBounded challengeSize (fun x : Input × List Bool =>
-      (encData (data x)).length) := PolyBounded.self.mono (fun x => by
-    simp only [challengeSize, data]; omega)
-  have hindexSize : PolyBounded challengeSize (fun x : Input × List Bool => (ofBits x.2).size) := by
-    simpa only [encNat_apply, ← Nat.size_eq_bits_len, Function.comp_apply, data] using
-      (bitsToNat.comp (snd encContext encBits)).polyBounded_length.comp (g := data) hdataSize
-  have hwordSize : PolyBounded challengeSize (fun x : Input × List Bool =>
-      (encList encNat x.1.exponents).length.size) := PolyBounded.self.mono (fun x => by
-    simp only [challengeSize]; omega)
-  let minor (x : Input × List Bool) := 6 * challengeSize x + 3 +
-    (challengeSize x + 1) ^ dS +
-    ((encList encNat x.1.exponents).length.size + (ofBits x.2).size + 1) ^ dB
-  have hminor : PolyBounded challengeSize minor :=
-    ((((PolyBounded.const 6).mul PolyBounded.self).add (.const 3)).add
-      ((PolyBounded.self.add (.const 1)).pow dS)).add
-        (((hwordSize.add hindexSize).add (.const 1)).pow dB)
-  obtain ⟨c, d, hb⟩ := hminor.exists_le_linear_add_pow
-    (fun x => (encList encNat x.1.exponents).length) 7 (fun x => by simp [challengeSize])
-  refine ⟨d, (h.of_enc_eq fun x => ?_).mono c (fun x => ?_) (fun x => ?_)⟩
-  · by_cases hk : ofBits x.2 < x.1.context.modes <;>
-      cases ht : modeTargets x.1.context.i x.1.context.e₁ x.1.context.e₂
-        (ofBits x.2 / x.1.context.nb) <;>
-      simp [Function.comp_apply, finish, summary, data, check,
-        List.getD_eq_getElem?_getD, hk, ht]
-  all_goals
-    refine le_trans ?_ (hb x)
-    have hlen := length_encChallenge x
-    have hp := Nat.pow_le_pow_left
-      (show (encData (data x)).length + 1 ≤ challengeSize x + 1 by
-        simp only [challengeSize, data]; omega) dS
-    dsimp only [Function.comp_apply, minor] at *
-    omega
+  obtain ⟨d, h⟩ := ComputableInO.exists_listGetD_short (short := challengeSize) 0
+    data_deg hword (bitsToNat.comp (snd encContext encBits)) summary_polyTime finish_deg 2
+    (fun x => by simp [challengeSize])
+    (fun x => by have := length_encChallenge x; omega)
+    (fun x => by simp only [challengeSize, data]; omega)
+    (fun x => by simp only [challengeSize]; omega)
+  refine ⟨d, h.of_enc_eq fun x => ?_⟩
+  by_cases hk : ofBits x.2 < x.1.context.modes <;>
+    cases ht : modeTargets x.1.context.i x.1.context.e₁ x.1.context.e₂
+      (ofBits x.2 / x.1.context.nb) <;>
+    simp [finish, summary, data, check, hk, ht]
 
 /-- Prepare the universal mode flags while copying the dense exponent encoding only linearly. -/
 theorem exists_flags_inO : ∃ d, ComputableInO (fun a : Input => (a, flags a.context))
     encInput (encPair encInput encBits)
     (fun a => (encList encNat a.exponents).length + shortSize a ^ d)
     (fun a => (encList encNat a.exponents).length + shortSize a ^ d) := by
-  obtain ⟨dF, eF, hF⟩ := flags_polyTime.exists_degree
-  have hid : ComputableInDegree (fun a : Input => a) encInput encInput 1 1 := .id'
-  have h := hid.inO_one.prod (hF.inO.comp encInput_context_deg.inO_one)
-  have hs : PolyBounded shortSize (fun a : Input => 4 * shortSize a + shortSize a ^ dF + 2) :=
-    (((PolyBounded.const 4).mul PolyBounded.self).add (PolyBounded.self.pow dF)).add (.const 2)
-  obtain ⟨c, d, hb⟩ := hs.exists_le_linear_add_pow
-    (fun a => (encList encNat a.exponents).length) 2 (fun a => by simp [shortSize])
-  refine ⟨d, h.mono c (fun a => ?_) (fun a => ?_)⟩ <;>
-    refine le_trans ?_ (hb a) <;>
-    have hp := Nat.pow_le_pow_left
-      (show (encContext a.context).length + 1 ≤ shortSize a by
-        simp only [shortSize]; omega) dF <;>
-    simp only [encInput_apply, encInputFields, length_encPair,
-      Function.comp_apply, shortSize] at * <;> omega
+  apply ComputableInO.exists_pair_short encInput_context_deg flags_polyTime 2
+  · intro a
+    simp [shortSize]
+  · intro a
+    simp only [encInput_apply, encInputFields, length_encPair, shortSize]
+    omega
+  · intro a
+    simp only [shortSize]
+    omega
 
 end Turing.MultiTapeTM.PacketChoice

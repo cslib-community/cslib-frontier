@@ -64,4 +64,13 @@ theorem plays_constant (P : Prop) (pre flags : List Bool) : plays (fun _ => P) p
   | nil => rfl
   | cons b bs ih => cases b <;> simp [plays, ih]
 
+/-- Complement a finite quantified game by switching every owner and its terminal verdict.
+The stored prefix is unchanged, including when the flag word is empty. -/
+theorem plays_not (V : List Bool → Prop) (pre flags : List Bool) :
+    plays (fun xs => ¬ V xs) pre (flags.map Bool.not) ↔ ¬ plays V pre flags := by
+  classical
+  induction flags generalizing pre with
+  | nil => rfl
+  | cons b bs ih => cases b <;> simp [plays, ih, -not_and, not_and_or]
+
 end Turing.MultiTapeATM.QuantifiedWord

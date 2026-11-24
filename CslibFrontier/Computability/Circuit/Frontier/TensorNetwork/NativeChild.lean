@@ -118,6 +118,18 @@ variable {T : Type}
 
 /-! ### The native child -/
 
+/-- The packet count in the native packing format. -/
+@[expose] def packingNumPackets
+    (packing : (List (List ℕ) × List (List ℕ)) × ℕ × List (ℕ × ℕ)) : ℕ :=
+  let (_, numPackets, _) := packing
+  numPackets
+
+/-- The ordered parent-edge packet and slot pairs in the native packing format. -/
+@[expose] def packingPacketSlots
+    (packing : (List (List ℕ) × List (List ℕ)) × ℕ × List (ℕ × ℕ)) : List (ℕ × ℕ) :=
+  let (_, _, packetSlots) := packing
+  packetSlots
+
 /-- **The groups of the vertices** in coordinate `i`: digit `i` of the row word of a row
 (`v < r`), and of the column word of a column. -/
 @[expose] def groupsOf (r i k : ℕ) (words : List (List ℕ) × List (List ℕ)) : List ℕ :=
@@ -865,6 +877,48 @@ theorem isRowsFirstBipartite_ofFn_iff {T T' : Type} {k l r : ℕ} (F : Fin k →
     exact forall_congr' fun x => forall_congr' fun i => imp_congr_left (h x).mem_iff
   simp only [DescribedNetwork.IsRowsFirstBipartite, List.map_take, List.map_drop, hc, hm]
 
+include hD in
+/-- A native child built from any represented group, packet and slot functions is
+rows-first, with precisely the retained parent vertices as rows. -/
+theorem isRowsFirstBipartite_nativeChild_of_packing {P : ℕ}
+    (group : Fin D.vertices.length → Fin 64) (packet : Fin D.numEdges → Fin P)
+    (slot : Fin D.numEdges → ℕ) (g : Fin 64) (fl : List ℕ) (a i pt : ℕ)
+    (t : ℤ) (ζ β : List ℕ)
+    (pk : (List (List ℕ) × List (List ℕ)) × ℕ × List (ℕ × ℕ))
+    (hgroups : groupsOf r i D.vertices.length pk.1 = List.ofFn fun v => (group v : ℕ))
+    (hpk1 : packingNumPackets pk = P)
+    (hpk2 : packingPacketSlots pk = List.ofFn fun e => ((packet e : ℕ), slot e)) :
+    (nativeChild fl a i pt t ζ r D pk β g).IsRowsFirstBipartite
+      (childRows r i D pk g) := by
+  rw [childRows, hgroups, count_ofFn_group,
+    nativeChild_eq hD group packet slot g fl a i pt t ζ β pk hgroups hpk1 hpk2]
+  let N : TensorNetwork ℕ Bool (ChildVertex group g P)
+      (ChildEdge (D.srcFin hD) (D.tgtFin hD) group g) :=
+    { src := childSrc (D.srcFin hD) (D.tgtFin hD) group g
+      tgt := childTgt (D.srcFin hD) (D.tgtFin hD) group packet g
+      tensor := fun _ _ => 0
+      tensor_congr := fun _ _ _ _ => rfl }
+  have hside : ∀ e, ((childVertexEquiv (P := P) group g (N.src e) : Fin _) : ℕ) <
+      (members fun v => group v = g).length ↔
+      ¬ ((childVertexEquiv (P := P) group g (N.tgt e) : Fin _) : ℕ) <
+        (members fun v => group v = g).length := by
+    rintro (e | e) <;> simp only [N, childSrc, childTgt, childVertexEquiv, Sum.elim_inl,
+      Sum.elim_inr, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl, Equiv.refl_apply,
+      finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd, Fin.val_natAdd,
+      rankEquiv_apply_val, Sum.map_inr] <;>
+      exact ⟨fun _ => by omega, fun _ => rank_lt _ _ e.2⟩
+  have hexp := TensorNetwork.isRowsFirstBipartite_toExplicit N
+    (childVertexEquiv (P := P) group g)
+    (childEdgeEquiv (D.srcFin hD) (D.tgtFin hD) group g) _ hside
+  refine (isRowsFirstBipartite_ofFn_iff _ _ fun c => ?_).mpr hexp
+  set v := (childVertexEquiv (P := P) group g).symm c
+  refine (List.perm_ext_iff_of_nodup ((nodup_numberedPorts hD group packet g v).map
+    (Fin.val_injective.comp (Equiv.injective _)))
+    ((N.nodup_explicitPorts _ v).map Fin.val_injective)).mpr fun n => ?_
+  simp only [List.mem_map, TensorNetwork.mem_explicitPorts, mem_numberedPorts]
+  exact ⟨by rintro ⟨e, he, rfl⟩; exact ⟨_, by simpa [N] using he, rfl⟩,
+    by rintro ⟨j, hj, rfl⟩; exact ⟨_, by simpa [N] using hj, by simp⟩⟩
+
 section Rows
 
 variable {a i : ℕ} (hK : 64 ^ a ≤ D.numEdges) (hia : i < a)
@@ -874,47 +928,14 @@ include hD hK hia in
 theorem isRowsFirstBipartite_nativeChild (pt : ℕ) (t : ℤ) (ζ β : List ℕ) (g : Fin 64) :
     (nativeChild fl a i pt t ζ r D (nativeParentPacking r a D) β g).IsRowsFirstBipartite
       (childRows r i D (nativeParentPacking r a D) g) := by
-  have hgroups := groupsOf_eq hD hK hia
   have hpk1 : (nativeParentPacking r a D).2.1 = (parentPacking hD a).numPackets := by
     rw [nativeParentPacking_eq hD hK]
   have hpk2 : (nativeParentPacking r a D).2.2 = List.ofFn fun e =>
       (((parentPacking hD a).packet e : ℕ), ((parentPacking hD a).slot e : ℕ)) := by
     rw [nativeParentPacking_eq hD hK]
-  rw [childRows, hgroups, count_ofFn_group,
-    nativeChild_eq hD _ (parentPacking hD a).packet (fun e => ((parentPacking hD a).slot e : ℕ)) g
-      fl a i pt t ζ β _ hgroups hpk1 hpk2]
-  -- The incidence of the numbered child, with zero tensors.
-  let N : TensorNetwork ℕ Bool
-      (ChildVertex (packingGroup (parentSide r) (parentPacking hD a) ⟨i, hia⟩) g
-        (parentPacking hD a).numPackets)
-      (ChildEdge (D.srcFin hD) (D.tgtFin hD)
-        (packingGroup (parentSide r) (parentPacking hD a) ⟨i, hia⟩) g) :=
-    { src := childSrc (D.srcFin hD) (D.tgtFin hD) _ g
-      tgt := childTgt (D.srcFin hD) (D.tgtFin hD) _ (parentPacking hD a).packet g
-      tensor := fun _ _ => 0
-      tensor_congr := fun _ _ _ _ => rfl }
-  have hside : ∀ e, ((childVertexEquiv (P := (parentPacking hD a).numPackets) _ g (N.src e) :
-      Fin _) : ℕ) < (members fun v =>
-        packingGroup (parentSide r) (parentPacking hD a) ⟨i, hia⟩ v = g).length ↔
-      ¬ ((childVertexEquiv (P := (parentPacking hD a).numPackets) _ g (N.tgt e) : Fin _) : ℕ) <
-        (members fun v =>
-          packingGroup (parentSide r) (parentPacking hD a) ⟨i, hia⟩ v = g).length := by
-    rintro (e | e) <;> simp only [N, childSrc, childTgt, childVertexEquiv, Sum.elim_inl,
-      Sum.elim_inr, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl, Equiv.refl_apply,
-      finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd, Fin.val_natAdd,
-      rankEquiv_apply_val, Sum.map_inr] <;>
-      exact ⟨fun _ => by omega, fun _ => rank_lt _ _ e.2⟩
-  have hexp := TensorNetwork.isRowsFirstBipartite_toExplicit N
-    (childVertexEquiv (P := (parentPacking hD a).numPackets) _ g)
-    (childEdgeEquiv (D.srcFin hD) (D.tgtFin hD) _ g) _ hside
-  refine (isRowsFirstBipartite_ofFn_iff _ _ fun c => ?_).mpr hexp
-  set v := (childVertexEquiv (P := (parentPacking hD a).numPackets) _ g).symm c
-  refine (List.perm_ext_iff_of_nodup ((nodup_numberedPorts hD _ _ g v).map
-    (Fin.val_injective.comp (Equiv.injective _)))
-    ((N.nodup_explicitPorts _ v).map Fin.val_injective)).mpr fun n => ?_
-  simp only [List.mem_map, TensorNetwork.mem_explicitPorts, mem_numberedPorts]
-  exact ⟨by rintro ⟨e, he, rfl⟩; exact ⟨_, by simpa [N] using he, rfl⟩,
-    by rintro ⟨j, hj, rfl⟩; exact ⟨_, by simpa [N] using hj, by simp⟩⟩
+  exact isRowsFirstBipartite_nativeChild_of_packing hD _ (parentPacking hD a).packet
+    (fun e => ((parentPacking hD a).slot e : ℕ)) g fl a i pt t ζ β _
+    (groupsOf_eq hD hK hia) hpk1 hpk2
 
 end Rows
 
