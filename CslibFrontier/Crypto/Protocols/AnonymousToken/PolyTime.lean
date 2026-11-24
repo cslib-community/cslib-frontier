@@ -26,10 +26,13 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible
+import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
@@ -789,5 +792,239 @@ theorem eval_bindingReductionWord_eq {Message : Type} {encM : Message ↪ List B
       ProbComp.eval (bindingReduction (S.toScheme n) (target n ck)
         (WordExtractedForgerOf.toTyped D (A.atKey ck) n)) := by
   simp only [bindingReductionWord, bindingReduction, ProbComp.eval_map, eval_runExtractedWord_eq]
+
+/-- Keyed word-level target function applying a collision-resistant hash `H` under key `ck` to
+the framed payload `encWordPayload ⟨msg, opening⟩`. -/
+def wordPayloadTarget (H : List Bool → List Bool → List Bool)
+    (_ : ℕ) (ck msg opening : List Bool) : List Bool :=
+  H ck (encWordPayload ⟨msg, opening⟩)
+
+private theorem computableInPolyTime_wordPayloadTarget
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits) :
+    ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool × List Bool =>
+        wordPayloadTarget H p.1 p.2.1 p.2.2.1 p.2.2.2)
+      encTargetArgs encBits := by
+  have hck : ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool × List Bool => p.2.1) encTargetArgs encBits := by
+    dsimp only [encTargetArgs, encKeyedWordPair, encWordPair]
+    fun_prop
+  have hm : ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool × List Bool => p.2.2.1) encTargetArgs encBits := by
+    dsimp only [encTargetArgs, encKeyedWordPair, encWordPair]
+    fun_prop
+  have ho : ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool × List Bool => p.2.2.2) encTargetArgs encBits := by
+    dsimp only [encTargetArgs, encKeyedWordPair, encWordPair]
+    fun_prop
+  have hpay : ComputableInPolyTime
+      (fun p : ℕ × List Bool × List Bool × List Bool => encWordPayload ⟨p.2.2.1, p.2.2.2⟩)
+      encTargetArgs encBits :=
+    (ComputableInPolyTime.of_eq (f := encWordPayload) (encOut := encBits) fun _ => rfl).comp
+      (encPayloadOf_mk_polyTime encBits hm ho)
+  exact hH.comp (hck.prod hpay)
+
+/-- Key-sampling EUF-CMA wrapper around `targetForgerWord` for `wordPayloadTarget H`. -/
+noncomputable def sampledTargetForger (sigBound : ℕ → ℕ → ℕ)
+    (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedForgerOf (List Bool)) : Forger :=
+  fun n pk => do
+    let ck ← ProbOracleComp.sample (BitString.sampleList n)
+    targetForgerWord sigBound (wordPayloadTarget H) A n (pk, ck)
+
+/-- `sampledTargetForger` is uniform strict oracle PPT whenever `sigBound`, `H`, and `A` are
+efficient. -/
+theorem isOraclePPT_sampledTargetForger {sigBound : ℕ → ℕ → ℕ}
+    (hsigBound : ComputableInPolyTime (fun p : ℕ × ℕ => sigBound p.1 p.2) encNatPair encUnary)
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    {A : WordExtractedForgerOf (List Bool)} (hA : IsOraclePPT encWordToken A) :
+    IsOraclePPT (encPair encBits encBits) (sampledTargetForger sigBound H A) := by
+  have hsamp : IsOraclePPTOn (encPair encUnary encBits) encBits
+      (fun p : ℕ × List Bool => ProbOracleComp.sample (BitString.sampleList p.1)) :=
+    (isPPTOn_sampleList.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn
+      (Operation := Unit)
+  have htf : IsOraclePPTOn encPublicInput encWordPair
+      (fun p => targetForgerWord sigBound (wordPayloadTarget H) A p.1 p.2) :=
+    isOraclePPTOn_targetForgerWord hsigBound (computableInPolyTime_wordPayloadTarget hH) hA
+  have hprep : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) × List Bool => (q.1.1, (q.1.2, q.2)))
+      (encPair (encPair encUnary encBits) encBits) encPublicInput := by
+    dsimp only [encPublicInput, encWordPair]
+    fun_prop
+  exact (hsamp.bind_with (htf.preprocess hprep)).isOraclePPT
+
+private theorem eval_eufCmaGame_sampledTargetForger_eq (S : WordSignatureScheme)
+    (sigBound : ℕ → ℕ → ℕ) (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedForgerOf (List Bool)) (n : ℕ) :
+    ProbComp.eval (S.eufCmaGame (sampledTargetForger sigBound H A) n) =
+      (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+        ProbComp.eval (S.eufCmaGame
+          (fun m spk => targetForgerWord sigBound (wordPayloadTarget H) A m (spk, ck)) n) := by
+  simp only [WordSignatureScheme.eufCmaGame, sampledTargetForger,
+    ProbComp.eval_bind, ProbComp.eval_pure]
+  have h1 : ∀ pk sk : List Bool,
+      ((ProbComp.eval ((OracleComp.interpret
+          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+            (S.signingOracle sk))
+          (ProbOracleComp.sample (BitString.sampleList n) >>= fun ck =>
+            targetForgerWord sigBound (wordPayloadTarget H) A n (pk, ck))).run [])).bind
+          fun out => PMF.pure (!out.2.contains out.1.1 && S.verify pk out.1.1 out.1.2)) =
+      (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+        ((ProbComp.eval ((OracleComp.interpret
+            (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+              (S.signingOracle sk))
+            (targetForgerWord sigBound (wordPayloadTarget H) A n (pk, ck))).run [])).bind
+          fun out => PMF.pure (!out.2.contains out.1.1 && S.verify pk out.1.1 out.1.2)) := by
+    intro pk sk
+    rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_sample_bind,
+      PMF.bind_bind]
+    refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ck _ => ?_
+    rw [ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [h1]
+  exact PMF.bind_comm _ _ _
+
+/-- Collision finder extracted from `bindingReductionWord` by mapping `some w` to its two distinct
+encoded payloads `(encWordPayload w.first, encWordPayload w.second)`. -/
+def targetCollisionFinder (S : WordSignatureScheme)
+    (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedForgerOf (List Bool)) : CollisionFinder :=
+  fun n ck =>
+    (fun witness =>
+      witness.elim ([], []) fun w => (encWordPayload w.first, encWordPayload w.second)) <$>
+        bindingReductionWord S (wordPayloadTarget H) Decoder.bits A n ck
+
+/-- `targetCollisionFinder` is uniform strict PPT whenever `H` and `A` are efficient. -/
+@[program_certificate]
+theorem isPPT_targetCollisionFinder (S : WordSignatureScheme)
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    {A : WordExtractedForgerOf (List Bool)} (hA : IsOraclePPT encWordToken A) :
+    IsPPT (encPair encBits encBits) (targetCollisionFinder S H A) := by
+  have hbr := isPPTOn_bindingReductionWord S (computableInPolyTime_wordPayloadTarget hH)
+    Decoder.bits hA
+  have hbody : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × Option (BindingWitness (List Bool) (List Bool))) ×
+          BindingWitness (List Bool) (List Bool) =>
+        (encWordPayload q.2.first, encWordPayload q.2.second))
+      (encPair (encPair encParamInput encOptionWordBindingWitness) encWordBindingWitness)
+      (encPair encBits encBits) := by
+    have hw : ComputableInPolyTime
+        (fun q : ((ℕ × List Bool) × Option (BindingWitness (List Bool) (List Bool))) ×
+            BindingWitness (List Bool) (List Bool) => q.2)
+        (encPair (encPair encParamInput encOptionWordBindingWitness) encWordBindingWitness)
+        encWordBindingWitness := ComputableInPolyTime.snd _ _
+    have henc : ComputableInPolyTime (fun p => encWordPayload p) encWordPayload encBits :=
+      ComputableInPolyTime.of_eq (f := encWordPayload) (encOut := encBits) fun _ => rfl
+    exact (henc.comp (encBindingWitnessOf_first_polyTime encBits hw)).prod
+      (henc.comp (encBindingWitnessOf_second_polyTime encBits hw))
+  have hpost : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) × Option (BindingWitness (List Bool) (List Bool)) =>
+        q.2.elim ([], []) fun w => (encWordPayload w.first, encWordPayload w.second))
+      (encPair encParamInput encOptionWordBindingWitness) (encPair encBits encBits) :=
+    ComputableInPolyTime.optionElimWithInput
+      (ComputableInPolyTime.snd encParamInput encOptionWordBindingWitness)
+      (ComputableInPolyTime.const ([], [])) hbody
+  exact (hbr.map_with hpost).isPPT
+
+private theorem bindingExperiment_le_collision (S : WordSignatureScheme)
+    (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedForgerOf (List Bool)) (n : ℕ) (ck : List Bool) :
+    (ProbComp.eval (bindingExperiment (S.toScheme n) (wordPayloadTarget H n ck)
+      (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n))) true ≤
+      (ProbComp.eval (do
+        let pair ← targetCollisionFinder S H A n ck
+        return isCollision H (fun _ _ => true) n ck pair.1 pair.2)) true := by
+  simp only [bindingExperiment, targetCollisionFinder, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure, eval_bindingReductionWord_eq, PMF.bind_map, Function.comp_def]
+  refine Cslib.Probability.PMF.map_true_mono _ fun w _ hw => ?_
+  rcases w with _ | w
+  · simp at hw
+  · simp only [Option.any_some, checkBindingWitness, decide_eq_true_eq] at hw
+    simp only [Option.elim_some, isCollision_eq_true_iff, ne_eq, true_and]
+    refine ⟨fun heq => hw.1 ?_, hw.2⟩
+    have hinj := encWordPayload.injective heq
+    exact congrArg Payload.message hinj
+
+/-- Word-level extracted anonymous-token game: sample `ck ← BitString.sampleList n`, run
+`runExtractedWord` with `wordPayloadTarget H`, and accept when `extractedAccept` holds. -/
+noncomputable def extractedTokenWordGame (S : WordSignatureScheme)
+    (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedForgerOf (List Bool)) (n : ℕ) : ProbComp Bool := do
+  let ck ← BitString.sampleList n
+  let run ← runExtractedWord S (wordPayloadTarget H) Decoder.bits A n ck
+  return extractedAccept (S.toScheme n) (wordPayloadTarget H n ck) run
+
+/-- Word-level unforgeability of extracted anonymous tokens: assuming only `S.EUFCMA`,
+`CollisionResistant H`, and efficient `H` and `A` (with the signature length bound obtained
+internally from `S.toSignatureScheme.exists_sign_length_bound`), any oracle-PPT adversary has
+negligible winning probability in `extractedTokenWordGame`. -/
+theorem negligible_extractedTokenWordGame (S : WordSignatureScheme) (hS : S.EUFCMA)
+    (H : List Bool → List Bool → List Bool)
+    (hHPoly : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hH : CollisionResistant H)
+    (A : WordExtractedForgerOf (List Bool)) (hA : IsOraclePPT encWordToken A) :
+    Negligible
+      (fun n => Game.succProbability (ProbComp.eval (extractedTokenWordGame S H A n))) := by
+  obtain ⟨sigBound, hsigPoly, hsigBound⟩ := S.toSignatureScheme.exists_sign_length_bound
+  simp only [WordSignatureScheme.toSignatureScheme_keyGen,
+    WordSignatureScheme.toSignatureScheme_sign] at hsigBound
+  have hforgeNeg := hS.negligible (sampledTargetForger sigBound H A)
+    (isOraclePPT_sampledTargetForger hsigPoly hHPoly hA)
+  have hcollNeg := hH.negligible (targetCollisionFinder S H A)
+    (isPPT_targetCollisionFinder S hHPoly hA)
+  refine negligible_of_le (hforgeNeg.add_fun hcollNeg) fun n => ?_
+  have hpt : ∀ ck : List Bool,
+      (ProbComp.eval (extractedExperiment (S.toScheme n) (wordPayloadTarget H n ck)
+        (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n))) true ≤
+      (ProbComp.eval (S.eufCmaGame
+        (fun m spk => targetForgerWord sigBound (wordPayloadTarget H) A m (spk, ck)) n)) true +
+      (ProbComp.eval (do
+        let pair ← targetCollisionFinder S H A n ck
+        return isCollision H (fun _ _ => true) n ck pair.1 pair.2)) true := by
+    intro ck
+    have hle := extracted_succProbability_le (S.toScheme n) (wordPayloadTarget H n ck)
+      (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n)
+    have hle_enn := ENNReal.coe_le_coe.mpr hle
+    simp only [Experiment.succProbability, Game.succProbability, ENNReal.coe_add,
+      ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at hle_enn
+    rw [← eval_eufCmaGame_targetForgerWord_eq S (wordPayloadTarget H) sigBound
+      (fun m pk sk hkeys msg sig hsig => hsigBound m (pk, sk) hkeys msg sig hsig) A n ck]
+      at hle_enn
+    exact hle_enn.trans (add_le_add le_rfl (bindingExperiment_le_collision S H A n ck))
+  have hbind : (ProbComp.eval (extractedTokenWordGame S H A n)) true ≤
+      (ProbComp.eval (S.eufCmaGame (sampledTargetForger sigBound H A) n)) true +
+      (ProbComp.eval (collisionGame H (fun _ _ => true) (targetCollisionFinder S H A) n)) true := by
+    have hext : ProbComp.eval (extractedTokenWordGame S H A n) =
+        (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+          ProbComp.eval (extractedExperiment (S.toScheme n) (wordPayloadTarget H n ck)
+            (WordExtractedForgerOf.toTyped Decoder.bits (A.atKey ck) n)) := by
+      simp only [extractedTokenWordGame, extractedExperiment, ProbComp.eval_bind,
+        ProbComp.eval_map, ProbComp.eval_pure]
+      refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ck _ => ?_
+      rw [eval_runExtractedWord_eq]
+      exact PMF.bind_pure_comp _ _
+    have hcoll : ProbComp.eval (collisionGame H (fun _ _ => true)
+          (targetCollisionFinder S H A) n) =
+        (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+          ProbComp.eval (do
+            let pair ← targetCollisionFinder S H A n ck
+            return isCollision H (fun _ _ => true) n ck pair.1 pair.2) := by
+      simp only [collisionGame, ProbComp.eval_bind, ProbComp.eval_pure]
+    rw [hext, eval_eufCmaGame_sampledTargetForger_eq, hcoll]
+    exact Cslib.Probability.PMF.bind_apply_le_add_on_support _ true fun ck _ => hpt ck
+  have hsucc : (ProbComp.eval (extractedTokenWordGame S H A n) true).toNNReal ≤
+      ((ProbComp.eval (S.eufCmaGame (sampledTargetForger sigBound H A) n) true) +
+        (ProbComp.eval (collisionGame H (fun _ _ => true)
+          (targetCollisionFinder S H A) n) true)).toNNReal :=
+    ENNReal.toNNReal_mono (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
+      hbind
+  simpa only [Game.succProbability, ENNReal.toNNReal_add (PMF.apply_ne_top _ _)
+    (PMF.apply_ne_top _ _)] using hsucc
 
 end Cslib.Crypto.AnonymousToken
