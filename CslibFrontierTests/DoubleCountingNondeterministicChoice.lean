@@ -36,7 +36,7 @@ example (input : List Bool) (v : Fin 3) :
   obtain ⟨R⟩ := Turing.DoubleCounting.NondeterministicChoice.exists_routines encBits (fun _ => 3)
     budget (fun _ => Nat.add_le_add_left (by decide : 1 ≤ 3) _)
     (fun input => Nat.le_add_left 3 (Nat.log2 input.length))
-    ((ComputableInSpace.constZero (machine 3).init).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const (machine 3).init)
   exact ⟨R, R.runsInSpace input,
     (native_firstHalting_accept_iff R input _).mpr (Or.inr ⟨v, rfl⟩)⟩
 

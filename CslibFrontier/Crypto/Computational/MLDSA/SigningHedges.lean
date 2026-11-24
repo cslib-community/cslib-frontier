@@ -11,10 +11,10 @@ public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Crypto.Primitives.ByteString.Uniform
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
+-- Reads private `State`, `commands`, `deviceCommand`, `runAtSetup`, and unexposed `matrixTrial`.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `Xofs.signAndLog` and unexposed `Xofs.signingOracle` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Probability.UniformEmbedding
 import CslibFrontier.Tactic.PMFSwap
@@ -157,7 +157,7 @@ private theorem uniform_fixedHedgeGame (C : QuantumSigningForger) (s : Level) (b
   unfold fixedHedgeGame scoreWithSetup scoreTranscript withTrialSetup
   pmf_swap with H
   pmf_swap with seed
-  dsimp only [eval, readSetup]
+  dsimp only [eval]
   cases hg : H.keyGen s seed with
   | none => simp [runAtSetup]
   | some keys =>

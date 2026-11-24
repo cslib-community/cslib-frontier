@@ -68,8 +68,8 @@ def State.toTuple (q : State) : Tuple :=
 
 /-- The state of a tuple. -/
 def State.ofTuple (x : Tuple) : State :=
-  ⟨x.1.1, x.1.2, x.2.1.1.1, x.2.1.1.2.1, x.2.1.1.2.2, x.2.1.2.1, x.2.1.2.2, x.2.2.1.1, x.2.2.1.2.1,
-    x.2.2.1.2.2, ⟨x.2.2.2.1, x.2.2.2.2.1, x.2.2.2.2.2⟩⟩
+  let ⟨⟨ctl, cnt⟩, ⟨⟨n, s, t⟩, ⟨depth, len⟩⟩, ⟨⟨c, w, j⟩, ⟨vertex, lower, frames⟩⟩⟩ := x
+  ⟨ctl, cnt, n, s, t, depth, len, c, w, j, ⟨vertex, lower, frames⟩⟩
 
 @[simp]
 theorem State.ofTuple_toTuple (q : State) : State.ofTuple q.toTuple = q :=

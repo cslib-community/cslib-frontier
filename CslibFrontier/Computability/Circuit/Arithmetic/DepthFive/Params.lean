@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 public import Mathlib.Data.Nat.Choose.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Parameters of the depth-five rank measure
@@ -174,10 +175,9 @@ theorem Good.α_pos (hp : p.Good) : 0 < p.α := by
   exact div_pos ‹_› (by positivity)
 
 theorem Good.α_lt_one (hp : p.Good) : p.α < 1 := by
-  have ha : (0 : ℝ) < p.a := by exact_mod_cast hp.a_pos
   have hv : (0 : ℝ) < p.v := by exact_mod_cast hp.v_pos
   rw [α, div_lt_one (by positivity)]
-  linarith
+  cast_linarith [hp.a_pos]
 
 theorem Good.β_pos (hp : p.Good) : 0 < p.β := by
   have : (0 : ℝ) < p.b := by exact_mod_cast hp.b_pos
