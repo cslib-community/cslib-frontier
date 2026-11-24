@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -117,5 +118,29 @@ example : (quotientTraceValue 11 1 2 2 1
     ring
   rw [hprod]
   exact (relationIdeal 2 lower).mul_mem_left (C 2) (Ideal.subset_span ⟨0, rfl⟩)
+
+-- The relation and numerator carry different parameters, and the numerator needs reduction.
+example :
+    let r : Fin 1 → MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) := fun _ => C (X 0)
+    let v : MvPolynomial (Fin 1) (MvPolynomial (Fin 2) ℤ) := X 0 ^ 3 * C (X 1)
+    (residue 2 r v).coeffNorm1 ≤ 4 := by
+  intro r v
+  let e := sumRingEquiv ℤ (Fin 1) (Fin 2)
+  have hr (i : Fin 1) : (r i).totalDegree < 2 := by simp [r]
+  have hR (i : Fin 1) : (e.symm (r i)).coeffNorm1 ≤ 1 := by
+    simp only [e, r, sumRingEquiv_symm_C_X, coeffNorm1_X, le_refl]
+  have hdeg : v.totalDegree ≤ 3 := by
+    refine (totalDegree_mul _ _).trans ?_
+    rw [totalDegree_C, add_zero, totalDegree_X_pow]
+  have hv : (e.symm v).coeffNorm1 ≤ 1 := by
+    simp only [e, v, map_mul, map_pow, sumRingEquiv_symm_X, sumRingEquiv_symm_C_X]
+    refine (coeffNorm1_mul_le _ _).trans ?_
+    rw [coeffNorm1_X, mul_one]
+    simpa only [coeffNorm1_X, one_pow] using
+      coeffNorm1_pow_le (X (.inl (0 : Fin 1)) : MvPolynomial (Fin 1 ⊕ Fin 2) ℤ) 3
+  refine (coeffNorm1_residue_multivariate_le (B := 3) (R := 1)
+    (by decide : 1 ≤ 2) (by decide) r hr hR v hdeg).trans ?_
+  simp only [Nat.reduceAdd, pow_one, one_pow, mul_one]
+  exact Nat.mul_le_mul_left 4 hv
 
 end CslibFrontierTests.RealAlgebraicResidues
