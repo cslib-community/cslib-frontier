@@ -16,6 +16,7 @@ For a finite indexed arrangement of nonhorizontal segments, even incidence at ev
 endpoint cancels the endpoint-height jumps of horizontal-ray parity. Consequently parity
 is constant on a neighborhood of every point off the selected support, including points
 at endpoint heights. Repeated occurrences and both endpoints of each segment are counted.
+The same finite cancellation holds for any Boolean weight on endpoint coordinates.
 The weaker criterion needs only zero total endpoint jump on the observation ray; global
 even incidence supplies this premise. Segment-interior transport uses the same criterion
 after removing its observed segment.
@@ -29,17 +30,15 @@ public section
 namespace Cslib.Polygonal
 
 open Classical in
-/-- The sum of the endpoint-height jumps vanishes for an even finite arrangement.
-All actual occurrences are retained, including coincident endpoints. -/
-theorem sum_rayParity_endpoint_jumps_eq_zero {ι : Type*} [Fintype ι]
+/-- A Boolean observation summed over all selected ends of an even arrangement cancels.
+Endpoints at the same coordinate are combined with their full occurrence multiplicity. -/
+theorem sum_endpointWeights_eq_zero {ι : Type*} [Fintype ι]
     (a b : ι → ℂ) (x : ι → Bool)
     (heven : ∀ p : ℂ, (∑ i, ((if a i = p then x i else 0) +
-      (if b i = p then x i else 0))) = false) (z : ℂ) :
-    (∑ i, x i * (decide ((a i).im = z.im ∧ z.re < (a i).re) +
-      decide ((b i).im = z.im ∧ z.re < (b i).re))) = 0 := by
+      (if b i = p then x i else 0))) = false) (f : ℂ → Bool) :
+    (∑ i, x i * (f (a i) + f (b i))) = 0 := by
   classical
   let endpoint (p : ι × Bool) : ℂ := if p.2 then b p.1 else a p.1
-  let f (p : ℂ) : Bool := decide (p.im = z.im ∧ z.re < p.re)
   have hfiber (p : ℂ) :
       (∑ i : ι × Bool, if endpoint i = p then x i.1 else 0) = 0 := by
     simpa only [Fintype.sum_prod_type, Fintype.sum_bool, endpoint,
@@ -57,7 +56,18 @@ theorem sum_rayParity_endpoint_jumps_eq_zero {ι : Type*} [Fintype ι]
       split_ifs with h <;> simp [h]
     simp only [hterm, ← Finset.sum_mul, hfiber, zero_mul]
   simpa only [Fintype.sum_prod_type, Fintype.sum_bool, endpoint,
-    Bool.false_eq_true, ↓reduceIte, ← mul_add, f, add_comm] using hsum
+    Bool.false_eq_true, ↓reduceIte, ← mul_add, add_comm] using hsum
+
+open Classical in
+/-- The sum of the endpoint-height jumps vanishes for an even finite arrangement.
+All actual occurrences are retained, including coincident endpoints. -/
+theorem sum_rayParity_endpoint_jumps_eq_zero {ι : Type*} [Fintype ι]
+    (a b : ι → ℂ) (x : ι → Bool)
+    (heven : ∀ p : ℂ, (∑ i, ((if a i = p then x i else 0) +
+      (if b i = p then x i else 0))) = false) (z : ℂ) :
+    (∑ i, x i * (decide ((a i).im = z.im ∧ z.re < (a i).re) +
+      decide ((b i).im = z.im ∧ z.re < (b i).re))) = 0 :=
+  sum_endpointWeights_eq_zero a b x heven (fun p => decide (p.im = z.im ∧ z.re < p.re))
 
 open Classical in
 /-- Local cancellation requires only zero total endpoint jump on the observation ray.

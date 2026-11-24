@@ -18,7 +18,9 @@ import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
 The count retains both occurrences of any retraced segment. It is symmetric and
 invariant under nonzero complex multiplication. When the listed nodes of each route
 avoid the other route, observing a closed route at the ends of a second route computes
-this parity. Two such closed routes with nondegenerate segments have even intersection parity.
+this parity. Two finite families of routes with nondegenerate segments and even endpoint
+incidence have even total intersection parity when the selected families avoid each other's
+listed points. This also covers two closed routes.
 -/
 
 public section
@@ -39,6 +41,17 @@ theorem intersectionParity_symm (p q : Route) :
   unfold intersectionParity
   rw [Finset.sum_comm]
   simp only [Set.inter_comm]
+
+open Classical in
+/-- Two straight routes have one indexed pair of segments, so their intersection parity
+is exactly the test for a common point of the two open segments. -/
+theorem intersectionParity_line_line (a b c d : ℂ) :
+    (line a b).intersectionParity (line c d) =
+      decide ((openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty) := by
+  unfold intersectionParity
+  change (∑ i : Fin 1, ∑ j : Fin 1, _) = _
+  rw [Fin.sum_univ_one, Fin.sum_univ_one]
+  rfl
 
 /-- Nonzero complex multiplication preserves incidence of the open segment pairs. -/
 theorem intersectionParity_mulComplex (p q : Route) {u : ℂ} (hu : u ≠ 0) :
@@ -79,6 +92,83 @@ private theorem mul_point_notMem_support {p q : Route}
   have hinj : Function.Injective (fun z => u * z) := fun _ _ => mul_left_cancel₀ hu
   simpa only [support_mulComplex, hinj.mem_set_image] using h i
 
+open Classical in
+private theorem even_mul_segment_endpoints {α : Type*} [Fintype α]
+    (r : α → Route) (w : α → Bool) {u : ℂ} (hu : u ≠ 0)
+    (hw : ∀ z : ℂ, (∑ i, ((if (r i).start = z then w i else 0) +
+      (if (r i).finish = z then w i else 0))) = false) (z : ℂ) :
+    (∑ k : (i : α) × Fin (r i).segments,
+      ((if u * (r k.1).point k.2.castSucc = z then w k.1 else 0) +
+        (if u * (r k.1).point k.2.succ = z then w k.1 else 0))) = false := by
+  classical
+  have hz : u * (u⁻¹ * z) = z := by rw [← mul_assoc, mul_inv_cancel₀ hu, one_mul]
+  rw [← hz, Fintype.sum_sigma]
+  calc
+    _ = ∑ i, ((if u * (r i).start = u * (u⁻¹ * z) then w i else 0) +
+        (if u * (r i).finish = u * (u⁻¹ * z) then w i else 0)) :=
+      Finset.sum_congr rfl (fun i _ => sum_segment_endpoint_incidence (r i) (w i) u _)
+    _ = false := by
+      simpa only [mul_right_inj' hu] using hw (u⁻¹ * z)
+
+open Classical in
+/-- Two finite weighted route families with nondegenerate segments have even total
+indexed intersection parity if their selected endpoints cancel and no selected route
+contains a listed point of the other selected family. The individual routes may be open. -/
+theorem sum_intersectionParity_eq_false_of_even {ι κ : Type*} [Fintype ι] [Fintype κ]
+    (p : ι → Route) (q : κ → Route) (x : ι → Bool) (y : κ → Bool)
+    (hp : ∀ i (k : Fin (p i).segments), (p i).point k.castSucc ≠ (p i).point k.succ)
+    (hq : ∀ j (k : Fin (q j).segments), (q j).point k.castSucc ≠ (q j).point k.succ)
+    (hpq : ∀ i j, x i = true → y j = true →
+      ∀ k : Fin ((p i).segments + 1), (p i).point k ∉ (q j).support)
+    (hqp : ∀ i j, x i = true → y j = true →
+      ∀ k : Fin ((q j).segments + 1), (q j).point k ∉ (p i).support)
+    (hx : ∀ z : ℂ, (∑ i, ((if (p i).start = z then x i else 0) +
+      (if (p i).finish = z then x i else 0))) = false)
+    (hy : ∀ z : ℂ, (∑ j, ((if (q j).start = z then y j else 0) +
+      (if (q j).finish = z then y j else 0))) = false) :
+    (∑ j, y j * ∑ i, x i * (p i).intersectionParity (q j)) = false := by
+  classical
+  let routes : ι ⊕ κ → Route := Sum.elim p q
+  have hne (i : ι ⊕ κ) (k : Fin (routes i).segments) :
+      (routes i).point k.castSucc ≠ (routes i).point k.succ := by
+    cases i with
+    | inl i => exact hp i k
+    | inr j => exact hq j k
+  obtain ⟨u, hu, hheight⟩ := exists_mul_im_ne_of_segments_ne routes hne
+  let a (k : (i : ι) × Fin (p i).segments) := u * (p k.1).point k.2.castSucc
+  let b (k : (i : ι) × Fin (p i).segments) := u * (p k.1).point k.2.succ
+  let c (k : (j : κ) × Fin (q j).segments) := u * (q k.1).point k.2.castSucc
+  let d (k : (j : κ) × Fin (q j).segments) := u * (q k.1).point k.2.succ
+  have h := sum_openIntersections_eq_zero_of_even a b c d
+    (fun k => x k.1) (fun k => y k.1)
+    (fun k => hheight (.inl k.1) k.2) (fun k => hheight (.inr k.1) k.2)
+    (fun i j hi hj => by
+      have pointP (k : Fin ((p i.1).segments + 1)) :
+          u * (p i.1).point k ∉ segment ℝ (c j) (d j) :=
+        fun hz => mul_point_notMem_support (hpq i.1 j.1 hi hj) hu k
+          (Set.mem_iUnion.mpr ⟨j.2, hz⟩)
+      have pointQ (k : Fin ((q j.1).segments + 1)) :
+          u * (q j.1).point k ∉ segment ℝ (a i) (b i) :=
+        fun hz => mul_point_notMem_support (hqp i.1 j.1 hi hj) hu k
+          (Set.mem_iUnion.mpr ⟨i.2, hz⟩)
+      exact ⟨pointP _, pointP _, pointQ _, pointQ _⟩)
+    (even_mul_segment_endpoints p x hu hx) (even_mul_segment_endpoints q y hu hy)
+  rw [← Bool.zero_eq_false, ← h, Fintype.sum_sigma]
+  apply Finset.sum_congr rfl
+  intro j _
+  simp only [Fintype.sum_sigma, Finset.mul_sum]
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro i _
+  rw [← intersectionParity_mulComplex (p i) (q j) hu, intersectionParity]
+  simp only [Finset.mul_sum]
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro l _
+  apply Finset.sum_congr rfl
+  intro k _
+  congr 2
+
 /-- The ray-parity difference of a closed route at the ends of a second route equals
 their indexed intersection parity. Each route's listed nodes avoid the other support,
 and the given coordinate factor makes every segment nonhorizontal. -/
@@ -115,16 +205,14 @@ theorem intersectionParity_eq_false_of_closed {p q : Route}
     (hpq : ∀ i : Fin (p.segments + 1), p.point i ∉ q.support)
     (hqp : ∀ j : Fin (q.segments + 1), q.point j ∉ p.support) :
     p.intersectionParity q = false := by
-  let routes : Bool → Route := fun b => if b then q else p
-  have hne (b : Bool) (i : Fin (routes b).segments) :
-      (routes b).point i.castSucc ≠ (routes b).point i.succ := by
-    cases b
-    · exact hpne i
-    · exact hqne i
-  obtain ⟨u, hu, hheight⟩ := exists_mul_im_ne_of_segments_ne routes hne
-  have h := rayParity_add_eq_intersectionParity_of_closed (q := q) hp hu
-    (hheight false) (hheight true) hpq hqp
-  rw [hq, BooleanRing.add_self] at h
-  exact h.symm
+  classical
+  have evenEnds (r : Route) (hr : r.finish = r.start) (z : ℂ) :
+      (∑ _ : Fin 1, ((if r.start = z then true else 0) +
+        (if r.finish = z then true else 0))) = false := by
+    simp only [Fin.sum_univ_one, hr, BooleanRing.add_self, Bool.zero_eq_false]
+  have h := sum_intersectionParity_eq_false_of_even (fun _ : Fin 1 => p) (fun _ : Fin 1 => q)
+    (fun _ => true) (fun _ => true) (fun _ => hpne) (fun _ => hqne)
+    (fun _ _ _ _ => hpq) (fun _ _ _ _ => hqp) (evenEnds p hp) (evenEnds q hq)
+  simpa only [Fin.sum_univ_one, ← Bool.one_eq_true, one_mul] using h
 
 end Cslib.Polygonal.Route

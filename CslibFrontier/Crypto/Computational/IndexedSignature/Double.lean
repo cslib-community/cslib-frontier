@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -557,9 +558,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
       (initial := fun _ => ([] : List (ℕ × List Bool)))
       (growth := fun _ w => 2 * w.length + 12)
       (by fun_prop) (isOraclePPTOn_doubleHandler S hboundPoly) (.const [])
-      (fun _ _ => True) (fun _ => trivial)
-      (PolyBounded.of_forall_le 6 1 fun ⟨_, w⟩ => by
-        simp only [length_encPair, encBits_apply, pow_one]; omega) ?_
+      (fun _ _ => True) (fun _ => trivial) (by growth_poly) ?_
     intro caller request signed _ result hresult
     have hmsg : (requestDecoder.decode request.2).2.length ≤ request.2.length :=
       length_dropFrame_le request.2
