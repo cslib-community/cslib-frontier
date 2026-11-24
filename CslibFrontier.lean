@@ -9269,6 +9269,7 @@ public import CslibFrontier.MachineLearning.PACLearning.Compression.Order
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Shattering
 public import CslibFrontier.MachineLearning.PACLearning.Compression.Thresholds
 public import CslibFrontier.MachineLearning.PACLearning.Compression.VCDimension
+public import CslibFrontier.MachineLearning.PACLearning.DSDimension
 public import CslibFrontier.MachineLearning.PACLearning.DoubleSample
 public import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
 public import CslibFrontier.MachineLearning.PACLearning.ERM
