@@ -32,7 +32,9 @@ fraction when `k = ⌊log₂ (s / ε)⌋` (`DecisionTree.dens_eval_truncate_floo
 [O'Donnell, Exercise 3.22][ODonnell2014]). Without distinct queries the bound fails, but pruning
 (`DecisionTree.prune`) turns any tree into one with no repeated query
 (`DecisionTree.queriesDistinctFrom_prune`) and no more leaves (`DecisionTree.leafCount_prune_le`)
-that computes the same function.
+that computes the same function. So for any tree `t` with `s = t.leafCount`, the bounds hold for
+`(t.prune PartialAssignment.empty).truncate k` against `t.eval`; they need not hold for
+`t.truncate k` itself, which can err on more inputs when `t` repeats a query.
 
 Giving the new leaves the value `0`, a function of a decision tree with `s` leaves and values in
 `[-1, 1]` is within squared `L²` distance `s / 2 ^ (k + 1)` of a function of degree at most `k`,
@@ -54,19 +56,24 @@ rather than `±1`, which saves a factor `4` in the squared `L²` distance.
 
 Open `Cslib.DecisionTree`. The hypothesis `QueriesDistinct t` of the truncation bounds is
 `QueriesDistinctFrom ∅ t`, a conjunction over the nodes that `simp [QueriesDistinctFrom]` decides
-for a concrete tree; for any tree, `queriesDistinctFrom_prune` gives it for `t.prune ρ`, and
-`DecisionTree.eval_prune_empty` and `leafCount_prune_le` transfer the conclusion back to `t`
-when `ρ = PartialAssignment.empty`. The Fourier bounds need no such hypothesis. A Boolean tree
-`t : DecisionTree ι Bool` enters them with `g = signVal`, as
-`fun x => signVal (t.eval x)`, and `|signVal b| ≤ 1` is `by simp`. With `s = t.leafCount`, the
-weight above degree `k` is at most `s / 2 ^ (k + 1)`
+for a concrete tree. For any tree `t`, `queriesDistinctFrom_prune` gives it for the pruned tree
+`t' = t.prune PartialAssignment.empty`. The bounds then concern `t'.truncate k`:
+`DecisionTree.eval_prune_empty` replaces `t'.eval` by the original `t.eval`, and
+`leafCount_prune_le` replaces `t'.leafCount` by the original `t.leafCount` in the upper bound, so
+`t'.truncate k` fails to output `some (t.eval x)` on at most a `t.leafCount / 2 ^ (k + 1)` fraction
+of inputs. This says nothing about `t.truncate k`: the repeated-query chain in the tests below
+has five leaves, yet its truncation at length `3` errs on half the inputs, more than `5 / 2 ^ 4`.
+The Fourier bounds need no such hypothesis. A Boolean tree `t : DecisionTree ι Bool` enters them
+with `g = signVal`, as `fun x => signVal (t.eval x)`, and `|signVal b| ≤ 1` is `by simp`. With
+`s = t.leafCount`, the weight above degree `k` is at most `s / 2 ^ (k + 1)`
 (`DecisionTree.sum_fourierCoeff_sq_le_leafCount_div`), which is the form the low-degree algorithm
 uses (`UniformLearning.lowDegreeLearner_learns_decisionTreeClass`). The checked client
 [`CslibFrontierTests/DecisionTreeTruncate.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/DecisionTreeTruncate.lean)
 works the conjunction of two bits, a tree with three leaves whose truncation at length one errs on
-exactly half the inputs and whose weight above degree one is exactly `1 / 4`, and a chain that
-repeats one query, whose long paths break the bound on long paths while its pruned tree meets the
-Fourier bound.
+exactly half the inputs and whose weight above degree one is exactly `1 / 4`; the conjunction of
+three bits at `ε = 3 / 4`, where Exercise 3.22 cuts at length `2` with error `1 / 4` and
+Proposition 3.17 counts only the degree-`3` weight `1 / 16`; and a chain that repeats one query,
+whose long paths and truncation break the bounds while its pruned tree meets them.
 
 ## Main definitions
 
@@ -188,7 +195,10 @@ theorem dens_eval_truncate_ne_le [DecidableEq β] {A : Finset ι} {t : DecisionT
 /-- **Exercise 3.22**: in a decision tree with `s` leaves whose paths never repeat a query,
 cutting the paths at length `⌊log₂ (s / ε)⌋` gives a tree that outputs `some (t.eval x)` on all
 but an `ε` fraction of inputs, for any `ε > 0` [O'Donnell, Exercise 3.22][ODonnell2014]. The book
-labels the new leaves `±1` and takes `ε ∈ (0, 1]`. -/
+labels the new leaves `±1` and takes `ε ∈ (0, 1]`. A tree `t` that repeats queries enters through
+its pruned tree `t.prune PartialAssignment.empty`, which computes `t.eval` with at most
+`t.leafCount` leaves: the conclusion is then about the truncation of the pruned tree, compared
+against `t.eval`, and does not hold in general for the truncation of `t` itself. -/
 theorem dens_eval_truncate_floor_logb_ne_le [DecidableEq β] {A : Finset ι}
     {t : DecisionTree ι β} (h : t.QueriesDistinctFrom A) {ε : ℝ} (hε : 0 < ε) :
     (dens {x : ι → Bool |
