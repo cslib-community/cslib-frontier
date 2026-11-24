@@ -284,6 +284,14 @@ theorem expectedPayoff_decision (p : ι) {A : Type} {instF : Fintype A} {instN :
         (fun i => (s i).childDecision (s p).headChoice) := by
   simp [expectedPayoff]
 
+theorem expectedPayoff_decision_of_headChoice_eq {p : ι} {A : Type} {instF : Fintype A}
+    {instN : Nonempty A} {next : A → PerfectInfoTree ι}
+    {s : ∀ i, PureStrategy i (@PerfectInfoTree.decision ι p A instF instN next)} {a : A}
+    (ha : (s p).headChoice = a) :
+    expectedPayoff (@PerfectInfoTree.decision ι p A instF instN next) s =
+      expectedPayoff (next a) (fun i => (s i).childDecision a) := by
+  rw [expectedPayoff_decision, ha]
+
 @[simp]
 theorem expectedPayoff_chance {C : Type} [Fintype C] (prob : C → ℝ)
     (hprob : IsMixedStrategy prob) (next : C → PerfectInfoTree ι)
@@ -347,6 +355,18 @@ theorem backwardInduction_payoff :
     simp only [backwardInduction, expectedPayoff_chance, PureStrategy.childChance_chance]
     refine sum_congr rfl fun c _ => ?_
     rw [backwardInduction_payoff (next c)]
+
+@[simp]
+theorem backwardInduction_leaf_payoff (w : ι → ℝ) :
+    (PerfectInfoTree.leaf w).backwardInduction.payoff = w := by
+  simp [backwardInduction]
+
+@[simp]
+theorem backwardInduction_chance_payoff {C : Type} [Fintype C] (prob : C → ℝ)
+    (hprob : IsMixedStrategy prob) (next : C → PerfectInfoTree ι) (j : ι) :
+    (PerfectInfoTree.chance prob hprob next).backwardInduction.payoff j =
+      ∑ c, prob c * (next c).backwardInduction.payoff j := by
+  simp [backwardInduction]
 
 section SubgamePerfect
 

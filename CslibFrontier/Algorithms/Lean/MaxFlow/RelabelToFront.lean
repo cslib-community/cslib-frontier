@@ -709,6 +709,288 @@ theorem discharge_spec {adj : V → List V} (hadj : IsAdjacency N adj)
   dischargeLoop_spec hadj hnorm u (dischargeFuel adj u) s hs
     (dischargeMeasure_le_fuel hs.curInv (Fintype.card_pos_iff.mpr ⟨u⟩))
 
+omit [DecidableEq V] in
+private theorem dischargeFuel_pos (adj : V → List V) (u : V) : 0 < dischargeFuel adj u := by
+  unfold dischargeFuel
+  exact Nat.mul_pos (Nat.mul_pos (by omega) (Fintype.card_pos_iff.mpr ⟨u⟩)) (by omega)
+
+omit [DecidableEq V] in
+private theorem dischargeMeasure_pos_of_isActive {adj : V → List V} (hadj : IsAdjacency N adj)
+    {u : V} {s : CAState N} (hs : CAInv adj s) (hact : s.pr.flow.IsActive u) :
+    0 < dischargeMeasure adj u s := by
+  classical
+  cases hcu : s.cur u with
+  | nil =>
+    have hr := canRelabel_of_cur_nil hadj hs hact hcu
+    have hlt := hr.lt_relabelHeight
+    have hle := (hs.prInv.apply (o := .relabel u) hr).height_le u
+    change s.pr.flow.relabel s.pr.height u u ≤ 2 * Fintype.card V - 1 at hle
+    rw [Preflow.relabel_self] at hle
+    unfold dischargeMeasure
+    have hmul0 :
+        0 < (2 * Fintype.card V - 1 - s.pr.height u) * (2 * (adj u).length + 2) :=
+      Nat.mul_pos (by omega) (by omega)
+    omega
+  | cons _ _ =>
+    unfold dischargeMeasure
+    rw [hcu, List.length_cons]
+    omega
+
+private theorem dischargeMeasure_relabel_step {adj : V → List V} (hadj : IsAdjacency N adj)
+    {u : V} {s : CAState N} (hs : CAInv adj s) (hact : s.pr.flow.IsActive u)
+    (hcu : s.cur u = []) :
+    let s' : CAState N := ⟨s.pr.apply (.relabel u), Function.update s.cur u (adj u)⟩
+    CAInv adj s' ∧ dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s := by
+  intro s'
+  have hr := canRelabel_of_cur_nil hadj hs hact hcu
+  have hs' : CAInv adj s' :=
+    ⟨hs.prInv.apply (o := .relabel u) hr, currentArcInv_relabel hs.prInv.valid hs.curInv hr⟩
+  refine ⟨hs', ?_⟩
+  have hlt : s.pr.height u < s'.pr.height u := by
+    change s.pr.height u < s.pr.flow.relabel s.pr.height u u
+    rw [Preflow.relabel_self]
+    exact hr.lt_relabelHeight
+  have hle : s'.pr.height u ≤ 2 * Fintype.card V - 1 := hs'.prInv.height_le u
+  unfold dischargeMeasure
+  have had : (s'.cur u).length = (adj u).length := by simp [s']
+  have his : (if isHeadAdmissible s' u then 1 else 0) ≤ 1 := by split_ifs <;> omega
+  have h1 : 2 * Fintype.card V - 1 - s'.pr.height u + 1 ≤
+      2 * Fintype.card V - 1 - s.pr.height u := by omega
+  have h2 := Nat.mul_le_mul_right (2 * (adj u).length + 2) h1
+  rw [Nat.add_mul, Nat.one_mul] at h2
+  rw [hcu, List.length_nil]
+  omega
+
+private theorem dischargeMeasure_satPush_step (adj : V → List V) {u v : V} {vs : List V}
+    {s : CAState N} (hp : s.pr.flow.CanPush s.pr.height u v) (hcu : s.cur u = v :: vs)
+    (hadm : 0 < s.pr.flow.resCap u v ∧ s.pr.height u = s.pr.height v + 1)
+    (hsat : s.pr.IsSatPush (.push u v)) :
+    let s' : CAState N := ⟨s.pr.apply (.push u v), s.cur⟩
+    dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s := by
+  intro s'
+  have hhead : isHeadAdmissible s u := by simp [isHeadAdmissible, hcu, hadm]
+  have hhead' : ¬ isHeadAdmissible s' u := by
+    simp only [isHeadAdmissible, s', State.apply_push_flow, hcu]
+    rw [s.pr.flow.resCap_push_self hp.ne]
+    have hsat' : s.pr.flow.pushAmount u v = s.pr.flow.resCap u v := hsat
+    omega
+  unfold dischargeMeasure
+  rw [ite_eq_left hhead, ite_eq_right hhead']
+  have hlen : (s'.cur u).length = (s.cur u).length := rfl
+  have hht : s'.pr.height u = s.pr.height u := rfl
+  rw [hlen, hht]
+  omega
+
+private theorem not_isActive_of_nonsatPush {u v : V} {s : CAState N}
+    (hp : s.pr.flow.CanPush s.pr.height u v) (hsat : ¬ s.pr.IsSatPush (.push u v)) :
+    ¬ (⟨s.pr.apply (.push u v), s.cur⟩ : CAState N).pr.flow.IsActive u := fun h => by
+  have hex_pos : 0 < s.pr.flow.excess u := hp.active.2.2
+  have hamt : (s.pr.flow.pushAmount u v : ℤ) = s.pr.flow.excess u := by
+    have h1 : s.pr.flow.pushAmount u v ≠ s.pr.flow.resCap u v := hsat
+    rcases le_total (s.pr.flow.excess u).toNat (s.pr.flow.resCap u v) with hle | hlt
+    · simp only [Preflow.pushAmount, min_eq_left hle]; omega
+    · exfalso; exact h1 (by simp [Preflow.pushAmount, min_eq_right hlt])
+  have hex := s.pr.flow.excess_push_self hp.ne
+  have h2 := h.2.2
+  change 0 < (s.pr.flow.push u v).excess u at h2
+  omega
+
+private theorem dischargeMeasure_advance_step {adj : V → List V} {u v : V} {vs : List V}
+    {s : CAState N} (hs : CAInv adj s) (hcu : s.cur u = v :: vs)
+    (hadm : ¬ (0 < s.pr.flow.resCap u v ∧ s.pr.height u = s.pr.height v + 1)) :
+    let s' : CAState N := ⟨s.pr, Function.update s.cur u vs⟩
+    CAInv adj s' ∧ dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s := by
+  intro s'
+  refine ⟨⟨hs.prInv, currentArcInv_advance hs.curInv hcu hadm⟩, ?_⟩
+  have hhead : ¬ isHeadAdmissible s u := by simp [isHeadAdmissible, hcu, hadm]
+  unfold dischargeMeasure
+  rw [ite_eq_right hhead]
+  have hlen : (s'.cur u).length = vs.length := by simp [s']
+  have hlen0 : (s.cur u).length = vs.length + 1 := by simp [hcu]
+  have hht : s'.pr.height u = s.pr.height u := rfl
+  have his : (if isHeadAdmissible s' u then 1 else 0) ≤ 1 := by split_ifs <;> omega
+  rw [hlen, hht, hlen0]
+  omega
+
+private theorem dischargeLoop_eq_of_le {adj : V → List V} (hadj : IsAdjacency N adj) (u : V) :
+    ∀ (m fuel₁ fuel₂ : ℕ) (s : CAState N),
+      CAInv adj s → dischargeMeasure adj u s ≤ m →
+      dischargeMeasure adj u s ≤ fuel₁ → dischargeMeasure adj u s ≤ fuel₂ →
+      dischargeLoop adj id u fuel₁ s = dischargeLoop adj id u fuel₂ s
+  | m, fuel₁, fuel₂, s, hs, hm, hf₁, hf₂ => by
+    by_cases hact : s.pr.flow.IsActive u
+    · have hmeas_pos := dischargeMeasure_pos_of_isActive hadj hs hact
+      cases fuel₁ with
+      | zero => omega
+      | succ fuel₁ =>
+        cases fuel₂ with
+        | zero => omega
+        | succ fuel₂ =>
+          rw [dischargeLoop.eq_def, dischargeLoop.eq_def]
+          dsimp only
+          rw [ite_eq_left hact, ite_eq_left hact]
+          cases hcu : s.cur u with
+          | nil =>
+            dsimp only
+            let s' : CAState N := ⟨s.pr.apply (.relabel u), Function.update s.cur u (adj u)⟩
+            obtain ⟨hs', hmeas'⟩ := dischargeMeasure_relabel_step hadj hs hact hcu
+            change CAInv adj s' at hs'
+            change dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s at hmeas'
+            obtain ⟨m', rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ m by omega)
+            have ih := dischargeLoop_eq_of_le hadj u m' fuel₁ fuel₂ s' hs' (by omega) (by omega)
+              (by omega)
+            simpa only [s', id_eq] using congrArg
+              (fun r => (⟨.relabel u :: r.ops, r.ca, r.advances, true⟩ : DischargeOutput N)) ih
+          | cons v vs =>
+            dsimp only
+            split_ifs with hadm
+            · have hp : s.pr.flow.CanPush s.pr.height u v := ⟨hact, hadm.1, hadm.2⟩
+              let s' : CAState N := ⟨s.pr.apply (.push u v), s.cur⟩
+              have hs' : CAInv adj s' :=
+                ⟨hs.prInv.apply (o := .push u v) hp, currentArcInv_push hs.curInv hp⟩
+              by_cases hsat : s.pr.IsSatPush (.push u v)
+              · have hmeas' := dischargeMeasure_satPush_step adj hp hcu hadm hsat
+                change dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s at hmeas'
+                obtain ⟨m', rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ m by omega)
+                have ih := dischargeLoop_eq_of_le hadj u m' fuel₁ fuel₂ s' hs' (by omega) (by omega)
+                  (by omega)
+                simpa only [s', id_eq] using congrArg
+                  (fun r => (⟨.push u v :: r.ops, r.ca, r.advances, r.relabeled⟩ :
+                    DischargeOutput N)) ih
+              · have hnact' := not_isActive_of_nonsatPush hp hsat
+                have h1 : dischargeLoop adj id u fuel₁ s' = ⟨[], s', 0, false⟩ := by
+                  rw [dischargeLoop.eq_def]; dsimp only; rw [ite_eq_right hnact']
+                have h2 : dischargeLoop adj id u fuel₂ s' = ⟨[], s', 0, false⟩ := by
+                  rw [dischargeLoop.eq_def]; dsimp only; rw [ite_eq_right hnact']
+                change (⟨.push u v :: (dischargeLoop adj id u fuel₁ s').ops,
+                  (dischargeLoop adj id u fuel₁ s').ca,
+                  (dischargeLoop adj id u fuel₁ s').advances,
+                  (dischargeLoop adj id u fuel₁ s').relabeled⟩ : DischargeOutput N) =
+                  ⟨.push u v :: (dischargeLoop adj id u fuel₂ s').ops,
+                  (dischargeLoop adj id u fuel₂ s').ca,
+                  (dischargeLoop adj id u fuel₂ s').advances,
+                  (dischargeLoop adj id u fuel₂ s').relabeled⟩
+                rw [h1, h2]
+            · let s' : CAState N := ⟨s.pr, Function.update s.cur u vs⟩
+              obtain ⟨hs', hmeas'⟩ := dischargeMeasure_advance_step hs hcu hadm
+              change CAInv adj s' at hs'
+              change dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s at hmeas'
+              obtain ⟨m', rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ m by omega)
+              have ih := dischargeLoop_eq_of_le hadj u m' fuel₁ fuel₂ s' hs' (by omega) (by omega)
+                (by omega)
+              simpa only [s', id_eq] using congrArg
+                (fun r => (⟨r.ops, r.ca, r.advances + 1, r.relabeled⟩ : DischargeOutput N)) ih
+    · rw [dischargeLoop.eq_def, dischargeLoop.eq_def]
+      dsimp only
+      rw [ite_eq_right hact, ite_eq_right hact]
+
+private theorem dischargeLoop_pred_fuel_eq {adj : V → List V} (hadj : IsAdjacency N adj) {u : V}
+    {s s' : CAState N} (hs : CAInv adj s) (hs' : CAInv adj s')
+    (hstep : dischargeMeasure adj u s' + 1 ≤ dischargeMeasure adj u s) :
+    let f := dischargeFuel adj u - 1
+    dischargeFuel adj u = f + 1 ∧ dischargeLoop adj id u f s' = discharge adj id u s' := by
+  have hpos := dischargeFuel_pos adj u
+  have hf : dischargeFuel adj u = dischargeFuel adj u - 1 + 1 := by omega
+  have hm := dischargeMeasure_le_fuel (u := u) hs.curInv (Fintype.card_pos_iff.mpr ⟨u⟩)
+  have hle_s' : dischargeMeasure adj u s' ≤ dischargeFuel adj u - 1 := by omega
+  exact ⟨hf, dischargeLoop_eq_of_le hadj u (dischargeFuel adj u) (dischargeFuel adj u - 1)
+    (dischargeFuel adj u) s' hs'
+    (dischargeMeasure_le_fuel (u := u) hs'.curInv (Fintype.card_pos_iff.mpr ⟨u⟩)) hle_s'
+    (dischargeMeasure_le_fuel (u := u) hs'.curInv (Fintype.card_pos_iff.mpr ⟨u⟩))⟩
+
+/-- Evaluating `discharge` on an inactive vertex returns the trivial empty output. -/
+theorem discharge_eq_of_not_isActive {adj : V → List V} (norm : CAState N → CAState N)
+    {u : V} {s : CAState N} (hact : ¬ s.pr.flow.IsActive u) :
+    discharge adj norm u s = ⟨[], s, 0, false⟩ := by
+  rw [discharge, dischargeLoop.eq_def]
+  dsimp only
+  rw [ite_eq_right hact]
+
+/-- One relabel step of `discharge adj id u s` when `s.cur u = []` (`CAInv adj s` preserved). -/
+theorem discharge_relabel_step {adj : V → List V} (hadj : IsAdjacency N adj) {u : V}
+    {s : CAState N} (hs : CAInv adj s) (hact : s.pr.flow.IsActive u) (hcu : s.cur u = []) :
+    let s' : CAState N := ⟨s.pr.apply (.relabel u), Function.update s.cur u (adj u)⟩
+    let r' := discharge adj id u s'
+    CAInv adj s' ∧ discharge adj id u s = ⟨.relabel u :: r'.ops, r'.ca, r'.advances, true⟩ := by
+  intro s' r'
+  obtain ⟨hs', hmeas'⟩ := dischargeMeasure_relabel_step hadj hs hact hcu
+  refine ⟨hs', ?_⟩
+  obtain ⟨hf, heq⟩ := dischargeLoop_pred_fuel_eq hadj hs hs' hmeas'
+  rw [discharge, hf, dischargeLoop, ite_eq_left hact]
+  dsimp only
+  rw [hcu]
+  dsimp only
+  change (⟨.relabel u :: (dischargeLoop adj id u _ (id s')).ops,
+    (dischargeLoop adj id u _ (id s')).ca,
+    (dischargeLoop adj id u _ (id s')).advances, true⟩ : DischargeOutput N) =
+    ⟨.relabel u :: r'.ops, r'.ca, r'.advances, true⟩
+  simp only [id_eq]
+  rw [heq]
+
+/-- One push step of `discharge adj id u s` when `s.cur u = v :: vs` is admissible. -/
+theorem discharge_push_step {adj : V → List V} (hadj : IsAdjacency N adj) {u v : V}
+    {vs : List V} {s : CAState N} (hs : CAInv adj s) (hact : s.pr.flow.IsActive u)
+    (hcu : s.cur u = v :: vs)
+    (hadm : 0 < s.pr.flow.resCap u v ∧ s.pr.height u = s.pr.height v + 1) :
+    let s' : CAState N := ⟨s.pr.apply (.push u v), s.cur⟩
+    let r' := discharge adj id u s'
+    CAInv adj s' ∧
+      discharge adj id u s = ⟨.push u v :: r'.ops, r'.ca, r'.advances, r'.relabeled⟩ := by
+  intro s' r'
+  have hp : s.pr.flow.CanPush s.pr.height u v := ⟨hact, hadm.1, hadm.2⟩
+  have hs' : CAInv adj s' :=
+    ⟨hs.prInv.apply (o := .push u v) hp, currentArcInv_push hs.curInv hp⟩
+  refine ⟨hs', ?_⟩
+  have hpos := dischargeFuel_pos adj u
+  have hf : dischargeFuel adj u = dischargeFuel adj u - 1 + 1 := by omega
+  rw [discharge, hf, dischargeLoop, ite_eq_left hact]
+  dsimp only
+  rw [hcu]
+  dsimp only
+  rw [ite_eq_left hadm]
+  have heq : dischargeLoop adj id u (dischargeFuel adj u - 1) s' = r' := by
+    by_cases hsat : s.pr.IsSatPush (.push u v)
+    · exact (dischargeLoop_pred_fuel_eq hadj hs hs'
+        (dischargeMeasure_satPush_step adj hp hcu hadm hsat)).2
+    · have hnact' := not_isActive_of_nonsatPush hp hsat
+      have hl : dischargeLoop adj id u (dischargeFuel adj u - 1) s' = ⟨[], s', 0, false⟩ := by
+        cases dischargeFuel adj u - 1 <;>
+          (rw [dischargeLoop.eq_def]; dsimp only; rw [ite_eq_right hnact'])
+      have hr' : r' = ⟨[], s', 0, false⟩ := discharge_eq_of_not_isActive id hnact'
+      rw [hl, hr']
+  change (⟨.push u v :: (dischargeLoop adj id u _ (id s')).ops,
+    (dischargeLoop adj id u _ (id s')).ca,
+    (dischargeLoop adj id u _ (id s')).advances,
+    (dischargeLoop adj id u _ (id s')).relabeled⟩ : DischargeOutput N) =
+    ⟨.push u v :: r'.ops, r'.ca, r'.advances, r'.relabeled⟩
+  simp only [id_eq]
+  rw [heq]
+
+/-- One current-arc advance step of `discharge adj id u s` when `s.cur u = v :: vs` is
+non-admissible. -/
+theorem discharge_advance_step {adj : V → List V} (hadj : IsAdjacency N adj) {u v : V}
+    {vs : List V} {s : CAState N} (hs : CAInv adj s) (hact : s.pr.flow.IsActive u)
+    (hcu : s.cur u = v :: vs)
+    (hadm : ¬ (0 < s.pr.flow.resCap u v ∧ s.pr.height u = s.pr.height v + 1)) :
+    let s' : CAState N := ⟨s.pr, Function.update s.cur u vs⟩
+    let r' := discharge adj id u s'
+    CAInv adj s' ∧ discharge adj id u s = ⟨r'.ops, r'.ca, r'.advances + 1, r'.relabeled⟩ := by
+  intro s' r'
+  obtain ⟨hs', hmeas'⟩ := dischargeMeasure_advance_step hs hcu hadm
+  refine ⟨hs', ?_⟩
+  obtain ⟨hf, heq⟩ := dischargeLoop_pred_fuel_eq hadj hs hs' hmeas'
+  rw [discharge, hf, dischargeLoop, ite_eq_left hact]
+  dsimp only
+  rw [hcu]
+  dsimp only
+  rw [ite_eq_right hadm]
+  change (⟨(dischargeLoop adj id u _ (id s')).ops, (dischargeLoop adj id u _ (id s')).ca,
+    (dischargeLoop adj id u _ (id s')).advances + 1,
+    (dischargeLoop adj id u _ (id s')).relabeled⟩ : DischargeOutput N) =
+    ⟨r'.ops, r'.ca, r'.advances + 1, r'.relabeled⟩
+  simp only [id_eq]
+  rw [heq]
+
 end Decidable
 
 end CurrentArc
@@ -1175,9 +1457,248 @@ private theorem rtfLoop_spec {adj : V → List V} (hadj : IsAdjacency N adj)
         · rw [hadv_eq, hca_eq] at ihAdv
           omega
 
+omit [DecidableEq V] in
+private theorem rtfMeasure_lt_rtfFuel {adj : V → List V} {st : RTFState N} (hinv : RTFInv adj st)
+    (hst : N.s ≠ N.t) : rtfMeasure V st < rtfFuel V := by
+  classical
+  have hlen : (st.done ++ st.todo).length = Fintype.card V - 2 :=
+    list_nodup_length_eq_card_sub_two hinv.nodup hinv.mem_iff hst
+  have htodo : st.todo.length ≤ Fintype.card V - 2 := by
+    rw [List.length_append] at hlen
+    omega
+  have h2n : 2 ≤ Fintype.card V := by
+    have hcard : ({N.s, N.t} : Finset V).card ≤ Fintype.card V := Finset.card_le_univ _
+    rw [Finset.card_pair hst] at hcard
+    exact hcard
+  have hsum_le : ∑ v, st.ca.pr.height v ≤ sumHeightMax V := State.sum_height_le hinv.caInv.prInv
+  have hsum_ge : Fintype.card V ≤ ∑ v, st.ca.pr.height v := by
+    have hs : st.ca.pr.height N.s = Fintype.card V := hinv.caInv.prInv.valid.source
+    have hsing := Finset.single_le_sum (fun v _ => Nat.zero_le (st.ca.pr.height v))
+      (Finset.mem_univ N.s)
+    omega
+  have h1 :
+      sumHeightMax V - ∑ v, st.ca.pr.height v ≤
+        (Fintype.card V - 2) * (2 * Fintype.card V - 1) := by
+    unfold sumHeightMax
+    omega
+  have h2 := Nat.mul_le_mul_right (Fintype.card V - 2) h1
+  have hmul :
+      (Fintype.card V - 2) * (2 * Fintype.card V - 1) * (Fintype.card V - 2) =
+        (Fintype.card V - 2) * ((Fintype.card V - 2) * (2 * Fintype.card V - 1)) := by
+    ring
+  rw [hmul] at h2
+  unfold rtfMeasure rtfFuel
+  rw [Nat.mul_add, Nat.mul_one]
+  omega
+
+private theorem rtfLoop_eq_of_lt {adj : V → List V} (hadj : IsAdjacency N adj) (hst : N.s ≠ N.t) :
+    ∀ (m fuel₁ fuel₂ : ℕ) (st : RTFState N),
+      RTFInv adj st → rtfMeasure V st < m → rtfMeasure V st < fuel₁ → rtfMeasure V st < fuel₂ →
+      rtfLoop adj id id fuel₁ st = rtfLoop adj id id fuel₂ st
+  | m, fuel₁, fuel₂, st, hinv, hm, hf₁, hf₂ => by
+    cases htodo : st.todo with
+    | nil =>
+      rw [rtfLoop.eq_def, rtfLoop.eq_def]
+      dsimp only
+      rw [htodo]
+    | cons u rest =>
+      cases fuel₁ with
+      | zero => exact absurd hf₁ (Nat.not_lt_zero _)
+      | succ fuel₁ =>
+        cases fuel₂ with
+        | zero => exact absurd hf₂ (Nat.not_lt_zero _)
+        | succ fuel₂ =>
+          have hlen : (st.done ++ u :: rest).length = Fintype.card V - 2 :=
+            list_nodup_length_eq_card_sub_two (htodo ▸ hinv.nodup) (htodo ▸ hinv.mem_iff) hst
+          have hd := discharge_spec hadj (norm := id) (fun _ => rfl) u hinv.caInv
+          generalize hd_eq : discharge adj id u st.ca = d at hd ⊢
+          obtain ⟨hdInv, hdRun, hdPr, hdAct, _, hdRel, hdNe, _, _, hdHeq, hdBk, hdEx,
+            hdIn, hdRes⟩ := hd
+          let st' : RTFState N :=
+            if d.relabeled then
+              { ca := d.ca, done := [u], todo := st.done ++ rest,
+                discharges := st.discharges + 1, advances := st.advances + d.advances }
+            else
+              { ca := d.ca, done := st.done ++ [u], todo := rest,
+                discharges := st.discharges + 1, advances := st.advances + d.advances }
+          have hinv' : RTFInv adj st' := by
+            by_cases hrel : d.relabeled = true
+            · simpa only [st', hrel, ↓reduceIte] using
+                rtfInv_relabel hinv htodo hdInv hdAct hdNe (hdIn hrel) hdRes
+            · have hrel_f : d.relabeled = false := Bool.eq_false_iff.mpr hrel
+              simpa only [st', hrel_f, Bool.false_eq_true, ↓reduceIte] using
+                rtfInv_noRelabel hinv htodo hdInv hdAct (hdBk hrel_f) (hdEx hrel_f)
+          have hmeas' : rtfMeasure V st' + 1 ≤ rtfMeasure V st :=
+            rtfMeasure_step htodo hlen hdInv hdRun hdPr hdRel hdHeq
+          obtain ⟨m', rfl⟩ := Nat.exists_eq_add_of_le' (show 1 ≤ m by omega)
+          have ih := rtfLoop_eq_of_lt hadj hst m' fuel₁ fuel₂ st' hinv' (by omega) (by omega)
+            (by omega)
+          rw [rtfLoop.eq_def, rtfLoop.eq_def]
+          dsimp only
+          rw [htodo]
+          dsimp only
+          rw [hd_eq]
+          simp only [id_eq]
+          change (let r := rtfLoop adj id id fuel₁ st'; (d.ops ++ r.1, r.2)) =
+            let r := rtfLoop adj id id fuel₂ st'; (d.ops ++ r.1, r.2)
+          rw [ih]
+
+/-- Shifting the counter fields `(discharges, advances)` of an `RTFState` shifts the final
+`rtfLoop` output counters identically without altering operations or `ca`/`done`/`todo`. -/
+private theorem rtfLoop_shift_counters {adj : V → List V} :
+    ∀ (fuel : ℕ) (st : RTFState N) (a b : ℕ),
+      let r := rtfLoop adj id id fuel { st with discharges := 0, advances := 0 }
+      rtfLoop adj id id fuel { st with discharges := a, advances := b } =
+        (r.1, { r.2 with discharges := a + r.2.discharges, advances := b + r.2.advances })
+  | fuel, st, a, b => by
+    cases htodo : st.todo with
+    | nil =>
+      rw [rtfLoop.eq_def, rtfLoop.eq_def]
+      rfl
+    | cons u rest =>
+      cases fuel with
+      | zero =>
+        rw [rtfLoop.eq_def, rtfLoop.eq_def]
+        rfl
+      | succ fuel =>
+        rw [rtfLoop.eq_def, rtfLoop.eq_def]
+        simp only [id_eq]
+        let d := discharge adj id u st.ca
+        let st'₀ : RTFState N :=
+          if d.relabeled then
+            { ca := d.ca, done := [u], todo := st.done ++ rest, discharges := 0, advances := 0 }
+          else
+            { ca := d.ca, done := st.done ++ [u], todo := rest, discharges := 0, advances := 0 }
+        have h1 :
+            (if d.relabeled then
+              { ca := d.ca, done := [u], todo := st.done ++ rest,
+                discharges := a + 1, advances := b + d.advances }
+            else
+              { ca := d.ca, done := st.done ++ [u], todo := rest,
+                discharges := a + 1, advances := b + d.advances } : RTFState N) =
+            { st'₀ with discharges := a + 1, advances := b + d.advances } := by
+          dsimp only [st'₀]; split_ifs <;> rfl
+        have h2 :
+            (if d.relabeled then
+              { ca := d.ca, done := [u], todo := st.done ++ rest,
+                discharges := 0 + 1, advances := 0 + d.advances }
+            else
+              { ca := d.ca, done := st.done ++ [u], todo := rest,
+                discharges := 0 + 1, advances := 0 + d.advances } : RTFState N) =
+            { st'₀ with discharges := 1, advances := d.advances } := by
+          dsimp only [st'₀]; split_ifs <;> simp
+        have h0 : ({ st'₀ with discharges := 0, advances := 0 } : RTFState N) = st'₀ := by
+          dsimp only [st'₀]; split_ifs <;> rfl
+        have ih1 := rtfLoop_shift_counters (adj := adj) fuel st'₀ (a + 1) (b + d.advances)
+        have ih2 := rtfLoop_shift_counters (adj := adj) fuel st'₀ 1 d.advances
+        rw [h0] at ih1 ih2
+        change (let r := rtfLoop adj id id fuel _; (d.ops ++ r.1, r.2)) = _
+        rw [h1, h2, ih1, ih2]
+        dsimp only
+        simp only [Nat.add_assoc]
+        rfl
+
+/-- One outer iteration of `rtfLoop adj id id (rtfFuel V) st` when `st.todo = u :: rest`. -/
+theorem rtfLoop_step {adj : V → List V} (hadj : IsAdjacency N adj) {st : RTFState N}
+    (hinv : RTFInv adj st) {u : V} {rest : List V} (htodo : st.todo = u :: rest)
+    (hst : N.s ≠ N.t) :
+    let d := discharge adj id u st.ca
+    let st' : RTFState N :=
+      if d.relabeled then
+        { ca := d.ca, done := [u], todo := st.done ++ rest, discharges := 0, advances := 0 }
+      else
+        { ca := d.ca, done := st.done ++ [u], todo := rest, discharges := 0, advances := 0 }
+    let r := rtfLoop adj id id (rtfFuel V) st
+    let r' := rtfLoop adj id id (rtfFuel V) st'
+    RTFInv adj st' ∧ r.1 = d.ops ++ r'.1 ∧
+      r.2.discharges = st.discharges + 1 + r'.2.discharges ∧
+      r.2.advances = st.advances + d.advances + r'.2.advances ∧
+      r.2.ca = r'.2.ca ∧ r.2.done = r'.2.done ∧ r.2.todo = r'.2.todo := by
+  intro d st' r r'
+  have hlt : rtfMeasure V st < rtfFuel V := rtfMeasure_lt_rtfFuel hinv hst
+  have hlen : (st.done ++ u :: rest).length = Fintype.card V - 2 :=
+    list_nodup_length_eq_card_sub_two (htodo ▸ hinv.nodup) (htodo ▸ hinv.mem_iff) hst
+  obtain ⟨hdInv, hdRun, hdPr, hdAct, _, hdRel, hdNe, _, _, hdHeq, hdBk, hdEx, hdIn, hdRes⟩ :=
+    discharge_spec hadj (norm := id) (fun _ => rfl) u hinv.caInv
+  have hinv' : RTFInv adj st' := by
+    by_cases hrel : d.relabeled = true
+    · have hraw := rtfInv_relabel hinv htodo hdInv hdAct hdNe (hdIn hrel) hdRes
+      have hst' : st' = ⟨d.ca, [u], st.done ++ rest, 0, 0⟩ := by simp [st', hrel]
+      rw [hst']
+      exact ⟨hraw.caInv, hraw.nodup, hraw.mem_iff, hraw.topo, hraw.done_inactive⟩
+    · have hrel_f : d.relabeled = false := Bool.eq_false_iff.mpr hrel
+      have hraw := rtfInv_noRelabel hinv htodo hdInv hdAct (hdBk hrel_f) (hdEx hrel_f)
+      have hst' : st' = ⟨d.ca, st.done ++ [u], rest, 0, 0⟩ := by simp [st', hrel_f]
+      rw [hst']
+      exact ⟨hraw.caInv, hraw.nodup, hraw.mem_iff, hraw.topo, hraw.done_inactive⟩
+  have hmeas' : rtfMeasure V st' + 1 ≤ rtfMeasure V st := by
+    have hm := rtfMeasure_step htodo hlen hdInv hdRun hdPr hdRel hdHeq
+    unfold rtfMeasure at hm ⊢
+    dsimp only [d, st'] at hm ⊢
+    by_cases hrel : (discharge adj id u st.ca).relabeled = true <;>
+      · simp only [hrel, Bool.false_eq_true, ↓reduceIte] at hm ⊢
+        exact hm
+  have hfuel : ∃ f, rtfFuel V = f + 1 := ⟨rtfFuel V - 1, by unfold rtfFuel; omega⟩
+  obtain ⟨f, hf⟩ := hfuel
+  have hsub : rtfLoop adj id id f st' = r' :=
+    rtfLoop_eq_of_lt hadj hst (rtfFuel V) f (rtfFuel V) st' hinv'
+      (by omega) (by omega) (by omega)
+  have hnext :
+      (if d.relabeled then
+        { ca := d.ca, done := [u], todo := st.done ++ rest,
+          discharges := st.discharges + 1, advances := st.advances + d.advances }
+      else
+        { ca := d.ca, done := st.done ++ [u], todo := rest,
+          discharges := st.discharges + 1, advances := st.advances + d.advances } : RTFState N) =
+      { st' with discharges := st.discharges + 1, advances := st.advances + d.advances } := by
+    dsimp only [st']; split_ifs <;> rfl
+  have hshift :=
+    rtfLoop_shift_counters (adj := adj) f st' (st.discharges + 1) (st.advances + d.advances)
+  have h0 : ({ st' with discharges := 0, advances := 0 } : RTFState N) = st' := by
+    dsimp only [st']; split_ifs <;> rfl
+  rw [h0, hsub] at hshift
+  have hr : r = (d.ops ++ r'.1,
+      { r'.2 with
+        discharges := st.discharges + 1 + r'.2.discharges,
+        advances := st.advances + d.advances + r'.2.advances }) := by
+    dsimp only [r]
+    rw [hf, rtfLoop.eq_def]
+    dsimp only
+    rw [htodo]
+    dsimp only
+    simp only [id_eq]
+    change (let s := rtfLoop adj id id f _; (d.ops ++ s.1, s.2)) = _
+    rw [hnext, hshift]
+  refine ⟨hinv', ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact congrArg Prod.fst hr
+  · exact congrArg (fun p => p.2.discharges) hr
+  · exact congrArg (fun p => p.2.advances) hr
+  · exact congrArg (fun p => p.2.ca) hr
+  · exact congrArg (fun p => p.2.done) hr
+  · exact congrArg (fun p => p.2.todo) hr
+
 end RelabelToFrontSection
 
 end RelabelToFront
+
+namespace PushRelabel
+
+namespace State
+
+/-- Relabel-operation count is additive along concatenated operation lists. -/
+theorem numRelabels_append {V : Type*} [Fintype V] [DecidableEq V] {N : Network V}
+    (σ : State N) :
+    ∀ (os₁ os₂ : List (Op V)),
+      σ.numRelabels (os₁ ++ os₂) = σ.numRelabels os₁ + (σ.run os₁).numRelabels os₂
+  | [], _ => by simp [numRelabels, countOps]
+  | _ :: _, _ => by
+    simp only [List.cons_append, numRelabels_cons, run_cons,
+      numRelabels_append (σ.apply _) _ _]
+    omega
+
+end State
+
+end PushRelabel
 
 end Network
 

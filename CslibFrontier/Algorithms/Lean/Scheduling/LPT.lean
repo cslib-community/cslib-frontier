@@ -315,6 +315,10 @@ order of processing time, ties broken by lowest machine index. -/
 def lptSchedule (p : Fin n → α) : Fin n → Fin m :=
   listSchedule (p ∘ lptOrder p) ∘ (lptOrder p).symm
 
+theorem lptSchedule_def (p : Fin n → α) :
+    lptSchedule (m := m) p = listSchedule (p ∘ lptOrder p) ∘ (lptOrder p).symm := by
+  unfold lptSchedule; rfl
+
 theorem makespan_lptSchedule (p : Fin n → α) :
     makespan p (lptSchedule (m := m) p) =
       makespan (p ∘ lptOrder p) (listSchedule (m := m) (p ∘ lptOrder p)) := by

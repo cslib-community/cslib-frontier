@@ -101,7 +101,7 @@ private theorem searchBucketProg_found_imp_pos_bCount {U V w₀ n_max h_space w 
     1 ≤ bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 := by
   obtain ⟨L, hchain, hc_lt⟩ := h.2.2.2.2
   have hres := (searchBucketProg_spec h.1 h.2.1 h.2.2.1 h.2.2.2.1 hchain hc_lt).2.2
-  dsimp only at hres
+  dsimp only [ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound, ovfSearchIdx] at hres
   split_ifs at hres
   · have := hres.2.1; omega
   · omega
@@ -112,9 +112,9 @@ theorem realizes_deletePrepGen :
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
       SearchMicroChainGenPre
       (fun _ _ => 0) := by
-  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchBucketGenProg_mk,
-    lastSlotOfGenPre_mk, lastSlotOfGenProg_mk, searchResFound, bucketCallBase,
-    bucketCallPair] using
+  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, lmEntryBase, lmEntryBucket,
+    searchBucketGenProg_mk, lastSlotOfGenPre_mk, lastSlotOfGenProg_mk, searchResFound,
+    bucketCallBase, bucketCallPair] using
     [realizes_searchBucketGen, realizes_lastSlotOfGen, realizes_readQuotGen]
   · exact h
   · exact fits_const_of_dictEnv h.1 (by decide)
