@@ -215,13 +215,18 @@ private theorem mean_eq_of_abs_sub_le {f g : WindowFn} (hf : Bounded f) (hg : Bo
     squeeze_zero_norm' h (by simpa using tendsto_one_div_atTop_nhds_zero_nat.const_mul D)
   linarith [tendsto_nhds_unique h1 (h2.mono_left Nat.hyperfilter_le_atTop)]
 
-/-- The boundary bound behind `mean_shift_one` and `mean_shift_one'`: a difference of `m` terms
-of absolute value at most `2C`, divided by `2n³`, is at most `2C/n` when `m ≤ 2n²`. -/
-private theorem abs_boundary_le {n m : ℕ} (hn : n ≠ 0) (hm : (m : ℝ) ≤ 2 * n ^ 2) {C : ℝ}
-    (hC : 0 ≤ C) {S : ℝ} (hS : |S| ≤ m * (2 * C)) : |S / (2 * n ^ 3)| ≤ 2 * C * (1 / n) := by
+/-- The boundary estimate behind `mean_shift_one` and `mean_shift_one'`: a sum over both sheets
+and a face of length `L ≤ n²` of terms bounded by `2C`, divided by `2n³`, is at most `2C/n`. -/
+private theorem abs_boundary_le {n L : ℕ} (hn : n ≠ 0) (hL : L ≤ n ^ 2) {C : ℝ} (hC : 0 ≤ C)
+    (g : Bool → ℕ → ℝ) (hg : ∀ b j, |g b j| ≤ 2 * C) :
+    |(∑ b, ∑ j ∈ range L, g b j) / (2 * n ^ 3)| ≤ 2 * C * (1 / n) := by
   have hn' : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero hn
+  have hL' : (L : ℝ) ≤ n ^ 2 := by exact_mod_cast hL
   rw [abs_div, abs_of_pos (show (0 : ℝ) < 2 * n ^ 3 by positivity), div_le_iff₀ (by positivity)]
-  calc |S| ≤ m * (2 * C) := hS
+  calc |∑ b, ∑ j ∈ range L, g b j| ≤ ∑ b : Bool, ∑ j ∈ range L, 2 * C :=
+        (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun b _ =>
+          (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => hg b j))
+    _ = 2 * L * (2 * C) := by simp; ring
     _ ≤ 2 * n ^ 2 * (2 * C) := by gcongr
     _ = 2 * C * (1 / n) * (2 * n ^ 3) := by field_simp
 
@@ -241,16 +246,8 @@ private theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
     rw [sum_range_shift (fun i => f n b i k)]
     ring
   rw [h1]
-  have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast Nat.one_le_iff_ne_zero.2 hn
-  refine abs_boundary_le (m := 2 * n) hn (by push_cast; nlinarith) hC0 ?_
-  refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
-  refine (Finset.sum_le_sum fun b _ => Finset.abs_sum_le_sum_abs _ _).trans ?_
-  refine (Finset.sum_le_sum fun b _ => Finset.sum_le_sum fun k _ =>
-    (abs_sub _ _).trans (add_le_add (hC _ _ _ _) (hC _ _ _ _))).trans_eq ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_bool, Finset.card_range,
-    nsmul_eq_mul]
-  push_cast
-  ring
+  exact abs_boundary_le hn (Nat.le_self_pow two_ne_zero n) hC0 _ fun b k =>
+    (abs_sub _ _).trans (by linarith [hC n b ((n ^ 2 : ℕ) : ℤ) k, hC n b 0 k])
 
 private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     mean (fun n b i k => f n b i (k + 1)) = mean f := by
@@ -268,15 +265,8 @@ private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     rw [sum_range_shift (fun k => f n b i k)]
     ring
   rw [h1]
-  refine abs_boundary_le (m := 2 * n ^ 2) hn (by push_cast; rfl) hC0 ?_
-  refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
-  refine (Finset.sum_le_sum fun b _ => Finset.abs_sum_le_sum_abs _ _).trans ?_
-  refine (Finset.sum_le_sum fun b _ => Finset.sum_le_sum fun i _ =>
-    (abs_sub _ _).trans (add_le_add (hC _ _ _ _) (hC _ _ _ _))).trans_eq ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_bool, Finset.card_range,
-    nsmul_eq_mul]
-  push_cast
-  ring
+  exact abs_boundary_le hn le_rfl hC0 _ fun b i =>
+    (abs_sub _ _).trans (by linarith [hC n b i (n : ℕ), hC n b i 0])
 
 /-- From invariance under one step to invariance under every integer number of steps, for a
 family of translations `T a` with `T a ∘ T c = T (a + c)`. -/
