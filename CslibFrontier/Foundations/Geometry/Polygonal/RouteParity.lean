@@ -475,41 +475,29 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
   classical
   let f := Homeomorph.mulLeft₀ u hu
   have hf (z : ℂ) : f z = u * z := rfl
-  have hmul (z : ℂ) : u⁻¹ * (u * z) = z := by
-    rw [← mul_assoc, inv_mul_cancel₀ hu, one_mul]
-  have hmul' (z : ℂ) : u * (u⁻¹ * z) = z := by
-    rw [← mul_assoc, mul_inv_cancel₀ hu, one_mul]
-  let points' := points.image f
-  let odd' := odd.image f
-  have himage (s : Finset ℂ) (z : ℂ) : f z ∈ s.image f ↔ z ∈ s := by
-    constructor
-    · rintro hz
-      obtain ⟨w, hw, heq⟩ := Finset.mem_image.mp hz
-      exact (f.injective heq) ▸ hw
-    · exact Finset.mem_image_of_mem f
-  have hsub : odd' ⊆ points' := by
-    intro z hz
-    obtain ⟨w, hw, rfl⟩ := Finset.mem_image.mp hz
-    exact Finset.mem_image_of_mem f (hodd hw)
+  let embedding := f.toEquiv.toEmbedding
+  let points' := points.map embedding
+  let odd' := odd.map embedding
+  have hsub : odd' ⊆ points' := Finset.map_subset_map.mpr hodd
   have huodd : ∀ z ∈ odd', z ∈ f '' U := by
     intro z hz
-    obtain ⟨w, hw, rfl⟩ := Finset.mem_image.mp hz
+    obtain ⟨w, hw, rfl⟩ := Finset.mem_map.mp hz
     exact ⟨w, hUodd w hw, rfl⟩
   obtain ⟨l, hls, hlf, hl, hpar⟩ :=
     exists_rayParity_excursion_of_subset (f.isOpenMap _ hU)
       (hconn.image f.continuous) points' odd' hsub huodd
-      (Set.mem_image_of_mem f ha) (fun h => haPoints ((himage points _).mp h))
+      (Set.mem_image_of_mem f ha) (fun h => haPoints ((Finset.mem_map' embedding).mp h))
   let e := mulComplex u⁻¹ l
   have hstart : e.start = p.finish := by
     change e.endpoint false = _
     rw [endpoint_mulComplex]
     change u⁻¹ * l.start = _
-    rw [hls, hf, hmul]
+    rw [hls, hf, inv_mul_cancel_left₀ hu]
   have hfinish : e.finish = p.finish := by
     change e.endpoint true = _
     rw [endpoint_mulComplex]
     change u⁻¹ * l.finish = _
-    rw [hlf, hf, hmul]
+    rw [hlf, hf, inv_mul_cancel_left₀ hu]
   have hsupport : e.support ⊆ U \ (↑points : Set ℂ) := by
     intro z hz
     change z ∈ (mulComplex u⁻¹ l).support at hz
@@ -518,17 +506,16 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     obtain ⟨⟨v, hv, heq⟩, hn⟩ := hl hw
     have heq' : w = u * v := heq.symm
     change u⁻¹ * w ∈ U \ (↑points : Set ℂ)
-    rw [heq', hmul]
-    exact ⟨hv, fun h => hn (heq ▸ Finset.mem_image_of_mem f h)⟩
+    rw [heq', inv_mul_cancel_left₀ hu]
+    exact ⟨hv, fun h => hn (heq ▸ Finset.mem_map_of_mem embedding h)⟩
   have hparity (z : ℂ) (hz : z ∈ points) : e.rayParity u z = decide (z ∈ odd) := by
     have h : e.rayParity u z = l.rayParity 1 (f z) := by
       unfold Route.rayParity Cslib.Polygonal.rayParity
-      simp only [e, mulComplex, hmul', one_mul, hf]
+      simp only [e, mulComplex, mul_inv_cancel_left₀ hu, one_mul, hf]
       rfl
-    rw [h, hpar _ (Finset.mem_image_of_mem f hz)]
-    by_cases hz' : z ∈ odd
-    · rw [decide_eq_true ((himage odd z).mpr hz'), decide_eq_true hz']
-    · rw [decide_eq_false (fun h => hz' ((himage odd z).mp h)), decide_eq_false hz']
+    rw [h, hpar (f z) (Finset.mem_map_of_mem embedding hz)]
+    change decide (embedding z ∈ odd.map embedding) = decide (z ∈ odd)
+    exact Bool.decide_congr (Finset.mem_map' embedding)
   have he : p.finish = e.start := hstart.symm
   have hq : (p.concat e).finish = q.start := by
     change (p.concat e).endpoint true = q.start
