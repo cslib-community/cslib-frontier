@@ -852,7 +852,8 @@ private theorem searchBucket_found_slot_lt {U V w n_max h_space : ℕ}
     ((Memory.spec 0).clientResult s (searchBucketProg U V w n_max h_space d)).2 < n_max := by
   obtain ⟨L, hchain, hc_lt⟩ := hpre.2.2.2.2
   have hspec := (searchBucketProg_spec hpre.1 hpre.2.1 hpre.2.2.1 hpre.2.2.2.1 hchain hc_lt).2.2
-  dsimp only at hspec
+  dsimp only [ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound,
+    ovfSearchIdx] at hspec
   split_ifs at hspec with hex
   · rw [hspec.2.2.2.2]
     exact (slotOf_lt_and_injective hpre.2.2.2.1).1 d.1.1.2 hpre.2.1 _ hspec.2.1

@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEM
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
@@ -739,9 +740,7 @@ theorem eval_romIndCcaExperiment_eq_eager [Fintype M] [Finite R] [Fintype CT] [F
   let dG : M → PMF R := fun _ => ProbComp.eval S.pke.sampleCoins
   let dH : Bool × M × CT → PMF K := fun _ => ProbComp.eval S.sampleKey
   dsimp only [romIndCcaExperiment]
-  simp only [eagerRomIndCcaExperiment, coinTable, keyTable, encapsBot, encT,
-    Probability.PMF.monad_bind_eq_bind, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind]
+  simp only [eagerRomIndCcaExperiment, coinTable, keyTable, encapsBot, encT, pmf_norm]
   congr 1; funext ⟨pk, dk⟩
   have hstep (mStar : M) (rStar : R) (kReal kRand : K) :
       (ProbComp.eval ((OracleComp.interpret
@@ -964,9 +963,8 @@ theorem eval_cpaExperiment_romFilterCpaReduction_true (S : Scheme PK SK M R CT K
     ProbComp.eval
         (S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true) =
       ProbComp.eval (A.coins >>= fun ω => S.simFilterOwExperiment d (A.run ω)) := by
-  simp only [PKE.cpaExperiment, ProbComp.eval_bind, eval_lrExperiment, romFilterCpaReduction,
-    ExplicitCoinPKE.toPKE, simFilterOwExperiment, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind, MessagePair.select_true, ↓reduceIte, PMF.bind_const]
+  simp only [PKE.cpaExperiment, eval_lrExperiment, romFilterCpaReduction, ExplicitCoinPKE.toPKE,
+    simFilterOwExperiment, MessagePair.select_true, ↓reduceIte, PMF.bind_const, pmf_norm]
   pmf_swap
 
 /-- With challenge bit `false`, the IND-CPA experiment of `romFilterCpaReduction d A` encrypts
@@ -978,9 +976,8 @@ theorem succProbability_romFilterCpaReduction_false_le [Fintype M] [Nonempty M]
     (hmsg : ProbComp.eval S.sampleMsg = PMF.uniformOfFintype M) :
     Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) false] ≤
       ((qG : ℝ) + qH) / Fintype.card M := by
-  simp only [PKE.cpaExperiment, ProbComp.eval_bind, eval_lrExperiment,
-    romFilterCpaReduction, ExplicitCoinPKE.toPKE, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind, MessagePair.select_false, ↓reduceIte]
+  simp only [PKE.cpaExperiment, eval_lrExperiment, romFilterCpaReduction, ExplicitCoinPKE.toPKE,
+    MessagePair.select_false, ↓reduceIte, pmf_norm]
   pmf_hoist (occ := 2) (ProbComp.eval S.sampleMsg)
   let runDist : PMF (Bool × SimState M R CT K) :=
     (ProbComp.eval S.pke.keyGen).bind fun keys =>

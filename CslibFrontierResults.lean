@@ -1,4 +1,5 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.BanditRegret
 import CslibFrontierResults.Entries.CBCMAC
@@ -17,8 +18,10 @@ import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
+import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.InternalRegret
+import CslibFrontierResults.Entries.LocallyDecodable
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
 import CslibFrontierResults.Entries.MarketEquilibria
