@@ -230,7 +230,8 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
       dsimp only
       rw [clientResult_bind_read, clientState_bind_read]
       by_cases hdu : t'.mem (distBase n + u) = layer
-      · rw [ite_eq_left hdu, cr_bind_pure, cs_bind_pure]
+      · rw [ite_eq_left hdu, clientResult_bind, clientResult_pure,
+          clientState_bind, clientState_pure]
         have hres_u : f.resDist uFin = layer := by
           by_contra hne
           rcases lt_trichotomy (f.resDist uFin) layer with hlt | heq | hgt
@@ -441,7 +442,8 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
       obtain ⟨_, hm_low, hm_inv⟩ := bfsMid_spec hG hlow f hf hlayer_lt hst_low hlinv
       unfold bfsLayerStep
       dsimp only
-      rw [clientResult_bind_read, clientState_bind_read, cr_bind_pure, cs_bind_pure]
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind, clientResult_pure,
+        clientState_bind, clientState_pure]
       exact ⟨by omega, hm_low, hm_inv⟩)
     (n := M - 1) (a := 0) (s := s2) ⟨Nat.zero_add _, hs2_low, hinv0⟩
   obtain ⟨hsum_end, _, hinv_end⟩ := hlayers
@@ -454,7 +456,7 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
     unfold bfsProg
     dsimp only
     rw [StateTransitionSpec.clientState_bind, clientState_bind_write, clientState_bind_write,
-      cs_bind_pure]
+      clientState_bind, clientState_pure]
   rw [ht_eq]
   have hdist_all : ∀ x : Fin M, s3.mem (distBase n + x.1) = f.resDist x := by
     intro x
@@ -835,7 +837,8 @@ theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
       obtain ⟨htb_low, htb_dist, htb_par⟩ := bfsProg_spec hG hst_low f hf_st
       have hd1_eq : tb.mem (distBase n + 1) = f.resDist N.t := htb_dist N.t
       by_cases hd1 : tb.mem (distBase n + 1) < M
-      · rw [ite_eq_left hd1, cr_bind_pure, cs_bind_pure]
+      · rw [ite_eq_left hd1, clientResult_bind, clientResult_pure,
+          clientState_bind, clientState_pure]
         have ht_reach : f.ResReachable N.s N.t := by
           rw [← f.resDist_lt_card_iff_resReachable, Fintype.card_fin]
           rwa [← hd1_eq]
@@ -1032,12 +1035,13 @@ theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     change (Memory.spec 0).clientState s (minSepProg (n, m)) = s4
     unfold minSepProg
     dsimp only
-    rw [clientState_bind, clientState_bind, clientState_bind, cs_bind_pure]
+    rw [clientState_bind, clientState_bind, clientState_bind, clientState_bind, clientState_pure]
   have hres_eq : res = vc_end.2 := by
     change (Memory.spec 0).clientResult s (minSepProg (n, m)) = vc_end.2
     unfold minSepProg
     dsimp only
-    rw [clientResult_bind, clientResult_bind, clientResult_bind, cr_bind_pure]
+    rw [clientResult_bind, clientResult_bind, clientResult_bind, clientResult_bind,
+      clientResult_pure]
   rw [ht_eq, hres_eq]
   refine ⟨C, hmin, hcapC_le, ?_, hsep_fin, hcnt_fin, ?_⟩
   · intro x

@@ -94,7 +94,7 @@ theorem WListSpec.card_le_n {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s : Mem
   rw [hW.card_eq]
   exact Wset.card_le_univ.trans (by simp)
 
-theorem WListSpec.entry_inj {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s : Memory.State}
+private theorem WListSpec.entry_inj {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s : Memory.State}
     (hW : WListSpec Wset L s) {i j : Fin L}
     (h : s.mem (wListBase n + i.1) = s.mem (wListBase n + j.1)) : i = j := by
   rcases lt_trichotomy i.1 j.1 with hlt | heq | hgt
@@ -102,7 +102,7 @@ theorem WListSpec.entry_inj {n : ℕ} {Wset : Finset (Fin n)} {L : ℕ} {s : Mem
   · exact Fin.ext heq
   · exact absurd h.symm (ne_of_lt (hW.entry_strictMono j.1 i.1 hgt i.2))
 
-theorem preservesAt_buildWProg {a : ℕ} {d : ℕ × ℕ} (ha : a < wBase d.1) :
+private theorem preservesAt_buildWProg {a : ℕ} {d : ℕ × ℕ} (ha : a < wBase d.1) :
     PreservesAt a (buildWProg d) := by
   unfold buildWProg
   refine preservesAt_bind (preservesAt_copyRange (Or.inl ha)) fun _ => ?_
@@ -251,12 +251,14 @@ theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
     change (Memory.spec 0).clientState s (buildWProg (n, m)) = s3
     unfold buildWProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, clientState_bind_write, cs_bind_pure]
+    rw [StateTransitionSpec.clientState_bind, clientState_bind_write, clientState_bind,
+      clientState_pure]
   have hL_eq : L = vL_end.2 := by
     change (Memory.spec 0).clientResult s (buildWProg (n, m)) = vL_end.2
     unfold buildWProg
     dsimp only
-    rw [StateTransitionSpec.clientResult_bind, clientResult_bind_write, cr_bind_pure]
+    rw [StateTransitionSpec.clientResult_bind, clientResult_bind_write, clientResult_bind,
+      clientResult_pure]
   rw [ht_eq, hL_eq]
   have hfilt_univ : (Wset.filter fun w => w.1 < n) = Wset :=
     Finset.filter_eq_self.mpr fun w _ => w.2
@@ -350,7 +352,7 @@ theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.Sta
     change (Memory.spec 0).clientState s (unpackGuessProg (n, L)) = s2
     unfold unpackGuessProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, cs_bind_pure]
+    rw [StateTransitionSpec.clientState_bind, clientState_bind, clientState_pure]
   rw [ht_eq]
   refine ⟨fun j => hset_end j j.2, fun v hv => hzero_end v fun i _ h => hv ?_, hle2_end⟩
   exact (hW.mem_iff_exists v).mpr ⟨i, h⟩
@@ -371,7 +373,7 @@ theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableR
     0 < s.mem (digitBase n + i.1) ∧ 0 < s.mem (digitBase n + j.1) ∧
       s.mem (digitBase n + i.1) = s.mem (digitBase n + j.1) ∧ (prefixGraph G m).Adj u v
   unfold checkProperProg
-  rw [clientResult_bind_read, cr_bind_pure]
+  rw [clientResult_bind_read, clientResult_bind, clientResult_pure]
   have hout := iterate_invariant_of properOuterStep ((n, m), L)
     (fun rem (iok : ℕ × ℕ) st =>
       iok.1 + rem = L ∧
@@ -386,7 +388,8 @@ theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableR
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
         clientState_bind_read, hmem_eq, hmem_eq]
       by_cases hdu : 0 < s.mem (digitBase n + iok.1)
-      · rw [ite_eq_left ⟨uFin.2, hdu⟩, cr_bind_pure, cs_bind_pure]
+      · rw [ite_eq_left ⟨uFin.2, hdu⟩, clientResult_bind, clientResult_pure,
+          clientState_bind, clientState_pure]
         have hinn := iterate_invariant_of properInnerStep
           (((n, m), s.mem (wListBase n + iok.1)), s.mem (digitBase n + iok.1))
           (fun jrem (jok : ℕ × ℕ) st' =>
@@ -583,7 +586,8 @@ theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
         clientState_bind_read, hzv_eq, hcv_eq]
       by_cases hcond : s.mem (wBase n + v) = 0 ∧ v < m
-      · rw [ite_eq_left hcond, cr_bind_pure, cs_bind_pure]
+      · rw [ite_eq_left hcond, clientResult_bind, clientResult_pure,
+          clientState_bind, clientState_pure]
         have hv_notW : vFin ∉ Wset := hzv_W.mp hcond.1
         let KeepBefore (j : ℕ) : Prop :=
           ∃ idx : Fin L, idx.1 < j ∧
@@ -828,7 +832,8 @@ theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
     change (Memory.spec 0).clientState s (buildTerminalsProg ((n, m), L)) = s3
     unfold buildTerminalsProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind, cs_bind_pure]
+    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+      clientState_bind, clientState_pure]
   rw [ht_eq]
   exact ⟨fun v => (hdone_end v v.2).1, fun v => (hdone_end v v.2).2⟩
 
@@ -838,7 +843,7 @@ theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.State}
       s.mem (guessBase n + s.mem (wListBase n + j.1)) = s.mem (digitBase n + j.1)) :
     (Memory.spec 0).clientResult s (countDelProg (n, L)) = (delSet Wset s).card := by
   unfold countDelProg
-  rw [clientResult_bind_read, cr_bind_pure]
+  rw [clientResult_bind_read, clientResult_bind, clientResult_pure]
   have hiter := iterate_invariant_of countDelStep n
     (fun rem (jc : ℕ × ℕ) st =>
       jc.1 + rem = L ∧
@@ -1042,7 +1047,7 @@ theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.Stat
   have ht_eq : t = s1 := by
     change (Memory.spec 0).clientState s (commitLeafProg n) = s1
     unfold commitLeafProg
-    rw [clientState_bind_read, cs_bind_pure]
+    rw [clientState_bind_read, clientState_bind, clientState_pure]
   rw [ht_eq]
   refine ⟨fun v => (hdone_end v v.2).1, fun v => ?_, fun v hvW => ?_, fun v hvW => ?_⟩
   · rw [(hdone_end v v.2).2]

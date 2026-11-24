@@ -171,14 +171,14 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
         dsimp only
         rw [clientResult_bind, clientResult_bind, hok1, ite_eq_left rfl, clientResult_bind,
           clientResult_bind, clientResult_bind, hdelCnt,
-          ite_eq_left hcond_acc, cr_bind_pure]
+          ite_eq_left hcond_acc, clientResult_bind, clientResult_pure]
       have ht_eq : t = (Memory.spec 0).clientState s5 (commitLeafProg n) := by
         change (Memory.spec 0).clientState s (leafProg (((n, k), m), L)) = _
         unfold leafProg
         dsimp only
         rw [clientState_bind, clientState_bind, hok1, ite_eq_left rfl, clientState_bind,
           clientState_bind, clientState_bind, hdelCnt,
-          ite_eq_left hcond_acc, cs_bind_pure]
+          ite_eq_left hcond_acc, clientState_bind, clientState_pure]
       refine ⟨by omega, hpres_base, fun h0 => absurd hres1 (by omega), fun _ => ?_⟩
       rw [ht_eq]
       have hW5 : WListSpec Wset L s5 := hW4.congr fun a _ _ => hs5_eq a
@@ -665,7 +665,7 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
   dsimp only
   rw [clientResult_bind, clientResult_bind, hok1, ite_eq_left rfl, clientResult_bind,
     clientResult_bind, clientResult_bind, hdelCnt,
-    ite_eq_left ⟨hsep_le_n, hdel_le_n, hsum_T⟩, cr_bind_pure]
+    ite_eq_left ⟨hsep_le_n, hdel_le_n, hsum_T⟩, clientResult_bind, clientResult_pure]
 
 private theorem eq_of_base3At_eq {m₁ m₂ : ℕ → ℕ} {base : ℕ} :
     ∀ {L : ℕ}, (∀ j < L, m₁ (base + j) ≤ 2) → (∀ j < L, m₂ (base + j) ≤ 2) →
@@ -721,7 +721,7 @@ private theorem incOdomProg_digits_le (n L : ℕ) {s : Memory.State}
     (hdig : ∀ j < L, s.mem (digitBase n + j) ≤ 2) :
     ∀ j < L, ((Memory.spec 0).clientState s (incOdomProg (n, L))).mem (digitBase n + j) ≤ 2 := by
   unfold incOdomProg
-  rw [clientState_bind_read, cs_bind_pure]
+  rw [clientState_bind_read, clientState_bind, clientState_pure]
   have hinv := iterate_invariant_of incOdomStep n
     (fun rem (jc : ℕ × ℕ) st =>
       jc.1 + rem = L ∧ ∀ i < L, st.mem (digitBase n + i) ≤ 2)
@@ -857,7 +857,8 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
         dsimp only [guessStep]
         rw [clientResult_bind_read, clientState_bind_read]
         by_cases hst2_0 : st.2 = 0
-        · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind, cr_bind_pure, cs_bind_pure]
+        · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind,
+            clientResult_bind, clientResult_pure, clientState_bind, clientState_pure]
           obtain ⟨_, _, _, hleaf_le, hlow', huW', hdig', hodom_pre, _, hleaf_0, hoct'⟩ :=
             hleaf_step u hlow huW hdig (hzero_mem hst2_0)
           exact ih _ _ hlow' huW' hdig' hleaf_le
@@ -866,7 +867,8 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
                 (hzero_mem hst2_0 a ha)))
             hoct'
         · have hst2_1 : st.2 = 1 := by omega
-          rw [ite_eq_right hst2_0, pure_bind, cr_bind_pure, cs_bind_pure]
+          rw [ite_eq_right hst2_0, pure_bind,
+            clientResult_bind, clientResult_pure, clientState_bind, clientState_pure]
           set u_odom := (Memory.spec 0).clientState u (incOdomProg (n, L))
           have hodom_pre : ∀ a < digitBase n, u_odom.mem a = u.mem a :=
             fun a ha => preservesAt_incOdomProg (Or.inl ha) u
@@ -894,14 +896,14 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
     change (Memory.spec 0).clientState s (compressProg (((n, k), m), L)) = _
     unfold compressProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, cs_bind_pure]
+    rw [StateTransitionSpec.clientState_bind, clientState_bind, clientState_pure]
   have hres_eq : res = ((Memory.spec 0).clientResult s1
       (boundedWhile (fun _ (x : ℕ × ℕ) => x.1 = 0) guessStep (((n, k), m), L)
         (3 ^ L) (0, 0))).2 := by
     change (Memory.spec 0).clientResult s (compressProg (((n, k), m), L)) = _
     unfold compressProg
     dsimp only
-    rw [StateTransitionSpec.clientResult_bind, cr_bind_pure]
+    rw [StateTransitionSpec.clientResult_bind, clientResult_bind, clientResult_pure]
   rw [ht_eq, hres_eq]
   refine ⟨hlow_fin, hres_le, hres_sound, ?_⟩
   rintro ⟨T, hToct, hTk⟩
@@ -959,7 +961,8 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
         dsimp only [guessStep]
         rw [clientResult_bind_read, clientState_bind_read]
         by_cases hst2_0 : st.2 = 0
-        · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind, cr_bind_pure, cs_bind_pure]
+        · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind,
+            clientResult_bind, clientResult_pure, clientState_bind, clientState_pure]
           obtain ⟨huG, hu_col01, hu_c0, hleaf_le, hlow', huW', hdig', hodom_pre, hbase_leaf,
               hleaf_0, _⟩ :=
             hleaf_step u hlow huW hdig
@@ -1013,7 +1016,8 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
               dsimp only [targetVal] at hlt_tar ⊢
               omega
         · have hst2_1 : st.2 = 1 := by omega
-          rw [ite_eq_right hst2_0, pure_bind, cr_bind_pure, cs_bind_pure]
+          rw [ite_eq_right hst2_0, pure_bind,
+            clientResult_bind, clientResult_pure, clientState_bind, clientState_pure]
           set done' := (Memory.spec 0).clientResult u (incOdomProg (n, L))
           set u_odom := (Memory.spec 0).clientState u (incOdomProg (n, L))
           have hodom_pre : ∀ a < digitBase n, u_odom.mem a = u.mem a :=

@@ -63,14 +63,17 @@ theorem preservesAt_iterate_fst {a : ℕ} {δ β : Type}
 /-! ### Array fill and copy helpers -/
 
 /-- Single step of `fillRange`: write `val` to `base + i` and increment `i`. -/
-@[expose] def fillStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def fillStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
   let p := d.1
   Memory.write (p.1 + d.2) p.2
   pure (d.2 + 1)
 
 /-- Fill `d.2` contiguous memory cells starting at `d.1.1` with `d.1.2`. -/
 @[expose] def fillRange (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
-  let _ ← iterate fillStep d.1 d.2 0
+  let _ ← iterate (fun (d : (ℕ × ℕ) × ℕ) => do
+    let p := d.1
+    Memory.write (p.1 + d.2) p.2
+    pure (d.2 + 1)) d.1 d.2 0
   pure ()
 
 private theorem fillStep_realizes :
@@ -87,7 +90,8 @@ theorem fillRange_realizes :
     Realizes .exact fillRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := Unit))
       (fun w d _ => let p := d.1; Fits w (p.1 + d.2)) (fun _ _ => 0) := by
-  unfold fillRange
+  change Realizes .exact (fun d : (ℕ × ℕ) × ℕ => do let _ ← iterate fillStep d.1 d.2 0; pure ())
+    _ _ _ _
   realize [fillStep_realizes]
   refine iterationSafe_of_stepInv _ _ w d
     (fun rem (idx : ℕ) _ => idx + rem = d.2 ∧ Fits w (d.1.1 + d.2)) ?_ ⟨Nat.zero_add _, h⟩
@@ -111,7 +115,7 @@ theorem preservesAt_fillRange {a : ℕ} {d : (ℕ × ℕ) × ℕ}
   exact ⟨by omega, (Function.update_of_ne (by omega) _ t.mem).trans hmem⟩
 
 /-- Single step of `copyRange`: copy `src + i` to `dst + i` and increment `i`. -/
-@[expose] def copyStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def copyStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
   let p := d.1
   let v ← Memory.read (p.1 + d.2)
   Memory.write (p.2 + d.2) v
@@ -119,7 +123,11 @@ theorem preservesAt_fillRange {a : ℕ} {d : (ℕ × ℕ) × ℕ}
 
 /-- Copy `d.2` contiguous words from `d.1.1` to `d.1.2`. -/
 @[expose] def copyRange (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
-  let _ ← iterate copyStep d.1 d.2 0
+  let _ ← iterate (fun (d : (ℕ × ℕ) × ℕ) => do
+    let p := d.1
+    let v ← Memory.read (p.1 + d.2)
+    Memory.write (p.2 + d.2) v
+    pure (d.2 + 1)) d.1 d.2 0
   pure ()
 
 private theorem copyStep_realizes :
@@ -138,7 +146,8 @@ theorem copyRange_realizes :
     Realizes .exact copyRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := Unit))
       (fun w d _ => let p := d.1; Fits w (p.1 + d.2) ∧ Fits w (p.2 + d.2)) (fun _ _ => 0) := by
-  unfold copyRange
+  change Realizes .exact (fun d : (ℕ × ℕ) × ℕ => do let _ ← iterate copyStep d.1 d.2 0; pure ())
+    _ _ _ _
   realize [copyStep_realizes]
   refine iterationSafe_of_stepInv _ _ w d
     (fun rem (idx : ℕ) _ => idx + rem = d.2 ∧ Fits w (d.1.1 + d.2) ∧ Fits w (d.1.2 + d.2))
@@ -162,15 +171,6 @@ theorem validHistory_bind_ready {α β : Type} {w n : ℕ} {s : Memory.State}
       (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (q x))) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p >>= q)) :=
   validHistory_bind_step hp (hq _ _ (MonotoneMemInv.pres hs hp))
-
-theorem mc_pure {α : Type} (x : α) (s : Memory.State) :
-    memoryCost (pure x) s ≤ 0 := le_refl 0
-
-theorem mc_read (a : ℕ) (s : Memory.State) :
-    memoryCost (Memory.read a) s ≤ 1 := le_refl 1
-
-theorem mc_write (a v : ℕ) (s : Memory.State) :
-    memoryCost (Memory.write a v) s ≤ 1 := le_refl 1
 
 theorem memReady_write {w n : ℕ} {s : Memory.State} (hs : MemReady w n s) (a v : ℕ)
     (hv : Fits w v) : MemReady w n ⟨Function.update s.mem a v, s.frontier⟩ := by
@@ -205,7 +205,8 @@ theorem validHistory_fillRange {w n : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory
     (hval : let p := d.1; Fits w p.2) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillRange d)) := by
   rcases d with ⟨⟨base, val⟩, len⟩
-  unfold fillRange
+  change (Memory.spec w).ValidHistory s
+    ((Memory.spec w).clientHistory s (do let _ ← iterate fillStep (base, val) len 0; pure ()))
   refine validHistory_bind_step
     (validHistory_iterate_nat (Inv := MemReady w n) len 0 (fun idx hidx t ht => ⟨?_, ?_⟩) hs)
     (validHistory_pure _ _ _)
@@ -219,7 +220,8 @@ theorem validHistory_copyRange {w n : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory
     (hdst : let p := d.1; p.2 + d.2 ≤ octWorkspace n) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (copyRange d)) := by
   rcases d with ⟨⟨srcB, dstB⟩, len⟩
-  unfold copyRange
+  change (Memory.spec w).ValidHistory s
+    ((Memory.spec w).clientHistory s (do let _ ← iterate copyStep (srcB, dstB) len 0; pure ()))
   refine validHistory_bind_step
     (validHistory_iterate_nat (Inv := MemReady w n) len 0 (fun idx hidx t ht => ⟨?_, ?_⟩) hs)
     (validHistory_pure _ _ _)
@@ -232,38 +234,20 @@ theorem validHistory_copyRange {w n : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory
 
 theorem memoryCost_fillRange_le (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (fillRange d) s ≤ d.2 := by
-  unfold fillRange
+  change memoryCost (do let _ ← iterate fillStep d.1 d.2 0; pure ()) s ≤ d.2
   have hit := memoryCost_iterate_le_of fillStep 1 d.1
     (fun idx t => by unfold fillStep; exact (le_refl 1)) d.2 0 s
-  exact le_trans (memoryCost_bind_le hit fun _ t => mc_pure () t) (by omega)
+  exact le_trans (memoryCost_bind_le hit fun _ t => (memoryCost_pure () t).le) (by omega)
 
 theorem memoryCost_copyRange_le (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (copyRange d) s ≤ 2 * d.2 := by
-  unfold copyRange
+  change memoryCost (do let _ ← iterate copyStep d.1 d.2 0; pure ()) s ≤ 2 * d.2
   have hit := memoryCost_iterate_le_of copyStep 2 d.1
     (fun idx t => by
       unfold copyStep
-      exact memoryCost_bind_le (mc_read _ t) fun _ t' => (le_refl 1 : memoryCost _ t' ≤ 1)) d.2 0 s
-  exact le_trans (memoryCost_bind_le hit fun _ t => mc_pure () t) (by omega)
-
-@[simp, client_simps]
-theorem cr_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α) (s : Memory.State) :
-    (Memory.spec w).clientResult s (f <$> p) = f ((Memory.spec w).clientResult s p) := by
-  induction p generalizing s with
-  | pure _ => rfl
-  | liftBind _ _ ih => exact ih _ _
-
-theorem cr_bind_pure {α β : Type} (w : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (f : α → β) :
-    (Memory.spec w).clientResult s (p >>= fun x => pure (f x)) =
-      f ((Memory.spec w).clientResult s p) := by
-  simp only [client_simps]
-
-theorem cs_bind_pure {α β : Type} (w : ℕ) (s : Memory.State) (p : Memory.Prog α)
-    (f : α → β) :
-    (Memory.spec w).clientState s (p >>= fun x => pure (f x)) =
-      (Memory.spec w).clientState s p := by
-  simp only [client_simps]
+      exact memoryCost_bind_le (memoryCost_read _ t).le fun _ t' =>
+        (le_refl 1 : memoryCost _ t' ≤ 1)) d.2 0 s
+  exact le_trans (memoryCost_bind_le hit fun _ t => (memoryCost_pure () t).le) (by omega)
 
 theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
     let s' := (Memory.spec 0).clientState s (fillRange ((base, val), len))

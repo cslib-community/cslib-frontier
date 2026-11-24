@@ -45,13 +45,13 @@ private theorem memoryCost_buildWProg_le (d : ℕ × ℕ) (s : Memory.State) :
   dsimp only
   have hstep : ∀ vL t, memoryCost (buildWListStep (n, vL)) t ≤ 2 := fun vL t => by
     unfold buildWListStep
-    exact le_trans (memoryCost_bind_le (mc_read _ t) fun _ t' =>
+    exact le_trans (memoryCost_bind_le (memoryCost_read _ t).le fun _ t' =>
       memoryCost_ite_le ((le_refl 1)) (Nat.zero_le _)) (by decide)
   have hcopy := memoryCost_copyRange_le ((sepBase n, wBase n), n) s
   exact le_trans (memoryCost_bind_le hcopy fun _ t1 =>
-    memoryCost_bind_le (mc_write _ _ t1) fun _ t2 =>
+    memoryCost_bind_le (memoryCost_write _ _ t1).le fun _ t2 =>
       memoryCost_bind_le (memoryCost_iterate_le_of buildWListStep 2 n hstep n (0, 0) t2)
-        fun _ t3 => mc_pure _ t3) (by dsimp only; omega)
+        fun _ t3 => (memoryCost_pure _ t3).le) (by dsimp only; omega)
 
 private theorem iterate_inv_and_cost {δ σ : Type} (body : δ × σ → Memory.Prog σ)
     (c : ℕ) (d : δ) (Inv : ℕ → σ → Memory.State → Prop)
@@ -199,7 +199,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           have hcp_map : memoryCost
               (do let ok ← compressProg (((n, k), m + 1), L); pure (m + 1, ok)) tW ≤
               215 * 3 ^ L * (n + 1) ^ 4 :=
-            le_trans (memoryCost_bind_le hcp fun _ t' => mc_pure _ t') (by omega)
+            le_trans (memoryCost_bind_le hcp fun _ t' => (memoryCost_pure _ t').le) (by omega)
           have hL_eq : L = k + 1 := by omega
           have hpowL : 3 ^ L = 3 * 3 ^ k := by rw [hL_eq, pow_succ, Nat.mul_comm]
           rw [hpowL] at hcp_map
@@ -250,7 +250,8 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
             rw [Function.update_of_ne (by dsimp only [sepBase, colBase]; omega),
               Function.update_of_ne (by dsimp only [sepBase, colBase]; omega)]
             exact hcW_prop u v hadj huW hvW
-      · rw [ite_eq_right hLk, ite_eq_left hL_le_n, cr_bind_pure, cs_bind_pure]
+      · rw [ite_eq_right hLk, ite_eq_left hL_le_n, clientResult_bind, clientResult_pure,
+          clientState_bind, clientState_pure]
         have hcol01_tW : ∀ v : Fin n, tW.mem (colBase n + v.1) ≤ 1 := fun v =>
           (htW_low _ (by dsimp only [colBase, wBase]; omega)).trans_le (h01_st v).2
         obtain ⟨hcp_low, hcp_le, hcp_sound, hcp_comp⟩ :=
@@ -293,14 +294,12 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
     change (Memory.spec 0).clientResult s₀ (octProg ()) = ma_end.2
     unfold octProg
     rw [clientResult_bind_read, clientResult_bind_read, hs₀_1, hs₀_2, clientResult_bind,
-      clientResult_bind,
-      clientResult_bind, cr_bind_pure]
+      clientResult_bind, clientResult_bind, clientResult_bind, clientResult_pure]
   have ht_eq : t = s_end := by
     change (Memory.spec 0).clientState s₀ (octProg ()) = s_end
     unfold octProg
     rw [clientState_bind_read, clientState_bind_read, hs₀_1, hs₀_2, clientState_bind,
-      clientState_bind,
-      clientState_bind, cs_bind_pure]
+      clientState_bind, clientState_bind, clientState_bind, clientState_pure]
   have htotal_cost : memoryCost (octProg ()) s₀ ≤ 680 * 3 ^ k * (n + 1) ^ 5 := by
     unfold octProg
     have hr1 : (Memory.spec 0).clientResult s₀ (Memory.read 1) = n := hs₀_1
@@ -333,7 +332,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
     dsimp only at hc_sep hc_col
     have hc_pure : memoryCost (do let res ← iterate octStep (n, k) n (0, 1); pure res.2) s_col ≤
         655 * 3 ^ k * (n + 1) ^ 4 * n :=
-      le_trans (memoryCost_bind_le hiter_cost fun _ u => mc_pure _ u) (by omega)
+      le_trans (memoryCost_bind_le hiter_cost fun _ u => (memoryCost_pure _ u).le) (by omega)
     exact le_trans (by omega) (octProg_cost_arith n k)
   rw [hres_eq, ht_eq]
   refine ⟨htotal_cost, hal_end_le, ⟨fun h1 => ?_, fun hex => ?_⟩, hal_end_1⟩
