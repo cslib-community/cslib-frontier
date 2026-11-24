@@ -675,7 +675,7 @@ private noncomputable def nextFreezeDelta (G : CostSharingGame A) (T F : Finset 
     (hne : (T \ F).Nonempty) (α : A → ℝ) : ℝ :=
   ((T.powerset.filter (fun S => (S \ F).Nonempty)).attach).inf'
     (nonempty_attach_activeSubsets hne)
-    (fun x => (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
+    (fun x => (G.cost x.val - ∑ j ∈ x.val, α j) / ((x.val \ F).card : ℝ))
 
 private theorem nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
     (hne : (T \ F).Nonempty) (α : A → ℝ) (hST : S ⊆ T) (hSF : (S \ F).Nonempty) :
@@ -684,7 +684,7 @@ private theorem nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
     Finset.mem_filter.2 ⟨Finset.mem_powerset.2 hST, hSF⟩
   exact Finset.inf'_le
     (fun x : {S // S ∈ T.powerset.filter (fun S => (S \ F).Nonempty)} =>
-      (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
+      (G.cost x.val - ∑ j ∈ x.val, α j) / ((x.val \ F).card : ℝ))
     (Finset.mem_attach _ ⟨S, hmem⟩)
 
 private theorem mul_nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
@@ -839,7 +839,7 @@ private theorem waterFilling_step_history {G : CostSharingGame A} {T : Finset A}
     have htight_sub : ∀ S ⊆ T, G.IsTight (fun k => min (α' k) t) S → S ⊆ F := by
       intro S hST hSt
       by_contra hnot
-      have hSF : (S \ F).Nonempty := Finset.nonempty_iff_ne_empty.2
+      have hSF : (S \ F).Nonempty := Finset.ne_empty_iff_nonempty.1
         (mt Finset.sdiff_eq_empty_iff_subset.1 hnot)
       have hmul := G.mul_nextFreezeDelta_le hne α hST hSF
       have hcard_pos : (0 : ℝ) < (S \ F).card := by exact_mod_cast Finset.card_pos.2 hSF
@@ -869,7 +869,7 @@ private theorem waterFilling_step {G : CostSharingGame A} {T : Finset A} {α : A
   obtain ⟨⟨SStar, hSStar_mem⟩, _, hδ_eq⟩ :=
     Finset.exists_mem_eq_inf' (nonempty_attach_activeSubsets hne)
       (fun x : {S // S ∈ T.powerset.filter (fun S => (S \ F).Nonempty)} =>
-        (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
+        (G.cost x.val - ∑ j ∈ x.val, α j) / ((x.val \ F).card : ℝ))
   have hδ_val : δ = (G.cost SStar - ∑ j ∈ SStar, α j) / ((SStar \ F).card : ℝ) := hδ_eq
   have hSStar_T : SStar ⊆ T := Finset.mem_powerset.1 (Finset.mem_filter.1 hSStar_mem).1
   have hSStar_SF : (SStar \ F).Nonempty := (Finset.mem_filter.1 hSStar_mem).2

@@ -102,7 +102,7 @@ theorem pd_idosds_singleton :
   subst haf
   refine ⟨true, trivial, rfl, fun s => ?_⟩
   simp only [CostGame.restrict_cost]
-  fin_cases i <;> cases h0 : (s 0).1 <;> cases h1 : (s 1).1 <;>
+  fin_cases i <;> cases h0 : (s 0).val <;> cases h1 : (s 1).val <;>
     norm_num [pd, Function.update, h0, h1]
 
 /-- Also exercise `idosdsStep_simultaneous` on `pd`. -/
@@ -232,7 +232,7 @@ theorem orderDepGame_idowds_singleton :
       subst hat
       refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨true, trivial⟩, ?_⟩⟩
       · simp only [CostGame.restrict_cost]
-        cases h0 : (s 0).1 <;> norm_num [orderDepGame, Function.update, h0]
+        cases h0 : (s 0).val <;> norm_num [orderDepGame, Function.update, h0]
       · simp only [CostGame.restrict_cost]
         norm_num [orderDepGame, Function.update]
   have hstep2 : orderDepGame.IDoWDSStep A₁ (fun _ => {false}) := by
@@ -249,7 +249,7 @@ theorem orderDepGame_idowds_singleton :
         have hfalseA : false ∈ A₁ 0 := trivial
         refine ⟨⟨false, hfalseA⟩, fun s => ?_, ⟨fun j => if hj : j = 0 then ⟨false, hj ▸ hfalseA⟩
           else ⟨false, by fin_cases j <;> simp_all [A₁]⟩, ?_⟩⟩
-        · have hs1 : (s 1).1 = false := (s 1).2
+        · have hs1 : (s 1).val = false := (s 1).property
           simp only [CostGame.restrict_cost]
           norm_num [orderDepGame, Function.update, hs1]
         · simp only [CostGame.restrict_cost]
@@ -276,7 +276,7 @@ theorem orderDepGame_idowds_other_terminal :
       subst hat
       refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨false, trivial⟩, ?_⟩⟩
       · simp only [CostGame.restrict_cost]
-        cases h1 : (s 1).1 <;> norm_num [orderDepGame, Function.update, h1]
+        cases h1 : (s 1).val <;> norm_num [orderDepGame, Function.update, h1]
       · simp only [CostGame.restrict_cost]
         norm_num [orderDepGame, Function.update]
     · exact (hnot trivial).elim
@@ -288,13 +288,13 @@ theorem orderDepGame_idowds_other_terminal :
     obtain ⟨_, s, hlt⟩ := hb
     fin_cases i
     · have ha_eq : a = false := ha
-      have hb_eq : b.1 = false := b.2
+      have hb_eq : b.val = false := b.property
       have hab : (⟨a, ha⟩ : A₂ 0) = b := Subtype.ext (ha_eq.trans hb_eq.symm)
       rw [hab] at hlt
       exact lt_irrefl _ hlt
-    · have hs0 : (s 0).1 = false := (s 0).2
+    · have hs0 : (s 0).val = false := (s 0).property
       simp only [CostGame.restrict_cost] at hlt
-      cases a <;> cases b.1 <;> norm_num [orderDepGame, Function.update, hs0] at hlt
+      cases a <;> cases b.val <;> norm_num [orderDepGame, Function.update, hs0] at hlt
 
 /-- Simultaneous `IDoWDS` (`idowdsSeq`) eliminates `true` for both players in one step on
 `orderDepGame`, leaving `fun _ => {false}` at stage `1`. -/
@@ -316,7 +316,7 @@ theorem orderDepGame_idowdsSeq_one :
     · simp only [Bool.true_eq_false, iff_false, not_not]
       refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨false, trivial⟩, ?_⟩⟩
       · simp only [CostGame.restrict_cost]
-        cases h1 : (s 1).1 <;> norm_num [orderDepGame, Function.update, h1]
+        cases h1 : (s 1).val <;> norm_num [orderDepGame, Function.update, h1]
       · simp only [CostGame.restrict_cost]
         norm_num [orderDepGame, Function.update]
   · cases a
@@ -330,7 +330,7 @@ theorem orderDepGame_idowdsSeq_one :
     · simp only [Bool.true_eq_false, iff_false, not_not]
       refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨true, trivial⟩, ?_⟩⟩
       · simp only [CostGame.restrict_cost]
-        cases h0 : (s 0).1 <;> norm_num [orderDepGame, Function.update, h0]
+        cases h0 : (s 0).val <;> norm_num [orderDepGame, Function.update, h0]
       · simp only [CostGame.restrict_cost]
         norm_num [orderDepGame, Function.update]
 

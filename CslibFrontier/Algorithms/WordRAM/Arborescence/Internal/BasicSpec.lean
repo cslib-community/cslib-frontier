@@ -137,7 +137,7 @@ private theorem zeroWordsProg_spec {w : ℕ} (a : ZeroArgs) (s₀ : Memory.State
 
 /-- Encodes `some j` as `j.1` and `none` as the sentinel `n`. -/
 @[expose] public def optFinIdx {n : ℕ} : Option (Fin n) → ℕ
-  | some j => j.1
+  | some j => j.val
   | none => n
 
 public theorem argMinArrayProg_spec {w n : ℕ} (predBase costBase : ℕ)
@@ -145,8 +145,8 @@ public theorem argMinArrayProg_spec {w n : ℕ} (predBase costBase : ℕ)
     (h2 : Fits w 2) (hfit_p : Fits w (predBase + n)) (hfit_c : Fits w (costBase + n))
     (hfit_n : Fits w n)
     (hp_f : predBase + n ≤ s₀.frontier) (hc_f : costBase + n ≤ s₀.frontier)
-    (hp_mem : ∀ i : Fin n, s₀.mem (predBase + i.1) = if pred i then 1 else 0)
-    (hc_mem : ∀ i : Fin n, s₀.mem (costBase + i.1) = Signed.encode (val i)) :
+    (hp_mem : ∀ i : Fin n, s₀.mem (predBase + i.val) = if pred i then 1 else 0)
+    (hc_mem : ∀ i : Fin n, s₀.mem (costBase + i.val) = Signed.encode (val i)) :
     let a : ArgMinArgs := ⟨n, predBase, costBase⟩
     iterationSafe argMinStep ArgMinStepSafe w a n ⟨0, n, 0⟩ s₀ ∧
       (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (argMinArrayProg a)) ∧
@@ -203,7 +203,7 @@ public theorem argMinArrayProg_spec {w n : ℕ} (predBase costBase : ℕ)
             have hbin : bestIdx = n := hbi.trans (by simp [optFinIdx])
             simp [hbin, List.argAux, optFinIdx, client_simps]
           | some j =>
-            have hbin : bestIdx = j.1 := hbi.trans (by simp [optFinIdx])
+            have hbin : bestIdx = j.val := hbi.trans (by simp [optFinIdx])
             have hbne : bestIdx ≠ n := by omega
             have hbcj : bestCost = Signed.encode (val j) := hbc j rfl
             simp only [hbne, ↓reduceIte, hbcj, List.argAux]
@@ -230,47 +230,48 @@ public theorem argMinArrayProg_spec {w n : ℕ} (predBase costBase : ℕ)
 private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
     (a : AdjTable n) (c : CostTable ℤ n) (s : Memory.State)
     (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s.frontier)
-    (ha_s : ∀ u col : Fin n, s.mem (curAdjBase ws n + u.1 * n + col.1) =
-      if a[u.1][col.1] then 1 else 0)
-    (hc_s : ∀ u col : Fin n, s.mem (curCostBase ws n + u.1 * n + col.1) =
-      Signed.encode c[u.1][col.1])
-    (hfit_c : ∀ u col : Fin n, Fits w (Signed.encode c[u.1][col.1])) :
+    (ha_s : ∀ u col : Fin n, s.mem (curAdjBase ws n + u.val * n + col.val) =
+      if a[u.val][col.val] then 1 else 0)
+    (hc_s : ∀ u col : Fin n, s.mem (curCostBase ws n + u.val * n + col.val) =
+      Signed.encode c[u.val][col.val])
+    (hfit_c : ∀ u col : Fin n, Fits w (Signed.encode c[u.val][col.val])) :
     let rowArgs : SelectRowArgs :=
-      ⟨n, vFin.1, curAdjBase ws n, curCostBase ws n, candPredBase ws n, candCostBase ws n⟩
+      ⟨n, vFin.val, curAdjBase ws n, curCostBase ws n, candPredBase ws n, candCostBase ws n⟩
     let s1 := (Memory.spec 0).clientState s (fillSelectRowProg rowArgs)
     iterationSafe selectRowStep SelectRowStepSafe w rowArgs n 0 s ∧
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillSelectRowProg rowArgs)) ∧
       memoryCost (fillSelectRowProg rowArgs) s ≤ 4 * n ∧
       s1.frontier = s.frontier ∧
       (∀ x, ¬(candPredBase ws n ≤ x ∧ x < candCostBase ws n + n) → s1.mem x = s.mem x) ∧
-      (∀ u col : Fin n, s1.mem (curAdjBase ws n + u.1 * n + col.1) =
-        if a[u.1][col.1] then 1 else 0) ∧
-      (∀ u col : Fin n, s1.mem (curCostBase ws n + u.1 * n + col.1) =
-        Signed.encode c[u.1][col.1]) ∧
+      (∀ u col : Fin n, s1.mem (curAdjBase ws n + u.val * n + col.val) =
+        if a[u.val][col.val] then 1 else 0) ∧
+      (∀ u col : Fin n, s1.mem (curCostBase ws n + u.val * n + col.val) =
+        Signed.encode c[u.val][col.val]) ∧
       (∀ col : Fin n,
-        s1.mem (candPredBase ws n + col.1) = (if a[vFin.1][col.1] && col != vFin then 1 else 0) ∧
-        s1.mem (candCostBase ws n + col.1) = Signed.encode c[vFin.1][col.1]) := by
+        s1.mem (candPredBase ws n + col.val) =
+            (if a[vFin.val][col.val] && col != vFin then 1 else 0) ∧
+        s1.mem (candCostBase ws n + col.val) = Signed.encode c[vFin.val][col.val]) := by
   let rowArgs : SelectRowArgs :=
-    ⟨n, vFin.1, curAdjBase ws n, curCostBase ws n, candPredBase ws n, candCostBase ws n⟩
+    ⟨n, vFin.val, curAdjBase ws n, curCostBase ws n, candPredBase ws n, candCostBase ws n⟩
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have hv_lt := vFin.isLt
   have hrow := iterate_spec selectRowStep SelectRowStepSafe w rowArgs 4 n
     (fun col idx sr => idx = col ∧ sr.frontier = s.frontier ∧
-      (∀ u c0 : Fin n, sr.mem (curAdjBase ws n + u.1 * n + c0.1) =
-        if a[u.1][c0.1] then 1 else 0) ∧
-      (∀ u c0 : Fin n, sr.mem (curCostBase ws n + u.1 * n + c0.1) =
-        Signed.encode c[u.1][c0.1]) ∧
-      (∀ c0 : Fin n, c0.1 < col →
-        sr.mem (candPredBase ws n + c0.1) =
-          (if a[vFin.1][c0.1] && c0 != vFin then 1 else 0) ∧
-        sr.mem (candCostBase ws n + c0.1) = Signed.encode c[vFin.1][c0.1]))
+      (∀ u c0 : Fin n, sr.mem (curAdjBase ws n + u.val * n + c0.val) =
+        if a[u.val][c0.val] then 1 else 0) ∧
+      (∀ u c0 : Fin n, sr.mem (curCostBase ws n + u.val * n + c0.val) =
+        Signed.encode c[u.val][c0.val]) ∧
+      (∀ c0 : Fin n, c0.val < col →
+        sr.mem (candPredBase ws n + c0.val) =
+          (if a[vFin.val][c0.val] && c0 != vFin then 1 else 0) ∧
+        sr.mem (candCostBase ws n + c0.val) = Signed.encode c[vFin.val][c0.val]))
     (fun x => candPredBase ws n ≤ x ∧ x < candCostBase ws n + n)
     (fun col hcol idx sr ⟨hidx_c, hfr_r, ha_r, hc_r, hdone⟩ => by
       subst idx
-      have ha_mc : sr.mem (curAdjBase ws n + vFin.1 * n + col) =
-          if a[vFin.1][col] then 1 else 0 := ha_r vFin ⟨col, hcol⟩
-      have hc_mc : sr.mem (curCostBase ws n + vFin.1 * n + col) =
-          Signed.encode c[vFin.1][col] := hc_r vFin ⟨col, hcol⟩
+      have ha_mc : sr.mem (curAdjBase ws n + vFin.val * n + col) =
+          if a[vFin.val][col] then 1 else 0 := ha_r vFin ⟨col, hcol⟩
+      have hc_mc : sr.mem (curCostBase ws n + vFin.val * n + col) =
+          Signed.encode c[vFin.val][col] := hc_r vFin ⟨col, hcol⟩
       refine ⟨by dsimp only [SelectRowStepSafe, rowArgs]; exact ⟨h1,
           hws.of_le (by dsimp only [wsSize, curAdjBase]; nlinarith),
           hws.of_le (by dsimp only [wsSize, curCostBase]; nlinarith),
@@ -318,7 +319,7 @@ private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
         exact hc_r u c0
       · intro c0 hc0
         simp only [selectRowStep, rowArgs, client_simps]
-        by_cases heq : c0.1 = col
+        by_cases heq : c0.val = col
         · have hc0_eq : c0 = ⟨col, hcol⟩ := Fin.ext heq
           subst hc0_eq
           simp only [Function.update_self]
@@ -326,7 +327,7 @@ private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
             Function.update_self]
           simp only [ha_mc, hc_mc]
           refine ⟨?_, trivial⟩
-          by_cases hab : a[vFin.1][col] = true <;> by_cases hne : col = vFin.1 <;>
+          by_cases hab : a[vFin.val][col] = true <;> by_cases hne : col = vFin.val <;>
             simp [hab, hne, bne_iff_ne, Fin.ext_iff]
         · rw [Function.update_of_ne (by dsimp only [candPredBase, candCostBase]; omega),
             Function.update_of_ne (by omega),
@@ -342,12 +343,12 @@ private theorem fillSelectRowProg_spec {w n ws : ℕ} (vFin : Fin n)
 public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
     (a : AdjTable n) (c : CostTable ℤ n) (s₀ : Memory.State)
     (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s₀.frontier)
-    (ha : ∀ u col : Fin n, s₀.mem (curAdjBase ws n + u.1 * n + col.1) =
-      if a[u.1][col.1] then 1 else 0)
-    (hc : ∀ u col : Fin n, s₀.mem (curCostBase ws n + u.1 * n + col.1) =
-      Signed.encode c[u.1][col.1])
-    (hfit_c : ∀ u col : Fin n, Fits w (Signed.encode c[u.1][col.1])) :
-    let sa : SelectArgs := ⟨n, r.1, ws, k⟩
+    (ha : ∀ u col : Fin n, s₀.mem (curAdjBase ws n + u.val * n + col.val) =
+      if a[u.val][col.val] then 1 else 0)
+    (hc : ∀ u col : Fin n, s₀.mem (curCostBase ws n + u.val * n + col.val) =
+      Signed.encode c[u.val][col.val])
+    (hfit_c : ∀ u col : Fin n, Fits w (Signed.encode c[u.val][col.val])) :
+    let sa : SelectArgs := ⟨n, r.val, ws, k⟩
     let s' := (Memory.spec 0).clientState s₀ (selectParentsProg sa)
     let sel := selectParents a c r
     (Fits w 1 ∧ iterationSafe selectOuterStep SelectOuterStepSafe w sa n ⟨0, 1⟩ s₀) ∧
@@ -358,11 +359,11 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
           (frameParentBase ws n k ≤ x ∧ x < frameParentBase ws n k + n)) →
         s'.mem x = s₀.mem x) ∧
       (Memory.spec 0).clientResult s₀ (selectParentsProg sa) = (if sel.feasible then 1 else 0) ∧
-      (∀ v : Fin n, s'.mem (frameParentBase ws n k + v.1) = (sel.parents[v.1]).1) := by
-  let sa : SelectArgs := ⟨n, r.1, ws, k⟩
+      (∀ v : Fin n, s'.mem (frameParentBase ws n k + v.val) = (sel.parents[v.val]).val) := by
+  let sa : SelectArgs := ⟨n, r.val, ws, k⟩
   let optFn : Fin n → Option (Fin n) := fun v =>
     if v = r then some r
-    else argMinFin n (fun col => a[v.1][col.1] && col != v) (fun col => c[v.1][col.1])
+    else argMinFin n (fun col => a[v.val][col.val] && col != v) (fun col => c[v.val][col.val])
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have h2 : Fits w 2 := hws.of_le (by dsimp only [wsSize]; omega)
   have hn_pos : 0 < n := r.pos
@@ -371,12 +372,12 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
     (fun m st s =>
       let feasM := ((List.finRange n).take m).foldl (fun acc v => acc && (optFn v).isSome) true
       st.v = m ∧ st.feas = (if feasM then 1 else 0) ∧ s.frontier = s₀.frontier ∧
-        (∀ u col : Fin n, s.mem (curAdjBase ws n + u.1 * n + col.1) =
-          if a[u.1][col.1] then 1 else 0) ∧
-        (∀ u col : Fin n, s.mem (curCostBase ws n + u.1 * n + col.1) =
-          Signed.encode c[u.1][col.1]) ∧
-        (∀ j : Fin n, j.1 < m →
-          s.mem (frameParentBase ws n k + j.1) = ((optFn j).getD j).1))
+        (∀ u col : Fin n, s.mem (curAdjBase ws n + u.val * n + col.val) =
+          if a[u.val][col.val] then 1 else 0) ∧
+        (∀ u col : Fin n, s.mem (curCostBase ws n + u.val * n + col.val) =
+          Signed.encode c[u.val][col.val]) ∧
+        (∀ j : Fin n, j.val < m →
+          s.mem (frameParentBase ws n k + j.val) = ((optFn j).getD j).val))
     (fun x => (candPredBase ws n ≤ x ∧ x < candCostBase ws n + n) ∨
       (frameParentBase ws n k ≤ x ∧ x < frameParentBase ws n k + n))
     (fun m hm st s ⟨hv, hfeas, hfr, ha_s, hc_s, hpar⟩ => by
@@ -389,7 +390,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
       have hrow := fillSelectRowProg_spec vFin a c s hws (by rw [hfr]; exact hf) ha_s hc_s hfit_c
       set s1 := (Memory.spec 0).clientState s (fillSelectRowProg rowArgs)
       have harg := argMinArrayProg_spec (candPredBase ws n) (candCostBase ws n)
-        (fun col => a[m][col.1] && col != vFin) (fun col => c[m][col.1]) s1
+        (fun col => a[m][col.val] && col != vFin) (fun col => c[m][col.val]) s1
         h2
         (hws.of_le (by dsimp only [wsSize, candPredBase]; nlinarith))
         (hws.of_le (by dsimp only [wsSize, candCostBase]; nlinarith))
@@ -403,7 +404,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
       · unfold selectOuterStep
         dsimp only [sa]
         refine validHistory_read_bind (by omega) ?_
-        by_cases hmr : m = r.1
+        by_cases hmr : m = r.val
         · simp only [hmr, ↓reduceIte]
           exact validHistory_write_bind
             (by dsimp only [wsSize, frameParentBase, frameBase] at hf hfr ⊢; nlinarith)
@@ -427,7 +428,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
       · unfold selectOuterStep
         dsimp only [sa]
         rw [memoryCost_bind', memoryCost_read, clientState_read]
-        by_cases hmr : m = r.1
+        by_cases hmr : m = r.val
         · simp only [hmr, ↓reduceIte, memoryCost_bind', memoryCost_write, client_simps]
           omega
         · simp only [hmr, ↓reduceIte]
@@ -441,7 +442,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
             simp only [memoryCost_bind', memoryCost_write, memoryCost_pure] <;> omega
       · unfold selectOuterStep
         dsimp only [sa]
-        by_cases hmr : m = r.1
+        by_cases hmr : m = r.val
         · simp [hmr, client_simps, hfr]
         · have harg_s := harg.2.2.2.1
           have hrow_fr := hrow.2.2.2.1
@@ -455,7 +456,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
         have hx_p : x ≠ frameParentBase ws n k + m := by
           intro heq
           exact hx (Or.inr ⟨by omega, by omega⟩)
-        by_cases hmr : m = r.1
+        by_cases hmr : m = r.val
         · simp only [hmr, ↓reduceIte, client_simps]
           rw [hmr] at hx_p
           exact Function.update_of_ne hx_p _ _
@@ -470,11 +471,11 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
       · rw [foldl_take_finRange_succ hm]
         unfold selectOuterStep
         dsimp only [sa]
-        by_cases hmr : m = r.1
+        by_cases hmr : m = r.val
         · have hopt_r : optFn r = some r := by simp [optFn]
           simp only [hmr, ↓reduceIte, client_simps]
           refine ⟨trivial, ?_, hfr, ?_, ?_, ?_⟩
-          · rw [show (⟨r.1, _⟩ : Fin n) = r from Fin.ext rfl, hopt_r]
+          · rw [show (⟨r.val, _⟩ : Fin n) = r from Fin.ext rfl, hopt_r]
             simp [hfeas, hmr]
           · intro u col
             have := List.mul_add_lt_sq u.isLt col.isLt
@@ -487,7 +488,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
               (by dsimp only [curCostBase, frameParentBase, frameBase]; omega)]
             exact hc_s u col
           · intro j hj
-            by_cases hjm : j.1 = m
+            by_cases hjm : j.val = m
             · have hjr : j = r := Fin.ext (hjm.trans hmr)
               subst hjr
               simp [hopt_r]
@@ -495,7 +496,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
               exact hpar j (by omega)
         · have hvr : vFin ≠ r := fun h => hmr (congrArg Fin.val h)
           have hopt_v : optFn vFin =
-              argMinFin n (fun col => a[m][col.1] && col != vFin) (fun col => c[m][col.1]) := by
+              argMinFin n (fun col => a[m][col.val] && col != vFin) (fun col => c[m][col.val]) := by
             simp [optFn, hvr, vFin]
           have harg_s := harg.2.2.2.1
           have harg_r := harg.2.2.2.2
@@ -509,7 +510,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
           dsimp only [rowArgs, vFin] at hrow_fr hrow_mod hrow_a hrow_c
           cases hopt_case : optFn vFin with
           | some wBest =>
-            have hwlt : wBest.1 < n := wBest.isLt
+            have hwlt : wBest.val < n := wBest.isLt
             simp only [optFinIdx, hwlt, ↓reduceIte, client_simps, Option.isSome_some,
               Bool.and_true]
             refine ⟨trivial, hfeas, hrow_fr.trans hfr, ?_, ?_, ?_⟩
@@ -524,7 +525,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
                 (by dsimp only [curCostBase, frameParentBase, frameBase]; omega)]
               exact hrow_c u col
             · intro j hj
-              by_cases hjm : j.1 = m
+              by_cases hjm : j.val = m
               · have hjv : j = vFin := Fin.ext hjm
                 subst hjv
                 simp [hopt_case, vFin]
@@ -547,7 +548,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
                 (by dsimp only [curCostBase, frameParentBase, frameBase]; omega)]
               exact hrow_c u col
             · intro j hj
-              by_cases hjm : j.1 = m
+              by_cases hjm : j.val = m
               · have hjv : j = vFin := Fin.ext hjm
                 subst hjv
                 simp [hopt_case, vFin]
@@ -570,7 +571,7 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
     have hopts : (Vector.ofFn optFn) =
         (Vector.ofFn fun v : Fin n =>
           if v = r then some r
-          else argMinFin n (fun w => a[v.1][w.1] && w != v) (fun w => c[v.1][w.1])) := rfl
+          else argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])) := rfl
     simp [← hopts]
   · intro v
     simp only [client_simps]
@@ -580,27 +581,27 @@ public theorem selectParentsProg_spec {w n ws k : ℕ} (r : Fin n)
 private theorem hasCycleFromProg_spec {w n parentBase : ℕ} (x : Fin n) (f : ParentTable n)
     (s₀ : Memory.State) (h1 : Fits w 1) (hfit_p : Fits w (parentBase + n)) (hfit_n : Fits w n)
     (hp_f : parentBase + n ≤ s₀.frontier)
-    (hf_mem : ∀ v : Fin n, s₀.mem (parentBase + v.1) = (f[v.1]).1) :
-    iterationSafe hasCycleStep HasCycleStepSafe w ⟨n, parentBase, x.1⟩ n ⟨0, x.1, 0⟩ s₀ ∧
+    (hf_mem : ∀ v : Fin n, s₀.mem (parentBase + v.val) = (f[v.val]).val) :
+    iterationSafe hasCycleStep HasCycleStepSafe w ⟨n, parentBase, x.val⟩ n ⟨0, x.val, 0⟩ s₀ ∧
       (Memory.spec w).ValidHistory s₀
-        ((Memory.spec w).clientHistory s₀ (hasCycleFromProg ⟨n, parentBase, x.1⟩)) ∧
-      memoryCost (hasCycleFromProg ⟨n, parentBase, x.1⟩) s₀ ≤ n ∧
-      (Memory.spec 0).clientState s₀ (hasCycleFromProg ⟨n, parentBase, x.1⟩) = s₀ ∧
-      (Memory.spec 0).clientResult s₀ (hasCycleFromProg ⟨n, parentBase, x.1⟩) =
+        ((Memory.spec w).clientHistory s₀ (hasCycleFromProg ⟨n, parentBase, x.val⟩)) ∧
+      memoryCost (hasCycleFromProg ⟨n, parentBase, x.val⟩) s₀ ≤ n ∧
+      (Memory.spec 0).clientState s₀ (hasCycleFromProg ⟨n, parentBase, x.val⟩) = s₀ ∧
+      (Memory.spec 0).clientResult s₀ (hasCycleFromProg ⟨n, parentBase, x.val⟩) =
         (if hasCycleFrom x f then 1 else 0) := by
-  have h := iterate_spec hasCycleStep HasCycleStepSafe w ⟨n, parentBase, x.1⟩ 1 n
+  have h := iterate_spec hasCycleStep HasCycleStepSafe w ⟨n, parentBase, x.val⟩ 1 n
     (fun m st s =>
-      let curFin := (fun i : Fin n => f[i.1])^[m] x
-      let hitBool := (List.range m).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x
-      st.step = m ∧ st.cur = curFin.1 ∧ st.hit = (if hitBool then 1 else 0) ∧ s = s₀)
+      let curFin := (fun i : Fin n => f[i.val])^[m] x
+      let hitBool := (List.range m).any fun k => (fun i : Fin n => f[i.val])^[k + 1] x == x
+      st.step = m ∧ st.cur = curFin.val ∧ st.hit = (if hitBool then 1 else 0) ∧ s = s₀)
     (fun _ => False)
     (fun m hm st s ⟨hst, hcur, hhit, hs⟩ => by
       rcases st with ⟨step, cur, hit⟩
       dsimp only at hst hcur hhit
       subst step s
-      set curFin : Fin n := (fun i : Fin n => f[i.1])^[m] x
+      set curFin : Fin n := (fun i : Fin n => f[i.val])^[m] x
       have hcur_lt : cur < n := hcur ▸ curFin.isLt
-      have hmem_cur : s₀.mem (parentBase + cur) = (f[curFin.1]).1 := by
+      have hmem_cur : s₀.mem (parentBase + cur) = (f[curFin.val]).val := by
         rw [hcur]
         exact hf_mem curFin
       refine ⟨by dsimp only [HasCycleStepSafe]; exact ⟨h1, hfit_p.of_le (by omega),
@@ -626,16 +627,16 @@ private theorem hasCycleFromProg_spec {w n parentBase : ℕ} (x : Fin n) (f : Pa
         simp only [client_simps, hmem_cur, List.range_succ, List.any_append, List.any_cons,
           List.any_nil, Bool.or_false]
         generalize
-          ((List.range m).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x) = prev at hhit ⊢
+          ((List.range m).any fun k => (fun i : Fin n => f[i.val])^[k + 1] x == x) = prev at hhit ⊢
         simp only [Function.iterate_succ_apply']
         subst hhit
         cases prev
-        · by_cases heq : f[curFin.1] = x
+        · by_cases heq : f[curFin.val] = x
           · simp [heq, curFin, client_simps]
-          · have hval : (f[curFin.1]).1 ≠ x.1 := fun h => heq (Fin.ext h)
+          · have hval : (f[curFin.val]).val ≠ x.val := fun h => heq (Fin.ext h)
             simp [heq, hval, curFin, client_simps]
         · simp [curFin, client_simps])
-    ⟨0, x.1, 0⟩ s₀ ⟨rfl, rfl, rfl, rfl⟩
+    ⟨0, x.val, 0⟩ s₀ ⟨rfl, rfl, rfl, rfl⟩
   obtain ⟨hsafe, hvh, hmc, _, _, _, _, hhit_n, hs_n⟩ := h
   unfold hasCycleFromProg
   refine ⟨hsafe, validHistory_bind_step hvh (validHistory_pure w _ _),
@@ -648,19 +649,19 @@ private theorem hasCycleFromProg_spec {w n parentBase : ℕ} (x : Fin n) (f : Pa
 public theorem findCycleProg_spec {w n parentBase : ℕ} (r : Fin n) (f : ParentTable n)
     (s₀ : Memory.State) (h1 : Fits w 1) (hfit_p : Fits w (parentBase + n)) (hfit_n : Fits w n)
     (hf0 : 0 < s₀.frontier) (hp_f : parentBase + n ≤ s₀.frontier)
-    (hf_mem : ∀ v : Fin n, s₀.mem (parentBase + v.1) = (f[v.1]).1) :
-    iterationSafe findCycleOuterStep FindCycleOuterStepSafe w ⟨n, r.1, parentBase⟩ n ⟨0, n⟩ s₀ ∧
+    (hf_mem : ∀ v : Fin n, s₀.mem (parentBase + v.val) = (f[v.val]).val) :
+    iterationSafe findCycleOuterStep FindCycleOuterStepSafe w ⟨n, r.val, parentBase⟩ n ⟨0, n⟩ s₀ ∧
       (Memory.spec w).ValidHistory s₀
-        ((Memory.spec w).clientHistory s₀ (findCycleProg ⟨n, r.1, parentBase⟩)) ∧
-      memoryCost (findCycleProg ⟨n, r.1, parentBase⟩) s₀ ≤ (n + 1) * n ∧
-      (Memory.spec 0).clientState s₀ (findCycleProg ⟨n, r.1, parentBase⟩) = s₀ ∧
-      (Memory.spec 0).clientResult s₀ (findCycleProg ⟨n, r.1, parentBase⟩) =
+        ((Memory.spec w).clientHistory s₀ (findCycleProg ⟨n, r.val, parentBase⟩)) ∧
+      memoryCost (findCycleProg ⟨n, r.val, parentBase⟩) s₀ ≤ (n + 1) * n ∧
+      (Memory.spec 0).clientState s₀ (findCycleProg ⟨n, r.val, parentBase⟩) = s₀ ∧
+      (Memory.spec 0).clientResult s₀ (findCycleProg ⟨n, r.val, parentBase⟩) =
         optFinIdx (findCycleTable r f) := by
   let stepFn := fun (acc : Option (Fin n)) (x : Fin n) =>
     match acc with
     | some x0 => some x0
     | none => if x == r then none else if hasCycleFrom x f then some x else none
-  have h := iterate_spec findCycleOuterStep FindCycleOuterStepSafe w ⟨n, r.1, parentBase⟩
+  have h := iterate_spec findCycleOuterStep FindCycleOuterStepSafe w ⟨n, r.val, parentBase⟩
     (n + 1) n
     (fun m st s =>
       let acc := ((List.finRange n).take m).foldl stepFn none
@@ -722,8 +723,8 @@ public theorem findCycleProg_spec {w n parentBase : ℕ} (r : Fin n) (f : Parent
         | none =>
           have hfn : ¬(foundIdx < n) := by rw [hfd, optFinIdx]; omega
           simp only [hfn, ↓reduceIte]
-          by_cases hmr : m = r.1
-          · have hvr : ((⟨r.1, hmr ▸ hm⟩ : Fin n) == r) = true := beq_iff_eq.mpr (Fin.ext rfl)
+          by_cases hmr : m = r.val
+          · have hvr : ((⟨r.val, hmr ▸ hm⟩ : Fin n) == r) = true := beq_iff_eq.mpr (Fin.ext rfl)
             simp only [hmr, hvr, ↓reduceIte, client_simps, optFinIdx]
             exact ⟨trivial, trivial, trivial⟩
           · have hvr : (⟨m, hm⟩ == r) = false :=
@@ -754,39 +755,39 @@ public theorem cycleMaskProg_spec {w n parentBase maskBase : ℕ} (f : ParentTab
     (h1 : Fits w 1) (hfit_p : Fits w (parentBase + n)) (hfit_m : Fits w (maskBase + n))
     (hfit_n : Fits w n) (hp_f : parentBase + n ≤ s₀.frontier) (hm_f : maskBase + n ≤ s₀.frontier)
     (hdisj : parentBase + n ≤ maskBase ∨ maskBase + n ≤ parentBase)
-    (hf_mem : ∀ v : Fin n, s₀.mem (parentBase + v.1) = (f[v.1]).1) :
-    let cm : CycleMaskArgs := ⟨n, parentBase, maskBase, x0.1⟩
+    (hf_mem : ∀ v : Fin n, s₀.mem (parentBase + v.val) = (f[v.val]).val) :
+    let cm : CycleMaskArgs := ⟨n, parentBase, maskBase, x0.val⟩
     let s0z := (Memory.spec 0).clientState s₀ (zeroWordsProg ⟨maskBase, n⟩)
     let s' := (Memory.spec 0).clientState s₀ (cycleMaskProg cm)
     (iterationSafe zeroStep ZeroStepSafe w ⟨maskBase, n⟩ n 0 s₀ ∧
-      iterationSafe cycleMaskStep CycleMaskStepSafe w cm n ⟨0, x0.1⟩ s0z) ∧
+      iterationSafe cycleMaskStep CycleMaskStepSafe w cm n ⟨0, x0.val⟩ s0z) ∧
       (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (cycleMaskProg cm)) ∧
       memoryCost (cycleMaskProg cm) s₀ ≤ 3 * n ∧
       s'.frontier = s₀.frontier ∧
       (∀ addr, ¬(maskBase ≤ addr ∧ addr < maskBase + n) → s'.mem addr = s₀.mem addr) ∧
-      (∀ y : Fin n, s'.mem (maskBase + y.1) = if (cycleMask f x0)[y.1] then 1 else 0) := by
-  let cm : CycleMaskArgs := ⟨n, parentBase, maskBase, x0.1⟩
+      (∀ y : Fin n, s'.mem (maskBase + y.val) = if (cycleMask f x0)[y.val] then 1 else 0) := by
+  let cm : CycleMaskArgs := ⟨n, parentBase, maskBase, x0.val⟩
   have hzero := zeroWordsProg_spec ⟨maskBase, n⟩ s₀ hm_f hfit_m hfit_n
   set s0z := (Memory.spec 0).clientState s₀ (zeroWordsProg ⟨maskBase, n⟩)
-  have hf_mem_z : ∀ v : Fin n, s0z.mem (parentBase + v.1) = (f[v.1]).1 := by
+  have hf_mem_z : ∀ v : Fin n, s0z.mem (parentBase + v.val) = (f[v.val]).val := by
     intro v
     rw [hzero.2.2.2.2.1 _ (by dsimp only; have := v.isLt; omega)]
     exact hf_mem v
   have hloop := iterate_spec cycleMaskStep CycleMaskStepSafe w cm 2 n
     (fun m st s =>
-      st.step = m ∧ st.cur = ((fun i : Fin n => f[i.1])^[m] x0).1 ∧
+      st.step = m ∧ st.cur = ((fun i : Fin n => f[i.val])^[m] x0).val ∧
         s.frontier = s0z.frontier ∧
-        (∀ v : Fin n, s.mem (parentBase + v.1) = (f[v.1]).1) ∧
-        (∀ y : Fin n, s.mem (maskBase + y.1) =
-          if ∃ j < m, (fun i : Fin n => f[i.1])^[j] x0 = y then 1 else 0))
+        (∀ v : Fin n, s.mem (parentBase + v.val) = (f[v.val]).val) ∧
+        (∀ y : Fin n, s.mem (maskBase + y.val) =
+          if ∃ j < m, (fun i : Fin n => f[i.val])^[j] x0 = y then 1 else 0))
     (fun addr => maskBase ≤ addr ∧ addr < maskBase + n)
     (fun m hm st s ⟨hst, hcur, hfr, hpar_s, hmask_s⟩ => by
       rcases st with ⟨step, cur⟩
       dsimp only at hst hcur
       subst step
-      set curFin : Fin n := (fun i : Fin n => f[i.1])^[m] x0
+      set curFin : Fin n := (fun i : Fin n => f[i.val])^[m] x0
       have hcur_lt : cur < n := hcur ▸ curFin.isLt
-      have hmem_cur : s.mem (parentBase + cur) = (f[curFin.1]).1 := by
+      have hmem_cur : s.mem (parentBase + cur) = (f[curFin.val]).val := by
         rw [hcur]
         exact hpar_s curFin
       refine ⟨by dsimp only [CycleMaskStepSafe, cm]; exact ⟨h1, hfit_p.of_le (by omega),
@@ -811,23 +812,24 @@ public theorem cycleMaskProg_spec {w n parentBase maskBase : ℕ} (f : ParentTab
           rw [Function.update_of_ne (by have := v.isLt; omega)]
           exact hpar_s v
         · intro y
-          by_cases hcy : y.1 = cur
-          · have hy_eq : (fun i : Fin n => f[i.1])^[m] x0 = y := Fin.ext (hcur.symm.trans hcy.symm)
-            have hex : ∃ j < m + 1, (fun i : Fin n => f[i.1])^[j] x0 = y :=
+          by_cases hcy : y.val = cur
+          · have hy_eq : (fun i : Fin n => f[i.val])^[m] x0 = y :=
+              Fin.ext (hcur.symm.trans hcy.symm)
+            have hex : ∃ j < m + 1, (fun i : Fin n => f[i.val])^[j] x0 = y :=
               ⟨m, Nat.lt_succ_self m, hy_eq⟩
             rw [hcy, Function.update_self, ite_eq_left hex]
           · rw [Function.update_of_ne (by omega), hmask_s y]
-            have hiff : (∃ j < m + 1, (fun i : Fin n => f[i.1])^[j] x0 = y) ↔
-                (∃ j < m, (fun i : Fin n => f[i.1])^[j] x0 = y) := by
+            have hiff : (∃ j < m + 1, (fun i : Fin n => f[i.val])^[j] x0 = y) ↔
+                (∃ j < m, (fun i : Fin n => f[i.val])^[j] x0 = y) := by
               refine ⟨?_, fun ⟨j, hj, h⟩ => ⟨j, Nat.lt_succ_of_lt hj, h⟩⟩
               rintro ⟨j, hj, h⟩
               rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with hlt | rfl
               · exact ⟨j, hlt, h⟩
               · exact absurd (hcur.trans (congrArg Fin.val h)).symm hcy
             rw [if_congr hiff rfl rfl])
-    ⟨0, x0.1⟩ s0z
+    ⟨0, x0.val⟩ s0z
     ⟨rfl, rfl, rfl, hf_mem_z, fun y => by
-      simp [hzero.2.2.2.2.2 y.1 y.isLt]⟩
+      simp [hzero.2.2.2.2.2 y.val y.isLt]⟩
   unfold cycleMaskProg cycleMaskLoopProg
   refine ⟨⟨hzero.1, hloop.1⟩,
     validHistory_bind_step hzero.2.1
@@ -851,9 +853,9 @@ public theorem cycleMaskProg_spec {w n parentBase maskBase : ℕ} (f : ParentTab
       obtain ⟨_, _, _, _, _, _, _, _, _, hmask_n⟩ := hloop
       simp only [client_simps]
       rw [hmask_n y]
-      by_cases hcy : (cycleMask f x0)[y.1] = true
+      by_cases hcy : (cycleMask f x0)[y.val] = true
       · simp [hcy, (getElem_cycleMask f x0 y).mp hcy]
-      · have hnot : ¬∃ j < n, (fun i : Fin n => f[i.1])^[j] x0 = y :=
+      · have hnot : ¬∃ j < n, (fun i : Fin n => f[i.val])^[j] x0 = y :=
           mt (getElem_cycleMask f x0 y).mpr hcy
         simp [hcy, hnot]⟩
 

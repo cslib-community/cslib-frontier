@@ -164,7 +164,7 @@ private theorem exists_kernel_step {ι κ 𝕜 : Type*} [Fintype ι] [DecidableE
     have hsum2 : ∑ v ∈ F, (if v ∈ A i then d v else 0) = L y ⟨i, hi⟩ := by
       rw [← sum_coe_sort F]
       refine sum_congr rfl fun v _ => ?_
-      simp [d, v.2]
+      simp [d, v.property]
     rw [hsum1, hsum2, hyi]
 
 private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [DecidableEq κ]

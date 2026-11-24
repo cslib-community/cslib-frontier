@@ -192,8 +192,8 @@ private theorem natCard_nodup_mem_head {α : Type*} {s : Finset α} {x : α} (hx
     · rintro ⟨hne, rfl | he⟩
       · exact absurd rfl hne
       · exact he
-  · refine List.nodup_cons.mpr ⟨fun h => ?_, t.2.1⟩
-    exact (Finset.notMem_erase x s) ((t.2.2 x).mp h)
+  · refine List.nodup_cons.mpr ⟨fun h => ?_, t.property.1⟩
+    exact (Finset.notMem_erase x s) ((t.property.2 x).mp h)
   · intro e
     rw [List.mem_cons, t.property.2, Finset.mem_erase]
     by_cases he : e = x
@@ -206,12 +206,12 @@ private theorem natCard_nodup_mem_getLast {α : Type*} {s : Finset α} {x : α} 
       (s.card - 1).factorial := by
   rw [← natCard_nodup_mem_head hx]
   refine Nat.card_congr
-    { toFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
-        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
-        by rw [List.head?_reverse]; exact l.2.2.2⟩
-      invFun := fun l => ⟨l.1.reverse, List.nodup_reverse.mpr l.2.1,
-        fun e => by simpa only [List.mem_reverse] using l.2.2.1 e,
-        by rw [List.getLast?_reverse]; exact l.2.2.2⟩
+    { toFun := fun l => ⟨l.val.reverse, List.nodup_reverse.mpr l.property.1,
+        fun e => by simpa only [List.mem_reverse] using l.property.2.1 e,
+        by rw [List.head?_reverse]; exact l.property.2.2⟩
+      invFun := fun l => ⟨l.val.reverse, List.nodup_reverse.mpr l.property.1,
+        fun e => by simpa only [List.mem_reverse] using l.property.2.1 e,
+        by rw [List.getLast?_reverse]; exact l.property.2.2⟩
       left_inv := fun l => Subtype.ext (List.reverse_reverse _)
       right_inv := fun l => Subtype.ext (List.reverse_reverse _) }
 
@@ -668,7 +668,7 @@ theorem natCard_isEulerianCircuit
         exact (Option.some.inj h1).symm
       exact ⟨⟨⟨l, hl⟩, hφ⟩, funext fun v => Subtype.ext (hls v)⟩
   have : Finite Tour :=
-    Finite.of_injective (fun l : Tour => (⟨l.1, l.2.nodup⟩ : {l : List E // l.Nodup}))
+    Finite.of_injective (fun l : Tour => (⟨l.val, l.property.nodup⟩ : {l : List E // l.Nodup}))
       fun l₁ l₂ h => Subtype.ext (Subtype.mk.inj h)
   change Nat.card Tour = Nat.card Arb * _
   rw [← Nat.card_congr (Equiv.sigmaFiberEquiv φ), Nat.card_sigma,

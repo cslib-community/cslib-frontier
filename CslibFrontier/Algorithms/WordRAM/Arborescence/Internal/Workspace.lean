@@ -87,23 +87,23 @@ public theorem frame_le_frames {n k : ℕ} (hk : k < n) :
   simpa [Nat.succ_mul] using Nat.mul_le_mul_right (4 * n + 1) hk
 
 public theorem init_mem_encode_arb_adj (I : ArborescenceInput) (u v : Fin I.n) :
-    (Memory.State.init I.encode).mem (3 + (u.1 * I.n + v.1)) = if I.adj u v then 1 else 0 := by
-  rw [show 3 + (u.1 * I.n + v.1) = ((u.1 * I.n + v.1) + 2) + 1 by omega]
-  change (Data.init (r := 0) I.encode).mem (((u.1 * I.n + v.1) + 2) + 1) = _
+    (Memory.State.init I.encode).mem (3 + (u.val * I.n + v.val)) = if I.adj u v then 1 else 0 := by
+  rw [show 3 + (u.val * I.n + v.val) = ((u.val * I.n + v.val) + 2) + 1 by omega]
+  change (Data.init (r := 0) I.encode).mem (((u.val * I.n + v.val) + 2) + 1) = _
   rw [Data.init_mem_succ]
   dsimp only [ArborescenceInput.encode]
   rw [List.getD_cons_succ, List.getD_cons_succ]
-  have hlt : u.1 * I.n + v.1 < (flattenBoolMatrix I.n I.adj).length := by
+  have hlt : u.val * I.n + v.val < (flattenBoolMatrix I.n I.adj).length := by
     rw [length_flattenBoolMatrix]; exact List.mul_add_lt_sq u.isLt v.isLt
   rw [List.getD_eq_getElem?_getD, List.getElem?_append_left hlt, ← List.getD_eq_getElem?_getD]
   exact getD_flattenBoolMatrix I.n I.adj u v
 
 public theorem init_mem_encode_arb_cost (I : ArborescenceInput) (u v : Fin I.n) :
-    (Memory.State.init I.encode).mem (3 + I.n * I.n + (u.1 * I.n + v.1)) =
+    (Memory.State.init I.encode).mem (3 + I.n * I.n + (u.val * I.n + v.val)) =
       Signed.encode (I.cost u v) := by
-  rw [show 3 + I.n * I.n + (u.1 * I.n + v.1) =
-    ((I.n * I.n + (u.1 * I.n + v.1)) + 2) + 1 by omega]
-  change (Data.init (r := 0) I.encode).mem (((I.n * I.n + (u.1 * I.n + v.1)) + 2) + 1) = _
+  rw [show 3 + I.n * I.n + (u.val * I.n + v.val) =
+    ((I.n * I.n + (u.val * I.n + v.val)) + 2) + 1 by omega]
+  change (Data.init (r := 0) I.encode).mem (((I.n * I.n + (u.val * I.n + v.val)) + 2) + 1) = _
   rw [Data.init_mem_succ]
   dsimp only [ArborescenceInput.encode]
   rw [List.getD_cons_succ, List.getD_cons_succ]

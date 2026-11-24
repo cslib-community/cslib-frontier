@@ -70,7 +70,7 @@ private theorem ofSubtype_trans {α : Type*} {p : α → Prop} [DecidablePred p]
   by_cases hz : p z
   · simp only [Equiv.coe_toEmbedding, Function.Embedding.trans_apply,
       Equiv.Perm.ofSubtype_apply_of_mem _ hz, Equiv.trans_apply]
-    exact (Equiv.Perm.ofSubtype_apply_of_mem σ₂ (σ₁ ⟨z, hz⟩).2).symm
+    exact (Equiv.Perm.ofSubtype_apply_of_mem σ₂ (σ₁ ⟨z, hz⟩).property).symm
   · simp only [Equiv.coe_toEmbedding, Function.Embedding.trans_apply,
       Equiv.Perm.ofSubtype_apply_of_not_mem _ hz]
 
@@ -81,7 +81,7 @@ private theorem ofSubtype_symm_eq {α : Type*} {p : α → Prop} [DecidablePred 
     rw [Equiv.apply_symm_apply]
     by_cases hu : p u
     · rw [Equiv.Perm.ofSubtype_apply_of_mem _ hu,
-        Equiv.Perm.ofSubtype_apply_of_mem _ (σ.symm ⟨u, hu⟩).2, σ.apply_symm_apply]
+        Equiv.Perm.ofSubtype_apply_of_mem _ (σ.symm ⟨u, hu⟩).property, σ.apply_symm_apply]
     · rw [Equiv.Perm.ofSubtype_apply_of_not_mem _ hu, Equiv.Perm.ofSubtype_apply_of_not_mem _ hu])
 
 open Classical in
@@ -224,12 +224,13 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
         by_cases hKr : K_rem ∈ S_comp.powersetCard (n - m)
         · have hstab_eq (K' : Finset (Fin U)) (hK' : K' ∈ S_comp.powersetCard (n - m)) :
               (stab K_rem).card = (stab K').card := by
-            let subSet (A : Finset (Fin U)) : Finset ↥S_comp := Finset.univ.filter fun x => x.1 ∈ A
+            let subSet (A : Finset (Fin U)) : Finset ↥S_comp :=
+                Finset.univ.filter fun x => x.val ∈ A
             have hsub_card (A : Finset (Fin U)) (hA : A ∈ S_comp.powersetCard (n - m)) :
                 (subSet A).card = n - m := by
               obtain ⟨hA_sub, hA_c⟩ := Finset.mem_powersetCard.mp hA
               rw [← hA_c]
-              exact Finset.card_bij (fun x _ => x.1) (fun x hx => (Finset.mem_filter.mp hx).2)
+              exact Finset.card_bij (fun x _ => x.val) (fun x hx => (Finset.mem_filter.mp hx).2)
                 (fun _ _ _ _ h => Subtype.ext h) fun y hy =>
                   ⟨⟨y, hA_sub hy⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩, rfl⟩
             obtain ⟨σ_sub, hσ_sub_map⟩ := Equiv.Perm.exists_map_finset_eq
@@ -252,8 +253,8 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
                   Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩
                 rw [← hσ_sub_map] at hyK'
                 obtain ⟨x_sub, hxKr, hx_eq⟩ := Finset.mem_map.mp hyK'
-                refine ⟨x_sub.1, (Finset.mem_filter.mp hxKr).2, ?_⟩
-                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.2]
+                refine ⟨x_sub.val, (Finset.mem_filter.mp hxKr).2, ?_⟩
+                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.property]
                 exact congrArg Subtype.val hx_eq
             refine Finset.card_bij (fun π_sub _ => π_sub.trans σ_sub) (fun π_sub hπ => ?_)
               (fun _ _ _ _ h => Equiv.Perm.ext fun x => σ_sub.injective (Equiv.Perm.ext_iff.mp h x))
@@ -287,7 +288,7 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
             have hxS : x ∈ S_comp := hK₀_sub hx
             change Equiv.Perm.ofSubtype π_sub x ∈ S_comp
             rw [Equiv.Perm.ofSubtype_apply_of_mem π_sub hxS]
-            exact (π_sub ⟨x, hxS⟩).2
+            exact (π_sub ⟨x, hxS⟩).property
           rw [hemp, Finset.card_empty, zero_mul]; exact Nat.zero_le _
       -- Value-shift bound for each fixed π_sub
       have hval_le (π_sub : Equiv.Perm ↥S_comp) :
@@ -314,7 +315,7 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
           omega
         let F_δ := Finset.univ.filter fun δ : Fin U → Fin V =>
           (target8 t₀ m ht₀ (actG (π_sub, δ) (s, B))).2 = kv_opt
-        have hinj : Set.InjOn (fun (δ : Fin U → Fin V) (u : ↥(Finset.univ \ U_cov)) => δ u.1)
+        have hinj : Set.InjOn (fun (δ : Fin U → Fin V) (u : ↥(Finset.univ \ U_cov)) => δ u.val)
             (F_δ : Set (Fin U → Fin V)) := fun δ₁ h₁ δ₂ h₂ hrest => funext fun u => by
           by_cases hu : u ∈ U_cov
           · have heq1 := congrFun (Finset.mem_filter.mp h₁).2 u

@@ -317,7 +317,7 @@ private theorem insertDescendOrLeaf_int_spec
       refine WP.of_execWithin hsc_exec ?_
       exact WP.of_execWithin hdas ⟨by omega, rfl⟩
     have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem := by
-      simpa only [Finset.union_idempotent] using hmod_sc.trans hmod_das
+      simpa only [Finset.union_self] using hmod_sc.trans hmod_das
     rw [hmem_z₂] at hbr_das
     rw [hact_z₂.trans hactz] at hbr_das
     simp only [Nat.add_sub_cancel] at hbr_das
@@ -777,7 +777,7 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
                 (by rwa [hc_s1])
             refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
               by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
+              by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
               by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
             · intro w_id hnot o ho_lt
               have hnot_rec : w_id ∉ readNodeSet l base t mem₁ c ∪ Finset.Ico (cnt + 1) cnt' := by
@@ -846,7 +846,7 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
                 (by rwa [hc_s11])
             refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
               by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
+              by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
               by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
             · intro w_id hnot o ho_lt
               have hnot_rec : w_id ∉ readNodeSet l base t mem₁ cnt ∪ Finset.Ico (cnt + 1) cnt' := by
@@ -891,7 +891,7 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
             (hc_def.symm ▸ hnk_c_ge) (hc_def.symm ▸ hsub_c') (hc_def.symm ▸ htr_c')
         refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
           hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg,
-          by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_,
+          by simpa only [Finset.union_self] using hmod₃.trans hmod_rec, ?_,
           hv_u', hs_u', by rw [hnk_u'], hsub_u', htr_u'⟩
         intro w_id hnot o ho_lt
         apply hfr_rec w_id _ o ho_lt

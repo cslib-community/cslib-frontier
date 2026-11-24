@@ -134,7 +134,7 @@ private theorem basicCond_one {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool
 
 private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
-    basicCond T x ⟨2 + 2 * i.1, by omega⟩ = projLeft m x + T i (projRight m x) := by
+    basicCond T x ⟨2 + 2 * i.val, by omega⟩ = projLeft m x + T i (projRight m x) := by
   simp only [basicCond, projLeft, projRight, LinearMap.coe_mk, AddHom.coe_mk]
   rw [dite_eq_right_of_eq_false (eq_false (by omega)),
     dite_eq_right_of_eq_false (eq_false (by omega))]
@@ -145,7 +145,7 @@ private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Boo
 
 private theorem basicCond_odd {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
-    basicCond T x ⟨2 + 2 * i.1 + 1, by omega⟩ = projRight m x + T i (projLeft m x) := by
+    basicCond T x ⟨2 + 2 * i.val + 1, by omega⟩ = projRight m x + T i (projLeft m x) := by
   simp only [basicCond, projLeft, projRight, LinearMap.coe_mk, AddHom.coe_mk]
   rw [dite_eq_right_of_eq_false (eq_false (by omega)),
     dite_eq_right_of_eq_false (eq_false (by omega))]

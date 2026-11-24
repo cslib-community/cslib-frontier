@@ -313,7 +313,7 @@ private theorem lintegral_exp_catoni_le_one {θ : Θ} (hℓ : ∀ z, ℓ θ z �
           (exp (-c * catoniPhi c (trueRisk ℓ D θ))) ^ m :=
         mul_le_mul_of_nonneg_left hpow (exp_pos _).le
     _ = exp (m * c * catoniPhi c (trueRisk ℓ D θ)) *
-          exp (m * (-c * catoniPhi c (trueRisk ℓ D θ))) := by rw [← exp_nat_mul]
+          exp (m * (-c * catoniPhi c (trueRisk ℓ D θ))) := by rw [← exp_natCast_mul]
     _ = 1 := by
         rw [← exp_add, show (m : ℝ) * c * catoniPhi c (trueRisk ℓ D θ) +
           m * (-c * catoniPhi c (trueRisk ℓ D θ)) = 0 by ring, exp_zero]
@@ -384,7 +384,7 @@ private theorem lintegral_indicator_zero_exp_le_one {θ : Θ} (hℓ : ∀ z, ℓ
         calc exp (m * trueRisk ℓ D θ) * (1 - trueRisk ℓ D θ) ^ m
             ≤ exp (m * trueRisk ℓ D θ) * (exp (-trueRisk ℓ D θ)) ^ m :=
               mul_le_mul_of_nonneg_left hstep (exp_pos _).le
-          _ = exp (m * trueRisk ℓ D θ) * exp (m * -trueRisk ℓ D θ) := by rw [← exp_nat_mul]
+          _ = exp (m * trueRisk ℓ D θ) * exp (m * -trueRisk ℓ D θ) := by rw [← exp_natCast_mul]
           _ = 1 := by rw [← exp_add]; simp [mul_neg]
 
 end Moments

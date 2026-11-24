@@ -273,9 +273,9 @@ theorem unitExponent_le_sum_of_isTree (P : Finset I) (G : SimpleGraph P) [Decida
         (e.map Subtype.val) := by
   classical
   have : Nonempty P := hT.connected.nonempty
-  have : Nonempty I := ⟨(Classical.arbitrary P).1⟩
+  have : Nonempty I := ⟨(Classical.arbitrary P).val⟩
   refine (F.unitExponent_le_sum_wireExponent (Subtype.val : P → I) (E := G.edgeFinset)
-    (fun e => e.1.out.1) (fun e => e.1.out.2) fun f hf p q => ?_).trans (le_of_eq ?_)
+    (fun e => e.val.out.1) (fun e => e.val.out.2) fun f hf p q => ?_).trans (le_of_eq ?_)
   · obtain ⟨w⟩ := hT.connected.preconnected p q
     induction w with
     | nil => rfl
@@ -289,7 +289,7 @@ theorem unitExponent_le_sum_of_isTree (P : Finset I) (G : SimpleGraph P) [Decida
       exacts [h1, h1.symm]
   · rw [← Finset.sum_coe_sort G.edgeFinset]
     refine Finset.sum_congr rfl fun e _ => ?_
-    conv_rhs => rw [← Quot.out_eq e.1]
+    conv_rhs => rw [← Quot.out_eq e.val]
     rfl
 
 /-- Moving legs: if the leg `j` moves from `π' j` to `π j`, the value grows at most by the values

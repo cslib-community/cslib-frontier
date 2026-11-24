@@ -573,7 +573,9 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
     have hBy_ne : B.eval y ≠ 0 := sign_ne_zero.mp (hB_y ▸ sign_ne_zero.mpr hdne)
     have htail_y' : (B.eval y :: rest.map (eval y)).signVariations =
         sturmReducedVariations p x := by simpa only [hrest, List.map_cons] using htail_y
-    rw [sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+    rw [sturmReducedVariations]
+    dsimp only
+    rw [show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
       show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
       hseq_eq, hrest, List.map_cons, List.map_cons,
       List.signVariations_cons_cons_of_ne_zero _ hAy_ne hBy_ne, htail_y', add_comm]

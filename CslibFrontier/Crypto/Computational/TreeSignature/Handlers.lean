@@ -104,13 +104,13 @@ theorem guardedTreeHandler_bind_comm {σ₁ σ₂ γ : Type} (depth : ℕ → �
       · simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_map, Function.comp_def]
         simpa only [pmf_norm] using congrArg (PMF.map fun (k, sig, inner') =>
           (k, sig, (inner', TreeLog.mk (req.2 :: queried) (leaf :: seen) false)))
-          (hgood hmsg hbf leaf hl hs).1
+          (hgood hmsg hbf leaf hl hs).bind_eq
       · simp only [↓reduceIte, PMF.pure_bind, PMF.map, Function.comp_def]
     · obtain ⟨leaf, hl, hm⟩ := (PMF.mem_support_bind_iff _ _ _).mp hm
       cases hs : seen.contains leaf
       · simp only [hs, Bool.false_eq_true, ↓reduceIte] at hm
         supp_cases hm with ⟨⟨sig, inner'⟩, hmem, rfl, rfl⟩
-        exact (hgood hmsg hbf leaf hl hs).2 (sig, inner') hmem
+        exact (hgood hmsg hbf leaf hl hs).support_inv (sig, inner') hmem
       · simp only [hs, ↓reduceIte] at hm
         supp_cases hm; exact hinv_pure true
   · exact PMF.HiddenCoupling.pure rfl (fun _ _ => rfl) (hinv_pure bad)
@@ -134,7 +134,8 @@ theorem guardedTreeHandler_map {σ₁ σ₂ : Type} (depth : ℕ → ℕ) (n : �
     (fun _ => PMF.pure ()) rep inv req inner queried seen bad hinv_pure fun hm hb leaf hl hs => by
       obtain ⟨heq, hi⟩ := hgood hm hb leaf hl hs
       exact ⟨by rw [PMF.pure_bind, ← heq]; simp only [PMF.map, pmf_norm], hi⟩
-  exact ⟨by simpa only [PMF.map, pmf_norm] using congrArg (PMF.map Prod.snd) h.1, h.2⟩
+  exact ⟨by simpa only [PMF.map, pmf_norm] using congrArg (PMF.map Prod.snd) h.bind_eq,
+      h.support_inv⟩
 
 /-- Lift support invariant preservation from a leaf-signing body to `guardedTreeHandler`. -/
 theorem guardedTreeHandler_support_inv {σ : Type} (depth : ℕ → ℕ) (n : ℕ)
@@ -149,7 +150,7 @@ theorem guardedTreeHandler_support_inv {σ : Type} (depth : ℕ → ℕ) (n : �
       (guardedTreeHandler depth n body req (inner, ⟨queried, seen, bad⟩)).support → inv s' :=
   fun ans s' hm => (guardedTreeHandler_map depth n (body₂ := body) id inv req inner queried seen
     bad hinv_pure fun hm' hb leaf hl hs => ⟨PMF.map_id _, fun ⟨sig, inner'⟩ h =>
-      hgood hm' hb leaf hl hs sig inner' h⟩).2 (ans, s') hm
+      hgood hm' hb leaf hl hs sig inner' h⟩).support_inv (ans, s') hm
 
 /-- Leaf-signing body of `lazySignHandler` after evaluating `ProbComp` to `PMF`. -/
 @[expose] noncomputable def lazySignBody (S : IndexedSignatureScheme) (depth : ℕ → ℕ) (n : ℕ)

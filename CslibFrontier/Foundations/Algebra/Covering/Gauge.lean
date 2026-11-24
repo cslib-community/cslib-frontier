@@ -76,13 +76,13 @@ private theorem prop_gauge_minimal {p₀ : M → ℝ} (h₀ : IsUpperFunctional 
   obtain ⟨m, hm0, hmax⟩ := zorn_le_nonempty₀ Q (by
     intro c hcQ hchain y hy
     have : Nonempty c := ⟨⟨y, hy⟩⟩
-    obtain ⟨h1, h2, h3⟩ := prop_gauge_chain (D := D) (P := fun i : c => OrderDual.ofDual i.1) (by
+    obtain ⟨h1, h2, h3⟩ := prop_gauge_chain (D := D) (P := fun i : c => OrderDual.ofDual i.val) (by
       intro i j
-      rcases hchain.total i.2 j.2 with hij | hij
+      rcases hchain.total i.property j.property with hij | hij
       · exact ⟨j, hij, le_refl _⟩
-      · exact ⟨i, le_refl _, hij⟩) fun i => (hcQ i.2).1
-    exact ⟨OrderDual.toDual (fun t => ⨅ i : c, (OrderDual.ofDual i.1) t),
-      ⟨h1, fun x y c hc hk => h3 x y c hc fun i => (hcQ i.2).2 x y c hc hk⟩,
+      · exact ⟨i, le_refl _, hij⟩) fun i => (hcQ i.property).1
+    exact ⟨OrderDual.toDual (fun t => ⨅ i : c, (OrderDual.ofDual i.val) t),
+      ⟨h1, fun x y c hc hk => h3 x y c hc fun i => (hcQ i.property).2 x y c hc hk⟩,
           fun z hz t => h2 ⟨z, hz⟩ t⟩)
     (OrderDual.toDual p₀) ⟨h₀, fun _ _ _ _ hk => hk⟩
   refine ⟨OrderDual.ofDual m, hmax.1.1, hm0, hmax.1.2, fun q h1 h2 h3 t => ?_⟩

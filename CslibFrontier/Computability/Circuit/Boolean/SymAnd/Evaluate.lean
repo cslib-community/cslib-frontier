@@ -1973,11 +1973,11 @@ private theorem testBit_mod_two_pow_lt {k m r : ℕ} (hr : r < m) :
   simp [Nat.testBit_mod_two_pow, hr]
 
 private theorem yatesPred_congr_other {n i k' k : ℕ} {T : Finset (Fin n)}
-    (hother : ∀ j : Fin n, j.1 ≠ i → (j ∈ rotMaskSet n i k' ↔ j ∈ rotMaskSet n (i + 1) k))
-    (h : yatesPred n i k' T) {j : Fin n} (hj : j.1 ≠ i) :
-    if j.1 < i + 1 then (j ∈ T → j ∈ rotMaskSet n (i + 1) k)
+    (hother : ∀ j : Fin n, j.val ≠ i → (j ∈ rotMaskSet n i k' ↔ j ∈ rotMaskSet n (i + 1) k))
+    (h : yatesPred n i k' T) {j : Fin n} (hj : j.val ≠ i) :
+    if j.val < i + 1 then (j ∈ T → j ∈ rotMaskSet n (i + 1) k)
     else (j ∈ T ↔ j ∈ rotMaskSet n (i + 1) k) := by
-  have hlt_eq : (j.1 < i + 1) ↔ (j.1 < i) := by omega
+  have hlt_eq : (j.val < i + 1) ↔ (j.val < i) := by omega
   have hro := hother j hj
   have hj0 := h j
   split_ifs at hj0 ⊢ with h1 h2
@@ -1987,11 +1987,11 @@ private theorem yatesPred_congr_other {n i k' k : ℕ} {T : Finset (Fin n)}
   · exact hj0.trans hro
 
 private theorem yatesPred_of_succ_other {n i k' k : ℕ} {T : Finset (Fin n)}
-    (hother : ∀ j : Fin n, j.1 ≠ i → (j ∈ rotMaskSet n i k' ↔ j ∈ rotMaskSet n (i + 1) k))
-    (h : yatesPred n (i + 1) k T) {j : Fin n} (hj : j.1 ≠ i) :
-    if j.1 < i then (j ∈ T → j ∈ rotMaskSet n i k')
+    (hother : ∀ j : Fin n, j.val ≠ i → (j ∈ rotMaskSet n i k' ↔ j ∈ rotMaskSet n (i + 1) k))
+    (h : yatesPred n (i + 1) k T) {j : Fin n} (hj : j.val ≠ i) :
+    if j.val < i then (j ∈ T → j ∈ rotMaskSet n i k')
     else (j ∈ T ↔ j ∈ rotMaskSet n i k') := by
-  have hlt_eq : (j.1 < i + 1) ↔ (j.1 < i) := by omega
+  have hlt_eq : (j.val < i + 1) ↔ (j.val < i) := by omega
   have hro := hother j hj
   have hj1 := h j
   split_ifs at hj1 ⊢ with h1 h2
@@ -2169,17 +2169,17 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
       have hiff : yatesPred n i k₀ T ↔ yatesPred n (i + 1) k T := by
         constructor
         · intro h j
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · subst hj
-            have hj0 := h ⟨j.1, hi_lt⟩
+            have hj0 := h ⟨j.val, hi_lt⟩
             simp only [lt_irrefl, ↓reduceIte, hrot_i0, iff_false] at hj0
-            simp [hrot_i_next, hf_bit, hj0, show j.1 < j.1 + 1 by omega]
+            simp [hrot_i_next, hf_bit, hj0, show j.val < j.val + 1 by omega]
           · exact yatesPred_congr_other (fun j hj => (hrot_other j hj).1) h hj
         · intro h j
-          by_cases hj : j.1 = i
+          by_cases hj : j.val = i
           · subst hj
-            have hj1 := h ⟨j.1, hi_lt⟩
-            simp only [show j.1 < j.1 + 1 by omega, ↓reduceIte, hrot_i_next, hf_bit,
+            have hj1 := h ⟨j.val, hi_lt⟩
+            simp only [show j.val < j.val + 1 by omega, ↓reduceIte, hrot_i_next, hf_bit,
               Bool.false_eq_true, imp_false] at hj1
             simp [hrot_i0, hj1]
           · exact yatesPred_of_succ_other (fun j hj => (hrot_other j hj).1) h hj

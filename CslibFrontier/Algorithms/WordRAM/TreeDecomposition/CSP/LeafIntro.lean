@@ -285,7 +285,7 @@ private theorem introFillProg_spec {w : ℕ} (counting : Bool) (a : IntroFillArg
       List.getElem?_eq_getElem (by rw [hc_len]; exact hdiv_lt), Option.getD_some]
   have hc_addr_lt : a.cTblPtr + m / a.q < t.frontier := by rw [hfr_t]; omega
   have hdst_addr_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
-  have hcval_fit : Fits w (t.mem (a.cTblPtr + m / a.q)) := hwf_t.2 _
+  have hcval_fit : Fits w (t.mem (a.cTblPtr + m / a.q)) := hwf_t.mem_fits _
   obtain ⟨hst_ev, hres_ev⟩ := introFillStep_eval a m t
   let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
   have hval_eq :

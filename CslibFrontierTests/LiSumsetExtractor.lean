@@ -214,7 +214,7 @@ theorem isLinearWeakSeedCB_blockDot_3_20 :
 
 /-- Prefix projection `BitString (2 ^ m) → Fin 1 → BitString m`. -/
 private def prefixExt (m : ℕ) (x : BitString (2 ^ m)) (_ : Fin 1) : BitString m :=
-  fun i => x ⟨i.1, lt_of_lt_of_le i.2 (Nat.le_of_lt Nat.lt_two_pow_self)⟩
+  fun i => x ⟨i.val, lt_of_lt_of_le i.isLt (Nat.le_of_lt Nat.lt_two_pow_self)⟩
 
 private theorem isLinearStrongExtractor_prefixExt (m : ℕ) :
     IsLinearStrongExtractor (prefixExt m) (2 ^ m : ℕ) 0 := by
@@ -237,7 +237,7 @@ private theorem isLinearStrongExtractor_prefixExt (m : ℕ) :
     exact (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top A x) (PMF.apply_ne_top _ x)).mp (heq x)
   rw [hA_unif]
   let emb : Fin m ↪ Fin (2 ^ m) :=
-    ⟨fun i => ⟨i.1, lt_of_lt_of_le i.2 (Nat.le_of_lt Nat.lt_two_pow_self)⟩,
+    ⟨fun i => ⟨i.val, lt_of_lt_of_le i.isLt (Nat.le_of_lt Nat.lt_two_pow_self)⟩,
       fun _ _ h => Fin.ext (Fin.mk.inj h)⟩
   have hmap : (PMF.uniformOfFintype (BitString (2 ^ m))).map (fun a => prefixExt m a 0) =
       PMF.uniformOfFintype (BitString m) :=

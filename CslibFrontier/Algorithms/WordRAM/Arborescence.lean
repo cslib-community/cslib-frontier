@@ -165,7 +165,7 @@ private theorem exists_arb_program_of_spec
     (hspec : ∀ {w M₀ : ℕ} (I : ArborescenceInput),
       (∀ u v, (I.cost u v).natAbs ≤ M₀) → Fits w (wordBound I.n M₀) →
       let s₀ := Memory.State.init I.encode
-      let d := (I.n, I.root.1)
+      let d := (I.n, I.root.val)
       let outAddr := (Memory.spec 0).clientResult s₀ (f d)
       let s' := (Memory.spec 0).clientState s₀ (f d)
       Safe w d s₀ ∧
@@ -181,7 +181,7 @@ private theorem exists_arb_program_of_spec
   refine ⟨r, 43 * C₁ + 1, prog, hnw, fun I w hwb _ => ?_⟩
   obtain ⟨hfit_len, hin_fits⟩ := inputFits_arb_encode I I.natAbs_cost_le_maxAbsCost hwb
   have hs := hspec I I.natAbs_cost_le_maxAbsCost hwb
-  exact executesList_of_client_spec he (I.n, I.root.1) I.encode (expected I)
+  exact executesList_of_client_spec he (I.n, I.root.val) I.encode (expected I)
     (by rintro ⟨_ | _ | _, h⟩; exacts [rfl, rfl, by omega])
     (by simp [ArborescenceInput.encode]) hfit_len hin_fits hs.1 hs.2.1
     (by

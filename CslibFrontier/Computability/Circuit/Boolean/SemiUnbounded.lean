@@ -342,9 +342,9 @@ instance [Finite G] (C : LayeredSemiUnboundedCircuit G) (g : G) : Finite (ProofT
           rcases heq with ⟨rfl, rfl⟩
           rfl
     | .or =>
-      have hsub : ∀ c : {c : G // C.orChild g c}, Finite (ProofTree C c.1) := fun c =>
-        ih _ (by have := C.layer_orChild hk c.2; omega) c.1 rfl
-      let f : ProofTree C g → Σ c : {c : G // C.orChild g c}, ProofTree C c.1
+      have hsub : ∀ c : {c : G // C.orChild g c}, Finite (ProofTree C c.val) := fun c =>
+        ih _ (by have := C.layer_orChild hk c.property; omega) c.val rfl
+      let f : ProofTree C g → Σ c : {c : G // C.orChild g c}, ProofTree C c.val
         | .leaf h => by rw [hk] at h; cases h
         | .andUnary h _ => by rw [hk] at h; cases h
         | .andBinary h _ _ => by rw [hk] at h; cases h

@@ -144,10 +144,10 @@ private theorem isUnionIndep_iff_exists_commonIndep [DecidableEq α]
   constructor
   · rintro ⟨f, hf, hI⟩
     let pick : {x : α // x ∈ I} → ι := fun x =>
-      Classical.choose (Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.2))
+      Classical.choose (Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.property))
     have hpick : ∀ x : {x : α // x ∈ I}, (x : α) ∈ f (pick x) := fun x =>
-      Classical.choose_spec (Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.2))
-    let K : Finset (ι × α) := I.attach.image fun x => (pick x, x.1)
+      Classical.choose_spec (Set.mem_iUnion.1 (hI ▸ Finset.mem_coe.2 x.property))
+    let K : Finset (ι × α) := I.attach.image fun x => (pick x, x.val)
     refine ⟨K, ?_, ?_, ?_⟩
     · ext y
       simp [K]

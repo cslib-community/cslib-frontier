@@ -627,14 +627,14 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   let rhs : Fin R → ℤ := fun r => if r.val = 0 then 1 else 0
   have hS_bound : ∀ r j, Int.natAbs (S r j) ≤ H := fun r j => by
     have hb (P : ℤ[X]) (hP : ∀ m, Int.natAbs (P.coeff m) ≤ H) (k : ℕ) :
-        Int.natAbs (if k ≤ d + r.1 then P.coeff (d + r.1 - k) else 0) ≤ H := by
+        Int.natAbs (if k ≤ d + r.val then P.coeff (d + r.val - k) else 0) ≤ H := by
       split_ifs
       · exact hP _
       · simp only [Int.natAbs_zero, Nat.zero_le]
     dsimp only [S]
     refine Fin.addCases (fun a => ?_) (fun b => ?_) j
-    · rw [Fin.addCases_left]; exact hb F₀ hF₀ a.1
-    · rw [Fin.addCases_right]; exact hb F₁ hF₁ b.1
+    · rw [Fin.addCases_left]; exact hb F₀ hF₀ a.val
+    · rw [Fin.addCases_right]; exact hb F₁ hF₁ b.val
   have hrhs_bound : ∀ r, Int.natAbs (rhs r) ≤ H := fun r => by
     dsimp only [rhs]
     split_ifs <;> omega
@@ -815,7 +815,7 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   let VInt : ℤ[X] := polyFromFin (fun b : Fin nv => nums (Fin.natAdd nu b))
   let EInt : ℤ[X] := UInt * F₀ + VInt * F₁
   have hmap_part {K : ℕ} (idx : Fin K → Fin N) (p : ℚ[X]) (hp_deg : p.natDegree < K)
-      (hp_eq : ∀ a : Fin K, xSol (idx a) = p.coeff a.1) :
+      (hp_eq : ∀ a : Fin K, xSol (idx a) = p.coeff a.val) :
       (polyFromFin (fun a : Fin K => nums (idx a))).map (algebraMap ℤ ℚ) =
         C (dDet : ℚ) * p := by
     ext m

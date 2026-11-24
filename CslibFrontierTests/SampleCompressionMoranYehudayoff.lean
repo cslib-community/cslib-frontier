@@ -91,8 +91,8 @@ noncomputable example : SampleCompressionScheme ({fun _ : ℝ => false} : Concep
       obtain ⟨c, hc⟩ := hne
       obtain ⟨g, hg, hgc⟩ := hF {c} (singleton_subset_iff.2 hc)
       obtain ⟨x, rfl⟩ := mem_dualClass.1 hg
-      have hcf : (c : ℝ → Bool) = fun _ => false := mem_singleton_iff.1 c.2
-      have : c ∈ (fun d : ↥({fun _ : ℝ => false} : ConceptClass ℝ Bool) => d.1 x) ⁻¹' {true} ∩
+      have hcf : (c : ℝ → Bool) = fun _ => false := mem_singleton_iff.1 c.property
+      have : c ∈ (fun d : ↥({fun _ : ℝ => false} : ConceptClass ℝ Bool) => d.val x) ⁻¹' {true} ∩
           (F : Set _) := hgc ▸ mem_singleton c
       simp [hcf] at this)
 
@@ -218,7 +218,7 @@ private instance : IsProbabilityMeasure noisyBoolMeasure := by
 /-- Check `heldOutMiscount` and `heldOutError` on a concrete 4-point sample. -/
 example :
     let S : LabeledSample Bool Bool 4 := fun i =>
-      if i.1 = 2 then (false, false) else (false, true)
+      if i.val = 2 then (false, false) else (false, true)
     let J := firstLabelScheme.keptSet S
     heldOutMiscount J (firstLabelScheme.learner S) S = 1 ∧
       heldOutError J (firstLabelScheme.learner S) S = 1 / 3 := by

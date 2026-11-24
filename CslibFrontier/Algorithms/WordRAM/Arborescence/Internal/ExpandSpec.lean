@@ -33,11 +33,11 @@ private theorem fillExpandRowProg_spec {w n ws k : ℕ} (x0 : Fin n)
     (f q : ParentTable n) (inCycle : Vector Bool n)
     (bEntry bExit : Vector (Option (Fin n)) n) (s₀ : Memory.State)
     (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s₀.frontier)
-    (hcur : ∀ v : Fin n, s₀.mem (curParentBase ws n + v.1) = (q[v.1]).1)
-    (hfp : ∀ v : Fin n, s₀.mem (frameParentBase ws n k + v.1) = (f[v.1]).1)
-    (hm : ∀ v : Fin n, s₀.mem (frameMaskBase ws n k + v.1) = if inCycle[v.1] then 1 else 0)
-    (hbe : ∀ v : Fin n, s₀.mem (frameBEntryBase ws n k + v.1) = optFinIdx bEntry[v.1]) :
-    let ra : ExpandRowArgs := ⟨n, x0.1, (q[x0.1]).1, optFinIdx bExit[(q[x0.1]).1], ws, k⟩
+    (hcur : ∀ v : Fin n, s₀.mem (curParentBase ws n + v.val) = (q[v.val]).val)
+    (hfp : ∀ v : Fin n, s₀.mem (frameParentBase ws n k + v.val) = (f[v.val]).val)
+    (hm : ∀ v : Fin n, s₀.mem (frameMaskBase ws n k + v.val) = if inCycle[v.val] then 1 else 0)
+    (hbe : ∀ v : Fin n, s₀.mem (frameBEntryBase ws n k + v.val) = optFinIdx bEntry[v.val]) :
+    let ra : ExpandRowArgs := ⟨n, x0.val, (q[x0.val]).val, optFinIdx bExit[(q[x0.val]).val], ws, k⟩
     let s1 := (Memory.spec 0).clientState s₀ (fillExpandRowProg ra)
     iterationSafe expandRowStep ExpandRowStepSafe w ra n 0 s₀ ∧
       (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (fillExpandRowProg ra)) ∧
@@ -46,56 +46,56 @@ private theorem fillExpandRowProg_spec {w n ws k : ℕ} (x0 : Fin n)
       (∀ addr, ¬(nextParentBase ws n ≤ addr ∧ addr < nextParentBase ws n + n) →
         s1.mem addr = s₀.mem addr) ∧
       (∀ j : Fin n,
-        s1.mem (nextParentBase ws n + j.1) =
-          ((expandParentTable f inCycle bEntry bExit x0 q)[j.1]).1) := by
-  let ra : ExpandRowArgs := ⟨n, x0.1, (q[x0.1]).1, optFinIdx bExit[(q[x0.1]).1], ws, k⟩
+        s1.mem (nextParentBase ws n + j.val) =
+          ((expandParentTable f inCycle bEntry bExit x0 q)[j.val]).val) := by
+  let ra : ExpandRowArgs := ⟨n, x0.val, (q[x0.val]).val, optFinIdx bExit[(q[x0.val]).val], ws, k⟩
   have hrow := iterate_spec expandRowStep ExpandRowStepSafe w ra 5 n
     (fun m idx sr =>
       idx = m ∧ sr.frontier = s₀.frontier ∧
-        (∀ v : Fin n, sr.mem (curParentBase ws n + v.1) = (q[v.1]).1) ∧
-        (∀ v : Fin n, sr.mem (frameParentBase ws n k + v.1) = (f[v.1]).1) ∧
-        (∀ v : Fin n, sr.mem (frameMaskBase ws n k + v.1) = if inCycle[v.1] then 1 else 0) ∧
-        (∀ v : Fin n, sr.mem (frameBEntryBase ws n k + v.1) = optFinIdx bEntry[v.1]) ∧
-        (∀ j : Fin n, j.1 < m → sr.mem (nextParentBase ws n + j.1) =
-          ((expandParentTable f inCycle bEntry bExit x0 q)[j.1]).1))
+        (∀ v : Fin n, sr.mem (curParentBase ws n + v.val) = (q[v.val]).val) ∧
+        (∀ v : Fin n, sr.mem (frameParentBase ws n k + v.val) = (f[v.val]).val) ∧
+        (∀ v : Fin n, sr.mem (frameMaskBase ws n k + v.val) = if inCycle[v.val] then 1 else 0) ∧
+        (∀ v : Fin n, sr.mem (frameBEntryBase ws n k + v.val) = optFinIdx bEntry[v.val]) ∧
+        (∀ j : Fin n, j.val < m → sr.mem (nextParentBase ws n + j.val) =
+          ((expandParentTable f inCycle bEntry bExit x0 q)[j.val]).val))
     (fun addr => nextParentBase ws n ≤ addr ∧ addr < nextParentBase ws n + n)
     (fun m hm idx sr ⟨hidx, hfr_r, hcur_r, hfp_r, hm_r, hbe_r, hdone_r⟩ => by
       subst idx
       have hm_m : sr.mem (frameMaskBase ws n k + m) = if inCycle[m] then 1 else 0 := hm_r ⟨m, hm⟩
-      have hfp_m : sr.mem (frameParentBase ws n k + m) = (f[m]).1 := hfp_r ⟨m, hm⟩
-      have hcur_m : sr.mem (curParentBase ws n + m) = (q[m]).1 := hcur_r ⟨m, hm⟩
+      have hfp_m : sr.mem (frameParentBase ws n k + m) = (f[m]).val := hfp_r ⟨m, hm⟩
+      have hcur_m : sr.mem (curParentBase ws n + m) = (q[m]).val := hcur_r ⟨m, hm⟩
       have hbe_m : sr.mem (frameBEntryBase ws n k + m) = optFinIdx bEntry[m] := hbe_r ⟨m, hm⟩
       have hout_eq :
           (if sr.mem (frameMaskBase ws n k + m) = 1 then
-            if optFinIdx bExit[(q[x0.1]).1] < n then
-              if m = optFinIdx bExit[(q[x0.1]).1] then (q[x0.1]).1
+            if optFinIdx bExit[(q[x0.val]).val] < n then
+              if m = optFinIdx bExit[(q[x0.val]).val] then (q[x0.val]).val
               else sr.mem (frameParentBase ws n k + m)
             else sr.mem (frameParentBase ws n k + m)
-          else if sr.mem (curParentBase ws n + m) = x0.1 then
+          else if sr.mem (curParentBase ws n + m) = x0.val then
             if sr.mem (frameBEntryBase ws n k + m) < n then
               sr.mem (frameBEntryBase ws n k + m)
             else m
           else sr.mem (curParentBase ws n + m)) =
-            ((expandParentTable f inCycle bEntry bExit x0 q)[m]).1 := by
+            ((expandParentTable f inCycle bEntry bExit x0 q)[m]).val := by
         rw [hm_m, hfp_m, hcur_m, hbe_m,
           show (expandParentTable f inCycle bEntry bExit x0 q)[m] =
-            (expandParentTable f inCycle bEntry bExit x0 q)[(⟨m, hm⟩ : Fin n).1] from rfl,
+            (expandParentTable f inCycle bEntry bExit x0 q)[(⟨m, hm⟩ : Fin n).val] from rfl,
           getElem_expandParentTable]
         dsimp only
         cases hvC : inCycle[m]
         · simp only [Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one, beq_iff_eq, Fin.ext_iff]
-          by_cases hqx : (q[m]).1 = x0.1
+          by_cases hqx : (q[m]).val = x0.val
           · simp only [hqx, ↓reduceIte]
             cases bEntry[m] with
             | none => simp [optFinIdx]
             | some ys => simp [optFinIdx, ys.isLt]
           · simp [hqx]
         · simp only [↓reduceIte, beq_iff_eq, Fin.ext_iff]
-          cases bExit[(q[x0.1]).1] with
+          cases bExit[(q[x0.val]).val] with
           | none => simp [optFinIdx]
           | some xs =>
             simp only [optFinIdx, xs.isLt, ↓reduceIte]
-            by_cases hmx : m = xs.1 <;> simp [hmx]
+            by_cases hmx : m = xs.val <;> simp [hmx]
       refine ⟨by dsimp only [ExpandRowStepSafe, ra]; exact ⟨hm, hk, hws⟩,
         ?_, ?_, ?_, ?_, ?_⟩
       · unfold expandRowStep
@@ -152,7 +152,7 @@ private theorem fillExpandRowProg_spec {w n ws k : ℕ} (x0 : Fin n)
             (by dsimp only [frameBEntryBase, frameBase, nextParentBase]; omega)]
           exact hbe_r v
         · intro j hj
-          by_cases hjm : j.1 = m
+          by_cases hjm : j.val = m
           · have hj_eq : j = ⟨m, hm⟩ := Fin.ext hjm
             subst hj_eq
             dsimp only
@@ -169,12 +169,12 @@ public theorem expandLevelProg_spec {w n ws k : ℕ} (x0 : Fin n)
     (f q : ParentTable n) (inCycle : Vector Bool n)
     (bEntry bExit : Vector (Option (Fin n)) n) (s₀ : Memory.State)
     (hk : k < n) (hws : WsFits w ws n) (hf : ws + wsSize n ≤ s₀.frontier)
-    (hrep : s₀.mem (frameRepAddr ws n k) = x0.1)
-    (hcur : ∀ v : Fin n, s₀.mem (curParentBase ws n + v.1) = (q[v.1]).1)
-    (hfp : ∀ v : Fin n, s₀.mem (frameParentBase ws n k + v.1) = (f[v.1]).1)
-    (hm : ∀ v : Fin n, s₀.mem (frameMaskBase ws n k + v.1) = if inCycle[v.1] then 1 else 0)
-    (hbe : ∀ v : Fin n, s₀.mem (frameBEntryBase ws n k + v.1) = optFinIdx bEntry[v.1])
-    (hbx : ∀ v : Fin n, s₀.mem (frameBExitBase ws n k + v.1) = optFinIdx bExit[v.1]) :
+    (hrep : s₀.mem (frameRepAddr ws n k) = x0.val)
+    (hcur : ∀ v : Fin n, s₀.mem (curParentBase ws n + v.val) = (q[v.val]).val)
+    (hfp : ∀ v : Fin n, s₀.mem (frameParentBase ws n k + v.val) = (f[v.val]).val)
+    (hm : ∀ v : Fin n, s₀.mem (frameMaskBase ws n k + v.val) = if inCycle[v.val] then 1 else 0)
+    (hbe : ∀ v : Fin n, s₀.mem (frameBEntryBase ws n k + v.val) = optFinIdx bEntry[v.val])
+    (hbx : ∀ v : Fin n, s₀.mem (frameBExitBase ws n k + v.val) = optFinIdx bExit[v.val]) :
     let la : LevelArgs := ⟨n, ws, k⟩
     let s' := (Memory.spec 0).clientState s₀ (expandLevelProg la)
     let p' := expandParentTable f inCycle bEntry bExit x0 q
@@ -184,12 +184,13 @@ public theorem expandLevelProg_spec {w n ws k : ℕ} (x0 : Fin n)
       s'.frontier = s₀.frontier ∧
       (∀ addr, ¬(curParentBase ws n ≤ addr ∧ addr < nextParentBase ws n + n) →
         s'.mem addr = s₀.mem addr) ∧
-      (∀ v : Fin n, s'.mem (curParentBase ws n + v.1) = (p'[v.1]).1) := by
+      (∀ v : Fin n, s'.mem (curParentBase ws n + v.val) = (p'[v.val]).val) := by
   let la : LevelArgs := ⟨n, ws, k⟩
-  have hqx0 : s₀.mem (curParentBase ws n + x0.1) = (q[x0.1]).1 := hcur x0
-  have hbx_qx0 : s₀.mem (frameBExitBase ws n k + (q[x0.1]).1) = optFinIdx bExit[(q[x0.1]).1] :=
-    hbx q[x0.1]
-  let ra : ExpandRowArgs := ⟨n, x0.1, (q[x0.1]).1, optFinIdx bExit[(q[x0.1]).1], ws, k⟩
+  have hqx0 : s₀.mem (curParentBase ws n + x0.val) = (q[x0.val]).val := hcur x0
+  have hbx_qx0 : s₀.mem (frameBExitBase ws n k + (q[x0.val]).val) =
+      optFinIdx bExit[(q[x0.val]).val] :=
+    hbx q[x0.val]
+  let ra : ExpandRowArgs := ⟨n, x0.val, (q[x0.val]).val, optFinIdx bExit[(q[x0.val]).val], ws, k⟩
   have hrow := fillExpandRowProg_spec x0 f q inCycle bEntry bExit s₀ hk hws hf hcur hfp hm hbe
   set s1 := (Memory.spec 0).clientState s₀ (fillExpandRowProg ra)
   let ca : CopyArgs := ⟨nextParentBase ws n, curParentBase ws n, n⟩
@@ -209,7 +210,7 @@ public theorem expandLevelProg_spec {w n ws k : ℕ} (x0 : Fin n)
   have hsafe : ExpandLevelSafe w la s₀ := by
     dsimp only [ExpandLevelSafe, la]
     rw [hrep, hqx0, hbx_qx0]
-    exact ⟨hk, hws, x0.isLt, (q[x0.1]).isLt, hrow.1, hcopy.1⟩
+    exact ⟨hk, hws, x0.isLt, (q[x0.val]).isLt, hrow.1, hcopy.1⟩
   unfold expandLevelProg
   dsimp only [la]
   refine ⟨hsafe, ?_, ?_, ?_, ?_, ?_⟩
@@ -220,7 +221,7 @@ public theorem expandLevelProg_spec {w n ws k : ℕ} (x0 : Fin n)
       (by have := x0.isLt; dsimp only [wsSize, curParentBase] at hf ⊢; nlinarith) ?_
     rw [hqx0]
     refine validHistory_read_bind
-      (by have := (q[x0.1]).isLt; dsimp only [wsSize, frameBExitBase, frameBase] at hf ⊢;
+      (by have := (q[x0.val]).isLt; dsimp only [wsSize, frameBExitBase, frameBase] at hf ⊢;
           nlinarith) ?_
     rw [hbx_qx0]
     exact validHistory_bind_step hrow.2.1 hcopy.2.1
@@ -246,7 +247,7 @@ public theorem expandLevelProg_spec {w n ws k : ℕ} (x0 : Fin n)
     have hcopy_val := hcopy.2.2.2.2.2
     dsimp only [s1, ra] at hcopy_val
     simp only [client_simps, hrep, hqx0, hbx_qx0]
-    rw [show curParentBase ws n + v.1 = ca.dst + v.1 from rfl, hcopy_val v.1 v.isLt]
+    rw [show curParentBase ws n + v.val = ca.dst + v.val from rfl, hcopy_val v.val v.isLt]
     exact hrow.2.2.2.2.2 v
 
 end Cslib.Algorithms.WordRAM.Arborescence.Internal

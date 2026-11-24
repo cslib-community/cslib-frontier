@@ -510,7 +510,7 @@ noncomputable def toCostSharingGame [Fintype F] [Nonempty F]
     if S.Nonempty then
       ((Finset.univ : Finset F).powerset.filter Finset.Nonempty).attach.inf'
         nonempty_attach_powerset
-        (fun x => I.planCost S x.1 (Finset.mem_filter.1 x.2).2)
+        (fun x => I.planCost S x.val (Finset.mem_filter.1 x.property).2)
     else 0
   cost_empty := by simp
 
@@ -520,7 +520,7 @@ theorem toCostSharingGame_cost_of_nonempty [Fintype F] [Nonempty F]
       I.toCostSharingGame.cost S = I.planCost S F' hF' := by
   simp only [toCostSharingGame, hS, ↓reduceIte]
   obtain ⟨⟨F', hmem⟩, _, heq⟩ := Finset.exists_mem_eq_inf' nonempty_attach_powerset
-    (fun x => I.planCost S x.1 (Finset.mem_filter.1 x.2).2)
+    (fun x => I.planCost S x.val (Finset.mem_filter.1 x.property).2)
   exact ⟨F', (Finset.mem_filter.1 hmem).2, heq⟩
 
 theorem toCostSharingGame_cost_le_planCost [Fintype F] [Nonempty F]
@@ -530,7 +530,7 @@ theorem toCostSharingGame_cost_le_planCost [Fintype F] [Nonempty F]
   · simp only [toCostSharingGame, hS, ↓reduceIte]
     have hmem : F' ∈ (Finset.univ : Finset F).powerset.filter Finset.Nonempty :=
       Finset.mem_filter.2 ⟨Finset.mem_powerset.2 (Finset.subset_univ F'), hF'⟩
-    exact Finset.inf'_le (fun x => I.planCost S x.1 (Finset.mem_filter.1 x.2).2)
+    exact Finset.inf'_le (fun x => I.planCost S x.val (Finset.mem_filter.1 x.property).2)
       (Finset.mem_attach _ ⟨F', hmem⟩)
   · rw [Finset.not_nonempty_iff_eq_empty.1 hS, CostSharingGame.cost_empty]
     exact add_nonneg (Finset.sum_nonneg fun i _ => I.openCost_nonneg i) (by simp)
