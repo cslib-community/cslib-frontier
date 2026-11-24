@@ -33,9 +33,10 @@ copying the first level, from the end, with the wanted half. The moves are read 
 times, not once per level: re-reading the remaining moves at every level would take order
 `w * i ^ 2` steps. The word this endpoint machine computes is `Cslib.Reachability.endpointWord`.
 
-This is a step of `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and
-Stockmeyer][ChandraKozenStockmeyer1981], which `Cslib.Complexity.NSPACE_subset_ATIME_sq` assembles
-with the codes of the initial and accepting views and the edge test
+This is a step toward `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and
+Stockmeyer][ChandraKozenStockmeyer1981], which
+`Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible` assembles for a time-constructible
+`s` (#4086) with the codes of the initial and accepting views and the edge test
 `Cslib.Reachability.reach ntm.codeEdge _ 0` of the final endpoints.
 
 ## Main definitions

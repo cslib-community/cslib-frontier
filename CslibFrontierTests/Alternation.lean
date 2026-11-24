@@ -374,7 +374,7 @@ example {k : ℕ} {State : Type} [Finite State] (ntm : MultiTapeNTM k Bool State
 `ATIME ((n + n) ^ 2)`. -/
 example {α : Type} (enc : α ↪ List Bool) :
     NSPACE enc (fun n => n) ⊆ ATIME enc fun n => (n + n) ^ 2 :=
-  NSPACE_subset_ATIME_sq timeConstructible_id
+  NSPACE_subset_ATIME_sq_of_timeConstructible timeConstructible_id
 
 end MidpointLeaf
 

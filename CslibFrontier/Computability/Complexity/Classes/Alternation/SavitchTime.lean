@@ -20,7 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.WordTran
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
 /-!
-# Nondeterministic space in alternating time: `NSPACE s ⊆ ATIME ((n + s n) ^ 2)`
+# Nondeterministic space in alternating time for time-constructible bounds
 
 A play of Savitch's midpoint game on the views of a nondeterministic machine `ntm` ends with the
 edge test of two endpoints, each the midpoint of the last level with a given half or, if there is
@@ -34,17 +34,17 @@ codes, `Turing.MultiTapeNTM.codeEdge`: the width and the number of moves in unar
 code within linear time, and the comparison of the endpoints within quadratic time
 (`Turing.MultiTapeNTM.computableInO_midpointLeaf`).
 
-The result, `Cslib.Complexity.NSPACE_subset_ATIME_sq`, is `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a
-time-constructible `s`, after [Chandra, Kozen and Stockmeyer, Theorem
-3.1][ChandraKozenStockmeyer1981] (`NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for `S(n) ≥ n`). The
-edge test decodes two views, and compares the second with the results of the finitely many actions
-the machine permits on the first, within quadratic time
-(`Turing.MultiTapeNTM.computableInO_codeEdge`).
+The result, `Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible`, proves
+`NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a time-constructible `s`: a step toward [Chandra, Kozen and
+Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981] (`NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for
+`S(n) ≥ n` without a constructibility hypothesis on `S`, tracked in #4086). The edge test decodes
+two views, and compares the second with the results of the finitely many actions the machine
+permits on the first, within quadratic time (`Turing.MultiTapeNTM.computableInO_codeEdge`).
 
 The views record the input, so the codes have width linear in `n + s n`, and the bound is
 `O((n + s n) ^ 2)` (Sipser's form) for every `s`; under the hypothesis `s n ≥ n` of Theorem 3.1 it
-is `O(s n ^ 2)`. Unlike Theorem 3.1, `s` is assumed time-constructible, to write the number of moves
-in unary.
+is `O(s n ^ 2)`. Unlike Theorem 3.1, `s` is assumed time-constructible here to write the number of
+moves in unary (#4086).
 
 ## Main definitions
 
@@ -53,8 +53,8 @@ in unary.
 ## Main results
 
 * `Turing.MultiTapeNTM.computableInO_midpointLeaf`: the leaf test runs within quadratic time.
-* `Cslib.Complexity.NSPACE_subset_ATIME_sq`: `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a
-  time-constructible `s`.
+* `Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible`: `NSPACE s ⊆ ATIME ((n + s n) ^ 2)`
+  for a time-constructible `s` (time-constructible step toward CKS Theorem 3.1; #4086).
 
 ## References
 
@@ -383,19 +383,20 @@ private theorem NSPACE_subset_ATIME_sq_of_midpointLeaf {s : ℕ → ℕ} (hs : T
     nlinarith [Nat.zero_le ((8 * K + 15) ^ 2 * p ^ 2), Nat.zero_le (K * p ^ 2),
       Nat.zero_le (K ^ 2 * p ^ 2)]
 
-/-- **`NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a time-constructible `s`**, after [Chandra, Kozen and
-Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981]: every problem in `NSPACE s` is in
-`ATIME ((n + s n) ^ 2)`. The alternating machine plays Savitch's midpoint game on the views of a
-machine deciding the problem (`Cslib.Complexity.exists_midpointGame_of_mem_NSPACE`), and its
-verifier, including the leaf test (`Turing.MultiTapeNTM.computableInO_midpointLeaf`), runs within
-time `O((n + s n) ^ 2)`.
+/-- **Time-constructible step toward CKS Theorem 3.1 (`NSPACE s ⊆ ATIME ((n + s n) ^ 2)`)**: not
+the unrestricted [Chandra, Kozen and Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981]
+(`NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for `S(n) ≥ n` without constructibility, which remains
+open in #4086), because it restricts `s` to `TimeConstructible s`. For a time-constructible `s`,
+every problem in `NSPACE s` is in `ATIME ((n + s n) ^ 2)`: the alternating machine plays Savitch's
+midpoint game on the views of a machine deciding the problem
+(`Cslib.Complexity.exists_midpointGame_of_mem_NSPACE`), and its verifier, including the leaf test
+(`Turing.MultiTapeNTM.computableInO_midpointLeaf`), runs within time `O((n + s n) ^ 2)`.
 
-Theorem 3.1 states `NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for `S(n) ≥ n`. This statement differs
-in two ways: `s` is assumed time-constructible, to write the number of moves of the game in unary
-(Theorem 3.1 assumes no constructibility); and the bound is Sipser's form `O((n + s n) ^ 2)`, for
-every `s`, which is `O(s n ^ 2)` exactly under the hypothesis `s n ≥ n` of Theorem 3.1. Both
-classes are relative to the encoding `enc` of instances. -/
-theorem NSPACE_subset_ATIME_sq {s : ℕ → ℕ} (hs : TimeConstructible s) :
+This statement differs from Theorem 3.1 in two ways: `s` is assumed time-constructible, to write
+the number of moves of the game in unary (#4086); and the bound is Sipser's form `O((n + s n) ^ 2)`
+for every `s`, which is `O(s n ^ 2)` under the hypothesis `s n ≥ n` of Theorem 3.1. Both classes
+are relative to the encoding `enc` of instances. -/
+theorem NSPACE_subset_ATIME_sq_of_timeConstructible {s : ℕ → ℕ} (hs : TimeConstructible s) :
     NSPACE enc s ⊆ ATIME enc fun n => (n + s n) ^ 2 :=
   NSPACE_subset_ATIME_sq_of_midpointLeaf hs fun ntm => ntm.computableInO_midpointLeaf
 
