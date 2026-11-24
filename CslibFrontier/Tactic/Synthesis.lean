@@ -25,10 +25,13 @@ compares wire functions at default transparency. On wire families of equal width
 bits of `BitVec` words, those comparisons unfold the word operations before they fail.
 On a fifteen-step chain they exhaust the default heartbeat budget.
 
-`synthesis_available [rules]` never runs the general search. It composes the listed zero-cost
-rewiring lemmas and the local hypotheses at reducible transparency, closing each leaf by the
-syntactic match, so a missing wire is reported at once. `synthesis_available []` is the syntactic
-match alone.
+`synthesis_available [rules]` never runs the general search. It applies the listed zero-cost
+rewiring lemmas and the local hypotheses to whole goals at reducible transparency, and tries the
+syntactic match on every goal, so a missing wire is reported at once. `synthesis_available []`
+lists no lemma: it is the syntactic match together with the local hypotheses applied to whole
+goals. Inside a union a hypothesis is used only by `assumption`, so the rule-list form finds
+neither a quantified hypothesis about one member, until it is instantiated, nor a hypothesis
+stated about an earlier builder's `wires`. The plain form finds both.
 
 ## Main definitions
 
@@ -123,25 +126,25 @@ elab_rules : tactic
 
 /-- Find already available wires, without synthesizing new functions. Exposes concrete builders'
 wire fields, matches members of the resulting union syntactically, then runs the general search.
-`synthesis_available [rules]` instead composes the supplied availability lemmas and the local
-hypotheses through the unions at reducible transparency, and never runs the general search: this
-supports zero-cost rewiring without unfolding the functions computed by the circuit, and fails at
-once when a wire is missing. -/
+`synthesis_available [rules]` instead applies the supplied availability lemmas and the local
+hypotheses to whole goals at reducible transparency, trying the syntactic match on every goal, and
+never runs the general search: this supports zero-cost rewiring without unfolding the functions
+computed by the circuit, and fails at once when a wire is missing. -/
 syntax (name := synthesisAvailable) "synthesis_available" (" [" term,* "]")? : tactic
 elab_rules : tactic
   | `(tactic| synthesis_available $[[$rules,*]]?) => do
     exposeBuilderWires
-    let find ← match rules with
-      | some rules => `(tactic| synthesis_available_rewire [$rules,*])
-      | none => `(tactic| first | synthesis_union | synthesis_available_search)
-    evalTactic (← `(tactic|
-      first
-      | $find:tactic
-      | fail "synthesis_available could not find these wires among the available ones. It follows \
-          unions, indexed families, the wires of a `Synthesis.Builder` and local hypotheses, but \
-          never adds a gate: append the missing construction first, with `synthesis_step` or \
-          `Builder.add`. With a rule list it matches union members syntactically and does not \
-          follow indexed families."))
+    let (find, follows) ← match rules with
+      | some rules => pure (← `(tactic| synthesis_available_rewire [$rules,*]),
+          "With a rule list it applies the listed lemmas and the local hypotheses to whole goals \
+          and matches the members of a union syntactically; it does not follow indexed families.")
+      | none => pure (← `(tactic| first | synthesis_union | synthesis_available_search),
+          "It follows unions, indexed families, the wires of a `Synthesis.Builder` and local \
+          hypotheses.")
+    let message := "synthesis_available could not find these wires among the available ones. " ++
+      follows ++ " It never adds a gate: append the missing construction first, with \
+      `synthesis_step` or `Builder.add`."
+    evalTactic (← `(tactic| first | $find:tactic | fail $(Syntax.mkStrLit message):str))
 
 /-- Append a synthesis rule to the named builder, solving its available-wire premises with
 `synthesis_available`, or with `synthesis_available [rules]` when a rule list is given. -/

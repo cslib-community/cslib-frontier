@@ -84,6 +84,24 @@ example {α : Type} (X Y s T₁ T₂ T₃ : Set α) (hX : X ⊆ T₂) (hY : Y �
 
 example {α : Type} (f : α) (s t : Set α) : f ∈ s ∪ {f} ∪ t := by synthesis_available []
 
+-- Inside a union the rule-list form uses a hypothesis only by `assumption`. It does not find a
+-- quantified hypothesis about one member until that is instantiated; the plain form does.
+example {n : ℕ} (s t : Set (BooleanFunction n)) (hc : ∀ b : Bool, (fun _ => b) ∈ s) :
+    (fun _ => false) ∈ s ∪ t ∧ (fun _ => false) ∈ s ∪ t := by
+  refine ⟨by synthesis_available, ?_⟩
+  fail_if_success synthesis_available []
+  have := hc false
+  synthesis_available []
+
+-- Nor does it find a hypothesis stated about an earlier builder's wires, because only the goal
+-- is exposed; the plain form does.
+example {n : ℕ} (s X : Set (BooleanFunction n)) :
+    let b := (Synthesis.Builder.start interpretation s).add (Synthesis.const false)
+    X ⊆ b.wires → X ⊆ (b.add (Synthesis.const true)).wires := by
+  intro b h
+  fail_if_success synthesis_available []
+  synthesis_available
+
 -- The general search also finds a member of a pair-indexed family.
 example {α β γ : Type} (f : α → β → γ) (a : α) (b : β) (s : Set γ) :
     f a b ∈ s ∪ Set.range (fun p : α × β => f p.1 p.2) := by synthesis_available
