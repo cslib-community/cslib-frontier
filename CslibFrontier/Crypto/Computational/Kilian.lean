@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 
@@ -404,6 +405,58 @@ theorem computableInPolyTime_kilianVerify
     hcheck
   unfold kilianVerify
   exact ComputableInPolyTime.bool_and' hlength hall
+
+/-- **Bounded-view machine runtime and space for `kilianVerify`**: given any polynomially bounded
+upper bound `inBound (param view)` on the encoded views in a subclass `P`, the machine computing
+`kilianVerify` runs in monotone polynomial time and space on all `KilianView α` and within
+polynomially bounded functions of `param view` on every view satisfying `P`. -/
+theorem computableInTimeAndSpace_kilianVerify_of_bound
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length) (hV : V.PolyTime enc)
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    (P : KilianView α → Prop) (param : KilianView α → ℕ) (inBound : ℕ → ℕ)
+    (hin : PolynomiallyBounded inBound)
+    (hlenView : ∀ view, P view → (encKilianView enc view).length ≤ inBound (param view)) :
+    ∃ (k : ℕ) (State : Type) (_ : Finite State) (tm : Turing.MultiTapeTM k Bool State)
+      (t s tBound sBound : ℕ → ℕ),
+      PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
+      PolynomiallyBounded tBound ∧ PolynomiallyBounded sBound ∧
+      tm.ComputesFunInTimeAndSpace (encKilianView enc) encBool
+        (fun v => kilianVerify H V v.key v.stmt v.root v.challenges v.response)
+        (fun v => t (encKilianView enc v).length)
+        (fun v => s (encKilianView enc v).length) ∧
+      (∀ view, P view →
+        t (encKilianView enc view).length ≤ tBound (param view) ∧
+        s (encKilianView enc view).length ≤ sBound (param view) ∧
+        tm.ComputesInTimeAndSpace (encKilianView enc view)
+          (encBool (kilianVerify H V view.key view.stmt view.root view.challenges view.response))
+          (tBound (param view)) (sBound (param view))) := by
+  obtain ⟨t₀, s₀, ht₀, hs₀, kTM, State, hfin, tm, htm⟩ :=
+    computableInPolyTime_kilianVerify hH hlen hV hcoins
+  obtain ⟨ct, dt, htle⟩ := polynomiallyBounded_iff_le.mp ht₀
+  obtain ⟨cs, ds, hsle⟩ := polynomiallyBounded_iff_le.mp hs₀
+  let t : ℕ → ℕ := fun m => ct * (m + 1) ^ dt
+  let s : ℕ → ℕ := fun m => cs * (m + 1) ^ ds
+  have ht_pb : PolynomiallyBounded t :=
+    polynomiallyBounded_iff_le.mpr ⟨ct, dt, fun _ => le_rfl⟩
+  have hs_pb : PolynomiallyBounded s :=
+    polynomiallyBounded_iff_le.mpr ⟨cs, ds, fun _ => le_rfl⟩
+  have htm' : tm.ComputesFunInTimeAndSpace (encKilianView enc) encBool
+      (fun v => kilianVerify H V v.key v.stmt v.root v.challenges v.response)
+      (fun v => t (encKilianView enc v).length) (fun v => s (encKilianView enc v).length) :=
+    htm.mono (fun _ => htle _) (fun _ => hsle _)
+  let tBound : ℕ → ℕ := fun u => t (inBound u)
+  let sBound : ℕ → ℕ := fun u => s (inBound u)
+  refine ⟨kTM, State, hfin, tm, t, s, tBound, sBound, ht_pb, hs_pb,
+    ht_pb.comp hin, hs_pb.comp hin, htm', fun view hP => ?_⟩
+  have hlen_le := hlenView view hP
+  have ht_mono : t (encKilianView enc view).length ≤ tBound (param view) :=
+    Nat.mul_le_mul_left ct (Nat.pow_le_pow_left (Nat.succ_le_succ hlen_le) dt)
+  have hs_mono : s (encKilianView enc view).length ≤ sBound (param view) :=
+    Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (Nat.succ_le_succ hlen_le) ds)
+  have hv := htm' view
+  exact ⟨ht_mono, hs_mono, ⟨hv.1, hv.2.1.mono ht_mono, hv.2.2.mono hs_mono⟩⟩
 
 private theorem computableInPolyTime_kilianTable (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
