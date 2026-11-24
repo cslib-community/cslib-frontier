@@ -57,7 +57,8 @@ example {input : List Bool} {V : Finset (FiniteCfg k Bool State)}
 
 -- The `BPL` majority step applies to undirected connectivity, which is in `L ⊆ BPL`; the
 -- parameters are explicit in the input length.
-example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : MultiTapePTM k Bool State) (d : ℕ),
+example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (M : MultiTapePTM k Bool State) (c d : ℕ),
+    (∀ G, M.toNTM.RunsInSpace (encUSTCON G) (c * (Nat.log2 (encUSTCON G).length + 1))) ∧
     ∀ G r n, r = d * (Nat.log2 (encUSTCON G).length + 2) + 1 → n = 2 * (2 * r + 3) →
       n + r * (3 * n - 1) ≤ 39 * (2 * d + 1) ^ 2 * (Nat.log2 (encUSTCON G).length + 1) ^ 2 ∧
       (G ∈ USTCON → 2 ^ (n + r * (3 * n - 1)) < 2 * M.acceptNisanSeeds (encUSTCON G) n r) ∧

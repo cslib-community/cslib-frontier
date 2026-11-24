@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Counting the accepting coins in polynomial space
@@ -406,9 +407,7 @@ theorem computableInPolyTime_aliveRun :
     (size := fun p => 2 * cf * (3 *
       (encPair encBits (encPair encBits (encList encEntry)) p).length + 1) +
       2 * (encPair encBits (encPair encBits (encList encEntry)) p).length + 3)
-    (PolyBounded.of_forall_le (2 * cf * 3 + 2 * cf + 2 + 3) 1 fun p => by
-      simp only [pow_one]
-      nlinarith)
+    (by growth_poly)
     (fun p consumed s hprefix hs => ?_)).1
   have hcfg := hcf _ _ _ _ hs.1
   have hhist := length_encList_sublist encEntry hs.2.sublist
