@@ -41,6 +41,7 @@ multigraph is `Sym2.map q ∘ ends` on the same edges. `Cslib.Multigraph.contrac
 
 * `Cslib.Multigraph.Joins`: `u` and `v` are joined by edges of `S`.
 * `Cslib.Multigraph.contract`: a vertex map identifying exactly the vertices joined by `C`.
+* `Cslib.Multigraph.support`: the non-isolated vertices of a set of edges.
 * `Cslib.Multigraph.msf`: the minimum spanning forest of a finite set of edges.
 * `Cslib.Multigraph.Supported`, `Cslib.Multigraph.unsupported`: edges whose ends are joined by no
   heavier edges of `F`, and the edges of `S` that are not.
@@ -150,6 +151,13 @@ theorem exists_mem_edgeCut {P : Set V} (h : Joins ends S u v) (hu : u ∈ P) (hv
 
 end Joins
 
+/-- No edges join only each vertex to itself. -/
+@[simp] theorem joins_empty_iff {u v : V} : Joins ends ∅ u v ↔ u = v := by
+  refine ⟨fun h => ?_, fun h => h ▸ Joins.refl _⟩
+  induction h with
+  | refl => rfl
+  | tail _ hstep => exact absurd hstep.choose_spec.1 (Set.notMem_empty _)
+
 /-- The vertices joined by `insert e S` are those joined by `S`, and those joined by `S` to the
 two ends of `e`. -/
 theorem joins_insert_iff {S : Set E} {e : E} {u v : V} :
@@ -206,6 +214,21 @@ private theorem forall_joins_iff {S : Set E} {e : E} {a b : V} (h : ends e = s(a
 private theorem exists_ends_eq (e : E) : ∃ a b, ends e = s(a, b) := by
   induction ends e using Sym2.ind with
   | _ a b => exact ⟨a, b, rfl⟩
+
+/-! ### Non-isolated vertices -/
+
+open scoped Classical in
+/-- The **non-isolated vertices** of the edges `S`: the ends of the edges of `S` other than
+self-loops. -/
+noncomputable def support (ends : E → Sym2 V) (S : Finset E) : Finset V :=
+  S.biUnion fun e => if (ends e).IsDiag then ∅ else (ends e).toFinset
+
+theorem mem_support {S : Finset E} {v : V} :
+    v ∈ support ends S ↔ ∃ e ∈ S, ¬(ends e).IsDiag ∧ v ∈ ends e := by
+  classical
+  simp only [support, mem_biUnion]
+  refine exists_congr fun e => and_congr_right fun _ => ?_
+  split_ifs with h <;> simp [h, Sym2.mem_toFinset]
 
 /-! ### Contraction -/
 
