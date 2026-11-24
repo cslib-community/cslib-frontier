@@ -316,7 +316,6 @@ variable [Finite Y] {R : Type*} [Field R]
 field. -/
 theorem rank_signMatrix_le (f : X → Y → Bool) :
     (signMatrix R f).rank ≤ (communicationMatrix R f).rank + 1 := by
-  have := Fintype.ofFinite Y
   rw [signMatrix_eq_sub, add_comm]
   exact (Matrix.rank_sub_le _ _).trans
     (add_le_add (rank_of_one_le R) (Matrix.rank_smul_le _ _))
@@ -326,7 +325,6 @@ one, since `M_f = (J - S_f) / 2`. In characteristic two this fails: the sign mat
 matrix. -/
 theorem rank_communicationMatrix_le_rank_signMatrix [NeZero (2 : R)] (f : X → Y → Bool) :
     (communicationMatrix R f).rank ≤ (signMatrix R f).rank + 1 := by
-  have := Fintype.ofFinite Y
   have h : communicationMatrix R f = (2 : R)⁻¹ • (Matrix.of (fun _ _ => 1) - signMatrix R f) := by
     rw [signMatrix_eq_sub, sub_sub_cancel, smul_smul, inv_mul_cancel₀ two_ne_zero, one_smul]
   rw [h, add_comm]

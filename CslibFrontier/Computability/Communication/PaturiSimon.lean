@@ -128,7 +128,6 @@ private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [
     (wA : X → S → ℝ) (wB : Y → T → ℝ) (g : Z → ℝ) :
     (Matrix.of fun x y => ∑ s, ∑ t, wA x s * (wB y t * g (p.run (α x s) (β y t)))).rank ≤
       2 ^ (p.depth - 1) := by
-  have := Fintype.ofFinite Y
   have rank_mul (u : X → ℝ) (v : Y → ℝ) : (Matrix.of fun x y => u x * v y).rank ≤ 1 :=
     Matrix.rank_vecMulVec_le u v
   induction p generalizing wA wB with
@@ -333,7 +332,6 @@ sign-represents `f` and has rank at most the number of leaves (`Protocol.rank_su
 theorem signRank_le_leafCount [Finite Y] {f : X → Y → Bool} (P : PrivateCoin a b X Y Bool)
     (hP : P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ) :
     signRank f ≤ P.leafCount := by
-  have := Fintype.ofFinite Y
   refine (signRank_le_rank (A := Matrix.of fun x y => ∑ s, ∑ t,
     BitString.signVal (P.run (x, s) (y, t))) fun x y => ?_).trans
     (Protocol.rank_sum_comp_run_le (X := X) (Y := Y) (p := P) (fun x s => (x, s))
@@ -361,7 +359,6 @@ theorem clog_signRank_add_one_le_depth [Finite Y] {f : X → Y → Bool}
     (P : PrivateCoin a b X Y Bool)
     (hP : P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ) (hf : 2 ≤ signRank f) :
     Nat.clog 2 (signRank f) + 1 ≤ P.depth := by
-  have := Fintype.ofFinite Y
   have hle : signRank f ≤ 2 ^ (P.depth - 1) :=
     (signRank_le_rank (A := Matrix.of fun x y => ∑ s, ∑ t,
       BitString.signVal (P.run (x, s) (y, t))) fun x y =>
@@ -446,7 +443,6 @@ theorem exists_solvesUnbounded_depth_le [Finite X] [Finite Y] (f : X → Y → B
     ∃ (a b : ℕ) (P : PrivateCoin a b X Y Bool),
       P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ ∧
         P.depth ≤ Nat.clog 2 (signRank f + 1) + 1 := by
-  have := Fintype.ofFinite Y
   obtain ⟨U₀, V₀, h₀⟩ := exists_mul_signRepresents f
   obtain ⟨U, V, hUV⟩ := exists_int_mul_signRepresents h₀
   obtain ⟨α, β, w, c, hw0, hw, hc, hid⟩ := exists_int_weights U V

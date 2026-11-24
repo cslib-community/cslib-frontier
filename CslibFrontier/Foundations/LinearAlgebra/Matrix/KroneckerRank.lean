@@ -150,8 +150,6 @@ section KroneckerRank
 theorem rank_kronecker {l m n p K : Type*} [Field K] [Finite l] [Finite m] [Finite n] [Finite p]
     (A : Matrix l m K) (B : Matrix n p K) :
     (A ⊗ₖ B).rank = A.rank * B.rank := by
-  cases nonempty_fintype m
-  cases nonempty_fintype p
   refine le_antisymm (rank_kronecker_le A B) ?_
   obtain ⟨rA, cA, _, _, hdetA⟩ := exists_submatrix_det_ne_zero A
   obtain ⟨rB, cB, _, _, hdetB⟩ := exists_submatrix_det_ne_zero B

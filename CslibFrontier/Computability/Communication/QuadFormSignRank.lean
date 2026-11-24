@@ -218,7 +218,7 @@ open Classical in
 /-- **Sign-rank lower bound for quadratic forms via Forster and Lindsey.** For any quadratic form
 `BitString.quadForm Q` over `𝔽₂` and any coordinate cut `X : Set ι`, the sign-rank across `(X, Xᶜ)`
 satisfies `2 ^ (Q + Qᵀ).cutRank X ≤ signRank ^ 2`. -/
-theorem two_pow_cutRank_le_signRank_quadForm_sq {ι : Type*} [Fintype ι] [DecidableEq ι]
+theorem two_pow_cutRank_le_signRank_quadForm_sq {ι : Type*} [Fintype ι]
     (Q : Matrix ι ι (ZMod 2)) (X : Set ι) :
     2 ^ (Q + Qᵀ).cutRank X ≤
       signRank (fun (a : X → Bool) (b : ↥Xᶜ → Bool) =>

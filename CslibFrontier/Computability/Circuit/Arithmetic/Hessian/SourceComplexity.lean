@@ -50,7 +50,6 @@ theorem hessianResidualRank_le_two_mul_ecomplexityFrom (constant : C → K) (poi
     hessianResidualRank point target sources ≤ 2 *
       ecomplexityFrom (arithInterpretationWith C (MvPolynomial.C ∘ constant)) ArithOp.mulCost
         (fun (_ : Unit) (_ : Fin 1) => target) (fun _ => sources) := by
-  have := Fintype.ofFinite ι
   rw [ecomplexityFrom, ENat.mul_iInf_of_ne (by decide : (2 : ℕ∞) ≠ 0)]
   refine le_iInf fun c => ?_
   obtain ⟨coefficients, h⟩ := c.val.exists_hessian_residual constant point sources 0 target
@@ -78,7 +77,6 @@ theorem le_ecomplexityFrom_of_hessian_rank (constant : C → K) (point : ι → 
     (lower : ℕ∞) ≤
       ecomplexityFrom (arithInterpretationWith C (MvPolynomial.C ∘ constant)) ArithOp.mulCost
         (fun (_ : Unit) (_ : Fin 1) => target) (fun _ => sources) := by
-  have := Fintype.ofFinite ι
   apply le_ecomplexityFrom_iff.mpr
   intro c hc
   obtain ⟨coefficients, h⟩ := c.exists_hessian_residual constant point sources 0 target

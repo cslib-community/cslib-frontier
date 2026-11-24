@@ -169,7 +169,6 @@ dimensions. -/
 theorem exists_mul_signRepresents [Finite Y] (f : X → Y → Bool) :
     ∃ (U : Matrix X (Fin (signRank f)) ℝ) (V : Matrix (Fin (signRank f)) Y ℝ),
       SignRepresents (U * V) f := by
-  have := Fintype.ofFinite Y
   obtain ⟨A, hA, hr⟩ := exists_signRepresents_rank_eq f
   obtain ⟨C, D, hCD⟩ := Matrix.exists_eq_mul_rank A
   let e : Fin (signRank f) ≃ Fin A.rank := finCongr hr.symm
@@ -185,7 +184,6 @@ theorem signRank_le_rank_signMatrix (f : X → Y → Bool) :
 /-- The sign-rank is at most the rank of the communication matrix plus one. -/
 theorem signRank_le_rank_communicationMatrix_add_one [Finite Y] (f : X → Y → Bool) :
     signRank f ≤ (communicationMatrix ℝ f).rank + 1 :=
-  have := Fintype.ofFinite Y
   (signRank_le_rank_signMatrix f).trans (rank_signMatrix_le f)
 
 /-- The sign-rank is at most the number of columns. -/
@@ -206,7 +204,6 @@ theorem signRank_comap_le [Finite Y] [Finite Y'] (f : X → Y → Bool) (a : X' 
 /-- Negating a function does not change its sign-rank. -/
 @[simp] theorem signRank_not [Finite Y] (f : X → Y → Bool) :
     signRank (fun x y => !f x y) = signRank f := by
-  have := Fintype.ofFinite Y
   have key (g : X → Y → Bool) : signRank (fun x y => !g x y) ≤ signRank g := by
     obtain ⟨A, hA, hr⟩ := exists_signRepresents_rank_eq g
     exact (signRank_le_rank hA.neg).trans (by rw [Matrix.rank_neg, hr])
@@ -227,7 +224,6 @@ theorem signRank_swap [Finite Y] [Finite X] (f : X → Y → Bool) :
 nothing. -/
 theorem signRank_pos [Finite Y] [Nonempty X] [Nonempty Y] (f : X → Y → Bool) :
     0 < signRank f := by
-  have := Fintype.ofFinite Y
   obtain ⟨x⟩ := ‹Nonempty X›
   obtain ⟨y⟩ := ‹Nonempty Y›
   refine le_signRank_iff.mpr fun A hA => Nat.pos_of_ne_zero fun h => ?_

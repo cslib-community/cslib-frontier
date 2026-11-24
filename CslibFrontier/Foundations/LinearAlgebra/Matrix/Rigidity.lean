@@ -162,7 +162,6 @@ variable [Finite n]
 
 /-- At target rank zero, the rigidity is the number of nonzero entries. -/
 theorem rigidity_zero (A : Matrix m n K) : A.rigidity 0 = diffCount A 0 := by
-  have := Fintype.ofFinite n
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A 0
   rw [rank_eq_zero_iff.1 (Nat.le_zero.1 hB)] at hAB
   exact hAB.symm
@@ -199,7 +198,6 @@ theorem rank_le_diffCount_zero (C : Matrix m n K) : C.rank ≤ diffCount C 0 := 
 /-- **Each change lowers the rank by at most one**: the rank of `B` is at least the rank of `A`
 minus the number of entries where they differ. -/
 theorem rank_sub_diffCount_le_rank (A B : Matrix m n K) : A.rank - diffCount A B ≤ B.rank := by
-  have := Fintype.ofFinite n
   have h := rank_add_le B (A - B)
   rw [add_sub_cancel] at h
   have : diffCount (A - B) 0 = diffCount A B :=

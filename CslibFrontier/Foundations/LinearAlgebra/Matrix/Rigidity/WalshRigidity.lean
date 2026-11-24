@@ -38,7 +38,6 @@ private theorem correct_rows_cols {ι K : Type*} [Finite ι] [DecidableEq ι] [F
     ∃ B : Matrix ι ι K, B.rank ≤ A.rank + 2 * bad.card ∧
       ∀ x y, B x y = if x ∈ bad ∨ y ∈ bad then H x y else A x y := by
   classical
-  have := Fintype.ofFinite ι
   let R : Matrix ι ι K := fun x y => if x ∈ bad then H x y - A x y else 0
   let C : Matrix ι ι K := fun x y => if x ∉ bad ∧ y ∈ bad then H x y - A x y else 0
   have hR : R.rank ≤ bad.card := by
