@@ -108,6 +108,10 @@ Containments, separations, closure properties, complete problems and reductions 
 
 - **MIP = NEXP** ([#892](https://github.com/cslib-community/cslib-frontier/issues/892)): `NEXP ⊆ MIP₂` through the BFL multilinearity test and arithmetization of exponential-time tableaux; an efficient GKR verifier under log-space uniformity.
 - **Arthur–Merlin classes:** the Babai–Moran speedup `AM[2 t(n)] = AM[t(n)]` for polynomially many rounds (patterns that depend on the input length), interactive-machine characterizations of Arthur–Merlin classes, and statistical and perfect zero knowledge.
+- **Debate protocols** ([#7579](https://github.com/cslib-community/cslib-frontier/issues/7579)): competing provers with bounded honest strategies, starting from doubly-efficient debate with a stochastic oracle (Brown-Cohen, Irving and Piliouras, arXiv:2311.14125, Section 6).
+  The endpoint is the cross-examination protocol for encoded machines, with prover time, verifier time and verifier query bounds, under a Lipschitz hypothesis whose exact form is settled in the issue.
+  Correctness for a prefix-indexed step law alone leaves it open.
+  Then prover-estimator debate (arXiv:2506.13609).
 - **Statistical zero knowledge** ([#3205](https://github.com/cslib-community/cslib-frontier/issues/3205)): Sahai–Vadhan polarization as a polynomial-time map on encoded Statistical Difference instances with error `2^-(|x|+1)`, honest-verifier SZK containing `SD`, `SD` being SZK-complete, Entropy Difference (Goldreich–Vadhan), closure under complement (Okamoto), and `SZK ⊆ AM ∩ coAM` (Fortnow; Aiello–Håstad).
   Instances are pairs of De Morgan circuits, with general pairs padded to common input and output counts.
 
