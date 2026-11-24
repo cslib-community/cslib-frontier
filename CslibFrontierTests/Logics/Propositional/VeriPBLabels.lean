@@ -102,6 +102,10 @@ end pseudo-Boolean proof;
 
 theorem eqKernel_accepted : checkOPB eqOPB eqKernel = some (.unsat 5) := by decide +kernel
 
+-- So the labelled instance `eqOPB` has no solution.
+example : ∃ I, parseOPB eqOPB = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ :=
+  not_satisfiable_of_checkOPB eqKernel_accepted
+
 /-- `eqKernel` with the label `@both_hi` for the constraint `2`. -/
 def eqKernelLabel : String := "pseudo-Boolean proof version 3.0
 f 4;

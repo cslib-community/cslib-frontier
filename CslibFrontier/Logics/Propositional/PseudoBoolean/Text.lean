@@ -143,6 +143,7 @@ value itself (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB_printOPB` 
   `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
 * `Cslib.Logic.PL.VeriPB.Text.isOPBName`, `Cslib.Logic.PL.VeriPB.Text.isName`: the variable
   names of an instance, and those of a proof, which may also name auxiliary variables `$a`.
+* `Cslib.Logic.PL.VeriPB.Text.isLabel`: the constraint labels `@l` of an instance.
 * `Cslib.Logic.PL.VeriPB.Text.Names`, `Cslib.Logic.PL.VeriPB.Text.opbNames`,
   `Cslib.Logic.PL.VeriPB.Text.proofNames`: variable names, those of an OPB text, and those of a
   proof and its output text.
