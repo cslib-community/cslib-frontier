@@ -23,8 +23,10 @@ increase for the individual row queries.
 Their sum-of-squares feasibility polynomial uses one auxiliary variable per label.
 Its modular evaluator costs one additional counting level over the labels.
 A fixed-width witness can make the labels select any given point in the root grid.
+A second system adds counterexample variables and one equation at the same counting level.
 
-Adapted from lean-canny's `SelectionSystem` and `SelectionSystemCorrectness` at
+Adapted from lean-canny's `SelectionSystem`, `SelectionSystemCorrectness`,
+`SelectionCounterexampleSystem` and `SelectionCounterexampleCorrectness` at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
@@ -133,28 +135,24 @@ noncomputable def selectionFeasibilityPolynomial {n d : ℕ}
   indexedFeasibilityPolynomial (selectionEquation F hF hn)
     (wordCoordinateFingerprintTest F hF mass hn word) (n + 1) n
 
-/-- Assemble the coordinate-selection feasibility polynomial at counting level `a + 21`.
-The degree, norm and prime bounds for each row family are computed at address zero. -/
-noncomputable def Controlled.selectionFeasibility {α : Type} {n : α → ℕ}
-    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
-    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
-    (hn : ∀ w, 0 < n w) (hdpos : ∀ w, 1 ≤ d w)
-    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
-    (word : α → List Bool) (hword : ComputableInPolyTime word enc encBits) :
-    Controlled (fun w => selectionFeasibilityPolynomial (F w) (hF w) (C.massExponent w)
-      (hn w) (word w)) enc (a + 21) := by
-  let CP := (C.selectionEquations E hn hdpos hF hd).mono
-    (Nat.add_le_add_left (by decide : 18 ≤ 20) a)
-  let CQ := C.wordCoordinateFingerprintTests E hn hdpos hF hd word hword
+private noncomputable def indexedFeasibilityOfUniformRows {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {P Q : (q : α × ℕ) → MvPolynomial (Fin (n q.1)) ℤ}
+    (CP : Controlled P (encPair enc encNat) a) (CQ : Controlled Q (encPair enc encNat) a)
+    (E : Decoder enc) (e k : α → ℕ)
+    (he : ComputableInPolyTime e enc encNat) (hk : ComputableInPolyTime k enc encUnary)
+    (hP : ∀ w j, CP.degreeBound (w, j) = CP.degreeBound (w, 0) ∧
+      CP.massExponent (w, j) = CP.massExponent (w, 0) ∧ CP.cutoff (w, j) = CP.cutoff (w, 0))
+    (hQ : ∀ w j, CQ.degreeBound (w, j) = CQ.degreeBound (w, 0) ∧
+      CQ.massExponent (w, j) = CQ.massExponent (w, 0) ∧ CQ.cutoff (w, j) = CQ.cutoff (w, 0)) :
+    Controlled (fun w => indexedFeasibilityPolynomial (fun j => P (w, j)) (fun j => Q (w, j))
+      (e w) (k w)) enc (a + 1) := by
   have hrowZero : ComputableInPolyTime (fun w : α => (w, (0 : ℕ))) enc (encPair enc encNat) :=
     id'.prod (.const 0)
-  have hP (w j) := C.selectionEquations_bounds_eq E hn hdpos hF hd w j
-  have hQ (w j) := C.wordCoordinateFingerprintTests_bounds_eq E hn hdpos hF hd word hword w j
-  exact CP.indexedFeasibility CQ E (fun w => n w + 1) n
+  exact CP.indexedFeasibility CQ E e k
     (fun w => max (CP.degreeBound (w, 0)) (CQ.degreeBound (w, 0)))
     (fun w => max (CP.massExponent (w, 0)) (CQ.massExponent (w, 0)))
     (fun w => max (CP.cutoff (w, 0)) (CQ.cutoff (w, 0)))
-    (binary_add' (unary_to_binary.comp C.arity_computable) (.const 1)) C.arity_computable
+    he hk
     (binary_max' (CP.degree_computable.comp hrowZero) (CQ.degree_computable.comp hrowZero))
     (binary_max' (CP.mass_computable.comp hrowZero) (CQ.mass_computable.comp hrowZero))
     (binary_max' (CP.cutoff_computable.comp hrowZero) (CQ.cutoff_computable.comp hrowZero))
@@ -174,6 +172,24 @@ noncomputable def Controlled.selectionFeasibility {α : Type} {n : α → ℕ}
     (fun w j _ => by
       obtain ⟨_, _, hc⟩ := hQ w j
       exact hc.le.trans (le_max_right _ _))
+
+/-- Assemble the coordinate-selection feasibility polynomial at counting level `a + 21`.
+The degree, norm and prime bounds for each row family are computed at address zero. -/
+noncomputable def Controlled.selectionFeasibility {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (hn : ∀ w, 0 < n w) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (word : α → List Bool) (hword : ComputableInPolyTime word enc encBits) :
+    Controlled (fun w => selectionFeasibilityPolynomial (F w) (hF w) (C.massExponent w)
+      (hn w) (word w)) enc (a + 21) := by
+  let CP := (C.selectionEquations E hn hdpos hF hd).mono
+    (Nat.add_le_add_left (by decide : 18 ≤ 20) a)
+  let CQ := C.wordCoordinateFingerprintTests E hn hdpos hF hd word hword
+  exact indexedFeasibilityOfUniformRows CP CQ E (fun w => n w + 1) n
+    (binary_add' (unary_to_binary.comp C.arity_computable) (.const 1)) C.arity_computable
+    (C.selectionEquations_bounds_eq E hn hdpos hF hd)
+    (C.wordCoordinateFingerprintTests_bounds_eq E hn hdpos hF hd word hword)
 
 /-- The selection feasibility polynomial has a real zero exactly when a source zero
 in the coordinate root grid satisfies all fingerprint tests supplied by the word. -/
@@ -237,5 +253,103 @@ theorem exists_coordinateSelectionWitness {n d mass : ℕ}
     refine ⟨hx, fun i => ?_⟩
     rw [hlabel i]
     exact hhalf.trans_le (hpos i)
+
+private noncomputable def selectionCounterexampleEquation {n u d : ℕ}
+    (F : MvPolynomial (Fin n) ℤ) (R : MvPolynomial (Fin (n + u)) ℤ)
+    (hF : F.totalDegree ≤ d + 1) (hn : 0 < n) (j : ℕ) : MvPolynomial (Fin (n + u)) ℤ :=
+  if decide (j = 0) then R else
+    MvPolynomial.rename (Fin.castAdd u) (selectionEquation F hF hn (j - 1))
+
+/-- Feasibility of a selected source zero together with a zero of the counterexample
+equation `R`. The coordinates are the selected point, the extra variables, then the
+auxiliary variables for the fingerprint labels. -/
+noncomputable def selectionCounterexamplePolynomial {n u d : ℕ}
+    (F : MvPolynomial (Fin n) ℤ) (R : MvPolynomial (Fin (n + u)) ℤ)
+    (hF : F.totalDegree ≤ d + 1) (mass : ℕ) (hn : 0 < n) (word : List Bool) :
+    MvPolynomial (Fin ((n + u) + n)) ℤ :=
+  indexedFeasibilityPolynomial (selectionCounterexampleEquation F R hF hn)
+    (fun j => MvPolynomial.rename (Fin.castAdd u)
+      (wordCoordinateFingerprintTest F hF mass hn word j)) (n + 2) n
+
+/-- Assemble the selected counterexample system at counting level `a + 21` when the
+extra equation is controlled at level `a + 20` and the extra arity is unary-polytime. -/
+noncomputable def Controlled.selectionCounterexample {α : Type} {n u : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    {R : (w : α) → MvPolynomial (Fin (n w + u w)) ℤ}
+    (C : Controlled F enc a) (CR : Controlled R enc (a + 20))
+    (hu : ComputableInPolyTime u enc encUnary) (E : Decoder enc) {d : α → ℕ}
+    (hn : ∀ w, 0 < n w) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (word : α → List Bool) (hword : ComputableInPolyTime word enc encBits) :
+    Controlled (fun w => selectionCounterexamplePolynomial (F w) (R w) (hF w)
+      (C.massExponent w) (hn w) (word w)) enc (a + 21) := by
+  have hw := fst enc encNat
+  have hj := snd enc encNat
+  let equations := (C.selectionEquations E hn hdpos hF hd).mono
+    (Nat.add_le_add_left (by decide : 18 ≤ 20) a)
+  let shifted := (equations.appendVariables (fun q => u q.1) (hu.comp hw)).preprocess
+    (fun q : α × ℕ => (q.1, q.2 - 1)) (hw.prod (binary_sub' hj (.const 1)))
+  let labels := (C.wordCoordinateFingerprintTests E hn hdpos hF hd word hword).appendVariables
+    (fun q => u q.1) (hu.comp hw)
+  have hguard : ComputableInPolyTime (fun q : α × ℕ => decide (q.2 = 0))
+      (encPair enc encNat) encBool := by
+    simpa only [Nat.le_zero_eq] using binary_le' hj (.const 0)
+  let rows := (CR.preprocess (fun q : α × ℕ => q.1) hw).ite shifted
+    (fun q => decide (q.2 = 0)) hguard
+  refine indexedFeasibilityOfUniformRows (n := fun w => n w + u w) rows labels E
+    (fun w => n w + 2) n
+    (binary_add' (unary_to_binary.comp C.arity_computable) (.const 2)) C.arity_computable ?_ ?_
+  · intro w j
+    obtain ⟨hD, hb, hc⟩ := C.selectionEquations_bounds_eq E hn hdpos hF hd w (j - 1)
+    simp only [rows, degreeBound_ite, massExponent_ite, cutoff_ite, shifted, preprocess,
+      Function.comp_apply, degreeBound_appendVariables, massExponent_appendVariables,
+      cutoff_appendVariables, equations, mono, Nat.zero_sub, hD, hb, hc, eq_self, and_self]
+  · intro w j
+    simpa only [labels, degreeBound_appendVariables, massExponent_appendVariables,
+      cutoff_appendVariables] using C.wordCoordinateFingerprintTests_bounds_eq E hn hdpos
+        hF hd word hword w j
+
+/-- The counterexample system has a real zero exactly when some selected source zero
+extends to a zero of the extra equation. -/
+theorem exists_selectionCounterexamplePolynomial_zero_iff {n u d : ℕ}
+    (F : MvPolynomial (Fin n) ℤ) (R : MvPolynomial (Fin (n + u)) ℤ)
+    (hF : F.totalDegree ≤ d + 1) (mass : ℕ) (hn : 0 < n) (word : List Bool) :
+    (∃ z : Fin ((n + u) + n) → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+      (selectionCounterexamplePolynomial F R hF mass hn word) = 0) ↔
+    ∃ x : Fin n → ℝ, ∃ y : Fin u → ℝ,
+      MvPolynomial.eval₂ (Int.castRingHom ℝ) x F = 0 ∧
+      x ∈ coordinateRootGrid (Nat.succ_pos d) F hF ∧
+      (∀ i : Fin n, 0 < (wordCoordinateFingerprintLabel F hF mass hn word i.val).eval₂
+        (Int.castRingHom ℝ) (x i)) ∧
+      MvPolynomial.eval₂ (Int.castRingHom ℝ) (Fin.addCases x y) R = 0 := by
+  rw [selectionCounterexamplePolynomial, exists_indexedFeasibilityPolynomial_zero_iff]
+  have hrename (x : Fin n → ℝ) (y : Fin u → ℝ) (P : MvPolynomial (Fin n) ℤ) :
+      MvPolynomial.eval₂ (Int.castRingHom ℝ) (Fin.addCases x y)
+        (MvPolynomial.rename (Fin.castAdd u) P) = MvPolynomial.eval₂ (Int.castRingHom ℝ) x P := by
+    simp only [MvPolynomial.eval₂_rename, Function.comp_def, Fin.addCases_left]
+  constructor
+  · rintro ⟨z, heq, hpos⟩
+    let x (i : Fin n) := z (i.castAdd u)
+    let y (i : Fin u) := z (i.natAdd n)
+    have hz : Fin.addCases x y = z := funext (Fin.addCases_castAdd_natAdd z)
+    rw [← hz] at heq hpos
+    obtain ⟨hFzero, hgrid, hlabels⟩ := (selection_constraints_iff F hF mass hn word x).mp
+      ⟨fun j hj => by
+        simpa only [selectionCounterexampleEquation, decide_eq_true_eq, Nat.succ_ne_zero,
+          ite_false, Nat.add_sub_cancel, hrename] using heq (j + 1) (Nat.succ_lt_succ hj),
+        fun j hj => by simpa only [hrename] using hpos j hj⟩
+    refine ⟨x, y, hFzero, hgrid, hlabels, ?_⟩
+    simpa only [selectionCounterexampleEquation, decide_true, ite_true] using heq 0 (by omega)
+  · rintro ⟨x, y, hFzero, hgrid, hlabels, hR⟩
+    obtain ⟨heq, hpos⟩ :=
+      (selection_constraints_iff F hF mass hn word x).mpr ⟨hFzero, hgrid, hlabels⟩
+    refine ⟨Fin.addCases x y, fun j hj => ?_, fun j hj => ?_⟩
+    · cases j with
+      | zero =>
+        simpa only [selectionCounterexampleEquation, decide_true, ite_true] using hR
+      | succ j =>
+        simpa only [selectionCounterexampleEquation, decide_eq_true_eq, Nat.succ_ne_zero,
+          ite_false, Nat.add_sub_cancel, hrename] using heq j (Nat.lt_of_succ_lt_succ hj)
+    · simpa only [hrename] using hpos j hj
 
 end Cslib.Complexity.RealAlgebraic

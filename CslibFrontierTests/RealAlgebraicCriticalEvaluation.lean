@@ -88,6 +88,7 @@ example :
   exact ⟨y, z, φ, hz, hlim, hcrit⟩
 
 -- A fixed-width word selects a point in the finite coordinate root grid of X².
+-- The selected point extends to a zero of the extra coordinate, but never of the constant one.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
     let hF : F.totalDegree ≤ 3 := (totalDegree_pow (X (R := ℤ) (0 : Fin 1)) 2).trans
@@ -100,7 +101,11 @@ example :
     G.Finite ∧ ∃ x ∈ G, eval x (F.map (Int.castRingHom ℝ)) = 0 ∧ p.IsRoot (x 0) ∧
       ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 3 1 ∧
         0 < (wordCoordinateFingerprintLabel (d := 2) F hF 0 (by decide) word 0).eval₂
-          (Int.castRingHom ℝ) (x 0) := by
+          (Int.castRingHom ℝ) (x 0) ∧
+        (∃ z : Fin 3 → ℝ, eval₂ (Int.castRingHom ℝ) z
+          (selectionCounterexamplePolynomial (d := 2) (u := 1) F (X 1) hF 0 (by decide) word) = 0) ∧
+        ¬ ∃ z : Fin 3 → ℝ, eval₂ (Int.castRingHom ℝ) z
+          (selectionCounterexamplePolynomial (d := 2) (u := 1) F 1 hF 0 (by decide) word) = 0 := by
   intro F hF G p
   refine ⟨coordinateRootGrid_finite _ F hF, ?_⟩
   have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
@@ -113,8 +118,19 @@ example :
       coeffNorm1_pow_le (X (R := ℤ) (0 : Fin 1)) 2
   obtain ⟨word, hlen, hselect⟩ :=
     exists_coordinateSelectionWitness (d := 2) (mass := 0) F hF hmass (by decide) (by decide) hz
-  exact ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0, word, hlen,
-    ((hselect z.val).mpr rfl).2 0⟩
+  have hlabels := ((hselect z.val).mpr rfl).2
+  refine ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0, word, hlen, hlabels 0, ?_, ?_⟩
+  · apply (exists_selectionCounterexamplePolynomial_zero_iff (d := 2) (u := 1)
+      F (X 1) hF 0 (by decide) word).mpr
+    refine ⟨z.val, fun _ => 0, ?_, hz, hlabels, ?_⟩
+    · simpa only [eval₂_eq_eval_map] using z.property
+    · rw [eval₂_X]
+      change Fin.addCases (motive := fun _ => ℝ) z.val (fun _ => 0) (Fin.natAdd 1 (0 : Fin 1)) = 0
+      simp only [Fin.addCases_right]
+  · intro h
+    obtain ⟨_, _, _, _, _, hR⟩ := (exists_selectionCounterexamplePolynomial_zero_iff
+      (d := 2) (u := 1) F 1 hF 0 (by decide) word).mp h
+    simp at hR
 
 -- Zero is a critical point of the deformation of X² at every parameter.
 example :
