@@ -31,15 +31,14 @@ encapsulation.
 * The conclusion is about a transfer that happens: on the AND gate whose second input the evaluator
   holds, there are coins in the support, and both words of the one transfer have `n + 2` bits.
 * `Yao.forallChallenge_protocol_evaluator` consumes it.
-* The hypotheses of `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le` hold together:
-  the theorem is applied over point-and-permute garbling with keys and tokens of `n + 2` bits, and
-  every hypothesis that is a proposition is proved. The group family, the setup program, the public
-  parameters, the side information, the garbling simulator, the environment and the simulators at
-  the coalitions other than `{1}` are arbitrary.
-* `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul` is applied in the same
-  setting with `Nat.clog 2 (c n).evaluatorLen` index coins: one key-derivation and one DDH
-  distinguisher and the factor `2 ^ Nat.clog 2 (c n).evaluatorLen`, which is `1` with no transfer
-  and below twice the number of transfers otherwise.
+* The hypotheses of `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul` hold
+  together: the theorem is applied over point-and-permute garbling with keys and tokens of `n + 2`
+  bits and `Nat.clog 2 (c n).evaluatorLen` index coins, and every hypothesis that is a proposition
+  is proved. The bound has one key-derivation and one DDH distinguisher and the factor
+  `2 ^ Nat.clog 2 (c n).evaluatorLen`, which is `1` with no transfer and below twice the number of
+  transfers otherwise. The group family, the setup program, the public parameters, the side
+  information, the garbling simulator, the environment and the simulators at the coalitions other
+  than `{1}` are arbitrary.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -177,71 +176,6 @@ noncomputable def ddhSims (F : PrimeOrderGroupFamily)
         (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J :=
   Function.update (S₂ n d) {1} (F.ddhOTReceiverSimProb n d)
 
-/-- **The hypotheses of `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le` hold
-together.** The theorem is applied at a parameter `n ≥ 1` over point-and-permute garbling, with
-the key derivation `constKey F (n + 2)` and the length `n + 2`. Every hypothesis that is a
-proposition is proved here: the encoding is projective, the scheme is correct, the simulators at
-the coalition `{1}` are the required ones (`yaoSims`, `maskedSims`, `ddhSims`), every key has
-`n + 2` bits, and the scheme has tokens of `n + 2` bits (`hasTokenLength_pointPermute`).
-
-The group family `F`, the setup program, the public parameters `c`, the side information `Φ`, the
-garbling simulator `S`, the environment `Z` and the simulators `T₁`, `Sm`, `S₂` at the other
-coalitions are arbitrary; none is constructed here. -/
-example {Λ : Type} (family : List Bool → List Bool → List Bool) (F : PrimeOrderGroupFamily)
-    (setup : ℕ → ProbComp F.Desc) (c : ℕ → Yao.Params (PointPermute.scheme family))
-    (Φ : SideInfo ValidCircuit Λ) (S : ℕ → PrvSimulator Λ)
-    (T₁ : (n : ℕ) → (I : Finset (Fin 2)) → CoalitionSimulator (Yao.schedule (c n))
-      (Yao.Input (c n)) Yao.Coins (fun _ => List Bool) I)
-    (Sm : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
-      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
-      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
-    (S₂ : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) →
-      CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
-        (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
-    {n : ℕ} (hn : 0 < n)
-    (Z : Environment (Yao.kdfDDHProbFamily (PointPermute.scheme family) F (constKey F (n + 2)) c)
-      {1}) :
-    Game.advantage
-        ((Yao.kdfDDHProbFamily (PointPermute.scheme family) F (constKey F (n + 2)) c).idealGame
-          (fun n => ProbComp.eval (setup n)) {1}
-          (Yao.kdfDDHProbSim F (constKey F (n + 2)) c (yaoSims family c Φ S T₁)
-            (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) {1}) Z n)
-        ((Yao.kdfDDHProbFamily (PointPermute.scheme family) F (constKey F (n + 2)) c).realGame
-          (fun n => ProbComp.eval (setup n)) {1} Z n) ≤
-      prvSimAdvantage (PointPermute.scheme family) Φ n (S n)
-          (Yao.kdfDDHProbEnvToPrvSim F setup (constKey F (n + 2)) c
-            (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z n) +
-        ∑ j ∈ Finset.range (c n).evaluatorLen,
-          (Game.advantage
-              (F.kdfIdealGame (fun n => ProbComp.eval (setup n)) (fun n => n + 2)
-                (F.roundEnvToKDFDistinguisher (constKey F (n + 2))
-                  (F.padHidingEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
-                    (Yao.kdfDDHTransferEnv F (constKey F (n + 2)) c
-                      (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z j))) n)
-              (F.kdfRealGame (fun n => ProbComp.eval (setup n)) (constKey F (n + 2))
-                (F.roundEnvToKDFDistinguisher (constKey F (n + 2))
-                  (F.padHidingEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
-                    (Yao.kdfDDHTransferEnv F (constKey F (n + 2)) c
-                      (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z j))) n) +
-            (Game.advantage
-                (F.ddhRealGame (fun n => ProbComp.eval (setup n))
-                  (F.roundEnvToDDHDistinguisher
-                    (F.padTransferEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
-                      (Yao.kdfDDHTransferEnv F (constKey F (n + 2)) c
-                        (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z j))) n)
-                (F.ddhRandomGame (fun n => ProbComp.eval (setup n))
-                  (F.roundEnvToDDHDistinguisher
-                    (F.padTransferEnv (constKey F (n + 2)) F.kdfPadsProb (ddhSims F S₂)
-                      (Yao.kdfDDHTransferEnv F (constKey F (n + 2)) c
-                        (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z j))) n) +
-              18 / 2 ^ n)) :=
-  Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le rfl
-    (PointPermute.scheme_isValid family).correct F setup (constKey F (n + 2)) (fun n => n + 2) c
-    Φ S (yaoSims family c Φ S T₁) (maskedSims F (constKey F (n + 2)) Sm) (ddhSims F S₂) Z hn
-    (Function.update_self ..) (fun _ => Function.update_self ..)
-    (fun _ => Function.update_self ..) (fun _ _ => List.length_replicate)
-    (hasTokenLength_pointPermute family n (c n).fn)
-
 /-- The number of fair coins that index the transfers at the parameter `n`: the least `L` with
 `(c n).evaluatorLen ≤ 2 ^ L`. -/
 abbrev clogLen {G : Scheme ValidCircuit} (c : ℕ → Yao.Params G) (n : ℕ) : ℕ :=
@@ -263,14 +197,19 @@ example (k : ℕ) (hk : 0 < k) : 2 ^ Nat.clog 2 k < 2 * k := by
   · obtain rfl : k = 1 := by omega
     simp
 
-/-- **The drawn-transfer bound applies with its hypotheses proved together**
-(`Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul`), in the setting of the
-previous example, with `Nat.clog 2 (c n).evaluatorLen` index coins: the hypothesis
-`(c n).evaluatorLen ≤ 2 ^ L n` is `Nat.le_pow_clog`, which also covers a circuit with no evaluator
-input. The right-hand side has one key-derivation and one DDH distinguisher, built from
-`Yao.kdfDDHDrawnTransferEnv`, and no sum over the transfers. The group family, the setup program,
-the public parameters, the side information, the garbling simulator, the environment and the
-simulators at the other coalitions are arbitrary; none is constructed here. -/
+/-- **The hypotheses of `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul` hold
+together.** The theorem is applied at a parameter `n ≥ 1` over point-and-permute garbling, with
+the key derivation `constKey F (n + 2)`, the length `n + 2` and `Nat.clog 2 (c n).evaluatorLen`
+index coins. Every hypothesis that is a proposition is proved here: the encoding is projective,
+the scheme is correct, the simulators at the coalition `{1}` are the required ones (`yaoSims`,
+`maskedSims`, `ddhSims`), every key has `n + 2` bits, the scheme has tokens of `n + 2` bits
+(`hasTokenLength_pointPermute`), and `(c n).evaluatorLen ≤ 2 ^ L n` is `Nat.le_pow_clog`, which
+also covers a circuit with no evaluator input. The right-hand side has one key-derivation and one
+DDH distinguisher, built from `Yao.kdfDDHDrawnTransferEnv`, and no sum over the transfers.
+
+The group family `F`, the setup program, the public parameters `c`, the side information `Φ`, the
+garbling simulator `S`, the environment `Z` and the simulators `T₁`, `Sm`, `S₂` at the other
+coalitions are arbitrary; none is constructed here. -/
 example {Λ : Type} (family : List Bool → List Bool → List Bool) (F : PrimeOrderGroupFamily)
     (setup : ℕ → ProbComp F.Desc) (c : ℕ → Yao.Params (PointPermute.scheme family))
     (Φ : SideInfo ValidCircuit Λ) (S : ℕ → PrvSimulator Λ)

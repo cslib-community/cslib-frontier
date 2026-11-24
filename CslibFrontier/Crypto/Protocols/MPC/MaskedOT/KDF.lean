@@ -69,7 +69,7 @@ All statements are concrete, in the hybrid model with the ideal pad transfer
 * No asymptotic statement (`ProtocolFamily.SemiHonestSecure`) is made. The equality of semi-honest
   advantages is for the point setup at a fixed `d`; under a setup law only the round games of a
   sampled environment are identified; they are used for a composed protocol in
-  `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Games.lean`.
+  `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/DrawnTransfer.lean`.
 * The pads `F.kdfPads d` are sampled with exactly uniform exponents (`ProbComp.uniform`). No
   fair-coin sampler is defined here; the fair-coin pads `F.kdfPadsProb n d` and their distance
   from `F.kdfPads d` are in `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/KDFDDHProb.lean`.

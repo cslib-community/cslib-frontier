@@ -6683,6 +6683,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Composition.ViewEncoding
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
+public import CslibFrontier.Crypto.Protocols.MPC.EmptyCoalition
 public import CslibFrontier.Crypto.Protocols.MPC.IKNP
 public import CslibFrontier.Crypto.Protocols.MPC.IKNP.Family
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT
@@ -6723,12 +6724,12 @@ public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainComposition
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Asymptotic
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.DrawnTransfer
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Encoding
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Games
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.GarblerSetup
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.LabelLength
-public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Setup
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
 public import CslibFrontier.Crypto.Protocols.MQOM.CorrelatedTree
 public import CslibFrontier.Crypto.Protocols.OPRF.DiffieHellman

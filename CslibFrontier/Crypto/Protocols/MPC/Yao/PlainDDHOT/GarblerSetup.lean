@@ -9,8 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT.SequentialProg
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
+public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainChallenge
-public import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.Setup
+import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.Mixture
 
 /-!
 # Yao's protocol over masked fair-coin DDH transfers under a sampled setup: the corrupted garbler
@@ -46,7 +47,7 @@ transfer (`Yao.transferQueries`) have length `L` is the hypothesis `hlen`;
   composed simulator is not shown to be uniform strict PPT, and nothing bounds
   `(c n).evaluatorLen` (#6045).
 * Only the corrupted garbler is treated here; the corrupted evaluator is in
-  `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Games.lean`.
+  `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/DrawnTransfer.lean`.
 
 The locators for [LindellPinkas2009] are those recorded in
 `CslibFrontier/Crypto/Protocols/MPC/Yao/Family.lean`; they were not re-verified against the source.

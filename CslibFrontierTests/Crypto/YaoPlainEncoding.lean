@@ -21,6 +21,9 @@ certificate or a security statement that is proved.
 * The words of subprotocol coins are computed on two sequential transfers: a party that fills one
   slot of each call has one word for each call, and `Schedule.encComposedCoins` frames the outer
   coins before their list.
+* The received words follow `++` and `Round.embed`: along two ping-pongs a party's words are
+  appended, in a ping-pong lifted to two of three parties a party receives the words of its slot,
+  and the third party receives none.
 * In `Yao.kdfDDHProbFamily`, the first received word of the evaluator's view words is
   `Yao.encMessage` of the garbler's message, whatever the number of transfers.
 * The encoded view words of `Yao.kdfDDHProbEncoding` distinguish different views.
@@ -65,6 +68,37 @@ example : Schedule.encComposedCoins (spec₁ := otSpec Unit) (Coins₂ := fun _ 
     (fun _ _ => encBits) ([true, true], fun _ _ => [true], fun _ _ => [false], ()) =
       encPair encBits (encList encBits) ([true, true], [[true], [false]]) := by
   decide
+
+/-! ### Received words along the operations of `Schedule.compose` -/
+
+/-- Along two ping-pongs, party `1` receives its word of the first, then its word of the
+second. -/
+example :
+    Schedule.receivedWords (i := 1) (pingPong ++ pingPong)
+        (Schedule.MessageEncodings.append pingPong (encBits, encBits, ()) (encBits, encBits, ()))
+        (Schedule.Received.append (sc₁ := pingPong) (sc₂ := pingPong)
+          (fun _ => [true], fun h => absurd h (by decide), ())
+          (fun _ => [false], fun h => absurd h (by decide), ())) = [[true], [false]] :=
+  (Schedule.receivedWords_append _ _ _ _ _).trans (by decide)
+
+/-- Two parties as the parties `0` and `2` of three. -/
+abbrev outerParties : Fin 2 ↪ Fin 3 := ⟨![0, 2], by decide⟩
+
+/-- In a ping-pong lifted to the parties `0` and `2` of three, party `2` receives the words of
+slot `1`. -/
+example (recv : (t : Fin 2) → pingPong.Received t) :
+    Schedule.receivedWords (i := 2) (pingPong.map (Round.embed outerParties))
+        (Schedule.MessageEncodings.embed outerParties pingPong (encBits, encBits, ()))
+        (Composition.pushScheduleReceived outerParties pingPong recv 2) =
+      Schedule.receivedWords pingPong (encBits, encBits, ()) (recv 1) :=
+  Schedule.receivedWords_embed outerParties 1 pingPong _ recv
+
+/-- Party `1` of three takes no part in the lifted ping-pong and receives no word, whatever its
+received transcript. -/
+example (r : Schedule.Received (pingPong.map (Round.embed outerParties)) 1) :
+    Schedule.receivedWords (pingPong.map (Round.embed outerParties))
+        (Schedule.MessageEncodings.embed outerParties pingPong (encBits, encBits, ())) r = [] :=
+  Schedule.receivedWords_embed_of_forall_ne outerParties (by decide) pingPong _ r
 
 /-! ### The encoding of the plain-model family -/
 
