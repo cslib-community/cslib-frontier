@@ -835,10 +835,9 @@ draws the next `(c, ρ)` from `samples` (`(false, 0)` beyond `samples`). Hash qu
         (ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d) q)
   | .inl m => fun (table, aborted, count) =>
     match table.lookup m with
-    | some entry =>
-      let sample := entry.1
-      if sample.1 then (0, (table, true, count + 1))
-      else (sample.2 • u₀, (table, aborted, count + 1))
+    | some ((c, ρ), _) =>
+      if c then (0, (table, true, count + 1))
+      else (ρ • u₀, (table, aborted, count + 1))
     | none =>
       let val := samples.getD count (false, 0)
       let table' := (m, (val, count)) :: table
@@ -846,7 +845,7 @@ draws the next `(c, ρ)` from `samples` (`(false, 0)` beyond `samples`). Hash qu
       else (val.2 • u₀, (table', aborted, count + 1))
   | .inr q => fun (table, aborted, count) =>
     match table.lookup q with
-    | some entry => (P.coronSampleElem d v₀ entry.1, (table, aborted, count + 1))
+    | some (sample, _) => (P.coronSampleElem d v₀ sample, (table, aborted, count + 1))
     | none =>
       let val := samples.getD count (false, 0)
       let table' := (q, (val, count)) :: table
@@ -855,20 +854,16 @@ draws the next `(c, ρ)` from `samples` (`(false, 0)` beyond `samples`). Hash qu
 /-- Finish the banked Coron co-CDH reduction after the forger outputs `msig`. -/
 @[expose] def blsBankedReductionFinish (d : P.G₀.Desc) (u₀ : P.G₀.Carrier d)
     (samples : List (Bool × ZMod (P.G₀.order d)))
-    (msig : List Bool × P.G₀.Carrier d)
-    (st : List (List Bool × ((Bool × ZMod (P.G₀.order d)) × ℕ)) × Bool × ℕ) :
-    P.G₀.Carrier d :=
-  let table := st.1
-  let state := st.2
-  let aborted := state.1
-  let count := state.2
-  if aborted then 0
-  else
-    let (cstar, rhostar) :=
-      match table.lookup msig.1 with
-      | some entry => entry.1
-      | none => samples.getD count (false, 0)
-    if cstar then msig.2 - rhostar • u₀ else 0
+    (msig : List Bool × P.G₀.Carrier d) :
+    List (List Bool × ((Bool × ZMod (P.G₀.order d)) × ℕ)) × Bool × ℕ → P.G₀.Carrier d
+  | (table, aborted, count) =>
+    if aborted then 0
+    else
+      let (cstar, rhostar) :=
+        match table.lookup msig.1 with
+        | some (sample, _) => sample
+        | none => samples.getD count (false, 0)
+      if cstar then msig.2 - rhostar • u₀ else 0
 
 /-- Distribution-level banked Coron co-CDH reduction for an arbitrary typed `Forger`. -/
 @[expose] noncomputable def blsBankedReduction (d : P.G₀.Desc)
@@ -985,6 +980,7 @@ private theorem blsBankedReductionStep_eq_runBankedForge (d : P.G₀.Desc)
         dsimp only [bankStepIndexed] at hmLook
         cases hlook : table0.lookup m with
         | some entry =>
+          rcases entry with ⟨⟨cm', ρm'⟩, im'⟩
           rw [hlook] at hmLook
           dsimp only at hmLook
           rw [hlook, Option.some.injEq] at hmLook
@@ -1467,7 +1463,14 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           rw [hget_i, hcsStar]
           rfl
     obtain ⟨rhostar, hpairStar, hlastStar⟩ := hstar
-    rw [hpairStar]
+    have hmatch_eq :
+        (match f1.2.1.lookup f1.1.1.1 with
+          | some (sample, _) => sample
+          | none => samples.getD f1.2.2 (false, 0)) = (true, rhostar) := by
+      cases hfl : f1.2.1.lookup f1.1.1.1 with
+      | none => simp only [hfl] at hpairStar; exact hpairStar
+      | some e => rcases e with ⟨s, i⟩; simp only [hfl] at hpairStar; exact hpairStar
+    rw [hmatch_eq]
     simp only [↓reduceIte]
     have hpair_won : P.pair d res.1.2.2 (α • P.G₁.generator d) =
         P.pair d f1.1.1.2 (P.G₁.generator d) := by

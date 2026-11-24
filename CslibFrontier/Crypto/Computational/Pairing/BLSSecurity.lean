@@ -1272,8 +1272,9 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
     | false =>
       cases hfl : tabT.lookup word with
       | some entry =>
+        rcases entry with ⟨⟨cT, ρT⟩, idxT⟩
         have hflW : ∃ eW, blsBankLookupEntry tabW word = some eW ∧
-            (eW.coin, (eW.exponent : ZMod (P.G₀.order d))) = entry.1 := by
+            (eW.coin, (eW.exponent : ZMod (P.G₀.order d))) = (cT, ρT) := by
           rw [hfl, Option.map_some] at hlook
           cases hfW : blsBankLookupEntry tabW word with
           | none => simp [hfW] at hlook
@@ -1300,19 +1301,19 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
         rw [hstepW]
         dsimp only [PairingGroupFamily.blsBankedReductionStep]
         rw [hfl, hid, hid]
-        by_cases hcoin : entry.1.1 = true
+        by_cases hcoin : cT = true
         · have hcW : eW.coin = true := hc.trans hcoin
           simp only [hcW, hcoin, ↓reduceIte, Bool.or_true]
           exact ih (P.G₀.encode d 0) tabW tabT true (count + 1) htab
-        · have hcf : entry.1.1 = false := Bool.eq_false_iff.mpr hcoin
+        · have hcf : cT = false := Bool.eq_false_iff.mpr hcoin
           have hcW : eW.coin = false := hc.trans hcf
           simp only [hcW, hcf, Bool.false_eq_true, ↓reduceIte, Bool.or_false]
           have hsmul :
               P.G₀.smul (d, eW.exponent, P.G₀.encode d u₀) =
-                P.G₀.encode d (entry.1.2 • u₀) := by
+                P.G₀.encode d (ρT • u₀) := by
             rw [P.G₀.smul_encode, hre]
           rw [hsmul]
-          exact ih (P.G₀.encode d (entry.1.2 • u₀)) tabW tabT aborted (count + 1) htab
+          exact ih (P.G₀.encode d (ρT • u₀)) tabW tabT aborted (count + 1) htab
       | none =>
         have hflW : blsBankLookupEntry tabW word = none := by
           rw [hfl, Option.map_none] at hlook
@@ -1374,8 +1375,9 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
     | true =>
       cases hfl : tabT.lookup word with
       | some entry =>
+        rcases entry with ⟨sampleT, idxT⟩
         have hflW : ∃ eW, blsBankLookupEntry tabW word = some eW ∧
-            (eW.coin, (eW.exponent : ZMod (P.G₀.order d))) = entry.1 := by
+            (eW.coin, (eW.exponent : ZMod (P.G₀.order d))) = sampleT := by
           rw [hfl, Option.map_some] at hlook
           cases hfW : blsBankLookupEntry tabW word with
           | none => simp [hfW] at hlook
@@ -1396,11 +1398,11 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
             Bool.not_true, Bool.false_and, Bool.or_false, blsBankReplyWord, hdrop]
         have hcoron :
             coronSampleWord P.toPairingGroupFamily d (P.G₀.encode d v₀) ⟨eW.coin, eW.exponent⟩ =
-              P.G₀.encode d (P.toPairingGroupFamily.coronSampleElem d v₀ entry.1) := by
+              P.G₀.encode d (P.toPairingGroupFamily.coronSampleElem d v₀ sampleT) := by
           unfold coronSampleWord PairingGroupFamily.coronSampleElem
           obtain ⟨hc, hre⟩ := Prod.mk.inj hval
           rw [hc]
-          cases entry.1.1
+          cases sampleT.1
           · simp only [Bool.false_eq_true, ↓reduceIte, P.G₀.smul_encode, hre]
           · simp only [↓reduceIte, P.G₀.smul_encode, P.G₀.add_encode, hre]
         simp only [OracleComp.interpret_bind, OracleComp.interpret_query,
@@ -1410,7 +1412,7 @@ private theorem blsWordBankStep_eq_blsBankedReductionStep
         rw [hstepW, hcoron]
         dsimp only [PairingGroupFamily.blsBankedReductionStep]
         rw [hfl, hid, hid]
-        exact ih (P.G₀.encode d (P.toPairingGroupFamily.coronSampleElem d v₀ entry.1)) tabW tabT
+        exact ih (P.G₀.encode d (P.toPairingGroupFamily.coronSampleElem d v₀ sampleT)) tabW tabT
           aborted (count + 1) htab
       | none =>
         have hflW : blsBankLookupEntry tabW word = none := by
@@ -1480,34 +1482,37 @@ private theorem blsWordBankFinish_eq
     (P.decode₀ d (blsBankWordFinish P caller msig stW)).getD 0 =
       P.toPairingGroupFamily.blsBankedReductionFinish d u₀ samplesT
         (msig.1, (P.decode₀ d msig.2).getD 0) stT := by
+  rcases stT with ⟨tabT, abortedT, countT⟩
+  dsimp only at hab hrem htab
   dsimp only [blsBankWordFinish, PairingGroupFamily.blsBankedReductionFinish]
   rw [hab]
-  cases habor : stT.2.1
+  cases habor : abortedT
   · simp only [Bool.false_eq_true, ↓reduceIte]
     have hlook :
         ((blsBankLookupEntry stW.table msig.1).map
           fun e => (e.coin, (e.exponent : ZMod (P.G₀.order d)))) =
-          (stT.1.lookup msig.1).map Prod.fst :=
-      blsBankLookupEntry_map_eq (P.G₀.order d) msig.1 stW.table stT.1 htab
+          (tabT.lookup msig.1).map Prod.fst :=
+      blsBankLookupEntry_map_eq (P.G₀.order d) msig.1 stW.table tabT htab
     have hget :
         (fun s : BLSBankSample => (s.coin, (s.exponent : ZMod (P.G₀.order d))))
           (stW.remaining.headD ⟨false, 0⟩) =
-        (samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD stT.2.2
+        (samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD countT
           (false, 0) := by
       rw [hrem, List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop,
         List.getElem?_map]
-      cases samples[stT.2.2]? <;> simp
-    cases hfl : stT.1.lookup msig.1 with
+      cases samples[countT]? <;> simp
+    cases hfl : tabT.lookup msig.1 with
     | some entry =>
+      rcases entry with ⟨sampleT, idxT⟩
       rw [hfl, Option.map_some] at hlook
       cases hfW : blsBankLookupEntry stW.table msig.1 with
       | none => simp [hfW] at hlook
       | some eW =>
         simp only [hfW, Option.map_some, Option.some.injEq] at hlook
-        have hc : eW.coin = entry.1.1 := congrArg Prod.fst hlook
-        have hre : (eW.exponent : ZMod (P.G₀.order d)) = entry.1.2 := congrArg Prod.snd hlook
+        have hc : eW.coin = sampleT.1 := congrArg Prod.fst hlook
+        have hre : (eW.exponent : ZMod (P.G₀.order d)) = sampleT.2 := congrArg Prod.snd hlook
         simp only [Option.map_some, Option.getD_some]
-        by_cases hcoin : entry.1.1 = true
+        by_cases hcoin : sampleT.1 = true
         · have hcW : eW.coin = true := hc.trans hcoin
           simp only [hcW, hcoin, ↓reduceIte]
           have hsigW :
@@ -1517,7 +1522,7 @@ private theorem blsWordBankFinish_eq
           rw [hsigW, P.G₀.smul_encode, ZMod.natCast_sub_mod_eq_neg, hre, neg_smul,
             P.G₀.add_encode, ← sub_eq_add_neg, P.decode₀_encode]
           rfl
-        · have hcf : entry.1.1 = false := Bool.eq_false_iff.mpr hcoin
+        · have hcf : sampleT.1 = false := Bool.eq_false_iff.mpr hcoin
           have hcW : eW.coin = false := hc.trans hcf
           simp only [hcW, hcf, Bool.false_eq_true, ↓reduceIte, P.decode₀_encode, Option.getD_some]
     | none =>
@@ -1526,16 +1531,16 @@ private theorem blsWordBankFinish_eq
       | some _ => simp [hfW] at hlook
       | none =>
         have hc : (stW.remaining.headD ⟨false, 0⟩).coin =
-            ((samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD stT.2.2
+            ((samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD countT
               (false, 0)).1 :=
           congrArg Prod.fst hget
         have hre : ((stW.remaining.headD ⟨false, 0⟩).exponent : ZMod (P.G₀.order d)) =
-            ((samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD stT.2.2
+            ((samples.map fun s => (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD countT
               (false, 0)).2 :=
           congrArg Prod.snd hget
         simp only [Option.map_none, Option.getD_none]
         by_cases hcoin : ((samples.map fun s =>
-            (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD stT.2.2 (false, 0)).1 = true
+            (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD countT (false, 0)).1 = true
         · have hcW : (stW.remaining.headD ⟨false, 0⟩).coin = true := hc.trans hcoin
           simp only [hcW, hcoin, ↓reduceIte]
           have hsigW :
@@ -1546,7 +1551,7 @@ private theorem blsWordBankFinish_eq
             P.G₀.add_encode, ← sub_eq_add_neg, P.decode₀_encode]
           rfl
         · have hcf : ((samples.map fun s =>
-              (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD stT.2.2 (false, 0)).1 = false :=
+              (s.coin, (s.exponent : ZMod (P.G₀.order d)))).getD countT (false, 0)).1 = false :=
             Bool.eq_false_iff.mpr hcoin
           have hcW : (stW.remaining.headD ⟨false, 0⟩).coin = false := hc.trans hcf
           simp only [hcW, hcf, Bool.false_eq_true, ↓reduceIte, P.decode₀_encode, Option.getD_some]
