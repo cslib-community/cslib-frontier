@@ -1765,6 +1765,11 @@ Jon Kleinberg and Éva Tardos. *Algorithm Design*. Addison-Wesley, 2006. Cited f
 
 L. Kou, G. Markowsky and L. Berman. *A Fast Algorithm for Steiner Trees*. Acta Informatica 15(2), 141–145, 1981. https://doi.org/10.1007/BF00288961 . The heuristic's steps (shortest-path distance graph on the terminals, its minimum spanning tree, replacement by shortest paths, a spanning tree of the result, then pruning non-terminal leaves) and the `2 (1 - 1/ℓ)` bound, with `ℓ` the number of leaves of an optimal tree, are taken from the abstract and secondary sources. The body of the paper was not consulted.
 
+<a id="knasterkuratowskimazurkiewicz29"></a>
+## knasterkuratowskimazurkiewicz29
+
+Bronisław Knaster, Kazimierz Kuratowski and Stefan Mazurkiewicz. "Ein Beweis des Fixpunktsatzes für n-dimensionale Simplexe." *Fundamenta Mathematicae* 14, 132–137, 1929. Bibliographic metadata checked via search summaries; the full text was not inspected, so internal section or theorem locators are not claimed. Cited by [KKMS.lean](../CslibFrontier/Foundations/Analysis/Brouwer/KKMS.lean) for the classical KKM covering lemma.
+
 <a id="knuth1994"></a>
 ## knuth1994
 
@@ -2537,6 +2542,11 @@ Ramprasad Saptharishi. *A survey of lower bounds in arithmetic circuit complexit
 
 Mark A. Satterthwaite. "Strategy-Proofness and Arrow's Conditions: Existence and Correspondence Theorems for Voting Procedures and Social Welfare Functions." *Journal of Economic Theory* 10(2), 187–217, 1975. https://doi.org/10.1016/0022-0531(75)90050-2 . Bibliographic data from secondary search summaries on 2026-11-08 UTC; the paper was not inspected. Cited, with [Gibbard](#gibbard73), for the Gibbard–Satterthwaite theorem; no theorem number is claimed.
 
+<a id="scarf67"></a>
+## scarf67
+
+Herbert E. Scarf. "The Core of an $N$ Person Game." *Econometrica* 35(1), 50–69, 1967. https://doi.org/10.2307/1909383 . Bibliographic metadata checked via search summaries; the full text was not inspected, so internal section or theorem locators are not claimed. Cited by [Scarf.lean](../CslibFrontier/GameTheory/Cooperative/Scarf.lean) for NTU cooperative games and Scarf's theorem.
+
 <a id="schoenebeck08"></a>
 ## schoenebeck08
 
@@ -2658,6 +2668,11 @@ Marc Shapiro, Nuno Preguiça, Carlos Baquero, and Marek Zawirski. "Conflict-free
 ## shapiropreguicabaquerozawirski2011r
 
 Marc Shapiro, Nuno Preguiça, Carlos Baquero, and Marek Zawirski. *A comprehensive study of Convergent and Commutative Replicated Data Types*. INRIA Research Report RR-7506 (`inria-00555588v1`), 50 pp., January 2011. https://inria.hal.science/inria-00555588/document . Checked against that report PDF (51 PDF pp. / 50 report pp., SHA-256 `483279817b1413599a1ce6ef7b721b1a1999b537b4899d4f37af3820b0314716`) on 2026-11-22 UTC: Sections 2.2–2.4 (report pp. 5–13, Propositions 2.1–2.2 and Specifications 3–4 for `CvRDT`/`CmRDT` convergence and mutual emulation), Section 3.1 (pp. 14–16, naive `max`-merge counter anomaly, Specification 6 `G-Counter`, and Specification 7 `PN-Counter`), and Section 3.3 (pp. 21–27, Figure 11 non-commuting untagged `add`/`remove`, Specification 11 `G-Set`, Specification 12 `2P-Set` tombstone permanence, and Specification 15 & Figure 14 Observed-Remove Set `OR-Set` with unique tags and concurrent add-wins semantics). Formalized as steps toward [#7502](https://github.com/cslib-community/cslib-frontier/issues/7502) in [CRDT/Basic.lean](../CslibFrontier/Computability/Distributed/CRDT/Basic.lean) and [CRDT/DataTypes.lean](../CslibFrontier/Computability/Distributed/CRDT/DataTypes.lean), while `LWW-Element-Set`, graph CRDTs, and `RGA` / Treedoc continuous sequences (Sections 3.3.3–3.3.4, 3.4, and 3.5) remain open in [#7502](https://github.com/cslib-community/cslib-frontier/issues/7502).
+
+<a id="shapley73"></a>
+## shapley73
+
+Lloyd S. Shapley. "On Balanced Games Without Side Payments." In T. C. Hu and S. M. Robinson (eds.), *Mathematical Programming*, Academic Press, New York, 261–290, 1973. Bibliographic metadata checked via search summaries; the full text was not inspected, so internal section or theorem locators are not claimed. Cited by [KKMS.lean](../CslibFrontier/Foundations/Analysis/Brouwer/KKMS.lean) for the KKMS theorem and by [Scarf.lean](../CslibFrontier/GameTheory/Cooperative/Scarf.lean) for balancedness and the KKMS proof of Scarf's theorem.
 
 <a id="shapley74"></a>
 ## shapley74

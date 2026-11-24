@@ -7465,6 +7465,7 @@ public import CslibFrontier.Foundations.Analysis.Asymptotics.Exponential
 public import CslibFrontier.Foundations.Analysis.Asymptotics.PolyErr
 public import CslibFrontier.Foundations.Analysis.BernoulliInequality
 public import CslibFrontier.Foundations.Analysis.Brouwer
+public import CslibFrontier.Foundations.Analysis.Brouwer.KKMS
 public import CslibFrontier.Foundations.Analysis.Brouwer.Simplex
 public import CslibFrontier.Foundations.Analysis.Calculus.FDeriv.Partial
 public import CslibFrontier.Foundations.Analysis.Calculus.LipschitzDeriv
@@ -8990,6 +8991,7 @@ public import CslibFrontier.GameTheory.Cooperative.FacilityLocationCostSharing
 public import CslibFrontier.GameTheory.Cooperative.FacilityLocationLowerBound
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.MulticastCostSharing
+public import CslibFrontier.GameTheory.Cooperative.Scarf
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.GameTheory.Extensive.PerfectInfo
