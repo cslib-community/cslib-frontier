@@ -8993,6 +8993,9 @@ public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.GameTheory.Extensive.PerfectInfo
 public import CslibFrontier.GameTheory.Extensive.SequenceForm
+public import CslibFrontier.GameTheory.FairDivision.Indivisible.Basic
+public import CslibFrontier.GameTheory.FairDivision.Indivisible.EnvyCycle
+public import CslibFrontier.GameTheory.FairDivision.Indivisible.NashWelfare
 public import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
 public import CslibFrontier.GameTheory.InterdomainRouting.StablePaths
 public import CslibFrontier.GameTheory.Market.Basic
