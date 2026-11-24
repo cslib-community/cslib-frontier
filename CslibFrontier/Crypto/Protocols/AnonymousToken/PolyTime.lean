@@ -29,6 +29,9 @@ import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible
+-- `import all`: reads private `noteBindingCollision` and `noteBindingCollisionOrTrivial` in
+-- `eval_commitmentBindingReductionWord_eq` without modifying `Conservation.lean`.
+import all CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -1924,26 +1927,28 @@ theorem isOraclePPTOn_noteForgerWord {sigBound : ℕ → ℕ → ℕ}
       (ComputableInPolyTime.const _)
   simpa only [noteForgerWord] using hinterp.map hfind
 
-private theorem eval_runExtracted_noteForgerWord_inner (S : WordSignatureScheme)
+private theorem eval_noteForgerWord_runState_eq (S : WordSignatureScheme)
     (sigBound : ℕ → ℕ → ℕ)
     (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
     (tag : List Bool → ℕ → List Bool)
     (A : WordExtractedAdversary) (n : ℕ) (ck pk sk : List Bool)
     (hbound : ∀ msg sig, sig ∈ (ProbComp.eval (S.sign sk msg)).support →
       sig.length ≤ sigBound n msg.length)
-    (log₀ : List (Payload (Credit.Note (List Bool) (List Bool)) (List Bool) × List Bool)) :
+    {State : Type}
+    (step : Payload (Credit.Note (List Bool) (List Bool)) (List Bool) → List Bool → State → State)
+    (log₀ : State) :
     ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
         (fun req acc =>
           let payload := notePayloadDecoder.decode req.2
           let msg := tag (com n ck payload.message.nullifier payload.message.context
             payload.message.credit payload.opening) payload.message.refund
-          (fun sig => (sig, acc ++ [(payload, sig)])) <$> S.sign sk msg))
+          (fun sig => (sig, step payload sig acc)) <$> S.sign sk msg))
       (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck)))).run log₀) =
       ProbComp.eval ((OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
           (fun msg acc =>
-            (fun sig => (sig, acc ++ [(msg, sig)])) <$>
+            (fun sig => (sig, step msg sig acc)) <$>
               (pairScheme S tag n).sign sk (Credit.target (com n ck) Prod.mk msg.message
                 msg.opening)))
         (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk)).run log₀) := by
@@ -1956,7 +1961,7 @@ private theorem eval_runExtracted_noteForgerWord_inner (S : WordSignatureScheme)
           let payload := notePayloadDecoder.decode req.2
           let msg := tag (com n ck payload.message.nullifier payload.message.context
             payload.message.credit payload.opening) payload.message.refund
-          ((ProbComp.eval (S.sign sk msg)).map fun sig => (sig, acc ++ [(payload, sig)])))
+          ((ProbComp.eval (S.sign sk msg)).map fun sig => (sig, step payload sig acc)))
         ((OracleComp.interpret
           (OracleComp.sumHandler
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
@@ -1965,7 +1970,7 @@ private theorem eval_runExtracted_noteForgerWord_inner (S : WordSignatureScheme)
       ProbOracleComp.runWith
         (fun msg acc =>
           (ProbComp.eval ((pairScheme S tag n).sign sk (Credit.target (com n ck) Prod.mk
-            msg.message msg.opening))).map fun sig => (sig, acc ++ [(msg, sig)]))
+            msg.message msg.opening))).map fun sig => (sig, step msg sig acc))
         ((OracleComp.interpret
           (OracleComp.sumHandler
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
@@ -2018,8 +2023,724 @@ theorem eval_runExtracted_noteForgerWord_eq (S : WordSignatureScheme)
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
   dsimp only
   congr 1
-  exact eval_runExtracted_noteForgerWord_inner S sigBound com tag A n ck pk sk
-    (hbound n pk sk hkeys) []
+  exact eval_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk
+    (hbound n pk sk hkeys) (fun msg sig acc => acc ++ [(msg, sig)]) []
+
+/-! ### Extracted VOLE-ACT conservation: `commitmentBindingReductionWord` and headline -/
+
+/-- Binary encoding of `(nullifier, context, credit)` message triples committed by `wordNoteCom`. -/
+abbrev encWordComMessage : (List Bool × List Bool × ℕ) ↪ List Bool :=
+  encPair encBits (encPair encBits encNat)
+
+/-- Encoding of a commitment binding collision over `(nullifier, context, credit)` triples. -/
+enc_structure encWordBindingCollision :
+    Crypto.Commitment.BindingCollision (List Bool × List Bool × ℕ) (List Bool) (List Bool) where
+  commitment : encBits, msg₀ : encWordComMessage, opening₀ : encBits,
+  msg₁ : encWordComMessage, opening₁ : encBits
+
+attribute [fun_prop] encWordBindingCollision_commitment_polyTime
+  encWordBindingCollision_msg₀_polyTime encWordBindingCollision_opening₀_polyTime
+  encWordBindingCollision_msg₁_polyTime encWordBindingCollision_opening₁_polyTime
+  encWordBindingCollision_mk_polyTime
+
+/-- Two-stage target mapping a semantic `Credit.Note` and opening via `com` and `tag`. -/
+def noteTarget (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (tag : List Bool → ℕ → List Bool) (m : ℕ) (c : List Bool)
+    (note : Credit.Note (List Bool) (List Bool)) (opening : List Bool) : List Bool :=
+  tag (com m c note.nullifier note.context note.credit opening) note.refund
+
+private theorem computableInPolyTime_noteTarget
+    {com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool}
+    (hcom : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) =>
+        com p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
+      encComArgs encBits)
+    {tag : List Bool → ℕ → List Bool}
+    (htag : ComputableInPolyTime (fun p : List Bool × ℕ => tag p.1 p.2) encTagPair encBits) :
+    ComputableInPolyTime
+      (fun p : ℕ × List Bool × Credit.Note (List Bool) (List Bool) × List Bool =>
+        noteTarget com tag p.1 p.2.1 p.2.2.1 p.2.2.2)
+      (encTargetArgsOf encCreditNote) encBits := by
+  let E := encTargetArgsOf encCreditNote
+  have hn : ComputableInPolyTime
+      (fun p : ℕ × List Bool × Credit.Note (List Bool) (List Bool) × List Bool => p.1)
+      E encUnary := by
+    dsimp only [E, encTargetArgsOf]
+    fun_prop
+  have hck : ComputableInPolyTime
+      (fun p : ℕ × List Bool × Credit.Note (List Bool) (List Bool) × List Bool => p.2.1)
+      E encBits := by
+    dsimp only [E, encTargetArgsOf]
+    fun_prop
+  have hnote : ComputableInPolyTime
+      (fun p : ℕ × List Bool × Credit.Note (List Bool) (List Bool) × List Bool => p.2.2.1)
+      E encCreditNote := by
+    dsimp only [E, encTargetArgsOf]
+    fun_prop
+  have hop : ComputableInPolyTime
+      (fun p : ℕ × List Bool × Credit.Note (List Bool) (List Bool) × List Bool => p.2.2.2)
+      E encBits := by
+    dsimp only [E, encTargetArgsOf]
+    fun_prop
+  have hcom_val := hcom.comp ((hn.prod hck).prod
+    ((encCreditNote_nullifier_polyTime hnote).prod
+      ((encCreditNote_context_polyTime hnote).prod
+        ((encCreditNote_credit_polyTime hnote).prod hop))))
+  have hret := htag.comp (hcom_val.prod (encCreditNote_refund_polyTime hnote))
+  dsimp only [E] at hret
+  convert hret using 1
+  funext p
+  rfl
+
+/-- Map an optional binding witness for `Credit.Note` under `com n ck` into a commitment binding
+collision, falling back to a trivial self-opening of `com n ck default default 0 default`. -/
+def noteBindingCollisionOrTrivialWord
+    (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (n : ℕ) (ck : List Bool) :
+    Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)) →
+      Crypto.Commitment.BindingCollision (List Bool × List Bool × ℕ) (List Bool) (List Bool)
+  | some w =>
+    let n₀ := w.first.message
+    let r₀ := w.first.opening
+    let n₁ := w.second.message
+    let r₁ := w.second.opening
+    { commitment := com n ck n₀.nullifier n₀.context n₀.credit r₀
+      msg₀ := (n₀.nullifier, n₀.context, n₀.credit)
+      opening₀ := r₀
+      msg₁ := (n₁.nullifier, n₁.context, n₁.credit)
+      opening₁ := r₁ }
+  | none =>
+    { commitment := com n ck default default 0 default
+      msg₀ := (default, default, 0)
+      opening₀ := default
+      msg₁ := (default, default, 0)
+      opening₁ := default }
+
+private theorem computableInPolyTime_noteBindingCollisionOrTrivialWord
+    {com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool}
+    (hcom : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) =>
+        com p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
+      encComArgs encBits) :
+    ComputableInPolyTime
+      (fun q : (ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)) =>
+        noteBindingCollisionOrTrivialWord com q.1.1 q.1.2 q.2)
+      (encPair encParamInput (encOption (encBindingWitnessOf encCreditNote)))
+      encWordBindingCollision := by
+  let encOpt := encOption (encBindingWitnessOf encCreditNote)
+  let E := encPair encParamInput encOpt
+  have hp_none : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)) => q.1)
+      E encParamInput := ComputableInPolyTime.fst _ _
+  have hzeroArgs : ComputableInPolyTime
+      (fun _ : (ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)) =>
+        ((default, default, 0, default) : List Bool × List Bool × ℕ × List Bool))
+      E encComTuple :=
+    ComputableInPolyTime.const _
+  have hnoneCom := hcom.comp (hp_none.prod hzeroArgs)
+  have hnone : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)) =>
+        ({ commitment := com q.1.1 q.1.2 default default 0 default
+           msg₀ := (default, default, 0)
+           opening₀ := default
+           msg₁ := (default, default, 0)
+           opening₁ := default } :
+          Crypto.Commitment.BindingCollision (List Bool × List Bool × ℕ) (List Bool) (List Bool)))
+      E encWordBindingCollision :=
+    encWordBindingCollision_mk_polyTime hnoneCom (ComputableInPolyTime.const _)
+      (ComputableInPolyTime.const _) (ComputableInPolyTime.const _) (ComputableInPolyTime.const _)
+  let ESome := encPair E (encBindingWitnessOf encCreditNote)
+  have hp_some : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool))) ×
+          BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool) => q.1.1)
+      ESome encParamInput :=
+    (ComputableInPolyTime.fst _ _).fst'
+  have hw : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool))) ×
+          BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool) => q.2)
+      ESome (encBindingWitnessOf encCreditNote) :=
+    ComputableInPolyTime.snd _ _
+  have hfirst := encBindingWitnessOf_first_polyTime encCreditNote hw
+  have hsecond := encBindingWitnessOf_second_polyTime encCreditNote hw
+  have hn0 := encPayloadOf_message_polyTime encCreditNote hfirst
+  have hr0 := encPayloadOf_opening_polyTime encCreditNote hfirst
+  have hn1 := encPayloadOf_message_polyTime encCreditNote hsecond
+  have hr1 := encPayloadOf_opening_polyTime encCreditNote hsecond
+  have hargs0 :=
+    (encCreditNote_nullifier_polyTime hn0).prod
+      ((encCreditNote_context_polyTime hn0).prod
+        ((encCreditNote_credit_polyTime hn0).prod hr0))
+  have hcom0 := hcom.comp (hp_some.prod hargs0)
+  have hmsg0 :=
+    (encCreditNote_nullifier_polyTime hn0).prod
+      ((encCreditNote_context_polyTime hn0).prod (encCreditNote_credit_polyTime hn0))
+  have hmsg1 :=
+    (encCreditNote_nullifier_polyTime hn1).prod
+      ((encCreditNote_context_polyTime hn1).prod (encCreditNote_credit_polyTime hn1))
+  have hsome := encWordBindingCollision_mk_polyTime hcom0 hmsg0 hr0 hmsg1 hr1
+  dsimp only [E, ESome] at hnone hsome
+  have hsome' : ComputableInPolyTime
+      (fun p : ((ℕ × List Bool) ×
+          Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool))) ×
+          BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool) =>
+        ({ commitment := com p.1.1.1 p.1.1.2 p.2.first.message.nullifier
+             p.2.first.message.context p.2.first.message.credit p.2.first.opening
+           msg₀ := (p.2.first.message.nullifier, p.2.first.message.context,
+             p.2.first.message.credit)
+           opening₀ := p.2.first.opening
+           msg₁ := (p.2.second.message.nullifier, p.2.second.message.context,
+             p.2.second.message.credit)
+           opening₁ := p.2.second.opening } :
+          Crypto.Commitment.BindingCollision (List Bool × List Bool × ℕ) (List Bool) (List Bool)))
+      (encPair (encPair encParamInput encOpt) (encBindingWitnessOf encCreditNote))
+      encWordBindingCollision := by
+    simpa only [Function.comp_def] using hsome
+  have helim := ComputableInPolyTime.optionElimWithInput
+    (body := fun (q : (ℕ × List Bool) ×
+        Option (BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)))
+        (w : BindingWitness (Credit.Note (List Bool) (List Bool)) (List Bool)) =>
+      ({ commitment := com q.1.1 q.1.2 w.first.message.nullifier
+           w.first.message.context w.first.message.credit w.first.opening
+         msg₀ := (w.first.message.nullifier, w.first.message.context,
+           w.first.message.credit)
+         opening₀ := w.first.opening
+         msg₁ := (w.second.message.nullifier, w.second.message.context,
+           w.second.message.credit)
+         opening₁ := w.second.opening } :
+        Crypto.Commitment.BindingCollision (List Bool × List Bool × ℕ) (List Bool) (List Bool)))
+    (ComputableInPolyTime.snd encParamInput encOpt) hnone hsome'
+  convert helim using 1
+  funext q
+  cases q.2 <;> rfl
+
+/-- Word-level commitment-binding reduction corresponding to
+`Conservation.commitmentBindingReduction`: runs `bindingReductionWord` on `noteForgerWord` under
+`noteTarget com tag` and maps any resulting witness via `noteBindingCollisionOrTrivialWord`. -/
+def commitmentBindingReductionWord (sigBound : ℕ → ℕ → ℕ)
+    (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (tag : List Bool → ℕ → List Bool) (S : WordSignatureScheme)
+    (A : WordExtractedAdversary) (n : ℕ) (ck : List Bool) :
+    ProbComp
+      (Crypto.Commitment.BindingCollision (List Bool × List Bool × ℕ) (List Bool) (List Bool)) :=
+  noteBindingCollisionOrTrivialWord com n ck <$>
+    bindingReductionWord S (noteTarget com tag) creditNoteDecoder
+      (noteForgerWord sigBound com tag S A) n ck
+
+/-- `commitmentBindingReductionWord` is uniform strict PPT in `(n, ck)` whenever `sigBound`,
+`com`, `tag`, and `A` are efficient. -/
+@[program_certificate]
+theorem isPPTOn_commitmentBindingReductionWord {sigBound : ℕ → ℕ → ℕ}
+    (hsigBound : ComputableInPolyTime (fun p : ℕ × ℕ => sigBound p.1 p.2) encNatPair encUnary)
+    {com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool}
+    (hcom : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) =>
+        com p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
+      encComArgs encBits)
+    {tag : List Bool → ℕ → List Bool}
+    (htag : ComputableInPolyTime (fun p : List Bool × ℕ => tag p.1 p.2) encTagPair encBits)
+    (S : WordSignatureScheme)
+    {A : WordExtractedAdversary} (hA : IsOraclePPT encBits A) :
+    IsPPTOn encParamInput encWordBindingCollision
+      (fun p => commitmentBindingReductionWord sigBound com tag S A p.1 p.2) := by
+  have hnf := (isOraclePPTOn_noteForgerWord hsigBound hcom htag S hA).isOraclePPT
+  have hbr := isPPTOn_bindingReductionWord S (computableInPolyTime_noteTarget hcom htag)
+    creditNoteDecoder hnf
+  have hpost := computableInPolyTime_noteBindingCollisionOrTrivialWord hcom
+  simpa only [commitmentBindingReductionWord] using hbr.map_with hpost
+
+private theorem findBindingWitness_noteTarget_eq
+    (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (tag : List Bool → ℕ → List Bool)
+    (htag : Function.Injective (fun p : List Bool × ℕ => tag p.1 p.2))
+    (n : ℕ) (ck : List Bool)
+    (payload : Payload (Credit.Note (List Bool) (List Bool)) (List Bool))
+    (log : List (Payload (Credit.Note (List Bool) (List Bool)) (List Bool) × List Bool)) :
+    findBindingWitness (noteTarget com tag n ck) payload log =
+      findBindingWitness (Credit.target (com n ck) Prod.mk) payload log := by
+  simp only [findBindingWitness]
+  congr 1
+  congr 1
+  funext entry
+  rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq]
+  dsimp only [noteTarget, Credit.target]
+  exact ⟨fun heq => by
+    change (fun p : List Bool × ℕ => tag p.1 p.2) (_, _) =
+      (fun p : List Bool × ℕ => tag p.1 p.2) (_, _) at heq
+    have h := htag heq
+    exact Prod.ext (congrArg Prod.fst h) (congrArg Prod.snd h),
+    fun heq => by rw [(Prod.mk.inj heq).1, (Prod.mk.inj heq).2]⟩
+
+/-- `commitmentBindingReductionWord` has the exact `PMF` law of
+`Conservation.commitmentBindingReduction` at `(com n ck)` and `pairScheme S tag n`, provided
+`sigBound` bounds signature lengths of `S` and `tag` is injective. -/
+theorem eval_commitmentBindingReductionWord_eq {K : Type} (S : WordSignatureScheme)
+    (sigBound : ℕ → ℕ → ℕ)
+    (hbound : ∀ n pk sk, (pk, sk) ∈ (ProbComp.eval (S.keyGen n)).support →
+      ∀ msg sig, sig ∈ (ProbComp.eval (S.sign sk msg)).support →
+        sig.length ≤ sigBound n msg.length)
+    (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (tag : List Bool → ℕ → List Bool)
+    (htag : Function.Injective (fun p : List Bool × ℕ => tag p.1 p.2))
+    (A : WordExtractedAdversary) (n : ℕ) (ck : List Bool) (k : K) :
+    ProbComp.eval (commitmentBindingReductionWord sigBound com tag S A n ck) =
+      ProbComp.eval (Conservation.commitmentBindingReduction (com n ck)
+        (pairScheme S tag n) (A.toTyped n ck) k) := by
+  simp only [commitmentBindingReductionWord, bindingReductionWord,
+    Conservation.commitmentBindingReduction, bindingReduction, ProbComp.eval_map, PMF.map_comp,
+    Function.comp_def]
+  have hrun : ProbComp.eval (runExtractedWord S (noteTarget com tag) creditNoteDecoder
+        (noteForgerWord sigBound com tag S A) n ck) =
+      ProbComp.eval (runExtracted (pairScheme S tag n) (Credit.target (com n ck) Prod.mk)
+        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck))) :=
+    eval_runExtracted_noteForgerWord_eq S sigBound hbound com tag A n ck
+  rw [hrun]
+  congr 1
+  funext run
+  rw [findBindingWitness_noteTarget_eq com tag htag n ck run.output.payload run.log]
+  cases findBindingWitness (Credit.target (com n ck) Prod.mk) run.output.payload run.log <;> rfl
+
+private theorem eval_targetForger_noteForgerWord_runState_eq (S : WordSignatureScheme)
+    (sigBound : ℕ → ℕ → ℕ)
+    (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (tag : List Bool → ℕ → List Bool)
+    (A : WordExtractedAdversary) (n : ℕ) (ck pk sk : List Bool)
+    (hbound : ∀ msg sig, sig ∈ (ProbComp.eval (S.sign sk msg)).support →
+      sig.length ≤ sigBound n msg.length) :
+    ProbComp.eval ((ProbOracleComp.simulate
+      (fun payload => ProbOracleComp.query
+        (Credit.target (com n ck) Prod.mk payload.message payload.opening))
+      (ProbOracleComp.simulate
+        (fun req : Unit × List Bool => ProbOracleComp.query (notePayloadDecoder.decode req.2))
+        (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))))).runState
+      (fun msg acc =>
+        (fun sig => (sig, acc ++ [(msg, sig)])) <$> S.sign sk (tag msg.1 msg.2)) |>.run []) =
+      ProbComp.eval ((ProbOracleComp.simulate
+        (fun payload => ProbOracleComp.query
+          (Credit.target (com n ck) Prod.mk payload.message payload.opening))
+        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk)).runState
+        (fun msg acc =>
+          (fun sig => (sig, acc ++ [(msg, sig)])) <$> S.sign sk (tag msg.1 msg.2))
+        |>.run []) := by
+  rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState, ProbOracleComp.simulate,
+    OracleComp.substitute_eq_interpret, ProbOracleComp.interpret_simulate,
+    ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  simp only [ProbOracleComp.interpret_query]
+  rw [ProbOracleComp.runWith_interpret_sumHandler, ProbOracleComp.runWith_interpret_sumHandler]
+  have hl :
+      ProbOracleComp.runWith
+        (fun q => ProbOracleComp.runWith
+          (fun q_1 state =>
+            ProbComp.eval
+              ((fun sig => (sig, state ++ [(q_1, sig)])) <$> S.sign sk (tag q_1.1 q_1.2)))
+          (ProbOracleComp.query
+            (Credit.target (com n ck) Prod.mk (notePayloadDecoder.decode q.2).message
+              (notePayloadDecoder.decode q.2).opening)))
+        (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))) [] =
+      ProbComp.eval ((OracleComp.interpret
+        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+          (fun req acc =>
+            let payload := notePayloadDecoder.decode req.2
+            let t := Credit.target (com n ck) Prod.mk payload.message payload.opening
+            (fun sig => (sig, acc ++ [(t, sig)])) <$> S.sign sk (tag t.1 t.2)))
+        (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck)))).run []) := by
+    rw [ProbOracleComp.eval_run_interpret_eq_runWith]
+    congr 1
+    funext req acc
+    exact ProbOracleComp.runWith_query _ _ _
+  have hr :
+      ProbOracleComp.runWith
+        (fun q => ProbOracleComp.runWith
+          (fun q_1 state =>
+            ProbComp.eval
+              ((fun sig => (sig, state ++ [(q_1, sig)])) <$> S.sign sk (tag q_1.1 q_1.2)))
+          (ProbOracleComp.query (Credit.target (com n ck) Prod.mk q.message q.opening)))
+        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk) [] =
+      ProbComp.eval ((OracleComp.interpret
+        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+          (fun msg acc =>
+            (fun sig =>
+              (sig, acc ++ [(Credit.target (com n ck) Prod.mk msg.message msg.opening, sig)])) <$>
+              (pairScheme S tag n).sign sk
+                (Credit.target (com n ck) Prod.mk msg.message msg.opening)))
+        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk)).run []) := by
+    rw [ProbOracleComp.eval_run_interpret_eq_runWith]
+    congr 1
+    funext msg acc
+    exact ProbOracleComp.runWith_query _ _ _
+  exact hl.trans ((eval_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk hbound
+    (fun msg sig acc =>
+      acc ++ [(Credit.target (com n ck) Prod.mk msg.message msg.opening, sig)]) []).trans hr.symm)
+
+/-- At every security parameter `n` and public parameter `ck`, wrapping `noteForgerWord` inside
+`targetForgerWordOf creditNoteDecoder sigBound (noteTarget com tag)` matches `S.eufCmaExperiment`
+of `Basic.targetForger` on `Conservation.noteForger`, provided `sigBound` bounds signature lengths
+of `S` and `tag` is injective. -/
+theorem eval_eufCmaGame_noteForgerWord_eq (S : WordSignatureScheme)
+    (sigBound : ℕ → ℕ → ℕ)
+    (hbound : ∀ n pk sk, (pk, sk) ∈ (ProbComp.eval (S.keyGen n)).support →
+      ∀ msg sig, sig ∈ (ProbComp.eval (S.sign sk msg)).support →
+        sig.length ≤ sigBound n msg.length)
+    (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
+    (tag : List Bool → ℕ → List Bool)
+    (htag : Function.Injective (fun p : List Bool × ℕ => tag p.1 p.2))
+    (A : WordExtractedAdversary) (n : ℕ) (ck : List Bool) :
+    ProbComp.eval (S.eufCmaGame
+      (fun m spk => targetForgerWordOf creditNoteDecoder sigBound (noteTarget com tag)
+        (noteForgerWord sigBound com tag S A) m (spk, ck)) n) =
+      ProbComp.eval ((pairScheme S tag n).eufCmaExperiment
+        (targetForger (Credit.target (com n ck) Prod.mk)
+          (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck)))) := by
+  simp only [WordSignatureScheme.eufCmaGame, Signature.Scheme.eufCmaExperiment, forgeExperiment,
+    ProbComp.eval_bind, ProbComp.eval_pure]
+  refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
+  dsimp only
+  have hs' : Signer.ofSign (pairScheme S tag n).sign sk =
+      fun _ msg => some (S.sign sk (tag msg.1 msg.2)) := by
+    funext _ msg
+    exact Signer.ofSign_apply _ _ _ _
+  rw [hs', ProbOracleComp.runLogWith_some]
+  simp only [targetForgerWordOf, targetForger, ProbOracleComp.runLog, bind_pure_comp,
+    OracleComp.interpret_map, StateT.run_map, ProbComp.eval_map, ProbOracleComp.runState_map]
+  change (PMF.map _ (ProbComp.eval ((OracleComp.interpret
+      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+        (SignatureScheme.signingOracleOf S.sign sk)) _).run []))).bind _ = _
+  have hrun := eval_signingOracle_take_eq_targetForger_runLog_of creditNoteDecoder S.sign sk
+    (Credit.target (com n ck) Prod.mk) (fun p : List Bool × ℕ => tag p.1 p.2)
+    (sigBound n) (hbound n pk sk hkeys)
+    (noteForgerWord sigBound com tag S A n (encWordPair (pk, ck))) [] [] rfl
+  have hrun' := hrun.trans (congrArg (PMF.map _)
+    (eval_targetForger_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk
+      (hbound n pk sk hkeys)))
+  have hrhs :
+      ProbComp.eval ((ProbOracleComp.simulate
+        (fun payload : Payload (Credit.Note (List Bool) (List Bool)) (List Bool) =>
+          ProbOracleComp.query
+            (Credit.target (com n ck) Prod.mk payload.message payload.opening))
+        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk)).runState
+        (ProbOracleComp.logOracle
+          (fun _ (msg : List Bool × ℕ) => some (S.sign sk (tag msg.1 msg.2)))) |>.run []) =
+      ProbComp.eval ((ProbOracleComp.simulate
+        (fun payload : Payload (Credit.Note (List Bool) (List Bool)) (List Bool) =>
+          ProbOracleComp.query
+            (Credit.target (com n ck) Prod.mk payload.message payload.opening))
+        (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk)).runState
+        (fun msg acc =>
+          (fun sig => (sig, acc ++ [(msg, sig)])) <$> S.sign sk (tag msg.1 msg.2))
+        |>.run []) := rfl
+  dsimp only [noteTarget, Credit.target] at hrun' ⊢
+  rw [hrun']
+  change _ = (PMF.map _ (ProbComp.eval ((ProbOracleComp.simulate
+      (fun payload : Payload (Credit.Note (List Bool) (List Bool)) (List Bool) =>
+        ProbOracleComp.query
+          (Credit.target (com n ck) Prod.mk payload.message payload.opening))
+      (noteForger (com n ck) Prod.mk (pairScheme S tag n) (A.toTyped n ck) pk)).runState
+      (ProbOracleComp.logOracle
+        (fun _ (msg : List Bool × ℕ) => some (S.sign sk (tag msg.1 msg.2)))) |>.run []))).bind _
+  rw [hrhs]
+  simp only [PMF.bind_map, Function.comp_def, freshMessage, List.contains_reverse, pairScheme]
+  refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨tok, acc⟩ _ => ?_
+  have hcontains :
+      decide (tag (com n ck tok.payload.message.nullifier tok.payload.message.context
+        tok.payload.message.credit tok.payload.opening) tok.payload.message.refund ∈
+        acc.map fun e : (List Bool × ℕ) × List Bool => tag e.1.1 e.1.2) =
+      decide ((com n ck tok.payload.message.nullifier tok.payload.message.context
+        tok.payload.message.credit tok.payload.opening, tok.payload.message.refund) ∈
+        acc.map Prod.fst) := by
+    rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq]
+    simp only [List.mem_map]
+    constructor
+    · rintro ⟨⟨⟨a, b⟩, r⟩, hmem, heq⟩
+      have heq' : (fun p : List Bool × ℕ => tag p.1 p.2) (a, b) =
+          (fun p : List Bool × ℕ => tag p.1 p.2)
+            (com n ck tok.payload.message.nullifier tok.payload.message.context
+              tok.payload.message.credit tok.payload.opening, tok.payload.message.refund) := heq
+      have hinj := htag heq'
+      exact ⟨((a, b), r), hmem, Prod.ext (congrArg Prod.fst hinj) (congrArg Prod.snd hinj)⟩
+    · rintro ⟨⟨⟨a, b⟩, r⟩, hmem, hpair⟩
+      exact ⟨((a, b), r), hmem, by rw [congrArg Prod.fst hpair, congrArg Prod.snd hpair]⟩
+  simp [hcontains, Bool.and_comm]
+
+/-- Keyed hash-based note commitment applying `H ck` to the framed tuple
+`encComTuple (nullifier, ctx, credit, opening)`. -/
+def wordNoteCom (H : List Bool → List Bool → List Bool)
+    (_ : ℕ) (ck nullifier ctx : List Bool) (credit : ℕ) (opening : List Bool) : List Bool :=
+  H ck (encComTuple (nullifier, ctx, credit, opening))
+
+private theorem computableInPolyTime_wordNoteCom
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits) :
+    ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) =>
+        wordNoteCom H p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
+      encComArgs encBits := by
+  have hck : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) => p.1.2)
+      encComArgs encBits :=
+    (ComputableInPolyTime.fst _ _).snd'
+  have hmsg : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) => encComTuple p.2)
+      encComArgs encBits :=
+    (ComputableInPolyTime.of_eq (f := encComTuple) (encOut := encBits) fun _ => rfl).comp
+      (ComputableInPolyTime.snd _ _)
+  exact hH.comp (hck.prod hmsg)
+
+/-- Key-sampling EUF-CMA wrapper around `noteForgerWord` using `wordNoteCom H` and `wordTag`. -/
+noncomputable def sampledConservationForger (sigBound : ℕ → ℕ → ℕ)
+    (H : List Bool → List Bool → List Bool)
+    (S : WordSignatureScheme) (A : WordExtractedAdversary) : Forger :=
+  fun n pk => do
+    let ck ← ProbOracleComp.sample (BitString.sampleList n)
+    targetForgerWordOf creditNoteDecoder sigBound (noteTarget (wordNoteCom H) wordTag)
+      (noteForgerWord sigBound (wordNoteCom H) wordTag S A) n (pk, ck)
+
+/-- `sampledConservationForger` is uniform strict oracle PPT whenever `sigBound`, `H`, and `A` are
+efficient. -/
+theorem isOraclePPT_sampledConservationForger {sigBound : ℕ → ℕ → ℕ}
+    (hsigBound : ComputableInPolyTime (fun p : ℕ × ℕ => sigBound p.1 p.2) encNatPair encUnary)
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (S : WordSignatureScheme) {A : WordExtractedAdversary} (hA : IsOraclePPT encBits A) :
+    IsOraclePPT (encPair encBits encBits) (sampledConservationForger sigBound H S A) := by
+  have hsamp : IsOraclePPTOn (encPair encUnary encBits) encBits
+      (fun p : ℕ × List Bool => ProbOracleComp.sample (BitString.sampleList p.1)) :=
+    (isPPTOn_sampleList.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn
+      (Operation := Unit)
+  have htag : ComputableInPolyTime (fun p : List Bool × ℕ => wordTag p.1 p.2) encTagPair encBits :=
+    ComputableInPolyTime.of_eq (f := encTagPair) (encOut := encBits) fun _ => rfl
+  have hcom := computableInPolyTime_wordNoteCom hH
+  have hnf := (isOraclePPTOn_noteForgerWord hsigBound hcom htag S hA).isOraclePPT
+  have htf := isOraclePPTOn_targetForgerWordOf creditNoteDecoder hsigBound
+    (computableInPolyTime_noteTarget hcom htag) hnf
+  have hprep : ComputableInPolyTime
+      (fun q : (ℕ × List Bool) × List Bool => (q.1.1, (q.1.2, q.2)))
+      (encPair (encPair encUnary encBits) encBits) encPublicInput := by
+    dsimp only [encPublicInput, encWordPair]
+    fun_prop
+  exact (hsamp.bind_with (htf.preprocess hprep)).isOraclePPT
+
+private theorem eval_eufCmaGame_sampledConservationForger_eq (S : WordSignatureScheme)
+    (sigBound : ℕ → ℕ → ℕ) (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedAdversary) (n : ℕ) :
+    ProbComp.eval (S.eufCmaGame (sampledConservationForger sigBound H S A) n) =
+      (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+        ProbComp.eval (S.eufCmaGame
+          (fun m spk => targetForgerWordOf creditNoteDecoder sigBound
+            (noteTarget (wordNoteCom H) wordTag)
+            (noteForgerWord sigBound (wordNoteCom H) wordTag S A) m (spk, ck)) n) := by
+  simp only [WordSignatureScheme.eufCmaGame, sampledConservationForger,
+    ProbComp.eval_bind, ProbComp.eval_pure]
+  have h1 : ∀ pk sk : List Bool,
+      ((ProbComp.eval ((OracleComp.interpret
+          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+            (S.signingOracle sk))
+          (ProbOracleComp.sample (BitString.sampleList n) >>= fun ck =>
+            targetForgerWordOf creditNoteDecoder sigBound (noteTarget (wordNoteCom H) wordTag)
+              (noteForgerWord sigBound (wordNoteCom H) wordTag S A) n (pk, ck))).run [])).bind
+          fun out => PMF.pure (!out.2.contains out.1.1 && S.verify pk out.1.1 out.1.2)) =
+      (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+        ((ProbComp.eval ((OracleComp.interpret
+            (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+              (S.signingOracle sk))
+            (targetForgerWordOf creditNoteDecoder sigBound (noteTarget (wordNoteCom H) wordTag)
+              (noteForgerWord sigBound (wordNoteCom H) wordTag S A) n (pk, ck))).run [])).bind
+          fun out => PMF.pure (!out.2.contains out.1.1 && S.verify pk out.1.1 out.1.2)) := by
+    intro pk sk
+    rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_sample_bind,
+      PMF.bind_bind]
+    refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ck _ => ?_
+    rw [ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [h1]
+  exact PMF.bind_comm _ _ _
+
+/-- Collision finder extracted from `commitmentBindingReductionWord` by mapping each commitment
+binding collision `(c, m₀, r₀, m₁, r₁)` to the framed tuple pair `(encComTuple ..., encComTuple
+...)`. -/
+def noteCollisionFinder (sigBound : ℕ → ℕ → ℕ) (S : WordSignatureScheme)
+    (H : List Bool → List Bool → List Bool) (A : WordExtractedAdversary) : CollisionFinder :=
+  fun n ck =>
+    (fun col =>
+      let (nf₀, ctx₀, cr₀) := col.msg₀
+      let (nf₁, ctx₁, cr₁) := col.msg₁
+      (encComTuple (nf₀, ctx₀, cr₀, col.opening₀),
+       encComTuple (nf₁, ctx₁, cr₁, col.opening₁))) <$>
+      commitmentBindingReductionWord sigBound (wordNoteCom H) wordTag S A n ck
+
+/-- `noteCollisionFinder` is uniform strict PPT whenever `sigBound`, `H`, and `A` are
+efficient. -/
+@[program_certificate]
+theorem isPPT_noteCollisionFinder {sigBound : ℕ → ℕ → ℕ}
+    (hsigBound : ComputableInPolyTime (fun p : ℕ × ℕ => sigBound p.1 p.2) encNatPair encUnary)
+    (S : WordSignatureScheme)
+    {H : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    {A : WordExtractedAdversary} (hA : IsOraclePPT encBits A) :
+    IsPPT (encPair encBits encBits) (noteCollisionFinder sigBound S H A) := by
+  have htag : ComputableInPolyTime (fun p : List Bool × ℕ => wordTag p.1 p.2) encTagPair encBits :=
+    ComputableInPolyTime.of_eq (f := encTagPair) (encOut := encBits) fun _ => rfl
+  have hbr := isPPTOn_commitmentBindingReductionWord hsigBound
+    (computableInPolyTime_wordNoteCom hH) htag S hA
+  have hm0 := encWordBindingCollision_msg₀_polyTime ComputableInPolyTime.id'
+  have ho0 := encWordBindingCollision_opening₀_polyTime ComputableInPolyTime.id'
+  have hm1 := encWordBindingCollision_msg₁_polyTime ComputableInPolyTime.id'
+  have ho1 := encWordBindingCollision_opening₁_polyTime ComputableInPolyTime.id'
+  have hpair0 : ComputableInPolyTime
+      (fun col : Crypto.Commitment.BindingCollision
+          (List Bool × List Bool × ℕ) (List Bool) (List Bool) =>
+        encComTuple (col.msg₀.1, col.msg₀.2.1, col.msg₀.2.2, col.opening₀))
+      encWordBindingCollision encBits :=
+    (ComputableInPolyTime.of_eq (f := encComTuple) (encOut := encBits) fun _ => rfl).comp
+      (hm0.fst'.prod (hm0.snd'.fst'.prod (hm0.snd'.snd'.prod ho0)))
+  have hpair1 : ComputableInPolyTime
+      (fun col : Crypto.Commitment.BindingCollision
+          (List Bool × List Bool × ℕ) (List Bool) (List Bool) =>
+        encComTuple (col.msg₁.1, col.msg₁.2.1, col.msg₁.2.2, col.opening₁))
+      encWordBindingCollision encBits :=
+    (ComputableInPolyTime.of_eq (f := encComTuple) (encOut := encBits) fun _ => rfl).comp
+      (hm1.fst'.prod (hm1.snd'.fst'.prod (hm1.snd'.snd'.prod ho1)))
+  have hpost : ComputableInPolyTime
+      (fun col : Crypto.Commitment.BindingCollision
+          (List Bool × List Bool × ℕ) (List Bool) (List Bool) =>
+        let (nf₀, ctx₀, cr₀) := col.msg₀
+        let (nf₁, ctx₁, cr₁) := col.msg₁
+        (encComTuple (nf₀, ctx₀, cr₀, col.opening₀),
+         encComTuple (nf₁, ctx₁, cr₁, col.opening₁)))
+      encWordBindingCollision (encPair encBits encBits) := by
+    convert hpair0.prod hpair1
+  exact (hbr.map hpost).isPPT
+
+private noncomputable def wordNoteCommitmentScheme
+    (H : List Bool → List Bool → List Bool) (n : ℕ) (ck : List Bool) :
+    Crypto.Commitment.Scheme (List Bool) (List Bool × List Bool × ℕ) (List Bool) (List Bool) where
+  keyGen := pure ck
+  commit _ _ := pure ([], [])
+  verify _ msg c r :=
+    let (nf, ctx, cr) := msg
+    decide (wordNoteCom H n ck nf ctx cr r = c)
+
+private theorem wordBinding_le_collision (S : WordSignatureScheme)
+    (sigBound : ℕ → ℕ → ℕ)
+    (hbound : ∀ n pk sk, (pk, sk) ∈ (ProbComp.eval (S.keyGen n)).support →
+      ∀ msg sig, sig ∈ (ProbComp.eval (S.sign sk msg)).support →
+        sig.length ≤ sigBound n msg.length)
+    (H : List Bool → List Bool → List Bool)
+    (A : WordExtractedAdversary) (n : ℕ) (ck : List Bool) :
+    (ProbComp.eval ((wordNoteCommitmentScheme H n ck).bindingExperiment
+      (Conservation.commitmentBindingReduction (wordNoteCom H n ck)
+        (pairScheme S wordTag n) (A.toTyped n ck)))) true ≤
+      (ProbComp.eval (do
+        let pair ← noteCollisionFinder sigBound S H A n ck
+        return isCollision H (fun _ _ => true) n ck pair.1 pair.2)) true := by
+  simp only [Crypto.Commitment.Scheme.bindingExperiment, wordNoteCommitmentScheme,
+    noteCollisionFinder, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_bind,
+    ← eval_commitmentBindingReductionWord_eq S sigBound hbound (wordNoteCom H) wordTag
+      wordTag_injective A n ck ck]
+  simp only [PMF.bind_map, Function.comp_def]
+  refine Cslib.Probability.PMF.map_true_mono _ fun col _ hcol => ?_
+  simp only [Crypto.Commitment.Scheme.isBindingCollision, Bool.and_eq_true, decide_eq_true_eq]
+    at hcol
+  rcases hcol with ⟨⟨hne, hc0⟩, hc1⟩
+  simp only [isCollision_eq_true_iff, ne_eq, true_and]
+  refine ⟨fun heq => hne ?_, hc0.trans hc1.symm⟩
+  have hinj := encComTuple.injective heq
+  rcases Prod.mk.inj hinj with ⟨h1, h2⟩
+  rcases Prod.mk.inj h2 with ⟨h3, h4⟩
+  rcases Prod.mk.inj h4 with ⟨h5, _⟩
+  exact Prod.ext h1 (Prod.ext h3 h5)
+
+/-- Word-level extracted VOLE-ACT credit-conservation game: samples `ck ← BitString.sampleList n`
+and runs `Conservation.extractedConservationExperiment` with `wordNoteCom H n ck`,
+`pairScheme S wordTag n`, and `A.toTyped n ck`. -/
+noncomputable def extractedConservationWordGame (S : WordSignatureScheme)
+    (H : List Bool → List Bool → List Bool) (A : WordExtractedAdversary) (n : ℕ) :
+    ProbComp Bool := do
+  let ck ← BitString.sampleList n
+  extractedConservationExperiment (wordNoteCom H n ck) Prod.mk (pairScheme S wordTag n)
+    (A.toTyped n ck)
+
+/-- Word-level credit conservation in the extracted VOLE-ACT model: assuming only `S.EUFCMA`,
+`CollisionResistant H`, and efficient `H` and `A` (with the signature length bound obtained
+internally from `S.toSignatureScheme.exists_sign_length_bound`), any oracle-PPT adversary has
+negligible probability of violating credit conservation in `extractedConservationWordGame`. -/
+theorem negligible_extractedConservationWordGame (S : WordSignatureScheme) (hS : S.EUFCMA)
+    (H : List Bool → List Bool → List Bool)
+    (hHPoly : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hH : CollisionResistant H)
+    (A : WordExtractedAdversary) (hA : IsOraclePPT encBits A) :
+    Negligible
+      (fun n => Game.succProbability (ProbComp.eval (extractedConservationWordGame S H A n))) := by
+  obtain ⟨sigBound, hsigPoly, hsigBound⟩ := S.toSignatureScheme.exists_sign_length_bound
+  simp only [WordSignatureScheme.toSignatureScheme_keyGen,
+    WordSignatureScheme.toSignatureScheme_sign] at hsigBound
+  have htagPoly : ComputableInPolyTime (fun p : List Bool × ℕ => wordTag p.1 p.2)
+      encTagPair encBits :=
+    ComputableInPolyTime.of_eq (f := encTagPair) (encOut := encBits) fun _ => rfl
+  have _hnf := isOraclePPTOn_noteForgerWord hsigPoly (computableInPolyTime_wordNoteCom hHPoly)
+    htagPoly S hA
+  have _hbr := isPPTOn_commitmentBindingReductionWord hsigPoly
+    (computableInPolyTime_wordNoteCom hHPoly) htagPoly S hA
+  have hforgeNeg := hS.negligible (sampledConservationForger sigBound H S A)
+    (isOraclePPT_sampledConservationForger hsigPoly hHPoly S hA)
+  have hcollNeg := hH.negligible (noteCollisionFinder sigBound S H A)
+    (isPPT_noteCollisionFinder hsigPoly S hHPoly hA)
+  refine negligible_of_le (hforgeNeg.add_fun hcollNeg) fun n => ?_
+  have hpt : ∀ ck : List Bool,
+      (ProbComp.eval (extractedConservationExperiment (wordNoteCom H n ck) Prod.mk
+        (pairScheme S wordTag n) (A.toTyped n ck))) true ≤
+      (ProbComp.eval (S.eufCmaGame
+        (fun m spk => targetForgerWordOf creditNoteDecoder sigBound
+          (noteTarget (wordNoteCom H) wordTag)
+          (noteForgerWord sigBound (wordNoteCom H) wordTag S A) m (spk, ck)) n)) true +
+      (ProbComp.eval (do
+        let pair ← noteCollisionFinder sigBound S H A n ck
+        return isCollision H (fun _ _ => true) n ck pair.1 pair.2)) true := by
+    intro ck
+    have hle := extractedConservationExperiment_succProbability_le_prod_mk (wordNoteCom H n ck)
+      (wordNoteCommitmentScheme H n ck) (fun _ _ _ _ _ _ => rfl) (pairScheme S wordTag n)
+      (A.toTyped n ck)
+    have hle_enn := ENNReal.coe_le_coe.mpr hle
+    simp only [Experiment.succProbability, Game.succProbability, ENNReal.coe_add,
+      ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at hle_enn
+    rw [← eval_eufCmaGame_noteForgerWord_eq S sigBound
+      (fun m pk sk hkeys msg sig hsig => hsigBound m (pk, sk) hkeys msg sig hsig)
+      (wordNoteCom H) wordTag wordTag_injective A n ck] at hle_enn
+    exact hle_enn.trans (add_le_add le_rfl (wordBinding_le_collision S sigBound
+      (fun m pk sk hkeys msg sig hsig => hsigBound m (pk, sk) hkeys msg sig hsig) H A n ck))
+  have hbind : (ProbComp.eval (extractedConservationWordGame S H A n)) true ≤
+      (ProbComp.eval (S.eufCmaGame (sampledConservationForger sigBound H S A) n)) true +
+      (ProbComp.eval (collisionGame H (fun _ _ => true)
+        (noteCollisionFinder sigBound S H A) n)) true := by
+    have hext : ProbComp.eval (extractedConservationWordGame S H A n) =
+        (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+          ProbComp.eval (extractedConservationExperiment (wordNoteCom H n ck) Prod.mk
+            (pairScheme S wordTag n) (A.toTyped n ck)) := by
+      simp only [extractedConservationWordGame, ProbComp.eval_bind]
+    have hcoll : ProbComp.eval (collisionGame H (fun _ _ => true)
+          (noteCollisionFinder sigBound S H A) n) =
+        (ProbComp.eval (BitString.sampleList n)).bind fun ck =>
+          ProbComp.eval (do
+            let pair ← noteCollisionFinder sigBound S H A n ck
+            return isCollision H (fun _ _ => true) n ck pair.1 pair.2) := by
+      simp only [collisionGame, ProbComp.eval_bind, ProbComp.eval_pure]
+    rw [hext, eval_eufCmaGame_sampledConservationForger_eq, hcoll]
+    exact Cslib.Probability.PMF.bind_apply_le_add_on_support _ true fun ck _ => hpt ck
+  have hsucc : (ProbComp.eval (extractedConservationWordGame S H A n) true).toNNReal ≤
+      ((ProbComp.eval (S.eufCmaGame (sampledConservationForger sigBound H S A) n) true) +
+        (ProbComp.eval (collisionGame H (fun _ _ => true)
+          (noteCollisionFinder sigBound S H A) n) true)).toNNReal :=
+    ENNReal.toNNReal_mono (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
+      hbind
+  simpa only [Game.succProbability, ENNReal.toNNReal_add (PMF.apply_ne_top _ _)
+    (PMF.apply_ne_top _ _)] using hsucc
 
 end Conservation
 
