@@ -132,14 +132,13 @@ def blockNat (n k z b : ℕ) : ℕ :=
 block `j / n` (`Cslib.Crypto.PRG.Nisan.bitGeneratorNat_eq`). -/
 def bitGeneratorNat (n k z j : ℕ) : Bool := (blockNat n k z (j / n)).testBit (j % n)
 
-private theorem map_val_finRange (k : ℕ) : (List.finRange k).map Fin.val = List.range k :=
-  List.ext_getElem (by simp) fun i _ _ => by simp
-
 /-- The low `n` bits of `blockNat n k z b` are block `b` of the generator. -/
 private theorem testBit_blockNat (n k z b : ℕ) (hb : b < 2 ^ k) :
     (fun i : Fin n => (blockNat n k z b).testBit i) =
       blocks toeplitzHash k (seedOfNat n k z).1 (seedOfNat n k z).2 ⟨b, hb⟩ := by
-  rw [blocks_apply_eq_foldl, blockNat, ← map_val_finRange, List.foldl_map]
+  have hrange : (List.finRange k).map Fin.val = List.range k :=
+    List.ext_getElem (by simp) fun _ _ _ => by simp
+  rw [blocks_apply_eq_foldl, blockNat, ← hrange, List.foldl_map]
   refine (List.foldl_hom (fun x : ℕ => fun i : Fin n => x.testBit i) fun x ℓ => ?_).symm
   dsimp only
   split
@@ -244,11 +243,6 @@ private theorem blockStep_inSpace :
     (budget_prod hb (budget_natSub (budget_natSub hk hone) hl))
   exact encBlockState_mk_budget hn hk hz hb (budget_natSucc hl) (budget_ite hbit hhash hx)
 
-private theorem length_encNat_le_of_le {a b : ℕ} (h : a ≤ b) :
-    (encNat a).length ≤ (encNat b).length := by
-  rw [encNat_apply, encNat_apply, Nat.size_eq_bits_len, Nat.size_eq_bits_len]
-  exact Nat.size_le_size h
-
 /-- **A bit of Nisan's generator in linear space**: `bitGeneratorNat n k z j` is computable within
 work space linear in the encoded arguments. The work space holds the arguments, the level and one
 block register of at most as many bits as the seed word, and the space of one packed Toeplitz
@@ -265,12 +259,12 @@ theorem computableInSpace_bitGeneratorNat :
   have hloop := budget_iterate hk hinit blockStep_inSpace
     (B := fun q => 4 * ((encNisanBitArgs q).length + 1)) (fun q t ht => by
       rw [iterate_blockStep]
-      have h1 := length_encNat_le_of_le ht
-      have h2 := length_encNat_le_of_le (Nat.div_le_self q.j q.n)
+      have h1 := length_encNat_mono ht
+      have h2 := length_encNat_mono (Nat.div_le_self q.j q.n)
       have h3 : (encNat ((List.range t).foldl (fun x ℓ => if (q.j / q.n).testBit (q.k - 1 - ℓ) then
           toeplitzHashNat q.n q.z (q.n + ℓ * (3 * q.n - 1)) x else x) q.z)).length ≤
           (encNat q.z).length := by
-        rw [encNat_apply, encNat_apply, Nat.size_eq_bits_len, Nat.size_eq_bits_len]
+        simp only [length_encNat_eq_size]
         exact size_foldl_le _ _ _ _ _ _ le_rfl
       simp only [encBlockState_apply, encBlockStateFields, encNisanBitArgs_apply,
         encNisanBitArgsFields, length_encPair]
