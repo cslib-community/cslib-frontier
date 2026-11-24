@@ -266,18 +266,15 @@ theorem EXP_subset_APSPACE : EXP enc ⊆ APSPACE enc := by
     exact (length_position_le _).trans (Nat.add_le_add_right (length_encClaim_mono hw'.le) 2)
   · exact fun a => ⟨N a, ends_position (tm := tm) encClaim (enc a) (T a) (N a) (hNM a) true⟩
   · intro a
-    rw [wins_position_iff (enc a) (T a) (N a) (hNM a) true]
     have hnT : (enc a).length < 2 * T a := by
       have : n a < 2 ^ n a := Nat.lt_two_pow_self
       have : 2 ^ n a ≤ T a := Nat.pow_le_pow_right (by norm_num) (by simp only [E]; omega)
       simp only [n] at *
       omega
-    have hval : val tm (T a) (enc a) (N a) =
-        decide (OutView.ofList (tm.runFrom (tm.initCfg (enc a)) (T a)).output = .one true) :=
-      evalOutput_gates tm hnT
     have hle : c₁ * 2 ^ (enc a).length ^ d + c₂ ≤ T a := two_pow_bound _ _ _ _
     obtain ⟨-, hout⟩ := (htm a).runFrom_of_le hle
-    rw [hval, hout]
+    refine Iff.trans ?_ (wins_position_outWire_iff (tm := tm) encClaim hnT).symm
+    rw [hout]
     by_cases h : a ∈ A <;> simp [h, indicator, OutView.ofList]
 
 end EXP

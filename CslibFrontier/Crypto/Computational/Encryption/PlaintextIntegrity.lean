@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.EncForge
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Computational.Encryption.CCAToCPA
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.BitString.List
@@ -362,12 +363,10 @@ private theorem eval_run_ciToCCAHandler_false (E : SymmetricCipher) (n ctBound :
   by_cases hlen : msg.length = n
   · have hchunkLen : (BitString.listRow n pairs.length rawBits).length = n :=
       BitString.length_listRow n pairs.length rawBits
-    simp only [StateT.run, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-      SymmetricCipher.ccaOracle, Bool.false_eq_true, unframe_encPair_encBits,
-      dropFrame_encPair_encBits, hlen, hchunkLen, beq_self_eq_true, Bool.and_self,
-      PMF.bind_bind, PMF.map_bind, PMF.pure_bind, PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [StateT.run, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, SymmetricCipher.ccaOracle,
+      Bool.false_eq_true, unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen,
+      beq_self_eq_true, Bool.and_self, Prod.map_apply, id_eq, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
     simp only [List.take_of_length_le (hctBound k hk msg hlen ct hct),
       List.length_cons, List.map_cons, chunksBelow]
@@ -567,12 +566,10 @@ private theorem eval_run_ccaTruePairOracle_proj_cca (E : SymmetricCipher) (n ctB
   by_cases hlen : msg.length = n
   · have hchunkLen : (BitString.listRow n idx rawBits).length = n :=
       BitString.length_listRow n idx rawBits
-    simp only [StateT.run, ↓reduceIte, SymmetricCipher.ccaOracle,
-      Bool.false_eq_true, unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen,
-      beq_self_eq_true, Bool.and_self, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.map_bind, PMF.pure_bind,
-      PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [StateT.run, ↓reduceIte, SymmetricCipher.ccaOracle, Bool.false_eq_true,
+      unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen, beq_self_eq_true,
+      Bool.and_self, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, Prod.map_apply, id_eq, pmf_norm]
   · simp only [StateT.run, beq_false_of_ne hlen, Bool.false_eq_true, ↓reduceIte,
       ProbOracleComp.runWith_pure, ProbComp.eval_pure, PMF.pure_map]
 
@@ -596,10 +593,8 @@ private theorem eval_run_ccaTruePairOracle_proj_encForge (E : SymmetricCipher) (
   · have hchunkLen : (BitString.listRow n idx rawBits).length = n :=
       BitString.length_listRow n idx rawBits
     simp only [StateT.run, beq_iff_eq.mpr hlen, ↓reduceIte, SymmetricCipher.encForgeOracle,
-      hchunkLen, beq_self_eq_true, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-      ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.map_bind, PMF.pure_bind, PMF.pure_map,
-      Prod.map_apply, id_eq]
+      hchunkLen, beq_self_eq_true, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, Prod.map_apply, id_eq, pmf_norm]
   · simp only [StateT.run, beq_false_of_ne hlen, Bool.false_eq_true, ↓reduceIte,
       ProbOracleComp.runWith_pure, ProbComp.eval_pure, PMF.pure_map]
 

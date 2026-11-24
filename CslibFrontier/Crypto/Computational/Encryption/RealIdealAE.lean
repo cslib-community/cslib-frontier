@@ -277,8 +277,7 @@ private theorem map_runWith_cpaToAEHandler (E : SymmetricCipher) (ctBound : ℕ 
     simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
     have hmbLen : (if bit then dropFrame request.2 else unframe request.2).length = n := by
       cases bit <;> simp [hlenEq]
-    simp only [hmbLen, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [hmbLen, beq_self_eq_true, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
     apply PMF.bind_congr_on_support
     intro ct hct
     rw [List.take_of_length_le (hctBound _ hmbLen ct hct)]
@@ -430,8 +429,7 @@ private theorem map_ciEncryptionOracle_eq_runWith_ciToAEHandler (E : SymmetricCi
     ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, aeRealOracle, Bool.false_eq_true,
     ↓reduceIte]
   by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-      PMF.pure_map, Prod.map_apply, id_eq]
+  · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
     apply PMF.bind_congr_on_support
     intro ct hct
     rw [List.take_of_length_le (hctBound _ (beq_iff_eq.mp hlen) ct hct)]
@@ -635,8 +633,7 @@ private theorem map_aeRealOracle_eq_runWith_aeToCCAHandler (E : SymmetricCipher)
       unframe_frame_append, dropFrame_frame_append, List.length_replicate, beq_self_eq_true,
       Bool.and_true]
     by_cases hlen : (request.2.length == n) = true
-    · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-        PMF.pure_map, Prod.map_apply, id_eq]
+    · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
       apply PMF.bind_congr_on_support
       intro ct hct
       rw [List.take_of_length_le (hctBound _ (beq_iff_eq.mp hlen) ct hct)]
@@ -693,8 +690,7 @@ private theorem map_runWith_aeToCCAHandler_eq_aeIdealOracle (E : SymmetricCipher
       unframe_frame_append, dropFrame_frame_append, List.length_replicate, beq_self_eq_true,
       Bool.and_true]
     by_cases hlen : (request.2.length == n) = true
-    · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-        PMF.pure_map, Prod.map_apply, id_eq]
+    · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
       apply PMF.bind_congr_on_support
       intro ct hct
       rw [List.take_of_length_le (hctBound _ (by simp) ct hct)]
