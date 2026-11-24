@@ -24,8 +24,8 @@ import Mathlib.Tactic.Ring
 # Multicast Cost Sharing: Shapley (`SH`) vs. Marginal Cost (`MC`), Welfare Loss, and Communication
 
 In the **multicast cost-sharing problem** ([MoulinShenker2001];
-[FeigenbaumPapadimitriouShenker2001]; [NisanRoughgardenTardosVazirani2007], Chapter 14,
-Section 14.2), a source at the root of a tree `T` with nonnegative link costs transmits to a
+[FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]), a source at the root of a
+tree `T` with nonnegative link costs transmits to a
 selected coalition `R` of strategic receivers located at nodes of `T`. Serving `R` incurs total
 routing cost `cost R` equal to the sum of link costs along the union of root-to-receiver paths.
 
@@ -43,7 +43,7 @@ Two canonical incentive-compatible mechanisms arise from opposing economic prior
      (`shMechanism_isGroupStrategyproof`), `1`-budget-balanced (`shMechanism_isBudgetBalanced`),
      and satisfies No Positive Transfers, Voluntary Participation, and Consumer Sovereignty.
 2. **Marginal Cost (`MC` / Clarke VCG) multicast mechanism and the `2`-pass distributed algorithm**
-   ([FeigenbaumPapadimitriouShenker2001]; [NisanRoughgardenTardosVazirani2007], Section 14.2.2):
+   ([FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]):
    - Because `toCostSharingGame` is submodular, net social welfare `netWelfare` is supermodular
      (`netWelfare_supermodular`), so the family of welfare-maximizing receiver coalitions has a
      **unique largest element `mcReceivers`** (`isGreatest_isWelfareMaximizingSet_mcReceivers`).
@@ -133,8 +133,8 @@ Two canonical incentive-compatible mechanisms arise from opposing economic prior
 * [J. Feigenbaum, C. H. Papadimitriou, S. Shenker, *Sharing the Cost of Multicast
   Transmissions*][FeigenbaumPapadimitriouShenker2001]
 * [K. Jain, M. Mahdian, *Cost Sharing*][JainMahdian2007]
-* [N. Nisan, T. Roughgarden, É. Tardos, V. V. Vazirani (eds.), *Algorithmic Game
-  Theory*][NisanRoughgardenTardosVazirani2007], Chapter 14, Section 14.2
+* [J. Feigenbaum, M. Schapira, S. Shenker, *Distributed Algorithmic Mechanism
+  Design*][FeigenbaumSchapiraShenker2007]
 -/
 
 public section
@@ -724,7 +724,7 @@ theorem shMechanism_payment [Fintype A] (b : A → ℝ) (i : A) :
   rw [M.shScheme.moulinMechanism_payment, M.shScheme_share]
 
 /-- **`SH` is group-strategyproof** ([MoulinShenker2001];
-[NisanRoughgardenTardosVazirani2007], Chapter 14, Exercise 14.4). -/
+[FeigenbaumSchapiraShenker2007]). -/
 theorem shMechanism_isGroupStrategyproof [Fintype A] : M.shMechanism.IsGroupStrategyproof :=
   M.shScheme.moulinMechanism_isGroupStrategyproof M.shScheme_isCrossMonotone
 
@@ -765,7 +765,7 @@ theorem netWelfare_apply (b : A → ℝ) (R : Finset A) :
   rfl
 
 /-- **Supermodularity of net welfare** on multicast trees ([FeigenbaumPapadimitriouShenker2001];
-[NisanRoughgardenTardosVazirani2007], Chapter 14, Exercise 14.2). -/
+[FeigenbaumSchapiraShenker2007]). -/
 theorem netWelfare_supermodular [DecidableEq A] (b : A → ℝ) (R S : Finset A) :
     M.netWelfare b R + M.netWelfare b S ≤
       M.netWelfare b (R ∪ S) + M.netWelfare b (R ∩ S) := by
@@ -913,7 +913,7 @@ theorem isWelfareMaximizingSet_iff_eq_maxNetWelfare {b : A → ℝ} {R : Finset 
 
 /-- **Pass 1 (bottom-up) node welfare** `nodeWelfare b u`: sum of nonnegative resident bids at `u`
 plus incoming nonnegative child surplus messages `max 0 (nodeWelfare b c - edgeCost c)`
-([FeigenbaumPapadimitriouShenker2001]; [NisanRoughgardenTardosVazirani2007], Section 14.2.2). -/
+([FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]). -/
 noncomputable def nodeWelfare (b : A → ℝ) (u : V) : ℝ :=
   (∑ i : A with M.loc i = u, max (b i) 0) +
     ∑ c ∈ (M.tree.children u).attach, max 0 (nodeWelfare b c.1 - M.edgeCost c.1)
@@ -1231,14 +1231,13 @@ variable [Fintype A] [DecidableEq A]
 open Classical in
 /-- The **unique largest welfare-maximizing receiver coalition** `mcReceivers b`: the union of all
 coalitions maximizing `M.netWelfare b` ([FeigenbaumPapadimitriouShenker2001];
-[NisanRoughgardenTardosVazirani2007], Section 14.2.2 and Exercise 14.2). -/
+[FeigenbaumSchapiraShenker2007]). -/
 noncomputable def mcReceivers (b : A → ℝ) : Finset A :=
   ((Finset.univ : Finset (Finset A)).filter (M.IsWelfareMaximizingSet b)).biUnion id
 
-/-- **Exercise 14.2** ([NisanRoughgardenTardosVazirani2007], Chapter 14;
-[FeigenbaumPapadimitriouShenker2001]): `mcReceivers b` is itself welfare-maximizing and contains
-every welfare-maximizing coalition (`IsGreatest {R | IsWelfareMaximizingSet b R} (mcReceivers b)`).
--/
+/-- **Unique largest welfare-maximizing coalition** ([FeigenbaumPapadimitriouShenker2001];
+[FeigenbaumSchapiraShenker2007]): `mcReceivers b` is itself welfare-maximizing and contains every
+welfare-maximizing coalition (`IsGreatest {R | IsWelfareMaximizingSet b R} (mcReceivers b)`). -/
 theorem isGreatest_isWelfareMaximizingSet_mcReceivers (b : A → ℝ) :
     IsGreatest {R : Finset A | M.IsWelfareMaximizingSet b R} (M.mcReceivers b) := by
   classical
@@ -1298,7 +1297,7 @@ theorem maxNetWelfareWithout_update (b : A → ℝ) (i : A) (x : ℝ) :
   exact hiR hj
 
 /-- The **Marginal Cost (`MC` / Clarke VCG) multicast mechanism**
-([FeigenbaumPapadimitriouShenker2001]; [NisanRoughgardenTardosVazirani2007], Section 14.2.2):
+([FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]):
 serves `mcReceivers b` and charges each served receiver `i` its Clarke pivot payment
 `maxNetWelfareWithout b i - (netWelfare b (mcReceivers b) - b i)`. -/
 noncomputable def mcMechanism : CostSharingMechanism A where
@@ -1464,7 +1463,7 @@ theorem mcMechanism_payment_sum_le_cost (b : A → ℝ) :
   linarith [hmain, hpay_sum, hnwR]
 
 /-- **Pass 2 allocation correctness** ([FeigenbaumPapadimitriouShenker2001];
-[NisanRoughgardenTardosVazirani2007], Section 14.2.2 and Exercise 14.3): on nonnegative bid
+[FeigenbaumSchapiraShenker2007]): on nonnegative bid
 profiles, `twoPassReceivers b` equals the unique largest welfare-maximizing receiver set
 `mcReceivers b`. -/
 theorem twoPassReceivers_eq_mcReceivers {b : A → ℝ} (hb : ∀ i, 0 ≤ b i) :
@@ -1547,7 +1546,7 @@ theorem twoPassReceivers_eq_mcReceivers {b : A → ℝ} (hb : ∀ i, 0 ≤ b i) 
   linarith
 
 /-- **Pass 2 payment correctness** ([FeigenbaumPapadimitriouShenker2001];
-[NisanRoughgardenTardosVazirani2007], Section 14.2.2 and Exercise 14.3): on nonnegative bid
+[FeigenbaumSchapiraShenker2007]): on nonnegative bid
 profiles, `twoPassPayment b` equals `mcMechanism.payment b`. -/
 theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤ b j) (i : A) :
     M.twoPassPayment b i = M.mcMechanism.payment b i := by
@@ -1841,7 +1840,7 @@ theorem singleLinkMulticast_shShare {A : Type*} [DecidableEq A] (C : ℝ) (hC : 
   · simp [hi]
 
 /-- **`mcMechanism` is NOT group-strategyproof** ([FeigenbaumPapadimitriouShenker2001];
-[NisanRoughgardenTardosVazirani2007], Chapter 14, Exercise 14.4): on a single link of positive cost
+[FeigenbaumSchapiraShenker2007]): on a single link of positive cost
 `C > 0` with at least two receivers, two receivers with true valuations `C / 3` each get utility `0`
 under truthful reporting (`2C / 3 < C`), whereas jointly bidding `2C` causes both to be served at
 VCG payment `0` (strictly positive utility `C / 3 > 0` each). -/
@@ -2887,10 +2886,9 @@ theorem mem_pathMulticast_shMechanism_serviced_iff (k : ℕ) (x y : Cslib.BitStr
     exact hgreat.2 hw_both (Finset.mem_union_right Sx (Finset.mem_singleton_self _))
 
 /-- **`(k + 1)`-bit deterministic cut communication lower bound for `SH` on path trees**
-([FeigenbaumPapadimitriouShenker2001]; [NisanRoughgardenTardosVazirani2007], Chapter 14,
-Theorem 14.1 deterministic cut bound): for `0 < k`, any deterministic two-party protocol across the
-bottom cut link of `pathMulticast k` deciding whether Bob's receiver `Sum.inr ()` is served by
-`shMechanism` exchanges at least `k + 1` bits. -/
+([FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]): for `0 < k`, any
+deterministic two-party protocol across the bottom cut link of `pathMulticast k` deciding whether
+Bob's receiver `Sum.inr ()` is served by `shMechanism` exchanges at least `k + 1` bits. -/
 theorem le_ecomplexityFun_pathMulticast_shServiced {k : ℕ} (hk : 0 < k) :
     (k + 1 : ℕ∞) ≤ Cslib.Communication.Protocol.ecomplexityFun
       (fun x y : Cslib.BitString k =>

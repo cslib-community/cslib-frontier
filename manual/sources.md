@@ -889,6 +889,11 @@ Uriel Feige. "A Threshold of ln n for Approximating Set Cover." *Journal of the 
 
 Joan Feigenbaum, Christos H. Papadimitriou and Scott Shenker. "Sharing the Cost of Multicast Transmissions." *Journal of Computer and System Sciences* 63(1), 21–41, 2001 (preliminary version in STOC 2000). https://doi.org/10.1006/jcss.2001.1754 . Bibliographic metadata checked via DOI and secondary search summaries on 2026-11-24; the published PDF was not inspected directly, so internal page numbers are not claimed. Cited by [MulticastCostSharing.lean](../CslibFrontier/GameTheory/Cooperative/MulticastCostSharing.lean) for the comparison of Shapley (`SH`) and Marginal Cost (`MC` / Clarke VCG) multicast cost sharing on rooted trees, the exact two-pass (`2` messages per link) distributed tree algorithm for `MC` receiver selection and VCG payments, failure of group-strategyproofness for `MC`, and the deterministic `(k + 1)`-bit cut communication lower bound for `SH` on path instances (leaving the paper's randomized lower bound open).
 
+<a id="feigenbaumschapirashenker2007"></a>
+## feigenbaumschapirashenker2007
+
+Joan Feigenbaum, Michael Schapira and Scott Shenker. "Distributed Algorithmic Mechanism Design." Chapter 14 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 363–384. https://doi.org/10.1017/CBO9780511800481.016 . Bibliographic metadata checked via DOI and secondary search summaries on 2026-11-24; the chapter PDF was not inspected directly, so internal section, theorem, and exercise numbers are not claimed in [MulticastCostSharing.lean](../CslibFrontier/GameTheory/Cooperative/MulticastCostSharing.lean). Cited by [MulticastCostSharing.lean](../CslibFrontier/GameTheory/Cooperative/MulticastCostSharing.lean) alongside [FeigenbaumPapadimitriouShenker2001](#feigenbaumpapadimitrioushenker2001) and [MoulinShenker2001](#moulinshenker2001) for distributed multicast cost sharing (`SH` vs. `MC`, the two-pass VCG tree algorithm, and cut communication lower bounds), and by `CslibFrontier/GameTheory/InterdomainRouting/{GaoRexford,StablePaths}.lean`.
+
 <a id="fgms20"></a>
 ## fgms20
 

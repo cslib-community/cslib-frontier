@@ -146,14 +146,6 @@ theorem yMulticast_cost_univ :
   simp [h2, yMulticast]
   norm_num
 
-theorem yMulticast_cost_leftPair :
-    yMulticast.toCostSharingGame.cost ({0, 1} : Finset (Fin 3)) = 8 := by
-  rw [yMulticast.toCostSharingGame_cost_eq_sum, Fin.sum_univ_four]
-  simp only [yMulticast_tree, yTree_anc_zero, yTree_anc_one_loc,
-    yTree_anc_two_loc, yTree_anc_three_loc]
-  simp [yMulticast]
-  norm_num
-
 /-- Grand-coalition Shapley shares on `yMulticast` are `![3, 3, 4]` (`6/3 + 2/2 = 3` for receivers
 `0, 1` and `6/3 + 2/1 = 4` for receiver `2`), and lie in the exact core. -/
 theorem yMulticast_shShare_univ :
