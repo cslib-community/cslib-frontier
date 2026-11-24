@@ -186,13 +186,13 @@ def main (args : List String) : IO UInt32 := do
     match r with
     | some c => IO.println s!"s VERIFIED {conclStr default c}"; return 0
     | none => IO.println "s REJECTED kernel text check"; return 1
-  let inst : Option Instance := if cnf then
-      (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩
-    else Text.parseOPB fmlText
-  let some I := inst | IO.println "s REJECTED formula does not parse"; return 1
+  let inst : Option (Instance × List (String × ℕ)) := if cnf then
+      (Text.parseDIMACS fmlText).map fun φ => (⟨φ.map Clause.toPB, none, none⟩, [])
+    else Text.parseOPBLabelled (Text.opbNames fmlText) fmlText
+  let some (I, labels) := inst | IO.println "s REJECTED formula does not parse"; return 1
   let t₁ ← IO.monoMsNow
   IO.println s!"c read and parse formula {t₁ - t₀} ms ({I.constraints.length} constraints)"
-  let r := Elab.elaborate I.constraints I.objective I.preserved pbpText
+  let r := Elab.elaborate I.constraints I.objective I.preserved pbpText labels
   match r with
   | .error e => IO.println s!"s REJECTED elaboration: {e}"; return 1
   | .ok res =>
