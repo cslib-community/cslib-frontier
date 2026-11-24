@@ -358,20 +358,11 @@ private theorem PPTCertificate.isOraclePPTOn_adapt_wordHandle
       refine cert.handle.preprocess
         (prepare := fun x : PPTParam n × (chOut × List Bool) × List Bool =>
           (x.1, (cE, reqMap x.2.1.2), x.2.2)) ?_
-      have hc : ComputableInPolyTime
-          (fun _ : PPTParam n × (chOut × List Bool) × List Bool => cE)
-          EIn (encFinite iE.Channel) := ComputableInPolyTime.const cE
-      have hw : ComputableInPolyTime
-          (fun x : PPTParam n × (chOut × List Bool) × List Bool => reqMap x.2.1.2)
-          EIn encBits :=
-        hreqMap.comp (by dsimp only [EIn]; unfold encHandlerCall; fun_prop)
-      have hp : ComputableInPolyTime
-          (fun x : PPTParam n × (chOut × List Bool) × List Bool => x.1)
-          EIn (encPPTParam n) := by dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      have hs : ComputableInPolyTime
-          (fun x : PPTParam n × (chOut × List Bool) × List Bool => x.2.2)
-          EIn encBits := by dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      exact hp.prod ((hc.prod hw).prod hs)
+      exact (by dsimp only [EIn]; unfold encHandlerCall; fun_prop :
+          ComputableInPolyTime _ EIn _).prod
+        (((ComputableInPolyTime.const cE).prod
+          (hreqMap.comp (by dsimp only [EIn]; unfold encHandlerCall; fun_prop))).prod
+          (by dsimp only [EIn]; unfold encHandlerCall; fun_prop))
     have heq : (fun x => wordHandle M iJ iE cert.codec x.1 (cE, reqMap x.2.1.2) x.2.2) =
         (fun x => ProbOracleComp.lowerWith iJ x.1.replyBound (prog x)) := by
       funext x
