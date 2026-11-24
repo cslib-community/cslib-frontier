@@ -64,6 +64,8 @@ from all its messages. The wrapper queries each retained distinct message once a
   the single-query security theorem for an extendable prefix-free PRF.
 * `Cslib.Crypto.UHF.isQueryBounded_prefixFreeBatchReduction`: at most one query per retained word.
 * `Cslib.Crypto.UHF.isOraclePPT_prefixFreeBatchReduction`: strict oracle PPT for the batch wrapper.
+* `Cslib.Crypto.UHF.isPrefixFreeOraclePPT_prefixFreeBatchReduction`: the batch wrapper's traces
+  are prefix-free when accepted guesses consist of complete positive-width blocks.
 -/
 
 public section
@@ -432,6 +434,40 @@ for the wrapper in [BonehShoup2023], v0.6, Theorem 7.4 (printed pp. 259–260). 
   let block := PRF.freshBatchWordBlock width messages
   if block.isSome then messages.map (fun word => word ++ block.getD []) else []
 
+/-- Each prepared word is distinct, including when the guesser repeats a message. -/
+theorem nodup_prefixFreeBatchQueries (width count : ℕ) (valid : List Bool → Bool)
+    (guesses : List (List Bool)) : (prefixFreeBatchQueries width count valid guesses).Nodup := by
+  unfold prefixFreeBatchQueries
+  dsimp only
+  split
+  · exact (List.nodup_eraseDupsBy_eq _).map fun _ _ => List.append_cancel_right
+  · exact List.nodup_nil
+
+private theorem isPrefixFree_prefixFreeBatchQueries {width count : ℕ}
+    {valid : List Bool → Bool} (guesses : List (List Bool))
+    (haligned : ∀ word, valid word = true → 0 < width ∧ width ∣ word.length) :
+    InformationTheory.IsPrefixFree
+      {word | word ∈ prefixFreeBatchQueries width count valid guesses} := by
+  let messages := ((guesses.take count).filter valid).eraseDupsBy fun a b => decide (a = b)
+  have hvalid (word : List Bool) (hm : word ∈ messages) : valid word = true :=
+    (List.mem_filter.mp ((List.eraseDupsBy_sublist _).subset hm)).2
+  change InformationTheory.IsPrefixFree {word | word ∈
+    if (PRF.freshBatchWordBlock width messages).isSome then
+      messages.map (fun msg => msg ++ (PRF.freshBatchWordBlock width messages).getD []) else []}
+  cases hblock : PRF.freshBatchWordBlock width messages with
+  | none =>
+    intro _ hx
+    cases hx
+  | some block =>
+    intro x hx y hy hpre
+    change x ∈ messages.map (fun msg => msg ++ block) at hx
+    change y ∈ messages.map (fun msg => msg ++ block) at hy
+    obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hx
+    obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hy
+    have hprefix := PRF.isPrefixFree_append_of_freshBatchWordBlock_eq_some
+      (haligned u (hvalid u hu)).1 (fun m hm => (haligned m (hvalid m hm)).2) hblock
+    exact hprefix _ ⟨u, hu, rfl⟩ _ ⟨v, hv, rfl⟩ hpre
+
 /-- Run the multi-query guesser on the public unary parameter, query the extended words, and
 accept if two capped replies coincide. The reply cap bounds the reading time for any oracle. -/
 @[expose] def prefixFreeBatchReduction (width outLen Q : ℕ → ℕ)
@@ -515,5 +551,29 @@ theorem isOraclePPT_prefixFreeBatchReduction {width outLen Q : ℕ → ℕ}
   have hcollision := bool_not.comp (decide_nodup_bits (id' (encIn := encWords)))
   apply hrun.isOraclePPTOn.bind_with
   simpa only [map_eq_bind_pure_comp, Function.comp_def] using htraverse.map hcollision
+
+/-- The batch wrapper is a strict prefix-free oracle-PPT distinguisher when each valid
+message is a word of complete positive-width blocks. Prefix-freeness holds on every oracle
+domain. To apply the bound of Theorem 7.4, the extended words also have to lie in the
+chosen PRF domain, which in the book permits one extra block. -/
+theorem isPrefixFreeOraclePPT_prefixFreeBatchReduction {width outLen Q : ℕ → ℕ}
+    {valid oracleValid : ℕ → List Bool → Bool}
+    {guessBatch : ℕ × ℕ → ProbComp (List (List Bool))}
+    (hwidth : ComputableInPolyTime width encUnary encUnary)
+    (hout : ComputableInPolyTime outLen encUnary encUnary)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
+    (haligned : ∀ n word, valid n word = true → 0 < width n ∧ width n ∣ word.length)
+    (hguess : IsPPTOn (encPair encUnary encUnary) (encList encBits) guessBatch) :
+    IsPrefixFreeOraclePPT oracleValid outLen (prefixFreeBatchReduction width outLen Q valid
+      guessBatch) := by
+  refine ⟨isOraclePPT_prefixFreeBatchReduction hwidth hout hQ hvalid hguess, ?_⟩
+  intro n oracle _ _ result hresult
+  simp only [prefixFreeBatchReduction, wordQueryRunDist_sample_bind, PMF.mem_support_bind_iff,
+    wordQueryRunDist_mapM_query_pure, PMF.mem_support_pure_iff] at hresult
+  obtain ⟨guesses, _, rfl⟩ := hresult
+  have hprefix := isPrefixFree_prefixFreeBatchQueries (count := Q n) guesses (haligned n)
+  intro x hx _ y hy _ hne hpre
+  exact hne (hprefix x hx y hy hpre)
 
 end Cslib.Crypto.UHF

@@ -100,12 +100,13 @@ example (family : List Bool → List Bool → List Bool) :
 private def batchGuesses : List (List Bool) :=
   [[false, false], [false, false], [false, true], [true], [true, true]]
 
-example : IsOraclePPT encBool
+example : IsPrefixFreeOraclePPT (cbcBlockValid (fun _ => 3)) id
     (prefixFreeBatchReduction id id (fun _ => 4) (cbcBlockValid (fun _ => 2))
       (fun _ => pure batchGuesses)) :=
-  isOraclePPT_prefixFreeBatchReduction ComputableInPolyTime.id' ComputableInPolyTime.id'
+  isPrefixFreeOraclePPT_prefixFreeBatchReduction ComputableInPolyTime.id' ComputableInPolyTime.id'
     (ComputableInPolyTime.const 4)
     (computableInPolyTime_cbcBlockValid (ComputableInPolyTime.const 2))
+    (fun _ _ => aligned_of_cbcBlockValid)
     (ComputableInPolyTime.const batchGuesses).isPPTOn
 
 example :
@@ -120,10 +121,16 @@ example :
     rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
     decide
   simp only [prefixFreeBatchReduction, wordQueryRunDist_sample_bind, ProbComp.eval_pure,
-    PMF.pure_bind, id_eq, hqueries, List.mapM_cons, List.mapM_nil, map_eq_bind_pure_comp,
-    bind_assoc, pure_bind, Function.comp_def, wordQueryRunDist_query_bind, wordQueryRunDist_pure,
-    PMF.pure_map]
+    PMF.pure_bind, id_eq, hqueries, wordQueryRunDist_mapM_query_pure]
   rfl
+
+/-- A width-one batch containing a proper-prefix pair uses the remaining block even when
+the total block count exceeds the alphabet size. -/
+example : InformationTheory.IsPrefixFree
+    ((fun word => word ++ [true]) '' {word | word ∈ [[false], [false, false]]}) :=
+  PRF.isPrefixFree_append_of_freshBatchWordBlock_eq_some (width := 1) (by decide) (by simp) (by
+    rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
+    decide)
 
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {cap : ℕ → ℕ} (hcap : ComputableInPolyTime cap encUnary encUnary) :
