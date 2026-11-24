@@ -21,7 +21,7 @@ Concrete checked witnesses exercising `CslibFrontier.GameTheory.LoadBalancing`:
   zero-weight move leaving all machine loads unchanged.
 * Non-uniqueness of totally mixed Nash equilibria for `1` job on `2` identical machines
   (demonstrating necessity of `Fintype.card ι ≠ 1` in `eq_of_isTotallyMixedNash`).
-* Boundary cases of Exercise 20.4 (`s = 1`, `s = 1/2`, `s = 2`).
+* Boundary cases of `twoUnitRelated` (`s = 1`, `s = 1/2`, `s = 2`).
 * Unrelated-machine unbounded pure PoA witness (`K = 100`) and non-equilibrium counterexamples.
 * LPT pure Nash equilibrium and max-weight best-response convergence checks.
 -/
@@ -83,8 +83,8 @@ example : goldenRatioTight.toCostGame.IsPureNash goldenRatioTightNE ∧
     goldenRatioTight.optMakespan = 1 :=
   ⟨isPureNash_goldenRatioTightNE, makespan_goldenRatioTightNE, optMakespan_goldenRatioTight⟩
 
-/-- Exercise 20.4 boundary: `s = 1` has unique totally mixed NE `1/2`; `s = 1/2` and `s = 2` have
-no totally mixed NE. -/
+/-- `twoUnitRelated` boundary: `s = 1` has unique totally mixed NE `1/2`; `s = 1/2` and `s = 2`
+have no totally mixed NE. -/
 example : ∃ p, (twoUnitRelated 1 zero_lt_one).toCostGame.IsTotallyMixedNash p :=
   (exists_isTotallyMixedNash_twoUnitRelated_iff zero_lt_one).mpr (by norm_num)
 
@@ -192,7 +192,7 @@ example : ∃ (U : UnrelatedLoadBalancingGame (Fin 2) (Fin 2)) (A : Fin 2 → Fi
   UnrelatedLoadBalancingGame.exists_isPureNash_makespan_eq_mul_optMakespan (by norm_num)
 
 /-- LPT ordering produces a pure Nash equilibrium on `3` jobs and `2` identical machines, and by
-Exercise 20.1 it is optimal. -/
+`makespan_eq_opt_of_three_jobs_two_machines` it is optimal. -/
 example :
     let w : Fin 3 → ℝ := ![3, 2, 2]
     let hw : ∀ i, 0 ≤ w i := fun i => by fin_cases i <;> norm_num [w]

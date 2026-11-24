@@ -21,7 +21,7 @@ import Mathlib.Tactic.Positivity
 /-!
 # Selfish load-balancing games (Koutsoupias–Papadimitriou model)
 
-In a **selfish load-balancing game** ([KoutsoupiasPapadimitriou1999]; [Vocking2007], Chapter 20),
+In a **selfish load-balancing game** ([KoutsoupiasPapadimitriou1999]; [Vocking2007]),
 a finite set `ι` of selfish tasks (jobs) each choose one machine from a finite set `M`. Each job
 pays the total load of the machine it selects, while the social objective is the **makespan**
 (the maximum machine load).
@@ -53,7 +53,7 @@ expected makespan (for mixed profiles, in `CslibFrontier.GameTheory.LoadBalancin
 
 * `Cslib.GameTheory.UnrelatedLoadBalancingGame.isPureNash_iff`: pure Nash characterization for
   unrelated machines.
-* `Cslib.GameTheory.LoadBalancingGame.isPureNash_iff` ([Vocking2007], Proposition 20.2): pure Nash
+* `Cslib.GameTheory.LoadBalancingGame.isPureNash_iff` ([Vocking2007]): pure Nash
   characterization for uniformly related machines.
 * `Cslib.GameTheory.LoadBalancingGame.sum_weight_le_sum_speed_mul_optMakespan`,
   `Cslib.GameTheory.LoadBalancingGame.weight_div_speed_le_makespan`: volume and single-job lower
@@ -196,7 +196,7 @@ end Makespan
 end UnrelatedLoadBalancingGame
 
 /-- A selfish load-balancing game on **uniformly related machines**
-([KoutsoupiasPapadimitriou1999]; [Vocking2007], §20.1): job `i : ι` has nonnegative weight
+([KoutsoupiasPapadimitriou1999]; [Vocking2007]): job `i : ι` has nonnegative weight
 `weight i`, machine `j : M` has positive speed `speed j`, and assigning job `i` to machine `j`
 adds `weight i / speed j` to machine `j`'s load. -/
 structure LoadBalancingGame (ι M : Type*) where
@@ -290,7 +290,7 @@ theorem load_update_other [DecidableEq ι] (A : ι → M) (i : ι) {k j : M}
     G.load (Function.update A i k) j = G.load A j :=
   G.toUnrelated.load_update_other A i h1 h2
 
-/-- **Pure Nash equilibrium characterization** ([Vocking2007], Proposition 20.2): an assignment `A`
+/-- **Pure Nash equilibrium characterization** ([Vocking2007]): an assignment `A`
 is a pure Nash equilibrium if and only if no job `i` can strictly lower its load by switching to
 another machine `k`. -/
 theorem isPureNash_iff [DecidableEq ι] (A : ι → M) :
@@ -316,7 +316,7 @@ variable [Fintype M] [Nonempty M]
 @[expose] noncomputable def makespan (A : ι → M) : ℝ :=
   G.toUnrelated.makespan A
 
-/-- The **optimal makespan** `OPT(G)` ([Vocking2007], Definition 20.4): the minimum makespan over
+/-- The **optimal makespan** `OPT(G)` ([Vocking2007]): the minimum makespan over
 all pure assignments. -/
 @[expose] noncomputable def optMakespan [DecidableEq ι] : ℝ :=
   G.toUnrelated.optMakespan

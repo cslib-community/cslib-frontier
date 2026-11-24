@@ -23,7 +23,7 @@ import Mathlib.Tactic.Ring
 # Mixed Nash equilibria in selfish load-balancing games
 
 This module formalizes mixed Nash equilibria and expected makespan in the Koutsoupias–Papadimitriou
-load-balancing model ([KoutsoupiasPapadimitriou1999]; [Vocking2007], Chapter 20), building directly
+load-balancing model ([KoutsoupiasPapadimitriou1999]; [Vocking2007]), building directly
 on `Cslib.GameTheory.CostGame.IsMixedNash`, `IsTotallyMixedNash`, and `productWeight` from
 `CslibFrontier.GameTheory.Strategic`.
 
@@ -32,19 +32,19 @@ on `Cslib.GameTheory.CostGame.IsMixedNash`, `IsTotallyMixedNash`, and `productWe
 * `Cslib.GameTheory.LoadBalancingGame.expectedLoad`: the expected load
   `E[ℓ_j] = ∑ i, p i j * (weight i / speed j)` of machine `j` under a mixed strategy profile `p`.
 * `Cslib.GameTheory.LoadBalancingGame.expectedMakespan`: the Koutsoupias–Papadimitriou social cost
-  `E_{A ∼ p}[max_j ℓ_j(A)] = ∑ A, productWeight p A * makespan A` ([Vocking2007], Definition 20.4).
+  `E_{A ∼ p}[max_j ℓ_j(A)] = ∑ A, productWeight p A * makespan A` ([Vocking2007]).
 
 ## Main results
 
 * `Cslib.GameTheory.LoadBalancingGame.deviationCost_toCostGame`,
-  `Cslib.GameTheory.LoadBalancingGame.isMixedNash_iff` ([Vocking2007], Proposition 20.1 and
-  Eq. (20.1)): closed-form expected deviation cost
-  `c_i^j = E[ℓ_j] + (1 - p_i^j) * w_i / s_j` and support characterization of mixed Nash equilibria.
+  `Cslib.GameTheory.LoadBalancingGame.isMixedNash_iff` ([Vocking2007]): closed-form expected
+  deviation cost `c_i^j = E[ℓ_j] + (1 - p_i^j) * w_i / s_j` and support characterization of mixed
+  Nash equilibria.
 * `Cslib.GameTheory.LoadBalancingGame.eq_of_isTotallyMixedNash` ([MavronicolasSpirakis2001];
-  [Vocking2007], Exercise 20.5): uniqueness of totally mixed Nash equilibria when all job weights
+  [Vocking2007]): uniqueness of totally mixed Nash equilibria when all job weights
   are strictly positive and `|ι| ≠ 1`.
 * `Cslib.GameTheory.LoadBalancingGame.exists_isTotallyMixedNash_twoUnitRelated_iff`
-  ([Vocking2007], Exercise 20.4): exact characterization and closed form for 2 unit jobs on 2
+  ([Vocking2007]): exact characterization and closed form for 2 unit jobs on 2
   machines of speeds `1` and `s > 0` (`1 / 2 < s < 2`, with `p_i^0 = (2 - s) / (s + 1)`).
 * `Cslib.GameTheory.LoadBalancingGame.IsIdentical.expectedMakespan_le_three_halves_mul_optMakespan`
   ([KoutsoupiasPapadimitriou1999]): for `2` identical machines and any finite set of jobs, every
@@ -72,9 +72,8 @@ variable {ι M : Type*} [Fintype ι] [DecidableEq ι] [Fintype M] [DecidableEq M
 @[expose] noncomputable def expectedLoad (G : LoadBalancingGame ι M) (p : ι → M → ℝ) (j : M) : ℝ :=
   ∑ i, p i j * (G.weight i / G.speed j)
 
-/-- The **expected makespan** (Koutsoupias–Papadimitriou social cost, [Vocking2007],
-Definition 20.4) under the product distribution of mixed strategies `p`:
-`∑ A, productWeight p A * makespan A`. -/
+/-- The **expected makespan** (Koutsoupias–Papadimitriou social cost, [Vocking2007]) under the
+product distribution of mixed strategies `p`: `∑ A, productWeight p A * makespan A`. -/
 @[expose] noncomputable def expectedMakespan [Nonempty M] (G : LoadBalancingGame ι M)
     (p : ι → M → ℝ) : ℝ :=
   ∑ A : ι → M, productWeight p A * G.makespan A
@@ -113,7 +112,7 @@ theorem expectedMakespan_single [Nonempty M] (G : LoadBalancingGame ι M) (A : �
     G.expectedMakespan (fun i => Pi.single (A i) 1) = G.makespan A := by
   simp [expectedMakespan, productWeight_single]
 
-/-- **Closed-form expected deviation cost** ([Vocking2007], Eq. (20.1)): when player `i` deviates
+/-- **Closed-form expected deviation cost** ([Vocking2007]): when player `i` deviates
 to machine `j` against a profile `p` of probability vectors, its expected cost is
 `expectedLoad p j + (1 - p i j) * (weight i / speed j)`. -/
 theorem deviationCost_toCostGame (G : LoadBalancingGame ι M) {p : ι → M → ℝ}
@@ -145,7 +144,7 @@ theorem deviationCost_toCostGame (G : LoadBalancingGame ι M) {p : ι → M → 
   rw [hrest, expectedLoad, ← add_sum_erase _ _ (mem_univ i)]
   ring
 
-/-- **Mixed Nash characterization** ([Vocking2007], Proposition 20.1): a profile `p` is a mixed
+/-- **Mixed Nash characterization** ([Vocking2007]): a profile `p` is a mixed
 Nash equilibrium of `G` if and only if each `p i` is a mixed strategy and for every player `i` and
 machine `j` in the support of `p i`, no machine `k` has a strictly smaller expected deviation cost
 `expectedLoad p k + (1 - p i k) * (weight i / speed k)`. -/
@@ -178,8 +177,8 @@ theorem isMixedNash_iff (G : LoadBalancingGame ι M) (p : ι → M → ℝ) :
 
 section TotallyMixedUniqueness
 
-/-- **Uniqueness of totally mixed Nash equilibria** ([MavronicolasSpirakis2001]; [Vocking2007],
-Exercise 20.5): if every job has strictly positive weight and `|ι| ≠ 1`, then a uniformly related
+/-- **Uniqueness of totally mixed Nash equilibria** ([MavronicolasSpirakis2001]; [Vocking2007]):
+if every job has strictly positive weight and `|ι| ≠ 1`, then a uniformly related
 load-balancing game admits at most one totally mixed Nash equilibrium.
 
 (The hypothesis `|ι| ≠ 1` is necessary: a single positive-weight job on two identical machines has
@@ -273,8 +272,7 @@ end TotallyMixedUniqueness
 
 section TwoUnitRelated
 
-/-- Two unit-weight jobs on two machines of speeds `1` and `s > 0` ([Vocking2007], Exercise 20.4).
--/
+/-- Two unit-weight jobs on two machines of speeds `1` and `s > 0` ([Vocking2007]). -/
 @[expose] def twoUnitRelated (s : ℝ) (hs : 0 < s) : LoadBalancingGame (Fin 2) (Fin 2) where
   weight _ := 1
   speed := ![1, s]
@@ -316,7 +314,7 @@ private theorem isTotallyMixedNash_twoUnitRelated_profile {s : ℝ} (hs : 0 < s)
         ring
     rw [hval a, hval b]
 
-/-- **Two unit jobs on two related machines** ([Vocking2007], Exercise 20.4): a totally mixed Nash
+/-- **Two unit jobs on two related machines** ([Vocking2007]): a totally mixed Nash
 equilibrium exists if and only if `1 / 2 < s < 2`, in which case it is uniquely given by
 `p i 0 = (2 - s) / (s + 1)` and `p i 1 = (2 * s - 1) / (s + 1)`. -/
 theorem exists_isTotallyMixedNash_twoUnitRelated_iff {s : ℝ} (hs : 0 < s) :
@@ -367,7 +365,7 @@ theorem exists_isTotallyMixedNash_twoUnitRelated_iff {s : ℝ} (hs : 0 < s) :
     exact ⟨_, isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2⟩
 
 /-- Closed form of the unique totally mixed Nash equilibrium of `twoUnitRelated s hs` for
-`1 / 2 < s < 2` ([Vocking2007], Exercise 20.4). -/
+`1 / 2 < s < 2` ([Vocking2007]). -/
 theorem isTotallyMixedNash_twoUnitRelated_eq {s : ℝ} (hs : 0 < s) (hs1 : 1 / 2 < s) (hs2 : s < 2)
     {p : Fin 2 → Fin 2 → ℝ} (hp : (twoUnitRelated s hs).toCostGame.IsTotallyMixedNash p)
     (i : Fin 2) :

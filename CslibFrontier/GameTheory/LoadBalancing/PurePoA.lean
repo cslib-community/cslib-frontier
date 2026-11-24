@@ -27,10 +27,9 @@ import Mathlib.Tactic.Ring
 # Pure Nash price of anarchy for selfish load balancing
 
 This module proves exact and asymptotic pure Nash price-of-anarchy bounds across the three machine
-models of selfish load balancing ([Vocking2007], Chapter 20):
+models of selfish load balancing ([Vocking2007]):
 
-1. **Identical machines** ([FinnHorowitz1979]; [Vocking2007], Theorem 20.5, Exercises 20.1, 20.2,
-   and 20.6(a)):
+1. **Identical machines** ([FinnHorowitz1979]; [Vocking2007]):
    * Every pure Nash equilibrium `A` on `m ≥ 1` identical machines satisfies
      `makespan A ≤ (2m / (m + 1)) * optMakespan` (`IsIdentical.makespan_le_of_isPureNash`), and
      strictly `< 2 * optMakespan` whenever `0 < optMakespan`.
@@ -39,17 +38,16 @@ models of selfish load balancing ([Vocking2007], Chapter 20):
      `2m`-job, `m`-machine identical instance with pure Nash equilibrium `finnHorowitzTightNE m`
      attaining `makespan = (2m / (m + 1)) * optMakespan`.
    * For `3` jobs on `2` identical machines, every pure Nash equilibrium is optimal
-     (`IsIdentical.makespan_eq_opt_of_three_jobs_two_machines`, [Vocking2007], Exercise 20.1).
+     (`IsIdentical.makespan_eq_opt_of_three_jobs_two_machines`, [Vocking2007]).
    * If every job has weight at most `B`, then `makespan A ≤ optMakespan + (1 - 1 / m) * B`
-     ([Vocking2007], Exercise 20.6(a)).
-2. **Two uniformly related machines** ([Vocking2007], Exercise 20.3, generalized to arbitrary job
+     ([Vocking2007]).
+2. **Two uniformly related machines** ([Vocking2007], generalized to arbitrary job
    counts):
    * Every pure Nash equilibrium on `2` uniformly related machines (with any finite number of jobs)
      satisfies `makespan A ≤ ((1 + √5) / 2) * optMakespan`
      (`makespan_le_goldenRatio_mul_optMakespan`).
    * `goldenRatioTight` attains exact equality `((1 + √5) / 2) * optMakespan`.
-3. **General uniformly related machines** ([CzumajVocking2002]; [Vocking2007], Lemma 20.8 and
-   Theorem 20.7):
+3. **General uniformly related machines** ([CzumajVocking2002]; [Vocking2007]):
    * Speed-prefix cardinality inequality `(k + 1) * #(L_{k+1}) ≤ #(L_k)`
      (`card_speedPrefix_ge`).
    * Factorial bound: if `(c + 1) * optMakespan ≤ makespan A` (with `0 < optMakespan`), then
@@ -65,17 +63,17 @@ models of selfish load balancing ([Vocking2007], Chapter 20):
 ## Main results
 
 * `Cslib.GameTheory.LoadBalancingGame.IsIdentical.makespan_le_of_isPureNash` ([FinnHorowitz1979];
-  [Vocking2007], Theorem 20.5)
-* `Cslib.GameTheory.LoadBalancingGame.makespan_finnHorowitzTightNE` ([Vocking2007], Exercise 20.2)
+  [Vocking2007])
+* `Cslib.GameTheory.LoadBalancingGame.makespan_finnHorowitzTightNE` ([Vocking2007])
 * `Cslib.GameTheory.LoadBalancingGame.IsIdentical.makespan_eq_opt_of_three_jobs_two_machines`
-  ([Vocking2007], Exercise 20.1)
+  ([Vocking2007])
 * `Cslib.GameTheory.LoadBalancingGame.IsIdentical.makespan_le_optMakespan_add_of_weight_le`
-  ([Vocking2007], Exercise 20.6(a))
+  ([Vocking2007])
 * `Cslib.GameTheory.LoadBalancingGame.makespan_le_goldenRatio_mul_optMakespan`,
-  `Cslib.GameTheory.LoadBalancingGame.makespan_goldenRatioTightNE` ([Vocking2007], Exercise 20.3)
+  `Cslib.GameTheory.LoadBalancingGame.makespan_goldenRatioTightNE` ([Vocking2007])
 * `Cslib.GameTheory.LoadBalancingGame.factorial_le_card_of_makespan_ge`,
   `Cslib.GameTheory.LoadBalancingGame.makespan_le_log_div_log_log_mul_optMakespan`
-  ([CzumajVocking2002]; [Vocking2007], Lemma 20.8 and Theorem 20.7)
+  ([CzumajVocking2002]; [Vocking2007])
 * `Cslib.GameTheory.UnrelatedLoadBalancingGame.exists_isPureNash_makespan_eq_mul_optMakespan`
 
 ## References
@@ -124,7 +122,7 @@ private theorem IsIdentical.card_mul_load_sub_le_card_mul_optMakespan
   rw [hId.sum_load A]
   exact hId.sum_weight_le_card_mul_optMakespan
 
-/-- **Identical-machine pure price of anarchy** ([FinnHorowitz1979]; [Vocking2007], Theorem 20.5):
+/-- **Identical-machine pure price of anarchy** ([FinnHorowitz1979]; [Vocking2007]):
 every pure Nash equilibrium `A` on `m = |M| ≥ 1` identical machines satisfies
 `makespan A ≤ (2 * m / (m + 1)) * optMakespan` (equivalently `(2 - 2 / (m + 1)) * optMakespan`).
 -/
@@ -190,8 +188,8 @@ theorem IsIdentical.makespan_le_four_thirds_of_isPureNash {G : LoadBalancingGame
   norm_num [Fintype.card_fin] at h
   exact h
 
-/-- **Tightness witness family for Finn–Horowitz / NRTV Theorem 20.5** ([Vocking2007],
-Exercise 20.2): for every `m ≥ 1`, `2m` jobs indexed by `Bool × Fin m` on `m` identical machines.
+/-- **Tightness witness family for Finn–Horowitz** ([FinnHorowitz1979]; [Vocking2007]):
+for every `m ≥ 1`, `2m` jobs indexed by `Bool × Fin m` on `m` identical machines.
 Machine `0` receives two jobs of weight `m` in the Nash equilibrium, while each machine `k ≠ 0`
 receives jobs of weights `k` and `m - k`. -/
 @[expose] def finnHorowitzTight (m : ℕ) : LoadBalancingGame (Bool × Fin m) (Fin m) :=
@@ -350,8 +348,8 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
     have hm_pos' : (0 : ℝ) < m := Nat.cast_pos.mpr hm_pos
     nlinarith
 
-/-- **Tightness of the `2m / (m + 1)` pure price of anarchy** ([Vocking2007], Theorem 20.5 and
-Exercise 20.2): for every `m ≥ 1`, `finnHorowitzTightNE m` attains exact equality. -/
+/-- **Tightness of the `2m / (m + 1)` pure price of anarchy** ([FinnHorowitz1979]; [Vocking2007]):
+for every `m ≥ 1`, `finnHorowitzTightNE m` attains exact equality. -/
 theorem makespan_finnHorowitzTightNE_eq_ratio (m : ℕ) [NeZero m] :
     (finnHorowitzTight m).makespan (finnHorowitzTightNE m) =
       (2 * (m : ℝ) / ((m : ℝ) + 1)) * (finnHorowitzTight m).optMakespan := by
@@ -359,7 +357,7 @@ theorem makespan_finnHorowitzTightNE_eq_ratio (m : ℕ) [NeZero m] :
   have hne : (m : ℝ) + 1 ≠ 0 := by positivity
   field_simp
 
-/-- **Three jobs on two identical machines** ([Vocking2007], Exercise 20.1): every pure Nash
+/-- **Three jobs on two identical machines** ([Vocking2007]): every pure Nash
 equilibrium of `3` jobs on `2` identical machines is makespan-optimal. -/
 theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
     {G : LoadBalancingGame (Fin 3) (Fin 2)} (hId : G.IsIdentical) {A : Fin 3 → Fin 2}
@@ -470,7 +468,7 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
       · linarith [hpair_le hi₁₃ h]
       · linarith [hpair_le hi₂₃ h]
 
-/-- **Small-job pure Nash bound on identical machines** ([Vocking2007], Exercise 20.6(a)): if
+/-- **Small-job pure Nash bound on identical machines** ([Vocking2007]): if
 every job has weight at most `B`, then every pure Nash equilibrium `A` satisfies
 `makespan A ≤ optMakespan + (1 - 1 / |M|) * B`. In particular, if `weight i ≤ α * optMakespan`
 with `0 < α` and `0 < optMakespan`, then `makespan A < (1 + α) * optMakespan`. -/
@@ -511,8 +509,8 @@ section TwoRelatedGoldenRatio
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
-/-- **Two uniformly related machines: golden-ratio pure price of anarchy** ([Vocking2007],
-Exercise 20.3, proved here for an arbitrary finite number of jobs): every pure Nash equilibrium
+/-- **Two uniformly related machines: golden-ratio pure price of anarchy** ([Vocking2007], proved
+here for an arbitrary finite number of jobs): every pure Nash equilibrium
 `A` on `2` uniformly related machines satisfies
 `makespan A ≤ ((1 + √5) / 2) * optMakespan`. -/
 theorem makespan_le_goldenRatio_mul_optMakespan (G : LoadBalancingGame ι (Fin 2)) {A : ι → Fin 2}
@@ -622,7 +620,7 @@ theorem makespan_le_goldenRatio_mul_optMakespan (G : LoadBalancingGame ι (Fin 2
       · nlinarith
     nlinarith
 
-/-- **Golden-ratio tightness witness** ([Vocking2007], Exercise 20.3): two jobs of weights
+/-- **Golden-ratio tightness witness** ([Vocking2007]): two jobs of weights
 `1` and `φ = (1 + √5) / 2` on two machines of speeds `1` and `φ`. -/
 @[expose] noncomputable def goldenRatioTight : LoadBalancingGame (Fin 2) (Fin 2) where
   weight := ![1, (1 + √5) / 2]
@@ -717,7 +715,7 @@ section GeneralRelatedPurePoA
 variable {ι M : Type*} [Fintype ι] [DecidableEq ι] [Fintype M] [DecidableEq M] [Nonempty M]
 
 /-- The **speed-sorted prefix** `L_k` of machines all of whose at-least-as-fast peers have load at
-least `k * optMakespan` under `A` ([CzumajVocking2002]; [Vocking2007], Lemma 20.8). -/
+least `k * optMakespan` under `A` ([CzumajVocking2002]; [Vocking2007]). -/
 @[expose] noncomputable def speedPrefix (G : LoadBalancingGame ι M) (A : ι → M) (k : ℕ) :
     Finset M :=
   open scoped Classical in
@@ -730,7 +728,7 @@ private theorem mul_optMakespan_le_load_of_mem_speedPrefix (G : LoadBalancingGam
   classical
   exact (mem_filter.mp hj).2 j le_rfl
 
-/-- **Prefix-list inclusion lemma** ([CzumajVocking2002]; [Vocking2007], Lemma 20.8): if `A` is a
+/-- **Prefix-list inclusion lemma** ([CzumajVocking2002]; [Vocking2007]): if `A` is a
 pure Nash equilibrium and `Aopt` is an optimal assignment, then any job whose `A`-machine has load
 at least `(k + 1) * optMakespan` is assigned by `Aopt` to a machine in `speedPrefix G A k`. -/
 theorem mem_speedPrefix_of_load_ge (G : LoadBalancingGame ι M) {A Aopt : ι → M}
@@ -749,7 +747,7 @@ theorem mem_speedPrefix_of_load_ge (G : LoadBalancingGame ι M) {A Aopt : ι →
   push_cast at hi
   linarith
 
-/-- **Speed-prefix cardinality growth** ([CzumajVocking2002]; [Vocking2007], Lemma 20.8): for
+/-- **Speed-prefix cardinality growth** ([CzumajVocking2002]; [Vocking2007]): for
 every pure Nash equilibrium `A` with `0 < optMakespan` and every `k : ℕ`,
 `(k + 1) * #(speedPrefix G A (k + 1)) ≤ #(speedPrefix G A k)`. -/
 theorem card_speedPrefix_ge (G : LoadBalancingGame ι M) {A : ι → M}
@@ -863,7 +861,7 @@ theorem card_speedPrefix_ge (G : LoadBalancingGame ι M) {A : ι → M}
     simp [hne]
 
 /-- **Factorial pure PoA bound for uniformly related machines** ([CzumajVocking2002];
-[Vocking2007], Theorem 20.7): if `A` is a pure Nash equilibrium with `0 < optMakespan` and
+[Vocking2007]): if `A` is a pure Nash equilibrium with `0 < optMakespan` and
 `(c + 1) * optMakespan ≤ makespan A`, then `c! ≤ |M|`. Equivalently, `makespan A < (c + 1) *
 optMakespan` whenever `|M| < c!`. -/
 theorem factorial_le_card_of_makespan_ge (G : LoadBalancingGame ι M) {A : ι → M}
@@ -933,8 +931,8 @@ private theorem pow_le_factorial_two_mul (r : ℕ) : r ^ r ≤ (2 * r).factorial
   calc r ^ r = 1 * r ^ r := (one_mul _).symm
     _ ≤ (∏ i ∈ range r, (i + 1)) * (∏ i ∈ range r, (r + i + 1)) := Nat.mul_le_mul h1 h2
 
-/-- **Asymptotic pure PoA for uniformly related machines** ([CzumajVocking2002]; [Vocking2007],
-Theorem 20.7): for every load-balancing game on `m = |M| ≥ 3` uniformly related machines and every
+/-- **Asymptotic pure PoA for uniformly related machines** ([CzumajVocking2002]; [Vocking2007]):
+for every load-balancing game on `m = |M| ≥ 3` uniformly related machines and every
 pure Nash equilibrium `A`,
 `makespan A ≤ (4 * log m / log (log m) + 3) * optMakespan = O(log m / log log m) * optMakespan`.
 -/

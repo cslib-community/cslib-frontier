@@ -22,9 +22,9 @@ import Mathlib.Tactic.Positivity
 # Existence, convergence, and price of stability of pure Nash equilibria
 
 This module establishes the fundamental existence and convergence properties of pure Nash
-equilibria in selfish load-balancing games ([Vocking2007], Chapter 20):
+equilibria in selfish load-balancing games ([Vocking2007]):
 
-1. **Finite improvement property, existence, and `PoS = 1`** ([Vocking2007], Proposition 20.3):
+1. **Finite improvement property, existence, and `PoS = 1`** ([Vocking2007]):
    Every uniformly related load-balancing game (allowing zero-weight jobs), as well as every
    unrelated load-balancing game with strictly positive processing times, satisfies the finite
    improvement property (`CostGame.HasFIP`). The proof uses the strict lexicographic decrease of
@@ -33,12 +33,12 @@ equilibria in selfish load-balancing games ([Vocking2007], Chapter 20):
    increase the makespan (`makespan_le_of_improves`), better-response dynamics started from a
    makespan-optimal assignment terminate at an optimal pure Nash equilibrium, giving
    **price of stability `1`** (`exists_isPureNash_makespan_eq_optMakespan`).
-2. **Fast convergence on identical machines** ([EvenDarKesselmanMansour2003]; [Vocking2007],
-   Theorem 20.6): Under max-weight best-response dynamics on identical machines, each job moves
+2. **Fast convergence on identical machines** ([EvenDarKesselmanMansour2003]; [Vocking2007]):
+   Under max-weight best-response dynamics on identical machines, each job moves
    at most once, so every max-weight best-response sequence has length at most `|ι|` and reaches
    a pure Nash equilibrium in at most `|ι|` steps.
 3. **LPT yields a pure Nash equilibrium on uniformly related machines**
-   ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007], Theorem 20.10):
+   ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]):
    Greedily inserting jobs in non-increasing weight order onto a machine minimizing post-insertion
    load always produces a pure Nash equilibrium. For identical machines this applies directly to
    `Cslib.Algorithms.Lean.Scheduling.lptSchedule`.
@@ -59,18 +59,18 @@ equilibria in selfish load-balancing games ([Vocking2007], Chapter 20):
 * `Cslib.GameTheory.LoadBalancingGame.hasFIP`,
   `Cslib.GameTheory.LoadBalancingGame.exists_isPureNash`,
   `Cslib.GameTheory.LoadBalancingGame.exists_isPureNash_makespan_eq_optMakespan`
-  ([Vocking2007], Proposition 20.3): FIP, pure Nash existence, and `PoS = 1` on uniformly related
+  ([Vocking2007]): FIP, pure Nash existence, and `PoS = 1` on uniformly related
   machines.
 * `Cslib.GameTheory.LoadBalancingGame.IsIdentical.maxWeightBestResponse_length_le`,
   `Cslib.GameTheory.LoadBalancingGame.IsIdentical.exists_maxWeightBestResponse_isPureNash`
-  ([EvenDarKesselmanMansour2003]; [Vocking2007], Theorem 20.6): every max-weight best-response
+  ([EvenDarKesselmanMansour2003]; [Vocking2007]): every max-weight best-response
   sequence on identical machines activates each job at most once (`≤ |ι|` steps).
 * `Cslib.GameTheory.LoadBalancingGame.IsRelatedLPT.isPureNash`,
   `Cslib.GameTheory.LoadBalancingGame.exists_isPureNash_of_lptOrder`,
   `Cslib.GameTheory.LoadBalancingGame.IsIdentical.isRelatedLPT_iff_isListSchedule`,
   `Cslib.GameTheory.LoadBalancingGame.IsIdentical.isPureNash_lptSchedule`,
   `Cslib.GameTheory.LoadBalancingGame.IsIdentical.makespan_lptSchedule_le`
-  ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007], Theorem 20.10): LPT
+  ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Graham1969]; [Vocking2007]): LPT
   produces a pure Nash equilibrium on uniformly related machines, and on identical machines
   `Cslib.Algorithms.Lean.Scheduling.lptSchedule` is itself a pure Nash equilibrium achieving
   Graham's `4 / 3 - 1 / (3m)` makespan bound.
@@ -244,7 +244,7 @@ theorem makespan_le_of_reflTransGen [Fintype M] [Nonempty M] (G : LoadBalancingG
     G.makespan B ≤ G.makespan A :=
   G.toUnrelated.makespan_le_of_reflTransGen h
 
-/-- **Finite improvement property** ([Vocking2007], Proposition 20.3): every uniformly related
+/-- **Finite improvement property** ([Vocking2007]): every uniformly related
 load-balancing game has the finite improvement property (even when zero-weight jobs are present).
 Positive-weight improving moves strictly decrease the descending sorted load vector; zero-weight
 improving moves leave all machine loads unchanged and strictly decrease `CostGame.socialCost`. -/
@@ -305,13 +305,13 @@ theorem hasFIP [Finite M] (G : LoadBalancingGame ι M) : G.toCostGame.HasFIP := 
       linarith
     exact lexDesc_of_two_below hla hlt' hlb fun j h1 h2 => G.load_update_other A i h1 h2
 
-/-- **Existence of pure Nash equilibria** ([Vocking2007], Proposition 20.3): every uniformly
+/-- **Existence of pure Nash equilibria** ([Vocking2007]): every uniformly
 related load-balancing game with at least one machine admits a pure Nash equilibrium. -/
 theorem exists_isPureNash [Finite M] [Nonempty M] (G : LoadBalancingGame ι M) :
     ∃ A : ι → M, G.toCostGame.IsPureNash A :=
   G.hasFIP.exists_isPureNash
 
-/-- **Price of stability equals `1`** ([Vocking2007], Proposition 20.3): every uniformly related
+/-- **Price of stability equals `1`** ([Vocking2007]): every uniformly related
 load-balancing game admits a pure Nash equilibrium whose makespan equals `optMakespan`. -/
 theorem exists_isPureNash_makespan_eq_optMakespan [Fintype M] [Nonempty M]
     (G : LoadBalancingGame ι M) :
@@ -342,7 +342,7 @@ theorem isPureNash_iff_forall_isSatisfied (G : LoadBalancingGame ι M) (A : ι �
     exact h i k
 
 /-- One step of **max-weight best-response dynamics** ([EvenDarKesselmanMansour2003];
-[Vocking2007], Theorem 20.6): `A'` arises from `A` by moving an unsatisfied job `i` of maximum
+[Vocking2007]): `A'` arises from `A` by moving an unsatisfied job `i` of maximum
 weight among all unsatisfied jobs to a machine `b` minimizing its post-move load. -/
 @[expose] def IsMaxWeightBestResponseStep (G : LoadBalancingGame ι M) (A' A : ι → M) (i : ι) :
     Prop :=
@@ -405,7 +405,7 @@ private theorem isSatisfied_after_bestResponse {G : LoadBalancingGame ι M} (hId
     linarith [hload_ge k]
 
 /-- **Max-weight best-response convergence (job-uniqueness and step bound)**
-([EvenDarKesselmanMansour2003]; [Vocking2007], Theorem 20.6): along any sequence of `T` max-weight
+([EvenDarKesselmanMansour2003]; [Vocking2007]): along any sequence of `T` max-weight
 best-response steps on identical machines, each job is activated at most once (`Function.Injective
 move`), and hence `T ≤ Fintype.card ι`. -/
 theorem IsIdentical.maxWeightBestResponse_injective {G : LoadBalancingGame ι M}
@@ -456,7 +456,7 @@ theorem IsIdentical.maxWeightBestResponse_injective {G : LoadBalancingGame ι M}
     exact absurd hsat hunsat
 
 /-- Every sequence of max-weight best-response steps on identical machines has length at most the
-number of jobs `|ι|` ([EvenDarKesselmanMansour2003]; [Vocking2007], Theorem 20.6). -/
+number of jobs `|ι|` ([EvenDarKesselmanMansour2003]; [Vocking2007]). -/
 theorem IsIdentical.maxWeightBestResponse_length_le {G : LoadBalancingGame ι M}
     (hId : G.IsIdentical) {T : ℕ} (γ : Fin (T + 1) → (ι → M)) (move : Fin T → ι)
     (hγ : ∀ t : Fin T, G.IsMaxWeightBestResponseStep (γ t.succ) (γ t.castSucc) (move t)) :
@@ -508,7 +508,7 @@ private theorem exists_snoc_of_not_isPureNash [Finite M] [Nonempty M]
 
 /-- Starting from any assignment `A₀` on identical machines, max-weight best-response dynamics
 reach a pure Nash equilibrium in at most `|ι|` steps ([EvenDarKesselmanMansour2003];
-[Vocking2007], Theorem 20.6). -/
+[Vocking2007]). -/
 theorem IsIdentical.exists_maxWeightBestResponse_isPureNash [Finite M] [Nonempty M]
     {G : LoadBalancingGame ι M} (hId : G.IsIdentical) (A₀ : ι → M) :
     ∃ (T : ℕ) (γ : Fin (T + 1) → (ι → M)) (move : Fin T → ι),
@@ -555,7 +555,7 @@ variable {n : ℕ} {M : Type*} [DecidableEq M]
   ∑ r : Fin n with r.val < k ∧ A r = j, G.weight r / G.speed j
 
 /-- **Greedy post-insertion LPT property on uniformly related machines**
-([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007], Theorem 20.10): each job
+([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]): each job
 `i`, processed in index order, is assigned to a machine minimizing its post-insertion load
 `prefixLoad G A i k + weight i / speed k`. -/
 @[expose] def IsRelatedLPT (G : LoadBalancingGame (Fin n) M) (A : Fin n → M) : Prop :=
@@ -572,7 +572,7 @@ private theorem prefixLoad_le_load (G : LoadBalancingGame (Fin n) M) (A : Fin n 
   exact hr.2
 
 /-- **LPT produces a pure Nash equilibrium on uniformly related machines**
-([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007], Theorem 20.10): if jobs
+([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]): if jobs
 are ordered by non-increasing weight (`Antitone G.weight`) and `A` places each job greedily on a
 machine minimizing its post-insertion load, then `A` is a pure Nash equilibrium. -/
 theorem IsRelatedLPT.isPureNash {G : LoadBalancingGame (Fin n) M} {A : Fin n → M}
@@ -614,7 +614,7 @@ theorem IsRelatedLPT.isPureNash {G : LoadBalancingGame (Fin n) M} {A : Fin n →
         linarith [div_le_div_of_nonneg_right (hanti hir) (G.speed_pos k).le]
 
 /-- **Existence of an LPT pure Nash equilibrium** for any job ordering on uniformly related
-machines ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007], Theorem 20.10):
+machines ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]):
 every game admits an `IsRelatedLPT` assignment in any given job order. -/
 theorem exists_isRelatedLPT [Finite M] [Nonempty M] (G : LoadBalancingGame (Fin n) M) :
     ∃ A : Fin n → M, G.IsRelatedLPT A := by
@@ -676,8 +676,8 @@ private theorem isPureNash_comp_symm (G : LoadBalancingGame (Fin n) M)
   simpa only [Gs, Function.comp_apply, Equiv.apply_symm_apply] using h
 
 /-- **LPT algorithm produces a pure Nash equilibrium for any weight vector on uniformly related
-machines** ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007],
-Theorem 20.10): sorting jobs via `Cslib.Algorithms.Lean.Scheduling.lptOrder` and applying greedy
+machines** ([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]): sorting jobs
+via `Cslib.Algorithms.Lean.Scheduling.lptOrder` and applying greedy
 post-insertion load minimization yields a pure Nash equilibrium. -/
 theorem exists_isPureNash_of_lptOrder [Finite M] [Nonempty M] (G : LoadBalancingGame (Fin n) M) :
     ∃ A : Fin n → M,
@@ -726,7 +726,7 @@ theorem IsIdentical.isRelatedLPT_iff_isListSchedule {m : ℕ}
     add_le_add_iff_right]
 
 /-- **Graham's computable `lptSchedule` is a pure Nash equilibrium on identical machines**
-([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007], Theorem 20.10). -/
+([FotakisKontogiannisKoutsoupiasMavronicolasSpirakis2002]; [Vocking2007]). -/
 theorem IsIdentical.isPureNash_lptSchedule {m : ℕ} [NeZero m]
     {G : LoadBalancingGame (Fin n) (Fin m)} (hId : G.IsIdentical) :
     G.toCostGame.IsPureNash (Cslib.Algorithms.Lean.Scheduling.lptSchedule G.weight) := by
@@ -746,7 +746,7 @@ theorem IsIdentical.isPureNash_lptSchedule {m : ℕ} [NeZero m]
     (hLPT.isPureNash (Cslib.Algorithms.Lean.Scheduling.antitone_comp_lptOrder G.weight))
 
 /-- **Graham's `4 / 3 - 1 / (3m)` makespan bound for `lptSchedule` on identical machines**
-([Graham1969], Theorem 2; [Vocking2007], Theorem 20.10). -/
+([Graham1969]; [Vocking2007]). -/
 theorem IsIdentical.makespan_lptSchedule_le {m : ℕ} [NeZero m]
     {G : LoadBalancingGame (Fin n) (Fin m)} (hId : G.IsIdentical) :
     G.makespan (Cslib.Algorithms.Lean.Scheduling.lptSchedule G.weight) ≤
