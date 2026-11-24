@@ -76,20 +76,29 @@ extracted-model single-issuer VOLE-ACT credit conservation
   single-query `PS`, and `INV` reductions for `detScheme`.
 * `saltedPSDistinguisher`, `saltedInverter`: explicit `q_S`-query `PS` and `INV` reductions for
   `saltedScheme`.
+* `ROMExtractedAdversary`, `ROMExtractedCallBounded`, `romExtractedConservationExperiment`,
+  `romTargetForger`, `detCommitmentBindingReduction`, `saltedCommitmentBindingReduction`:
+  lazy-ROM extracted VOLE-ACT credit-conservation game at `tag = Prod.mk` and its explicit
+  target-forgery and commitment-binding reductions.
 
 ## Main results
 
 * `detScheme_correct`, `saltedScheme_correct`: completeness of both ROM schemes when `invert`
   succeeds with valid preimages.
 * `detPSDistinguisher_queryBound`, `detPSOneDistinguisher_queryBound`,
-  `saltedPSDistinguisher_queryBound`: exact query budgets for the `PS` reductions.
+  `saltedPSDistinguisher_queryBound`, `romTargetForger_callBounded`: exact query budgets for the
+  `PS` and credit-conservation reductions.
 * `saltedWorldEufCma_succProbability_le`, `eufCmaGame_saltedScheme_succProbability_le`: classical
   ROM EUF-CMA bound for salted hash-and-sign with `(q_H + 1)` `INV` loss, `q_S`-query `PS`
   advantage, and `(q_S * q_H + q_S.choose 2) / |Salt|` salt-collision slack.
 * `detWorldEufCma_succProbability_le`, `eufCmaGame_detScheme_succProbability_le`: classical ROM
   EUF-CMA bound for deterministic unsalted hash-and-sign with `(q_H + 1)` loss on `INV + PS_1`,
-  `(q_S + q_H + 1)`-query `PS` advantage, and `(q_S + q_H + 1).choose 2 / |Target|` target
-  birthday slack.
+  `(q_S + q_H)`-query `PS` advantage, and `(q_S + q_H).choose 2 / |Target|` target birthday slack.
+* `romExtractedConservationExperiment_succProbability_le`,
+  `romExtractedConservationExperiment_detScheme_succProbability_le`,
+  `romExtractedConservationExperiment_saltedScheme_succProbability_le`: end-to-end extracted+ROM
+  credit-conservation bounds composing the lazy-ROM EUF-CMA bounds with keyless commitment binding
+  at `tag = Prod.mk`.
 
 ## References
 
@@ -4515,6 +4524,1654 @@ theorem eufCmaGame_detScheme_succProbability_le [DecidableEq M] [DecidableEq Tar
     (probForgerCallBounded_liftForger coinSampler hA)
 
 end DetReduction
+
+/-! ### Extracted-model VOLE-ACT credit conservation in the lazy ROM -/
+
+section ROMConservation
+
+variable {Nullifier Context Opening Commitment PK SK Sig Query Digest : Type}
+
+/-- An adaptive adversary in the extracted single-issuer VOLE-ACT credit-conservation game in the
+lazy random-oracle model: given the issuer's public key `pk`, it queries the extracted issuer
+oracle (`Request → Option Sig`) and the random oracle (`Query → Digest`), and outputs the target
+context `ctx*` it claims is overspent. -/
+abbrev ROMExtractedAdversary
+    (Nullifier Context Opening Commitment PK Sig Query Digest : Type) :=
+  PK → ProbOracleComp
+    ((fun _ : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig =>
+      Option Sig) ⊕ₒ (fun _ : Query => Digest))
+    Context
+
+/-- Cost function counting issuer requests (`.inl`) of a `ROMExtractedAdversary`. -/
+@[expose] def romRequestCost
+    {Nullifier Context Opening Commitment Sig Query : Type} :
+    AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig ⊕ Query → ℕ
+  | .inl _ => 1
+  | .inr _ => 0
+
+/-- Cost function counting direct random-oracle queries (`.inr`) of a `ROMExtractedAdversary`. -/
+@[expose] def romDirectHashCost
+    {Nullifier Context Opening Commitment Sig Query : Type} :
+    AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig ⊕ Query → ℕ
+  | .inl _ => 0
+  | .inr _ => 1
+
+/-- Separate issuer-request (`q_R`) and direct random-oracle (`q_H`) call budgets for a
+`ROMExtractedAdversary`. -/
+@[expose] def ROMExtractedCallBounded
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest)
+    (q_R q_H : ℕ) : Prop :=
+  ∀ pk,
+    IsCostBounded (Sum.elim (fun _ => 0) romRequestCost) (A pk) q_R ∧
+    IsCostBounded (Sum.elim (fun _ => 0) romDirectHashCost) (A pk) q_H
+
+/-- Lazy-ROM extracted single-issuer VOLE-ACT handler at `tag = Prod.mk`:
+- On an issuance request, checks `com nf ctx T r = c`; if valid, signs `(c, 0)` using the shared
+  lazy random oracle and appends the request to the accepted log.
+- On a spend request, checks `(V2)` change commitment opening, `(V3)` natural-number balance
+  `t + x = t' + d`, nullifier freshness, and `(V1)` `scheme.verify` against the shared lazy random
+  oracle; if all hold, signs `(c', x')` and appends the request to the accepted log.
+- On a direct random-oracle query, answers via `ROMSignature.oracle Digest`. -/
+@[expose] noncomputable def romExtractedIssuerHandler
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (keys : PK × SK) :
+    (q : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig ⊕ Query) →
+      StateT
+        (List (Query × Digest) ×
+          List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig))
+        PMF
+        (((fun _ : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig =>
+          Option Sig) ⊕ₒ (fun _ : Query => Digest)) q)
+  | .inl (.issue ir) => fun (cache, accepted) =>
+      if decide (com ir.nullifier ir.ctx ir.amount ir.opening = ir.commitment) then do
+        let coins ← scheme.signCoins keys.2 (ir.commitment, 0)
+        let (sig, cache') ← (interpret (ROMSignature.oracle Digest)
+          (scheme.sign keys.2 (ir.commitment, 0) coins)).run cache
+        return (some sig, (cache', accepted ++ [.issue ir]))
+      else
+        return (none, (cache, accepted))
+  | .inl (.spend sr) => fun (cache, accepted) =>
+      if decide (com sr.newNullifier sr.ctx sr.newCredit sr.newOpening = sr.changeCommitment) &&
+          decide (sr.oldCredit + sr.oldRefund = sr.newCredit + sr.debit) &&
+          !AnonymousToken.Conservation.hasSpentNullifier accepted sr.ctx sr.nullifier then do
+        let (ok, cache₁) ← (interpret (ROMSignature.oracle Digest)
+          (scheme.verify keys.1
+            (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)
+            sr.signature)).run cache
+        if ok then do
+          let coins ← scheme.signCoins keys.2 (sr.changeCommitment, sr.refund)
+          let (sig, cache₂) ← (interpret (ROMSignature.oracle Digest)
+            (scheme.sign keys.2 (sr.changeCommitment, sr.refund) coins)).run cache₁
+          return (some sig, (cache₂, accepted ++ [.spend sr]))
+        else
+          return (none, (cache₁, accepted))
+      else
+        return (none, (cache, accepted))
+  | .inr x => fun (cache, accepted) => do
+      let (d, cache') ← (ROMSignature.oracle Digest x).run cache
+      return (d, (cache', accepted))
+
+/-- Execute `A` in the lazy-ROM extracted VOLE-ACT credit-conservation game at `tag = Prod.mk`,
+returning the target context, final RO cache, and oldest-first list of accepted requests. -/
+@[expose] noncomputable def runROMExtractedConservation
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest) :
+    PMF (Context × List (Query × Digest) ×
+      List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) := do
+  let keys ← scheme.keyGen
+  ProbOracleComp.runWith (romExtractedIssuerHandler com scheme keys) (A keys.1) ([], [])
+
+/-- Extracted-model single-issuer VOLE-ACT credit-conservation experiment in the lazy classical
+ROM at `tag = Prod.mk`: the adversary wins if, in its chosen context `targetCtx`, total accepted
+spend debits strictly exceed total accepted issued credit plus granted refunds. As in
+`AnonymousToken.Conservation`, VOLEitH witness extraction error and `(V4)` range checks are outside
+this extracted-model game. -/
+@[expose] noncomputable def romExtractedConservationExperiment
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest) :
+    PMF Bool :=
+  (runROMExtractedConservation com scheme A).map fun (targetCtx, _, accepted) =>
+    decide (AnonymousToken.Conservation.issuedAmount accepted targetCtx +
+      AnonymousToken.Conservation.grantedRefund accepted targetCtx <
+      AnonymousToken.Conservation.spentDebit accepted targetCtx)
+
+/-- Stateful handler used by `romTargetForger`: simulates the lazy-ROM extracted issuer using an
+external `ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest` oracle, forwarding `(V1)`
+verification hash calls and direct hash queries to `.inr` and accepted `(c, x)` signing calls to
+`.inl`. -/
+@[expose] def romTargetForgerHandler
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest) (pk : PK) :
+    (q : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig ⊕ Query) →
+      StateT
+        (List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig))
+        (ProbOracleComp (ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest))
+        (((fun _ : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig =>
+          Option Sig) ⊕ₒ (fun _ : Query => Digest)) q)
+  | .inl (.issue ir) => fun accepted =>
+      if decide (com ir.nullifier ir.ctx ir.amount ir.opening = ir.commitment) then do
+        let sig ← ProbOracleComp.query
+          (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest)
+          (.inl (ir.commitment, 0))
+        return (some sig, accepted ++ [.issue ir])
+      else
+        return (none, accepted)
+  | .inl (.spend sr) => fun accepted =>
+      if decide (com sr.newNullifier sr.ctx sr.newCredit sr.newOpening = sr.changeCommitment) &&
+          decide (sr.oldCredit + sr.oldRefund = sr.newCredit + sr.debit) &&
+          !AnonymousToken.Conservation.hasSpentNullifier accepted sr.ctx sr.nullifier then do
+        let ok ← interpret
+          (fun x => ProbOracleComp.query
+            (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x))
+          (scheme.verify pk
+            (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening) sr.signature)
+        if ok then do
+          let sig ← ProbOracleComp.query
+            (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest)
+            (.inl (sr.changeCommitment, sr.refund))
+          return (some sig, accepted ++ [.spend sr])
+        else
+          return (none, accepted)
+      else
+        return (none, accepted)
+  | .inr x => fun accepted => do
+      let d ← ProbOracleComp.query
+        (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x)
+      return (d, accepted)
+
+/-- Explicit target-forgery reduction from `ROMExtractedAdversary` to a `ProbOracleComp` forger
+against `ROMSignature.worldGame scheme _ eufCmaAccept` on messages `Commitment × ℕ`. -/
+@[expose] def romTargetForger
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Commitment] [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest) :
+    PK → ProbOracleComp (ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest)
+      ((Commitment × ℕ) × Sig) := fun pk => do
+  let (_, accepted) ← (interpret
+    (sumHandler
+      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+      (romTargetForgerHandler com scheme pk))
+    (A pk)).run []
+  match AnonymousToken.Conservation.findNoteForgery accepted with
+  | some tok =>
+      return (AnonymousToken.Credit.target com Prod.mk tok.payload.message tok.payload.opening,
+        tok.signature)
+  | none => return ((default, 0), default)
+
+private theorem isCostBounded_interpret_verify_signingCost
+    (prog : OracleComp (fun _ : Query => Digest) Bool) :
+    IsCostBounded
+      (Sum.elim (fun _ => 0)
+        (ROMSignature.signingCost (M := Commitment × ℕ) (Query := Query)))
+      (interpret
+        (fun x => ProbOracleComp.query
+          (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x))
+        prog)
+      0 := by
+  induction prog with
+  | pure b => exact IsCostBounded.pure b 0
+  | liftBind x k ih =>
+    exact IsCostBounded.liftBind_iff.mpr ⟨by simp [ROMSignature.signingCost], fun d => ih d⟩
+
+private theorem isCostBounded_interpret_verify_hashCost
+    {vQ : ℕ} (prog : OracleComp (fun _ : Query => Digest) Bool)
+    (hprog : prog.IsQueryBounded vQ) :
+    IsCostBounded
+      (Sum.elim (fun _ => 0)
+        (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+      (interpret
+        (fun x => ProbOracleComp.query
+          (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x))
+        prog)
+      vQ := by
+  refine hprog.interpret fun x => ?_
+  exact OracleComp.IsCostBounded.query
+    (cost := Sum.elim (fun _ => 0) (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+    (Sum.inr (.inr x))
+
+/-- Query bound for `romTargetForger`: if `A` makes at most `q_R` issuer requests and `q_H` direct
+random-oracle queries, and `scheme.verify` makes at most `vQ` random-oracle queries per call, then
+`romTargetForger` makes at most `q_R` signing calls and `q_H + q_R * vQ` random-oracle calls. -/
+theorem romTargetForger_callBounded
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Commitment] [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest)
+    {q_R q_H vQ : ℕ}
+    (hA : ROMExtractedCallBounded A q_R q_H)
+    (hver : ∀ pk m sig, (scheme.verify pk m sig).IsQueryBounded vQ) :
+    ProbForgerCallBounded (romTargetForger com scheme A) q_R (q_H + q_R * vQ) := by
+  intro pk
+  refine ⟨?_, ?_⟩
+  · have hbody :
+        IsCostBounded
+          (Sum.elim (fun _ => 0)
+            (ROMSignature.signingCost (M := Commitment × ℕ) (Query := Query)))
+          ((interpret
+            (sumHandler
+              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+              (romTargetForgerHandler com scheme pk))
+            (A pk)).run [])
+          q_R := by
+      refine OracleComp.IsCostBounded.run_interpret (fun r accepted => ?_) (hA pk).1 []
+      rcases r with n | reqOrX
+      · simp only [sumHandler, Sum.elim_inl, StateT.run, StateT.lift, ProbOracleComp.sample,
+          ProbComp.unifFin]
+        exact (OracleComp.IsCostBounded.query
+          (cost := Sum.elim (fun _ => 0)
+            (ROMSignature.signingCost (M := Commitment × ℕ) (Query := Query)))
+          (Sum.inl n)).bind fun a => OracleComp.IsCostBounded.pure (a, accepted) 0
+      · rcases reqOrX with req | x
+        · cases req with
+          | issue ir =>
+            simp only [sumHandler, Sum.elim_inr, StateT.run, romTargetForgerHandler,
+              romRequestCost]
+            split_ifs
+            · exact (OracleComp.IsCostBounded.query
+                (cost := Sum.elim (fun _ => 0)
+                  (ROMSignature.signingCost (M := Commitment × ℕ) (Query := Query)))
+                (Sum.inr (.inl (ir.commitment, 0)))).bind fun sig =>
+                  OracleComp.IsCostBounded.pure (some sig, accepted ++ [.issue ir]) 0
+            · exact OracleComp.IsCostBounded.pure (none, accepted) 1
+          | spend sr =>
+            simp only [sumHandler, Sum.elim_inr, StateT.run, romTargetForgerHandler,
+              romRequestCost]
+            split_ifs
+            · refine ((isCostBounded_interpret_verify_signingCost _).bind (m := 1)
+                fun ok => ?_).mono (by omega)
+              split_ifs
+              · exact (OracleComp.IsCostBounded.query
+                  (cost := Sum.elim (fun _ => 0)
+                    (ROMSignature.signingCost (M := Commitment × ℕ) (Query := Query)))
+                  (Sum.inr (.inl (sr.changeCommitment, sr.refund)))).bind fun sig =>
+                    OracleComp.IsCostBounded.pure (some sig, accepted ++ [.spend sr]) 0
+              · exact OracleComp.IsCostBounded.pure (none, accepted) 1
+            · exact OracleComp.IsCostBounded.pure (none, accepted) 1
+        · simp only [sumHandler, Sum.elim_inr, StateT.run, romTargetForgerHandler, romRequestCost]
+          exact (OracleComp.IsCostBounded.query
+            (cost := Sum.elim (fun _ => 0)
+              (ROMSignature.signingCost (M := Commitment × ℕ) (Query := Query)))
+            (Sum.inr (.inr x))).bind fun d => OracleComp.IsCostBounded.pure (d, accepted) 0
+    refine (hbody.bind (m := 0) fun ⟨_, accepted⟩ => ?_).mono (by omega)
+    dsimp only
+    cases AnonymousToken.Conservation.findNoteForgery accepted <;>
+      exact OracleComp.IsCostBounded.pure _ 0
+  · have hscale :
+        IsCostBounded (fun q => Sum.elim (fun _ => 0) romRequestCost q * vQ)
+          (A pk) (q_R * vQ) := by
+      have h := (hA pk).1
+      generalize hprog : A pk = prog at h ⊢
+      clear hprog hA A
+      induction prog generalizing q_R with
+      | pure a => exact OracleComp.IsCostBounded.pure a (q_R * vQ)
+      | liftBind q k ih =>
+        obtain ⟨hle, hk⟩ := OracleComp.IsCostBounded.liftBind_iff.mp h
+        refine OracleComp.IsCostBounded.liftBind_iff.mpr ⟨?_, fun a => ?_⟩
+        · exact Nat.mul_le_mul_right vQ hle
+        · have hsub : q_R * vQ - Sum.elim (fun _ => 0) romRequestCost q * vQ =
+              (q_R - Sum.elim (fun _ => 0) romRequestCost q) * vQ := (Nat.sub_mul _ _ _).symm
+          rw [hsub]
+          exact ih a (hk a)
+    have hcomb :
+        IsCostBounded
+          (Sum.elim (fun _ => 0) (fun q => romDirectHashCost q + romRequestCost q * vQ))
+          (A pk) (q_H + q_R * vQ) := by
+      refine ((hA pk).2.add hscale).of_le fun q => ?_
+      cases q <;> simp
+    have hbody :
+        IsCostBounded
+          (Sum.elim (fun _ => 0)
+            (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+          ((interpret
+            (sumHandler
+              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+              (romTargetForgerHandler com scheme pk))
+            (A pk)).run [])
+          (q_H + q_R * vQ) := by
+      refine OracleComp.IsCostBounded.run_interpret (fun r accepted => ?_) hcomb []
+      rcases r with n | reqOrX
+      · simp only [sumHandler, Sum.elim_inl, StateT.run, StateT.lift, ProbOracleComp.sample,
+          ProbComp.unifFin]
+        exact (OracleComp.IsCostBounded.query
+          (cost := Sum.elim (fun _ => 0)
+            (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+          (Sum.inl n)).bind fun a => OracleComp.IsCostBounded.pure (a, accepted) 0
+      · rcases reqOrX with req | x
+        · cases req with
+          | issue ir =>
+            simp only [sumHandler, Sum.elim_inr, StateT.run, romTargetForgerHandler,
+              romDirectHashCost, romRequestCost, zero_add, one_mul]
+            split_ifs
+            · exact ((OracleComp.IsCostBounded.query
+                (cost := Sum.elim (fun _ => 0)
+                  (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+                (Sum.inr (.inl (ir.commitment, 0)))).bind fun sig =>
+                  OracleComp.IsCostBounded.pure (some sig, accepted ++ [.issue ir]) 0).mono
+                (by simp [ROMSignature.hashCost])
+            · exact OracleComp.IsCostBounded.pure (none, accepted) vQ
+          | spend sr =>
+            simp only [sumHandler, Sum.elim_inr, StateT.run, romTargetForgerHandler,
+              romDirectHashCost, romRequestCost, zero_add, one_mul]
+            split_ifs
+            · have hvb := isCostBounded_interpret_verify_hashCost
+                (Commitment := Commitment) (Sig := Sig) _
+                (hver pk
+                  (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)
+                  sr.signature)
+              refine (hvb.bind (m := 0) fun ok => ?_).mono (by omega)
+              split_ifs
+              · exact (OracleComp.IsCostBounded.query
+                  (cost := Sum.elim (fun _ => 0)
+                    (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+                  (Sum.inr (.inl (sr.changeCommitment, sr.refund)))).bind fun sig =>
+                    OracleComp.IsCostBounded.pure (some sig, accepted ++ [.spend sr]) 0
+              · exact OracleComp.IsCostBounded.pure (none, accepted) 0
+            · exact OracleComp.IsCostBounded.pure (none, accepted) vQ
+        · simp only [sumHandler, Sum.elim_inr, StateT.run, romTargetForgerHandler,
+            romDirectHashCost, romRequestCost, zero_mul, add_zero]
+          exact (OracleComp.IsCostBounded.query
+            (cost := Sum.elim (fun _ => 0)
+              (ROMSignature.hashCost (M := Commitment × ℕ) (Query := Query)))
+            (Sum.inr (.inr x))).bind fun d => OracleComp.IsCostBounded.pure (d, accepted) 0
+    refine (hbody.bind (m := 0) fun ⟨_, accepted⟩ => ?_).mono (by omega)
+    dsimp only
+    cases AnonymousToken.Conservation.findNoteForgery accepted <;>
+      exact OracleComp.IsCostBounded.pure _ 0
+
+/-- Extract a commitment-binding collision over `(nullifier, context, credit)` from an accepted
+VOLE-ACT transcript `accepted` when the first uncertified spend shares its `(c, x)` target with an
+accepted request; returns a trivial non-collision otherwise. -/
+def romFindBindingCollision
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (accepted :
+      List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) :
+    Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
+  let fallback :
+      Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
+    { commitment := com default default 0 default
+      msg₀ := (default, default, 0)
+      opening₀ := default
+      msg₁ := (default, default, 0)
+      opening₁ := default }
+  match AnonymousToken.Conservation.findNoteForgery accepted with
+  | none => fallback
+  | some tok =>
+    let tgt := AnonymousToken.Credit.target com Prod.mk tok.payload.message tok.payload.opening
+    match accepted.find? fun r => decide (r.signedMessage Prod.mk = tgt) with
+    | none => fallback
+    | some r =>
+      let n₀ := tok.payload.message
+      let r₀ := tok.payload.opening
+      let n₁ := r.outputPayload.message
+      let r₁ := r.outputPayload.opening
+      { commitment := com n₀.nullifier n₀.context n₀.credit r₀
+        msg₀ := (n₀.nullifier, n₀.context, n₀.credit)
+        opening₀ := r₀
+        msg₁ := (n₁.nullifier, n₁.context, n₁.credit)
+        opening₁ := r₁ }
+
+/-- Generic ROM commitment-binding experiment induced by `runROMExtractedConservation` against a
+keyless commitment scheme `CS`. -/
+noncomputable def romBindingExperiment
+    {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest) :
+    PMF Bool := do
+  let k ← ProbComp.eval CS.keyGen
+  let (_, _, accepted) ← runROMExtractedConservation com scheme A
+  return CS.isBindingCollision k (romFindBindingCollision com accepted)
+
+private def CacheExtends (c₁ c₂ : List (Query × Digest)) [DecidableEq Query] : Prop :=
+  ∀ q d, c₁.lookup q = some d → c₂.lookup q = some d
+
+private theorem cacheExtends_refl [DecidableEq Query] (c : List (Query × Digest)) :
+    CacheExtends c c := fun _ _ h => h
+
+private theorem cacheExtends_trans [DecidableEq Query]
+    {c₁ c₂ c₃ : List (Query × Digest)} (h₁₂ : CacheExtends c₁ c₂) (h₂₃ : CacheExtends c₂ c₃) :
+    CacheExtends c₁ c₃ := fun q d h => h₂₃ q d (h₁₂ q d h)
+
+private theorem cacheExtends_of_mem_support_oracle
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    {q : Query} {c c' : List (Query × Digest)} {d : Digest}
+    (h : (d, c') ∈ (ROMSignature.oracle Digest q c).support) :
+    CacheExtends c c' ∧ c'.lookup q = some d := by
+  refine ⟨?_, ROMSignature.lookup_of_mem_support_oracle h⟩
+  cases hl : c.lookup q with
+  | some d₀ =>
+    have heq := ROMSignature.run_oracle_of_lookup_eq_some (Digest := Digest) hl
+    change (d, c') ∈ ((ROMSignature.oracle Digest q).run c).support at h
+    rw [heq, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+    obtain ⟨_, rfl⟩ := h
+    exact cacheExtends_refl _
+  | none =>
+    have heq := ROMSignature.run_oracle_of_lookup_eq_none (Digest := Digest) hl
+    change (d, c') ∈ ((ROMSignature.oracle Digest q).run c).support at h
+    rw [heq, PMF.mem_support_bind_iff] at h
+    obtain ⟨d₁, -, hpure⟩ := h
+    rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at hpure
+    obtain ⟨rfl, rfl⟩ := hpure
+    intro q' d' hq'
+    by_cases hqq' : q' = q
+    · subst hqq'; rw [hl] at hq'; cases hq'
+    · simpa [List.lookup, beq_false_of_ne hqq'] using hq'
+
+private theorem interpret_oracle_extends
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    {α : Type} (prog : OracleComp (fun _ : Query => Digest) α)
+    {c c' : List (Query × Digest)} {a : α}
+    (h : (a, c') ∈ ((interpret (ROMSignature.oracle Digest) prog).run c).support) :
+    CacheExtends c c' := by
+  induction prog generalizing c with
+  | pure x =>
+    change (a, c') ∈ (PMF.pure (x, c)).support at h
+    rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+    obtain ⟨_, rfl⟩ := h
+    exact cacheExtends_refl _
+  | liftBind q k ih =>
+    change (a, c') ∈ (((ROMSignature.oracle Digest q).run c).bind fun (d, c₁) =>
+      (interpret (ROMSignature.oracle Digest) (k d)).run c₁).support at h
+    rw [PMF.mem_support_bind_iff] at h
+    obtain ⟨⟨d, c₁⟩, h₁, h₂⟩ := h
+    exact cacheExtends_trans (cacheExtends_of_mem_support_oracle h₁).1 (ih d h₂)
+
+private theorem interpret_oracle_replay
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    {α : Type} (prog : OracleComp (fun _ : Query => Digest) α)
+    {c c' c_final : List (Query × Digest)} {a : α}
+    (h : (a, c') ∈ ((interpret (ROMSignature.oracle Digest) prog).run c).support)
+    (hext : CacheExtends c' c_final) :
+    (interpret (ROMSignature.oracle Digest) prog).run c_final = PMF.pure (a, c_final) := by
+  induction prog generalizing c with
+  | pure x =>
+    change (a, c') ∈ (PMF.pure (x, c)).support at h
+    rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+    obtain ⟨rfl, _⟩ := h
+    rfl
+  | liftBind q k ih =>
+    change (a, c') ∈ (((ROMSignature.oracle Digest q).run c).bind fun (d, c₁) =>
+      (interpret (ROMSignature.oracle Digest) (k d)).run c₁).support at h
+    rw [PMF.mem_support_bind_iff] at h
+    obtain ⟨⟨d, c₁⟩, h₁, h₂⟩ := h
+    have ⟨_, hlu₁⟩ := cacheExtends_of_mem_support_oracle h₁
+    have hext₁ := interpret_oracle_extends (k d) h₂
+    have hlu_final : c_final.lookup q = some d := hext q d (hext₁ q d hlu₁)
+    change ((ROMSignature.oracle Digest q).run c_final).bind (fun (d', c₁') =>
+      (interpret (ROMSignature.oracle Digest) (k d')).run c₁') = _
+    rw [ROMSignature.run_oracle_of_lookup_eq_some hlu_final, PMF.pure_bind]
+    exact ih d h₂
+
+private def ROMAcceptedInv
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest) (pk : PK)
+    (st : List (Query × Digest) ×
+      List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) :
+    Prop :=
+  let (cache, accepted) := st
+  (∀ r ∈ accepted, match r with
+    | .issue ir => com ir.nullifier ir.ctx ir.amount ir.opening = ir.commitment
+    | .spend sr =>
+      com sr.newNullifier sr.ctx sr.newCredit sr.newOpening = sr.changeCommitment ∧
+      sr.oldCredit + sr.oldRefund = sr.newCredit + sr.debit ∧
+      (interpret (ROMSignature.oracle Digest)
+        (scheme.verify pk
+          (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)
+          sr.signature)).run cache = PMF.pure (true, cache)) ∧
+  ((AnonymousToken.Conservation.spends accepted).map fun s => (s.ctx, s.nullifier)).Nodup
+
+private theorem romAcceptedInv_replay
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    {com : Nullifier → Context → ℕ → Opening → Commitment}
+    {scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest} {pk : PK}
+    {c c' : List (Query × Digest)}
+    {accepted : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)}
+    (hinv : ROMAcceptedInv com scheme pk (c, accepted))
+    (hext : CacheExtends c c') :
+    ROMAcceptedInv com scheme pk (c', accepted) := by
+  refine ⟨fun r hr => ?_, hinv.2⟩
+  have h := hinv.1 r hr
+  cases r with
+  | issue ir => exact h
+  | spend sr =>
+    obtain ⟨hcom, hbal, hrep⟩ := h
+    refine ⟨hcom, hbal, ?_⟩
+    have hsupp : (true, c) ∈ ((interpret (ROMSignature.oracle Digest)
+        (scheme.verify pk
+          (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)
+          sr.signature)).run c).support := by
+      rw [hrep]
+      simp
+    exact interpret_oracle_replay _ hsupp hext
+
+private theorem spends_append
+    (xs ys : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) :
+    AnonymousToken.Conservation.spends (xs ++ ys) =
+      AnonymousToken.Conservation.spends xs ++ AnonymousToken.Conservation.spends ys := by
+  simp [AnonymousToken.Conservation.spends, List.filterMap_append]
+
+private theorem romExtractedIssuerHandler_invariant
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest) (keys : PK × SK)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest)
+    {ctx : Context} {cache : List (Query × Digest)}
+    {accepted : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)}
+    (hsupp : (ctx, (cache, accepted)) ∈
+      (ProbOracleComp.runWith (romExtractedIssuerHandler com scheme keys) (A keys.1)
+        ([], [])).support) :
+    ROMAcceptedInv com scheme keys.1 (cache, accepted) := by
+  refine ProbOracleComp.runWith_invariant
+    (romExtractedIssuerHandler com scheme keys)
+    (ROMAcceptedInv com scheme keys.1)
+    ?_ (A keys.1) ([], []) ⟨by simp, by simp [AnonymousToken.Conservation.spends]⟩
+    ctx (cache, accepted) hsupp
+  rintro q ⟨c, acc⟩ hinv a ⟨c', acc'⟩ hstep
+  cases q with
+  | inr x =>
+    simp only [romExtractedIssuerHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+    obtain ⟨⟨d, c₁⟩, h₁, rfl, rfl, rfl⟩ := hstep
+    exact romAcceptedInv_replay hinv (cacheExtends_of_mem_support_oracle h₁).1
+  | inl req =>
+    cases req with
+    | issue ir =>
+      dsimp only [romExtractedIssuerHandler] at hstep
+      split_ifs at hstep with hcom
+      · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+          PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+        obtain ⟨coins, -, ⟨sig, c₁⟩, hsign, rfl, rfl, rfl⟩ := hstep
+        have hext := interpret_oracle_extends _ hsign
+        have hprev := romAcceptedInv_replay hinv hext
+        refine ⟨fun r hr => ?_, ?_⟩
+        · rcases List.mem_append.mp hr with hr | hr
+          · exact hprev.1 r hr
+          · obtain rfl := List.mem_singleton.mp hr
+            exact of_decide_eq_true hcom
+        · rw [spends_append]
+          simpa [AnonymousToken.Conservation.spends] using hprev.2
+      · simp only [PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+        obtain ⟨_, rfl, rfl⟩ := hstep
+        exact hinv
+    | spend sr =>
+      dsimp only [romExtractedIssuerHandler] at hstep
+      split_ifs at hstep with hpre
+      · simp only [PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hstep
+        obtain ⟨⟨ok, c₁⟩, hver, hcont⟩ := hstep
+        have hext₁ := interpret_oracle_extends _ hver
+        cases ok with
+        | false =>
+          simp only [Bool.false_eq_true, ↓reduceIte, PMF.monad_pure_eq_pure,
+            PMF.mem_support_pure_iff, Prod.mk.injEq] at hcont
+          obtain ⟨_, rfl, rfl⟩ := hcont
+          exact romAcceptedInv_replay hinv hext₁
+        | true =>
+          simp only [↓reduceIte, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+            PMF.mem_support_pure_iff, Prod.mk.injEq] at hcont
+          obtain ⟨coins, -, ⟨sig, c₂⟩, hsign, rfl, rfl, rfl⟩ := hcont
+          have hext₂ := interpret_oracle_extends _ hsign
+          have hprev := romAcceptedInv_replay hinv (cacheExtends_trans hext₁ hext₂)
+          simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true'] at hpre
+          obtain ⟨⟨hcom, hbal⟩, hfresh⟩ := hpre
+          refine ⟨fun r hr => ?_, ?_⟩
+          · rcases List.mem_append.mp hr with hr | hr
+            · exact hprev.1 r hr
+            · obtain rfl := List.mem_singleton.mp hr
+              exact ⟨hcom, hbal, interpret_oracle_replay _ hver hext₂⟩
+          · rw [spends_append, List.map_append]
+            change ((AnonymousToken.Conservation.spends acc).map (fun s => (s.ctx, s.nullifier)) ++
+              [(sr.ctx, sr.nullifier)]).Nodup
+            rw [List.nodup_append]
+            refine ⟨hprev.2, List.nodup_singleton _, fun p hp₁ p' hp₂ heq => ?_⟩
+            obtain rfl := List.mem_singleton.mp hp₂
+            subst heq
+            obtain ⟨s, hs, hsp⟩ := List.mem_map.mp hp₁
+            have hmem_acc : AnonymousToken.Conservation.Request.spend s ∈ acc := by
+              simp only [AnonymousToken.Conservation.spends, List.mem_filterMap] at hs
+              obtain ⟨r, hr, hsome⟩ := hs
+              cases r with
+              | issue _ => simp at hsome
+              | spend sr' => cases hsome; exact hr
+            have hhas : AnonymousToken.Conservation.hasSpentNullifier acc sr.ctx sr.nullifier =
+                true := by
+              simp only [AnonymousToken.Conservation.hasSpentNullifier, List.any_eq_true]
+              refine ⟨.spend s, hmem_acc, decide_eq_true ?_⟩
+              exact Prod.mk.inj hsp
+            rw [hhas] at hfresh
+            cases hfresh
+      · simp only [PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+        obtain ⟨_, rfl, rfl⟩ := hstep
+        exact hinv
+
+private theorem rom_findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context]
+    (reqs : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) :
+    AnonymousToken.Conservation.findNoteForgery reqs = none ↔
+      ∀ s ∈ AnonymousToken.Conservation.spends reqs,
+        s.inputNote ∈ reqs.map (fun r => r.outputPayload.message) := by
+  simp only [AnonymousToken.Conservation.findNoteForgery, List.findSome?_eq_none_iff]
+  constructor
+  · intro h s hs
+    by_contra hnot
+    have := h s hs
+    simp [hnot] at this
+  · intro h s hs
+    simp [h s hs]
+
+private theorem rom_findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
+    {reqs : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)}
+    {tok : AnonymousToken.Token (AnonymousToken.Credit.Note Nullifier Context) Opening Sig}
+    (h : AnonymousToken.Conservation.findNoteForgery reqs = some tok) :
+    ∃ s ∈ AnonymousToken.Conservation.spends reqs,
+      tok = ⟨s.inputPayload, s.signature⟩ ∧
+        s.inputNote ∉ reqs.map (fun r => r.outputPayload.message) := by
+  simp only [AnonymousToken.Conservation.findNoteForgery, List.findSome?_eq_some_iff] at h
+  obtain ⟨prefixSp, s, suffixSp, hsp, hfound, _⟩ := h
+  by_cases hmem : s.inputNote ∈ reqs.map (fun r => r.outputPayload.message)
+  · simp [hmem] at hfound
+  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
+    refine ⟨s, ?_, hfound.symm, hmem⟩
+    rw [hsp]; simp
+
+private theorem rom_worldGame_targetForger_eq
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    [Inhabited Commitment] [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest)
+    (pk : PK) (sk : SK) :
+    Interactive.World.eval (ROMSignature.world scheme sk)
+      (ROMSignature.worldRealize scheme pk (romTargetForger com scheme A pk) eufCmaAccept) =
+    (ProbOracleComp.runWith (romExtractedIssuerHandler com scheme (pk, sk)) (A pk) ([], [])).bind
+      fun (_, cache, accepted) =>
+        let msig : (Commitment × ℕ) × Sig :=
+          match AnonymousToken.Conservation.findNoteForgery accepted with
+          | some tok =>
+              (AnonymousToken.Credit.target com Prod.mk tok.payload.message tok.payload.opening,
+                tok.signature)
+          | none => ((default, 0), default)
+        ((interpret (ROMSignature.oracle Digest) (scheme.verify pk msig.1 msig.2)).run cache).map
+          fun (ok, _) =>
+            ok && !(accepted.map (fun r => r.signedMessage Prod.mk)).contains msig.1 := by
+  rw [ROMSignature.eval_world_worldRealize]
+  simp only [ROMSignature.runLoggedForger, romTargetForger, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure]
+  rw [ProbOracleComp.runWith_run_interpret, PMF.bind_map]
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret]
+  let innerH :=
+    fun (q : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig ⊕ Query)
+      (st : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig) ×
+        (List ((Commitment × ℕ) × Sig) × List (Query × Digest))) =>
+      (ProbOracleComp.runWith
+        (fun q' s =>
+          (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl scheme sk)
+            (ROMSignature.logSigning q' s.1) s.2).map fun ((a, b), c) => (a, b, c))
+        ((romTargetForgerHandler com scheme pk q).run st.1) st.2).map
+          fun ((a, b), c) => (a, b, c)
+  have hlog_inl : ∀ (m : Commitment × ℕ) (pairs : List ((Commitment × ℕ) × Sig))
+      (c : List (Query × Digest)),
+      (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl scheme sk)
+        (ROMSignature.logSigning (.inl m) pairs) c).map (fun ((a, b), c') => (a, b, c')) =
+      (scheme.signCoins sk m).bind fun coins =>
+        ((interpret (ROMSignature.oracle Digest) (scheme.sign sk m coins)).run c).map
+          fun (sig, c') => (sig, ((m, sig) :: pairs, c')) := by
+    intro m pairs c
+    simp only [ROMSignature.logSigning, ROMSignature.forgerWorldImpl, sumHandler,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+      PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_bind, PMF.pure_map]
+    refine PMF.bind_congr_on_support _ _ _ fun coins _ => ?_
+    exact (PMF.bind_pure_comp _ _).symm
+  have hlog_inr : ∀ (x : Query) (pairs : List ((Commitment × ℕ) × Sig))
+      (c : List (Query × Digest)),
+      (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl scheme sk)
+        (ROMSignature.logSigning (.inr x) pairs) c).map (fun ((a, b), c') => (a, b, c')) =
+      ((ROMSignature.oracle Digest x).run c).map fun (d, c') => (d, (pairs, c')) := by
+    intro x pairs c
+    simp only [ROMSignature.logSigning, ROMSignature.forgerWorldImpl, sumHandler,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+      PMF.monad_bind_eq_bind, PMF.map_bind, PMF.pure_map]
+    exact (PMF.bind_pure_comp _ _).symm
+  have hverify_run : ∀ (pairs₀ : List ((Commitment × ℕ) × Sig))
+      (prog : OracleComp (fun _ : Query => Digest) Bool) (c : List (Query × Digest)),
+      ProbOracleComp.runWith
+        (fun q' (s : List ((Commitment × ℕ) × Sig) × List (Query × Digest)) =>
+          (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl scheme sk)
+            (ROMSignature.logSigning q' s.1) s.2).map fun ((a, b), c) => (a, b, c))
+        (interpret
+          (fun x => ProbOracleComp.query
+            (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x))
+          prog)
+        (pairs₀, c) =
+      ((interpret (ROMSignature.oracle Digest) prog).run c).map
+        fun (b, c') => (b, (pairs₀, c')) := by
+    intro pairs₀ prog
+    induction prog with
+    | pure b => intro c; simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+    | liftBind x k ih =>
+      intro c
+      change (ProbOracleComp.runWith
+        (fun q' (s : List ((Commitment × ℕ) × Sig) × List (Query × Digest)) =>
+          (ProbOracleComp.runWith (ROMSignature.forgerWorldImpl scheme sk)
+            (ROMSignature.logSigning q' s.1) s.2).map fun ((a, b), c) => (a, b, c))
+        (do
+          let d ← ProbOracleComp.query
+            (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x)
+          interpret
+            (fun x' => ProbOracleComp.query
+              (spec := ROMSignature.ForgerSpec (Commitment × ℕ) Query Sig Digest) (.inr x'))
+            (k d))
+        (pairs₀, c)) = _
+      rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inr, PMF.bind_map]
+      change ((ROMSignature.oracle Digest x).run c).bind _ =
+        (((ROMSignature.oracle Digest x).run c).bind fun (d, c') =>
+          (interpret (ROMSignature.oracle Digest) (k d)).run c').map _
+      rw [PMF.map_bind]
+      refine PMF.bind_congr_on_support _ _ _ fun ⟨d, c'⟩ _ => ih d c'
+  have hinv_pairs : ∀ ctx acc pairs cache,
+      (ctx, (acc, (pairs, cache))) ∈ (ProbOracleComp.runWith innerH (A pk) ([], ([], []))).support →
+      pairs.map Prod.fst = (acc.map (fun r => r.signedMessage Prod.mk)).reverse := by
+    intro ctx acc pairs cache hsupp
+    refine ProbOracleComp.runWith_invariant innerH
+      (fun (acc, (pairs, _)) =>
+        pairs.map Prod.fst = (acc.map (fun r => r.signedMessage Prod.mk)).reverse)
+      ?_ (A pk) ([], ([], [])) rfl ctx (acc, (pairs, cache)) hsupp
+    rintro q ⟨acc₀, pairs₀, c₀⟩ hinv₀ a ⟨acc₁, pairs₁, c₁⟩ hstep
+    cases q with
+    | inr x =>
+      dsimp only [innerH, romTargetForgerHandler, StateT.run] at hstep
+      rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inr, PMF.bind_map,
+        PMF.map_bind] at hstep
+      simp only [Function.comp_def, ProbOracleComp.runWith_pure, PMF.pure_map,
+        PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+      obtain ⟨⟨d, c'⟩, -, _, rfl, rfl, rfl⟩ := hstep
+      exact hinv₀
+    | inl req =>
+      cases req with
+      | issue ir =>
+        dsimp only [innerH, romTargetForgerHandler, StateT.run] at hstep
+        split_ifs at hstep
+        · rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inl, PMF.bind_bind,
+            PMF.map_bind] at hstep
+          simp only [PMF.bind_map, PMF.map_bind, Function.comp_def, ProbOracleComp.runWith_pure,
+            PMF.pure_map, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq]
+            at hstep
+          obtain ⟨coins, -, ⟨sig, c'⟩, -, _, rfl, rfl, rfl⟩ := hstep
+          simp [hinv₀, List.map_append, AnonymousToken.Conservation.Request.signedMessage]
+        · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
+            Prod.mk.injEq] at hstep
+          obtain ⟨_, rfl, rfl, rfl⟩ := hstep
+          exact hinv₀
+      | spend sr =>
+        dsimp only [innerH, romTargetForgerHandler, StateT.run] at hstep
+        split_ifs at hstep
+        · rw [ProbOracleComp.runWith_bind, hverify_run, PMF.bind_map, PMF.map_bind] at hstep
+          simp only [Function.comp_def, PMF.mem_support_bind_iff] at hstep
+          obtain ⟨⟨ok, c'⟩, -, hcont⟩ := hstep
+          cases ok with
+          | false =>
+            simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map,
+              PMF.mem_support_pure_iff, Prod.mk.injEq] at hcont
+            obtain ⟨_, rfl, rfl, rfl⟩ := hcont
+            exact hinv₀
+          | true =>
+            simp only [↓reduceIte] at hcont
+            rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inl,
+              PMF.bind_bind, PMF.map_bind] at hcont
+            simp only [PMF.bind_map, PMF.map_bind, Function.comp_def, ProbOracleComp.runWith_pure,
+              PMF.pure_map, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq]
+              at hcont
+            obtain ⟨coins, -, ⟨sig, c''⟩, -, _, rfl, rfl, rfl⟩ := hcont
+            simp [hinv₀, List.map_append, AnonymousToken.Conservation.Request.signedMessage]
+        · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff,
+            Prod.mk.injEq] at hstep
+          obtain ⟨_, rfl, rfl, rfl⟩ := hstep
+          exact hinv₀
+  have hproj :
+      (ProbOracleComp.runWith innerH (A pk) ([], ([], []))).map
+        (fun (ctx, (acc, (_, cache))) => (ctx, (cache, acc))) =
+      ProbOracleComp.runWith (romExtractedIssuerHandler com scheme (pk, sk)) (A pk) ([], []) := by
+    refine ProbOracleComp.runWith_map_state innerH (romExtractedIssuerHandler com scheme (pk, sk))
+      (fun (acc, (_, cache)) => (cache, acc)) ?_ (A pk) ([], ([], []))
+    rintro q ⟨acc₀, pairs₀, c₀⟩
+    cases q with
+    | inr x =>
+      dsimp only [innerH, romTargetForgerHandler, romExtractedIssuerHandler, StateT.run]
+      rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inr, PMF.bind_map,
+        PMF.map_bind, PMF.map_bind]
+      simp only [Function.comp_def, ProbOracleComp.runWith_pure, PMF.pure_map,
+        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+      rfl
+    | inl req =>
+      cases req with
+      | issue ir =>
+        dsimp only [innerH, romTargetForgerHandler, romExtractedIssuerHandler, StateT.run]
+        split_ifs
+        · rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inl, PMF.bind_bind,
+            PMF.map_bind, PMF.map_bind]
+          simp only [PMF.bind_map, PMF.map_bind, Function.comp_def, ProbOracleComp.runWith_pure,
+            PMF.pure_map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+          rfl
+        · simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+      | spend sr =>
+        dsimp only [innerH, romTargetForgerHandler, romExtractedIssuerHandler, StateT.run]
+        split_ifs
+        · rw [ProbOracleComp.runWith_bind, hverify_run, PMF.bind_map, PMF.map_bind, PMF.map_bind]
+          simp only [Function.comp_def, PMF.monad_bind_eq_bind]
+          refine PMF.bind_congr_on_support _ _ _ fun ⟨ok, c₁⟩ _ => ?_
+          cases ok with
+          | false => simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+          | true =>
+            simp only [↓reduceIte]
+            rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hlog_inl,
+              PMF.bind_bind, PMF.map_bind, PMF.map_bind]
+            simp only [PMF.bind_map, PMF.map_bind, Function.comp_def, ProbOracleComp.runWith_pure,
+              PMF.pure_map, PMF.monad_pure_eq_pure]
+            rfl
+        · simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+  rw [← hproj]
+  simp only [PMF.bind_map, PMF.bind_bind]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨ctx, acc, pairs, cache⟩ hsupp => ?_
+  have hp := hinv_pairs ctx acc pairs cache hsupp
+  dsimp only [Function.comp_def, eufCmaAccept]
+  have hcont : ∀ (m : Commitment × ℕ),
+      (pairs.map Prod.fst).contains m =
+        (acc.map (fun r => r.signedMessage Prod.mk)).contains m := by
+    intro m
+    simp [hp, List.contains_eq_mem]
+  cases hfn : AnonymousToken.Conservation.findNoteForgery acc with
+  | none =>
+    simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, hcont]
+    exact (PMF.bind_pure_comp _ _).symm
+  | some tok =>
+    simp only [ProbOracleComp.runWith_pure, PMF.pure_bind, hcont]
+    exact (PMF.bind_pure_comp _ _).symm
+
+/-- **Generic lazy-ROM extracted credit-conservation reduction** at `tag = Prod.mk`:
+for any ROM signature scheme `scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest`,
+any keyless commitment scheme `CS` whose verifier checks `com nf ctx t o = c` under every key, and
+any `ROMExtractedAdversary A`, overspending in `romExtractedConservationExperiment` is bounded by
+the ROM EUF-CMA success of `romTargetForger com scheme A` plus the commitment-binding probability
+`romBindingExperiment com CS scheme A`. -/
+theorem romExtractedConservationExperiment_succProbability_le
+    {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Commitment]
+    [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (hverify : ∀ k nf ctx t c o, CS.verify k (nf, ctx, t) c o = decide (com nf ctx t o = c))
+    (scheme : ROMSignature.Scheme PK SK (Commitment × ℕ) Sig Query Digest)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK Sig Query Digest) :
+    Game.succProbability (romExtractedConservationExperiment com scheme A) ≤
+      Game.succProbability
+        (ROMSignature.worldGame scheme (romTargetForger com scheme A) eufCmaAccept) +
+      Game.succProbability (romBindingExperiment com CS scheme A) := by
+  rw [← ENNReal.coe_le_coe, ENNReal.coe_add]
+  simp only [Game.succProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
+  have hcons :
+      (romExtractedConservationExperiment com scheme A) true =
+      ∑' keys : PK × SK, scheme.keyGen keys *
+        ∑' res : Context × List (Query × Digest) ×
+            List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig),
+          ProbOracleComp.runWith (romExtractedIssuerHandler com scheme keys) (A keys.1)
+              ([], []) res *
+            (let (ctx, _, acc) := res
+             if decide (AnonymousToken.Conservation.issuedAmount acc ctx +
+                AnonymousToken.Conservation.grantedRefund acc ctx <
+                AnonymousToken.Conservation.spentDebit acc ctx) = true then 1 else 0) := by
+    simp only [romExtractedConservationExperiment, runROMExtractedConservation, PMF.map_bind,
+      PMF.monad_bind_eq_bind, PMF.bind_apply]
+    refine tsum_congr fun keys => ?_
+    congr 1
+    rw [PMF.map_apply]
+    refine tsum_congr fun ⟨ctx, cache, acc⟩ => ?_
+    by_cases h :
+        decide (AnonymousToken.Conservation.issuedAmount acc ctx +
+          AnonymousToken.Conservation.grantedRefund acc ctx <
+          AnonymousToken.Conservation.spentDebit acc ctx) = true
+    · simp [h]
+    · simp [h]
+  have hworld :
+      (ROMSignature.worldGame scheme (romTargetForger com scheme A) eufCmaAccept) true =
+      ∑' keys : PK × SK, scheme.keyGen keys *
+        ∑' res : Context × List (Query × Digest) ×
+            List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig),
+          ProbOracleComp.runWith (romExtractedIssuerHandler com scheme keys) (A keys.1)
+              ([], []) res *
+            (let (_, cache, acc) := res
+             let msig : (Commitment × ℕ) × Sig :=
+               match AnonymousToken.Conservation.findNoteForgery acc with
+               | some tok =>
+                   (AnonymousToken.Credit.target com Prod.mk
+                     tok.payload.message tok.payload.opening, tok.signature)
+               | none => ((default, 0), default)
+             (((interpret (ROMSignature.oracle Digest)
+               (scheme.verify keys.1 msig.1 msig.2)).run cache).map
+               fun (ok, _) =>
+                 ok && !(acc.map (fun r => r.signedMessage Prod.mk)).contains msig.1)
+               true) := by
+    simp only [ROMSignature.worldGame, PMF.monad_bind_eq_bind, PMF.bind_apply]
+    refine tsum_congr fun ⟨pk, sk⟩ => ?_
+    congr 1
+    rw [rom_worldGame_targetForger_eq, PMF.bind_apply]
+  have hbind :
+      (romBindingExperiment com CS scheme A) true =
+      ∑' k : K, (ProbComp.eval CS.keyGen) k *
+        ∑' keys : PK × SK, scheme.keyGen keys *
+          ∑' res : Context × List (Query × Digest) ×
+              List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig),
+            ProbOracleComp.runWith (romExtractedIssuerHandler com scheme keys) (A keys.1)
+                ([], []) res *
+              (let (_, _, acc) := res
+               if CS.isBindingCollision k (romFindBindingCollision com acc) = true
+                 then 1 else 0) := by
+    simp only [romBindingExperiment, runROMExtractedConservation, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.bind_apply]
+    refine tsum_congr fun k => ?_
+    congr 1
+    refine tsum_congr fun keys => ?_
+    congr 1
+    refine tsum_congr fun ⟨ctx, cache, acc⟩ => ?_
+    simp only [PMF.pure_apply]
+    by_cases h : CS.isBindingCollision k (romFindBindingCollision com acc) = true
+    · simp [h]
+    · simp [h]
+  have hcons_k :
+      (romExtractedConservationExperiment com scheme A) true =
+      ∑' k : K, (ProbComp.eval CS.keyGen) k *
+        (romExtractedConservationExperiment com scheme A) true := by
+    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  have hworld_k :
+      (ROMSignature.worldGame scheme (romTargetForger com scheme A) eufCmaAccept) true =
+      ∑' k : K, (ProbComp.eval CS.keyGen) k *
+        (ROMSignature.worldGame scheme (romTargetForger com scheme A) eufCmaAccept) true := by
+    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  rw [hcons_k, hworld_k, hcons, hworld, hbind, ← tsum_add]
+  refine tsum_le_tsum fun k => ?_
+  rw [← mul_add]
+  refine mul_le_mul_of_nonneg_left ?_ zero_le
+  rw [← tsum_add]
+  refine tsum_le_tsum fun ⟨pk, sk⟩ => ?_
+  rw [← mul_add]
+  refine mul_le_mul_of_nonneg_left ?_ zero_le
+  rw [← tsum_add]
+  refine tsum_le_tsum fun ⟨ctx, cache, accepted⟩ => ?_
+  rw [← mul_add]
+  by_cases hsupp :
+      (ctx, (cache, accepted)) ∈
+        (ProbOracleComp.runWith (romExtractedIssuerHandler com scheme (pk, sk)) (A pk)
+          ([], [])).support
+  · refine mul_le_mul_of_nonneg_left ?_ zero_le
+    dsimp only
+    by_cases hwin :
+        decide (AnonymousToken.Conservation.issuedAmount accepted ctx +
+          AnonymousToken.Conservation.grantedRefund accepted ctx <
+          AnonymousToken.Conservation.spentDebit accepted ctx) = true
+    · simp only [hwin, ↓reduceIte]
+      have hinv := romExtractedIssuerHandler_invariant com scheme (pk, sk) A hsupp
+      have hbal : ∀ s ∈ AnonymousToken.Conservation.spends accepted,
+          s.oldCredit + s.oldRefund = s.newCredit + s.debit := by
+        intro s hs
+        have hmem : AnonymousToken.Conservation.Request.spend s ∈ accepted := by
+          simp only [AnonymousToken.Conservation.spends, List.mem_filterMap] at hs
+          obtain ⟨r, hr, hsome⟩ := hs
+          cases r with
+          | issue _ => simp at hsome
+          | spend sr => cases hsome; exact hr
+        obtain ⟨_, hbal_s, _⟩ := hinv.1 (.spend s) hmem
+        exact hbal_s
+      cases hfn : AnonymousToken.Conservation.findNoteForgery accepted with
+      | none =>
+        exfalso
+        have hcert := (rom_findNoteForgery_eq_none_iff accepted).mp hfn
+        have hle := AnonymousToken.Conservation.spentDebit_le_of_certified accepted hbal hinv.2
+          hcert ctx
+        have hlt := of_decide_eq_true hwin
+        exact (Nat.not_le.mpr hlt) hle
+      | some tok =>
+        obtain ⟨s, hs, rfl, hnotmem⟩ := rom_findNoteForgery_eq_some hfn
+        let tgt := AnonymousToken.Credit.target com Prod.mk s.inputNote s.oldOpening
+        by_cases hmem_tgt : (accepted.map (fun r => r.signedMessage Prod.mk)).contains tgt
+        · -- Case 2: target collision -> commitment binding collision!
+          have hmem_list : tgt ∈ accepted.map (fun r => r.signedMessage Prod.mk) :=
+            List.contains_iff_mem.mp hmem_tgt
+          obtain ⟨r₀, hr₀, hr₀_eq⟩ := List.mem_map.mp hmem_list
+          have hfind_isSome :
+              (accepted.find? fun r' => decide (r'.signedMessage Prod.mk = tgt)).isSome = true := by
+            rw [List.find?_isSome]
+            exact ⟨r₀, hr₀, decide_eq_true hr₀_eq⟩
+          obtain ⟨r, hr_find⟩ := Option.isSome_iff_exists.mp hfind_isSome
+          have hr_mem := List.mem_of_find?_eq_some hr_find
+          have hr_eq : r.signedMessage Prod.mk = tgt := by
+            have := List.find?_some
+              (p := fun r' : AnonymousToken.Conservation.Request Nullifier Context Opening
+                Commitment Sig => decide (r'.signedMessage Prod.mk = tgt))
+              hr_find
+            exact of_decide_eq_true this
+          have hr_tgt :
+              AnonymousToken.Credit.target com Prod.mk r.outputPayload.message
+                r.outputPayload.opening = r.signedMessage Prod.mk := by
+            have hloc := hinv.1 r hr_mem
+            cases r with
+            | issue ir =>
+              simp only [AnonymousToken.Credit.target,
+                AnonymousToken.Conservation.Request.outputPayload,
+                AnonymousToken.Conservation.Request.signedMessage, hloc]
+            | spend sr =>
+              simp only [AnonymousToken.Credit.target,
+                AnonymousToken.Conservation.Request.outputPayload,
+                AnonymousToken.Conservation.Request.signedMessage, hloc.1]
+          have hbw :
+              AnonymousToken.checkBindingWitness (AnonymousToken.Credit.target com Prod.mk)
+                ⟨s.inputPayload, r.outputPayload⟩ = true := by
+            simp only [AnonymousToken.checkBindingWitness, decide_eq_true_eq]
+            refine ⟨?_, ?_⟩
+            · intro heq
+              apply hnotmem
+              exact List.mem_map.mpr ⟨r, hr_mem, heq.symm⟩
+            · exact (hr_tgt.trans hr_eq).symm
+          have ⟨_, hne, hcom_eq⟩ :=
+            (AnonymousToken.Conservation.checkBindingWitness_prod_mk_iff com
+              ⟨s.inputPayload, r.outputPayload⟩).mp hbw
+          have hcoll :
+              CS.isBindingCollision k (romFindBindingCollision com accepted) = true := by
+            dsimp only [tgt] at hr_find
+            simp only [romFindBindingCollision, hfn,
+              AnonymousToken.Conservation.SpendRequest.inputPayload, hr_find,
+              Crypto.Commitment.Scheme.isBindingCollision, Bool.and_eq_true, decide_eq_true_eq]
+            refine ⟨⟨hne, ?_⟩, ?_⟩
+            · rw [hverify]; exact decide_eq_true rfl
+            · rw [hverify]; exact decide_eq_true hcom_eq.symm
+          simp only [hcoll, ↓reduceIte]
+          exact le_add_self
+        · -- Case 1: fresh target -> winning ROM EUF-CMA forgery!
+          have hmem_s : AnonymousToken.Conservation.Request.spend s ∈ accepted := by
+            simp only [AnonymousToken.Conservation.spends, List.mem_filterMap] at hs
+            obtain ⟨r, hr, hsome⟩ := hs
+            cases r with
+            | issue _ => simp at hsome
+            | spend sr => cases hsome; exact hr
+          obtain ⟨_, _, hrep⟩ := hinv.1 (.spend s) hmem_s
+          have hnot_cont :
+              (accepted.map (fun r => r.signedMessage Prod.mk)).contains tgt = false :=
+            Bool.eq_false_iff.mpr hmem_tgt
+          have hworld_one :
+              (((interpret (ROMSignature.oracle Digest)
+                (scheme.verify pk tgt s.signature)).run cache).map
+                fun (ok, _) =>
+                  ok && !(accepted.map (fun r => r.signedMessage Prod.mk)).contains tgt)
+                true = 1 := by
+            rw [hrep, PMF.pure_map, hnot_cont]
+            simp
+          exact le_trans (le_of_eq hworld_one.symm) le_self_add
+    · simp only [hwin]
+      exact zero_le
+  · rw [PMF.mem_support_iff, not_not] at hsupp
+    simp [hsupp]
+
+/-! ### Concrete `ProbComp` commitment-binding reductions and end-to-end UOV conservation -/
+
+/-- Verification of `detScheme` makes at most `1` random-oracle query. -/
+theorem detScheme_verify_isQueryBounded
+    {Target Preimage : Type} [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    [Finite Preimage]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (pk : PK) (m : Commitment × ℕ) (sig : Option Preimage) :
+    ((detScheme (M := Commitment × ℕ) sys).verify pk m sig).IsQueryBounded 1 := by
+  dsimp only [detScheme]
+  exact OracleComp.IsCostBounded.liftBind_iff.mpr
+    ⟨le_rfl, fun _ => OracleComp.IsCostBounded.pure _ 0⟩
+
+/-- Verification of `saltedScheme` makes at most `1` random-oracle query. -/
+theorem saltedScheme_verify_isQueryBounded
+    {Salt Target Preimage : Type} [DecidableEq Target]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (pk : PK) (m : Commitment × ℕ) (sig : Salt × Option Preimage) :
+    ((saltedScheme (M := Commitment × ℕ) sys Salt).verify pk m sig).IsQueryBounded 1 := by
+  dsimp only [saltedScheme]
+  exact OracleComp.IsCostBounded.liftBind_iff.mpr
+    ⟨le_rfl, fun _ => OracleComp.IsCostBounded.pure _ 0⟩
+
+private noncomputable def lookupOrSampleTarget {Q Target : Type}
+    [DecidableEq Q] [Fintype Target] [Nonempty Target]
+    (q : Q) (cache : List (Q × Target)) : ProbComp (Target × List (Q × Target)) :=
+  match cache.lookup q with
+  | some y => pure (y, cache)
+  | none => do
+      let y ← ProbComp.uniform Target
+      return (y, (q, y) :: cache)
+
+private theorem eval_lookupOrSampleTarget {Q Target : Type}
+    [DecidableEq Q] [Fintype Target] [Nonempty Target]
+    (q : Q) (cache : List (Q × Target)) :
+    ProbComp.eval (lookupOrSampleTarget q cache) =
+      (ROMSignature.oracle Target q).run cache := by
+  dsimp only [lookupOrSampleTarget]
+  cases hlu : cache.lookup q with
+  | some y =>
+    rw [ROMSignature.run_oracle_of_lookup_eq_some hlu, ProbComp.eval_pure]
+  | none =>
+    rw [ROMSignature.run_oracle_of_lookup_eq_none hlu, ProbComp.eval_bind]
+    simp [ProbComp.eval_uniform, ProbComp.eval_pure]
+
+/-- Stateful handler for `detCommitmentBindingReduction`: simulates `romExtractedIssuerHandler` for
+`detScheme sys` by sampling uniform RO digests lazily and querying an external
+`Target → Option Preimage` inversion oracle. -/
+private noncomputable def detBindingProgHandler
+    {Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) :
+    (q : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+        (Option Preimage) ⊕ (Commitment × ℕ)) →
+      StateT
+        (List ((Commitment × ℕ) × Target) ×
+          List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+            (Option Preimage)))
+        (ProbOracleComp (fun _ : Target => Option Preimage))
+        (((fun _ : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+            (Option Preimage) => Option (Option Preimage)) ⊕ₒ
+          (fun _ : Commitment × ℕ => Target)) q)
+  | .inl (.issue ir) => fun (cache, accepted) =>
+      if decide (com ir.nullifier ir.ctx ir.amount ir.opening = ir.commitment) then do
+        let (y, cache') ← ProbOracleComp.sample (lookupOrSampleTarget (ir.commitment, 0) cache)
+        let sig ← ProbOracleComp.query (spec := fun _ : Target => Option Preimage) y
+        return (some sig, (cache', accepted ++ [.issue ir]))
+      else
+        return (none, (cache, accepted))
+  | .inl (.spend sr) => fun (cache, accepted) =>
+      if decide (com sr.newNullifier sr.ctx sr.newCredit sr.newOpening = sr.changeCommitment) &&
+          decide (sr.oldCredit + sr.oldRefund = sr.newCredit + sr.debit) &&
+          !AnonymousToken.Conservation.hasSpentNullifier accepted sr.ctx sr.nullifier then do
+        let tgt := AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening
+        let (y₁, cache₁) ← ProbOracleComp.sample (lookupOrSampleTarget tgt cache)
+        if sys.check pk y₁ sr.signature then do
+          let (y₂, cache₂) ←
+            ProbOracleComp.sample (lookupOrSampleTarget (sr.changeCommitment, sr.refund) cache₁)
+          let sig ← ProbOracleComp.query (spec := fun _ : Target => Option Preimage) y₂
+          return (some sig, (cache₂, accepted ++ [.spend sr]))
+        else
+          return (none, (cache₁, accepted))
+      else
+        return (none, (cache, accepted))
+  | .inr m => fun (cache, accepted) => do
+      let (y, cache') ← ProbOracleComp.sample (lookupOrSampleTarget m cache)
+      return (y, (cache', accepted))
+
+/-- Oracle program used by `detCommitmentBindingReduction` to simulate `runROMExtractedConservation`
+for `detScheme sys` with a `Target → Option Preimage` oracle. -/
+private noncomputable def detBindingProg
+    {Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK (Option Preimage)
+      (Commitment × ℕ) Target) :
+    ProbOracleComp (fun _ : Target => Option Preimage)
+      (List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+        (Option Preimage))) := do
+  let (_, _, accepted) ← (interpret
+    (sumHandler
+      (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
+      (detBindingProgHandler com sys pk))
+    (A pk)).run ([], [])
+  return accepted
+
+/-- Explicit `ProbComp` commitment-binding reduction for `detScheme sys`: simulates the lazy-ROM
+extracted issuer with a lazy memoization table for `sys.invert sk` (matching upfront `PMF.pi`
+derandomization identically) and returns `romFindBindingCollision com accepted`. -/
+noncomputable def detCommitmentBindingReduction
+    {K Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK (Option Preimage)
+      (Commitment × ℕ) Target) :
+    K → ProbComp
+      (Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening) :=
+  fun _ => do
+    let (pk, sk) ← sys.keyGen
+    let (accepted, _) ← ((detBindingProg com sys pk A).runState
+      (fun (y : Target) (invCache : List (Target × Option Preimage)) =>
+        match invCache.lookup y with
+        | some x => pure (x, invCache)
+        | none => do
+            let x ← sys.invert sk y
+            return (x, (y, x) :: invCache))).run []
+    return romFindBindingCollision com accepted
+
+private theorem romBindingExperiment_detScheme_eq
+    {K Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK (Option Preimage)
+      (Commitment × ℕ) Target) :
+    romBindingExperiment com CS (detScheme (M := Commitment × ℕ) sys) A =
+      ProbComp.eval (CS.bindingExperiment (detCommitmentBindingReduction com sys A)) := by
+  simp only [romBindingExperiment, runROMExtractedConservation,
+    Crypto.Commitment.Scheme.bindingExperiment, detCommitmentBindingReduction,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  refine PMF.bind_congr_on_support _ _ _ fun k _ => ?_
+  have hkg : (detScheme (M := Commitment × ℕ) sys).keyGen =
+      (ProbComp.eval sys.keyGen).bind fun (pk, sk) =>
+        (PMF.pi fun y => ProbComp.eval (sys.invert sk y)).map fun invTable =>
+          (pk, (sk, invTable)) := rfl
+  rw [hkg, PMF.bind_bind, PMF.bind_bind, PMF.bind_bind]
+  refine PMF.bind_congr_on_support (ProbComp.eval sys.keyGen) _ _ fun ⟨pk, sk⟩ _ => ?_
+  rw [PMF.bind_map, PMF.bind_bind]
+  simp only [PMF.pure_bind, Function.comp_def]
+  have heager : ∀ (invTable : Target → Option Preimage),
+      (ProbOracleComp.runWith
+        (romExtractedIssuerHandler com (detScheme sys) (pk, (sk, invTable))) (A pk) ([], [])).map
+        (fun (_, _, accepted) => accepted) =
+      OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle fun y => PMF.pure (invTable y))
+        (detBindingProg com sys pk A) := by
+    intro invTable
+    have hro :
+        OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle fun y => PMF.pure (invTable y))
+          (detBindingProg com sys pk A) =
+        (ProbOracleComp.runWith (fun y (_ : Unit) => (PMF.pure (invTable y)).map (·, ()))
+          (detBindingProg com sys pk A) ()).map Prod.fst := by
+      have h := ProbOracleComp.runWith_readOnly
+        (fun y (_ : Unit) => PMF.pure (invTable y)) (detBindingProg com sys pk A) ()
+      have h2 := congrArg (PMF.map Prod.fst) h
+      simp only [PMF.map_comp, Function.comp_def, PMF.map_id',
+        OracleComp.evalWith_eq_interpret] at h2
+      exact h2.symm
+    rw [hro]
+    dsimp only [detBindingProg]
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_run_interpret]
+    have hdrop := ProbOracleComp.runWith_map_state
+      (fun q (st : (List ((Commitment × ℕ) × Target) ×
+          List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+            (Option Preimage))) × Unit) =>
+        (ProbOracleComp.runWith (fun y (_ : Unit) => (PMF.pure (invTable y)).map (·, ()))
+          ((detBindingProgHandler com sys pk q).run st.1) st.2).map fun ((a, b), c) => (a, b, c))
+      (romExtractedIssuerHandler com (detScheme sys) (pk, (sk, invTable)))
+      Prod.fst
+      (fun q ⟨⟨cache, accepted⟩, _⟩ => by
+        cases q with
+        | inr m =>
+          dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
+          simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+            ProbOracleComp.runWith_pure, eval_lookupOrSampleTarget, PMF.map_bind, PMF.bind_map,
+            PMF.pure_map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, Function.comp_def]
+          rfl
+        | inl req =>
+          cases req with
+          | issue ir =>
+            dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
+            split_ifs
+            · simp only [detScheme, interp_norm, ProbOracleComp.runWith_bind,
+                ProbOracleComp.runWith_sample, ProbOracleComp.runWith_query,
+                ProbOracleComp.runWith_pure, eval_lookupOrSampleTarget, PMF.map_bind,
+                PMF.bind_map, PMF.pure_bind, PMF.pure_map, PMF.monad_bind_eq_bind,
+                PMF.monad_pure_eq_pure, Function.comp_def]
+              change _ = (((ROMSignature.oracle Target (ir.commitment, 0)).run cache).bind
+                fun a => PMF.pure (invTable a.1, a.2)).bind _
+              simp [PMF.bind_bind, PMF.pure_bind]
+            · simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+          | spend sr =>
+            dsimp only [detBindingProgHandler, romExtractedIssuerHandler, StateT.run]
+            split_ifs
+            · simp only [detScheme, interp_norm, ProbOracleComp.runWith_bind,
+                ProbOracleComp.runWith_sample, eval_lookupOrSampleTarget, PMF.map_bind,
+                PMF.bind_map, PMF.pure_bind, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+                Function.comp_def]
+              change _ = (((ROMSignature.oracle Target
+                  (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening)).run
+                  cache).bind fun a => PMF.pure (sys.check pk a.1 sr.signature, a.2)).bind _
+              rw [PMF.bind_bind]
+              refine PMF.bind_congr_on_support _ _ _ fun ⟨y₁, c₁⟩ _ => ?_
+              rw [PMF.pure_bind]
+              split_ifs
+              · simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+                  ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+                  eval_lookupOrSampleTarget, PMF.map_bind, PMF.bind_map,
+                  PMF.pure_bind, PMF.pure_map, Function.comp_def]
+                change _ = (((ROMSignature.oracle Target
+                    (sr.changeCommitment, sr.refund)).run c₁).bind
+                  fun a => PMF.pure (invTable a.1, a.2)).bind _
+                simp [PMF.bind_bind, PMF.pure_bind]
+              · simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+            · simp [ProbOracleComp.runWith_pure, PMF.pure_map])
+      (A pk) (([], []), ())
+    rw [← hdrop, PMF.map_comp, PMF.map_bind, PMF.bind_map, ← PMF.bind_pure_comp]
+    refine PMF.bind_congr_on_support _ _ _ fun ⟨ctx, ⟨cache, accepted⟩, u⟩ _ => ?_
+    cases u
+    simp [ProbOracleComp.runWith_pure, PMF.pure_map]
+  have hacc_eq :
+      ((PMF.pi fun y => ProbComp.eval (sys.invert sk y)).bind fun invTable =>
+        (ProbOracleComp.runWith
+          (romExtractedIssuerHandler com (detScheme sys) (pk, (sk, invTable))) (A pk)
+          ([], [])).map fun (_, _, accepted) => accepted) =
+      (ProbComp.eval (((detBindingProg com sys pk A).runState
+        (fun (y : Target) (invCache : List (Target × Option Preimage)) =>
+          match invCache.lookup y with
+          | some x => pure (x, invCache)
+          | none => do
+              let x ← sys.invert sk y
+              return (x, (y, x) :: invCache))).run [])).map Prod.fst := by
+    have h1 := PMF.bind_congr_on_support (PMF.pi fun y => ProbComp.eval (sys.invert sk y))
+      _ _ fun invTable _ => heager invTable
+    have h2 := h1.trans (RandomOracle.interpret_prob_eq_memoize
+      (fun y => ProbComp.eval (sys.invert sk y)) (detBindingProg com sys pk A))
+    rw [h2, ProbOracleComp.eval_runState]
+    congr 1
+    congr 1
+    funext y invCache
+    cases hlu : invCache.lookup y with
+    | some x =>
+      simp [memoize_of_some _ _ _ _ hlu, ProbComp.eval_pure]
+    | none =>
+      simp only [memoize_of_none _ _ _ hlu, ProbComp.eval_bind, ProbComp.eval_pure,
+        PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  have hL :
+      ((PMF.pi fun y => ProbComp.eval (sys.invert sk y)).bind fun invTable =>
+        (ProbOracleComp.runWith
+          (romExtractedIssuerHandler com (detScheme sys) (pk, (sk, invTable))) (A pk)
+          ([], [])).bind fun (_, _, accepted) =>
+            PMF.pure (CS.isBindingCollision k (romFindBindingCollision com accepted))) =
+      ((PMF.pi fun y => ProbComp.eval (sys.invert sk y)).bind fun invTable =>
+        (ProbOracleComp.runWith
+          (romExtractedIssuerHandler com (detScheme sys) (pk, (sk, invTable))) (A pk)
+          ([], [])).map fun (_, _, accepted) => accepted).map
+        fun accepted => CS.isBindingCollision k (romFindBindingCollision com accepted) := by
+    rw [PMF.map_bind]
+    refine PMF.bind_congr_on_support _ _ _ fun invTable _ => ?_
+    rw [PMF.map_comp, ← PMF.bind_pure_comp]
+    rfl
+  rw [hL, hacc_eq, PMF.map_comp, ← PMF.bind_pure_comp]
+  rfl
+
+/-- Stateful `ProbComp` handler for `saltedCommitmentBindingReduction`: simulates
+`romExtractedIssuerHandler` for `saltedScheme sys Salt` directly in `ProbComp`. -/
+private noncomputable def saltedBindingHandler
+    {Salt Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Salt] [DecidableEq Target]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (keys : PK × SK) :
+    (q : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+        (Salt × Option Preimage) ⊕ ((Commitment × ℕ) × Salt)) →
+      StateT
+        (List (((Commitment × ℕ) × Salt) × Target) ×
+          List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+            (Salt × Option Preimage)))
+        ProbComp
+        (((fun _ : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+            (Salt × Option Preimage) => Option (Salt × Option Preimage)) ⊕ₒ
+          (fun _ : (Commitment × ℕ) × Salt => Target)) q)
+  | .inl (.issue ir) => fun (cache, accepted) =>
+      if decide (com ir.nullifier ir.ctx ir.amount ir.opening = ir.commitment) then do
+        let s ← ProbComp.uniform Salt
+        let (y, cache') ← lookupOrSampleTarget ((ir.commitment, 0), s) cache
+        let xOpt ← sys.invert keys.2 y
+        return (some (s, xOpt), (cache', accepted ++ [.issue ir]))
+      else
+        return (none, (cache, accepted))
+  | .inl (.spend sr) => fun (cache, accepted) =>
+      if decide (com sr.newNullifier sr.ctx sr.newCredit sr.newOpening = sr.changeCommitment) &&
+          decide (sr.oldCredit + sr.oldRefund = sr.newCredit + sr.debit) &&
+          !AnonymousToken.Conservation.hasSpentNullifier accepted sr.ctx sr.nullifier then do
+        let tgt := AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening
+        let (y₁, cache₁) ← lookupOrSampleTarget (tgt, sr.signature.1) cache
+        if sys.check keys.1 y₁ sr.signature.2 then do
+          let s ← ProbComp.uniform Salt
+          let (y₂, cache₂) ← lookupOrSampleTarget ((sr.changeCommitment, sr.refund), s) cache₁
+          let xOpt ← sys.invert keys.2 y₂
+          return (some (s, xOpt), (cache₂, accepted ++ [.spend sr]))
+        else
+          return (none, (cache₁, accepted))
+      else
+        return (none, (cache, accepted))
+  | .inr ms => fun (cache, accepted) => do
+      let (y, cache') ← lookupOrSampleTarget ms cache
+      return (y, (cache', accepted))
+
+/-- Explicit `ProbComp` commitment-binding reduction for `saltedScheme sys Salt`: simulates the
+lazy-ROM extracted issuer directly in `ProbComp` and returns `romFindBindingCollision com accepted`.
+-/
+noncomputable def saltedCommitmentBindingReduction
+    {K Salt Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Salt] [DecidableEq Target]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK
+      (Salt × Option Preimage) ((Commitment × ℕ) × Salt) Target) :
+    K → ProbComp
+      (Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening) :=
+  fun _ => do
+    let keys ← sys.keyGen
+    let (_, _, accepted) ← ((A keys.1).runState (saltedBindingHandler com sys keys)).run ([], [])
+    return romFindBindingCollision com accepted
+
+private theorem romBindingExperiment_saltedScheme_eq
+    {K Salt Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Salt] [DecidableEq Target]
+    [Fintype Salt] [Nonempty Salt] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK
+      (Salt × Option Preimage) ((Commitment × ℕ) × Salt) Target) :
+    romBindingExperiment com CS (saltedScheme (M := Commitment × ℕ) sys Salt) A =
+      ProbComp.eval
+        (CS.bindingExperiment (saltedCommitmentBindingReduction (Salt := Salt) com sys A)) := by
+  simp only [romBindingExperiment, runROMExtractedConservation,
+    Crypto.Commitment.Scheme.bindingExperiment, saltedCommitmentBindingReduction,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  refine PMF.bind_congr_on_support _ _ _ fun k _ => ?_
+  have hkg : (saltedScheme (M := Commitment × ℕ) sys Salt).keyGen = ProbComp.eval sys.keyGen := rfl
+  rw [hkg, PMF.bind_bind, PMF.bind_bind]
+  refine PMF.bind_congr_on_support (ProbComp.eval sys.keyGen) _ _ fun ⟨pk, sk⟩ _ => ?_
+  rw [ProbOracleComp.eval_runState]
+  have hrun :
+      ProbOracleComp.runWith
+        (romExtractedIssuerHandler com (saltedScheme sys Salt) (pk, sk))
+        (A pk) ([], []) =
+      ProbOracleComp.runWith
+        (fun q st => ProbComp.eval (saltedBindingHandler (Salt := Salt) com sys (pk, sk) q st))
+        (A pk) ([], []) := by
+    congr 1
+    funext q ⟨cache, accepted⟩
+    have hsign_eq : ∀ (m : Commitment × ℕ) (c : List (((Commitment × ℕ) × Salt) × Target))
+        (req : AnonymousToken.Conservation.Request Nullifier Context Opening Commitment
+          (Salt × Option Preimage)),
+        ((PMF.uniformOfFintype Salt).bind fun s =>
+          (PMF.pi fun y => ProbComp.eval (sys.invert sk y)).bind fun f =>
+            ((ROMSignature.oracle Target (m, s)).run c).bind fun x =>
+              PMF.pure (some (s, f x.1), x.2, accepted ++ [req])) =
+        (PMF.uniformOfFintype Salt).bind fun s =>
+          ((ROMSignature.oracle Target (m, s)).run c).bind fun x =>
+            (ProbComp.eval (sys.invert sk x.1)).bind fun xOpt =>
+              PMF.pure (some (s, xOpt), x.2, accepted ++ [req]) := by
+      intro m c req
+      refine PMF.bind_congr_on_support _ _ _ fun s _ => ?_
+      rw [PMF.bind_comm]
+      refine PMF.bind_congr_on_support _ _ _ fun ⟨y, c'⟩ _ => ?_
+      have hev := congrArg
+        (PMF.map fun xOpt : Option Preimage =>
+          (some (s, xOpt), (c', accepted ++ [req])))
+        (PMF.pi_map_eval (fun y => ProbComp.eval (sys.invert sk y)) y)
+      simpa only [PMF.map_comp, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind,
+        Function.comp_def] using hev
+    cases q with
+    | inr ms =>
+      simp only [romExtractedIssuerHandler, saltedBindingHandler, ProbComp.eval_bind,
+        ProbComp.eval_pure, eval_lookupOrSampleTarget, PMF.monad_bind_eq_bind,
+        PMF.monad_pure_eq_pure]
+    | inl req =>
+      cases req with
+      | issue ir =>
+        dsimp only [romExtractedIssuerHandler, saltedBindingHandler]
+        split_ifs
+        · simp only [saltedScheme, interp_norm, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+            PMF.bind_bind, PMF.pure_bind]
+          rw [hsign_eq (ir.commitment, 0) cache (.issue ir)]
+          simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+            eval_lookupOrSampleTarget]
+        · simp [ProbComp.eval_pure]
+      | spend sr =>
+        dsimp only [romExtractedIssuerHandler, saltedBindingHandler]
+        split_ifs
+        · simp only [saltedScheme, interp_norm, ProbComp.eval_bind, eval_lookupOrSampleTarget,
+            PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+          refine PMF.bind_congr_on_support
+            ((ROMSignature.oracle Target
+              (AnonymousToken.Credit.target com Prod.mk sr.inputNote sr.oldOpening,
+                sr.signature.1)).run cache) _ _ fun ⟨y₁, c₁⟩ _ => ?_
+          split_ifs
+          · rw [hsign_eq (sr.changeCommitment, sr.refund) c₁ (.spend sr)]
+            simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+              eval_lookupOrSampleTarget]
+          · simp [ProbComp.eval_pure]
+        · simp [ProbComp.eval_pure]
+  rw [hrun, PMF.bind_bind]
+  simp only [PMF.pure_bind]
+
+/-- **End-to-end extracted+ROM credit conservation for deterministic unsalted hash-and-sign
+(`detScheme sys`)**: combines `romExtractedConservationExperiment_succProbability_le` with
+`detWorldEufCma_succProbability_le` and `detCommitmentBindingReduction` for any
+`TrapdoorPreimageSystem` (including `idealUOVSystem`) and keyless commitment scheme `CS`. -/
+theorem romExtractedConservationExperiment_detScheme_succProbability_le
+    {K Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Target] [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (hverify : ∀ k nf ctx t c o, CS.verify k (nf, ctx, t) c o = decide (com nf ctx t o = c))
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK (Option Preimage)
+      (Commitment × ℕ) Target)
+    {q_R q_H : ℕ} (hA : ROMExtractedCallBounded A q_R q_H) :
+    Game.succProbability (romExtractedConservationExperiment com (detScheme sys) A) ≤
+      (q_H + q_R + 1 : ℝ≥0) *
+        (Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (detInverter sys (q_H + q_R) (romTargetForger com (detScheme sys) A))) +
+        Experiment.advantage
+          (psExperimentReal sys
+            (detPSOneDistinguisher sys (q_H + q_R) (romTargetForger com (detScheme sys) A)))
+          (psExperimentSim sys
+            (detPSOneDistinguisher sys (q_H + q_R) (romTargetForger com (detScheme sys) A)))) +
+      Experiment.advantage
+        (psExperimentReal sys (detPSDistinguisher sys (romTargetForger com (detScheme sys) A)))
+        (psExperimentSim sys (detPSDistinguisher sys (romTargetForger com (detScheme sys) A))) +
+      ((q_R + (q_H + q_R)).choose 2 : ℝ≥0) * (Fintype.card Target : ℝ≥0)⁻¹ +
+      Experiment.succProbability
+        (CS.bindingExperiment (detCommitmentBindingReduction com sys A)) := by
+  have hcb : ProbForgerCallBounded (romTargetForger com (detScheme sys) A) q_R (q_H + q_R) := by
+    simpa [mul_one] using
+      romTargetForger_callBounded com (detScheme sys) A hA (detScheme_verify_isQueryBounded sys)
+  have hcons := romExtractedConservationExperiment_succProbability_le com CS hverify
+    (detScheme sys) A
+  have heuf := detWorldEufCma_succProbability_le sys (romTargetForger com (detScheme sys) A) hcb
+  push_cast at heuf
+  have hbind :
+      Game.succProbability (romBindingExperiment com CS (detScheme sys) A) =
+        Experiment.succProbability
+          (CS.bindingExperiment (detCommitmentBindingReduction com sys A)) := by
+    rw [romBindingExperiment_detScheme_eq com CS sys A]
+  rw [hbind] at hcons
+  exact hcons.trans (add_le_add heuf le_rfl)
+
+/-- **End-to-end extracted+ROM credit conservation for salted hash-and-sign
+(`saltedScheme sys Salt`)**: combines `romExtractedConservationExperiment_succProbability_le` with
+`saltedWorldEufCma_succProbability_le` and `saltedCommitmentBindingReduction` for any
+`TrapdoorPreimageSystem` (including `idealUOVSystem`) and keyless commitment scheme `CS`. -/
+theorem romExtractedConservationExperiment_saltedScheme_succProbability_le
+    {K Salt Target Preimage : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [DecidableEq Salt] [DecidableEq Target]
+    [Fintype Salt] [Nonempty Salt] [Inhabited Salt]
+    [Fintype Target] [Nonempty Target] [Finite Preimage]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (CS : Crypto.Commitment.Scheme K (Nullifier × Context × ℕ) Commitment Opening)
+    (hverify : ∀ k nf ctx t c o, CS.verify k (nf, ctx, t) c o = decide (com nf ctx t o = c))
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage)
+    (A : ROMExtractedAdversary Nullifier Context Opening Commitment PK
+      (Salt × Option Preimage) ((Commitment × ℕ) × Salt) Target)
+    {q_R q_H : ℕ} (hA : ROMExtractedCallBounded A q_R q_H) :
+    Game.succProbability
+        (romExtractedConservationExperiment com (saltedScheme sys Salt) A) ≤
+      (q_H + q_R + 1 : ℝ≥0) *
+        Experiment.succProbability
+          (Signature.targetExperiment sys.toRawScheme (fun _ => ProbComp.uniform Target)
+            (saltedInverter (Salt := Salt) sys (q_H + q_R)
+              (romTargetForger com (saltedScheme sys Salt) A))) +
+      Experiment.advantage
+        (psExperimentReal sys
+          (saltedPSDistinguisher (Salt := Salt) sys
+            (romTargetForger com (saltedScheme sys Salt) A)))
+        (psExperimentSim sys
+          (saltedPSDistinguisher (Salt := Salt) sys
+            (romTargetForger com (saltedScheme sys Salt) A))) +
+      ((q_R * (q_H + q_R) + q_R.choose 2 : ℕ) : ℝ≥0) * (Fintype.card Salt : ℝ≥0)⁻¹ +
+      Experiment.succProbability
+        (CS.bindingExperiment (saltedCommitmentBindingReduction (Salt := Salt) com sys A)) := by
+  have hcb :
+      ProbForgerCallBounded
+        (romTargetForger com (saltedScheme sys Salt) A) q_R (q_H + q_R) := by
+    simpa [mul_one] using
+      romTargetForger_callBounded com (saltedScheme sys Salt) A hA
+        (saltedScheme_verify_isQueryBounded (Salt := Salt) sys)
+  have hcons := romExtractedConservationExperiment_succProbability_le com CS hverify
+    (saltedScheme sys Salt) A
+  have heuf := saltedWorldEufCma_succProbability_le (Salt := Salt) sys
+    (romTargetForger com (saltedScheme sys Salt) A) hcb
+  rw [Nat.cast_add (m := q_H) (n := q_R)] at heuf
+  have hbind :
+      Game.succProbability
+          (romBindingExperiment com CS (saltedScheme sys Salt) A) =
+        Experiment.succProbability
+          (CS.bindingExperiment (saltedCommitmentBindingReduction (Salt := Salt) com sys A)) := by
+    rw [romBindingExperiment_saltedScheme_eq (Salt := Salt) com CS sys A]
+  rw [hbind] at hcons
+  exact hcons.trans (add_le_add heuf le_rfl)
+
+end ROMConservation
 
 end Cslib.Crypto.UOV.HashAndSign
 
