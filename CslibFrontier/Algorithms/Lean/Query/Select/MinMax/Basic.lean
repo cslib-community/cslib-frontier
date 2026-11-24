@@ -98,6 +98,10 @@ def findMin : List α → FreeM (LEQuery α) (Option α)
   | [] => return none
   | x :: xs => some <$> findMinFrom x xs
 
+/-- The minimum of the empty list is `none`, found without comparisons. -/
+@[simp] theorem findMin_nil : findMin ([] : List α) = pure none := by
+  rw [findMin]
+
 /-- The scan makes one comparison per remaining element. -/
 @[simp] theorem countQueries_findMinFrom (oracle : {ι : Type} → LEQuery α ι → ι) (m : α)
     (xs : List α) : (findMinFrom m xs).countQueries oracle = xs.length := by
