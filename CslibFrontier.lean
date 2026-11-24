@@ -8497,6 +8497,10 @@ public import CslibFrontier.GameTheory.Cooperative.Core
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Basic
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.DiscreteClinching
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Impossibility
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.TwoBidderClinching
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Cycle
