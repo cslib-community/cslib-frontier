@@ -6458,6 +6458,7 @@ public import CslibFrontier.Crypto.Protocols.UC.Composition
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 public import CslibFrontier.Crypto.Protocols.UC.Emulation
 public import CslibFrontier.Crypto.Protocols.UC.Execution
+public import CslibFrontier.Crypto.Protocols.UC.GlobalSetup
 public import CslibFrontier.Crypto.Protocols.UC.HybridFunctionality
 public import CslibFrontier.Crypto.Protocols.UC.JointState
 public import CslibFrontier.Crypto.Protocols.UC.Linking
