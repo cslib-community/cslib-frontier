@@ -84,7 +84,7 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
 theorem machine_emit_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).emit (encPair encState (encOption encBool)) encBits
       (fun a => (encPair encState (encOption encBool) a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Stopping depends on the actual replay duration counter. -/
 theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :

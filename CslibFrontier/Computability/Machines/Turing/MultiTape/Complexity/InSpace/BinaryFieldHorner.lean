@@ -180,7 +180,7 @@ theorem HornerInput.evaluate_inSpace :
   have hn := encHornerInput_count_budget hid
   have hinit : ComputableInSpace (fun p => (p, p.count, [])) encHornerInput encHornerState
       (fun p => (encHornerInput p).length) :=
-    budget_prod hid (budget_prod hn (budget_const (encB := encCoefficients) [] (.refl _)))
+    budget_prod hid (budget_prod hn (budget_const (encB := encCoefficients) []))
   have h := budget_iterate hn hinit hornerAdvance_inSpace (fun p k _ => horner_state_length p k)
     (.of_le_linear 8 8 fun p => by omega)
   have hout := budget_comp_linear (snd encHornerInput (encPair encNat encCoefficients)) h

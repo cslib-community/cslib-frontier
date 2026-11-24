@@ -119,14 +119,6 @@ theorem isCodeFrom_deMorganCode (A : Proposition (Fin n)) (k : ℕ) :
           simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
           simp only [List.length_append]; omega⟩, trivial⟩
 
-/-- Evaluating more gates keeps the values of the wires computed so far. -/
-private theorem getD_evalCode_append_of_lt (x : List Bool) (gates rest : List (Op × List ℕ))
-    {i : ℕ} (hi : i < x.length + gates.length) :
-    (evalCode interpretation false x (gates ++ rest)).getD i false =
-      (evalCode interpretation false x gates).getD i false := by
-  rw [evalCode_append]
-  exact getD_evalCode_of_lt _ _ _ _ (by simpa using hi)
-
 /-- The value of a gate appended after the gates `gates`. -/
 private theorem getD_evalCode_append_singleton (x : List Bool) (gates : List (Op × List ℕ))
     (g : Op × List ℕ) {w : ℕ} (hw : w = x.length + gates.length) :
@@ -164,7 +156,8 @@ theorem getD_evalCode_deMorganCode (A : Proposition (Fin n)) (x : List Bool) (hx
     -- the values of the arguments after the gates of both arguments
     have hva' : (evalCode interpretation false x (pre ++ a.gates ++ b.gates)).getD a.output false =
         A.eval fun i : Fin n => x.getD i false := by
-      rw [getD_evalCode_append_of_lt _ _ _ (by simp only [List.length_append]; omega)]
+      rw [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
+        (by simp only [List.length_append]; omega)]
       exact hva
     first
       | (rw [getD_evalCode_append_singleton _ _ _ (by simp only [List.length_append]; omega)]
@@ -179,7 +172,8 @@ theorem getD_evalCode_deMorganCode (A : Proposition (Fin n)) (x : List Bool) (hx
          have hb₂ : (evalCode interpretation false x
              (pre ++ a.gates ++ b.gates ++ [(Op.not, [a.output])])).getD
              b.output false = B.eval fun i : Fin n => x.getD i false := by
-           rw [getD_evalCode_append_of_lt _ _ _ (by simp only [List.length_append]; omega)]
+           rw [Cslib.Circuits.Boolean.getD_evalCode_append_of_lt
+             (by simp only [List.length_append]; omega)]
            exact hvb
          rw [getD_evalCode_append_singleton _ _ _
            (by simp only [List.length_append, List.length_singleton]; omega)]
