@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.Alternation.NP
 import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
+import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Polynomial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
@@ -19,7 +20,8 @@ which puts `Set.univ` and `∅` in `AP` with explicit machines, and their games 
 lost. Two game verifiers, one won by the existential player's first move and one lost to the
 universal player's, put `Set.univ` and `∅` in `AP` through the guess-then-verify machine.
 Single-bit moves on concrete predicates, rounds of quantifiers on a concrete formula, and
-Savitch's midpoint game on a two-word graph.
+Savitch's midpoint game on a two-word graph. `Set.univ` and `∅`, in nondeterministic polynomial
+space through `P`, are midpoint games won and lost on every instance.
 -/
 
 namespace CslibFrontierTests.Alternation
@@ -269,5 +271,40 @@ example : ¬Alternation true (List.replicate (2 * ((1 + 1) * 1)) 1)
 example : Alternation true ([1] ++ [1, 1]) (fun z => z.take 1 = [true]) :=
   (alternation_append_iff fun z => by
     simp only [List.sum_cons, List.sum_nil, List.take_take]; rfl).mpr ⟨[true], rfl, rfl⟩
+
+/-! ### Nondeterministic space as a midpoint game -/
+
+/-- Problems in `P` are in `NSPACE (· ^ j)` for some `j`. -/
+private theorem exists_mem_NSPACE_of_mem_P {α : Type} {enc : α ↪ List Bool} {A : Set α}
+    (h : A ∈ P enc) : ∃ j, A ∈ NSPACE enc (· ^ j) :=
+  mem_NPSPACE_iff_exists_mem_NSPACE.mp (PSPACE_subset_NPSPACE (P_subset_PSPACE h))
+
+/-- `Set.univ`, in `NSPACE (· ^ j)` through `P`, is a midpoint game that the existential player
+wins on every instance, at every width above the bound. -/
+example {α : Type} (enc : α ↪ List Bool) : ∃ (j k : ℕ) (State : Type) (_ : Finite State)
+    (ntm : MultiTapeNTM k Bool State) (K : ℕ), ∀ a w,
+      K * ((enc a).length + (enc a).length ^ j + 1) ≤ w →
+        Alternation true (List.replicate (2 * ((2 * w + 2 + 1) * (2 * w + 2))) 1) fun z =>
+          Reachability.midpointGame ntm.codeEdge (2 * w + 2) (2 * w + 2)
+            (MultiTapeNTM.viewCode w (ntm.initView (enc a))) (MultiTapeNTM.acceptCode w) z =
+              true := by
+  obtain ⟨j, hj⟩ := exists_mem_NSPACE_of_mem_P (enc := enc) (A := Set.univ)
+    ⟨fun _ => true, MultiTapeTM.ComputableInPolyTime.const _, fun _ => by simp⟩
+  obtain ⟨k, State, hfin, ntm, K, h⟩ := exists_midpointGame_of_mem_NSPACE hj
+  exact ⟨j, k, State, hfin, ntm, K, fun a w hw => (h a w hw).mp (Set.mem_univ a)⟩
+
+/-- `∅`, in `NSPACE (· ^ j)` through `P`, is a midpoint game that the existential player loses on
+every instance, at every width above the bound. -/
+example {α : Type} (enc : α ↪ List Bool) : ∃ (j k : ℕ) (State : Type) (_ : Finite State)
+    (ntm : MultiTapeNTM k Bool State) (K : ℕ), ∀ a w,
+      K * ((enc a).length + (enc a).length ^ j + 1) ≤ w →
+        ¬Alternation true (List.replicate (2 * ((2 * w + 2 + 1) * (2 * w + 2))) 1) fun z =>
+          Reachability.midpointGame ntm.codeEdge (2 * w + 2) (2 * w + 2)
+            (MultiTapeNTM.viewCode w (ntm.initView (enc a))) (MultiTapeNTM.acceptCode w) z =
+              true := by
+  obtain ⟨j, hj⟩ := exists_mem_NSPACE_of_mem_P (enc := enc) (A := ∅)
+    ⟨fun _ => false, MultiTapeTM.ComputableInPolyTime.const _, fun _ => by simp⟩
+  obtain ⟨k, State, hfin, ntm, K, h⟩ := exists_midpointGame_of_mem_NSPACE hj
+  exact ⟨j, k, State, hfin, ntm, K, fun a w hw => (h a w hw).not.mp (Set.notMem_empty a)⟩
 
 end CslibFrontierTests.Alternation

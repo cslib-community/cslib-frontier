@@ -696,4 +696,78 @@ example : ∃ r : Route, r.start = 0 ∧ r.finish = ⟨0, 2⟩ ∧
   have hc : c ∈ points := Finset.mem_singleton_self _
   simpa only [hline, hc, decide_true, BooleanRing.add_self, Bool.zero_eq_false] using hr c hc
 
+-- The bent route crosses the observation ray twice, while the horizontal route
+-- has no crossings. The observation is aligned with both endpoints.
+example :
+    ((Route.line 0 ⟨1, 2⟩).concat (Route.line ⟨1, 2⟩ ⟨2, 0⟩)).rayParity 1 ⟨-1, 0⟩ =
+      false := by
+  classical
+  let b : ℂ := ⟨2, 0⟩
+  let m : ℂ := ⟨1, 2⟩
+  let p := (Route.line 0 m).concat (Route.line m b)
+  let q := Route.line 0 b
+  let K := Complex.reLm ⁻¹' Set.Ici (0 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have hz : (⟨-1, 0⟩ : ℂ) ∉ K := by
+    change ¬(0 : ℝ) ≤ -1
+    norm_num
+  have h0 : (0 : ℂ) ∈ K := by change (0 : ℝ) ≤ 0; exact le_rfl
+  have hm : m ∈ K := by change (0 : ℝ) ≤ 1; exact zero_le_one
+  have hb : b ∈ K := by change (0 : ℝ) ≤ 2; norm_num
+  have hp : p.support ⊆ K := by
+    change ((Route.line 0 m).concat (Route.line m b)).support ⊆ K
+    rw [Route.support_concat _ _ rfl, Route.support_line, Route.support_line]
+    exact Set.union_subset (hK.segment_subset h0 hm) (hK.segment_subset hm hb)
+  have hq : q.support ⊆ K := by
+    change (Route.line 0 b).support ⊆ K
+    rw [Route.support_line]
+    exact hK.segment_subset h0 hb
+  have hend (side : Bool) : p.endpoint side = q.endpoint side := by
+    change ((Route.line 0 m).concat (Route.line m b)).endpoint side =
+      (Route.line 0 b).endpoint side
+    rw [Route.endpoint_concat _ _ rfl]
+    cases side <;> rfl
+  change p.rayParity 1 ⟨-1, 0⟩ = false
+  rw [Route.rayParity_eq_of_support_subset_convex p q (hend false) (hend true)
+    hK hp hq hz]
+  change (Route.line 0 b).rayParity 1 ⟨-1, 0⟩ = false
+  rw [Route.rayParity_line]
+  exact decide_eq_false (not_rayCrosses_of_im_eq (by simp only [one_mul]; rfl) _)
+
+-- The original bend lies at the observation height. A perturbation can put it on either side.
+open Classical in
+example :
+    let bend (m : ℂ) : Route := ⟨1, fun i => if i.val = 1 then m else ⟨i.val, 0⟩⟩
+    ∃ ε : ℝ, 0 < ε ∧ ∀ m : ℂ, dist m ⟨1, 1⟩ < ε →
+      ∀ w ∈ ({⟨-1, 1⟩, ⟨-1, 0⟩} : Finset ℂ),
+        w ∉ (bend m).support ∧ ∀ u : ℂ,
+          (bend m).rayParity u w = (bend ⟨1, 1⟩).rayParity u w := by
+  let bend (m : ℂ) : Route := ⟨1, fun i => if i.val = 1 then m else ⟨i.val, 0⟩⟩
+  let c : ℂ := ⟨1, 1⟩
+  let points : Finset ℂ := {⟨-1, 1⟩, ⟨-1, 0⟩}
+  let K := Complex.reLm ⁻¹' Set.Ici (0 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have hnode (i : Fin ((bend c).segments + 1)) : (bend c).point i ∈ K := by
+    fin_cases i <;> norm_num [bend, c, K]
+  have havoid (z : ℂ) (hz : z ∈ points) : z ∉ (bend c).support := by
+    have hre : z.re = -1 := by
+      simp only [points, Finset.mem_insert, Finset.mem_singleton] at hz
+      rcases hz with rfl | rfl <;> rfl
+    rw [Route.support]
+    intro hz'
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz'
+    have hc := hK.segment_subset (hnode i.castSucc) (hnode i.succ) hi
+    change (0 : ℝ) ≤ z.re at hc
+    norm_num [hre] at hc
+  obtain ⟨ε, hε, hmove⟩ :=
+    (bend c).exists_pos_rayParity_eq_of_point_dist_lt_finset points havoid
+  refine ⟨ε, hε, fun m hm w hw => ?_⟩
+  have hdist (i : Fin ((bend c).segments + 1)) :
+      dist ((bend m).point i) ((bend c).point i) < ε := by
+    fin_cases i
+    · simpa [bend] using hε
+    · exact hm
+    · simpa [bend] using hε
+  exact hmove (bend m).point rfl rfl hdist w hw
+
 end CslibFrontierTests.PolygonalRayParityIntersections
