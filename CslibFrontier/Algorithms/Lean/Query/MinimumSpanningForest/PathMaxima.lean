@@ -92,14 +92,6 @@ section King
 
 variable {ends F} {W : Type} [LinearOrder W] {w : E → W}
 
-omit [DecidableEq V] [DecidableEq E] in
-/-- Distinct vertices joined by a set of edges are joined only if the set is nonempty. -/
-private theorem nonempty_of_joins {T : Finset E} {u v : V} (huv : u ≠ v)
-    (h : Joins ends (T : Set E) u v) : T.Nonempty := by
-  rcases Relation.ReflTransGen.cases_tail h with rfl | ⟨b, -, e, he, -⟩
-  · exact absurd rfl huv
-  · exact ⟨e, he⟩
-
 variable {oracle : {ι : Type} → LEQuery E ι → ι}
 
 /-- **King's reduction** (after [King1997]). Let `j` be the first Borůvka level at which `u`
