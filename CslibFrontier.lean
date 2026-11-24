@@ -1535,6 +1535,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.SuccinctVerifier
 public import CslibFrontier.Computability.Circuit.Boolean.SuccinctVerifier.Encoding
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0
+public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.Compile
+public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.SAT
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Collapse
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Mobius
