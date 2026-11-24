@@ -162,6 +162,7 @@ def selfLoopCap (u v : Fin 3) : ℕ :=
   | 1, 2 => 4
   | _, _ => 0
 
+/-- Self-loop Word-RAM instance (`maxFlowValue = 4`). -/
 abbrev selfLoopInst : Instance := ⟨3, 0, 2, selfLoopCap⟩
 
 example : ∃ steps ≤ prTime 3,
@@ -186,6 +187,7 @@ def backArcCap (u v : Fin 3) : ℕ :=
   | 2, 1 => 2
   | _, _ => 0
 
+/-- Back-arc Word-RAM instance (`maxFlowValue = 4`). -/
 abbrev backArcInst : Instance := ⟨3, 0, 2, backArcCap⟩
 
 example : ∃ steps ≤ prTime 3,
@@ -210,6 +212,7 @@ def antiCap (u v : Fin 4) : ℕ :=
   | 2, 3 => 3
   | _, _ => 0
 
+/-- Antiparallel-arc Word-RAM instance (`maxFlowValue = 4`). -/
 abbrev antiInst : Instance := ⟨4, 0, 3, antiCap⟩
 
 example : ∃ steps ≤ prTime 4,
@@ -253,6 +256,7 @@ def cutOffCap (u v : Fin 3) : ℕ :=
   | 2, 1 => 5
   | _, _ => 0
 
+/-- Unreachable-sink Word-RAM instance (`maxFlowValue = 0`). -/
 abbrev cutOffInst : Instance := ⟨3, 0, 2, cutOffCap⟩
 
 example : ∃ steps ≤ prTime 3,
@@ -296,6 +300,31 @@ example : ∃ steps ≤ prTime 2,
 /-- info: some (0, true, true) -/
 #guard_msgs in
 #eval runFlat loop2Inst 16
+
+/-- All-zero capacity matrix with `s ≠ t` (`maxCap = 0`): tests the edge `0`-capacity word-bound
+and outputs `[0, 1, 0, 0, ...]`. -/
+abbrev zeroCapInst : Instance := ⟨3, 0, 2, fun _ _ => 0⟩
+
+example : zeroCapInst.s ≠ zeroCapInst.t ∧
+    zeroCapInst.maxCap = 0 ∧
+    zeroCapInst.maxFlowValue = 0 ∧
+    (∃ steps ≤ prTime 3,
+      ExecutesList 16 program (State.init zeroCapInst.encode) zeroCapInst.answerWords steps) ∧
+    (∃ vsteps ≤ prTime 3,
+      Executes 16 flowProgram (State.init zeroCapInst.encode) 0 vsteps) := by
+  have hmc : zeroCapInst.maxCap = 0 := by decide +kernel
+  have hval : zeroCapInst.maxFlowValue = 0 := by decide +kernel
+  have hfit : Fits 16 zeroCapInst.wordBound := by decide +kernel
+  obtain ⟨steps, hle, hex⟩ := program_spec zeroCapInst hfit
+  obtain ⟨vsteps, hvex, hvle⟩ := executes_maxFlowValue zeroCapInst hfit
+  exact ⟨by decide, hmc, hval, ⟨steps, hle, hex⟩, ⟨vsteps, hvle, hval ▸ hvex⟩⟩
+
+/-- info: some (0, [0, 1, 0, 0], true, true) -/
+#guard_msgs in
+#eval runStructured zeroCapInst 16
+
+/-- Negative word-bound check: `6`-bit words (`2^6 = 64`) fail `Fits 6 clrsInst.wordBound`. -/
+example : ¬ Fits 6 clrsInst.wordBound := by decide +kernel
 
 /-! ### Width independence and determinism -/
 
