@@ -3162,6 +3162,7 @@ public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProg
 public import CslibFrontier.Computability.Complexity.Problems.GeneralizedGeography
 public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Arborescences
+public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.ComponentOrder
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.CutVertex
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Loop
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Polygonal
