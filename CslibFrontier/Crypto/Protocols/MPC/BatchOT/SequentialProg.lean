@@ -19,7 +19,7 @@ protocol over the batched transfer, run by sequential single transfers over a pr
 sum of advantages of the environments `composeSeqBatchOTRoundEnv`, one per transfer of every call.
 These environments are distributions. This module gives a program with the distribution of each
 environment, and describes the challenges an environment can produce when the outer protocol
-corrupts only the receiver slot of every call and offers words of one length.
+corrupts the same slots of every call and offers words of one length.
 
 Everything here is original bookkeeping toward the asymptotic composition theorem (#6045), not a
 cited statement. The results are an equality of distributions and a statement about supports: no
@@ -36,10 +36,9 @@ not proved here.
 * `Cslib.Crypto.Protocols.MPC.eval_composeSeqBatchOTRoundEnvProg`: the distribution of
   `composeSeqBatchOTRoundEnvProg` is `composeSeqBatchOTRoundEnv`.
 * `Cslib.Crypto.Protocols.MPC.coalition_length_of_mem_support_composeSeqBatchOTRoundEnv`: for
-  transfers of bit strings, if at every call of the outer protocol the corrupted slots are the
-  receiver slot alone and both words offered in every transfer have length `L`, then every
-  challenge of the environment corrupts the receiver slot alone and the transferred word has
-  length `L`.
+  transfers of bit strings, if at every call of the outer protocol the corrupted slots are `J₀`
+  and both words offered in every transfer have length `L`, then every challenge of the
+  environment has the corrupted slots `J₀` and the transferred word has length `L`.
 -/
 
 public section
@@ -141,13 +140,13 @@ private theorem length_otOutputs_batchOTQueryAt {k L : ℕ}
   change (if q 1 t then q 0 t true else q 0 t false).length = L
   split <;> exact hq t _
 
-/-- **The challenges of the environment of a transfer, for a corrupted receiver and words of one
+/-- **The challenges of the environment of a transfer, for fixed corrupted slots and words of one
 length.** Let `P` call the batched transfer of bit strings so that, for all coins in the support
 of the coin sampler of `P` and at every call reachable on the inputs `x`, the corrupted slots are
-the receiver slot `1` alone and
+`J₀` (the receiver slot `{1}` alone, or the sender slot `{0}` alone, say) and
 both words that the sender offers in every transfer have length `L`. Then every challenge `c` in
 the support of the environment `composeSeqBatchOTRoundEnv` of any transfer `j` of any call `i`
-corrupts the receiver slot alone, and the word `otOutputs c.query 1` that the challenged single
+has the corrupted slots `J₀`, and the word `otOutputs c.query 1` that the challenged single
 transfer gives to the receiver has length `L`. Nothing is assumed about `Sub`, `S₂` or `D`. -/
 theorem coalition_length_of_mem_support_composeSeqBatchOTRoundEnv {m : ℕ} (k : ℕ)
     {sc₁ : Schedule m (batchOTSpec k (List Bool))} {In Coins₁ Out : Fin m → Type}
@@ -163,15 +162,15 @@ theorem coalition_length_of_mem_support_composeSeqBatchOTRoundEnv {m : ℕ} (k :
             (seqBatchOTSchedule k (List Bool))) Coins₁ sc₁)
         (Schedule.compose
           (fun _ => Schedule.compose (fun _ => sc₂) (seqBatchOTSchedule k (List Bool))) sc₁) i) ×
-      ((i : Fin m) → Out i) → ProbComp Bool) (i j : ℕ) (L : ℕ)
+      ((i : Fin m) → Out i) → ProbComp Bool) (i j : ℕ) (J₀ : Finset (Fin 2)) (L : ℕ)
     (h : ∀ c₁ ∈ (ProbComp.eval (OracleComp.pi P.sampleCoins)).support, ForallChallenge I
       (fun _ J (q : (s : Fin 2) → (batchOTSpec k (List Bool)).Query () s) =>
-        J = ({1} : Finset (Fin 2)) ∧ ∀ (t : Fin k) (b : Bool), (q 0 t b).length = L)
+        J = J₀ ∧ ∀ (t : Fin k) (b : Bool), (q 0 t b).length = L)
       P.steps (fun i => (x i, c₁ i)))
     {c : RoundChallenge (spec₁ := otSpec (List Bool)) (fun _ => sc₂) (fun _ => Coins₂)}
     (hc : Sum.inr c ∈
       (composeSeqBatchOTRoundEnv k (List Bool) P W₂ Sub S₂ I x D i j).support) :
-    c.coalition = ({1} : Finset (Fin 2)) ∧ (otOutputs c.query 1 : List Bool).length = L := by
+    c.coalition = J₀ ∧ (otOutputs c.query 1 : List Bool).length = L := by
   rw [composeSeqBatchOTRoundEnv, PMF.mem_support_bind_iff] at hc
   obtain ⟨r, hr, hc⟩ := hc
   cases r with
@@ -184,7 +183,7 @@ theorem coalition_length_of_mem_support_composeSeqBatchOTRoundEnv {m : ℕ} (k :
       _ _ I x D i h hr
     exact ForallChallenge.of_mem_support_composeRoundEnv (seqBatchOT k (List Bool))
       (otWorld (List Bool)) W₂ (fun _ => Sub) (fun _ => S₂) c'.coalition c'.query c'.guess j
-      (Q := fun _ J q => J = ({1} : Finset (Fin 2)) ∧ (otOutputs q 1 : List Bool).length = L)
+      (Q := fun _ J q => J = J₀ ∧ (otOutputs q 1 : List Bool).length = L)
       (fun c₁ _ => forallChallenge_seqOTSteps c'.coalition _ k _ _ _ fun t =>
         ⟨h₁.1, length_otOutputs_batchOTQueryAt c'.query h₁.2 t⟩) hc
 

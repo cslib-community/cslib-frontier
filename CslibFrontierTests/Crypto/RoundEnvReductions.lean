@@ -33,22 +33,33 @@ A client of `Composition.ForallChallenge`, `composeRoundEnvProg`, `Protocol.real
 * The support hypothesis of `advantage_bind_roundGame_kdfMaskedOT_eq_kdf` holds for an environment
   that returns a challenge with the corrupted slots `{1}` and a chosen value of the right length.
   The theorem is applied to it.
+* `advantage_bind_roundGame_kdfMaskedOT_le_kdf` applies to the same environment with the fair-coin
+  pads `F.kdfPadsProb n d`, whose distance `2 / 2 ^ n` from the uniform pads is
+  `advantage_bind_kdfPadsProb_le`; the bound is ascribed with `2 / 2 ^ n + 2 / 2 ^ n`.
 * An environment that has decided its bit: both distinguishers return it and ignore their inputs.
 * A challenge with the corrupted slots `{0}` is rejected: the DDH distinguisher returns `false`, so
   its guard on the coalition is exercised.
-* `advantage_bind_padHiding_eq_kdf` and `advantage_bind_padTransfer_le_ddh` apply to a decided
+* `advantage_bind_padHiding_le_kdf` and `advantage_bind_padTransfer_le_ddh` apply to a decided
   environment, whose support has no challenge.
 * `eval_composeSeqBatchOTRoundEnvProg` is applied to a batch over the fair-coin DDH transfer, and
   `Yao.forallChallenge_protocol_iff` shows that a predicate that never holds fails at the batched
   transfer of Yao's hybrid protocol.
 * `advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame` is applied to Yao's protocol over
-  the masked transfer with `F.kdfMask` and `F.kdfPads` over the fair-coin DDH transfer, with the
-  group description drawn from a setup program.
-* `Yao.advantage_setup_composedProtocol_kdfDDHProb_evaluator_le` is applied with all its data and
-  hypotheses as variables, and its bound is ascribed: the privacy term of the garbling scheme plus,
-  for every transfer, the advantage between the ideal and the real key-derivation game plus the
-  advantage between the real and the random DDH game plus `14 / 2 ^ n`. Exchanging the two games of
-  a term, or changing the constant, fails the check.
+  the masked transfer with `F.kdfMask` and `F.kdfPadsProb` over the fair-coin DDH transfer, with
+  the group description drawn from a setup program.
+* The real game of `Yao.kdfDDHProbFamily` is, by `rfl`, the setup, the choosing stage of the
+  environment, the real joint distribution of the four-level composed protocol with the fair-coin
+  pads in the plain model, and the guessing stage.
+* `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le` is applied with all its data
+  and hypotheses as variables, and its bound is ascribed: the privacy term of the garbling scheme
+  plus, for every transfer, the advantage between the ideal and the real key-derivation game plus
+  the advantage between the real and the random DDH game plus `18 / 2 ^ n`. Exchanging the two
+  games of a term, or changing the constant, fails the check.
+* `Yao.advantage_idealGame_realGame_kdfDDHProbFamily_garbler_le` is applied to an arbitrary setup
+  law and environment, and its bound `(c n).evaluatorLen * (2 / 2 ^ n)` is ascribed.
+
+`CslibFrontierTests/Crypto/YaoLabelLength.lean` discharges the hypotheses of the evaluator bound
+on the garbling scheme for a scheme of the library.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -158,6 +169,32 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc)
       obtain rfl := Sum.inr.inj hc
       exact ⟨rfl, hq⟩
 
+/-- Non-vacuity of `advantage_bind_roundGame_kdfMaskedOT_le_kdf` at the fair-coin pads: the same
+environment satisfies its hypotheses, the pads are within `2 / 2 ^ n` of the uniform ones, and the
+bound has the two statistical terms. -/
+example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) (n : ℕ)
+    (Sm : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (hSm : ∀ d, Sm d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPadsProb n d)
+      (Cslib.BitString.sampleList (msgLen n)))
+    (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n)
+    (q : (s : Fin 2) → OTIn (List Bool) s)
+    (hq : (otOutputs (M := List Bool) q 1 : List Bool).length = msgLen n)
+    (g : (d : F.Desc) → ((s : ({1} : Finset (Fin 2))) → PartyView (OTIn (List Bool))
+        (MaskedOTCoins (F.Carrier d)) (maskedOTSchedule (F.Carrier d) (List Bool)) s) ×
+      ((s : Fin 2) → OTOut (List Bool) s) → ProbComp Bool) :=
+  (F.advantage_bind_roundGame_kdfMaskedOT_le_kdf setup H msgLen n (fun d => F.kdfPadsProb n d)
+    (fun d k => F.advantage_bind_kdfPadsProb_le n d k) Sm hSm
+    (fun _ d => pure (.inr ⟨(), {1}, q, g d⟩)) hH
+    (fun d c hc => by
+      rw [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hc
+      obtain rfl := Sum.inr.inj hc
+      exact ⟨rfl, hq⟩) :
+    Game.advantage _ _ ≤ Game.advantage (F.kdfIdealGame setup msgLen _ n)
+      (F.kdfRealGame setup H _ n) + (2 / 2 ^ n + 2 / 2 ^ n))
+
 /-- A decided environment: the DDH distinguisher returns its bit and ignores the triple. -/
 example (F : PrimeOrderGroupFamily) (b : Bool) (n : ℕ) (d : F.Desc) (u v w : F.Carrier d) :
     F.roundEnvToDDHDistinguisher (fun _ _ => pure (.inl b)) n d u v w = pure b := by
@@ -188,13 +225,13 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc)
     (Sm : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
       (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
       (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
-    (hSm : ∀ d, Sm d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+    (hSm : ∀ d, Sm d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPadsProb n d)
       (Cslib.BitString.sampleList (msgLen n)))
     (S₂ : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) →
       CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
         (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
     (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n) (b : Bool) :=
-  F.advantage_bind_padHiding_eq_kdf setup H msgLen n Sm hSm S₂ hH (fun _ _ => pure (.inl b))
+  F.advantage_bind_padHiding_le_kdf setup H msgLen n Sm hSm S₂ hH (fun _ _ => pure (.inl b))
     fun d c hc => by
       rw [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hc
       cases hc
@@ -206,7 +243,7 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc)
       CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
         (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
     (hS₂ : ∀ d, S₂ n d {1} = F.ddhOTReceiverSimProb n d) (b : Bool) :=
-  F.advantage_bind_padTransfer_le_ddh setup H n S₂ hS₂ (fun _ _ => pure (.inl b))
+  F.advantage_bind_padTransfer_le_ddh setup H F.kdfPadsProb n S₂ hS₂ (fun _ _ => pure (.inl b))
     fun d c hc => by
       rw [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hc
       cases hc
@@ -273,13 +310,27 @@ example {Fn : Type} {Gs : Scheme Fn} (F : PrimeOrderGroupFamily) (setup : ℕ �
   advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame
     ((ProbComp.eval (setup n)).map Sum.inr) (c n).evaluatorLen
     (fun _ : F.Desc => protocol Gs n (c n)) (fun d => F.kdfMask H d) (fun d => F.kdfMask H d)
-    (fun d => F.kdfPads d) (fun _ => noOracleWorld) (fun d => F.ddhOTProbProtocol n d)
+    (fun d => F.kdfPadsProb n d) (fun _ => noOracleWorld) (fun d => F.ddhOTProbProtocol n d)
     (fun d => Sm n d) (fun d => S₂ n d) (fun _ => functionality Gs (c n)) (fun _ => T₁ n)
     (fun _ => {1}) (x n) (D n) N (fun _ => hN)
 
-/-- The evaluator bound for Yao's protocol in the plain model, with its terms in order: garbling
-privacy, then per transfer the ideal against the real key-derivation game, the real against the
-random DDH game, and `14 / 2 ^ n`. -/
+/-- The real game of the plain-model family unfolds to the setup, the choice of the environment,
+the real joint distribution of the composed protocol with the fair-coin pads, and the guess. -/
+example {Fn : Type} {Gs : Scheme Fn} (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (c : ℕ → Params Gs) (I : Finset (Fin 2))
+    (Z : Environment (kdfDDHProbFamily Gs F H c) I) (n : ℕ) :
+    (kdfDDHProbFamily Gs F H c).realGame setup I Z n =
+      (setup n).bind fun d => (ProbComp.eval (Z.choose n d)).bind fun ch =>
+        (((protocol Gs n (c n)).compose fun _ =>
+          (seqBatchOT (c n).evaluatorLen (List Bool)).compose fun _ =>
+            (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPadsProb n d)).compose fun _ =>
+              F.ddhOTProbProtocol n d).realJoint noOracleWorld I ch.inputs).bind fun r =>
+          ProbComp.eval (Z.guess n d ch.state r) :=
+  rfl
+
+/-- The evaluator bound for Yao's protocol in the plain model against an environment, with its
+terms in order: garbling privacy, then per transfer the ideal against the real key-derivation game,
+the real against the random DDH game, and `18 / 2 ^ n`. -/
 example {Fn Λ : Type} {Gs : Scheme Fn}
     (hproj : Gs.encode = projectiveEncode) (hcorrect : Gs.Correct)
     (F : PrimeOrderGroupFamily) (setup : ℕ → ProbComp F.Desc)
@@ -293,37 +344,49 @@ example {Fn Λ : Type} {Gs : Scheme Fn}
     (S₂ : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) →
       CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
         (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
-    (x : (n : ℕ) → F.Desc → (i : Fin 2) → Input (c n) i)
-    (D : (n : ℕ) → (d : F.Desc) → ((i : ({1} : Finset (Fin 2))) → PartyView (Input (c n))
-        (Schedule.ComposedCoins
-          (fun _ => Schedule.ComposedCoins
-            (fun _ => Schedule.ComposedCoins
-              (fun _ => DDHOTCoinsWith DDHOTSenderBitCoins (List Bool))
-              (MaskedOTCoins (F.Carrier d)) (maskedOTSchedule (F.Carrier d) (List Bool)))
-            (fun _ => Unit) (seqBatchOTSchedule (c n).evaluatorLen (List Bool)))
-          Coins (schedule (c n)))
-        (Schedule.compose
-          (fun _ => Schedule.compose
-            (fun _ => Schedule.compose (fun _ => ddhOTSchedule (F.Carrier d))
-              (maskedOTSchedule (F.Carrier d) (List Bool)))
-            (seqBatchOTSchedule (c n).evaluatorLen (List Bool)))
-          (schedule (c n))) i) ×
-      ((i : Fin 2) → List Bool) → ProbComp Bool)
+    (Z : Environment (kdfDDHProbFamily Gs F H c) {1})
     {n : ℕ} (hn : 0 < n)
     (hT₁ : T₁ n {1} = evaluatorSim Gs Φ S n (c n))
-    (hSm : ∀ d, Sm n d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+    (hSm : ∀ d, Sm n d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPadsProb n d)
       (Cslib.BitString.sampleList (msgLen n)))
     (hS₂ : ∀ d, S₂ n d {1} = F.ddhOTReceiverSimProb n d)
     (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n)
-    (hlen : ∀ d, ∀ r ∈ (ProbComp.eval (OracleComp.pi (protocol Gs n (c n)).sampleCoins)).support,
-      ∀ (t : Fin (c n).evaluatorLen) (b : Bool),
-        (transferQueries n (c n) (x n d) r 0 t b).length = msgLen n) :=
-  (Yao.advantage_setup_composedProtocol_kdfDDHProb_evaluator_le hproj hcorrect F setup H msgLen c
-    Φ S T₁ Sm S₂ x D hn hT₁ hSm hS₂ hH hlen :
-    Game.advantage _ _ ≤ prvSimAdvantage _ _ _ _ _ +
-      ∑ _j ∈ Finset.range (c n).evaluatorLen,
-        (Game.advantage (F.kdfIdealGame _ msgLen _ n) (F.kdfRealGame _ H _ n) +
-          (Game.advantage (F.ddhRealGame _ _ n) (F.ddhRandomGame _ _ n) + 14 / 2 ^ n)))
+    (hlabel : Gs.HasTokenLength n (c n).fn (msgLen n)) :=
+  (Yao.advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le hproj hcorrect F setup H msgLen
+    c Φ S T₁ Sm S₂ Z hn hT₁ hSm hS₂ hH hlabel :
+    Game.advantage ((kdfDDHProbFamily Gs F H c).idealGame _ {1} _ Z n)
+        ((kdfDDHProbFamily Gs F H c).realGame _ {1} Z n) ≤
+      prvSimAdvantage _ _ _ _ _ +
+        ∑ _j ∈ Finset.range (c n).evaluatorLen,
+          (Game.advantage (F.kdfIdealGame _ msgLen _ n) (F.kdfRealGame _ H _ n) +
+            (Game.advantage (F.ddhRealGame _ _ n) (F.ddhRandomGame _ _ n) + 18 / 2 ^ n)))
+
+/-- The garbler bound for Yao's protocol in the plain model against an environment, for any setup
+law: `2 / 2 ^ n` per transfer. -/
+example {Fn : Type} {Gs : Scheme Fn}
+    (hproj : Gs.encode = projectiveEncode) (hcorrect : Gs.Correct)
+    (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) (c : ℕ → Params Gs)
+    (T₁ : (n : ℕ) → (I : Finset (Fin 2)) →
+      CoalitionSimulator (schedule (c n)) (Input (c n)) Coins (fun _ => List Bool) I)
+    (Sm : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (S₂ : (n : ℕ) → (d : F.Desc) → (J : Finset (Fin 2)) →
+      CoalitionSimulator (ddhOTSchedule (F.Carrier d)) (OTIn (F.Carrier d))
+        (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (F.Carrier d)) J)
+    (Z : Environment (kdfDDHProbFamily Gs F H c) {0})
+    {n : ℕ} (hn : 0 < n)
+    (hT₁ : T₁ n {0} = garblerSim Gs n (c n))
+    (hSm : ∀ d, Sm n d {0} = maskedOTSenderSim (F.kdfPadsProb n d))
+    (hS₂ : ∀ d, S₂ n d {0} = F.ddhOTSenderSimProb n d)
+    (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n)
+    (hlabel : Gs.HasTokenLength n (c n).fn (msgLen n)) :=
+  (Yao.advantage_idealGame_realGame_kdfDDHProbFamily_garbler_le hproj hcorrect F setup H msgLen c
+    T₁ Sm S₂ Z hn hT₁ hSm hS₂ hH hlabel :
+    Game.advantage ((kdfDDHProbFamily Gs F H c).idealGame setup {0} _ Z n)
+        ((kdfDDHProbFamily Gs F H c).realGame setup {0} Z n) ≤
+      (c n).evaluatorLen * (2 / 2 ^ n))
 
 end Yao
 

@@ -27,8 +27,9 @@ infrastructure; no cited theorem is claimed.
 
 ## What is proved
 
-All statements are concrete and exact, in the hybrid model with the ideal pad transfer
-`otWorld (F.Carrier d)`, with exponents drawn exactly uniformly from `ZMod (F.order d)`.
+All statements are concrete, in the hybrid model with the ideal pad transfer
+`otWorld (F.Carrier d)`. All but the last are exact, with exponents drawn exactly uniformly from
+`ZMod (F.order d)`.
 
 * `F.kdfMask H d r` is its own inverse on words of the length of the key `H (d, F.encode d r)`
   (`kdfMask_kdfMask`).
@@ -54,6 +55,10 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
   (`bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame`). Hence the two advantages are equal,
   with the absolute value outside the expectation over the setup and the environment
   (`advantage_bind_roundGame_kdfMaskedOT_eq_kdf`).
+* When the pads are drawn by any sampler within `ε` of the exactly uniform pads against every
+  test, such as pads with fair-coin exponents, the advantage between the two round games of that
+  masked transfer is at most the same key-derivation advantage plus `ε + ε`
+  (`advantage_bind_roundGame_kdfMaskedOT_le_kdf`).
 
 ## What is not proved
 
@@ -65,12 +70,12 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
   advantages is for the point setup at a fixed `d`; under a setup law only the round games of a
   sampled environment are identified; they are used for a composed protocol in
   `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/Games.lean`.
-* The pads are sampled with exactly uniform exponents (`ProbComp.uniform`), not by a fair-coin
-  sampler such as `F.sampleExp`.
+* The pads `F.kdfPads d` are sampled with exactly uniform exponents (`ProbComp.uniform`). No
+  fair-coin sampler is defined here; the fair-coin pads `F.kdfPadsProb n d` and their distance
+  from `F.kdfPads d` are in `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/KDFDDHProb.lean`.
 * The pad transfer is ideal. Substituting a protocol for it, for one distinguisher, is
   `semiHonestAdvantage_maskedOT_compose_le_transfer` in
-  `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/DDH.lean`; the combination with the
-  key-derivation mask is in `CslibFrontier/Crypto/Protocols/MPC/Yao/PlainDDHOT/KDF.lean`.
+  `CslibFrontier/Crypto/Protocols/MPC/MaskedOT/DDH.lean`.
 * The locator for [BonehShoup2023] is the one recorded in
   `CslibFrontier/Crypto/Computational/ElGamal.lean`; it was not re-verified against the source.
 
@@ -98,6 +103,9 @@ All statements are concrete and exact, in the hybrid model with the ideal pad tr
   `roundEnvToKDFDistinguisher`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_roundGame_kdfMaskedOT_eq_kdf`: hence the
   round-game advantage of the environment is the key-derivation advantage of that distinguisher.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_roundGame_kdfMaskedOT_le_kdf`: with pads drawn
+  by a sampler within `ε` of the exactly uniform pads, such as pads with fair-coin exponents, the
+  round-game advantage is at most that key-derivation advantage plus `ε + ε`.
 
 ## References
 
@@ -111,6 +119,7 @@ public section
 namespace Cslib.Crypto.PrimeOrderGroupFamily
 
 open Cslib Cslib.Probability Cslib.Crypto.Protocols.MPC
+open scoped NNReal
 
 variable (F : PrimeOrderGroupFamily)
 
@@ -466,6 +475,126 @@ theorem advantage_bind_roundGame_kdfMaskedOT_eq_kdf (setup : ℕ → PMF F.Desc)
     (F.bind_roundGame_idealJoint_kdfMaskedOT_eq_kdfIdealGame setup H msgLen n Sm hSm E
       fun d hd c hc => (hE d hd c hc).1)
     (F.bind_roundGame_realJoint_kdfMaskedOT_eq_kdfRealGame setup H msgLen n E hH hE)
+
+/-- A sampler that every challenged game draws first can be replaced under the environment: if
+`p` and `p'` are within `ε` against every test, and on every challenge `c` of the environment `e`
+the games `A c` and `B c` draw from `p` and from `p'` and then continue in the same way, the two
+games after `e` are within `ε`. -/
+private theorem advantage_bind_elim_le_of_exists_bind {C R : Type} (e : PMF (Bool ⊕ C))
+    (p p' : PMF R) {ε : ℝ≥0} (hp : ∀ k : R → Game, Game.advantage (p.bind k) (p'.bind k) ≤ ε)
+    (A B : C → Game)
+    (h : ∀ c, Sum.inr c ∈ e.support → ∃ K : R → Game, A c = p.bind K ∧ B c = p'.bind K) :
+    Game.advantage (e.bind (Sum.elim PMF.pure A)) (e.bind (Sum.elim PMF.pure B)) ≤ ε := by
+  classical
+  have h' : ∀ c, ∃ K : R → Game, Sum.inr c ∈ e.support → A c = p.bind K ∧ B c = p'.bind K := by
+    intro c
+    by_cases hc : Sum.inr c ∈ e.support
+    · obtain ⟨K, hK⟩ := h c hc
+      exact ⟨K, fun _ => hK⟩
+    · exact ⟨fun _ => PMF.pure false, fun hc' => absurd hc' hc⟩
+  choose K hK using h'
+  have hA : e.bind (Sum.elim PMF.pure A) =
+      p.bind fun r => e.bind (Sum.elim PMF.pure fun c => K c r) :=
+    (PMF.bind_congr_on_support e _ (fun z => p.bind fun r => Sum.elim PMF.pure (fun c => K c r) z)
+      fun z hz => by
+        cases z with
+        | inl b => exact (PMF.bind_const _ _).symm
+        | inr c => exact (hK c hz).1).trans (PMF.bind_comm e p _)
+  have hB : e.bind (Sum.elim PMF.pure B) =
+      p'.bind fun r => e.bind (Sum.elim PMF.pure fun c => K c r) :=
+    (PMF.bind_congr_on_support e _ (fun z => p'.bind fun r => Sum.elim PMF.pure (fun c => K c r) z)
+      fun z hz => by
+        cases z with
+        | inl b => exact (PMF.bind_const _ _).symm
+        | inr c => exact (hK c hz).2).trans (PMF.bind_comm e p' _)
+  rw [hA, hB]
+  exact hp _
+
+/-- **The round-game advantage of a sampled environment with pads close to uniform.** Step toward
+#6045; original bookkeeping, not a cited result and not a security theorem: the right-hand side is
+not bounded, and no efficiency of `F.roundEnvToKDFDistinguisher H E` is claimed. Let the pads of
+the masked transfer be drawn by any sampler `samplePads d` that is within `ε` of the exactly
+uniform pads `F.kdfPads d` against every test, such as pads with fair-coin exponents. When every
+key `H (d, F.encode d r)` has length `msgLen n`, every challenge of the environment corrupts the
+receiver `{1}` and has a receiver's output of length `msgLen n`, and the simulator for the receiver
+is `maskedOTReceiverSim` with these pads and a uniform `msgLen n`-bit word, the advantage between
+the ideal and the real round game of the masked transfer with the ideal pad transfer, under the
+sampled setup and the sampled environment `E`, is at most the advantage of the one distinguisher
+`F.roundEnvToKDFDistinguisher H E` between `F.kdfIdealGame setup msgLen` and
+`F.kdfRealGame setup H`, plus `ε` for the pads of each of the two games. The two absolute values
+of the statement are outside the expectation over the setup and the environment; the two
+replacements of the pads are statistical. -/
+theorem advantage_bind_roundGame_kdfMaskedOT_le_kdf (setup : ℕ → PMF F.Desc)
+    (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) (n : ℕ)
+    (samplePads : (d : F.Desc) → ProbComp (F.Carrier d × F.Carrier d)) {ε : ℝ≥0}
+    (hpads : ∀ d (k : F.Carrier d × F.Carrier d → Game),
+      Game.advantage ((ProbComp.eval (samplePads d)).bind k)
+        ((ProbComp.eval (F.kdfPads d)).bind k) ≤ ε)
+    (Sm : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J)
+    (hSm : ∀ d, Sm d {1} = maskedOTReceiverSim (F.kdfMask H d) (samplePads d)
+      (Cslib.BitString.sampleList (msgLen n)))
+    (E : (n : ℕ) → (d : F.Desc) → ProbComp (Bool ⊕ RoundChallenge (spec₁ := otSpec (List Bool))
+      (fun _ => maskedOTSchedule (F.Carrier d) (List Bool))
+      (fun _ => MaskedOTCoins (F.Carrier d))))
+    (hH : ∀ d (r : F.Carrier d), (H (d, F.encode d r)).length = msgLen n)
+    (hE : ∀ d c, Sum.inr c ∈ (ProbComp.eval (E n d)).support →
+      c.coalition = ({1} : Finset (Fin 2)) ∧
+        (otOutputs (M := List Bool) c.query 1 : List Bool).length = msgLen n) :
+    Game.advantage
+        ((setup n).bind fun d => (ProbComp.eval (E n d)).bind
+          (roundGame fun op J q =>
+            ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm d J) q)))
+        ((setup n).bind fun d => (ProbComp.eval (E n d)).bind
+          (roundGame fun _ J q =>
+            (maskedOT (F.kdfMask H d) (F.kdfMask H d) (samplePads d)).realJoint
+              (otWorld (F.Carrier d)) J q)) ≤
+      Game.advantage (F.kdfIdealGame setup msgLen (F.roundEnvToKDFDistinguisher H E) n)
+        (F.kdfRealGame setup H (F.roundEnvToKDFDistinguisher H E) n) + (ε + ε) := by
+  obtain ⟨Sm₀, hSm₀⟩ : ∃ Sm₀ : (d : F.Desc) → (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (F.Carrier d) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (F.Carrier d)) (OTOut (List Bool)) J,
+      ∀ d, Sm₀ d {1} = maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+        (Cslib.BitString.sampleList (msgLen n)) :=
+    ⟨fun d => Function.update (Sm d) {1} (maskedOTReceiverSim (F.kdfMask H d) (F.kdfPads d)
+      (Cslib.BitString.sampleList (msgLen n))), fun d => Function.update_self ..⟩
+  have hkdf := F.advantage_bind_roundGame_kdfMaskedOT_eq_kdf setup H msgLen n Sm₀ hSm₀ E
+    (fun d _ => hH d) (fun d _ => hE d)
+  have hI := Game.advantage_bind_le_nnreal (setup n)
+    (fun d => (ProbComp.eval (E n d)).bind (roundGame fun op J q =>
+      ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm d J) q)))
+    (fun d => (ProbComp.eval (E n d)).bind (roundGame fun op J q =>
+      ProbComp.eval (idealJoint (otWorld (List Bool) op) J (Sm₀ d J) q))) (ε := ε) fun d =>
+    advantage_bind_elim_le_of_exists_bind _ _ _ (hpads d) _ _ fun c hc => by
+      obtain ⟨op, J, q, g⟩ := c
+      obtain rfl : J = ({1} : Finset (Fin 2)) := (hE d _ hc).1
+      have h₁ := (bind_eval_idealJoint_maskedOT_receiver (F.kdfMask H d) (samplePads d)
+        (Cslib.BitString.sampleList (msgLen n)) q g).trans (ProbComp.eval_bind _ _)
+      have h₂ := (bind_eval_idealJoint_maskedOT_receiver (F.kdfMask H d) (F.kdfPads d)
+        (Cslib.BitString.sampleList (msgLen n)) q g).trans (ProbComp.eval_bind _ _)
+      rw [← hSm d] at h₁
+      rw [← hSm₀ d] at h₂
+      exact ⟨_, h₁, h₂⟩
+  have hR := Game.advantage_bind_le_nnreal (setup n)
+    (fun d => (ProbComp.eval (E n d)).bind (roundGame fun _ J q =>
+      (maskedOT (F.kdfMask H d) (F.kdfMask H d) (samplePads d)).realJoint
+        (otWorld (F.Carrier d)) J q))
+    (fun d => (ProbComp.eval (E n d)).bind (roundGame fun _ J q =>
+      (maskedOT (F.kdfMask H d) (F.kdfMask H d) (F.kdfPads d)).realJoint
+        (otWorld (F.Carrier d)) J q)) (ε := ε) fun d =>
+    advantage_bind_elim_le_of_exists_bind _ _ _ (hpads d) _ _ fun c hc => by
+      obtain ⟨op, J, q, g⟩ := c
+      obtain ⟨rfl, hout⟩ : J = ({1} : Finset (Fin 2)) ∧
+          (otOutputs (M := List Bool) q 1 : List Bool).length = msgLen n := hE d _ hc
+      have hmask (r : F.Carrier d) := F.kdfMask_kdfMask H d r (hout.trans (hH d r).symm)
+      exact ⟨_, (bind_realJoint_maskedOT_receiver _ _ (samplePads d) q hmask g).trans
+          (ProbComp.eval_bind _ _),
+        (bind_realJoint_maskedOT_receiver _ _ (F.kdfPads d) q hmask g).trans
+          (ProbComp.eval_bind _ _)⟩
+  exact ((Game.advantage_triangle _ _ _).trans (add_le_add hI
+    ((Game.advantage_triangle _ _ _).trans (add_le_add hkdf.le
+      ((Game.advantage_comm _ _).trans_le hR))))).trans_eq (by ring)
 
 end RoundEnv
 
