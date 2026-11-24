@@ -21,7 +21,7 @@ weighted with `t = 1 + s` gives `h` embeddings `th0 i` (`i : Fin h`), and their 
 (with weight `t` for `k = 0`), involutions of type `k`; the simple root elements of the `i`-th
 unitriangular subgroup are the generators of types other than `i` (`Cslib.SLTower.th_x`).
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Grp`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.Grp`.
 
 ## Main definitions
 
@@ -56,7 +56,7 @@ theorem tu_val : ((tu n : (R (n + 1))ˣ) : R (n + 1)) = t (n + 1) := by rfl
 variable {h n}
 
 /-- The weights of the shift by i: the places that were carried over. -/
-noncomputable def wt (i a : Fin h) : (R (n + 1))ˣ := if a < i then (tu n)⁻¹ else 1
+@[expose] noncomputable def wt (i a : Fin h) : (R (n + 1))ˣ := if a < i then (tu n)⁻¹ else 1
 
 /-- Conjugation by the i-th power of the shift. -/
 noncomputable def shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h) (Fin h)

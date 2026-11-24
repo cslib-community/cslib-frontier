@@ -20,7 +20,7 @@ Sylow's theorem it contains a chain `1 = Γ 0 ≤ Γ 1 ≤ ⋯` of subgroups of 
 `j ≤ JJ h n = ⌊(h² − 1) n / e⌋`, where `e = h(h − 1)/2` (`b = 2^e` is the number of chambers at a
 vertex).
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Chain`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.Chain`.
 
 ## Main definitions
 
@@ -51,10 +51,10 @@ theorem isPGroup_ker (h n : ℕ) [NeZero h] :
   ⟨IsPGroup.of_card card_ker_evG, card_ker_evG⟩
 
 /-- The exponent of the number b of chambers at a vertex: b = 2^e. -/
-def ee (h : ℕ) : ℕ := h * (h - 1) / 2
+@[expose] def ee (h : ℕ) : ℕ := h * (h - 1) / 2
 
 /-- The number of steps of the tower. -/
-def JJ (h n : ℕ) : ℕ := (h ^ 2 - 1) * n / ee h
+@[expose] def JJ (h n : ℕ) : ℕ := (h ^ 2 - 1) * n / ee h
 
 theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
     Γ 0 = ⊥ ∧ (∀ j, Γ j ≤ Γ (j + 1)) ∧

@@ -19,7 +19,7 @@ import Mathlib.RingTheory.AdjoinRoot
 `Cslib.SLTower.R m = F₂[s]/(s^m)`, with the nilpotent class `s` of the variable, the unit
 `t = 1 + s`, the reductions `R (m + 1) → R m` and the value at `s = 0`.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Ring`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.Ring`.
 
 ## Main definitions
 

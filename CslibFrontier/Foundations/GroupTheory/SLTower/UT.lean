@@ -19,7 +19,7 @@ import Mathlib.RingTheory.WittVector.IsPoly
 subgroup of upper unitriangular matrices. The simple root elements `1 + E_{j,j+1}`
 (`Cslib.SLTower.x`) generate the towers of the source; `U h` has order `2^(h(h−1)/2)`.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.UT`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.UT`.
 
 ## Main definitions
 
@@ -50,7 +50,7 @@ theorem sl_pow_mem {G : Type*} [Group G] [Finite G] (S : Submonoid G)
   exact S.pow_mem ha _
 
 /-- Upper unitriangular matrices. -/
-def U (h : ℕ) : Subgroup (SL2 h) where
+@[expose] def U (h : ℕ) : Subgroup (SL2 h) where
   carrier := {A | ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1}
   one_mem' := fun i j => ⟨fun hij => Matrix.one_apply_ne hij.ne', Matrix.one_apply_eq i⟩
   mul_mem' := by

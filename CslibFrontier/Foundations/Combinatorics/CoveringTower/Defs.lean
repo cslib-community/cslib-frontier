@@ -23,7 +23,7 @@ pairs (`Nr`) at the vertices of type `i`. Coverings `X j → X (j + 1)` of degre
 hosts of the vertices connect the levels. *Routes* (`Cslib.CoveringTower.Routes`) are walks
 between all pairs of chambers of level `0`, of bounded length and bounded use of every edge.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Defs`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.CoveringTower.Defs`.
 
 ## Main definitions
 
@@ -112,10 +112,10 @@ namespace Tower
 variable {h b D J r : ℕ} (T : Tower h b D J r)
 
 /-- The other end of an edge. -/
-def step {j : ℕ} (e : T.Ed j) (c : T.X j) : T.X j := if T.e0 e = c then T.e1 e else T.e0 e
+@[expose] def step {j : ℕ} (e : T.Ed j) (c : T.X j) : T.X j := if T.e0 e = c then T.e1 e else T.e0 e
 
 /-- The list of edges is a walk from `c` to `c'`. -/
-def Walk {j : ℕ} : T.X j → List (T.Ed j) → T.X j → Prop
+@[expose] def Walk {j : ℕ} : T.X j → List (T.Ed j) → T.X j → Prop
   | c, [], c' => c = c'
   | c, e :: l, c' => (T.e0 e = c ∨ T.e1 e = c) ∧ Walk (T.step e c) l c'
 

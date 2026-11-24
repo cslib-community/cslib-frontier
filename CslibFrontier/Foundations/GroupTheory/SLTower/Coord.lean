@@ -18,7 +18,7 @@ unitriangular subgroup (`Cslib.SLTower.coQ`), and the free involutions given by 
 and by the simple root elements get a choice of one element in every pair
 (`Cslib.SLTower.FQ`, `Cslib.SLTower.FU`).
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Coord`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.Coord`.
 
 ## Main definitions
 
