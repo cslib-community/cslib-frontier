@@ -729,7 +729,7 @@ example :
     cases side <;> rfl
   change p.rayParity 1 ⟨-1, 0⟩ = false
   rw [Route.rayParity_eq_of_support_subset_convex p q (hend false) (hend true)
-    hK hp hq hz one_ne_zero]
+    hK hp hq hz]
   change (Route.line 0 b).rayParity 1 ⟨-1, 0⟩ = false
   rw [Route.rayParity_line]
   exact decide_eq_false (not_rayCrosses_of_im_eq (by simp only [one_mul]; rfl) _)
@@ -740,7 +740,8 @@ example :
     let bend (m : ℂ) : Route := ⟨1, fun i => if i.val = 1 then m else ⟨i.val, 0⟩⟩
     ∃ ε : ℝ, 0 < ε ∧ ∀ m : ℂ, dist m ⟨1, 1⟩ < ε →
       ∀ w ∈ ({⟨-1, 1⟩, ⟨-1, 0⟩} : Finset ℂ),
-        (bend m).rayParity 1 w = (bend ⟨1, 1⟩).rayParity 1 w := by
+        w ∉ (bend m).support ∧ ∀ u : ℂ,
+          (bend m).rayParity u w = (bend ⟨1, 1⟩).rayParity u w := by
   let bend (m : ℂ) : Route := ⟨1, fun i => if i.val = 1 then m else ⟨i.val, 0⟩⟩
   let c : ℂ := ⟨1, 1⟩
   let points : Finset ℂ := {⟨-1, 1⟩, ⟨-1, 0⟩}
@@ -759,15 +760,14 @@ example :
     change (0 : ℝ) ≤ z.re at hc
     norm_num [hre] at hc
   obtain ⟨ε, hε, hmove⟩ :=
-    (bend c).exists_pos_rayParity_eq_of_point_dist_lt_finset points havoid (u := 1) one_ne_zero
+    (bend c).exists_pos_rayParity_eq_of_point_dist_lt_finset points havoid
   refine ⟨ε, hε, fun m hm w hw => ?_⟩
-  change (bend m).rayParity 1 w = (bend c).rayParity 1 w
   have hdist (i : Fin ((bend c).segments + 1)) :
       dist ((bend m).point i) ((bend c).point i) < ε := by
     fin_cases i
     · simpa [bend] using hε
     · exact hm
     · simpa [bend] using hε
-  exact (hmove (bend m).point rfl rfl hdist w hw).2
+  exact hmove (bend m).point rfl rfl hdist w hw
 
 end CslibFrontierTests.PolygonalRayParityIntersections
