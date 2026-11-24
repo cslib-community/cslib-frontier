@@ -15,8 +15,10 @@ import Mathlib.GroupTheory.Sylow
 /-!
 # A chain of subgroups in the kernel
 
-The kernel `Ker h n` of the value at `s = 0` is a 2-group of order `2^((h² − 1) n)`, so by
-Sylow's theorem it contains a chain `1 = Γ 0 ≤ Γ 1 ≤ ⋯` of subgroups of orders `(2^e)^j` for
+Two steps of the tower construction [AnthropicVPVNP2026, paper §H.1, PDF p. 44, before
+Proposition H.1]. The kernel `Ker h n` of the value at `s = 0` is a 2-group of order
+`2^((h² − 1) n)`, so by Sylow's theorem it contains a chain `1 = Γ 0 ≤ Γ 1 ≤ ⋯` of subgroups of
+orders `(2^e)^j` for
 `j ≤ JJ h n = ⌊(h² − 1) n / e⌋`, where `e = h(h − 1)/2` (`b = 2^e` is the number of chambers at a
 vertex).
 
@@ -39,23 +41,26 @@ namespace Cslib.SLTower
 
 variable {h n : ℕ} [NeZero h]
 
-/-- The kernel of the value at s = 0. -/
-noncomputable def Ker (h n : ℕ) [NeZero h] : Subgroup (G h n) := (evG : G h n →* SL2 h).ker
+/-- The kernel of the value at `s = 0`. -/
+noncomputable def Ker (h n : ℕ) : Subgroup (G h n) := (evG : G h n →* SL2 h).ker
 
+omit [NeZero h] in
 theorem mem_Ker {g : G h n} : g ∈ Ker h n ↔ evG g = 1 := Iff.rfl
 
-/-- The kernel of the value at `s = 0` is a 2-group (paper, Section sec:tower: "Let K_n be the
-kernel of s ↦ 0; it is a 2-group of order 2^((h²−1)n)." -/
+/-- A step of the tower construction: the kernel of the value at `s = 0` is a 2-group of order
+`2^((h² − 1) n)` [AnthropicVPVNP2026, paper §H.1, PDF p. 44, just before Proposition H.1]. -/
 theorem isPGroup_ker (h n : ℕ) [NeZero h] :
     IsPGroup 2 (Ker h n) ∧ Nat.card (Ker h n) = 2 ^ ((h ^ 2 - 1) * n) :=
   ⟨IsPGroup.of_card card_ker_evG, card_ker_evG⟩
 
 /-- The exponent of the number b of chambers at a vertex: b = 2^e. -/
-def ee (h : ℕ) : ℕ := h * (h - 1) / 2
+@[expose] def ee (h : ℕ) : ℕ := h * (h - 1) / 2
 
 /-- The number of steps of the tower. -/
-def JJ (h n : ℕ) : ℕ := (h ^ 2 - 1) * n / ee h
+@[expose] def JJ (h n : ℕ) : ℕ := (h ^ 2 - 1) * n / ee h
 
+/-- A step of the tower construction: a chain of subgroups of the kernel of orders `(2^e)^j`,
+from Sylow's theorem. -/
 theorem exists_chain (h n : ℕ) [NeZero h] : ∃ Γ : ℕ → Subgroup (G h n),
     Γ 0 = ⊥ ∧ (∀ j, Γ j ≤ Γ (j + 1)) ∧
     (∀ j, Γ j ≤ Ker h n) ∧ ∀ j ≤ JJ h n, Nat.card (Γ j) = (2 ^ ee h) ^ j := by

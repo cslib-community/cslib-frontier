@@ -54,7 +54,8 @@ theorem s_sq (n : ℕ) : (s (n + 2) ^ (n + 1)) ^ 2 = 0 := by
   exact s_pow_ge (by omega)
 
 /-- The matrix 1 + s^{n+1} A. -/
-noncomputable def layMat (n : ℕ) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h) (Fin h)
+@[expose] noncomputable def layMat (n : ℕ) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h)
+    (Fin h)
     (R (n + 2)) :=
   1 + s (n + 2) ^ (n + 1) • A.map (cst (n + 2))
 

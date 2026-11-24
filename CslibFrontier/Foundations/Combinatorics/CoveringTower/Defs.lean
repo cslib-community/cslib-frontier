@@ -19,8 +19,11 @@ import Mathlib.Algebra.Group.End
 A *tower* (`Cslib.CoveringTower.Tower h b D J r`) has levels `j ≤ J` of chambers `X j` with
 typed edges `Ed j` and vertices `V j i` of every type `i : Fin h`. Every chamber sits at one
 vertex of every type, at one of `b` places (`Fl`), and the edges of the other types are the near
-pairs (`Nr`) at the vertices of type `i`. Coverings `X j → X (j + 1)` of degree `D` and the
-hosts of the vertices connect the levels. *Routes* (`Cslib.CoveringTower.Routes`) are walks
+pairs (`Nr`) at the vertices of type `i`. Maps `X j → X (j + 1)` (with the induced maps on
+edges and vertices) and the hosts of the vertices connect the levels. The parameter `D` is not a
+pointwise fibre size of the chamber map: it is the ratio `|X j| = D · |X (j + 1)|` of the chamber
+counts (`card_X`) and a bound on the number of edges over every edge of the next level
+(`fibre`). *Routes* (`Cslib.CoveringTower.Routes`) are walks
 between all pairs of chambers of level `0`, of bounded length and bounded use of every edge.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Defs`.
@@ -38,7 +41,9 @@ namespace Cslib.CoveringTower
 
 open Finset
 
-/-- A tower of coverings, `J` steps, with `h` types. -/
+/-- A tower of coverings with `J` steps and `h` types; `b` places at a vertex, chamber-count
+ratio and edge-fibre bound `D` between levels, and `r` edges of every type per chamber on
+average (`card_ed`) and at most `r` at every chamber (`deg`). -/
 structure Tower (h b D J r : ℕ) where
   /-- chambers -/
   X : ℕ → Type
@@ -112,10 +117,10 @@ namespace Tower
 variable {h b D J r : ℕ} (T : Tower h b D J r)
 
 /-- The other end of an edge. -/
-def step {j : ℕ} (e : T.Ed j) (c : T.X j) : T.X j := if T.e0 e = c then T.e1 e else T.e0 e
+@[expose] def step {j : ℕ} (e : T.Ed j) (c : T.X j) : T.X j := if T.e0 e = c then T.e1 e else T.e0 e
 
 /-- The list of edges is a walk from `c` to `c'`. -/
-def Walk {j : ℕ} : T.X j → List (T.Ed j) → T.X j → Prop
+@[expose] def Walk {j : ℕ} : T.X j → List (T.Ed j) → T.X j → Prop
   | c, [], c' => c = c'
   | c, e :: l, c' => (T.e0 e = c ∨ T.e1 e = c) ∧ Walk (T.step e c) l c'
 
