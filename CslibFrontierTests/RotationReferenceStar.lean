@@ -169,7 +169,7 @@ example :
   have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
   refine ⟨D, hD, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact query_eq_true_of_rotation_embedding hI hD (PolygonalDrawing.bouquet_realizes r hloop) hfix
-  · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
+  · have a := cutPort_clockwise_iff_reference hI (PolygonalDrawing.bouquet_realizes r hloop)
       hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
       (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
       (by decide +kernel) (by decide +kernel) (by decide +kernel)

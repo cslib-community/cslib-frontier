@@ -113,9 +113,25 @@ example : ∃ ρ > 0,
     rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, Complex.norm_real,
       Real.norm_of_nonneg (by positivity)]
     linarith
-  apply (realized.cutPort_clockwise embedded big hρ hx (0, false) (0, true) (1, false)
+  apply (realized.cutPort_clockwise big hρ hx (0, false) (0, true) (1, false)
     rfl rfl rfl (by decide) (by decide) (by decide)).mpr
   have hd : rotation.rotationDistance (0, false) (1, false) = 2 := by
+    apply rotation.rotationDistance_eq _ _ (by decide +kernel) 2 (by decide +kernel)
+    intro k hk
+    interval_cases k <;> decide +kernel
+  unfold RotationSystem.rotationInterval
+  rw [hd]
+  decide +kernel
+
+-- The two pairs join alternate ends of the genuine embedded bouquet.
+example {ρ : ℝ} (hρ : 0 < ρ) :
+    (openSegment ℝ (drawing.cutPort ρ (0, false)) (drawing.cutPort ρ (1, false)) ∩
+      openSegment ℝ (drawing.cutPort ρ (0, true)) (drawing.cutPort ρ (1, true))).Nonempty := by
+  apply (realized.cutPort_chords_inter_iff_alternates hρ
+    (0, false) (1, false) (0, true) (1, true)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) rfl rfl rfl).mpr
+  refine ⟨by decide, by decide, by decide, by decide, by decide, by decide, rfl, rfl, rfl, ?_⟩
+  have hd : rotation.rotationDistance (0, true) (1, true) = 2 := by
     apply rotation.rotationDistance_eq _ _ (by decide +kernel) 2 (by decide +kernel)
     intro k hk
     interval_cases k <;> decide +kernel
