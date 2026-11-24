@@ -14,6 +14,11 @@ Scott Aaronson. *The Busy Beaver Frontier*. ACM SIGACT News 51(3), 32–54, 2020
 
 Amir Abboud, Keren Censor-Hillel, Seri Khoury and Ami Paz. "Smaller Cuts, Higher Lower Bounds." *ACM Transactions on Algorithms* 17(4), article 30, 30:1–30:40, 2021. https://doi.org/10.1145/3469834 ; preprint arXiv:1901.01630. Checked against the publisher's PDF on 2026-11-13: Definition 4 (families of streaming lower bound graphs, p. 30:32) and Theorem 14 (p. 30:33: an `R`-pass streaming algorithm with `M` bits of memory for such a family gives `RM = Ω(CC(f))`, deterministic and randomized). The protocol in the proof of Theorem 14 sends at most `(2R − 1)M` bits (`M` from Alice in each pass and from Bob in every pass but the last); the proof incorrectly writes this total as `R(2M − 1)`, which does not affect the asymptotic statement. The library counts the same protocol exactly, `(2p − 1)b` bits of memory states, plus one bit so that the output is determined by the transcript (in the source, only Bob learns the answer). arXiv:1901.01630v2 numbers these Definition 3 and Theorem 15.
 
+<a id="abrahamdolevgonenhalpern2006"></a>
+## abrahamdolevgonenhalpern2006
+
+Ittai Abraham, Danny Dolev, Rica Gonen and Joseph Y. Halpern. "Distributed Computing Meets Game Theory: Robust Mechanisms for Rational Secret Sharing and Multiparty Computation." *Proceedings of the Twenty-Fifth Annual ACM Symposium on Principles of Distributed Computing (PODC 2006)*, 53–62, 2006. https://doi.org/10.1145/1146381.1146393 . Bibliographic metadata only (`references.bib`); the full text was not inspected locally in this pass and no theorem locators are attributed here. Cited in [SecretSharing.lean](../CslibFrontier/GameTheory/RationalCrypto/SecretSharing.lean) and [Payoff.lean](../CslibFrontier/GameTheory/Strategic/Payoff.lean) alongside [dodisrabin2007](#dodisrabin2007) for `k`-resilient equilibria (`(t - 1)`-resilience) in rational secret sharing via randomized geometric termination.
+
 <a id="abukhzam2007"></a>
 ## abukhzam2007
 
@@ -850,6 +855,7 @@ Erik D. Demaine and Robert A. Hearn. *Constraint Logic: A Uniform Framework for 
 ## desimone90
 
 Caterina De Simone. "The cut polytope and the boolean quadric polytope." *Discrete Mathematics* 79(1), 71–75, 1990. https://doi.org/10.1016/0012-365X(90)90056-N . Bibliographic metadata checked via search summaries on 2026-11-11 UTC; the primary paper was not inspected and no locator in it is cited. Cited alongside [fmptw15](#fmptw15), Theorem 5, for the linear isomorphism between `CUT(n + 1)` and `CORR(n)`.
+
 <a id="datar04"></a>
 ## datar04
 
@@ -918,6 +924,11 @@ Irit Dinur. “The PCP Theorem by Gap Amplification.” *Journal of the ACM* 54(
 ## dinur2016
 
 Irit Dinur. “Mildly Exponential Reduction from Gap 3SAT to Polynomial-Gap Label-Cover.” *Electronic Colloquium on Computational Complexity*, Report TR16-128, 2016. https://eccc.weizmann.ac.il/report/2016/128/ . Bibliographic metadata checked against the ECCC report record; the report's full text was inspected for Hypothesis 2.5 (p. 5), which has at most $D n$ clauses and fixed soundness $< 0.9$. Used alongside [manurangsiraghavendra2017](#manurangsiraghavendra2017) to document the Gap Exponential Time Hypothesis adaptation (`GapETH`, `rGapETH`) in [FineGrained/GapETH.lean](../CslibFrontier/Computability/Complexity/FineGrained/GapETH.lean).
+
+<a id="dodisrabin2007"></a>
+## dodisrabin2007
+
+Yevgeniy Dodis and Tal Rabin. "Cryptography and Game Theory." Chapter 8 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 181–206, 2007. https://doi.org/10.1017/CBO9780511800481.010 . Bibliographic metadata checked in `references.bib`; the primary chapter PDF was not inspected locally in this pass, so locators (`Section 8.1.2`, `Section 8.4.1`, `Section 8.5.2`, `Definition 8.8`, `Footnote 9`, `p. 200`, `Theorem 8.9`) follow the pinned audit record and have not yet been verified against the primary source. Cited by [Dominance.lean](../CslibFrontier/GameTheory/Strategic/Dominance.lean) (`IDoWDS`), [Payoff.lean](../CslibFrontier/GameTheory/Strategic/Payoff.lean) (`PayoffGame.WeaklyDominatesOn`, `PayoffGame.idowdsIter`), and [SecretSharing.lean](../CslibFrontier/GameTheory/RationalCrypto/SecretSharing.lean) (Halpern–Teague bounded-round `IDoWDS` collapse and the utility-dependent `k < n` geometric-termination protocol, with 1-shot stage `IDoWDS` survival proved on `geometricStageGame` for `(n, n)` sharing; the `k < n/2` and `k < n/3` regimes of Theorem 8.9 are not formalized).
 
 <a id="dolev1982"></a>
 ## dolev1982
@@ -1348,6 +1359,11 @@ Dan Gusfield. *Algorithms on Strings, Trees, and Sequences: Computer Science and
 ## hadzilacostoueg1994
 
 Vassos Hadzilacos and Sam Toueg. *A Modular Approach to Fault-Tolerant Broadcasts and Related Problems*. Technical Report TR94-1425, Department of Computer Science, Cornell University, May 1994. https://hdl.handle.net/1813/6207 . Checked firsthand on 2026-11-22 against the Cornell eCommons scan (`https://ecommons.cornell.edu/server/api/core/bitstreams/5c4f64e7-53d3-4098-a28b-341974cb86b2/content`, SHA-256 `cb3ba50162af16ed480ccdabf38661653577002f19ccce6790b072ae412002c5`; cited by printed report page numbers, where printed page `p` is PDF page `p + 2`): §3.1 (pp. 9–10, Reliable Broadcast = Validity + Agreement + Integrity on p. 10), §3.3 (pp. 11–12, Causal Broadcast and prefix-closed Causal Order, Theorem 1), §3.4 (pp. 12–13, Atomic Broadcast = Reliable Broadcast + Total Order on p. 13), §3.8 (pp. 14–15, Uniform Integrity on p. 14 and Uniform Causal/Total Order and Uniform counterparts on p. 15), §3.9 (pp. 15–16, modular broadcast hierarchy on p. 16), §7.1 (pp. 56–57, Consensus specification), §7.2.1 (p. 58, Figure 13 transformation of Atomic Broadcast into Consensus, Theorem 13, and Corollary 2 establishing 1-crash asynchronous impossibility via FLP), and §7.2.2 (pp. 59–63, Figure 14 on p. 60 transforming Consensus and Reliable Broadcast into Atomic Broadcast, Lemmas 1–5 and Corollary 3 on pp. 61–63, and Theorem 14 and Corollary 4 on p. 63). As steps toward [#7297](https://github.com/cslib-community/cslib-frontier/issues/7297) in [CausalBroadcast/TotalOrder.lean](../CslibFrontier/Computability/Distributed/CausalBroadcast/TotalOrder.lean), `TotalOrderBroadcastAlg` follows `Cslib.FLP.Algorithm` in supplying one initial broadcast value `inp p : V` per process `p` (`start`) for the Figure 13 / Theorem 13 / Corollary 2 reduction (`consensusOfTotalOrderBroadcast`, `not_exists_oneShotTotalOrderBroadcast_ge_one`) and the `0`-fault sequencer `zeroFaultTotalOrderAlg` (`exists_oneShotTotalOrderBroadcast_iff_eq_zero`), while `ConsensusSlotExec` and `totalOrderBroadcast_of_consensusSlotExec` model the multi-shot Figure 14 / Chandra–Toueg Figure 7 batch reduction over arbitrary `[LinearOrder Msg]` at the abstract discrete-time (`t : ℕ`) subprotocol-trace level.
+
+<a id="halpernteague2004"></a>
+## halpernteague2004
+
+Joseph Y. Halpern and Vanessa Teague. "Rational Secret Sharing and Multiparty Computation: Extended Abstract." *Proceedings of the Thirty-Sixth Annual ACM Symposium on Theory of Computing (STOC 2004)*, 623–632, 2004. https://doi.org/10.1145/1007352.1007447 . Bibliographic metadata only (`references.bib`); the full text was not inspected locally in this pass and no section or theorem locators are attributed here. Cited in [SecretSharing.lean](../CslibFrontier/GameTheory/RationalCrypto/SecretSharing.lean) and [Payoff.lean](../CslibFrontier/GameTheory/Strategic/Payoff.lean) for bounded-round `IDoWDS` impossibility in rational secret sharing and randomized geometric-termination share reconstruction.
 
 <a id="hanson03"></a>
 ## hanson03
@@ -1815,10 +1831,25 @@ Additional source check on 2026-11-23 against an online copy of the third-editio
 
 Iordanis Kerenidis and Ronald de Wolf. "Exponential Lower Bound for 2-Query Locally Decodable Codes via a Quantum Argument." *Journal of Computer and System Sciences* 69(3), 395–420, 2004. https://doi.org/10.1016/j.jcss.2004.04.007 ; arXiv text https://arxiv.org/abs/quant-ph/0208062v2 . Checked on 2026-11-12 against `arXiv:quant-ph/0208062v2` (Appendix B Definition 3 and Theorem 9 on printed p. 14, and Appendix B Lemma 3 on printed p. 16); journal metadata from DOI record.
 
+<a id="kearns07"></a>
+## kearns07
+
+Michael Kearns. "Graphical Games." Chapter 7 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 159–180 (bibliography key `Kearns2007`). https://doi.org/10.1017/CBO9780511800481.009 . Checked directly against the Chapter 7 book text (pp. 159–180) on 2026-11-24: Section 7.2 (pp. 161–162: standing binary-action `{0, 1}` and `[0, 1]`-payoff conventions on p. 161 with the multi-action generalization remark, mixed strategies, Nash equilibrium and additive `ε`-Nash equilibrium on p. 162, closed neighborhoods `N(i)` containing `i`, Definition 7.1 for graphical games `(G, M)` on p. 162, and the Section 7.2 Remarks on p. 162 on neighborhood-exponential parameter counts and representing any normal-form game on the complete graph), Section 7.3 (pp. 164–166: upside-down rooted tree orientation and upstream subtrees `UP_G(U)` on p. 164, Figure 7.1 Algorithm `TreeNash` on p. 165, root table `T(z)` on p. 166, and Theorem 7.3 on p. 166 proving exact equilibrium soundness and completeness of the abstract continuous-table two-pass dynamic program), Section 7.3.1 (pp. 166–168: discretized `τ`-grid `{0, τ, 2τ, …, 1}^n`, Lemma 7.4 on p. 167 proving that the `L_1`-nearest `τ`-grid strategy to a Nash equilibrium on a graph of maximum degree `d` is a `dτ`-Nash equilibrium, and `ApproximateTreeNash` with Theorem 7.5 on pp. 167–168), Section 7.3.3 (pp. 168–169: `NashProp` unoriented neighbor-table refutation on general graphs, beginning on p. 168), and Section 7.4.1 (pp. 170–171: Definition 7.7 expected payoff equivalence `P ≡_EP Q` on p. 170, Definition 7.8 local neighborhood equivalence `P ≡_LN Q` on p. 171, Lemma 7.9 on p. 171 showing `P ≡_LN Q` strictly refines `P ≡_EP Q`, and Lemma 7.10 on p. 171 showing `P ≡_LN Q` preserves correlated equilibria). Cited by [Graphical/Basic.lean](../CslibFrontier/GameTheory/Graphical/Basic.lean) and [Graphical/TreeNash.lean](../CslibFrontier/GameTheory/Graphical/TreeNash.lean) (with `C_4` counterexamples in [Tests/GameTheory/Graphical.lean](../CslibFrontierTests/GameTheory/Graphical.lean)), which generalize Definition 7.1, Theorem 7.3, and Definitions 7.7–7.8 / Lemmas 7.9–7.10 to arbitrary action families `S : ι → Type*` and formalize the mathematical equilibrium correctness and `L_1`-closeness completeness step of Theorem 7.5 (`approxTreeNash_isApproxNash`, `exists_approxTreeNashOutput_of_isMixedNash`) without its polynomial machine running-time claim; machine running-time bounds for Theorem 7.5 and rectangular `ExactTreeNash` (Section 7.3.2, Theorem 7.6, p. 168), local Markov networks for correlated equilibria (Section 7.4.2, pp. 172–176), and graphical economics (Section 7.5, pp. 176–179) remain open under [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
+
 <a id="kelsocrawford1982"></a>
 ## kelsocrawford1982
 
 Alexander S. Kelso, Jr. and Vincent P. Crawford. "Job Matching, Coalition Formation, and Gross Substitutes." *Econometrica* 50(6), 1483–1504, 1982 (bibliography key `KelsoCrawford1982`). Bibliographic metadata checked against [blumrosennisan07](#blumrosennisan07), p. 297; the primary journal PDF was not consulted in this pass (`primary PDF unverified`), and no internal theorem or page locator is claimed. [GrossSubstitutes.lean](../CslibFrontier/GameTheory/Mechanism/CombinatorialAuction/GrossSubstitutes.lean) cites it alongside [blumrosennisan07](#blumrosennisan07) (§11.7.1, Figure 11.3, Definition 11.28, Theorem 11.30, and Claim 11.31, pp. 290–291) as the originating reference for gross substitutes, ascending substitutes auctions, and Walrasian equilibrium existence.
+
+<a id="kempekleinbergtardos03"></a>
+## kempekleinbergtardos03
+
+David Kempe, Jon Kleinberg and Éva Tardos. "Maximizing the Spread of Influence through a Social Network." *Proceedings of the Ninth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining*, 137–146, 2003. https://doi.org/10.1145/956750.956769 . Bibliographic metadata taken from [kleinberg07](#kleinberg07) (Bibliography, pp. 631–632) and the DOI record; the conference text was not inspected firsthand, so internal theorem and page locators are left unverified. Cited through [kleinberg07](#kleinberg07), Sections 24.3–24.4, for the Linear Threshold and Independent Cascade models, the time-layered DAG reduction for nonprogressive processes (pp. 621–622), the live-edge reachability proof of Independent Cascade influence submodularity (Theorem 24.5, pp. 625–626), and greedy `(1 - 1/e)` influence maximization.
+
+<a id="kempekleinbergtardos05"></a>
+## kempekleinbergtardos05
+
+David Kempe, Jon Kleinberg and Éva Tardos. "Influential Nodes in a Diffusion Model for Social Networks." *Automata, Languages and Programming (ICALP 2005)*, 1127–1138, 2005. https://doi.org/10.1007/11523468_91 . Bibliographic metadata taken from [kleinberg07](#kleinberg07) (Bibliography, p. 632) and the DOI record; the conference text was not inspected firsthand, so internal theorem and page locators are left unverified. Cited through [kleinberg07](#kleinberg07), Sections 24.3–24.4, for the equivalence of the General Threshold Model and the order-independent Cascade Model over final active-set distributions (pp. 620–621) and submodularity of influence for diminishing-returns cascade models (Theorem 24.4, pp. 624, 626).
 
 <a id="khot10"></a>
 ## khot10
@@ -1839,6 +1870,11 @@ Victor Klee and George J. Minty. "How Good Is the Simplex Algorithm?" In O. Shis
 ## kleenepost54
 
 Stephen C. Kleene and Emil L. Post. *The Upper Semi-Lattice of Degrees of Recursive Unsolvability*. Annals of Mathematics (2) 59(3), 379–407, 1954. https://doi.org/10.2307/1969708 . Bibliographic metadata checked on 2026-11-08; the article is paywalled and was not inspected. The manual attributes to it, following the customary attribution, the existence of two Turing-incomparable sets below `0′` by the finite extension method. No section or theorem locator is claimed.
+
+<a id="kleinberg07"></a>
+## kleinberg07
+
+Jon Kleinberg. "Cascading Behavior in Networks: Algorithmic and Economic Issues." Chapter 24 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 613–632. Read in the book PDF on 2026-11-24 for Sections 24.3–24.4 (printed pp. 618–627, PDF pp. 639–648): the incoming-neighbor convention (p. 619, Footnote 1), Linear Threshold and General Threshold models (`g_v(∅) = 0`, `θ_v ∼ Uniform[0, 1]`, pp. 619–620, 623), the order-independent Cascade and Independent Cascade models and bidirectional equivalence with General Threshold over final active-set distributions (pp. 620–621, citing [kempekleinbergtardos05](#kempekleinbergtardos05)), the `T`-step time-layered DAG reduction for nonprogressive processes (pp. 621–622), Theorem 24.3 (`1 - 1/e` greedy monotone submodular maximization, p. 624), Theorem 24.4 (diminishing-returns Cascade influence submodularity, p. 624, reduction to submodular local thresholds on p. 626), Theorem 24.5 (Independent Cascade influence submodularity and its live-edge reachability proof, pp. 625–626), and Theorem 24.6 (General Threshold influence submodularity for submodular local thresholds `g_v`, p. 626, citing [mosselroch07](#mosselroch07)). Cited by [InfluenceModels.lean](../CslibFrontier/GameTheory/Network/InfluenceModels.lean) and [InfluenceMaximization.lean](../CslibFrontier/GameTheory/Network/InfluenceMaximization.lean); the approximate-oracle `(1 - 1/e - ε)` discussion (p. 624) and Exercise 24.3 hardness/inapproximability (p. 632) remain open under [#7789](https://github.com/cslib-community/cslib-frontier/issues/7789).
 
 <a id="kleinbergtardos06"></a>
 ## kleinbergtardos06
@@ -2264,6 +2300,11 @@ Dov Monderer and Lloyd S. Shapley. *Potential Games*. Games and Economic Behavio
 ## mosertardos10
 
 Robin A. Moser and Gábor Tardos. “A Constructive Proof of the General Lovász Local Lemma.” *Journal of the ACM* 57(2), Article 11, 2010. https://doi.org/10.1145/1667053.1667060 . Open version: arXiv:0903.0544v3, https://arxiv.org/abs/0903.0544 . Theorems 1.1–1.4, the Section 2 definitions of the log and witness trees, Lemma 2.1 and the Section 3 counting argument (Lemma 3.1) were checked against the arXiv v3 PDF (dated 20 May 2009) on 2026-11-08; Section 6 (lopsidependency, Lemma 6.2, Theorem 6.1, and the conflict-graph CNF application) was checked against the same arXiv v3 PDF on 2026-11-11. The JACM article numbering was not checked against the typeset journal version.
+
+<a id="mosselroch07"></a>
+## mosselroch07
+
+Elchanan Mossel and Sébastien Roch. "On the Submodularity of Influence in Social Networks." *Proceedings of the Thirty-Ninth Annual ACM Symposium on Theory of Computing (STOC 2007)*, 128–134, 2007. https://doi.org/10.1145/1250790.1250811 . Bibliographic metadata taken from [kleinberg07](#kleinberg07) (Bibliography, p. 632, cited as "to appear in STOC 2007") and the DOI record; the full text was not inspected firsthand, so internal theorem and page locators are left unverified. Cited through [kleinberg07](#kleinberg07), Section 24.4, Theorem 24.6 (p. 626), for global submodularity of expected influence in the General Threshold Model whenever all local threshold functions `g_v` are monotone, normalized (`g_v(∅) = 0`), and submodular; [InfluenceMaximization.lean](../CslibFrontier/GameTheory/Network/InfluenceMaximization.lean) (`GeneralThresholdModel.isSubmodular_integral_thresholdFinal`, `GeneralThresholdModel.isSubmodular_influence`) proves this via a measure-preserving conditional reflection coupling on `[0, 1]^V`.
 
 <a id="motzkinstraus1965"></a>
 ## motzkinstraus1965

@@ -12,10 +12,12 @@ import CslibFrontierResults.Entries.DigitalGoods
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.DominanceSymmetric
+import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.ExtensiveSequenceLP
 import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.GraphicalGames
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
@@ -31,6 +33,7 @@ import CslibFrontierResults.Entries.MarketEquilibria
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.NCLBandwidth
+import CslibFrontierResults.Entries.NetworkContagion
 import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
@@ -52,6 +55,7 @@ import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.Roberts
+import CslibFrontierResults.Entries.SamplableNotComputable
 import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence

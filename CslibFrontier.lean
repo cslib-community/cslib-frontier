@@ -120,6 +120,7 @@ public import CslibFrontier.Algorithms.Lean.GomoryHu.Real
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Basic
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Characterization
+public import CslibFrontier.Algorithms.Lean.HousingMarket.EndowmentManipulation
 public import CslibFrontier.Algorithms.Lean.HousingMarket.GroupIncentives
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Incentives
 public import CslibFrontier.Algorithms.Lean.HousingMarket.SequentialCycles
@@ -243,6 +244,7 @@ public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Basic
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Correctness
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Trace
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.ZeroOne
+public import CslibFrontier.Algorithms.Lean.StableMatching.Adachi
 public import CslibFrontier.Algorithms.Lean.StableMatching.Basic
 public import CslibFrontier.Algorithms.Lean.StableMatching.Blocking
 public import CslibFrontier.Algorithms.Lean.StableMatching.Core
@@ -255,6 +257,8 @@ public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Incentives
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Lattice
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.RuralHospitals
 public import CslibFrontier.Algorithms.Lean.StableMatching.Lattice
+public import CslibFrontier.Algorithms.Lean.StableMatching.ManyToOne
+public import CslibFrontier.Algorithms.Lean.StableMatching.Polytope
 public import CslibFrontier.Algorithms.Lean.StableMatching.RothImpossibility
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Graph
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Metric
@@ -2461,6 +2465,7 @@ public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Distrib
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Ensemble
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.MildHardness
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Reduction
+public import CslibFrontier.Computability.Complexity.Classes.AverageCase.SharpP
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.WorstCase
 public import CslibFrontier.Computability.Complexity.Classes.BPP
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Amplification
@@ -8008,6 +8013,7 @@ public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
+public import CslibFrontier.Foundations.Combinatorics.SetFamily.Bollobas
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
@@ -8936,6 +8942,7 @@ public import CslibFrontier.Foundations.Order.FiniteFixedPoint
 public import CslibFrontier.Foundations.Order.Mirsky
 public import CslibFrontier.Foundations.Order.UpperLower
 public import CslibFrontier.Foundations.Probability.AzumaPi
+public import CslibFrontier.Foundations.Probability.BernsteinPi
 public import CslibFrontier.Foundations.Probability.Bonferroni
 public import CslibFrontier.Foundations.Probability.CDF
 public import CslibFrontier.Foundations.Probability.Cauchy
@@ -9183,15 +9190,21 @@ public import CslibFrontier.GameTheory.Cooperative.MulticastCostSharing
 public import CslibFrontier.GameTheory.Cooperative.Nucleolus
 public import CslibFrontier.GameTheory.Cooperative.Scarf
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
+public import CslibFrontier.GameTheory.Evolutionary.Basic
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.GameTheory.Extensive.PerfectInfo
 public import CslibFrontier.GameTheory.Extensive.PerfectInfoEmbedding
 public import CslibFrontier.GameTheory.Extensive.SequenceForm
 public import CslibFrontier.GameTheory.Extensive.SequenceFormLP
 public import CslibFrontier.GameTheory.Extensive.ZeroSum
+public import CslibFrontier.GameTheory.FairDivision.Basic
 public import CslibFrontier.GameTheory.FairDivision.Indivisible.Basic
 public import CslibFrontier.GameTheory.FairDivision.Indivisible.EnvyCycle
 public import CslibFrontier.GameTheory.FairDivision.Indivisible.NashWelfare
+public import CslibFrontier.GameTheory.FairDivision.Proportional
+public import CslibFrontier.GameTheory.FairDivision.SelfridgeConway
+public import CslibFrontier.GameTheory.Graphical.Basic
+public import CslibFrontier.GameTheory.Graphical.TreeNash
 public import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
 public import CslibFrontier.GameTheory.InterdomainRouting.StablePaths
 public import CslibFrontier.GameTheory.LoadBalancing.BallsIntoBins
@@ -9254,6 +9267,9 @@ public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
 public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
+public import CslibFrontier.GameTheory.Network.Contagion
+public import CslibFrontier.GameTheory.Network.InfluenceMaximization
+public import CslibFrontier.GameTheory.Network.InfluenceModels
 public import CslibFrontier.GameTheory.NetworkFormation.FairConnection
 public import CslibFrontier.GameTheory.NetworkFormation.LocalConnection
 public import CslibFrontier.GameTheory.NetworkFormation.LocalConnection.Bounds
@@ -9266,6 +9282,7 @@ public import CslibFrontier.GameTheory.RandomAssignment.Basic
 public import CslibFrontier.GameTheory.RandomAssignment.Impossibility
 public import CslibFrontier.GameTheory.RandomAssignment.ProbabilisticSerial
 public import CslibFrontier.GameTheory.RandomAssignment.RandomSerialDictatorship
+public import CslibFrontier.GameTheory.RationalCrypto.SecretSharing
 public import CslibFrontier.GameTheory.Reputation.PeerPrediction
 public import CslibFrontier.GameTheory.Reputation.RepeatedPD
 public import CslibFrontier.GameTheory.Reputation.Sybilproof
@@ -9286,6 +9303,7 @@ public import CslibFrontier.GameTheory.Strategic.Hedge
 public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Nash
 public import CslibFrontier.GameTheory.Strategic.NoRegret
+public import CslibFrontier.GameTheory.Strategic.Payoff
 public import CslibFrontier.GameTheory.Strategic.Potential
 public import CslibFrontier.GameTheory.Strategic.RegretMatching
 public import CslibFrontier.GameTheory.Strategic.Semialgebraic
@@ -9974,14 +9992,17 @@ public import CslibFrontier.MachineLearning.LossMinimization.Smooth
 public import CslibFrontier.MachineLearning.LossMinimization.Squared
 public import CslibFrontier.MachineLearning.LossMinimization.Stability
 public import CslibFrontier.MachineLearning.LossMinimization.StochasticGradientDescent
+public import CslibFrontier.MachineLearning.OnlineLearning.AdaGrad
 public import CslibFrontier.MachineLearning.OnlineLearning.Bandit
 public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.Basic
 public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.EXP3
 public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.UCB1
+public import CslibFrontier.MachineLearning.OnlineLearning.BernsteinOnlineToBatch
 public import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
 public import CslibFrontier.MachineLearning.OnlineLearning.Calibration
 public import CslibFrontier.MachineLearning.OnlineLearning.ConstantSum
 public import CslibFrontier.MachineLearning.OnlineLearning.ConvexOnlineToBatch
+public import CslibFrontier.MachineLearning.OnlineLearning.DynamicRegret
 public import CslibFrontier.MachineLearning.OnlineLearning.FPL
 public import CslibFrontier.MachineLearning.OnlineLearning.FTRL
 public import CslibFrontier.MachineLearning.OnlineLearning.Greedy
@@ -10003,7 +10024,9 @@ public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.VCDimens
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Winnow
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeUpdate
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeWeights
+public import CslibFrontier.MachineLearning.OnlineLearning.OCOLowerBound
 public import CslibFrontier.MachineLearning.OnlineLearning.OnlineGradientDescent
+public import CslibFrontier.MachineLearning.OnlineLearning.OnlineMirrorDescent
 public import CslibFrontier.MachineLearning.OnlineLearning.RegretMatching
 public import CslibFrontier.MachineLearning.OnlineLearning.SwapRegret
 public import CslibFrontier.MachineLearning.OnlineLearning.WeightedMajority
@@ -10125,6 +10148,7 @@ public import CslibFrontier.Probability.ApproxEq
 public import CslibFrontier.Probability.ApproximateCounting
 public import CslibFrontier.Probability.ApproximateCounting.Relative
 public import CslibFrontier.Probability.Azuma
+public import CslibFrontier.Probability.BennettStep
 public import CslibFrontier.Probability.BernoulliComparison
 public import CslibFrontier.Probability.BilinearFingerprint
 public import CslibFrontier.Probability.BinaryKL
@@ -10197,6 +10221,7 @@ public import CslibFrontier.Probability.Fooling.DecisionTree
 public import CslibFrontier.Probability.Fooling.DecisionTree.Separation
 public import CslibFrontier.Probability.Fooling.OneSided
 public import CslibFrontier.Probability.Forking
+public import CslibFrontier.Probability.Freedman
 public import CslibFrontier.Probability.Freivalds
 public import CslibFrontier.Probability.Guessing
 public import CslibFrontier.Probability.Guessing.Leakage
