@@ -7,12 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.MachineLearning.OnlineLearning.Greedy
-public import CslibFrontier.MachineLearning.OnlineLearning.SwapRegret
+public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeUpdate
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Data.Nat.Log
-import CslibFrontier.Probability.BitString.Khintchine
+import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
+import CslibFrontier.Foundations.Data.Finset.Expect
+import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.CardEmbedding
@@ -25,69 +26,62 @@ import Mathlib.Tactic.Ring
 /-!
 # External and dynamic regret lower bounds
 
-This module formalizes all four regret lower-bound theorems and Exercise 4.5 of
-[BlumMansour2007AGT, §4.3, §4.3.1, §4.3.4, and Exercise 4.5, pp. 82–88, 101].
+This module formalizes the four regret lower-bound theorems and Exercise 4.5 of
+[BlumMansour2007AGT, §4.3, §4.3.1, §4.3.4, and Exercise 4.5, pp. 82–88, 101] in the experts
+setting (`Cslib.MachineLearning.OnlineLearning.Experts`):
 
-## Overview and source mapping
-
-* **Causal online algorithms** (`IsOnlineAlg`):
-  `IsOnlineAlg H` states that in each round `t`, `H ℓ t` is a probability distribution on `ι`
-  depending only on the losses `ℓ 0, …, ℓ (t - 1)` of earlier rounds. All experts learners in this
-  library (`prob (hedgeFactor η)`, `randGreedyProb`, `anytimeHedgeProb`, `blumMansourProb η`, and
-  deterministic learners via `detToOnline`) satisfy `IsOnlineAlg`.
+* **Causal online algorithms** (`IsOnlineAlgorithm`): in each round `t`, after any `[0, 1]`-valued
+  loss history `ℓ 0, …, ℓ (t - 1)`, `H ℓ t` is a probability distribution on `ι` depending only on
+  earlier rounds. Guarding the predicate by `[0, 1]` histories matches [BlumMansour2007AGT, §4.2,
+  p. 81] and admits every positive multiplicative update (`isOnlineAlgorithm_prob`, including both
+  Hedge and Polynomial Weights for `η < 1`) as well as Randomized Greedy
+  (`isOnlineAlgorithm_randGreedyProb`).
 * **Theorem 4.1 — Dynamic regret against `G_all`** (`exists_dynamic_regret_ge` —
-  [BlumMansour2007AGT, §4.3, Theorem 4.1, pp. 82–83]):
-  Against the comparison class `G_all` of all action sequences `g : ℕ → ι`, for every causal online
-  algorithm `H` and horizon `T`, there exist a `{0, 1}` loss sequence `ℓ` and an action sequence
-  `g` with zero cumulative loss such that `H` incurs expected loss at least `T * (1 - 1 / N)`.
+  [BlumMansour2007AGT, §4.3, Theorem 4.1, pp. 82–83]): for every causal online algorithm `H` on
+  `N ≥ 1` experts and horizon `T`, there exist a `{0, 1}` loss sequence `ℓ` and an action sequence
+  `g : ℕ → ι` with zero cumulative loss such that `H` incurs expected loss at least
+  `T * (1 - 1 / N)`.
 * **Theorem 4.3 — Deterministic lower bound** (`exists_deterministic_loss_eq_and_minCumLoss_eq` —
-  [BlumMansour2007AGT, §4.3.1, Theorem 4.3, pp. 83–84]):
-  For every causal deterministic algorithm `D : (ℕ → ι → ℝ) → ℕ → ι` and horizon `T`, there exists
-  a `{0, 1}` loss sequence `ℓ` on which `D` incurs loss `T` while `minCumLoss ℓ T = ⌊T / N⌋` holds
-  with *exact equality* (matching the equality stated in Theorem 4.3 as well as the inequality
-  `≤ ⌊T / N⌋` proved on p. 84).
-* **Theorem 4.7 — Short-horizon randomized lower bound (`2 ^ T ≤ N`)**
-  (`exists_stochastic_loss_eq_half_minCumLoss_zero` — [BlumMansour2007AGT, §4.3.4,
-  Theorem 4.7, pp. 87–88]):
-  Whenever `2 ^ T ≤ N` (covering `T < log₂ N` and the boundary `N = 2 ^ T`), there is a uniform
-  distribution over `2 ^ T` binary `{0, 1}` loss sequences under which *every* causal online
-  algorithm `H` incurs expected loss `T / 2` while `minCumLoss ℓ T = 0` holds deterministically on
-  *every* realization.
+  [BlumMansour2007AGT, §4.3.1, Theorem 4.3, pp. 83–84]): for every causal deterministic algorithm
+  `D` on `N ≥ 1` experts and horizon `T`, there exists a `{0, 1}` loss sequence `ℓ` on which `D`
+  incurs loss `T` while `minCumLoss ℓ T = ⌊T / N⌋` holds with exact equality.
+* **Theorem 4.7 — Short-horizon stochastic lower bound (`2 ^ T ≤ N`)**
+  (`exists_stochastic_loss_eq_half_minCumLoss_zero` — [BlumMansour2007AGT, §4.3.4, Theorem 4.7,
+  pp. 87–88]): whenever `2 ^ T ≤ N` (covering `T < log₂ N` and the boundary `N = 2 ^ T`), there is
+  a uniform distribution over `Fin T → Bool` of `{0, 1}` loss sequences such that every realization
+  has `minCumLoss (ℓ w) T = 0` while every causal online algorithm `H` has expected loss `T / 2`.
 * **Theorem 4.8 — Two-expert `Ω(√T)` stochastic lower bound**
   (`exists_two_experts_stochastic_regret_ge` — [BlumMansour2007AGT, §4.3.4, Theorem 4.8, p. 88]):
-  For `N ≥ 2` (in particular `N = 2`), under i.i.d. fair-coin `{0, 1}` losses, every causal online
-  algorithm `H` incurs expected loss `T / 2` and expected external regret at least
-  `(1 / (2 √3)) * √T`.
+  for `N ≥ 2` (in particular `N = 2`) and every `T`, under uniform `Fin T → Bool` `{0, 1}` losses,
+  every causal online algorithm incurs expected loss `T / 2` and expected external regret at least
+  `(1 / (2 e)) * √T`, proved via Khintchine's `L¹` lower bound
+  (`Cslib.BitString.sqrt_sum_sq_le_exp_mul_lpNorm`).
 * **Exercise 4.5 — General `Ω(√(T log N))` stochastic lower bound**
-  (`exists_stochastic_regret_ge_sqrt_mul_log`, `exists_stochastic_regret_ge_sqrt_mul_log_of_card_le`
-  — [BlumMansour2007AGT, Exercise 4.5, p. 101]):
-  Combining the `2 ^ k` cube embedding (`k = ⌊log₂ N⌋`) across `k` blocks of length `B = ⌊T / k⌋`
-  with Khintchine's `L¹` bound inside each block shows that for all `N ≥ 2` and `T ≥ ⌊log₂ N⌋`
-  (hence in particular for all `T ≥ N`), there is a stochastic `{0, 1}` loss family under which
-  *every* causal online algorithm incurs expected external regret at least
-  `(1 / (4 √3)) * √(T * ln N)`.
+  (`exists_stochastic_regret_ge_sqrt_mul_log` — [BlumMansour2007AGT, Exercise 4.5, p. 101]): for
+  `N ≥ 2` and `⌊log₂ N⌋ ≤ T` (in particular for all `T ≥ N`, since `⌊log₂ N⌋ ≤ N`), partitioning
+  the `T` rounds modulo `k = ⌊log₂ N⌋` into `k` blocks embedded via `2 ^ k ≤ N` experts gives
+  expected external regret at least `(1 / (4 e)) * √(T * ln N)` for every causal online algorithm.
 
 ## Main definitions
 
-* `Cslib.MachineLearning.OnlineLearning.Experts.IsOnlineAlg`: causal online algorithm predicate.
-* `Cslib.MachineLearning.OnlineLearning.Experts.detToOnline`: embedding a deterministic learner as a
-  point-mass online algorithm.
-* `Cslib.MachineLearning.OnlineLearning.Experts.blockCoinLoss`: unified hypercube-block `{0, 1}`
-  stochastic loss family underlying Theorems 4.7, 4.8, and Exercise 4.5.
+* `Cslib.MachineLearning.OnlineLearning.Experts.IsOnlineAlgorithm`: causal online experts algorithm
+  on `[0, 1]` loss sequences.
 
 ## Main results
 
+* `Cslib.MachineLearning.OnlineLearning.Experts.isOnlineAlgorithm_prob`,
+  `Cslib.MachineLearning.OnlineLearning.Experts.isOnlineAlgorithm_randGreedyProb`: multiplicative
+  updates (positive on `[0, 1]`) and Randomized Greedy are online algorithms.
 * `Cslib.MachineLearning.OnlineLearning.Experts.exists_dynamic_regret_ge`: [BlumMansour2007AGT,
   Theorem 4.1].
 * `Cslib.MachineLearning.OnlineLearning.Experts.exists_deterministic_loss_eq_and_minCumLoss_eq`:
   [BlumMansour2007AGT, Theorem 4.3].
-* `Cslib.MachineLearning.OnlineLearning.Experts.exists_stochastic_loss_eq_half_minCumLoss_zero`
-  — [BlumMansour2007AGT, Theorem 4.7].
+* `Cslib.MachineLearning.OnlineLearning.Experts.exists_stochastic_loss_eq_half_minCumLoss_zero`:
+  [BlumMansour2007AGT, Theorem 4.7].
 * `Cslib.MachineLearning.OnlineLearning.Experts.exists_two_experts_stochastic_regret_ge`:
   [BlumMansour2007AGT, Theorem 4.8].
-* `Cslib.MachineLearning.OnlineLearning.Experts.exists_stochastic_regret_ge_sqrt_mul_log`,
-  `Cslib.MachineLearning.OnlineLearning.Experts.exists_stochastic_regret_ge_sqrt_mul_log_of_card_le`
-  — [BlumMansour2007AGT, Exercise 4.5].
+* `Cslib.MachineLearning.OnlineLearning.Experts.exists_stochastic_regret_ge_sqrt_mul_log`:
+  [BlumMansour2007AGT, Exercise 4.5].
 
 ## References
 
@@ -105,114 +99,100 @@ variable {ι : Type*} [Fintype ι]
 
 /-! ### Causal online algorithms -/
 
-/-- A causal online experts algorithm: in each round `t`, `H ℓ t` is a probability distribution on
-`ι` determined solely by the loss vectors `ℓ 0, …, ℓ (t - 1)` of earlier rounds. -/
-structure IsOnlineAlg (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) : Prop where
-  /-- Probabilities are nonnegative in every round. -/
-  nonneg : ∀ ℓ t i, 0 ≤ H ℓ t i
-  /-- Probabilities sum to `1` in every round. -/
-  sum_eq_one : ∀ ℓ t, ∑ i, H ℓ t i = 1
-  /-- Round-`t` distribution depends only on rounds `< t`. -/
-  congr : ∀ {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ}, (∀ s < t, ℓ s = ℓ' s) → H ℓ t = H ℓ' t
+/-- A causal online experts algorithm on `[0, 1]`-valued losses [BlumMansour2007AGT, §4.2, p. 81]:
+after any `[0, 1]`-valued history `ℓ 0, …, ℓ (t - 1)`, `H ℓ t` is a probability distribution on `ι`
+determined solely by those earlier rounds. -/
+structure IsOnlineAlgorithm (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) : Prop where
+  /-- Probabilities are nonnegative after any `[0, 1]`-valued history. -/
+  nonneg : ∀ {ℓ : ℕ → ι → ℝ} {t : ℕ},
+    (∀ s < t, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) → ∀ i, 0 ≤ H ℓ t i
+  /-- Probabilities sum to `1` after any `[0, 1]`-valued history. -/
+  sum_eq_one : ∀ {ℓ : ℕ → ι → ℝ} {t : ℕ},
+    (∀ s < t, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) → ∑ i, H ℓ t i = 1
+  /-- Round-`t` distribution depends only on rounds `< t` for `[0, 1]`-valued histories. -/
+  congr : ∀ {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ},
+    (∀ s < t, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) → (∀ s < t, ℓ s = ℓ' s) → H ℓ t = H ℓ' t
 
-/-- Point-mass online distribution corresponding to a deterministic learner `D`. -/
-def detToOnline [DecidableEq ι] (D : (ℕ → ι → ℝ) → ℕ → ι) (ℓ : ℕ → ι → ℝ) (t : ℕ) (i : ι) : ℝ :=
-  if i = D ℓ t then 1 else 0
+/-- Every multiplicative update whose factor is positive on `[0, 1]` (in particular Hedge for every
+`η` and Polynomial Weights for `η < 1`) is an online algorithm. -/
+theorem isOnlineAlgorithm_prob [Nonempty ι] {φ : ℝ → ℝ}
+    (hφ : ∀ x ∈ Set.Icc (0 : ℝ) 1, 0 < φ x) :
+    IsOnlineAlgorithm (prob φ : (ℕ → ι → ℝ) → ℕ → ι → ℝ) where
+  nonneg hℓ i := prob_nonneg (fun s hs j => hφ _ (hℓ s hs j)) i
+  sum_eq_one hℓ := sum_prob (fun s hs j => hφ _ (hℓ s hs j))
+  congr _ h := prob_congr h
 
-theorem isOnlineAlg_detToOnline [DecidableEq ι] {D : (ℕ → ι → ℝ) → ℕ → ι}
-    (hD : ∀ {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ}, (∀ s < t, ℓ s = ℓ' s) → D ℓ t = D ℓ' t) :
-    IsOnlineAlg (detToOnline D) where
-  nonneg _ _ _ := by unfold detToOnline; split_ifs <;> norm_num
-  sum_eq_one ℓ t := by simp [detToOnline]
-  congr h := by funext i; simp only [detToOnline, hD h]
-
-theorem isOnlineAlg_hedge [Nonempty ι] (η : ℝ) : IsOnlineAlg (prob (hedgeFactor η) :
-    (ℕ → ι → ℝ) → ℕ → ι → ℝ) where
-  nonneg _ _ i := prob_nonneg (fun _ _ _ => by rw [hedgeFactor_apply]; exact exp_pos _) i
-  sum_eq_one _ _ := sum_prob (fun _ _ _ => by rw [hedgeFactor_apply]; exact exp_pos _)
-  congr h := prob_congr h
-
-theorem isOnlineAlg_randGreedy [Nonempty ι] : IsOnlineAlg (randGreedyProb (ι := ι)) where
-  nonneg := randGreedyProb_nonneg
-  sum_eq_one := sum_randGreedyProb
-  congr h := randGreedyProb_congr h
-
-theorem isOnlineAlg_anytimeHedge [Nonempty ι] : IsOnlineAlg (anytimeHedgeProb (ι := ι)) where
-  nonneg := anytimeHedgeProb_nonneg
-  sum_eq_one := sum_anytimeHedgeProb
-  congr h := anytimeHedgeProb_congr h
-
-theorem isOnlineAlg_blumMansour [DecidableEq ι] [Nonempty ι] (η : ℝ) :
-    IsOnlineAlg (blumMansourProb (ι := ι) η) where
-  nonneg := blumMansourProb_nonneg η
-  sum_eq_one := sum_blumMansourProb η
-  congr h := blumMansourProb_congr h
+/-- Randomized Greedy is an online algorithm. -/
+theorem isOnlineAlgorithm_randGreedyProb [Nonempty ι] :
+    IsOnlineAlgorithm (randGreedyProb (ι := ι)) where
+  nonneg _ i := randGreedyProb_nonneg _ _ i
+  sum_eq_one _ := sum_randGreedyProb _ _
+  congr _ h := randGreedyProb_congr h
 
 /-! ### Theorem 4.1: Dynamic regret against `G_all` -/
-
-private theorem exists_prob_le_inv_card [Nonempty ι] {p : ι → ℝ} (hsum : ∑ i, p i = 1) :
-    ∃ i : ι, p i ≤ 1 / Fintype.card ι := by
-  by_contra! hgt
-  have hN : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr Fintype.card_pos
-  have hlt : (1 : ℝ) < ∑ i, p i := by
-    calc (1 : ℝ) = ∑ _i : ι, (1 / (Fintype.card ι : ℝ)) := by
-          rw [sum_const, card_univ, nsmul_eq_mul]; field_simp
-      _ < ∑ i, p i := sum_lt_sum_of_nonempty univ_nonempty fun i _ => hgt i
-  linarith
 
 /-- **Dynamic regret lower bound against `G_all`** [BlumMansour2007AGT, Theorem 4.1, pp. 82–83]:
 for every causal online algorithm `H` on `N ≥ 1` experts and horizon `T`, there exist a `{0, 1}`
 loss sequence `ℓ` and an action sequence `g : ℕ → ι` such that `g` incurs total loss `0` while `H`
 incurs expected loss at least `T * (1 - 1 / N)`. -/
 theorem exists_dynamic_regret_ge [Nonempty ι] {H : (ℕ → ι → ℝ) → ℕ → ι → ℝ}
-    (hH : IsOnlineAlg H) (T : ℕ) :
+    (hH : IsOnlineAlgorithm H) (T : ℕ) :
     ∃ (ℓ : ℕ → ι → ℝ) (g : ℕ → ι),
       (∀ t < T, ∀ i, ℓ t i = 0 ∨ ℓ t i = 1) ∧
       (∑ t ∈ range T, ℓ t (g t) = 0) ∧
       (T : ℝ) * (1 - 1 / Fintype.card ι) ≤ ∑ t ∈ range T, ∑ i, H ℓ t i * ℓ t i := by
   classical
-  -- Construct `(g t, ℓ t)` adaptively by well-founded recursion on `t`:
-  let step : ∀ t : ℕ, (∀ s < t, ι × (ι → ℝ)) → ι × (ι → ℝ) := fun t prev =>
-    let ℓ_pre : ℕ → ι → ℝ := fun s => if hs : s < t then (prev s hs).2 else 0
-    let it := (exists_prob_le_inv_card (hH.sum_eq_one ℓ_pre t)).choose
-    (it, fun i => if i = it then 0 else 1)
-  let run : ℕ → ι × (ι → ℝ) := WellFounded.fix Nat.lt_wfRel.wf step
-  let g : ℕ → ι := fun t => (run t).1
-  let ℓ : ℕ → ι → ℝ := fun t => (run t).2
-  have hrun : ∀ t, run t = step t (fun s _ => run s) := fun t =>
-    WellFounded.fix_eq Nat.lt_wfRel.wf step t
-  have hℓ_eq : ∀ t i, ℓ t i = if i = g t then 0 else 1 := fun t i => by
-    have h1 := congrArg Prod.fst (hrun t)
-    have h2 := congrArg Prod.snd (hrun t)
-    simp only [ℓ, g, h1, h2]
-    rfl
+  let lossOf : ι → ι → ℝ := fun a i => if i = a then 0 else 1
+  have hlossOf_mem : ∀ a i, lossOf a i ∈ Set.Icc (0 : ℝ) 1 := fun a i => by
+    dsimp only [lossOf]
+    split_ifs <;> norm_num
+  have hN_ne : (Fintype.card ι : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+  -- Choose `g t` adaptively as an action with probability `≤ 1 / N` given the prefix losses.
+  let step : ∀ t : ℕ, (∀ s < t, ι) → ι := fun t prev =>
+    let ℓ_pre : ℕ → ι → ℝ := fun s => if hs : s < t then lossOf (prev s hs) else 0
+    have hpre_mem : ∀ s < t, ∀ i, ℓ_pre s i ∈ Set.Icc (0 : ℝ) 1 := fun s hs i => by
+      simp only [ℓ_pre, hs, ↓reduceDIte]
+      exact hlossOf_mem _ i
+    have hsum : ∑ i : ι, H ℓ_pre t i ≤ ∑ _i : ι, (1 / (Fintype.card ι : ℝ)) := by
+      rw [hH.sum_eq_one hpre_mem, sum_const, card_univ, nsmul_eq_mul, mul_one_div,
+        div_self hN_ne]
+    (exists_le_of_sum_le univ_nonempty hsum).choose
+  let g : ℕ → ι := WellFounded.fix Nat.lt_wfRel.wf step
+  let ℓ : ℕ → ι → ℝ := fun t => lossOf (g t)
+  have hℓ_mem : ∀ t i, ℓ t i ∈ Set.Icc (0 : ℝ) 1 := fun t i => hlossOf_mem (g t) i
   have hg_le : ∀ t, H ℓ t (g t) ≤ 1 / Fintype.card ι := fun t => by
-    let ℓ_pre : ℕ → ι → ℝ := fun s => if s < t then (run s).2 else 0
-    have hcongr : H ℓ t = H ℓ_pre t := hH.congr fun s hs => by simp [ℓ, ℓ_pre, hs]
-    rw [hcongr]
-    have hg_def : g t = (exists_prob_le_inv_card (hH.sum_eq_one ℓ_pre t)).choose := by
+    let ℓ_pre : ℕ → ι → ℝ := fun s => if hs : s < t then lossOf (g s) else 0
+    have hpre_mem : ∀ s < t, ∀ i, ℓ_pre s i ∈ Set.Icc (0 : ℝ) 1 := fun s hs i => by
+      simp only [ℓ_pre, hs, ↓reduceDIte]
+      exact hlossOf_mem _ i
+    have hcongr : H ℓ t = H ℓ_pre t := hH.congr (fun s _ i => hℓ_mem s i) fun s hs => by
+      simp only [ℓ, ℓ_pre, hs, ↓reduceDIte]
+    have hsum : ∑ i : ι, H ℓ_pre t i ≤ ∑ _i : ι, (1 / (Fintype.card ι : ℝ)) := by
+      rw [hH.sum_eq_one hpre_mem, sum_const, card_univ, nsmul_eq_mul, mul_one_div,
+        div_self hN_ne]
+    have hg_def : g t = (exists_le_of_sum_le univ_nonempty hsum).choose := by
       dsimp only [g]
-      rw [hrun t]
-    rw [hg_def]
-    exact (exists_prob_le_inv_card (hH.sum_eq_one ℓ_pre t)).choose_spec
+      rw [WellFounded.fix_eq]
+    rw [hcongr, hg_def]
+    exact (exists_le_of_sum_le univ_nonempty hsum).choose_spec.2
   refine ⟨ℓ, g, ?_, ?_, ?_⟩
   · intro t _ i
-    rw [hℓ_eq t i]
-    split_ifs <;> simp
+    dsimp only [ℓ, lossOf]
+    split_ifs <;> simp only [or_true, true_or]
   · refine sum_eq_zero fun t _ => ?_
-    rw [hℓ_eq t (g t)]
-    simp only [↓reduceIte]
+    simp only [ℓ, lossOf, ↓reduceIte]
   · calc (T : ℝ) * (1 - 1 / Fintype.card ι)
         = ∑ _t ∈ range T, (1 - 1 / (Fintype.card ι : ℝ)) := by
           rw [sum_const, card_range, nsmul_eq_mul]
       _ ≤ ∑ t ∈ range T, ∑ i, H ℓ t i * ℓ t i := sum_le_sum fun t _ => by
-          have h1 := hH.sum_eq_one ℓ t
+          have h1 := hH.sum_eq_one (ℓ := ℓ) (t := t) fun s _ i => hℓ_mem s i
           have hloss : ∑ i, H ℓ t i * ℓ t i = 1 - H ℓ t (g t) := by
             have hpart : ∑ i, H ℓ t i = H ℓ t (g t) + ∑ i, H ℓ t i * ℓ t i := by
-              have hgt : H ℓ t (g t) = ∑ i, if i = g t then H ℓ t i else 0 := by simp
+              have hgt : H ℓ t (g t) = ∑ i, if i = g t then H ℓ t i else 0 := by
+                simp only [sum_ite_eq', mem_univ, ↓reduceIte]
               rw [hgt, ← sum_add_distrib]
               refine sum_congr rfl fun i _ => ?_
-              rw [hℓ_eq t i]
+              dsimp only [ℓ, lossOf]
               split_ifs <;> ring
             linarith
           rw [hloss]
@@ -225,7 +205,9 @@ causal deterministic algorithm `D` on `N ≥ 1` experts and horizon `T`, there e
 sequence `ℓ` on which `D` incurs loss `T` while `minCumLoss ℓ T = ⌊T / N⌋` holds with exact
 equality. -/
 theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ → ι → ℝ) → ℕ → ι}
-    (hD : ∀ {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ}, (∀ s < t, ℓ s = ℓ' s) → D ℓ t = D ℓ' t) (T : ℕ) :
+    (hD : ∀ {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ},
+      (∀ s < t, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) → (∀ s < t, ℓ s = ℓ' s) → D ℓ t = D ℓ' t)
+    (T : ℕ) :
     ∃ ℓ : ℕ → ι → ℝ,
       (∀ t < T, ∀ i, ℓ t i = 0 ∨ ℓ t i = 1) ∧
       (∑ t ∈ range T, ℓ t (D ℓ t) = T) ∧
@@ -234,34 +216,38 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
   set N := Fintype.card ι
   have hN : 0 < N := Fintype.card_pos
   set k := T / N
-  -- Integer loss construction by well-founded recursion on `t`: in round `t < T`, give loss `1` to
-  -- `D`'s chosen action AND to any expert whose remaining slack `(∑ s < t, nℓ s i) + (T - t)` has
-  -- dropped to `≤ k` so every expert reaches `≥ k` without ever pushing any slack-forced expert
-  -- past `k`.
-  let step : ∀ t : ℕ, (∀ s < t, ι → ℕ) → ι → ℕ := fun t prev =>
-    let ℓ_pre : ℕ → ι → ℝ := fun s i => if hs : s < t then (prev s hs i : ℝ) else 0
+  -- Give loss `1` to `D`'s chosen action and to any expert whose remaining slack
+  -- `(∑ s < t, nℓ s i) + (T - t)` has dropped to `≤ k`, guaranteeing `minCumLoss ℓ T = k`.
+  let step : ∀ t : ℕ, (∀ s < t, ι → Bool) → ι → Bool := fun t prev =>
+    let ℓ_pre : ℕ → ι → ℝ := fun s i => if hs : s < t then ((prev s hs i).toNat : ℝ) else 0
     let xt := D ℓ_pre t
     fun i =>
-      if i = xt ∨ (∑ s ∈ attach (range t), prev s.1 (mem_range.mp s.2) i) + (T - t) ≤ k then 1
-      else 0
-  let nℓ : ℕ → ι → ℕ := WellFounded.fix Nat.lt_wfRel.wf step
+      if i = xt ∨ (∑ s ∈ attach (range t), (prev s.1 (mem_range.mp s.2) i).toNat) + (T - t) ≤ k
+      then true else false
+  let bℓ : ℕ → ι → Bool := WellFounded.fix Nat.lt_wfRel.wf step
+  let nℓ : ℕ → ι → ℕ := fun t i => (bℓ t i).toNat
   let ℓ : ℕ → ι → ℝ := fun t i => (nℓ t i : ℝ)
+  have hℓ_mem : ∀ t i, ℓ t i ∈ Set.Icc (0 : ℝ) 1 := fun t i => by
+    dsimp only [ℓ, nℓ]
+    cases bℓ t i <;> norm_num
   have hnℓ_eq : ∀ t i, nℓ t i =
       if i = D ℓ t ∨ (∑ s ∈ range t, nℓ s i) + (T - t) ≤ k then 1 else 0 := by
     intro t i
-    have hfix : nℓ t = step t (fun s _ => nℓ s) := WellFounded.fix_eq Nat.lt_wfRel.wf step t
-    have hD_eq : D (fun s j => if hs : s < t then (nℓ s j : ℝ) else 0) t = D ℓ t :=
-      hD fun s hs => by funext j; simp [ℓ, hs]
-    have hsum_att : (∑ s ∈ attach (range t), nℓ s.1 i) = ∑ s ∈ range t, nℓ s i :=
+    have hfix : bℓ t = step t (fun s _ => bℓ s) := WellFounded.fix_eq Nat.lt_wfRel.wf step t
+    have hD_eq : D (fun s j => if hs : s < t then ((bℓ s j).toNat : ℝ) else 0) t = D ℓ t :=
+      hD (fun s hs j => by simp only [hs, ↓reduceDIte]; exact hℓ_mem s j)
+        (fun s hs => by funext j; simp only [ℓ, nℓ, hs, ↓reduceDIte])
+    have hsum_att : (∑ s ∈ attach (range t), (bℓ s.1 i).toNat) = ∑ s ∈ range t, nℓ s i :=
       sum_attach (range t) fun s => nℓ s i
-    have h1 := congrFun hfix i
+    have h1 := congrArg Bool.toNat (congrFun hfix i)
     dsimp only [step] at h1
     rw [hD_eq, hsum_att] at h1
-    exact h1
+    dsimp only [nℓ]
+    rw [h1]
+    split_ifs <;> rfl
   have hnℓ_le_one : ∀ t i, nℓ t i ≤ 1 := fun t i => by
     rw [hnℓ_eq t i]
     split_ifs <;> omega
-  -- Every expert has `k ≤ ∑ s < t, nℓ s i + (T - t)` for all `t ≤ T`:
   have hslack_ge : ∀ t ≤ T, ∀ i, k ≤ (∑ s ∈ range t, nℓ s i) + (T - t) := by
     intro t ht i
     induction t with
@@ -271,11 +257,7 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
     | succ t ih =>
       have ih' := ih (by omega)
       rw [sum_range_succ, hnℓ_eq t i]
-      split_ifs with hc
-      · omega
-      · omega
-  -- If an expert triggers `(∑ s < t₀, nℓ s i) + (T - t₀) ≤ k` at some `t₀ < T`, then its total
-  -- loss at `T` is at most `k`:
+      split_ifs <;> omega
   have hcap_of_trigger : ∀ i, ∀ t₀ < T, (∑ s ∈ range t₀, nℓ s i) + (T - t₀) ≤ k →
       ∑ s ∈ range T, nℓ s i ≤ k := by
     intro i t₀ ht₀ htrig
@@ -291,27 +273,28 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
     have htail : ∑ s ∈ Ico t₀ T, nℓ s i ≤ T - t₀ := by
       calc ∑ s ∈ Ico t₀ T, nℓ s i ≤ ∑ _s ∈ Ico t₀ T, 1 :=
             sum_le_sum fun s _ => hnℓ_le_one s i
-        _ = T - t₀ := by simp
+        _ = T - t₀ := by simp only [sum_const, Nat.card_Ico, smul_eq_mul, mul_one]
     rw [hsplit, sum_union hdisj]
     omega
-  -- By pigeonhole, some expert has `∑ s < T, nℓ s i ≤ k`:
   have hex_le_k : ∃ i, ∑ s ∈ range T, nℓ s i ≤ k := by
     by_contra! hgt
-    -- Every expert has `≥ k + 1`, so NO expert ever triggered the slack branch before `T`!
     have hno_trig : ∀ i, ∀ t < T, nℓ t i = if i = D ℓ t then 1 else 0 := by
       intro i t ht
       have hnot : ¬ ((∑ s ∈ range t, nℓ s i) + (T - t) ≤ k) :=
         fun htr => not_le_of_gt (hgt i) (hcap_of_trigger i t ht htr)
       rw [hnℓ_eq t i]
-      simp [hnot]
+      simp only [hnot, or_false]
     have htot : ∑ i : ι, ∑ t ∈ range T, nℓ t i = T := by
       rw [sum_comm]
       calc ∑ t ∈ range T, ∑ i : ι, nℓ t i
           = ∑ t ∈ range T, ∑ i : ι, (if i = D ℓ t then 1 else 0) :=
             sum_congr rfl fun t ht => sum_congr rfl fun i _ => hno_trig i t (mem_range.mp ht)
-        _ = T := by simp
+        _ = T := by
+            simp only [sum_ite_eq', mem_univ, ↓reduceIte, sum_const, card_range, smul_eq_mul,
+              mul_one]
     have hge : N * (k + 1) ≤ ∑ i : ι, ∑ t ∈ range T, nℓ t i := by
-      calc N * (k + 1) = ∑ _i : ι, (k + 1) := by simp [N]
+      calc N * (k + 1) = ∑ _i : ι, (k + 1) := by
+            simp only [sum_const, card_univ, smul_eq_mul, N]
         _ ≤ ∑ i : ι, ∑ t ∈ range T, nℓ t i := sum_le_sum fun i _ => hgt i
     have hlt : T < N * (k + 1) := by
       dsimp only [k]
@@ -321,452 +304,351 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
     omega
   refine ⟨ℓ, ?_, ?_, ?_⟩
   · intro t _ i
-    dsimp only [ℓ]
-    rw [hnℓ_eq t i]
-    split_ifs <;> simp
+    dsimp only [ℓ, nℓ]
+    cases bℓ t i <;> simp only [Bool.toNat_false, Bool.toNat_true, Nat.cast_zero, Nat.cast_one,
+      or_true, true_or]
   · calc ∑ t ∈ range T, ℓ t (D ℓ t) = ∑ _t ∈ range T, (1 : ℝ) :=
           sum_congr rfl fun t _ => by
             dsimp only [ℓ]
             rw [hnℓ_eq t (D ℓ t)]
             simp only [true_or, ↓reduceIte, Nat.cast_one]
-      _ = T := by simp
+      _ = T := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
   · apply le_antisymm
     · obtain ⟨i₀, hi₀⟩ := hex_le_k
       refine (minCumLoss_le ℓ T i₀).trans ?_
-      dsimp only [cumLoss, ℓ]
+      dsimp only [ℓ]
       exact_mod_cast hi₀
     · refine le_minCumLoss_iff.mpr fun i => ?_
       have hge := hslack_ge T le_rfl i
       rw [Nat.sub_self, add_zero] at hge
-      dsimp only [cumLoss, ℓ]
+      dsimp only [ℓ]
       exact_mod_cast hge
 
-/-! ### Unified hypercube-block stochastic adversary (Theorems 4.7, 4.8, and Exercise 4.5) -/
+/-! ### Unified block-map stochastic adversary (Theorems 4.7, 4.8, and Exercise 4.5) -/
 
-/-- `{0, 1}` loss family parameterized by an embedding `emb : (Fin k → Bool) ↪ ι` of `2 ^ k`
-bit-vectors and a `k × B` array of fair coins `c : Fin k → Fin B → Bool`. In round `t = r * B + s`
-(`r < k`, `s < B`), expert `emb w` pays `0` if `w r = c r s` and `1` otherwise; unembedded experts
-pay `0` if `c r s = true` and `1` otherwise; rounds `t ≥ k * B` have loss `0`. -/
-noncomputable def blockCoinLoss {k B : ℕ} (hB : 0 < B) (emb : (Fin k → Bool) ↪ ι)
-    (c : Fin k → Fin B → Bool) (t : ℕ) (i : ι) : ℝ :=
+/-- `{0, 1}` stochastic loss family parameterized by a block assignment `block : Fin T → κ`, an
+embedding `emb : (κ → Bool) ↪ ι`, and one fair coin per round `w : Fin T → Bool`. In round `t < T`,
+expert `emb u` pays `0` if `u (block t) = w t` and `1` otherwise; unembedded experts pay `0` if
+`w t = true` and `1` otherwise; rounds `t ≥ T` have loss `0`. -/
+private noncomputable def coinLoss {κ : Type*} {T : ℕ} (block : Fin T → κ)
+    (emb : (κ → Bool) ↪ ι) (w : Fin T → Bool) (t : ℕ) (i : ι) : ℝ :=
   open Classical in
-  if ht : t < k * B then
-    let r : Fin k := ⟨t / B, (Nat.div_lt_iff_lt_mul hB).mpr ht⟩
-    let s : Fin B := ⟨t % B, Nat.mod_lt t hB⟩
-    if hex : ∃ w : Fin k → Bool, emb w = i then
-      if hex.choose r = c r s then 0 else 1
+  if ht : t < T then
+    if hex : ∃ u : κ → Bool, emb u = i then
+      if hex.choose (block ⟨t, ht⟩) = w ⟨t, ht⟩ then 0 else 1
     else
-      if c r s then 0 else 1
+      if w ⟨t, ht⟩ then 0 else 1
   else 0
 
 omit [Fintype ι] in
-private theorem blockCoinLoss_binary {k B : ℕ} (hB : 0 < B) (emb : (Fin k → Bool) ↪ ι)
-    (c : Fin k → Fin B → Bool) (t : ℕ) (i : ι) :
-    blockCoinLoss hB emb c t i = 0 ∨ blockCoinLoss hB emb c t i = 1 := by
+private theorem coinLoss_binary {κ : Type*} {T : ℕ} (block : Fin T → κ)
+    (emb : (κ → Bool) ↪ ι) (w : Fin T → Bool) (t : ℕ) (i : ι) :
+    coinLoss block emb w t i = 0 ∨ coinLoss block emb w t i = 1 := by
   classical
-  unfold blockCoinLoss
-  split_ifs
-  · dsimp only
-    split_ifs <;> norm_num
-  · dsimp only
-    split_ifs <;> norm_num
-  · norm_num
+  unfold coinLoss
+  split_ifs <;> norm_num
 
 omit [Fintype ι] in
-private theorem blockCoinLoss_emb_apply {k B : ℕ} (hB : 0 < B) (emb : (Fin k → Bool) ↪ ι)
-    (c : Fin k → Fin B → Bool) {t : ℕ} (ht : t < k * B) (w : Fin k → Bool) :
-    blockCoinLoss hB emb c t (emb w) =
-      if w ⟨t / B, (Nat.div_lt_iff_lt_mul hB).mpr ht⟩ =
-          c ⟨t / B, (Nat.div_lt_iff_lt_mul hB).mpr ht⟩ ⟨t % B, Nat.mod_lt t hB⟩
-        then 0 else 1 := by
+private theorem coinLoss_mem_Icc {κ : Type*} {T : ℕ} (block : Fin T → κ)
+    (emb : (κ → Bool) ↪ ι) (w : Fin T → Bool) (t : ℕ) (i : ι) :
+    coinLoss block emb w t i ∈ Set.Icc (0 : ℝ) 1 := by
+  rcases coinLoss_binary block emb w t i with h | h <;> simp only [h, Set.mem_Icc] <;> norm_num
+
+omit [Fintype ι] in
+private theorem coinLoss_emb_apply {κ : Type*} {T : ℕ} (block : Fin T → κ)
+    (emb : (κ → Bool) ↪ ι) (w : Fin T → Bool) {t : ℕ} (ht : t < T) (u : κ → Bool) :
+    coinLoss block emb w t (emb u) = if u (block ⟨t, ht⟩) = w ⟨t, ht⟩ then 0 else 1 := by
   classical
-  have hex : ∃ w' : Fin k → Bool, emb w' = emb w := ⟨w, rfl⟩
-  have hchoose : hex.choose = w := emb.injective hex.choose_spec
-  unfold blockCoinLoss
+  have hex : ∃ u' : κ → Bool, emb u' = emb u := ⟨u, rfl⟩
+  have hchoose : hex.choose = u := emb.injective hex.choose_spec
+  unfold coinLoss
   simp only [ht, ↓reduceDIte, hex, hchoose]
 
-private theorem expect_comp_equiv {α β : Type*} [Fintype α] [Fintype β] (e : α ≃ β)
-    (f : β → ℝ) : (𝔼 a : α, f (e a)) = 𝔼 b : β, f b := by
-  simp only [Fintype.expect_eq_sum_div_card, Fintype.card_congr e, e.sum_comp]
-
-private theorem expect_sum_finset {α β : Type*} [Fintype α] (s : Finset β) (f : α → β → ℝ) :
-    (𝔼 a : α, ∑ b ∈ s, f a b) = ∑ b ∈ s, 𝔼 a : α, f a b := by
-  simp only [Fintype.expect_eq_sum_div_card, ← sum_div]
-  rw [sum_comm]
-
-private theorem expect_const_mul_real {α : Type*} [Fintype α] (r : ℝ) (f : α → ℝ) :
-    (𝔼 a : α, r * f a) = r * 𝔼 a : α, f a := by
-  simp only [Fintype.expect_eq_sum_div_card, ← mul_sum, mul_div_assoc]
-
-/-- Involution flipping the single coin `(r, s)` in `c : Fin k → Fin B → Bool`. -/
-private def flipBlockCoin {k B : ℕ} (r : Fin k) (s : Fin B) :
-    Equiv.Perm (Fin k → Fin B → Bool) where
-  toFun c r' s' := if r' = r ∧ s' = s then !(c r' s') else c r' s'
-  invFun c r' s' := if r' = r ∧ s' = s then !(c r' s') else c r' s'
-  left_inv c := by
-    funext r' s'
-    dsimp only
-    split_ifs <;> simp
-  right_inv c := by
-    funext r' s'
-    dsimp only
-    split_ifs <;> simp
-
-/-- Under uniform coins `c : Fin k → Fin B → Bool`, every causal online algorithm `H` incurs
-expected total loss `(k * B) / 2` over any horizon `T ≥ k * B`. -/
-theorem expect_blockCoinLoss_eq [Nonempty ι] {k B T : ℕ} (hB : 0 < B) (hkB : k * B ≤ T)
-    (emb : (Fin k → Bool) ↪ ι) {H : (ℕ → ι → ℝ) → ℕ → ι → ℝ} (hH : IsOnlineAlg H) :
-    (𝔼 c : Fin k → Fin B → Bool,
-      ∑ t ∈ range T, ∑ i, H (blockCoinLoss hB emb c) t i * blockCoinLoss hB emb c t i) =
-      (k * B : ℝ) / 2 := by
+/-- Under uniform coins `w : Fin T → Bool`, every causal online algorithm `H` incurs expected total
+loss `T / 2`. -/
+private theorem expect_coinLoss_eq {κ : Type*} {T : ℕ} (block : Fin T → κ)
+    (emb : (κ → Bool) ↪ ι) {H : (ℕ → ι → ℝ) → ℕ → ι → ℝ} (hH : IsOnlineAlgorithm H) :
+    (𝔼 w : Fin T → Bool,
+      ∑ t ∈ range T, ∑ i, H (coinLoss block emb w) t i * coinLoss block emb w t i) =
+      (T : ℝ) / 2 := by
   classical
-  rw [expect_sum_finset]
+  rw [expect_sum_comm]
   have hround : ∀ t ∈ range T,
-      (𝔼 c : Fin k → Fin B → Bool,
-        ∑ i, H (blockCoinLoss hB emb c) t i * blockCoinLoss hB emb c t i) =
-        if t < k * B then 1 / 2 else 0 := by
-    intro t _
-    by_cases ht : t < k * B
-    · simp only [ht, ↓reduceIte]
-      let r : Fin k := ⟨t / B, (Nat.div_lt_iff_lt_mul hB).mpr ht⟩
-      let s : Fin B := ⟨t % B, Nat.mod_lt t hB⟩
-      set f : (Fin k → Fin B → Bool) → ℝ := fun c =>
-        ∑ i, H (blockCoinLoss hB emb c) t i * blockCoinLoss hB emb c t i
-      have hbij : (𝔼 c, f c) = 𝔼 c, f (flipBlockCoin r s c) :=
-        (expect_comp_equiv (flipBlockCoin r s) f).symm
-      have hpair : ∀ c, f c + f (flipBlockCoin r s c) = 1 := by
-        intro c
-        have hcongr : H (blockCoinLoss hB emb (flipBlockCoin r s c)) t =
-            H (blockCoinLoss hB emb c) t := hH.congr fun t' ht' => by
+      (𝔼 w : Fin T → Bool,
+        ∑ i, H (coinLoss block emb w) t i * coinLoss block emb w t i) = 1 / 2 := by
+    intro t ht
+    have ht' : t < T := mem_range.mp ht
+    let t₀ : Fin T := ⟨t, ht'⟩
+    rw [← Fintype.expect_expect_update
+      (fun w : Fin T → Bool => ∑ i, H (coinLoss block emb w) t i * coinLoss block emb w t i) t₀]
+    have hinner : ∀ w : Fin T → Bool,
+        (𝔼 b : Bool, ∑ i, H (coinLoss block emb (Function.update w t₀ b)) t i *
+          coinLoss block emb (Function.update w t₀ b) t i) = 1 / 2 := by
+      intro w
+      have hcongr : ∀ b : Bool,
+          H (coinLoss block emb (Function.update w t₀ b)) t = H (coinLoss block emb w) t :=
+        fun b => hH.congr (fun s _ i => coinLoss_mem_Icc block emb _ s i) fun s hs => by
           funext i
-          have ht'kB : t' < k * B := lt_trans ht' ht
-          have hne : ¬ (⟨t' / B, (Nat.div_lt_iff_lt_mul hB).mpr ht'kB⟩ = r ∧
-              ⟨t' % B, Nat.mod_lt t' hB⟩ = s) := by
-            rintro ⟨hr_eq, hs_eq⟩
-            have h1 : t' / B = t / B := congrArg Fin.val hr_eq
-            have h2 : t' % B = t % B := congrArg Fin.val hs_eq
-            have heq : t' = t := by
-              rw [← Nat.div_add_mod t' B, ← Nat.div_add_mod t B, h1, h2]
-            exact ht'.ne heq
-          unfold blockCoinLoss flipBlockCoin
-          simp only [ht'kB, ↓reduceDIte, Equiv.coe_fn_mk, hne, ↓reduceIte]
-        have hsum_loss : ∀ i, blockCoinLoss hB emb c t i +
-            blockCoinLoss hB emb (flipBlockCoin r s c) t i = 1 := by
-          intro i
-          unfold blockCoinLoss flipBlockCoin
-          simp only [ht, ↓reduceDIte, Equiv.coe_fn_mk, r, s, and_self, ↓reduceIte]
-          by_cases hex : ∃ w : Fin k → Bool, emb w = i
-          · simp only [hex, ↓reduceDIte]
-            cases hex.choose r <;> cases c r s <;> norm_num
-          · simp only [hex, ↓reduceDIte]
-            cases c r s <;> norm_num
-        dsimp only [f]
-        rw [hcongr, ← sum_add_distrib]
-        calc ∑ i, (H (blockCoinLoss hB emb c) t i * blockCoinLoss hB emb c t i +
-              H (blockCoinLoss hB emb c) t i * blockCoinLoss hB emb (flipBlockCoin r s c) t i)
-            = ∑ i, H (blockCoinLoss hB emb c) t i *
-                (blockCoinLoss hB emb c t i + blockCoinLoss hB emb (flipBlockCoin r s c) t i) :=
+          have hsT : s < T := lt_trans hs ht'
+          have hne : (⟨s, hsT⟩ : Fin T) ≠ t₀ := fun h => hs.ne (congrArg Fin.val h)
+          unfold coinLoss
+          simp only [hsT, ↓reduceDIte, Function.update_of_ne hne]
+      have hsum_loss : ∀ i,
+          coinLoss block emb (Function.update w t₀ false) t i +
+            coinLoss block emb (Function.update w t₀ true) t i = 1 := by
+        intro i
+        unfold coinLoss
+        simp only [ht', ↓reduceDIte]
+        have hf : Function.update w t₀ false ⟨t, ht'⟩ = false := Function.update_self t₀ false w
+        have htr : Function.update w t₀ true ⟨t, ht'⟩ = true := Function.update_self t₀ true w
+        rw [hf, htr]
+        by_cases hex : ∃ u : κ → Bool, emb u = i
+        · simp only [hex, ↓reduceDIte]
+          cases hex.choose (block t₀) <;> norm_num
+        · simp only [hex, ↓reduceDIte]
+          norm_num
+      rw [Fintype.expect_bool, hcongr false, hcongr true, ← sum_add_distrib]
+      have h1 : ∑ i, (H (coinLoss block emb w) t i *
+            coinLoss block emb (Function.update w t₀ false) t i +
+          H (coinLoss block emb w) t i *
+            coinLoss block emb (Function.update w t₀ true) t i) = 1 := by
+        calc ∑ i, (H (coinLoss block emb w) t i *
+              coinLoss block emb (Function.update w t₀ false) t i +
+            H (coinLoss block emb w) t i *
+              coinLoss block emb (Function.update w t₀ true) t i)
+            = ∑ i, H (coinLoss block emb w) t i *
+                (coinLoss block emb (Function.update w t₀ false) t i +
+                  coinLoss block emb (Function.update w t₀ true) t i) :=
               sum_congr rfl fun i _ => (mul_add _ _ _).symm
-          _ = ∑ i, H (blockCoinLoss hB emb c) t i * 1 :=
+          _ = ∑ i, H (coinLoss block emb w) t i * 1 :=
               sum_congr rfl fun i _ => by rw [hsum_loss i]
-          _ = 1 := by simp only [mul_one, hH.sum_eq_one]
-      have h2 : 2 * (𝔼 c, f c) = 1 := by
-        calc 2 * (𝔼 c, f c) = (𝔼 c, f c) + 𝔼 c, f (flipBlockCoin r s c) := by linarith [hbij]
-          _ = 𝔼 c, (f c + f (flipBlockCoin r s c)) := (expect_add_distrib _ _ _).symm
-          _ = 𝔼 _c : Fin k → Fin B → Bool, (1 : ℝ) := expect_congr rfl fun c _ => hpair c
-          _ = 1 := by simp
-      linarith
-    · simp only [ht, ↓reduceIte]
-      have hzero : ∀ c i, blockCoinLoss hB emb c t i = 0 := fun c i => by
-        unfold blockCoinLoss
-        simp [ht]
-      simp [hzero]
-  rw [sum_congr rfl hround]
-  have hfilt : (range T).filter (· < k * B) = range (k * B) := by
-    ext t
-    simp only [mem_filter, mem_range]
-    omega
-  rw [← sum_filter, hfilt, sum_const, card_range, nsmul_eq_mul]
-  push_cast
+          _ = 1 := by
+              simp only [mul_one]
+              exact hH.sum_eq_one fun s _ i => coinLoss_mem_Icc block emb w s i
+      rw [h1]
+    simp only [hinner, Fintype.expect_const]
+  rw [sum_congr rfl hround, sum_const, card_range, nsmul_eq_mul]
   ring
 
-/-- Pointwise upper bound on `minCumLoss` under `blockCoinLoss`: the embedded expert matching each
-block's majority bit incurs total loss `(k * B) / 2 - (1 / 2) * ∑ r, |∑ s, signVal (c r s)|`. -/
-theorem minCumLoss_blockCoinLoss_le [Nonempty ι] {k B T : ℕ} (hB : 0 < B) (hkB : k * B ≤ T)
-    (emb : (Fin k → Bool) ↪ ι) (c : Fin k → Fin B → Bool) :
-    minCumLoss (blockCoinLoss hB emb c) T ≤
-      (k * B : ℝ) / 2 - (1 / 2) * ∑ r : Fin k, |∑ s : Fin B, signVal (c r s)| := by
-  -- Majority bit `w* r` minimizing the block-`r` mismatch count:
-  let L_bit : Fin k → Bool → ℝ := fun r b =>
-    ∑ s : Fin B, if b = c r s then 0 else 1
-  let w_star : Fin k → Bool := fun r => if L_bit r false ≤ L_bit r true then false else true
-  have hblock_min : ∀ r : Fin k, L_bit r (w_star r) =
-      (B : ℝ) / 2 - (1 / 2) * |∑ s : Fin B, signVal (c r s)| := by
+omit [Fintype ι] in
+/-- Pointwise upper bound on `minCumLoss` under `coinLoss`: the embedded expert matching each
+block's majority coin achieves cumulative loss
+`T / 2 - (1 / 2) * ∑ r, |∑ t, (if block t = r then 1 else 0) * signVal (w t)|`. -/
+private theorem minCumLoss_coinLoss_le [Finite ι] {κ : Type*} [Fintype κ] [DecidableEq κ] {T : ℕ}
+    (block : Fin T → κ) (emb : (κ → Bool) ↪ ι) (w : Fin T → Bool) :
+    minCumLoss (coinLoss block emb w) T ≤
+      (T : ℝ) / 2 -
+        (1 / 2) * ∑ r : κ, |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)| := by
+  let S : κ → Finset (Fin T) := fun r => univ.filter fun t : Fin T => block t = r
+  let L_bit : κ → Bool → ℝ := fun r b => ∑ t ∈ S r, if b = w t then 0 else 1
+  let u_star : κ → Bool := fun r => if L_bit r false ≤ L_bit r true then false else true
+  have hblock_min : ∀ r : κ, L_bit r (u_star r) =
+      ((S r).card : ℝ) / 2 -
+        (1 / 2) * |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)| := by
     intro r
-    have hsum : L_bit r false + L_bit r true = B := by
+    have hsum : L_bit r false + L_bit r true = (S r).card := by
       dsimp only [L_bit]
       rw [← sum_add_distrib]
-      calc ∑ s : Fin B, ((if false = c r s then (0 : ℝ) else 1) +
-            if true = c r s then 0 else 1)
-          = ∑ _s : Fin B, (1 : ℝ) := sum_congr rfl fun s _ => by cases c r s <;> norm_num
-        _ = B := by simp
-    have hdiff : |L_bit r false - L_bit r true| = |∑ s : Fin B, signVal (c r s)| := by
-      have hsub : L_bit r false - L_bit r true = -∑ s : Fin B, signVal (c r s) := by
+      calc ∑ t ∈ S r, ((if false = w t then (0 : ℝ) else 1) + if true = w t then 0 else 1)
+          = ∑ _t ∈ S r, (1 : ℝ) := sum_congr rfl fun t _ => by cases w t <;> norm_num
+        _ = (S r).card := by simp only [sum_const, nsmul_eq_mul, mul_one]
+    have hsign : ∑ t ∈ S r, signVal (w t) =
+        ∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t) := by
+      simp only [S, ite_mul, one_mul, zero_mul, ← sum_filter]
+    have hdiff : |L_bit r false - L_bit r true| =
+        |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)| := by
+      have hsub : L_bit r false - L_bit r true = -∑ t ∈ S r, signVal (w t) := by
         dsimp only [L_bit]
         rw [← sum_sub_distrib, ← sum_neg_distrib]
-        refine sum_congr rfl fun s _ => ?_
-        cases c r s <;> norm_num [signVal]
-      rw [hsub, abs_neg]
-    dsimp only [w_star]
+        refine sum_congr rfl fun t _ => ?_
+        cases w t <;> norm_num [signVal]
+      rw [hsub, abs_neg, hsign]
+    dsimp only [u_star]
     rw [← hdiff]
     by_cases hle : L_bit r false ≤ L_bit r true
     · simp only [hle, ↓reduceIte, abs_of_nonpos (sub_nonpos.mpr hle)]
       linarith
     · simp only [hle, ↓reduceIte, abs_of_pos (sub_pos.mpr (lt_of_not_ge hle))]
       linarith
-  -- Compute `cumLoss (blockCoinLoss hB emb c) T (emb w_star)`:
-  refine (minCumLoss_le _ T (emb w_star)).trans_eq ?_
-  have hpad : cumLoss (blockCoinLoss hB emb c) T (emb w_star) =
-      cumLoss (blockCoinLoss hB emb c) (k * B) (emb w_star) := by
-    unfold cumLoss
-    refine (sum_subset (range_subset_range.mpr hkB) fun t _ ht => ?_).symm
-    have hnot : ¬ t < k * B := by rwa [mem_range] at ht
-    unfold blockCoinLoss
-    simp [hnot]
-  rw [hpad, cumLoss]
-  -- Biject `range (k * B)` with `Fin k × Fin B` via `(r, s) ↦ r * B + s`:
-  let bij : Fin k × Fin B ≃ Fin (k * B) :=
-    { toFun := fun ⟨r, s⟩ => ⟨r.1 * B + s.1, by
-        calc r.1 * B + s.1 < r.1 * B + B := Nat.add_lt_add_left s.2 _
-          _ = (r.1 + 1) * B := by ring
-          _ ≤ k * B := Nat.mul_le_mul_right B r.2⟩
-      invFun := fun t =>
-        (⟨t.1 / B, (Nat.div_lt_iff_lt_mul hB).mpr t.2⟩, ⟨t.1 % B, Nat.mod_lt t.1 hB⟩)
-      left_inv := fun ⟨r, s⟩ => by
-        ext <;> dsimp only
-        · rw [mul_comm r.1 B, Nat.mul_add_div hB, Nat.div_eq_of_lt s.2, add_zero]
-        · rw [mul_comm r.1 B, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt s.2]
-      right_inv := fun t => by
-        ext
-        dsimp only
-        have := Nat.div_add_mod t.1 B
-        linarith }
-  rw [sum_range, ← bij.sum_comp, Fintype.sum_prod_type]
-  have hinner : ∀ r : Fin k,
-      (∑ s : Fin B, blockCoinLoss hB emb c (bij (r, s)).1 (emb w_star)) = L_bit r (w_star r) := by
+  have hcards : ∑ r : κ, ((S r).card : ℝ) = T := by
+    have hfib := sum_fiberwise_of_maps_to (s := (univ : Finset (Fin T)))
+      (t := (univ : Finset κ)) (g := block) (fun _ _ => mem_univ _) (fun _ => (1 : ℝ))
+    simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one] at hfib
+    exact hfib
+  refine (minCumLoss_le _ T (emb u_star)).trans_eq ?_
+  rw [sum_range]
+  have hfib := sum_fiberwise_of_maps_to (s := (univ : Finset (Fin T)))
+    (t := (univ : Finset κ)) (g := block) (fun _ _ => mem_univ _)
+    (fun t : Fin T => coinLoss block emb w t.1 (emb u_star))
+  rw [← hfib]
+  have hinner : ∀ r : κ,
+      ∑ t ∈ S r, coinLoss block emb w t.1 (emb u_star) = L_bit r (u_star r) := by
     intro r
-    refine sum_congr rfl fun s _ => ?_
-    have ht : (bij (r, s)).1 < k * B := (bij (r, s)).2
-    rw [blockCoinLoss_emb_apply hB emb c ht w_star]
-    have hdiv : (r.1 * B + s.1) / B = r.1 := by
-      rw [mul_comm r.1 B, Nat.mul_add_div hB, Nat.div_eq_of_lt s.2, add_zero]
-    have hmod : (r.1 * B + s.1) % B = s.1 := by
-      rw [mul_comm r.1 B, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt s.2]
-    have hr_fin : (⟨(bij (r, s)).1 / B, (Nat.div_lt_iff_lt_mul hB).mpr ht⟩ : Fin k) = r :=
-      Fin.ext hdiv
-    have hs_fin : (⟨(bij (r, s)).1 % B, Nat.mod_lt _ hB⟩ : Fin B) = s :=
-      Fin.ext hmod
-    rw [hr_fin, hs_fin]
-  simp only [hinner, hblock_min, sum_sub_distrib, sum_const, card_univ, Fintype.card_fin,
-    nsmul_eq_mul, ← mul_sum]
-  ring
+    refine sum_congr rfl fun t ht => ?_
+    have hr : block t = r := (mem_filter.mp ht).2
+    rw [coinLoss_emb_apply block emb w t.2 u_star, Fin.eta, hr]
+  calc ∑ r : κ, ∑ t ∈ S r, coinLoss block emb w t.1 (emb u_star)
+      = ∑ r : κ, L_bit r (u_star r) := sum_congr rfl fun r _ => hinner r
+    _ = ∑ r : κ, (((S r).card : ℝ) / 2 -
+          (1 / 2) * |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)|) :=
+        sum_congr rfl fun r _ => hblock_min r
+    _ = (T : ℝ) / 2 -
+          (1 / 2) * ∑ r : κ,
+            |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)| := by
+        rw [sum_sub_distrib, ← sum_div, hcards, ← mul_sum]
+
+/-- Khintchine expected-regret lower bound for `coinLoss`: each block `r` of size `|S_r|`
+contributes at least `√|S_r| / (2 e)` to the expected external regret of every causal online
+algorithm `H`. -/
+private theorem expect_coinLoss_regret_ge {κ : Type*} [Fintype κ] [DecidableEq κ]
+    {T : ℕ} (block : Fin T → κ) (emb : (κ → Bool) ↪ ι) {H : (ℕ → ι → ℝ) → ℕ → ι → ℝ}
+    (hH : IsOnlineAlgorithm H) :
+    (1 / (2 * Real.exp 1)) * ∑ r : κ, √(((univ.filter fun t : Fin T => block t = r).card : ℝ)) ≤
+      𝔼 w : Fin T → Bool,
+        ((∑ t ∈ range T, ∑ i, H (coinLoss block emb w) t i * coinLoss block emb w t i) -
+          minCumLoss (coinLoss block emb w) T) := by
+  have hexp_H := expect_coinLoss_eq block emb hH
+  have hexp_diff :
+      𝔼 w : Fin T → Bool,
+        ((∑ t ∈ range T, ∑ i, H (coinLoss block emb w) t i * coinLoss block emb w t i) -
+          minCumLoss (coinLoss block emb w) T) =
+      𝔼 w : Fin T → Bool, ((T : ℝ) / 2 - minCumLoss (coinLoss block emb w) T) := by
+    rw [expect_sub_distrib, expect_sub_distrib, hexp_H, Fintype.expect_const]
+  rw [hexp_diff]
+  have hmono :
+      𝔼 w : Fin T → Bool,
+        ((1 / 2 : ℝ) *
+          ∑ r : κ, |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)|) ≤
+      𝔼 w : Fin T → Bool, ((T : ℝ) / 2 - minCumLoss (coinLoss block emb w) T) :=
+    expect_le_expect fun w _ => by linarith [minCumLoss_coinLoss_le block emb w]
+  refine le_trans ?_ hmono
+  rw [← mul_expect, expect_sum_comm]
+  have hkh : ∀ r : κ,
+      √(((univ.filter fun t : Fin T => block t = r).card : ℝ)) / Real.exp 1 ≤
+        𝔼 w : Fin T → Bool,
+          |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)| := by
+    intro r
+    let a : Fin T → ℝ := fun t => if block t = r then 1 else 0
+    have hsum_sq : ∑ t : Fin T, a t ^ 2 =
+        ((univ.filter fun t : Fin T => block t = r).card : ℝ) := by
+      have hsq : ∀ t : Fin T, a t ^ 2 = if block t = r then (1 : ℝ) else 0 := fun t => by
+        dsimp only [a]
+        split_ifs <;> norm_num
+      simp only [hsq, ← sum_filter, sum_const, nsmul_eq_mul, mul_one]
+    have h := sqrt_sum_sq_le_exp_mul_lpNorm (p := 1) one_pos one_le_two a
+    rw [show (2 : ℝ) / 1 - 1 = 1 by norm_num, lpNorm_one, hsum_sq] at h
+    exact (div_le_iff₀' (Real.exp_pos 1)).mpr h
+  calc (1 / (2 * Real.exp 1)) *
+        ∑ r : κ, √(((univ.filter fun t : Fin T => block t = r).card : ℝ))
+      = (1 / 2) * ∑ r : κ,
+          √(((univ.filter fun t : Fin T => block t = r).card : ℝ)) / Real.exp 1 := by
+        rw [← sum_div]
+        ring
+    _ ≤ (1 / 2) * ∑ r : κ,
+          𝔼 w : Fin T → Bool,
+            |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)| :=
+        mul_le_mul_of_nonneg_left (sum_le_sum fun r _ => hkh r) (by norm_num)
+
+/-! ### Theorems 4.7, 4.8, and Exercise 4.5 -/
 
 /-- **Short-horizon stochastic lower bound (`2 ^ T ≤ N`)** [BlumMansour2007AGT, Theorem 4.7,
-pp. 87–88]: when `2 ^ T ≤ Fintype.card ι` (including all `T < log₂ N`), under uniform random coins
-`w : Fin T → Bool` there is a `{0, 1}` loss family `ℓ w` such that every realization satisfies
-`minCumLoss (ℓ w) T = 0` while *every* causal online algorithm `H` incurs expected loss `T / 2`. -/
-theorem exists_stochastic_loss_eq_half_minCumLoss_zero [Nonempty ι] {T : ℕ}
+pp. 87–88]: whenever `2 ^ T ≤ Fintype.card ι` (in particular for all `T < log₂ N`), there is a
+uniform `{0, 1}` loss family over `Fin T → Bool` such that every realization satisfies
+`minCumLoss (ℓ w) T = 0` while every causal online algorithm `H` incurs expected loss `T / 2`. -/
+theorem exists_stochastic_loss_eq_half_minCumLoss_zero {T : ℕ}
     (hTN : 2 ^ T ≤ Fintype.card ι) :
     ∃ ℓ : (Fin T → Bool) → ℕ → ι → ℝ,
       (∀ w t i, ℓ w t i = 0 ∨ ℓ w t i = 1) ∧
       (∀ w, minCumLoss (ℓ w) T = 0) ∧
-      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlg H →
+      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlgorithm H →
         (𝔼 w : Fin T → Bool, ∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) = (T : ℝ) / 2 := by
   have hcard : Fintype.card (Fin T → Bool) ≤ Fintype.card ι := by
-    simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using hTN
+    simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using hTN
   obtain ⟨emb⟩ := Function.Embedding.nonempty_of_card_le hcard
-  let toBlock : (Fin T → Bool) ≃ (Fin T → Fin 1 → Bool) :=
-    { toFun := fun w r _ => w r
-      invFun := fun c r => c r 0
-      left_inv := fun _ => rfl
-      right_inv := fun c => by funext r s; rw [Subsingleton.elim s 0] }
-  let ℓ : (Fin T → Bool) → ℕ → ι → ℝ := fun w =>
-    blockCoinLoss Nat.one_pos emb (toBlock w)
-  refine ⟨ℓ, ?_, ?_, ?_⟩
-  · intro w t i
-    exact blockCoinLoss_binary Nat.one_pos emb (toBlock w) t i
-  · intro w
-    apply le_antisymm
-    · have hle := minCumLoss_blockCoinLoss_le Nat.one_pos (Nat.mul_one T).le emb (toBlock w)
-      have habs : ∀ r : Fin T, |∑ s : Fin 1, signVal (toBlock w r s)| = 1 := fun r => by
-        rw [Fin.sum_univ_one]
-        cases toBlock w r 0 <;> norm_num [signVal]
-      simp only [Nat.cast_one, mul_one, habs, sum_const, card_univ, Fintype.card_fin,
-        nsmul_eq_mul] at hle
-      dsimp only [ℓ]
-      linarith
-    · exact minCumLoss_nonneg fun s _ i => by
-        rcases blockCoinLoss_binary Nat.one_pos emb (toBlock w) s i with h0 | h1 <;> linarith
-  · intro H hH
-    have hexp := expect_blockCoinLoss_eq Nat.one_pos (Nat.mul_one T).le emb hH
-    simp only [Nat.cast_one, mul_one] at hexp
-    exact (expect_comp_equiv toBlock
-      (fun c => ∑ t ∈ range T, ∑ i, H (blockCoinLoss Nat.one_pos emb c) t i *
-        blockCoinLoss Nat.one_pos emb c t i)).trans hexp
-
-/-- Marginal expectation of a function depending on row `r` of a uniform `Fin k → Fin B → Bool`
-array equals its expectation over `Fin B → Bool`. -/
-private theorem expect_eval_row {k B : ℕ} (r : Fin k) (g : (Fin B → Bool) → ℝ) :
-    (𝔼 c : Fin k → Fin B → Bool, g (c r)) = 𝔼 u : Fin B → Bool, g u := by
-  classical
-  let splitEquiv : (Fin k → Fin B → Bool) ≃
-      (Fin B → Bool) × ({r' : Fin k // r' ≠ r} → Fin B → Bool) :=
-    { toFun := fun c => (c r, fun r' => c r'.1)
-      invFun := fun ⟨u, rest⟩ r' => if h : r' = r then u else rest ⟨r', h⟩
-      left_inv := fun c => by
-        funext r' s
-        by_cases h : r' = r
-        · subst h; simp
-        · simp [h]
-      right_inv := fun ⟨u, rest⟩ => by
-        refine Prod.ext (by funext s; simp) (by funext r' s; simp [r'.2]) }
-  rw [← expect_comp_equiv splitEquiv.symm (fun c => g (c r))]
-  simp only [Fintype.expect_eq_sum_div_card, Fintype.sum_prod_type, Fintype.card_prod]
-  simp only [splitEquiv, Equiv.coe_fn_symm_mk, ↓reduceDIte, sum_const, card_univ, nsmul_eq_mul,
-    Nat.cast_mul]
-  rw [← mul_sum, mul_comm (Fintype.card (Fin B → Bool) : ℝ)]
-  have hne : (Fintype.card ({r' : Fin k // r' ≠ r} → Fin B → Bool) : ℝ) ≠ 0 :=
-    Nat.cast_ne_zero.mpr Fintype.card_pos.ne'
-  exact mul_div_mul_left _ _ hne
-
-/-- Core block lower bound: for any `k : ℕ`, `B ≥ 1` with `2 ^ k ≤ N` and `k * B ≤ T`, under uniform
-`Fin k → Fin B → Bool` coins every causal online algorithm has expected loss `(k * B) / 2` and
-expected external regret at least `(k * √(B / 3)) / 2`. -/
-theorem exists_block_stochastic_regret_ge {k B T : ℕ} (hB : 0 < B)
-    (hkB : k * B ≤ T) (h2k : 2 ^ k ≤ Fintype.card ι) :
-    haveI : Nonempty ι := Fintype.card_pos_iff.mp (lt_of_lt_of_le (by positivity) h2k)
-    ∃ ℓ : (Fin k → Fin B → Bool) → ℕ → ι → ℝ,
-      (∀ c t i, ℓ c t i = 0 ∨ ℓ c t i = 1) ∧
-      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlg H →
-        (𝔼 c, ∑ t ∈ range T, ∑ i, H (ℓ c) t i * ℓ c t i) = (k * B : ℝ) / 2 ∧
-        (k : ℝ) * √((B : ℝ) / 3) / 2 ≤
-          𝔼 c, ((∑ t ∈ range T, ∑ i, H (ℓ c) t i * ℓ c t i) - minCumLoss (ℓ c) T) := by
-  have : Nonempty ι := Fintype.card_pos_iff.mp (lt_of_lt_of_le (by positivity) h2k)
-  have hcard : Fintype.card (Fin k → Bool) ≤ Fintype.card ι := by
-    simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using h2k
-  obtain ⟨emb⟩ := Function.Embedding.nonempty_of_card_le hcard
-  refine ⟨blockCoinLoss hB emb, blockCoinLoss_binary hB emb, fun H hH => ?_⟩
-  have hexp_H := expect_blockCoinLoss_eq hB hkB emb hH
-  refine ⟨hexp_H, ?_⟩
-  have hpt : ∀ c : Fin k → Fin B → Bool,
-      (1 / 2) * (∑ r : Fin k, |∑ s : Fin B, signVal (c r s)|) ≤
-        (k * B : ℝ) / 2 - minCumLoss (blockCoinLoss hB emb c) T := fun c => by
-    linarith [minCumLoss_blockCoinLoss_le hB hkB emb c]
-  have hexp_diff : 𝔼 c, ((∑ t ∈ range T, ∑ i,
-      H (blockCoinLoss hB emb c) t i * blockCoinLoss hB emb c t i) -
-      minCumLoss (blockCoinLoss hB emb c) T) =
-      𝔼 c, ((k * B : ℝ) / 2 - minCumLoss (blockCoinLoss hB emb c) T) := by
-    rw [expect_sub_distrib, expect_sub_distrib, hexp_H, Fintype.expect_const]
-  rw [hexp_diff]
-  have hmono : 𝔼 c : Fin k → Fin B → Bool,
-      ((1 / 2) * ∑ r : Fin k, |∑ s : Fin B, signVal (c r s)|) ≤
-      𝔼 c, ((k * B : ℝ) / 2 - minCumLoss (blockCoinLoss hB emb c) T) :=
-    expect_le_expect fun c _ => hpt c
-  refine le_trans ?_ hmono
-  rw [expect_const_mul_real, expect_sum_finset]
-  have hrow : ∀ r : Fin k, √((B : ℝ) / 3) ≤
-      𝔼 c : Fin k → Fin B → Bool, |∑ s : Fin B, signVal (c r s)| := fun r => by
-    rw [expect_eval_row r (fun u => |∑ s : Fin B, signVal (u s)|)]
-    simpa [Fintype.card_fin] using (sqrt_card_div_three_le_expect_abs_sum_signVal (ι := Fin B))
-  have hsum_rows : (k : ℝ) * √((B : ℝ) / 3) ≤
-      ∑ r : Fin k, 𝔼 c : Fin k → Fin B → Bool, |∑ s : Fin B, signVal (c r s)| := by
-    calc (k : ℝ) * √((B : ℝ) / 3) = ∑ _r : Fin k, √((B : ℝ) / 3) := by simp
-      _ ≤ _ := sum_le_sum fun r _ => hrow r
-  linarith
+  refine ⟨coinLoss id emb, coinLoss_binary id emb, ?_,
+    fun H hH => expect_coinLoss_eq id emb hH⟩
+  intro w
+  apply le_antisymm
+  · refine (minCumLoss_le _ T (emb w)).trans_eq ?_
+    refine sum_eq_zero fun t ht => ?_
+    rw [coinLoss_emb_apply id emb w (mem_range.mp ht) w]
+    simp only [id_eq, ↓reduceIte]
+  · exact minCumLoss_nonneg fun s _ i => (coinLoss_mem_Icc id emb w s i).1
 
 /-- **Two-expert `Ω(√T)` stochastic external-regret lower bound**
 [BlumMansour2007AGT, Theorem 4.8, p. 88]: for `N ≥ 2` experts (in particular `N = 2`) and any
-horizon `T`, under i.i.d. fair-coin `{0, 1}` losses `c : Fin T → Bool`, every causal online
+horizon `T`, under uniform fair-coin `{0, 1}` losses `w : Fin T → Bool`, every causal online
 algorithm `H` incurs expected loss `T / 2` and expected external regret at least
-`√(T / 12) = (1 / (2 √3)) * √T`. -/
+`(1 / (2 e)) * √T`. -/
 theorem exists_two_experts_stochastic_regret_ge (hn : 2 ≤ Fintype.card ι) (T : ℕ) :
-    haveI : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
     ∃ ℓ : (Fin T → Bool) → ℕ → ι → ℝ,
       (∀ w t i, ℓ w t i = 0 ∨ ℓ w t i = 1) ∧
-      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlg H →
-        (𝔼 w, ∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) = (T : ℝ) / 2 ∧
-        (1 / (2 * √3)) * √(T : ℝ) ≤
-          𝔼 w, ((∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) - minCumLoss (ℓ w) T) := by
-  have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-  rcases eq_or_lt_of_le (Nat.zero_le T) with rfl | hT
-  · refine ⟨fun _ _ _ => 0, fun _ _ _ => Or.inl rfl, fun H _ => ?_⟩
-    simp
-  · obtain ⟨ℓ₁, h01, hspec⟩ := exists_block_stochastic_regret_ge (ι := ι) (k := 1) (B := T)
-      (T := T) hT (by omega) (by simpa using hn)
-    let e : (Fin T → Bool) ≃ (Fin 1 → Fin T → Bool) :=
-      { toFun := fun w _ s => w s
-        invFun := fun c s => c 0 s
-        left_inv := fun _ => rfl
-        right_inv := fun c => by funext r s; rw [Subsingleton.elim r 0] }
-    refine ⟨fun w => ℓ₁ (e w), fun w t i => h01 (e w) t i, fun H hH => ?_⟩
-    obtain ⟨hexp, hreg⟩ := hspec H hH
-    simp only [Nat.cast_one, one_mul] at hexp hreg
-    have htr1 : (𝔼 w : Fin T → Bool, ∑ t ∈ range T, ∑ i, H (ℓ₁ (e w)) t i * ℓ₁ (e w) t i) =
-        𝔼 c : Fin 1 → Fin T → Bool, ∑ t ∈ range T, ∑ i, H (ℓ₁ c) t i * ℓ₁ c t i :=
-      expect_comp_equiv e (fun c => ∑ t ∈ range T, ∑ i, H (ℓ₁ c) t i * ℓ₁ c t i)
-    have htr2 : (𝔼 w : Fin T → Bool,
-        ((∑ t ∈ range T, ∑ i, H (ℓ₁ (e w)) t i * ℓ₁ (e w) t i) - minCumLoss (ℓ₁ (e w)) T)) =
-        𝔼 c : Fin 1 → Fin T → Bool,
-        ((∑ t ∈ range T, ∑ i, H (ℓ₁ c) t i * ℓ₁ c t i) - minCumLoss (ℓ₁ c) T) :=
-      expect_comp_equiv e
-        (fun c => (∑ t ∈ range T, ∑ i, H (ℓ₁ c) t i * ℓ₁ c t i) - minCumLoss (ℓ₁ c) T)
-    refine ⟨htr1.trans hexp, ?_⟩
-    rw [htr2]
-    refine le_trans ?_ hreg
-    rw [sqrt_div (Nat.cast_nonneg T)]
-    have hs3 : (0 : ℝ) < √3 := sqrt_pos.mpr (by norm_num)
-    field_simp
-    exact le_rfl
+      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlgorithm H →
+        (𝔼 w : Fin T → Bool, ∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) = (T : ℝ) / 2 ∧
+        (1 / (2 * Real.exp 1)) * √(T : ℝ) ≤
+          𝔼 w : Fin T → Bool,
+            ((∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) - minCumLoss (ℓ w) T) := by
+  have hcard : Fintype.card (Unit → Bool) ≤ Fintype.card ι := by
+    simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_unit, pow_one] using hn
+  obtain ⟨emb⟩ := Function.Embedding.nonempty_of_card_le hcard
+  refine ⟨coinLoss (fun _ : Fin T => ()) emb, coinLoss_binary _ emb, fun H hH => ?_⟩
+  refine ⟨expect_coinLoss_eq _ emb hH, ?_⟩
+  have h := expect_coinLoss_regret_ge (fun _ : Fin T => ()) emb hH
+  simpa only [Fintype.sum_unique, filter_true, card_univ, Fintype.card_fin] using h
 
 /-- **General `Ω(√(T log N))` stochastic external-regret lower bound**
-[BlumMansour2007AGT, Exercise 4.5, p. 101]: for `N ≥ 2` experts and `T ≥ ⌊log₂ N⌋`, there exists a
-finite probability space (uniform over a hypercube `Fin m → Bool`) of `{0, 1}` loss sequences
-under which *every* causal online algorithm incurs expected external regret at least
-`(1 / (4 √3)) * √(T * ln N)`. -/
+[BlumMansour2007AGT, Exercise 4.5, p. 101]: for `N ≥ 2` experts and `⌊log₂ N⌋ ≤ T` (in particular
+for all `T ≥ N`, since `⌊log₂ N⌋ ≤ N`), there exists a uniform `{0, 1}` loss family over
+`Fin T → Bool` under which every causal online algorithm incurs expected external regret at least
+`(1 / (4 e)) * √(T * ln N)`. -/
 theorem exists_stochastic_regret_ge_sqrt_mul_log (hn : 2 ≤ Fintype.card ι) {T : ℕ}
     (hT : Nat.log 2 (Fintype.card ι) ≤ T) :
-    haveI : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-    ∃ (m : ℕ) (ℓ : (Fin m → Bool) → ℕ → ι → ℝ),
+    ∃ ℓ : (Fin T → Bool) → ℕ → ι → ℝ,
       (∀ w t i, ℓ w t i = 0 ∨ ℓ w t i = 1) ∧
-      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlg H →
-        (1 / (4 * √3)) * √((T : ℝ) * log (Fintype.card ι)) ≤
-          𝔼 w : Fin m → Bool,
+      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlgorithm H →
+        (1 / (4 * Real.exp 1)) * √((T : ℝ) * log (Fintype.card ι)) ≤
+          𝔼 w : Fin T → Bool,
             ((∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) - minCumLoss (ℓ w) T) := by
-  have : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
   set N := Fintype.card ι
   set k := Nat.log 2 N
   have hk : 1 ≤ k := Nat.log_pos (by decide) hn
   set B := T / k
   have hB : 1 ≤ B := (Nat.le_div_iff_mul_le hk).mpr (by omega)
-  have hkB : k * B ≤ T := Nat.mul_div_le T k
   have h2k : 2 ^ k ≤ N := Nat.pow_log_le_self 2 (by omega)
-  obtain ⟨ℓ₀, h01, hspec⟩ := exists_block_stochastic_regret_ge (ι := ι) (k := k) (B := B)
-    (T := T) hB hkB h2k
-  -- Flatten `Fin k → Fin B → Bool` into `Fin (k * B) → Bool`:
-  let flat : (Fin (k * B) → Bool) ≃ (Fin k → Fin B → Bool) :=
-    (Equiv.arrowCongr finProdFinEquiv (Equiv.refl Bool)).symm.trans (Equiv.curry _ _ _)
-  refine ⟨k * B, fun w => ℓ₀ (flat w), fun w t i => h01 (flat w) t i, fun H hH => ?_⟩
-  obtain ⟨_, hreg⟩ := hspec H hH
-  have htr : (𝔼 w : Fin (k * B) → Bool,
-      ((∑ t ∈ range T, ∑ i, H (ℓ₀ (flat w)) t i * ℓ₀ (flat w) t i) -
-        minCumLoss (ℓ₀ (flat w)) T)) =
-      𝔼 c : Fin k → Fin B → Bool,
-      ((∑ t ∈ range T, ∑ i, H (ℓ₀ c) t i * ℓ₀ c t i) - minCumLoss (ℓ₀ c) T) :=
-    expect_comp_equiv flat
-      (fun c => (∑ t ∈ range T, ∑ i, H (ℓ₀ c) t i * ℓ₀ c t i) - minCumLoss (ℓ₀ c) T)
-  rw [htr]
+  have hcard : Fintype.card (Fin k → Bool) ≤ Fintype.card ι := by
+    simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using h2k
+  obtain ⟨emb⟩ := Function.Embedding.nonempty_of_card_le hcard
+  let block : Fin T → Fin k := fun t => ⟨t.1 % k, Nat.mod_lt t.1 hk⟩
+  refine ⟨coinLoss block emb, coinLoss_binary block emb, fun H hH => ?_⟩
+  have hreg := expect_coinLoss_regret_ge block emb hH
   refine le_trans ?_ hreg
-  -- Bound `log N ≤ 2 * k` and `T ≤ 2 * (k * B)`:
+  -- Each residue class mod `k` in `Fin T` contains at least `B = T / k` rounds.
+  have hfiber : ∀ r : Fin k, B ≤ (univ.filter fun t : Fin T => block t = r).card := by
+    intro r
+    let f : Fin B → Fin T := fun q => ⟨q.1 * k + r.1, by
+      have h1 : q.1 * k + r.1 < (q.1 + 1) * k := by nlinarith [r.2]
+      have h2 : (q.1 + 1) * k ≤ B * k := Nat.mul_le_mul_right k q.2
+      have h3 : B * k ≤ T := Nat.div_mul_le_self T k
+      omega⟩
+    have hf_inj : Function.Injective f := by
+      intro q₁ q₂ hq
+      have hv : q₁.1 * k + r.1 = q₂.1 * k + r.1 := congrArg Fin.val hq
+      exact Fin.ext (Nat.eq_of_mul_eq_mul_right hk (Nat.add_right_cancel hv))
+    have hf_mem : univ.image f ⊆ univ.filter fun t : Fin T => block t = r := by
+      intro t ht
+      obtain ⟨q, -, rfl⟩ := mem_image.mp ht
+      simp only [mem_filter, mem_univ, true_and, block, f]
+      exact Fin.ext (by dsimp only; rw [Nat.mul_add_mod_self_right, Nat.mod_eq_of_lt r.2])
+    calc B = (univ.image f).card := by rw [card_image_of_injective _ hf_inj, card_univ,
+          Fintype.card_fin]
+      _ ≤ (univ.filter fun t : Fin T => block t = r).card := card_le_card hf_mem
+  have hsum_sqrt : (k : ℝ) * √(B : ℝ) ≤
+      ∑ r : Fin k, √(((univ.filter fun t : Fin T => block t = r).card : ℝ)) := by
+    calc (k : ℝ) * √(B : ℝ) = ∑ _r : Fin k, √(B : ℝ) := by
+          simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
+      _ ≤ ∑ r : Fin k, √(((univ.filter fun t : Fin T => block t = r).card : ℝ)) :=
+          sum_le_sum fun r _ => sqrt_le_sqrt (Nat.cast_le.mpr (hfiber r))
+  -- Bound `log N ≤ 2 k` and `T ≤ 2 k B`, so `√(T log N) ≤ 2 k √B`.
   have hlogN : log (N : ℝ) ≤ 2 * (k : ℝ) := by
     have hlt : N < 2 ^ (k + 1) := Nat.lt_pow_succ_log_self (by decide) N
     have hpow2 : 2 ^ (k + 1) ≤ 2 ^ (2 * k) := Nat.pow_le_pow_right (by decide) (by omega)
@@ -780,34 +662,24 @@ theorem exists_stochastic_regret_ge_sqrt_mul_log (hn : 2 ≤ Fintype.card ι) {T
   have hT_le : (T : ℝ) ≤ 2 * ((k : ℝ) * B) := by
     have hdiv : T < k * (B + 1) := Nat.lt_mul_div_succ T hk
     have h2 : k * (B + 1) ≤ 2 * (k * B) := by nlinarith
-    have hnat : T ≤ 2 * (k * B) := hdiv.le.trans h2
-    exact_mod_cast hnat
+    exact_mod_cast hdiv.le.trans h2
+  have hlog0 : 0 ≤ log (N : ℝ) := log_nonneg (by exact_mod_cast (show 1 ≤ N by omega))
   have hprod : (T : ℝ) * log (N : ℝ) ≤ 4 * ((k : ℝ) ^ 2 * B) := by
-    have hlog0 : 0 ≤ log (N : ℝ) := log_nonneg (by exact_mod_cast (show 1 ≤ N by omega))
-    have hkB0 : 0 ≤ (k : ℝ) * B := by positivity
     calc (T : ℝ) * log (N : ℝ) ≤ (2 * ((k : ℝ) * B)) * (2 * (k : ℝ)) :=
           mul_le_mul hT_le hlogN hlog0 (by positivity)
       _ = 4 * ((k : ℝ) ^ 2 * B) := by ring
-  have hsq : ((1 / (4 * √3)) * √((T : ℝ) * log (N : ℝ))) ^ 2 ≤
-      ((k : ℝ) * √((B : ℝ) / 3) / 2) ^ 2 := by
-    rw [mul_pow, div_pow, mul_pow, sq_sqrt (mul_nonneg (Nat.cast_nonneg T)
-      (log_nonneg (by exact_mod_cast (show 1 ≤ N by omega)))),
-      sq_sqrt (by positivity), div_pow, mul_pow, sq_sqrt (by positivity)]
+  have hsqrt : √((T : ℝ) * log (N : ℝ)) ≤ 2 * ((k : ℝ) * √(B : ℝ)) := by
+    refine le_of_sq_le_sq ?_ (by positivity)
+    rw [sq_sqrt (mul_nonneg (Nat.cast_nonneg T) hlog0), mul_pow, mul_pow,
+      sq_sqrt (Nat.cast_nonneg B)]
     linarith
-  exact le_of_sq_le_sq hsq (by positivity)
-
-/-- **Exercise 4.5 under the printed `T ≥ N` hypothesis** [BlumMansour2007AGT, Exercise 4.5,
-p. 101]: since `⌊log₂ N⌋ ≤ N`, `exists_stochastic_regret_ge_sqrt_mul_log` applies whenever
-`2 ≤ Fintype.card ι ≤ T`. -/
-theorem exists_stochastic_regret_ge_sqrt_mul_log_of_card_le (hn : 2 ≤ Fintype.card ι) {T : ℕ}
-    (hT : Fintype.card ι ≤ T) :
-    haveI : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
-    ∃ (m : ℕ) (ℓ : (Fin m → Bool) → ℕ → ι → ℝ),
-      (∀ w t i, ℓ w t i = 0 ∨ ℓ w t i = 1) ∧
-      ∀ H : (ℕ → ι → ℝ) → ℕ → ι → ℝ, IsOnlineAlg H →
-        (1 / (4 * √3)) * √((T : ℝ) * log (Fintype.card ι)) ≤
-          𝔼 w : Fin m → Bool,
-            ((∑ t ∈ range T, ∑ i, H (ℓ w) t i * ℓ w t i) - minCumLoss (ℓ w) T) :=
-  exists_stochastic_regret_ge_sqrt_mul_log hn ((Nat.log_lt_self 2 (by omega)).le.trans hT)
+  have he : 0 < Real.exp 1 := Real.exp_pos 1
+  calc (1 / (4 * Real.exp 1)) * √((T : ℝ) * log (N : ℝ))
+      ≤ (1 / (4 * Real.exp 1)) * (2 * ((k : ℝ) * √(B : ℝ))) :=
+        mul_le_mul_of_nonneg_left hsqrt (by positivity)
+    _ = (1 / (2 * Real.exp 1)) * ((k : ℝ) * √(B : ℝ)) := by ring
+    _ ≤ (1 / (2 * Real.exp 1)) *
+          ∑ r : Fin k, √(((univ.filter fun t : Fin T => block t = r).card : ℝ)) :=
+        mul_le_mul_of_nonneg_left hsum_sqrt (by positivity)
 
 end Cslib.MachineLearning.OnlineLearning.Experts

@@ -9110,15 +9110,11 @@ public import CslibFrontier.MachineLearning.LossMinimization.Smooth
 public import CslibFrontier.MachineLearning.LossMinimization.Squared
 public import CslibFrontier.MachineLearning.LossMinimization.Stability
 public import CslibFrontier.MachineLearning.LossMinimization.StochasticGradientDescent
-public import CslibFrontier.MachineLearning.OnlineLearning.Bandit
-public import CslibFrontier.MachineLearning.OnlineLearning.ConstantSum
 public import CslibFrontier.MachineLearning.OnlineLearning.ConvexOnlineToBatch
-public import CslibFrontier.MachineLearning.OnlineLearning.FPL
 public import CslibFrontier.MachineLearning.OnlineLearning.FTRL
 public import CslibFrontier.MachineLearning.OnlineLearning.Greedy
 public import CslibFrontier.MachineLearning.OnlineLearning.Hedge
 public import CslibFrontier.MachineLearning.OnlineLearning.HighProbabilityOnlineToBatch
-public import CslibFrontier.MachineLearning.OnlineLearning.InternalRegret
 public import CslibFrontier.MachineLearning.OnlineLearning.LowerBounds
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Agnostic
 public import CslibFrontier.MachineLearning.OnlineLearning.MistakeBound.Basic
@@ -9259,7 +9255,6 @@ public import CslibFrontier.Probability.BitString.Chaining
 public import CslibFrontier.Probability.BitString.CoinFlips
 public import CslibFrontier.Probability.BitString.Collision
 public import CslibFrontier.Probability.BitString.FixedWeight
-public import CslibFrontier.Probability.BitString.Khintchine
 public import CslibFrontier.Probability.BitString.LazyRandomWalk
 public import CslibFrontier.Probability.BitString.LinearHash
 public import CslibFrontier.Probability.BitString.LinearHash.Collisions
