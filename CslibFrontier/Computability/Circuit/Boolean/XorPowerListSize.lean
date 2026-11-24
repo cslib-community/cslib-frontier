@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 import CslibFrontier.Foundations.Data.Code.BinaryJohnson
 import CslibFrontier.Foundations.Data.Code.HammingBound
 import CslibFrontier.Foundations.Data.Nat.Choose.Entropy
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Ring.Basic
 import Mathlib.Tactic.Linarith
@@ -107,9 +108,7 @@ private theorem sum_signVal_mul_signVal_le (f g : BooleanFunction n) {δ₀ : �
     (hr : δ₀ * 2 ^ n ≤ r + 1) (hfg : r < hammingDist f g) :
     ∑ y, signVal (f y) * signVal (g y) ≤ (1 - 2 * δ₀) * 2 ^ n := by
   rw [sum_signVal_mul_signVal_eq_card_sub, BitString.card]
-  have : (r : ℝ) + 1 ≤ hammingDist f g := by exact_mod_cast hfg
-  push_cast
-  linarith
+  cast_linarith [hfg]
 
 /-- **The list size of the `k`-fold XOR code** (library result): let `k` be odd, `ε ≥ 0`, and
 `(1 - 2 δ₀) ^ k ≤ 2 ε ^ 2`. The Boolean functions `g` on `n` bits whose `k`-fold XORs agree with a

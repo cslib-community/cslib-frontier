@@ -63,6 +63,13 @@ open Cslib Cslib.Crypto.Protocols.UC Cslib.Probability Turing.MultiTapeTM
   reply := encUnit
   replyDecoder := unitDecoder
 
+/-- Identity `List Bool` / `List Bool` word port. -/
+@[expose] public def msgPort : WordPort (List Bool) (List Bool) where
+  query := encBits
+  queryDecoder := Decoder.bits
+  reply := encBits
+  replyDecoder := Decoder.bits
+
 private def bitsPort : WordPort Unit (List Bool) where
   query := encUnit
   queryDecoder := unitDecoder
@@ -497,9 +504,13 @@ theorem coinEnv_run_coinStore_wordHandle_isOraclePPTOn :
       (WordInterface.protocol coinPartyPort unitPort),
       IsOraclePPTOn (Operation := WordInterface.empty.Channel) encEnvParam encBool
         (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-          cert.codec coinEnv ∅) := by
+          cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id) := by
   rcases coinStore_toProtocol_isPPT with ⟨cert⟩
-  exact ⟨cert, coinEnv_isPPT.isOraclePPTOn_run_wordHandle cert ∅⟩
+  have hconst : ComputableInPolyTime (fun _ : EnvParam => (∅ : Finset (Fin 2)))
+      encEnvParam (encFinite (Finset (Fin 2))) :=
+    ComputableInPolyTime.const ∅
+  exact ⟨cert, coinEnv_isPPT.isOraclePPTOn_run_wordHandle cert (by fun_prop)
+    (ComputableInPolyTime.of_eq fun _ => rfl)⟩
 
 /-- Empty word oracle on `WordInterface.empty`. -/
 @[expose] public noncomputable def emptyWordOracle :
@@ -522,14 +533,16 @@ theorem coinStore_wordRun_delivers_coin
     (κ : ℕ) (z : List Bool) :
     ProbOracleComp.runWith emptyWordOracle
       (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-        cert.codec coinEnv ∅ ⟨κ, 2, z⟩) () (true, ()) = (1 / 2 : ENNReal) ∧
+        cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id ⟨κ, 2, z⟩) () (true, ()) =
+      (1 / 2 : ENNReal) ∧
     ProbOracleComp.runWith emptyWordOracle
       (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-        cert.codec coinEnv ∅ ⟨κ, 1, z⟩) () (true, ()) = 0 := by
+        cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id ⟨κ, 1, z⟩) () (true, ()) =
+      0 := by
   have hrun (k : ℕ) :
       ProbOracleComp.runWith emptyWordOracle
         (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
-          cert.codec coinEnv ∅ ⟨κ, k, z⟩) () =
+          cert.codec coinEnv (fun e => ⟨e.secParam, e.replyBound, ∅⟩) id ⟨κ, k, z⟩) () =
         (ProbComp.uniform Bool).eval.map (fun c =>
           (match coinPartyPort.replyDecoder.decode
               (List.take k (coinPartyPort.reply (some [true ^^ c]))) with
@@ -588,8 +601,9 @@ theorem coinStore_wordRun_delivers_coin
       exact PMF.pure_map (fun x : Unit × List Bool => (x, ())) ((), s')
     let sInit : (coinStore.toProtocol κ ∅).State := ([] : List Bool)
     have hinit : (coinStore.toProtocol κ ∅).init = pure sInit := rfl
-    simp only [wordRun, hinit, map_pure, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-      ProbOracleComp.runWith_map, ProbComp.eval_pure, PMF.pure_map, PMF.pure_bind]
+    simp only [wordRun, hinit, map_pure, ProbOracleComp.runWith_bind,
+      ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, ProbComp.eval_pure, PMF.pure_map,
+      PMF.pure_bind]
     simp only [wordRunFrom, coinEnv, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
       ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,

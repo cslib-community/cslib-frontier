@@ -116,48 +116,48 @@ variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
 theorem map_lookupM (hf : IsMonadHom m n f) (le : α → α → m Bool) (k : α) (l : List (α × β)) :
     f (lookupM le k l) = lookupM (fun a b => f (le a b)) k l := by
   induction l with
-  | nil => simp [lookupM, hf.map_pure]
+  | nil => simp only [lookupM, hf.map_pure]
   | cons p l ih =>
     obtain ⟨k', v⟩ := p
-    simp [lookupM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+    simp only [lookupM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with the rank scan. -/
 theorem map_rankM (hf : IsMonadHom m n f) (le : α → α → m Bool) (k : α) (l : List (α × β)) :
     f (rankM le k l) = rankM (fun a b => f (le a b)) k l := by
   induction l with
-  | nil => simp [rankM, hf.map_pure]
+  | nil => simp only [rankM, hf.map_pure]
   | cons p l ih =>
     obtain ⟨k', v⟩ := p
-    simp [rankM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+    simp only [rankM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with the predecessor scan. -/
 theorem map_predM (hf : IsMonadHom m n f) (le : α → α → m Bool) (k : α) (l : List (α × β)) :
     f (predM le k l) = predM (fun a b => f (le a b)) k l := by
   induction l with
-  | nil => simp [predM, hf.map_pure]
-  | cons p l ih => simp [predM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+  | nil => simp only [predM, hf.map_pure]
+  | cons p l ih => simp only [predM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with the successor scan. -/
 theorem map_succM (hf : IsMonadHom m n f) (le : α → α → m Bool) (k : α) (l : List (α × β)) :
     f (succM le k l) = succM (fun a b => f (le a b)) k l := by
   induction l with
-  | nil => simp [succM, hf.map_pure]
-  | cons p l ih => simp [succM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+  | nil => simp only [succM, hf.map_pure]
+  | cons p l ih => simp only [succM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with taking the keys up to a bound. -/
 theorem map_takeUpToM (hf : IsMonadHom m n f) (le : α → α → m Bool) (hi : α)
     (l : List (α × β)) : f (takeUpToM le hi l) = takeUpToM (fun a b => f (le a b)) hi l := by
   induction l with
-  | nil => simp [takeUpToM, hf.map_pure]
-  | cons p l ih => simp [takeUpToM, hf.map_bind, hf.map_pure, apply_ite f, ih]
+  | nil => simp only [takeUpToM, hf.map_pure]
+  | cons p l ih => simp only [takeUpToM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with the range scan. -/
 theorem map_rangeM (hf : IsMonadHom m n f) (le : α → α → m Bool) (lo hi : α)
     (l : List (α × β)) : f (rangeM le lo hi l) = rangeM (fun a b => f (le a b)) lo hi l := by
   induction l with
-  | nil => simp [rangeM, hf.map_pure]
+  | nil => simp only [rangeM, hf.map_pure]
   | cons p l ih =>
-    simp [rangeM, hf.map_bind, apply_ite f, ih, map_takeUpToM hf]
+    simp only [rangeM, hf.map_bind, apply_ite f, ih, map_takeUpToM hf]
 
 end Transfer
 
@@ -169,24 +169,28 @@ variable {α β : Type} [LinearOrder α] {l : List (α × β)} {k k' lo hi : α}
 theorem idRun_lookupM_cons :
     Id.run (lookupM leI k ((k', v) :: l)) =
       if k ≤ k' then (if k' ≤ k then some v else none) else Id.run (lookupM leI k l) := by
-  by_cases h₁ : k ≤ k' <;> by_cases h₂ : k' ≤ k <;> simp [lookupM, leI, h₁, h₂]
+  by_cases h₁ : k ≤ k' <;> by_cases h₂ : k' ≤ k <;>
+    simp only [lookupM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h₁, h₂, ↓reduceIte]
 
 /-- The pure rank scan at an entry: stop at a key not below `k`, and count it otherwise. -/
 theorem idRun_rankM_cons :
     Id.run (rankM leI k (p :: l)) = if k ≤ p.1 then 0 else Id.run (rankM leI k l) + 1 := by
-  by_cases h : k ≤ p.1 <;> simp [rankM, leI, h]
+  by_cases h : k ≤ p.1 <;>
+    simp only [rankM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h, ↓reduceIte]
 
 /-- The pure predecessor scan at an entry: stop at a key not below `k`, and otherwise keep the
 entry as the fallback. -/
 theorem idRun_predM_cons :
     Id.run (predM leI k (p :: l)) =
       if k ≤ p.1 then none else (Id.run (predM leI k l)).or (some p) := by
-  by_cases h : k ≤ p.1 <;> simp [predM, leI, h]
+  by_cases h : k ≤ p.1 <;>
+    simp only [predM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h, ↓reduceIte]
 
 /-- The pure successor scan at an entry: pass a key that is at most `k`, and stop otherwise. -/
 theorem idRun_succM_cons :
     Id.run (succM leI k (p :: l)) = if p.1 ≤ k then Id.run (succM leI k l) else some p := by
-  by_cases h : p.1 ≤ k <;> simp [succM, leI, h]
+  by_cases h : p.1 ≤ k <;>
+    simp only [succM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h, ↓reduceIte]
 
 /-- The pure scan up to a bound is `List.takeWhile`, on any list. -/
 theorem idRun_takeUpToM (hi : α) (l : List (α × β)) :
@@ -195,15 +199,18 @@ theorem idRun_takeUpToM (hi : α) (l : List (α × β)) :
   | nil => rfl
   | cons p l ih =>
     by_cases h : p.1 ≤ hi
-    · simp [takeUpToM, leI, h, ← ih]
-    · simp [takeUpToM, leI, h]
+    · simp only [takeUpToM, leI, Id.run_bind, Id.run_pure, h, ↓reduceIte,
+        List.takeWhile_cons, decide_true, ih]
+    · simp only [takeUpToM, leI, Id.run_bind, Id.run_pure, h, ↓reduceIte,
+        Bool.false_eq_true, List.takeWhile_cons, decide_false]
 
 /-- The pure range scan at an entry: at a key not below `lo`, take the keys up to `hi`; otherwise
 move on. -/
 theorem idRun_rangeM_cons :
     Id.run (rangeM leI lo hi (p :: l)) =
       if lo ≤ p.1 then Id.run (takeUpToM leI hi (p :: l)) else Id.run (rangeM leI lo hi l) := by
-  by_cases h : lo ≤ p.1 <;> simp [rangeM, leI, h]
+  by_cases h : lo ≤ p.1 <;>
+    simp only [rangeM, leI, Id.run_bind, Id.run_pure, decide_eq_true_eq, h, ↓reduceIte]
 
 /-- On a sorted list the pure lookup scan is `List.lookup`. -/
 theorem idRun_lookupM (h : l.IsSortedAssoc) (k : α) :
@@ -217,7 +224,7 @@ theorem idRun_lookupM (h : l.IsSortedAssoc) (k : α) :
     by_cases h₁ : k ≤ k'
     · by_cases h₂ : k' ≤ k
       · obtain rfl := le_antisymm h₁ h₂
-        simp
+        simp only [le_refl, ↓reduceIte, List.lookup_cons_self]
       · have hk : k < k' := lt_of_le_of_ne h₁ fun e => h₂ (e ▸ le_rfl)
         simp only [h₁, h₂, ↓reduceIte]
         refine (List.lookup_eq_none_of_forall_ne fun q hq => ?_).symm
@@ -236,10 +243,8 @@ theorem idRun_rankM (h : l.IsSortedAssoc) (k : α) : Id.run (rankM leI k l) = ra
     rw [idRun_rankM_cons]
     by_cases h₁ : k ≤ p.1
     · simp only [h₁, ↓reduceIte]
-      refine (rank_eq_zero_iff.2 fun q hq => ?_).symm
-      rcases List.mem_cons.1 hq with rfl | hq
-      · exact h₁
-      · exact h₁.trans (h.1 q hq).le
+      exact (rank_eq_zero_iff.2 fun q hq =>
+        (List.mem_cons.1 hq).elim (· ▸ h₁) fun hq => h₁.trans (h.1 q hq).le).symm
     · simp only [h₁, ↓reduceIte, rank_cons, lt_of_not_ge h₁, ih h.2]
 
 /-- On a sorted list the pure predecessor scan is `pred?`. -/
@@ -252,10 +257,8 @@ theorem idRun_predM (h : l.IsSortedAssoc) (k : α) : Id.run (predM leI k l) = pr
     rw [idRun_predM_cons]
     by_cases h₁ : k ≤ k'
     · simp only [h₁, ↓reduceIte]
-      refine (pred?_eq_none_iff.2 fun q hq => ?_).symm
-      rcases List.mem_cons.1 hq with rfl | hq
-      · exact h₁
-      · exact h₁.trans (h.1 q hq).le
+      exact (pred?_eq_none_iff.2 fun q hq =>
+        (List.mem_cons.1 hq).elim (· ▸ h₁) fun hq => h₁.trans (h.1 q hq).le).symm
     · simp only [h₁, ↓reduceIte, pred?_cons, lt_of_not_ge h₁, ih h.2]
 
 /-- The pure successor scan is `succ?`, on any list. -/
