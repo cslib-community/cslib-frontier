@@ -272,23 +272,6 @@ private theorem zToQ_zPolyPow (s : ℚ) (p : List ℤ) (n : ℕ) :
   | zero => simp [zToQ, zPolyPow, qPolyPow]
   | succ n ih => rw [pow_succ', zPolyPow, qPolyPow, ← ih, zToQ_zPolyMul]
 
-private def riseFact (j : ℕ) : ℕ → ℕ
-  | 0 => 1
-  | k + 1 => riseFact j k * (j + k + 1)
-
-private theorem factorial_mul_riseFact (j k : ℕ) :
-    j.factorial * riseFact j k = (j + k).factorial := by
-  induction k with
-  | zero => simp [riseFact]
-  | succ k ih =>
-    rw [riseFact, ← mul_assoc, ih, ← Nat.add_assoc, Nat.factorial_succ]
-    ring
-
-private theorem riseFact_pos (j k : ℕ) : 0 < riseFact j k := by
-  induction k with
-  | zero => exact Nat.zero_lt_one
-  | succ k ih => exact Nat.mul_pos ih (by omega)
-
 private def oddProd : ℕ → ℕ
   | 0 => 1
   | n + 1 => oddProd n * (2 * n + 1)
@@ -322,7 +305,7 @@ private theorem mul_oddSkip_eq_oddProd {j n : ℕ} (h : j < n) :
 private def zExpOddPoly (m : ℕ) (an : ℤ) (ad : ℕ) : List ℤ :=
   let M := 2 * m + 1
   (List.range (M + 1)).map fun j =>
-    (-an) ^ j * ((ad ^ (M - j) * riseFact j (M - j) : ℕ) : ℤ)
+    (-an) ^ j * ((ad ^ (M - j) * (j + 1).ascFactorial (M - j) : ℕ) : ℤ)
 
 private theorem zToQ_zExpOddPoly (m : ℕ) (an : ℤ) {ad : ℕ} (had : ad ≠ 0) :
     zToQ (1 / ((ad ^ (2 * m + 1) * (2 * m + 1).factorial : ℕ) : ℚ)) (zExpOddPoly m an ad) =
@@ -335,14 +318,16 @@ private theorem zToQ_zExpOddPoly (m : ℕ) (an : ℤ) {ad : ℕ} (had : ad ≠ 0
   refine List.map_congr_left fun j hj => ?_
   simp only [Function.comp_apply]
   have hjM : j ≤ M := Nat.lt_succ_iff.mp (List.mem_range.mp hj)
-  have hfact : (M.factorial : ℚ) = (j.factorial : ℚ) * (riseFact j (M - j) : ℚ) := by
-    exact_mod_cast (Nat.add_sub_of_le hjM ▸ (factorial_mul_riseFact j (M - j)).symm)
+  have hfact :
+      (M.factorial : ℚ) = (j.factorial : ℚ) * ((j + 1).ascFactorial (M - j) : ℚ) := by
+    exact_mod_cast (Nat.add_sub_of_le hjM ▸ (j.factorial_mul_ascFactorial (M - j)).symm)
   have hpow : (ad : ℚ) ^ M = (ad : ℚ) ^ j * (ad : ℚ) ^ (M - j) := by
     rw [← pow_add, Nat.add_sub_of_le hjM]
   have hadQ : (ad : ℚ) ^ j ≠ 0 := pow_ne_zero j (Nat.cast_ne_zero.mpr had)
   have hadM : (ad : ℚ) ^ (M - j) ≠ 0 := pow_ne_zero _ (Nat.cast_ne_zero.mpr had)
   have hjf : (j.factorial : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr j.factorial_ne_zero
-  have hrf : (riseFact j (M - j) : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr (riseFact_pos j (M - j)).ne'
+  have hrf : ((j + 1).ascFactorial (M - j) : ℚ) ≠ 0 :=
+    Nat.cast_ne_zero.mpr (j.ascFactorial_pos (M - j)).ne'
   rw [← neg_div, div_pow]
   push_cast
   rw [hfact, hpow]
@@ -353,7 +338,7 @@ private def zInnerPoly (m : ℕ) (gn : ℤ) (gd : ℕ) : List ℤ :=
   let ad := 2 * gd ^ 2
   (List.range (M + 1)).map fun j =>
     gn * (-gn ^ 2) ^ j *
-      ((ad ^ (M - j) * riseFact j (M - j) * oddSkip j (M + 1) : ℕ) : ℤ)
+      ((ad ^ (M - j) * (j + 1).ascFactorial (M - j) * oddSkip j (M + 1) : ℕ) : ℤ)
 
 private theorem zToQ_zInnerPoly (m : ℕ) (gn : ℤ) {gd : ℕ} (hgd : gd ≠ 0) :
     zToQ (1 / ((gd * (2 * gd ^ 2) ^ (2 * m + 1) * (2 * m + 1).factorial *
@@ -369,8 +354,9 @@ private theorem zToQ_zInnerPoly (m : ℕ) (gn : ℤ) {gd : ℕ} (hgd : gd ≠ 0)
   simp only [Function.comp_apply]
   have hj_lt : j < M + 1 := List.mem_range.mp hj
   have hjM : j ≤ M := Nat.lt_succ_iff.mp hj_lt
-  have hfact : (M.factorial : ℚ) = (j.factorial : ℚ) * (riseFact j (M - j) : ℚ) := by
-    exact_mod_cast (Nat.add_sub_of_le hjM ▸ (factorial_mul_riseFact j (M - j)).symm)
+  have hfact :
+      (M.factorial : ℚ) = (j.factorial : ℚ) * ((j + 1).ascFactorial (M - j) : ℚ) := by
+    exact_mod_cast (Nat.add_sub_of_le hjM ▸ (j.factorial_mul_ascFactorial (M - j)).symm)
   have hodd : (oddProd (M + 1) : ℚ) = ((2 * j + 1 : ℕ) : ℚ) * (oddSkip j (M + 1) : ℚ) := by
     exact_mod_cast (mul_oddSkip_eq_oddProd hj_lt).symm
   have hpow : (ad : ℚ) ^ M = (ad : ℚ) ^ j * (ad : ℚ) ^ (M - j) := by
@@ -380,7 +366,8 @@ private theorem zToQ_zInnerPoly (m : ℕ) (gn : ℤ) {gd : ℕ} (hgd : gd ≠ 0)
   have hadj : (ad : ℚ) ^ j ≠ 0 := pow_ne_zero j had_ne
   have hadM : (ad : ℚ) ^ (M - j) ≠ 0 := pow_ne_zero _ had_ne
   have hjf : (j.factorial : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr j.factorial_ne_zero
-  have hrf : (riseFact j (M - j) : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr (riseFact_pos j (M - j)).ne'
+  have hrf : ((j + 1).ascFactorial (M - j) : ℚ) ≠ 0 :=
+    Nat.cast_ne_zero.mpr (j.ascFactorial_pos (M - j)).ne'
   have h2j1 : (2 * (j : ℚ) + 1) ≠ 0 := by positivity
   have hos : (oddSkip j (M + 1) : ℚ) ≠ 0 := by
     intro h0
