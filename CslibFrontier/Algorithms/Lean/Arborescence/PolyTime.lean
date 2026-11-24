@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Arborescence.Branching
-public import CslibFrontier.Algorithms.Lean.Arborescence.Table
 public import CslibFrontier.Computability.Complexity.Classes.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
@@ -867,7 +866,7 @@ private theorem list_sum_natAbs_le {M : ℕ} :
     simp only [List.sum_cons, List.length_cons, Nat.succ_mul]
     have ha := h a List.mem_cons_self
     have hl := list_sum_natAbs_le l fun z hz => h z (List.mem_cons_of_mem _ hz)
-    exact (Int.natAbs_add_le _ _).trans ((Nat.add_le_add ha hl).trans_eq (Nat.add_comm _ _))
+    omega
 
 private theorem otherCycleCostList_natAbs_le {n : ℕ} {c : List (List ℤ)} {f : List ℕ}
     {inCycle : List Bool} {M : ℕ} (hc : ∀ row ∈ c, ∀ z ∈ row, z.natAbs ≤ M) (x : ℕ) :

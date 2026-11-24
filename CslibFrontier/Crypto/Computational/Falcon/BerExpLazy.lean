@@ -157,44 +157,24 @@ arbitrary lists: exhaustion before a mismatch rejects, and every matched pair is
 theorem berExpLazyTrace_accepted {thresholds samples : List Byte}
     (hlength : thresholds.length = samples.length) :
     (berExpLazyTrace thresholds samples).accepted = decide (samples < thresholds) := by
-  induction thresholds generalizing samples with
-  | nil =>
-      obtain rfl : samples = [] := List.length_eq_zero_iff.mp hlength.symm
-      rfl
-  | cons threshold thresholds ih =>
-      obtain ⟨sample, samples, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength.symm
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
-      rcases lt_trichotomy sample threshold with hlt | heq | hgt
-      · have hcons : sample :: samples < threshold :: thresholds := List.Lex.rel hlt
-        simp [berExpLazyTrace, hlt, hcons]
-      · subst sample
-        simp [berExpLazyTrace, ih hlength]
-      · have hcons : threshold :: thresholds < sample :: samples := List.Lex.rel hgt
-        simp [berExpLazyTrace, hgt, hgt.asymm, hcons.le]
+  fun_induction berExpLazyTrace thresholds samples with
+  -- sample < threshold: accept
+  | case1 threshold thresholds sample samples hlt => simpa using List.Lex.rel hlt
+  | case2 threshold thresholds sample samples _ hgt => -- threshold < sample: reject
+    simp [(show threshold :: thresholds < sample :: samples from List.Lex.rel hgt).le]
+  | case3 threshold thresholds sample samples hle hge _ ih => -- equal bytes: recurse
+    obtain rfl := le_antisymm (not_lt.mp hge) (not_lt.mp hle)
+    simpa [List.lex_cons_iff] using ih (by simpa using hlength)
+  | case4 thresholds samples hnot => -- either list exhausted
+    match thresholds, samples, hlength with
+    | [], [], _ => rfl
+    | _ :: _, _ :: _, _ => exact (hnot _ _ _ _ rfl rfl).elim
 
 /-- A deterministic trace cannot read more pairs than either input supplies. -/
 theorem berExpLazyTrace_bytesRead_le (thresholds samples : List Byte) :
     (berExpLazyTrace thresholds samples).bytesRead ≤ min thresholds.length samples.length := by
-  induction thresholds generalizing samples with
-  | nil => simp [berExpLazyTrace]
-  | cons threshold thresholds ih =>
-      cases samples with
-      | nil => simp [berExpLazyTrace]
-      | cons sample samples =>
-          by_cases hlt : sample < threshold
-          · simp [berExpLazyTrace, hlt]
-          · by_cases hgt : threshold < sample
-            · simp [berExpLazyTrace, hlt, hgt]
-            · simp only [berExpLazyTrace, hlt, hgt, ite_false]
-              simp only [List.length_cons]
-              have hbound := ih samples
-              rcases le_total thresholds.length samples.length with hle | hle
-              · rw [Nat.min_eq_left hle] at hbound
-                rw [Nat.min_eq_left (Nat.add_le_add_right hle 1)]
-                omega
-              · rw [Nat.min_eq_right hle] at hbound
-                rw [Nat.min_eq_right (Nat.add_le_add_right hle 1)]
-                omega
+  fun_induction berExpLazyTrace thresholds samples <;>
+    simp +zetaDelta only [List.length_cons] <;> omega
 
 private theorem one_le_berExpLazyTrace_bytesRead (threshold : Byte) (thresholds : List Byte)
     (sample : Byte) (samples : List Byte) :
@@ -214,19 +194,8 @@ private theorem berExpLazyTrace_resources (thresholds samples : List Byte) :
       result.resources.randomBits = 8 * result.bytesRead ∧
       result.resources.oracleQueries = 0 ∧
       result.resources.handlerCalls = 0 := by
-  induction thresholds generalizing samples with
-  | nil => simp [berExpLazyTrace]
-  | cons threshold thresholds ih =>
-      cases samples with
-      | nil => simp [berExpLazyTrace]
-      | cons sample samples =>
-          by_cases hlt : sample < threshold
-          · simp [berExpLazyTrace, hlt]
-          · by_cases hgt : threshold < sample
-            · simp [berExpLazyTrace, hlt, hgt]
-            · have hresources := ih samples
-              simp only [berExpLazyTrace, hlt, hgt, ite_false]
-              omega
+  fun_induction berExpLazyTrace thresholds samples <;> simp_all +zetaDelta
+  omega
 
 /-- The shared eight-byte big-endian representation of a 64-bit threshold. -/
 private def berExpThresholdBytes (threshold : BerExpThreshold) : List Byte :=

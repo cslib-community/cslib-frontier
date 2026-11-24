@@ -786,6 +786,75 @@ private theorem state_merge_phases {Δ C : ℕ} (hΔ : G.maxDegree ≤ Δ) {x : 
     obtain ⟨ih_prop, ih_lt⟩ := ih (by omega)
     have hk_lt : k < Δ := by omega
     let kFin : Fin Δ := ⟨k, hk_lt⟩
+    let fj (j : ℕ) (w : V) : ℕ :=
+      let st := (deltaPlusOneColoring Δ C).state G x (1 + Nat.logStar C + k * (5 * (Δ + 1)) + j) w
+      if j = 0 then
+        6 * st.mergedColor +
+          ((deltaPlusOneColoring Δ C).state G x (1 + Nat.logStar C) w).slotColor kFin
+      else st.mergedColor
+    have step_in_merge_phase : ∀ {j : ℕ}, j < 5 * (Δ + 1) →
+        (∀ u v, (partialGraph G x (k + 1)).Adj u v → fj j u ≠ fj j v) →
+        (∀ w, fj j w < 6 * (Δ + 1) - j) →
+        (∀ u v, (partialGraph G x (k + 1)).Adj u v →
+          ((deltaPlusOneColoring Δ C).state G x
+            (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) u).mergedColor ≠
+            ((deltaPlusOneColoring Δ C).state G x
+              (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) v).mergedColor) ∧
+        ∀ u, ((deltaPlusOneColoring Δ C).state G x
+          (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) u).mergedColor <
+            6 * (Δ + 1) - (j + 1) := by
+      intro j hj hfj_prop hfj_lt
+      set r := 1 + Nat.logStar C + k * (5 * (Δ + 1)) + j
+      have hstep : ∀ w,
+          ((deltaPlusOneColoring Δ C).state G x (r + 1) w).mergedColor =
+            greedyStep Δ (fj j w) (((partialGraph G x (k + 1)).neighborFinset w).image (fj j)) := by
+        intro w
+        have hnz : r ≠ 0 := by omega
+        have hnlt : ¬ r < 1 + Nat.logStar C := by omega
+        have hphase : r < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
+          have : (k + 1) * (5 * (Δ + 1)) ≤ Δ * (5 * (Δ + 1)) :=
+            Nat.mul_le_mul_right (5 * (Δ + 1)) hk
+          rw [Nat.add_mul, Nat.one_mul] at this
+          omega
+        have hsub : r - (1 + Nat.logStar C) = j + k * (5 * (Δ + 1)) := by omega
+        have hdiv : (r - (1 + Nat.logStar C)) / (5 * (Δ + 1)) = k := by
+          rw [hsub, Nat.add_mul_div_right _ _ (by omega : 0 < 5 * (Δ + 1)),
+            Nat.div_eq_of_lt hj, Nat.zero_add]
+        have hmod : (r - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = j := by
+          rw [hsub, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
+        have hk_r : (r - (1 + Nat.logStar C)) / (5 * (Δ + 1)) < Δ := hdiv ▸ hk_lt
+        rw [deltaPlusOneColoring_state_succ]
+        dsimp only [deltaPlusOneStep]
+        simp only [hnz, ↓reduceIte, hnlt, hphase, ↓reduceDIte]
+        rw [activeMsgs_toFinset_eq G (Δ := Δ) (C := C) x (by omega : 1 ≤ r)
+          ((r - (1 + Nat.logStar C)) / (5 * (Δ + 1))) _ w]
+        have hval_eq : ∀ z,
+            (if (r - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
+              fun m : ColoringState Δ =>
+                6 * m.mergedColor +
+                  m.slotColor ⟨(r - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r⟩
+             else ColoringState.mergedColor)
+              ((deltaPlusOneColoring Δ C).state G x r z) = fj j z := by
+          intro z
+          simp only [hmod]
+          by_cases hj0 : j = 0
+          · subst hj0
+            dsimp only [r, fj]
+            simp only [↓reduceIte, Nat.add_zero]
+            have hsc := congrFun (hslot_const (k * (5 * (Δ + 1))) z) kFin
+            rw [show (⟨(1 + Nat.logStar C + k * (5 * (Δ + 1)) - (1 + Nat.logStar C)) /
+                (5 * (Δ + 1)), hk_r⟩ : Fin Δ) = kFin from Fin.ext hdiv]
+            exact congrArg
+              (6 * ((deltaPlusOneColoring Δ C).state G x
+                (1 + Nat.logStar C + k * (5 * (Δ + 1))) z).mergedColor + ·) hsc
+          · simp only [fj, hj0, ↓reduceIte]; rfl
+        rw [hval_eq w, Finset.image_congr (fun z _ => hval_eq z), hdiv]
+      refine ⟨fun u v huv => ?_, fun u => ?_⟩
+      · rw [show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1) = r + 1 by omega, hstep u, hstep v]
+        exact greedyStep_ne_of_adj (hdeg_part (k + 1)) hfj_prop huv
+      · rw [show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1) = r + 1 by omega, hstep u]
+        have hlt := greedyStep_lt (Δ := Δ) (f := fj j) hfj_prop hfj_lt u
+        omega
     -- Prove inner loop invariant for `1 ≤ t ≤ 5 * (Δ + 1)` rounds into phase `k`.
     have hinner : ∀ {t : ℕ}, 1 ≤ t → t ≤ 5 * (Δ + 1) →
         (∀ u v, (partialGraph G x (k + 1)).Adj u v →
@@ -802,142 +871,19 @@ private theorem state_merge_phases {Δ C : ℕ} (hΔ : G.maxDegree ≤ Δ) {x : 
       rw [Nat.add_comm 1 j]
       induction j with
       | zero =>
-        simp only [Nat.zero_add]
-        set r₀ := 1 + Nat.logStar C + k * (5 * (Δ + 1))
-        set f₀ : V → ℕ := fun w =>
-          6 * ((deltaPlusOneColoring Δ C).state G x r₀ w).mergedColor +
-            ((deltaPlusOneColoring Δ C).state G x (1 + Nat.logStar C) w).slotColor kFin
-        have hf₀_prop : ∀ u v, (partialGraph G x (k + 1)).Adj u v → f₀ u ≠ f₀ v :=
-          fun u v huv => combined_proper_partialGraph G ih_prop
+        refine step_in_merge_phase (by omega)
+          (fun u v huv => ?_) (fun w => ?_)
+        · dsimp only [fj]; simp only [↓reduceIte, Nat.add_zero]
+          exact combined_proper_partialGraph G ih_prop
             (fun w => hslot_lt kFin w) (fun u' w' => hslot_ne kFin u' w') huv
-        have hf₀_lt : ∀ w, f₀ w < 6 * (Δ + 1) := fun w => by
-          have hm := ih_lt w
-          have hs := hslot_lt kFin w
-          dsimp only [f₀]
-          omega
-        have hstep0 : ∀ w,
-            ((deltaPlusOneColoring Δ C).state G x (r₀ + 1) w).mergedColor =
-              greedyStep Δ (f₀ w) (((partialGraph G x (k + 1)).neighborFinset w).image f₀) := by
-          intro w
-          have hnz : r₀ ≠ 0 := by omega
-          have hnlt : ¬ r₀ < 1 + Nat.logStar C := by omega
-          have hphase : r₀ < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
-            have : (k + 1) * (5 * (Δ + 1)) ≤ Δ * (5 * (Δ + 1)) :=
-              Nat.mul_le_mul_right (5 * (Δ + 1)) hk
-            rw [Nat.add_mul, Nat.one_mul] at this
-            omega
-          have hdiv : (r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)) = k := by
-            have hsub : r₀ - (1 + Nat.logStar C) = k * (5 * (Δ + 1)) := by omega
-            rw [hsub]
-            exact Nat.mul_div_cancel _ (by omega)
-          have hmod : (r₀ - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 := by
-            have hsub : r₀ - (1 + Nat.logStar C) = k * (5 * (Δ + 1)) := by omega
-            rw [hsub]
-            exact Nat.mul_mod_left k (5 * (Δ + 1))
-          have hk_r0 : (r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)) < Δ := hdiv ▸ hk_lt
-          rw [deltaPlusOneColoring_state_succ]
-          dsimp only [deltaPlusOneStep]
-          simp only [hnz, ↓reduceIte, hnlt, hphase, ↓reduceDIte]
-          have hact := activeMsgs_toFinset_eq G (Δ := Δ) (C := C) x (by omega : 1 ≤ r₀)
-            ((r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)))
-            (if (r₀ - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
-              fun m =>
-                6 * m.mergedColor +
-                  m.slotColor ⟨(r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r0⟩
-             else ColoringState.mergedColor) w
-          rw [hact]
-          have hval_eq : ∀ z,
-              (if (r₀ - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
-                fun m : ColoringState Δ =>
-                  6 * m.mergedColor +
-                    m.slotColor ⟨(r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r0⟩
-               else ColoringState.mergedColor)
-                ((deltaPlusOneColoring Δ C).state G x r₀ z) = f₀ z := by
-            intro z
-            simp only [hmod, ↓reduceIte]
-            have hsc := congrFun (hslot_const (k * (5 * (Δ + 1))) z) kFin
-            have hkfin : (⟨(r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r0⟩ : Fin Δ) = kFin :=
-              Fin.ext hdiv
-            rw [hkfin]
-            exact congrArg (6 * ((deltaPlusOneColoring Δ C).state G x r₀ z).mergedColor + ·) hsc
-          have himg :
-              ((partialGraph G x
-                (((r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1))) + 1)).neighborFinset w).image
-                (fun z =>
-                  (if (r₀ - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
-                    fun m : ColoringState Δ =>
-                      6 * m.mergedColor +
-                        m.slotColor ⟨(r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r0⟩
-                   else ColoringState.mergedColor)
-                    ((deltaPlusOneColoring Δ C).state G x r₀ z)) =
-              ((partialGraph G x (k + 1)).neighborFinset w).image f₀ := by
-            have hc :
-                ((partialGraph G x
-                  (((r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1))) + 1)).neighborFinset w).image
-                  (fun z =>
-                    (if (r₀ - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
-                      fun m : ColoringState Δ =>
-                        6 * m.mergedColor +
-                          m.slotColor ⟨(r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r0⟩
-                     else ColoringState.mergedColor)
-                      ((deltaPlusOneColoring Δ C).state G x r₀ z)) =
-                ((partialGraph G x
-                  (((r₀ - (1 + Nat.logStar C)) / (5 * (Δ + 1))) + 1)).neighborFinset w).image
-                  f₀ :=
-              Finset.image_congr fun z _ => hval_eq z
-            rw [hc, hdiv]
-          rw [hval_eq w, himg]
-        refine ⟨fun u v huv => ?_, fun u => ?_⟩
-        · rw [hstep0 u, hstep0 v]
-          exact greedyStep_ne_of_adj (hdeg_part (k + 1)) hf₀_prop huv
-        · rw [hstep0 u]
-          have hlt := greedyStep_lt (Δ := Δ) (f := f₀) hf₀_prop hf₀_lt u
-          omega
+        · have hm := ih_lt w; have hs := hslot_lt kFin w
+          dsimp only [fj]; simp only [↓reduceIte, Nat.add_zero]; omega
       | succ j ihj =>
-        have hj_lt : j + 1 < 5 * (Δ + 1) := by omega
         obtain ⟨ihj_prop, ihj_lt⟩ := ihj (by omega)
-        set rj := 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)
-        set fj : V → ℕ := fun w => ((deltaPlusOneColoring Δ C).state G x rj w).mergedColor
-        have hstepj : ∀ w,
-            ((deltaPlusOneColoring Δ C).state G x (rj + 1) w).mergedColor =
-              greedyStep Δ (fj w) (((partialGraph G x (k + 1)).neighborFinset w).image fj) := by
-          intro w
-          have hnz : rj ≠ 0 := by omega
-          have hnlt : ¬ rj < 1 + Nat.logStar C := by omega
-          have hphase : rj < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
-            have : (k + 1) * (5 * (Δ + 1)) ≤ Δ * (5 * (Δ + 1)) :=
-              Nat.mul_le_mul_right (5 * (Δ + 1)) hk
-            rw [Nat.add_mul, Nat.one_mul] at this
-            omega
-          have hsub : rj - (1 + Nat.logStar C) = (j + 1) + k * (5 * (Δ + 1)) := by omega
-          have hdiv : (rj - (1 + Nat.logStar C)) / (5 * (Δ + 1)) = k := by
-            rw [hsub, Nat.add_mul_div_right _ _ (by omega : 0 < 5 * (Δ + 1)),
-              Nat.div_eq_of_lt hj_lt, Nat.zero_add]
-          have hmod_ne : (rj - (1 + Nat.logStar C)) % (5 * (Δ + 1)) ≠ 0 := by
-            rw [hsub, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj_lt]
-            omega
-          have hk_rj : (rj - (1 + Nat.logStar C)) / (5 * (Δ + 1)) < Δ := hdiv ▸ hk_lt
-          rw [deltaPlusOneColoring_state_succ]
-          dsimp only [deltaPlusOneStep]
-          simp only [hnz, ↓reduceIte, hnlt, hphase, ↓reduceDIte]
-          have hact := activeMsgs_toFinset_eq G (Δ := Δ) (C := C) x (by omega : 1 ≤ rj)
-            ((rj - (1 + Nat.logStar C)) / (5 * (Δ + 1)))
-            (if (rj - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
-              fun m =>
-                6 * m.mergedColor +
-                  m.slotColor ⟨(rj - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_rj⟩
-             else ColoringState.mergedColor) w
-          rw [hact]
-          simp only [hmod_ne, ↓reduceIte]
-          rw [hdiv]
-        refine ⟨fun u v huv => ?_, fun u => ?_⟩
-        · rw [show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1 + 1) = rj + 1 by omega,
-            hstepj u, hstepj v]
-          exact greedyStep_ne_of_adj (hdeg_part (k + 1)) ihj_prop huv
-        · rw [show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1 + 1) = rj + 1 by omega,
-            hstepj u]
-          have hlt := greedyStep_lt (Δ := Δ) (f := fj) ihj_prop ihj_lt u
-          omega
+        refine step_in_merge_phase (by omega)
+          (fun u v huv => ?_) (fun w => ?_)
+        · simpa only [fj, Nat.succ_ne_zero, ↓reduceIte] using ihj_prop u v huv
+        · simpa only [fj, Nat.succ_ne_zero, ↓reduceIte] using ihj_lt w
     obtain ⟨hL_prop, hL_lt⟩ := hinner (by omega : 1 ≤ 5 * (Δ + 1)) le_rfl
     have hR_eq : 1 + Nat.logStar C + (k + 1) * (5 * (Δ + 1)) =
         1 + Nat.logStar C + k * (5 * (Δ + 1)) + 5 * (Δ + 1) := by

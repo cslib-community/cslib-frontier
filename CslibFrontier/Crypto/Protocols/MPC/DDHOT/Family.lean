@@ -463,8 +463,8 @@ private theorem advantage_realGame_receiver_ddhRealGame_le (setup : ℕ → PMF 
       (F.ddhRealGame setup (F.ddhOTReceiverToDDHExact Z) n) ≤ 5 / 2 ^ n := by
   simp only [ProtocolFamily.realGame, ddhOTProbProtocol, Protocol.realJoint,
     evalWith_ddhOTProtocolWith, ddhRealGame, Game.withSetup, eval_ddhRealExperiment,
-    ddhOTReceiverToDDHExact, ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.bind_bind,
-    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, Prod.map, id, restrict_singleton]
+    ddhOTReceiverToDDHExact, ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map, Prod.map, id, restrict_singleton]
   refine Game.advantage_bind_le_nnreal _ _ _ fun d => ?_
   have hswap (c : InputChoice F.ddhOTProbFamily n d) :
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
@@ -483,7 +483,7 @@ private theorem advantage_realGame_receiver_ddhRealGame_le (setup : ℕ → PMF 
                   (BitString.binaryValue bBits : ZMod (F.order d))
                   (c₀.exponent • F.generator d)))),
               otOutputs c.inputs))) := by
-    simpa only [eval_ddhRealExperiment] using
+    simpa only [eval_ddhRealExperiment, PMF.monad_bind_eq_bind] using
       (real_receiver_eq_ddhRealExperiment_of (C₀ := DDHOTSenderBitCoins) (F.generator d)
         (F.order d) (F.sampleExpBits n d)
         (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))

@@ -192,11 +192,11 @@ adversary's running time. -/
     (hkey : ComputableInPolyTime (fun (n, tape) => evaluateKey n tape)
       (encPair encUnary encBits) (encPair encBits encBits))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     {coins depth capacity keyCoins encCoins chooseCoins guessCoins : ℕ → ℕ}
     (hcoins : ComputableInPolyTime coins encUnary encUnary)
     (hdepth : ComputableInPolyTime depth encUnary encUnary)
@@ -212,7 +212,7 @@ adversary's running time. -/
     evaluateEncrypt evaluateChoose input.1 (depth input.1) (capacity input.1)
       (keyCoins input.1) (encCoins input.1) input.2 seed
   have hzero : ComputableInPolyTime (fun (input, seed) => evaluateZero input seed)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits) := by
+      encChooseCoinsInput (Encryption.encChoiceOut encBool) := by
     apply computableInPolyTime_zeroLinkChooseCoins hkey hencrypt hchoose <;> fun_prop
   let choiceBudget := fun n => modLeveledChooseCoinBudget (coins n) (depth n) (capacity n)
     (keyCoins n) (encCoins n) (chooseCoins n)
@@ -233,7 +233,7 @@ adversary's running time. -/
   have hrest := hremaining.bitsDropWithInput (hchoiceBudget.comp hn)
   -- Explicit replay arguments avoid unfolding the whole selector while inferring its inputs.
   have hchosen : ComputableInPolyTime chosen (encPair encUnary encBits)
-      (encPair (encPair encBool encBool) encBits) :=
+      (Encryption.encChoiceOut encBool) :=
     computableInPolyTime_modLeveledChooseCoins
       (evaluateKey := evaluateKey) (evaluateZero := evaluateZero)
       (n := fun p : ℕ × List Bool => p.1)

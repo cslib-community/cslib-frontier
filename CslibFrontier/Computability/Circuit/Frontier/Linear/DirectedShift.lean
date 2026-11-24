@@ -1572,16 +1572,14 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
       c.innerSize := by
     have hdiv := (div_lt_iff₀ (mul_pos two_pos hfρ_pos)).mpr
       (calc (N : ℝ) * (q₀ - 2 * δ) < DirectedShift.shiftedSupply ρ d₀ * h := hineq
-        _ ≤ DirectedShift.shiftedSupply ρ d₀ * (2 * ((c.innerSize : ℝ) - N + 1)) :=
-          mul_le_mul_of_nonneg_left hh_bound hfρ_pos.le
+        _ ≤ DirectedShift.shiftedSupply ρ d₀ * (2 * ((c.innerSize : ℝ) - N + 1)) := by gcongr
         _ = ((c.innerSize : ℝ) - N + 1) * (2 * DirectedShift.shiftedSupply ρ d₀) := by ring)
     have hrew : (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * (N : ℝ) =
         N + (N : ℝ) * (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀) := by ring
     linarith [hdiv, hrew]
   have hN_nonneg : (0 : ℝ) ≤ N := Nat.cast_nonneg N
   have hstep1 : (4217 / 1000 : ℝ) * N ≤
-      (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * N :=
-    mul_le_mul_of_nonneg_right hL_gt.le hN_nonneg
+      (1 + (q₀ - 2 * δ) / (2 * DirectedShift.shiftedSupply ρ d₀)) * N := by gcongr
   linarith [hstep1, hs_lower, hN_eps]
 
 /-- **Shifted `VertexGaussian` lower bound (`4.2170 N`) over finite fields**, for every fan-in-two
