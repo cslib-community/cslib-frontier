@@ -22,8 +22,9 @@ real interval `Set.Icc a b` (`a ≤ b`):
 
 * **Theorem 10.4** (`isStrategyProof_and_surjective_iff_exists_moulinScheme`): a rule on ordinal
   single-peaked preferences is strategy-proof and surjective (onto) if and only if it is the lift
-  of a generalized median voter scheme (`Cslib.GameTheory.FacilityLocation.MoulinScheme`), and
-  every such rule is automatically strongly group strategy-proof.
+  of a generalized median voter scheme (`Cslib.GameTheory.FacilityLocation.MoulinScheme`). We also
+  prove that every such rule is strongly group strategy-proof (a strengthening not stated in
+  [SchummerVohra2007], Theorem 10.4).
 * **Theorem 10.2** (`isStrategyProof_surjective_anonymous_iff_phantomMedian`):
   a rule on ordinal single-peaked preferences is strategy-proof, surjective, and anonymous if and
   only if it chooses the median of the `n` agents' peaks together with `n - 1` fixed phantom
@@ -33,7 +34,7 @@ real interval `Set.Icc a b` (`a ≤ b`):
   in `S` ([SchummerVohra2007], p. 250).
 * **Individual rationality uniqueness** ([SchummerVohra2007], §10.2.2, p. 252): the minimum-peak
   rule is the unique strategy-proof, surjective rule on `Set.Icc a b` that is individually rational
-  with respect to `a` (and symmetrically the maximum-peak rule for `b`).
+  with respect to `a` (together with the symmetric right-endpoint addition for `b`).
 * **Exercise 10.1** ([SchummerVohra2007], p. 264): Lemma 10.1 (`surjective ↔ unanimous ↔
   Pareto-optimal` under strategy-proofness) still holds when restricted to symmetric (Euclidean)
   single-peaked preferences (`Cslib.GameTheory.FacilityLocation` on `Set.Icc a b`).
@@ -177,14 +178,21 @@ section Characterization
 variable {ι : Type*} [Fintype ι] {a b : ℝ}
 
 /-- Lifts a `MoulinScheme ι a b` to a peaks-only rule on ordinal single-peaked preferences. -/
-@[expose] noncomputable def ofMoulinScheme (E : MoulinScheme ι a b) : Rule ι a b :=
+noncomputable def ofMoulinScheme (E : MoulinScheme ι a b) : Rule ι a b :=
   fun P => E.eval (fun i => (P i).peak)
+
+@[simp] theorem ofMoulinScheme_apply (E : MoulinScheme ι a b) (P : Profile ι a b) :
+    ofMoulinScheme E P = E.eval (fun i => (P i).peak) := by rfl
 
 /-- Lifts an `(n - 1)`-phantom-voter median rule to ordinal single-peaked preferences
 ([SchummerVohra2007], Theorem 10.2, Eq. (10.1), p. 247). -/
-@[expose] noncomputable def ofPhantomMedian [Nonempty ι]
+noncomputable def ofPhantomMedian [Nonempty ι]
     (y : Fin (Fintype.card ι - 1) → Set.Icc a b) : Rule ι a b :=
   fun P => phantomMedian y (fun i => (P i).peak)
+
+@[simp] theorem ofPhantomMedian_apply [Nonempty ι]
+    (y : Fin (Fintype.card ι - 1) → Set.Icc a b) (P : Profile ι a b) :
+    ofPhantomMedian y P = phantomMedian y (fun i => (P i).peak) := by rfl
 
 theorem ofMoulinScheme_isPeaksOnly (E : MoulinScheme ι a b) :
     (ofMoulinScheme E).IsPeaksOnly := by
@@ -317,7 +325,8 @@ theorem isStrategyProof_surjective_anonymous_iff_phantomMedian [Nonempty ι]
     exact phantomMedian_isAnonymous y σ (fun i => (P i).peak)
 
 /-- Every strategy-proof, surjective rule on ordinal single-peaked preferences is automatically
-strongly group strategy-proof. -/
+strongly group strategy-proof. This strengthening is proved here and is not stated in
+[SchummerVohra2007], Theorem 10.4. -/
 theorem isGroupStrategyProof_of_isStrategyProof_of_surjective {ι : Type*} [Finite ι] [Nonempty ι]
     {a b : ℝ} (hab : a ≤ b) {f : Rule ι a b}
     (hf_sp : f.IsStrategyProof) (hf_onto : Function.Surjective f) :
@@ -497,9 +506,10 @@ theorem isStrategyProof_surjective_isIR_left_iff [Nonempty ι]
       exact Finset.inf'_le (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
     exact (P i).atLeast_of_between_left (ofMoulinScheme (minPeakScheme hab) P).2.1 hle
 
-/-- Symmetric counterpart: the maximum-peak rule (`ofMoulinScheme (maxPeakScheme hab)`) is the
-unique strategy-proof, surjective rule on `Set.Icc a b` that is individually rational with respect
-to the right endpoint `b`. -/
+/-- Symmetric right-endpoint counterpart to `isStrategyProof_surjective_isIR_left_iff` (a library
+addition not stated in [SchummerVohra2007], §10.2.2): the maximum-peak rule
+(`ofMoulinScheme (maxPeakScheme hab)`) is the unique strategy-proof, surjective rule on
+`Set.Icc a b` that is individually rational with respect to the right endpoint `b`. -/
 theorem isStrategyProof_surjective_isIR_right_iff [Nonempty ι]
     (hab : a ≤ b) (f : Rule ι a b) :
     (f.IsStrategyProof ∧ Function.Surjective f ∧ f.IsIndividuallyRational ⟨b, hab, le_rfl⟩) ↔

@@ -13,18 +13,21 @@ import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 
 /-!
-# Anonymous 3-agent strategyproof rules on 3-leaved metric trees
+# Anonymous 3-agent strategyproof facility location on 3-leaved metric trees
 
-This module solves **Exercise 10.5** of [SchummerVohra2007] (p. 265): a complete
-characterization of all deterministic, strategy-proof, surjective, anonymous `3`-agent
-facility-location rules on a `3`-leaved tree metric graph (`Tripod W`, `W.graph.IsTree`).
+Symmetric path-distance (`FacilityLocation`) specialization after [SchummerVohra2007],
+Exercise 10.5 (p. 265), building on [SchummerVohra2002], Theorem 1: this module does not prove the
+ordinal tree-single-peaked preference characterization posed in Exercise 10.5 (which remains open
+under #7789), and instead characterizes all deterministic, strategy-proof, surjective, anonymous
+`3`-agent facility-location mechanisms under symmetric path-distance utilities on a `3`-leaved tree
+metric graph (`Tripod W`, `W.graph.IsTree`).
 
 A `Tripod W` decomposes `MetricGraph W` into three closed legs `interval center (leaf r)`
 (`r : Fin 3`) meeting pairwise only at `center`, with `leaf r ≠ center`. Every anonymous,
-strategy-proof, surjective `3`-agent rule on `MetricGraph W` is uniquely determined by a
-`ThreeLeafScheme T` assigning to each leg `r` two threshold distances
+strategy-proof, surjective `3`-agent facility-location mechanism on `MetricGraph W` is uniquely
+determined by a `ThreeLeafScheme T` assigning to each leg `r` two threshold distances
 `0 ≤ low r ≤ high r ≤ dist center (leaf r)` subject to the center-exclusivity condition
-`r ≠ s → 0 < low r → high s = 0`. Equivalently, every such rule falls into one of two families
+`r ≠ s → 0 < low r → high s = 0`. Equivalently, every such scheme falls into one of two families
 (`ThreeLeafScheme.dichotomy`):
 
 1. **Two-phantom single-leg rules** (`∃ r, 0 < low r`, forcing `low s = high s = 0` for `s ≠ r`):
@@ -40,7 +43,7 @@ strategy-proof, surjective `3`-agent rule on `MetricGraph W` is uniquely determi
 
 * `Cslib.GameTheory.FacilityLocation.Tripod`: a 3-leaved tree decomposition of `MetricGraph W`.
 * `Cslib.GameTheory.FacilityLocation.ThreeLeafScheme`: the `(low, high)` leg-threshold
-  parameterization of anonymous 3-agent rules on a `Tripod`.
+  parameterization of anonymous 3-agent facility-location rules on a `Tripod`.
 * `Cslib.GameTheory.FacilityLocation.ThreeLeafScheme.toTreeEMVS`: the `TreeEMVS W (Fin 3)` induced
   by a `ThreeLeafScheme`.
 * `Cslib.GameTheory.FacilityLocation.ThreeLeafScheme.eval`: evaluation map of a `ThreeLeafScheme`.
@@ -48,13 +51,16 @@ strategy-proof, surjective `3`-agent rule on `MetricGraph W` is uniquely determi
 ## Main results
 
 * `Cslib.GameTheory.FacilityLocation.ThreeLeafScheme.dichotomy`: every `ThreeLeafScheme` is either
-  a single-leg two-phantom rule or a three-leg-cap rule.
+  a single-leg two-phantom scheme or a three-leg-cap scheme.
 * `Cslib.GameTheory.FacilityLocation.ThreeLeafScheme.eval_isGroupStrategyProof`,
   `ThreeLeafScheme.eval_surjective`, `ThreeLeafScheme.eval_isAnonymous`: every `ThreeLeafScheme`
-  defines a strongly group strategy-proof, surjective, anonymous 3-agent mechanism.
+  defines a strongly group strategy-proof, surjective, anonymous 3-agent facility-location
+  mechanism.
 * `Cslib.GameTheory.FacilityLocation.isStrategyProof_surjective_anonymous_iff_threeLeafScheme`:
-  **Exercise 10.5** ([SchummerVohra2007], p. 265): on a 3-leaved metric tree, deterministic
-  strategy-proof, surjective, anonymous 3-agent rules coincide with `ThreeLeafScheme.eval`.
+  symmetric path-distance (`FacilityLocation`) specialization after [SchummerVohra2007],
+  Exercise 10.5 (p. 265), via [SchummerVohra2002], Theorem 1: on a 3-leaved metric tree,
+  deterministic strategy-proof, surjective, anonymous 3-agent facility-location mechanisms coincide
+  with `ThreeLeafScheme.eval`.
 
 ## References
 
@@ -71,7 +77,7 @@ namespace Cslib.GameTheory.FacilityLocation
 /-- A **3-leaved tree** (tripod) decomposition of a metric graph `MetricGraph W`: a center
 `center` and three leaves `leaf : Fin 3 → MetricGraph W` strictly distinct from `center` such that
 the three closed legs `interval center (leaf r)` cover `MetricGraph W` and meet pairwise only at
-`center` ([SchummerVohra2007], Exercise 10.5, p. 265). -/
+`center` (after [SchummerVohra2007], Exercise 10.5, p. 265). -/
 structure Tripod {V : Type*} (W : WeightedGraph V) [Finite V] where
   /-- The unique degree-3 junction (center) of the 3-leaved tree. -/
   center : MetricGraph W
@@ -85,8 +91,10 @@ structure Tripod {V : Type*} (W : WeightedGraph V) [Finite V] where
   inter_eq : ∀ {r s : Fin 3}, r ≠ s →
     interval center (leaf r) ∩ interval center (leaf s) = {center}
 
-/-- Parameterization of all anonymous, strategy-proof, surjective `3`-agent rules on a 3-leaved
-metric tree `T` ([SchummerVohra2007], Exercise 10.5, p. 265). -/
+/-- Symmetric path-distance parameterization of anonymous, strategy-proof, surjective `3`-agent
+facility-location rules on a 3-leaved metric tree `T` (after [SchummerVohra2007], Exercise 10.5,
+p. 265, and [SchummerVohra2002], Theorem 1; the ordinal tree-single-peaked preference domain of
+Exercise 10.5 remains open under #7789). -/
 structure ThreeLeafScheme {V : Type*} {W : WeightedGraph V} [Finite V] (T : Tripod W) where
   /-- Distance along leg `r` where the outward 1-agent winning threshold ends. -/
   low : Fin 3 → ℝ
@@ -277,7 +285,7 @@ private lemma exists_point_on_leg_dist (hT : W.graph.IsTree) (r : Fin 3) {d : �
 
 end TripodGeometry
 
-/-! ### `ThreeLeafScheme` to `TreeEMVS` and complete Exercise 10.5 characterization -/
+/-! ### `ThreeLeafScheme` to `TreeEMVS` -/
 
 namespace ThreeLeafScheme
 
@@ -291,10 +299,10 @@ private def outwardWin (P : ThreeLeafScheme T) (r : Fin 3) (d : ℝ) (S : Finset
 private def inwardWin (P : ThreeLeafScheme T) (r : Fin 3) (d : ℝ) (S : Finset (Fin 3)) : Prop :=
   (P.high r < d ∧ 1 ≤ S.card) ∨ (P.low r < d ∧ 2 ≤ S.card) ∨ 3 ≤ S.card
 
-/-- **Dichotomy** for `ThreeLeafScheme` ([SchummerVohra2007], Exercise 10.5, p. 265): every
-anonymous 3-agent rule on a 3-leaved tree is either a single-leg two-phantom rule (positive `low`
-on one leg `r`, zero `low` and `high` on both other legs) or a three-leg-cap rule (`low = 0` on
-all three legs). -/
+/-- **Dichotomy** for `ThreeLeafScheme` (after [SchummerVohra2007], Exercise 10.5, p. 265): every
+`ThreeLeafScheme` on a 3-leaved tree has either positive `low` on one leg `r` with zero `low` and
+`high` on both other legs (single-leg two-phantom parameters) or `low = 0` on all three legs
+(three-leg-cap parameters). -/
 theorem dichotomy (P : ThreeLeafScheme T) :
     (∃ r : Fin 3, 0 < P.low r ∧ ∀ s : Fin 3, s ≠ r → P.low s = 0 ∧ P.high s = 0) ∨
       (∀ r : Fin 3, P.low r = 0) := by
@@ -773,7 +781,7 @@ theorem eval_isAnonymous [Nonempty V] (hT : W.graph.IsTree) (P : ThreeLeafScheme
 
 end ThreeLeafScheme
 
-/-! ### Complete Exercise 10.5 characterization -/
+/-! ### Symmetric path-distance characterization on 3-leaved metric trees -/
 
 section Characterization
 
@@ -834,40 +842,16 @@ private lemma win_congr_card_of_isAnonymous [Nonempty V] (hT : W.graph.IsTree)
     (E : TreeEMVS W (Fin 3)) (hanon : IsAnonymous (E.eval hT))
     {y q : MetricGraph W} (hqy : q ≠ y) {S₁ S₂ : Finset (Fin 3)} (hcard : S₁.card = S₂.card) :
     E.win y q S₁ ↔ E.win y q S₂ := by
-  have hperm : ∃ σ : Equiv.Perm (Fin 3), ∀ i, σ i ∈ S₁ ↔ i ∈ S₂ := by
-    have h1 : Fintype.card {i : Fin 3 // i ∈ S₂} = Fintype.card {i : Fin 3 // i ∈ S₁} := by
-      simp only [Fintype.card_coe, hcard]
-    have h2 : Fintype.card {i : Fin 3 // i ∉ S₂} = Fintype.card {i : Fin 3 // i ∉ S₁} := by
-      have hA : Fintype.card {i : Fin 3 // i ∉ S₂} = (S₂ᶜ : Finset (Fin 3)).card := by
-        rw [Fintype.card_subtype]
-        congr 1; ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_compl]
-      have hB : Fintype.card {i : Fin 3 // i ∉ S₁} = (S₁ᶜ : Finset (Fin 3)).card := by
-        rw [Fintype.card_subtype]
-        congr 1; ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_compl]
-      rw [hA, hB, Finset.card_compl, Finset.card_compl, hcard]
-    let e1 := Fintype.equivOfCardEq h1
-    let e2 := Fintype.equivOfCardEq h2
-    let σ : Equiv.Perm (Fin 3) :=
-      (Equiv.sumCompl (· ∈ S₂)).symm.trans ((Equiv.sumCongr e1 e2).trans (Equiv.sumCompl (· ∈ S₁)))
-    refine ⟨σ, fun i => ?_⟩
-    by_cases hi : i ∈ S₂
-    · have hσ : σ i = (e1 ⟨i, hi⟩).1 := by
-        simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi, Equiv.sumCongr_apply,
-          Sum.map_inl, Equiv.sumCompl_apply_inl]
-      rw [hσ]; exact iff_of_true (e1 ⟨i, hi⟩).2 hi
-    · have hσ : σ i = (e2 ⟨i, hi⟩).1 := by
-        simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_neg hi, Equiv.sumCongr_apply,
-          Sum.map_inr, Equiv.sumCompl_apply_inr]
-      rw [hσ]; exact iff_of_false (e2 ⟨i, hi⟩).2 hi
-  obtain ⟨σ, hσ⟩ := hperm
-  rw [← eval_twoVal_mem_branch_iff hT E hqy S₁, ← eval_twoVal_mem_branch_iff hT E hqy S₂]
-  have hcomp : (fun i => if i ∈ S₁ then q else y) ∘ σ = (fun i => if i ∈ S₂ then q else y) := by
-    funext i; simp only [Function.comp_apply, hσ i]
-  rw [← hcomp, hanon σ]
+  rw [← eval_twoVal_mem_branch_iff hT E hqy S₁, ← eval_twoVal_mem_branch_iff hT E hqy S₂,
+    hanon.apply_ite_eq_of_card_eq hcard]
 
-/-- **Exercise 10.5** ([SchummerVohra2007], p. 265): on a 3-leaved tree metric graph `T`
-(`W.graph.IsTree`), a deterministic `3`-agent facility-location mechanism is strategy-proof,
-surjective, and anonymous if and only if it is the evaluation map of a `ThreeLeafScheme T`. -/
+/-- Symmetric path-distance (`FacilityLocation`) specialization after [SchummerVohra2007],
+Exercise 10.5 (p. 265), not the full ordinal tree-single-peaked characterization of that exercise
+(which remains open under #7789): building on [SchummerVohra2002], Theorem 1
+(`isStrategyProof_and_surjective_iff_exists_treeEMVS`), on a 3-leaved tree metric graph `T`
+(`W.graph.IsTree`), a deterministic `3`-agent facility-location mechanism under symmetric
+path-distance utilities is strategy-proof, surjective, and anonymous if and only if it is the
+evaluation map of a `ThreeLeafScheme T`. -/
 theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     (hT : W.graph.IsTree) (T : Tripod W) (f : (Fin 3 → MetricGraph W) → MetricGraph W) :
@@ -944,9 +928,13 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
             (win_congr_card_of_isAnonymous hT E hf_anon (T.leaf_ne_center s) (by decide)).mp hw2
           exact E.exclusive (T.leaf_ne_center r) (T.leaf_ne_center s)
             (branch_center_ne_of_ne hT hrs) ⟨hw1, hw2c⟩ }
-    have hin1_iff : ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.center →
-        (E.win y T.center {0} ↔ high r < dist T.center y) := by
-      intro r y hy hyc
+    have hin_iff : ∀ (S S' : Finset (Fin 3)) (thr : Fin 3 → ℝ),
+        Sᶜ.card = S'.card → (∀ r, 0 ≤ thr r) →
+        (∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.leaf r →
+          (E.win y (T.leaf r) S' ↔ dist T.center y < thr r)) →
+        ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.center →
+          (E.win y T.center S ↔ thr r < dist T.center y) := by
+      intro S S' thr hcard hthr0 hout_iff r y hy hyc
       constructor
       · intro hw
         obtain ⟨p, hp_int, hpy, hpc, hwp⟩ := E.open_interior hyc.symm hw
@@ -962,88 +950,40 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
           have hy_le : dist T.center y ≤ dist T.center (T.leaf r) := by
             rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
           linarith
-        have hnot_out : ¬ E.win p (T.leaf r) ({0}ᶜ : Finset (Fin 3)) := fun h =>
+        have hnot_out : ¬ E.win p (T.leaf r) Sᶜ := fun h =>
           E.exclusive hpc.symm hpl.symm (branch_outward_ne_inward hT hp_leg hpc hpl).symm ⟨hwp, h⟩
-        have hnot_01 : ¬ E.win p (T.leaf r) {0, 1} := fun h =>
-          hnot_out ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm (by decide)).mp h)
-        have hle : high r ≤ dist T.center p := le_of_not_gt fun hlt =>
-          hnot_01 ((hhigh_iff r hp_leg hpl).mpr hlt)
+        have hnot_S' : ¬ E.win p (T.leaf r) S' := fun h =>
+          hnot_out ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard.symm).mp h)
+        have hle : thr r ≤ dist T.center p := le_of_not_gt fun hlt =>
+          hnot_S' ((hout_iff r hp_leg hpl).mpr hlt)
         exact hle.trans_lt hdp_lt
       · intro hlt
         have hdy_le : dist T.center y ≤ dist T.center (T.leaf r) := by
           rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
-        set t := (high r + dist T.center y) / 2
-        have hht : high r < t := by dsimp only [t]; linarith
+        set t := (thr r + dist T.center y) / 2
+        have hthr_t : thr r < t := by dsimp only [t]; linarith
         have hty : t < dist T.center y := by dsimp only [t]; linarith
-        have ht0 : 0 ≤ t := (P.high_nonneg r).trans hht.le
+        have ht0 : 0 ≤ t := (hthr0 r).trans hthr_t.le
         obtain ⟨p, hp_leg, hdp⟩ := exists_point_on_leg_dist hT r ht0 (hty.le.trans hdy_le)
         have hpy : p ≠ y := fun h => by rw [h] at hdp; linarith
         have hpl : p ≠ T.leaf r := fun h => by rw [h] at hdp; linarith
-        have hnot_01 : ¬ E.win p (T.leaf r) {0, 1} := fun hw =>
-          hht.not_ge (hdp ▸ le_of_lt ((hhigh_iff r hp_leg hpl).mp hw))
+        have hnot_S' : ¬ E.win p (T.leaf r) S' := fun hw =>
+          hthr_t.not_ge (hdp ▸ le_of_lt ((hout_iff r hp_leg hpl).mp hw))
         have hbr_py : branch p y = branch p (T.leaf r) :=
           branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, hdp ▸ hty⟩)
-        have hnot_py : ¬ E.win p y ({0}ᶜ : Finset (Fin 3)) := by
+        have hnot_py : ¬ E.win p y Sᶜ := by
           rw [E.branch_eq hpy.symm hpl.symm hbr_py]
           intro hw
-          exact hnot_01 ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm (by decide)).mpr hw)
-        have hw_yp : E.win y p {0} := by
+          exact hnot_S' ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm hcard).mp hw)
+        have hw_yp : E.win y p S := by
           have hd := E.duality hpy hnot_py
           rwa [compl_compl] at hd
         have hbr_yp : branch y p = branch y T.center :=
           branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc p).mpr
             ⟨hpy, fun h => by linarith [h.2, hdp, hty]⟩)
         rwa [← E.branch_eq hpy hyc.symm hbr_yp]
-    have hin2_iff : ∀ r {y : MetricGraph W}, y ∈ interval T.center (T.leaf r) → y ≠ T.center →
-        (E.win y T.center {0, 1} ↔ low r < dist T.center y) := by
-      intro r y hy hyc
-      constructor
-      · intro hw
-        obtain ⟨p, hp_int, hpy, hpc, hwp⟩ := E.open_interior hyc.symm hw
-        have hp_leg : p ∈ interval T.center (T.leaf r) :=
-          interval_subset_of_mem hT (left_mem_interval _ _) hy (by rwa [interval_comm] at hp_int)
-        have hdp_lt : dist T.center p < dist T.center y := by
-          rw [interval_comm] at hp_int
-          rw [mem_interval_iff] at hp_int
-          have hpos : 0 < dist p y := dist_pos.mpr hpy
-          linarith
-        have hpl : p ≠ T.leaf r := by
-          rintro rfl
-          have hy_le : dist T.center y ≤ dist T.center (T.leaf r) := by
-            rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
-          linarith
-        have hnot_out : ¬ E.win p (T.leaf r) ({0, 1}ᶜ : Finset (Fin 3)) := fun h =>
-          E.exclusive hpc.symm hpl.symm (branch_outward_ne_inward hT hp_leg hpc hpl).symm ⟨hwp, h⟩
-        have hnot_0 : ¬ E.win p (T.leaf r) {0} := fun h =>
-          hnot_out ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm (by decide)).mp h)
-        have hle : low r ≤ dist T.center p := le_of_not_gt fun hlt =>
-          hnot_0 ((hlow_iff r hp_leg hpl).mpr hlt)
-        exact hle.trans_lt hdp_lt
-      · intro hlt
-        have hdy_le : dist T.center y ≤ dist T.center (T.leaf r) := by
-          rw [mem_interval_iff] at hy; linarith [dist_nonneg (x := y) (y := T.leaf r)]
-        set t := (low r + dist T.center y) / 2
-        have hlt_t : low r < t := by dsimp only [t]; linarith
-        have hty : t < dist T.center y := by dsimp only [t]; linarith
-        have ht0 : 0 ≤ t := (P.low_nonneg r).trans hlt_t.le
-        obtain ⟨p, hp_leg, hdp⟩ := exists_point_on_leg_dist hT r ht0 (hty.le.trans hdy_le)
-        have hpy : p ≠ y := fun h => by rw [h] at hdp; linarith
-        have hpl : p ≠ T.leaf r := fun h => by rw [h] at hdp; linarith
-        have hnot_0 : ¬ E.win p (T.leaf r) {0} := fun hw =>
-          hlt_t.not_ge (hdp ▸ le_of_lt ((hlow_iff r hp_leg hpl).mp hw))
-        have hbr_py : branch p y = branch p (T.leaf r) :=
-          branch_eq_of_mem hT ((mem_branch_outward_iff hT hp_leg hpl y).mpr ⟨hy, hdp ▸ hty⟩)
-        have hnot_py : ¬ E.win p y ({0, 1}ᶜ : Finset (Fin 3)) := by
-          rw [E.branch_eq hpy.symm hpl.symm hbr_py]
-          intro hw
-          exact hnot_0 ((win_congr_card_of_isAnonymous hT E hf_anon hpl.symm (by decide)).mpr hw)
-        have hw_yp : E.win y p {0, 1} := by
-          have hd := E.duality hpy hnot_py
-          rwa [compl_compl] at hd
-        have hbr_yp : branch y p = branch y T.center :=
-          branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc p).mpr
-            ⟨hpy, fun h => by linarith [h.2, hdp, hty]⟩)
-        rwa [← E.branch_eq hpy hyc.symm hbr_yp]
+    have hin1_iff := hin_iff {0} {0, 1} high (by decide) P.high_nonneg hhigh_iff
+    have hin2_iff := hin_iff {0, 1} {0} low (by decide) P.low_nonneg hlow_iff
     have hwin_eq : ∀ y q : MetricGraph W, q ≠ y → ∀ S : Finset (Fin 3),
         E.win y q S ↔ (P.toTreeEMVS hT).win y q S := by
       intro y q hqy S

@@ -7626,6 +7626,7 @@ public import CslibFrontier.Foundations.Data.Fintype.FiberEquiv
 public import CslibFrontier.Foundations.Data.Fintype.Grid
 public import CslibFrontier.Foundations.Data.Fintype.OrderStatistic
 public import CslibFrontier.Foundations.Data.Fintype.RestrictInjective
+public import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 public import CslibFrontier.Foundations.Data.Hamming
 public import CslibFrontier.Foundations.Data.Hamming.Expansion
 public import CslibFrontier.Foundations.Data.Int.LogBounds

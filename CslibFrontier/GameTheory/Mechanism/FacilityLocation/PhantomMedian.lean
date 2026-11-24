@@ -67,61 +67,56 @@ outcome unchanged ([SchummerVohra2007], §10.2.1, p. 247). -/
 @[expose] def IsAnonymous {ι G : Type*} (f : (ι → G) → G) : Prop :=
   ∀ (σ : Equiv.Perm ι) (x : ι → G), f (x ∘ σ) = f x
 
-section OrderStatisticHelpers
-
-private lemma lt_orderStatistic_iff {α β : Type*} [Fintype α] [Nonempty α] [LinearOrder β]
-    (z : α → β) {k : ℕ} (hk : k < Fintype.card α) (t : β) :
-    t < Fintype.orderStatistic z k ↔
-      (Finset.univ.filter fun u => z u ≤ t).card ≤ k := by
+private lemma exists_perm_image_eq_of_card_eq {α : Type*} [Finite α] {S T : Finset α}
+    (hcard : S.card = T.card) :
+    ∃ σ : Equiv.Perm α, ∀ i, σ i ∈ S ↔ i ∈ T := by
   classical
-  have hos := Fintype.orderStatistic_isOrderStatistic z hk
-  constructor
-  · intro ht
-    have hsub : (Finset.univ.filter fun u => z u ≤ t) ⊆
-        (Finset.univ.filter fun u => z u < Fintype.orderStatistic z k) := by
-      intro u hu
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ u, (Finset.mem_filter.mp hu).2.trans_lt ht⟩
-    exact (Finset.card_le_card hsub).trans hos.2.1
-  · intro hcard
-    by_contra hnot
-    have hle : Fintype.orderStatistic z k ≤ t := le_of_not_gt hnot
-    have hsub : (Finset.univ.filter fun u => z u ≤ Fintype.orderStatistic z k) ⊆
-        (Finset.univ.filter fun u => z u ≤ t) := by
-      intro u hu
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ u, (Finset.mem_filter.mp hu).2.trans hle⟩
-    have hlt := hos.2.2.trans_le (Finset.card_le_card hsub)
-    omega
+  let _ := Fintype.ofFinite α
+  have h1 : Fintype.card {i : α // i ∈ T} = Fintype.card {i : α // i ∈ S} := by
+    simp only [Fintype.card_coe, hcard]
+  have h2 : Fintype.card {i : α // i ∉ T} = Fintype.card {i : α // i ∉ S} := by
+    have hT : Fintype.card {i : α // i ∉ T} = (Tᶜ : Finset α).card := by
+      rw [Fintype.card_subtype]
+      congr 1
+      ext i
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_compl]
+    have hS : Fintype.card {i : α // i ∉ S} = (Sᶜ : Finset α).card := by
+      rw [Fintype.card_subtype]
+      congr 1
+      ext i
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_compl]
+    rw [hT, hS, Finset.card_compl, Finset.card_compl, hcard]
+  let e1 : {i : α // i ∈ T} ≃ {i : α // i ∈ S} := Fintype.equivOfCardEq h1
+  let e2 : {i : α // i ∉ T} ≃ {i : α // i ∉ S} := Fintype.equivOfCardEq h2
+  let σ : Equiv.Perm α :=
+    (Equiv.sumCompl (· ∈ T)).symm.trans ((Equiv.sumCongr e1 e2).trans (Equiv.sumCompl (· ∈ S)))
+  refine ⟨σ, fun i => ?_⟩
+  by_cases hi : i ∈ T
+  · have hσ : σ i = (e1 ⟨i, hi⟩).1 := by
+      simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi, Equiv.sumCongr_apply,
+        Sum.map_inl, Equiv.sumCompl_apply_inl]
+    rw [hσ]
+    exact iff_of_true (e1 ⟨i, hi⟩).2 hi
+  · have hσ : σ i = (e2 ⟨i, hi⟩).1 := by
+      simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_neg hi, Equiv.sumCongr_apply,
+        Sum.map_inr, Equiv.sumCompl_apply_inr]
+    rw [hσ]
+    exact iff_of_false (e2 ⟨i, hi⟩).2 hi
 
-private lemma orderStatistic_comp_equiv {α γ β : Type*} [Fintype α] [Nonempty α]
-    [Fintype γ] [Nonempty γ] [LinearOrder β] (e : γ ≃ α) (z : α → β) (k : ℕ) :
-    Fintype.orderStatistic (z ∘ e) k = Fintype.orderStatistic z k := by
-  classical
-  rw [Fintype.orderStatistic_eq_min, Fintype.orderStatistic_eq_min z, Fintype.card_congr e]
-  set k' := min k (Fintype.card α - 1)
-  have hk' : k' < Fintype.card α :=
-    Nat.lt_of_le_of_lt (min_le_right _ _) (Nat.sub_lt Fintype.card_pos zero_lt_one)
-  have hk'_γ : k' < Fintype.card γ := by rwa [Fintype.card_congr e]
-  refine Fintype.orderStatistic_eq_of_isOrderStatistic hk'_γ ?_
-  have hos := Fintype.orderStatistic_isOrderStatistic z hk'
-  have hcard : ∀ (p : β → Prop) [DecidablePred p],
-      (Finset.univ.filter fun c : γ => p ((z ∘ e) c)).card =
-        (Finset.univ.filter fun a : α => p (z a)).card := by
-    intro p _
-    refine Finset.card_bij (fun c _ => e c)
-      (fun c hc => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hc).2⟩)
-      (fun _ _ _ _ h => e.injective h)
-      (fun a ha => ⟨e.symm a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-        simpa only [Function.comp_apply, Equiv.apply_symm_apply] using
-          (Finset.mem_filter.mp ha).2⟩, e.apply_symm_apply a⟩)
-  refine ⟨?_, ?_, ?_⟩
-  · obtain ⟨a, ha⟩ := hos.1
-    exact ⟨e.symm a, by simp only [Function.comp_apply, Equiv.apply_symm_apply, ha]⟩
-  · rw [hcard (· < Fintype.orderStatistic z k')]
-    exact hos.2.1
-  · rw [hcard (· ≤ Fintype.orderStatistic z k')]
-    exact hos.2.2
-
-end OrderStatisticHelpers
+/-- An anonymous rule assigns the same outcome to any two two-valued profiles whose first-value
+coalitions `S` and `T` have equal cardinality. -/
+theorem IsAnonymous.apply_ite_eq_of_card_eq {ι G : Type*} [Finite ι] {f : (ι → G) → G}
+    (hf : IsAnonymous f) {S T : Finset ι} [DecidablePred (· ∈ S)] [DecidablePred (· ∈ T)]
+    (hcard : S.card = T.card) (u v : G) :
+    f (fun i => if i ∈ S then u else v) = f (fun i => if i ∈ T then u else v) := by
+  obtain ⟨σ, hσ⟩ := exists_perm_image_eq_of_card_eq hcard
+  have hcomp : (fun i => if i ∈ S then u else v) ∘ σ = fun i => if i ∈ T then u else v := by
+    funext i
+    simp only [Function.comp_apply]
+    by_cases hi : i ∈ T
+    · rw [ite_eq_left ((hσ i).mpr hi), ite_eq_left hi]
+    · rw [ite_eq_right (mt (hσ i).mp hi), ite_eq_right hi]
+  rw [← hcomp, hf σ]
 
 /-! ### Phantom-voter median rule and Exercise 10.2 -/
 
@@ -159,7 +154,7 @@ theorem phantomMedian_isAnonymous (y : Fin (Fintype.card ι - 1) → Set.Icc a b
     funext u
     cases u <;> rfl
   rw [hcomp]
-  exact orderStatistic_comp_equiv (Equiv.sumCongr σ (Equiv.refl _)) (Sum.elim x y) _
+  exact Fintype.orderStatistic_comp_equiv (Equiv.sumCongr σ (Equiv.refl _)) (Sum.elim x y) _
 
 theorem phantomMedian_comp_perm (y : Fin (Fintype.card ι - 1) → Set.Icc a b)
     (τ : Equiv.Perm (Fin (Fintype.card ι - 1))) (x : ι → Set.Icc a b) :
@@ -169,7 +164,7 @@ theorem phantomMedian_comp_perm (y : Fin (Fintype.card ι - 1) → Set.Icc a b)
     funext u
     cases u <;> rfl
   rw [hcomp]
-  exact orderStatistic_comp_equiv (Equiv.sumCongr (Equiv.refl _) τ) (Sum.elim x y) _
+  exact Fintype.orderStatistic_comp_equiv (Equiv.sumCongr (Equiv.refl _) τ) (Sum.elim x y) _
 
 omit [Nonempty ι] in
 /-- At the extreme profile where agents in `S` report `b` and agents outside `S` report `a`,
@@ -210,7 +205,7 @@ theorem MoulinScheme.eval_extremeProfile [DecidableEq ι] {a b : ℝ} (E : Mouli
 phantoms `y : Fin (Fintype.card ι - 1) → Set.Icc a b` ([SchummerVohra2007], Exercise 10.2, p. 264):
 `α_∅ = b`, `α_univ = a`, and `α_S = y (n - 1 - |S|)` for `1 ≤ |S| ≤ n - 1` (equivalently
 `β_S = α_{Sᶜ} = y (|S| - 1)` in the monotone convention of Definition 10.3). -/
-@[expose] noncomputable def MoulinScheme.ofPhantoms (hab : a ≤ b)
+noncomputable def MoulinScheme.ofPhantoms (hab : a ≤ b)
     (y : Fin (Fintype.card ι - 1) → Set.Icc a b) (hy : Monotone y) :
     MoulinScheme ι a b where
   alpha S :=
@@ -276,7 +271,7 @@ theorem MoulinScheme.ofPhantoms_eval_eq_phantomMedian (hab : a ≤ b)
     rw [MoulinScheme.lt_eval_iff, phantomMedian_eq_orderStatistic]
     have hlt_sub : (z : ℝ) < Fintype.orderStatistic (Sum.elim x y) (Fintype.card ι - 1) ↔
         z < Fintype.orderStatistic (Sum.elim x y) (Fintype.card ι - 1) := Iff.rfl
-    rw [hlt_sub, lt_orderStatistic_iff _ hk_lt]
+    rw [hlt_sub, Fintype.lt_orderStatistic_iff _ hk_lt]
     set Sx := Finset.univ.filter fun i : ι => (x i : ℝ) ≤ z
     set Sy := Finset.univ.filter fun j : Fin (Fintype.card ι - 1) => (y j : ℝ) ≤ z
     have hsum_card : (Finset.univ.filter fun u => Sum.elim x y u ≤ z).card = Sx.card + Sy.card := by
@@ -406,42 +401,6 @@ theorem phantomMedian_surjective (hab : a ≤ b)
 
 /-! ### Anonymous `MoulinScheme` characterization (Theorem 10.2) -/
 
-private lemma exists_perm_image_eq_of_card_eq {α : Type*} [Finite α] {S T : Finset α}
-    (hcard : S.card = T.card) :
-    ∃ σ : Equiv.Perm α, ∀ i, σ i ∈ S ↔ i ∈ T := by
-  classical
-  let _ := Fintype.ofFinite α
-  have h1 : Fintype.card {i : α // i ∈ T} = Fintype.card {i : α // i ∈ S} := by
-    simp only [Fintype.card_coe, hcard]
-  have h2 : Fintype.card {i : α // i ∉ T} = Fintype.card {i : α // i ∉ S} := by
-    have hT : Fintype.card {i : α // i ∉ T} = (Tᶜ : Finset α).card := by
-      rw [Fintype.card_subtype]
-      congr 1
-      ext i
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_compl]
-    have hS : Fintype.card {i : α // i ∉ S} = (Sᶜ : Finset α).card := by
-      rw [Fintype.card_subtype]
-      congr 1
-      ext i
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_compl]
-    rw [hT, hS, Finset.card_compl, Finset.card_compl, hcard]
-  let e1 : {i : α // i ∈ T} ≃ {i : α // i ∈ S} := Fintype.equivOfCardEq h1
-  let e2 : {i : α // i ∉ T} ≃ {i : α // i ∉ S} := Fintype.equivOfCardEq h2
-  let σ : Equiv.Perm α :=
-    (Equiv.sumCompl (· ∈ T)).symm.trans ((Equiv.sumCongr e1 e2).trans (Equiv.sumCompl (· ∈ S)))
-  refine ⟨σ, fun i => ?_⟩
-  by_cases hi : i ∈ T
-  · have hσ : σ i = (e1 ⟨i, hi⟩).1 := by
-      simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi, Equiv.sumCongr_apply,
-        Sum.map_inl, Equiv.sumCompl_apply_inl]
-    rw [hσ]
-    exact iff_of_true (e1 ⟨i, hi⟩).2 hi
-  · have hσ : σ i = (e2 ⟨i, hi⟩).1 := by
-      simp only [σ, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_neg hi, Equiv.sumCongr_apply,
-        Sum.map_inr, Equiv.sumCompl_apply_inr]
-    rw [hσ]
-    exact iff_of_false (e2 ⟨i, hi⟩).2 hi
-
 /-- Every anonymous `MoulinScheme` on `Set.Icc a b` is realized by a monotone vector of `n - 1`
 phantom voters ([Moulin1980]; [SchummerVohra2007], Theorem 10.2, pp. 247–250). -/
 theorem MoulinScheme.exists_phantomMedian_of_isAnonymous (E : MoulinScheme ι a b)
@@ -454,19 +413,11 @@ theorem MoulinScheme.exists_phantomMedian_of_isAnonymous (E : MoulinScheme ι a 
     intro S T hcard
     have hc_card : Sᶜ.card = Tᶜ.card := by
       rw [Finset.card_compl, Finset.card_compl, hcard]
-    obtain ⟨σ, hσ⟩ := exists_perm_image_eq_of_card_eq hc_card
-    let xS : ι → Set.Icc a b := fun i => if i ∈ Sᶜ then ⟨b, hab, le_rfl⟩ else ⟨a, le_rfl, hab⟩
-    let xT : ι → Set.Icc a b := fun i => if i ∈ Tᶜ then ⟨b, hab, le_rfl⟩ else ⟨a, le_rfl, hab⟩
-    have hcomp : xS ∘ σ = xT := by
-      funext i
-      simp only [Function.comp_apply, xS, xT, hσ i]
-    have heq := hanon σ xS
-    rw [hcomp] at heq
+    have heq := hanon.apply_ite_eq_of_card_eq hc_card ⟨b, hab, le_rfl⟩ ⟨a, le_rfl, hab⟩
     have h1 := E.eval_extremeProfile Sᶜ
     have h2 := E.eval_extremeProfile Tᶜ
     rw [compl_compl] at h1 h2
-    have hval : (E.eval xT : ℝ) = (E.eval xS : ℝ) := congrArg Subtype.val heq
-    exact h1.symm.trans (hval.symm.trans h2)
+    exact h1.symm.trans ((congrArg Subtype.val heq).trans h2)
   let e : ι ≃ Fin (Fintype.card ι) := Fintype.equivFin ι
   let stdSet (k : ℕ) : Finset ι :=
     (Finset.univ.filter fun j : Fin (Fintype.card ι) => j.val < k).map e.symm.toEmbedding

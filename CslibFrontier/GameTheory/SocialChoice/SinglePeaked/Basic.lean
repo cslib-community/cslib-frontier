@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.GameTheory.SocialChoice.Ranking
 public import Mathlib.Topology.Instances.Real.Lemmas
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.Linarith
@@ -525,54 +526,6 @@ theorem IsStrategyProof.atLeast_of_mem_optionSet (hf : f.IsStrategyProof)
   rcases hx with ⟨Q, hQ, rfl⟩
   exact hf P Q i hQ
 
-/-- Finite-support induction modifying one coordinate of a profile at a time from `P` to `Q`. -/
-private lemma profile_update_induction [Finite ι] [DecidableEq ι]
-    {P Q : Profile ι a b} {PropP : Profile ι a b → Prop} (h₀ : PropP P)
-    (hstep : ∀ (R : Profile ι a b), (∀ i, R i = P i ∨ R i = Q i) → PropP R →
-      ∀ i, R i = P i → R i ≠ Q i → PropP (Function.update R i (Q i))) :
-    PropP Q := by
-  classical
-  let _ := Fintype.ofFinite ι
-  suffices ∀ (k : ℕ) (R : Profile ι a b), (∀ i, R i = P i ∨ R i = Q i) →
-      (Finset.univ.filter fun i => R i ≠ Q i).card = k → PropP R → PropP Q from
-    this _ P (fun _ => Or.inl rfl) rfl h₀
-  intro k
-  induction k with
-  | zero =>
-    intro R _ hcard hR
-    have hEq : R = Q := funext fun i => by
-      by_contra hne
-      have hi : i ∈ Finset.univ.filter fun j => R j ≠ Q j :=
-        Finset.mem_filter.mpr ⟨Finset.mem_univ i, hne⟩
-      have hpos : 0 < (Finset.univ.filter fun j => R j ≠ Q j).card :=
-        Finset.card_pos.mpr ⟨i, hi⟩
-      omega
-    rwa [← hEq]
-  | succ k ih =>
-    intro R hPQ hcard hR
-    have hne : (Finset.univ.filter fun i => R i ≠ Q i).Nonempty :=
-      Finset.card_pos.mp (by omega)
-    obtain ⟨i, hi⟩ := hne
-    have hi_ne : R i ≠ Q i := (Finset.mem_filter.mp hi).2
-    have hi_eq : R i = P i := (hPQ i).resolve_right hi_ne
-    have hR' : PropP (Function.update R i (Q i)) := hstep R hPQ hR i hi_eq hi_ne
-    have hPQ' : ∀ j, Function.update R i (Q i) j = P j ∨ Function.update R i (Q i) j = Q j := by
-      intro j
-      by_cases hji : j = i
-      · subst hji; exact Or.inr (Function.update_self _ _ _)
-      · simpa only [Function.update_of_ne hji] using hPQ j
-    have hfilter : (Finset.univ.filter fun j => Function.update R i (Q i) j ≠ Q j) =
-        (Finset.univ.filter fun j => R j ≠ Q j).erase i := by
-      ext j
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase]
-      by_cases hji : j = i
-      · subst hji; simp only [Function.update_self, ne_eq, not_true_eq_false, false_and]
-      · rw [Function.update_of_ne hji]
-        exact (and_iff_right hji).symm
-    refine ih (Function.update R i (Q i)) hPQ' ?_ hR'
-    rw [hfilter, Finset.card_erase_of_mem hi, hcard]
-    omega
-
 /-! ### Pareto-optimality and Lemma 10.1 -/
 
 /-- On single-peaked profiles with finitely many agents, `f` is Pareto-optimal iff at every profile
@@ -639,7 +592,7 @@ theorem IsStrategyProof.isUnanimous_of_surjective [Finite ι]
   classical
   intro Q x hpeaks
   obtain ⟨P, hP⟩ := hsurj x
-  refine profile_update_induction (P := P) (Q := Q) (PropP := fun R => f R = x) hP ?_
+  refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = x) hP ?_
   intro R _ hR i _ _
   have hsp : (Q i).AtLeast (f (Function.update R i (Q i))) (f R) := by
     have h := hf (Function.update R i (Q i)) R i fun j hji => Function.update_of_ne hji (Q i) R
@@ -663,7 +616,7 @@ theorem IsStrategyProof.isParetoOptimal_of_isUnanimous [Finite ι] [Nonempty ι]
     let p₁ : Set.Icc a b := (P i₀).peak
     let Q : Profile ι a b := fun i => Preference.preferLeft p₁
     have hQ : f Q = f P := by
-      refine profile_update_induction (P := P) (Q := Q) (PropP := fun R => f R = f P) rfl ?_
+      refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
       intro R _ hR i hRi _
       set y := f (Function.update R i (Q i))
       have hsp1 : (P i).AtLeast (f P) y := by
@@ -693,7 +646,7 @@ theorem IsStrategyProof.isParetoOptimal_of_isUnanimous [Finite ι] [Nonempty ι]
     let pₙ : Set.Icc a b := (P j₀).peak
     let Q : Profile ι a b := fun i => Preference.preferRight pₙ
     have hQ : f Q = f P := by
-      refine profile_update_induction (P := P) (Q := Q) (PropP := fun R => f R = f P) rfl ?_
+      refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
       intro R _ hR i hRi _
       set y := f (Function.update R i (Q i))
       have hsp1 : (P i).AtLeast (f P) y := by
@@ -869,8 +822,8 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
       let Q_R : Profile ι a b :=
         fun j => if j = i ∨ ((P j).peak : ℝ) ≤ z then Preference.preferRight z else P j
       have hfQL_le : (f Q_L : ℝ) ≤ z := by
-        refine profile_update_induction (P := P_L) (Q := Q_L)
-          (PropP := fun R => (f R : ℝ) ≤ z) hxL_le ?_
+        refine Function.update_induction (x := P_L) (y := Q_L)
+          (P := fun R => (f R : ℝ) ≤ z) hxL_le ?_
         intro R _ hR j hjP hjne
         have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by
           by_contra hnot
@@ -897,8 +850,8 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
         exact hzj.trans hj
       have hfQL_eq : f Q_L = z := Subtype.ext (le_antisymm hfQL_le hfQL_ge)
       have hfQR_eq_z : f Q_R = z := by
-        refine profile_update_induction (P := Q_L) (Q := Q_R)
-          (PropP := fun R => f R = z) hfQL_eq ?_
+        refine Function.update_induction (x := Q_L) (y := Q_R)
+          (P := fun R => f R = z) hfQL_eq ?_
         intro R _ hR j hjQL hjne
         have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by
           by_contra hnot
@@ -914,8 +867,8 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
         exact (Preference.preferRight z).eq_peak_of_atLeast_peak
           (by simpa only [Preference.preferRight_peak] using hsp)
       have hfQR_eq_xR : f Q_R = f P_R := by
-        refine profile_update_induction (P := P_R) (Q := Q_R)
-          (PropP := fun R => f R = f P_R) rfl ?_
+        refine Function.update_induction (x := P_R) (y := Q_R)
+          (P := fun R => f R = f P_R) rfl ?_
         intro R _ hR j hjPR hjne
         have hj_not_i : j ≠ i := by
           rintro rfl
@@ -997,7 +950,7 @@ theorem IsStrategyProof.isPeaksOnly_of_surjective [Finite ι]
   classical
   intro P Q hpeaks
   have hEq : f Q = f P := by
-    refine profile_update_induction (P := P) (Q := Q) (PropP := fun R => f R = f P) rfl ?_
+    refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
     intro R _ hR i hRi _
     have hab : a ≤ b := (P i).peak.2.1.trans (P i).peak.2.2
     have h1 := hf.apply_update_eq_clamp hsurj R i (Q i) hab

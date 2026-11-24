@@ -16,16 +16,17 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
 /-!
-# Single-peaked social choice, phantom-voter medians, and 3-leaf trees: checked clients
+# Single-peaked social choice, phantom-voter medians, and 3-leaf facility location: checked clients
 
 Non-vacuous checked instances and boundary/separation witnesses for:
 
 1. **Ordinal single-peaked preferences** (`SinglePeaked/Basic.lean`): distinct asymmetric vs.
    symmetric preferences at the same peak `1/2`, uniqueness of extreme preferences at `0` and `1`,
    and equivalence with the convex-combination definition ([SchummerVohra2007], §10.2, p. 245).
-2. **Lemma 10.1 and necessity of strategy-proofness**: a 2-agent unanimous onto rule that fails
-   Pareto-optimality and strategy-proofness, alongside a constant rule that is strongly group
-   strategy-proof yet not surjective, and a positive check on the 3-agent median.
+2. **Lemma 10.1, Exercise 10.1, and necessity of strategy-proofness**: a 2-agent unanimous onto
+   rule that fails Pareto-optimality and strategy-proofness, a constant rule that is strongly group
+   strategy-proof yet not surjective (on both ordinal and symmetric domains, exercising
+   `symmetric_surjective_iff_paretoOptimal`), and a positive check on the 3-agent median.
 3. **Exercise 10.3 & Ching's peaks-only theorem**: an explicit single-agent option set
    `[1/4, 3/4]` strictly inside `[0, 1]`, and peaks-only invariance across asymmetric reports.
 4. **Theorems 10.2 & 10.4, Definition 10.3 duality, and Exercise 10.2**: explicit evaluations of
@@ -34,9 +35,11 @@ Non-vacuous checked instances and boundary/separation witnesses for:
    phantom medians).
 5. **Individual rationality uniqueness** (§10.2.2, p. 252): `minPeakScheme` is individually
    rational with respect to `0`, whereas `phantomMedian ![1/2, 1/2]` fails IR at `0`.
-6. **Exercise 10.5 (`ThreeLeafTree`)**: a concrete `Tripod` on the unit 3-star `star3`, with both
-   a Family I single-leg two-phantom rule and a Family II three-leg-cap rule (`high = ![1/2, 1/2,
-   1/2]`) whose three caps are all strictly positive.
+6. **Symmetric path-distance 3-leaf facility location (`ThreeLeafTree`, after Exercise 10.5)**:
+   a concrete `Tripod` on the unit 3-star `star3`, checking both branches of
+   `ThreeLeafScheme.dichotomy` (Family I single-leg two-phantom rule and Family II three-leg-cap
+   rule `high = ![1/2, 1/2, 1/2]`) and both directions of
+   `isStrategyProof_surjective_anonymous_iff_threeLeafScheme`.
 -/
 
 set_option linter.privateModule false
@@ -88,6 +91,33 @@ example :
     Preference.preferRight pt1 = Preference.rightExtreme (show (0 : ℝ) ≤ 1 by norm_num) :=
   ⟨Preference.eq_leftExtreme_of_peak_eq (by simp [pt0]),
     Preference.eq_rightExtreme_of_peak_eq (by simp [pt1])⟩
+
+/-- Positive and negative checks on `Preference.isSinglePeaked_iff_convex` ([SchummerVohra2007],
+§10.2, p. 245): `preferLeft (1/2)` satisfies the convex-combination condition with peak `1/2`,
+and fails it with candidate peak `0`. -/
+example :
+    (∀ (x : Set.Icc (0 : ℝ) 1), x ≠ pt12 → ∀ (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t < 1),
+      (Preference.preferLeft pt12).ranking.Prefers
+        ⟨t * x + (1 - t) * pt12,
+          ⟨by nlinarith [x.2.1, pt12.2.1], by nlinarith [x.2.2, pt12.2.2]⟩⟩ x) ∧
+    ¬ (∀ (x : Set.Icc (0 : ℝ) 1), x ≠ pt0 → ∀ (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t < 1),
+      (Preference.preferLeft pt12).ranking.Prefers
+        ⟨t * x + (1 - t) * pt0,
+          ⟨by nlinarith [x.2.1, pt0.2.1], by nlinarith [x.2.2, pt0.2.2]⟩⟩ x) := by
+  have hpos := (Preference.isSinglePeaked_iff_convex (Preference.preferLeft pt12).ranking
+    (Preference.preferLeft pt12).peak).mp
+      ⟨@(Preference.preferLeft pt12).prefers_of_between_right,
+        @(Preference.preferLeft pt12).prefers_of_between_left⟩
+  rw [Preference.preferLeft_peak] at hpos
+  refine ⟨hpos, fun hconv => ?_⟩
+  obtain ⟨hR, _⟩ :=
+    (Preference.isSinglePeaked_iff_convex (Preference.preferLeft pt12).ranking pt0).mpr hconv
+  have hbad : (Preference.preferLeft pt12).ranking.Prefers pt0 pt12 :=
+    hR (le_rfl : (pt0 : ℝ) ≤ pt0) (show (pt0 : ℝ) < pt12 by norm_num [pt0, pt12])
+  have hgood : (Preference.preferLeft pt12).ranking.Prefers pt12 pt0 :=
+    (Preference.preferLeft pt12).prefers_of_between_left (by norm_num [pt0, pt12])
+      (by rw [Preference.preferLeft_peak])
+  exact (Preference.preferLeft pt12).ranking.prefers_asymm hbad hgood
 
 /-! ### 2. Lemma 10.1: positive check and necessity of strategy-proofness -/
 
@@ -160,6 +190,33 @@ private theorem phantoms3_mono : Monotone phantoms3 := by
   · exact absurd hij (by decide)
   · exact le_rfl
 
+/-- Exercise 10.1 (`symmetric_surjective_iff_paretoOptimal` and
+`symmetric_surjective_iff_unanimous`): on symmetric Euclidean preferences over `[0, 1]`, the
+surjective strategy-proof `phantomMedian ![1/4, 3/4]` is Pareto-optimal and unanimous, whereas the
+constant strategy-proof rule at `1/2` is neither surjective nor Pareto-optimal. -/
+example :
+    (∀ (x : Fin 3 → Set.Icc (0 : ℝ) 1) (y : Set.Icc (0 : ℝ) 1),
+      ¬ ∀ i, Dist.dist (x i) y < Dist.dist (x i) (phantomMedian phantoms3 x)) ∧
+    (∀ y : Set.Icc (0 : ℝ) 1, phantomMedian (ι := Fin 3) phantoms3 (fun _ => y) = y) ∧
+    ¬ (∀ (x : Fin 2 → Set.Icc (0 : ℝ) 1) (y : Set.Icc (0 : ℝ) 1),
+      ¬ ∀ i, Dist.dist (x i) y < Dist.dist (x i) ((fun _ => pt12) x)) := by
+  have hSP_pm : (Mechanism.deterministic (phantomMedian (ι := Fin 3) phantoms3)).IsStrategyProof :=
+    (phantomMedian_isGroupStrategyProof (by norm_num) phantoms3).isStrategyProof
+  have hSurj_pm : Function.Surjective (phantomMedian (ι := Fin 3) phantoms3) :=
+    phantomMedian_surjective (by norm_num) phantoms3
+  have hSP_const :
+      (Mechanism.deterministic (fun _ : Fin 2 → Set.Icc (0 : ℝ) 1 => pt12)).IsStrategyProof :=
+    (Mechanism.isStrategyProof_deterministic_iff _).mpr fun _ _ _ => le_rfl
+  have hNotSurj_const : ¬ Function.Surjective (fun _ : Fin 2 → Set.Icc (0 : ℝ) 1 => pt12) := by
+    intro hs
+    obtain ⟨x, hx⟩ := hs pt0
+    have hval : (1 / 2 : ℝ) = 0 := congrArg Subtype.val hx
+    norm_num at hval
+  exact ⟨(symmetric_surjective_iff_paretoOptimal (by norm_num) hSP_pm).mp hSurj_pm,
+    (symmetric_surjective_iff_unanimous (by norm_num) hSP_pm).mp hSurj_pm,
+    fun hPO => hNotSurj_const
+      ((symmetric_surjective_iff_paretoOptimal (by norm_num) hSP_const).mpr hPO)⟩
+
 private noncomputable def scheme3 : MoulinScheme (Fin 3) 0 1 :=
   MoulinScheme.ofPhantoms (by norm_num) phantoms3 phantoms3_mono
 
@@ -172,14 +229,18 @@ example :
     (∀ x, (scheme3.eval x : ℝ) = maxMinEval scheme3 x) ∧
     (∀ x, scheme3.eval x = phantomMedian phantoms3 x) := by
   intro f
-  have hf_eq : f = ofMoulinScheme scheme3 := funext fun P =>
-    (MoulinScheme.ofPhantoms_eval_eq_phantomMedian (by norm_num) phantoms3 phantoms3_mono
+  have hf_eq : f = ofMoulinScheme scheme3 := funext fun P => by
+    dsimp only [f]
+    rw [ofPhantomMedian_apply, ofMoulinScheme_apply]
+    exact (MoulinScheme.ofPhantoms_eval_eq_phantomMedian (by norm_num) phantoms3 phantoms3_mono
       (fun i => (P i).peak)).symm
   have hGSP : f.IsGroupStrategyProof := hf_eq ▸ ofMoulinScheme_isGroupStrategyProof scheme3
   have hSP : f.IsStrategyProof := hGSP.isStrategyProof
   have hSurj : Function.Surjective f := hf_eq ▸ ofMoulinScheme_surjective scheme3
-  have hAnon : f.IsAnonymous := fun σ P =>
-    phantomMedian_isAnonymous phantoms3 σ (fun i => (P i).peak)
+  have hAnon : f.IsAnonymous := fun σ P => by
+    dsimp only [f]
+    rw [ofPhantomMedian_apply, ofPhantomMedian_apply]
+    exact phantomMedian_isAnonymous phantoms3 σ (fun i => (P i).peak)
   have hPO : f.IsParetoOptimal := (hSP.surjective_iff_isParetoOptimal).mp hSurj
   have hPeaks : f.IsPeaksOnly := hSP.isPeaksOnly_of_surjective hSurj
   exact ⟨hGSP, hSP, hSurj, hAnon, hPO, hPeaks, eval_eq_maxMinEval scheme3,
@@ -250,8 +311,9 @@ example :
   let P : Profile (Fin 3) 0 1 :=
     ![Preference.symmetric pt12, Preference.leftExtreme (by norm_num),
       Preference.rightExtreme (by norm_num)]
-  have hf_eq : ofPhantomMedian (ι := Fin 3) phantoms3 = ofMoulinScheme scheme3 := funext fun Q =>
-    (hEq (fun i => (Q i).peak)).symm
+  have hf_eq : ofPhantomMedian (ι := Fin 3) phantoms3 = ofMoulinScheme scheme3 := funext fun Q => by
+    rw [ofPhantomMedian_apply, ofMoulinScheme_apply]
+    exact (hEq (fun i => (Q i).peak)).symm
   have hSP : (ofPhantomMedian (ι := Fin 3) phantoms3).IsStrategyProof :=
     hf_eq ▸ ofMoulinScheme_isStrategyProof scheme3
   have hSurj : Function.Surjective (ofPhantomMedian (ι := Fin 3) phantoms3) :=
@@ -259,14 +321,14 @@ example :
   rw [hSP.optionSet_eq_Icc hSurj P 0 (by norm_num)]
   have hL : ofPhantomMedian (ι := Fin 3) phantoms3
       (Function.update P 0 (Preference.leftExtreme (by norm_num))) = pt14 := by
-    rw [hf_eq, ofMoulinScheme]
+    rw [hf_eq, ofMoulinScheme_apply]
     have hpk : (fun i => (Function.update P 0 (Preference.leftExtreme (by norm_num)) i).peak) =
         ![pt0, pt0, pt1] := by
       ext i; fin_cases i <;> simp [P, pt0, pt1]
     rw [hpk]; exact h1
   have hU : ofPhantomMedian (ι := Fin 3) phantoms3
       (Function.update P 0 (Preference.rightExtreme (by norm_num))) = pt34 := by
-    rw [hf_eq, ofMoulinScheme]
+    rw [hf_eq, ofMoulinScheme_apply]
     have hpk : (fun i => (Function.update P 0 (Preference.rightExtreme (by norm_num)) i).peak) =
         ![pt1, pt0, pt1] := by
       ext i; fin_cases i <;> simp [P, pt0, pt1]
@@ -335,7 +397,7 @@ example :
   have hLHS : ((ofPhantomMedian (ι := Fin 3) phantoms3 P : Set.Icc (0 : ℝ) 1) : ℝ) = 1 / 4 := by
     have hpk : (fun i => (P i).peak) = ![pt0, pt0, pt1] := by
       ext i; fin_cases i <;> simp [P, pt0, pt1]
-    rw [ofPhantomMedian, hpk,
+    rw [ofPhantomMedian_apply, hpk,
       ← MoulinScheme.ofPhantoms_eval_eq_phantomMedian (by norm_num) phantoms3 phantoms3_mono]
     change (scheme3.eval ![pt0, pt0, pt1] : ℝ) = 1 / 4
     have hS : (Finset.univ.filter fun i : Fin 3 =>
@@ -355,14 +417,14 @@ example :
       rw [hS', hα2]; norm_num [pt14]
   have hRHS : ((minRule P : Set.Icc (0 : ℝ) 1) : ℝ) = 0 := by
     dsimp only [minRule]
-    rw [ofMoulinScheme, minPeakScheme_eval]
+    rw [ofMoulinScheme_apply, minPeakScheme_eval]
     refine le_antisymm ?_ ?_
     · exact (Finset.inf'_le (fun i : Fin 3 => ((P i).peak : ℝ)) (Finset.mem_univ 0)).trans
         (by simp [P])
     · exact (Finset.le_inf'_iff _ _).mpr fun i _ => (P i).peak.2.1
   linarith
 
-/-! ### 5. Exercise 10.5: 3-leaved metric tree (`star3`) -/
+/-! ### 5. Symmetric path-distance 3-leaf facility location (`star3`, after Exercise 10.5) -/
 
 section ThreeLeafTreeClients
 
@@ -497,6 +559,43 @@ example :
     familyIIScheme.eval_surjective star3_isTree,
     familyIIScheme.eval_isAnonymous star3_isTree,
     fun r => by fin_cases r <;> norm_num [familyIIScheme]⟩
+
+/-- Both branches of `ThreeLeafScheme.dichotomy` and both directions of
+`isStrategyProof_surjective_anonymous_iff_threeLeafScheme` on `star3`: `familyIScheme` lies in the
+single-leg branch, `familyIIScheme` lies in the `low = 0` branch and satisfies the symmetric
+3-leaf characterization, while agent-`0` dictatorship is strategy-proof and surjective yet not
+equal to `P.eval star3_isTree` for any `ThreeLeafScheme`. -/
+example :
+    (∃ r : Fin 3, 0 < familyIScheme.low r ∧
+      ∀ s : Fin 3, s ≠ r → familyIScheme.low s = 0 ∧ familyIScheme.high s = 0) ∧
+    (∀ r : Fin 3, familyIIScheme.low r = 0) ∧
+    ((Mechanism.deterministic (familyIIScheme.eval star3_isTree)).IsStrategyProof ∧
+      Function.Surjective (familyIIScheme.eval star3_isTree) ∧
+      FacilityLocation.IsAnonymous (familyIIScheme.eval star3_isTree)) ∧
+    ¬ ∃ P : ThreeLeafScheme star3Tripod,
+      (fun x : Fin 3 → MetricGraph star3 => x 0) = P.eval star3_isTree := by
+  have h1 : ∃ r : Fin 3, 0 < familyIScheme.low r ∧
+      ∀ s : Fin 3, s ≠ r → familyIScheme.low s = 0 ∧ familyIScheme.high s = 0 := by
+    rcases familyIScheme.dichotomy with h | h
+    · exact h
+    · exfalso
+      have h0 := h 0
+      norm_num [familyIScheme] at h0
+  have h2 : ∀ r : Fin 3, familyIIScheme.low r = 0 := by
+    rcases familyIIScheme.dichotomy with ⟨r, hr, _⟩ | h
+    · exfalso
+      fin_cases r <;> norm_num [familyIIScheme] at hr
+    · exact h
+  have hII :=
+    (isStrategyProof_surjective_anonymous_iff_threeLeafScheme star3_isTree star3Tripod
+      (familyIIScheme.eval star3_isTree)).mpr ⟨familyIIScheme, rfl⟩
+  refine ⟨h1, h2, hII, fun hex => ?_⟩
+  have hanon :=
+    ((isStrategyProof_surjective_anonymous_iff_threeLeafScheme star3_isTree star3Tripod
+      (fun x : Fin 3 → MetricGraph star3 => x 0)).mpr hex).2.2
+  have hswap : (vertex 2 : MetricGraph star3) = vertex 1 :=
+    hanon (Equiv.swap 0 1) ![vertex 1, vertex 2, vertex 1]
+  exact absurd (vertex_injective hswap) (by decide)
 
 end ThreeLeafTreeClients
 

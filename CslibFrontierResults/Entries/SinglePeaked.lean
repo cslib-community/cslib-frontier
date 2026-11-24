@@ -6,11 +6,10 @@ Authors: Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.GameTheory.Mechanism.FacilityLocation.ThreeLeafTree
 import CslibFrontier.GameTheory.SocialChoice.SinglePeaked.Ching
 
 /-!
-# Collected results: single-peaked social choice, phantom medians, and 3-leaf trees
+# Collected results: single-peaked social choice and phantom medians
 -/
 
 open Cslib.GameTheory.SocialChoice.SinglePeaked in
@@ -69,9 +68,10 @@ register_result "moulin-ching-gmvs-characterization" where
   ]
   scope := "Finite nonempty electorate ι on Set.Icc a b (a ≤ b) with full ordinal single-peaked \
     weak orders. Reuses Cslib.GameTheory.FacilityLocation.MoulinScheme and proves pointwise \
-    duality with Definition 10.3's max_S min{β_S, p_i : i ∈ S} formula (β_S = α_{Sᶜ}), plus \
-    automatic strong group strategy-proofness amplification. Moulin (1980) and Ching (1997) are \
-    cited bibliographically via Schummer–Vohra (2007)."
+    duality with Definition 10.3's max_S min{β_S, p_i : i ∈ S} formula (β_S = α_{Sᶜ}). Strong \
+    group strategy-proofness (isGroupStrategyProof_of_isStrategyProof_of_surjective) is proved \
+    here and is not part of Schummer–Vohra (2007) Theorem 10.4. Moulin (1980) and Ching (1997) \
+    are cited bibliographically via Schummer–Vohra (2007)."
 
 open Cslib.GameTheory.SocialChoice.SinglePeaked in
 register_result "moulin-ching-phantom-median-ordinal" where
@@ -105,8 +105,10 @@ register_result "single-peaked-public-good-ir-uniqueness" where
   ]
   scope := "Finite nonempty electorate ι on Set.Icc a b (a ≤ b). Establishes that the minimum-peak \
     rule is the unique strategy-proof, surjective rule individually rational with respect to the \
-    left endpoint a (and symmetrically the maximum-peak rule for b). Stated directly on the \
-    single-peaked interval model rather than the production-function utility wrapper of §10.2.2."
+    left endpoint a; the right-endpoint dual isStrategyProof_surjective_isIR_right_iff for b is a \
+    symmetric library addition not stated in Schummer–Vohra (2007) §10.2.2. Stated directly on \
+    the single-peaked interval model rather than the production-function utility wrapper of \
+    §10.2.2."
 
 open Cslib.GameTheory.FacilityLocation in
 register_result "facility-location-phantom-median" where
@@ -125,20 +127,3 @@ register_result "facility-location-phantom-median" where
     single-peaked preferences. Converts monotone (n - 1)-phantom vectors explicitly into \
     MoulinScheme parameters α_S = y_{n - 1 - |S|} (equivalently β_S = y_{|S| - 1}) and proves the \
     complete characterization of deterministic strategy-proof, surjective, anonymous rules."
-
-open Cslib.GameTheory.FacilityLocation in
-register_result "facility-location-three-leaf-anonymous" where
-  title := "Classification of anonymous 3-agent strategy-proof onto rules on 3-leaved metric trees"
-  topic := "game theory"
-  sources := [
-    { paper := SchummerVohra2007, theorem := "Exercise 10.5",
-      locator := "Chapter 10, Exercise 10.5, p. 265" }
-  ]
-  theorems := [
-    ThreeLeafScheme.dichotomy,
-    isStrategyProof_surjective_anonymous_iff_threeLeafScheme
-  ]
-  scope := "Any finite tree metric graph MetricGraph W (W.graph.IsTree) equipped with a Tripod \
-    3-leaf decomposition, for 3 agents (Fin 3) with symmetric path-distance preferences. Proves \
-    that deterministic strategy-proof, surjective, anonymous rules coincide with ThreeLeafScheme \
-    (either a single-leg two-phantom rule or a three-leg-cap rule)."
