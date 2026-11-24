@@ -783,11 +783,6 @@ first `q - 1` answers. -/
     ProbOracleComp (fun _ : P => Γ) Bool :=
   nonadaptivePlan (nonadaptivizePlan q prog hq)
 
-private theorem pmf_map_pure {α β : Type*} (f : α → β) (a : α) :
-    (PMF.pure a).map f = PMF.pure (f a) := by
-  rw [PMF.map, PMF.pure_bind]
-  rfl
-
 /-- **Exact output law of the adaptive-to-non-adaptive reduction**: `nonadaptivize` scales the
 deviation of every output probability from `1 / 2` by `|Γ| ^ -(q - 1)`. In particular, `q ≤ 1`
 incurs no loss. -/
@@ -803,18 +798,18 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
     cases q with
     | zero =>
       simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, stripQueries,
-        ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, pmf_map_pure, NonadaptivePlan.eval,
+        ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map, NonadaptivePlan.eval,
         hpure, Nat.zero_sub, pow_zero, div_one]
       ring
     | succ q =>
       cases q with
       | zero =>
         simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_pure,
-          pmf_map_pure, NonadaptivePlan.eval, hpure, Nat.sub_self, pow_zero, div_one]
+          PMF.pure_map, NonadaptivePlan.eval, hpure, Nat.sub_self, pow_zero, div_one]
         ring
       | succ q =>
         simp only [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
-          ProbComp.eval_pure, PMF.map_bind, pmf_map_pure, NonadaptivePlan.eval, PMF.bind_pure,
+          ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
           hpure, Nat.add_sub_cancel]
         rw [toReal_eval_attenuate]
         by_cases hbb : b₀ = b
@@ -825,7 +820,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
     | zero =>
       rw [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
         PMF.map_bind]
-      simp only [ProbComp.eval_pure, pmf_map_pure, NonadaptivePlan.eval, PMF.bind_pure,
+      simp only [ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
         eval_stripQueries _ hq y, Nat.zero_sub, pow_zero, div_one]
       ring
     | succ q =>
@@ -853,7 +848,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
               decodeLaw (cont (y j)) y := by
             rw [nonadaptivize, decodeLaw_nonadaptivePlan, nonadaptivizePlan, ProbComp.eval_bind,
               ProbComp.eval_sampleEach, PMF.map_bind]
-            simp only [ProbComp.eval_pure, pmf_map_pure, NonadaptivePlan.eval]
+            simp only [ProbComp.eval_pure, PMF.pure_map, NonadaptivePlan.eval]
             change (Probability.PMF.pi _).map (fun f => f (y j)) = _
             rw [Probability.PMF.pi_map_eval]
             exact eval_stripQueries (cont (y j)) _ y
@@ -917,7 +912,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
                     decodeLaw (nonadaptivize (q + 1) (cont (y j)) hcont_yj) y := by
                 rw [ProbComp.eval_bind, PMF.map_bind, nonadaptivize, decodeLaw_nonadaptivePlan]
                 congr 1 with rest
-                rw [ProbComp.eval_pure, pmf_map_pure]
+                rw [ProbComp.eval_pure, PMF.pure_map]
                 congr 1
                 simp only [NonadaptivePlan.eval, Fin.cons_zero, Option.map_some, ↓reduceIte]
                 rfl
@@ -934,7 +929,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
                     (ProbComp.eval (pure (NonadaptivePlan.mk (Fin.cons (some j) rest.queries)
                       fun vals => if vals 0 = some guess then rest.decide (Fin.tail vals)
                         else u))).map (fun plan => plan.eval y) = PMF.pure u := by
-                  rw [ProbComp.eval_pure, pmf_map_pure]
+                  rw [ProbComp.eval_pure, PMF.pure_map]
                   congr 1
                   simp only [NonadaptivePlan.eval, Fin.cons_zero, Option.map_some, hne, ↓reduceIte]
                 simp only [hconst, PMF.bind_const]

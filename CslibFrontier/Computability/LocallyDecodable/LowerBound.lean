@@ -11,12 +11,14 @@ public import CslibFrontier.Computability.LocallyDecodable.Matching
 public import Mathlib.Analysis.SpecialFunctions.BinaryEntropy
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Foundations.Analysis.BernoulliInequality
 import CslibFrontier.Probability.Divergence
 import CslibFrontier.Probability.Entropy.Fano
 import CslibFrontier.Probability.Entropy.Pi
 import CslibFrontier.Probability.PMF.Coin
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Shearer
 import CslibFrontier.Probability.StatisticalDistance
 import Mathlib.Analysis.Complex.ExponentialBounds
@@ -162,46 +164,6 @@ private theorem conditionalEntropy_pi_le_sum {Ω κ : Type*} {α : κ → Type*}
         · have hz : (J.map Prod.fst) y = 0 := (_root_.PMF.apply_eq_zero_iff _ _).mpr hy
           simp [hz]
 
-/-- Restricting a uniform bit string on `ι` to a subset `T ⊆ ι` is uniform on `T → Bool`. -/
-private theorem uniformOfFintype_map_restrict [Fintype ι] [DecidableEq ι] (T : Finset ι) :
-    (PMF.uniformOfFintype (ι → Bool)).map T.restrict = PMF.uniformOfFintype (T → Bool) := by
-  classical
-  ext w
-  rw [_root_.PMF.map_apply, PMF.uniformOfFintype_apply]
-  have hfib : (Finset.univ.filter fun x : ι → Bool => w = T.restrict x).card =
-      2 ^ (Fintype.card ι - T.card) := by
-    let e : {x : ι → Bool // w = T.restrict x} ≃ ({i : ι // i ∉ T} → Bool) :=
-      { toFun := fun x i => x.1 i.1
-        invFun := fun f =>
-          ⟨fun i => if hi : i ∈ T then w ⟨i, hi⟩ else f ⟨i, hi⟩, by
-            funext ⟨i, hi⟩
-            simp [Finset.restrict, hi]⟩
-        left_inv := fun ⟨x, hx⟩ => by
-          ext i
-          by_cases hi : i ∈ T
-          · simp [hi, hx, Finset.restrict]
-          · simp [hi]
-        right_inv := fun f => by
-          funext ⟨i, hi⟩
-          simp [hi] }
-    have hcard := Fintype.card_congr e
-    rw [Fintype.card_subtype] at hcard
-    have hcompl : Fintype.card {i : ι // i ∉ T} = Fintype.card ι - T.card := by
-      rw [Fintype.card_subtype_compl, Fintype.card_coe]
-    simpa [hcompl] using hcard
-  rw [tsum_fintype]
-  simp only [PMF.uniformOfFintype_apply, Finset.sum_ite, Finset.sum_const_zero, add_zero,
-    Finset.sum_const, nsmul_eq_mul]
-  rw [show (Finset.univ.filter fun b : ι → Bool => w = T.restrict b).card =
-      2 ^ (Fintype.card ι - T.card) by convert hfib]
-  have hle : T.card ≤ Fintype.card ι := Finset.card_le_univ T
-  have hpow : (2 : ℝ≥0∞) ^ (Fintype.card ι - T.card) * (2 : ℝ≥0∞) ^ T.card =
-      (2 : ℝ≥0∞) ^ Fintype.card ι := by
-    rw [← pow_add, Nat.sub_add_cancel hle]
-  simp only [Fintype.card_fun, Fintype.card_bool, Fintype.card_coe, Nat.cast_pow, Nat.cast_ofNat]
-  rw [← hpow, ENNReal.mul_inv (Or.inl (by positivity)) (Or.inl (by simp)), ← mul_assoc,
-    ENNReal.mul_inv_cancel (by positivity) (by simp), one_mul]
-
 /-- **Information-theoretic bit-recovery bound** [KatzTrevisan2000], [Yekhanin2012]: if
 deterministic predictors `g i : R → Bool` recover each bit `i ∈ T` of a uniformly random message
 `x : ι → Bool` from `C x : R` with probability at least `1 / 2 + η` (`0 ≤ η`), then
@@ -227,7 +189,8 @@ theorem card_mul_one_sub_binEntropy_le_logb_card [Fintype ι] [DecidableEq ι] [
   let U := PMF.uniformOfFintype (ι → Bool)
   -- `H(X_T) = |T|`.
   have hHXT : PMF.entropy (U.map T.restrict) = T.card := by
-    rw [uniformOfFintype_map_restrict, PMF.entropy_uniform]
+    rw [Probability.PMF.uniformOfFintype_pi_map_restrict (π := fun _ => Bool) T,
+      PMF.entropy_uniform]
     simp [Real.logb_pow]
   -- `H(X_T) - H(X_T | C X) ≤ H(C X) ≤ log₂ |R|`.
   have hMI : PMF.entropy (U.map T.restrict) -
@@ -287,27 +250,12 @@ end InfoBound
 
 section MatchingRestriction
 
-/-- Elementary bound `(1 - x) ^ m * (1 + m * x) ≤ 1` for `x ≤ 1` and `m : ℕ`. -/
-private theorem one_sub_pow_mul_one_add_le_one {x : ℝ} (hx1 : x ≤ 1) (m : ℕ) :
-    (1 - x) ^ m * (1 + m * x) ≤ 1 := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    have h1 : 0 ≤ (1 - x) ^ m := pow_nonneg (by linarith) m
-    have hstep : (1 - x) * (1 + (m + 1 : ℕ) * x) ≤ 1 + m * x := by
-      push_cast
-      nlinarith [sq_nonneg x]
-    calc (1 - x) ^ (m + 1) * (1 + (m + 1 : ℕ) * x)
-        = (1 - x) ^ m * ((1 - x) * (1 + (m + 1 : ℕ) * x)) := by ring
-      _ ≤ (1 - x) ^ m * (1 + m * x) := mul_le_mul_of_nonneg_left hstep h1
-      _ ≤ 1 := ih
-
 /-- For `x ∈ [0, 1]` and `m : ℕ`, `m * x / (1 + m * x) ≤ 1 - (1 - x) ^ m`. -/
 private theorem mul_div_one_add_le_one_sub_pow {x : ℝ} (hx0 : 0 ≤ x) (hx1 : x ≤ 1) (m : ℕ) :
     (m : ℝ) * x / (1 + m * x) ≤ 1 - (1 - x) ^ m := by
   have hpos : 0 < 1 + (m : ℝ) * x := by positivity
   rw [div_le_iff₀ hpos]
-  have h := one_sub_pow_mul_one_add_le_one hx1 m
+  have h := Real.one_sub_pow_mul_one_add_mul_le_one hx1 m
   linarith
 
 /-- Under independent `Bernoulli(p)` coordinate sampling on `P`, the probability that NO edge of a

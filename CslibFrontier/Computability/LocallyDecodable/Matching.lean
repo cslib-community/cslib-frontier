@@ -44,8 +44,6 @@ decoders (with the `|Γ| ^ -(q - 1)` reduction factor).
 
 ## Main results
 
-* `Cslib.Code.exists_maximal_matching`: every finite family of nonempty finite sets contains a
-  maximal pairwise-disjoint subfamily meeting every set in the family.
 * `Cslib.Code.exists_decodingMatching_of_nonadaptivePlan`: hypergraph matching extraction from a
   smooth distribution over non-adaptive query plans.
 * `Cslib.Code.IsSmoothDecoder.exists_decodingMatching_of_nonadaptivePlan`,
@@ -98,7 +96,7 @@ structure DecodingMatching [Fintype ι] [DecidableEq ι] (C : (ι → Bool) → 
 /-- **Maximal matching in a finite hypergraph**: every finite family `H` of nonempty finite sets
 contains a pairwise-disjoint subfamily `M ⊆ H` such that every `e ∈ H` meets some vertex of
 `M.biUnion id`. -/
-theorem exists_maximal_matching [DecidableEq P] (H : Finset (Finset P))
+private theorem exists_maximal_matching [DecidableEq P] (H : Finset (Finset P))
     (hne : ∀ e ∈ H, e.Nonempty) :
     ∃ M ⊆ H, (M : Set (Finset P)).PairwiseDisjoint id ∧
       ∀ e ∈ H, ∃ j ∈ M.biUnion id, j ∈ e := by
