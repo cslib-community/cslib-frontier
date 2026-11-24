@@ -8441,6 +8441,7 @@ public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
 public import CslibFrontier.GameTheory.PerfectInformation
 public import CslibFrontier.GameTheory.ResourceAllocation.KellyMechanism
+public import CslibFrontier.GameTheory.ResourceAllocation.MarketClearing
 public import CslibFrontier.GameTheory.ResourceAllocation.SSVCG
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
