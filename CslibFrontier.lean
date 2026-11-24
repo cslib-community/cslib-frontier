@@ -8989,6 +8989,7 @@ public import CslibFrontier.GameTheory.Cooperative.Core
 public import CslibFrontier.GameTheory.Cooperative.FacilityLocationCostSharing
 public import CslibFrontier.GameTheory.Cooperative.FacilityLocationLowerBound
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
+public import CslibFrontier.GameTheory.Cooperative.MulticastCostSharing
 public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.GameTheory.Extensive.PerfectInfo
