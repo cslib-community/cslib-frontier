@@ -149,12 +149,6 @@ private theorem linVal_flow (σ : ℕ → Bool) (v : Fin m) :
   refine Finset.sum_congr rfl fun e _ => ?_
   cases h : σ e.val <;> simp [h]
 
-private theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
-    linVal σ (L.map fun a => (a.1, -a.2)) = -linVal σ L := by
-  induction L with
-  | nil => rfl
-  | cons a L ih => simp only [List.map_cons, linVal_cons, ih]; ring
-
 /-- **The solutions of the formula are the flows of one unit from `s` to `t`**: an assignment
 satisfies it exactly when, at every vertex `v`, the edges it chooses carry the flow
 `unitFlow s t v` out of `v`. -/

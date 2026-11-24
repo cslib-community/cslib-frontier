@@ -168,6 +168,13 @@ def negMass (L : List (ℕ × ℤ)) : ℕ := (L.map fun e => (-e.2).toNat).sum
 @[simp] theorem linVal_cons (σ : ℕ → Bool) (e : ℕ × ℤ) (L : List (ℕ × ℤ)) :
     linVal σ (e :: L) = e.2 * ((σ e.1).toNat : ℤ) + linVal σ L := by simp [linVal]
 
+/-- Negating every coefficient negates the value. -/
+theorem linVal_map_neg (σ : ℕ → Bool) (L : List (ℕ × ℤ)) :
+    linVal σ (L.map fun e => (e.1, -e.2)) = -linVal σ L := by
+  induction L with
+  | nil => simp
+  | cons e L ih => rw [List.map_cons, linVal_cons, linVal_cons, ih, neg_add, neg_mul]
+
 theorem linVal_insertCoeff (σ : ℕ → Bool) (v : ℕ) (a : ℤ) (L : List (ℕ × ℤ)) :
     linVal σ (insertCoeff v a L) = a * ((σ v).toNat : ℤ) + linVal σ L := by
   fun_induction insertCoeff v a L with
