@@ -604,4 +604,26 @@ example :
     (exists_indexedFeasibilityPolynomial_zero_iff (n := 1) (fun _ => X 0) (fun _ => X 0) 1 1).mp h
   exact (ne_of_gt (hq 0 (by decide))) (he 0 (by decide))
 
+-- The selection system has a level-21 evaluator for every word.
+-- A nonzero constant source cannot gain a zero from its fingerprint or auxiliary variables.
+example (word : List Bool) :
+    let F : MvPolynomial (Fin 1) ℤ := 1
+    let hF : F.totalDegree ≤ 2 := by simp [F]
+    let C : Controlled (fun _ : List Bool => F) encBits 0 :=
+      Controlled.constant (.const 1) (fun _ => 1) (.const 1)
+    let system := C.selectionFeasibility (n := fun _ : List Bool => 1) (d := fun _ => 1)
+      Decoder.bits (fun _ => by decide) (fun _ => by decide) (fun _ => hF) (.const 1)
+      id ComputableInPolyTime.id'
+    system.evaluate ∈ CountingFunction 21 (encEvaluation encBits) encNat ∧
+      ¬ ∃ z : Fin 2 → ℝ,
+        MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+          (selectionFeasibilityPolynomial (d := 1) F hF (C.massExponent word) (by decide) word)
+          = 0 := by
+  intro F hF C system
+  refine ⟨system.evaluate_mem, fun hz => ?_⟩
+  obtain ⟨_, hzero, _, _⟩ :=
+    (exists_selectionFeasibilityPolynomial_zero_iff (d := 1) F hF
+      (C.massExponent word) (by decide) word).mp hz
+  simp [F] at hzero
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

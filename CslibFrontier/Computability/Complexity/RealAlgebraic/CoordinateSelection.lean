@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 
 /-!
 # Indexed constraints for coordinate selection
@@ -17,6 +18,9 @@ Row zero tests the source polynomial. The next rows test membership in the coord
 root grid. The strict inequalities are the coordinate fingerprint labels from the shared
 witness word. These constraints express the selection conditions without a counting-level
 increase for the individual row queries.
+
+Their sum-of-squares feasibility polynomial uses one auxiliary variable per label.
+Its modular evaluator costs one additional counting level over the labels.
 
 Adapted from lean-canny's `SelectionSystem` and `SelectionSystemCorrectness` at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
@@ -118,5 +122,69 @@ theorem selection_constraints_iff {n d : ℕ} (F : MvPolynomial (Fin n) ℤ)
     · intro j hj
       rw [hlabel (⟨j, hj⟩ : Fin n)]
       exact hpos ⟨j, hj⟩
+
+/-- The feasibility polynomial for a source equation, its coordinate root grid and the
+fingerprint constraints supplied by a shared word. The last `n` coordinates are auxiliary. -/
+noncomputable def selectionFeasibilityPolynomial {n d : ℕ}
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ d + 1) (mass : ℕ)
+    (hn : 0 < n) (word : List Bool) : MvPolynomial (Fin (n + n)) ℤ :=
+  indexedFeasibilityPolynomial (selectionEquation F hF hn)
+    (wordCoordinateFingerprintTest F hF mass hn word) (n + 1) n
+
+/-- Assemble the coordinate-selection feasibility polynomial at counting level `a + 21`.
+The degree, norm and prime bounds for each row family are computed at address zero. -/
+noncomputable def Controlled.selectionFeasibility {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (hn : ∀ w, 0 < n w) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (word : α → List Bool) (hword : ComputableInPolyTime word enc encBits) :
+    Controlled (fun w => selectionFeasibilityPolynomial (F w) (hF w) (C.massExponent w)
+      (hn w) (word w)) enc (a + 21) := by
+  let CP := (C.selectionEquations E hn hdpos hF hd).mono
+    (Nat.add_le_add_left (by decide : 18 ≤ 20) a)
+  let CQ := C.wordCoordinateFingerprintTests E hn hdpos hF hd word hword
+  have hrowZero : ComputableInPolyTime (fun w : α => (w, (0 : ℕ))) enc (encPair enc encNat) :=
+    id'.prod (.const 0)
+  have hP (w j) := C.selectionEquations_bounds_eq E hn hdpos hF hd w j
+  have hQ (w j) := C.wordCoordinateFingerprintTests_bounds_eq E hn hdpos hF hd word hword w j
+  exact CP.indexedFeasibility CQ E (fun w => n w + 1) n
+    (fun w => max (CP.degreeBound (w, 0)) (CQ.degreeBound (w, 0)))
+    (fun w => max (CP.massExponent (w, 0)) (CQ.massExponent (w, 0)))
+    (fun w => max (CP.cutoff (w, 0)) (CQ.cutoff (w, 0)))
+    (binary_add' (unary_to_binary.comp C.arity_computable) (.const 1)) C.arity_computable
+    (binary_max' (CP.degree_computable.comp hrowZero) (CQ.degree_computable.comp hrowZero))
+    (binary_max' (CP.mass_computable.comp hrowZero) (CQ.mass_computable.comp hrowZero))
+    (binary_max' (CP.cutoff_computable.comp hrowZero) (CQ.cutoff_computable.comp hrowZero))
+    (fun w j _ => (CP.degree_le (w, j)).trans ((hP w j).1.le.trans (le_max_left _ _)))
+    (fun w j _ => (CQ.degree_le (w, j)).trans ((hQ w j).1.le.trans (le_max_right _ _)))
+    (fun w j _ => by
+      obtain ⟨_, hb, _⟩ := hP w j
+      exact (CP.mass_le (w, j)).trans
+        (Nat.pow_le_pow_right (by decide) (hb.le.trans (le_max_left _ _))))
+    (fun w j _ => by
+      obtain ⟨_, hb, _⟩ := hQ w j
+      exact (CQ.mass_le (w, j)).trans
+        (Nat.pow_le_pow_right (by decide) (hb.le.trans (le_max_right _ _))))
+    (fun w j _ => by
+      obtain ⟨_, _, hc⟩ := hP w j
+      exact hc.le.trans (le_max_left _ _))
+    (fun w j _ => by
+      obtain ⟨_, _, hc⟩ := hQ w j
+      exact hc.le.trans (le_max_right _ _))
+
+/-- The selection feasibility polynomial has a real zero exactly when a source zero
+in the coordinate root grid satisfies all fingerprint tests supplied by the word. -/
+theorem exists_selectionFeasibilityPolynomial_zero_iff {n d : ℕ}
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ d + 1) (mass : ℕ)
+    (hn : 0 < n) (word : List Bool) :
+    (∃ z : Fin (n + n) → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+      (selectionFeasibilityPolynomial F hF mass hn word) = 0) ↔
+    ∃ x : Fin n → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) x F = 0 ∧
+      x ∈ coordinateRootGrid (Nat.succ_pos d) F hF ∧
+      ∀ i : Fin n, 0 < (wordCoordinateFingerprintLabel F hF mass hn word i.val).eval₂
+        (Int.castRingHom ℝ) (x i) := by
+  rw [selectionFeasibilityPolynomial, exists_indexedFeasibilityPolynomial_zero_iff]
+  exact exists_congr (selection_constraints_iff F hF mass hn word)
 
 end Cslib.Complexity.RealAlgebraic
