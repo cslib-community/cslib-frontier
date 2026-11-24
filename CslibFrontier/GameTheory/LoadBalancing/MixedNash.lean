@@ -284,6 +284,38 @@ section TwoUnitRelated
     · exact zero_lt_one
     · exact hs
 
+private theorem isTotallyMixedNash_twoUnitRelated_profile {s : ℝ} (hs : 0 < s)
+    (hs1 : 1 / 2 < s) (hs2 : s < 2) :
+    (twoUnitRelated s hs).toCostGame.IsTotallyMixedNash
+      (fun _ => ![(2 - s) / (s + 1), (2 * s - 1) / (s + 1)]) := by
+  let G := twoUnitRelated s hs
+  let p : Fin 2 → Fin 2 → ℝ := fun _ => ![(2 - s) / (s + 1), (2 * s - 1) / (s + 1)]
+  have hpos_sp : 0 < s + 1 := by linarith
+  have hp1 : ∀ k, ∑ m, p k m = 1 := fun k => by
+    simp only [Fin.sum_univ_two, p, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.cons_val_fin_one]
+    field_simp [hpos_sp.ne']
+    ring
+  refine G.toCostGame.isTotallyMixedNash_iff.mpr ⟨?_, hp1, ?_⟩
+  · intro _ j
+    fin_cases j
+    · exact div_pos (by linarith) hpos_sp
+    · exact div_pos (by linarith) hpos_sp
+  · intro i a b
+    rw [G.deviationCost_toCostGame hp1 i a, G.deviationCost_toCostGame hp1 i b]
+    have hval : ∀ j : Fin 2,
+        G.expectedLoad p j + (1 - p i j) * (G.weight i / G.speed j) = 3 / (s + 1) := fun j => by
+      rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
+      · simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, p, Matrix.cons_val_zero,
+          div_one, mul_one]
+        field_simp [hpos_sp.ne']
+        ring
+      · simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, p, Matrix.cons_val_one,
+          Matrix.cons_val_fin_one]
+        field_simp [hs.ne', hpos_sp.ne']
+        ring
+    rw [hval a, hval b]
+
 /-- **Two unit jobs on two related machines** ([Vocking2007], Exercise 20.4): a totally mixed Nash
 equilibrium exists if and only if `1 / 2 < s < 2`, in which case it is uniquely given by
 `p i 0 = (2 - s) / (s + 1)` and `p i 1 = (2 * s - 1) / (s + 1)`. -/
@@ -332,36 +364,7 @@ theorem exists_isTotallyMixedNash_twoUnitRelated_iff {s : ℝ} (hs : 0 < s) :
     rw [hp0_eq, div_lt_one hpos_sp] at hlt1
     exact ⟨by linarith, by linarith⟩
   · rintro ⟨hs1, hs2⟩
-    let p : Fin 2 → Fin 2 → ℝ := fun _ => ![(2 - s) / (s + 1), (2 * s - 1) / (s + 1)]
-    refine ⟨p, G.toCostGame.isTotallyMixedNash_iff.mpr ⟨?_, ?_, ?_⟩⟩
-    · intro i j
-      fin_cases j
-      · exact div_pos (by linarith) hpos_sp
-      · exact div_pos (by linarith) hpos_sp
-    · intro i
-      simp only [Fin.sum_univ_two, p, Matrix.cons_val_zero, Matrix.cons_val_one,
-        Matrix.cons_val_fin_one]
-      field_simp [hpos_sp.ne']
-      ring
-    · intro i a b
-      have hp1 : ∀ k, ∑ m, p k m = 1 := fun k => by
-        simp only [Fin.sum_univ_two, p, Matrix.cons_val_zero, Matrix.cons_val_one,
-          Matrix.cons_val_fin_one]
-        field_simp [hpos_sp.ne']
-        ring
-      rw [G.deviationCost_toCostGame hp1 i a, G.deviationCost_toCostGame hp1 i b]
-      have hval : ∀ j : Fin 2,
-          G.expectedLoad p j + (1 - p i j) * (G.weight i / G.speed j) = 3 / (s + 1) := fun j => by
-        rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
-        · simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, p, Matrix.cons_val_zero,
-            div_one, mul_one]
-          field_simp [hpos_sp.ne']
-          ring
-        · simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, p, Matrix.cons_val_one,
-            Matrix.cons_val_fin_one]
-          field_simp [hs.ne', hpos_sp.ne']
-          ring
-      rw [hval a, hval b]
+    exact ⟨_, isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2⟩
 
 /-- Closed form of the unique totally mixed Nash equilibrium of `twoUnitRelated s hs` for
 `1 / 2 < s < 2` ([Vocking2007], Exercise 20.4). -/
@@ -369,41 +372,10 @@ theorem isTotallyMixedNash_twoUnitRelated_eq {s : ℝ} (hs : 0 < s) (hs1 : 1 / 2
     {p : Fin 2 → Fin 2 → ℝ} (hp : (twoUnitRelated s hs).toCostGame.IsTotallyMixedNash p)
     (i : Fin 2) :
     p i 0 = (2 - s) / (s + 1) ∧ p i 1 = (2 * s - 1) / (s + 1) := by
-  let q : Fin 2 → Fin 2 → ℝ := fun _ => ![(2 - s) / (s + 1), (2 * s - 1) / (s + 1)]
-  have hpos_sp : 0 < s + 1 := by linarith
-  have hq : (twoUnitRelated s hs).toCostGame.IsTotallyMixedNash q := by
-    rw [CostGame.isTotallyMixedNash_iff]
-    refine ⟨fun _ j => by
-        rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
-        · exact div_pos (by linarith) hpos_sp
-        · exact div_pos (by linarith) hpos_sp,
-      fun _ => by
-        simp only [Fin.sum_univ_two, q, Matrix.cons_val_zero, Matrix.cons_val_one,
-          Matrix.cons_val_fin_one]
-        field_simp [hpos_sp.ne']; ring,
-      fun i a b => ?_⟩
-    have hq1 : ∀ k, ∑ m, q k m = 1 := fun k => by
-      simp only [Fin.sum_univ_two, q, Matrix.cons_val_zero, Matrix.cons_val_one,
-        Matrix.cons_val_fin_one]
-      field_simp [hpos_sp.ne']; ring
-    rw [(twoUnitRelated s hs).deviationCost_toCostGame hq1 i a,
-      (twoUnitRelated s hs).deviationCost_toCostGame hq1 i b]
-    have hval : ∀ j : Fin 2,
-        (twoUnitRelated s hs).expectedLoad q j +
-          (1 - q i j) * ((twoUnitRelated s hs).weight i / (twoUnitRelated s hs).speed j) =
-          3 / (s + 1) := fun j => by
-      rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
-      · simp only [expectedLoad, Fin.sum_univ_two, twoUnitRelated, q, Matrix.cons_val_zero,
-          div_one, mul_one]
-        field_simp [hpos_sp.ne']; ring
-      · simp only [expectedLoad, Fin.sum_univ_two, twoUnitRelated, q, Matrix.cons_val_one,
-          Matrix.cons_val_fin_one]
-        field_simp [hs.ne', hpos_sp.ne']; ring
-    rw [hval a, hval b]
-  have heq : p = q :=
-    (twoUnitRelated s hs).eq_of_isTotallyMixedNash (fun _ => zero_lt_one) (by decide) hp hq
+  have heq := (twoUnitRelated s hs).eq_of_isTotallyMixedNash (fun _ => zero_lt_one) (by decide) hp
+    (isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2)
   subst heq
-  simp [q]
+  simp
 
 end TwoUnitRelated
 

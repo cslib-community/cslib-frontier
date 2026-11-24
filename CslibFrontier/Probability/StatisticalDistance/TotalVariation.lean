@@ -102,7 +102,7 @@ theorem dist_eq_tvDist_toMeasure_div_two [Fintype α] (p q : PMF α) :
 
 end PMF
 
-variable {α : Type} {μ ν : PMF α}
+variable {α : Type*} {μ ν : PMF α}
 
 section Finite
 

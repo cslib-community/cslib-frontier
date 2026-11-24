@@ -189,6 +189,31 @@ theorem status_eq_sat_iff {φ : CNF ℕ} {π : List (Literal ℕ)} :
   · rename_i h; simp_all
   · split <;> simp_all
 
+/-- A partial assignment falsifying a clause has the status `conflict`. -/
+theorem status_eq_conflict {φ : CNF ℕ} {π : List (Literal ℕ)} (h : φ.any (Falsifies π) = true) :
+    status φ π = .conflict := by
+  unfold status; rw [List.isSome_find?, h]; rfl
+
+/-- A partial assignment of status `conflict` falsifies a clause. -/
+theorem any_falsifies_of_status_eq_conflict {φ : CNF ℕ} {π : List (Literal ℕ)}
+    (h : status φ π = .conflict) : φ.any (Falsifies π) = true := by
+  unfold status at h
+  split at h
+  · rename_i hs; rwa [List.isSome_find?] at hs
+  · split at h <;> cases h
+
+/-- A partial assignment falsifying no clause, with a true literal in every clause, has the status
+`sat`. -/
+theorem status_eq_sat {φ : CNF ℕ} {π : List (Literal ℕ)} (hc : φ.any (Falsifies π) = false)
+    (ha : φ.all (fun c => c.any (Holds π)) = true) : status φ π = .sat := by
+  unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
+
+/-- Otherwise the status branches on `nextLiteral`. -/
+theorem status_eq_branch {φ : CNF ℕ} {π : List (Literal ℕ)} (hc : φ.any (Falsifies π) = false)
+    (ha : φ.all (fun c => c.any (Holds π)) = false) :
+    status φ π = .branch (nextLiteral φ π) := by
+  unfold status; rw [List.isSome_find?, hc]; simp only [Bool.false_eq_true, ↓reduceIte, ha]
+
 /-- A model found by the search extends the partial assignment, stays consistent, and satisfies
 every clause. -/
 theorem dfs_eq_some {φ : CNF ℕ} : (fuel : ℕ) → {π π' : List (Literal ℕ)} → Consistent π →
@@ -253,6 +278,18 @@ theorem openVars_cons (φ : CNF ℕ) (π : List (Literal ℕ)) (l : Literal ℕ)
 theorem mem_openVars {φ : CNF ℕ} {π : List (Literal ℕ)} {x : ℕ} :
     x ∈ openVars φ π ↔ x ∈ φ.vars ∧ Assigned π x = false := by
   simp [openVars, List.mem_eraseDups]
+
+/-- At a branching on `l`, a bound `fuel` on the open variables is positive, and the partial
+assignments with a literal on the variable of `l` added have fewer. -/
+theorem length_openVars_cons_le {φ : CNF ℕ} {π : List (Literal ℕ)} {l : Literal ℕ} {fuel : ℕ}
+    (hs : status φ π = .branch l) (hf : (openVars φ π).length ≤ fuel) :
+    ∃ f, fuel = f + 1 ∧ ∀ l' : Literal ℕ, l'.1 = l.1 → (openVars φ (l' :: π)).length ≤ f := by
+  obtain ⟨hv, ha⟩ := assigned_of_status_eq_branch hs
+  have hmem : l.1 ∈ openVars φ π := mem_openVars.2 ⟨hv, ha⟩
+  have := List.length_pos_of_mem hmem
+  refine ⟨fuel - 1, by omega, fun l' hl' => ?_⟩
+  rw [openVars_cons, hl', List.length_erase_of_mem hmem]
+  omega
 
 /-- The literal of the solver's branch is `nextLiteral` when the open variables are listed in the
 order of their first occurrences. -/
@@ -470,6 +507,20 @@ def step (φ : CNF ℕ) (t : Trail) : Answer ⊕ Trail :=
     | none => .inl .unsat
     | some t' => .inr t'
 
+theorem step_of_status_eq_conflict {φ : CNF ℕ} {t : Trail} (h : status φ (lits t) = .conflict) :
+    step φ t = match backtrack t with
+      | none => .inl .unsat
+      | some t' => .inr t' := by
+  unfold step; rw [h]
+
+theorem step_of_status_eq_sat {φ : CNF ℕ} {t : Trail} (h : status φ (lits t) = .sat) :
+    step φ t = .inl (.sat (lits t)) := by
+  unfold step; rw [h]
+
+theorem step_of_status_eq_branch {φ : CNF ℕ} {t : Trail} {l : Literal ℕ}
+    (h : status φ (lits t) = .branch l) : step φ t = .inr (⟨l, false⟩ :: t) := by
+  unfold step; rw [h]
+
 /-- **The run** of at most `k` steps from the trail `t`: its answer, or `none` if the steps run
 out. -/
 def run (φ : CNF ℕ) : ℕ → Trail → Option Answer
@@ -531,15 +582,9 @@ theorem run_add_nodes (φ : CNF ℕ) : (fuel : ℕ) → (t : Trail) → (k : ℕ
       rw [hn, hd, run, step, hs]
       cases hb : backtrack t <;> simp [after, hb]
     | branch l =>
-      obtain ⟨hv, ha⟩ := assigned_of_status_eq_branch hs
-      have hmem : l.1 ∈ openVars φ (lits t) := mem_openVars.2 ⟨hv, ha⟩
-      have hlen : 0 < (openVars φ (lits t)).length := List.length_pos_of_mem hmem
-      obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by omega⟩
-      have hlen₁ : (openVars φ (l :: lits t)).length ≤ fuel := by
-        rw [openVars_cons, List.length_erase_of_mem hmem]; omega
-      have hlen₂ : (openVars φ (l.negate :: lits t)).length ≤ fuel := by
-        rw [openVars_cons, show (Std.Sat.Literal.negate l).1 = l.1 from rfl,
-          List.length_erase_of_mem hmem]; omega
+      obtain ⟨fuel, rfl, hlen⟩ := length_openVars_cons_le hs hf
+      have hlen₁ := hlen l rfl
+      have hlen₂ := hlen l.negate rfl
       have ih₁ := run_add_nodes φ fuel (⟨l, false⟩ :: t) (k + nodes φ fuel (l.negate :: lits t))
         hlen₁
       have ih₂ := run_add_nodes φ fuel (⟨l.negate, true⟩ :: t) k hlen₂

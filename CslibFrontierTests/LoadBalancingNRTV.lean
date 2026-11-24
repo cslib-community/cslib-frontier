@@ -203,6 +203,26 @@ example :
   exact ⟨A, hNE,
     (isIdentical_identical (M := Fin 2) w hw).makespan_eq_opt_of_three_jobs_two_machines hNE⟩
 
+/-- Computable `Scheduling.lptSchedule` on unsorted weights `![2, 5, 3, 2, 3]` over `3` identical
+machines is itself a pure Nash equilibrium and satisfies Graham's `4 / 3 - 1 / 9 = 11 / 9` bound.
+-/
+example :
+    let w : Fin 5 → ℝ := ![2, 5, 3, 2, 3]
+    let hw : ∀ i, 0 ≤ w i := fun i => by fin_cases i <;> norm_num [w]
+    let G := LoadBalancingGame.identical (M := Fin 3) w hw
+    let A := Cslib.Algorithms.Lean.Scheduling.lptSchedule (m := 3) w
+    (G.IsRelatedLPT (Cslib.Algorithms.Lean.Scheduling.listSchedule (m := 3) w)) ∧
+      G.toCostGame.IsPureNash A ∧
+      G.makespan A ≤ 11 / 9 * G.optMakespan := by
+  intro w hw G A
+  have hId : G.IsIdentical := isIdentical_identical (M := Fin 3) w hw
+  refine ⟨(hId.isRelatedLPT_iff_isListSchedule _).mpr
+      (Cslib.Algorithms.Lean.Scheduling.isListSchedule_listSchedule w),
+    hId.isPureNash_lptSchedule, ?_⟩
+  have h := hId.makespan_lptSchedule_le
+  norm_num at h
+  exact h
+
 /-- Price of stability `1` and max-weight best-response convergence on `kpTwoUnit`. -/
 example : ∃ A, kpTwoUnit.toCostGame.IsPureNash A ∧ kpTwoUnit.makespan A = kpTwoUnit.optMakespan :=
   kpTwoUnit.exists_isPureNash_makespan_eq_optMakespan
