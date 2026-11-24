@@ -22,7 +22,7 @@ orders `(2^e)^j` for
 `j ≤ JJ h n = ⌊(h² − 1) n / e⌋`, where `e = h(h − 1)/2` (`b = 2^e` is the number of chambers at a
 vertex).
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.Chain`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Chain`.
 
 ## Main definitions
 

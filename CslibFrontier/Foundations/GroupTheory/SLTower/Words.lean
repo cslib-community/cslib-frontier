@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Layer
+import Mathlib.RingTheory.WittVector.IsPoly
+import Mathlib.Tactic.NoncommRing
 
 /-!
 # Short words

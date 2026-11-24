@@ -21,7 +21,7 @@ weighted with `t = 1 + s` gives `h` embeddings `th0 i` (`i : Fin h`), and their 
 (with weight `t` for `k = 0`), involutions of type `k`; the simple root elements of the `i`-th
 unitriangular subgroup are the generators of types other than `i` (`Cslib.SLTower.th_x`).
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.Grp`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.Grp`.
 
 ## Main definitions
 

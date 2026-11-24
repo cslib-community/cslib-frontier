@@ -8,8 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
+public import Mathlib.Analysis.Real.Sqrt
+public import Mathlib.Data.Finset.Sym
+import Mathlib.Algebra.Order.Chebyshev
 
 /-!
 # Loads in a tower: one stage

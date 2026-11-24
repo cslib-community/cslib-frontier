@@ -20,7 +20,7 @@ import Mathlib.Topology.Sheaves.Presheaf
 `Cslib.CoveringTower.rk idx key F u` counts the elements of `F` with the key of `u` and a
 smaller index: ranks within the classes of equal keys, used to number the elements of a class.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.CoveringTower.Rank`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Rank`.
 
 ## Main definitions
 

@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Words
+import Mathlib.Tactic.NoncommRing
 
 /-!
 # The diameter

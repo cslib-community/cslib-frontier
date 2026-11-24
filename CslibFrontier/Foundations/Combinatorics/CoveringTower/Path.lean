@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Defs
 
 /-!
@@ -29,9 +28,9 @@ theorem step_ends (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) :
     s(T.e0 e, T.e1 e) = s(c, T.step e c) := by
   unfold step
   by_cases h0 : T.e0 e = c
-  · rw [if_pos h0, h0]
+  · rw [ite_eq_left h0, h0]
   · have h1 : T.e1 e = c := hc.resolve_left h0
-    rw [if_neg h0, h1, Sym2.eq_swap]
+    rw [ite_eq_right h0, h1, Sym2.eq_swap]
 
 theorem step_ne (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : c ≠ T.step e c := by
   intro heq
@@ -60,7 +59,7 @@ theorem step_step (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : T.
 def nodeAt (c : T.X j) (l : List (T.Ed j)) (s : ℕ) : T.X j := (l.take s).foldl (fun c e => T.step e c) c
 
 theorem nodeAt_cons (c : T.X j) (e : T.Ed j) (l : List (T.Ed j)) (s : ℕ) :
-    nodeAt c (e :: l) (s + 1) = nodeAt (T.step e c) l s := rfl
+    nodeAt c (e :: l) (s + 1) = nodeAt (T.step e c) l s := by rfl
 
 theorem walk_end {c c' : T.X j} {l : List (T.Ed j)} (hw : T.Walk c l c') : nodeAt c l l.length = c' := by
   induction l generalizing c with

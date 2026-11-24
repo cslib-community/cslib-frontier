@@ -26,7 +26,7 @@ counts (`card_X`) and a bound on the number of edges over every edge of the next
 (`fibre`). *Routes* (`Cslib.CoveringTower.Routes`) are walks
 between all pairs of chambers of level `0`, of bounded length and bounded use of every edge.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.CoveringTower.Defs`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tow.Defs`.
 
 ## Main definitions
 
