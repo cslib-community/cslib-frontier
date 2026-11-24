@@ -39,7 +39,13 @@ Worktrees also share one stash stack, `refs/stash`, so `git stash pop` in your w
 
 Inspect existing definitions before introducing abstractions. Require the exact Lean contract and source-to-statement mapping for a claimed textbook endpoint. During implementation use focused diagnostics and clients; at handoff use the [contribution validation rules](contributing.md).
 
-Assign review by the unanswered question. One non-authoring reviewer may cover correctness and API quality; add another for specific uncovered expertise. Give reviewers the revision, intended endpoint and validation evidence, and require inspection of definitions. Restating the author's summary is not independent source review.
+Give the non-author reviewer the revision, intended claim and validation evidence. When a second
+reviewer is needed, identify the question they will answer and who will bring both reviews
+together. For example, one reviewer may clear the implementation while a source checker still
+has an open objection to the theorem statement. The author replies to that objection with the
+revised statement and its evidence. The reviewer responsible for the whole PR links the
+independent check of the correction in the final verdict. A substitute queuer uses that verdict
+and checks what has changed since it was given.
 
 The [semantic-withdrawal cases](../history/case-studies.md) explain why hypotheses, adversary power and realizability need attention after successful Lean checking. They are historical diagnoses, not asserted defects in the reviewed snapshot. The circuit-synthesis case illustrates a concrete API review question: does simplifying construction preserve wire sharing and charge the actual gates?
 

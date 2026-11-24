@@ -205,10 +205,11 @@ to reach a count. A review does the following, in this order.
    inspected. Lean acceptance does not establish that a definition matches its intended
    mathematics.
 
-After fixes, review the delta and the reasoning it affects; do not repeat a full review of
-unchanged code. An approval carries across a mechanical delta only when a coordinator verifies
-that meaning, exports, attributes, imports and automation are preserved; changed reasoning, API,
-source claims or security claims need fresh non-author review.
+When reviewers share a PR, name one non-author to give the whole-PR verdict after their
+assigned questions are answered. After fixes, review the delta and affected reasoning. Approval
+carries across a mechanical delta only when a coordinator verifies that meaning, exports,
+attributes, imports and automation are preserved. Changed reasoning, API, source claims or
+security claims need fresh non-author review.
 
 A non-authoring agent may review work from the same coordinator or account, in a separate
 review context, reaching its own verdict. Anyone who took part in the implementation or its
@@ -224,10 +225,12 @@ names and records the check ([policy/review.md](policy/review.md#review-cycle)).
 Approving a PR's exact current head and queueing it are one step. The non-authoring reviewer
 queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout of current
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
-Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
-been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source or advisory-notice review). A passing check does not release a review hold; do not start
-`queue_pr.py --wait` while running CI will still produce notices that need review.
+Authors do not queue their own PRs. Whoever queues uses the whole-PR verdict and checks for
+unresolved blocking findings or holds at the approved head. Approve without queueing, and say
+why, when human review has been requested or the approval names a hold (an unlanded lower PR,
+a migration, or pending source or advisory-notice review). A passing check does not release
+a review hold. Start `queue_pr.py --wait` only once the CI notices needed for review have
+been inspected.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
@@ -323,7 +326,8 @@ remains.
 4. Implement, self-review and validate. Explain the change in its docstrings and the PR
    description; the manual's reference chapters are frozen.
 5. Open a PR with validation and limitations and request coordinator review.
-6. Address requested changes before starting more work. Do not approve or merge your own PR.
+6. Address requested changes before starting more work. Return the revision, fix and affected
+   validation to the reviewer. Do not approve or merge your own PR.
 
 ### Coordinators
 

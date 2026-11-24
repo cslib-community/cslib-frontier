@@ -6,12 +6,17 @@ brief and says when to read this file; the full text here governs the details.
 ## Review cycle
 
 Maintainers arrange independent review of correctness and API quality (naming, reuse, placement,
-documentation and source credit). One non-authoring reviewer may cover both. Add a reviewer for a
-specific uncovered question or needed expertise, not to reach an approval count.
+documentation and source credit). A sole non-author reviewer owns the verdict. When several
+reviewers contribute, the coordinator identifies one in the existing assignment or PR discussion
+to give the verdict on the whole PR. Assign each additional reviewer an uncovered question.
+A specialist reports the outcome of that question. The responsible reviewer gives the whole-PR
+verdict once the required questions are answered.
 
 Read the actual definitions, statements and proof arguments, and inspect representative clients.
 For substantive mathematics, explain briefly what is proved, its limiting hypotheses/model/resource
-conventions, and a checked instance or edge case.
+conventions, and a checked instance or edge case. Where a plausible weaker model would pass
+the example, try a case that distinguishes the two. A client that uses the handle returned by
+an earlier operation can reveal a restriction that single-operation tests miss.
 For a refactor, check declaration preservation, imports and a client using the intended API.
 For changed APIs and reuse refactors, follow [Check the API through its callers](workflow.md#check-the-api-through-its-callers):
 inspect the actual caller and relevant sibling implementation, including generated certificates
@@ -151,10 +156,13 @@ avoidable complexity or duplication affecting the PR; reserve nits for optional 
 Use inline comments for local findings, explain the problem and a concrete change or question,
 and group related points. Authors may disagree: discuss the technical reason and settle the point.
 
-After fixes, review the delta and affected reasoning. Revisit more of the code when a change
-invalidates earlier conclusions. Reuse existing reviews after verifying their scope and source
-identity; do not repeat a full review of unchanged code. Before merging, confirm that the current
-revision is covered and required validation passes.
+After fixes, check the delta against the original finding and revisit reasoning the change
+affects. Reuse earlier reviews whose scope and source still match. A different qualified
+non-author may verify a correction or take over the whole-PR verdict by identifying the
+handoff in the discussion. Existing outside-fleet and human review requirements still apply
+to the work they cover. If reviewers disagree, record the technical resolution in the thread
+or ask the coordinator to obtain an independent decision. Confirm that validation and review
+cover the revision being integrated.
 
 A coordinator may fix conflicts and review findings directly when authorized to edit the branch.
 Check its head and coordinate ownership first; add commits on top, or announce a necessary rebase.
@@ -180,6 +188,11 @@ long explanation; a clean review does not need a checklist of everything inspect
 reviewed revision, meaningful findings and resolutions once in the PR, following
 [CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
 
+When a correction addresses a defect that passed review, link the original finding or verdict
+if available. Identify the example that exposes the defect or the handoff where a known finding
+was lost. When an audit reports a defect rate, give the number of claims checked, the defects
+found among them and the number left unchecked, including unavailable source comparisons.
+
 ### Approve and queue
 
 Approving a PR's exact current head and queueing it are one step. A non-authoring reviewer with
@@ -197,9 +210,16 @@ without queueing, and say why in the approval, when:
 - the approval names a hold, such as an unlanded lower PR, a migration or an upstream dependency;
   queue once the hold clears.
 
-Pending source or advisory-notice review is also a hold. Inspect that material,
-record the hold's resolution and link the existing proof/API/caller assessment before queueing;
-do not start a waiting helper while completing CI will still produce material that needs review.
+The whole-PR verdict accounts for blocking findings across reviews, inline threads and ordinary
+comments, including same-account comments and findings raised on earlier revisions. Each needs a
+verified fix or a recorded technical reason it does not apply to the approved head. Use existing
+thread resolutions. Whoever queues uses that verdict, checks its coverage of the current head
+and reads subsequent discussion for new findings or holds. An unresolved blocking finding keeps
+the PR out of the queue. If one surfaces on a queued PR, the coordinator dequeues it for review.
+
+Pending source or advisory-notice review is also a hold. Inspect that material, record the
+resolution and link the existing proof/API/caller assessment. Start a waiting helper only once
+the CI material needed for review is available and reviewed.
 A successful check does not release a review hold, and the helper does not judge whether review
 is complete. Updating `main` does not upgrade a running copy of the helper: its owner stops an old
 waiter before replacing it after holds clear. The helper's waiting behavior is described in the

@@ -102,9 +102,11 @@ Assign review to an agent that did not design or implement the change. For examp
 > sibling implementation or conversion bridge. Assess whether the proof strategy, invariant and
 > helper statements fit that use. Check any changed procedure page or registry and any affected
 > results-inventory entry. Report concrete findings and a verdict, stating what you checked and
-> what remains uncertain. If queueing is authorized, first verify that named review holds are
-> cleared and required CI material is reviewed. Use the helper from trusted current `main` for the approved
-> PR head; do not start `--wait` while completing CI will produce material still needing review.
+> what remains uncertain. If several reviewers contribute, name the non-author who will give the
+> whole-PR verdict. Before queueing, verify that it covers the final head and that subsequent
+> discussion and CI material leave no open blocking findings or holds. Use the helper from
+> trusted current `main` for the approved head. Start `--wait` only once the CI material
+> needed for review has been inspected.
 
 Ask the reviewer to consider whether a different statement, API, invariant or proof strategy
 would make the result clearer to state, prove and use, while preserving its mathematical strength.
