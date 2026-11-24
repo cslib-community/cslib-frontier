@@ -127,9 +127,7 @@ theorem exists_isSlpStep_of_program [NeZero D] (inp : Fin n → Inp → Fin D) {
       rw [hne i (by omega), hin i]
     · induction k using Fin.lastCases with
       | last =>
-        rw [Program.eval_gate_last]
-        simp [new]
-        rfl
+        rw [Program.eval_gate_last, Fin.val_last, Function.update_self]
       | cast k =>
         rw [Program.eval_gate_castSucc, Fin.val_castSucc, hne _ (by omega), hg k x]
 
