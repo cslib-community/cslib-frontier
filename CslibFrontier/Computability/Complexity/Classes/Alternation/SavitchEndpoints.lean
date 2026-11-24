@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 
 /-!
 # The endpoints of Savitch's midpoint game
@@ -515,7 +514,7 @@ private theorem computableInO_endpointWord (d : Bool) :
       (fun p => (2 * p.1 + 2) * p.2.1 + p.1 + p.2.2.length) := by
   have hrev : ComputableInO List.reverse encBits encBits (fun l => (encBits l).length)
       (fun l => (encBits l).length) :=
-    .of_bounds ComputableTidilyInTimeAndSpace.reverse_bits.computableInTimeAndSpace 2
+    .of_bounds ComputableInTimeAndSpace.reverse_bits 2
       (fun l => by simp only [encBits_apply]; omega) (fun _ => by omega)
       (fun l => by simp only [encBits_apply, List.length_reverse]; omega)
   have hzip : ComputableInO (fun q : List Bool × List Bool => (endpointZip d).run .seek q.1 q.2)
