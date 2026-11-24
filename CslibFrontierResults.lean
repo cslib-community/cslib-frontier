@@ -6,6 +6,7 @@ import CslibFrontierResults.Entries.Cooperative
 import CslibFrontierResults.Entries.DFSWordRAM
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DictionaryLowerBound
+import CslibFrontierResults.Entries.DigitalGoods
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.DominanceSymmetric
@@ -38,6 +39,7 @@ import CslibFrontierResults.Entries.PlantedClique
 import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
+import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.SergeevMonotoneShift

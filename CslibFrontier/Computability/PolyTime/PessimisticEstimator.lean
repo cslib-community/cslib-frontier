@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Polynomial-time transfer for greedy pessimistic-estimator and multi-choice derandomization
@@ -407,27 +408,11 @@ theorem computableInPolyTime_run
       hle.comp ((hval_scan.comp hq_b).prod ((snd encA encM).comp hbm_b))
     simpa only [decide_eq_true_eq, Function.comp_def] using
       ite hcmp (hnew_some.comp hq_b) ((optionSome encAM).comp hbm_b)
-  obtain ⟨cL, dL, hL⟩ := hlist_p.polyBounded_length.exists_le
   obtain ⟨cV, dV, hV⟩ := hval_pa.polyBounded_length.exists_le
   let B_opt (p : (I × S) × R) : ℕ :=
     let L := (encLA (G.choices p.1.1 p.2)).length
     2 * L + cV * (2 * (encRound p).length + 1 + L + 1) ^ dV + 2
-  let P_opt (n : ℕ) : ℕ :=
-    let L := cL * (n + 1) ^ dL
-    2 * L + cV * (2 * n + 1 + L + 1) ^ dV + 2
-  have hP_opt : PolynomiallyBounded P_opt := by dsimp [P_opt]; fun_prop
-  obtain ⟨cO, dO, hcO⟩ := polynomiallyBounded_iff_le.mp hP_opt
-  have hB_opt : PolyBounded (fun p => (encRound p).length) B_opt :=
-    PolyBounded.of_forall_le cO dO fun p => by
-      have hpL := hL p
-      have hmono : B_opt p ≤ P_opt (encRound p).length := by
-        dsimp only [B_opt, P_opt]
-        have hpow : (2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length + 1) ^ dV ≤
-            (2 * (encRound p).length + 1 + cL * ((encRound p).length + 1) ^ dL + 1) ^ dV :=
-          Nat.pow_le_pow_left (by omega) dV
-        exact Nat.add_le_add
-          (Nat.add_le_add (Nat.mul_le_mul_left 2 hpL) (Nat.mul_le_mul_left cV hpow)) le_rfl
-      exact hmono.trans (hcO (encRound p).length)
+  have hB_opt : PolyBounded (fun p => (encRound p).length) B_opt := by growth_poly
   have hscan_fold : ComputableInPolyTime
       (fun p : (I × S) × R =>
         (G.choices p.1.1 p.2).foldl (G.scanStep p.1.1 p.1.2 p.2) none)

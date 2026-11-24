@@ -31,6 +31,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Cslib.Foundations.Data.Polynomial.Monotone
 
 /-!
@@ -456,8 +457,6 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
     split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
   have hinit : ComputableInPolyTime (fun a => ((0 : ℕ), N a)) enc (encPair encUnary encUnary) :=
     (ComputableInPolyTime.const 0).prod hN
-  have hsize : PolyBounded (fun a => (enc a).length) (fun a => 3 * N a + 1) :=
-    ((PolyBounded.const 3).mul hN.polyBounded).add (.const 1)
   have hit := IsOraclePPTOn.iterateWith_spec (input := enc)
     (stateEncoding := encPair encUnary encUnary) (count := count)
     (initial := fun a => ((0 : ℕ), N a))
@@ -472,7 +471,7 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
       · simp only [h, ↓reduceIte, OracleComp.interpret_pure] at hnext
         rw [OracleComp.eq_of_mem_supportWith_pure hnext]
         exact hinv)
-    hsize (fun a i st _ hinv => by enc_len)
+    (size := fun a => 3 * N a + 1) (by growth_poly) (fun a i st _ hinv => by enc_len)
   have hfinal : IsOraclePPTOn (encPair enc (encPair encUnary encUnary)) encBool
       (fun pair : α × ℕ × ℕ => OracleComp.interpret ProbOracleComp.query
         (queryBit (fin (pair.1, pair.2.1)))) :=
