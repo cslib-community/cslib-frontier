@@ -880,8 +880,8 @@ private theorem joins_final_of_project (hw : Function.Injective w) (hmsf : cfg.E
       cases hj
 
 omit [DecidableEq V] [DecidableEq E] in
-/-- A call with an edge of a well-formed instance has a vertex. -/
-private theorem vertices_nonempty {inst : Instance V E} (hwf : inst.WellFormed) {e : E}
+/-- A call with an edge of a well-formed instance has a vertex: the ends of the edge. -/
+theorem vertices_nonempty {inst : Instance V E} (hwf : inst.WellFormed) {e : E}
     (he : e ∈ inst.edges) : inst.vertices.Nonempty := by
   obtain ⟨⟨u, v⟩, huv⟩ := Quot.exists_rep (inst.ends e)
   exact ⟨u, hwf.ends_mem e he u (by rw [← huv]; exact Sym2.mem_mk_left u v)⟩
@@ -989,7 +989,7 @@ theorem hasError_of_mem_absorbed (hw : Function.Injective w) (hmsf : cfg.ExactMs
 
 /-- The edges of R″ of the different rounds are disjoint: each lies in its round's acting
 edges. -/
-private theorem absorbed_subset_acting (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
+theorem absorbed_subset_acting (hw : Function.Injective w) (hmsf : cfg.ExactMsf w)
     {inst : Instance V E} (hwf : inst.WellFormed) (i : ℕ) :
     absorbed cfg (LEQuery.keyOracle w) inst i ⊆ acting cfg inst i := fun e he => by
   have hec := (sound_childResult hw hmsf hwf i).rejected_subset (mem_filter.1 he).1
@@ -997,7 +997,8 @@ private theorem absorbed_subset_acting (hw : Function.Injective w) (hmsf : cfg.E
   exact hec.1
 
 omit [DecidableEq V] [DecidableEq E] in
-private theorem pairwiseDisjoint_acting (inst : Instance V E) (I : Finset ℕ) :
+/-- The acting edges of different rounds are disjoint. -/
+theorem pairwiseDisjoint_acting (inst : Instance V E) (I : Finset ℕ) :
     (I : Set ℕ).PairwiseDisjoint (acting cfg inst) := by
   intro i _ j _ hij
   exact disjoint_left.2 fun e hi hj =>

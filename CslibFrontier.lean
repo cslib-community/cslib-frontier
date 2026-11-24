@@ -204,6 +204,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Matroid.Greedy
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.IndepQuery
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.Intersection
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.LowerBound
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Accounting
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Batch
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Correctness
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Errors
