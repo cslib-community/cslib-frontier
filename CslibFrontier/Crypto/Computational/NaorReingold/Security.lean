@@ -2002,7 +2002,14 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFa
   have hε_neg : Negligible ε := hDDH.negligible_expected_inv_order
   let lhlBound : ℕ → ℝ≥0 := fun n =>
     (Q n : ℝ≥0) * (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n)) + NNReal.sqrt (ε n)
-  have hlhl_neg : Negligible lhlBound := by negligible
+  have hlhl_neg : Negligible lhlBound := by
+    have h1 : Negligible fun n => (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n)) :=
+      (hε_neg.sqrt.sqrt).const_mul ((2 : ℝ≥0) ^ c)
+    have h2 : Negligible fun n =>
+        (Q n : ℝ≥0) * ((2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n))) :=
+      h1.polynomiallyBounded_mul hQ_poly
+    exact (by simpa only [mul_assoc] using h2 : Negligible fun n =>
+      (Q n : ℝ≥0) * (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n))).add hε_neg.sqrt
   refine negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
     hadversary hlhl_neg fun n => ?_
   let K : ℝ≥0 := NNReal.sqrt ((2 : ℝ≥0) ^ c) / 2
