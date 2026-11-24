@@ -6749,6 +6749,13 @@ public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpBufferTrie
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFallback
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.BurnIn
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.EpochClock
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.FastDeleteClean
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.FastInsertClean
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.ScanMeta
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.TickStages
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.WorkPotential
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModel
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick
