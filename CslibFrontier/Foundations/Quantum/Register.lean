@@ -58,7 +58,7 @@ theorem coe_onFirst (U : unitaryGroup ι ℂ) :
 /-- The unitary `I ⊗ U` acting trivially on the first register of `ι × κ` and as `U` on the
 second. -/
 noncomputable def onSecond (U : unitaryGroup κ ℂ) : unitaryGroup (ι × κ) ℂ :=
-  ⟨(1 : Matrix ι ι ℂ) ⊗ₖ (U : Matrix κ κ ℂ), kronecker_mem_unitary (one_mem _) U.2⟩
+  ⟨(1 : Matrix ι ι ℂ) ⊗ₖ (U : Matrix κ κ ℂ), kronecker_mem_unitary (one_mem _) U.property⟩
 
 theorem onSecond_apply (U : unitaryGroup κ ℂ) (p q : ι × κ) :
     (onSecond (ι := ι) U : Matrix (ι × κ) (ι × κ) ℂ) p q =

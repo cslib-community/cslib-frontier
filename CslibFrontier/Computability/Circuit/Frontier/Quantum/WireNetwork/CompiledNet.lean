@@ -141,11 +141,11 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
     ⟨fun i => outVert ⟨e i, heA ⟨i, rfl⟩⟩,
       fun i j h => e.injective (congrArg Subtype.val (outVert.injective h))⟩
   let leaf2n : Fin (2 * n) ↪ V_fin :=
-    ⟨fun k => if hk : k.1 < n then inVert ⟨e ⟨k.1, hk⟩, heA ⟨⟨k.1, hk⟩, rfl⟩⟩
-        else outVert ⟨e ⟨k.1 - n, by omega⟩, heA ⟨⟨k.1 - n, by omega⟩, rfl⟩⟩,
+    ⟨fun k => if hk : k.val < n then inVert ⟨e ⟨k.val, hk⟩, heA ⟨⟨k.val, hk⟩, rfl⟩⟩
+        else outVert ⟨e ⟨k.val - n, by omega⟩, heA ⟨⟨k.val - n, by omega⟩, rfl⟩⟩,
       fun k₁ k₂ hk => by
         dsimp only at hk
-        by_cases h1 : k₁.1 < n <;> by_cases h2 : k₂.1 < n
+        by_cases h1 : k₁.val < n <;> by_cases h2 : k₂.val < n
         · simp only [h1, h2, ↓reduceDIte] at hk
           exact Fin.ext (Fin.mk.inj (e.injective (congrArg Subtype.val (inVert.injective hk))))
         · simp only [h1, h2, ↓reduceDIte] at hk
@@ -156,13 +156,13 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
           have heq := Fin.mk.inj (e.injective (congrArg Subtype.val (outVert.injective hk)))
           ext; omega⟩
   have hleaf_in (i : Fin n) : leaf2n (inl2n n i) = inVert ⟨e i, heA ⟨i, rfl⟩⟩ := by
-    change (if hk : (inl2n n i).1 < n then
-      inVert ⟨e ⟨(inl2n n i).1, hk⟩, _⟩ else _) = _
+    change (if hk : (inl2n n i).val < n then
+      inVert ⟨e ⟨(inl2n n i).val, hk⟩, _⟩ else _) = _
     simp only [inl2n, i.isLt, ↓reduceDIte]
   have hleaf_out (j : Fin n) : leaf2n (inr2n n j) = outVert ⟨e j, heA ⟨j, rfl⟩⟩ := by
-    have hnot : ¬(n + j.1 < n) := by omega
-    change (if hk : (inr2n n j).1 < n then _
-      else outVert ⟨e ⟨(inr2n n j).1 - n, _⟩, _⟩) = _
+    have hnot : ¬(n + j.val < n) := by omega
+    change (if hk : (inr2n n j).val < n then _
+      else outVert ⟨e ⟨(inr2n n j).val - n, _⟩, _⟩) = _
     simp only [inr2n, hnot, ↓reduceDIte]
     congr 1; apply Subtype.ext; dsimp only; congr 1; apply Fin.ext; dsimp only; omega
   have hV_ub : (Nat.card V_fin : ℝ) ≤ 2 * n + 6 * (twoQubitCount C : ℝ) + 2 := by
@@ -211,18 +211,18 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
       have hsub2n : {k : Fin (2 * n) | leaf2n k ∈ Comp} ⊆
           inl2n n '' {i | leafIn i ∈ Comp} ∪ inr2n n '' {j | leafIn j ∈ Comp} := by
         intro k hk
-        by_cases hk_lt : k.1 < n
-        · refine Or.inl ⟨⟨k.1, hk_lt⟩, ?_, Fin.ext rfl⟩
-          have heq := hleaf_in ⟨k.1, hk_lt⟩
+        by_cases hk_lt : k.val < n
+        · refine Or.inl ⟨⟨k.val, hk_lt⟩, ?_, Fin.ext rfl⟩
+          have heq := hleaf_in ⟨k.val, hk_lt⟩
           change leaf2n k ∈ Comp at hk
-          have hk_eq : inl2n n ⟨k.1, hk_lt⟩ = k := Fin.ext rfl
+          have hk_eq : inl2n n ⟨k.val, hk_lt⟩ = k := Fin.ext rfl
           rwa [← hk_eq, heq] at hk
-        · refine Or.inr ⟨⟨k.1 - n, by omega⟩, ?_, Fin.ext (by simp [inr2n]; omega)⟩
-          have heq := hleaf_out ⟨k.1 - n, by omega⟩
+        · refine Or.inr ⟨⟨k.val - n, by omega⟩, ?_, Fin.ext (by simp [inr2n]; omega)⟩
+          have heq := hleaf_out ⟨k.val - n, by omega⟩
           change leaf2n k ∈ Comp at hk
-          have hk_eq : inr2n n ⟨k.1 - n, by omega⟩ = k := Fin.ext (by simp [inr2n]; omega)
+          have hk_eq : inr2n n ⟨k.val - n, by omega⟩ = k := Fin.ext (by simp [inr2n]; omega)
           rw [← hk_eq, heq] at hk
-          exact (hreach_closed Comp hcut ⟨e ⟨k.1 - n, by omega⟩, _⟩).mpr hk
+          exact (hreach_closed Comp hcut ⟨e ⟨k.val - n, by omega⟩, _⟩).mpr hk
       have hcard2n : {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard ≤
           2 * {q : ↥Aset | inVert q ∈ Comp}.ncard := by
         calc {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard

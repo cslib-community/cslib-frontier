@@ -111,7 +111,7 @@ example : ∃ S₂ : (J : Finset (Fin 2)) →
     (Fin.cases (motive := fun i => OTIn (ZMod 5) i) ((0, 0) : ZMod 5 × ZMod 5)
       fun _ => false)).support_nonempty
   exact ⟨fun J => if h : J = {1} then h ▸ ddhOTReceiverSim (1 : ZMod 5) 5
-    else fun _ _ => pure fun i => v i.1, dite_eq_left rfl⟩
+    else fun _ _ => pure fun i => v i.val, dite_eq_left rfl⟩
 
 section Composition
 
@@ -165,7 +165,7 @@ example : ∃ S₁ : (J : Finset (Fin 2)) → CoalitionSimulator
       (otWorld (primeFields.Carrier five)) (wordInputs false)).support_nonempty
   exact ⟨fun J => if h : J = {1} then h ▸ maskedOTReceiverSim (primeFields.kdfMask constKDF five)
       (primeFields.kdfPads five) (Cslib.BitString.sampleList 2)
-    else fun _ _ => pure fun i => v i.1, dite_eq_left rfl⟩
+    else fun _ _ => pure fun i => v i.val, dite_eq_left rfl⟩
 
 /-! ### The masked transfer over the fair-coin DDH transfer -/
 
@@ -183,7 +183,7 @@ example (n : ℕ) : ∃ S₂ : (J : Finset (Fin 2)) → CoalitionSimulator
       ((0, 0) : primeFields.Carrier five × primeFields.Carrier five)
       fun _ => false)).support_nonempty
   exact ⟨fun J => if h : J = {1} then h ▸ primeFields.ddhOTReceiverSimProb n five
-    else fun _ _ => pure fun i => v i.1, dite_eq_left rfl⟩
+    else fun _ _ => pure fun i => v i.val, dite_eq_left rfl⟩
 
 /-- **The masked transfer of words over the fair-coin DDH transfer at the prime `5`, corrupted
 receiver.** The bound for one distinguisher applies at every security parameter: the advantage is

@@ -393,9 +393,9 @@ message and the given transfer views into the coalition's views and runs `D`. It
     (fun i => ((x i, r i),
       Round.deliverMessage (spec := batchOTSpec c.evaluatorLen (List Bool)) (sender := 0)
         (receiver := 1) (garblerMessage G n c (x 0) (r 0)) i))
-    (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1),
+    (fun res => D (fun i : I => ⟨x i.val, (r i.val, (res.1 i).1),
       (Round.deliverMessage (spec := spec₂) (sender := 0) (receiver := 1)
-        (garblerMessage G n c (x 0) (r 0)) i.1, (res.1 i).2)⟩, res.2))
+        (garblerMessage G n c (x 0) (r 0)) i.val, (res.1 i).2)⟩, res.2))
 
 /-- **The reduction to the transfer subprotocol**, for `Yao.protocol G n c` on the inputs `x` with
 the coins `r`: from a distinguisher `D` of the coalition `I`'s views of the composed protocol and
@@ -426,9 +426,9 @@ protocol makes no oracle call. -/
     (fun i => ((x i, r i),
       Round.deliverMessage (spec := batchOTSpec c.evaluatorLen (List Bool)) (sender := 0)
         (receiver := 1) (garblerMessage G n c (x 0) (r 0)) i))
-    (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1),
+    (fun res => D (fun i : I => ⟨x i.val, (r i.val, (res.1 i).1),
       (Round.deliverMessage (spec := spec₂) (sender := 0) (receiver := 1)
-        (garblerMessage G n c (x 0) (r 0)) i.1, (res.1 i).2)⟩, res.2))
+        (garblerMessage G n c (x 0) (r 0)) i.val, (res.1 i).2)⟩, res.2))
 
 /-- On the steps of `Yao.oneSidedProtocol G n c`, the hybrid bound `Composition.replacementBound`
 has one term, for the one transfer round: the semi-honest advantage of
@@ -448,7 +448,7 @@ private theorem replacementBound_oneSidedProtocol (n : ℕ) (c : Params G)
         ProbComp Bool) :
     Composition.replacementBound (batchOTWorld c.evaluatorLen (List Bool)) W₂ (fun _ => OT) S₂ I
         (oneSidedProtocol G n c).steps (fun i => (x i, r i))
-        (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) =
+        (fun res => D (fun i : I => ⟨x i.val, (r i.val, (res.1 i).1), (res.1 i).2⟩, res.2)) =
       (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
         (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I)
         (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I))
@@ -473,7 +473,7 @@ private theorem replacementBound_protocol (n : ℕ) (c : Params G)
         ProbComp Bool) :
     Composition.replacementBound (batchOTWorld c.evaluatorLen (List Bool)) W₂ (fun _ => OT) S₂ I
         (protocol G n c).steps (fun i => (x i, r i))
-        (fun res => D (fun i : I => ⟨x i.1, (r i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) =
+        (fun res => D (fun i : I => ⟨x i.val, (r i.val, (res.1 i).1), (res.1 i).2⟩, res.2)) =
       (semiHonestAdvantage OT W₂ (batchOTFunctionality c.evaluatorLen (List Bool))
         (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I)
         (S₂ () (Composition.subCoalition (Function.Embedding.refl (Fin 2)) I))

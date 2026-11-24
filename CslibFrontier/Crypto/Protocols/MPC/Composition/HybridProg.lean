@@ -131,8 +131,8 @@ test `D` itself and returns the bit. Its distribution is `roundEnv` on the distr
         ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (j : ℕ) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     ProbComp (Bool ⊕ RoundChallenge sc₂ Coins₂) :=
   match steps, j with
@@ -142,7 +142,7 @@ test `D` itself and returns the bit. Its distribution is `roundEnv` on the distr
     roundEnvProg W₁ S₂ ν I next j (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
       fun res => D (fun i : I => ((res.1 i).1,
         (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-          (send (st s₀)) i.1, (res.1 i).2)), res.2)
+          (send (st s₀)) i.val, (res.1 i).2)), res.2)
   | .oracle (op := op) (parties := parties) query next, 0 =>
     pure (Sum.inr
       { op := op
@@ -171,8 +171,8 @@ theorem eval_roundEnvProg (W₁ : MultiOracleWorld spec₁)
         ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (j : ℕ) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     ProbComp.eval (roundEnvProg W₁ S₂ ν I steps j st D) =
       roundEnv W₁ S₂ (fun op J q => ProbComp.eval (ν op J q)) I steps j st D := by
@@ -212,7 +212,7 @@ with the real joint distributions of the subprotocols `Sub` in `W₂`, such as
     ProbComp (Bool ⊕ RoundChallenge sc₂ Coins₂) := do
   let c₁ ← OracleComp.pi P.sampleCoins
   roundEnvProg W₁ S₂ ν I P.steps j (fun i => (x i, c₁ i))
-    fun res => D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)
+    fun res => D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)
 
 /-- When every program `ν op J q` of the kernel has the real joint distribution
 `(Sub op).realJoint W₂ J q` of the subprotocol `Sub op` in the oracle world `W₂`, the program

@@ -595,15 +595,15 @@ subprotocol coins and composed transcript, with every party's output. -/
         ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i) :
-    PMF (((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i)) :=
+    PMF (((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i)) :=
   match steps with
   | .done output => PMF.pure (fun _ => ((), ()), fun i => output i (st i))
   | .message (sender := s₀) (receiver := r₀) send next =>
     (kernelRun μ I next (fun i => (st i, Round.deliverMessage (send (st s₀)) i))).map fun res =>
       (fun i : I => ((res.1 i).1,
         (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-          (send (st s₀)) i.1, (res.1 i).2)), res.2)
+          (send (st s₀)) i.val, (res.1 i).2)), res.2)
   | .oracle (op := op) (parties := parties) query next =>
     (μ op (subCoalition parties I) fun s => query s (st (parties s))).bind fun ⟨v_sub, ans⟩ =>
       (kernelRun μ I next (fun i => (st i, Round.deliverOracle parties ans i))).map
@@ -656,7 +656,7 @@ theorem evalWith_compose_steps_eq_kernelRun {State Out : Fin m → Type}
     (I : Finset (Fin m)) (steps : Steps State Out sc₁) (st : (i : Fin m) → State i) :
     ((ProbComp.eval (OracleComp.pi (sampleSubCoins Sub sc₁))).bind fun c_sub =>
       ((Steps.compose Sub steps).evalWith W₂ (fun i => (st i, c_sub i))).map fun recv₂ =>
-        (fun i : I => (c_sub i.1, recv₂ i.1),
+        (fun i : I => (c_sub i.val, recv₂ i.val),
           fun i => (Steps.compose Sub steps).outputAt i (st i, c_sub i) (recv₂ i))) =
     kernelRun (fun op J q => (Sub op).realJoint W₂ J q) I steps st := by
   induction steps with
@@ -776,7 +776,7 @@ theorem Protocol.realJoint_compose_eq_kernelRun (P : Protocol m spec₁ sc₁ In
       (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
         (kernelRun (fun op J q => (Sub op).realJoint W₂ J q) I P.steps
           (fun i => (x i, c₁ i))).map fun res =>
-            (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2) := by
+            (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2) := by
   have key := fun c₁ : (i : Fin m) → Coins₁ i =>
     evalWith_compose_steps_eq_kernelRun W₂ Sub I P.steps (fun i => (x i, c₁ i))
   generalize (fun (op : spec₁.Op) (J : Finset (Fin (spec₁.arity op)))
@@ -786,11 +786,11 @@ theorem Protocol.realJoint_compose_eq_kernelRun (P : Protocol m spec₁ sc₁ In
     Protocol.compose, eval_pi_pair, Steps.evalWith_mapState, Steps.outputAt_mapState,
     Prod.map_apply, Finset.restrict_def, id_eq]
   refine congrArg (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind (funext fun c₁ => ?_)
-  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-        Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) =>
+  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+        Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) =>
       (fun i : I =>
-        (⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩ :
-          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.1),
+        (⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩ :
+          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.val),
         res.2)) (key c₁)
   simp only [pmf_norm] at hmap ⊢
   exact hmap
@@ -806,14 +806,14 @@ theorem Protocol.realJoint_bind_expandSimSteps_eq_kernelRun
     (I : Finset (Fin m)) (x : (i : Fin m) → In i) :
     ((P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
         (ProbComp.eval (expandSimSteps S₂ I P.steps
-          (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
-            ((fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) :
+          (fun i => (x i.val, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
+            ((fun i : I => ⟨x i.val, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) :
               ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
                 (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i))) =
       (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
         (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I P.steps
           (fun i => (x i, c₁ i))).map fun res =>
-            (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2) := by
+            (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2) := by
   have key := fun c₁ : (i : Fin m) → Coins₁ i =>
     evalWith_bind_expandSimSteps_eq_kernelRun W₁ S₂ I P.steps (fun i => (x i, c₁ i))
   generalize (fun (op : spec₁.Op) (J : Finset (Fin (spec₁.arity op)))
@@ -822,11 +822,11 @@ theorem Protocol.realJoint_bind_expandSimSteps_eq_kernelRun
   simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
     Prod.map_apply, Finset.restrict_def, id_eq]
   refine congrArg (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind (funext fun c₁ => ?_)
-  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-        Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) =>
+  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+        Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) =>
       (fun i : I =>
-        (⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩ :
-          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.1),
+        (⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩ :
+          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.val),
         res.2)) (key c₁)
   simp only [pmf_norm, Finset.restrict_def] at hmap ⊢
   exact hmap
@@ -853,8 +853,8 @@ theorem Protocol.realJoint_compose {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
     (P.compose Sub).realJoint W₂ I x =
       (P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
         (ProbComp.eval (expandSimSteps S₂ I P.steps
-          (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
-            (fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
+          (fun i => (x i.val, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
+            (fun i : I => ⟨x i.val, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
   have hμ : (fun (op : spec₁.Op) (J : Finset (Fin (spec₁.arity op)))
       (q : (s : Fin (spec₁.arity op)) → spec₁.Query op s) => (Sub op).realJoint W₂ J q) =
       fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q) :=

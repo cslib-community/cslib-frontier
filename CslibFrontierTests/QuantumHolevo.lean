@@ -88,7 +88,7 @@ example :
 `superdenseDecoding`. -/
 noncomputable def superdensePOVM : POVM (Bool × Bool) (Bool × Bool) :=
   POVM.basis.comap (superdenseDecoding : Matrix (Bool × Bool) (Bool × Bool) ℂ)
-    superdenseDecoding.2
+    superdenseDecoding.property
 
 theorem measureDensity_superdensePOVM (ab : Bool × Bool) :
     superdensePOVM.measureDensity
@@ -96,7 +96,7 @@ theorem measureDensity_superdensePOVM (ab : Bool × Bool) :
         pureState bell *
         ((superdenseEncoding ab.1 ab.2 : Matrix Bool Bool ℂ) ⊗ₖ (1 : Matrix Bool Bool ℂ))ᴴ)
       ((isDensityMatrix_pureState norm_bell).conj_unitary
-        (kronecker_mem_unitary (superdenseEncoding ab.1 ab.2).2 (one_mem _))) =
+        (kronecker_mem_unitary (superdenseEncoding ab.1 ab.2).property (one_mem _))) =
       PMF.pure ab := by
   let enc : unitaryGroup (Bool × Bool) ℂ := onFirst (superdenseEncoding ab.1 ab.2)
   let ψ := unitaryEquiv enc bell
@@ -141,13 +141,13 @@ example :
         (((U ab : Matrix Bool Bool ℂ) ⊗ₖ (1 : Matrix Bool Bool ℂ)) * pureState bell *
           ((U ab : Matrix Bool Bool ℂ) ⊗ₖ (1 : Matrix Bool Bool ℂ))ᴴ)
         ((isDensityMatrix_pureState norm_bell).conj_unitary
-          (kronecker_mem_unitary (U ab).2 (one_mem _)))).map (ab, ·)) = 2 ∧
+          (kronecker_mem_unitary (U ab).property (one_mem _)))).map (ab, ·)) = 2 ∧
     mutualInfo (p.bind fun ab =>
       (superdensePOVM.measureDensity
         (((U ab : Matrix Bool Bool ℂ) ⊗ₖ (1 : Matrix Bool Bool ℂ)) * pureState bell *
           ((U ab : Matrix Bool Bool ℂ) ⊗ₖ (1 : Matrix Bool Bool ℂ))ᴴ)
         ((isDensityMatrix_pureState norm_bell).conj_unitary
-          (kronecker_mem_unitary (U ab).2 (one_mem _)))).map (ab, ·)) ≤
+          (kronecker_mem_unitary (U ab).property (one_mem _)))).map (ab, ·)) ≤
       2 * Real.logb 2 (Fintype.card Bool) := by
   dsimp only
   refine ⟨?_, mutualInfo_unitary_onFirst_le _ _ (isDensityMatrix_pureState norm_bell) _⟩

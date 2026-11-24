@@ -408,9 +408,9 @@ private theorem kuhnOptProfile_saddle {α : ℝ} (h0 : 0 ≤ α) (h1 : α ≤ 1 
         (kuhnGame.behaviorToRealizationPlan true kuhnOptTrue) ∧
       kuhnGame.evalBehavior (kuhnOptProfile α) false = -(1 / 18 : ℝ) ∧
       (⨆ β₀ : {β₀ : ∀ h : kuhnH false, kuhnAct false h → ℝ // IsBehaviorStrategy β₀},
-        kuhnGame.behaviorLowerVal β₀.1) = -(1 / 18 : ℝ) ∧
+        kuhnGame.behaviorLowerVal β₀.val) = -(1 / 18 : ℝ) ∧
       (⨆ x : {x : SeqVar kuhnGame false → ℝ // kuhnGame.IsRealizationPlan false x},
-        kuhnGame.seqLowerVal x.1) = -(1 / 18 : ℝ) := by
+        kuhnGame.seqLowerVal x.val) = -(1 / 18 : ℝ) := by
   have hbeh : ∀ i, IsBehaviorStrategy (kuhnOptProfile α i) := fun
     | false => kuhnOptFalse_isBehavior h0 h1
     | true => kuhnOptTrue_isBehavior
@@ -447,10 +447,10 @@ theorem kuhnGame_minimax_and_equilibria :
       kuhnGame.evalBehavior (kuhnOptProfile (1 / 3)) false = -(1 / 18 : ℝ) ∧
       (⨆ x : {x : SeqVar kuhnGame false → ℝ // kuhnGame.IsRealizationPlan false x},
           ⨅ y : {y : SeqVar kuhnGame true → ℝ // kuhnGame.IsRealizationPlan true y},
-            x.1 ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.1)) = -(1 / 18 : ℝ) ∧
+            x.val ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.val)) = -(1 / 18 : ℝ) ∧
       (⨅ y : {y : SeqVar kuhnGame true → ℝ // kuhnGame.IsRealizationPlan true y},
           ⨆ x : {x : SeqVar kuhnGame false → ℝ // kuhnGame.IsRealizationPlan false x},
-            x.1 ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.1)) = -(1 / 18 : ℝ) ∧
+            x.val ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.val)) = -(1 / 18 : ℝ) ∧
       kuhnGame.IsBehaviorNash
         (fun | false => kuhnOptProfile (1 / 3) false | true => kuhnOptProfile 0 true) ∧
       kuhnGame.evalBehavior
@@ -472,12 +472,12 @@ theorem kuhnGame_minimax_and_equilibria :
   have hsup_eq :
       (⨆ x : {x : SeqVar kuhnGame false → ℝ // kuhnGame.IsRealizationPlan false x},
           ⨅ y : {y : SeqVar kuhnGame true → ℝ // kuhnGame.IsRealizationPlan true y},
-            x.1 ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.1)) = -(1 / 18 : ℝ) :=
+            x.val ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.val)) = -(1 / 18 : ℝ) :=
     hseq_mm
   have hinf_eq :
       (⨅ y : {y : SeqVar kuhnGame true → ℝ // kuhnGame.IsRealizationPlan true y},
           ⨆ x : {x : SeqVar kuhnGame false → ℝ // kuhnGame.IsRealizationPlan false x},
-            x.1 ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.1)) = -(1 / 18 : ℝ) :=
+            x.val ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.val)) = -(1 / 18 : ℝ) :=
     (kuhnGame_isZeroSum.seq_iSup_iInf_eq_iInf_iSup kuhnGame_perfectRecall).symm.trans hsup_eq
   obtain ⟨hint_n, hint_v⟩ := hn1.interchange kuhnGame_perfectRecall kuhnGame_isZeroSum hn0
   exact ⟨hn0, hn1, hne, hs0, hs1, hb_max, hb_min, hs_max, hs_min,
@@ -614,10 +614,10 @@ theorem zeroPerfectTree_spe_vs_threat :
       zeroPerfectTree.backwardInduction.payoff false = 2 ∧
       (⨆ x : {x : SeqVar zeroPerfectTree.toExtensiveTree false → ℝ //
           zeroPerfectTree.toExtensiveTree.IsRealizationPlan false x},
-        zeroPerfectTree.toExtensiveTree.seqLowerVal x.1) = 2 ∧
+        zeroPerfectTree.toExtensiveTree.seqLowerVal x.val) = 2 ∧
       (⨅ y : {y : SeqVar zeroPerfectTree.toExtensiveTree true → ℝ //
           zeroPerfectTree.toExtensiveTree.IsRealizationPlan true y},
-        zeroPerfectTree.toExtensiveTree.seqUpperVal y.1) = 2 ∧
+        zeroPerfectTree.toExtensiveTree.seqUpperVal y.val) = 2 ∧
       (zeroPerfectTree.toExtensiveTree.IsBehaviorNash
         (zeroPerfectTree.toExtensiveBehavior zeroPerfectThreat)) ∧
       (¬ zeroPerfectTree.IsBehaviorSPE (zeroPerfectTree.toExtensiveBehavior zeroPerfectThreat)) ∧
@@ -843,10 +843,10 @@ theorem detSeqMP_sparse_and_mixed_minimax :
           z.payoff false) = 1 / 3 ∧
       (⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
           ⨅ μ₁ : {μ₁ : PureStrategy detH detAct true → ℝ // IsMixedStrategy μ₁},
-            detSeqMP.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) = 1 / 3 ∧
+            detSeqMP.evalMixed (fun | false => μ₀.val | true => μ₁.val) false) = 1 / 3 ∧
       (⨅ μ₁ : {μ₁ : PureStrategy detH detAct true → ℝ // IsMixedStrategy μ₁},
           ⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
-            detSeqMP.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) = 1 / 3 := by
+            detSeqMP.evalMixed (fun | false => μ₀.val | true => μ₁.val) false) = 1 / 3 := by
   have hcard : Fintype.card (Terminal detSeqMP) = 5 := by
     rw [← Fintype.card_congr detTermEquiv]
     decide
@@ -899,13 +899,13 @@ theorem detSeqMP_sparse_and_mixed_minimax :
   have hmix_lo :
       (⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
           ⨅ μ₁ : {μ₁ : PureStrategy detH detAct true → ℝ // IsMixedStrategy μ₁},
-            detSeqMP.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) = 1 / 3 := by
-    change (⨆ μ₀ : {μ₀ // IsMixedStrategy μ₀}, detSeqMP.mixedLowerVal μ₀.1) = 1 / 3
+            detSeqMP.evalMixed (fun | false => μ₀.val | true => μ₁.val) false) = 1 / 3 := by
+    change (⨆ μ₀ : {μ₀ // IsMixedStrategy μ₀}, detSeqMP.mixedLowerVal μ₀.val) = 1 / 3
     rw [detSeqMP_isZeroSum.mixed_minimax_eq_behavior_minimax detSeqMP_perfectRecall, hbv]
   have hmix_hi :
       (⨅ μ₁ : {μ₁ : PureStrategy detH detAct true → ℝ // IsMixedStrategy μ₁},
           ⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
-            detSeqMP.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) = 1 / 3 :=
+            detSeqMP.evalMixed (fun | false => μ₀.val | true => μ₁.val) false) = 1 / 3 :=
     (detSeqMP_isZeroSum.mixed_iSup_iInf_eq_iInf_iSup detSeqMP_perfectRecall).symm.trans hmix_lo
   exact ⟨hcard, hsupp, hinj, hentry, hsum_supp, hsum_term, hmix_lo, hmix_hi⟩
 

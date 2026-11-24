@@ -62,7 +62,7 @@ theorem exists_vertex_ball_of_vertex_contacts {G : Graph} (D : PolygonalDrawing 
 /-- Near a declared vertex, every segment met by an embedding is an actual first or last
 segment at that named vertex. -/
 theorem IsEmbedding.exists_vertex_ball {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) :
     ∃ ε > 0, ∀ e (i : Fin (D.route e).segments) w,
       w ∈ Metric.ball (D.vertex v) ε →
       w ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →

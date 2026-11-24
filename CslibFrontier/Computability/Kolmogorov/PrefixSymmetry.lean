@@ -1126,34 +1126,34 @@ private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
   let emb : {w : List Bool // w ∈ T} →
       (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} :=
     fun w =>
-      let z := (hT w.1 w.2).choose
-      let hz := (hT w.1 w.2).choose_spec
-      ⟨z.unpair.2, ⟨w.1, by
+      let z := (hT w.val w.property).choose
+      let hz := (hT w.val w.property).choose_spec
+      ⟨z.unpair.2, ⟨w.val, by
         have hpair : Nat.pair x z.unpair.2 = z := by
           rw [← hz.2, Nat.pair_unpair]
         rw [hpair]
         exact hz.1⟩⟩
   have hemb : Function.Injective emb := fun a b hab =>
     Subtype.ext (congrArg (fun q : (y : ℕ) ×
-      {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} => q.2.1) hab)
+      {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} => q.2.val) hab)
   let F : Finset ((y : ℕ) ×
       {p : List Bool // universalPrefix.Produces p (Nat.pair x y)}) :=
     T.attach.map ⟨emb, hemb⟩
   have hsum_F : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length =
-      ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := by
+      ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.val.length := by
     rw [Finset.sum_map]
     exact (Finset.sum_attach T fun w => (2 : ℝ)⁻¹ ^ w.length).symm
   have hs_sigma := summable_universalPrefix_produces_pair x
   have htsum_eq : ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-      (2 : ℝ)⁻¹ ^ q.2.1.length =
+      (2 : ℝ)⁻¹ ^ q.2.val.length =
       ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) :=
     hs_sigma.tsum_sigma' fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
   have hsum_le : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length ≤
       (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := by
     calc ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length
-        = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := hsum_F
+        = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.val.length := hsum_F
       _ ≤ ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-            (2 : ℝ)⁻¹ ^ q.2.1.length :=
+            (2 : ℝ)⁻¹ ^ q.2.val.length :=
           hs_sigma.sum_le_tsum F fun _ _ => by positivity
       _ = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) := htsum_eq
       _ ≤ (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := hmarg
@@ -1266,23 +1266,23 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
         rw [hpt]
         simp [x, k, hg.1, hg.2]
       exact ⟨p, z, hpt, hg.1, hg.2, hsym_eq, hk_le, hp_in_i0⟩
-    let prog : I → List Bool := fun i => (hi_spec i.1 i.2).choose
+    let prog : I → List Bool := fun i => (hi_spec i.val i.property).choose
     have hprog_inj : Function.Injective prog := by
       intro i j hpeq
-      obtain ⟨zi, hpti, -, -, -, -, -⟩ := (hi_spec i.1 i.2).choose_spec
-      obtain ⟨zj, hptj, -, -, -, -, -⟩ := (hi_spec j.1 j.2).choose_spec
+      obtain ⟨zi, hpti, -, -, -, -, -⟩ := (hi_spec i.val i.property).choose_spec
+      obtain ⟨zj, hptj, -, -, -, -, -⟩ := (hi_spec j.val j.property).choose_spec
       have htab_i := prefixTableNew_eq_some_iff hpti
       have htab_j := prefixTableNew_eq_some_iff hptj
-      have hmem_i : (prog i, zi) ∈ universalPrefixTable (i.1 + 1) := by
+      have hmem_i : (prog i, zi) ∈ universalPrefixTable (i.val + 1) := by
         simp [htab_i.1, prog]
-      have hmem_j : (prog j, zj) ∈ universalPrefixTable (j.1 + 1) := by
+      have hmem_j : (prog j, zj) ∈ universalPrefixTable (j.val + 1) := by
         simp [htab_j.1, prog]
       have hpi_prod := mem_universalPrefixTable_produces hmem_i
       have hpj_prod := mem_universalPrefixTable_produces hmem_j
       rw [← hpeq] at hpj_prod
       have hzeq : zi = zj := hpi_prod.unique hpj_prod
       by_contra hne_ij
-      have hval_ne : i.1 ≠ j.1 := fun h => hne_ij (Subtype.ext h)
+      have hval_ne : i.val ≠ j.val := fun h => hne_ij (Subtype.ext h)
       rcases lt_or_gt_of_ne hval_ne with hlt | hlt
       · have hsub := (universalPrefixTable_prefix (Nat.succ_le_of_lt hlt)).subset hmem_i
         rw [hpeq, hzeq] at hsub
@@ -1291,10 +1291,10 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
         rw [← hpeq, ← hzeq] at hsub
         exact htab_i.2 hsub
     have hterms : ∀ i : I,
-        (match symReq c₁ xk i.1 with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
+        (match symReq c₁ xk i.val with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
           (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
       intro i
-      obtain ⟨zi, -, -, -, hseq, hk_le, -⟩ := (hi_spec i.1 i.2).choose_spec
+      obtain ⟨zi, -, -, -, hseq, hk_le, -⟩ := (hi_spec i.val i.property).choose_spec
       rw [hseq]
       have hadd : (prog i).length + c₁ - k + k = (prog i).length + c₁ := Nat.sub_add_cancel hk_le
       have hpow : (2 : ℝ)⁻¹ ^ ((prog i).length + c₁ - k) * (2 : ℝ)⁻¹ ^ k =
@@ -1312,12 +1312,13 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
     have hP_sub : P ⊆ (symProgs x (i₀ + 1)).toFinset := by
       intro w hw
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hw
-      obtain ⟨-, -, -, -, -, -, hp⟩ := (hi_spec i.1 i.2).choose_spec
+      obtain ⟨-, -, -, -, -, -, hp⟩ := (hi_spec i.val i.property).choose_spec
       exact hp
     calc ∑ i ∈ I,
           (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ)
         = ∑ i ∈ I.attach,
-            (match symReq c₁ xk i.1 with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) :=
+            (match symReq c₁ xk i.val with
+              | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) :=
           (Finset.sum_attach I _).symm
       _ = ∑ i ∈ I.attach, (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length :=
           Finset.sum_congr rfl fun i _ => hterms i

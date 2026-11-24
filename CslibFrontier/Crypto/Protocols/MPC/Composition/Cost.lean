@@ -80,8 +80,8 @@ explicit per-distinguisher reductions, not a cited statement, and it makes no ef
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) : ℝ≥0∞ :=
   match steps with
   | .done _ => 0
@@ -90,7 +90,7 @@ explicit per-distinguisher reductions, not a cited statement, and it makes no ef
       (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
       fun res => D (fun i : I => ((res.1 i).1,
         (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-          (send (st s₀)) i.1, (res.1 i).2)), res.2)
+          (send (st s₀)) i.val, (res.1 i).2)), res.2)
   | .oracle (op := op) (parties := parties) query next =>
     cost op (subCoalition parties I) (fun s => query s (st (parties s)))
         (roundDistinguisher W₁ S₂ I next st D) +
@@ -118,8 +118,8 @@ theorem replacementBound_eq_replacementCost (W₁ : MultiOracleWorld spec₁)
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     replacementBound W₁ W₂ Sub S₂ I steps st D =
       replacementCost
@@ -151,8 +151,8 @@ theorem replacementCost_mono
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     replacementCost cost W₁ W₂ Sub S₂ I steps st D ≤
       replacementCost cost' W₁ W₂ Sub S₂ I steps st D := by
@@ -185,8 +185,8 @@ theorem replacementBound_le_replacementCost
       (semiHonestAdvantage (Sub op) W₂ (W₁ op) J (S₂ op J) q D' : ℝ≥0∞) ≤ cost op J q D')
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     replacementBound W₁ W₂ Sub S₂ I steps st D ≤
       replacementCost cost W₁ W₂ Sub S₂ I steps st D := by

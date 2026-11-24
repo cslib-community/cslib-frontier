@@ -196,7 +196,7 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
       _ = Real.exp (L / 2 + ε / 4) ^ 2 * (T * K) ^ (2 * d) := by
           rw [mul_pow, ← pow_mul, mul_comm d]
       _ = Real.exp L * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by
-          rw [← Real.exp_nat_mul, ← mul_assoc, ← Real.exp_add]
+          rw [← Real.exp_natCast_mul, ← mul_assoc, ← Real.exp_add]
           push_cast
           ring_nf
       _ = P.card * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by rw [hL, Real.exp_log hN]
@@ -204,7 +204,7 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
     le_of_mul_le_mul_left (by rwa [← sq]) hN
   have hexp2 : Real.exp (ε / 2) < 2 := by
     have hsq2 : Real.exp (ε / 2) ^ 2 < 2 ^ 2 := by
-      rw [← Real.exp_nat_mul]
+      rw [← Real.exp_natCast_mul]
       calc Real.exp ((2 : ℕ) * (ε / 2)) = Real.exp ε := by push_cast; ring_nf
         _ ≤ Real.exp 1 := Real.exp_le_exp.2 hε1
         _ < 2 ^ 2 := by have := Real.exp_one_lt_d9; norm_num at this ⊢; linarith

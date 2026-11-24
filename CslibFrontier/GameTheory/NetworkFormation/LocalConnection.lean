@@ -213,7 +213,7 @@ theorem mem_erase_iff [DecidableEq V] {a : LinkSet V u} {w x : V} :
 
 instance [Fintype V] [DecidableEq V] (u : V) : Fintype (LinkSet V u) :=
   Fintype.ofEquiv { s : Finset V // u ∉ s }
-    { toFun := fun s => ⟨s.1, s.2⟩
+    { toFun := fun s => ⟨s.val, s.property⟩
       invFun := fun a => ⟨a.neighbors, a.notMem_self⟩
       left_inv := fun ⟨_, _⟩ => rfl
       right_inv := fun ⟨_, _⟩ => rfl }
@@ -1262,7 +1262,7 @@ theorem NoDoubleEdges.isPureNash_of_formedGraph_eq_starGraph {α : ℝ} (hα : 1
         have hsu_card : (s u).neighbors.card = 1 := by
           rw [Subset.antisymm hsu_sub (singleton_subset_iff.mpr hru), card_singleton]
         have ha_nonempty : a.neighbors.Nonempty := by
-          rw [nonempty_iff_ne_empty]
+          rw [← ne_empty_iff_nonempty]
           intro hempty
           obtain ⟨q⟩ := hr' r
           cases q with
@@ -2184,7 +2184,7 @@ theorem IsPureNash.diam_le_four_mul_div_sqrt_card_add_nine {α : ℝ} (hα₀ : 
       change ((d' - 1 : ℕ) : ℝ) * (#Aw : ℝ) ≤ α
       by_cases hAw : Aw = ∅
       · rw [hAw, card_empty, Nat.cast_zero, mul_zero]; exact hα₀
-      · obtain ⟨t₀, ht₀⟩ := nonempty_iff_ne_empty.mpr hAw
+      · obtain ⟨t₀, ht₀⟩ := ne_empty_iff_nonempty.mp hAw
         obtain ⟨ht₀_compl, htw₀⟩ := mem_filter.mp ht₀
         have huw : u ≠ w := htw₀ ▸ (hexit_prop t₀ ht₀_compl).2.1
         let G_uw := formedGraph (addLink s u w)

@@ -46,7 +46,7 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -87,40 +87,40 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
           (‖(evalAct L : Matrix _ _ ℂ) (A.domRestrict y)
               (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2 *
             ‖∏ q : {q : Fin N // q ∉ A},
-              (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)‖ ^ 2)) =
+              (inactU q : Matrix Bool Bool ℂ) (y q.val) (Quantum.glue e x x₀ q.val)‖ ^ 2)) =
         (∑ yA : ↥A → Bool, (if yA q_act = true then (1 : ℝ) else 0) *
           ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2) *
         ∑ yAc : {q : Fin N // q ∉ A} → Bool,
           ∏ q : {q : Fin N // q ∉ A},
-            ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2 := by
+            ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.val)‖ ^ 2 := by
       let fA (yA : ↥A → Bool) : ℝ :=
         (if yA q_act = true then (1 : ℝ) else 0) *
           ‖(evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e x x₀))‖ ^ 2
       let fAc (yAc : {q : Fin N // q ∉ A} → Bool) : ℝ :=
-        ∏ q : {q : Fin N // q ∉ A}, ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2
+        ∏ q : {q : Fin N // q ∉ A}, ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.val)‖ ^ 2
       let eqvN : (Fin N → Bool) ≃ (↥A → Bool) × ({q : Fin N // q ∉ A} → Bool) :=
         (Equiv.piEquivPiSubtypeProd (· ∈ A) fun _ => Bool).trans
           (Equiv.prodCongr (Equiv.refl _)
             (Equiv.arrowCongr
-              { toFun := fun q => ⟨q.1, q.2⟩
-                invFun := fun q => ⟨q.1, q.2⟩
+              { toFun := fun q => ⟨q.val, q.property⟩
+                invFun := fun q => ⟨q.val, q.property⟩
                 left_inv := fun _ => rfl
                 right_inv := fun _ => rfl } (Equiv.refl Bool)))
       refine (Fintype.sum_equiv eqvN _ (fun p => fA p.1 * fAc p.2) fun y => ?_).trans ?_
       · have heqv1 : (eqvN y).1 = A.domRestrict y := rfl
-        have heqv2 : (eqvN y).2 = fun q => y q.1 := rfl
+        have heqv2 : (eqvN y).2 = fun q => y q.val := rfl
         have hyq : y q_out = (A.domRestrict y) q_act := rfl
         have hprod_norm :
             ‖∏ q : {q : Fin N // q ∉ A},
-              (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)‖ ^ 2 =
+              (inactU q : Matrix Bool Bool ℂ) (y q.val) (Quantum.glue e x x₀ q.val)‖ ^ 2 =
             ∏ q : {q : Fin N // q ∉ A},
-              ‖(inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1)‖ ^ 2 := by
+              ‖(inactU q : Matrix Bool Bool ℂ) (y q.val) (x₀ q.val)‖ ^ 2 := by
           have heq_p : (∏ q : {q : Fin N // q ∉ A},
-                (inactU q : Matrix Bool Bool ℂ) (y q.1) (Quantum.glue e x x₀ q.1)) =
+                (inactU q : Matrix Bool Bool ℂ) (y q.val) (Quantum.glue e x x₀ q.val)) =
               ∏ q : {q : Fin N // q ∉ A},
-                (inactU q : Matrix Bool Bool ℂ) (y q.1) (x₀ q.1) :=
+                (inactU q : Matrix Bool Bool ℂ) (y q.val) (x₀ q.val) :=
             Finset.prod_congr (M := ℂ) rfl fun q _ =>
-              congrArg _ (Quantum.glue_of_not e x x₀ fun i hi => q.2 (heA ⟨i, hi⟩))
+              congrArg _ (Quantum.glue_of_not e x x₀ fun i hi => q.property (heA ⟨i, hi⟩))
           rw [heq_p, norm_prod, Finset.prod_pow]
         dsimp only [fA, fAc]
         rw [heqv1, heqv2, hyq, hprod_norm]
@@ -128,20 +128,20 @@ private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
       · rw [Fintype.sum_prod_type, ← Finset.sum_mul_sum]
     have hinact_one : (∑ yAc : {q : Fin N // q ∉ A} → Bool,
         ∏ q : {q : Fin N // q ∉ A},
-          ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.1)‖ ^ 2) = 1 := by
+          ‖(inactU q : Matrix Bool Bool ℂ) (yAc q) (x₀ q.val)‖ ^ 2) = 1 := by
       let fQ (q : {q : Fin N // q ∉ A}) (b : Bool) : ℝ :=
-        ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)‖ ^ 2
+        ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.val)‖ ^ 2
       refine (Fintype.prod_sum fQ).symm.trans (Finset.prod_eq_one fun q _ => ?_)
       dsimp only [fQ]
-      have hu := Matrix.mem_unitaryGroup_iff'.mp (inactU q).2
-      have hcol := congrArg Complex.re (congrFun (congrFun hu (x₀ q.1)) (x₀ q.1))
+      have hu := Matrix.mem_unitaryGroup_iff'.mp (inactU q).property
+      have hcol := congrArg Complex.re (congrFun (congrFun hu (x₀ q.val)) (x₀ q.val))
       rw [Matrix.mul_apply, Matrix.one_apply] at hcol
       simp only [↓reduceIte, Complex.one_re, Fintype.sum_bool] at hcol
       rw [Fintype.sum_bool]
       have hnorm_re (b : Bool) :
-          ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)‖ ^ 2 =
-            (star ((inactU q : Matrix Bool Bool ℂ)) (x₀ q.1) b *
-              (inactU q : Matrix Bool Bool ℂ) b (x₀ q.1)).re := by
+          ‖(inactU q : Matrix Bool Bool ℂ) b (x₀ q.val)‖ ^ 2 =
+            (star ((inactU q : Matrix Bool Bool ℂ)) (x₀ q.val) b *
+              (inactU q : Matrix Bool Bool ℂ) b (x₀ q.val)).re := by
         simp only [Matrix.star_apply, RCLike.star_def]
         rw [mul_comm, Complex.mul_conj, Complex.normSq_eq_norm_sq, Complex.ofReal_re]
       rw [hnorm_re false, hnorm_re true, ← Complex.add_re, hcol]
@@ -249,7 +249,7 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
@@ -332,7 +332,7 @@ private theorem signRank_uqp_le_of_capped {n N : ℕ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
         (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
-          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.val) (x q.val))
     {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
     (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
     (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)

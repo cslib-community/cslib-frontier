@@ -233,7 +233,7 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
     if h : e ∈ H then
       let plan := (mem_image.mp h).choose
       let heq : plan.querySet = e := (mem_image.mp h).choose_spec.2
-      fun w => plan.restrictEval fun j => w ⟨j.1, heq ▸ j.2⟩
+      fun w => plan.restrictEval fun j => w ⟨j.val, heq ▸ j.property⟩
     else fun _ => false
   have hpredict_correct : ∀ e ∈ M,
       1 / 2 + η ≤ ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure
@@ -253,7 +253,7 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
   rcases Nat.eq_zero_or_pos (Fintype.card P) with hP0 | hPpos
   · have hM0 : M = ∅ := by
       by_contra hne
-      obtain ⟨e, heM⟩ := Finset.nonempty_iff_ne_empty.mpr hne
+      obtain ⟨e, heM⟩ := Finset.ne_empty_iff_nonempty.mp hne
       obtain ⟨j, _⟩ := hH_ne e (hMH heM)
       exact absurd (Fintype.card_pos_iff.mpr ⟨j⟩) (by omega)
     simp [hP0, hM0]

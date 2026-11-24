@@ -265,9 +265,9 @@ theorem rootFidelity_le_of_kraus {ι ι' α : Type*} [Fintype ι] [DecidableEq �
       conjTranspose_mul, Matrix.mul_assoc, ← Matrix.mul_assoc Uᵀ, hUU, Matrix.one_mul,
       ← partialTraceRight_pureState_eq_coefficients, partialTraceRight_pureState_purifySqrt hρ]
   let W : Matrix (ι' × (↥s × ι)) (ι × ι) ℂ :=
-    fun ⟨p, ⟨j, k⟩⟩ ⟨i, k'⟩ => if k = k' then K j.1 p i else 0
+    fun ⟨p, ⟨j, k⟩⟩ ⟨i, k'⟩ => if k = k' then K j.val p i else 0
   have hW_mulVec (ξ : EuclideanSpace ℂ (ι × ι)) (p : ι') (j : ↥s) (k : ι) :
-      (W *ᵥ ξ.ofLp) (p, (j, k)) = ∑ i : ι, K j.1 p i * ξ.ofLp (i, k) := by
+      (W *ᵥ ξ.ofLp) (p, (j, k)) = ∑ i : ι, K j.val p i * ξ.ofLp (i, k) := by
     simp only [W, mulVec, dotProduct, Fintype.sum_prod_type, ite_mul, zero_mul]
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [Finset.sum_eq_single k (fun k' _ hk' => by simp [Ne.symm hk']) (by simp)]
@@ -276,7 +276,7 @@ theorem rootFidelity_le_of_kraus {ι ι' α : Type*} [Fintype ι] [DecidableEq �
     ext ⟨i₁, k₁⟩ ⟨i₂, k₂⟩
     have hlhs : (Wᴴ * W) (i₁, k₁) (i₂, k₂) =
         ∑ p : ι', ∑ j : ↥s, ∑ k : ι,
-          star (if k = k₁ then K j.1 p i₁ else 0) * (if k = k₂ then K j.1 p i₂ else 0) := by
+          star (if k = k₁ then K j.val p i₁ else 0) * (if k = k₂ then K j.val p i₂ else 0) := by
       rw [Matrix.mul_apply, Fintype.sum_prod_type]
       refine Finset.sum_congr rfl fun p _ => ?_
       rw [Fintype.sum_prod_type]
@@ -285,7 +285,7 @@ theorem rootFidelity_le_of_kraus {ι ι' α : Type*} [Fintype ι] [DecidableEq �
     by_cases hk : k₁ = k₂
     · subst hk
       have hsum : (∑ p : ι', ∑ j : ↥s, ∑ k : ι,
-          star (if k = k₁ then K j.1 p i₁ else 0) * (if k = k₁ then K j.1 p i₂ else 0)) =
+          star (if k = k₁ then K j.val p i₁ else 0) * (if k = k₁ then K j.val p i₂ else 0)) =
           ∑ j ∈ s, ((K j)ᴴ * K j) i₁ i₂ := by
         simp only [apply_ite star, star_zero, ite_mul, zero_mul, Finset.sum_ite_eq',
           Finset.mem_univ, ↓reduceIte]

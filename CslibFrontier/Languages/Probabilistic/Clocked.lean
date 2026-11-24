@@ -324,7 +324,7 @@ theorem eval_rfind {p : ℕ → ClockedComp spec Bool} (hp : ∀ i, Stable o (p 
       (mem_eval_iff (hp m)).2 ⟨k, hlt m (Nat.zero_le _) hm⟩⟩
   · rintro ⟨hn, hlt⟩
     obtain ⟨kn, hkn⟩ := (mem_eval_iff (hp n)).1 hn
-    choose kf hkf using fun m : Fin n => (mem_eval_iff (hp m)).1 (hlt m.2)
+    choose kf hkf using fun m : Fin n => (mem_eval_iff (hp m)).1 (hlt m.isLt)
     let K := max (max (Finset.univ.sup kf) kn) (n + 1)
     refine ⟨K, ?_⟩
     have hlt' : ∀ m < n, attempt o (p m) K = Part.some (some false) := fun m hm =>

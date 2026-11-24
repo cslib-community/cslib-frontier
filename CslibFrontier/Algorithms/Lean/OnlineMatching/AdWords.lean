@@ -428,7 +428,7 @@ theorem argmaxOver_eq_some_iff {ι : Type*} [LinearOrder ι] {S : Finset ι} {sc
     by_contra hnot
     have hle : score j ≤ score k := le_of_not_gt hnot
     have hidx : l.idxOf j ≤ l.idxOf k :=
-      List.index_of_argmax (by simpa [argmaxOver, l] using h) ((hmem_iff k).mpr hk) hle
+      List.index_of_argmax (by simpa [argmaxOver, l] using h) hle
     rcases lt_or_eq_of_le hidx with hlt | heq
     · exact absurd (hlt_of_idx ((hmem_iff j).mpr (argmaxOver_mem h)) ((hmem_iff k).mpr hk) hlt)
         (not_lt_of_gt hkj)
@@ -442,7 +442,7 @@ theorem argmaxOver_eq_some_iff {ι : Type*} [LinearOrder ι] {S : Finset ι} {sc
     have hsm_le : score m ≤ score j := hmax m hm_mem
     have hsj_le : score j ≤ score m := le_of_argmaxOver_eq_some hm hj
     have hidx : l.idxOf m ≤ l.idxOf j :=
-      List.index_of_argmax (by simpa [argmaxOver, l] using hm) ((hmem_iff j).mpr hj) hsm_le
+      List.index_of_argmax (by simpa [argmaxOver, l] using hm) hsm_le
     rcases lt_or_eq_of_le hidx with hlt | heq
     · have hmj : m < j := hlt_of_idx ((hmem_iff m).mpr hm_mem) ((hmem_iff j).mpr hj) hlt
       exact absurd (htie m hm_mem hmj) (not_lt_of_ge hsj_le)

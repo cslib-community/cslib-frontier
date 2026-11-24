@@ -588,21 +588,21 @@ theorem lt_pullCount_runStochastic_update_iff {t : ℕ} (ht : t ≤ T) (i : ι) 
 individual arm fibers up to round `t`. -/
 private theorem measurableSet_pullCount_eq_of_arms [Finite ι] {t : ℕ}
     (hA : ∀ r : Fin t, ∀ i : ι,
-      MeasurableSet {X : ι × Fin T → ℝ | ((runStochastic pol X t)[r.1]'(by simp)).arm = i})
+      MeasurableSet {X : ι × Fin T → ℝ | ((runStochastic pol X t)[r.val]'(by simp)).arm = i})
     (a : ι) (s : ℕ) :
     MeasurableSet {X : ι × Fin T → ℝ | pullCount (runStochastic pol X t) a = s} := by
   let _ := Fintype.ofFinite ι
   have heq : {X : ι × Fin T → ℝ | pullCount (runStochastic pol X t) a = s} =
       ⋃ arms ∈ univ.filter (fun arms : Fin t → ι =>
           (univ.filter fun r : Fin t => arms r = a).card = s),
-        ⋂ r : Fin t, {X | ((runStochastic pol X t)[r.1]'(by simp)).arm = arms r} := by
+        ⋂ r : Fin t, {X | ((runStochastic pol X t)[r.val]'(by simp)).arm = arms r} := by
     ext X
     simp only [Set.mem_ofPred_eq, Set.mem_iUnion, mem_filter, mem_univ, true_and, Set.mem_iInter]
     have hcnt : pullCount (runStochastic pol X t) a =
         (univ.filter fun r : Fin t =>
-          ((runStochastic pol X t)[r.1]'(by simp)).arm = a).card := by
+          ((runStochastic pol X t)[r.val]'(by simp)).arm = a).card := by
       have hl : runStochastic pol X t =
-          List.ofFn (fun r : Fin t => (runStochastic pol X t)[r.1]'(by simp)) := by
+          List.ofFn (fun r : Fin t => (runStochastic pol X t)[r.val]'(by simp)) := by
         apply List.ext_getElem (by simp)
         intro n _ _
         simp
@@ -610,7 +610,7 @@ private theorem measurableSet_pullCount_eq_of_arms [Finite ι] {t : ℕ}
       exact pullCount_ofFn _ a
     constructor
     · intro hs
-      exact ⟨fun r => ((runStochastic pol X t)[r.1]'(by simp)).arm,
+      exact ⟨fun r => ((runStochastic pol X t)[r.val]'(by simp)).arm,
         by simpa [hcnt] using hs, fun _ => rfl⟩
     · rintro ⟨arms, hcard, harms⟩
       rw [hcnt, ← hcard]
@@ -626,9 +626,9 @@ private theorem measurableSet_pullCount_eq_of_arms [Finite ι] {t : ℕ}
 theorem measurable_runStochastic_arms_and_vals [Finite ι]
     (hpol : pol.IsMeasurable) (t : ℕ) :
     (∀ r : Fin t, ∀ i : ι,
-      MeasurableSet {X : ι × Fin T → ℝ | ((runStochastic pol X t)[r.1]'(by simp)).arm = i}) ∧
+      MeasurableSet {X : ι × Fin T → ℝ | ((runStochastic pol X t)[r.val]'(by simp)).arm = i}) ∧
     (∀ r : Fin t,
-      Measurable fun X : ι × Fin T → ℝ => ((runStochastic pol X t)[r.1]'(by simp)).value) := by
+      Measurable fun X : ι × Fin T → ℝ => ((runStochastic pol X t)[r.val]'(by simp)).value) := by
   let _ := Fintype.ofFinite ι
   induction t with
   | zero => exact ⟨fun r => r.elim0, fun r => r.elim0⟩
@@ -638,11 +638,11 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
         MeasurableSet {X : ι × Fin T → ℝ | pol.choose (runStochastic pol X t) = i} := by
       intro i
       let valsFn : (ι × Fin T → ℝ) → (Fin t → ℝ) :=
-        fun X r => ((runStochastic pol X t)[r.1]'(by simp)).value
+        fun X r => ((runStochastic pol X t)[r.val]'(by simp)).value
       have hvals_meas : Measurable valsFn := Measurable.of_eval hV
       have heq : {X : ι × Fin T → ℝ | pol.choose (runStochastic pol X t) = i} =
           ⋃ arms : Fin t → ι,
-            (⋂ r : Fin t, {X | ((runStochastic pol X t)[r.1]'(by simp)).arm = arms r}) ∩
+            (⋂ r : Fin t, {X | ((runStochastic pol X t)[r.val]'(by simp)).arm = arms r}) ∩
               valsFn ⁻¹' {vals : Fin t → ℝ |
                 pol.choose (List.ofFn fun r => ⟨arms r, vals r⟩) = i} := by
         ext X
@@ -650,9 +650,9 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
           Set.mem_preimage]
         constructor
         · intro hX
-          refine ⟨fun r => ((runStochastic pol X t)[r.1]'(by simp)).arm, fun _ => rfl, ?_⟩
+          refine ⟨fun r => ((runStochastic pol X t)[r.val]'(by simp)).arm, fun _ => rfl, ?_⟩
           have hlist : (List.ofFn fun r : Fin t =>
-              (⟨((runStochastic pol X t)[r.1]'(by simp)).arm, valsFn X r⟩ : BanditStep ι)) =
+              (⟨((runStochastic pol X t)[r.val]'(by simp)).arm, valsFn X r⟩ : BanditStep ι)) =
               runStochastic pol X t := by
             apply List.ext_getElem (by simp)
             intro n hn1 hn2
@@ -675,15 +675,15 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
     · intro r i
       refine Fin.lastCases ?_ (fun r₀ => ?_) r
       · have hlast : {X : ι × Fin T → ℝ |
-            ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).arm = i} =
+            ((runStochastic pol X (t + 1))[(Fin.last t).val]'(by simp)).arm = i} =
             {X | pol.choose (runStochastic pol X t) = i} := by
           ext X
           simp [runStochastic_succ]
         rw [hlast]
         exact hchoose i
       · have hinit : {X : ι × Fin T → ℝ |
-            ((runStochastic pol X (t + 1))[r₀.castSucc.1]'(by simp)).arm = i} =
-            {X | ((runStochastic pol X t)[r₀.1]'(by simp)).arm = i} := by
+            ((runStochastic pol X (t + 1))[r₀.castSucc.val]'(by simp)).arm = i} =
+            {X | ((runStochastic pol X t)[r₀.val]'(by simp)).arm = i} := by
           ext X
           simp [runStochastic_succ]
         rw [hinit]
@@ -691,14 +691,14 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
     · intro r
       refine Fin.lastCases ?_ (fun r₀ => ?_) r
       · have hlast : (fun X : ι × Fin T → ℝ =>
-            ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value) =
+            ((runStochastic pol X (t + 1))[(Fin.last t).val]'(by simp)).value) =
             fun X => ∑ a : ι, ∑ s : Fin T,
               Set.indicator
                 ({X | pol.choose (runStochastic pol X t) = a} ∩
-                  {X | pullCount (runStochastic pol X t) a = s.1})
+                  {X | pullCount (runStochastic pol X t) a = s.val})
                 (fun X => X (a, s)) X := by
           funext X
-          have hget : ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value =
+          have hget : ((runStochastic pol X (t + 1))[(Fin.last t).val]'(by simp)).value =
               if hs : pullCount (runStochastic pol X t)
                   (pol.choose (runStochastic pol X t)) < T then
                 X (pol.choose (runStochastic pol X t), ⟨_, hs⟩)
@@ -712,7 +712,7 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
             · simp [Set.indicator_of_mem, a₀, s₀]
             · intro b _ hb
               have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = a₀} ∩
-                  {X | pullCount (runStochastic pol X t) a₀ = b.1} := by
+                  {X | pullCount (runStochastic pol X t) a₀ = b.val} := by
                 simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, not_and]
                 intro _ hval
                 exact hb (Fin.ext hval.symm)
@@ -721,7 +721,7 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
             · intro b _ hb
               refine sum_eq_zero fun s _ => ?_
               have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = b} ∩
-                  {X | pullCount (runStochastic pol X t) b = s.1} := by
+                  {X | pullCount (runStochastic pol X t) b = s.val} := by
                 simp [a₀, hb.symm]
               exact Set.indicator_of_notMem hnot _
             · simp
@@ -730,21 +730,21 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
             by_cases hb : a₀ = b
             · subst hb
               have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = a₀} ∩
-                  {X | pullCount (runStochastic pol X t) a₀ = s.1} := by
+                  {X | pullCount (runStochastic pol X t) a₀ = s.val} := by
                 simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, not_and]
                 intro _ hval
                 exact hs₀ (by simp [s₀, hval])
               exact Set.indicator_of_notMem hnot _
             · have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = b} ∩
-                  {X | pullCount (runStochastic pol X t) b = s.1} := by
+                  {X | pullCount (runStochastic pol X t) b = s.val} := by
                 simp [a₀, hb]
               exact Set.indicator_of_notMem hnot _
         rw [hlast]
         exact Finset.measurable_sum univ fun a _ => Finset.measurable_sum univ fun s _ =>
-          (measurable_pi_apply (a, s)).indicator ((hchoose a).inter (hpull a s.1))
+          (measurable_pi_apply (a, s)).indicator ((hchoose a).inter (hpull a s.val))
       · have hinit : (fun X : ι × Fin T → ℝ =>
-            ((runStochastic pol X (t + 1))[r₀.castSucc.1]'(by simp)).value) =
-            fun X => ((runStochastic pol X t)[r₀.1]'(r₀.isLt.trans_eq
+            ((runStochastic pol X (t + 1))[r₀.castSucc.val]'(by simp)).value) =
+            fun X => ((runStochastic pol X t)[r₀.val]'(r₀.isLt.trans_eq
               (length_runStochastic pol X t).symm)).value := by
           funext X
           simp [runStochastic_succ]
@@ -904,11 +904,11 @@ private theorem natCast_pullCount_eq_sum_ite (pol : DeterministicPolicy ι) {T :
   have hcard : (univ.filter fun s : Fin T => (s : ℕ) < pullCount (runStochastic pol X T) i).card =
       pullCount (runStochastic pol X T) i := by
     have hbij : Finset.map ⟨fun k : Fin (pullCount (runStochastic pol X T) i) =>
-        (⟨k.1, k.isLt.trans_le hle⟩ : Fin T), fun a b h => Fin.ext (Fin.mk.inj h)⟩ univ =
+        (⟨k.val, k.isLt.trans_le hle⟩ : Fin T), fun a b h => Fin.ext (Fin.mk.inj h)⟩ univ =
         univ.filter fun s : Fin T => (s : ℕ) < pullCount (runStochastic pol X T) i := by
       ext s
       simp only [mem_map, mem_univ, true_and, mem_filter]
-      exact ⟨fun ⟨k, hk⟩ => hk ▸ k.isLt, fun hs => ⟨⟨s.1, hs⟩, rfl⟩⟩
+      exact ⟨fun ⟨k, hk⟩ => hk ▸ k.isLt, fun hs => ⟨⟨s.val, hs⟩, rfl⟩⟩
     rw [← hbij, card_map, card_fin]
   simp [sum_boole, hcard]
 

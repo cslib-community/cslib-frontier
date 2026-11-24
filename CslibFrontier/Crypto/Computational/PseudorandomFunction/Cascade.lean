@@ -87,8 +87,10 @@ theorem cascadeFamily_append {inLen : ℕ → ℕ} {family : List Bool → List 
     (hsuffix : inLen key.length ∣ suffix.length) :
     cascadeFamily inLen family key (msg ++ suffix) =
       cascadeFamily inLen family (cascadeFamily inLen family key msg) suffix := by
-  conv_lhs => rw [cascadeFamily, BitString.listRows_append_aligned hwidth hmsg hsuffix,
-    List.foldl_append]
+  conv_lhs =>
+    rw [cascadeFamily]
+    dsimp only
+    rw [BitString.listRows_append_aligned hwidth hmsg hsuffix, List.foldl_append]
   conv_rhs => rw [cascadeFamily, length_cascadeFamily hlen]
   rfl
 

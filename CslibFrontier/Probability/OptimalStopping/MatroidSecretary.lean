@@ -575,9 +575,9 @@ noncomputable def expectedPartitionSecretary (part : α → ι) (w : α → ℝ)
 
 open scoped Classical in
 private theorem blockKeyFilter_ssubset {α : Type*} [LinearOrder α]
-    (w : α → ℝ) (B : Finset α) {a b : B} (h : blockKey w a.1 < blockKey w b.1) :
-    (Finset.univ.filter fun y : B => blockKey w y.1 < blockKey w a.1) ⊂
-      (Finset.univ.filter fun y : B => blockKey w y.1 < blockKey w b.1) := by
+    (w : α → ℝ) (B : Finset α) {a b : B} (h : blockKey w a.val < blockKey w b.val) :
+    (Finset.univ.filter fun y : B => blockKey w y.val < blockKey w a.val) ⊂
+      (Finset.univ.filter fun y : B => blockKey w y.val < blockKey w b.val) := by
   rw [Finset.ssubset_iff_of_subset]
   · exact ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h⟩,
       fun ha => lt_irrefl _ (Finset.mem_filter.mp ha).2⟩
@@ -588,8 +588,9 @@ open scoped Classical in
 private noncomputable def blockOrderEquiv {α : Type*} [LinearOrder α]
     (w : α → ℝ) (B : Finset α) : B ≃ Fin B.card :=
   let f : B → Fin B.card := fun x =>
-    ⟨(Finset.univ.filter fun y : B => blockKey w y.1 < blockKey w x.1).card, by
-      have hss : (Finset.univ.filter fun y : B => blockKey w y.1 < blockKey w x.1) ⊂ Finset.univ :=
+    ⟨(Finset.univ.filter fun y : B => blockKey w y.val < blockKey w x.val).card, by
+      have hss : (Finset.univ.filter fun y : B => blockKey w y.val <
+          blockKey w x.val) ⊂ Finset.univ :=
         Finset.ssubset_univ_iff.mpr fun h => by
           have hx : x ∈ Finset.univ := Finset.mem_univ x
           rw [← h] at hx
@@ -598,7 +599,7 @@ private noncomputable def blockOrderEquiv {α : Type*} [LinearOrder α]
   have hinj : Function.Injective f := by
     intro a b hab
     by_contra hne
-    have hlt_or : blockKey w a.1 < blockKey w b.1 ∨ blockKey w b.1 < blockKey w a.1 :=
+    have hlt_or : blockKey w a.val < blockKey w b.val ∨ blockKey w b.val < blockKey w a.val :=
       lt_or_gt_of_ne ((blockKey_injective w).ne (Subtype.coe_ne_coe.mpr hne))
     rcases hlt_or with h | h
     · have hcard := Finset.card_lt_card (blockKeyFilter_ssubset w B h)
@@ -613,13 +614,13 @@ open scoped Classical in
 private theorem blockOrderEquiv_val {α : Type*} [LinearOrder α]
     (w : α → ℝ) (B : Finset α) (x : B) :
     (blockOrderEquiv w B x).val =
-      (Finset.univ.filter fun y : B => blockKey w y.1 < blockKey w x.1).card :=
+      (Finset.univ.filter fun y : B => blockKey w y.val < blockKey w x.val).card :=
   rfl
 
 open scoped Classical in
 private theorem blockOrderEquiv_lt_iff {α : Type*} [LinearOrder α]
     (w : α → ℝ) (B : Finset α) (a b : B) :
-    blockOrderEquiv w B a < blockOrderEquiv w B b ↔ blockKey w a.1 < blockKey w b.1 := by
+    blockOrderEquiv w B a < blockOrderEquiv w B b ↔ blockKey w a.val < blockKey w b.val := by
   constructor
   · intro h
     by_contra hge
@@ -643,7 +644,7 @@ private theorem perm_ofSubtype_preserves_block (part : α → ι) (i : ι)
   · have hm : a ∈ Finset.univ.filter fun x => part x = i :=
       Finset.mem_filter.mpr ⟨Finset.mem_univ _, ha⟩
     rw [Equiv.Perm.ofSubtype_apply_of_mem τ hm]
-    exact ⟨fun _ => ha, fun _ => (Finset.mem_filter.mp (τ ⟨a, hm⟩).2).2⟩
+    exact ⟨fun _ => ha, fun _ => (Finset.mem_filter.mp (τ ⟨a, hm⟩).property).2⟩
   · have hm : a ∉ Finset.univ.filter fun x => part x = i := by
       simpa using ha
     rw [Equiv.Perm.ofSubtype_apply_of_not_mem τ hm]
@@ -687,7 +688,7 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
     let B := Finset.univ.filter fun a : α => part a = i
     let xStar := (blockOrderEquiv w B).symm ⟨B.card - 1, Nat.sub_lt hi.card_pos one_pos⟩
     ((uniformOfFintype (Fin (Fintype.card α) ≃ α)).toOuterMeasure
-      {σ | xStar.1 ∈ partitionSelect part w σ}).toReal =
+      {σ | xStar.val ∈ partitionSelect part w σ}).toReal =
       Secretary.successProb (cutoffRule (optimalCutoff B.card)) B.card := by
   classical
   intro B xStar
@@ -720,7 +721,7 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
       _ = uniformOfFintype (Fin (Fintype.card α) ≃ α) := PMF.bind_const _ _
   rw [hunif, PMF.toOuterMeasure_apply]
   have hrew : (∑' x : Fin (Fintype.card α) ≃ α,
-      ({σ | xStar.1 ∈ partitionSelect part w σ} : Set _).indicator
+      ({σ | xStar.val ∈ partitionSelect part w σ} : Set _).indicator
         (⇑((uniformOfFintype (Fin (Fintype.card α) ≃ α)).bind fun σ =>
           PMF.map (fun τ => σ.trans (Equiv.Perm.ofSubtype τ))
             (uniformOfFintype (Equiv.Perm ↥B)))) x) =
@@ -728,13 +729,13 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         ((uniformOfFintype (Fin (Fintype.card α) ≃ α)).bind fun σ =>
           PMF.map (fun τ => σ.trans (Equiv.Perm.ofSubtype τ))
             (uniformOfFintype (Equiv.Perm ↥B))) x *
-          ({σ | xStar.1 ∈ partitionSelect part w σ} : Set _).indicator 1 x := by
+          ({σ | xStar.val ∈ partitionSelect part w σ} : Set _).indicator 1 x := by
     refine tsum_congr fun x => ?_
-    by_cases hx : xStar.1 ∈ partitionSelect part w x <;> simp [Set.indicator, hx]
+    by_cases hx : xStar.val ∈ partitionSelect part w x <;> simp [Set.indicator, hx]
   rw [hrew, tsum_bind_mul]
   have hinner : ∀ σ : Fin (Fintype.card α) ≃ α,
       ∑' a, ((uniformOfFintype (Equiv.Perm B)).map fun τ => σ.trans (Equiv.Perm.ofSubtype τ)) a *
-        ({σ' | xStar.1 ∈ partitionSelect part w σ'} : Set _).indicator 1 a =
+        ({σ' | xStar.val ∈ partitionSelect part w σ'} : Set _).indicator 1 a =
         (uniformOfFintype (Equiv.Perm (Fin m))).toOuterMeasure
           {π | Secretary.Wins (cutoffRule (optimalCutoff m)) π} := by
     intro σ
@@ -746,7 +747,7 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         left_inv := fun τ => by ext y; simp
         right_inv := fun π => by ext k; simp }
     have hiff : ∀ τ : Equiv.Perm B,
-        xStar.1 ∈ partitionSelect part w (σ.trans (Equiv.Perm.ofSubtype τ)) ↔
+        xStar.val ∈ partitionSelect part w (σ.trans (Equiv.Perm.ofSubtype τ)) ↔
           Secretary.Wins (cutoffRule (optimalCutoff m)) (eτ τ) := by
       intro τ
       set σ' := σ.trans (Equiv.Perm.ofSubtype τ)
@@ -755,12 +756,12 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
       have hseq_eq : seq' = (blockArrivalList part σ i).map (Equiv.Perm.ofSubtype τ) :=
         blockArrivalList_comp_ofSubtype part σ i τ
       have hget' : ∀ (k : ℕ) (hk : k < m),
-          seq'[k]'(by rw [hlen']; exact hk) = (τ (pσ ⟨k, hk⟩)).1 := by
+          seq'[k]'(by rw [hlen']; exact hk) = (τ (pσ ⟨k, hk⟩)).val := by
         intro k hk
         simp only [seq', hseq_eq, List.getElem_map]
         have hget0 : (blockArrivalList part σ i)[k]'(by
-            rw [blockArrivalList_length part σ i]; exact hk) = (pσ ⟨k, hk⟩).1 := rfl
-        rw [hget0, Equiv.Perm.ofSubtype_apply_of_mem τ (pσ ⟨k, hk⟩).2]
+            rw [blockArrivalList_length part σ i]; exact hk) = (pσ ⟨k, hk⟩).val := rfl
+        rw [hget0, Equiv.Perm.ofSubtype_apply_of_mem τ (pσ ⟨k, hk⟩).property]
       have hranks_eq : (List.ofFn fun k : Fin seq'.length =>
             ((seq'.take k.val).filter fun y =>
               decide (blockKey w seq'[k.val] < blockKey w y)).length) =
@@ -823,16 +824,16 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
             refine ⟨Fin.cast hlen_take.symm j, ?_, by ext; simp⟩
             simpa using hj
         rw [← htake_eq]
-      have hxStar_part : part xStar.1 = i := (Finset.mem_filter.mp xStar.2).2
-      have hxStar_seq : xStar.1 ∈ partitionSelect part w σ' ↔
-          ∃ k : Fin seq'.length, seq'[k.val] = xStar.1 ∧
+      have hxStar_part : part xStar.val = i := (Finset.mem_filter.mp xStar.property).2
+      have hxStar_seq : xStar.val ∈ partitionSelect part w σ' ↔
+          ∃ k : Fin seq'.length, seq'[k.val] = xStar.val ∧
             stopIndex (cutoffRule (optimalCutoff seq'.length)) []
               (List.ofFn fun k : Fin seq'.length =>
                 ((seq'.take k.val).filter fun y =>
                   decide (blockKey w seq'[k.val] < blockKey w y)).length) = some k.val := by
-        have hpart : ∀ seq, blockArrivalList part σ' (part xStar.1) = seq →
-            (xStar.1 ∈ partitionSelect part w σ' ↔
-              ∃ k : Fin seq.length, seq[k.val] = xStar.1 ∧
+        have hpart : ∀ seq, blockArrivalList part σ' (part xStar.val) = seq →
+            (xStar.val ∈ partitionSelect part w σ' ↔
+              ∃ k : Fin seq.length, seq[k.val] = xStar.val ∧
                 stopIndex (cutoffRule (optimalCutoff seq.length)) []
                   (List.ofFn fun k : Fin seq.length =>
                     ((seq.take k.val).filter fun y =>
@@ -844,8 +845,8 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         exact hpart seq' (by rw [hxStar_part])
       have hlen_cut : optimalCutoff seq'.length = optimalCutoff m := by rw [hlen']
       rw [hranks_eq, hlen_cut] at hxStar_seq
-      have hxStar_mem_iff : xStar.1 ∈ partitionSelect part w σ' ↔
-          ∃ k : Fin m, seq'[k.val]'(by rw [hlen']; exact k.isLt) = xStar.1 ∧
+      have hxStar_mem_iff : xStar.val ∈ partitionSelect part w σ' ↔
+          ∃ k : Fin m, seq'[k.val]'(by rw [hlen']; exact k.isLt) = xStar.val ∧
             stopIndex (cutoffRule (optimalCutoff m)) [] (Secretary.relRanks (eτ τ)) =
               some k.val := by
         rw [hxStar_seq]
@@ -861,7 +862,7 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         intro j
         have hxk : τ (pσ k) = xStar := by
           apply Subtype.ext
-          have hkget : seq'[k.val]'(by rw [hlen']; exact k.isLt) = (τ (pσ ⟨k.val, k.isLt⟩)).1 :=
+          have hkget : seq'[k.val]'(by rw [hlen']; exact k.isLt) = (τ (pσ ⟨k.val, k.isLt⟩)).val :=
             hget' k.val k.isLt
           rw [hkq] at hkget
           exact hkget.symm
@@ -876,12 +877,12 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         have hxk : eτ τ k = q xStar := le_antisymm (htop _) hmax'
         exact congrArg Subtype.val (q.injective hxk)
     calc ∑' τ : Equiv.Perm B, uniformOfFintype (Equiv.Perm B) τ *
-          ({σ' | xStar.1 ∈ partitionSelect part w σ'} : Set _).indicator 1
+          ({σ' | xStar.val ∈ partitionSelect part w σ'} : Set _).indicator 1
             (σ.trans (Equiv.Perm.ofSubtype τ))
         = ∑' τ : Equiv.Perm B, uniformOfFintype (Equiv.Perm B) τ *
             ({π | Secretary.Wins (cutoffRule (optimalCutoff m)) π} : Set _).indicator 1 (eτ τ) := by
           refine tsum_congr fun τ => ?_
-          by_cases h : xStar.1 ∈ partitionSelect part w (σ.trans (Equiv.Perm.ofSubtype τ))
+          by_cases h : xStar.val ∈ partitionSelect part w (σ.trans (Equiv.Perm.ofSubtype τ))
           · have h' := (hiff τ).mp h
             simp [Set.indicator, h, h']
           · have h' : ¬ Secretary.Wins (cutoffRule (optimalCutoff m)) (eτ τ) :=
@@ -909,7 +910,7 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
           ∑' b : Fin (Fintype.card α) ≃ α,
             (PMF.map (fun τ => σ.trans (Equiv.Perm.ofSubtype τ))
               (uniformOfFintype (Equiv.Perm ↥B))) b *
-              ({σ' | xStar.1 ∈ partitionSelect part w σ'} : Set _).indicator 1 b) =
+              ({σ' | xStar.val ∈ partitionSelect part w σ'} : Set _).indicator 1 b) =
         ∑' σ : Fin (Fintype.card α) ≃ α,
           uniformOfFintype (Fin (Fintype.card α) ≃ α) σ *
             ((uniformOfFintype (Equiv.Perm (Fin m))).toOuterMeasure
@@ -922,7 +923,7 @@ omit [DecidableEq α] in
 private noncomputable def blockMaxElem (part : α → ι) (w : α → ℝ) (i : ι)
     (hi : (Finset.univ.filter fun a : α => part a = i).Nonempty) : α :=
   ((blockOrderEquiv w (Finset.univ.filter fun a : α => part a = i)).symm
-    ⟨(Finset.univ.filter fun a : α => part a = i).card - 1, Nat.sub_lt hi.card_pos one_pos⟩).1
+    ⟨(Finset.univ.filter fun a : α => part a = i).card - 1, Nat.sub_lt hi.card_pos one_pos⟩).val
 
 omit [DecidableEq α] in
 private theorem mem_block_le_blockMaxElem (part : α → ι) (w : α → ℝ) (i : ι)
@@ -932,10 +933,10 @@ private theorem mem_block_le_blockMaxElem (part : α → ι) (w : α → ℝ) (i
   let B := Finset.univ.filter fun x : α => part x = i
   let q := blockOrderEquiv w B
   let xStar : B := q.symm ⟨B.card - 1, Nat.sub_lt hi.card_pos one_pos⟩
-  change w a ≤ w xStar.1
+  change w a ≤ w xStar.val
   by_contra hlt
   push Not at hlt
-  have hkey : blockKey w xStar.1 < blockKey w a :=
+  have hkey : blockKey w xStar.val < blockKey w a :=
     (Prod.Lex.toLex_lt_toLex).mpr (Or.inl hlt)
   have hq : q xStar < q ⟨a, ha⟩ := (blockOrderEquiv_lt_iff w B xStar ⟨a, ha⟩).mpr hkey
   have hx : (q xStar).val = B.card - 1 := by simp [xStar, q]

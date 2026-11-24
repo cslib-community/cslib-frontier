@@ -462,10 +462,10 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
   -- Partition `Set.Icc (0 : ι → ℝ) 1` into trajectory cells `w : Fin (T + 1) → α`:
   let x : ℕ → (ι → ℝ) → α := fun k u => fplLeader v (ε • ∑ s ∈ range k, ℓ s + u)
   let trajCell : (Fin (T + 1) → α) → Set (ι → ℝ) := fun w =>
-    Set.Icc (0 : ι → ℝ) 1 ∩ ⋂ k ∈ (univ : Finset (Fin (T + 1))), {u | x k.1 u = w k}
+    Set.Icc (0 : ι → ℝ) 1 ∩ ⋂ k ∈ (univ : Finset (Fin (T + 1))), {u | x k.val u = w k}
   have hcell_meas : ∀ w, MeasurableSet (trajCell w) := fun w =>
     isClosed_Icc.measurableSet.inter (Finset.measurableSet_biInter _ fun k _ =>
-      measurableSet_fplLeader_shift_eq v (ε • ∑ s ∈ range k.1, ℓ s) (w k))
+      measurableSet_fplLeader_shift_eq v (ε • ∑ s ∈ range k.val, ℓ s) (w k))
   have hcell_disj : Pairwise fun w₁ w₂ => Disjoint (trajCell w₁) (trajCell w₂) :=
     fun w₁ w₂ hne => Set.disjoint_left.mpr fun u hu1 hu2 => hne <| funext fun k => by
       have h1 := Set.mem_iInter₂.mp hu1.2 k (mem_univ k)
@@ -478,21 +478,21 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
   have hμw_nn : ∀ w, 0 ≤ μw w := fun _ => ENNReal.toReal_nonneg
   -- Marginal identity: summing `μw w * F (w k)` over `w` yields `∑ a, fplProb v ε ℓ k.1 a * F a`:
   have hmarg : ∀ (k : Fin (T + 1)) (F : α → ℝ),
-      ∑ w : Fin (T + 1) → α, μw w * F (w k) = ∑ a : α, fplProb v ε ℓ k.1 a * F a := by
+      ∑ w : Fin (T + 1) → α, μw w * F (w k) = ∑ a : α, fplProb v ε ℓ k.val a * F a := by
     intro k F
-    have hprob_k : ∀ a : α, fplProb v ε ℓ k.1 a = ∑ w with w k = a, μw w := fun a => by
-      have hunion_a : Set.Icc (0 : ι → ℝ) 1 ∩ {u | x k.1 u = a} =
+    have hprob_k : ∀ a : α, fplProb v ε ℓ k.val a = ∑ w with w k = a, μw w := fun a => by
+      have hunion_a : Set.Icc (0 : ι → ℝ) 1 ∩ {u | x k.val u = a} =
           ⋃ w ∈ univ.filter (fun w : Fin (T + 1) → α => w k = a), trajCell w := by
         ext u
         simp only [trajCell, Set.mem_inter_iff, Set.mem_ofPred_eq, Set.mem_iUnion, mem_filter,
           mem_univ, true_and, Set.mem_iInter]
         constructor
         · rintro ⟨hu01, hxk⟩
-          exact ⟨fun j => x j.1 u, hxk, hu01, fun _ _ => rfl⟩
+          exact ⟨fun j => x j.val u, hxk, hu01, fun _ _ => rfl⟩
         · rintro ⟨w, rfl, hu01, hw⟩
           exact ⟨hu01, hw k trivial⟩
       unfold fplProb
-      change (volume (Set.Icc (0 : ι → ℝ) 1 ∩ {u | x k.1 u = a})).toReal = _
+      change (volume (Set.Icc (0 : ι → ℝ) 1 ∩ {u | x k.val u = a})).toReal = _
       rw [hunion_a, measure_biUnion_finset (fun w₁ _ w₂ _ hne => hcell_disj hne)
         (fun w _ => hcell_meas w), ENNReal.toReal_sum fun w _ => hcell_fin w]
     simp only [hprob_k, sum_mul]
@@ -508,16 +508,16 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
     exact h1
   -- On every cell `w`, `μw w * (BTL LHS) ≤ μw w * (BTL RHS)` via `IsFTRL.regret_le_add_sum_sub`:
   have hcell_btl : ∀ w : Fin (T + 1) → α,
-      μw w * (∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.1)) ≤
-        μw w * (∑ t : Fin T, (v a_star ⬝ᵥ ℓ t.1) + D / ε +
-          ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.1 - v (w t.succ) ⬝ᵥ ℓ t.1)) := by
+      μw w * (∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.val)) ≤
+        μw w * (∑ t : Fin T, (v a_star ⬝ᵥ ℓ t.val) + D / ε +
+          ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.val - v (w t.succ) ⬝ᵥ ℓ t.val)) := by
     intro w
     by_cases hzero : volume (trajCell w) = 0
     · have hm0 : μw w = 0 := by simp only [μw, hzero, ENNReal.toReal_zero]
       rw [hm0, zero_mul, zero_mul]
     · obtain ⟨u, hu⟩ := nonempty_of_measure_ne_zero hzero
       have hu_cube : u ∈ Set.Icc (0 : ι → ℝ) 1 := hu.1
-      have hxu : ∀ k : Fin (T + 1), x k.1 u = w k := fun k =>
+      have hxu : ∀ k : Fin (T + 1), x k.val u = w k := fun k =>
         Set.mem_iInter₂.mp hu.2 k (mem_univ k)
       refine mul_le_mul_of_nonneg_left ?_ (hμw_nn w)
       have hftrl := (isFTRL_fplLeader v hε ℓ u).regret_le_add_sum_sub (Set.mem_univ a_star) T
@@ -527,16 +527,18 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
       rw [sum_sub_distrib, sum_range (fun t => v (x t u) ⬝ᵥ ℓ t),
         sum_range (fun t => v a_star ⬝ᵥ ℓ t),
         sum_range (fun t => v (x t u) ⬝ᵥ ℓ t - v (x (t + 1) u) ⬝ᵥ ℓ t)] at hftrl
-      have hlhs : (∑ t : Fin T, (v (x t.1 u) ⬝ᵥ ℓ t.1)) =
-          ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.1) :=
+      have hlhs : (∑ t : Fin T, (v (x t.val u) ⬝ᵥ ℓ t.val)) =
+          ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.val) :=
         sum_congr rfl fun t _ => by
-          have ht : x t.1 u = w t.castSucc := by simpa only [Fin.val_castSucc] using hxu t.castSucc
+          have ht : x t.val u = w t.castSucc := by
+            simpa only [Fin.val_castSucc] using hxu t.castSucc
           rw [ht]
-      have hstab : (∑ t : Fin T, (v (x t.1 u) ⬝ᵥ ℓ t.1 - v (x (t.1 + 1) u) ⬝ᵥ ℓ t.1)) =
-          ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.1 - v (w t.succ) ⬝ᵥ ℓ t.1) :=
+      have hstab : (∑ t : Fin T, (v (x t.val u) ⬝ᵥ ℓ t.val - v (x (t.val + 1) u) ⬝ᵥ ℓ t.val)) =
+          ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.val - v (w t.succ) ⬝ᵥ ℓ t.val) :=
         sum_congr rfl fun t _ => by
-          have ht : x t.1 u = w t.castSucc := by simpa only [Fin.val_castSucc] using hxu t.castSucc
-          have ht1 : x (t.1 + 1) u = w t.succ := by simpa only [Fin.val_succ] using hxu t.succ
+          have ht : x t.val u = w t.castSucc := by
+            simpa only [Fin.val_castSucc] using hxu t.castSucc
+          have ht1 : x (t.val + 1) u = w t.succ := by simpa only [Fin.val_succ] using hxu t.succ
           rw [ht, ht1]
       have hpert : (1 / ε) * (v a_star ⬝ᵥ u) - (1 / ε) * (v (x 0 u) ⬝ᵥ u) ≤ D / ε := by
         rw [← mul_sub, one_div_mul_eq_div]
@@ -545,15 +547,15 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
       linarith
   -- Sum `hcell_btl` over all `w`:
   have hsum_btl := sum_le_sum fun w (_ : w ∈ univ) => hcell_btl w
-  have hlhs_eq : (∑ w : Fin (T + 1) → α, μw w * ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.1)) =
+  have hlhs_eq : (∑ w : Fin (T + 1) → α, μw w * ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.val)) =
       ∑ t ∈ range T, ∑ a : α, fplProb v ε ℓ t a * (v a ⬝ᵥ ℓ t) := by
     simp_rw [mul_sum]
     rw [sum_comm, sum_range]
     exact sum_congr rfl fun t _ => by
-      simpa only [Fin.val_castSucc] using hmarg t.castSucc (fun a => v a ⬝ᵥ ℓ t.1)
+      simpa only [Fin.val_castSucc] using hmarg t.castSucc (fun a => v a ⬝ᵥ ℓ t.val)
   have hrhs_eq : (∑ w : Fin (T + 1) → α, μw w *
-      (∑ t : Fin T, (v a_star ⬝ᵥ ℓ t.1) + D / ε +
-        ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.1 - v (w t.succ) ⬝ᵥ ℓ t.1))) =
+      (∑ t : Fin T, (v a_star ⬝ᵥ ℓ t.val) + D / ε +
+        ∑ t : Fin T, (v (w t.castSucc) ⬝ᵥ ℓ t.val - v (w t.succ) ⬝ᵥ ℓ t.val))) =
       ∑ t ∈ range T, (v a_star ⬝ᵥ ℓ t) + D / ε +
         ∑ t ∈ range T, ∑ a : α, (fplProb v ε ℓ t a - fplProb v ε ℓ (t + 1) a) *
           (v a ⬝ᵥ ℓ t) := by
@@ -563,8 +565,8 @@ theorem fpl_regret_le (v : α → ι → ℝ) {ε D R A : ℝ} (hε : 0 < ε) (h
     rw [sum_comm]
     refine sum_congr rfl fun t _ => ?_
     simp only [mul_sub, sum_sub_distrib, sub_mul]
-    rw [hmarg t.castSucc (fun a => v a ⬝ᵥ ℓ t.1),
-      hmarg t.succ (fun a => v a ⬝ᵥ ℓ t.1), Fin.val_castSucc, Fin.val_succ]
+    rw [hmarg t.castSucc (fun a => v a ⬝ᵥ ℓ t.val),
+      hmarg t.succ (fun a => v a ⬝ᵥ ℓ t.val), Fin.val_castSucc, Fin.val_succ]
   rw [hlhs_eq, hrhs_eq] at hsum_btl
   -- Bound each stability term by `ε * R * A`:
   have hstab_sum : ∑ t ∈ range T, ∑ a : α,

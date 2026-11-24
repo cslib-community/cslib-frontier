@@ -28,7 +28,6 @@ Checked witnesses exercising:
      the compiled circuit,
    * computable `DecidableRel (compileAuxPDA …).orChild` exercised directly on `dyck1Circuit`.
 3. End-to-end `LogCFL.exists_normalForm_circuit_family_certified` instantiated on `dyck1`.
-4. Choice-free axiom guard (`#print axioms`) on `balancedCircuit_eval_output_sound`.
 -/
 
 set_option linter.privateModule false
@@ -312,13 +311,5 @@ example :
   obtain ⟨N, C, out, -, -, -, -, -, -, -, -, -, hpoly, hnorm, heval, -, hiso, -, -⟩ :=
     LogCFL.exists_normalForm_circuit_family_certified hmem
   exact ⟨N, C, out, hpoly, hnorm, heval, hiso⟩
-
-/-! ## 4. Choice-free axiom guard on `balancedCircuit_eval_output_sound` -/
-
-/--
-info: 'Cslib.Circuits.Boolean.balancedCircuit_eval_output_sound' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Boolean.balancedCircuit_eval_output_sound
 
 end CslibFrontierTests.AuxPDACircuitCompiler

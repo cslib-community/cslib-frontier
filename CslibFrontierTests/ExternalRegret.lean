@@ -142,11 +142,11 @@ example :
         perturbedAltLoss t j := by
     intro t j k hjk hlt
     have hall : ∀ i : Fin 2, i = j ∨ i = k := fun i => by
-      have hi := i.2
-      have hj := j.2
-      have hk := k.2
-      have hne : j.1 ≠ k.1 := fun h => hjk (Fin.ext h)
-      rcases eq_or_ne i.1 j.1 with h | h
+      have hi := i.isLt
+      have hj := j.isLt
+      have hk := k.isLt
+      have hne : j.val ≠ k.val := fun h => hjk (Fin.ext h)
+      rcases eq_or_ne i.val j.val with h | h
       · exact Or.inl (Fin.ext h)
       · exact Or.inr (Fin.ext (by omega))
     have hmin : minCumLoss perturbedAltLoss t = ∑ s ∈ range t, perturbedAltLoss s j := by

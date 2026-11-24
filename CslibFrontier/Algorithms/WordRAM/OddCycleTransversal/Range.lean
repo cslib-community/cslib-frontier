@@ -335,20 +335,20 @@ theorem copyRange_spec {srcB dstB len : ℕ} (hdisj : srcB + len ≤ dstB) (s : 
 /-- Invariant asserting that row-major adjacency matrix of `G` resides at memory offset `3`. -/
 @[expose] def MatrixLoaded {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (s : Memory.State) : Prop :=
-  ∀ u v : Fin n, s.mem (3 + u.1 * n + v.1) = if G.Adj u v then 1 else 0
+  ∀ u v : Fin n, s.mem (3 + u.val * n + v.val) = if G.Adj u v then 1 else 0
 
 theorem matrixLoaded_init {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k : ℕ) :
     MatrixLoaded G (Memory.State.init (encodeInput G k)) := by
   intro u v
-  have hne : 3 + u.1 * n + v.1 ≠ 0 := by omega
-  have hsub : 3 + u.1 * n + v.1 - 1 = (u.1 * n + v.1) + 2 := by omega
-  have hlt : u.1 * n + v.1 < (encodeAdjMatrix G).length := by
+  have hne : 3 + u.val * n + v.val ≠ 0 := by omega
+  have hsub : 3 + u.val * n + v.val - 1 = (u.val * n + v.val) + 2 := by omega
+  have hlt : u.val * n + v.val < (encodeAdjMatrix G).length := by
     rw [length_encodeAdjMatrix]
-    nlinarith [u.2, v.2]
-  change (if 3 + u.1 * n + v.1 = 0 then (encodeInput G k).length
-    else (encodeInput G k).getD (3 + u.1 * n + v.1 - 1) 0) = _
+    nlinarith [u.isLt, v.isLt]
+  change (if 3 + u.val * n + v.val = 0 then (encodeInput G k).length
+    else (encodeInput G k).getD (3 + u.val * n + v.val - 1) 0) = _
   rw [ite_eq_right hne, hsub]
-  change (encodeAdjMatrix G).getD (u.1 * n + v.1) 0 = _
+  change (encodeAdjMatrix G).getD (u.val * n + v.val) 0 = _
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some,
     getElem_encodeAdjMatrix]
 

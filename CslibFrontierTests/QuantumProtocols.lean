@@ -212,7 +212,7 @@ example :
         (prodState (prodState (ket false) (ket false)) (ket false)).ofLp ∧
       U *ᵥ (prodState (prodState (-ket false) (ket false)) (ket false)).ofLp =
         (prodState (prodState (-ket false) (-ket false)) (-ket false)).ofLp := by
-  refine ⟨(onFirst ⟨cnotMatrix, cnotMatrix_mem_unitaryGroup⟩).2, ?_, ?_⟩
+  refine ⟨(onFirst ⟨cnotMatrix, cnotMatrix_mem_unitaryGroup⟩).property, ?_, ?_⟩
   · ext ⟨⟨x, y⟩, z⟩
     rw [coe_onFirst, kronecker_one_mulVec_apply]
     cases x <;> cases y <;> cases z <;> simp

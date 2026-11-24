@@ -539,7 +539,7 @@ theorem zeroSeqGame_equilibria_and_deviation :
     intro i
     ext σ
     rw [ExtensiveTree.mixedToRealizationPlan_def, ExtensiveTree.behaviorToRealizationPlan_apply]
-    obtain ⟨z, _, hz⟩ := σ.2
+    obtain ⟨z, _, hz⟩ := σ.property
     have hzn := (zeroSeqGame_perfectRecall i).noRepeatedInfoSet z
     rw [← hz, List.map_append] at hzn
     exact realizationProbMixed_behaviorToMixed (zsOptB_isBehavior i)
@@ -585,15 +585,15 @@ private theorem zsTerminal_payoff_false (a₁ a₂ : Bool) :
   simp
 
 private theorem zs_seqVar_true_cases (τ : SeqVar zeroSeqGame true) :
-    τ.1 = [] ∨ τ.1 = [⟨(), false⟩] ∨ τ.1 = [⟨(), true⟩] := by
-  obtain ⟨z, rem, hz⟩ := τ.2
+    τ.val = [] ∨ τ.val = [⟨(), false⟩] ∨ τ.val = [⟨(), true⟩] := by
+  obtain ⟨z, rem, hz⟩ := τ.property
   rcases zeroSeqGame_terminal_seq_cases z with ⟨_, hz1, _⟩ | ⟨_, _, _, hz1, _⟩
   · rw [hz1] at hz
-    rcases hτ : τ.1 with _ | ⟨x, tl⟩
+    rcases hτ : τ.val with _ | ⟨x, tl⟩
     · exact .inl rfl
     · rw [hτ] at hz; simp at hz
   · rw [hz1] at hz
-    rcases hτ : τ.1 with _ | ⟨⟨⟨⟩, b⟩, _ | ⟨y, tl⟩⟩
+    rcases hτ : τ.val with _ | ⟨⟨⟨⟩, b⟩, _ | ⟨y, tl⟩⟩
     · exact .inl rfl
     · cases b
       · exact .inr (.inl rfl)
@@ -601,12 +601,12 @@ private theorem zs_seqVar_true_cases (τ : SeqVar zeroSeqGame true) :
     · rw [hτ] at hz; simp at hz
 
 private theorem zs_seqVar_false_cases (σ : SeqVar zeroSeqGame false) :
-    σ.1 = [] ∨ σ.1 = [⟨false, false⟩] ∨ σ.1 = [⟨false, true⟩] ∨
-      σ.1 = [⟨false, true⟩, ⟨true, false⟩] ∨ σ.1 = [⟨false, true⟩, ⟨true, true⟩] := by
-  obtain ⟨z, rem, hz⟩ := σ.2
+    σ.val = [] ∨ σ.val = [⟨false, false⟩] ∨ σ.val = [⟨false, true⟩] ∨
+      σ.val = [⟨false, true⟩, ⟨true, false⟩] ∨ σ.val = [⟨false, true⟩, ⟨true, true⟩] := by
+  obtain ⟨z, rem, hz⟩ := σ.property
   rcases zeroSeqGame_terminal_seq_cases z with ⟨hz0, _, _⟩ | ⟨_, _, hz0, _, _⟩
   · rw [hz0] at hz
-    rcases hσ : σ.1 with _ | ⟨⟨_ | _, b⟩, _ | ⟨y, tl⟩⟩
+    rcases hσ : σ.val with _ | ⟨⟨_ | _, b⟩, _ | ⟨y, tl⟩⟩
     · exact .inl rfl
     · cases b
       · exact .inr (.inl rfl)
@@ -615,7 +615,7 @@ private theorem zs_seqVar_false_cases (σ : SeqVar zeroSeqGame false) :
     · rw [hσ] at hz; simp at hz
     · rw [hσ] at hz; simp at hz
   · rw [hz0] at hz
-    rcases hσ : σ.1 with _ | ⟨⟨_ | _, b⟩, tl⟩
+    rcases hσ : σ.val with _ | ⟨⟨_ | _, b⟩, tl⟩
     · exact .inl rfl
     · rcases htl : tl with _ | ⟨⟨_ | _, c⟩, _ | ⟨y, tl'⟩⟩
       · cases b
@@ -704,7 +704,7 @@ theorem zeroSeqGame_lp_minimax_value :
     have hArow : ((zeroSeqGame.seqPayoffMat false)ᵀ *ᵥ xStar) τ =
         ∑ z : Terminal zeroSeqGame,
           (z.chanceWeight * realizationProbBehavior (zsOptB false) (z.seq false) *
-            (if z.seq true = τ.1 then 1 else 0)) * z.payoff false := by
+            (if z.seq true = τ.val then 1 else 0)) * z.payoff false := by
       have hdot : ((zeroSeqGame.seqPayoffMat false)ᵀ *ᵥ xStar) τ =
           xStar ⬝ᵥ (zeroSeqGame.seqPayoffMat false *ᵥ Pi.single τ (1 : ℝ)) := by
         have hs : ((zeroSeqGame.seqPayoffMat false)ᵀ *ᵥ xStar) τ =
@@ -714,16 +714,16 @@ theorem zeroSeqGame_lp_minimax_value :
           simp
         rw [hs, Matrix.mulVec_transpose, ← Matrix.dotProduct_mulVec]
       have hcol : Pi.single (M := fun _ => ℝ) τ (1 : ℝ) =
-          fun τ₁ => if τ₁.1 = τ.1 then 1 else 0 := by
+          fun τ₁ => if τ₁.val = τ.val then 1 else 0 := by
         ext τ₁
         simp only [Pi.single_apply, Subtype.ext_iff, eq_comm]
-      have hxStar_eq : xStar = fun σ => realizationProbBehavior (zsOptB false) σ.1 := by
+      have hxStar_eq : xStar = fun σ => realizationProbBehavior (zsOptB false) σ.val := by
         ext σ; exact ExtensiveTree.behaviorToRealizationPlan_apply _ _ _ _
       rw [hdot, hxStar_eq, hcol]
       exact seqPayoffMat_bilinear zeroSeqGame false (realizationProbBehavior (zsOptB false))
-        (fun t => if t = τ.1 then 1 else 0)
+        (fun t => if t = τ.val then 1 else 0)
     have hcol_q : ((seqMat zeroSeqGame true)ᵀ *ᵥ qConst) τ =
-        if τ.1 = [] then 0 else 1 / 3 := by
+        if τ.val = [] then 0 else 1 / 3 := by
       rw [hrow, seqMat_mulVec_none,
         seqMat_mulVec_some (zeroSeqGame_perfectRecall true) ⟨(), hunit_occ⟩]
       have hinf_eq : SeqVar.infoSeq (zeroSeqGame_perfectRecall true) hunit_occ =
@@ -737,7 +737,7 @@ theorem zeroSeqGame_lp_minimax_value :
               SeqVar.nil zeroSeqGame true := fun a he =>
           seqVar_infoSeqExt_ne_nil (zeroSeqGame_perfectRecall true) hunit_occ a
             (by simpa using congrArg Subtype.val he)
-        have hrhs : (if τ.1 = [] then (0 : ℝ) else 1 / 3) = 0 := by simp [h]
+        have hrhs : (if τ.val = [] then (0 : ℝ) else 1 / 3) = 0 := by simp [h]
         rw [hrhs, hτ]
         simp [qConst, hne_nil, Pi.single_eq_same, Pi.single_eq_of_ne]
       · have hτ : τ = SeqVar.infoSeqExt (zeroSeqGame_perfectRecall true) hunit_occ false :=
@@ -750,7 +750,7 @@ theorem zeroSeqGame_lp_minimax_value :
           intro he
           exact Bool.false_ne_true.symm
             (eq_of_heq (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj _ he)).2)
-        have hrhs : (if τ.1 = [] then (0 : ℝ) else 1 / 3) = 1 / 3 := by simp [h]
+        have hrhs : (if τ.val = [] then (0 : ℝ) else 1 / 3) = 1 / 3 := by simp [h]
         rw [hrhs, hτ]
         rw [hτ] at hne_nil hne_tf
         simp [qConst, hne_nil, hne_tf, Pi.single_eq_same, Pi.single_eq_of_ne]
@@ -764,12 +764,12 @@ theorem zeroSeqGame_lp_minimax_value :
           intro he
           exact Bool.false_ne_true
             (eq_of_heq (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj _ he)).2)
-        have hrhs : (if τ.1 = [] then (0 : ℝ) else 1 / 3) = 1 / 3 := by simp [h]
+        have hrhs : (if τ.val = [] then (0 : ℝ) else 1 / 3) = 1 / 3 := by simp [h]
         rw [hrhs, hτ]
         rw [hτ] at hne_nil hne_ft
         simp [qConst, hne_nil, hne_ft, Pi.single_eq_same, Pi.single_eq_of_ne]
     have hA_val : ((zeroSeqGame.seqPayoffMat false)ᵀ *ᵥ xStar) τ =
-        if τ.1 = [] then 0 else 1 / 3 := by
+        if τ.val = [] then 0 else 1 / 3 := by
       rw [hArow]
       rcases zs_seqVar_true_cases τ with h | h | h
       · simp only [h, ↓reduceIte]
@@ -847,22 +847,22 @@ theorem zeroSeqGame_lp_minimax_value :
           hm
     have hArow : (zeroSeqGame.seqPayoffMat false *ᵥ yStar) σ =
         ∑ z : Terminal zeroSeqGame,
-          (z.chanceWeight * (if z.seq false = σ.1 then 1 else 0) *
+          (z.chanceWeight * (if z.seq false = σ.val then 1 else 0) *
             realizationProbBehavior (zsOptB true) (z.seq true)) * z.payoff false := by
       have hdot : (zeroSeqGame.seqPayoffMat false *ᵥ yStar) σ =
           Pi.single σ (1 : ℝ) ⬝ᵥ (zeroSeqGame.seqPayoffMat false *ᵥ yStar) := by
         rw [dotProduct, sum_eq_single σ (fun _ _ h => by simp [h]) (fun h => absurd (mem_univ _) h)]
         simp
       have hcol : Pi.single (M := fun _ => ℝ) σ (1 : ℝ) =
-          fun σ₁ => if σ₁.1 = σ.1 then 1 else 0 := by
+          fun σ₁ => if σ₁.val = σ.val then 1 else 0 := by
         ext σ₁; simp only [Pi.single_apply, Subtype.ext_iff, eq_comm]
-      have hyStar_eq : yStar = fun τ => realizationProbBehavior (zsOptB true) τ.1 := by
+      have hyStar_eq : yStar = fun τ => realizationProbBehavior (zsOptB true) τ.val := by
         ext τ; exact ExtensiveTree.behaviorToRealizationPlan_apply _ _ _ _
       rw [hdot, hyStar_eq, hcol]
-      exact seqPayoffMat_bilinear zeroSeqGame false (fun s => if s = σ.1 then 1 else 0)
+      exact seqPayoffMat_bilinear zeroSeqGame false (fun s => if s = σ.val then 1 else 0)
         (realizationProbBehavior (zsOptB true))
     have hcol_p : ((seqMat zeroSeqGame false)ᵀ *ᵥ pConst) σ =
-        if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then 0 else 1 / 3 := by
+        if σ.val = [] ∨ σ.val = [⟨false, true⟩] then 0 else 1 / 3 := by
       rw [hrow, seqMat_mulVec_none,
         seqMat_mulVec_some (zeroSeqGame_perfectRecall false) ⟨false, hF_occ⟩,
         seqMat_mulVec_some (zeroSeqGame_perfectRecall false) ⟨true, hT_occ⟩]
@@ -888,7 +888,7 @@ theorem zeroSeqGame_lp_minimax_value :
             SeqVar.nil zeroSeqGame false := fun a he =>
           seqVar_infoSeqExt_ne_nil (zeroSeqGame_perfectRecall false) hT_occ a
             (by simpa using congrArg Subtype.val he)
-        have hrhs : (if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 0 := by
+        have hrhs : (if σ.val = [] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 0 := by
           simp [h]
         rw [hrhs, hσ]
         simp [pConst, Pi.single_eq_same, Pi.single_eq_of_ne, hF, hT]
@@ -904,7 +904,7 @@ theorem zeroSeqGame_lp_minimax_value :
         have hT : ∀ a, SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ a ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ false :=
           fun a he => (hinj_diff he.symm).elim
-        have hrhs : (if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 1 / 3 := by
+        have hrhs : (if σ.val = [] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 1 / 3 := by
           simp [h]
         rw [hrhs, hσ]
         simp [pConst, Pi.single_eq_same, Pi.single_eq_of_ne, hnil, hft, hT]
@@ -920,7 +920,7 @@ theorem zeroSeqGame_lp_minimax_value :
         have hT : ∀ a, SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ a ≠
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hF_occ true :=
           fun a he => (hinj_diff he.symm).elim
-        have hrhs : (if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 0 := by
+        have hrhs : (if σ.val = [] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 0 := by
           simp [h]
         rw [hrhs, hσ]
         simp [pConst, Pi.single_eq_same, Pi.single_eq_of_ne, hnil, htf, hT]
@@ -936,7 +936,7 @@ theorem zeroSeqGame_lp_minimax_value :
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ false := fun he =>
           Bool.false_ne_true.symm
             (eq_of_heq (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj _ he)).2)
-        have hrhs : (if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 1 / 3 := by
+        have hrhs : (if σ.val = [] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 1 / 3 := by
           simp [h]
         rw [hrhs, hσ]
         simp [pConst, Pi.single_eq_same, Pi.single_eq_of_ne, hnil, hF, htf]
@@ -952,12 +952,12 @@ theorem zeroSeqGame_lp_minimax_value :
             SeqVar.infoSeqExt (zeroSeqGame_perfectRecall false) hT_occ true := fun he =>
           Bool.false_ne_true
             (eq_of_heq (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj _ he)).2)
-        have hrhs : (if σ.1 = [] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 1 / 3 := by
+        have hrhs : (if σ.val = [] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ) else 1 / 3) = 1 / 3 := by
           simp [h]
         rw [hrhs, hσ]
         simp [pConst, Pi.single_eq_same, Pi.single_eq_of_ne, hnil, hF, hft]
     have hA_val : (zeroSeqGame.seqPayoffMat false *ᵥ yStar) σ =
-        if σ.1 = [] ∨ σ.1 = [⟨false, false⟩] ∨ σ.1 = [⟨false, true⟩] then 0 else 1 / 3 := by
+        if σ.val = [] ∨ σ.val = [⟨false, false⟩] ∨ σ.val = [⟨false, true⟩] then 0 else 1 / 3 := by
       rw [hArow]
       rcases zs_seqVar_false_cases σ with h | h | h | h | h
       · simp only [h, true_or, ↓reduceIte]
@@ -977,7 +977,7 @@ theorem zeroSeqGame_lp_minimax_value :
         refine sum_eq_zero fun z _ => ?_
         rcases zeroSeqGame_terminal_seq_cases z with ⟨hz0, _, _⟩ | ⟨_, _, hz0, _, _⟩ <;> simp [hz0]
       · have hrhs :
-            (if σ.1 = [] ∨ σ.1 = [⟨false, false⟩] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ)
+            (if σ.val = [] ∨ σ.val = [⟨false, false⟩] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ)
               else 1 / 3) = 1 / 3 := by simp [h]
         rw [hrhs, h]
         have hterm : ∀ z : Terminal zeroSeqGame,
@@ -998,7 +998,7 @@ theorem zeroSeqGame_lp_minimax_value :
         rw [sum_terminal_add _ _ (by simp)]
         norm_num
       · have hrhs :
-            (if σ.1 = [] ∨ σ.1 = [⟨false, false⟩] ∨ σ.1 = [⟨false, true⟩] then (0 : ℝ)
+            (if σ.val = [] ∨ σ.val = [⟨false, false⟩] ∨ σ.val = [⟨false, true⟩] then (0 : ℝ)
               else 1 / 3) = 1 / 3 := by simp [h]
         rw [hrhs, h]
         have hterm : ∀ z : Terminal zeroSeqGame,

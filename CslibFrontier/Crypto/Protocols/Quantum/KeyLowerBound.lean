@@ -159,10 +159,10 @@ theorem logb_card_le_entropy_of_basis [Nonempty ι]
   have hprod₁ : IsDensityMatrix (pureState (ket x₀) ⊗ₖ ρa) := by
     refine ⟨hket_dens.posSemidef.kronecker h.ancilla_density.posSemidef, ?_⟩
     rw [trace_kronecker, hket_dens.trace_eq_one, h.ancilla_density.trace_eq_one, mul_one]
-  have hσ₁ (k : K) : IsDensityMatrix (σ₁ k) := hprod₁.conj_unitary (U k).2
+  have hσ₁ (k : K) : IsDensityMatrix (σ₁ k) := hprod₁.conj_unitary (U k).property
   have hσ₁_S (k : K) : vonNeumannEntropy (σ₁ k) = vonNeumannEntropy ρa := by
     have hU : (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ * (U k : Matrix (ι × κ) (ι × κ) ℂ) = 1 :=
-      (mem_unitaryGroup_iff').mp (U k).2
+      (mem_unitaryGroup_iff').mp (U k).property
     rw [vonNeumannEntropy_conj_isometry hU hprod₁.posSemidef.isHermitian,
       vonNeumannEntropy_kronecker hket_dens h.ancilla_density,
       vonNeumannEntropy_pureState (norm_ket x₀), zero_add]
@@ -207,11 +207,11 @@ theorem logb_card_le_entropy_of_basis [Nonempty ι]
   have hprod₂ : IsDensityMatrix (π ⊗ₖ ρa) := by
     refine ⟨hπ_dens.posSemidef.kronecker h.ancilla_density.posSemidef, ?_⟩
     rw [trace_kronecker, hπ_dens.trace_eq_one, h.ancilla_density.trace_eq_one, mul_one]
-  have hσ₂ (k : K) : IsDensityMatrix (σ₂ k) := hprod₂.conj_unitary (U k).2
+  have hσ₂ (k : K) : IsDensityMatrix (σ₂ k) := hprod₂.conj_unitary (U k).property
   have hσ₂_S (k : K) :
       vonNeumannEntropy (σ₂ k) = Real.logb 2 (Fintype.card ι) + vonNeumannEntropy ρa := by
     have hU : (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ * (U k : Matrix (ι × κ) (ι × κ) ℂ) = 1 :=
-      (mem_unitaryGroup_iff').mp (U k).2
+      (mem_unitaryGroup_iff').mp (U k).property
     rw [vonNeumannEntropy_conj_isometry hU hprod₂.posSemidef.isHermitian,
       vonNeumannEntropy_kronecker hπ_dens h.ancilla_density, vonNeumannEntropy_maximallyMixed]
   have hlower : Real.logb 2 (Fintype.card ι) + vonNeumannEntropy ρa ≤ vonNeumannEntropy ρ₀ := by
@@ -367,7 +367,7 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
           simp [hiD, hui]
         have hΨ_range (u : α → Bool) (hu : ∀ i, i ∉ D → u i = x i) :
             ∃ w : ↥D → Bool, embed w = u := by
-          refine ⟨fun j => decide (u j.1 ≠ x j.1), ?_⟩
+          refine ⟨fun j => decide (u j.val ≠ x j.val), ?_⟩
           funext i
           by_cases hi : i ∈ D
           · simp only [embed, hi, ↓reduceDIte]
@@ -385,10 +385,10 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
           rw [← Finset.prod_subset (Finset.subset_univ D)]
           · rw [← Finset.prod_coe_sort D (fun i => (φ i).ofLp (embed w i))]
             have hfactor (j : ↥D) :
-                (φ j.1).ofLp (embed w j.1) =
+                (φ j.val).ofLp (embed w j.val) =
                   (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (if w j && v j then Complex.I else 1) := by
-              have hxy_j : x j.1 ≠ y j.1 := (Finset.mem_filter.mp j.2).2
-              simp only [φ, embed, j.2, ↓reduceDIte]
+              have hxy_j : x j.val ≠ y j.val := (Finset.mem_filter.mp j.property).2
+              simp only [φ, embed, j.property, ↓reduceDIte]
               rcases Bool.eq_false_or_eq_true (w j) with hwj | hwj <;>
                 rcases Bool.eq_false_or_eq_true (v j) with hvj | hvj <;>
                 simp [hwj, hvj, ket_apply, hxy_j, Ne.symm hxy_j]
@@ -673,7 +673,7 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
     ⟨reind ((1 : Matrix Q Q ℂ) ⊗ₖ (U k : Matrix (Q × κ) (Q × κ) ℂ)) *
         (B ⊗ₖ (1 : Matrix κ κ ℂ)),
       (unitaryGroup ((Q × Q) × κ) ℂ).mul_mem
-        (hreind_unitary (kronecker_mem_unitary (one_mem _) (U k).2))
+        (hreind_unitary (kronecker_mem_unitary (one_mem _) (U k).property))
         (kronecker_mem_unitary hB_mem (one_mem _))⟩
   let ρ₀' : Matrix ((Q × Q) × κ) ((Q × Q) × κ) ℂ :=
     reind (((Fintype.card Q : ℂ)⁻¹ • (1 : Matrix Q Q ℂ)) ⊗ₖ ρ₀)
@@ -887,7 +887,7 @@ theorem two_mul_card_le_entropy_noAncilla (p : PMF K)
     2 * (Fintype.card α : ℝ) ≤ entropy p := by
   let U₁ (k : K) : unitaryGroup ((α → Bool) × Unit) ℂ :=
     ⟨(U k : OneTimePad.Op α) ⊗ₖ (1 : Matrix Unit Unit ℂ),
-      kronecker_mem_unitary (U k).2 (one_mem _)⟩
+      kronecker_mem_unitary (U k).property (one_mem _)⟩
   have hρa : IsDensityMatrix (1 : Matrix Unit Unit ℂ) := ⟨PosSemidef.one, by simp⟩
   have hpqc : IsPrivateQuantumChannel {ψ : EuclideanSpace ℂ (α → Bool) | ‖ψ‖ = 1}
       p U₁ (1 : Matrix Unit Unit ℂ) (ρ₀ ⊗ₖ (1 : Matrix Unit Unit ℂ)) := by

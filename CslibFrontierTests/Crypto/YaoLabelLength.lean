@@ -55,7 +55,7 @@ theorem hasTokenLength_pointPermute (family : List Bool → List Bool → List B
     (f : ValidCircuit) : (PointPermute.scheme family).HasTokenLength k f (k + 2) := by
   intro g hg
   obtain ⟨coins, -, rfl⟩ := (PointPermute.scheme family).mem_support_eval_garble_iff.mp hg
-  exact PointPermute.length_encInfoWord k f.1 coins
+  exact PointPermute.length_encInfoWord k f.val coins
 
 /-- **The hypotheses on the garbling scheme are jointly satisfiable.** Point-and-permute garbling
 has the projective encoding, is correct and has tokens of the positive length `k + 2`. -/
@@ -74,15 +74,15 @@ encoding information. -/
 example (family : List Bool → List Bool → List Bool) (k : ℕ) :
     ¬ (PointPermute.scheme family).HasTokenLength k andGate (k + 3) := by
   intro h
-  have h₁ : (PointPermute.encInfoWord k andGate.1
+  have h₁ : (PointPermute.encInfoWord k andGate.val
       (List.replicate ((PointPermute.scheme family).coins k andGate) false)).length =
         2 * 2 * (k + 3) :=
     h _ ((PointPermute.scheme family).mem_support_eval_garble_iff.mpr
       ⟨_, List.length_replicate, rfl⟩)
-  have h₂ : (PointPermute.encInfoWord k andGate.1
+  have h₂ : (PointPermute.encInfoWord k andGate.val
       (List.replicate ((PointPermute.scheme family).coins k andGate) false)).length =
         2 * 2 * (k + 2) :=
-    PointPermute.length_encInfoWord k andGate.1 _
+    PointPermute.length_encInfoWord k andGate.val _
   omega
 
 /-- **The length hypothesis of the plain-model statements**, in their shape: for a sequence `c` of
@@ -188,7 +188,7 @@ example : 2 ^ Nat.clog 2 0 = 1 := by simp
 `2 * k`. -/
 example (k : ℕ) (hk : 0 < k) : 2 ^ Nat.clog 2 k < 2 * k := by
   rcases Nat.lt_or_ge 1 k with h | h
-  · have hlt := Nat.pow_pred_clog_lt_self one_lt_two h
+  · have hlt := Nat.pow_pred_clog_lt_self 2 h
     have hpos : 0 < Nat.clog 2 k := Nat.clog_pos one_lt_two h
     obtain ⟨L, hL⟩ : ∃ L, Nat.clog 2 k = L + 1 := ⟨Nat.clog 2 k - 1, by omega⟩
     rw [hL, Nat.pred_succ] at hlt

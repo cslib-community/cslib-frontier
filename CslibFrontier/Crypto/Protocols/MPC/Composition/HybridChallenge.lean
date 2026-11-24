@@ -87,8 +87,8 @@ theorem ForallChallenge.of_mem_support_roundEnv (W₁ : MultiOracleWorld spec₁
       ((s : Fin (spec₁.arity op)) → spec₁.Query op s) → Prop}
     {State Out : Fin m → Type} {sc₁ : Schedule m spec₁} (steps : Steps State Out sc₁) (j : ℕ)
     (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool)
     (h : ForallChallenge I Q steps st) {c : RoundChallenge sc₂ Coins₂}
     (hc : Sum.inr c ∈ (roundEnv W₁ S₂ ν I steps j st D).support) :

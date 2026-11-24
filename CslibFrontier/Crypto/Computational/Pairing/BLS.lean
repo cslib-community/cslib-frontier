@@ -1531,7 +1531,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       · rw [hc'] at hc; cases hc
     have hstar_look : ∃ vStar,
         (bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup f0.1.1.1 =
-          some (vStar, (idxFn α s hs).1) := by
+          some (vStar, (idxFn α s hs).val) := by
       dsimp only [idxFn]
       rw [hcore0]
       dsimp only
@@ -1568,9 +1568,9 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       | some em =>
         simp only [hml, Option.bind_some] at hm_eq
         split_ifs at hm_eq with hmK
-        have hm_idx : em.2 = (idxFn α s hs).1 := congrArg Fin.val (Option.some.inj hm_eq)
+        have hm_idx : em.2 = (idxFn α s hs).val := congrArg Fin.val (Option.some.inj hm_eq)
         obtain ⟨vStar, hstar⟩ := hstar_look
-        have hmeq := hstep0.2.1 m em.1 f0.1.1.1 vStar (idxFn α s hs).1
+        have hmeq := hstep0.2.1 m em.1 f0.1.1.1 vStar (idxFn α s hs).val
           (by rw [← hm_idx]; exact hml) hstar
         exact hnotMem (hmeq ▸ hm_signed)
     · have hcard_le : (RFn α s hs).card ≤ Qs := by

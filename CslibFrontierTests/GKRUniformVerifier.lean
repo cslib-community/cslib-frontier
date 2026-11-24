@@ -113,14 +113,14 @@ theorem expBadInst_sound (P : Cslib.Complexity.Prover Unit) :
 theorem expZero_mem_language :
     (⟨expZeroInst, by unfold expZeroInst; norm_num⟩ : PrimeInstance PowerSumParams) ∈
       {a : PrimeInstance PowerSumParams |
-        minModulus (powerSumGKRFamily.circuit a.1.index) ≤ a.1.modulus ∧
-          a.1.CorrectOutput powerSumGKRFamily} :=
+        minModulus (powerSumGKRFamily.circuit a.val.index) ≤ a.val.modulus ∧
+          a.val.CorrectOutput powerSumGKRFamily} :=
   ⟨by decide, expZeroInst_correct⟩
 
 theorem powerSumGKRFamily_mem_IP :
     {a : PrimeInstance PowerSumParams |
-      minModulus (powerSumGKRFamily.circuit a.1.index) ≤ a.1.modulus ∧
-        a.1.CorrectOutput powerSumGKRFamily} ∈
+      minModulus (powerSumGKRFamily.circuit a.val.index) ≤ a.val.modulus ∧
+        a.val.CorrectOutput powerSumGKRFamily} ∈
       IP (encPrimeInstance PowerSumParams encPowerSumParams) :=
   powerSumGKRFamily.mem_IP_primeInstance
 
@@ -303,8 +303,8 @@ theorem mixedBadInst_sound (P : Cslib.Complexity.Prover Unit) :
 
 theorem mixedGKRFamily_mem_IP :
     {a : PrimeInstance Unit |
-      minModulus (mixedGKRFamily.circuit a.1.index) ≤ a.1.modulus ∧
-        a.1.CorrectOutput mixedGKRFamily} ∈
+      minModulus (mixedGKRFamily.circuit a.val.index) ≤ a.val.modulus ∧
+        a.val.CorrectOutput mixedGKRFamily} ∈
       IP (encPrimeInstance Unit encUnitIdx) :=
   mixedGKRFamily.mem_IP_primeInstance
 

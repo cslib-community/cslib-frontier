@@ -99,7 +99,7 @@ structure Mach (A M K : Type*) where
 attribute [instance] Mach.fR Mach.dR
 
 /-- Embed a register index (`Fin 5`) as a step variable index (`Fin 9`). -/
-@[expose] def rv (i : Fin 5) : Fin 9 := ⟨i.1, by omega⟩
+@[expose] def rv (i : Fin 5) : Fin 9 := ⟨i.val, by omega⟩
 
 /-- Heap records: record kind together with `[address, field0, field1, field2]`. -/
 abbrev Rec (K : Type*) := K × (Fin 4 → ℕ)

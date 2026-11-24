@@ -436,7 +436,7 @@ private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
           (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) x raw₀ bBits),
         otOutputs x) =
         ((fun i : (∅ : Finset (Fin 2)) => isEmptyElim i), otOutputs x) :=
-    Prod.ext (funext fun i => nomatch i.2) rfl
+    Prod.ext (funext fun i => nomatch i.property) rfl
   simp only [hconst, PMF.bind_const]
 
 /-- Parties `0` and `1` as members of `Finset.univ`. -/

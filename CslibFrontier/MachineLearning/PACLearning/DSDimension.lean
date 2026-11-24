@@ -389,7 +389,7 @@ theorem isPseudoCube_iff_eq_univ_of_card_eq_two [DecidableEq ι] [Fintype ι] [F
 /-- A concept class `C` *DS-shatters* a set `W` if the restriction of `C` to `W` contains a
 pseudo-cube on `W` [DanielyShalevShwartz2014; BrukhimCarmonDinurMoranYehudayoff2022]. -/
 @[expose] def DSShatters (C : ConceptClass α β) (W : Set α) : Prop :=
-  ∃ P : Finset (W → β), (↑P : Set (W → β)) ⊆ (fun c (x : W) => c x.1) '' C ∧ IsPseudoCube P
+  ∃ P : Finset (W → β), (↑P : Set (W → β)) ⊆ (fun c (x : W) => c x.val) '' C ∧ IsPseudoCube P
 
 /-- The *Daniely–Shalev-Shwartz (DS) dimension* of `C` is the supremum in `ℕ∞` of the sizes of
 finite DS-shattered sets [DanielyShalevShwartz2014; BrukhimCarmonDinurMoranYehudayoff2022]. -/
@@ -437,7 +437,7 @@ theorem DSShatters.nonempty {C : ConceptClass α β} {W : Set α}
 theorem dsShatters_empty {C : ConceptClass α β} (hC : C.Nonempty) :
     DSShatters C ∅ := by
   obtain ⟨c, hc⟩ := hC
-  refine ⟨{fun x : (∅ : Set α) => c x.1}, ?_, singleton_nonempty _, fun _ _ i => i.2.elim⟩
+  refine ⟨{fun x : (∅ : Set α) => c x.val}, ?_, singleton_nonempty _, fun _ _ i => i.property.elim⟩
   simp only [coe_singleton, Set.singleton_subset_iff, Set.mem_image]
   exact ⟨c, hc, rfl⟩
 
@@ -467,7 +467,7 @@ theorem DSShatters.of_restrict {C : ConceptClass α β} {e : γ → α} {W : Set
   rcases mem_image.mp (mem_coe.mp hg) with ⟨f, hfP, rfl⟩
   obtain ⟨_, ⟨c, hc, rfl⟩, rfl⟩ := hPsub hfP
   refine ⟨c, hc, funext fun y => ?_⟩
-  exact congrArg (fun z : e '' W => c z.1) (eqv.apply_symm_apply y).symm
+  exact congrArg (fun z : e '' W => c z.val) (eqv.apply_symm_apply y).symm
 
 theorem DSShatters.card_le_dsDim {C : ConceptClass α β} {W : Finset α}
     (hW : DSShatters C ↑W) : (W.card : ℕ∞) ≤ dsDim C :=
@@ -505,7 +505,7 @@ theorem dsShatters_iff_setShatters {C : ConceptClass α Bool} {W : Finset α} :
   · rintro ⟨P, hPsub, hP⟩ T hT
     have hPuniv : P = Finset.univ :=
       (isPseudoCube_iff_eq_univ_of_card_eq_two Fintype.card_bool P).mp hP
-    let fT : (↑W : Set α) → Bool := fun x => decide (x.1 ∈ T)
+    let fT : (↑W : Set α) → Bool := fun x => decide (x.val ∈ T)
     obtain ⟨c, hc, hcf⟩ := hPsub (hPuniv ▸ mem_univ fT)
     refine ⟨c, hc, Set.ext fun x => ?_⟩
     simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
@@ -547,7 +547,7 @@ theorem NatarajanShatters.dsShatters {C : ConceptClass α β} {W : Finset α}
     (hW : NatarajanShatters C ↑W) : DSShatters C ↑W := by
   classical
   obtain ⟨f₀, f₁, hne, h⟩ := hW
-  let cubeMap : Finset α → (↑W → β) := fun B x => if x.1 ∈ B then f₀ x.1 else f₁ x.1
+  let cubeMap : Finset α → (↑W → β) := fun B x => if x.val ∈ B then f₀ x.val else f₁ x.val
   let P : Finset (↑W → β) := W.powerset.image cubeMap
   refine ⟨P, ?_, ⟨⟨cubeMap ∅, mem_image_of_mem _ (empty_mem_powerset W)⟩, fun g hg i => ?_⟩⟩
   · intro g hg
@@ -558,19 +558,19 @@ theorem NatarajanShatters.dsShatters {C : ConceptClass α β} {W : Finset α}
     · simpa [cubeMap, hxB] using h₀ x hxB
     · simpa [cubeMap, hxB] using h₁ x ⟨hxW, hxB⟩
   · rcases mem_image.mp hg with ⟨B, hBW, rfl⟩
-    let B' : Finset α := if i.1 ∈ B then B.erase i.1 else insert i.1 B
+    let B' : Finset α := if i.val ∈ B then B.erase i.val else insert i.val B
     have hB'W : B' ∈ W.powerset := by
       rw [mem_powerset]
       dsimp only [B']
       split_ifs
       · exact (erase_subset _ _).trans (mem_powerset.mp hBW)
-      · exact insert_subset i.2 (mem_powerset.mp hBW)
+      · exact insert_subset i.property (mem_powerset.mp hBW)
     refine ⟨cubeMap B', mem_image_of_mem _ hB'W, ?_, fun j hj => ?_⟩
-    · by_cases hiB : i.1 ∈ B
-      · simp [cubeMap, B', hiB, (hne i.1 i.2).symm]
-      · simp [cubeMap, B', hiB, hne i.1 i.2]
-    · have hij : j.1 ≠ i.1 := fun heq => hj (Subtype.ext heq)
-      by_cases hiB : i.1 ∈ B <;> simp [cubeMap, B', hiB, hij]
+    · by_cases hiB : i.val ∈ B
+      · simp [cubeMap, B', hiB, (hne i.val i.property).symm]
+      · simp [cubeMap, B', hiB, hne i.val i.property]
+    · have hij : j.val ≠ i.val := fun heq => hj (Subtype.ext heq)
+      by_cases hiB : i.val ∈ B <;> simp [cubeMap, B', hiB, hij]
 
 /-- Every finite DS-shattered set is G-shattered: starting from any anchor `f₀ ∈ P`, walking along
 coordinate neighbors one element of `W \ B` at a time produces a labeling in `P` agreeing with `f₀`
@@ -597,7 +597,7 @@ theorem DSShatters.graphShatters {C : ConceptClass α β} {W : Finset α}
         have hxD : x ∉ D := fun hm => hx (mem_insert_of_mem hm)
         exact (h'other x hxi).trans (heqD x hxD)
   refine ⟨c₀, fun B hB => ?_⟩
-  let D : Finset (↑W : Set α) := Finset.univ.filter fun x => x.1 ∉ B
+  let D : Finset (↑W : Set α) := Finset.univ.filter fun x => x.val ∉ B
   obtain ⟨h, hhP, hneD, heqD⟩ := hwalk D
   obtain ⟨c, hc, hch⟩ := hPsub hhP
   refine ⟨c, hc, fun x hxB => ?_, fun x hx => ?_⟩
@@ -642,7 +642,7 @@ theorem GraphShatters.two_pow_card_le_natarajanSum [Fintype β] {C : ConceptClas
     2 ^ W.card ≤ natarajanSum W.card (Fintype.card β) d := by
   classical
   obtain ⟨f, hf⟩ := hW
-  let e : Fin W.card → α := fun i => (W.equivFin.symm i).1
+  let e : Fin W.card → α := fun i => (W.equivFin.symm i).val
   let proj : (Fin W.card → β) → Finset (Fin W.card) :=
     fun g => Finset.univ.filter fun i => g i = f (e i)
   have hsurj : (Set.univ : Set (Finset (Fin W.card))) ⊆ proj '' ((· ∘ e) '' C) := by
@@ -655,14 +655,14 @@ theorem GraphShatters.two_pow_card_le_natarajanSum [Fintype β] {C : ConceptClas
     constructor
     · intro hceq
       by_contra his
-      refine h₁ (e i) ⟨(W.equivFin.symm i).2, ?_⟩ hceq
+      refine h₁ (e i) ⟨(W.equivFin.symm i).property, ?_⟩ hceq
       rintro ⟨_, ⟨j, hjs, hej⟩⟩
       have hij : j = i := by
         apply W.equivFin.symm.injective
         exact Subtype.ext hej
       exact his (hij ▸ hjs)
     · intro his
-      exact h₀ (e i) ⟨(W.equivFin.symm i).2, i, his, rfl⟩
+      exact h₀ (e i) ⟨(W.equivFin.symm i).property, i, his, rfl⟩
   calc 2 ^ W.card
       = (Set.univ : Set (Finset (Fin W.card))).ncard := by simp [Set.ncard_univ]
     _ ≤ (proj '' ((· ∘ e) '' C)).ncard := Set.ncard_le_ncard hsurj (Set.toFinite _)
@@ -956,8 +956,8 @@ theorem card_le_one_of_dsShatters_revealingSetClass [DecidableEq α] {W : Finset
     obtain ⟨g', hg'P, hgj_ne, hgj_eq⟩ := hnbr g hg j
     obtain ⟨_, ⟨B₁, rfl⟩, hB₁⟩ := hPsub hg
     obtain ⟨_, ⟨B₂, rfl⟩, hB₂⟩ := hPsub hg'P
-    have h₁ : revealingConcept B₁ i.1 = some B := (congrFun hB₁ i).trans hgi
-    have h₂ : revealingConcept B₂ i.1 = some B :=
+    have h₁ : revealingConcept B₁ i.val = some B := (congrFun hB₁ i).trans hgi
+    have h₂ : revealingConcept B₂ i.val = some B :=
       (congrFun hB₂ i).trans ((hgj_eq i hji.symm).trans hgi)
     have hB₁_eq : B₁ = B := by
       simp only [revealingConcept] at h₁

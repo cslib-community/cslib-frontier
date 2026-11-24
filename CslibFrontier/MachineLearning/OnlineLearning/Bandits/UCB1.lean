@@ -364,7 +364,7 @@ variable {ι : Type*} [Fintype ι] [LinearOrder ι]
 /-- Prefix empirical average `(∑_{r < m} X (i, r)) / m` on arm `i`'s reward stack (`m ≤ T`). -/
 private noncomputable def stackMean {T : ℕ} (X : ι × Fin T → ℝ) (i : ι) (m : ℕ) (hmT : m ≤ T) :
     ℝ :=
-  (∑ r : Fin m, X (i, ⟨r.1, r.isLt.trans_le hmT⟩)) / m
+  (∑ r : Fin m, X (i, ⟨r.val, r.isLt.trans_le hmT⟩)) / m
 
 omit [Fintype ι] in
 /-- When `t ≤ T`, `empiricalMean (runStochastic pol X t) i` equals `stackMean` at `pullCount`. -/
@@ -379,12 +379,12 @@ private theorem empiricalMean_runStochastic_eq_stackMean (pol : DeterministicPol
   set m := pullCount (runStochastic pol X t) i
   have hmT : m ≤ T :=
     (pullCount_le_length _ i).trans (ht.trans_eq' (length_runStochastic pol X t).symm)
-  let emb : Fin m ↪ Fin T := ⟨fun r => ⟨r.1, r.isLt.trans_le hmT⟩,
+  let emb : Fin m ↪ Fin T := ⟨fun r => ⟨r.val, r.isLt.trans_le hmT⟩,
     fun a b h => Fin.ext (Fin.mk.inj h)⟩
   have hfilter : univ.filter (fun s : Fin T => (s : ℕ) < m) = Finset.map emb univ := by
     ext s
     simp only [mem_filter, mem_univ, true_and, mem_map, emb]
-    exact ⟨fun hs => ⟨⟨s.1, hs⟩, rfl⟩, fun ⟨r, hr⟩ => hr ▸ r.isLt⟩
+    exact ⟨fun hs => ⟨⟨s.val, hs⟩, rfl⟩, fun ⟨r, hr⟩ => hr ▸ r.isLt⟩
   rw [← sum_filter, hfilter, sum_map]
   rfl
 
@@ -395,14 +395,14 @@ private theorem hasSubgaussianMGF_stack_sum_sub (B : StochasticBandit ι) {T : �
     {m : ℕ} (hmT : m ≤ T) :
     HasSubgaussianMGF
         (fun X : ι × Fin T → ℝ =>
-          ∑ r : Fin m, (X (i, ⟨r.1, r.isLt.trans_le hmT⟩) - B.mean i))
+          ∑ r : Fin m, (X (i, ⟨r.val, r.isLt.trans_le hmT⟩) - B.mean i))
         (m * (‖(1 : ℝ) - 0‖₊ / 2) ^ 2) (B.sampleMeasure T) ∧
       HasSubgaussianMGF
         (fun X : ι × Fin T → ℝ =>
-          ∑ r : Fin m, (B.mean i - X (i, ⟨r.1, r.isLt.trans_le hmT⟩)))
+          ∑ r : Fin m, (B.mean i - X (i, ⟨r.val, r.isLt.trans_le hmT⟩)))
         (m * (‖(1 : ℝ) - 0‖₊ / 2) ^ 2) (B.sampleMeasure T) := by
   rw [B.sampleMeasure_def]
-  let emb (r : Fin m) : ι × Fin T := (i, ⟨r.1, r.isLt.trans_le hmT⟩)
+  let emb (r : Fin m) : ι × Fin T := (i, ⟨r.val, r.isLt.trans_le hmT⟩)
   have hemb_inj : Function.Injective emb := fun a b h =>
     Fin.ext (Fin.mk.inj (Prod.mk.inj h).2)
   have hcoord_pos : ∀ r : Fin m,
@@ -457,7 +457,7 @@ private theorem measureReal_stackMean_deviation_le (B : StochasticBandit ι) {T 
       rw [sub_zero, norm_one, mul_pow, hcsq]
       field_simp
       ring
-    rw [harg, exp_neg, show (4 : ℝ) * log t = (4 : ℕ) * log t by norm_num, exp_nat_mul,
+    rw [harg, exp_neg, show (4 : ℝ) * log t = (4 : ℕ) * log t by norm_num, exp_natCast_mul,
       exp_log htR, one_div]
   constructor
   · refine le_trans (measureReal_mono fun X hX => ?_)
@@ -628,7 +628,7 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
     have hch_meas : MeasurableSet
         {X : ι × Fin T → ℝ | ucb1Policy.choose (runStochastic ucb1Policy X t) = i} := by
       have heq : {X : ι × Fin T → ℝ | ucb1Policy.choose (runStochastic ucb1Policy X t) = i} =
-          {X | ((runStochastic ucb1Policy X (t + 1))[(Fin.last t).1]'(by simp)).arm = i} := by
+          {X | ((runStochastic ucb1Policy X (t + 1))[(Fin.last t).val]'(by simp)).arm = i} := by
         ext X
         simp [runStochastic_succ]
       rw [heq]
@@ -651,8 +651,8 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
     let E_sub (s : ℕ) (hsT : s ≤ T) : Set (ι × Fin T → ℝ) :=
       {X | B.mean i + √(2 * log t / s) ≤ stackMean X i s hsT}
     have hsubset : badRound t ⊆
-        (⋃ s : Fin t, E_star (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT))) ∪
-          (⋃ s : Fin t, E_sub (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT))) := by
+        (⋃ s : Fin t, E_star (s.val + 1) (Nat.succ_le_of_lt (s.isLt.trans htT))) ∪
+          (⋃ s : Fin t, E_sub (s.val + 1) (Nat.succ_le_of_lt (s.isLt.trans htT))) := by
       intro X ⟨hch, hℓ_le_ni⟩
       let hist := runStochastic ucb1Policy X t
       have hun_empty : ¬ (unpulledArms hist).Nonempty := by
@@ -719,18 +719,18 @@ theorem ucb1_expectedPulls_le_add_two [Nonempty ι] (B : StochasticBandit ι) {T
     -- Apply finite union bound + Hoeffding `1 / t ^ 4` bound to `hsubset`.
     have hunion_le : (B.sampleMeasure T).real (badRound t) ≤
         (∑ s : Fin t, (B.sampleMeasure T).real
-            (E_star (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) +
+            (E_star (s.val + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) +
           (∑ s : Fin t, (B.sampleMeasure T).real
-            (E_sub (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) := by
+            (E_sub (s.val + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) := by
       refine (measureReal_mono hsubset).trans ?_
       refine (measureReal_union_le _ _).trans ?_
       exact add_le_add (measureReal_iUnion_fintype_le _) (measureReal_iUnion_fintype_le _)
     have hsum_star : (∑ s : Fin t, (B.sampleMeasure T).real
-        (E_star (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) ≤ t * (1 / (t : ℝ) ^ 4) :=
+        (E_star (s.val + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) ≤ t * (1 / (t : ℝ) ^ 4) :=
       (sum_le_sum fun s _ =>
         (measureReal_stackMean_deviation_le B ht2 (Nat.succ_pos _) _ iStar).2).trans_eq (by simp)
     have hsum_sub : (∑ s : Fin t, (B.sampleMeasure T).real
-        (E_sub (s.1 + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) ≤ t * (1 / (t : ℝ) ^ 4) :=
+        (E_sub (s.val + 1) (Nat.succ_le_of_lt (s.isLt.trans htT)))) ≤ t * (1 / (t : ℝ) ^ 4) :=
       (sum_le_sum fun s _ =>
         (measureReal_stackMean_deviation_le B ht2 (Nat.succ_pos _) _ i).1).trans_eq (by simp)
     have ht_ne : (t : ℝ) ≠ 0 := by positivity

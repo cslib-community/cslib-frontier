@@ -704,7 +704,8 @@ theorem card_le_exp_mul_add_one_mul_pow_of_setShatters {m d : ℕ} {P : Finset (
         ≤ Real.exp (r / T) * T ^ d := hgf
       _ ≤ Real.exp ((d : ℝ) + 1) * T ^ d := by gcongr
       _ = Real.exp 1 * (Real.exp 1 ^ d * T ^ d) := by
-          rw [add_comm, Real.exp_add, show (d : ℝ) = (d : ℕ) * (1 : ℝ) by simp, Real.exp_nat_mul]
+          rw [add_comm, Real.exp_add, show (d : ℝ) = (d : ℕ) * (1 : ℝ) by simp,
+            Real.exp_natCast_mul]
           ring
       _ = Real.exp 1 * (2 * Real.exp 1 / ε) ^ d := by
           rw [← mul_pow]

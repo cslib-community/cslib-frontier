@@ -117,7 +117,7 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
     linarith [Nat.cast_nonneg (α := ℝ) (Fintype.card S)]
   let p : Option S → ℝ
     | none => M * r ^ maxLen
-    | some h => M * r ^ (maxLen - ((T.infoSeq i h.1).length + 1))
+    | some h => M * r ^ (maxLen - ((T.infoSeq i h.val).length + 1))
   have hpow_ge : ∀ k : ℕ, M ≤ M * r ^ k := fun k => by
     have h1 : 1 ≤ r ^ k := one_le_pow₀ hr1
     nlinarith
@@ -139,30 +139,31 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
   refine ⟨p, fun σ => ?_⟩
   change b σ ≤ ((seqMat T i)ᵀ *ᵥ p) σ
   rw [hrow_eval σ]
-  by_cases hnil : σ.1 = []
+  by_cases hnil : σ.val = []
   · have hσ_nil : σ = SeqVar.nil T i := Subtype.ext (by simp [hnil])
     subst hσ_nil
     have hnone : (seqMat T i *ᵥ Pi.single (SeqVar.nil T i) (1 : ℝ)) none = 1 := by
       rw [seqMat_mulVec_none, Pi.single_eq_same]
     have hsome : ∀ h : S, (seqMat T i *ᵥ Pi.single (SeqVar.nil T i) (1 : ℝ)) (some h) =
-        if T.infoSeq i h.1 = [] then -1 else 0 := fun h => by
+        if T.infoSeq i h.val = [] then -1 else 0 := fun h => by
       rw [seqMat_mulVec_some hpr h]
-      have hsum0 : ∑ a : Act i h.1,
+      have hsum0 : ∑ a : Act i h.val,
           Pi.single (M := fun _ => ℝ) (SeqVar.nil T i) (1 : ℝ)
-            (SeqVar.infoSeqExt hpr h.2 a) = 0 :=
+            (SeqVar.infoSeqExt hpr h.property a) = 0 :=
         sum_eq_zero fun a _ => by
-          have hne : SeqVar.infoSeqExt hpr h.2 a ≠ SeqVar.nil T i := by
+          have hne : SeqVar.infoSeqExt hpr h.property a ≠ SeqVar.nil T i := by
             intro heq
-            exact seqVar_infoSeqExt_ne_nil hpr h.2 a (by simpa using congrArg Subtype.val heq)
+            exact seqVar_infoSeqExt_ne_nil hpr h.property a
+              (by simpa using congrArg Subtype.val heq)
           exact Pi.single_eq_of_ne hne _
       rw [hsum0, add_zero]
-      by_cases hi : T.infoSeq i h.1 = []
-      · have heq : SeqVar.infoSeq hpr h.2 = SeqVar.nil T i := by
+      by_cases hi : T.infoSeq i h.val = []
+      · have heq : SeqVar.infoSeq hpr h.property = SeqVar.nil T i := by
           apply Subtype.ext
           rw [SeqVar.infoSeq_val, hi]
           simp
         simp [hi, heq]
-      · have hne : SeqVar.infoSeq hpr h.2 ≠ SeqVar.nil T i := by
+      · have hne : SeqVar.infoSeq hpr h.property ≠ SeqVar.nil T i := by
           intro heq
           apply hi
           have hv := congrArg Subtype.val heq
@@ -170,27 +171,27 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
         simp [hi, hne]
     rw [hnone, mul_one]
     simp_rw [hsome]
-    by_cases hex : ∃ h₀ : S, T.infoSeq i h₀.1 = []
+    by_cases hex : ∃ h₀ : S, T.infoSeq i h₀.val = []
     · obtain ⟨h₀, hh₀⟩ := hex
       have hlen1 : 1 ≤ maxLen := by
-        let τ := SeqVar.infoSeqExt hpr h₀.2 (Classical.arbitrary (Act i h₀.1))
-        have hmem : τ.1 ∈ occursSeqFinset T i := mem_occursSeqFinset.2 τ.2
+        let τ := SeqVar.infoSeqExt hpr h₀.property (Classical.arbitrary (Act i h₀.val))
+        have hmem : τ.val ∈ occursSeqFinset T i := mem_occursSeqFinset.2 τ.property
         have hle := Finset.le_sup (f := List.length) hmem
-        have hlenτ : τ.1.length = 1 := by
+        have hlenτ : τ.val.length = 1 := by
           dsimp [τ]
           rw [SeqVar.infoSeqExt_val, hh₀, List.nil_append, List.length_singleton]
         linarith
       have hterm : ∀ h : S, -(M * r ^ (maxLen - 1)) ≤
-          p (some h) * (if T.infoSeq i h.1 = [] then (-1 : ℝ) else 0) := by
+          p (some h) * (if T.infoSeq i h.val = [] then (-1 : ℝ) else 0) := by
         intro h
         split_ifs with h1
-        · have hlenh : (T.infoSeq i h.1).length = 0 := by rw [h1, List.length_nil]
+        · have hlenh : (T.infoSeq i h.val).length = 0 := by rw [h1, List.length_nil]
           simp [p, hlenh]
         · rw [mul_zero]
           have : 0 ≤ M * r ^ (maxLen - 1) := by positivity
           linarith
       have hsum_lb : -((Fintype.card S : ℝ) * (M * r ^ (maxLen - 1))) ≤
-          ∑ h : S, p (some h) * (if T.infoSeq i h.1 = [] then (-1 : ℝ) else 0) := by
+          ∑ h : S, p (some h) * (if T.infoSeq i h.val = [] then (-1 : ℝ) else 0) := by
         calc -((Fintype.card S : ℝ) * (M * r ^ (maxLen - 1)))
             = ∑ _ : S, -(M * r ^ (maxLen - 1)) := by simp
           _ ≤ _ := sum_le_sum fun h _ => hterm h
@@ -201,22 +202,23 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
         simpa using hdiff 0 hlen1
       linarith [hbM (SeqVar.nil T i), hpow_ge (maxLen - 1)]
     · push Not at hex
-      have hzero : ∑ h : S, p (some h) * (if T.infoSeq i h.1 = [] then (-1 : ℝ) else 0) = 0 :=
+      have hzero : ∑ h : S, p (some h) * (if T.infoSeq i h.val = [] then (-1 : ℝ) else 0) = 0 :=
         sum_eq_zero fun h _ => by simp [hex h]
       rw [hzero, add_zero]
       exact (hbM (SeqVar.nil T i)).trans (hpow_ge maxLen)
   · obtain ⟨h₀, a₀, rfl⟩ := exists_infoSeqExt_of_seqVar_ne_nil hpr σ hnil
-    let σ₀ := SeqVar.infoSeqExt hpr h₀.2 a₀
+    let σ₀ := SeqVar.infoSeqExt hpr h₀.property a₀
     have hnone : (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) none = 0 := by
       rw [seqMat_mulVec_none]
       have hne : SeqVar.nil T i ≠ σ₀ := fun heq =>
-        seqVar_infoSeqExt_ne_nil hpr h₀.2 a₀ (by simpa [σ₀] using (congrArg Subtype.val heq).symm)
+        seqVar_infoSeqExt_ne_nil hpr h₀.property a₀
+          (by simpa [σ₀] using (congrArg Subtype.val heq).symm)
       exact Pi.single_eq_of_ne hne _
     rw [hnone, mul_zero, zero_add]
     rw [← add_sum_erase univ _ (mem_univ h₀)]
     have hh₀_val : (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) (some h₀) = 1 := by
       rw [seqMat_mulVec_some hpr h₀]
-      have hne_pre : SeqVar.infoSeq hpr h₀.2 ≠ σ₀ := fun heq => by
+      have hne_pre : SeqVar.infoSeq hpr h₀.property ≠ σ₀ := fun heq => by
         have hlen := congrArg (List.length ∘ Subtype.val) heq
         simp only [Function.comp_apply, SeqVar.infoSeq_val, σ₀, SeqVar.infoSeqExt_val,
           List.length_append, List.length_singleton] at hlen
@@ -225,7 +227,7 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
       rw [sum_eq_single a₀]
       · exact Pi.single_eq_same _ _
       · intro a _ hne
-        have hnea : SeqVar.infoSeqExt hpr h₀.2 a ≠ σ₀ := fun heq => by
+        have hnea : SeqVar.infoSeqExt hpr h₀.property a ≠ σ₀ := fun heq => by
           have hpair := seqVar_infoSeqExt_inj hpr heq
           exact hne (eq_of_heq (Sigma.mk.inj_iff.1 hpair).2)
         exact Pi.single_eq_of_ne hnea _
@@ -234,57 +236,57 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
     rw [hh₀_val, mul_one]
     have hother : ∀ h ∈ univ.erase h₀,
         (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) (some h) =
-          if σ₀.1 = T.infoSeq i h.1 then -1 else 0 := fun h hh => by
+          if σ₀.val = T.infoSeq i h.val then -1 else 0 := fun h hh => by
       have hne : h ≠ h₀ := ne_of_mem_erase hh
       rw [seqMat_mulVec_some hpr h]
-      have hsum0 : ∑ a : Act i h.1, Pi.single (M := fun _ => ℝ) σ₀ (1 : ℝ)
-          (SeqVar.infoSeqExt hpr h.2 a) = 0 :=
+      have hsum0 : ∑ a : Act i h.val, Pi.single (M := fun _ => ℝ) σ₀ (1 : ℝ)
+          (SeqVar.infoSeqExt hpr h.property a) = 0 :=
         sum_eq_zero fun a _ => by
-          have hnea : SeqVar.infoSeqExt hpr h.2 a ≠ σ₀ := fun heq => by
+          have hnea : SeqVar.infoSeqExt hpr h.property a ≠ σ₀ := fun heq => by
             have hpair := seqVar_infoSeqExt_inj hpr heq
-            have hh1 : (⟨h.1, h.2⟩ : S) = ⟨h₀.1, h₀.2⟩ := by
+            have hh1 : (⟨h.val, h.property⟩ : S) = ⟨h₀.val, h₀.property⟩ := by
               simpa only [Sigma.ext_iff] using (Sigma.mk.inj_iff.1 hpair).1
             exact hne hh1
           exact Pi.single_eq_of_ne hnea _
       rw [hsum0, add_zero]
-      by_cases hi : σ₀.1 = T.infoSeq i h.1
-      · have heq : SeqVar.infoSeq hpr h.2 = σ₀ := by
+      by_cases hi : σ₀.val = T.infoSeq i h.val
+      · have heq : SeqVar.infoSeq hpr h.property = σ₀ := by
           apply Subtype.ext
           rw [SeqVar.infoSeq_val, hi]
         simp [hi, heq]
-      · have hneh : SeqVar.infoSeq hpr h.2 ≠ σ₀ := fun heq => by
+      · have hneh : SeqVar.infoSeq hpr h.property ≠ σ₀ := fun heq => by
           apply hi
           have hv := congrArg Subtype.val heq
           rw [SeqVar.infoSeq_val] at hv
           exact hv.symm
         simp [hi, hneh]
     rw [sum_congr rfl fun h hh => congrArg (p (some h) * ·) (hother h hh)]
-    let d : ℕ := (T.infoSeq i h₀.1).length + 1
-    have hlen_ext : σ₀.1.length = d := by
+    let d : ℕ := (T.infoSeq i h₀.val).length + 1
+    have hlen_ext : σ₀.val.length = d := by
       dsimp [σ₀, d]
       rw [SeqVar.infoSeqExt_val, List.length_append, List.length_singleton]
     have hpself : p (some h₀) = M * r ^ (maxLen - d) := rfl
-    by_cases hex : ∃ h₁ ∈ univ.erase h₀, σ₀.1 = T.infoSeq i h₁.1
+    by_cases hex : ∃ h₁ ∈ univ.erase h₀, σ₀.val = T.infoSeq i h₁.val
     · obtain ⟨h₁, _, hh₁⟩ := hex
       have hlen1 : d + 1 ≤ maxLen := by
-        let τ := SeqVar.infoSeqExt hpr h₁.2 (Classical.arbitrary (Act i h₁.1))
-        have hmem : τ.1 ∈ occursSeqFinset T i := mem_occursSeqFinset.2 τ.2
+        let τ := SeqVar.infoSeqExt hpr h₁.property (Classical.arbitrary (Act i h₁.val))
+        have hmem : τ.val ∈ occursSeqFinset T i := mem_occursSeqFinset.2 τ.property
         have hle := Finset.le_sup (f := List.length) hmem
-        have hlenτ : τ.1.length = d + 1 := by
+        have hlenτ : τ.val.length = d + 1 := by
           dsimp [τ]
           rw [SeqVar.infoSeqExt_val, List.length_append, List.length_singleton, ← hh₁, hlen_ext]
         linarith
       have hterm : ∀ h ∈ univ.erase h₀, -(M * r ^ (maxLen - (d + 1))) ≤
-          p (some h) * (if σ₀.1 = T.infoSeq i h.1 then (-1 : ℝ) else 0) := fun h _ => by
+          p (some h) * (if σ₀.val = T.infoSeq i h.val then (-1 : ℝ) else 0) := fun h _ => by
         split_ifs with h1
-        · have hlenh : (T.infoSeq i h.1).length = d := by rw [← h1, hlen_ext]
+        · have hlenh : (T.infoSeq i h.val).length = d := by rw [← h1, hlen_ext]
           simp [p, hlenh]
         · rw [mul_zero]
           have : 0 ≤ M * r ^ (maxLen - (d + 1)) := by positivity
           linarith
       have hsum_lb : -(((univ.erase h₀).card : ℝ) * (M * r ^ (maxLen - (d + 1)))) ≤
           ∑ h ∈ univ.erase h₀,
-            p (some h) * (if σ₀.1 = T.infoSeq i h.1 then (-1 : ℝ) else 0) := by
+            p (some h) * (if σ₀.val = T.infoSeq i h.val then (-1 : ℝ) else 0) := by
         calc -(((univ.erase h₀).card : ℝ) * (M * r ^ (maxLen - (d + 1))))
             = ∑ _ ∈ univ.erase h₀, -(M * r ^ (maxLen - (d + 1))) := by simp
           _ ≤ _ := sum_le_sum hterm
@@ -298,7 +300,7 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
       linarith [hbM σ₀, hpow_ge (maxLen - (d + 1))]
     · push Not at hex
       have hzero : ∑ h ∈ univ.erase h₀,
-          p (some h) * (if σ₀.1 = T.infoSeq i h.1 then (-1 : ℝ) else 0) = 0 :=
+          p (some h) * (if σ₀.val = T.infoSeq i h.val then (-1 : ℝ) else 0) = 0 :=
         sum_eq_zero fun h hh => by simp [hex h hh]
       rw [hzero, add_zero, hpself]
       exact (hbM σ₀).trans (hpow_ge (maxLen - d))
@@ -771,19 +773,19 @@ private theorem realizationProbBehavior_congr {i : Bool}
 open Classical in
 private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
     {T : ExtensiveTree Bool H Act} {i : Bool} (hpr : T.PerfectRecall i) (σ : SeqVar T i) :
-    (σ.1 = [] ∧ T.behaviorToRealizationPlan i (fun _ _ => 0) = Pi.single σ (1 : ℝ)) ∨
+    (σ.val = [] ∧ T.behaviorToRealizationPlan i (fun _ _ => 0) = Pi.single σ (1 : ℝ)) ∨
       ∃ β₁ β₀ : ∀ h : H i, Act i h → ℝ,
         T.behaviorToRealizationPlan i β₁ - T.behaviorToRealizationPlan i β₀ =
           Pi.single σ (1 : ℝ) := by
-  by_cases hnil : σ.1 = []
+  by_cases hnil : σ.val = []
   · refine .inl ⟨hnil, ?_⟩
     ext τ
     simp only [ExtensiveTree.behaviorToRealizationPlan_apply, Pi.single_apply]
     by_cases hτ : τ = σ
     · subst hτ
       simp [hnil]
-    · have hτ_ne : τ.1 ≠ [] := fun h => hτ (Subtype.ext (h.trans hnil.symm))
-      cases ht : τ.1 with
+    · have hτ_ne : τ.val ≠ [] := fun h => hτ (Subtype.ext (h.trans hnil.symm))
+      cases ht : τ.val with
       | nil => exact absurd ht hτ_ne
       | cons q tl => simp [hτ]
   · refine .inr ?_
@@ -807,11 +809,11 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
       change realizationProbBehavior β₁ target - realizationProbBehavior β₀ target = 1
       rw [hprod1, hprod0, sub_zero]
     · simp only [hτ, ↓reduceIte]
-      by_cases hall : ∀ p ∈ τ.1, p ∈ target
-      · by_cases hmem : (⟨h₀, a₀⟩ : Choice H Act i) ∈ τ.1
+      by_cases hall : ∀ p ∈ τ.val, p ∈ target
+      · by_cases hmem : (⟨h₀, a₀⟩ : Choice H Act i) ∈ τ.val
         · exfalso
           obtain ⟨pre, post, hsplit⟩ := List.mem_iff_append.1 hmem
-          obtain ⟨z, rem, hz⟩ := τ.2
+          obtain ⟨z, rem, hz⟩ := τ.property
           have hseq : z.seq i = pre ++ ⟨h₀, a₀⟩ :: (post ++ rem) := by
             rw [← hz, hsplit, List.append_assoc, List.cons_append]
           obtain ⟨v, hv, hpre⟩ := z.exists_node_of_seq_append pre (post ++ rem) h₀ a₀ hseq
@@ -829,13 +831,13 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
             have hq_fst : q.1 ∈ target.map Sigma.fst := List.mem_map.2 ⟨q, hq_target, rfl⟩
             have hzn := hpr.noRepeatedInfoSet z
             rw [← hz, List.map_append] at hzn
-            have hnodup : (τ.1.map Sigma.fst).Nodup := List.Nodup.of_append_left hzn
-            have hsplit' : τ.1 = target ++ q :: post' := by
+            have hnodup : (τ.val.map Sigma.fst).Nodup := List.Nodup.of_append_left hzn
+            have hsplit' : τ.val = target ++ q :: post' := by
               rw [hsplit, hpre_eq]
               simp only [target, List.append_assoc, List.singleton_append]
             rw [hsplit', List.map_append, List.nodup_append] at hnodup
             exact hnodup.2.2 q.1 hq_fst q.1 (List.mem_cons_self) rfl
-        · have heq : realizationProbBehavior β₁ τ.1 = realizationProbBehavior β₀ τ.1 :=
+        · have heq : realizationProbBehavior β₁ τ.val = realizationProbBehavior β₀ τ.val :=
             realizationProbBehavior_congr β₁ β₀ fun p hp => by
               have hne : p ≠ ⟨h₀, a₀⟩ := fun h => hmem (h ▸ hp)
               rcases p with ⟨ph, pa⟩
@@ -848,9 +850,9 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
           rw [heq, sub_self]
       · push Not at hall
         obtain ⟨q, hq_mem, hq_not⟩ := hall
-        have hzero1 : realizationProbBehavior β₁ τ.1 = 0 :=
+        have hzero1 : realizationProbBehavior β₁ τ.val = 0 :=
           realizationProbBehavior_eq_zero_of_exists β₁ hq_mem (by simp [β₁, hq_not])
-        have hzero0 : realizationProbBehavior β₀ τ.1 = 0 :=
+        have hzero0 : realizationProbBehavior β₀ τ.val = 0 :=
           realizationProbBehavior_eq_zero_of_exists β₀ hq_mem (by simp [β₀, hq_not])
         rw [hzero1, hzero0, sub_self]
 

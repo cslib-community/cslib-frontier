@@ -43,10 +43,10 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
     (hcontacts : ∀ e (i : Fin (D.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
       (D.route e).eval i t = D.vertex v →
         ∃ b, (D.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v)
-    (hvertices : ∀ w ∈ G.1, D.vertex w = D.vertex v → w = v)
+    (hvertices : ∀ w ∈ G.vertices, D.vertex w = D.vertex v → w = v)
     (hgerm : ∀ d : Dart G, d.vertex = v → D.germ d ≠ 0) :
     ∃ ρ > 0,
-      (∀ w ∈ G.1, w ≠ v → 2 * ρ < dist (D.vertex w) (D.vertex v)) ∧
+      (∀ w ∈ G.vertices, w ≠ v → 2 * ρ < dist (D.vertex w) (D.vertex v)) ∧
       (∀ e (i : Fin (D.route e).segments) z,
         z ∈ Metric.closedBall (D.vertex v) ρ →
         z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
@@ -55,9 +55,9 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
       (∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) := by
   classical
   obtain ⟨ε, hε, hseg⟩ := D.exists_vertex_ball_of_vertex_contacts v hcontacts
-  let K : Set ℂ := D.vertex '' {w | w ∈ G.1 ∧ w ≠ v}
-  have hfinite : Set.Finite {w | w ∈ G.1 ∧ w ≠ v} :=
-    G.1.finite_toSet.subset (fun _ h => h.1)
+  let K : Set ℂ := D.vertex '' {w | w ∈ G.vertices ∧ w ≠ v}
+  have hfinite : Set.Finite {w | w ∈ G.vertices ∧ w ≠ v} :=
+    G.vertices.finite_toSet.subset (fun _ h => h.1)
   have hK : IsClosed K := (hfinite.image D.vertex).isClosed
   have hvK : D.vertex v ∈ Kᶜ := by
     rintro ⟨w, ⟨hw, hne⟩, heq⟩
@@ -265,7 +265,7 @@ private theorem arg_sub_of_mem_segment {a b z : ℂ} (hz : z ∈ segment ℝ a b
     have hr0 : r = 0 := le_antisymm (le_of_not_gt h) hr.1
     exact hne (by rw [hr0, AffineMap.lineMap_apply_zero])
   rw [AffineMap.lineMap_apply_module', add_sub_cancel_right, Complex.real_smul,
-    Complex.arg_real_mul _ hpos]
+    Complex.arg_ofReal_mul hpos _]
 
 /-- Distinct cut stubs can meet only at their common declared endpoint. The
 original drawing may have crossings away from the vertex disks. -/
@@ -327,7 +327,7 @@ theorem eq_vertex_of_mem_cutPort_segment_and_route {G : Graph} (D : PolygonalDra
     rw [← hu, zero_smul, sub_eq_zero] at hpoint
     exact hpoint))
   have harg := (arg_sub_of_mem_segment ha hz).trans (D.arg_cutPort_sub hρ a hgerm)
-  rw [hpoint, Complex.real_smul, Complex.arg_real_mul _ hpos] at harg
+  rw [hpoint, Complex.real_smul, Complex.arg_ofReal_mul hpos _] at harg
   exact hne (congrArg Prod.fst (hdirections a (e, b) hv.symm
     (congrArg (fun x : ℝ => (x : Real.Angle)) harg.symm)))
 
@@ -482,7 +482,7 @@ theorem IsEmbedding.cutEnds_ball_contact {G : Graph} {D : PolygonalDrawing G}
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
           (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
+    (e : Fin G.edges.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
     (hcuts : ∀ b, Dart.vertex (e, b) = v → (if b then t else s) = ρ / ‖D.germ (e, b)‖)
     (i : Fin ((D.route e).cutEnds s t).segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
     (hz : ((D.route e).cutEnds s t).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :

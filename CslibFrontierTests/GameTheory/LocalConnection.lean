@@ -390,7 +390,7 @@ theorem isPureNash_two_pathFourProfile : IsPureNash 2 pathFourProfile := by
         have hs'_eq : s' = pathFourProfile := by
           simpa only [s', ha_eq] using Function.update_eq_self (0 : Fin 4) pathFourProfile
         rw [hs'_eq]
-      · have ha_pos : 1 ≤ a.neighbors.card := card_pos.mpr (nonempty_iff_ne_empty.mpr ha0)
+      · have ha_pos : 1 ≤ a.neighbors.card := card_pos.mpr (ne_empty_iff_nonempty.mp ha0)
         have hdeg : (formedGraph s').degree 0 ≤ a.neighbors.card + 1 := by
           rw [← card_neighborFinset_eq_degree]
           have hsub : (formedGraph s').neighborFinset 0 ⊆ insert 1 a.neighbors := by
@@ -553,7 +553,7 @@ theorem isPureNash_two_pathFourProfile : IsPureNash 2 pathFourProfile := by
         have hs'_eq : s' = pathFourProfile := by
           simpa only [s', ha_eq] using Function.update_eq_self (3 : Fin 4) pathFourProfile
         rw [hs'_eq]
-      · have ha_pos : 1 ≤ a.neighbors.card := card_pos.mpr (nonempty_iff_ne_empty.mpr ha3)
+      · have ha_pos : 1 ≤ a.neighbors.card := card_pos.mpr (ne_empty_iff_nonempty.mp ha3)
         have hdeg : (formedGraph s').degree 3 ≤ a.neighbors.card + 1 := by
           rw [← card_neighborFinset_eq_degree]
           have hsub : (formedGraph s').neighborFinset 3 ⊆ insert 2 a.neighbors := by

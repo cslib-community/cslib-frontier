@@ -214,17 +214,18 @@ theorem card_mul_one_sub_binEntropy_le_logb_card [Fintype ι] [DecidableEq ι] [
     rw [PMF.conditionalEntropy, hfst2] at hnonneg
     linarith
   -- Bound each bit's conditional entropy via Fano's inequality.
-  have hbit (i : T) : PMF.conditionalEntropy (U.map fun x => (C x, x i.1)) ≤
+  have hbit (i : T) : PMF.conditionalEntropy (U.map fun x => (C x, x i.val)) ≤
       Real.binEntropy (1 / 2 + η) / Real.log 2 := by
-    have hfano := PMF.conditionalEntropy_map_le_binEntropy_add_mul_logb U (fun x => x i.1) C (g i.1)
+    have hfano :=
+        PMF.conditionalEntropy_map_le_binEntropy_add_mul_logb U (fun x => x i.val) C (g i.val)
     have hbool : Real.logb 2 ((Fintype.card Bool : ℝ) - 1) = 0 := by norm_num
     rw [hbool, mul_zero, add_zero] at hfano
     refine hfano.trans (div_le_div_of_nonneg_right ?_ (Real.log_pos one_lt_two).le)
-    set Pe := (U.toOuterMeasure {x | g i.1 (C x) ≠ x i.1}).toReal
-    have hcomp : (U.toOuterMeasure {x | g i.1 (C x) = x i.1}).toReal + Pe = 1 := by
+    set Pe := (U.toOuterMeasure {x | g i.val (C x) ≠ x i.val}).toReal
+    have hcomp : (U.toOuterMeasure {x | g i.val (C x) = x i.val}).toReal + Pe = 1 := by
       simpa only [Set.compl_ofPred, ne_eq] using
-        Probability.PMF.toOuterMeasure_toReal_add_compl U {x | g i.1 (C x) = x i.1}
-    have hPe_le : Pe ≤ 1 / 2 - η := by linarith [hg i.1 i.2]
+        Probability.PMF.toOuterMeasure_toReal_add_compl U {x | g i.val (C x) = x i.val}
+    have hPe_le : Pe ≤ 1 / 2 - η := by linarith [hg i.val i.property]
     have hPe_mem : Pe ∈ Set.Icc (0 : ℝ) 2⁻¹ := ⟨ENNReal.toReal_nonneg, by linarith⟩
     have hη_mem : 1 / 2 - η ∈ Set.Icc (0 : ℝ) 2⁻¹ := ⟨by linarith, by linarith⟩
     have hmono := Real.binEntropy_strictMonoOn.monotoneOn hPe_mem hη_mem hPe_le
@@ -235,7 +236,7 @@ theorem card_mul_one_sub_binEntropy_le_logb_card [Fintype ι] [DecidableEq ι] [
   have hcond : PMF.conditionalEntropy (U.map fun x => (C x, T.restrict x)) ≤
       (T.card : ℝ) * (Real.binEntropy (1 / 2 + η) / Real.log 2) := by
     calc PMF.conditionalEntropy (U.map fun x => (C x, T.restrict x))
-        ≤ ∑ i : T, PMF.conditionalEntropy (U.map fun x => (C x, x i.1)) :=
+        ≤ ∑ i : T, PMF.conditionalEntropy (U.map fun x => (C x, x i.val)) :=
           conditionalEntropy_pi_le_sum U C T.restrict
       _ ≤ ∑ _i : T, (Real.binEntropy (1 / 2 + η) / Real.log 2) :=
           Finset.sum_le_sum fun i _ => hbit i
@@ -291,9 +292,9 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
       dsimp only [w1, w2]
       congr 1
       · refine Finset.prod_congr (by ext j; simp) fun j _ => ?_
-        simp [equiv, Equiv.piEquivPiSubtypeProd, j.2]
+        simp [equiv, Equiv.piEquivPiSubtypeProd, j.property]
       · refine Finset.prod_congr (by ext j; simp) fun j _ => ?_
-        simp [equiv, Equiv.piEquivPiSubtypeProd, j.2]
+        simp [equiv, Equiv.piEquivPiSubtypeProd, j.property]
     let f1 (u : {j // j ∈ e₀} → Bool) : ℝ := if ∀ j, u j = true then 0 else 1
     let f2 (v : {j // j ∉ e₀} → Bool) : ℝ :=
       ∏ e ∈ E, if ∀ j ∈ e, equiv.symm (fun _ => false, v) j = true then (0 : ℝ) else 1
@@ -302,7 +303,7 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
       simp only [f1]
       congr 1
       refine propext ⟨fun h j => ?_, fun h j hj => ?_⟩
-      · simpa [equiv, Equiv.piEquivPiSubtypeProd, j.2] using h j.1 j.2
+      · simpa [equiv, Equiv.piEquivPiSubtypeProd, j.property] using h j.val j.property
       · simpa [equiv, Equiv.piEquivPiSubtypeProd, hj] using h ⟨j, hj⟩
     have hf2_eq (u : {j // j ∈ e₀} → Bool) (v : {j // j ∉ e₀} → Bool) :
         (∏ e ∈ E, if ∀ j ∈ e, equiv.symm (u, v) j = true then (0 : ℝ) else 1) = f2 v := by
@@ -381,12 +382,13 @@ private theorem bernoulli_hit_ge [Fintype ι] [DecidableEq ι] [Fintype P]
     rw [hmiss_eq, bernoulli_miss_all_eq_prod p M.edges M.pairwiseDisjoint]
     calc ∏ e ∈ M.edges, (1 - (p : ℝ) ^ e.card)
         ≤ ∏ _e ∈ M.edges, (1 - (p : ℝ) ^ q) := by
-          refine Finset.prod_le_prod₀ (fun e _ => sub_nonneg.mpr (pow_le_one₀ p.2.1 p.2.2))
+          refine Finset.prod_le_prod₀ (fun e _ => sub_nonneg.mpr
+              (pow_le_one₀ p.property.1 p.property.2))
             fun e he => sub_le_sub_left ?_ 1
-          exact pow_le_pow_of_le_one p.2.1 p.2.2 (M.card_le_of_mem e he)
+          exact pow_le_pow_of_le_one p.property.1 p.property.2 (M.card_le_of_mem e he)
       _ = (1 - (p : ℝ) ^ q) ^ M.edges.card := by rw [Finset.prod_const]
-  have hpq0 : 0 ≤ (p : ℝ) ^ q := pow_nonneg p.2.1 q
-  have hpq1 : (p : ℝ) ^ q ≤ 1 := pow_le_one₀ p.2.1 p.2.2
+  have hpq0 : 0 ≤ (p : ℝ) ^ q := pow_nonneg p.property.1 q
+  have hpq1 : (p : ℝ) ^ q ≤ 1 := pow_le_one₀ p.property.1 p.property.2
   have h1 := mul_div_one_add_le_one_sub_pow hpq0 hpq1 M.edges.card
   linarith
 
@@ -423,7 +425,7 @@ private theorem card_recovered_mul_le [Fintype ι] [DecidableEq ι] [DecidableEq
     if h : ∃ e ∈ (M i).edges, e ⊆ S then
       let e := h.choose
       let hsub : e ⊆ S := h.choose_spec.2
-      (M i).predict e fun j => w ⟨j.1, hsub j.2⟩
+      (M i).predict e fun j => w ⟨j.val, hsub j.property⟩
     else false
   have hg : ∀ i ∈ T,
       1 / 2 + η ≤ ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure

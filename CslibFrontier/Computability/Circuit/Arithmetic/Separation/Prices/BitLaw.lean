@@ -53,9 +53,9 @@ theorem WireId.bitId {R : Type} [CommRing R] {V E N ι : Type} [Fintype V] [Fint
       (∀ ν : {ν // c ν = p ∨ d ν = p}, Fin (len i ν) → Bool) → R}
     (h : WireId R a b c d n len tab) :
     BitId R (fun s : Σ e, Fin (n e) => a s.1) (fun s : Σ e, Fin (n e) => b s.1) c d len
-      (fun p i x g => tab i p (fun e k => x ⟨⟨e.1, k⟩, e.2⟩) g) := by
+      (fun p i x g => tab i p (fun e k => x ⟨⟨e.val, k⟩, e.property⟩) g) := by
   intro X
-  have h1 := h fun p e k => X p ⟨e.1, k⟩
+  have h1 := h fun p e k => X p ⟨e.val, k⟩
   rw [← h1]
   congr 1
   refine propext ⟨fun h e => ?_, fun h s => ?_⟩

@@ -72,27 +72,28 @@ example :
       have hv := congrArg Subtype.val h
       simp [a, b] at hv
     let S : Finset {p : List Bool // M.Produces p 0} := {a, b}
-    have hzero : ∀ p ∉ S, (2 : ℝ)⁻¹ ^ p.1.length = 0 := fun p hp => by
+    have hzero : ∀ p ∉ S, (2 : ℝ)⁻¹ ^ p.val.length = 0 := fun p hp => by
       exfalso
-      rcases ((hprod p.1 0).mp p.2).1 with h1 | h2
+      rcases ((hprod p.val 0).mp p.property).1 with h1 | h2
       · exact hp (Finset.mem_insert.mpr (Or.inl (Subtype.ext h1)))
       · exact hp (Finset.mem_insert.mpr (Or.inr (Finset.mem_singleton.mpr (Subtype.ext h2))))
     rw [universalProb, tsum_eq_sum hzero, Finset.sum_pair hab]
     simp only [a, b, List.length_cons, List.length_nil]
     norm_num
   have hu1 : M.universalProb 1 = 0 := by
-    have hzero : ∀ p : {p : List Bool // M.Produces p 1}, (2 : ℝ)⁻¹ ^ p.1.length = 0 := fun p => by
+    have hzero : ∀ p : {p : List Bool // M.Produces p 1},
+        (2 : ℝ)⁻¹ ^ p.val.length = 0 := fun p => by
       exfalso
-      have : (1 : ℕ) = 0 := ((hprod p.1 1).mp p.2).2
+      have : (1 : ℕ) = 0 := ((hprod p.val 1).mp p.property).2
       omega
     simp [universalProb, hzero]
   have homega : M.chaitinOmega = (3 / 4 : ℝ) := by
     have htsum : ∑' x : ℕ, M.universalProb x = M.universalProb 0 := by
       refine tsum_eq_single 0 fun x hx => ?_
-      have hzero : ∀ p : {p : List Bool // M.Produces p x}, (2 : ℝ)⁻¹ ^ p.1.length = 0 :=
+      have hzero : ∀ p : {p : List Bool // M.Produces p x}, (2 : ℝ)⁻¹ ^ p.val.length = 0 :=
         fun p => by
           exfalso
-          exact hx ((hprod p.1 x).mp p.2).2
+          exact hx ((hprod p.val x).mp p.property).2
       simp [universalProb, hzero]
     rw [← hpf.tsum_universalProb_eq_chaitinOmega, htsum, hu0]
   have hcomp_ge : 1 ≤ M.complexity 0 := by
