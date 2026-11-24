@@ -448,11 +448,7 @@ theorem Expr.eval_inSpace : ∀ e : Expr,
     ComputableInSpace (fun regs => e.eval regs) (encList encNat) encNat
       fun regs => (encList encNat regs).length
   | .const k => budget_const k
-  | .reg i => budget_comp getD
-      (budget_prod (of_inO (.of_linear (.of_eq (f := id) fun _ => rfl)))
-        (budget_const i))
-      (.of_le_linear 16 (8 * (2 * (encNat i).length + 3)) fun regs => by
-        simp only [length_encPair, id]; omega)
+  | .reg i => budget_getD (of_inO (.of_linear (.of_eq (f := id) fun _ => rfl))) (budget_const i)
   | .add a b =>
     have h := budget_prod (Expr.eval_inSpace a) (Expr.eval_inSpace b)
     budget_comp natAdd h (.add h.length_le (.const 1 _))
@@ -541,11 +537,8 @@ theorem exec_inSpace :
   refine dispatch P.code (.halt []) (fun i x => i.exec x.1 x.2) (fun i => ?_) label_inSpace
   cases i with
   | assign j e next =>
-    have hv := budget_prod regs_inSpace
-      (budget_prod (budget_const (encB := encNat) j) (evalConfigRead_inSpace e))
     exact budget_prod (budget_const next)
-      (budget_comp ComputableInSpace.set hv
-        (.const_mul 128 (.add hv.length_le (.const 1 _))))
+      (budget_set regs_inSpace (budget_const j) (evalConfigRead_inSpace e))
   | lt x y yes no =>
     have hxy := budget_prod (evalConfigRead_inSpace x) (evalConfigRead_inSpace y)
     refine (budget_prod (budget_ite (budget_comp natLt hxy (.add hxy.length_le (.const 1 _)))

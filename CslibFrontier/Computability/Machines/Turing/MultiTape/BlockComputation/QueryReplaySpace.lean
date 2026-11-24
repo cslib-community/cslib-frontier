@@ -177,7 +177,7 @@ theorem symbols_inSpace : ComputableInSpace (symbols (k := k) (Q := Q)) encConfi
   refine pi_linear fun h => ?_
   have hh := budget_comp_linear (piApplyLinear encNat h) (heads_inSpace (k := k) (Q := Q))
   have hc := budget_comp_linear (piApplyLinear (encList encNat) h) (cells_inSpace (k := k) (Q := Q))
-  have hread := budget_comp_lin getD (linear_mul 8) (budget_prod hc hh)
+  have hread := budget_getD hc hh
   exact budget_comp_linear cellOfCode_inSpace hread
 
 private theorem configMk {α : Type} {input : α ↪ List Bool} {S : α → ℕ}
@@ -238,8 +238,7 @@ private theorem fixedActionTick_inSpace (a : Option (Action k Bool Q)) :
       cases hw : (a.workTapes h).1 with
       | none => exact hcell
       | some b =>
-        exact budget_comp_lin set (linear_mul 128)
-          (budget_prod hcell (budget_prod hhead (budget_const (symbolCode b))))
+        exact budget_set hcell hhead (budget_const (symbolCode b))
     have ht := budget_finite (encC := encFinite OutputTrack) (fun t : OutputTrack =>
       t.emit a.output) (track_inSpace (k := k) (Q := Q))
     exact configMk inputLength_inSpace width_inSpace (budget_natPred remaining_inSpace)

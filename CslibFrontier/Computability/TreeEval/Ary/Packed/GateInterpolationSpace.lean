@@ -79,7 +79,7 @@ private theorem gridWeightStateStep_inSpace :
   have hqa := snd' hst
   have hq := fst' hqa
   have ha := snd' hqa
-  have hcell := budget_comp_lin getD (linear_mul 8) (budget_prod hx hj)
+  have hcell := budget_getD hx hj
   have hdigit := budget_natMod hq hs
   have hfactor := budget_comp_linear basisWeight_inSpace
     (budget_prod hp (budget_prod hs (budget_prod hdigit hcell)))

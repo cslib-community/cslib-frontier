@@ -88,9 +88,7 @@ theorem child_inSpace (k : ℕ) :
   have hguard := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hbelow hchild)
   have hproviders := budget_comp_linear (providers_inSpace k) (budget_prod hs hpred)
-  have hlookup := budget_comp_linear (getD.weaken (.of_le_linear 8 8 fun _ => le_rfl))
-    (budget_prod hproviders
-    (budget_natSub hj (budget_const (encB := encNat) 1)))
+  have hlookup := budget_getD hproviders (budget_natSub hj (budget_const (encB := encNat) 1))
   refine (budget_ite (budget_natIsZero hn) hzero (budget_ite hguard
     (budget_ite (budget_natIsZero hj) hpred hlookup) hzero)).of_enc_eq ?_
   rintro ⟨σ, q, n, j⟩
