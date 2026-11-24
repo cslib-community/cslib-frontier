@@ -38,6 +38,8 @@ nonempty lists of blocks whose range is a prefix-free set (`InformationTheory.Is
   on nonempty lists of `n`-bit blocks.
 * `Cslib.Crypto.PRF.separatingBlock_prefix_incomparable`: the common extension makes two distinct
   queries prefix-incomparable.
+* `Cslib.Crypto.PRF.isPrefixFree_append_of_notMem_flatten`: appending an absent block makes
+  a batch of block lists prefix-free.
 * `Cslib.Crypto.PRF.isPrefixFree_append_of_freshBatchBlock_eq_some`: every block returned by
   the search makes the extended batch prefix-free.
 * `Cslib.Crypto.PRF.isPrefixFree_append_freshBatchBlock`: the bounded search succeeds when
@@ -213,19 +215,24 @@ Theorem 7.4 (printed pp. 259–260). It returns `none` when the batch uses the w
     Option (BitString n) :=
   findFreshBlock (BitString.equivFin n).symm messages.flatten
 
-/-- Appending a block returned by the batch search makes the extended messages prefix-free. -/
-theorem isPrefixFree_append_of_freshBatchBlock_eq_some {n : ℕ}
-    {messages : List (List (BitString n))} {block : BitString n}
-    (hblock : freshBatchBlock messages = some block) :
+/-- An absent block delimits each message, so appending it to the batch makes a prefix-free set. -/
+theorem isPrefixFree_append_of_notMem_flatten {α : Type*}
+    {messages : List (List α)} {block : α} (hfresh : block ∉ messages.flatten) :
     InformationTheory.IsPrefixFree ((fun msg => msg ++ [block]) '' {msg | msg ∈ messages}) := by
-  unfold freshBatchBlock findFreshBlock at hblock
-  have hfresh : block ∉ messages.flatten := by simpa using List.find?_some hblock
   have hnotMem {msg} (hm : msg ∈ messages) : block ∉ msg :=
     fun hb => hfresh (List.mem_flatten.mpr ⟨msg, hm, hb⟩)
   rintro _ ⟨u, hu, rfl⟩ _ ⟨v, hv, rfl⟩ ⟨tail, htail⟩
   have hsplit : u ++ block :: tail = v ++ block :: [] := by
     simpa only [List.append_assoc, List.singleton_append] using htail
   rw [((List.append_cons_inj_of_notMem_prefix (hnotMem hu) (hnotMem hv)).mp hsplit).1]
+
+/-- Appending a block returned by the batch search makes the extended messages prefix-free. -/
+theorem isPrefixFree_append_of_freshBatchBlock_eq_some {n : ℕ}
+    {messages : List (List (BitString n))} {block : BitString n}
+    (hblock : freshBatchBlock messages = some block) :
+    InformationTheory.IsPrefixFree ((fun msg => msg ++ [block]) '' {msg | msg ∈ messages}) := by
+  unfold freshBatchBlock findFreshBlock at hblock
+  exact isPrefixFree_append_of_notMem_flatten (by simpa using List.find?_some hblock)
 
 /-- The batch search supplies a fresh delimiter whenever the total block count is below the
 alphabet size. Appending it to every message gives a prefix-free set, including when an original

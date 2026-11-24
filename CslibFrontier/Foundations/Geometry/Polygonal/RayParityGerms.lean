@@ -156,32 +156,29 @@ theorem eventually_rayParity_germ {ι : Type*} [Fintype ι]
         (if RayCrosses (a i) (b i) p then x i else 0) +
           ((if a i = p then (if GermCrosses (b i - p) v then x i else 0) else 0) +
             (if b i = p then (if GermCrosses (a i - p) v then x i else 0) else 0)) := by
+    have hend (A B : ℂ) (hAB : A.im ≠ B.im) (hA : A = p)
+        (hr : ∀ z, RayCrosses (a i) (b i) z ↔ RayCrosses A B z) :
+        ∀ᶠ t : ℝ in nhds 0, 0 < t →
+          (if RayCrosses (a i) (b i) (p + t • v) then x i else 0) =
+            (if RayCrosses (a i) (b i) p then x i else 0) +
+              if GermCrosses (B - p) v then x i else 0 := by
+      have hu : (B - p).im ≠ 0 := by
+        rw [Complex.sub_im, sub_ne_zero]
+        exact fun h => hAB (by rw [hA, h])
+      filter_upwards [eventually_rayCrosses_germ p (B - p) v hu hv] with t ht hpos
+      have hw : RayCrosses (a i) (b i) (p + t • v) ↔ GermCrosses (B - p) v := by
+        simpa only [hr, hA, add_sub_cancel] using ht hpos
+      have hp : ¬RayCrosses (a i) (b i) p := by
+        simpa only [hr, hA, AffineMap.lineMap_apply_zero] using not_rayCrosses_lineMap hAB 0
+      rw [hw, ite_eq_right hp, zero_add]
     by_cases ha : a i = p
     · have hb : b i ≠ p := fun hb => hheight i (by rw [ha, hb])
-      have hu : (b i - p).im ≠ 0 := by
-        rw [Complex.sub_im, sub_ne_zero]
-        exact fun h => hheight i (by rw [ha, h])
-      filter_upwards [eventually_rayCrosses_germ p (b i - p) v hu hv] with t ht hpos
-      have hw : RayCrosses (a i) (b i) (p + t • v) ↔ GermCrosses (b i - p) v := by
-        simpa only [ha, add_sub_cancel] using ht hpos
-      have hp : ¬RayCrosses (a i) (b i) p := by
-        simpa only [ha, AffineMap.lineMap_apply_zero] using
-          not_rayCrosses_lineMap (hheight i) 0
-      rw [hw, ite_eq_right hp]
-      simp only [ha, hb, ↓reduceIte, add_zero, zero_add]
+      filter_upwards [hend (a i) (b i) (hheight i) ha fun _ => Iff.rfl] with t ht hpos
+      simpa only [ha, hb, ↓reduceIte, add_zero, zero_add] using ht hpos
     · by_cases hb : b i = p
-      · have hu : (a i - p).im ≠ 0 := by
-          rw [Complex.sub_im, sub_ne_zero]
-          exact fun h => hheight i (by rw [hb, h])
-        filter_upwards [eventually_rayCrosses_germ p (a i - p) v hu hv] with t ht hpos
-        have hw : RayCrosses (a i) (b i) (p + t • v) ↔ GermCrosses (a i - p) v := by
-          simpa only [hb, add_sub_cancel, rayCrosses_reverse] using ht hpos
-        have hp : ¬RayCrosses (a i) (b i) p := by
-          rw [← rayCrosses_reverse, hb]
-          simpa only [hb, AffineMap.lineMap_apply_zero] using
-            not_rayCrosses_lineMap (hheight i).symm 0
-        rw [hw, ite_eq_right hp]
-        simp only [ha, hb, ↓reduceIte, zero_add]
+      · filter_upwards [hend (b i) (a i) (hheight i).symm hb
+            fun z => (rayCrosses_reverse (a i) (b i) z).symm] with t ht hpos
+        simpa only [ha, hb, ↓reduceIte, zero_add] using ht hpos
       · obtain ⟨hpa, hpb, hp⟩ := hremote i ha hb
         have hcont : ContinuousAt (fun t : ℝ => p + t • v) 0 := by fun_prop
         have hconst := hcont.eventually

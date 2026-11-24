@@ -76,9 +76,10 @@ variable {Symbol State : Type} [Finite State] [Finite Symbol]
 into `ℕ` by `eS` and `eY`: an entry for every permitted transition. -/
 public noncomputable def descN : Desc :=
   ⟨k, eS ntm.q₀, (Set.toFinite {e : State × Option Symbol × (Fin k → Option Symbol) ×
-      Action k Symbol State | ntm.Tr e.1 e.2.1 e.2.2.1 e.2.2.2}).toFinset.toList.map
-    fun e => (key (eS e.1) (e.2.1.map eY) (Option.map eY ∘ e.2.2.1),
-      .ofAction (e.2.2.2.map eS eY))⟩
+      Action k Symbol State |
+      let ⟨q, i, w, a⟩ := e; ntm.Tr q i w a}).toFinset.toList.map
+    fun ⟨q, i, w, a⟩ => (key (eS q) (i.map eY) (Option.map eY ∘ w),
+      .ofAction (a.map eS eY))⟩
 
 @[simp]
 public lemma descN_tapes : (descN eS eY ntm).tapes = k := by
