@@ -220,22 +220,16 @@ private def tagLogAdvCert :
         (fun pair : (PPTParam 2 × (iN.Channel × List Bool) × List Bool) × List Bool =>
           (true :: pair.2, encUnary (Decoder.unary.decode pair.1.2.2 + 1)))
         (encPair EIn encBits) (encPair encBits encBits) := by
-      have hrep : ComputableInPolyTime
-          (fun pair : (PPTParam 2 × (iN.Channel × List Bool) × List Bool) × List Bool =>
-            true :: pair.2)
-          (encPair EIn encBits) encBits :=
-        ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true)
-          (ComputableInPolyTime.snd EIn encBits)
       have hsw : ComputableInPolyTime
           (fun pair : (PPTParam 2 × (iN.Channel × List Bool) × List Bool) × List Bool =>
             Decoder.unary.decode pair.1.2.2)
           (encPair EIn encBits) encUnary := by
         refine Decoder.unary.computableInPolyTime.comp ?_
         unfold EIn encHandlerCall; fun_prop
-      have hinc := (ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits)
-        (fun _ => rfl)).comp
-        (ComputableInPolyTime.unary_add.comp (hsw.prod (ComputableInPolyTime.const 1)))
-      exact hrep.prod hinc
+      exact (ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true)
+          (ComputableInPolyTime.snd EIn encBits)).prod
+        ((ComputableInPolyTime.of_eq (encIn := encUnary) (encOut := encBits) (fun _ => rfl)).comp
+          (ComputableInPolyTime.unary_add.comp (hsw.prod (ComputableInPolyTime.const 1))))
     refine (hq.keep_input.map hsucc).congr fun x State oracle s => ?_
     rcases x with ⟨p, ⟨⟨⟩, w⟩, sw⟩
     rw [tagLogAdv_wordHandle_eq]
@@ -248,14 +242,12 @@ private def tagLogAdvCert :
   preserve p req s' out hout := by
     rcases req with ⟨⟨⟩, w⟩
     rw [tagLogAdv_wordHandle_eq] at hout
-    simp only [OracleComp.mem_supportWith_map_iff] at hout
-    rcases hout with ⟨_, _, rfl⟩
+    rcases OracleComp.mem_supportWith_map_iff.mp hout with ⟨_, _, rfl⟩
     let s₀ : ℕ := s'
-    have hdec : Decoder.unary.decode (encUnary s₀) = s₀ := Decoder.unary.decode_enc s₀
-    change (encUnary (Decoder.unary.decode (encUnary s₀) + 1)).length ≤ (encUnary s₀).length + 1
-    rw [hdec]
-    simp only [encUnary_apply, List.length_replicate]
-    omega
+    have hdec := Decoder.unary.decode_enc s₀
+    change (encUnary (Decoder.unary.decode (encUnary s₀) + 1)).length ≤
+      (encUnary s₀).length + 1
+    rw [hdec]; simp only [encUnary_apply, List.length_replicate]; omega
 
 /-- `tagLogAdv` is strict PPT (`Adversary.IsPPT`). -/
 theorem tagLogAdv_isPPT : tagLogAdv.IsPPT msgPort msgPort :=
@@ -300,14 +292,14 @@ theorem tagLogAdv_isRequestBounded :
   rw [OracleComp.queriesSatisfy_map_iff, OracleComp.queriesSatisfy_map_iff]
   exact OracleComp.QueriesSatisfy.query (le_refl _)
 
-/-- Interactive two-party environment making two party-`0` writes, one adversary query `[true]`,
-and one party-`1` poll, returning `decide (1 < advReply.length)`. -/
+/-- Interactive two-party environment making two party-`0` writes, one party-`1` poll, and one
+adversary query `[true]`, returning `decide (1 < advReply.length)`. -/
 private def linkEnv : Environment 2 Bool (List Bool) (List Bool) (List Bool) :=
   fun _ _ => do
     let _ ← ProbOracleComp.query (Sum.inl ((0 : Fin 2), true))
     let _ ← ProbOracleComp.query (Sum.inl ((0 : Fin 2), false))
-    let advReply ← ProbOracleComp.query (Sum.inr [true])
     let _ ← ProbOracleComp.query (Sum.inl ((1 : Fin 2), false))
+    let advReply ← ProbOracleComp.query (Sum.inr [true])
     return decide (1 < advReply.length)
 
 private noncomputable def linkExec :=
@@ -315,8 +307,7 @@ private noncomputable def linkExec :=
 
 private noncomputable def linkConstQuery (q : (Fin 2 × Bool) ⊕ List Bool) (e : EnvParam) :
     WordOracleComp linkExec.Channel (List Bool) :=
-  linkExec.reply q <$>
-    ProbOracleComp.lowerWith linkExec e.replyBound (ProbOracleComp.query q)
+  linkExec.reply q <$> ProbOracleComp.lowerWith linkExec e.replyBound (ProbOracleComp.query q)
 
 private theorem isOraclePPTOn_linkConstQuery (q : (Fin 2 × Bool) ⊕ List Bool) :
     IsOraclePPTOn encEnvParam encBits (linkConstQuery q) :=
@@ -326,40 +317,23 @@ private theorem isOraclePPTOn_linkConstQuery (q : (Fin 2 × Bool) ⊕ List Bool)
 
 /-- `linkEnv` is uniform strict oracle PPT (`Environment.IsPPT`). -/
 theorem linkEnv_isPPT : linkEnv.IsPPT coinPartyPort msgPort := by
-  let q1 := linkConstQuery (Sum.inl ((0 : Fin 2), true))
-  let q2 : EnvParam → List Bool → WordOracleComp linkExec.Channel (List Bool) :=
-    fun e _ => linkConstQuery (Sum.inl ((0 : Fin 2), false)) e
-  let q3 : EnvParam → List Bool → WordOracleComp linkExec.Channel (List Bool) :=
-    fun e _ => linkConstQuery (Sum.inr [true]) e
-  let q4 : EnvParam → List Bool → WordOracleComp linkExec.Channel (List Bool) :=
-    fun e _ => linkConstQuery (Sum.inl ((1 : Fin 2), false)) e
-  have hq1 : IsOraclePPTOn encEnvParam encBits q1 := isOraclePPTOn_linkConstQuery _
-  have hq2 : IsOraclePPTOn (encPair encEnvParam encBits) encBits (fun x => q2 x.1 x.2) :=
-    (isOraclePPTOn_linkConstQuery _).preprocess (ComputableInPolyTime.fst encEnvParam encBits)
-  have hq3 : IsOraclePPTOn (encPair encEnvParam encBits) encBits (fun x => q3 x.1 x.2) :=
-    (isOraclePPTOn_linkConstQuery _).preprocess (ComputableInPolyTime.fst encEnvParam encBits)
-  have hq4 : IsOraclePPTOn (encPair encEnvParam encBits) encBits (fun x => q4 x.1 x.2) :=
-    (isOraclePPTOn_linkConstQuery _).preprocess (ComputableInPolyTime.fst encEnvParam encBits)
-  have h12 : IsOraclePPTOn encEnvParam encBits (fun e => q1 e >>= q2 e) :=
-    hq1.bind_with (second := q2) hq2
-  have h123 : IsOraclePPTOn encEnvParam encBits (fun e => (q1 e >>= q2 e) >>= q3 e) :=
-    h12.bind_with (second := q3) hq3
+  let step (q : (Fin 2 × Bool) ⊕ List Bool) :
+      EnvParam → List Bool → WordOracleComp linkExec.Channel (List Bool) :=
+    fun e _ => linkConstQuery q e
+  have hstep (q) : IsOraclePPTOn (encPair encEnvParam encBits) encBits (fun x => step q x.1 x.2) :=
+    (isOraclePPTOn_linkConstQuery q).preprocess (ComputableInPolyTime.fst encEnvParam encBits)
   have h1234 : IsOraclePPTOn encEnvParam encBits
-      (fun e => ((q1 e >>= q2 e) >>= q3 e) >>= fun r3 => (fun _ => r3) <$> q4 e r3) := by
-    let q4' : EnvParam → List Bool → WordOracleComp linkExec.Channel (List Bool) :=
-      fun e r3 => (fun _ => r3) <$> q4 e r3
-    have hq4' : IsOraclePPTOn (encPair encEnvParam encBits) encBits (fun x => q4' x.1 x.2) :=
-      hq4.map_with (f := fun x _ => x.2)
-        ((ComputableInPolyTime.snd encEnvParam encBits).comp (ComputableInPolyTime.fst _ _))
-    exact h123.bind_with (second := q4') hq4'
+      (fun e => (((linkConstQuery (Sum.inl ((0 : Fin 2), true)) e >>=
+        step (Sum.inl ((0 : Fin 2), false)) e) >>=
+        step (Sum.inl ((1 : Fin 2), false)) e) >>=
+        step (Sum.inr [true]) e)) :=
+    (((isOraclePPTOn_linkConstQuery _).bind_with (hstep _)).bind_with
+      (hstep _)).bind_with (hstep _)
   have hpost : ComputableInPolyTime
       (fun p : EnvParam × List Bool => decide (1 < (msgPort.replyDecoder.decode p.2).length))
       (encPair encEnvParam encBits) encBool := by
-    have hdec : ComputableInPolyTime
-        (fun p : EnvParam × List Bool => msgPort.replyDecoder.decode p.2)
-        (encPair encEnvParam encBits) encBits :=
-      msgPort.replyDecoder.computableInPolyTime.comp
-        (ComputableInPolyTime.snd encEnvParam encBits)
+    have hdec := msgPort.replyDecoder.computableInPolyTime.comp
+      (ComputableInPolyTime.snd encEnvParam encBits)
     have hlen : ComputableInPolyTime
         (fun p : EnvParam × List Bool => (msgPort.replyDecoder.decode p.2).length)
         (encPair encEnvParam encBits) encUnary := by
@@ -370,9 +344,10 @@ theorem linkEnv_isPPT : linkEnv.IsPPT coinPartyPort msgPort := by
     simpa only [Function.comp_def] using hdec1.comp hlen
   refine (h1234.keep_input.map hpost).congr fun e State oracle s => ?_
   refine congrArg (fun p => ProbOracleComp.runWith oracle p s) ?_
-  simp only [linkEnv, linkExec, ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind,
-    ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, WordInterface.lowerQuery,
-    WordInterface.exec, WordInterface.sum, WordInterface.net, Functor.map_map]
+  simp only [linkEnv, linkExec, step, linkConstQuery, ProbOracleComp.lowerWith,
+    ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure,
+    WordInterface.lowerQuery, WordInterface.exec, WordInterface.sum, WordInterface.net,
+    Functor.map_map]
   rfl
 
 /-- Absorbing the reply-growing `tagLogAdv` into `linkEnv` preserves `Environment.IsPPT`. -/
@@ -422,31 +397,20 @@ theorem tagLogAdv_enlarged_cap_prevents_truncation :
       ProbOracleComp.runWith tagLogAdvWordOracle
         (ProbOracleComp.lowerWith (WordInterface.net msgPort) 2
           (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) [true])) (0, ()) := by
+  have heval (k : ℕ) : ProbOracleComp.runWith tagLogAdvWordOracle
+      (ProbOracleComp.lowerWith (WordInterface.net msgPort) k
+        (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) [true])) (0, ()) =
+      PMF.pure (List.take k [true, false], (1, ())) := by
+    rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
+      ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
+    have hq : tagLogAdvWordOracle ((WordInterface.net msgPort).channel [true],
+        (WordInterface.net msgPort).request [true]) (0, ()) =
+        PMF.pure ([true, false], (1, ())) := tagLogAdvWordOracle_true_zero
+    rw [hq, PMF.pure_map, PMF.pure_map]
+    rfl
   intro h
-  have h1 : ProbOracleComp.runWith tagLogAdvWordOracle
-      (ProbOracleComp.lowerWith (WordInterface.net msgPort) 1
-        (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) [true])) (0, ()) =
-      PMF.pure ([true], (1, ())) := by
-    rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
-      ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
-    have hq : tagLogAdvWordOracle ((WordInterface.net msgPort).channel [true],
-        (WordInterface.net msgPort).request [true]) (0, ()) =
-        PMF.pure ([true, false], (1, ())) := tagLogAdvWordOracle_true_zero
-    rw [hq, PMF.pure_map, PMF.pure_map]
-    rfl
-  have h2 : ProbOracleComp.runWith tagLogAdvWordOracle
-      (ProbOracleComp.lowerWith (WordInterface.net msgPort) 2
-        (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) [true])) (0, ()) =
-      PMF.pure ([true, false], (1, ())) := by
-    rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
-      ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
-    have hq : tagLogAdvWordOracle ((WordInterface.net msgPort).channel [true],
-        (WordInterface.net msgPort).request [true]) (0, ()) =
-        PMF.pure ([true, false], (1, ())) := tagLogAdvWordOracle_true_zero
-    rw [hq, PMF.pure_map, PMF.pure_map]
-    rfl
   have h' := congrArg (fun d => d ([true], (1, ()))) h
-  rw [h1, h2] at h'
+  rw [heval 1, heval 2] at h'
   simp [PMF.pure_apply] at h'
 
 end AbsorbAdversaryWitness
@@ -782,6 +746,15 @@ private theorem exists_poly_lt_two_pow (c d : ℕ) : ∃ κ, c * (κ + 1) ^ d < 
     _ = 2 ^ (c + (k + 1) * d) := by rw [← pow_mul, mul_comm (k + 1) d, ← pow_add]
     _ ≤ 2 ^ (2 ^ k) := Nat.pow_le_pow_right (by decide) hexp
 
+private theorem poly_pow_mono (c a d D k : ℕ) (ha : a ≤ c * (k + 1) ^ d) (hd : d ≤ D) :
+    a + 1 ≤ (c + 1) * (k + 1) ^ D := by
+  have h1 : 1 ≤ (k + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos k)
+  have h2 : (k + 1) ^ d ≤ (k + 1) ^ D := Nat.pow_le_pow_right (Nat.succ_pos k) hd
+  calc
+    a + 1 ≤ c * (k + 1) ^ D + (k + 1) ^ D :=
+      Nat.add_le_add (ha.trans (Nat.mul_le_mul_left c h2)) h1
+    _ = (c + 1) * (k + 1) ^ D := by simp [Nat.add_mul]
+
 /-- Negative witness: omitting `Machine.IsReplyBounded` makes sequential composition closure
 false (`¬ Machine.IsPPTFamily (fun κ C => (iterQueryMachine κ C).comp (doubleMachine κ C))`), even
 though `doubleMachine` is PPT (with replies bounded by `2 * |w|`), `iterQueryMachine` is PPT,
@@ -796,71 +769,46 @@ theorem negative_comp_not_isPPT :
   have hp : ComputableInPolyTime (fun κ : ℕ => (⟨κ, 0, ∅⟩ : PPTParam 2))
       encUnary (encPPTParam 2) := by
     have hconst : ComputableInPolyTime (fun _ : ℕ => (∅ : Finset (Fin 2)))
-        encUnary (encFinite (Finset (Fin 2))) :=
-      ComputableInPolyTime.const ∅
+        encUnary (encFinite (Finset (Fin 2))) := ComputableInPolyTime.const ∅
     fun_prop
   obtain ⟨cp, dp, hcp⟩ := hp.polyBounded_length.exists_le
-  let D : ℕ := max dp (dp * d0)
-  let M0 : ℕ := cp + 1
-  let Minit : ℕ := c0 * M0 ^ d0
-  let Mchan : ℕ := Nat.card (WordInterface.net msgPort).Channel
-  let A : ℕ := 2 * M0 + 4 * (Mchan + 2) + Minit + 6
-  let Ctot : ℕ := c1 * (A + 1) ^ d1
-  obtain ⟨κ, hκ⟩ := exists_poly_lt_two_pow Ctot (D * d1)
+  let D := max dp (dp * d0)
+  let M0 := cp + 1
+  let Minit := c0 * M0 ^ d0
+  let Mchan := Nat.card (WordInterface.net msgPort).Channel
+  let A := 2 * M0 + 4 * (Mchan + 2) + Minit + 6
+  obtain ⟨κ, hκ⟩ := exists_poly_lt_two_pow (c1 * (A + 1) ^ d1) (D * d1)
   let p : PPTParam 2 := ⟨κ, 0, ∅⟩
   let s0 : ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).State := (PUnit.unit, PUnit.unit)
-  have hmemInit : (cert.codec κ ∅).enc s0 ∈
-      (ProbComp.eval ((cert.codec κ ∅).enc <$>
-        ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).init)).support := by
+  have hmemInit : (cert.codec κ ∅).enc s0 ∈ (ProbComp.eval ((cert.codec κ ∅).enc <$>
+      ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).init)).support := by
     change (cert.codec κ ∅).enc s0 ∈ (ProbComp.eval ((cert.codec κ ∅).enc <$>
       (pure s0 : ProbComp _))).support
     rw [map_pure, ProbComp.eval_pure]
     exact (PMF.mem_support_pure_iff _ _).mpr rfl
   have hlenP : (encPPTParam 2 p).length ≤ cp * (κ + 1) ^ dp := by
     simpa only [encUnary_apply, List.length_replicate] using hcp κ
-  have hlenP' : (encPPTParam 2 p).length + 1 ≤ M0 * (κ + 1) ^ D := by
-    have hpow : (κ + 1) ^ dp ≤ (κ + 1) ^ D :=
-      Nat.pow_le_pow_right (Nat.succ_pos κ) (le_max_left _ _)
-    have hpow1 : 1 ≤ (κ + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos κ)
-    calc
-      (encPPTParam 2 p).length + 1 ≤ cp * (κ + 1) ^ dp + 1 := Nat.add_le_add_right hlenP 1
-      _ ≤ cp * (κ + 1) ^ D + (κ + 1) ^ D :=
-        Nat.add_le_add (Nat.mul_le_mul_left cp hpow) hpow1
-      _ = M0 * (κ + 1) ^ D := by simp [M0, Nat.add_mul]
+  have hlenP' := poly_pow_mono cp _ dp D κ hlenP (le_max_left _ _)
   have hlenInit : ((cert.codec κ ∅).enc s0).length ≤ Minit * (κ + 1) ^ D := by
-    have hi := hinit p ((cert.codec κ ∅).enc s0) hmemInit
-    have hpow0 : ((encPPTParam 2 p).length + 1) ^ d0 ≤ (M0 * (κ + 1) ^ dp) ^ d0 := by
-      have h1 : (encPPTParam 2 p).length + 1 ≤ M0 * (κ + 1) ^ dp := by
-        have hpow1 : 1 ≤ (κ + 1) ^ dp := Nat.one_le_pow _ _ (Nat.succ_pos κ)
-        calc
-          (encPPTParam 2 p).length + 1 ≤ cp * (κ + 1) ^ dp + 1 := Nat.add_le_add_right hlenP 1
-          _ ≤ cp * (κ + 1) ^ dp + (κ + 1) ^ dp := Nat.add_le_add_left hpow1 _
-          _ = M0 * (κ + 1) ^ dp := by simp [M0, Nat.add_mul]
-      exact Nat.pow_le_pow_left h1 d0
-    have hpowD : (κ + 1) ^ (dp * d0) ≤ (κ + 1) ^ D :=
+    have h1 := poly_pow_mono cp _ dp dp κ hlenP (le_refl dp)
+    have h2 : c0 * (M0 * (κ + 1) ^ dp) ^ d0 = Minit * (κ + 1) ^ (dp * d0) := by
+      rw [mul_pow, ← pow_mul, mul_assoc]
+    have h3 : (κ + 1) ^ (dp * d0) ≤ (κ + 1) ^ D :=
       Nat.pow_le_pow_right (Nat.succ_pos κ) (le_max_right _ _)
-    calc
-      ((cert.codec κ ∅).enc s0).length
-        ≤ c0 * ((encPPTParam 2 p).length + 1) ^ d0 := hi
-      _ ≤ c0 * (M0 * (κ + 1) ^ dp) ^ d0 := Nat.mul_le_mul_left c0 hpow0
-      _ = Minit * (κ + 1) ^ (dp * d0) := by rw [mul_pow, ← pow_mul, mul_assoc]
-      _ ≤ Minit * (κ + 1) ^ D := Nat.mul_le_mul_left Minit hpowD
-  have hcompHandle :
-      ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).handle [true] s0 =
-        pure (Nat.iterate (fun w => w ++ w) κ [true], s0) := by
-    have hstep :
-        ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).handle [true] s0 =
-          Equiv.prodAssoc _ _ _ <$>
-            (doubleMachine κ ∅).runFrom
-              ((·, PUnit.unit) <$> OracleComp.iterate κ
-                (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x)
-                [true])
-              PUnit.unit := rfl
+    exact (hinit p _ hmemInit).trans
+      ((Nat.mul_le_mul_left c0 (Nat.pow_le_pow_left h1 d0)).trans
+        (h2 ▸ Nat.mul_le_mul_left Minit h3))
+  have hcompHandle : ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).handle [true] s0 =
+      pure (Nat.iterate (fun w => w ++ w) κ [true], s0) := by
+    have hstep : ((iterQueryMachine κ ∅).comp (doubleMachine κ ∅)).handle [true] s0 =
+        Equiv.prodAssoc _ _ _ <$> (doubleMachine κ ∅).runFrom
+          ((·, PUnit.unit) <$> OracleComp.iterate κ
+            (fun x => ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) x) [true])
+          PUnit.unit := rfl
     have hrun := runFrom_double_iterate κ κ [true]
     dsimp only [doubleMachine] at hstep hrun ⊢
     rw [hstep, Machine.runFrom_map, hrun]
-    simp only [map_pure]
-    rfl
+    simp only [map_pure]; rfl
   let ch0 : (WordInterface.net msgPort).Channel := ()
   let x : PPTParam 2 × ((WordInterface.net msgPort).Channel × List Bool) × List Bool :=
     (p, (ch0, [true]), (cert.codec κ ∅).enc s0)
@@ -879,15 +827,11 @@ theorem negative_comp_not_isPPT :
     rw [(cert.codec κ ∅).decode_enc, hcompHandle, ProbOracleComp.lowerWith,
       ProbOracleComp.simulate_pure, map_pure, ProbOracleComp.runWith_pure]
     exact (PMF.mem_support_pure_iff _ _).mpr rfl
-  have hbound := hhandle x Unit emptyWordOracle () ()
-    (Nat.iterate (fun w => w ++ w) κ [true], (cert.codec κ ∅).enc s0) hmemHandle
-  have h2pow : 2 ^ κ ≤
-      (encPair encBits encBits
-        (Nat.iterate (fun w => w ++ w) κ [true], (cert.codec κ ∅).enc s0)).length := by
+  have h2pow : 2 ^ κ ≤ (encPair encBits encBits
+      (Nat.iterate (fun w => w ++ w) κ [true], (cert.codec κ ∅).enc s0)).length := by
     have hlen2 : (Nat.iterate (fun w => w ++ w) κ [true]).length = 2 ^ κ := by
       simpa using length_iterate_double κ [true]
-    simp only [length_encPair, encBits_apply, hlen2]
-    omega
+    simp only [length_encPair, encBits_apply, hlen2]; omega
   have hxlen : (encHandlerCall (encPPTParam 2) (encFinite (WordInterface.net msgPort).Channel)
       encBits x).length + 1 ≤ A * (κ + 1) ^ D := by
     have hch : (encFinite (WordInterface.net msgPort).Channel ch0).length ≤ Mchan :=
@@ -895,36 +839,22 @@ theorem negative_comp_not_isPPT :
     have hpowD : 1 ≤ (κ + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos κ)
     simp only [encHandlerCall, length_encPair, encBits_apply, x]
     have h1 : ([true] : List Bool).length = 1 := rfl
-    have hsum : 2 * (encPPTParam 2 p).length + 1 +
+    have hc : 4 * (Mchan + 2) + 6 ≤ (4 * (Mchan + 2) + 6) * (κ + 1) ^ D :=
+      Nat.le_mul_of_pos_right _ hpowD
+    have : 2 * (encPPTParam 2 p).length + 1 +
         (2 * (2 * (encFinite (WordInterface.net msgPort).Channel ch0).length + 1 +
           ([true] : List Bool).length) + 1 + ((cert.codec κ ∅).enc s0).length) + 1 ≤
         2 * (M0 * (κ + 1) ^ D) + (4 * (Mchan + 2) + Minit * (κ + 1) ^ D + 6) := by
+      dsimp only [M0] at hlenP' ⊢
       omega
-    have hstep : 2 * (M0 * (κ + 1) ^ D) + (4 * (Mchan + 2) + Minit * (κ + 1) ^ D + 6) ≤
-        A * (κ + 1) ^ D := by
-      have hm : 4 * (Mchan + 2) + 6 ≤ (4 * (Mchan + 2) + 6) * (κ + 1) ^ D :=
-        Nat.le_mul_of_pos_right _ hpowD
-      calc
-        2 * (M0 * (κ + 1) ^ D) + (4 * (Mchan + 2) + Minit * (κ + 1) ^ D + 6)
-          ≤ 2 * M0 * (κ + 1) ^ D + (4 * (Mchan + 2) + Minit + 6) * (κ + 1) ^ D := by nlinarith
-        _ = A * (κ + 1) ^ D := by simp only [A]; ring
-    exact hsum.trans hstep
-  have hfinal : 2 ^ κ ≤ Ctot * (κ + 1) ^ (D * d1) := by
-    have hpowD1 : ((encHandlerCall (encPPTParam 2)
-        (encFinite (WordInterface.net msgPort).Channel)
-        encBits x).length + 1) ^ d1 ≤ (A * (κ + 1) ^ D) ^ d1 :=
-      Nat.pow_le_pow_left hxlen d1
-    have hA1 : A * (κ + 1) ^ D ≤ (A + 1) * (κ + 1) ^ D :=
-      Nat.mul_le_mul_right _ (Nat.le_succ A)
-    calc
-      2 ^ κ ≤ c1 * ((encHandlerCall (encPPTParam 2)
-          (encFinite (WordInterface.net msgPort).Channel) encBits x).length + 1) ^ d1 :=
-        h2pow.trans hbound
-      _ ≤ c1 * (A * (κ + 1) ^ D) ^ d1 := Nat.mul_le_mul_left c1 hpowD1
-      _ ≤ c1 * ((A + 1) * (κ + 1) ^ D) ^ d1 :=
-        Nat.mul_le_mul_left c1 (Nat.pow_le_pow_left hA1 d1)
-      _ = Ctot * (κ + 1) ^ (D * d1) := by rw [mul_pow, ← pow_mul, mul_assoc]
-  omega
+    nlinarith [show A = 2 * M0 + 4 * (Mchan + 2) + Minit + 6 from rfl]
+  have hbound := h2pow.trans (hhandle x Unit emptyWordOracle () () _ hmemHandle)
+  have hfin : c1 * ((encHandlerCall (encPPTParam 2) (encFinite (WordInterface.net msgPort).Channel)
+      encBits x).length + 1) ^ d1 ≤ c1 * (A + 1) ^ d1 * (κ + 1) ^ (D * d1) := by
+    have hpowD1 := Nat.pow_le_pow_left (hxlen.trans (Nat.mul_le_mul_right _ (Nat.le_succ A))) d1
+    rw [mul_pow, ← pow_mul, Nat.succ_eq_add_one] at hpowD1
+    exact (Nat.mul_le_mul_left c1 hpowD1).trans (by rw [mul_assoc])
+  exact Nat.lt_irrefl _ ((hbound.trans hfin).trans_lt hκ)
 
 end NegativeCompWitness
 
