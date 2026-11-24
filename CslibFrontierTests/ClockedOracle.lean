@@ -64,10 +64,10 @@ example (g : ℕ →. ℕ) (n : ℕ) :
   rw [Nat.RecursiveIn.Code.eval_toClocked, Nat.RecursiveIn.Code.eval_rfind]
   rfl
 
-/-- The universal program has a computable dialogue, so the hypothesis of the program-to-code
+/-- Compiled programs have computable dialogues, so the hypothesis of the program-to-code
 direction is satisfiable. -/
 example (c : Nat.RecursiveIn.Code) :
-    Computable (ClockedComp.dialogue (Nat.RecursiveIn.Code.prefixClocked c)) :=
-  Nat.RecursiveIn.Code.computable_dialogue_prefixClocked c
+    Computable (ClockedComp.dialogue c.toClocked) :=
+  Nat.RecursiveIn.Code.computable_dialogue_toClocked c
 
 end CslibFrontierTests.ClockedOracle
