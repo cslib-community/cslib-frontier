@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.GenericRAM.Simulation.Degree
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Tactic.Degree
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -122,21 +123,10 @@ private theorem length_encList_zipIdx_le (l : List ℕ) (k : ℕ) :
 theorem initFold_degree :
     ComputableInDegree (fun l : List ℕ => l.foldl initStep (0, [])) (encList encNat)
       (encPair encNat (encList (encPair encNat encNat))) 3 2 := by
-  have hk : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => p.1.1 + 1)
-      (encPair (encPair encNat (encList (encPair encNat encNat))) encNat) encNat 1 1 :=
-    (natSucc.comp ((fst _ _).comp (fst _ _))).mono
-  have hacc : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => p.1.2)
-      (encPair (encPair encNat (encList (encPair encNat encNat))) encNat)
-      (encList (encPair encNat encNat)) 1 1 :=
-    ((snd _ _).comp (fst _ _)).mono
-  have hnew : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => p.1.2 ++ [(p.1.1 + 1, p.2)])
-      (encPair (encPair encNat (encList (encPair encNat encNat))) encNat)
-      (encList (encPair encNat encNat)) 1 1 :=
-    ((snoc (encPair encNat encNat)).comp (hacc.prod (hk.prod (snd _ _)))).mono
   have hstep : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => initStep p.1 p.2)
       (encPair (encPair encNat (encList (encPair encNat encNat))) encNat)
-      (encPair encNat (encList (encPair encNat encNat))) 1 1 :=
-    (hk.prod hnew).mono
+      (encPair encNat (encList (encPair encNat encNat))) 1 1 := by
+    degree [initStep]
   have h := foldl' (encA := encNat) (encL := encList encNat)
     (encB := encPair encNat (encList (encPair encNat encNat)))
     (list := fun l => l) (init := fun _ => ((0 : ℕ), ([] : List (ℕ × ℕ)))) (step := initStep)
@@ -156,11 +146,11 @@ theorem initFold_degree :
 /-- **Building the initial memory is cubic** in the encoded input words, with quadratic output. -/
 theorem initMemory_degree :
     ComputableInDegree initMemory (encList encNat) (SparseMemory.encoding encNat encNat) 3 2 := by
+  have hfold := initFold_degree
   have h : ComputableInDegree
       (fun l : List ℕ => (0, (l.foldl initStep (0, [])).1) :: (l.foldl initStep (0, [])).2)
-      (encList encNat) (encList (encPair encNat encNat)) 3 2 :=
-    ((cons (encPair encNat encNat)).comp ((((const 0).prod ((fst _ _).comp initFold_degree))).prod
-      ((snd _ _).comp initFold_degree))).mono
+      (encList encNat) (encList (encPair encNat encNat)) 3 2 := by
+    degree
   refine h.of_enc_eq fun l => ?_
   simp only [SparseMemory.encoding_apply, entries_initMemory, initEntries_eq_foldl]
 
@@ -342,9 +332,10 @@ private theorem foldl_succ (l : List Bool) (m : ℕ) :
 /-- **The bits of a list as words, in quadratic time.** -/
 theorem bitsToNats_degree :
     ComputableInDegree (fun l : List Bool => l.map Bool.toNat) encBits (encList encNat) 2 1 := by
+  have htoNat : ComputableInDegree Bool.toNat encBool encNat 1 0 := of_finite Bool.toNat
   have hstep : ComputableInDegree (fun p : List ℕ × Bool => p.1 ++ [p.2.toNat])
-      (encPair (encList encNat) encBool) (encList encNat) 1 1 :=
-    ((snoc encNat).comp ((fst _ _).prod ((of_finite Bool.toNat).comp (snd _ _)))).mono
+      (encPair (encList encNat) encBool) (encList encNat) 1 1 := by
+    degree
   have h := foldl' (encA := encBool) (encL := encBits) (encB := encList encNat)
     (list := fun l => l) (init := fun _ => ([] : List ℕ))
     (step := fun acc b => acc ++ [b.toNat]) (of_eq fun _ => rfl) (const _) hstep
@@ -372,7 +363,7 @@ theorem lengthBinary_degree :
     ComputableInDegree (fun l : List Bool => l.length) encBits encNat 2 1 := by
   have h := foldl' (encA := encBool) (encL := encBits) (encB := encNat)
     (list := fun l => l) (init := fun _ => (0 : ℕ)) (step := fun n _ => n + 1)
-    (of_eq fun _ => rfl) (const _) ((natSucc.comp (fst encNat encBool)).mono (d' := 1) (e' := 1))
+    (of_eq fun _ => rfl) (const _) (by degree)
     (B := fun l => (encBits l).length) DegreeBounded.self
     (fun l i hi => by
       rw [foldl_succ, Nat.zero_add]
@@ -389,15 +380,11 @@ theorem unaryMulConst_degree (k : ℕ) :
     ComputableInDegree (fun m : ℕ => k * m) encUnary encUnary 1 1 := by
   induction k with
   | zero =>
-    convert (const (encIn := encUnary) (encMid := encUnary) 0).mono (d' := 1) (e' := 1)
-      using 1
-    funext m
-    simp
+    simpa only [Nat.zero_mul] using
+      (by degree : ComputableInDegree (fun _ : ℕ => 0) encUnary encUnary 1 1)
   | succ k ih =>
-    convert unaryAdd ih (of_eq (f := fun m : ℕ => m) fun _ => rfl) (d := 1) (e := 1)
-      (by omega) (by omega) using 1
-    funext m
-    rw [Nat.succ_mul]
+    simpa only [Nat.succ_mul] using
+      (by degree : ComputableInDegree (fun m : ℕ => k * m + m) encUnary encUnary 1 1)
 
 /-- **The word size `k (size n + 1)` of an input of length `n`, in unary, in quadratic time.** It
 is at least the logarithmic threshold `logWidth k n`. -/

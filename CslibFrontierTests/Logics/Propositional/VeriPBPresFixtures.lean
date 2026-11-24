@@ -104,4 +104,81 @@ conclusion ENUMERATION_PARTIAL 1;
 end pseudo-Boolean proof;
 "
 
+/-- An `EQUIENUMERABLE` output of `pres4Rm` itself, after the steps `steps`. -/
+def presEnumOut (steps : String) : String :=
+  "pseudo-Boolean proof version 3.0\nf 6;\n" ++ steps ++
+    "output EQUIENUMERABLE FILE;\nconclusion NONE;\nend pseudo-Boolean proof;\n"
+
+/-- For `pres4Rm`, after `rmX5`: `preserved_add x5 : x1 >= 1` adds `x5` back, its goals negated
+as `11` and `13` and refuted with `5` and `6`. -/
+def readdX5 : String := "preserved_add x5 : 1 x1 >= 1 : subproof
+proofgoal #1
+pol 11 5 +;
+qed : 12;
+proofgoal #2
+pol 13 6 +;
+qed : 14;
+qed;
+"
+
+/-- For `pres4Rm`, after `rmX5`: delete the definition `5`, `6` of `x5` by checked deletions with
+witnesses on `x5`, which is no longer preserved, numbered `11` and `12`. -/
+def freeX5 : String := "delc 5 : x5 -> x1 : subproof
+qed delc;
+delc 6 : x5 -> 1 : subproof
+qed delc;
+"
+
+/-- The core set after `rmX5` and `freeX5`: the first four constraints, preserving `x1` and
+`x3`. -/
+def pres4Free : String := "* #variable= 5 #constraint= 4
+preserved: x1 x3 ;
+1 x1 +1 x2 >= 1 ;
+1 x2 +1 x3 >= 1 ;
+1 x1 +1 x3 +1 x4 >= 1 ;
+1 x1 +1 x3 -1 x4 >= 0 ;
+"
+
+/-- `pres4Free` still preserving `x5`, which no constraint mentions any more. -/
+def pres4FreeX5 : String := "* #variable= 5 #constraint= 4
+preserved: x1 x3 x5 ;
+1 x1 +1 x2 >= 1 ;
+1 x2 +1 x3 >= 1 ;
+1 x1 +1 x3 +1 x4 >= 1 ;
+1 x1 +1 x3 -1 x4 >= 0 ;
+"
+
+/-- For `pres4Rm`, after `rmX5`: `freeX5`, then define `x5 ⇔ ~x1` by two `red` steps on `x5`,
+moved to the core set as `14` and `16` (the goal of `14` under the second witness follows from the
+negated constraint `15`), and add `x5` back by `preserved_add x5 : ~x1 >= 1`, its goals negated as
+`17` and `19` and refuted with `14` and `16`. -/
+def flipX5 : String := freeX5 ++ "red 1 ~x5 1 ~x1 >= 1 : x5 -> 0 : subproof
+qed;
+core id 14;
+red 1 x5 1 x1 >= 1 : x5 -> 1 : subproof
+qed;
+core id 16;
+preserved_add x5 : 1 ~x1 >= 1 : subproof
+proofgoal #1
+pol 17 14 +;
+qed : 18;
+proofgoal #2
+pol 19 16 +;
+qed : 20;
+qed;
+epreserved x1 x3 x5;
+"
+
+/-- The core set after `rmX5` and `flipX5`: the first four constraints and `x5 ⇔ ~x1`,
+preserving `x1`, `x3` and `x5`. -/
+def pres4Flip : String := "* #variable= 5 #constraint= 6
+preserved: x1 x3 x5 ;
+1 x1 +1 x2 >= 1 ;
+1 x2 +1 x3 >= 1 ;
+1 x1 +1 x3 +1 x4 >= 1 ;
+1 x1 +1 x3 -1 x4 >= 0 ;
+1 ~x5 1 ~x1 >= 1 ;
+1 x5 1 x1 >= 1 ;
+"
+
 end CslibFrontierTests.Logics.Propositional.VeriPBText

@@ -154,6 +154,10 @@ class RuleTests(unittest.TestCase):
                    + theorem("e", prefix="@[simp] public "))
         self.assertEqual(violations(theorem("a") + theorem("b") + outside),
                          {TERM: ["a", "b", "d", "e"]})
+        # `public meta section` enters a public scope via `proof_lengths.command_starts`.
+        meta_sec = ("module\n-- upstream: candidate\n\npublic meta section\n\n"
+                    + theorem("a") + theorem("b") + theorem("c") + "end\n")
+        self.assertEqual([d.name for d in c.public_declarations(meta_sec)], ["a", "b", "c"])
 
     def test_internal_namespaces_do_not_count(self) -> None:
         internal = "namespace Foo.Internal\n\n" + theorem("c") + "end Foo.Internal\n\n"

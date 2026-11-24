@@ -18,7 +18,8 @@ compiled. The empty formula `p cnf 0 0` is satisfiable with the model `v 0`. A f
 single DIMACS variable `10⁶` gets a model of one literal. The model of a formula over three
 variables lists each once, in increasing order, whatever their order and repetitions in the file.
 An unsatisfiable formula gets `s UNSATISFIABLE`, exit code `20` and a certificate the checker
-accepts; text that is not DIMACS is an error.
+accepts; text that is not DIMACS is an error. On the text printed for a formula built in Lean, the
+answer concerns that formula (`answerDIMACS_toDIMACS`).
 -/
 
 set_option linter.hashCommand false
@@ -52,5 +53,14 @@ private def modelVars (output : String) : List ℕ :=
   | .error _ => false
 
 #guard (answerDIMACS {} "p cnf 1 1\n2 0\n").toOption.isNone
+
+-- A formula built in Lean and printed: the answer is about the formula itself.
+#guard (answerDIMACS {} (CNF.toDIMACS [[(0, true)], [(0, false)]])).toOption.map (·.code) ==
+  some 20
+
+example {a : DimacsAnswer} {cert : Array Std.Tactic.BVDecide.LRAT.IntAction}
+    (h : answerDIMACS {} (CNF.toDIMACS [[(0, true)], [(0, false)]]) = .ok a)
+    (hc : a.cert = some cert) : ¬ CNF.Satisfiable [[(0, true)], [(0, false)]] :=
+  CNF.not_satisfiable_of_checkLRAT (checkLRAT_of_answerDIMACS_toDIMACS h hc)
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Dimacs

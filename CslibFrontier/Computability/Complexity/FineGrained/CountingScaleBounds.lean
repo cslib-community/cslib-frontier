@@ -133,10 +133,8 @@ theorem interpolationScale_two_mul_le (n : ℕ) :
     have hn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
     nlinarith
   calc ((2 * n : ℕ) : ℝ) * Real.log (Real.log y) ^ 2 / Real.sqrt (Real.log y)
-      ≤ ((2 * n : ℕ) : ℝ) * Real.log (Real.log y) ^ 2 / Real.sqrt (Real.log x) :=
-        div_le_div_of_nonneg_left (by positivity) hsqx hsqrt_le
-    _ ≤ 8 * ((n : ℝ) * Real.log (Real.log x) ^ 2) / Real.sqrt (Real.log x) :=
-        div_le_div_of_nonneg_right hnum hsqx.le
+      ≤ ((2 * n : ℕ) : ℝ) * Real.log (Real.log y) ^ 2 / Real.sqrt (Real.log x) := by gcongr
+    _ ≤ 8 * ((n : ℝ) * Real.log (Real.log x) ^ 2) / Real.sqrt (Real.log x) := by gcongr
     _ = 8 * ((n : ℝ) * Real.log (Real.log x) ^ 2 / Real.sqrt (Real.log x)) :=
         mul_div_assoc _ _ _
 

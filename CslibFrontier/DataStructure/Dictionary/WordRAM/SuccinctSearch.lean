@@ -1021,17 +1021,6 @@ theorem realizes_searchOverflowGen :
       (fun _ _ => 0) := by
   have hinit := realizes_initOvfSearchGen
   have hloop := realizes_ovfLoopGen
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) => do
-      let z0 ← pure 0
-      if dpBucketBits d.1 = z0 then
-        pure ((z0, z0), z0)
-      else
-        let init ← initOvfSearchGenProg (d.1, d.2.1)
-        let j0 ← pure (dpMinCap d.1)
-        let res ← ovfLoopGenProg
-          (((d.1, d.2), ((((j0, init.1), z0), z0), z0)), init.2)
-        pure ((res.1.1.2, res.1.2), res.2)) ?_
-    (fun d => by simp only [searchOverflowGenProg, ← PFunctor.FreeM.bind_eq_bind, pure_bind])
   realizeDictWith [searchOverflowGenPre_mk, SearchOverflowPre,
     initOvfSearchGenProg_mk, ovfLoopGenProg_mk, iterationSafe_ovfStepGenProg_mk]
   · exact h.1

@@ -33,6 +33,10 @@ above degree `t` is at most `3 NS_δ[f]` once `δ (t + 1) ≥ 1`
 (`BitString.sum_fourierCoeff_sq_le_three_mul_noiseSensitivity`)
 [O'Donnell, Proposition 3.3][ODonnell2014].
 
+`CslibFrontier.Foundations.BooleanAnalysis.SpectralConcentration` bounds the weight on an
+arbitrary collection of sets by approximation and by the spectral `1`-norm instead
+[O'Donnell, Exercises 3.16 and 3.17][ODonnell2014].
+
 ## Main results
 
 * `Cslib.BitString.add_one_mul_sum_fourierCoeff_sq_le_totalInfluence`,

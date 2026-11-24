@@ -128,8 +128,7 @@ theorem initialDetector_terminal_density (D : ZMod P) (kt : ℕ) (st : List (ZMo
       frameRetains P 4 (side P kt) t (CopyPadding.identifier D st y)} : ℝ) =
         ((side P kt : ℝ) / P) ^ 4 := by
   constructor
-  · exact pow_pos (div_pos (by exact_mod_cast side_pos P kt (Fact.out : P.Prime).pos)
-      (by exact_mod_cast (Fact.out : P.Prime).pos)) 4
+  · have := (Fact.out : P.Prime).pos; positivity
   · intro y
     unfold frameRetains
     have he := congrArg (fun q : ℚ≥0 => (q : ℝ))

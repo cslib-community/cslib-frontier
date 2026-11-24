@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Properties
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Actual raw verdict, witness and scan-counter return
@@ -32,15 +33,8 @@ theorem exec_receive {W : ℕ} (x : Data 640) :
       y.regs Reg.witnessB = x.regs (sourceReg (FixedPrime.recordBank RecordWitness.Reg.witnessB)) ∧
       y.regs Reg.witnessC = x.regs (sourceReg (FixedPrime.recordBank RecordWitness.Reg.witnessC)) ∧
       y.regs Reg.scans = x.regs (sourceReg FixedPrime.Reg.scans) := by
-  refine ⟨?y, ?run, ?mem, ?found, ?a, ?b, ?c, ?scans⟩
-  case run => ram_eval [receive, sourceReg, sourceBank, FixedPrime.recordBank,
-    FixedPrime.Reg.found, FixedPrime.Reg.scans, RecordWitness.Reg.witnessA,
-    RecordWitness.Reg.witnessB, RecordWitness.Reg.witnessC,
-    Reg.found, Reg.witnessA, Reg.witnessB, Reg.witnessC, Reg.scans, Fin.mk.injEq]
-  case mem => rfl
-  all_goals simp +decide [sourceReg, sourceBank, FixedPrime.recordBank,
-    Reg.found, Reg.witnessA, Reg.witnessB, Reg.witnessC, Reg.scans,
-    FixedPrime.Reg.found, FixedPrime.Reg.scans, RecordWitness.Reg.witnessA,
-    RecordWitness.Reg.witnessB, RecordWitness.Reg.witnessC]
+  unfold receive
+  wram_exec
+  exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime
