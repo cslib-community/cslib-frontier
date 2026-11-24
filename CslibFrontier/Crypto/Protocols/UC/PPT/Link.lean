@@ -55,6 +55,13 @@ strict-PPT environment) preserves `Environment.IsPPT`, under a polynomial reply-
   `Cslib.Crypto.Protocols.UC.Machine.IsReplyBounded.liftRight`,
   `Cslib.Crypto.Protocols.UC.Machine.IsRequestBounded.liftRight`: structural transfer lemmas for
   static-corruption routing and right-side interface lifting.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_lowerWith_link`: linking a strict-PPT
+  environment with any reply-bounded strict-PPT machine family yields a uniform strict oracle-PPT
+  program over the machine's lowered imported interface.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.link`: linking a strict-PPT environment with a
+  reply-bounded strict-PPT machine family preserves `Environment.IsPPT`.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.absorbAdversary`: absorbing a reply-bounded
+  strict-PPT adversary into a strict-PPT environment preserves `Environment.IsPPT`.
 -/
 
 public section
@@ -450,5 +457,202 @@ theorem Machine.IsRequestBounded.liftRight {n : ℕ} {ιL ιR ιE : Type}
     | inr cw =>
       simp only [Sum.elim_inr, WordInterface.sum] at hop ⊢
       omega
+
+/-! ### Linking and adversary absorption -/
+
+private theorem pmf_bind_congr_support {α β : Type} (p : PMF α) {f g : α → PMF β}
+    (h : ∀ a ∈ p.support, f a = g a) : p.bind f = p.bind g := by
+  ext y
+  simp only [PMF.bind_apply]
+  refine tsum_congr fun a => ?_
+  by_cases ha : a ∈ p.support
+  · rw [h a ha]
+  · rw [PMF.mem_support_iff, not_not] at ha
+    simp [ha]
+
+/-- State-intertwining law between word-level execution of a lowered program against `wordHandle`
+(with exported replies truncated at `L`) and lowering the typed execution `M.runFrom` against the
+imported interface `iI`, whenever every encoded exported reply of `M` fits within `L`. -/
+private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
+    {n : ℕ} {ιI ιE α : Type} {I : ιI → Type} {E : ιE → Type}
+    (M : ℕ → Finset (Fin n) → Machine I E)
+    (iI : WordInterface I) (iE : WordInterface E) (codec : StateCodec M)
+    (p : PPTParam n) (L : ℕ)
+    (hbound : ∀ (q : ιE) (s : (M p.secParam p.corrupted).State)
+      (x : E q × (M p.secParam p.corrupted).State),
+      x ∈ OracleComp.support (ProbOracleComp.lowerWith iI p.replyBound
+        (((M p.secParam p.corrupted).handle q).run s)) →
+      (iE.reply q x.1).length ≤ L)
+    (prog : ProbOracleComp E α) {State : Type}
+    (oracle : iI.Channel × List Bool → StateT State PMF (List Bool))
+    (s0 : (M p.secParam p.corrupted).State) (s : State) :
+    ProbOracleComp.runWith oracle
+        ((OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
+            (wordHandle M iI iE codec p))
+          (ProbOracleComp.lowerWith iE L prog)).run
+          ((codec p.secParam p.corrupted).enc s0)) s =
+      (ProbOracleComp.runWith oracle
+        (ProbOracleComp.lowerWith iI p.replyBound
+          ((M p.secParam p.corrupted).runFrom prog s0)) s).map
+        (fun x => ((x.1.1, (codec p.secParam p.corrupted).enc x.1.2), x.2)) := by
+  let m := M p.secParam p.corrupted
+  let cod := codec p.secParam p.corrupted
+  let H :=
+    OracleComp.sumHandler
+      (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
+      (wordHandle M iI iE codec p)
+  change ProbOracleComp.runWith oracle
+      ((OracleComp.interpret H (ProbOracleComp.lowerWith iE L prog)).run (cod.enc s0)) s =
+    (ProbOracleComp.runWith oracle
+      (ProbOracleComp.lowerWith iI p.replyBound (m.runFrom prog s0)) s).map
+      (fun x => ((x.1.1, cod.enc x.1.2), x.2))
+  induction prog generalizing s0 s with
+  | pure a =>
+    simp [ProbOracleComp.lowerWith, Machine.runFrom, OracleComp.interpret_pure]
+  | liftBind q cont ih =>
+    cases q with
+    | inl k =>
+      change ProbOracleComp.runWith oracle
+          ((OracleComp.interpret H
+            (ProbOracleComp.lowerWith iE L
+              (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont))).run (cod.enc s0)) s =
+        (ProbOracleComp.runWith oracle
+          (ProbOracleComp.lowerWith iI p.replyBound
+            (m.runFrom (ProbOracleComp.sample (ProbComp.unifFin k) >>= cont) s0)) s).map
+          (fun x => ((x.1.1, cod.enc x.1.2), x.2))
+      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample]
+      rw [Machine.runFrom_bind, Machine.runFrom_sample]
+      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_map,
+        ProbOracleComp.simulate_sample]
+      simp only [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.interpret_sample,
+        ProbComp.unifFin, OracleComp.interpret_query, H, StateT.run_lift,
+        ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
+        ProbOracleComp.runWith_pure, PMF.bind_map, PMF.map_bind, PMF.bind_bind, PMF.pure_bind,
+        Function.comp_def, Prod.map_apply, id_eq]
+      exact congrArg _ (funext fun a => ih a s0 s)
+    | inr eQ =>
+      change ProbOracleComp.runWith oracle
+          ((OracleComp.interpret H
+            (ProbOracleComp.lowerWith iE L
+              (ProbOracleComp.query eQ >>= cont))).run (cod.enc s0)) s =
+        (ProbOracleComp.runWith oracle
+          (ProbOracleComp.lowerWith iI p.replyBound
+            (m.runFrom (ProbOracleComp.query eQ >>= cont) s0)) s).map
+          (fun x => ((x.1.1, cod.enc x.1.2), x.2))
+      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
+        WordInterface.lowerQuery]
+      rw [Machine.runFrom_bind, Machine.runFrom_query]
+      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind]
+      have hwh : wordHandle M iI iE codec p (iE.channel eQ, iE.request eQ) (cod.enc s0) =
+          (fun res => (iE.reply eQ res.1, cod.enc res.2)) <$>
+            ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0) := by
+        unfold wordHandle
+        have hq : iE.decodeQuery (iE.channel eQ) (iE.request eQ) = eQ :=
+          iE.decodeQuery_request eQ
+        generalize iE.decodeQuery (iE.channel eQ) (iE.request eQ) = q' at hq ⊢
+        subst hq
+        simp only [cod, m, (codec p.secParam p.corrupted).decode_enc]
+      simp only [OracleComp.interpret_bind, OracleComp.interpret_map, StateT.run_bind,
+        StateT.run_map, ProbOracleComp.interpret_query, H]
+      simp only [StateT.run, hwh, ProbOracleComp.lowerWith,
+        ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, PMF.bind_map, PMF.map_bind,
+        Function.comp_def, Prod.map, id_eq]
+      refine pmf_bind_congr_support _ fun x hx => ?_
+      have hsupp : x.1 ∈ OracleComp.support
+          (ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0)) :=
+        ProbOracleComp.mem_support_of_mem oracle hx
+      have hlen : (iE.reply eQ x.1.1).length ≤ L := hbound eQ s0 x.1 hsupp
+      rw [List.take_of_length_le hlen, iE.decodeReply_reply]
+      exact ih x.1.1 x.1.2 x.2
+
+/-- Library infrastructure (no cited result): linking a strict-PPT environment against any
+reply-bounded strict-PPT machine family yields a uniform strict oracle-PPT program over the
+machine's lowered imported interface. -/
+theorem Environment.IsPPT.isOraclePPTOn_lowerWith_link
+    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
+    {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
+    {Z : Environment n In Out AdvQ AdvR}
+    {iI : WordInterface I}
+    {M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR)}
+    (hZ : Z.IsPPT party adv)
+    (hM : Machine.IsPPTFamily M iI (WordInterface.exec party adv))
+    (hMR : Machine.IsReplyBounded M iI (WordInterface.exec party adv))
+    (C : Finset (Fin n)) :
+    IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool
+      (fun e : EnvParam =>
+        ProbOracleComp.lowerWith iI e.replyBound ((M e.secParam C).link (Z e.secParam e.aux))) := by
+  rcases hM with ⟨cert⟩
+  rcases hMR with ⟨bound, hpoly, hle⟩
+  obtain ⟨c, d, hcd⟩ := hpoly.exists_le
+  let param : EnvParam → PPTParam n := fun e => ⟨e.secParam, e.replyBound, C⟩
+  let cap : EnvParam → ℕ := fun e => c * ((encPPTParam n (param e)).length + 1) ^ d
+  let envParam : EnvParam → EnvParam := fun e => ⟨e.secParam, cap e, e.aux⟩
+  have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
+      encEnvParam (encFinite (Finset (Fin n))) :=
+    ComputableInPolyTime.const C
+  have hparam : ComputableInPolyTime param encEnvParam (encPPTParam n) := by
+    fun_prop
+  have hcap : ComputableInPolyTime cap encEnvParam encUnary := by
+    have hpolyFn : ComputableInPolyTime (fun k : ℕ => c * (k + 1) ^ d) encUnary encUnary := by
+      fun_prop
+    exact hpolyFn.comp ((ComputableInPolyTime.encoding_length (encPPTParam n)).comp hparam)
+  have henv : ComputableInPolyTime envParam encEnvParam encEnvParam := by
+    fun_prop
+  have hrun := hZ.isOraclePPTOn_runWith_wordHandle cert hparam henv
+  refine hrun.congr fun e State oracle s => ?_
+  simp only [wordRunWith, wordRunFromWith, Machine.link, ProbOracleComp.lowerWith,
+    ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample, ProbOracleComp.simulate_map,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
+    ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+  refine congrArg _ (funext fun s0 => ?_)
+  have hfit : ∀ (q : (Fin n × In) ⊕ AdvQ)
+      (st : (M (param e).secParam (param e).corrupted).State)
+      (x : execSpec n In Out AdvQ AdvR q × (M (param e).secParam (param e).corrupted).State),
+      x ∈ OracleComp.support (ProbOracleComp.lowerWith iI (param e).replyBound
+        (((M (param e).secParam (param e).corrupted).handle q).run st)) →
+      ((WordInterface.exec party adv).reply q x.1).length ≤ cap e := by
+    intro q st x hx
+    exact (hle (param e) q st x hx).trans (hcd (param e))
+  have hstep := runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom M iI
+    (WordInterface.exec party adv) cert.codec (param e) (cap e) hfit
+    (Z (envParam e).secParam (envParam e).aux) oracle s0 s
+  have hstep' := congrArg (PMF.map (Prod.map Prod.fst id)) hstep
+  simp only [param, envParam, ProbOracleComp.lowerWith, PMF.map_comp] at hstep'
+  exact hstep'
+
+/-- Library infrastructure (no cited result), toward #6043 (not Proposition 7 of [Canetti2020]):
+linking a strict-PPT environment against a certified machine family with polynomially bounded
+replies
+gives a strict-PPT environment for the machine's imported ports. -/
+theorem Environment.IsPPT.link
+    {n : ℕ} {In Out AdvQ AdvR In' Out' Q' R' : Type}
+    {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
+    {party' : WordPort (Fin n × In') (Option Out')} {adv' : WordPort Q' R'}
+    {Z : Environment n In Out AdvQ AdvR}
+    {M : ℕ → Finset (Fin n) →
+      Machine (execSpec n In' Out' Q' R') (execSpec n In Out AdvQ AdvR)}
+    (hZ : Z.IsPPT party adv)
+    (hM : Machine.IsPPTFamily M (WordInterface.exec party' adv') (WordInterface.exec party adv))
+    (hMR : Machine.IsReplyBounded M (WordInterface.exec party' adv') (WordInterface.exec party adv))
+    (C : Finset (Fin n)) :
+    Environment.IsPPT (fun κ z => (M κ C).link (Z κ z)) party' adv' :=
+  hZ.isOraclePPTOn_lowerWith_link hM hMR C
+
+/-- Library infrastructure (no cited result), toward #6043 (not Proposition 7 of [Canetti2020]):
+running a reply-bounded strict-PPT adversary inside a strict-PPT environment preserves strict
+PPT. -/
+theorem Environment.IsPPT.absorbAdversary
+    {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
+    {Z : Environment n In Out AdvQ AdvR}
+    {A : Adversary n AdvQ AdvR NetQ NetR}
+    {party : WordPort (Fin n × In) (Option Out)}
+    {net : WordPort NetQ NetR} {adv : WordPort AdvQ AdvR}
+    (hZ : Z.IsPPT party adv) (hA : A.IsPPT net adv)
+    (hAR : Machine.IsReplyBounded A (WordInterface.net net) (WordInterface.net adv))
+    (C : Finset (Fin n)) :
+    (absorbAdversary C A Z).IsPPT party net :=
+  hZ.link (hA.liftAdversary (party := party)) (hAR.liftRight (iL := WordInterface.net party)) C
 
 end Cslib.Crypto.Protocols.UC
