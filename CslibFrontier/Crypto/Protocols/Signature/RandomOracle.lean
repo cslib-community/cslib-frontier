@@ -323,10 +323,9 @@ def worldRealize (scheme : Scheme PK SK M Sig Query Digest) (pk : PK)
     (accept : Bool → M × Sig → List (M × Sig) → Bool) :
     ProbOracleComp (ForgerSpec M Query Sig Digest ⊕ₒ (fun _ : Query => Digest)) Bool := do
   let out ← Interactive.liftProver (oV := fun _ : Query => Digest) (runLoggedForger forger)
-  let msig := out.1
-  let pairs := out.2
-  let verified ← liftVerify (scheme.verify pk msig.1 msig.2)
-  return accept verified msig pairs
+  let ⟨⟨msg, sig⟩, pairs⟩ := out
+  let verified ← liftVerify (scheme.verify pk msg sig)
+  return accept verified out.1 pairs
 
 /-- Evaluate a signature security game through `Interactive.World.eval` on `world scheme sk`:
 draw `(pk, sk) ← scheme.keyGen`, run `worldRealize scheme pk (forger pk) accept` in
@@ -427,11 +426,10 @@ noncomputable def eufCmaGame [DecidableEq M] (scheme : Scheme PK SK M Sig Query 
   let keys ← scheme.keyGen
   let s ← forger.coins
   let forged ← (interpret (handler scheme keys.2) (forger.forge keys.1 s)).run ([], [])
-  let msig := forged.1
-  let state := forged.2
-  let verified ← (interpret (oracle Digest) (scheme.verify keys.1 msig.1 msig.2)).run
-    state.1
-  return (verified.1 && !(state.2.contains msig.1))
+  let ⟨⟨msg, sig⟩, cache, signed⟩ := forged
+  let verified ← (interpret (oracle Digest) (scheme.verify keys.1 msg sig)).run
+    cache
+  return (verified.1 && !(signed.contains msg))
 
 /-- `eufCmaGame` is equivalent to evaluating `worldRealize` in `world scheme sk` with the
 final-message freshness predicate `!(pairs.map Prod.fst).contains msg`. -/
