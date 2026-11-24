@@ -54,49 +54,6 @@ definition `x := (n : ℝ)` made with `set` unfolds at that transparency, so `x`
 `(n : ℝ)` are the same atom.
 -/
 
-public section
-
-namespace Mathlib.Tactic.Linarith
-
-/-! ### Casting lemmas used by `castToField`
-
-These lemmas stay public: the proof terms that `castToField` builds in a client module name them,
-and a private declaration is not visible from a module that imports this one. -/
-
-variable (K : Type*)
-
-/-- A comparison `a ≤ b` of natural numbers, cast into `K`. -/
-theorem natCast_le_of_le [Semiring K] [PartialOrder K] [IsStrictOrderedRing K] {a b : ℕ}
-    (h : a ≤ b) : (a : K) ≤ b :=
-  Nat.cast_le.mpr h
-
-/-- A strict comparison `a < b` of natural numbers, cast into `K` as `a + 1 ≤ b`. -/
-theorem natCast_add_one_le_of_lt [Semiring K] [PartialOrder K] [IsStrictOrderedRing K]
-    {a b : ℕ} (h : a < b) : (a : K) + 1 ≤ b := by
-  exact_mod_cast h
-
-/-- An equation `a = b` of natural numbers, cast into `K`. -/
-theorem natCast_eq_of_eq [NatCast K] {a b : ℕ} (h : a = b) : (a : K) = b :=
-  congrArg _ h
-
-/-- A comparison `a ≤ b` of integers, cast into `K`. -/
-theorem intCast_le_of_le [Ring K] [PartialOrder K] [IsStrictOrderedRing K] {a b : ℤ}
-    (h : a ≤ b) : (a : K) ≤ b :=
-  Int.cast_le.mpr h
-
-/-- A strict comparison `a < b` of integers, cast into `K` as `a + 1 ≤ b`. -/
-theorem intCast_add_one_le_of_lt [Ring K] [PartialOrder K] [IsStrictOrderedRing K] {a b : ℤ}
-    (h : a < b) : (a : K) + 1 ≤ b := by
-  exact_mod_cast Int.add_one_le_iff.mpr h
-
-/-- An equation `a = b` of integers, cast into `K`. -/
-theorem intCast_eq_of_eq [IntCast K] {a b : ℤ} (h : a = b) : (a : K) = b :=
-  congrArg _ h
-
-end Mathlib.Tactic.Linarith
-
-end
-
 public meta section
 
 namespace Mathlib.Tactic.Linarith
@@ -118,16 +75,25 @@ private def isOrderedField (K : Expr) : MetaM Bool := do
 pushed to the leaves. A strict `a < b` becomes `(a : K) + 1 ≤ b`. Returns `none` for any other
 fact, or when the cast fact is no longer a comparison. -/
 private def castComparison (simpCtx : Simp.Context) (K pf : Expr) : MetaM (Option Expr) := do
-  let some (rel, α, _, _) ← observing? do (← instantiateMVars (← inferType pf)).ineq?
+  let some (rel, α, a, b) ← observing? do (← instantiateMVars (← inferType pf)).ineq?
     | return none
-  let (eq, le, lt) ←
-    if α.isConstOf ``Nat then
-      pure (``natCast_eq_of_eq, ``natCast_le_of_le, ``natCast_add_one_le_of_lt)
-    else if α.isConstOf ``Int then
-      pure (``intCast_eq_of_eq, ``intCast_le_of_le, ``intCast_add_one_le_of_lt)
-    else return none
+  let isNat := α.isConstOf ``Nat
+  if !isNat && !α.isConstOf ``Int then return none
   try
-    let castPf ← mkAppM (match rel with | .eq => eq | .le => le | .lt => lt) #[K, pf]
+    let monoCast (lePf : Expr) : MetaM Expr := do
+      let mono ← mkAppOptM (if isNat then ``Nat.mono_cast else ``Int.cast_mono)
+        #[K, none, none, none, none]
+      mkAppM' mono #[lePf]
+    let castPf ← match rel with
+      | .eq =>
+        let castFn ← mkAppOptM (if isNat then ``Nat.cast else ``Int.cast) #[K, none]
+        mkAppM ``congrArg #[castFn, pf]
+      | .le => monoCast pf
+      | .lt =>
+        let lePf ←
+          if isNat then mkAppM ``Nat.succ_le_of_lt #[pf]
+          else mkAppM ``Iff.mpr #[← mkAppOptM ``Int.add_one_le_iff #[some a, some b], pf]
+        monoCast lePf
     let prop ← inferType castPf
     let (r, _) ← simp prop simpCtx
     let (pf', prop') ← Zify.applySimpResultToProp' castPf prop r

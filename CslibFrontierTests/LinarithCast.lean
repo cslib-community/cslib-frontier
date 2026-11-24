@@ -25,6 +25,10 @@ example (a b : ℕ) (h : a < b) : (a : ℝ) + 1 ≤ b := by cast_linarith
 
 example (a b : ℤ) (h : a < b) : (a : ℝ) + 1 ≤ b := by cast_linarith
 
+example (a b : ℤ) (h : a ≤ b) (x : ℚ) (hx : x ≤ a) : x ≤ b := by cast_linarith
+
+example (a b : ℤ) (h : a = b) (x : ℚ) (hx : x ≤ a) : x ≤ b := by cast_linarith
+
 -- A negated comparison, and a field other than `ℝ`.
 example (a b : ℕ) (h : ¬b ≤ a) : (a : ℚ) + 1 ≤ b := by cast_linarith
 
