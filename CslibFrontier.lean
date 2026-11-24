@@ -6674,6 +6674,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.Composition
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Advantage
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Cost
 public import CslibFrontier.Crypto.Protocols.MPC.Composition.Hybrid
+public import CslibFrontier.Crypto.Protocols.MPC.Composition.HybridGame
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators

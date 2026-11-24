@@ -83,6 +83,10 @@ joint distribution of the two pads.
   corrupted receiver is the pad-hiding advantage of `maskedOTPadTest`.
 * `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_maskedOT_compose_le_add`: the bound after
   substituting a protocol for the pad transfer, for statistically secure components.
+* `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame`:
+  an outer protocol over sequential masked transfers over a substituted pad transfer: per transfer,
+  the advantage of one environment against `maskedOT` with the ideal pad transfer and against the
+  pad transfer. Neither term is bounded here.
 -/
 
 public section
@@ -432,5 +436,105 @@ theorem semiHonestAdvantage_maskedOT_compose_le_add (mask unmask : G → M → M
         simp only [maskedOT, replacementBound, mul_zero, tsum_zero, add_zero]
         exact h₂' _ (Finset.ext fun _ => mem_subCoalition) _ _
     _ = ε₂ := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+
+/-- **An outer protocol over sequential masked transfers over a substituted pad transfer, with one
+environment per term.** Let `P` be any protocol that calls the batched transfer `batchOTSpec k M`,
+such as Yao's protocol, with every call run by `seqBatchOT k M` over `maskedOT`, and the pad
+transfer of `maskedOT` run by a protocol `Sub` in a world `W₂`. The semi-honest advantage of `D`
+against the composed protocol, with the composed simulator, is at most the advantage of
+`composeDistinguisher` against `P` with the ideal batched transfer, plus, for every call `i` of `P`
+and every transfer `j < k`, two advantages of the environment `composeSeqBatchOTRoundEnv` of that
+transfer followed by one further stage:
+
+* between the ideal and the real game of `maskedOT` with the ideal pad transfer, against
+  `composeDistinguisher` (for a corrupted receiver this is where the pads have to hide the value
+  that was not chosen);
+* between the ideal game of the pad transfer, with the simulator `S₂`, and its real game with
+  `Sub` (`composeRoundEnv` of `maskedOT`).
+
+Every term is the absolute difference of two acceptance probabilities of one environment, which
+samples the coins of `P` and the pads and runs the earlier calls and transfers itself. Nothing is
+assumed about `P`, `Sub`, `mask`, the simulators or `D`; no term is bounded here and no efficiency
+of the environments is claimed. -/
+theorem semiHonestAdvantage_compose_seqBatchOT_maskedOT_le_sum_roundGame {m : ℕ} (k : ℕ)
+    {sc₁ : Schedule m (batchOTSpec k M)} {In Coins₁ Out : Fin m → Type}
+    (P : Protocol m (batchOTSpec k M) sc₁ In Coins₁ Out) (mask unmask : G → M → M)
+    (samplePads : ProbComp (G × G)) (W₂ : MultiOracleWorld spec₂)
+    (Sub : Protocol 2 spec₂ sc₂ (OTIn G) Coins₂ (OTOut G))
+    (Sm : (J : Finset (Fin 2)) →
+      CoalitionSimulator (maskedOTSchedule G M) (OTIn M) (MaskedOTCoins G) (OTOut M) J)
+    (S₂ : (J : Finset (Fin 2)) → CoalitionSimulator sc₂ (OTIn G) Coins₂ (OTOut G) J)
+    (f : Functionality m In Out)
+    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (D : ((i : I) → PartyView In
+        (Schedule.ComposedCoins
+          (fun _ => Schedule.ComposedCoins
+            (fun _ => Schedule.ComposedCoins (fun _ => Coins₂) (MaskedOTCoins G)
+              (maskedOTSchedule G M))
+            (fun _ => Unit) (seqBatchOTSchedule k M)) Coins₁ sc₁)
+        (Schedule.compose
+          (fun _ => Schedule.compose
+            (fun _ => Schedule.compose (fun _ => sc₂) (maskedOTSchedule G M))
+            (seqBatchOTSchedule k M)) sc₁) i) ×
+      ((i : Fin m) → Out i) → ProbComp Bool) :
+    semiHonestAdvantage
+        (P.compose fun _ => (seqBatchOT k M).compose fun _ =>
+          (maskedOT mask unmask samplePads).compose fun _ => Sub) W₂ f I
+        (composeSim P S₁
+          (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
+            (fun _ J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) J) I)
+        x D ≤
+      semiHonestAdvantage P (batchOTWorld k M) f I (S₁ I) x
+          (composeDistinguisher P
+            (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M)
+              (fun _ J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) J)
+            I x D) +
+        ∑ i ∈ Finset.range sc₁.oracleRounds, ∑ j ∈ Finset.range k,
+          (Game.advantage
+              ((composeSeqBatchOTRoundEnv k M P W₂
+                  ((maskedOT mask unmask samplePads).compose fun _ => Sub)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  I x D i j).bind (Sum.elim PMF.pure fun c =>
+                (ProbComp.eval (idealJoint (otFunctionality M) c.coalition (Sm c.coalition)
+                  c.query)).bind fun r =>
+                    ProbComp.eval (composeDistinguisher (maskedOT mask unmask samplePads)
+                      (fun _ => S₂) c.coalition c.query c.guess r)))
+              ((composeSeqBatchOTRoundEnv k M P W₂
+                  ((maskedOT mask unmask samplePads).compose fun _ => Sub)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  I x D i j).bind (Sum.elim PMF.pure fun c =>
+                ((maskedOT mask unmask samplePads).realJoint (otWorld G) c.coalition
+                  c.query).bind fun r =>
+                    ProbComp.eval (composeDistinguisher (maskedOT mask unmask samplePads)
+                      (fun _ => S₂) c.coalition c.query c.guess r))) +
+            Game.advantage
+              ((composeSeqBatchOTRoundEnv k M P W₂
+                  ((maskedOT mask unmask samplePads).compose fun _ => Sub)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  I x D i j).bind (Sum.elim PMF.pure fun c =>
+                (composeRoundEnv (maskedOT mask unmask samplePads) (otWorld G) W₂ (fun _ => Sub)
+                  (fun _ => S₂) c.coalition c.query c.guess 0).bind
+                    (roundGame fun op J q =>
+                      ProbComp.eval (idealJoint (otWorld G op) J (S₂ J) q))))
+              ((composeSeqBatchOTRoundEnv k M P W₂
+                  ((maskedOT mask unmask samplePads).compose fun _ => Sub)
+                  (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J)
+                  I x D i j).bind (Sum.elim PMF.pure fun c =>
+                (composeRoundEnv (maskedOT mask unmask samplePads) (otWorld G) W₂ (fun _ => Sub)
+                  (fun _ => S₂) c.coalition c.query c.guess 0).bind
+                    (roundGame fun _ J q => Sub.realJoint W₂ J q)))) := by
+  refine (semiHonestAdvantage_compose_seqBatchOT_compose_le_sum_roundGame k M P W₂
+    ((maskedOT mask unmask samplePads).compose fun _ => Sub)
+    (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) f S₁ I x D).trans
+    (add_le_add le_rfl (Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => ?_))
+  have h := advantage_bind_compose_le_add_sum_roundGame
+    (composeSeqBatchOTRoundEnv k M P W₂ ((maskedOT mask unmask samplePads).compose fun _ => Sub)
+      (fun J => composeSim (maskedOT mask unmask samplePads) Sm (fun _ => S₂) J) I x D i j)
+    (fun _ => maskedOT mask unmask samplePads) (fun _ => otWorld G) (fun _ => W₂)
+    (fun _ => otFunctionality M) (fun _ => Sm) (fun _ _ => Sub) (fun _ _ => S₂)
+    (fun c => c.coalition) (fun c => c.query) (fun c => c.guess) 1 (fun _ => le_rfl)
+  rw [Finset.sum_range_one] at h
+  exact h
 
 end Cslib.Crypto.Protocols.MPC

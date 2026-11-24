@@ -90,7 +90,7 @@ variable {m : ℕ} {spec₁ spec₂ : MultiOracleSpec}
 round draws `r` from the kernel on the round's query tuple, the answers `r.2` are delivered, and
 the corrupted slots' subprotocol coins and transcripts in `r.1` are put in front of the result of
 the remaining rounds. -/
-private theorem kernelRun_oracle
+theorem kernelRun_oracle
     (μ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
       ((s : Fin (spec₁.arity op)) → spec₁.Query op s) →
       PMF (((s : J) → PartyView (spec₁.Query op) (Coins₂ op) (sc₂ op) s) ×
