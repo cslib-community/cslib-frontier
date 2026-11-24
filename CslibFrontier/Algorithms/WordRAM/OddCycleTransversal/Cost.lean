@@ -327,12 +327,11 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
 
 /-- Upper bound on the instruction-level memory cost of `compressProg`. -/
 theorem memoryCost_compressProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ}
-    (hL : let nkm := d.1; let nk := nkm.1; d.2 ≤ nk.1)
+    (hL : d.2 ≤ CompressCfg.n d)
     (s : Memory.State) :
-    let nkm := d.1; let nk := nkm.1
-    memoryCost (compressProg d) s ≤ 215 * 3 ^ d.2 * (nk.1 + 1) ^ 4 := by
+    memoryCost (compressProg d) s ≤ 215 * 3 ^ d.2 * (CompressCfg.n d + 1) ^ 4 := by
   rcases d with ⟨⟨⟨n, k⟩, m⟩, L⟩
-  dsimp only at hL ⊢
+  dsimp only [CompressCfg.n] at hL ⊢
   have hp1 : n + 1 ≤ (n + 1) ^ 4 := by
     simpa using Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 1 ≤ 4)
   have hpow : 1 ≤ 3 ^ L := Nat.one_le_pow L 3 (by decide)

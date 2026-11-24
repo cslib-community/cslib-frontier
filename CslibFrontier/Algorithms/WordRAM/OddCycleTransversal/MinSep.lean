@@ -227,7 +227,7 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
       have hu_lt : u < M := by omega
       let uFin : Fin M := ⟨u, hu_lt⟩
       unfold bfsMidStep
-      dsimp only
+      dsimp only [SplitNetArgs.n, SplitNetArgs.m, SplitNetArgs.arg1]
       rw [clientResult_bind_read, clientState_bind_read]
       by_cases hdu : t'.mem (distBase n + u) = layer
       · rw [ite_eq_left hdu, clientResult_bind, clientResult_pure,
@@ -269,7 +269,7 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
               rw [hi_low _ (by dsimp only [distBase]; omega), hlow a ha]
             obtain ⟨hrc_r, hrc_s⟩ := clientResult_readResCap hG hlow'' hf'' uFin vFin
             unfold bfsInnerStep
-            dsimp only
+            dsimp only [BfsInnerArgs.n, BfsInnerArgs.m, BfsInnerArgs.layer, BfsInnerArgs.u]
             rw [clientResult_bind_read, clientState_bind_read, clientResult_bind, clientState_bind]
             have hrc_r' : (Memory.spec 0).clientResult t'' (readResCap (((n, m), u), v)) =
                 f.resCap uFin vFin := hrc_r
@@ -953,7 +953,7 @@ theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
         exact ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩,
           fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩⟩
       unfold extractSepStep
-      dsimp only
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
         clientState_bind_read, clientResult_bind_read, clientState_bind_read,
         hw_eq, hdin_eq, hdout_eq]

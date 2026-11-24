@@ -48,6 +48,18 @@ open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure c
 
 attribute [local client_simps] runClient_read runClient_write clientState_map
 
+/-- Graph dimension `n` encoded in a `((n, m), k)` step-argument tuple. -/
+abbrev GraphStepArgs.n (d : (ℕ × ℕ) × ℕ) : ℕ := d.1.1
+
+/-- Subgraph prefix size `m` encoded in a `((n, m), k)` step-argument tuple. -/
+abbrev GraphStepArgs.m (d : (ℕ × ℕ) × ℕ) : ℕ := d.1.2
+
+/-- Current loop index encoded in a `(n, (idx, acc))` step-argument tuple. -/
+abbrev LoopAccArgs.idx (d : ℕ × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Current accumulator or carry encoded in a `(n, (idx, acc))` step-argument tuple. -/
+abbrev LoopAccArgs.acc (d : ℕ × (ℕ × ℕ)) : ℕ := d.2.2
+
 /-- Frame lemma along an indexed iteration preserving the first state coordinate. -/
 theorem preservesAt_iterate_fst {a : ℕ} {δ β : Type}
     {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}
@@ -63,17 +75,17 @@ theorem preservesAt_iterate_fst {a : ℕ} {δ β : Type}
 /-! ### Array fill and copy helpers -/
 
 /-- Single step of `fillRange`: write `val` to `base + i` and increment `i`. -/
-private def fillStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let p := d.1
-  Memory.write (p.1 + d.2) p.2
-  pure (d.2 + 1)
+private def fillStep : (ℕ × ℕ) × ℕ → Memory.Prog ℕ
+  | ((base, val), idx) => do
+    Memory.write (base + idx) val
+    pure (idx + 1)
 
-/-- Fill `d.2` contiguous memory cells starting at `d.1.1` with `d.1.2`. -/
+/-- Fill `len` contiguous memory cells starting at `base` with `val`
+for `d = ((base, val), len)`. -/
 @[expose] def fillRange (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
-  let _ ← iterate (fun (d : (ℕ × ℕ) × ℕ) => do
-    let p := d.1
-    Memory.write (p.1 + d.2) p.2
-    pure (d.2 + 1)) d.1 d.2 0
+  let _ ← iterate (fun ((base, val), idx) => do
+    Memory.write (base + idx) val
+    pure (idx + 1)) d.1 d.2 0
   pure ()
 
 private theorem fillStep_realizes :
@@ -89,7 +101,7 @@ private theorem fillStep_realizes :
 theorem fillRange_realizes :
     Realizes .exact fillRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => let p := d.1; Fits w (p.1 + d.2)) (fun _ _ => 0) := by
+      (fun w d _ => let ((base, _), len) := d; Fits w (base + len)) (fun _ _ => 0) := by
   change Realizes .exact (fun d : (ℕ × ℕ) × ℕ => do let _ ← iterate fillStep d.1 d.2 0; pure ())
     _ _ _ _
   realize [fillStep_realizes]
@@ -102,32 +114,32 @@ theorem fillRange_realizes :
 
 /-- `fillRange` preserves addresses outside `[base, base + len)`. -/
 theorem preservesAt_fillRange {a : ℕ} {d : (ℕ × ℕ) × ℕ}
-    (hout : let p := d.1; a < p.1 ∨ p.1 + d.2 ≤ a) :
+    (hout : let ((base, _), len) := d; a < base ∨ base + len ≤ a) :
     PreservesAt a (fillRange d) := fun s => by
+  rcases d with ⟨⟨base, val⟩, len⟩
   unfold fillRange
   rw [StateTransitionSpec.clientState_bind]
-  change ((Memory.spec 0).clientState s (iterate fillStep d.1 d.2 0)).mem a = s.mem a
-  refine iterate_invariant_of fillStep d.1
-    (fun rem (idx : ℕ) t => idx + rem = d.2 ∧ t.mem a = s.mem a)
+  change ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem a = s.mem a
+  refine iterate_invariant_of fillStep (base, val)
+    (fun rem (idx : ℕ) t => idx + rem = len ∧ t.mem a = s.mem a)
     (fun rem idx t ⟨hsum, hmem⟩ => ?_) ⟨Nat.zero_add _, rfl⟩ |>.2
   unfold fillStep
   simp only [client_simps]
   exact ⟨by omega, (Function.update_of_ne (by omega) _ t.mem).trans hmem⟩
 
 /-- Single step of `copyRange`: copy `src + i` to `dst + i` and increment `i`. -/
-private def copyStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let p := d.1
-  let v ← Memory.read (p.1 + d.2)
-  Memory.write (p.2 + d.2) v
-  pure (d.2 + 1)
+private def copyStep : (ℕ × ℕ) × ℕ → Memory.Prog ℕ
+  | ((src, dst), idx) => do
+    let v ← Memory.read (src + idx)
+    Memory.write (dst + idx) v
+    pure (idx + 1)
 
-/-- Copy `d.2` contiguous words from `d.1.1` to `d.1.2`. -/
+/-- Copy `len` contiguous words from `src` to `dst` for `d = ((src, dst), len)`. -/
 @[expose] def copyRange (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
-  let _ ← iterate (fun (d : (ℕ × ℕ) × ℕ) => do
-    let p := d.1
-    let v ← Memory.read (p.1 + d.2)
-    Memory.write (p.2 + d.2) v
-    pure (d.2 + 1)) d.1 d.2 0
+  let _ ← iterate (fun ((src, dst), idx) => do
+    let v ← Memory.read (src + idx)
+    Memory.write (dst + idx) v
+    pure (idx + 1)) d.1 d.2 0
   pure ()
 
 private theorem copyStep_realizes :
@@ -145,7 +157,8 @@ private theorem copyStep_realizes :
 theorem copyRange_realizes :
     Realizes .exact copyRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => let p := d.1; Fits w (p.1 + d.2) ∧ Fits w (p.2 + d.2)) (fun _ _ => 0) := by
+      (fun w d _ => let ((src, dst), len) := d; Fits w (src + len) ∧ Fits w (dst + len))
+      (fun _ _ => 0) := by
   change Realizes .exact (fun d : (ℕ × ℕ) × ℕ => do let _ ← iterate copyStep d.1 d.2 0; pure ())
     _ _ _ _
   realize [copyStep_realizes]
@@ -201,8 +214,8 @@ theorem memoryCost_boundedWhile_le_of {δ σ : Type}
       simp
 
 theorem validHistory_fillRange {w n : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory.State}
-    (hs : MemReady w n s) (hend : let p := d.1; p.1 + d.2 ≤ octWorkspace n)
-    (hval : let p := d.1; Fits w p.2) :
+    (hs : MemReady w n s) (hend : let ((base, _), len) := d; base + len ≤ octWorkspace n)
+    (hval : let ((_, val), _) := d; Fits w val) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillRange d)) := by
   rcases d with ⟨⟨base, val⟩, len⟩
   change (Memory.spec w).ValidHistory s
@@ -216,8 +229,8 @@ theorem validHistory_fillRange {w n : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory
   · unfold fillStep; simp only [client_simps]
 
 theorem validHistory_copyRange {w n : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory.State}
-    (hs : MemReady w n s) (hsrc : let p := d.1; p.1 + d.2 ≤ octWorkspace n)
-    (hdst : let p := d.1; p.2 + d.2 ≤ octWorkspace n) :
+    (hs : MemReady w n s) (hsrc : let ((src, _), len) := d; src + len ≤ octWorkspace n)
+    (hdst : let ((_, dst), len) := d; dst + len ≤ octWorkspace n) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (copyRange d)) := by
   rcases d with ⟨⟨srcB, dstB⟩, len⟩
   change (Memory.spec w).ValidHistory s
@@ -274,13 +287,14 @@ theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
   exact hinv.2 i (by omega)
 
 theorem preservesAt_copyRange {a : ℕ} {d : (ℕ × ℕ) × ℕ}
-    (hout : let p := d.1; a < p.2 ∨ p.2 + d.2 ≤ a) :
+    (hout : let ((_, dst), len) := d; a < dst ∨ dst + len ≤ a) :
     PreservesAt a (copyRange d) := fun s => by
+  rcases d with ⟨⟨src, dst⟩, len⟩
   unfold copyRange
   rw [StateTransitionSpec.clientState_bind]
-  change ((Memory.spec 0).clientState s (iterate copyStep d.1 d.2 0)).mem a = s.mem a
-  refine (iterate_invariant_of copyStep d.1
-    (fun rem (idx : ℕ) t => idx + rem = d.2 ∧ t.mem a = s.mem a)
+  change ((Memory.spec 0).clientState s (iterate copyStep (src, dst) len 0)).mem a = s.mem a
+  refine (iterate_invariant_of copyStep (src, dst)
+    (fun rem (idx : ℕ) t => idx + rem = len ∧ t.mem a = s.mem a)
     (fun rem idx t ⟨hsum, hmem⟩ => ?_) ⟨Nat.zero_add _, rfl⟩).2
   unfold copyStep
   simp only [client_simps]

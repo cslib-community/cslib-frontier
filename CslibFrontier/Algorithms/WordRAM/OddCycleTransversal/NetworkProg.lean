@@ -43,13 +43,32 @@ attribute [local client_simps] runClient_read runClient_write clientState_map
 
 /-! ### Split-network capacity, residual capacity, BFS, and unit augmentation -/
 
+/-- Graph dimension `n` in a `(((n, m), x), y)` split-network query tuple. -/
+abbrev SplitNetArgs.n (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1
+
+/-- Subgraph prefix size `m` in a `(((n, m), x), y)` split-network query tuple. -/
+abbrev SplitNetArgs.m (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- First query node or BFS layer in a `(((n, m), u), v)` tuple. -/
+abbrev SplitNetArgs.arg1 (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.2
+
+/-- Graph dimension `n` in a `((((n, m), layer), u), v)` BFS inner-loop tuple. -/
+abbrev BfsInnerArgs.n (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1.1
+
+/-- Subgraph prefix size `m` in a `((((n, m), layer), u), v)` BFS inner-loop tuple. -/
+abbrev BfsInnerArgs.m (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1.2
+
+/-- Current BFS distance `layer` in a `((((n, m), layer), u), v)` tuple. -/
+abbrev BfsInnerArgs.layer (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- Source vertex `u` in a `((((n, m), layer), u), v)` BFS inner-loop tuple. -/
+abbrev BfsInnerArgs.u (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.1.2
+
 /-- Query the split-network capacity `c(x, y)` for `d = (((n, m), x), y)`. -/
 @[expose] def readSplitCap (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nmx := d.1
-  let nm := nmx.1
-  let n := nm.1
-  let m := nm.2
-  let x := nmx.2
+  let n := SplitNetArgs.n d
+  let m := SplitNetArgs.m d
+  let x := SplitNetArgs.arg1 d
   let y := d.2
   let _ ← Memory.read 0
   if x = 0 then
@@ -86,7 +105,8 @@ private theorem readSplitCap_realizes :
   realize
   all_goals
     obtain ⟨hw, hx, hy⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, splitCount, keepBase, flipBase, wBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, splitCount, keepBase, flipBase, wBase,
+      SplitNetArgs.n, SplitNetArgs.m, SplitNetArgs.arg1] at *
     first
     | omega
     | (apply hw.of_le
@@ -111,10 +131,8 @@ private theorem preservesAt_readSplitCap (a : ℕ) (d : ((ℕ × ℕ) × ℕ) ×
 
 /-- Query the residual capacity of arc `(x, y)` in the split network. -/
 @[expose] def readResCap (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nmx := d.1
-  let nm := nmx.1
-  let n := nm.1
-  let x := nmx.2
+  let n := SplitNetArgs.n d
+  let x := SplitNetArgs.arg1 d
   let y := d.2
   let cap ← readSplitCap d
   let M := splitCount n
@@ -134,7 +152,8 @@ private theorem readResCap_realizes :
   realize [readSplitCap_realizes]
   all_goals
     obtain ⟨hw, hx, hy⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, flowBase, splitCount] at *
+    dsimp -failIfUnchanged only [octWorkspace, flowBase, splitCount,
+      SplitNetArgs.n, SplitNetArgs.arg1] at *
     first | omega | (apply hw.of_le; first | omega | nlinarith)
 
 private theorem preservesAt_readResCap (a : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
@@ -147,13 +166,10 @@ private theorem preservesAt_readResCap (a : ℕ) (d : ((ℕ × ℕ) × ℕ) × �
 
 /-- Inner BFS neighbor-relaxation step scanning target node `v`. -/
 @[expose] def bfsInnerStep (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let p1 := d.1
-  let p2 := p1.1
-  let nm := p2.1
-  let n := nm.1
-  let m := nm.2
-  let layer := p2.2
-  let u := p1.2
+  let n := BfsInnerArgs.n d
+  let m := BfsInnerArgs.m d
+  let layer := BfsInnerArgs.layer d
+  let u := BfsInnerArgs.u d
   let v := d.2
   let M := splitCount n
   let dv ← Memory.read (distBase n + v)
@@ -175,7 +191,8 @@ private theorem bfsInnerStep_realizes :
   realize [readResCap_realizes]
   all_goals
     obtain ⟨hw, hl, hu, hv⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, distBase, parBase, flowBase, splitCount] at *
+    dsimp -failIfUnchanged only [octWorkspace, distBase, parBase, flowBase, splitCount,
+      BfsInnerArgs.n, BfsInnerArgs.m, BfsInnerArgs.layer, BfsInnerArgs.u] at *
     have hsq := splitCount_sq d.1.1.1.1
     first | omega | (apply hw.of_le; omega)
 
@@ -187,11 +204,9 @@ theorem clientResult_bfsInnerStep (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) (s
 
 /-- Middle BFS frontier scan checking node `u` at distance `layer`. -/
 @[expose] def bfsMidStep (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nml := d.1
-  let nm := nml.1
-  let n := nm.1
-  let m := nm.2
-  let layer := nml.2
+  let n := SplitNetArgs.n d
+  let m := SplitNetArgs.m d
+  let layer := SplitNetArgs.arg1 d
   let u := d.2
   let du ← Memory.read (distBase n + u)
   if du = layer then
@@ -210,7 +225,8 @@ private theorem bfsMidStep_realizes :
   realize [bfsInnerStep_realizes]
   all_goals
     obtain ⟨hw, hl, hu⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, distBase, flowBase, splitCount] at *
+    dsimp -failIfUnchanged only [octWorkspace, distBase, flowBase, splitCount,
+      SplitNetArgs.n, SplitNetArgs.m, SplitNetArgs.arg1] at *
     have hsq := splitCount_sq d.1.1.1
     try omega
     try (apply hw.of_le; omega)
@@ -230,9 +246,8 @@ theorem clientResult_bfsMidStep (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.S
 
 /-- Outer BFS layer step advancing from `layer` to `layer + 1`. -/
 @[expose] def bfsLayerStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nm := d.1
-  let n := nm.1
-  let m := nm.2
+  let n := GraphStepArgs.n d
+  let m := GraphStepArgs.m d
   let layer := d.2
   let _ ← Memory.read 0
   let _ ← iterate bfsMidStep ((n, m), layer) (splitCount n) 0
@@ -247,7 +262,7 @@ private theorem bfsLayerStep_realizes :
   realize [bfsMidStep_realizes]
   all_goals
     obtain ⟨hw, hl⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, splitCount] at *
+    dsimp -failIfUnchanged only [octWorkspace, splitCount, GraphStepArgs.n, GraphStepArgs.m] at *
     try omega
     try (apply hw.of_le; omega)
   refine iterationSafe_of_stepInv _ _ w _
@@ -314,9 +329,11 @@ theorem preservesAt_bfsProg {a : ℕ} {d : ℕ × ℕ}
         refine preservesAt_bind (preservesAt_readResCap a _) fun _ => ?_
         refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
         refine preservesAt_bind (preservesAt_write _
-          (by dsimp only [parBase, distBase, splitCount] at ha hv ⊢; omega)) fun _ => ?_
+          (by dsimp only [parBase, distBase, splitCount,
+            BfsInnerArgs.n, SplitNetArgs.n, GraphStepArgs.n] at ha hv ⊢; omega)) fun _ => ?_
         refine preservesAt_bind (preservesAt_write _
-          (by dsimp only [parBase, distBase, splitCount] at ha hv ⊢; omega))
+          (by dsimp only [parBase, distBase, splitCount,
+            BfsInnerArgs.n, SplitNetArgs.n, GraphStepArgs.n] at ha hv ⊢; omega))
           fun _ => preservesAt_pure _ _
       · exact clientResult_bfsInnerStep _ s
     · exact clientResult_bfsMidStep _ s
@@ -383,9 +400,8 @@ theorem preservesAt_pushUnitStep {a : ℕ} {d : ℕ × ℕ}
 
 /-- One Edmonds-Karp unit-augmentation round on the vertex-split network. -/
 @[expose] def augRoundStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nm := d.1
-  let n := nm.1
-  let m := nm.2
+  let n := GraphStepArgs.n d
+  let m := GraphStepArgs.m d
   bfsProg (n, m)
   let M := splitCount n
   let d1 ← Memory.read (distBase n + 1)
@@ -403,7 +419,8 @@ private theorem augRoundStep_realizes :
   realize [bfsProg_realizes, pushUnitStep_realizes]
   all_goals
     obtain ⟨hw, hr⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, distBase, flowBase, splitCount] at *
+    dsimp -failIfUnchanged only [octWorkspace, distBase, flowBase, splitCount,
+      GraphStepArgs.n, GraphStepArgs.m] at *
     have hsq := splitCount_sq d.1.1
     try exact hw
     try omega
@@ -421,9 +438,8 @@ private theorem clientResult_augRoundStep (d : (ℕ × ℕ) × ℕ) (s : Memory.
 /-- Extract one vertex into `sepOutBase` when its split edge crosses the BFS cut. -/
 @[expose] def extractSepStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let n := d.1
-  let vc := d.2
-  let v := vc.1
-  let count := vc.2
+  let v := LoopAccArgs.idx d
+  let count := LoopAccArgs.acc d
   let M := splitCount n
   let z ← Memory.read (wBase n + v)
   let din ← Memory.read (distBase n + (v + 2))
@@ -445,14 +461,13 @@ private theorem extractSepStep_realizes :
   all_goals
     obtain ⟨hw, hv, hc⟩ := h
     dsimp -failIfUnchanged only [octWorkspace, wBase, distBase, sepOutBase, parBase, flowBase,
-      splitCount] at *
+      splitCount, LoopAccArgs.idx, LoopAccArgs.acc] at *
     have hsq := splitCount_sq d.1
     first | omega | (apply hw.of_le; omega)
 
 theorem clientResult_extractSepStep (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
     let res := (Memory.spec 0).clientResult s (extractSepStep d)
-    let vc := d.2
-    res.1 = vc.1 + 1 ∧ res.2 ≤ vc.2 + 1 := by
+    res.1 = LoopAccArgs.idx d + 1 ∧ res.2 ≤ LoopAccArgs.acc d + 1 := by
   unfold extractSepStep
   rw [clientResult_bind_read, clientResult_bind_read, clientResult_bind_read]
   split_ifs <;> simp only [clientResult_bind_write, clientResult_pure] <;> exact ⟨trivial, by omega⟩
@@ -491,7 +506,7 @@ theorem minSepProg_realizes :
     dsimp only
     refine ⟨⟨h, by omega, hc⟩, ?_⟩
     obtain ⟨h1, h2⟩ := clientResult_extractSepStep (d.1, vc) t
-    dsimp only at h1 h2
+    dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2
     exact ⟨by omega, by omega⟩
 
 theorem preservesAt_minSepProg {a : ℕ} {d : ℕ × ℕ} (ha : a < flowBase d.1) :
@@ -500,7 +515,8 @@ theorem preservesAt_minSepProg {a : ℕ} {d : ℕ × ℕ} (ha : a < flowBase d.1
   refine preservesAt_bind (preservesAt_fillRange (Or.inl ha)) fun _ => ?_
   refine preservesAt_bind (preservesAt_iterate (fun r => ?_) _ _) fun _ => ?_
   · unfold augRoundStep
-    refine preservesAt_bind (preservesAt_bfsProg (Or.inl (by dsimp only [distBase]; omega)))
+    refine preservesAt_bind (preservesAt_bfsProg (Or.inl (by
+      dsimp only [distBase, GraphStepArgs.n]; omega)))
       fun _ => ?_
     refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
     refine preservesAt_ite _ ?_ (preservesAt_pure _ _)

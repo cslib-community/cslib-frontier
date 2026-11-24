@@ -42,7 +42,7 @@ private theorem validHistory_readSplitCap {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
   have hfr := hs.2
   dsimp only [octWorkspace] at hfr
   unfold readSplitCap
-  dsimp only
+  dsimp only [SplitNetArgs.n, SplitNetArgs.m, SplitNetArgs.arg1]
   refine validHistory_read_bind (by omega) ?_
   split_ifs
   all_goals
@@ -109,7 +109,7 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
       (fun layer hlayer t ht => ⟨?_, ?_⟩) hs2)
     (validHistory_pure _ _ _)
   · unfold bfsLayerStep
-    dsimp only
+    dsimp only [GraphStepArgs.n, GraphStepArgs.m]
     refine validHistory_read_bind
       (by have := ht.2; dsimp only [octWorkspace] at *; omega) ?_
     refine validHistory_bind_step
@@ -117,7 +117,7 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
         (fun u hu t' ht' => ⟨?_, ?_⟩) ht)
       (validHistory_pure _ _ _)
     · unfold bfsMidStep
-      dsimp only
+      dsimp only [SplitNetArgs.n, SplitNetArgs.m, SplitNetArgs.arg1]
       refine validHistory_read_bind
         (by have := ht'.2
             dsimp only [octWorkspace, distBase, flowBase, splitCount] at hu this ⊢; omega) ?_
@@ -127,7 +127,7 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
           (fun v hv t'' ht'' => ⟨?_, ?_⟩) ht')
         (validHistory_pure _ _ _)
       · unfold bfsInnerStep
-        dsimp only
+        dsimp only [BfsInnerArgs.n, BfsInnerArgs.m, BfsInnerArgs.layer, BfsInnerArgs.u]
         have hdv : distBase n + v < t''.frontier := by
           have := ht''.2
           dsimp only [octWorkspace, distBase, flowBase, splitCount] at hv this ⊢; omega
@@ -166,7 +166,7 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
   have haug := validHistory_iterate_inv (MemReady w n) augRoundStep (n, m)
     (fun r t ht => by
       unfold augRoundStep
-      dsimp only
+      dsimp only [GraphStepArgs.n, GraphStepArgs.m]
       have hbfs := validHistory_bfsProg (d := (n, m)) hw ht
       refine validHistory_bind_step hbfs ?_
       have ht1 := MonotoneMemInv.pres ht hbfs
@@ -219,7 +219,7 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
       (fun v hv cnt t ht => ⟨?_, ?_⟩) hs3)
     (validHistory_pure _ _ _)
   · unfold extractSepStep
-    dsimp only
+    dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
     have hfr := ht.2
     refine validHistory_read_bind
       (by dsimp only [octWorkspace, wBase] at hfr hv ⊢; omega) ?_
@@ -265,7 +265,7 @@ private theorem validHistory_buildWProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
       have hvstep : (Memory.spec w).ValidHistory t
           ((Memory.spec w).clientHistory t (buildWListStep (n, vL))) := by
         unfold buildWListStep
-        dsimp only
+        dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
         refine validHistory_read_bind
           (by have := ht.2; dsimp only [octWorkspace, wBase] at *; omega) ?_
         exact validHistory_ite
@@ -277,8 +277,10 @@ private theorem validHistory_buildWProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
       refine validHistory_bind_step hvstep ?_
       have ht' := MonotoneMemInv.pres ht hvstep
       refine ih _ _ ?_ ?_ ht'
-      · obtain ⟨h1, _⟩ := clientResult_buildWListStep (n, vL) t; dsimp only at h1; omega
-      · obtain ⟨h1, h2⟩ := clientResult_buildWListStep (n, vL) t; dsimp only at h1 h2; omega
+      · obtain ⟨h1, _⟩ := clientResult_buildWListStep (n, vL) t
+        dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1; omega
+      · obtain ⟨h1, h2⟩ := clientResult_buildWListStep (n, vL) t
+        dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2; omega
   exact validHistory_bind_step (hloop n (0, 0) _ (Nat.zero_add _) le_rfl hs2)
     (validHistory_pure _ _ _)
 
@@ -289,7 +291,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
   dsimp only at hw hL hs
   have h1 : Fits w 1 := by apply hw.of_le; dsimp only [octWorkspace]; omega
   unfold leafProg
-  dsimp only
+  dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
   have hunpack : (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (unpackGuessProg (n, L))) := by
     unfold unpackGuessProg
@@ -323,7 +325,8 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       (validHistory_iterate_fst (Inv := MemReady w n) L 0 1 (fun i hi ok t ht => ⟨?_, ?_⟩) hs1)
       (validHistory_pure _ _ _)
     · unfold properOuterStep
-      dsimp only
+      dsimp only [ProperOuterArgs.n, ProperOuterArgs.m, ProperOuterArgs.L,
+        ProperOuterArgs.i, ProperOuterArgs.ok]
       refine validHistory_read_bind
         (by have := ht.2; dsimp only [octWorkspace, wListBase] at *; omega) ?_
       refine validHistory_read_bind
@@ -333,7 +336,8 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
         (validHistory_iterate_fst (Inv := MemReady w n) L 0 ok (fun j hj ok' t' ht' => ⟨?_, ?_⟩) ht)
         (validHistory_pure _ _ _)
       · unfold properInnerStep
-        dsimp only
+        dsimp only [ProperInnerArgs.n, ProperInnerArgs.m, ProperInnerArgs.u,
+          ProperInnerArgs.du, ProperInnerArgs.j, ProperInnerArgs.ok]
         refine validHistory_read_bind
           (by have := ht'.2; dsimp only [octWorkspace, wListBase] at *; omega) ?_
         refine validHistory_read_bind
@@ -350,7 +354,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
   refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
   refine validHistory_bind_ready hs2 ?_ fun _ t3 hs3 => ?_
   · unfold buildTerminalsProg
-    dsimp only
+    dsimp only [GraphStepArgs.n]
     have hf1 := validHistory_fillRange (d := ((keepBase n, 0), n)) hs2
       (by dsimp only [octWorkspace, keepBase]; omega) (fits_zero w)
     refine validHistory_bind_step hf1 ?_
@@ -363,7 +367,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       (validHistory_iterate_nat (Inv := MemReady w n) n 0 (fun v hv t ht => ⟨?_, ?_⟩) hs2b)
       (validHistory_pure _ _ _)
     · unfold termOuterStep
-      dsimp only
+      dsimp only [TermOuterArgs.n, TermOuterArgs.m, TermOuterArgs.L]
       refine validHistory_read_bind
         (by have := ht.2; dsimp only [octWorkspace, wBase] at *; omega) ?_
       refine validHistory_read_bind
@@ -373,7 +377,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
         (validHistory_iterate_nat (Inv := MemReady w n) L 0 (fun j hj t' ht' => ⟨?_, ?_⟩) ht)
         (validHistory_pure _ _ _)
       · unfold termInnerStep
-        dsimp only
+        dsimp only [TermInnerArgs.n, TermInnerArgs.m, TermInnerArgs.v, TermInnerArgs.cv]
         refine validHistory_read_bind
           (by have := ht'.2; dsimp only [octWorkspace, wListBase] at *; omega) ?_
         refine validHistory_read_bind
@@ -405,7 +409,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       (validHistory_iterate_fst (Inv := MemReady w n) L 0 0 (fun j hj cnt t ht => ⟨?_, ?_⟩) hs4)
       (validHistory_pure _ _ _)
     · unfold countDelStep
-      dsimp only
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
       exact validHistory_read_bind
         (by have := ht.2; dsimp only [octWorkspace, digitBase] at *; omega)
         (validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _))
@@ -465,7 +469,7 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
   rcases d with ⟨⟨⟨n, k⟩, m⟩, L⟩
   dsimp only at hw hL hs
   unfold compressProg
-  dsimp only
+  dsimp only [CompressCfg.n]
   have hf := validHistory_fillRange (d := ((digitBase n, 0), L)) hs
     (by dsimp only [octWorkspace, digitBase]; omega) (fits_zero w)
   refine validHistory_bind_step hf ?_
@@ -488,7 +492,7 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
         (fun j hj carry t' ht' => ⟨?_, ?_⟩) ht1)
       (validHistory_pure _ _ _)
     · unfold incOdomStep
-      dsimp only
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
       refine validHistory_read_bind
         (by have := ht'.2; dsimp only [octWorkspace, digitBase] at *; omega) ?_
       refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
@@ -501,7 +505,7 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
           (by have := ht'.2; dsimp only [octWorkspace, digitBase] at *; omega)
           (fits_zero w) (validHistory_pure _ _ _))
     · exact clientResult_incOdomStep_fst _ t'
-  dsimp only [guessStep]
+  dsimp only [guessStep, GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
   refine validHistory_read_bind (by have := ht.2; dsimp only [octWorkspace] at *; omega) ?_
   refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
   · have hlf := validHistory_leafProg (d := (((n, k), m), L)) hw hL ht
@@ -583,7 +587,7 @@ theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G
     (validHistory_iterate_fst (Inv := MemReady w n) n 0 1 (fun m hm alive t ht => ⟨?_, ?_⟩) hs3)
     (validHistory_pure _ _ _)
   · unfold octStep
-    dsimp only
+    dsimp only [OctStepArgs.n, OctStepArgs.k, OctStepArgs.m, OctStepArgs.alive]
     refine validHistory_read_bind (by have := ht.2; dsimp only [octWorkspace] at *; omega) ?_
     refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
     have hbw := validHistory_buildWProg (d := (n, m)) hw (by dsimp only; omega) ht

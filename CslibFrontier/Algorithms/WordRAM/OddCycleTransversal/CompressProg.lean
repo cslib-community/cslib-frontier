@@ -55,9 +55,8 @@ attribute [local client_simps] runClient_read runClient_write clientState_map
 /-- Scan `v`, appending it to `wListBase` when `wBase n + v = 1`. -/
 @[expose] def buildWListStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let n := d.1
-  let vL := d.2
-  let v := vL.1
-  let L := vL.2
+  let v := LoopAccArgs.idx d
+  let L := LoopAccArgs.acc d
   let wv ← Memory.read (wBase n + v)
   if wv = 1 then
     Memory.write (wListBase n + L) v
@@ -74,13 +73,13 @@ private theorem buildWListStep_realizes :
   realize
   all_goals
     obtain ⟨hw, hv, hL⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, wBase, wListBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, wBase, wListBase,
+      LoopAccArgs.idx, LoopAccArgs.acc] at *
     first | omega | (apply hw.of_le; omega)
 
 theorem clientResult_buildWListStep (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
     let res := (Memory.spec 0).clientResult s (buildWListStep d)
-    let vL := d.2
-    res.1 = vL.1 + 1 ∧ res.2 ≤ vL.2 + 1 := by
+    res.1 = LoopAccArgs.idx d + 1 ∧ res.2 ≤ LoopAccArgs.acc d + 1 := by
   unfold buildWListStep
   rw [clientResult_bind_read]
   split_ifs <;> simp only [clientResult_bind_write, clientResult_pure] <;> exact ⟨trivial, by omega⟩
@@ -111,7 +110,7 @@ private theorem buildWProg_realizes :
   dsimp only
   refine ⟨⟨hw, by omega, hL⟩, ?_⟩
   obtain ⟨h1, h2⟩ := clientResult_buildWListStep (d.1, vL) t
-  dsimp only at h1 h2
+  dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2
   exact ⟨by omega, by omega⟩
 
 /-- Single step of `unpackGuessProg`. -/
@@ -183,18 +182,32 @@ theorem preservesAt_unpackGuessProg {a : ℕ} {d : ℕ × ℕ} (ha : a < guessBa
     (preservesAt_write _ (by dsimp only [guessBase] at ha ⊢; omega))
     fun _ => preservesAt_pure _ _
 
+/-- Number of vertices in `properInnerStep` arguments `(((n, m), u), du), (j, ok)`. -/
+abbrev ProperInnerArgs.n (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.1.1
+
+/-- Active vertex prefix bound in `properInnerStep` arguments. -/
+abbrev ProperInnerArgs.m (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.1.2
+
+/-- Candidate vertex `u` in `properInnerStep` arguments. -/
+abbrev ProperInnerArgs.u (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.2
+
+/-- Candidate colour `du` in `properInnerStep` arguments. -/
+abbrev ProperInnerArgs.du (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.2
+
+/-- Scan index `j` in `properInnerStep` arguments. -/
+abbrev ProperInnerArgs.j (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Properness flag `ok` in `properInnerStep` arguments. -/
+abbrev ProperInnerArgs.ok (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.2
+
 /-- Check proper colouring between candidate vertex `u` and the `j`-th entry of `W`. -/
 @[expose] def properInnerStep (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
-  let p1 := d.1
-  let p2 := p1.1
-  let nm := p2.1
-  let n := nm.1
-  let m := nm.2
-  let u := p2.2
-  let du := p1.2
-  let jok := d.2
-  let j := jok.1
-  let ok := jok.2
+  let n := ProperInnerArgs.n d
+  let m := ProperInnerArgs.m d
+  let u := ProperInnerArgs.u d
+  let du := ProperInnerArgs.du d
+  let j := ProperInnerArgs.j d
+  let ok := ProperInnerArgs.ok d
   let v ← Memory.read (wListBase n + j)
   let dv ← Memory.read (digitBase n + j)
   if u < n ∧ v < n ∧ u < m ∧ v < m ∧ 0 < dv ∧ du = dv then
@@ -213,29 +226,42 @@ private theorem properInnerStep_realizes :
   realize
   all_goals
     obtain ⟨hw, hj⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase,
+      ProperInnerArgs.n, ProperInnerArgs.m, ProperInnerArgs.u,
+      ProperInnerArgs.du, ProperInnerArgs.j] at *
     first | omega | (apply hw.of_le; first | omega | nlinarith)
 
 theorem clientResult_properInnerStep_fst (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ))
     (s : Memory.State) :
-    let jok := d.2
-    ((Memory.spec 0).clientResult s (properInnerStep d)).1 = jok.1 + 1 := by
+    ((Memory.spec 0).clientResult s (properInnerStep d)).1 = ProperInnerArgs.j d + 1 := by
   unfold properInnerStep
   rw [clientResult_bind_read, clientResult_bind_read]
   split_ifs
   · rw [clientResult_bind_read]; split_ifs <;> rfl
   · rfl
 
+/-- Number of vertices in `properOuterStep` arguments `((n, m), L), (i, ok)`. -/
+abbrev ProperOuterArgs.n (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.1
+
+/-- Active vertex prefix bound in `properOuterStep` arguments. -/
+abbrev ProperOuterArgs.m (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.2
+
+/-- List length `L` in `properOuterStep` arguments. -/
+abbrev ProperOuterArgs.L (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.2
+
+/-- Outer scan index `i` in `properOuterStep` arguments. -/
+abbrev ProperOuterArgs.i (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Accumulated properness flag `ok` in `properOuterStep` arguments. -/
+abbrev ProperOuterArgs.ok (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.2
+
 /-- Outer loop checking that the guessed colouring is proper on `W \ D`. -/
 @[expose] def properOuterStep (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
-  let nmL := d.1
-  let nm := nmL.1
-  let n := nm.1
-  let m := nm.2
-  let L := nmL.2
-  let iok := d.2
-  let i := iok.1
-  let ok := iok.2
+  let n := ProperOuterArgs.n d
+  let m := ProperOuterArgs.m d
+  let L := ProperOuterArgs.L d
+  let i := ProperOuterArgs.i d
+  let ok := ProperOuterArgs.ok d
   let u ← Memory.read (wListBase n + i)
   let du ← Memory.read (digitBase n + i)
   if u < n ∧ 0 < du then
@@ -254,7 +280,8 @@ private theorem properOuterStep_realizes :
   realize [properInnerStep_realizes]
   all_goals
     obtain ⟨hw, hL, hi⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase,
+      ProperOuterArgs.n, ProperOuterArgs.m, ProperOuterArgs.L, ProperOuterArgs.i] at *
     try omega
     try (apply hw.of_le; omega)
   refine iterationSafe_of_stepInv _ _ w _
@@ -263,13 +290,12 @@ private theorem properOuterStep_realizes :
   dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
   rw [clientResult_properInnerStep_fst]
-  dsimp only
+  dsimp only [ProperInnerArgs.j]
   omega
 
 theorem clientResult_properOuterStep_fst (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ))
     (s : Memory.State) :
-    let iok := d.2
-    ((Memory.spec 0).clientResult s (properOuterStep d)).1 = iok.1 + 1 := by
+    ((Memory.spec 0).clientResult s (properOuterStep d)).1 = ProperOuterArgs.i d + 1 := by
   unfold properOuterStep
   rw [clientResult_bind_read, clientResult_bind_read]
   split_ifs <;> simp only [clientResult_bind, clientResult_pure]
@@ -297,7 +323,7 @@ private theorem checkProperProg_realizes :
   dsimp only
   refine ⟨⟨hw, hL, by omega⟩, ?_⟩
   rw [clientResult_properOuterStep_fst]
-  dsimp only
+  dsimp only [ProperOuterArgs.i]
   omega
 
 theorem preservesAt_checkProperProg (a : ℕ) (d : (ℕ × ℕ) × ℕ) :
@@ -317,15 +343,24 @@ theorem preservesAt_checkProperProg (a : ℕ) (d : (ℕ × ℕ) × ℕ) :
   refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
   exact preservesAt_ite _ (preservesAt_pure _ _) (preservesAt_pure _ _)
 
+/-- Number of vertices in `termInnerStep` arguments `((n, m), (v, cv)), j`. -/
+abbrev TermInnerArgs.n (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : ℕ := d.1.1.1
+
+/-- Active vertex prefix bound in `termInnerStep` arguments. -/
+abbrev TermInnerArgs.m (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : ℕ := d.1.1.2
+
+/-- Candidate vertex `v` in `termInnerStep` arguments. -/
+abbrev TermInnerArgs.v (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : ℕ := d.1.2.1
+
+/-- Colour `cv` of vertex `v` in `termInnerStep` arguments. -/
+abbrev TermInnerArgs.cv (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : ℕ := d.1.2.2
+
 /-- Classify vertex `v ∉ W` as a keep/flip terminal against the `j`-th entry of `W`. -/
 @[expose] def termInnerStep (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) : Memory.Prog ℕ := do
-  let p := d.1
-  let nm := p.1
-  let n := nm.1
-  let m := nm.2
-  let vcv := p.2
-  let v := vcv.1
-  let cv := vcv.2
+  let n := TermInnerArgs.n d
+  let m := TermInnerArgs.m d
+  let v := TermInnerArgs.v d
+  let cv := TermInnerArgs.cv d
   let j := d.2
   let u ← Memory.read (wListBase n + j)
   let du ← Memory.read (digitBase n + j)
@@ -351,7 +386,8 @@ private theorem termInnerStep_realizes :
   realize
   all_goals
     obtain ⟨hw, hj⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase, flipBase, keepBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase, flipBase, keepBase,
+      TermInnerArgs.n, TermInnerArgs.m, TermInnerArgs.v, TermInnerArgs.cv] at *
     first | omega | (apply hw.of_le; first | omega | nlinarith)
 
 theorem clientResult_termInnerStep (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
@@ -363,13 +399,20 @@ theorem clientResult_termInnerStep (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) (
     rw [clientResult_bind_read]
     split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
 
+/-- Number of vertices in `termOuterStep` arguments `((n, m), L), v`. -/
+abbrev TermOuterArgs.n (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1
+
+/-- Active vertex prefix bound in `termOuterStep` arguments. -/
+abbrev TermOuterArgs.m (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- List length `L` in `termOuterStep` arguments. -/
+abbrev TermOuterArgs.L (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.2
+
 /-- Outer loop populating `keepBase` and `flipBase` for every `v < m` off `W`. -/
 @[expose] def termOuterStep (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nmL := d.1
-  let nm := nmL.1
-  let n := nm.1
-  let m := nm.2
-  let L := nmL.2
+  let n := TermOuterArgs.n d
+  let m := TermOuterArgs.m d
+  let L := TermOuterArgs.L d
   let v := d.2
   let zv ← Memory.read (wBase n + v)
   let cv ← Memory.read (colBase n + v)
@@ -389,7 +432,8 @@ private theorem termOuterStep_realizes :
   realize [termInnerStep_realizes]
   all_goals
     obtain ⟨hw, hL, hv⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, wBase, colBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, wBase, colBase,
+      TermOuterArgs.n, TermOuterArgs.m, TermOuterArgs.L] at *
     try omega
     try (apply hw.of_le; omega)
   refine iterationSafe_of_stepInv _ _ w _
@@ -408,8 +452,7 @@ theorem clientResult_termOuterStep (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memor
 
 /-- Mark keep and flip terminals outside `W`. -/
 @[expose] def buildTerminalsProg (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
-  let nm := d.1
-  let n := nm.1
+  let n := GraphStepArgs.n d
   fillRange ((keepBase n, 0), n)
   fillRange ((flipBase n, 0), n)
   let _ ← iterate termOuterStep d n 0
@@ -423,7 +466,7 @@ private theorem buildTerminalsProg_realizes :
   realize [fillRange_realizes, termOuterStep_realizes]
   all_goals
     obtain ⟨hw, hL⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, keepBase, flipBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, keepBase, flipBase, GraphStepArgs.n] at *
     try omega
     try (apply hw.of_le; omega)
   refine iterationSafe_of_stepInv _ _ w _
@@ -435,9 +478,10 @@ private theorem buildTerminalsProg_realizes :
   omega
 
 theorem preservesAt_buildTerminalsProg {a : ℕ} {d : (ℕ × ℕ) × ℕ}
-    (ha : let nm := d.1; a < keepBase nm.1) :
+    (ha : a < keepBase (GraphStepArgs.n d)) :
     PreservesAt a (buildTerminalsProg d) := by
-  have ha_flip : a < flipBase d.1.1 := by dsimp only [keepBase, flipBase] at ha ⊢; omega
+  have ha_flip : a < flipBase (GraphStepArgs.n d) := by
+    dsimp only [keepBase, flipBase, GraphStepArgs.n] at ha ⊢; omega
   unfold buildTerminalsProg
   refine preservesAt_bind (preservesAt_fillRange (Or.inl ha)) fun _ => ?_
   refine preservesAt_bind (preservesAt_fillRange (Or.inl ha_flip)) fun _ => ?_
@@ -455,15 +499,16 @@ theorem preservesAt_buildTerminalsProg {a : ℕ} {d : (ℕ × ℕ) × ℕ}
   refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
   refine preservesAt_ite _ ?_ ?_ <;>
     exact preservesAt_bind
-      (preservesAt_write _ (by dsimp only [keepBase, flipBase] at ha ⊢; omega))
+      (preservesAt_write _
+        (by dsimp only [keepBase, flipBase, TermInnerArgs.n, TermOuterArgs.n,
+          GraphStepArgs.n] at ha ⊢; omega))
       fun _ => preservesAt_pure _ _
 
 /-- Increment the deleted-vertex counter when `digitBase n + j = 0`. -/
 @[expose] def countDelStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let n := d.1
-  let jc := d.2
-  let j := jc.1
-  let cnt := jc.2
+  let j := LoopAccArgs.idx d
+  let cnt := LoopAccArgs.acc d
   let dj ← Memory.read (digitBase n + j)
   if dj = 0 then pure (j + 1, cnt + 1) else pure (j + 1, cnt)
 
@@ -476,13 +521,13 @@ private theorem countDelStep_realizes :
   realize
   all_goals
     obtain ⟨hw, hj, hc⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, digitBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, digitBase,
+      LoopAccArgs.idx, LoopAccArgs.acc] at *
     first | omega | (apply hw.of_le; omega)
 
 theorem clientResult_countDelStep (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
     let res := (Memory.spec 0).clientResult s (countDelStep d)
-    let jc := d.2
-    res.1 = jc.1 + 1 ∧ res.2 ≤ jc.2 + 1 := by
+    res.1 = LoopAccArgs.idx d + 1 ∧ res.2 ≤ LoopAccArgs.acc d + 1 := by
   unfold countDelStep
   rw [clientResult_bind_read]
   split_ifs <;> simp only [clientResult_pure] <;> exact ⟨trivial, by omega⟩
@@ -506,7 +551,7 @@ private theorem countDelProg_realizes :
   dsimp only
   refine ⟨⟨hw, by omega, hc⟩, ?_⟩
   obtain ⟨h1, h2⟩ := clientResult_countDelStep (d.1, jc) t
-  dsimp only at h1 h2
+  dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at h1 h2
   exact ⟨by omega, by omega⟩
 
 theorem preservesAt_countDelProg (a : ℕ) (d : ℕ × ℕ) :
@@ -600,13 +645,20 @@ theorem preservesAt_commitLeafProg {a n : ℕ}
        rw [Function.update_of_ne hcol, Function.update_of_ne hsep])
   · exact clientResult_commitStep (n, v) s
 
+/-- Number of vertices in compression leaf configuration `(((n, k), m), L)`. -/
+abbrev CompressCfg.n (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1
+
+/-- Deletion budget `k` in compression leaf configuration. -/
+abbrev CompressCfg.k (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- Active vertex prefix bound `m` in compression leaf configuration. -/
+abbrev CompressCfg.m (d : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := d.1.2
+
 /-- Evaluate one base-3 guess `D, σ` on `W` via `minSepProg`, committing on success. -/
 @[expose] def leafProg (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nkm := d.1
-  let nk := nkm.1
-  let n := nk.1
-  let k := nk.2
-  let m := nkm.2
+  let n := CompressCfg.n d
+  let k := CompressCfg.k d
+  let m := CompressCfg.m d
   let L := d.2
   unpackGuessProg (n, L)
   let ok ← checkProperProg ((n, m), L)
@@ -632,20 +684,20 @@ private theorem leafProg_realizes :
     minSepProg_realizes, countDelProg_realizes, commitLeafProg_realizes]
   all_goals
     obtain ⟨hw, hL⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace] at *
+    dsimp -failIfUnchanged only [octWorkspace, CompressCfg.n, CompressCfg.k, CompressCfg.m] at *
     first | exact hw | omega | (apply hw.of_le; omega)
 
 theorem preservesAt_leafProg {a : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ}
-    (ha : let nkm := d.1; let nk := nkm.1;
-      a < sepBase nk.1 ∨ (wBase nk.1 ≤ a ∧ a < guessBase nk.1)) :
+    (ha : a < sepBase (CompressCfg.n d) ∨
+      (wBase (CompressCfg.n d) ≤ a ∧ a < guessBase (CompressCfg.n d))) :
     PreservesAt a (leafProg d) := by
-  have hg : a < guessBase d.1.1.1 := by
-    dsimp only [sepBase, wBase, guessBase] at ha ⊢; omega
-  have hk : a < keepBase d.1.1.1 := by
-    dsimp only [guessBase, keepBase] at hg ⊢; omega
-  have hf : a < flowBase d.1.1.1 := by
-    dsimp only [keepBase, flowBase] at hk ⊢; omega
-  have hc : a < sepBase d.1.1.1 ∨ wBase d.1.1.1 ≤ a := ha.imp id And.left
+  have hg : a < guessBase (CompressCfg.n d) := by
+    dsimp only [sepBase, wBase, guessBase, CompressCfg.n] at ha ⊢; omega
+  have hk : a < keepBase (CompressCfg.n d) := by
+    dsimp only [guessBase, keepBase, CompressCfg.n] at hg ⊢; omega
+  have hf : a < flowBase (CompressCfg.n d) := by
+    dsimp only [keepBase, flowBase, CompressCfg.n] at hk ⊢; omega
+  have hc : a < sepBase (CompressCfg.n d) ∨ wBase (CompressCfg.n d) ≤ a := ha.imp id And.left
   unfold leafProg
   refine preservesAt_bind (preservesAt_unpackGuessProg hg) fun _ => ?_
   refine preservesAt_bind (preservesAt_checkProperProg a _) fun _ => ?_
@@ -659,9 +711,8 @@ theorem preservesAt_leafProg {a : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ}
 /-- Single-digit carry propagation step of the base-3 odometer. -/
 @[expose] def incOdomStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let n := d.1
-  let jc := d.2
-  let j := jc.1
-  let carry := jc.2
+  let j := LoopAccArgs.idx d
+  let carry := LoopAccArgs.acc d
   let dj ← Memory.read (digitBase n + j)
   if carry = 1 then
     if dj < 2 then
@@ -682,12 +733,12 @@ private theorem incOdomStep_realizes :
   realize
   all_goals
     obtain ⟨hw, hj⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, digitBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, digitBase,
+      LoopAccArgs.idx, LoopAccArgs.acc] at *
     first | omega | (apply hw.of_le; omega)
 
 theorem clientResult_incOdomStep_fst (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
-    let jc := d.2
-    ((Memory.spec 0).clientResult s (incOdomStep d)).1 = jc.1 + 1 := by
+    ((Memory.spec 0).clientResult s (incOdomStep d)).1 = LoopAccArgs.idx d + 1 := by
   unfold incOdomStep
   rw [clientResult_bind_read]
   split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
@@ -715,18 +766,23 @@ private theorem incOdomProg_realizes :
   dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
   rw [clientResult_incOdomStep_fst]
-  dsimp only
+  dsimp only [LoopAccArgs.idx]
   omega
+
+/-- Number of vertices in `guessStep` arguments `((((n, k), m), L), (done, found))`. -/
+abbrev GuessStepArgs.n (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.1.1
+
+/-- List length `L` in `guessStep` arguments. -/
+abbrev GuessStepArgs.L (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.2
+
+/-- Current found flag `found` in `guessStep` arguments. -/
+abbrev GuessStepArgs.found (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.2
 
 /-- One odometer iteration of `compressProg`: evaluate `leafProg` and advance `digitBase`. -/
 @[expose] def guessStep (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let _ ← Memory.read 0
-  let cfg := d.1
-  let nkm := cfg.1
-  let nk := nkm.1
-  let st := d.2
-  let found' ← if st.2 = 0 then leafProg cfg else pure st.2
-  let done' ← incOdomProg (nk.1, cfg.2)
+  let found' ← if GuessStepArgs.found d = 0 then leafProg d.1 else pure (GuessStepArgs.found d)
+  let done' ← incOdomProg (GuessStepArgs.n d, GuessStepArgs.L d)
   pure (done', found')
 
 private theorem guessStep_realizes :
@@ -739,6 +795,7 @@ private theorem guessStep_realizes :
   realize [leafProg_realizes, incOdomProg_realizes]
   all_goals
     obtain ⟨hw, hL⟩ := h
+    dsimp -failIfUnchanged only [GuessStepArgs.n, GuessStepArgs.L] at *
     first | exact hw | exact hL
 
 /-- Clamped base-3 evaluation of `L` digits starting at `base` in `mem`. -/
@@ -777,7 +834,7 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
         base3At t.mem (digitBase n) jc.1 + jc.2 * 3 ^ jc.1 =
           base3At s.mem (digitBase n) jc.1 + 1)
     (fun rem jc t ⟨hsum, hcarry, habove, hval⟩ => by
-      dsimp only [incOdomStep]
+      dsimp only [incOdomStep, LoopAccArgs.idx, LoopAccArgs.acc]
       have hdj : t.mem (digitBase n + jc.1) = s.mem (digitBase n + jc.1) := habove jc.1 le_rfl
       by_cases hc : jc.2 = 1
       · by_cases hlt : t.mem (digitBase n + jc.1) < 2
@@ -829,9 +886,7 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
 
 /-- Enumerate up to `3 ^ L` guesses on `W` via a base-3 odometer. -/
 @[expose] def compressProg (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
-  let nkm := d.1
-  let nk := nkm.1
-  let n := nk.1
+  let n := CompressCfg.n d
   let L := d.2
   fillRange ((digitBase n, 0), L)
   let res ← boundedWhile (fun _ (st : ℕ × ℕ) => st.1 = 0) guessStep d (3 ^ L) (0, 0)
@@ -846,7 +901,7 @@ private theorem compressProg_realizes :
   realize [fillRange_realizes, guessStep_realizes]
   all_goals
     obtain ⟨hw, hL⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, digitBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, digitBase, CompressCfg.n] at *
     try omega
     try (apply hw.of_le; omega)
   intro hv
@@ -865,20 +920,22 @@ private theorem compressProg_realizes :
           (Memory.spec 0).clientResult ((Memory.spec 0).clientState t (leafProg d))
             (incOdomProg (d.1.1.1, d.2)) := by
         unfold guessStep
+        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
         rw [clientResult_bind_read, ite_eq_left h0, clientResult_bind, clientResult_bind,
           clientResult_pure]
       have hst : (Memory.spec 0).clientState t (guessStep (d, st)) =
           (Memory.spec 0).clientState ((Memory.spec 0).clientState t (leafProg d))
             (incOdomProg (d.1.1.1, d.2)) := by
         unfold guessStep
+        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
         rw [clientState_bind_read, ite_eq_left h0, clientState_bind, clientState_bind,
           clientState_pure]
       simp only [hres, hst, hg, ↓reduceIte]
       have hpres : base3At ((Memory.spec 0).clientState t (leafProg d)).mem
           (digitBase d.1.1.1) d.2 = base3At t.mem (digitBase d.1.1.1) d.2 := by
         refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ⟨?_, ?_⟩) t
-        · dsimp only [wBase, digitBase]; omega
-        · dsimp only [digitBase, guessBase]; omega
+        · dsimp only [wBase, digitBase, CompressCfg.n]; omega
+        · dsimp only [digitBase, guessBase, CompressCfg.n]; omega
       have hodom := incOdomProg_base3At d.1.1.1 d.2 ((Memory.spec 0).clientState t (leafProg d))
       dsimp only at hodom
       obtain ⟨hdone_le, hodom_eq⟩ := hodom
@@ -889,11 +946,13 @@ private theorem compressProg_realizes :
     · have hres : ((Memory.spec 0).clientResult t (guessStep (d, st))).1 =
           (Memory.spec 0).clientResult t (incOdomProg (d.1.1.1, d.2)) := by
         unfold guessStep
+        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
         rw [clientResult_bind_read, ite_eq_right h0, clientResult_bind, clientState_pure,
           clientResult_bind, clientResult_pure]
       have hst : (Memory.spec 0).clientState t (guessStep (d, st)) =
           (Memory.spec 0).clientState t (incOdomProg (d.1.1.1, d.2)) := by
         unfold guessStep
+        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
         rw [clientState_bind_read, ite_eq_right h0, clientState_bind, clientState_pure,
           clientState_bind, clientState_pure]
       simp only [hres, hst, hg, ↓reduceIte]
@@ -906,14 +965,24 @@ private theorem compressProg_realizes :
   · simp only [↓reduceIte]
     exact Nat.sub_le _ _
 
+/-- Number of vertices in `octStep` arguments `(n, k), (m, alive)`. -/
+abbrev OctStepArgs.n (d : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1
+
+/-- Deletion budget `k` in `octStep` arguments. -/
+abbrev OctStepArgs.k (d : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := d.1.2
+
+/-- Active vertex index `m` in `octStep` arguments. -/
+abbrev OctStepArgs.m (d : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Liveness flag `alive` in `octStep` arguments. -/
+abbrev OctStepArgs.alive (d : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := d.2.2
+
 /-- One iterative-compression step incorporating vertex `m` into the candidate set. -/
 @[expose] def octStep (d : (ℕ × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
-  let nk := d.1
-  let n := nk.1
-  let k := nk.2
-  let ma := d.2
-  let m := ma.1
-  let alive := ma.2
+  let n := OctStepArgs.n d
+  let k := OctStepArgs.k d
+  let m := OctStepArgs.m d
+  let alive := OctStepArgs.alive d
   let _ ← Memory.read 0
   if alive = 1 then
     let L ← buildWProg (n, m)
@@ -937,12 +1006,12 @@ private theorem octStep_realizes :
   realize [buildWProg_realizes, compressProg_realizes]
   all_goals
     obtain ⟨hw, hm⟩ := h
-    dsimp -failIfUnchanged only [octWorkspace, sepBase] at *
+    dsimp -failIfUnchanged only [octWorkspace, sepBase,
+      OctStepArgs.n, OctStepArgs.k, OctStepArgs.m, OctStepArgs.alive] at *
     first | exact hw | omega | (apply hw.of_le; omega)
 
 theorem clientResult_octStep_fst (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
-    let ma := d.2
-    ((Memory.spec 0).clientResult s (octStep d)).1 = ma.1 + 1 := by
+    ((Memory.spec 0).clientResult s (octStep d)).1 = OctStepArgs.m d + 1 := by
   unfold octStep
   rw [clientResult_bind_read]
   split_ifs <;> try rfl
@@ -979,7 +1048,7 @@ theorem octProg_realizes :
   dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
   rw [clientResult_octStep_fst]
-  dsimp only
+  dsimp only [OctStepArgs.m]
   omega
 
 end Cslib.Algorithms.WordRAM.OddCycleTransversal

@@ -182,7 +182,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
       have hcost_step : memoryCost (octStep ((n, k), (m, alive))) st ≤
           655 * 3 ^ k * (n + 1) ^ 4 := by
         unfold octStep
-        dsimp only
+        dsimp only [OctStepArgs.n, OctStepArgs.k, OctStepArgs.m, OctStepArgs.alive]
         rw [memoryCost_bind', memoryCost_read]
         change 1 + memoryCost (if alive = 1 then _ else _) st ≤ _
         rw [ite_eq_left hal, memoryCost_bind']
@@ -195,7 +195,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           nlinarith [hp1_4, hpow3]
         · rw [ite_eq_right hLk, ite_eq_left hL_le_n]
           have hcp := memoryCost_compressProg_le (d := (((n, k), m + 1), L)) hL_le_n tW
-          dsimp only at hcp
+          dsimp only [CompressCfg.n] at hcp
           have hcp_map : memoryCost
               (do let ok ← compressProg (((n, k), m + 1), L); pure (m + 1, ok)) tW ≤
               215 * 3 ^ L * (n + 1) ^ 4 :=
@@ -206,7 +206,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           nlinarith [hp1_4, hpow3]
       refine ⟨hcost_step, ?_⟩
       unfold octStep
-      dsimp only
+      dsimp only [OctStepArgs.n, OctStepArgs.k, OctStepArgs.m, OctStepArgs.alive]
       rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hal, clientResult_bind,
         clientState_bind]
       change LoopInv rem ((Memory.spec 0).clientResult tW (if L ≤ k then _ else _))
@@ -268,7 +268,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
       have hcost_dead : memoryCost (octStep ((n, k), (m, alive))) st ≤
           655 * 3 ^ k * (n + 1) ^ 4 := by
         unfold octStep
-        dsimp only
+        dsimp only [OctStepArgs.n, OctStepArgs.k, OctStepArgs.m, OctStepArgs.alive]
         rw [memoryCost_bind', memoryCost_read]
         change 1 + memoryCost (if alive = 1 then _ else _) st ≤ _
         rw [ite_eq_right hal]
@@ -277,7 +277,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         nlinarith [hp1_4, hpow3]
       refine ⟨hcost_dead, ?_⟩
       unfold octStep
-      dsimp only
+      dsimp only [OctStepArgs.n, OctStepArgs.k, OctStepArgs.m, OctStepArgs.alive]
       rw [clientResult_bind_read, clientState_bind_read, ite_eq_right hal]
       simp only [client_simps]
       dsimp only [LoopInv]

@@ -175,7 +175,7 @@ theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
           _ ≤ (Finset.range vL.1).attach.card := Finset.card_image_le
           _ = vL.1 := by simp
       unfold buildWListStep
-      dsimp only
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
       rw [clientResult_bind_read, clientState_bind_read, hwv]
       by_cases hvW : vFin ∈ Wset
       · rw [ite_eq_left hvW, ite_eq_left rfl, clientResult_bind_write, clientState_bind_write,
@@ -384,7 +384,8 @@ theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableR
       let iFin : Fin L := ⟨iok.1, hi_lt⟩
       let uFin : Fin n := ⟨s.mem (wListBase n + iok.1), hW.entry_lt iok.1 hi_lt⟩
       unfold properOuterStep
-      dsimp only
+      dsimp only [ProperOuterArgs.n, ProperOuterArgs.m, ProperOuterArgs.L,
+        ProperOuterArgs.i, ProperOuterArgs.ok]
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
         clientState_bind_read, hmem_eq, hmem_eq]
       by_cases hdu : 0 < s.mem (digitBase n + iok.1)
@@ -402,7 +403,8 @@ theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableR
             let jFin : Fin L := ⟨jok.1, hj_lt⟩
             let vFin : Fin n := ⟨s.mem (wListBase n + jok.1), hW.entry_lt jok.1 hj_lt⟩
             unfold properInnerStep
-            dsimp only
+            dsimp only [ProperInnerArgs.n, ProperInnerArgs.m, ProperInnerArgs.u,
+              ProperInnerArgs.du, ProperInnerArgs.j, ProperInnerArgs.ok]
             rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
               clientState_bind_read, hmem', hmem']
             by_cases hcond : s.mem (wListBase n + iok.1) < n ∧
@@ -582,7 +584,7 @@ theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
         rw [hW.w_mem vFin]
         by_cases h : vFin ∈ Wset <;> simp [h]
       unfold termOuterStep
-      dsimp only
+      dsimp only [TermOuterArgs.n, TermOuterArgs.m, TermOuterArgs.L]
       rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
         clientState_bind_read, hzv_eq, hcv_eq]
       by_cases hcond : s.mem (wBase n + v) = 0 ∧ v < m
@@ -613,7 +615,7 @@ theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
             let jFin : Fin L := ⟨j, hj_lt⟩
             let uFin : Fin n := ⟨s.mem (wListBase n + j), hW.entry_lt j hj_lt⟩
             unfold termInnerStep
-            dsimp only
+            dsimp only [TermInnerArgs.n, TermInnerArgs.m, TermInnerArgs.v, TermInnerArgs.cv]
             rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
               clientState_bind_read,
               hi_low _ (by dsimp only [wListBase, keepBase]; have := hW.card_le_n; omega),
@@ -831,7 +833,7 @@ theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
   have ht_eq : t = s3 := by
     change (Memory.spec 0).clientState s (buildTerminalsProg ((n, m), L)) = s3
     unfold buildTerminalsProg
-    dsimp only
+    dsimp only [GraphStepArgs.n]
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       clientState_bind, clientState_pure]
   rw [ht_eq]
@@ -854,7 +856,7 @@ theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memory.State}
       have hj_lt : jc.1 < L := by omega
       let jFin : Fin L := ⟨jc.1, hj_lt⟩
       unfold countDelStep
-      dsimp only
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
       rw [clientResult_bind_read, clientState_bind_read, hmem_eq]
       by_cases h0 : s.mem (digitBase n + jc.1) = 0
       · rw [ite_eq_left h0, clientResult_pure, clientState_pure]

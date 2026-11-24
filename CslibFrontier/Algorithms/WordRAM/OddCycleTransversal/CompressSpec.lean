@@ -168,14 +168,14 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       have hres1 : res = 1 := by
         change (Memory.spec 0).clientResult s (leafProg (((n, k), m), L)) = 1
         unfold leafProg
-        dsimp only
+        dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
         rw [clientResult_bind, clientResult_bind, hok1, ite_eq_left rfl, clientResult_bind,
           clientResult_bind, clientResult_bind, hdelCnt,
           ite_eq_left hcond_acc, clientResult_bind, clientResult_pure]
       have ht_eq : t = (Memory.spec 0).clientState s5 (commitLeafProg n) := by
         change (Memory.spec 0).clientState s (leafProg (((n, k), m), L)) = _
         unfold leafProg
-        dsimp only
+        dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
         rw [clientState_bind, clientState_bind, hok1, ite_eq_left rfl, clientState_bind,
           clientState_bind, clientState_bind, hdelCnt,
           ite_eq_left hcond_acc, clientState_bind, clientState_pure]
@@ -331,7 +331,7 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       have hres0 : res = 0 := by
         change (Memory.spec 0).clientResult s (leafProg (((n, k), m), L)) = 0
         unfold leafProg
-        dsimp only
+        dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
         rw [clientResult_bind, clientResult_bind, hok1, ite_eq_left rfl, clientResult_bind,
           clientResult_bind, clientResult_bind, hdelCnt,
           ite_eq_right hcond_rej]
@@ -339,7 +339,7 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
       have ht_eq : t = s5 := by
         change (Memory.spec 0).clientState s (leafProg (((n, k), m), L)) = s5
         unfold leafProg
-        dsimp only
+        dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
         rw [clientState_bind, clientState_bind, hok1, ite_eq_left rfl, clientState_bind,
           clientState_bind, clientState_bind, hdelCnt,
           ite_eq_right hcond_rej]
@@ -352,13 +352,13 @@ private theorem leafProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Decidab
     have hres0 : res = 0 := by
       change (Memory.spec 0).clientResult s (leafProg (((n, k), m), L)) = 0
       unfold leafProg
-      dsimp only
+      dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
       rw [clientResult_bind, clientResult_bind, hok0, ite_eq_right (by decide : ¬ (0 = 1))]
       rfl
     have ht_eq : t = s2 := by
       change (Memory.spec 0).clientState s (leafProg (((n, k), m), L)) = s2
       unfold leafProg
-      dsimp only
+      dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
       rw [clientState_bind, clientState_bind, hok0, ite_eq_right (by decide : ¬ (0 = 1))]
       rfl
     refine ⟨by omega, hpres_base, fun _ a ha => ?_, fun h1 => absurd hres0 (by omega)⟩
@@ -662,7 +662,7 @@ private theorem leafProg_complete_at {n k m L : ℕ} {G : SimpleGraph (Fin n)} [
     rw [hsepCnt_eq]; exact (Finset.card_le_univ _).trans (by simp)
   have hdel_le_n : (delSet Wset s4).card ≤ n := (Finset.card_le_univ _).trans (by simp)
   unfold leafProg
-  dsimp only
+  dsimp only [CompressCfg.n, CompressCfg.k, CompressCfg.m]
   rw [clientResult_bind, clientResult_bind, hok1, ite_eq_left rfl, clientResult_bind,
     clientResult_bind, clientResult_bind, hdelCnt,
     ite_eq_left ⟨hsep_le_n, hdel_le_n, hsum_T⟩, clientResult_bind, clientResult_pure]
@@ -713,7 +713,8 @@ private theorem preservesAt_incOdomProg {a : ℕ} {d : ℕ × ℕ}
     refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
     refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
     refine preservesAt_ite _ ?_ ?_ <;>
-      exact preservesAt_bind (preservesAt_write _ (by dsimp only at ha hj ⊢; omega))
+      exact preservesAt_bind
+        (preservesAt_write _ (by dsimp only [LoopAccArgs.idx, LoopAccArgs.acc] at ha hj ⊢; omega))
         fun _ => preservesAt_pure _ _
   · exact clientResult_incOdomStep_fst _ s
 
@@ -727,7 +728,7 @@ private theorem incOdomProg_digits_le (n L : ℕ) {s : Memory.State}
       jc.1 + rem = L ∧ ∀ i < L, st.mem (digitBase n + i) ≤ 2)
     (fun rem jc st ⟨hjsum, hle⟩ => by
       unfold incOdomStep
-      dsimp only
+      dsimp only [LoopAccArgs.idx, LoopAccArgs.acc]
       rw [clientResult_bind_read, clientState_bind_read]
       by_cases hc : jc.2 = 1
       · rw [ite_eq_left hc]
@@ -854,7 +855,7 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
       by_cases hg : st.1 = 0
       · simp only [hg, ↓reduceIte]
         rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
-        dsimp only [guessStep]
+        dsimp only [guessStep, GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
         rw [clientResult_bind_read, clientState_bind_read]
         by_cases hst2_0 : st.2 = 0
         · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind,
@@ -895,14 +896,14 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
       (boundedWhile (fun _ (x : ℕ × ℕ) => x.1 = 0) guessStep (((n, k), m), L) (3 ^ L) (0, 0)) := by
     change (Memory.spec 0).clientState s (compressProg (((n, k), m), L)) = _
     unfold compressProg
-    dsimp only
+    dsimp only [CompressCfg.n]
     rw [StateTransitionSpec.clientState_bind, clientState_bind, clientState_pure]
   have hres_eq : res = ((Memory.spec 0).clientResult s1
       (boundedWhile (fun _ (x : ℕ × ℕ) => x.1 = 0) guessStep (((n, k), m), L)
         (3 ^ L) (0, 0))).2 := by
     change (Memory.spec 0).clientResult s (compressProg (((n, k), m), L)) = _
     unfold compressProg
-    dsimp only
+    dsimp only [CompressCfg.n]
     rw [StateTransitionSpec.clientResult_bind, clientResult_bind, clientResult_pure]
   rw [ht_eq, hres_eq]
   refine ⟨hlow_fin, hres_le, hres_sound, ?_⟩
@@ -958,7 +959,7 @@ theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
       by_cases hg : st.1 = 0
       · simp only [hg, ↓reduceIte]
         rw [StateTransitionSpec.clientResult_bind]
-        dsimp only [guessStep]
+        dsimp only [guessStep, GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
         rw [clientResult_bind_read, clientState_bind_read]
         by_cases hst2_0 : st.2 = 0
         · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind,
