@@ -416,29 +416,9 @@ private theorem exists_isMultilinear_hammingDist_le_of_slices_approx (f : (Fin (
             (hammingDist (fun y => f (Fin.cons t₂ y)) g₂ +
               #{y : Fin n → F | Fin.cons t₂ y ∈ corruptPoints f δ 0})) := by
   have hd : t₂ - t₁ ≠ 0 := sub_ne_zero.mpr h12.symm
-  let g : (Fin (n + 1) → F) → F := fun x =>
-    g₁ (Fin.tail x) + (x 0 - t₁) / (t₂ - t₁) * (g₂ (Fin.tail x) - g₁ (Fin.tail x))
-  have hg0 (x : Fin (n + 1) → F) : lineRestrict g x 0 = fun t =>
-      g₁ (Fin.tail x) + (t - t₁) / (t₂ - t₁) * (g₂ (Fin.tail x) - g₁ (Fin.tail x)) := by
-    funext t
-    simp only [g, lineRestrict, Fin.tail_update_zero, update_self]
-  have hg : IsMultilinear g := by
-    intro x i
-    induction i using Fin.cases with
-    | zero =>
-      rw [hg0]
-      exact ⟨(g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁),
-        g₁ (Fin.tail x) - t₁ * ((g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁)),
-        fun t => by ring⟩
-    | succ j =>
-      have : lineRestrict g x j.succ = fun t => lineRestrict g₁ (Fin.tail x) j t +
-          (x 0 - t₁) / (t₂ - t₁) *
-            (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) := by
-        funext t
-        simp only [g, lineRestrict, Fin.tail_update_succ,
-          update_of_ne (Fin.succ_ne_zero j).symm]
-      rw [this]
-      exact (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+  let g := sliceInterpolant t₁ t₂ g₁ g₂
+  have hg0 := lineRestrict_sliceInterpolant_zero t₁ t₂ g₁ g₂
+  have hg : IsMultilinear g := isMultilinear_sliceInterpolant t₁ t₂ hg₁ hg₂
   refine ⟨g, hg, ?_⟩
   let bad (t : F) (h : (Fin n → F) → F) : Finset (Fin (n + 1) → F) :=
     {x | f (Fin.cons t (Fin.tail x)) ≠ h (Fin.tail x) ∨

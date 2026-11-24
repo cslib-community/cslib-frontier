@@ -207,6 +207,48 @@ private theorem computableInPolyTime_timeBits {α : Type} {enc : α ↪ List Boo
     ComputableInPolyTime (fun a => timeBits (T a)) enc encUnary :=
   binary_size.comp hT
 
+private theorem computableInPolyTime_argT :
+    ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
+  (snd _ _).comp (snd _ _)
+
+private theorem computableInPolyTime_pWidth (s : ℕ) :
+    ComputableInPolyTime (fun a : DecoderArg => s + colBits a.2.2 + timeBits a.2.2)
+      encDecoderArg encUnary :=
+  unary_add' (unary_add' (const s) (computableInPolyTime_colBits computableInPolyTime_argT))
+    (computableInPolyTime_timeBits computableInPolyTime_argT)
+
+private theorem computableInPolyTime_pWidthNat (s : ℕ) :
+    ComputableInPolyTime (fun a : DecoderArg => s + colBits a.2.2 + timeBits a.2.2)
+      encDecoderArg encNat :=
+  unary_to_binary.comp (computableInPolyTime_pWidth s)
+
+private theorem computableInPolyTime_inWidth (s : ℕ) :
+    ComputableInPolyTime (fun a : DecoderArg => 4 + (s + colBits a.2.2 + timeBits a.2.2))
+      encDecoderArg encUnary :=
+  unary_add' (const 4) (computableInPolyTime_pWidth s)
+
+private theorem computableInPolyTime_inWidthNat (s : ℕ) :
+    ComputableInPolyTime (fun a : DecoderArg => 4 + (s + colBits a.2.2 + timeBits a.2.2))
+      encDecoderArg encNat :=
+  unary_to_binary.comp (computableInPolyTime_inWidth s)
+
+private theorem computableInPolyTime_chainBase (s : ℕ) :
+    ComputableInPolyTime
+      (fun a : DecoderArg => Decoder.chainBase (4 + (s + colBits a.2.2 + timeBits a.2.2)))
+      encDecoderArg encNat := by
+  unfold Decoder.chainBase
+  exact binary_add' (binary_mul' (const 2) (computableInPolyTime_inWidthNat s)) (const 2)
+
+private theorem computableInPolyTime_treeBase (s : ℕ) :
+    ComputableInPolyTime
+      (fun a : DecoderArg =>
+        Decoder.treeBase (4 + (s + colBits a.2.2 + timeBits a.2.2))
+          (s + colBits a.2.2 + timeBits a.2.2))
+      encDecoderArg encNat := by
+  unfold Decoder.treeBase
+  exact binary_add' (computableInPolyTime_chainBase s)
+    (binary_mul' (const 14) (computableInPolyTime_pWidthNat s))
+
 private theorem computableInPolyTime_chainFields (s j : ℕ) :
     let fn := fun a : DecoderArg =>
       Decoder.chain s (colBits a.2.2) (timeBits a.2.2) a.1.length a.2.1 a.2.2 j
@@ -218,18 +260,13 @@ private theorem computableInPolyTime_chainFields (s j : ℕ) :
   have hx : ComputableInPolyTime (fun a : DecoderArg => a.1) encDecoderArg encBits := fst _ _
   have hn : ComputableInPolyTime (fun a : DecoderArg => a.2.1) encDecoderArg encNat :=
     (fst _ _).comp (snd _ _)
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
+  have hT := computableInPolyTime_argT
   have hxlen : ComputableInPolyTime (fun a : DecoderArg => a.1.length) encDecoderArg encNat :=
     unary_to_binary.comp (length_bits_comp hx)
-  have hcb := computableInPolyTime_colBits hT
-  have htb := computableInPolyTime_timeBits hT
-  have hcbB := unary_to_binary.comp hcb
-  have htbB := unary_to_binary.comp htb
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => s + colBits a.2.2 + timeBits a.2.2) encDecoderArg encUnary :=
-    unary_add' (unary_add' (const s) hcb) htb
-  have hPB := unary_to_binary.comp hP
+  have hcbB := unary_to_binary.comp (computableInPolyTime_colBits hT)
+  have htbB := unary_to_binary.comp (computableInPolyTime_timeBits hT)
+  have hP := computableInPolyTime_pWidth s
+  have hPB := computableInPolyTime_pWidthNat s
   have hoff2 := binary_add' (const (4 + s)) hcbB
   have hK1 : ComputableInPolyTime
       (fun a : DecoderArg => 2 ^ (s + colBits a.2.2 + timeBits a.2.2) - 1)
@@ -310,20 +347,12 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
         Decoder.fieldGates s (colBits a.2.2) (timeBits a.2.2) a.1 a.2.1 a.2.2)
       encDecoderArg (encList encGate) := by
   have hx : ComputableInPolyTime (fun a : DecoderArg => a.1) encDecoderArg encBits := fst _ _
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
   have hxlenU : ComputableInPolyTime (fun a : DecoderArg => a.1.length) encDecoderArg encUnary :=
     length_bits_comp hx
-  have hcb := computableInPolyTime_colBits hT
-  have htb := computableInPolyTime_timeBits hT
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => s + colBits a.2.2 + timeBits a.2.2) encDecoderArg encUnary :=
-    unary_add' (unary_add' (const s) hcb) htb
-  have hN : ComputableInPolyTime
-      (fun a : DecoderArg => 4 + (s + colBits a.2.2 + timeBits a.2.2)) encDecoderArg encUnary :=
-    unary_add' (const 4) hP
-  have hNB := unary_to_binary.comp hN
-  have hPB := unary_to_binary.comp hP
+  have hP := computableInPolyTime_pWidth s
+  have hN := computableInPolyTime_inWidth s
+  have hNB := computableInPolyTime_inWidthNat s
+  have hPB := computableInPolyTime_pWidthNat s
   have hm : ComputableInPolyTime (fun a : DecoderArg => Nat.size a.1.length)
       encDecoderArg encUnary := binary_size.comp (unary_to_binary.comp hxlenU)
   -- Region 1: constants false and true.
@@ -451,13 +480,7 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
     have hℓ1B := unary_to_binary.comp hℓ1U
     have hpowPrev := binary_two_pow.comp hℓ1U
     have hN' := hNB.comp hp
-    have hP' := hPB.comp hp
-    have htbB : ComputableInPolyTime (fun q : (DecoderArg × ℕ) × ℕ =>
-        Decoder.treeBase (4 + (s + colBits q.1.1.2.2 + timeBits q.1.1.2.2))
-          (s + colBits q.1.1.2.2 + timeBits q.1.1.2.2)) encQ encNat := by
-      unfold Decoder.treeBase Decoder.chainBase
-      exact binary_add' (binary_add' (binary_mul' (const 2) hN') (const 2))
-        (binary_mul' (const 14) hP')
+    have htbB := (computableInPolyTime_treeBase s).comp hp
     have hbit : ComputableInPolyTime (fun q : (DecoderArg × ℕ) × ℕ => q.2.testBit (q.1.2 - 1))
         encQ encBool := binary_testBit hqB' hℓ1U
     have hbranch : ComputableInPolyTime (fun q : (DecoderArg × ℕ) × ℕ =>
@@ -497,13 +520,7 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
     have hpowm := binary_two_pow.comp hmU
     have hpowm1 := binary_two_pow.comp (unary_add' hmU (const 1))
     have haN := hNB.comp ha
-    have haP := hPB.comp ha
-    have htb : ComputableInPolyTime (fun p : DecoderArg × ℕ =>
-        Decoder.treeBase (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
-          (s + colBits p.1.2.2 + timeBits p.1.2.2)) encP encNat := by
-      unfold Decoder.treeBase Decoder.chainBase
-      exact binary_add' (binary_add' (binary_mul' (const 2) haN) (const 2))
-        (binary_mul' (const 14) haP)
+    have htb := (computableInPolyTime_treeBase s).comp ha
     have hob : ComputableInPolyTime (fun p : DecoderArg × ℕ =>
         Decoder.orBase (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
           (s + colBits p.1.2.2 + timeBits p.1.2.2) (Nat.size p.1.1.length)) encP encNat := by
@@ -535,14 +552,14 @@ private theorem computableInPolyTime_aWidth (s : ℕ) :
       (fun a : DecoderArg => Decoder.aWidth s (colBits a.2.2) (timeBits a.2.2) a.1 a.2.1 a.2.2)
       encDecoderArg encUnary := by
   unfold Decoder.aWidth
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => s + colBits a.2.2 + timeBits a.2.2) encDecoderArg encUnary :=
-    unary_add' (unary_add' (const s) (computableInPolyTime_colBits hT))
-      (computableInPolyTime_timeBits hT)
-  have hfgLen := (length_list encGate).comp (computableInPolyTime_fieldGates s)
-  exact unary_add' (unary_add' (const 4) hP) hfgLen
+  exact unary_add' (computableInPolyTime_inWidth s)
+    ((length_list encGate).comp (computableInPolyTime_fieldGates s))
+
+private theorem computableInPolyTime_aWidthNat (s : ℕ) :
+    ComputableInPolyTime
+      (fun a : DecoderArg => Decoder.aWidth s (colBits a.2.2) (timeBits a.2.2) a.1 a.2.1 a.2.2)
+      encDecoderArg encNat :=
+  unary_to_binary.comp (computableInPolyTime_aWidth s)
 
 private theorem computableInPolyTime_wireNat (s : ℕ) (j : Fin 28) :
     ComputableInPolyTime
@@ -554,28 +571,18 @@ private theorem computableInPolyTime_wireNat (s : ℕ) (j : Fin 28) :
   have hoU : ComputableInPolyTime (fun p : DecoderArg × ℕ => p.2) encP encUnary := snd _ _
   have hx : ComputableInPolyTime (fun p : DecoderArg × ℕ => p.1.1) encP encBits :=
     (fst _ _).comp ha
-  have hT : ComputableInPolyTime (fun p : DecoderArg × ℕ => p.1.2.2) encP encNat :=
-    ((snd _ _).comp (snd _ _)).comp ha
+  have hT := computableInPolyTime_argT.comp ha
   have h2T := binary_mul' (const 2) hT
   have hcbU := computableInPolyTime_colBits hT
   have htbU := computableInPolyTime_timeBits hT
   have hcbB := unary_to_binary.comp hcbU
   have htbB := unary_to_binary.comp htbU
-  have hPU := unary_add' (unary_add' (const s) hcbU) htbU
-  have hPB := unary_to_binary.comp hPU
-  have hNB := unary_to_binary.comp (unary_add' (const 4) hPU)
-  have haWB := unary_to_binary.comp ((computableInPolyTime_aWidth s).comp ha)
-  have hcb_base : ComputableInPolyTime
-      (fun p : DecoderArg × ℕ => Decoder.chainBase (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2)))
-      encP encNat := by
-    unfold Decoder.chainBase
-    exact binary_add' (binary_mul' (const 2) hNB) (const 2)
-  have htbB_base : ComputableInPolyTime
-      (fun p : DecoderArg × ℕ =>
-        Decoder.treeBase (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
-          (s + colBits p.1.2.2 + timeBits p.1.2.2)) encP encNat := by
-    unfold Decoder.treeBase
-    exact binary_add' hcb_base (binary_mul' (const 14) hPB)
+  have hPU := (computableInPolyTime_pWidth s).comp ha
+  have hPB := (computableInPolyTime_pWidthNat s).comp ha
+  have hNB := (computableInPolyTime_inWidthNat s).comp ha
+  have haWB := (computableInPolyTime_aWidthNat s).comp ha
+  have hcb_base := (computableInPolyTime_chainBase s).comp ha
+  have htbB_base := (computableInPolyTime_treeBase s).comp ha
   have hmU := binary_size.comp (unary_to_binary.comp (length_bits_comp hx))
   have hpowm1 := binary_two_pow.comp (unary_add' hmU (const 1))
   have hob_base : ComputableInPolyTime
@@ -689,27 +696,9 @@ private theorem computableInPolyTime_keyWires (k : ℕ) (State : Type) [Fintype 
         (List.range (4 + slotBits k State + 14)).map
           (Decoder.keyWire (slotBits k State) (colBits a.2.2) (timeBits a.2.2))))
       encDecoderArg encCode := by
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => slotBits k State + colBits a.2.2 + timeBits a.2.2)
-      encDecoderArg encUnary :=
-    unary_add' (unary_add' (const (slotBits k State)) (computableInPolyTime_colBits hT))
-      (computableInPolyTime_timeBits hT)
-  have hNB : ComputableInPolyTime
-      (fun a : DecoderArg => 4 + (slotBits k State + colBits a.2.2 + timeBits a.2.2))
-      encDecoderArg encNat :=
-    (unary_to_binary.comp (unary_add' (const 4) hP)).of_enc_eq fun _ => rfl
-  have hPB : ComputableInPolyTime
-      (fun a : DecoderArg => slotBits k State + colBits a.2.2 + timeBits a.2.2)
-      encDecoderArg encNat :=
-    (unary_to_binary.comp hP).of_enc_eq fun _ => rfl
+  have hPB := computableInPolyTime_pWidthNat (slotBits k State)
+  have hcbB := computableInPolyTime_chainBase (slotBits k State)
   refine (const []).prod (mapConst (List.range (4 + slotBits k State + 14)) fun i _ => ?_)
-  have hcbB : ComputableInPolyTime (fun a : DecoderArg =>
-      Decoder.chainBase (4 + (slotBits k State + colBits a.2.2 + timeBits a.2.2)))
-      encDecoderArg encNat := by
-    unfold Decoder.chainBase
-    exact binary_add' (binary_mul' (const 2) hNB) (const 2)
   unfold Decoder.keyWire
   split_ifs
   · exact const _
@@ -734,23 +723,9 @@ private theorem computableInPolyTime_midCode {k : ℕ} {State : Type} [Fintype S
           List.range (Decoder.aWidth (slotBits k State) (colBits a.2.2) (timeBits a.2.2)
             a.1 a.2.1 a.2.2)))
       encDecoderArg encCode := by
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => slotBits k State + colBits a.2.2 + timeBits a.2.2)
-      encDecoderArg encUnary :=
-    unary_add' (unary_add' (const (slotBits k State)) (computableInPolyTime_colBits hT))
-      (computableInPolyTime_timeBits hT)
-  have hNB : ComputableInPolyTime
-      (fun a : DecoderArg => 4 + (slotBits k State + colBits a.2.2 + timeBits a.2.2))
-      encDecoderArg encNat :=
-    (unary_to_binary.comp (unary_add' (const 4) hP)).of_enc_eq fun _ => rfl
+  have hNB := computableInPolyTime_inWidthNat (slotBits k State)
   have haW := computableInPolyTime_aWidth (slotBits k State)
-  have haWB : ComputableInPolyTime
-      (fun a : DecoderArg =>
-        Decoder.aWidth (slotBits k State) (colBits a.2.2) (timeBits a.2.2) a.1 a.2.1 a.2.2)
-      encDecoderArg encNat :=
-    (unary_to_binary.comp haW).of_enc_eq fun _ => rfl
+  have haWB := computableInPolyTime_aWidthNat (slotBits k State)
   have haRange : ComputableInPolyTime
       (fun a : DecoderArg =>
         List.range (Decoder.aWidth (slotBits k State) (colBits a.2.2) (timeBits a.2.2)
@@ -782,18 +757,8 @@ private theorem computableInPolyTime_outStage (k : ℕ) (State : Type) [Fintype 
             (fun j => Decoder.wireNat (slotBits k State) (colBits a.2.2) (timeBits a.2.2)
               a.1 a.2.1 a.2.2 o j)))
       encDecoderArg encCode := by
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => slotBits k State + colBits a.2.2 + timeBits a.2.2)
-      encDecoderArg encUnary :=
-    unary_add' (unary_add' (const (slotBits k State)) (computableInPolyTime_colBits hT))
-      (computableInPolyTime_timeBits hT)
-  have haWB : ComputableInPolyTime
-      (fun a : DecoderArg =>
-        Decoder.aWidth (slotBits k State) (colBits a.2.2) (timeBits a.2.2) a.1 a.2.1 a.2.2)
-      encDecoderArg encNat :=
-    (unary_to_binary.comp (computableInPolyTime_aWidth (slotBits k State))).of_enc_eq fun _ => rfl
+  have hP := computableInPolyTime_pWidth (slotBits k State)
+  have haWB := computableInPolyTime_aWidthNat (slotBits k State)
   have houtCount : ComputableInPolyTime (fun a : DecoderArg =>
       3 * (2 + (slotBits k State + colBits a.2.2 + timeBits a.2.2) + 1))
       encDecoderArg encUnary :=
@@ -826,19 +791,9 @@ theorem computableInPolyTime_decoderCode {k : ℕ} {State : Type} [Fintype State
     ComputableInPolyTime (Decoder.decoderCode tm)
       (encPair encBits (encPair encNat encNat)) encCode := by
   change ComputableInPolyTime (Decoder.decoderCode tm) encDecoderArg encCode
-  have hT : ComputableInPolyTime (fun a : DecoderArg => a.2.2) encDecoderArg encNat :=
-    (snd _ _).comp (snd _ _)
-  have hP : ComputableInPolyTime
-      (fun a : DecoderArg => slotBits k State + colBits a.2.2 + timeBits a.2.2)
-      encDecoderArg encUnary :=
-    unary_add' (unary_add' (const (slotBits k State)) (computableInPolyTime_colBits hT))
-      (computableInPolyTime_timeBits hT)
-  have hNB : ComputableInPolyTime
-      (fun a : DecoderArg => 4 + (slotBits k State + colBits a.2.2 + timeBits a.2.2))
-      encDecoderArg encNat :=
-    (unary_to_binary.comp (unary_add' (const 4) hP)).of_enc_eq fun _ => rfl
-  refine (computableInPolyTime_compCode hNB (computableInPolyTime_outStage k State)
-    (computableInPolyTime_midCode tm)).of_enc_eq fun a => congrArg encCode ?_
+  refine (computableInPolyTime_compCode (computableInPolyTime_inWidthNat (slotBits k State))
+    (computableInPolyTime_outStage k State) (computableInPolyTime_midCode tm)).of_enc_eq
+      fun a => congrArg encCode ?_
   rcases a with ⟨x, n, T⟩
   rw [Decoder.decoderCode]
 
@@ -1161,15 +1116,9 @@ theorem eval_gateTracePoly_bitPoint {Q M : ℕ} (R : Type*) [CommRing R]
         have hna : (⟨u, show u < Q + c.size by omega⟩ : Fin (Q + c.size)) =
             Fin.natAdd Q ⟨u - Q, by omega⟩ := Fin.ext (by simp; omega)
         rw [hna, Fin.append_right, hagree (u - Q) hk, show Q + (u - Q) = u by omega]
-    have hm : 1 ≤ signature.Arity (c.code.1[j.val]'hj).1 →
-        (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := fun h1 => by
-      have hlen : 0 < (c.code.1[j.val]'hj).2.length := by
-        have := (hwf.getElem j.val hj).1; omega
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlen, Option.getD_some]
-      exact hargs _ (List.getElem_mem hlen)
-    have hm2 : 2 ≤ signature.Arity (c.code.1[j.val]'hj).1 →
-        (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := fun h2 => by
-      have hlen : 1 < (c.code.1[j.val]'hj).2.length := by
+    have harg_lt (idx : ℕ) (hidx : idx < signature.Arity (c.code.1[j.val]'hj).1) :
+        (c.code.1[j.val]'hj).2.getD idx 0 < Q + j.val := by
+      have hlen : idx < (c.code.1[j.val]'hj).2.length := by
         have := (hwf.getElem j.val hj).1; omega
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlen, Option.getD_some]
       exact hargs _ (List.getElem_mem hlen)
@@ -1177,19 +1126,19 @@ theorem eval_gateTracePoly_bitPoint {Q M : ℕ} (R : Type*) [CommRing R]
     cases hop : (c.code.1[j.val]'hj).1 with
     | const v => cases v <;> simp [opEvalField, Op.value, bitVal]
     | not =>
-      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := hm (by simp [hop])
+      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := harg_lt 0 (by simp [hop])
       simp only [opEvalField, map_sub, map_one]
       rw [hstep _ h0, ← opEvalField_bitVal Op.not]
       simp [opEvalField]
     | and =>
-      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := hm (by simp [hop])
-      have h1 : (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := hm2 (by simp [hop])
+      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := harg_lt 0 (by simp [hop])
+      have h1 : (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := harg_lt 1 (by simp [hop])
       simp only [opEvalField, map_mul]
       rw [hstep _ h0, hstep _ h1, ← opEvalField_bitVal Op.and]
       rfl
     | or =>
-      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := hm (by simp [hop])
-      have h1 : (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := hm2 (by simp [hop])
+      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := harg_lt 0 (by simp [hop])
+      have h1 : (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := harg_lt 1 (by simp [hop])
       simp only [opEvalField, map_sub, map_add, map_mul]
       rw [hstep _ h0, hstep _ h1, ← opEvalField_bitVal Op.or]
       rfl
@@ -1567,8 +1516,14 @@ theorem sumcheck_sound_of_not_satisfiable {Q L : ℕ} {F : Type} [Field F] [Fint
 
 /-! ### Uniform polynomial-time verifier evaluation over `ZMod p` -/
 
-private def mulMod (p x y : ℕ) : ℕ :=
+/-- Modular multiplication `(x * y) % p`, totalized to `0` at `p = 0`. -/
+def mulMod (p x y : ℕ) : ℕ :=
   if p = 0 then 0 else (x * y) % p
+
+/-- At `p = 0`, `mulMod` evaluates to `0`. -/
+@[simp]
+theorem mulMod_zero_left (x y : ℕ) : mulMod 0 x y = 0 :=
+  rfl
 
 private theorem mulMod_le (p x y : ℕ) : mulMod p x y ≤ p := by
   unfold mulMod
@@ -1597,6 +1552,21 @@ private theorem foldl_mulMod_eq {ι : Type} {p : ℕ} (hp : 0 < p) (f : ι → �
   | cons a l ih =>
     simp only [List.foldl_cons, List.map_cons, List.prod_cons, ih, natCast_mulMod hp, mul_assoc]
 
+private theorem natCast_mod_eq {p : ℕ} (x : ℕ) : ((x % p : ℕ) : ZMod p) = (x : ZMod p) :=
+  (ZMod.natCast_eq_natCast_iff _ _ p).mpr (Nat.mod_modEq x p)
+
+private theorem natCast_complementMod {p : ℕ} (hp : 0 < p) (x : ℕ) :
+    ((p + 1 - x % p : ℕ) : ZMod p) = 1 - (x : ZMod p) := by
+  have hle : x % p ≤ p + 1 := (Nat.mod_lt x hp).le.trans (Nat.le_succ p)
+  rw [Nat.cast_sub hle, Nat.cast_add, ZMod.natCast_self, zero_add, Nat.cast_one, natCast_mod_eq]
+
+private theorem zip_ofFn {α β : Type} {n : ℕ} (f : Fin n → α) (g : Fin n → β) :
+    (List.ofFn f).zip (List.ofFn g) = List.ofFn fun i => (f i, g i) := by
+  apply List.ext_getElem (by simp)
+  intro i hi _
+  simp only [List.length_zip, List.length_ofFn, min_self] at hi
+  simp
+
 /-- Natural-number mod-`p` evaluation of a De Morgan gate operation, matching `opEvalField` in
 `ZMod p` and bounded by `p` even at `p = 0`. -/
 def opEvalMod (p : ℕ) : Op → ℕ → ℕ → ℕ
@@ -1617,60 +1587,32 @@ def evalLitUnsatMod (p s v : ℕ) : ℕ :=
 @[simp] theorem natCast_opEvalMod {p : ℕ} (hp : 0 < p) (op : Op) (a b : ℕ) :
     ((opEvalMod p op a b : ℕ) : ZMod p) = opEvalField op (a : ZMod p) (b : ZMod p) := by
   have hp0 : p ≠ 0 := Nat.ne_of_gt hp
-  have hmod (x : ℕ) : ((x % p : ℕ) : ZMod p) = (x : ZMod p) := by
-    rw [ZMod.natCast_eq_natCast_iff]
-    exact Nat.mod_modEq x p
   cases op with
   | const v =>
     cases v
     · simp [opEvalMod, opEvalField, bitVal]
-    · simp [opEvalMod, opEvalField, bitVal, hp0, hmod]
+    · simp [opEvalMod, opEvalField, bitVal, hp0]
   | not =>
-    have hle : a % p ≤ p + 1 := (Nat.mod_lt a hp).le.trans (Nat.le_succ p)
-    simp only [opEvalMod, hp0, ↓reduceIte, opEvalField]
-    rw [hmod, Nat.cast_sub hle]
-    push_cast
-    simp
+    simp only [opEvalMod, hp0, ↓reduceIte, opEvalField, natCast_mod_eq, natCast_complementMod hp]
   | and =>
-    simp only [opEvalMod, hp0, ↓reduceIte, opEvalField]
-    rw [hmod]
-    push_cast
-    rfl
+    simp only [opEvalMod, hp0, ↓reduceIte, opEvalField, natCast_mod_eq, Nat.cast_mul]
   | or =>
     have hle : (a * b) % p ≤ p := (Nat.mod_lt (a * b) hp).le
     simp only [opEvalMod, hp0, ↓reduceIte, opEvalField]
-    rw [hmod, Nat.cast_add, Nat.cast_add, Nat.cast_sub hle, hmod]
+    rw [natCast_mod_eq, Nat.cast_add, Nat.cast_add, Nat.cast_sub hle, natCast_mod_eq]
     push_cast
     simp [sub_eq_add_neg]
 
 @[simp] theorem natCast_eqBitMod {p : ℕ} (hp : 0 < p) (u v : ℕ) :
     ((eqBitMod p u v : ℕ) : ZMod p) = eqBit (u : ZMod p) (v : ZMod p) := by
-  have hu : u % p ≤ p + 1 := (Nat.mod_lt u hp).le.trans (Nat.le_succ p)
-  have hv : v % p ≤ p + 1 := (Nat.mod_lt v hp).le.trans (Nat.le_succ p)
-  have hmod (x : ℕ) : ((x % p : ℕ) : ZMod p) = (x : ZMod p) := by
-    rw [ZMod.natCast_eq_natCast_iff]
-    exact Nat.mod_modEq x p
-  simp only [eqBitMod, Nat.ne_of_gt hp, ↓reduceIte, eqBit]
-  rw [hmod, Nat.cast_add, Nat.cast_mul, Nat.cast_mul, Nat.cast_sub hu, Nat.cast_sub hv]
-  push_cast
-  simp only [ZMod.natCast_self, zero_add]
-  have heq (x : ℕ) : (1 - (x : ZMod p)) = 1 - ((x % p : ℕ) : ZMod p) := by rw [hmod]
-  rw [heq u, heq v]
+  simp only [eqBitMod, Nat.ne_of_gt hp, ↓reduceIte, eqBit, natCast_mod_eq, Nat.cast_add,
+    Nat.cast_mul, natCast_complementMod hp]
 
 @[simp] theorem natCast_evalLitUnsatMod {p : ℕ} (hp : 0 < p) (s v : ℕ) :
     ((evalLitUnsatMod p s v : ℕ) : ZMod p) =
       (s : ZMod p) * (1 - (v : ZMod p)) + (1 - (s : ZMod p)) * (v : ZMod p) := by
-  have hs : s % p ≤ p + 1 := (Nat.mod_lt s hp).le.trans (Nat.le_succ p)
-  have hv : v % p ≤ p + 1 := (Nat.mod_lt v hp).le.trans (Nat.le_succ p)
-  have hmod (x : ℕ) : ((x % p : ℕ) : ZMod p) = (x : ZMod p) := by
-    rw [ZMod.natCast_eq_natCast_iff]
-    exact Nat.mod_modEq x p
-  simp only [evalLitUnsatMod, Nat.ne_of_gt hp, ↓reduceIte]
-  rw [hmod, Nat.cast_add, Nat.cast_mul, Nat.cast_mul, Nat.cast_sub hv, Nat.cast_sub hs]
-  push_cast
-  simp only [ZMod.natCast_self, zero_add]
-  have heq (x : ℕ) : (1 - (x : ZMod p)) = 1 - ((x % p : ℕ) : ZMod p) := by rw [hmod]
-  rw [heq s, heq v]
+  simp only [evalLitUnsatMod, Nat.ne_of_gt hp, ↓reduceIte, natCast_mod_eq, Nat.cast_add,
+    Nat.cast_mul, natCast_complementMod hp]
 
 /-- Evaluate the product `gateTracePoly` mod `p` on wire residue vector `z : List ℕ`. -/
 def evalGateTraceMod (p Q : ℕ) (z : List ℕ) (gates : List (Op × List ℕ)) : ℕ :=
@@ -1678,31 +1620,27 @@ def evalGateTraceMod (p Q : ℕ) (z : List ℕ) (gates : List (Op × List ℕ)) 
     let a := z.getD (g.2.getD 0 0) 0
     let b := z.getD (g.2.getD 1 0) 0
     let w := z.getD (Q + acc.1) 0
-    (acc.1 + 1, if p = 0 then 0 else (acc.2 * eqBitMod p w (opEvalMod p g.1 a b)) % p))
-    (0, if p = 0 then 0 else 1 % p)).2
+    (acc.1 + 1, mulMod p acc.2 (eqBitMod p w (opEvalMod p g.1 a b))))
+    (0, mulMod p 1 1)).2
 
 /-- Evaluate the multilinear equality indicator `eqCubePoly r` at `z` mod `p`. -/
 def eqCubeMod (p : ℕ) (rVec z : List ℕ) : ℕ :=
-  (rVec.zip z).foldl
-    (fun prod rz => if p = 0 then 0 else (prod * eqBitMod p rz.1 rz.2) % p)
-    (if p = 0 then 0 else 1 % p)
+  (rVec.zip z).foldl (fun prod rz => mulMod p prod (eqBitMod p rz.1 rz.2)) (mulMod p 1 1)
 
 /-- Evaluate the clause falsification product `clauseUnsatPoly` mod `p` given the wire residue
 vector `z`, the three sign wire indices `signWires`, and the oracle values `litVals`. -/
 def evalClauseUnsatMod (p : ℕ) (z signWires litVals : List ℕ) : ℕ :=
   (signWires.zip litVals).foldl
-    (fun prod sl => if p = 0 then 0 else (prod * evalLitUnsatMod p (z.getD sl.1 0) sl.2) % p)
-    (if p = 0 then 0 else 1 % p)
+    (fun prod sl => mulMod p prod (evalLitUnsatMod p (z.getD sl.1 0) sl.2))
+    (mulMod p 1 1)
 
 /-- Evaluate the full verifier constraint `tableauConstraintPoly c A r` at `z` mod `p` given
 circuit gates `gates`, challenge `rVec`, point `z`, sign output wires `signWires`, and three oracle
 evaluations `litVals`. -/
 def evalConstraintMod (p Q : ℕ) (gates : List (Op × List ℕ))
     (rVec z signWires litVals : List ℕ) : ℕ :=
-  if p = 0 then 0
-  else
-    ((if p = 0 then 0 else (eqCubeMod p rVec z * evalGateTraceMod p Q z gates) % p) *
-      evalClauseUnsatMod p z signWires litVals) % p
+  mulMod p (mulMod p (eqCubeMod p rVec z) (evalGateTraceMod p Q z gates))
+    (evalClauseUnsatMod p z signWires litVals)
 
 /-- `evalGateTraceMod` agrees with evaluating `gateTracePoly (ZMod p) c` in `ZMod p`. -/
 theorem natCast_evalGateTraceMod {p Q M : ℕ} (hp : 0 < p) (c : Circuit signature Q M)
@@ -1765,21 +1703,20 @@ theorem natCast_evalGateTraceMod {p Q M : ℕ} (hp : 0 < p) (c : Circuit signatu
   congr 1
   congr 1 <;> (unfold wireX; split_ifs <;> simp)
 
+private theorem natCast_foldl_mulMod_zip_ofFn {p N : ℕ} (hp : 0 < p) (f g : Fin N → ℕ)
+    (k : ℕ × ℕ → ℕ) :
+    ((((List.ofFn f).zip (List.ofFn g)).foldl (fun (prod : ℕ) xy => mulMod p prod (k xy))
+        (mulMod p 1 1) : ℕ) : ZMod p) =
+      ∏ i : Fin N, (k (f i, g i) : ZMod p) := by
+  rw [zip_ofFn, foldl_mulMod_eq hp, natCast_mulMod hp]
+  simp only [Nat.cast_one, mul_one, one_mul, List.map_ofFn, List.prod_ofFn]
+  rfl
+
 /-- `eqCubeMod` agrees with evaluating `eqCubePoly r` in `ZMod p`. -/
 theorem natCast_eqCubeMod {p N : ℕ} (hp : 0 < p) (r z : Fin N → ℕ) :
     ((eqCubeMod p (List.ofFn r) (List.ofFn z) : ℕ) : ZMod p) =
       MvPolynomial.eval (fun i => (z i : ZMod p)) (eqCubePoly fun i => (r i : ZMod p)) := by
-  have hzip : (List.ofFn r).zip (List.ofFn z) = List.ofFn fun i : Fin N => (r i, z i) := by
-    apply List.ext_getElem (by simp)
-    intro i hi _
-    simp only [List.length_zip, List.length_ofFn, min_self] at hi
-    simp
-  have hdef : eqCubeMod p (List.ofFn r) (List.ofFn z) =
-      ((List.ofFn r).zip (List.ofFn z)).foldl (fun prod rz => mulMod p prod (eqBitMod p rz.1 rz.2))
-        (mulMod p 1 1) := rfl
-  rw [hdef, hzip, foldl_mulMod_eq hp, natCast_mulMod hp]
-  simp only [Nat.cast_one, mul_one, one_mul, List.map_ofFn, List.prod_ofFn]
-  rw [eqCubePoly, map_prod]
+  rw [eqCubeMod, natCast_foldl_mulMod_zip_ofFn hp, eqCubePoly, map_prod]
   refine Finset.prod_congr rfl fun i _ => ?_
   simp [natCast_eqBitMod hp, eqBit]
 
@@ -1797,25 +1734,7 @@ theorem natCast_evalClauseUnsatMod {p Q L : ℕ} (hp : 0 < p)
         (List.ofFn fun r : Fin 3 => (c.outputs (SuccinctVerifier.signWire L r)).toNat)
         (List.ofFn val) : ℕ) : ZMod p) =
       MvPolynomial.eval (fun i => (z i : ZMod p)) (clauseUnsatPoly c A) := by
-  have hzip :
-      (List.ofFn fun r : Fin 3 => (c.outputs (SuccinctVerifier.signWire L r)).toNat).zip
-        (List.ofFn val) =
-      List.ofFn fun r : Fin 3 =>
-        ((c.outputs (SuccinctVerifier.signWire L r)).toNat, val r) := by
-    apply List.ext_getElem (by simp)
-    intro i hi _
-    simp only [List.length_zip, List.length_ofFn, min_self] at hi
-    simp
-  have hdef : evalClauseUnsatMod p (List.ofFn z)
-        (List.ofFn fun r : Fin 3 => (c.outputs (SuccinctVerifier.signWire L r)).toNat)
-        (List.ofFn val) =
-      ((List.ofFn fun r : Fin 3 => (c.outputs (SuccinctVerifier.signWire L r)).toNat).zip
-        (List.ofFn val)).foldl
-        (fun prod sl => mulMod p prod (evalLitUnsatMod p ((List.ofFn z).getD sl.1 0) sl.2))
-        (mulMod p 1 1) := rfl
-  rw [hdef, hzip, foldl_mulMod_eq hp, natCast_mulMod hp]
-  simp only [Nat.cast_one, mul_one, one_mul, List.map_ofFn, List.prod_ofFn]
-  rw [clauseUnsatPoly, map_prod]
+  rw [evalClauseUnsatMod, natCast_foldl_mulMod_zip_ofFn hp, clauseUnsatPoly, map_prod]
   refine Finset.prod_congr rfl fun r _ => ?_
   have hs :
       ((List.ofFn z).getD (c.outputs (SuccinctVerifier.signWire L r)).toNat 0 : ZMod p) =
@@ -1839,15 +1758,7 @@ theorem natCast_evalConstraintMod {p Q L : ℕ} (hp : 0 < p)
         (List.ofFn val) : ℕ) : ZMod p) =
       MvPolynomial.eval (fun i => (z i : ZMod p))
         (tableauConstraintPoly c A fun i => (r i : ZMod p)) := by
-  have hdef : evalConstraintMod p Q c.code.1 (List.ofFn r) (List.ofFn z)
-        (List.ofFn fun j : Fin 3 => (c.outputs (SuccinctVerifier.signWire L j)).toNat)
-        (List.ofFn val) =
-      mulMod p (mulMod p (eqCubeMod p (List.ofFn r) (List.ofFn z))
-          (evalGateTraceMod p Q (List.ofFn z) c.code.1))
-        (evalClauseUnsatMod p (List.ofFn z)
-          (List.ofFn fun j : Fin 3 => (c.outputs (SuccinctVerifier.signWire L j)).toNat)
-          (List.ofFn val)) := rfl
-  rw [hdef, natCast_mulMod hp, natCast_mulMod hp, natCast_eqCubeMod hp,
+  rw [evalConstraintMod, natCast_mulMod hp, natCast_mulMod hp, natCast_eqCubeMod hp,
     natCast_evalGateTraceMod hp, natCast_evalClauseUnsatMod hp c A z val hval,
     tableauConstraintPoly, map_mul, map_mul]
 
