@@ -184,6 +184,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Algorithms.Lean.MaxFlow.WeightedMatching
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
+public import CslibFrontier.Algorithms.Lean.OnlineMatching.AdWords
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Basic
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Knuth
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Yao
@@ -4032,6 +4033,8 @@ public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
 public import CslibFrontier.Computability.LocallyDecodable.Basic
 public import CslibFrontier.Computability.LocallyDecodable.Hadamard
+public import CslibFrontier.Computability.LocallyDecodable.LowerBound
+public import CslibFrontier.Computability.LocallyDecodable.Matching
 public import CslibFrontier.Computability.LocallyDecodable.OneQuery
 public import CslibFrontier.Computability.LocallyDecodable.Smoothing
 public import CslibFrontier.Computability.LogSpaceDerandomization.AtomCutoffs
@@ -5023,7 +5026,9 @@ public import CslibFrontier.Computability.PCP.Approximation.FGLSS
 public import CslibFrontier.Computability.PCP.Approximation.FGLSSRuntime
 public import CslibFrontier.Computability.PCP.Approximation.GapLin
 public import CslibFrontier.Computability.PCP.Approximation.Hastad
+public import CslibFrontier.Computability.PCP.Approximation.Hastad.Hardness
 public import CslibFrontier.Computability.PCP.Approximation.Hastad.LinearTest
+public import CslibFrontier.Computability.PCP.Approximation.Hastad.Reduction
 public import CslibFrontier.Computability.PCP.Approximation.IndependentSet
 public import CslibFrontier.Computability.PCP.Approximation.Johnson
 public import CslibFrontier.Computability.PCP.Approximation.KCenter
@@ -5045,6 +5050,14 @@ public import CslibFrontier.Computability.PCP.Approximation.ThreeXOR
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Complexity
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Extend
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.ExtractCheck
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Layout
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Model
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Settle
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.SetupBuckets
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.StartPrune
+public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime.Steps
 public import CslibFrontier.Computability.PCP.AssignmentTester
 public import CslibFrontier.Computability.PCP.AssignmentTester.Selection
 public import CslibFrontier.Computability.PCP.Completeness
@@ -9049,6 +9062,7 @@ public import CslibFrontier.GameTheory.Mechanism.Online.DynamicVCG
 public import CslibFrontier.GameTheory.Mechanism.Online.ExpiringItems
 public import CslibFrontier.GameTheory.Mechanism.Online.PostedPrice
 public import CslibFrontier.GameTheory.Mechanism.OptimalAuction
+public import CslibFrontier.GameTheory.Mechanism.PostedPrice
 public import CslibFrontier.GameTheory.Mechanism.Randomized
 public import CslibFrontier.GameTheory.Mechanism.Revenue
 public import CslibFrontier.GameTheory.Mechanism.Scheduling.UnrelatedMachines
@@ -9623,6 +9637,7 @@ public import CslibFrontier.Logics.Propositional.CSP.ToBoolean
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF.Count
 public import CslibFrontier.Logics.Propositional.CSP.ToOneHotCNF
+public import CslibFrontier.Logics.Propositional.CSP.UnsatVal
 public import CslibFrontier.Logics.Propositional.CSP.Vars
 public import CslibFrontier.Logics.Propositional.ClauseSet.Basic
 public import CslibFrontier.Logics.Propositional.ClauseSet.Satisfiable
@@ -10069,6 +10084,7 @@ public import CslibFrontier.Probability.MutualInformation.DataProcessing
 public import CslibFrontier.Probability.OptimalStopping.Basic
 public import CslibFrontier.Probability.OptimalStopping.Prophet
 public import CslibFrontier.Probability.OptimalStopping.ProphetIID
+public import CslibFrontier.Probability.OptimalStopping.ProphetSample
 public import CslibFrontier.Probability.OptimalStopping.Secretary
 public import CslibFrontier.Probability.Option
 public import CslibFrontier.Probability.PMF
