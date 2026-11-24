@@ -170,6 +170,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.HopcroftKarp
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Hungarian
 public import CslibFrontier.Algorithms.Lean.MaxFlow.LevelGraph
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Menger
+public import CslibFrontier.Algorithms.Lean.MaxFlow.MinCostFlow
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Preflow
 public import CslibFrontier.Algorithms.Lean.MaxFlow.PushRelabel
 public import CslibFrontier.Algorithms.Lean.MaxFlow.RealFlow
