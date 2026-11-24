@@ -8,7 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
 import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
-import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
 import Mathlib.Tactic.NormNum
 
 /-! # Characteristic-coefficient evaluator edge cases and uniform certificates -/
@@ -124,5 +124,17 @@ example :
   · rw [coeff_aeval_scale_X, hp]
     exact homogeneousComponent_eq_self (isHomogeneous_X ℤ (some 0))
   · rw [natDegree_aeval_scale_X, hp, totalDegree_X]
+
+-- At the quotient dimension the reversed index vanishes, so the top coefficient
+-- has degree zero even when the source contains a retained parameter.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inl 0) + X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (totalDegree_add _ _).trans (by simp)
+    ((relativeValuePolynomial (by decide : 1 ≤ 2) F hF).coeff 2).totalDegree = 0 := by
+  intro F hF
+  apply Nat.eq_zero_of_le_zero
+  simpa using totalDegree_relativeValuePolynomial_coeff_le (ell := 2) (by decide) F hF 2
 
 end CslibFrontierTests.RealAlgebraicCharacteristic
