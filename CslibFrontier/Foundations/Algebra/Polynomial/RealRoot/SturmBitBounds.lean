@@ -229,7 +229,8 @@ private theorem exists_cramer_rep_of_inj_mulVec {R N H : ℕ}
         ext a b
         change algebraMap ℤ ℚ (M.det * (1 : Matrix (Fin N) (Fin N) ℤ) a b) =
           (M.det : ℚ) * (1 : Matrix (Fin N) (Fin N) ℚ) a b
-        by_cases hab : a = b <;> simp [Matrix.one_apply, hab]
+        by_cases hab : a = b <;>
+          simp only [Matrix.one_apply, hab, ↓reduceIte, mul_one, mul_zero, eq_intCast, map_zero]
       rw [hmat, smul_mulVec, one_mulVec, Pi.smul_apply, smul_eq_mul]
     rw [hsmul, hrhs_j] at hj
     have hdQ : (M.det : ℚ) ≠ 0 := Int.cast_ne_zero.mpr hd0
@@ -473,53 +474,40 @@ private theorem bezoutSturm_uv_props {FQ₀ FQ₁ : ℚ[X]} (hd10 : FQ₁.natDeg
         bezoutSturm_natDegree_le_d1 hd10 hpos (m + 1) (by omega) (by omega)
       have hqu_ne : q * t1.2.1 ≠ 0 := mul_ne_zero hq0 hu1_0
       have hqu_nat : (q * t1.2.1).natDegree = FQ₁.natDegree - t1.1.natDegree := by
-        rw [natDegree_mul hq0 hu1_0, hq_deg, hu1_deg]
-        omega
-      have hu0_deg_lt : t0.2.1.degree < (q * t1.2.1).degree := by
-        rcases m with _ | m'
-        · have ht0_u : t0.2.1 = 0 := rfl
-          rw [ht0_u, degree_zero, degree_eq_natDegree hqu_ne]
-          exact WithBot.bot_lt_coe _
-        · have hih0 := ih m' (by omega) (by omega) (by omega)
-          dsimp only [Nat.add_sub_cancel] at hih0
-          obtain ⟨hu0_ne, hu0_deg, _, _, _⟩ := hih0
-          change t0.2.1 ≠ 0 at hu0_ne
-          have hu0_deg' :
-              t0.2.1.natDegree = FQ₁.natDegree - (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree :=
-            hu0_deg
-          have hprev : t0.1.natDegree < (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree :=
-            bezoutSturm_natDegree_lt hd10 hpos (m' + 2) (by omega) (by omega)
-          have hprev_d1 : (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree ≤ FQ₁.natDegree :=
-            bezoutSturm_natDegree_le_d1 hd10 hpos (m' + 1) (by omega) (by omega)
-          rw [degree_eq_natDegree hu0_ne, degree_eq_natDegree hqu_ne]
-          exact Nat.cast_lt.mpr (by rw [hu0_deg', hqu_nat]; omega)
-      obtain ⟨hu2_ne, hu2_deg, _⟩ := sub_ne_zero_and_natDegree_and_leadingCoeff hqu_ne hu0_deg_lt
+        rw [natDegree_mul hq0 hu1_0, hq_deg, hu1_deg]; omega
       have hqv_ne : q * t1.2.2 ≠ 0 := mul_ne_zero hq0 hv1_0
       have hqv_nat : (q * t1.2.2).natDegree = FQ₀.natDegree - t1.1.natDegree := by
-        rw [natDegree_mul hq0 hv1_0, hq_deg, hv1_deg]
-        omega
+        rw [natDegree_mul hq0 hv1_0, hq_deg, hv1_deg]; omega
+      have hdeg_lt_prev (m' D : ℕ) (hm'_eq : m = m' + 1)
+          (hD_bound : (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree ≤ D)
+          (a b : ℚ[X]) (ha : a ≠ 0) (hb : b ≠ 0)
+          (ha_deg : a.natDegree = D - (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree)
+          (hb_deg : b.natDegree = D - t1.1.natDegree) : a.degree < b.degree := by
+        have hprev : t0.1.natDegree < (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree := by
+          dsimp only [t0]; rw [hm'_eq]
+          exact bezoutSturm_natDegree_lt hd10 hpos (m' + 2) (by omega) (by omega)
+        rw [degree_eq_natDegree ha, degree_eq_natDegree hb]
+        exact Nat.cast_lt.mpr (by omega)
+      have hu0_deg_lt : t0.2.1.degree < (q * t1.2.1).degree := by
+        rcases m with _ | m'
+        · rw [show t0.2.1 = 0 from rfl, degree_zero, degree_eq_natDegree hqu_ne]
+          exact WithBot.bot_lt_coe _
+        · obtain ⟨hu0_ne, hu0_deg, _, _, _⟩ := ih m' (by omega) (by omega) (by omega)
+          exact hdeg_lt_prev m' FQ₁.natDegree rfl
+            (bezoutSturm_natDegree_le_d1 hd10 hpos (m' + 1) (by omega) (by omega))
+            t0.2.1 (q * t1.2.1) hu0_ne hqu_ne hu0_deg hqu_nat
+      obtain ⟨hu2_ne, hu2_deg, _⟩ := sub_ne_zero_and_natDegree_and_leadingCoeff hqu_ne hu0_deg_lt
       have hv0_deg_lt : t0.2.2.degree < (q * t1.2.2).degree := by
         rcases m with _ | m'
-        · have ht0_v : t0.2.2 = 1 := rfl
-          rw [ht0_v, degree_one, degree_eq_natDegree hqv_ne]
+        · rw [show t0.2.2 = 1 from rfl, degree_one, degree_eq_natDegree hqv_ne]
           have ht1_lt_d0 : t1.1.natDegree < FQ₀.natDegree :=
             lt_of_lt_of_le hdeg_t1_t0 (hdeg_t0_le_d1.trans hd10.le)
           rw [show (0 : WithBot ℕ) = ((0 : ℕ) : WithBot ℕ) from rfl]
           exact Nat.cast_lt.mpr (by rw [hqv_nat]; omega)
-        · have hih0 := ih m' (by omega) (by omega) (by omega)
-          dsimp only [Nat.add_sub_cancel] at hih0
-          obtain ⟨_, _, hv0_ne, hv0_deg, _⟩ := hih0
-          change t0.2.2 ≠ 0 at hv0_ne
-          have hv0_deg' :
-              t0.2.2.natDegree = FQ₀.natDegree - (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree :=
-            hv0_deg
-          have hprev : t0.1.natDegree < (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree :=
-            bezoutSturm_natDegree_lt hd10 hpos (m' + 2) (by omega) (by omega)
-          have hprev_d0 : (bezoutSturm FQ₀ FQ₁ (m' + 1)).1.natDegree < FQ₀.natDegree :=
-            lt_of_le_of_lt (bezoutSturm_natDegree_le_d1 hd10 hpos (m' + 1) (by omega) (by omega))
-              hd10
-          rw [degree_eq_natDegree hv0_ne, degree_eq_natDegree hqv_ne]
-          exact Nat.cast_lt.mpr (by rw [hv0_deg', hqv_nat]; omega)
+        · obtain ⟨_, _, hv0_ne, hv0_deg, _⟩ := ih m' (by omega) (by omega) (by omega)
+          exact hdeg_lt_prev m' FQ₀.natDegree rfl
+            ((bezoutSturm_natDegree_le_d1 hd10 hpos (m' + 1) (by omega) (by omega)).trans hd10.le)
+            t0.2.2 (q * t1.2.2) hv0_ne hqv_ne hv0_deg hqv_nat
       obtain ⟨hv2_ne, hv2_deg, hv2_lc⟩ :=
         sub_ne_zero_and_natDegree_and_leadingCoeff hqv_ne hv0_deg_lt
       have hlc_rel : (q * t1.2.2 - t0.2.2).leadingCoeff * t1.1.leadingCoeff =
@@ -638,16 +626,15 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
       (fun b : Fin nv => if b.1 ≤ d + r.1 then F₁.coeff (d + r.1 - b.1) else 0)
   let rhs : Fin R → ℤ := fun r => if r.1 = 0 then 1 else 0
   have hS_bound : ∀ r j, Int.natAbs (S r j) ≤ H := fun r j => by
+    have hb (P : ℤ[X]) (hP : ∀ m, Int.natAbs (P.coeff m) ≤ H) (k : ℕ) :
+        Int.natAbs (if k ≤ d + r.1 then P.coeff (d + r.1 - k) else 0) ≤ H := by
+      split_ifs
+      · exact hP _
+      · simp only [Int.natAbs_zero, Nat.zero_le]
     dsimp only [S]
     refine Fin.addCases (fun a => ?_) (fun b => ?_) j
-    · rw [Fin.addCases_left]
-      split_ifs
-      · exact hF₀ _
-      · simp only [Int.natAbs_zero, Nat.zero_le]
-    · rw [Fin.addCases_right]
-      split_ifs
-      · exact hF₁ _
-      · simp only [Int.natAbs_zero, Nat.zero_le]
+    · rw [Fin.addCases_left]; exact hb F₀ hF₀ a.1
+    · rw [Fin.addCases_right]; exact hb F₁ hF₁ b.1
   have hrhs_bound : ∀ r, Int.natAbs (rhs r) ≤ H := fun r => by
     dsimp only [rhs]
     split_ifs <;> omega
@@ -659,21 +646,13 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
     rw [coeff_add, coeff_polyFromFin_mul, coeff_polyFromFin_mul]
     change ∑ j : Fin (nu + nv), ((S.map (algebraMap ℤ ℚ)) r j) * z j = _
     rw [Fin.sum_univ_add]
-    congr 1
-    · refine Finset.sum_congr rfl fun a _ => ?_
-      change algebraMap ℤ ℚ (S r (Fin.castAdd nv a)) * z (Fin.castAdd nv a) = _
-      dsimp only [S]
-      rw [Fin.addCases_left]
-      split_ifs with ha
-      · dsimp only [FQ₀]; rw [coeff_map, mul_comm]
-      · simp only [map_zero, zero_mul, mul_zero]
-    · refine Finset.sum_congr rfl fun b _ => ?_
-      change algebraMap ℤ ℚ (S r (Fin.natAdd nu b)) * z (Fin.natAdd nu b) = _
-      dsimp only [S]
-      rw [Fin.addCases_right]
-      split_ifs with hb
-      · dsimp only [FQ₁]; rw [coeff_map, mul_comm]
-      · simp only [map_zero, zero_mul, mul_zero]
+    congr 1 <;> refine Finset.sum_congr rfl fun a _ => ?_
+    · change algebraMap ℤ ℚ (S r (Fin.castAdd nv a)) * z (Fin.castAdd nv a) = _
+      dsimp only [S, FQ₀]; rw [Fin.addCases_left]
+      split_ifs <;> simp only [coeff_map, mul_comm, map_zero, zero_mul]
+    · change algebraMap ℤ ℚ (S r (Fin.natAdd nu a)) * z (Fin.natAdd nu a) = _
+      dsimp only [S, FQ₁]; rw [Fin.addCases_right]
+      split_ifs <;> simp only [coeff_map, mul_comm, map_zero, zero_mul]
   let uTilde : ℚ[X] := C ti.1.leadingCoeff⁻¹ * ti.2.1
   let vTilde : ℚ[X] := C ti.1.leadingCoeff⁻¹ * ti.2.2
   let eTilde : ℚ[X] := C ti.1.leadingCoeff⁻¹ * ti.1
@@ -744,27 +723,17 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
           rw [coeff_polyFromFin, dite_eq_right (not_lt.mpr hlt_nv)]
         exact leadingCoeff_ne_zero.mpr hv_z hc0
     have hrhs_lt_d0 : ∀ m, d₀ ≤ m → (ti.2.2 * W - v * ti.1).coeff m = 0 := fun m hm => by
-      rw [coeff_sub]
-      have h1 : (ti.2.2 * W).coeff m = 0 := by
-        rcases hW_deg with hW0 | hWd
-        · simp only [hW0, mul_zero, coeff_zero]
-        · by_cases hmul0 : ti.2.2 * W = 0
+      have hmul_zero {P Q : ℚ[X]} (hP : P ≠ 0) (hdeg : Q = 0 ∨ P.natDegree + Q.natDegree < m) :
+          (P * Q).coeff m = 0 := by
+        rcases hdeg with rfl | hlt
+        · simp only [mul_zero, coeff_zero]
+        · by_cases hmul0 : P * Q = 0
           · simp only [hmul0, coeff_zero]
           · refine coeff_eq_zero_of_natDegree_lt ?_
-            have hW_ne : W ≠ 0 := fun h => hmul0 (by rw [h, mul_zero])
-            rw [natDegree_mul hv0 hW_ne, hv_deg]
-            omega
-      have h2 : (v * ti.1).coeff m = 0 := by
-        rcases hv_deg_bound with hv_z | hvd
-        · simp only [hv_z, zero_mul, coeff_zero]
-        · by_cases hmul0 : v * ti.1 = 0
-          · simp only [hmul0, coeff_zero]
-          · refine coeff_eq_zero_of_natDegree_lt ?_
-            have hv_ne : v ≠ 0 := fun h => hmul0 (by rw [h, zero_mul])
-            rw [natDegree_mul hv_ne hti0]
-            change v.natDegree + d < m
-            omega
-      rw [h1, h2, sub_self]
+            have hQ0 : Q ≠ 0 := fun h => hmul0 (by rw [h, mul_zero])
+            rwa [natDegree_mul hP hQ0]
+      rw [coeff_sub, hmul_zero hv0 (hW_deg.imp id fun h => by omega),
+        mul_comm v ti.1, hmul_zero hti0 (hv_deg_bound.imp id fun h => by omega), sub_self]
     have huv_rel : u * ti.2.2 - v * ti.2.1 = 0 := by
       by_contra hne
       have hprod_ne : (u * ti.2.2 - v * ti.2.1) * FQ₀ ≠ 0 := mul_ne_zero hne h0
@@ -845,28 +814,21 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   let UInt : ℤ[X] := polyFromFin (fun a : Fin nu => nums (Fin.castAdd nv a))
   let VInt : ℤ[X] := polyFromFin (fun b : Fin nv => nums (Fin.natAdd nu b))
   let EInt : ℤ[X] := UInt * F₀ + VInt * F₁
-  have hUInt_map : UInt.map (algebraMap ℤ ℚ) = C (dDet : ℚ) * uTilde := by
+  have hmap_part {K : ℕ} (idx : Fin K → Fin N) (p : ℚ[X]) (hp_deg : p.natDegree < K)
+      (hp_eq : ∀ a : Fin K, xSol (idx a) = p.coeff a.1) :
+      (polyFromFin (fun a : Fin K => nums (idx a))).map (algebraMap ℤ ℚ) =
+        C (dDet : ℚ) * p := by
     ext m
     rw [coeff_map, coeff_C_mul, coeff_polyFromFin]
-    by_cases hm : m < nu
-    · rw [dite_eq_left hm]
-      have hx := hxSol_rep (Fin.castAdd nv ⟨m, hm⟩)
-      simp only [xSol, Fin.addCases_left] at hx
-      have hdQ : (dDet : ℚ) ≠ 0 := Int.cast_ne_zero.mpr hdDet0
-      rw [hx, mul_div_cancel₀ _ hdQ, eq_intCast]
-    · rw [dite_eq_right hm, map_zero, coeff_eq_zero_of_natDegree_lt (huT_deg.trans_le (by omega)),
+    by_cases hm : m < K
+    · rw [dite_eq_left hm, ← hp_eq ⟨m, hm⟩, hxSol_rep (idx ⟨m, hm⟩),
+        mul_div_cancel₀ _ (Int.cast_ne_zero.mpr hdDet0), eq_intCast]
+    · rw [dite_eq_right hm, map_zero, coeff_eq_zero_of_natDegree_lt (hp_deg.trans_le (by omega)),
         mul_zero]
-  have hVInt_map : VInt.map (algebraMap ℤ ℚ) = C (dDet : ℚ) * vTilde := by
-    ext m
-    rw [coeff_map, coeff_C_mul, coeff_polyFromFin]
-    by_cases hm : m < nv
-    · rw [dite_eq_left hm]
-      have hx := hxSol_rep (Fin.natAdd nu ⟨m, hm⟩)
-      simp only [xSol, Fin.addCases_right] at hx
-      have hdQ : (dDet : ℚ) ≠ 0 := Int.cast_ne_zero.mpr hdDet0
-      rw [hx, mul_div_cancel₀ _ hdQ, eq_intCast]
-    · rw [dite_eq_right hm, map_zero, coeff_eq_zero_of_natDegree_lt (hvT_deg.trans_le (by omega)),
-        mul_zero]
+  have hUInt_map : UInt.map (algebraMap ℤ ℚ) = C (dDet : ℚ) * uTilde :=
+    hmap_part (Fin.castAdd nv) uTilde huT_deg fun a => by simp only [xSol, Fin.addCases_left]
+  have hVInt_map : VInt.map (algebraMap ℤ ℚ) = C (dDet : ℚ) * vTilde :=
+    hmap_part (Fin.natAdd nu) vTilde hvT_deg fun b => by simp only [xSol, Fin.addCases_right]
   have hEInt_map : EInt.map (algebraMap ℤ ℚ) = C (dDet : ℚ) * eTilde := by
     dsimp only [EInt, FQ₀, FQ₁] at *
     rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_mul, hUInt_map, hVInt_map,
@@ -1253,50 +1215,17 @@ theorem hasCoeffBitBound_of_mem_sturmSeqList {B : ℕ} {cs : List ℚ} (hB : Has
             Nat.mul_le_mul_right _
               (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 2 hn_two_pow))
         _ = 2 ^ (n + 1 + 3 * eH + (n + 1) * eM) := by
-            rw [show 2 * 2 ^ n = 2 ^ (n + 1) by ring, ← pow_mul, ← pow_mul, mul_comm eH 3,
-              mul_comm eM (n + 1), ← pow_add, ← pow_add]
+            rw [(pow_succ' 2 n).symm, ← pow_mul, ← pow_mul, mul_comm eH 3, mul_comm eM (n + 1),
+              ← pow_add, ← pow_add]
     refine hpow_form.trans (Nat.pow_le_pow_right zero_lt_two ?_)
-    have heH_le : n + 1 + eH ≤ 2 * (n + 1) * (B + 1) := by
-      dsimp only [eH]
-      calc n + 1 + (n + (n + 1) * B)
-          = (2 * n + 1) + (n + 1) * B := by ring
-        _ ≤ 2 * (n + 1) + (n + 1) * B := by omega
-        _ ≤ 2 * (n + 1) + 2 * (n + 1) * B := by
-            have : (n + 1) * B ≤ 2 * (n + 1) * B :=
-              Nat.mul_le_mul_right B (Nat.le_mul_of_pos_left _ zero_lt_two)
-            omega
-        _ = 2 * (n + 1) * (B + 1) := by ring
+    have heH_le : n + 1 + eH ≤ 2 * (n + 1) * (B + 1) := by dsimp only [eH]; nlinarith
     have heM_le : eM ≤ 4 * (n + 1) ^ 2 * (B + 1) := by
-      dsimp only [eM]
-      calc 2 * n * (n + 1 + eH)
-          ≤ 2 * (n + 1) * (2 * (n + 1) * (B + 1)) :=
+      calc eM = 2 * n * (n + 1 + eH) := rfl
+        _ ≤ 2 * (n + 1) * (2 * (n + 1) * (B + 1)) :=
             Nat.mul_le_mul (Nat.mul_le_mul_left 2 (Nat.le_succ n)) heH_le
         _ = 4 * (n + 1) ^ 2 * (B + 1) := by ring
-    have hpart1 : n + 1 + 3 * eH ≤ 4 * (n + 1) ^ 3 * (B + 1) := by
-      have h6 : 6 * (n + 1) ≤ 4 * (n + 1) ^ 2 := by
-        calc 6 * (n + 1) ≤ (4 * 2) * (n + 1) := by omega
-          _ ≤ 4 * (n + 1) * (n + 1) :=
-              Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 4 (by omega))
-          _ = 4 * (n + 1) ^ 2 := by ring
-      calc n + 1 + 3 * eH
-          ≤ 3 * (n + 1 + eH) := by omega
-        _ ≤ 3 * (2 * (n + 1) * (B + 1)) := Nat.mul_le_mul_left 3 heH_le
-        _ = (6 * (n + 1)) * (B + 1) := by ring
-        _ ≤ (4 * (n + 1) ^ 2) * (B + 1) := Nat.mul_le_mul_right _ h6
-        _ = 4 * ((n + 1) ^ 2 * 1) * (B + 1) := by ring
-        _ ≤ 4 * ((n + 1) ^ 2 * (n + 1)) * (B + 1) :=
-            Nat.mul_le_mul_right _
-              (Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left _ (by omega)))
-        _ = 4 * (n + 1) ^ 3 * (B + 1) := by ring
-    have hpart2 : (n + 1) * eM ≤ 4 * (n + 1) ^ 3 * (B + 1) := by
-      calc (n + 1) * eM
-          ≤ (n + 1) * (4 * (n + 1) ^ 2 * (B + 1)) := Nat.mul_le_mul_left _ heM_le
-        _ = 4 * (n + 1) ^ 3 * (B + 1) := by ring
     dsimp only [sturmBitBound]
-    calc n + 1 + 3 * eH + (n + 1) * eM
-        ≤ 4 * (n + 1) ^ 3 * (B + 1) + 4 * (n + 1) ^ 3 * (B + 1) :=
-          Nat.add_le_add hpart1 hpart2
-      _ = 8 * (n + 1) ^ 3 * (B + 1) := by ring
+    nlinarith [Nat.pow_le_pow_left hn_pos 2]
   have hnum_K : Int.natAbs qr.num ≤ Kbig := by
     dsimp only [Kbig]
     calc Int.natAbs qr.num
