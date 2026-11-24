@@ -125,7 +125,7 @@ theorem isPACLearnerFor_thresholdClassUpTo_ten :
 exists, but the size-`1` threshold scheme learns them from five examples to accuracy and
 confidence `1 / 2`. -/
 theorem isPACLearnerFor_thresholdClass_five :
-    IsPACLearnerFor 5 half half thresholdClass (realizableDistributions thresholdClass) :=
+    IsPACLearnerFor 5 half half (thresholdClass ℕ) (realizableDistributions (thresholdClass ℕ)) :=
   (lowerSetScheme.ofSubset thresholdClass_subset_lowerSetClass).isPACLearnerFor
     (measurableReconstruction_of_countable _) (by norm_num [half])
 
