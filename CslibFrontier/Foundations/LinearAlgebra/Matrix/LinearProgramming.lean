@@ -139,8 +139,8 @@ theorem dotProduct_le_dotProduct_of_mulVec_le {A : Matrix ι κ K} {b : ι → K
     {x : κ → K} {y : ι → K} (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hyA : y ᵥ* A = c) :
     c ⬝ᵥ x ≤ y ⬝ᵥ b := by
   have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hx hy
-    (fun j hj => False.elim (by simpa [hyA] using hj))
-    (fun j hj => False.elim (by simpa [hyA] using hj))
+    (fun j hj => False.elim (by simp [hyA] at hj))
+    (fun j hj => False.elim (by simp [hyA] at hj))
   simpa using h
 
 /-- A linear objective bounded above on a nonempty polyhedron `A *ᵥ x ≤ b` attains its maximum at
