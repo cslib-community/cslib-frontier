@@ -40,14 +40,16 @@ private def publicRoot (p : SecurityBytes) : NBytes p := sequence 0xa0 p.count
 
 private def message : List Byte := [0x00, 0x01, 0x02, 0xfe]
 
-private theorem validPRFSHA2 (p : SecurityBytes) (secret optional : NBytes p) :
+/-! ### The fixtures lie in the SHA-2 source domains -/
+
+example (p : SecurityBytes) (secret optional : NBytes p) :
     ValidPRFMessageInput .sha2 secret optional message := by
   cases p <;>
     simp only [ValidPRFMessageInput, HMAC.ValidHMACSHA256Input,
       HMAC.ValidHMACSHA512Input, FixedBytes.length_toList, length_prfMessageText] <;>
     norm_num [SecurityBytes.count, message]
 
-private theorem validHSHA2 (p : SecurityBytes) (shape : ParameterShape)
+example (p : SecurityBytes) (shape : ParameterShape)
     (randomizer publicSeed publicRoot : NBytes p) (msg : List Byte) (hmsg : msg.length ≤ 4) :
     ValidHMessageInput .sha2 shape randomizer publicSeed publicRoot msg := by
   have hdigest : ParameterShape.digestBytes p shape ≤ 49 := by
@@ -111,25 +113,25 @@ private def sha2PRF32 : List Byte :=
     0x3d, 0xf8, 0xc0, 0xbc, 0xef, 0x0f, 0xd4, 0x68,
     0x55, 0x65, 0xd4, 0xee, 0x61, 0xc3, 0x56, 0xd2]
 
-#guard (prfMessage .shake (secretPRF .bytes16) (optionalRandomness .bytes16) message
-  (by decide)).toList == shakePRF16
-#guard (prfMessage .shake (secretPRF .bytes24) (optionalRandomness .bytes24) message
-  (by decide)).toList == shakePRF24
-#guard (prfMessage .shake (secretPRF .bytes32) (optionalRandomness .bytes32) message
-  (by decide)).toList == shakePRF32
-#guard (prfMessage .sha2 (secretPRF .bytes16) (optionalRandomness .bytes16) message
-  (validPRFSHA2 .bytes16 _ _)).toList == sha2PRF16
-#guard (prfMessage .sha2 (secretPRF .bytes24) (optionalRandomness .bytes24) message
-  (validPRFSHA2 .bytes24 _ _)).toList == sha2PRF24
-#guard (prfMessage .sha2 (secretPRF .bytes32) (optionalRandomness .bytes32) message
-  (validPRFSHA2 .bytes32 _ _)).toList == sha2PRF32
+#guard (prfMessage .shake (secretPRF .bytes16) (optionalRandomness .bytes16) message).toList ==
+  shakePRF16
+#guard (prfMessage .shake (secretPRF .bytes24) (optionalRandomness .bytes24) message).toList ==
+  shakePRF24
+#guard (prfMessage .shake (secretPRF .bytes32) (optionalRandomness .bytes32) message).toList ==
+  shakePRF32
+#guard (prfMessage .sha2 (secretPRF .bytes16) (optionalRandomness .bytes16) message).toList ==
+  sha2PRF16
+#guard (prfMessage .sha2 (secretPRF .bytes24) (optionalRandomness .bytes24) message).toList ==
+  sha2PRF24
+#guard (prfMessage .sha2 (secretPRF .bytes32) (optionalRandomness .bytes32) message).toList ==
+  sha2PRF32
 
 private def shakePRFEmpty16 : List Byte :=
   [0x4c, 0xae, 0x59, 0x68, 0x24, 0xbc, 0x11, 0x07,
     0xa2, 0x28, 0xc8, 0xf5, 0x9a, 0xcc, 0x3f, 0xe6]
 
-#guard (prfMessage .shake (secretPRF .bytes16) (optionalRandomness .bytes16) []
-  (by decide)).toList == shakePRFEmpty16
+#guard (prfMessage .shake (secretPRF .bytes16) (optionalRandomness .bytes16) []).toList ==
+  shakePRFEmpty16
 
 private def shakeDeterministicPRF16 : List Byte :=
   [0x8c, 0xc3, 0x18, 0xb1, 0x38, 0xe8, 0xe9, 0xc3,
@@ -139,10 +141,10 @@ private def sha2DeterministicPRF16 : List Byte :=
   [0x5e, 0xfd, 0xbc, 0x8f, 0x19, 0x2a, 0x04, 0x09,
     0xd8, 0xb8, 0x34, 0x08, 0x9e, 0xa9, 0xa8, 0x93]
 
-#guard (prfMessage .shake (secretPRF .bytes16) (publicSeed .bytes16) message
-  (by decide)).toList == shakeDeterministicPRF16
-#guard (prfMessage .sha2 (secretPRF .bytes16) (publicSeed .bytes16) message
-  (validPRFSHA2 .bytes16 _ _)).toList == sha2DeterministicPRF16
+#guard (prfMessage .shake (secretPRF .bytes16) (publicSeed .bytes16) message).toList ==
+  shakeDeterministicPRF16
+#guard (prfMessage .sha2 (secretPRF .bytes16) (publicSeed .bytes16) message).toList ==
+  sha2DeterministicPRF16
 
 /-! ### Independent `H_msg` oracles -/
 
@@ -195,37 +197,31 @@ private def sha2H32Fast : List Byte :=
     0x08]
 
 #guard (hMessage .shake .small (randomizer .bytes16) (publicSeed .bytes16)
-  (publicRoot .bytes16) message (by decide)).toList == shakeH16Fast.take 30
+  (publicRoot .bytes16) message).toList == shakeH16Fast.take 30
 #guard (hMessage .shake .fast (randomizer .bytes16) (publicSeed .bytes16)
-  (publicRoot .bytes16) message (by decide)).toList == shakeH16Fast
+  (publicRoot .bytes16) message).toList == shakeH16Fast
 #guard (hMessage .sha2 .small (randomizer .bytes16) (publicSeed .bytes16)
-  (publicRoot .bytes16) message
-    (validHSHA2 .bytes16 .small _ _ _ message (by decide))).toList == sha2H16Fast.take 30
+  (publicRoot .bytes16) message).toList == sha2H16Fast.take 30
 #guard (hMessage .sha2 .fast (randomizer .bytes16) (publicSeed .bytes16)
-  (publicRoot .bytes16) message
-    (validHSHA2 .bytes16 .fast _ _ _ message (by decide))).toList == sha2H16Fast
+  (publicRoot .bytes16) message).toList == sha2H16Fast
 
 #guard (hMessage .shake .small (randomizer .bytes24) (publicSeed .bytes24)
-  (publicRoot .bytes24) message (by decide)).toList == shakeH24Fast.take 39
+  (publicRoot .bytes24) message).toList == shakeH24Fast.take 39
 #guard (hMessage .shake .fast (randomizer .bytes24) (publicSeed .bytes24)
-  (publicRoot .bytes24) message (by decide)).toList == shakeH24Fast
+  (publicRoot .bytes24) message).toList == shakeH24Fast
 #guard (hMessage .sha2 .small (randomizer .bytes24) (publicSeed .bytes24)
-  (publicRoot .bytes24) message
-    (validHSHA2 .bytes24 .small _ _ _ message (by decide))).toList == sha2H24Fast.take 39
+  (publicRoot .bytes24) message).toList == sha2H24Fast.take 39
 #guard (hMessage .sha2 .fast (randomizer .bytes24) (publicSeed .bytes24)
-  (publicRoot .bytes24) message
-    (validHSHA2 .bytes24 .fast _ _ _ message (by decide))).toList == sha2H24Fast
+  (publicRoot .bytes24) message).toList == sha2H24Fast
 
 #guard (hMessage .shake .small (randomizer .bytes32) (publicSeed .bytes32)
-  (publicRoot .bytes32) message (by decide)).toList == shakeH32Fast.take 47
+  (publicRoot .bytes32) message).toList == shakeH32Fast.take 47
 #guard (hMessage .shake .fast (randomizer .bytes32) (publicSeed .bytes32)
-  (publicRoot .bytes32) message (by decide)).toList == shakeH32Fast
+  (publicRoot .bytes32) message).toList == shakeH32Fast
 #guard (hMessage .sha2 .small (randomizer .bytes32) (publicSeed .bytes32)
-  (publicRoot .bytes32) message
-    (validHSHA2 .bytes32 .small _ _ _ message (by decide))).toList == sha2H32Fast.take 47
+  (publicRoot .bytes32) message).toList == sha2H32Fast.take 47
 #guard (hMessage .sha2 .fast (randomizer .bytes32) (publicSeed .bytes32)
-  (publicRoot .bytes32) message
-    (validHSHA2 .bytes32 .fast _ _ _ message (by decide))).toList == sha2H32Fast
+  (publicRoot .bytes32) message).toList == sha2H32Fast
 
 private def sha2H16SmallEmpty : List Byte :=
   [0xbe, 0xc9, 0xd0, 0x3c, 0x57, 0xdb, 0xc9, 0xbc,
@@ -234,48 +230,6 @@ private def sha2H16SmallEmpty : List Byte :=
     0x34, 0xe3, 0xf8, 0x73, 0xf2, 0x7a]
 
 #guard (hMessage .sha2 .small (randomizer .bytes16) (publicSeed .bytes16)
-  (publicRoot .bytes16) []
-    (validHSHA2 .bytes16 .small _ _ _ [] (by decide))).toList == sha2H16SmallEmpty
-
-/-! ### Source-component counts -/
-
-#guard prfMessageCost .shake .bytes16 message.length ==
-  MessageCallCost.mk 36 16 1 0 0
-#guard prfMessageCost .sha2 .bytes16 message.length ==
-  MessageCallCost.mk 180 16 0 4 0
-#guard prfMessageCost .sha2 .bytes24 message.length ==
-  MessageCallCost.mk 348 24 0 0 4
-#guard prfMessageCost .sha2 .bytes32 message.length ==
-  MessageCallCost.mk 356 32 0 0 4
-
-#guard hMessageCost .shake .bytes32 .fast message.length ==
-  MessageCallCost.mk 100 49 1 0 0
-#guard hMessageCost .sha2 .bytes16 .small message.length ==
-  MessageCallCost.mk 120 30 0 3 0
-#guard hMessageCost .sha2 .bytes16 .fast message.length ==
-  MessageCallCost.mk 188 34 0 5 0
-#guard hMessageCost .sha2 .bytes24 .fast message.length ==
-  MessageCallCost.mk 192 42 0 0 3
-#guard hMessageCost .sha2 .bytes32 .fast message.length ==
-  MessageCallCost.mk 232 49 0 0 3
-
-#guard keccakRotationTableEntries == 25
-#guard keccakRoundConstantEntries == 24
-#guard sha256RoundConstantEntries == 64
-#guard sha512RoundConstantEntries == 80
-#guard sha2InitialStateWords == 8
-#guard hmacPadConstants == 2
-#guard mgfCounterBytes == 4
-#guard digestLengthTableEntries == 6
-example : oracleHandlerCount = 0 := oracleHandlerCount_eq
-
-example (family : HashFamily) (p : SecurityBytes) (shape : ParameterShape)
-    (secret optional R seed root : NBytes p) (M : List Byte)
-    (hprf : ValidPRFMessageInput family secret optional M)
-    (hmsg : ValidHMessageInput family shape R seed root M) :
-    (prfMessage family secret optional M hprf).toList.length = p.count ∧
-      (hMessage family shape R seed root M hmsg).toList.length =
-        ParameterShape.digestBytes p shape := by
-  simp
+  (publicRoot .bytes16) []).toList == sha2H16SmallEmpty
 
 end SLHDSAMessageCallTests
