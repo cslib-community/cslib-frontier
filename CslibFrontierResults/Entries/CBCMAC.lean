@@ -67,7 +67,7 @@ register_result "cbc-mac-fixed-block-prf-and-mac" where
     strict oracle-PPT forgers via the certified reduction cbcFixedBlockMacToPrfDistinguisher \
     (isOraclePPT_cbcFixedBlockMacToPrfDistinguisher). Concrete bound: \
     succProbability_sufCmaGame_cbcFixedBlockMAC_le gives \
-    PRFadv + (Q + 1)² ℓ(n)² / 2^n + 1 / 2^n at parameter n under the finite hypotheses 0 < n, \
+    PRFadv + (Q + 1)² ℓ(n)² / (2 * 2^n) + 1 / 2^n at n under the finite hypotheses 0 < n, \
     0 < ℓ(n), and at most Q signing queries."
 
 register_result "length-prepended-cbc-mac-prf-and-mac" where
@@ -101,8 +101,9 @@ register_result "length-prepended-cbc-mac-prf-and-mac" where
     receive [] without tagging or recording, and invalid candidate messages never verify). The \
     reductions lengthPrependedToPrfDistinguisher and lengthPrependedMacToPrfDistinguisher are \
     certified oracle PPT. Concrete bounds: advantage_lengthPrependedCbcMac_le gives \
-    PRFadv + Q² (L(n) + 1)² / 2^n and succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le \
-    gives PRFadv + (Q + 1)² (L(n) + 1)² / 2^n + 1 / 2^n (twice (6.7)'s collision constant), \
+    PRFadv + Q² (L(n) + 1)² / (2 * 2^n) and \
+    succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le gives \
+    PRFadv + (Q + 1)² (L(n) + 1)² / (2 * 2^n) + 1 / 2^n, \
     where both concrete bounds require L(n) < 2^n and at most Q queries at the parameter n being \
     bounded; the asymptotic proofs derive L(n) < 2^n eventually from polynomial boundedness of L. \
     lengthPrependedBlockMAC packages any fixed unary polytime block-count schedule k (including \

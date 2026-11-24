@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.CBCMAC
 public import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Computational multi-query universal hashing from CBC-MAC
@@ -161,14 +161,7 @@ theorem PseudorandomFunction.isMultiQueryUHF_cbcMac
   intro guessBatch hGuess
   obtain ⟨Q, hQ, hBudget⟩ := UHF.exists_computableInPolyTime_batchQueryCap hGuess
   have hBase := hF.secure _ (UHF.isOraclePPT_cbcMacMultiQueryReduction hℓ hQ hGuess)
-  have hQpoly := hQ.polynomiallyBounded
-  have hExtended := hℓ.polynomiallyBounded.add (.const 1)
-  have hCBC := Negligible.polynomiallyBounded_div ((hQpoly.pow 2).mul (hExtended.pow 2))
-    (negligible_inv_two_pow_comp_of_le Nat.le_succ)
-  have hBirthday := hQpoly.negligible_choose_two_div_two_pow
-  apply negligible_of_le ((hBase.add hCBC).add hBirthday)
-  intro n
-  simpa only [Pi.add_apply, Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one, pow_succ'] using
+  negligible using fun n =>
     UHF.succProbability_multiQueryGame_cbcMac_le hF.length_eq ℓ Q guessBatch (hBudget n)
 
 end Cslib.Crypto
