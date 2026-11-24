@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.Code.ExpanderCode
 public import CslibFrontier.Foundations.Data.BitString.Flip
 public import Cslib.Foundations.Relation.RelatesInSteps
 import CslibFrontier.Foundations.Data.BitString.Hamming
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Flip decoding of expander codes
@@ -108,8 +109,7 @@ theorem exists_isFlippable {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c)
   have hE0 : 0 < #E := hammingDist_pos.2 hyw
   have hU : (2 * α - c) * #E ≤ #U := hE.le_card_uniqueNeighbors hG hk
   have hcU : c * #E < 2 * #U := by
-    have hE0' : (0 : ℝ) < #E := by exact_mod_cast hE0
-    have : (c : ℝ) * #E < 2 * #U := by nlinarith
+    have : (c : ℝ) * #E < 2 * #U := by cast_nlinarith [hE0]
     exact_mod_cast this
   have hsum : ∑ i ∈ E, #(U.bipartiteAbove G i) = #U := by
     rw [sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow]
@@ -270,9 +270,8 @@ theorem hammingDist_lt_and_card_unsat_le {c k : ℕ} {α : ℝ} (hG : IsLeftBoun
       rw [card_singleton, Nat.cast_one, mul_one] at h1
       rw [card_singleton, mul_one] at h2
       have hαc : α ≤ c := h1.trans (by exact_mod_cast h2)
-      have hk' : (k : ℝ) ≤ hammingDist x w := by exact_mod_cast hk
       have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg k
-      nlinarith
+      cast_nlinarith [hk]
   | tail _ hstep ih =>
     rename_i y z _
     obtain ⟨ihd, ihu⟩ := ih
@@ -346,10 +345,8 @@ theorem decode_eq {c k : ℕ} {α : ℝ} (hG : IsLeftBounded G c)
 
 private theorem mul_lt_of_two_mul_le {c k : ℕ} {α : ℝ} (hα : 3 * c < 4 * α) (hk : 0 < k)
     {e : ℕ} (he : 2 * e ≤ k) : c * e < (2 * α - c) * k := by
-  have hk' : (0 : ℝ) < k := by exact_mod_cast hk
-  have he' : (2 * e : ℝ) ≤ k := by exact_mod_cast he
   have hc : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  nlinarith
+  cast_nlinarith [he, hk]
 
 /-- **Flip decoding up to half the expansion radius.** If left degrees are at most `c`, sets of at
 most `k > 0` variables expand by `α` with `3 c < 4 α` (`ε < 1 / 4` for `α = c (1 - ε)`), and

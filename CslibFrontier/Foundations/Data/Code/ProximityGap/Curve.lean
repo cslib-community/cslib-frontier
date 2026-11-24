@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
 public import Mathlib.Algebra.Order.Ring.Rat
 import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.GroupWithZero.Units.Fintype
 import Mathlib.Algebra.Order.Field.Rat
@@ -1746,9 +1747,7 @@ private theorem affine_mul_lt_of_density_lt
   have hpowR : (0 : ℝ) < (q : ℝ) ^ ℓ := pow_pos hqR ℓ
   have hmulR : (B : ℝ) * ((q : ℝ) ^ ℓ) < (cardT : ℝ) * (q : ℝ) :=
     (div_lt_div_iff₀ hqR hpowR).1 hlt
-  have hcast : ((B * q ^ ℓ : ℕ) : ℝ) < ((q * cardT : ℕ) : ℝ) := by
-    push_cast
-    linarith
+  have hcast : ((B * q ^ ℓ : ℕ) : ℝ) < ((q * cardT : ℕ) : ℝ) := by cast_linarith
   exact Nat.cast_lt.1 hcast
 
 /-- Private helper: integer weights bounded by `M` sum to at most `M * |ι|` over any subset. -/

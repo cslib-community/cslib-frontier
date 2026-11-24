@@ -15,7 +15,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
 import CslibFrontier.Tactic.EncLen
 
@@ -95,18 +94,16 @@ theorem CNF.computableInPolyTime_restrict' {α : Type} {input : α ↪ List Bool
     (hb : ComputableInPolyTime b input encBool)
     (hψ : ComputableInPolyTime ψ input (encCNFOver enc)) :
     ComputableInPolyTime (fun a => (ψ a).restrict (v a) (b a)) input
-      (encCNFOver enc) := by
-  have h := (CNF.computableInPolyTime_restrict enc).comp ((hv.prod hb).prod hψ)
-  exact h
+      (encCNFOver enc) :=
+  (CNF.computableInPolyTime_restrict enc).comp ((hv.prod hb).prod hψ)
 
 omit [DecidableEq V] in
 /-- Johnson's weight of a computed formula with a computed unary bound is polynomial-time. -/
 theorem CNF.computableInPolyTime_johnsonWeight' {α : Type} {input : α ↪ List Bool}
     {L : α → ℕ} {ψ : α → CNF V} (hL : ComputableInPolyTime L input encUnary)
     (hψ : ComputableInPolyTime ψ input (encCNFOver enc)) :
-    ComputableInPolyTime (fun a => (ψ a).johnsonWeight (L a)) input encNat := by
-  have h := (CNF.computableInPolyTime_johnsonWeight enc).comp (hL.prod hψ)
-  exact h
+    ComputableInPolyTime (fun a => (ψ a).johnsonWeight (L a)) input encNat :=
+  (CNF.computableInPolyTime_johnsonWeight enc).comp (hL.prod hψ)
 
 /-- One round of Johnson's algorithm, reading the input formula, the state and the next variable,
 is polynomial-time. -/
