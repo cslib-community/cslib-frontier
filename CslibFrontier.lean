@@ -7857,9 +7857,11 @@ public import CslibFrontier.Foundations.Computability.ContextFreeGrammar
 public import CslibFrontier.Foundations.Computability.DistinctValues
 public import CslibFrontier.Foundations.Computability.KleenePost
 public import CslibFrontier.Foundations.Computability.KleenePostJump
+public import CslibFrontier.Foundations.Computability.RecursiveInClocked
 public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Computability.RecursiveInSmn
+public import CslibFrontier.Foundations.Computability.RecursiveInUniform
 public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.Clock
 public import CslibFrontier.Foundations.Control.Monad.FilterM
@@ -8974,6 +8976,7 @@ public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.BoundedUniform
 public import CslibFrontier.Languages.Probabilistic.CenteredBinomial
 public import CslibFrontier.Languages.Probabilistic.CenteredBinomial.Concentration
+public import CslibFrontier.Languages.Probabilistic.Clocked
 public import CslibFrontier.Languages.Probabilistic.Concentration
 public import CslibFrontier.Languages.Probabilistic.Expect
 public import CslibFrontier.Languages.Probabilistic.Forking
