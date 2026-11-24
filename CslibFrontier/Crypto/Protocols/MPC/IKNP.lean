@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Primitives.CorrelationRobust
 public import CslibFrontier.Crypto.Protocols.MPC.Advantage
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
+import CslibFrontier.Languages.Probabilistic.Norm
 
 /-!
 # IKNP oblivious-transfer extension
@@ -266,8 +267,7 @@ private theorem evalWith_iknpSteps (H : Fin m → BitString κ → L)
 private theorem eval_pi_iknpSampleCoins (H : Fin m → BitString κ → L) :
     ProbComp.eval (OracleComp.pi (iknpProtocol H).sampleCoins) =
       (ProbComp.eval (sampleIKNPCoins κ m)).map iknpCoins := by
-  simp only [OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, sampleIKNPCoins, PMF.map_bind, PMF.pure_map]
+  simp only [OracleComp.pi_succ, OracleComp.pi_zero, sampleIKNPCoins, pmf_norm]
   refine congrArg _ (funext fun s => ?_)
   exact congrArg (PMF.bind (ProbComp.eval (ProbComp.uniform (Fin m → BitString κ))))
     (funext fun T => congrArg PMF.pure (funext fun i => by fin_cases i <;> rfl))
@@ -365,8 +365,7 @@ theorem idealJoint_iknp_sender (H : Fin m → BitString κ → L)
       (iknpProtocol H).realJoint (batchOTWorld κ (BitString m)) {0} x := by
   rw [realJoint_iknp_sender]
   simp only [idealJoint, batchOTFunctionality, Functionality.ofDeterministic, iknpSenderSim,
-    sampleIKNPCoins, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind,
-    PMF.bind_bind, PMF.map_bind, PMF.pure_map]
+    sampleIKNPCoins, ProbComp.eval_uniform, pmf_norm]
   refine congrArg _ (funext fun s => ?_)
   rw [← PMF.uniformOfFintype_map_equiv (iknpColumnsEquiv (x 1) s), PMF.bind_map]
   rfl
@@ -471,8 +470,7 @@ theorem realJoint_iknp_receiver_bind (H : Fin m → BitString κ → L)
         (fun res => ProbComp.eval (D res)) =
       CorrelationRobust.realGame H (iknpReduction H x D) := by
   rw [realJoint_iknp_receiver, PMF.bind_map]
-  simp only [CorrelationRobust.realGame, sampleIKNPCoins, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [CorrelationRobust.realGame, sampleIKNPCoins, pmf_norm]
   rfl
 
 /-- The ideal joint distribution for a corrupted receiver with `iknpReceiverSim`, tested by `D`,
@@ -486,8 +484,7 @@ theorem idealJoint_iknp_receiver_bind [Fintype L] (H : Fin m → BitString κ �
     ProbComp.eval (idealJoint (batchOTFunctionality m L) {1} (iknpReceiverSim H) x >>= D) =
       CorrelationRobust.idealGame (iknpReduction H x D) := by
   simp only [CorrelationRobust.idealGame, idealJoint, batchOTFunctionality,
-    Functionality.ofDeterministic, iknpReceiverSim, iknpReduction, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind, PMF.bind_bind]
+    Functionality.ofDeterministic, iknpReceiverSim, iknpReduction, ProbComp.eval_uniform, pmf_norm]
   refine congrArg _ (funext fun T => ?_)
   conv_lhs => rw [← PMF.uniformOfFintype_map_add_left (fun j => x 0 j (!x 1 j) : Fin m → L)]
   rw [PMF.bind_map]

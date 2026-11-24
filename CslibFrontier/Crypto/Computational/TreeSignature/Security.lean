@@ -16,6 +16,7 @@ public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Languages.Probabilistic.Repeat
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -176,20 +177,6 @@ private theorem getLastD_fp {α : Type} {encA : α ↪ List Bool} {l : α → Li
     funext a
     rw [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?, List.getD_eq_getElem?_getD]
   rw [heq]; fun_prop
-
-@[local fun_prop]
-private theorem contains_fp {α β : Type} [BEq β] [LawfulBEq β] {encA : α ↪ List Bool}
-    {encB : β ↪ List Bool} {l : α → List β} {x : α → β}
-    (hl : ComputableInPolyTime l encA (encList encB))
-    (hx : ComputableInPolyTime x encA encB) :
-    ComputableInPolyTime (fun a => (l a).contains (x a)) encA encBool := by
-  have heq : (fun a => (l a).contains (x a)) = fun a => (l a).any (fun b => b == x a) := by
-    funext a
-    rw [Bool.eq_iff_iff, List.contains_iff_mem, List.any_eq_true]
-    simp only [beq_iff_eq, exists_eq_right]
-  rw [heq]
-  exact ComputableInPolyTime.anyWithInput hl
-    ((ComputableInPolyTime.snd encA encB).beq (hx.comp (ComputableInPolyTime.fst encA encB)))
 
 @[local fun_prop]
 private theorem encodeSignature_funProp {α : Type} {encA : α ↪ List Bool}
